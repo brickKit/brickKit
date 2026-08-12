@@ -26,7 +26,37 @@ go.work.sum
 
 # env file
 .env
+.env.*
+!.env.example
 
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# ============================================================
+# BrickKit
+# ============================================================
+
+# 构建产物
+/bin/
+
+# 本地工具链（protoc 及插件，由 make tools 安装）+ proto 工具链自检生成物
+# 目录以 . 开头，Go 工具链天然忽略，不会进入 ./... 的构建范围
+/.tools/
+
+# ---- BrickKit 项目运行时目录（003 §7）----
+# CLI 生成的部署文件：每次 brickkit up 重新生成，不入库
+.brickkit/generated/
+# 登录凭据：Token 绝不入库（008 §6）
+.brickkit/credentials
+# Manifest / artifacts 本地缓存：可由 brickkit add 重新拉取
+.brickkit/manifests/
+.brickkit/artifacts/
+
+# ---- 组件源码工作区（002 §1.6：一个组件一个仓库）----
+# brickkit add --repo clone 下来的组件源码各自有独立 Git 仓库，
+# 不提交到项目仓库（功能点 39）
+components/
+
+# 本地调试环境变量文件（005 §4）
+local-debug.*.env

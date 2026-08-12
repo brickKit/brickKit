@@ -1,0 +1,33 @@
+// ping.proto 是工具链自检用的示例契约（开发计划 Step 1 验证项 1.5）。
+//
+// 它同时验证三件事：
+//   1. protoc 可用；
+//   2. proto/include/ 下的 google/api/annotations.proto 可被正确 import；
+//   3. protoc-gen-go / protoc-gen-go-grpc 插件可用。
+//
+// 真实组件的 proto 契约放在各组件自己的仓库中（002 §1.6 一个组件一个仓库）。
+syntax = "proto3";
+
+package brickkit.example.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/brickkit/brickkit/proto/example/gen/examplev1;examplev1";
+
+// Ping 是一个最小的双协议示例服务（HTTP + gRPC 单端口）。
+service Ping {
+  rpc Ping(PingRequest) returns (PingResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/ping"
+    };
+  }
+}
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingResponse {
+  string message = 1;
+  string version = 2;
+}
