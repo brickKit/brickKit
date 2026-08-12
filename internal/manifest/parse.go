@@ -56,8 +56,10 @@ func Parse(data []byte, source string) (*Manifest, error) {
 	}
 
 	doc := root.Content[0]
-	if shape := checkShapes(doc); len(shape) > 0 {
-		return nil, shape.err(source)
+	shape := newProblems(source)
+	checkShapes(doc, shape)
+	if shape.Len() > 0 {
+		return nil, shape.Err()
 	}
 
 	var m Manifest
@@ -81,16 +83,16 @@ func syntaxError(source string, cause error) error {
 }
 
 func decodeError(source string, cause error) error {
-	var p problems
+	p := newProblems(source)
 	var typeErr *yaml.TypeError
 	if ok := asTypeError(cause, &typeErr); ok {
 		for _, msg := range typeErr.Errors {
-			p.add("类型不匹配", msg)
+			p.Add("类型不匹配", msg)
 		}
 	} else {
-		p.add("解析失败", cleanYAMLError(cause))
+		p.Add("解析失败", cleanYAMLError(cause))
 	}
-	return p.err(source)
+	return p.Err()
 }
 
 func asTypeError(err error, target **yaml.TypeError) bool {
@@ -126,11 +128,10 @@ var sequenceFields = [][]string{
 // checkShapes 在结构体解码前检查节点形状，
 // 这样才能给出"migration.command 必须是数组格式"这类精确提示，
 // 而不是把 yaml 库的 "cannot unmarshal !!str into []string" 抛给用户。
-func checkShapes(doc *yaml.Node) problems {
-	var p problems
+func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 	if doc.Kind != yaml.MappingNode {
-		p.add(FileName, "顶层必须是一个 YAML 映射（key: value 结构）")
-		return p
+		p.Add(FileName, "顶层必须是一个 YAML 映射（key: value 结构）")
+		return
 	}
 
 	for _, path := range sequenceFields {
@@ -139,7 +140,7 @@ func checkShapes(doc *yaml.Node) problems {
 			continue
 		}
 		if node.Kind != yaml.SequenceNode {
-			p.addf(strings.Join(path, "."), "必须是数组格式（当前是 %s）", nodeKindName(node))
+			p.Addf(strings.Join(path, "."), "必须是数组格式（当前是 %s）", nodeKindName(node))
 		}
 	}
 
@@ -147,16 +148,15 @@ func checkShapes(doc *yaml.Node) problems {
 	if artifacts := lookup(doc, "artifacts"); artifacts != nil && artifacts.Kind == yaml.SequenceNode {
 		for i, item := range artifacts.Content {
 			if item.Kind != yaml.MappingNode {
-				p.addf(fmt.Sprintf("artifacts[%d]", i), "必须是映射（包含 type 与 files）")
+				p.Addf(fmt.Sprintf("artifacts[%d]", i), "必须是映射（包含 type 与 files）")
 				continue
 			}
 			files := lookup(item, "files")
 			if files != nil && !isNull(files) && files.Kind != yaml.SequenceNode {
-				p.addf(fmt.Sprintf("artifacts[%d].files", i), "必须是数组格式（当前是 %s）", nodeKindName(files))
+				p.Addf(fmt.Sprintf("artifacts[%d].files", i), "必须是数组格式（当前是 %s）", nodeKindName(files))
 			}
 		}
 	}
-	return p
 }
 
 // lookup 按路径逐层查找映射中的值节点，未找到返回 nil。

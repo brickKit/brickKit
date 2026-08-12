@@ -428,3 +428,13 @@ func TestNodeKindName(t *testing.T) {
 	}
 	assert.Equal(t, "未知类型", nodeKindName(&yaml.Node{}))
 }
+
+// 导出给 config 包复用的两个规则函数（Step 5 的 brickkit.yaml 校验依赖它们）。
+func TestExportedRuleHelpers(t *testing.T) {
+	assert.Empty(t, ComponentIDProblem("people/basic"))
+	assert.Contains(t, ComponentIDProblem("People/Basic"), "小写")
+
+	assert.True(t, IsExactVersion("1.2.3"))
+	assert.False(t, IsExactVersion("^1.2.3"))
+	assert.False(t, IsExactVersion("1.2"))
+}

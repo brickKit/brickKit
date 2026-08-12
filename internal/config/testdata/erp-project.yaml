@@ -1,0 +1,90 @@
+# 取自 003 §2「完整结构」，逐字对齐设计书（开发计划 5.1 要求用完整的 ERP 项目配置测试）。
+# brickkit.yaml - BrickKit 项目配置
+# 由 brickkit init 生成，由用户编辑，由 CLI 读取
+
+# ===== 项目基本信息 =====
+project: my-erp-project
+
+# ===== 部署目标 =====
+deploy:
+  target: docker          # docker | k8s
+
+# ===== 安装源 =====
+sources:
+  - id: brickkit-market
+    type: market
+    url: https://market.brickkit.io/api/v1
+    authToken: ${MARKET_TOKEN}    # 可选。如果已执行 brickkit login，CLI 优先使用登录态
+    enabled: true
+
+  - id: local-dev
+    type: local
+    path: ./components
+    enabled: true
+
+# ===== 组件列表 =====
+components:
+  - id: department/tree
+    version: 1.0.0
+    # 没写 enabled → 默认开启，但可被级联关闭
+
+  - id: people/basic
+    version: 1.0.0
+    # 没写 enabled → 默认开启，但可被级联关闭
+    local: true
+    localPort: 8081
+    resources:                  # 可选，覆盖组件 Manifest 中的推荐资源配额
+      limits:
+        memory: "1Gi"           # 生产环境调大内存
+
+  - id: authorization/rbac
+    version: 1.0.0
+    enabled: true               # ← 显式钉住！无论如何都必须运行
+
+  - id: erp/backend
+    version: 1.0.0
+    # 没写 enabled → 默认开启，但可被级联关闭
+    config:
+      sessionTtlSeconds: 7200
+
+  - id: infra/redis-event-bus
+    version: 1.0.0
+    enabled: false              # ← 显式关闭
+
+  - id: portal/user-frontend
+    version: 1.0.0
+    # 没写 enabled → 默认开启，但可被级联关闭
+    expose: true
+    hostname: portal.example.com    # K8s 必须，Docker 可省略
+    exposePort: 8080                # Docker 环境：自定义宿主机映射端口（可选）
+
+# ===== 资源声明与绑定 =====
+resources:
+  - kind: database
+    engine: postgresql
+    id: postgres-main
+    host: localhost
+    port: 5432
+    username: dev
+    password: ${POSTGRES_PASSWORD}
+    bindings:
+      - componentId: department/tree
+        database: department
+      - componentId: people/basic
+        database: people
+      - componentId: authorization/rbac
+        database: authorization
+
+  - kind: cache
+    engine: redis
+    id: redis-main
+    host: localhost
+    port: 6379
+    password: ${REDIS_PASSWORD}
+    bindings:
+      - componentId: authorization/rbac
+      - componentId: infra/redis-event-bus
+
+# ===== 安装器配置 =====
+installer:
+  requireSignature: false    # 本地开发关闭签名校验
