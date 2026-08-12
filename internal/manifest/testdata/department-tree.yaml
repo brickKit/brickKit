@@ -1,0 +1,72 @@
+# 取自 002 §12.5「gRPC 双协议组件（含 artifacts）」，逐字对齐设计书。
+# Step 21 开发 department/tree 组件时复用此文件。
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: department/tree
+  name: 部门树组件
+  version: 1.0.0
+  description: 提供部门树的增删改查能力，支持 HTTP 和 gRPC 双协议
+  vendor: brickkit-official
+  license: MIT
+
+tags:
+  - department
+  - master-data
+  - backend
+  - grpc
+
+# gRPC 组件必须提供 proto 文件作为 API 契约
+artifacts:
+  - type: api-contract
+    format: protobuf
+    description: "gRPC API 契约文件"
+    files:
+      - proto/department/v1/department.proto
+  - type: api-docs
+    format: openapi
+    description: "HTTP REST API 文档（grpc-gateway 自动生成）"
+    files:
+      - openapi.json
+
+dependencies:
+  components: []
+  resources:
+    - kind: database
+      engine: postgresql
+
+configSchema:
+  type: object
+  properties:
+    defaultPageSize:
+      type: integer
+      default: 20
+      description: 默认分页大小
+    maxTreeDepth:
+      type: integer
+      default: 10
+      description: 最大树深度
+
+deployment:
+  type: container
+  image: registry.brickkit.io/department-tree:1.0.0
+  port: 8080                   # grpc-gateway 单端口，HTTP + gRPC 共用
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+migration:
+  command: ["./migrate", "-path", "/migrations", "-database", "$DATABASE_URL", "up"]
+
+healthCheck:
+  type: http
+  path: /healthz
+
+observability:
+  metrics: false
+  tracing: false

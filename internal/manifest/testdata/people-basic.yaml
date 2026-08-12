@@ -1,0 +1,82 @@
+# 取自 002 §2.2「完整结构」，覆盖 extraPorts、弱依赖、migration、configSchema。
+# Step 22 开发 people/basic 组件时复用此文件。
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: people/basic
+  name: 基础人员组件
+  version: 1.2.0
+  description: 提供基础人员管理能力
+  vendor: brickkit-official
+  license: MIT
+  apiDocs: https://docs.brickkit.io/people-basic/api
+
+tags:
+  - people
+  - master-data
+  - backend
+
+artifacts:
+  - type: api-contract
+    format: protobuf
+    description: "gRPC API 契约文件"
+    files:
+      - proto/people/v1/people.proto
+  - type: api-docs
+    format: openapi
+    description: "HTTP REST API 文档（FastAPI 自动生成）"
+    files:
+      - openapi.json
+
+dependencies:
+  components:
+    # 强依赖（默认）
+    - department/tree@1.0.0
+    # 弱依赖
+    - id: infra/redis-event-bus@1.0.0
+      optional: true
+  resources:
+    - kind: database
+      engine: postgresql
+
+configSchema:
+  type: object
+  properties:
+    defaultPageSize:
+      type: integer
+      default: 20
+    enableAudit:
+      type: boolean
+      default: true
+  required:
+    - defaultPageSize
+
+deployment:
+  type: container
+  image: registry.brickkit.io/people-basic:1.2.0
+  port: 8080
+  extraPorts:
+    - name: grpc
+      port: 9090
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+migration:
+  command: ["python", "manage.py", "migrate"]
+
+healthCheck:
+  type: http
+  path: /healthz
+
+observability:
+  metrics: false
+  tracing: false
+
+compatibility:
+  minCliVersion: 1.0.0
