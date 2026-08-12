@@ -4,26 +4,15 @@
 // 解析依赖与推测顺序、生成部署文件并执行迁移、调用底层引擎与发布、
 // 管理组件源码工作区。
 //
-// 本文件在 Step 1 中仅作为骨架存在，Step 2 会替换为 cobra root 命令。
+// 命令树与全局选项见 internal/cli。
 package main
 
 import (
-	"fmt"
 	"os"
 
-	"github.com/brickkit/brickkit/internal/version"
+	"github.com/brickkit/brickkit/internal/cli"
 )
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "❌", err)
-		os.Exit(1)
-	}
-}
-
-func run(_ []string) error {
-	fmt.Printf("brickkit %s (skeleton, Step 1)\n", version.Version)
-	fmt.Printf("支持的 Manifest 版本：%s\n", version.ManifestAPIVersion)
-	fmt.Printf("支持的部署目标：%s\n", version.SupportedTargets())
-	return nil
+	os.Exit(cli.Execute())
 }

@@ -27,7 +27,7 @@ GOLANGCI  := $(TOOLS_BIN)/golangci-lint
 
 PROTOC_VERSION := 35.1
 
-VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "0.0.0-dev")
+VERSION    ?= $(shell git describe --tags --dirty 2>/dev/null || echo "0.1.0-dev")
 COMMIT     ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -78,7 +78,7 @@ install: ## 安装 CLI 到 GOBIN
 
 .PHONY: clean
 clean: ## 清理构建产物与生成文件
-	rm -rf $(BIN) $(PROTO_CHECK_OUT) coverage.out
+	rm -rf $(BIN) $(PROTO_CHECK_OUT) coverage.out coverage.html
 	@echo "✅ 已清理"
 
 # ---------- 代码质量 ----------
@@ -167,10 +167,29 @@ test-market: ## 市场后端测试
 .PHONY: test-all
 test-all: test-unit test-integration test-market test-e2e test-boundary test-error test-security test-perf test-regression ## 执行全部测试（不含 compat）
 
+# 覆盖率政策：
+#   internal/ 保持 COVER_MIN 以上；不追求 100%。
+#   进程入口（main）、以及对外部引擎的调用（docker / kubectl / MinIO 等）
+#   不强求覆盖——为这些代码硬凑覆盖率只会写出没有意义的测试。
+COVER_MIN ?= 95
+
 .PHONY: cover
-cover: ## 单元测试覆盖率
-	$(GO) test -coverprofile=coverage.out ./internal/... ./tests/unit/... 2>/dev/null || true
-	@[ -f coverage.out ] && $(GO) tool cover -func=coverage.out | tail -1 || echo "无覆盖率数据"
+cover: ## 单元测试覆盖率（按函数展开 + 总计）
+	$(GO) test -coverprofile=coverage.out ./internal/... 2>/dev/null || true
+	@if [ -f coverage.out ]; then $(GO) tool cover -func=coverage.out; else echo "无覆盖率数据"; fi
+
+.PHONY: cover-html
+cover-html: ## 生成 coverage.html 便于本地查看
+	$(GO) test -coverprofile=coverage.out ./internal/... >/dev/null
+	$(GO) tool cover -html=coverage.out -o coverage.html
+	@echo "✅ coverage.html"
+
+.PHONY: cover-check
+cover-check: ## 覆盖率门槛检查（低于 COVER_MIN 则失败）
+	@$(GO) test -coverprofile=coverage.out ./internal/... >/dev/null
+	@total=$$($(GO) tool cover -func=coverage.out | awk '/^total:/{gsub("%","",$$3); print $$3}'); \
+	echo "internal 覆盖率：$$total%（门槛 $(COVER_MIN)%）"; \
+	awk -v t="$$total" -v m="$(COVER_MIN)" 'BEGIN{ if (t+0 < m+0) { print "❌ 覆盖率低于门槛"; exit 1 } print "✅ 覆盖率达标" }'
 
 # ---------- Proto ----------
 .PHONY: proto-gen
