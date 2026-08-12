@@ -26,11 +26,14 @@ type result struct {
 	code   int
 }
 
-// run 在隔离的缓冲区上执行一次 CLI。
+// run 在隔离的缓冲区与临时目录上执行一次 CLI。
+//
+// WorkDir 必须指向临时目录：否则会写到测试进程的当前目录（源码目录）里去。
 func run(t *testing.T, args ...string) result {
 	t.Helper()
 	var out, errBuf bytes.Buffer
 	opts := &Options{
+		WorkDir:    t.TempDir(),
 		ConfigPath: DefaultConfigFile,
 		LogLevel:   logging.LevelInfo,
 		Stdout:     &out,
@@ -117,7 +120,7 @@ func TestErrorOutputFormat(t *testing.T) {
 			name:     "init 缺少项目名称",
 			args:     []string{"init"},
 			wantCode: clierr.ExitUsage,
-			contains: []string{"❌ 请指定项目名称", "用法：brickkit init <项目名称>"},
+			contains: []string{"❌ 请指定项目名称：brickkit init <项目名称>"},
 		},
 		{
 			name:     "add 缺少组件",
@@ -151,8 +154,8 @@ func TestErrorOutputFormat(t *testing.T) {
 
 // 骨架阶段：未实现的命令给出明确的 NOT_IMPLEMENTED 错误与 Step 编号。
 func TestNotImplementedCommands(t *testing.T) {
+	// init 已在 Step 3 实现，见 init_test.go
 	cases := map[string][]string{
-		"init":    {"init", "demo"},
 		"add":     {"add", "people/basic@1.0.0"},
 		"remove":  {"remove", "people/basic"},
 		"up":      {"up"},

@@ -34,6 +34,9 @@ const (
 
 // Options 是所有命令共享的全局选项与 IO 句柄。
 type Options struct {
+	// WorkDir 是项目根目录。默认是进程当前目录；显式传入可让命令
+	// 不依赖进程级 cwd（测试与将来的嵌套调用都需要这个注入点）。
+	WorkDir string
 	// ConfigPath 是 --config 指定的项目配置文件路径（004 §3.5）。
 	ConfigPath string
 	// LogLevel 是 --log-level 指定的日志级别。
@@ -46,6 +49,7 @@ type Options struct {
 // NewOptions 返回默认全局选项（输出到真实 stdout/stderr）。
 func NewOptions() *Options {
 	return &Options{
+		WorkDir:    ".",
 		ConfigPath: DefaultConfigFile,
 		LogLevel:   envOr(logging.EnvLogLevel, logging.LevelInfo),
 		Stdout:     os.Stdout,
