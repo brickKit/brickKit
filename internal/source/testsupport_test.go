@@ -219,6 +219,9 @@ type marketMock struct {
 	failDownload bool
 	// failManifest 为 true 时，Manifest 端点返回 500。
 	failManifest bool
+	// blocked 为 true 时，Manifest 端点返回 403 + COMPONENT_BLOCKED
+	// （市场把该版本下架了，007 §6）。
+	blocked bool
 	// failArtifactList 为 true 时，产物列表端点返回 503。
 	failArtifactList bool
 	// garbageArtifactList 为 true 时，产物列表端点返回无法解析的正文。
@@ -280,6 +283,17 @@ func (m *marketMock) handle(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]any{
 			"success": false,
 			"error":   map[string]any{"code": "NOT_FOUND", "message": "组件版本不存在"},
+		})
+		return
+	}
+
+	if m.blocked {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"success": false,
+			"error": map[string]any{
+				"code":    "COMPONENT_BLOCKED",
+				"message": "该组件版本已被市场下架：" + idPart + "@" + version,
+			},
 		})
 		return
 	}

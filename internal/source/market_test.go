@@ -281,3 +281,52 @@ func TestNetworkReason(t *testing.T) {
 	}))
 	assert.Equal(t, "boom", networkReason(errors.New("boom")))
 }
+
+// ============================================================
+// 市场错误信封（P18 回填）
+// ============================================================
+
+// 市场把版本下架时返回 403 + COMPONENT_BLOCKED。
+//
+// 这条用例来自 18-D 的真实端到端验证：当时 CLI 只看状态码，把 403 一律说成
+// "市场认证失败，请执行 brickkit login"——而登录并不能让被下架的组件变回可安装，
+// 使用者会一直在错误的方向上折腾。
+func TestMarketBlockedVersionIsNotReportedAsAuthFailure(t *testing.T) {
+	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
+	mock.blocked = true
+
+	layout := newProject(t)
+	c := newClient(t, layout, cfgWithSources(config.Source{
+		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	}), Options{})
+
+	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+
+	require.Error(t, err)
+	e := clierr.As(err)
+	require.NotNil(t, e)
+	assert.Equal(t, clierr.CodeComponentBlocked, e.Code)
+
+	rendered := e.Format()
+	assert.Contains(t, rendered, "已被市场下架", "要把市场给的原因说出来：%s", rendered)
+	assert.NotContains(t, rendered, "brickkit login", "下架与登录无关，别把人引到错误的方向")
+}
+
+// 真正的认证失败仍然要提示登录。
+func TestMarketUnauthorizedStillAsksToLogin(t *testing.T) {
+	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
+	mock.token = "the-right-token"
+
+	layout := newProject(t)
+	c := newClient(t, layout, cfgWithSources(config.Source{
+		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	}), Options{})
+
+	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+
+	require.Error(t, err)
+	e := clierr.As(err)
+	require.NotNil(t, e)
+	assert.Equal(t, clierr.CodeAuthRequired, e.Code)
+	assert.Contains(t, e.Format(), "brickkit login")
+}

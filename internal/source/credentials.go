@@ -3,6 +3,7 @@ package source
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -52,6 +53,44 @@ func LoadCredentials(path string) (*Credentials, error) {
 	return &c, nil
 }
 
+// SaveCredentials 写入登录凭据（brickkit login 用）。
+//
+// 文件权限是 0600：里面是明文 Token，等同于账号本身。
+// 先写临时文件再改名——写到一半失败不会把已有的有效凭据毁掉。
+func SaveCredentials(path string, c *Credentials) error {
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return clierr.New(clierr.CodeInternal, "错误：无法序列化登录凭据").WithCause(err)
+	}
+	data = append(data, '\n')
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return credentialWriteError(path, err)
+	}
+
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return credentialWriteError(path, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return credentialWriteError(path, err)
+	}
+	// 已存在的文件被 rename 覆盖时会沿用旧权限，这里再确认一次
+	if err := os.Chmod(path, 0o600); err != nil {
+		return credentialWriteError(path, err)
+	}
+	return nil
+}
+
+func credentialWriteError(path string, err error) error {
+	return clierr.New(clierr.CodeAuthFailed, "错误：写入登录凭据失败").
+		WithDetail("路径", path).
+		WithDetail("原因", err.Error()).
+		WithHint("检查目录权限后重新执行 brickkit login").
+		WithCause(err)
+}
+
 // Expired 判断凭据是否已过期。expiresAt 缺失（零值）时视为不过期。
 func (c *Credentials) Expired(now time.Time) bool {
 	return !c.ExpiresAt.IsZero() && now.After(c.ExpiresAt)
@@ -69,3 +108,7 @@ func (c *Credentials) MatchesMarket(url string) bool {
 }
 
 func normalizeURL(u string) string { return strings.TrimRight(strings.TrimSpace(u), "/") }
+
+// CredentialTypePassword 是当前唯一的凭据类型（004 §3.12）。
+// 未来扩展 OAuth / API Key 时按 type 分流。
+const CredentialTypePassword = "password"

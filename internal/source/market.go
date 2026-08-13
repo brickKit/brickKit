@@ -15,6 +15,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/market"
 )
 
 // marketTimeout 是单次市场 API 请求的超时时间。
@@ -185,21 +186,14 @@ func (s *marketSource) get(ctx context.Context, path string, query url.Values) (
 	switch {
 	case resp.StatusCode == http.StatusNotFound:
 		return nil, errNotFound
-	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
-		return nil, clierr.New(clierr.CodeAuthRequired, "错误：市场认证失败").
-			WithDetail("安装源", s.sourceID).
-			WithDetail("地址", endpoint).
-			WithDetailf("状态码", "%d", resp.StatusCode).
-			WithHint(
-				"执行 brickkit login 登录市场",
-				"或在 brickkit.yaml 中配置 sources.authToken",
-			)
 	case resp.StatusCode != http.StatusOK:
-		return nil, clierr.New(clierr.CodeNetworkUnreachable, "错误：市场返回异常状态").
+		// 状态码只说明"哪一类问题"，真正的原因在响应信封的 error.code 里。
+		// 只看状态码会把"版本已被下架"（403）说成"认证失败，请登录"，
+		// 把使用者引到完全错误的方向上去。
+		apiErr := market.DecodeError(resp.StatusCode, body)
+		return nil, market.AsCLIError("访问市场", apiErr).
 			WithDetail("安装源", s.sourceID).
-			WithDetail("地址", endpoint).
-			WithDetailf("原因", "市场返回状态码 %d", resp.StatusCode).
-			WithHint("稍后重试，或联系市场管理员")
+			WithDetail("地址", endpoint)
 	case readErr != nil:
 		return nil, clierr.New(clierr.CodeNetworkUnreachable, "错误：读取市场响应失败").
 			WithDetail("安装源", s.sourceID).
