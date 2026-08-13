@@ -79,6 +79,18 @@ func (m *Memory) GetComponent(_ context.Context, componentID string) (*model.Com
 }
 
 func (m *Memory) ListComponents(_ context.Context, q ComponentQuery) ([]model.Component, error) {
+	out := m.filterComponents(q)
+	sortComponents(out)
+	return paginate(out, q.Page, q.PageSize), nil
+}
+
+// CountComponents 统计符合条件的组件数，忽略分页（007 §4.2 的 total）。
+func (m *Memory) CountComponents(_ context.Context, q ComponentQuery) (int, error) {
+	return len(m.filterComponents(q)), nil
+}
+
+// filterComponents 应用除分页外的全部过滤条件。
+func (m *Memory) filterComponents(q ComponentQuery) []model.Component {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -98,9 +110,7 @@ func (m *Memory) ListComponents(_ context.Context, q ComponentQuery) ([]model.Co
 		}
 		out = append(out, *copyComponent(c))
 	}
-
-	sortComponents(out)
-	return paginate(out, q.Page, q.PageSize), nil
+	return out
 }
 
 func (m *Memory) SetVisibility(_ context.Context, componentID, visibility string) error {
@@ -324,6 +334,19 @@ func (m *Memory) GetUserByID(_ context.Context, userID string) (*model.User, err
 	}
 	copied := u
 	return &copied, nil
+}
+
+func (m *Memory) SetUserAdmin(_ context.Context, userID string, isAdmin bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	u, ok := m.users[userID]
+	if !ok {
+		return ErrNotFound
+	}
+	u.IsAdmin = isAdmin
+	m.users[userID] = u
+	return nil
 }
 
 func (m *Memory) CreateToken(_ context.Context, t *model.Token) error {

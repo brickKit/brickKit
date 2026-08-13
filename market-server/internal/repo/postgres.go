@@ -143,18 +143,13 @@ func (p *Postgres) tagsOf(ctx context.Context, componentID string) ([]string, er
 	return tags, rows.Err()
 }
 
-func (p *Postgres) ListComponents(ctx context.Context, q ComponentQuery) ([]model.Component, error) {
-	var (
-		where []string
-		args  []any
-	)
-	add := func(clause string, values ...any) {
-		where = append(where, clause)
-		args = append(args, values...)
-	}
-
+// componentFilter 把搜索条件编译成 WHERE 子句与参数。
+//
+// ListComponents 与 CountComponents 共用它：两者的过滤条件一旦分叉，
+// total 就会和实际能翻到的条目对不上。
+func componentFilter(q ComponentQuery) (where []string, args []any) {
 	if !q.IncludeBlocked {
-		add(`status <> '` + model.ComponentBlocked + `'`)
+		where = append(where, `status <> '`+model.ComponentBlocked+`'`)
 	}
 	if len(q.Visibilities) > 0 {
 		args = append(args, pq.Array(q.Visibilities), pq.Array(q.AlsoInclude))
@@ -173,6 +168,27 @@ func (p *Postgres) ListComponents(ctx context.Context, q ComponentQuery) ([]mode
 			`EXISTS (SELECT 1 FROM component_tags t WHERE t.component_id = components.component_id AND t.tag = $`+
 				strconv.Itoa(len(args))+`)`)
 	}
+	return where, args
+}
+
+// CountComponents 统计符合条件的组件数，忽略分页（007 §4.2 的 total）。
+func (p *Postgres) CountComponents(ctx context.Context, q ComponentQuery) (int, error) {
+	where, args := componentFilter(q)
+
+	query := `SELECT COUNT(*) FROM components`
+	if len(where) > 0 {
+		query += ` WHERE ` + strings.Join(where, " AND ")
+	}
+
+	var total int
+	if err := p.db.QueryRowContext(ctx, query, args...).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func (p *Postgres) ListComponents(ctx context.Context, q ComponentQuery) ([]model.Component, error) {
+	where, args := componentFilter(q)
 
 	query := `SELECT ` + componentColumns + ` FROM components`
 	if len(where) > 0 {
@@ -457,6 +473,10 @@ func (p *Postgres) GetUserByUsername(ctx context.Context, username string) (*mod
 func (p *Postgres) GetUserByID(ctx context.Context, userID string) (*model.User, error) {
 	return scanUser(p.db.QueryRowContext(ctx,
 		`SELECT `+userColumns+` FROM users WHERE user_id = $1`, userID))
+}
+
+func (p *Postgres) SetUserAdmin(ctx context.Context, userID string, isAdmin bool) error {
+	return p.exec1(ctx, `UPDATE users SET is_admin = $2 WHERE user_id = $1`, userID, isAdmin)
 }
 
 func (p *Postgres) CreateToken(ctx context.Context, t *model.Token) error {

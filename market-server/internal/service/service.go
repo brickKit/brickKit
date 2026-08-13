@@ -397,12 +397,20 @@ func (s *Service) GetComponent(
 	return detail, nil
 }
 
+// SearchResult 是一页搜索结果（007 §4.2）。
+type SearchResult struct {
+	// Items 是当前页的组件，永远非 nil。
+	Items []model.Component `json:"items"`
+	// Total 是符合条件的总数（忽略分页），前端据此算页数。
+	Total int `json:"total"`
+}
+
 // SearchComponents 搜索组件（007 §4.2）。
 //
 // 可见性作为查询条件下推到仓储层：先分页再过滤会导致翻页缺条目。
 func (s *Service) SearchComponents(
 	ctx context.Context, id *Identity, q repo.ComponentQuery,
-) ([]model.Component, error) {
+) (*SearchResult, error) {
 	allowed, err := s.visibleComponentIDs(ctx, id)
 	if err != nil {
 		return nil, err
@@ -415,7 +423,15 @@ func (s *Service) SearchComponents(
 	if err != nil {
 		return nil, internalError(err)
 	}
-	return components, nil
+	total, err := s.repo.CountComponents(ctx, q)
+	if err != nil {
+		return nil, internalError(err)
+	}
+
+	if components == nil {
+		components = []model.Component{}
+	}
+	return &SearchResult{Items: components, Total: total}, nil
 }
 
 // ============================================================

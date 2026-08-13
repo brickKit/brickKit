@@ -184,6 +184,19 @@ func testComponentSearch(t *testing.T, r repo.Repository) {
 	page2, err := r.ListComponents(ctx, repo.ComponentQuery{Page: 2, PageSize: 2})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"people/basic"}, idsOf(page2))
+
+	// 计数忽略分页，但沿用其余过滤条件（007 §4.2 的 total）
+	total, err := r.CountComponents(ctx, repo.ComponentQuery{Page: 1, PageSize: 2})
+	require.NoError(t, err)
+	assert.Equal(t, 3, total)
+
+	total, err = r.CountComponents(ctx, repo.ComponentQuery{Tags: []string{"master-data"}})
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+
+	total, err = r.CountComponents(ctx, repo.ComponentQuery{Keyword: "nothing-matches-this"})
+	require.NoError(t, err)
+	assert.Equal(t, 0, total)
 }
 
 func testVisibilityAndStatus(t *testing.T, r repo.Repository) {
@@ -417,6 +430,16 @@ func testUsersAndTokens(t *testing.T, r repo.Repository) {
 
 	_, err = r.GetUserByUsername(ctx, "nobody")
 	assert.ErrorIs(t, err, repo.ErrNotFound)
+
+	// 管理员标记（运维指南 §6.5 启动引导会把配置里的账号提成管理员）
+	assert.False(t, got.IsAdmin, "普通注册的用户默认不是管理员")
+	require.NoError(t, r.SetUserAdmin(ctx, "user-1", true))
+	got, err = r.GetUserByID(ctx, "user-1")
+	require.NoError(t, err)
+	assert.True(t, got.IsAdmin)
+	assert.Equal(t, "hash", got.PasswordHash, "提权不该动口令")
+
+	assert.ErrorIs(t, r.SetUserAdmin(ctx, "user-404", true), repo.ErrNotFound)
 
 	// 令牌
 	expires := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Second)

@@ -66,6 +66,8 @@ type Repository interface {
 	GetComponent(ctx context.Context, componentID string) (*model.Component, error)
 	// ListComponents 按条件搜索组件。
 	ListComponents(ctx context.Context, q ComponentQuery) ([]model.Component, error)
+	// CountComponents 统计符合条件的组件总数，忽略分页（007 §4.2 的 total）。
+	CountComponents(ctx context.Context, q ComponentQuery) (int, error)
 	// SetVisibility 设置可见性（007 §9.4）。
 	SetVisibility(ctx context.Context, componentID, visibility string) error
 	// SetComponentStatus 设置组件状态（active / blocked）。
@@ -110,6 +112,8 @@ type Repository interface {
 	GetUserByUsername(ctx context.Context, username string) (*model.User, error)
 	// GetUserByID 按用户 ID 查询。
 	GetUserByID(ctx context.Context, userID string) (*model.User, error)
+	// SetUserAdmin 设置管理员标记（运维指南 §6.5 启动引导用）。
+	SetUserAdmin(ctx context.Context, userID string, isAdmin bool) error
 	// CreateToken 保存签发的访问令牌。
 	CreateToken(ctx context.Context, t *model.Token) error
 	// GetToken 按令牌串查询，不存在时返回 ErrNotFound。

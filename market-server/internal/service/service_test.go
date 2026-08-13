@@ -500,7 +500,8 @@ func TestPrivateComponentDeniedForAnonymous(t *testing.T) {
 	// 搜索与详情同样看不到
 	found, err := f.svc.SearchComponents(ctx, service.Anonymous(), repo.ComponentQuery{})
 	require.NoError(t, err)
-	assert.Empty(t, found)
+	assert.Empty(t, found.Items)
+	assert.Zero(t, found.Total)
 
 	_, err = f.svc.GetComponent(ctx, service.Anonymous(), "mycompany/approval")
 	assert.Equal(t, model.CodeForbidden, apiErrorOf(t, err).Code)
@@ -535,11 +536,11 @@ func TestPrivateComponentAccessControl(t *testing.T) {
 	// 被授权用户能在搜索结果里看到它
 	found, err := f.svc.SearchComponents(ctx, authorized, repo.ComponentQuery{})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"mycompany/approval"}, componentIDs(found))
+	assert.Equal(t, []string{"mycompany/approval"}, componentIDs(found.Items))
 
 	found, err = f.svc.SearchComponents(ctx, outsider, repo.ComponentQuery{})
 	require.NoError(t, err)
-	assert.Empty(t, found)
+	assert.Empty(t, found.Items)
 }
 
 // 组织级授权：同组织的成员可访问。
@@ -794,11 +795,13 @@ func TestSearchComponents(t *testing.T) {
 
 	found, err := f.svc.SearchComponents(ctx, service.Anonymous(), repo.ComponentQuery{Keyword: "people"})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"people/basic"}, componentIDs(found))
+	assert.Equal(t, []string{"people/basic"}, componentIDs(found.Items))
+	assert.Equal(t, 1, found.Total)
 
 	found, err = f.svc.SearchComponents(ctx, service.Anonymous(), repo.ComponentQuery{})
 	require.NoError(t, err)
-	assert.Len(t, found, 2)
+	assert.Len(t, found.Items, 2)
+	assert.Equal(t, 2, found.Total)
 }
 
 // ============================================================
