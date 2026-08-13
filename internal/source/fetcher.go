@@ -28,6 +28,8 @@ type fetcher interface {
 	manifestBytes(ctx context.Context, componentID, version string) ([]byte, error)
 	// artifactFile 返回一个产物文件的内容。
 	artifactFile(ctx context.Context, componentID, version string, art manifest.Artifact, file string) ([]byte, error)
+	// origin 返回组件的来源信息（开源 git / 闭源 registry），供 --repo 使用。
+	origin(ctx context.Context, componentID, version string) (*Origin, error)
 	// close 释放该源占用的临时资源。
 	close() error
 }
@@ -51,3 +53,26 @@ func manifestMatches(data []byte, componentID, version string) bool {
 	}
 	return h.Metadata.ID == componentID && h.Metadata.Version == version
 }
+
+// 组件来源类型（007 §11.1）。
+const (
+	// OriginGit 表示开源组件：有 Git 仓库，可以 clone 源码。
+	OriginGit = "git"
+	// OriginRegistry 表示闭源组件：只有镜像与产物，没有源码仓库。
+	OriginRegistry = "registry"
+	// OriginLocal 表示组件来自本地目录安装源，没有 Git 仓库地址。
+	OriginLocal = "local"
+)
+
+// Origin 描述组件在安装源中的来源信息，供 brickkit add --repo 使用。
+type Origin struct {
+	// SourceID 是提供该组件的安装源 id。
+	SourceID string
+	// Type 是 OriginGit / OriginRegistry / OriginLocal，未知时为空。
+	Type string
+	// GitURL 是开源组件的仓库地址（OriginGit 时有值）。
+	GitURL string
+}
+
+// IsOpenSource 判断该组件是否可以 clone 源码。
+func (o *Origin) IsOpenSource() bool { return o != nil && o.Type == OriginGit && o.GitURL != "" }

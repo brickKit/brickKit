@@ -160,3 +160,21 @@ func firstLine(out string, err error) string {
 	}
 	return err.Error()
 }
+
+// origin 返回 Git 来源：安装源本身的仓库地址就是该组件的仓库地址。
+func (s *gitSource) origin(ctx context.Context, componentID, version string) (*Origin, error) {
+	dir, err := s.checkout(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, root := range s.componentRoots(dir, componentID) {
+		header, err := s.readComponentYAML(root)
+		if err != nil {
+			return nil, err
+		}
+		if header != nil && manifestMatches(header, componentID, version) {
+			return &Origin{SourceID: s.sourceID, Type: OriginGit, GitURL: s.url}, nil
+		}
+	}
+	return nil, errNotFound
+}

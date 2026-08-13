@@ -303,3 +303,6 @@ func (s *stubFetcher) manifestBytes(context.Context, string, string) ([]byte, er
 func (s *stubFetcher) artifactFile(context.Context, string, string, manifest.Artifact, string) ([]byte, error) {
 	return nil, errNotFound
 }
+func (s *stubFetcher) origin(context.Context, string, string) (*Origin, error) {
+	return nil, errNotFound
+}

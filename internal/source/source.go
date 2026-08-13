@@ -235,6 +235,30 @@ func (c *Client) DownloadArtifacts(ctx context.Context, m *manifest.Manifest) (*
 	return res, nil
 }
 
+// Origin 按安装源优先级查询组件的来源信息（开源 git / 闭源 registry，007 §11）。
+//
+// 它不走 Manifest 缓存：缓存里存的是 component.yaml，不含 sourceType / gitUrl。
+// 只有 brickkit add --repo / --repo-all 需要这个信息。
+func (c *Client) Origin(ctx context.Context, id, version string) (*Origin, error) {
+	if err := checkRef(id, version); err != nil {
+		return nil, err
+	}
+	if len(c.fetchers) == 0 {
+		return nil, noSourcesError()
+	}
+
+	var failures []failure
+	for _, f := range c.fetchers {
+		origin, err := f.origin(ctx, id, version)
+		if err != nil {
+			failures = append(failures, failure{sourceID: f.id(), err: err})
+			continue
+		}
+		return origin, nil
+	}
+	return nil, c.aggregateError(id, version, failures)
+}
+
 // fetchManifest 按优先级遍历安装源，返回首个命中的 Manifest（原始字节 + 解析结果 + 源 id）。
 func (c *Client) fetchManifest(ctx context.Context, id, version string) ([]byte, *manifest.Manifest, string, error) {
 	if len(c.fetchers) == 0 {

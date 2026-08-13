@@ -223,6 +223,10 @@ type marketMock struct {
 	failArtifactList bool
 	// garbageArtifactList 为 true 时，产物列表端点返回无法解析的正文。
 	garbageArtifactList bool
+	// sourceType / gitURL 是 Manifest 端点信封里的来源信息（007 §11）。
+	// 为空时分别默认为 git 与由组件 ID 推导的仓库地址。
+	sourceType string
+	gitURL     string
 
 	mu       sync.Mutex
 	requests []recordedRequest
@@ -307,14 +311,19 @@ func (m *marketMock) writeManifest(w http.ResponseWriter, spec componentSpec) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"success": true,
-		"data": map[string]any{
-			"manifest":   doc,
-			"sourceType": "git",
-			"gitUrl":     "https://example.com/" + strings.ReplaceAll(spec.ID, "/", "-") + ".git",
-		},
-	})
+	sourceType := m.sourceType
+	if sourceType == "" {
+		sourceType = OriginGit
+	}
+	gitURL := m.gitURL
+	if gitURL == "" && sourceType == OriginGit {
+		gitURL = "https://example.com/" + strings.ReplaceAll(spec.ID, "/", "-") + ".git"
+	}
+	data := map[string]any{"manifest": doc, "sourceType": sourceType}
+	if gitURL != "" {
+		data["gitUrl"] = gitURL
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": data})
 }
 
 func (m *marketMock) writeArtifactList(w http.ResponseWriter, spec componentSpec) {

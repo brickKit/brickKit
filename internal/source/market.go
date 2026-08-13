@@ -79,6 +79,39 @@ func (s *marketSource) artifactFile(ctx context.Context, componentID, version st
 		url.Values{"file": []string{file}})
 }
 
+// origin 读取该版本的来源信息（开源 git / 闭源 registry，007 §11）。
+//
+// 它总是直接问市场，不走 Manifest 缓存：缓存里存的是 component.yaml 本身，
+// 不含 sourceType / gitUrl。--repo 是低频操作，多一次请求换取信息准确。
+func (s *marketSource) origin(ctx context.Context, componentID, version string) (*Origin, error) {
+	body, err := s.get(ctx, s.versionPath(componentID, version)+"/manifest", nil)
+	if err != nil {
+		return nil, err
+	}
+	return originFromBody(body, s.sourceID), nil
+}
+
+// originFromBody 从 JSON 信封里取 sourceType / gitUrl；不是 JSON 或字段缺失时返回未知来源。
+func originFromBody(body []byte, sourceID string) *Origin {
+	o := &Origin{SourceID: sourceID}
+
+	var envelope map[string]any
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return o
+	}
+	data, ok := envelope["data"].(map[string]any)
+	if !ok {
+		data = envelope
+	}
+	if v, ok := data["sourceType"].(string); ok {
+		o.Type = v
+	}
+	if v, ok := data["gitUrl"].(string); ok {
+		o.GitURL = v
+	}
+	return o
+}
+
 // artifacts 获取（并在本次运行内缓存）某个版本的产物列表。
 func (s *marketSource) artifacts(ctx context.Context, componentID, version string) ([]marketArtifact, error) {
 	key := componentID + "@" + version
@@ -208,8 +241,8 @@ func (s *marketSource) resolveToken() (string, error) {
 //  1. JSON 信封 {"success": true, "data": {"manifest": {...}}}（也接受 data 直接是 Manifest）
 //  2. 直接返回 component.yaml 正文（YAML）
 //
-// 信封里的 sourceType / gitUrl 目前被有意忽略（开发进度.md 清单 P6）：
-// 只有 Step 9 的 --repo 需要它们，且命中本地缓存时这两个字段不可得。
+// 信封里的 sourceType / gitUrl 由 origin 单独读取（供 --repo 判断开源/闭源），
+// 不进入 Manifest 本身。
 func manifestFromBody(body []byte, sourceID string) ([]byte, error) {
 	trimmed := strings.TrimSpace(string(body))
 	if !strings.HasPrefix(trimmed, "{") {

@@ -96,3 +96,18 @@ func (s *localSource) readFile(path string) ([]byte, error) {
 	}
 	return data, nil
 }
+
+// origin 返回本地目录来源。本地源没有 Git 仓库地址，--repo 无从 clone。
+func (s *localSource) origin(_ context.Context, componentID, version string) (*Origin, error) {
+	if err := s.checkRoot(); err != nil {
+		return nil, err
+	}
+	header, err := s.readFile(filepath.Join(s.componentDir(componentID), manifest.FileName))
+	if err != nil {
+		return nil, err
+	}
+	if !manifestMatches(header, componentID, version) {
+		return nil, errNotFound
+	}
+	return &Origin{SourceID: s.sourceID, Type: OriginLocal}, nil
+}

@@ -41,6 +41,9 @@ type Options struct {
 	ConfigPath string
 	// LogLevel 是 --log-level 指定的日志级别。
 	LogLevel string
+	// Stdin 承载交互式确认的输入（add 的"是否刷新缓存"等）。为空时不读输入，
+	// 等价于用户直接回车（即拒绝）。
+	Stdin io.Reader
 	// Stdout 承载面向用户的输出，Stderr 承载日志与错误。
 	Stdout io.Writer
 	Stderr io.Writer
@@ -63,6 +66,7 @@ func NewOptions() *Options {
 		WorkDir:    ".",
 		ConfigPath: DefaultConfigFile,
 		LogLevel:   envOr(logging.EnvLogLevel, logging.LevelInfo),
+		Stdin:      os.Stdin,
 		Stdout:     os.Stdout,
 		Stderr:     os.Stderr,
 		Now:        time.Now,

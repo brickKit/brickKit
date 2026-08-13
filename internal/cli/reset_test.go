@@ -225,22 +225,23 @@ func TestResetTimestampUsesInjectedClock(t *testing.T) {
 }
 
 // ============================================================
-// 8.2 / 8.3 的命令接线尚未完成（Step 9）
+// 8.2 / 8.3 的命令接线（Step 9 已回填 P16）
 // ============================================================
 
-// add / remove 目前仍是未实现状态：备份能力已就绪（backup.SaveLast），
-// 但"在 add / remove 前自动备份"要等命令实现（延后清单 P16）。
-func TestAddRemoveStillNotImplemented(t *testing.T) {
+// add / remove 前自动生成 .last，由 add_test.go / remove_test.go 的
+// TestAddCreatesLastBackup、TestRemoveCreatesLastBackup 验证；
+// 这里只确认 reset --last 能真正撤销一次 add。
+func TestResetLastUndoesAdd(t *testing.T) {
 	dir := t.TempDir()
-	initProject(t, dir)
+	sources := localSource(t, dir, comp{ID: "people/basic", Version: "1.0.0"})
+	f := newProjectFixtureAt(t, dir, sources...)
+	before := f.config(t)
 
-	for _, args := range [][]string{
-		{"add", "people/basic@1.0.0"},
-		{"remove", "people/basic"},
-	} {
-		r := runIn(t, dir, args...)
-		assert.Equal(t, clierr.ExitError, r.code)
-		assert.Contains(t, r.stderr, "尚未实现")
-		assert.Contains(t, r.stderr, "Step 9")
-	}
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "add", "people/basic@1.0.0").code)
+	require.NotEqual(t, before, f.config(t))
+
+	r := runIn(t, f.Dir, "reset", "--last")
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.Equal(t, before, f.config(t))
+	assert.Empty(t, f.refs(t))
 }
