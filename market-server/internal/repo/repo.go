@@ -114,12 +114,16 @@ type Repository interface {
 	GetUserByID(ctx context.Context, userID string) (*model.User, error)
 	// SetUserAdmin 设置管理员标记（运维指南 §6.5 启动引导用）。
 	SetUserAdmin(ctx context.Context, userID string, isAdmin bool) error
+	// SetUserPassword 更新口令哈希（运维指南 §9 Q5 的重置路径）。
+	SetUserPassword(ctx context.Context, userID, passwordHash string) error
 	// CreateToken 保存签发的访问令牌。
 	CreateToken(ctx context.Context, t *model.Token) error
 	// GetToken 按令牌串查询，不存在时返回 ErrNotFound。
 	GetToken(ctx context.Context, token string) (*model.Token, error)
 	// DeleteToken 注销令牌。
 	DeleteToken(ctx context.Context, token string) error
+	// DeleteTokensOfUser 吊销某个用户的全部令牌（改口令时用）。
+	DeleteTokensOfUser(ctx context.Context, userID string) error
 
 	// ---- 审计 ----
 

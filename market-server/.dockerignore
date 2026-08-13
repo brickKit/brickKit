@@ -1,0 +1,5 @@
+# 构建镜像时不需要的东西：测试、覆盖率产物、本地环境文件
+*_test.go
+testdata/
+coverage.out
+.env

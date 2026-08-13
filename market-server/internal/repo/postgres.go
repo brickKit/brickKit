@@ -518,6 +518,15 @@ func (p *Postgres) DeleteToken(ctx context.Context, token string) error {
 	return err
 }
 
+func (p *Postgres) DeleteTokensOfUser(ctx context.Context, userID string) error {
+	_, err := p.db.ExecContext(ctx, `DELETE FROM tokens WHERE user_id = $1`, userID)
+	return err
+}
+
+func (p *Postgres) SetUserPassword(ctx context.Context, userID, passwordHash string) error {
+	return p.exec1(ctx, `UPDATE users SET password_hash = $2 WHERE user_id = $1`, userID, passwordHash)
+}
+
 // ============================================================
 // 审计
 // ============================================================

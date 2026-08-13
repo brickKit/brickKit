@@ -78,6 +78,54 @@ func TestTrailingSlashStillMatches(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.status)
 }
 
+// HEAD 必须和 GET 一样可用。
+//
+// 这是被真实部署打脸打出来的用例：compose 的 healthcheck 用
+// `wget -q --spider`，而 --spider 发的是 HEAD，结果每 10 秒一次 405，
+// 容器一直是 unhealthy。凡是能 GET 的地址都应该能 HEAD。
+func TestHeadIsAllowedWhereverGetIs(t *testing.T) {
+	f := newFixture(t)
+	token := f.login(t, "alice")
+	f.publish(t, token, "people/basic", "1.0.0")
+
+	for _, path := range []string{
+		"/api/v1/health",
+		"/api/v1/components",
+		"/api/v1/components/people/basic",
+		versionPath("people/basic", "1.0.0") + "/manifest",
+	} {
+		t.Run(path, func(t *testing.T) {
+			resp := f.do(t, http.MethodHead, path, "", nil)
+
+			assert.Equal(t, http.StatusOK, resp.status)
+			assert.Empty(t, resp.body, "HEAD 不该带响应体")
+		})
+	}
+}
+
+// HEAD 不能绕过鉴权变成一个"探测私有组件是否存在"的旁路。
+func TestHeadRespectsVisibility(t *testing.T) {
+	f := newFixture(t)
+	token := f.login(t, "alice")
+	f.publish(t, token, "people/basic", "1.0.0")
+	require.Equal(t, http.StatusOK, f.do(t, http.MethodPut,
+		"/api/v1/components/people/basic/visibility", token,
+		map[string]any{"visibility": model.VisibilityPrivate}).status)
+
+	resp := f.do(t, http.MethodHead, "/api/v1/components/people/basic", "", nil)
+
+	assert.Equal(t, http.StatusForbidden, resp.status)
+}
+
+// 只写了 POST 的地址仍然不接受 HEAD。
+func TestHeadIsNotAllowedOnWriteOnlyRoutes(t *testing.T) {
+	f := newFixture(t)
+
+	resp := f.do(t, http.MethodHead, "/api/v1/auth/login", "", nil)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, resp.status)
+}
+
 // 405 要带上 Allow 头，告诉调用方这个地址支持什么方法。
 func TestMethodNotAllowedCarriesAllowHeader(t *testing.T) {
 	f := newFixture(t)

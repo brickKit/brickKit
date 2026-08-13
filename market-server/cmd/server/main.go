@@ -76,6 +76,13 @@ func run() error {
 	if err := svc.EnsureAdmin(ctx, cfg.AdminUsername, cfg.AdminPassword); err != nil {
 		return fmt.Errorf("引导管理员账号失败：%w", err)
 	}
+	if cfg.AdminPasswordReset {
+		if err := svc.ResetAdminPassword(ctx, cfg.AdminUsername, cfg.AdminPassword); err != nil {
+			return fmt.Errorf("重置管理员口令失败：%w", err)
+		}
+		log.Printf("⚠️  管理员 %s 的口令已按 ADMIN_PASSWORD_RESET 重置，其历史令牌已全部吊销；"+
+			"请把该开关改回 false 后再重启", cfg.AdminUsername)
+	}
 
 	server := &http.Server{
 		Addr:    ":" + strconv.Itoa(cfg.Port),

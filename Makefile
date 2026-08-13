@@ -276,6 +276,35 @@ tools-proto-include: ## 下载 google/api 与 openapiv2 依赖 proto 到 proto/i
 			"https://raw.githubusercontent.com/grpc-ecosystem/grpc-gateway/main/protoc-gen-openapiv2/options/$$f" && echo "ok openapiv2/$$f"; \
 	done
 
+# ============================================================
+# 市场部署（deploy/market，详见《部署模式》与《市场部署与运维指南》）
+# ============================================================
+
+MARKET_DEPLOY := deploy/market
+
+.PHONY: market-up
+market-up: ## 本地起一套完整市场（PostgreSQL + RustFS + Market API），首次会构建镜像
+	@if [ ! -f $(MARKET_DEPLOY)/.env ]; then \
+		cp $(MARKET_DEPLOY)/.env.example $(MARKET_DEPLOY)/.env; \
+		echo "⚠️  已生成 $(MARKET_DEPLOY)/.env，请先把里面的口令改掉再执行一次 make market-up"; \
+		exit 1; \
+	fi
+	@cd $(MARKET_DEPLOY) && docker compose up -d --build
+	@echo "▶ 健康检查：curl http://localhost:$${MARKET_PORT:-8080}/api/v1/health"
+
+.PHONY: market-down
+market-down: ## 停止市场（数据保留在 deploy/market/data/）
+	@cd $(MARKET_DEPLOY) && docker compose down
+
+.PHONY: market-logs
+market-logs: ## 跟随查看市场 API 日志
+	@cd $(MARKET_DEPLOY) && docker compose logs -f market-api
+
+.PHONY: market-image
+market-image: ## 只构建市场镜像（VERSION=x.y.z 注入版本号）
+	docker build -t brickkit/market-server:$(or $(VERSION),dev) \
+		--build-arg VERSION=$(or $(VERSION),dev) market-server/
+
 .PHONY: env
 env: ## 打印开发环境基线（对照开发计划附录 G）
 	@echo "Go       : $$($(GO) version)"

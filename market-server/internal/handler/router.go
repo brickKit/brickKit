@@ -21,6 +21,15 @@ type route struct {
 	handle   func(*api, http.ResponseWriter, *http.Request, params)
 }
 
+// accepts 判断该路由是否接受这个方法。
+//
+// HEAD 走 GET 的处理器：HEAD 就是"只要响应头的 GET"，
+// 而且很多探针（compose healthcheck 的 `wget --spider`、负载均衡器）默认发 HEAD。
+// 响应体由 net/http 自动丢弃，处理器不用关心。
+func (r route) accepts(method string) bool {
+	return method == r.method || (method == http.MethodHead && r.method == http.MethodGet)
+}
+
 // router 是一个极简路由器。
 //
 // 不用 http.ServeMux 的原因：组件 ID 自带一个 `/`，而且未命中时
@@ -48,7 +57,7 @@ func (rt *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			continue
 		}
-		if route.method != r.Method {
+		if !route.accepts(r.Method) {
 			allowed = append(allowed, route.method)
 			continue
 		}

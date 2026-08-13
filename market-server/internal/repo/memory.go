@@ -382,6 +382,31 @@ func (m *Memory) DeleteToken(_ context.Context, token string) error {
 	return nil
 }
 
+func (m *Memory) DeleteTokensOfUser(_ context.Context, userID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for key, tok := range m.tokens {
+		if tok.UserID == userID {
+			delete(m.tokens, key)
+		}
+	}
+	return nil
+}
+
+func (m *Memory) SetUserPassword(_ context.Context, userID, passwordHash string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	u, ok := m.users[userID]
+	if !ok {
+		return ErrNotFound
+	}
+	u.PasswordHash = passwordHash
+	m.users[userID] = u
+	return nil
+}
+
 // ============================================================
 // 审计
 // ============================================================

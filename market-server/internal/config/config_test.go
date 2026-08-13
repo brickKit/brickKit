@@ -175,6 +175,47 @@ func TestFromEnvRejectsWeakAdminPassword(t *testing.T) {
 	assert.Contains(t, err.Error(), "ADMIN_PASSWORD")
 }
 
+// 重置开关默认关闭：忘记密码是意外，不是常态。
+func TestAdminPasswordResetDefaultsOff(t *testing.T) {
+	cfg, err := config.FromEnv(lookupFrom(fullEnv()))
+	require.NoError(t, err)
+
+	assert.False(t, cfg.AdminPasswordReset)
+}
+
+// 运维指南 §9 Q5 的操作是"改 .env 里的口令 + 打开开关 + 重启"，
+// 所以开关要认几种常见写法，不能只认 "true"。
+func TestAdminPasswordResetAcceptsCommonTruthyValues(t *testing.T) {
+	for _, value := range []string{"true", "TRUE", "1", "yes", "on"} {
+		env := fullEnv()
+		env["ADMIN_PASSWORD_RESET"] = value
+
+		cfg, err := config.FromEnv(lookupFrom(env))
+		require.NoError(t, err, "值 %q", value)
+		assert.True(t, cfg.AdminPasswordReset, "值 %q 应被视为开启", value)
+	}
+
+	for _, value := range []string{"false", "0", "no", ""} {
+		env := fullEnv()
+		env["ADMIN_PASSWORD_RESET"] = value
+
+		cfg, err := config.FromEnv(lookupFrom(env))
+		require.NoError(t, err, "值 %q", value)
+		assert.False(t, cfg.AdminPasswordReset, "值 %q 应被视为关闭", value)
+	}
+}
+
+// 写了看不懂的值时报错，别让运维以为已经重置了。
+func TestAdminPasswordResetRejectsGarbage(t *testing.T) {
+	env := fullEnv()
+	env["ADMIN_PASSWORD_RESET"] = "maybe"
+
+	_, err := config.FromEnv(lookupFrom(env))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ADMIN_PASSWORD_RESET")
+}
+
 // 口令绝不能出现在错误信息或日志里。
 func TestConfigStringRedactsSecrets(t *testing.T) {
 	env := fullEnv()

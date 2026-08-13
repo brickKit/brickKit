@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/brickkit/market-server/internal/model"
 	"github.com/brickkit/market-server/internal/repo"
 )
 
@@ -43,5 +46,46 @@ func (s *Service) EnsureAdmin(ctx context.Context, username, password string) er
 	if err := s.repo.SetUserAdmin(ctx, user.UserID, true); err != nil {
 		return internalError(err)
 	}
+	return nil
+}
+
+// ResetAdminPassword 重置管理员口令（运维指南 §9 Q5：忘记管理员密码）。
+//
+// EnsureAdmin 有意不覆盖口令（见 D118），所以"救回管理员账号"需要这条显式路径。
+// 它同时做三件事：改口令、确保管理员权限、**吊销该账号已签发的全部令牌**——
+// 会走到这里通常意味着凭据已经不可信，留着旧 Token 等于没改。
+func (s *Service) ResetAdminPassword(ctx context.Context, username, password string) error {
+	if len(password) < MinPasswordLength {
+		return model.Errorf(model.CodeInvalidRequest, "密码至少需要 8 个字符")
+	}
+
+	user, err := s.repo.GetUserByUsername(ctx, username)
+	if err != nil {
+		if errors.Is(err, repo.ErrNotFound) {
+			return model.Errorf(model.CodeNotFound, "用户不存在："+username)
+		}
+		return internalError(err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), s.bcryptCost)
+	if err != nil {
+		return model.Errorf(model.CodeInternal, "密码处理失败")
+	}
+	if err := s.repo.SetUserPassword(ctx, user.UserID, string(hash)); err != nil {
+		return internalError(err)
+	}
+	if !user.IsAdmin {
+		if err := s.repo.SetUserAdmin(ctx, user.UserID, true); err != nil {
+			return internalError(err)
+		}
+	}
+	if err := s.repo.DeleteTokensOfUser(ctx, user.UserID); err != nil {
+		return internalError(err)
+	}
+
+	s.audit(ctx, &model.AuditEntry{
+		Action: model.ActionUserRegistered, Operator: username,
+		Result: model.ResultSuccess, Detail: "管理员口令已重置",
+	})
 	return nil
 }

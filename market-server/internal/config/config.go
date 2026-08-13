@@ -16,16 +16,17 @@ import (
 
 // 环境变量名（运维指南 §5.1）。
 const (
-	EnvDatabaseHost     = "DATABASE_HOST"
-	EnvDatabasePort     = "DATABASE_PORT"
-	EnvDatabaseName     = "DATABASE_NAME"
-	EnvDatabaseUser     = "DATABASE_USER"
-	EnvDatabasePassword = "DATABASE_PASSWORD"
-	EnvDatabaseSSLMode  = "DATABASE_SSLMODE"
-	EnvTokenExpiryHours = "JWT_EXPIRY_HOURS"
-	EnvAdminUsername    = "ADMIN_USERNAME"
-	EnvAdminPassword    = "ADMIN_PASSWORD"
-	EnvPort             = "PORT"
+	EnvDatabaseHost       = "DATABASE_HOST"
+	EnvDatabasePort       = "DATABASE_PORT"
+	EnvDatabaseName       = "DATABASE_NAME"
+	EnvDatabaseUser       = "DATABASE_USER"
+	EnvDatabasePassword   = "DATABASE_PASSWORD"
+	EnvDatabaseSSLMode    = "DATABASE_SSLMODE"
+	EnvTokenExpiryHours   = "JWT_EXPIRY_HOURS"
+	EnvAdminUsername      = "ADMIN_USERNAME"
+	EnvAdminPassword      = "ADMIN_PASSWORD"
+	EnvAdminPasswordReset = "ADMIN_PASSWORD_RESET"
+	EnvPort               = "PORT"
 )
 
 // 默认值（运维指南 §5.1）。
@@ -54,6 +55,9 @@ type Config struct {
 	// AdminUsername / AdminPassword 是首次启动要引导出来的管理员账号。
 	AdminUsername string
 	AdminPassword string
+	// AdminPasswordReset 为 true 时，启动会把管理员口令重置成 AdminPassword
+	// 并吊销其全部令牌（运维指南 §9 Q5）。默认关闭：正常重启不该动口令。
+	AdminPasswordReset bool
 	// Version 是构建版本，健康检查会回显它。
 	Version string
 }
@@ -151,19 +155,42 @@ func FromEnv(lookup func(string) string) (Config, error) {
 		store.Region = storage.DefaultRegion
 	}
 
+	resetAdmin, err := boolOrDefault(get(EnvAdminPasswordReset), false, EnvAdminPasswordReset)
+	if err != nil {
+		return Config{}, err
+	}
+
 	sslMode := get(EnvDatabaseSSLMode)
 	if sslMode == "" {
 		sslMode = DefaultSSLMode
 	}
 
 	return Config{
-		Port:          port,
-		DatabaseURL:   databaseURL(host, dbPort, name, user, password, sslMode),
-		Storage:       store,
-		TokenTTL:      time.Duration(hours) * time.Hour,
-		AdminUsername: adminUser,
-		AdminPassword: adminPassword,
+		Port:               port,
+		DatabaseURL:        databaseURL(host, dbPort, name, user, password, sslMode),
+		Storage:            store,
+		TokenTTL:           time.Duration(hours) * time.Hour,
+		AdminUsername:      adminUser,
+		AdminPassword:      adminPassword,
+		AdminPasswordReset: resetAdmin,
 	}, nil
+}
+
+// boolOrDefault 解析布尔环境变量。
+//
+// 认多种常见写法（true/1/yes/on），但**不认不懂的值**：
+// 把 "maybe" 当成 false 会让运维以为口令已经重置了。
+func boolOrDefault(value string, fallback bool, name string) (bool, error) {
+	switch strings.ToLower(value) {
+	case "":
+		return fallback, nil
+	case "true", "1", "yes", "y", "on":
+		return true, nil
+	case "false", "0", "no", "n", "off":
+		return false, nil
+	default:
+		return false, fmt.Errorf("%s 只能是 true 或 false（当前是 %q）", name, value)
+	}
 }
 
 // databaseURL 拼出 PostgreSQL 连接串。

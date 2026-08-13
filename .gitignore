@@ -29,6 +29,9 @@ go.work.sum
 .env.*
 !.env.example
 
+# 市场部署时 compose 落在宿主机上的数据目录（PostgreSQL / RustFS）
+/deploy/market/data/
+
 # Editor/IDE
 # .idea/
 # .vscode/

@@ -441,6 +441,15 @@ func testUsersAndTokens(t *testing.T, r repo.Repository) {
 
 	assert.ErrorIs(t, r.SetUserAdmin(ctx, "user-404", true), repo.ErrNotFound)
 
+	// 改口令哈希（运维指南 §9 Q5 的重置路径）
+	require.NoError(t, r.SetUserPassword(ctx, "user-1", "new-hash"))
+	got, err = r.GetUserByID(ctx, "user-1")
+	require.NoError(t, err)
+	assert.Equal(t, "new-hash", got.PasswordHash)
+	assert.True(t, got.IsAdmin, "改口令不该动权限")
+
+	assert.ErrorIs(t, r.SetUserPassword(ctx, "user-404", "x"), repo.ErrNotFound)
+
 	// 令牌
 	expires := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Second)
 	require.NoError(t, r.CreateToken(ctx, &model.Token{
@@ -459,6 +468,28 @@ func testUsersAndTokens(t *testing.T, r repo.Repository) {
 
 	// 删除不存在的令牌是幂等的（登出两次不该报错）
 	assert.NoError(t, r.DeleteToken(ctx, "tok-abc"))
+
+	// 按用户吊销全部令牌（改口令时用：旧令牌必须一起失效）
+	for _, tok := range []string{"tok-1", "tok-2"} {
+		require.NoError(t, r.CreateToken(ctx, &model.Token{
+			Token: tok, UserID: "user-1", Username: "zhangsan", ExpiresAt: expires,
+		}))
+	}
+	require.NoError(t, r.CreateUser(ctx, &model.User{UserID: "user-9", Username: "lisi"}))
+	require.NoError(t, r.CreateToken(ctx, &model.Token{
+		Token: "tok-other", UserID: "user-9", Username: "lisi", ExpiresAt: expires,
+	}))
+
+	require.NoError(t, r.DeleteTokensOfUser(ctx, "user-1"))
+	for _, tok := range []string{"tok-1", "tok-2"} {
+		_, err = r.GetToken(ctx, tok)
+		assert.ErrorIs(t, err, repo.ErrNotFound, "%s 应已被吊销", tok)
+	}
+	_, err = r.GetToken(ctx, "tok-other")
+	assert.NoError(t, err, "不能误伤其他用户的令牌")
+
+	// 该用户没有令牌时也不算错
+	assert.NoError(t, r.DeleteTokensOfUser(ctx, "user-1"))
 }
 
 // ============================================================
