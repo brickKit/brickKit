@@ -170,6 +170,13 @@ test-market: ## 市场后端测试
 		cd market-server && $(GO) test $(TESTFLAGS) ./...; \
 	else echo "⏭  market-server：暂无测试文件，跳过"; fi
 
+.PHONY: test-market-integration
+test-market-integration: ## 市场后端的集成测试（需要本机 PostgreSQL 与 RustFS，读 .env）
+	@set -a; . ./.env; set +a; \
+	export MARKET_TEST_DATABASE_URL="postgres://$$POSTGRES_USER:$$POSTGRES_PASSWORD@$$POSTGRES_HOST:$$POSTGRES_PORT/$$POSTGRES_DB?sslmode=disable"; \
+	echo "▶ market-server 集成测试（PostgreSQL + RustFS）"; \
+	cd market-server && $(GO) test $(TESTFLAGS) ./...
+
 .PHONY: test-components
 test-components: ## 平台自测组件的单元测试（tests/components/*，各自独立 module）
 	@for c in $(DEMO_COMPONENTS); do \
