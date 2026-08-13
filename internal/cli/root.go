@@ -44,6 +44,17 @@ type Options struct {
 	// Stdout 承载面向用户的输出，Stderr 承载日志与错误。
 	Stdout io.Writer
 	Stderr io.Writer
+	// Now 提供当前时间（reset 的"恢复时间"等）。为空时用 time.Now，
+	// 便于测试锁定输出而不依赖真实时钟。
+	Now func() time.Time
+}
+
+// now 返回当前时间，未注入时钟时回落到 time.Now。
+func (o *Options) now() time.Time {
+	if o.Now == nil {
+		return time.Now()
+	}
+	return o.Now()
 }
 
 // NewOptions 返回默认全局选项（输出到真实 stdout/stderr）。
@@ -54,6 +65,7 @@ func NewOptions() *Options {
 		LogLevel:   envOr(logging.EnvLogLevel, logging.LevelInfo),
 		Stdout:     os.Stdout,
 		Stderr:     os.Stderr,
+		Now:        time.Now,
 	}
 }
 

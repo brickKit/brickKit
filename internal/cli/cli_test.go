@@ -154,7 +154,7 @@ func TestErrorOutputFormat(t *testing.T) {
 
 // 骨架阶段：未实现的命令给出明确的 NOT_IMPLEMENTED 错误与 Step 编号。
 func TestNotImplementedCommands(t *testing.T) {
-	// init 已在 Step 3 实现，见 init_test.go
+	// 已实现的命令不在此列：init（Step 3，见 init_test.go）、reset（Step 8，见 reset_test.go）
 	cases := map[string][]string{
 		"add":     {"add", "people/basic@1.0.0"},
 		"remove":  {"remove", "people/basic"},
@@ -163,7 +163,6 @@ func TestNotImplementedCommands(t *testing.T) {
 		"status":  {"status"},
 		"order":   {"order"},
 		"sync":    {"sync"},
-		"reset":   {"reset"},
 		"login":   {"login"},
 		"publish": {"publish"},
 	}
