@@ -1,6 +1,6 @@
 module github.com/brickkit/market-server
 
-go 1.22
+go 1.25.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.32.3
@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.0
 	github.com/lib/pq v1.12.3
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/crypto v0.55.0
 )
 
 require (
