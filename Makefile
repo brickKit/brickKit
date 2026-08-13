@@ -39,6 +39,12 @@ LDFLAGS     := -s -w \
 
 TESTFLAGS ?= -count=1
 
+# 平台自测组件（tests/components/*）：各自是独立的 Go module 与独立的组件仓库，
+# 不参与主 module 的 ./... 构建，需要单独测试与构建镜像。
+DEMO_COMPONENTS := demo-hello demo-caller
+# 多版本共存验证需要同一份 hello 的两个 tag
+DEMO_HELLO_TAGS := 1.0.0 2.0.0
+
 # 若目标目录下没有 *_test.go，则跳过而不是报错（骨架阶段用）。
 define run_tests
 	@if [ -d "$(1)" ] && [ -n "$$(find $(1) -name '*_test.go' -print -quit 2>/dev/null)" ]; then \
@@ -164,8 +170,23 @@ test-market: ## 市场后端测试
 		cd market-server && $(GO) test $(TESTFLAGS) ./...; \
 	else echo "⏭  market-server：暂无测试文件，跳过"; fi
 
+.PHONY: test-components
+test-components: ## 平台自测组件的单元测试（tests/components/*，各自独立 module）
+	@for c in $(DEMO_COMPONENTS); do \
+		echo "▶ tests/components/$$c go test ./..."; \
+		( cd tests/components/$$c && $(GO) vet ./... && $(GO) test $(TESTFLAGS) ./... ) || exit 1; \
+	done
+
+.PHONY: demo-images
+demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实验证靠它们）
+	@docker build -q -t brickkit-demo/caller:1.0.0 tests/components/demo-caller
+	@for tag in $(DEMO_HELLO_TAGS); do \
+		docker build -q -t brickkit-demo/hello:$$tag tests/components/demo-hello; \
+	done
+	@docker images --format '{{.Repository}}:{{.Tag}}' | grep '^brickkit-demo/' | sort
+
 .PHONY: test-all
-test-all: test-unit test-integration test-market test-e2e test-boundary test-error test-security test-perf test-regression ## 执行全部测试（不含 compat）
+test-all: test-unit test-integration test-market test-components test-e2e test-boundary test-error test-security test-perf test-regression ## 执行全部测试（不含 compat）
 
 # 覆盖率政策：
 #   internal/ 保持 COVER_MIN 以上；不追求 100%。

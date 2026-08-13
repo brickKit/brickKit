@@ -56,7 +56,10 @@ go.work.sum
 # ---- 组件源码工作区（002 §1.6：一个组件一个仓库）----
 # brickkit add --repo clone 下来的组件源码各自有独立 Git 仓库，
 # 不提交到项目仓库（功能点 39）
-components/
+#
+# 只忽略仓库根目录的 components/：本仓库的 tests/components/ 放的是
+# 平台自测组件的源码，必须入库。
+/components/
 
 # 本地调试环境变量文件（005 §4）
 local-debug.*.env

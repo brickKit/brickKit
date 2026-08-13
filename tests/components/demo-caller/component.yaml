@@ -1,0 +1,57 @@
+# demo/caller —— BrickKit 平台自测组件
+# 覆盖强依赖注入、弱依赖降级、资源依赖与迁移执行四条平台承诺。
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: demo/caller
+  name: 平台自测组件 caller
+  version: 1.0.0
+  description: BrickKit 平台自测用的调用方组件，验证依赖地址注入与弱依赖降级
+  vendor: brickkit-platform
+  license: MIT
+
+tags:
+  - demo
+  - platform-test
+
+artifacts:
+  - type: api-docs
+    format: openapi
+    description: HTTP API 文档
+    files:
+      - openapi.json
+
+dependencies:
+  components:
+    # 强依赖：地址注入为 DEMO_HELLO_ENDPOINT
+    - demo/hello@1.0.0
+    # 弱依赖：缺失时平台完全不注入 DEMO_BUS_ENDPOINT，组件自行降级
+    - id: demo/bus@1.0.0
+      optional: true
+  resources:
+    - kind: database
+      engine: postgresql
+
+migration:
+  command: ["/app/caller", "migrate"]
+
+deployment:
+  type: container
+  image: brickkit-demo/caller:1.0.0
+  port: 8080
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "32Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+healthCheck:
+  type: http
+  path: /healthz
+
+observability:
+  metrics: false
+  tracing: false

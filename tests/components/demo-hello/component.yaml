@@ -1,0 +1,52 @@
+# demo/hello —— BrickKit 平台自测组件
+# 它不是业务组件，而是平台自己的测试夹具：让环境变量注入、部署文件生成、
+# 健康检查、多版本共存这些能力有真实容器可验证。
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: demo/hello
+  name: 平台自测组件 hello
+  version: 1.0.0
+  description: BrickKit 平台自测用的最小 HTTP 组件，提供问候接口与环境变量回显
+  vendor: brickkit-platform
+  license: MIT
+
+tags:
+  - demo
+  - platform-test
+
+artifacts:
+  - type: api-docs
+    format: openapi
+    description: HTTP API 文档
+    files:
+      - openapi.json
+
+configSchema:
+  type: object
+  properties:
+    greeting:
+      type: string
+      default: "你好"
+      description: 问候语，注入为环境变量 GREETING
+
+deployment:
+  type: container
+  image: brickkit-demo/hello:1.0.0
+  port: 8080
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "32Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+healthCheck:
+  type: http
+  path: /healthz
+
+observability:
+  metrics: false
+  tracing: false

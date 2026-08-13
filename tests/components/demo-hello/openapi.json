@@ -1,0 +1,9 @@
+{
+  "openapi": "3.0.0",
+  "info": { "title": "demo/hello", "version": "1.0.0" },
+  "paths": {
+    "/healthz": { "get": { "summary": "存活检查", "responses": { "200": { "description": "ok" } } } },
+    "/api/v1/hello": { "get": { "summary": "问候", "responses": { "200": { "description": "ok" } } } },
+    "/api/v1/env": { "get": { "summary": "回显平台注入的环境变量", "responses": { "200": { "description": "ok" } } } }
+  }
+}
