@@ -1,29 +1,173 @@
 package cli
 
 import (
+	"context"
+	"strconv"
+	"strings"
+
 	"github.com/spf13/cobra"
 
-	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/source"
 )
 
-// newOrderCommand 实现 brickkit order（004 §3.8，完整实现见 Step 10）。
+// newOrderCommand 实现 brickkit order（004 §3.8）。
 func newOrderCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "order",
-		Short:   "查看启动顺序与依赖拓扑",
+		Short:   "查看组件启动顺序与依赖拓扑",
 		GroupID: groupLifecycle,
-		Long: `展示依赖拓扑排序结果（004 §3.8）。
+		Long: `查看当前项目的启动顺序（004 §3.8）。
 
-排序规则：
-  - 被依赖的组件排在前面，依赖方排在后面
-  - 无依赖的组件最先启动
-  - 弱依赖不参与排序约束
-  - 存在循环依赖时报错并指出循环路径`,
-		Example: "  brickkit order",
-		Args:    cobra.NoArgs,
+顺序由拓扑排序（Kahn 算法）得出：被依赖的组件排在前面。
+弱依赖不参与排序约束——它可能根本不启动，因此只在"可跳过"一节列出。
+
+本命令只读：不修改配置，也不启动任何容器。`,
+		Example: `  brickkit order
+  brickkit order --config brickkit.prod.yaml`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return clierr.NotImplemented("brickkit order", 10)
+			return runOrder(cmd.Context(), opts)
 		},
 	}
 	return cmd
+}
+
+func runOrder(ctx context.Context, opts *Options) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
+	cfg, err := config.ParseConfigFile(layout.ConfigPath())
+	if err != nil {
+		return err
+	}
+	if len(cfg.Components) == 0 {
+		opts.Printf("📋 当前项目没有组件\n")
+		opts.Printf("   用 brickkit add <组件ID>@<版本> 添加第一个组件\n")
+		return nil
+	}
+
+	client, err := source.New(layout, cfg, source.Options{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Close() }()
+
+	graph, err := resolver.New(resolver.FromSource(client)).ResolveConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	plan, err := resolver.Order(graph)
+	if err != nil {
+		return err
+	}
+
+	renderWarnings(opts, graph.Warnings)
+	renderOrder(opts, plan, graph)
+
+	logging.Info("启动顺序已计算", "components", len(plan.Steps), "optional", len(plan.Optional))
+	return nil
+}
+
+// renderOrder 输出启动顺序、要点与依赖图（004 §3.8 输出样例）。
+func renderOrder(opts *Options, plan *resolver.Plan, graph *resolver.Graph) {
+	opts.Printf("📋 启动顺序（拓扑排序）：\n")
+
+	width := 0
+	for _, s := range plan.Steps {
+		if n := len(s.Service); n > width {
+			width = n
+		}
+	}
+	for _, s := range plan.Steps {
+		opts.Printf("   %d. %s  %s\n",
+			s.Position, pad(s.Service, width), dependencyNote(s))
+	}
+	opts.Printf("\n")
+
+	if independent := plan.Independent(); len(independent) > 0 {
+		names := make([]string, 0, len(independent))
+		for _, s := range independent {
+			names = append(names, s.Service)
+		}
+		opts.Printf("可独立启动：%s（无依赖）\n", strings.Join(names, "、"))
+	}
+	if len(plan.Optional) > 0 {
+		ids := make([]string, 0, len(plan.Optional))
+		for _, ref := range plan.Optional {
+			ids = append(ids, ref.ID)
+		}
+		opts.Printf("可跳过（弱依赖）：%s\n", strings.Join(ids, "、"))
+	}
+	if last := plan.Last(); last != nil && last.Position > 1 {
+		opts.Printf("必须最后启动：%s（需等前 %d 个组件就绪）\n",
+			last.Ref.ID, last.Position-1)
+	}
+
+	renderDependencyGraph(opts, plan, graph)
+}
+
+// dependencyNote 生成 "无依赖" 或 "← 依赖 1, 2"。
+func dependencyNote(s resolver.PlanStep) string {
+	if len(s.RequirePositions) == 0 {
+		return "无依赖"
+	}
+	nums := make([]string, 0, len(s.RequirePositions))
+	for _, p := range s.RequirePositions {
+		nums = append(nums, strconv.Itoa(p))
+	}
+	return "← 依赖 " + strings.Join(nums, ", ")
+}
+
+// renderDependencyGraph 自上而下打印依赖关系：依赖方在前，被依赖的在后。
+func renderDependencyGraph(opts *Options, plan *resolver.Plan, graph *resolver.Graph) {
+	type line struct {
+		from string
+		deps []string
+	}
+
+	var lines []line
+	for i := len(plan.Steps) - 1; i >= 0; i-- {
+		ref := plan.Steps[i].Ref
+		node := graph.Node(ref)
+		if node == nil {
+			continue
+		}
+		var deps []string
+		for _, dep := range node.Requires {
+			deps = append(deps, dep.String())
+		}
+		for _, dep := range node.Optional {
+			deps = append(deps, dep.String()+"（弱）")
+		}
+		for _, dep := range node.MissingOptional {
+			deps = append(deps, dep.String()+"（弱，未安装）")
+		}
+		if len(deps) > 0 {
+			lines = append(lines, line{from: ref.String(), deps: deps})
+		}
+	}
+	if len(lines) == 0 {
+		return
+	}
+
+	opts.Printf("\n依赖图：\n")
+	for _, l := range lines {
+		opts.Printf("   %s → %s\n", l.from, l.deps[0])
+		for _, dep := range l.deps[1:] {
+			opts.Printf("   %s → %s\n", strings.Repeat(" ", len([]rune(l.from))), dep)
+		}
+	}
+}
+
+// pad 在右侧补空格到指定宽度（服务名都是 ASCII，按字节对齐即可）。
+func pad(s string, width int) string {
+	if len(s) >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-len(s))
 }
