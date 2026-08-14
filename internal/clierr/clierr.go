@@ -66,8 +66,11 @@ const (
 
 	// 迁移与引擎。
 	CodeMigrationFailed Code = "MIGRATION_FAILED"
-	CodeEngineFailed    Code = "ENGINE_FAILED"
-	CodeEngineMissing   Code = "ENGINE_MISSING"
+	// CodeMigrationSkipped 是"这次不由 CLI 代跑迁移"（如 local: true 的组件）。
+	// 它只作警告使用，不阻断。
+	CodeMigrationSkipped Code = "MIGRATION_SKIPPED"
+	CodeEngineFailed     Code = "ENGINE_FAILED"
+	CodeEngineMissing    Code = "ENGINE_MISSING"
 
 	// 网络、认证与镜像权限。
 	CodeNetworkUnreachable Code = "NETWORK_UNREACHABLE"

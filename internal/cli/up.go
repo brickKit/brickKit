@@ -3,7 +3,9 @@ package cli
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -124,10 +126,14 @@ func runUpDryRun(ctx context.Context, opts *Options) error {
 	}
 	renderWarnings(opts, env.Warnings)
 
-	generated, err := compose.Generate(cfg, graph, states, env, compose.Options{Now: opts.Now})
+	generated, err := compose.Generate(cfg, graph, states, env, compose.Options{
+		Now:    opts.Now,
+		Engine: detectEngine(),
+	})
 	if err != nil {
 		return err
 	}
+	renderWarnings(opts, generated.Warnings)
 
 	path, err := writeGenerated(layout, generated.YAML)
 	if err != nil {
@@ -135,11 +141,61 @@ func runUpDryRun(ctx context.Context, opts *Options) error {
 	}
 
 	opts.Printf("📄 已生成：%s\n", displayPath(opts.WorkDir, path))
+	if err := writeLocalEnvFiles(opts, layout, generated.LocalEnvFiles); err != nil {
+		return err
+	}
 	renderDatabaseRequirements(opts, generated)
 	opts.Printf("\n💡 --dry-run 只生成文件，未启动任何组件\n")
 	opts.Printf("   查看：cat %s\n", displayPath(opts.WorkDir, path))
 
 	logging.Info("部署文件已生成", "path", path, "components", len(generated.Databases))
+	return nil
+}
+
+// detectEngine 挑选容器引擎（005 §7.4）。
+//
+// 在 Step 13 里它只影响一件事：extra_hosts 用哪个宿主机别名
+// （Docker 是 host-gateway，Podman 是 host.containers.internal）。
+// 真正调用引擎启动是 Step 15 的事，"两个都没装"要到那时才该报错，
+// 现在只生成文件，按 Docker 处理即可。
+func detectEngine() string {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("BRICKKIT_ENGINE"))) {
+	case compose.EnginePodman:
+		return compose.EnginePodman
+	case compose.EngineDocker:
+		return compose.EngineDocker
+	}
+
+	if _, err := exec.LookPath("docker"); err == nil {
+		return compose.EngineDocker
+	}
+	if _, err := exec.LookPath("podman"); err == nil {
+		return compose.EnginePodman
+	}
+	return compose.EngineDocker
+}
+
+// writeLocalEnvFiles 写出 local: true 组件的调试环境变量文件（005 §4.9）。
+func writeLocalEnvFiles(opts *Options, layout config.Layout, files []compose.LocalEnvFile) error {
+	if len(files) == 0 {
+		return nil
+	}
+
+	opts.Printf("\n🔧 本地调试（local: true）：\n")
+	for _, file := range files {
+		path := filepath.Join(layout.GeneratedDir(), file.Name)
+		if err := os.WriteFile(path, file.Content, 0o600); err != nil {
+			return clierr.New(clierr.CodeInternal, "错误：写入本地调试环境变量文件失败").
+				WithDetail("路径", path).
+				WithCause(err)
+		}
+
+		relative := displayPath(opts.WorkDir, path)
+		opts.Printf("   %s@%s\n", file.Ref.ID, file.Ref.Version)
+		opts.Printf("      不生成容器；请在 IDE 里启动它，监听 localhost:%d\n", file.Port)
+		opts.Printf("      环境变量：%s\n", relative)
+		opts.Printf("      VS Code：launch.json 里配 \"envFile\": \"${workspaceFolder}/%s\"\n", relative)
+	}
 	return nil
 }
 

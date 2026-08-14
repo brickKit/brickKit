@@ -36,6 +36,9 @@ const (
 type Options struct {
 	// Now 用于文件头的生成时间，测试可注入。
 	Now func() time.Time
+	// Engine 是容器引擎（EngineDocker / EnginePodman）。
+	// 只影响 local: true 时 extra_hosts 的宿主机别名（005 §7.5）；空值按 Docker 处理。
+	Engine string
 }
 
 // DatabaseRequirement 是一个需要**使用者预先创建**的数据库。
@@ -61,6 +64,8 @@ type Result struct {
 	YAML []byte
 	// Databases 是需要使用者预先创建的数据库。
 	Databases []DatabaseRequirement
+	// LocalEnvFiles 是 local: true 组件的调试环境变量文件（005 §4.9）。
+	LocalEnvFiles []LocalEnvFile
 	// Warnings 是不阻断的问题。
 	Warnings []*clierr.Error
 }
@@ -76,7 +81,7 @@ func Generate(
 		opts.Now = time.Now
 	}
 
-	plan, err := newPlan(cfg, graph, states, env)
+	plan, err := newPlan(cfg, graph, states, env, opts.Engine)
 	if err != nil {
 		return nil, err
 	}
@@ -99,9 +104,12 @@ func Generate(
 		return nil, err
 	}
 
+	now := opts.Now()
 	return &Result{
-		YAML:      append(header(cfg, plan, opts.Now()), body...),
-		Databases: plan.databases(),
+		YAML:          append(header(cfg, plan, now), body...),
+		Databases:     plan.databases(),
+		LocalEnvFiles: plan.localEnvFiles(now),
+		Warnings:      plan.warnings,
 	}, nil
 }
 
@@ -163,19 +171,46 @@ type plan struct {
 	cfg    *config.Config
 	graph  *resolver.Graph
 	states *cascade.Result
+	engine string
 
-	// components 是本次要渲染的组件（已排除 local: true）。
+	// components 是本次要渲染的组件（已排除 local: true），按服务名排序。
 	components []componentPlan
+	// locals 是 local: true 的组件：不生成容器，但要参与端口分配与 env 文件生成。
+	locals []localComponent
 	// managed 是由 CLI 托管的资源（host 为服务名），按服务名排序。
 	managed []config.Resource
 	// rendered 是最终会出现在文件里的 service 名集合。
 	rendered map[string]bool
+
+	// 宿主机端口台账（详见 local.go）。
+	//
+	//	localPort      服务名 → local 组件在宿主机上监听的端口
+	//	exposedPort    服务名 → expose 映射到宿主机的端口
+	//	debugPort      服务名 → 纯为本地调试而映射的宿主机端口
+	//	debugExtraPort 服务名 → （容器额外端口 → 宿主机端口）
+	//	resourcePort   资源服务名 → 映射到宿主机的端口
+	localPort      map[string]int
+	exposedPort    map[string]int
+	debugPort      map[string]int
+	debugExtraPort map[string]map[int]int
+	resourcePort   map[string]int
+
+	warnings []*clierr.Error
 }
 
 func newPlan(
-	cfg *config.Config, graph *resolver.Graph, states *cascade.Result, env *inject.Result,
+	cfg *config.Config, graph *resolver.Graph, states *cascade.Result,
+	env *inject.Result, engine string,
 ) (*plan, error) {
-	p := &plan{cfg: cfg, graph: graph, states: states, rendered: map[string]bool{}}
+	p := &plan{
+		cfg: cfg, graph: graph, states: states, engine: engine,
+		rendered:       map[string]bool{},
+		localPort:      map[string]int{},
+		exposedPort:    map[string]int{},
+		debugPort:      map[string]int{},
+		debugExtraPort: map[string]map[int]int{},
+		resourcePort:   map[string]int{},
+	}
 
 	entries := map[resolver.Ref]config.Component{}
 	for _, c := range cfg.Components {
@@ -189,26 +224,38 @@ func newPlan(
 
 	for _, ref := range states.Running() {
 		entry := entries[ref]
-		if entry.Local {
-			// 12.7：local: true 的组件在宿主机（IDE）里跑，不生成容器
-			continue
-		}
 		node := graph.Node(ref)
 		if node == nil {
 			continue
 		}
+		service := manifest.ServiceName(ref.ID, ref.Version)
+
+		if entry.Local {
+			// 12.7 / 13.1：local: true 的组件在宿主机（IDE）里跑，不生成容器，
+			// 但它仍然是"启动中"的组件——依赖方要能找到它
+			p.locals = append(p.locals, localComponent{
+				Ref: ref, Service: service, Manifest: node.Manifest,
+				Entry: entry, Env: envByRef[ref],
+			})
+			continue
+		}
 		p.components = append(p.components, componentPlan{
 			Ref:       ref,
-			Service:   manifest.ServiceName(ref.ID, ref.Version),
+			Service:   service,
 			Manifest:  node.Manifest,
 			Entry:     entry,
 			Env:       envByRef[ref],
 			Resources: managedResourceServicesOf(cfg, ref.ID),
 		})
-		p.rendered[manifest.ServiceName(ref.ID, ref.Version)] = true
+		p.rendered[service] = true
 	}
 
-	p.managed = managedResources(cfg, p.components)
+	// 排序只为确定性：自动分配的端口依赖遍历顺序，
+	// map 的随机顺序会让同一份配置每次生成出不同的端口号
+	sort.Slice(p.components, func(i, j int) bool { return p.components[i].Service < p.components[j].Service })
+	sort.Slice(p.locals, func(i, j int) bool { return p.locals[i].Service < p.locals[j].Service })
+
+	p.managed = managedResources(cfg, p.components, p.locals)
 	for _, r := range p.managed {
 		p.rendered[r.Host] = true
 	}
@@ -216,6 +263,11 @@ func newPlan(
 	if err := p.checkExposePorts(); err != nil {
 		return nil, err
 	}
+	if err := p.assignHostPorts(); err != nil {
+		return nil, err
+	}
+	p.rewriteEndpointsForLocalDependencies()
+	p.warnings = append(p.warnings, p.localMigrationWarnings()...)
 	return p, nil
 }
 
@@ -264,7 +316,12 @@ func (p *plan) services() map[string]any {
 	services := map[string]any{}
 
 	for _, r := range p.managed {
-		services[r.Host] = resourceService(r)
+		svc := resourceService(r)
+		// 13.8：有 local 组件要连它时，端口得开到宿主机上
+		if hostPort, mapped := p.resourcePort[r.Host]; mapped {
+			svc["ports"] = []string{fmt.Sprintf("%d:%d", hostPort, r.Port)}
+		}
+		services[r.Host] = svc
 	}
 	for _, c := range p.components {
 		if c.Manifest.Migration != nil {
@@ -326,9 +383,17 @@ func (p *plan) databases() []DatabaseRequirement {
 }
 
 // usesComponent 判断某个组件是否在本次启动集合里。
+//
+// local 组件同样算数：它不生成容器，但它照样要连自己的库——
+// 漏掉它，使用者就会在 IDE 里对着 `database "xxx" does not exist` 发懵。
 func (p *plan) usesComponent(componentID string) bool {
 	for _, c := range p.components {
 		if c.Ref.ID == componentID {
+			return true
+		}
+	}
+	for _, l := range p.locals {
+		if l.Ref.ID == componentID {
 			return true
 		}
 	}
@@ -349,9 +414,12 @@ func (p *plan) componentService(c componentPlan) map[string]any {
 	if env := environmentOf(c.Env); len(env) > 0 {
 		svc["environment"] = env
 	}
-	if c.Entry.Expose {
-		hostPort, _ := exposeHostPort(c)
-		svc["ports"] = []string{fmt.Sprintf("%d:%d", hostPort, c.Manifest.Deployment.Port)}
+	if ports := p.hostPortsOf(c); len(ports) > 0 {
+		svc["ports"] = ports
+	}
+	// 13.2：把 local 组件的服务名解析到宿主机，容器里的代码一行不用改
+	if hosts := p.extraHostsOf(c); len(hosts) > 0 {
+		svc["extra_hosts"] = hosts
 	}
 	if health := healthcheckOf(c.Manifest); health != nil {
 		svc["healthcheck"] = health
@@ -526,10 +594,17 @@ func quotaOf(spec *manifest.ResourceSpec) map[string]any {
 //
 // host 是 Docker Network 内的服务名 → CLI 生成容器；
 // host 是 IP 或域名 → 假设运维已部署，一行不碰。
-func managedResources(cfg *config.Config, components []componentPlan) []config.Resource {
+func managedResources(
+	cfg *config.Config, components []componentPlan, locals []localComponent,
+) []config.Resource {
 	used := map[string]bool{}
 	for _, c := range components {
 		used[c.Ref.ID] = true
+	}
+	// local 组件虽然不生成容器，它要连的库还是得起来——
+	// 不然 IDE 里的进程一启动就连不上数据库
+	for _, l := range locals {
+		used[l.Ref.ID] = true
 	}
 
 	var out []config.Resource

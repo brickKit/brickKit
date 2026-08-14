@@ -123,6 +123,74 @@ func TestUpDryRunIsRepeatable(t *testing.T) {
 }
 
 // ============================================================
+// 13.4 本地调试
+// ============================================================
+
+// localDebugProject：people/basic 在 IDE 里跑，强依赖容器里的 department/tree。
+func localDebugProject(t *testing.T) *projectFixture {
+	t.Helper()
+
+	comps := []comp{
+		{ID: "people/basic", Version: "1.0.0", Requires: []string{"department/tree@1.0.0"}},
+		{ID: "department/tree", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "people/basic@1.0.0")
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+    local: true
+    localPort: 8081
+  - id: department/tree
+    version: 1.0.0
+`)
+	return f
+}
+
+// 13.4：env 文件按版本化服务名落到 .brickkit/generated/。
+func TestUpDryRunWritesLocalDebugEnvFile(t *testing.T) {
+	f := localDebugProject(t)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	path := filepath.Join(f.Dir, ".brickkit", "generated", "local-debug.people-basic-1-0-0.env")
+	require.FileExists(t, path, "13.4")
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "COMPONENT_ID=people/basic", "13.7")
+	assert.Contains(t, string(data), "DEPARTMENT_TREE_ENDPOINT=http://localhost:", "13.5")
+}
+
+// 使用者需要知道：这个组件不会被启动，得自己在 IDE 里跑，监听哪个端口。
+func TestUpDryRunTellsHowToDebugLocally(t *testing.T) {
+	f := localDebugProject(t)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	assert.Contains(t, r.stdout, "本地调试")
+	assert.Contains(t, r.stdout, "localhost:8081")
+	assert.Contains(t, r.stdout, "local-debug.people-basic-1-0-0.env")
+	assert.Contains(t, r.stdout, "envFile", "给出 IDE 里怎么用")
+}
+
+// 没有 local 组件时不该冒出本地调试的输出，也不该留下 env 文件。
+func TestUpDryRunWithoutLocalComponentWritesNoEnvFile(t *testing.T) {
+	f := composeProject(t)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.NotContains(t, r.stdout, "本地调试")
+
+	entries, err := os.ReadDir(filepath.Join(f.Dir, ".brickkit", "generated"))
+	require.NoError(t, err)
+	for _, entry := range entries {
+		assert.NotContains(t, entry.Name(), "local-debug")
+	}
+}
+
+// ============================================================
 // 错误路径
 // ============================================================
 

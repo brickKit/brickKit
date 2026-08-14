@@ -73,8 +73,8 @@ func (b *builder) resource(r config.Resource) *builder {
 	return b
 }
 
-// generate 跑完整条链路：解析 → 级联 → 注入 → 生成 compose。
-func (b *builder) generate() *compose.Result {
+// build 跑完整条链路：解析 → 级联 → 注入 → 生成 compose，允许失败。
+func (b *builder) build(opts compose.Options) (*compose.Result, error) {
 	b.t.Helper()
 
 	graph, err := resolver.New(b.provider).Resolve(context.Background(), b.roots...)
@@ -86,9 +86,17 @@ func (b *builder) generate() *compose.Result {
 	env, err := inject.Build(b.cfg, graph, states)
 	require.NoError(b.t, err)
 
-	result, err := compose.Generate(b.cfg, graph, states, env, compose.Options{
-		Now: func() time.Time { return time.Date(2026, 8, 14, 10, 0, 0, 0, time.UTC) },
-	})
+	if opts.Now == nil {
+		opts.Now = func() time.Time { return time.Date(2026, 8, 14, 10, 0, 0, 0, time.UTC) }
+	}
+	return compose.Generate(b.cfg, graph, states, env, opts)
+}
+
+// generate 跑完整条链路，失败即断言失败。
+func (b *builder) generate() *compose.Result {
+	b.t.Helper()
+
+	result, err := b.build(compose.Options{})
 	require.NoError(b.t, err)
 	return result
 }

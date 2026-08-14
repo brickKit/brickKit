@@ -1,0 +1,669 @@
+// 本文件是 Step 13「本地调试（local: true）与 local-debug.env」的业务行为测试，
+// 覆盖开发计划 13.1–13.14，以及延后项 P3（localPort 自动分配）。
+//
+// local: true 有两个方向要打通，测试也按这两个方向组织：
+//
+//	容器 → 宿主机：依赖方容器用 extra_hosts 把 local 组件的服务名指到宿主机，
+//	               端口换成 localPort；
+//	宿主机 → 容器：local 组件在 IDE 里跑，需要访问容器里的依赖与基础资源，
+//	               CLI 把它们映射到宿主机端口，并写进 local-debug.<服务名>.env。
+package compose_test
+
+import (
+	"os/exec"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
+
+	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/compose"
+	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/manifest"
+)
+
+// ============================================================
+// 夹具
+// ============================================================
+
+// generateErr 跑完整条链路但允许失败，供错误路径断言。
+func (b *builder) generateErr() error {
+	b.t.Helper()
+	_, err := b.build(compose.Options{})
+	return err
+}
+
+// docOf 把一次生成的 YAML 解析成通用结构。
+//
+// 有些用例既要看 compose 里的 ports，又要看 env 文件里的地址——
+// 两者必须来自**同一次**生成，否则自动分配的端口对不上。
+func docOf(t *testing.T, result *compose.Result) map[string]any {
+	t.Helper()
+
+	var doc map[string]any
+	require.NoError(t, yaml.Unmarshal(result.YAML, &doc))
+	return doc
+}
+
+// withExtraPort 给组件加一个额外端口（002 §5.4）。
+func withExtraPort(m *manifest.Manifest, name string, port int) *manifest.Manifest {
+	m.Deployment.ExtraPorts = append(m.Deployment.ExtraPorts,
+		manifest.ExtraPort{Name: name, Port: port})
+	return m
+}
+
+// localEnv 取出某个 local 组件的调试 env 文件，并解析成 map。
+func localEnv(t *testing.T, result *compose.Result, service string) map[string]string {
+	t.Helper()
+
+	name := "local-debug." + service + ".env"
+	for _, file := range result.LocalEnvFiles {
+		if file.Name != name {
+			continue
+		}
+		out := map[string]string{}
+		for _, line := range strings.Split(string(file.Content), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			key, value, ok := strings.Cut(line, "=")
+			require.True(t, ok, "env 文件每一行都应是 KEY=VALUE：%q", line)
+			out[key] = value
+		}
+		return out
+	}
+
+	t.Fatalf("应生成 %s，实际生成了 %v", name, envFileNames(result))
+	return nil
+}
+
+func envFileNames(result *compose.Result) []string {
+	out := make([]string, 0, len(result.LocalEnvFiles))
+	for _, file := range result.LocalEnvFiles {
+		out = append(out, file.Name)
+	}
+	return out
+}
+
+// portsOf 取出 service 的 ports 列表。
+func portsOf(t *testing.T, svc map[string]any) []string {
+	t.Helper()
+	return stringsOf(t, svc["ports"])
+}
+
+// extraHostsOf 取出 service 的 extra_hosts 列表。
+func extraHostsOf(t *testing.T, svc map[string]any) []string {
+	t.Helper()
+	return stringsOf(t, svc["extra_hosts"])
+}
+
+func stringsOf(t *testing.T, raw any) []string {
+	t.Helper()
+	if raw == nil {
+		return nil
+	}
+	items, ok := raw.([]any)
+	require.True(t, ok, "应是字符串列表，实际是 %T", raw)
+
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.(string))
+	}
+	return out
+}
+
+// localProject 是贯穿本文件的场景：
+//
+//	people/basic  local: true，在 IDE 里跑，强依赖 department/tree
+//	department/tree  在容器里跑
+//	erp/backend      在容器里跑，强依赖 people/basic
+//
+// 两个方向同时存在：erp/backend 要访问宿主机上的 people/basic，
+// 而 people/basic 要访问容器里的 department/tree。
+func localProject(t *testing.T, local config.Component) *builder {
+	t.Helper()
+
+	b := newBuilder(t)
+	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
+		config.Component{})
+	b.component(dependsOn(simple("people/basic", "1.0.0", 8080), "department/tree", "1.0.0"),
+		local)
+	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
+	return b
+}
+
+// ============================================================
+// 13.1 local 组件不生成容器
+// ============================================================
+
+// local 组件的迁移容器同样不生成：迁移由开发者在本机自己跑
+// （容器里那份代码根本不是他正在调试的代码）。
+func TestLocalComponentGeneratesNoMigrationService(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))),
+		config.Component{Local: true})
+	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+
+	services := servicesOf(t, b.parsed())
+
+	assert.NotContains(t, services, "people-basic-1-0-0", "13.1")
+	assert.NotContains(t, services, "people-basic-1-0-0-migration",
+		"13.1：local 组件不生成容器，它的迁移容器也不该生成")
+}
+
+// 迁移不再由 CLI 代跑时必须说一声，否则开发者会对着"表不存在"发懵。
+func TestLocalComponentWithMigrationWarns(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))),
+		config.Component{Local: true})
+	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+
+	result := b.generate()
+
+	require.NotEmpty(t, result.Warnings, "local 组件带迁移时应给出提示")
+	assert.Contains(t, joinWarnings(result.Warnings), "迁移")
+	assert.Contains(t, joinWarnings(result.Warnings), "people/basic")
+}
+
+func joinWarnings(warnings []*clierr.Error) string {
+	var b strings.Builder
+	for _, w := range warnings {
+		b.WriteString(w.Format())
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// ============================================================
+// 13.2 extra_hosts 映射
+// ============================================================
+
+func TestDependentGetsExtraHostsForLocalComponent(t *testing.T) {
+	b := localProject(t, config.Component{Local: true, LocalPort: 8081})
+
+	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
+
+	assert.Equal(t, []string{"people-basic-1-0-0:host-gateway"}, extraHostsOf(t, svc), "13.2")
+}
+
+// 不依赖 local 组件的容器不该平白多出 extra_hosts。
+func TestNonDependentHasNoExtraHosts(t *testing.T) {
+	b := localProject(t, config.Component{Local: true, LocalPort: 8081})
+
+	svc := serviceOf(t, b.parsed(), "department-tree-1-0-0")
+
+	assert.Empty(t, extraHostsOf(t, svc), "13.2：department/tree 不依赖 local 组件")
+}
+
+// 完全没有 local 组件时，生成的文件里不该出现 extra_hosts。
+func TestNoLocalComponentMeansNoExtraHosts(t *testing.T) {
+	b := newBuilder(t)
+	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
+		config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+
+	result := b.generate()
+
+	assert.NotContains(t, string(result.YAML), "extra_hosts")
+	assert.Empty(t, result.LocalEnvFiles, "13.4：没有 local 组件就不生成 env 文件")
+}
+
+// 多个组件同时本地调试时，依赖方要为每一个都写 extra_hosts（005 §4.4）。
+func TestExtraHostsForMultipleLocalComponents(t *testing.T) {
+	b := newBuilder(t)
+	b.component(
+		dependsOn(dependsOn(simple("erp/backend", "1.0.0", 8080),
+			"people/basic", "1.0.0"), "department/tree", "1.0.0"),
+		config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080),
+		config.Component{Local: true, LocalPort: 8081})
+	b.component(simple("department/tree", "1.0.0", 8080),
+		config.Component{Local: true, LocalPort: 8082})
+
+	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
+	env := envOf(t, svc)
+
+	assert.ElementsMatch(t,
+		[]string{"people-basic-1-0-0:host-gateway", "department-tree-1-0-0:host-gateway"},
+		extraHostsOf(t, svc))
+	assert.Equal(t, "http://people-basic-1-0-0:8081", env["PEOPLE_BASIC_ENDPOINT"])
+	assert.Equal(t, "http://department-tree-1-0-0:8082", env["DEPARTMENT_TREE_ENDPOINT"])
+}
+
+// ============================================================
+// 13.10 / 13.11 / 13.12 localPort
+// ============================================================
+
+// 13.10：用户指定了 localPort，依赖方的地址就用这个端口。
+func TestExplicitLocalPortIsUsed(t *testing.T) {
+	b := localProject(t, config.Component{Local: true, LocalPort: 9999})
+
+	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
+
+	assert.Equal(t, "http://people-basic-1-0-0:9999", env["PEOPLE_BASIC_ENDPOINT"], "13.10")
+}
+
+// 13.11：没写 localPort 时默认用组件**自己声明的主端口**。
+//
+// 搬到宿主机上跑的是同一份代码，它监听的还是 Manifest 里那个端口。
+// 直接分配 8081 会得到一个没人监听的端口，依赖方连过去只有 connection refused
+// ——这是真跑起来验出来的（调用方稳定 503）。
+func TestAutoAssignedLocalPortDefaultsToDeclaredPort(t *testing.T) {
+	b := localProject(t, config.Component{Local: true})
+
+	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
+
+	assert.Equal(t, "http://people-basic-1-0-0:8080", env["PEOPLE_BASIC_ENDPOINT"], "13.11")
+}
+
+// 声明端口被占了才退到 8081 起递增（005 §4.6）。
+func TestAutoAssignedLocalPortFallsBackTo8081(t *testing.T) {
+	b := newBuilder(t)
+	b.component(
+		dependsOn(dependsOn(simple("erp/backend", "1.0.0", 8080),
+			"people/basic", "1.0.0"), "department/tree", "1.0.0"),
+		config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Local: true})
+	b.component(simple("department/tree", "1.0.0", 8080), config.Component{Local: true})
+
+	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
+
+	assert.NotEqual(t, env["PEOPLE_BASIC_ENDPOINT"], env["DEPARTMENT_TREE_ENDPOINT"], "13.11")
+	// 按版本化服务名排序分配，结果才不会随 map 遍历顺序漂移
+	assert.Equal(t, "http://department-tree-1-0-0:8080", env["DEPARTMENT_TREE_ENDPOINT"],
+		"先到的用自己声明的端口")
+	assert.Equal(t, "http://people-basic-1-0-0:8081", env["PEOPLE_BASIC_ENDPOINT"],
+		"13.11：撞车的退到 8081")
+}
+
+// 自动分配要绕开用户已经钉死的端口，而不是硬撞上去。
+func TestAutoAssignedLocalPortSkipsExplicitOne(t *testing.T) {
+	b := newBuilder(t)
+	b.component(
+		dependsOn(dependsOn(simple("erp/backend", "1.0.0", 8080),
+			"people/basic", "1.0.0"), "department/tree", "1.0.0"),
+		config.Component{})
+	// department/tree 钉死 8080，people/basic 想用的也是 8080，只能让开
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Local: true})
+	b.component(simple("department/tree", "1.0.0", 8080),
+		config.Component{Local: true, LocalPort: 8080})
+
+	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
+
+	assert.Equal(t, "http://department-tree-1-0-0:8080", env["DEPARTMENT_TREE_ENDPOINT"])
+	assert.Equal(t, "http://people-basic-1-0-0:8081", env["PEOPLE_BASIC_ENDPOINT"], "13.11")
+}
+
+// local 组件同样要连自己的库，别把它从"需要预先创建的数据库"里漏掉。
+//
+// 漏掉的后果是使用者照着 CLI 的清单建完库，一在 IDE 里启动就撞上
+// `database "xxx" does not exist`，而 CLI 从头到尾没提过这个库。
+func TestLocalComponentDatabaseIsStillReported(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
+		config.Component{Local: true, LocalPort: 8081})
+	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "brickkit_people"}))
+
+	databases := b.generate().Databases
+
+	require.Len(t, databases, 1)
+	assert.Equal(t, "brickkit_people", databases[0].Name)
+	assert.Equal(t, []string{"people/basic"}, databases[0].Components)
+}
+
+// 13.12：两个 local 组件抢同一个 localPort 直接报错。
+func TestConflictingLocalPortsIsAnError(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080),
+		config.Component{Local: true, LocalPort: 8081})
+	b.component(simple("department/tree", "1.0.0", 8080),
+		config.Component{Local: true, LocalPort: 8081})
+
+	err := b.generateErr()
+
+	require.Error(t, err, "13.12")
+	assert.Contains(t, err.Error(), "8081")
+	assert.Equal(t, clierr.CodePortConflict, clierr.As(err).Code)
+}
+
+// localPort 撞上另一个组件的 exposePort 同样是宿主机端口冲突——
+// 它们抢的是同一台机器上的同一个端口，只是来路不同。
+func TestLocalPortConflictingWithExposePortIsAnError(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080),
+		config.Component{Local: true, LocalPort: 18080})
+	b.component(simple("portal/user-frontend", "1.0.0", 8080),
+		config.Component{Expose: true, ExposePort: 18080})
+
+	err := b.generateErr()
+
+	require.Error(t, err, "13.12")
+	assert.Contains(t, err.Error(), "18080")
+}
+
+// 两个 local 组件声明了同一个额外端口：容器里互不干扰，
+// 搬到宿主机上就只有一个 9090，必须在生成阶段说清楚。
+func TestConflictingLocalExtraPortsIsAnError(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withExtraPort(simple("people/basic", "1.0.0", 8080), "grpc", 9090),
+		config.Component{Local: true, LocalPort: 8081})
+	b.component(withExtraPort(simple("department/tree", "1.0.0", 8082), "grpc", 9090),
+		config.Component{Local: true, LocalPort: 8083})
+
+	err := b.generateErr()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "9090")
+	assert.Equal(t, clierr.CodePortConflict, clierr.As(err).Code)
+}
+
+// local 组件的额外端口不改写：宿主机上的进程监听的还是声明的那个端口，
+// 依赖方经 extra_hosts 用同一个端口号就能到。
+func TestExtraPortOfLocalComponentKeepsDeclaredPort(t *testing.T) {
+	b := newBuilder(t)
+	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
+		config.Component{})
+	b.component(withExtraPort(simple("people/basic", "1.0.0", 8080), "grpc", 9090),
+		config.Component{Local: true, LocalPort: 8081})
+
+	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
+
+	assert.Equal(t, "http://people-basic-1-0-0:8081", env["PEOPLE_BASIC_ENDPOINT"])
+	assert.Equal(t, "http://people-basic-1-0-0:9090", env["PEOPLE_BASIC_GRPC_ENDPOINT"])
+}
+
+// ============================================================
+// 13.3 / 13.13 local 组件的依赖：映射到宿主机端口
+// ============================================================
+
+// 13.3：local 组件要访问的容器依赖，自动映射一个宿主机端口。
+func TestDependencyOfLocalComponentGetsHostPort(t *testing.T) {
+	b := localProject(t, config.Component{Local: true, LocalPort: 8081})
+
+	svc := serviceOf(t, b.parsed(), "department-tree-1-0-0")
+
+	assert.Equal(t, []string{"18080:8080"}, portsOf(t, svc), "13.3")
+}
+
+// 不被任何 local 组件依赖的容器不该被平白映射到宿主机。
+func TestUnrelatedComponentIsNotMappedToHost(t *testing.T) {
+	b := localProject(t, config.Component{Local: true, LocalPort: 8081})
+
+	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
+
+	assert.Empty(t, portsOf(t, svc), "13.3：erp/backend 不是 local 组件的依赖")
+}
+
+// 13.13：依赖组件已经 expose 过了就用现成的端口，不重复映射。
+func TestDependencyWithExposeReusesItsHostPort(t *testing.T) {
+	b := newBuilder(t)
+	b.component(dependsOn(simple("people/basic", "1.0.0", 8080), "department/tree", "1.0.0"),
+		config.Component{Local: true, LocalPort: 8081})
+	b.component(simple("department/tree", "1.0.0", 8080),
+		config.Component{Expose: true, ExposePort: 9100})
+
+	result := b.generate()
+	svc := serviceOf(t, docOf(t, result), "department-tree-1-0-0")
+
+	assert.Equal(t, []string{"9100:8080"}, portsOf(t, svc), "13.13：不重复映射")
+	assert.Equal(t, "http://localhost:9100",
+		localEnv(t, result, "people-basic-1-0-0")["DEPARTMENT_TREE_ENDPOINT"], "13.13")
+}
+
+// 多个依赖需要映射时端口依次分配、互不冲突。
+func TestMultipleDependenciesGetDistinctHostPorts(t *testing.T) {
+	b := newBuilder(t)
+	b.component(
+		dependsOn(dependsOn(simple("people/basic", "1.0.0", 8080),
+			"department/tree", "1.0.0"), "authorization/rbac", "1.0.0"),
+		config.Component{Local: true, LocalPort: 8081})
+	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
+	b.component(simple("authorization/rbac", "1.0.0", 8080), config.Component{})
+
+	doc := b.parsed()
+	tree := portsOf(t, serviceOf(t, doc, "department-tree-1-0-0"))
+	rbac := portsOf(t, serviceOf(t, doc, "authorization-rbac-1-0-0"))
+
+	require.Len(t, tree, 1)
+	require.Len(t, rbac, 1)
+	assert.NotEqual(t, tree[0], rbac[0], "13.3：两个依赖不能抢同一个宿主机端口")
+}
+
+// ============================================================
+// 13.4 / 13.6 / 13.7 env 文件
+// ============================================================
+
+// 13.4 / 13.7：文件按版本化服务名命名，且带上组件身份。
+func TestLocalDebugEnvFileIsGenerated(t *testing.T) {
+	b := localProject(t, config.Component{Local: true, LocalPort: 8081})
+
+	result := b.generate()
+	env := localEnv(t, result, "people-basic-1-0-0")
+
+	assert.Equal(t, []string{"local-debug.people-basic-1-0-0.env"}, envFileNames(result), "13.4")
+	assert.Equal(t, "people/basic", env["COMPONENT_ID"], "13.7")
+	assert.Equal(t, "1.0.0", env["COMPONENT_VERSION"], "13.7")
+}
+
+// 文件是给人打开看的，也会被 IDE 读：头部要说明来历。
+func TestLocalDebugEnvFileHasHeader(t *testing.T) {
+	b := localProject(t, config.Component{Local: true, LocalPort: 8081})
+
+	result := b.generate()
+	require.Len(t, result.LocalEnvFiles, 1)
+	text := string(result.LocalEnvFiles[0].Content)
+
+	assert.Contains(t, text, "由 BrickKit CLI 自动生成")
+	assert.Contains(t, text, "people/basic@1.0.0")
+	assert.Contains(t, text, "8081", "要写清这个进程该监听哪个端口")
+}
+
+// 13.6：同一组件的两个版本同时本地调试，两份 env 文件互不覆盖。
+func TestMultipleVersionsGetSeparateEnvFiles(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080),
+		config.Component{Local: true, LocalPort: 8081})
+	b.component(simple("people/basic", "2.0.0", 8080),
+		config.Component{Local: true, LocalPort: 8082})
+
+	result := b.generate()
+
+	assert.ElementsMatch(t, []string{
+		"local-debug.people-basic-1-0-0.env",
+		"local-debug.people-basic-2-0-0.env",
+	}, envFileNames(result), "13.6")
+	assert.Equal(t, "1.0.0", localEnv(t, result, "people-basic-1-0-0")["COMPONENT_VERSION"])
+	assert.Equal(t, "2.0.0", localEnv(t, result, "people-basic-2-0-0")["COMPONENT_VERSION"])
+}
+
+// ============================================================
+// 13.5 env 文件里的依赖地址指向 localhost
+// ============================================================
+
+func TestLocalDebugEnvPointsDependenciesAtLocalhost(t *testing.T) {
+	b := localProject(t, config.Component{Local: true, LocalPort: 8081})
+
+	env := localEnv(t, b.generate(), "people-basic-1-0-0")
+
+	assert.Equal(t, "http://localhost:18080", env["DEPARTMENT_TREE_ENDPOINT"], "13.5")
+}
+
+// 两个 local 组件互相依赖时，彼此都在宿主机上，直接走各自的 localPort。
+func TestLocalDependencyOnAnotherLocalComponentUsesItsLocalPort(t *testing.T) {
+	b := newBuilder(t)
+	b.component(dependsOn(simple("people/basic", "1.0.0", 8080), "department/tree", "1.0.0"),
+		config.Component{Local: true, LocalPort: 8081})
+	b.component(simple("department/tree", "1.0.0", 8080),
+		config.Component{Local: true, LocalPort: 8082})
+
+	env := localEnv(t, b.generate(), "people-basic-1-0-0")
+
+	assert.Equal(t, "http://localhost:8082", env["DEPARTMENT_TREE_ENDPOINT"])
+}
+
+// 额外端口同样要能从宿主机访问（002 §5.4、P21）。
+func TestLocalDebugEnvMapsExtraPorts(t *testing.T) {
+	b := newBuilder(t)
+	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
+		config.Component{Local: true, LocalPort: 8081})
+	b.component(withExtraPort(simple("people/basic", "1.0.0", 8080), "grpc", 9090),
+		config.Component{})
+
+	result := b.generate()
+	env := localEnv(t, result, "erp-backend-1-0-0")
+	ports := portsOf(t, serviceOf(t, docOf(t, result), "people-basic-1-0-0"))
+
+	assert.Equal(t, "http://localhost:18080", env["PEOPLE_BASIC_ENDPOINT"])
+	assert.Equal(t, "http://localhost:19090", env["PEOPLE_BASIC_GRPC_ENDPOINT"])
+	assert.ElementsMatch(t, []string{"18080:8080", "19090:9090"}, ports)
+}
+
+// 弱依赖没启动时，env 文件里同样一个字都不该有（002 §3.4）。
+func TestLocalDebugEnvOmitsMissingWeakDependency(t *testing.T) {
+	b := newBuilder(t)
+	m := simple("people/basic", "1.0.0", 8080)
+	m.Dependencies = &manifest.Dependencies{Components: []manifest.ComponentDep{
+		{ID: "infra/bus", Version: "1.0.0", Optional: true},
+	}}
+	b.component(m, config.Component{Local: true, LocalPort: 8081})
+
+	text := string(b.generate().LocalEnvFiles[0].Content)
+
+	assert.NotContains(t, text, "INFRA_BUS_ENDPOINT")
+}
+
+// ============================================================
+// 13.8 env 文件里的资源连接
+// ============================================================
+
+// CLI 托管的资源跑在容器里，local 组件只能从宿主机的映射端口进去。
+func TestLocalDebugEnvRewritesManagedResourceToLocalhost(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
+		config.Component{Local: true, LocalPort: 8081})
+	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "brickkit_people"}))
+
+	result := b.generate()
+	env := localEnv(t, result, "people-basic-1-0-0")
+
+	assert.Equal(t, "localhost", env["DATABASE_HOST"], "13.8")
+	assert.Equal(t, "15432", env["DATABASE_PORT"], "13.8")
+	assert.Equal(t, "brickkit_people", env["DATABASE_NAME"], "库名不变，变的只是怎么连过去")
+	assert.Equal(t, []string{"15432:5432"},
+		portsOf(t, serviceOf(t, docOf(t, result), "postgres")), "资源容器要把端口开到宿主机")
+}
+
+// 外部资源（运维已部署）本来就在宿主机之外，地址原样保留——
+// 改写成 localhost 只会让本地进程连到一个不存在的服务。
+func TestLocalDebugEnvKeepsExternalResourceHost(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
+		config.Component{Local: true, LocalPort: 8081})
+	external := pgResource(config.Binding{ComponentID: "people/basic", Database: "brickkit_people"})
+	external.Host = "db.internal.example.com"
+	b.resource(external)
+
+	env := localEnv(t, b.generate(), "people-basic-1-0-0")
+
+	assert.Equal(t, "db.internal.example.com", env["DATABASE_HOST"], "13.8")
+	assert.Equal(t, "5432", env["DATABASE_PORT"])
+}
+
+// 密码是 ${VAR} 引用时保持原样：env 文件由 shell / IDE 再展开，
+// CLI 在这里替换掉反而会把密码落进磁盘。
+func TestLocalDebugEnvKeepsSecretReference(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
+		config.Component{Local: true, LocalPort: 8081})
+	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "brickkit_people"}))
+
+	env := localEnv(t, b.generate(), "people-basic-1-0-0")
+
+	assert.Equal(t, "${POSTGRES_PASSWORD}", env["DATABASE_PASSWORD"])
+}
+
+// ============================================================
+// 13.9 env 文件里的 config
+// ============================================================
+
+func TestLocalDebugEnvContainsConfigValues(t *testing.T) {
+	b := newBuilder(t)
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{
+		Type: "object",
+		Properties: map[string]manifest.ConfigProperty{
+			"pageSize": {Type: "integer", Default: 20},
+			"logLevel": {Type: "string", Default: "info"},
+		},
+	}
+	b.component(m, config.Component{
+		Local: true, LocalPort: 8081,
+		Config: map[string]any{"logLevel": "debug"},
+	})
+
+	env := localEnv(t, b.generate(), "people-basic-1-0-0")
+
+	assert.Equal(t, "debug", env["LOG_LEVEL"], "13.9：覆盖值优先")
+	assert.Equal(t, "20", env["PAGE_SIZE"], "13.9：没覆盖的用默认值")
+}
+
+// ============================================================
+// 13.14 Podman
+// ============================================================
+
+func TestPodmanUsesContainersInternal(t *testing.T) {
+	b := localProject(t, config.Component{Local: true, LocalPort: 8081})
+
+	result, err := b.build(compose.Options{Engine: compose.EnginePodman})
+	require.NoError(t, err)
+
+	assert.Contains(t, string(result.YAML), "people-basic-1-0-0:host.containers.internal", "13.14")
+	assert.NotContains(t, string(result.YAML), "host-gateway", "13.14")
+}
+
+// ============================================================
+// 确定性
+// ============================================================
+
+// 端口是自动分配的，更要保证两次生成完全一致，否则 git diff 全是噪音。
+func TestLocalPortAllocationIsDeterministic(t *testing.T) {
+	build := func() *compose.Result {
+		b := newBuilder(t)
+		b.component(
+			dependsOn(dependsOn(simple("people/basic", "1.0.0", 8080),
+				"department/tree", "1.0.0"), "authorization/rbac", "1.0.0"),
+			config.Component{Local: true})
+		b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
+		b.component(simple("authorization/rbac", "1.0.0", 8080), config.Component{})
+		return b.generate()
+	}
+
+	first, second := build(), build()
+
+	assert.Equal(t, string(first.YAML), string(second.YAML))
+	require.Len(t, second.LocalEnvFiles, 1)
+	assert.Equal(t, string(first.LocalEnvFiles[0].Content), string(second.LocalEnvFiles[0].Content))
+}
+
+// local 组件自己不在容器里，服务名却仍要能被解析——
+// 生成的文件必须能被 docker compose 接受。
+func TestLocalModeFileIsValidForDockerCompose(t *testing.T) {
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skip("未安装 docker，跳过 compose 语法校验")
+	}
+
+	b := localProject(t, config.Component{Local: true, LocalPort: 8081})
+	yamlBytes := b.generate().YAML
+
+	dir := t.TempDir()
+	path := dir + "/docker-compose.yaml"
+	require.NoError(t, writeFile(path, yamlBytes))
+
+	output, err := exec.Command("docker", "compose", "-f", path, "config", "--quiet").
+		CombinedOutput()
+
+	require.NoError(t, err, "生成的文件 docker compose 解析不了：\n%s\n----\n%s", output, yamlBytes)
+}
