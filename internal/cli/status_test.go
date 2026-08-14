@@ -287,3 +287,16 @@ func TestStatusReportsEngineFailure(t *testing.T) {
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stderr, "Docker daemon")
 }
+
+// status 给出的排障命令同样要带 -p，否则跑出来是空的。
+func TestStatusPrintsUsableLogsCommand(t *testing.T) {
+	f, eng := startedProject(t)
+	eng.statuses = []engine.Status{
+		{Service: "people-basic-1-0-0", State: "exited", ExitCode: 1},
+		{Service: "erp-backend-1-0-0", State: "exited", ExitCode: 1},
+	}
+
+	r := statusOf(t, eng, f.Dir)
+
+	assert.Contains(t, r.stdout, "-p brickkit-my-erp")
+}

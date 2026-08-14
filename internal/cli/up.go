@@ -327,7 +327,8 @@ func reportStarted(
 			err = err.WithDetail("组件", item)
 		}
 		return err.WithHint(
-			"看日志定位：docker compose -f "+displayPath(opts.WorkDir, file)+" logs <服务名>",
+			"看日志定位："+logsCommand(engineName(opts), engine.ProjectName(plan.cfg.Project),
+				displayPath(opts.WorkDir, file), "<服务名>"),
 			"迁移失败会让主服务停在 Created，先看该组件的 -migration 容器",
 		)
 	}
@@ -369,7 +370,8 @@ func describeStatus(s engine.Status) string {
 // renderNextSteps 给出启动之后的常用动作。
 func renderNextSteps(opts *Options, plan *upPlan, file string) {
 	opts.Printf("\n💡 查看状态：brickkit status\n")
-	opts.Printf("   查看日志：docker compose -f %s logs -f\n", displayPath(opts.WorkDir, file))
+	opts.Printf("   查看日志：%s -f\n", logsCommand(engineName(opts),
+		engine.ProjectName(plan.cfg.Project), displayPath(opts.WorkDir, file), ""))
 	for _, env := range plan.generated.LocalEnvFiles {
 		opts.Printf("   本地调试：在 IDE 中加载 %s 启动 %s\n",
 			filepath.Join(".brickkit", "generated", env.Name), env.Ref.ID)

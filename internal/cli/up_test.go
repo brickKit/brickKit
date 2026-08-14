@@ -330,3 +330,35 @@ func TestUpOnEmptyProjectDoesNothing(t *testing.T) {
 	assert.Empty(t, eng.ups)
 	assert.Contains(t, r.stdout, "当前项目没有组件")
 }
+
+// CLI 打印给使用者的 logs 命令必须带 -p。
+//
+// 不带的话 compose 会拿部署文件所在目录名（generated）当项目名，
+// 而容器在 brickkit-<项目> 底下——命令**静默返回空**，不报错也没有输出，
+// 使用者会以为组件根本没打日志。真跑验证时撞到的。
+func TestUpPrintsUsableLogsCommand(t *testing.T) {
+	f := composeProject(t)
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
+
+	require.Contains(t, r.stdout, "logs")
+	for _, line := range strings.Split(r.stdout, "\n") {
+		if strings.Contains(line, "compose") && strings.Contains(line, "logs") {
+			assert.Contains(t, line, "-p brickkit-my-erp", "logs 命令要能真的用：%s", line)
+		}
+	}
+}
+
+// 组件没起来时给出的排障命令同样要能用。
+func TestFailureHintPrintsUsableLogsCommand(t *testing.T) {
+	f := composeProject(t)
+	eng := newFakeEngine()
+	eng.statuses = []engine.Status{
+		{Service: "people-basic-1-0-0", State: "running", Health: "healthy"},
+		{Service: "erp-backend-1-0-0", State: "exited", ExitCode: 1},
+	}
+
+	r := runWithEngine(t, eng, f.Dir, "up")
+
+	assert.Contains(t, r.stderr, "-p brickkit-my-erp")
+}

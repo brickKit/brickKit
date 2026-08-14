@@ -8,6 +8,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sort"
 	"strings"
@@ -218,6 +219,23 @@ func (p *project) inStartOrder(refs []resolver.Ref) []resolver.Ref {
 		}
 	})
 	return out
+}
+
+// logsCommand 拼出一条**真能用**的查看日志命令。
+//
+// `-p` 不能省：compose 会拿部署文件所在目录名（generated）当项目名，
+// 而容器在 brickkit-<项目> 底下——不带 -p 的命令会**静默返回空**，
+// 不报错也没有输出，使用者会以为组件根本没打日志。真跑验证时撞到过。
+func logsCommand(engineName, project, file, service string) string {
+	bin := "docker compose"
+	if engineName == engine.Podman {
+		bin = "podman-compose"
+	}
+	command := fmt.Sprintf("%s -p %s -f %s logs", bin, project, file)
+	if service != "" {
+		command += " " + service
+	}
+	return command
 }
 
 // engineProject 是引擎侧的项目名。

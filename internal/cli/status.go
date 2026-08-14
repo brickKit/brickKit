@@ -127,8 +127,8 @@ func renderComponentStatus(opts *Options, p *project, byService map[string]engin
 		for _, line := range stopped {
 			opts.Println(line)
 		}
-		opts.Printf("   看日志定位：docker compose -f %s logs <服务名>\n\n",
-			displayPath(opts.WorkDir, p.file))
+		opts.Printf("   看日志定位：%s\n\n", logsCommand(engineName(opts), p.engineProject(),
+			displayPath(opts.WorkDir, p.file), "<服务名>"))
 	}
 	if len(running) == 0 && len(stopped) > 0 {
 		opts.Printf("📋 没有正在运行的组件（可能已经 brickkit down 过）\n")
