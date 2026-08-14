@@ -49,6 +49,10 @@ func loadProject(ctx context.Context, opts *Options) (*project, error) {
 		return nil, err
 	}
 
+	if err := requireDockerTarget(cfg); err != nil {
+		return nil, err
+	}
+
 	p := &project{
 		layout:     layout,
 		cfg:        cfg,
@@ -219,6 +223,25 @@ func (p *project) inStartOrder(refs []resolver.Ref) []resolver.Ref {
 		}
 	})
 	return out
+}
+
+// requireDockerTarget 拦下尚未实现的 K8s 目标（Step 16）。
+//
+// 不拦的话后果很安静：CLI 照样生成 docker-compose.yaml、照样去调 docker compose，
+// 文件生成了、命令也成功了，只是整个项目跑在了**错误的编排器**上，
+// 而 brickkit.yaml 里明明白白写着 target: k8s。
+func requireDockerTarget(cfg *config.Config) error {
+	if cfg.Deploy.Target == config.TargetDocker || cfg.Deploy.Target == "" {
+		return nil
+	}
+	return clierr.Newf(clierr.CodeNotImplemented,
+		"错误：deploy.target: %s 尚未实现", cfg.Deploy.Target).
+		WithDetail("实现计划", "开发计划 Step 16（K8s 部署文件生成）").
+		WithDetail("当前支持", "deploy.target: docker").
+		WithHint(
+			"本地开发请改用 deploy.target: docker",
+			"K8s 清单生成与 kubectl apply 会在 Step 16 落地",
+		)
 }
 
 // logsCommand 拼出一条**真能用**的查看日志命令。

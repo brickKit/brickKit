@@ -100,61 +100,61 @@ func renderComponentStatus(opts *Options, p *project, byService map[string]engin
 		return
 	}
 
-	var running, stopped []string
+	running := newTable("组件", "版本", "状态", "端口")
+	stopped := newTable("组件", "版本", "状态")
+	stoppedCount := 0
+
 	for _, ref := range refs {
 		service := manifest.ServiceName(ref.ID, ref.Version)
 		status, ok := byService[service]
-		line := fmt.Sprintf("   %-24s %-8s %s", ref.ID, ref.Version, statusText(status, ok))
 		if ok && status.Running() {
-			if status.Ports != "" {
-				line += "  " + status.Ports
-			}
-			running = append(running, line)
+			running.add(ref.ID, ref.Version, statusText(status, ok), status.Ports)
 			continue
 		}
-		stopped = append(stopped, line)
+		stopped.add(ref.ID, ref.Version, statusText(status, ok))
+		stoppedCount++
 	}
 
-	if len(running) > 0 {
-		opts.Printf("✅ 运行中（%d 个组件）\n", len(running))
-		for _, line := range running {
-			opts.Println(line)
-		}
-		opts.Printf("\n")
+	if len(running.rows) > 0 {
+		opts.Printf("✅ 运行中（%d 个组件）\n", len(running.rows))
+		opts.Printf("%s\n", running.render(" "))
 	}
-	if len(stopped) > 0 {
-		opts.Printf("❌ 未在运行（%d 个组件）\n", len(stopped))
-		for _, line := range stopped {
-			opts.Println(line)
-		}
+	if stoppedCount > 0 {
+		opts.Printf("❌ 未在运行（%d 个组件）\n", stoppedCount)
+		opts.Printf("%s", stopped.render(" "))
 		opts.Printf("   看日志定位：%s\n\n", logsCommand(engineName(opts), p.engineProject(),
 			displayPath(opts.WorkDir, p.file), "<服务名>"))
 	}
-	if len(running) == 0 && len(stopped) > 0 {
+	if len(running.rows) == 0 && stoppedCount > 0 {
 		opts.Printf("📋 没有正在运行的组件（可能已经 brickkit down 过）\n")
 		opts.Printf("   重新启动：brickkit up\n\n")
 	}
 }
 
 // statusText 把引擎的状态说成人话。
+// statusText 把引擎的状态说成人话。
+//
+// 刻意不带 ● / ○ 这类符号：它们在 Unicode 里是"东亚宽度：模糊"，
+// 同一个字符在不同终端下可能占 1 格也可能占 2 格，进了表格就对不齐
+// （状态标记在表格外的小节标题里，✅ / ❌）。
 func statusText(s engine.Status, found bool) string {
 	if !found {
 		// 部署文件里有、引擎里没有：多半是被 down 掉了
-		return "⬜ 未创建"
+		return "未创建"
 	}
 	switch {
 	case s.Running():
 		if s.Health != "" {
-			return "● 运行中（" + s.Health + "）"
+			return "运行中（" + s.Health + "）"
 		}
-		return "● 运行中"
+		return "运行中"
 	case s.State == "exited":
-		return fmt.Sprintf("○ exited（退出码 %d）", s.ExitCode)
+		return fmt.Sprintf("exited（退出码 %d）", s.ExitCode)
 	case s.State == "running":
 		// running 但健康检查没过：对使用者来说它并不能用
-		return "◐ 运行中但不健康（" + s.Health + "）"
+		return "运行中但不健康（" + s.Health + "）"
 	default:
-		return "○ " + s.State
+		return s.State
 	}
 }
 
@@ -164,22 +164,19 @@ func renderSkipped(opts *Options, p *project) {
 		return
 	}
 
-	var lines []string
+	t := newTable("组件", "版本", "原因")
 	for _, c := range p.states.Components {
 		if c.State == cascade.StateRunning {
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("   %-24s %-8s %s", c.Ref.ID, c.Ref.Version, c.Reason))
+		t.add(c.Ref.ID, c.Ref.Version, c.Reason)
 	}
-	if len(lines) == 0 {
+	if len(t.rows) == 0 {
 		return
 	}
 
-	opts.Printf("⬜ 未启动（%d 个组件）\n", len(lines))
-	for _, line := range lines {
-		opts.Println(line)
-	}
-	opts.Printf("\n")
+	opts.Printf("⬜ 未启动（%d 个组件）\n", len(t.rows))
+	opts.Printf("%s\n", t.render(" "))
 }
 
 // renderLocalDebug 输出本地调试的组件（15.17）。
@@ -192,7 +189,7 @@ func renderLocalDebug(opts *Options, p *project) {
 		return
 	}
 
-	opts.Printf("🔧 本地调试（local: true，不由平台启动）\n")
+	t := newTable("组件", "版本", "本地地址")
 	for _, ref := range refs {
 		port := p.entry(ref).LocalPort
 		if port == 0 {
@@ -201,9 +198,11 @@ func renderLocalDebug(opts *Options, p *project) {
 				port = node.Manifest.Deployment.Port
 			}
 		}
-		opts.Printf("   %-24s %-8s → localhost:%d（IDE 调试模式）\n", ref.ID, ref.Version, port)
+		t.add(ref.ID, ref.Version, fmt.Sprintf("localhost:%d（IDE 调试模式）", port))
 	}
-	opts.Printf("\n")
+
+	opts.Printf("🔧 本地调试（local: true，不由平台启动）\n")
+	opts.Printf("%s\n", t.render(" "))
 }
 
 // renderResourceStatus 输出基础资源的可达性（15.18）。
@@ -221,11 +220,13 @@ func renderResourceStatus(
 		return
 	}
 
-	opts.Printf("📦 资源状态\n")
+	t := newTable("资源", "类型", "状态")
 	for _, r := range resources {
-		opts.Printf("   %-24s %s\n", r.ID, resourceState(ctx, opts, r, byService))
+		t.add(r.ID, r.Kind, resourceState(ctx, opts, r, byService))
 	}
-	opts.Printf("\n")
+
+	opts.Printf("📦 资源状态\n")
+	opts.Printf("%s\n", t.render(" "))
 }
 
 // usedResources 返回被本次启动的组件用到的资源。
@@ -255,19 +256,19 @@ func resourceState(
 		status, ok := byService[r.Host]
 		switch {
 		case !ok:
-			return "○ 不可达（容器 " + r.Host + " 未创建）"
+			return "不可达（容器 " + r.Host + " 未创建）"
 		case status.Running():
-			return "● 可达（容器 " + r.Host + " 运行中）"
+			return "可达（容器 " + r.Host + " 运行中）"
 		default:
-			return "○ 不可达（容器 " + r.Host + " " + status.State + "）"
+			return "不可达（容器 " + r.Host + " " + status.State + "）"
 		}
 	}
 
 	address := fmt.Sprintf("%s:%d", r.Host, r.Port)
 	if err := opts.probe(ctx, address); err != nil {
-		return "○ 不可达（" + address + "：" + reasonText(err) + "）"
+		return "不可达（" + address + "：" + reasonText(err) + "）"
 	}
-	return "● 可达（" + address + "）"
+	return "可达（" + address + "）"
 }
 
 // reasonText 从拨号错误里取出人能看懂的那一句。

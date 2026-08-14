@@ -169,6 +169,10 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		return nil, err
 	}
 
+	if err := requireDockerTarget(cfg); err != nil {
+		return nil, err
+	}
+
 	plan := &upPlan{layout: layout, cfg: cfg}
 	if len(cfg.Components) == 0 {
 		opts.Printf("📋 当前项目没有组件\n")
