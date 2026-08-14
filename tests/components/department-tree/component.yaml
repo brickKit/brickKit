@@ -1,0 +1,71 @@
+# department/tree —— 部门树组件（BrickKit Phase 5 测试组件）
+#
+# 叶子组件：不依赖任何其他组件，只依赖一个 database 资源。
+# 同时是平台的验证夹具：单端口双协议、gRPC Reflection、migration、artifacts。
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: department/tree
+  name: 部门树
+  version: 1.0.0
+  description: 提供组织架构（部门树）的查询能力，HTTP 与 gRPC 双协议共用同一端口
+  vendor: brickkit-platform
+  license: MIT
+
+tags:
+  - department
+  - master-data
+
+artifacts:
+  # 契约即产物（002 §7）：使用方 brickkit add 之后据此生成 gRPC 客户端
+  - type: api-contract
+    format: protobuf
+    description: gRPC API 契约文件
+    files:
+      - proto/department/v1/department.proto
+  - type: api-docs
+    format: openapi
+    description: HTTP REST API 文档
+    files:
+      - openapi.json
+
+dependencies:
+  # 叶子组件：没有 components 依赖
+  resources:
+    - kind: database
+      engine: postgresql
+
+configSchema:
+  type: object
+  properties:
+    logLevel:
+      type: string
+      default: "info"
+      description: 日志级别，注入为环境变量 LOG_LEVEL（debug | info | warn | error）
+
+migration:
+  # 平台在启动组件之前执行一次；必须幂等（002 §8.2）
+  command: ["/app/department-tree", "migrate"]
+
+deployment:
+  type: container
+  image: brickkit-demo/department-tree:1.0.0
+  # 单端口：HTTP 与 gRPC 共用。因此不需要 extraPorts
+  port: 8080
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "32Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+healthCheck:
+  type: http
+  path: /healthz
+  # ⚠️ /healthz 只检查本进程存活，不查数据库（002 §9.4）
+
+observability:
+  metrics: false
+  tracing: false

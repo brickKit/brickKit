@@ -41,7 +41,7 @@ TESTFLAGS ?= -count=1
 
 # 平台自测组件（tests/components/*）：各自是独立的 Go module 与独立的组件仓库，
 # 不参与主 module 的 ./... 构建，需要单独测试与构建镜像。
-DEMO_COMPONENTS := demo-hello demo-caller
+DEMO_COMPONENTS := demo-hello demo-caller department-tree
 # 多版本共存验证需要同一份 hello 的两个 tag
 DEMO_HELLO_TAGS := 1.0.0 2.0.0
 
@@ -170,6 +170,15 @@ test-market: ## 市场后端测试
 		cd market-server && $(GO) test $(TESTFLAGS) ./...; \
 	else echo "⏭  market-server：暂无测试文件，跳过"; fi
 
+.PHONY: proto-department
+proto-department: ## 由 proto 重新生成 department/tree 的 Go 代码
+	@cd tests/components/department-tree && mkdir -p gen && PATH="$(TOOLS_BIN):$$PATH" $(PROTOC) \
+		--proto_path=proto \
+		--go_out=gen --go_opt=paths=source_relative \
+		--go-grpc_out=gen --go-grpc_opt=paths=source_relative \
+		proto/department/v1/department.proto
+	@echo "✅ tests/components/department-tree/gen 已更新"
+
 .PHONY: test-market-integration
 test-market-integration: ## 市场后端的集成测试（需要本机 PostgreSQL 与 RustFS，读 .env）
 	@set -a; . ./.env; set +a; \
@@ -187,6 +196,7 @@ test-components: ## 平台自测组件的单元测试（tests/components/*，各
 .PHONY: demo-images
 demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实验证靠它们）
 	@docker build -q -t brickkit-demo/caller:1.0.0 tests/components/demo-caller
+	@docker build -q -t brickkit-demo/department-tree:1.0.0 tests/components/department-tree
 	@for tag in $(DEMO_HELLO_TAGS); do \
 		docker build -q -t brickkit-demo/hello:$$tag tests/components/demo-hello; \
 	done

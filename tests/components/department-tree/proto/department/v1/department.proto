@@ -1,0 +1,52 @@
+// department/tree 的 gRPC 契约（002 §7：契约即产物）。
+//
+// 这份 proto 会作为 api-contract 产物发布到市场；使用方 `brickkit add` 之后
+// 从 .brickkit/artifacts/department-tree-1-0-0/api-contract/ 取到它来生成客户端。
+syntax = "proto3";
+
+package department.v1;
+
+option go_package = "github.com/brickkit/components/department-tree/gen/department/v1;departmentv1";
+
+// DepartmentService 提供部门树的查询能力。
+//
+// 它是一个叶子组件：不依赖任何其他组件，只依赖一个 database 资源。
+service DepartmentService {
+  // ListDepartments 返回全部部门（扁平列表，parentId 表达层级）。
+  rpc ListDepartments(ListDepartmentsRequest) returns (ListDepartmentsResponse);
+  // GetDepartment 按 ID 查询单个部门。
+  rpc GetDepartment(GetDepartmentRequest) returns (Department);
+  // GetSubtree 返回某个部门及其全部下级。
+  rpc GetSubtree(GetSubtreeRequest) returns (ListDepartmentsResponse);
+}
+
+// Department 是一个部门。
+message Department {
+  // id 是部门 ID。
+  string id = 1;
+  // name 是部门名称。
+  string name = 2;
+  // parent_id 是上级部门 ID；根部门为空。
+  string parent_id = 3;
+  // level 是层级，根部门为 1。
+  int32 level = 4;
+}
+
+message ListDepartmentsRequest {
+  // parent_id 非空时只返回该部门的直接下级。
+  string parent_id = 1;
+}
+
+message ListDepartmentsResponse {
+  repeated Department departments = 1;
+  int32 total = 2;
+}
+
+message GetDepartmentRequest {
+  string id = 1;
+}
+
+message GetSubtreeRequest {
+  // root_id 是子树的根部门 ID。
+  string root_id = 1;
+}

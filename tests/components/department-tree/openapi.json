@@ -1,0 +1,159 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "department/tree",
+    "version": "1.0.0",
+    "description": "部门树组件的 HTTP REST 接口。同一端口上还提供 gRPC（契约见 proto/department/v1/department.proto）。"
+  },
+  "paths": {
+    "/api/v1/departments": {
+      "get": {
+        "summary": "查询部门列表",
+        "parameters": [
+          {
+            "name": "parentId",
+            "in": "query",
+            "required": false,
+            "description": "只返回该部门的直接下级；不传则返回全部部门",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "部门列表",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DepartmentList" }
+              }
+            }
+          },
+          "503": {
+            "description": "部门数据暂时不可用",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/departments/{id}": {
+      "get": {
+        "summary": "查询单个部门",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "部门",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Department" }
+              }
+            }
+          },
+          "404": {
+            "description": "部门不存在",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/departments/{id}/subtree": {
+      "get": {
+        "summary": "查询部门子树（自己 + 全部下级）",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "子树内的全部部门",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DepartmentList" }
+              }
+            }
+          },
+          "404": {
+            "description": "部门不存在",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "summary": "健康检查",
+        "description": "只检查本进程存活，不检查数据库或任何外部依赖（002 §9.4）。",
+        "responses": {
+          "200": {
+            "description": "进程存活",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "component": { "type": "string", "example": "department/tree" },
+                    "version": { "type": "string", "example": "1.0.0" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Department": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "d-tech" },
+          "name": { "type": "string", "example": "技术中心" },
+          "parentId": { "type": "string", "description": "上级部门 ID；根部门为空字符串" },
+          "level": { "type": "integer", "description": "层级，根部门为 1" }
+        },
+        "required": ["id", "name", "parentId", "level"]
+      },
+      "DepartmentList": {
+        "type": "object",
+        "properties": {
+          "departments": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Department" }
+          },
+          "total": { "type": "integer" }
+        },
+        "required": ["departments", "total"]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" }
+        },
+        "required": ["error"]
+      }
+    }
+  }
+}
