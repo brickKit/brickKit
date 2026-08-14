@@ -108,6 +108,50 @@ func (g *Graph) Refs() []Ref {
 	return out
 }
 
+// Subgraph 返回只含给定组件的子图，依赖关系裁剪到子图内部。
+//
+// 用于"先算出本次启动哪些组件（级联），再对这批组件排序"：
+// 直接对全图排序会把根本不会启动的组件也排进去。
+func (g *Graph) Subgraph(refs []Ref) *Graph {
+	keep := make(map[Ref]bool, len(refs))
+	for _, ref := range refs {
+		keep[ref] = true
+	}
+
+	out := &Graph{index: map[Ref]*Node{}, Warnings: g.Warnings}
+	for _, node := range g.Nodes {
+		if !keep[node.Ref] {
+			continue
+		}
+		copied := &Node{
+			Ref:             node.Ref,
+			Manifest:        node.Manifest,
+			Requires:        filterRefs(node.Requires, keep),
+			Optional:        filterRefs(node.Optional, keep),
+			MissingOptional: node.MissingOptional,
+			Dependents:      filterRefs(node.Dependents, keep),
+		}
+		out.Nodes = append(out.Nodes, copied)
+		out.index[copied.Ref] = copied
+	}
+	for _, ref := range g.Roots {
+		if keep[ref] {
+			out.Roots = append(out.Roots, ref)
+		}
+	}
+	return out
+}
+
+func filterRefs(refs []Ref, keep map[Ref]bool) []Ref {
+	var out []Ref
+	for _, ref := range refs {
+		if keep[ref] {
+			out = append(out, ref)
+		}
+	}
+	return out
+}
+
 // Resolver 递归解析组件依赖。
 type Resolver struct {
 	provider Provider

@@ -87,7 +87,12 @@ func TestOrderListsOptionalDependencies(t *testing.T) {
 	r := runIn(t, f.Dir, "order")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
-	assert.Contains(t, r.stdout, "可跳过（弱依赖）：infra/redis-event-bus")
+	// 弱依赖不会被级联拉起（003 §4.3），因此它不在启动顺序里；
+	// 但必须在状态一览里说清"为什么没跑、想跑该怎么办"。
+	assert.Contains(t, r.stdout, "infra/redis-event-bus@1.0.0")
+	assert.Contains(t, r.stdout, "只被弱依赖引用")
+	assert.Contains(t, r.stdout, "enabled: true")
+	assert.NotContains(t, startupSection(r.stdout), "infra-redis-event-bus-1-0-0")
 	assert.Contains(t, r.stdout, "（弱）", "依赖图里要标出弱依赖")
 }
 
@@ -246,7 +251,9 @@ func TestOrderShowsMissingOptionalDependency(t *testing.T) {
 //
 // 级联启停是 Step 11 的职责（延后清单 P17）。Step 11 实现后，本用例应改为
 // 断言被禁用的组件不出现在启动顺序中——它失败正是提醒回来改这里。
-func TestOrderCurrentlyIgnoresEnabledFalse(t *testing.T) {
+// P17 回填：order 按级联结果过滤（003 §4.3）。
+// 被显式禁用的组件不该出现在启动顺序里。
+func TestOrderExcludesDisabledComponent(t *testing.T) {
 	comps := []comp{
 		{ID: "people/basic", Version: "1.0.0"},
 		{ID: "department/tree", Version: "1.0.0"},
@@ -262,6 +269,83 @@ func TestOrderCurrentlyIgnoresEnabledFalse(t *testing.T) {
 
 	r := runIn(t, f.Dir, "order")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "department-tree-1-0-0",
-		"当前实现未过滤 enabled: false（P17 待回填）")
+
+	startup := startupSection(r.stdout)
+	assert.NotContains(t, startup, "department-tree-1-0-0", "被禁用的组件不该排进启动顺序")
+	assert.Contains(t, startup, "people-basic-1-0-0")
+
+	// 但要在状态一览里说清它为什么不跑
+	assert.Contains(t, r.stdout, "📋 组件状态计算：")
+	assert.Contains(t, r.stdout, "department/tree@1.0.0")
+	assert.Contains(t, r.stdout, "显式禁用")
+}
+
+// 级联跳过的组件同样不排进启动顺序，并给出被谁拖下来的理由。
+func TestOrderExcludesCascadeSkippedComponent(t *testing.T) {
+	comps := []comp{
+		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
+		{ID: "people/basic", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "erp/backend@1.0.0")
+	f.writeConfig(t, `components:
+  - id: erp/backend
+    version: 1.0.0
+    enabled: false
+  - id: people/basic
+    version: 1.0.0
+`)
+
+	r := runIn(t, f.Dir, "order")
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+
+	assert.Contains(t, r.stdout, "级联跳过")
+	assert.NotContains(t, startupSection(r.stdout), "people-basic-1-0-0",
+		"唯一的依赖方停了，它也不该启动")
+}
+
+// 全部组件都不启动时，明确说清楚，而不是打印一张空表。
+func TestOrderWithNothingRunning(t *testing.T) {
+	comps := []comp{{ID: "people/basic", Version: "1.0.0"}}
+	f := addedProject(t, comps, "people/basic@1.0.0")
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+    enabled: false
+`)
+
+	r := runIn(t, f.Dir, "order")
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.Contains(t, r.stdout, "本次没有组件会启动")
+}
+
+// P14 回填：钉住的组件依赖了被禁用的组件 → 报错（004 §10.3）。
+func TestOrderReportsDisabledStrongDependency(t *testing.T) {
+	comps := []comp{
+		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"authorization/rbac@1.0.0"}},
+		{ID: "authorization/rbac", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "erp/backend@1.0.0")
+	f.writeConfig(t, `components:
+  - id: erp/backend
+    version: 1.0.0
+    enabled: true
+  - id: authorization/rbac
+    version: 1.0.0
+    enabled: false
+`)
+
+	r := runIn(t, f.Dir, "order")
+
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "强依赖 authorization/rbac 被禁用")
+	assert.Contains(t, r.stderr, "erp/backend")
+}
+
+// startupSection 截取"启动顺序"那一段，避免与状态一览里的名字混淆。
+func startupSection(out string) string {
+	start := strings.Index(out, "📋 启动顺序")
+	if start < 0 {
+		return ""
+	}
+	return out[start:]
 }

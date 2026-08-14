@@ -17,6 +17,16 @@ const (
 	SourceTypeLocal  = "local"
 )
 
+// 基础资源类型（006 §2.2）。每类资源有各自的连接变量命名（006 §5.2）。
+const (
+	ResourceKindDatabase = "database"
+	ResourceKindCache    = "cache"
+	ResourceKindMQ       = "mq"
+	ResourceKindStorage  = "storage"
+	ResourceKindSearch   = "search"
+	ResourceKindSMTP     = "smtp"
+)
+
 // Config 是 brickkit.yaml 的完整结构（003、附录 D.1）。
 type Config struct {
 	Project    string      `yaml:"project"`

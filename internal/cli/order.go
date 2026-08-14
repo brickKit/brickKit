@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/resolver"
@@ -61,16 +62,53 @@ func runOrder(ctx context.Context, opts *Options) error {
 	if err != nil {
 		return err
 	}
-	plan, err := resolver.Order(graph)
+	// 先算"这次到底跑哪些组件"（003 §4.3），再对启动集合做拓扑排序。
+	// 顺序反过来的话，输出里会出现根本不会启动的组件。
+	states, err := cascade.Compute(cfg, graph)
+	if err != nil {
+		return err
+	}
+
+	plan, err := resolver.Order(graph.Subgraph(states.Running()))
 	if err != nil {
 		return err
 	}
 
 	renderWarnings(opts, graph.Warnings)
+	renderStates(opts, states)
+
+	if states.Empty() {
+		opts.Printf("📋 本次没有组件会启动\n")
+		opts.Printf("   把需要的组件改成 enabled: true，或移除 enabled: false\n")
+		logging.Info("启动顺序已计算", "components", 0)
+		return nil
+	}
 	renderOrder(opts, plan, graph)
 
 	logging.Info("启动顺序已计算", "components", len(plan.Steps), "optional", len(plan.Optional))
 	return nil
+}
+
+// renderStates 输出组件状态计算结果（003 §4.3 的输出样例）。
+//
+// 不启动的组件也要列出来并说明理由：否则使用者只会看到"我加的组件不见了"。
+func renderStates(opts *Options, states *cascade.Result) {
+	opts.Printf("📋 组件状态计算：\n")
+
+	width := 0
+	for _, c := range states.Components {
+		if n := len(c.Ref.ID + "@" + c.Ref.Version); n > width {
+			width = n
+		}
+	}
+	for _, c := range states.Components {
+		mark := "⬜"
+		if c.State == cascade.StateRunning {
+			mark = "✅"
+		}
+		opts.Printf("   %s %s  %s\n", mark, pad(c.Ref.ID+"@"+c.Ref.Version, width), c.Reason)
+	}
+	opts.Printf("\n")
 }
 
 // renderOrder 输出启动顺序、要点与依赖图（004 §3.8 输出样例）。
