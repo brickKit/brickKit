@@ -10,7 +10,7 @@ HTTP 在 8080，gRPC 在 9090（Python 的 grpcio 无法与 HTTP 共用端口，
 
 ## 使用前：创建数据库（执行一次）
 
-平台**不会**替你创建数据库（006 §9.1）。库里的**表**由本组件的 migrations 建，
+平台**不会**替你创建数据库（006 §9.1 / §9.5）。库里的**表**由本组件的 migrations 建，
 但**库本身**需要你先建好。
 
 本组件预设的数据库名是 **`brickkit_people`**。执行一次即可：
@@ -56,7 +56,8 @@ migrations/
 └── 0002_seed_people.down.sql   回退：删初始数据
 ```
 
-脚本随镜像一起打包（002 §8.4），执行记录写在 `schema_migrations` 表里。
+脚本随镜像一起打包（002 §8.4），执行记录写在 `schema_migrations` 表里，
+主键 `(component_id, version)`（002 §8.11）。
 
 ### 命令
 

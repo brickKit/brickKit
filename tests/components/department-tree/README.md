@@ -8,7 +8,7 @@ HTTP 与 gRPC 共用同一个端口（8080）。
 
 ## 使用前：创建数据库（执行一次）
 
-平台**不会**替你创建数据库（006 §9.1：CLI 负责声明、绑定、注入配置，
+平台**不会**替你创建数据库（006 §9.1 / §9.5：CLI 负责声明、绑定、注入配置，
 不负责创建数据库、修改数据库结构、迁移生产数据）。库里的**表**由本组件的
 migrations 建，但**库本身**需要你先建好。
 
@@ -50,7 +50,7 @@ resources:
 
 ## 数据库迁移
 
-表结构与初始数据都在 `migrations/` 下，是**有版本的 SQL 文件**：
+表结构与初始数据都在 `migrations/` 下，是**有版本的 SQL 文件**（标准见 002 §8.10）：
 
 ```
 migrations/
@@ -61,7 +61,7 @@ migrations/
 ```
 
 脚本通过 `go:embed` 打进二进制（002 §8.4：迁移脚本与业务代码同镜像同版本），
-执行记录写在 `schema_migrations` 表里，按 `(component_id, version)` 隔离。
+执行记录写在 `schema_migrations` 表里，主键 `(component_id, version)`（002 §8.11）。
 
 ### 命令
 
@@ -95,7 +95,7 @@ migrations/0003_add_code.up.sql      ALTER TABLE departments ADD COLUMN code TEX
 migrations/0003_add_code.down.sql    ALTER TABLE departments DROP COLUMN code
 ```
 
-三条不变量由测试锁定（`migrate_test.go`）：
+三条不变量（002 §8.12）由测试锁定（`migrate_test.go`）：
 
 | 不变量 | 含义 |
 | --- | --- |
