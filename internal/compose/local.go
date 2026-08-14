@@ -299,6 +299,47 @@ func (p *plan) hostAccessPort(dep resolver.Ref) (int, bool) {
 	return 0, false
 }
 
+// HostPort 是一个会被占用的宿主机端口。
+type HostPort struct {
+	Port int
+	// Owner 说明是谁要用它（组件或资源），出现在体检输出里。
+	Owner string
+	// Purpose 是用途：expose / 本地调试 / local 组件监听。
+	Purpose string
+}
+
+// hostPorts 汇总本次会占用的宿主机端口（P22）。
+//
+// 生成阶段只能保证"项目内部不打架"；这台机器上别的进程占着某个端口，
+// 得启动前真的探一下才知道（`--check-resources`）。
+func (p *plan) hostPorts() []HostPort {
+	var out []HostPort
+	for _, c := range p.components {
+		if port, ok := p.exposedPort[c.Service]; ok {
+			out = append(out, HostPort{port, refText(c.Ref), "expose"})
+		}
+		if port, ok := p.debugPort[c.Service]; ok {
+			out = append(out, HostPort{port, refText(c.Ref), "供本地调试访问"})
+		}
+		for _, extra := range c.Manifest.Deployment.ExtraPorts {
+			if port, ok := p.debugExtraPort[c.Service][extra.Port]; ok {
+				out = append(out, HostPort{port, refText(c.Ref), "供本地调试访问 " + extra.Name})
+			}
+		}
+	}
+	for _, l := range p.locals {
+		out = append(out, HostPort{l.Port, refText(l.Ref), "local 组件监听"})
+	}
+	for _, r := range p.managed {
+		if port, ok := p.resourcePort[r.Host]; ok {
+			out = append(out, HostPort{port, "资源 " + r.ID, "供本地调试访问"})
+		}
+	}
+
+	sort.Slice(out, func(i, j int) bool { return out[i].Port < out[j].Port })
+	return out
+}
+
 // ============================================================
 // 渲染
 // ============================================================

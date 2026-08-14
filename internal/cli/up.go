@@ -48,16 +48,18 @@ func newUpCommand(opts *Options) *cobra.Command {
   7. 检测镜像拉取权限（未授权时提示 docker login）
   8. 调用底层引擎启动；数据库迁移由一次性容器执行，失败则阻断主服务
 
-当前版本：--only 与 --check-resources 见 Step 15-C。`,
+版本号改了就是升级：CLI 自动拉新版本 Manifest 与产物、做兼容性检查（004 §3.5.1）。`,
 		Example: `  brickkit up
+  brickkit up --only people/basic,department/tree   只启动指定组件及其依赖
+  brickkit up --only people/basic@1.0.0             只启动指定版本
   brickkit up --dry-run                             只生成文件，不启动
+  brickkit up --check-resources                     启动前检查资源可达性与端口占用
   brickkit up --config brickkit.prod.yaml           使用指定配置文件`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(only) > 0 || checkResources {
-				return clierr.NotImplemented("brickkit up --only / --check-resources", 15)
-			}
-			return runUp(cmd.Context(), opts, dryRun)
+			return runUp(cmd.Context(), opts, upOptions{
+				only: only, dryRun: dryRun, checkResources: checkResources,
+			})
 		},
 	}
 
@@ -83,6 +85,8 @@ type upPlan struct {
 	migrations []migrationInfo
 	// images 是要检查拉取权限的镜像（15.19）。
 	images []imageInfo
+	// upgrades 是本次检测到的版本变更（004 §3.5.1）。
+	upgrades []upgradeInfo
 	// done 为 true 表示"没什么可启动的"，已经把话说清楚了。
 	done bool
 }
@@ -97,13 +101,20 @@ type imageInfo struct {
 	image     string
 }
 
+// upOptions 是 up 的命令行选项。
+type upOptions struct {
+	only           []string
+	dryRun         bool
+	checkResources bool
+}
+
 // runUp 执行 brickkit up。
-func runUp(ctx context.Context, opts *Options, dryRun bool) error {
+func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	plan, err := buildUpPlan(ctx, opts)
+	plan, err := buildUpPlan(ctx, opts, flags)
 	if err != nil || plan.done {
 		return err
 	}
@@ -118,7 +129,20 @@ func runUp(ctx context.Context, opts *Options, dryRun bool) error {
 	opts.Printf("📄 已生成：%s\n", displayPath(opts.WorkDir, path))
 	renderDatabaseRequirements(opts, plan.generated)
 
-	if dryRun {
+	if flags.checkResources {
+		// --dry-run 时不要求引擎可用：那台机器上也许根本没装 docker，
+		// 而"看看会发生什么"本来就不该依赖引擎
+		var eng engine.Engine
+		if !flags.dryRun {
+			if eng, err = resolveEngine(opts); err != nil {
+				return err
+			}
+		}
+		checkResources(ctx, opts, eng, plan)
+	}
+
+	if flags.dryRun {
+		renderUpgradeSummary(opts, plan)
 		opts.Printf("\n💡 --dry-run 只生成文件，未启动任何组件\n")
 		opts.Printf("   查看：cat %s\n", displayPath(opts.WorkDir, path))
 		logging.Info("部署文件已生成", "path", path)
@@ -138,7 +162,7 @@ func runUp(ctx context.Context, opts *Options, dryRun bool) error {
 }
 
 // buildUpPlan 从配置一路算到"要启动哪些 service"。
-func buildUpPlan(ctx context.Context, opts *Options) (*upPlan, error) {
+func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, error) {
 	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
 	cfg, err := config.ParseConfigFile(layout.ConfigPath())
 	if err != nil {
@@ -161,6 +185,12 @@ func buildUpPlan(ctx context.Context, opts *Options) (*upPlan, error) {
 	}
 	defer func() { _ = client.Close() }()
 
+	// 版本号与缓存里的对不上就是升级：拉新版本 Manifest 与产物、做兼容性检查
+	// （004 §3.5.1，回填 P10 / P15）。要在解析依赖图之前做完
+	if plan.upgrades, err = handleUpgrades(ctx, opts, layout, cfg, client); err != nil {
+		return nil, err
+	}
+
 	plan.graph, err = resolver.New(resolver.FromSource(client)).ResolveConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -169,9 +199,15 @@ func buildUpPlan(ctx context.Context, opts *Options) (*upPlan, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(flags.only) > 0 {
+		if plan.states, err = restrictToOnly(opts, plan, flags.only); err != nil {
+			return nil, err
+		}
+	}
 
 	renderWarnings(opts, plan.graph.Warnings)
 	renderStates(opts, plan.states)
+	warnHardcodedPasswords(opts, cfg)
 
 	if plan.states.Empty() {
 		opts.Printf("📋 本次没有组件会启动\n")

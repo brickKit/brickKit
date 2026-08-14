@@ -427,3 +427,61 @@ func TestIsRunningLookup(t *testing.T) {
 	assert.False(t, result.IsRunning(ref("people/basic")), "唯一的依赖方停了，它也不该跑")
 	assert.False(t, result.IsRunning(resolver.Ref{ID: "nobody/here", Version: "1.0.0"}))
 }
+
+// ============================================================
+// Restrict（`brickkit up --only`，004 §3.5）
+// ============================================================
+
+// 收窄之后，不在集合里的组件从"启动"变成"跳过"，并带上调用方给的理由。
+func TestRestrictNarrowsRunningSet(t *testing.T) {
+	graph := newGraph(t,
+		spec{id: "erp/backend", requires: []string{"people/basic"}},
+		spec{id: "people/basic"},
+	)
+	result, err := cascade.Compute(cfgOf(entry("erp/backend", ""), entry("people/basic", "")), graph)
+	require.NoError(t, err)
+	require.ElementsMatch(t, refs("erp/backend", "people/basic"), result.Running())
+
+	narrowed := result.Restrict(map[resolver.Ref]bool{ref("people/basic"): true}, "未被 --only 选中")
+
+	assert.Equal(t, refs("people/basic"), narrowed.Running())
+	assert.False(t, narrowed.IsRunning(ref("erp/backend")))
+	assert.True(t, narrowed.IsRunning(ref("people/basic")))
+
+	for _, c := range narrowed.Components {
+		if c.Ref == ref("erp/backend") {
+			assert.Equal(t, cascade.StateSkipped, c.State)
+			assert.Equal(t, "未被 --only 选中", c.Reason)
+		}
+	}
+}
+
+// 收窄不会把已经"显式禁用"的组件改写成别的理由——
+// 那条理由比"未被选中"更能说明问题。
+func TestRestrictKeepsDisabledReason(t *testing.T) {
+	graph := newGraph(t, spec{id: "people/basic"}, spec{id: "infra/bus"})
+	result, err := cascade.Compute(
+		cfgOf(entry("people/basic", ""), entry("infra/bus", "false")), graph)
+	require.NoError(t, err)
+
+	narrowed := result.Restrict(map[resolver.Ref]bool{ref("people/basic"): true}, "未被 --only 选中")
+
+	for _, c := range narrowed.Components {
+		if c.Ref == ref("infra/bus") {
+			assert.Equal(t, cascade.StateDisabled, c.State)
+			assert.Contains(t, c.Reason, "显式禁用")
+		}
+	}
+}
+
+// 收窄到空集合是合法的（--only 指了个本来就不会启动的组件）。
+func TestRestrictToNothing(t *testing.T) {
+	graph := newGraph(t, spec{id: "people/basic"})
+	result, err := cascade.Compute(cfgOf(entry("people/basic", "")), graph)
+	require.NoError(t, err)
+
+	narrowed := result.Restrict(map[resolver.Ref]bool{}, "未被 --only 选中")
+
+	assert.True(t, narrowed.Empty())
+	assert.Len(t, narrowed.Components, 1, "组件本身仍要出现在清单里，只是不启动")
+}

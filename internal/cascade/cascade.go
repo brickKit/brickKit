@@ -62,6 +62,25 @@ func (r *Result) Running() []resolver.Ref {
 // Empty 表示这次一个组件都不启动。
 func (r *Result) Empty() bool { return len(r.Running()) == 0 }
 
+// Restrict 把启动集合收窄到 keep（`brickkit up --only`，004 §3.5）。
+//
+// 不在 keep 里的组件从"启动"改成"跳过"，理由由调用方给出。
+// 收窄这件事必须在包内做：running 索引与 Components 的一致性是这里的不变量，
+// 让外面各自拼一个 Result 迟早会出现"说要启动、实际不在集合里"。
+func (r *Result) Restrict(keep map[resolver.Ref]bool, reason string) *Result {
+	out := &Result{running: map[resolver.Ref]bool{}}
+	for _, c := range r.Components {
+		if c.State == StateRunning && !keep[c.Ref] {
+			c.State, c.Reason = StateSkipped, reason
+		}
+		if c.State == StateRunning {
+			out.running[c.Ref] = true
+		}
+		out.Components = append(out.Components, c)
+	}
+	return out
+}
+
 // Compute 按 003 §4.3 计算级联结果。
 //
 // 算法分三步：
