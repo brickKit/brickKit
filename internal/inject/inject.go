@@ -36,7 +36,18 @@ type Var struct {
 	Value string
 	// Source 说明这条变量从哪来，供 --verbose 输出与排障使用。
 	Source string
+	// ResourceID 是它来自哪个基础资源；只有 SourceResource 的变量有值。
+	ResourceID string
+	// SecretKey 非空表示这是一条敏感变量（密码 / 密钥），
+	// 值就是它在 K8s Secret 里的 key（005 §5.6）。
+	//
+	// 由注入引擎标记而不是让渲染器按变量名猜：谁生成的谁最清楚哪一条是密码，
+	// 靠 `strings.HasSuffix(name, "_PASSWORD")` 去猜，早晚会漏掉一种资源。
+	SecretKey string
 }
+
+// IsSecret 表示这条变量是密码或密钥，不能明文写进部署清单。
+func (v Var) IsSecret() bool { return v.SecretKey != "" }
 
 // 变量来源。
 const (
@@ -297,51 +308,74 @@ func resourceVars(bound boundResource) []Var {
 	}
 
 	r := bound.resource
-	var pairs [][2]string
+	var pairs []resourceVar
 	switch r.Kind {
 	case config.ResourceKindDatabase:
-		pairs = [][2]string{
-			{"DATABASE_HOST", r.Host}, {"DATABASE_PORT", portOf(r)},
-			{"DATABASE_NAME", bound.binding.Database},
-			{"DATABASE_USER", r.Username}, {"DATABASE_PASSWORD", r.Password},
+		pairs = []resourceVar{
+			{name: "DATABASE_HOST", value: r.Host}, {name: "DATABASE_PORT", value: portOf(r)},
+			{name: "DATABASE_NAME", value: bound.binding.Database},
+			{name: "DATABASE_USER", value: r.Username},
+			{name: "DATABASE_PASSWORD", value: r.Password, secretKey: secretKeyPassword},
 		}
 	case config.ResourceKindCache:
-		pairs = [][2]string{
-			{"REDIS_HOST", r.Host}, {"REDIS_PORT", portOf(r)}, {"REDIS_PASSWORD", r.Password},
+		pairs = []resourceVar{
+			{name: "REDIS_HOST", value: r.Host}, {name: "REDIS_PORT", value: portOf(r)},
+			{name: "REDIS_PASSWORD", value: r.Password, secretKey: secretKeyPassword},
 		}
 	case config.ResourceKindMQ:
-		pairs = [][2]string{
-			{"MQ_HOST", r.Host}, {"MQ_PORT", portOf(r)},
-			{"MQ_USER", r.Username}, {"MQ_PASSWORD", r.Password},
-			{"MQ_VHOST", bound.binding.Database},
+		pairs = []resourceVar{
+			{name: "MQ_HOST", value: r.Host}, {name: "MQ_PORT", value: portOf(r)},
+			{name: "MQ_USER", value: r.Username},
+			{name: "MQ_PASSWORD", value: r.Password, secretKey: secretKeyPassword},
+			{name: "MQ_VHOST", value: bound.binding.Database},
 		}
 	case config.ResourceKindStorage:
-		pairs = [][2]string{
-			{"STORAGE_ENDPOINT", r.Host}, {"STORAGE_BUCKET", bound.binding.Database},
-			{"STORAGE_ACCESS_KEY", r.Username}, {"STORAGE_SECRET_KEY", r.Password},
+		pairs = []resourceVar{
+			{name: "STORAGE_ENDPOINT", value: r.Host},
+			{name: "STORAGE_BUCKET", value: bound.binding.Database},
+			{name: "STORAGE_ACCESS_KEY", value: r.Username},
+			{name: "STORAGE_SECRET_KEY", value: r.Password, secretKey: secretKeySecretKey},
 		}
 	case config.ResourceKindSearch:
-		pairs = [][2]string{
-			{"SEARCH_HOST", r.Host}, {"SEARCH_PORT", portOf(r)},
-			{"SEARCH_INDEX", bound.binding.Database},
+		pairs = []resourceVar{
+			{name: "SEARCH_HOST", value: r.Host}, {name: "SEARCH_PORT", value: portOf(r)},
+			{name: "SEARCH_INDEX", value: bound.binding.Database},
 		}
 	case config.ResourceKindSMTP:
-		pairs = [][2]string{
-			{"SMTP_HOST", r.Host}, {"SMTP_PORT", portOf(r)},
-			{"SMTP_USER", r.Username}, {"SMTP_PASSWORD", r.Password},
+		pairs = []resourceVar{
+			{name: "SMTP_HOST", value: r.Host}, {name: "SMTP_PORT", value: portOf(r)},
+			{name: "SMTP_USER", value: r.Username},
+			{name: "SMTP_PASSWORD", value: r.Password, secretKey: secretKeyPassword},
 		}
 	}
 
 	out := make([]Var, 0, len(pairs))
 	for _, pair := range pairs {
-		if pair[1] == "" {
+		if pair.value == "" {
 			// 没配的字段不注入空值：组件据此判断"这项没提供"
 			continue
 		}
-		out = append(out, Var{Name: prefix + pair[0], Value: pair[1], Source: SourceResource})
+		out = append(out, Var{
+			Name: prefix + pair.name, Value: pair.value, Source: SourceResource,
+			ResourceID: r.ID, SecretKey: pair.secretKey,
+		})
 	}
 	return out
 }
+
+// resourceVar 是资源连接变量的一条声明。
+type resourceVar struct {
+	name  string
+	value string
+	// secretKey 非空表示这是敏感字段，值是它在 K8s Secret 里的 key。
+	secretKey string
+}
+
+// K8s Secret 中的 key（005 §5.6）。
+const (
+	secretKeyPassword  = "password"
+	secretKeySecretKey = "secret-key"
+)
 
 func portOf(r config.Resource) string {
 	if r.Port == 0 {
