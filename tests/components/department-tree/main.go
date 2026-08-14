@@ -31,7 +31,38 @@ func main() {
 	}
 }
 
+// 运行模式。迁移容器与主容器用的是同一个镜像，靠参数区分（002 §8.4）。
+const (
+	modeServe   = "serve"
+	modeMigrate = "migrate"
+)
+
+// parseArgs 认参数：要么启动服务，要么执行迁移，没有第三种。
+//
+// **不认识的参数必须报错，绝不能回落到"那就启动服务吧"。** 否则一个拼错的
+// 迁移命令会让迁移容器变成服务容器：它永不退出，主服务永远等不到
+// "迁移完成"，整个项目卡在 Created——而日志里写着"组件已就绪"，
+// 看起来一切正常（002 §8.5.1）。
+//
+// 它是纯函数，不读环境变量、不连库：告诉使用者"参数写错了"这件事，
+// 不该先去连一个可能根本连不上的数据库。
+func parseArgs(args []string) (mode string, rest []string, err error) {
+	if len(args) == 0 {
+		return modeServe, nil, nil
+	}
+	if args[0] == modeMigrate {
+		return modeMigrate, args[1:], nil
+	}
+	return "", nil, errors.New(
+		"未知的参数：" + args[0] + "（可用：不带参数启动服务 | migrate [down [n] | reset]）")
+}
+
 func run(args []string) error {
+	mode, migrateArgs, err := parseArgs(args)
+	if err != nil {
+		return err
+	}
+
 	cfg, err := configFromEnv(os.Getenv)
 	if err != nil {
 		return err
@@ -45,8 +76,8 @@ func run(args []string) error {
 	defer func() { _ = store.Close() }()
 
 	// migrate 子命令：平台在启动组件之前单独跑一次（002 §8.2、005 §6）
-	if len(args) > 0 && args[0] == "migrate" {
-		return runMigrate(context.Background(), args[1:], cfg, store, logger)
+	if mode == modeMigrate {
+		return runMigrate(context.Background(), migrateArgs, cfg, store, logger)
 	}
 
 	return serve(cfg, store, logger)

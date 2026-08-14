@@ -381,6 +381,93 @@ func TestComponentWithoutMigrationHasNoMigrationService(t *testing.T) {
 	assert.NotContains(t, servicesOf(t, b.parsed()), "people-basic-1-0-0-migration")
 }
 
+// 14.6：环境变量"原封不动复制"（002 §8.5）这条承诺，在依赖被搬去本地调试
+// 之后也要成立——地址被改写成 localPort 时，两边必须一起改。
+func TestMigrationServiceInheritsRewrittenEnvironment(t *testing.T) {
+	b := newBuilder(t)
+	b.component(
+		withMigration(withDatabase(dependsOn(simple("erp/backend", "1.0.0", 8080),
+			"people/basic", "1.0.0"))),
+		config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080),
+		config.Component{Local: true, LocalPort: 8081})
+	b.resource(pgResource(config.Binding{ComponentID: "erp/backend", Database: "erp"}))
+
+	doc := b.parsed()
+	main := envOf(t, serviceOf(t, doc, "erp-backend-1-0-0"))
+	migration := envOf(t, serviceOf(t, doc, "erp-backend-1-0-0-migration"))
+
+	assert.Equal(t, main, migration, "14.6")
+	assert.Equal(t, "http://people-basic-1-0-0:8081", migration["PEOPLE_BASIC_ENDPOINT"])
+}
+
+// 环境变量一致，寻址方式也得一致：迁移容器拿到了一个指向宿主机的地址，
+// 却没有 extra_hosts 的话，这个主机名在它那儿根本解析不了。
+func TestMigrationServiceGetsTheSameExtraHosts(t *testing.T) {
+	b := newBuilder(t)
+	b.component(
+		withMigration(withDatabase(dependsOn(simple("erp/backend", "1.0.0", 8080),
+			"people/basic", "1.0.0"))),
+		config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080),
+		config.Component{Local: true, LocalPort: 8081})
+	b.resource(pgResource(config.Binding{ComponentID: "erp/backend", Database: "erp"}))
+
+	doc := b.parsed()
+
+	assert.Equal(t,
+		extraHostsOf(t, serviceOf(t, doc, "erp-backend-1-0-0")),
+		extraHostsOf(t, serviceOf(t, doc, "erp-backend-1-0-0-migration")))
+}
+
+// 迁移只等基础资源，不等别的组件。
+//
+// 迁移动的是自己的库，不该跟别人的启动顺序绑在一起；把强依赖写进去，
+// 一条依赖链上的迁移就会被串成串行，弱依赖更是可能根本不启动。
+func TestMigrationServiceDoesNotWaitForOtherComponents(t *testing.T) {
+	b := newBuilder(t)
+	b.component(
+		withMigration(withDatabase(dependsOn(simple("erp/backend", "1.0.0", 8080),
+			"people/basic", "1.0.0"))),
+		config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.resource(pgResource(config.Binding{ComponentID: "erp/backend", Database: "erp"}))
+
+	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0-migration")
+	dependsOn := svc["depends_on"].(map[string]any)
+
+	assert.Contains(t, dependsOn, "postgres")
+	assert.NotContains(t, dependsOn, "people-basic-1-0-0")
+}
+
+// 迁移容器不占宿主机端口：它和主容器同镜像同环境，
+// 要是把 expose 的端口也映射一份，两个容器会抢同一个宿主机端口。
+func TestMigrationServiceDoesNotPublishPorts(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))),
+		config.Component{Expose: true, ExposePort: 18080})
+	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+
+	doc := b.parsed()
+
+	assert.Equal(t, []string{"18080:8080"}, portsOf(t, serviceOf(t, doc, "people-basic-1-0-0")))
+	assert.Empty(t, portsOf(t, serviceOf(t, doc, "people-basic-1-0-0-migration")),
+		"一次性任务不该占宿主机端口")
+}
+
+// 迁移容器不做健康检查：它跑完就退出，healthcheck 只会给出一个
+// "unhealthy 然后消失"的假象。
+func TestMigrationServiceHasNoHealthcheck(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))),
+		config.Component{})
+	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+
+	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0-migration")
+
+	assert.NotContains(t, svc, "healthcheck")
+}
+
 // ============================================================
 // 12.3 健康检查
 // ============================================================

@@ -26,6 +26,29 @@ from app.store import PostgresStore
 
 logger = logging.getLogger("app.main")
 
+# 运行模式。迁移容器与主容器用的是同一个镜像，靠参数区分（002 §8.4）。
+MODE_SERVE = "serve"
+MODE_MIGRATE = "migrate"
+
+
+def parse_args(argv: list[str]) -> tuple[str, list[str]]:
+    """认参数：要么启动服务，要么执行迁移，没有第三种。
+
+    **不认识的参数必须报错，绝不能回落到"那就启动服务吧"。** 否则一个拼错的
+    迁移命令会让迁移容器变成服务容器：它永不退出，主服务永远等不到
+    "迁移完成"，整个项目卡在 Created——而日志里写着"组件已就绪"（002 §8.5.1）。
+
+    它是纯函数，不读环境变量、不连库：告诉使用者"参数写错了"这件事，
+    不该先去连一个可能根本连不上的数据库。
+    """
+    if not argv:
+        return MODE_SERVE, []
+    if argv[0] == MODE_MIGRATE:
+        return MODE_MIGRATE, argv[1:]
+    raise ValueError(
+        f"未知的参数：{argv[0]}（可用：不带参数启动服务 | migrate [down [n] | reset]）"
+    )
+
 
 def run_migrate(args: list[str], cfg, store, logger) -> int:
     """处理 migrate 及其子命令。
@@ -69,6 +92,13 @@ def main(argv: list[str]) -> int:
     import os
 
     try:
+        mode, migrate_args = parse_args(argv)
+    except ValueError as exc:
+        # 参数错误先于日志器存在，直接写 stderr
+        print(f'{{"level":"error","message":"组件启动失败","error":"{exc}"}}', file=sys.stderr)
+        return 1
+
+    try:
         cfg = config_from_env(os.environ.get)
     except ValueError as exc:
         # 配置错误发生在日志器建好之前，直接写 stderr
@@ -84,8 +114,8 @@ def main(argv: list[str]) -> int:
         return 1
 
     # migrate 子命令：平台在启动组件之前单独跑一次（002 §8.2、005 §6）
-    if argv and argv[0] == "migrate":
-        return run_migrate(argv[1:], cfg, store, logger)
+    if mode == MODE_MIGRATE:
+        return run_migrate(migrate_args, cfg, store, logger)
 
     departments = DepartmentClient(cfg.department_endpoint)
     service = PeopleService(

@@ -152,7 +152,7 @@ func (c *Client) Manifest(ctx context.Context, id, version string) (*Fetched, er
 	}
 
 	cachePath := c.ManifestCachePath(id, version)
-	if !c.opts.Refresh {
+	if !c.opts.Refresh && !c.servedByLocalSource(ctx, id, version) {
 		if m, ok := readCachedManifest(cachePath, id, version); ok {
 			return &Fetched{Manifest: m, FromCache: true}, nil
 		}
@@ -170,6 +170,28 @@ func (c *Client) Manifest(ctx context.Context, id, version string) (*Fetched, er
 			WithCause(err)
 	}
 	return &Fetched{Manifest: m, SourceID: sourceID}, nil
+}
+
+// servedByLocalSource 判断这个组件会不会由某个**本地**安装源提供。
+//
+// 本地源的 component.yaml 就在使用者硬盘上、正被他编辑；缓存一份快照
+// 只会让改动静默地不生效——改了端口、迁移命令或配额之后 `brickkit up`
+// 依旧按旧的生成，而且一声不吭。缓存是为了省网络往返，
+// 本地源没有网络往返，也就没有缓存的理由（004 §7.5）。
+//
+// 只扫到第一个非本地源为止：优先级更高的远程源可能才是真正的提供方，
+// 而"远程源有没有这个组件"问不起——那正是缓存存在的原因。
+func (c *Client) servedByLocalSource(ctx context.Context, id, version string) bool {
+	for _, f := range c.fetchers {
+		if f.kind() != config.SourceTypeLocal {
+			return false
+		}
+		raw, err := f.manifestBytes(ctx, id, version)
+		if err == nil && manifestMatches(raw, id, version) {
+			return true
+		}
+	}
+	return false
 }
 
 // ManifestCachePath 返回 Manifest 缓存路径，如
@@ -200,6 +222,10 @@ func (c *Client) DownloadArtifacts(ctx context.Context, m *manifest.Manifest) (*
 	}
 
 	base := c.ArtifactDir(id, version)
+	// 与 Manifest 同一条规则：本地源的产物（.proto、openapi.json）也在使用者
+	// 硬盘上跟着代码一起改，缓存住只会让调用方按旧契约生成客户端
+	useCache := !c.opts.Refresh && !c.servedByLocalSource(ctx, id, version)
+
 	res := &ArtifactResult{}
 	for _, art := range m.Artifacts {
 		for _, file := range art.Files {
@@ -211,7 +237,7 @@ func (c *Client) DownloadArtifacts(ctx context.Context, m *manifest.Manifest) (*
 					"产物路径越出组件的产物目录"))
 				continue
 			}
-			if !c.opts.Refresh {
+			if useCache {
 				if _, err := os.Stat(dest); err == nil {
 					res.Cached = append(res.Cached, rel)
 					continue

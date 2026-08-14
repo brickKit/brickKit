@@ -355,6 +355,80 @@ func TestManifestServedFromCache(t *testing.T) {
 	assert.Len(t, mock.recorded(), 1, "命中缓存时不应再请求市场")
 }
 
+// 本地源不吃 Manifest 缓存。
+//
+// 本地源的 component.yaml 就在使用者硬盘上、正被他编辑。缓存一份快照的话，
+// 改了端口 / 迁移命令 / 配额之后 `brickkit up` 依旧按旧的生成，而且**一声不吭**。
+// 缓存是为了省网络往返，本地源根本没有网络往返，也就没有缓存的理由。
+func TestLocalSourceManifestIsNeverStale(t *testing.T) {
+	layout := newProject(t)
+	sourceDir := filepath.Join(layout.Root, "components")
+	writeComponent(t, sourceDir, componentSpec{
+		ID: "department/tree", Version: "1.0.0", Description: "改之前",
+	})
+
+	c := newClient(t, layout, cfgWithSources(config.Source{
+		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	}), Options{})
+
+	first, err := c.Manifest(context.Background(), "department/tree", "1.0.0")
+	require.NoError(t, err)
+	require.Equal(t, "改之前", first.Manifest.Metadata.Description)
+
+	// 使用者改了组件（这正是把它放在本地源里的原因）
+	writeComponent(t, sourceDir, componentSpec{
+		ID: "department/tree", Version: "1.0.0", Description: "改之后",
+	})
+
+	second, err := c.Manifest(context.Background(), "department/tree", "1.0.0")
+	require.NoError(t, err)
+
+	assert.Equal(t, "改之后", second.Manifest.Metadata.Description,
+		"本地源的改动必须立刻生效，否则改了不生效且没有任何提示")
+	assert.False(t, second.FromCache)
+	assert.Equal(t, "local-dev", second.SourceID)
+}
+
+// 远程源该缓存还是缓存：那里的同一个版本内容不会变，省下的是真实的网络往返。
+func TestMarketSourceStillUsesCache(t *testing.T) {
+	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
+
+	layout := newProject(t)
+	c := newClient(t, layout, cfgWithSources(config.Source{
+		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	}), Options{})
+
+	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+	require.NoError(t, err)
+	second, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+	require.NoError(t, err)
+
+	assert.True(t, second.FromCache)
+	assert.Len(t, mock.recorded(), 1)
+}
+
+// 本地源里没有这个组件时，不该因为"探了一下"就绕开缓存去打市场。
+func TestCacheStillUsedWhenLocalSourceLacksTheComponent(t *testing.T) {
+	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
+
+	layout := newProject(t)
+	writeComponent(t, filepath.Join(layout.Root, "components"),
+		componentSpec{ID: "department/tree", Version: "1.0.0"})
+
+	c := newClient(t, layout, cfgWithSources(
+		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		config.Source{ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL()},
+	), Options{})
+
+	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+	require.NoError(t, err)
+	second, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+	require.NoError(t, err)
+
+	assert.True(t, second.FromCache, "该组件不来自本地源，缓存照常生效")
+	assert.Len(t, mock.recorded(), 1)
+}
+
 // ============================================================
 // 6.8 / 6.12 / 6.13 artifacts 缓存
 // ============================================================
@@ -530,11 +604,19 @@ func TestRefreshForcesRefetch(t *testing.T) {
 		"api-contract", "proto", "department", "v1", "department.proto")
 	writeFile(t, cachedProto, "// 被改过的缓存\n")
 
-	// 不带 --refresh：仍然用缓存
+	// 不带 --refresh：本地源照样不吃缓存——那份 component.yaml 与 .proto
+	// 就在使用者硬盘上、跟着代码一起改（见 TestLocalSourceManifestIsNeverStale）
 	stale, err := c.Manifest(ctx, "department/tree", "1.0.0")
 	require.NoError(t, err)
-	assert.Equal(t, "被改过的缓存", stale.Manifest.Metadata.Description)
-	assert.Equal(t, "// 被改过的缓存\n", readFile(t, cachedProto))
+	assert.Equal(t, "安装源中的版本", stale.Manifest.Metadata.Description)
+
+	_, err = c.DownloadArtifacts(ctx, stale.Manifest)
+	require.NoError(t, err)
+	assert.Equal(t, spec.Files["proto/department/v1/department.proto"], readFile(t, cachedProto),
+		"本地源的产物同样以硬盘上那份为准")
+
+	// 把缓存再改回去，验证 --refresh 这条路本身
+	writeFile(t, cachedProto, "// 被改过的缓存\n")
 
 	// 带 --refresh：忽略缓存重新拉取，缓存被更新
 	fresh := newClient(t, layout, cfg, Options{Refresh: true})

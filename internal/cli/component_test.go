@@ -222,8 +222,12 @@ func TestAddRepoAllSkipsLocalSourceComponent(t *testing.T) {
 	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
 }
 
-// 第二次 add 时产物已在缓存中：提示"已是最新"而不是报下载了 0 个文件。
-func TestAddReportsCachedArtifacts(t *testing.T) {
+// 本地源的产物每次都以硬盘上那份为准，不吃缓存。
+//
+// 本地源的 .proto / openapi.json 跟着代码一起改；缓存住会让调用方
+// 按旧契约生成客户端，而且没有任何提示。"已是最新（缓存中 N 个文件）"
+// 这条提示只对远程源成立（缓存命中的行为见 internal/source 的用例）。
+func TestAddRereadsLocalSourceArtifacts(t *testing.T) {
 	dir := t.TempDir()
 	sources := localSource(t, dir,
 		comp{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
@@ -233,8 +237,10 @@ func TestAddReportsCachedArtifacts(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "add", "people/basic@1.0.0").code)
 
 	r := runIn(t, f.Dir, "add", "erp/backend@1.0.0")
+
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "artifacts 已是最新（缓存中 1 个文件）")
+	assert.Contains(t, r.stdout, "已下载 artifacts")
+	assert.NotContains(t, r.stdout, "已是最新")
 }
 
 // runAdd / runRemove 允许 ctx 为 nil（cobra 在某些路径下不注入 context）。

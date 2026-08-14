@@ -500,6 +500,11 @@ func (p *plan) migrationService(c componentPlan) map[string]any {
 	if env := environmentOf(c.Env); len(env) > 0 {
 		svc["environment"] = env
 	}
+	// 环境变量一致，寻址方式也得一致：拿到一个指向宿主机的地址
+	// 却没有 extra_hosts，这个主机名在迁移容器里根本解析不了
+	if hosts := p.extraHostsOf(c); len(hosts) > 0 {
+		svc["extra_hosts"] = hosts
+	}
 
 	// 迁移是第一个连库的东西，必须等资源就绪
 	dependsOn := map[string]any{}
