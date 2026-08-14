@@ -37,6 +37,8 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+# 迁移脚本必须进镜像：002 §8.4 要求它和业务代码同镜像同版本
+COPY migrations ./migrations
 COPY component.yaml openapi.json ./
 COPY proto ./proto
 COPY --from=codegen /src/gen ./gen

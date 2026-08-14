@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"os"
 	"strings"
@@ -150,37 +149,7 @@ func TestLoggerRedactsPasswordLikeFields(t *testing.T) {
 	}
 }
 
-// ============================================================
-// 21.6 迁移
-// ============================================================
-
-// 迁移是幂等的：容器重启会再跑一次，不能第二次就失败。
-func TestMigrationIsIdempotent(t *testing.T) {
-	store := newMemoryStore()
-
-	if err := migrate(context.Background(), store); err != nil {
-		t.Fatalf("首次迁移失败：%v", err)
-	}
-	if err := migrate(context.Background(), store); err != nil {
-		t.Fatalf("21.6 重复迁移必须幂等，实际失败：%v", err)
-	}
-
-	got, err := store.List(context.Background(), "")
-	if err != nil {
-		t.Fatalf("查询失败：%v", err)
-	}
-	if len(got) == 0 {
-		t.Fatal("迁移应写入初始部门数据")
-	}
-
-	seen := map[string]bool{}
-	for _, d := range got {
-		if seen[d.ID] {
-			t.Fatalf("重复迁移导致数据重复：%s", d.ID)
-		}
-		seen[d.ID] = true
-	}
-}
+// 21.6 的迁移测试在 migrate_test.go：SQL 迁移只能对着真库测。
 
 // ============================================================
 // 21.7 artifacts 声明 / 21.10 非 root

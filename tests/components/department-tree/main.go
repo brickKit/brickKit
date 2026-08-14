@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 )
 
@@ -45,15 +46,60 @@ func run(args []string) error {
 
 	// migrate 子命令：平台在启动组件之前单独跑一次（002 §8.2、005 §6）
 	if len(args) > 0 && args[0] == "migrate" {
+		return runMigrate(context.Background(), args[1:], cfg, store, logger)
+	}
+
+	return serve(cfg, store, logger)
+}
+
+// runMigrate 处理 migrate 及其子命令。
+//
+//	migrate           执行尚未执行过的迁移
+//	migrate down [n]  回退最近 n 个（默认 1）
+//	migrate reset     全部回退（开发与测试用）
+//
+// down / reset 是给开发和测试用的，让人能反复把库搭起来、拆掉。
+// 生产环境的结构问题请用一个新的 up 迁移去修（002 §8.9）。
+func runMigrate(
+	ctx context.Context, args []string, cfg config, store *postgresStore, logger *slog.Logger,
+) error {
+	if len(args) == 0 {
 		logger.Info("开始执行数据库迁移", "config", cfg.String())
-		if err := migrate(context.Background(), store); err != nil {
+		if err := store.migrate(ctx, cfg.ComponentID); err != nil {
 			return errors.New("迁移失败：" + err.Error())
 		}
 		logger.Info("迁移完成")
 		return nil
 	}
 
-	return serve(cfg, store, logger)
+	switch args[0] {
+	case "down":
+		count := 1
+		if len(args) > 1 {
+			parsed, err := strconv.Atoi(args[1])
+			if err != nil || parsed < 1 {
+				return errors.New("migrate down 的参数必须是正整数，当前是：" + args[1])
+			}
+			count = parsed
+		}
+		logger.Info("开始回退迁移", "count", count)
+		if err := store.rollback(ctx, cfg.ComponentID, count); err != nil {
+			return errors.New("回退失败：" + err.Error())
+		}
+		logger.Info("回退完成", "count", count)
+		return nil
+
+	case "reset":
+		logger.Warn("开始全部回退（该操作会删除本组件的表与数据）")
+		if err := store.rollback(ctx, cfg.ComponentID, 0); err != nil {
+			return errors.New("回退失败：" + err.Error())
+		}
+		logger.Info("已全部回退")
+		return nil
+
+	default:
+		return errors.New("未知的 migrate 子命令：" + args[0] + "（可用：down [n] | reset）")
+	}
 }
 
 func serve(cfg config, store Store, logger *slog.Logger) error {

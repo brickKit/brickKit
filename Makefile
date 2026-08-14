@@ -211,6 +211,27 @@ test-components-py: ## Python 组件的测试（在容器里跑，需要 Docker�
 		docker run --rm brickkit-test/$$c || exit 1; \
 	done
 
+.PHONY: test-components-integration
+test-components-integration: ## 组件的迁移集成测试（需要本机 PostgreSQL，读 .env）
+	@# 组件的数据库按设计由人创建（006 §9.1：CLI 不负责建库，见各组件 README）；
+	@# 这里是测试夹具代劳，免得每次跑测试前手工建库
+	@set -a; . ./.env; set +a; \
+	for db in brickkit_department brickkit_people; do \
+		docker exec -e PGPASSWORD=$$POSTGRES_PASSWORD -i my-postgres \
+			psql -U $$POSTGRES_USER -tc "SELECT 1 FROM pg_database WHERE datname='$$db'" \
+			| grep -q 1 || docker exec -e PGPASSWORD=$$POSTGRES_PASSWORD -i my-postgres \
+			psql -U $$POSTGRES_USER -c "CREATE DATABASE $$db" >/dev/null; \
+	done; \
+	echo "▶ department-tree 迁移集成测试"; \
+	( cd tests/components/department-tree && \
+	  DEPARTMENT_TEST_DATABASE_URL="postgres://$$POSTGRES_USER:$$POSTGRES_PASSWORD@$$POSTGRES_HOST:$$POSTGRES_PORT/brickkit_department?sslmode=disable" \
+	  $(GO) test $(TESTFLAGS) ./... ) || exit 1; \
+	echo "▶ people-basic 迁移集成测试（容器内）"; \
+	PGIP=$$(docker inspect my-postgres --format '{{.NetworkSettings.Networks.bridge.IPAddress}}'); \
+	docker build -q --target test -t brickkit-test/people-basic tests/components/people-basic >/dev/null; \
+	docker run --rm -e PEOPLE_TEST_DATABASE_URL="postgresql://$$POSTGRES_USER:$$POSTGRES_PASSWORD@$$PGIP:5432/brickkit_people" \
+		brickkit-test/people-basic
+
 .PHONY: demo-images
 demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实验证靠它们）
 	@docker build -q -t brickkit-demo/caller:1.0.0 tests/components/demo-caller

@@ -15,7 +15,7 @@ import yaml
 
 from app.config import Config, config_from_env, configure_logging
 from app.grpc_api import serve_grpc
-from app.store import MemoryStore, migrate
+from app.store import MemoryStore
 from gen.people.v1 import people_pb2, people_pb2_grpc
 from tests.test_service import FakeDepartments, FakeEventBus, build_service, seed_people
 
@@ -134,21 +134,7 @@ def test_grpc_and_http_agree(grpc_channel) -> None:
     assert over_grpc == over_http
 
 
-# ============================================================
-# 22.5 迁移
-# ============================================================
-
-
-def test_migration_is_idempotent() -> None:
-    """容器每次重启都会再跑一次迁移，第二次失败等于服务再也起不来。"""
-    store = MemoryStore([])
-
-    migrate(store)
-    migrate(store)
-
-    people = store.list()
-    assert people, "迁移应写入初始人员数据"
-    assert len({p.id for p in people}) == len(people), "重复迁移不得产生重复数据"
+# 22.5 的迁移测试在 test_migrate.py：SQL 迁移只能对着真库测。
 
 
 # ============================================================

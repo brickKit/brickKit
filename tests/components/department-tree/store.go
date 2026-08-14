@@ -25,6 +25,9 @@ type Department struct {
 //
 // 抽成接口是为了让业务逻辑与存储实现分开测：HTTP / gRPC 的行为测试用内存实现，
 // SQL 的正确性由契约测试对着真库跑（见 store_test.go）。
+//
+// 注意：**建表与初始数据不在这里**，它们是 migrations/*.sql（002 §8）。
+// 内存实现只是测试替身，用 newMemoryStore(seed...) 直接给数据即可。
 type Store interface {
 	// List 返回全部部门；parentID 非空时只返回其直接下级。结果按 ID 排序。
 	List(ctx context.Context, parentID string) ([]Department, error)
@@ -32,46 +35,6 @@ type Store interface {
 	Get(ctx context.Context, id string) (Department, error)
 	// Subtree 返回该部门及其全部下级；根不存在时返回 ErrNotFound。
 	Subtree(ctx context.Context, rootID string) ([]Department, error)
-}
-
-// seeder 是迁移时写入初始数据的能力。两种存储都实现它。
-type seeder interface {
-	// ensureSchema 建表（幂等）。
-	ensureSchema(ctx context.Context) error
-	// upsert 写入或更新一个部门（幂等）。
-	upsert(ctx context.Context, d Department) error
-}
-
-// initialDepartments 是随迁移写入的初始部门树。
-//
-// 这是一个平台自测组件：它的数据是固定的样例组织架构，
-// 让依赖它的组件（people/basic、erp/backend）有稳定的东西可查。
-func initialDepartments() []Department {
-	return []Department{
-		{ID: "d-root", Name: "总公司", ParentID: "", Level: 1},
-		{ID: "d-tech", Name: "技术中心", ParentID: "d-root", Level: 2},
-		{ID: "d-hr", Name: "人力资源部", ParentID: "d-root", Level: 2},
-		{ID: "d-backend", Name: "后端组", ParentID: "d-tech", Level: 3},
-	}
-}
-
-// migrate 建表并写入初始数据（002 §8：迁移由平台在启动前执行）。
-//
-// 必须幂等：容器每次重启都会再跑一遍，第二次失败等于服务再也起不来。
-func migrate(ctx context.Context, store Store) error {
-	s, ok := store.(seeder)
-	if !ok {
-		return errors.New("该存储实现不支持迁移")
-	}
-	if err := s.ensureSchema(ctx); err != nil {
-		return err
-	}
-	for _, d := range initialDepartments() {
-		if err := s.upsert(ctx, d); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // ============================================================
@@ -90,16 +53,6 @@ func newMemoryStore(seed ...Department) *memoryStore {
 		store.items[d.ID] = d
 	}
 	return store
-}
-
-func (m *memoryStore) ensureSchema(context.Context) error { return nil }
-
-func (m *memoryStore) upsert(_ context.Context, d Department) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.items[d.ID] = d
-	return nil
 }
 
 func (m *memoryStore) List(_ context.Context, parentID string) ([]Department, error) {

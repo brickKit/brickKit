@@ -14,12 +14,11 @@ import (
 
 func TestStoreContract(t *testing.T) {
 	t.Run("memory", func(t *testing.T) {
+		// 内存实现是测试替身，不跑 SQL 迁移：直接给它与
+		// migrations/0002_seed_departments.sql 一致的数据。
+		// 两边一旦漂移，下面 postgres 那一组就会失败。
 		runStoreContract(t, func(t *testing.T) Store {
-			store := newMemoryStore()
-			if err := migrate(context.Background(), store); err != nil {
-				t.Fatalf("迁移失败：%v", err)
-			}
-			return store
+			return newMemoryStore(seedTree()...)
 		})
 	})
 
@@ -38,7 +37,7 @@ func TestStoreContract(t *testing.T) {
 			if err := store.dropAll(context.Background()); err != nil {
 				t.Fatalf("清库失败：%v", err)
 			}
-			if err := migrate(context.Background(), store); err != nil {
+			if err := store.migrate(context.Background(), "department/tree"); err != nil {
 				t.Fatalf("迁移失败：%v", err)
 			}
 			return store

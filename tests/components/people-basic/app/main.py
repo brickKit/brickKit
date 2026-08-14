@@ -22,9 +22,47 @@ from app.events import build_event_bus
 from app.grpc_api import serve_grpc
 from app.http_api import create_app
 from app.service import PeopleService
-from app.store import PostgresStore, migrate
+from app.store import PostgresStore
 
 logger = logging.getLogger("app.main")
+
+
+def run_migrate(args: list[str], cfg, store, logger) -> int:
+    """处理 migrate 及其子命令。
+
+        migrate           执行尚未执行过的迁移
+        migrate down [n]  回退最近 n 个（默认 1）
+        migrate reset     全部回退（开发与测试用）
+
+    down / reset 是给开发和测试用的，让人能反复把库搭起来、拆掉。
+    生产环境的结构问题请用一个新的 up 迁移去修（002 §8.9）。
+    """
+    if not args:
+        logger.info("开始执行数据库迁移", extra={"config": str(cfg)})
+        executed = store.migrate(cfg.component_id)
+        logger.info("迁移完成", extra={"applied": executed or "无新增迁移"})
+        return 0
+
+    command = args[0]
+    if command == "down":
+        count = 1
+        if len(args) > 1:
+            if not args[1].isdigit() or int(args[1]) < 1:
+                logger.error("migrate down 的参数必须是正整数", extra={"got": args[1]})
+                return 1
+            count = int(args[1])
+        reverted = store.rollback(cfg.component_id, count)
+        logger.info("回退完成", extra={"reverted": reverted or "无可回退的迁移"})
+        return 0
+
+    if command == "reset":
+        logger.warning("开始全部回退（该操作会删除本组件的表与数据）")
+        reverted = store.rollback(cfg.component_id, 0)
+        logger.info("已全部回退", extra={"reverted": reverted or "无可回退的迁移"})
+        return 0
+
+    logger.error("未知的 migrate 子命令", extra={"command": command, "usage": "down [n] | reset"})
+    return 1
 
 
 def main(argv: list[str]) -> int:
@@ -47,10 +85,7 @@ def main(argv: list[str]) -> int:
 
     # migrate 子命令：平台在启动组件之前单独跑一次（002 §8.2、005 §6）
     if argv and argv[0] == "migrate":
-        logger.info("开始执行数据库迁移", extra={"config": str(cfg)})
-        migrate(store)
-        logger.info("迁移完成")
-        return 0
+        return run_migrate(argv[1:], cfg, store, logger)
 
     departments = DepartmentClient(cfg.department_endpoint)
     service = PeopleService(

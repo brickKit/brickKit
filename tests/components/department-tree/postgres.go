@@ -33,37 +33,19 @@ func newPostgresStore(dsn string) (*postgresStore, error) {
 
 func (p *postgresStore) Close() error { return p.db.Close() }
 
-// ensureSchema 建表。用 IF NOT EXISTS，重启幂等。
-func (p *postgresStore) ensureSchema(ctx context.Context) error {
-	_, err := p.db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS departments (
-			id         TEXT PRIMARY KEY,
-			name       TEXT NOT NULL,
-			parent_id  TEXT NOT NULL DEFAULT '',
-			level      INT  NOT NULL DEFAULT 1
-		)`)
-	if err != nil {
-		return err
-	}
-	_, err = p.db.ExecContext(ctx,
-		`CREATE INDEX IF NOT EXISTS idx_departments_parent ON departments (parent_id)`)
-	return err
+// migrate 执行尚未执行过的迁移脚本（migrations/*.up.sql）。
+func (p *postgresStore) migrate(ctx context.Context, componentID string) error {
+	return applyMigrations(ctx, p.db, componentID, embeddedMigrations())
 }
 
-// upsert 写入或更新一个部门。
-func (p *postgresStore) upsert(ctx context.Context, d Department) error {
-	_, err := p.db.ExecContext(ctx, `
-		INSERT INTO departments (id, name, parent_id, level)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (id) DO UPDATE
-		SET name = EXCLUDED.name, parent_id = EXCLUDED.parent_id, level = EXCLUDED.level`,
-		d.ID, d.Name, d.ParentID, d.Level)
-	return err
+// rollback 回退已执行的迁移（migrations/*.down.sql）。count 为 0 表示全部回退。
+func (p *postgresStore) rollback(ctx context.Context, componentID string, count int) error {
+	return rollbackMigrations(ctx, p.db, componentID, embeddedMigrations(), count)
 }
 
 // dropAll 清空数据。只给测试用。
 func (p *postgresStore) dropAll(ctx context.Context) error {
-	_, err := p.db.ExecContext(ctx, `DROP TABLE IF EXISTS departments`)
+	_, err := p.db.ExecContext(ctx, `DROP TABLE IF EXISTS departments, schema_migrations`)
 	return err
 }
 

@@ -11,6 +11,8 @@ from typing import Protocol
 
 import psycopg
 
+from app.migrate import apply_migrations, load_migrations, rollback_migrations
+
 
 @dataclass
 class Person:
@@ -21,42 +23,17 @@ class Person:
 
 
 class Store(Protocol):
-    """人员数据的存取接口。"""
+    """人员数据的存取接口。
+
+    注意：**建表与初始数据不在这里**，它们是 migrations/*.sql（002 §8）。
+    内存实现只是测试替身，用 MemoryStore(seed) 直接给数据即可。
+    """
 
     def list(self, department_id: str = "") -> list[Person]:
         """返回人员，按 ID 排序；department_id 非空时只返回该部门的人。"""
 
     def get(self, person_id: str) -> Person | None:
         """按 ID 查询，不存在时返回 None。"""
-
-
-def initial_people() -> list[Person]:
-    """随迁移写入的初始人员。
-
-    department_id 对应 department/tree 迁移里的部门 ID：
-    两个组件的样例数据是对得上的，装配起来才有东西可看。
-    """
-    return [
-        Person(id="p-001", name="张三", department_id="d-tech", title="后端工程师"),
-        Person(id="p-002", name="李四", department_id="d-tech", title="前端工程师"),
-        Person(id="p-003", name="王五", department_id="d-hr", title="HR 专员"),
-        Person(id="p-004", name="赵六", department_id="d-backend", title="后端工程师"),
-    ]
-
-
-def migrate(store: Store) -> None:
-    """建表并写入初始数据（002 §8.2）。
-
-    必须幂等：容器每次重启都会再跑一遍，第二次失败等于服务再也起不来。
-    """
-    schema = getattr(store, "ensure_schema", None)
-    upsert = getattr(store, "upsert", None)
-    if schema is None or upsert is None:
-        raise TypeError("该存储实现不支持迁移")
-
-    schema()
-    for person in initial_people():
-        upsert(person)
 
 
 # ============================================================
@@ -69,12 +46,6 @@ class MemoryStore:
 
     def __init__(self, seed: list[Person] | None = None):
         self._items: dict[str, Person] = {p.id: p for p in (seed or [])}
-
-    def ensure_schema(self) -> None:
-        return None
-
-    def upsert(self, person: Person) -> None:
-        self._items[person.id] = person
 
     def list(self, department_id: str = "") -> list[Person]:
         items = [
@@ -102,35 +73,13 @@ class PostgresStore:
     def close(self) -> None:
         self._conn.close()
 
-    def ensure_schema(self) -> None:
-        with self._conn.cursor() as cur:
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS people (
-                    id            TEXT PRIMARY KEY,
-                    name          TEXT NOT NULL,
-                    department_id TEXT NOT NULL DEFAULT '',
-                    title         TEXT NOT NULL DEFAULT ''
-                )
-                """
-            )
-            cur.execute(
-                "CREATE INDEX IF NOT EXISTS idx_people_department ON people (department_id)"
-            )
+    def migrate(self, component_id: str) -> list[str]:
+        """执行尚未执行过的迁移脚本（migrations/*.up.sql）。"""
+        return apply_migrations(self._conn, component_id, load_migrations())
 
-    def upsert(self, person: Person) -> None:
-        with self._conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO people (id, name, department_id, title)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE
-                SET name = EXCLUDED.name,
-                    department_id = EXCLUDED.department_id,
-                    title = EXCLUDED.title
-                """,
-                (person.id, person.name, person.department_id, person.title),
-            )
+    def rollback(self, component_id: str, count: int = 1) -> list[str]:
+        """回退已执行的迁移（migrations/*.down.sql）。count 为 0 表示全部回退。"""
+        return rollback_migrations(self._conn, component_id, load_migrations(), count)
 
     def list(self, department_id: str = "") -> list[Person]:
         query = "SELECT id, name, department_id, title FROM people"
