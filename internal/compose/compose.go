@@ -664,6 +664,13 @@ func managedResourceServicesOf(cfg *config.Config, componentID string) []string 
 	return out
 }
 
+// IsManagedHost 判断 host 是不是"由 CLI 托管"的资源（005 §5、006 §10.4）。
+//
+// 导出它是因为 status 也要按同一条判据分流：托管的资源在容器网络里，
+// 宿主机拨号解析不了它的名字，只能看容器状态；外部资源才拨号。
+// 两处各判一次迟早会分叉。
+func IsManagedHost(host string) bool { return isServiceName(host) }
+
 // isServiceName 判断 host 是不是 Docker Network 内的服务名。
 //
 // 判据取自 006 §10.4：IP 地址与域名都表示"运维已部署的外部资源"。

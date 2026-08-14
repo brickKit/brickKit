@@ -7,8 +7,10 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"regexp"
 	"strings"
@@ -56,6 +58,24 @@ type Options struct {
 	// 命令层的职责是"决定谁该启动、先检查什么"，不是"怎么调 docker"；
 	// 把它做成注入点之后，这些决定可以在没有 Docker 的机器上被完整测试。
 	Engine engine.Engine
+	// Probe 检查一个 host:port 是否可达（status 的资源探测、--check-resources）。
+	// 为空时用真实 TCP 拨号。
+	Probe func(ctx context.Context, address string) error
+}
+
+// probe 拨号检查可达性，未注入时用真实 TCP。
+func (o *Options) probe(ctx context.Context, address string) error {
+	if o.Probe != nil {
+		return o.Probe(ctx, address)
+	}
+
+	// 超时要短：这是一次"看一眼"的体检，不是等它恢复
+	dialer := net.Dialer{Timeout: 2 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", address)
+	if err != nil {
+		return err
+	}
+	return conn.Close()
 }
 
 // now 返回当前时间，未注入时钟时回落到 time.Now。
