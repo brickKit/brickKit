@@ -1,12 +1,29 @@
 package cli
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+
 	"github.com/spf13/cobra"
 
+	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/compose"
+	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/inject"
+	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/source"
 )
 
-// newUpCommand 实现 brickkit up（004 §3.5，完整实现见 Step 15）。
+// composeFileName 是生成的部署文件名（004 §3.5 输出样例）。
+const composeFileName = "docker-compose.yaml"
+
+// newUpCommand 实现 brickkit up（004 §3.5）。
+//
+// 当前只实现了 --dry-run 这条路径（Step 12 的交付物是"生成部署文件"）；
+// 镜像权限检测、执行迁移、调用引擎启动属 Step 15。
 func newUpCommand(opts *Options) *cobra.Command {
 	var (
 		only           []string
@@ -29,7 +46,9 @@ func newUpCommand(opts *Options) *cobra.Command {
   6. 有 local: true 组件时生成 local-debug.<版本化服务名>.env
   7. 检测镜像拉取权限（未授权时提示 docker login）
   8. 执行数据库迁移（失败则阻断主服务启动）
-  9. 调用底层引擎启动`,
+  9. 调用底层引擎启动
+
+当前版本：--dry-run（第 1–5 步）已实现；第 6–9 步见 Step 13 / 15。`,
 		Example: `  brickkit up
   brickkit up --only people/basic,department/tree   只启动指定组件
   brickkit up --only people/basic@1.0.0             只启动指定版本
@@ -38,8 +57,11 @@ func newUpCommand(opts *Options) *cobra.Command {
   brickkit up --config brickkit.prod.yaml           使用指定配置文件`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, _, _ = only, dryRun, checkResources
-			return clierr.NotImplemented("brickkit up", 15)
+			if !dryRun {
+				_, _ = only, checkResources
+				return clierr.NotImplemented("brickkit up", 15)
+			}
+			return runUpDryRun(cmd.Context(), opts)
 		},
 	}
 
@@ -47,4 +69,131 @@ func newUpCommand(opts *Options) *cobra.Command {
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "只生成部署文件，不启动（升级时额外输出变更摘要）")
 	cmd.Flags().BoolVar(&checkResources, "check-resources", false, "启动前检查基础资源可达性（不可达时警告但不阻断）")
 	return cmd
+}
+
+// runUpDryRun 生成部署文件但不启动任何东西。
+func runUpDryRun(ctx context.Context, opts *Options) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
+	cfg, err := config.ParseConfigFile(layout.ConfigPath())
+	if err != nil {
+		return err
+	}
+	if len(cfg.Components) == 0 {
+		opts.Printf("📋 当前项目没有组件\n")
+		opts.Printf("   用 brickkit add <组件ID>@<版本> 添加第一个组件\n")
+		return nil
+	}
+
+	client, err := source.New(layout, cfg, source.Options{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Close() }()
+
+	graph, err := resolver.New(resolver.FromSource(client)).ResolveConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	states, err := cascade.Compute(cfg, graph)
+	if err != nil {
+		return err
+	}
+
+	renderWarnings(opts, graph.Warnings)
+	renderStates(opts, states)
+
+	if states.Empty() {
+		opts.Printf("📋 本次没有组件会启动\n")
+		opts.Printf("   把需要的组件改成 enabled: true，或移除 enabled: false\n")
+		return nil
+	}
+
+	plan, err := resolver.Order(graph.Subgraph(states.Running()))
+	if err != nil {
+		return err
+	}
+	renderOrder(opts, plan, graph)
+
+	env, err := inject.Build(cfg, graph, states)
+	if err != nil {
+		return err
+	}
+	renderWarnings(opts, env.Warnings)
+
+	generated, err := compose.Generate(cfg, graph, states, env, compose.Options{Now: opts.Now})
+	if err != nil {
+		return err
+	}
+
+	path, err := writeGenerated(layout, generated.YAML)
+	if err != nil {
+		return err
+	}
+
+	opts.Printf("📄 已生成：%s\n", displayPath(opts.WorkDir, path))
+	renderDatabaseRequirements(opts, generated)
+	opts.Printf("\n💡 --dry-run 只生成文件，未启动任何组件\n")
+	opts.Printf("   查看：cat %s\n", displayPath(opts.WorkDir, path))
+
+	logging.Info("部署文件已生成", "path", path, "components", len(generated.Databases))
+	return nil
+}
+
+// writeGenerated 把部署文件写进 .brickkit/generated/。
+func writeGenerated(layout config.Layout, content []byte) (string, error) {
+	dir := layout.GeneratedDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", clierr.New(clierr.CodeInternal, "错误：创建生成目录失败").
+			WithDetail("路径", dir).
+			WithCause(err)
+	}
+
+	path := filepath.Join(dir, composeFileName)
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		return "", clierr.New(clierr.CodeInternal, "错误：写入部署文件失败").
+			WithDetail("路径", path).
+			WithCause(err)
+	}
+	return path, nil
+}
+
+// renderDatabaseRequirements 告诉使用者还需要建哪些数据库。
+//
+// 006 §9.1/§9.5：CLI 不创建数据库。但平台有责任说清楚要建什么——
+// 否则组件会在迁移阶段抛出一句难以定位的 `database "xxx" does not exist`。
+func renderDatabaseRequirements(opts *Options, result *compose.Result) {
+	if len(result.Databases) == 0 {
+		return
+	}
+
+	opts.Printf("\n📌 以下数据库需要预先创建（平台不代建，见 006 §9.5）：\n")
+	for _, db := range result.Databases {
+		opts.Printf("   %s  （%s:%d，供 %s 使用）\n",
+			db.Name, db.Host, db.Port, joinComponents(db.Components))
+		opts.Printf("      %s;\n", db.CreateSQL)
+	}
+	opts.Printf("   已经建过就无需再执行，建库是一次性操作\n")
+}
+
+func joinComponents(items []string) string {
+	if len(items) == 0 {
+		return ""
+	}
+	out := items[0]
+	for _, item := range items[1:] {
+		out += "、" + item
+	}
+	return out
+}
+
+// displayPath 把绝对路径显示成相对项目根目录的形式。
+func displayPath(workDir, path string) string {
+	if rel, err := filepath.Rel(workDir, path); err == nil {
+		return rel
+	}
+	return path
 }
