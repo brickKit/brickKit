@@ -18,6 +18,12 @@ import (
 // runIn 在指定目录下执行一次 CLI（不依赖进程 cwd，便于并行与隔离）。
 func runIn(t *testing.T, dir string, args ...string) result {
 	t.Helper()
+	return runWith(t, nil, dir, args...)
+}
+
+// runWith 在执行前允许调整全局选项（注入假引擎等）。
+func runWith(t *testing.T, tweak func(*Options), dir string, args ...string) result {
+	t.Helper()
 	var out, errBuf bytes.Buffer
 	opts := &Options{
 		WorkDir:    dir,
@@ -25,6 +31,9 @@ func runIn(t *testing.T, dir string, args ...string) result {
 		LogLevel:   logging.LevelOff,
 		Stdout:     &out,
 		Stderr:     &errBuf,
+	}
+	if tweak != nil {
+		tweak(opts)
 	}
 	code := Run(NewRootCommand(opts), opts, args)
 	return result{stdout: out.String(), stderr: errBuf.String(), code: code}

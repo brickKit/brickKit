@@ -245,15 +245,3 @@ func TestUpDryRunOnEmptyProject(t *testing.T) {
 	assert.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "当前项目没有组件")
 }
-
-// 不带 --dry-run 的 up 仍属 Step 15，尚未实现——
-// 这条用例会在 Step 15 落地时失败，提醒回来更新。
-func TestUpWithoutDryRunIsStillNotImplemented(t *testing.T) {
-	f := composeProject(t)
-
-	r := runIn(t, f.Dir, "up")
-
-	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "尚未实现")
-	assert.Contains(t, r.stderr, "Step 15")
-}

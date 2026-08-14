@@ -31,6 +31,8 @@ type comp struct {
 	Optional []string
 	// Artifacts 是 "type:文件路径" 的列表，如 "api-docs:openapi.json"。
 	Artifacts []string
+	// Migration 是 migration.command（002 §8.2）。
+	Migration []string
 }
 
 func (c comp) ref() string { return c.ID + "@" + c.Version }
@@ -58,10 +60,22 @@ func (c comp) yamlText() string {
 			fmt.Fprintf(&b, "    - id: %s\n      optional: true\n", o)
 		}
 	}
+	if len(c.Migration) > 0 {
+		fmt.Fprintf(&b, "migration:\n  command: [%s]\n", quotedList(c.Migration))
+	}
 	b.WriteString("deployment:\n  type: container\n")
 	fmt.Fprintf(&b, "  image: registry.example.com/%s:%s\n", strings.ReplaceAll(c.ID, "/", "-"), c.Version)
 	b.WriteString("  port: 8080\nhealthCheck:\n  type: http\n  path: /healthz\n")
 	return b.String()
+}
+
+// quotedList 把命令渲染成 YAML 的行内数组："a", "b"。
+func quotedList(items []string) string {
+	quoted := make([]string, 0, len(items))
+	for _, item := range items {
+		quoted = append(quoted, `"`+item+`"`)
+	}
+	return strings.Join(quoted, ", ")
 }
 
 // files 返回该组件仓库中的文件内容（component.yaml + 各产物文件）。

@@ -539,8 +539,15 @@ func healthcheckOf(m *manifest.Manifest) map[string]any {
 	switch m.HealthCheck.Type {
 	case manifest.HealthCheckHTTP:
 		url := fmt.Sprintf("http://localhost:%d%s", m.Deployment.Port, m.HealthCheck.Path)
+		// wget 与 curl 都试一遍。
+		//
+		// compose 的健康检查跑在**容器内部**，用的必须是镜像里真有的命令。
+		// 只写 wget 的话，python:slim / 各种 distroless 基础镜像上必然失败——
+		// 组件明明跑得好好的，平台却判它 unhealthy，依赖方永远等不到它，
+		// 而容器日志里写着"组件已就绪"。这是真跑起来撞到的（002 §9.6）。
 		return map[string]any{
-			"test":     []string{"CMD", "wget", "-q", "--spider", url},
+			"test": []string{"CMD-SHELL", fmt.Sprintf(
+				"wget -q --spider %s || curl -fsS %s || exit 1", url, url)},
 			"interval": healthcheckInterval,
 			"timeout":  healthcheckTimeout,
 			"retries":  healthcheckRetries,

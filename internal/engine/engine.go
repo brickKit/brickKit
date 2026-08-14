@@ -1,0 +1,84 @@
+// Package engine 抽象底层容器引擎（005 §7：Docker / Podman）。
+//
+// CLI 自己不懂容器，它只做三件事：把 brickkit.yaml 翻译成部署文件、
+// 决定谁该启动、然后把文件交给引擎。这一层的存在是为了让"决定"与"执行"
+// 分开——命令层的逻辑因此可以在没有 Docker 的机器上被完整测试。
+//
+// 两种引擎的差别只有两处（005 §7.3）：
+//
+//	命令      docker compose / podman-compose
+//	宿主机别名 host-gateway / host.containers.internal（生成文件时用，见 compose 包）
+package engine
+
+import "context"
+
+// 引擎名。与 compose 包的 EngineDocker / EnginePodman 取值一致。
+const (
+	Docker = "docker"
+	Podman = "podman"
+)
+
+// Status 是一个 service 的运行状态。
+type Status struct {
+	// Service 是 compose 里的 service 名（即版本化服务名）。
+	Service string
+	// State 是引擎报告的状态：running / exited / created / restarting …
+	State string
+	// Health 是健康检查结论：healthy / unhealthy / starting；
+	// 没有健康检查时为空（002 §9：不是所有组件都有健康检查）。
+	Health string
+	// Ports 是端口映射的原始描述，如 "0.0.0.0:18080->8080/tcp"。
+	Ports string
+	// ExitCode 只在 State 为 exited 时有意义。
+	ExitCode int
+}
+
+// Running 判断该 service 是否处于"跑着且没坏"的状态。
+//
+// 有健康检查时以健康检查为准：一个 running 但 unhealthy 的容器
+// 对使用者来说并不是"好的"。
+func (s Status) Running() bool {
+	if s.State != "running" {
+		return false
+	}
+	return s.Health == "" || s.Health == "healthy"
+}
+
+// UpRequest 是一次启动请求。
+type UpRequest struct {
+	// File 是部署文件路径。
+	File string
+	// Project 是引擎侧的项目名。
+	//
+	// 必须显式传：compose 默认拿部署文件所在目录名当项目名，而我们的文件
+	// 固定放在 .brickkit/generated/ 下——那样**所有** BrickKit 项目在同一台
+	// 机器上都会叫 "generated"，彼此的容器互相顶替。
+	Project string
+	// Services 为空表示全部启动；非空时只启动这些 service（--only）。
+	Services []string
+}
+
+// DownRequest 是一次停止请求。
+type DownRequest struct {
+	File    string
+	Project string
+	// Services 为空表示整个项目停掉；非空时只停这些 service。
+	Services []string
+}
+
+// Engine 是容器引擎的统一抽象。
+type Engine interface {
+	// Name 是引擎名（Docker / Podman）。
+	Name() string
+	// Up 启动（等价 compose up -d）。
+	Up(ctx context.Context, req UpRequest) error
+	// Down 停止。
+	//
+	// **不删除数据卷**（004 §3.6）：数据库数据始终保留。
+	// 需要彻底清理时由使用者自己执行 docker volume rm。
+	Down(ctx context.Context, req DownRequest) error
+	// Status 返回该项目下所有 service 的状态。
+	Status(ctx context.Context, file, project string) ([]Status, error)
+	// CheckImage 检查镜像是否可用（本地已有，或能从 registry 取到）。
+	CheckImage(ctx context.Context, image string) error
+}

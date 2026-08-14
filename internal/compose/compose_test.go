@@ -472,6 +472,27 @@ func TestMigrationServiceHasNoHealthcheck(t *testing.T) {
 // 12.3 健康检查
 // ============================================================
 
+// 健康检查不能只赌镜像里有 wget。
+//
+// 真跑起来撞到过：python:3.12-slim 里既没有 wget 也没有 curl，
+// 组件本身跑得好好的，平台却判它 unhealthy——依赖方于是永远等不到它，
+// 而容器日志里写着"组件已就绪"。至少要把 wget / curl 都试一遍。
+func TestHealthcheckTriesMoreThanOneTool(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+
+	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0")
+	health := svc["healthcheck"].(map[string]any)
+	command := stringsOf(t, health["test"])
+
+	require.NotEmpty(t, command)
+	assert.Equal(t, "CMD-SHELL", command[0], "要用 shell 才能串起备选命令")
+	joined := strings.Join(command, " ")
+	assert.Contains(t, joined, "wget")
+	assert.Contains(t, joined, "curl")
+	assert.Contains(t, joined, "http://localhost:8080/healthz")
+}
+
 func TestHealthcheckFromManifest(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
@@ -480,8 +501,9 @@ func TestHealthcheckFromManifest(t *testing.T) {
 	health, ok := svc["healthcheck"].(map[string]any)
 	require.True(t, ok, "12.3 应有 healthcheck：%v", svc)
 
-	assert.Equal(t,
-		[]any{"CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"},
+	assert.Equal(t, []any{"CMD-SHELL",
+		"wget -q --spider http://localhost:8080/healthz || " +
+			"curl -fsS http://localhost:8080/healthz || exit 1"},
 		health["test"])
 	assert.NotEmpty(t, health["interval"])
 	assert.NotEmpty(t, health["retries"])
@@ -496,7 +518,9 @@ func TestHealthcheckUsesMainPortNotExtraPort(t *testing.T) {
 	b.component(m, config.Component{})
 
 	health := serviceOf(t, b.parsed(), "people-basic-1-0-0")["healthcheck"].(map[string]any)
-	assert.Contains(t, health["test"].([]any)[4], ":8080/healthz")
+	command := strings.Join(stringsOf(t, health["test"]), " ")
+	assert.Contains(t, command, ":8080/healthz")
+	assert.NotContains(t, command, ":9090", "额外端口不参与健康检查")
 }
 
 // healthCheck.type: none 的组件不生成 healthcheck ——

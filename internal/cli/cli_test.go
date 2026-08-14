@@ -155,12 +155,14 @@ func TestErrorOutputFormat(t *testing.T) {
 // 骨架阶段：未实现的命令给出明确的 NOT_IMPLEMENTED 错误与 Step 编号。
 func TestNotImplementedCommands(t *testing.T) {
 	// 已实现的命令不在此列：init（Step 3）、reset（Step 8）、
-	// add / remove（Step 9）、order（Step 10）、login / publish（Step 19）
+	// add / remove（Step 9）、order（Step 10）、up（Step 15-A）、
+	// login / publish（Step 19）
 	cases := map[string][]string{
-		"up":     {"up"},
 		"down":   {"down"},
 		"status": {"status"},
 		"sync":   {"sync"},
+		// --only / --check-resources 属 Step 15-C
+		"up --only": {"up", "--only", "people/basic"},
 		// publish --sign 依赖 cosign 签名，属于 Step 20
 		"publish --sign": {"publish", "--sign"},
 	}

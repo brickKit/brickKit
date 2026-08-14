@@ -64,7 +64,7 @@ func runStoreContract(t *testing.T, newStore func(*testing.T) Store) {
 		}
 	}
 
-    // 根部门：parentId 为空、level 为 1
+	// 根部门：parentId 为空、level 为 1
 	var root Department
 	for _, d := range all {
 		if d.ParentID == "" {
