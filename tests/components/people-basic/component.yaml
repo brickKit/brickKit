@@ -1,0 +1,82 @@
+# people/basic —— 人员组件（BrickKit Phase 5 测试组件）
+#
+# 连接组件的雏形：有自己的数据（人员），强依赖 department/tree 补全部门名，
+# 弱依赖 infra/redis-event-bus 发事件。
+# 同时是平台的验证夹具：extraPorts 双端口、跨语言（Python 客户端调 Go 服务端）、
+# 强依赖与弱依赖在故障时的不同表现。
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: people/basic
+  name: 基础人员
+  version: 1.0.0
+  description: 提供人员查询能力；部门名来自 department/tree，不在本组件重复存储
+  vendor: brickkit-platform
+  license: MIT
+
+tags:
+  - people
+  - master-data
+
+artifacts:
+  # 契约即产物（002 §7）：调用方据此生成 gRPC 客户端
+  - type: api-contract
+    format: protobuf
+    description: gRPC API 契约文件
+    files:
+      - proto/people/v1/people.proto
+  - type: api-docs
+    format: openapi
+    description: HTTP REST API 文档（FastAPI 自动生成）
+    files:
+      - openapi.json
+
+dependencies:
+  components:
+    # 强依赖：地址注入为 DEPARTMENT_TREE_ENDPOINT；不可用时本组件如实报 503
+    - department/tree@1.0.0
+    # 弱依赖：缺失时平台完全不注入 INFRA_REDIS_EVENT_BUS_ENDPOINT，组件自行降级
+    - id: infra/redis-event-bus@1.0.0
+      optional: true
+  resources:
+    - kind: database
+      engine: postgresql
+
+configSchema:
+  type: object
+  properties:
+    logLevel:
+      type: string
+      default: "info"
+      description: 日志级别，注入为环境变量 LOG_LEVEL（debug | info | warn | error）
+
+migration:
+  command: ["python", "-m", "app.main", "migrate"]
+
+deployment:
+  type: container
+  image: brickkit-demo/people-basic:1.0.0
+  # 主端口（HTTP）：健康检查与 PEOPLE_BASIC_ENDPOINT 用它
+  port: 8080
+  # 额外端口（gRPC）：Python 的 grpcio 不能与 HTTP 共用端口（009）。
+  # 平台据此注入 PEOPLE_BASIC_GRPC_ENDPOINT
+  extraPorts:
+    - name: grpc
+      port: 9090
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+healthCheck:
+  type: http
+  path: /healthz
+  # ⚠️ 只检查本进程存活，不查数据库、不调 department/tree（002 §9.4）
+
+observability:
+  metrics: false
+  tracing: false

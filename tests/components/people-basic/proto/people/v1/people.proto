@@ -1,0 +1,40 @@
+// people/basic 的 gRPC 契约（002 §7：契约即产物）。
+//
+// gRPC 跑在 extraPorts 声明的 9090 端口上：Python 的 grpcio 无法与 HTTP
+// 共用一个端口（Go 组件可以，见 department/tree），因此按 009 的建议用双端口。
+syntax = "proto3";
+
+package people.v1;
+
+// PeopleService 提供人员查询能力。
+service PeopleService {
+  // ListPeople 返回人员列表。
+  rpc ListPeople(ListPeopleRequest) returns (ListPeopleResponse);
+  // GetPerson 按 ID 查询单个人员。
+  rpc GetPerson(GetPersonRequest) returns (Person);
+}
+
+// Person 是一名人员。
+message Person {
+  string id = 1;
+  string name = 2;
+  // department_id 指向 department/tree 中的部门。
+  string department_id = 3;
+  // department_name 由本组件调用 department/tree 补全（强依赖）。
+  string department_name = 4;
+  string title = 5;
+}
+
+message ListPeopleRequest {
+  // department_id 非空时只返回该部门的人员。
+  string department_id = 1;
+}
+
+message ListPeopleResponse {
+  repeated Person people = 1;
+  int32 total = 2;
+}
+
+message GetPersonRequest {
+  string id = 1;
+}

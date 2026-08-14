@@ -1,0 +1,6 @@
+# 测试与代码生成用的依赖（不进运行期镜像）。
+-r requirements.txt
+pytest==8.3.4
+httpx==0.28.1
+grpcio-tools==1.68.1
+PyYAML==6.0.2

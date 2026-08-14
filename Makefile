@@ -42,6 +42,9 @@ TESTFLAGS ?= -count=1
 # 平台自测组件（tests/components/*）：各自是独立的 Go module 与独立的组件仓库，
 # 不参与主 module 的 ./... 构建，需要单独测试与构建镜像。
 DEMO_COMPONENTS := demo-hello demo-caller department-tree
+# Python 组件（people-basic）没法在宿主机上直接跑测试：本机未安装 python3-venv。
+# 它的测试跑在容器里（Dockerfile 的 test 层），版本固定、可复现。
+PY_COMPONENTS := people-basic
 # 多版本共存验证需要同一份 hello 的两个 tag
 DEMO_HELLO_TAGS := 1.0.0 2.0.0
 
@@ -170,6 +173,12 @@ test-market: ## 市场后端测试
 		cd market-server && $(GO) test $(TESTFLAGS) ./...; \
 	else echo "⏭  market-server：暂无测试文件，跳过"; fi
 
+.PHONY: openapi-people
+openapi-people: ## 由 FastAPI 重新导出 people/basic 的 openapi.json
+	@cd tests/components/people-basic && docker build -q --target test -t brickkit-test/people-basic . >/dev/null && \
+		docker run --rm -v "$$PWD:/out" brickkit-test/people-basic \
+			sh -c "cd /app && cp /out/dump_openapi.py . && python dump_openapi.py && cp openapi.json /out/openapi.json"
+
 .PHONY: proto-department
 proto-department: ## 由 proto 重新生成 department/tree 的 Go 代码
 	@cd tests/components/department-tree && mkdir -p gen && PATH="$(TOOLS_BIN):$$PATH" $(PROTOC) \
@@ -187,16 +196,26 @@ test-market-integration: ## 市场后端的集成测试（需要本机 PostgreSQ
 	cd market-server && $(GO) test $(TESTFLAGS) ./...
 
 .PHONY: test-components
-test-components: ## 平台自测组件的单元测试（tests/components/*，各自独立 module）
+test-components: ## 平台自测组件的单元测试（Go 组件本地跑，Python 组件在容器里跑）
 	@for c in $(DEMO_COMPONENTS); do \
 		echo "▶ tests/components/$$c go test ./..."; \
 		( cd tests/components/$$c && $(GO) vet ./... && $(GO) test $(TESTFLAGS) ./... ) || exit 1; \
+	done
+	@$(MAKE) --no-print-directory test-components-py
+
+.PHONY: test-components-py
+test-components-py: ## Python 组件的测试（在容器里跑，需要 Docker）
+	@for c in $(PY_COMPONENTS); do \
+		echo "▶ tests/components/$$c pytest（容器内）"; \
+		docker build -q --target test -t brickkit-test/$$c tests/components/$$c >/dev/null || exit 1; \
+		docker run --rm brickkit-test/$$c || exit 1; \
 	done
 
 .PHONY: demo-images
 demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实验证靠它们）
 	@docker build -q -t brickkit-demo/caller:1.0.0 tests/components/demo-caller
 	@docker build -q -t brickkit-demo/department-tree:1.0.0 tests/components/department-tree
+	@docker build -q -t brickkit-demo/people-basic:1.0.0 tests/components/people-basic
 	@for tag in $(DEMO_HELLO_TAGS); do \
 		docker build -q -t brickkit-demo/hello:$$tag tests/components/demo-hello; \
 	done

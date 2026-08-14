@@ -1,0 +1,7 @@
+# people/basic 的运行期依赖。版本钉死：组件镜像必须可复现。
+fastapi==0.115.6
+uvicorn==0.34.0
+grpcio==1.68.1
+grpcio-reflection==1.68.1
+protobuf==5.29.2
+psycopg[binary]==3.2.3
