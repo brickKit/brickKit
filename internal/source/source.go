@@ -10,7 +10,7 @@
 //	         产物     → .brickkit/artifacts/<版本化服务名>/<type>/<文件路径>
 //	刷新     Options.Refresh（对应 --refresh）忽略缓存强制重新拉取
 //
-// 尚未实现（有意延后，编号见 开发进度.md《延后实现清单》）：
+// 尚未实现（有意延后，编号见 开发进度/延后实现清单.md）：
 //
 //	P6   组件的 sourceType（git / registry）与 gitUrl —— Step 9 的 --repo 才需要
 //	P7   接线到 CLI 命令：目前没有任何命令调用本包，ArtifactResult.Warnings 也无人渲染
