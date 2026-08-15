@@ -667,3 +667,52 @@ func TestLocalModeFileIsValidForDockerCompose(t *testing.T) {
 
 	require.NoError(t, err, "生成的文件 docker compose 解析不了：\n%s\n----\n%s", output, yamlBytes)
 }
+
+// local-debug 环境变量文件里的 ${VAR} 必须在生成时求值。
+//
+// 这个文件是给 **IDE** 读的（VS Code 的 envFile、IntelliJ 的 EnvFile 插件），
+// 它们都**不做变量替换**——留着占位符，IDE 里的进程就会拿着字面量
+// "${PG_PASSWORD}" 去连库，认证失败，而 .env 里明明写着密码。
+//
+// 与 compose 文件本身的处理**刻意不同**：那份文件由 docker compose 自己
+// 从 .env 展开，所以必须留占位符，绝不能把明文密码写进去。
+func TestLocalEnvFileResolvesPlaceholders(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
+		config.Component{Local: true})
+	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+
+	result, err := b.build(compose.Options{
+		Lookup: func(name string) (string, bool) {
+			if name == "POSTGRES_PASSWORD" {
+				return "s3cr3t", true
+			}
+			return "", false
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.LocalEnvFiles, 1)
+
+	text := string(result.LocalEnvFiles[0].Content)
+
+	assert.Contains(t, text, "DATABASE_PASSWORD=s3cr3t", "IDE 不做变量替换，必须给真值")
+	assert.NotContains(t, text, "${POSTGRES_PASSWORD}")
+}
+
+// compose 文件本身照旧留占位符：那份文件会被人打开看、进 git diff，
+// 密码进去就等于泄露；而 docker compose 会自己从 .env 展开。
+func TestComposeFileKeepsPlaceholders(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
+	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+
+	result, err := b.build(compose.Options{
+		Lookup: func(string) (string, bool) { return "s3cr3t", true },
+	})
+	require.NoError(t, err)
+
+	text := string(result.YAML)
+
+	assert.Contains(t, text, "${POSTGRES_PASSWORD}", "compose 自己会展开")
+	assert.NotContains(t, text, "s3cr3t", "明文密码绝不能写进 compose 文件")
+}

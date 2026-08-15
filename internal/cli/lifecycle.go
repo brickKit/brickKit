@@ -253,7 +253,11 @@ func logsCommand(engineName, project, file, service string) string {
 	if engineName == engine.Podman {
 		bin = "podman-compose"
 	}
-	command := fmt.Sprintf("%s -p %s -f %s logs", bin, project, file)
+	// --project-directory 也不能省：compose 会在**部署文件旁边**找 .env，
+	// 而使用者的 .env 在项目根。少了它，每次看日志都会先刷三行
+	// "The XXX variable is not set. Defaulting to a blank string."，
+	// 让人以为配置出了问题
+	command := fmt.Sprintf("%s --project-directory . -p %s -f %s logs", bin, project, file)
 	if service != "" {
 		command += " " + service
 	}

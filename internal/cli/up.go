@@ -263,6 +263,8 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 	result, err := compose.Generate(p.cfg, p.graph, p.states, env, compose.Options{
 		Now:    opts.Now,
 		Engine: engineName(opts),
+		// 只作用于 local-debug 文件：IDE 不做变量替换（见 compose.Options.Lookup）
+		Lookup: envLookup(opts.WorkDir),
 	})
 	if err != nil {
 		return err
@@ -315,7 +317,7 @@ func start(
 
 	opts.Printf("\n🐳 正在启动（%s）...\n", eng.Name())
 	if err := eng.Up(ctx, engine.UpRequest{
-		File: file, Project: project, Services: plan.services,
+		File: file, Project: project, ProjectDir: opts.WorkDir, Services: plan.services,
 	}); err != nil {
 		return engineFailure("启动", err)
 	}

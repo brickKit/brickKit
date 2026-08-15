@@ -57,6 +57,13 @@ type UpRequest struct {
 	// 固定放在 .brickkit/generated/ 下——那样**所有** BrickKit 项目在同一台
 	// 机器上都会叫 "generated"，彼此的容器互相顶替。
 	Project string
+	// ProjectDir 是项目根目录（brickkit.yaml 所在处）。
+	//
+	// compose 默认在**部署文件旁边**找 .env，而我们的文件固定放在
+	// .brickkit/generated/ 下——使用者的 .env 在项目根，压根读不到。
+	// 而 compose 对未定义的变量不报错，直接替换成空串：密码就这样静默变空了。
+	// K8s 目标不需要它（${VAR} 在生成时已求值）。
+	ProjectDir string
 	// Services 为空表示全部启动；非空时只启动这些 service（--only）。
 	Services []string
 	// MigrationJobs 是本次要执行的迁移 Job 名，只对 K8s 目标有意义。
@@ -70,6 +77,8 @@ type UpRequest struct {
 type DownRequest struct {
 	File    string
 	Project string
+	// ProjectDir 同 UpRequest.ProjectDir。
+	ProjectDir string
 	// Services 为空表示整个项目停掉；非空时只停这些 service。
 	Services []string
 }

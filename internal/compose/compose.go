@@ -40,6 +40,14 @@ type Options struct {
 	// Engine 是容器引擎（EngineDocker / EnginePodman）。
 	// 只影响 local: true 时 extra_hosts 的宿主机别名（005 §7.5）；空值按 Docker 处理。
 	Engine string
+	// Lookup 解析 ${VAR}，**只用于 local-debug 环境变量文件**。
+	//
+	// compose 文件本身刻意保留占位符：那份文件会被人打开看、进 git diff，
+	// 明文密码进去就等于泄露，而 docker compose 会自己从 .env 展开。
+	// local-debug 文件不一样——它是给 IDE 读的（VS Code 的 envFile、
+	// IntelliJ 的 EnvFile 插件），**它们都不做变量替换**，留着占位符，
+	// IDE 里的进程就会拿着字面量 "${PG_PASSWORD}" 去连库。
+	Lookup func(name string) (string, bool)
 }
 
 // DatabaseRequirement 是一个需要**使用者预先创建**的数据库。
@@ -100,7 +108,7 @@ func Generate(
 	return &Result{
 		YAML:          append(header(cfg, plan, now), body...),
 		Databases:     plan.databases(),
-		LocalEnvFiles: plan.localEnvFiles(now),
+		LocalEnvFiles: plan.localEnvFiles(now, opts.Lookup),
 		HostPorts:     plan.hostPorts(),
 		Warnings:      plan.warnings,
 	}, nil

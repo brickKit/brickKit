@@ -42,7 +42,8 @@ func (c *Compose) Name() string { return c.name }
 // `up -d` 只保证"启动命令发出去了"：依赖链末端的组件此刻多半还是
 // health=starting，紧接着查状态会得到一个假的失败结论。
 func (c *Compose) Up(ctx context.Context, req UpRequest) error {
-	args := append(c.projectArgs(req.File, req.Project), "up", "-d", "--wait", "--remove-orphans")
+	args := append(c.projectArgs(req.File, req.Project, req.ProjectDir),
+		"up", "-d", "--wait", "--remove-orphans")
 	args = append(args, req.Services...)
 
 	if _, err := c.exec(ctx, args...); err != nil {
@@ -55,11 +56,11 @@ func (c *Compose) Up(ctx context.Context, req UpRequest) error {
 func (c *Compose) Down(ctx context.Context, req DownRequest) error {
 	var args []string
 	if len(req.Services) == 0 {
-		args = append(c.projectArgs(req.File, req.Project), "down")
+		args = append(c.projectArgs(req.File, req.Project, req.ProjectDir), "down")
 	} else {
 		// 只停部分组件用 stop + rm，而不是 down：down 会连网络一起拆掉，
 		// 剩下还在跑的组件会瞬间失去彼此
-		args = append(c.projectArgs(req.File, req.Project), "rm", "-sf")
+		args = append(c.projectArgs(req.File, req.Project, req.ProjectDir), "rm", "-sf")
 		args = append(args, req.Services...)
 	}
 
@@ -69,7 +70,7 @@ func (c *Compose) Down(ctx context.Context, req DownRequest) error {
 
 // Status 返回该项目下所有 service 的状态。
 func (c *Compose) Status(ctx context.Context, file, project string) ([]Status, error) {
-	args := append(c.projectArgs(file, project), "ps", "-a", "--format", "json")
+	args := append(c.projectArgs(file, project, ""), "ps", "-a", "--format", "json")
 
 	out, err := c.exec(ctx, args...)
 	if err != nil {
@@ -144,8 +145,12 @@ func imageError(image, output string, cause error) error {
 // 项目名必须显式给：compose 默认拿部署文件所在目录名当项目名，
 // 而我们的文件固定放在 .brickkit/generated/ 下——那样同一台机器上
 // 所有 BrickKit 项目在引擎眼里都叫 "generated"，彼此顶替。
-func (c *Compose) projectArgs(file, project string) []string {
+// projectDir 决定 compose 去哪里找 .env（见 UpRequest.ProjectDir）。
+func (c *Compose) projectArgs(file, project, projectDir string) []string {
 	args := append([]string{}, c.base...)
+	if projectDir != "" {
+		args = append(args, "--project-directory", projectDir)
+	}
 	if project != "" {
 		args = append(args, "-p", project)
 	}

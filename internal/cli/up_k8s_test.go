@@ -239,3 +239,37 @@ func TestK8sLogsCommandIsKubectl(t *testing.T) {
 	assert.Contains(t, command, "-n brickkit-my-erp")
 	assert.NotContains(t, command, "docker")
 }
+
+// ============================================================
+// 资源可达性：K8s 下不能从本机拨号
+// ============================================================
+
+// K8s 下的资源地址是**集群内**的 DNS 名（postgres.infra），
+// 开发者本机根本解析不了它。照 Docker 那套拨一次号，
+// 会对一个完全健康的部署报"不可达"——组件正连着这个库跑得好好的。
+// 这是接上真集群（minikube）之后第一时间撞到的。
+func TestStatusK8sDoesNotProbeResourcesFromHost(t *testing.T) {
+	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0"}, "",
+		pgResourceYAML("plain-password"))
+	eng := newK8sEngine()
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+
+	r := runWithEngine(t, eng, f.Dir, "status")
+
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+	assert.Contains(t, r.stdout, "postgres.infra.svc:5432", "地址照常列出来")
+	assert.NotContains(t, r.stdout, "不可达", "本机解析不了集群内地址，不能据此判不可达")
+	assert.Contains(t, r.stdout, "集群内", "要说清为什么不下结论")
+}
+
+// --check-resources 同理：K8s 下拨号毫无意义。
+func TestUpK8sCheckResourcesDoesNotProbe(t *testing.T) {
+	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0"}, "",
+		pgResourceYAML("plain-password"))
+
+	r := runWithEngine(t, newK8sEngine(), f.Dir, "up", "--check-resources")
+
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+	assert.NotContains(t, r.stdout+r.stderr, "基础资源不可达")
+	assert.Contains(t, r.stdout, "集群内")
+}

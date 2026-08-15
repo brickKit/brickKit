@@ -335,3 +335,47 @@ func TestTailKeepsLastMeaningfulLines(t *testing.T) {
 	assert.Equal(t, "only", tail("\n only \n\n", 3))
 	assert.Equal(t, "", tail("\n \n", 2))
 }
+
+// ============================================================
+// --project-directory：.env 必须从项目根读
+// ============================================================
+
+// compose 默认在**部署文件旁边**找 .env，而我们的文件固定放在
+// .brickkit/generated/ 下——使用者的 .env 在项目根，压根不会被读到。
+//
+// 后果非常安静：compose 对未定义的变量不报错，直接替换成**空串**并在
+// stderr 上留一行 warning。于是 `password: ${PG_PASSWORD}` 变成空密码，
+// postgres 容器以 "Database is uninitialized and superuser password is not
+// specified" 崩溃重启，而使用者手里的 .env 明明写着密码。真跑第一次就撞上了。
+func TestUpReadsDotEnvFromProjectDirectory(t *testing.T) {
+	rec := newRecorder()
+
+	require.NoError(t, dockerWith(rec).Up(context.Background(), UpRequest{
+		File: "/p/.brickkit/generated/docker-compose.yaml", Project: "brickkit-demo",
+		ProjectDir: "/p",
+	}))
+
+	assert.Contains(t, rec.lastCall(t), "--project-directory /p")
+}
+
+func TestDownReadsDotEnvFromProjectDirectory(t *testing.T) {
+	rec := newRecorder()
+
+	require.NoError(t, dockerWith(rec).Down(context.Background(), DownRequest{
+		File: "/p/.brickkit/generated/docker-compose.yaml", Project: "brickkit-demo",
+		ProjectDir: "/p",
+	}))
+
+	assert.Contains(t, rec.lastCall(t), "--project-directory /p")
+}
+
+// 没给项目目录时不能瞎编一个：compose 会退回它自己的默认行为。
+func TestProjectDirectoryOmittedWhenUnknown(t *testing.T) {
+	rec := newRecorder()
+
+	require.NoError(t, dockerWith(rec).Up(context.Background(), UpRequest{
+		File: "/p/.brickkit/generated/docker-compose.yaml", Project: "brickkit-demo",
+	}))
+
+	assert.NotContains(t, rec.lastCall(t), "--project-directory")
+}

@@ -300,6 +300,11 @@ func checkResources(ctx context.Context, opts *Options, eng engine.Engine, plan 
 // 只探外部资源：CLI 托管的资源还在这次启动里，现在当然连不上——
 // 去探它只会产生一条必然出现、又毫无意义的警告。
 func checkResourceReachability(ctx context.Context, opts *Options, plan *upPlan) {
+	if plan.cfg.Deploy.Target == config.TargetK8s {
+		renderK8sResources(opts, plan)
+		return
+	}
+
 	used := map[string]bool{}
 	for _, ref := range plan.states.Running() {
 		used[ref.ID] = true
@@ -328,6 +333,31 @@ func checkResourceReachability(ctx context.Context, opts *Options, plan *upPlan)
 	if checked == 0 {
 		opts.Printf("   （没有需要探测的外部资源；CLI 托管的资源随本次启动一起起来）\n")
 	}
+}
+
+// renderK8sResources 只把资源地址列出来，不拨号。
+//
+// K8s 下的资源地址是集群内的 DNS 名，从开发者本机拨号必然失败——
+// 那条"不可达"警告会在一切正常时出现，久了就没人看警告了。
+func renderK8sResources(opts *Options, plan *upPlan) {
+	used := map[string]bool{}
+	for _, ref := range plan.states.Running() {
+		used[ref.ID] = true
+	}
+
+	listed := 0
+	for _, r := range plan.cfg.Resources {
+		if !boundToAny(r, used) {
+			continue
+		}
+		listed++
+		opts.Printf("   %-24s %s:%d（集群内地址，本机不探测）\n", r.ID, r.Host, r.Port)
+	}
+	if listed == 0 {
+		opts.Printf("   （本次没有组件绑定基础资源）\n")
+		return
+	}
+	opts.Printf("   资源由运维部署在集群里；组件起得来就说明它连得上\n")
 }
 
 func boundToAny(r config.Resource, used map[string]bool) bool {

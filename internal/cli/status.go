@@ -220,13 +220,20 @@ func renderResourceStatus(
 		return
 	}
 
+	k8sTarget := p.cfg.Deploy.Target == config.TargetK8s
+
 	t := newTable("资源", "类型", "状态")
 	for _, r := range resources {
-		t.add(r.ID, r.Kind, resourceState(ctx, opts, r, byService))
+		t.add(r.ID, r.Kind, resourceState(ctx, opts, r, byService, k8sTarget))
 	}
 
 	opts.Printf("📦 资源状态\n")
 	opts.Printf("%s\n", t.render(" "))
+	if k8sTarget {
+		opts.Printf("   资源在集群内访问，本机不做探测；组件跑起来了就说明它连得上\n")
+		opts.Printf("   想从集群内验证：kubectl run -n %s --rm -it netcheck --image=busybox -- nc -zv <主机> <端口>\n\n",
+			p.engineProject())
+	}
 }
 
 // usedResources 返回被本次启动的组件用到的资源。
@@ -250,8 +257,15 @@ func usedResources(p *project) []config.Resource {
 
 // resourceState 判定一个资源现在通不通。
 func resourceState(
-	ctx context.Context, opts *Options, r config.Resource, byService map[string]engine.Status,
+	ctx context.Context, opts *Options, r config.Resource,
+	byService map[string]engine.Status, k8sTarget bool,
 ) string {
+	if k8sTarget {
+		// K8s 下的资源地址是**集群内**的 DNS 名（postgres.infra），
+		// 开发者本机根本解析不了。照 Docker 那套拨一次号，会对一个完全健康的
+		// 部署报"不可达"——而组件正连着这个库跑得好好的。接上真集群第一次就撞到了
+		return fmt.Sprintf("%s:%d（集群内地址，本机不探测）", r.Host, r.Port)
+	}
 	if compose.IsManagedHost(r.Host) {
 		status, ok := byService[r.Host]
 		switch {

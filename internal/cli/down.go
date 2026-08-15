@@ -69,7 +69,7 @@ func runDown(ctx context.Context, opts *Options, only []string) error {
 	}
 
 	if err := eng.Down(ctx, engine.DownRequest{
-		File: p.file, Project: p.engineProject(), Services: services,
+		File: p.file, Project: p.engineProject(), ProjectDir: opts.WorkDir, Services: services,
 	}); err != nil {
 		return engineFailure("停止", err)
 	}

@@ -17,6 +17,7 @@ package compose
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -393,15 +394,15 @@ func (p *plan) rewriteEndpointsForLocalDependencies() {
 }
 
 // localEnvFiles 生成所有 local 组件的调试 env 文件（005 §4.9）。
-func (p *plan) localEnvFiles(now time.Time) []LocalEnvFile {
+func (p *plan) localEnvFiles(now time.Time, lookup func(string) (string, bool)) []LocalEnvFile {
 	out := make([]LocalEnvFile, 0, len(p.locals))
 	for _, l := range p.locals {
-		out = append(out, p.localEnvFile(l, now))
+		out = append(out, p.localEnvFile(l, now, lookup))
 	}
 	return out
 }
 
-func (p *plan) localEnvFile(l localComponent, now time.Time) LocalEnvFile {
+func (p *plan) localEnvFile(l localComponent, now time.Time, lookup func(string) (string, bool)) LocalEnvFile {
 	// 从容器版的注入结果出发，只改"怎么连过去"，不改连什么：
 	// 库名、配置项、密码引用都应当与容器里跑的完全一致，
 	// 否则本地调试出来的行为不能说明容器里也对。
@@ -415,7 +416,7 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) LocalEnvFile {
 		Ref:     l.Ref,
 		Name:    "local-debug." + l.Service + ".env",
 		Port:    l.Port,
-		Content: renderEnvFile(l, vars, now),
+		Content: renderEnvFile(l, vars, now, lookup),
 	}
 }
 
@@ -471,7 +472,9 @@ func (p *plan) pointResourcesAtLocalhost(l localComponent, vars []inject.Var) {
 }
 
 // renderEnvFile 渲染 .env 文件内容。
-func renderEnvFile(l localComponent, vars []inject.Var, now time.Time) []byte {
+func renderEnvFile(
+	l localComponent, vars []inject.Var, now time.Time, lookup func(string) (string, bool),
+) []byte {
 	var b bytes.Buffer
 	b.WriteString("# ============================================================\n")
 	b.WriteString("# 由 BrickKit CLI 自动生成，供 IDE 加载，请勿手动编辑\n")
@@ -484,9 +487,29 @@ func renderEnvFile(l localComponent, vars []inject.Var, now time.Time) []byte {
 	b.WriteString("# ============================================================\n\n")
 
 	for _, v := range vars {
-		fmt.Fprintf(&b, "%s=%s\n", v.Name, v.Value)
+		fmt.Fprintf(&b, "%s=%s\n", v.Name, expandValue(v.Value, lookup))
 	}
 	return b.Bytes()
+}
+
+// envVarRe 匹配 ${ENV_VAR}，与 config 侧的规则一致（003 §5.4）。
+var envVarRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+
+// expandValue 展开 ${VAR}；展开不了就原样保留。
+//
+// 原样保留而不是报错：这个文件是"顺手生成的调试辅助"，不该因为一个变量
+// 没配就让整个 brickkit up 失败——留着占位符至少还能看出漏了哪个变量。
+// （K8s 的 Secret 不一样，那份文件会真的部署上去，所以那边是阻断的。）
+func expandValue(raw string, lookup func(string) (string, bool)) string {
+	if lookup == nil || !strings.Contains(raw, "${") {
+		return raw
+	}
+	return envVarRe.ReplaceAllStringFunc(raw, func(match string) string {
+		if value, ok := lookup(match[2 : len(match)-1]); ok {
+			return value
+		}
+		return match
+	})
 }
 
 // localMigrationWarnings 提醒 local 组件的迁移得自己跑（13.1）。
