@@ -1,0 +1,82 @@
+# infra/redis-event-bus —— 事件总线（BrickKit Phase 5 测试组件）
+#
+# 它在平台里的角色很特殊：**很多组件的弱依赖**（people/basic 与 erp/backend
+# 都声明了 optional: true）。这意味着它缺席时那些组件应当照常工作、只是不发事件
+# ——弱依赖降级的另一半就在这里。
+#
+# 它与 authorization/rbac 形成一个刻意的对照：两者都绑 cache 资源，但
+#   authorization/rbac  Redis 是**加速器** —— 挂了照常回源查库
+#   本组件              Redis 是**唯一的数据源** —— 挂了就 503，绝不假装收下
+# 同一种资源，两种截然不同的故障处理。
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: infra/redis-event-bus
+  name: 事件总线
+  version: 1.0.0
+  description: 基于 Redis Streams 的事件总线；组件把事件发到这里，消费方按需读取
+  vendor: brickkit-platform
+  license: MIT
+
+tags:
+  - infra
+  - events
+
+artifacts:
+  - type: api-docs
+    format: openapi
+    description: HTTP REST API 文档
+    files:
+      - openapi.json
+
+dependencies:
+  # 没有 components：它是叶子组件，谁也不依赖
+  resources:
+    # Redis 在这里是**唯一的数据源**，不是加速器：没绑定就启动失败。
+    # 一个连不上存储的事件总线，起来了也只会把每一条事件都丢掉
+    - kind: cache
+      engine: redis
+
+configSchema:
+  type: object
+  properties:
+    logLevel:
+      type: string
+      default: "info"
+      description: 日志级别，注入为环境变量 LOG_LEVEL（debug | info | warn | error）
+    streamName:
+      type: string
+      default: "brickkit:events"
+      description: Redis Stream 的名字，注入为环境变量 STREAM_NAME
+    streamMaxlen:
+      type: integer
+      default: 10000
+      description: >
+        流的长度上限，注入为环境变量 STREAM_MAXLEN。事件流会一直长，
+        不裁剪迟早把 Redis 撑爆
+
+# 没有 migration：事件存在 Redis 里，没有表
+
+deployment:
+  type: container
+  image: brickkit-demo/infra-redis-event-bus:1.0.0
+  port: 8080
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "300m"
+      memory: "256Mi"
+
+healthCheck:
+  type: http
+  path: /healthz
+  # ⚠️ 只检查本进程存活，**不 ping Redis**（002 §9.4、开发计划 27.3）。
+  # Redis 一抖就把所有副本杀掉重启，而重启并不会让 Redis 变好，
+  # 只会让恢复之后还要多等一轮拉起
+
+observability:
+  metrics: false
+  tracing: false

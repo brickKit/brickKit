@@ -1,0 +1,115 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "infra/redis-event-bus",
+    "version": "1.0.0",
+    "description": "基于 Redis Streams 的事件总线。\n\n它是很多组件的**弱依赖**：缺席时那些组件应当照常工作、只是不发事件。但它自己不能假装成功——收不下的事件必须如实报 503，否则发布方会以为事件已经安全落地，再也不会重发。\n\n为什么是 Stream 而不是 Pub/Sub：Pub/Sub 发出去就没了，没有消费者在线时消息直接丢弃，也无法回看。"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "健康检查",
+        "description": "只检查本进程是否存活，**不 ping Redis**（002 §9.4）——Redis 一抖就把所有副本杀掉重启，而重启并不会让 Redis 变好。",
+        "responses": {
+          "200": {
+            "description": "进程存活",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "status": { "type": "string", "example": "ok" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events": {
+      "post": {
+        "summary": "发布一条事件",
+        "description": "返回 **202** 而不是 200：事件已收下，但消费是异步的。用 200 会让发布方以为「已经被处理了」。\n\n发布方带的额外字段原样存下来——事件总线不理解事件的内容，丢掉不认识的字段等于逼所有发布方都来改这个组件。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Event" }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "事件已收下",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "example": "1735725600000-0", "description": "Redis Stream 的条目 ID" },
+                    "type": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "422": { "description": "缺少 type" },
+          "503": { "description": "Redis 不可用。**不会假装收下**——那等于把事件悄悄丢掉" }
+        }
+      },
+      "get": {
+        "summary": "读取最近的事件",
+        "description": "最新的在前：查事件几乎总是为了看「刚才发生了什么」。",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50, "minimum": 1, "maximum": 500 }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": { "type": "string", "example": "erp.order.approved" },
+            "description": "按事件类型过滤"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "事件列表（没有时是 [] 而不是 null）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": { "type": "array", "items": { "$ref": "#/components/schemas/Event" } },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "503": { "description": "Redis 不可用" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Event": {
+        "type": "object",
+        "required": ["type"],
+        "additionalProperties": true,
+        "properties": {
+          "type": { "type": "string", "example": "erp.order.approved" },
+          "actor": { "type": "string", "example": "p-001", "description": "谁触发的" },
+          "subject": { "type": "string", "example": "o-1", "description": "对什么触发的" },
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "发布方没带时，由本组件补上收到的时间"
+          },
+          "id": { "type": "string", "description": "只在读取时出现，由 Redis Stream 生成" }
+        }
+      }
+    }
+  }
+}

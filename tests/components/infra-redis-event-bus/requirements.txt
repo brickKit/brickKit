@@ -1,0 +1,4 @@
+# infra/redis-event-bus 的运行期依赖。版本钉死：组件镜像必须可复现。
+fastapi==0.115.6
+uvicorn==0.34.0
+redis==5.2.1

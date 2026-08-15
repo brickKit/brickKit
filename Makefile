@@ -44,7 +44,7 @@ TESTFLAGS ?= -count=1
 DEMO_COMPONENTS := demo-hello demo-caller department-tree auth-password-login authorization-rbac erp-backend portal-user-frontend
 # Python 组件（people-basic）没法在宿主机上直接跑测试：本机未安装 python3-venv。
 # 它的测试跑在容器里（Dockerfile 的 test 层），版本固定、可复现。
-PY_COMPONENTS := people-basic
+PY_COMPONENTS := people-basic infra-redis-event-bus
 # 多版本共存验证需要同一份 hello 的两个 tag
 DEMO_HELLO_TAGS := 1.0.0 2.0.0
 
@@ -257,7 +257,12 @@ test-components-integration: ## 组件的迁移集成测试（需要本机 Postg
 	PGIP=$$(docker inspect my-postgres --format '{{.NetworkSettings.Networks.bridge.IPAddress}}'); \
 	docker build -q --target test -t brickkit-test/people-basic tests/components/people-basic >/dev/null; \
 	docker run --rm -e PEOPLE_TEST_DATABASE_URL="postgresql://$$POSTGRES_USER:$$POSTGRES_PASSWORD@$$PGIP:5432/brickkit_people" \
-		brickkit-test/people-basic
+		brickkit-test/people-basic || exit 1; \
+	echo "▶ infra-redis-event-bus 真 Redis 契约测试（容器内）"; \
+	REDISIP=$$(docker inspect my-redis --format '{{.NetworkSettings.Networks.bridge.IPAddress}}'); \
+	docker build -q --target test -t brickkit-test/infra-redis-event-bus tests/components/infra-redis-event-bus >/dev/null; \
+	docker run --rm -e EVENT_BUS_TEST_REDIS_ADDR="$$REDISIP:6379" \
+		brickkit-test/infra-redis-event-bus
 
 .PHONY: demo-images
 demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实验证靠它们）
@@ -268,6 +273,7 @@ demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实�
 	@docker build -q -t brickkit-demo/authorization-rbac:1.0.0 tests/components/authorization-rbac
 	@docker build -q -t brickkit-demo/erp-backend:1.0.0 tests/components/erp-backend
 	@docker build -q -t brickkit-demo/portal-user-frontend:1.0.0 tests/components/portal-user-frontend
+	@docker build -q -t brickkit-demo/infra-redis-event-bus:1.0.0 tests/components/infra-redis-event-bus
 	@for tag in $(DEMO_HELLO_TAGS); do \
 		docker build -q -t brickkit-demo/hello:$$tag tests/components/demo-hello; \
 	done

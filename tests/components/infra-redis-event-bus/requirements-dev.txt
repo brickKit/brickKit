@@ -1,0 +1,7 @@
+# 测试用的依赖（不进运行期镜像）。
+-r requirements.txt
+pytest==8.3.4
+httpx==0.28.1
+PyYAML==6.0.2
+# 无 Redis 时用它做替身跑契约测试；有真 Redis 时两边跑同一份用例
+fakeredis==2.26.2
