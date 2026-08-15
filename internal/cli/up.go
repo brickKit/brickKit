@@ -13,8 +13,10 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deploy"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/inject"
+	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
@@ -79,6 +81,8 @@ type upPlan struct {
 	graph     *resolver.Graph
 	states    *cascade.Result
 	generated *compose.Result
+	// k8s 是 deploy.target: k8s 时的生成结果（与 generated 互斥）。
+	k8s *k8s.Result
 	// services 是本次要交给引擎启动的 service（不含 local 组件与迁移容器）。
 	services []string
 	// migrations 是本次会执行的迁移，供输出（15.25）。
@@ -118,6 +122,9 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	if err != nil || plan.done {
 		return err
 	}
+	if plan.k8s != nil {
+		return upK8s(ctx, opts, flags, plan)
+	}
 
 	path, err := writeGenerated(plan.layout, plan.generated.YAML)
 	if err != nil {
@@ -127,7 +134,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		return err
 	}
 	opts.Printf("📄 已生成：%s\n", displayPath(opts.WorkDir, path))
-	renderDatabaseRequirements(opts, plan.generated)
+	renderDatabaseRequirements(opts, plan.generated.Databases)
 
 	if flags.checkResources {
 		// --dry-run 时不要求引擎可用：那台机器上也许根本没装 docker，
@@ -166,10 +173,6 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
 	cfg, err := config.ParseConfigFile(layout.ConfigPath())
 	if err != nil {
-		return nil, err
-	}
-
-	if err := requireDockerTarget(cfg); err != nil {
 		return nil, err
 	}
 
@@ -232,17 +235,41 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	}
 	renderWarnings(opts, env.Warnings)
 
-	plan.generated, err = compose.Generate(cfg, plan.graph, plan.states, env, compose.Options{
+	if err := plan.generate(opts, env); err != nil {
+		return nil, err
+	}
+	plan.collectTargets(order)
+	return plan, nil
+}
+
+// generate 按部署目标渲染部署文件（005 §5）。
+//
+// 两种目标共用到这一步为止的**全部**结论（依赖图、级联、注入），
+// 只有渲染方式不同——规则写在渲染器里迟早会分叉（D138）。
+func (p *upPlan) generate(opts *Options, env *inject.Result) error {
+	if p.cfg.Deploy.Target == config.TargetK8s {
+		result, err := k8s.Generate(p.cfg, p.graph, p.states, env, k8s.Options{
+			Now:    opts.Now,
+			Lookup: envLookup(opts.WorkDir),
+		})
+		if err != nil {
+			return err
+		}
+		p.k8s = result
+		renderWarnings(opts, result.Warnings)
+		return nil
+	}
+
+	result, err := compose.Generate(p.cfg, p.graph, p.states, env, compose.Options{
 		Now:    opts.Now,
 		Engine: engineName(opts),
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	renderWarnings(opts, plan.generated.Warnings)
-
-	plan.collectTargets(order)
-	return plan, nil
+	p.generated = result
+	renderWarnings(opts, result.Warnings)
+	return nil
 }
 
 // collectTargets 按启动顺序列出要交给引擎的 service、要检查的镜像、会跑的迁移。
@@ -330,6 +357,12 @@ func reportStarted(
 		for _, item := range failed {
 			err = err.WithDetail("组件", item)
 		}
+		if plan.k8s != nil {
+			return err.WithHint(
+				"看日志定位："+logsCommand(engine.K8s, plan.k8s.Namespace, file, "<服务名>"),
+				"看事件：kubectl describe deployment/<服务名> -n "+plan.k8s.Namespace,
+			)
+		}
 		return err.WithHint(
 			"看日志定位："+logsCommand(engineName(opts), engine.ProjectName(plan.cfg.Project),
 				displayPath(opts.WorkDir, file), "<服务名>"),
@@ -374,6 +407,14 @@ func describeStatus(s engine.Status) string {
 // renderNextSteps 给出启动之后的常用动作。
 func renderNextSteps(opts *Options, plan *upPlan, file string) {
 	opts.Printf("\n💡 查看状态：brickkit status\n")
+
+	if plan.k8s != nil {
+		opts.Printf("   查看日志：%s\n",
+			logsCommand(engine.K8s, plan.k8s.Namespace, file, ""))
+		opts.Printf("   查看 Pod：kubectl get pods -n %s\n", plan.k8s.Namespace)
+		return
+	}
+
 	opts.Printf("   查看日志：%s -f\n", logsCommand(engineName(opts),
 		engine.ProjectName(plan.cfg.Project), displayPath(opts.WorkDir, file), ""))
 	for _, env := range plan.generated.LocalEnvFiles {
@@ -501,13 +542,13 @@ func writeLocalEnvFiles(opts *Options, layout config.Layout, files []compose.Loc
 //
 // 006 §9.1/§9.5：CLI 不创建数据库。但平台有责任说清楚要建什么——
 // 否则组件会在迁移阶段抛出一句难以定位的 `database "xxx" does not exist`。
-func renderDatabaseRequirements(opts *Options, result *compose.Result) {
-	if len(result.Databases) == 0 {
+func renderDatabaseRequirements(opts *Options, databases []deploy.DatabaseRequirement) {
+	if len(databases) == 0 {
 		return
 	}
 
 	opts.Printf("\n📌 以下数据库需要预先创建（平台不代建，见 006 §9.5）：\n")
-	for _, db := range result.Databases {
+	for _, db := range databases {
 		opts.Printf("   %s  （%s:%d，供 %s 使用）\n",
 			db.Name, db.Host, db.Port, joinComponents(db.Components))
 		opts.Printf("      %s;\n", db.CreateSQL)

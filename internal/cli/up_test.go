@@ -7,7 +7,6 @@ package cli
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -362,53 +361,4 @@ func TestFailureHintPrintsUsableLogsCommand(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "up")
 
 	assert.Contains(t, r.stderr, "-p brickkit-my-erp")
-}
-
-// deploy.target: k8s 时不能悄悄生成 docker-compose.yaml。
-//
-// K8s 清单生成属 Step 16。在那之前必须明确报"尚未实现"——
-// 生成一份 compose 再去调 docker compose，对一个 K8s 项目是完全错误的行为，
-// 而且错得很安静：文件生成了、命令也成功了，只是跑在了错误的编排器上。
-func TestUpRejectsK8sTargetUntilImplemented(t *testing.T) {
-	f := k8sProject(t)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up")
-
-	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "k8s")
-	assert.Contains(t, r.stderr, "Step 16")
-	assert.Empty(t, eng.ups)
-	assert.NoFileExists(t,
-		filepath.Join(f.Dir, ".brickkit", "generated", "docker-compose.yaml"),
-		"不能留下一份对 K8s 项目毫无意义的 compose 文件")
-}
-
-// --dry-run 同样不能生成错误的文件。
-func TestUpDryRunRejectsK8sTarget(t *testing.T) {
-	f := k8sProject(t)
-
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
-
-	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "Step 16")
-}
-
-// k8sProject 造一个 deploy.target: k8s 的项目。
-//
-// 不能用 f.writeConfig：它的头部已经写了 deploy.target: docker。
-func k8sProject(t *testing.T) *projectFixture {
-	t.Helper()
-
-	comps := []comp{{ID: "people/basic", Version: "1.0.0"}}
-	f := addedProject(t, comps, "people/basic@1.0.0")
-
-	var b strings.Builder
-	b.WriteString("project: my-erp\n\ndeploy:\n  target: k8s\n\nsources:\n")
-	for _, s := range f.Sources {
-		b.WriteString(s)
-	}
-	b.WriteString("\ncomponents:\n  - id: people/basic\n    version: 1.0.0\n")
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
-	return f
 }

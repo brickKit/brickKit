@@ -300,13 +300,3 @@ func TestStatusPrintsUsableLogsCommand(t *testing.T) {
 
 	assert.Contains(t, r.stdout, "-p brickkit-my-erp")
 }
-
-// down / status 面对 K8s 项目同样不能装作是 Docker。
-func TestStatusRejectsK8sTarget(t *testing.T) {
-	f := k8sProject(t)
-
-	r := statusOf(t, newFakeEngine(), f.Dir)
-
-	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "Step 16")
-}

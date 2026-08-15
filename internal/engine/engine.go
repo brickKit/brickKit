@@ -16,6 +16,9 @@ import "context"
 const (
 	Docker = "docker"
 	Podman = "podman"
+	// K8s 是 kubectl 引擎。它不是"另一种容器引擎"，而是另一种**部署目标**
+	// （005 §5）：清单交给集群，跑不跑得起来是集群的事。
+	K8s = "k8s"
 )
 
 // Status 是一个 service 的运行状态。
@@ -56,6 +59,11 @@ type UpRequest struct {
 	Project string
 	// Services 为空表示全部启动；非空时只启动这些 service（--only）。
 	Services []string
+	// MigrationJobs 是本次要执行的迁移 Job 名，只对 K8s 目标有意义。
+	//
+	// compose 用 depends_on + service_completed_successfully 表达"等迁移跑完"，
+	// K8s 没有这种东西，只能由 CLI 串行控制：清理旧 Job → apply → wait（005 §6.3）。
+	MigrationJobs []string
 }
 
 // DownRequest 是一次停止请求。

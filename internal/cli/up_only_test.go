@@ -367,6 +367,21 @@ func TestUpDoesNotWarnAboutEnvVarPassword(t *testing.T) {
 	assert.NotContains(t, r.stdout+r.stderr, "明文密码")
 }
 
+// 变量**真的配了**的时候更不该报警——这正是使用者做对了的情形。
+//
+// 解析器在读配置时就把 ${VAR} 展开掉了（003 §5.4），拿展开后的值去判断
+// "是不是明文密码"，结论会完全反过来：配对了才骂人，漏配反而不吭声。
+func TestUpDoesNotWarnWhenEnvVarIsSet(t *testing.T) {
+	t.Setenv("POSTGRES_PASSWORD", "a-real-password")
+	f := externalResourceProject(t)
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.NotContains(t, r.stdout+r.stderr, "明文密码")
+	assert.NotContains(t, r.stdout+r.stderr, "a-real-password", "密码本身不该出现在输出里")
+}
+
 // --check-resources 与 --dry-run 一起用时照样体检：
 // --dry-run 的意思是"告诉我会发生什么"，不是"什么都别做"。
 // 而且这时不该要求引擎可用——那台机器上也许根本没装 docker。

@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/logging"
 )
@@ -57,7 +58,7 @@ func runDown(ctx context.Context, opts *Options, only []string) error {
 		return err
 	}
 
-	eng, err := resolveEngine(opts)
+	eng, err := resolveEngineFor(opts, p.cfg)
 	if err != nil {
 		return err
 	}
@@ -73,7 +74,7 @@ func runDown(ctx context.Context, opts *Options, only []string) error {
 		return engineFailure("停止", err)
 	}
 
-	renderDownResult(opts, services)
+	renderDownResult(opts, services, p.cfg.Deploy.Target == config.TargetK8s)
 	logging.Info("项目已停止", "project", p.cfg.Project, "services", len(services))
 	return nil
 }
@@ -97,7 +98,7 @@ func downTargets(p *project, only []string) ([]string, error) {
 }
 
 // renderDownResult 汇报停止结果，并说清数据还在。
-func renderDownResult(opts *Options, services []string) {
+func renderDownResult(opts *Options, services []string, k8sTarget bool) {
 	if len(services) == 0 {
 		opts.Printf("✅ 已停止全部组件\n")
 	} else {
@@ -106,7 +107,12 @@ func renderDownResult(opts *Options, services []string) {
 
 	// 004 §3.6：down 不删数据卷。这一点必须主动说——
 	// 使用者最怕的就是"我停一下会不会把数据弄没了"
-	opts.Printf("\n💡 数据卷未删除，数据库数据仍然保留\n")
-	opts.Printf("   需要彻底清理时手动执行：docker volume rm <卷名>\n")
+	if k8sTarget {
+		// K8s 下基础资源由运维部署，本来就不归 CLI 管，更不会被 down 碰到
+		opts.Printf("\n💡 基础资源（数据库等）由运维部署，不受 brickkit down 影响\n")
+	} else {
+		opts.Printf("\n💡 数据卷未删除，数据库数据仍然保留\n")
+		opts.Printf("   需要彻底清理时手动执行：docker volume rm <卷名>\n")
+	}
 	opts.Printf("   重新启动：brickkit up\n")
 }

@@ -79,6 +79,9 @@ func ParseConfig(data []byte, source string) (*Config, error) {
 	}
 
 	doc := root.Content[0]
+	// 展开**前**先记下哪些密码写的是 ${ENV_VAR}：展开之后就分不出
+	// "使用者写死了密码" 与 "使用者写了引用、而这个变量恰好有值" 了
+	envRefs := passwordEnvRefs(doc)
 	expandEnvNode(doc)
 
 	shape := newConfigProblems(source)
@@ -102,6 +105,11 @@ func ParseConfig(data []byte, source string) (*Config, error) {
 		return nil, p.Err()
 	}
 	c.Source = source
+	for i := range c.Resources {
+		if i < len(envRefs) {
+			c.Resources[i].PasswordFromEnv = envRefs[i]
+		}
+	}
 
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -124,6 +132,25 @@ func newConfigProblems(source string) *clierr.ProblemSet {
 
 func cleanYAMLError(err error) string {
 	return strings.TrimSpace(strings.TrimPrefix(err.Error(), "yaml: "))
+}
+
+// passwordEnvRefs 按 resources 的顺序返回"这条资源的 password 写的是 ${ENV_VAR} 吗"。
+//
+// 必须在展开**之前**取：展开之后 `${POSTGRES_PASSWORD}` 与一个写死的密码
+// 长得一模一样，P5 的明文密码告警会在使用者**做对了**的时候误报
+// （变量真的配了才会被展开成明文），而在变量漏配时反倒不吭声。
+func passwordEnvRefs(doc *yaml.Node) []bool {
+	resources := lookupNode(doc, "resources")
+	if resources == nil || resources.Kind != yaml.SequenceNode {
+		return nil
+	}
+
+	out := make([]bool, 0, len(resources.Content))
+	for _, item := range resources.Content {
+		password := lookupNode(item, "password")
+		out = append(out, password != nil && strings.Contains(password.Value, "${"))
+	}
+	return out
 }
 
 // expandEnvNode 递归展开节点中的 ${ENV_VAR}。

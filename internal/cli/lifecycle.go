@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
@@ -49,14 +51,10 @@ func loadProject(ctx context.Context, opts *Options) (*project, error) {
 		return nil, err
 	}
 
-	if err := requireDockerTarget(cfg); err != nil {
-		return nil, err
-	}
-
 	p := &project{
 		layout:     layout,
 		cfg:        cfg,
-		file:       layout.GeneratedDir() + string(os.PathSeparator) + composeFileName,
+		file:       deployedPath(layout, cfg),
 		localPorts: map[resolver.Ref]int{},
 	}
 	if _, err := os.Stat(p.file); err == nil {
@@ -225,23 +223,15 @@ func (p *project) inStartOrder(refs []resolver.Ref) []resolver.Ref {
 	return out
 }
 
-// requireDockerTarget 拦下尚未实现的 K8s 目标（Step 16）。
+// deployedPath 是"上次 up 生成了什么"的位置。
 //
-// 不拦的话后果很安静：CLI 照样生成 docker-compose.yaml、照样去调 docker compose，
-// 文件生成了、命令也成功了，只是整个项目跑在了**错误的编排器**上，
-// 而 brickkit.yaml 里明明白白写着 target: k8s。
-func requireDockerTarget(cfg *config.Config) error {
-	if cfg.Deploy.Target == config.TargetDocker || cfg.Deploy.Target == "" {
-		return nil
+// 两种目标的形态不同：Docker 是一份文件，K8s 是一整个目录。
+// down / status 只关心"它在不在"——在，说明这个项目 up 过。
+func deployedPath(layout config.Layout, cfg *config.Config) string {
+	if cfg.Deploy.Target == config.TargetK8s {
+		return filepath.Join(layout.GeneratedDir(), k8sDirName)
 	}
-	return clierr.Newf(clierr.CodeNotImplemented,
-		"错误：deploy.target: %s 尚未实现", cfg.Deploy.Target).
-		WithDetail("实现计划", "开发计划 Step 16（K8s 部署文件生成）").
-		WithDetail("当前支持", "deploy.target: docker").
-		WithHint(
-			"本地开发请改用 deploy.target: docker",
-			"K8s 清单生成与 kubectl apply 会在 Step 16 落地",
-		)
+	return filepath.Join(layout.GeneratedDir(), composeFileName)
 }
 
 // logsCommand 拼出一条**真能用**的查看日志命令。
@@ -250,6 +240,15 @@ func requireDockerTarget(cfg *config.Config) error {
 // 而容器在 brickkit-<项目> 底下——不带 -p 的命令会**静默返回空**，
 // 不报错也没有输出，使用者会以为组件根本没打日志。真跑验证时撞到过。
 func logsCommand(engineName, project, file, service string) string {
+	if engineName == engine.K8s {
+		// K8s 侧看的是 Deployment 的日志，与部署文件路径无关
+		target := "deployment/" + service
+		if service == "" || service == "<服务名>" {
+			target = "deployment/<服务名>"
+		}
+		return fmt.Sprintf("kubectl logs %s -n %s", target, project)
+	}
+
 	bin := "docker compose"
 	if engineName == engine.Podman {
 		bin = "podman-compose"
@@ -261,7 +260,14 @@ func logsCommand(engineName, project, file, service string) string {
 	return command
 }
 
-// engineProject 是引擎侧的项目名。
-func (p *project) engineProject() string { return engine.ProjectName(p.cfg.Project) }
+// engineProject 是引擎侧的项目名：Docker 下是 compose 项目名，K8s 下是命名空间。
+//
+// 两者取值相同（brickkit-<项目名>），但来源不该混——各自的命名规则由各自那一侧定义。
+func (p *project) engineProject() string {
+	if p.cfg.Deploy.Target == config.TargetK8s {
+		return k8s.Namespace(p.cfg.Project)
+	}
+	return engine.ProjectName(p.cfg.Project)
+}
 
 func refText(ref resolver.Ref) string { return ref.ID + "@" + ref.Version }

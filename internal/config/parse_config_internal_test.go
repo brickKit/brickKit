@@ -431,3 +431,69 @@ resources:
 	require.Error(t, err)
 	assert.Contains(t, clierr.As(err).Format(), "resources[0].kind：缺失")
 }
+
+// PasswordFromEnv 必须记录**原文**写没写 ${ENV_VAR}。
+//
+// 展开之后 `${POSTGRES_PASSWORD}` 与一个写死的密码长得一模一样，
+// 分不出来的话，008 要求的"密码不写进 brickkit.yaml"就没法检查。
+func TestPasswordFromEnvRecordsTheReference(t *testing.T) {
+	t.Setenv("PG_PASSWORD", "resolved-value")
+
+	c, err := ParseConfig([]byte(`project: demo
+deploy:
+  target: docker
+components:
+  - id: people/basic
+    version: 1.0.0
+resources:
+  - kind: database
+    engine: postgresql
+    id: from-env
+    host: db.example.com
+    port: 5432
+    password: ${PG_PASSWORD}
+    bindings:
+      - componentId: people/basic
+        database: people
+  - kind: cache
+    engine: redis
+    id: hardcoded
+    host: redis.example.com
+    port: 6379
+    password: written-in-plain-text
+    bindings:
+      - componentId: people/basic
+`), "brickkit.yaml")
+
+	require.NoError(t, err)
+	require.Len(t, c.Resources, 2)
+
+	assert.True(t, c.Resources[0].PasswordFromEnv, "写的是 ${ENV_VAR}")
+	assert.Equal(t, "resolved-value", c.Resources[0].Password, "值照常展开")
+	assert.False(t, c.Resources[1].PasswordFromEnv, "写死的就是写死的")
+}
+
+// 变量没配时占位符原样保留，同样算"写的是引用"。
+func TestPasswordFromEnvWhenVariableMissing(t *testing.T) {
+	c, err := ParseConfig([]byte(`project: demo
+deploy:
+  target: docker
+components:
+  - id: people/basic
+    version: 1.0.0
+resources:
+  - kind: database
+    engine: postgresql
+    id: from-env
+    host: db.example.com
+    port: 5432
+    password: ${PG_PASSWORD_NOT_SET}
+    bindings:
+      - componentId: people/basic
+        database: people
+`), "brickkit.yaml")
+
+	require.NoError(t, err)
+	assert.True(t, c.Resources[0].PasswordFromEnv)
+	assert.Equal(t, "${PG_PASSWORD_NOT_SET}", c.Resources[0].Password, "漏配时保留占位符")
+}

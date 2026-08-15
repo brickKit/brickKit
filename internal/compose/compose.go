@@ -17,6 +17,7 @@ import (
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deploy"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
@@ -43,20 +44,8 @@ type Options struct {
 
 // DatabaseRequirement 是一个需要**使用者预先创建**的数据库。
 //
-// 006 §9.1/§9.5：CLI 不创建数据库。但平台有责任说清楚要建哪些——
-// 否则组件会在迁移阶段抛出一句难以定位的 `database "xxx" does not exist`。
-type DatabaseRequirement struct {
-	// ResourceID 是 brickkit.yaml 中的资源 ID。
-	ResourceID string
-	Host       string
-	Port       int
-	// Name 是要创建的库名（bindings[].database）。
-	Name string
-	// Components 是使用该库的组件。
-	Components []string
-	// CreateSQL 是可直接执行的建库语句。
-	CreateSQL string
-}
+// 定义在 internal/deploy：K8s 目标要给出同样的清单，两处各算一遍迟早会分叉。
+type DatabaseRequirement = deploy.DatabaseRequirement
 
 // Result 是一次生成的产物。
 type Result struct {
@@ -351,57 +340,21 @@ func (p *plan) volumes() map[string]any {
 
 // databases 汇总需要使用者预先创建的数据库（006 §9.5）。
 func (p *plan) databases() []DatabaseRequirement {
-	byKey := map[string]*DatabaseRequirement{}
-
-	for _, resource := range p.cfg.Resources {
-		if resource.Kind != config.ResourceKindDatabase {
-			continue
-		}
-		for _, binding := range resource.Bindings {
-			if binding.Database == "" || !p.usesComponent(binding.ComponentID) {
-				continue
-			}
-			key := resource.ID + "/" + binding.Database
-			if existing, ok := byKey[key]; ok {
-				existing.Components = append(existing.Components, binding.ComponentID)
-				continue
-			}
-			byKey[key] = &DatabaseRequirement{
-				ResourceID: resource.ID,
-				Host:       resource.Host,
-				Port:       resource.Port,
-				Name:       binding.Database,
-				Components: []string{binding.ComponentID},
-				CreateSQL:  `CREATE DATABASE "` + binding.Database + `"`,
-			}
-		}
-	}
-
-	out := make([]DatabaseRequirement, 0, len(byKey))
-	for _, req := range byKey {
-		sort.Strings(req.Components)
-		out = append(out, *req)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out
+	return deploy.Databases(p.cfg, p.componentIDs())
 }
 
-// usesComponent 判断某个组件是否在本次启动集合里。
+// componentIDs 是本次会跑起来的组件 ID。
 //
-// local 组件同样算数：它不生成容器，但它照样要连自己的库——
-// 漏掉它，使用者就会在 IDE 里对着 `database "xxx" does not exist` 发懵。
-func (p *plan) usesComponent(componentID string) bool {
+// local 组件也算：它不生成容器，但它照样要连自己的库。
+func (p *plan) componentIDs() []string {
+	out := make([]string, 0, len(p.components)+len(p.locals))
 	for _, c := range p.components {
-		if c.Ref.ID == componentID {
-			return true
-		}
+		out = append(out, c.Ref.ID)
 	}
 	for _, l := range p.locals {
-		if l.Ref.ID == componentID {
-			return true
-		}
+		out = append(out, l.Ref.ID)
 	}
-	return false
+	return out
 }
 
 // ============================================================

@@ -68,7 +68,7 @@ func runStatus(ctx context.Context, opts *Options) error {
 		return nil
 	}
 
-	eng, err := resolveEngine(opts)
+	eng, err := resolveEngineFor(opts, p.cfg)
 	if err != nil {
 		return err
 	}

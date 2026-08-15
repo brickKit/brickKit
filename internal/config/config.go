@@ -124,14 +124,19 @@ func (c Component) Ref() string { return c.ID + "@" + c.Version }
 
 // Resource 是一个基础资源声明与绑定（003 §5）。
 type Resource struct {
-	Kind     string    `yaml:"kind"`
-	Engine   string    `yaml:"engine"`
-	ID       string    `yaml:"id"`
-	Host     string    `yaml:"host"`
-	Port     int       `yaml:"port"`
-	Username string    `yaml:"username,omitempty"`
-	Password string    `yaml:"password,omitempty"`
-	Bindings []Binding `yaml:"bindings,omitempty"`
+	Kind     string `yaml:"kind"`
+	Engine   string `yaml:"engine"`
+	ID       string `yaml:"id"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Username string `yaml:"username,omitempty"`
+	Password string `yaml:"password,omitempty"`
+	// PasswordFromEnv 表示 password 原文写的是 ${ENV_VAR} 引用。
+	//
+	// 由解析器在展开环境变量**之前**记下（008：密码不该写进 brickkit.yaml）。
+	// 展开之后两者长得一模一样，靠 Password 的值判断只会在使用者做对时误报。
+	PasswordFromEnv bool      `yaml:"-"`
+	Bindings        []Binding `yaml:"bindings,omitempty"`
 }
 
 // Binding 把资源绑定到某个组件（003 §5.3、§5.6）。

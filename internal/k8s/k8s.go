@@ -22,6 +22,7 @@ import (
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deploy"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
@@ -50,6 +51,10 @@ type Result struct {
 	Namespace string
 	// Files 按路径排序，保证同一份配置每次生成的顺序一致。
 	Files []File
+	// Databases 是需要使用者预先创建的数据库（006 §9.5）。
+	//
+	// K8s 环境下基础资源由运维部署，CLI 一行不碰；但"要建哪些库"照样得说清楚。
+	Databases []deploy.DatabaseRequirement
 	// MigrationJobs 是本次会执行的迁移 Job 名，按启动顺序无关的字典序排列。
 	//
 	// 命令层要用它清理上一次残留的 Job 并等待本次跑完（005 §6.3）。
@@ -72,7 +77,11 @@ func Generate(
 		return nil, err
 	}
 
-	result := &Result{Namespace: p.namespace, Warnings: p.warnings}
+	result := &Result{
+		Namespace: p.namespace,
+		Databases: deploy.Databases(cfg, p.componentIDs()),
+		Warnings:  p.warnings,
+	}
 	now := opts.Now()
 
 	if err := p.emit(result, cfg, now, "namespace.yaml", p.namespaceDoc()); err != nil {
@@ -222,6 +231,15 @@ func localNotSupported(refs []resolver.Ref) error {
 			"本地调试请把 deploy.target 改成 docker",
 			"或去掉这些组件的 local: true，让它们照常部署到集群里",
 		)
+}
+
+// componentIDs 是本次会跑起来的组件 ID。
+func (p *plan) componentIDs() []string {
+	out := make([]string, 0, len(p.components))
+	for _, c := range p.components {
+		out = append(out, c.Ref.ID)
+	}
+	return out
 }
 
 // ============================================================

@@ -440,7 +440,7 @@ func parsePort(text string) (int, error) {
 func warnHardcodedPasswords(opts *Options, cfg *config.Config) {
 	var offenders []string
 	for _, r := range cfg.Resources {
-		if isHardcodedSecret(r.Password) {
+		if isHardcodedSecret(r) {
 			offenders = append(offenders, r.ID)
 		}
 	}
@@ -458,13 +458,15 @@ func warnHardcodedPasswords(opts *Options, cfg *config.Config) {
 	renderWarnings(opts, []*clierr.Error{err})
 }
 
-// isHardcodedSecret 判断这个值是不是写死的密码。
+// isHardcodedSecret 判断这条资源的密码是不是写死在 brickkit.yaml 里的。
 //
-// `${VAR}` 是环境变量引用；空值表示没配（比如不需要密码的资源）。
-func isHardcodedSecret(value string) bool {
-	value = strings.TrimSpace(value)
-	if value == "" {
+// 判据是**原文**写没写 ${ENV_VAR}，不是解析后的值：解析器在读配置时就把
+// ${VAR} 展开掉了（003 §5.4），拿展开后的值去判断，只会在变量**真的配了**
+// 的时候把使用者骂一顿，而变量漏配时（占位符原样保留）反倒不吭声——
+// 正好反了。空值表示没配密码（比如不需要密码的资源），不算问题。
+func isHardcodedSecret(r config.Resource) bool {
+	if r.PasswordFromEnv || strings.TrimSpace(r.Password) == "" {
 		return false
 	}
-	return !strings.HasPrefix(value, "${")
+	return true
 }
