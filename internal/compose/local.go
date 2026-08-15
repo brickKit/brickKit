@@ -58,13 +58,20 @@ type LocalEnvFile struct {
 	Content []byte
 }
 
-// hostGateway 返回容器内指向宿主机的别名（005 §7.5）。
-func hostGateway(engine string) string {
-	if engine == EnginePodman {
-		return "host.containers.internal"
-	}
-	return "host-gateway"
-}
+// hostGateway 返回 extra_hosts 里指向宿主机的魔法值（005 §7.5）。
+//
+// Docker 与 Podman **用同一个值**：`host-gateway`。
+//
+// 设计书原来写的是"Podman 用 host.containers.internal 替代"，那是把两件事
+// 搞混了：`host.containers.internal` 是 Podman 自动注入到容器 /etc/hosts 的
+// 一个**主机名**，不是 `--add-host` 能接受的**值**——真 Podman 上会直接报
+// `invalid IP address in add-host`，容器根本创建不出来，local: true 整条路是断的。
+// 而 `host-gateway` Podman 同样支持（实测解析到 169.254.1.2，
+// 正是 host.containers.internal 的那个地址）。
+//
+// 参数保留是因为调用方本来就知道引擎是谁；将来若真出现第三种引擎需要别的值，
+// 改这一个函数即可。
+func hostGateway(string) string { return "host-gateway" }
 
 // localComponent 是一个不生成容器、跑在宿主机 IDE 里的组件。
 type localComponent struct {

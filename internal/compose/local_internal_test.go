@@ -67,10 +67,11 @@ func TestPortTableAllocateSkipsTakenPortsInSequence(t *testing.T) {
 	assert.Equal(t, 8084, table.allocate(0, localPortBase, "组件 A"))
 }
 
+// Docker 与 Podman 用同一个魔法值（在真 Podman 上实测过，见 local_test.go 的说明）。
 func TestHostGateway(t *testing.T) {
 	assert.Equal(t, "host-gateway", hostGateway(EngineDocker))
 	assert.Equal(t, "host-gateway", hostGateway(""), "没指定引擎时按 Docker 处理")
-	assert.Equal(t, "host.containers.internal", hostGateway(EnginePodman), "13.14")
+	assert.Equal(t, "host-gateway", hostGateway(EnginePodman), "13.14（修正后）")
 }
 
 // setVar 只改已有的变量：不存在意味着注入引擎判定"这条不该注入"

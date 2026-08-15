@@ -29,9 +29,19 @@ func NewDocker() *Compose {
 	return &Compose{name: Docker, bin: "docker", base: []string{"compose"}, runner: run}
 }
 
-// NewPodman 返回 podman-compose 引擎。
+// NewPodman 返回基于独立 podman-compose 程序的引擎。
 func NewPodman() *Compose {
 	return &Compose{name: Podman, bin: "podman-compose", runner: run}
+}
+
+// NewPodmanCompose 返回基于 `podman compose` 子命令的引擎。
+//
+// Podman 4.1 起自带这个子命令，它会去找一台机器上现成的 compose 实现
+// （docker-compose 插件或 podman-compose）来执行，容器仍然跑在 Podman 上。
+// 很多发行版装了 Podman 却没有 podman-compose（那是另一个 Python 程序），
+// 只认后者的话，一台 compose 明明能用的机器会被判成"没有可用的容器引擎"。
+func NewPodmanCompose() *Compose {
+	return &Compose{name: Podman, bin: "podman", base: []string{"compose"}, runner: run}
 }
 
 func (c *Compose) Name() string { return c.name }
@@ -336,8 +346,13 @@ func Detect() (Engine, error) {
 	if _, err := exec.LookPath("podman-compose"); err == nil {
 		return NewPodman(), nil
 	}
+	// podman 自带的 compose 子命令：装了 Podman 但没装 podman-compose 的机器
+	// 走这条路，容器照样跑在 Podman 上
+	if _, err := exec.LookPath("podman"); err == nil {
+		return NewPodmanCompose(), nil
+	}
 	return nil, clierr.New(clierr.CodeEngineMissing, "错误：没有找到可用的容器引擎").
-		WithDetail("已尝试", "docker compose、podman-compose").
+		WithDetail("已尝试", "docker compose、podman-compose、podman compose").
 		WithHint(
 			"安装 Docker 20.10+（推荐）或 Podman 4.0+",
 			"只想生成部署文件而不启动的话，用 brickkit up --dry-run",

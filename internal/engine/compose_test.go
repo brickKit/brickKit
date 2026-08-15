@@ -379,3 +379,53 @@ func TestProjectDirectoryOmittedWhenUnknown(t *testing.T) {
 
 	assert.NotContains(t, rec.lastCall(t), "--project-directory")
 }
+
+// ============================================================
+// Podman：podman compose 与 podman-compose
+// ============================================================
+
+// Podman 4.1 起自带 `podman compose` 子命令，它会去找一个 compose 实现
+// （docker-compose 插件或 podman-compose）来执行。而 `podman-compose`
+// 是另一个独立的 Python 程序，很多发行版并不预装。
+//
+// 只认 podman-compose 的后果：一台**装了 Podman 5、compose 也能用**的机器上，
+// brickkit 会报"找不到容器引擎 podman-compose"——而 `podman compose up` 明明跑得动。
+// 本机就是这个情形（Podman 5.7.0，无 podman-compose，pip 也没有）。
+func TestNewPodmanComposeUsesSubcommand(t *testing.T) {
+	rec := newRecorder()
+	c := NewPodmanCompose()
+	c.runner = rec.run
+
+	require.NoError(t, c.Up(context.Background(), UpRequest{File: "/p/c.yaml", Project: "demo"}))
+
+	command := rec.lastCall(t)
+
+	assert.True(t, strings.HasPrefix(command, "podman compose "), command)
+	assert.Equal(t, Podman, c.Name(), "对使用者来说它就是 Podman，实现细节不该泄漏到名字里")
+}
+
+// 独立的 podman-compose 程序照旧支持。
+func TestNewPodmanUsesStandaloneBinary(t *testing.T) {
+	rec := newRecorder()
+	c := NewPodman()
+	c.runner = rec.run
+
+	require.NoError(t, c.Up(context.Background(), UpRequest{File: "/p/c.yaml", Project: "demo"}))
+
+	assert.True(t, strings.HasPrefix(rec.lastCall(t), "podman-compose "), rec.lastCall(t))
+	assert.Equal(t, Podman, c.Name())
+}
+
+// 两者的参数拼装必须完全一致——差别只在前缀。
+func TestPodmanVariantsShareArguments(t *testing.T) {
+	args := func(c *Compose) string {
+		rec := newRecorder()
+		c.runner = rec.run
+		require.NoError(t, c.Down(context.Background(), DownRequest{
+			File: "/p/c.yaml", Project: "demo", ProjectDir: "/p",
+		}))
+		return strings.TrimPrefix(strings.TrimPrefix(rec.lastCall(t), "podman compose"), "podman-compose")
+	}
+
+	assert.Equal(t, args(NewPodman()), args(NewPodmanCompose()))
+}

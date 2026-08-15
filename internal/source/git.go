@@ -25,6 +25,8 @@ import (
 type gitSource struct {
 	sourceID string
 	url      string
+	// ref 是要取的分支 / tag / commit；空表示默认分支（003 §6.3）。
+	ref string
 
 	once     sync.Once
 	dir      string
@@ -135,8 +137,42 @@ func (s *gitSource) checkout(ctx context.Context) (string, error) {
 	return s.dir, s.cloneErr
 }
 
+// clone 把仓库拉到 dir。
+//
+// 不指定 ref 时是最省事的一次浅 clone。指定了 ref 就分两步走，因为
+// `git clone --branch` **认分支和 tag，但不认 commit SHA**：
+//
+//	第一步  --depth 1 --branch <ref>   分支 / tag 走这条，仍然是浅的
+//	第二步  完整 clone + git checkout   上一步失败时兜底，commit SHA 走这条
+//
+// 顺序不能反：绝大多数人写的是分支或 tag，让常见情况保持浅 clone。
 func (s *gitSource) clone(ctx context.Context, dir string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", "--quiet", s.url, dir)
+	if s.ref == "" {
+		return s.run(ctx, "clone", "--depth", "1", "--quiet", s.url, dir)
+	}
+
+	out, err := s.run(ctx, "clone", "--depth", "1", "--branch", s.ref, "--quiet", s.url, dir)
+	if err == nil {
+		return out, nil
+	}
+
+	// 兜底：commit SHA 只能完整 clone 之后再 checkout
+	if err := os.RemoveAll(dir); err != nil {
+		return out, err
+	}
+	if out, err := s.run(ctx, "clone", "--quiet", s.url, dir); err != nil {
+		return out, err
+	}
+	return s.runIn(ctx, dir, "checkout", "--quiet", s.ref)
+}
+
+func (s *gitSource) run(ctx context.Context, args ...string) (string, error) {
+	return s.runIn(ctx, "", args...)
+}
+
+func (s *gitSource) runIn(ctx context.Context, dir string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = dir
 	// 不允许 git 弹出交互式凭据提示：CLI 不能在此挂起等待输入。
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	out, err := cmd.CombinedOutput()

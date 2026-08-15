@@ -487,12 +487,21 @@ func resolveEngine(opts *Options) (engine.Engine, error) {
 	if forced := os.Getenv("BRICKKIT_ENGINE"); strings.TrimSpace(forced) != "" {
 		switch strings.ToLower(strings.TrimSpace(forced)) {
 		case engine.Podman:
-			return engine.NewPodman(), nil
+			return podmanEngine(), nil
 		case engine.Docker:
 			return engine.NewDocker(), nil
 		}
 	}
 	return engine.Detect()
+}
+
+// podmanEngine 在两种 Podman 用法里挑一个：独立的 podman-compose 优先，
+// 没有就用 Podman 自带的 `podman compose` 子命令。
+func podmanEngine() engine.Engine {
+	if _, err := exec.LookPath("podman-compose"); err == nil {
+		return engine.NewPodman()
+	}
+	return engine.NewPodmanCompose()
 }
 
 // engineName 决定生成部署文件时用哪个宿主机别名（005 §7.5）。
@@ -513,6 +522,9 @@ func engineName(opts *Options) string {
 		return compose.EngineDocker
 	}
 	if _, err := exec.LookPath("podman-compose"); err == nil {
+		return compose.EnginePodman
+	}
+	if _, err := exec.LookPath("podman"); err == nil {
 		return compose.EnginePodman
 	}
 	return compose.EngineDocker

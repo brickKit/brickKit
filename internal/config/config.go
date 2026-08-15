@@ -86,10 +86,13 @@ func (d Deploy) ShouldCreateNamespace() bool {
 
 // Source 是一个安装源（003 §6）。
 type Source struct {
-	ID        string `yaml:"id"`
-	Type      string `yaml:"type"`
-	URL       string `yaml:"url,omitempty"`
-	Path      string `yaml:"path,omitempty"`
+	ID   string `yaml:"id"`
+	Type string `yaml:"type"`
+	URL  string `yaml:"url,omitempty"`
+	Path string `yaml:"path,omitempty"`
+	// Ref 是 git 源要取的分支 / tag / commit（003 §6.3）。
+	// 空表示用仓库的默认分支。
+	Ref       string `yaml:"ref,omitempty"`
 	AuthToken string `yaml:"authToken,omitempty"`
 	// Enabled 缺省视为 true（003 §6.2）。
 	Enabled *bool `yaml:"enabled,omitempty"`

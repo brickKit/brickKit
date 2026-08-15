@@ -103,7 +103,7 @@ func (c *Client) newFetcher(s config.Source) (fetcher, error) {
 			root:       c.resolvePath(s.Path),
 		}, nil
 	case config.SourceTypeGit:
-		return &gitSource{sourceID: s.ID, url: s.URL}, nil
+		return &gitSource{sourceID: s.ID, url: s.URL, ref: s.Ref}, nil
 	case config.SourceTypeMarket:
 		return &marketSource{
 			sourceID:        s.ID,
