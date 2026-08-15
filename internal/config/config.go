@@ -8,6 +8,8 @@ import (
 const (
 	TargetDocker = "docker"
 	TargetK8s    = "k8s"
+	// PodSecurityRestricted 对应 K8s 官方 Pod Security Standards 的 restricted 级别。
+	PodSecurityRestricted = "restricted"
 )
 
 // 安装源类型（003 §6.1）。
@@ -41,8 +43,45 @@ type Config struct {
 }
 
 // Deploy 是部署目标声明。
+//
+// Context / Namespace / CreateNamespace 只在 deploy.target: k8s 下有意义。
 type Deploy struct {
 	Target string `yaml:"target"`
+	// Context 钉住 kubeconfig 上下文（003 §3.2.1）。
+	//
+	// 不写就用 kubectl 当前的 context。写了就必须对得上——kubectl 默认
+	// 部到 `kubectl config current-context` 指的集群，切走了忘记切回来，
+	// 一份写着生产的配置会被安静地部到预发，反之亦然。
+	Context string `yaml:"context,omitempty"`
+	// Namespace 覆盖默认的命名空间（brickkit-<项目名>）。
+	//
+	// 很多组织的命名空间名是他们定的，而且只给你这一个命名空间的权限。
+	Namespace string `yaml:"namespace,omitempty"`
+	// PodSecurity 是 Pod 安全级别，目前只支持 "restricted"（K8s 官方
+	// Pod Security Standards 的同名级别）。空表示不生成 securityContext。
+	//
+	// 默认不生成是有意的：加了可能让本来跑得好好的组件起不来（镜像以 root
+	// 运行、要绑 1024 以下的端口……），不能默默替使用者决定。
+	PodSecurity string `yaml:"podSecurity,omitempty"`
+	// ImagePullSecrets 是拉私有镜像用的 Secret 名。
+	ImagePullSecrets []string `yaml:"imagePullSecrets,omitempty"`
+	// IngressClass 写进 Ingress 的 spec.ingressClassName。
+	//
+	// 不写时只有集群配了"默认 class"才会有人认领这条 Ingress；
+	// 没有默认 class 的集群上 apply 成功、域名却打不开。
+	IngressClass string `yaml:"ingressClass,omitempty"`
+	// IngressAnnotations 原样透传到 Ingress 的注解（cert-manager、nginx 参数等）。
+	// 平台不认识它们，也不该认识。
+	IngressAnnotations map[string]string `yaml:"ingressAnnotations,omitempty"`
+	// CreateNamespace 缺省为 true。置 false 时 CLI 既不生成也不 apply
+	// namespace.yaml——只有命名空间级权限时，建命名空间会 Forbidden，
+	// 而那个命名空间其实早就由运维建好了。
+	CreateNamespace *bool `yaml:"createNamespace,omitempty"`
+}
+
+// ShouldCreateNamespace 返回是否由 CLI 创建命名空间（缺省 true）。
+func (d Deploy) ShouldCreateNamespace() bool {
+	return d.CreateNamespace == nil || *d.CreateNamespace
 }
 
 // Source 是一个安装源（003 §6）。
@@ -94,6 +133,8 @@ type Component struct {
 	Expose     bool   `yaml:"expose,omitempty"`
 	Hostname   string `yaml:"hostname,omitempty"`
 	ExposePort int    `yaml:"exposePort,omitempty"`
+	// TLSSecret 是 Ingress 用的 TLS 证书 Secret 名（仅 K8s，需要 expose: true）。
+	TLSSecret string `yaml:"tlsSecret,omitempty"`
 	// Config 覆盖 configSchema 默认值。CLI 不校验值的类型（003 §4.6）。
 	Config map[string]any `yaml:"config,omitempty"`
 	// Resources 覆盖 Manifest 中的 deployment.resources（003 §4.7）。

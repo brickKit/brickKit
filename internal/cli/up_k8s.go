@@ -72,6 +72,7 @@ func applyK8s(
 	if err := eng.Up(ctx, engine.UpRequest{
 		File:          dir,
 		Project:       plan.k8s.Namespace,
+		Context:       plan.kubeContext,
 		Services:      plan.services,
 		MigrationJobs: plan.k8s.MigrationJobs,
 	}); err != nil {

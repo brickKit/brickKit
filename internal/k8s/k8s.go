@@ -84,8 +84,10 @@ func Generate(
 	}
 	now := opts.Now()
 
-	if err := p.emit(result, cfg, now, "namespace.yaml", p.namespaceDoc()); err != nil {
-		return nil, err
+	if cfg.Deploy.ShouldCreateNamespace() {
+		if err := p.emit(result, cfg, now, "namespace.yaml", p.namespaceDoc()); err != nil {
+			return nil, err
+		}
 	}
 	if docs := p.secretDocs(); len(docs) > 0 {
 		if err := p.emitAll(result, cfg, now, "secrets/resource-secrets.yaml", docs); err != nil {
@@ -121,7 +123,21 @@ func Generate(
 	return result, nil
 }
 
-// Namespace 是项目的命名空间：brickkit-<项目名>（005 §5.2）。
+// NamespaceOf 返回本项目实际使用的命名空间。
+//
+// deploy.namespace 优先：组织的命名空间名往往是他们定的，
+// 而且只给你这一个命名空间的权限。
+func NamespaceOf(cfg *config.Config) string {
+	if cfg != nil && cfg.Deploy.Namespace != "" {
+		return cfg.Deploy.Namespace
+	}
+	if cfg == nil {
+		return Namespace("")
+	}
+	return Namespace(cfg.Project)
+}
+
+// Namespace 是项目的默认命名空间：brickkit-<项目名>（005 §5.2）。
 //
 // 与引擎侧的 compose 项目名同源——同一个项目在两种目标下叫同一个名字，
 // 换目标时不用重新学一套命名。
@@ -168,7 +184,7 @@ func newPlan(
 	p := &plan{
 		cfg:       cfg,
 		graph:     graph,
-		namespace: Namespace(cfg.Project),
+		namespace: NamespaceOf(cfg),
 		expand:    newExpander(opts.Lookup),
 	}
 
@@ -211,7 +227,42 @@ func newPlan(
 	if err := p.collectSecrets(); err != nil {
 		return nil, err
 	}
+	p.warnings = append(p.warnings, p.privilegedPortWarnings()...)
 	return p, nil
+}
+
+// privilegedPortWarnings 提醒"restricted + 特权端口"这个必然起不来的组合。
+//
+// restricted 级别 drop 掉了全部 capabilities，其中包括 NET_BIND_SERVICE——
+// 组件绑不了 1024 以下的端口。Pod 会**建出来**然后一直崩溃重启，
+// 而错误信息在容器日志最深处（permission denied），非常难查。
+func (p *plan) privilegedPortWarnings() []*clierr.Error {
+	if p.cfg.Deploy.PodSecurity != config.PodSecurityRestricted {
+		return nil
+	}
+
+	var out []*clierr.Error
+	for _, c := range p.components {
+		ports := []int{c.Manifest.Deployment.Port}
+		for _, extra := range c.Manifest.Deployment.ExtraPorts {
+			ports = append(ports, extra.Port)
+		}
+		for _, port := range ports {
+			if port >= 1024 {
+				continue
+			}
+			out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
+				fmt.Sprintf("组件监听特权端口 %d，但 podSecurity: restricted 下绑不了", port)).
+				WithDetail("组件", c.Ref.ID+"@"+c.Ref.Version).
+				WithDetailf("端口", "%d", port).
+				WithDetail("原因", "restricted 会 drop 掉全部 capabilities，包括 NET_BIND_SERVICE").
+				WithHint(
+					"让组件监听 1024 以上的端口（对外端口由 Service / Ingress 映射，不必是 80）",
+					"或去掉 deploy.podSecurity: restricted",
+				))
+		}
+	}
+	return out
 }
 
 // localNotSupported 拒绝 local: true + deploy.target: k8s。

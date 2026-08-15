@@ -66,6 +66,8 @@ type UpRequest struct {
 	ProjectDir string
 	// Services 为空表示全部启动；非空时只启动这些 service（--only）。
 	Services []string
+	// Context 是 kubeconfig 上下文，只对 K8s 目标有意义；为空表示用当前 context。
+	Context string
 	// MigrationJobs 是本次要执行的迁移 Job 名，只对 K8s 目标有意义。
 	//
 	// compose 用 depends_on + service_completed_successfully 表达"等迁移跑完"，
@@ -79,6 +81,13 @@ type DownRequest struct {
 	Project string
 	// ProjectDir 同 UpRequest.ProjectDir。
 	ProjectDir string
+	// Context 同 UpRequest.Context。
+	Context string
+	// DeleteNamespace 表示可以连命名空间一起删（只对 K8s 目标有意义）。
+	//
+	// 命名空间不是我们建的（deploy.createNamespace: false）就不能由我们删——
+	// 那是别人的命名空间，里面可能还跑着别的东西。
+	DeleteNamespace bool
 	// Services 为空表示整个项目停掉；非空时只停这些 service。
 	Services []string
 }
@@ -98,4 +107,9 @@ type Engine interface {
 	Status(ctx context.Context, file, project string) ([]Status, error)
 	// CheckImage 检查镜像是否可用（本地已有，或能从 registry 取到）。
 	CheckImage(ctx context.Context, image string) error
+	// CurrentContext 返回引擎当前指向的部署上下文。
+	//
+	// 只有 K8s 有意义（kubeconfig 的 current-context）；compose 引擎返回空串。
+	// 命令层据此拦下"部到了错误的集群"。
+	CurrentContext(ctx context.Context) (string, error)
 }

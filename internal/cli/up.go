@@ -32,6 +32,7 @@ func newUpCommand(opts *Options) *cobra.Command {
 		only           []string
 		dryRun         bool
 		checkResources bool
+		kubeContext    string
 	)
 
 	cmd := &cobra.Command{
@@ -61,6 +62,7 @@ func newUpCommand(opts *Options) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUp(cmd.Context(), opts, upOptions{
 				only: only, dryRun: dryRun, checkResources: checkResources,
+				kubeContext: kubeContext,
 			})
 		},
 	}
@@ -68,6 +70,7 @@ func newUpCommand(opts *Options) *cobra.Command {
 	cmd.Flags().StringSliceVar(&only, "only", nil, "只启动指定组件及其依赖，逗号分隔，支持 @版本")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "只生成部署文件，不启动（升级时额外输出变更摘要）")
 	cmd.Flags().BoolVar(&checkResources, "check-resources", false, "启动前检查基础资源可达性（不可达时警告但不阻断）")
+	cmd.Flags().StringVar(&kubeContext, "context", "", "kubeconfig 上下文，覆盖 deploy.context（仅 deploy.target: k8s）")
 	return cmd
 }
 
@@ -83,6 +86,8 @@ type upPlan struct {
 	generated *compose.Result
 	// k8s 是 deploy.target: k8s 时的生成结果（与 generated 互斥）。
 	k8s *k8s.Result
+	// kubeContext 是本次钉住的 kubeconfig 上下文（可能来自 --context）。
+	kubeContext string
 	// services 是本次要交给引擎启动的 service（不含 local 组件与迁移容器）。
 	services []string
 	// migrations 是本次会执行的迁移，供输出（15.25）。
@@ -110,6 +115,8 @@ type upOptions struct {
 	only           []string
 	dryRun         bool
 	checkResources bool
+	// kubeContext 是 --context 的值，覆盖 deploy.context。
+	kubeContext string
 }
 
 // runUp 执行 brickkit up。
@@ -176,7 +183,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		return nil, err
 	}
 
-	plan := &upPlan{layout: layout, cfg: cfg}
+	plan := &upPlan{layout: layout, cfg: cfg, kubeContext: contextOf(cfg, flags.kubeContext)}
 	if len(cfg.Components) == 0 {
 		opts.Printf("📋 当前项目没有组件\n")
 		opts.Printf("   用 brickkit add <组件ID>@<版本> 添加第一个组件\n")
@@ -185,6 +192,19 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	}
 
 	opts.Printf("🚀 启动项目 %s（deploy.target: %s）\n", cfg.Project, cfg.Deploy.Target)
+	warnK8sOnlyFields(opts, cfg)
+
+	// 先确认"要部到哪"，再做任何生成与拉取：部错集群是不可逆的，
+	// 而且这时连一份生成物都还没落盘
+	if cfg.Deploy.Target == config.TargetK8s && !flags.dryRun {
+		eng, err := resolveEngineFor(opts, cfg)
+		if err != nil {
+			return nil, err
+		}
+		if err := requireContext(ctx, opts, cfg, eng, contextOf(cfg, flags.kubeContext)); err != nil {
+			return nil, err
+		}
+	}
 
 	client, err := source.New(layout, cfg, source.Options{})
 	if err != nil {

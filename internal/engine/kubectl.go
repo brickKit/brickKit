@@ -33,22 +33,25 @@ type Kubectl struct {
 	bin string
 	// runner 执行命令，测试可替换。
 	runner func(ctx context.Context, name string, args ...string) ([]byte, error)
-	// exists 判断某个子目录是否存在，测试可替换。
-	exists func(dir string) bool
+	// exists 判断某个文件或目录是否存在，测试可替换。
+	exists func(path string) bool
+	// context 是本次操作钉住的 kubeconfig 上下文；空表示用当前 context。
+	context string
 }
 
 // NewKubectl 返回 kubectl 引擎。
 func NewKubectl() *Kubectl {
-	return &Kubectl{bin: "kubectl", runner: run, exists: dirExists}
+	return &Kubectl{bin: "kubectl", runner: run, exists: pathExists}
 }
 
-// dirExists 判断目录是否存在。
+// pathExists 判断文件或目录是否存在。
 //
 // 生成器只会创建**有内容**的子目录（没有 Ingress 就没有 ingress/），
-// 而 `kubectl apply -f 一个不存在的目录` 会直接失败。
-func dirExists(dir string) bool {
-	info, err := os.Stat(dir)
-	return err == nil && info.IsDir()
+// 命名空间由运维建时也不会有 namespace.yaml——
+// 而 `kubectl apply -f 一个不存在的路径` 会直接失败。
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func (k *Kubectl) Name() string { return K8s }
@@ -63,8 +66,14 @@ func (k *Kubectl) Name() string { return K8s }
 //	             只能由 CLI 串行控制：清理旧 Job → apply → wait
 //	deployments  最后才是主服务
 func (k *Kubectl) Up(ctx context.Context, req UpRequest) error {
-	if err := k.apply(ctx, "", path.Join(req.File, "namespace.yaml")); err != nil {
-		return err
+	k.context = req.Context
+
+	// 命名空间可能是运维建好的（deploy.createNamespace: false），那时不生成这份文件
+	namespace := path.Join(req.File, "namespace.yaml")
+	if k.exists(namespace) {
+		if err := k.apply(ctx, "", namespace); err != nil {
+			return err
+		}
 	}
 	if err := k.applyDir(ctx, req.Project, req.File, "secrets"); err != nil {
 		return err
@@ -127,6 +136,8 @@ func (k *Kubectl) waitRollout(ctx context.Context, req UpRequest) error {
 
 // Down 删除本项目在集群里的一切。
 func (k *Kubectl) Down(ctx context.Context, req DownRequest) error {
+	k.context = req.Context
+
 	if len(req.Services) > 0 {
 		// 只停一部分：删对应的 Deployment 就够了。
 		// 不能删命名空间——别的组件还在里面跑
@@ -138,10 +149,44 @@ func (k *Kubectl) Down(ctx context.Context, req DownRequest) error {
 		return err
 	}
 
+	if !req.DeleteNamespace {
+		// 命名空间不是我们建的（deploy.createNamespace: false），就不能由我们删——
+		// 那是别人的命名空间，里面多半还跑着别的东西，删掉等于把整个团队一起端了。
+		// 因此逐个子目录删，绝不用 -R 扫到 namespace.yaml
+		for _, dir := range manifestDirs {
+			if err := k.deleteDir(ctx, req.Project, req.File, dir); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	// -R 不能省：清单分散在 deployments/ services/ 等子目录里，不加 -R 的话
 	// kubectl 只看目录第一层
-	_, err := k.exec(ctx, "delete", "-R", "-f", req.File, "--ignore-not-found")
+	_, err := k.exec(ctx, k.args("", "delete", "-R", "-f", req.File, "--ignore-not-found")...)
 	return err
+}
+
+// manifestDirs 是生成物的全部子目录。
+var manifestDirs = []string{"ingress", "services", "deployments", "migrations", "secrets"}
+
+// deleteDir 删掉一个子目录里的清单；目录不存在就跳过。
+func (k *Kubectl) deleteDir(ctx context.Context, namespace, root, name string) error {
+	target := path.Join(root, name)
+	if !k.exists(target) {
+		return nil
+	}
+	_, err := k.exec(ctx, k.args(namespace, "delete", "-f", target, "--ignore-not-found")...)
+	return err
+}
+
+// CurrentContext 返回 kubeconfig 当前的 context。
+func (k *Kubectl) CurrentContext(ctx context.Context) (string, error) {
+	out, err := k.exec(ctx, "config", "current-context")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // Status 返回该命名空间下所有 Deployment 的状态。
@@ -167,12 +212,19 @@ func (k *Kubectl) CheckImage(context.Context, string) error { return nil }
 // 命令拼装
 // ============================================================
 
-// args 拼出带命名空间的参数。
+// args 拼出带命名空间与 context 的参数。
+//
+// --context 显式传，不能只靠"执行前校验过 current-context"：校验与执行之间
+// 有时间差，使用者可能在另一个终端里把 context 切走了。
 func (k *Kubectl) args(namespace string, rest ...string) []string {
-	if namespace == "" {
-		return rest
+	var prefix []string
+	if k.context != "" {
+		prefix = append(prefix, "--context", k.context)
 	}
-	return append([]string{"-n", namespace}, rest...)
+	if namespace != "" {
+		prefix = append(prefix, "-n", namespace)
+	}
+	return append(prefix, rest...)
 }
 
 // apply 应用一份清单。namespace 为空表示不带 -n（建命名空间那条命令本身）。
@@ -213,7 +265,12 @@ func migrationFailure(job, namespace string, cause error) error {
 	return clierr.New(clierr.CodeMigrationFailed, "错误：数据库迁移失败").
 		WithDetail("Job", job).
 		WithDetail("命名空间", namespace).
+		WithDetail("看事件", fmt.Sprintf("kubectl describe job/%s -n %s", job, namespace)).
 		WithDetail("看日志", fmt.Sprintf("kubectl logs job/%s -n %s", job, namespace)).
+		WithDetail("先看事件再看日志",
+			"Job 迟迟不结束、日志又是空的时，多半是准入控制（PodSecurity / ResourceQuota / "+
+				"LimitRange）拒绝了创建 Pod——那时 apply 是成功的，Pod 却根本没被创建，"+
+				"一条日志也不会有，原因只写在 Job 的 events 里").
 		WithHint(
 			"迁移失败时主服务不会启动（backoffLimit: 0，不会自动重试）",
 			"修好迁移脚本后重新 brickkit up：CLI 会自动清理这个 Job 再跑一次",

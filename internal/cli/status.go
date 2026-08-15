@@ -72,6 +72,9 @@ func runStatus(ctx context.Context, opts *Options) error {
 	if err != nil {
 		return err
 	}
+	if err := requireContext(ctx, opts, p.cfg, eng, p.cfg.Deploy.Context); err != nil {
+		return err
+	}
 	statuses, err := eng.Status(ctx, p.file, p.engineProject())
 	if err != nil {
 		return engineFailure("查询状态", err)

@@ -49,6 +49,46 @@ func servicePorts(m *manifest.Manifest) []any {
 
 // ingressDoc 渲染 Ingress（005 §5.5）。只有 expose: true 的组件才有。
 func (p *plan) ingressDoc(c componentPlan) map[string]any {
+	// 集群侧的注解（cert-manager 签证书、nginx 调参数……）原样透传：
+	// 平台不认识它们，也不该认识。平台自己的注解放在后面，不会被挤掉
+	annotations := map[string]any{}
+	for key, value := range p.cfg.Deploy.IngressAnnotations {
+		annotations[key] = value
+	}
+	for key, value := range p.annotationsOf(c) {
+		annotations[key] = value
+	}
+
+	spec := map[string]any{
+		"rules": []any{map[string]any{
+			"host": c.Entry.Hostname,
+			"http": map[string]any{
+				"paths": []any{map[string]any{
+					"path":     "/",
+					"pathType": "Prefix",
+					"backend": map[string]any{
+						"service": map[string]any{
+							"name": c.Service,
+							"port": map[string]any{"number": c.Manifest.Deployment.Port},
+						},
+					},
+				}},
+			},
+		}},
+	}
+
+	// 不写 ingressClassName 时，只有集群配了"默认 class"才会有人认领这条
+	// Ingress——没有默认 class 的集群上 apply 成功、域名却打不开
+	if class := p.cfg.Deploy.IngressClass; class != "" {
+		spec["ingressClassName"] = class
+	}
+	if secret := c.Entry.TLSSecret; secret != "" {
+		spec["tls"] = []any{map[string]any{
+			"hosts":      []any{c.Entry.Hostname},
+			"secretName": secret,
+		}}
+	}
+
 	return map[string]any{
 		"apiVersion": "networking.k8s.io/v1",
 		"kind":       "Ingress",
@@ -56,25 +96,9 @@ func (p *plan) ingressDoc(c componentPlan) map[string]any {
 			"name":        c.Service,
 			"namespace":   p.namespace,
 			"labels":      p.labelsOf(c),
-			"annotations": p.annotationsOf(c),
+			"annotations": annotations,
 		},
-		"spec": map[string]any{
-			"rules": []any{map[string]any{
-				"host": c.Entry.Hostname,
-				"http": map[string]any{
-					"paths": []any{map[string]any{
-						"path":     "/",
-						"pathType": "Prefix",
-						"backend": map[string]any{
-							"service": map[string]any{
-								"name": c.Service,
-								"port": map[string]any{"number": c.Manifest.Deployment.Port},
-							},
-						},
-					}},
-				},
-			}},
-		},
+		"spec": spec,
 	}
 }
 

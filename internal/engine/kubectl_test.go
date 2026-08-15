@@ -209,7 +209,7 @@ func TestKubectlDownIsRecursive(t *testing.T) {
 	rec := newRecorder()
 
 	require.NoError(t, kubectlWith(rec).Down(context.Background(), DownRequest{
-		File: "/p/k8s", Project: "brickkit-my-erp",
+		File: "/p/k8s", Project: "brickkit-my-erp", DeleteNamespace: true,
 	}))
 
 	command := rec.lastCall(t)
@@ -217,6 +217,64 @@ func TestKubectlDownIsRecursive(t *testing.T) {
 	assert.Contains(t, command, "delete")
 	assert.Contains(t, command, "-R", "子目录里的清单也要删")
 	assert.Contains(t, command, "--ignore-not-found", "没起过的项目 down 一次不该报错")
+}
+
+// 命名空间不是我们建的时候，绝不能扫到 namespace.yaml。
+//
+// 那是别人的命名空间，里面多半还跑着别的东西——`delete -R` 一旦扫到
+// 一份残留的 namespace.yaml，就会把整个团队的东西一起端了。
+func TestKubectlDownKeepsForeignNamespace(t *testing.T) {
+	rec := newRecorder()
+
+	require.NoError(t, kubectlWith(rec).Down(context.Background(), DownRequest{
+		File: "/p/k8s", Project: "team-a-prod", DeleteNamespace: false,
+	}))
+
+	for _, command := range rec.commands() {
+		assert.NotContains(t, command, "-R", "不能递归扫整个目录")
+		assert.NotContains(t, command, "namespace", "更不能碰命名空间")
+		assert.Contains(t, command, "-n team-a-prod")
+	}
+	assert.NotEqual(t, -1, indexOfCommand(rec.commands(), "deployments"), "但该删的还是要删")
+}
+
+// --context 要出现在每一条命令里。
+//
+// 只在执行前校验一次 current-context 是不够的：校验与执行之间有时间差，
+// 使用者可能在另一个终端把 context 切走了。
+func TestKubectlPassesContext(t *testing.T) {
+	rec := newRecorder()
+
+	require.NoError(t, kubectlWith(rec).Up(context.Background(), UpRequest{
+		File: "/p/k8s", Project: "ns", Context: "prod-cluster",
+		Services: []string{"people-basic-1-0-0"},
+	}))
+
+	for _, command := range rec.commands() {
+		assert.Contains(t, command, "--context prod-cluster", command)
+	}
+}
+
+// 命名空间由运维建时不生成 namespace.yaml，也就不能去 apply 它。
+func TestKubectlSkipsMissingNamespaceManifest(t *testing.T) {
+	rec := newRecorder()
+	k := kubectlWith(rec)
+	k.exists = func(path string) bool { return !strings.HasSuffix(path, "namespace.yaml") }
+
+	require.NoError(t, k.Up(context.Background(), UpRequest{File: "/p/k8s", Project: "team-a"}))
+
+	assert.Equal(t, -1, indexOfCommand(rec.commands(), "namespace.yaml"),
+		"不存在的清单不能出现在命令里：%v", rec.commands())
+}
+
+func TestKubectlCurrentContext(t *testing.T) {
+	rec := newRecorder()
+	rec.output["config current-context"] = "prod-cluster\n"
+
+	current, err := kubectlWith(rec).CurrentContext(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, "prod-cluster", current, "结尾的换行要去掉")
 }
 
 // 只停部分组件：删对应的 Deployment，其余不动。
@@ -330,4 +388,26 @@ func TestKubectlMissingBinary(t *testing.T) {
 
 func TestKubectlName(t *testing.T) {
 	assert.Equal(t, K8s, NewKubectl().Name())
+}
+
+// 迁移卡住时，要把人指向 **events**，不是日志。
+//
+// 真集群上撞到的：命名空间打着 restricted 标签时，`kubectl apply` 那个 Job
+// **成功**（Job 对象建出来了），但 Job 控制器创建 Pod 时被准入控制拒绝。
+// 于是 Job 既不 Complete 也不 Failed，`kubectl wait` 静默挂满 10 分钟，
+// 而**一条日志都没有**（Pod 根本没被创建），只有 Job 的 events 里写着原因。
+func TestKubectlMigrationTimeoutPointsAtEvents(t *testing.T) {
+	rec := newRecorder()
+	rec.fail["wait --for=condition=complete"] = errors.New("timed out")
+	rec.output["wait --for=condition=complete"] = "error: timed out waiting for the condition"
+
+	err := kubectlWith(rec).Up(context.Background(), UpRequest{
+		File: "/p/k8s", Project: "team-a",
+		MigrationJobs: []string{"people-basic-1-0-0-migration"},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "kubectl describe job/people-basic-1-0-0-migration",
+		"Pod 没被创建时没有日志可看，只能看 events")
+	assert.Contains(t, err.Error(), "准入控制", "要点出这个最常见的原因")
 }

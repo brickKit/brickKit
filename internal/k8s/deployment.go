@@ -5,6 +5,8 @@ package k8s
 import (
 	"strings"
 
+	"github.com/brickkit/brickkit/internal/config"
+
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 )
@@ -83,11 +85,42 @@ func (p *plan) deploymentDoc(c componentPlan) map[string]any {
 			"selector": map[string]any{"matchLabels": map[string]any{labelApp: c.Service}},
 			"template": map[string]any{
 				"metadata": map[string]any{"labels": labels},
-				"spec": map[string]any{
-					"containers": []any{p.containerDoc(c)},
-				},
+				"spec":     p.podSpec(p.containerDoc(c)),
 			},
 		},
+	}
+}
+
+// podSpec 渲染 Pod 规格：容器 + 集群侧要求（005 §5.12）。
+func (p *plan) podSpec(container map[string]any) map[string]any {
+	spec := map[string]any{"containers": []any{container}}
+
+	if secrets := p.cfg.Deploy.ImagePullSecrets; len(secrets) > 0 {
+		refs := make([]any, 0, len(secrets))
+		for _, name := range secrets {
+			refs = append(refs, map[string]any{"name": name})
+		}
+		spec["imagePullSecrets"] = refs
+	}
+	return spec
+}
+
+// securityContext 按 Pod Security Standards 的 restricted 级别生成（005 §14.3）。
+//
+// 不写 deploy.podSecurity 时**什么都不生成**：加上它可能让本来跑得好好的组件
+// 起不来（镜像以 root 运行、要绑 1024 以下的端口……），不能默默替使用者决定。
+//
+// 刻意**不**生成 readOnlyRootFilesystem：restricted 并不要求它，
+// 而它会让任何往 /tmp 写东西的组件直接挂掉。
+func (p *plan) securityContext() map[string]any {
+	if p.cfg.Deploy.PodSecurity != config.PodSecurityRestricted {
+		return nil
+	}
+	return map[string]any{
+		"allowPrivilegeEscalation": false,
+		"runAsNonRoot":             true,
+		"capabilities":             map[string]any{"drop": []any{"ALL"}},
+		"seccompProfile":           map[string]any{"type": "RuntimeDefault"},
 	}
 }
 
@@ -110,6 +143,9 @@ func (p *plan) containerDoc(c componentPlan) map[string]any {
 	}
 	if resources := resourcesDoc(c.Env); len(resources) > 0 {
 		container["resources"] = resources
+	}
+	if sc := p.securityContext(); sc != nil {
+		container["securityContext"] = sc
 	}
 	return container
 }

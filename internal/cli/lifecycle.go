@@ -269,7 +269,7 @@ func logsCommand(engineName, project, file, service string) string {
 // 两者取值相同（brickkit-<项目名>），但来源不该混——各自的命名规则由各自那一侧定义。
 func (p *project) engineProject() string {
 	if p.cfg.Deploy.Target == config.TargetK8s {
-		return k8s.Namespace(p.cfg.Project)
+		return k8s.NamespaceOf(p.cfg)
 	}
 	return engine.ProjectName(p.cfg.Project)
 }

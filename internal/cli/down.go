@@ -12,7 +12,10 @@ import (
 
 // newDownCommand 实现 brickkit down（004 §3.6）。
 func newDownCommand(opts *Options) *cobra.Command {
-	var only []string
+	var (
+		only        []string
+		kubeContext string
+	)
 
 	cmd := &cobra.Command{
 		Use:     "down",
@@ -28,16 +31,17 @@ func newDownCommand(opts *Options) *cobra.Command {
   brickkit down --only people/basic   只停止指定组件`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDown(cmd.Context(), opts, only)
+			return runDown(cmd.Context(), opts, only, kubeContext)
 		},
 	}
 
 	cmd.Flags().StringSliceVar(&only, "only", nil, "只停止指定组件，逗号分隔，支持 @版本")
+	cmd.Flags().StringVar(&kubeContext, "context", "", "kubeconfig 上下文，覆盖 deploy.context（仅 deploy.target: k8s）")
 	return cmd
 }
 
 // runDown 停止项目或其中的部分组件。
-func runDown(ctx context.Context, opts *Options, only []string) error {
+func runDown(ctx context.Context, opts *Options, only []string, kubeContext string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -62,6 +66,9 @@ func runDown(ctx context.Context, opts *Options, only []string) error {
 	if err != nil {
 		return err
 	}
+	if err := requireContext(ctx, opts, p.cfg, eng, contextOf(p.cfg, kubeContext)); err != nil {
+		return err
+	}
 
 	opts.Printf("🛑 停止项目 %s\n", p.cfg.Project)
 	if len(services) > 0 {
@@ -69,7 +76,10 @@ func runDown(ctx context.Context, opts *Options, only []string) error {
 	}
 
 	if err := eng.Down(ctx, engine.DownRequest{
-		File: p.file, Project: p.engineProject(), ProjectDir: opts.WorkDir, Services: services,
+		File: p.file, Project: p.engineProject(), ProjectDir: opts.WorkDir,
+		Context: contextOf(p.cfg, kubeContext), Services: services,
+		// 命名空间不是我们建的就不能由我们删
+		DeleteNamespace: p.cfg.Deploy.ShouldCreateNamespace(),
 	}); err != nil {
 		return engineFailure("停止", err)
 	}

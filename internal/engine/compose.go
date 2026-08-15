@@ -145,6 +145,9 @@ func imageError(image, output string, cause error) error {
 // 项目名必须显式给：compose 默认拿部署文件所在目录名当项目名，
 // 而我们的文件固定放在 .brickkit/generated/ 下——那样同一台机器上
 // 所有 BrickKit 项目在引擎眼里都叫 "generated"，彼此顶替。
+// CurrentContext 对 compose 没有意义：容器就起在本机上，没有"部到哪个集群"这回事。
+func (c *Compose) CurrentContext(context.Context) (string, error) { return "", nil }
+
 // projectDir 决定 compose 去哪里找 .env（见 UpRequest.ProjectDir）。
 func (c *Compose) projectArgs(file, project, projectDir string) []string {
 	args := append([]string{}, c.base...)

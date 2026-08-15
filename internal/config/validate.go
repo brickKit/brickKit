@@ -49,6 +49,18 @@ func (c *Config) validateDeploy(p *clierr.ProblemSet) {
 	default:
 		p.Addf("deploy.target", "必须是 %s 或 %s（当前是 %s）", TargetDocker, TargetK8s, c.Deploy.Target)
 	}
+
+	switch c.Deploy.PodSecurity {
+	case "", PodSecurityRestricted:
+	default:
+		p.Addf("deploy.podSecurity", "目前只支持 %s（当前是 %s）",
+			PodSecurityRestricted, c.Deploy.PodSecurity)
+	}
+	if c.Deploy.Namespace != "" {
+		if reason := projectNameProblem(c.Deploy.Namespace); reason != "" {
+			p.Addf("deploy.namespace", "%s（K8s 命名空间遵循同样的规则）", reason)
+		}
+	}
 }
 
 func (c *Config) validateSources(p *clierr.ProblemSet) {
@@ -158,6 +170,9 @@ func (c *Config) validateComponentPorts(
 	}
 
 	// hostname 仅在 K8s 环境下必填（Ingress 需要域名）。
+	if item.TLSSecret != "" && !item.Expose {
+		p.Add(field+".tlsSecret", "只有 expose: true 的组件才需要 TLS 证书")
+	}
 	if item.Expose && item.Hostname == "" && c.Deploy.Target == TargetK8s {
 		p.Add(field+".hostname", "缺失（deploy.target: k8s 且 expose: true 时必填，Ingress 需要域名）")
 	}

@@ -43,13 +43,20 @@ func (p *plan) migrationJobDoc(c componentPlan) map[string]any {
 			"backoffLimit": 0,
 			"template": map[string]any{
 				"metadata": map[string]any{"labels": labels},
-				"spec": map[string]any{
-					"restartPolicy": "Never",
-					"containers":    []any{p.migrationContainerDoc(c)},
-				},
+				"spec":     p.migrationPodSpec(c),
 			},
 		},
 	}
+}
+
+// migrationPodSpec 渲染迁移 Pod 的规格。
+//
+// 集群侧的要求（securityContext / imagePullSecrets）与主容器完全一致：
+// 它跑在同一个命名空间里，用的是同一个私有镜像。
+func (p *plan) migrationPodSpec(c componentPlan) map[string]any {
+	spec := p.podSpec(p.migrationContainerDoc(c))
+	spec["restartPolicy"] = "Never"
+	return spec
 }
 
 // migrationContainerDoc 渲染迁移容器。
@@ -69,6 +76,9 @@ func (p *plan) migrationContainerDoc(c componentPlan) map[string]any {
 	// 002 §8.5：环境变量与主容器完全一致——迁移连的必须是同一个库
 	if env := p.envDoc(c); len(env) > 0 {
 		container["env"] = env
+	}
+	if sc := p.securityContext(); sc != nil {
+		container["securityContext"] = sc
 	}
 	// 探针与端口都不生成：一次性任务不监听端口，
 	// 给它加探针只会让一个正常跑着的迁移被判成不健康

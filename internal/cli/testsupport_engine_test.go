@@ -27,6 +27,8 @@ type fakeEngine struct {
 	checkErr  map[string]error
 	// statuses 是 Status 的返回值；为 nil 时按 ups 里启动过的 service 编造"运行中"。
 	statuses []engine.Status
+	// currentContext 是引擎当前指向的集群（只有 K8s 有意义）。
+	currentContext string
 }
 
 func newFakeEngine() *fakeEngine {
@@ -67,6 +69,10 @@ func (f *fakeEngine) Status(_ context.Context, _, _ string) ([]engine.Status, er
 		}
 	}
 	return out, nil
+}
+
+func (f *fakeEngine) CurrentContext(context.Context) (string, error) {
+	return f.currentContext, nil
 }
 
 func (f *fakeEngine) CheckImage(_ context.Context, image string) error {
