@@ -1,0 +1,53 @@
+// authorization/rbac 的 gRPC 契约（002 §7：契约即产物）。
+//
+// 这份 proto 会作为 api-contract 产物发布到市场；使用方 `brickkit add` 之后
+// 从 .brickkit/artifacts/authorization-rbac-1-0-0/api-contract/ 取到它生成客户端。
+//
+// gRPC 与 HTTP 共用 deployment.port 声明的那一个端口（h2c + Content-Type 分流，
+// 做法见 department/tree）。
+syntax = "proto3";
+
+package authorization.v1;
+
+option go_package = "github.com/brickkit/components/erp-backend/gen/authorization/v1;authorizationv1";
+
+// AuthorizationService 回答"某个人能不能做某件事"。
+//
+// 权限来自两条路径的并集：
+//   1. 直接授予这个人的角色
+//   2. 授予这个人所在**部门**的角色（部门取自 people/basic，强依赖）
+//
+// 第 2 条是这个组件强依赖 people/basic 的原因：没有它就算不出完整的权限。
+service AuthorizationService {
+  // Check 判断某人是否拥有某个权限。这是最高频的调用。
+  rpc Check(CheckRequest) returns (CheckResponse);
+  // ListPermissions 返回某人的全部权限。
+  rpc ListPermissions(ListPermissionsRequest) returns (ListPermissionsResponse);
+}
+
+message CheckRequest {
+  // person_id 是 people/basic 中的人员 ID。
+  string person_id = 1;
+  // permission 形如 erp.order.read。
+  string permission = 2;
+}
+
+message CheckResponse {
+  bool allowed = 1;
+  // reason 说明这个判断从哪来（direct / department / none），便于排障。
+  string reason = 2;
+}
+
+message ListPermissionsRequest {
+  string person_id = 1;
+}
+
+message ListPermissionsResponse {
+  string person_id = 1;
+  // permissions 已排序去重。
+  repeated string permissions = 2;
+  // roles 是命中的角色，按 ID 排序。
+  repeated string roles = 3;
+  // cached 表示这次结果来自缓存而不是回源。
+  bool cached = 4;
+}

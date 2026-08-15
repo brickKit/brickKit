@@ -1,0 +1,164 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "erp/backend",
+    "version": "1.0.0",
+    "description": "ERP 后端，一个**连接组件**：自己几乎没有数据，价值全在把上游组件串起来。\n\n一次订单查询要走三个强依赖：auth/password-login（这个令牌是谁的）→ authorization/rbac（这个人能不能看，gRPC）→ people/basic（补全姓名与部门，gRPC 走 extraPorts 的 9090）。\n\n审批时还会向 infra/redis-event-bus 发一条事件，那是**弱依赖**：它缺席或失败时审批照常成功。"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "健康检查",
+        "description": "只检查本进程是否存活，**不逐个探测四个依赖**（002 §9.4）——逐个探的话，任意一个依赖抖动都会让这个本身完全正常的容器被杀掉重启。",
+        "responses": {
+          "200": {
+            "description": "进程存活",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "status": { "type": "string", "example": "ok" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/login": {
+      "post": {
+        "summary": "登录（转交给 auth/password-login）",
+        "description": "本组件**不碰口令**：它没有凭据表，也不该有。这里只是把登录请求转给真正管认证的组件，再把本组件的会话策略（sessionTtlSeconds）带回去。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": { "type": "string", "example": "zhangsan" },
+                  "password": { "type": "string", "format": "password" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": { "type": "string" },
+                    "personId": { "type": "string" },
+                    "username": { "type": "string" },
+                    "sessionTtlSeconds": {
+                      "type": "integer",
+                      "example": 3600,
+                      "description": "本组件的 configSchema.sessionTtlSeconds，可由 brickkit.yaml 覆盖"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "用户名或密码错误" },
+          "503": { "description": "auth/password-login 暂时不可用" }
+        }
+      }
+    },
+    "/api/v1/orders": {
+      "get": {
+        "summary": "查询订单列表",
+        "description": "需要 `erp.order.read` 权限。订单上的姓名与部门由 people/basic 现取——本组件不重复存别人的主数据。",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "example": "Bearer <token>" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "订单列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orders": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Order" }
+                    },
+                    "total": { "type": "integer" },
+                    "requestBy": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "没有令牌，或令牌无效" },
+          "403": { "description": "认证过了，但没有 erp.order.read 权限" },
+          "503": { "description": "某个强依赖暂时不可用" }
+        }
+      }
+    },
+    "/api/v1/orders/{id}/approve": {
+      "post": {
+        "summary": "审批订单",
+        "description": "需要 `erp.order.approve` 权限。审批成功后向事件总线发一条 `erp.order.approved`；**事件发不出去不影响审批结果**，响应里的 eventPublished 如实说明。",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "审批成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orderId": { "type": "string" },
+                    "status": { "type": "string", "example": "approved" },
+                    "approvedBy": { "type": "string" },
+                    "eventPublished": {
+                      "type": "boolean",
+                      "description": "事件是否真的发出去了。false 表示弱依赖缺席或调用失败——审批本身已经成功"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "没有令牌，或令牌无效" },
+          "403": { "description": "没有 erp.order.approve 权限" },
+          "404": { "description": "订单不存在" },
+          "503": { "description": "某个强依赖暂时不可用" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "o-1" },
+          "title": { "type": "string", "example": "服务器采购" },
+          "amount": { "type": "integer", "example": 120000 },
+          "ownerId": { "type": "string", "example": "p-001" },
+          "status": { "type": "string", "enum": ["pending", "approved"] },
+          "ownerName": {
+            "type": "string",
+            "description": "来自 people/basic，不在本组件存储。所有者已从人员系统删除时为空"
+          },
+          "ownerDepartment": { "type": "string", "description": "来自 people/basic" }
+        }
+      }
+    }
+  }
+}

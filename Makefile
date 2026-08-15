@@ -41,7 +41,7 @@ TESTFLAGS ?= -count=1
 
 # 平台自测组件（tests/components/*）：各自是独立的 Go module 与独立的组件仓库，
 # 不参与主 module 的 ./... 构建，需要单独测试与构建镜像。
-DEMO_COMPONENTS := demo-hello demo-caller department-tree auth-password-login authorization-rbac
+DEMO_COMPONENTS := demo-hello demo-caller department-tree auth-password-login authorization-rbac erp-backend
 # Python 组件（people-basic）没法在宿主机上直接跑测试：本机未安装 python3-venv。
 # 它的测试跑在容器里（Dockerfile 的 test 层），版本固定、可复现。
 PY_COMPONENTS := people-basic
@@ -197,6 +197,15 @@ proto-authorization: ## 由 proto 重新生成 authorization/rbac 的 Go 代码
 		proto/authorization/v1/authorization.proto
 	@echo "✅ tests/components/authorization-rbac/gen 已更新"
 
+.PHONY: proto-erp
+proto-erp: ## 由上游 proto 生成 erp/backend 的 gRPC 客户端（people + authorization）
+	@cd tests/components/erp-backend && mkdir -p gen && PATH="$(TOOLS_BIN):$$PATH" $(PROTOC) \
+		--proto_path=proto \
+		--go_out=gen --go_opt=paths=source_relative \
+		--go-grpc_out=gen --go-grpc_opt=paths=source_relative \
+		proto/people/v1/people.proto proto/authorization/v1/authorization.proto
+	@echo "✅ tests/components/erp-backend/gen 已更新"
+
 .PHONY: test-market-integration
 test-market-integration: ## 市场后端的集成测试（需要本机 PostgreSQL 与 RustFS，读 .env）
 	@set -a; . ./.env; set +a; \
@@ -257,6 +266,7 @@ demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实�
 	@docker build -q -t brickkit-demo/people-basic:1.0.0 tests/components/people-basic
 	@docker build -q -t brickkit-demo/auth-password-login:1.0.0 tests/components/auth-password-login
 	@docker build -q -t brickkit-demo/authorization-rbac:1.0.0 tests/components/authorization-rbac
+	@docker build -q -t brickkit-demo/erp-backend:1.0.0 tests/components/erp-backend
 	@for tag in $(DEMO_HELLO_TAGS); do \
 		docker build -q -t brickkit-demo/hello:$$tag tests/components/demo-hello; \
 	done
