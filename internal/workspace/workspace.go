@@ -113,3 +113,80 @@ func firstLine(out string, err error) string {
 	}
 	return err.Error()
 }
+
+// ============================================================
+// 归档 / 激活（004 §3.9，brickkit sync）
+// ============================================================
+
+// ArchivedDir 返回组件在归档目录中的路径。
+func ArchivedDir(l config.Layout, componentID string) string {
+	return filepath.Join(l.ArchivedDir(), filepath.FromSlash(componentID))
+}
+
+// DisplayArchivedDir 返回用于输出的归档相对路径。
+func DisplayArchivedDir(componentID string) string {
+	return config.DirComponents + "/" + config.DirArchived + "/" + componentID
+}
+
+// IsArchived 判断组件源码是否在归档目录里。
+func IsArchived(l config.Layout, componentID string) bool {
+	info, err := os.Stat(ArchivedDir(l, componentID))
+	return err == nil && info.IsDir()
+}
+
+// Archive 把组件源码从 components/ 移到 components/.archived/。
+func Archive(l config.Layout, componentID string) error {
+	return move(SourceDir(l, componentID), ArchivedDir(l, componentID), componentID,
+		DisplayDir(componentID), DisplayArchivedDir(componentID))
+}
+
+// Activate 把组件源码从归档目录移回 components/。
+func Activate(l config.Layout, componentID string) error {
+	return move(ArchivedDir(l, componentID), SourceDir(l, componentID), componentID,
+		DisplayArchivedDir(componentID), DisplayDir(componentID))
+}
+
+// move 整目录搬家。
+//
+// 用 os.Rename 而不是复制：每个组件是一个独立的 Git 仓库，整目录移动才能
+// 保住 .git（以及里面的 index、hooks、文件权限）。归档目录就在 components/
+// 底下，同一个文件系统，Rename 不会跨设备失败。
+func move(from, to, componentID, fromDisplay, toDisplay string) error {
+	if _, err := os.Stat(to); err == nil {
+		// 目标已存在：那里可能是使用者手工放的东西，绝不覆盖
+		return clierr.New(clierr.CodeConfigInvalid, "错误：目标目录已存在，无法移动组件源码").
+			WithDetail("组件", componentID).
+			WithDetail("从", fromDisplay).
+			WithDetail("到", toDisplay).
+			WithHint(
+				"先检查目标目录里是什么，确认无用后删除或重命名它",
+				"两处都有源码时，平台不替你决定保留哪一份",
+			)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
+		return moveError("创建目录", componentID, fromDisplay, toDisplay, err)
+	}
+	if err := os.Rename(from, to); err != nil {
+		return moveError("移动目录", componentID, fromDisplay, toDisplay, err)
+	}
+	pruneEmptyDir(filepath.Dir(from))
+	return nil
+}
+
+// pruneEmptyDir 删掉搬空了的 scope 目录（components/demo/ 里没东西了就别留着）。
+func pruneEmptyDir(dir string) {
+	if entries, err := os.ReadDir(dir); err == nil && len(entries) == 0 {
+		_ = os.Remove(dir)
+	}
+}
+
+func moveError(action, componentID, from, to string, cause error) error {
+	return clierr.Newf(clierr.CodeInternal, "错误：%s失败", action).
+		WithDetail("组件", componentID).
+		WithDetail("从", from).
+		WithDetail("到", to).
+		WithDetail("原因", cause.Error()).
+		WithHint("检查目录权限与磁盘空间").
+		WithCause(cause)
+}

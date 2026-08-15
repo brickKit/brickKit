@@ -22,7 +22,7 @@
 | --- | --- | --- | --- |
 | 00 | [00-准备.md](00-准备.md) | 编译 CLI、准备试验场、确认环境 | — |
 | 01 | [01-初始化项目.md](01-初始化项目.md) | `init`、目录结构、`.gitignore`、`reset` | 00 |
-| 02 | [02-添加与移除组件.md](02-添加与移除组件.md) | 安装源、`add`、产物下载、`remove` | 01 |
+| 02 | [02-添加与移除组件.md](02-添加与移除组件.md) | 安装源、`add`、产物下载、`remove`、`sync` 整理源码工作区 | 01 |
 | 03 | [03-依赖与启动顺序.md](03-依赖与启动顺序.md) | `order`、强/弱依赖、循环依赖、多版本共存 | 02 |
 | 04 | [04-组件开启模式.md](04-组件开启模式.md) | **enabled 三态、级联禁用、`--only`、expose** | 03 |
 | 05 | [05-Docker启动全流程.md](05-Docker启动全流程.md) | `up` / `status` / `down`、迁移、资源、建库 | 04 |
@@ -82,6 +82,7 @@ cd <仓库根目录>
 | 调 docker / podman / kubectl | [internal/engine/](../internal/engine/) | 005 §7 |
 | 升级兼容性检查 | [internal/upgrade/](../internal/upgrade/) | 002 §7.7 |
 | 配置备份与恢复 | [internal/backup/](../internal/backup/) | 003 §9 |
+| 组件源码工作区（`sync` / `--repo`） | [internal/workspace/](../internal/workspace/) | 004 §3.9 |
 | 市场后端 | [market-server/](../market-server/) | 007 |
 | 试验用的真实组件 | [tests/components/](../tests/components/) | 009 |
 
@@ -93,7 +94,6 @@ cd <仓库根目录>
 
 | 能力 | 状态 |
 | --- | --- |
-| `brickkit sync`（源码工作区归档/激活） | ⬜ 开发计划 Step 17，执行会明确报"尚未实现" |
 | 签名校验（`--sign` / `requireSignature`） | ⬜ Step 20 |
 | Podman | 代码已就绪，本机未装，没在真 Podman 上跑过 |
 
