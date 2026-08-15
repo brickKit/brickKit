@@ -1,0 +1,53 @@
+#!/bin/sh
+# 在 Kubernetes 里，把后端地址补成 FQDN。
+#
+# # 为什么需要这一步
+#
+# nginx 的 `resolver` 指令**不使用 /etc/resolv.conf 里的 search 域**——它只拿
+# nameserver 的地址。而 K8s 靠 search 域让裸服务名可解析：
+#
+#	nameserver 10.96.0.10
+#	search erp-demo.svc.cluster.local svc.cluster.local cluster.local
+#
+# 于是平台注入的 `http://erp-backend-1-0-0:8080` 在别的组件里好好的
+# （Go / Python 的 DNS 解析会走 search 域），到 nginx 这里就变成：
+#
+#	erp-backend-1-0-0 could not be resolved (2: Server failure)
+#
+# 症状是浏览器收到 502，跟"后端挂了"一模一样——而后端好好的。
+# 这是真部署到 minikube 才撞出来的。
+#
+# # 为什么修在组件里而不是让平台注入 FQDN
+#
+# 裸服务名对**其余所有组件**都是对的，它们的 DNS 解析都走 search 域。
+# 只有 nginx 的 resolver 绕开了 search，这是 nginx 特有的行为，
+# 该由用 nginx 的组件自己处理。
+#
+# # 为什么只在看到 .svc. 时才动手
+#
+# Docker 环境下容器也可能有 search 域（网络名），把它拼上去反而解析不了。
+# `.svc.` 是 Kubernetes 的通用标志（集群域可以自定义，但 svc 这一段是固定的），
+# 用它判断"现在在集群里"最稳妥。
+
+set -eu
+
+# 没注入后端地址就没什么可补的（配置校验会另行报错）
+[ -n "${ERP_BACKEND_ENDPOINT:-}" ] || return 0
+
+# 取第一个带 .svc. 的 search 域；没有就说明不在 K8s 里，原样不动
+cluster_domain="$(awk '/^search/ { for (i = 2; i <= NF; i++) if ($i ~ /\.svc\./ || $i ~ /^svc\./) { print $i; exit } }' /etc/resolv.conf 2>/dev/null || true)"
+[ -n "$cluster_domain" ] || return 0
+
+# 拆出 host（去掉 scheme 与端口）
+without_scheme="${ERP_BACKEND_ENDPOINT#*://}"
+host="${without_scheme%%:*}"
+host="${host%%/*}"
+
+# 已经是 FQDN（带点）就不动
+case "$host" in
+    *.*) return 0 ;;
+esac
+
+ERP_BACKEND_ENDPOINT="$(echo "$ERP_BACKEND_ENDPOINT" | sed "s|//${host}|//${host}.${cluster_domain}|")"
+export ERP_BACKEND_ENDPOINT
+echo "portal/user-frontend: 检测到 Kubernetes（search $cluster_domain），后端地址补成 $ERP_BACKEND_ENDPOINT"

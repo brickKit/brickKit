@@ -10,6 +10,9 @@ ARG UID=101
 
 COPY html/ /usr/share/nginx/html/
 COPY templates/ /etc/nginx/templates/
+# 在 K8s 里把后端地址补成 FQDN：nginx 的 resolver 不走 search 域，
+# 裸服务名在集群里解析不了（见脚本里的说明）
+COPY docker-entrypoint.d/15-cluster-fqdn.envsh /docker-entrypoint.d/15-cluster-fqdn.envsh
 
 # 打开官方镜像自带的 resolver 探测：它会从 /etc/resolv.conf 生成
 # NGINX_LOCAL_RESOLVERS，供模板里的 resolver 指令使用。
@@ -21,7 +24,8 @@ ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 # ③ nginx 的临时目录（proxy/fastcgi/... ）同理
 RUN sed -i 's|^pid .*|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf \
  && chown -R "$UID":0 /etc/nginx/conf.d /var/cache/nginx \
- && chmod -R g+w /etc/nginx/conf.d /var/cache/nginx
+ && chmod -R g+w /etc/nginx/conf.d /var/cache/nginx \
+ && chmod +x /docker-entrypoint.d/15-cluster-fqdn.envsh
 
 USER 101
 # 与 component.yaml 的 deployment.port 一致。

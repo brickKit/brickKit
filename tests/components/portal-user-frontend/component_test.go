@@ -8,6 +8,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -268,4 +269,114 @@ func readFile(t *testing.T, path string) string {
 		t.Fatalf("读取 %s 失败：%v", path, err)
 	}
 	return string(raw)
+}
+
+// ============================================================
+// K8s 里的 FQDN（真部署到 minikube 才撞出来的）
+// ============================================================
+
+// TestClusterFQDNHookExists 记录一个 nginx 特有的坑。
+//
+// nginx 的 `resolver` 指令**不使用 /etc/resolv.conf 的 search 域**——它只拿
+// nameserver 的地址。而 K8s 正是靠 search 域让裸服务名可解析。于是平台注入的
+// `http://erp-backend-1-0-0:8080` 在别的组件里好好的（Go/Python 的 DNS 解析
+// 会走 search 域），到 nginx 这里就是：
+//
+//	erp-backend-1-0-0 could not be resolved (2: Server failure)
+//
+// 浏览器收到 502，跟"后端挂了"一模一样——而后端好好的。
+func TestClusterFQDNHookExists(t *testing.T) {
+	script := readFile(t, "docker-entrypoint.d/15-cluster-fqdn.envsh")
+
+	if !strings.Contains(script, "resolv.conf") {
+		t.Error("要从 /etc/resolv.conf 里读 search 域")
+	}
+	if !strings.Contains(script, "export ERP_BACKEND_ENDPOINT") {
+		t.Error("必须 export，否则后面的 envsubst 看不到改过的值")
+	}
+	// 文件名要以 .envsh 结尾：官方入口对 .envsh 是 source、对 .sh 是执行。
+	// 执行的话变量留在子 shell 里，改了等于没改
+	if _, err := os.Stat("docker-entrypoint.d/15-cluster-fqdn.envsh"); err != nil {
+		t.Fatalf("钩子必须以 .envsh 结尾：%v", err)
+	}
+
+	dockerfile := readFile(t, "Dockerfile")
+	if !strings.Contains(dockerfile, "15-cluster-fqdn.envsh") {
+		t.Error("Dockerfile 要把这个钩子拷进镜像")
+	}
+}
+
+// TestClusterFQDNHookOnlyActsInKubernetes：Docker 环境不能被误伤。
+//
+// Docker 里容器也可能有 search 域（网络名），把它拼上去反而解析不了。
+// `.svc.` 是 Kubernetes 的通用标志（集群域可自定义，但 svc 这一段固定）。
+func TestClusterFQDNHookOnlyActsInKubernetes(t *testing.T) {
+	script := readFile(t, "docker-entrypoint.d/15-cluster-fqdn.envsh")
+
+	if !strings.Contains(script, "svc") {
+		t.Error("要靠 .svc. 判断是不是在 K8s 里，否则会误伤 Docker 环境")
+	}
+}
+
+// TestClusterFQDNHookBehaviour 直接跑这个脚本，验证三种输入。
+//
+// 光看源码里有没有某个字符串是不够的——这条逻辑有分支，
+// 而分支写反的表现是"Docker 好好的、K8s 502"，或者反过来。
+func TestClusterFQDNHookBehaviour(t *testing.T) {
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("没有 sh，跳过")
+	}
+
+	cases := map[string]struct {
+		resolvConf string
+		endpoint   string
+		want       string
+	}{
+		"K8s 里补成 FQDN": {
+			resolvConf: "nameserver 10.96.0.10\nsearch erp-demo.svc.cluster.local svc.cluster.local\n",
+			endpoint:   "http://erp-backend-1-0-0:8080",
+			want:       "http://erp-backend-1-0-0.erp-demo.svc.cluster.local:8080",
+		},
+		"Docker 里原样不动": {
+			resolvConf: "nameserver 127.0.0.11\nsearch brickkit-erp-demo-net\n",
+			endpoint:   "http://erp-backend-1-0-0:8080",
+			want:       "http://erp-backend-1-0-0:8080",
+		},
+		"已经是 FQDN 就不动": {
+			resolvConf: "nameserver 10.96.0.10\nsearch erp-demo.svc.cluster.local\n",
+			endpoint:   "http://erp-backend.example.com:8080",
+			want:       "http://erp-backend.example.com:8080",
+		},
+	}
+
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			resolv := filepath.Join(dir, "resolv.conf")
+			if err := os.WriteFile(resolv, []byte(c.resolvConf), 0o644); err != nil {
+				t.Fatalf("写 resolv.conf 失败：%v", err)
+			}
+
+			// 脚本里写死了 /etc/resolv.conf，测试时把它替换成临时文件
+			script := strings.ReplaceAll(
+				readFile(t, "docker-entrypoint.d/15-cluster-fqdn.envsh"),
+				"/etc/resolv.conf", resolv)
+			path := filepath.Join(dir, "hook.envsh")
+			if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+				t.Fatalf("写脚本失败：%v", err)
+			}
+
+			// 脚本用 return 退出，必须 source 而不是执行
+			cmd := exec.Command("sh", "-c",
+				". "+path+" >/dev/null 2>&1; printf '%s' \"$ERP_BACKEND_ENDPOINT\"")
+			cmd.Env = append(os.Environ(), "ERP_BACKEND_ENDPOINT="+c.endpoint)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("跑脚本失败：%v\n%s", err, out)
+			}
+			if got := string(out); got != c.want {
+				t.Errorf("期望 %q，实际 %q", c.want, got)
+			}
+		})
+	}
 }

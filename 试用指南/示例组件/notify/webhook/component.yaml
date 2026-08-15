@@ -1,0 +1,28 @@
+# notify/webhook —— 一个最小的 BrickKit 组件
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: notify/webhook
+  name: 通知收集器
+  version: 1.0.0
+  description: 收下消息并记在内存里，供查看
+  vendor: me
+  license: MIT
+
+configSchema:
+  type: object
+  properties:
+    keepMessages:
+      type: integer
+      default: 20
+      description: 最多保留多少条消息，注入为环境变量 KEEP_MESSAGES
+
+deployment:
+  type: container
+  image: my/notify-webhook:1.0.0
+  port: 8080
+
+healthCheck:
+  type: http
+  path: /healthz
