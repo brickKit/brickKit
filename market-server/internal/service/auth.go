@@ -35,7 +35,13 @@ type RegisterRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Email    string `json:"email,omitempty"`
-	OrgID    string `json:"orgId,omitempty"`
+	// OrgID 会被**忽略**，保留字段只是为了老客户端传了也不报错。
+	//
+	// 组织成员关系就是授权本身（007 §5.3：private 组件按 allowedOrganizations 授权）。
+	// 注册时能自报组织，等于任何人写上别人的组织 ID 就能读走该组织的全部 private
+	// 组件——详情、Manifest、产物，一样不落。入组只能走 AddOrganizationMember，
+	// 那里要求组织所有者或市场管理员。
+	OrgID string `json:"orgId,omitempty"`
 }
 
 // Register 注册用户。
@@ -54,8 +60,8 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*model.Use
 		Username:     req.Username,
 		Email:        req.Email,
 		PasswordHash: string(hash),
-		OrgID:        req.OrgID,
-		CreatedAt:    s.now(),
+		// 刻意不取 req.OrgID：见 RegisterRequest.OrgID 的说明
+		CreatedAt: s.now(),
 	}
 	if err := s.repo.CreateUser(ctx, user); err != nil {
 		if errors.Is(err, repo.ErrConflict) {

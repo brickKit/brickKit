@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,6 +26,7 @@ type Memory struct {
 	artifacts map[string][]model.ArtifactRecord
 	policies  map[string][]model.AccessPolicy
 	users     map[string]model.User // 键是 userID
+	orgs      map[string]model.Organization
 	tokens    map[string]model.Token
 	audit     []model.AuditEntry
 	auditSeq  int64
@@ -36,6 +38,7 @@ func NewMemory() *Memory {
 		components: map[string]model.Component{},
 		versions:   map[string]model.Version{},
 		artifacts:  map[string][]model.ArtifactRecord{},
+		orgs:       map[string]model.Organization{},
 		policies:   map[string][]model.AccessPolicy{},
 		users:      map[string]model.User{},
 		tokens:     map[string]model.Token{},
@@ -529,4 +532,64 @@ func paginate(items []model.Component, page, pageSize int) []model.Component {
 		end = len(items)
 	}
 	return items[start:end]
+}
+
+// ============================================================
+// 组织（007 §9.5）
+// ============================================================
+
+func (m *Memory) CreateOrganization(_ context.Context, o *model.Organization) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.orgs[o.OrgID]; exists {
+		return ErrConflict
+	}
+	if o.CreatedAt.IsZero() {
+		o.CreatedAt = time.Now().UTC()
+	}
+	m.orgs[o.OrgID] = *o
+	return nil
+}
+
+func (m *Memory) GetOrganization(_ context.Context, orgID string) (*model.Organization, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	org, ok := m.orgs[orgID]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return &org, nil
+}
+
+func (m *Memory) ListOrganizations(_ context.Context) ([]model.Organization, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	out := make([]model.Organization, 0, len(m.orgs))
+	for _, org := range m.orgs {
+		out = append(out, org)
+	}
+	// 按创建时间排序；同一时刻创建的按 ID，保证结果稳定
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].OrgID < out[j].OrgID
+		}
+		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	})
+	return out, nil
+}
+
+func (m *Memory) SetUserOrg(_ context.Context, userID, orgID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	user, ok := m.users[userID]
+	if !ok {
+		return ErrNotFound
+	}
+	user.OrgID = orgID
+	m.users[userID] = user
+	return nil
 }

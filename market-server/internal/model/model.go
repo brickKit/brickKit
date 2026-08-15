@@ -178,6 +178,20 @@ type User struct {
 	CreatedAt    time.Time `json:"createdAt"`
 }
 
+// Organization 是一个组织（007 §9.5、§10）。
+//
+// 组织存在的意义只有一个：把 private 组件按组织授权出去（007 §5.3 的
+// allowedOrganizations）。因此**成员关系就是授权本身**，只能由组织所有者
+// 或市场管理员建立——绝不能由使用者在注册时自报。
+type Organization struct {
+	OrgID   string `json:"orgId"`
+	Name    string `json:"name"`
+	OwnerID string `json:"ownerId"`
+	// Members 只在查询单个组织时填充。
+	Members   []string  `json:"members,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
 // Token 是登录后签发的访问令牌（007 §9.6 Bearer Token）。
 type Token struct {
 	Token     string    `json:"token"`
@@ -215,15 +229,17 @@ type AuditEntry struct {
 
 // 审计动作（007 §16.1）。
 const (
-	ActionVersionPublished  = "component.version.published"
-	ActionVersionStatus     = "component.version.status_changed"
-	ActionVersionDeleted    = "component.version.deleted"
-	ActionVisibilityChanged = "component.visibility_changed"
-	ActionAccessChanged     = "component.access_changed"
-	ActionArtifactUploaded  = "component.artifact.uploaded"
-	ActionArtifactDownload  = "component.artifact.downloaded"
-	ActionUserRegistered    = "user.registered"
-	ActionUserLogin         = "user.login"
+	ActionVersionPublished    = "component.version.published"
+	ActionVersionStatus       = "component.version.status_changed"
+	ActionVersionDeleted      = "component.version.deleted"
+	ActionVisibilityChanged   = "component.visibility_changed"
+	ActionAccessChanged       = "component.access_changed"
+	ActionArtifactUploaded    = "component.artifact.uploaded"
+	ActionArtifactDownload    = "component.artifact.downloaded"
+	ActionOrganizationCreated = "organization.created"
+	ActionMemberAdded         = "organization.member_added"
+	ActionUserRegistered      = "user.registered"
+	ActionUserLogin           = "user.login"
 )
 
 // 审计结果。

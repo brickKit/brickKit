@@ -49,6 +49,10 @@ func New(svc *service.Service, opts Options) http.Handler {
 
 	rt.handle(http.MethodGet, "/api/v1/audit", (*api).listAudit)
 
+	rt.handle(http.MethodGet, "/api/v1/organizations", (*api).listOrganizations)
+	rt.handle(http.MethodPost, "/api/v1/organizations", (*api).createOrganization)
+	rt.handle(http.MethodPost, "/api/v1/organizations/:orgId/members", (*api).addOrganizationMember)
+
 	rt.handle(http.MethodGet, "/api/v1/components", (*api).searchComponents)
 	rt.handle(http.MethodGet, "/api/v1/components/:scope/:name", (*api).componentDetail)
 	rt.handle(http.MethodPut, "/api/v1/components/:scope/:name/visibility", (*api).setVisibility)

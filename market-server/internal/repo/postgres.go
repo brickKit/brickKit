@@ -55,7 +55,7 @@ func (p *Postgres) Migrate(ctx context.Context) error {
 func (p *Postgres) TruncateAll(ctx context.Context) error {
 	_, err := p.db.ExecContext(ctx, `TRUNCATE
 		components, component_tags, component_versions, artifacts,
-		access_policies, users, tokens, audit_logs, download_records
+		access_policies, users, tokens, audit_logs, download_records, organizations
 		RESTART IDENTITY CASCADE`)
 	return err
 }
@@ -720,4 +720,68 @@ func nullable(s string) any {
 		return nil
 	}
 	return s
+}
+
+// ============================================================
+// 组织（007 §9.5）
+// ============================================================
+
+const orgColumns = `org_id, name, owner_id, created_at`
+
+func (p *Postgres) CreateOrganization(ctx context.Context, o *model.Organization) error {
+	createdAt := o.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
+		o.CreatedAt = createdAt
+	}
+	_, err := p.db.ExecContext(ctx, `
+		INSERT INTO organizations (org_id, name, owner_id, created_at)
+		VALUES ($1,$2,$3,$4)`,
+		o.OrgID, o.Name, o.OwnerID, createdAt)
+	if isUniqueViolation(err) {
+		return ErrConflict
+	}
+	return err
+}
+
+func (p *Postgres) GetOrganization(ctx context.Context, orgID string) (*model.Organization, error) {
+	var o model.Organization
+	err := p.db.QueryRowContext(ctx,
+		`SELECT `+orgColumns+` FROM organizations WHERE org_id = $1`, orgID).
+		Scan(&o.OrgID, &o.Name, &o.OwnerID, &o.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &o, nil
+}
+
+func (p *Postgres) ListOrganizations(ctx context.Context) ([]model.Organization, error) {
+	rows, err := p.db.QueryContext(ctx,
+		`SELECT `+orgColumns+` FROM organizations ORDER BY created_at, org_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := []model.Organization{}
+	for rows.Next() {
+		var o model.Organization
+		if err := rows.Scan(&o.OrgID, &o.Name, &o.OwnerID, &o.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+// SetUserOrg 设置用户所属组织。空串表示退出组织。
+func (p *Postgres) SetUserOrg(ctx context.Context, userID, orgID string) error {
+	var value any = orgID
+	if orgID == "" {
+		value = nil
+	}
+	return p.exec1(ctx, `UPDATE users SET org_id = $2 WHERE user_id = $1`, userID, value)
 }

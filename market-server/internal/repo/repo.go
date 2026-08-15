@@ -104,6 +104,17 @@ type Repository interface {
 	// ListAccessPolicies 查询访问策略。
 	ListAccessPolicies(ctx context.Context, componentID string) ([]model.AccessPolicy, error)
 
+	// ---- 组织（007 §9.5）----
+
+	// CreateOrganization 创建组织；ID 已存在时返回 ErrConflict。
+	CreateOrganization(ctx context.Context, o *model.Organization) error
+	// GetOrganization 按 ID 查询，不存在时返回 ErrNotFound。
+	GetOrganization(ctx context.Context, orgID string) (*model.Organization, error)
+	// ListOrganizations 列出全部组织，按创建时间排序。
+	ListOrganizations(ctx context.Context) ([]model.Organization, error)
+	// SetUserOrg 设置用户所属组织（组织成员关系的唯一写入口）。
+	SetUserOrg(ctx context.Context, userID, orgID string) error
+
 	// ---- 用户与令牌 ----
 
 	// CreateUser 注册用户；用户名已存在时返回 ErrConflict。

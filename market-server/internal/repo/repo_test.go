@@ -63,6 +63,7 @@ func runContract(t *testing.T, newRepo func(t *testing.T) repo.Repository) {
 		"产物上传标记":               testArtifactUploadMark,
 		"访问策略":                 testAccessPolicies,
 		"用户与令牌":                testUsersAndTokens,
+		"组织与成员":                testOrganizations,
 		"审计只追加":                testAudit,
 		"不存在的记录返回 ErrNotFound": testNotFound,
 	}
@@ -576,4 +577,67 @@ func versionsOf(versions []model.Version) []string {
 		out = append(out, v.Version)
 	}
 	return out
+}
+
+// testOrganizations 是组织的行为契约（007 §9.5）。
+//
+// 成员关系记在 users.org_id 上，因此这套用例同时钉住"改组织"这件事
+// 落在用户记录上，而不是另开一张成员表。
+func testOrganizations(t *testing.T, r repo.Repository) {
+	ctx := context.Background()
+
+	require.NoError(t, r.CreateUser(ctx, &model.User{UserID: "user-1", Username: "alice"}))
+	require.NoError(t, r.CreateUser(ctx, &model.User{UserID: "user-2", Username: "bob"}))
+
+	org := &model.Organization{OrgID: "org-1", Name: "Acme", OwnerID: "user-1"}
+	require.NoError(t, r.CreateOrganization(ctx, org))
+	assert.False(t, org.CreatedAt.IsZero(), "创建时间由仓储补齐")
+
+	t.Run("重复创建返回冲突", func(t *testing.T) {
+		err := r.CreateOrganization(ctx, &model.Organization{OrgID: "org-1", Name: "别的", OwnerID: "user-2"})
+		assert.ErrorIs(t, err, repo.ErrConflict)
+	})
+
+	t.Run("按 ID 查询", func(t *testing.T) {
+		got, err := r.GetOrganization(ctx, "org-1")
+		require.NoError(t, err)
+		assert.Equal(t, "Acme", got.Name)
+		assert.Equal(t, "user-1", got.OwnerID)
+	})
+
+	t.Run("查不到返回 ErrNotFound", func(t *testing.T) {
+		_, err := r.GetOrganization(ctx, "org-不存在")
+		assert.ErrorIs(t, err, repo.ErrNotFound)
+	})
+
+	t.Run("列表按创建时间排序", func(t *testing.T) {
+		require.NoError(t, r.CreateOrganization(ctx,
+			&model.Organization{OrgID: "org-2", Name: "另一家", OwnerID: "user-2"}))
+
+		orgs, err := r.ListOrganizations(ctx)
+		require.NoError(t, err)
+		require.Len(t, orgs, 2)
+		assert.Equal(t, "org-1", orgs[0].OrgID)
+		assert.Equal(t, "org-2", orgs[1].OrgID)
+	})
+
+	t.Run("设置用户所属组织", func(t *testing.T) {
+		require.NoError(t, r.SetUserOrg(ctx, "user-2", "org-1"))
+
+		user, err := r.GetUserByID(ctx, "user-2")
+		require.NoError(t, err)
+		assert.Equal(t, "org-1", user.OrgID)
+	})
+
+	t.Run("退出组织写空串", func(t *testing.T) {
+		require.NoError(t, r.SetUserOrg(ctx, "user-2", ""))
+
+		user, err := r.GetUserByID(ctx, "user-2")
+		require.NoError(t, err)
+		assert.Empty(t, user.OrgID)
+	})
+
+	t.Run("给不存在的用户设组织返回 ErrNotFound", func(t *testing.T) {
+		assert.ErrorIs(t, r.SetUserOrg(ctx, "user-不存在", "org-1"), repo.ErrNotFound)
+	})
 }

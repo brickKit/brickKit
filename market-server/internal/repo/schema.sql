@@ -66,6 +66,15 @@ CREATE TABLE IF NOT EXISTS access_policies (
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+-- 组织（007 §9.5、§10）。
+-- 成员关系记在 users.org_id 上：一个用户至多属于一个组织。
+CREATE TABLE IF NOT EXISTS organizations (
+    org_id          VARCHAR(128) PRIMARY KEY,
+    name            VARCHAR(256) NOT NULL,
+    owner_id        VARCHAR(128) NOT NULL,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS users (
     user_id         VARCHAR(128) PRIMARY KEY,
     username        VARCHAR(128) NOT NULL UNIQUE,

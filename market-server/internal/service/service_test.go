@@ -544,26 +544,31 @@ func TestPrivateComponentAccessControl(t *testing.T) {
 }
 
 // 组织级授权：同组织的成员可访问。
+//
+// 成员关系走 AddOrganizationMember 建立——**不是**注册时自报 orgId。
+// 这个用例原来就是靠自报建的组，那条路已经堵上（见 organization_test.go 的说明）。
 func TestPrivateComponentOrgAccess(t *testing.T) {
 	f := newFixture(t)
 	owner := f.registerUser(t, "zhangsan")
+	f.registerUser(t, "lisi")
 	ctx := context.Background()
 
-	member, err := f.svc.Register(ctx, service.RegisterRequest{
-		Username: "lisi", Password: "correct-horse-battery", OrgID: "org-mycompany",
-	})
+	org, err := f.svc.CreateOrganization(ctx, owner, service.CreateOrganizationRequest{Name: "MyCompany"})
 	require.NoError(t, err)
+	owner = f.reload(t, owner)
+	require.NoError(t, f.svc.AddOrganizationMember(ctx, owner, org.OrgID,
+		service.AddMemberRequest{Username: "lisi"}))
+
 	token, err := f.svc.Login(ctx, "lisi", "correct-horse-battery")
 	require.NoError(t, err)
 	memberIdentity, err := f.svc.Authenticate(ctx, token.Token)
 	require.NoError(t, err)
-	assert.Equal(t, "org-mycompany", memberIdentity.OrgID)
-	_ = member
+	assert.Equal(t, org.OrgID, memberIdentity.OrgID, "登录时应当带上组织")
 
 	f.publish(t, owner, "mycompany/approval", "1.0.0")
 	require.NoError(t, f.svc.SetVisibility(ctx, owner, "mycompany/approval", model.VisibilityPrivate))
 	require.NoError(t, f.svc.SetAccessPolicies(ctx, owner, "mycompany/approval", []model.AccessPolicy{
-		{TargetType: model.TargetOrganization, TargetID: "org-mycompany", Permission: "read"},
+		{TargetType: model.TargetOrganization, TargetID: org.OrgID, Permission: "read"},
 	}))
 
 	_, err = f.svc.GetManifest(ctx, memberIdentity, "mycompany/approval", "1.0.0")
