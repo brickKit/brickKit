@@ -72,7 +72,7 @@ func runRemove(ctx context.Context, opts *Options, arg string) error {
 		return err
 	}
 
-	client, err := source.New(layout, cfg, source.Options{})
+	client, err := newSourceClient(opts, layout, cfg, source.Options{})
 	if err != nil {
 		return err
 	}
@@ -268,6 +268,11 @@ func cleanupComponent(
 	case !os.IsNotExist(err):
 		return res, cleanupError("清理 Manifest 缓存", manifestPath, err)
 	}
+
+	// 签名缓存跟 Manifest 是一对，必须一起删。留下孤儿签名的话，
+	// 下次重新 add 同一版本时会先命中一份对不上的旧签名（虽然会退回重新拉取，
+	// 但那已经是在靠兜底逻辑救场了）。删不掉不阻断——它只是一份缓存。
+	_ = os.Remove(client.SignatureCachePath(target.ID, target.Version))
 
 	artifactDir := client.ArtifactDir(target.ID, target.Version)
 	if _, err := os.Stat(artifactDir); err == nil {

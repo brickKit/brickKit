@@ -21,15 +21,18 @@ package source
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/security"
 )
 
 // Options 控制安装源客户端的行为。
@@ -40,6 +43,9 @@ type Options struct {
 	HTTPClient *http.Client
 	// Now 用于判断 Token 是否过期。为空时使用 time.Now。
 	Now func() time.Time
+	// Signature 是签名校验策略（008 §8.5）。零值表示既不强制、也没有可信公钥，
+	// 此时完全不校验——这正是还没用上签名的项目的默认处境。
+	Signature SignaturePolicy
 }
 
 // Fetched 是一次 Manifest 获取的结果。
@@ -50,6 +56,15 @@ type Fetched struct {
 	SourceID string
 	// FromCache 表示该 Manifest 来自 .brickkit/manifests/ 缓存。
 	FromCache bool
+	// Signature 是安装源提供的签名（008 §8.3），未签名时为 nil。
+	Signature *security.Signature
+	// Verified 表示签名**真的验过并通过**。
+	//
+	// 它与"没有报错"不是一回事：没配公钥、发布者不认识时都会放行，但那是
+	// "没得验"，不是"验过了"。只有这个字段为 true 才能对外说「签名：✅ 已校验」。
+	Verified bool
+	// Warnings 是校验过程中的提醒（未配公钥、发布者未声明），不阻断。
+	Warnings []*clierr.Error
 }
 
 // ArtifactResult 汇总一次产物下载的结果。路径均相对 .brickkit/artifacts/。
@@ -69,6 +84,59 @@ type Client struct {
 	layout   config.Layout
 	opts     Options
 	fetchers []fetcher
+
+	sigMu sync.Mutex
+	// sigStatuses 按 <id>@<version> 记下每次取 Manifest 的签名校验结果。
+	//
+	// 记在客户端里而不是层层往上传：一次 add 会连带拉取整棵依赖树的 Manifest，
+	// 命令层要报的是"这一趟里哪些验过、哪些没验过"，而不是每个调用点各接一次。
+	sigStatuses map[string]SignatureStatus
+	sigOrder    []string
+}
+
+// SignatureStatus 是某个组件版本的签名校验结果。
+type SignatureStatus struct {
+	ComponentID string
+	Version     string
+	// Verified 为 true 表示签名**真的验过并通过**（008 §8.4）。
+	Verified  bool
+	Signature *security.Signature
+	// Warnings 是放行但需要提醒的情况（未配公钥、发布者未声明）。
+	Warnings []*clierr.Error
+}
+
+// Ref 返回 people/basic@1.2.0 形式的引用。
+func (s SignatureStatus) Ref() string { return s.ComponentID + "@" + s.Version }
+
+// SignatureStatuses 返回本次运行中所有取过的 Manifest 的校验结果，按首次出现顺序。
+func (c *Client) SignatureStatuses() []SignatureStatus {
+	c.sigMu.Lock()
+	defer c.sigMu.Unlock()
+
+	out := make([]SignatureStatus, 0, len(c.sigOrder))
+	for _, key := range c.sigOrder {
+		out = append(out, c.sigStatuses[key])
+	}
+	return out
+}
+
+// recordSignature 记下一次校验结果（同一组件版本重复取时只记第一次）。
+func (c *Client) recordSignature(id, version string, sig *security.Signature, result verifyResult) {
+	c.sigMu.Lock()
+	defer c.sigMu.Unlock()
+
+	key := id + "@" + version
+	if _, seen := c.sigStatuses[key]; seen {
+		return
+	}
+	if c.sigStatuses == nil {
+		c.sigStatuses = map[string]SignatureStatus{}
+	}
+	c.sigStatuses[key] = SignatureStatus{
+		ComponentID: id, Version: version,
+		Verified: result.verified, Signature: sig, Warnings: result.warnings,
+	}
+	c.sigOrder = append(c.sigOrder, key)
 }
 
 // New 由项目布局与配置构造安装源客户端。enabled: false 的安装源不会被构造。
@@ -153,15 +221,22 @@ func (c *Client) Manifest(ctx context.Context, id, version string) (*Fetched, er
 
 	cachePath := c.ManifestCachePath(id, version)
 	if !c.opts.Refresh && !c.servedByLocalSource(ctx, id, version) {
-		if m, ok := readCachedManifest(cachePath, id, version); ok {
-			return &Fetched{Manifest: m, FromCache: true}, nil
+		if fetched, ok := c.fromCache(cachePath, id, version); ok {
+			return fetched, nil
 		}
 	}
 
-	raw, m, sourceID, err := c.fetchManifest(ctx, id, version)
+	raw, m, sourceID, kind, sig, err := c.fetchManifest(ctx, id, version)
 	if err != nil {
 		return nil, err
 	}
+
+	// 先验后存：验不过的东西绝不能进缓存，否则下一次它就成了"本地已有的那份"
+	result, err := c.verifyFrom(kind, raw, sig, id, version)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := writeFileAll(cachePath, raw); err != nil {
 		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：写入 Manifest 缓存失败").
 			WithDetail("路径", cachePath).
@@ -169,7 +244,111 @@ func (c *Client) Manifest(ctx context.Context, id, version string) (*Fetched, er
 			WithHint("检查 .brickkit/manifests/ 目录权限").
 			WithCause(err)
 	}
-	return &Fetched{Manifest: m, SourceID: sourceID}, nil
+	c.writeCachedSignature(id, version, kind, sig)
+	c.recordSignature(id, version, sig, result)
+
+	return &Fetched{
+		Manifest: m, SourceID: sourceID,
+		Signature: sig, Verified: result.verified, Warnings: result.warnings,
+	}, nil
+}
+
+// verifyFrom 按安装源类型决定要不要应用签名策略。
+//
+// **只有市场源受签名约束。** 008 §8.4 说的是"从**市场**获取 Manifest 和签名"：
+// 本地源指向的是使用者自己硬盘上、正被他编辑的目录，git 源指向的是他自己在
+// brickkit.yaml 里写下的仓库——那里根本没有"发布者"这个角色，也就无所谓签名。
+//
+// 若一并强制，打开 requireSignature 会让所有用本地源开发的项目当场瘫痪，
+// 结果只会是大家把它关掉；那才是真正的安全损失。
+func (c *Client) verifyFrom(
+	kind string, raw []byte, sig *security.Signature, id, version string,
+) (verifyResult, error) {
+	if kind != config.SourceTypeMarket {
+		return verifyResult{}, nil
+	}
+	return c.opts.Signature.verify(raw, sig, id, version)
+}
+
+// fromCache 尝试用缓存应答这次请求，连同签名一起校验。
+//
+// 缓存这条路径不能是校验的后门：只要跳过它，"先在不校验的情况下 add 一次、
+// 再打开 requireSignature"就能让一份从未验过的 Manifest 一直被用下去。
+//
+// 校验不过时**退回去重新拉取**，而不是直接报错。缓存里的东西可能只是旧了
+// （公钥轮换过、发布者重新签过），硬报错会让人除了手动删缓存无路可走；
+// 而重新拉来的那份同样要过校验，安全性一点没少。
+func (c *Client) fromCache(cachePath, id, version string) (*Fetched, bool) {
+	raw, m, ok := readCachedManifest(cachePath, id, version)
+	if !ok {
+		return nil, false
+	}
+
+	// 缓存旁边的信封记着"这份是哪种源给的、签名是什么"。信封不在（老缓存）
+	// 而策略又要校验时，只能当作缓存未命中去重新拉——凭空假设它来自哪种源，
+	// 无论假设成哪一种都会错：假设市场源会误伤 git 缓存，假设非市场源就成了后门。
+	envelope, ok := c.readCachedSignature(id, version)
+	if !ok {
+		if c.opts.Signature.enabled() {
+			return nil, false
+		}
+		envelope = cachedSignature{}
+	}
+	result, err := c.verifyFrom(envelope.SourceKind, raw, envelope.Signature, id, version)
+	if err != nil {
+		return nil, false
+	}
+	sig := envelope.Signature
+	c.recordSignature(id, version, sig, result)
+	return &Fetched{
+		Manifest: m, FromCache: true,
+		Signature: sig, Verified: result.verified, Warnings: result.warnings,
+	}, true
+}
+
+// SignatureCachePath 返回签名缓存路径，与 Manifest 缓存同目录同名，后缀 .sig.json。
+func (c *Client) SignatureCachePath(id, version string) string {
+	return strings.TrimSuffix(c.ManifestCachePath(id, version), ".yaml") + ".sig.json"
+}
+
+// cachedSignature 是签名缓存文件的内容。
+//
+// 里面必须同时记下**来源类型**：签名策略只约束市场源，而缓存文件本身看不出
+// 这份 Manifest 当初是谁给的。只存签名的话，"没有签名"就有了两种解释——
+// 市场给的未签名组件（该被 requireSignature 拦住），还是 git 源给的
+// （压根不该管）——两者无法区分。
+type cachedSignature struct {
+	SourceKind string              `json:"sourceKind"`
+	Signature  *security.Signature `json:"signature,omitempty"`
+}
+
+// readCachedSignature 读取缓存信封；文件不在或读不动时返回 false。
+func (c *Client) readCachedSignature(id, version string) (cachedSignature, bool) {
+	data, err := os.ReadFile(c.SignatureCachePath(id, version))
+	if err != nil {
+		return cachedSignature{}, false
+	}
+	var envelope cachedSignature
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return cachedSignature{}, false
+	}
+	if envelope.Signature != nil && envelope.Signature.Empty() {
+		envelope.Signature = nil
+	}
+	return envelope, true
+}
+
+// writeCachedSignature 把来源与签名写到 Manifest 缓存旁边。
+//
+// 写失败不阻断安装：这份缓存只是为了下次少一次请求，它没了最多是重新拉一遍。
+func (c *Client) writeCachedSignature(id, version, kind string, sig *security.Signature) {
+	envelope := cachedSignature{SourceKind: kind, Signature: sig}
+	if sig != nil && sig.Empty() {
+		envelope.Signature = nil
+	}
+	if data, err := json.Marshal(envelope); err == nil {
+		_ = writeFileAll(c.SignatureCachePath(id, version), data)
+	}
 }
 
 // servedByLocalSource 判断这个组件会不会由某个**本地**安装源提供。
@@ -285,10 +464,13 @@ func (c *Client) Origin(ctx context.Context, id, version string) (*Origin, error
 	return nil, c.aggregateError(id, version, failures)
 }
 
-// fetchManifest 按优先级遍历安装源，返回首个命中的 Manifest（原始字节 + 解析结果 + 源 id）。
-func (c *Client) fetchManifest(ctx context.Context, id, version string) ([]byte, *manifest.Manifest, string, error) {
+// fetchManifest 按优先级遍历安装源，返回首个命中的 Manifest
+// （原始字节 + 解析结果 + 源 id + 该源提供的签名）。
+func (c *Client) fetchManifest(
+	ctx context.Context, id, version string,
+) ([]byte, *manifest.Manifest, string, string, *security.Signature, error) {
 	if len(c.fetchers) == 0 {
-		return nil, nil, "", noSourcesError()
+		return nil, nil, "", "", nil, noSourcesError()
 	}
 
 	var failures []failure
@@ -308,9 +490,24 @@ func (c *Client) fetchManifest(ctx context.Context, id, version string) ([]byte,
 			failures = append(failures, failure{sourceID: f.id(), err: errNotFound})
 			continue
 		}
-		return raw, m, f.id(), nil
+		return raw, m, f.id(), f.kind(), signatureFrom(f, id, version), nil
 	}
-	return nil, nil, "", c.aggregateError(id, version, failures)
+	return nil, nil, "", "", nil, c.aggregateError(id, version, failures)
+}
+
+// signedFetcher 是能提供签名的安装源。只有市场源实现它——本地源与 git 源
+// 指向的是使用者自己的目录与仓库，那里没有"发布者"这个角色（008 §8.4 说的是
+// "从**市场**获取 Manifest 和签名"）。
+type signedFetcher interface {
+	signatureFor(componentID, version string) *security.Signature
+}
+
+// signatureFrom 取出该安装源刚刚提供的签名；不支持签名的源返回 nil。
+func signatureFrom(f fetcher, id, version string) *security.Signature {
+	if sf, ok := f.(signedFetcher); ok {
+		return sf.signatureFor(id, version)
+	}
+	return nil
 }
 
 // fetchArtifact 按优先级遍历安装源，返回首个能提供该产物文件的内容。
@@ -414,19 +611,19 @@ func describe(f fetcher, id, version string) string {
 
 // readCachedManifest 读取并校验缓存的 Manifest。缓存缺失或损坏时返回 ok=false，
 // 由调用方重新从安装源拉取——缓存不该成为故障源。
-func readCachedManifest(path, id, version string) (*manifest.Manifest, bool) {
+func readCachedManifest(path, id, version string) ([]byte, *manifest.Manifest, bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, false
+		return nil, nil, false
 	}
 	m, err := manifest.Parse(data, path)
 	if err != nil {
-		return nil, false
+		return nil, nil, false
 	}
 	if m.Metadata.ID != id || m.Metadata.Version != version {
-		return nil, false
+		return nil, nil, false
 	}
-	return m, true
+	return data, m, true
 }
 
 // artifactWarning 生成"产物下载失败"警告（⚠️，不阻断，退出码 0）。

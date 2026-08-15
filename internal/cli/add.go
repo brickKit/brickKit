@@ -106,7 +106,7 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 		return err
 	}
 
-	client, err := source.New(layout, cfg, source.Options{Refresh: refresh})
+	client, err := newSourceClient(opts, layout, cfg, source.Options{Refresh: refresh})
 	if err != nil {
 		return err
 	}
@@ -131,6 +131,7 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 	}
 
 	renderAddTree(opts, graph, target, artifacts)
+	renderSignatures(opts, client.SignatureStatuses())
 	renderWarnings(opts, graph.Warnings)
 	renderWarnings(opts, artifacts.warnings)
 
@@ -250,6 +251,27 @@ func renderAddTree(opts *Options, graph *resolver.Graph, target resolver.Ref, ar
 			branch = "└──"
 		}
 		opts.Printf("   %s %s\n", branch, line)
+	}
+}
+
+// renderSignatures 输出签名校验结果（008 §8 的「签名：✅ 已校验」）。
+//
+// 只报**验过的**：没验过的组件不列一行"未校验"，那会把正常状态渲染成一屏噪音
+// ——绝大多数项目还没用上签名。真正需要使用者知道的落差（要求强制却没配公钥、
+// 发布者不在信任列表）走警告，那才是该占屏幕的东西。
+func renderSignatures(opts *Options, statuses []source.SignatureStatus) {
+	for _, st := range statuses {
+		if !st.Verified {
+			continue
+		}
+		line := "🔏 签名：✅ 已校验 " + st.Ref()
+		if st.Signature != nil && st.Signature.SignedBy != "" {
+			line += "（发布者 " + st.Signature.SignedBy + "）"
+		}
+		opts.Printf("%s\n", line)
+	}
+	for _, st := range statuses {
+		renderWarnings(opts, st.Warnings)
 	}
 }
 

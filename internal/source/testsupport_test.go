@@ -17,6 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/security"
 )
 
 // ============================================================
@@ -226,6 +227,8 @@ type marketMock struct {
 	failArtifactList bool
 	// garbageArtifactList 为 true 时，产物列表端点返回无法解析的正文。
 	garbageArtifactList bool
+	// signature 非空时，Manifest 端点信封里带上签名（008 §8.3）。
+	signature *security.Signature
 	// sourceType / gitURL 是 Manifest 端点信封里的来源信息（007 §11）。
 	// 为空时分别默认为 git 与由组件 ID 推导的仓库地址。
 	sourceType string
@@ -336,6 +339,9 @@ func (m *marketMock) writeManifest(w http.ResponseWriter, spec componentSpec) {
 	data := map[string]any{"manifest": doc, "sourceType": sourceType}
 	if gitURL != "" {
 		data["gitUrl"] = gitURL
+	}
+	if m.signature != nil {
+		data["signature"] = m.signature
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": data})
 }

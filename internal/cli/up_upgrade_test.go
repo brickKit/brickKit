@@ -164,6 +164,33 @@ func TestDryRunShowsUpgradeSummary(t *testing.T) {
 	assert.Contains(t, r.stdout, "python manage.py migrate")
 }
 
+// TestUpgradeSummaryIgnoresSidecarCacheFiles 是一条回归。
+//
+// .brickkit/manifests/ 里除了 Manifest 本身，还躺着签名缓存
+// （people-basic-1.0.0.sig.json，Step 20 引入）。扫描这个目录找"已缓存的版本"
+// 时如果不筛扩展名，去掉一层 .json 会得到 people-basic-1.0.0.sig，
+// "版本号"就成了 1.0.0.sig，一路显示到升级摘要里：
+//
+//	people/basic: 1.0.0.sig → 1.1.0
+//
+// 这正是加签名缓存那天真跑出来的现象。目录里将来还会放别的东西，
+// 所以筛的是"只认 .yaml"，不是"排掉 .sig.json"。
+func TestUpgradeSummaryIgnoresSidecarCacheFiles(t *testing.T) {
+	f := upgradableProject(t, comp{ID: "people/basic", Version: "1.1.0"})
+	bumpTo(t, f, "1.1.0")
+
+	// 手动放一个签名缓存，模拟这个版本当初是带签名装进来的
+	sidecar := filepath.Join(f.Layout.ManifestsDir(), "people-basic-1.0.0.sig.json")
+	require.NoError(t, os.WriteFile(sidecar,
+		[]byte(`{"sourceKind":"market","signature":{"algorithm":"cosign"}}`), 0o644))
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.Contains(t, r.stdout, "people/basic: 1.0.0 → 1.1.0")
+	assert.NotContains(t, r.stdout, "1.0.0.sig", "缓存旁边的文件不是版本号")
+}
+
 // 新版本没有迁移时，摘要里要如实说"无"，而不是留一个空行让人猜。
 func TestUpgradeSummaryWithoutMigration(t *testing.T) {
 	f := upgradableProject(t, comp{ID: "people/basic", Version: "1.1.0"})

@@ -96,6 +96,10 @@ func (s *Service) Publish(
 	if err != nil {
 		return nil, err
 	}
+	// 结构上就不可能有效的签名当场退回，不让它在库里留下痕迹
+	if err := req.Signature.Validate(); err != nil {
+		return nil, err
+	}
 	if manifest.Metadata.ID != componentID {
 		return nil, model.Errorf(model.CodeInvalidRequest,
 			"组件 ID 与 Manifest 中的 metadata.id 不一致").
@@ -132,6 +136,7 @@ func (s *Service) Publish(
 		Changelog:   req.Changelog,
 		PublishedAt: s.now(),
 		PublishedBy: id.Username,
+		Signature:   req.Signature,
 	}
 	if err := s.repo.CreateVersion(ctx, version); err != nil {
 		if errors.Is(err, repo.ErrConflict) {
@@ -313,6 +318,9 @@ type ManifestView struct {
 	Manifest    json.RawMessage `json:"manifest"`
 	SourceType  string          `json:"sourceType"`
 	GitURL      string          `json:"gitUrl,omitempty"`
+	// Signature 随 Manifest 一起返回：CLI 在 add 时只请求这一个端点（007 §4.5），
+	// 签名不跟着回来，使用者就得再猜一次它在哪儿——或者干脆验不了。
+	Signature *model.Signature `json:"signature,omitempty"`
 }
 
 // GetManifest 获取某个版本的 Manifest（007 §4.5）。
@@ -335,6 +343,7 @@ func (s *Service) GetManifest(
 		Manifest:    v.Manifest,
 		SourceType:  component.SourceType,
 		GitURL:      component.GitURL,
+		Signature:   v.Signature,
 	}, nil
 }
 

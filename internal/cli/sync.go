@@ -78,7 +78,7 @@ func runSync(ctx context.Context, opts *Options) error {
 		return err
 	}
 
-	states, err := syncStates(ctx, layout, cfg)
+	states, err := syncStates(ctx, opts, layout, cfg)
 	if err != nil {
 		return err
 	}
@@ -97,12 +97,12 @@ func runSync(ctx context.Context, opts *Options) error {
 //
 // 与 up 完全同一套逻辑（003 §4.3）：两处各判一次，迟早会出现
 // "up 会启动它、sync 却把它源码归档了"这种自相矛盾的局面。
-func syncStates(ctx context.Context, layout config.Layout, cfg *config.Config) (*cascade.Result, error) {
+func syncStates(ctx context.Context, opts *Options, layout config.Layout, cfg *config.Config) (*cascade.Result, error) {
 	if len(cfg.Components) == 0 {
 		return &cascade.Result{}, nil
 	}
 
-	client, err := source.New(layout, cfg, source.Options{})
+	client, err := newSourceClient(opts, layout, cfg, source.Options{})
 	if err != nil {
 		return nil, err
 	}

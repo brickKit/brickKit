@@ -4,7 +4,9 @@
 package model
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -109,6 +111,55 @@ func Errorf(code, message string) *APIError {
 // 请求 / 响应契约
 // ============================================================
 
+// AlgorithmCosign 是目前唯一支持的签名算法标识（008 §8.3）。
+const AlgorithmCosign = "cosign"
+
+// Signature 是一条组件版本签名（008 §8.3、007 §7.3）。
+//
+// 市场对它做的事只有两件：存下来，以及挡住结构上就不可能有效的（见 Validate）。
+// **市场不做密码学校验**——它手里没有任何可信的公钥。让发布者连公钥一起上传
+// 就是自己给自己发证：攻击者拿到发布 Token 后，用自己的密钥对签名、连公钥一起
+// 传，"校验"照样通过。那种校验比没有更糟，因为它会让人以为验过了。
+//
+// 真正的校验在 CLI 侧，公钥来自使用者自己的 installer.publicKeys（008 §8.4）。
+// 这是对 008 §8.2 时序图中 "Market->>Market: 校验签名" 一步的有意偏离。
+type Signature struct {
+	Algorithm    string    `json:"algorithm"`
+	PublicKeyRef string    `json:"publicKeyRef"`
+	Value        string    `json:"value"`
+	SignedAt     time.Time `json:"signedAt,omitempty"`
+	SignedBy     string    `json:"signedBy,omitempty"`
+}
+
+// Validate 做结构校验：算法认不认识、必填项在不在、value 是不是 base64。
+//
+// 这三种错一眼就能看出来。放进库里只会让每一个使用者在 add 时各自撞一次墙，
+// 而那时已经查不清是谁、在什么时候传坏的了。
+func (s *Signature) Validate() error {
+	if s == nil {
+		return nil // 没签名不是错误，强制与否由使用者的 requireSignature 决定
+	}
+
+	switch {
+	case strings.TrimSpace(s.Algorithm) == "":
+		return Errorf(CodeInvalidRequest, "签名缺少 algorithm").
+			WithDetail("expected", AlgorithmCosign)
+	case s.Algorithm != AlgorithmCosign:
+		return Errorf(CodeInvalidRequest, "不支持的签名算法："+s.Algorithm).
+			WithDetail("supported", AlgorithmCosign)
+	case strings.TrimSpace(s.PublicKeyRef) == "":
+		return Errorf(CodeInvalidRequest,
+			"签名缺少 publicKeyRef（使用者据此在 installer.publicKeys 中查找公钥）")
+	case strings.TrimSpace(s.Value) == "":
+		return Errorf(CodeInvalidRequest, "签名缺少 value")
+	}
+
+	if _, err := base64.StdEncoding.DecodeString(strings.TrimSpace(s.Value)); err != nil {
+		return Errorf(CodeInvalidRequest, "签名 value 不是合法的 base64")
+	}
+	return nil
+}
+
 // PublishRequest 是发布新版本的请求体（007 §3.7）。
 type PublishRequest struct {
 	Version    string          `json:"version"`
@@ -118,6 +169,8 @@ type PublishRequest struct {
 	GitURL     string          `json:"gitUrl,omitempty"`
 	Changelog  string          `json:"changelog,omitempty"`
 	Visibility string          `json:"visibility,omitempty"`
+	// Signature 是对 Manifest 规范化载荷的签名（008 §8.3.1），可选。
+	Signature *Signature `json:"signature,omitempty"`
 }
 
 // Component 是组件记录（007 §10.1）。
@@ -146,6 +199,8 @@ type Version struct {
 	Changelog   string          `json:"changelog,omitempty"`
 	PublishedAt time.Time       `json:"publishedAt"`
 	PublishedBy string          `json:"publishedBy"`
+	// Signature 是发布时提交的签名（008 §8.3），未签名时为 nil。
+	Signature *Signature `json:"signature,omitempty"`
 }
 
 // Installable 判断该版本能否被安装（007 §6：blocked 不能安装，deleted 视同不存在）。

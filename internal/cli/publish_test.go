@@ -497,9 +497,13 @@ func TestPublishReportsUnauthorizedFromMarket(t *testing.T) {
 // 签名（Step 20）
 // ============================================================
 
-// --sign 还没实现。必须明确报错，不能假装签过了 ——
+// --sign 不带 --key 时找项目根目录下的 cosign.key（generate-key-pair 的默认名字）。
+// 找不到就必须说清楚找的是哪个路径、以及怎么生成——绝不能假装签过了，
 // 那会让使用者以为组件带签名，而市场里其实什么都没有。
-func TestPublishSignFlagReportsNotImplemented(t *testing.T) {
+//
+// 本用例前身是 Step 20 之前的 TestPublishSignFlagReportsNotImplemented
+// （断言 --sign 报"未实现"）。功能落地后按新行为重写。
+func TestPublishSignWithoutKeyReportsWhereItLooked(t *testing.T) {
 	m := newFakeMarket(t)
 	f := newMarketProject(t, m, "")
 	loginTo(t, f, m)
@@ -508,9 +512,10 @@ func TestPublishSignFlagReportsNotImplemented(t *testing.T) {
 	r := runIn(t, f.Dir, "publish", "--path", root, "--sign")
 
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "Step 20")
+	assert.Contains(t, r.stderr, "cosign.key", "要说明默认找的是哪个文件")
+	assert.Contains(t, r.stderr, "generate-key-pair", "要给出生成密钥对的命令")
 	assert.NotContains(t, strings.Join(m.requests(), " "), "POST /components",
-		"没实现的功能不该先把版本建出来")
+		"签不成就不该先把版本建出来——版本号不可回收")
 }
 
 // ============================================================

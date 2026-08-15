@@ -16,6 +16,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/market"
+	"github.com/brickkit/brickkit/internal/security"
 )
 
 // marketTimeout 是单次市场 API 请求的超时时间。
@@ -45,6 +46,11 @@ type marketSource struct {
 	mu sync.Mutex
 	// artifactIndex 缓存每个 <id>@<version> 的产物列表，避免逐个文件重复请求。
 	artifactIndex map[string][]marketArtifact
+	// signatures 记下每个 <id>@<version> 随 Manifest 一起返回的签名（008 §8.3）。
+	//
+	// 签名在取 Manifest 时顺手拿到，不另发一次请求：CLI 只调用 007 §4.5 的
+	// manifest 端点，签名就在那个信封里。
+	signatures map[string]*security.Signature
 }
 
 // marketArtifact 是产物列表端点返回的一条记录。
@@ -64,7 +70,50 @@ func (s *marketSource) manifestBytes(ctx context.Context, componentID, version s
 	if err != nil {
 		return nil, err
 	}
+	s.rememberSignature(componentID, version, signatureFromBody(body))
 	return manifestFromBody(body, s.sourceID)
+}
+
+// signatureFor 返回上一次取 Manifest 时拿到的签名（signedFetcher）。
+func (s *marketSource) signatureFor(componentID, version string) *security.Signature {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.signatures[componentID+"@"+version]
+}
+
+func (s *marketSource) rememberSignature(componentID, version string, sig *security.Signature) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.signatures == nil {
+		s.signatures = map[string]*security.Signature{}
+	}
+	s.signatures[componentID+"@"+version] = sig
+}
+
+// signatureFromBody 从 Manifest 响应信封里取签名。
+//
+// 取不到就是"没有签名"，绝不报错：市场可能根本没实现这个字段，而"该不该
+// 因为没签名而阻断"是使用者的策略（installer.requireSignature），不是解析层
+// 能替他决定的事。
+func signatureFromBody(body []byte) *security.Signature {
+	var envelope struct {
+		Data struct {
+			Signature *security.Signature `json:"signature"`
+		} `json:"data"`
+		Signature *security.Signature `json:"signature"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return nil
+	}
+
+	sig := envelope.Data.Signature
+	if sig == nil {
+		sig = envelope.Signature // 没有 data 信封时直接放在顶层
+	}
+	if sig == nil || sig.Empty() {
+		return nil
+	}
+	return sig
 }
 
 func (s *marketSource) artifactFile(ctx context.Context, componentID, version string, art manifest.Artifact, file string) ([]byte, error) {

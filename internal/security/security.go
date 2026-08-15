@@ -177,7 +177,16 @@ func withComponent(err error, componentID, version string) error {
 	// 组件放在第一条：使用者最先要知道的是"哪个组件装不上"
 	details := append([]clierr.Detail{{Key: "组件", Value: componentID + "@" + version}}, cerr.Details...)
 	cerr.Details = details
-	return cerr.WithHint("联系组件发布者重新签名")
+
+	// 各处的错误已经带了自己的建议，其中好几条本来就是"联系发布者重新签名"。
+	// 无条件再追加一遍，渲染出来就是同一句话出现两次——看着像程序出了毛病。
+	const contact = "联系组件发布者重新签名"
+	for _, hint := range cerr.Hints {
+		if hint == contact {
+			return cerr
+		}
+	}
+	return cerr.WithHint(contact)
 }
 
 func invalid(message string) *clierr.Error {

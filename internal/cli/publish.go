@@ -15,18 +15,22 @@ import (
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/market"
+	"github.com/brickkit/brickkit/internal/security"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
 // publishFlags 是 brickkit publish 的参数（004 §3.11、010 §7.3）。
 type publishFlags struct {
-	path       string
-	visibility string
-	changelog  string
-	market     string
-	sourceType string
-	gitURL     string
-	sign       bool
+	path         string
+	visibility   string
+	changelog    string
+	market       string
+	sourceType   string
+	gitURL       string
+	sign         bool
+	key          string
+	publicKeyRef string
+	signedBy     string
 }
 
 // newPublishCommand 实现 brickkit publish（004 §3.11）。
@@ -67,6 +71,10 @@ func newPublishCommand(opts *Options) *cobra.Command {
 		"来源类型：git（开源）| registry（闭源）。默认按组件目录的 git remote 推断")
 	cmd.Flags().StringVar(&f.gitURL, "git-url", "", "开源组件的 Git 仓库地址（默认取组件目录的 origin）")
 	cmd.Flags().BoolVar(&f.sign, "sign", false, "对组件签名后发布（cosign）")
+	cmd.Flags().StringVar(&f.key, "key", "", "cosign 私钥路径（默认 "+defaultSigningKey+"）")
+	cmd.Flags().StringVar(&f.publicKeyRef, "public-key-ref", "",
+		"写进签名的公钥 ref（默认按 --key 的 .key → .pub 推导）")
+	cmd.Flags().StringVar(&f.signedBy, "signed-by", "", "签名者标识，如 release-bot@example.com")
 	return cmd
 }
 
@@ -78,11 +86,6 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 	if err := validateVisibility(f.visibility); err != nil {
 		return err
 	}
-	if f.sign {
-		// 不能假装签过了：那会让人以为组件带签名，而市场里其实什么都没有
-		return clierr.NotImplemented("brickkit publish --sign（cosign 签名）", 20)
-	}
-
 	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
 	marketURL, err := resolveMarketURL(layout, f.market)
 	if err != nil {
@@ -102,6 +105,12 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 	opts.Printf("📤 发布 %s@%s\n", pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version)
 	opts.Printf("   ✅ Manifest 校验通过\n")
 	opts.Printf("   ✅ 镜像引用有效：%s\n", pkg.manifest.Deployment.Image)
+
+	// 签名也在联网之前：版本号一旦建出来就不可回收（市场侧 18.14），
+	// 不能因为密钥路径写错就烧掉一个有语义的版本号
+	if err := signPackage(ctx, opts, pkg, f); err != nil {
+		return err
+	}
 
 	client := market.New(marketURL, token)
 	if err := uploadRelease(ctx, opts, client, pkg, f); err != nil {
@@ -126,6 +135,8 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 type publishPackage struct {
 	root     string
 	manifest *manifest.Manifest
+	// signature 是 --sign 生成的签名（008 §8.3），未签名时为 nil。
+	signature *security.Signature
 	// document 是 component.yaml 转成的 JSON，原样上传：
 	// 走结构体转一手会把市场认识、而 CLI 还没建模的字段丢掉。
 	document json.RawMessage
@@ -243,6 +254,7 @@ func uploadRelease(
 		SourceType: pkg.sourceType,
 		GitURL:     pkg.gitURL,
 		Changelog:  f.changelog,
+		Signature:  pkg.signature,
 	})
 	if err != nil {
 		return err

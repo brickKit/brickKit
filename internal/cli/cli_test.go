@@ -153,14 +153,17 @@ func TestErrorOutputFormat(t *testing.T) {
 }
 
 // 骨架阶段：未实现的命令给出明确的 NOT_IMPLEMENTED 错误与 Step 编号。
+//
+// 现在这张表是**空的**——命令树上已经没有未实现的入口了：
+// init（Step 3）、reset（Step 8）、add / remove（Step 9）、order（Step 10）、
+// up / down / status（Step 15）、sync（Step 17）、login / publish（Step 19）、
+// publish --sign（Step 20）。
+//
+// 表空了也保留这个用例：将来再往命令树上加占位命令时，把它填回来即可，
+// 那条"占位必须明确报错、不能假装成功"的约束就还在。
 func TestNotImplementedCommands(t *testing.T) {
-	// 已实现的命令不在此列：init（Step 3）、reset（Step 8）、
-	// add / remove（Step 9）、order（Step 10）、
-	// up / down / status（Step 15）、login / publish（Step 19）、sync（Step 17）
-	cases := map[string][]string{
-		// publish --sign 依赖 cosign 签名，属于 Step 20
-		"publish --sign": {"publish", "--sign"},
-	}
+	cases := map[string][]string{}
+
 	for name, args := range cases {
 		t.Run(name, func(t *testing.T) {
 			r := run(t, args...)

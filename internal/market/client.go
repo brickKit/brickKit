@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/security"
 )
 
 // requestTimeout 是单次市场请求的超时时间。产物上传可能有几十 MB，给宽一点。
@@ -68,6 +69,8 @@ type PublishRequest struct {
 	SourceType string          `json:"sourceType"`
 	GitURL     string          `json:"gitUrl,omitempty"`
 	Changelog  string          `json:"changelog,omitempty"`
+	// Signature 是对 Manifest 规范化载荷的签名（008 §8.3），未签名时为 nil。
+	Signature *security.Signature `json:"signature,omitempty"`
 }
 
 // Artifact 是市场返回的产物条目。

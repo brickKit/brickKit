@@ -264,11 +264,18 @@ func (p *Postgres) CreateVersion(ctx context.Context, v *model.Version) error {
 		v.PublishedAt = publishedAt
 	}
 
-	_, err := p.db.ExecContext(ctx, `
+	signature, err := marshalSignature(v.Signature)
+	if err != nil {
+		return err
+	}
+
+	_, err = p.db.ExecContext(ctx, `
 		INSERT INTO component_versions
-			(component_id, version, status, manifest_json, changelog, published_at, published_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		v.ComponentID, v.Version, v.Status, []byte(v.Manifest), v.Changelog, publishedAt, v.PublishedBy)
+			(component_id, version, status, manifest_json, changelog, signature_json,
+			 published_at, published_by)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		v.ComponentID, v.Version, v.Status, []byte(v.Manifest), v.Changelog, signature,
+		publishedAt, v.PublishedBy)
 	if isUniqueViolation(err) {
 		return ErrConflict
 	}
@@ -278,7 +285,7 @@ func (p *Postgres) CreateVersion(ctx context.Context, v *model.Version) error {
 func (p *Postgres) GetVersion(ctx context.Context, componentID, version string) (*model.Version, error) {
 	row := p.db.QueryRowContext(ctx, `
 		SELECT component_id, version, status, manifest_json, COALESCE(changelog,''),
-		       published_at, COALESCE(published_by,'')
+		       signature_json, published_at, COALESCE(published_by,'')
 		FROM component_versions WHERE component_id = $1 AND version = $2`, componentID, version)
 	return scanVersion(row)
 }
@@ -286,7 +293,7 @@ func (p *Postgres) GetVersion(ctx context.Context, componentID, version string) 
 func (p *Postgres) ListVersions(ctx context.Context, componentID string) ([]model.Version, error) {
 	rows, err := p.db.QueryContext(ctx, `
 		SELECT component_id, version, status, manifest_json, COALESCE(changelog,''),
-		       published_at, COALESCE(published_by,'')
+		       signature_json, published_at, COALESCE(published_by,'')
 		FROM component_versions WHERE component_id = $1`, componentID)
 	if err != nil {
 		return nil, err
@@ -623,11 +630,12 @@ func scanComponent(s scanner) (*model.Component, error) {
 
 func scanVersion(s scanner) (*model.Version, error) {
 	var (
-		v        model.Version
-		manifest []byte
+		v         model.Version
+		manifest  []byte
+		signature []byte
 	)
 	err := s.Scan(&v.ComponentID, &v.Version, &v.Status, &manifest,
-		&v.Changelog, &v.PublishedAt, &v.PublishedBy)
+		&v.Changelog, &signature, &v.PublishedAt, &v.PublishedBy)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -636,7 +644,33 @@ func scanVersion(s scanner) (*model.Version, error) {
 	}
 	v.Manifest = json.RawMessage(manifest)
 	v.PublishedAt = v.PublishedAt.UTC()
+	if v.Signature, err = unmarshalSignature(signature); err != nil {
+		return nil, err
+	}
 	return &v, nil
+}
+
+// marshalSignature 把签名编码成 JSONB。
+//
+// 没签名时必须写 SQL NULL 而不是 JSON 的 "null" 字面量：前者读回来是 nil，
+// 后者会变成一个字段全空的签名结构体，让"未签名"看起来像"签了个空签名"。
+func marshalSignature(sig *model.Signature) (any, error) {
+	if sig == nil {
+		return nil, nil
+	}
+	return json.Marshal(sig)
+}
+
+// unmarshalSignature 把 JSONB 还原成签名，NULL 与空值都还原成 nil。
+func unmarshalSignature(raw []byte) (*model.Signature, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var sig model.Signature
+	if err := json.Unmarshal(raw, &sig); err != nil {
+		return nil, err
+	}
+	return &sig, nil
 }
 
 func scanArtifact(s scanner) (*model.ArtifactRecord, error) {

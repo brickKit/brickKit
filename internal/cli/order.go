@@ -52,7 +52,7 @@ func runOrder(ctx context.Context, opts *Options) error {
 		return nil
 	}
 
-	client, err := source.New(layout, cfg, source.Options{})
+	client, err := newSourceClient(opts, layout, cfg, source.Options{})
 	if err != nil {
 		return err
 	}

@@ -206,7 +206,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		}
 	}
 
-	client, err := source.New(layout, cfg, source.Options{})
+	client, err := newSourceClient(opts, layout, cfg, source.Options{})
 	if err != nil {
 		return nil, err
 	}

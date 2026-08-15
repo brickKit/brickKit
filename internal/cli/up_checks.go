@@ -218,6 +218,12 @@ func cachedVersions(layout config.Layout) map[string][]string {
 
 	out := map[string][]string{}
 	for _, entry := range entries {
+		// 只认 Manifest 本身。这个目录里还躺着签名缓存
+		// （people-basic-1.0.0.sig.json）——不筛掉的话，去掉一层扩展名会得到
+		// people-basic-1.0.0.sig，"版本号"就成了 1.0.0.sig，一路显示到升级摘要里。
+		if filepath.Ext(entry.Name()) != ".yaml" {
+			continue
+		}
 		name := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
 		id, version, ok := splitCachedName(name)
 		if !ok {

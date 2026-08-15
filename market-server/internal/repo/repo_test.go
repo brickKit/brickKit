@@ -59,6 +59,7 @@ func runContract(t *testing.T, newRepo func(t *testing.T) repo.Repository) {
 		"下载计数":                 testDownloads,
 		"版本创建与重复拒绝":            testVersionCreate,
 		"版本列表与状态变更":            testVersionListAndStatus,
+		"版本签名的存取":              testVersionSignature,
 		"产物按版本独立存储":            testArtifactsPerVersion,
 		"产物上传标记":               testArtifactUploadMark,
 		"访问策略":                 testAccessPolicies,
@@ -264,6 +265,63 @@ func testVersionCreate(t *testing.T, r repo.Repository) {
 	assert.Equal(t, "user-1", got.PublishedBy)
 	assert.False(t, got.PublishedAt.IsZero())
 	assert.JSONEq(t, `{"metadata":{"id":"people/basic","version":"1.0.0"}}`, string(got.Manifest))
+}
+
+// testVersionSignature 覆盖 20.6：签名必须真的**存进去**、真的**取得回来**。
+//
+// 这条测试针对的是一类特别难发现的错：`component_versions.signature_json` 这一列
+// 早就在建表脚本里预留好了，但只要 SQL 语句里不写它，签名就在两条 SQL 之间静默
+// 消失——发布接口返回的是内存里那个结构体，看上去一切正常；等使用者 add 时才
+// 发现签名没了，而那时已经无从判断是发布者没签、还是市场弄丢了。
+// 内存实现天然不会犯这个错（它存的就是结构体本身），所以只有契约测试能抓住它。
+func testVersionSignature(t *testing.T, r repo.Repository) {
+	ctx := context.Background()
+	require.NoError(t, r.UpsertComponent(ctx, newComponent("people/basic")))
+
+	signed := newVersion("people/basic", "1.2.0")
+	signed.Signature = &model.Signature{
+		Algorithm:    model.AlgorithmCosign,
+		PublicKeyRef: "keys/people-basic-release.pub",
+		Value:        "MEUCIQDhJ4pQ3H8xN0mS1vZk2bYc9eR6tW7uX5oP4qL3aB2cDwIgFg==",
+		SignedAt:     time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC),
+		SignedBy:     "release-bot@brickkit.io",
+	}
+	require.NoError(t, r.CreateVersion(ctx, signed))
+
+	// 未签名的版本：签名必须是 nil，不能是一个字段全空的结构体
+	require.NoError(t, r.CreateVersion(ctx, newVersion("people/basic", "1.1.0")))
+
+	got, err := r.GetVersion(ctx, "people/basic", "1.2.0")
+	require.NoError(t, err)
+	require.NotNil(t, got.Signature, "签名必须真的落库")
+	assert.Equal(t, model.AlgorithmCosign, got.Signature.Algorithm)
+	assert.Equal(t, "keys/people-basic-release.pub", got.Signature.PublicKeyRef)
+	assert.Equal(t, signed.Signature.Value, got.Signature.Value)
+	assert.Equal(t, "release-bot@brickkit.io", got.Signature.SignedBy)
+	assert.True(t, signed.Signature.SignedAt.Equal(got.Signature.SignedAt),
+		"签名时间要原样取回（时区可以不同，时刻必须一致）")
+
+	unsigned, err := r.GetVersion(ctx, "people/basic", "1.1.0")
+	require.NoError(t, err)
+	assert.Nil(t, unsigned.Signature, "没签名就是 nil，不能凭空造一个空签名出来")
+
+	// 列表也要带签名：使用者要在列表上看出哪些版本签了
+	versions, err := r.ListVersions(ctx, "people/basic")
+	require.NoError(t, err)
+	bySignature := map[string]*model.Signature{}
+	for _, v := range versions {
+		bySignature[v.Version] = v.Signature
+	}
+	require.NotNil(t, bySignature["1.2.0"])
+	assert.Equal(t, signed.Signature.Value, bySignature["1.2.0"].Value)
+	assert.Nil(t, bySignature["1.1.0"])
+
+	// 改状态不能把签名弄丢（publish 是三步走，转 stable 在最后一步）
+	require.NoError(t, r.SetVersionStatus(ctx, "people/basic", "1.2.0", model.VersionDeprecated))
+	got, err = r.GetVersion(ctx, "people/basic", "1.2.0")
+	require.NoError(t, err)
+	require.NotNil(t, got.Signature, "改状态之后签名必须还在")
+	assert.Equal(t, signed.Signature.Value, got.Signature.Value)
 }
 
 func testVersionListAndStatus(t *testing.T, r repo.Repository) {

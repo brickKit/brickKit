@@ -65,7 +65,7 @@ func loadProject(ctx context.Context, opts *Options) (*project, error) {
 		return p, nil
 	}
 
-	client, err := source.New(layout, cfg, source.Options{})
+	client, err := newSourceClient(opts, layout, cfg, source.Options{})
 	if err != nil {
 		return nil, err
 	}
