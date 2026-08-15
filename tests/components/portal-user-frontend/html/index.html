@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERP 门户 · BrickKit</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; padding: 2rem;
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", "Noto Sans SC", sans-serif;
+    max-width: 52rem; margin-inline: auto;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  .sub { opacity: .7; margin-top: 0; }
+  fieldset { border: 1px solid currentColor; border-radius: .5rem; padding: 1rem; margin: 1.5rem 0; opacity: .9; }
+  legend { padding-inline: .5rem; font-weight: 600; }
+  label { display: inline-block; min-width: 5rem; }
+  input { padding: .4rem .6rem; border-radius: .3rem; border: 1px solid currentColor; background: transparent; color: inherit; }
+  button { padding: .45rem 1rem; border-radius: .3rem; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
+  button:hover { opacity: .75; }
+  pre { padding: 1rem; border-radius: .5rem; overflow-x: auto; background: rgba(127,127,127,.12); }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid rgba(127,127,127,.3); }
+  .hint { font-size: .9rem; opacity: .7; }
+</style>
+</head>
+<body>
+
+<h1>ERP 门户</h1>
+<p class="sub">BrickKit 平台自测前端组件 · <code>portal/user-frontend</code></p>
+
+<p class="hint">
+  这个页面是<strong>静态资源</strong>，由 nginx 直接发出。下面所有请求都走
+  <code>/api/</code>，由 nginx 反向代理到 <code>erp/backend</code>——
+  浏览器从头到尾只认识门户这一个地址，后端在哪由平台注入
+  <code>${ERP_BACKEND_ENDPOINT}</code> 决定。
+</p>
+
+<fieldset>
+  <legend>1 · 登录</legend>
+  <p>
+    <label for="u">用户名</label>
+    <input id="u" value="zhangsan" autocomplete="username">
+  </p>
+  <p>
+    <label for="p">口令</label>
+    <input id="p" type="password" value="demo-password" autocomplete="current-password">
+  </p>
+  <p><button id="login">登录</button></p>
+  <pre id="loginOut">（未登录）</pre>
+  <p class="hint">
+    请求经过：门户 → erp/backend → auth/password-login → people/basic。
+    响应里的 <code>sessionTtlSeconds</code> 来自 erp/backend 的 configSchema，
+    可以在 brickkit.yaml 里覆盖。
+  </p>
+</fieldset>
+
+<fieldset>
+  <legend>2 · 订单</legend>
+  <p><button id="load">加载订单</button></p>
+  <table id="orders"><tbody><tr><td>（先登录）</td></tr></tbody></table>
+  <p class="hint">
+    需要 <code>erp.order.read</code> 权限（由 authorization/rbac 判定）。
+    订单上的姓名与部门是 erp/backend 通过 gRPC 向 people/basic 现取的。
+  </p>
+</fieldset>
+
+<script>
+  // 后端地址不出现在这里：一律用相对路径，由 nginx 转发。
+  // 写死后端地址的话，换个部署环境这个页面就废了
+  let token = "";
+
+  const show = (id, value) => {
+    document.getElementById(id).textContent =
+      typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  };
+
+  document.getElementById("login").onclick = async () => {
+    show("loginOut", "请求中…");
+    try {
+      const resp = await fetch("/api/v1/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: document.getElementById("u").value,
+          password: document.getElementById("p").value,
+        }),
+      });
+      const body = await resp.json();
+      token = body.token || "";
+      show("loginOut", body);
+    } catch (err) {
+      show("loginOut", "请求失败：" + err);
+    }
+  };
+
+  document.getElementById("load").onclick = async () => {
+    const tbody = document.querySelector("#orders tbody");
+    tbody.innerHTML = "<tr><td>加载中…</td></tr>";
+    try {
+      const resp = await fetch("/api/v1/orders", {
+        headers: token ? { Authorization: "Bearer " + token } : {},
+      });
+      const body = await resp.json();
+      if (!resp.ok) {
+        tbody.innerHTML = `<tr><td>HTTP ${resp.status} · ${body.error || ""}</td></tr>`;
+        return;
+      }
+      tbody.innerHTML =
+        "<tr><th>订单</th><th>金额</th><th>所有者</th><th>部门</th><th>状态</th></tr>" +
+        body.orders.map((o) =>
+          `<tr><td>${o.title}</td><td>${o.amount}</td><td>${o.ownerName || "—"}</td>` +
+          `<td>${o.ownerDepartment || "—"}</td><td>${o.status}</td></tr>`
+        ).join("");
+    } catch (err) {
+      tbody.innerHTML = `<tr><td>请求失败：${err}</td></tr>`;
+    }
+  };
+</script>
+
+</body>
+</html>

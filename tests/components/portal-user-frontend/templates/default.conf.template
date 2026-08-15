@@ -1,0 +1,61 @@
+# portal/user-frontend 的 nginx 配置模板。
+#
+# 官方 nginx 镜像的入口脚本会把 /etc/nginx/templates/*.template 里的
+# 环境变量占位符替换掉，输出到 /etc/nginx/conf.d/。因此下面可以直接引用
+# ${ERP_BACKEND_ENDPOINT}——它由平台按强依赖注入（003 §4.5），
+# **前端不硬编码后端地址**（开发计划 26.5）。
+
+server {
+    # 监听 8080 而不是 80：容器以非 root 运行（002 §1.4），
+    # 而 1024 以下的端口需要特权。这个端口就是 component.yaml 的 deployment.port
+    listen 8080;
+    server_name _;
+
+    # 静态资源
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # 健康检查（开发计划 26.6）：只回一个常量，不碰后端。
+    # 若让它去探 erp/backend，后端一抖，编排系统就会把这个本身完全正常的
+    # 前端容器杀掉重启——而它明明还能把页面发出去（002 §9.4）
+    location = /healthz {
+        access_log off;
+        default_type application/json;
+        return 200 '{"status":"ok"}';
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 反向代理到 erp/backend（开发计划 26.2）
+    location /api/ {
+        # ⚠️ 这两行是配套的，缺一不可。
+        #
+        # nginx 对**写死在 proxy_pass 里的主机名**只在启动时解析一次：
+        # 后端还没起来时，nginx 会以 "host not found in upstream" 直接退出，
+        # 整个前端起不来——而它本该照常把页面发出去，只是 /api/ 暂时 502。
+        #
+        # 把地址放进变量就变成**每次请求时解析**，于是启动顺序不再要紧，
+        # 后端重启换了 IP 也能跟上。代价是必须显式声明 resolver。
+        # NGINX_LOCAL_RESOLVERS 由官方镜像自带的 15-local-resolvers.envsh 从
+        # /etc/resolv.conf 生成（需要 NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 打开，
+        # 见 Dockerfile）。**不写死 DNS 地址**：Docker 的内嵌 DNS 与 K8s 的
+        # CoreDNS 是两个完全不同的地址，且各集群不同——写死任何一个，
+        # 另一个环境就直接起不来
+        resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+        set $backend "${ERP_BACKEND_ENDPOINT}";
+
+        # 用了变量之后 nginx 不再自动转发原始 URI，必须自己带上 $request_uri
+        proxy_pass $backend$request_uri;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # 后端挂了就是 502，别让浏览器干等
+        proxy_connect_timeout 5s;
+        proxy_read_timeout    30s;
+    }
+}

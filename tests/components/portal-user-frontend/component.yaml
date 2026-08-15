@@ -1,0 +1,58 @@
+# portal/user-frontend —— 前端组件（BrickKit Phase 5 测试组件）
+#
+# 它验证的是前面五个组件都没覆盖的三件事：
+#   - **expose: true**：唯一一个需要被浏览器访问、因而要映射到宿主机的组件
+#   - **反向代理**：后端地址由平台注入，前端不硬编码
+#   - **非容器语言的组件**：没有业务代码，只有 nginx 配置与静态文件
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: portal/user-frontend
+  name: ERP 门户
+  version: 1.0.0
+  description: 静态前端，通过 nginx 反向代理访问 erp/backend；后端地址由平台注入
+  vendor: brickkit-platform
+  license: MIT
+
+tags:
+  - portal
+  - frontend
+
+# 没有 artifacts：前端不对外提供 API，没有契约可发布（002 §7：有什么发什么）
+
+dependencies:
+  components:
+    # 强依赖：注入 ERP_BACKEND_ENDPOINT，nginx 模板直接引用它
+    - erp/backend@1.0.0
+  # 没有 resources：静态文件在镜像里，不需要任何库
+
+# 没有 configSchema：这个组件没有任何需要使用者调的东西。
+# DNS 地址由容器自己从 /etc/resolv.conf 取（Docker 与 K8s 的 DNS 地址不同），
+# 后端地址由平台按强依赖注入——两者都不该让使用者操心
+
+# 没有 migration：不绑定资源，也就没有自己的表
+
+deployment:
+  type: container
+  image: brickkit-demo/portal-user-frontend:1.0.0
+  # 8080 而不是 80：容器以非 root 运行（002 §1.4），1024 以下的端口需要特权
+  port: 8080
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+healthCheck:
+  type: http
+  path: /healthz
+  # ⚠️ 只回一个常量，**不探 erp/backend**（002 §9.4）。
+  # 若让它去探后端，后端一抖，编排系统就会把这个本身完全正常的前端容器
+  # 杀掉重启——而它明明还能把页面发出去
+
+observability:
+  metrics: false
+  tracing: false
