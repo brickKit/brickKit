@@ -41,6 +41,54 @@ echo "PG_PASSWORD=devpass" > .env
 
 判据就是"含不含点"。生产环境写真实地址，本地开发写服务名让 CLI 代劳。
 
+> **`host.docker.internal` 是第三种情形**：指向**宿主机**。用它连本机上已经跑着的
+> 数据库，或者连另一个 BrickKit 项目共享出来的资源（见
+> [18-多项目与共享.md](18-多项目与共享.md)）。平台会自动为绑定它的组件补
+> `extra_hosts`，你不用手工建网络。
+
+### 一个组件要连两个同类资源：`envPrefix`
+
+默认情况下，一个组件绑一个数据库，注入的变量是 `DATABASE_HOST` / `DATABASE_NAME`……
+如果同一个组件要连**两个** PostgreSQL（比如主库 + 归档库），
+变量名就撞了——这时用 `envPrefix` 区分：
+
+```yaml
+resources:
+  - kind: database
+    engine: postgresql
+    id: pg-primary
+    host: primary-db
+    port: 5432
+    bindings:
+      - componentId: people/basic
+        database: people
+        envPrefix: PRIMARY          # ← 加前缀
+
+  - kind: database
+    engine: postgresql
+    id: pg-archive
+    host: archive-db
+    port: 5432
+    bindings:
+      - componentId: people/basic
+        database: people_archive
+        envPrefix: ARCHIVE
+```
+
+组件收到的是：
+
+```
+PRIMARY_DATABASE_HOST=primary-db     ARCHIVE_DATABASE_HOST=archive-db
+PRIMARY_DATABASE_NAME=people         ARCHIVE_DATABASE_NAME=people_archive
+```
+
+**什么时候需要它：** 只有"一个组件绑多个同类资源"这一种情况。
+绑一个的时候别加——加了变量名就变了，而组件读的是不带前缀的那个名字。
+
+组件那边要读哪些变量名，看它 `component.yaml` 的 `dependencies.resources`
+与 README。前缀是**使用者**定的，组件作者无从预知，所以支持多资源的组件
+会在文档里说明它认哪个前缀。
+
 ---
 
 ## 5.2 先看看会生成什么（不启动）
