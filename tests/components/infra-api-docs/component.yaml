@@ -1,0 +1,75 @@
+# infra/api-docs —— 文档聚合组件（BrickKit Phase 5 测试组件）
+#
+# 它在平台里的位置很特殊：**全部依赖都是弱依赖**。这是唯一一个这样的组件，
+# 也正是它要验证的东西——文档入口不该因为某个业务组件没装就打不开。
+#
+# 两条发现路径（开发计划 §0.2：Swagger UI + gRPC Reflection 聚合）：
+#   OpenAPI   GET {endpoint}/openapi.json
+#   gRPC      Reflection（不需要 .proto 文件）
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: infra/api-docs
+  name: API 文档中心
+  version: 1.0.0
+  description: 把各组件的 API 文档聚合到一个入口；组件没装或没文档时如实标出，不影响页面打开
+  vendor: brickkit-platform
+  license: MIT
+
+tags:
+  - infra
+  - docs
+
+# 没有 artifacts：本组件不对外提供 API 契约，它只是个展示入口
+
+dependencies:
+  components:
+    # **全部是弱依赖**：装了几个就展示几个，一个都没装也照样起得来。
+    # 每一条都必须声明，平台才会注入对应的 *_ENDPOINT——
+    # 漏声明的表现是"那个组件在页面上永远显示未安装"
+    - id: department/tree@1.0.0
+      optional: true
+    - id: people/basic@1.0.0
+      optional: true
+    - id: auth/password-login@1.0.0
+      optional: true
+    - id: authorization/rbac@1.0.0
+      optional: true
+    - id: erp/backend@1.0.0
+      optional: true
+    - id: infra/redis-event-bus@1.0.0
+      optional: true
+  # 没有 resources：探测结果放在内存里，缓存 30 秒就够
+
+configSchema:
+  type: object
+  properties:
+    logLevel:
+      type: string
+      default: "info"
+      description: 日志级别，注入为环境变量 LOG_LEVEL（debug | info | warn | error）
+
+# 没有 migration：不绑定资源，也就没有自己的表
+
+deployment:
+  type: container
+  image: brickkit-demo/infra-api-docs:1.0.0
+  port: 8080
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "300m"
+      memory: "256Mi"
+
+healthCheck:
+  type: http
+  path: /healthz
+  # ⚠️ 只检查本进程存活，**绝不去探那六个组件**（002 §9.4、开发计划 28.3）。
+  # 它们全是弱依赖，全挂了这个页面也该打得开——而且那时候正是最需要看文档的时候
+
+observability:
+  metrics: false
+  tracing: false

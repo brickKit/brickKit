@@ -41,7 +41,7 @@ TESTFLAGS ?= -count=1
 
 # 平台自测组件（tests/components/*）：各自是独立的 Go module 与独立的组件仓库，
 # 不参与主 module 的 ./... 构建，需要单独测试与构建镜像。
-DEMO_COMPONENTS := demo-hello demo-caller department-tree auth-password-login authorization-rbac erp-backend portal-user-frontend
+DEMO_COMPONENTS := demo-hello demo-caller department-tree auth-password-login authorization-rbac erp-backend portal-user-frontend infra-api-docs
 # Python 组件（people-basic）没法在宿主机上直接跑测试：本机未安装 python3-venv。
 # 它的测试跑在容器里（Dockerfile 的 test 层），版本固定、可复现。
 PY_COMPONENTS := people-basic infra-redis-event-bus
@@ -274,6 +274,7 @@ demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实�
 	@docker build -q -t brickkit-demo/erp-backend:1.0.0 tests/components/erp-backend
 	@docker build -q -t brickkit-demo/portal-user-frontend:1.0.0 tests/components/portal-user-frontend
 	@docker build -q -t brickkit-demo/infra-redis-event-bus:1.0.0 tests/components/infra-redis-event-bus
+	@docker build -q -t brickkit-demo/infra-api-docs:1.0.0 tests/components/infra-api-docs
 	@for tag in $(DEMO_HELLO_TAGS); do \
 		docker build -q -t brickkit-demo/hello:$$tag tests/components/demo-hello; \
 	done

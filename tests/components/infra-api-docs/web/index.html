@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API 文档 · BrickKit</title>
+<link rel="stylesheet" href="./swagger-ui/swagger-ui.css">
+<style>
+  body { margin: 0; font: 16px/1.6 system-ui, -apple-system, "Segoe UI", "Noto Sans SC", sans-serif; }
+  header { padding: 1.5rem 2rem 0; max-width: 74rem; margin-inline: auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  .sub { opacity: .7; margin-top: 0; }
+  section { padding: 0 2rem; max-width: 74rem; margin-inline: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 2rem; }
+  th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid rgba(127,127,127,.3); vertical-align: top; }
+  code { background: rgba(127,127,127,.12); padding: .1rem .35rem; border-radius: .25rem; }
+  .ok { color: #197b30; font-weight: 600; }
+  .absent { opacity: .55; }
+  .warn { color: #a35b00; font-weight: 600; }
+  .bad { color: #b3261e; font-weight: 600; }
+  ul.methods { margin: .2rem 0 0; padding-left: 1.1rem; }
+  .hint { font-size: .9rem; opacity: .75; }
+  #swagger-ui { margin-top: 1rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>API 文档</h1>
+  <p class="sub">BrickKit 文档聚合组件 · <code>infra/api-docs</code></p>
+</header>
+
+<section>
+  <p class="hint">
+    这个页面把各组件的 API 文档收拢到一处。它对所有组件都是<strong>弱依赖</strong>：
+    装了几个就展示几个，一个都没装页面也照样打得开。
+    组件要出现在这里，得提供 <code>/openapi.json</code> 或开着 gRPC Reflection。
+  </p>
+
+  <h2 style="font-size:1.1rem">聚合状态</h2>
+  <table id="sources"><tbody><tr><td>加载中…</td></tr></tbody></table>
+</section>
+
+<div id="swagger-ui"></div>
+
+<script src="./swagger-ui/swagger-ui-bundle.js" crossorigin></script>
+<script src="./swagger-ui/swagger-ui-standalone-preset.js" crossorigin></script>
+<script>
+  // 状态 → 中文说明与样式。每一种都要说清楚"接下来该做什么"，
+  // 否则使用者只会看到一个空页面然后开始猜
+  const STATUS = {
+    ok:          { cls: "ok",     text: "✅ 有文档" },
+    absent:      { cls: "absent", text: "— 未安装" },
+    unreachable: { cls: "bad",    text: "❌ 连不上" },
+    "no-docs":   { cls: "warn",   text: "⚠️ 在线但无文档" },
+  };
+
+  const escapeHTML = (s) =>
+    String(s).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function renderSources(sources) {
+    const rows = sources.map((s) => {
+      const status = STATUS[s.status] || { cls: "", text: s.status };
+      const grpc = (s.grpcServices || []).map((svc) =>
+        `<div><code>${escapeHTML(svc.name)}</code>` +
+        (svc.methods && svc.methods.length
+          ? `<ul class="methods">${svc.methods.map((m) => `<li>${escapeHTML(m)}</li>`).join("")}</ul>`
+          : "") +
+        `</div>`).join("");
+
+      return `<tr>
+        <td><code>${escapeHTML(s.componentId)}</code></td>
+        <td class="${status.cls}">${status.text}</td>
+        <td>${s.specUrl ? "OpenAPI" : ""}${grpc ? (s.specUrl ? " + gRPC" : "gRPC") : ""}</td>
+        <td>${grpc || escapeHTML(s.reason || "")}</td>
+      </tr>`;
+    });
+
+    document.querySelector("#sources tbody").innerHTML =
+      `<tr><th>组件</th><th>状态</th><th>文档类型</th><th>详情</th></tr>` + rows.join("");
+  }
+
+  fetch("/api/v1/sources")
+    .then((r) => r.json())
+    .then((body) => {
+      const sources = body.sources || [];
+      renderSources(sources);
+
+      // 只把有 OpenAPI 的喂给 Swagger UI；一个都没有时不初始化，
+      // 免得页面上出现一个空的 Swagger 壳子让人以为坏了
+      const urls = sources
+        .filter((s) => s.specUrl)
+        .map((s) => ({ name: s.componentId, url: s.specUrl }));
+
+      if (urls.length === 0) return;
+
+      SwaggerUIBundle({
+        urls,
+        dom_id: "#swagger-ui",
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+        layout: "StandaloneLayout",
+        deepLinking: true,
+      });
+    })
+    .catch((err) => {
+      document.querySelector("#sources tbody").innerHTML =
+        `<tr><td>读取聚合状态失败：${escapeHTML(err)}</td></tr>`;
+    });
+</script>
+
+</body>
+</html>
