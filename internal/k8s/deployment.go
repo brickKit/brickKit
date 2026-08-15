@@ -85,15 +85,17 @@ func (p *plan) deploymentDoc(c componentPlan) map[string]any {
 			"selector": map[string]any{"matchLabels": map[string]any{labelApp: c.Service}},
 			"template": map[string]any{
 				"metadata": map[string]any{"labels": labels},
-				"spec":     p.podSpec(p.containerDoc(c)),
+				"spec":     p.podSpec(c, p.containerDoc(c)),
 			},
 		},
 	}
 }
 
 // podSpec 渲染 Pod 规格：容器 + 集群侧要求（005 §5.12）。
-func (p *plan) podSpec(container map[string]any) map[string]any {
+func (p *plan) podSpec(c componentPlan, container map[string]any) map[string]any {
 	spec := map[string]any{"containers": []any{container}}
+
+	p.applyServiceAccount(spec, c)
 
 	if secrets := p.cfg.Deploy.ImagePullSecrets; len(secrets) > 0 {
 		refs := make([]any, 0, len(secrets))

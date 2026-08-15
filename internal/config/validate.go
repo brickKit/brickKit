@@ -61,6 +61,24 @@ func (c *Config) validateDeploy(p *clierr.ProblemSet) {
 			p.Addf("deploy.namespace", "%s（K8s 命名空间遵循同样的规则）", reason)
 		}
 	}
+	c.validateNetworkPolicy(p)
+}
+
+// validateNetworkPolicy 只查配置本身说得通不通（P26）。
+//
+// "有 expose: true 的组件却没说 ingress controller 在哪"要等到生成清单时才查得了——
+// 那时才知道有哪些组件、谁对外暴露，见 k8s.checkIngressController。
+func (c *Config) validateNetworkPolicy(p *clierr.ProblemSet) {
+	np := c.Deploy.NetworkPolicy
+	if np == nil || np.IngressController == nil {
+		return
+	}
+
+	if np.IngressController.Namespace == "" {
+		// 空命名空间会生成 `kubernetes.io/metadata.name: ""`，那是一条谁也匹配不上的
+		// 规则——策略照样 apply 成功，ingress controller 却照样被挡在外面
+		p.Missing("deploy.networkPolicy.ingressController.namespace")
+	}
 }
 
 func (c *Config) validateSources(p *clierr.ProblemSet) {

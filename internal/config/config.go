@@ -77,11 +77,62 @@ type Deploy struct {
 	// namespace.yaml——只有命名空间级权限时，建命名空间会 Forbidden，
 	// 而那个命名空间其实早就由运维建好了。
 	CreateNamespace *bool `yaml:"createNamespace,omitempty"`
+	// NetworkPolicy 打开后按依赖图生成 NetworkPolicy（P26）。
+	//
+	// 默认不生成：集群里可能压根没有能执行策略的 CNI（那时生成的文件会被
+	// 静默忽略，白写还让人以为收紧了），也可能运维已在命名空间级别铺了一套。
+	NetworkPolicy *NetworkPolicy `yaml:"networkPolicy,omitempty"`
+	// ServiceAccount 打开后给每个组件生成一个不挂载令牌的 ServiceAccount（P26）。
+	ServiceAccount *ServiceAccount `yaml:"serviceAccount,omitempty"`
 }
 
 // ShouldCreateNamespace 返回是否由 CLI 创建命名空间（缺省 true）。
 func (d Deploy) ShouldCreateNamespace() bool {
 	return d.CreateNamespace == nil || *d.CreateNamespace
+}
+
+// NetworkPolicyEnabled 返回是否生成 NetworkPolicy。
+func (d Deploy) NetworkPolicyEnabled() bool {
+	return d.NetworkPolicy != nil && d.NetworkPolicy.Enabled
+}
+
+// ServiceAccountEnabled 返回是否为每个组件生成 ServiceAccount。
+func (d Deploy) ServiceAccountEnabled() bool {
+	return d.ServiceAccount != nil && d.ServiceAccount.Enabled
+}
+
+// NetworkPolicy 是网络策略生成开关（P26）。
+//
+// 只生成**入站**方向：出站方向 BrickKit 生成不出正确的规则——DNS 得放行
+// kube-dns（各集群位置不一），数据库在 K8s 下由运维部署（005 §5.1），
+// 配置里只有一个 host 字符串，变不成 podSelector 也变不成 CIDR。
+// 生成一份为了不误伤而放行 0.0.0.0/0 的出站策略，比不生成更糟。
+type NetworkPolicy struct {
+	Enabled bool `yaml:"enabled"`
+	// IngressController 说明 ingress controller 在哪。
+	//
+	// 有 expose: true 的组件时必填：不填的话生成的策略会把 ingress controller
+	// 一起挡在门外，结果是部署全部成功、网站直接打不开。
+	IngressController *IngressControllerSource `yaml:"ingressController,omitempty"`
+}
+
+// IngressControllerSource 定位 ingress controller 的 Pod。
+type IngressControllerSource struct {
+	// Namespace 是 ingress controller 所在的命名空间，如 ingress-nginx。
+	Namespace string `yaml:"namespace"`
+	// PodSelector 进一步收窄到该命名空间里的哪些 Pod。
+	//
+	// 不写就放行该命名空间的所有 Pod：各家 controller 的标签五花八门
+	// （ingress-nginx / traefik / higress……），不该逼使用者非得写对。
+	PodSelector map[string]string `yaml:"podSelector,omitempty"`
+}
+
+// ServiceAccount 是 ServiceAccount 生成开关（P26）。
+//
+// 打开后每个组件一个专属 SA，且不挂载令牌。默认情况下所有 Pod 共用命名空间的
+// default SA 并被塞进一张能跟 API Server 说话的令牌，而业务组件没有一个需要它。
+type ServiceAccount struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 // Source 是一个安装源（003 §6）。
@@ -138,6 +189,11 @@ type Component struct {
 	ExposePort int    `yaml:"exposePort,omitempty"`
 	// TLSSecret 是 Ingress 用的 TLS 证书 Secret 名（仅 K8s，需要 expose: true）。
 	TLSSecret string `yaml:"tlsSecret,omitempty"`
+	// ServiceAccountName 让本组件使用一个**已存在**的 ServiceAccount（仅 K8s，P26）。
+	//
+	// 云上很常见：SA 上绑着 IRSA / Workload Identity 的注解，由运维创建并授权。
+	// 写了它，平台就只引用、不生成——重新生成一份会把那份授权安静地抹掉。
+	ServiceAccountName string `yaml:"serviceAccountName,omitempty"`
 	// Config 覆盖 configSchema 默认值。CLI 不校验值的类型（003 §4.6）。
 	Config map[string]any `yaml:"config,omitempty"`
 	// Resources 覆盖 Manifest 中的 deployment.resources（003 §4.7）。

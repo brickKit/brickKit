@@ -54,7 +54,7 @@ func (p *plan) migrationJobDoc(c componentPlan) map[string]any {
 // 集群侧的要求（securityContext / imagePullSecrets）与主容器完全一致：
 // 它跑在同一个命名空间里，用的是同一个私有镜像。
 func (p *plan) migrationPodSpec(c componentPlan) map[string]any {
-	spec := p.podSpec(p.migrationContainerDoc(c))
+	spec := p.podSpec(c, p.migrationContainerDoc(c))
 	spec["restartPolicy"] = "Never"
 	return spec
 }

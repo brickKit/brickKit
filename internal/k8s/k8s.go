@@ -28,6 +28,40 @@ import (
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
+// 生成物的子目录名。
+//
+// 集中在一处是有原因的：引擎那边要按名字去 apply 和 delete
+// （见 ManifestDirs）。两边各写各的字符串时，新增一类清单的表现是
+// "文件生成了、集群里却没有"——brickkit up 一切正常，
+// 只有去 kubectl get 才发现少了东西；down 那边漏掉则是删不干净。
+const (
+	dirSecrets         = "secrets"
+	dirServiceAccounts = "serviceaccounts"
+	dirNetworkPolicies = "networkpolicies"
+	dirMigrations      = "migrations"
+	dirDeployments     = "deployments"
+	dirServices        = "services"
+	dirIngress         = "ingress"
+)
+
+// ManifestDirs 是 Generate 可能产出的全部子目录，按**部署顺序**排列。
+//
+// 顺序不是随便排的：
+//
+//	secrets           Pod 起来的那一刻就要读密码
+//	serviceaccounts   Pod 引用它，得先在
+//	networkpolicies   先铺策略再起 Pod，不留一段谁都进得来的窗口
+//	migrations        业务代码不能撞上旧表结构
+//	deployments…      最后才是主服务
+//
+// namespace.yaml 不在其中：它不在子目录里，且必须最先 apply。
+func ManifestDirs() []string {
+	return []string{
+		dirSecrets, dirServiceAccounts, dirNetworkPolicies,
+		dirMigrations, dirDeployments, dirServices, dirIngress,
+	}
+}
+
 // Options 是生成选项。
 type Options struct {
 	// Now 用于文件头的生成时间，测试可注入。
@@ -90,29 +124,42 @@ func Generate(
 		}
 	}
 	if docs := p.secretDocs(); len(docs) > 0 {
-		if err := p.emitAll(result, cfg, now, "secrets/resource-secrets.yaml", docs); err != nil {
+		if err := p.emitAll(result, cfg, now,
+			dirSecrets+"/resource-secrets.yaml", docs); err != nil {
 			return nil, err
 		}
 	}
 	for _, c := range p.components {
+		if p.generatesServiceAccount(c) {
+			if err := p.emit(result, cfg, now,
+				dirServiceAccounts+"/"+c.Service+".yaml", p.serviceAccountDoc(c)); err != nil {
+				return nil, err
+			}
+		}
+		if cfg.Deploy.NetworkPolicyEnabled() {
+			if err := p.emit(result, cfg, now,
+				dirNetworkPolicies+"/"+c.Service+".yaml", p.networkPolicyDoc(c)); err != nil {
+				return nil, err
+			}
+		}
 		if err := p.emit(result, cfg, now,
-			"deployments/"+c.Service+".yaml", p.deploymentDoc(c)); err != nil {
+			dirDeployments+"/"+c.Service+".yaml", p.deploymentDoc(c)); err != nil {
 			return nil, err
 		}
 		if err := p.emit(result, cfg, now,
-			"services/"+c.Service+".yaml", p.serviceDoc(c)); err != nil {
+			dirServices+"/"+c.Service+".yaml", p.serviceDoc(c)); err != nil {
 			return nil, err
 		}
 		if c.Entry.Expose {
 			if err := p.emit(result, cfg, now,
-				"ingress/"+c.Service+".yaml", p.ingressDoc(c)); err != nil {
+				dirIngress+"/"+c.Service+".yaml", p.ingressDoc(c)); err != nil {
 				return nil, err
 			}
 		}
 		if c.Manifest.Migration != nil {
 			job := MigrationJobName(c.Service)
 			if err := p.emit(result, cfg, now,
-				"migrations/"+job+".yaml", p.migrationJobDoc(c)); err != nil {
+				dirMigrations+"/"+job+".yaml", p.migrationJobDoc(c)); err != nil {
 				return nil, err
 			}
 			result.MigrationJobs = append(result.MigrationJobs, job)
@@ -222,6 +269,9 @@ func newPlan(
 	sort.Slice(p.components, func(i, j int) bool { return p.components[i].Service < p.components[j].Service })
 
 	if err := p.checkHostnames(); err != nil {
+		return nil, err
+	}
+	if err := p.checkIngressController(); err != nil {
 		return nil, err
 	}
 	if err := p.collectSecrets(); err != nil {

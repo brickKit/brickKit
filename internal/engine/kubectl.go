@@ -56,15 +56,31 @@ func pathExists(path string) bool {
 
 func (k *Kubectl) Name() string { return K8s }
 
-// Up 按顺序把清单交给集群（005 §5.7）。
+// applyOrder 是清单子目录的部署顺序，也是删除顺序的反序。
 //
 // 顺序不是随便排的：
 //
-//	namespace    别的东西都得放进去
-//	secrets      Pod 起来的那一刻就要读密码
-//	migrations   业务代码不能撞上旧表结构；K8s 没有 compose 的 depends_on，
-//	             只能由 CLI 串行控制：清理旧 Job → apply → wait
-//	deployments  最后才是主服务
+//	secrets           Pod 起来的那一刻就要读密码
+//	serviceaccounts   Pod 引用它，得先在（P26）
+//	networkpolicies   先铺策略再起 Pod，不留一段谁都进得来的窗口（P26）
+//	migrations        业务代码不能撞上旧表结构；K8s 没有 compose 的 depends_on，
+//	                  只能由 CLI 串行控制：清理旧 Job → apply → wait
+//	deployments…      最后才是主服务
+//
+// 这份列表必须与 k8s.ManifestDirs() 一致——生成器多产出一类清单而这里忘了加，
+// 表现是"文件生成了、集群里却没有"，brickkit up 一路成功，
+// 只有去 kubectl get 才发现少了东西。kubectl_dirs_test.go 盯着这件事。
+var applyOrder = []string{
+	"secrets", "serviceaccounts", "networkpolicies",
+	"migrations", "deployments", "services", "ingress",
+}
+
+// migrationsDir 在 applyOrder 里要走一条特殊路径（清理 → apply → 等待）。
+const migrationsDir = "migrations"
+
+// Up 按顺序把清单交给集群（005 §5.7）。
+//
+// namespace 单独处理：它不在子目录里，且必须最先 apply——别的东西都得放进去。
 func (k *Kubectl) Up(ctx context.Context, req UpRequest) error {
 	k.context = req.Context
 
@@ -75,13 +91,14 @@ func (k *Kubectl) Up(ctx context.Context, req UpRequest) error {
 			return err
 		}
 	}
-	if err := k.applyDir(ctx, req.Project, req.File, "secrets"); err != nil {
-		return err
-	}
-	if err := k.runMigrations(ctx, req); err != nil {
-		return err
-	}
-	for _, dir := range []string{"deployments", "services", "ingress"} {
+
+	for _, dir := range applyOrder {
+		if dir == migrationsDir {
+			if err := k.runMigrations(ctx, req); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := k.applyDir(ctx, req.Project, req.File, dir); err != nil {
 			return err
 		}
@@ -153,7 +170,7 @@ func (k *Kubectl) Down(ctx context.Context, req DownRequest) error {
 		// 命名空间不是我们建的（deploy.createNamespace: false），就不能由我们删——
 		// 那是别人的命名空间，里面多半还跑着别的东西，删掉等于把整个团队一起端了。
 		// 因此逐个子目录删，绝不用 -R 扫到 namespace.yaml
-		for _, dir := range manifestDirs {
+		for _, dir := range manifestDirs() {
 			if err := k.deleteDir(ctx, req.Project, req.File, dir); err != nil {
 				return err
 			}
@@ -167,8 +184,17 @@ func (k *Kubectl) Down(ctx context.Context, req DownRequest) error {
 	return err
 }
 
-// manifestDirs 是生成物的全部子目录。
-var manifestDirs = []string{"ingress", "services", "deployments", "migrations", "secrets"}
+// manifestDirs 是删除顺序：部署顺序反过来走。
+//
+// 反序不只是对称好看——先删 ingress 再删 deployment，中间那一小段时间里
+// 外面打进来的请求会干脆地 404，而不是打到一个正在消失的后端上超时。
+func manifestDirs() []string {
+	out := make([]string, 0, len(applyOrder))
+	for i := len(applyOrder) - 1; i >= 0; i-- {
+		out = append(out, applyOrder[i])
+	}
+	return out
+}
 
 // deleteDir 删掉一个子目录里的清单；目录不存在就跳过。
 func (k *Kubectl) deleteDir(ctx context.Context, namespace, root, name string) error {
