@@ -1,0 +1,29 @@
+# 把 PostgreSQL 与对象存储也放进集群里 —— **仅供评估与自建**。
+#
+# 用法（口令始终放在 base/.env，这里不再放第二份）：
+#   cd ../../base && cp .env.example .env && vi .env
+#   kubectl apply -k ../overlays/in-cluster-deps
+#
+# 生产环境请直接用 base/，把 DATABASE_HOST / RUSTFS_ENDPOINT 指向
+# 云托管数据库与对象存储：备份、主从、版本升级这些事，一个 StatefulSet 替不了。
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: brickkit-market
+
+resources:
+  - ../../base
+  - postgres.yaml
+  - rustfs.yaml
+
+# 覆盖 base 里的外部地址，指向集群内这两个 Service。
+# 只列要改的两项，其余（库名、用户名、bucket…）沿用 base 的值。
+configMapGenerator:
+  - name: market-config
+    behavior: merge
+    literals:
+      - DATABASE_HOST=postgres
+      - RUSTFS_ENDPOINT=http://rustfs:9000
+
+# 口令直接沿用 base 的 secretGenerator（base/.env）：
+# 同一套口令放两份，迟早改漏一份。

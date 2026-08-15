@@ -1,0 +1,56 @@
+# 市场的 K8s 部署（base）：只部署市场本身。
+#
+# PostgreSQL 与对象存储**不在这里**——生产环境这两样通常是云托管的，
+# 或者由运维单独部署。想在集群里一起跑起来（评估 / 自建），
+# 用 overlays/in-cluster-deps。
+#
+# 用法：
+#   cp .env.example .env && vi .env      # 填口令与地址
+#   kubectl apply -k .
+#
+# 不用 Helm：kustomize 是 kubectl 自带的（`apply -k`），不需要额外装东西，
+# 也不引入 release 状态。见 README.md。
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: brickkit-market
+
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: brickkit-market
+
+# 非敏感配置：地址、库名、用户名这些可以随便看
+configMapGenerator:
+  - name: market-config
+    literals:
+      # ← 改成你的 PostgreSQL 与对象存储地址
+      - DATABASE_HOST=postgres.infra.svc.cluster.local
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=brickkit_market
+      - DATABASE_USER=brickkit
+      - RUSTFS_ENDPOINT=http://rustfs.infra.svc.cluster.local:9000
+      - RUSTFS_BUCKET=brickkit-artifacts
+      - RUSTFS_REGION=us-east-1
+      - JWT_EXPIRY_HOURS=720
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD_RESET=false
+      - PORT=8080
+
+# 口令：从 .env 读，**这个文件不进 Git**（见 .gitignore）
+secretGenerator:
+  - name: market-secrets
+    envs:
+      - .env
+
+# 生成的 ConfigMap / Secret 名字带内容哈希：改了配置就是一个新名字，
+# Deployment 的引用会被自动改写，Pod 因此**自动滚动重启**。
+# 不加哈希的话，改完口令得自己记得去 rollout restart，很容易漏。
+generatorOptions:
+  disableNameSuffixHash: false

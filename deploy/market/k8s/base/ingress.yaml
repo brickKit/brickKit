@@ -1,0 +1,33 @@
+# 对外入口。**用之前必须改两处：host 与 ingressClassName。**
+#
+# 市场天生是要被外面访问的（各个项目的 CLI 要连它），所以 Ingress 放在 base 里。
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: market-api
+  annotations:
+    # 组件产物（proto、openapi.json…）走这条路上传，默认 1m 的限制不够
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+    # 用 cert-manager 签证书时打开下面这行，并填好 spec.tls
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  # ← 改成你集群里的 ingress class（nginx / traefik / 云厂商的）。
+  #   不写的话只有配了"默认 class"的集群才会有人认领这条 Ingress——
+  #   没有默认 class 时 apply 成功、域名却打不开。
+  ingressClassName: nginx
+  # 启用 HTTPS 时取消注释（secretName 指向证书 Secret）
+  # tls:
+  #   - hosts:
+  #       - market.example.com
+  #     secretName: market-tls
+  rules:
+    - host: market.example.com    # ← 改成你的域名
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: market-api
+                port:
+                  number: 8080

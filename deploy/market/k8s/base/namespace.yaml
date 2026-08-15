@@ -1,0 +1,10 @@
+# 市场自己的命名空间。
+#
+# 与 BrickKit **项目**的命名空间（brickkit-<项目名>）无关：
+# 市场是给所有项目共用的一套服务，不属于任何一个项目。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: brickkit-market
+  labels:
+    app.kubernetes.io/part-of: brickkit-market

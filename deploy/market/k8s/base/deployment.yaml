@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: market-api
+  labels:
+    app.kubernetes.io/name: market-api
+    app.kubernetes.io/part-of: brickkit-market
+spec:
+  # 固定 1 个副本。
+  #
+  # 建表在**启动时**幂等执行（market-server/internal/repo/postgres.go 的 Migrate），
+  # 多个副本同时首次启动会并发建表。要扩容请先让第一个副本把表建好，
+  # 再 `kubectl scale`——而不是一上来就 replicas: 3。
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: market-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: market-api
+        app.kubernetes.io/part-of: brickkit-market
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: market-api
+          image: brickkit/market-server:dev
+          ports:
+            - name: http
+              containerPort: 8080
+          # 配置与口令分开：ConfigMap 里的可以随便看，Secret 里的不能。
+          # 两者都由 kustomize 生成，名字带内容哈希——改了 .env 就会自动滚动重启。
+          envFrom:
+            - configMapRef:
+                name: market-config
+            - secretRef:
+                name: market-secrets
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # 首次启动要建表、建 bucket，给足时间再开始判存活
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          # 镜像里已经是 USER 10001（market-server/Dockerfile），
+          # 因此可以直接满足 Pod Security Standards 的 restricted 级别
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
