@@ -352,17 +352,61 @@ func (p *plan) hostPorts() []HostPort {
 // 渲染
 // ============================================================
 
-// extraHostsOf 返回该容器要映射到宿主机的 local 组件（005 §4.2）。
+// hostMachineAlias 是"宿主机"在容器里的惯用别名。
+//
+// 它带点，因此不会被 isServiceName 判成服务名——CLI 不托管它，
+// 使用者的意思是"连宿主机上那个已经跑着的库"。但容器里默认解析不了这个名字，
+// 必须靠 extra_hosts 指到网关上（005 §7.5）。
+const hostMachineAlias = "host.docker.internal"
+
+// extraHostsOf 返回该容器要映射到宿主机的名字。
+//
+// 两个来源：
+//
+//	local: true 的依赖组件  服务名 → 宿主机网关（005 §4.2）
+//	host.docker.internal    资源在宿主机上时，这个名字得能解析（P34）
+//
+// 后者是真实装配时踩出来的：把资源 host 写成 host.docker.internal 之后，
+// 迁移容器直接报 `dial tcp: lookup host.docker.internal ... no such host`——
+// 而这个写法本身完全合理，只是缺了一行 extra_hosts。
 func (p *plan) extraHostsOf(c componentPlan) []string {
+	seen := map[string]bool{}
 	var out []string
+
+	add := func(entry string) {
+		if !seen[entry] {
+			seen[entry] = true
+			out = append(out, entry)
+		}
+	}
+
 	for _, dep := range p.runningDependencies(c.Ref) {
 		service := manifest.ServiceName(dep.ID, dep.Version)
 		if _, isLocal := p.localPort[service]; isLocal {
-			out = append(out, service+":"+hostGateway(p.engine))
+			add(service + ":" + hostGateway(p.engine))
 		}
 	}
+	if p.usesHostMachineResource(c) {
+		add(hostMachineAlias + ":" + hostGateway(p.engine))
+	}
+
 	sort.Strings(out)
 	return out
+}
+
+// usesHostMachineResource 判断这个组件有没有绑定跑在宿主机上的资源。
+func (p *plan) usesHostMachineResource(c componentPlan) bool {
+	for _, resource := range p.cfg.Resources {
+		if resource.Host != hostMachineAlias {
+			continue
+		}
+		for _, binding := range resource.Bindings {
+			if binding.ComponentID == c.Ref.ID {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // hostPortsOf 返回该容器要开到宿主机的端口映射。

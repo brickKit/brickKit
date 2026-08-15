@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -54,6 +55,8 @@ func (s *service) routes() http.Handler {
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+
+	mux.HandleFunc("/openapi.json", handleOpenAPI)
 
 	mux.HandleFunc("/api/v1/login", s.handleLogin)
 	mux.HandleFunc("/api/v1/orders", s.handleListOrders)
@@ -318,4 +321,25 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+// openapiSpec 是本组件的 OpenAPI 文档，随二进制一起打包。
+//
+// 为什么要在运行时也暴露一份：它同时是**市场产物**（发布时上传，
+// 调用方 add 之后就能拿到）。但产物是**发布那一刻**的快照，
+// 而 infra/api-docs 之类的工具要回答的是"**此刻跑着的**服务长什么样"——
+// 组件升级之后，只有运行时这一份是准的。
+//
+//go:embed openapi.json
+var openapiSpec []byte
+
+// handleOpenAPI 把本组件的 API 文档发出去。
+//
+// 路径固定为 /openapi.json：这是 FastAPI 之类的框架的惯例，
+// 文档聚合组件也按这个路径来探（002 §7 契约即产物）。
+func handleOpenAPI(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	// 文档不常变，让代理与浏览器缓存一会儿
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	_, _ = w.Write(openapiSpec)
 }

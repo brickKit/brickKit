@@ -757,3 +757,84 @@ func TestExtraHostsUsesHostGatewayOnBothEngines(t *testing.T) {
 			"引擎 %q：这个名字不能出现在 extra_hosts 里——Podman 会拒绝创建容器", engineName)
 	}
 }
+
+// ============================================================
+// 宿主机上的资源（P34 —— 真实装配时踩到的）
+// ============================================================
+
+// TestHostMachineResourceGetsExtraHosts 是这条修复存在的理由。
+//
+// 把资源 host 写成 host.docker.internal 是完全合理的写法——"连宿主机上那个
+// 已经跑着的库"。但它带点，不会被判成服务名，因此 CLI 不托管它；
+// 而容器里默认解析不了这个名字，迁移容器直接报：
+//
+//	dial tcp: lookup host.docker.internal ... no such host
+//
+// 症状（组件连不上库）与原因（少了一行 extra_hosts）完全不搭。
+func TestHostMachineResourceGetsExtraHosts(t *testing.T) {
+	doc := newBuilder(t).
+		component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{}).
+		resource(hostMachineDatabase("people/basic")).
+		parsed()
+
+	hosts := stringsOf(t, serviceOf(t, doc, "people-basic-1-0-0")["extra_hosts"])
+	assert.Contains(t, hosts, "host.docker.internal:host-gateway",
+		"宿主机上的资源要靠 extra_hosts 才解析得了")
+}
+
+// TestMigrationAlsoGetsExtraHosts：迁移容器同样需要。
+//
+// 迁移是**第一个**连库的东西。主容器有 extra_hosts、迁移容器没有的话，
+// 迁移会先失败，而平台会把它当成"迁移失败"阻断整个启动。
+func TestMigrationAlsoGetsExtraHosts(t *testing.T) {
+	doc := newBuilder(t).
+		component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{}).
+		resource(hostMachineDatabase("people/basic")).
+		parsed()
+
+	hosts := stringsOf(t, serviceOf(t, doc, "people-basic-1-0-0-migration")["extra_hosts"])
+	assert.Contains(t, hosts, "host.docker.internal:host-gateway",
+		"迁移是第一个连库的东西，它也得能解析这个名字")
+}
+
+// TestUnboundComponentGetsNoExtraHosts：没绑这个资源的组件不该被加上。
+//
+// 无差别地给所有容器加 extra_hosts 也能"跑通"，但那会让生成的文件
+// 说不清"这个容器到底要连宿主机上的什么"。
+func TestUnboundComponentGetsNoExtraHosts(t *testing.T) {
+	caller := dependsOn(simple("demo/caller", "1.0.0", 8080), "people/basic", "1.0.0")
+
+	doc := newBuilder(t).
+		component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{}).
+		component(caller, config.Component{}).
+		resource(hostMachineDatabase("people/basic")).
+		parsed()
+
+	assert.NotContains(t, serviceOf(t, doc, "demo-caller-1-0-0"), "extra_hosts",
+		"没绑这个资源的组件不该被加上宿主机映射")
+}
+
+// TestServiceNameResourceIsStillManaged：改动不能影响托管资源那条路。
+func TestServiceNameResourceIsStillManaged(t *testing.T) {
+	doc := newBuilder(t).
+		component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{}).
+		resource(config.Resource{
+			ID: "pg", Kind: config.ResourceKindDatabase, Engine: "postgresql",
+			Host: "postgres", Port: 5432, Username: "postgres", Password: "q",
+			Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people"}},
+		}).
+		parsed()
+
+	assert.Contains(t, servicesOf(t, doc), "postgres", "host 是服务名时 CLI 仍然自己起容器")
+	assert.NotContains(t, serviceOf(t, doc, "people-basic-1-0-0"), "extra_hosts",
+		"托管资源在同一个网络里，不需要 extra_hosts")
+}
+
+// hostMachineDatabase 造一个"跑在宿主机上"的数据库资源。
+func hostMachineDatabase(componentID string) config.Resource {
+	return config.Resource{
+		ID: "pg", Kind: config.ResourceKindDatabase, Engine: "postgresql",
+		Host: "host.docker.internal", Port: 5432, Username: "postgres", Password: "q",
+		Bindings: []config.Binding{{ComponentID: componentID, Database: "people"}},
+	}
+}

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -525,4 +526,137 @@ resources:
 	require.NoError(t, err)
 	assert.True(t, c.Resources[0].PasswordFromEnv)
 	assert.Equal(t, "${PG_PASSWORD_NOT_SET}", c.Resources[0].Password, "漏配时保留占位符")
+}
+
+// ============================================================
+// 未知字段（P33 —— 真实装配时踩到的）
+// ============================================================
+
+// TestUnknownFieldIsRejected 是这条检查存在的理由。
+//
+// 把 username 写成 user 时，yaml.v3 默认**静默丢掉**这个键。CLI 一声不吭，
+// 等到组件启动才报"缺少 DATABASE_USER（这些变量由平台按资源绑定注入）"
+// ——一句把**配置笔误**指向**平台**的错误。使用者会去查注入引擎、查资源绑定、
+// 查组件代码，唯独不会想到自己少打了三个字母。
+func TestUnknownFieldIsRejected(t *testing.T) {
+	_, err := ParseConfig([]byte(minimalConfig+`resources:
+  - id: pg
+    kind: database
+    engine: postgresql
+    host: postgres
+    user: postgres
+    password: q
+    bindings: []
+`), "brickkit.yaml")
+
+	require.Error(t, err, "拼错的字段必须报错，不能静默忽略")
+	rendered := clierr.As(err).Format()
+	assert.Contains(t, rendered, "user", "要指出是哪个字段")
+	assert.Contains(t, rendered, "是不是想写 username", "要猜出使用者想写的字段")
+}
+
+// TestUnknownFieldReportsLine：错误里要有行号。
+//
+// 一份 brickkit.yaml 可能有上百行，只说"未知字段 user"还得自己去找。
+func TestUnknownFieldReportsLine(t *testing.T) {
+	_, err := ParseConfig([]byte(minimalConfig+`resources:
+  - id: pg
+    kind: database
+    engine: postgresql
+    host: postgres
+    typo: x
+    bindings: []
+`), "brickkit.yaml")
+
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Format(), "第 ", "错误里应当带行号")
+}
+
+// TestUnknownFieldWithoutGuessListsOptions：猜不出来时列出可选字段。
+//
+// 乱猜一个八竿子打不着的字段名比不给建议更误导人，所以只在足够接近时才猜；
+// 猜不出来就把这一层能写什么列出来。
+func TestUnknownFieldWithoutGuessListsOptions(t *testing.T) {
+	_, err := ParseConfig([]byte(minimalConfig+`resources:
+  - id: pg
+    kind: database
+    engine: postgresql
+    host: postgres
+    completelyUnrelatedThing: x
+    bindings: []
+`), "brickkit.yaml")
+
+	require.Error(t, err)
+	rendered := clierr.As(err).Format()
+	assert.Contains(t, rendered, "可用的字段")
+	assert.Contains(t, rendered, "username", "列表里要有真实存在的字段")
+}
+
+// TestUnknownFieldAtEveryLevel：每一层都要查，不只是顶层。
+func TestUnknownFieldAtEveryLevel(t *testing.T) {
+	cases := map[string]string{
+		"顶层": minimalConfig + "unknownTop: x\n",
+		"组件": `project: p
+deploy:
+  target: docker
+components:
+  - id: demo/hello
+    version: 1.0.0
+    exposedPort: 8080
+resources: []
+`,
+		"资源绑定": minimalConfig + `resources:
+  - id: pg
+    kind: database
+    engine: postgresql
+    host: postgres
+    bindings:
+      - componentId: people/basic
+        databse: erp_people
+`,
+		"deploy": `project: p
+deploy:
+  target: docker
+  namespce: demo
+components: []
+resources: []
+`,
+	}
+
+	for name, text := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := ParseConfig([]byte(text), "brickkit.yaml")
+			assert.Error(t, err, "这一层的未知字段也必须被发现")
+		})
+	}
+}
+
+// TestConfigMapAllowsArbitraryKeys：component.config 底下不查。
+//
+// 那里的键由**组件的 configSchema** 决定，平台无从判断对错——
+// 在这里报"未知字段"会把每一个正常的配置覆盖都拦下来。
+func TestConfigMapAllowsArbitraryKeys(t *testing.T) {
+	_, err := ParseConfig([]byte(`project: p
+deploy:
+  target: docker
+components:
+  - id: demo/hello
+    version: 1.0.0
+    config:
+      whateverTheComponentDeclares: 42
+      anotherOne: "x"
+resources: []
+`), "brickkit.yaml")
+
+	assert.NoError(t, err, "config 底下的键由组件的 configSchema 决定，平台不该管")
+}
+
+// TestClosestFieldOnlyGuessesWhenClose：距离太远就不猜。
+func TestClosestFieldOnlyGuessesWhenClose(t *testing.T) {
+	known := knownFieldsOf(reflect.TypeOf(Resource{}))
+
+	assert.Equal(t, "username", closestField("user", known))
+	assert.Equal(t, "username", closestField("usrname", known))
+	assert.Empty(t, closestField("completelyUnrelated", known),
+		"八竿子打不着的名字不该猜——乱猜比不猜更误导人")
 }

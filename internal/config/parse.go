@@ -57,7 +57,7 @@ func ParseConfigFile(path string) (*Config, error) {
 // 解析分四步：
 //  1. YAML 语法解析（语法错误带行号）
 //  2. ${ENV_VAR} 展开（只作用于值，不动 key）
-//  3. 结构形状检查（该是数组的字段必须是数组）
+//  3. 结构形状检查（该是数组的字段必须是数组）+ 未知字段检查（拼错的键）
 //  4. 字段级语义校验（一次报出全部问题）
 func ParseConfig(data []byte, source string) (*Config, error) {
 	if source == "" {
@@ -86,6 +86,9 @@ func ParseConfig(data []byte, source string) (*Config, error) {
 
 	shape := newConfigProblems(source)
 	checkConfigShapes(doc, shape)
+	// 拼错的字段与形状问题一起报：两者都是"这份配置根本读不对"，
+	// 分两轮报会让人改完一处又撞下一处
+	checkUnknownFields(doc, shape)
 	if shape.Len() > 0 {
 		return nil, shape.Err()
 	}
