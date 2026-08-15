@@ -36,6 +36,36 @@ func TestComponentYamlDeclaresArtifactsThatExist(t *testing.T) {
 	}
 }
 
+// TestComponentYamlDeclaresJWTSecret 是真实装配跑出来的一条。
+//
+// brickkit.yaml **没有**组件级的 env / secrets 机制：唯一能给组件传值的通道
+// 是 config（映射 configSchema）。JWT_SECRET 不声明在 configSchema 里的话，
+// 平台根本无法注入它——这个组件在真实项目里压根起不来，而单元测试全绿，
+// 因为测试是自己 set 环境变量的。
+//
+// 同时它**不能有 default**：有默认值就意味着所有装了这个组件的人共用同一把
+// 钥匙，任何人都能给任何一处部署签出管理员令牌。
+func TestComponentYamlDeclaresJWTSecret(t *testing.T) {
+	raw, err := os.ReadFile("component.yaml")
+	if err != nil {
+		t.Fatalf("读取 component.yaml 失败：%v", err)
+	}
+	manifest := string(raw)
+
+	if !strings.Contains(manifest, "jwtSecret") {
+		t.Fatal("configSchema 必须声明 jwtSecret，否则平台无法注入 JWT_SECRET")
+	}
+
+	// 截出 jwtSecret 那一段，确认它没有 default
+	section := manifest[strings.Index(manifest, "jwtSecret:"):]
+	if end := strings.Index(section, "\nmigration:"); end > 0 {
+		section = section[:end]
+	}
+	if strings.Contains(section, "default:") {
+		t.Error("jwtSecret 绝不能有默认值——那等于所有部署共用同一把钥匙")
+	}
+}
+
 // TestComponentYamlDeclaresStrongDependency：强依赖必须写在 Manifest 里。
 //
 // 不声明的话平台不会注入 PEOPLE_BASIC_ENDPOINT，组件启动时会因为缺配置而失败——

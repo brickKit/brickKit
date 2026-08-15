@@ -36,12 +36,22 @@ copy_component() {
 	mkdir -p "$(dirname "$dst")"
 	cp -r "$src" "$dst"
 }
+# 两个玩具组件：讲依赖、级联、多版本时用它们，起得快、看得清
 copy_component demo-hello demo/hello
 copy_component demo-caller demo/caller
+# 八个真实组件：完整装配、强弱依赖、双协议、缓存、事件、前端、文档聚合
 copy_component department-tree department/tree
 copy_component people-basic people/basic
+copy_component auth-password-login auth/password-login
+copy_component authorization-rbac authorization/rbac
+copy_component erp-backend erp/backend
+copy_component portal-user-frontend portal/user-frontend
+copy_component infra-redis-event-bus infra/redis-event-bus
+copy_component infra-api-docs infra/api-docs
 echo "📦 试验组件已就位：$PLAY/components/"
-echo "   demo/hello  demo/caller  department/tree  people/basic"
+echo "   玩具：demo/hello  demo/caller"
+echo "   真实：department/tree  people/basic  auth/password-login  authorization/rbac"
+echo "         erp/backend  portal/user-frontend  infra/redis-event-bus  infra/api-docs"
 
 # ===== 3. kubectl（可选）=====
 if ! command -v kubectl >/dev/null 2>&1; then
