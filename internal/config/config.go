@@ -195,6 +195,15 @@ type Binding struct {
 type Installer struct {
 	// RequireSignature 缺省为 true（附录 D.1）。
 	RequireSignature *bool `yaml:"requireSignature,omitempty"`
+	// PublicKeys 是项目信任的组件发布者公钥：签名里的 publicKeyRef → 公钥文件路径。
+	//
+	// 信任锚点必须在使用者这一侧。008 §8.3 的签名里只有 publicKeyRef 这个**名字**，
+	// 没说该由谁来解析它；如果公钥跟着签名一起从市场取，就成了市场自己给自己发证
+	// ——市场被攻破时攻击者把组件和公钥一起换掉，验签照样通过。那样 008 §14.1
+	// 写的"市场被攻破 → 靠签名校验"就是一句空话。所以只认这里配的。
+	//
+	// 公钥不是密钥，应当跟着 brickkit.yaml 一起提交 Git，好让它的变更有评审记录。
+	PublicKeys map[string]string `yaml:"publicKeys,omitempty"`
 }
 
 // RequireSignature 返回是否强制签名校验（默认 true）。
@@ -203,6 +212,14 @@ func (c *Config) RequireSignature() bool {
 		return true
 	}
 	return *c.Installer.RequireSignature
+}
+
+// PublicKeys 返回项目信任的发布者公钥（ref → 文件路径），未配置时返回 nil。
+func (c *Config) PublicKeys() map[string]string {
+	if c.Installer == nil {
+		return nil
+	}
+	return c.Installer.PublicKeys
 }
 
 // ComponentsByID 返回指定组件 ID 的全部版本条目（多版本共存，003 §4.8）。

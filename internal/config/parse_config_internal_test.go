@@ -298,6 +298,35 @@ func TestRequireSignatureDefaults(t *testing.T) {
 	assert.True(t, c.RequireSignature())
 }
 
+// TestPublicKeysParsed 覆盖 installer.publicKeys：项目自己声明信任哪些发布者公钥。
+func TestPublicKeysParsed(t *testing.T) {
+	c, err := ParseConfig([]byte(minimalConfig+`installer:
+  requireSignature: true
+  publicKeys:
+    keys/people-basic-release.pub: keys/people-basic-release.pub
+    keys/vendor-release.pub: /etc/brickkit/vendor-release.pub
+`), "brickkit.yaml")
+	require.NoError(t, err)
+
+	assert.True(t, c.RequireSignature())
+	assert.Equal(t, map[string]string{
+		"keys/people-basic-release.pub": "keys/people-basic-release.pub",
+		"keys/vendor-release.pub":       "/etc/brickkit/vendor-release.pub",
+	}, c.PublicKeys())
+}
+
+// TestPublicKeysAbsentIsNotAnError：没配公钥不是配置错误。
+//
+// requireSignature 默认为 true，若在解析阶段就要求必须配公钥，所有还没用上签名的
+// 现有项目会连 brickkit status 都跑不起来。该拦的地方是安装时。
+func TestPublicKeysAbsentIsNotAnError(t *testing.T) {
+	c, err := ParseConfig([]byte(minimalConfig), "brickkit.yaml")
+	require.NoError(t, err)
+
+	assert.Nil(t, c.PublicKeys())
+	assert.True(t, c.RequireSignature())
+}
+
 func TestEnabledStateStringFallback(t *testing.T) {
 	assert.Equal(t, "默认开启", EnabledState(99).String())
 }
