@@ -41,7 +41,7 @@ TESTFLAGS ?= -count=1
 
 # 平台自测组件（tests/components/*）：各自是独立的 Go module 与独立的组件仓库，
 # 不参与主 module 的 ./... 构建，需要单独测试与构建镜像。
-DEMO_COMPONENTS := demo-hello demo-caller department-tree auth-password-login
+DEMO_COMPONENTS := demo-hello demo-caller department-tree auth-password-login authorization-rbac
 # Python 组件（people-basic）没法在宿主机上直接跑测试：本机未安装 python3-venv。
 # 它的测试跑在容器里（Dockerfile 的 test 层），版本固定、可复现。
 PY_COMPONENTS := people-basic
@@ -188,6 +188,15 @@ proto-department: ## 由 proto 重新生成 department/tree 的 Go 代码
 		proto/department/v1/department.proto
 	@echo "✅ tests/components/department-tree/gen 已更新"
 
+.PHONY: proto-authorization
+proto-authorization: ## 由 proto 重新生成 authorization/rbac 的 Go 代码
+	@cd tests/components/authorization-rbac && mkdir -p gen && PATH="$(TOOLS_BIN):$$PATH" $(PROTOC) \
+		--proto_path=proto \
+		--go_out=gen --go_opt=paths=source_relative \
+		--go-grpc_out=gen --go-grpc_opt=paths=source_relative \
+		proto/authorization/v1/authorization.proto
+	@echo "✅ tests/components/authorization-rbac/gen 已更新"
+
 .PHONY: test-market-integration
 test-market-integration: ## 市场后端的集成测试（需要本机 PostgreSQL 与 RustFS，读 .env）
 	@set -a; . ./.env; set +a; \
@@ -216,7 +225,7 @@ test-components-integration: ## 组件的迁移集成测试（需要本机 Postg
 	@# 组件的数据库按设计由人创建（006 §9.1：CLI 不负责建库，见各组件 README）；
 	@# 这里是测试夹具代劳，免得每次跑测试前手工建库
 	@set -a; . ./.env; set +a; \
-	for db in brickkit_department brickkit_people brickkit_auth; do \
+	for db in brickkit_department brickkit_people brickkit_auth brickkit_rbac; do \
 		docker exec -e PGPASSWORD=$$POSTGRES_PASSWORD -i my-postgres \
 			psql -U $$POSTGRES_USER -tc "SELECT 1 FROM pg_database WHERE datname='$$db'" \
 			| grep -q 1 || docker exec -e PGPASSWORD=$$POSTGRES_PASSWORD -i my-postgres \
@@ -230,6 +239,11 @@ test-components-integration: ## 组件的迁移集成测试（需要本机 Postg
 	( cd tests/components/auth-password-login && \
 	  AUTH_TEST_DATABASE_URL="postgres://$$POSTGRES_USER:$$POSTGRES_PASSWORD@$$POSTGRES_HOST:$$POSTGRES_PORT/brickkit_auth?sslmode=disable" \
 	  $(GO) test $(TESTFLAGS) ./... ) || exit 1; \
+	echo "▶ authorization-rbac 迁移集成测试（含 Redis 缓存契约）"; \
+	( cd tests/components/authorization-rbac && \
+	  RBAC_TEST_DATABASE_URL="postgres://$$POSTGRES_USER:$$POSTGRES_PASSWORD@$$POSTGRES_HOST:$$POSTGRES_PORT/brickkit_rbac?sslmode=disable" \
+	  RBAC_TEST_REDIS_ADDR="$${REDIS_HOST:-localhost}:$${REDIS_PORT:-6379}" \
+	  $(GO) test $(TESTFLAGS) ./... ) || exit 1; \
 	echo "▶ people-basic 迁移集成测试（容器内）"; \
 	PGIP=$$(docker inspect my-postgres --format '{{.NetworkSettings.Networks.bridge.IPAddress}}'); \
 	docker build -q --target test -t brickkit-test/people-basic tests/components/people-basic >/dev/null; \
@@ -242,6 +256,7 @@ demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实�
 	@docker build -q -t brickkit-demo/department-tree:1.0.0 tests/components/department-tree
 	@docker build -q -t brickkit-demo/people-basic:1.0.0 tests/components/people-basic
 	@docker build -q -t brickkit-demo/auth-password-login:1.0.0 tests/components/auth-password-login
+	@docker build -q -t brickkit-demo/authorization-rbac:1.0.0 tests/components/authorization-rbac
 	@for tag in $(DEMO_HELLO_TAGS); do \
 		docker build -q -t brickkit-demo/hello:$$tag tests/components/demo-hello; \
 	done

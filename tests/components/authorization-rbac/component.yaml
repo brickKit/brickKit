@@ -1,0 +1,86 @@
+# authorization/rbac —— 授权组件（BrickKit Phase 5 测试组件）
+#
+# 它验证的是前面几个组件都没覆盖的两件事：
+#   - **cache 资源**（Redis）：一个"有了更快、没有也能跑"的可选依赖
+#   - 单端口双协议 + 强依赖 + 缓存三者叠在一起时的降级行为
+#
+# 权限来自两条路径的并集：直接授予这个人的角色 + 授予其所在**部门**的角色。
+# 第二条是它强依赖 people/basic 的原因——部门在那边。
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: authorization/rbac
+  name: 基于角色的授权
+  version: 1.0.0
+  description: 回答"某个人能不能做某件事"；权限按人与部门两条路径合并，结果缓存在 Redis
+  vendor: brickkit-platform
+  license: MIT
+
+tags:
+  - authorization
+  - rbac
+
+artifacts:
+  # 契约即产物（002 §7）：调用方据此生成 gRPC 客户端
+  - type: api-contract
+    format: protobuf
+    description: gRPC API 契约文件
+    files:
+      - proto/authorization/v1/authorization.proto
+  - type: api-docs
+    format: openapi
+    description: HTTP REST API 文档
+    files:
+      - openapi.json
+
+dependencies:
+  components:
+    # 强依赖：地址注入为 PEOPLE_BASIC_ENDPOINT。
+    # 部门从这里取；它不可用且缓存未命中时本组件如实报 503，**不做部分降级**
+    - people/basic@1.0.0
+  resources:
+    - kind: database
+      engine: postgresql
+    # 缓存资源。注入 REDIS_HOST / REDIS_PORT / REDIS_PASSWORD（006 §5.2）。
+    # 它是加速器不是数据源：没绑定时组件照样能跑，只是每次都回源
+    - kind: cache
+      engine: redis
+
+configSchema:
+  type: object
+  properties:
+    logLevel:
+      type: string
+      default: "info"
+      description: 日志级别，注入为环境变量 LOG_LEVEL（debug | info | warn | error）
+    cacheTtlSeconds:
+      type: integer
+      default: 300
+      description: 权限缓存有效期（秒），注入为环境变量 CACHE_TTL_SECONDS
+
+migration:
+  command: ["/app/authorization-rbac", "migrate"]
+
+deployment:
+  type: container
+  image: brickkit-demo/authorization-rbac:1.0.0
+  # HTTP 与 gRPC 共用这一个端口（h2c + Content-Type 分流，同 department/tree）
+  port: 8080
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+healthCheck:
+  type: http
+  path: /healthz
+  # ⚠️ 只检查本进程存活，**不碰 Redis**、不查库、不调 people/basic（002 §9.4、
+  # 开发计划 24.5）。Redis 一抖就把所有副本杀掉重启，而它只是个加速器
+
+observability:
+  metrics: false
+  tracing: false

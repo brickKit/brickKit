@@ -1,0 +1,166 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "authorization/rbac",
+    "version": "1.0.0",
+    "description": "授权组件：回答「某个人能不能做某件事」。\n\n权限来自两条路径的并集：直接授予这个人的角色，以及授予他所在**部门**的角色（部门取自 people/basic）。\n\n同一份逻辑还通过 gRPC 提供（与 HTTP 共用同一个端口），契约见 proto/authorization/v1/authorization.proto。"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "健康检查",
+        "description": "只检查本进程是否存活。**不碰 Redis**、不查库、不调 people/basic（002 §9.4）——Redis 一抖就把所有副本杀掉重启，而它在这里只是个加速器。",
+        "responses": {
+          "200": {
+            "description": "进程存活",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "status": { "type": "string", "example": "ok" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/permissions": {
+      "get": {
+        "summary": "查询某人的全部权限",
+        "parameters": [
+          {
+            "name": "personId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "example": "p-001" },
+            "description": "people/basic 中的人员 ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "权限集合（已排序去重）",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PermissionSet" }
+              }
+            }
+          },
+          "400": {
+            "description": "缺少 personId",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "people/basic 中没有这个人",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "503": {
+            "description": "数据库或 people/basic 不可用，且缓存未命中。\n\n此时**不返回残缺的权限集**：只知道直接授权、不知道部门授权的话，调用方会把它当成完整的用。",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/check": {
+      "post": {
+        "summary": "判断某人是否拥有某个权限",
+        "description": "没有权限时返回 **200 + allowed:false**，不是 403。这个端点回答的是「他有没有这个权限」，调用方才决定要不要放行；用 403 会让调用方分不清「我没权限查这个接口」和「我查到了、答案是否」。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["personId", "permission"],
+                "properties": {
+                  "personId": { "type": "string", "example": "p-001" },
+                  "permission": { "type": "string", "example": "erp.order.approve" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "查询成功，答案在 allowed 里",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CheckResult" }
+              }
+            }
+          },
+          "400": {
+            "description": "请求体不合法",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "people/basic 中没有这个人",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "503": {
+            "description": "依赖不可用且缓存未命中",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PermissionSet": {
+        "type": "object",
+        "properties": {
+          "personId": { "type": "string", "example": "p-001" },
+          "departmentId": { "type": "string", "example": "d-tech" },
+          "roles": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["r-manager", "r-viewer"],
+            "description": "命中的角色，已排序。没有时是 [] 而不是 null"
+          },
+          "permissions": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["erp.order.approve", "erp.order.read"],
+            "description": "权限，已排序去重。没有时是 [] 而不是 null"
+          },
+          "cached": {
+            "type": "boolean",
+            "description": "这次结果是否来自缓存。回源就是回源，不会标成 cached"
+          }
+        }
+      },
+      "CheckResult": {
+        "type": "object",
+        "properties": {
+          "personId": { "type": "string" },
+          "permission": { "type": "string" },
+          "allowed": { "type": "boolean" },
+          "reason": {
+            "type": "string",
+            "enum": ["direct", "department", "none"],
+            "description": "这个判断从哪来，便于排障。它不参与任何判定"
+          },
+          "cached": { "type": "boolean" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "description": "只有一句面向使用者的话，不带底层原因。",
+        "properties": { "error": { "type": "string" } }
+      }
+    }
+  }
+}
