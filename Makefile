@@ -41,7 +41,7 @@ TESTFLAGS ?= -count=1
 
 # 平台自测组件（tests/components/*）：各自是独立的 Go module 与独立的组件仓库，
 # 不参与主 module 的 ./... 构建，需要单独测试与构建镜像。
-DEMO_COMPONENTS := demo-hello demo-caller department-tree
+DEMO_COMPONENTS := demo-hello demo-caller department-tree auth-password-login
 # Python 组件（people-basic）没法在宿主机上直接跑测试：本机未安装 python3-venv。
 # 它的测试跑在容器里（Dockerfile 的 test 层），版本固定、可复现。
 PY_COMPONENTS := people-basic
@@ -216,7 +216,7 @@ test-components-integration: ## 组件的迁移集成测试（需要本机 Postg
 	@# 组件的数据库按设计由人创建（006 §9.1：CLI 不负责建库，见各组件 README）；
 	@# 这里是测试夹具代劳，免得每次跑测试前手工建库
 	@set -a; . ./.env; set +a; \
-	for db in brickkit_department brickkit_people; do \
+	for db in brickkit_department brickkit_people brickkit_auth; do \
 		docker exec -e PGPASSWORD=$$POSTGRES_PASSWORD -i my-postgres \
 			psql -U $$POSTGRES_USER -tc "SELECT 1 FROM pg_database WHERE datname='$$db'" \
 			| grep -q 1 || docker exec -e PGPASSWORD=$$POSTGRES_PASSWORD -i my-postgres \
@@ -225,6 +225,10 @@ test-components-integration: ## 组件的迁移集成测试（需要本机 Postg
 	echo "▶ department-tree 迁移集成测试"; \
 	( cd tests/components/department-tree && \
 	  DEPARTMENT_TEST_DATABASE_URL="postgres://$$POSTGRES_USER:$$POSTGRES_PASSWORD@$$POSTGRES_HOST:$$POSTGRES_PORT/brickkit_department?sslmode=disable" \
+	  $(GO) test $(TESTFLAGS) ./... ) || exit 1; \
+	echo "▶ auth-password-login 迁移集成测试"; \
+	( cd tests/components/auth-password-login && \
+	  AUTH_TEST_DATABASE_URL="postgres://$$POSTGRES_USER:$$POSTGRES_PASSWORD@$$POSTGRES_HOST:$$POSTGRES_PORT/brickkit_auth?sslmode=disable" \
 	  $(GO) test $(TESTFLAGS) ./... ) || exit 1; \
 	echo "▶ people-basic 迁移集成测试（容器内）"; \
 	PGIP=$$(docker inspect my-postgres --format '{{.NetworkSettings.Networks.bridge.IPAddress}}'); \
@@ -237,6 +241,7 @@ demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实�
 	@docker build -q -t brickkit-demo/caller:1.0.0 tests/components/demo-caller
 	@docker build -q -t brickkit-demo/department-tree:1.0.0 tests/components/department-tree
 	@docker build -q -t brickkit-demo/people-basic:1.0.0 tests/components/people-basic
+	@docker build -q -t brickkit-demo/auth-password-login:1.0.0 tests/components/auth-password-login
 	@for tag in $(DEMO_HELLO_TAGS); do \
 		docker build -q -t brickkit-demo/hello:$$tag tests/components/demo-hello; \
 	done

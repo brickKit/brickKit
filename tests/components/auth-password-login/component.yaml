@@ -1,0 +1,76 @@
+# auth/password-login —— 口令登录组件（BrickKit Phase 5 测试组件）
+#
+# 它验证的是前两个组件都没覆盖的一类形态：**强依赖别人、自己却没有可展示数据
+# 的组件**。它的全部价值在于"依赖正常/异常时能不能给出正确的判断"。
+#
+# 职责边界：本组件只管"怎么证明你是你"（用户名 → 口令哈希 → 令牌），
+# "你是谁"（姓名、部门）在 people/basic 里，登录时现取。
+# 分开之后，员工从人员系统消失就登录不进来——主体的存废由人员系统说了算。
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: auth/password-login
+  name: 口令登录
+  version: 1.0.0
+  description: 校验用户名与口令并签发 JWT；身份信息来自 people/basic，不在本组件重复存储
+  vendor: brickkit-platform
+  license: MIT
+
+tags:
+  - auth
+  - identity
+
+artifacts:
+  # 本组件只提供 HTTP，没有 gRPC，因此没有 proto 契约（002 §7：有什么发什么）
+  - type: api-docs
+    format: openapi
+    description: HTTP REST API 文档
+    files:
+      - openapi.json
+
+dependencies:
+  components:
+    # 强依赖：地址注入为 PEOPLE_BASIC_ENDPOINT。
+    # 登录时用它确认主体仍然存在；它不可用时本组件如实报 503（不是 401）
+    - people/basic@1.0.0
+  resources:
+    - kind: database
+      engine: postgresql
+
+configSchema:
+  type: object
+  properties:
+    logLevel:
+      type: string
+      default: "info"
+      description: 日志级别，注入为环境变量 LOG_LEVEL（debug | info | warn | error）
+    tokenTtlSeconds:
+      type: integer
+      default: 1800
+      description: 令牌有效期（秒），注入为环境变量 TOKEN_TTL_SECONDS
+
+migration:
+  command: ["/app/auth-password-login", "migrate"]
+
+deployment:
+  type: container
+  image: brickkit-demo/auth-password-login:1.0.0
+  port: 8080
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+healthCheck:
+  type: http
+  path: /healthz
+  # ⚠️ 只检查本进程存活，不查数据库、不调 people/basic（002 §9.4）。
+  # 否则依赖一抖，编排系统就会把这个本身完全正常的容器杀掉重启
+
+observability:
+  metrics: false
+  tracing: false

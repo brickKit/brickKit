@@ -1,0 +1,153 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "auth/password-login",
+    "version": "1.0.0",
+    "description": "口令登录组件。校验用户名与口令并签发 JWT。\n\n职责边界：本组件只管「怎么证明你是你」；姓名、部门等身份信息在 people/basic 里，登录时现取。因此员工从人员系统消失后，凭据哪怕还在也登录不进来。\n\n错误语义：401 是「你是谁我不认」，503 是「我这边有问题」。把依赖故障报成 401 会让使用者在自己的密码上白折腾。"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "健康检查",
+        "description": "只检查本进程是否存活。**不查数据库、不调 people/basic**（002 §9.4）——否则依赖一抖，编排系统就会把这个本身完全正常的容器杀掉重启。",
+        "responses": {
+          "200": {
+            "description": "进程存活",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "status": { "type": "string", "example": "ok" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/login": {
+      "post": {
+        "summary": "登录并签发令牌",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "认证通过",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LoginResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "请求体不合法（缺字段、不是 JSON）。与 401 分开：400 是「你没说清楚要什么」",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "用户名或密码错误，或该人员已不在 people/basic 中。\n\n**用户不存在与口令错误返回完全相同的响应**，以免被用来枚举账号。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "数据库或 people/basic 暂时不可用。这不是认证失败，重试或检查依赖组件",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verify": {
+      "post": {
+        "summary": "校验令牌并返回其中的身份",
+        "description": "令牌用 HS256 签名，密钥只有本组件有。下游组件（erp/backend、authorization/rbac）通过这个端点校验令牌，而不是自己拿密钥去验。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["token"],
+                "properties": { "token": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "令牌有效",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VerifyResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "令牌无效或已过期。**不回显具体原因**——那等于告诉伪造者他离成功还差哪一步",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+          "username": { "type": "string", "example": "zhangsan" },
+          "password": { "type": "string", "format": "password" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "description": "响应中绝不包含口令哈希。",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "JWT（HS256）。载荷含 sub（personId）、iat、exp、username、departmentId"
+          },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "personId": { "type": "string", "example": "p-001" },
+          "username": { "type": "string", "example": "zhangsan" }
+        }
+      },
+      "VerifyResponse": {
+        "type": "object",
+        "properties": {
+          "personId": { "type": "string", "example": "p-001" },
+          "username": { "type": "string", "example": "zhangsan" },
+          "departmentId": { "type": "string", "example": "d-tech" },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "description": "只有一句面向使用者的话，不带底层原因——那既帮不上调用方，又把内部拓扑告诉了外面。",
+        "properties": {
+          "error": { "type": "string" }
+        }
+      }
+    }
+  }
+}
