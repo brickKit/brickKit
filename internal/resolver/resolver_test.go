@@ -3,6 +3,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -300,6 +301,43 @@ func TestDeepRecursion(t *testing.T) {
 	assert.Equal(t, []Ref{
 		{"x/d", "1.0.0"}, {"x/c", "1.0.0"}, {"x/b", "1.0.0"}, {"x/a", "1.0.0"},
 	}, g.Refs())
+}
+
+// 32.18 十层依赖链：确认没有隐藏的深度上限。
+//
+// 上面那条只到 4 层，证明了"递归能走通"；这条证明的是"走多深都不会断"。
+// 两者不重复：深度上限这类限制往往不是有意加的，而是某个中间结构
+// （固定长度的数组、递归改迭代时的栈）带进来的，
+// 而它一旦存在，表现是**依赖链长到一定程度就莫名其妙解析失败**。
+func TestTenLevelDependencyChain(t *testing.T) {
+	const depth = 10
+
+	comps := make([]comp, 0, depth)
+	names := make([]string, 0, depth)
+	for i := 0; i < depth; i++ {
+		id := fmt.Sprintf("x/n%02d", i)
+		names = append(names, id)
+		c := comp{ID: id, Version: "1.0.0"}
+		if i < depth-1 {
+			c.Requires = []string{fmt.Sprintf("x/n%02d@1.0.0", i+1)}
+		}
+		comps = append(comps, c)
+	}
+
+	f := newFixture(t, comps...)
+	g, err := f.Resolver.Resolve(context.Background(), Ref{"x/n00", "1.0.0"})
+	require.NoError(t, err, "32.18：十层依赖链必须能解析")
+
+	require.Len(t, g.Nodes, depth)
+	for _, id := range names {
+		assert.True(t, g.Has(Ref{id, "1.0.0"}), "32.18：%s 应被解析", id)
+	}
+
+	// 顺序仍要满足"依赖先于依赖方"——最深的排最前
+	refs := g.Refs()
+	require.Len(t, refs, depth)
+	assert.Equal(t, "x/n09", refs[0].ID, "32.18：最深的那个要最先启动")
+	assert.Equal(t, "x/n00", refs[depth-1].ID, "32.18：根组件最后启动")
 }
 
 // ============================================================
