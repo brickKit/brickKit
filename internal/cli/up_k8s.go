@@ -56,12 +56,28 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 	}
 	renderMigrations(opts, plan.migrations)
 
-	return applyK8s(ctx, opts, eng, plan, dir)
+	return applyK8s(ctx, opts, eng, plan, dir, pruneSelectorFor(flags, plan))
+}
+
+// pruneSelectorFor 决定本次 up 允不允许清理孤儿资源（P38）。
+//
+// 返回空串表示**不清理**。
+//
+// `--only` 时必须返回空：那时 plan.services 只是被点名的子集，
+// 其余组件照样在集群里正常服务——把它们当孤儿删掉，后果比 P38 本身
+// （多跑一个没人用的旧版本）严重得多，那是**把正在服务的组件下线**。
+//
+// 只对 K8s 目标有意义：Docker 那边由 compose 的 `--remove-orphans` 兜底。
+func pruneSelectorFor(flags upOptions, plan *upPlan) string {
+	if len(flags.only) > 0 {
+		return ""
+	}
+	return k8s.LabelProject + "=" + plan.cfg.Project
 }
 
 // applyK8s 把清单交给集群，然后如实汇报。
 func applyK8s(
-	ctx context.Context, opts *Options, eng engine.Engine, plan *upPlan, dir string,
+	ctx context.Context, opts *Options, eng engine.Engine, plan *upPlan, dir, pruneSelector string,
 ) error {
 	opts.Printf("\n☸️  正在部署到 Kubernetes（命名空间 %s）...\n", plan.k8s.Namespace)
 	if len(plan.k8s.MigrationJobs) > 0 {
@@ -69,15 +85,19 @@ func applyK8s(
 		opts.Printf("   先执行数据库迁移，完成后才启动主服务\n")
 	}
 
+	var pruned []string
 	if err := eng.Up(ctx, engine.UpRequest{
 		File:          dir,
 		Project:       plan.k8s.Namespace,
 		Context:       plan.kubeContext,
 		Services:      plan.services,
 		MigrationJobs: plan.k8s.MigrationJobs,
+		PruneSelector: pruneSelector,
+		OnPrune:       func(resource string) { pruned = append(pruned, resource) },
 	}); err != nil {
 		return engineFailure("部署", err)
 	}
+	renderPruned(opts, pruned)
 
 	statuses, err := eng.Status(ctx, dir, plan.k8s.Namespace)
 	if err != nil {
@@ -103,6 +123,24 @@ func resolveEngineFor(opts *Options, cfg *config.Config) (engine.Engine, error) 
 		return engine.NewKubectl(), nil
 	}
 	return resolveEngine(opts)
+}
+
+// renderPruned 如实汇报清理掉了哪些孤儿资源（P38）。
+//
+// 悄悄删东西不可接受：集群里少了什么，使用者得知道——
+// 尤其是他其实误删了 brickkit.yaml 里的一行、本意并非下线那个组件的时候，
+// 这几行输出是他唯一的线索。
+func renderPruned(opts *Options, pruned []string) {
+	if len(pruned) == 0 {
+		return
+	}
+
+	opts.Printf("\n🧹 已清理旧版本残留（%d 项）：\n", len(pruned))
+	for _, resource := range pruned {
+		opts.Printf("   - %s\n", resource)
+	}
+	opts.Printf("   它们带着本项目的标签，但不在本次部署范围内\n")
+	logging.Info("已清理孤儿资源", "count", len(pruned))
 }
 
 // ============================================================

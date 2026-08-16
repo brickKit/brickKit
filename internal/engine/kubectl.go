@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/logging"
 )
 
 // 超时。K8s 侧没有 compose 那样的"等到好为止"，必须自己设上限，
@@ -103,7 +104,96 @@ func (k *Kubectl) Up(ctx context.Context, req UpRequest) error {
 			return err
 		}
 	}
-	return k.waitRollout(ctx, req)
+	if err := k.waitRollout(ctx, req); err != nil {
+		return err
+	}
+	return k.prune(ctx, req)
+}
+
+// pruneKinds 是会被清理的资源类型。
+//
+// **刻意不含 namespace**：namespace.yaml 上也有 brickkit.io/project 标签，
+// 一旦被算进去，一次普通的升级就会把整个命名空间连同里面所有东西删掉。
+// 也不含 secret：它按资源 ID 命名而不是服务名，与这里的"期望名字集合"对不上。
+var pruneKinds = []string{
+	"deployment", "service", "ingress", "networkpolicy", "serviceaccount", "job",
+}
+
+// prune 删掉带本项目标签、却不属于本次部署的资源（P38）。
+//
+// 为什么需要它：`kubectl apply` 只会创建和更新，**不会删**目录里没有的资源。
+// 于是把版本号从 1.0.0 改成 2.0.0 再 up，1.0.0 的 Deployment 会一直跑下去——
+// 而 `status` 只报本次部署的，`down` 也只删生成目录里有的，那是永久泄漏。
+// Docker 那条路由 compose 的 `--remove-orphans` 兜底，K8s 这边得自己做。
+//
+// 时机在滚动更新**之后**：先让新版本就绪再删旧的，
+// 否则升级过程中会有一段谁都服务不了。
+func (k *Kubectl) prune(ctx context.Context, req UpRequest) error {
+	if req.PruneSelector == "" {
+		return nil
+	}
+
+	out, err := k.exec(ctx, k.args(req.Project, "get", strings.Join(pruneKinds, ","),
+		"-l", req.PruneSelector, "-o", "name")...)
+	if err != nil {
+		// 部署已经成功了，清理只是收尾。因为查不到集群状态就把一次成功的 up
+		// 判成失败，会让人以为服务没起来而去做多余的回滚
+		logging.Warn("清理旧版本资源时查询失败，本次跳过清理", "error", err)
+		return nil
+	}
+
+	orphans := orphansIn(string(out), desiredNames(req))
+	if len(orphans) == 0 {
+		return nil
+	}
+
+	if _, err := k.exec(ctx, k.args(req.Project,
+		append([]string{"delete"}, append(orphans, "--ignore-not-found")...)...)...); err != nil {
+		logging.Warn("清理旧版本资源失败", "error", err)
+		return nil
+	}
+	for _, orphan := range orphans {
+		if req.OnPrune != nil {
+			req.OnPrune(orphan)
+		}
+	}
+	return nil
+}
+
+// desiredNames 是本次部署**应该**拥有的资源名。
+//
+// 迁移 Job 必须算进来：它叫 <服务名>-migration，与服务名对不上，
+// 漏了的话刚跑完的迁移 Job 会被当成孤儿删掉——`kubectl logs job/...`
+// 就再也查不到这次迁移做了什么。
+func desiredNames(req UpRequest) map[string]bool {
+	out := make(map[string]bool, len(req.Services)+len(req.MigrationJobs))
+	for _, name := range req.Services {
+		out[name] = true
+	}
+	for _, name := range req.MigrationJobs {
+		out[name] = true
+	}
+	return out
+}
+
+// orphansIn 从 `kubectl get -o name` 的输出里挑出不属于本次部署的资源。
+//
+// 输出的每一行形如 `deployment.apps/people-basic-1-0-0`：斜杠后面才是名字，
+// 而删除时要用**整行**（带类型前缀），否则 kubectl 不知道删的是哪一类。
+func orphansIn(out string, desired map[string]bool) []string {
+	var orphans []string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		_, name, ok := strings.Cut(line, "/")
+		if !ok || desired[name] {
+			continue
+		}
+		orphans = append(orphans, line)
+	}
+	return orphans
 }
 
 // runMigrations 执行数据库迁移并等它跑完（005 §6.3）。

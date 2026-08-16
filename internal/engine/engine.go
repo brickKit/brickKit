@@ -73,6 +73,20 @@ type UpRequest struct {
 	// compose 用 depends_on + service_completed_successfully 表达"等迁移跑完"，
 	// K8s 没有这种东西，只能由 CLI 串行控制：清理旧 Job → apply → wait（005 §6.3）。
 	MigrationJobs []string
+	// PruneSelector 是清理孤儿资源用的标签选择器（如 `brickkit.io/project=my-erp`）。
+	//
+	// **空表示不清理**，这不是省略而是一种明确的表达：`--only` 只部署子集，
+	// 那时 Services 里没有的组件并不是孤儿，照着清理会把它们全删掉——
+	// 比 P38 本身危险得多。命令层用"不给选择器"表达这件事。
+	//
+	// 只对 K8s 目标有意义：compose 有 `--remove-orphans` 兜底，
+	// 而 `kubectl apply` 默认不删目录里没有的资源（P38）。
+	PruneSelector string
+	// OnPrune 在清理掉一个孤儿资源时回调，供命令层如实汇报；为 nil 时不回调。
+	//
+	// 悄悄删东西是不可接受的：使用者得知道集群里少了什么，
+	// 尤其在他其实是误删了配置、本意并非下线那个组件的时候。
+	OnPrune func(resource string)
 }
 
 // DownRequest 是一次停止请求。

@@ -29,6 +29,8 @@ type fakeEngine struct {
 	statuses []engine.Status
 	// currentContext 是引擎当前指向的集群（只有 K8s 有意义）。
 	currentContext string
+	// pruned 模拟"这次清理掉了这些孤儿资源"，通过 UpRequest.OnPrune 回传（P38）。
+	pruned []string
 }
 
 func newFakeEngine() *fakeEngine {
@@ -39,6 +41,12 @@ func (f *fakeEngine) Name() string { return f.name }
 
 func (f *fakeEngine) Up(_ context.Context, req engine.UpRequest) error {
 	f.ups = append(f.ups, req)
+	// 真引擎清理孤儿时会逐个回调；夹具照做，命令层的汇报才测得到（P38）
+	if req.OnPrune != nil {
+		for _, resource := range f.pruned {
+			req.OnPrune(resource)
+		}
+	}
 	return f.upErr
 }
 

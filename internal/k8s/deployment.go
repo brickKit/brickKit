@@ -16,7 +16,7 @@ const (
 	labelApp              = "app"
 	labelComponent        = "brickkit.io/component"
 	labelComponentVersion = "brickkit.io/component-version"
-	labelProject          = "brickkit.io/project"
+	labelProject          = LabelProject
 	// labelRole 区分同一个组件的不同角色（目前只有迁移 Job）。
 	labelRole     = "brickkit.io/role"
 	roleMigration = "migration"

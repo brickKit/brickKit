@@ -28,6 +28,13 @@ import (
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
+// LabelProject 是打在本项目每份生成物上的标签键。
+//
+// 导出是因为命令层要用它构造清理孤儿资源的选择器（P38）：
+// `kubectl get ... -l brickkit.io/project=<项目名>` 才能只扫到本项目的东西，
+// 而不会碰到同一个命名空间里别人的服务。
+const LabelProject = "brickkit.io/project"
+
 // 生成物的子目录名。
 //
 // 集中在一处是有原因的：引擎那边要按名字去 apply 和 delete
