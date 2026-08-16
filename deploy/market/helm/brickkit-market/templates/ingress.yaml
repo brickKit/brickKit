@@ -1,0 +1,36 @@
+{{- if .Values.ingress.enabled }}
+# 对外入口。市场天生要被外面访问——各个项目的 CLI 要连它。
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "market.fullname" . }}
+  labels:
+    {{- include "market.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  # 不写的话只有配了"默认 class"的集群才会认领这条 Ingress——
+  # 没有默认 class 时 apply 成功、域名却打不开
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ required "ingress.tls.enabled=true 时必须给出 ingress.tls.secretName" .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "market.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}

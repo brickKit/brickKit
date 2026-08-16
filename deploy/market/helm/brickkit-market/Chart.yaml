@@ -1,0 +1,26 @@
+apiVersion: v2
+name: brickkit-market
+description: BrickKit 组件市场：组件发布、检索与产物分发
+type: application
+
+# version 是 **chart 的版本**，appVersion 是**市场服务的版本**。
+# 两者独立：只改了模板（比如加一个 values 开关）时只涨 version。
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - brickkit
+  - component-market
+home: https://github.com/brickkit/brickkit
+sources:
+  - https://github.com/brickkit/brickkit
+
+# 集群内的 PostgreSQL 与对象存储**不做成 dependency**。
+#
+# 用 bitnami/postgresql 这类现成 chart 看起来更"正规"，但它会引入一整套
+# 我们既不需要也不敢承诺的配置面（主从、备份、metrics、initdb 脚本……），
+# 而它们只服务于"评估时想一键跑起来"这一个场景。
+# 真要上生产，该用的是云托管数据库，而不是任何一个 chart 里的 StatefulSet。
+# 所以这里只放一个**最小的、明确标着"仅供评估"**的实现（deps.enabled）。
+annotations:
+  brickkit.io/deps-note: "deps.enabled 只供评估，生产请用云托管数据库与对象存储"

@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "BrickKit 组件市场 chart values",
+  "description": "写错的值在 helm install 之前就被拦下——而不是变成集群里一个反复重启的 Pod。这是 Helm 相对 kustomize 最实在的一处：kustomize 的 configMapGenerator 对值不做任何校验。",
+  "type": "object",
+  "properties": {
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "建表在启动时幂等执行，多副本首次启动会并发建表。要扩容请先让第一个副本把表建好。"
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      },
+      "required": ["repository"]
+    },
+    "pullSecrets": { "type": "array", "items": { "type": "string" } },
+    "database": {
+      "type": "object",
+      "properties": {
+        "host": { "type": "string", "minLength": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "name": { "type": "string", "minLength": 1 },
+        "user": { "type": "string", "minLength": 1 }
+      },
+      "required": ["host", "port", "name", "user"]
+    },
+    "storage": {
+      "type": "object",
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "pattern": "^https?://",
+          "description": "必须带 scheme。少了 http:// 时 S3 客户端会拼出一个非法地址，表现是上传产物时报一句看不懂的解析错误。"
+        },
+        "bucket": { "type": "string", "minLength": 1 },
+        "region": { "type": "string", "minLength": 1 }
+      },
+      "required": ["endpoint", "bucket", "region"]
+    },
+    "auth": {
+      "type": "object",
+      "description": "二选一：existingSecret（生产推荐），或四个口令字段。两者都不给时模板渲染会直接失败。",
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "databasePassword": { "type": "string" },
+        "rustfsAccessKey": { "type": "string" },
+        "rustfsSecretKey": { "type": "string" },
+        "adminPassword": { "type": "string" }
+      }
+    },
+    "market": {
+      "type": "object",
+      "properties": {
+        "adminUsername": { "type": "string", "minLength": 1 },
+        "adminPasswordReset": {
+          "type": "boolean",
+          "description": "true 时每次重启都会重置 admin 口令。用完记得改回 false。"
+        },
+        "jwtExpiryHours": { "type": "integer", "minimum": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      },
+      "required": ["adminUsername", "port"]
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      },
+      "required": ["type", "port"]
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "host": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$",
+          "description": "必须是域名，不能带 scheme 或路径。写成 http://xxx 时 apply 会成功、域名却永远匹配不上。"
+        },
+        "annotations": { "type": "object" },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "secretName": { "type": "string" }
+          }
+        }
+      },
+      "required": ["enabled"]
+    },
+    "resources": { "type": "object" },
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array" },
+    "affinity": { "type": "object" },
+    "deps": {
+      "type": "object",
+      "description": "集群内的 PostgreSQL 与对象存储，仅供评估。",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "postgres": {
+          "type": "object",
+          "properties": {
+            "image": { "type": "string", "minLength": 1 },
+            "storage": { "type": "string", "pattern": "^[0-9]+(Mi|Gi|Ti)$" },
+            "storageClass": { "type": "string" }
+          }
+        },
+        "rustfs": {
+          "type": "object",
+          "properties": {
+            "image": { "type": "string", "minLength": 1 },
+            "storage": { "type": "string", "pattern": "^[0-9]+(Mi|Gi|Ti)$" },
+            "storageClass": { "type": "string" }
+          }
+        }
+      },
+      "required": ["enabled"]
+    }
+  },
+  "required": ["image", "database", "storage", "auth", "market", "service", "ingress", "deps"]
+}

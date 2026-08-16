@@ -1,0 +1,19 @@
+# 非敏感配置：地址、库名、用户名这些可以随便看。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "market.fullname" . }}-config
+  labels:
+    {{- include "market.labels" . | nindent 4 }}
+data:
+  DATABASE_HOST: {{ include "market.databaseHost" . | quote }}
+  DATABASE_PORT: {{ .Values.database.port | quote }}
+  DATABASE_NAME: {{ .Values.database.name | quote }}
+  DATABASE_USER: {{ .Values.database.user | quote }}
+  RUSTFS_ENDPOINT: {{ include "market.storageEndpoint" . | quote }}
+  RUSTFS_BUCKET: {{ .Values.storage.bucket | quote }}
+  RUSTFS_REGION: {{ .Values.storage.region | quote }}
+  JWT_EXPIRY_HOURS: {{ .Values.market.jwtExpiryHours | quote }}
+  ADMIN_USERNAME: {{ .Values.market.adminUsername | quote }}
+  ADMIN_PASSWORD_RESET: {{ .Values.market.adminPasswordReset | quote }}
+  PORT: {{ .Values.market.port | quote }}

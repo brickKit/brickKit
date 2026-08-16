@@ -1,0 +1,123 @@
+# BrickKit 组件市场的 Helm values。
+#
+# 最小可用配置（评估用，集群内自带依赖）：
+#
+#   helm install market ./brickkit-market --create-namespace -n brickkit-market \
+#     --set deps.enabled=true \
+#     --set auth.databasePassword=... \
+#     --set auth.adminPassword=... \
+#     --set auth.rustfsAccessKey=... \
+#     --set auth.rustfsSecretKey=...
+#
+# 生产配置：把口令放进一个自己管理的 Secret，用 auth.existingSecret 指过去，
+# 并把 database / storage 指向云托管实例（deps.enabled 保持 false）。
+
+image:
+  repository: brickkit/market-server
+  tag: ""            # 空则用 Chart.appVersion
+  pullPolicy: IfNotPresent
+pullSecrets: []      # 私有 registry 时填 Secret 名
+
+# 副本数固定为 1 是有原因的，不是保守。
+#
+# 建表在**启动时**幂等执行（market-server/internal/repo/postgres.go 的 Migrate），
+# 多个副本同时首次启动会并发建表。要扩容请**先让第一个副本把表建好**，
+# 再 `kubectl scale` 或改这个值重新 upgrade——而不是一上来就写 3。
+replicaCount: 1
+
+# ---- 数据库（非敏感部分）----
+database:
+  host: postgres.infra.svc.cluster.local
+  port: 5432
+  name: brickkit_market
+  user: brickkit
+
+# ---- 对象存储（非敏感部分）----
+storage:
+  endpoint: http://rustfs.infra.svc.cluster.local:9000
+  bucket: brickkit-artifacts
+  region: us-east-1
+
+# ---- 口令 ----
+#
+# 二选一：
+#   existingSecret  指向一个你自己创建、自己轮换的 Secret（**生产推荐**）
+#   下面四个字段    直接给值（评估用；它们会进 helm 的 release 记录）
+#
+# 两者都不给时**渲染直接失败**——绝不生成一份"能 apply 但起不来"的清单。
+auth:
+  # 该 Secret 必须含这四个键：
+  #   DATABASE_PASSWORD / RUSTFS_ACCESS_KEY / RUSTFS_SECRET_KEY / ADMIN_PASSWORD
+  existingSecret: ""
+
+  databasePassword: ""
+  rustfsAccessKey: ""
+  rustfsSecretKey: ""
+  adminPassword: ""
+
+# ---- 市场自身 ----
+market:
+  adminUsername: admin
+  # 打开后下次启动会把 admin 口令重置成 ADMIN_PASSWORD 的值。
+  # 用完记得改回 false，否则每次重启都重置一遍。
+  adminPasswordReset: false
+  jwtExpiryHours: 720
+  port: 8080
+
+service:
+  type: ClusterIP
+  port: 8080
+
+# ---- 对外入口 ----
+#
+# 市场天生要被外面访问（各项目的 CLI 要连它），所以默认开启。
+ingress:
+  enabled: true
+  className: nginx     # ← 改成你集群里的 class；不写的话只有配了"默认 class"的集群会认领
+  host: market.example.com
+  annotations:
+    # 组件产物（proto、openapi.json…）走这条路上传，默认 1m 不够
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+  tls:
+    enabled: false
+    secretName: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# 镜像里已经是 USER 10001（market-server/Dockerfile），
+# 因此可以直接满足 Pod Security Standards 的 restricted 级别。
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ---- 集群内依赖：**仅供评估** ----
+#
+# 打开后在同一个命名空间里起一个 PostgreSQL 和一个 RustFS，
+# 并自动把 database.host / storage.endpoint 指过去（不用你再改）。
+#
+# 生产环境请保持 false：备份、主从、版本升级这些事，一个 StatefulSet 替不了。
+deps:
+  enabled: false
+  postgres:
+    image: postgres:16-alpine
+    storage: 8Gi
+    storageClass: ""
+  rustfs:
+    image: rustfs/rustfs:latest
+    storage: 20Gi
+    storageClass: ""

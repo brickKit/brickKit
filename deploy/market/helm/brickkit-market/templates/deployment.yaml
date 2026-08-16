@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "market.fullname" . }}
+  labels:
+    {{- include "market.labels" . | nindent 4 }}
+spec:
+  # 固定 1 个副本，理由见 values.yaml 的 replicaCount：
+  # 建表在启动时幂等执行，多副本首次启动会并发建表。
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "market.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "market.labels" . | nindent 8 }}
+      annotations:
+        # 配置一变就滚动重启。
+        #
+        # kustomize 那边是靠"名字带内容哈希"白拿到这个行为的；Helm 的
+        # ConfigMap 名字固定，**必须自己加这个校验和**，否则改完口令
+        # apply 完全成功、而 Pod 还在用旧值——你要自己记得 rollout restart，
+        # 那是最容易漏的一步。
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if not .Values.auth.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+    spec:
+      {{- with .Values.pullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: market-api
+          image: {{ include "market.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.market.port }}
+          # 配置与口令分开：ConfigMap 里的可以随便看，Secret 里的不能。
+          envFrom:
+            - configMapRef:
+                name: {{ include "market.fullname" . }}-config
+            - secretRef:
+                name: {{ include "market.secretName" . }}
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # 首次启动要建表、建 bucket，给足时间再开始判存活
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

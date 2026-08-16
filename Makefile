@@ -328,6 +328,37 @@ proto-example: ## 生成示例 proto 代码（工具链自检，验证项 1.5）
 .PHONY: tools
 tools: tools-protoc tools-plugins ## 安装全部本地工具链到 .tools/bin
 
+.PHONY: tools-helm
+tools-helm: ## 安装 helm 到 .tools/bin（只有验证市场 chart 时才需要）
+	@mkdir -p $(TOOLS_BIN)
+	@if [ -x "$(TOOLS_BIN)/helm" ]; then echo "✅ helm 已就位"; else \
+		echo "⬇️  下载 helm ..."; \
+		tmp=$$(mktemp -d); \
+		curl -sSL "https://get.helm.sh/helm-v3.16.3-linux-amd64.tar.gz" | tar -xz -C $$tmp; \
+		install -m 0755 $$tmp/linux-amd64/helm $(TOOLS_BIN)/helm; \
+		rm -rf $$tmp; \
+		echo "✅ $(TOOLS_BIN)/helm"; \
+	fi
+
+.PHONY: market-chart-check
+market-chart-check: tools-helm ## 校验市场 Helm chart（渲染 + values schema）
+	@echo "==> 口令缺失时必须拦住"
+	@if $(TOOLS_BIN)/helm template m deploy/market/helm/brickkit-market >/dev/null 2>&1; then \
+		echo "❌ 没给口令却渲染成功了——那会生成一份起不来的清单"; exit 1; \
+	else echo "   ✅ 已拦下"; fi
+	@echo "==> 给了口令必须能渲染"
+	@$(TOOLS_BIN)/helm template m deploy/market/helm/brickkit-market \
+		--set auth.databasePassword=x --set auth.rustfsAccessKey=x \
+		--set auth.rustfsSecretKey=x --set auth.adminPassword=x >/dev/null
+	@echo "   ✅ 渲染通过"
+	@echo "==> values schema 必须拦下写错的值"
+	@if $(TOOLS_BIN)/helm template m deploy/market/helm/brickkit-market \
+		--set auth.databasePassword=x --set auth.rustfsAccessKey=x \
+		--set auth.rustfsSecretKey=x --set auth.adminPassword=x \
+		--set storage.endpoint=no-scheme:9000 >/dev/null 2>&1; then \
+		echo "❌ storage.endpoint 少了 scheme 却没被拦下"; exit 1; \
+	else echo "   ✅ 已拦下"; fi
+
 .PHONY: tools-protoc
 tools-protoc: ## 下载 protoc 到 .tools/bin
 	@mkdir -p $(TOOLS_BIN) $(TOOLS_INCLUDE)
