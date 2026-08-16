@@ -18,6 +18,7 @@ import (
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deploy"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
@@ -94,6 +95,11 @@ func Build(cfg *config.Config, graph *resolver.Graph, states *cascade.Result) (*
 
 	entries := configEntries(cfg)
 	bindings := resourceBindings(cfg)
+	externals := externalProjects(cfg)
+	target := ""
+	if cfg != nil {
+		target = cfg.Deploy.Target
+	}
 	result := &Result{}
 
 	for _, node := range graph.Nodes {
@@ -101,7 +107,8 @@ func Build(cfg *config.Config, graph *resolver.Graph, states *cascade.Result) (*
 			continue
 		}
 
-		component, warnings := buildComponent(node, graph, states, entries[node.Ref], bindings[node.Ref.ID])
+		component, warnings := buildComponent(
+			node, graph, states, entries[node.Ref], bindings[node.Ref.ID], externals, target)
 		result.Components = append(result.Components, component)
 		result.Warnings = append(result.Warnings, warnings...)
 	}
@@ -112,6 +119,7 @@ func Build(cfg *config.Config, graph *resolver.Graph, states *cascade.Result) (*
 func buildComponent(
 	node *resolver.Node, graph *resolver.Graph, states *cascade.Result,
 	entry config.Component, bindings []boundResource,
+	externals map[resolver.Ref]string, target string,
 ) (Component, []*clierr.Error) {
 	m := node.Manifest
 	builder := &envBuilder{
@@ -120,6 +128,8 @@ func buildComponent(
 		// 使用者定的资源前缀也是保留的：市场发布时看不到它们，
 		// 只有读完 brickkit.yaml 才知道（004 §5.6.1）
 		reservedPrefixes: envPrefixesOf(bindings),
+		externalProject:  externals,
+		target:           target,
 	}
 
 	// 1. 平台通用变量
@@ -165,16 +175,46 @@ type envBuilder struct {
 	// reservedPrefixes 是使用者定义的资源前缀（PRIMARY_ / ARCHIVE_ …）。
 	// 它们只有在读完 brickkit.yaml 之后才知道，市场发布时无从校验。
 	reservedPrefixes []string
+	// externalProject 是被 external 引用的组件 → 部署它的项目名（P39）。
+	// 只有跨项目的依赖才需要特殊寻址，本项目内部的依赖不在这张表里。
+	externalProject map[resolver.Ref]string
+	// target 是部署目标。注入本来完全不区分目标——直到 external 出现（见 addressOf）。
+	target string
 }
 
 func (b *envBuilder) set(v Var) { b.vars[v.Name] = v }
+
+// addressOf 返回依赖组件的可寻址名字。
+//
+// # 本项目内部：永远是裸服务名
+//
+// 两种目标下服务名一模一样，拼出来的地址两边都对。加了命名空间后缀虽然
+// K8s 上也能解析，却把一个本可以随命名空间迁移的地址钉死了。
+//
+// # 跨项目（external，P39）：只有 K8s 需要改
+//
+//	Docker  另一个项目 = 另一张网络。依赖方已被接进那张网，裸服务名照常解析。
+//	K8s     另一个项目 = 另一个命名空间。裸服务名**只在本命名空间**解析，
+//	        必须写成 <服务名>.<对方命名空间>。
+//
+// 少写后缀的后果不对称：DNS 会在本命名空间里找一个不存在的名字，
+// 而容器照样起来、健康检查照样绿——直到第一次真的去调它。
+func (b *envBuilder) addressOf(ref resolver.Ref) string {
+	service := manifest.ServiceName(ref.ID, ref.Version)
+
+	project, external := b.externalProject[ref]
+	if !external || b.target != config.TargetK8s {
+		return service
+	}
+	return service + "." + deploy.Namespace(project)
+}
 
 // addEndpoints 注入依赖组件的主端口与额外端口地址。
 func (b *envBuilder) addEndpoints(ref resolver.Ref, node *resolver.Node) {
 	if node == nil || node.Manifest == nil {
 		return
 	}
-	service := manifest.ServiceName(ref.ID, ref.Version)
+	service := b.addressOf(ref)
 	prefix := manifest.EnvPrefix(ref.ID)
 
 	b.set(Var{
@@ -189,6 +229,20 @@ func (b *envBuilder) addEndpoints(ref resolver.Ref, node *resolver.Node) {
 			Source: SourceEndpoint,
 		})
 	}
+}
+
+// externalProjects 收集 external 组件 → 部署它的项目名（P39）。
+func externalProjects(cfg *config.Config) map[resolver.Ref]string {
+	out := map[resolver.Ref]string{}
+	if cfg == nil {
+		return out
+	}
+	for _, c := range cfg.Components {
+		if c.IsExternal() {
+			out[resolver.Ref{ID: c.ID, Version: c.Version}] = c.External.Project
+		}
+	}
+	return out
 }
 
 // endpoint 拼出依赖地址。容器网络内直接用服务名寻址（005 §4）。

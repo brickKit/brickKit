@@ -278,7 +278,32 @@ type Component struct {
 	// Resources 覆盖 Manifest 中的 deployment.resources（003 §4.7）。
 	// 与 Manifest 共用同一结构，Step 11 负责按优先级链合并。
 	Resources *manifest.Resources `yaml:"resources,omitempty"`
+	// External 声明这个组件**已经由别的项目部署好了，本项目只连它**（P39）。
+	//
+	// 写了它之后，该组件照常进依赖图、照常做版本兼容检查、照常下载 artifacts、
+	// 照常把地址注入给依赖方——**只是不生成它的部署对象、不跑它的迁移、
+	// `down` 时也不碰它**。
+	External *External `yaml:"external,omitempty"`
 }
+
+// External 指向部署了该组件的那个 BrickKit 项目（P39）。
+//
+// 为什么是"项目"而不是"命名空间"或"地址"：共享的东西**不属于任何一个消费方**，
+// 它自己就是一个普通的 BrickKit 项目，有自己的负责人与升级节奏。
+// 一旦把它写进消费方的 brickkit.yaml 并由消费方部署，
+// **消费方执行一次 `down`，别的项目就挂了**。
+//
+// 用项目名而不是直接写地址，还白送一件事：地址由平台按同一套服务名规则推导，
+// 而服务名带版本（`infra-notifier-1-0-0`），所以声明 `@1.0.0` 时
+// 要么连上的正好是 1.0.0、要么当场解析不出来报错，
+// 不存在"连到了 2.0.0 却以为是 1.0.0"这种状态。
+type External struct {
+	// Project 是部署了该组件的项目名（对应 K8s 命名空间 / Docker 网络）。
+	Project string `yaml:"project"`
+}
+
+// IsExternal 返回该组件是否由别的项目部署。
+func (c Component) IsExternal() bool { return c.External != nil }
 
 // EnabledState 返回该组件的启用状态。
 func (c Component) EnabledState() EnabledState {

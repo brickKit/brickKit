@@ -86,14 +86,20 @@ func Generate(
 		return nil, err
 	}
 
+	networks := map[string]any{
+		networkAlias: map[string]any{
+			"name":   networkName(cfg.Project),
+			"driver": "bridge",
+		},
+	}
+	// P39：引用（而不是创建）外部项目的网络，依赖方才解析得出对方的服务名
+	for name, spec := range plan.externalNetworks() {
+		networks[name] = spec
+	}
+
 	doc := map[string]any{
 		"services": plan.services(),
-		"networks": map[string]any{
-			networkAlias: map[string]any{
-				"name":   networkName(cfg.Project),
-				"driver": "bridge",
-			},
-		},
+		"networks": networks,
 	}
 	if volumes := plan.volumes(); len(volumes) > 0 {
 		doc["volumes"] = volumes
@@ -115,12 +121,7 @@ func Generate(
 }
 
 // networkName 是项目专属网络名（005 §5）：brickkit-<项目名>-net。
-func networkName(project string) string {
-	if project == "" {
-		project = "brickkit"
-	}
-	return "brickkit-" + project + "-net"
-}
+func networkName(project string) string { return deploy.NetworkName(project) }
 
 // header 是生成文件的头注释（12.16）。
 //
@@ -178,6 +179,9 @@ type plan struct {
 	components []componentPlan
 	// locals 是 local: true 的组件：不生成容器，但要参与端口分配与 env 文件生成。
 	locals []localComponent
+	// externals 是 external 的组件（P39）：由别的项目部署，本项目什么都不生成，
+	// 只据此把依赖方接进对方项目的网络。
+	externals []externalComponent
 	// managed 是由 CLI 托管的资源（host 为服务名），按服务名排序。
 	managed []config.Resource
 	// rendered 是最终会出现在文件里的 service 名集合。
@@ -231,6 +235,15 @@ func newPlan(
 		}
 		service := manifest.ServiceName(ref.ID, ref.Version)
 
+		if entry.IsExternal() {
+			// P39：它由**别的项目**部署，本项目不生成它的 service、
+			// 不生成它的迁移容器；但依赖方要连得上，所以记下它属于哪个项目，
+			// 后面据此把依赖方接进那张网络
+			p.externals = append(p.externals, externalComponent{
+				Ref: ref, Service: service, Project: entry.External.Project,
+			})
+			continue
+		}
 		if entry.Local {
 			// 12.7 / 13.1：local: true 的组件在宿主机（IDE）里跑，不生成容器，
 			// 但它仍然是"启动中"的组件——依赖方要能找到它
@@ -372,7 +385,7 @@ func (p *plan) componentIDs() []string {
 func (p *plan) componentService(c componentPlan) map[string]any {
 	svc := map[string]any{
 		"image":    c.Manifest.Deployment.Image,
-		"networks": []string{networkAlias},
+		"networks": p.networksFor(c.Ref),
 		"restart":  "unless-stopped", // 12.10
 	}
 

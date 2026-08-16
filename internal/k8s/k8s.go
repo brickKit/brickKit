@@ -195,13 +195,7 @@ func NamespaceOf(cfg *config.Config) string {
 //
 // 与引擎侧的 compose 项目名同源——同一个项目在两种目标下叫同一个名字，
 // 换目标时不用重新学一套命名。
-func Namespace(project string) string {
-	if project == "" {
-		// 配置校验保证项目名非空，这里只是不生成一个以 - 结尾的非法命名空间
-		return "brickkit"
-	}
-	return "brickkit-" + project
-}
+func Namespace(project string) string { return deploy.Namespace(project) }
 
 // ============================================================
 // 生成计划
@@ -255,6 +249,15 @@ func newPlan(
 	for _, ref := range states.Running() {
 		node := graph.Node(ref)
 		if node == nil {
+			continue
+		}
+		if entries[ref].IsExternal() {
+			// P39：它由别的项目部署，本项目**一份清单都不生成**。
+			//
+			// 尤其不能生成 Service：本命名空间里的同名 Service 会**抢在**
+			// 跨命名空间解析之前命中，而它背后一个 Pod 都没有。
+			// 表现是稳定的 503，且从依赖方看一切正常——地址对、DNS 通、
+			// Service 也确实存在。寻址靠的是 inject 加的命名空间后缀。
 			continue
 		}
 		if entries[ref].Local {

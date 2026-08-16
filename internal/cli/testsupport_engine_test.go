@@ -110,3 +110,10 @@ func runWithEngine(t *testing.T, eng *fakeEngine, dir string, args ...string) re
 	t.Helper()
 	return runWith(t, func(o *Options) { o.Engine = eng }, dir, args...)
 }
+
+// checkedImages 返回被预检过的镜像（并发安全，见 CheckImage）。
+func (f *fakeEngine) checkedImages() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.checked...)
+}
