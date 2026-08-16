@@ -141,8 +141,18 @@ func parsePublicKey(ref string, pemBytes []byte) (*ecdsa.PublicKey, error) {
 	return key, nil
 }
 
+// badKey 报告一把配错了的可信公钥。
+//
+// 这条**必须给出下一步**：公钥是使用者自己在 installer.publicKeys 里配的，
+// 配错了他完全能改。只说"不可用"而不说怎么办，人会以为是组件或市场的问题，
+// 而实际上要改的是自己那三行配置（开发计划 33.17）。
 func badKey(ref, reason string) *clierr.Error {
 	return clierr.New(clierr.CodeConfigInvalid, "错误：可信公钥不可用").
 		WithDetail("公钥 ref", ref).
-		WithDetail("原因", reason)
+		WithDetail("原因", reason).
+		WithHint(
+			"检查 brickkit.yaml 的 installer.publicKeys 里这一条：路径对不对、文件在不在",
+			"公钥必须是 PEM 格式的 PKIX 公钥（cosign generate-key-pair 产出的 .pub）",
+			"别把私钥（cosign.key）配成公钥——那个文件不能用来验签",
+		)
 }
