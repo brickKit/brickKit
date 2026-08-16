@@ -144,7 +144,7 @@ test-error: ## 错误处理测试
 	$(call run_tests,tests/error)
 
 .PHONY: test-compat
-test-compat: ## 兼容性测试（需要 Docker 与 Podman）
+test-compat: ## 兼容性测试（Docker）
 	$(call run_tests,tests/compat)
 
 .PHONY: test-security
@@ -430,7 +430,6 @@ env: ## 打印开发环境基线（对照开发计划附录 G）
 	@echo "protoc   : $$([ -x $(PROTOC) ] && $(PROTOC) --version || echo 未安装)"
 	@echo "docker   : $$(docker --version 2>/dev/null || echo 未安装)"
 	@echo "compose  : $$(docker compose version 2>/dev/null | head -1 || echo 未安装)"
-	@echo "podman   : $$(podman --version 2>/dev/null || echo 未安装)"
 	@echo "python   : $$(python3 --version 2>/dev/null || echo 未安装)"
 	@echo "cosign   : $$(cosign version 2>/dev/null | head -1 || echo 未安装)"
 	@echo "grpcurl  : $$(grpcurl --version 2>&1 | head -1 || echo 未安装)"

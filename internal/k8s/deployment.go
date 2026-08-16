@@ -91,7 +91,7 @@ func (p *plan) deploymentDoc(c componentPlan) map[string]any {
 	}
 }
 
-// podSpec 渲染 Pod 规格：容器 + 集群侧要求（005 §5.12）。
+// podSpec 渲染 Pod 规格：容器 + 集群侧要求（005 §5.5.2）。
 func (p *plan) podSpec(c componentPlan, container map[string]any) map[string]any {
 	spec := map[string]any{"containers": []any{container}}
 

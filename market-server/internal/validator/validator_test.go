@@ -89,7 +89,7 @@ func TestValidManifestPasses(t *testing.T) {
 	assert.Equal(t, 8080, m.Deployment.Port)
 }
 
-// 007 §12.5 的完整组件（含 artifacts / 依赖 / configSchema / migration / resources）也要通过。
+// 007 §3.7 的完整组件（含 artifacts / 依赖 / configSchema / migration / resources）也要通过。
 func TestFullManifestPasses(t *testing.T) {
 	raw := manifestJSON(t, map[string]any{
 		"tags": []string{"people", "master-data"},

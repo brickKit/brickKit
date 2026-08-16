@@ -493,7 +493,7 @@ func resolveEngine(opts *Options) (engine.Engine, error) {
 
 // engineName 是生成部署文件时记录的引擎名。
 //
-// 目前只有 Docker 一种（Podman 见 005 §7.4.1）。保留这个函数是因为
+// 目前只有 Docker 一种（Podman 见 005 §7）。保留这个函数是因为
 // 生成文件与"引擎可不可用"是两回事：--dry-run 在没装 Docker 的机器上也该能跑。
 func engineName(opts *Options) string {
 	if opts.Engine != nil {

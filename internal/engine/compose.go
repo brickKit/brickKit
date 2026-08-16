@@ -350,7 +350,7 @@ func Detect() (Engine, error) {
 		)
 }
 
-// podmanNotSupported 在只装了 Podman 的机器上如实说明现状（005 §7.4.1）。
+// podmanNotSupported 在只装了 Podman 的机器上如实说明现状（005 §7）。
 //
 // 与"没找到引擎"分开报，是因为这两件事该做的下一步完全不同：
 // 前者装个 Docker 就好，后者装了也没用——问题不在使用者的机器上。
@@ -368,7 +368,7 @@ func podmanNotSupported() error {
 		WithHint(
 			"安装 Docker 20.10+ 后重试",
 			"只想生成部署文件而不启动的话，用 brickkit up --dry-run（不需要任何引擎）",
-			"详见 design/005 §7.4.1",
+			"详见 design/005 §7",
 		)
 }
 

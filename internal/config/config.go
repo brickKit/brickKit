@@ -47,7 +47,7 @@ type Config struct {
 // Context / Namespace / CreateNamespace 只在 deploy.target: k8s 下有意义。
 type Deploy struct {
 	Target string `yaml:"target"`
-	// Context 钉住 kubeconfig 上下文（003 §3.2.1）。
+	// Context 钉住 kubeconfig 上下文（005 §5.11）。
 	//
 	// 不写就用 kubectl 当前的 context。写了就必须对得上——kubectl 默认
 	// 部到 `kubectl config current-context` 指的集群，切走了忘记切回来，

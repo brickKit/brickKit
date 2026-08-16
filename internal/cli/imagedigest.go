@@ -96,7 +96,7 @@ func digestUnresolvable(image string, cause error) error {
 	return clierr.New(clierr.CodeEngineFailed, "错误：无法确定镜像的 digest，发布已中止").
 		WithDetail("镜像", image).
 		WithDetail("原因", clierr.As(cause).Message).
-		WithDetail("为什么要拦住", "发布出去的版本号不可回收（007 §18.14）。"+
+		WithDetail("为什么要拦住", "发布出去的版本号不可回收（007 §6.4）。"+
 			"取不到 digest 通常意味着这个镜像消费方也拉不到——"+
 			"与其在市场里留下一个装不上的版本，不如现在停下").
 		WithHint(

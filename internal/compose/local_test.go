@@ -712,7 +712,7 @@ func TestComposeFileKeepsPlaceholders(t *testing.T) {
 // 这条断言保留着一段历史：设计书原来写"Podman 用 host.containers.internal 替代"，
 // 那是把两件事搞混了——`host.containers.internal` 是**自动注入到 /etc/hosts 的
 // 主机名**，不是 `--add-host` 能接受的**值**。按原文生成的话容器根本创建不出来。
-// Podman 支持已经移除（005 §7.4.1），但这个错误的值一旦被谁"顺手补回来"，
+// Podman 支持已经移除（005 §7），但这个错误的值一旦被谁"顺手补回来"，
 // Docker 上同样是坏的，所以断言留着。
 func TestExtraHostsUsesHostGateway(t *testing.T) {
 	b := newBuilder(t)

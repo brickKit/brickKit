@@ -30,7 +30,7 @@ import (
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
-// EngineDocker 是目前唯一支持的容器引擎（005 §7.4.1 说明了为什么没有 Podman）。
+// EngineDocker 是目前唯一支持的容器引擎（005 §7 说明了为什么没有 Podman）。
 const EngineDocker = "docker"
 
 // 宿主机端口分配的基准（005 §4.6、§4.8）。
