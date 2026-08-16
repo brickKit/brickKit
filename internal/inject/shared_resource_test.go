@@ -87,11 +87,18 @@ func TestSharedResourceKeepsOneInstanceForEveryone(t *testing.T) {
 	people := envOf(t, result, "people/basic")
 	department := envOf(t, result, "department/tree")
 
-	for _, key := range []string{"DATABASE_HOST", "DATABASE_PORT", "DATABASE_USERNAME"} {
+	// 先确认这些变量**确实存在**再比。写错一个名字的话，两边都会取到空字符串，
+	// assert.Equal("", "") 照样通过——那种绿灯什么也没证明。
+	// （这条注释来自实事：初版写的是 DATABASE_USERNAME，而真名是 DATABASE_USER，
+	//   直到拿真生成物对照才发现，测试一直空过。）
+	for _, key := range []string{"DATABASE_HOST", "DATABASE_PORT", "DATABASE_USER"} {
+		require.Contains(t, people, key, "A6.5：%s 根本不存在，下面的比较毫无意义", key)
+		require.NotEmpty(t, people[key], "A6.5：%s 是空的，比较等于没比", key)
 		assert.Equal(t, people[key], department[key],
 			"A6.5：%s 不一致就不叫共享同一个实例了", key)
 	}
 	assert.Equal(t, "postgres-main", people["DATABASE_HOST"])
+	assert.Equal(t, "dev", people["DATABASE_USER"])
 }
 
 // 没被绑定的组件，什么都不该拿到。

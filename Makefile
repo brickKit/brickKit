@@ -102,7 +102,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs ## 静态检查（代码 + 文档引用）
+lint: check-docs check-cli-docs ## 静态检查（代码 + 文档引用 + 文档里的命令）
 	@if [ -x "$(GOLANGCI)" ]; then \
 		echo "▶ golangci-lint run"; \
 		$(GOLANGCI) run ./... && (cd market-server && $(GOLANGCI) run ./...); \
@@ -114,6 +114,10 @@ lint: check-docs ## 静态检查（代码 + 文档引用）
 .PHONY: check-docs
 check-docs: ## 检查文档引用（悬空小节号、断链）
 	@python3 scripts/check-docs.py
+
+.PHONY: check-cli-docs
+check-cli-docs: build-cli ## 检查文档里的命令与参数是否真的存在（Step 40）
+	@python3 scripts/check-cli-docs.py $(BIN)/brickkit
 
 .PHONY: tidy
 tidy: ## go mod tidy（两个 module）
