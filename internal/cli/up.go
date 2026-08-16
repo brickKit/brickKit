@@ -2,9 +2,11 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/spf13/cobra"
 
@@ -459,24 +461,83 @@ func renderMigrations(opts *Options, migrations []migrationInfo) {
 	}
 }
 
+// checkImageConcurrency 是同时进行的镜像检查数上限。
+//
+// 有上限而不是全放出去：这些请求打到的是**同一个 registry**，
+// 几百个并发只会撞上限流，那时候不但不快，还会换来一堆 429
+// 让人误以为是凭据出了问题。8 足够把串行的时间摊掉一个数量级。
+const checkImageConcurrency = 8
+
 // checkImages 检测镜像拉取权限（15.19、004 §10.2）。
 //
 // 放在启动之前：镜像取不到还硬启，只会得到一堆 ImagePullBackOff，
 // 而真正的原因（没登录）埋在引擎的输出里。
+//
+// # 为什么要并发（36.1）
+//
+// 本地没有该镜像时，`CheckImage` 会走一次 **registry 往返**。
+// 原来这里是串行的，于是 50 个组件就是 50 次串行网络请求：
+// 按健康网络 0.3–0.5 秒一次算已经是 15–25 秒，而计划给整个 `up`
+// 的预算是 30 秒——第一个容器都还没开始启动。实测这台机器上
+// registry 路径慢的时候单次要 12 秒，50 个就是十分钟。
+//
+// 这是整个 up 链路上唯一不随组件数伸缩的地方（相比之下解析 100 个依赖
+// 只要 42µs），而这些检查彼此完全独立，串行没有任何理由。
+//
+// # 为什么不在第一个失败时就掐断
+//
+// 掐断能更早报错，但会丢掉两样东西：**哪个**错误被报出来变得不确定
+// （同一份配置连跑两次给出不同的错误，使用者会以为问题在飘），
+// 以及"还有几个也拉不到"这个信息。让它们跑完，就能一次说清
+// 要修几个——总比修一个、重跑、再冒出一个强。
 func checkImages(ctx context.Context, opts *Options, eng engine.Engine, images []imageInfo) error {
 	if len(images) == 0 {
 		return nil
 	}
 
 	opts.Printf("\n🔍 检测镜像拉取权限...")
-	for _, item := range images {
-		if err := eng.CheckImage(ctx, item.image); err != nil {
-			opts.Printf(" ❌\n")
-			return clierr.As(err).WithDetail("组件", item.component)
+
+	// 按下标存放结果，取错误时才能按**输入顺序**来，与并发完成的顺序无关
+	failures := make([]error, len(images))
+	sem := make(chan struct{}, checkImageConcurrency)
+	var wg sync.WaitGroup
+
+	for i, item := range images {
+		wg.Add(1)
+		go func(i int, item imageInfo) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			if err := eng.CheckImage(ctx, item.image); err != nil {
+				failures[i] = clierr.As(err).WithDetail("组件", item.component)
+			}
+		}(i, item)
+	}
+	wg.Wait()
+
+	first, total := -1, 0
+	for i, err := range failures {
+		if err == nil {
+			continue
+		}
+		total++
+		if first < 0 {
+			first = i
 		}
 	}
-	opts.Printf(" ✅ 全部通过\n")
-	return nil
+	if first < 0 {
+		opts.Printf(" ✅ 全部通过\n")
+		return nil
+	}
+
+	opts.Printf(" ❌\n")
+	err := clierr.As(failures[first])
+	if total > 1 {
+		err = err.WithDetail("另外还有",
+			fmt.Sprintf("%d 个组件的镜像也取不到，修完这个再跑一次会看到下一个", total-1))
+	}
+	return err
 }
 
 // resolveEngine 返回要用的容器引擎：注入优先，否则自动检测（005 §7.3）。

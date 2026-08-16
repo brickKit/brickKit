@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/brickkit/brickkit/internal/engine"
@@ -14,6 +15,9 @@ import (
 // 没有 Docker 的机器上被完整验证；真引擎本身另有真实运行验证。
 type fakeEngine struct {
 	name string
+
+	// mu 只保护 checked：镜像预检是并发的（36.1），其余调用都在单线程里
+	mu sync.Mutex
 
 	// 记录到的调用
 	ups     []engine.UpRequest
@@ -83,7 +87,11 @@ func (f *fakeEngine) CurrentContext(context.Context) (string, error) {
 	return f.currentContext, nil
 }
 
+// CheckImage 会被**并发**调用（36.1 之后镜像预检是并行的），
+// 所以这里必须上锁——否则真正在 race 的是夹具，而不是被测代码。
 func (f *fakeEngine) CheckImage(_ context.Context, image string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.checked = append(f.checked, image)
 	return f.checkErr[image]
 }
