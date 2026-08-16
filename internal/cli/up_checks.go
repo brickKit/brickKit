@@ -133,6 +133,13 @@ type upgradeInfo struct {
 	To   string
 	// Migration 是新版本声明的迁移命令，空表示新版本没有迁移。
 	Migration string
+	// Deps / AddedConfig / RemovedConfig / Artifacts / Quota 是新旧 Manifest 的
+	// 差异描述（004 §3.5.1 规定的六项里的其余五项），空字符串表示"无变化"。
+	Deps          string
+	AddedConfig   string
+	RemovedConfig string
+	Artifacts     string
+	Quota         string
 }
 
 // handleUpgrades 处理"使用者把版本号改了"这件事。
@@ -173,6 +180,8 @@ func handleUpgrades(
 			if node.Manifest.Migration != nil {
 				upgrades[i].Migration = strings.Join(node.Manifest.Migration.Command, " ")
 			}
+			// 004 §3.5.1 的其余五项：拿缓存里的旧 Manifest 与新的比
+			describeUpgradeDiff(&upgrades[i], cachedManifest(layout, u.ID, u.From), node.Manifest)
 			// P10：新版本的产物要下载到新的版本化服务名目录下。
 			// 旧版本的保留——调用方可能还指着旧版本（002 §7.8）
 			if result, err := client.DownloadArtifacts(ctx, node.Manifest); err == nil {
@@ -276,7 +285,19 @@ func renderUpgradeSummary(opts *Options, plan *upPlan) {
 	opts.Printf("\n📋 升级变更摘要：\n")
 	for _, u := range plan.upgrades {
 		opts.Printf("   %s: %s → %s\n", u.ID, u.From, u.To)
-		opts.Printf("   ├── 数据库迁移：%s\n", valueOrNone(u.Migration))
+
+		// 六项固定都出（004 §3.5.1）。没变化的写"无"而不是隐藏——
+		// 藏起来会让人分不清"没有变化"和"平台没检查这一方面"。
+		for _, row := range []struct{ label, value string }{
+			{"依赖变更", u.Deps},
+			{"新增配置项", u.AddedConfig},
+			{"删除配置项", u.RemovedConfig},
+			{"数据库迁移", u.Migration},
+			{"artifacts 变更", u.Artifacts},
+			{"资源配额变更", u.Quota},
+		} {
+			opts.Printf("   ├── %s：%s\n", row.label, valueOrNone(row.value))
+		}
 		opts.Printf("   └── 旧版本产物：保留（调用方可能仍指向旧版本）\n")
 	}
 }

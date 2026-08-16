@@ -35,6 +35,13 @@ type comp struct {
 	Migration []string
 	// Image 覆盖默认的 registry.example.com/<id>:<version>（P29 的 digest 用例要用）。
 	Image string
+	// ConfigSchema 是 "键名:默认值" 的列表，如 "greeting:你好"（38.19 的升级摘要要用）。
+	ConfigSchema []string
+	// CPU / Memory 是 deployment.resources.limits（38.22 的配额变更要用）。
+	CPU    string
+	Memory string
+	// ResourceDeps 是 "kind:engine" 的列表，如 "database:postgres"（38.7 要用）。
+	ResourceDeps []string
 }
 
 // imageRef 是该组件的 deployment.image。
@@ -61,21 +68,48 @@ func (c comp) yamlText() string {
 			fmt.Fprintf(&b, "  - type: %s\n    files:\n      - %s\n", typ, file)
 		}
 	}
-	if len(c.Requires) > 0 || len(c.Optional) > 0 {
-		b.WriteString("dependencies:\n  components:\n")
-		for _, r := range c.Requires {
-			fmt.Fprintf(&b, "    - %s\n", r)
+	if len(c.Requires) > 0 || len(c.Optional) > 0 || len(c.ResourceDeps) > 0 {
+		b.WriteString("dependencies:\n")
+		if len(c.Requires) > 0 || len(c.Optional) > 0 {
+			b.WriteString("  components:\n")
+			for _, r := range c.Requires {
+				fmt.Fprintf(&b, "    - %s\n", r)
+			}
+			for _, o := range c.Optional {
+				fmt.Fprintf(&b, "    - id: %s\n      optional: true\n", o)
+			}
 		}
-		for _, o := range c.Optional {
-			fmt.Fprintf(&b, "    - id: %s\n      optional: true\n", o)
+		if len(c.ResourceDeps) > 0 {
+			b.WriteString("  resources:\n")
+			for _, r := range c.ResourceDeps {
+				kind, engine, _ := strings.Cut(r, ":")
+				fmt.Fprintf(&b, "    - kind: %s\n      engine: %s\n", kind, engine)
+			}
 		}
 	}
 	if len(c.Migration) > 0 {
 		fmt.Fprintf(&b, "migration:\n  command: [%s]\n", quotedList(c.Migration))
 	}
+	if len(c.ConfigSchema) > 0 {
+		b.WriteString("configSchema:\n  type: object\n  properties:\n")
+		for _, item := range c.ConfigSchema {
+			name, def, _ := strings.Cut(item, ":")
+			fmt.Fprintf(&b, "    %s:\n      type: string\n      default: \"%s\"\n", name, def)
+		}
+	}
 	b.WriteString("deployment:\n  type: container\n")
 	fmt.Fprintf(&b, "  image: %s\n", c.imageRef())
-	b.WriteString("  port: 8080\nhealthCheck:\n  type: http\n  path: /healthz\n")
+	b.WriteString("  port: 8080\n")
+	if c.CPU != "" || c.Memory != "" {
+		b.WriteString("  resources:\n    limits:\n")
+		if c.CPU != "" {
+			fmt.Fprintf(&b, "      cpu: \"%s\"\n", c.CPU)
+		}
+		if c.Memory != "" {
+			fmt.Fprintf(&b, "      memory: \"%s\"\n", c.Memory)
+		}
+	}
+	b.WriteString("healthCheck:\n  type: http\n  path: /healthz\n")
 	return b.String()
 }
 
