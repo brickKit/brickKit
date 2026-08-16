@@ -1,6 +1,7 @@
 package k8s
 
-// 本文件渲染 NetworkPolicy 与 ServiceAccount（P26）。
+// 本文件渲染 NetworkPolicy 与 ServiceAccount（P26），
+// 以及依赖图之外的入站来源（P36）。
 //
 // 两者都是**opt-in** 的，理由与 podSecurity 一样（D246）：加上去可能让本来
 // 跑得好好的东西不通，平台不替使用者做这个决定。
@@ -11,6 +12,7 @@ package k8s
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -34,6 +36,7 @@ const namespaceNameLabel = "kubernetes.io/metadata.name"
 //	podSelector   选中自己（用 Service 认后端的同一个 app 标签）
 //	policyTypes   只有 Ingress
 //	ingress       依赖方一条 + ingress controller 一条（对外暴露时）
+//	              + allowFrom 每条一条（图外来源，P36）
 //
 // 空的 ingress 列表不是"没写完"，而是"谁也不许进"——一个 Pod 只要没被
 // 任何策略选中就是全放行，所以没人依赖的组件也必须有这么一份。
@@ -52,6 +55,7 @@ func (p *plan) networkPolicyDoc(c componentPlan) map[string]any {
 			"ports": policyPorts([]int{c.Manifest.Deployment.Port}),
 		})
 	}
+	rules = append(rules, p.allowFromRules(c)...)
 
 	return map[string]any{
 		"apiVersion": "networking.k8s.io/v1",
@@ -60,7 +64,7 @@ func (p *plan) networkPolicyDoc(c componentPlan) map[string]any {
 			"name":        c.Service,
 			"namespace":   p.namespace,
 			"labels":      p.labelsOf(c),
-			"annotations": p.annotationsOf(c),
+			"annotations": p.policyAnnotations(c),
 		},
 		"spec": map[string]any{
 			"podSelector": map[string]any{
@@ -114,28 +118,87 @@ func (p *plan) dependentSources(c componentPlan) []any {
 }
 
 // ingressControllerSource 是 ingress controller 那条来源。
-//
-// ⚠️ namespaceSelector 与 podSelector 必须在**同一个** from 元素里。
-// 同一元素内是 AND（那个命名空间里符合标签的 Pod）；拆成两个元素就变成 OR——
-// 那个命名空间的**所有** Pod，加上**所有**命名空间里符合标签的 Pod。
-// 这是 NetworkPolicy 最经典的坑：写错了照样 apply 成功、照样通，
-// 只是放行范围比你以为的大得多，而且没有任何迹象。
 func (p *plan) ingressControllerSource() map[string]any {
 	controller := p.cfg.Deploy.NetworkPolicy.IngressController
+	return namespacedSource(controller.Namespace, controller.PodSelector)
+}
 
+// namespacedSource 渲染一条"某个命名空间里（符合标签的）Pod"的来源。
+//
+// ⚠️ 这里是整份策略里最容易写错的地方，所以只留这一个出口：
+// namespaceSelector 与 podSelector 必须在**同一个 from 元素**里。
+// 同一元素内是 AND；拆成两个元素就变成 OR——那个命名空间的**所有** Pod，
+// 加上**所有**命名空间里符合标签的 Pod。写错了照样 apply 成功、照样通，
+// 只是放行范围比你以为的大得多，而且没有任何迹象。
+//
+// podSelector 为空时只按命名空间放行：各家组件的标签五花八门，
+// 不该逼使用者非得写对；命名空间这一级已经收得够紧了。
+func namespacedSource(namespace string, podSelector map[string]string) map[string]any {
 	source := map[string]any{
 		"namespaceSelector": map[string]any{
-			"matchLabels": map[string]any{namespaceNameLabel: controller.Namespace},
+			"matchLabels": map[string]any{namespaceNameLabel: namespace},
 		},
 	}
-	if len(controller.PodSelector) > 0 {
+	if len(podSelector) > 0 {
 		labels := map[string]any{}
-		for key, value := range controller.PodSelector {
+		for key, value := range podSelector {
 			labels[key] = value
 		}
 		source["podSelector"] = map[string]any{"matchLabels": labels}
 	}
 	return source
+}
+
+// annotationAllowFrom 记下额外放行了谁（P36）。
+//
+// 半年后有人 `kubectl get networkpolicy -o yaml`，看到一条放行某个命名空间的
+// 规则，得能立刻知道它是干什么的——否则它只能在"不敢删"里一直躺着。
+const annotationAllowFrom = "brickkit.io/allow-from"
+
+// allowFromRules 渲染依赖图之外的入站来源（P36）。
+//
+// 为什么需要它：生成的规则只放行依赖图里的组件，而监控、备份、服务网格
+// 这些都不在那张图上。最典型的是 Prometheus 抓 /metrics——挡掉之后
+// **指标悄悄停了**，服务本身完全正常、没有任何报错，是最难查的一类故障。
+//
+// 每条来源都加到**每一个**组件上：监控要抓的是全部组件，
+// 漏掉任何一个的表现都是"那个组件的指标没了"，而它本身好好的。
+func (p *plan) allowFromRules(c componentPlan) []any {
+	if !p.cfg.Deploy.NetworkPolicyEnabled() {
+		return nil
+	}
+
+	sources := p.cfg.Deploy.NetworkPolicy.AllowFrom
+	out := make([]any, 0, len(sources))
+	for _, source := range sources {
+		ports := source.Ports
+		if len(ports) == 0 {
+			// 使用者多半不知道每个组件的端口是几——那本来就是组件自己声明的
+			ports = allPortsOf(c.Manifest)
+		}
+		out = append(out, map[string]any{
+			"from":  []any{namespacedSource(source.Namespace, source.PodSelector)},
+			"ports": policyPorts(ports),
+		})
+	}
+	return out
+}
+
+// policyAnnotations 是 NetworkPolicy 的注解：组件 ID + 额外放行了谁。
+func (p *plan) policyAnnotations(c componentPlan) map[string]any {
+	annotations := p.annotationsOf(c)
+	if !p.cfg.Deploy.NetworkPolicyEnabled() {
+		return annotations
+	}
+
+	names := make([]string, 0, len(p.cfg.Deploy.NetworkPolicy.AllowFrom))
+	for _, source := range p.cfg.Deploy.NetworkPolicy.AllowFrom {
+		names = append(names, source.Name)
+	}
+	if len(names) > 0 {
+		annotations[annotationAllowFrom] = strings.Join(names, ",")
+	}
+	return annotations
 }
 
 // allPortsOf 是组件声明过的全部端口：主端口 + extraPorts。

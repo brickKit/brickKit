@@ -70,15 +70,42 @@ func (c *Config) validateDeploy(p *clierr.ProblemSet) {
 // 那时才知道有哪些组件、谁对外暴露，见 k8s.checkIngressController。
 func (c *Config) validateNetworkPolicy(p *clierr.ProblemSet) {
 	np := c.Deploy.NetworkPolicy
-	if np == nil || np.IngressController == nil {
+	if np == nil {
 		return
 	}
 
-	if np.IngressController.Namespace == "" {
+	if np.IngressController != nil && np.IngressController.Namespace == "" {
 		// 空命名空间会生成 `kubernetes.io/metadata.name: ""`，那是一条谁也匹配不上的
 		// 规则——策略照样 apply 成功，ingress controller 却照样被挡在外面
 		p.Missing("deploy.networkPolicy.ingressController.namespace")
 	}
+
+	for i, source := range np.AllowFrom {
+		field := indexed("deploy.networkPolicy.allowFrom", i)
+		// 名字先查：后面的报错要靠它点名是哪一条
+		if source.Name == "" {
+			p.Missing(field + ".name")
+		}
+		if source.Namespace == "" {
+			// 同上：空命名空间生成的是一条谁也匹配不上的规则，
+			// 策略 apply 成功而来源照样被挡，等于什么都没做
+			p.Addf(field+".namespace", "缺失（%s 这条放行规则不知道该放行哪个命名空间）",
+				sourceLabel(source.Name, i))
+		}
+		for _, port := range source.Ports {
+			if port < 1 || port > 65535 {
+				p.Addf(field+".ports", "端口 %d 不合法（应在 1–65535）", port)
+			}
+		}
+	}
+}
+
+// sourceLabel 在报错里指认某条 allowFrom：有名字就用名字，没有就用下标。
+func sourceLabel(name string, index int) string {
+	if name != "" {
+		return name
+	}
+	return fmt.Sprintf("第 %d 条", index+1)
 }
 
 func (c *Config) validateSources(p *clierr.ProblemSet) {

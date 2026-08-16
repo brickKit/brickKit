@@ -114,6 +114,32 @@ type NetworkPolicy struct {
 	// 有 expose: true 的组件时必填：不填的话生成的策略会把 ingress controller
 	// 一起挡在门外，结果是部署全部成功、网站直接打不开。
 	IngressController *IngressControllerSource `yaml:"ingressController,omitempty"`
+	// AllowFrom 是依赖图之外的合法入站来源（P36）。
+	//
+	// 生成的规则只放行依赖图里的组件，而监控、备份、服务网格这些都不在那张图上。
+	// 最典型的是 Prometheus 抓 /metrics：挡掉之后**指标悄悄停了**，
+	// 而服务本身完全正常，没有任何报错——这是最难查的一类故障。
+	//
+	// 每一条都会加到**每一个**组件的策略上：监控要抓的是全部组件。
+	AllowFrom []AllowFromSource `yaml:"allowFrom,omitempty"`
+}
+
+// AllowFromSource 是一个依赖图之外的入站来源（P36）。
+type AllowFromSource struct {
+	// Name 说明这条口子是为谁开的，会写进生成策略的注解。
+	//
+	// 不是装饰：半年后有人 `kubectl get networkpolicy -o yaml` 看到一条放行
+	// 某个命名空间的规则，得能立刻知道它干什么用——否则只能在"不敢删"里躺着。
+	Name string `yaml:"name"`
+	// Namespace 是来源所在的命名空间。
+	Namespace string `yaml:"namespace"`
+	// PodSelector 进一步收窄到该命名空间里的哪些 Pod；不写则放行该命名空间全部。
+	PodSelector map[string]string `yaml:"podSelector,omitempty"`
+	// Ports 限定放行哪些端口；不写则放行组件**声明过**的全部端口。
+	//
+	// 默认放全部是因为使用者多半不知道每个组件的端口是几——那本来就是组件
+	// 自己声明的，逼他抄一遍既啰嗦又容易过期（组件加了 extraPorts 就得回来改）。
+	Ports []int `yaml:"ports,omitempty"`
 }
 
 // IngressControllerSource 定位 ingress controller 的 Pod。
