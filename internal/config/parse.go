@@ -81,6 +81,7 @@ func ParseConfig(data []byte, source string) (*Config, error) {
 	doc := root.Content[0]
 	// 展开**前**先记下哪些密码写的是 ${ENV_VAR}：展开之后就分不出
 	// "使用者写死了密码" 与 "使用者写了引用、而这个变量恰好有值" 了
+	cfgRefs := configEnvRefs(doc)
 	envRefs := passwordEnvRefs(doc)
 	expandEnvNode(doc)
 
@@ -111,6 +112,11 @@ func ParseConfig(data []byte, source string) (*Config, error) {
 	for i := range c.Resources {
 		if i < len(envRefs) {
 			c.Resources[i].PasswordFromEnv = envRefs[i]
+		}
+	}
+	for i := range c.Components {
+		if i < len(cfgRefs) {
+			c.Components[i].ConfigFromEnv = cfgRefs[i]
 		}
 	}
 
@@ -152,6 +158,29 @@ func passwordEnvRefs(doc *yaml.Node) []bool {
 	for _, item := range resources.Content {
 		password := lookupNode(item, "password")
 		out = append(out, password != nil && strings.Contains(password.Value, "${"))
+	}
+	return out
+}
+
+// configEnvRefs 按 components 的顺序返回"这个组件的哪些 config 项写的是 ${ENV_VAR}"。
+//
+// 与 passwordEnvRefs 同一个道理，也必须在展开**之前**取。
+func configEnvRefs(doc *yaml.Node) []map[string]bool {
+	components := lookupNode(doc, "components")
+	if components == nil || components.Kind != yaml.SequenceNode {
+		return nil
+	}
+
+	out := make([]map[string]bool, 0, len(components.Content))
+	for _, item := range components.Content {
+		refs := map[string]bool{}
+		if cfg := lookupNode(item, "config"); cfg != nil && cfg.Kind == yaml.MappingNode {
+			for i := 0; i+1 < len(cfg.Content); i += 2 {
+				key, value := cfg.Content[i], cfg.Content[i+1]
+				refs[key.Value] = strings.Contains(value.Value, "${")
+			}
+		}
+		out = append(out, refs)
 	}
 	return out
 }

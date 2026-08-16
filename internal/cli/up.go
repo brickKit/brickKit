@@ -234,6 +234,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	renderWarnings(opts, plan.graph.Warnings)
 	renderStates(opts, plan.states)
 	warnHardcodedPasswords(opts, cfg)
+	warnConfigSecrets(opts, cfg)
 
 	if plan.states.Empty() {
 		opts.Printf("📋 本次没有组件会启动\n")

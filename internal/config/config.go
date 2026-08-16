@@ -269,6 +269,12 @@ type Component struct {
 	ServiceAccountName string `yaml:"serviceAccountName,omitempty"`
 	// Config 覆盖 configSchema 默认值。CLI 不校验值的类型（003 §4.6）。
 	Config map[string]any `yaml:"config,omitempty"`
+	// ConfigFromEnv 记录哪些 config 项**原文**写的是 ${ENV_VAR} 引用。
+	//
+	// 必须在展开之前取，理由与 PasswordFromEnv 完全相同：展开之后
+	// `${MY_TOKEN}` 与一个写死的密钥长得一模一样，据此判断会在使用者
+	// **做对了**的时候误报，而漏配变量时反倒不吭声——正好反了。
+	ConfigFromEnv map[string]bool `yaml:"-"`
 	// Resources 覆盖 Manifest 中的 deployment.resources（003 §4.7）。
 	// 与 Manifest 共用同一结构，Step 11 负责按优先级链合并。
 	Resources *manifest.Resources `yaml:"resources,omitempty"`
