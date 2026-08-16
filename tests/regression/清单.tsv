@@ -1,0 +1,38 @@
+# 回归测试清单（开发计划 Step 37）。
+#
+# 每一行是「一条对使用者的承诺」→「证明它的那个测试」。
+# 列：编号 / 说明 / 对应 Step / module 目录 / 包 / 测试名（制表符分隔）
+#
+# 这份文件是**唯一事实源**：regression_test.go 读它来验证每个测试真的存在，
+# `make test-regression` 读它来执行。改清单只改这里。
+#
+# 为什么要有「测试名」这一列：没有它，清单就只是 25 个要人手打勾的方框，
+# 谁也证明不了勾是真的。有了它，测试被改名或删掉时守卫会立刻喊出来。
+#
+# 注意 R18 在 market-server —— 那是**另一个 Go module**，
+# 根模块的 `go test ./...` 到不了它。
+R1	brickkit init 基本功能	3	.	./internal/cli	TestInitCreatesProjectStructure
+R2	brickkit add 基本功能	9	.	./internal/cli	TestAddWritesComponentToConfig
+R3	brickkit add 递归依赖	9	.	./internal/cli	TestAddPullsDependenciesRecursively
+R4	brickkit add artifacts 下载	9	.	./internal/cli	TestAddDownloadsArtifacts
+R5	brickkit add --repo	9	.	./internal/cli	TestAddRepoClonesOpenSourceComponent
+R6	brickkit remove 基本功能	9	.	./internal/cli	TestRemoveDeletesEntryAndCaches
+R7	brickkit up 基本功能	15	.	./internal/cli	TestUpStartsAllComponents
+R8	brickkit up 级联禁用	15	.	./internal/cascade	TestCascadeMatchesDesignExample
+R9	brickkit up 迁移执行	14/15	.	./internal/compose	TestMainServiceWaitsForMigration
+R10	brickkit down 不删 volume	15	.	./internal/engine	TestDownNeverRemovesVolumes
+R11	brickkit status 基本功能	15	.	./internal/cli	TestStatusShowsRunningComponents
+R12	brickkit order 基本功能	10	.	./internal/cli	TestOrderPutsDependenciesFirst
+R13	brickkit sync 基本功能	17	.	./internal/cli	TestSyncKeepsEnabledComponents
+R14	brickkit reset 基本功能	8	.	./internal/cli	TestResetLastRestoresPreviousState
+R15	brickkit login 基本功能	19	.	./internal/cli	TestLoginCredentialsFormat
+R16	brickkit publish 基本功能	19	.	./internal/cli	TestPublishSendsManifestAndSourceType
+R17	环境变量注入正确	11	.	./internal/inject	TestConfigValuesAreInjectedVerbatim
+R18	保留变量保护	11	market-server	./internal/validator	TestMatchReserved
+R19	多版本共存	29	.	./internal/compose	TestMultiVersionGeneratesOneServicePerVersion
+R20	弱依赖降级	25	.	./internal/cascade	TestDisabledWeakDependencyDoesNotBlockDependent
+R21	local 调试	13	.	./internal/compose	TestLocalDebugEnvFileIsGenerated
+R22	K8s 部署文件生成	16	.	./internal/k8s	TestDeploymentBasics
+R23	市场发布校验	18	.	./internal/cli	TestPublishRejectsInvalidManifest
+R24	签名校验	20	.	./internal/cli	TestAddVerifiesSignature
+R25	升级兼容性检查	7	.	./internal/cli	TestUpgradeIsReported

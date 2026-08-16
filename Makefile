@@ -160,8 +160,21 @@ test-perf: ## 性能基准测试
 	$(call run_tests,tests/perf)
 
 .PHONY: test-regression
-test-regression: ## 回归测试
-	$(call run_tests,tests/regression)
+test-regression: ## 回归测试（读 tests/regression/清单.tsv，先验清单没失效再逐条执行）
+	@echo "▶ 校验回归清单（每一项指向的测试是否仍然存在）"
+	@$(GO) test $(TESTFLAGS) ./tests/regression/...
+	@echo ""
+	@echo "▶ 执行清单里的 25 项回归测试"
+	@awk -F'\t' '!/^#/ && NF==6 { print $$4 "\t" $$5 "\t" $$6 }' tests/regression/清单.tsv \
+	  | sort -u \
+	  | awk -F'\t' '{ if (k != $$1 "\t" $$2) { if (k) print k "\t" p; k=$$1 "\t" $$2; p=$$3 } \
+	                  else p = p "|" $$3 } END { if (k) print k "\t" p }' \
+	  | while IFS=$$(printf '\t') read -r mod pkg names; do \
+	        echo "  ── $$mod/$${pkg#./}  ($$names)"; \
+	        ( cd $$mod && $(GO) test $(TESTFLAGS) $$pkg -run "^($$names)\$$" ) || exit 1; \
+	    done
+	@echo ""
+	@echo "✅ 回归清单 $$(grep -c '^R' tests/regression/清单.tsv) 项全部通过"
 
 .PHONY: test-upgrade
 test-upgrade: ## 升级测试（用 tests/e2e 中的 upgrade 用例）
