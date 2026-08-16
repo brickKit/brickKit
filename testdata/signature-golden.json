@@ -1,0 +1,62 @@
+{
+  "_comment": "由主 module 的 internal/security.CanonicalPayload 生成，是两侧实现的唯一参照系。任何一侧的规范化结果与 canonicalBase64 不符即为漂移。重新生成：GEN_GOLDEN=1 go test ./internal/security -run TestGenerateGolden",
+  "canonicalBase64": "eyJhcGlWZXJzaW9uIjoiYnJpY2traXQvdjEiLCJkZWVwIjp7ImEiOnsiYiI6eyJjIjp7ImQiOlsxLDIseyJlIjoiZiJ9XX19fX0sImRlcGxveW1lbnQiOnsiZXh0cmFQb3J0cyI6W3sibmFtZSI6ImdycGMiLCJwb3J0Ijo5MDkwfSx7Im5hbWUiOiJtZXRyaWNzIiwicG9ydCI6OTEwMH1dLCJpbWFnZSI6InJlZ2lzdHJ5LmV4YW1wbGUuY29tL2FjbWUtd2lkZ2V0QHNoYTI1NjoxMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExIiwicG9ydCI6ODA4MCwicmVzb3VyY2VzIjp7ImxpbWl0cyI6eyJjcHUiOjEuNSwibWVtb3J5IjoiNTEyTWkifSwicmVxdWVzdHMiOnsiY3B1IjowLjF9fSwidHlwZSI6ImNvbnRhaW5lciJ9LCJlbXB0eUxpc3QiOltdLCJlbXB0eU1hcCI6e30sImZsYWdzIjp7ImRpc2FibGVkIjpmYWxzZSwiZW5hYmxlZCI6dHJ1ZX0sIm1ldGFkYXRhIjp7ImlkIjoiYWNtZS93aWRnZXQiLCJuYW1lIjoi57uE5Lu2IOWQjeensCB3aXRoIHNwYWNlcyIsInZlcnNpb24iOiIxLjIuMCJ9LCJudWxsVmFsdWUiOm51bGwsInVuaWNvZGUiOiLkuK3mlocgLyBlbW9qaSDwn46vIC8gXCJxdW90ZWRcIiAvIGJhY2tcXHNsYXNoIiwiemV0YSI6IuacgOWQjuS4gOS4qumUru+8jOeUqOadpemqjOivgeaOkuW6jyJ9",
+  "manifestJSON": {
+    "zeta": "最后一个键，用来验证排序",
+    "apiVersion": "brickkit/v1",
+    "metadata": {
+      "version": "1.2.0",
+      "id": "acme/widget",
+      "name": "组件 名称 with spaces"
+    },
+    "deployment": {
+      "port": 8080,
+      "image": "registry.example.com/acme-widget@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "type": "container",
+      "extraPorts": [
+        {
+          "name": "grpc",
+          "port": 9090
+        },
+        {
+          "name": "metrics",
+          "port": 9100
+        }
+      ],
+      "resources": {
+        "limits": {
+          "memory": "512Mi",
+          "cpu": 1.5
+        },
+        "requests": {
+          "cpu": 0.1
+        }
+      }
+    },
+    "flags": {
+      "enabled": true,
+      "disabled": false
+    },
+    "emptyMap": {},
+    "emptyList": [],
+    "nullValue": null,
+    "unicode": "中文 / emoji 🎯 / \"quoted\" / back\\slash",
+    "deep": {
+      "a": {
+        "b": {
+          "c": {
+            "d": [
+              1,
+              2,
+              {
+                "e": "f"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "publicKeyPEM": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE7jHoxFP2OCzTBONOk5UfBGC7hDNv\ndyoaEsA9T6MPSAr41fHft/Ft+8LRje9uebWEBUgAm7ytI6D4dchzCd+x5w==\n-----END PUBLIC KEY-----\n",
+  "signatureBase64": "MEYCIQDhB5sivRoXIPp5U71Y6KG/R4iu/yzqA0LuqC/+nLdNWQIhAM2wGYPK5Tn5Ekjzrb8P7j8s+ohRTJ3M8LBGYJup9Af3"
+}
