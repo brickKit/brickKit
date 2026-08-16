@@ -102,7 +102,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: ## 静态检查（有 golangci-lint 时用它，否则回退 go vet）
+lint: check-docs ## 静态检查（代码 + 文档引用）
 	@if [ -x "$(GOLANGCI)" ]; then \
 		echo "▶ golangci-lint run"; \
 		$(GOLANGCI) run ./... && (cd market-server && $(GOLANGCI) run ./...); \
@@ -110,6 +110,10 @@ lint: ## 静态检查（有 golangci-lint 时用它，否则回退 go vet）
 		echo "ℹ️  未安装 golangci-lint（make tools-lint 可安装），回退到 go vet"; \
 		$(MAKE) --no-print-directory vet; \
 	fi
+
+.PHONY: check-docs
+check-docs: ## 检查文档引用（悬空小节号、断链）
+	@python3 scripts/check-docs.py
 
 .PHONY: tidy
 tidy: ## go mod tidy（两个 module）

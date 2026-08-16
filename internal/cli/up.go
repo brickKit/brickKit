@@ -478,7 +478,7 @@ func checkImages(ctx context.Context, opts *Options, eng engine.Engine, images [
 	return nil
 }
 
-// resolveEngine 返回要用的容器引擎：注入优先，否则自动检测（005 §7.4）。
+// resolveEngine 返回要用的容器引擎：注入优先，否则自动检测（005 §7.3）。
 func resolveEngine(opts *Options) (engine.Engine, error) {
 	if opts.Engine != nil {
 		return opts.Engine, nil
