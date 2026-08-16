@@ -122,6 +122,53 @@ type NetworkPolicy struct {
 	//
 	// 每一条都会加到**每一个**组件的策略上：监控要抓的是全部组件。
 	AllowFrom []AllowFromSource `yaml:"allowFrom,omitempty"`
+	// Egress 是出站策略（P37）。不写就完全不管出站。
+	Egress *Egress `yaml:"egress,omitempty"`
+}
+
+// Egress 是出站策略（P37）。
+//
+// ⚠️ **它会翻转默认行为。** NetworkPolicy 的语义是：一个 Pod 只要在 Egress
+// 方向被任何策略选中，该方向**未明确允许的一律拒绝**。所以打开这个开关的那一刻，
+// 组件就从"想连谁连谁"变成"只能连白名单"。
+//
+// 漏掉一项的后果取决于组件什么时候建连：启动时建连的起不来，
+// 首次请求才建连的则健康检查照过、业务请求失败（/healthz 只查本进程，002 §9.4）。
+// 更阴险的是改策略不会杀掉已建立的连接——正在跑的实例照常工作，
+// 问题要等到下一次重启才暴露。
+//
+// 因此平台承担了大部分：DNS 自动放行、组件依赖从依赖图推导；
+// 只有资源（平台知道谁要用、不知道它在集群哪儿）需要声明，
+// **声明不全会在生成阶段阻断**。
+type Egress struct {
+	Enabled bool `yaml:"enabled"`
+	// AllowTo 是允许连出去的目标。
+	AllowTo []AllowToTarget `yaml:"allowTo,omitempty"`
+}
+
+// AllowToTarget 是一个出站目标（P37）。
+//
+// 位置二选一：集群内写 Namespace（可再加 PodSelector 收窄），集群外写 CIDR。
+type AllowToTarget struct {
+	// Name 说明这条口子是为谁开的，用于报错与注解。
+	Name string `yaml:"name"`
+	// Resource 对应 resources[].id。写了它，端口就由平台从 resources[].port 补——
+	// 那个值配置里已经有了，抄第二遍只会出现两处不一致。
+	Resource string `yaml:"resource,omitempty"`
+	// Namespace 是集群内目标所在的命名空间。
+	Namespace string `yaml:"namespace,omitempty"`
+	// PodSelector 进一步收窄到该命名空间里的哪些 Pod。
+	PodSelector map[string]string `yaml:"podSelector,omitempty"`
+	// CIDR 是集群外目标的地址段（托管数据库、第三方 API 等）。
+	CIDR string `yaml:"cidr,omitempty"`
+	// Ports 限定放行哪些端口。写了 Resource 时不能再写它。
+	Ports []int `yaml:"ports,omitempty"`
+}
+
+// EgressEnabled 返回是否生成出站策略。
+func (d Deploy) EgressEnabled() bool {
+	return d.NetworkPolicyEnabled() &&
+		d.NetworkPolicy.Egress != nil && d.NetworkPolicy.Egress.Enabled
 }
 
 // AllowFromSource 是一个依赖图之外的入站来源（P36）。

@@ -62,6 +62,7 @@ func (c *Config) validateDeploy(p *clierr.ProblemSet) {
 		}
 	}
 	c.validateNetworkPolicy(p)
+	c.validateEgress(p)
 }
 
 // validateNetworkPolicy 只查配置本身说得通不通（P26）。
@@ -93,6 +94,45 @@ func (c *Config) validateNetworkPolicy(p *clierr.ProblemSet) {
 				sourceLabel(source.Name, i))
 		}
 		for _, port := range source.Ports {
+			if port < 1 || port > 65535 {
+				p.Addf(field+".ports", "端口 %d 不合法（应在 1–65535）", port)
+			}
+		}
+	}
+}
+
+// validateEgress 查出站目标本身说得通不通（P37）。
+//
+// "有资源没被覆盖"要等到生成清单时才查得了——那时才知道哪些组件会跑、
+// 各自绑了哪些资源，见 k8s.checkEgressCoverage。
+func (c *Config) validateEgress(p *clierr.ProblemSet) {
+	np := c.Deploy.NetworkPolicy
+	if np == nil || np.Egress == nil {
+		return
+	}
+
+	for i, target := range np.Egress.AllowTo {
+		field := indexed("deploy.networkPolicy.egress.allowTo", i)
+		if target.Name == "" {
+			p.Missing(field + ".name")
+		}
+		label := sourceLabel(target.Name, i)
+
+		switch {
+		case target.Namespace != "" && target.CIDR != "":
+			p.Addf(field, "%s 同时写了 namespace 与 cidr，只能写一个"+
+				"（集群内目标用 namespace，集群外用 cidr）", label)
+		case target.Namespace == "" && target.CIDR == "":
+			p.Addf(field, "%s 缺少目标位置：集群内写 namespace，集群外写 cidr", label)
+		}
+
+		// 端口只有一个来源。两处各写一份早晚不一致，
+		// 而不一致的表现是"策略看着对，组件连不上库"
+		if target.Resource != "" && len(target.Ports) > 0 {
+			p.Addf(field+".ports",
+				"%s 已经写了 resource，端口由平台从 resources[].port 取，不要再写 ports", label)
+		}
+		for _, port := range target.Ports {
 			if port < 1 || port > 65535 {
 				p.Addf(field+".ports", "端口 %d 不合法（应在 1–65535）", port)
 			}

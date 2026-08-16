@@ -281,6 +281,9 @@ func newPlan(
 	if err := p.checkIngressController(); err != nil {
 		return nil, err
 	}
+	if err := p.checkEgressCoverage(); err != nil {
+		return nil, err
+	}
 	if err := p.collectSecrets(); err != nil {
 		return nil, err
 	}

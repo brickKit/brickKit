@@ -57,6 +57,18 @@ func (p *plan) networkPolicyDoc(c componentPlan) map[string]any {
 	}
 	rules = append(rules, p.allowFromRules(c)...)
 
+	spec := map[string]any{
+		"podSelector": map[string]any{
+			"matchLabels": map[string]any{labelApp: c.Service},
+		},
+		"policyTypes": []any{"Ingress"},
+		"ingress":     rules,
+	}
+	if p.cfg.Deploy.EgressEnabled() {
+		spec["policyTypes"] = []any{"Ingress", "Egress"}
+		spec["egress"] = p.egressRules(c)
+	}
+
 	return map[string]any{
 		"apiVersion": "networking.k8s.io/v1",
 		"kind":       "NetworkPolicy",
@@ -66,13 +78,7 @@ func (p *plan) networkPolicyDoc(c componentPlan) map[string]any {
 			"labels":      p.labelsOf(c),
 			"annotations": p.policyAnnotations(c),
 		},
-		"spec": map[string]any{
-			"podSelector": map[string]any{
-				"matchLabels": map[string]any{labelApp: c.Service},
-			},
-			"policyTypes": []any{"Ingress"},
-			"ingress":     rules,
-		},
+		"spec": spec,
 	}
 }
 
