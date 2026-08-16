@@ -601,7 +601,7 @@ func TestPublishWithoutMarketTellsHowToSpecifyIt(t *testing.T) {
 func TestPublishAcceptsRegistryWithPortAndDigest(t *testing.T) {
 	for _, image := range []string{
 		"registry.example.com:5000/people-basic:1.2.0",
-		"registry.example.com/people-basic@sha256:0123456789abcdef",
+		"registry.example.com/people-basic@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 	} {
 		t.Run(image, func(t *testing.T) {
 			m := newFakeMarket(t)

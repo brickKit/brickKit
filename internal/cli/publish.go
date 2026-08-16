@@ -31,6 +31,8 @@ type publishFlags struct {
 	key          string
 	publicKeyRef string
 	signedBy     string
+	// noPinDigest 跳过把镜像 tag 钉成 digest（P29）。
+	noPinDigest bool
 }
 
 // newPublishCommand 实现 brickkit publish（004 §3.11）。
@@ -75,6 +77,8 @@ func newPublishCommand(opts *Options) *cobra.Command {
 	cmd.Flags().StringVar(&f.publicKeyRef, "public-key-ref", "",
 		"写进签名的公钥 ref（默认按 --key 的 .key → .pub 推导）")
 	cmd.Flags().StringVar(&f.signedBy, "signed-by", "", "签名者标识，如 release-bot@example.com")
+	cmd.Flags().BoolVar(&f.noPinDigest, "no-pin-digest", false,
+		"不把镜像 tag 钉成 digest（默认会钉；跳过后 registry 上换掉同名 tag 时签名照样有效）")
 	return cmd
 }
 
@@ -105,6 +109,12 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 	opts.Printf("📤 发布 %s@%s\n", pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version)
 	opts.Printf("   ✅ Manifest 校验通过\n")
 	opts.Printf("   ✅ 镜像引用有效：%s\n", pkg.manifest.Deployment.Image)
+
+	// ⚠️ 钉 digest 必须在**签名之前**：反过来的话签的是旧 Manifest，
+	// 上传的却是钉过的——消费方一律验签失败，而发布者这边一切正常（P29）
+	if err := pinImageDigest(ctx, opts, pkg, f); err != nil {
+		return err
+	}
 
 	// 签名也在联网之前：版本号一旦建出来就不可回收（市场侧 18.14），
 	// 不能因为密钥路径写错就烧掉一个有语义的版本号

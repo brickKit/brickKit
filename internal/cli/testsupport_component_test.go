@@ -33,6 +33,16 @@ type comp struct {
 	Artifacts []string
 	// Migration 是 migration.command（002 §8.2）。
 	Migration []string
+	// Image 覆盖默认的 registry.example.com/<id>:<version>（P29 的 digest 用例要用）。
+	Image string
+}
+
+// imageRef 是该组件的 deployment.image。
+func (c comp) imageRef() string {
+	if c.Image != "" {
+		return c.Image
+	}
+	return "registry.example.com/" + strings.ReplaceAll(c.ID, "/", "-") + ":" + c.Version
 }
 
 func (c comp) ref() string { return c.ID + "@" + c.Version }
@@ -64,7 +74,7 @@ func (c comp) yamlText() string {
 		fmt.Fprintf(&b, "migration:\n  command: [%s]\n", quotedList(c.Migration))
 	}
 	b.WriteString("deployment:\n  type: container\n")
-	fmt.Fprintf(&b, "  image: registry.example.com/%s:%s\n", strings.ReplaceAll(c.ID, "/", "-"), c.Version)
+	fmt.Fprintf(&b, "  image: %s\n", c.imageRef())
 	b.WriteString("  port: 8080\nhealthCheck:\n  type: http\n  path: /healthz\n")
 	return b.String()
 }

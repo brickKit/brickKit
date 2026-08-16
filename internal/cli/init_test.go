@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,9 @@ func runIn(t *testing.T, dir string, args ...string) result {
 	return runWith(t, nil, dir, args...)
 }
 
+// stubDigest 是测试里假装 registry 返回的 digest。
+const stubDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+
 // runWith 在执行前允许调整全局选项（注入假引擎等）。
 func runWith(t *testing.T, tweak func(*Options), dir string, args ...string) result {
 	t.Helper()
@@ -31,6 +35,11 @@ func runWith(t *testing.T, tweak func(*Options), dir string, args ...string) res
 		LogLevel:   logging.LevelOff,
 		Stdout:     &out,
 		Stderr:     &errBuf,
+		// 默认假装 registry 里已经有这个镜像——那是发布时的常态
+		// （build → push → publish）。测试要验解析失败时自己覆盖它（P29）。
+		ResolveDigest: func(context.Context, string) (string, error) {
+			return stubDigest, nil
+		},
 	}
 	if tweak != nil {
 		tweak(opts)

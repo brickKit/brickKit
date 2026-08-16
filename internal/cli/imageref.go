@@ -23,6 +23,22 @@ func checkImageReference(image string) error {
 		return imageError(image, "镜像地址不合法：不能包含空白字符", "检查 component.yaml 中 deployment.image 的写法")
 	}
 
+	// digest 形式要真的是个 digest。`@` 后面原本什么都能写——
+	// `repo@latest` 这种会一路传到市场，消费方拉取时才失败，
+	// 而那时已经查不清是谁传坏的了（P29）
+	if repo, digest, ok := strings.Cut(image, "@"); ok {
+		switch {
+		case repo == "":
+			return imageError(image, "镜像地址不合法：digest 前面缺少镜像名",
+				"正确写法形如 registry.example.com/app@sha256:<64 位十六进制>")
+		case !digestPattern.MatchString(digest):
+			return imageError(image, "镜像 digest 格式不合法",
+				"必须是 sha256: 加 64 位小写十六进制字符",
+				"当前是："+digest,
+				"用 docker buildx imagetools inspect <镜像> --format '{{.Manifest.Digest}}' 取正确的值")
+		}
+	}
+
 	name, tag := splitImageTag(image)
 	if name == "" {
 		return imageError(image, "镜像地址不合法：缺少镜像名", "正确写法形如 registry.example.com/people-basic:1.2.0")

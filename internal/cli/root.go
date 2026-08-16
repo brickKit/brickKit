@@ -53,6 +53,9 @@ type Options struct {
 	// Now 提供当前时间（reset 的"恢复时间"等）。为空时用 time.Now，
 	// 便于测试锁定输出而不依赖真实时钟。
 	Now func() time.Time
+	// ResolveDigest 把镜像 tag 解析成 registry 里的 digest（P29）。
+	// 为空时用真实实现（docker buildx imagetools）。测试可替换。
+	ResolveDigest func(ctx context.Context, image string) (string, error)
 	// Engine 是容器引擎。为空时按 005 §7 自动检测（docker → podman）。
 	//
 	// 命令层的职责是"决定谁该启动、先检查什么"，不是"怎么调 docker"；
