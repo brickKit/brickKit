@@ -30,11 +30,8 @@ import (
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
-// 容器引擎（005 §7.3–7.5）。两者生成的 compose 文件唯一的差别就是宿主机别名。
-const (
-	EngineDocker = "docker"
-	EnginePodman = "podman"
-)
+// EngineDocker 是目前唯一支持的容器引擎（005 §7.4.1 说明了为什么没有 Podman）。
+const EngineDocker = "docker"
 
 // 宿主机端口分配的基准（005 §4.6、§4.8）。
 const (
@@ -60,13 +57,13 @@ type LocalEnvFile struct {
 
 // hostGateway 返回 extra_hosts 里指向宿主机的魔法值（005 §7.5）。
 //
-// Docker 与 Podman **用同一个值**：`host-gateway`。
+// 值固定是 `host-gateway`。
 //
-// 设计书原来写的是"Podman 用 host.containers.internal 替代"，那是把两件事
+// 保留这段说明是因为设计书原来写错过："Podman 用 host.containers.internal 替代"。那是把两件事
 // 搞混了：`host.containers.internal` 是 Podman 自动注入到容器 /etc/hosts 的
 // 一个**主机名**，不是 `--add-host` 能接受的**值**——真 Podman 上会直接报
 // `invalid IP address in add-host`，容器根本创建不出来，local: true 整条路是断的。
-// 而 `host-gateway` Podman 同样支持（实测解析到 169.254.1.2，
+// 而 `host-gateway` 是 Docker 20.10+ 的内置魔法值（Podman 也认，实测 169.254.1.2，
 // 正是 host.containers.internal 的那个地址）。
 //
 // 参数保留是因为调用方本来就知道引擎是谁；将来若真出现第三种引擎需要别的值，

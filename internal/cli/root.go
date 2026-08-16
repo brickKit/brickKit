@@ -53,7 +53,7 @@ type Options struct {
 	// Now 提供当前时间（reset 的"恢复时间"等）。为空时用 time.Now，
 	// 便于测试锁定输出而不依赖真实时钟。
 	Now func() time.Time
-	// Engine 是容器引擎。为空时按 005 §7.4 自动检测（docker → podman）。
+	// Engine 是容器引擎。为空时按 005 §7 自动检测（docker → podman）。
 	//
 	// 命令层的职责是"决定谁该启动、先检查什么"，不是"怎么调 docker"；
 	// 把它做成注入点之后，这些决定可以在没有 Docker 的机器上被完整测试。

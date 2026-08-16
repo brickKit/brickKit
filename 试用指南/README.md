@@ -124,7 +124,7 @@ cd <仓库根目录>
 | 环境变量注入、资源配额合并 | [internal/inject/](../internal/inject/) | 004 §5.6、006 §5 |
 | 生成 docker-compose.yaml | [internal/compose/](../internal/compose/) | 005 §3 |
 | 生成 K8s 清单 | [internal/k8s/](../internal/k8s/) | 005 §5 |
-| 调 docker / podman / kubectl | [internal/engine/](../internal/engine/) | 005 §7 |
+| 调 docker / kubectl | [internal/engine/](../internal/engine/) | 005 §7 |
 | 升级兼容性检查 | [internal/upgrade/](../internal/upgrade/) | 002 §7.7 |
 | 配置备份与恢复 | [internal/backup/](../internal/backup/) | 003 §9 |
 | 组件源码工作区（`sync` / `--repo`） | [internal/workspace/](../internal/workspace/) | 004 §3.9 |
@@ -144,7 +144,7 @@ cd <仓库根目录>
 | 多副本 / HPA | ⬜ `replicas` 目前固定为 1（005 §5.8）。PodDisruptionBudget 也因此刻意不生成，见 [17.7](17-网络策略与最小权限.md) |
 | 镜像签名 | ⬜ 目前签的是 **Manifest**，不是镜像。镜像签名存在 registry 里、由集群准入控制器校验，CLI 碰不到（P29） |
 | 市场侧密码学校验 | ⬜ 市场只做结构校验。它手里没有可信公钥，真实校验在 CLI 侧（P30）。签名本身可用，见 [11-组件签名.md](11-组件签名.md) |
-| `podman compose` 端到端 | ⚠️ Podman 已装且单项验过，但整条 `brickkit up` 走 podman 没跑通（本机 docker CLI 版本与 podman 兼容 API 不合，P27） |
+| **Podman** | ❌ 写过、跑过，最后**移除了**。`up` / `status` / 业务请求都通，但 `down` 失败（`rootless netns: kill network process: permission denied`），而纯 `podman compose down` 不经过 BrickKit 也一样失败。**一个停不掉的项目比不支持更糟**——详见 [005 §7](../design/005-部署与运行规范.md) |
 
 完整的进度与延后清单见 [开发进度/](../开发进度/README.md)——
 其中 [延后实现清单](../开发进度/延后实现清单.md) 是 P 编号的权威出处。

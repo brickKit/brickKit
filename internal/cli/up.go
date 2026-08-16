@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -485,47 +484,20 @@ func resolveEngine(opts *Options) (engine.Engine, error) {
 		return opts.Engine, nil
 	}
 	if forced := os.Getenv("BRICKKIT_ENGINE"); strings.TrimSpace(forced) != "" {
-		switch strings.ToLower(strings.TrimSpace(forced)) {
-		case engine.Podman:
-			return podmanEngine(), nil
-		case engine.Docker:
+		if strings.EqualFold(strings.TrimSpace(forced), engine.Docker) {
 			return engine.NewDocker(), nil
 		}
 	}
 	return engine.Detect()
 }
 
-// podmanEngine 在两种 Podman 用法里挑一个：独立的 podman-compose 优先，
-// 没有就用 Podman 自带的 `podman compose` 子命令。
-func podmanEngine() engine.Engine {
-	if _, err := exec.LookPath("podman-compose"); err == nil {
-		return engine.NewPodman()
-	}
-	return engine.NewPodmanCompose()
-}
-
-// engineName 决定生成部署文件时用哪个宿主机别名（005 §7.5）。
+// engineName 是生成部署文件时记录的引擎名。
 //
-// 与 resolveEngine 分开：生成文件不需要引擎真的可用
-// （--dry-run 在没装 Docker 的机器上也该能跑）。
+// 目前只有 Docker 一种（Podman 见 005 §7.4.1）。保留这个函数是因为
+// 生成文件与"引擎可不可用"是两回事：--dry-run 在没装 Docker 的机器上也该能跑。
 func engineName(opts *Options) string {
 	if opts.Engine != nil {
 		return opts.Engine.Name()
-	}
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("BRICKKIT_ENGINE"))) {
-	case engine.Podman:
-		return compose.EnginePodman
-	case engine.Docker:
-		return compose.EngineDocker
-	}
-	if _, err := exec.LookPath("docker"); err == nil {
-		return compose.EngineDocker
-	}
-	if _, err := exec.LookPath("podman-compose"); err == nil {
-		return compose.EnginePodman
-	}
-	if _, err := exec.LookPath("podman"); err == nil {
-		return compose.EnginePodman
 	}
 	return compose.EngineDocker
 }

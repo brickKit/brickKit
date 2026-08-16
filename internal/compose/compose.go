@@ -37,7 +37,7 @@ const (
 type Options struct {
 	// Now 用于文件头的生成时间，测试可注入。
 	Now func() time.Time
-	// Engine 是容器引擎（EngineDocker / EnginePodman）。
+	// Engine 是容器引擎（目前只有 EngineDocker）。
 	// 只影响 local: true 时 extra_hosts 的宿主机别名（005 §7.5）；空值按 Docker 处理。
 	Engine string
 	// Lookup 解析 ${VAR}，**只用于 local-debug 环境变量文件**。

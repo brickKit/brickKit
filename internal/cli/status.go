@@ -24,7 +24,6 @@ func newStatusCommand(opts *Options) *cobra.Command {
 
 CLI 本身不存储运行状态，查询时直接调用底层引擎：
   Docker  docker compose ps --format json
-  Podman  podman-compose ps
 
 输出包含：运行中的组件、未启动的组件及原因、
 本地调试组件（local: true）、基础资源可达性。`,

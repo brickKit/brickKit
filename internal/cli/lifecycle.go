@@ -249,10 +249,7 @@ func logsCommand(engineName, project, file, service string) string {
 		return fmt.Sprintf("kubectl logs %s -n %s", target, project)
 	}
 
-	bin := "docker compose"
-	if engineName == engine.Podman {
-		bin = "podman-compose"
-	}
+	const bin = "docker compose"
 	// --project-directory 也不能省：compose 会在**部署文件旁边**找 .env，
 	// 而使用者的 .env 在项目根。少了它，每次看日志都会先刷三行
 	// "The XXX variable is not set. Defaulting to a blank string."，

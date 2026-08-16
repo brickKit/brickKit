@@ -11,13 +11,10 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 )
 
-// Compose 是基于 compose 的引擎实现（Docker 与 Podman 共用）。
-//
-// 两者的命令行不同（`docker compose` 是子命令，`podman-compose` 是独立程序），
-// 但参数与行为一致，因此只在这里分岔一次。
+// Compose 是基于 compose 的引擎实现。
 type Compose struct {
 	name string
-	// bin 与 base 一起构成命令前缀：docker + [compose] / podman-compose + []。
+	// bin 与 base 一起构成命令前缀：docker + [compose]。
 	bin  string
 	base []string
 	// runner 执行命令，测试可替换。
@@ -27,21 +24,6 @@ type Compose struct {
 // NewDocker 返回 docker compose 引擎。
 func NewDocker() *Compose {
 	return &Compose{name: Docker, bin: "docker", base: []string{"compose"}, runner: run}
-}
-
-// NewPodman 返回基于独立 podman-compose 程序的引擎。
-func NewPodman() *Compose {
-	return &Compose{name: Podman, bin: "podman-compose", runner: run}
-}
-
-// NewPodmanCompose 返回基于 `podman compose` 子命令的引擎。
-//
-// Podman 4.1 起自带这个子命令，它会去找一台机器上现成的 compose 实现
-// （docker-compose 插件或 podman-compose）来执行，容器仍然跑在 Podman 上。
-// 很多发行版装了 Podman 却没有 podman-compose（那是另一个 Python 程序），
-// 只认后者的话，一台 compose 明明能用的机器会被判成"没有可用的容器引擎"。
-func NewPodmanCompose() *Compose {
-	return &Compose{name: Podman, bin: "podman", base: []string{"compose"}, runner: run}
 }
 
 func (c *Compose) Name() string { return c.name }
@@ -177,7 +159,7 @@ func (c *Compose) exec(ctx context.Context, args ...string) ([]byte, error) {
 	}
 	if isMissingBinary(err) {
 		return out, clierr.Newf(clierr.CodeEngineMissing, "错误：找不到容器引擎 %s", c.bin).
-			WithHint("安装 Docker（20.10+）或 Podman（4.0+）后重试").
+			WithHint("安装 Docker 20.10+ 后重试").
 			WithCause(err)
 	}
 	return out, clierr.Newf(clierr.CodeEngineFailed, "错误：%s 执行失败", c.bin).
@@ -186,14 +168,29 @@ func (c *Compose) exec(ctx context.Context, args ...string) ([]byte, error) {
 		WithCause(err)
 }
 
-// run 是真正执行外部命令的地方。
+// run 执行一条命令：**成功时只返回 stdout，失败时把 stderr 也带上**。
+//
+// 两个流不能无条件合并。有些工具在**成功路径**上也往 stderr 写东西，
+// 混进来就会毁掉后续解析：
+//
+//	podman compose  每次打一行 "Executing external compose provider ..." 横幅
+//	kubectl         弃用警告
+//
+// 真撞到过（P27）：容器起来了、也 healthy，而 `ps --format json` 的输出变成
+// "横幅 + JSON"，解析失败，**一次成功的部署被报成了失败**。
+//
+// 失败时则相反，必须带上 stderr——错误信息几乎总在那里，
+// 丢了它使用者只会看到一句没有内容的"执行失败"。
 func run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-	err := cmd.Run()
-	return out.Bytes(), err
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return append(stderr.Bytes(), stdout.Bytes()...), err
+	}
+	return stdout.Bytes(), nil
 }
 
 func containsAny(text string, patterns ...string) bool {
@@ -337,25 +334,41 @@ func statusParseError(err error) error {
 
 // Detect 挑选可用的容器引擎（005 §7.4）。
 //
-// 顺序：docker compose → podman-compose。两个都没有时返回错误——
-// 但只有真正要启动时才该调用它；只生成文件不需要引擎。
+// 目前只有 Docker 一种。只有真正要启动时才该调用它；只生成文件不需要引擎。
 func Detect() (Engine, error) {
 	if _, err := exec.LookPath("docker"); err == nil {
 		return NewDocker(), nil
 	}
-	if _, err := exec.LookPath("podman-compose"); err == nil {
-		return NewPodman(), nil
-	}
-	// podman 自带的 compose 子命令：装了 Podman 但没装 podman-compose 的机器
-	// 走这条路，容器照样跑在 Podman 上
 	if _, err := exec.LookPath("podman"); err == nil {
-		return NewPodmanCompose(), nil
+		return nil, podmanNotSupported()
 	}
 	return nil, clierr.New(clierr.CodeEngineMissing, "错误：没有找到可用的容器引擎").
-		WithDetail("已尝试", "docker compose、podman-compose、podman compose").
+		WithDetail("已尝试", "docker compose").
 		WithHint(
-			"安装 Docker 20.10+（推荐）或 Podman 4.0+",
+			"安装 Docker 20.10+",
 			"只想生成部署文件而不启动的话，用 brickkit up --dry-run",
+		)
+}
+
+// podmanNotSupported 在只装了 Podman 的机器上如实说明现状（005 §7.4.1）。
+//
+// 与"没找到引擎"分开报，是因为这两件事该做的下一步完全不同：
+// 前者装个 Docker 就好，后者装了也没用——问题不在使用者的机器上。
+//
+// 措辞刻意具体：只说"不支持"会让人以为是没做，而真实情况是**做过、
+// 跑到了一半、卡在一处我们绕不过去的地方**。把那一处说出来，
+// 使用者才能自己判断他的环境会不会一样卡住。
+func podmanNotSupported() error {
+	return clierr.New(clierr.CodeEngineMissing, "错误：暂不支持 Podman，请使用 Docker").
+		WithDetail("检测到", "本机装了 Podman，但没有 Docker").
+		WithDetail("卡在哪", "`up` / `status` 都能跑通，但 `down` 会失败："+
+			"rootless netns: kill network process: permission denied").
+		WithDetail("为什么不留半个", "一个停不掉的项目比不支持更糟——"+
+			"容器会一直占着端口和资源，而 CLI 报的是成功").
+		WithHint(
+			"安装 Docker 20.10+ 后重试",
+			"只想生成部署文件而不启动的话，用 brickkit up --dry-run（不需要任何引擎）",
+			"详见 design/005 §7.4.1",
 		)
 }
 

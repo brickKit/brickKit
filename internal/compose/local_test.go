@@ -614,29 +614,6 @@ func TestLocalDebugEnvContainsConfigValues(t *testing.T) {
 // 13.14 Podman
 // ============================================================
 
-// 13.14 原文写的是"Podman 生成 host.containers.internal"——**那条验证项本身是错的**。
-//
-// 在真 Podman 上实测：
-//
-//	podman run --add-host=x:host.containers.internal ...
-//	  → Error: invalid IP address in add-host: "host.containers.internal"
-//	podman run --add-host=x:host-gateway ...
-//	  → x 解析到 169.254.1.2 ✅
-//
-// `host.containers.internal` 是 Podman **自动注入到 /etc/hosts 的主机名**
-// （确实在，地址 169.254.1.2），不是 `--add-host` 能接受的**值**。
-// 按原文生成的话，local: true + Podman 的容器**根本创建不出来**。
-func TestPodmanUsesHostGateway(t *testing.T) {
-	b := localProject(t, config.Component{Local: true, LocalPort: 8081})
-
-	result, err := b.build(compose.Options{Engine: compose.EnginePodman})
-	require.NoError(t, err)
-
-	assert.Contains(t, string(result.YAML), "people-basic-1-0-0:host-gateway", "13.14（修正后）")
-	assert.NotContains(t, string(result.YAML), "host.containers.internal",
-		"13.14：这个名字进了 extra_hosts，Podman 会拒绝创建容器")
-}
-
 // ============================================================
 // 确定性
 // ============================================================
@@ -730,32 +707,26 @@ func TestComposeFileKeepsPlaceholders(t *testing.T) {
 	assert.NotContains(t, text, "s3cr3t", "明文密码绝不能写进 compose 文件")
 }
 
-// extra_hosts 的值对 Docker 与 Podman 是**同一个**：host-gateway。
+// extra_hosts 里必须是 `host-gateway`，绝不能是 `host.containers.internal`。
 //
-// 设计书 005 §7.5 原来写的是"Podman 用 host.containers.internal 替代"，
-// 那是把两件事搞混了：`host.containers.internal` 是 Podman **自动注入到
-// /etc/hosts 的一个主机名**，不是 `--add-host` 能接受的值。真 Podman 上
-// 直接报 `Error: invalid IP address in add-host: "host.containers.internal"`,
-// 容器**根本创建不出来**——local: true + Podman 整条路是断的。
-//
-// 而 `host-gateway` 这个魔法值 Podman 同样支持（实测解析到 169.254.1.2，
-// 正是 host.containers.internal 的地址）。一个值两边都对。
-func TestExtraHostsUsesHostGatewayOnBothEngines(t *testing.T) {
-	for _, engineName := range []string{compose.EngineDocker, compose.EnginePodman, ""} {
-		b := newBuilder(t)
-		b.component(simple("people/basic", "1.0.0", 8080), config.Component{Local: true})
-		b.component(dependsOn(simple("department/tree", "1.0.0", 8080), "people/basic", "1.0.0"),
-			config.Component{})
+// 这条断言保留着一段历史：设计书原来写"Podman 用 host.containers.internal 替代"，
+// 那是把两件事搞混了——`host.containers.internal` 是**自动注入到 /etc/hosts 的
+// 主机名**，不是 `--add-host` 能接受的**值**。按原文生成的话容器根本创建不出来。
+// Podman 支持已经移除（005 §7.4.1），但这个错误的值一旦被谁"顺手补回来"，
+// Docker 上同样是坏的，所以断言留着。
+func TestExtraHostsUsesHostGateway(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Local: true})
+	b.component(dependsOn(simple("department/tree", "1.0.0", 8080), "people/basic", "1.0.0"),
+		config.Component{})
 
-		result, err := b.build(compose.Options{Engine: engineName})
-		require.NoError(t, err)
+	result, err := b.build(compose.Options{Engine: compose.EngineDocker})
+	require.NoError(t, err)
 
-		text := string(result.YAML)
-		assert.Contains(t, text, "people-basic-1-0-0:host-gateway",
-			"引擎 %q：extra_hosts 必须用 host-gateway", engineName)
-		assert.NotContains(t, text, "host.containers.internal",
-			"引擎 %q：这个名字不能出现在 extra_hosts 里——Podman 会拒绝创建容器", engineName)
-	}
+	text := string(result.YAML)
+	assert.Contains(t, text, "people-basic-1-0-0:host-gateway")
+	assert.NotContains(t, text, "host.containers.internal",
+		"这个名字不能出现在 extra_hosts 里——它是主机名，不是 add-host 的值")
 }
 
 // ============================================================

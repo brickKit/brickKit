@@ -71,7 +71,6 @@ func TestPortTableAllocateSkipsTakenPortsInSequence(t *testing.T) {
 func TestHostGateway(t *testing.T) {
 	assert.Equal(t, "host-gateway", hostGateway(EngineDocker))
 	assert.Equal(t, "host-gateway", hostGateway(""), "没指定引擎时按 Docker 处理")
-	assert.Equal(t, "host-gateway", hostGateway(EnginePodman), "13.14（修正后）")
 }
 
 // setVar 只改已有的变量：不存在意味着注入引擎判定"这条不该注入"
