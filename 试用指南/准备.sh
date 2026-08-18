@@ -30,9 +30,15 @@ echo "   $BIN/brickkit"
 # ===== 2. 准备试验场 =====
 # 组件源码按 <scope>/<name> 布局拷过去：本地安装源用 root/<组件ID> 定位组件。
 mkdir -p "$PLAY/components"
+KEPT=0
 copy_component() {
 	local src="$ROOT/tests/components/$1" dst="$PLAY/components/$2"
-	[[ -d "$dst" ]] && return 0
+	# 已存在就保留：试验场是给你随便改的，重跑本脚本不该把你的改动冲掉。
+	# 但要**说出来**——否则改过组件之后重跑一次，会以为已经恢复成初始状态了。
+	if [[ -d "$dst" ]]; then
+		KEPT=$((KEPT + 1))
+		return 0
+	fi
 	mkdir -p "$(dirname "$dst")"
 	cp -r "$src" "$dst"
 }
@@ -49,6 +55,10 @@ copy_component portal-user-frontend portal/user-frontend
 copy_component infra-redis-event-bus infra/redis-event-bus
 copy_component infra-api-docs infra/api-docs
 echo "📦 试验组件已就位：$PLAY/components/"
+if [[ $KEPT -gt 0 ]]; then
+	echo "   ℹ️  其中 $KEPT 个组件目录已存在，**保留了你的改动**（没有覆盖）"
+	echo "      要回到初始状态：./试用指南/准备.sh --reset"
+fi
 echo "   玩具：demo/hello  demo/caller"
 echo "   真实：department/tree  people/basic  auth/password-login  authorization/rbac"
 echo "         erp/backend  portal/user-frontend  infra/redis-event-bus  infra/api-docs"
