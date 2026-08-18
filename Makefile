@@ -119,6 +119,10 @@ check-docs: ## 检查文档引用（悬空小节号、断链）
 check-cli-docs: build-cli ## 检查文档里的命令与参数是否真的存在（Step 40）
 	@python3 scripts/check-cli-docs.py $(BIN)/brickkit
 
+.PHONY: check-guides
+check-guides: build-cli ## 真跑试用指南里的关键步骤（缺环境的层会响亮跳过）
+	@bash scripts/check-guides.sh
+
 .PHONY: tidy
 tidy: ## go mod tidy（两个 module）
 	$(GO) mod tidy
