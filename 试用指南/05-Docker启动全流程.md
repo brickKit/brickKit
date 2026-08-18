@@ -49,7 +49,7 @@ echo "PG_PASSWORD=devpass" > .env
 
 > **`host.docker.internal` 是第三种情形**：指向**宿主机**。用它连本机上已经跑着的
 > 数据库，或者连另一个 BrickKit 项目共享出来的资源（见
-> [18-多项目与共享.md](18-多项目与共享.md)）。平台会自动为绑定它的组件补
+> [19-多项目与共享.md](19-多项目与共享.md)）。平台会自动为绑定它的组件补
 > `extra_hosts`，你不用手工建网络。
 
 ### 一个组件要连两个同类资源：`envPrefix`
@@ -291,4 +291,4 @@ docker compose --project-directory . -p brickkit-demo-shop \
 
 ---
 
-➡️ 下一节：[06-本地调试.md](06-本地调试.md)（或直接跳 [07-K8s部署.md](07-K8s部署.md)）
+➡️ 下一节：[07-本地调试.md](07-本地调试.md)（或直接跳 [06-K8s部署.md](06-K8s部署.md)）
