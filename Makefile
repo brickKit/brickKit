@@ -48,14 +48,39 @@ PY_COMPONENTS := people-basic infra-redis-event-bus
 # 多版本共存验证需要同一份 hello 的两个 tag
 DEMO_HELLO_TAGS := 1.0.0 2.0.0
 
-# 若目标目录下没有 *_test.go，则跳过而不是报错（骨架阶段用）。
+# 按类别执行 tests/checklist/清单.tsv 里的验收测试。
+#
+# 这几个目标以前指向 tests/boundary/ 这类空目录，于是永远打印"暂无测试文件，跳过"。
+# 而那些测试其实早就写好了，只是写在**被测代码旁边**。清单把两者接了起来：
+# checklist_test.go 保证清单不失效，这里按类别把它点名的测试真跑一遍。
+define run_category
+	@echo "▶ $(1)：先验清单没失效"
+	@$(GO) test $(TESTFLAGS) ./tests/checklist/...
+	@echo ""
+	@awk -F'\t' -v C="$(1)" '!/^#/ && NF==7 && $$1==C && $$4=="test" { print $$5 "\t" $$6 "\t" $$7 }' \
+	     tests/checklist/清单.tsv | sort -u \
+	  | awk -F'\t' '{ if (k != $$1 "\t" $$2) { if (k) print k "\t" p; k=$$1 "\t" $$2; p=$$3 } \
+	                  else p = p "|" $$3 } END { if (k) print k "\t" p }' \
+	  | while IFS=$$(printf '\t') read -r mod pkg names; do \
+	        echo "  ── $$mod/$${pkg#./}  ($$names)"; \
+	        ( cd $$mod && $(GO) test $(TESTFLAGS) $$pkg -run "^($$names)\$$" ) || exit 1; \
+	    done
+	@echo ""
+	@echo "✅ $(1)：清单里 $$(awk -F'\t' -v C="$(1)" '!/^#/ && NF==7 && $$1==C {print $$2}' tests/checklist/清单.tsv | sort -u | wc -l) 项全部通过"
+
+endef
+
+# 若目标目录下没有 *_test.go，则**报错**而不是跳过。
+# 一个永远跳过、却还在 test-all 成绩单上占一行的目标，比没有这个目标更坏。
 define run_tests
-	@if [ -d "$(1)" ] && [ -n "$$(find $(1) -name '*_test.go' -print -quit 2>/dev/null)" ]; then \
-		echo "▶ go test ./$(1)/..."; \
-		$(GO) test $(TESTFLAGS) ./$(1)/...; \
-	else \
-		echo "⏭  $(1)：暂无测试文件，跳过"; \
+	@if [ ! -d "$(1)" ] || [ -z "$$(find $(1) -name '*_test.go' -print -quit 2>/dev/null)" ]; then \
+		echo "❌ $(1)：一个测试文件都没有。"; \
+		echo "   目录空了却还在跑，输出会长得和「全部通过」一模一样。"; \
+		echo "   要么把测试放回来，要么把这个目标删掉。"; \
+		exit 1; \
 	fi
+	@echo "▶ go test ./$(1)/..."
+	@$(GO) test $(TESTFLAGS) ./$(1)/...
 endef
 
 # ---------- 帮助 ----------
@@ -133,35 +158,25 @@ tidy: ## go mod tidy（两个 module）
 test: test-unit ## 默认测试（= test-unit）
 
 .PHONY: test-unit
-test-unit: ## 单元测试（internal + tests/unit）
-	@if [ -n "$$(find internal -name '*_test.go' -print -quit 2>/dev/null)" ]; then \
-		echo "▶ go test ./internal/..."; $(GO) test $(TESTFLAGS) ./internal/...; \
-	else echo "⏭  internal：暂无测试文件，跳过"; fi
-	$(call run_tests,tests/unit)
-
-.PHONY: test-integration
-test-integration: ## 集成测试
-	$(call run_tests,tests/integration)
-
-.PHONY: test-e2e
-test-e2e: ## 端到端测试
-	$(call run_tests,tests/e2e)
+test-unit: ## 单元测试（internal/**，测试与被测代码同处一包）
+	@echo "▶ go test ./internal/..."
+	@$(GO) test $(TESTFLAGS) ./internal/...
 
 .PHONY: test-boundary
-test-boundary: ## 边界测试
-	$(call run_tests,tests/boundary)
+test-boundary: ## 边界测试（Step 32，读 tests/checklist/清单.tsv）
+	$(call run_category,boundary)
 
 .PHONY: test-error
-test-error: ## 错误处理测试
-	$(call run_tests,tests/error)
+test-error: ## 错误处理测试（Step 33）
+	$(call run_category,error)
 
 .PHONY: test-compat
-test-compat: ## 兼容性测试（Docker）
-	$(call run_tests,tests/compat)
+test-compat: ## 兼容性测试（Step 34，Docker）
+	$(call run_category,compat)
 
 .PHONY: test-security
-test-security: ## 安全测试
-	$(call run_tests,tests/security)
+test-security: ## 安全测试（Step 35）
+	$(call run_category,security)
 
 .PHONY: test-perf
 test-perf: ## 性能基准测试
@@ -185,11 +200,17 @@ test-regression: ## 回归测试（读 tests/regression/清单.tsv，先验清�
 	@echo "✅ 回归清单 $$(grep -c '^R' tests/regression/清单.tsv) 项全部通过"
 
 .PHONY: test-upgrade
-test-upgrade: ## 升级测试（用 tests/e2e 中的 upgrade 用例）
-	@if [ -n "$$(find tests/e2e -name '*upgrade*_test.go' -print -quit 2>/dev/null)" ]; then \
-		echo "▶ go test ./tests/e2e/... -run Upgrade"; \
-		$(GO) test $(TESTFLAGS) ./tests/e2e/... -run Upgrade; \
-	else echo "⏭  升级测试：暂无测试文件，跳过"; fi
+test-upgrade: ## 升级测试（Step 38；用例与被测代码同处一包）
+	@n=$$(for p in ./internal/cli ./internal/compose ./internal/resolver; do \
+	        $(GO) test -list Upgrade $$p | grep -c '^Test'; done | paste -sd+ | bc); \
+	  if [ "$$n" -lt 20 ]; then \
+	    echo "❌ 只匹配到 $$n 条 Upgrade 测试（预期 20 条以上）。"; \
+	    echo "   -run 匹配不到任何东西时 go test 照样报 ok——这个目标本来会静默通过。"; \
+	    echo "   多半是测试被改名或搬走了，请一并更新这里的包列表。"; exit 1; \
+	  fi; \
+	  echo "▶ go test -run Upgrade（$$n 条）"
+	@$(GO) test $(TESTFLAGS) -run Upgrade \
+	    ./internal/cli/... ./internal/compose/... ./internal/resolver/...
 
 .PHONY: test-market
 test-market: ## 市场后端测试
@@ -306,7 +327,7 @@ demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实�
 	@docker images --format '{{.Repository}}:{{.Tag}}' | grep '^brickkit-demo/' | sort
 
 .PHONY: test-all
-test-all: test-unit test-integration test-market test-components test-e2e test-boundary test-error test-security test-perf test-regression ## 执行全部测试（不含 compat）
+test-all: test-unit test-market test-components test-boundary test-error test-compat test-security test-upgrade test-perf test-regression ## 执行全部测试
 
 # 覆盖率政策：
 #   internal/ 保持 COVER_MIN 以上；不追求 100%。

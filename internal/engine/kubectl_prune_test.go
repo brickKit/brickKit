@@ -270,8 +270,8 @@ func (assertAnError) Error() string { return "集群暂时查不到" }
 func TestKubectlUpPrunesPDBWhenReplicasDropToOne(t *testing.T) {
 	rec := newRecorder()
 	clusterHas(rec,
-		"deployment.apps/demo-hello-2-0-0", // ← 本次要留
-		"service/demo-hello-2-0-0",         // ← 本次要留
+		"deployment.apps/demo-hello-2-0-0",            // ← 本次要留
+		"service/demo-hello-2-0-0",                    // ← 本次要留
 		"poddisruptionbudget.policy/demo-hello-2-0-0", // ← 副本数改回 1，它成了孤儿
 	)
 
@@ -303,7 +303,7 @@ func TestKubectlUpPrunesPDBWhenReplicasDropToOne(t *testing.T) {
 func TestKubectlUpPrunesComponentTurnedExternal(t *testing.T) {
 	rec := newRecorder()
 	clusterHas(rec,
-		"deployment.apps/demo-hello-2-0-0",   // ← 本次仍由本项目部署
+		"deployment.apps/demo-hello-2-0-0", // ← 本次仍由本项目部署
 		"service/demo-hello-2-0-0",
 		"deployment.apps/infra-notifier-1-0-0", // ← 刚被改成 external，本项目不再部署它
 		"service/infra-notifier-1-0-0",

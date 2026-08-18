@@ -280,7 +280,9 @@ docker compose --project-directory . -p brickkit-demo-shop \
 | 能力 | 位置 |
 | --- | --- |
 | `up` 的完整流程 | [internal/cli/up.go](../internal/cli/up.go) |
-| 升级检查、`--only`、`--check-resources` | [internal/cli/up_checks.go](../internal/cli/up_checks.go) |
+| 升级处理 | [internal/cli/up_upgrade.go](../internal/cli/up_upgrade.go) |
+| `--only` 收窄 | [internal/cli/up_only.go](../internal/cli/up_only.go) |
+| `--check-resources` 体检 | [internal/cli/up_checks.go](../internal/cli/up_checks.go) |
 | `down` / `status` | [internal/cli/down.go](../internal/cli/down.go)、[status.go](../internal/cli/status.go) |
 | 生成 docker-compose.yaml | [internal/compose/compose.go](../internal/compose/compose.go) |
 | 环境变量注入、配额合并 | [internal/inject/inject.go](../internal/inject/inject.go) |

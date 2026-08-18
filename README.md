@@ -61,8 +61,8 @@ deploy:
   target: k8s        # was: docker
 ```
 
-**11 commands total:** `init` `add` `remove` `up` `down` `status` `order` `sync`
-`reset` `login` `publish`
+**12 commands total:** `init` `add` `remove` `up` `down` `status` `order` `sync`
+`reset` `login` `publish` `version`
 
 ---
 
@@ -77,7 +77,7 @@ Everything below is in Chinese.
 | Know what to install first | [00b · 底层环境清单](试用指南/00b-底层环境清单.md) |
 | Understand the design | [设计书导航](design/000%20阅读指南与文档导航.md) |
 | Run the market backend | [市场部署与运维指南](市场部署与运维指南.md) |
-| See why a decision was made | [决策索引](开发进度/决策索引.md)（500 条） |
+| See why a decision was made | [决策索引](开发进度/决策索引.md)（503 条） |
 
 ---
 
@@ -99,8 +99,13 @@ market-server/         the component market (separate Go module)
 design/                14 design books — the normative spec
 试用指南/               23 hands-on guides, every one really executed
 tests/components/      10 real components used to test the platform
+tests/checklist/       acceptance checklists → the tests that prove them
 deploy/market/         compose / kustomize / Helm for the market
 ```
+
+Unit tests live **next to the code they test** (`internal/**/*_test.go`), not in a
+parallel tree. `tests/` holds only what cannot live there: the checklists, the
+benchmarks, and the components used as fixtures.
 
 ---
 
@@ -113,15 +118,20 @@ make test-all         # every test suite
 make lint             # vet + documentation checks
 ```
 
-Four checks run continuously, and **each one fails loudly when it breaks** rather
+Five checks run continuously, and **each one fails loudly when it breaks** rather
 than quietly reporting zero problems:
 
 | Command | Guards |
 | --- | --- |
 | `make test-regression` | 25 user-facing promises → the tests that prove them |
+| `make test-boundary` etc. | 75 acceptance items → the tests that prove them |
 | `make check-docs` | dangling section references and broken links |
 | `make check-cli-docs` | every command and flag written in the docs actually exists |
 | `make check-guides` | the steps in the hands-on guides still run |
+
+A checklist that points at a test which no longer exists fails the build. So does
+a test target whose directory turned up empty — a suite that silently skips is
+worse than no suite at all, because it still occupies a line on the scoreboard.
 
 ---
 
@@ -131,10 +141,10 @@ Every planned step is complete, and so is every deferred item.
 
 | | |
 | --- | --- |
-| Tests | 1619 test functions, race-clean |
+| Tests | 1667 test functions, race-clean |
 | Guides | 23, all really executed against Docker / Kubernetes / a live market |
 | Design books | 14, cross-checked against the implementation twice |
-| Decision log | 500 entries, each with the reasoning behind it |
+| Decision log | 503 entries, each with the reasoning behind it |
 
 **Requirements:** Go 1.22+, Docker 20.10+ with Compose V2.
 Kubernetes guides need minikube; signing needs

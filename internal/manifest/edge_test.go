@@ -1,3 +1,9 @@
+// 本文件是 Step 4「component.yaml 解析器」的代码层测试：形状错误、
+// null 字段、各条校验规则的分支与边界。
+//
+// 业务行为由 manifest_test.go 从"解析出来的 Manifest 里有什么"那一侧盯住；
+// 这里补的是从外面不容易逼出来的分支（YAML 别名、读不动的文件、
+// 依赖写成序列、越界的 extraPort）。
 package manifest
 
 import (

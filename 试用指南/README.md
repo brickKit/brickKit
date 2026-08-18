@@ -148,7 +148,7 @@ cd <仓库根目录>
 | 生成 docker-compose.yaml | [internal/compose/](../internal/compose/) | 005 §3 |
 | 生成 K8s 清单 | [internal/k8s/](../internal/k8s/) | 005 §5 |
 | 调 docker / kubectl | [internal/engine/](../internal/engine/) | 005 §7 |
-| 升级兼容性检查 | [internal/upgrade/](../internal/upgrade/) | 002 §7.7 |
+| 升级兼容性检查 | [internal/resolver/resolver.go](../internal/resolver/resolver.go) | 002 §7.7 |
 | 配置备份与恢复 | [internal/backup/](../internal/backup/) | 003 §9 |
 | 组件源码工作区（`sync` / `--repo`） | [internal/workspace/](../internal/workspace/) | 004 §3.9 |
 | 市场后端 | [market-server/](../market-server/) | 007 |

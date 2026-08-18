@@ -2,7 +2,7 @@
 //
 // # 为什么这里几乎没有时间断言
 //
-// 计划里写的是'''"50 个组件 up < 30 秒"、"10 层依赖解析 < 5 秒"'''这类阈值。
+// 计划里写的是"50 个组件 up < 30 秒"、"10 层依赖解析 < 5 秒"这类阈值。
 // 那是**人跑一次时的验收标准**，不适合直接写成自动化断言：
 //
 //	机器快    阈值永远满足，测了等于没测
@@ -191,7 +191,7 @@ func BenchmarkParseConfig100(b *testing.B) {
 // 36.6 docker-compose.yaml 生成（50 个组件）。
 //
 // 这条走的是完整链路：解析 → 级联 → 注入 → 生成，
-// 因为使用者感知到的'''"生成有多慢"'''就是这一整条。
+// 因为使用者感知到的"生成有多慢"就是这一整条。
 func BenchmarkGenerateCompose50(b *testing.B) {
 	cfg, p, refs := flatProject(50)
 	graph, err := resolver.New(p).Resolve(context.Background(), refs...)

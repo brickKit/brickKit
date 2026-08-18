@@ -18,17 +18,11 @@
 // 执行交给 `make test-regression`（同样读 清单.tsv）。
 // 一份数据、两个消费者，改清单只改一个地方。
 //
-// # 为什么用 `go test -list` 而不是搜源码
-//
-// 搜 `func TestXxx(` 也能确认名字在，但确认不了它**能被跑到**：
-// 文件带了构建标签、包编译不过、测试名写在注释里——这些情况下
-// 源码里有那串字符，`go test` 却一条也跑不到。
-// `-list` 走的是真正的编译与注册流程，它说有才是真的有。
+// 读清单与"问 go test 那个测试还在不在"这两件事，与 tests/checklist 完全相同，
+// 因此共用 internal 之外的那个小包，而不是在这里再抄一份。
 package regression
 
 import (
-	"bufio"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -37,6 +31,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/brickkit/brickkit/tests/checklist"
 )
 
 // item 是清单里的一行。
@@ -60,32 +56,21 @@ func repoRoot(t *testing.T) string {
 	return root
 }
 
-// loadManifest 读清单。
+// loadManifest 读清单。列的含义见 清单.tsv 的表头。
 func loadManifest(t *testing.T) []item {
 	t.Helper()
 
-	f, err := os.Open(manifestName)
+	rows, err := checklist.Load(manifestName, 6)
 	require.NoError(t, err, "读不到回归清单")
-	defer f.Close()
+	require.NotEmpty(t, rows, "清单是空的——那不是「全部通过」，是根本没读到东西")
 
-	var items []item
-	scanner := bufio.NewScanner(f)
-	for n := 1; scanner.Scan(); n++ {
-		line := scanner.Text()
-		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		cols := strings.Split(line, "\t")
-		require.Len(t, cols, 6,
-			"%s 第 %d 行应有 6 列（编号/说明/Step/module/包/测试名），实际 %d 列：%q",
-			manifestName, n, len(cols), line)
-
+	items := make([]item, 0, len(rows))
+	for _, r := range rows {
 		items = append(items, item{
-			id: cols[0], desc: cols[1], step: cols[2],
-			module: cols[3], pkg: cols[4], test: cols[5], line: n,
+			id: r.Cell(0), desc: r.Cell(1), step: r.Cell(2),
+			module: r.Cell(3), pkg: r.Cell(4), test: r.Cell(5), line: r.Line,
 		})
 	}
-	require.NoError(t, scanner.Err())
 	return items
 }
 
@@ -141,17 +126,9 @@ func TestEveryListedTestStillExists(t *testing.T) {
 		for _, it := range group {
 			names = append(names, it.test)
 		}
-		pattern := "^(" + strings.Join(names, "|") + ")$"
 
-		cmd := exec.Command("go", "test", "-list", pattern, k.pkg)
-		cmd.Dir = filepath.Join(root, k.module)
-		out, err := cmd.CombinedOutput()
-		require.NoError(t, err, "在 %s 里列举 %s 的测试失败：\n%s", k.module, k.pkg, out)
-
-		found := map[string]bool{}
-		for _, line := range strings.Split(string(out), "\n") {
-			found[strings.TrimSpace(line)] = true
-		}
+		found, err := checklist.Listed(root, k.module, k.pkg, names)
+		require.NoError(t, err)
 
 		where := filepath.Join(k.module, strings.TrimPrefix(k.pkg, "./"))
 		for _, it := range group {
