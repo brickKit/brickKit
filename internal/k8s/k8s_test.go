@@ -276,7 +276,7 @@ func TestDeploymentBasics(t *testing.T) {
 	assert.Equal(t, "Deployment", doc["kind"], "16.2")
 	assert.Equal(t, "people-basic-1-0-0", dig(t, doc, "metadata", "name"), "名字是版本化服务名")
 	assert.Equal(t, "brickkit-my-erp", dig(t, doc, "metadata", "namespace"))
-	assert.Equal(t, 1, dig(t, doc, "spec", "replicas"), "多实例是后期能力，先固定 1")
+	assert.Equal(t, 1, dig(t, doc, "spec", "replicas"), "没写 replicas 时的默认值（P35）")
 	assert.Equal(t, "people-basic-1-0-0",
 		dig(t, doc, "spec", "selector", "matchLabels", "app"), "selector 必须选得中自己的 Pod")
 	assert.Equal(t, "people-basic-1-0-0",

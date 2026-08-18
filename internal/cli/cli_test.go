@@ -164,6 +164,12 @@ func TestErrorOutputFormat(t *testing.T) {
 func TestNotImplementedCommands(t *testing.T) {
 	cases := map[string][]string{}
 
+	// 显式 skip 而不是静默通过：一张空表跑出来的"PASS"与一个坏掉的用例
+	// 长得一模一样。写成 skip 之后，测试输出里就看得见"这条现在没在测什么"。
+	if len(cases) == 0 {
+		t.Skip("命令树上已经没有未实现的入口；将来加占位命令时把表填回来")
+	}
+
 	for name, args := range cases {
 		t.Run(name, func(t *testing.T) {
 			r := run(t, args...)

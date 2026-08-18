@@ -286,3 +286,37 @@ func TestKubectlUpPrunesPDBWhenReplicasDropToOne(t *testing.T) {
 	assert.NotContains(t, command, "deployment.apps/demo-hello-2-0-0",
 		"P35：同名的 Deployment 是本次要留的，绝不能被一起删掉")
 }
+
+// 组件被改成 external 之后，本项目留下的旧资源要被清理掉（P39 + P38）。
+//
+// # 这条是收尾复核时想到的迁移路径
+//
+// 组件原本由本项目部署，某天团队决定"它该由平台项目统一提供"，
+// 于是在 brickkit.yaml 上加了 `external:`。这时集群里**还留着**本项目当初
+// 部署的那一份，带着本项目的标签。
+//
+// 正确行为是把它清掉：本项目已经声明"我不再部署它"，留着就成了两份实例，
+// 而 external 这类组件之所以要共享，正是因为跑两份是错的（定时任务发双倍邮件）。
+//
+// 清理是自然发生的——external 组件不进 plan.services，因而不在期望集合里。
+// 这条测试把它钉住，免得将来有人"顺手"把 external 组件也加进 Services。
+func TestKubectlUpPrunesComponentTurnedExternal(t *testing.T) {
+	rec := newRecorder()
+	clusterHas(rec,
+		"deployment.apps/demo-hello-2-0-0",   // ← 本次仍由本项目部署
+		"service/demo-hello-2-0-0",
+		"deployment.apps/infra-notifier-1-0-0", // ← 刚被改成 external，本项目不再部署它
+		"service/infra-notifier-1-0-0",
+	)
+
+	require.NoError(t, kubectlWith(rec).Up(context.Background(), pruneRequest()))
+
+	command := deleteCommand(rec)
+	require.NotEmpty(t, command, "P39：必须清掉本项目留下的那一份：%v", rec.commands())
+
+	assert.Contains(t, command, "deployment.apps/infra-notifier-1-0-0",
+		"P39：改成 external 之后本项目不再部署它，留着就成了两份实例")
+	assert.Contains(t, command, "service/infra-notifier-1-0-0")
+	assert.NotContains(t, command, "demo-hello-2-0-0",
+		"P39：本项目自己的组件绝不能被一起删")
+}
