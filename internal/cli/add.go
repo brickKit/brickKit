@@ -174,22 +174,6 @@ type artifactSummary struct {
 	warnings []*clierr.Error
 }
 
-func downloadArtifacts(ctx context.Context, client *source.Client, graph *resolver.Graph) *artifactSummary {
-	sum := &artifactSummary{perNode: map[resolver.Ref]int{}}
-	for _, node := range graph.Nodes {
-		res, err := client.DownloadArtifacts(ctx, node.Manifest)
-		if err != nil {
-			// 产物是开发时辅助，不阻断安装（004 §10.1）
-			sum.warnings = append(sum.warnings, clierr.As(err))
-			continue
-		}
-		sum.downloaded += len(res.Downloaded)
-		sum.cached += len(res.Cached)
-		sum.perNode[node.Ref] = len(res.Downloaded) + len(res.Cached)
-		sum.warnings = append(sum.warnings, res.Warnings...)
-	}
-	return sum
-}
 
 // ============================================================
 // 写入 brickkit.yaml
