@@ -3,6 +3,9 @@ package clierr
 import (
 	"bytes"
 	"errors"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -120,4 +123,27 @@ func TestNewfAndWithDetailf(t *testing.T) {
 		WithDetailf("版本列表", "%s", "1.0.0, 2.0.0")
 	assert.Contains(t, e.Format(), "❌ people/basic 存在多个版本")
 	assert.Contains(t, e.Format(), "   版本列表：1.0.0, 2.0.0")
+}
+
+// 每个错误码都必须写进 004 §10.2.1（收尾复核）。
+//
+// error_code 会进 JSON 日志，是**对外契约**：CI 脚本据此判断该重试还是该报警
+// （NETWORK_UNREACHABLE 值得重试，CONFIG_INVALID 重试多少次都一样）。
+//
+// 这条测试守的是"新增了码却忘了写文档"——那种缺失不会让任何东西失败，
+// 只会让别人写脚本时查不到，然后按字符串猜。
+func TestEveryErrorCodeIsDocumented(t *testing.T) {
+	src, err := os.ReadFile("clierr.go")
+	require.NoError(t, err)
+	doc, err := os.ReadFile(filepath.Join("..", "..", "design", "004-CLI 设计.md"))
+	require.NoError(t, err)
+
+	codes := regexp.MustCompile(`Code\s*=\s*"([A-Z_]+)"`).FindAllStringSubmatch(string(src), -1)
+	require.NotEmpty(t, codes, "一个错误码都没提取到——正则坏了，下面的结论不可信")
+
+	section := string(doc)
+	for _, m := range codes {
+		assert.Contains(t, section, "`"+m[1]+"`",
+			"错误码 %s 没有写进 004 §10.2.1——别人写脚本时查不到它，只能按字符串猜", m[1])
+	}
 }
