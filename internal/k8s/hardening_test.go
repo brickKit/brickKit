@@ -449,13 +449,12 @@ func TestServiceAccountNameWorksWithoutGlobalSwitch(t *testing.T) {
 }
 
 // ============================================================
-// PodDisruptionBudget：**刻意不生成**
+// PodDisruptionBudget：**只在多副本时生成**
 // ============================================================
 
-// 不生成 PodDisruptionBudget，而且这是一条经过实测的决定。
+// 单副本时不生成 PDB，而且这是一条经过实测的决定。
 //
-// PDB 的作用是"排空节点时至少留几个副本活着"。但 005 §5.8 之前 replicas 固定为 1，
-// 而单副本下无论怎么写都是死路：
+// PDB 的作用是"排空节点时至少留几个副本活着"。单副本下无论怎么写都是死路：
 //
 //	minAvailable: 1      要留 1 个，总共就 1 个 → 一个也不许赶走
 //	maxUnavailable: 0    同一件事换个说法
@@ -469,8 +468,9 @@ func TestServiceAccountNameWorksWithoutGlobalSwitch(t *testing.T) {
 // 要命的是代价落在谁身上：打开开关的是开发者，撞上的是几个月后升级集群的运维，
 // 而那时现场只有一个排不空的节点，跟 brickkit.yaml 里某个开关联系不起来。
 //
-// 所以 PDB 要等多副本（005 §5.8）落地之后再说，那时它才有意义。
-// 这条测试是给未来的人看的：想加 PDB，先把 replicas 变成可配的。
+// **P35 已落地**：`replicas` 现在可配（005 §5.8），多副本时生成
+// `maxUnavailable: 1` 的 PDB（见 pdb_test.go）。这条测试留下来守另一半——
+// **副本数是 1 时坚决不生成**，那才是上面那段实测结论真正要钉住的东西。
 func TestNoPodDisruptionBudgetGenerated(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
 	b.cfg.Deploy.ServiceAccount = &config.ServiceAccount{Enabled: true}
@@ -483,9 +483,9 @@ func TestNoPodDisruptionBudgetGenerated(t *testing.T) {
 			"单副本下的 PDB 会让节点永远排不空，见本测试的注释：%s", f.Path)
 	}
 
-	// 前提没变时这条决定才成立：replicas 还是写死的 1
+	// 这条用例的前提：没写 replicas，因而副本数是 1
 	assert.Equal(t, 1, dig(t, b.doc("deployments/people-basic-1-0-0.yaml"), "spec", "replicas"),
-		"replicas 一旦可配，就该回头重新考虑 PDB")
+		"不写 replicas 时必须还是单副本，否则这条用例守的就不是它自称守的东西")
 }
 
 // ============================================================

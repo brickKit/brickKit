@@ -61,3 +61,16 @@ func TestHardeningAppliedBeforeWorkloads(t *testing.T) {
 			"%s 必须排在 deployments 之前", dir)
 	}
 }
+
+// PDB 必须在孤儿清理范围内（P35）。
+//
+// 漏了它的后果是**单向不可逆**：把 replicas 从 3 改回 1 之后，
+// 生成物里不再有 PDB，`kubectl apply` 也不会删已经在集群里的那一份——
+// 于是一份 maxUnavailable: 1 的 PDB 永远留在单副本组件上，
+// 让节点从此排不空。而这正是 P35 当初决定不生成 PDB 的那个理由，
+// 只不过换了个更隐蔽的入口。
+func TestPruneCoversPodDisruptionBudget(t *testing.T) {
+	assert.Contains(t, pruneKinds, "poddisruptionbudget",
+		"P35：replicas 从 3 改回 1 时这份 PDB 必须被删掉，"+
+			"否则它会永远留在单副本组件上让节点排不空")
+}

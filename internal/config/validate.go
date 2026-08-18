@@ -214,6 +214,7 @@ func (c *Config) validateComponents(p *clierr.ProblemSet) {
 
 		c.validateComponentPorts(p, field, i, item, localPorts, exposePorts)
 		c.validateExternal(p, field, item)
+		validateReplicas(p, field, item)
 	}
 }
 
@@ -362,4 +363,29 @@ func (c *Config) validateResources(p *clierr.ProblemSet) {
 // indexed 生成 "field[i]" 形式的字段路径。
 func indexed(field string, i int) string {
 	return fmt.Sprintf("%s[%d]", field, i)
+}
+
+// validateReplicas 校验 `replicas`（005 §5.8，P35 的前置）。
+func validateReplicas(p *clierr.ProblemSet, field string, item Component) {
+	if item.Replicas == nil {
+		return
+	}
+	name := field + ".replicas"
+
+	if *item.Replicas < 1 {
+		p.Addf(name, "必须 >= 1（当前是 %d）。"+
+			"要关掉这个组件请用 enabled: false——它会走级联计算并提醒依赖方，"+
+			"而 replicas: 0 绕过这一切：依赖方照常启动、照常拿到地址，"+
+			"然后连一个不存在的后端", *item.Replicas)
+		return
+	}
+	// 下面两条只在 >= 1 时才有意义：0 已经报过一次，再报只是噪音
+	if item.IsExternal() {
+		p.Add(name, "不能与 external 同时声明：副本数由部署它的那个项目决定，"+
+			"写在这里不会生效——而看上去像生效了")
+	}
+	if item.Local {
+		p.Add(name, "不能与 local 同时声明：local 是这个组件在你的 IDE 里跑，"+
+			"那里只有一个进程")
+	}
 }

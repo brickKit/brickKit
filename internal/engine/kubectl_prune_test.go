@@ -249,3 +249,40 @@ func TestKubectlUpSurvivesPruneQueryFailure(t *testing.T) {
 type assertAnError struct{}
 
 func (assertAnError) Error() string { return "集群暂时查不到" }
+
+// 副本数从 3 改回 1 时，那份 PDB 必须被删掉（P35）。
+//
+// # 这条测试是被一次真跑逼出来的
+//
+// 把 "poddisruptionbudget" 加进 pruneKinds 之后，minikube 上实测**它照样没被删**。
+//
+// 根因是清理逻辑**只比对名字、不看类型**：`kubectl get -o name` 返回的是
+// `poddisruptionbudget.policy/demo-hello-1-0-0` 与 `deployment.apps/demo-hello-1-0-0`，
+// 两者名字相同，而这个名字在"本次期望"集合里（Deployment 要留），
+// 于是 PDB 也被当成该留的。
+//
+// 在 PDB 出现之前这个近似一直是对的：每种可清理资源都随组件必然生成，
+// "名字还在期望集合里"就等于"这份资源还该在"。**PDB 是第一个条件生成的资源**
+// （只有多副本才有），它把这个前提打破了。
+//
+// 漏掉的后果单向不可逆：一份 maxUnavailable: 1 的 PDB 永远留在单副本组件上，
+// 让节点从此排不空——正是 P35 当初决定不生成 PDB 的那个理由，换了个更隐蔽的入口。
+func TestKubectlUpPrunesPDBWhenReplicasDropToOne(t *testing.T) {
+	rec := newRecorder()
+	clusterHas(rec,
+		"deployment.apps/demo-hello-2-0-0", // ← 本次要留
+		"service/demo-hello-2-0-0",         // ← 本次要留
+		"poddisruptionbudget.policy/demo-hello-2-0-0", // ← 副本数改回 1，它成了孤儿
+	)
+
+	require.NoError(t, kubectlWith(rec).Up(context.Background(), pruneRequest()))
+
+	command := deleteCommand(rec)
+	require.NotEmpty(t, command, "P35：必须发出清理命令，实际命令：%v", rec.commands())
+
+	assert.Contains(t, command, "poddisruptionbudget.policy/demo-hello-2-0-0",
+		"P35：它与 Deployment 同名，只按名字比对会把它当成该留的——"+
+			"于是永远留在单副本组件上拦着 drain")
+	assert.NotContains(t, command, "deployment.apps/demo-hello-2-0-0",
+		"P35：同名的 Deployment 是本次要留的，绝不能被一起删掉")
+}

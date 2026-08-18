@@ -78,8 +78,9 @@ func (p *plan) deploymentDoc(c componentPlan) map[string]any {
 			"annotations": p.annotationsOf(c),
 		},
 		"spec": map[string]any{
-			// 多实例与 HPA 是后期能力（005 §5.8），先固定 1 个副本
-			"replicas": 1,
+			// 副本数由 brickkit.yaml 的 replicas 决定，不写就是 1（005 §5.8）。
+			// HPA 自动扩容仍是后期能力
+			"replicas": c.Entry.ReplicaCount(),
 			// selector 只认 app：它是 K8s 里 Deployment 找到自己 Pod 的唯一依据，
 			// 多写一个会变的标签（比如版本）就会在升级时选空
 			"selector": map[string]any{"matchLabels": map[string]any{labelApp: c.Service}},

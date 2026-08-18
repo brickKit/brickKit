@@ -48,6 +48,7 @@ const (
 	dirMigrations      = "migrations"
 	dirDeployments     = "deployments"
 	dirServices        = "services"
+	dirPDBs            = "poddisruptionbudgets"
 	dirIngress         = "ingress"
 )
 
@@ -65,7 +66,7 @@ const (
 func ManifestDirs() []string {
 	return []string{
 		dirSecrets, dirServiceAccounts, dirNetworkPolicies,
-		dirMigrations, dirDeployments, dirServices, dirIngress,
+		dirMigrations, dirDeployments, dirServices, dirPDBs, dirIngress,
 	}
 }
 
@@ -100,6 +101,11 @@ type Result struct {
 	//
 	// 命令层要用它清理上一次残留的 Job 并等待本次跑完（005 §6.3）。
 	MigrationJobs []string
+	// PDBs 是本次生成的 PodDisruptionBudget 名（P35）。
+	//
+	// 命令层要用它清理孤儿：PDB 只在多副本时生成、却与 Deployment 同名，
+	// 清理时只看名字会把它当成"该留的"，从此永远拦着 drain。
+	PDBs []string
 	// Warnings 是不阻断的问题。
 	Warnings []*clierr.Error
 }
@@ -156,6 +162,15 @@ func Generate(
 		if err := p.emit(result, cfg, now,
 			dirServices+"/"+c.Service+".yaml", p.serviceDoc(c)); err != nil {
 			return nil, err
+		}
+		// P35：只有多副本才生成。单副本下 PDB 必然让节点排不空，
+		// 而那个报错要几个月后运维执行 drain 时才出现
+		if needsPDB(c.Entry) {
+			if err := p.emit(result, cfg, now,
+				dirPDBs+"/"+c.Service+".yaml", p.pdbDoc(c)); err != nil {
+				return nil, err
+			}
+			result.PDBs = append(result.PDBs, c.Service)
 		}
 		if c.Entry.Expose {
 			if err := p.emit(result, cfg, now,

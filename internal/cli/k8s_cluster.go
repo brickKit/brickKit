@@ -73,6 +73,14 @@ func warnK8sOnlyFields(opts *Options, cfg *config.Config) {
 	if cfg.Deploy.CreateNamespace != nil {
 		fields = append(fields, "deploy.createNamespace")
 	}
+	// replicas 是 K8s 概念（005 §5.8）。Docker 下写了完全不生效，
+	// 而使用者会看到 `up` 一切正常、`docker ps` 里只有一个容器，
+	// 然后怀疑是不是自己写错了字段名——字段名是对的
+	for _, c := range cfg.Components {
+		if c.Replicas != nil {
+			fields = append(fields, "components["+c.ID+"].replicas")
+		}
+	}
 	if len(fields) == 0 {
 		return
 	}

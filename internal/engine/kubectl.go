@@ -73,7 +73,7 @@ func (k *Kubectl) Name() string { return K8s }
 // 只有去 kubectl get 才发现少了东西。kubectl_dirs_test.go 盯着这件事。
 var applyOrder = []string{
 	"secrets", "serviceaccounts", "networkpolicies",
-	"migrations", "deployments", "services", "ingress",
+	"migrations", "deployments", "services", "poddisruptionbudgets", "ingress",
 }
 
 // migrationsDir 在 applyOrder 里要走一条特殊路径（清理 → apply → 等待）。
@@ -117,6 +117,10 @@ func (k *Kubectl) Up(ctx context.Context, req UpRequest) error {
 // 也不含 secret：它按资源 ID 命名而不是服务名，与这里的"期望名字集合"对不上。
 var pruneKinds = []string{
 	"deployment", "service", "ingress", "networkpolicy", "serviceaccount", "job",
+	// P35：漏了它的后果是单向不可逆——replicas 从 3 改回 1 之后生成物里不再有 PDB，
+	// 而 apply 不会删集群里已有的那一份，于是一份 maxUnavailable: 1 的 PDB
+	// 永远留在单副本组件上，让节点从此排不空
+	"poddisruptionbudget",
 }
 
 // prune 删掉带本项目标签、却不属于本次部署的资源（P38）。
@@ -142,7 +146,7 @@ func (k *Kubectl) prune(ctx context.Context, req UpRequest) error {
 		return nil
 	}
 
-	orphans := orphansIn(string(out), desiredNames(req))
+	orphans := orphansIn(string(out), desiredNames(req), setOf(req.DesiredPDBs))
 	if len(orphans) == 0 {
 		return nil
 	}
@@ -176,11 +180,30 @@ func desiredNames(req UpRequest) map[string]bool {
 	return out
 }
 
+// conditionalKinds 是**不随组件必然生成**的资源类型（P35）。
+//
+// 其余类型（deployment / service / networkpolicy / serviceaccount）每个跑着的
+// 组件都会有一份，所以"名字还在本次期望里"就等于"这份资源还该在"。
+//
+// PDB 打破了这个前提：它只在多副本时生成，而它与 Deployment **同名**。
+// 于是副本数从 3 改回 1 时，那份 PDB 的名字仍在期望集合里（Deployment 要留），
+// 只按名字比对就会把它当成该留的——minikube 上真跑到过。
+//
+// 这类资源必须由生成侧明确点名要留哪些（DesiredPDBs），点不到的就是孤儿。
+var conditionalKinds = map[string]bool{"poddisruptionbudget": true}
+
+// kindOf 从 `deployment.apps/demo-hello-1-0-0` 取出 `deployment`。
+func kindOf(ref string) string {
+	head, _, _ := strings.Cut(ref, "/")
+	kind, _, _ := strings.Cut(head, ".")
+	return kind
+}
+
 // orphansIn 从 `kubectl get -o name` 的输出里挑出不属于本次部署的资源。
 //
 // 输出的每一行形如 `deployment.apps/people-basic-1-0-0`：斜杠后面才是名字，
 // 而删除时要用**整行**（带类型前缀），否则 kubectl 不知道删的是哪一类。
-func orphansIn(out string, desired map[string]bool) []string {
+func orphansIn(out string, desired, desiredPDBs map[string]bool) []string {
 	var orphans []string
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
@@ -188,12 +211,33 @@ func orphansIn(out string, desired map[string]bool) []string {
 			continue
 		}
 		_, name, ok := strings.Cut(line, "/")
-		if !ok || desired[name] {
+		if !ok {
+			continue
+		}
+
+		// 条件生成的资源不能靠"名字还在期望里"判断——它与同名的 Deployment
+		// 共用一个名字，那样判永远是"该留"（P35）
+		if conditionalKinds[kindOf(line)] {
+			if !desiredPDBs[name] {
+				orphans = append(orphans, line)
+			}
+			continue
+		}
+		if desired[name] {
 			continue
 		}
 		orphans = append(orphans, line)
 	}
 	return orphans
+}
+
+// setOf 把名字列表转成集合。
+func setOf(names []string) map[string]bool {
+	out := make(map[string]bool, len(names))
+	for _, name := range names {
+		out[name] = true
+	}
+	return out
 }
 
 // runMigrations 执行数据库迁移并等它跑完（005 §6.3）。

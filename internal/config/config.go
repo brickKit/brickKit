@@ -278,6 +278,13 @@ type Component struct {
 	// Resources 覆盖 Manifest 中的 deployment.resources（003 §4.7）。
 	// 与 Manifest 共用同一结构，Step 11 负责按优先级链合并。
 	Resources *manifest.Resources `yaml:"resources,omitempty"`
+	// Replicas 是副本数（005 §5.8，**仅 K8s**）。nil 表示不写，按 1 处理。
+	//
+	// 用指针是为了区分"没写"与"写了 0"：后者必须报错而不是当成关闭组件——
+	// 关组件已经有 `enabled: false`，它会走级联计算、会提醒依赖方；
+	// 而 replicas: 0 绕过这一切，依赖方照常启动、照常拿到地址，然后连一个
+	// 不存在的后端，表现是 503 而状态表里那个组件显示"正常"。
+	Replicas *int `yaml:"replicas,omitempty"`
 	// External 声明这个组件**已经由别的项目部署好了，本项目只连它**（P39）。
 	//
 	// 写了它之后，该组件照常进依赖图、照常做版本兼容检查、照常下载 artifacts、
@@ -304,6 +311,17 @@ type External struct {
 
 // IsExternal 返回该组件是否由别的项目部署。
 func (c Component) IsExternal() bool { return c.External != nil }
+
+// ReplicaCount 返回副本数，未声明时为 1。
+//
+// 默认必须是 1：加了这个字段不该让任何既有项目的副本数发生变化——
+// 那是没人会在升级 CLI 时预期收到的改动。
+func (c Component) ReplicaCount() int {
+	if c.Replicas == nil {
+		return 1
+	}
+	return *c.Replicas
+}
 
 // EnabledState 返回该组件的启用状态。
 func (c Component) EnabledState() EnabledState {

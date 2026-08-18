@@ -70,6 +70,12 @@ type UpRequest struct {
 	// compose 用 depends_on + service_completed_successfully 表达"等迁移跑完"，
 	// K8s 没有这种东西，只能由 CLI 串行控制：清理旧 Job → apply → wait（005 §6.3）。
 	MigrationJobs []string
+	// DesiredPDBs 是本次期望存在的 PodDisruptionBudget 名（P35）。
+	//
+	// 单列一份是因为 PDB **只在多副本时生成**，却与 Deployment 同名：
+	// 清理时若只看名字，副本数从 3 改回 1 之后那份 PDB 会被当成"该留的"，
+	// 从此永远拦着 kubectl drain（minikube 上真跑到过）。
+	DesiredPDBs []string
 	// PruneSelector 是清理孤儿资源用的标签选择器（如 `brickkit.io/project=my-erp`）。
 	//
 	// **空表示不清理**，这不是省略而是一种明确的表达：`--only` 只部署子集，
