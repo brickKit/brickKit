@@ -77,7 +77,7 @@ Everything below is in Chinese.
 | Know what to install first | [00b · 底层环境清单](试用指南/00b-底层环境清单.md) |
 | Understand the design | [设计书导航](design/000%20阅读指南与文档导航.md) |
 | Run the market backend | [市场部署与运维指南](市场部署与运维指南.md) |
-| See why a decision was made | [决策索引](开发进度/决策索引.md)（503 条） |
+| See why a decision was made | [决策索引](开发进度/决策索引.md)（516 条） |
 
 ---
 
@@ -144,7 +144,7 @@ Every planned step is complete, and so is every deferred item.
 | Tests | 1667 test functions, race-clean |
 | Guides | 23, all really executed against Docker / Kubernetes / a live market |
 | Design books | 14, cross-checked against the implementation twice |
-| Decision log | 503 entries, each with the reasoning behind it |
+| Decision log | 516 entries, each with the reasoning behind it |
 
 **Requirements:** Go 1.22+, Docker 20.10+ with Compose V2.
 Kubernetes guides need minikube; signing needs

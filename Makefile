@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs ## 静态检查（代码 + 文档引用 + 文档里的命令）
+lint: check-docs check-cli-docs cover-check ## 静态检查（文档引用 + 文档里的命令 + 覆盖率门槛）
 	@if [ -x "$(GOLANGCI)" ]; then \
 		echo "▶ golangci-lint run"; \
 		$(GOLANGCI) run ./... && (cd market-server && $(GOLANGCI) run ./...); \
@@ -331,24 +331,39 @@ test-all: test-unit test-market test-components test-boundary test-error test-co
 
 # 覆盖率政策：
 #   internal/ 保持 COVER_MIN 以上；不追求 100%。
-#   进程入口（main）、以及对外部引擎的调用（docker / kubectl / MinIO 等）
+#   进程入口（main）、以及对外部引擎的调用（docker / kubectl / RustFS 等）
 #   不强求覆盖——为这些代码硬凑覆盖率只会写出没有意义的测试。
-COVER_MIN ?= 95
+#
+# 关于 -coverpkg：不加它，`go test ./internal/...` **只统计每个包自己的测试**，
+# 于是 internal/deploy 这种"没有自己的测试、但被 compose 与 k8s 大量走到"的包
+# 一律记 0%。那不是覆盖率低，是**没量到**。加上之后 deploy 从 0% 变成 83–100%，
+# 总数从 91.4% 变成 93.0%。
+#
+# 关于 92 这个数：门槛原本写的是 95，而真实值从来没到过——因为它既不在
+# `make lint` 也不在 `make test-all` 里，**从没被跑过**。
+# 一个没人跑的门槛写多高都不算数。现在按真实值（93.0%）留一格余量定在 92，
+# 并且接进了 lint，让它每次都跑。
+#
+# 剩下的 11 个 0% 函数：错误包装器（writeError / moveError / credentialWriteError）
+# 与对外部引擎的调用（engine.Status / CurrentContext / pathExists）——
+# 正是上面政策里说不强求的那两类。
+COVER_MIN ?= 92
+COVERPKG := -coverpkg=./internal/...
 
 .PHONY: cover
 cover: ## 单元测试覆盖率（按函数展开 + 总计）
-	$(GO) test -coverprofile=coverage.out ./internal/... 2>/dev/null || true
+	$(GO) test $(COVERPKG) -coverprofile=coverage.out ./internal/... 2>/dev/null || true
 	@if [ -f coverage.out ]; then $(GO) tool cover -func=coverage.out; else echo "无覆盖率数据"; fi
 
 .PHONY: cover-html
 cover-html: ## 生成 coverage.html 便于本地查看
-	$(GO) test -coverprofile=coverage.out ./internal/... >/dev/null
+	$(GO) test $(COVERPKG) -coverprofile=coverage.out ./internal/... >/dev/null
 	$(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "✅ coverage.html"
 
 .PHONY: cover-check
 cover-check: ## 覆盖率门槛检查（低于 COVER_MIN 则失败）
-	@$(GO) test -coverprofile=coverage.out ./internal/... >/dev/null
+	@$(GO) test $(COVERPKG) -coverprofile=coverage.out ./internal/... >/dev/null
 	@total=$$($(GO) tool cover -func=coverage.out | awk '/^total:/{gsub("%","",$$3); print $$3}'); \
 	echo "internal 覆盖率：$$total%（门槛 $(COVER_MIN)%）"; \
 	awk -v t="$$total" -v m="$(COVER_MIN)" 'BEGIN{ if (t+0 < m+0) { print "❌ 覆盖率低于门槛"; exit 1 } print "✅ 覆盖率达标" }'

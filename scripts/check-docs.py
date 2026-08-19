@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 """检查文档引用有没有指向不存在的地方。
 
-查两类：
+查三类：
 
   ① 悬空小节引用    代码与文档里的 "005 §5.12" 指向设计书里不存在的小节
   ② 断链            markdown 链接指向不存在的文件
+  ③ 指南编号错位    试用指南某篇的文件号是 09，H1 或篇内小节却写着 19
 
 # 为什么需要它
 
@@ -133,6 +134,53 @@ def report(title, rows):
     return 1
 
 
+def guide_section_numbers():
+    """试用指南每一篇的 H1 与小节号都必须与文件编号一致。
+
+    2026-08-18 按「理解」重排时，13 篇改了文件名，**篇内小节号却没跟着改**：
+    打开「09-多副本与优雅排空」，每个标题都写着 `## 19.1`。
+    共 75 处标题 + 21 处引用错位，而当时三道检查一处都没报——
+
+    ①② 抓不到它：`19.1` 在那个文件里**确实存在**，链接也没断。
+    错的不是"指向不存在的地方"，而是"号本身不该是这个"。
+
+    所以这里查的是一条不变式：**篇内小节号的前缀 == 文件名里的编号**。
+    它便宜、机械，而且正好卡在改号最容易漏的那一步上。
+    """
+    problems = []
+    seen_h1 = seen_sec = 0
+
+    for path in sorted(glob.glob("试用指南/[0-9]*-*.md")):
+        tag = os.path.basename(path).split("-")[0]      # "09" / "00a"
+        prefixes = set()
+        h1 = None
+        for line in open(path, encoding="utf-8"):
+            if h1 is None and line.startswith("# "):
+                h1 = line.rstrip()
+            m = re.match(r"#+ (\d+)\.\d", line)
+            if m:
+                prefixes.add(int(m.group(1)))
+
+        # H1 形如 `# 09 · 多副本与优雅排空`
+        m = re.match(r"# (\d+[a-z]?) · ", h1 or "")
+        if m:
+            seen_h1 += 1
+            if m.group(1) != tag:
+                problems.append((path, 1, f"文件号是 {tag}，H1 却写着 {m.group(1)}"))
+
+        # 篇内小节号（00-准备、20-排障速查 用无编号小节，正常）
+        for p in sorted(prefixes):
+            seen_sec += 1
+            if p != int(tag.rstrip("ab") or 0):
+                problems.append((path, 0, f"文件号是 {tag}，小节却写着 {p}.x"))
+
+    if seen_h1 == 0 or seen_sec == 0:
+        print(f"❌ 扫到 H1 {seen_h1} 个、小节前缀 {seen_sec} 个——"
+              "有一项是 0，多半是路径或正则不对，而不是文档真没编号。")
+        sys.exit(2)
+    return problems
+
+
 def main():
     sections = design_sections()
     self_check(sections)
@@ -140,6 +188,7 @@ def main():
 
     failed = report("悬空小节引用", check_sections(sections))
     failed |= report("文档断链", check_links())
+    failed |= report("指南编号错位", guide_section_numbers())
 
     if failed:
         print("\n引用坏掉的常见原因：重写某一节时改了编号、拆分文件时换了路径。")
