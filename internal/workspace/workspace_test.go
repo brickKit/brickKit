@@ -177,13 +177,57 @@ func TestRemoveSourceKeepsNonEmptyScope(t *testing.T) {
 	assert.DirExists(t, filepath.Join(layout.ComponentsDir(), "people"))
 }
 
-// 组件 ID 不含 scope（异常输入）时不去删父目录。
-func TestPruneEmptyParentIgnoresIDWithoutScope(t *testing.T) {
-	layout := newLayout(t)
-	require.NoError(t, os.MkdirAll(filepath.Join(layout.ComponentsDir(), "solo"), 0o755))
+// 组件 ID 不含 scope（异常输入）时，父目录就是根目录本身，空了也绝不能删。
+func TestPruneEmptyScopeNeverRemovesRoot(t *testing.T) {
+	t.Run("components 根目录", func(t *testing.T) {
+		layout := newLayout(t)
+		require.NoError(t, os.MkdirAll(layout.ComponentsDir(), 0o755))
 
-	pruneEmptyParent(layout, "solo")
-	assert.DirExists(t, filepath.Join(layout.ComponentsDir(), "solo"))
+		activeLoc(layout, "solo").pruneEmptyScope()
+		assert.DirExists(t, layout.ComponentsDir())
+	})
+
+	t.Run("归档根目录", func(t *testing.T) {
+		layout := newLayout(t)
+		require.NoError(t, os.MkdirAll(layout.ArchivedDir(), 0o755))
+
+		archivedLoc(layout, "solo").pruneEmptyScope()
+		assert.DirExists(t, layout.ArchivedDir())
+	})
+}
+
+// RemoveArchived 与 RemoveSource 对称：删归档目录，并收走空掉的 scope 目录。
+func TestRemoveArchived(t *testing.T) {
+	layout := newLayout(t)
+	target := ArchivedDir(layout, "people/basic")
+	require.NoError(t, os.MkdirAll(filepath.Join(target, "sub"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(target, "sub", "a.go"), []byte("x"), 0o644))
+
+	removed, err := RemoveArchived(layout, "people/basic")
+	require.NoError(t, err)
+	assert.True(t, removed)
+	assert.NoDirExists(t, target)
+	assert.NoDirExists(t, filepath.Join(layout.ArchivedDir(), "people"), "空的 scope 目录一并收走")
+}
+
+func TestRemoveArchivedMissingIsNotAnError(t *testing.T) {
+	layout := newLayout(t)
+
+	removed, err := RemoveArchived(layout, "people/basic")
+	require.NoError(t, err)
+	assert.False(t, removed)
+}
+
+// RemoveArchived 只动归档目录，活跃源码一根汗毛都不能碰。
+func TestRemoveArchivedLeavesActiveSourceAlone(t *testing.T) {
+	layout := newLayout(t)
+	require.NoError(t, os.MkdirAll(SourceDir(layout, "people/basic"), 0o755))
+	require.NoError(t, os.MkdirAll(ArchivedDir(layout, "people/basic"), 0o755))
+
+	removed, err := RemoveArchived(layout, "people/basic")
+	require.NoError(t, err)
+	assert.True(t, removed)
+	assert.DirExists(t, SourceDir(layout, "people/basic"))
 }
 
 func TestRemoveSourceUnreadableDir(t *testing.T) {

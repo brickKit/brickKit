@@ -347,8 +347,16 @@ test-all: test-unit test-market test-components test-boundary test-error test-co
 # 剩下的 11 个 0% 函数：错误包装器（writeError / moveError / credentialWriteError）
 # 与对外部引擎的调用（engine.Status / CurrentContext / pathExists）——
 # 正是上面政策里说不强求的那两类。
+#
+# 关于 -count=1：**量覆盖率绝不能用测试结果缓存**。-coverpkg 让每个测试二进制
+# 都带上全部 internal/ 包的插桩块；改了某个文件后，那些从缓存里回放的包
+# 交回来的仍是**按旧代码切分的块**。于是同一个文件在 profile 里出现两套
+# 互不兼容的块边界（实测 workspace.go 69 组 vs 正常的 40 组），
+# `go tool cover` 合并不了，只能把两套都算进分母——旧那套全是 0，
+# 总数凭空掉 2~3 个百分点，单语句函数会显示成 38.5% 这种不可能的值。
+# 症状具有欺骗性：它看起来像"覆盖率退化了"，实际是**量错了**。
 COVER_MIN ?= 92
-COVERPKG := -coverpkg=./internal/...
+COVERPKG := -coverpkg=./internal/... -count=1
 
 .PHONY: cover
 cover: ## 单元测试覆盖率（按函数展开 + 总计）

@@ -29,7 +29,8 @@ func newRemoveCommand(opts *Options) *cobra.Command {
   1. 检查是否有其他组件强依赖它 → 有则阻止移除
   2. 从 brickkit.yaml 中移除条目
   3. 清理 Manifest 缓存与 artifacts 缓存
-  4. 自动删除 components/<scope>/<name>/ 源码目录（同 ID 还有其他版本时保留）
+  4. 自动删除源码目录：components/<scope>/<name>/ 与归档中的
+     components/.archived/<scope>/<name>/（同 ID 还有其他版本时保留）
 
 修改 brickkit.yaml 前会自动备份到 .brickkit/backup/brickkit.yaml.last，
 可用 brickkit reset --last 撤销。
@@ -114,6 +115,9 @@ func runRemove(ctx context.Context, opts *Options, arg string) error {
 	if cleanup.sourceRemoved {
 		opts.Printf("   🗑️ 已删除源码目录 %s\n", workspace.DisplayDir(target.ID))
 	}
+	if cleanup.archivedRemoved {
+		opts.Printf("   🗑️ 已删除归档源码目录 %s\n", workspace.DisplayArchivedDir(target.ID))
+	}
 	if cleanup.manifestRemoved {
 		opts.Printf("   🗑️ 已清理 Manifest 缓存\n")
 	}
@@ -124,6 +128,7 @@ func runRemove(ctx context.Context, opts *Options, arg string) error {
 	logging.Info("组件已移除",
 		"component", target.String(),
 		"source_dir_removed", cleanup.sourceRemoved,
+		"archived_dir_removed", cleanup.archivedRemoved,
 	)
 	return nil
 }
@@ -247,12 +252,16 @@ type cleanupResult struct {
 	manifestRemoved  bool
 	artifactsRemoved bool
 	sourceRemoved    bool
+	archivedRemoved  bool
 }
 
 // cleanupComponent 清理 Manifest 缓存、artifacts 缓存与源码目录。
 //
 // 缓存按版本区分，直接删；源码目录按组件 ID 组织，
 // 只有同 ID 的最后一个版本被移除时才能删。
+//
+// 源码要连归档目录一起清：sync 归档过的组件一旦从 brickkit.yaml 里移除，
+// sync 就再也不会整理它，留在 .archived/ 里就是永久孤儿。
 func cleanupComponent(
 	layout config.Layout,
 	client *source.Client,
@@ -285,11 +294,17 @@ func cleanupComponent(
 	if remainingVersions(cfg, target) > 0 {
 		return res, nil
 	}
-	removed, err := workspace.RemoveSource(layout, target.ID)
+	sourceRemoved, err := workspace.RemoveSource(layout, target.ID)
 	if err != nil {
 		return res, err
 	}
-	res.sourceRemoved = removed
+	res.sourceRemoved = sourceRemoved
+
+	archivedRemoved, err := workspace.RemoveArchived(layout, target.ID)
+	if err != nil {
+		return res, err
+	}
+	res.archivedRemoved = archivedRemoved
 	return res, nil
 }
 

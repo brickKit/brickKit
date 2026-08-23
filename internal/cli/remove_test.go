@@ -107,6 +107,58 @@ func TestRemoveKeepsSourceDirWhenAnotherVersionRemains(t *testing.T) {
 	assert.NotContains(t, r.stdout, "已删除源码目录")
 }
 
+// 源码被 brickkit sync 归档后再 remove：归档目录不能留下孤儿。
+func TestRemoveDeletesArchivedSourceDirectory(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
+
+	archived := filepath.Join(f.Layout.ArchivedDir(), "people", "basic")
+	require.NoError(t, os.MkdirAll(archived, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(archived, "main.go"), []byte("package main"), 0o644))
+
+	r := runIn(t, f.Dir, "remove", "people/basic")
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+
+	assert.NoDirExists(t, archived)
+	assert.NoDirExists(t, filepath.Join(f.Layout.ArchivedDir(), "people"), "空的 scope 目录要一并收走")
+	assert.Contains(t, r.stdout, "🗑️ 已删除归档源码目录 components/.archived/people/basic")
+}
+
+// 活跃与归档两处都有源码时，remove 要把两处都清干净。
+func TestRemoveDeletesBothActiveAndArchivedSource(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
+
+	active := filepath.Join(f.Layout.ComponentsDir(), "people", "basic")
+	archived := filepath.Join(f.Layout.ArchivedDir(), "people", "basic")
+	require.NoError(t, os.MkdirAll(active, 0o755))
+	require.NoError(t, os.MkdirAll(archived, 0o755))
+
+	r := runIn(t, f.Dir, "remove", "people/basic")
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+
+	assert.NoDirExists(t, active)
+	assert.NoDirExists(t, archived)
+	assert.Contains(t, r.stdout, "🗑️ 已删除源码目录 components/people/basic/")
+	assert.Contains(t, r.stdout, "🗑️ 已删除归档源码目录 components/.archived/people/basic")
+}
+
+// 同 ID 还有其他版本时，归档源码和活跃源码一样必须保留。
+func TestRemoveKeepsArchivedSourceWhenAnotherVersionRemains(t *testing.T) {
+	comps := []comp{
+		{ID: "people/basic", Version: "1.0.0"},
+		{ID: "people/basic", Version: "2.0.0"},
+	}
+	f := addedProject(t, comps, "people/basic@1.0.0", "people/basic@2.0.0")
+
+	archived := filepath.Join(f.Layout.ArchivedDir(), "people", "basic")
+	require.NoError(t, os.MkdirAll(archived, 0o755))
+
+	r := runIn(t, f.Dir, "remove", "people/basic@1.0.0")
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+
+	assert.DirExists(t, archived, "还有 2.0.0 在用这份源码目录")
+	assert.NotContains(t, r.stdout, "已删除归档源码目录")
+}
+
 // P16 / 8.3：remove 前自动创建 .last 备份。
 func TestRemoveCreatesLastBackup(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
