@@ -140,6 +140,22 @@ CASES = [
         "check": ("remove infra/api-docs@1.0.0", "02-添加与移除组件.md",
                   "✅ 已移除 infra/api-docs@1.0.0", 0),
     },
+    # ↓ 02a 从 02 的终点接着走：十个组件都在配置里，源码都在活跃目录。
+    #   这两条守的是**开发时最常用的那个动作**——收拢与恢复必须成对可逆，
+    #   任何一半的输出对不上，照着做的人就会以为自己的源码丢了。
+    {
+        "what": "02a §2a.2 sync --only 收拢到两个组件",
+        "reset": True,
+        "run": ["init demo-shop", "add --local --yes"],
+        "check": ("sync --only people/basic", "02a-专注在几个组件上.md",
+                  "🎯 --only：只保留 people/basic 及其强依赖（brickkit.yaml 未修改）", 0),
+    },
+    {
+        "what": "02a §2a.4 不带参数的 sync 就是恢复",
+        "run": [],
+        # 02a 里第一个以「📂」开头的块就是恢复那一屏——收拢那一屏的首行是「🎯」
+        "check": ("sync", "02a-专注在几个组件上.md", "📂 工作区整理：", 0),
+    },
     {
         "what": "03 order 的三段输出",
         "reset": True,

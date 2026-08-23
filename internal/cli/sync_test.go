@@ -97,6 +97,29 @@ const allEnabled = `components:
 resources: []
 `
 
+// 三个组件都在：caller 强依赖 hello，solo/thing 与它们无关。
+const allEnabledWithSolo = `components:
+  - id: demo/hello
+    version: 1.0.0
+  - id: demo/caller
+    version: 1.0.0
+  - id: solo/thing
+    version: 1.0.0
+resources: []
+`
+
+// hello 关掉（caller 跟着级联跳过），solo/thing 照常。
+const helloDisabledWithSolo = `components:
+  - id: demo/hello
+    version: 1.0.0
+    enabled: false
+  - id: demo/caller
+    version: 1.0.0
+  - id: solo/thing
+    version: 1.0.0
+resources: []
+`
+
 // hello 被显式关掉 —— caller 会被级联跳过。
 const helloDisabled = `components:
   - id: demo/hello
@@ -377,3 +400,151 @@ resources: []
 }
 
 var _ = config.DirArchived
+
+// ============================================================
+// 归档之后平台自己还得读得到（回归：sync 曾经把项目锁死）
+// ============================================================
+
+// newWorkspaceFixture 造一个**贴近 init 骨架**的项目：本地安装源就是 ./components，
+// 组件源码直接放在 components/<scope>/<name>/。
+//
+// 与 newSyncFixture 的区别正是这一点，而这一点就是那个 bug 的全部条件：
+// 上面那批用例把每个组件放进各自的 src0/ src1/，安装源与 sync 的归档目录
+// 因此没有重叠——于是"归档 = 从安装源里消失"永远不会发生，
+// 一整组绿灯的用例掩护了一个能把项目彻底卡死的缺陷。
+func newWorkspaceFixture(t *testing.T, body string) *syncFixture {
+	t.Helper()
+
+	dir := t.TempDir()
+	for _, c := range []comp{
+		{ID: "demo/hello", Version: "1.0.0", Artifacts: []string{"api-docs:openapi.json"}},
+		{ID: "demo/caller", Version: "1.0.0", Requires: []string{"demo/hello@1.0.0"}},
+	} {
+		writeTree(t, filepath.Join(dir, "components", filepath.FromSlash(c.ID)), c.files())
+	}
+
+	f := newProjectFixtureAt(t, dir, "  - id: local-dev\n    type: local\n    path: ./components\n")
+	f.writeConfig(t, body)
+	return &syncFixture{projectFixture: f}
+}
+
+// 归档之后，即使 Manifest 缓存没了，up 照样算得出依赖图。
+//
+// `.brickkit/` 是 gitignore 的（003 §11），换台机器、清一次工作区、
+// 或者一次 --refresh，缓存就没了。缓存不是保障，只是恰好挡住了。
+func TestSyncArchivedComponentStillResolvableWithoutCache(t *testing.T) {
+	f := newWorkspaceFixture(t, helloDisabled)
+
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	f.assertArchived(t, "demo/hello")
+	require.NoError(t, os.RemoveAll(f.Layout.ManifestsDir()), "模拟缓存过期 / 换台机器")
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code,
+		"归档过的组件仍在 brickkit.yaml 里，级联计算必须读得到它：%s%s", r.stdout, r.stderr)
+	assert.Contains(t, r.stdout, "显式禁用", "它该被判为不启动，而不是找不到")
+}
+
+// sync 必须解得开自己造成的局面：归档 → 缓存没了 → 重新启用 → sync 能移回来。
+//
+// 修复前这一步会失败，而且**没有出路**：sync 自己也要先解析全图，
+// 于是使用者只剩手工 mv 一条路，而错误提示里从头到尾没出现过 .archived。
+func TestSyncCanRestoreWhatItArchivedWithoutCache(t *testing.T) {
+	f := newWorkspaceFixture(t, helloDisabled)
+
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	require.NoError(t, os.RemoveAll(f.Layout.ManifestsDir()))
+	f.writeConfig(t, allEnabled)
+
+	r := runIn(t, f.Dir, "sync")
+
+	require.Equal(t, clierr.ExitOK, r.code, "sync 必须能撤销自己的归档：%s%s", r.stdout, r.stderr)
+	f.assertActive(t, "demo/hello")
+	f.assertActive(t, "demo/caller")
+}
+
+// 归档不影响 add --local 的既有行为：它照旧只扫活跃目录。
+//
+// 与上面两条是同一条分工线的两半——**扫描时看不见，按 ID 找时找得到**。
+// 少了这一条，"让本地源认归档目录"很容易被顺手改成"扫描也认"，
+// 那样 sync 刚归档完，一条 add --local 就把它们全拽回配置里。
+func TestAddLocalStillIgnoresArchived(t *testing.T) {
+	f := newWorkspaceFixture(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	f.assertArchived(t, "demo/hello")
+
+	f.writeConfig(t, "components: []\nresources: []\n")
+	r := runIn(t, f.Dir, "add", "--local", "--yes")
+
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+	assert.NotContains(t, f.refs(t), "demo/hello@1.0.0", "归档的组件不该被 add --local 拽回来")
+}
+
+// ============================================================
+// sync --only：不改配置就把工作区收拢到几个组件上
+// ============================================================
+
+// --only 只留被点名的组件与它的强依赖，其余全部归档。
+func TestSyncOnlyKeepsSelectedAndItsRequires(t *testing.T) {
+	// caller 强依赖 hello；solo 与它们无关
+	f := newSyncFixture(t, allEnabledWithSolo, "demo/hello", "demo/caller", "solo/thing")
+
+	r := runIn(t, f.Dir, "sync", "--only", "demo/caller")
+
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+	f.assertActive(t, "demo/caller")  // 被点名
+	f.assertActive(t, "demo/hello")   // caller 的强依赖，跟着留下
+	f.assertArchived(t, "solo/thing") // 与本次无关
+	assert.Contains(t, r.stdout, "未被 --only 选中")
+}
+
+// --only **不改 brickkit.yaml**：这是它相对"改 enabled 再 sync"的全部意义。
+func TestSyncOnlyLeavesConfigUntouched(t *testing.T) {
+	f := newSyncFixture(t, allEnabledWithSolo, "demo/hello", "demo/caller", "solo/thing")
+	before := f.config(t)
+
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync", "--only", "demo/hello").code)
+
+	assert.Equal(t, before, f.config(t), "--only 不该动配置文件一个字节")
+}
+
+// 不带参数的 sync 就是 --only 之后的"恢复"：回到与 brickkit up 一致。
+func TestSyncWithoutOnlyRestoresAfterFocus(t *testing.T) {
+	f := newSyncFixture(t, allEnabledWithSolo, "demo/hello", "demo/caller", "solo/thing")
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync", "--only", "demo/hello").code)
+	f.assertArchived(t, "solo/thing")
+
+	r := runIn(t, f.Dir, "sync")
+
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+	f.assertActive(t, "solo/thing")
+	f.assertActive(t, "demo/caller")
+}
+
+// --only 点到一个 enabled: false 的组件是**允许**的，与 up --only 刻意不同。
+//
+// up 决定"跑什么"，sync 决定"看什么"。要看一个已经关掉的组件的源码完全说得通——
+// 多数时候正是因为要重写它才把它关掉的。这里报错等于把最常见的用法堵死。
+func TestSyncOnlyAllowsDisabledComponent(t *testing.T) {
+	f := newSyncFixture(t, helloDisabledWithSolo, "demo/hello", "demo/caller", "solo/thing")
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	f.assertArchived(t, "demo/hello") // 先被级联归档
+
+	r := runIn(t, f.Dir, "sync", "--only", "demo/hello")
+
+	require.Equal(t, clierr.ExitOK, r.code,
+		"sync --only 不该像 up --only 那样拒绝 enabled: false 的组件：%s%s", r.stdout, r.stderr)
+	f.assertActive(t, "demo/hello")
+	assert.Contains(t, r.stdout, "被 --only 选中")
+}
+
+// 组件名写错时报的是"配置里没有这个组件"，与 up --only 同一套解析。
+func TestSyncOnlyUnknownComponent(t *testing.T) {
+	f := newSyncFixture(t, allEnabledWithSolo, "demo/hello")
+
+	r := runIn(t, f.Dir, "sync", "--only", "demo/nope")
+
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stderr, "demo/nope")
+}

@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
@@ -135,8 +136,42 @@ func (s *localSource) listError(path string, cause error) error {
 		WithCause(cause)
 }
 
+// componentDir 返回该组件在本安装源里的目录。
+//
+// 活跃目录优先；那里没有 component.yaml 时，回落到归档目录
+// `<root>/.archived/<scope>/<name>/`——也就是 brickkit sync 搬过去的那一份。
+//
+// # 为什么按 ID 找时要认归档目录
+//
+// sync 的用途是"把这次不跑的组件从眼前挪开"（004 §3.9），而挪开**不等于**
+// 从项目里消失：brickkit.yaml 里那一行还在，级联计算就得读得到它的 Manifest。
+//
+// 不回落的话，默认约定（init 骨架把 local 源指向 ./components）下有一个
+// 解不开的死局：归档 → Manifest 缓存过期或被清 → `up` 报"组件未找到，
+// 检查安装源配置"，而 `sync` 自己也要先解析全图，于是连"把它移回来"都做不到，
+// 只能手工 mv。组件越多、归档得越狠，越容易撞上——恰好惩罚了 sync 想支持的用法。
+//
+// # 与 listComponents 的分工
+//
+// 归档目录仍然**不参与扫描**（listComponents 跳过点开头的目录）：
+// `add --local` 不该把刚归档的组件又拽回配置里。两条规则各管各的——
+// **扫描时看不见，按 ID 找时找得到。**
 func (s *localSource) componentDir(componentID string) string {
-	return filepath.Join(s.root, filepath.FromSlash(componentID))
+	active := filepath.Join(s.root, filepath.FromSlash(componentID))
+	if hasManifest(active) {
+		return active
+	}
+	if archived := filepath.Join(s.root, config.DirArchived, filepath.FromSlash(componentID)); hasManifest(archived) {
+		return archived
+	}
+	// 两处都没有：返回活跃目录，让"找不到"的报错指向使用者预期的位置
+	return active
+}
+
+// hasManifest 判断一个目录里有没有 component.yaml。
+func hasManifest(dir string) bool {
+	info, err := os.Stat(filepath.Join(dir, manifest.FileName))
+	return err == nil && !info.IsDir()
 }
 
 // checkRoot 校验安装源目录本身。路径不存在是配置错误，必须报出来，
