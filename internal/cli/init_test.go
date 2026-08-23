@@ -259,13 +259,26 @@ func TestInitOutputMatchesDesignDocs(t *testing.T) {
 
 	want := "✅ 项目已初始化：my-project\n" +
 		"   📁 brickkit.yaml        项目配置\n" +
+		"   📁 components/          组件源码（已配为本地安装源 local-dev）\n" +
 		"   📁 .brickkit/           CLI 工作目录\n" +
 		"   📁 .brickkit/backup/    配置备份\n" +
 		"\n" +
 		"下一步：\n" +
-		"  brickkit add people/basic@1.0.0    添加组件\n" +
+		"  brickkit add --local               把 components/ 下的组件全加进来\n" +
+		"  brickkit add people/basic@1.0.0    从安装源添加组件\n" +
 		"  brickkit up                        一键启动\n"
 	assert.Equal(t, want, r.stdout)
+}
+
+// init 之后不用改一行配置就能跑 add --local：默认本地源指向的正是它建的目录。
+func TestInitLeavesProjectReadyForLocalAdd(t *testing.T) {
+	dir := t.TempDir()
+	require.Equal(t, clierr.ExitOK, runIn(t, dir, "init", "my-project").code)
+
+	r := runIn(t, dir, "add", "--local")
+	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "没有扫到组件", "空目录，但安装源本身是通的")
+	assert.NotContains(t, r.stderr, "没有可用的本地安装源")
 }
 
 // --config 指定的配置文件名应被 init 采用（多环境初始化，004 §3.5）。

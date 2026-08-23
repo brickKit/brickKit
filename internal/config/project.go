@@ -116,7 +116,17 @@ project: %s
 deploy:
   target: docker          # docker | k8s
 
+# 安装源：按声明顺序依次尝试，前一个找不到就试下一个（003 §6.5）
+sources:
+  - id: local-dev
+    type: local
+    path: ./%s      # brickkit init 已经建好这个目录
+  # 组件市场按需取消注释并填上地址：
+  # - id: brickkit-market
+  #   type: market
+  #   url: https://market.example.com/api/v1
+
 components: []
 resources: []
-`, fileName, project))
+`, fileName, project, DirComponents))
 }

@@ -100,7 +100,7 @@ func TestSuggestProjectNameAlwaysValidOrEmpty(t *testing.T) {
 	}
 }
 
-// 004 §3.2：骨架含 project / deploy / components / resources 四个字段。
+// 004 §3.2：骨架含 project / deploy / sources / components / resources 五个字段。
 func TestSkeleton(t *testing.T) {
 	raw := Skeleton("my-project", DefaultConfigFile)
 
@@ -115,6 +115,44 @@ func TestSkeleton(t *testing.T) {
 
 	assert.True(t, strings.HasPrefix(string(raw), "# brickkit.yaml - BrickKit 项目配置\n"))
 	assert.True(t, strings.HasSuffix(string(raw), "\n"), "文件应以换行结尾")
+}
+
+// 骨架自带一个指向 ./components 的本地安装源。
+//
+// init 本来就会创建 components/（Layout.ManagedDirs），却不把它登记成安装源——
+// 于是每个新项目都得先手工补一段 sources 才能做任何事。
+func TestSkeletonShipsDefaultLocalSource(t *testing.T) {
+	raw := Skeleton("my-project", DefaultConfigFile)
+
+	cfg, err := ParseConfig(raw, "brickkit.yaml")
+	require.NoError(t, err, "骨架本身必须是合法配置")
+
+	require.Len(t, cfg.Sources, 1, "只自带本地源：CLI 猜不到你的市场地址")
+	src := cfg.Sources[0]
+	assert.Equal(t, "local-dev", src.ID)
+	assert.Equal(t, SourceTypeLocal, src.Type)
+	assert.Equal(t, "./"+DirComponents, src.Path)
+	assert.True(t, src.IsEnabled())
+}
+
+// 市场源以注释形式给出：CLI 猜不到地址，但把字段形状摆在那儿比让人翻文档强。
+func TestSkeletonMentionsMarketSourceAsComment(t *testing.T) {
+	raw := string(Skeleton("my-project", DefaultConfigFile))
+
+	assert.Contains(t, raw, "# - id: brickkit-market")
+	assert.Contains(t, raw, "#   type: market")
+}
+
+// 骨架里的本地源路径必须与 init 真正创建的目录一致，否则一上来就是死的。
+func TestSkeletonLocalSourcePointsAtManagedDir(t *testing.T) {
+	l := NewLayout("/projects/erp", "")
+	cfg, err := ParseConfig(Skeleton("erp", DefaultConfigFile), "brickkit.yaml")
+	require.NoError(t, err)
+
+	assert.Contains(t, l.ManagedDirs(), l.ComponentsDir(),
+		"init 应当创建 components/")
+	require.Len(t, cfg.Sources, 1)
+	assert.Equal(t, "./"+DirComponents, cfg.Sources[0].Path)
 }
 
 // 文件头注释使用实际文件名，便于多环境配置自解释。

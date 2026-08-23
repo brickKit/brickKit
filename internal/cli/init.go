@@ -55,11 +55,14 @@ func runInit(opts *Options, project string) error {
 	// 输出格式与 004 §3.2 / 009 / 011 中的样例逐字一致。
 	opts.Printf("✅ 项目已初始化：%s\n", result.ProjectName)
 	opts.Printf("   📁 %-21s%s\n", result.ConfigName, "项目配置")
+	// components/ 一直都在建，只是从前没说过；现在它还是默认安装源，更该点出来
+	opts.Printf("   📁 %-21s%s\n", config.DirComponents+"/", "组件源码（已配为本地安装源 local-dev）")
 	opts.Printf("   📁 %-21s%s\n", config.DirBrickkit+"/", "CLI 工作目录")
 	opts.Printf("   📁 %-21s%s\n", config.DirBrickkit+"/"+config.DirBackup+"/", "配置备份")
 	opts.Printf("\n")
 	opts.Printf("下一步：\n")
-	opts.Printf("  brickkit add people/basic@1.0.0    添加组件\n")
+	opts.Printf("  brickkit add --local               把 components/ 下的组件全加进来\n")
+	opts.Printf("  brickkit add people/basic@1.0.0    从安装源添加组件\n")
 	opts.Printf("  brickkit up                        一键启动\n")
 	return nil
 }
