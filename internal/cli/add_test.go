@@ -236,6 +236,126 @@ func TestAddSecondVersionCoexists(t *testing.T) {
 	assert.Contains(t, r.stdout, "多版本共存")
 }
 
+// ============================================================
+// 不指定版本：默认装最新版（004 §3.3）
+// ============================================================
+
+// 不写 @版本 时解析到市场上最新的可安装版本，并把**精确版本**钉进 brickkit.yaml。
+func TestAddWithoutVersionResolvesLatest(t *testing.T) {
+	market := newMockMarket(t,
+		&mockComponent{Spec: comp{ID: "people/basic", Version: "1.0.0"}},
+		&mockComponent{Spec: comp{ID: "people/basic", Version: "10.0.0"}},
+		&mockComponent{Spec: comp{ID: "people/basic", Version: "2.0.0"}},
+	)
+	f := newProjectFixture(t, market.source())
+
+	r := runIn(t, f.Dir, "add", "people/basic", "--yes")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	assert.Equal(t, []string{"people/basic@10.0.0"}, f.refs(t), "按数字比大小，不是字符串")
+	assert.Contains(t, r.stdout, "未指定版本")
+	assert.Contains(t, r.stdout, "people/basic@10.0.0")
+	assert.Contains(t, f.config(t), "10.0.0", "配置里写的必须是解析后的精确版本")
+}
+
+// 本地源一个组件只有一份目录、一个版本，那个版本就是"最新"。
+func TestAddWithoutVersionFromLocalSource(t *testing.T) {
+	dir := t.TempDir()
+	sources := localSource(t, dir, comp{ID: "people/basic", Version: "2.3.1"})
+	f := newProjectFixtureAt(t, dir, sources...)
+
+	r := runIn(t, f.Dir, "add", "people/basic", "--yes")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	assert.Equal(t, []string{"people/basic@2.3.1"}, f.refs(t))
+	assert.Contains(t, r.stdout, "local-0", "要说清楚这个版本是哪个源给的")
+}
+
+// blocked / draft 装不上，选最新版时必须跳过——
+// 否则不写版本号的人会稳定解析到一个装不上的版本。
+func TestAddWithoutVersionSkipsNonInstallable(t *testing.T) {
+	market := newMockMarket(t,
+		&mockComponent{Spec: comp{ID: "people/basic", Version: "1.0.0"}},
+		&mockComponent{Spec: comp{ID: "people/basic", Version: "2.0.0"}, Status: "draft"},
+		&mockComponent{Spec: comp{ID: "people/basic", Version: "3.0.0"}, Status: "blocked"},
+	)
+	f := newProjectFixture(t, market.source())
+
+	r := runIn(t, f.Dir, "add", "people/basic", "--yes")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
+}
+
+// 同 ID 已经装了别的版本：先问一句再共存。回答 n 时配置一个字节都不动。
+func TestAddWithoutVersionPromptsBeforeCoexisting(t *testing.T) {
+	market := newMockMarket(t,
+		&mockComponent{Spec: comp{ID: "people/basic", Version: "1.0.0"}},
+		&mockComponent{Spec: comp{ID: "people/basic", Version: "2.0.0"}},
+	)
+	f := newProjectFixture(t, market.source())
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "add", "people/basic@1.0.0", "--yes").code)
+	before := f.config(t)
+
+	r := runStdin(t, f.Dir, "n\n", "add", "people/basic")
+	assert.Equal(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stdout, "已有 1.0.0")
+	assert.Contains(t, r.stdout, "2.0.0")
+	assert.Equal(t, before, f.config(t), "回答 n 时配置不变")
+	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
+}
+
+// --yes 时不问，直接共存。
+func TestAddWithoutVersionCoexistsWithYes(t *testing.T) {
+	market := newMockMarket(t,
+		&mockComponent{Spec: comp{ID: "people/basic", Version: "1.0.0"}},
+		&mockComponent{Spec: comp{ID: "people/basic", Version: "2.0.0"}},
+	)
+	f := newProjectFixture(t, market.source())
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "add", "people/basic@1.0.0", "--yes").code)
+
+	r := runIn(t, f.Dir, "add", "people/basic", "--yes")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, []string{"people/basic@1.0.0", "people/basic@2.0.0"}, f.refs(t))
+}
+
+// 解析到的版本恰好就是已装的那个：走原来的"已存在，是否刷新"分支，不提共存。
+func TestAddWithoutVersionWhenLatestAlreadyInstalled(t *testing.T) {
+	dir := t.TempDir()
+	sources := localSource(t, dir, comp{ID: "people/basic", Version: "1.0.0"})
+	f := newProjectFixtureAt(t, dir, sources...)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "add", "people/basic@1.0.0", "--yes").code)
+
+	r := runIn(t, f.Dir, "add", "people/basic", "--yes")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
+	assert.Contains(t, r.stdout, "已存在")
+	assert.NotContains(t, r.stdout, "共存")
+}
+
+// 范围约束照旧拒绝：能省略的是版本号本身，不是"可以写个范围"（012 §2.2）。
+func TestAddStillRejectsRangeVersion(t *testing.T) {
+	dir := t.TempDir()
+	sources := localSource(t, dir, comp{ID: "people/basic", Version: "1.0.0"})
+	f := newProjectFixtureAt(t, dir, sources...)
+
+	r := runIn(t, f.Dir, "add", "people/basic@^1.0.0")
+	assert.Equal(t, clierr.ExitUsage, r.code)
+	assert.Contains(t, r.stderr, "精确版本")
+}
+
+// 所有源都没有这个组件：报错要点名组件，并给出"指定精确版本重试"的出路。
+func TestAddWithoutVersionUnknownComponent(t *testing.T) {
+	dir := t.TempDir()
+	sources := localSource(t, dir, comp{ID: "department/tree", Version: "1.0.0"})
+	f := newProjectFixtureAt(t, dir, sources...)
+	before := f.config(t)
+
+	r := runIn(t, f.Dir, "add", "people/basic")
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stderr, "people/basic")
+	assert.Equal(t, before, f.config(t), "解析失败时配置不能动")
+}
+
 // 9.6 同 ID 相同版本：提示已存在并询问；回答 n 时不改动配置。
 func TestAddSameVersionPromptsWhenExisting(t *testing.T) {
 	dir := t.TempDir()
@@ -327,13 +447,14 @@ func TestAddInvalidVersion(t *testing.T) {
 	assert.Contains(t, r.stderr, "精确版本")
 }
 
-// 不带版本号时报错：002 要求精确版本。
-func TestAddRequiresExactVersion(t *testing.T) {
+// 不带版本号时要去安装源查最新版——一个安装源都没配的项目，
+// 报的应该是"没有可用的安装源"这个真问题，而不是笼统的用法错误。
+func TestAddWithoutVersionNeedsASource(t *testing.T) {
 	f := newProjectFixture(t)
 
 	r := runIn(t, f.Dir, "add", "people/basic")
-	assert.Equal(t, clierr.ExitUsage, r.code)
-	assert.Contains(t, r.stderr, "@")
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stderr, "没有可用的安装源")
 }
 
 func TestAddRequiresArgument(t *testing.T) {

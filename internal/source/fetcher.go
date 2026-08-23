@@ -26,6 +26,9 @@ type fetcher interface {
 	// manifestBytes 返回 component.yaml 的原始内容。
 	// 该源没有此组件时返回 errNotFound（调用方继续尝试下一个源）。
 	manifestBytes(ctx context.Context, componentID, version string) ([]byte, error)
+	// latestVersion 返回该源上这个组件可安装的最新版本。
+	// 该源没有此组件时返回 errNotFound（调用方继续尝试下一个源）。
+	latestVersion(ctx context.Context, componentID string) (string, error)
 	// artifactFile 返回一个产物文件的内容。
 	artifactFile(ctx context.Context, componentID, version string, art manifest.Artifact, file string) ([]byte, error)
 	// origin 返回组件的来源信息（开源 git / 闭源 registry），供 --repo 使用。
@@ -40,6 +43,27 @@ type componentHeader struct {
 		ID      string `yaml:"id"`
 		Version string `yaml:"version"`
 	} `yaml:"metadata"`
+}
+
+// singleVersionLatest 是目录型安装源（local / git）的"最新版本"。
+//
+// 这两种源按 <scope>/<name> 定位，目录里只有一份 component.yaml——
+// 它写的是哪个版本，这个源能提供的就只有那个版本，"最新"没有别的候选。
+// 因此复用 manifestBytes（它俩本来就忽略 version 参数），读出 metadata 即可。
+func singleVersionLatest(ctx context.Context, f fetcher, componentID string) (string, error) {
+	data, err := f.manifestBytes(ctx, componentID, "")
+	if err != nil {
+		return "", err
+	}
+	var h componentHeader
+	if err := yaml.Unmarshal(data, &h); err != nil {
+		return "", errNotFound
+	}
+	// 目录里放的是别的组件（git 源回落到仓库根目录时会出现）：等同于"这里没有"
+	if h.Metadata.ID != componentID || h.Metadata.Version == "" {
+		return "", errNotFound
+	}
+	return h.Metadata.Version, nil
 }
 
 // manifestMatches 判断一份 component.yaml 是否正是该组件的该版本。

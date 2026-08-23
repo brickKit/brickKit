@@ -205,6 +205,6 @@ func sortRefs(refs []Ref) {
 		if refs[i].ID != refs[j].ID {
 			return refs[i].ID < refs[j].ID
 		}
-		return compareVersions(refs[i].Version, refs[j].Version) < 0
+		return manifest.CompareVersions(refs[i].Version, refs[j].Version) < 0
 	})
 }

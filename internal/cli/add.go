@@ -28,24 +28,33 @@ func newAddCommand(opts *Options) *cobra.Command {
 	var f addFlags
 
 	cmd := &cobra.Command{
-		Use:     "add <组件ID>@<精确版本>",
+		Use:     "add <组件ID>[@精确版本]",
 		Short:   "添加组件，递归拉取依赖与产物，写入 brickkit.yaml",
 		GroupID: groupComponent,
 		Long: `添加组件到项目（004 §3.3）。
 
 行为：
-  1. 从安装源获取 Manifest（市场 / Git / 本地目录）
-  2. 递归解析 dependencies.components
-  3. 强依赖不可获取 → 报错终止；弱依赖不可获取 → 警告但继续
-  4. 同 ID 不同版本 → 自动添加第二个条目（多版本默认共存）
-  5. 下载 artifacts 到 .brickkit/artifacts/<版本化服务名>/
-  6. 写入 brickkit.yaml（不写 enabled 字段）
+  1. 未指定版本 → 按安装源优先级解析出最新的可安装版本
+  2. 从安装源获取 Manifest（市场 / Git / 本地目录）
+  3. 递归解析 dependencies.components
+  4. 强依赖不可获取 → 报错终止；弱依赖不可获取 → 警告但继续
+  5. 同 ID 不同版本 → 自动添加第二个条目（多版本默认共存）
+  6. 下载 artifacts 到 .brickkit/artifacts/<版本化服务名>/
+  7. 写入 brickkit.yaml（不写 enabled 字段）
+
+不指定版本时：
+  - local / git 源目录里只有一份 component.yaml，它写的版本就是最新版
+  - market 源先筛掉装不上的版本（draft / blocked），再取版本号最大的
+  - 第一个有这个组件的安装源说了算，不跨源比大小
+  - 同 ID 已装了别的版本时先确认再共存（--yes 时不问）
 
 修改 brickkit.yaml 前会自动备份到 .brickkit/backup/brickkit.yaml.last，
 可用 brickkit reset --last 撤销。
 
-版本必须是精确版本（major.minor.patch），不接受 ^ 或 ~ 范围约束。`,
-		Example: `  brickkit add people/basic@1.0.0
+写进 brickkit.yaml 的永远是精确版本（major.minor.patch）；
+命令行也不接受 ^ 或 ~ 范围约束——能省略的是版本号本身，不是可以写个范围。`,
+		Example: `  brickkit add people/basic                     装最新的可安装版本
+  brickkit add people/basic@1.0.0
   brickkit add people/basic@1.0.0 --yes         非交互模式
   brickkit add people/basic@1.0.0 --repo        额外 clone 该组件源码
   brickkit add erp/backend@1.0.0 --repo-all     clone 所有开源依赖源码`,
@@ -53,8 +62,9 @@ func newAddCommand(opts *Options) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return clierr.New(clierr.CodeInvalidArgument, "请指定要添加的组件").
-					WithDetail("用法", "brickkit add <组件ID>@<精确版本>").
+					WithDetail("用法", "brickkit add <组件ID>[@精确版本]").
 					WithDetail("示例", "brickkit add people/basic@1.0.0").
+					WithDetail("不写版本", "brickkit add people/basic（装最新的可安装版本）").
 					WithExit(clierr.ExitUsage)
 			}
 			return runAdd(cmd.Context(), opts, args[0], f)
@@ -68,16 +78,62 @@ func newAddCommand(opts *Options) *cobra.Command {
 	return cmd
 }
 
+// resolveLatest 解析"不写版本时装哪个版本"（004 §3.3）。
+//
+// 解析出的是一个**精确版本**，随后照常钉进 brickkit.yaml——配置里永远不会出现
+// 范围约束（012 §2.2）。cancelled 为 true 表示使用者在共存确认处回答了 n。
+func resolveLatest(
+	ctx context.Context, opts *Options, client *source.Client,
+	cfg *config.Config, id string, f addFlags,
+) (version string, cancelled bool, err error) {
+	latest, err := client.LatestVersion(ctx, id)
+	if err != nil {
+		return "", false, err
+	}
+	opts.Printf("🔎 未指定版本，解析到 %s@%s（来自安装源 %s，类型 %s）\n",
+		id, latest.Version, latest.SourceID, latest.SourceKind)
+
+	// 同 ID 已经装了别的版本：这一步会**多起一个容器**。显式写版本号的人知道
+	// 自己在搞多版本共存，不写版本号的人多半没这个预期，所以先问一句。
+	others := otherVersions(cfg, id, latest.Version)
+	if len(others) == 0 {
+		return latest.Version, false, nil
+	}
+	if f.yes {
+		opts.Printf("ℹ️ %s 已有 %s，--yes 已指定：新增 %s 共存\n",
+			id, strings.Join(others, "、"), latest.Version)
+		return latest.Version, false, nil
+	}
+	opts.Printf("⚠️ %s 已有 %s，将新增 %s 与之共存（多起一个容器）\n",
+		id, strings.Join(others, "、"), latest.Version)
+	if !confirm(opts, "   继续？[y/N]: ") {
+		opts.Printf("已取消，brickkit.yaml 未修改\n")
+		opts.Printf("   只想升级可先 brickkit remove %s@%s\n", id, others[0])
+		return "", true, nil
+	}
+	return latest.Version, false, nil
+}
+
+// otherVersions 返回配置里同 ID、但不是 version 的那些版本。
+func otherVersions(cfg *config.Config, id, version string) []string {
+	var out []string
+	for _, c := range cfg.Components {
+		if c.ID == id && c.Version != version {
+			out = append(out, c.Version)
+		}
+	}
+	return out
+}
+
 func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	id, version, err := parseComponentRef(arg, true)
+	id, version, err := parseComponentRef(arg, false)
 	if err != nil {
 		return err
 	}
-	target := resolver.Ref{ID: id, Version: version}
 
 	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
 	cfg, err := config.ParseConfigFile(layout.ConfigPath())
@@ -85,9 +141,25 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 		return err
 	}
 
+	// 客户端建在备份之前：不写版本时要先靠它解析出最新版本，
+	// 而"要不要刷新缓存"又取决于解析结果是否已在配置里。
+	client, err := newSourceClient(opts, layout, cfg, source.Options{Refresh: f.refresh})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Close() }()
+
+	if version == "" {
+		resolved, cancelled, err := resolveLatest(ctx, opts, client, cfg, id, f)
+		if err != nil || cancelled {
+			return err
+		}
+		version = resolved
+	}
+	target := resolver.Ref{ID: id, Version: version}
+
 	// 同 ID 同版本已存在：确认是否刷新缓存（--yes 直接刷新，004 §3.3）
 	existing := hasComponent(cfg, id, version)
-	refresh := f.refresh
 	if existing {
 		if f.yes {
 			opts.Printf("ℹ️ %s 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存\n", target)
@@ -98,19 +170,13 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 				return nil
 			}
 		}
-		refresh = true
+		client.SetRefresh(true)
 	}
 
 	// 改动配置前先备份（003 §7.1），失败可用 brickkit reset --last 回退
 	if _, err := backup.SaveLast(layout); err != nil {
 		return err
 	}
-
-	client, err := newSourceClient(opts, layout, cfg, source.Options{Refresh: refresh})
-	if err != nil {
-		return err
-	}
-	defer func() { _ = client.Close() }()
 
 	graph, err := resolver.New(resolver.FromSource(client)).Resolve(ctx, target)
 	if err != nil {

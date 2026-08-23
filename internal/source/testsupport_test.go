@@ -233,6 +233,11 @@ type marketMock struct {
 	// 为空时分别默认为 git 与由组件 ID 推导的仓库地址。
 	sourceType string
 	gitURL     string
+	// versionStatus 覆盖版本列表端点里某个版本的状态，键是 "<id>@<version>"。
+	// 未列出的版本一律是 stable。
+	versionStatus map[string]string
+	// failVersionList 为 true 时，版本列表端点返回 503。
+	failVersionList bool
 
 	mu       sync.Mutex
 	requests []recordedRequest
@@ -275,6 +280,10 @@ func (m *marketMock) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rest := strings.TrimPrefix(r.URL.Path, "/api/v1/components/")
+	if componentID, isList := strings.CutSuffix(rest, "/versions"); isList {
+		m.writeVersionList(w, componentID)
+		return
+	}
 	idPart, tail, ok := strings.Cut(rest, "/versions/")
 	if !ok {
 		http.NotFound(w, r)
@@ -311,6 +320,39 @@ func (m *marketMock) handle(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// writeVersionList 实现 GET /components/{id}/versions（007 §4.4）。
+// 与真实服务端一致：返回 {success, data} 信封，data 是版本对象数组。
+func (m *marketMock) writeVersionList(w http.ResponseWriter, componentID string) {
+	if m.failVersionList {
+		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	var list []map[string]any
+	for _, spec := range m.components {
+		if spec.ID != componentID {
+			continue
+		}
+		status := m.versionStatus[spec.ID+"@"+spec.Version]
+		if status == "" {
+			status = "stable"
+		}
+		list = append(list, map[string]any{
+			"componentId": spec.ID,
+			"version":     spec.Version,
+			"status":      status,
+		})
+	}
+	if list == nil {
+		writeJSON(w, http.StatusNotFound, map[string]any{
+			"success": false,
+			"error":   map[string]any{"code": "NOT_FOUND", "message": "组件不存在"},
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": list})
 }
 
 func (m *marketMock) writeManifest(w http.ResponseWriter, spec componentSpec) {

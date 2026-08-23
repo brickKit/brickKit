@@ -218,14 +218,14 @@ func TestMatchResourceWithNilConfig(t *testing.T) {
 // ============================================================
 
 func TestCompareVersions(t *testing.T) {
-	assert.Equal(t, 0, compareVersions("1.0.0", "1.0.0"))
-	assert.Negative(t, compareVersions("1.0.0", "1.0.1"))
-	assert.Negative(t, compareVersions("2.0.0", "10.0.0"), "数字比较，不是字符串比较")
-	assert.Positive(t, compareVersions("1.2.0", "1.1.9"))
-	assert.Negative(t, compareVersions("1.0", "1.0.0"), "段数少的排前面")
+	assert.Equal(t, 0, manifest.CompareVersions("1.0.0", "1.0.0"))
+	assert.Negative(t, manifest.CompareVersions("1.0.0", "1.0.1"))
+	assert.Negative(t, manifest.CompareVersions("2.0.0", "10.0.0"), "数字比较，不是字符串比较")
+	assert.Positive(t, manifest.CompareVersions("1.2.0", "1.1.9"))
+	assert.Negative(t, manifest.CompareVersions("1.0", "1.0.0"), "段数少的排前面")
 	// 版本号的合法性由 Manifest 校验保证；万一混进非数字，退化为字符串比较且不 panic
-	assert.NotPanics(t, func() { compareVersions("abc", "1.0.0") })
-	assert.Positive(t, compareVersions("abc", "1.0.0"))
+	assert.NotPanics(t, func() { manifest.CompareVersions("abc", "1.0.0") })
+	assert.Positive(t, manifest.CompareVersions("abc", "1.0.0"))
 }
 
 func TestContainsRef(t *testing.T) {

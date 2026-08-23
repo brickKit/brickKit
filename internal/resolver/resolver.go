@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
@@ -95,7 +94,7 @@ func (g *Graph) Versions(id string) []string {
 			out = append(out, n.Ref.Version)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return compareVersions(out[i], out[j]) < 0 })
+	sort.Slice(out, func(i, j int) bool { return manifest.CompareVersions(out[i], out[j]) < 0 })
 	return out
 }
 
@@ -498,24 +497,4 @@ func containsRef(refs []Ref, ref Ref) bool {
 		}
 	}
 	return false
-}
-
-// compareVersions 比较两个精确版本（major.minor.patch），返回 -1 / 0 / 1。
-// 版本号的合法性由 Manifest 校验保证，这里按数字比较，避免 "10.0.0" < "2.0.0" 的字符串陷阱。
-func compareVersions(a, b string) int {
-	as, bs := strings.Split(a, "."), strings.Split(b, ".")
-	for i := 0; i < len(as) && i < len(bs); i++ {
-		ai, aerr := strconv.Atoi(as[i])
-		bi, berr := strconv.Atoi(bs[i])
-		if aerr != nil || berr != nil {
-			return strings.Compare(a, b)
-		}
-		if ai != bi {
-			if ai < bi {
-				return -1
-			}
-			return 1
-		}
-	}
-	return len(as) - len(bs)
 }

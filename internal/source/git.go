@@ -64,6 +64,10 @@ func (s *gitSource) manifestBytes(ctx context.Context, componentID, _ string) ([
 	return nil, errNotFound
 }
 
+func (s *gitSource) latestVersion(ctx context.Context, componentID string) (string, error) {
+	return singleVersionLatest(ctx, s, componentID)
+}
+
 func (s *gitSource) artifactFile(ctx context.Context, componentID, version string, _ manifest.Artifact, file string) ([]byte, error) {
 	dir, err := s.checkout(ctx)
 	if err != nil {

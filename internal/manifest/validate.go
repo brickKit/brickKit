@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -85,6 +86,29 @@ func ComponentIDProblem(id string) string { return componentIDProblem(id) }
 
 // IsExactVersion 判断版本号是否为精确版本 major.minor.patch（002 §7.1）。
 func IsExactVersion(version string) bool { return exactVersionRe.MatchString(version) }
+
+// CompareVersions 比较两个精确版本（major.minor.patch），返回 -1 / 0 / 1。
+//
+// 按**数字**比较，不是按字符串：字符串比较会得出 "10.0.0" < "2.0.0"。
+// resolver 的启动顺序与 add 的"取最新版"都依赖它，因此放在 manifest 包里只留一份。
+// 版本号的合法性由 Manifest 校验保证；真收到非法输入时退回字符串比较，不 panic。
+func CompareVersions(a, b string) int {
+	as, bs := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(as) && i < len(bs); i++ {
+		ai, aerr := strconv.Atoi(as[i])
+		bi, berr := strconv.Atoi(bs[i])
+		if aerr != nil || berr != nil {
+			return strings.Compare(a, b)
+		}
+		if ai != bi {
+			if ai < bi {
+				return -1
+			}
+			return 1
+		}
+	}
+	return len(as) - len(bs)
+}
 
 func (m *Manifest) validateMetadata(p *clierr.ProblemSet) {
 	if m.Metadata.ID == "" {

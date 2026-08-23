@@ -300,6 +300,9 @@ func (s *stubFetcher) close() error { return s.closeErr }
 func (s *stubFetcher) manifestBytes(context.Context, string, string) ([]byte, error) {
 	return nil, errNotFound
 }
+func (s *stubFetcher) latestVersion(context.Context, string) (string, error) {
+	return "", errNotFound
+}
 func (s *stubFetcher) artifactFile(context.Context, string, string, manifest.Artifact, string) ([]byte, error) {
 	return nil, errNotFound
 }

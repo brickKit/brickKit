@@ -444,3 +444,17 @@ func TestExportedRuleHelpers(t *testing.T) {
 	assert.False(t, IsExactVersion("^1.2.3"))
 	assert.False(t, IsExactVersion("1.2"))
 }
+
+// CompareVersions 按数字比较，不是按字符串——resolver 的启动顺序和
+// add 的"取最新版"都靠它，比错了会把 2.0.0 当成比 10.0.0 新。
+func TestCompareVersions(t *testing.T) {
+	assert.Equal(t, 0, CompareVersions("1.0.0", "1.0.0"))
+	assert.Negative(t, CompareVersions("1.0.0", "1.0.1"))
+	assert.Negative(t, CompareVersions("2.0.0", "10.0.0"), "数字比较，不是字符串比较")
+	assert.Positive(t, CompareVersions("1.2.0", "1.1.9"))
+	assert.Negative(t, CompareVersions("1.0", "1.0.0"), "段数少的排前面")
+
+	// 非法版本不该 panic：Manifest 校验拦得住，但这个函数自己也要站得住
+	assert.NotPanics(t, func() { CompareVersions("abc", "1.0.0") })
+	assert.Positive(t, CompareVersions("abc", "1.0.0"))
+}

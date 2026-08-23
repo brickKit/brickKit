@@ -31,6 +31,10 @@ func (s *localSource) manifestBytes(_ context.Context, componentID, _ string) ([
 	return s.readFile(filepath.Join(s.componentDir(componentID), manifest.FileName))
 }
 
+func (s *localSource) latestVersion(ctx context.Context, componentID string) (string, error) {
+	return singleVersionLatest(ctx, s, componentID)
+}
+
 func (s *localSource) artifactFile(_ context.Context, componentID, version string, _ manifest.Artifact, file string) ([]byte, error) {
 	if err := s.checkRoot(); err != nil {
 		return nil, err

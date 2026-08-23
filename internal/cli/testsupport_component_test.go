@@ -273,6 +273,9 @@ type mockComponent struct {
 	GitURL string
 	// FailDownload 为 true 时，产物下载端点返回 500。
 	FailDownload bool
+	// Status 是该版本在市场上的状态（007 §6）。为空时视作 stable。
+	// draft / blocked 装不上，选最新版时要被跳过。
+	Status string
 }
 
 type mockMarket struct {
@@ -291,6 +294,28 @@ func newMockMarket(t *testing.T, comps ...*mockComponent) *mockMarket {
 	return m
 }
 
+// writeVersionList 实现 GET /components/{id}/versions（007 §4.4）。
+func (m *mockMarket) writeVersionList(w http.ResponseWriter, componentID string) {
+	list := make([]map[string]any, 0)
+	for _, c := range m.comps {
+		if c.Spec.ID != componentID {
+			continue
+		}
+		status := c.Status
+		if status == "" {
+			status = "stable"
+		}
+		list = append(list, map[string]any{
+			"componentId": c.Spec.ID, "version": c.Spec.Version, "status": status,
+		})
+	}
+	if len(list) == 0 {
+		writeJSONBody(w, http.StatusNotFound, map[string]any{"success": false})
+		return
+	}
+	writeJSONBody(w, http.StatusOK, map[string]any{"success": true, "data": list})
+}
+
 // source 返回可写入 brickkit.yaml 的 sources 片段。
 func (m *mockMarket) source() string {
 	return fmt.Sprintf("  - id: market\n    type: market\n    url: %s/api/v1\n", m.server.URL)
@@ -298,6 +323,10 @@ func (m *mockMarket) source() string {
 
 func (m *mockMarket) handle(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, "/api/v1/components/")
+	if componentID, isList := strings.CutSuffix(rest, "/versions"); isList {
+		m.writeVersionList(w, componentID)
+		return
+	}
 	id, tail, ok := strings.Cut(rest, "/versions/")
 	if !ok {
 		http.NotFound(w, r)

@@ -126,7 +126,7 @@ func TestErrorOutputFormat(t *testing.T) {
 			name:     "add 缺少组件",
 			args:     []string{"add"},
 			wantCode: clierr.ExitUsage,
-			contains: []string{"❌ 请指定要添加的组件", "brickkit add <组件ID>@<精确版本>"},
+			contains: []string{"❌ 请指定要添加的组件", "brickkit add <组件ID>[@精确版本]"},
 		},
 		{
 			name:     "remove 缺少组件",

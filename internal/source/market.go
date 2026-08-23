@@ -190,6 +190,52 @@ func (s *marketSource) artifacts(ctx context.Context, componentID, version strin
 	return list, nil
 }
 
+// marketVersion 是版本列表端点返回的一条记录。只取判定"能不能装、哪个更新"
+// 所需的字段——列表里还有 publishedAt / signature 等，这里一律不关心。
+type marketVersion struct {
+	Version string `json:"version"`
+	Status  string `json:"status"`
+}
+
+// installable 判断该版本能否被安装（007 §6）。
+//
+// draft（产物还没传完）、blocked（已下架）、deleted（软删除）都装不上。
+// deprecated 能装，只是要提示风险，因此不能跳过。
+func (v marketVersion) installable() bool {
+	return v.Status == "stable" || v.Status == "deprecated"
+}
+
+// latestVersion 取市场上可安装的最新版本。
+//
+// 不用服务端 /components/{id} 的 latestVersion 字段：那个字段只过滤了 deleted，
+// **blocked 的版本还在里面**（服务端 ListVersions 的过滤范围），
+// 拿它当默认版本会稳定解析到一个装不上的版本。这里自己按状态筛完再比大小。
+func (s *marketSource) latestVersion(ctx context.Context, componentID string) (string, error) {
+	body, err := s.get(ctx, "/components/"+componentID+"/versions", nil)
+	if err != nil {
+		return "", err
+	}
+	list, err := decodeVersionList(body, s.sourceID)
+	if err != nil {
+		return "", err
+	}
+
+	latest := ""
+	for _, v := range list {
+		if !v.installable() || v.Version == "" {
+			continue
+		}
+		if latest == "" || manifest.CompareVersions(v.Version, latest) > 0 {
+			latest = v.Version
+		}
+	}
+	if latest == "" {
+		// 组件在，但一个能装的版本都没有：等同于"这个源给不了"，继续下一个源
+		return "", errNotFound
+	}
+	return latest, nil
+}
+
 func (s *marketSource) versionPath(componentID, version string) string {
 	// 组件 ID 中的 `/` 是路径分隔符的一部分（007 §4.5），不做转义。
 	return "/components/" + componentID + "/versions/" + version
@@ -343,6 +389,27 @@ func decodeArtifactList(body []byte, sourceID string) ([]marketArtifact, error) 
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		return nil, clierr.New(clierr.CodeNetworkUnreachable, "错误：市场返回的产物列表无法解析").
+			WithDetail("安装源", sourceID).
+			WithDetail("原因", err.Error()).
+			WithHint("确认市场服务版本是否兼容").
+			WithCause(err)
+	}
+	return envelope.Data, nil
+}
+
+// decodeVersionList 解析版本列表响应。与产物列表一样，两种形状都接受：
+// 裸数组，或 {success, data} 信封。
+func decodeVersionList(body []byte, sourceID string) ([]marketVersion, error) {
+	var direct []marketVersion
+	if err := json.Unmarshal(body, &direct); err == nil {
+		return direct, nil
+	}
+
+	var envelope struct {
+		Data []marketVersion `json:"data"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return nil, clierr.New(clierr.CodeNetworkUnreachable, "错误：市场返回的版本列表无法解析").
 			WithDetail("安装源", sourceID).
 			WithDetail("原因", err.Error()).
 			WithHint("确认市场服务版本是否兼容").

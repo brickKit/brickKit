@@ -48,6 +48,15 @@ type Options struct {
 	Signature SignaturePolicy
 }
 
+// SetRefresh 打开/关闭"忽略缓存强制重新拉取"（等价于构造时的 Options.Refresh）。
+//
+// 存在的理由：brickkit add 不写版本时，要先用这个客户端解析出最新版本，
+// 才知道该版本是否已在配置里、进而才知道要不要刷新缓存。为查一次版本再建一个
+// 客户端并不划算——git 源会因此重新 clone 一遍整个仓库。
+//
+// 只能在开始取 Manifest / 产物之前调用（add 的调用点满足这个前提）。
+func (c *Client) SetRefresh(refresh bool) { c.opts.Refresh = refresh }
+
 // Fetched 是一次 Manifest 获取的结果。
 type Fetched struct {
 	// Manifest 是解析并校验通过的组件 Manifest。
@@ -542,24 +551,31 @@ type failure struct {
 // 只要有一个源是"真失败"（路径不存在、克隆失败、市场不可达……），就把该错误报出来——
 // 那通常才是使用者要修的问题；全部都只是"没有"时，报 004 §10.2 的组件未找到。
 func (c *Client) aggregateError(id, version string, failures []failure) error {
+	return c.notFoundError(id+"@"+version, failures,
+		"检查安装源配置（brickkit.yaml → sources）",
+		"确认组件是否已发布到市场",
+		"确认版本号是否正确",
+	)
+}
+
+// notFoundError 汇总"所有安装源都没给出结果"的失败。
+//
+// 先看有没有**真失败**（路径不存在、克隆失败、市场不可达）：有就报它，
+// 那才是使用者要解决的问题。全部只是"该源没有"时，才报"组件未找到"。
+func (c *Client) notFoundError(ref string, failures []failure, hints ...string) error {
+	if err := firstRealError(failures, ref); err != nil {
+		return err
+	}
+
 	tried := make([]string, 0, len(c.fetchers))
 	for _, f := range c.fetchers {
 		tried = append(tried, f.id()+"（"+f.kind()+"）")
 	}
-
-	if err := firstRealError(failures, id+"@"+version); err != nil {
-		return err
-	}
-
 	return clierr.New(clierr.CodeComponentNotFound, "错误：组件未找到").
-		WithDetail("组件", id+"@"+version).
+		WithDetail("组件", ref).
 		WithDetail("原因", "该组件在所有安装源中均未找到").
 		WithDetail("已尝试的安装源", strings.Join(tried, "、")).
-		WithHint(
-			"检查安装源配置（brickkit.yaml → sources）",
-			"确认组件是否已发布到市场",
-			"确认版本号是否正确",
-		)
+		WithHint(hints...)
 }
 
 // firstRealError 返回第一个"真失败"（路径不存在、克隆失败、市场不可达……）的错误，
