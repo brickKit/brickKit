@@ -7,6 +7,7 @@
   ① 悬空小节引用    代码与文档里的 "005 §5.12" 指向设计书里不存在的小节
   ② 断链            markdown 链接指向不存在的文件
   ③ 指南编号错位    试用指南某篇的文件号是 09，H1 或篇内小节却写着 19
+  ④ 前置对不上      README 索引表说某篇前置是 12，那一篇自己却写着 13
 
 # 为什么需要它
 
@@ -181,6 +182,57 @@ def guide_section_numbers():
     return problems
 
 
+def guide_prerequisites():
+    """README 索引表的「前置」列，必须与各篇自己写的前置一致。
+
+    2026-08-18 改号时漏了这一列：README 说 14 的前置是 12，而 14 自己写着
+    「走完 13-完整装配」——12 正是 13 的**旧编号**。同样的错还有 15/16（←13）、
+    18（←16）、11/12（←10）、09（←06），一共 7 处。
+
+    ①②③ 三道检查全都抓不到它：这一列是**裸数字，不是链接**，
+    既不是断链，也不是"指向不存在的小节"，更不是篇内小节号错位。
+    改号脚本改的是链接标签，于是这一列原封不动地留在了旧编号上。
+
+    这里查的不变式：**README 前置列里出现的每个篇号，都必须在那一篇自己的
+    前置行里也出现**。方向是单向的——篇内可以写得更细（"05 做完；Docker 可用；
+    镜像已构建"），但 README 不能凭空点名一篇那里根本没提的。
+    """
+    problems = []
+
+    readme = "试用指南/README.md"
+    if not os.path.exists(readme):
+        return problems
+
+    # 各篇自己声明的前置：文件号 → 那一行里出现的所有篇号
+    declared = {}
+    for path in sorted(glob.glob("试用指南/[0-9]*-*.md")):
+        tag = os.path.basename(path).split("-")[0]
+        head = "".join(open(path, encoding="utf-8").readlines()[:12])
+        m = re.search(r"前置[：:]\**\s*(.+)", head)
+        declared[tag] = set(re.findall(r"\d{2}", m.group(1))) if m else set()
+
+    # README 四列索引表：| 14 | [链接](…) | 内容 | 前置 |
+    rows = 0
+    for i, line in enumerate(open(readme, encoding="utf-8"), 1):
+        m = re.match(r"^\| (\d{2}[ab]?) \| \[[^]]+\]\([^)]+\) \| [^|]* \| ([^|]*)\|\s*$", line)
+        if not m:
+            continue
+        tag, cell = m.group(1), m.group(2).strip()
+        if tag not in declared:
+            continue
+        rows += 1
+        for num in re.findall(r"\d{2}", cell):
+            if num not in declared[tag]:
+                problems.append((readme, i, f"索引表说 {tag} 的前置含 {num}，"
+                                            f"但 {tag} 自己的前置行里没有它"))
+
+    if rows == 0:
+        print("❌ README 索引表一行都没解析出来——多半是表格列数或正则不对，"
+              "而不是它真的空了。")
+        sys.exit(2)
+    return problems
+
+
 def main():
     sections = design_sections()
     self_check(sections)
@@ -189,6 +241,7 @@ def main():
     failed = report("悬空小节引用", check_sections(sections))
     failed |= report("文档断链", check_links())
     failed |= report("指南编号错位", guide_section_numbers())
+    failed |= report("指南前置对不上", guide_prerequisites())
 
     if failed:
         print("\n引用坏掉的常见原因：重写某一节时改了编号、拆分文件时换了路径。")
