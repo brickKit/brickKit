@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs cover-check ## 静态检查（文档引用 + 文档里的命令 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-guide-output cover-check ## 静态检查（文档引用 + 文档里的命令 + 指南预期输出 + 覆盖率门槛）
 	@if [ -x "$(GOLANGCI)" ]; then \
 		echo "▶ golangci-lint run"; \
 		$(GOLANGCI) run ./... && (cd market-server && $(GOLANGCI) run ./...); \
@@ -137,12 +137,21 @@ lint: check-docs check-cli-docs cover-check ## 静态检查（文档引用 + 文
 	fi
 
 .PHONY: check-docs
-check-docs: ## 检查文档引用（悬空小节号、断链）
+check-docs: ## 检查文档引用（悬空小节号、断链、指南编号与前置）
 	@python3 scripts/check-docs.py
 
 .PHONY: check-cli-docs
 check-cli-docs: build-cli ## 检查文档里的命令与参数是否真的存在（Step 40）
 	@python3 scripts/check-cli-docs.py $(BIN)/brickkit
+
+# 两个"真跑"检查的分工：
+#   check-guide-output  指南里的「✅ 预期」块必须逐行等于 CLI 真实输出。
+#                       只覆盖不需要 Docker/minikube 的步骤，所以能进 lint 天天跑。
+#   check-guides        分层冒烟：关键步骤跑得通、输出里有该有的关键词。
+#                       要 Docker / minikube 的层缺环境时响亮跳过，因此不进 lint。
+.PHONY: check-guide-output
+check-guide-output: build-cli ## 核对试用指南的预期输出与 CLI 真实输出逐行一致
+	@python3 scripts/check-guide-output.py
 
 .PHONY: check-guides
 check-guides: build-cli ## 真跑试用指南里的关键步骤（缺环境的层会响亮跳过）

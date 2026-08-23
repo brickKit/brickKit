@@ -89,8 +89,8 @@ while IFS=$'\t' read -r tier what _env cmd expect; do
 	[[ "$cmd" == add* ]] && extra="--yes"
 	# shellcheck disable=SC2086
 	out="$("$BIN" $cmd $extra 2>&1 </dev/null)"
-	# init 之后把安装源补进骨架（骨架里没有 sources，见 试用指南/02）
-	[[ "$cmd" == init* ]] && python3 "$ROOT/scripts/seed-sources.py" "$PROJ/brickkit.yaml"
+	# 从前这里要调 seed-sources.py 给骨架补一段 sources——init 生成的骨架里没有。
+	# 现在骨架自带 local-dev → ./components（D527），那一步连同脚本一起去掉了。
 	if grep -qF -- "$expect" <<<"$out"; then
 		printf "  ✅ [%s] %s\n" "$tier" "$what"
 		pass=$((pass + 1))
