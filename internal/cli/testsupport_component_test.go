@@ -234,6 +234,17 @@ func localSource(t *testing.T, root string, comps ...comp) []string {
 	return fragments
 }
 
+// oneLocalSource 把若干组件写进**同一个**本地安装源目录（add --local 的场景）。
+//
+// 与 localSource 的区别：那个是一个组件一个源，这个是一个源装一堆组件。
+func oneLocalSource(t *testing.T, root string, comps ...comp) []string {
+	t.Helper()
+	for _, c := range comps {
+		writeTree(t, filepath.Join(root, "shared", filepath.FromSlash(c.ID)), c.files())
+	}
+	return []string{"  - id: local-shared\n    type: local\n    path: ./shared\n"}
+}
+
 // ============================================================
 // git 仓库
 // ============================================================

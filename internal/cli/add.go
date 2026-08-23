@@ -21,6 +21,8 @@ type addFlags struct {
 	refresh bool
 	repo    bool
 	repoAll bool
+	// local 对应 --local：批量添加本地安装源里的所有组件。
+	local bool
 }
 
 // newAddCommand 实现 brickkit add（004 §3.3）。
@@ -28,7 +30,7 @@ func newAddCommand(opts *Options) *cobra.Command {
 	var f addFlags
 
 	cmd := &cobra.Command{
-		Use:     "add <组件ID>[@精确版本]",
+		Use:     "add [组件ID[@精确版本]]",
 		Short:   "添加组件，递归拉取依赖与产物，写入 brickkit.yaml",
 		GroupID: groupComponent,
 		Long: `添加组件到项目（004 §3.3）。
@@ -42,6 +44,12 @@ func newAddCommand(opts *Options) *cobra.Command {
   6. 下载 artifacts 到 .brickkit/artifacts/<版本化服务名>/
   7. 写入 brickkit.yaml（不写 enabled 字段）
 
+--local 批量添加：
+  brickkit add --local 把本地安装源（type: local）里的组件一次全部添加。
+  已在配置中的跳过；同 ID 但版本不同的也跳过并单独提示（不替你决定多起一个容器）。
+  任一组件解析失败则整体中止，brickkit.yaml 一个字节不动。
+  --local 不接组件 ID，也不能与 --repo / --repo-all 同用。
+
 不指定版本时：
   - local / git 源目录里只有一份 component.yaml，它写的版本就是最新版
   - market 源先筛掉装不上的版本（draft / blocked），再取版本号最大的
@@ -54,17 +62,25 @@ func newAddCommand(opts *Options) *cobra.Command {
 写进 brickkit.yaml 的永远是精确版本（major.minor.patch）；
 命令行也不接受 ^ 或 ~ 范围约束——能省略的是版本号本身，不是可以写个范围。`,
 		Example: `  brickkit add people/basic                     装最新的可安装版本
+  brickkit add --local                          把本地安装源里的组件全加进来
   brickkit add people/basic@1.0.0
   brickkit add people/basic@1.0.0 --yes         非交互模式
   brickkit add people/basic@1.0.0 --repo        额外 clone 该组件源码
   brickkit add erp/backend@1.0.0 --repo-all     clone 所有开源依赖源码`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if f.local {
+				if err := checkLocalFlagCombo(args, f); err != nil {
+					return err
+				}
+				return runAddLocal(cmd.Context(), opts, f)
+			}
 			if len(args) == 0 {
 				return clierr.New(clierr.CodeInvalidArgument, "请指定要添加的组件").
 					WithDetail("用法", "brickkit add <组件ID>[@精确版本]").
 					WithDetail("示例", "brickkit add people/basic@1.0.0").
 					WithDetail("不写版本", "brickkit add people/basic（装最新的可安装版本）").
+					WithDetail("批量添加本地组件", "brickkit add --local").
 					WithExit(clierr.ExitUsage)
 			}
 			return runAdd(cmd.Context(), opts, args[0], f)
@@ -75,6 +91,7 @@ func newAddCommand(opts *Options) *cobra.Command {
 	cmd.Flags().BoolVar(&f.refresh, "refresh", false, "强制重新拉取 Manifest 和 artifacts，忽略缓存")
 	cmd.Flags().BoolVar(&f.repo, "repo", false, "额外 clone 该组件的完整 Git 仓库到 components/（仅开源组件）")
 	cmd.Flags().BoolVar(&f.repoAll, "repo-all", false, "clone 所有递归依赖中开源组件的 Git 仓库（闭源组件跳过）")
+	cmd.Flags().BoolVar(&f.local, "local", false, "把本地安装源（type: local）里的组件一次全部添加，不接组件 ID")
 	return cmd
 }
 
@@ -123,6 +140,40 @@ func otherVersions(cfg *config.Config, id, version string) []string {
 		}
 	}
 	return out
+}
+
+// checkLocalFlagCombo 挡住 --local 的两条互斥规则。
+//
+// 都是"说的不是一件事"，不是"暂不支持"：
+//   - --local 是批量添加本地源里的全部组件，接了组件 ID 就自相矛盾；
+//   - --repo / --repo-all 是"从市场登记的 Git 地址再 clone 一份源码下来"，
+//     而本地源里的组件源码本来就在盘上（默认约定里 local 源就指向 ./components），
+//     真 clone 起来目标目录已存在，只会报错。
+func checkLocalFlagCombo(args []string, f addFlags) error {
+	if len(args) > 0 {
+		return clierr.Newf(clierr.CodeInvalidArgument,
+			"错误：--local 不接组件 ID（收到 %s）", args[0]).
+			WithDetail("--local", "把本地安装源里的组件一次全部添加").
+			WithHint(
+				"批量添加本地组件：brickkit add --local",
+				"添加单个组件：brickkit add "+args[0],
+			).WithExit(clierr.ExitUsage)
+	}
+	for _, bad := range []struct {
+		on   bool
+		flag string
+	}{{f.repo, "--repo"}, {f.repoAll, "--repo-all"}} {
+		if !bad.on {
+			continue
+		}
+		return clierr.Newf(clierr.CodeInvalidArgument, "错误：--local 不能与 %s 同用", bad.flag).
+			WithDetail("原因", "本地安装源里的组件源码本来就在盘上，无须（也无从）再 clone 一份").
+			WithHint(
+				"批量添加本地组件：brickkit add --local",
+				"要给某个组件补一份 clone：brickkit add <组件ID>@<版本> "+bad.flag,
+			).WithExit(clierr.ExitUsage)
+	}
+	return nil
 }
 
 func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
