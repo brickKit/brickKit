@@ -35,6 +35,16 @@ import sys
 # 文档里常见的占位符与示意写法，不是真参数。
 PLACEHOLDERS = {"--...", "--flag", "--选项"}
 
+# 反向检查（"二进制里有、文档里没有"）时豁免的东西。
+#
+#   help / completion  cobra 自带，不是这个平台的能力
+#   --help / --config / --log-level  全局工具参数，不属于任何一条命令的语义
+#
+# 这份豁免是**白名单**，不是"凡是没写文档的都算豁免"——新增一条命令或参数而
+# 忘了写进设计书，就该在这里报出来。
+UNDOCUMENTED_OK_CMDS = {"help", "completion"}
+UNDOCUMENTED_OK_FLAGS = {"--help", "--config", "--log-level"}
+
 # 自检基线：(命令, 参数, 是否应当存在)
 SELF_CHECK = [
     ("up", "--dry-run", True),      # 确定有
@@ -61,9 +71,18 @@ def cli_surface(binary):
         return r.returncode == 0 and "unknown command" not in (r.stderr + r.stdout)
 
     def flags(args):
+        """只认**参数定义行**，不扫整段帮助文本。
+
+        帮助里的描述会提到别的命令的参数（add 的 Long 里写着"可用
+        brickkit reset --last 撤销"）。整段扫的话，`--last` 就成了 add 的参数。
+        正向检查里这只是让"存在集合"偏大、少报几条；反向检查里却是致命的——
+        它会凭空造出 `init --repo` 这种根本不存在的参数。
+
+        定义行的形状是固定的：缩进 + 可选的短参 + `--名字`。
+        """
         out = subprocess.run([binary] + args + ["--help"],
                              capture_output=True, text=True).stdout
-        return set(re.findall(r"--[a-z][a-z-]*", out))
+        return set(re.findall(r"(?m)^\s+(?:-\w, )?(--[a-z][a-z-]*)", out))
 
     root = subprocess.run([binary, "--help"], capture_output=True, text=True).stdout
     # 候选：分组列表里的 `  add   添加组件`，以及示例里的 `brickkit add ...`
@@ -102,8 +121,13 @@ def docs():
 
 
 def check(surface):
+    """正向：文档写的命令/参数，二进制里存在吗。
+
+    顺带记下文档里**出现过**哪些命令与参数，供 undocumented() 做反向检查。
+    """
     bad_cmd, bad_flag = [], []
     seen_cmd = seen_flag = 0
+    documented = {}
 
     for path in docs():
         try:
@@ -119,6 +143,7 @@ def check(surface):
                 if cmd not in surface:
                     bad_cmd.append((path, i, cmd))
                     continue
+                documented.setdefault(cmd, set())
 
                 for flag in re.findall(r"(?<![\w-])--[a-z][a-z-]*", rest):
                     seen_flag += 1
@@ -126,7 +151,51 @@ def check(surface):
                         continue
                     bad_flag.append((path, i, f"{cmd} {flag}"))
 
-    return bad_cmd, bad_flag, seen_cmd, seen_flag
+            # 参数也可能写在表格/正文里而不是紧跟命令后面（004 的「参数：」表就是），
+            # 所以再扫一遍整行的裸参数，记到"这一行提到的命令"名下。
+            for cmd in re.findall(r"brickkit ([a-z][a-z-]*)", line):
+                if cmd in surface:
+                    documented.setdefault(cmd, set()).update(
+                        re.findall(r"(?<![\w-])--[a-z][a-z-]*", line))
+
+        # 「参数：」表格里的行不带 `brickkit xxx`，靠所属小节归属命令
+        section = None
+        for line in lines:
+            m = re.match(r"#+ [0-9.]* ?brickkit ([a-z][a-z-]*)", line)
+            if m:
+                section = m.group(1) if m.group(1) in surface else None
+                continue
+            if section:
+                if line.startswith("#"):
+                    section = None
+                    continue
+                documented.setdefault(section, set()).update(
+                    re.findall(r"(?<![\w-])--[a-z][a-z-]*", line))
+
+    return bad_cmd, bad_flag, seen_cmd, seen_flag, documented
+
+
+def undocumented(surface, documented):
+    """反向：二进制里有、而文档里一次都没出现的命令与参数。
+
+    正向检查挡的是"照着文档敲会 unknown flag"；这一条挡的是**反过来**——
+    新增了能力却没写进任何文档，使用者根本不知道它存在。两个方向都要有人守：
+    只查正向时，`publish` 悄悄长出 5 个参数而设计书一个都没写，没有任何东西会报。
+    """
+    miss_cmd, miss_flag = [], []
+    for cmd, flags in sorted(surface.items()):
+        if cmd == "":            # 根命令的全局参数
+            continue
+        if cmd in UNDOCUMENTED_OK_CMDS:
+            continue
+        if cmd not in documented:
+            miss_cmd.append(("（全部文档）", 0, cmd))
+            continue
+        for flag in sorted(flags):
+            if flag in UNDOCUMENTED_OK_FLAGS or flag in documented[cmd]:
+                continue
+            miss_flag.append(("（全部文档）", 0, f"{cmd} {flag}"))
+    return miss_cmd, miss_flag
 
 
 def report(title, rows, hint):
@@ -147,7 +216,8 @@ def main():
     self_check(surface)
     print(f"✅ 自检通过（解析出 {len(surface) - 1} 个命令）\n")
 
-    bad_cmd, bad_flag, seen_cmd, seen_flag = check(surface)
+    bad_cmd, bad_flag, seen_cmd, seen_flag, documented = check(surface)
+    miss_cmd, miss_flag = undocumented(surface, documented)
 
     # 扫到 0 处问题和根本没扫到东西，输出长得一模一样。把数目报出来，
     # 一份"检查通过"才有意义。
@@ -159,10 +229,14 @@ def main():
 
     failed = report("文档写了不存在的命令", bad_cmd, "命令被改名或删掉了，文档没跟着改")
     failed |= report("文档写了不存在的参数", bad_flag, "参数被改名或删掉了，文档没跟着改")
+    failed |= report("命令有、文档没写", miss_cmd, "新增了命令却没写进任何文档")
+    failed |= report("参数有、文档没写", miss_flag, "新增了参数却没写进任何文档")
 
-    if failed:
+    if bad_cmd or bad_flag:
         print("\n照着文档敲一遍会得到 unknown flag/command——"
               "而使用者多半会以为是自己装错了版本。")
+    if miss_cmd or miss_flag:
+        print("\n这些能力使用者只能靠 --help 撞见——文档里一次都没出现过。")
     sys.exit(1 if failed else 0)
 
 

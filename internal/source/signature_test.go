@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -372,6 +373,70 @@ func TestCachedManifestWithoutSignatureIsRefetched(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, got.Verified)
 	assert.False(t, got.FromCache, "缓存里没有签名就得重新拉，不能拿旧的顶数")
+}
+
+// TestRequireSignatureRejectsUnknownKeyRef 补上一条安全分支：
+// 签名声明的公钥 ref **根本不在**信任列表里，且 requireSignature: true。
+//
+// 它与 TestManifestRejectsUntrustedSigner 不是一回事，两者差在哪见 ringAs 的注释：
+// 那条是"ref 认识、但密钥对不上"（验不过），这条是"ref 压根不认识"（没法验）。
+// 走的是 verify.go 里完全不同的分支，而这一条此前没有任何用例——
+// 强制模式下"不认识的发布者不能装"是这套机制的核心承诺，不能只靠读代码相信它。
+func TestRequireSignatureRejectsUnknownKeyRef(t *testing.T) {
+	key := newSigningKey(t)
+	spec := signedComponent()
+	sig := key.signSpec(t, spec)
+	sig.PublicKeyRef = "keys/somebody-else.pub" // 信任列表里没有这个 ref
+	m := signedMarket(t, spec, sig)
+
+	// 信任列表里有一把钥匙，但登记在另一个 ref 下
+	c, _ := clientFor(t, m, SignaturePolicy{Require: true, Ring: key.ringAs(t, testKeyRef)})
+	_, err := c.Manifest(context.Background(), "people/basic", "1.2.0")
+
+	require.Error(t, err)
+	text := clierr.As(err).Format()
+	assert.Contains(t, text, "people/basic@1.2.0", "错误里要点名是哪个组件")
+	assert.Contains(t, text, "keys/somebody-else.pub", "要说清楚是哪个 ref 不认识")
+}
+
+// 老缓存里没有签名信封（早于签名功能写下的那些）。
+//
+// 这时"这份缓存是哪种安装源给的"无从得知，而那正是要不要校验的判据。
+// 策略生效时只能当缓存未命中重新拉；策略不生效时照常用缓存——
+// 否则每个还没用上签名的项目都会平白多一次网络往返。
+func TestCacheWithoutSignatureEnvelope(t *testing.T) {
+	key := newSigningKey(t)
+	spec := signedComponent()
+	m := signedMarket(t, spec, key.signSpec(t, spec))
+
+	// 先正常取一次，写下 Manifest 缓存与签名信封
+	c1, layout := clientFor(t, m, SignaturePolicy{})
+	_, err := c1.Manifest(context.Background(), "people/basic", "1.2.0")
+	require.NoError(t, err)
+
+	// 抹掉信封，只留 Manifest 缓存——模拟老版本 CLI 留下的缓存
+	require.NoError(t, os.Remove(c1.SignatureCachePath("people/basic", "1.2.0")))
+	require.FileExists(t, c1.ManifestCachePath("people/basic", "1.2.0"))
+
+	cfg := cfgWithSources(config.Source{
+		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: m.URL(),
+	})
+
+	// 策略生效 → 不敢用这份缓存，重新拉
+	strict := newClient(t, layout, cfg, Options{
+		Signature: SignaturePolicy{Require: true, Ring: key.ring(t)},
+	})
+	got, err := strict.Manifest(context.Background(), "people/basic", "1.2.0")
+	require.NoError(t, err)
+	assert.False(t, got.FromCache, "信封不在又要校验，只能重新拉")
+	assert.True(t, got.Verified)
+
+	// 再抹一次信封，换成不校验的策略 → 缓存照用
+	require.NoError(t, os.Remove(strict.SignatureCachePath("people/basic", "1.2.0")))
+	relaxed := newClient(t, layout, cfg, Options{})
+	got, err = relaxed.Manifest(context.Background(), "people/basic", "1.2.0")
+	require.NoError(t, err)
+	assert.True(t, got.FromCache, "不校验的项目不该为此平白多一次网络往返")
 }
 
 // ============================================================

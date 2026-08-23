@@ -117,17 +117,6 @@ func (p *project) localRefs() []resolver.Ref {
 	return out
 }
 
-// refOfService 把版本化服务名映射回组件引用。
-func (p *project) refOfService(service string) (resolver.Ref, bool) {
-	for _, c := range p.cfg.Components {
-		ref := resolver.Ref{ID: c.ID, Version: c.Version}
-		if manifest.ServiceName(c.ID, c.Version) == service {
-			return ref, true
-		}
-	}
-	return resolver.Ref{}, false
-}
-
 // selectRefs 把 --only 的写法解析成组件引用（004 §3.5）。
 //
 //	people/basic          该组件的**所有**版本

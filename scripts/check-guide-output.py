@@ -91,10 +91,22 @@ CASES = [
         "check": ("order", "03-依赖与启动顺序.md", "📋 组件状态计算：", 0),
     },
     {
-        "what": "04 级联禁用",
+        "what": "04 §4.1 什么都不写时算出来的状态",
+        "reset": True,
+        "run": BASELINE,
+        "check": ("order", "04-组件开启模式.md", "📋 组件状态计算：", 0),
+    },
+    {
+        "what": "04 §4.2 级联禁用",
         "reset": True,
         "run": BASELINE + ["!disable demo/hello"],
-        "check": ("order", "04-组件开启模式.md", "📋 组件状态计算：", 0),
+        "check": ("order", "04-组件开启模式.md", "📋 组件状态计算：", 1),
+    },
+    {
+        "what": "04 §4.3 钉住撞上被禁用的强依赖",
+        "reset": True,
+        "run": BASELINE + ["!disable demo/hello", "!pin demo/caller"],
+        "check": ("order", "04-组件开启模式.md", "❌ 错误：强依赖 demo/hello 被禁用", 0),
     },
     {
         "what": "04 --only 一次性选中",
@@ -104,11 +116,50 @@ CASES = [
                   "🎯 --only：只启动 people/basic 及其强依赖", 0),
     },
     {
-        "what": "08 改版本号即升级",
+        "what": "08 §8.1 改版本号即升级",
         "reset": True,
         "run": BASELINE + ["!upgrade demo/hello"],
         "check": ("up --dry-run", "08-升级与多版本.md",
                   "⬆️ 检测到版本变更（升级流程，004 §3.5.1）：", 0),
+    },
+    # 8.2 / 8.6 各自重建状态，不能接着 8.1 的现场跑：
+    # 升级的判据是"这个版本在本地有没有"，8.1 那次 --dry-run 已经把 2.0.0 拉进缓存了，
+    # 再跑一次就不再算"版本变更"，升级摘要整段消失。
+    {
+        "what": "08 §8.2 升级不会自动改调用方",
+        "reset": True,
+        "run": BASELINE + ["!upgrade demo/hello"],
+        "check": ("up --dry-run", "08-升级与多版本.md", "📋 组件状态计算：", 0),
+    },
+    {
+        "what": "08 §8.6 升级变更摘要",
+        "reset": True,
+        "run": BASELINE + ["!upgrade demo/hello"],
+        "check": ("up --dry-run", "08-升级与多版本.md", "📋 升级变更摘要：", 0),
+    },
+    {
+        "what": "01 项目名不合法",
+        "reset": True,
+        "run": [],
+        "check": ("init 试用", "01-初始化项目.md", "❌ 错误：项目名称不合法", 0),
+    },
+    {
+        "what": "02 §2.4 sync：两个都活跃",
+        "reset": True,
+        "run": ["init demo-shop", "add demo/caller@1.0.0 --yes"],
+        "check": ("sync", "02-添加与移除组件.md", "📂 工作区整理：", 0),
+    },
+    {
+        "what": "02 §2.4 sync：关掉之后连带归档",
+        "run": ["!disable demo/hello"],
+        "check": ("sync", "02-添加与移除组件.md", "📂 工作区整理：", 1),
+    },
+    {
+        "what": "02 §2.5 贴进去的那份配置真能算出那一屏",
+        "reset": True,
+        "run": ["init demo-shop", "add demo/caller@1.0.0 --yes", "add --local",
+                "!paste-components 02-添加与移除组件.md"],
+        "check": ("order", "02-添加与移除组件.md", "📋 组件状态计算：", 0),
     },
 ]
 
@@ -198,6 +249,38 @@ def disable(proj, component_id):
     open(path, "w", encoding="utf-8").write(s.replace(old, old + "    enabled: false\n", 1))
 
 
+def pin(proj, component_id):
+    """给某个组件加一行 enabled: true（04 §4.3 的"钉住"）。"""
+    path = os.path.join(proj, "brickkit.yaml")
+    s = open(path, encoding="utf-8").read()
+    old_entry = f"  - id: {component_id}\n    version: 1.0.0\n"
+    if old_entry not in s:
+        print(f"❌ 配置里找不到 {component_id}，无法加 enabled: true")
+        sys.exit(2)
+    open(path, "w", encoding="utf-8").write(
+        s.replace(old_entry, old_entry + "    enabled: true\n", 1))
+
+
+def paste_components(proj, filename):
+    """把指南里那段"整段替换 components:"的 YAML 真的贴进配置。
+
+    这样被验证的就不只是输出，还有**读者要复制的那段配置本身**——
+    贴进去之后算不出指南写的那一屏，就说明那段配置是错的。
+    """
+    path = os.path.join(GUIDE, filename)
+    hits = [b for b in fenced_blocks(path)
+            if b and b[0].rstrip() == "components:" and any("enabled: false" in l for l in b)]
+    if not hits:
+        print(f"❌ {filename} 里找不到那段带 enabled: false 的 components 配置。")
+        sys.exit(2)
+    block = "\n".join(hits[0]).rstrip() + "\n"
+
+    cfg = os.path.join(proj, "brickkit.yaml")
+    s = open(cfg, encoding="utf-8").read()
+    start, end = s.index("components:"), s.index("resources:")
+    open(cfg, "w", encoding="utf-8").write(s[:start] + block + "\n" + s[end:])
+
+
 def upgrade(proj, component_id):
     """把组件源码与配置里的版本一起升到 2.0.0（08 §8.1 那两条 sed）。"""
     cy = os.path.join(proj, "components", *component_id.split("/"), "component.yaml")
@@ -233,10 +316,14 @@ def main():
             if case.get("reset") or proj is None:
                 proj = prepare(work)
             for step in case["run"]:
-                if step == "!disable demo/hello":
-                    disable(proj, "demo/hello")
-                elif step == "!upgrade demo/hello":
-                    upgrade(proj, "demo/hello")
+                if step.startswith("!disable "):
+                    disable(proj, step.split(None, 1)[1])
+                elif step.startswith("!pin "):
+                    pin(proj, step.split(None, 1)[1])
+                elif step.startswith("!upgrade "):
+                    upgrade(proj, step.split(None, 1)[1])
+                elif step.startswith("!paste-components "):
+                    paste_components(proj, step.split(None, 1)[1])
                 else:
                     run_cli(proj, step)
 

@@ -1,8 +1,6 @@
 package security
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 
 	"gopkg.in/yaml.v3"
@@ -108,15 +106,4 @@ func normalize(value any) (any, error) {
 	default:
 		return v, nil
 	}
-}
-
-// CanonicalDigest 返回规范化载荷的 SHA-256，格式为 sha256:<hex>。
-// 用于日志与 brickkit status 展示，让人能一眼对上是不是同一份内容。
-func CanonicalDigest(raw []byte) (string, error) {
-	payload, err := CanonicalPayload(raw)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(payload)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
