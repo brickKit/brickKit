@@ -50,7 +50,10 @@ func runStatus(ctx context.Context, opts *Options) error {
 	opts.Printf("📊 项目状态：%s（deploy.target: %s）\n\n", p.cfg.Project, p.cfg.Deploy.Target)
 	if len(p.cfg.Components) == 0 {
 		opts.Printf("📋 当前项目没有组件\n")
-		opts.Printf("   用 brickkit add <组件ID>@<版本> 添加第一个组件\n")
+		// init 的骨架已经把 ./components 配成了本地安装源，所以 --local 是最短的一条路。
+		// 两条都给：有的人手上已经有组件源码，有的人要从市场装。
+		opts.Printf("   用 brickkit add --local 把 %s/ 下的组件全加进来\n", config.DirComponents)
+		opts.Printf("   或 brickkit add <组件ID> 从安装源添加\n")
 		return nil
 	}
 	if !p.deployed {

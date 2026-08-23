@@ -21,11 +21,17 @@
 方向是单向的：真实输出可以比指南多（警告、后续步骤），但指南**不能**出现
 CLI 从没打印过的行。截断、错字、旧文案都会被这一条抓住。
 
-# 为什么只覆盖 00–08 这几篇
+# 分层：core 进 lint，docker 交给 check-guides
 
-只挑**不需要 Docker / minikube / 市场**的步骤：它们在任何机器上都跑得出确定结果，
-所以能进 `make lint` 天天跑。要环境的篇交给 `make check-guides` 分层冒烟。
+core 层只挑**不需要 Docker / minikube / 市场**的步骤：任何机器上都跑得出确定结果，
+所以能进 `make lint` 天天跑。要环境的层缺环境时**响亮跳过**，并且不进 lint——
 一个跑不动就会被加 `|| true` 的检查，等于没有检查。
+
+# 账目必须是明的
+
+结束时会报"指南里一共有多少个 CLI 输出块、看守了多少个"。
+只说"N 个块一致"而不说分母，看起来和"全都守住了"一模一样——
+而 05–19 那些要 Docker/k8s/市场/cosign 的篇，至今大半没有看守。
 
 # 这个脚本自己会不会坏
 
@@ -64,6 +70,7 @@ BASELINE = ["init demo-shop", "add demo/caller@1.0.0 --yes", "add people/basic@1
 
 # 用例：先按 run 里的命令把状态推到位，再跑 check 里那条命令，与指南块比对。
 #
+#   tier   core（默认，无需外部环境）| docker（要 Docker 与组件镜像）
 #   reset  True 表示先把试验场推倒重来（组件源码也重新拷）
 #   run    只执行、不比对的准备命令
 #   check  (要比对的命令, 指南文件, 块锚点, 第几个匹配的块)
@@ -153,6 +160,15 @@ CASES = [
         "what": "02 §2.4 sync：关掉之后连带归档",
         "run": ["!disable demo/hello"],
         "check": ("sync", "02-添加与移除组件.md", "📂 工作区整理：", 1),
+    },
+    {
+        # 17 用的是仓库里的示例组件（试用指南/示例组件/notify/webhook），
+        # 只走 add，不需要 Docker——所以它是 core 层，不是 docker 层。
+        "what": "17 §17.4 把自己写的组件装进项目",
+        "reset": True,
+        "run": ["init my-project", "!use-sample notify/webhook"],
+        "check": ("add notify/webhook@1.0.0", "17-开发自己的组件.md",
+                  "📦 添加 notify/webhook@1.0.0", 0),
     },
     {
         "what": "02 §2.5 贴进去的那份配置真能算出那一屏",
@@ -281,6 +297,17 @@ def paste_components(proj, filename):
     open(cfg, "w", encoding="utf-8").write(s[:start] + block + "\n" + s[end:])
 
 
+def use_sample(proj, component_id):
+    """把仓库里的示例组件放进项目的 components/（17 让读者自己写的那个）。"""
+    src = os.path.join(GUIDE, "示例组件", *component_id.split("/"))
+    if not os.path.isdir(src):
+        print(f"❌ 找不到示例组件 {src}——指南挪过位置而这个脚本没跟上。")
+        sys.exit(2)
+    dst = os.path.join(proj, "components", *component_id.split("/"))
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    shutil.copytree(src, dst, dirs_exist_ok=True)
+
+
 def upgrade(proj, component_id):
     """把组件源码与配置里的版本一起升到 2.0.0（08 §8.1 那两条 sed）。"""
     cy = os.path.join(proj, "components", *component_id.split("/"), "component.yaml")
@@ -302,17 +329,58 @@ def run_cli(proj, args):
     return r.stdout + r.stderr
 
 
+# 指南里所有 CLI 输出块的行首特征。用来算分母——只报分子不报分母，
+# "守住了 15 个"看起来和"全都守住了"一模一样。
+OUTPUT_MARKS = ("✅", "📦", "📋", "🔍", "⬆️", "🎯", "⚠️", "❌", "📁",
+                "🗑️", "⏭️", "🔏", "📂", "ℹ️", "🚀", "🛑", "📊")
+
+
+def total_output_blocks():
+    """数一数指南里一共有多少个看起来是 CLI 输出的块。"""
+    import glob
+    n = 0
+    for path in glob.glob(os.path.join(GUIDE, "[0-9]*-*.md")):
+        for b in fenced_blocks(path):
+            if b and b[0].startswith(OUTPUT_MARKS):
+                n += 1
+    return n
+
+
+def docker_ready():
+    """有 Docker，且两个玩具组件的镜像在本地。"""
+    if subprocess.run(["docker", "info"], capture_output=True).returncode != 0:
+        return False, "没有可用的 Docker"
+    for image in ("brickkit-demo/hello:1.0.0", "brickkit-demo/caller:1.0.0"):
+        if subprocess.run(["docker", "image", "inspect", image],
+                          capture_output=True).returncode != 0:
+            return False, f"缺组件镜像 {image}（见 试用指南/00-准备.md）"
+    return True, ""
+
+
 def main():
     if not os.access(BIN, os.X_OK):
         sys.exit(f"❌ 找不到 {BIN}，先 make build-cli")
 
+    wanted = set(sys.argv[1:]) or {"core"}
+    ok_docker, why = docker_ready() if "docker" in wanted else (False, "未选中该层")
+
     work = tempfile.mkdtemp(prefix="brickkit-guide-")
     proj = None
     compared = 0
+    skipped = 0
     problems = []
+    shown_skip = set()
 
     try:
         for case in CASES:
+            tier = case.get("tier", "core")
+            if tier not in wanted or (tier == "docker" and not ok_docker):
+                skipped += 1
+                if tier not in shown_skip:
+                    reason = why if tier == "docker" and "docker" in wanted else "未选中该层"
+                    print(f"⏭  跳过 {tier} 层：{reason}")
+                    shown_skip.add(tier)
+                continue
             if case.get("reset") or proj is None:
                 proj = prepare(work)
             for step in case["run"]:
@@ -324,6 +392,8 @@ def main():
                     upgrade(proj, step.split(None, 1)[1])
                 elif step.startswith("!paste-components "):
                     paste_components(proj, step.split(None, 1)[1])
+                elif step.startswith("!use-sample "):
+                    use_sample(proj, step.split(None, 1)[1])
                 else:
                     run_cli(proj, step)
 
@@ -339,9 +409,16 @@ def main():
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
-    if compared != len(CASES):
-        print(f"❌ 只比对了 {compared} 个块，用例有 {len(CASES)} 个——"
-              "有用例被静默跳过了，这比失败更危险。")
+    if compared + skipped != len(CASES):
+        print(f"❌ 比对 {compared} + 跳过 {skipped} 与用例数 {len(CASES)} 对不上——"
+              "有用例被静默漏掉了，这比失败更危险。")
+        sys.exit(2)
+    planned = sum(1 for c in CASES if c.get("tier", "core") in wanted)
+    if planned == 0:
+        print(f"⏭  {'、'.join(sorted(wanted))} 层暂无用例，什么都没比对。")
+        sys.exit(0)
+    if compared == 0:
+        print("❌ 选中的层里一个块都没比对成——多半是环境探测或用例表有问题。")
         sys.exit(2)
 
     if problems:
@@ -355,7 +432,11 @@ def main():
         print("请以**真实输出**为准改指南，而不是反过来。")
         sys.exit(1)
 
-    print(f"✅ 指南预期输出：{compared} 个块逐行一致")
+    total = total_output_blocks()
+    print(f"✅ 指南预期输出：{compared} 个块逐行一致"
+          + (f"（另跳过 {skipped} 个用例）" if skipped else ""))
+    print(f"   看守账目：指南里共 {total} 个 CLI 输出块，本次看守 {compared} 个。"
+          f"其余多在 05–19——那些篇要 Docker / minikube / 市场 / cosign。")
 
 
 if __name__ == "__main__":

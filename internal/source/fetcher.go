@@ -6,6 +6,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
@@ -27,7 +28,8 @@ type fetcher interface {
 	// 该源没有此组件时返回 errNotFound（调用方继续尝试下一个源）。
 	manifestBytes(ctx context.Context, componentID, version string) ([]byte, error)
 	// latestVersion 返回该源上这个组件可安装的最新版本。
-	// 该源没有此组件时返回 errNotFound（调用方继续尝试下一个源）。
+	// 该源没有此组件时返回 errNotFound（调用方继续尝试下一个源）；
+	// 组件在、但 component.yaml 用不了时返回**真错误**，由调用方决定报不报。
 	latestVersion(ctx context.Context, componentID string) (string, error)
 	// artifactFile 返回一个产物文件的内容。
 	artifactFile(ctx context.Context, componentID, version string, art manifest.Artifact, file string) ([]byte, error)
@@ -55,15 +57,41 @@ func singleVersionLatest(ctx context.Context, f fetcher, componentID string) (st
 	if err != nil {
 		return "", err
 	}
+
 	var h componentHeader
 	if err := yaml.Unmarshal(data, &h); err != nil {
+		// 组件**在**这儿，只是这份 component.yaml 读不了。
+		// 从前这里返回 errNotFound，于是最终报的是"组件未找到，检查安装源配置"——
+		// 把人引向完全无关的方向，而问题就在他指定的那个目录里。
+		return "", manifestUnusable(f, componentID, "component.yaml 解析失败："+err.Error(),
+			"用 YAML 校验器看一眼这个文件")
+	}
+
+	// 目录里放的是别的组件（git 源回落到仓库根目录时会出现）：等同于"这里没有"
+	if h.Metadata.ID != componentID {
 		return "", errNotFound
 	}
-	// 目录里放的是别的组件（git 源回落到仓库根目录时会出现）：等同于"这里没有"
-	if h.Metadata.ID != componentID || h.Metadata.Version == "" {
-		return "", errNotFound
+	if !manifest.IsExactVersion(h.Metadata.Version) {
+		got := h.Metadata.Version
+		if got == "" {
+			got = "（空）"
+		}
+		return "", manifestUnusable(f, componentID,
+			"metadata.version 不是精确版本："+got,
+			"改成 major.minor.patch，如 1.0.0（002 §7.1）")
 	}
 	return h.Metadata.Version, nil
+}
+
+// manifestUnusable 是"组件在、但它的 component.yaml 用不了"。
+//
+// 与 errNotFound 分开的理由：两者该让使用者去看的地方完全不同——
+// 一个是安装源配置，一个是他自己刚写的那份 component.yaml。
+func manifestUnusable(f fetcher, componentID, reason string, hints ...string) error {
+	return clierr.Newf(clierr.CodeManifestInvalid, "错误：%s 的 component.yaml 用不了", componentID).
+		WithDetail("安装源", f.id()+"（"+f.kind()+"）").
+		WithDetail("原因", reason).
+		WithHint(hints...)
 }
 
 // manifestMatches 判断一份 component.yaml 是否正是该组件的该版本。

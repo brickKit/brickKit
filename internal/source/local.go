@@ -62,24 +62,25 @@ func (s *localSource) artifactFile(_ context.Context, componentID, version strin
 //     而 components/.archived/（brickkit sync 的归档目录）和 .git/ 都在那底下。
 //   - 目录名拼出来必须是合法组件 ID。非法 ID 进不了 brickkit.yaml，
 //     扫出来只会在后面炸；这里挡住，报错才有意义。
-func (s *localSource) listComponents() ([]string, error) {
+func (s *localSource) listComponents() ([]string, []listProblem, error) {
 	if err := s.checkRoot(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	scopes, err := os.ReadDir(s.root)
 	if err != nil {
-		return nil, s.listError(s.root, err)
+		return nil, nil, s.listError(s.root, err)
 	}
 
 	var ids []string
+	var problems []listProblem
 	for _, scope := range scopes {
 		if !scope.IsDir() || strings.HasPrefix(scope.Name(), ".") {
 			continue
 		}
 		names, err := os.ReadDir(filepath.Join(s.root, scope.Name()))
 		if err != nil {
-			return nil, s.listError(filepath.Join(s.root, scope.Name()), err)
+			return nil, nil, s.listError(filepath.Join(s.root, scope.Name()), err)
 		}
 		for _, name := range names {
 			if !name.IsDir() || strings.HasPrefix(name.Name(), ".") {
@@ -95,9 +96,26 @@ func (s *localSource) listComponents() ([]string, error) {
 				// 没有 component.yaml 的只是个普通目录，不是组件
 				continue
 			}
-			// 目录名与 component.yaml 里的 metadata.id 对不上时不猜，直接跳过
+
+			// 下面几种是"像组件、但用不了"。**记下来交给调用方说出去**，
+			// 而不是静默跳过：目录明明在那儿，扫描结果里却少一个、连名字都不出现，
+			// 使用者只会去翻安装源配置，而问题在他自己刚写的这份文件里。
 			var h componentHeader
-			if err := yaml.Unmarshal(data, &h); err != nil || h.Metadata.ID != id {
+			if err := yaml.Unmarshal(data, &h); err != nil {
+				problems = append(problems, listProblem{id, "component.yaml 解析失败：" + err.Error()})
+				continue
+			}
+			if h.Metadata.ID != id {
+				problems = append(problems, listProblem{id,
+					"目录名是 " + id + "，component.yaml 里却写着 " + h.Metadata.ID})
+				continue
+			}
+			if !manifest.IsExactVersion(h.Metadata.Version) {
+				got := h.Metadata.Version
+				if got == "" {
+					got = "（空）"
+				}
+				problems = append(problems, listProblem{id, "metadata.version 不是精确版本：" + got})
 				continue
 			}
 			ids = append(ids, id)
@@ -105,7 +123,7 @@ func (s *localSource) listComponents() ([]string, error) {
 	}
 
 	sort.Strings(ids)
-	return ids, nil
+	return ids, problems, nil
 }
 
 func (s *localSource) listError(path string, cause error) error {

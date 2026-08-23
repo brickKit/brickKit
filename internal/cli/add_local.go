@@ -14,6 +14,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -55,21 +56,25 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 	}
 	defer func() { _ = client.Close() }()
 
-	found, err := client.LocalComponents(ctx)
+	scan, err := client.LocalComponents(ctx)
 	if err != nil {
 		return err
 	}
-	if len(found) == 0 {
-		opts.Printf("📂 没有扫到组件\n")
-		opts.Printf("   本地安装源里没有 <scope>/<name>/%s（003 §6.4）\n", "component.yaml")
+	// 坏组件先说出来：它们不进安装流程，但**必须出声**——目录明明在那儿，
+	// 扫描结果里少一个、连名字都不出现的话，使用者只会去翻安装源配置。
+	renderLocalProblems(opts, scan.Problems)
+
+	if len(scan.Components) == 0 {
+		opts.Printf("📂 没有扫到可用的组件\n")
+		opts.Printf("   本地安装源里没有 <scope>/<name>/%s（003 §6.4）\n", manifest.FileName)
 		return nil
 	}
-	renderLocalScan(opts, found)
+	renderLocalScan(opts, scan.Components)
 
-	plan := planLocalAdd(cfg, found)
+	plan := planLocalAdd(cfg, scan.Components)
 	renderLocalSkips(opts, plan)
 	if len(plan.targets) == 0 {
-		opts.Printf("✅ brickkit.yaml 未变更（本地组件都已在配置中）\n")
+		opts.Printf("✅ brickkit.yaml 未变更（%s）\n", nothingToDoReason(plan))
 		return nil
 	}
 
@@ -101,7 +106,8 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 	} else {
 		opts.Printf("✅ 已写入 brickkit.yaml（%d 个组件）\n", added)
 	}
-	logging.Info("本地组件已批量添加", "scanned", len(found), "added", added)
+	logging.Info("本地组件已批量添加",
+		"scanned", len(scan.Components), "problems", len(scan.Problems), "added", added)
 	return nil
 }
 
@@ -229,6 +235,29 @@ func noLocalSourceError() error {
 // renderLocalScan 说清楚"扫了哪些源、各自有几个"。
 //
 // 只有一个源时不再逐源报数——"local-dev（2 个）扫到 2 个组件"是一句废话。
+// nothingToDoReason 说清楚"为什么一个都没装"。
+//
+// 从前一律写"本地组件都已在配置中"——而版本对不上被跳过的那些**并不在**配置里，
+// 上一行刚说"已跳过"，下一行就说"都在配置中"，自相矛盾。
+func nothingToDoReason(plan localPlan) string {
+	switch {
+	case len(plan.conflicts) > 0 && len(plan.configured) > 0:
+		return "已在配置中的跳过了，版本对不上的也跳过了"
+	case len(plan.conflicts) > 0:
+		return "扫到的组件版本都与配置里的不一致，已全部跳过"
+	default:
+		return "本地组件都已在配置中"
+	}
+}
+
+// renderLocalProblems 把"像组件、但用不了"的目录一条条说出来。
+func renderLocalProblems(opts *Options, problems []source.LocalProblem) {
+	for _, p := range problems {
+		opts.Printf("⚠️ %s 跳过：%s\n", p.ID, p.Reason)
+		opts.Printf("   来自安装源 %s；修好它再执行一次 brickkit add --local\n", p.SourceID)
+	}
+}
+
 func renderLocalScan(opts *Options, found []source.LocalComponent) {
 	bySource := map[string]int{}
 	var order []string

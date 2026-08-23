@@ -4,6 +4,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -116,7 +117,7 @@ func TestAddLocalOnEmptySource(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "--local")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "没有扫到组件")
+	assert.Contains(t, r.stdout, "没有扫到可用的组件")
 	assert.Empty(t, f.refs(t))
 }
 
@@ -132,6 +133,64 @@ func TestAddLocalWhenEverythingAlreadyConfigured(t *testing.T) {
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, before, f.config(t))
 	assert.Contains(t, r.stdout, "brickkit.yaml 未变更")
+}
+
+// 坏组件必须被点名，而不是从"扫到几个"里悄悄少掉一个。
+//
+// 静默跳过时，components/ 下明明躺着两个目录、CLI 却说"扫到 1 个"，
+// 少的那个连名字都不出现——使用者会去翻安装源配置，而问题在他自己的 component.yaml 里。
+func TestAddLocalNamesBrokenComponents(t *testing.T) {
+	dir := t.TempDir()
+	sources := oneLocalSource(t, dir, comp{ID: "demo/hello", Version: "1.0.0"})
+	// 再放一个版本号非法的
+	writeTree(t, filepath.Join(dir, "shared", "demo", "broken"), map[string]string{
+		"component.yaml": strings.Replace(
+			comp{ID: "demo/broken", Version: "1.0.0"}.yamlText(), "version: 1.0.0", "version: latest", 1),
+	})
+	f := newProjectFixtureAt(t, dir, sources...)
+
+	r := runIn(t, f.Dir, "add", "--local")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	assert.Contains(t, r.stdout, "demo/broken", "坏组件要被点名")
+	assert.Contains(t, r.stdout, "latest", "要说清楚坏在哪")
+	assert.Equal(t, []string{"demo/hello@1.0.0"}, f.refs(t), "好的那个照常装上")
+}
+
+// 不写版本、组件又是坏的：报错要说中要害，不能回落成"组件未找到"。
+func TestAddWithoutVersionOnBrokenComponent(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, filepath.Join(dir, "shared", "demo", "broken"), map[string]string{
+		"component.yaml": strings.Replace(
+			comp{ID: "demo/broken", Version: "1.0.0"}.yamlText(), "version: 1.0.0", "version: latest", 1),
+	})
+	f := newProjectFixtureAt(t, dir,
+		"  - id: local-shared\n    type: local\n    path: ./shared\n")
+
+	r := runIn(t, f.Dir, "add", "demo/broken")
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stderr, "latest", "要点出那个非法的版本号")
+	assert.NotContains(t, r.stderr, "该组件在所有安装源中均未找到",
+		"组件就在那儿，不该说找不到")
+}
+
+// 扫到的组件全是版本冲突时，末尾那句不能说成"都已在配置中"——它们并不在。
+func TestAddLocalWordingWhenAllConflict(t *testing.T) {
+	dir := t.TempDir()
+	sources := oneLocalSource(t, dir, comp{ID: "demo/hello", Version: "2.0.0"})
+	f := newProjectFixtureAt(t, dir, sources...)
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+resources: []
+`)
+
+	r := runIn(t, f.Dir, "add", "--local")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "已跳过")
+	assert.NotContains(t, r.stdout, "本地组件都已在配置中",
+		"2.0.0 并不在配置里，这句话与上一行自相矛盾")
+	assert.Contains(t, r.stdout, "版本都与配置里的不一致")
 }
 
 // ============================================================

@@ -222,11 +222,19 @@ test-upgrade: ## 升级测试（Step 38；用例与被测代码同处一包）
 	    ./internal/cli/... ./internal/compose/... ./internal/resolver/...
 
 .PHONY: test-market
-test-market: ## 市场后端测试
-	@if [ -n "$$(find market-server -name '*_test.go' -print -quit 2>/dev/null)" ]; then \
-		echo "▶ market-server go test ./..."; \
-		cd market-server && $(GO) test $(TESTFLAGS) ./...; \
-	else echo "⏭  market-server：暂无测试文件，跳过"; fi
+test-market: ## 市场后端测试（PostgreSQL 契约测试缺环境时**响亮**跳过）
+	@if [ -z "$$(find market-server -name '*_test.go' -print -quit 2>/dev/null)" ]; then \
+		echo "⏭  market-server：暂无测试文件，跳过"; exit 0; fi; \
+	echo "▶ market-server go test ./..."; \
+	(cd market-server && $(GO) test $(TESTFLAGS) ./...) || exit 1; \
+	if [ -z "$$MARKET_TEST_DATABASE_URL" ]; then \
+		echo "⏭  PostgreSQL 契约测试已跳过：未设置 MARKET_TEST_DATABASE_URL"; \
+		echo "   刚才跑的是**内存实现**。internal/repo/postgres.go（真正上生产的那个）"; \
+		echo "   一行都没被执行过——两个实现共用一份契约断言，正是为了防它们语义漂移。"; \
+		echo "   要跑真库：make test-market-integration（读 .env，需要本机 PostgreSQL）"; \
+	else \
+		echo "✅ PostgreSQL 契约测试已随上面一并执行（MARKET_TEST_DATABASE_URL 已设置）"; \
+	fi
 
 .PHONY: openapi-people
 openapi-people: ## 由 FastAPI 重新导出 people/basic 的 openapi.json
@@ -260,6 +268,11 @@ proto-erp: ## 由上游 proto 生成 erp/backend 的 gRPC 客户端（people + a
 		--go-grpc_out=gen --go-grpc_opt=paths=source_relative \
 		proto/people/v1/people.proto proto/authorization/v1/authorization.proto
 	@echo "✅ tests/components/erp-backend/gen 已更新"
+
+.PHONY: test-race
+test-race: ## 竞态检测（internal/**）
+	@echo "▶ go test -race ./internal/..."
+	@$(GO) test -race $(TESTFLAGS) ./internal/...
 
 .PHONY: test-market-integration
 test-market-integration: ## 市场后端的集成测试（需要本机 PostgreSQL 与 RustFS，读 .env）
@@ -336,7 +349,7 @@ demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实�
 	@docker images --format '{{.Repository}}:{{.Tag}}' | grep '^brickkit-demo/' | sort
 
 .PHONY: test-all
-test-all: test-unit test-market test-components test-boundary test-error test-compat test-security test-upgrade test-perf test-regression ## 执行全部测试
+test-all: test-unit test-race test-market test-components test-boundary test-error test-compat test-security test-upgrade test-perf test-regression ## 执行全部测试
 
 # 覆盖率政策：
 #   internal/ 保持 COVER_MIN 以上；不追求 100%。
