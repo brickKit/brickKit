@@ -69,7 +69,7 @@
 想知道「某个决策当初为什么这么定」时来这里。
 
 - [开发进度总览](https://raw.githubusercontent.com/brickKit/brickKit/main/%E5%BC%80%E5%8F%91%E8%BF%9B%E5%BA%A6/README.md): Step 台账与导航。
-- [决策索引](https://raw.githubusercontent.com/brickKit/brickKit/main/%E5%BC%80%E5%8F%91%E8%BF%9B%E5%BA%A6/%E5%86%B3%E7%AD%96%E7%B4%A2%E5%BC%95.md): 560 条决策的一句话摘要 + 出处链接。
+- [决策索引](https://raw.githubusercontent.com/brickKit/brickKit/main/%E5%BC%80%E5%8F%91%E8%BF%9B%E5%BA%A6/%E5%86%B3%E7%AD%96%E7%B4%A2%E5%BC%95.md): 566 条决策的一句话摘要 + 出处链接。
 - [延后实现清单](https://raw.githubusercontent.com/brickKit/brickKit/main/%E5%BC%80%E5%8F%91%E8%BF%9B%E5%BA%A6/%E5%BB%B6%E5%90%8E%E5%AE%9E%E7%8E%B0%E6%B8%85%E5%8D%95.md): P 编号的延后项与它们的回填 Step（已全部结清）。
 - [项目元信息](https://raw.githubusercontent.com/brickKit/brickKit/main/%E5%BC%80%E5%8F%91%E8%BF%9B%E5%BA%A6/%E9%A1%B9%E7%9B%AE%E5%85%83%E4%BF%A1%E6%81%AF.md): 执行顺序调整、插入的工作、环境阻塞与工具基线。
 - [开发计划](https://raw.githubusercontent.com/brickKit/brickKit/main/%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92.md): 31 个 Step 的任务分解 + 功能验证清单。给平台开发团队看的，组件开发者和使用者不需要读。

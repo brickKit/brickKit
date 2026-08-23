@@ -65,7 +65,8 @@ COMPONENTS = [
     ("infra-api-docs", "infra/api-docs"),
 ]
 
-# 回到「重置后五组件」基准状态的四条命令（试用指南 02 §2.5 末尾）
+# 五组件基准状态。与 `试用指南/准备.sh --baseline` 做的是同一件事——
+# 那个脚本也是 init + 这两条 add，两处必须保持一致（03–08 的前置就是它）。
 BASELINE = ["init demo-shop", "add demo/caller@1.0.0 --yes", "add people/basic@1.0.0 --yes"]
 
 # 用例：先按 run 里的命令把状态推到位，再跑 check 里那条命令，与指南块比对。
@@ -82,14 +83,62 @@ CASES = [
         "check": ("init demo-shop", "01-初始化项目.md", "✅ 项目已初始化：demo-shop", 0),
     },
     {
-        "what": "02 add 递归拉依赖",
+        # 01 §1.3 教的是 reset（不是 reset --last）——那时 .last 还不存在。
+        # 这条用例曾经不存在，于是指南里那句"reset --last 之后配置恢复原样"
+        # 一直挂着：照着做的人会看到"备份文件不存在"，而配置根本没被恢复。
+        "what": "01 §1.3 写坏配置后 reset 回初始状态",
+        "reset": True,
+        "run": ["init demo-shop", "!corrupt"],
+        "check": ("reset", "01-初始化项目.md", "🔄 已恢复 brickkit.yaml 到初始状态", 0),
+    },
+    {
+        "what": "01 §1.3 这时还没有 .last",
         "run": [],
+        "check": ("reset --last", "01-初始化项目.md", "❌ 错误：备份文件不存在", 0),
+    },
+    # ↓ 02 按**指南自己的叙述顺序**连着跑：2.2 add → 2.3 add --local →
+    #   2.4 关掉六个 → 2.5 sync → 2.6 remove。
+    #
+    #   早先这几条各自从干净状态出发，于是校验器走的是一条读者永远走不到的路：
+    #   指南里 remove 排在 add --local 之前，而 remove 会删掉组件的源码目录，
+    #   下一步 add --local 就少扫到一个组件、直接中止。校验器全绿，指南是断的。
+    {
+        "what": "02 §2.2 add 递归拉依赖",
+        "reset": True,
+        "run": ["init demo-shop"],
         "check": ("add demo/caller@1.0.0", "02-添加与移除组件.md", "📦 添加 demo/caller@1.0.0", 0),
     },
     {
-        "what": "02 add --local 一次装全",
+        "what": "02 §2.3 add --local 一次装全",
         "run": [],
         "check": ("add --local", "02-添加与移除组件.md", "🔍 从本地安装源 local-dev 扫到 10 个组件", 0),
+    },
+    {
+        "what": "02 §2.4 关掉六个之后算出来的状态",
+        "run": ["!paste-components 02-添加与移除组件.md"],
+        "check": ("order", "02-添加与移除组件.md", "📋 组件状态计算：", 0),
+    },
+    {
+        "what": "02 §2.5 sync 把六个归档",
+        "run": [],
+        "check": ("sync", "02-添加与移除组件.md", "📂 工作区整理：", 0),
+    },
+    {
+        "what": "02 §2.5 改回去再 sync 就激活",
+        "run": ["!enable infra/redis-event-bus"],
+        "check": ("sync", "02-添加与移除组件.md", "📂 工作区整理：", 1),
+    },
+    {
+        "what": "02 §2.6 有依赖方时拦下来",
+        "run": [],
+        "check": ("remove people/basic@1.0.0", "02-添加与移除组件.md",
+                  "❌ 无法移除 people/basic", 0),
+    },
+    {
+        "what": "02 §2.6 移除根组件时连归档的那份一起删",
+        "run": [],
+        "check": ("remove infra/api-docs@1.0.0", "02-添加与移除组件.md",
+                  "✅ 已移除 infra/api-docs@1.0.0", 0),
     },
     {
         "what": "03 order 的三段输出",
@@ -151,17 +200,6 @@ CASES = [
         "check": ("init 试用", "01-初始化项目.md", "❌ 错误：项目名称不合法", 0),
     },
     {
-        "what": "02 §2.4 sync：两个都活跃",
-        "reset": True,
-        "run": ["init demo-shop", "add demo/caller@1.0.0 --yes"],
-        "check": ("sync", "02-添加与移除组件.md", "📂 工作区整理：", 0),
-    },
-    {
-        "what": "02 §2.4 sync：关掉之后连带归档",
-        "run": ["!disable demo/hello"],
-        "check": ("sync", "02-添加与移除组件.md", "📂 工作区整理：", 1),
-    },
-    {
         # 17 用的是仓库里的示例组件（试用指南/示例组件/notify/webhook），
         # 只走 add，不需要 Docker——所以它是 core 层，不是 docker 层。
         "what": "17 §17.4 把自己写的组件装进项目",
@@ -169,13 +207,6 @@ CASES = [
         "run": ["init my-project", "!use-sample notify/webhook"],
         "check": ("add notify/webhook@1.0.0", "17-开发自己的组件.md",
                   "📦 添加 notify/webhook@1.0.0", 0),
-    },
-    {
-        "what": "02 §2.5 贴进去的那份配置真能算出那一屏",
-        "reset": True,
-        "run": ["init demo-shop", "add demo/caller@1.0.0 --yes", "add --local",
-                "!paste-components 02-添加与移除组件.md"],
-        "check": ("order", "02-添加与移除组件.md", "📋 组件状态计算：", 0),
     },
 ]
 
@@ -275,6 +306,24 @@ def pin(proj, component_id):
         sys.exit(2)
     open(path, "w", encoding="utf-8").write(
         s.replace(old_entry, old_entry + "    enabled: true\n", 1))
+
+
+def enable(proj, component_id):
+    """把某个组件的 enabled: false 改成 true（02 §2.5 的"改回去再 sync"）。"""
+    path = os.path.join(proj, "brickkit.yaml")
+    s = open(path, encoding="utf-8").read()
+    old = f"  - id: {component_id}\n    version: 1.0.0\n    enabled: false\n"
+    if old not in s:
+        sys.exit(f"❌ 配置里找不到 enabled: false 的 {component_id}")
+    new = f"  - id: {component_id}\n    version: 1.0.0\n    enabled: true\n"
+    open(path, "w", encoding="utf-8").write(s.replace(old, new, 1))
+
+
+def corrupt(proj, _arg=None):
+    """往配置末尾追加一行垃圾（01 §1.3 让读者手打的那一步）。"""
+    path = os.path.join(proj, "brickkit.yaml")
+    with open(path, "a", encoding="utf-8") as f:
+        f.write("这是一行手滑写进去的垃圾\n")
 
 
 def paste_components(proj, filename):
@@ -394,6 +443,10 @@ def main():
                     paste_components(proj, step.split(None, 1)[1])
                 elif step.startswith("!use-sample "):
                     use_sample(proj, step.split(None, 1)[1])
+                elif step.startswith("!enable "):
+                    enable(proj, step.split(None, 1)[1])
+                elif step == "!corrupt":
+                    corrupt(proj)
                 else:
                     run_cli(proj, step)
 

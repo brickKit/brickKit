@@ -112,6 +112,46 @@ def self_check(surface):
         sys.exit(2)
 
 
+# 命令行到此为止的边界：中文（后面是散文）、`→`（后面是"等价于另一条命令"）、
+# `|`（markdown 表格的下一格）。命令行本身不会出现这三样。
+STOP = re.compile(r"[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]|→|\|")
+
+
+def usages(line):
+    """把一行拆成若干「命令 → 紧跟它的那段命令行」。
+
+    两条规则，都是被真实文档逼出来的：
+
+    **① 参数归给离它最近的那条命令。** 一行里出现多条命令是常事：
+
+        1. 先执行一次 brickkit add / brickkit remove，之后即可用 brickkit reset --last 回退
+
+    整段扫的话 `--last` 会被算成 `add` 的参数，于是报一个根本不存在的
+    `add --last`——而这句话完全正确，它是 CLI 自己打印的建议。
+    （cli_surface 解析 --help 时早就踩过同一个坑，见那里的注释。）
+
+    **② 遇到中文就停。** 散文里提到参数名不等于"把它敲在那条命令后面"：
+
+        `brickkit up` 一键启动。想改源码就加 `--repo`
+
+    这里的 `--repo` 属于上一句的 `add`，而离它最近的命令是 `up`。
+    只按"最近"归属会把它报成 `up --repo`。命令行里不会出现中文，
+    因此第一个中文字符就是"命令行到此为止"的可靠边界。
+
+    同理还有两个边界：`→`（"`brickkit up` → `docker compose up -d --wait`"
+    里的 `--wait` 是 compose 的）和 `|`（markdown 表格的下一格）。
+    """
+    hits = list(re.finditer(r"brickkit ([a-z][a-z-]*)", line))
+    out = []
+    for n, m in enumerate(hits):
+        end = hits[n + 1].start() if n + 1 < len(hits) else len(line)
+        rest = line[m.end():end]
+        if stop := STOP.search(rest):
+            rest = rest[:stop.start()]
+        out.append((m.group(1), rest))
+    return out
+
+
 def docs():
     for pattern in ["design/**/*.md", "试用指南/**/*.md", "*.md", "deploy/**/*.md"]:
         for path in glob.glob(pattern, recursive=True):
@@ -136,8 +176,7 @@ def check(surface):
             continue
 
         for i, line in enumerate(lines, 1):
-            for m in re.finditer(r"brickkit ([a-z][a-z-]*)((?: [^\s`|]+)*)", line):
-                cmd, rest = m.group(1), m.group(2)
+            for cmd, rest in usages(line):
                 seen_cmd += 1
 
                 if cmd not in surface:
@@ -150,9 +189,9 @@ def check(surface):
                     if flag in PLACEHOLDERS or flag in surface[cmd]:
                         continue
                     bad_flag.append((path, i, f"{cmd} {flag}"))
-
-            # 参数也可能写在表格/正文里而不是紧跟命令后面（004 的「参数：」表就是），
-            # 所以再扫一遍整行的裸参数，记到"这一行提到的命令"名下。
+            # 反向检查（「参数有、文档没写」）用的是**宽松**归属：参数常写在表格、
+            # 散文、小节标题底下，离命令很远。这一侧宽松只会漏报，不会误报；
+            # 而上面那一侧（报文档写错了）必须严格，否则会冤枉正确的句子。
             for cmd in re.findall(r"brickkit ([a-z][a-z-]*)", line):
                 if cmd in surface:
                     documented.setdefault(cmd, set()).update(
