@@ -242,8 +242,13 @@ func validateDeployment(d model.Deployment) []model.Problem {
 	if d.Image == "" {
 		p = append(p, model.Problem{Field: "deployment.image", Reason: "必填"})
 	}
-	if d.Port < 0 || d.Port > 65535 {
-		p = append(p, model.Problem{Field: "deployment.port", Reason: "必须在 1–65535 之间"})
+	// port 缺失（0）也必须拦下。007 §18 写的是"必须存在，正整数"，而这里
+	// 一度写成 `d.Port < 0`：0 就这样溜了过去，连带 validateClosedSourceContract
+	// 也被绕开（它以 Port == 0 判断"这个组件不提供 API"），闭源组件少写一个
+	// port 就不用交 API 契约了。CLI 侧本来就要求它非零，于是市场收得下、
+	// 使用者装不了——错落在装的人身上，而问题在发布的人那里。
+	if d.Port < 1 || d.Port > 65535 {
+		p = append(p, model.Problem{Field: "deployment.port", Reason: "必填，且必须在 1–65535 之间"})
 	}
 
 	for i, ep := range d.ExtraPorts {

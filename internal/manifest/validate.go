@@ -220,8 +220,14 @@ func (m *Manifest) validateDependencies(p *clierr.ProblemSet) {
 
 	for i, res := range m.Dependencies.Resources {
 		prefix := fmt.Sprintf("dependencies.resources[%d]", i)
-		if res.Kind == "" {
+		switch {
+		case res.Kind == "":
 			p.Missing(prefix + ".kind")
+		case !IsKnownResourceKind(res.Kind):
+			// 与 brickkit.yaml 侧同一条规则：kind 是按字符串比对的，
+			// 组件写了平台不认识的类型，使用者照着绑也换不来任何连接变量
+			p.Addf(prefix+".kind", "不是平台认识的资源类型（当前是 %s）；可选：%s",
+				res.Kind, ResourceKindsText())
 		}
 		if res.Engine == "" {
 			p.Missing(prefix + ".engine")

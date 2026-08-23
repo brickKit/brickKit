@@ -257,8 +257,14 @@ func TestOpenSourceWithoutAPIContractPasses(t *testing.T) {
 	requireValid(t, req(t, manifestJSON(t, nil)))
 }
 
-// 闭源但不提供 API（没有 port）时也不强制契约。
-func TestClosedSourceWithoutPortPasses(t *testing.T) {
+// 没有 port 的组件根本不存在——闭源组件也不能靠省略它绕开 API 契约。
+//
+// 这条用例原来断言"闭源但不提供 API（没有 port）时不强制契约"，而
+// `deployment.port` 在 002 §4.1 与 007 §18 里都是**必填**，CLI 侧也一直拒收
+// port 为 0 的 Manifest。于是那条路只通向一个结果：市场收下一个装不了的版本，
+// 而版本号一旦建出来不可回收（007 §6.4）。既然 port 必填，
+// "省掉 port 的闭源组件"这个前提就不成立，该拦在发布这一步。
+func TestClosedSourceCannotSkipContractByOmittingPort(t *testing.T) {
 	raw := manifestJSON(t, map[string]any{
 		"deployment": map[string]any{
 			"type":  "container",
@@ -267,10 +273,12 @@ func TestClosedSourceWithoutPortPasses(t *testing.T) {
 		"healthCheck": map[string]any{"type": "none"},
 	})
 
-	requireValid(t, req(t, raw, func(r *model.PublishRequest) {
+	apiErr := requireInvalid(t, req(t, raw, func(r *model.PublishRequest) {
 		r.SourceType = model.SourceTypeRegistry
 		r.GitURL = ""
 	}))
+	assert.Equal(t, model.CodeManifestInvalid, apiErr.Code)
+	assert.Contains(t, problemsText(t, apiErr), "deployment.port")
 }
 
 // ============================================================

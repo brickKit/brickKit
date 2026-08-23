@@ -19,14 +19,17 @@ const (
 	SourceTypeLocal  = "local"
 )
 
-// 基础资源类型（006 §2.2）。每类资源有各自的连接变量命名（006 §5.2）。
+// 基础资源类型（006 §2.1）。每类资源有各自的连接变量命名（006 §5.2）。
+//
+// 权威定义在 internal/manifest：组件 Manifest 与 brickkit.yaml 用的是同一套
+// kind，`matchResource` 直接按字符串比对它们，两处各写一份迟早会分叉。
 const (
-	ResourceKindDatabase = "database"
-	ResourceKindCache    = "cache"
-	ResourceKindMQ       = "mq"
-	ResourceKindStorage  = "storage"
-	ResourceKindSearch   = "search"
-	ResourceKindSMTP     = "smtp"
+	ResourceKindDatabase = manifest.ResourceKindDatabase
+	ResourceKindCache    = manifest.ResourceKindCache
+	ResourceKindMQ       = manifest.ResourceKindMQ
+	ResourceKindStorage  = manifest.ResourceKindStorage
+	ResourceKindSearch   = manifest.ResourceKindSearch
+	ResourceKindSMTP     = manifest.ResourceKindSMTP
 )
 
 // Config 是 brickkit.yaml 的完整结构（003、附录 D.1）。

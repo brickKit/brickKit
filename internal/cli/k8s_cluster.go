@@ -63,22 +63,45 @@ func warnK8sOnlyFields(opts *Options, cfg *config.Config) {
 		return
 	}
 
+	// 003 §3.2：`deploy` 下除 target 外**全部**只对 K8s 生效。
+	// 逐个列出而不是"有非零字段就笼统提一句"——使用者要知道是哪一个。
+	deployFields := []struct {
+		name string
+		set  bool
+	}{
+		{"deploy.context", cfg.Deploy.Context != ""},
+		{"deploy.namespace", cfg.Deploy.Namespace != ""},
+		{"deploy.createNamespace", cfg.Deploy.CreateNamespace != nil},
+		{"deploy.podSecurity", cfg.Deploy.PodSecurity != ""},
+		{"deploy.imagePullSecrets", len(cfg.Deploy.ImagePullSecrets) > 0},
+		{"deploy.ingressClass", cfg.Deploy.IngressClass != ""},
+		{"deploy.ingressAnnotations", len(cfg.Deploy.IngressAnnotations) > 0},
+		{"deploy.serviceAccount", cfg.Deploy.ServiceAccount != nil},
+		// networkPolicy 最要紧：写了它的人以为自己收紧了网络，
+		// 而 Docker 下一条策略都不会生成，网络照旧全通
+		{"deploy.networkPolicy", cfg.Deploy.NetworkPolicy != nil},
+	}
+
 	var fields []string
-	if cfg.Deploy.Context != "" {
-		fields = append(fields, "deploy.context")
+	for _, f := range deployFields {
+		if f.set {
+			fields = append(fields, f.name)
+		}
 	}
-	if cfg.Deploy.Namespace != "" {
-		fields = append(fields, "deploy.namespace")
-	}
-	if cfg.Deploy.CreateNamespace != nil {
-		fields = append(fields, "deploy.createNamespace")
-	}
-	// replicas 是 K8s 概念（005 §5.8）。Docker 下写了完全不生效，
-	// 而使用者会看到 `up` 一切正常、`docker ps` 里只有一个容器，
-	// 然后怀疑是不是自己写错了字段名——字段名是对的
+
+	// 组件级的三个：replicas / tlsSecret / serviceAccountName（003 §4.1）。
+	// replicas 尤其容易被当成自己写错了字段名——`up` 一切正常，
+	// 而 `docker ps` 里只有一个容器，字段名却是对的
 	for _, c := range cfg.Components {
+		entry := "components[" + c.ID + "]."
 		if c.Replicas != nil {
-			fields = append(fields, "components["+c.ID+"].replicas")
+			fields = append(fields, entry+"replicas")
+		}
+		if c.TLSSecret != "" {
+			fields = append(fields, entry+"tlsSecret")
+		}
+		if c.ServiceAccountName != "" {
+			fields = append(fields, entry+"serviceAccountName")
 		}
 	}
 	if len(fields) == 0 {

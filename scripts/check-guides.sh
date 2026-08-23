@@ -57,6 +57,33 @@ tier_ok() {
 		*) return 1 ;;
 	esac
 }
+# bind_pg 给项目补一段 PostgreSQL 资源声明并绑定给 demo/caller。
+#
+# `database` 与 `username` 同名是有意的：postgres 镜像默认建一个与
+# POSTGRES_USER 同名的库，因此不需要额外的 CREATE DATABASE 步骤——
+# 冒烟检查要能一条命令跑完，不该顺带考验使用者的建库操作。
+bind_pg() {
+	# 骨架里已经有一行 `resources: []`，必须**替换**它而不是追加——
+	# 追加会得到两个 resources 键，YAML 直接判重复键。
+	grep -q '^resources: \[\]$' "$PROJ/brickkit.yaml" || return 1
+	python3 - "$PROJ/brickkit.yaml" <<-'PYEOF'
+		import sys
+		path = sys.argv[1]
+		body = open(path, encoding="utf-8").read()
+		open(path, "w", encoding="utf-8").write(body.replace("resources: []", """resources:
+		  - kind: database
+		    engine: postgresql
+		    id: pg-smoke
+		    host: pg
+		    port: 5432
+		    username: brickkit
+		    password: smoke
+		    bindings:
+		      - componentId: demo/caller
+		        database: brickkit""", 1))
+	PYEOF
+}
+
 tier_why() {
 	case "$1" in
 		docker) [[ $have_docker -eq 0 ]] && echo "没有可用的 Docker" || echo "缺组件镜像（brickkit-demo/hello:1.0.0 等，见 试用指南/00-准备.md）" ;;
@@ -81,6 +108,15 @@ while IFS=$'\t' read -r tier what _env cmd expect; do
 		continue
 	fi
 	case " $ran_tiers " in *" $tier "*) ;; *) ran_tiers="$ran_tiers $tier" ;; esac
+
+	# `!` 开头的是**夹具步骤**，不是 brickkit 命令：把项目推到某个状态，
+	# 不比对输出。demo/caller 声明了 database 依赖，没有这一步的话
+	# `up` 会正确地报"资源依赖未满足"——那不是指南坏了，是夹具不真实。
+	if [[ "$cmd" == "!bind-pg" ]]; then
+		bind_pg && printf "  ✅ [%s] %s\n" "$tier" "$what" && pass=$((pass + 1)) \
+			|| { printf "  ❌ [%s] %s\n" "$tier" "$what"; fail=$((fail + 1)); }
+		continue
+	fi
 
 	# add 在组件已存在时会交互式确认，给它 --yes；其余命令不认这个参数。
 	# 早先写成"先带 --yes 跑、失败再裸跑一次"，结果 init 被执行了两次——

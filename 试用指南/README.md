@@ -151,14 +151,14 @@ cd <仓库根目录>
 | `brickkit.yaml` 解析与校验 | [internal/config/](../internal/config/) | 003 |
 | `component.yaml` 解析与校验 | [internal/manifest/](../internal/manifest/) | 002 |
 | 安装源（market / git / local） | [internal/source/](../internal/source/) | 003 §6 |
-| 依赖解析、拓扑排序 | [internal/resolver/](../internal/resolver/) | 004 §5 |
+| 依赖解析、拓扑排序 | [internal/resolver/](../internal/resolver/) | 004 §4 |
 | 级联启停（enabled 三态） | [internal/cascade/](../internal/cascade/) | 003 §4.3 |
 | 环境变量注入、资源配额合并 | [internal/inject/](../internal/inject/) | 004 §5.6、006 §5 |
 | 生成 docker-compose.yaml | [internal/compose/](../internal/compose/) | 005 §3 |
 | 生成 K8s 清单 | [internal/k8s/](../internal/k8s/) | 005 §5 |
-| 调 docker / kubectl | [internal/engine/](../internal/engine/) | 005 §7 |
+| 调 docker / kubectl | [internal/engine/](../internal/engine/) | 005 §3.3、§5.7 |
 | 升级兼容性检查 | [internal/resolver/resolver.go](../internal/resolver/resolver.go) | 002 §7.7 |
-| 配置备份与恢复 | [internal/backup/](../internal/backup/) | 003 §9 |
+| 配置备份与恢复 | [internal/backup/](../internal/backup/) | 003 §7 |
 | 组件源码工作区（`sync` / `--repo`） | [internal/workspace/](../internal/workspace/) | 004 §3.9 |
 | 市场后端 | [market-server/](../market-server/) | 007 |
 | 试验用的真实组件 | [tests/components/](../tests/components/) | 009 |

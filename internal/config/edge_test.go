@@ -666,3 +666,34 @@ func TestClosestFieldOnlyGuessesWhenClose(t *testing.T) {
 	assert.Empty(t, closestField("completelyUnrelated", known),
 		"八竿子打不着的名字不该猜——乱猜比不猜更误导人")
 }
+
+// 平台不认识的资源类型必须当场报错（006 §2.1）。
+//
+// kind 决定注入哪一组连接变量。写了 message-queue 这类平台不认识的值时，
+// 注入引擎的 switch 一条都不命中——组件一个 MQ_* 都拿不到，而 up 一路绿灯、
+// 生成的部署文件看上去完全正常，要到运行时才炸。设计书 003 §5.2 与 006 §2.1
+// 一度列的正是 message-queue / object-storage / mail，照着写的人会直接踩中。
+func TestUnknownResourceKindIsRejected(t *testing.T) {
+	for _, kind := range []string{"message-queue", "object-storage", "mail", "identity-source"} {
+		t.Run(kind, func(t *testing.T) {
+			_, err := ParseConfig([]byte(`project: my-erp
+deploy:
+  target: docker
+components:
+  - id: people/basic
+    version: 1.0.0
+resources:
+  - kind: ` + kind + `
+    engine: rabbitmq
+    id: mq-main
+    host: mq
+    port: 5672
+`), "brickkit.yaml")
+
+			require.Error(t, err, "不认识的 kind 不能静默放过")
+			assert.Contains(t, err.Error(), "不是平台认识的资源类型")
+			assert.Contains(t, err.Error(), "database / cache / mq / storage / search / smtp",
+				"要把可选值列出来：使用者多半只是名字写岔了")
+		})
+	}
+}

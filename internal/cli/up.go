@@ -175,7 +175,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	}
 	renderMigrations(opts, plan.migrations)
 
-	return start(ctx, opts, eng, plan, path)
+	return start(ctx, opts, eng, plan, path, pruneSelectorFor(flags, plan))
 }
 
 // buildUpPlan 从配置一路算到"要启动哪些 service"。
@@ -251,6 +251,21 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		return plan, nil
 	}
 
+	// 资源绑定必须在生成之前查（006 §4.4、011 §5.3）：没绑定就一个
+	// DATABASE_* 都注不进去，而那份 compose 看上去完全正常——
+	// 组件要到运行时才炸成"连不上库"，一句把配置遗漏指向别处的错误。
+	//
+	// `--dry-run` 时降级成警告：那条命令的语义是"告诉我会发生什么"，
+	// 拿它阻断的话，一个还没配资源的项目连"看看会生成什么"都做不到
+	// （试用指南 04 讲 enabled 三态时用的正是这条命令，那时资源还没登场）。
+	if problem := resolver.CheckRunningResourceBindings(
+		cfg, plan.graph, plan.states.Running()); problem != nil {
+		if !flags.dryRun {
+			return nil, problem
+		}
+		renderWarnings(opts, []*clierr.Error{dryRunResourceWarning(problem)})
+	}
+
 	order, err := resolver.Order(plan.graph.Subgraph(plan.states.Running()))
 	if err != nil {
 		return nil, err
@@ -268,6 +283,19 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	}
 	plan.collectTargets(order)
 	return plan, nil
+}
+
+// dryRunResourceWarning 把"资源未绑定"降级成 --dry-run 下的警告。
+//
+// 换掉标题与建议里"已阻断"那层意思，其余明细原样保留——
+// 使用者要看的是"哪个组件缺哪个资源"，那部分两种模式下完全一样。
+func dryRunResourceWarning(problem *clierr.Error) *clierr.Error {
+	w := clierr.Warn(problem.Code, "警告：资源依赖未满足（--dry-run 不阻断）")
+	w.Details = problem.Details
+	return w.WithHint(
+		"生成的部署文件里**不会有**这些组件的资源连接变量（DATABASE_* 等）",
+		"在 brickkit.yaml → resources 中声明并绑定后再 up；不加 --dry-run 时这里会直接阻断",
+	)
 }
 
 // generate 按部署目标渲染部署文件（005 §5）。
@@ -351,14 +379,19 @@ func (p *upPlan) collectTargets(order *resolver.Plan) {
 }
 
 // start 调引擎把项目跑起来，然后如实汇报每个 service 的状态。
+//
+// pruneSelector 为空表示本次不清理孤儿（`--only`），判据与 K8s 侧同源，
+// 见 pruneSelectorFor。
 func start(
-	ctx context.Context, opts *Options, eng engine.Engine, plan *upPlan, file string,
+	ctx context.Context, opts *Options, eng engine.Engine, plan *upPlan,
+	file, pruneSelector string,
 ) error {
 	project := engine.ProjectName(plan.cfg.Project)
 
 	opts.Printf("\n🐳 正在启动（%s）...\n", eng.Name())
 	if err := eng.Up(ctx, engine.UpRequest{
 		File: file, Project: project, ProjectDir: opts.WorkDir, Services: plan.services,
+		PruneSelector: pruneSelector,
 	}); err != nil {
 		return engineFailure("启动", err)
 	}

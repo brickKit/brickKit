@@ -76,6 +76,36 @@ func TestUpCommand(t *testing.T) {
 	assert.Contains(t, call, "people-basic-1-0-0")
 }
 
+// `--remove-orphans` 只在"本次要清理孤儿"时才带（P38 的 Docker 侧）。
+//
+// 它删的是"compose 文件里没有的容器"，而 `--only` 生成的文件**只含被点名的子集**——
+// 其余组件与 CLI 托管的资源容器全部落进它的射程。K8s 侧早就为这件事设了防
+// （up_k8s.go 的 pruneSelectorFor），Docker 侧当时以为 `--remove-orphans` 是
+// 同一件事的等价物，其实正相反：它做的恰恰是被论证过不可接受的那件事
+// ——把没点名、正在服务的组件下线（005 §5.9.1）。
+func TestUpRemoveOrphansFollowsPruneSelector(t *testing.T) {
+	t.Run("整个项目一起起：清理孤儿", func(t *testing.T) {
+		rec := newRecorder()
+		require.NoError(t, dockerWith(rec).Up(context.Background(), UpRequest{
+			File: "f.yaml", Project: "brickkit-my-erp",
+			Services:      []string{"people-basic-1-0-0"},
+			PruneSelector: "brickkit.io/project=my-erp",
+		}))
+		assert.Contains(t, rec.lastCall(t), "--remove-orphans",
+			"配置里删掉的组件要跟着下线，否则就是永久泄漏")
+	})
+
+	t.Run("--only 只起子集：绝不清理", func(t *testing.T) {
+		rec := newRecorder()
+		require.NoError(t, dockerWith(rec).Up(context.Background(), UpRequest{
+			File: "f.yaml", Project: "brickkit-my-erp",
+			Services: []string{"demo-hello-1-0-0"},
+		}))
+		assert.NotContains(t, rec.lastCall(t), "--remove-orphans",
+			"没点名的组件不是孤儿，删它们等于把线上组件下线")
+	})
+}
+
 // down 绝不能带 -v：那会连数据库数据一起删掉（004 §3.6）。
 func TestDownNeverRemovesVolumes(t *testing.T) {
 	rec := newRecorder()

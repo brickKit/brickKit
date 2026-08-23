@@ -21,6 +21,53 @@ const (
 	HealthCheckNone = "none"
 )
 
+// 基础资源类型（006 §2.1）。
+//
+// **这份列表是封闭的，而且每一项都对应一组固定的连接变量**（006 §5.2）：
+// database→DATABASE_*、cache→REDIS_*、mq→MQ_*、storage→STORAGE_*、
+// search→SEARCH_*、smtp→SMTP_*。kind 名字与变量前缀同源不是巧合——
+// 平台认识一种 kind，靠的就是"知道该给它注入哪几个变量"。
+//
+// 因此不认识的 kind 必须**当场报错**，不能放过去：注入引擎对它无事可做，
+// 组件一个连接变量都拿不到，而 `up` 一路绿灯、部署文件看上去完全正常，
+// 要到运行时才炸。这正是平台最反对的静默失败。
+const (
+	ResourceKindDatabase = "database"
+	ResourceKindCache    = "cache"
+	ResourceKindMQ       = "mq"
+	ResourceKindStorage  = "storage"
+	ResourceKindSearch   = "search"
+	ResourceKindSMTP     = "smtp"
+)
+
+// ResourceKinds 是全部合法的资源类型，顺序与 006 §2.1 的表一致。
+var ResourceKinds = []string{
+	ResourceKindDatabase, ResourceKindCache, ResourceKindMQ,
+	ResourceKindStorage, ResourceKindSearch, ResourceKindSMTP,
+}
+
+// IsKnownResourceKind 判断资源类型是否是平台认识的那几种。
+func IsKnownResourceKind(kind string) bool {
+	for _, known := range ResourceKinds {
+		if kind == known {
+			return true
+		}
+	}
+	return false
+}
+
+// ResourceKindsText 把合法资源类型拼成一行，用于错误提示。
+func ResourceKindsText() string {
+	out := ""
+	for i, kind := range ResourceKinds {
+		if i > 0 {
+			out += " / "
+		}
+		out += kind
+	}
+	return out
+}
+
 // Manifest 是 component.yaml 的完整结构。
 type Manifest struct {
 	APIVersion    string         `yaml:"apiVersion"`

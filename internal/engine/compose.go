@@ -33,9 +33,15 @@ func (c *Compose) Name() string { return c.name }
 // `--wait` 让 compose 一直等到所有容器 running/healthy 才返回。没有它，
 // `up -d` 只保证"启动命令发出去了"：依赖链末端的组件此刻多半还是
 // health=starting，紧接着查状态会得到一个假的失败结论。
+//
+// `--remove-orphans` 只在 PruneSelector 非空时带上，理由见该字段的说明：
+// 它删的是"compose 文件里没有的容器"，而 `--only` 生成的文件只含被点名的
+// 子集——无条件带上就等于把没点名、正在服务的组件全部下线（005 §5.9.1）。
 func (c *Compose) Up(ctx context.Context, req UpRequest) error {
-	args := append(c.projectArgs(req.File, req.Project, req.ProjectDir),
-		"up", "-d", "--wait", "--remove-orphans")
+	args := append(c.projectArgs(req.File, req.Project, req.ProjectDir), "up", "-d", "--wait")
+	if req.PruneSelector != "" {
+		args = append(args, "--remove-orphans")
+	}
 	args = append(args, req.Services...)
 
 	if _, err := c.exec(ctx, args...); err != nil {

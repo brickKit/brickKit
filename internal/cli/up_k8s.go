@@ -64,10 +64,12 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 // 返回空串表示**不清理**。
 //
 // `--only` 时必须返回空：那时 plan.services 只是被点名的子集，
-// 其余组件照样在集群里正常服务——把它们当孤儿删掉，后果比 P38 本身
+// 其余组件照样在正常服务——把它们当孤儿删掉，后果比 P38 本身
 // （多跑一个没人用的旧版本）严重得多，那是**把正在服务的组件下线**。
 //
-// 只对 K8s 目标有意义：Docker 那边由 compose 的 `--remove-orphans` 兜底。
+// **两种目标共用这一个判据。** Docker 那边曾经无条件带 `--remove-orphans`，
+// 以为它与 K8s 侧的清理等价；实际上它删的正是"没被点名的那些"，
+// 即这条注释论证过不可接受的那件事。判据只有一份，就不会再分叉。
 func pruneSelectorFor(flags upOptions, plan *upPlan) string {
 	if len(flags.only) > 0 {
 		return ""

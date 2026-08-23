@@ -320,8 +320,14 @@ func (c *Config) validateResources(p *clierr.ProblemSet) {
 	for i, r := range c.Resources {
 		field := indexed("resources", i)
 
-		if r.Kind == "" {
+		switch {
+		case r.Kind == "":
 			p.Missing(field + ".kind")
+		case !manifest.IsKnownResourceKind(r.Kind):
+			// 不认识的 kind 不能放过去：注入引擎对它无事可做，组件一个
+			// 连接变量都拿不到，而 up 一路绿灯、部署文件看上去完全正常
+			p.Addf(field+".kind", "不是平台认识的资源类型（当前是 %s）；可选：%s",
+				r.Kind, manifest.ResourceKindsText())
 		}
 		if r.Engine == "" {
 			p.Missing(field + ".engine")

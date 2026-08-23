@@ -76,14 +76,22 @@ type UpRequest struct {
 	// 清理时若只看名字，副本数从 3 改回 1 之后那份 PDB 会被当成"该留的"，
 	// 从此永远拦着 kubectl drain（minikube 上真跑到过）。
 	DesiredPDBs []string
-	// PruneSelector 是清理孤儿资源用的标签选择器（如 `brickkit.io/project=my-erp`）。
+	// PruneSelector 是"本次允不允许清理孤儿"的开关，两种目标共用一个判据。
 	//
 	// **空表示不清理**，这不是省略而是一种明确的表达：`--only` 只部署子集，
 	// 那时 Services 里没有的组件并不是孤儿，照着清理会把它们全删掉——
 	// 比 P38 本身危险得多。命令层用"不给选择器"表达这件事。
 	//
-	// 只对 K8s 目标有意义：compose 有 `--remove-orphans` 兜底，
-	// 而 `kubectl apply` 默认不删目录里没有的资源（P38）。
+	// 两种目标各自怎么落地：
+	//
+	//	K8s     `kubectl apply` 默认不删目录里没有的资源，CLI 按这个标签
+	//	        选择器（如 `brickkit.io/project=my-erp`）比对集群实际资源。
+	//	Docker  compose 的 `--remove-orphans` 就是这件事，选择器的值用不上，
+	//	        只用"空 / 非空"决定带不带这个参数。
+	//
+	// 早先 Docker 侧无条件带 `--remove-orphans`，以为它与 K8s 侧的清理等价。
+	// 其实相反：`--only` 生成的 compose 文件只含被点名的子集，其余组件与
+	// CLI 托管的资源容器全都成了 orphan，一条 `up --only` 就把它们全删了。
 	PruneSelector string
 	// OnPrune 在清理掉一个孤儿资源时回调，供命令层如实汇报；为 nil 时不回调。
 	//

@@ -424,6 +424,63 @@ func newDependencies(cfg *config.Config, graph *Graph, target Ref) []Ref {
 	return out
 }
 
+// CheckRunningResourceBindings 校验**本次会启动的**组件的资源依赖都已绑定
+// （006 §4.4、011 §5.3：`brickkit up` 时检查，未绑定则报错阻断）。
+//
+// # 为什么只查会启动的那些
+//
+// 试用指南 02 §2.5 教的做法是"用 enabled: false 把暂时不用的组件关掉，
+// 而不是删掉"——那些组件当然还没绑资源。拿它们卡住 up，等于逼使用者
+// 要么删组件，要么为一个根本不跑的容器编一份数据库配置。
+//
+// `external` 组件同样跳过：平台不部署它、不跑它的迁移，它连哪个库
+// 是**部署它的那个项目**的事（003 §4.9）。
+//
+// # 为什么要一次报全
+//
+// 拼装一个新项目时往往几个组件同时缺绑定。一次只报一个，使用者就得
+// "改一行、跑一次"地来回好几趟，而每一趟的报错看上去都像新问题。
+//
+// # 返回 *clierr.Error 而不是 error
+//
+// "该不该阻断"是命令层的决定：真的 `up` 必须拦下，而 `--dry-run` 的语义是
+// "告诉我会发生什么"，那时它该以警告出现（否则一个还没配资源的项目
+// 连"看看会生成什么"都做不到）。把判断留给调用方，这里只负责说清楚是什么问题。
+func CheckRunningResourceBindings(cfg *config.Config, graph *Graph, running []Ref) *clierr.Error {
+	if cfg == nil || graph == nil {
+		return nil
+	}
+	external := map[string]bool{}
+	for _, c := range cfg.Components {
+		if c.IsExternal() {
+			external[c.ID+"@"+c.Version] = true
+		}
+	}
+
+	var details []clierr.Detail
+	for _, ref := range running {
+		if external[ref.String()] {
+			continue
+		}
+		node := graph.Node(ref)
+		if node == nil {
+			continue
+		}
+		details = append(details, unboundResourceDetails(cfg, node.Manifest)...)
+	}
+	if len(details) == 0 {
+		return nil
+	}
+
+	e := clierr.New(clierr.CodeResourceUnbound, "错误：资源依赖未满足")
+	e.Details = append(e.Details, details...)
+	return e.WithHint(
+		"在 brickkit.yaml → resources 中声明该资源（kind + engine 必须与组件声明的一致）",
+		"在该资源的 bindings 中加入 componentId: <组件ID>",
+		"暂时不想跑这个组件的话，给它写 enabled: false",
+	)
+}
+
 // CheckResourceBindings 校验组件声明的资源依赖是否已在 brickkit.yaml 中
 // 声明（kind + engine）且绑定给该组件（003 §5.3）。
 //
@@ -432,37 +489,47 @@ func CheckResourceBindings(cfg *config.Config, m *manifest.Manifest) error {
 	if m == nil || m.Dependencies == nil || len(m.Dependencies.Resources) == 0 {
 		return nil
 	}
+	problems := unboundResourceDetails(cfg, m)
+	if len(problems) == 0 {
+		return nil
+	}
+
+	e := clierr.New(clierr.CodeResourceUnbound, "错误：资源依赖未满足")
+	e.Details = append(e.Details, problems...)
+	return e.WithHint(
+		"在 brickkit.yaml → resources 中声明该资源（kind + engine 必须匹配）",
+		"在该资源的 bindings 中加入 componentId: "+m.Metadata.ID,
+	)
+}
+
+// unboundResourceDetails 列出一个组件没被满足的资源依赖。
+//
+// 每条都带上组件引用：一次报多个组件时，光说"缺 database"没法定位是谁缺。
+func unboundResourceDetails(cfg *config.Config, m *manifest.Manifest) []clierr.Detail {
+	if m == nil || m.Dependencies == nil || len(m.Dependencies.Resources) == 0 {
+		return nil
+	}
 	ref := Ref{ID: m.Metadata.ID, Version: m.Metadata.Version}
 
-	problems := make([]clierr.Detail, 0, len(m.Dependencies.Resources))
+	out := make([]clierr.Detail, 0, len(m.Dependencies.Resources))
 	for _, dep := range m.Dependencies.Resources {
 		declared, bound := matchResource(cfg, dep, m.Metadata.ID)
 		switch {
 		case bound:
 			continue
 		case declared == "":
-			problems = append(problems, clierr.Detail{
-				Key:   "缺失",
-				Value: "kind: " + dep.Kind + "、engine: " + dep.Engine + "（brickkit.yaml 的 resources 中未声明）",
+			out = append(out, clierr.Detail{
+				Key:   ref.String(),
+				Value: "需要 kind: " + dep.Kind + "、engine: " + dep.Engine + "（brickkit.yaml 的 resources 中未声明）",
 			})
 		default:
-			problems = append(problems, clierr.Detail{
-				Key:   "缺失",
-				Value: "kind: " + dep.Kind + "、engine: " + dep.Engine + "（资源 " + declared + " 已声明，但未绑定给该组件）",
+			out = append(out, clierr.Detail{
+				Key:   ref.String(),
+				Value: "需要 kind: " + dep.Kind + "、engine: " + dep.Engine + "（资源 " + declared + " 已声明，但未绑定给该组件）",
 			})
 		}
 	}
-	if len(problems) == 0 {
-		return nil
-	}
-
-	e := clierr.New(clierr.CodeResourceUnbound, "错误：资源依赖未满足").
-		WithDetail("组件", ref.String())
-	e.Details = append(e.Details, problems...)
-	return e.WithHint(
-		"在 brickkit.yaml → resources 中声明该资源（kind + engine 必须匹配）",
-		"在该资源的 bindings 中加入 componentId: "+m.Metadata.ID,
-	)
+	return out
 }
 
 // matchResource 返回匹配该资源依赖的资源 ID，以及是否已绑定给该组件。

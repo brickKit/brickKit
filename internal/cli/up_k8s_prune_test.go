@@ -73,14 +73,32 @@ func TestUpK8sSaysNothingWhenNothingPruned(t *testing.T) {
 	assert.NotContains(t, r.stdout, "清理旧版本", "P38：没清理就别提这件事：%s", r.stdout)
 }
 
-// Docker 目标不受影响：compose 用 `--remove-orphans` 自己兜底。
-func TestUpDockerDoesNotSetPruneSelector(t *testing.T) {
-	f := composeProject(t)
-	eng := newFakeEngine()
+// Docker 目标用**同一个判据**决定要不要清理孤儿。
+//
+// 这里曾经断言 Docker 永远不设 PruneSelector，理由是"compose 的
+// --remove-orphans 自己兜底"。那个理由不成立：`--only` 生成的 compose
+// 文件只含被点名的子集，无条件 --remove-orphans 会把其余组件与
+// CLI 托管的资源容器一起删掉——正是 pruneSelectorFor 论证过不可接受的事。
+func TestUpDockerPrunesOnlyWhenNotRestricted(t *testing.T) {
+	t.Run("整个项目一起起：要清理", func(t *testing.T) {
+		f := composeProject(t)
+		eng := newFakeEngine()
 
-	r := runWithEngine(t, eng, f.Dir, "up")
-	require.Equal(t, 0, r.code, r.stderr)
+		r := runWithEngine(t, eng, f.Dir, "up")
+		require.Equal(t, 0, r.code, r.stderr)
 
-	assert.Empty(t, eng.lastUp(t).PruneSelector,
-		"P38：Docker 那边由 compose 的 --remove-orphans 负责")
+		assert.NotEmpty(t, eng.lastUp(t).PruneSelector,
+			"配置里删掉的组件要跟着下线，否则容器会永远留着")
+	})
+
+	t.Run("--only 只起子集：不清理", func(t *testing.T) {
+		f := composeProject(t)
+		eng := newFakeEngine()
+
+		r := runWithEngine(t, eng, f.Dir, "up", "--only", "people/basic")
+		require.Equal(t, 0, r.code, r.stderr)
+
+		assert.Empty(t, eng.lastUp(t).PruneSelector,
+			"没点名的组件不是孤儿，删它们等于把线上组件下线")
+	})
 }

@@ -89,6 +89,73 @@ func TestUpgradeWithUnboundResourceIsBlocked(t *testing.T) {
 	assert.Empty(t, eng.ups, "38.7：拦下了就不该启动任何东西")
 }
 
+// 同一条检查在**普通 up**上也必须成立（006 §4.4、011 §5.3）。
+//
+// CheckResourceBindings 长期只挂在升级路径上，于是"从来没升级过"的项目
+// 一次也没被检查过：组件声明了 database 却没人绑，`up` 一路绿灯，
+// 生成的 service 里一个 DATABASE_* 都没有，要到运行时才炸成"连不上库"。
+// 这正是平台最反对的静默失败。
+func TestUpWithUnboundResourceIsBlocked(t *testing.T) {
+	f := addedProject(t, []comp{{
+		ID: "people/basic", Version: "1.0.0",
+		ResourceDeps: []string{"database:postgres"},
+	}}, "people/basic@1.0.0")
+	f.writeConfig(t, "components:\n  - id: people/basic\n    version: 1.0.0\n")
+
+	eng := newFakeEngine()
+	r := runWithEngine(t, eng, f.Dir, "up")
+
+	require.NotEqual(t, clierr.ExitOK, r.code,
+		"组件要数据库而没人绑，必须在启动前拦下：%s", r.stdout)
+	assert.Contains(t, r.stderr+r.stdout, "people/basic", "要说清是哪个组件")
+	assert.Empty(t, eng.ups, "拦下了就不该启动任何东西")
+}
+
+// `--dry-run` 只警告，不阻断。
+//
+// 那条命令的语义是"告诉我会发生什么"。拿它阻断的话，一个还没配资源的项目
+// 连"看看会生成什么"都做不到——而试用指南 04 讲 enabled 三态时用的正是
+// `up --only ... --dry-run`，那时资源还没登场。
+func TestUpDryRunWarnsButDoesNotBlockOnUnboundResource(t *testing.T) {
+	f := addedProject(t, []comp{{
+		ID: "people/basic", Version: "1.0.0",
+		ResourceDeps: []string{"database:postgres"},
+	}}, "people/basic@1.0.0")
+	f.writeConfig(t, "components:\n  - id: people/basic\n    version: 1.0.0\n")
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code,
+		"--dry-run 不该因为资源没绑就失败：%s", r.stdout+r.stderr)
+	out := r.stdout + r.stderr
+	assert.Contains(t, out, "资源依赖未满足", "但必须说出来：%s", out)
+	assert.Contains(t, out, "people/basic", "要说清是哪个组件：%s", out)
+}
+
+// 不启动的组件不参与这条检查。
+//
+// 试用指南 02 §2.5 教的正是"用 enabled: false 把暂时不用的关掉，而不是删掉"，
+// 那些组件的资源当然还没绑。拿它们去卡住 up，等于逼使用者要么删组件、
+// 要么为一个根本不跑的容器编一份数据库配置。
+func TestUpSkipsBindingCheckForComponentsThatDoNotStart(t *testing.T) {
+	f := addedProject(t, []comp{
+		{ID: "demo/hello", Version: "1.0.0"},
+		{ID: "people/basic", Version: "1.0.0", ResourceDeps: []string{"database:postgres"}},
+	}, "demo/hello@1.0.0", "people/basic@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+  - id: people/basic
+    version: 1.0.0
+    enabled: false
+`)
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code,
+		"被显式关掉的组件不该因为没绑资源而卡住整个项目：%s", r.stdout+r.stderr)
+}
+
 // ============================================================
 // 38.18 / 38.19 / 38.21 / 38.22 升级摘要要说清"改了什么"
 // ============================================================
