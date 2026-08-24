@@ -120,8 +120,10 @@ var gitignoreSections = []gitignoreSection{
 	{"# 登录凭据（包含 Token）", []string{".brickkit/credentials"}},
 	{"# 环境变量文件（包含密码）", []string{".env"}},
 	{"# 组件源码目录（每个组件是独立的 Git 仓库，不提交到项目仓库）", []string{"components/"}},
-	{"# API 契约缓存（可选，团队可共享则注释掉此行）", []string{"# .brickkit/artifacts/"}},
-	{"# Manifest 缓存（可选，团队可共享则注释掉此行）", []string{"# .brickkit/manifests/"}},
+	// 这两条**默认是注释掉的**：契约与 Manifest 缓存默认跟着项目一起提交，
+	// 团队共享同一份。取消注释才会忽略它们。
+	{"# API 契约与 Manifest 缓存：默认提交、团队共享。不想提交就取消下面两行的注释",
+		[]string{"# .brickkit/artifacts/", "# .brickkit/manifests/"}},
 }
 
 // EnsureGitignore 确保 .gitignore 含有 BrickKit 需要的忽略规则。
