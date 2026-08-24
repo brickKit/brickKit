@@ -101,13 +101,16 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 	}
 	renderSignatures(opts, client.SignatureStatuses())
 
-	if added == 0 {
+	if len(added) == 0 {
 		opts.Printf("✅ brickkit.yaml 未变更（组件已在配置中）\n")
 	} else {
-		opts.Printf("✅ 已写入 brickkit.yaml（%d 个组件）\n", added)
+		opts.Printf("✅ 已写入 brickkit.yaml（%d 个组件）\n", len(added))
 	}
+	// 与单个 add 一致：弱依赖写进去了但默认不会启动，装完就得说。
+	// 传全部图：判定要看并集，逐图判断会把结论判反（见 renderWeakDependencyHint）
+	renderWeakDependencyHint(opts, graphs, added)
 	logging.Info("本地组件已批量添加",
-		"scanned", len(scan.Components), "problems", len(scan.Problems), "added", added)
+		"scanned", len(scan.Components), "problems", len(scan.Problems), "added", len(added))
 	return nil
 }
 
@@ -185,26 +188,31 @@ func downloadLocalArtifacts(
 	return out
 }
 
-// writeLocalComponents 把所有依赖图里的组件一次性写进配置。
-func writeLocalComponents(layout config.Layout, graphs []*resolver.Graph) (int, error) {
+// writeLocalComponents 把所有依赖图里的组件一次性写进配置，返回**这次新增**的那些。
+//
+// 返回的是引用而不是计数：装完要按 004 §3.3 提醒哪些是弱依赖（默认不会启动），
+// 而那句提示只该提这一次新写进去的。
+func writeLocalComponents(
+	layout config.Layout, graphs []*resolver.Graph,
+) ([]resolver.Ref, error) {
 	edit, err := config.OpenEdit(layout.ConfigPath())
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	added := 0
+	var added []resolver.Ref
 	for _, g := range graphs {
 		for _, node := range g.Nodes {
 			if edit.AddComponent(node.Ref.ID, node.Ref.Version) {
-				added++
+				added = append(added, node.Ref)
 			}
 		}
 	}
-	if added == 0 {
-		return 0, nil
+	if len(added) == 0 {
+		return nil, nil
 	}
 	if err := edit.Save(); err != nil {
-		return 0, err
+		return nil, err
 	}
 	return added, nil
 }

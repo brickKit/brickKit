@@ -181,24 +181,57 @@ func classify(
 	}
 }
 
-// onlyWeaklyNeeded 判断某个组件是否只被弱依赖指向。
-func onlyWeaklyNeeded(graph *resolver.Graph, ref resolver.Ref) bool {
-	node := graph.Node(ref)
-	if node == nil || len(node.Dependents) == 0 {
-		return false
-	}
-	for _, dependent := range node.Dependents {
-		parent := graph.Node(dependent)
-		if parent == nil {
+// OnlyWeaklyNeededIn 判断把这几张图**合起来看**时，某个组件是否只被弱依赖指向
+//
+//	——也就是级联不会把它拉起来。
+//
+// 导出是给 `brickkit add` 用的：装完就该告诉使用者"它写进配置了，但默认不会
+// 启动"，而不是等到 `up` 的时候他自己发现少了一个容器（004 §3.3）。
+//
+// # 为什么收多张图
+//
+// `add --local` 一次解析多个根，**每个根一张图**；而 `up` 面对的是整个配置合成的
+// 一张图。逐图判断会判反两次：
+//
+//	组件自己也是一个根        它那张图里没有依赖方，看起来"没人要它"
+//	A 图里是弱依赖、B 图里是强依赖   它照样会启动，说"不会启动"就是错的
+//
+// 所以判据是跨图的两件事：**有人弱依赖它**，且**没有人强依赖它**。
+// 单张图是这条规则的退化情形，classify 走的也是它——规则只有一份，
+// 命令层再写一遍迟早会与级联分叉。
+func OnlyWeaklyNeededIn(graphs []*resolver.Graph, ref resolver.Ref) bool {
+	weaklyNeeded := false
+	for _, graph := range graphs {
+		node := graph.Node(ref)
+		if node == nil {
 			continue
 		}
-		for _, required := range parent.Requires {
-			if required == ref {
-				return false
+		for _, dependent := range node.Dependents {
+			parent := graph.Node(dependent)
+			if parent == nil {
+				continue
 			}
+			if containsRef(parent.Requires, ref) {
+				return false // 有人强依赖它 → 它会跟着启动
+			}
+			weaklyNeeded = true
 		}
 	}
-	return true
+	return weaklyNeeded
+}
+
+// onlyWeaklyNeeded 是单张图上的退化情形。
+func onlyWeaklyNeeded(graph *resolver.Graph, ref resolver.Ref) bool {
+	return OnlyWeaklyNeededIn([]*resolver.Graph{graph}, ref)
+}
+
+func containsRef(refs []resolver.Ref, want resolver.Ref) bool {
+	for _, ref := range refs {
+		if ref == want {
+			return true
+		}
+	}
+	return false
 }
 
 // ============================================================
