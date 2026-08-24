@@ -190,6 +190,113 @@ func TestRemovePreservesRestOfConfig(t *testing.T) {
 }
 
 // ============================================================
+// remove 与资源绑定
+// ============================================================
+
+// remove 掉最后一个版本时，指向它的资源绑定一并解除。
+//
+// 不解除的后果不是"多一行没用的配置"，而是**项目直接锁死**：
+// 这条绑定曾经是校验硬错误，于是一条报成功的 remove 之后，
+// 此后每一个命令都会撞在同一堵墙上，而错误说的是资源配置，
+// 与使用者刚做的事对不上号。
+func TestRemoveClearsResourceBindings(t *testing.T) {
+	comps := []comp{
+		{ID: "people/basic", Version: "1.0.0"},
+		{ID: "department/tree", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "people/basic@1.0.0", "department/tree@1.0.0")
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+  - id: department/tree
+    version: 1.0.0
+resources:
+  - kind: database
+    engine: postgresql
+    id: pg-main
+    host: host.docker.internal
+    port: 5432
+    password: ${PG_PASSWORD}
+    bindings:
+      - componentId: people/basic
+        database: people
+      - componentId: department/tree
+        database: department
+`)
+
+	r := runIn(t, f.Dir, "remove", "people/basic")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "🗑️ 已解除资源绑定：pg-main")
+
+	cfg := f.parsed(t)
+	require.Len(t, cfg.Resources, 1, "资源声明本身要留着——库还在那儿跑")
+	require.Len(t, cfg.Resources[0].Bindings, 1)
+	assert.Equal(t, "department/tree", cfg.Resources[0].Bindings[0].ComponentID)
+	assert.Empty(t, cfg.DanglingBindings())
+
+	// 真正要守住的是这一条：remove 之后项目还能用
+	assert.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "order").code,
+		"remove 之后配置必须仍然可用")
+	assert.Contains(t, f.config(t), "${PG_PASSWORD}", "改绑定不能顺手展开密钥引用")
+}
+
+// 同 ID 还有其他版本时绑定必须保留：绑定按组件 ID 记，不带版本（003 §5.3）。
+func TestRemoveKeepsBindingWhenAnotherVersionRemains(t *testing.T) {
+	comps := []comp{
+		{ID: "people/basic", Version: "1.0.0"},
+		{ID: "people/basic", Version: "2.0.0"},
+	}
+	f := addedProject(t, comps, "people/basic@1.0.0", "people/basic@2.0.0")
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+  - id: people/basic
+    version: 2.0.0
+resources:
+  - kind: database
+    engine: postgresql
+    id: pg-main
+    host: host.docker.internal
+    port: 5432
+    bindings:
+      - componentId: people/basic
+        database: people
+`)
+
+	r := runIn(t, f.Dir, "remove", "people/basic@1.0.0")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "已解除资源绑定")
+
+	cfg := f.parsed(t)
+	require.Len(t, cfg.Resources[0].Bindings, 1, "2.0.0 还要用这条绑定")
+	assert.Equal(t, "people/basic", cfg.Resources[0].Bindings[0].ComponentID)
+}
+
+// 唯一一条绑定被解除后留下 `bindings: []`：资源还在，只是暂时没人用。
+func TestRemoveLeavesEmptyBindingList(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+resources:
+  - kind: database
+    engine: postgresql
+    id: pg-main
+    host: host.docker.internal
+    port: 5432
+    bindings:
+      - componentId: people/basic
+        database: people
+`)
+
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "remove", "people/basic").code)
+
+	cfg := f.parsed(t)
+	require.Len(t, cfg.Resources, 1)
+	assert.Empty(t, cfg.Resources[0].Bindings)
+}
+
+// ============================================================
 // 9.8 / 9.24 依赖方检查
 // ============================================================
 

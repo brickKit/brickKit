@@ -453,17 +453,6 @@ resources:
     bindings:
       - database: people
 `, []string{"resources[0].bindings[0].componentId", "缺失"}},
-		{"—", "binding 指向未声明的组件", baseConfig + `
-resources:
-  - kind: database
-    engine: postgresql
-    id: pg
-    host: localhost
-    port: 5432
-    bindings:
-      - componentId: ghost/none
-        database: x
-`, []string{"resources[0].bindings[0].componentId", "未在 components 中声明"}},
 		{"—", "envPrefix 格式非法", `
 project: p
 deploy:
@@ -497,6 +486,58 @@ resources:
 			}
 		})
 	}
+}
+
+// 悬空绑定（binding 指向 components 里没有的组件）**不阻断解析**，
+// 只由 DanglingBindings 报出来供命令层警告。
+//
+// 它曾经是硬错误，代价完全不成比例：`brickkit remove` 之后必然残留一条，
+// 于是一条报成功的命令让此后**每个**命令都跑不了；而它顺带还禁掉了
+// "先声明资源与绑定、再 add 组件" 这种完全说得通的顺序。
+func TestDanglingBindingIsNotAnError(t *testing.T) {
+	cfg, err := ParseConfig([]byte(baseConfig+`
+components:
+  - id: people/basic
+    version: 1.0.0
+resources:
+  - kind: database
+    engine: postgresql
+    id: pg
+    host: host.docker.internal
+    port: 5432
+    bindings:
+      - componentId: ghost/none
+        database: x
+      - componentId: people/basic
+        database: people
+`), "brickkit.yaml")
+	require.NoError(t, err, "悬空绑定不该阻断解析")
+	require.NotNil(t, cfg)
+
+	dangling := cfg.DanglingBindings()
+	require.Len(t, dangling, 1, "只有 ghost/none 是悬空的")
+	assert.Equal(t, "pg", dangling[0].ResourceID)
+	assert.Equal(t, "ghost/none", dangling[0].ComponentID)
+}
+
+// 没有悬空绑定时 DanglingBindings 返回空。
+func TestDanglingBindingsEmptyWhenAllDeclared(t *testing.T) {
+	cfg, err := ParseConfig([]byte(baseConfig+`
+components:
+  - id: people/basic
+    version: 1.0.0
+resources:
+  - kind: database
+    engine: postgresql
+    id: pg
+    host: host.docker.internal
+    port: 5432
+    bindings:
+      - componentId: people/basic
+        database: people
+`), "brickkit.yaml")
+	require.NoError(t, err)
+	assert.Empty(t, cfg.DanglingBindings())
 }
 
 // 一次报出全部问题。

@@ -90,6 +90,70 @@ func (e *Edit) RemoveComponent(id, version string) bool {
 	return true
 }
 
+// HasComponentID 判断配置中还有没有该组件 ID 的**任何**版本。
+//
+// 资源绑定按组件 ID 记（`bindings[].componentId` 不带版本，003 §5.3），
+// 所以多版本共存时移除其中一个版本，那条绑定还得留着给剩下的版本用。
+func (e *Edit) HasComponentID(id string) bool {
+	seq := e.componentsNode(false)
+	if seq == nil {
+		return false
+	}
+	for _, item := range seq.Content {
+		if item.Kind == yaml.MappingNode && scalarField(item, "id") == id {
+			return true
+		}
+	}
+	return false
+}
+
+// RemoveBindings 删除所有指向该组件的资源绑定，返回受影响的资源 ID。
+//
+// # 为什么 remove 必须做这件事
+//
+// 组件没了，指着它的绑定就是一条谁也用不上的配置。留着它不是"无害的残留"：
+// 使用者会看到一条 `remove` 报成功，然后**下一条命令就跑不了**——
+// 那条绑定会在解析阶段被当成问题拦下来，而错误信息说的是资源配置，
+// 与他刚做的事对不上号。
+//
+// 这与 012 §2.20 的立场一致：remove 就是彻底移除，连归档目录里的源码
+// 都要一并删掉，没道理单单留下一行会绊人的配置。
+func (e *Edit) RemoveBindings(componentID string) []string {
+	resources := e.resourcesNode()
+	if resources == nil {
+		return nil
+	}
+
+	var affected []string
+	for _, resource := range resources.Content {
+		if resource.Kind != yaml.MappingNode {
+			continue
+		}
+		bindings := mappingValue(resource, "bindings")
+		if bindings == nil || bindings.Kind != yaml.SequenceNode {
+			continue
+		}
+
+		kept := make([]*yaml.Node, 0, len(bindings.Content))
+		removed := false
+		for _, binding := range bindings.Content {
+			if binding.Kind == yaml.MappingNode && scalarField(binding, "componentId") == componentID {
+				removed = true
+				continue
+			}
+			kept = append(kept, binding)
+		}
+		if !removed {
+			continue
+		}
+		// 清空后保留 `bindings: []` 而不是删掉这个键：资源本身还在，
+		// 一个空的绑定列表恰好说明"这台库现在没人用"，比键凭空消失更好读
+		bindings.Content = kept
+		affected = append(affected, scalarField(resource, "id"))
+	}
+	return affected
+}
+
 // Save 把修改写回文件。
 func (e *Edit) Save() error {
 	var buf bytes.Buffer
@@ -210,6 +274,22 @@ func (e *Edit) componentsNode(create bool) *yaml.Node {
 	return seq
 }
 
+// resourcesNode 返回 resources 序列节点；缺失或不是序列时返回 nil。
+//
+// 与 componentsNode 不同，它从不创建：编辑器不会凭空给使用者加资源声明。
+func (e *Edit) resourcesNode() *yaml.Node {
+	for i := 0; i+1 < len(e.root.Content); i += 2 {
+		if e.root.Content[i].Value != "resources" {
+			continue
+		}
+		if value := e.root.Content[i+1]; value.Kind == yaml.SequenceNode {
+			return value
+		}
+		return nil
+	}
+	return nil
+}
+
 // componentNode 构造 `- id: <id>\n  version: <version>` 条目。
 func componentNode(id, version string) *yaml.Node {
 	return &yaml.Node{
@@ -226,10 +306,21 @@ func componentNode(id, version string) *yaml.Node {
 
 // scalarField 取映射节点中某个键的标量值。
 func scalarField(node *yaml.Node, key string) string {
-	for i := 0; i+1 < len(node.Content); i += 2 {
-		if node.Content[i].Value == key {
-			return node.Content[i+1].Value
-		}
+	if value := mappingValue(node, key); value != nil {
+		return value.Value
 	}
 	return ""
+}
+
+// mappingValue 取映射节点中某个键的值节点，不存在时返回 nil。
+func mappingValue(node *yaml.Node, key string) *yaml.Node {
+	if node == nil {
+		return nil
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			return node.Content[i+1]
+		}
+	}
+	return nil
 }

@@ -28,8 +28,9 @@ func newRemoveCommand(opts *Options) *cobra.Command {
 行为：
   1. 检查是否有其他组件强依赖它 → 有则阻止移除
   2. 从 brickkit.yaml 中移除条目
-  3. 清理 Manifest 缓存与 artifacts 缓存
-  4. 自动删除源码目录：components/<scope>/<name>/ 与归档中的
+  3. 解除 resources[].bindings 中指向它的绑定（同 ID 还有其他版本时保留）
+  4. 清理 Manifest 缓存与 artifacts 缓存
+  5. 自动删除源码目录：components/<scope>/<name>/ 与归档中的
      components/.archived/<scope>/<name>/（同 ID 还有其他版本时保留）
 
 修改 brickkit.yaml 前会自动备份到 .brickkit/backup/brickkit.yaml.last，
@@ -99,6 +100,12 @@ func runRemove(ctx context.Context, opts *Options, arg string) error {
 	if !edit.RemoveComponent(target.ID, target.Version) {
 		return notInConfigError(cfg, target.ID)
 	}
+	// 组件的最后一个版本也走了，指着它的资源绑定就是一条谁也用不上的配置。
+	// 多版本共存时不动：绑定按组件 ID 记（003 §5.3），剩下的版本还要用它。
+	var unbound []string
+	if !edit.HasComponentID(target.ID) {
+		unbound = edit.RemoveBindings(target.ID)
+	}
 	if err := edit.Save(); err != nil {
 		return err
 	}
@@ -112,6 +119,9 @@ func runRemove(ctx context.Context, opts *Options, arg string) error {
 		opts.Printf("%s", w.Format())
 	}
 	opts.Printf("✅ 已移除 %s\n", target)
+	if len(unbound) > 0 {
+		opts.Printf("   🗑️ 已解除资源绑定：%s\n", strings.Join(unbound, "、"))
+	}
 	if cleanup.sourceRemoved {
 		opts.Printf("   🗑️ 已删除源码目录 %s\n", workspace.DisplayDir(target.ID))
 	}
@@ -127,6 +137,7 @@ func runRemove(ctx context.Context, opts *Options, arg string) error {
 
 	logging.Info("组件已移除",
 		"component", target.String(),
+		"unbound_resources", len(unbound),
 		"source_dir_removed", cleanup.sourceRemoved,
 		"archived_dir_removed", cleanup.archivedRemoved,
 	)

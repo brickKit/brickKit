@@ -311,11 +311,6 @@ func (c *Config) validateComponentPorts(
 }
 
 func (c *Config) validateResources(p *clierr.ProblemSet) {
-	declared := make(map[string]bool, len(c.Components))
-	for _, item := range c.Components {
-		declared[item.ID] = true
-	}
-
 	seen := make(map[string]int)
 	for i, r := range c.Resources {
 		field := indexed("resources", i)
@@ -353,17 +348,54 @@ func (c *Config) validateResources(p *clierr.ProblemSet) {
 
 		for j, b := range r.Bindings {
 			bField := fmt.Sprintf("%s.bindings[%d]", field, j)
-			switch {
-			case b.ComponentID == "":
+			// 绑定指向一个 components 里没有的组件**不在这里报错**（见 DanglingBindings）。
+			if b.ComponentID == "" {
 				p.Missing(bField + ".componentId")
-			case !declared[b.ComponentID]:
-				p.Addf(bField+".componentId", "组件 %s 未在 components 中声明", b.ComponentID)
 			}
 			if b.EnvPrefix != "" && !envPrefixRe.MatchString(b.EnvPrefix) {
 				p.Addf(bField+".envPrefix", "必须是大写字母开头的大写字母、数字与下划线（会拼进环境变量名，如 %s_DATABASE_HOST）", b.EnvPrefix)
 			}
 		}
 	}
+}
+
+// DanglingBinding 是一条指向未声明组件的资源绑定。
+type DanglingBinding struct {
+	ResourceID  string
+	ComponentID string
+}
+
+// DanglingBindings 找出指向 components 中不存在的组件的资源绑定。
+//
+// # 为什么这是警告而不是错误
+//
+// 悬空绑定的**唯一**后果是那条绑定不生效——没有组件会读它，注入引擎按组件 ID
+// 归集绑定（inject.resourceBindings），归到一个不存在的组件上就是无人认领。
+// 拿一个致命错误去挡一个无害状态，代价完全不成比例：
+//
+//   - `brickkit remove` 之后配置里必然残留这样一条（已由 Edit.RemoveBindings 清掉，
+//     但手工编辑、`git revert` 一半、多人合并冲突都能再造出来）。阻断意味着
+//     使用者在**任何**命令上都撞同一堵墙，而错误说的是资源配置，
+//     与他刚做的事对不上号；
+//   - 它还顺带禁掉了一种正常写法：先把资源与绑定声明好，再 `brickkit add` 组件。
+//     那顺序完全说得通，却会在 add 之前就报错。
+//
+// 所以只在 `up` 时说一句"这条绑定没人用"，让使用者自己决定是删掉还是把组件加回来。
+func (c *Config) DanglingBindings() []DanglingBinding {
+	declared := make(map[string]bool, len(c.Components))
+	for _, item := range c.Components {
+		declared[item.ID] = true
+	}
+
+	var out []DanglingBinding
+	for _, r := range c.Resources {
+		for _, b := range r.Bindings {
+			if b.ComponentID != "" && !declared[b.ComponentID] {
+				out = append(out, DanglingBinding{ResourceID: r.ID, ComponentID: b.ComponentID})
+			}
+		}
+	}
+	return out
 }
 
 // indexed 生成 "field[i]" 形式的字段路径。

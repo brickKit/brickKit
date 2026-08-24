@@ -356,6 +356,52 @@ resources:
 		"警告里不能把密码本身打出来")
 }
 
+// ============================================================
+// 悬空资源绑定：警告，不阻断
+// ============================================================
+
+// 绑定指向一个 components 里没有的组件 → 警告，但项目照常起来。
+//
+// 它曾经是校验硬错误，代价完全不成比例：那条绑定的唯一后果是自己不生效
+// （没有组件会读它），而阻断的后果是整个项目跑不了。
+func TestUpWarnsAboutDanglingBinding(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+
+resources:
+  - kind: database
+    engine: postgresql
+    id: postgres-main
+    host: host.docker.internal
+    port: 5432
+    bindings:
+      - componentId: people/basic
+        database: people
+      - componentId: ghost/none
+        database: ghost
+`)
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code, "警告不阻断：%s%s", r.stdout, r.stderr)
+	out := r.stdout + r.stderr
+	assert.Contains(t, out, "ghost/none")
+	assert.Contains(t, out, "postgres-main")
+	assert.Contains(t, out, "不会生效")
+}
+
+// 绑定都指向已声明的组件时，不该有这条警告。
+func TestUpDoesNotWarnWhenAllBindingsDeclared(t *testing.T) {
+	f := externalResourceProject(t)
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.NotContains(t, r.stdout+r.stderr, "components 里不存在的组件")
+}
+
 // 用了 ${ENV_VAR} 就不该有这条警告。
 func TestUpDoesNotWarnAboutEnvVarPassword(t *testing.T) {
 	f := externalResourceProject(t)

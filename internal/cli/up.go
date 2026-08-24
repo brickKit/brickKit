@@ -246,6 +246,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	renderWarnings(opts, plan.graph.Warnings)
 	renderStates(opts, plan.states)
 	renderExternals(opts, cfg)
+	warnDanglingBindings(opts, cfg)
 	warnHardcodedPasswords(opts, cfg)
 	warnConfigSecrets(opts, cfg)
 
@@ -540,6 +541,29 @@ func renderExternals(opts *Options, cfg *config.Config) {
 		opts.Printf("   %s@%s  ← 项目 %s\n", c.ID, c.Version, c.External.Project)
 	}
 	opts.Printf("   对方没部署时，本项目会正常起来但调用它时连接失败\n\n")
+}
+
+// warnDanglingBindings 提醒"这条资源绑定指向一个配置里没有的组件"。
+//
+// 只警告不阻断（理由见 config.Config.DanglingBindings）：它的唯一后果是
+// 那条绑定不生效。但必须说一句——最常见的成因是使用者手工删掉了组件条目、
+// 却漏了绑定，而他多半以为那个组件"还配着库"。
+func warnDanglingBindings(opts *Options, cfg *config.Config) {
+	dangling := cfg.DanglingBindings()
+	if len(dangling) == 0 {
+		return
+	}
+
+	err := clierr.Warn(clierr.CodeConfigInvalid, "有资源绑定指向 components 里不存在的组件")
+	for _, d := range dangling {
+		err = err.WithDetail("资源 "+d.ResourceID, "绑定了 "+d.ComponentID+"（该组件不在 components 中）")
+	}
+	renderWarnings(opts, []*clierr.Error{err.
+		WithDetail("影响", "这条绑定不会生效，也不会注入任何连接变量；其余组件不受影响").
+		WithHint(
+			"不再需要它就从 resources[].bindings 里删掉这一条",
+			"组件是误删的话，brickkit add "+dangling[0].ComponentID+" 加回来",
+		)})
 }
 
 // checkImageConcurrency 是同时进行的镜像检查数上限。
