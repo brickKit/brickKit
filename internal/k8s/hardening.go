@@ -303,7 +303,13 @@ func (p *plan) generatesServiceAccount(c componentPlan) bool {
 	return p.cfg.Deploy.ServiceAccountEnabled() && c.Entry.ServiceAccountName == ""
 }
 
-// serviceAccountNameOf 返回该组件的 Pod 该用哪个 SA；空表示不写这个字段。
+// defaultServiceAccount 是每个命名空间自带的那个 SA。
+//
+// 不写 serviceAccountName 时 K8s 就是用它，所以显式写出来在语义上是个空操作——
+// 但它**必须**被写出来，理由见 applyServiceAccount。
+const defaultServiceAccount = "default"
+
+// serviceAccountNameOf 返回该组件的 Pod 该用哪个 SA。
 func (p *plan) serviceAccountNameOf(c componentPlan) string {
 	if c.Entry.ServiceAccountName != "" {
 		return c.Entry.ServiceAccountName
@@ -311,7 +317,7 @@ func (p *plan) serviceAccountNameOf(c componentPlan) string {
 	if p.cfg.Deploy.ServiceAccountEnabled() {
 		return c.Service
 	}
-	return ""
+	return defaultServiceAccount
 }
 
 // applyServiceAccount 把 SA 相关字段写进 Pod 规格。
@@ -321,12 +327,29 @@ func (p *plan) serviceAccountNameOf(c componentPlan) string {
 //
 // 用**别人的** SA 时刻意不写这一行——那个 SA 可能正是靠令牌去调 API 的，
 // 平台无权替它决定。
+//
+// # 为什么关掉开关时也要写出 serviceAccountName: default
+//
+// **省略一个字段不等于把它取消掉。** `kubectl apply` 的三方合并本该按
+// last-applied 的差集把它删掉，但 `spec.serviceAccount` 是
+// `spec.serviceAccountName` 的**废弃别名**：置空后 API Server 又从别名字段
+// 同步了回来。minikube 上实测——生成物里没有这个字段、last-applied 里也没有，
+// 而活着的 Deployment 里 `serviceAccountName` 与 `serviceAccount` 双双还是旧值。
+//
+// 从前这不会造成故障：SA 永远不被清理，那个陈旧的引用一直指着一个存在的对象。
+// 孤儿清理开始清 SA 之后（§5.9.1.1），后果变成**部署直接失败**：
+//
+//	pods "..." is forbidden: error looking up service account ...:
+//	serviceaccount "demo-portal-1-0-0" not found
+//
+// ReplicaFailure / FailedCreate，rollout 一路超时到 5 分钟上限，
+// 而使用者做的只是把 `deploy.serviceAccount` 关掉。
+//
+// 顺带一提 `automountServiceAccountToken` **没有**这个问题（它没有别名字段，
+// 同一次实测里被正确地删掉了）——所以这不是"apply 不会删字段"的通例，
+// 而是这一个字段特有的坑。
 func (p *plan) applyServiceAccount(spec map[string]any, c componentPlan) {
-	name := p.serviceAccountNameOf(c)
-	if name == "" {
-		return
-	}
-	spec["serviceAccountName"] = name
+	spec["serviceAccountName"] = p.serviceAccountNameOf(c)
 	if p.generatesServiceAccount(c) {
 		spec["automountServiceAccountToken"] = false
 	}

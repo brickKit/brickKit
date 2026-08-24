@@ -346,17 +346,51 @@ func TestNetworkPolicyWithoutExposedComponentsNeedsNoController(t *testing.T) {
 // ServiceAccount
 // ============================================================
 
-// 默认不生成，Deployment 里也不出现 serviceAccountName。
-func TestServiceAccountNotGeneratedByDefault(t *testing.T) {
+// 默认不生成 SA 对象，Pod 则显式落回命名空间自带的 default。
+//
+// # 为什么不是"干脆不写这个字段"
+//
+// 原来的行为正是不写，而**省略不等于取消**：`spec.serviceAccount` 是
+// `spec.serviceAccountName` 的废弃别名，`kubectl apply` 把后者置空之后，
+// API Server 又从别名字段同步了回来。于是把 deploy.serviceAccount 从
+// 开改成关时，活着的 Deployment 里那个引用一直没变。
+//
+// 从前这不出事（SA 永远不被清理）。孤儿清理开始清 SA 之后，后果是部署失败：
+// ReplicaSet 报 `serviceaccount "..." not found`，rollout 一路超时。
+// minikube 上真跑到过——见 applyServiceAccount 的注释。
+func TestServiceAccountFallsBackToDefaultWhenDisabled(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
 
 	result := b.generate()
 	assert.False(t, hasFile(result, saPath("people-basic-1-0-0")),
-		"P26：不写 deploy.serviceAccount 就不该生成，实际有：%v", pathsOf(result))
+		"P26：不写 deploy.serviceAccount 就不该生成 SA 对象，实际有：%v", pathsOf(result))
 
 	spec := dig(t, b.doc("deployments/people-basic-1-0-0.yaml"), "spec", "template", "spec")
-	assert.NotContains(t, spec, "serviceAccountName", "P26")
+	assert.Equal(t, "default", spec.(map[string]any)["serviceAccountName"],
+		"必须显式写出来，apply 才收敛得回去")
+	assert.NotContains(t, spec, "automountServiceAccountToken",
+		"用 default SA 时不替使用者决定挂不挂载令牌")
+}
+
+// 开关从开改成关时，生成物必须把 Pod 的 SA 引用改回 default。
+//
+// 这条盯的是**状态迁移**，不是某一次生成的静态形状：上一条即使写成
+// "不写这个字段"也能通过，而那正是 minikube 上让部署失败的那个行为。
+func TestServiceAccountReferenceIsRewrittenWhenTurnedOff(t *testing.T) {
+	on := newBuilder(t)
+	on.cfg.Deploy.ServiceAccount = &config.ServiceAccount{Enabled: true}
+	on.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	before := dig(t, on.doc("deployments/people-basic-1-0-0.yaml"), "spec", "template", "spec")
+	require.Equal(t, "people-basic-1-0-0", before.(map[string]any)["serviceAccountName"])
+
+	off := newBuilder(t)
+	off.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	after := dig(t, off.doc("deployments/people-basic-1-0-0.yaml"), "spec", "template", "spec")
+
+	assert.Equal(t, "default", after.(map[string]any)["serviceAccountName"],
+		"关掉之后必须把引用改写成 default——那个 SA 这一轮会被孤儿清理删掉，"+
+			"引用还指着它的话 ReplicaSet 建不出 Pod")
 }
 
 // 打开后每个组件一个 SA，且**不挂载**令牌。
