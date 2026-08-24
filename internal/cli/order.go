@@ -79,6 +79,9 @@ func runOrder(ctx context.Context, opts *Options) error {
 
 	renderWarnings(opts, graph.Warnings)
 	renderStates(opts, states)
+	// 与 `up` 一致：启动顺序里会出现 external 组件（它们确实在依赖图里），
+	// 不说一句的话，使用者会以为本项目也要启动它们
+	renderExternals(opts, cfg)
 
 	if states.Empty() {
 		opts.Printf("📋 本次没有组件会启动\n")

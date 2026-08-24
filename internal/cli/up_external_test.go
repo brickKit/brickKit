@@ -141,3 +141,116 @@ func TestUpProceedsWhenExternalNetworkExists(t *testing.T) {
 	assert.NotContains(t, eng.lastUp(t).Services, "demo-hello-1-0-0",
 		"external 组件由对方部署，不该被点名启动")
 }
+
+// ============================================================
+// 同一个坑的另外三处：status / down / order
+// ============================================================
+//
+// 上面那条教训（"不生成它"分散在三层，漏一处表现各不相同）当时只在 `up` 上
+// 修到位。`down` / `status` / `order` 共用的是**另一份**名单
+// （internal/cli/lifecycle.go 的 project），它只认识 local: true，
+// 不认识 external——于是同一个坑在这三处原样重现。
+
+// status 不能把 external 组件报成"未在运行"。
+//
+// 那是一条**常驻的假失败**：本项目从来就不为它生成容器，引擎里当然查不到。
+// 使用者看到红叉会去 docker ps 里找它，找不到，然后开始怀疑平台。
+func TestStatusDoesNotReportExternalAsDown(t *testing.T) {
+	f := externalProject(t)
+	eng := deployedExternalEngine()
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+
+	r := runWithEngine(t, eng, f.Dir, "status")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.NotContains(t, r.stdout, "未创建",
+		"external 组件不该出现在「未在运行」那张表里")
+	assert.Contains(t, r.stdout, "外部依赖", "要单列一节说清楚它由谁部署")
+	assert.Contains(t, r.stdout, "platform-shared")
+}
+
+// down --only 点名 external 组件时，不能把它的服务名递给引擎。
+//
+// 递过去换来的是 `no such service`，而且是**整条命令失败**——与 up 上那次
+// 一模一样。这里断言的是"引擎没收到这个服务名"，而不只是"命令成功了"。
+func TestDownOnlyExternalDoesNotReachEngine(t *testing.T) {
+	f := externalProject(t)
+	eng := deployedExternalEngine()
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+
+	r := runWithEngine(t, eng, f.Dir, "down", "--only", "demo/hello")
+
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+	assert.Empty(t, eng.downs, "一个 down 都不该发出去")
+	assert.Contains(t, r.stdout, "没有可停止的组件")
+	assert.Contains(t, r.stdout, "platform-shared", "要说清为什么停不了")
+}
+
+// **最危险的那条路**：点名的组件全都停不了时，绝不能退化成"停整个项目"。
+//
+// 空的服务名列表在引擎眼里就是"停全部"。过滤掉 external 之后如果不显式拦一道，
+// 一条 `down --only <一个 external 组件>` 会把本项目所有东西都停掉——
+// 那比原来的报错严重得多。
+func TestDownOnlyExternalNeverStopsWholeProject(t *testing.T) {
+	f := externalProject(t)
+	eng := deployedExternalEngine()
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+
+	require.Equal(t, clierr.ExitOK,
+		runWithEngine(t, eng, f.Dir, "down", "--only", "demo/hello").code)
+
+	assert.Empty(t, eng.downs,
+		"空的服务名列表会被引擎理解成「停整个项目」——必须在到达引擎之前拦下")
+}
+
+// 混着点名时，能停的照停，停不了的说清楚。
+func TestDownOnlyMixedStopsWhatItCan(t *testing.T) {
+	f := externalProject(t)
+	eng := deployedExternalEngine()
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+
+	r := runWithEngine(t, eng, f.Dir, "down", "--only", "demo/hello,demo/caller")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	require.Len(t, eng.downs, 1)
+	assert.Equal(t, []string{"demo-caller-1-0-0"}, eng.downs[0].Services,
+		"只停本项目自己的那个")
+	assert.Contains(t, r.stdout, "platform-shared")
+}
+
+// down --only 点名一个 local: true 组件同理：它也没有容器。
+//
+// 与 external 是同一个判据（"本项目生不生成它的容器"），
+// 单列一条是因为它走的是另一个分支、给的是另一句理由。
+func TestDownOnlyLocalComponentDoesNotReachEngine(t *testing.T) {
+	f := addedProject(t, []comp{
+		{ID: "demo/caller", Version: "1.0.0", Requires: []string{"demo/hello@1.0.0"}},
+		{ID: "demo/hello", Version: "1.0.0"},
+	}, "demo/caller@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/caller
+    version: 1.0.0
+  - id: demo/hello
+    version: 1.0.0
+    local: true
+`)
+	eng := newFakeEngine()
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+
+	r := runWithEngine(t, eng, f.Dir, "down", "--only", "demo/hello")
+
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+	assert.Empty(t, eng.downs)
+	assert.Contains(t, r.stdout, "IDE", "要说清它跑在哪儿")
+}
+
+// order 也要标注 external：启动顺序里出现它，不说一句就像本项目要启动它。
+func TestOrderMarksExternalComponent(t *testing.T) {
+	f := externalProject(t)
+
+	r := runWithEngine(t, deployedExternalEngine(), f.Dir, "order")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.Contains(t, r.stdout, "别的项目")
+	assert.Contains(t, r.stdout, "platform-shared")
+}

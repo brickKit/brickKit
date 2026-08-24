@@ -95,11 +95,22 @@ func (p *project) entry(ref resolver.Ref) config.Component {
 	return config.Component{}
 }
 
-// containerRefs 返回本次会有容器的组件（排除 local: true），按启动顺序。
+// containerRefs 返回本次**由本项目**生成容器的组件，按启动顺序。
+//
+// 两类要排除掉，它们都在依赖图里、也都"在跑"，但本项目不为它们生成任何东西：
+//
+//	local: true   跑在开发者的 IDE 里（003 §4.4）
+//	external      由**别的项目**部署（003 §4.9）
+//
+// 漏掉后者的后果不只是显示难看：`status` 会把一个好端端的 external 依赖
+// 常驻报成「❌ 未在运行 / 未创建」，而 `down --only` 会把一个部署文件里
+// 根本没有的服务名递给 docker，换来 `no such service` 让整条命令失败。
+// 后者与 P39 在 `up` 上踩过的是同一个坑——当时只修了 `up` 那一份名单。
 func (p *project) containerRefs() []resolver.Ref {
 	var out []resolver.Ref
 	for _, ref := range p.order {
-		if !p.entry(ref).Local {
+		entry := p.entry(ref)
+		if !entry.Local && !entry.IsExternal() {
 			out = append(out, ref)
 		}
 	}
@@ -111,6 +122,17 @@ func (p *project) localRefs() []resolver.Ref {
 	var out []resolver.Ref
 	for _, ref := range p.order {
 		if p.entry(ref).Local {
+			out = append(out, ref)
+		}
+	}
+	return out
+}
+
+// externalRefs 返回由别的项目部署、本次会用到的组件（003 §4.9）。
+func (p *project) externalRefs() []resolver.Ref {
+	var out []resolver.Ref
+	for _, ref := range p.order {
+		if p.entry(ref).IsExternal() {
 			out = append(out, ref)
 		}
 	}
