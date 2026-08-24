@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -101,11 +102,29 @@ type Result struct {
 	//
 	// 命令层要用它清理上一次残留的 Job 并等待本次跑完（005 §6.3）。
 	MigrationJobs []string
-	// PDBs 是本次生成的 PodDisruptionBudget 名（P35）。
+	// Desired 是本次生成的**每一个** K8s 对象，写成 `<小写类型>/<名字>`
+	// （如 `deployment/people-basic-1-0-0`、`secret/pg-main-secret`），已排序去重。
 	//
-	// 命令层要用它清理孤儿：PDB 只在多副本时生成、却与 Deployment 同名，
-	// 清理时只看名字会把它当成"该留的"，从此永远拦着 drain。
-	PDBs []string
+	// 孤儿清理（§5.9.1）拿它与集群里带本项目标签的资源逐个比对：
+	// 集群里有、这里没有，就是上一次留下的、本次不该再存在的东西。
+	//
+	// # 为什么是"类型 + 名字"而不是只有名字
+	//
+	// 一批资源与 Deployment **同名**，且是**条件生成**的：
+	//
+	//	Ingress          只在 expose: true 时生成
+	//	NetworkPolicy    只在 deploy.networkPolicy.enabled 时生成
+	//	ServiceAccount   只在 deploy.serviceAccount.enabled 时生成
+	//	PDB              只在 replicas > 1 时生成
+	//
+	// 只比名字的话，Deployment 还在 → 名字还在期望里 → 这些统统被判成"该留的"。
+	// 于是把 expose 改成 false 之后 Ingress **一直留着继续对外路由**，
+	// 关掉 networkPolicy 之后策略**继续执行**而生成目录里已经没有那份文件。
+	// 这个坑在 PDB 上真踩过一次（P35），当时的修法是维护一张"哪些类型是条件生成的"
+	// 例外表——而那张表本身就是第二份真相，漏填一类就再犯一次。
+	//
+	// 带上类型之后判据只剩一句"集群里有、本次没生成 → 删"，例外表整个消失。
+	Desired []string
 	// Warnings 是不阻断的问题。
 	Warnings []*clierr.Error
 }
@@ -170,7 +189,6 @@ func Generate(
 				dirPDBs+"/"+c.Service+".yaml", p.pdbDoc(c)); err != nil {
 				return nil, err
 			}
-			result.PDBs = append(result.PDBs, c.Service)
 		}
 		if c.Entry.Expose {
 			if err := p.emit(result, cfg, now,
@@ -189,6 +207,7 @@ func Generate(
 	}
 
 	sort.Slice(result.Files, func(i, j int) bool { return result.Files[i].Path < result.Files[j].Path })
+	sort.Strings(result.Desired)
 	return result, nil
 }
 
@@ -381,6 +400,10 @@ func (p *plan) emit(result *Result, cfg *config.Config, now time.Time, path stri
 }
 
 // emitAll 把多份文档渲染进同一个文件（用 --- 分隔，K8s 的惯例写法）。
+//
+// 顺带把每份文档记进 Result.Desired。**记账必须发生在这里**，
+// 不能让各个 emit 调用点自己再报一次"我生成了什么"——那就又是两份真相，
+// 而 Result.Desired 那段注释里说的正是两份真相带来的后果。
 func (p *plan) emitAll(
 	result *Result, cfg *config.Config, now time.Time, path string, docs []map[string]any,
 ) error {
@@ -396,10 +419,24 @@ func (p *plan) emitAll(
 			return err
 		}
 		b.Write(body)
+		result.Desired = append(result.Desired, desiredRef(doc))
 	}
 
 	result.Files = append(result.Files, File{Path: path, YAML: b.Bytes()})
 	return nil
+}
+
+// desiredRef 从一份清单里取出 `<小写类型>/<名字>`。
+//
+// 形式与 `kubectl get ... -o name` 的输出对齐（去掉 API 组之后），
+// 清理时两边就能直接比对，不需要任何映射表。
+func desiredRef(doc map[string]any) string {
+	kind, _ := doc["kind"].(string)
+	name := ""
+	if metadata, ok := doc["metadata"].(map[string]any); ok {
+		name, _ = metadata["name"].(string)
+	}
+	return strings.ToLower(kind) + "/" + name
 }
 
 // header 是生成文件的头注释。

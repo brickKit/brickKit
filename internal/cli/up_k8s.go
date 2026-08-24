@@ -94,7 +94,7 @@ func applyK8s(
 		Context:       plan.kubeContext,
 		Services:      plan.services,
 		MigrationJobs: plan.k8s.MigrationJobs,
-		DesiredPDBs:   plan.k8s.PDBs,
+		Desired:       plan.k8s.Desired,
 		PruneSelector: pruneSelector,
 		OnPrune:       func(resource string) { pruned = append(pruned, resource) },
 	}); err != nil {

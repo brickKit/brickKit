@@ -70,12 +70,18 @@ type UpRequest struct {
 	// compose 用 depends_on + service_completed_successfully 表达"等迁移跑完"，
 	// K8s 没有这种东西，只能由 CLI 串行控制：清理旧 Job → apply → wait（005 §6.3）。
 	MigrationJobs []string
-	// DesiredPDBs 是本次期望存在的 PodDisruptionBudget 名（P35）。
+	// Desired 是本次生成的**每一个** K8s 对象，写成 `<小写类型>/<名字>`
+	// （如 `deployment/people-basic-1-0-0`、`secret/pg-main-secret`）。
+	// 只对 K8s 目标有意义，由 k8s.Result.Desired 直接给出。
 	//
-	// 单列一份是因为 PDB **只在多副本时生成**，却与 Deployment 同名：
-	// 清理时若只看名字，副本数从 3 改回 1 之后那份 PDB 会被当成"该留的"，
-	// 从此永远拦着 kubectl drain（minikube 上真跑到过）。
-	DesiredPDBs []string
+	// 孤儿清理拿它与集群里带本项目标签的资源比对，判据只有一句：
+	// **集群里有、本次没生成，就是孤儿**。
+	//
+	// 带上类型是必需的：Ingress / NetworkPolicy / ServiceAccount / PDB 都与
+	// Deployment **同名**，且都是条件生成的。只比名字的话 Deployment 还在、
+	// 名字就还在期望里，于是把 expose 改成 false 之后 Ingress 一直留着
+	// 继续对外路由（详见 orphansIn）。
+	Desired []string
 	// PruneSelector 是"本次允不允许清理孤儿"的开关，两种目标共用一个判据。
 	//
 	// **空表示不清理**，这不是省略而是一种明确的表达：`--only` 只部署子集，

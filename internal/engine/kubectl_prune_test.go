@@ -22,11 +22,15 @@ import (
 )
 
 // pruneRequest 造一次"部署 2.0.0"的请求，并让集群假装还留着 1.0.0。
+//
+// Desired 就是生成器这一轮写出来的全部对象（k8s.Result.Desired）：
+// 一个 Deployment + 一个 Service，没有 Ingress、没有策略、没有 PDB。
 func pruneRequest() UpRequest {
 	return UpRequest{
 		File:          "/p/.brickkit/generated/k8s",
 		Project:       "brickkit-my-erp",
 		Services:      []string{"demo-hello-2-0-0"},
+		Desired:       []string{"deployment/demo-hello-2-0-0", "service/demo-hello-2-0-0"},
 		PruneSelector: "brickkit.io/project=my-erp",
 	}
 }
@@ -106,6 +110,7 @@ func TestKubectlUpKeepsMigrationJobs(t *testing.T) {
 
 	req := pruneRequest()
 	req.MigrationJobs = []string{"demo-hello-2-0-0-migration"}
+	req.Desired = append(req.Desired, "job/demo-hello-2-0-0-migration")
 	require.NoError(t, kubectlWith(rec).Up(context.Background(), req))
 
 	assert.NotContains(t, deleteCommand(rec), "demo-hello-2-0-0-migration",
@@ -285,6 +290,121 @@ func TestKubectlUpPrunesPDBWhenReplicasDropToOne(t *testing.T) {
 			"于是永远留在单副本组件上拦着 drain")
 	assert.NotContains(t, command, "deployment.apps/demo-hello-2-0-0",
 		"P35：同名的 Deployment 是本次要留的，绝不能被一起删掉")
+}
+
+// ============================================================
+// 条件生成的资源：开关关掉之后必须被清理
+// ============================================================
+//
+// 下面四条是同一个缺陷的四个入口。它们都与 Deployment **同名**、
+// 都只在某个开关打开时才生成，而 Deployment 是必然生成的——
+// 于是"名字还在期望集合里"这个近似对它们全部失效。
+//
+// PDB 是当初唯一被发现的那一个（P35），修法是维护一张"条件生成的类型"例外表；
+// 那张表只填了 PDB，另外三类照样漏。判据换成"类型 + 名字"之后例外表消失，
+// 这四条测试守着它不要再回来。
+
+// expose 改成 false 之后，那条 Ingress 必须被删掉。
+//
+// 这条是四条里最要紧的：不删的话使用者改了配置、up 报成功，
+// **站点仍然对外可达**——而生成目录里已经没有这份 Ingress，查都无从查起。
+func TestKubectlUpPrunesIngressWhenExposeTurnedOff(t *testing.T) {
+	rec := newRecorder()
+	clusterHas(rec,
+		"deployment.apps/demo-hello-2-0-0",
+		"service/demo-hello-2-0-0",
+		"ingress.networking.k8s.io/demo-hello-2-0-0", // ← expose 已改成 false
+	)
+
+	require.NoError(t, kubectlWith(rec).Up(context.Background(), pruneRequest()))
+
+	command := deleteCommand(rec)
+	require.NotEmpty(t, command, "关掉 expose 之后那条 Ingress 必须被清掉：%v", rec.commands())
+	assert.Contains(t, command, "ingress.networking.k8s.io/demo-hello-2-0-0",
+		"不删的话站点还开着，而生成目录里已经没有这份 Ingress")
+	assert.NotContains(t, command, "deployment.apps/demo-hello-2-0-0",
+		"同名的 Deployment 是本次要留的")
+}
+
+// 关掉 deploy.networkPolicy 之后，那些策略必须被删掉。
+//
+// 留着的后果比 Ingress 更迷惑：策略**继续执行**，流量继续按半年前的规则被拦，
+// 而使用者手里的配置写着 networkPolicy 是关的、生成目录里一份策略都没有。
+func TestKubectlUpPrunesNetworkPolicyWhenDisabled(t *testing.T) {
+	rec := newRecorder()
+	clusterHas(rec,
+		"deployment.apps/demo-hello-2-0-0",
+		"service/demo-hello-2-0-0",
+		"networkpolicy.networking.k8s.io/demo-hello-2-0-0", // ← 开关已关
+	)
+
+	require.NoError(t, kubectlWith(rec).Up(context.Background(), pruneRequest()))
+
+	assert.Contains(t, deleteCommand(rec), "networkpolicy.networking.k8s.io/demo-hello-2-0-0",
+		"策略留着会继续执行，而配置与生成目录里都已经没有它")
+}
+
+// 关掉 deploy.serviceAccount 之后，那些 SA 必须被删掉。
+func TestKubectlUpPrunesServiceAccountWhenDisabled(t *testing.T) {
+	rec := newRecorder()
+	clusterHas(rec,
+		"deployment.apps/demo-hello-2-0-0",
+		"service/demo-hello-2-0-0",
+		"serviceaccount/demo-hello-2-0-0", // ← 开关已关
+	)
+
+	require.NoError(t, kubectlWith(rec).Up(context.Background(), pruneRequest()))
+
+	assert.Contains(t, deleteCommand(rec), "serviceaccount/demo-hello-2-0-0")
+}
+
+// 资源从 brickkit.yaml 里删掉之后，那份 Secret 必须被删掉。
+//
+// Secret 从前被刻意排除在清理之外，理由是"它按资源 ID 命名而不是服务名，
+// 与期望名字集合对不上"。改用类型 + 名字之后那条理由不成立了，
+// 而留着的东西是**明文密码**。
+func TestKubectlUpPrunesSecretOfRemovedResource(t *testing.T) {
+	rec := newRecorder()
+	clusterHas(rec,
+		"deployment.apps/demo-hello-2-0-0",
+		"service/demo-hello-2-0-0",
+		"secret/pg-main-secret", // ← 这个资源已经从 brickkit.yaml 里删了
+	)
+
+	require.NoError(t, kubectlWith(rec).Up(context.Background(), pruneRequest()))
+
+	assert.Contains(t, deleteCommand(rec), "secret/pg-main-secret",
+		"资源没了，那份装着真实密码的 Secret 不该永远留在集群里")
+}
+
+// 反过来：本次真的生成了这些资源时，一个都不能删。
+//
+// 上面四条只证明"该删的删了"，这条证明"不该删的没被误伤"——
+// 清理逻辑写反的代价是把正在生效的 Ingress 与策略删掉。
+func TestKubectlUpKeepsConditionalResourcesStillGenerated(t *testing.T) {
+	rec := newRecorder()
+	clusterHas(rec,
+		"deployment.apps/demo-hello-2-0-0",
+		"service/demo-hello-2-0-0",
+		"ingress.networking.k8s.io/demo-hello-2-0-0",
+		"networkpolicy.networking.k8s.io/demo-hello-2-0-0",
+		"serviceaccount/demo-hello-2-0-0",
+		"poddisruptionbudget.policy/demo-hello-2-0-0",
+		"secret/pg-main-secret",
+	)
+
+	req := pruneRequest()
+	req.Desired = append(req.Desired,
+		"ingress/demo-hello-2-0-0",
+		"networkpolicy/demo-hello-2-0-0",
+		"serviceaccount/demo-hello-2-0-0",
+		"poddisruptionbudget/demo-hello-2-0-0",
+		"secret/pg-main-secret",
+	)
+	require.NoError(t, kubectlWith(rec).Up(context.Background(), req))
+
+	assert.Empty(t, deleteCommand(rec),
+		"本次都生成了，一个都不该删：%v", rec.commands())
 }
 
 // 组件被改成 external 之后，本项目留下的旧资源要被清理掉（P39 + P38）。

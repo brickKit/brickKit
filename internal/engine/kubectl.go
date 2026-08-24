@@ -114,13 +114,19 @@ func (k *Kubectl) Up(ctx context.Context, req UpRequest) error {
 //
 // **刻意不含 namespace**：namespace.yaml 上也有 brickkit.io/project 标签，
 // 一旦被算进去，一次普通的升级就会把整个命名空间连同里面所有东西删掉。
-// 也不含 secret：它按资源 ID 命名而不是服务名，与这里的"期望名字集合"对不上。
+// 它是这张表里唯一的例外，理由也与别的资源完全不同——不是"判不准"，
+// 而是"删错了代价无限大"。
 var pruneKinds = []string{
 	"deployment", "service", "ingress", "networkpolicy", "serviceaccount", "job",
 	// P35：漏了它的后果是单向不可逆——replicas 从 3 改回 1 之后生成物里不再有 PDB，
 	// 而 apply 不会删集群里已有的那一份，于是一份 maxUnavailable: 1 的 PDB
 	// 永远留在单副本组件上，让节点从此排不空
 	"poddisruptionbudget",
+	// Secret 从前不在这里，理由是"它按资源 ID 命名而不是服务名，与期望名字集合
+	// 对不上"。改用 `<类型>/<名字>` 比对之后那条理由不成立了——生成器精确知道
+	// 自己写了哪些 Secret。纳进来顺手堵掉另一个泄漏：把一个资源从 brickkit.yaml
+	// 里删掉之后，那份**装着真实密码**的 Secret 本来会永远留在集群里
+	"secret",
 }
 
 // prune 删掉带本项目标签、却不属于本次部署的资源（P38）。
@@ -146,7 +152,7 @@ func (k *Kubectl) prune(ctx context.Context, req UpRequest) error {
 		return nil
 	}
 
-	orphans := orphansIn(string(out), desiredNames(req), setOf(req.DesiredPDBs))
+	orphans := orphansIn(string(out), setOf(req.Desired))
 	if len(orphans) == 0 {
 		return nil
 	}
@@ -164,69 +170,57 @@ func (k *Kubectl) prune(ctx context.Context, req UpRequest) error {
 	return nil
 }
 
-// desiredNames 是本次部署**应该**拥有的资源名。
+// normalizeRef 把 `kubectl get -o name` 的一行归一成 `<小写类型>/<名字>`。
 //
-// 迁移 Job 必须算进来：它叫 <服务名>-migration，与服务名对不上，
-// 漏了的话刚跑完的迁移 Job 会被当成孤儿删掉——`kubectl logs job/...`
-// 就再也查不到这次迁移做了什么。
-func desiredNames(req UpRequest) map[string]bool {
-	out := make(map[string]bool, len(req.Services)+len(req.MigrationJobs))
-	for _, name := range req.Services {
-		out[name] = true
+//	deployment.apps/people-basic-1-0-0        → deployment/people-basic-1-0-0
+//	ingress.networking.k8s.io/portal-1-0-0    → ingress/portal-1-0-0
+//	secret/pg-main-secret                     → secret/pg-main-secret
+//
+// 去掉 API 组之后，形式与生成器报出来的 k8s.Result.Desired 完全一致，
+// 两边直接比对，不需要任何映射表。
+func normalizeRef(line string) (string, bool) {
+	head, name, ok := strings.Cut(line, "/")
+	if !ok || name == "" {
+		return "", false
 	}
-	for _, name := range req.MigrationJobs {
-		out[name] = true
-	}
-	return out
-}
-
-// conditionalKinds 是**不随组件必然生成**的资源类型（P35）。
-//
-// 其余类型（deployment / service / networkpolicy / serviceaccount）每个跑着的
-// 组件都会有一份，所以"名字还在本次期望里"就等于"这份资源还该在"。
-//
-// PDB 打破了这个前提：它只在多副本时生成，而它与 Deployment **同名**。
-// 于是副本数从 3 改回 1 时，那份 PDB 的名字仍在期望集合里（Deployment 要留），
-// 只按名字比对就会把它当成该留的——minikube 上真跑到过。
-//
-// 这类资源必须由生成侧明确点名要留哪些（DesiredPDBs），点不到的就是孤儿。
-var conditionalKinds = map[string]bool{"poddisruptionbudget": true}
-
-// kindOf 从 `deployment.apps/demo-hello-1-0-0` 取出 `deployment`。
-func kindOf(ref string) string {
-	head, _, _ := strings.Cut(ref, "/")
 	kind, _, _ := strings.Cut(head, ".")
-	return kind
+	if kind == "" {
+		return "", false
+	}
+	return strings.ToLower(kind) + "/" + name, true
 }
 
 // orphansIn 从 `kubectl get -o name` 的输出里挑出不属于本次部署的资源。
 //
-// 输出的每一行形如 `deployment.apps/people-basic-1-0-0`：斜杠后面才是名字，
-// 而删除时要用**整行**（带类型前缀），否则 kubectl 不知道删的是哪一类。
-func orphansIn(out string, desired, desiredPDBs map[string]bool) []string {
+// 判据只有一句：**集群里有、本次没生成，就是孤儿**。
+//
+// # 为什么比的是"类型 + 名字"而不是只有名字
+//
+// 一批资源与 Deployment 同名，且是条件生成的（Ingress 只在 expose: true 时有、
+// NetworkPolicy / ServiceAccount 只在对应开关打开时有、PDB 只在多副本时有）。
+// 只比名字的话，Deployment 还在 → 名字还在期望里 → 这些统统被判成"该留的"：
+// 把 expose 改成 false 之后 Ingress 一直留着继续对外路由，
+// 关掉 networkPolicy 之后策略继续执行而生成目录里已经没有那份文件。
+//
+// 这个坑在 PDB 上踩过一次（P35，minikube 上真跑到），当时的修法是维护一张
+// "哪些类型是条件生成的"例外表。那张表是第二份真相，漏填一类就再犯一次——
+// 而它当时确实只填了 PDB 一个。带上类型之后例外表整个消失。
+//
+// 删除时要用**整行原文**（带 API 组），归一化后的形式只用于比对。
+func orphansIn(out string, desired map[string]bool) []string {
 	var orphans []string
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		_, name, ok := strings.Cut(line, "/")
+		ref, ok := normalizeRef(line)
 		if !ok {
 			continue
 		}
-
-		// 条件生成的资源不能靠"名字还在期望里"判断——它与同名的 Deployment
-		// 共用一个名字，那样判永远是"该留"（P35）
-		if conditionalKinds[kindOf(line)] {
-			if !desiredPDBs[name] {
-				orphans = append(orphans, line)
-			}
-			continue
+		if !desired[ref] {
+			orphans = append(orphans, line)
 		}
-		if desired[name] {
-			continue
-		}
-		orphans = append(orphans, line)
 	}
 	return orphans
 }
