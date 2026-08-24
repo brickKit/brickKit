@@ -14,6 +14,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deploy"
 	"github.com/brickkit/brickkit/internal/engine"
 )
 
@@ -49,7 +50,7 @@ func checkResourceReachability(ctx context.Context, opts *Options, plan *upPlan)
 			continue
 		}
 		checked++
-		address := fmt.Sprintf("%s:%d", r.Host, r.Port)
+		address := fmt.Sprintf("%s:%d", deploy.DialHost(r.Host), r.Port)
 		if err := opts.probe(ctx, address); err != nil {
 			renderWarnings(opts, []*clierr.Error{
 				clierr.Warn(clierr.CodeNetworkUnreachable, "基础资源不可达").

@@ -683,7 +683,7 @@ components:
   - id: people/basic
     version: 1.0.0
 resources:
-  - kind: ` + kind + `
+  - kind: `+kind+`
     engine: rabbitmq
     id: mq-main
     host: mq

@@ -15,16 +15,40 @@
 
 ---
 
-## 5.1 声明基础资源
+## 5.1 起一套基础资源
 
-组件的 `component.yaml` 里只说"我需要一个 postgresql"，**具体连哪台库由项目决定**。在 `brickkit.yaml` 里补上：
+**平台不部署基础资源**（006 §10.1）。数据库、Redis 这类东西是通用的、跨项目共享的、
+有自己的运维节奏——谁把它跑起来，不该由某个项目的 `brickkit up` 决定。
+
+本地想快速起一套？仓库里有现成的：
+
+```bash
+docker compose -f deploy/dev-resources/docker-compose.yaml up -d
+```
+
+一个 postgres（5432）+ 一个 redis（6379），端口发布到宿主机。
+**这台机器上 5432 已经被占了**的话，换个端口即可，后面的声明跟着改：
+
+```bash
+PG_PORT=15432 REDIS_PORT=16379 docker compose -f deploy/dev-resources/docker-compose.yaml up -d
+```
+
+> 这份 compose 是**手写**的，不是平台生成的——它是个样例，你可以随手改
+> （换 postgres 版本、加 extension、再加一个 kafka）。平台生成的话，
+> 这些都得变成平台的配置项，而平台对它们一无所知。
+> 已经有自己的数据库就直接用自己的，这一步跳过。
+
+## 5.2 把资源声明进 brickkit.yaml
+
+组件的 `component.yaml` 里只说"我需要一个 postgresql"，**具体连哪台库由项目决定**。
+在 `brickkit.yaml` 里补上：
 
 ```yaml
 resources:
   - kind: database
     engine: postgresql
     id: pg-main
-    host: pg                    # ← 不含点 = 服务名 = 由 CLI 起一个容器
+    host: host.docker.internal  # ← 资源跑在本机时就写这个
     port: 5432
     username: brickkit
     password: ${PG_PASSWORD}    # ← 密码只写引用，绝不写明文
@@ -43,19 +67,20 @@ resources:
 echo "PG_PASSWORD=devpass" > .env
 ```
 
-### `host` 决定了谁来起这个数据库
+### `host` 该写什么
 
-| `host` 写法 | 含义 | CLI 行为 |
+| 资源跑在哪 | `host` 写法 | 平台做什么 |
 | --- | --- | --- |
-| `pg`（不含点） | 容器网络内的服务名 | **CLI 起一个 postgres 容器** |
-| `db.example.com`、`10.0.0.5`、`localhost` | 外部地址 | 假设运维已部署，一行不碰 |
+| **本机**（最常见） | `host.docker.internal` | 为绑定它的容器（含迁移容器）自动补 `extra_hosts`；`local: true` 组件的 env 文件里换成 `localhost` |
+| 别的机器 / 云数据库 | IP 或域名 | 原样注入 |
+| 你自己接进了本项目网络的容器 | 裸服务名（`pg`） | 原样注入，并**警告一次**——平台不会创建叫这个名字的 service |
 
-判据就是"含不含点"。生产环境写真实地址，本地开发写服务名让 CLI 代劳。
+⚠️ **不要写 `localhost`。** 容器里的 `localhost` 是容器自己，不是你的机器。
 
-> **`host.docker.internal` 是第三种情形**：指向**宿主机**。用它连本机上已经跑着的
-> 数据库，或者连另一个 BrickKit 项目共享出来的资源（见
-> [19-多项目与共享.md](19-多项目与共享.md)）。平台会自动为绑定它的组件补
-> `extra_hosts`，你不用手工建网络。
+> **早先的规则已经取消。** 平台曾经在 `host` 不含点时自己起一个 postgres 容器
+> （旧的 006 §10.4）：一个点决定平台要不要替你部署一个数据库。它只覆盖 6 种资源
+> 类型里的 2 种、在 K8s 目标下从来不存在、而且托管出来的实例还没法跨项目共享。
+> 完整理由见 006 §10.5。
 
 ### 一个组件要连两个同类资源：`envPrefix`
 
@@ -102,7 +127,7 @@ PRIMARY_DATABASE_NAME=people         ARCHIVE_DATABASE_NAME=people_archive
 
 ---
 
-## 5.2 先看看会生成什么（不启动）
+## 5.3 先看看会生成什么（不启动）
 
 ### ▶️ 操作
 
@@ -119,11 +144,11 @@ cat .brickkit/generated/docker-compose.yaml
 - 弱依赖 `DEMO_BUS_ENDPOINT` **根本不存在**（不是空值）
 - `depends_on` + `condition: service_healthy`：依赖方等被依赖方**健康**才起
 - 有迁移的组件多一个 `xxx-migration` service，主服务 `depends_on` 它 `service_completed_successfully`
-- `POSTGRES_PASSWORD=${PG_PASSWORD}`：**密码没有被写进文件**，是 compose 运行时从 `.env` 读的
+- **没有 postgres / redis 的 service**：平台不部署基础资源，文件里只有你的组件
 
 ---
 
-## 5.3 第一次 up：它会告诉你还差什么
+## 5.4 第一次 up：它会告诉你还差什么
 
 ### ▶️ 操作
 
@@ -133,18 +158,20 @@ brickkit up
 
 ### ✅ 预期
 
-CLI 会先把要建的库列出来：
+CLI 会先把这次要用到的基础资源连同要建的库一起列出来：
 
 ```
-📌 以下数据库需要预先创建（平台不代建，见 006 §9.5）：
-   caller  （pg:5432，供 demo/caller 使用）
-      CREATE DATABASE "caller";
-   department  （pg:5432，供 department/tree 使用）
-      CREATE DATABASE "department";
-   people  （pg:5432，供 people/basic 使用）
-      CREATE DATABASE "people";
-   已经建过就无需再执行，建库是一次性操作
+📌 以下基础资源需要先跑起来（平台不代为部署，见 006 §9.1）：
+   pg-main      postgresql   host.docker.internal:5432  供 demo/caller、department/tree、people/basic 使用
+      需要库 caller（供 demo/caller 使用）：CREATE DATABASE "caller";
+      需要库 department（供 department/tree 使用）：CREATE DATABASE "department";
+      需要库 people（供 people/basic 使用）：CREATE DATABASE "people";
+   库也要预先建好；已经建过就无需再执行，建库是一次性操作
+   本地开发想快速起一套：docker compose -f deploy/dev-resources/docker-compose.yaml up -d
 ```
+
+**每次 `up` 都会打印这一段**，不是只在出错时——建库是一次性动作，
+而"资源得跑着"是每次启动都要满足的前提。
 
 然后迁移会**失败**，因为库还不存在：
 
@@ -159,13 +186,16 @@ CLI 会先把要建的库列出来：
 
 ```bash
 for db in caller department people; do
-  docker exec brickkit-demo-shop-pg-1 psql -U brickkit -d postgres -c "CREATE DATABASE \"$db\""
+  docker exec brickkit-dev-resources-postgres-1 \
+    psql -U brickkit -d postgres -c "CREATE DATABASE \"$db\""
 done
 ```
 
+用自己的数据库就换成你自己的连法——平台只负责告诉你要建哪些库。
+
 ---
 
-## 5.4 再来一次：全绿
+## 5.5 再来一次：全绿
 
 ### ▶️ 操作
 
@@ -199,7 +229,7 @@ brickkit up
 
 ---
 
-## 5.5 查状态
+## 5.6 查状态
 
 ### ▶️ 操作
 
@@ -233,7 +263,7 @@ brickkit status
  ┌─────────┬──────────┬────────────────────────┐
  │ 资源    │ 类型     │ 状态                   │
  ├─────────┼──────────┼────────────────────────┤
- │ pg-main │ database │ 可达（容器 pg 运行中） │
+ │ pg-main │ database │ 可达（localhost:5432） │
  └─────────┴──────────┴────────────────────────┘
 ```
 
@@ -243,7 +273,7 @@ brickkit status
 
 ---
 
-## 5.6 看日志、进容器
+## 5.7 看日志、进容器
 
 ```bash
 # 看某个组件的日志（--project-directory 与 -p 都不能省）
@@ -257,7 +287,7 @@ docker compose --project-directory . -p brickkit-demo-shop \
 
 > `-p` 少了会**静默返回空**（compose 会拿部署文件所在目录名 `generated` 当项目名）；`--project-directory` 少了会刷一串 "variable is not set" 警告。`brickkit up` 的输出里给的就是完整命令，直接复制。
 
-## 5.7 试一下 `--check-resources`
+## 5.8 试一下 `--check-resources`
 
 ```bash
 brickkit up --check-resources
@@ -276,11 +306,11 @@ brickkit down --only demo/caller   # 只停一个（依赖方先停）
 
 `down` 之后再 `brickkit status`，会告诉你"没有正在运行的组件"。
 
-**彻底清理（连数据库数据一起删）：**
+**`down` 不会碰你的数据库**——平台没部署它，自然也不停它。资源要停另说：
 
 ```bash
-docker compose --project-directory . -p brickkit-demo-shop \
-  -f .brickkit/generated/docker-compose.yaml down -v
+docker compose -f deploy/dev-resources/docker-compose.yaml down       # 停，数据保留
+docker compose -f deploy/dev-resources/docker-compose.yaml down -v    # 连数据一起删
 ```
 
 **`brickkit up` 中途 Ctrl-C 了：** 直接 `brickkit down` 收尾，不会有残留。

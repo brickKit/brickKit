@@ -9,6 +9,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deploy"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/manifest"
 )
@@ -271,7 +272,7 @@ func resourceState(
 	// 从前这里还有一条分支：`host` 不含点时被判为"由 CLI 托管的资源容器"，
 	// 于是改看容器状态而不是拨号。那条路已经取消——平台不再部署基础资源
 	// （006 §9.1），所有资源都在容器网络之外，拨号是唯一说得通的判据。
-	address := fmt.Sprintf("%s:%d", r.Host, r.Port)
+	address := fmt.Sprintf("%s:%d", deploy.DialHost(r.Host), r.Port)
 	if err := opts.probe(ctx, address); err != nil {
 		return "不可达（" + address + "：" + reasonText(err) + "）"
 	}

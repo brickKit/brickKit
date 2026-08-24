@@ -20,7 +20,8 @@ LIST="$ROOT/tests/guides/清单.tsv"
 ONLY="${1:-}"
 
 WORK="$(mktemp -d)"
-trap 'cd "$ROOT" 2>/dev/null; [ -n "${PROJ:-}" ] && [ -d "$PROJ" ] && (cd "$PROJ" && "$BIN" down >/dev/null 2>&1); rm -rf "$WORK"' EXIT
+SMOKE_PG="brickkit-smoke-pg"
+trap 'cd "$ROOT" 2>/dev/null; [ -n "${PROJ:-}" ] && [ -d "$PROJ" ] && (cd "$PROJ" && "$BIN" down >/dev/null 2>&1); docker rm -f "$SMOKE_PG" >/dev/null 2>&1; rm -rf "$WORK"' EXIT
 
 # ===== 1. 准备 CLI 与试验组件 =====
 BIN="$ROOT/bin/brickkit"
@@ -62,10 +63,28 @@ tier_ok() {
 # `database` 与 `username` 同名是有意的：postgres 镜像默认建一个与
 # POSTGRES_USER 同名的库，因此不需要额外的 CREATE DATABASE 步骤——
 # 冒烟检查要能一条命令跑完，不该顺带考验使用者的建库操作。
+# bind_pg 起一个真 postgres，并把它绑给 demo/caller。
+#
+# 平台**不部署基础资源**（006 §10.1），所以这一步得自己把库跑起来——
+# 这正是使用者要做的事，冒烟就该照着做。从前它只往配置里写一段
+# `host: pg`，靠 CLI 自己生成 postgres 容器；那条路取消之后，
+# 只写配置的话迁移必然失败，而失败原因（库不存在）与被测的东西无关。
+#
+# 端口取 15432 而不是 5432：跑这个脚本的机器上多半已经有一个 postgres。
 bind_pg() {
-	# 骨架里已经有一行 `resources: []`，必须**替换**它而不是追加——
-	# 追加会得到两个 resources 键，YAML 直接判重复键。
 	grep -q '^resources: \[\]$' "$PROJ/brickkit.yaml" || return 1
+
+	docker rm -f "$SMOKE_PG" >/dev/null 2>&1 || true
+	docker run -d --name "$SMOKE_PG" \
+		-e POSTGRES_USER=brickkit -e POSTGRES_PASSWORD=smoke -e POSTGRES_DB=brickkit \
+		-p 15432:5432 postgres:15 >/dev/null 2>&1 || return 1
+
+	# 等它真的能接连接：起得慢时迁移会撞上一个还没就绪的库
+	for _ in $(seq 1 30); do
+		docker exec "$SMOKE_PG" pg_isready -U brickkit >/dev/null 2>&1 && break
+		sleep 1
+	done
+
 	python3 - "$PROJ/brickkit.yaml" <<-'PYEOF'
 		import sys
 		path = sys.argv[1]
@@ -74,8 +93,8 @@ bind_pg() {
 		  - kind: database
 		    engine: postgresql
 		    id: pg-smoke
-		    host: pg
-		    port: 5432
+		    host: host.docker.internal
+		    port: 15432
 		    username: brickkit
 		    password: smoke
 		    bindings:

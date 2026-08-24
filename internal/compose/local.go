@@ -24,6 +24,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deploy"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
@@ -317,7 +318,7 @@ func (p *plan) hostPorts() []HostPort {
 // 它带点，因此不会被 isServiceName 判成服务名——CLI 不托管它，
 // 使用者的意思是"连宿主机上那个已经跑着的库"。但容器里默认解析不了这个名字，
 // 必须靠 extra_hosts 指到网关上（005 §7.5）。
-const hostMachineAlias = "host.docker.internal"
+const hostMachineAlias = deploy.HostMachineAlias
 
 // extraHostsOf 返回该容器要映射到宿主机的名字。
 //
