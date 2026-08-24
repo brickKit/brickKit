@@ -324,7 +324,7 @@ func TestManifestCachedToDisk(t *testing.T) {
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
 	require.NoError(t, err)
 
-	// 003 §7.3 的命名：.brickkit/manifests/people-basic-1.0.0.yaml
+	// 003 §7.1 的命名：.brickkit/manifests/people-basic-1.0.0.yaml
 	cached := filepath.Join(layout.ManifestsDir(), "people-basic-1.0.0.yaml")
 	require.FileExists(t, cached)
 
@@ -452,7 +452,7 @@ func TestArtifactsCachedByServiceName(t *testing.T) {
 	assert.Len(t, res.Downloaded, 2)
 	assert.Empty(t, res.Cached)
 
-	// 003 §7.3：.brickkit/artifacts/<版本化服务名>/<type>/<文件路径>
+	// 003 §7.1：.brickkit/artifacts/<版本化服务名>/<type>/<文件路径>
 	base := filepath.Join(layout.ArtifactsDir(), "department-tree-1-0-0")
 	proto := filepath.Join(base, "api-contract", "proto", "department", "v1", "department.proto")
 	docs := filepath.Join(base, "api-docs", "openapi.json")

@@ -1,99 +1,12 @@
 package cli
 
 import (
-	"context"
 	"strconv"
 	"strings"
 
-	"github.com/spf13/cobra"
-
 	"github.com/brickkit/brickkit/internal/cascade"
-	"github.com/brickkit/brickkit/internal/config"
-	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/resolver"
-	"github.com/brickkit/brickkit/internal/source"
 )
-
-// newOrderCommand 实现 brickkit order（004 §3.8）。
-func newOrderCommand(opts *Options) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "order",
-		Short:   "查看组件启动顺序与依赖拓扑",
-		GroupID: groupLifecycle,
-		Long: `查看当前项目的启动顺序（004 §3.8）。
-
-顺序由拓扑排序（Kahn 算法）得出：被依赖的组件排在前面。
-弱依赖不参与排序约束——它可能根本不启动，因此只在"可跳过"一节列出。
-
-本命令只读：不修改配置，也不启动任何容器。`,
-		Example: `  brickkit order
-  brickkit order --config brickkit.prod.yaml`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runOrder(cmd.Context(), opts)
-		},
-	}
-	return cmd
-}
-
-func runOrder(ctx context.Context, opts *Options) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
-	cfg, err := config.ParseConfigFile(layout.ConfigPath())
-	if err != nil {
-		return err
-	}
-	if len(cfg.Components) == 0 {
-		opts.Printf("📋 当前项目没有组件\n")
-		// init 的骨架已经把 ./components 配成了本地安装源，所以 --local 是最短的一条路。
-		// 两条都给：有的人手上已经有组件源码，有的人要从市场装。
-		opts.Printf("   用 brickkit add --local 把 %s/ 下的组件全加进来\n", config.DirComponents)
-		opts.Printf("   或 brickkit add <组件ID> 从安装源添加\n")
-		return nil
-	}
-
-	client, err := newSourceClient(opts, layout, cfg, source.Options{})
-	if err != nil {
-		return err
-	}
-	defer func() { _ = client.Close() }()
-
-	graph, err := resolver.New(resolver.FromSource(client)).ResolveConfig(ctx, cfg)
-	if err != nil {
-		return err
-	}
-	// 先算"这次到底跑哪些组件"（003 §4.3），再对启动集合做拓扑排序。
-	// 顺序反过来的话，输出里会出现根本不会启动的组件。
-	states, err := cascade.Compute(cfg, graph)
-	if err != nil {
-		return err
-	}
-
-	plan, err := resolver.Order(graph.Subgraph(states.Running()))
-	if err != nil {
-		return err
-	}
-
-	renderWarnings(opts, graph.Warnings)
-	renderStates(opts, states)
-	// 与 `up` 一致：启动顺序里会出现 external 组件（它们确实在依赖图里），
-	// 不说一句的话，使用者会以为本项目也要启动它们
-	renderExternals(opts, cfg)
-
-	if states.Empty() {
-		opts.Printf("📋 本次没有组件会启动\n")
-		opts.Printf("   把需要的组件改成 enabled: true，或移除 enabled: false\n")
-		logging.Info("启动顺序已计算", "components", 0)
-		return nil
-	}
-	renderOrder(opts, plan, graph)
-
-	logging.Info("启动顺序已计算", "components", len(plan.Steps), "optional", len(plan.Optional))
-	return nil
-}
 
 // renderStates 输出组件状态计算结果（003 §4.3 的输出样例）。
 //

@@ -220,7 +220,7 @@ resources:
 	assert.Empty(t, cfg.DanglingBindings())
 
 	// 真正要守住的是这一条：remove 之后项目还能用
-	assert.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "order").code,
+	assert.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "up", "--dry-run").code,
 		"remove 之后配置必须仍然可用")
 	assert.Contains(t, f.config(t), "${PG_PASSWORD}", "改绑定不能顺手展开密钥引用")
 }

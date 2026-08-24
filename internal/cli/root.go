@@ -201,7 +201,6 @@ CLI 只做六件事（001 §5.1）：
 		newAddCommand(opts),
 		newRemoveCommand(opts),
 		newSyncCommand(opts),
-		newOrderCommand(opts),
 		newUpCommand(opts),
 		newDownCommand(opts),
 		newStatusCommand(opts),

@@ -71,7 +71,7 @@
 | 01 | [01-初始化项目.md](01-初始化项目.md) | `init`、目录结构、`.gitignore`、`reset` | `--reset` |
 | 02 | [02-添加与移除组件.md](02-添加与移除组件.md) | 安装源、`add`、`add --local`、`sync` 整理源码工作区、`remove` | 01 |
 | 02a | [02a-专注在几个组件上.md](02a-专注在几个组件上.md) | **日常最常用的那个动作**：`sync --only` 把工作区收拢到今天要动的几个组件上，不改 `brickkit.yaml` | 02 |
-| 03 | [03-依赖与启动顺序.md](03-依赖与启动顺序.md) | `order`、强/弱依赖、循环依赖、多版本共存 | `--baseline` |
+| 03 | [03-依赖与启动顺序.md](03-依赖与启动顺序.md) | `up --dry-run`、强/弱依赖、循环依赖、多版本共存 | `--baseline` |
 | 04 | [04-组件开启模式.md](04-组件开启模式.md) | **enabled 三态、级联禁用、`--only`、expose** | `--baseline` |
 | 05 | [05-Docker启动全流程.md](05-Docker启动全流程.md) | `up` / `status` / `down`、迁移、资源、建库 | `--baseline` + `--images` |
 | 06 | [06-K8s部署.md](06-K8s部署.md) | minikube 上的完整部署、迁移 Job、Ingress | 05 + minikube |

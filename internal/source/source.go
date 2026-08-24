@@ -379,14 +379,14 @@ func (c *Client) servedByLocalSource(ctx context.Context, id, version string) bo
 }
 
 // ManifestCachePath 返回 Manifest 缓存路径，如
-// .brickkit/manifests/people-basic-1.0.0.yaml（003 §7.3）。
+// .brickkit/manifests/people-basic-1.0.0.yaml（003 §7.1）。
 func (c *Client) ManifestCachePath(id, version string) string {
 	name := strings.ReplaceAll(id, "/", "-") + "-" + version + ".yaml"
 	return filepath.Join(c.layout.ManifestsDir(), name)
 }
 
 // ArtifactDir 返回某个组件版本的产物缓存目录，如
-// .brickkit/artifacts/department-tree-1-0-0/（003 §7.3）。
+// .brickkit/artifacts/department-tree-1-0-0/（003 §7.1）。
 func (c *Client) ArtifactDir(id, version string) string {
 	return filepath.Join(c.layout.ArtifactsDir(), manifest.ServiceName(id, version))
 }

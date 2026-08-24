@@ -65,7 +65,7 @@ BrickKit **不是**操作系统，不是 ERP，也不是任何一个具体的业
 ```bash
 brickkit init my-shop                 # 创建项目
 brickkit add erp/backend@1.0.0        # 一条命令拉下整棵依赖树
-brickkit order                        # 看启动顺序（拓扑排序）
+brickkit up --dry-run                        # 看启动顺序（拓扑排序）
 brickkit up                           # 生成部署文件 → 跑迁移 → 起容器
 ```
 
@@ -80,8 +80,8 @@ deploy:
 组件代码一个字都不用改：两个环境下的地址格式完全一样，都是
 `http://<版本化服务名>:<端口>`（例如 `http://people-basic-1-0-0:8080`）。
 
-**命令共 12 条：** `init` `add` `remove` `up` `down` `status` `order` `sync`
-`reset` `login` `publish` `version`
+**命令共 10 条：** `init` `add` `remove` `up` `down` `status` `sync`
+`login` `publish` `version`
 
 ---
 

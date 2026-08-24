@@ -22,7 +22,7 @@ R8	brickkit up 级联禁用	15	.	./internal/cascade	TestCascadeMatchesDesignExam
 R9	brickkit up 迁移执行	14/15	.	./internal/compose	TestMainServiceWaitsForMigration
 R10	brickkit down 不删 volume	15	.	./internal/engine	TestDownNeverRemovesVolumes
 R11	brickkit status 基本功能	15	.	./internal/cli	TestStatusShowsRunningComponents
-R12	brickkit order 基本功能	10	.	./internal/cli	TestOrderPutsDependenciesFirst
+R12	启动顺序把依赖排在前面	10	.	./internal/cli	TestDryRunOrderPutsDependenciesFirst
 R13	brickkit sync 基本功能	17	.	./internal/cli	TestSyncKeepsEnabledComponents
 R14	写配置失败时不留下半改的配置	9	.	./internal/cli	TestAddConfigWriteFailure
 R15	brickkit login 基本功能	19	.	./internal/cli	TestLoginCredentialsFormat

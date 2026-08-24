@@ -1,5 +1,7 @@
-// 本文件是 Step 10「brickkit order」的命令层业务行为测试，覆盖开发计划 10.3、10.7
-// 与 10.1/10.2/10.4/10.6 在命令层的表现。
+// 本文件覆盖启动顺序与依赖图的渲染（开发计划 10.1–10.7）。
+//
+// 从前这些是 brickkit order 的测试；order 已删除（它逐字输出的就是
+// up --dry-run 的中段），因此改由 up --dry-run 驱动同一批渲染函数。
 package cli
 
 import (
@@ -44,10 +46,10 @@ func orderProject(t *testing.T) *projectFixture {
 // ============================================================
 
 // 10.3 输出包含编号、箭头与依赖图（004 §3.8）。
-func TestOrderOutputFormat(t *testing.T) {
+func TestDryRunOrderOutputFormat(t *testing.T) {
 	f := orderProject(t)
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	out := r.stdout
@@ -66,10 +68,10 @@ func TestOrderOutputFormat(t *testing.T) {
 }
 
 // 10.1 顺序本身正确：被依赖的组件出现在依赖方之前。
-func TestOrderPutsDependenciesFirst(t *testing.T) {
+func TestDryRunOrderPutsDependenciesFirst(t *testing.T) {
 	f := orderProject(t)
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	assert.Less(t,
@@ -81,10 +83,10 @@ func TestOrderPutsDependenciesFirst(t *testing.T) {
 }
 
 // 10.2 弱依赖单独列出，且不参与排序约束。
-func TestOrderListsOptionalDependencies(t *testing.T) {
+func TestDryRunOrderListsOptionalDependencies(t *testing.T) {
 	f := orderProject(t)
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	// 弱依赖不会被级联拉起（003 §4.3），因此它不在启动顺序里；
@@ -97,7 +99,7 @@ func TestOrderListsOptionalDependencies(t *testing.T) {
 }
 
 // 10.6 多版本各自独立出现在顺序里。
-func TestOrderShowsEachVersionSeparately(t *testing.T) {
+func TestDryRunOrderShowsEachVersionSeparately(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/a", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
 		{ID: "erp/b", Version: "1.0.0", Requires: []string{"people/basic@2.0.0"}},
@@ -106,7 +108,7 @@ func TestOrderShowsEachVersionSeparately(t *testing.T) {
 	}
 	f := addedProject(t, comps, "erp/a@1.0.0", "erp/b@1.0.0")
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	assert.Contains(t, r.stdout, "people-basic-1-0-0")
@@ -118,10 +120,10 @@ func TestOrderShowsEachVersionSeparately(t *testing.T) {
 // 10.7 空项目
 // ============================================================
 
-func TestOrderOnEmptyProject(t *testing.T) {
+func TestDryRunOrderOnEmptyProject(t *testing.T) {
 	f := newProjectFixture(t)
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "当前项目没有组件")
 	assert.Contains(t, r.stdout, "brickkit add")
@@ -132,7 +134,7 @@ func TestOrderOnEmptyProject(t *testing.T) {
 // 10.4 循环依赖
 // ============================================================
 
-func TestOrderReportsCycle(t *testing.T) {
+func TestDryRunOrderReportsCycle(t *testing.T) {
 	comps := []comp{
 		{ID: "a/one", Version: "1.0.0", Requires: []string{"b/two@1.0.0"}},
 		{ID: "b/two", Version: "1.0.0", Requires: []string{"a/one@1.0.0"}},
@@ -143,7 +145,7 @@ func TestOrderReportsCycle(t *testing.T) {
 	// 直接写入配置：add 会在解析阶段就拒绝这套组件
 	f.writeConfig(t, "components:\n  - id: a/one\n    version: 1.0.0\n  - id: b/two\n    version: 1.0.0\n")
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stderr, "循环依赖")
 	assert.Contains(t, r.stderr, "a/one@1.0.0")
@@ -153,27 +155,20 @@ func TestOrderReportsCycle(t *testing.T) {
 // 用法
 // ============================================================
 
-func TestOrderInUninitializedDir(t *testing.T) {
-	r := runIn(t, t.TempDir(), "order")
+func TestDryRunOrderInUninitializedDir(t *testing.T) {
+	r := runIn(t, t.TempDir(), "up", "--dry-run")
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stderr, "❌")
 }
 
-func TestOrderRejectsExtraArgs(t *testing.T) {
-	f := newProjectFixture(t)
-
-	r := runIn(t, f.Dir, "order", "extra")
-	assert.Equal(t, clierr.ExitUsage, r.code)
-}
-
 // Manifest 缓存缺失且安装源不可用时，order 报错说明原因（而不是给出错误的顺序）。
-func TestOrderWithUnavailableManifest(t *testing.T) {
+func TestDryRunOrderWithUnavailableManifest(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
 	f.Sources = nil
 	f.writeConfig(t, "components:\n  - id: people/basic\n    version: 1.0.0\n")
 	require.NoError(t, os.RemoveAll(f.Layout.ManifestsDir()))
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stderr, "❌")
 }
@@ -222,10 +217,10 @@ func TestRenderDependencyGraphSkipsUnknownNode(t *testing.T) {
 }
 
 // 只有一个组件时不打印"必须最后启动"（它同时也是第一个）。
-func TestOrderSingleComponentOutput(t *testing.T) {
+func TestDryRunOrderSingleComponentOutput(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "1. people-basic-1-0-0")
 	assert.Contains(t, r.stdout, "可独立启动：people-basic-1-0-0（无依赖）")
@@ -234,13 +229,13 @@ func TestOrderSingleComponentOutput(t *testing.T) {
 }
 
 // 弱依赖缺失时，order 也要把警告打出来，并在依赖图里标注"未安装"。
-func TestOrderShowsMissingOptionalDependency(t *testing.T) {
+func TestDryRunOrderShowsMissingOptionalDependency(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Optional: []string{"infra/redis-event-bus@1.0.0"}},
 	}
 	f := addedProject(t, comps, "erp/backend@1.0.0")
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "⚠️")
 	assert.Contains(t, r.stdout, "（弱，未安装）")
@@ -253,7 +248,7 @@ func TestOrderShowsMissingOptionalDependency(t *testing.T) {
 // 断言被禁用的组件不出现在启动顺序中——它失败正是提醒回来改这里。
 // P17 回填：order 按级联结果过滤（003 §4.3）。
 // 被显式禁用的组件不该出现在启动顺序里。
-func TestOrderExcludesDisabledComponent(t *testing.T) {
+func TestDryRunOrderExcludesDisabledComponent(t *testing.T) {
 	comps := []comp{
 		{ID: "people/basic", Version: "1.0.0"},
 		{ID: "department/tree", Version: "1.0.0"},
@@ -267,7 +262,7 @@ func TestOrderExcludesDisabledComponent(t *testing.T) {
     enabled: false
 `)
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	startup := startupSection(r.stdout)
@@ -281,7 +276,7 @@ func TestOrderExcludesDisabledComponent(t *testing.T) {
 }
 
 // 级联跳过的组件同样不排进启动顺序，并给出被谁拖下来的理由。
-func TestOrderExcludesCascadeSkippedComponent(t *testing.T) {
+func TestDryRunOrderExcludesCascadeSkippedComponent(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
 		{ID: "people/basic", Version: "1.0.0"},
@@ -295,7 +290,7 @@ func TestOrderExcludesCascadeSkippedComponent(t *testing.T) {
     version: 1.0.0
 `)
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	assert.Contains(t, r.stdout, "级联跳过")
@@ -304,7 +299,7 @@ func TestOrderExcludesCascadeSkippedComponent(t *testing.T) {
 }
 
 // 全部组件都不启动时，明确说清楚，而不是打印一张空表。
-func TestOrderWithNothingRunning(t *testing.T) {
+func TestDryRunOrderWithNothingRunning(t *testing.T) {
 	comps := []comp{{ID: "people/basic", Version: "1.0.0"}}
 	f := addedProject(t, comps, "people/basic@1.0.0")
 	f.writeConfig(t, `components:
@@ -313,13 +308,13 @@ func TestOrderWithNothingRunning(t *testing.T) {
     enabled: false
 `)
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "本次没有组件会启动")
 }
 
 // P14 回填：钉住的组件依赖了被禁用的组件 → 报错（004 §10.3）。
-func TestOrderReportsDisabledStrongDependency(t *testing.T) {
+func TestDryRunOrderReportsDisabledStrongDependency(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"authorization/rbac@1.0.0"}},
 		{ID: "authorization/rbac", Version: "1.0.0"},
@@ -334,7 +329,7 @@ func TestOrderReportsDisabledStrongDependency(t *testing.T) {
     enabled: false
 `)
 
-	r := runIn(t, f.Dir, "order")
+	r := runIn(t, f.Dir, "up", "--dry-run")
 
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stderr, "强依赖 authorization/rbac 被禁用")

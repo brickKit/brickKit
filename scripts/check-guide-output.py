@@ -82,20 +82,9 @@ CASES = [
         "run": [],
         "check": ("init demo-shop", "01-初始化项目.md", "✅ 项目已初始化：demo-shop", 0),
     },
-    {
-        # 01 §1.3 教的是 reset（不是 reset --last）——那时 .last 还不存在。
-        # 这条用例曾经不存在，于是指南里那句"reset --last 之后配置恢复原样"
-        # 一直挂着：照着做的人会看到"备份文件不存在"，而配置根本没被恢复。
-        "what": "01 §1.3 写坏配置后 reset 回初始状态",
-        "reset": True,
-        "run": ["init demo-shop", "!corrupt"],
-        "check": ("reset", "01-初始化项目.md", "🔄 已恢复 brickkit.yaml 到初始状态", 0),
-    },
-    {
-        "what": "01 §1.3 这时还没有 .last",
-        "run": [],
-        "check": ("reset --last", "01-初始化项目.md", "❌ 错误：备份文件不存在", 0),
-    },
+    # 01 §1.3 从前有两条用例守 brickkit reset 的两屏输出。reset 已删除，
+    # 那一节现在教的是 git init / git diff / git checkout——那些输出不是
+    # CLI 打印的，这个脚本比不了。它靠 §1.3 里的 brickkit order 报错间接守着。
     # ↓ 02 按**指南自己的叙述顺序**连着跑：2.2 add → 2.3 add --local →
     #   2.4 关掉六个 → 2.5 sync → 2.6 remove。
     #
@@ -116,7 +105,7 @@ CASES = [
     {
         "what": "02 §2.4 关掉六个之后算出来的状态",
         "run": ["!paste-components 02-添加与移除组件.md"],
-        "check": ("order", "02-添加与移除组件.md", "📋 组件状态计算：", 0),
+        "check": ("up --dry-run", "02-添加与移除组件.md", "📋 组件状态计算：", 0),
     },
     {
         "what": "02 §2.5 sync 把六个归档",
@@ -157,28 +146,28 @@ CASES = [
         "check": ("sync", "02a-专注在几个组件上.md", "📂 工作区整理：", 0),
     },
     {
-        "what": "03 order 的三段输出",
+        "what": "03 dry-run 的三段输出",
         "reset": True,
         "run": BASELINE,
-        "check": ("order", "03-依赖与启动顺序.md", "📋 组件状态计算：", 0),
+        "check": ("up --dry-run", "03-依赖与启动顺序.md", "📋 组件状态计算：", 0),
     },
     {
         "what": "04 §4.1 什么都不写时算出来的状态",
         "reset": True,
         "run": BASELINE,
-        "check": ("order", "04-组件开启模式.md", "📋 组件状态计算：", 0),
+        "check": ("up --dry-run", "04-组件开启模式.md", "📋 组件状态计算：", 0),
     },
     {
         "what": "04 §4.2 级联禁用",
         "reset": True,
         "run": BASELINE + ["!disable demo/hello"],
-        "check": ("order", "04-组件开启模式.md", "📋 组件状态计算：", 1),
+        "check": ("up --dry-run", "04-组件开启模式.md", "📋 组件状态计算：", 1),
     },
     {
         "what": "04 §4.3 钉住撞上被禁用的强依赖",
         "reset": True,
         "run": BASELINE + ["!disable demo/hello", "!pin demo/caller"],
-        "check": ("order", "04-组件开启模式.md", "❌ 错误：强依赖 demo/hello 被禁用", 0),
+        "check": ("up --dry-run", "04-组件开启模式.md", "❌ 错误：强依赖 demo/hello 被禁用", 0),
     },
     {
         "what": "04 --only 一次性选中",

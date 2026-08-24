@@ -445,7 +445,6 @@ installer:
 | `brickkit up` | 级联计算 → 生成部署文件 → 生成 `local-debug.env` → 检测镜像权限 → 执行迁移 → 调用引擎 |
 | `brickkit down` | 停止所有组件。**不删除 volume，保留数据** |
 | `brickkit status` | 读底层引擎，展示运行表格（含多版本检测、级联跳过展示） |
-| `brickkit order` | 展示依赖拓扑排序结果 |
 | `brickkit sync` | 按级联结果双向归档 / 激活组件源码 |
 | `brickkit login` | 终端交互登录市场，Token 存 `.brickkit/credentials` |
 | `brickkit publish` | 上传 Manifest + 镜像引用 + 产物到市场（需先 login） |
@@ -467,7 +466,7 @@ brickkit remove people/basic@1.0.0                # 多版本共存时指定版�
 ```bash
 brickkit init my-shop                 # 创建项目
 brickkit add erp/backend@1.0.0        # 一条命令拉下整棵依赖树
-brickkit order                        # 看启动顺序（拓扑排序）
+brickkit up --dry-run                        # 看启动顺序（拓扑排序）
 brickkit up                           # 生成部署文件 → 跑迁移 → 起容器
 ```
 

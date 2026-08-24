@@ -137,7 +137,7 @@ case "$MODE" in
 基准状态已就位，可以直接开始 03（或 04 / 05 / 07 / 08 / 19）：
 
    cd "$PLAY"
-   brickkit order
+   brickkit up --dry-run
 EOF
 		;;
 	--images)

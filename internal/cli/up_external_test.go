@@ -248,7 +248,7 @@ func TestDownOnlyLocalComponentDoesNotReachEngine(t *testing.T) {
 func TestOrderMarksExternalComponent(t *testing.T) {
 	f := externalProject(t)
 
-	r := runWithEngine(t, deployedExternalEngine(), f.Dir, "order")
+	r := runWithEngine(t, deployedExternalEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "别的项目")
