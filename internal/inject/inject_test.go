@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/cascade"
+	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -87,6 +88,21 @@ func (b *builder) build() *inject.Result {
 	result, err := inject.Build(b.cfg, graph, states)
 	require.NoError(b.t, err)
 	return result
+}
+
+// buildErr 跑注入并要求它失败，返回错误。
+func (b *builder) buildErr() error {
+	b.t.Helper()
+
+	graph, err := resolver.New(b.provider).Resolve(context.Background(), b.roots...)
+	require.NoError(b.t, err)
+
+	states, err := cascade.Compute(b.cfg, graph)
+	require.NoError(b.t, err)
+
+	_, err = inject.Build(b.cfg, graph, states)
+	require.Error(b.t, err, "本用例期待注入失败")
+	return err
 }
 
 // envOf 取某个组件的环境变量表。
@@ -316,6 +332,70 @@ func TestConfigWithoutDefaultOrOverrideIsNotInjected(t *testing.T) {
 	assert.NotContains(t, envOf(t, b.build(), "people/basic"), "API_KEY")
 }
 
+// configSchema.required 且没有默认值、也没有覆盖 → **阻断**。
+//
+// 组件作者写下 required 又不给默认值，说的正是"这一项我猜不出来，必须由项目给"。
+// 跨项目服务的地址就是典型（003 §4.9）：那台服务归别人管，平台推导不出来。
+// 从前这里只是不注入，组件看到"未配置"，而使用者以为自己配好了。
+func TestRequiredConfigWithoutValueBlocks(t *testing.T) {
+	m := simple("shop/order", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{
+		Properties: map[string]manifest.ConfigProperty{"notifierBaseUrl": {Type: "string"}},
+		Required:   []string{"notifierBaseUrl"},
+	}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{})
+
+	out := clierr.As(b.buildErr()).Format()
+	assert.Contains(t, out, "必填的组件配置没有值")
+	assert.Contains(t, out, "shop/order@1.0.0 → notifierBaseUrl")
+	assert.Contains(t, out, "NOTIFIER_BASE_URL", "要说清楚它会变成哪个环境变量")
+}
+
+// required 有默认值时照常注入：默认值就是"值"，不该被当成缺失。
+func TestRequiredConfigWithDefaultPasses(t *testing.T) {
+	m := simple("shop/order", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{
+		Properties: map[string]manifest.ConfigProperty{"pageSize": {Type: "integer", Default: 20}},
+		Required:   []string{"pageSize"},
+	}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{})
+
+	assert.Equal(t, "20", envOf(t, b.build(), "shop/order")["PAGE_SIZE"])
+}
+
+// required 无默认值、但项目在 config 里给了值 → 通过。这是跨项目场景的正常写法。
+func TestRequiredConfigWithOverridePasses(t *testing.T) {
+	m := simple("shop/order", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{
+		Properties: map[string]manifest.ConfigProperty{"notifierBaseUrl": {Type: "string"}},
+		Required:   []string{"notifierBaseUrl"},
+	}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{
+		Config: map[string]any{"notifierBaseUrl": "http://notify.internal.corp"}})
+
+	assert.Equal(t, "http://notify.internal.corp",
+		envOf(t, b.build(), "shop/order")["NOTIFIER_BASE_URL"])
+}
+
+// 不在 required 里的配置项没值时仍然只是不注入，不阻断（保持既有行为）。
+func TestOptionalConfigWithoutValueStillSilent(t *testing.T) {
+	m := simple("shop/order", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{
+		Properties: map[string]manifest.ConfigProperty{"apiKey": {Type: "string"}},
+	}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{})
+
+	assert.NotContains(t, envOf(t, b.build(), "shop/order"), "API_KEY")
+}
+
 // ============================================================
 // 11.13–11.16 升级时 configSchema 变更
 // ============================================================
@@ -411,6 +491,27 @@ func TestReservedVariableConflictWarnsAndSkips(t *testing.T) {
 	assert.Contains(t, warning, "DEPARTMENT_TREE_ENDPOINT")
 	assert.Contains(t, warning, "people/basic")
 	assert.Contains(t, warning, "⚠️", "是警告不是错误")
+}
+
+// 冲突警告给出的新名字，必须**真的避得开**那条模式。
+//
+// 从前一律建议加 custom 前缀：对 `DATABASE_*` 这类前缀模式有效，
+// 对 `*_ENDPOINT` 这类后缀模式完全无效——customNotifierEndpoint 照样以
+// _ENDPOINT 结尾，改完再跑还是同一条警告。照着做不管用的建议比没有更糟。
+func TestReservedConflictSuggestionActuallyAvoidsThePattern(t *testing.T) {
+	m := dependsOn(simple("people/basic", "1.0.0", 8080), "department/tree", "1.0.0")
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"departmentTreeEndpoint": {Type: "string", Default: "http://写死的地址"},
+	}}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{})
+	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
+
+	warning := b.build().Warnings[0].Format()
+	assert.Contains(t, warning, "departmentTreeBaseUrl")
+	assert.NotContains(t, warning, "customDepartmentTreeEndpoint",
+		"这个建议改完还是以 _ENDPOINT 结尾，等于没改")
 }
 
 // 平台通用变量与资源前缀同样受保护。

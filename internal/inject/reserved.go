@@ -56,8 +56,27 @@ func reservedConflictWarning(componentID, configKey, envVar, pattern string) *cl
 		WithDetail("处理", "该配置项已被忽略，平台注入的值优先").
 		WithHint(
 			"修改 configSchema 中的配置项名称，避开平台保留变量",
-			"例如改为 custom"+strings.ToUpper(configKey[:1])+configKey[1:],
+			"例如改为 "+renameSuggestion(configKey, pattern),
 		)
+}
+
+// renameSuggestion 给出一个**真的避得开**这条模式的新名字。
+//
+// 从前一律建议加 custom 前缀。那对 `DATABASE_*` 这类**前缀**模式有效，
+// 对 `*_ENDPOINT` 这类**后缀**模式却完全无效：`customNotifierEndpoint`
+// 照样以 _ENDPOINT 结尾，改完再跑还是同一条警告。
+// 一条照着做不管用的建议，比不给建议更浪费时间。
+func renameSuggestion(configKey, pattern string) string {
+	if strings.HasPrefix(pattern, "*") {
+		// 后缀模式：得换掉结尾。Endpoint → BaseUrl 是最自然的同义替换
+		suffix := strings.TrimPrefix(pattern, "*_")
+		camel := strings.ToUpper(suffix[:1]) + strings.ToLower(suffix[1:])
+		if trimmed := strings.TrimSuffix(configKey, camel); trimmed != configKey && trimmed != "" {
+			return trimmed + "BaseUrl"
+		}
+		return configKey + "Value"
+	}
+	return "custom" + strings.ToUpper(configKey[:1]) + configKey[1:]
 }
 
 // EnvVarName 把配置项名称转成环境变量名（004 §5.6）。

@@ -101,18 +101,68 @@ func Build(cfg *config.Config, graph *resolver.Graph, states *cascade.Result) (*
 		target = cfg.Deploy.Target
 	}
 	result := &Result{}
+	missing := map[string][]string{}
 
 	for _, node := range graph.Nodes {
 		if !states.IsRunning(node.Ref) {
 			continue
 		}
 
-		component, warnings := buildComponent(
+		component, warnings, lacks := buildComponent(
 			node, graph, states, entries[node.Ref], bindings[node.Ref.ID], externals, target)
 		result.Components = append(result.Components, component)
 		result.Warnings = append(result.Warnings, warnings...)
+		if len(lacks) > 0 {
+			missing[node.Ref.String()] = lacks
+		}
+	}
+	if err := missingRequiredError(missing); err != nil {
+		return nil, err
 	}
 	return result, nil
+}
+
+// missingRequiredError 把"必填配置项没人给值"变成一条阻断错误。
+//
+// # 为什么是阻断，不是警告
+//
+// 组件作者写下 required 又不给默认值，说的正是"这一项我猜不出来"。
+// 最典型的就是**跨项目服务的地址**（003 §4.9）：那台服务归别的项目管，
+// 平台推导不出它在哪，只能由项目填。
+//
+// 放行的后果是变量根本不出现，组件看到的是"未配置"——而使用者以为配好了。
+// 这与漏绑数据库是同一类失败：不崩、不报警，只是那一路调用永远走不通。
+func missingRequiredError(missing map[string][]string) *clierr.Error {
+	if len(missing) == 0 {
+		return nil
+	}
+	refs := make([]string, 0, len(missing))
+	for ref := range missing {
+		refs = append(refs, ref)
+	}
+	sort.Strings(refs)
+
+	err := clierr.New(clierr.CodeConfigInvalid, "错误：必填的组件配置没有值")
+	for _, ref := range refs {
+		keys := missing[ref]
+		sort.Strings(keys)
+		for _, key := range keys {
+			err = err.WithDetailf("缺少配置", "%s → %s（注入为 %s）", ref, key, EnvVarName(key))
+		}
+	}
+	first := refs[0]
+	firstKey := missing[first][0]
+	return err.
+		WithDetail("原因", "组件在 configSchema.required 里声明了它，又没有给默认值——"+
+			"这一项平台推导不出来，只能由项目提供").
+		WithHint(
+			"在 brickkit.yaml 里给它一个值：\n"+
+				"    components:\n"+
+				"      - id: "+strings.SplitN(first, "@", 2)[0]+"\n"+
+				"        config:\n"+
+				"          "+firstKey+": <值>",
+			"值里可以写 ${ENV_VAR}，真值放 .env（003 §4.6）",
+		)
 }
 
 // buildComponent 计算单个组件的注入结果。
@@ -120,7 +170,7 @@ func buildComponent(
 	node *resolver.Node, graph *resolver.Graph, states *cascade.Result,
 	entry config.Component, bindings []boundResource,
 	externals map[resolver.Ref]string, target string,
-) (Component, []*clierr.Error) {
+) (Component, []*clierr.Error, []string) {
 	m := node.Manifest
 	builder := &envBuilder{
 		componentID: node.Ref.ID,
@@ -154,7 +204,7 @@ func buildComponent(
 	}
 
 	// 4. 组件自身配置（configSchema 默认值 + brickkit.yaml 覆盖）
-	warnings := builder.addConfig(m, entry)
+	warnings, missing := builder.addConfig(m, entry)
 
 	component := Component{
 		Ref:       node.Ref,
@@ -162,7 +212,7 @@ func buildComponent(
 		Env:       builder.sorted(),
 		Resources: mergeResources(manifestResources(m), entry.Resources),
 	}
-	return component, warnings
+	return component, warnings, missing
 }
 
 // ============================================================
@@ -255,12 +305,18 @@ func endpoint(service string, port int) string {
 // 默认值来自**本次要装的这个版本**的 configSchema，因此升级时：
 // 新增的配置项自动用新默认值；被删掉的配置项即使 brickkit.yaml 里还留着覆盖
 // 也不会注入（静默忽略，不打扰使用者）。
-func (b *envBuilder) addConfig(m *manifest.Manifest, entry config.Component) []*clierr.Error {
+func (b *envBuilder) addConfig(m *manifest.Manifest, entry config.Component) ([]*clierr.Error, []string) {
 	if m == nil || m.ConfigSchema == nil {
-		return nil
+		return nil, nil
+	}
+
+	required := map[string]bool{}
+	for _, name := range m.ConfigSchema.Required {
+		required[name] = true
 	}
 
 	var warnings []*clierr.Error
+	var missing []string
 	for _, key := range sortedConfigKeys(m.ConfigSchema.Properties) {
 		property := m.ConfigSchema.Properties[key]
 
@@ -269,7 +325,16 @@ func (b *envBuilder) addConfig(m *manifest.Manifest, entry config.Component) []*
 			value, source = override, SourceOverride
 		}
 		if value == nil {
-			// 既没有默认值也没有覆盖：不注入空值，让组件自己走"未配置"分支
+			// 既没有默认值也没有覆盖。
+			//
+			// 声明了 required 的：这是**必须拦下来**的一种。组件作者写 required
+			// 又不给默认值，说的正是"这一项我猜不出来，必须由项目告诉我"——
+			// 跨项目服务的地址就是典型（003 §4.9）。不拦的话变量根本不会出现，
+			// 组件看到的是"未配置"，而使用者以为自己已经配好了。
+			if required[key] {
+				missing = append(missing, key)
+			}
+			// 没声明 required 的：不注入空值，让组件自己走"未配置"分支
 			continue
 		}
 
@@ -280,7 +345,7 @@ func (b *envBuilder) addConfig(m *manifest.Manifest, entry config.Component) []*
 		}
 		b.set(Var{Name: name, Value: formatValue(value), Source: source})
 	}
-	return warnings
+	return warnings, missing
 }
 
 // sorted 返回按变量名排序的环境变量表。
