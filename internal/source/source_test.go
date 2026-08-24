@@ -389,6 +389,41 @@ func TestLocalSourceManifestIsNeverStale(t *testing.T) {
 	assert.Equal(t, "local-dev", second.SourceID)
 }
 
+// 本地源里的 component.yaml **改坏了**时，必须把语法错误报出来，
+// 而不是悄悄退回上一份缓存。
+//
+// 这条比 TestLocalSourceManifestIsNeverStale 更隐蔽：那条防的是"改了不生效"，
+// 这条防的是"**改错了也没人告诉你**"——命令照常成功、按缓存里那份旧的部署，
+// 使用者会以为自己的改动生效了。
+//
+// 根因值得记一笔：判据从前只有 manifestMatches，而它在 YAML 解析失败时
+// 返回 false，于是"文件坏了"与"这个源没有它"变成了同一个答案。
+func TestLocalSourceBrokenManifestErrorsInsteadOfUsingCache(t *testing.T) {
+	layout := newProject(t)
+	sourceDir := filepath.Join(layout.Root, "components")
+	writeComponent(t, sourceDir, componentSpec{
+		ID: "department/tree", Version: "1.0.0", Description: "好的那一份",
+	})
+
+	c := newClient(t, layout, cfgWithSources(config.Source{
+		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	}), Options{})
+
+	// 先取一次，把缓存写出来
+	first, err := c.Manifest(context.Background(), "department/tree", "1.0.0")
+	require.NoError(t, err)
+	require.Equal(t, "好的那一份", first.Manifest.Metadata.Description)
+	require.FileExists(t, filepath.Join(layout.ManifestsDir(), "department-tree-1.0.0.yaml"))
+
+	// 使用者把本地那份改坏了
+	writeFile(t, filepath.Join(sourceDir, "department", "tree", "component.yaml"),
+		"apiVersion: brickkit/v1\nmetadata:\n  id: [\n")
+
+	_, err = c.Manifest(context.Background(), "department/tree", "1.0.0")
+	require.Error(t, err, "缓存里有一份好的，但本地那份坏了——必须报错，不能拿旧的顶上")
+	assert.Contains(t, clierr.As(err).Format(), "component.yaml")
+}
+
 // 远程源该缓存还是缓存：那里的同一个版本内容不会变，省下的是真实的网络往返。
 func TestMarketSourceStillUsesCache(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})

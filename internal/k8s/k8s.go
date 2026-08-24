@@ -285,15 +285,6 @@ func newPlan(
 		if node == nil {
 			continue
 		}
-		if entries[ref].IsExternal() {
-			// P39：它由别的项目部署，本项目**一份清单都不生成**。
-			//
-			// 尤其不能生成 Service：本命名空间里的同名 Service 会**抢在**
-			// 跨命名空间解析之前命中，而它背后一个 Pod 都没有。
-			// 表现是稳定的 503，且从依赖方看一切正常——地址对、DNS 通、
-			// Service 也确实存在。寻址靠的是 inject 加的命名空间后缀。
-			continue
-		}
 		if entries[ref].Local {
 			locals = append(locals, ref)
 			continue

@@ -365,13 +365,27 @@ func (c *Client) writeCachedSignature(id, version, kind string, sig *security.Si
 //
 // 只扫到第一个非本地源为止：优先级更高的远程源可能才是真正的提供方，
 // 而"远程源有没有这个组件"问不起——那正是缓存存在的原因。
+//
+// # 文件在、但坏了，也算"由本地源提供"
+//
+// 判据不能只有 manifestMatches：它在 YAML 解析失败时返回 false，
+// 于是"文件坏了"与"这个源没有它"变成同一个答案，调用方退回缓存——
+// 使用者改坏了 component.yaml，`up` 却拿上一份好的缓存**照常成功**，
+// 一个字都不说。那正是本地源不吃缓存要防的事，只是失败方式更隐蔽：
+// 不是"改了没生效"，而是"改错了也没人告诉你"。
+//
+// 所以只要本地源真的拿得出这个文件，就返回 true，让后面的
+// fetchManifest 去解析并把那条语法错误抛出来。
 func (c *Client) servedByLocalSource(ctx context.Context, id, version string) bool {
 	for _, f := range c.fetchers {
 		if f.kind() != config.SourceTypeLocal {
 			return false
 		}
 		raw, err := f.manifestBytes(ctx, id, version)
-		if err == nil && manifestMatches(raw, id, version) {
+		if err != nil {
+			continue
+		}
+		if !manifestParses(raw) || manifestMatches(raw, id, version) {
 			return true
 		}
 	}

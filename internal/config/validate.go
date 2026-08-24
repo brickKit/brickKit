@@ -213,53 +213,7 @@ func (c *Config) validateComponents(p *clierr.ProblemSet) {
 		}
 
 		c.validateComponentPorts(p, field, i, item, localPorts, exposePorts)
-		c.validateExternal(p, field, item)
 		validateReplicas(p, field, item)
-	}
-}
-
-// validateExternal 校验 `external:`（P39）。
-//
-// 这里拦下的都是"写了不会报错、但也不会生效"的组合——那是最难查的一类问题：
-// 使用者改了配置、命令成功了、行为却没变，于是开始怀疑平台。
-func (c *Config) validateExternal(p *clierr.ProblemSet, field string, item Component) {
-	if item.External == nil {
-		return
-	}
-	ext := field + ".external"
-
-	switch {
-	case item.External.Project == "":
-		p.Add(ext+".project", "必须写明是哪个项目部署了它——"+
-			"平台要用它推导跨项目地址（K8s 命名空间 / Docker 网络）")
-	case item.External.Project == c.Project:
-		p.Addf(ext+".project", "不能指向本项目（%s）：那等于说"+
-			`"我不部署它，但它由我部署"。`+
-			"它若真该由本项目部署，去掉 external 即可", c.Project)
-	default:
-		if err := ValidateProjectName(item.External.Project); err != nil {
-			p.Addf(ext+".project", "%s", clierr.As(err).Message)
-		}
-	}
-
-	// 含义相反：local 是"在我的 IDE 里跑"，external 是"在别人那儿跑"
-	if item.Local {
-		p.Add(ext, "不能与 local 同时声明：一个说组件在本机调试，"+
-			"另一个说组件在别的项目里跑，平台无从选择")
-	}
-	// expose 是"把我部署的这个暴露出去"；它不由本项目部署，
-	// 硬生成会得到一个指向不存在的 Service 的 Ingress（表现为 503，
-	// 而人会去查那个组件，查不出任何问题）
-	if item.Expose {
-		p.Add(ext, "不能与 expose 同时声明：它的入口该由部署它的那个项目决定")
-	}
-	// 它读的是**对方项目**那份 brickkit.yaml 的配置，在这边写不会有任何效果
-	if len(item.Config) > 0 {
-		p.Add(ext, "不能与 config 同时声明：它跑在别的项目里，"+
-			"读的是那边的配置——写在这里不会生效，而看上去像生效了")
-	}
-	if item.Resources != nil {
-		p.Add(ext, "不能与 resources 同时声明：资源配额由部署它的那个项目决定")
 	}
 }
 
@@ -417,11 +371,7 @@ func validateReplicas(p *clierr.ProblemSet, field string, item Component) {
 			"然后连一个不存在的后端", *item.Replicas)
 		return
 	}
-	// 下面两条只在 >= 1 时才有意义：0 已经报过一次，再报只是噪音
-	if item.IsExternal() {
-		p.Add(name, "不能与 external 同时声明：副本数由部署它的那个项目决定，"+
-			"写在这里不会生效——而看上去像生效了")
-	}
+	// 下面这条只在 >= 1 时才有意义：0 已经报过一次，再报只是噪音
 	if item.Local {
 		p.Add(name, "不能与 local 同时声明：local 是这个组件在你的 IDE 里跑，"+
 			"那里只有一个进程")

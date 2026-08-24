@@ -106,6 +106,17 @@ func manifestMatches(data []byte, componentID, version string) bool {
 	return h.Metadata.ID == componentID && h.Metadata.Version == version
 }
 
+// manifestParses 判断这份 component.yaml 至少还是合法 YAML。
+//
+// 与 manifestMatches 分开，是因为"解析不了"和"是别的组件"必须区别对待：
+// 前者说明**文件确实在这儿，只是坏了**，那份错误必须让人看见；
+// 把两者一起当成"这个源没有它"，就会悄悄退回上一份缓存（见
+// Client.servedByLocalSource）。
+func manifestParses(data []byte) bool {
+	var h componentHeader
+	return yaml.Unmarshal(data, &h) == nil
+}
+
 // 组件来源类型（007 §11.1）。
 const (
 	// OriginGit 表示开源组件：有 Git 仓库，可以 clone 源码。

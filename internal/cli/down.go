@@ -128,13 +128,11 @@ type untouchedTarget struct {
 //
 // # 为什么要把"没有容器的组件"摘出去
 //
-// 两类组件在依赖图里、在启动顺序里、`status` 里也看得见，但部署文件里
-// **没有对应的 service**：`local: true` 跑在开发者的 IDE 里，
-// `external` 由别的项目部署（003 §4.4、§4.9）。
+// `local: true` 的组件在依赖图里、在启动顺序里、`status` 里也看得见，
+// 但部署文件里**没有对应的 service**：它跑在开发者的 IDE 里（003 §4.4）。
 //
-// 把它们的服务名递给 docker，换来的是 `no such service`，
-// 而且是让**整条命令失败**——P39 在 `up` 上踩过同一个坑，当时只修了
-// `up` 那一份名单，`down` / `status` 共用的这一份漏掉了。
+// 把它的服务名递给 docker，换来的是 `no such service`，
+// 而且是让**整条命令失败**。
 func downTargets(p *project, only []string) (downPlan, error) {
 	if len(only) == 0 {
 		return downPlan{}, nil
@@ -159,9 +157,6 @@ func downTargets(p *project, only []string) (downPlan, error) {
 		case entry.Local:
 			plan.untouched = append(plan.untouched, untouchedTarget{ref,
 				"local: true——它跑在你的 IDE 里，本项目没有它的容器"})
-		case entry.IsExternal():
-			plan.untouched = append(plan.untouched, untouchedTarget{ref,
-				"由项目 " + entry.External.Project + " 部署，本项目只连接、不停止"})
 		default:
 			// 本次级联没让它启动，因此也没生成它的 service
 			plan.untouched = append(plan.untouched, untouchedTarget{ref,

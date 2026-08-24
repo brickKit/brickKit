@@ -433,9 +433,6 @@ func newDependencies(cfg *config.Config, graph *Graph, target Ref) []Ref {
 // 而不是删掉"——那些组件当然还没绑资源。拿它们卡住 up，等于逼使用者
 // 要么删组件，要么为一个根本不跑的容器编一份数据库配置。
 //
-// `external` 组件同样跳过：平台不部署它、不跑它的迁移，它连哪个库
-// 是**部署它的那个项目**的事（003 §4.9）。
-//
 // # 为什么要一次报全
 //
 // 拼装一个新项目时往往几个组件同时缺绑定。一次只报一个，使用者就得
@@ -450,18 +447,8 @@ func CheckRunningResourceBindings(cfg *config.Config, graph *Graph, running []Re
 	if cfg == nil || graph == nil {
 		return nil
 	}
-	external := map[string]bool{}
-	for _, c := range cfg.Components {
-		if c.IsExternal() {
-			external[c.ID+"@"+c.Version] = true
-		}
-	}
-
 	var details []clierr.Detail
 	for _, ref := range running {
-		if external[ref.String()] {
-			continue
-		}
 		node := graph.Node(ref)
 		if node == nil {
 			continue

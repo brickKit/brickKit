@@ -61,7 +61,6 @@ func runStatus(ctx context.Context, opts *Options) error {
 		// 配置里全都 enabled: false 时，一句"尚未启动过"等于什么都没回答。
 		renderSkipped(opts, p)
 		renderLocalDebug(opts, p)
-		renderExternalStatus(opts, p)
 		if p.states != nil && p.states.Empty() {
 			opts.Printf("📋 按当前配置，本次没有组件会启动（原因见上）\n")
 			return nil
@@ -91,7 +90,6 @@ func runStatus(ctx context.Context, opts *Options) error {
 	renderComponentStatus(opts, p, byService)
 	renderSkipped(opts, p)
 	renderLocalDebug(opts, p)
-	renderExternalStatus(opts, p)
 	renderResourceStatus(ctx, opts, p)
 	return nil
 }
@@ -208,34 +206,6 @@ func renderLocalDebug(opts *Options, p *project) {
 	}
 
 	opts.Printf("🔧 本地调试（local: true，不由平台启动）\n")
-	opts.Printf("%s\n", t.render(" "))
-}
-
-// renderExternalStatus 单列由别的项目部署的组件（003 §4.9）。
-//
-// 不单列的话它们会掉进"❌ 未在运行 / 未创建"那张表里——**而那是一条常驻的
-// 假失败**：本项目从来就不为它们生成容器，引擎里当然查不到。
-// 使用者看到红叉会去 `docker ps` 里找它，找不到，然后开始怀疑平台。
-//
-// 与 `local: true` 那一节是同一个道理：在依赖图里、也确实"在跑"，
-// 只是**不由本项目启动**。
-//
-// 这里只**陈述**，不去核实对方到底部没部署：那需要读另一个项目的部署文件，
-// 而"探测"这条路已经在 006 §8 上论证过——平台给不出比组件自己的失败
-// 更准确的结论。`up` 会在 Docker 目标下先查一次对方的网络在不在（003 §4.9），
-// 那是启动前的阻断，与这里的"报告现状"是两回事。
-func renderExternalStatus(opts *Options, p *project) {
-	refs := p.externalRefs()
-	if len(refs) == 0 {
-		return
-	}
-
-	t := newTable("组件", "版本", "由哪个项目部署")
-	for _, ref := range refs {
-		t.add(ref.ID, ref.Version, p.entry(ref).External.Project)
-	}
-
-	opts.Printf("🔗 外部依赖（由别的项目部署，本项目只连接）\n")
 	opts.Printf("%s\n", t.render(" "))
 }
 

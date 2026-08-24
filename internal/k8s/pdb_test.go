@@ -110,17 +110,3 @@ func TestPDBHasNamespaceAndProjectLabel(t *testing.T) {
 	assert.Equal(t, "my-erp", dig(t, doc, "metadata", "labels", "brickkit.io/project"),
 		"P35：不带项目标签的话，副本数改回 1 之后这份 PDB 会永远留在集群里拦着 drain")
 }
-
-// external 组件不生成 PDB（它压根没有 Deployment）。
-func TestNoPDBForExternalComponent(t *testing.T) {
-	b := newBuilder(t)
-	b.component(simple("infra/notifier", "1.0.0", 8080), config.Component{
-		External: &config.External{Project: "platform-shared"},
-	})
-
-	result := b.generate()
-	for _, path := range pathsOf(result) {
-		assert.NotContains(t, path, "poddisruptionbudget",
-			"P35：它由别的项目部署，这边连 Deployment 都没有")
-	}
-}

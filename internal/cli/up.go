@@ -85,10 +85,8 @@ type upPlan struct {
 	k8s *k8s.Result
 	// kubeContext 是本次钉住的 kubeconfig 上下文（可能来自 --context）。
 	kubeContext string
-	// services 是本次要交给引擎启动的 service（不含 local 组件、external 组件与迁移容器）。
+	// services 是本次要交给引擎启动的 service（不含 local 组件与迁移容器）。
 	services []string
-	// external 是 external 组件 → 部署它的项目名（P39），用于输出时如实标注。
-	external map[resolver.Ref]string
 	// migrations 是本次会执行的迁移，供输出（15.25）。
 	migrations []migrationInfo
 	// images 是要检查拉取权限的镜像（15.19）。
@@ -151,11 +149,6 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 
 	eng, err := resolveEngine(opts)
 	if err != nil {
-		return err
-	}
-	// 放在镜像预检之前：对方没部署时镜像检查全过也没用，
-	// 而这条错误指向的动作（去那个项目 up 一次）与镜像毫无关系
-	if err := checkExternalNetworks(ctx, eng, plan); err != nil {
 		return err
 	}
 	if err := checkImages(ctx, opts, eng, plan.images); err != nil {
@@ -228,7 +221,6 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 
 	renderWarnings(opts, plan.graph.Warnings)
 	renderStates(opts, plan.states)
-	renderExternals(opts, cfg)
 	warnDanglingBindings(opts, cfg)
 	warnHardcodedPasswords(opts, cfg)
 	warnConfigSecrets(opts, cfg)
@@ -325,28 +317,15 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 // （使用者是在 IDE 里跑源码，根本不需要那个镜像）。
 func (p *upPlan) collectTargets(order *resolver.Plan) {
 	local := map[resolver.Ref]bool{}
-	external := map[resolver.Ref]string{}
 	for _, c := range p.cfg.Components {
-		ref := resolver.Ref{ID: c.ID, Version: c.Version}
 		if c.Local {
-			local[ref] = true
-		}
-		if c.IsExternal() {
-			external[ref] = c.External.Project
+			local[resolver.Ref{ID: c.ID, Version: c.Version}] = true
 		}
 	}
-	p.external = external
 
 	for _, step := range order.Steps {
 		ref := step.Ref
 		if local[ref] {
-			continue
-		}
-		if _, isExternal := external[ref]; isExternal {
-			// P39：它由别的项目部署，本项目既没有为它生成服务，
-			// 也不该点名启动它——点了 docker 会报 `no such service`
-			// 并让**整个 up 失败**，连本项目自己的组件都起不来（真跑到过）。
-			// 镜像预检同理：镜像由对方项目负责拉，在这边查只会误报别人的问题。
 			continue
 		}
 		node := p.graph.Node(ref)
@@ -500,30 +479,6 @@ func renderMigrations(opts *Options, migrations []migrationInfo) {
 	for _, m := range migrations {
 		opts.Printf("   %s  %s\n", m.component, m.command)
 	}
-}
-
-// renderExternals 如实说明哪些依赖由别的项目部署（P39）。
-//
-// 不说的话，使用者在上面的状态表里看到「✅ demo/hello@1.0.0」，
-// 会以为是这次起的，于是去 `docker ps` 里找它——找不到，然后开始怀疑平台。
-// 顺带提醒一句"对面没部它就连不上"：这是 external 唯一新增的失败模式，
-// 而它的表现（连接超时）跟本项目的任何配置都对不上号。
-func renderExternals(opts *Options, cfg *config.Config) {
-	var rows []config.Component
-	for _, c := range cfg.Components {
-		if c.IsExternal() {
-			rows = append(rows, c)
-		}
-	}
-	if len(rows) == 0 {
-		return
-	}
-
-	opts.Printf("🔗 以下依赖由**别的项目**部署，本项目只连接、不启动也不停止：\n")
-	for _, c := range rows {
-		opts.Printf("   %s@%s  ← 项目 %s\n", c.ID, c.Version, c.External.Project)
-	}
-	opts.Printf("   对方没部署时，本项目会正常起来但调用它时连接失败\n\n")
 }
 
 // warnDanglingBindings 提醒"这条资源绑定指向一个配置里没有的组件"。
