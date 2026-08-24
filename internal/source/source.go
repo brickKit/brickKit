@@ -9,14 +9,10 @@
 //	缓存     Manifest → .brickkit/manifests/<id>-<版本>.yaml
 //	         产物     → .brickkit/artifacts/<版本化服务名>/<type>/<文件路径>
 //	刷新     Options.Refresh（对应 --refresh）忽略缓存强制重新拉取
-//
-// 尚未实现（有意延后，编号见 开发进度/延后实现清单.md）：
-//
-//	P6   组件的 sourceType（git / registry）与 gitUrl —— Step 9 的 --repo 才需要
-//	P7   接线到 CLI 命令：目前没有任何命令调用本包，ArtifactResult.Warnings 也无人渲染
-//	P8   签名校验（installer.requireSignature + cosign）—— 当前下载链路完全不验签
-//	P9   remove 时清理 Manifest / 产物缓存
-//	P10  up 检测版本变化后自动拉取新版本 Manifest 与产物
+//	签名     只有市场源受签名策略约束（verify.go）；本地源与 git 源指向的是
+//	         使用者自己的目录与仓库，那里没有"发布者"这个角色（008 §8.5.2）
+//	来源     Origin 绕开 Manifest 缓存直接问安装源，供 brickkit add --repo 判断
+//	         组件是开源（git）还是闭源（registry）
 package source
 
 import (

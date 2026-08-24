@@ -244,7 +244,7 @@ func TestOrderShowsMissingOptionalDependency(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "⚠️")
 	assert.Contains(t, r.stdout, "（弱，未安装）")
-	assert.NotContains(t, r.stdout, "可跳过（弱依赖）", "没装进图里的弱依赖不算可跳过项")
+	assert.NotContains(t, r.stdout, "只被弱依赖引用", "没装进图里的弱依赖不该出现在这一行")
 }
 
 // ⚠️ 现状锁定：order 目前**不做级联计算**，enabled: false 的组件也会出现在顺序里。

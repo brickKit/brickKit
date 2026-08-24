@@ -142,7 +142,14 @@ func renderOrder(opts *Options, plan *resolver.Plan, graph *resolver.Graph) {
 		for _, ref := range plan.Optional {
 			ids = append(ids, ref.ID)
 		}
-		opts.Printf("可跳过（弱依赖）：%s\n", strings.Join(ids, "、"))
+		// 措辞要点：不是"可以跳过"，是"默认就不跑"。
+		//
+		// 从前这里写的是"可跳过（弱依赖）"，它暗示这些组件本来会启动、
+		// 你可以选择跳过——而级联的规矩恰好相反：只被弱依赖引用的组件
+		// **默认不启动**（003 §4.3），要它跑得显式写 enabled: true。
+		// 一句反过来的提示比没有提示更糟：使用者会去 docker ps 里找它。
+		opts.Printf("只被弱依赖引用（默认不启动，需要时写 enabled: true）：%s\n",
+			strings.Join(ids, "、"))
 	}
 	if last := plan.Last(); last != nil && last.Position > 1 {
 		opts.Printf("必须最后启动：%s（需等前 %d 个组件就绪）\n",

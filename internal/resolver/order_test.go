@@ -148,7 +148,7 @@ func TestOptionalDependencyDoesNotConstrainOrder(t *testing.T) {
 	assert.Equal(t, 1, pos["aaa/app@1.0.0"], "只有弱依赖的组件本身也算可独立启动")
 	assert.Empty(t, plan.Steps[0].RequirePositions)
 
-	// 004 §3.8：弱依赖引入的组件要能单列出来（"可跳过（弱依赖）"）
+	// 004 §3.8：弱依赖引入的组件要能单列出来（order 单列一行说明它默认不启动）
 	assert.Equal(t, []Ref{{"zzz/bus", "1.0.0"}}, plan.Optional)
 }
 
