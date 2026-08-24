@@ -226,7 +226,7 @@ func findDependents(
 				clierr.Warn(clierr.CodeManifestInvalid, "警告：无法确认 "+other.Ref()+" 的依赖关系").
 					WithDetail("原因", "该组件的 Manifest 既不在缓存中，也无法从安装源获取").
 					WithDetailf("影响", "无法判断它是否依赖 %s，移除后可能导致它启动失败", target).
-					WithTip("可执行 brickkit add "+other.Ref()+" --refresh 恢复缓存后重试"))
+					WithTip("可执行 brickkit add "+other.Ref()+" 重新拉取缓存后重试（会提示是否刷新）"))
 			continue
 		}
 		for _, d := range dependenciesOf(fetched.Manifest) {

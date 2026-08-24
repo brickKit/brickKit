@@ -456,9 +456,7 @@ installer:
 ```bash
 brickkit up --only people/basic,department/tree   # 只启动指定组件（遇 enabled:false 报错阻断）
 brickkit up --config brickkit.prod.yaml           # 多环境
-brickkit up --check-resources                     # 启动前检查资源可达性
 brickkit up --dry-run                             # 只生成部署文件，供审查
-brickkit add people/basic@1.0.0 --refresh         # 强制重新拉取 Manifest 和 artifacts
 brickkit add people/basic@1.1.0 --yes             # 非交互（CI/CD）
 brickkit add --local                              # 把本地安装源里的组件一次全部添加
 brickkit add erp/backend@1.0.0 --repo-all         # clone 所有开源依赖的源码

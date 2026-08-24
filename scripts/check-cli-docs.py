@@ -35,6 +35,12 @@ import sys
 # 文档里常见的占位符与示意写法，不是真参数。
 PLACEHOLDERS = {"--...", "--flag", "--选项"}
 
+# 墓碑句：文档**刻意**提到一个已经删掉的命令或参数，说明为什么不再有它。
+# 这类句子的价值恰恰在于写出那个不存在的名字——把它当成"文档写错了"来报，
+# 只会逼人把删除记录一起删掉，而下一个人又会把功能加回来。
+# 只认同一行内的删除措辞：范围窄，不至于把真的笔误一起放过去。
+TOMBSTONE = re.compile(r"已删除|已作废|删掉|删除了|整个删|移除了|不再支持|~~")
+
 # 反向检查（"二进制里有、文档里没有"）时豁免的东西。
 #
 #   help / completion  cobra 自带，不是这个平台的能力
@@ -176,17 +182,19 @@ def check(surface):
             continue
 
         for i, line in enumerate(lines, 1):
+            tomb = TOMBSTONE.search(line)
             for cmd, rest in usages(line):
                 seen_cmd += 1
 
                 if cmd not in surface:
-                    bad_cmd.append((path, i, cmd))
+                    if not tomb:
+                        bad_cmd.append((path, i, cmd))
                     continue
                 documented.setdefault(cmd, set())
 
                 for flag in re.findall(r"(?<![\w-])--[a-z][a-z-]*", rest):
                     seen_flag += 1
-                    if flag in PLACEHOLDERS or flag in surface[cmd]:
+                    if flag in PLACEHOLDERS or flag in surface[cmd] or tomb:
                         continue
                     bad_flag.append((path, i, f"{cmd} {flag}"))
             # 反向检查（「参数有、文档没写」）用的是**宽松**归属：参数常写在表格、

@@ -50,7 +50,7 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 		return noLocalSourceError()
 	}
 
-	client, err := newSourceClient(opts, layout, cfg, source.Options{Refresh: f.refresh})
+	client, err := newSourceClient(opts, layout, cfg, source.Options{})
 	if err != nil {
 		return err
 	}

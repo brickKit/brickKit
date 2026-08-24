@@ -8,7 +8,7 @@
 //	开关     enabled: false 的安装源完全跳过（配置有误也不会导致失败）
 //	缓存     Manifest → .brickkit/manifests/<id>-<版本>.yaml
 //	         产物     → .brickkit/artifacts/<版本化服务名>/<type>/<文件路径>
-//	刷新     Options.Refresh（对应 --refresh）忽略缓存强制重新拉取
+//	刷新     Options.Refresh 忽略缓存强制重新拉取（brickkit add 重复添加同一版本时打开）
 //	签名     只有市场源受签名策略约束（verify.go）；本地源与 git 源指向的是
 //	         使用者自己的目录与仓库，那里没有"发布者"这个角色（008 §8.5.2）
 //	来源     Origin 绕开 Manifest 缓存直接问安装源，供 brickkit add --repo 判断
@@ -33,7 +33,7 @@ import (
 
 // Options 控制安装源客户端的行为。
 type Options struct {
-	// Refresh 对应 brickkit add --refresh：忽略本地缓存，强制重新拉取。
+	// Refresh 忽略本地缓存，强制重新拉取。brickkit add 检测到该版本已在配置里时打开它。
 	Refresh bool
 	// HTTPClient 用于市场安装源。为空时使用带超时的默认客户端。
 	HTTPClient *http.Client
@@ -644,7 +644,7 @@ func artifactWarning(id, version, artType, file, reason string) *clierr.Error {
 		WithDetail("组件", id+"@"+version).
 		WithDetail("产物", artType+" / "+file).
 		WithDetail("原因", reason).
-		WithTip("产物文件是开发时辅助，不影响运行；可稍后执行 brickkit add --refresh 重试")
+		WithTip("产物文件是开发时辅助，不影响运行；可稍后重新执行 brickkit add <组件> 重试")
 }
 
 // reasonOf 把一个错误压成一行原因，用于产物下载警告。

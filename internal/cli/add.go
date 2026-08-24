@@ -19,7 +19,6 @@ import (
 // addFlags 是 brickkit add 的参数（004 §3.3）。
 type addFlags struct {
 	yes     bool
-	refresh bool
 	repo    bool
 	repoAll bool
 	// local 对应 --local：批量添加本地安装源里的所有组件。
@@ -89,7 +88,6 @@ func newAddCommand(opts *Options) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&f.yes, "yes", "y", false, "非交互模式，跳过所有确认提示（适用于 CI/CD）")
-	cmd.Flags().BoolVar(&f.refresh, "refresh", false, "强制重新拉取 Manifest 和 artifacts，忽略缓存")
 	cmd.Flags().BoolVar(&f.repo, "repo", false, "额外 clone 该组件的完整 Git 仓库到 components/（仅开源组件）")
 	cmd.Flags().BoolVar(&f.repoAll, "repo-all", false, "clone 所有递归依赖中开源组件的 Git 仓库（闭源组件跳过）")
 	cmd.Flags().BoolVar(&f.local, "local", false, "把本地安装源（type: local）里的组件一次全部添加，不接组件 ID")
@@ -195,7 +193,7 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 
 	// 客户端建在备份之前：不写版本时要先靠它解析出最新版本，
 	// 而"要不要刷新缓存"又取决于解析结果是否已在配置里。
-	client, err := newSourceClient(opts, layout, cfg, source.Options{Refresh: f.refresh})
+	client, err := newSourceClient(opts, layout, cfg, source.Options{})
 	if err != nil {
 		return err
 	}

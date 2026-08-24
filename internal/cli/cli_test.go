@@ -274,7 +274,7 @@ func TestGlobalConfigFlag(t *testing.T) {
 func TestSubcommandFlags(t *testing.T) {
 	root := NewRootCommand(&Options{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
 	want := map[string][]string{
-		"add":     {"yes", "refresh", "repo", "repo-all"},
+		"add":     {"yes", "repo", "repo-all"},
 		"up":      {"only", "dry-run", "context"},
 		"down":    {"only"},
 		"reset":   {"last"},
