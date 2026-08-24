@@ -26,6 +26,16 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 )
 
+// deployedExternalEngine 是"对方项目已经部署过"的假引擎。
+//
+// 多数 external 用例测的是别的东西（点不点名、查不查镜像、输出标不标注），
+// 它们都得先过 up 的启动前检查——对方没部署时那一步直接阻断（见文件末尾）。
+func deployedExternalEngine() *fakeEngine {
+	eng := newFakeEngine()
+	eng.networks = map[string]bool{"brickkit-platform-shared-net": true}
+	return eng
+}
+
 // externalProject 造「caller 依赖 external 的 hello」。
 func externalProject(t *testing.T) *projectFixture {
 	t.Helper()
@@ -52,7 +62,7 @@ func externalProject(t *testing.T) *projectFixture {
 // 连本项目自己的组件都起不来。
 func TestUpDoesNotStartExternalService(t *testing.T) {
 	f := externalProject(t)
-	eng := newFakeEngine()
+	eng := deployedExternalEngine()
 
 	r := runWithEngine(t, eng, f.Dir, "up")
 
@@ -69,7 +79,7 @@ func TestUpDoesNotStartExternalService(t *testing.T) {
 // 重则因为本项目没有那个私有仓库的凭据而**误报一个根本不属于自己的问题**。
 func TestUpDoesNotCheckExternalImage(t *testing.T) {
 	f := externalProject(t)
-	eng := newFakeEngine()
+	eng := deployedExternalEngine()
 
 	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
 
@@ -86,9 +96,48 @@ func TestUpDoesNotCheckExternalImage(t *testing.T) {
 func TestUpMarksExternalComponentInOutput(t *testing.T) {
 	f := externalProject(t)
 
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
+	r := runWithEngine(t, deployedExternalEngine(), f.Dir, "up")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "platform-shared",
 		"P39：要说清它由哪个项目部署，否则使用者会去 docker ps 里白找一遍：%s", r.stdout)
+}
+
+// ============================================================
+// external 依赖的项目没部署（P39，Docker 目标）
+// ============================================================
+
+// 对方没部署时 `up` 当场失败，而且要说清楚：哪个组件、缺哪张网络、去哪个项目 up。
+//
+// compose 自己也会失败，但它给的是
+//
+//	network brickkit-platform-shared-net declared as external, but could not be found
+//
+// 里面没有 external、没有对方的项目名、也没有下一步——使用者得先知道
+// 网络名是 brickkit-<项目名>-net 才能反推回去。
+func TestUpFailsClearlyWhenExternalProjectNotDeployed(t *testing.T) {
+	f := externalProject(t)
+	eng := newFakeEngine() // networks 为 nil：一张网络都不存在
+
+	r := runWithEngine(t, eng, f.Dir, "up")
+
+	require.NotEqual(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+	out := r.stdout + r.stderr
+	assert.Contains(t, out, "external 依赖的项目还没部署")
+	assert.Contains(t, out, "platform-shared", "要点名是哪个项目")
+	assert.Contains(t, out, "brickkit-platform-shared-net", "要点名缺哪张网络")
+	assert.Contains(t, out, "brickkit up", "要给出下一步")
+	assert.Empty(t, eng.ups, "没通过检查就不该去调引擎")
+}
+
+// 对方部署过（网络在）时照常启动。
+func TestUpProceedsWhenExternalNetworkExists(t *testing.T) {
+	f := externalProject(t)
+	eng := deployedExternalEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+	assert.NotContains(t, eng.lastUp(t).Services, "demo-hello-1-0-0",
+		"external 组件由对方部署，不该被点名启动")
 }

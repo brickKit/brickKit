@@ -114,6 +114,11 @@ func (s *Service) Publish(
 			return nil, err
 		}
 	case errors.Is(err, repo.ErrNotFound):
+		// 首次创建这个组件：这时才检查命名空间归属（007 §14.2）。
+		// 已存在的组件走上面的 requireOwner——那条更严格，也更具体。
+		if err := requireNamespace(id, componentID); err != nil {
+			return nil, err
+		}
 		existing = nil
 	default:
 		return nil, internalError(err)

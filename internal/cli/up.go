@@ -170,6 +170,11 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	if err != nil {
 		return err
 	}
+	// 放在镜像预检之前：对方没部署时镜像检查全过也没用，
+	// 而这条错误指向的动作（去那个项目 up 一次）与镜像毫无关系
+	if err := checkExternalNetworks(ctx, eng, plan); err != nil {
+		return err
+	}
 	if err := checkImages(ctx, opts, eng, plan.images); err != nil {
 		return err
 	}

@@ -207,6 +207,52 @@ func requireAdmin(id *Identity, action string) error {
 	return nil
 }
 
+// reservedScopes 是**只有市场管理员**能首次创建的命名空间（007 §14.2）。
+//
+// 这两个前缀在设计书里被写成"官方组件"与"基础设施工具组件"，
+// 使用者据此判断可不可信。谁都能发的话，`brickkit/saga-orchestrator`
+// 就是一次冒名——而这正是签名机制想防、却在"还没配公钥"时防不住的那一类。
+var reservedScopes = map[string]string{
+	"brickkit": "官方组件命名空间",
+	"infra":    "基础设施工具组件命名空间",
+}
+
+// requireNamespace 检查调用者能不能**首次创建**这个组件。
+//
+// # 只拦官方前缀，其余先到先得
+//
+// 007 §14.2 原本还写着"组织名/ 由该组织成员发布、用户名/ 由该用户发布、
+// 业务域/ 由该业务域的所有者发布"。那需要一套命名空间注册表
+// （申请、审批、转让、争议处理），是一个独立的子系统——而它换来的东西
+// npm 也没有：unscoped 的包名同样是先到先得。
+//
+// **抢注一个名字并不能劫持别人的组件**：首次发布者成为 owner，
+// 之后的每个版本都要过 requireOwner。所以真正的风险只有"冒充官方"，
+// 而那个用一张固定的前缀表就挡住了，不需要任何新的数据结构。
+func requireNamespace(id *Identity, componentID string) error {
+	scope, _, ok := strings.Cut(componentID, "/")
+	if !ok {
+		return nil // ID 格式由 validator 负责，这里只管归属
+	}
+	what, reserved := reservedScopes[scope]
+	if !reserved || id.IsAdmin {
+		return nil
+	}
+	return model.Errorf(model.CodeForbidden,
+		"命名空间 "+scope+"/ 是"+what+"，只有市场管理员能在其中创建组件").
+		WithDetail("componentId", componentID).
+		WithDetail("suggestion", "换一个命名空间，比如你的用户名或组织名："+
+			id.Username+"/"+afterSlash(componentID))
+}
+
+// afterSlash 取组件 ID 里 scope 之后的那一段，用于给出替代建议。
+func afterSlash(componentID string) string {
+	if _, name, ok := strings.Cut(componentID, "/"); ok {
+		return name
+	}
+	return componentID
+}
+
 // canRead 判断调用者能否看到该组件（007 §5）。
 func (s *Service) canRead(ctx context.Context, id *Identity, c *model.Component) (bool, error) {
 	if c.Visibility != model.VisibilityPrivate {

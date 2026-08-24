@@ -389,3 +389,22 @@ func ProjectName(project string) string {
 	}
 	return fmt.Sprintf("brickkit-%s", project)
 }
+
+// HasNetwork 查一张 Docker 网络在不在（NetworkChecker）。
+//
+// 命令层用它在 `up` 之前拦下"external 依赖的项目还没部署"：compose 自己
+// 也会失败，但它给的是
+//
+//	network brickkit-platform-shared-net declared as external, but could not be found
+//
+// 这句话里没有"external 组件"、没有对方的项目名、也没有下一步该做什么。
+// 提前查一次，才能把这三样都说出来。
+func (c *Compose) HasNetwork(ctx context.Context, name string) (bool, error) {
+	if _, err := c.exec(ctx, "network", "inspect", name); err != nil {
+		// 查不到与查不动分不开：docker network inspect 对两者都是非零退出码。
+		// 但这里只用于**生成一句更好的错误**，误判的代价是漏报一次提示，
+		// 而不是错误地阻断——所以当作"不存在"即可。
+		return false, nil
+	}
+	return true, nil
+}

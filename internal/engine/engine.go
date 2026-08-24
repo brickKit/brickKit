@@ -138,3 +138,15 @@ type Engine interface {
 	// 命令层据此拦下"部到了错误的集群"。
 	CurrentContext(ctx context.Context) (string, error)
 }
+
+// NetworkChecker 是**可选**能力：查一张网络在不在。
+//
+// 不放进 Engine 接口，因为"网络"是 Docker 的概念——K8s 那边跨命名空间
+// DNS 原生可用，没有对应的东西。命令层按需类型断言，断言不成立就跳过检查。
+//
+// 用途只有一个：`external` 组件（P39）依赖的是**别的项目**创建的网络，
+// 对方没部署时 compose 会报一句只有它自己看得懂的话（见 004 §3.5）。
+type NetworkChecker interface {
+	// HasNetwork 返回该网络是否存在。
+	HasNetwork(ctx context.Context, name string) (bool, error)
+}
