@@ -17,7 +17,7 @@ import (
 // allCommands 是设计书 004 §3.1 定义的命令 + version。
 var allCommands = []string{
 	"init", "add", "remove", "up", "down", "status",
-	"sync", "login", "publish", "version",
+	"fetch", "sync", "login", "publish", "version",
 }
 
 type result struct {

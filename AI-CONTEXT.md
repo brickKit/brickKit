@@ -442,6 +442,7 @@ installer:
 | `brickkit init <name>` | 生成 `brickkit.yaml` 骨架和 `.brickkit/` 目录 |
 | `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `enabled` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘 |
 | `brickkit remove <id>` | 检查强依赖方后移除，自动删除源码目录（含归档的那份）。多版本共存时必须指定版本 |
+| `brickkit fetch <id>[@版本]` | 只下载组件的产物到 `.brickkit/artifacts/<版本化服务名>/`，**不写入 brickkit.yaml、不部署**。跨项目调用别人的服务时用（003 §4.9） |
 | `brickkit up` | 级联计算 → 生成部署文件 → 生成 `local-debug.env` → 检测镜像权限 → 执行迁移 → 调用引擎 |
 | `brickkit down` | 停止所有组件。**不删除 volume，保留数据** |
 | `brickkit status` | 读底层引擎，展示运行表格（含多版本检测、级联跳过展示） |
@@ -458,6 +459,7 @@ brickkit up --dry-run                             # 只生成部署文件，供�
 brickkit add people/basic@1.1.0 --yes             # 非交互（CI/CD）
 brickkit add --local                              # 把本地安装源里的组件一次全部添加
 brickkit add erp/backend@1.0.0 --repo-all         # clone 所有开源依赖的源码
+brickkit fetch infra/notifier@1.0.0               # 只取产物（跨项目调用，不装进项目）
 brickkit remove people/basic@1.0.0                # 多版本共存时指定版本移除
 ```
 

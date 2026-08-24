@@ -200,6 +200,7 @@ CLI 只做六件事（001 §5.1）：
 		newInitCommand(opts),
 		newAddCommand(opts),
 		newRemoveCommand(opts),
+		newFetchCommand(opts),
 		newSyncCommand(opts),
 		newUpCommand(opts),
 		newDownCommand(opts),
