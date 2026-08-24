@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/brickkit/brickkit/internal/backup"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/logging"
@@ -33,8 +32,6 @@ func newRemoveCommand(opts *Options) *cobra.Command {
   5. 自动删除源码目录：components/<scope>/<name>/ 与归档中的
      components/.archived/<scope>/<name>/（同 ID 还有其他版本时保留）
 
-修改 brickkit.yaml 前会自动备份到 .brickkit/backup/brickkit.yaml.last，
-可用 brickkit reset --last 撤销。
 
 多版本共存时必须指定版本，否则报错。`,
 		Example: `  brickkit remove people/basic
@@ -87,10 +84,6 @@ func runRemove(ctx context.Context, opts *Options, arg string) error {
 			WithDetail("版本", target.Version).
 			WithDetail("以下组件强依赖它", strings.Join(dep.strong, "、")).
 			WithHint("请先移除依赖方")
-	}
-
-	if _, err := backup.SaveLast(layout); err != nil {
-		return err
 	}
 
 	edit, err := config.OpenEdit(layout.ConfigPath())

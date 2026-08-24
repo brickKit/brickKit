@@ -448,7 +448,7 @@ func reportStarted(
 // 只有裸 error 才在这里兜住：不然它会被顶层当成"命令用法不正确"，
 // 明明是 docker 挂了，却让使用者去查自己的命令怎么写。
 func engineFailure(action string, err error) error {
-	if e := clierr.As(err); e != nil && e.Code != clierr.CodeInternal {
+	if e, ok := clierr.Structured(err); ok {
 		return e
 	}
 	return clierr.Newf(clierr.CodeEngineFailed, "错误：%s失败", action).

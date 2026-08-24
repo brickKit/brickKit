@@ -47,7 +47,6 @@ const (
 	CodeConfigConflict Code = "CONFIG_CONFLICT"
 	CodeProjectExists  Code = "PROJECT_EXISTS"
 	CodeProjectMissing Code = "PROJECT_MISSING"
-	CodeBackupMissing  Code = "BACKUP_MISSING"
 
 	// Manifest 与依赖错误。
 	CodeManifestInvalid   Code = "MANIFEST_INVALID"
@@ -214,6 +213,20 @@ func (e *Error) Format() string {
 		fmt.Fprintf(&b, "   💡 %s\n", t)
 	}
 	return b.String()
+}
+
+// Structured 报告 err 链上是否**本来就有**一个 *Error，有则返回它。
+//
+// 与 As 的区别在于它不合成：As 会把裸 error 包装成 CodeInternal，因此
+// "是不是结构化错误"无法再从返回值上看出来。调用方若用 As 的结果去判断
+// 这件事，就只能写成"Code != CodeInternal"——那会把我们自己抛出的、
+// 货真价实的 CodeInternal（写文件失败等）一并当成裸错误处理。
+func Structured(err error) (*Error, bool) {
+	var e *Error
+	if err != nil && errors.As(err, &e) {
+		return e, true
+	}
+	return nil, false
 }
 
 // As 把任意 error 转换为 *Error。非 *Error 会被包装为 CodeInternal，

@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/brickkit/internal/backup"
 	"github.com/brickkit/brickkit/internal/clierr"
 )
 
@@ -157,20 +156,6 @@ func TestRemoveKeepsArchivedSourceWhenAnotherVersionRemains(t *testing.T) {
 
 	assert.DirExists(t, archived, "还有 2.0.0 在用这份源码目录")
 	assert.NotContains(t, r.stdout, "已删除归档源码目录")
-}
-
-// P16 / 8.3：remove 前自动创建 .last 备份。
-func TestRemoveCreatesLastBackup(t *testing.T) {
-	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
-	before := f.config(t)
-
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "remove", "people/basic").code)
-
-	assert.Equal(t, before, readFile(t, backup.Path(f.Layout, backup.Last)),
-		".last 应是 remove 之前的配置")
-
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "reset", "--last").code)
-	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t), "reset --last 能撤销 remove")
 }
 
 // remove 不破坏其他条目、注释与 ${ENV_VAR}。

@@ -540,4 +540,3 @@ func TestFocusOnASingleComponent(t *testing.T) {
 	assert.Equal(t, refs("people/basic"), result.Running())
 	assert.Len(t, result.Components, 2, "没被选中的组件仍要出现在清单里")
 }
-

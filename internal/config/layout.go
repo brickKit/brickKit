@@ -14,8 +14,6 @@ const (
 	DefaultConfigFile = "brickkit.yaml"
 	// DirBrickkit 是 CLI 工作目录。
 	DirBrickkit = ".brickkit"
-	// DirBackup 存放配置备份（003 §7.3）。
-	DirBackup = "backup"
 	// DirManifests 存放 Manifest 缓存。
 	DirManifests = "manifests"
 	// DirArtifacts 存放 API 契约及其他产物缓存。
@@ -30,11 +28,6 @@ const (
 	FileCredentials = "credentials"
 	// FileGitignore 是项目的 .gitignore。
 	FileGitignore = ".gitignore"
-
-	// SuffixInitialBackup 是 init 时的初始备份后缀（供 brickkit reset 使用）。
-	SuffixInitialBackup = ".initial"
-	// SuffixLastBackup 是 add / remove 前的备份后缀。
-	SuffixLastBackup = ".last"
 )
 
 // Layout 描述一个 BrickKit 项目的目录布局。
@@ -79,9 +72,6 @@ func (l Layout) ConfigName() string { return filepath.Base(l.ConfigFile) }
 // BrickkitDir 返回 .brickkit 目录。
 func (l Layout) BrickkitDir() string { return l.path(DirBrickkit) }
 
-// BackupDir 返回配置备份目录。
-func (l Layout) BackupDir() string { return l.path(DirBrickkit, DirBackup) }
-
 // ManifestsDir 返回 Manifest 缓存目录。
 func (l Layout) ManifestsDir() string { return l.path(DirBrickkit, DirManifests) }
 
@@ -103,21 +93,10 @@ func (l Layout) ArchivedDir() string { return l.path(DirComponents, DirArchived)
 // GitignorePath 返回项目 .gitignore 路径。
 func (l Layout) GitignorePath() string { return l.path(FileGitignore) }
 
-// InitialBackupPath 返回初始备份路径，如 .brickkit/backup/brickkit.yaml.initial。
-func (l Layout) InitialBackupPath() string {
-	return filepath.Join(l.BackupDir(), l.ConfigName()+SuffixInitialBackup)
-}
-
-// LastBackupPath 返回上一次操作前的备份路径。
-func (l Layout) LastBackupPath() string {
-	return filepath.Join(l.BackupDir(), l.ConfigName()+SuffixLastBackup)
-}
-
 // ManagedDirs 返回 brickkit init 需要创建的全部目录（按创建顺序）。
 func (l Layout) ManagedDirs() []string {
 	return []string{
 		l.BrickkitDir(),
-		l.BackupDir(),
 		l.ManifestsDir(),
 		l.ArtifactsDir(),
 		l.GeneratedDir(),

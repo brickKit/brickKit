@@ -154,13 +154,13 @@ cd <仓库根目录>
 ./试用指南/准备.sh --baseline   # 直接回到 03–08 用的五组件基准
 ```
 
-`brickkit reset` 是**另一件事**：它只把 `brickkit.yaml` 恢复到备份，
-不碰 `.brickkit/` 缓存，也不碰 `components/` 下的源码。
+**只想退配置、不想重建试验场**，用 Git——CLI 不自建备份，`brickkit.yaml`
+本来就该提交（[01 §1.3](01-初始化项目.md)、003 §7.2）。
 
 | 想撤销的范围 | 命令 |
 | --- | --- |
-| 刚才那一步 `add` / `remove` | `brickkit reset --last` |
-| 配置回到 `init` 刚生成的样子 | `brickkit reset` |
+| 刚才那一步 `add` / `remove` | `git checkout brickkit.yaml` |
+| 只撤销其中一处改动 | `git checkout -p brickkit.yaml` |
 | 整个试验场 | `./试用指南/准备.sh --reset` / `--baseline` |
 
 ---
@@ -182,7 +182,6 @@ cd <仓库根目录>
 | 生成 K8s 清单 | [internal/k8s/](../internal/k8s/) | 005 §5 |
 | 调 docker / kubectl | [internal/engine/](../internal/engine/) | 005 §3.3、§5.7 |
 | 升级兼容性检查 | [internal/resolver/resolver.go](../internal/resolver/resolver.go) | 002 §7.7 |
-| 配置备份与恢复 | [internal/backup/](../internal/backup/) | 003 §7 |
 | 组件源码工作区（`sync` / `--repo`） | [internal/workspace/](../internal/workspace/) | 004 §3.9 |
 | 市场后端 | [market-server/](../market-server/) | 007 |
 | 试验用的真实组件 | [tests/components/](../tests/components/) | 009 |

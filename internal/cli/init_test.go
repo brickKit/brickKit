@@ -84,7 +84,6 @@ func TestInitCreatesProjectStructure(t *testing.T) {
 	assert.FileExists(t, filepath.Join(dir, "brickkit.yaml"))
 	for _, sub := range []string{
 		".brickkit",
-		".brickkit/backup",
 		".brickkit/manifests",
 		".brickkit/artifacts",
 		".brickkit/generated",
@@ -116,16 +115,6 @@ func TestInitConfigSkeletonContent(t *testing.T) {
 	assert.Contains(t, raw, "# brickkit.yaml")
 }
 
-// 3.4 .brickkit/backup/brickkit.yaml.initial 存在且与 brickkit.yaml 一致。
-func TestInitCreatesInitialBackup(t *testing.T) {
-	dir := t.TempDir()
-	require.Equal(t, clierr.ExitOK, runIn(t, dir, "init", "my-project").code)
-
-	config := readFile(t, filepath.Join(dir, "brickkit.yaml"))
-	backup := readFile(t, filepath.Join(dir, ".brickkit/backup/brickkit.yaml.initial"))
-	assert.Equal(t, config, backup, "初始备份内容应与 brickkit.yaml 完全一致")
-}
-
 // 3.6 .gitignore 包含 components/ 等必要条目。
 func TestInitCreatesGitignore(t *testing.T) {
 	dir := t.TempDir()
@@ -135,7 +124,6 @@ func TestInitCreatesGitignore(t *testing.T) {
 	for _, entry := range []string{
 		"components/",
 		".brickkit/generated/",
-		".brickkit/backup/",
 		".brickkit/credentials",
 		".env",
 	} {
@@ -261,7 +249,6 @@ func TestInitOutputMatchesDesignDocs(t *testing.T) {
 		"   📁 brickkit.yaml        项目配置\n" +
 		"   📁 components/          组件源码（已配为本地安装源 local-dev）\n" +
 		"   📁 .brickkit/           CLI 工作目录\n" +
-		"   📁 .brickkit/backup/    配置备份\n" +
 		"\n" +
 		"下一步：\n" +
 		"  brickkit add --local               把 components/ 下的组件全加进来\n" +
@@ -289,7 +276,6 @@ func TestInitHonorsConfigFlag(t *testing.T) {
 
 	assert.FileExists(t, filepath.Join(dir, "brickkit.prod.yaml"))
 	assert.NoFileExists(t, filepath.Join(dir, "brickkit.yaml"))
-	assert.FileExists(t, filepath.Join(dir, ".brickkit/backup/brickkit.prod.yaml.initial"))
 	assert.Contains(t, r.stdout, "brickkit.prod.yaml")
 }
 

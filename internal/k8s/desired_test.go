@@ -63,7 +63,7 @@ func fullFeatured(t *testing.T) *k8s.Result {
 
 	b := newBuilder(t)
 	b.cfg.Deploy.NetworkPolicy = &config.NetworkPolicy{
-		Enabled: true,
+		Enabled:           true,
 		IngressController: &config.IngressControllerSource{Namespace: "ingress-nginx"},
 	}
 	b.cfg.Deploy.ServiceAccount = &config.ServiceAccount{Enabled: true}

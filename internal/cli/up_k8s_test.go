@@ -261,4 +261,3 @@ func TestStatusK8sDoesNotProbeResourcesFromHost(t *testing.T) {
 	assert.NotContains(t, r.stdout, "不可达", "本机解析不了集群内地址，不能据此判不可达")
 	assert.Contains(t, r.stdout, "集群内", "要说清为什么不下结论")
 }
-

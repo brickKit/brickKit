@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/brickkit/brickkit/internal/backup"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/logging"
@@ -81,10 +80,6 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 	// 先把每个组件都解析通，再动配置。任一失败就整体中止。
 	graphs, err := resolveLocalTargets(ctx, client, plan.targets)
 	if err != nil {
-		return err
-	}
-
-	if _, err := backup.SaveLast(layout); err != nil {
 		return err
 	}
 

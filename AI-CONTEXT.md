@@ -447,7 +447,6 @@ installer:
 | `brickkit status` | 读底层引擎，展示运行表格（含多版本检测、级联跳过展示） |
 | `brickkit order` | 展示依赖拓扑排序结果 |
 | `brickkit sync` | 按级联结果双向归档 / 激活组件源码 |
-| `brickkit reset` | 恢复 `brickkit.yaml` 到初始备份（`--last` 恢复上一次操作前） |
 | `brickkit login` | 终端交互登录市场，Token 存 `.brickkit/credentials` |
 | `brickkit publish` | 上传 Manifest + 镜像引用 + 产物到市场（需先 login） |
 

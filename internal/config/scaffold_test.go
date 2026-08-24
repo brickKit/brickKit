@@ -25,7 +25,6 @@ func TestInitProjectCreatesEverything(t *testing.T) {
 
 	assert.Equal(t, "my-project", result.ProjectName)
 	assert.Equal(t, DefaultConfigFile, result.ConfigName)
-	assert.Equal(t, l.InitialBackupPath(), result.BackupPath)
 	assert.True(t, result.GitignoreUpdated)
 
 	for _, dir := range l.ManagedDirs() {
@@ -37,10 +36,6 @@ func TestInitProjectCreatesEverything(t *testing.T) {
 	config, err := os.ReadFile(l.ConfigPath())
 	require.NoError(t, err)
 	assert.Equal(t, string(Skeleton("my-project", DefaultConfigFile)), string(config))
-
-	backup, err := os.ReadFile(l.InitialBackupPath())
-	require.NoError(t, err)
-	assert.Equal(t, config, backup)
 }
 
 func TestInitProjectFileMode(t *testing.T) {
@@ -74,10 +69,9 @@ func TestInitProjectRejectsExistingConfig(t *testing.T) {
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeProjectExists, e.Code)
 	assert.Contains(t, e.Format(), "brickkit.yaml")
-	assert.Contains(t, e.Format(), "brickkit reset")
 }
 
-// 只有 .brickkit 目录（配置被误删）也算已初始化，不能悄悄覆盖缓存与备份。
+// 只有 .brickkit 目录（配置被误删）也算已初始化，不能悄悄覆盖缓存。
 func TestInitProjectRejectsExistingBrickkitDir(t *testing.T) {
 	l := newTestLayout(t)
 	require.NoError(t, os.MkdirAll(l.BrickkitDir(), 0o755))
@@ -175,7 +169,7 @@ func TestEnsureGitignoreCreatesFile(t *testing.T) {
 	content := readTestFile(t, path)
 	// 003 §11 的全部条目
 	for _, want := range []string{
-		".brickkit/generated/", ".brickkit/backup/", ".brickkit/credentials",
+		".brickkit/generated/", ".brickkit/credentials",
 		".env", "components/",
 		"# .brickkit/artifacts/", "# .brickkit/manifests/",
 	} {

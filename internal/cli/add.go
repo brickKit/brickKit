@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/brickkit/brickkit/internal/backup"
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
@@ -56,8 +55,6 @@ func newAddCommand(opts *Options) *cobra.Command {
   - 第一个有这个组件的安装源说了算，不跨源比大小
   - 同 ID 已装了别的版本时先确认再共存（--yes 时不问）
 
-修改 brickkit.yaml 前会自动备份到 .brickkit/backup/brickkit.yaml.last，
-可用 brickkit reset --last 撤销。
 
 写进 brickkit.yaml 的永远是精确版本（major.minor.patch）；
 命令行也不接受 ^ 或 ~ 范围约束——能省略的是版本号本身，不是可以写个范围。`,
@@ -221,11 +218,6 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 			}
 		}
 		client.SetRefresh(true)
-	}
-
-	// 改动配置前先备份（003 §7.1），失败可用 brickkit reset --last 回退
-	if _, err := backup.SaveLast(layout); err != nil {
-		return err
 	}
 
 	graph, err := resolver.New(resolver.FromSource(client)).Resolve(ctx, target)

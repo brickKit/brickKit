@@ -24,7 +24,7 @@ R10	brickkit down 不删 volume	15	.	./internal/engine	TestDownNeverRemovesVolum
 R11	brickkit status 基本功能	15	.	./internal/cli	TestStatusShowsRunningComponents
 R12	brickkit order 基本功能	10	.	./internal/cli	TestOrderPutsDependenciesFirst
 R13	brickkit sync 基本功能	17	.	./internal/cli	TestSyncKeepsEnabledComponents
-R14	brickkit reset 基本功能	8	.	./internal/cli	TestResetLastRestoresPreviousState
+R14	写配置失败时不留下半改的配置	9	.	./internal/cli	TestAddConfigWriteFailure
 R15	brickkit login 基本功能	19	.	./internal/cli	TestLoginCredentialsFormat
 R16	brickkit publish 基本功能	19	.	./internal/cli	TestPublishSendsManifestAndSourceType
 R17	环境变量注入正确	11	.	./internal/inject	TestConfigValuesAreInjectedVerbatim

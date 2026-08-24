@@ -50,7 +50,7 @@ type Options struct {
 	// Stdout 承载面向用户的输出，Stderr 承载日志与错误。
 	Stdout io.Writer
 	Stderr io.Writer
-	// Now 提供当前时间（reset 的"恢复时间"等）。为空时用 time.Now，
+	// Now 提供当前时间（登录凭据的签发/过期判断等）。为空时用 time.Now，
 	// 便于测试锁定输出而不依赖真实时钟。
 	Now func() time.Time
 	// ResolveDigest 把镜像 tag 解析成 registry 里的 digest（P29）。
@@ -198,7 +198,6 @@ CLI 只做六件事（001 §5.1）：
 
 	root.AddCommand(
 		newInitCommand(opts),
-		newResetCommand(opts),
 		newAddCommand(opts),
 		newRemoveCommand(opts),
 		newSyncCommand(opts),
@@ -332,8 +331,12 @@ var unknownCommandRe = regexp.MustCompile(`unknown command "([^"]+)"`)
 //
 // 约定：所有命令的 RunE 只返回 *clierr.Error，因此这里遇到的非 *clierr.Error
 // 一定来自 cobra 的命令/参数解析阶段，按用法错误处理（退出码 2）。
+//
+// 判据必须是"本来就是不是 *clierr.Error"（Structured），不能是"Code 不等于
+// CodeInternal"：后者会把写配置失败这类真正的 CodeInternal 也说成
+// "命令用法不正确，执行 brickkit --help"——磁盘满了却让人去查命令怎么写。
 func translate(err error) *clierr.Error {
-	if e := clierr.As(err); e != nil && e.Code != clierr.CodeInternal {
+	if e, ok := clierr.Structured(err); ok {
 		return e
 	}
 

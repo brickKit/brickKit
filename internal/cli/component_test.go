@@ -230,14 +230,16 @@ func TestAddConfigWriteFailure(t *testing.T) {
 	sources := localSource(t, dir, comp{ID: "people/basic", Version: "1.0.0"})
 	f := newProjectFixtureAt(t, dir, sources...)
 
-	// 备份目录用文件占位，使 add 前的 SaveLast 失败
-	require.NoError(t, os.RemoveAll(f.Layout.BackupDir()))
-	require.NoError(t, os.WriteFile(f.Layout.BackupDir(), []byte("占位"), 0o644))
+	// 配置文件设为只读，使写回失败
+	skipIfRoot(t)
+	require.NoError(t, os.Chmod(f.Layout.ConfigPath(), 0o444))
 
 	r := runIn(t, f.Dir, "add", "people/basic@1.0.0")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "创建备份目录失败")
-	assert.Empty(t, f.refs(t), "备份失败时不得改动配置")
+	assert.Contains(t, r.stderr, "写入配置失败")
+	assert.NotContains(t, r.stderr, "命令用法不正确",
+		"磁盘写不进去不是用法错误，不能让人去查 brickkit --help")
+	assert.Empty(t, f.refs(t), "写回失败时不得留下半改的配置")
 }
 
 // artifacts 缓存目录不可删除时，remove 报错并说明原因。

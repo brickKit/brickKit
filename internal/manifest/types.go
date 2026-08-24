@@ -70,16 +70,16 @@ func ResourceKindsText() string {
 
 // Manifest 是 component.yaml 的完整结构。
 type Manifest struct {
-	APIVersion    string         `yaml:"apiVersion"`
-	Kind          string         `yaml:"kind"`
-	Metadata      Metadata       `yaml:"metadata"`
-	Tags          []string       `yaml:"tags,omitempty"`
-	Artifacts     []Artifact     `yaml:"artifacts,omitempty"`
-	Dependencies  *Dependencies  `yaml:"dependencies,omitempty"`
-	ConfigSchema  *ConfigSchema  `yaml:"configSchema,omitempty"`
-	Deployment    Deployment     `yaml:"deployment"`
-	Migration     *Migration     `yaml:"migration,omitempty"`
-	HealthCheck   HealthCheck    `yaml:"healthCheck"`
+	APIVersion   string        `yaml:"apiVersion"`
+	Kind         string        `yaml:"kind"`
+	Metadata     Metadata      `yaml:"metadata"`
+	Tags         []string      `yaml:"tags,omitempty"`
+	Artifacts    []Artifact    `yaml:"artifacts,omitempty"`
+	Dependencies *Dependencies `yaml:"dependencies,omitempty"`
+	ConfigSchema *ConfigSchema `yaml:"configSchema,omitempty"`
+	Deployment   Deployment    `yaml:"deployment"`
+	Migration    *Migration    `yaml:"migration,omitempty"`
+	HealthCheck  HealthCheck   `yaml:"healthCheck"`
 
 	// Source 是该 Manifest 的来源（文件路径或安装源描述），只用于错误提示。
 	Source string `yaml:"-"`

@@ -19,8 +19,7 @@ func newInitCommand(opts *Options) *cobra.Command {
 行为（004 §3.2）：
   1. 创建项目目录结构（.brickkit/、components/）
   2. 生成 brickkit.yaml 骨架
-  3. 生成 .brickkit/backup/brickkit.yaml.initial（初始备份，供 reset 使用）
-  4. 追加 .gitignore 规则（003 §11）
+  3. 追加 .gitignore 规则（003 §11）
 
 项目名称必须显式指定：只能包含小写字母、数字与中划线，
 且以字母或数字开头结尾（用于 K8s namespace 与 Docker Network 命名）。`,
@@ -58,7 +57,6 @@ func runInit(opts *Options, project string) error {
 	// components/ 一直都在建，只是从前没说过；现在它还是默认安装源，更该点出来
 	opts.Printf("   📁 %-21s%s\n", config.DirComponents+"/", "组件源码（已配为本地安装源 local-dev）")
 	opts.Printf("   📁 %-21s%s\n", config.DirBrickkit+"/", "CLI 工作目录")
-	opts.Printf("   📁 %-21s%s\n", config.DirBrickkit+"/"+config.DirBackup+"/", "配置备份")
 	opts.Printf("\n")
 	opts.Printf("下一步：\n")
 	opts.Printf("  brickkit add --local               把 components/ 下的组件全加进来\n")

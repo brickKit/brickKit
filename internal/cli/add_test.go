@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/brickkit/internal/backup"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/logging"
 )
@@ -106,24 +105,6 @@ resources:
 	assert.Contains(t, out, "people/basic")
 }
 
-// P16 / 8.2：add 前自动创建 .last 备份。
-func TestAddCreatesLastBackup(t *testing.T) {
-	dir := t.TempDir()
-	sources := localSource(t, dir, comp{ID: "people/basic", Version: "1.0.0"})
-	f := newProjectFixtureAt(t, dir, sources...)
-	before := f.config(t)
-
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "add", "people/basic@1.0.0").code)
-
-	require.True(t, backup.Exists(f.Layout, backup.Last), "add 前应生成 .last")
-	assert.Equal(t, before, readFile(t, backup.Path(f.Layout, backup.Last)),
-		".last 应是 add 之前的配置")
-
-	// reset --last 能把 add 撤销掉
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "reset", "--last").code)
-	assert.Equal(t, before, f.config(t))
-}
-
 // ============================================================
 // 9.2 / 9.3 / 9.25 递归依赖与产物
 // ============================================================
@@ -161,7 +142,7 @@ func TestAddDownloadsArtifacts(t *testing.T) {
 		"department-tree-1-0-0", "api-contract", "proto", "department", "v1", "department.proto"))
 	assert.FileExists(t, filepath.Join(f.Layout.ArtifactsDir(),
 		"people-basic-1-0-0", "api-docs", "openapi.json"))
-	// Manifest 缓存（003 §7.3）
+	// Manifest 缓存（003 §7.1）
 	assert.FileExists(t, filepath.Join(f.Layout.ManifestsDir(), "erp-backend-1.0.0.yaml"))
 	assert.Contains(t, r.stdout, "📁 已下载 artifacts 到 .brickkit/artifacts/（3 个文件）")
 }

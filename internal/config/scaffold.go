@@ -21,8 +21,6 @@ type InitResult struct {
 	ProjectName string
 	// ConfigName 是配置文件名（如 brickkit.yaml）。
 	ConfigName string
-	// BackupPath 是初始备份的完整路径。
-	BackupPath string
 	// GitignoreUpdated 表示是否向 .gitignore 追加了内容。
 	GitignoreUpdated bool
 }
@@ -31,10 +29,9 @@ type InitResult struct {
 //
 //  1. 校验项目名称
 //  2. 确认目录尚未初始化
-//  3. 创建 .brickkit/{backup,manifests,artifacts,generated} 与 components/.archived
+//  3. 创建 .brickkit/{manifests,artifacts,generated} 与 components/.archived
 //  4. 写入配置骨架
-//  5. 写入初始备份（供 brickkit reset 使用）
-//  6. 追加 .gitignore 规则
+//  5. 追加 .gitignore 规则
 func InitProject(l Layout, project string) (*InitResult, error) {
 	if err := ValidateProjectName(project); err != nil {
 		return nil, err
@@ -53,9 +50,6 @@ func InitProject(l Layout, project string) (*InitResult, error) {
 	if err := writeNewFile(l.ConfigPath(), content); err != nil {
 		return nil, err
 	}
-	if err := writeNewFile(l.InitialBackupPath(), content); err != nil {
-		return nil, err
-	}
 
 	updated, err := EnsureGitignore(l.GitignorePath())
 	if err != nil {
@@ -65,7 +59,6 @@ func InitProject(l Layout, project string) (*InitResult, error) {
 	return &InitResult{
 		ProjectName:      project,
 		ConfigName:       l.ConfigName(),
-		BackupPath:       l.InitialBackupPath(),
 		GitignoreUpdated: updated,
 	}, nil
 }
@@ -91,10 +84,7 @@ func checkNotInitialized(l Layout) error {
 	return clierr.New(clierr.CodeProjectExists, "错误：项目已初始化，无需重复执行 init").
 		WithDetail("目录", root).
 		WithDetail("已存在", strings.Join(existing, "、")).
-		WithHint(
-			fmt.Sprintf("如需重新初始化，请先删除 %s 与 %s/ 目录", l.ConfigName(), DirBrickkit),
-			"如需恢复初始配置，执行 brickkit reset",
-		)
+		WithHint(fmt.Sprintf("如需重新初始化，请先删除 %s 与 %s/ 目录", l.ConfigName(), DirBrickkit))
 }
 
 // writeNewFile 写入文件，已存在时报错（O_EXCL），避免覆盖用户数据。
@@ -126,7 +116,7 @@ type gitignoreSection struct {
 
 // gitignoreSections 是 003 §11 建议的 .gitignore 内容。
 var gitignoreSections = []gitignoreSection{
-	{"# BrickKit CLI 生成的文件（不提交到 Git）", []string{".brickkit/generated/", ".brickkit/backup/"}},
+	{"# BrickKit CLI 生成的文件（不提交到 Git）", []string{".brickkit/generated/"}},
 	{"# 登录凭据（包含 Token）", []string{".brickkit/credentials"}},
 	{"# 环境变量文件（包含密码）", []string{".env"}},
 	{"# 组件源码目录（每个组件是独立的 Git 仓库，不提交到项目仓库）", []string{"components/"}},

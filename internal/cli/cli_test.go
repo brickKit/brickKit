@@ -14,10 +14,10 @@ import (
 	"github.com/brickkit/brickkit/internal/logging"
 )
 
-// allCommands 是设计书 004 §3.1 定义的 11 个命令 + version。
+// allCommands 是设计书 004 §3.1 定义的命令 + version。
 var allCommands = []string{
 	"init", "add", "remove", "up", "down", "status",
-	"order", "sync", "reset", "login", "publish", "version",
+	"order", "sync", "login", "publish", "version",
 }
 
 type result struct {
@@ -155,7 +155,7 @@ func TestErrorOutputFormat(t *testing.T) {
 // 骨架阶段：未实现的命令给出明确的 NOT_IMPLEMENTED 错误与 Step 编号。
 //
 // 现在这张表是**空的**——命令树上已经没有未实现的入口了：
-// init（Step 3）、reset（Step 8）、add / remove（Step 9）、order（Step 10）、
+// init（Step 3）、add / remove（Step 9）、order（Step 10）、
 // up / down / status（Step 15）、sync（Step 17）、login / publish（Step 19）、
 // publish --sign（Step 20）。
 //
@@ -277,7 +277,6 @@ func TestSubcommandFlags(t *testing.T) {
 		"add":     {"yes", "repo", "repo-all"},
 		"up":      {"only", "dry-run", "context"},
 		"down":    {"only"},
-		"reset":   {"last"},
 		"publish": {"path", "visibility"},
 		"version": {"verbose"},
 	}
