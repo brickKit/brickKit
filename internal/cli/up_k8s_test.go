@@ -262,14 +262,3 @@ func TestStatusK8sDoesNotProbeResourcesFromHost(t *testing.T) {
 	assert.Contains(t, r.stdout, "集群内", "要说清为什么不下结论")
 }
 
-// --check-resources 同理：K8s 下拨号毫无意义。
-func TestUpK8sCheckResourcesDoesNotProbe(t *testing.T) {
-	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0"}, "",
-		pgResourceYAML("plain-password"))
-
-	r := runWithEngine(t, newK8sEngine(), f.Dir, "up", "--check-resources")
-
-	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "基础资源不可达")
-	assert.Contains(t, r.stdout, "集群内")
-}

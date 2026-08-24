@@ -37,11 +37,6 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 	opts.Printf("   命名空间：%s\n", plan.k8s.Namespace)
 	renderResourceRequirements(opts, plan.k8s.Resources)
 
-	if flags.checkResources {
-		// K8s 下不查宿主机端口：没有任何东西会绑到这台机器的端口上
-		checkResourceReachability(ctx, opts, plan)
-	}
-
 	if flags.dryRun {
 		renderUpgradeSummary(opts, plan)
 		opts.Printf("\n💡 --dry-run 只生成清单，未部署任何东西\n")

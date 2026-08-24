@@ -1,12 +1,13 @@
-// 本文件是 Step 15-C 的业务行为测试：`--only`、`--config`、`--check-resources`
-// 与升级路径（004 §3.5、§3.5.1）。覆盖 15.7–15.12，以及延后项
-// P5（资源密码硬编码告警）、P10（升级拉新版本）、P15（CheckUpgrade 接线）、
-// P22（宿主机端口被别的进程占用）。
+// 本文件是 Step 15-C 的业务行为测试：`--only`、`--config` 与升级路径
+// （004 §3.5、§3.5.1）。覆盖 15.8–15.12，以及延后项 P5（资源密码硬编码告警）、
+// P10（升级拉新版本）、P15（CheckUpgrade 接线）。
+//
+// 15.7 与 P22 曾经由 `--check-resources` 承担，那个参数已经删掉
+// （理由见 TestUpNeverProbesResources）。
 package cli
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/engine"
 )
 
 // threeTierProject：portal → erp → people，外加一个没人依赖但钉住的组件。
@@ -192,42 +192,22 @@ func prodConfig(f *projectFixture) string {
 }
 
 // ============================================================
-// 15.7 / P22 --check-resources
+// 启动前不做资源体检
 // ============================================================
 
-// 15.7：资源不可达时**警告但不阻断**——项目也许正是要靠这次启动把资源带起来。
-func TestUpCheckResourcesWarnsWhenUnreachable(t *testing.T) {
-	f := externalResourceProject(t)
-	eng := newFakeEngine()
-
-	r := runWith(t, func(o *Options) {
-		o.Engine = eng
-		o.Probe = func(context.Context, string) error { return errors.New("connection refused") }
-	}, f.Dir, "up", "--check-resources")
-
-	require.Equal(t, clierr.ExitOK, r.code, "15.7：警告不阻断")
-	assert.Contains(t, r.stdout+r.stderr, "⚠️")
-	assert.Contains(t, r.stdout+r.stderr, "postgres-external")
-	assert.Contains(t, r.stdout+r.stderr, "connection refused")
-	assert.NotEmpty(t, eng.ups, "警告之后照常启动")
-}
-
-func TestUpCheckResourcesPassesWhenReachable(t *testing.T) {
-	f := externalResourceProject(t)
-	eng := newFakeEngine()
-
-	r := runWith(t, func(o *Options) {
-		o.Engine = eng
-		o.Probe = func(context.Context, string) error { return nil }
-	}, f.Dir, "up", "--check-resources")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "资源可达性")
-	assert.NotContains(t, r.stdout, "不可达")
-}
-
-// 不加 --check-resources 时不拨号：那是一次额外的、可能很慢的体检。
-func TestUpDoesNotProbeWithoutTheFlag(t *testing.T) {
+// `up` 从不拨号探测基础资源。
+//
+// 曾经有个 `--check-resources` 干这件事，两半都删掉了：
+//
+//	资源可达性  006 §8.3 自己就论证过它证明不了什么——组件用的是**自己那套
+//	            凭据**、从**容器网络里**连，CLI 从宿主机用另一套凭据连成功
+//	            说明不了组件也能连成功。而 host: localhost 时它给的是**反的**
+//	            答案：宿主机上通，容器里连的却是它自己。
+//	宿主机端口  docker 会为它发布的每个端口报出清楚的 `port is already
+//	            allocated`；它唯一多覆盖的是 local 组件自己监听的端口，
+//	            而那一类的典型命中恰恰是**开发者自己刚启动的进程**——
+//	            一个典型命中就是假警报的检查，只会训练人忽略警告。
+func TestUpNeverProbesResources(t *testing.T) {
 	f := externalResourceProject(t)
 	eng := newFakeEngine()
 
@@ -238,59 +218,8 @@ func TestUpDoesNotProbeWithoutTheFlag(t *testing.T) {
 	}, f.Dir, "up")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.False(t, probed)
-}
-
-// P22：要占的宿主机端口已经被**别的进程**占着时，启动前就说清楚。
-//
-// 真实验证时撞到过：localPort 写了 9001，而本机另一个无关进程正占着它，
-// 生成一切正常，跑起来才 503。
-func TestUpCheckResourcesDetectsBusyHostPort(t *testing.T) {
-	comps := []comp{{ID: "portal/user-frontend", Version: "1.0.0"}}
-	f := addedProject(t, comps, "portal/user-frontend@1.0.0")
-	f.writeConfig(t, `components:
-  - id: portal/user-frontend
-    version: 1.0.0
-    expose: true
-    exposePort: 18080
-`)
-	eng := newFakeEngine()
-
-	r := runWith(t, func(o *Options) {
-		o.Engine = eng
-		// 拨得通 = 有人在监听 = 这个端口被占了
-		o.Probe = func(context.Context, string) error { return nil }
-	}, f.Dir, "up", "--check-resources")
-
-	require.Equal(t, clierr.ExitOK, r.code, "P22：警告不阻断")
-	assert.Contains(t, r.stdout+r.stderr, "18080")
-	assert.Contains(t, r.stdout+r.stderr, "已被占用")
-}
-
-// 端口是被**本项目自己的容器**占着时不该报警——那正是重复 up 的正常情形。
-func TestUpCheckResourcesIgnoresOwnContainerPorts(t *testing.T) {
-	comps := []comp{{ID: "portal/user-frontend", Version: "1.0.0"}}
-	f := addedProject(t, comps, "portal/user-frontend@1.0.0")
-	f.writeConfig(t, `components:
-  - id: portal/user-frontend
-    version: 1.0.0
-    expose: true
-    exposePort: 18080
-`)
-	eng := newFakeEngine()
-	eng.statuses = []engine.Status{{
-		Service: "portal-user-frontend-1-0-0", State: "running", Health: "healthy",
-		Ports: "0.0.0.0:18080->8080/tcp",
-	}}
-
-	r := runWith(t, func(o *Options) {
-		o.Engine = eng
-		o.Probe = func(context.Context, string) error { return nil }
-	}, f.Dir, "up", "--check-resources")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "已被占用",
-		"这是上一次 up 留下的容器，不是冲突")
+	assert.False(t, probed, "up 不该拨号——那个结论不如组件自己的失败准确")
+	assert.NotEmpty(t, eng.ups, "照常启动")
 }
 
 // externalResourceProject：一个绑定了外部数据库的项目。
@@ -428,18 +357,19 @@ func TestUpDoesNotWarnWhenEnvVarIsSet(t *testing.T) {
 	assert.NotContains(t, r.stdout+r.stderr, "a-real-password", "密码本身不该出现在输出里")
 }
 
-// --check-resources 与 --dry-run 一起用时照样体检：
-// --dry-run 的意思是"告诉我会发生什么"，不是"什么都别做"。
-// 而且这时不该要求引擎可用——那台机器上也许根本没装 docker。
-func TestCheckResourcesWorksWithDryRun(t *testing.T) {
+// --dry-run 不需要引擎，也不拨号。
+//
+// 这条从前是 "--check-resources 与 --dry-run 一起用时照样体检"；
+// 那个参数删掉之后，要守的就只剩"这台机器上没装 docker 也该能跑"。
+func TestDryRunNeedsNoEngineAndNeverProbes(t *testing.T) {
 	f := externalResourceProject(t)
 
 	probed := false
 	r := runWith(t, func(o *Options) {
 		o.Probe = func(context.Context, string) error { probed = true; return nil }
-	}, f.Dir, "up", "--check-resources", "--dry-run")
+	}, f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.True(t, probed, "--dry-run 也要做可达性检查")
-	assert.Contains(t, r.stdout, "资源可达性")
+	assert.False(t, probed)
+	assert.Contains(t, r.stdout, "只生成文件")
 }

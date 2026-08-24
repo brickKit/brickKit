@@ -287,13 +287,33 @@ docker compose --project-directory . -p brickkit-demo-shop \
 
 > `-p` 少了会**静默返回空**（compose 会拿部署文件所在目录名 `generated` 当项目名）；`--project-directory` 少了会刷一串 "variable is not set" 警告。`brickkit up` 的输出里给的就是完整命令，直接复制。
 
-## 5.8 试一下 `--check-resources`
+## 5.8 资源没起来会怎样
+
+试着把资源栈停掉再 `up`：
 
 ```bash
-brickkit up --check-resources
+docker compose -f deploy/dev-resources/docker-compose.yaml stop
+brickkit up
 ```
 
-启动前体检：外部资源拨号探一次、要占的宿主机端口有没有被**别的进程**占着。全部只警告不阻断。
+CLI **不会**替你先探一下——它只是照常把"要先跑起来什么"列出来，然后照常启动。
+报错来自**迁移容器**：
+
+```bash
+docker compose -p brickkit-demo-shop -f .brickkit/generated/docker-compose.yaml \
+  --project-directory . logs demo-caller-1-0-0-migration
+# dial tcp 172.17.0.1:5432: connect: connection refused
+```
+
+这是有意的：组件用的是**自己那套凭据**、从**容器网络里**连；CLI 只能从宿主机、
+用另一套凭据试一下，连成功也说明不了组件连得上（006 §8.3）。**那条失败信息
+比平台的任何探测结论都准确。**
+
+记得把资源栈起回来：
+
+```bash
+docker compose -f deploy/dev-resources/docker-compose.yaml start
+```
 
 ---
 
@@ -324,7 +344,6 @@ docker compose -f deploy/dev-resources/docker-compose.yaml down -v    # 连数�
 | `up` 的完整流程 | [internal/cli/up.go](../internal/cli/up.go) |
 | 升级处理 | [internal/cli/up_upgrade.go](../internal/cli/up_upgrade.go) |
 | `--only` 收窄 | [internal/cli/up_only.go](../internal/cli/up_only.go) |
-| `--check-resources` 体检 | [internal/cli/up_checks.go](../internal/cli/up_checks.go) |
 | `down` / `status` | [internal/cli/down.go](../internal/cli/down.go)、[status.go](../internal/cli/status.go) |
 | 生成 docker-compose.yaml | [internal/compose/compose.go](../internal/compose/compose.go) |
 | 环境变量注入、配额合并 | [internal/inject/inject.go](../internal/inject/inject.go) |

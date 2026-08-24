@@ -275,7 +275,7 @@ func TestSubcommandFlags(t *testing.T) {
 	root := NewRootCommand(&Options{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
 	want := map[string][]string{
 		"add":     {"yes", "refresh", "repo", "repo-all"},
-		"up":      {"only", "dry-run", "check-resources"},
+		"up":      {"only", "dry-run", "context"},
 		"down":    {"only"},
 		"reset":   {"last"},
 		"publish": {"path", "visibility"},

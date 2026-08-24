@@ -63,9 +63,6 @@ type Result struct {
 	Resources []ResourceRequirement
 	// LocalEnvFiles 是 local: true 组件的调试环境变量文件（005 §4.9）。
 	LocalEnvFiles []LocalEnvFile
-	// HostPorts 是本次会占用的宿主机端口（expose / 本地调试映射 / 资源映射 /
-	// local 组件自己监听的端口），供 up 在启动前体检（P22）。
-	HostPorts []HostPort
 	// Warnings 是不阻断的问题。
 	Warnings []*clierr.Error
 }
@@ -111,7 +108,6 @@ func Generate(
 		YAML:          append(header(cfg, plan, now), body...),
 		Resources:     plan.requirements(),
 		LocalEnvFiles: plan.localEnvFiles(now, opts.Lookup),
-		HostPorts:     plan.hostPorts(),
 		Warnings:      plan.warnings,
 	}, nil
 }

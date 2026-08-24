@@ -30,10 +30,9 @@ const composeFileName = "docker-compose.yaml"
 // newUpCommand 实现 brickkit up（004 §3.5）。
 func newUpCommand(opts *Options) *cobra.Command {
 	var (
-		only           []string
-		dryRun         bool
-		checkResources bool
-		kubeContext    string
+		only        []string
+		dryRun      bool
+		kubeContext string
 	)
 
 	cmd := &cobra.Command{
@@ -57,20 +56,17 @@ func newUpCommand(opts *Options) *cobra.Command {
   brickkit up --only people/basic,department/tree   只启动指定组件及其依赖
   brickkit up --only people/basic@1.0.0             只启动指定版本
   brickkit up --dry-run                             只生成文件，不启动
-  brickkit up --check-resources                     启动前检查资源可达性与端口占用
   brickkit up --config brickkit.prod.yaml           使用指定配置文件`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUp(cmd.Context(), opts, upOptions{
-				only: only, dryRun: dryRun, checkResources: checkResources,
-				kubeContext: kubeContext,
+				only: only, dryRun: dryRun, kubeContext: kubeContext,
 			})
 		},
 	}
 
 	cmd.Flags().StringSliceVar(&only, "only", nil, "只启动指定组件及其依赖，逗号分隔，支持 @版本")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "只生成部署文件，不启动（升级时额外输出变更摘要）")
-	cmd.Flags().BoolVar(&checkResources, "check-resources", false, "启动前检查基础资源可达性（不可达时警告但不阻断）")
 	cmd.Flags().StringVar(&kubeContext, "context", "", "kubeconfig 上下文，覆盖 deploy.context（仅 deploy.target: k8s）")
 	return cmd
 }
@@ -115,9 +111,8 @@ type imageInfo struct {
 
 // upOptions 是 up 的命令行选项。
 type upOptions struct {
-	only           []string
-	dryRun         bool
-	checkResources bool
+	only   []string
+	dryRun bool
 	// kubeContext 是 --context 的值，覆盖 deploy.context。
 	kubeContext string
 }
@@ -145,18 +140,6 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	}
 	opts.Printf("📄 已生成：%s\n", displayPath(opts.WorkDir, path))
 	renderResourceRequirements(opts, plan.generated.Resources)
-
-	if flags.checkResources {
-		// --dry-run 时不要求引擎可用：那台机器上也许根本没装 docker，
-		// 而"看看会发生什么"本来就不该依赖引擎
-		var eng engine.Engine
-		if !flags.dryRun {
-			if eng, err = resolveEngine(opts); err != nil {
-				return err
-			}
-		}
-		checkResources(ctx, opts, eng, plan)
-	}
 
 	if flags.dryRun {
 		renderUpgradeSummary(opts, plan)
