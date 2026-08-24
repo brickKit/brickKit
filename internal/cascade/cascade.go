@@ -62,25 +62,6 @@ func (r *Result) Running() []resolver.Ref {
 // Empty 表示这次一个组件都不启动。
 func (r *Result) Empty() bool { return len(r.Running()) == 0 }
 
-// Restrict 把启动集合收窄到 keep（`brickkit up --only`，004 §3.5）。
-//
-// 不在 keep 里的组件从"启动"改成"跳过"，理由由调用方给出。
-// 收窄这件事必须在包内做：running 索引与 Components 的一致性是这里的不变量，
-// 让外面各自拼一个 Result 迟早会出现"说要启动、实际不在集合里"。
-func (r *Result) Restrict(keep map[resolver.Ref]bool, reason string) *Result {
-	out := &Result{running: map[resolver.Ref]bool{}}
-	for _, c := range r.Components {
-		if c.State == StateRunning && !keep[c.Ref] {
-			c.State, c.Reason = StateSkipped, reason
-		}
-		if c.State == StateRunning {
-			out.running[c.Ref] = true
-		}
-		out.Components = append(out.Components, c)
-	}
-	return out
-}
-
 // Compute 按 003 §4.3 计算级联结果。
 //
 // 算法分三步：
@@ -95,35 +76,81 @@ func (r *Result) Restrict(keep map[resolver.Ref]bool, reason string) *Result {
 // 钉住的组件如果不可行，说明使用者的两个意图直接冲突（既要它跑、又关掉了它的
 // 强依赖），这时报错而不是静默跳过（004 §10.3，延后项 P14）。
 func Compute(cfg *config.Config, graph *resolver.Graph) (*Result, error) {
+	return compute(cfg, graph, nil)
+}
+
+// Focus 按 `brickkit up --only` 计算：**点名的组件就是种子**。
+//
+// # 为什么不能拿 Compute 的结果做交集
+//
+// 那是原来的做法（`Result.Restrict`），它把 `--only` 理解成"在会启动的那些里
+// 再挑几个"。于是点名一个**只被弱依赖引用**的组件时，什么都不会启动——
+// 它本来就不在级联结果里（003 §4.3：弱依赖不会被自动拉起）。
+// 而 004 §3.5 承诺的是"只启动指定组件及其依赖"。
+//
+// 正确的理解是：级联回答的是"**你没说的时候**该跑什么"。你在命令行上点了名，
+// 那就是最明确的意图，与 `enabled: true` 同级——所以点名等于钉住，
+// 根组件则不再自动启动（那正是 `--only` 要收窄掉的东西）。
+//
+// 这也让一件事自动正确：点名的组件的**强依赖被关掉**时照样报错，
+// 与钉住的组件走同一条路。
+//
+// only 为空时退化成 Compute。
+func Focus(cfg *config.Config, graph *resolver.Graph, only []resolver.Ref) (*Result, error) {
+	if len(only) == 0 {
+		return Compute(cfg, graph)
+	}
+	return compute(cfg, graph, only)
+}
+
+// compute 是 Compute 与 Focus 的共同实现。
+//
+// focus 为 nil 时按 003 §4.3 的三态 + 根组件计算；非 nil 时只有 focus 里的组件
+// 是种子。两条路共用可行性传播与强依赖闭包——分开写迟早会出现
+// "up 会启动它、up --only 点名它却不启动"这种自相矛盾。
+func compute(cfg *config.Config, graph *resolver.Graph, focus []resolver.Ref) (*Result, error) {
 	if graph == nil {
 		return &Result{running: map[resolver.Ref]bool{}}, nil
 	}
 
 	decl := declarations(cfg)
 	viable, blocker := computeViability(graph, decl)
+	focused := setOf(focus)
 
-	// 钉住却不可行 → 意图冲突，必须报错
+	// 必须跑、却不可行 → 意图冲突，必须报错
 	for _, node := range graph.Nodes {
-		if decl.pinned(node.Ref) && !viable[node.Ref] {
-			return nil, disabledDependencyError(graph, node.Ref, blocker)
+		mustRun, why := decl.pinned(node.Ref), "enabled: true，已钉住"
+		if focus != nil {
+			mustRun, why = focused[node.Ref], "被 --only 点名"
+		}
+		if mustRun && !viable[node.Ref] {
+			return nil, disabledDependencyError(graph, node.Ref, blocker, why)
 		}
 	}
 
-	running, reason := computeRunning(graph, decl, viable)
+	running, reason := computeRunning(graph, decl, viable, focused, focus != nil)
 
 	result := &Result{running: running}
 	for _, node := range graph.Nodes {
 		result.Components = append(result.Components,
-			classify(graph, node, decl, viable, running, reason, blocker))
+			classify(graph, node, decl, viable, running, reason, blocker, focus != nil))
 	}
 	return result, nil
+}
+
+func setOf(refs []resolver.Ref) map[resolver.Ref]bool {
+	out := make(map[resolver.Ref]bool, len(refs))
+	for _, ref := range refs {
+		out[ref] = true
+	}
+	return out
 }
 
 // classify 把一个组件归入三态之一，并给出理由。
 func classify(
 	graph *resolver.Graph, node *resolver.Node, decl declSet, viable map[resolver.Ref]bool,
 	running map[resolver.Ref]bool, reason map[resolver.Ref]string,
-	blocker map[resolver.Ref]resolver.Ref,
+	blocker map[resolver.Ref]resolver.Ref, focusMode bool,
 ) Component {
 	ref := node.Ref
 	switch {
@@ -132,6 +159,11 @@ func classify(
 
 	case running[ref]:
 		return Component{Ref: ref, State: StateRunning, Reason: reason[ref]}
+
+	case focusMode:
+		// --only 模式下别的理由都不准确："没有启用中的组件依赖它"听上去像
+		// 配置有问题，而真实原因只是这一次没点它的名
+		return Component{Ref: ref, State: StateSkipped, Reason: "未被 --only 选中"}
 
 	case !viable[ref]:
 		return Component{Ref: ref, State: StateSkipped,
@@ -246,6 +278,7 @@ func computeViability(
 // computeRunning 从种子出发沿强依赖展开，得到实际启动的组件与各自的理由。
 func computeRunning(
 	graph *resolver.Graph, decl declSet, viable map[resolver.Ref]bool,
+	focused map[resolver.Ref]bool, focusMode bool,
 ) (map[resolver.Ref]bool, map[resolver.Ref]string) {
 	running := map[resolver.Ref]bool{}
 	reason := map[resolver.Ref]string{}
@@ -262,6 +295,12 @@ func computeRunning(
 
 	for _, node := range graph.Nodes {
 		switch {
+		case focusMode:
+			// 点名的就是全部种子。根组件不再自动启动——把它们收窄掉
+			// 正是 `--only` 的意思
+			if focused[node.Ref] {
+				seed(node.Ref, "被 --only 点名")
+			}
 		case decl.pinned(node.Ref):
 			seed(node.Ref, "显式启用（钉住）")
 		case isRoot(node) && !decl.disabled(node.Ref):
@@ -300,6 +339,7 @@ func isRoot(node *resolver.Node) bool { return len(node.Dependents) == 0 }
 // 只说"强依赖被禁用"他还得自己反推是哪一条路径。
 func disabledDependencyError(
 	graph *resolver.Graph, pinned resolver.Ref, blocker map[resolver.Ref]resolver.Ref,
+	why string,
 ) error {
 	chain := []string{pinned.ID}
 	current := pinned
@@ -314,11 +354,11 @@ func disabledDependencyError(
 
 	culprit := current
 	return clierr.New(clierr.CodeComponentDisabled, "错误：强依赖 "+culprit.ID+" 被禁用").
-		WithDetail("组件", pinned.ID+"@"+pinned.Version+"（enabled: true，已钉住）").
+		WithDetail("组件", pinned.ID+"@"+pinned.Version+"（"+why+"）").
 		WithDetail("依赖链", strings.Join(chain, " → ")).
 		WithDetailf("被禁用的组件", "%s@%s", culprit.ID, culprit.Version).
 		WithHint(
 			"在 brickkit.yaml 中移除 "+culprit.ID+" 的 enabled: false",
-			"或去掉 "+pinned.ID+" 的 enabled: true，让它随依赖一起被级联跳过",
+			"或别再要求 "+pinned.ID+" 必须运行，让它随依赖一起被级联跳过",
 		)
 }

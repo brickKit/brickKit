@@ -38,13 +38,17 @@ func restrictToOnly(opts *Options, plan *upPlan, only []string) (*cascade.Result
 		}
 	}
 
-	keep := map[resolver.Ref]bool{}
-	for _, ref := range selected {
-		addWithRequires(plan.graph, ref, keep)
-	}
-
 	opts.Printf("🎯 --only：只启动 %s 及其强依赖\n", strings.Join(only, "、"))
-	return plan.states.Restrict(keep, "未被 --only 选中"), nil
+
+	// 重新算，而不是在已有结果上做交集。
+	//
+	// 交集是原来的做法，它把 --only 理解成"在会启动的那些里再挑几个"。
+	// 于是点名一个**只被弱依赖引用**的组件时什么都不会启动——它本来就不在
+	// 级联结果里（003 §4.3），而 004 §3.5 承诺的是"只启动指定组件及其依赖"。
+	//
+	// 级联回答的是"**你没说的时候**该跑什么"；命令行上点了名就是最明确的意图。
+	// cascade.Focus 因此把点名的组件当种子（等同钉住），根组件不再自动启动。
+	return cascade.Focus(plan.cfg, plan.graph, selected)
 }
 
 // addWithRequires 把该组件与它的强依赖递归加进集合。

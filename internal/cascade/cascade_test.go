@@ -429,44 +429,66 @@ func TestIsRunningLookup(t *testing.T) {
 }
 
 // ============================================================
-// Restrict（`brickkit up --only`，004 §3.5）
+// Focus（`brickkit up --only`，004 §3.5）
 // ============================================================
 
-// 收窄之后，不在集合里的组件从"启动"变成"跳过"，并带上调用方给的理由。
-func TestRestrictNarrowsRunningSet(t *testing.T) {
+// 点名的组件与它的强依赖启动，其余全部跳过。
+func TestFocusStartsSelectedAndItsRequirements(t *testing.T) {
 	graph := newGraph(t,
+		spec{id: "portal/web", requires: []string{"erp/backend"}},
 		spec{id: "erp/backend", requires: []string{"people/basic"}},
 		spec{id: "people/basic"},
 	)
-	result, err := cascade.Compute(cfgOf(entry("erp/backend", ""), entry("people/basic", "")), graph)
+	cfg := cfgOf(entry("portal/web", ""), entry("erp/backend", ""), entry("people/basic", ""))
+
+	result, err := cascade.Focus(cfg, graph, refs("erp/backend"))
 	require.NoError(t, err)
-	require.ElementsMatch(t, refs("erp/backend", "people/basic"), result.Running())
 
-	narrowed := result.Restrict(map[resolver.Ref]bool{ref("people/basic"): true}, "未被 --only 选中")
-
-	assert.Equal(t, refs("people/basic"), narrowed.Running())
-	assert.False(t, narrowed.IsRunning(ref("erp/backend")))
-	assert.True(t, narrowed.IsRunning(ref("people/basic")))
-
-	for _, c := range narrowed.Components {
-		if c.Ref == ref("erp/backend") {
+	assert.ElementsMatch(t, refs("erp/backend", "people/basic"), result.Running())
+	assert.False(t, result.IsRunning(ref("portal/web")), "根组件不再自动启动")
+	for _, c := range result.Components {
+		if c.Ref == ref("portal/web") {
 			assert.Equal(t, cascade.StateSkipped, c.State)
 			assert.Equal(t, "未被 --only 选中", c.Reason)
 		}
 	}
 }
 
-// 收窄不会把已经"显式禁用"的组件改写成别的理由——
-// 那条理由比"未被选中"更能说明问题。
-func TestRestrictKeepsDisabledReason(t *testing.T) {
-	graph := newGraph(t, spec{id: "people/basic"}, spec{id: "infra/bus"})
-	result, err := cascade.Compute(
-		cfgOf(entry("people/basic", ""), entry("infra/bus", "false")), graph)
+// **这是修的那个 bug**：点名一个只被弱依赖引用的组件，它必须启动。
+//
+// 原来的做法是拿 Compute 的结果做交集，而这类组件本来就不在级联结果里
+// （003 §4.3：弱依赖不会被自动拉起）——于是 `up --only infra/bus` 什么都不启动，
+// 而 004 §3.5 承诺的是"只启动指定组件及其依赖"。
+//
+// 级联回答的是"你**没说**的时候该跑什么"；命令行上点了名就是最明确的意图。
+func TestFocusStartsAWeaklyReferencedComponent(t *testing.T) {
+	graph := newGraph(t,
+		spec{id: "erp/backend", optional: []string{"infra/bus"}},
+		spec{id: "infra/bus"},
+	)
+	cfg := cfgOf(entry("erp/backend", ""), entry("infra/bus", ""))
+
+	// 先确认它确实不会被自动拉起——否则这条用例证明不了什么
+	normal, err := cascade.Compute(cfg, graph)
+	require.NoError(t, err)
+	require.False(t, normal.IsRunning(ref("infra/bus")), "前提：弱依赖默认不启动")
+
+	result, err := cascade.Focus(cfg, graph, refs("infra/bus"))
 	require.NoError(t, err)
 
-	narrowed := result.Restrict(map[resolver.Ref]bool{ref("people/basic"): true}, "未被 --only 选中")
+	assert.Equal(t, refs("infra/bus"), result.Running(),
+		"点名它就该启动它——命令行上的点名与 enabled: true 同级")
+}
 
-	for _, c := range narrowed.Components {
+// 显式禁用的组件即使没被点名，理由也保持"显式禁用"——那比"未被选中"更能说明问题。
+func TestFocusKeepsDisabledReason(t *testing.T) {
+	graph := newGraph(t, spec{id: "people/basic"}, spec{id: "infra/bus"})
+	cfg := cfgOf(entry("people/basic", ""), entry("infra/bus", "false"))
+
+	result, err := cascade.Focus(cfg, graph, refs("people/basic"))
+	require.NoError(t, err)
+
+	for _, c := range result.Components {
 		if c.Ref == ref("infra/bus") {
 			assert.Equal(t, cascade.StateDisabled, c.State)
 			assert.Contains(t, c.Reason, "显式禁用")
@@ -474,14 +496,48 @@ func TestRestrictKeepsDisabledReason(t *testing.T) {
 	}
 }
 
-// 收窄到空集合是合法的（--only 指了个本来就不会启动的组件）。
-func TestRestrictToNothing(t *testing.T) {
+// 点名的组件的**强依赖被关掉**时报错——与钉住的组件走同一条路。
+//
+// 这是"点名等于钉住"自动带来的正确行为：两个意图直接冲突
+// （既要它跑、又关掉了它跑起来必需的东西），静默跳过只会让人对着
+// 一个空空的 docker ps 发懵。
+func TestFocusErrorsWhenARequirementIsDisabled(t *testing.T) {
+	graph := newGraph(t,
+		spec{id: "erp/backend", requires: []string{"people/basic"}},
+		spec{id: "people/basic"},
+	)
+	cfg := cfgOf(entry("erp/backend", ""), entry("people/basic", "false"))
+
+	_, err := cascade.Focus(cfg, graph, refs("erp/backend"))
+
+	require.Error(t, err)
+	text := clierr.As(err).Format()
+	assert.Contains(t, text, "people/basic", "要点出是谁被关掉了")
+	assert.Contains(t, text, "--only", "理由是这一次点了名，不是 enabled: true")
+}
+
+// only 为空时退化成 Compute：调用方不必自己分支。
+func TestFocusWithoutSelectionFallsBackToCompute(t *testing.T) {
 	graph := newGraph(t, spec{id: "people/basic"})
-	result, err := cascade.Compute(cfgOf(entry("people/basic", "")), graph)
+	cfg := cfgOf(entry("people/basic", ""))
+
+	focused, err := cascade.Focus(cfg, graph, nil)
+	require.NoError(t, err)
+	normal, err := cascade.Compute(cfg, graph)
 	require.NoError(t, err)
 
-	narrowed := result.Restrict(map[resolver.Ref]bool{}, "未被 --only 选中")
-
-	assert.True(t, narrowed.Empty())
-	assert.Len(t, narrowed.Components, 1, "组件本身仍要出现在清单里，只是不启动")
+	assert.Equal(t, normal.Running(), focused.Running())
 }
+
+// 点名一个本来就不会启动、且没有依赖的组件：启动它，组件清单仍然完整。
+func TestFocusOnASingleComponent(t *testing.T) {
+	graph := newGraph(t, spec{id: "people/basic"}, spec{id: "infra/bus"})
+	cfg := cfgOf(entry("people/basic", ""), entry("infra/bus", ""))
+
+	result, err := cascade.Focus(cfg, graph, refs("people/basic"))
+	require.NoError(t, err)
+
+	assert.Equal(t, refs("people/basic"), result.Running())
+	assert.Len(t, result.Components, 2, "没被选中的组件仍要出现在清单里")
+}
+

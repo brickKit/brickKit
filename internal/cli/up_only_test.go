@@ -119,6 +119,71 @@ func multiVersionProject(t *testing.T) *projectFixture {
 	return f
 }
 
+// --only 点名一个**只被弱依赖引用**的组件，它必须启动。
+//
+// 这条曾经是假的：实现拿级联结果做交集，而这类组件本来就不在里面
+// （003 §4.3：弱依赖不会被自动拉起），于是 `up --only infra/bus` 什么都不启动，
+// 而 004 §3.5 承诺的是"只启动指定组件及其依赖"。
+//
+// 级联回答的是"你**没说**的时候该跑什么"；命令行上点了名就是最明确的意图，
+// 与 enabled: true 同级。
+func TestUpOnlyStartsAWeaklyReferencedComponent(t *testing.T) {
+	f := addedProject(t, []comp{
+		{ID: "erp/backend", Version: "1.0.0", Optional: []string{"infra/bus@1.0.0"}},
+		{ID: "infra/bus", Version: "1.0.0"},
+	}, "erp/backend@1.0.0")
+	eng := newFakeEngine()
+
+	// 前提：不点名时它确实不启动，否则这条用例证明不了什么
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+	assert.NotContains(t, eng.lastUp(t).Services, "infra-bus-1-0-0")
+
+	r := runWithEngine(t, eng, f.Dir, "up", "--only", "infra/bus")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, []string{"infra-bus-1-0-0"}, eng.lastUp(t).Services,
+		"点名它就该启动它")
+}
+
+// --only 之下根组件不再自动启动——那正是它要收窄掉的东西。
+func TestUpOnlyDoesNotAutoStartRoots(t *testing.T) {
+	f := threeTierProject(t)
+	eng := newFakeEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up", "--only", "erp/backend")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.NotContains(t, eng.lastUp(t).Services, "portal-user-frontend-1-0-0",
+		"portal 是根组件，但这次没点它的名")
+}
+
+// --only 点名的组件，它的**强依赖**被关掉时报错。
+//
+// 这是"点名等于钉住"自动带来的：两个意图直接冲突（既要它跑、又关掉了它跑起来
+// 必需的东西）。静默跳过只会让人对着一个空空的 docker ps 发懵。
+func TestUpOnlyErrorsWhenARequirementIsDisabled(t *testing.T) {
+	comps := []comp{
+		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
+		{ID: "people/basic", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "erp/backend@1.0.0")
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+    enabled: false
+  - id: erp/backend
+    version: 1.0.0
+`)
+	eng := newFakeEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up", "--only", "erp/backend")
+
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "people/basic", "要点出是谁被关掉了")
+	assert.Contains(t, r.stderr, "--only", "理由是这一次点了名，不是 enabled: true")
+	assert.Empty(t, eng.ups)
+}
+
 // 15.9：--only 指定了被显式关闭的组件——两个意图直接冲突，必须报错。
 func TestUpOnlyDisabledComponentIsAnError(t *testing.T) {
 	comps := []comp{{ID: "people/basic", Version: "1.0.0"}}
