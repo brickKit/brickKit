@@ -200,11 +200,25 @@ dependencies:
       engine: postgresql
 migration:
   command: ["./migrate", "up"]
-observability:
-  metrics: false
-compatibility:
-  minCliVersion: 1.0.0
 `), "component.yaml")
 
 	assert.NoError(t, err)
+}
+
+// 已经删掉的字段同样被当成未知字段拦下。
+//
+// observability 与 compatibility 曾经是 Manifest 的一部分，但**全项目没有任何
+// 一处读它们**。observability 更没有通往消费者的路——设计书说"未来由可观测性
+// 工具组件读取"，可组件根本读不到别的组件的 Manifest。
+//
+// 拦下来而不是继续静默接受，是为了让照着旧文档写的人立刻知道：
+// 平台不再理会这两个字段，写了也不会有任何效果。
+func TestRemovedFieldsAreRejected(t *testing.T) {
+	for _, field := range []string{
+		"observability:\n  metrics: false\n",
+		"compatibility:\n  minCliVersion: 1.0.0\n",
+	} {
+		_, err := Parse([]byte(minimalYAML+field), "component.yaml")
+		assert.Error(t, err, "%s 已删除，不该被静默接受", field)
+	}
 }

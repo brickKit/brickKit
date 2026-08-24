@@ -76,7 +76,3 @@ healthCheck:
   # ⚠️ 只检查本进程存活，**不 ping Redis**（002 §9.4、开发计划 27.3）。
   # Redis 一抖就把所有副本杀掉重启，而重启并不会让 Redis 变好，
   # 只会让恢复之后还要多等一轮拉起
-
-observability:
-  metrics: false
-  tracing: false

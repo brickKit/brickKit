@@ -73,10 +73,3 @@ migration:
 healthCheck:
   type: http
   path: /healthz
-
-observability:
-  metrics: false
-  tracing: false
-
-compatibility:
-  minCliVersion: 1.0.0

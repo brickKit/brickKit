@@ -79,7 +79,3 @@ healthCheck:
   path: /healthz
   # ⚠️ 只检查本进程存活，不查数据库、不调 people/basic（002 §9.4）。
   # 否则依赖一抖，编排系统就会把这个本身完全正常的容器杀掉重启
-
-observability:
-  metrics: false
-  tracing: false

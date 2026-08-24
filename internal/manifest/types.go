@@ -80,8 +80,6 @@ type Manifest struct {
 	Deployment    Deployment     `yaml:"deployment"`
 	Migration     *Migration     `yaml:"migration,omitempty"`
 	HealthCheck   HealthCheck    `yaml:"healthCheck"`
-	Observability *Observability `yaml:"observability,omitempty"`
-	Compatibility *Compatibility `yaml:"compatibility,omitempty"`
 
 	// Source 是该 Manifest 的来源（文件路径或安装源描述），只用于错误提示。
 	Source string `yaml:"-"`
@@ -196,16 +194,24 @@ type HealthCheck struct {
 	Path string `yaml:"path,omitempty"`
 }
 
-// Observability 是预留的可观测性声明（002 §2.3）。
-type Observability struct {
-	Metrics bool `yaml:"metrics"`
-	Tracing bool `yaml:"tracing"`
-}
-
-// Compatibility 声明 CLI 版本兼容性（002 §2.3）。
-type Compatibility struct {
-	MinCliVersion string `yaml:"minCliVersion,omitempty"`
-}
+// 这里曾经有 observability 与 compatibility 两个字段，都已删除。
+//
+//	observability   `metrics: false` / `tracing: false`。全项目没有任何一处读它，
+//	                而且**没有通往消费者的路**：设计书说"未来由可观测性工具组件
+//	                读取"，可组件根本读不到别的组件的 Manifest——只有 CLI 有。
+//	                真要做可观测性时，需要的多半也不是一个布尔，而是抓取路径与端口
+//	                （那已经能用 extraPorts 表达）。
+//	compatibility   `minCliVersion`。同样没人读，而它比单纯的死字段更糟——
+//	                长得像一道安全闸：写了 minCliVersion: 2.0.0 的组件，
+//	                在 0.1.0 的 CLI 上照装不误。
+//
+// 什么时候把 minCliVersion 加回来：**真的有了两个 CLI 版本、且 Manifest 语义
+// 不同**的那一天。在那之前它守不住任何东西。届时也该重新想清楚形状——
+// 是"最低 CLI 版本"，还是"我用到了哪些能力"。
+//
+// 顺带一提：组件用了新版本才有的**字段**时，老 CLI 现在会直接报"未知字段"
+// （002 §2.2.1）。那句话对这种情形是误导的（它不是拼写错误），
+// 也正是把 minCliVersion 加回来的信号之一。
 
 // IsOptional 返回该依赖是否为弱依赖。
 func (d ComponentDep) IsOptional() bool { return d.Optional }

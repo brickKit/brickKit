@@ -76,10 +76,6 @@ func TestParseFileDepartmentTree(t *testing.T) {
 	// healthCheck
 	assert.Equal(t, "http", m.HealthCheck.Type)
 	assert.Equal(t, "/healthz", m.HealthCheck.Path)
-
-	require.NotNil(t, m.Observability)
-	assert.False(t, m.Observability.Metrics)
-	assert.False(t, m.Observability.Tracing)
 }
 
 // 4.19 弱依赖 optional: true 正确识别；extraPorts 正确解析（002 §2.2）。
@@ -105,8 +101,6 @@ func TestParseFilePeopleBasic(t *testing.T) {
 	assert.Equal(t, 9090, m.Deployment.ExtraPorts[0].Port)
 
 	assert.Equal(t, []string{"defaultPageSize"}, m.ConfigSchema.Required)
-	require.NotNil(t, m.Compatibility)
-	assert.Equal(t, "1.0.0", m.Compatibility.MinCliVersion)
 	assert.Equal(t, "https://docs.brickkit.io/people-basic/api", m.Metadata.APIDocs)
 }
 

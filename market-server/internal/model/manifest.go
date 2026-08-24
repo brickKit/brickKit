@@ -16,7 +16,6 @@ type Manifest struct {
 	Deployment    Deployment     `json:"deployment"`
 	Migration     *Migration     `json:"migration,omitempty"`
 	HealthCheck   HealthCheck    `json:"healthCheck"`
-	Observability *Observability `json:"observability,omitempty"`
 }
 
 // Metadata 是组件元信息（002 §2.3）。
@@ -118,8 +117,5 @@ type HealthCheck struct {
 	Port int    `json:"port,omitempty"`
 }
 
-// Observability 是可观测性预留字段（002 §2.3）。
-type Observability struct {
-	Metrics bool `json:"metrics,omitempty"`
-	Tracing bool `json:"tracing,omitempty"`
-}
+// 这里曾经有 Observability，与 CLI 侧一起删掉了：全项目没有任何一处读它，
+// 也没有通往消费者的路（组件读不到别的组件的 Manifest）。见 internal/manifest/types.go。

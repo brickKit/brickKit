@@ -52,7 +52,3 @@ healthCheck:
   # ⚠️ 只回一个常量，**不探 erp/backend**（002 §9.4）。
   # 若让它去探后端，后端一抖，编排系统就会把这个本身完全正常的前端容器
   # 杀掉重启——而它明明还能把页面发出去
-
-observability:
-  metrics: false
-  tracing: false

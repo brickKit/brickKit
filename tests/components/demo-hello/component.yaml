@@ -46,7 +46,3 @@ deployment:
 healthCheck:
   type: http
   path: /healthz
-
-observability:
-  metrics: false
-  tracing: false

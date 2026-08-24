@@ -76,7 +76,3 @@ healthCheck:
   type: http
   path: /healthz
   # ⚠️ 只检查本进程存活，不查数据库、不调 department/tree（002 §9.4）
-
-observability:
-  metrics: false
-  tracing: false

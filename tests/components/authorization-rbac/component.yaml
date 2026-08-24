@@ -80,7 +80,3 @@ healthCheck:
   path: /healthz
   # ⚠️ 只检查本进程存活，**不碰 Redis**、不查库、不调 people/basic（002 §9.4、
   # 开发计划 24.5）。Redis 一抖就把所有副本杀掉重启，而它只是个加速器
-
-observability:
-  metrics: false
-  tracing: false

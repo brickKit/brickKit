@@ -69,7 +69,3 @@ healthCheck:
   path: /healthz
   # ⚠️ 只检查本进程存活，**绝不去探那六个组件**（002 §9.4、开发计划 28.3）。
   # 它们全是弱依赖，全挂了这个页面也该打得开——而且那时候正是最需要看文档的时候
-
-observability:
-  metrics: false
-  tracing: false

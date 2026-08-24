@@ -77,7 +77,3 @@ healthCheck:
   path: /healthz
   # ⚠️ 只检查本进程存活，**不逐个探测四个依赖**（002 §9.4、开发计划 25.7）。
   # 逐个探的话，任意一个依赖抖动都会让这个本身完全正常的容器被杀掉重启
-
-observability:
-  metrics: false
-  tracing: false
