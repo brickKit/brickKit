@@ -7,7 +7,9 @@ package deploy
 
 import (
 	"sort"
+	"strings"
 
+	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 )
 
@@ -135,4 +137,88 @@ func Databases(cfg *config.Config, componentIDs []string) []DatabaseRequirement 
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
+}
+
+// ============================================================
+// host 写成 localhost
+// ============================================================
+
+// loopbackHosts 是"指向本机回环地址"的写法。
+//
+// 容器里的这几个地址都指向**容器自己**，不是使用者的机器。
+var loopbackHosts = map[string]bool{
+	"localhost": true, "127.0.0.1": true, "::1": true, "[::1]": true,
+}
+
+// LocalhostResourceWarnings 提醒"资源的 host 写成了 localhost，而容器里连不上"。
+//
+// # 为什么值得单独说一句
+//
+// 006 §10.2 早就写着「不要写 `localhost`」，但这是一条**没有任何东西执行的规矩**：
+// 生成的部署文件完全正常，`DATABASE_HOST=localhost` 老老实实注进去，
+// 容器一起来就去连自己的 5432——那里什么都没有。表现是启动之后才出现的
+// `connection refused`，而配置看上去挑不出毛病。
+//
+// 更糟的是它极容易被写出来：003 §2 的"完整结构"、006 §3.1 的资源声明、
+// 011 §2.5 —— 规范书自己的示例长期写的就是 `host: localhost`（已改）。
+// 一条照着规范抄就会中招的规矩，不能只靠文档。
+//
+// # 为什么是警告而不是错误
+//
+// `localhost` 并非永远错。绑定它的组件**全是 `local: true`** 时它恰恰是对的：
+// 那些进程就跑在宿主机上，平台也只会把这个地址写进 `local-debug.*.env`，
+// 一个容器都碰不到。所以调用方传进来的 componentIDs 只含**会生成容器**的组件；
+// 纯本地调试的项目不会看到这条警告。
+//
+// 判据落在"有没有容器组件绑它"，而不是"host 长什么样"——后者正是 006 §10.5
+// 刚废掉的那种隐式判据（一个点决定平台要不要替你部署一个数据库）。
+func LocalhostResourceWarnings(
+	cfg *config.Config, componentIDs []string, target string,
+) []*clierr.Error {
+	if cfg == nil {
+		return nil
+	}
+	used := make(map[string]bool, len(componentIDs))
+	for _, id := range componentIDs {
+		used[id] = true
+	}
+
+	var out []*clierr.Error
+	for _, resource := range cfg.Resources {
+		if !loopbackHosts[strings.ToLower(strings.TrimSpace(resource.Host))] {
+			continue
+		}
+		var consumers []string
+		for _, binding := range resource.Bindings {
+			if used[binding.ComponentID] {
+				consumers = append(consumers, binding.ComponentID)
+			}
+		}
+		if len(consumers) == 0 {
+			continue
+		}
+		sort.Strings(consumers)
+		out = append(out, loopbackWarning(resource, consumers, target))
+	}
+	return out
+}
+
+func loopbackWarning(r config.Resource, consumers []string, target string) *clierr.Error {
+	w := clierr.Warn(clierr.CodeConfigInvalid,
+		"基础资源的 host 写成了 "+r.Host+"，容器里连不上").
+		WithDetail("资源", r.ID).
+		WithDetail("要连它的组件", strings.Join(consumers, "、")).
+		WithDetail("原因", "容器里的 "+r.Host+" 指的是**容器自己**，不是你的机器（006 §10.2）")
+
+	if target == config.TargetK8s {
+		return w.WithHint(
+			"写资源在集群里的地址，如 postgres.infra 或 postgres.infra.svc.cluster.local",
+			"资源跑在集群外时写它的 IP 或域名",
+		)
+	}
+	return w.WithHint(
+		"资源跑在本机时写 host: "+HostMachineAlias+"（平台会自动补 extra_hosts）",
+		"资源跑在别处时写它的 IP 或域名",
+		"只有 local: true 的组件用它时才可以写 localhost——那些进程确实在宿主机上",
+	)
 }

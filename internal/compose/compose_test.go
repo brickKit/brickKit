@@ -792,6 +792,45 @@ func TestExternalHostDoesNotWarn(t *testing.T) {
 	assert.Empty(t, b.generate().Warnings)
 }
 
+// host 写成 localhost 时也给一条警告：容器里的 localhost 是容器自己。
+//
+// 这条与上面那条服务名警告是一对——都是"生成物完全正常、运行时才炸"，
+// 而且这一条更容易写出来：规范书自己的示例长期写的就是 host: localhost。
+func TestLocalhostHostWarns(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
+	r := pgResource(config.Binding{ComponentID: "people/basic", Database: "people"})
+	r.Host = "localhost"
+	b.resource(r)
+
+	warnings := b.generate().Warnings
+
+	require.NotEmpty(t, warnings)
+	text := warnings[0].Format()
+	assert.Contains(t, text, "localhost")
+	assert.Contains(t, text, "host.docker.internal", "要给出该怎么改")
+}
+
+// **接线的关键一半**：绑它的组件全是 local: true 时不该警告。
+//
+// 那些进程就跑在宿主机上，localhost 恰恰是对的，平台也只把这个地址写进
+// local-debug.*.env——一个容器都碰不到。判定要看"有没有容器组件绑它"，
+// 而这条测试盯的正是命令层传进去的是哪批组件 ID：传全部就会误报，
+// 而误报会让纯本地调试的项目每次 up 都收到一条错的警告。
+func TestLocalhostDoesNotWarnForLocalOnlyComponents(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
+		config.Component{Local: true})
+	r := pgResource(config.Binding{ComponentID: "people/basic", Database: "people"})
+	r.Host = "localhost"
+	b.resource(r)
+
+	for _, w := range b.generate().Warnings {
+		assert.NotContains(t, w.Format(), "容器里连不上",
+			"local: true 的组件用 localhost 是对的")
+	}
+}
+
 // ============================================================
 // 006 §9.5：库不存在时平台的责任是"说清楚"
 // ============================================================

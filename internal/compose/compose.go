@@ -262,6 +262,10 @@ func newPlan(
 	p.rewriteEndpointsForLocalDependencies()
 	p.warnings = append(p.warnings, p.localMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.serviceNameResourceWarnings()...)
+	// 只传**会生成容器**的组件：绑定它的全是 local: true 时，
+	// localhost 恰恰是对的（那些进程就在宿主机上）
+	p.warnings = append(p.warnings, deploy.LocalhostResourceWarnings(
+		p.cfg, p.containerIDs(), config.TargetDocker)...)
 	return p, nil
 }
 
@@ -321,6 +325,18 @@ func (p *plan) services() map[string]any {
 // requirements 汇总本次必须先跑起来的基础资源（006 §9.1、§9.5）。
 func (p *plan) requirements() []ResourceRequirement {
 	return deploy.Requirements(p.cfg, p.componentIDs())
+}
+
+// containerIDs 是本次**会生成容器**的组件 ID（不含 local: true）。
+//
+// 与 componentIDs 的差别只在 local 组件，而那正是 localhost 判定的分水岭：
+// 跑在宿主机 IDE 里的进程连 localhost 是对的，容器连 localhost 是连自己。
+func (p *plan) containerIDs() []string {
+	out := make([]string, 0, len(p.components))
+	for _, c := range p.components {
+		out = append(out, c.Ref.ID)
+	}
+	return out
 }
 
 // componentIDs 是本次会跑起来的组件 ID。

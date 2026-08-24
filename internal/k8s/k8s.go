@@ -325,6 +325,9 @@ func newPlan(
 		return nil, err
 	}
 	p.warnings = append(p.warnings, p.privilegedPortWarnings()...)
+	// K8s 下没有 local: true（上面已经拦下），所以全部组件都是容器组件
+	p.warnings = append(p.warnings, deploy.LocalhostResourceWarnings(
+		cfg, p.componentIDs(), config.TargetK8s)...)
 	return p, nil
 }
 
