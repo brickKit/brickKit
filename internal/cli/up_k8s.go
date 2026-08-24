@@ -35,7 +35,7 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 	opts.Printf("📄 已生成 %d 份清单：%s/\n",
 		len(plan.k8s.Files), displayPath(opts.WorkDir, dir))
 	opts.Printf("   命名空间：%s\n", plan.k8s.Namespace)
-	renderDatabaseRequirements(opts, plan.k8s.Databases)
+	renderResourceRequirements(opts, plan.k8s.Resources)
 
 	if flags.checkResources {
 		// K8s 下不查宿主机端口：没有任何东西会绑到这台机器的端口上

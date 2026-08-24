@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/compose"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
 )
@@ -28,10 +27,11 @@ func checkResources(ctx context.Context, opts *Options, eng engine.Engine, plan 
 	checkHostPorts(ctx, opts, eng, plan)
 }
 
-// checkResourceReachability 探测外部资源（15.7）。
+// checkResourceReachability 探测基础资源（15.7）。
 //
-// 只探外部资源：CLI 托管的资源还在这次启动里，现在当然连不上——
-// 去探它只会产生一条必然出现、又毫无意义的警告。
+// 平台不部署基础资源（006 §9.1），所以这里**一律探**：它们本该在 up 之前
+// 就已经跑着。从前还要先排除"由 CLI 托管的那些"（它们正要靠这次启动带起来，
+// 探它必然失败），托管取消之后这条例外也没有了。
 func checkResourceReachability(ctx context.Context, opts *Options, plan *upPlan) {
 	if plan.cfg.Deploy.Target == config.TargetK8s {
 		renderK8sResources(opts, plan)
@@ -45,7 +45,7 @@ func checkResourceReachability(ctx context.Context, opts *Options, plan *upPlan)
 
 	checked := 0
 	for _, r := range plan.cfg.Resources {
-		if compose.IsManagedHost(r.Host) || !boundToAny(r, used) {
+		if !boundToAny(r, used) {
 			continue
 		}
 		checked++
@@ -64,7 +64,7 @@ func checkResourceReachability(ctx context.Context, opts *Options, plan *upPlan)
 		opts.Printf("   %-24s ● 可达（%s）\n", r.ID, address)
 	}
 	if checked == 0 {
-		opts.Printf("   （没有需要探测的外部资源；CLI 托管的资源随本次启动一起起来）\n")
+		opts.Printf("   （本次没有组件绑定基础资源）\n")
 	}
 }
 

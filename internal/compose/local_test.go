@@ -307,11 +307,12 @@ func TestLocalComponentDatabaseIsStillReported(t *testing.T) {
 		config.Component{Local: true, LocalPort: 8081})
 	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "brickkit_people"}))
 
-	databases := b.generate().Databases
+	requirements := b.generate().Resources
 
-	require.Len(t, databases, 1)
-	assert.Equal(t, "brickkit_people", databases[0].Name)
-	assert.Equal(t, []string{"people/basic"}, databases[0].Components)
+	require.Len(t, requirements, 1)
+	require.Len(t, requirements[0].Databases, 1)
+	assert.Equal(t, "brickkit_people", requirements[0].Databases[0].Name)
+	assert.Equal(t, []string{"people/basic"}, requirements[0].Databases[0].Components)
 }
 
 // 13.12：两个 local 组件抢同一个 localPort 直接报错。
@@ -539,21 +540,26 @@ func TestLocalDebugEnvOmitsMissingWeakDependency(t *testing.T) {
 // 13.8 env 文件里的资源连接
 // ============================================================
 
-// CLI 托管的资源跑在容器里，local 组件只能从宿主机的映射端口进去。
-func TestLocalDebugEnvRewritesManagedResourceToLocalhost(t *testing.T) {
+// 资源跑在**本机**时，容器里写的是 host.docker.internal，
+// 而这个名字在 Linux 的宿主机上解析不了——它是 Docker 注入到容器
+// /etc/hosts 里的。给 IDE 的那份必须换成 localhost。
+//
+// 不换的话，IDE 里的进程拿着一个解析不了的主机名去连库，
+// 而容器里的同一个组件跑得好好的，最难联想到是这里。
+func TestLocalDebugEnvRewritesHostMachineAliasToLocalhost(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
 		config.Component{Local: true, LocalPort: 8081})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "brickkit_people"}))
+	r := pgResource(config.Binding{ComponentID: "people/basic", Database: "brickkit_people"})
+	r.Host = "host.docker.internal"
+	b.resource(r)
 
 	result := b.generate()
 	env := localEnv(t, result, "people-basic-1-0-0")
 
 	assert.Equal(t, "localhost", env["DATABASE_HOST"], "13.8")
-	assert.Equal(t, "15432", env["DATABASE_PORT"], "13.8")
+	assert.Equal(t, "5432", env["DATABASE_PORT"], "端口不用改：资源本来就在宿主机上")
 	assert.Equal(t, "brickkit_people", env["DATABASE_NAME"], "库名不变，变的只是怎么连过去")
-	assert.Equal(t, []string{"15432:5432"},
-		portsOf(t, serviceOf(t, docOf(t, result), "postgres")), "资源容器要把端口开到宿主机")
 }
 
 // 外部资源（运维已部署）本来就在宿主机之外，地址原样保留——
@@ -785,8 +791,12 @@ func TestUnboundComponentGetsNoExtraHosts(t *testing.T) {
 		"没绑这个资源的组件不该被加上宿主机映射")
 }
 
-// TestServiceNameResourceIsStillManaged：改动不能影响托管资源那条路。
-func TestServiceNameResourceIsStillManaged(t *testing.T) {
+// host 写成服务名时，既不生成容器也不加 extra_hosts——那个名字是使用者自己的事。
+//
+// 这条从前是反过来的（"host 是服务名时 CLI 仍然自己起容器"）。
+// 平台不再部署基础资源之后，这个写法只会换来一条警告 + 运行时的 no such host，
+// 所以它现在守的是"平台确实什么都没做"。
+func TestServiceNameResourceIsNotManaged(t *testing.T) {
 	doc := newBuilder(t).
 		component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{}).
 		resource(config.Resource{
@@ -796,9 +806,9 @@ func TestServiceNameResourceIsStillManaged(t *testing.T) {
 		}).
 		parsed()
 
-	assert.Contains(t, servicesOf(t, doc), "postgres", "host 是服务名时 CLI 仍然自己起容器")
+	assert.NotContains(t, servicesOf(t, doc), "postgres")
 	assert.NotContains(t, serviceOf(t, doc, "people-basic-1-0-0"), "extra_hosts",
-		"托管资源在同一个网络里，不需要 extra_hosts")
+		"只有 host.docker.internal 才需要 extra_hosts")
 }
 
 // hostMachineDatabase 造一个"跑在宿主机上"的数据库资源。

@@ -329,18 +329,19 @@ func TestMainServiceWaitsForMigration(t *testing.T) {
 	assert.Equal(t, "service_completed_successfully", migration["condition"])
 }
 
-// 迁移容器也要等数据库健康——它是第一个连库的东西。
-func TestMigrationServiceWaitsForDatabase(t *testing.T) {
+// 迁移容器不 depends_on 任何资源：平台不部署基础资源（006 §9.1），
+// compose 文件里根本没有可等的 service——写进去 compose 会直接报错。
+//
+// 库没起来时迁移就是第一个失败的，那条 connection refused 比任何
+// 平台自己编的说法都准确。
+func TestMigrationServiceHasNoResourceDependency(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
 	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
 
 	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0-migration")
-	dependsOn := svc["depends_on"].(map[string]any)
-	pg, ok := dependsOn["postgres"].(map[string]any)
 
-	require.True(t, ok, "迁移要等数据库就绪：%v", keysOf(dependsOn))
-	assert.Equal(t, "service_healthy", pg["condition"])
+	assert.NotContains(t, svc, "depends_on", "资源不由平台部署，没有可等的 service：%v", svc)
 }
 
 // 多段命令同样正确拆分：python -m app.main migrate。
@@ -434,10 +435,10 @@ func TestMigrationServiceDoesNotWaitForOtherComponents(t *testing.T) {
 	b.resource(pgResource(config.Binding{ComponentID: "erp/backend", Database: "erp"}))
 
 	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0-migration")
-	dependsOn := svc["depends_on"].(map[string]any)
 
-	assert.Contains(t, dependsOn, "postgres")
-	assert.NotContains(t, dependsOn, "people-basic-1-0-0")
+	// 迁移容器现在一条 depends_on 都没有：
+	// 别的组件与它无关（它只动自己的库），而资源不由平台部署、没有可等的 service。
+	assert.NotContains(t, svc, "depends_on", "%v", svc)
 }
 
 // 迁移容器不占宿主机端口：它和主容器同镜像同环境，
@@ -712,92 +713,83 @@ func TestDependencyOnLocalComponentIsNotInDependsOn(t *testing.T) {
 // 12.13 / 12.14 / 12.9 基础资源
 // ============================================================
 
-// 12.13：host 是 Docker Network 内的服务名 → CLI 生成资源容器（006 §10.4）。
-func TestResourceContainerIsGeneratedForServiceNameHost(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
-
-	svc := serviceOf(t, b.parsed(), "postgres")
-
-	assert.Contains(t, svc["image"], "postgres")
-	assert.Equal(t, "unless-stopped", svc["restart"])
-	health := svc["healthcheck"].(map[string]any)
-	assert.Contains(t, health["test"].([]any)[1], "pg_isready")
-}
-
-// 12.14：host 是 IP / 域名 → 假设运维已部署，不生成容器（006 §10.4）。
-func TestResourceContainerIsNotGeneratedForExternalHost(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	r := pgResource(config.Binding{ComponentID: "people/basic", Database: "people"})
-	r.Host = "10.0.1.10"
-	b.resource(r)
-
-	services := servicesOf(t, b.parsed())
-
-	assert.NotContains(t, services, "postgres")
-	assert.NotContains(t, services, "10.0.1.10")
-	// 但环境变量照常注入，组件连的是外部地址
-	assert.Equal(t, "10.0.1.10", envOf(t, serviceOf(t, b.parsed(), "people-basic-1-0-0"))["DATABASE_HOST"])
-}
-
-func TestExternalHostByDomainIsNotGenerated(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	r := pgResource(config.Binding{ComponentID: "people/basic", Database: "people"})
-	r.Host = "mydb.rds.amazonaws.com"
-	b.resource(r)
-
-	assert.NotContains(t, servicesOf(t, b.parsed()), "mydb.rds.amazonaws.com")
-}
-
-// 12.9：CLI 托管的资源要有数据卷，否则 down 一次数据就没了。
-func TestResourceVolumeIsDeclared(t *testing.T) {
+// 平台**不生成任何基础资源容器**（006 §9.1）。
+//
+// 这条从前是反过来的：`host` 不含点时 CLI 会自己起一个 postgres / redis
+// （旧的 006 §10.4）。那条路已经取消，理由有三条，每条单独都不够、合起来足够：
+//
+//	只覆盖 6 种 kind 里的 2 种   mq / storage / search / smtp 会生成一个没有
+//	                            image 的 service，compose 直接判定非法
+//	K8s 目标下从来不存在         同一份声明，两种目标行为不同
+//	托管出来的实例没法共享       两个项目各写 host: pg，得到的是两个独立容器
+//
+// 触发条件还是隐式的：一个点决定平台要不要替你部署一个数据库。
+func TestNoResourceContainerIsGenerated(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
 	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
 
 	doc := b.parsed()
-	volumes, ok := doc["volumes"].(map[string]any)
-	require.True(t, ok, "12.9 应有 volumes 段：%v", keysOf(doc))
-	assert.Contains(t, volumes, "postgres-data")
 
-	svc := serviceOf(t, doc, "postgres")
-	assert.Contains(t, svc["volumes"], "postgres-data:/var/lib/postgresql/data")
+	assert.NotContains(t, servicesOf(t, doc), "postgres")
+	assert.NotContains(t, doc, "volumes", "没有资源容器，也就没有资源数据卷")
 }
 
-// 组件要等资源健康再启动。
-func TestComponentWaitsForItsResource(t *testing.T) {
+// 组件不 depends_on 资源：文件里没有那个 service，写进去 compose 会报错。
+func TestComponentHasNoResourceDependency(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
 	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
 
-	dependsOn := serviceOf(t, b.parsed(), "people-basic-1-0-0")["depends_on"].(map[string]any)
-	pg, ok := dependsOn["postgres"].(map[string]any)
+	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0")
 
-	require.True(t, ok, "应依赖 postgres：%v", keysOf(dependsOn))
-	assert.Equal(t, "service_healthy", pg["condition"])
+	assert.NotContains(t, svc, "depends_on")
+	// 但连接变量照常注入——平台管"告诉组件去哪连"，不管"谁把它跑起来"
+	assert.Equal(t, "postgres", envOf(t, svc)["DATABASE_HOST"])
 }
 
-// 缓存资源（redis）同样能被生成。
-func TestCacheResourceContainer(t *testing.T) {
-	m := simple("erp/backend", "1.0.0", 8080)
-	m.Dependencies = &manifest.Dependencies{Resources: []manifest.ResourceDep{
-		{Kind: "cache", Engine: "redis"},
-	}}
+// 外部地址（IP / 域名）同样不生成容器，环境变量照常注入。
+func TestExternalHostIsInjectedButNotGenerated(t *testing.T) {
+	for _, host := range []string{"10.0.1.10", "mydb.rds.amazonaws.com"} {
+		b := newBuilder(t)
+		b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
+		r := pgResource(config.Binding{ComponentID: "people/basic", Database: "people"})
+		r.Host = host
+		b.resource(r)
 
+		doc := b.parsed()
+		assert.NotContains(t, servicesOf(t, doc), host)
+		assert.Equal(t, host, envOf(t, serviceOf(t, doc, "people-basic-1-0-0"))["DATABASE_HOST"])
+	}
+}
+
+// host 写成服务名时给一条警告：生成的 compose 完全正常，
+// 容器里却解析不了这个名字，表现是启动之后才出现的 no such host。
+//
+// 这正是当初那条隐式判据（host 里有没有点）最该被换掉的地方——
+// 从"决定平台要不要替你起一个数据库"变成"提醒你这个地址可能连不上"。
+func TestServiceNameHostWarns(t *testing.T) {
 	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.resource(config.Resource{
-		Kind: config.ResourceKindCache, Engine: "redis", ID: "redis-main",
-		Host: "redis", Port: 6379,
-		Bindings: []config.Binding{{ComponentID: "erp/backend"}},
-	})
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
+	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
 
-	svc := serviceOf(t, b.parsed(), "redis")
-	assert.Contains(t, svc["image"], "redis")
-	assert.Contains(t, svc["healthcheck"].(map[string]any)["test"].([]any), "ping")
+	warnings := b.generate().Warnings
+
+	require.NotEmpty(t, warnings)
+	text := warnings[0].Format()
+	assert.Contains(t, text, "postgres")
+	assert.Contains(t, text, "host.docker.internal", "要给出该怎么改")
+}
+
+// 外部地址不该触发那条警告，否则它会变成一条永远出现的噪音。
+func TestExternalHostDoesNotWarn(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
+	r := pgResource(config.Binding{ComponentID: "people/basic", Database: "people"})
+	r.Host = "host.docker.internal"
+	b.resource(r)
+
+	assert.Empty(t, b.generate().Warnings)
 }
 
 // ============================================================
@@ -817,12 +809,17 @@ func TestResultReportsRequiredDatabases(t *testing.T) {
 
 	result := b.generate()
 
-	require.Len(t, result.Databases, 2)
-	names := []string{result.Databases[0].Name, result.Databases[1].Name}
+	require.Len(t, result.Resources, 1, "一条资源声明 → 一项要求")
+	pg := result.Resources[0]
+	assert.Equal(t, "postgres", pg.Host)
+	assert.Equal(t, 5432, pg.Port)
+	assert.ElementsMatch(t, []string{"people/basic", "department/tree"}, pg.Components)
+
+	require.Len(t, pg.Databases, 2)
+	names := []string{pg.Databases[0].Name, pg.Databases[1].Name}
 	assert.ElementsMatch(t, []string{"brickkit_people", "brickkit_department"}, names)
-	assert.Equal(t, "postgres", result.Databases[0].Host)
-	assert.NotEmpty(t, result.Databases[0].CreateSQL, "要给出可直接执行的 SQL")
-	assert.Contains(t, result.Databases[0].CreateSQL, "CREATE DATABASE")
+	assert.NotEmpty(t, pg.Databases[0].CreateSQL, "要给出可直接执行的 SQL")
+	assert.Contains(t, pg.Databases[0].CreateSQL, "CREATE DATABASE")
 }
 
 // 没绑定 database 的资源（如 redis）不算"需要建的库"。
@@ -837,7 +834,9 @@ func TestCacheResourceIsNotReportedAsDatabase(t *testing.T) {
 		Bindings: []config.Binding{{ComponentID: "erp/backend"}},
 	})
 
-	assert.Empty(t, b.generate().Databases)
+	requirements := b.generate().Resources
+	require.Len(t, requirements, 1, "redis 本身照样要先跑起来")
+	assert.Empty(t, requirements[0].Databases, "但它没有要建的库")
 }
 
 // ============================================================

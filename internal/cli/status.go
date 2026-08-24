@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/cascade"
-	"github.com/brickkit/brickkit/internal/compose"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -90,7 +89,7 @@ func runStatus(ctx context.Context, opts *Options) error {
 	renderComponentStatus(opts, p, byService)
 	renderSkipped(opts, p)
 	renderLocalDebug(opts, p)
-	renderResourceStatus(ctx, opts, p, byService)
+	renderResourceStatus(ctx, opts, p)
 	return nil
 }
 
@@ -136,7 +135,6 @@ func renderComponentStatus(opts *Options, p *project, byService map[string]engin
 	}
 }
 
-// statusText 把引擎的状态说成人话。
 // statusText 把引擎的状态说成人话。
 //
 // 刻意不带 ● / ○ 这类符号：它们在 Unicode 里是"东亚宽度：模糊"，
@@ -212,14 +210,12 @@ func renderLocalDebug(opts *Options, p *project) {
 
 // renderResourceStatus 输出基础资源的可达性（15.18）。
 //
-// 两类资源判定方式完全不同：
+// 平台不部署基础资源（006 §9.1），所以判据只有一条：Docker 目标下真的拨一次号，
+// K8s 目标下只把地址列出来（集群内的 DNS 名，本机解析不了）。
 //
-//	CLI 托管的（host 是服务名）  它在容器网络里，宿主机拨号根本解析不了这个名字，
-//	                            只能看容器状态
-//	外部的（IP / 域名）          运维已部署，真的拨一次号才知道通不通
-func renderResourceStatus(
-	ctx context.Context, opts *Options, p *project, byService map[string]engine.Status,
-) {
+// 从前这里按"host 含不含点"分成两类，托管的看容器状态、外部的才拨号。
+// 那条分叉随托管资源一起取消了。
+func renderResourceStatus(ctx context.Context, opts *Options, p *project) {
 	resources := usedResources(p)
 	if len(resources) == 0 {
 		return
@@ -229,7 +225,7 @@ func renderResourceStatus(
 
 	t := newTable("资源", "类型", "状态")
 	for _, r := range resources {
-		t.add(r.ID, r.Kind, resourceState(ctx, opts, r, byService, k8sTarget))
+		t.add(r.ID, r.Kind, resourceState(ctx, opts, r, k8sTarget))
 	}
 
 	opts.Printf("📦 资源状态\n")
@@ -262,8 +258,7 @@ func usedResources(p *project) []config.Resource {
 
 // resourceState 判定一个资源现在通不通。
 func resourceState(
-	ctx context.Context, opts *Options, r config.Resource,
-	byService map[string]engine.Status, k8sTarget bool,
+	ctx context.Context, opts *Options, r config.Resource, k8sTarget bool,
 ) string {
 	if k8sTarget {
 		// K8s 下的资源地址是**集群内**的 DNS 名（postgres.infra），
@@ -271,18 +266,11 @@ func resourceState(
 		// 部署报"不可达"——而组件正连着这个库跑得好好的。接上真集群第一次就撞到了
 		return fmt.Sprintf("%s:%d（集群内地址，本机不探测）", r.Host, r.Port)
 	}
-	if compose.IsManagedHost(r.Host) {
-		status, ok := byService[r.Host]
-		switch {
-		case !ok:
-			return "不可达（容器 " + r.Host + " 未创建）"
-		case status.Running():
-			return "可达（容器 " + r.Host + " 运行中）"
-		default:
-			return "不可达（容器 " + r.Host + " " + status.State + "）"
-		}
-	}
-
+	// Docker 目标下一律拨号。
+	//
+	// 从前这里还有一条分支：`host` 不含点时被判为"由 CLI 托管的资源容器"，
+	// 于是改看容器状态而不是拨号。那条路已经取消——平台不再部署基础资源
+	// （006 §9.1），所有资源都在容器网络之外，拨号是唯一说得通的判据。
 	address := fmt.Sprintf("%s:%d", r.Host, r.Port)
 	if err := opts.probe(ctx, address); err != nil {
 		return "不可达（" + address + "：" + reasonText(err) + "）"

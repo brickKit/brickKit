@@ -50,17 +50,17 @@ type Options struct {
 	Lookup func(name string) (string, bool)
 }
 
-// DatabaseRequirement 是一个需要**使用者预先创建**的数据库。
+// ResourceRequirement 是一个**必须先跑起来**的基础资源。
 //
 // 定义在 internal/deploy：K8s 目标要给出同样的清单，两处各算一遍迟早会分叉。
-type DatabaseRequirement = deploy.DatabaseRequirement
+type ResourceRequirement = deploy.ResourceRequirement
 
 // Result 是一次生成的产物。
 type Result struct {
 	// YAML 是 docker-compose.yaml 的内容。
 	YAML []byte
-	// Databases 是需要使用者预先创建的数据库。
-	Databases []DatabaseRequirement
+	// Resources 是必须先跑起来的基础资源（平台不部署它们，006 §9.1）。
+	Resources []ResourceRequirement
 	// LocalEnvFiles 是 local: true 组件的调试环境变量文件（005 §4.9）。
 	LocalEnvFiles []LocalEnvFile
 	// HostPorts 是本次会占用的宿主机端口（expose / 本地调试映射 / 资源映射 /
@@ -101,10 +101,6 @@ func Generate(
 		"services": plan.services(),
 		"networks": networks,
 	}
-	if volumes := plan.volumes(); len(volumes) > 0 {
-		doc["volumes"] = volumes
-	}
-
 	body, err := marshal(doc)
 	if err != nil {
 		return nil, err
@@ -113,7 +109,7 @@ func Generate(
 	now := opts.Now()
 	return &Result{
 		YAML:          append(header(cfg, plan, now), body...),
-		Databases:     plan.databases(),
+		Resources:     plan.requirements(),
 		LocalEnvFiles: plan.localEnvFiles(now, opts.Lookup),
 		HostPorts:     plan.hostPorts(),
 		Warnings:      plan.warnings,
@@ -164,8 +160,6 @@ type componentPlan struct {
 	Manifest *manifest.Manifest
 	Entry    config.Component
 	Env      inject.Component
-	// Resources 是它绑定的、由 CLI 托管的资源服务名。
-	Resources []string
 }
 
 // plan 是整份文件的生成计划。
@@ -182,8 +176,6 @@ type plan struct {
 	// externals 是 external 的组件（P39）：由别的项目部署，本项目什么都不生成，
 	// 只据此把依赖方接进对方项目的网络。
 	externals []externalComponent
-	// managed 是由 CLI 托管的资源（host 为服务名），按服务名排序。
-	managed []config.Resource
 	// rendered 是最终会出现在文件里的 service 名集合。
 	rendered map[string]bool
 
@@ -193,12 +185,10 @@ type plan struct {
 	//	exposedPort    服务名 → expose 映射到宿主机的端口
 	//	debugPort      服务名 → 纯为本地调试而映射的宿主机端口
 	//	debugExtraPort 服务名 → （容器额外端口 → 宿主机端口）
-	//	resourcePort   资源服务名 → 映射到宿主机的端口
 	localPort      map[string]int
 	exposedPort    map[string]int
 	debugPort      map[string]int
 	debugExtraPort map[string]map[int]int
-	resourcePort   map[string]int
 
 	warnings []*clierr.Error
 }
@@ -214,7 +204,6 @@ func newPlan(
 		exposedPort:    map[string]int{},
 		debugPort:      map[string]int{},
 		debugExtraPort: map[string]map[int]int{},
-		resourcePort:   map[string]int{},
 	}
 
 	entries := map[resolver.Ref]config.Component{}
@@ -254,12 +243,11 @@ func newPlan(
 			continue
 		}
 		p.components = append(p.components, componentPlan{
-			Ref:       ref,
-			Service:   service,
-			Manifest:  node.Manifest,
-			Entry:     entry,
-			Env:       envByRef[ref],
-			Resources: managedResourceServicesOf(cfg, ref.ID),
+			Ref:      ref,
+			Service:  service,
+			Manifest: node.Manifest,
+			Entry:    entry,
+			Env:      envByRef[ref],
 		})
 		p.rendered[service] = true
 	}
@@ -269,11 +257,6 @@ func newPlan(
 	sort.Slice(p.components, func(i, j int) bool { return p.components[i].Service < p.components[j].Service })
 	sort.Slice(p.locals, func(i, j int) bool { return p.locals[i].Service < p.locals[j].Service })
 
-	p.managed = managedResources(cfg, p.components, p.locals)
-	for _, r := range p.managed {
-		p.rendered[r.Host] = true
-	}
-
 	if err := p.checkExposePorts(); err != nil {
 		return nil, err
 	}
@@ -282,6 +265,7 @@ func newPlan(
 	}
 	p.rewriteEndpointsForLocalDependencies()
 	p.warnings = append(p.warnings, p.localMigrationWarnings()...)
+	p.warnings = append(p.warnings, p.serviceNameResourceWarnings()...)
 	return p, nil
 }
 
@@ -329,14 +313,6 @@ func exposeHostPort(c componentPlan) (port int, explicit bool) {
 func (p *plan) services() map[string]any {
 	services := map[string]any{}
 
-	for _, r := range p.managed {
-		svc := resourceService(r)
-		// 13.8：有 local 组件要连它时，端口得开到宿主机上
-		if hostPort, mapped := p.resourcePort[r.Host]; mapped {
-			svc["ports"] = []string{fmt.Sprintf("%d:%d", hostPort, r.Port)}
-		}
-		services[r.Host] = svc
-	}
 	for _, c := range p.components {
 		if c.Manifest.Migration != nil {
 			services[c.Service+"-migration"] = p.migrationService(c)
@@ -346,22 +322,9 @@ func (p *plan) services() map[string]any {
 	return services
 }
 
-// volumes 渲染 volumes 段（12.9）。
-func (p *plan) volumes() map[string]any {
-	volumes := map[string]any{}
-	for _, r := range p.managed {
-		if name := resourceVolumeName(r); name != "" {
-			// 空 map 而不是 nil：渲染成 `postgres-data: {}` 而不是刺眼的 `null`，
-			// 语义一样（用默认 driver），但文件是给人看的
-			volumes[name] = map[string]any{}
-		}
-	}
-	return volumes
-}
-
-// databases 汇总需要使用者预先创建的数据库（006 §9.5）。
-func (p *plan) databases() []DatabaseRequirement {
-	return deploy.Databases(p.cfg, p.componentIDs())
+// requirements 汇总本次必须先跑起来的基础资源（006 §9.1、§9.5）。
+func (p *plan) requirements() []ResourceRequirement {
+	return deploy.Requirements(p.cfg, p.componentIDs())
 }
 
 // componentIDs 是本次会跑起来的组件 ID。
@@ -413,17 +376,19 @@ func (p *plan) componentService(c componentPlan) map[string]any {
 
 // componentDependsOn 生成 depends_on。
 //
-// 三类依赖：自己的迁移必须**成功结束**、强依赖组件必须**健康**、
-// 绑定的资源必须**健康**。弱依赖不写——它可能根本不启动，写进去会把整个项目卡死。
+// 两类依赖：自己的迁移必须**成功结束**、强依赖组件必须**健康**。
+// 弱依赖不写——它可能根本不启动，写进去会把整个项目卡死。
+//
+// **基础资源不出现在这里**：平台不部署它们（006 §9.1），compose 文件里
+// 根本没有对应的 service，写进 depends_on 只会让 compose 直接报错。
+// 资源没起来时组件自己会连不上——这正是 `up` 每次都把"要先跑起来什么"
+// 列出来、以及 `--check-resources` 存在的理由。
 func (p *plan) componentDependsOn(c componentPlan) map[string]any {
 	dependsOn := map[string]any{}
 
 	if c.Manifest.Migration != nil {
 		// 12.12：等迁移成功结束，而不是等它"起来了"
 		dependsOn[c.Service+"-migration"] = condition("service_completed_successfully")
-	}
-	for _, resource := range c.Resources {
-		dependsOn[resource] = condition("service_healthy")
 	}
 
 	node := p.graph.Node(c.Ref)
@@ -484,14 +449,9 @@ func (p *plan) migrationService(c componentPlan) map[string]any {
 		svc["extra_hosts"] = hosts
 	}
 
-	// 迁移是第一个连库的东西，必须等资源就绪
-	dependsOn := map[string]any{}
-	for _, resource := range c.Resources {
-		dependsOn[resource] = condition("service_healthy")
-	}
-	if len(dependsOn) > 0 {
-		svc["depends_on"] = dependsOn
-	}
+	// 资源不由平台部署，因此没有可等的 service：迁移是第一个连库的东西，
+	// 库没起来它就是第一个失败的——那条错误（connection refused）比任何
+	// 平台自己编的说法都准确
 	return svc
 }
 
@@ -577,36 +537,34 @@ func quotaOf(spec *manifest.ResourceSpec) map[string]any {
 }
 
 // ============================================================
-// 基础资源 service
+// 基础资源
 // ============================================================
 
-// managedResources 找出由 CLI 托管的资源（006 §10.4）。
+// serviceNameResourceWarnings 提醒"host 写成了服务名，但没人会创建这个服务"。
 //
-// host 是 Docker Network 内的服务名 → CLI 生成容器；
-// host 是 IP 或域名 → 假设运维已部署，一行不碰。
-func managedResources(
-	cfg *config.Config, components []componentPlan, locals []localComponent,
-) []config.Resource {
+// 平台曾经在 host 不含点时**自己生成一个 postgres / redis 容器**（旧的 006 §10.4）。
+// 那条路已经取消：它只覆盖 6 种 kind 里的 2 种、在 K8s 目标下从来不存在、
+// 而且托管出来的实例还没法跨项目共享（各个 compose 项目各起各的）。
+//
+// 取消之后，`host: pg` 这种写法就成了一个**看不出来的空指向**：
+// 生成的 compose 完全正常，容器里却解析不了这个名字，表现是启动之后才出现的
+// `no such host`。所以在生成阶段就说一句——这正是当初那条隐式判据
+// （host 里有没有点）最该被换掉的地方。
+func (p *plan) serviceNameResourceWarnings() []*clierr.Error {
 	used := map[string]bool{}
-	for _, c := range components {
-		used[c.Ref.ID] = true
-	}
-	// local 组件虽然不生成容器，它要连的库还是得起来——
-	// 不然 IDE 里的进程一启动就连不上数据库
-	for _, l := range locals {
-		used[l.Ref.ID] = true
+	for _, id := range p.componentIDs() {
+		used[id] = true
 	}
 
-	var out []config.Resource
+	var out []*clierr.Error
 	seen := map[string]bool{}
-	for _, resource := range cfg.Resources {
-		if !isServiceName(resource.Host) || seen[resource.Host] {
+	for _, r := range p.cfg.Resources {
+		if !looksLikeServiceName(r.Host) || seen[r.ID] {
 			continue
 		}
-		// 没有任何启动中的组件用它时不生成
 		bound := false
-		for _, binding := range resource.Bindings {
-			if used[binding.ComponentID] {
+		for _, b := range r.Bindings {
+			if used[b.ComponentID] {
 				bound = true
 				break
 			}
@@ -614,105 +572,32 @@ func managedResources(
 		if !bound {
 			continue
 		}
-		seen[resource.Host] = true
-		out = append(out, resource)
-	}
+		seen[r.ID] = true
 
-	sort.Slice(out, func(i, j int) bool { return out[i].Host < out[j].Host })
+		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
+			"基础资源的 host 看起来是个服务名，容器里可能解析不了").
+			WithDetail("资源", r.ID).
+			WithDetail("host", r.Host).
+			WithDetail("原因", "平台不部署基础资源（006 §9.1），compose 里不会有叫这个名字的 service").
+			WithHint(
+				"资源跑在本机时写 host: "+hostMachineAlias+"（平台会自动补 extra_hosts）",
+				"资源跑在别处时写它的 IP 或域名",
+				"确实已经手工把该容器接进了本项目网络的话，这条提醒可以忽略",
+			))
+	}
 	return out
 }
 
-// managedResourceServicesOf 返回某个组件绑定的、由 CLI 托管的资源服务名。
-func managedResourceServicesOf(cfg *config.Config, componentID string) []string {
-	var out []string
-	seen := map[string]bool{}
-	for _, resource := range cfg.Resources {
-		if !isServiceName(resource.Host) || seen[resource.Host] {
-			continue
-		}
-		for _, binding := range resource.Bindings {
-			if binding.ComponentID == componentID {
-				seen[resource.Host] = true
-				out = append(out, resource.Host)
-				break
-			}
-		}
-	}
-	sort.Strings(out)
-	return out
-}
-
-// IsManagedHost 判断 host 是不是"由 CLI 托管"的资源（005 §5、006 §10.4）。
+// looksLikeServiceName 判断 host 像不像一个容器网络内的服务名。
 //
-// 导出它是因为 status 也要按同一条判据分流：托管的资源在容器网络里，
-// 宿主机拨号解析不了它的名字，只能看容器状态；外部资源才拨号。
-// 两处各判一次迟早会分叉。
-func IsManagedHost(host string) bool { return isServiceName(host) }
-
-// isServiceName 判断 host 是不是 Docker Network 内的服务名。
-//
-// 判据取自 006 §10.4：IP 地址与域名都表示"运维已部署的外部资源"。
-// 服务名不含点、不是纯 IP，也不是 localhost（那同样指向宿主机上已有的服务）。
-func isServiceName(host string) bool {
+// 判据只用来**提醒**，不用来决定行为——行为上所有资源一视同仁，
+// 都由使用者自己准备好。这正是它与旧判据的根本差别：
+// 从前这个函数的返回值决定"平台要不要替你起一个数据库"。
+func looksLikeServiceName(host string) bool {
 	host = strings.TrimSpace(host)
 	if host == "" || host == "localhost" || strings.Contains(host, ".") {
 		return false
 	}
-	return true
-}
-
-// resourceService 渲染基础资源容器（12.13）。
-func resourceService(r config.Resource) map[string]any {
-	svc := map[string]any{
-		"networks": []string{networkAlias},
-		"restart":  "unless-stopped",
-	}
-
-	switch r.Kind {
-	case config.ResourceKindDatabase:
-		svc["image"] = "postgres:15"
-		svc["environment"] = []string{
-			"POSTGRES_USER=" + valueOr(r.Username, "brickkit"),
-			"POSTGRES_PASSWORD=" + valueOr(r.Password, "dev"),
-		}
-		svc["volumes"] = []string{resourceVolumeName(r) + ":/var/lib/postgresql/data"}
-		svc["healthcheck"] = map[string]any{
-			"test":     []string{"CMD-SHELL", "pg_isready -U " + valueOr(r.Username, "brickkit")},
-			"interval": healthcheckInterval,
-			"timeout":  "5s",
-			"retries":  healthcheckRetries,
-		}
-
-	case config.ResourceKindCache:
-		svc["image"] = "redis:7"
-		svc["healthcheck"] = map[string]any{
-			"test":     []string{"CMD", "redis-cli", "ping"},
-			"interval": healthcheckInterval,
-			"timeout":  "5s",
-			"retries":  healthcheckRetries,
-		}
-		if name := resourceVolumeName(r); name != "" {
-			svc["volumes"] = []string{name + ":/data"}
-		}
-	}
-	return svc
-}
-
-// resourceVolumeName 是资源的数据卷名（12.9）。
-func resourceVolumeName(r config.Resource) string {
-	switch r.Kind {
-	case config.ResourceKindDatabase:
-		return r.Host + "-data"
-	case config.ResourceKindCache:
-		return r.Host + "-data"
-	default:
-		return ""
-	}
-}
-
-func valueOr(value, fallback string) string {
-	if strings.TrimSpace(value) == "" {
-		return fallback
-	}
-	return value
+	// 纯数字不像服务名，多半是写错的地址
+	return strings.IndexFunc(host, func(r rune) bool { return r < '0' || r > '9' }) >= 0
 }

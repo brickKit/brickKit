@@ -1,0 +1,68 @@
+# ============================================================
+# BrickKit 开发用基础资源栈（PostgreSQL + Redis）
+#
+# 这份文件是**手写**的，不是 CLI 生成的——与 deploy/market/ 同一个做法。
+#
+# 平台不部署基础资源（design/006 §9.1）：资源是通用的、跨项目共享的、
+# 有自己的运维节奏，谁部署它不该由某个项目的 brickkit up 决定。
+# 但"本地想快速起一套"是真实需求，所以给一份能直接跑的，
+# 而不是让每个人自己去查 postgres 镜像该怎么配。
+#
+#   起：  docker compose -f deploy/dev-resources/docker-compose.yaml up -d
+#   停：  docker compose -f deploy/dev-resources/docker-compose.yaml down
+#   清：  docker compose -f deploy/dev-resources/docker-compose.yaml down -v   ← 连数据一起删
+#
+# 端口发布到宿主机，因此 brickkit.yaml 里这样写：
+#
+#   resources:
+#     - kind: database
+#       engine: postgresql
+#       id: pg-main
+#       host: host.docker.internal     # ← 容器从这里连宿主机；平台会自动补 extra_hosts
+#       port: 5432
+#       username: brickkit
+#       password: ${PG_PASSWORD}
+#
+# 为什么是 host.docker.internal 而不是 pg：
+# 这个栈有自己的网络，BrickKit 项目的容器在另一张网络上，按容器名互相看不见。
+# 走宿主机端口是唯一不需要手工接网络的走法，而且 local: true 的组件
+# （跑在 IDE 里）用的也是同一个地址。
+# ============================================================
+
+name: brickkit-dev-resources
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${PG_USER:-brickkit}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-dev}
+      # 不预建业务库：每个组件用哪个库由 brickkit.yaml 的 bindings 决定，
+      # brickkit up 每次都会把要建的库连同 CREATE DATABASE 语句列出来（006 §9.5）
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-brickkit}"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:

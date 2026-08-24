@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -204,16 +203,8 @@ func (p *plan) assignHostPorts() error {
 		}
 	}
 
-	// 6) local 组件绑定的、由 CLI 托管的资源 → 映射到宿主机
-	for _, l := range p.locals {
-		for _, r := range p.managedResourcesOf(l.Ref.ID) {
-			if _, done := p.resourcePort[r.Host]; done || r.Port == 0 {
-				continue
-			}
-			p.resourcePort[r.Host] = ports.allocate(
-				hostPortOffset+r.Port, hostPortBase, "资源 "+r.ID)
-		}
-	}
+	// 基础资源不在这里：平台不部署它们（006 §9.1），它们本来就在容器网络之外。
+	// 宿主机上的进程按声明的地址直接连得上，没有可映射的端口。
 	return nil
 }
 
@@ -271,28 +262,6 @@ func (p *plan) runningDependencies(ref resolver.Ref) []resolver.Ref {
 	return out
 }
 
-// managedResourcesOf 返回绑定到该组件、且由 CLI 托管的资源。
-//
-// 外部资源（host 是 IP 或域名）不在这里：它本来就在容器网络之外，
-// 宿主机上的进程按原地址就能连上，改写反而会连到一个不存在的服务。
-func (p *plan) managedResourcesOf(componentID string) []config.Resource {
-	var out []config.Resource
-	seen := map[string]bool{}
-	for _, r := range p.cfg.Resources {
-		if !isServiceName(r.Host) || seen[r.Host] {
-			continue
-		}
-		for _, binding := range r.Bindings {
-			if binding.ComponentID == componentID {
-				seen[r.Host] = true
-				out = append(out, r)
-				break
-			}
-		}
-	}
-	return out
-}
-
 // hostAccessPort 返回"从宿主机访问这个依赖的主端口"该用哪个端口。
 func (p *plan) hostAccessPort(dep resolver.Ref) (int, bool) {
 	service := manifest.ServiceName(dep.ID, dep.Version)
@@ -335,12 +304,6 @@ func (p *plan) hostPorts() []HostPort {
 	for _, l := range p.locals {
 		out = append(out, HostPort{l.Port, refText(l.Ref), "local 组件监听"})
 	}
-	for _, r := range p.managed {
-		if port, ok := p.resourcePort[r.Host]; ok {
-			out = append(out, HostPort{port, "资源 " + r.ID, "供本地调试访问"})
-		}
-	}
-
 	sort.Slice(out, func(i, j int) bool { return out[i].Port < out[j].Port })
 	return out
 }
@@ -458,7 +421,7 @@ func (p *plan) localEnvFile(l localComponent, now time.Time, lookup func(string)
 	copy(vars, l.Env.Env)
 
 	p.pointDependenciesAtLocalhost(l, vars)
-	p.pointResourcesAtLocalhost(l, vars)
+	p.pointResourcesAtLocalhost(vars)
 
 	return LocalEnvFile{
 		Ref:     l.Ref,
@@ -494,27 +457,20 @@ func (p *plan) pointDependenciesAtLocalhost(l localComponent, vars []inject.Var)
 	}
 }
 
-// pointResourcesAtLocalhost 把 CLI 托管的资源地址改成 localhost:<映射端口>（13.8）。
+// pointResourcesAtLocalhost 把 `host.docker.internal` 换成 `localhost`。
 //
-// 只按"来源是资源连接"且"值恰好是这个资源的 host / port"来改，
-// 不按变量名前缀猜——使用者可以给同一类资源起不同的 envPrefix。
-func (p *plan) pointResourcesAtLocalhost(l localComponent, vars []inject.Var) {
-	for _, r := range p.managedResourcesOf(l.Ref.ID) {
-		hostPort, mapped := p.resourcePort[r.Host]
-		if !mapped {
-			continue
-		}
-		port := strconv.Itoa(r.Port)
-		for i := range vars {
-			if vars[i].Source != inject.SourceResource {
-				continue
-			}
-			switch {
-			case vars[i].Value == r.Host:
-				vars[i].Value = "localhost"
-			case strings.HasSuffix(vars[i].Name, "_PORT") && vars[i].Value == port:
-				vars[i].Value = strconv.Itoa(hostPort)
-			}
+// 平台不部署基础资源（006 §9.1），所以 local 组件连它们时**地址基本不用动**：
+// 资源本来就在容器网络之外，宿主机上的进程照着声明连就是了。
+//
+// 只有一种写法必须改：资源跑在**本机**时，容器里得写 `host.docker.internal`
+// （P34，平台会为容器补上 extra_hosts）。而这个名字在 **Linux 的宿主机上
+// 解析不了**——它是 Docker 注入到容器 /etc/hosts 里的，宿主机自己没有。
+// 不改的话，IDE 里的进程会拿着一个解析不了的主机名去连库，
+// 而容器里的同一个组件跑得好好的，最难联想到是这里。
+func (p *plan) pointResourcesAtLocalhost(vars []inject.Var) {
+	for i := range vars {
+		if vars[i].Source == inject.SourceResource && vars[i].Value == hostMachineAlias {
+			vars[i].Value = "localhost"
 		}
 	}
 }

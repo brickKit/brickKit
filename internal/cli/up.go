@@ -144,7 +144,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		return err
 	}
 	opts.Printf("📄 已生成：%s\n", displayPath(opts.WorkDir, path))
-	renderDatabaseRequirements(opts, plan.generated.Databases)
+	renderResourceRequirements(opts, plan.generated.Resources)
 
 	if flags.checkResources {
 		// --dry-run 时不要求引擎可用：那台机器上也许根本没装 docker，
@@ -682,22 +682,41 @@ func writeLocalEnvFiles(opts *Options, layout config.Layout, files []compose.Loc
 	return nil
 }
 
-// renderDatabaseRequirements 告诉使用者还需要建哪些数据库。
+// devResourcesCompose 是仓库里那份开箱即用的开发资源栈（postgres + redis）。
 //
-// 006 §9.1/§9.5：CLI 不创建数据库。但平台有责任说清楚要建什么——
-// 否则组件会在迁移阶段抛出一句难以定位的 `database "xxx" does not exist`。
-func renderDatabaseRequirements(opts *Options, databases []deploy.DatabaseRequirement) {
-	if len(databases) == 0 {
+// 它是一份**手写**的 compose 文件，不是生成的——与 deploy/market/ 同一个做法。
+// 平台不部署基础资源，但"本地想快速起一套"是真实需求，给一条能直接粘的命令
+// 比让每个人自己去查 postgres 镜像怎么配要便宜得多。
+const devResourcesCompose = "deploy/dev-resources/docker-compose.yaml"
+
+// renderResourceRequirements 告诉使用者哪些基础资源必须先跑起来。
+//
+// 006 §9.1：平台不部署基础资源，也不建库。但"不代为部署"不等于"不说清楚"——
+// 不列出来的话，组件会在启动或迁移时抛出 `connection refused` 或
+// `database "xxx" does not exist`，一句把**环境没准备好**指向**平台或组件**的错误。
+//
+// 每次 up 都打印，不是只在出错时：建库是一次性动作，而"资源得先跑着"
+// 是每次启动都要满足的前提。
+func renderResourceRequirements(opts *Options, requirements []deploy.ResourceRequirement) {
+	if len(requirements) == 0 {
 		return
 	}
 
-	opts.Printf("\n📌 以下数据库需要预先创建（平台不代建，见 006 §9.5）：\n")
-	for _, db := range databases {
-		opts.Printf("   %s  （%s:%d，供 %s 使用）\n",
-			db.Name, db.Host, db.Port, joinComponents(db.Components))
-		opts.Printf("      %s;\n", db.CreateSQL)
+	opts.Printf("\n📌 以下基础资源需要先跑起来（平台不代为部署，见 006 §9.1）：\n")
+	needDatabase := false
+	for _, r := range requirements {
+		opts.Printf("   %-12s %-12s %s:%d  供 %s 使用\n",
+			r.ID, r.Engine, r.Host, r.Port, joinComponents(r.Components))
+		for _, db := range r.Databases {
+			needDatabase = true
+			opts.Printf("      需要库 %s（供 %s 使用）：%s;\n",
+				db.Name, joinComponents(db.Components), db.CreateSQL)
+		}
 	}
-	opts.Printf("   已经建过就无需再执行，建库是一次性操作\n")
+	if needDatabase {
+		opts.Printf("   库也要预先建好；已经建过就无需再执行，建库是一次性操作\n")
+	}
+	opts.Printf("   本地开发想快速起一套：docker compose -f %s up -d\n", devResourcesCompose)
 }
 
 func joinComponents(items []string) string {

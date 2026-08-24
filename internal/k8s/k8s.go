@@ -93,10 +93,10 @@ type Result struct {
 	Namespace string
 	// Files 按路径排序，保证同一份配置每次生成的顺序一致。
 	Files []File
-	// Databases 是需要使用者预先创建的数据库（006 §9.5）。
+	// Resources 是必须先跑起来的基础资源（006 §9.1、§9.5）。
 	//
-	// K8s 环境下基础资源由运维部署，CLI 一行不碰；但"要建哪些库"照样得说清楚。
-	Databases []deploy.DatabaseRequirement
+	// 两种目标下平台都不部署它们，但"要先准备什么"照样得说清楚。
+	Resources []deploy.ResourceRequirement
 	// MigrationJobs 是本次会执行的迁移 Job 名，按启动顺序无关的字典序排列。
 	//
 	// 命令层要用它清理上一次残留的 Job 并等待本次跑完（005 §6.3）。
@@ -126,7 +126,7 @@ func Generate(
 
 	result := &Result{
 		Namespace: p.namespace,
-		Databases: deploy.Databases(cfg, p.componentIDs()),
+		Resources: deploy.Requirements(cfg, p.componentIDs()),
 		Warnings:  p.warnings,
 	}
 	now := opts.Now()
