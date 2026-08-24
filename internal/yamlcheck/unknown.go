@@ -1,4 +1,9 @@
-package config
+// Package yamlcheck 找出 YAML 里**拼错或多余的字段**。
+//
+// 它服务两份使用者手写的 YAML：`brickkit.yaml`（003）与 `component.yaml`（002）。
+// 两边共用一份实现，是因为它们要防的是同一件事，而分开写只会让其中一边先烂掉
+// ——事实上 component.yaml 那边一开始就没有，见 Walk 的注释。
+package yamlcheck
 
 import (
 	"reflect"
@@ -11,24 +16,37 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 )
 
-// checkUnknownFields 找出 brickkit.yaml 里**拼错或多余的字段**。
+// Walk 沿着 YAML 文档与目标结构体同时下行，把不认识的键记进 p。
 //
 // # 为什么值得单独做这件事
 //
-// yaml.v3 默认把不认识的键**静默丢掉**。于是把 username 写成 user 时，
+// yaml.v3 默认把不认识的键**静默丢掉**，而且是**精确比对 tag**——
+// `healthcheck` 匹配不上 `healthCheck`。于是把 username 写成 user 时，
 // CLI 一声不吭，等到组件启动才报：
 //
 //	缺少数据库连接配置：DATABASE_USER（这些变量由平台按资源绑定注入）
 //
-// ——一句把**配置笔误**指向**平台**的错误。这是真实装配时踩到的，
+// ——一句把**配置笔误**指向**平台**的错误。这是真实装配时踩到的（P33），
 // 而且是最费时间的一类：使用者会去查注入引擎、查资源绑定、查组件代码，
 // 唯独不会想到自己少打了三个字母。
 //
 // 直接用 yaml.Decoder 的 KnownFields 也能挡住，但它只会说
 // "field user not found in type config.Resource"——没有行号、没有中文、
 // 更不会告诉你**你想写的大概是哪个字段**。所以自己走一遍。
-func checkUnknownFields(doc *yaml.Node, p *clierr.ProblemSet) {
-	walkFields(doc, reflect.TypeOf(Config{}), "", p)
+//
+// # component.yaml 那边更值得查
+//
+// brickkit.yaml 的必填字段写错了，语义校验会兜住（"project 缺失"）。
+// component.yaml 里真正危险的是**可选字段**——它们没有兜底：
+//
+//	dependencies 写成 dependencys   依赖整个消失，调用方一个 *_ENDPOINT 都拿不到
+//	migration    写成 migrations    迁移不跑，组件起来报 relation does not exist
+//	extraPorts / configSchema / resources    静默失效
+//
+// 002 §8.5.1 花了一整节警告"迁移命令写错一个字母"的后果，
+// 而字段名写错一个字母同样静默——只是从前没有任何东西看着它。
+func Walk(doc *yaml.Node, typ reflect.Type, p *clierr.ProblemSet) {
+	walkFields(doc, typ, "", p)
 }
 
 // walkFields 沿着 YAML 节点与 Go 类型同时下行。

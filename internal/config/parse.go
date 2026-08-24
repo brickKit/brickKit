@@ -2,12 +2,14 @@ package config
 
 import (
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
 
 // envVarRe 匹配 ${ENV_VAR} 引用（003 §5.4、附录 D.1）。
@@ -89,7 +91,7 @@ func ParseConfig(data []byte, source string) (*Config, error) {
 	checkConfigShapes(doc, shape)
 	// 拼错的字段与形状问题一起报：两者都是"这份配置根本读不对"，
 	// 分两轮报会让人改完一处又撞下一处
-	checkUnknownFields(doc, shape)
+	yamlcheck.Walk(doc, reflect.TypeOf(Config{}), shape)
 	if shape.Len() > 0 {
 		return nil, shape.Err()
 	}

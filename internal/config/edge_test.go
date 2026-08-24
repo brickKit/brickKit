@@ -9,7 +9,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -655,16 +654,6 @@ resources: []
 `), "brickkit.yaml")
 
 	assert.NoError(t, err, "config 底下的键由组件的 configSchema 决定，平台不该管")
-}
-
-// TestClosestFieldOnlyGuessesWhenClose：距离太远就不猜。
-func TestClosestFieldOnlyGuessesWhenClose(t *testing.T) {
-	known := knownFieldsOf(reflect.TypeOf(Resource{}))
-
-	assert.Equal(t, "username", closestField("user", known))
-	assert.Equal(t, "username", closestField("usrname", known))
-	assert.Empty(t, closestField("completelyUnrelated", known),
-		"八竿子打不着的名字不该猜——乱猜比不猜更误导人")
 }
 
 // 平台不认识的资源类型必须当场报错（006 §2.1）。

@@ -3,11 +3,13 @@ package manifest
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
 
 // FileName 是 Manifest 的固定文件名（002 §2.1）。
@@ -39,6 +41,7 @@ func ParseFile(path string) (*Manifest, error) {
 // 解析分三步：
 //  1. YAML 语法解析（语法错误带行号）
 //  2. 结构形状检查（该是数组的字段必须是数组，给出精确字段名）
+//     + 未知字段检查（拼错的键，见 yamlcheck.Walk）
 //  3. 字段级语义校验（一次报出全部问题）
 func Parse(data []byte, source string) (*Manifest, error) {
 	if source == "" {
@@ -58,6 +61,9 @@ func Parse(data []byte, source string) (*Manifest, error) {
 	doc := root.Content[0]
 	shape := newProblems(source)
 	checkShapes(doc, shape)
+	// 与形状问题一起报：两者都是"这份 Manifest 根本读不对"，
+	// 分两轮报会让人改完一处又撞下一处
+	yamlcheck.Walk(doc, reflect.TypeOf(Manifest{}), shape)
 	if shape.Len() > 0 {
 		return nil, shape.Err()
 	}
