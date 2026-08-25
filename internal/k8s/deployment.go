@@ -41,6 +41,12 @@ const (
 	readinessPeriod       = 5
 	probeTimeout          = 3
 	probeFailureThreshold = 3
+	// startupPeriod 是启动探针的检查周期。
+	//
+	// 比存活/就绪都密：它决定"多快发现组件已经起来了"。5 秒的粒度让
+	// 快速启动的组件几乎不受影响（第一次探测就在 t=5s，与原来的就绪探针同时），
+	// 而慢启动的组件靠 failureThreshold 把总预算拉长。
+	startupPeriod = 5
 )
 
 // mainPortName 是主端口在 Service / containerPort 里的名字。
@@ -141,6 +147,10 @@ func (p *plan) containerDoc(c componentPlan) map[string]any {
 		container["env"] = env
 	}
 	if probe := livenessProbe(c.Manifest); probe != nil {
+		// 顺序无关（YAML 是映射），但三者必须一起出现：
+		// startupProbe 在通过之前会**同时**禁用 liveness 与 readiness，
+		// 只生成其中一部分会让慢启动的组件在两种目标下表现不一致
+		container["startupProbe"] = startupProbe(c.Manifest)
 		container["livenessProbe"] = probe
 		container["readinessProbe"] = readinessProbe(c.Manifest)
 	}
@@ -213,6 +223,48 @@ func livenessProbe(m *manifest.Manifest) map[string]any {
 		probe[k] = v
 	}
 	return probe
+}
+
+// startupProbe 渲染启动探针（005 §5.3、002 §9.3）。
+//
+// # 为什么必须有它，而不是把 livenessProbe 的 initialDelaySeconds 调大
+//
+// 没有启动探针时，一个冷启动 45 秒的组件会在 t≈30s 被 livenessProbe 判死
+// （10s 初始延迟 + 10s × 3 次失败）→ Pod 被 kill → 重启 → 再走一遍同样的
+// 30 秒 → **永久 CrashLoopBackOff**。而容器日志一路正常，最难联想到探针。
+//
+// 调大 initialDelaySeconds 只是把这条线往后挪，代价是**所有**组件的故障
+// 发现时间都跟着变慢——快启动的组件本来 10 秒就能被发现死了。
+// 启动探针把两件事分开：起来之前给足时间，起来之后照常严格。
+// 它一旦通过就不再执行，之后完全由 liveness / readiness 接管。
+//
+// ⚠️ 启动探针通过之前，**readinessProbe 也是禁用的**——Service 不会把流量
+// 转给它。这正是想要的：还没起来的实例不该收请求。
+func startupProbe(m *manifest.Manifest) map[string]any {
+	action := probeAction(m)
+	if action == nil {
+		return nil
+	}
+	probe := map[string]any{
+		"periodSeconds":  startupPeriod,
+		"timeoutSeconds": probeTimeout,
+		// 总预算 = periodSeconds × failureThreshold ≈ 组件声明的启动宽限期。
+		// 向上取整：宁可多给几秒，也不要因为除不尽而比声明的少
+		"failureThreshold": startupFailureThreshold(m.HealthCheck.StartPeriod()),
+	}
+	for k, v := range action {
+		probe[k] = v
+	}
+	return probe
+}
+
+// startupFailureThreshold 把"宽限期多少秒"换算成启动探针的失败次数。
+func startupFailureThreshold(seconds int) int {
+	threshold := (seconds + startupPeriod - 1) / startupPeriod
+	if threshold < 1 {
+		return 1
+	}
+	return threshold
 }
 
 // readinessProbe 渲染就绪探针（005 §5.3）。

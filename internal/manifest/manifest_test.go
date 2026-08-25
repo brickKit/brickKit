@@ -339,6 +339,19 @@ configSchema:
 		{"—", "healthCheck path 不以 / 开头",
 			mutate(t, "  path: /healthz", "  path: healthz"),
 			[]string{"healthCheck.path", "/"}},
+		// 002 §9.3：写了不生效的字段必须出声，与 brickkit.yaml 侧
+		// localPort / exposePort 同一条规矩
+		{"—", "startPeriodSeconds 配 type: none",
+			mutate(t, "  type: http\n  path: /healthz",
+				"  type: none\n  startPeriodSeconds: 120"),
+			[]string{"healthCheck.startPeriodSeconds", "none"}},
+		// 单位是秒不是毫秒。写成 60000 的组件会长时间挂在 starting 上而不报错
+		{"—", "startPeriodSeconds 超上限（多半是写成了毫秒）",
+			mutate(t, "  path: /healthz", "  path: /healthz\n  startPeriodSeconds: 60000"),
+			[]string{"healthCheck.startPeriodSeconds", "秒"}},
+		{"—", "startPeriodSeconds 为负",
+			mutate(t, "  path: /healthz", "  path: /healthz\n  startPeriodSeconds: -1"),
+			[]string{"healthCheck.startPeriodSeconds", "正整数"}},
 	}
 
 	for _, c := range cases {

@@ -413,6 +413,50 @@ func TestReadinessProbe(t *testing.T) {
 	assert.Equal(t, 5, dig(t, probe, "periodSeconds"))
 }
 
+// 启动探针（002 §9.3）。
+//
+// 没有它时，冷启动 45 秒的组件会在 t≈30s 被 livenessProbe 判死
+// （initialDelay 10 + period 10 × failureThreshold 3）→ kill → 重启 →
+// 再走一遍同样的 30 秒 → 永久 CrashLoopBackOff。
+func TestStartupProbe(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+
+	probe := b.container("people-basic-1-0-0")["startupProbe"]
+
+	assert.Equal(t, "/healthz", dig(t, probe, "httpGet", "path"))
+	assert.Equal(t, 8080, dig(t, probe, "httpGet", "port"))
+	assert.Equal(t, 5, dig(t, probe, "periodSeconds"))
+	// 默认宽限期 60 秒 ÷ 5 秒一次 = 12 次
+	assert.Equal(t, 12, dig(t, probe, "failureThreshold"))
+	assert.NotContains(t, probe, "initialDelaySeconds",
+		"启动探针不该有初始延迟：它要尽早发现组件已经起来了")
+}
+
+// 组件声明的宽限期换算成失败次数，除不尽时向上取整——
+// 宁可多给几秒，也不要比组件声明的少。
+func TestStartupProbeFailureThresholdFollowsManifest(t *testing.T) {
+	for _, tc := range []struct {
+		seconds   int
+		threshold int
+	}{
+		{seconds: 180, threshold: 36},
+		{seconds: 300, threshold: 60},
+		{seconds: 7, threshold: 2}, // 7 ÷ 5 = 1.4 → 2（给 10 秒，不是 5 秒）
+		{seconds: 1, threshold: 1},
+	} {
+		m := simple("java/monolith", "1.0.0", 8080)
+		m.HealthCheck.StartPeriodSeconds = tc.seconds
+
+		b := newBuilder(t)
+		b.component(m, config.Component{})
+
+		probe := b.container("java-monolith-1-0-0")["startupProbe"]
+		assert.Equal(t, tc.threshold, dig(t, probe, "failureThreshold"),
+			"startPeriodSeconds: %d", tc.seconds)
+	}
+}
+
 // healthCheck.type: tcp → tcpSocket 探针。
 func TestTCPProbe(t *testing.T) {
 	m := simple("infra/queue", "1.0.0", 5672)
@@ -425,6 +469,7 @@ func TestTCPProbe(t *testing.T) {
 
 	assert.Equal(t, 5672, dig(t, c["livenessProbe"], "tcpSocket", "port"))
 	assert.Equal(t, 5672, dig(t, c["readinessProbe"], "tcpSocket", "port"))
+	assert.Equal(t, 5672, dig(t, c["startupProbe"], "tcpSocket", "port"))
 }
 
 // healthCheck.type: none → 一个探针都不生成。
@@ -441,6 +486,7 @@ func TestNoProbeWhenHealthCheckNone(t *testing.T) {
 
 	assert.NotContains(t, c, "livenessProbe")
 	assert.NotContains(t, c, "readinessProbe")
+	assert.NotContains(t, c, "startupProbe")
 }
 
 // ============================================================

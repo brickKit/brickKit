@@ -468,6 +468,13 @@ func healthcheckOf(m *manifest.Manifest) map[string]any {
 	if m == nil {
 		return nil
 	}
+	// start_period 内探测失败**不计入 retries**，而且一旦成功立刻转 healthy
+	// ——所以它只推迟"判死刑"，不推迟"判活"。少了它，平台给组件的启动预算
+	// 就是写死的 interval × retries = 30 秒，任何冷启动超过半分钟的组件
+	// （Spring Boot / Django / .NET）都会被判 unhealthy，
+	// 而 `up -d --wait` 见到 unhealthy 直接失败（002 §9.3）。
+	startPeriod := fmt.Sprintf("%ds", m.HealthCheck.StartPeriod())
+
 	switch m.HealthCheck.Type {
 	case manifest.HealthCheckHTTP:
 		url := fmt.Sprintf("http://localhost:%d%s", m.Deployment.Port, m.HealthCheck.Path)
@@ -480,17 +487,19 @@ func healthcheckOf(m *manifest.Manifest) map[string]any {
 		return map[string]any{
 			"test": []string{"CMD-SHELL", fmt.Sprintf(
 				"wget -q --spider %s || curl -fsS %s || exit 1", url, url)},
-			"interval": healthcheckInterval,
-			"timeout":  healthcheckTimeout,
-			"retries":  healthcheckRetries,
+			"interval":     healthcheckInterval,
+			"timeout":      healthcheckTimeout,
+			"retries":      healthcheckRetries,
+			"start_period": startPeriod,
 		}
 	case manifest.HealthCheckTCP:
 		return map[string]any{
 			"test": []string{"CMD-SHELL",
 				fmt.Sprintf("nc -z localhost %d", m.Deployment.Port)},
-			"interval": healthcheckInterval,
-			"timeout":  healthcheckTimeout,
-			"retries":  healthcheckRetries,
+			"interval":     healthcheckInterval,
+			"timeout":      healthcheckTimeout,
+			"retries":      healthcheckRetries,
+			"start_period": startPeriod,
 		}
 	default:
 		// none：不生成健康检查。生成一个探不通的检查会让依赖方永远等不到 healthy

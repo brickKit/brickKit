@@ -510,6 +510,44 @@ func TestHealthcheckFromManifest(t *testing.T) {
 	assert.NotEmpty(t, health["retries"])
 }
 
+// 启动宽限期必须写进 healthcheck（002 §9.3）。
+//
+// 少了 start_period，平台给组件的启动预算就是写死的 interval × retries = 30 秒。
+// 真跑验证过：一个 40 秒才开始监听的容器，在没有 start_period 时被判 unhealthy，
+// `docker compose up -d --wait` 直接返回非零；加上之后同一个容器 40 秒转 healthy。
+// 冷启动超过半分钟在 Spring Boot / Django / .NET 上是常态。
+func TestHealthcheckHasStartPeriod(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+
+	health := serviceOf(t, b.parsed(), "people-basic-1-0-0")["healthcheck"].(map[string]any)
+	assert.Equal(t, "60s", health["start_period"], "没写时用默认宽限期")
+}
+
+// 组件可以自己声明宽限期——这是 healthCheck 下唯一能覆盖的时间参数。
+func TestHealthcheckStartPeriodFromManifest(t *testing.T) {
+	m := simple("java/monolith", "1.0.0", 8080)
+	m.HealthCheck.StartPeriodSeconds = 180
+
+	b := newBuilder(t)
+	b.component(m, config.Component{})
+
+	health := serviceOf(t, b.parsed(), "java-monolith-1-0-0")["healthcheck"].(map[string]any)
+	assert.Equal(t, "180s", health["start_period"])
+}
+
+// tcp 类型同样要有宽限期：它一样会在组件还没监听时探失败。
+func TestTCPHealthcheckHasStartPeriod(t *testing.T) {
+	m := simple("infra/queue", "1.0.0", 5672)
+	m.HealthCheck = manifest.HealthCheck{Type: manifest.HealthCheckTCP}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{})
+
+	health := serviceOf(t, b.parsed(), "infra-queue-1-0-0")["healthcheck"].(map[string]any)
+	assert.Equal(t, "60s", health["start_period"])
+}
+
 // 健康检查探的是**主端口**，不是额外端口（002 §5.5）。
 func TestHealthcheckUsesMainPortNotExtraPort(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)

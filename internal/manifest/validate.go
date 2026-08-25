@@ -361,4 +361,36 @@ func (m *Manifest) validateHealthCheck(p *clierr.ProblemSet) {
 		p.Addf("healthCheck.type", "必须是 %s / %s / %s 之一（当前是 %s）",
 			HealthCheckHTTP, HealthCheckTCP, HealthCheckNone, h.Type)
 	}
+
+	validateStartPeriod(p, h)
+}
+
+// maxStartPeriodSeconds 是启动宽限期的上限（1 小时）。
+//
+// 有上限不是怕数值大——宽限期长本身没有危害。是怕**手滑写成了毫秒**：
+// `startPeriodSeconds: 60000` 看着像"60 秒"，实际是 16 小时，
+// 于是一个真的起不来的组件会一直挂在 starting 上，谁也不会去看它。
+const maxStartPeriodSeconds = 3600
+
+// validateStartPeriod 校验启动宽限期（002 §9.3）。
+func validateStartPeriod(p *clierr.ProblemSet, h HealthCheck) {
+	if h.StartPeriodSeconds == 0 {
+		return // 没写 = 用默认值
+	}
+
+	switch {
+	case h.Type == HealthCheckNone:
+		// 与 brickkit.yaml 侧 localPort / exposePort 同一条规矩：
+		// 写了不生效的字段必须出声，否则使用者以为自己调过了
+		p.Add("healthCheck.startPeriodSeconds",
+			"在 type: none 下不生效（不生成任何探测，也就无所谓宽限期）；"+
+				"请删除该字段，或把 type 改成 http / tcp")
+	case h.StartPeriodSeconds < 0:
+		p.Addf("healthCheck.startPeriodSeconds", "必须是正整数（当前是 %d）", h.StartPeriodSeconds)
+	case h.StartPeriodSeconds > maxStartPeriodSeconds:
+		p.Addf("healthCheck.startPeriodSeconds",
+			"最大 %d 秒（当前是 %d）。单位是**秒**不是毫秒——"+
+				"写成毫秒的话组件会长时间挂在 starting 上而不报错",
+			maxStartPeriodSeconds, h.StartPeriodSeconds)
+	}
 }

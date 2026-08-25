@@ -208,11 +208,47 @@ type Migration struct {
 	Command []string `yaml:"command"`
 }
 
+// DefaultStartPeriodSeconds 是启动宽限期的默认值（002 §9.3）。
+//
+// # 为什么必须有这一段，以及为什么默认给到 60 秒
+//
+// 没有它时，平台给组件的启动预算是 interval × failureThreshold = 30 秒——
+// **写死的、组件作者改不了的 30 秒**。Spring Boot 冷启动、Django 预加载、
+// .NET 首次 JIT 都会超过它，于是：
+//
+//	Docker  连续三次探测失败 → unhealthy → `up -d --wait` 直接失败，
+//	        依赖方卡在 service_healthy 上
+//	K8s     livenessProbe 三连失败 → Pod 被 kill → 重启 → 再走一遍同样的 30 秒
+//	        → **永久 CrashLoopBackOff**
+//
+// 而症状极具误导性：容器日志一路正常，最后一行往往正好是"服务已启动"。
+// 这与 002 §9.3.1（镜像里没有 wget）是同一种事故，区别在于那一种组件作者
+// 能修，这一种他做对了每件事也躲不掉。
+//
+// 默认值取 60 而不是 30，是因为两个方向的失败代价完全不对称：
+// 给多了只是"判定 unhealthy 晚了几十秒"，而且**宽限期不会推迟 healthy**
+// ——两秒就绪的组件照样在两秒后转 healthy；给少了是整类组件起不来。
+const DefaultStartPeriodSeconds = 60
+
 // HealthCheck 是健康检查声明（002 §9）。
 // 注意：/healthz 只检查本进程存活，禁止检查外部依赖（002 §9.4）。
 type HealthCheck struct {
 	Type string `yaml:"type"`
 	Path string `yaml:"path,omitempty"`
+	// StartPeriodSeconds 是启动宽限期：这段时间内探测失败不算数（002 §9.3）。
+	//
+	// 这是 healthCheck 下**唯一**可由组件覆盖的时间参数。interval / timeout /
+	// failureThreshold 三个由平台固定：它们管的是"跑起来之后多久发现它死了"，
+	// 各个组件之间没有差别；而"我要多久才起得来"是每个组件自己的事实。
+	StartPeriodSeconds int `yaml:"startPeriodSeconds,omitempty"`
+}
+
+// StartPeriod 返回生效的启动宽限期（秒），没写时取默认值。
+func (h HealthCheck) StartPeriod() int {
+	if h.StartPeriodSeconds > 0 {
+		return h.StartPeriodSeconds
+	}
+	return DefaultStartPeriodSeconds
 }
 
 // 这里曾经有 observability 与 compatibility 两个字段，都已删除。

@@ -360,8 +360,15 @@ migration:                       # 可选
 healthCheck:                     # 必须
   type: http                     # http | tcp | none
   path: /healthz                 # http 必填
+  startPeriodSeconds: 60         # 可选，启动宽限期（秒），默认 60
   # ⚠️ 只检查本进程存活，禁止检查数据库 / 依赖组件 / 任何外部系统
 ```
+
+> **`startPeriodSeconds` 是 `healthCheck` 下唯一可覆盖的时间参数**（002 §9.3）。
+> interval / timeout / failureThreshold 由平台固定，三者相乘给出的启动预算是
+> 30 秒——冷启动超过它的组件（Spring Boot / Django / .NET）在 Docker 下会让
+> `up` 失败、在 K8s 下会永久 CrashLoopBackOff，而容器日志一路正常。
+> 宽限期只推迟"判死"，不推迟"判活"，所以写大一点没有代价。
 
 > **这就是全部字段。** Manifest **没有扩展字段机制**，不认识的键会被当场拒绝
 > （002 §2.2.1），不是静默忽略——所以上面这份骨架照抄下来必须能过。
