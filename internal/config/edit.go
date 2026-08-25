@@ -65,8 +65,8 @@ func (e *Edit) HasComponent(id, version string) bool {
 
 // AddComponent 追加一个组件条目。已存在时返回 false，不重复写入。
 //
-// 只写 id 与 version：add 自动添加的组件**不写 enabled 字段**（004 §3.3 关键规则）。
-// 不写就是启动，没什么要声明的；要关掉它是使用者自己写 enabled: false。
+// 只写 id 与 version：add 自动添加的组件**不写 enabled 字段**（004 §3.3 关键规则），
+// 只有用户手写 enabled: true 才是"钉住"的显式意图。
 func (e *Edit) AddComponent(id, version string) bool {
 	if e.HasComponent(id, version) {
 		return false

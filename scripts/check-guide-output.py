@@ -137,7 +137,7 @@ CASES = [
         "reset": True,
         "run": ["init demo-shop", "add --local --yes"],
         "check": ("sync --only people/basic", "02a-专注在几个组件上.md",
-                  "🎯 --only：只保留 people/basic 及其依赖（brickkit.yaml 未修改）", 0),
+                  "🎯 --only：只保留 people/basic 及其强依赖（brickkit.yaml 未修改）", 0),
     },
     {
         "what": "02a §2a.4 不带参数的 sync 就是恢复",
@@ -158,29 +158,23 @@ CASES = [
         "check": ("up --dry-run", "04-组件开启模式.md", "📋 组件状态计算：", 0),
     },
     {
-        "what": "04 §4.2 关掉一个没人强依赖的组件",
+        "what": "04 §4.2 级联禁用",
         "reset": True,
-        "run": BASELINE + ["!disable infra/redis-event-bus"],
+        "run": BASELINE + ["!disable demo/hello"],
         "check": ("up --dry-run", "04-组件开启模式.md", "📋 组件状态计算：", 1),
     },
     {
-        "what": "04 §4.3 关掉一个被强依赖的组件 → 报错",
+        "what": "04 §4.3 钉住撞上被禁用的强依赖",
         "reset": True,
-        "run": BASELINE + ["!disable demo/hello"],
-        "check": ("up --dry-run", "04-组件开启模式.md", "❌ 错误：强依赖被显式关闭", 0),
-    },
-    {
-        "what": "04 §4.3 按建议 1 把依赖方也关掉",
-        "reset": True,
-        "run": BASELINE + ["!disable demo/hello", "!disable demo/caller"],
-        "check": ("up --dry-run", "04-组件开启模式.md", "📋 组件状态计算：", 2),
+        "run": BASELINE + ["!disable demo/hello", "!pin demo/caller"],
+        "check": ("up --dry-run", "04-组件开启模式.md", "❌ 错误：强依赖 demo/hello 被禁用", 0),
     },
     {
         "what": "04 --only 一次性选中",
         "reset": True,
         "run": BASELINE,
         "check": ("up --only people/basic --dry-run", "04-组件开启模式.md",
-                  "🎯 --only：只启动 people/basic 及其依赖", 0),
+                  "🎯 --only：只启动 people/basic 及其强依赖", 0),
     },
     {
         "what": "08 §8.1 改版本号即升级",
@@ -298,13 +292,25 @@ def prepare(work):
 
 
 def disable(proj, component_id):
-    """给某个组件加一行 enabled: false（04 §4.2 / §4.3 让读者手改的那一步）。"""
+    """给某个组件加一行 enabled: false（04 §4.1 让读者手改的那一步）。"""
     path = os.path.join(proj, "brickkit.yaml")
     s = open(path, encoding="utf-8").read()
     old = f"  - id: {component_id}\n    version: 1.0.0\n"
     if old not in s:
         sys.exit(f"❌ 配置里找不到 {component_id}，无法加 enabled: false")
     open(path, "w", encoding="utf-8").write(s.replace(old, old + "    enabled: false\n", 1))
+
+
+def pin(proj, component_id):
+    """给某个组件加一行 enabled: true（04 §4.3 的"钉住"）。"""
+    path = os.path.join(proj, "brickkit.yaml")
+    s = open(path, encoding="utf-8").read()
+    old_entry = f"  - id: {component_id}\n    version: 1.0.0\n"
+    if old_entry not in s:
+        print(f"❌ 配置里找不到 {component_id}，无法加 enabled: true")
+        sys.exit(2)
+    open(path, "w", encoding="utf-8").write(
+        s.replace(old_entry, old_entry + "    enabled: true\n", 1))
 
 
 def enable(proj, component_id):

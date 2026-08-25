@@ -173,11 +173,8 @@ func TestUpImageCheckFailureKeepsTheRealReason(t *testing.T) {
 // 15.2–15.5 级联
 // ============================================================
 
-// 15.2：关掉一个组件，只有它自己不跑——它的依赖照常启动。
-//
-// 从前这里断言的是相反的事（"一个都不该启动"）：级联会从"没人需要它"
-// 倒推出 people/basic 也该关掉。那种隐式决定已经删掉（003 §4.3）。
-func TestUpDisablingOneComponentLeavesTheRestRunning(t *testing.T) {
+// 15.2：没人依赖、也没钉住的组件被级联跳过，不会被启动。
+func TestUpCascadeSkipsUnneededComponent(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
 		{ID: "people/basic", Version: "1.0.0"},
@@ -195,13 +192,12 @@ func TestUpDisablingOneComponentLeavesTheRestRunning(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "up")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Equal(t, []string{"people-basic-1-0-0"}, eng.lastUp(t).Services,
-		"15.2：被关掉的只有 erp/backend")
-	assert.Contains(t, r.stdout, "显式禁用")
+	assert.Empty(t, eng.ups, "15.2/15.4：一个都不该启动")
+	assert.Contains(t, r.stdout, "本次没有组件会启动")
 }
 
-// 15.3：enabled: true 与不写等价，都是启动。
-func TestUpEnabledTrueStartsLikeOmitting(t *testing.T) {
+// 15.3：钉住的组件即使没人依赖也要启动。
+func TestUpPinnedComponentStartsAnyway(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
 		{ID: "people/basic", Version: "1.0.0"},
@@ -223,7 +219,7 @@ func TestUpEnabledTrueStartsLikeOmitting(t *testing.T) {
 	assert.Equal(t, []string{"people-basic-1-0-0"}, eng.lastUp(t).Services, "15.3")
 }
 
-// 15.5：强依赖了一个被显式关掉的组件——两个意图直接冲突，必须报错。
+// 15.5：钉住的组件强依赖了一个被显式关掉的组件——两个意图直接冲突，必须报错。
 func TestUpDisabledStrongDependencyIsAnError(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},

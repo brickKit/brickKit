@@ -18,7 +18,7 @@ R4	brickkit add artifacts 下载	9	.	./internal/cli	TestAddDownloadsArtifacts
 R5	brickkit add --repo	9	.	./internal/cli	TestAddRepoClonesOpenSourceComponent
 R6	brickkit remove 基本功能	9	.	./internal/cli	TestRemoveDeletesEntryAndCaches
 R7	brickkit up 基本功能	15	.	./internal/cli	TestUpStartsAllComponents
-R8	brickkit up 启停判定（enabled）	15	.	./internal/cascade	TestDisablingOneComponentDoesNotTouchTheRest
+R8	brickkit up 级联禁用	15	.	./internal/cascade	TestCascadeMatchesDesignExample
 R9	brickkit up 迁移执行	14/15	.	./internal/compose	TestMainServiceWaitsForMigration
 R10	brickkit down 不删 volume	15	.	./internal/engine	TestDownNeverRemovesVolumes
 R11	brickkit status 基本功能	15	.	./internal/cli	TestStatusShowsRunningComponents

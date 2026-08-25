@@ -1,7 +1,7 @@
-// 本文件是启停判定的业务行为测试。
+// 本文件是 Step 11 级联启停计算（延后项 P1 / P14）的业务行为测试。
 //
-// 规则来自 003 §4.3，只有一句：**配置里有它、又没写 enabled: false，就启动**。
-// 强依赖与弱依赖在这件事上一视同仁。这里的每个用例都对应设计书里写死的一条判定。
+// 规则来自 003 §4.3：enabled 是三态字段，CLI 据此算出"这次到底跑哪些组件"。
+// 这里的每个用例都对应设计书里写死的一条判定。
 package cascade_test
 
 import (
@@ -80,8 +80,7 @@ func newGraph(t *testing.T, specs ...spec) *resolver.Graph {
 	return graph
 }
 
-// cfgOf 造一份 brickkit.yaml 配置。enabled 用 "" / "true" / "false" 表示三种写法
-// （前两种行为相同——不写与写 true 都是启动，这正是要锁住的事）。
+// cfgOf 造一份 brickkit.yaml 配置。enabled 用 "" / "true" / "false" 表示三态。
 func cfgOf(entries ...[2]string) *config.Config {
 	cfg := &config.Config{}
 	for _, e := range entries {
@@ -124,26 +123,12 @@ func reasonOf(t *testing.T, r *cascade.Result, id string) (cascade.State, string
 	return "", ""
 }
 
-// cfg2 造一份"全都没写 enabled"的配置。
-func cfg2(t *testing.T, ids ...string) *config.Config {
-	t.Helper()
-	entries := make([][2]string, 0, len(ids))
-	for _, id := range ids {
-		entries = append(entries, entry(id, ""))
-	}
-	return cfgOf(entries...)
-}
-
 // ============================================================
 // 003 §4.3 的完整示例
 // ============================================================
 
 // 设计书里那张表是这个算法的验收标准，逐行对齐。
-//
-// 注意 erp/backend 被关掉之后 portal/user-frontend **不会**被顺手关掉——
-// 它强依赖 erp/backend，所以这是一次报错（见下面的 TestDisabledRequirement…）。
-// 这里把 portal 也关掉，测的是"其余组件照常启动"。
-func TestDisablingOneComponentDoesNotTouchTheRest(t *testing.T) {
+func TestCascadeMatchesDesignExample(t *testing.T) {
 	graph := newGraph(t,
 		spec{id: "portal/user-frontend", requires: []string{"erp/backend"}},
 		spec{id: "erp/backend", requires: []string{"people/basic", "authorization/rbac", "department/tree"}},
@@ -156,29 +141,39 @@ func TestDisablingOneComponentDoesNotTouchTheRest(t *testing.T) {
 		entry("people/basic", ""),
 		entry("authorization/rbac", "true"),
 		entry("erp/backend", "false"),
-		entry("portal/user-frontend", "false"),
+		entry("portal/user-frontend", ""),
 	)
 
 	result, err := cascade.Compute(cfg, graph)
 	require.NoError(t, err)
 
-	// 关掉的只有那两个；people/basic 照常跑——没人再需要它不是关掉它的理由，
-	// 那种"倒推"正是删掉的级联在做的事
-	assert.ElementsMatch(t,
-		[]string{"authorization/rbac", "department/tree", "people/basic"},
-		runningIDs(result))
+	assert.ElementsMatch(t, []string{"authorization/rbac", "department/tree"}, runningIDs(result))
 
 	state, reason := reasonOf(t, result, "erp/backend")
 	assert.Equal(t, cascade.StateDisabled, state)
 	assert.Contains(t, reason, "显式禁用")
+
+	state, reason = reasonOf(t, result, "portal/user-frontend")
+	assert.Equal(t, cascade.StateSkipped, state)
+	assert.Contains(t, reason, "erp/backend", "要说清是被哪个组件拖下来的：%s", reason)
+
+	state, reason = reasonOf(t, result, "people/basic")
+	assert.Equal(t, cascade.StateSkipped, state)
+	assert.Contains(t, reason, "没有启用中的组件依赖它")
+
+	_, reason = reasonOf(t, result, "authorization/rbac")
+	assert.Contains(t, reason, "钉住")
+
+	_, reason = reasonOf(t, result, "department/tree")
+	assert.Contains(t, reason, "authorization/rbac", "要说清是被谁拉起来的：%s", reason)
 }
 
 // ============================================================
-// enabled 的基本行为
+// 三态的基本行为
 // ============================================================
 
-// 没写 enabled 就是启动（003 §4.3）。
-func TestComponentWithoutEnabledRuns(t *testing.T) {
+// 没写 enabled 的根组件默认启动（003 §4.3）。
+func TestRootWithoutEnabledRuns(t *testing.T) {
 	graph := newGraph(t,
 		spec{id: "erp/backend", requires: []string{"people/basic"}},
 		spec{id: "people/basic"},
@@ -190,20 +185,16 @@ func TestComponentWithoutEnabledRuns(t *testing.T) {
 	assert.ElementsMatch(t, []string{"erp/backend", "people/basic"}, runningIDs(result))
 }
 
-// enabled: true 与不写完全等价——它不是"钉住"，只是把默认值写了出来。
-func TestEnabledTrueIsTheSameAsOmitting(t *testing.T) {
-	graph := newGraph(t, spec{id: "people/basic"}, spec{id: "infra/bus"})
-
-	explicit, err := cascade.Compute(
-		cfgOf(entry("people/basic", "true"), entry("infra/bus", "true")), graph)
-	require.NoError(t, err)
-	omitted, err := cascade.Compute(cfg2(t, "people/basic", "infra/bus"), graph)
-	require.NoError(t, err)
-
-	assert.Equal(t, omitted.Running(), explicit.Running())
+func cfg2(t *testing.T, ids ...string) *config.Config {
+	t.Helper()
+	entries := make([][2]string, 0, len(ids))
+	for _, id := range ids {
+		entries = append(entries, entry(id, ""))
+	}
+	return cfgOf(entries...)
 }
 
-// enabled: false 一定不启动，哪怕没有任何人依赖它。
+// enabled: false 一定不启动，哪怕它是根组件。
 func TestExplicitlyDisabledNeverRuns(t *testing.T) {
 	graph := newGraph(t, spec{id: "people/basic"})
 
@@ -215,28 +206,43 @@ func TestExplicitlyDisabledNeverRuns(t *testing.T) {
 	assert.Equal(t, cascade.StateDisabled, state)
 }
 
-// 没人依赖的组件照常启动：配置里写了它，那就是声明（012 §2.3）。
-func TestComponentNobodyDependsOnStillRuns(t *testing.T) {
+// enabled: true 是"钉住"：没有任何组件依赖它也要跑。
+func TestPinnedComponentRunsWithoutDependents(t *testing.T) {
 	graph := newGraph(t,
 		spec{id: "erp/backend", requires: []string{"people/basic"}},
 		spec{id: "people/basic"},
 		spec{id: "infra/redis-event-bus"},
 	)
-	cfg := cfg2(t, "erp/backend", "people/basic", "infra/redis-event-bus")
+	cfg := cfgOf(
+		entry("erp/backend", "false"),
+		entry("people/basic", ""),
+		entry("infra/redis-event-bus", "true"),
+	)
 
 	result, err := cascade.Compute(cfg, graph)
 	require.NoError(t, err)
 
-	assert.ElementsMatch(t,
-		[]string{"erp/backend", "people/basic", "infra/redis-event-bus"}, runningIDs(result))
+	assert.Equal(t, []string{"infra/redis-event-bus"}, runningIDs(result))
 }
 
-// **这条是这次改动的核心**：只被弱依赖引用的组件照常启动。
-//
-// 从前它默认不启动，于是 `brickkit add` 把它写进配置、`up` 却不起它——
-// "配置里有它、却不启动，是正常现象"这种要专门写一节解释的现象。
-// 而使用者装了组件却发现一半功能是哑的，没有任何一处告诉他为什么。
-func TestWeaklyReferencedComponentRuns(t *testing.T) {
+// 被启动中的组件强依赖 → 跟着启动。
+func TestStrongDependencyIsPulledIn(t *testing.T) {
+	graph := newGraph(t,
+		spec{id: "erp/backend", requires: []string{"people/basic"}},
+		spec{id: "people/basic", requires: []string{"department/tree"}},
+		spec{id: "department/tree"},
+	)
+
+	result, err := cascade.Compute(cfg2(t, "erp/backend", "people/basic", "department/tree"), graph)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(t,
+		[]string{"erp/backend", "people/basic", "department/tree"}, runningIDs(result))
+}
+
+// 弱依赖不会被级联拉起：它本来就是"有就用、没有就降级"的东西。
+// 要让它跑就显式 enabled: true。
+func TestWeakDependencyIsNotPulledIn(t *testing.T) {
 	graph := newGraph(t,
 		spec{id: "erp/backend", optional: []string{"infra/redis-event-bus"}},
 		spec{id: "infra/redis-event-bus"},
@@ -245,11 +251,93 @@ func TestWeaklyReferencedComponentRuns(t *testing.T) {
 	result, err := cascade.Compute(cfg2(t, "erp/backend", "infra/redis-event-bus"), graph)
 	require.NoError(t, err)
 
-	assert.ElementsMatch(t,
-		[]string{"erp/backend", "infra/redis-event-bus"}, runningIDs(result))
+	assert.Equal(t, []string{"erp/backend"}, runningIDs(result))
+	state, reason := reasonOf(t, result, "infra/redis-event-bus")
+	assert.Equal(t, cascade.StateSkipped, state)
+	assert.Contains(t, reason, "弱依赖")
 }
 
-// 弱依赖被关掉不影响依赖方——这正是弱依赖存在的意义（002 §3.4）。
+// 弱依赖被钉住时照常启动。
+func TestPinnedWeakDependencyRuns(t *testing.T) {
+	graph := newGraph(t,
+		spec{id: "erp/backend", optional: []string{"infra/redis-event-bus"}},
+		spec{id: "infra/redis-event-bus"},
+	)
+	cfg := cfgOf(entry("erp/backend", ""), entry("infra/redis-event-bus", "true"))
+
+	result, err := cascade.Compute(cfg, graph)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(t, []string{"erp/backend", "infra/redis-event-bus"}, runningIDs(result))
+}
+
+// ============================================================
+// P14：强依赖被禁用（004 §10.3）
+// ============================================================
+
+// 钉住的组件的强依赖被禁用 → 这是矛盾的意图，必须报错，
+// 而不是偷偷启动一个必然崩溃的组件。
+func TestPinnedComponentWithDisabledStrongDependencyIsAnError(t *testing.T) {
+	graph := newGraph(t,
+		spec{id: "erp/backend", requires: []string{"authorization/rbac"}},
+		spec{id: "authorization/rbac"},
+	)
+	cfg := cfgOf(entry("erp/backend", "true"), entry("authorization/rbac", "false"))
+
+	_, err := cascade.Compute(cfg, graph)
+
+	require.Error(t, err)
+	e := clierr.As(err)
+	require.NotNil(t, e)
+	assert.Equal(t, clierr.CodeComponentDisabled, e.Code)
+
+	rendered := e.Format()
+	assert.Contains(t, rendered, "authorization/rbac")
+	assert.Contains(t, rendered, "erp/backend")
+	assert.Contains(t, rendered, "enabled: false", "要告诉使用者去哪儿改：%s", rendered)
+}
+
+// 间接强依赖被禁用同样要报错，并且把链路指出来。
+func TestPinnedComponentWithTransitivelyDisabledDependencyIsAnError(t *testing.T) {
+	graph := newGraph(t,
+		spec{id: "erp/backend", requires: []string{"people/basic"}},
+		spec{id: "people/basic", requires: []string{"department/tree"}},
+		spec{id: "department/tree"},
+	)
+	cfg := cfgOf(
+		entry("erp/backend", "true"),
+		entry("people/basic", ""),
+		entry("department/tree", "false"),
+	)
+
+	_, err := cascade.Compute(cfg, graph)
+
+	require.Error(t, err)
+	rendered := clierr.As(err).Format()
+	assert.Contains(t, rendered, "department/tree")
+	assert.Contains(t, rendered, "erp/backend → people/basic → department/tree",
+		"要打印完整依赖链：%s", rendered)
+}
+
+// 没被钉住的组件遇到同样的情况不报错，只是级联跳过 ——
+// 这是"用户关掉了一整条链"的正常操作。
+func TestUnpinnedComponentWithDisabledDependencyIsSkippedNotAnError(t *testing.T) {
+	graph := newGraph(t,
+		spec{id: "erp/backend", requires: []string{"authorization/rbac"}},
+		spec{id: "authorization/rbac"},
+	)
+	cfg := cfgOf(entry("erp/backend", ""), entry("authorization/rbac", "false"))
+
+	result, err := cascade.Compute(cfg, graph)
+	require.NoError(t, err)
+
+	assert.Empty(t, runningIDs(result))
+	state, reason := reasonOf(t, result, "erp/backend")
+	assert.Equal(t, cascade.StateSkipped, state)
+	assert.Contains(t, reason, "authorization/rbac")
+}
+
+// 弱依赖被禁用不影响依赖方启动（这正是弱依赖存在的意义）。
 func TestDisabledWeakDependencyDoesNotBlockDependent(t *testing.T) {
 	graph := newGraph(t,
 		spec{id: "erp/backend", optional: []string{"infra/redis-event-bus"}},
@@ -261,68 +349,6 @@ func TestDisabledWeakDependencyDoesNotBlockDependent(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"erp/backend"}, runningIDs(result))
-}
-
-// ============================================================
-// 强依赖被显式关闭 → 报错
-// ============================================================
-
-// 关掉一个被强依赖的组件是矛盾的意图，必须报错并点名依赖方。
-//
-// 从前的行为取决于依赖方有没有写 enabled: true：钉住的报错、没钉住的静默跳过。
-// "报不报错看你写没写 true"本身就说不通，而静默跳过是平台替使用者
-// 做了一次隐式决定。
-func TestDisabledRequirementIsAnError(t *testing.T) {
-	graph := newGraph(t,
-		spec{id: "erp/backend", requires: []string{"authorization/rbac"}},
-		spec{id: "authorization/rbac"},
-	)
-	cfg := cfgOf(entry("erp/backend", ""), entry("authorization/rbac", "false"))
-
-	_, err := cascade.Compute(cfg, graph)
-
-	require.Error(t, err)
-	e := clierr.As(err)
-	require.NotNil(t, e)
-	assert.Equal(t, clierr.CodeComponentDisabled, e.Code)
-
-	rendered := e.Format()
-	assert.Contains(t, rendered, "authorization/rbac", "要点出是谁被关掉了")
-	assert.Contains(t, rendered, "erp/backend", "也要点出是谁在依赖它")
-	assert.Contains(t, rendered, "enabled: false", "要告诉使用者去哪儿改：%s", rendered)
-}
-
-// 一次报出全部冲突：关掉一个底层组件往往同时影响好几个依赖方。
-func TestAllDisabledRequirementsAreReportedAtOnce(t *testing.T) {
-	graph := newGraph(t,
-		spec{id: "erp/backend", requires: []string{"department/tree"}},
-		spec{id: "people/basic", requires: []string{"department/tree"}},
-		spec{id: "department/tree"},
-	)
-	cfg := cfgOf(
-		entry("erp/backend", ""), entry("people/basic", ""), entry("department/tree", "false"))
-
-	_, err := cascade.Compute(cfg, graph)
-
-	require.Error(t, err)
-	rendered := clierr.As(err).Format()
-	assert.Contains(t, rendered, "erp/backend")
-	assert.Contains(t, rendered, "people/basic",
-		"两个依赖方都要出现，不能只报第一个：%s", rendered)
-}
-
-// 依赖方自己也关掉了，就不再是冲突——这是"整条链一起关"的正常操作。
-func TestDisabledRequirementIsFineWhenTheDependentIsAlsoDisabled(t *testing.T) {
-	graph := newGraph(t,
-		spec{id: "erp/backend", requires: []string{"authorization/rbac"}},
-		spec{id: "authorization/rbac"},
-	)
-	cfg := cfgOf(entry("erp/backend", "false"), entry("authorization/rbac", "false"))
-
-	result, err := cascade.Compute(cfg, graph)
-	require.NoError(t, err)
-
-	assert.Empty(t, runningIDs(result))
 }
 
 // ============================================================
@@ -372,8 +398,9 @@ func TestAllDisabledIsNotAnError(t *testing.T) {
 	assert.True(t, result.Empty())
 }
 
-// 依赖图里有、但 brickkit.yaml 里没写的组件（手工编辑过配置）按"未禁用"处理。
-func TestComponentAbsentFromConfigStillRuns(t *testing.T) {
+// 依赖图里有、但 brickkit.yaml 里没写的组件（手工编辑过配置），
+// 按"未钉住、未禁用"处理，可以被依赖拉起。
+func TestComponentAbsentFromConfigCanStillBePulledIn(t *testing.T) {
 	graph := newGraph(t,
 		spec{id: "erp/backend", requires: []string{"people/basic"}},
 		spec{id: "people/basic"},
@@ -397,8 +424,7 @@ func TestIsRunningLookup(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.False(t, result.IsRunning(ref("erp/backend")))
-	assert.True(t, result.IsRunning(ref("people/basic")),
-		"依赖方关了不影响它——被关掉的只有写了 enabled: false 的那一个")
+	assert.False(t, result.IsRunning(ref("people/basic")), "唯一的依赖方停了，它也不该跑")
 	assert.False(t, result.IsRunning(resolver.Ref{ID: "nobody/here", Version: "1.0.0"}))
 }
 
@@ -406,20 +432,20 @@ func TestIsRunningLookup(t *testing.T) {
 // Focus（`brickkit up --only`，004 §3.5）
 // ============================================================
 
-// 点名的组件与它的依赖启动，其余全部跳过。
-func TestFocusStartsSelectedAndItsDependencies(t *testing.T) {
+// 点名的组件与它的强依赖启动，其余全部跳过。
+func TestFocusStartsSelectedAndItsRequirements(t *testing.T) {
 	graph := newGraph(t,
 		spec{id: "portal/web", requires: []string{"erp/backend"}},
 		spec{id: "erp/backend", requires: []string{"people/basic"}},
 		spec{id: "people/basic"},
 	)
-	cfg := cfg2(t, "portal/web", "erp/backend", "people/basic")
+	cfg := cfgOf(entry("portal/web", ""), entry("erp/backend", ""), entry("people/basic", ""))
 
 	result, err := cascade.Focus(cfg, graph, refs("erp/backend"))
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, refs("erp/backend", "people/basic"), result.Running())
-	assert.False(t, result.IsRunning(ref("portal/web")), "没点名的不启动，那正是 --only 的意思")
+	assert.False(t, result.IsRunning(ref("portal/web")), "根组件不再自动启动")
 	for _, c := range result.Components {
 		if c.Ref == ref("portal/web") {
 			assert.Equal(t, cascade.StateSkipped, c.State)
@@ -428,48 +454,40 @@ func TestFocusStartsSelectedAndItsDependencies(t *testing.T) {
 	}
 }
 
-// 闭包强弱都算：点名一个组件不该得到一个异步功能是哑的它。
-func TestFocusClosureIncludesWeakDependencies(t *testing.T) {
+// **这是修的那个 bug**：点名一个只被弱依赖引用的组件，它必须启动。
+//
+// 原来的做法是拿 Compute 的结果做交集，而这类组件本来就不在级联结果里
+// （003 §4.3：弱依赖不会被自动拉起）——于是 `up --only infra/bus` 什么都不启动，
+// 而 004 §3.5 承诺的是"只启动指定组件及其依赖"。
+//
+// 级联回答的是"你**没说**的时候该跑什么"；命令行上点了名就是最明确的意图。
+func TestFocusStartsAWeaklyReferencedComponent(t *testing.T) {
 	graph := newGraph(t,
-		spec{id: "portal/web"},
 		spec{id: "erp/backend", optional: []string{"infra/bus"}},
 		spec{id: "infra/bus"},
 	)
-	cfg := cfg2(t, "portal/web", "erp/backend", "infra/bus")
+	cfg := cfgOf(entry("erp/backend", ""), entry("infra/bus", ""))
 
-	result, err := cascade.Focus(cfg, graph, refs("erp/backend"))
+	// 先确认它确实不会被自动拉起——否则这条用例证明不了什么
+	normal, err := cascade.Compute(cfg, graph)
 	require.NoError(t, err)
-
-	assert.ElementsMatch(t, refs("erp/backend", "infra/bus"), result.Running())
-}
-
-// 点名一个只被弱依赖引用的组件：单独把它跑起来是合法用法。
-func TestFocusOnAWeaklyReferencedComponent(t *testing.T) {
-	graph := newGraph(t,
-		spec{id: "erp/backend", optional: []string{"infra/bus"}},
-		spec{id: "infra/bus"},
-	)
-	cfg := cfg2(t, "erp/backend", "infra/bus")
+	require.False(t, normal.IsRunning(ref("infra/bus")), "前提：弱依赖默认不启动")
 
 	result, err := cascade.Focus(cfg, graph, refs("infra/bus"))
 	require.NoError(t, err)
 
-	assert.Equal(t, refs("infra/bus"), result.Running())
+	assert.Equal(t, refs("infra/bus"), result.Running(),
+		"点名它就该启动它——命令行上的点名与 enabled: true 同级")
 }
 
-// 显式禁用的组件即使落在闭包里也不启动，理由保持"显式禁用"——
-// enabled: false 是长期声明，--only 是这一次的意图，前者更强。
-func TestFocusKeepsDisabledOut(t *testing.T) {
-	graph := newGraph(t,
-		spec{id: "erp/backend", optional: []string{"infra/bus"}},
-		spec{id: "infra/bus"},
-	)
-	cfg := cfgOf(entry("erp/backend", ""), entry("infra/bus", "false"))
+// 显式禁用的组件即使没被点名，理由也保持"显式禁用"——那比"未被选中"更能说明问题。
+func TestFocusKeepsDisabledReason(t *testing.T) {
+	graph := newGraph(t, spec{id: "people/basic"}, spec{id: "infra/bus"})
+	cfg := cfgOf(entry("people/basic", ""), entry("infra/bus", "false"))
 
-	result, err := cascade.Focus(cfg, graph, refs("erp/backend"))
+	result, err := cascade.Focus(cfg, graph, refs("people/basic"))
 	require.NoError(t, err)
 
-	assert.Equal(t, refs("erp/backend"), result.Running())
 	for _, c := range result.Components {
 		if c.Ref == ref("infra/bus") {
 			assert.Equal(t, cascade.StateDisabled, c.State)
@@ -478,7 +496,11 @@ func TestFocusKeepsDisabledOut(t *testing.T) {
 	}
 }
 
-// 点名的组件的**强依赖**被关掉时报错——与不带 --only 时走同一条路。
+// 点名的组件的**强依赖被关掉**时报错——与钉住的组件走同一条路。
+//
+// 这是"点名等于钉住"自动带来的正确行为：两个意图直接冲突
+// （既要它跑、又关掉了它跑起来必需的东西），静默跳过只会让人对着
+// 一个空空的 docker ps 发懵。
 func TestFocusErrorsWhenARequirementIsDisabled(t *testing.T) {
 	graph := newGraph(t,
 		spec{id: "erp/backend", requires: []string{"people/basic"}},
@@ -491,29 +513,13 @@ func TestFocusErrorsWhenARequirementIsDisabled(t *testing.T) {
 	require.Error(t, err)
 	text := clierr.As(err).Format()
 	assert.Contains(t, text, "people/basic", "要点出是谁被关掉了")
-	assert.Contains(t, text, "erp/backend", "也要点出是谁在依赖它")
-}
-
-// 没点名的组件即使强依赖了被关掉的组件，也不该报错——它本来就不跑。
-func TestFocusIgnoresConflictsOutsideTheSelection(t *testing.T) {
-	graph := newGraph(t,
-		spec{id: "erp/backend", requires: []string{"people/basic"}},
-		spec{id: "people/basic"},
-		spec{id: "demo/hello"},
-	)
-	cfg := cfgOf(
-		entry("erp/backend", ""), entry("people/basic", "false"), entry("demo/hello", ""))
-
-	result, err := cascade.Focus(cfg, graph, refs("demo/hello"))
-	require.NoError(t, err)
-
-	assert.Equal(t, refs("demo/hello"), result.Running())
+	assert.Contains(t, text, "--only", "理由是这一次点了名，不是 enabled: true")
 }
 
 // only 为空时退化成 Compute：调用方不必自己分支。
 func TestFocusWithoutSelectionFallsBackToCompute(t *testing.T) {
 	graph := newGraph(t, spec{id: "people/basic"})
-	cfg := cfg2(t, "people/basic")
+	cfg := cfgOf(entry("people/basic", ""))
 
 	focused, err := cascade.Focus(cfg, graph, nil)
 	require.NoError(t, err)
@@ -523,32 +529,14 @@ func TestFocusWithoutSelectionFallsBackToCompute(t *testing.T) {
 	assert.Equal(t, normal.Running(), focused.Running())
 }
 
-// 点名一个没有依赖的组件：只起它，组件清单仍然完整。
+// 点名一个本来就不会启动、且没有依赖的组件：启动它，组件清单仍然完整。
 func TestFocusOnASingleComponent(t *testing.T) {
 	graph := newGraph(t, spec{id: "people/basic"}, spec{id: "infra/bus"})
-	cfg := cfg2(t, "people/basic", "infra/bus")
+	cfg := cfgOf(entry("people/basic", ""), entry("infra/bus", ""))
 
 	result, err := cascade.Focus(cfg, graph, refs("people/basic"))
 	require.NoError(t, err)
 
 	assert.Equal(t, refs("people/basic"), result.Running())
 	assert.Len(t, result.Components, 2, "没被选中的组件仍要出现在清单里")
-}
-
-// DependencyClosure 是 sync --only 与 up --only 共用的那份算法（导出即为此）。
-func TestDependencyClosureCoversBothKinds(t *testing.T) {
-	graph := newGraph(t,
-		spec{id: "erp/backend", requires: []string{"people/basic"}, optional: []string{"infra/bus"}},
-		spec{id: "people/basic", requires: []string{"department/tree"}},
-		spec{id: "department/tree"},
-		spec{id: "infra/bus"},
-		spec{id: "portal/web"},
-	)
-
-	keep := cascade.DependencyClosure(graph, refs("erp/backend"))
-
-	for _, id := range []string{"erp/backend", "people/basic", "department/tree", "infra/bus"} {
-		assert.True(t, keep[ref(id)], "%s 应当在闭包里", id)
-	}
-	assert.False(t, keep[ref("portal/web")], "无关组件不该进闭包")
 }

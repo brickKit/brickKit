@@ -109,30 +109,24 @@ resources: []
 `
 
 // hello 关掉（caller 跟着级联跳过），solo/thing 照常。
-const chainDisabledWithSolo = `components:
+const helloDisabledWithSolo = `components:
   - id: demo/hello
     version: 1.0.0
     enabled: false
   - id: demo/caller
     version: 1.0.0
-    enabled: false
   - id: solo/thing
     version: 1.0.0
 resources: []
 `
 
 // hello 被显式关掉 —— caller 会被级联跳过。
-// chainDisabled 把 demo/hello 与依赖它的 demo/caller 一起关掉。
-//
-// 两个都要写：级联删掉之后（003 §4.3），只关掉被依赖的那个是**错误**——
-// caller 强依赖 hello，平台不会再替使用者把 caller 也顺手关掉。
-const chainDisabled = `components:
+const helloDisabled = `components:
   - id: demo/hello
     version: 1.0.0
     enabled: false
   - id: demo/caller
     version: 1.0.0
-    enabled: false
 resources: []
 `
 
@@ -151,7 +145,7 @@ func TestSyncKeepsEnabledComponents(t *testing.T) {
 }
 
 func TestSyncArchivesDisabledComponent(t *testing.T) {
-	f := newSyncFixture(t, chainDisabled, "demo/hello", "demo/caller")
+	f := newSyncFixture(t, helloDisabled, "demo/hello", "demo/caller")
 
 	r := runIn(t, f.Dir, "sync")
 
@@ -159,9 +153,9 @@ func TestSyncArchivesDisabledComponent(t *testing.T) {
 	f.assertArchived(t, "demo/hello") // 17.2
 }
 
-// 17.3：整条链一起关掉时，两个组件的源码都要归档。
-func TestSyncArchivesAWholeDisabledChain(t *testing.T) {
-	f := newSyncFixture(t, chainDisabled, "demo/hello", "demo/caller")
+// 17.3：caller 自己没写 enabled，但它强依赖的 hello 被关了，于是一起归档。
+func TestSyncArchivesCascadeSkippedComponent(t *testing.T) {
+	f := newSyncFixture(t, helloDisabled, "demo/hello", "demo/caller")
 
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 
@@ -173,7 +167,7 @@ func TestSyncArchivesAWholeDisabledChain(t *testing.T) {
 // ============================================================
 
 func TestSyncRestoresReenabledComponent(t *testing.T) {
-	f := newSyncFixture(t, chainDisabled, "demo/hello", "demo/caller")
+	f := newSyncFixture(t, helloDisabled, "demo/hello", "demo/caller")
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 	f.assertArchived(t, "demo/hello")
 
@@ -188,7 +182,7 @@ func TestSyncRestoresReenabledComponent(t *testing.T) {
 
 // 反复 sync 不该有副作用。
 func TestSyncIsIdempotent(t *testing.T) {
-	f := newSyncFixture(t, chainDisabled, "demo/hello", "demo/caller")
+	f := newSyncFixture(t, helloDisabled, "demo/hello", "demo/caller")
 
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 	r := runIn(t, f.Dir, "sync")
@@ -204,7 +198,7 @@ func TestSyncIsIdempotent(t *testing.T) {
 
 // 归档移动的是整个目录，.git 必须原封不动地跟过去。
 func TestSyncKeepsGitDirectoryIntact(t *testing.T) {
-	f := newSyncFixture(t, chainDisabled, "demo/hello")
+	f := newSyncFixture(t, helloDisabled, "demo/hello")
 
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 
@@ -213,7 +207,7 @@ func TestSyncKeepsGitDirectoryIntact(t *testing.T) {
 
 // 归档之后 git 命令还得能正常跑——使用者可能正在那个仓库里开发。
 func TestSyncKeepsGitUsable(t *testing.T) {
-	f := newSyncFixture(t, chainDisabled, "demo/hello")
+	f := newSyncFixture(t, helloDisabled, "demo/hello")
 
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 
@@ -231,7 +225,7 @@ func TestSyncKeepsGitUsable(t *testing.T) {
 
 func TestSyncIgnoresComponentsWithoutSource(t *testing.T) {
 	// 只给 hello 建源码，caller 没有
-	f := newSyncFixture(t, chainDisabled, "demo/hello")
+	f := newSyncFixture(t, helloDisabled, "demo/hello")
 
 	r := runIn(t, f.Dir, "sync")
 
@@ -260,18 +254,17 @@ func TestSyncTreatsLocalComponentsTheSame(t *testing.T) {
 	f := newSyncFixture(t, `components:
   - id: demo/hello
     version: 1.0.0
+    enabled: false
   - id: demo/caller
     version: 1.0.0
     local: true
-    enabled: false
 resources: []
 `, "demo/hello", "demo/caller")
 
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 
-	// caller 是 local，但它被关掉了 —— 照样归档，不因为 local 而特殊对待
+	// caller 是 local，但它强依赖的 hello 被关了 —— 照样归档
 	f.assertArchived(t, "demo/caller")
-	f.assertActive(t, "demo/hello")
 }
 
 // ============================================================
@@ -280,7 +273,7 @@ resources: []
 
 // sync 只动目录，绝不碰引擎。
 func TestSyncNeverTouchesTheEngine(t *testing.T) {
-	f := newSyncFixture(t, chainDisabled, "demo/hello", "demo/caller")
+	f := newSyncFixture(t, helloDisabled, "demo/hello", "demo/caller")
 	eng := newFakeEngine()
 
 	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "sync").code)
@@ -292,7 +285,7 @@ func TestSyncNeverTouchesTheEngine(t *testing.T) {
 
 // 也不该动 brickkit.yaml 或生成的部署文件。
 func TestSyncDoesNotTouchConfigOrGenerated(t *testing.T) {
-	f := newSyncFixture(t, chainDisabled, "demo/hello")
+	f := newSyncFixture(t, helloDisabled, "demo/hello")
 	before := f.config(t)
 
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
@@ -306,7 +299,7 @@ func TestSyncDoesNotTouchConfigOrGenerated(t *testing.T) {
 // ============================================================
 
 func TestSyncOutputMarksEachAction(t *testing.T) {
-	f := newSyncFixture(t, chainDisabled, "demo/hello", "demo/caller")
+	f := newSyncFixture(t, helloDisabled, "demo/hello", "demo/caller")
 
 	r := runIn(t, f.Dir, "sync")
 
@@ -322,11 +315,12 @@ func TestSyncOutputMarksEachAction(t *testing.T) {
 }
 
 func TestSyncOutputExplainsWhy(t *testing.T) {
-	f := newSyncFixture(t, chainDisabled, "demo/hello", "demo/caller")
+	f := newSyncFixture(t, helloDisabled, "demo/hello", "demo/caller")
 
 	r := runIn(t, f.Dir, "sync")
 
 	assert.Contains(t, r.stdout, "显式禁用", "17.12")
+	assert.Contains(t, r.stdout, "级联跳过", "17.12")
 
 	f.writeConfig(t, allEnabled)
 	r = runIn(t, f.Dir, "sync")
@@ -335,7 +329,7 @@ func TestSyncOutputExplainsWhy(t *testing.T) {
 }
 
 func TestSyncOutputSummarizesCounts(t *testing.T) {
-	f := newSyncFixture(t, chainDisabled, "demo/hello", "demo/caller")
+	f := newSyncFixture(t, helloDisabled, "demo/hello", "demo/caller")
 
 	r := runIn(t, f.Dir, "sync")
 
@@ -372,7 +366,7 @@ func TestSyncWithoutComponentsDir(t *testing.T) {
 
 // 归档目录里已经有同名目录时，绝不能覆盖使用者的源码。
 func TestSyncRefusesToOverwriteExistingArchive(t *testing.T) {
-	f := newSyncFixture(t, chainDisabled, "demo/hello")
+	f := newSyncFixture(t, helloDisabled, "demo/hello")
 	// 手工在归档目录里放一份同名的东西
 	require.NoError(t, os.MkdirAll(f.archived("demo/hello"), 0o755))
 	require.NoError(t, os.WriteFile(
@@ -439,7 +433,7 @@ func newWorkspaceFixture(t *testing.T, body string) *syncFixture {
 // `.brickkit/` 是 gitignore 的（003 §11），换台机器、清一次工作区、
 // 或者一次 --refresh，缓存就没了。缓存不是保障，只是恰好挡住了。
 func TestSyncArchivedComponentStillResolvableWithoutCache(t *testing.T) {
-	f := newWorkspaceFixture(t, chainDisabled)
+	f := newWorkspaceFixture(t, helloDisabled)
 
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 	f.assertArchived(t, "demo/hello")
@@ -457,7 +451,7 @@ func TestSyncArchivedComponentStillResolvableWithoutCache(t *testing.T) {
 // 修复前这一步会失败，而且**没有出路**：sync 自己也要先解析全图，
 // 于是使用者只剩手工 mv 一条路，而错误提示里从头到尾没出现过 .archived。
 func TestSyncCanRestoreWhatItArchivedWithoutCache(t *testing.T) {
-	f := newWorkspaceFixture(t, chainDisabled)
+	f := newWorkspaceFixture(t, helloDisabled)
 
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 	require.NoError(t, os.RemoveAll(f.Layout.ManifestsDir()))
@@ -476,7 +470,7 @@ func TestSyncCanRestoreWhatItArchivedWithoutCache(t *testing.T) {
 // 少了这一条，"让本地源认归档目录"很容易被顺手改成"扫描也认"，
 // 那样 sync 刚归档完，一条 add --local 就把它们全拽回配置里。
 func TestAddLocalStillIgnoresArchived(t *testing.T) {
-	f := newWorkspaceFixture(t, chainDisabled)
+	f := newWorkspaceFixture(t, helloDisabled)
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 	f.assertArchived(t, "demo/hello")
 
@@ -533,7 +527,7 @@ func TestSyncWithoutOnlyRestoresAfterFocus(t *testing.T) {
 // up 决定"跑什么"，sync 决定"看什么"。要看一个已经关掉的组件的源码完全说得通——
 // 多数时候正是因为要重写它才把它关掉的。这里报错等于把最常见的用法堵死。
 func TestSyncOnlyAllowsDisabledComponent(t *testing.T) {
-	f := newSyncFixture(t, chainDisabledWithSolo, "demo/hello", "demo/caller", "solo/thing")
+	f := newSyncFixture(t, helloDisabledWithSolo, "demo/hello", "demo/caller", "solo/thing")
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 	f.assertArchived(t, "demo/hello") // 先被级联归档
 

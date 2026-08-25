@@ -123,9 +123,8 @@ func TestStatusShowsSkippedComponentsWithReason(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "erp/backend")
 	assert.Contains(t, r.stdout, "显式禁用", "15.16：要说清为什么没跑")
-	// people/basic 照常在跑：唯一的依赖方停了不是关掉它的理由（003 §4.3）
 	assert.Contains(t, r.stdout, "people/basic")
-	assert.Contains(t, r.stdout, "运行中")
+	assert.Contains(t, r.stdout, "级联", "15.16：级联跳过的也要给出原因")
 }
 
 // ============================================================

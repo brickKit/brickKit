@@ -333,6 +333,10 @@ func TestPublicKeysAbsentIsNotAnError(t *testing.T) {
 	assert.True(t, c.RequireSignature())
 }
 
+func TestEnabledStateStringFallback(t *testing.T) {
+	assert.Equal(t, "默认开启", EnabledState(99).String())
+}
+
 // ============================================================
 // 校验细节补充
 // ============================================================

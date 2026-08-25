@@ -128,15 +128,15 @@ func TestDependencyKinds(t *testing.T) {
 }
 
 // ============================================================
-// 弱依赖装完就会跑（003 §4.3）
+// 弱依赖提示（004 §3.3）
 // ============================================================
 
-// 从前这里有一整组"装完要提示它默认不会启动"的用例。那条规则已经删掉：
-// 弱依赖写进 brickkit.yaml 之后就会启动，与强依赖一视同仁。
+// 装完就要说清楚"它写进配置了，但默认不会启动"。
 //
-// 留下这条反向用例，是为了让那句提示不会被谁"顺手加回来"——
-// 它现在是错的，而一句反过来的提示比没有提示更糟：使用者会去 docker ps 里找它。
-func TestAddDoesNotClaimWeakDependencyWillNotStart(t *testing.T) {
+// `add` 会把整棵依赖树写进 brickkit.yaml，弱依赖也在里面；而级联不会把只被
+// 弱依赖引用的组件拉起来（003 §4.3）。不在这里说，使用者要到 `up` 之后
+// 对着 docker ps 数容器才发现——003 §4.3 亲自认定这是"最容易想当然"的一处。
+func TestAddHintsWeakDependencyWillNotStart(t *testing.T) {
 	dir := t.TempDir()
 	sources := localSource(t, dir,
 		comp{ID: "erp/backend", Version: "1.0.0", Optional: []string{"infra/bus@1.0.0"}},
@@ -147,8 +147,77 @@ func TestAddDoesNotClaimWeakDependencyWillNotStart(t *testing.T) {
 	r := runIn(t, f.Dir, "add", "erp/backend@1.0.0")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "infra/bus", "它仍然要出现在依赖树里")
+	assert.Contains(t, r.stdout, "infra/bus")
+	assert.Contains(t, r.stdout, "默认不会启动")
+	assert.Contains(t, r.stdout, "enabled: true", "要给出长期的办法")
+	assert.Contains(t, r.stdout, "--only", "也要给出只这一次的办法")
+}
+
+// 强依赖不该被提示——它会跟着启动。
+func TestAddDoesNotHintForStrongDependency(t *testing.T) {
+	dir := t.TempDir()
+	sources := localSource(t, dir,
+		comp{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
+		comp{ID: "people/basic", Version: "1.0.0"},
+	)
+	f := newProjectFixtureAt(t, dir, sources...)
+
+	r := runIn(t, f.Dir, "add", "erp/backend@1.0.0")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.NotContains(t, r.stdout, "默认不会启动")
+}
+
+// 已经在配置里的组件不再提示：这句话使用者上次已经见过了。
+func TestAddDoesNotRepeatHintForExistingComponent(t *testing.T) {
+	dir := t.TempDir()
+	sources := localSource(t, dir,
+		comp{ID: "erp/backend", Version: "1.0.0", Optional: []string{"infra/bus@1.0.0"}},
+		comp{ID: "infra/bus", Version: "1.0.0"},
+	)
+	f := newProjectFixtureAt(t, dir, sources...)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "add", "erp/backend@1.0.0").code)
+
+	r := runIn(t, f.Dir, "add", "erp/backend@1.0.0", "--yes")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.NotContains(t, r.stdout, "默认不会启动", "没有新增条目就没什么可提示的")
+}
+
+// **判定要看并集**：在一张图里是弱依赖、在另一张图里是强依赖时，它照样会启动。
+//
+// `add --local` 一次解析多个根、每个根一张图，而 `up` 面对的是整个配置合成的
+// 一张图。逐图判断会把结论判反——那时提示说"它不会启动"，而 up 真的启动了它。
+func TestAddLocalHintLooksAtTheUnionOfGraphs(t *testing.T) {
+	dir := t.TempDir()
+	sources := localSource(t, dir,
+		comp{ID: "erp/a", Version: "1.0.0", Requires: []string{"x/shared@1.0.0"}},
+		comp{ID: "erp/b", Version: "1.0.0", Optional: []string{"x/shared@1.0.0"}},
+		comp{ID: "x/shared", Version: "1.0.0"},
+	)
+	f := newProjectFixtureAt(t, dir, sources...)
+
+	r := runIn(t, f.Dir, "add", "--local")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "默认不会启动",
+		"erp/a 强依赖它，它会启动——提示说不会启动就是错的")
+}
+
+// --local 下真的只被弱依赖引用时，照样要提示。
+func TestAddLocalHintsWeakOnlyComponent(t *testing.T) {
+	dir := t.TempDir()
+	sources := localSource(t, dir,
+		comp{ID: "erp/b", Version: "1.0.0", Optional: []string{"x/shared@1.0.0"}},
+		comp{ID: "x/shared", Version: "1.0.0"},
+	)
+	f := newProjectFixtureAt(t, dir, sources...)
+
+	r := runIn(t, f.Dir, "add", "--local")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "x/shared")
+	assert.Contains(t, r.stdout, "默认不会启动")
 }
 
 // ============================================================

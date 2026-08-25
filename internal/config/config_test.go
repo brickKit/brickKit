@@ -58,7 +58,7 @@ func TestParseConfigFileFullProject(t *testing.T) {
 	dept := c.Components[0]
 	assert.Equal(t, "department/tree", dept.ID)
 	assert.Equal(t, "1.0.0", dept.Version)
-	assert.False(t, dept.IsDisabled(), "5.5 不写 enabled → 启动")
+	assert.Equal(t, EnabledDefault, dept.EnabledState(), "5.5 不写 enabled → 默认开启可被级联")
 
 	people := c.Components[1]
 	assert.True(t, people.Local, "5.22 local 正确解析")
@@ -69,13 +69,13 @@ func TestParseConfigFileFullProject(t *testing.T) {
 	assert.Nil(t, people.Resources.Requests, "未覆盖的部分保持为空，由 Step 11 合并 Manifest 推荐值")
 
 	rbac := c.Components[2]
-	assert.False(t, rbac.IsDisabled(), "5.4 enabled: true → 启动（与不写等价）")
+	assert.Equal(t, EnabledPinned, rbac.EnabledState(), "5.4 enabled: true → 钉住")
 
 	erp := c.Components[3]
 	assert.Equal(t, map[string]any{"sessionTtlSeconds": 7200}, erp.Config, "5.20 config 正确解析")
 
 	bus := c.Components[4]
-	assert.True(t, bus.IsDisabled(), "5.6 enabled: false → 显式关闭")
+	assert.Equal(t, EnabledDisabled, bus.EnabledState(), "5.6 enabled: false → 显式关闭")
 
 	portal := c.Components[5]
 	assert.True(t, portal.Expose, "5.21 expose 正确解析")
@@ -195,14 +195,10 @@ resources: []
 }
 
 // ============================================================
-// 5.4 / 5.5 / 5.6 enabled 只有两种结果
+// 5.4 / 5.5 / 5.6 enabled 三种状态
 // ============================================================
 
-// 三种写法（true / 不写 / false），两种结果：只有 false 是不启动。
-//
-// enabled: true 与不写完全等价——早先它是"钉住，不可被级联关闭"，
-// 而级联已经删掉（003 §4.3），"钉住"也就没有了对立面。
-func TestEnabledOnlyFalseDisables(t *testing.T) {
+func TestEnabledThreeStates(t *testing.T) {
 	c, err := ParseConfig([]byte(`
 project: my-project
 deploy:
@@ -220,16 +216,24 @@ resources: []
 `), "brickkit.yaml")
 	require.NoError(t, err)
 
-	explicitTrue, omitted, disabled := c.Components[0], c.Components[1], c.Components[2]
+	pinned, dflt, disabled := c.Components[0], c.Components[1], c.Components[2]
 
-	assert.False(t, explicitTrue.IsDisabled(), "enabled: true → 启动")
-	assert.False(t, omitted.IsDisabled(), "不写 enabled → 启动")
-	assert.True(t, disabled.IsDisabled(), "enabled: false → 不启动")
+	assert.Equal(t, EnabledPinned, pinned.EnabledState())
+	assert.True(t, pinned.IsPinned())
+	assert.False(t, pinned.IsDisabled())
 
-	// "没写"与"写了 false"必须分得开：前者的零值恰好也是 false，
-	// 用指针存就是为了这个
-	assert.Nil(t, omitted.Enabled)
-	require.NotNil(t, disabled.Enabled)
+	assert.Equal(t, EnabledDefault, dflt.EnabledState())
+	assert.False(t, dflt.IsPinned(), "不写 enabled 不等于钉住")
+	assert.False(t, dflt.IsDisabled())
+
+	assert.Equal(t, EnabledDisabled, disabled.EnabledState())
+	assert.False(t, disabled.IsPinned())
+	assert.True(t, disabled.IsDisabled())
+
+	// 三种状态的中文说明用于 status / up 的输出
+	assert.Equal(t, "钉住", pinned.EnabledState().String())
+	assert.Equal(t, "默认开启", dflt.EnabledState().String())
+	assert.Equal(t, "显式禁用", disabled.EnabledState().String())
 }
 
 // ============================================================

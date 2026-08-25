@@ -228,14 +228,35 @@ type Source struct {
 // IsEnabled 返回该安装源是否启用（缺省为 true）。
 func (s Source) IsEnabled() bool { return s.Enabled == nil || *s.Enabled }
 
+// EnabledState 是 enabled 字段的三种状态（003 §4.3、附录 D.1.1）。
+type EnabledState int
+
+const (
+	// EnabledDefault 表示没写 enabled：默认开启，但可被级联关闭。
+	EnabledDefault EnabledState = iota
+	// EnabledPinned 表示 enabled: true：钉住，不可被级联关闭。
+	EnabledPinned
+	// EnabledDisabled 表示 enabled: false：显式关闭，一定不启动。
+	EnabledDisabled
+)
+
+// String 返回状态的中文说明，用于 up / status 的输出。
+func (s EnabledState) String() string {
+	switch s {
+	case EnabledPinned:
+		return "钉住"
+	case EnabledDisabled:
+		return "显式禁用"
+	default:
+		return "默认开启"
+	}
+}
+
 // Component 是 components 列表中的一个条目（003 §4.1）。
 type Component struct {
 	ID      string `yaml:"id"`
 	Version string `yaml:"version"`
-	// Enabled 只有一种含义：显式写 false 就不启动，其余（不写 / true）都启动。
-	//
-	// 用指针而不是 bool，是为了让"没写"与"写了 false"在解析后仍然分得开——
-	// 二者行为不同，而 bool 的零值恰好是 false。
+	// Enabled 是三态字段：nil=默认开启可被级联 / true=钉住 / false=显式关闭。
 	Enabled    *bool  `yaml:"enabled,omitempty"`
 	Local      bool   `yaml:"local,omitempty"`
 	LocalPort  int    `yaml:"localPort,omitempty"`
@@ -263,7 +284,7 @@ type Component struct {
 	// Replicas 是副本数（005 §5.8，**仅 K8s**）。nil 表示不写，按 1 处理。
 	//
 	// 用指针是为了区分"没写"与"写了 0"：后者必须报错而不是当成关闭组件——
-	// 关组件已经有 `enabled: false`，它会被如实判为不启动、还会提醒强依赖方；
+	// 关组件已经有 `enabled: false`，它会走级联计算、会提醒依赖方；
 	// 而 replicas: 0 绕过这一切，依赖方照常启动、照常拿到地址，然后连一个
 	// 不存在的后端，表现是 503 而状态表里那个组件显示"正常"。
 	Replicas *int `yaml:"replicas,omitempty"`
@@ -280,8 +301,23 @@ func (c Component) ReplicaCount() int {
 	return *c.Replicas
 }
 
+// EnabledState 返回该组件的启用状态。
+func (c Component) EnabledState() EnabledState {
+	switch {
+	case c.Enabled == nil:
+		return EnabledDefault
+	case *c.Enabled:
+		return EnabledPinned
+	default:
+		return EnabledDisabled
+	}
+}
+
+// IsPinned 表示显式钉住（enabled: true）。
+func (c Component) IsPinned() bool { return c.EnabledState() == EnabledPinned }
+
 // IsDisabled 表示显式关闭（enabled: false）。
-func (c Component) IsDisabled() bool { return c.Enabled != nil && !*c.Enabled }
+func (c Component) IsDisabled() bool { return c.EnabledState() == EnabledDisabled }
 
 // Ref 返回 <组件ID>@<版本> 形式，用于日志与错误提示。
 func (c Component) Ref() string { return c.ID + "@" + c.Version }

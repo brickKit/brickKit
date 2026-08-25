@@ -119,7 +119,14 @@ func multiVersionProject(t *testing.T) *projectFixture {
 	return f
 }
 
-// --only 点名一个只被弱依赖引用的组件：单独把它跑起来是合法用法。
+// --only 点名一个**只被弱依赖引用**的组件，它必须启动。
+//
+// 这条曾经是假的：实现拿级联结果做交集，而这类组件本来就不在里面
+// （003 §4.3：弱依赖不会被自动拉起），于是 `up --only infra/bus` 什么都不启动，
+// 而 004 §3.5 承诺的是"只启动指定组件及其依赖"。
+//
+// 级联回答的是"你**没说**的时候该跑什么"；命令行上点了名就是最明确的意图，
+// 与 enabled: true 同级。
 func TestUpOnlyStartsAWeaklyReferencedComponent(t *testing.T) {
 	f := addedProject(t, []comp{
 		{ID: "erp/backend", Version: "1.0.0", Optional: []string{"infra/bus@1.0.0"}},
@@ -127,9 +134,9 @@ func TestUpOnlyStartsAWeaklyReferencedComponent(t *testing.T) {
 	}, "erp/backend@1.0.0")
 	eng := newFakeEngine()
 
-	// 不点名时两个都跑（003 §4.3：弱依赖一视同仁）
+	// 前提：不点名时它确实不启动，否则这条用例证明不了什么
 	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
-	assert.Contains(t, eng.lastUp(t).Services, "infra-bus-1-0-0")
+	assert.NotContains(t, eng.lastUp(t).Services, "infra-bus-1-0-0")
 
 	r := runWithEngine(t, eng, f.Dir, "up", "--only", "infra/bus")
 

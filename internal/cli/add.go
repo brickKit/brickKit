@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/logging"
@@ -255,6 +256,7 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 	} else if artifacts.cached > 0 {
 		opts.Printf("📁 artifacts 已是最新（缓存中 %d 个文件）\n", artifacts.cached)
 	}
+	renderWeakDependencyHint(opts, []*resolver.Graph{graph}, added)
 	renderCoexistence(opts, layout, id)
 
 	if err := runClones(ctx, opts, layout, clones, f); err != nil {
@@ -305,6 +307,40 @@ func writeComponents(layout config.Layout, graph *resolver.Graph) ([]resolver.Re
 		return nil, err
 	}
 	return added, nil
+}
+
+// renderWeakDependencyHint 提醒"这些弱依赖写进配置了，但默认不会启动"（004 §3.3）。
+//
+// # 为什么装完就得说
+//
+// `brickkit add` 会把整棵依赖树写进 brickkit.yaml，弱依赖也在里面。
+// 但级联不会把只被弱依赖引用的组件拉起来（003 §4.3）——"有就用、没有就降级"，
+// 自动启动等于把**可选**悄悄变成**必启**。
+//
+// 于是配置里明明有它、`up` 却不起它，这是 003 §4.3 亲自认定"最容易想当然"的
+// 一处。不在 add 的时候说，使用者要到 `up` 之后对着 `docker ps` 数容器才发现。
+//
+// 只提**这次新写进去的**：早就在配置里的组件，使用者已经见过这句话了。
+// 判定复用 cascade.OnlyWeaklyNeeded——命令层自己再写一遍规则，
+// 迟早会与级联分叉。
+//
+// 多张图一起判（`add --local` 一次解析多个根）：跨图的判定规则在
+// cascade.OnlyWeaklyNeededIn 里，那里说明了逐图判断会怎么判反。
+func renderWeakDependencyHint(opts *Options, graphs []*resolver.Graph, added []resolver.Ref) {
+	var weak []string
+	for _, ref := range added {
+		if cascade.OnlyWeaklyNeededIn(graphs, ref) {
+			weak = append(weak, ref.ID)
+		}
+	}
+	if len(weak) == 0 {
+		return
+	}
+
+	opts.Printf("ℹ️ 提示：%s 是弱依赖，已写入配置但**默认不会启动**（003 §4.3）\n",
+		strings.Join(weak, "、"))
+	opts.Printf("   长期需要它就写 enabled: true；只是这一次要它，"+
+		"用 brickkit up --only %s\n", weak[0])
 }
 
 // ============================================================
