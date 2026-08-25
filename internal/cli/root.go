@@ -141,7 +141,7 @@ CLI 只做六件事（001 §5.1）：
 它不是常驻服务：执行完命令就退出，不占用后台资源。`,
 		Example: `  brickkit init my-project              初始化项目
   brickkit add erp/backend@1.0.0        添加组件（递归拉取依赖）
-  brickkit order                        查看启动顺序
+  brickkit up --dry-run                 只算不启动：看这次会跑哪些、什么顺序
   brickkit up                           生成部署文件并启动
   brickkit status                       查看运行状态
   brickkit down                         停止（不删除 volume）`,

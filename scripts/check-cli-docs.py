@@ -95,11 +95,20 @@ def cli_surface(binary):
     candidates = set(re.findall(r"^ {2,4}([a-z][a-z-]*) {2,}\S", root, re.M))
     candidates |= set(re.findall(r"brickkit ([a-z][a-z-]*)", root))
 
-    surface = {"": flags([])}
+    surface, phantom = {"": flags([])}, []
     for name in sorted(candidates):
         if probe(name):
             surface[name] = flags([name]) | surface[""]
-    return surface
+        else:
+            # 帮助文本里提到、CLI 里却没有——`brickkit --help` 是全产品被读得
+            # 最多的一段文字，第一屏就教人敲一条报 unknown command 的命令。
+            #
+            # 从前这里只是 `if probe(name)`，探不到的**静默丢弃**：候选表只用来
+            # 给"存在集合"瘦身，从没人问过"丢掉的是什么"。`brickkit order` 删除时
+            # 文档全清干净了，root.go 自己的 Example 却留了一行，正是这么漏过去的。
+            # 文档那边有守卫所以没漏，CLI 自己这边没有，所以漏了。
+            phantom.append(name)
+    return surface, phantom
 
 
 def self_check(surface):
@@ -259,9 +268,20 @@ def report(title, rows, hint):
 def main():
     binary = sys.argv[1] if len(sys.argv) > 1 else "./bin/brickkit"
 
-    surface = cli_surface(binary)
+    surface, phantom = cli_surface(binary)
     self_check(surface)
     print(f"✅ 自检通过（解析出 {len(surface) - 1} 个命令）\n")
+
+    # 先查 CLI 自己的帮助文本，再查文档。顺序是有意的：`brickkit --help`
+    # 比任何一份文档都被读得多，它错了比文档错了更要紧。
+    if phantom:
+        print(f"❌ brickkit --help 里提到了不存在的命令：{len(phantom)} 个")
+        for name in phantom:
+            print(f"   brickkit {name}")
+        print("   → 命令被删掉了，帮助文本（root.go 的 Long / Example）没跟着改")
+        print("\n这是使用者读到的第一屏文字，照着敲会得到 unknown command。")
+        sys.exit(1)
+    print("✅ 帮助文本提到的命令都存在\n")
 
     bad_cmd, bad_flag, seen_cmd, seen_flag, documented = check(surface)
     miss_cmd, miss_flag = undocumented(surface, documented)
