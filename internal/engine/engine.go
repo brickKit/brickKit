@@ -117,7 +117,22 @@ type UpRequest struct {
 //
 // 字段留着就迟早有人用回去，所以这里把它整个拿掉：两个引擎都不可能再读到它。
 type DownRequest struct {
+	// Project 是引擎侧的项目名：Docker 下是 compose 项目名，K8s 下是**命名空间**。
 	Project string
+	// Selector 是本项目生成物共有的标签选择器（`brickkit.io/project=<项目名>`）。
+	//
+	// **它与 Project 不是一回事**，这正是它单独存在的理由：K8s 侧 Project 是
+	// 命名空间，而标签值是 `brickkit.yaml` 里的项目名——写了 `deploy.namespace`
+	// 时两者是完全无关的两个词。引擎从前自己用 Project 拼这个选择器，
+	// 于是 `createNamespace: false` 那条路上一个资源都匹配不到：
+	// 八条 delete 全部命中 0 个对象、退出码 0，而 CLI 报"已停止全部组件"。
+	//
+	// 值由命令层的 projectSelector 算出，与 UpRequest.PruneSelector 同源——
+	// 两边各算一遍正是上面那个 bug 的成因，所以引擎侧不再有拼装它的能力。
+	//
+	// 只有 K8s 目标、且命名空间不是我们建的那条路会用到它；
+	// 那条路上它**不能为空**，否则 `-l ""` 会匹配到别人的资源（见 Kubectl.Down）。
+	Selector string
 	// Context 同 UpRequest.Context。
 	Context string
 	// DeleteNamespace 表示可以连命名空间一起删（只对 K8s 目标有意义）。

@@ -219,21 +219,46 @@ func TestKubectlDownDeletesOwnNamespace(t *testing.T) {
 // 命名空间不是我们建的时候，只删带本项目标签的资源，绝不碰命名空间。
 //
 // 那是别人的命名空间，里面多半还跑着别的东西——删掉等于把整个团队一起端了。
+//
+// ⚠️ 夹具刻意让**命名空间与项目名不同**（`deploy.namespace: team-a-prod` +
+// `project: my-erp`）。这条用例从前两者都写 team-a-prod，于是
+// `-l brickkit.io/project=team-a-prod` 看上去天经地义——而生成物上的标签值
+// 是项目名，真集群上这个选择器一个资源都匹配不到：八条 delete 全部命中
+// 0 个对象、退出码 0，CLI 报"✅ 已停止全部组件"。用例把 bug 锁成了预期行为。
 func TestKubectlDownKeepsForeignNamespace(t *testing.T) {
 	rec := newRecorder()
 
 	require.NoError(t, kubectlWith(rec).Down(context.Background(), DownRequest{
-		Project: "team-a-prod", DeleteNamespace: false,
+		Project:  "team-a-prod",
+		Selector: "brickkit.io/project=my-erp",
 	}))
 
 	for _, command := range rec.commands() {
 		assert.NotContains(t, command, "delete namespace", "不能碰命名空间")
-		assert.Contains(t, command, "-n team-a-prod")
-		assert.Contains(t, command, "-l brickkit.io/project=team-a-prod",
-			"按标签删，不按生成目录删")
+		assert.Contains(t, command, "-n team-a-prod", "-n 用的是命名空间")
+		assert.Contains(t, command, "-l brickkit.io/project=my-erp",
+			"而标签选择器用的是项目名——两者不是一回事")
+		assert.NotContains(t, command, "brickkit.io/project=team-a-prod",
+			"拿命名空间当标签值，真集群上一个资源都匹配不到")
 	}
 	assert.NotEqual(t, -1, indexOfCommand(rec.commands(), "delete deployment"),
 		"但该删的还是要删")
+}
+
+// 选择器为空时宁可中止，也不能发出 `-l ""`。
+//
+// 走到逐类删这条路，恰恰说明命名空间是别人的。而 `kubectl delete deployment
+// -l "" -n ns` 匹配的是**该命名空间里的全部** Deployment——少传一个字段
+// 就把别的团队一起端了，代价无法挽回。
+func TestKubectlDownRefusesEmptySelector(t *testing.T) {
+	rec := newRecorder()
+
+	err := kubectlWith(rec).Down(context.Background(), DownRequest{
+		Project: "team-a-prod", DeleteNamespace: false,
+	})
+
+	require.Error(t, err, "没有选择器就不该删任何东西")
+	assert.Empty(t, rec.commands(), "一条 kubectl 都不该发出去")
 }
 
 // down 一个字节都不读生成目录（005 §5.9.3）。
@@ -248,7 +273,7 @@ func TestKubectlDownNeverReadsTheGeneratedDir(t *testing.T) {
 	rec := newRecorder()
 
 	require.NoError(t, kubectlWith(rec).Down(context.Background(), DownRequest{
-		Project: "team-a-prod", DeleteNamespace: false,
+		Project: "team-a-prod", Selector: "brickkit.io/project=my-erp",
 	}))
 
 	for _, command := range rec.commands() {

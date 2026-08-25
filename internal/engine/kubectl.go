@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/logging"
 )
 
@@ -299,6 +298,18 @@ func (k *Kubectl) waitRollout(ctx context.Context, req UpRequest) error {
 // 后者里删除顺序仍然是部署顺序的反序：先删 ingress 再删 deployment，
 // 中间那一小段时间外面打进来的请求会干脆地 404，
 // 而不是打到一个正在消失的后端上超时。
+//
+// # 选择器由命令层给，引擎不自己拼
+//
+// 从前这里是 `k8s.LabelProject + "=" + req.Project`，而 K8s 侧的 Project 是
+// **命名空间**、标签值却是项目名。默认命名空间（`brickkit-<项目名>`）下两者
+// 只差一个前缀，写了 `deploy.namespace` 时更是毫不相干——于是这条路上
+// 八条 delete 全部命中 0 个对象、退出码 0，而 CLI 报"✅ 已停止全部组件"。
+// 本地 minikube 永远走上面那条删命名空间的路，所以一直没暴露。
+//
+// 根因是 up 与 down 各算了一遍选择器、只有一边算对。现在两边共用命令层的
+// projectSelector，引擎侧连拼装它的能力都没有了（与当初拿掉 DownRequest.File
+// 同一个手法：把"不会分叉"做成结构性保证，而不是一条约定）。
 func (k *Kubectl) Down(ctx context.Context, req DownRequest) error {
 	k.context = req.Context
 
@@ -310,12 +321,22 @@ func (k *Kubectl) Down(ctx context.Context, req DownRequest) error {
 		return err
 	}
 
+	// 空选择器绝不能放过去：`kubectl delete deployment -l "" -n ns` 匹配的是
+	// **该命名空间里的全部** Deployment。而走到这里恰恰说明命名空间是别人的，
+	// 里面多半跑着别的团队的东西——少传一个字段就把它们全删了，代价无法挽回。
+	if req.Selector == "" {
+		return clierr.New(clierr.CodeInternal, "错误：缺少项目标签选择器，已中止删除").
+			WithDetail("命名空间", req.Project).
+			WithDetail("原因", "命名空间不是本项目创建的，只能按标签删自己的资源；"+
+				"选择器为空会匹配到该命名空间下的全部资源").
+			WithHint("这是 CLI 内部错误，请提交 issue")
+	}
+
 	// 命名空间不是我们建的，那是别人的地盘：只删带本项目标签的资源，
 	// 逐类删而不是一把梭，好保住那个删除顺序
-	selector := k8s.LabelProject + "=" + req.Project
 	for _, kind := range deleteKinds() {
 		if _, err := k.exec(ctx, k.args(req.Project,
-			"delete", kind, "-l", selector, "--ignore-not-found")...); err != nil {
+			"delete", kind, "-l", req.Selector, "--ignore-not-found")...); err != nil {
 			return err
 		}
 	}

@@ -4,6 +4,9 @@ package cli
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -142,4 +145,84 @@ func TestDownDelegatesStopOrderToTheEngine(t *testing.T) {
 	require.Len(t, eng.downs, 1)
 	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project,
 		"只交项目名，顺序由引擎负责")
+}
+
+// ============================================================
+// 项目标签选择器：up 与 down 必须是同一个值
+// ============================================================
+
+// k8sProjectWithNamespace 造一个**命名空间与项目名不同**的 K8s 项目。
+//
+// 这个差异是下面两条用例的全部意义：默认命名空间是 brickkit-<项目名>，
+// 两者只差一个前缀，把命名空间误当成标签值也能"看起来对"。
+// 写了 deploy.namespace 之后它们毫不相干，错就藏不住了。
+func k8sProjectWithNamespace(t *testing.T, namespace string) *projectFixture {
+	t.Helper()
+
+	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
+
+	var b strings.Builder
+	b.WriteString("project: my-erp\n\ndeploy:\n  target: k8s\n")
+	fmt.Fprintf(&b, "  namespace: %s\n  createNamespace: false\n\nsources:\n", namespace)
+	for _, s := range f.Sources {
+		b.WriteString(s)
+	}
+	b.WriteString("\ncomponents:\n  - id: people/basic\n    version: 1.0.0\n")
+	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
+	return f
+}
+
+// down 交给引擎的选择器，标签值必须是**项目名**，不是命名空间。
+//
+// 这是真集群上会出事的那一条：命名空间是运维建的（createNamespace: false）时，
+// down 走的是"按标签逐类删"。引擎从前自己拿 Project（= 命名空间）拼选择器，
+// 于是一个资源都匹配不到——八条 delete 全部命中 0 个对象、退出码 0，
+// 而 CLI 打印"✅ 已停止全部组件"。本地 minikube 永远走删命名空间那条路，
+// 所以这个 bug 一直没被试出来。
+func TestDownSelectorUsesProjectNameNotNamespace(t *testing.T) {
+	f := k8sProjectWithNamespace(t, "team-a-prod")
+	eng := newK8sEngine()
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+
+	r := runWithEngine(t, eng, f.Dir, "down")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	require.Len(t, eng.downs, 1)
+
+	assert.Equal(t, "brickkit.io/project=my-erp", eng.downs[0].Selector,
+		"标签值是项目名——生成物上打的就是它")
+	assert.Equal(t, "team-a-prod", eng.downs[0].Project,
+		"而 Project 是命名空间，用于 -n；两者不是一回事")
+}
+
+// up 的孤儿清理与 down 的逐类删必须用**同一个**选择器。
+//
+// 这条守的是根因而不是症状：那个 bug 之所以存在，是因为选择器被算了两遍
+// 而只有一遍算对。现在两边都走 projectSelector，这条用例保证它们不会再分叉——
+// 将来谁把其中一处改了，这里会红。
+func TestUpAndDownAgreeOnProjectSelector(t *testing.T) {
+	f := k8sProjectWithNamespace(t, "team-a-prod")
+	eng := newK8sEngine()
+
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "down").code)
+
+	require.Len(t, eng.downs, 1)
+	assert.Equal(t, eng.lastUp(t).PruneSelector, eng.downs[0].Selector,
+		"同一个项目，两条命令认的必须是同一批资源")
+}
+
+// 命名空间是我们建的那条路上也要带选择器。
+//
+// 那条路当前用不上它（直接 delete namespace），但字段空着就是一个等着被踩的坑：
+// 将来若因为任何原因改走逐类删，引擎会中止而不是把别人的资源删光。
+func TestDownAlwaysPassesSelector(t *testing.T) {
+	f := k8sProject(t) // 默认命名空间，createNamespace 缺省为 true
+	eng := newK8sEngine()
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "down").code)
+	require.Len(t, eng.downs, 1)
+	assert.True(t, eng.downs[0].DeleteNamespace, "前提：这条路是删命名空间")
+	assert.Equal(t, "brickkit.io/project=my-erp", eng.downs[0].Selector,
+		"即便这条路用不上，也不该留一个空字段")
 }

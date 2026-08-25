@@ -152,7 +152,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	}
 	renderMigrations(opts, plan.migrations)
 
-	return start(ctx, opts, eng, plan, path, pruneSelectorFor(flags, plan))
+	return start(ctx, opts, eng, plan, path, projectSelector(plan.cfg))
 }
 
 // buildUpPlan 从配置一路算到"要启动哪些 service"。
@@ -404,8 +404,8 @@ func (p *upPlan) collectTargets(order *resolver.Plan) {
 
 // start 调引擎把项目跑起来，然后如实汇报每个 service 的状态。
 //
-// pruneSelector 为空表示本次不清理孤儿（`--only`），判据与 K8s 侧同源，
-// 见 pruneSelectorFor。
+// pruneSelector 与 K8s 侧同源，见 projectSelector。Docker 这边只用它的
+// "空 / 非空"决定带不带 `--remove-orphans`，值本身用不上。
 func start(
 	ctx context.Context, opts *Options, eng engine.Engine, plan *upPlan,
 	file, pruneSelector string,

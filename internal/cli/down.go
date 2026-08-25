@@ -70,7 +70,11 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 	// 而不是"生成目录里此刻写着的那些"（005 §5.9.3）。停止顺序也在引擎里。
 	if err := eng.Down(ctx, engine.DownRequest{
 		Project: p.engineProject(),
-		Context: contextOf(p.cfg, kubeContext),
+		// 标签值是项目名，与 Project（K8s 下是命名空间）不是一回事——
+		// 引擎从前拿 Project 拼这个选择器，于是 createNamespace: false 那条路上
+		// 一个资源都匹配不到，而命令照样报成功。与 up 的孤儿清理同源。
+		Selector: projectSelector(p.cfg),
+		Context:  contextOf(p.cfg, kubeContext),
 		// 命名空间不是我们建的就不能由我们删
 		DeleteNamespace: p.cfg.Deploy.ShouldCreateNamespace(),
 	}); err != nil {

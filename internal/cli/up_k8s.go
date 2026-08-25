@@ -51,20 +51,29 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 	}
 	renderMigrations(opts, plan.migrations)
 
-	return applyK8s(ctx, opts, eng, plan, dir, pruneSelectorFor(flags, plan))
+	return applyK8s(ctx, opts, eng, plan, dir, projectSelector(plan.cfg))
 }
 
-// pruneSelectorFor 给出清理孤儿资源用的标签选择器（P38）。
+// projectSelector 是本项目全部生成物共有的标签选择器。
 //
-// **两种目标共用这一个判据。** K8s 侧按它比对集群实际资源，Docker 侧只用
-// "空 / 非空"决定带不带 `--remove-orphans`。判据只有一份，就不会分叉。
+// **up 与 down 共用这一个判据，全仓库只此一处。** 三个用途：
+//
+//	up   K8s 侧按它比对集群实际资源，清理上一次留下的孤儿（P38）
+//	up   Docker 侧只用"空 / 非空"决定带不带 `--remove-orphans`
+//	down 命名空间是运维建的那条路上，按它逐类删自己的资源
+//
+// ⚠️ **标签值是项目名，不是命名空间。** 引擎侧的 Project 在 K8s 下是命名空间，
+// 写了 `deploy.namespace` 时与项目名毫不相干。`down` 从前在引擎里自己拼
+// `LabelProject + "=" + req.Project`，于是那条路上一个资源都匹配不到——
+// 八条 delete 全部命中 0 个对象、退出码 0，而 CLI 报"✅ 已停止全部组件"。
+// 根因就是这个选择器被算了两遍而只有一遍算对，所以现在只留这一个出口。
 //
 // 这里曾经有一个"`--only` 时返回空串不清理"的分支：那时生成的部署文件只含
 // 被点名的子集，其余组件全部落进清理的射程，一条 `up --only` 就会把正在服务的
 // 组件下线。`--only` 已删（003 §4.3：要收窄范围就改 enabled），
 // 生成物永远是完整的一份，这个分支也就没有了。
-func pruneSelectorFor(_ upOptions, plan *upPlan) string {
-	return k8s.LabelProject + "=" + plan.cfg.Project
+func projectSelector(cfg *config.Config) string {
+	return k8s.LabelProject + "=" + cfg.Project
 }
 
 // applyK8s 把清单交给集群，然后如实汇报。
