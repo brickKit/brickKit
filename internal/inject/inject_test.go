@@ -5,6 +5,7 @@ package inject_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -773,4 +774,71 @@ func TestBuildIsDeterministic(t *testing.T) {
 	}
 
 	assert.Equal(t, build(), build())
+}
+
+// manifest 里那张 kind → 变量前缀表，必须与本包真生成的变量对得上。
+//
+// 那张表是给**错误提示**用的（config 侧要说清"两条绑定抢的是 DATABASE_HOST /
+// DATABASE_PORT / …"），而变量本身在这里生成。两份真相一旦分叉，
+// 报错就会点名一批根本不存在的变量——比不给变量名更糟。
+//
+// 每种 kind 都要覆盖到：漏掉一种的表现正是"那种资源的提示是错的"，
+// 而那种资源恰恰是最少被用到、也最没人复核的那种。
+func TestResourceVarsMatchDeclaredPrefix(t *testing.T) {
+	for _, kind := range manifest.ResourceKinds {
+		prefix := manifest.ResourceEnvPrefix(kind)
+		require.NotEmpty(t, prefix, "%s 没有登记变量前缀", kind)
+
+		cfg := &config.Config{
+			Project: "p", Deploy: config.Deploy{Target: config.TargetDocker},
+			Components: []config.Component{{ID: "demo/x", Version: "1.0.0"}},
+			Resources: []config.Resource{{
+				Kind: kind, Engine: "e", ID: "r", Host: "h", Port: 1234,
+				Username: "u", Password: "pw",
+				Bindings: []config.Binding{{ComponentID: "demo/x", Database: "d"}},
+			}},
+		}
+		vars := resourceVarsOf(t, cfg)
+		require.NotEmpty(t, vars, "%s 一个连接变量都没生成", kind)
+
+		for _, name := range vars {
+			assert.True(t, strings.HasPrefix(name, prefix+"_"),
+				"%s 生成了 %s，但登记的前缀是 %s_——两份真相分叉了", kind, name, prefix)
+		}
+	}
+}
+
+// resourceVarsOf 跑一遍注入，取出该组件全部"资源连接"类的变量名。
+func resourceVarsOf(t *testing.T, cfg *config.Config) []string {
+	t.Helper()
+
+	m := &manifest.Manifest{
+		APIVersion: manifest.APIVersion, Kind: manifest.Kind,
+		Metadata:    manifest.Metadata{ID: "demo/x", Name: "x", Version: "1.0.0"},
+		Deployment:  manifest.Deployment{Type: manifest.DeploymentTypeContainer, Image: "i:1", Port: 8080},
+		HealthCheck: manifest.HealthCheck{Type: manifest.HealthCheckHTTP, Path: "/healthz"},
+	}
+	graph, err := resolver.New(fixedProvider{m}).Resolve(
+		context.Background(), resolver.Ref{ID: "demo/x", Version: "1.0.0"})
+	require.NoError(t, err)
+
+	states, err := cascade.Compute(cfg, graph)
+	require.NoError(t, err)
+	result, err := inject.Build(cfg, graph, states)
+	require.NoError(t, err)
+	require.Len(t, result.Components, 1)
+
+	var out []string
+	for _, v := range result.Components[0].Env {
+		if v.Source == inject.SourceResource {
+			out = append(out, v.Name)
+		}
+	}
+	return out
+}
+
+type fixedProvider struct{ m *manifest.Manifest }
+
+func (p fixedProvider) Manifest(_ context.Context, _, _ string) (*manifest.Manifest, error) {
+	return p.m, nil
 }

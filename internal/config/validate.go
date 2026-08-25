@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -27,6 +28,7 @@ func (c *Config) Validate() error {
 	c.validateSources(p)
 	c.validateComponents(p)
 	c.validateResources(p)
+	c.validateResourceEnvCollisions(p)
 
 	return p.Err()
 }
@@ -311,6 +313,97 @@ func (c *Config) validateResources(p *clierr.ProblemSet) {
 			}
 		}
 	}
+}
+
+// envClaim 记下"这批连接变量先被谁占了"。
+type envClaim struct {
+	resourceID string
+	// field 是先占者的字段路径，如 resources[0].bindings[1]。
+	field string
+}
+
+// validateResourceEnvCollisions 拦下"两条绑定抢同一批连接变量"。
+//
+// # 后果不是"其中一条不生效"，是那个资源整个蒸发
+//
+// 注入引擎按变量名写表（inject.envBuilder.set），同名后写的直接覆盖先写的。
+// 两个 postgresql 都绑给 people/basic、都没写 envPrefix 时，组件拿到的
+// DATABASE_* 全部来自配置里靠后的那个——它以为自己连着主库，实际连的是归档库。
+// K8s 侧更彻底：只生成靠后那个资源的 Secret，前一个在生成物里一处都不剩。
+//
+// # 为什么是报错，不是警告
+//
+// 与悬空绑定（见 DanglingBindings）划的是同一条线，只是落在了另一边：
+// 悬空绑定的唯一后果是"那条绑定不生效，其余组件毫发无伤"——无害状态，
+// 用致命错误去挡它代价不成比例。而这里组件**连到了错误的库**，
+// 没有任何一种解读下使用者想要这个结果。
+//
+// 同类判例也都是报错，形状完全一致——都是"两个东西抢同一个位子"：
+// components[].localPort 重复、components[].exposePort 重复、resources[].id 重复。
+//
+// # 判据：(组件ID, 生效前缀, kind) 三元组
+//
+//	不同 kind（database + cache）        DATABASE_* 与 REDIS_*，不冲突
+//	一个写了 envPrefix、一个没写         PRIMARY_DATABASE_* 与 DATABASE_*，不冲突
+//	                                     （而且是合理写法：默认库 + 附加库）
+//	都没写，或都写同一个前缀             ❌ 抢同一批变量名
+//
+// 同一个资源里对同一组件写两条绑定（`database: a` 与 `database: b`）
+// 是同一种事故的另一个入口，同一个判据一并抓住。
+func (c *Config) validateResourceEnvCollisions(p *clierr.ProblemSet) {
+	seen := map[string]envClaim{}
+
+	for i, r := range c.Resources {
+		// kind 不合法时 validateResources 已经报过；这里再报一次只是噪音，
+		// 而且那种 kind 压根没有对应的变量前缀，谈不上碰撞
+		if !manifest.IsKnownResourceKind(r.Kind) {
+			continue
+		}
+		for j, b := range r.Bindings {
+			if b.ComponentID == "" {
+				continue
+			}
+			prefix := strings.ToUpper(b.EnvPrefix)
+			key := b.ComponentID + "\x00" + prefix + "\x00" + r.Kind
+			field := fmt.Sprintf("%s.bindings[%d]", indexed("resources", i), j)
+
+			first, taken := seen[key]
+			if !taken {
+				seen[key] = envClaim{resourceID: r.ID, field: field}
+				continue
+			}
+			p.Add(field, envCollisionMessage(first, r, b.ComponentID, prefix))
+		}
+	}
+}
+
+// envCollisionMessage 说清楚"谁和谁抢、抢的是哪几个变量、怎么办"。
+//
+// 变量名要具体列出来：只说"连接变量冲突"的话，使用者得自己去翻 006 §5.2
+// 才知道两条绑定到底哪里重叠了。
+func envCollisionMessage(first envClaim, r Resource, componentID, prefix string) string {
+	// 拼法必须与注入引擎一致：那边是 strings.ToUpper(envPrefix) + "_" + 变量名。
+	// 少一个下划线就会报出 MAINDATABASE_HOST 这种根本不存在的变量名——
+	// 一条照着找也找不到的提示，比不给变量名更浪费时间
+	vars := manifest.ResourceEnvPrefix(r.Kind)
+	if prefix != "" {
+		vars = prefix + "_" + vars
+	}
+	return fmt.Sprintf(
+		"与 %s 抢同一批连接变量：组件 %s 同时绑定了 %s 与 %s（都是 %s，%s），"+
+			"两者都注入 %s_HOST / %s_PORT / … —— 后者覆盖前者，"+
+			"而组件不会察觉自己连错了地方。"+
+			"给其中一个加 envPrefix 区分开（如 envPrefix: ARCHIVE，注入为 ARCHIVE_%s_HOST，003 §5.6）；"+
+			"只需要一个的话删掉多余的那条绑定",
+		first.field, componentID, first.resourceID, r.ID, r.Kind,
+		envPrefixText(prefix), vars, vars, manifest.ResourceEnvPrefix(r.Kind))
+}
+
+func envPrefixText(prefix string) string {
+	if prefix == "" {
+		return "都没写 envPrefix"
+	}
+	return "envPrefix 都是 " + prefix
 }
 
 // DanglingBinding 是一条指向未声明组件的资源绑定。

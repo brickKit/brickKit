@@ -659,3 +659,154 @@ func itoa(i int) string {
 	}
 	return string(digits)
 }
+
+// ============================================================
+// 两条绑定抢同一批连接变量
+// ============================================================
+
+// twoDatabases 造一份"两个 postgres 都绑给同一个组件"的配置。
+// extra 追加到第二条绑定上（比如 envPrefix）。
+func twoDatabases(extra string) string {
+	return baseConfig + `
+components:
+  - id: people/basic
+    version: 1.0.0
+
+resources:
+  - kind: database
+    engine: postgresql
+    id: primary
+    host: pri.example
+    port: 5432
+    bindings:
+      - componentId: people/basic
+        database: people
+  - kind: database
+    engine: postgresql
+    id: archive
+    host: arc.example
+    port: 5433
+    bindings:
+      - componentId: people/basic
+        database: people_archive
+` + extra
+}
+
+// ⚠️ 回归：这从前是静默通过的，而后果是前一个资源整个蒸发。
+//
+// 注入引擎按变量名写表，同名后写覆盖先写。两个 postgres 都没写 envPrefix 时，
+// 组件拿到的 DATABASE_* 全来自配置里靠后的那个——它以为连着 primary，
+// 实际连的是 archive。K8s 侧只生成 archive-secret，primary 在生成物里一处都不剩。
+func TestTwoSameKindResourcesWithoutPrefixIsRejected(t *testing.T) {
+	_, err := ParseConfig([]byte(twoDatabases("")), "brickkit.yaml")
+
+	require.Error(t, err, "抢同一批变量名，必须当场拦下")
+	text := err.Error()
+	assert.Contains(t, text, "primary", "要点名是哪两个资源")
+	assert.Contains(t, text, "archive")
+	assert.Contains(t, text, "people/basic", "以及是哪个组件")
+	assert.Contains(t, text, "DATABASE_HOST", "把抢的变量列出来，不然还得去翻 006 §5.2")
+	assert.Contains(t, text, "envPrefix", "给出出路")
+}
+
+// 一个写了 envPrefix、一个没写：PRIMARY_DATABASE_* 与 DATABASE_*，不冲突。
+//
+// 这是合理写法（默认库 + 附加库），拦下它就是误伤。
+func TestSameKindResourcesWithDistinctPrefixIsFine(t *testing.T) {
+	_, err := ParseConfig([]byte(twoDatabases("        envPrefix: ARCHIVE\n")), "brickkit.yaml")
+
+	require.NoError(t, err, "前缀不同就不冲突：%v", err)
+}
+
+// 两个都写了**同一个** envPrefix：照样是抢同一批变量。
+func TestSameKindResourcesWithSamePrefixIsRejected(t *testing.T) {
+	cfg := twoDatabases("")
+	cfg = strings.Replace(cfg, "        database: people\n",
+		"        database: people\n        envPrefix: MAIN\n", 1)
+	cfg = strings.Replace(cfg, "        database: people_archive\n",
+		"        database: people_archive\n        envPrefix: MAIN\n", 1)
+
+	_, err := ParseConfig([]byte(cfg), "brickkit.yaml")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "MAIN_DATABASE_HOST", "变量名要带上那个前缀")
+}
+
+// 不同 kind 绑同一个组件：DATABASE_* 与 REDIS_*，本来就不会撞。
+func TestDifferentKindsForSameComponentIsFine(t *testing.T) {
+	_, err := ParseConfig([]byte(baseConfig+`
+components:
+  - id: people/basic
+    version: 1.0.0
+
+resources:
+  - kind: database
+    engine: postgresql
+    id: pg
+    host: pg.example
+    port: 5432
+    bindings:
+      - componentId: people/basic
+        database: people
+  - kind: cache
+    engine: redis
+    id: redis
+    host: redis.example
+    port: 6379
+    bindings:
+      - componentId: people/basic
+`), "brickkit.yaml")
+
+	require.NoError(t, err, "不同 kind 的变量前缀本来就不同：%v", err)
+}
+
+// 同一个资源里对同一组件写两条绑定：同一种事故的另一个入口。
+//
+// 两条各写各的 database 名，DATABASE_NAME 被写两次，后者赢——
+// 与跨资源碰撞完全同构，所以由同一个判据抓住。
+func TestDuplicateBindingsInOneResourceIsRejected(t *testing.T) {
+	_, err := ParseConfig([]byte(baseConfig+`
+components:
+  - id: people/basic
+    version: 1.0.0
+
+resources:
+  - kind: database
+    engine: postgresql
+    id: pg
+    host: pg.example
+    port: 5432
+    bindings:
+      - componentId: people/basic
+        database: people
+      - componentId: people/basic
+        database: people_v2
+`), "brickkit.yaml")
+
+	require.Error(t, err, "同一个组件在同一个资源里绑两次，后者会盖掉前者")
+}
+
+// 同一个资源绑给**不同**组件：各拿各的，完全正常。
+func TestOneResourceBoundToManyComponentsIsFine(t *testing.T) {
+	_, err := ParseConfig([]byte(baseConfig+`
+components:
+  - id: people/basic
+    version: 1.0.0
+  - id: department/tree
+    version: 1.0.0
+
+resources:
+  - kind: database
+    engine: postgresql
+    id: pg
+    host: pg.example
+    port: 5432
+    bindings:
+      - componentId: people/basic
+        database: people
+      - componentId: department/tree
+        database: department
+`), "brickkit.yaml")
+
+	require.NoError(t, err, "006 §7.3 推荐的正是这种写法：%v", err)
+}

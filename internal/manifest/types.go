@@ -56,6 +56,27 @@ func IsKnownResourceKind(kind string) bool {
 	return false
 }
 
+// resourceEnvPrefixes 是每种 kind 注入的连接变量前缀（006 §5.2）。
+//
+// 只有 cache 与 kind 名不同（REDIS 而不是 CACHE）——那是 006 §5.2 定下的，
+// 因为使用者认得的是"Redis 的连接信息"，不是"缓存的连接信息"。
+//
+// 注入引擎（inject.resourceVars）按同一套前缀生成变量，
+// TestResourceVarsMatchDeclaredPrefix 盯着两边不许分叉。
+var resourceEnvPrefixes = map[string]string{
+	ResourceKindDatabase: "DATABASE",
+	ResourceKindCache:    "REDIS",
+	ResourceKindMQ:       "MQ",
+	ResourceKindStorage:  "STORAGE",
+	ResourceKindSearch:   "SEARCH",
+	ResourceKindSMTP:     "SMTP",
+}
+
+// ResourceEnvPrefix 返回该 kind 注入的连接变量前缀，如 database → DATABASE。
+//
+// 不认识的 kind 返回空串（那种 kind 在解析阶段就被拦下了，见上方注释）。
+func ResourceEnvPrefix(kind string) string { return resourceEnvPrefixes[kind] }
+
 // ResourceKindsText 把合法资源类型拼成一行，用于错误提示。
 func ResourceKindsText() string {
 	out := ""
