@@ -168,7 +168,9 @@ make lint             # vet + 文档检查
 | `make test-regression` | 25 条面向用户的承诺 → 证明它们的测试 |
 | `make test-boundary` 等 | 75 项验收条目 → 证明它们的测试 |
 | `make check-docs` | 悬空的小节引用与断链 |
-| `make check-cli-docs` | 文档里写的每条命令和参数都真的存在 |
+| `make check-cli-docs` | 文档（和 `--help` 自己）里写的每条命令和参数都真的存在 |
+| `make check-doc-tree` | 文档里画的 `.brickkit/` 目录树与 CLI 真的会创建的东西一致 |
+| `make check-guide-output` | 试用指南的「✅ 预期」与 CLI 真实输出逐行一致 |
 | `make check-guides` | 试用指南里的步骤仍然跑得通 |
 
 一份指向已不存在的测试的清单会让构建失败。一个目录变空的测试目标同样会 ——

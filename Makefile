@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-guide-output cover-check ## 静态检查（文档引用 + 文档里的命令 + 指南预期输出 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-guide-output cover-check ## 静态检查（文档引用 + 命令 + 目录树 + 指南预期输出 + 覆盖率门槛）
 	@if [ -x "$(GOLANGCI)" ]; then \
 		echo "▶ golangci-lint run"; \
 		$(GOLANGCI) run ./... && (cd market-server && $(GOLANGCI) run ./...); \
@@ -143,6 +143,10 @@ check-docs: ## 检查文档引用（悬空小节号、断链、指南编号与�
 .PHONY: check-cli-docs
 check-cli-docs: build-cli ## 检查文档里的命令与参数是否真的存在（Step 40）
 	@python3 scripts/check-cli-docs.py $(BIN)/brickkit
+
+.PHONY: check-doc-tree
+check-doc-tree: build-cli ## 检查文档里画的 .brickkit/ 目录树与 CLI 真的会创建的东西一致
+	@python3 scripts/check-doc-tree.py $(BIN)/brickkit
 
 # 两个"真跑"检查的分工：
 #   check-guide-output  指南里的「✅ 预期」块必须逐行等于 CLI 真实输出。
