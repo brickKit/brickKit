@@ -79,8 +79,16 @@ func (c *Compose) Down(ctx context.Context, req DownRequest) error {
 }
 
 // Status 返回该项目下所有 service 的状态。
-func (c *Compose) Status(ctx context.Context, file, project string) ([]Status, error) {
-	args := append(c.projectArgs(file, project, ""), "ps", "-a", "--format", "json")
+//
+// **不带 `-f`。** compose 从容器标签就能认项目（实测 v5.3.1：删掉部署文件后
+// `-p X ps --format json` 的输出与带 `-f` 时逐字节相同）。不依赖那份文件，
+// 是因为它在 .gitignore 里、而且文档明说可以随时删——依赖它的后果是
+// 一次 `git clean -xdf` 之后 `status` 谎报"项目尚未启动过"，而容器还跑着。
+//
+// 顺带一个好处：不带 `-f` 时列出的是**该项目名下的全部容器**，
+// 而不只是生成文件里写着的那些。上一次留下的孤儿因此也在视野里。
+func (c *Compose) Status(ctx context.Context, project string) ([]Status, error) {
+	args := append(c.projectArgs("", project, ""), "ps", "-a", "--format", "json")
 
 	out, err := c.exec(ctx, args...)
 	if err != nil {
@@ -159,6 +167,9 @@ func imageError(image, output string, cause error) error {
 func (c *Compose) CurrentContext(context.Context) (string, error) { return "", nil }
 
 // projectDir 决定 compose 去哪里找 .env（见 UpRequest.ProjectDir）。
+//
+// file 为空时不带 `-f`：只有 `up` 需要那份文件（要照着它创建容器），
+// `ps` / `down` 从容器标签就认得出项目。
 func (c *Compose) projectArgs(file, project, projectDir string) []string {
 	args := append([]string{}, c.base...)
 	if projectDir != "" {
@@ -167,7 +178,10 @@ func (c *Compose) projectArgs(file, project, projectDir string) []string {
 	if project != "" {
 		args = append(args, "-p", project)
 	}
-	return append(args, "-f", file)
+	if file != "" {
+		args = append(args, "-f", file)
+	}
+	return args
 }
 
 func (c *Compose) exec(ctx context.Context, args ...string) ([]byte, error) {

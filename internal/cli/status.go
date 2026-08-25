@@ -56,20 +56,15 @@ func runStatus(ctx context.Context, opts *Options) error {
 		opts.Printf("   或 brickkit add <组件ID> 从安装源添加\n")
 		return nil
 	}
-	if !p.deployed {
-		// 先把"为什么一个都没跑"说清楚，再说"还没启动过"。
-		// 配置里全都 enabled: false 时，一句"尚未启动过"等于什么都没回答。
-		renderSkipped(opts, p)
-		renderLocalDebug(opts, p)
-		if p.states != nil && p.states.Empty() {
-			opts.Printf("📋 按当前配置，本次没有组件会启动（原因见上）\n")
-			return nil
-		}
-		opts.Printf("📋 项目尚未启动过（没有找到 %s）\n", displayPath(opts.WorkDir, p.file))
-		opts.Printf("   用 brickkit up 启动\n")
-		return nil
-	}
-
+	// 直接问引擎。
+	//
+	// 从前这里先看 `.brickkit/generated/` 下那份生成物在不在，不在就断言
+	// "项目尚未启动过"并返回，引擎一次都不调。而那份文件在 .gitignore 里、
+	// 003 §7.1 还明说可以随时删——一次 `git clean -xdf` 之后，
+	// status 会对着一屋子正在跑的容器说"尚未启动过"。
+	//
+	// 容器跑没跑只有引擎知道，所以只问它一处。"还没起过"与"已经 down 过"
+	// 引擎本来就分不出，从前那句"尚未启动过"也只是拿一个文件在猜。
 	eng, err := resolveEngineFor(opts, p.cfg)
 	if err != nil {
 		return err
@@ -77,7 +72,7 @@ func runStatus(ctx context.Context, opts *Options) error {
 	if err := requireContext(ctx, opts, p.cfg, eng, p.cfg.Deploy.Context); err != nil {
 		return err
 	}
-	statuses, err := eng.Status(ctx, p.file, p.engineProject())
+	statuses, err := eng.Status(ctx, p.engineProject())
 	if err != nil {
 		return engineFailure("查询状态", err)
 	}
@@ -127,8 +122,8 @@ func renderComponentStatus(opts *Options, p *project, byService map[string]engin
 	if stoppedCount > 0 {
 		opts.Printf("❌ 未在运行（%d 个组件）\n", stoppedCount)
 		opts.Printf("%s", stopped.render(" "))
-		opts.Printf("   看日志定位：%s\n\n", logsCommand(engineName(opts), p.engineProject(),
-			displayPath(opts.WorkDir, p.file), "<服务名>"))
+		opts.Printf("   看日志定位：%s\n\n",
+			logsCommand(engineName(opts), p.engineProject(), "<服务名>"))
 	}
 	if len(running.rows) == 0 && stoppedCount > 0 {
 		opts.Printf("📋 没有正在运行的组件（可能已经 brickkit down 过）\n")

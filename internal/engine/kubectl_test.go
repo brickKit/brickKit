@@ -348,7 +348,7 @@ func TestKubectlStatus(t *testing.T) {
 	rec := newRecorder()
 	rec.output["get deployments"] = deploymentsJSON
 
-	statuses, err := kubectlWith(rec).Status(context.Background(), "/p/k8s", "brickkit-my-erp")
+	statuses, err := kubectlWith(rec).Status(context.Background(), "brickkit-my-erp")
 
 	require.NoError(t, err)
 	require.Len(t, statuses, 2)
@@ -372,7 +372,7 @@ func TestKubectlStatusOnEmptyNamespace(t *testing.T) {
 	rec := newRecorder()
 	rec.output["get deployments"] = `{"items": []}`
 
-	statuses, err := kubectlWith(rec).Status(context.Background(), "/p/k8s", "brickkit-my-erp")
+	statuses, err := kubectlWith(rec).Status(context.Background(), "brickkit-my-erp")
 
 	require.NoError(t, err)
 	assert.Empty(t, statuses)
@@ -384,7 +384,7 @@ func TestKubectlStatusOnMissingNamespace(t *testing.T) {
 	rec.fail["get deployments"] = errors.New("exit 1")
 	rec.output["get deployments"] = `Error from server (NotFound): namespaces "brickkit-my-erp" not found`
 
-	statuses, err := kubectlWith(rec).Status(context.Background(), "/p/k8s", "brickkit-my-erp")
+	statuses, err := kubectlWith(rec).Status(context.Background(), "brickkit-my-erp")
 
 	require.NoError(t, err)
 	assert.Empty(t, statuses)

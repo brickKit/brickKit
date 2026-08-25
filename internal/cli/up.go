@@ -420,19 +420,19 @@ func start(
 		return engineFailure("启动", err)
 	}
 
-	statuses, err := eng.Status(ctx, file, project)
+	statuses, err := eng.Status(ctx, project)
 	if err != nil {
 		// 起是起了，只是问不到状态：不该因此判定失败
 		opts.Printf("⚠️ 无法读取容器状态：%s\n", clierr.As(err).Message)
 		opts.Printf("   用 brickkit status 再看一次\n")
 		return nil
 	}
-	return reportStarted(opts, plan, statuses, file)
+	return reportStarted(opts, plan, statuses)
 }
 
 // reportStarted 汇报启动结果，并在有组件没起来时给出非零退出码。
 func reportStarted(
-	opts *Options, plan *upPlan, statuses []engine.Status, file string,
+	opts *Options, plan *upPlan, statuses []engine.Status,
 ) error {
 	byService := map[string]engine.Status{}
 	for _, s := range statuses {
@@ -459,19 +459,19 @@ func reportStarted(
 		}
 		if plan.k8s != nil {
 			return err.WithHint(
-				"看日志定位："+logsCommand(engine.K8s, plan.k8s.Namespace, file, "<服务名>"),
+				"看日志定位："+logsCommand(engine.K8s, plan.k8s.Namespace, "<服务名>"),
 				"看事件：kubectl describe deployment/<服务名> -n "+plan.k8s.Namespace,
 			)
 		}
 		return err.WithHint(
-			"看日志定位："+logsCommand(engineName(opts), engine.ProjectName(plan.cfg.Project),
-				displayPath(opts.WorkDir, file), "<服务名>"),
+			"看日志定位："+logsCommand(engineName(opts),
+				engine.ProjectName(plan.cfg.Project), "<服务名>"),
 			"迁移失败会让主服务停在 Created，先看该组件的 -migration 容器",
 		)
 	}
 
 	opts.Printf("✅ 全部组件已启动（%d 个）\n", len(plan.services))
-	renderNextSteps(opts, plan, file)
+	renderNextSteps(opts, plan)
 	logging.Info("项目已启动", "project", plan.cfg.Project, "services", len(plan.services))
 	return nil
 }
@@ -505,18 +505,18 @@ func describeStatus(s engine.Status) string {
 }
 
 // renderNextSteps 给出启动之后的常用动作。
-func renderNextSteps(opts *Options, plan *upPlan, file string) {
+func renderNextSteps(opts *Options, plan *upPlan) {
 	opts.Printf("\n💡 查看状态：brickkit status\n")
 
 	if plan.k8s != nil {
 		opts.Printf("   查看日志：%s\n",
-			logsCommand(engine.K8s, plan.k8s.Namespace, file, ""))
+			logsCommand(engine.K8s, plan.k8s.Namespace, ""))
 		opts.Printf("   查看 Pod：kubectl get pods -n %s\n", plan.k8s.Namespace)
 		return
 	}
 
-	opts.Printf("   查看日志：%s -f\n", logsCommand(engineName(opts),
-		engine.ProjectName(plan.cfg.Project), displayPath(opts.WorkDir, file), ""))
+	opts.Printf("   查看日志：%s -f\n",
+		logsCommand(engineName(opts), engine.ProjectName(plan.cfg.Project), ""))
 	for _, env := range plan.generated.LocalEnvFiles {
 		opts.Printf("   本地调试：在 IDE 中加载 %s 启动 %s\n",
 			filepath.Join(".brickkit", "generated", env.Name), env.Ref.ID)

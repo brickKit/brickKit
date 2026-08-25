@@ -207,7 +207,12 @@ func TestDownK8s(t *testing.T) {
 	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project)
 }
 
-// 还没 up 过时 down 不该报错，也不该去碰集群。
+// 还没 up 过时 down 不该报错。
+//
+// 但它**照样会问集群**：命名空间在不在、里面有没有东西，只有集群知道。
+// 从前这里看的是生成目录在不在，不在就一条 kubectl 都不发——而那个目录
+// 在 .gitignore 里，随时可能被清掉。kubectl delete 本来就带 --ignore-not-found，
+// 对着一个不存在的命名空间执行是 exit 0，没有代价。
 func TestDownK8sBeforeUp(t *testing.T) {
 	f := k8sProject(t)
 	eng := newK8sEngine()
@@ -215,8 +220,8 @@ func TestDownK8sBeforeUp(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "down")
 
 	assert.Equal(t, clierr.ExitOK, r.code)
-	assert.Empty(t, eng.downs)
-	assert.Contains(t, r.stdout, "尚未启动过")
+	require.Len(t, eng.downs, 1, "该问的还是要问集群，不能靠生成目录猜")
+	assert.Contains(t, r.stdout, "没有容器在跑")
 }
 
 func TestStatusK8s(t *testing.T) {
@@ -233,7 +238,7 @@ func TestStatusK8s(t *testing.T) {
 
 // 排障命令必须是 kubectl 的，不能给一条 docker compose。
 func TestK8sLogsCommandIsKubectl(t *testing.T) {
-	command := logsCommand(engine.K8s, "brickkit-my-erp", ".brickkit/generated/k8s", "people-basic-1-0-0")
+	command := logsCommand(engine.K8s, "brickkit-my-erp", "people-basic-1-0-0")
 
 	assert.Contains(t, command, "kubectl logs")
 	assert.Contains(t, command, "deployment/people-basic-1-0-0")

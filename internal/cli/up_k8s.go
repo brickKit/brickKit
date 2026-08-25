@@ -101,14 +101,14 @@ func applyK8s(
 	}
 	renderPruned(opts, pruned)
 
-	statuses, err := eng.Status(ctx, dir, plan.k8s.Namespace)
+	statuses, err := eng.Status(ctx, plan.k8s.Namespace)
 	if err != nil {
 		// 部署是部署了，只是问不到状态：不该因此判定失败
 		opts.Printf("⚠️ 无法读取集群状态：%s\n", clierr.As(err).Message)
 		opts.Printf("   用 brickkit status 再看一次\n")
 		return nil
 	}
-	return reportStarted(opts, plan, statuses, dir)
+	return reportStarted(opts, plan, statuses)
 }
 
 // resolveEngineFor 按部署目标选引擎。

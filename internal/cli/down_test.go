@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -15,14 +16,17 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 )
 
-// startedProject 是一个已经 up 过、留下部署文件的项目。
+// startedProject 是一个已经 up 过、容器正在跑的项目。
+//
+// 不能清掉 eng.ups：假引擎正是靠它回答"现在有什么在跑"（见 fakeEngine.Status）。
+// 清掉之后 down 会以为引擎里一个容器都没有——那是夹具的副作用，不是真实行为。
+// down 的断言看的是 eng.downs，与 ups 互不干扰。
 func startedProject(t *testing.T) (*projectFixture, *fakeEngine) {
 	t.Helper()
 
 	f := composeProject(t)
 	eng := newFakeEngine()
 	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
-	eng.ups = nil // 之后的断言只看 down
 	return f, eng
 }
 
@@ -63,16 +67,52 @@ func TestDownTellsThatDataIsKept(t *testing.T) {
 	assert.Contains(t, r.stdout, "docker volume rm", "并告诉他真想删该怎么做")
 }
 
-// 从没 up 过就 down：给出引导而不是把引擎的报错甩出来。
-func TestDownWithoutDeployFile(t *testing.T) {
+// 从没 up 过就 down：照样问引擎，然后如实说"没有容器在跑"。
+//
+// 这里的关键是**仍然调了引擎**。从前它看的是"生成的部署文件在不在"，
+// 不在就提前返回、一条命令都不发——而那份文件在 .gitignore 里，
+// 随时可能被 git clean 清掉（见下面那条回归用例）。
+func TestDownWithNothingRunning(t *testing.T) {
 	f := composeProject(t)
 	eng := newFakeEngine()
 
 	r := runWithEngine(t, eng, f.Dir, "down")
 
 	assert.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Empty(t, eng.downs, "文件都没有，没什么可停的")
-	assert.Contains(t, r.stdout, "尚未启动")
+	require.Len(t, eng.downs, 1, "该问的还是要问引擎，不能靠猜")
+	assert.Contains(t, r.stdout, "没有容器在跑")
+	assert.Contains(t, r.stdout, "brickkit up", "顺手告诉他下一步")
+}
+
+// ⚠️ 回归：生成目录被清掉之后，down 必须照样停得掉。
+//
+// `.brickkit/generated/` 在 .gitignore 里，003 §7.1 还明说它"整个都是可再生的"——
+// 一次 `git clean -xdf` 就没了。从前 down 拿它在不在当"项目跑没跑"的判据，
+// 于是这种情况下会报"📋 项目尚未启动过"、退出码 0、引擎一次都不调，
+// 而容器好好地跑着。这与当初把 DownRequest.File 拿掉是同一个 bug，
+// 当时只修了引擎那一层，闸门留在了命令层。
+func TestDownStillStopsAfterGeneratedDirWiped(t *testing.T) {
+	f, eng := startedProject(t)
+	require.NoError(t, os.RemoveAll(filepath.Join(f.Dir, ".brickkit", "generated")))
+
+	r := runWithEngine(t, eng, f.Dir, "down")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	require.Len(t, eng.downs, 1, "生成目录没了，但容器还在——必须照样停")
+	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project)
+	assert.Contains(t, r.stdout, "已停止")
+}
+
+// status 同理：生成目录没了，也不能谎报"尚未启动过"。
+func TestStatusStillReadsEngineAfterGeneratedDirWiped(t *testing.T) {
+	f, eng := startedProject(t)
+	require.NoError(t, os.RemoveAll(filepath.Join(f.Dir, ".brickkit", "generated")))
+
+	r := runWithEngine(t, eng, f.Dir, "status")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "运行中", "引擎说在跑，就得说在跑")
+	assert.NotContains(t, r.stdout, "尚未启动")
 }
 
 func TestDownReportsEngineFailure(t *testing.T) {

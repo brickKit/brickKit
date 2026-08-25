@@ -154,7 +154,17 @@ type Engine interface {
 	// 需要彻底清理时由使用者自己执行 docker volume rm。
 	Down(ctx context.Context, req DownRequest) error
 	// Status 返回该项目下所有 service 的状态。
-	Status(ctx context.Context, file, project string) ([]Status, error)
+	//
+	// **只认项目名，不认部署文件**（与 Down 同一条规则，005 §5.9.3）。
+	// 两种引擎都做得到：compose 从容器标签认项目（`-p X ps` 不需要 `-f`），
+	// kubectl 本来就只按命名空间查。
+	//
+	// 从前这里有个 file 参数。kubectl 侧从来没用过它，compose 侧则把
+	// `-f <生成的部署文件>` 传了下去——于是那份文件被 `git clean -xdf` 清掉之后
+	// （它在 .gitignore 里，而且文档明说这个目录是可再生的），
+	// `status` 与 `down` 会双双报"项目尚未启动过"，而容器还跑着。
+	// 参数整个拿掉，这条路就再也走不回去了。
+	Status(ctx context.Context, project string) ([]Status, error)
 	// CheckImage 检查镜像是否可用（本地已有，或能从 registry 取到）。
 	CheckImage(ctx context.Context, image string) error
 	// CurrentContext 返回引擎当前指向的部署上下文。

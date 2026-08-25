@@ -282,16 +282,18 @@ brickkit status
 ## 5.7 看日志、进容器
 
 ```bash
-# 看某个组件的日志（--project-directory 与 -p 都不能省）
-docker compose --project-directory . -p brickkit-demo-shop \
-  -f .brickkit/generated/docker-compose.yaml logs -f demo-hello-1-0-0
+# 看某个组件的日志（-p 不能省；不带 -f 时 compose 从容器标签认项目）
+docker compose -p brickkit-demo-shop logs -f demo-hello-1-0-0
 
 # 看迁移容器干了什么
-docker compose --project-directory . -p brickkit-demo-shop \
-  -f .brickkit/generated/docker-compose.yaml logs department-tree-1-0-0-migration
+docker compose -p brickkit-demo-shop logs department-tree-1-0-0-migration
 ```
 
-> `-p` 少了会**静默返回空**（compose 会拿部署文件所在目录名 `generated` 当项目名）；`--project-directory` 少了会刷一串 "variable is not set" 警告。`brickkit up` 的输出里给的就是完整命令，直接复制。
+> `-p` 少了会**静默返回空**：compose 会拿当前目录名当项目名，去找一个不存在的项目——不报错、也没有输出，让人以为组件根本没打日志。
+>
+> `-f` 反倒不需要：compose 从容器标签就认得出项目。不带 `-f` 也就没有文件要插值，
+> 于是 `--project-directory`（指路去项目根找 `.env`）连同那串 "variable is not set" 警告一起消失了。
+> `brickkit up` 的输出里给的就是这条短命令，直接复制。
 
 ## 5.8 资源没起来会怎样
 
@@ -306,8 +308,7 @@ CLI **不会**替你先探一下——它只是照常把"要先跑起来什么"�
 报错来自**迁移容器**：
 
 ```bash
-docker compose -p brickkit-demo-shop -f .brickkit/generated/docker-compose.yaml \
-  --project-directory . logs demo-caller-1-0-0-migration
+docker compose -p brickkit-demo-shop logs demo-caller-1-0-0-migration
 # dial tcp 172.17.0.1:5432: connect: connection refused
 ```
 

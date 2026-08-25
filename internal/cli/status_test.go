@@ -76,6 +76,11 @@ func TestStatusHidesMigrationContainers(t *testing.T) {
 }
 
 // 还没 up 过时给出引导，而不是一张空表。
+//
+// 从前这里靠"生成的部署文件在不在"判断，据此打印"项目尚未启动过"。
+// 那个判据是错的（那份文件随时可能被 git clean 清掉），而且"还没起过"
+// 与"已经 down 过"引擎本来就分不出——所以现在两种情况给同一句话，
+// 它对两者都成立，也都指向同一个下一步。
 func TestStatusBeforeFirstUp(t *testing.T) {
 	f := composeProject(t)
 	eng := newFakeEngine()
@@ -83,8 +88,9 @@ func TestStatusBeforeFirstUp(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	assert.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "尚未启动")
+	assert.Contains(t, r.stdout, "没有正在运行的组件")
 	assert.Contains(t, r.stdout, "brickkit up")
+	assert.Contains(t, r.stdout, "未创建", "组件逐个列出来，而不是一张空表")
 }
 
 // 部署文件在、但引擎里一个容器都没有：说明被 down 掉了。

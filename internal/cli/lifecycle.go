@@ -1,6 +1,6 @@
 package cli
 
-// 本文件是 down / status 共用的部分：读部署文件、算启停、
+// 本文件是 down / status 共用的部分：读配置、算启停、
 // 把版本化服务名映射回"人认识的"组件 ID。
 //
 // up 之后的两个命令都在回答同一个问题的不同侧面："现在这个项目是什么样"。
@@ -9,8 +9,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/config"
@@ -20,23 +18,31 @@ import (
 	"github.com/brickkit/brickkit/internal/source"
 )
 
-// project 是"这个项目现在的样子"：配置 + 级联结论 + 部署文件位置。
+// project 是"这个项目现在的样子"：配置 + 级联结论。
+//
+// **刻意没有部署文件的位置，也没有"部署过没有"这个字段。**
+// 从前两者都有：`deployed` 取自 `.brickkit/generated/` 下那份生成物在不在，
+// `down` 与 `status` 据此提前返回"项目尚未启动过"，引擎一次都不调。
+//
+// 那是个会消失的判据——生成目录在 `.gitignore` 里，003 §7.1 还明说它
+// "整个都是可再生的，删掉重新 up 就会重建"。于是一次 `git clean -xdf`
+// 之后，两条命令双双谎报"尚未启动过"，而容器好好地跑着。
+// 这与 `DownRequest` 拿掉 `File` 是同一件事，当时只修了引擎那一层，
+// 闸门留在了这里。
+//
+// 现在两条命令都直接问引擎：容器跑没跑，只有引擎知道。
 type project struct {
 	layout config.Layout
 	cfg    *config.Config
 	graph  *resolver.Graph
 	states *cascade.Result
-	// file 是生成的部署文件路径。
-	file string
-	// deployed 表示部署文件存在（即至少 up 过一次）。
-	deployed bool
 	// order 是启动顺序（停止时倒着来）。
 	order []resolver.Ref
 	// localPorts 是 local: true 组件在宿主机上的监听端口。
 	localPorts map[resolver.Ref]int
 }
 
-// loadProject 读配置、算级联、定位部署文件。
+// loadProject 读配置、算级联。
 //
 // 不重新生成部署文件：down / status 面对的是**已经跑起来的东西**，
 // 重新生成只会掩盖"配置改了但还没 up"这个事实。
@@ -50,11 +56,7 @@ func loadProject(ctx context.Context, opts *Options) (*project, error) {
 	p := &project{
 		layout:     layout,
 		cfg:        cfg,
-		file:       deployedPath(layout, cfg),
 		localPorts: map[resolver.Ref]int{},
-	}
-	if _, err := os.Stat(p.file); err == nil {
-		p.deployed = true
 	}
 
 	if len(cfg.Components) == 0 {
@@ -117,25 +119,27 @@ func (p *project) localRefs() []resolver.Ref {
 	return out
 }
 
-// deployedPath 是"上次 up 生成了什么"的位置。
-//
-// 两种目标的形态不同：Docker 是一份文件，K8s 是一整个目录。
-// down / status 只关心"它在不在"——在，说明这个项目 up 过。
-func deployedPath(layout config.Layout, cfg *config.Config) string {
-	if cfg.Deploy.Target == config.TargetK8s {
-		return filepath.Join(layout.GeneratedDir(), k8sDirName)
-	}
-	return filepath.Join(layout.GeneratedDir(), composeFileName)
-}
-
 // logsCommand 拼出一条**真能用**的查看日志命令。
 //
-// `-p` 不能省：compose 会拿部署文件所在目录名（generated）当项目名，
-// 而容器在 brickkit-<项目> 底下——不带 -p 的命令会**静默返回空**，
-// 不报错也没有输出，使用者会以为组件根本没打日志。真跑验证时撞到过。
-func logsCommand(engineName, project, file, service string) string {
+// `-p` 不能省：不带它时 compose 拿当前目录名当项目名，而容器在
+// brickkit-<项目> 底下——那条命令会**静默返回空**，不报错也没有输出，
+// 使用者会以为组件根本没打日志。真跑验证时撞到过。
+//
+// # 但 `-f` 与 `--project-directory` 都可以省
+//
+// 这条命令从前长这样：
+//
+//	docker compose --project-directory . -p brickkit-x -f .brickkit/generated/docker-compose.yaml logs -f <服务名>
+//
+// 两个多出来的参数是互为因果的：带了 `-f`，compose 就要插值那份文件，
+// 于是要 `--project-directory` 指路去找项目根的 `.env`，否则每次看日志
+// 都先刷三行 "variable is not set"。
+//
+// 而 `logs` 根本不需要那份文件——compose 从容器标签就认得出项目
+// （实测 v5.3.1：删掉部署文件后 `-p X logs <服务>` 照常输出，且没有变量警告）。
+// 去掉 `-f`，`--project-directory` 也就一起没了，两个坑同时消失。
+func logsCommand(engineName, project, service string) string {
 	if engineName == engine.K8s {
-		// K8s 侧看的是 Deployment 的日志，与部署文件路径无关
 		target := "deployment/" + service
 		if service == "" || service == "<服务名>" {
 			target = "deployment/<服务名>"
@@ -143,12 +147,7 @@ func logsCommand(engineName, project, file, service string) string {
 		return fmt.Sprintf("kubectl logs %s -n %s", target, project)
 	}
 
-	const bin = "docker compose"
-	// --project-directory 也不能省：compose 会在**部署文件旁边**找 .env，
-	// 而使用者的 .env 在项目根。少了它，每次看日志都会先刷三行
-	// "The XXX variable is not set. Defaulting to a blank string."，
-	// 让人以为配置出了问题
-	command := fmt.Sprintf("%s --project-directory . -p %s -f %s logs", bin, project, file)
+	command := fmt.Sprintf("docker compose -p %s logs", project)
 	if service != "" {
 		command += " " + service
 	}

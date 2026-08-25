@@ -67,7 +67,7 @@ func (f *fakeEngine) Down(_ context.Context, req engine.DownRequest) error {
 	return f.downErr
 }
 
-func (f *fakeEngine) Status(_ context.Context, _, _ string) ([]engine.Status, error) {
+func (f *fakeEngine) Status(_ context.Context, _ string) ([]engine.Status, error) {
 	if f.statusErr != nil {
 		return nil, f.statusErr
 	}

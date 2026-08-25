@@ -49,12 +49,6 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 	if err != nil {
 		return err
 	}
-	if !p.deployed {
-		// 部署文件都没有，引擎那边不会有本项目的任何东西
-		opts.Printf("📋 项目尚未启动过（没有找到 %s）\n", displayPath(opts.WorkDir, p.file))
-		opts.Printf("   用 brickkit up 启动\n")
-		return nil
-	}
 
 	eng, err := resolveEngineFor(opts, p.cfg)
 	if err != nil {
@@ -65,6 +59,16 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 	}
 
 	opts.Printf("🛑 停止项目 %s\n", p.cfg.Project)
+
+	// 先问一句"现在有没有东西在跑"，只为决定最后那句话怎么说。
+	//
+	// 从前这里判的是"生成的部署文件在不在"，据此直接返回"项目尚未启动过"——
+	// 而那份文件在 .gitignore 里、文档还明说可以随时删（003 §7.1）。
+	// 一次 git clean 之后，down 就成了一条什么都不做却报成功的命令。
+	//
+	// 探测失败**不阻断**：停止本身照做。这一步只影响措辞，
+	// 拿它挡住真正的清理，等于用一个装饰性的检查换掉一次必要的操作。
+	running, probed := runningCount(ctx, eng, p.engineProject())
 
 	// 只交项目名，不交部署文件：停的是"这个项目现在跑着的一切"，
 	// 而不是"生成目录里此刻写着的那些"（005 §5.9.3）。停止顺序也在引擎里。
@@ -81,13 +85,34 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 		return engineFailure("停止", err)
 	}
 
-	renderDownResult(opts, p.cfg.Deploy.Target == config.TargetK8s)
-	logging.Info("项目已停止", "project", p.cfg.Project)
+	renderDownResult(opts, p.cfg.Deploy.Target == config.TargetK8s, running, probed)
+	logging.Info("项目已停止", "project", p.cfg.Project, "stopped", running)
 	return nil
 }
 
+// runningCount 数一下引擎里现在有几个本项目的容器 / Deployment。
+//
+// probed 为 false 表示没问出来（引擎报错）。那时不猜，按"有东西"处理——
+// 停止照做，只是最后那句话说得笼统些。
+func runningCount(ctx context.Context, eng engine.Engine, project string) (n int, probed bool) {
+	statuses, err := eng.Status(ctx, project)
+	if err != nil {
+		return 0, false
+	}
+	return len(statuses), true
+}
+
 // renderDownResult 汇报停止结果，并说清数据还在。
-func renderDownResult(opts *Options, k8sTarget bool) {
+//
+// 引擎里本来就一个都没有时说实话，而不是照例打印"已停止全部组件"——
+// 那句话在一个从没 up 过的项目上是句空话，而使用者真正想知道的是
+// "所以我现在该干什么"。
+func renderDownResult(opts *Options, k8sTarget bool, running int, probed bool) {
+	if probed && running == 0 {
+		opts.Printf("📋 本项目当前没有容器在跑（引擎里一个都没有）\n")
+		opts.Printf("   用 brickkit up 启动\n")
+		return
+	}
 	opts.Printf("✅ 已停止全部组件\n")
 
 	// 004 §3.6：down 不删数据卷。这一点必须主动说——

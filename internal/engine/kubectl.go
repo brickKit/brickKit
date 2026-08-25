@@ -375,7 +375,9 @@ func (k *Kubectl) CurrentContext(ctx context.Context) (string, error) {
 }
 
 // Status 返回该命名空间下所有 Deployment 的状态。
-func (k *Kubectl) Status(ctx context.Context, _, project string) ([]Status, error) {
+//
+// 这一侧本来就只按命名空间查——从前那个被忽略掉的 file 参数已经拿掉了。
+func (k *Kubectl) Status(ctx context.Context, project string) ([]Status, error) {
 	out, err := k.exec(ctx, k.args(project, "get", "deployments", "-o", "json")...)
 	if err != nil {
 		// 命名空间不存在只说明"还没 up 过"，不是故障
