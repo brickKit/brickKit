@@ -88,7 +88,7 @@ func (p *plan) networkPolicyDoc(c componentPlan) map[string]any {
 // 对方在的时候它是真的会去连的；漏在策略外面的表现极其迷惑——
 // 组件装了、起来了、健康检查也过，只有那条"可选"链路永远超时。
 //
-// 只放行本次真的会跑起来的依赖方：被级联跳过或显式关掉的组件不在 p.components 里，
+// 只放行本次真的会跑起来的依赖方：没被选中或显式关掉的组件不在 p.components 里，
 // 给它们留个口子没有意义。
 func (p *plan) dependentSources(c componentPlan) []any {
 	node := p.graph.Node(c.Ref)

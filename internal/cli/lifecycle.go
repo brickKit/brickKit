@@ -24,7 +24,7 @@ import (
 	"github.com/brickkit/brickkit/internal/source"
 )
 
-// project 是"这个项目现在的样子"：配置 + 级联结论 + 部署文件位置。
+// project 是"这个项目现在的样子"：配置 + 启停判定 + 部署文件位置。
 type project struct {
 	layout config.Layout
 	cfg    *config.Config
@@ -40,7 +40,7 @@ type project struct {
 	localPorts map[resolver.Ref]int
 }
 
-// loadProject 读配置、算级联、定位部署文件。
+// loadProject 读配置、算启停、定位部署文件。
 //
 // 不重新生成部署文件：down / status 面对的是**已经跑起来的东西**，
 // 重新生成只会掩盖"配置改了但还没 up"这个事实。

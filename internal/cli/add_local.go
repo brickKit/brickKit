@@ -101,9 +101,6 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 	} else {
 		opts.Printf("✅ 已写入 brickkit.yaml（%d 个组件）\n", len(added))
 	}
-	// 与单个 add 一致：弱依赖写进去了但默认不会启动，装完就得说。
-	// 传全部图：判定要看并集，逐图判断会把结论判反（见 renderWeakDependencyHint）
-	renderWeakDependencyHint(opts, graphs, added)
 	logging.Info("本地组件已批量添加",
 		"scanned", len(scan.Components), "problems", len(scan.Problems), "added", len(added))
 	return nil

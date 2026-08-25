@@ -1,6 +1,6 @@
 # 05 · Docker 启动全流程
 
-🎯 **这一节验证什么：** 从"改配置"到"四个组件跑起来"的完整链路：生成部署文件 → 建库 → 迁移 → 启动 → 查状态 → 停。
+🎯 **这一节验证什么：** 从"改配置"到"五个组件跑起来"的完整链路：生成部署文件 → 建库 → 迁移 → 启动 → 查状态 → 停。
 
 前置：**五组件基准 + 镜像**（见 [00](00-准备.md)）；Docker 可用；概念上接着 [02](02-添加与移除组件.md)。
 
@@ -59,7 +59,20 @@ resources:
         database: department
       - componentId: people/basic
         database: people
+
+  - kind: cache
+    engine: redis
+    id: redis-main
+    host: host.docker.internal
+    port: 6379
+    bindings:
+      - componentId: infra/redis-event-bus
 ```
+
+> **redis 那一段不能少。** `infra/redis-event-bus` 只被 `people/basic` **弱**依赖，
+> 但它照常启动（[04](04-组件开启模式.md)），而它自己声明了要一个 redis。
+> 漏掉这段的话 `brickkit up` 会直接阻断，说"资源依赖未满足"。
+> 真不想跑它，就给它写一行 `enabled: false`。
 
 再在**项目根目录**放一个 `.env`（`.gitignore` 里已经忽略了它）：
 
@@ -166,6 +179,7 @@ CLI 会先把这次要用到的基础资源连同要建的库一起列出来：
       需要库 caller（供 demo/caller 使用）：CREATE DATABASE "caller";
       需要库 department（供 department/tree 使用）：CREATE DATABASE "department";
       需要库 people（供 people/basic 使用）：CREATE DATABASE "people";
+   redis-main   redis        host.docker.internal:6379  供 infra/redis-event-bus 使用
    库也要预先建好；已经建过就无需再执行，建库是一次性操作
    本地开发想快速起一套：docker compose -f deploy/dev-resources/docker-compose.yaml up -d
 ```
@@ -217,11 +231,12 @@ brickkit up
    demo-hello-1-0-0             running（healthy）
    demo-caller-1-0-0            running（healthy）
    department-tree-1-0-0        running（healthy）
+   infra-redis-event-bus-1-0-0  running（healthy）
    people-basic-1-0-0           running（healthy）
-✅ 全部组件已启动（4 个）
+✅ 全部组件已启动（5 个）
 ```
 
-注意 `up` 是**等到健康才返回**的（compose 的 `--wait`）。它返回时，四个组件是真的可用，不是"启动命令发出去了"。
+注意 `up` 是**等到健康才返回**的（compose 的 `--wait`）。它返回时，五个组件是真的可用，不是"启动命令发出去了"。
 
 ### 迁移是怎么跑的
 
@@ -242,30 +257,29 @@ brickkit status
 ```
 📊 项目状态：demo-shop（deploy.target: docker）
 
-✅ 运行中（4 个组件）
- ┌─────────────────┬───────┬───────────────────┬────────────────────┐
- │ 组件            │ 版本  │ 状态              │ 端口               │
- ├─────────────────┼───────┼───────────────────┼────────────────────┤
- │ demo/hello      │ 1.0.0 │ 运行中（healthy） │ 8080/tcp           │
- │ demo/caller     │ 1.0.0 │ 运行中（healthy） │ 8080/tcp           │
- │ department/tree │ 1.0.0 │ 运行中（healthy） │ 8080/tcp           │
- │ people/basic    │ 1.0.0 │ 运行中（healthy） │ 8080/tcp, 9090/tcp │
- └─────────────────┴───────┴───────────────────┴────────────────────┘
-
-⬜ 未启动（1 个组件）
- ┌───────────────────────┬───────┬────────────────────────────────────────────────────────────┐
- │ 组件                  │ 版本  │ 原因                                                       │
- ├───────────────────────┼───────┼────────────────────────────────────────────────────────────┤
- │ infra/redis-event-bus │ 1.0.0 │ 级联跳过（只被弱依赖引用；需要它时请显式写 enabled: true） │
- └───────────────────────┴───────┴────────────────────────────────────────────────────────────┘
+✅ 运行中（5 个组件）
+ ┌───────────────────────┬───────┬───────────────────┬────────────────────┐
+ │ 组件                  │ 版本  │ 状态              │ 端口               │
+ ├───────────────────────┼───────┼───────────────────┼────────────────────┤
+ │ demo/hello            │ 1.0.0 │ 运行中（healthy） │ 8080/tcp           │
+ │ demo/caller           │ 1.0.0 │ 运行中（healthy） │ 8080/tcp           │
+ │ department/tree       │ 1.0.0 │ 运行中（healthy） │ 8080/tcp           │
+ │ infra/redis-event-bus │ 1.0.0 │ 运行中（healthy） │ 8080/tcp           │
+ │ people/basic          │ 1.0.0 │ 运行中（healthy） │ 8080/tcp, 9090/tcp │
+ └───────────────────────┴───────┴───────────────────┴────────────────────┘
 
 📦 资源状态
- ┌─────────┬──────────┬────────────────────────┐
- │ 资源    │ 类型     │ 状态                   │
- ├─────────┼──────────┼────────────────────────┤
- │ pg-main │ database │ 可达（localhost:5432） │
- └─────────┴──────────┴────────────────────────┘
+ ┌────────────┬──────────┬────────────────────────┐
+ │ 资源       │ 类型     │ 状态                   │
+ ├────────────┼──────────┼────────────────────────┤
+ │ pg-main    │ database │ 可达（localhost:5432） │
+ │ redis-main │ cache    │ 可达（localhost:6379） │
+ └────────────┴──────────┴────────────────────────┘
 ```
+
+五个组件全在跑，包括 `infra/redis-event-bus`——它只被 `people/basic` **弱**依赖，
+但"跑不跑"上强弱一视同仁（[04](04-组件开启模式.md)）。嫌它多余就给它写
+`enabled: false`，`people/basic` 会自己降级。
 
 `people/basic` 有两个端口——它的 `extraPorts` 声明了一个独立的 gRPC 端口（Python 的 grpcio 不能和 HTTP 共用端口）。
 

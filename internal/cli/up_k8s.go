@@ -2,7 +2,7 @@ package cli
 
 // 本文件是 deploy.target: k8s 那条路（005 §5）。
 //
-// 与 Docker 那条路共用前半段：读配置 → 升级检查 → 解析依赖 → 级联 → 注入。
+// 与 Docker 那条路共用前半段：读配置 → 升级检查 → 解析依赖 → 启停判定 → 注入。
 // 从"生成什么文件"开始分岔，因为两边确实是两回事：
 //
 //	Docker  一份 docker-compose.yaml，交给 docker compose

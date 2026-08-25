@@ -43,7 +43,7 @@ func newUpCommand(opts *Options) *cobra.Command {
 
 行为流程：
   1. 读取 brickkit.yaml 与所有组件 Manifest
-  2. 级联禁用计算（enabled 三种状态：钉住 / 默认开启可被级联 / 显式关闭）
+  2. 启停判定（不写 / enabled: true 都启动，只有 enabled: false 不启动）
   3. 检查强依赖（缺失报错）与弱依赖（缺失警告，且完全不注入环境变量）
   4. 拓扑排序得出启动顺序
   5. 生成 docker-compose.yaml，注入环境变量、合并资源配额
@@ -227,7 +227,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 
 	if plan.states.Empty() {
 		opts.Printf("📋 本次没有组件会启动\n")
-		opts.Printf("   把需要的组件改成 enabled: true，或移除 enabled: false\n")
+		opts.Printf("   移除需要的那些组件上的 enabled: false\n")
 		plan.done = true
 		return plan, nil
 	}
@@ -238,7 +238,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	//
 	// `--dry-run` 时降级成警告：那条命令的语义是"告诉我会发生什么"，
 	// 拿它阻断的话，一个还没配资源的项目连"看看会生成什么"都做不到
-	// （试用指南 04 讲 enabled 三态时用的正是这条命令，那时资源还没登场）。
+	// （试用指南 04 讲 enabled 时用的正是这条命令，那时资源还没登场）。
 	if problem := resolver.CheckRunningResourceBindings(
 		cfg, plan.graph, plan.states.Running()); problem != nil {
 		if !flags.dryRun {
@@ -281,7 +281,7 @@ func dryRunResourceWarning(problem *clierr.Error) *clierr.Error {
 
 // generate 按部署目标渲染部署文件（005 §5）。
 //
-// 两种目标共用到这一步为止的**全部**结论（依赖图、级联、注入），
+// 两种目标共用到这一步为止的**全部**结论（依赖图、启停判定、注入），
 // 只有渲染方式不同——规则写在渲染器里迟早会分叉（D138）。
 func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 	if p.cfg.Deploy.Target == config.TargetK8s {

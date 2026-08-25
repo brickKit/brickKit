@@ -1,8 +1,8 @@
 package cli
 
-// 本文件实现 brickkit sync（004 §3.9）：按级联计算结果整理组件源码工作区。
+// 本文件实现 brickkit sync（004 §3.9）：按"这次谁会启动"整理组件源码工作区。
 //
-// 它与 up 共用同一套级联计算，但**只动目录，不碰引擎**：
+// 它与 up 共用同一套启停判定，但**只动目录，不碰引擎**：
 // 运行中的容器一个都不受影响（004 §3.9 的职责对照表）。
 
 import (
@@ -36,7 +36,7 @@ sync 把它们挪进一个固定的目录——不打开就不用关心，要找
 
 两种用法：
 
-  brickkit sync --only <组件>    这几天只搞这几个：只留它们与它们的强依赖，
+  brickkit sync --only <组件>    这几天只搞这几个：只留它们与它们的依赖，
                                 其余全部归档。**brickkit.yaml 一个字节不动**
   brickkit sync                 回到与 brickkit up 一致：会启动的留下，
                                 不启动的归档。也是 --only 之后的"恢复"
@@ -48,7 +48,7 @@ sync 把它们挪进一个固定的目录——不打开就不用关心，要找
   - 只操作 brickkit.yaml 里声明过、且已有源码的组件
   - 整个目录连 .git 一起搬，归档后 git 命令照常
   - 不提供 --dry-run：搞错了再执行一次就回来了`,
-		Example: `  brickkit sync --only people/basic              只留人员组件与它的强依赖
+		Example: `  brickkit sync --only people/basic              只留人员组件与它的依赖
   brickkit sync --only people/basic,demo/hello   同时搞两个
   brickkit sync                                  恢复成与 brickkit up 一致`,
 		Args: cobra.NoArgs,
@@ -58,14 +58,13 @@ sync 把它们挪进一个固定的目录——不打开就不用关心，要找
 	}
 
 	cmd.Flags().StringSliceVar(&only, "only", nil,
-		"只保留指定组件及其强依赖，其余全部归档，逗号分隔，支持 @版本（不修改 brickkit.yaml）")
+		"只保留指定组件及其依赖，其余全部归档，逗号分隔，支持 @版本（不修改 brickkit.yaml）")
 	return cmd
 }
 
 // 归档 / 激活的原因（17.12）。
 const (
 	reasonDisabled = "显式禁用（enabled: false）"
-	reasonCascade  = "级联跳过（强依赖未启动）"
 	reasonRestored = "恢复启用"
 	// --only 的两个原因。与 up --only 用同一句话，两个命令说的是同一件事。
 	reasonNotSelected = "未被 --only 选中"
@@ -120,8 +119,8 @@ func runSync(ctx context.Context, opts *Options, only []string) error {
 //
 // 两条来路各自填这同一个结构，planSync 因此不需要知道这次是哪一种：
 //
-//	不带 --only   keep = 级联算出来会启动的那些（与 brickkit up 一致）
-//	带 --only     keep = 被点名的那些 + 它们的强依赖
+//	不带 --only   keep = 会启动的那些（与 brickkit up 一致）
+//	带 --only     keep = 被点名的那些 + 它们的依赖（强弱都算）
 type focus struct {
 	keep map[string]bool
 	// reason 是**没留下**的组件各自的理由，直接出现在输出里。
@@ -136,7 +135,7 @@ func newFocus(restored string) *focus {
 
 // syncFocus 算出这次要留下哪些组件。
 //
-// 两种来路都要先解析依赖图：级联需要它，--only 的强依赖闭包也需要它。
+// 两种来路都要先解析依赖图：启停判定需要它，--only 的依赖闭包也需要它。
 func syncFocus(
 	ctx context.Context, opts *Options, layout config.Layout, cfg *config.Config, only []string,
 ) (*focus, error) {
@@ -165,9 +164,9 @@ func syncFocus(
 	return focusCascade(cfg, states), nil
 }
 
-// focusCascade 走级联计算：留下的正是 brickkit up 这次会启动的那些。
+// focusCascade 留下的正是 brickkit up 这次会启动的那些。
 //
-// 与 up 完全同一套逻辑（003 §4.3）：两处各判一次，迟早会出现
+// 与 up 完全同一套判定（003 §4.3）：两处各判一次，迟早会出现
 // "up 会启动它、sync 却把它源码归档了"这种自相矛盾的局面。
 func focusCascade(cfg *config.Config, states *cascade.Result) *focus {
 	f := newFocus(reasonRestored)
@@ -187,14 +186,16 @@ func focusCascade(cfg *config.Config, states *cascade.Result) *focus {
 	return f
 }
 
-// focusOnly 走 `--only`：只留被点名的组件与它们的**强依赖**。
+// focusOnly 走 `--only`：只留被点名的组件与它们的**依赖**（强弱都算）。
+//
+// 闭包与 `up --only` 共用 cascade.DependencyClosure——"看得到的"与"跑得起来的"
+// 必须是同一批，否则会出现"跑着的组件源码被归档了"。
 //
 // # 为什么值得有这个参数
 //
 // 不带 --only 时，"留哪些"完全由 brickkit.yaml 里的 enabled 决定。于是
-// "这两天只搞人员组件"要先把不想要的根组件逐个写上 enabled: false、
-// 再把想要的写上 enabled: true（不写会被级联一起跳过）——试用指南 02
-// 演示这件事时，十个组件动了八行。
+// "这两天只搞人员组件"要把不想要的组件逐个写上 enabled: false——
+// 试用指南 02 演示这件事时，十个组件动了六行。
 //
 // 而 brickkit.yaml 是**提交进 Git、团队共享、带部署语义**的文件（003 §10.2），
 // "我今天看哪几个组件"却是个人的、临时的、只关工作区的偏好。绑在一起只剩两个坏选项：
@@ -214,10 +215,7 @@ func focusOnly(opts *Options, cfg *config.Config, graph *resolver.Graph, only []
 		return nil, err
 	}
 
-	keepRefs := map[resolver.Ref]bool{}
-	for _, ref := range selected {
-		addWithRequires(graph, ref, keepRefs)
-	}
+	keepRefs := cascade.DependencyClosure(graph, selected)
 
 	f := newFocus(reasonSelected)
 	for ref := range keepRefs {
@@ -229,7 +227,7 @@ func focusOnly(opts *Options, cfg *config.Config, graph *resolver.Graph, only []
 		}
 	}
 
-	opts.Printf("🎯 --only：只保留 %s 及其强依赖（brickkit.yaml 未修改）\n",
+	opts.Printf("🎯 --only：只保留 %s 及其依赖（brickkit.yaml 未修改）\n",
 		strings.Join(only, "、"))
 	return f, nil
 }
@@ -270,17 +268,16 @@ func planSync(layout config.Layout, cfg *config.Config, f *focus) []syncAction {
 }
 
 // skipReason 说明这个组件为什么不启动（17.12）。
+//
+// 不带 --only 时只剩一种可能：它自己写了 enabled: false。
+// 强依赖被关掉的组件不会走到这里——那种情况在启停判定里就报错了。
 func skipReason(c config.Component, states *cascade.Result) string {
-	if c.IsDisabled() {
-		return reasonDisabled
-	}
-	// 级联结果里带着更具体的原因（"强依赖 xxx 不启动"），优先用它
 	for _, state := range states.Components {
 		if state.Ref.ID == c.ID && state.Reason != "" {
 			return state.Reason
 		}
 	}
-	return reasonCascade
+	return reasonDisabled
 }
 
 // applySync 真的去移动目录，并如实汇报（17.11 / 17.12）。

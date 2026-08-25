@@ -72,7 +72,7 @@
 | 02 | [02-添加与移除组件.md](02-添加与移除组件.md) | 安装源、`add`、`add --local`、`sync` 整理源码工作区、`remove` | 01 |
 | 02a | [02a-专注在几个组件上.md](02a-专注在几个组件上.md) | **日常最常用的那个动作**：`sync --only` 把工作区收拢到今天要动的几个组件上，不改 `brickkit.yaml` | 02 |
 | 03 | [03-依赖与启动顺序.md](03-依赖与启动顺序.md) | `up --dry-run`、强/弱依赖、循环依赖、多版本共存 | `--baseline` |
-| 04 | [04-组件开启模式.md](04-组件开启模式.md) | **enabled 三态、级联禁用、`--only`、expose** | `--baseline` |
+| 04 | [04-组件开启模式.md](04-组件开启模式.md) | **enabled 的开与关、`--only`、local、expose** | `--baseline` |
 | 05 | [05-Docker启动全流程.md](05-Docker启动全流程.md) | `up` / `status` / `down`、迁移、资源、建库 | `--baseline` + `--images` |
 | 06 | [06-K8s部署.md](06-K8s部署.md) | minikube 上的完整部署、迁移 Job、Ingress | 05 + minikube |
 | 07 | [07-本地调试.md](07-本地调试.md) | `local: true`、`local-debug.env`、双向打通 | 05 |
@@ -99,7 +99,7 @@
 | 我要决定的事 | 选项 | 去哪 |
 | --- | --- | --- |
 | 部署到哪 | `docker` / `k8s` | [05](05-Docker启动全流程.md) · [06](06-K8s部署.md) · [16](16-K8s完整装配.md) |
-| 这个组件要不要跑 | `enabled` 三态（不写 / true / false） | [04](04-组件开启模式.md) |
+| 这个组件要不要跑 | `enabled`：不写 / `true` 都跑，只有 `false` 不跑 | [04](04-组件开启模式.md) |
 | 要不要对外暴露 | `expose` + `exposePort`（Docker）/ `hostname`（K8s） | [04](04-组件开启模式.md) · [06](06-K8s部署.md) |
 | 组件跑容器里还是跑我的 IDE | `local: true` | [07](07-本地调试.md) |
 | 数据库/Redis 谁来起 | `host` 含不含点 | [05](05-Docker启动全流程.md) |
@@ -176,7 +176,7 @@ cd <仓库根目录>
 | `component.yaml` 解析与校验 | [internal/manifest/](../internal/manifest/) | 002 |
 | 安装源（market / git / local） | [internal/source/](../internal/source/) | 003 §6 |
 | 依赖解析、拓扑排序 | [internal/resolver/](../internal/resolver/) | 004 §4 |
-| 级联启停（enabled 三态） | [internal/cascade/](../internal/cascade/) | 003 §4.3 |
+| 启停判定（enabled） | [internal/cascade/](../internal/cascade/) | 003 §4.3 |
 | 环境变量注入、资源配额合并 | [internal/inject/](../internal/inject/) | 004 §5.6、006 §5 |
 | 生成 docker-compose.yaml | [internal/compose/](../internal/compose/) | 005 §3 |
 | 生成 K8s 清单 | [internal/k8s/](../internal/k8s/) | 005 §5 |

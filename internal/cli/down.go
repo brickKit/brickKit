@@ -158,7 +158,7 @@ func downTargets(p *project, only []string) (downPlan, error) {
 			plan.untouched = append(plan.untouched, untouchedTarget{ref,
 				"local: true——它跑在你的 IDE 里，本项目没有它的容器"})
 		default:
-			// 本次级联没让它启动，因此也没生成它的 service
+			// 本次判定没让它启动，因此也没生成它的 service
 			plan.untouched = append(plan.untouched, untouchedTarget{ref,
 				"本次不启动，没有容器可停"})
 		}
