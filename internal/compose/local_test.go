@@ -522,6 +522,77 @@ func TestLocalDebugEnvMapsExtraPorts(t *testing.T) {
 	assert.ElementsMatch(t, []string{"18080:8080", "19090:9090"}, ports)
 }
 
+// ⚠️ 回归：依赖**既 expose 又有 extraPorts** 时，额外端口也必须映射。
+//
+// `expose: true` 只发布主端口。而 mapDependencyToHost 从前在 exposedPort
+// 命中时整个 return，于是这一种组合下额外端口一个都不映射——compose 里
+// 只有 "8090:8080"，local-debug.env 里却照样写着 http://localhost:9090，
+// 而宿主机的 9090 根本没人监听。
+//
+// 表现是 HTTP 通、gRPC 稳定 connection refused，两边配置看上去都没毛病：
+// 使用者会一路去查 gRPC 客户端、查组件代码，而问题在一行 return 上。
+func TestLocalDebugEnvMapsExtraPortsOfExposedDependency(t *testing.T) {
+	b := newBuilder(t)
+	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
+		config.Component{Local: true, LocalPort: 8081})
+	b.component(withExtraPort(simple("people/basic", "1.0.0", 8080), "grpc", 9090),
+		config.Component{Expose: true, ExposePort: 8090})
+
+	result := b.generate()
+	env := localEnv(t, result, "erp-backend-1-0-0")
+	ports := portsOf(t, serviceOf(t, docOf(t, result), "people-basic-1-0-0"))
+
+	// 主端口用 expose already 映射好的那个，不重复占一个宿主机端口
+	assert.Equal(t, "http://localhost:8090", env["PEOPLE_BASIC_ENDPOINT"])
+	// 额外端口必须另外映射一个出来
+	assert.Equal(t, "http://localhost:19090", env["PEOPLE_BASIC_GRPC_ENDPOINT"])
+	assert.ElementsMatch(t, []string{"8090:8080", "19090:9090"}, ports,
+		"expose 只管主端口，额外端口得自己映射")
+}
+
+// env 文件里写的每个 localhost 端口，compose 里都必须真有人把它发布出来。
+//
+// 这条守的是**不变量**而不是某一种组合：宿主机上的进程照着 env 文件去连，
+// 连到一个没发布的端口就是 connection refused，而它没有任何线索指向端口映射。
+// 上面那条 bug 正是这个不变量被破坏的一个实例。
+func TestEveryLocalhostEndpointIsActuallyPublished(t *testing.T) {
+	cases := []struct {
+		name  string
+		entry config.Component
+	}{
+		{"依赖不 expose", config.Component{}},
+		{"依赖 expose 且自定义端口", config.Component{Expose: true, ExposePort: 8090}},
+		{"依赖 expose 用默认端口", config.Component{Expose: true}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := newBuilder(t)
+			b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
+				config.Component{Local: true, LocalPort: 8081})
+			b.component(withExtraPort(simple("people/basic", "1.0.0", 8080), "grpc", 9090),
+				tc.entry)
+
+			result := b.generate()
+			env := localEnv(t, result, "erp-backend-1-0-0")
+			published := map[string]bool{}
+			for _, mapping := range portsOf(t, serviceOf(t, docOf(t, result), "people-basic-1-0-0")) {
+				host, _, _ := strings.Cut(mapping, ":")
+				published[host] = true
+			}
+
+			for name, value := range env {
+				rest, ok := strings.CutPrefix(value, "http://localhost:")
+				if !ok {
+					continue
+				}
+				assert.True(t, published[rest],
+					"%s=%s，但 compose 里没有把宿主机 %s 发布出来（已发布：%v）",
+					name, value, rest, published)
+			}
+		})
+	}
+}
+
 // 弱依赖没启动时，env 文件里同样一个字都不该有（002 §3.4）。
 func TestLocalDebugEnvOmitsMissingWeakDependency(t *testing.T) {
 	b := newBuilder(t)

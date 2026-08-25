@@ -221,23 +221,33 @@ func (p *plan) mapDependencyToHost(ports *portTable, dep resolver.Ref) {
 	if !p.rendered[service] {
 		return
 	}
-	// 已经 expose 过就用现成的端口，不重复映射（13.13）
-	if _, exposed := p.exposedPort[service]; exposed {
-		return
-	}
-	if _, done := p.debugPort[service]; done {
-		return
-	}
 
 	node := p.graph.Node(dep)
 	if node == nil || node.Manifest == nil {
 		return
 	}
 	owner := "组件 " + refText(dep) + "（供本地调试访问）"
-	p.debugPort[service] = ports.allocate(
-		hostPortOffset+node.Manifest.Deployment.Port, hostPortBase, owner)
 
+	// 主端口：expose 已经把它映射到宿主机了，用现成的那个，不重复占一个（13.13）
+	_, exposed := p.exposedPort[service]
+	_, mapped := p.debugPort[service]
+	if !exposed && !mapped {
+		p.debugPort[service] = ports.allocate(
+			hostPortOffset+node.Manifest.Deployment.Port, hostPortBase, owner)
+	}
+
+	// 额外端口要单独映射，**expose 与否都一样**。
+	//
+	// `expose: true` 只发布主端口（hostPortsOf 里那一行 `<宿主机端口>:<deployment.port>`），
+	// 额外端口一个都不在里面。而从前这个函数在 exposedPort 命中时整个 return，
+	// 于是"依赖既 expose 又有 extraPorts"这一种组合下额外端口一个都不映射，
+	// local-debug.env 里却照样写着 http://localhost:9090 ——
+	// 那个端口宿主机上根本没人监听。表现是 HTTP 通、gRPC 稳定 connection refused，
+	// 而两边的配置看上去都没毛病。
 	for _, extra := range node.Manifest.Deployment.ExtraPorts {
+		if _, done := p.debugExtraPort[service][extra.Port]; done {
+			continue
+		}
 		if p.debugExtraPort[service] == nil {
 			p.debugExtraPort[service] = map[int]int{}
 		}
@@ -413,8 +423,14 @@ func (p *plan) pointDependenciesAtLocalhost(l localComponent, vars []inject.Var)
 		for _, extra := range node.Manifest.Deployment.ExtraPorts {
 			port, ok := p.debugExtraPort[service][extra.Port]
 			if !ok {
-				// 依赖也是 local，或者它的额外端口没被映射：
-				// 两种情况下宿主机上都是原端口
+				// 只剩一种情况：依赖自己也是 local。它的进程就在宿主机上，
+				// 监听的还是 Manifest 里声明的那个额外端口（local 组件的额外端口
+				// 不重新分配，见 assignHostPorts 第 3 步）。
+				//
+				// 从前这里还兜着"它的额外端口没被映射"——那是 mapDependencyToHost
+				// 在依赖 expose 时提前 return 造成的漏洞，会写出一个宿主机上
+				// 没人监听的地址。现在额外端口无论 expose 与否都会映射，
+				// 这条兜底只服务于 local 依赖了。
 				port = extra.Port
 			}
 			setVar(vars, prefix+"_"+strings.ToUpper(extra.Name)+"_ENDPOINT",
