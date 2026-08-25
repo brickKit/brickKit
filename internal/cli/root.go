@@ -61,7 +61,7 @@ type Options struct {
 	// 命令层的职责是"决定谁该启动、先检查什么"，不是"怎么调 docker"；
 	// 把它做成注入点之后，这些决定可以在没有 Docker 的机器上被完整测试。
 	Engine engine.Engine
-	// Probe 检查一个 host:port 是否可达（status 的资源探测、--check-resources）。
+	// Probe 检查一个 host:port 是否可达（status 的资源探测）。
 	// 为空时用真实 TCP 拨号。
 	Probe func(ctx context.Context, address string) error
 }

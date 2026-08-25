@@ -150,7 +150,7 @@ func (p *plan) assignHostPorts() error {
 		if !c.Entry.Expose {
 			continue
 		}
-		hostPort, _ := exposeHostPort(c)
+		hostPort := exposeHostPort(c)
 		if err := ports.claim(hostPort, "组件 "+refText(c.Ref)+"（expose）"); err != nil {
 			return err
 		}

@@ -35,14 +35,6 @@ type fakeEngine struct {
 	currentContext string
 	// pruned 模拟"这次清理掉了这些孤儿资源"，通过 UpRequest.OnPrune 回传（P38）。
 	pruned []string
-	// networks 是"这台机器上已经存在的网络"，供 external 的启动前检查用（P39）。
-	// 为 nil 时当作一张都没有——external 依赖的项目没部署过，正是要测的那种情况。
-	networks map[string]bool
-}
-
-// HasNetwork 实现 engine.NetworkChecker。
-func (f *fakeEngine) HasNetwork(_ context.Context, name string) (bool, error) {
-	return f.networks[name], nil
 }
 
 func newFakeEngine() *fakeEngine {

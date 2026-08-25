@@ -34,8 +34,8 @@ const HostMachineAlias = "host.docker.internal"
 // DialHost 把资源的 host 换成**从宿主机拨号时**该用的名字。
 //
 // `host.docker.internal` 是 Docker 注入到**容器** /etc/hosts 里的，
-// Linux 的宿主机自己解析不了它。`brickkit status` 与 `--check-resources`
-// 都是从宿主机发起探测的，不换的话会对一个**完全健康**的资源报"不可达"——
+// Linux 的宿主机自己解析不了它。`brickkit status` 的资源探测
+// 是从宿主机发起的，不换的话会对一个**完全健康**的资源报"不可达"——
 // 而组件正连着它跑得好好的。
 //
 // 与 local-debug.env 里那次改写（compose 包）是**同一条规则**：

@@ -158,18 +158,18 @@ func imageError(image, output string, cause error) error {
 	}
 }
 
-// projectArgs 拼出 `-p <项目> -f <文件>`。
-//
-// 项目名必须显式给：compose 默认拿部署文件所在目录名当项目名，
-// 而我们的文件固定放在 .brickkit/generated/ 下——那样同一台机器上
-// 所有 BrickKit 项目在引擎眼里都叫 "generated"，彼此顶替。
 // CurrentContext 对 compose 没有意义：容器就起在本机上，没有"部到哪个集群"这回事。
 func (c *Compose) CurrentContext(context.Context) (string, error) { return "", nil }
 
-// projectDir 决定 compose 去哪里找 .env（见 UpRequest.ProjectDir）。
+// projectArgs 拼出 `-p <项目>`，按需再加 `-f <文件>` 与 `--project-directory`。
+//
+// **项目名必须显式给。** compose 不带 `-p` 时拿当前目录名当项目名，
+// 而我们的文件固定放在 .brickkit/generated/ 下——那样同一台机器上
+// 所有 BrickKit 项目在引擎眼里都叫 "generated"，彼此的容器互相顶替。
 //
 // file 为空时不带 `-f`：只有 `up` 需要那份文件（要照着它创建容器），
-// `ps` / `down` 从容器标签就认得出项目。
+// `ps` / `down` 从容器标签就认得出项目。projectDir 同理——它是为了让 compose
+// 去项目根找 `.env` 做插值，而没有 `-f` 就没有文件要插值（见 UpRequest.ProjectDir）。
 func (c *Compose) projectArgs(file, project, projectDir string) []string {
 	args := append([]string{}, c.base...)
 	if projectDir != "" {
@@ -414,23 +414,4 @@ func ProjectName(project string) string {
 		return "brickkit"
 	}
 	return fmt.Sprintf("brickkit-%s", project)
-}
-
-// HasNetwork 查一张 Docker 网络在不在（NetworkChecker）。
-//
-// 命令层用它在 `up` 之前拦下"external 依赖的项目还没部署"：compose 自己
-// 也会失败，但它给的是
-//
-//	network brickkit-platform-shared-net declared as external, but could not be found
-//
-// 这句话里没有"external 组件"、没有对方的项目名、也没有下一步该做什么。
-// 提前查一次，才能把这三样都说出来。
-func (c *Compose) HasNetwork(ctx context.Context, name string) (bool, error) {
-	if _, err := c.exec(ctx, "network", "inspect", name); err != nil {
-		// 查不到与查不动分不开：docker network inspect 对两者都是非零退出码。
-		// 但这里只用于**生成一句更好的错误**，误判的代价是漏报一次提示，
-		// 而不是错误地阻断——所以当作"不存在"即可。
-		return false, nil
-	}
-	return true, nil
 }

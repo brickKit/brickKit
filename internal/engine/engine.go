@@ -61,7 +61,10 @@ type UpRequest struct {
 	// 而 compose 对未定义的变量不报错，直接替换成空串：密码就这样静默变空了。
 	// K8s 目标不需要它（${VAR} 在生成时已求值）。
 	ProjectDir string
-	// Services 为空表示全部启动；非空时只启动这些 service（--only）。
+	// Services 为空表示全部启动；非空时只把这些 service 交给引擎。
+	//
+	// 现在它总是本次会启动的完整一批（`--only` 已删，003 §4.3：要收窄范围就改
+	// enabled）。留着这个字段是因为引擎不该假设调用方永远想全起。
 	Services []string
 	// Context 是 kubeconfig 上下文，只对 K8s 目标有意义；为空表示用当前 context。
 	Context string
@@ -84,9 +87,9 @@ type UpRequest struct {
 	Desired []string
 	// PruneSelector 是"本次允不允许清理孤儿"的开关，两种目标共用一个判据。
 	//
-	// **空表示不清理**，这不是省略而是一种明确的表达：`--only` 只部署子集，
-	// 那时 Services 里没有的组件并不是孤儿，照着清理会把它们全删掉——
-	// 比 P38 本身危险得多。命令层用"不给选择器"表达这件事。
+	// **空表示不清理**——引擎不替调用方假设"总是想清理"，那是命令层的判断。
+	// 现在命令层总会给出选择器（每次 up 都按完整配置生成），但这个表达留着：
+	// 一旦哪天又出现"只部署一个子集"的场景，Services 里没有的组件就不是孤儿了。
 	//
 	// 两种目标各自怎么落地：
 	//
@@ -172,16 +175,4 @@ type Engine interface {
 	// 只有 K8s 有意义（kubeconfig 的 current-context）；compose 引擎返回空串。
 	// 命令层据此拦下"部到了错误的集群"。
 	CurrentContext(ctx context.Context) (string, error)
-}
-
-// NetworkChecker 是**可选**能力：查一张网络在不在。
-//
-// 不放进 Engine 接口，因为"网络"是 Docker 的概念——K8s 那边跨命名空间
-// DNS 原生可用，没有对应的东西。命令层按需类型断言，断言不成立就跳过检查。
-//
-// 用途只有一个：`external` 组件（P39）依赖的是**别的项目**创建的网络，
-// 对方没部署时 compose 会报一句只有它自己看得懂的话（见 004 §3.5）。
-type NetworkChecker interface {
-	// HasNetwork 返回该网络是否存在。
-	HasNetwork(ctx context.Context, name string) (bool, error)
 }

@@ -258,21 +258,19 @@ func newPlan(
 // 两个组件抢同一个宿主机端口时，docker 会在启动到第二个容器时才失败，
 // 那时第一个已经起来了——不如在生成阶段就说清楚。
 func (p *plan) checkExposePorts() error {
-	type claim struct {
-		component string
-		explicit  bool
-	}
-	claimed := map[int]claim{}
+	// 只记"是谁占了"：报错要点名两个组件。占的是不是使用者显式写的
+	// exposePort 无所谓——两种情况的出路是同一条（给其中一个设 exposePort）
+	claimed := map[int]string{}
 
 	for _, c := range p.components {
 		if !c.Entry.Expose {
 			continue
 		}
-		hostPort, explicit := exposeHostPort(c)
+		hostPort := exposeHostPort(c)
 		if previous, taken := claimed[hostPort]; taken {
 			return clierr.Newf(clierr.CodePortConflict,
 				"错误：宿主机端口 %d 被多个组件占用", hostPort).
-				WithDetail("组件", previous.component).
+				WithDetail("组件", previous).
 				WithDetail("组件", c.Ref.ID+"@"+c.Ref.Version).
 				WithDetailf("宿主机端口", "%d", hostPort).
 				WithHint(
@@ -280,17 +278,17 @@ func (p *plan) checkExposePorts() error {
 					"或去掉其中一个组件的 expose: true（组件之间在容器网络内互访不需要 expose）",
 				)
 		}
-		claimed[hostPort] = claim{component: c.Ref.ID + "@" + c.Ref.Version, explicit: explicit}
+		claimed[hostPort] = c.Ref.ID + "@" + c.Ref.Version
 	}
 	return nil
 }
 
 // exposeHostPort 返回宿主机端口：exposePort 优先，否则用组件主端口。
-func exposeHostPort(c componentPlan) (port int, explicit bool) {
+func exposeHostPort(c componentPlan) int {
 	if c.Entry.ExposePort > 0 {
-		return c.Entry.ExposePort, true
+		return c.Entry.ExposePort
 	}
-	return c.Manifest.Deployment.Port, false
+	return c.Manifest.Deployment.Port
 }
 
 // services 渲染 services 段。
@@ -378,7 +376,7 @@ func (p *plan) componentService(c componentPlan) map[string]any {
 // **基础资源不出现在这里**：平台不部署它们（006 §9.1），compose 文件里
 // 根本没有对应的 service，写进 depends_on 只会让 compose 直接报错。
 // 资源没起来时组件自己会连不上——这正是 `up` 每次都把"要先跑起来什么"
-// 列出来、以及 `--check-resources` 存在的理由。
+// 列出来的理由（那是一句**声明**，不是替使用者去探测一遍，006 §8）。
 func (p *plan) componentDependsOn(c componentPlan) map[string]any {
 	dependsOn := map[string]any{}
 
