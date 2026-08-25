@@ -95,9 +95,11 @@ type UpRequest struct {
 	//	Docker  compose 的 `--remove-orphans` 就是这件事，选择器的值用不上，
 	//	        只用"空 / 非空"决定带不带这个参数。
 	//
-	// 早先 Docker 侧无条件带 `--remove-orphans`，以为它与 K8s 侧的清理等价。
-	// 其实相反：`--only` 生成的 compose 文件只含被点名的子集，其余组件与
-	// CLI 托管的资源容器全都成了 orphan，一条 `up --only` 就把它们全删了。
+	// 早先这里有过一个分支：`--only` 只起子集时两边都不清理，否则那份只含
+	// 被点名组件的 compose 文件会让其余正在服务的组件全成了 orphan，
+	// 一条 `up --only` 就把它们删光。`--only` 删除之后分支跟着消失了——
+	// 现在每次 up 都按完整配置生成，文件里没有的只可能是使用者关掉的，
+	// 删掉它的容器正是他要的（005 §5.9.2）。
 	PruneSelector string
 	// OnPrune 在清理掉一个孤儿资源时回调，供命令层如实汇报；为 nil 时不回调。
 	//
@@ -107,11 +109,15 @@ type UpRequest struct {
 }
 
 // DownRequest 是一次停止请求。
+//
+// **刻意没有 File 字段。** down 的身份是项目名（compose 的标签 / K8s 的
+// brickkit.io/project），不是那份生成出来的部署文件——文件回答的是"这次打算
+// 跑什么"，而 `up --dry-run` 也会重写它。拿它当"上次实际部署了什么"来删，
+// 少一个 service 就漏停一个容器，命令却照样报成功（005 §5.9.3）。
+//
+// 字段留着就迟早有人用回去，所以这里把它整个拿掉：两个引擎都不可能再读到它。
 type DownRequest struct {
-	File    string
 	Project string
-	// ProjectDir 同 UpRequest.ProjectDir。
-	ProjectDir string
 	// Context 同 UpRequest.Context。
 	Context string
 	// DeleteNamespace 表示可以连命名空间一起删（只对 K8s 目标有意义）。
@@ -119,8 +125,6 @@ type DownRequest struct {
 	// 命名空间不是我们建的（deploy.createNamespace: false）就不能由我们删——
 	// 那是别人的命名空间，里面可能还跑着别的东西。
 	DeleteNamespace bool
-	// Services 为空表示整个项目停掉；非空时只停这些 service。
-	Services []string
 }
 
 // Engine 是容器引擎的统一抽象。

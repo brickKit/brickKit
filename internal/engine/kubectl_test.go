@@ -200,42 +200,61 @@ func TestKubectlUpWaitsForRollout(t *testing.T) {
 // 停止
 // ============================================================
 
-// 整个项目停掉：删掉整个目录里的东西。
+// 命名空间是我们建的：直接删命名空间，里面的东西跟着走。
 //
-// -R 不能省：清单分散在 deployments/ services/ 等子目录里，
-// 不加 -R 的话 kubectl 只会看目录第一层，删了个 namespace.yaml 就完事——
-// 恰好那一条又会把整个命名空间连带删掉，看起来"成功了"，实际是误打误撞。
-func TestKubectlDownIsRecursive(t *testing.T) {
+// 比逐类删干净，也不会漏掉将来新增、而 deleteKinds 忘了登记的资源类型。
+func TestKubectlDownDeletesOwnNamespace(t *testing.T) {
 	rec := newRecorder()
 
 	require.NoError(t, kubectlWith(rec).Down(context.Background(), DownRequest{
-		File: "/p/k8s", Project: "brickkit-my-erp", DeleteNamespace: true,
+		Project: "brickkit-my-erp", DeleteNamespace: true,
 	}))
 
 	command := rec.lastCall(t)
 
-	assert.Contains(t, command, "delete")
-	assert.Contains(t, command, "-R", "子目录里的清单也要删")
+	assert.Contains(t, command, "delete namespace brickkit-my-erp")
 	assert.Contains(t, command, "--ignore-not-found", "没起过的项目 down 一次不该报错")
 }
 
-// 命名空间不是我们建的时候，绝不能扫到 namespace.yaml。
+// 命名空间不是我们建的时候，只删带本项目标签的资源，绝不碰命名空间。
 //
-// 那是别人的命名空间，里面多半还跑着别的东西——`delete -R` 一旦扫到
-// 一份残留的 namespace.yaml，就会把整个团队的东西一起端了。
+// 那是别人的命名空间，里面多半还跑着别的东西——删掉等于把整个团队一起端了。
 func TestKubectlDownKeepsForeignNamespace(t *testing.T) {
 	rec := newRecorder()
 
 	require.NoError(t, kubectlWith(rec).Down(context.Background(), DownRequest{
-		File: "/p/k8s", Project: "team-a-prod", DeleteNamespace: false,
+		Project: "team-a-prod", DeleteNamespace: false,
 	}))
 
 	for _, command := range rec.commands() {
-		assert.NotContains(t, command, "-R", "不能递归扫整个目录")
-		assert.NotContains(t, command, "namespace", "更不能碰命名空间")
+		assert.NotContains(t, command, "delete namespace", "不能碰命名空间")
 		assert.Contains(t, command, "-n team-a-prod")
+		assert.Contains(t, command, "-l brickkit.io/project=team-a-prod",
+			"按标签删，不按生成目录删")
 	}
-	assert.NotEqual(t, -1, indexOfCommand(rec.commands(), "deployments"), "但该删的还是要删")
+	assert.NotEqual(t, -1, indexOfCommand(rec.commands(), "delete deployment"),
+		"但该删的还是要删")
+}
+
+// down 一个字节都不读生成目录（005 §5.9.3）。
+//
+// 那份目录回答的是"这次打算部署什么"，而 `up --dry-run` 也会重写它。
+// 拿它当"上次实际部署了什么"来删，少一个文件就漏删一个 Deployment，
+// 而命令照样报成功——Docker 侧真跑出过这个结果，K8s 侧是同一个毛病。
+//
+// DownRequest 里已经没有 File 字段（那是结构性的保证），这里再守一道：
+// 就算将来有人从别处把路径传进来，命令里也不该出现 -f。
+func TestKubectlDownNeverReadsTheGeneratedDir(t *testing.T) {
+	rec := newRecorder()
+
+	require.NoError(t, kubectlWith(rec).Down(context.Background(), DownRequest{
+		Project: "team-a-prod", DeleteNamespace: false,
+	}))
+
+	for _, command := range rec.commands() {
+		assert.NotContains(t, command, "-f ", "不能用 -f 删")
+		assert.NotContains(t, command, "-R", "更不能递归扫整个生成目录")
+	}
 }
 
 // --context 要出现在每一条命令里。
@@ -275,23 +294,6 @@ func TestKubectlCurrentContext(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "prod-cluster", current, "结尾的换行要去掉")
-}
-
-// 只停部分组件：删对应的 Deployment，其余不动。
-func TestKubectlDownPartial(t *testing.T) {
-	rec := newRecorder()
-
-	require.NoError(t, kubectlWith(rec).Down(context.Background(), DownRequest{
-		File: "/p/k8s", Project: "brickkit-my-erp",
-		Services: []string{"people-basic-1-0-0"},
-	}))
-
-	command := rec.lastCall(t)
-
-	assert.Contains(t, command, "delete deployment/people-basic-1-0-0")
-	assert.Contains(t, command, "-n brickkit-my-erp")
-	assert.NotContains(t, command, "-R", "只停一部分时不能删整个目录")
-	assert.NotContains(t, command, "namespace", "更不能把命名空间删掉——别的组件还在里面跑")
 }
 
 // ============================================================

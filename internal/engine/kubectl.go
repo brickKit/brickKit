@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/logging"
 )
 
@@ -280,58 +281,67 @@ func (k *Kubectl) waitRollout(ctx context.Context, req UpRequest) error {
 }
 
 // Down 删除本项目在集群里的一切。
+//
+// # 只认项目标签，不认生成目录
+//
+// 与 Docker 侧同一条规则（见 Compose.Down）：生成目录回答的是"这次打算部署
+// 什么"，而它会被 `up --dry-run` 重写——拿它当"上次实际部署了什么"来删，
+// 少一个文件就漏删一个 Deployment，而命令照样报成功。
+//
+// prune 那段注释早就点破过这件事（"`down` 也只删生成目录里有的，那是永久泄漏"），
+// 当时只给 up 补了按标签清理，down 这条路留到了现在。
+//
+// 命名空间是唯一的例外，两条路差别很大：
+//
+//	我们建的（createNamespace 缺省 true）  直接删命名空间，里面的东西跟着走
+//	运维建的（createNamespace: false）     只删带本项目标签的资源，绝不碰命名空间
+//
+// 后者里删除顺序仍然是部署顺序的反序：先删 ingress 再删 deployment，
+// 中间那一小段时间外面打进来的请求会干脆地 404，
+// 而不是打到一个正在消失的后端上超时。
 func (k *Kubectl) Down(ctx context.Context, req DownRequest) error {
 	k.context = req.Context
 
-	if len(req.Services) > 0 {
-		// 只停一部分：删对应的 Deployment 就够了。
-		// 不能删命名空间——别的组件还在里面跑
-		args := k.args(req.Project, "delete")
-		for _, service := range req.Services {
-			args = append(args, "deployment/"+service)
-		}
-		_, err := k.exec(ctx, append(args, "--ignore-not-found")...)
+	if req.DeleteNamespace {
+		// 命名空间是我们建的，删它就等于删掉里面的一切——比逐类删干净，
+		// 也不会漏掉将来新增、而这里忘了登记的资源类型
+		_, err := k.exec(ctx, k.args("", "delete", "namespace", req.Project,
+			"--ignore-not-found")...)
 		return err
 	}
 
-	if !req.DeleteNamespace {
-		// 命名空间不是我们建的（deploy.createNamespace: false），就不能由我们删——
-		// 那是别人的命名空间，里面多半还跑着别的东西，删掉等于把整个团队一起端了。
-		// 因此逐个子目录删，绝不用 -R 扫到 namespace.yaml
-		for _, dir := range manifestDirs() {
-			if err := k.deleteDir(ctx, req.Project, req.File, dir); err != nil {
-				return err
-			}
+	// 命名空间不是我们建的，那是别人的地盘：只删带本项目标签的资源，
+	// 逐类删而不是一把梭，好保住那个删除顺序
+	selector := k8s.LabelProject + "=" + req.Project
+	for _, kind := range deleteKinds() {
+		if _, err := k.exec(ctx, k.args(req.Project,
+			"delete", kind, "-l", selector, "--ignore-not-found")...); err != nil {
+			return err
 		}
-		return nil
 	}
-
-	// -R 不能省：清单分散在 deployments/ services/ 等子目录里，不加 -R 的话
-	// kubectl 只看目录第一层
-	_, err := k.exec(ctx, k.args("", "delete", "-R", "-f", req.File, "--ignore-not-found")...)
-	return err
+	return nil
 }
 
-// manifestDirs 是删除顺序：部署顺序反过来走。
+// deleteKinds 是删除顺序：部署顺序反过来走。
 //
-// 反序不只是对称好看——先删 ingress 再删 deployment，中间那一小段时间里
-// 外面打进来的请求会干脆地 404，而不是打到一个正在消失的后端上超时。
-func manifestDirs() []string {
+// 用的是 pruneKinds（同样**刻意不含 namespace**），但排成清单子目录的反序——
+// 两处列的是同一批东西，只是一个按类型、一个按目录。以 applyOrder 为准排序，
+// 是为了让"先 ingress 后 deployment"这条唯一真正重要的约束由一处决定。
+func deleteKinds() []string {
+	// 子目录名 → 资源类型，只登记两者对不上的那几个
+	byDir := map[string]string{
+		"secrets": "secret", "serviceaccounts": "serviceaccount",
+		"networkpolicies": "networkpolicy", "migrations": "job",
+		"deployments": "deployment", "services": "service",
+		"poddisruptionbudgets": "poddisruptionbudget", "ingress": "ingress",
+	}
 	out := make([]string, 0, len(applyOrder))
 	for i := len(applyOrder) - 1; i >= 0; i-- {
-		out = append(out, applyOrder[i])
+		if kind, ok := byDir[applyOrder[i]]; ok {
+			out = append(out, kind)
+		}
 	}
 	return out
-}
-
-// deleteDir 删掉一个子目录里的清单；目录不存在就跳过。
-func (k *Kubectl) deleteDir(ctx context.Context, namespace, root, name string) error {
-	target := path.Join(root, name)
-	if !k.exists(target) {
-		return nil
-	}
-	_, err := k.exec(ctx, k.args(namespace, "delete", "-f", target, "--ignore-not-found")...)
-	return err
 }
 
 // CurrentContext 返回 kubeconfig 当前的 context。

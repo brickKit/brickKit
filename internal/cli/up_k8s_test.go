@@ -202,7 +202,8 @@ func TestDownK8s(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
 	require.Len(t, eng.downs, 1)
-	assert.Equal(t, k8sDir(f), eng.downs[0].File)
+	// 交给引擎的只有项目名（这里就是命名空间）：down 不认生成目录，
+	// 那份目录会被 up --dry-run 重写（005 §5.9.3）
 	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project)
 }
 

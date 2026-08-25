@@ -111,7 +111,7 @@ func TestDownNeverRemovesVolumes(t *testing.T) {
 	rec := newRecorder()
 
 	require.NoError(t, dockerWith(rec).Down(context.Background(), DownRequest{
-		File: "f.yaml", Project: "brickkit-my-erp",
+		Project: "brickkit-my-erp",
 	}))
 
 	call := rec.lastCall(t)
@@ -120,19 +120,27 @@ func TestDownNeverRemovesVolumes(t *testing.T) {
 	assert.NotContains(t, call, "--volumes")
 }
 
-// 只停部分组件时用 rm -sf 而不是 down：
-// down 会把网络一起拆掉，剩下还在跑的组件会瞬间失去彼此。
-func TestDownPartialUsesRemoveNotDown(t *testing.T) {
+// down 停的是**项目**，命令里不该出现任何文件路径（005 §5.9.3）。
+//
+// 从前它带着 `-f <生成的 compose 文件>`，于是停掉的是"文件里写着的那些
+// service"而不是"这个项目实际跑着的那些"。两者会分叉，因为
+// `up --dry-run` 也会重写那份文件——它本该只回答"这次打算跑什么"。
+//
+// 真跑出来过：up 起两个组件 → 给其中一个写 enabled: false → up --dry-run
+// 看一眼 → down，另一个容器继续 Up (healthy)，而 CLI 打印"已停止全部组件"。
+func TestDownIdentifiesTheProjectByNameNotByFile(t *testing.T) {
 	rec := newRecorder()
 
 	require.NoError(t, dockerWith(rec).Down(context.Background(), DownRequest{
-		File: "f.yaml", Project: "brickkit-my-erp",
-		Services: []string{"erp-backend-1-0-0"},
+		Project: "brickkit-my-erp",
 	}))
 
 	call := rec.lastCall(t)
-	assert.Contains(t, call, "rm -sf erp-backend-1-0-0")
-	assert.NotContains(t, call, " down")
+	assert.Contains(t, call, "-p brickkit-my-erp")
+	assert.Contains(t, call, "--remove-orphans",
+		"任何来源的孤儿都要一并收走：手工改过文件、上一次 up 中断留下的")
+	assert.NotContains(t, call, "-f ", "不能再认那份生成出来的文件")
+	assert.NotContains(t, call, ".yaml", "命令里不该出现任何文件路径")
 }
 
 // ============================================================
@@ -376,15 +384,20 @@ func TestUpReadsDotEnvFromProjectDirectory(t *testing.T) {
 	assert.Contains(t, rec.lastCall(t), "--project-directory /p")
 }
 
-func TestDownReadsDotEnvFromProjectDirectory(t *testing.T) {
+// down 不需要 .env，也就不需要 --project-directory。
+//
+// 那条 --project-directory 是为 up 加的：compose 默认在部署文件旁边找 .env，
+// 而我们的文件固定在 .brickkit/generated/ 下，使用者的 .env 在项目根。
+// down 不再读任何文件，也就没有 ${VAR} 要展开——多传一个目录只会让人
+// 以为它还在读那边的东西。
+func TestDownNeedsNoProjectDirectory(t *testing.T) {
 	rec := newRecorder()
 
 	require.NoError(t, dockerWith(rec).Down(context.Background(), DownRequest{
-		File: "/p/.brickkit/generated/docker-compose.yaml", Project: "brickkit-demo",
-		ProjectDir: "/p",
+		Project: "brickkit-demo",
 	}))
 
-	assert.Contains(t, rec.lastCall(t), "--project-directory /p")
+	assert.NotContains(t, rec.lastCall(t), "--project-directory")
 }
 
 // 没给项目目录时不能瞎编一个：compose 会退回它自己的默认行为。

@@ -137,7 +137,7 @@ BrickKit CLI **不是常驻服务**。`brickkit up` 会一直等到组件健康�
 
 | 东西 | 怎么停 | 怎么彻底删掉 |
 | --- | --- | --- |
-| 项目里的组件容器 | `brickkit down` | `docker compose -p brickkit-<项目名> -f .brickkit/generated/docker-compose.yaml down -v`（`-v` 连数据卷一起删） |
+| 项目里的组件容器 | `brickkit down` | `docker compose -p brickkit-<项目名> down -v --remove-orphans`（`-v` 连数据卷一起删） |
 | minikube 集群 | `minikube stop` | `minikube delete` |
 | 市场后端 | `cd deploy/market && docker compose down` | `docker compose down -v` |
 

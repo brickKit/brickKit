@@ -66,9 +66,10 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 
 	opts.Printf("🛑 停止项目 %s\n", p.cfg.Project)
 
-	// Services 为空 = 停整个项目，停止顺序交给引擎（compose 本身就按依赖倒序停）
+	// 只交项目名，不交部署文件：停的是"这个项目现在跑着的一切"，
+	// 而不是"生成目录里此刻写着的那些"（005 §5.9.3）。停止顺序也在引擎里。
 	if err := eng.Down(ctx, engine.DownRequest{
-		File: p.file, Project: p.engineProject(), ProjectDir: opts.WorkDir,
+		Project: p.engineProject(),
 		Context: contextOf(p.cfg, kubeContext),
 		// 命名空间不是我们建的就不能由我们删
 		DeleteNamespace: p.cfg.Deploy.ShouldCreateNamespace(),

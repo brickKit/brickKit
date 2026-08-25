@@ -4,7 +4,6 @@ package cli
 
 import (
 	"errors"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,9 +34,9 @@ func TestDownStopsTheProject(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	require.Len(t, eng.downs, 1)
-	assert.Empty(t, eng.downs[0].Services, "不带 --only 就是整个项目")
-	assert.Equal(t, filepath.Join(f.Dir, ".brickkit", "generated", "docker-compose.yaml"),
-		eng.downs[0].File)
+	// 交给引擎的只有项目名：停的是"这个项目现在跑着的一切"，
+	// 而不是"生成目录里此刻写着的那些"（005 §5.9.3）
+	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project)
 	assert.Contains(t, r.stdout, "已停止")
 }
 
@@ -141,5 +140,6 @@ func TestDownDelegatesStopOrderToTheEngine(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	require.Len(t, eng.downs, 1)
-	assert.Empty(t, eng.downs[0].Services, "空服务名单 = 整个项目，顺序由引擎负责")
+	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project,
+		"只交项目名，顺序由引擎负责")
 }

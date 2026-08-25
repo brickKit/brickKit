@@ -34,9 +34,10 @@ func (c *Compose) Name() string { return c.name }
 // `up -d` 只保证"启动命令发出去了"：依赖链末端的组件此刻多半还是
 // health=starting，紧接着查状态会得到一个假的失败结论。
 //
-// `--remove-orphans` 只在 PruneSelector 非空时带上，理由见该字段的说明：
-// 它删的是"compose 文件里没有的容器"，而 `--only` 生成的文件只含被点名的
-// 子集——无条件带上就等于把没点名、正在服务的组件全部下线（005 §5.9.1）。
+// `--remove-orphans` 由 PruneSelector 是否非空来决定。`--only` 删除之后
+// 命令层其实总会给出选择器（每次 up 都按完整配置生成），但这个条件留着：
+// 引擎不该假设调用方永远想清理——那是命令层的判断，K8s 侧同一个字段
+// 也是这么用的（005 §5.9.1）。
 func (c *Compose) Up(ctx context.Context, req UpRequest) error {
 	args := append(c.projectArgs(req.File, req.Project, req.ProjectDir), "up", "-d", "--wait")
 	if req.PruneSelector != "" {
@@ -50,18 +51,29 @@ func (c *Compose) Up(ctx context.Context, req UpRequest) error {
 	return nil
 }
 
-// Down 停止。**不带 -v**：数据卷（数据库数据）必须保留（004 §3.6）。
+// Down 停止整个项目。**不带 -v**：数据卷（数据库数据）必须保留（004 §3.6）。
+//
+// # 只认项目名，不认部署文件
+//
+// 从前这里带着 `-f <生成的 compose 文件>`，于是 down 停掉的是"**文件里写着**
+// 的那些 service"，而不是"这个项目**实际跑着**的那些"。两者会分叉，
+// 因为那份文件被不止一条命令写：`up --dry-run` 也会重写它（它本该只回答
+// "这次打算跑什么"，却顺手改掉了"上次实际部署了什么"的唯一记录）。
+//
+// 真跑出来的样子：up 起两个组件 → 给其中一个写 enabled: false → up --dry-run
+// 看一眼 → down。文件里此刻只剩一个 service，compose 就只拆那一个，
+// 另一个容器**继续跑着**，而 CLI 拿到 exit 0，照样打印"已停止全部组件"。
+// 一条谎报成功的命令比一条失败的命令危险得多。
+//
+// 项目名才是这批容器的身份（compose 把它写在每个容器的标签上），
+// 文件只是中间人。去掉 `-f` 之后 compose 从标签认项目，顺手把任何来源的
+// 孤儿一并收走——手工改过文件、上一次 up 中断留下的，都在内。
+//
+// 三种边界都验过：cwd 里另有一份别人的 docker-compose.yaml 不受干扰
+// （compose 走标签，不读它）；项目已经空了再执行一次是 exit 0 + 一条警告；
+// 项目根本不存在同样是 exit 0。
 func (c *Compose) Down(ctx context.Context, req DownRequest) error {
-	var args []string
-	if len(req.Services) == 0 {
-		args = append(c.projectArgs(req.File, req.Project, req.ProjectDir), "down")
-	} else {
-		// 只停部分组件用 stop + rm，而不是 down：down 会连网络一起拆掉，
-		// 剩下还在跑的组件会瞬间失去彼此
-		args = append(c.projectArgs(req.File, req.Project, req.ProjectDir), "rm", "-sf")
-		args = append(args, req.Services...)
-	}
-
+	args := append(append([]string{}, c.base...), "-p", req.Project, "down", "--remove-orphans")
 	_, err := c.exec(ctx, args...)
 	return err
 }

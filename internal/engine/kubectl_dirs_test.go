@@ -29,20 +29,43 @@ func TestApplyOrderCoversGeneratedDirs(t *testing.T) {
 			"生成器新增一类清单时，engine/kubectl.go 的 applyOrder 也要加上")
 }
 
-// 删除顺序是部署顺序的严格反序。
+// 删除的资源类型必须**逐类覆盖**每一个生成子目录，且顺序是部署顺序的严格反序。
+//
+// down 改成按标签删之后（不再 kubectl delete -f 目录），子目录名要换成资源类型，
+// 中间隔了一张映射表——而这个文件存在的理由正是"两个包各写各的字符串字面量"。
+// 映射表漏一项，deleteKinds 会**静默少删一类**：清单照样生成、照样 apply，
+// down 却删不掉它，下次 up 撞上残留。所以这里查的是**数目对得上**，
+// 不只是"已有的那几项排对了"。
 //
 // 反序不只是对称：先删 ingress 再删 deployment，中间那一小段时间里外面打进来的
 // 请求会干脆地 404，而不是打到一个正在消失的后端上超时。
-func TestManifestDirsIsReverseOfApplyOrder(t *testing.T) {
-	dirs := manifestDirs()
+func TestDeleteKindsCoversEveryDirInReverseOrder(t *testing.T) {
+	kinds := deleteKinds()
 
-	if !assert.Len(t, dirs, len(applyOrder)) {
+	if !assert.Len(t, kinds, len(applyOrder),
+		"每个生成子目录都要对应一个删除类型——deleteKinds 里的映射表漏项了") {
 		return
 	}
-	for i, dir := range dirs {
-		assert.Equal(t, applyOrder[len(applyOrder)-1-i], dir,
-			"删除顺序必须是部署顺序的反序，第 %d 项对不上", i)
+	// 反序：ingress 在最前，secrets 在最后
+	assert.Equal(t, "ingress", kinds[0], "ingress 必须最先删")
+	assert.Equal(t, "secret", kinds[len(kinds)-1], "secret 最后删")
+
+	index := map[string]int{}
+	for i, kind := range kinds {
+		index[kind] = i
 	}
+	assert.Less(t, index["ingress"], index["deployment"],
+		"先删 ingress 再删 deployment，否则请求会打到正在消失的后端上超时")
+}
+
+// 删除类型不能含 namespace。
+//
+// 与 pruneKinds 同一条理由，但这里更要紧：down 的这条路专供
+// "命名空间是运维建的"（deploy.createNamespace: false）——
+// 那是别人的地盘，里面多半还跑着别的东西。
+func TestDeleteKindsNeverTouchesNamespace(t *testing.T) {
+	assert.NotContains(t, deleteKinds(), "namespace",
+		"命名空间不是我们建的时候，删它等于把整个团队一起端了")
 }
 
 // ServiceAccount 与 NetworkPolicy 必须排在 deployments 之前。
