@@ -44,7 +44,7 @@ func TestAddComponentToEmptySkeleton(t *testing.T) {
 	require.Len(t, cfg.Components, 1)
 	assert.Equal(t, "people/basic", cfg.Components[0].ID)
 	assert.Equal(t, "1.0.0", cfg.Components[0].Version)
-	assert.Equal(t, EnabledDefault, cfg.Components[0].EnabledState(), "不写 enabled 字段")
+	assert.Nil(t, cfg.Components[0].Enabled, "add 写进来的组件不带 enabled 字段")
 }
 
 // 注释、字段顺序与 ${ENV_VAR} 都要原样保留。
@@ -134,7 +134,7 @@ components:
 	require.NoError(t, err)
 	require.Len(t, cfg.Components, 2)
 	assert.Equal(t, "2.0.0", cfg.Components[0].Version)
-	assert.Equal(t, EnabledDisabled, cfg.Components[0].EnabledState())
+	assert.True(t, cfg.Components[0].IsDisabled())
 }
 
 // 删空之后仍是合法配置（空列表，不是 null）。

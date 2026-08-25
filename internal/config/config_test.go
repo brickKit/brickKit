@@ -58,7 +58,7 @@ func TestParseConfigFileFullProject(t *testing.T) {
 	dept := c.Components[0]
 	assert.Equal(t, "department/tree", dept.ID)
 	assert.Equal(t, "1.0.0", dept.Version)
-	assert.Equal(t, EnabledDefault, dept.EnabledState(), "5.5 不写 enabled → 默认开启可被级联")
+	assert.Nil(t, dept.Enabled, "5.5 不写 enabled → nil（跟着上层走）")
 
 	people := c.Components[1]
 	assert.True(t, people.Local, "5.22 local 正确解析")
@@ -69,13 +69,14 @@ func TestParseConfigFileFullProject(t *testing.T) {
 	assert.Nil(t, people.Resources.Requests, "未覆盖的部分保持为空，由 Step 11 合并 Manifest 推荐值")
 
 	rbac := c.Components[2]
-	assert.Equal(t, EnabledPinned, rbac.EnabledState(), "5.4 enabled: true → 钉住")
+	require.NotNil(t, rbac.Enabled)
+	assert.True(t, *rbac.Enabled, "5.4 enabled: true → 一定跑")
 
 	erp := c.Components[3]
 	assert.Equal(t, map[string]any{"sessionTtlSeconds": 7200}, erp.Config, "5.20 config 正确解析")
 
 	bus := c.Components[4]
-	assert.Equal(t, EnabledDisabled, bus.EnabledState(), "5.6 enabled: false → 显式关闭")
+	assert.True(t, bus.IsDisabled(), "5.6 enabled: false → 一定不跑")
 
 	portal := c.Components[5]
 	assert.True(t, portal.Expose, "5.21 expose 正确解析")
@@ -195,7 +196,7 @@ resources: []
 }
 
 // ============================================================
-// 5.4 / 5.5 / 5.6 enabled 三种状态
+// 5.4 / 5.5 / 5.6 enabled 三种写法
 // ============================================================
 
 func TestEnabledThreeStates(t *testing.T) {
@@ -218,22 +219,18 @@ resources: []
 
 	pinned, dflt, disabled := c.Components[0], c.Components[1], c.Components[2]
 
-	assert.Equal(t, EnabledPinned, pinned.EnabledState())
-	assert.True(t, pinned.IsPinned())
+	// 三种写法直接由 *bool 表达，解析器要把"没写"与"写了 false"分开——
+	// 混成同一个零值的话，跟着上层走的组件会全部变成一定不跑
+	require.NotNil(t, pinned.Enabled)
+	assert.True(t, *pinned.Enabled, "enabled: true → 一定跑")
 	assert.False(t, pinned.IsDisabled())
 
-	assert.Equal(t, EnabledDefault, dflt.EnabledState())
-	assert.False(t, dflt.IsPinned(), "不写 enabled 不等于钉住")
-	assert.False(t, dflt.IsDisabled())
+	assert.Nil(t, dflt.Enabled, "不写 enabled → nil，不是 false")
+	assert.False(t, dflt.IsDisabled(), "没写不等于关掉")
 
-	assert.Equal(t, EnabledDisabled, disabled.EnabledState())
-	assert.False(t, disabled.IsPinned())
-	assert.True(t, disabled.IsDisabled())
-
-	// 三种状态的中文说明用于 status / up 的输出
-	assert.Equal(t, "钉住", pinned.EnabledState().String())
-	assert.Equal(t, "默认开启", dflt.EnabledState().String())
-	assert.Equal(t, "显式禁用", disabled.EnabledState().String())
+	require.NotNil(t, disabled.Enabled)
+	assert.False(t, *disabled.Enabled)
+	assert.True(t, disabled.IsDisabled(), "enabled: false → 一定不跑")
 }
 
 // ============================================================
