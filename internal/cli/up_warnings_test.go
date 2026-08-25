@@ -1,9 +1,11 @@
-// 本文件是 Step 15-C 的业务行为测试：`--only`、`--config` 与升级路径
-// （004 §3.5、§3.5.1）。覆盖 15.8–15.12，以及延后项 P5（资源密码硬编码告警）、
+// 本文件是 Step 15-C 的业务行为测试：`--config` 与启动前的告警
+// （004 §3.5、§3.5.1）。覆盖 15.12，以及延后项 P5（资源密码硬编码告警）、
 // P10（升级拉新版本）、P15（CheckUpgrade 接线）。
 //
 // 15.7 与 P22 曾经由 `--check-resources` 承担，那个参数已经删掉
 // （理由见 TestUpNeverProbesResources）。
+// 15.8–15.11 曾经由 `--only` 承担，那个参数也已删掉
+// （003 §4.3：要收窄这次启动的范围就改 enabled，不再多一套语义）。
 package cli
 
 import (
@@ -18,7 +20,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 )
 
-// threeTierProject：portal → erp → people，外加一个没人依赖但钉住的组件。
+// threeTierProject：portal → erp → people。
 func threeTierProject(t *testing.T) *projectFixture {
 	t.Helper()
 
@@ -37,196 +39,6 @@ func threeTierProject(t *testing.T) *projectFixture {
     version: 1.0.0
 `)
 	return f
-}
-
-// ============================================================
-// 15.8 / 15.10 / 15.11 --only
-// ============================================================
-
-// 15.8：--only 启动指定组件**及其强依赖**——只启动它自己是起不来的。
-func TestUpOnlyStartsSelectedAndItsDependencies(t *testing.T) {
-	f := threeTierProject(t)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up", "--only", "erp/backend")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.ElementsMatch(t, []string{"people-basic-1-0-0", "erp-backend-1-0-0"},
-		eng.lastUp(t).Services, "15.8：强依赖要一起启动")
-}
-
-// 没被选中、也不是谁的依赖的组件不启动。
-func TestUpOnlyExcludesUnselectedComponents(t *testing.T) {
-	f := threeTierProject(t)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up", "--only", "people/basic")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Equal(t, []string{"people-basic-1-0-0"}, eng.lastUp(t).Services, "15.8")
-	assert.Contains(t, r.stdout, "--only", "输出要说明这次为什么只有这些")
-}
-
-// 逗号分隔多个组件。
-func TestUpOnlyAcceptsMultipleComponents(t *testing.T) {
-	f := threeTierProject(t)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up", "--only", "people/basic,erp/backend")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.ElementsMatch(t, []string{"people-basic-1-0-0", "erp-backend-1-0-0"},
-		eng.lastUp(t).Services)
-}
-
-// 15.10：带 @版本 时只启动那一个版本。
-func TestUpOnlyWithVersion(t *testing.T) {
-	f := multiVersionProject(t)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up", "--only", "people/basic@2.0.0")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Equal(t, []string{"people-basic-2-0-0"}, eng.lastUp(t).Services, "15.10")
-}
-
-// 15.11：不带版本时该组件的所有版本都启动（多版本默认共存，002 §3.6）。
-func TestUpOnlyWithoutVersionStartsAllVersions(t *testing.T) {
-	f := multiVersionProject(t)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up", "--only", "people/basic")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.ElementsMatch(t, []string{"people-basic-1-0-0", "people-basic-2-0-0"},
-		eng.lastUp(t).Services, "15.11")
-}
-
-func multiVersionProject(t *testing.T) *projectFixture {
-	t.Helper()
-
-	comps := []comp{
-		{ID: "people/basic", Version: "1.0.0"},
-		{ID: "people/basic", Version: "2.0.0"},
-	}
-	f := addedProject(t, comps, "people/basic@1.0.0", "people/basic@2.0.0")
-	f.writeConfig(t, `components:
-  - id: people/basic
-    version: 1.0.0
-  - id: people/basic
-    version: 2.0.0
-`)
-	return f
-}
-
-// --only 点名一个**只被弱依赖引用**的组件，它必须启动。
-//
-// 这条曾经是假的：实现拿级联结果做交集，而这类组件本来就不在里面
-// （003 §4.3：弱依赖不会被自动拉起），于是 `up --only infra/bus` 什么都不启动，
-// 而 004 §3.5 承诺的是"只启动指定组件及其依赖"。
-//
-// 级联回答的是"你**没说**的时候该跑什么"；命令行上点了名就是最明确的意图，
-// 与 enabled: true 同级。
-func TestUpOnlyStartsAWeaklyReferencedComponent(t *testing.T) {
-	f := addedProject(t, []comp{
-		{ID: "erp/backend", Version: "1.0.0", Optional: []string{"infra/bus@1.0.0"}},
-		{ID: "infra/bus", Version: "1.0.0"},
-	}, "erp/backend@1.0.0")
-	eng := newFakeEngine()
-
-	// 前提：不点名时它确实不启动，否则这条用例证明不了什么
-	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
-	assert.NotContains(t, eng.lastUp(t).Services, "infra-bus-1-0-0")
-
-	r := runWithEngine(t, eng, f.Dir, "up", "--only", "infra/bus")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Equal(t, []string{"infra-bus-1-0-0"}, eng.lastUp(t).Services,
-		"点名它就该启动它")
-}
-
-// --only 之下根组件不再自动启动——那正是它要收窄掉的东西。
-func TestUpOnlyDoesNotAutoStartRoots(t *testing.T) {
-	f := threeTierProject(t)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up", "--only", "erp/backend")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, eng.lastUp(t).Services, "portal-user-frontend-1-0-0",
-		"portal 是根组件，但这次没点它的名")
-}
-
-// --only 点名的组件，它的**强依赖**被关掉时报错。
-//
-// 这是"点名等于钉住"自动带来的：两个意图直接冲突（既要它跑、又关掉了它跑起来
-// 必需的东西）。静默跳过只会让人对着一个空空的 docker ps 发懵。
-func TestUpOnlyErrorsWhenARequirementIsDisabled(t *testing.T) {
-	comps := []comp{
-		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
-		{ID: "people/basic", Version: "1.0.0"},
-	}
-	f := addedProject(t, comps, "erp/backend@1.0.0")
-	f.writeConfig(t, `components:
-  - id: people/basic
-    version: 1.0.0
-    enabled: false
-  - id: erp/backend
-    version: 1.0.0
-`)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up", "--only", "erp/backend")
-
-	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "people/basic", "要点出是谁被关掉了")
-	assert.Contains(t, r.stderr, "--only", "理由是这一次点了名，不是 enabled: true")
-	assert.Empty(t, eng.ups)
-}
-
-// 15.9：--only 指定了被显式关闭的组件——两个意图直接冲突，必须报错。
-func TestUpOnlyDisabledComponentIsAnError(t *testing.T) {
-	comps := []comp{{ID: "people/basic", Version: "1.0.0"}}
-	f := addedProject(t, comps, "people/basic@1.0.0")
-	f.writeConfig(t, `components:
-  - id: people/basic
-    version: 1.0.0
-    enabled: false
-`)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up", "--only", "people/basic")
-
-	assert.Equal(t, clierr.ExitError, r.code, "15.9")
-	assert.Contains(t, r.stderr, "people/basic")
-	assert.Contains(t, r.stderr, "enabled: false", "要指出冲突在哪")
-	assert.Empty(t, eng.ups)
-}
-
-// --only 写了个不存在的组件要报错，而不是悄悄启动 0 个。
-func TestUpOnlyUnknownComponentIsAnError(t *testing.T) {
-	f := threeTierProject(t)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up", "--only", "not/here")
-
-	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "not/here")
-	assert.Empty(t, eng.ups)
-}
-
-// --only 与 --dry-run 一起用：只生成被选中的那部分。
-func TestUpOnlyWithDryRun(t *testing.T) {
-	f := threeTierProject(t)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up", "--only", "people/basic", "--dry-run")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Empty(t, eng.ups)
-	text := generatedCompose(t, f.Dir)
-	assert.Contains(t, text, "people-basic-1-0-0:")
-	assert.NotContains(t, text, "erp-backend-1-0-0:")
 }
 
 // ============================================================

@@ -129,22 +129,6 @@ CASES = [
         "check": ("remove infra/api-docs@1.0.0", "02-添加与移除组件.md",
                   "✅ 已移除 infra/api-docs@1.0.0", 0),
     },
-    # ↓ 02a 从 02 的终点接着走：十个组件都在配置里，源码都在活跃目录。
-    #   这两条守的是**开发时最常用的那个动作**——收拢与恢复必须成对可逆，
-    #   任何一半的输出对不上，照着做的人就会以为自己的源码丢了。
-    {
-        "what": "02a §2a.2 sync --only 收拢到两个组件",
-        "reset": True,
-        "run": ["init demo-shop", "add --local --yes"],
-        "check": ("sync --only people/basic", "02a-专注在几个组件上.md",
-                  "🎯 --only：只保留 people/basic 及其强依赖（brickkit.yaml 未修改）", 0),
-    },
-    {
-        "what": "02a §2a.4 不带参数的 sync 就是恢复",
-        "run": [],
-        # 02a 里第一个以「📂」开头的块就是恢复那一屏——收拢那一屏的首行是「🎯」
-        "check": ("sync", "02a-专注在几个组件上.md", "📂 工作区整理：", 0),
-    },
     {
         "what": "03 dry-run 的三段输出",
         "reset": True,
@@ -158,23 +142,34 @@ CASES = [
         "check": ("up --dry-run", "04-组件开启模式.md", "📋 组件状态计算：", 0),
     },
     {
-        "what": "04 §4.2 级联禁用",
+        "what": "04 §4.2 关掉被强依赖的组件，依赖方跟着不跑",
         "reset": True,
         "run": BASELINE + ["!disable demo/hello"],
         "check": ("up --dry-run", "04-组件开启模式.md", "📋 组件状态计算：", 1),
     },
     {
-        "what": "04 §4.3 钉住撞上被禁用的强依赖",
+        "what": "04 §4.2 关掉一个顶层，它下面那条链跟着不跑",
+        "reset": True,
+        "run": BASELINE + ["!disable people/basic"],
+        "check": ("up --dry-run", "04-组件开启模式.md", "📋 组件状态计算：", 2),
+    },
+    {
+        "what": "04 §4.4 enabled: true 不看上层",
+        "reset": True,
+        "run": BASELINE + ["!disable people/basic", "!pin department/tree"],
+        "check": ("up --dry-run", "04-组件开启模式.md", "📋 组件状态计算：", 3),
+    },
+    {
+        "what": "04 §4.5 钉住撞上被禁用的强依赖",
         "reset": True,
         "run": BASELINE + ["!disable demo/hello", "!pin demo/caller"],
         "check": ("up --dry-run", "04-组件开启模式.md", "❌ 错误：强依赖 demo/hello 被禁用", 0),
     },
     {
-        "what": "04 --only 一次性选中",
+        "what": "04 §4.7 顶层全关掉时的说明",
         "reset": True,
-        "run": BASELINE,
-        "check": ("up --only people/basic --dry-run", "04-组件开启模式.md",
-                  "🎯 --only：只启动 people/basic 及其强依赖", 0),
+        "run": BASELINE + ["!disable demo/caller", "!disable people/basic"],
+        "check": ("up --dry-run", "04-组件开启模式.md", "📋 组件状态计算：", 4),
     },
     {
         "what": "08 §8.1 改版本号即升级",
@@ -292,7 +287,7 @@ def prepare(work):
 
 
 def disable(proj, component_id):
-    """给某个组件加一行 enabled: false（04 §4.1 让读者手改的那一步）。"""
+    """给某个组件加一行 enabled: false（04 §4.2 让读者手改的那一步）。"""
     path = os.path.join(proj, "brickkit.yaml")
     s = open(path, encoding="utf-8").read()
     old = f"  - id: {component_id}\n    version: 1.0.0\n"
@@ -302,7 +297,7 @@ def disable(proj, component_id):
 
 
 def pin(proj, component_id):
-    """给某个组件加一行 enabled: true（04 §4.3 的"钉住"）。"""
+    """给某个组件加一行 enabled: true（04 §4.4 / §4.5）。"""
     path = os.path.join(proj, "brickkit.yaml")
     s = open(path, encoding="utf-8").read()
     old_entry = f"  - id: {component_id}\n    version: 1.0.0\n"

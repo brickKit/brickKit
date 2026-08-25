@@ -55,7 +55,7 @@ error	33.9	保留变量冲突，警告含配置项与环境变量名	test	.	./in
 error	33.10	clone 失败（闭源），信息含组件 ID 与来源类型	test	.	./internal/cli	TestAddRepoClosedSourceComponentFails
 error	33.11	clone 失败（目录已存在），信息含路径与建议	test	.	./internal/workspace	TestCloneRefusesExistingDirectory
 error	33.12	多版本 remove 未指定版本，信息含版本列表	test	.	./internal/cli	TestRemoveMultiVersionRequiresVersion
-error	33.13	--only 指定 enabled: false 的组件	test	.	./internal/cli	TestUpOnlyDisabledComponentIsAnError
+error	33.13	钉住的组件强依赖了被关掉的组件	test	.	./internal/cli	TestUpDisabledStrongDependencyIsAnError
 error	33.14	所有错误的退出码非 0	test	.	./internal/clierr	TestExitCodes
 error	33.15	所有警告的退出码为 0	test	.	./internal/cli	TestRunRendersWarningWithZeroExit
 error	33.16	错误信息不暴露内部实现细节	test	.	./internal/market	TestWithDetailsRendersNestedDetails

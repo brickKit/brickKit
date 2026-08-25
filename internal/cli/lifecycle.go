@@ -1,6 +1,6 @@
 package cli
 
-// 本文件是 down / status 共用的部分：读部署文件、按 --only 选组件、
+// 本文件是 down / status 共用的部分：读部署文件、算启停、
 // 把版本化服务名映射回"人认识的"组件 ID。
 //
 // up 之后的两个命令都在回答同一个问题的不同侧面："现在这个项目是什么样"。
@@ -11,15 +11,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 
 	"github.com/brickkit/brickkit/internal/cascade"
-	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/k8s"
-	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -98,9 +94,8 @@ func (p *project) entry(ref resolver.Ref) config.Component {
 // containerRefs 返回本次**由本项目**生成容器的组件，按启动顺序。
 //
 // `local: true` 要排除掉：它在依赖图里、也"在跑"，但跑在开发者的 IDE 里，
-// 本项目不为它生成任何东西（003 §4.4）。漏掉的后果不只是显示难看——
-// `down --only` 会把一个部署文件里根本没有的服务名递给 docker，
-// 换来 `no such service` 让整条命令失败。
+// 本项目不为它生成任何东西（003 §4.4）。`status` 把它们单列一节汇报，
+// 不混在"未在运行"里——那会让人以为它们出问题了。
 func (p *project) containerRefs() []resolver.Ref {
 	var out []resolver.Ref
 	for _, ref := range p.order {
@@ -119,101 +114,6 @@ func (p *project) localRefs() []resolver.Ref {
 			out = append(out, ref)
 		}
 	}
-	return out
-}
-
-// selectRefs 把 --only 的写法解析成组件引用（004 §3.5）。
-//
-//	people/basic          该组件的**所有**版本
-//	people/basic@1.0.0    只这一个版本
-func (p *project) selectRefs(only []string) ([]resolver.Ref, error) {
-	var out []resolver.Ref
-	seen := map[resolver.Ref]bool{}
-
-	for _, item := range only {
-		item = strings.TrimSpace(item)
-		if item == "" {
-			continue
-		}
-		id, version, hasVersion := strings.Cut(item, "@")
-
-		var matched []resolver.Ref
-		for _, c := range p.cfg.Components {
-			if c.ID != id || (hasVersion && c.Version != version) {
-				continue
-			}
-			matched = append(matched, resolver.Ref{ID: c.ID, Version: c.Version})
-		}
-		if len(matched) == 0 {
-			return nil, unknownComponentError(item, p.cfg)
-		}
-		for _, ref := range matched {
-			if !seen[ref] {
-				seen[ref] = true
-				out = append(out, ref)
-			}
-		}
-	}
-	return out, nil
-}
-
-// unknownComponentError 指出 --only 里那个名字不存在，并列出可选项。
-func unknownComponentError(item string, cfg *config.Config) error {
-	err := clierr.Newf(clierr.CodeComponentNotFound,
-		"错误：--only 指定的组件不在 brickkit.yaml 中").
-		WithDetail("指定的组件", item)
-
-	var available []string
-	for _, c := range cfg.Components {
-		available = append(available, c.Ref())
-	}
-	sort.Strings(available)
-	if len(available) > 0 {
-		err = err.WithDetail("可选的组件", strings.Join(available, "、"))
-	}
-	return err.WithHint("组件 ID 要写全（scope/name），版本可选（people/basic@1.0.0）")
-}
-
-// servicesOf 把组件引用转成版本化服务名。
-func servicesOf(refs []resolver.Ref) []string {
-	out := make([]string, 0, len(refs))
-	for _, ref := range refs {
-		out = append(out, manifest.ServiceName(ref.ID, ref.Version))
-	}
-	return out
-}
-
-// reverse 反转一份引用列表（停止顺序 = 启动顺序的倒序）。
-func reverse(refs []resolver.Ref) []resolver.Ref {
-	out := make([]resolver.Ref, 0, len(refs))
-	for i := len(refs) - 1; i >= 0; i-- {
-		out = append(out, refs[i])
-	}
-	return out
-}
-
-// inStartOrder 按启动顺序排列给定的组件；不在启动集合里的排在最后。
-func (p *project) inStartOrder(refs []resolver.Ref) []resolver.Ref {
-	position := map[resolver.Ref]int{}
-	for i, ref := range p.order {
-		position[ref] = i
-	}
-
-	out := append([]resolver.Ref{}, refs...)
-	sort.SliceStable(out, func(i, j int) bool {
-		pi, oki := position[out[i]]
-		pj, okj := position[out[j]]
-		switch {
-		case oki && okj:
-			return pi < pj
-		case oki:
-			return true
-		case okj:
-			return false
-		default:
-			return refText(out[i]) < refText(out[j])
-		}
-	})
 	return out
 }
 

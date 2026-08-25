@@ -84,87 +84,62 @@ func TestDownReportsEngineFailure(t *testing.T) {
 }
 
 // ============================================================
-// 15.14 / 15.21 --only 与停止顺序
+// 15.14 只停其中几个：改 enabled 再 up
 // ============================================================
 
-func TestDownOnlyStopsGivenComponents(t *testing.T) {
+// `down --only` 已删除（003 §4.3：要收窄范围就改配置）。它的用途由
+// "写 enabled: false 再 up" 覆盖——生成的部署文件里没有它，
+// 而 up 带着清理选择器（Docker 侧即 `--remove-orphans`），
+// 引擎会把它的容器一并移除。
+//
+// 这条用例守的就是那句承诺：`down` 的帮助文本里写着这条路，它必须真的通。
+func TestDisablingAComponentRemovesItsContainerOnNextUp(t *testing.T) {
+	f := composeProject(t)
+	eng := newFakeEngine()
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+	require.Contains(t, eng.lastUp(t).Services, "erp-backend-1-0-0", "前提：它本来在跑")
+
+	// people/basic 要钉住：它唯一的上层就是 erp/backend，
+	// 不钉的话它跟着一起不跑，那就成了"整个项目都停"，测不到这条
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+    enabled: true
+  - id: erp/backend
+    version: 1.0.0
+    enabled: false
+
+resources:
+  - kind: database
+    engine: postgresql
+    id: postgres-main
+    host: postgres
+    port: 5432
+    username: brickkit
+    password: ${POSTGRES_PASSWORD}
+    bindings:
+      - componentId: people/basic
+        database: brickkit_people
+`)
+	r := runWithEngine(t, eng, f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, eng.lastUp(t).Services, "erp-backend-1-0-0")
+	assert.NotEmpty(t, eng.lastUp(t).PruneSelector,
+		"必须带上清理选择器，否则那个容器会一直留着")
+	assert.NotContains(t, generatedCompose(t, f.Dir), "erp-backend-1-0-0")
+}
+
+// 停止顺序交给引擎：compose 本身就按依赖倒序停。
+//
+// 15.21 要的是"依赖方先停、被依赖方后停"——不带服务名时 compose 自己就这么做，
+// CLI 再排一遍只是多一份会与它分叉的真相。
+func TestDownDelegatesStopOrderToTheEngine(t *testing.T) {
 	f, eng := startedProject(t)
 
-	r := runWithEngine(t, eng, f.Dir, "down", "--only", "erp/backend")
+	r := runWithEngine(t, eng, f.Dir, "down")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	require.Len(t, eng.downs, 1)
-	assert.Equal(t, []string{"erp-backend-1-0-0"}, eng.downs[0].Services, "15.14")
-}
-
-// 15.21：停止顺序与启动顺序相反——依赖方先停，被依赖方后停。
-//
-// 反过来的话，被依赖方先没了，依赖方在关闭过程中还在调它，
-// 日志里会留下一串没有意义的连接错误。
-func TestDownStopsInReverseStartOrder(t *testing.T) {
-	f, eng := startedProject(t)
-
-	r := runWithEngine(t, eng, f.Dir, "down",
-		"--only", "people/basic,erp/backend")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Equal(t, []string{"erp-backend-1-0-0", "people-basic-1-0-0"},
-		eng.downs[0].Services, "15.21：erp/backend 依赖 people/basic，所以先停 erp")
-	assert.Contains(t, r.stdout, "停止顺序")
-}
-
-// --only 指定了不存在的组件要报错，而不是悄悄什么都不停。
-func TestDownOnlyUnknownComponent(t *testing.T) {
-	f, eng := startedProject(t)
-
-	r := runWithEngine(t, eng, f.Dir, "down", "--only", "not/here")
-
-	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "not/here")
-	assert.Empty(t, eng.downs)
-}
-
-// --only 支持 @版本：多版本共存时要能只停一个。
-func TestDownOnlyWithVersion(t *testing.T) {
-	comps := []comp{
-		{ID: "people/basic", Version: "1.0.0"},
-		{ID: "people/basic", Version: "2.0.0"},
-	}
-	f := addedProject(t, comps, "people/basic@1.0.0", "people/basic@2.0.0")
-	f.writeConfig(t, `components:
-  - id: people/basic
-    version: 1.0.0
-  - id: people/basic
-    version: 2.0.0
-`)
-	eng := newFakeEngine()
-	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
-
-	r := runWithEngine(t, eng, f.Dir, "down", "--only", "people/basic@2.0.0")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Equal(t, []string{"people-basic-2-0-0"}, eng.downs[0].Services)
-}
-
-// --only 不带版本时停掉该组件的所有版本（与 up --only 同一条规则，004 §3.5）。
-func TestDownOnlyWithoutVersionStopsAllVersions(t *testing.T) {
-	comps := []comp{
-		{ID: "people/basic", Version: "1.0.0"},
-		{ID: "people/basic", Version: "2.0.0"},
-	}
-	f := addedProject(t, comps, "people/basic@1.0.0", "people/basic@2.0.0")
-	f.writeConfig(t, `components:
-  - id: people/basic
-    version: 1.0.0
-  - id: people/basic
-    version: 2.0.0
-`)
-	eng := newFakeEngine()
-	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
-
-	r := runWithEngine(t, eng, f.Dir, "down", "--only", "people/basic")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.ElementsMatch(t, []string{"people-basic-1-0-0", "people-basic-2-0-0"},
-		eng.downs[0].Services)
+	assert.Empty(t, eng.downs[0].Services, "空服务名单 = 整个项目，顺序由引擎负责")
 }

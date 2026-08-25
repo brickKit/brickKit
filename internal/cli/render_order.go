@@ -11,6 +11,10 @@ import (
 // renderStates 输出组件状态计算结果（003 §4.3 的输出样例）。
 //
 // 不启动的组件也要列出来并说明理由：否则使用者只会看到"我加的组件不见了"。
+//
+// 每行的理由里带着"（顶层）"或"（X 需要）"，这是使用者关组件时唯一的抓手：
+// 关一个顶层，它下面那一串跟着走；关一个中间层，只有它自己那条支线受影响。
+// 不标的话他得先把依赖图在脑子里过一遍才知道该动哪个。
 func renderStates(opts *Options, states *cascade.Result) {
 	opts.Printf("📋 组件状态计算：\n")
 
@@ -58,13 +62,12 @@ func renderOrder(opts *Options, plan *resolver.Plan, graph *resolver.Graph) {
 		for _, ref := range plan.Optional {
 			ids = append(ids, ref.ID)
 		}
-		// 措辞要点：不是"可以跳过"，是"默认就不跑"。
+		// 这一行回答的是"哪些是可以关掉的"。
 		//
-		// 从前这里写的是"可跳过（弱依赖）"，它暗示这些组件本来会启动、
-		// 你可以选择跳过——而级联的规矩恰好相反：只被弱依赖引用的组件
-		// **默认不启动**（003 §4.3），要它跑得显式写 enabled: true。
-		// 一句反过来的提示比没有提示更糟：使用者会去 docker ps 里找它。
-		opts.Printf("只被弱依赖引用（默认不启动，需要时写 enabled: true）：%s\n",
+		// 只被弱依赖引用的组件照常启动（003 §4.3：它跟着上层走），
+		// 但关掉它们不会连累任何人——调用方拿不到 *_ENDPOINT，自己降级。
+		// 嫌容器太多时，这里就是那份可以下手的名单。
+		opts.Printf("只被弱依赖引用（关掉不影响别人：enabled: false）：%s\n",
 			strings.Join(ids, "、"))
 	}
 	if last := plan.Last(); last != nil && last.Position > 1 {

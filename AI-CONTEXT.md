@@ -9,7 +9,7 @@
 > 读完之后你应该能做到：用中文和用户讨论这个项目的任何设计、判断某个提议是否符合它的哲学、
 > 在需要细节时知道该去抓哪一份文档（见文末第 11 节）。
 >
-> 全站文档为中文，术语请沿用本文的中文说法（组件 / 强依赖 / 版本化服务名 / 级联关闭……）。
+> 全站文档为中文，术语请沿用本文的中文说法（组件 / 强依赖 / 版本化服务名 / 跟着上层走……）。
 
 ---
 
@@ -77,7 +77,7 @@
 
 ```
 brickkit.yaml（声明）
-   ↓ ① 级联计算：算出这次实际该启动哪些组件（enabled 三态 + 依赖图）
+   ↓ ① 启停判定：算出这次实际该启动哪些组件（enabled + 依赖图，跟着上层走）
    ↓ ② 依赖解析：递归展开依赖树，强依赖缺失报错，拓扑排序得出启动顺序
    ↓ ③ 环境变量注入：依赖地址、资源连接、自身配置 → 环境变量
    ↓ ④ 生成部署文件：docker-compose.yaml 或 K8s Deployment/Service/Ingress
@@ -113,7 +113,7 @@ CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，**不依赖 `components/
 | 连接组件 | Connector Component | 协调多个单一组件的编排组件 |
 | 单一组件 | Standalone Component | 独立完成一个功能、内部事务自洽的组件 |
 | 精确版本 | Exact Version | `major.minor.patch`，依赖声明**不接受** `^` / `~` 范围约束 |
-| 级联关闭 | Cascade Disable | 没有任何启用中的组件需要它时，未钉住的组件自动跳过 |
+| 跟着上层走 | Top-down Inheritance | 顶层默认跑；下层只要还有一个上层在跑就跑。写了 `enabled` 就按写的来（5.4） |
 
 ---
 
@@ -212,20 +212,31 @@ configSchema 里的配置项名转大写后不得与之冲突——**市场在�
 
 降级逻辑（Redis 挂了是查数据库、返空列表还是写本地文件）是组件自己的业务代码，平台不管。
 
-### 5.4 `enabled` 三态与级联关闭
+### 5.4 `enabled`：跟着上层走
+
+> **顶层组件默认跑；下层组件只要还有一个上层在跑，它就跑；写了 `enabled` 就按写的来。**
 
 | 写法 | 含义 | 行为 |
 | --- | --- | --- |
-| `enabled: true`（显式写出） | **钉住** | 无论依赖链如何变化一定启动，不可被级联关闭 |
-| **不写** `enabled` 字段 | **默认开启，可被级联关闭** | 没有启用中的组件需要它时，CLI 自动跳过 |
-| `enabled: false` | **显式关闭** | 一定不启动 |
+| **不写** `enabled` 字段 | **跟着上层走** | 顶层（没有任何组件依赖它）默认跑；下层看上层 |
+| `enabled: true` | **一定跑** | 不看上层。它的**强**依赖被关掉时**报错**（两个意图冲突） |
+| `enabled: false` | **一定不跑** | 依赖它的组件跟着不跑（钉住的则报错） |
 
-**级联规则：** 一个组件实际启动，当且仅当满足任一条件——它被显式钉住；
-它是根组件（不被任何其他组件依赖的入口，通常是前端或连接组件）且未被显式关闭；
-至少有一个正在启动的组件强依赖它，且它未被显式关闭。
+**强依赖和弱依赖一视同仁**：上层弱依赖它，它照样跟着跑。`optional: true` 只管两件事——
+解析期取不到只警告不阻断、它没在跑时不注入 `*_ENDPOINT`。
 
-`brickkit add` 自动添加的组件**不写** `enabled` 字段（即第二态）。这就是为什么
-"一个 50 组件的项目，本地开发时可能只有 4 个容器在跑"。
+几个要点：
+
+- 被多个上层共用时，只要还有一个上层在跑，它就跑——共享的底层组件不会被误伤
+- 两个组件互相依赖（只可能是弱依赖成环）时，环上没有更上层的东西，两个都是顶层，都跑
+- 实现算的是"**谁不跑**"（最小不动点），环因此不需要任何特例（012 §2.14）
+- CLI 输出里每一行都带着理由：`启动（顶层）` / `启动（enabled: true）` / `启动（X 需要）`
+
+**收窄启动范围只有一条路：改 `enabled`。** 没有 `--only` 之类的命令行参数——
+把不搞的**顶层**写上 `enabled: false`，`up` 与 `sync` 跟着走；
+恢复全量就 `git checkout brickkit.yaml`。
+
+`brickkit add` 自动添加的组件**不写** `enabled` 字段。
 
 ### 5.5 部署文件生成与数据库迁移
 
@@ -262,7 +273,7 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
 | --- | --- |
 | `brickkit add <id>@<ver> --repo` | 额外 clone 该组件的完整 Git 仓库到 `components/`（仅开源组件） |
 | `brickkit add <id>@<ver> --repo-all` | clone 所有递归依赖中开源组件的仓库（闭源跳过并提示） |
-| `brickkit sync` | 按级联计算结果**双向**归档 / 激活：不启动的移到 `components/.archived/`，需要启动的移回 |
+| `brickkit sync` | 按启停判定结果**双向**归档 / 激活：不启动的移到 `components/.archived/`，需要启动的移回 |
 | `brickkit remove <id>` | 自动删除对应源码目录，**含已归档的那一份** |
 
 `brickkit add` **默认不 clone 源码**（只拉 Manifest + artifacts）。
@@ -401,7 +412,7 @@ sources:                         # 安装源
 components:
   - id: people/basic
     version: 1.0.0               # 必须，精确版本
-    enabled: true                # 可选，三态见 5.4
+    enabled: true                # 可选，写法见 5.4
     local: false                 # 可选，本地调试模式
     localPort: 8081              # local: true 时的宿主机端口
     expose: false                # 可选，默认 false
@@ -443,17 +454,16 @@ installer:
 | `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `enabled` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘 |
 | `brickkit remove <id>` | 检查强依赖方后移除，自动删除源码目录（含归档的那份）。多版本共存时必须指定版本 |
 | `brickkit fetch <id>[@版本]` | 只下载组件的产物到 `.brickkit/artifacts/<版本化服务名>/`，**不写入 brickkit.yaml、不部署**。跨项目调用别人的服务时用（003 §4.9） |
-| `brickkit up` | 级联计算 → 生成部署文件 → 生成 `local-debug.env` → 检测镜像权限 → 执行迁移 → 调用引擎 |
+| `brickkit up` | 启停判定 → 生成部署文件 → 生成 `local-debug.env` → 检测镜像权限 → 执行迁移 → 调用引擎 |
 | `brickkit down` | 停止所有组件。**不删除 volume，保留数据** |
-| `brickkit status` | 读底层引擎，展示运行表格（含多版本检测、级联跳过展示） |
-| `brickkit sync` | 按级联结果双向归档 / 激活组件源码 |
+| `brickkit status` | 读底层引擎，展示运行表格（含多版本检测、不启动的组件也列出来） |
+| `brickkit sync` | 按启停判定结果双向归档 / 激活组件源码。无参数 |
 | `brickkit login` | 终端交互登录市场，Token 存 `.brickkit/credentials` |
 | `brickkit publish` | 上传 Manifest + 镜像引用 + 产物到市场（需先 login） |
 
 **常用参数：**
 
 ```bash
-brickkit up --only people/basic,department/tree   # 只启动指定组件（遇 enabled:false 报错阻断）
 brickkit up --config brickkit.prod.yaml           # 多环境
 brickkit up --dry-run                             # 只生成部署文件，供审查
 brickkit add people/basic@1.1.0 --yes             # 非交互（CI/CD）
@@ -544,9 +554,13 @@ JSON Schema 能力极其丰富，CLI 会越来越臃肿。而且组件自治—�
 开发者于是误以为弱依赖是健康的。这种 bug 极难排查。
 **宁可让组件在启动时"响亮地崩溃"，也不要让它在运行时"安静地出错"。**
 
-**9.14 为什么 `enabled` 有三种状态而不是 true/false？**
-用户希望"关掉一个顶层组件，它专属的依赖链自动跟着关掉，但共享的依赖不被误伤"——
-简单的 true/false 表达不了这种级联关系。而"钉住"则保护了权限组件这类无论如何都必须运行的组件。
+**9.14 为什么 `enabled` 有三种状态，规则却写成"跟着上层走"？**
+状态还是三种（不写 / `true` / `false`），判定结论一个字没变，但表述从**实现视角**的倒推
+（"没有启用中的组件需要它就跳过"）改成了**使用者视角**的继承。两者逐种情况一一对应，
+但只有后者读得懂：使用者要做的决定就是"这个顶层我要不要"，下面那一串跟着走，不用他算。
+这不是措辞洁癖——原来那句话真的把人读岔过，照着它认真读完会得出"这条规则错了"的结论。
+配套改了一处实质规则：判定里的"依赖"从只算强依赖改成强弱一视同仁，
+否则 `add` 写进配置的弱依赖默认不启动，装了组件却发现一半功能是哑的。详见 012 §2.14。
 
 **9.15 为什么 50 个组件不会失控？**
 ① **局部性原则**：组件 A 只需要知道自己直接依赖的 B、C、D 的 API 契约，
@@ -620,7 +634,7 @@ internal/              CLI 实现
   ├── config/            brickkit.yaml 解析与校验
   ├── manifest/          component.yaml 解析与校验
   ├── resolver/          依赖解析、拓扑排序
-  ├── cascade/           级联计算：算出这次实际启动谁
+  ├── cascade/           启停判定：算出这次实际启动谁（跟着上层走）
   ├── inject/            环境变量注入与资源配额合并
   ├── compose/           docker-compose.yaml 生成
   ├── k8s/               Kubernetes 清单生成

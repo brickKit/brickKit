@@ -22,6 +22,7 @@ import (
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
+	"github.com/brickkit/brickkit/internal/workspace"
 )
 
 // composeFileName 是生成的部署文件名（004 §3.5 输出样例）。
@@ -30,7 +31,6 @@ const composeFileName = "docker-compose.yaml"
 // newUpCommand 实现 brickkit up（004 §3.5）。
 func newUpCommand(opts *Options) *cobra.Command {
 	var (
-		only        []string
 		dryRun      bool
 		kubeContext string
 	)
@@ -43,7 +43,7 @@ func newUpCommand(opts *Options) *cobra.Command {
 
 行为流程：
   1. 读取 brickkit.yaml 与所有组件 Manifest
-  2. 级联禁用计算（enabled 三种状态：钉住 / 默认开启可被级联 / 显式关闭）
+  2. 启停判定（跟着上层走：顶层没写 enabled 就跑，下层跟上层，003 §4.3）
   3. 检查强依赖（缺失报错）与弱依赖（缺失警告，且完全不注入环境变量）
   4. 拓扑排序得出启动顺序
   5. 生成 docker-compose.yaml，注入环境变量、合并资源配额
@@ -53,19 +53,16 @@ func newUpCommand(opts *Options) *cobra.Command {
 
 版本号改了就是升级：CLI 自动拉新版本 Manifest 与产物、做兼容性检查（004 §3.5.1）。`,
 		Example: `  brickkit up
-  brickkit up --only people/basic,department/tree   只启动指定组件及其依赖
-  brickkit up --only people/basic@1.0.0             只启动指定版本
-  brickkit up --dry-run                             只生成文件，不启动
-  brickkit up --config brickkit.prod.yaml           使用指定配置文件`,
+  brickkit up --dry-run                    只生成文件，不启动
+  brickkit up --config brickkit.prod.yaml  使用指定配置文件`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUp(cmd.Context(), opts, upOptions{
-				only: only, dryRun: dryRun, kubeContext: kubeContext,
+				dryRun: dryRun, kubeContext: kubeContext,
 			})
 		},
 	}
 
-	cmd.Flags().StringSliceVar(&only, "only", nil, "只启动指定组件及其依赖，逗号分隔，支持 @版本")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "只生成部署文件，不启动（升级时额外输出变更摘要）")
 	cmd.Flags().StringVar(&kubeContext, "context", "", "kubeconfig 上下文，覆盖 deploy.context（仅 deploy.target: k8s）")
 	return cmd
@@ -109,7 +106,6 @@ type imageInfo struct {
 
 // upOptions 是 up 的命令行选项。
 type upOptions struct {
-	only   []string
 	dryRun bool
 	// kubeContext 是 --context 的值，覆盖 deploy.context。
 	kubeContext string
@@ -213,24 +209,20 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	if err != nil {
 		return nil, err
 	}
-	if len(flags.only) > 0 {
-		if plan.states, err = restrictToOnly(opts, plan, flags.only); err != nil {
-			return nil, err
-		}
-	}
-
 	renderWarnings(opts, plan.graph.Warnings)
 	renderStates(opts, plan.states)
-	warnDanglingBindings(opts, cfg)
-	warnHardcodedPasswords(opts, cfg)
-	warnConfigSecrets(opts, cfg)
-
+	// "一个都不启动"紧跟在状态表后面：它解释的就是那张全 ⬜ 的表，
+	// 中间隔着几条资源警告的话，使用者读到的顺序就成了"先看一堆无关的警告"
 	if plan.states.Empty() {
-		opts.Printf("📋 本次没有组件会启动\n")
-		opts.Printf("   把需要的组件改成 enabled: true，或移除 enabled: false\n")
+		renderNothingRunning(opts, plan.states)
+		renderSyncHint(opts, layout, plan.states)
 		plan.done = true
 		return plan, nil
 	}
+	renderSyncHint(opts, layout, plan.states)
+	warnDanglingBindings(opts, cfg)
+	warnHardcodedPasswords(opts, cfg)
+	warnConfigSecrets(opts, cfg)
 
 	// 资源绑定必须在生成之前查（006 §4.4、011 §5.3）：没绑定就一个
 	// DATABASE_* 都注不进去，而那份 compose 看上去完全正常——
@@ -264,6 +256,49 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	}
 	plan.collectTargets(order)
 	return plan, nil
+}
+
+// renderNothingRunning 解释"一个组件都不启动"。
+//
+// 两种成因要分开说。常见的那种是使用者自己把顶层关掉了——照着做就行。
+// 另一种是**图里根本没有顶层组件**：每个组件都被别的组件依赖着（只可能是
+// 弱依赖成环，强依赖成环在解析阶段就报错了）。那时"跟着上层走"这句话
+// 解释不了任何事——上层是谁？没有上层。不单独说一句，使用者会照着第一种
+// 成因去翻 enabled，而配置里一个 enabled: false 都没有。
+func renderNothingRunning(opts *Options, states *cascade.Result) {
+	opts.Printf("📋 本次没有组件会启动\n")
+
+	for _, c := range states.Components {
+		if c.State == cascade.StateDisabled {
+			opts.Printf("   顶层组件都被关掉了；移除它们的 enabled: false 即可（003 §4.3）\n")
+			return
+		}
+	}
+	if !states.HasTopLevel() {
+		opts.Printf("   没有找到顶层组件——每个组件都被别的组件依赖着（依赖成了环）\n")
+		opts.Printf("   给你想跑的那个写 enabled: true\n")
+		return
+	}
+	opts.Printf("   给你想跑的组件写 enabled: true（003 §4.3）\n")
+}
+
+// renderSyncHint 提醒可以把不启动的组件源码收起来。
+//
+// sync 不由 up 自动执行（012 §2.17：up 管运行时，sync 管源码目录），
+// 但"忘了 sync"是最常见的落差——改完 enabled 跑了 up，源码目录还是老样子。
+// 只在真有源码可收时才提，否则每次 up 都多一行噪音。
+func renderSyncHint(opts *Options, layout config.Layout, states *cascade.Result) {
+	n := 0
+	for _, c := range states.Components {
+		if c.State != cascade.StateRunning && workspace.Exists(layout, c.Ref.ID) {
+			n++
+		}
+	}
+	if n == 0 {
+		return
+	}
+	opts.Printf("💡 有 %d 个组件本次不启动，brickkit sync 可以把它们的源码收进 %s/\n",
+		n, workspace.DisplayArchivedRoot())
 }
 
 // dryRunResourceWarning 把"资源未绑定"降级成 --dry-run 下的警告。

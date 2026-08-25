@@ -124,7 +124,7 @@ func TestStatusShowsSkippedComponentsWithReason(t *testing.T) {
 	assert.Contains(t, r.stdout, "erp/backend")
 	assert.Contains(t, r.stdout, "显式禁用", "15.16：要说清为什么没跑")
 	assert.Contains(t, r.stdout, "people/basic")
-	assert.Contains(t, r.stdout, "级联", "15.16：级联跳过的也要给出原因")
+	assert.Contains(t, r.stdout, "上层都不启动", "15.16：跟着上层不跑的也要给出原因")
 }
 
 // ============================================================

@@ -82,19 +82,20 @@ func TestDryRunOrderPutsDependenciesFirst(t *testing.T) {
 		indexOf(t, r.stdout, "portal-user-frontend-1-0-0"))
 }
 
-// 10.2 弱依赖单独列出，且不参与排序约束。
+// 10.2 弱依赖照常启动，但不约束启动顺序，且单独列出来告诉使用者它可以关。
 func TestDryRunOrderListsOptionalDependencies(t *testing.T) {
 	f := orderProject(t)
 
 	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
-	// 弱依赖不会被级联拉起（003 §4.3），因此它不在启动顺序里；
-	// 但必须在状态一览里说清"为什么没跑、想跑该怎么办"。
+	// 它跟着上层一起启动（003 §4.3），只是不约束顺序——
+	// 那一行"只被弱依赖引用"回答的是"哪些是可以关掉的"。
 	assert.Contains(t, r.stdout, "infra/redis-event-bus@1.0.0")
+	assert.Contains(t, startupSection(r.stdout), "infra-redis-event-bus-1-0-0",
+		"弱依赖也要启动")
 	assert.Contains(t, r.stdout, "只被弱依赖引用")
-	assert.Contains(t, r.stdout, "enabled: true")
-	assert.NotContains(t, startupSection(r.stdout), "infra-redis-event-bus-1-0-0")
+	assert.Contains(t, r.stdout, "enabled: false", "要给出关掉它的办法")
 	assert.Contains(t, r.stdout, "（弱）", "依赖图里要标出弱依赖")
 }
 
@@ -275,8 +276,8 @@ func TestDryRunOrderExcludesDisabledComponent(t *testing.T) {
 	assert.Contains(t, r.stdout, "显式禁用")
 }
 
-// 级联跳过的组件同样不排进启动顺序，并给出被谁拖下来的理由。
-func TestDryRunOrderExcludesCascadeSkippedComponent(t *testing.T) {
+// 上层关掉之后，下层跟着不排进启动顺序，并说清是跟着谁走的。
+func TestDryRunOrderExcludesComponentsWhoseParentsAreOff(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
 		{ID: "people/basic", Version: "1.0.0"},
@@ -293,9 +294,9 @@ func TestDryRunOrderExcludesCascadeSkippedComponent(t *testing.T) {
 	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
-	assert.Contains(t, r.stdout, "级联跳过")
+	assert.Contains(t, r.stdout, "上层都不启动")
 	assert.NotContains(t, startupSection(r.stdout), "people-basic-1-0-0",
-		"唯一的依赖方停了，它也不该启动")
+		"唯一的上层停了，它也不该启动")
 }
 
 // 全部组件都不启动时，明确说清楚，而不是打印一张空表。

@@ -143,16 +143,63 @@ func TestDependencyCycleIsReported(t *testing.T) {
 	assert.Contains(t, out, "Manifest")
 }
 
-// 弱依赖同样参与循环检测：环就是环，不因为"可选"而消失。
-func TestCycleThroughOptionalDependency(t *testing.T) {
+// 环上只要有一条**弱**依赖边就不是错误。
+//
+// 环之所以致命，是因为它让启动顺序无解；而启动顺序只由强依赖约束
+// （Order 的拓扑排序压根不看 Optional）。所以带弱边的环不影响任何顺序。
+//
+// 这不是钻牛角尖：两个组件互相"有就用、没有就降级"（通知组件可选地调审计、
+// 审计可选地调通知）是很现实的写法，早先会被一句"检测到循环依赖"整个拦下来。
+func TestCycleThroughOptionalDependencyIsAllowed(t *testing.T) {
 	f := newFixture(t,
 		comp{ID: "a/one", Version: "1.0.0", Optional: []string{"b/two@1.0.0"}},
 		comp{ID: "b/two", Version: "1.0.0", Requires: []string{"a/one@1.0.0"}},
 	)
 
+	g, err := f.Resolver.Resolve(context.Background(), Ref{"a/one", "1.0.0"})
+	require.NoError(t, err)
+
+	require.Len(t, g.Nodes, 2, "两个组件都要解析出来")
+	assert.True(t, g.Has(Ref{"a/one", "1.0.0"}))
+	assert.True(t, g.Has(Ref{"b/two", "1.0.0"}))
+
+	// 顺序仍然排得出来：强边只有 b→a 一条
+	plan, err := Order(g)
+	require.NoError(t, err)
+	require.Len(t, plan.Steps, 2)
+	assert.Equal(t, "a/one", plan.Steps[0].Ref.ID, "b 强依赖 a，a 要先起")
+}
+
+// 两条边都是弱依赖的环同样合法。
+func TestMutualOptionalCycleIsAllowed(t *testing.T) {
+	f := newFixture(t,
+		comp{ID: "infra/notifier", Version: "1.0.0", Optional: []string{"infra/audit@1.0.0"}},
+		comp{ID: "infra/audit", Version: "1.0.0", Optional: []string{"infra/notifier@1.0.0"}},
+	)
+
+	g, err := f.Resolver.Resolve(context.Background(), Ref{"infra/notifier", "1.0.0"})
+	require.NoError(t, err)
+	require.Len(t, g.Nodes, 2)
+
+	plan, err := Order(g)
+	require.NoError(t, err)
+	assert.Len(t, plan.Steps, 2, "没有强边，两个都可以先起")
+}
+
+// 全是强依赖的环仍然报错——那才是真的解不开。
+func TestStrongCycleIsStillRejected(t *testing.T) {
+	f := newFixture(t,
+		comp{ID: "a/one", Version: "1.0.0", Requires: []string{"b/two@1.0.0"}},
+		comp{ID: "b/two", Version: "1.0.0", Requires: []string{"a/one@1.0.0"}},
+	)
+
 	_, err := f.Resolver.Resolve(context.Background(), Ref{"a/one", "1.0.0"})
 	require.Error(t, err)
-	assert.Equal(t, clierr.CodeDependencyCycle, clierr.As(err).Code)
+
+	e := clierr.As(err)
+	assert.Equal(t, clierr.CodeDependencyCycle, e.Code)
+	assert.Contains(t, e.Format(), "optional: true",
+		"要给出出路：其中一方改成弱依赖就不再是死结")
 }
 
 // 7.9 自依赖时报错。

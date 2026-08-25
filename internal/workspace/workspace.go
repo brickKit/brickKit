@@ -122,6 +122,11 @@ func ArchivedDir(l config.Layout, componentID string) string {
 	return filepath.Join(l.ArchivedDir(), filepath.FromSlash(componentID))
 }
 
+// DisplayArchivedRoot 返回用于输出的归档根目录相对路径。
+func DisplayArchivedRoot() string {
+	return config.DirComponents + "/" + config.DirArchived
+}
+
 // DisplayArchivedDir 返回用于输出的归档相对路径。
 func DisplayArchivedDir(componentID string) string {
 	return config.DirComponents + "/" + config.DirArchived + "/" + componentID

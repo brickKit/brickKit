@@ -26,7 +26,7 @@
 
 | 组 | 篇 | 这一组回答什么 |
 | --- | --- | --- |
-| **一、这东西是什么** | 01 – 02a | 一个项目长什么样，组件从哪来、依赖怎么跟着来、怎么只盯着其中几个看 |
+| **一、这东西是什么** | 01 – 02 | 一个项目长什么样，组件从哪来、依赖怎么跟着来、用不上的怎么收起来 |
 | **二、平台怎么想** | 03 – 04 | 它怎么算出该启动谁、按什么顺序；开与关的三种表达 |
 | **三、变成运行中的东西** | 05 – 07 | 同一份配置 → Docker / K8s；其中一个换成你 IDE 里的进程 |
 | **四、系统会变** | 08 – 09 | 升级、多版本共存、多副本与安全排空 |
@@ -70,9 +70,8 @@
 | 00b | [00b-底层环境清单.md](00b-底层环境清单.md) | **查的不是跑的**：哪篇需要 Docker / minikube / 市场 / cosign，以及市场那条线要先有什么 | — |
 | 01 | [01-初始化项目.md](01-初始化项目.md) | `init`、目录结构、`.gitignore`、`reset` | `--reset` |
 | 02 | [02-添加与移除组件.md](02-添加与移除组件.md) | 安装源、`add`、`add --local`、`sync` 整理源码工作区、`remove` | 01 |
-| 02a | [02a-专注在几个组件上.md](02a-专注在几个组件上.md) | **日常最常用的那个动作**：`sync --only` 把工作区收拢到今天要动的几个组件上，不改 `brickkit.yaml` | 02 |
 | 03 | [03-依赖与启动顺序.md](03-依赖与启动顺序.md) | `up --dry-run`、强/弱依赖、循环依赖、多版本共存 | `--baseline` |
-| 04 | [04-组件开启模式.md](04-组件开启模式.md) | **enabled 三态、级联禁用、`--only`、expose** | `--baseline` |
+| 04 | [04-组件开启模式.md](04-组件开启模式.md) | **跟着上层走：`enabled` 怎么写、关一个会连累谁、local 与 expose** | `--baseline` |
 | 05 | [05-Docker启动全流程.md](05-Docker启动全流程.md) | `up` / `status` / `down`、迁移、资源、建库 | `--baseline` + `--images` |
 | 06 | [06-K8s部署.md](06-K8s部署.md) | minikube 上的完整部署、迁移 Job、Ingress | 05 + minikube |
 | 07 | [07-本地调试.md](07-本地调试.md) | `local: true`、`local-debug.env`、双向打通 | 05 |
@@ -99,14 +98,14 @@
 | 我要决定的事 | 选项 | 去哪 |
 | --- | --- | --- |
 | 部署到哪 | `docker` / `k8s` | [05](05-Docker启动全流程.md) · [06](06-K8s部署.md) · [16](16-K8s完整装配.md) |
-| 这个组件要不要跑 | `enabled` 三态（不写 / true / false） | [04](04-组件开启模式.md) |
+| 这个组件要不要跑 | `enabled`：不写 = 跟着上层走 / `true` = 一定跑 / `false` = 一定不跑 | [04](04-组件开启模式.md) |
 | 要不要对外暴露 | `expose` + `exposePort`（Docker）/ `hostname`（K8s） | [04](04-组件开启模式.md) · [06](06-K8s部署.md) |
 | 组件跑容器里还是跑我的 IDE | `local: true` | [07](07-本地调试.md) |
 | 数据库/Redis 谁来起 | `host` 含不含点 | [05](05-Docker启动全流程.md) |
 | 连本机上已有的库 | `host: host.docker.internal` | [05](05-Docker启动全流程.md) |
 | 一个组件要连两个同类库 | `envPrefix` | [05](05-Docker启动全流程.md) |
 | 组件从哪来 | `local` / `git` / `market` 三种安装源 | [02](02-添加与移除组件.md) |
-| **今天只想看这几个组件** | `sync --only`（不改配置）/ `enabled: false`（改配置） | [02a](02a-专注在几个组件上.md) |
+| **今天只想跑这几个组件** | 给不搞的那几个**顶层**写 `enabled: false`，再 `brickkit up` + `brickkit sync` | [04](04-组件开启模式.md) |
 | 升级，还是两个版本并存 | 改版本号 / 写两条 | [08](08-升级与多版本.md) |
 | K8s 升级后旧版本怎么办 | 自动清理，并打印清掉了什么 | [08.5](08-升级与多版本.md) |
 | 我写组件时依赖写强还是弱 | `optional: true` | [14](14-依赖组合实验.md) · [17](17-开发自己的组件.md) |
@@ -176,7 +175,7 @@ cd <仓库根目录>
 | `component.yaml` 解析与校验 | [internal/manifest/](../internal/manifest/) | 002 |
 | 安装源（market / git / local） | [internal/source/](../internal/source/) | 003 §6 |
 | 依赖解析、拓扑排序 | [internal/resolver/](../internal/resolver/) | 004 §4 |
-| 级联启停（enabled 三态） | [internal/cascade/](../internal/cascade/) | 003 §4.3 |
+| 启停判定（跟着上层走） | [internal/cascade/cascade.go](../internal/cascade/cascade.go) | 003 §4.3 |
 | 环境变量注入、资源配额合并 | [internal/inject/](../internal/inject/) | 004 §5.6、006 §5 |
 | 生成 docker-compose.yaml | [internal/compose/](../internal/compose/) | 005 §3 |
 | 生成 K8s 清单 | [internal/k8s/](../internal/k8s/) | 005 §5 |

@@ -28,7 +28,7 @@
 > **https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt**
 >
 > **本项目全部文档为简体中文，请用中文回答，并沿用文档中的术语**（组件 / 强依赖 / 弱依赖 /
-> 版本化服务名 / 级联关闭 / 安装源 / 基础资源）。
+> 版本化服务名 / 跟着上层走 / 安装源 / 基础资源）。
 
 ---
 
@@ -131,7 +131,7 @@ internal/              CLI 实现
   ├── config/            brickkit.yaml 解析与校验
   ├── manifest/          component.yaml 解析与校验
   ├── resolver/          依赖解析、拓扑排序
-  ├── cascade/           级联计算：算出这次实际启动谁
+  ├── cascade/           启停判定：算出这次实际启动谁（跟着上层走）
   ├── inject/            环境变量注入与资源配额合并
   ├── compose/           docker-compose.yaml 生成
   ├── k8s/               Kubernetes 清单生成

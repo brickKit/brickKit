@@ -218,13 +218,31 @@ type resolution struct {
 
 // visit 解析 ref 及其整棵依赖子树，返回该节点。
 //
-// path 是从根到当前节点的解析路径，用于打印循环路径。
-func (rs *resolution) visit(ref Ref, path []Ref) (*Node, error) {
+// strongPath 是从"最近一条弱依赖边之后"到当前节点的**强依赖**链，用于判环。
+//
+// # 为什么只在强依赖边上判环
+//
+// 环之所以是错误，是因为它让启动顺序无解。而启动顺序只由强依赖约束——
+// `Order` 里的拓扑排序压根不看 `Optional`（弱依赖可能根本不启动，
+// 让它约束顺序等于把"可选"偷偷变成"必选"）。
+//
+// 所以只要环上有一条弱依赖边，它就不影响任何顺序，是合法的形状。
+// 两个组件互相"有就用、没有就降级"（通知组件可选地调审计、审计可选地调通知）
+// 是很现实的写法，早先会被一句"检测到循环依赖"整个拦下来。
+//
+// 跨过一条弱边时 strongPath 清空：那条边断开了强依赖链，
+// 从它往下重新开始算。
+func (rs *resolution) visit(ref Ref, strongPath []Ref) (*Node, error) {
 	switch rs.state[ref] {
 	case stateDone:
 		return rs.graph.index[ref], nil
 	case stateVisiting:
-		return nil, cycleError(path, ref)
+		if containsRef(strongPath, ref) {
+			return nil, cycleError(strongPath, ref)
+		}
+		// 弱依赖环：节点还没解析完，但它已经建出来了，原样返回即可。
+		// 依赖方拿到的是同一个指针，等它自己那层解析完就填齐了。
+		return rs.graph.index[ref], nil
 	}
 
 	m, err := rs.provider.Manifest(rs.ctx, ref.ID, ref.Version)
@@ -233,12 +251,17 @@ func (rs *resolution) visit(ref Ref, path []Ref) (*Node, error) {
 	}
 
 	rs.state[ref] = stateVisiting
-	path = append(path, ref)
-
 	node := &Node{Ref: ref, Manifest: m}
+	// 必须在下探之前登记：弱依赖环再次走到这里时要取得同一个节点
+	rs.graph.index[ref] = node
+
 	for _, d := range dependenciesOf(m) {
 		child := Ref{ID: d.ID, Version: d.Version}
-		childNode, err := rs.visit(child, path)
+		childPath := append(append([]Ref{}, strongPath...), ref)
+		if d.Optional {
+			childPath = nil
+		}
+		childNode, err := rs.visit(child, childPath)
 		if err != nil {
 			var fe *fetchError
 			// 只有"直接子依赖取不到"才由本层处理；更深处的失败已经被包装过，原样上抛。
@@ -261,8 +284,9 @@ func (rs *resolution) visit(ref Ref, path []Ref) (*Node, error) {
 	}
 
 	rs.state[ref] = stateDone
-	rs.graph.index[ref] = node
-	// 后序追加：依赖一定排在依赖方之前
+	// 后序追加：依赖一定排在依赖方之前。
+	// 弱依赖环上这条不成立（环上总有一个先被追加），但顺序只被拓扑排序当作
+	// 起点提示，而那一步只看强依赖——环上没有强边，也就无所谓。
 	rs.graph.Nodes = append(rs.graph.Nodes, node)
 	return node, nil
 }
@@ -334,8 +358,12 @@ func cycleError(path []Ref, repeated Ref) error {
 
 	return clierr.New(clierr.CodeDependencyCycle, "错误：检测到循环依赖").
 		WithDetail("循环路径", strings.Join(cycle, " → ")).
-		WithDetail("原因", "组件之间形成了依赖环，无法确定启动顺序").
-		WithHint("检查 Manifest 中的依赖声明（dependencies.components）")
+		WithDetail("原因", "这几个组件互相**强依赖**，谁都要等对方先起来，启动顺序无解").
+		WithHint(
+			"检查 Manifest 中的依赖声明（dependencies.components）",
+			"其中一方改成弱依赖（optional: true）即可——弱依赖不约束启动顺序，"+
+				"环上有一条弱边就不再是死结",
+		)
 }
 
 // reasonOf 把安装源的错误压成一行原因。

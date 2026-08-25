@@ -320,7 +320,7 @@ func TestSyncOutputExplainsWhy(t *testing.T) {
 	r := runIn(t, f.Dir, "sync")
 
 	assert.Contains(t, r.stdout, "显式禁用", "17.12")
-	assert.Contains(t, r.stdout, "级联跳过", "17.12")
+	assert.Contains(t, r.stdout, "强依赖 demo/hello 不启动", "17.12")
 
 	f.writeConfig(t, allEnabled)
 	r = runIn(t, f.Dir, "sync")
@@ -481,70 +481,3 @@ func TestAddLocalStillIgnoresArchived(t *testing.T) {
 	assert.NotContains(t, f.refs(t), "demo/hello@1.0.0", "归档的组件不该被 add --local 拽回来")
 }
 
-// ============================================================
-// sync --only：不改配置就把工作区收拢到几个组件上
-// ============================================================
-
-// --only 只留被点名的组件与它的强依赖，其余全部归档。
-func TestSyncOnlyKeepsSelectedAndItsRequires(t *testing.T) {
-	// caller 强依赖 hello；solo 与它们无关
-	f := newSyncFixture(t, allEnabledWithSolo, "demo/hello", "demo/caller", "solo/thing")
-
-	r := runIn(t, f.Dir, "sync", "--only", "demo/caller")
-
-	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
-	f.assertActive(t, "demo/caller")  // 被点名
-	f.assertActive(t, "demo/hello")   // caller 的强依赖，跟着留下
-	f.assertArchived(t, "solo/thing") // 与本次无关
-	assert.Contains(t, r.stdout, "未被 --only 选中")
-}
-
-// --only **不改 brickkit.yaml**：这是它相对"改 enabled 再 sync"的全部意义。
-func TestSyncOnlyLeavesConfigUntouched(t *testing.T) {
-	f := newSyncFixture(t, allEnabledWithSolo, "demo/hello", "demo/caller", "solo/thing")
-	before := f.config(t)
-
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync", "--only", "demo/hello").code)
-
-	assert.Equal(t, before, f.config(t), "--only 不该动配置文件一个字节")
-}
-
-// 不带参数的 sync 就是 --only 之后的"恢复"：回到与 brickkit up 一致。
-func TestSyncWithoutOnlyRestoresAfterFocus(t *testing.T) {
-	f := newSyncFixture(t, allEnabledWithSolo, "demo/hello", "demo/caller", "solo/thing")
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync", "--only", "demo/hello").code)
-	f.assertArchived(t, "solo/thing")
-
-	r := runIn(t, f.Dir, "sync")
-
-	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
-	f.assertActive(t, "solo/thing")
-	f.assertActive(t, "demo/caller")
-}
-
-// --only 点到一个 enabled: false 的组件是**允许**的，与 up --only 刻意不同。
-//
-// up 决定"跑什么"，sync 决定"看什么"。要看一个已经关掉的组件的源码完全说得通——
-// 多数时候正是因为要重写它才把它关掉的。这里报错等于把最常见的用法堵死。
-func TestSyncOnlyAllowsDisabledComponent(t *testing.T) {
-	f := newSyncFixture(t, helloDisabledWithSolo, "demo/hello", "demo/caller", "solo/thing")
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
-	f.assertArchived(t, "demo/hello") // 先被级联归档
-
-	r := runIn(t, f.Dir, "sync", "--only", "demo/hello")
-
-	require.Equal(t, clierr.ExitOK, r.code,
-		"sync --only 不该像 up --only 那样拒绝 enabled: false 的组件：%s%s", r.stdout, r.stderr)
-	f.assertActive(t, "demo/hello")
-	assert.Contains(t, r.stdout, "被 --only 选中")
-}
-
-// 组件名写错时报的是"配置里没有这个组件"，与 up --only 同一套解析。
-func TestSyncOnlyUnknownComponent(t *testing.T) {
-	f := newSyncFixture(t, allEnabledWithSolo, "demo/hello")
-
-	r := runIn(t, f.Dir, "sync", "--only", "demo/nope")
-
-	assert.NotEqual(t, clierr.ExitOK, r.code)
-	assert.Contains(t, r.stderr, "demo/nope")
-}

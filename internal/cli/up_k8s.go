@@ -54,21 +54,16 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 	return applyK8s(ctx, opts, eng, plan, dir, pruneSelectorFor(flags, plan))
 }
 
-// pruneSelectorFor 决定本次 up 允不允许清理孤儿资源（P38）。
+// pruneSelectorFor 给出清理孤儿资源用的标签选择器（P38）。
 //
-// 返回空串表示**不清理**。
+// **两种目标共用这一个判据。** K8s 侧按它比对集群实际资源，Docker 侧只用
+// "空 / 非空"决定带不带 `--remove-orphans`。判据只有一份，就不会分叉。
 //
-// `--only` 时必须返回空：那时 plan.services 只是被点名的子集，
-// 其余组件照样在正常服务——把它们当孤儿删掉，后果比 P38 本身
-// （多跑一个没人用的旧版本）严重得多，那是**把正在服务的组件下线**。
-//
-// **两种目标共用这一个判据。** Docker 那边曾经无条件带 `--remove-orphans`，
-// 以为它与 K8s 侧的清理等价；实际上它删的正是"没被点名的那些"，
-// 即这条注释论证过不可接受的那件事。判据只有一份，就不会再分叉。
-func pruneSelectorFor(flags upOptions, plan *upPlan) string {
-	if len(flags.only) > 0 {
-		return ""
-	}
+// 这里曾经有一个"`--only` 时返回空串不清理"的分支：那时生成的部署文件只含
+// 被点名的子集，其余组件全部落进清理的射程，一条 `up --only` 就会把正在服务的
+// 组件下线。`--only` 已删（003 §4.3：要收窄范围就改 enabled），
+// 生成物永远是完整的一份，这个分支也就没有了。
+func pruneSelectorFor(_ upOptions, plan *upPlan) string {
 	return k8s.LabelProject + "=" + plan.cfg.Project
 }
 
