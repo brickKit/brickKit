@@ -361,14 +361,13 @@ healthCheck:                     # 必须
   type: http                     # http | tcp | none
   path: /healthz                 # http 必填
   # ⚠️ 只检查本进程存活，禁止检查数据库 / 依赖组件 / 任何外部系统
-
-observability:                   # 可选
-  metrics: true
-  tracing: false
-
-compatibility:                   # 可选
-  minCliVersion: 1.0.0
 ```
+
+> **这就是全部字段。** Manifest **没有扩展字段机制**，不认识的键会被当场拒绝
+> （002 §2.2.1），不是静默忽略——所以上面这份骨架照抄下来必须能过。
+> 曾经有过 `observability` 与 `compatibility.minCliVersion` 两个"预留"字段，
+> 已删除（002 §2.3）：两者从未被任何一处读取，而后者更糟——它长得像一道安全闸，
+> 写了 `minCliVersion: 2.0.0` 的组件在 0.1.0 的 CLI 上照装不误。
 
 **资源配额优先级链：** `brickkit.yaml` 的 `resources` > `component.yaml` 的 `resources` > CLI 默认值。
 
@@ -399,7 +398,7 @@ deploy:
     allowFrom: [ { name: <为谁开>, namespace: <ns>, podSelector: {...}, ports: [...] } ]
     egress:
       enabled: true
-      allowTo: [ { name: <为谁开>, resource: <resources[].id> } ]
+      allowTo: [ { name: <为谁开>, resource: "<resources[].id>" } ]
 
 sources:                         # 安装源
   - id: <安装源ID>
@@ -407,6 +406,7 @@ sources:                         # 安装源
     url: <API 地址或 Git 地址>     # market/git 必填
     path: <本地路径>              # local 必填
     authToken: ${ENV_VAR}        # 可选；已 login 时优先用 .brickkit/credentials
+    ref: <分支 / tag / commit>    # 可选，仅 git 源；不写用默认分支（生产建议钉 tag）
     enabled: true
 
 components:
@@ -418,6 +418,9 @@ components:
     expose: false                # 可选，默认 false
     hostname: <域名>              # expose + k8s 时必填
     exposePort: 8080             # 可选，仅 Docker 生效
+    tlsSecret: <Secret 名>        # 可选，仅 K8s + expose，Ingress 的 TLS 证书
+    replicas: 3                  # 可选，仅 K8s，默认 1；>1 时自动生成 PDB
+    serviceAccountName: <SA 名>   # 可选，仅 K8s；用运维建好的 SA，平台只引用不生成
     config:                      # 可选，覆盖 configSchema 默认值（不校验类型）
       defaultPageSize: 50
     resources:                   # 可选，覆盖组件推荐配额
@@ -439,14 +442,24 @@ resources:                       # 基础资源声明与绑定（资源本身由
 
 installer:
   requireSignature: true         # 可选，默认 true
+  publicKeys:                    # 项目信任的发布者公钥：publicKeyRef → 公钥文件路径
+    keys/vendor.pub: keys/vendor.pub
 ```
+
+> ⚠️ **`publicKeys` 是唯一让验签真正生效的字段。** 一个公钥都没配时，
+> 签名校验**整体失效**，`requireSignature: true` 也一并不起作用——
+> 没有信任锚点就没有可校验的对象（008 §8.5）。CLI 会为此警告一句，
+> 但那时它已经什么都没验过了。
+>
+> 公钥必须配在这里、而不是跟着签名从市场取：否则就成了市场自己给自己发证，
+> 市场被攻破时攻击者把组件和公钥一起换掉，验签照样通过（003 §3.6）。
 
 **多环境：** 每个环境一份**完整自包含**的 `brickkit.yaml`（如 `brickkit.prod.yaml`），
 用 `brickkit up --config brickkit.prod.yaml` 指定。**没有 overlay / 继承 / 合并机制**（理由见 9.9）。
 
 ---
 
-## 8. CLI 命令集（11 个命令 + `version`）
+## 8. CLI 命令集（10 个命令 + `version`）
 
 | 命令 | 核心行为 |
 | --- | --- |
