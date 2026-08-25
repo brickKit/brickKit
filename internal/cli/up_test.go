@@ -170,10 +170,10 @@ func TestUpImageCheckFailureKeepsTheRealReason(t *testing.T) {
 }
 
 // ============================================================
-// 15.2–15.5 级联
+// 15.2–15.5 启停判定
 // ============================================================
 
-// 15.2：没人依赖、也没钉住的组件被级联跳过，不会被启动。
+// 15.2：没人依赖、也没钉住的组件不会被启动。
 func TestUpCascadeSkipsUnneededComponent(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
@@ -194,6 +194,39 @@ func TestUpCascadeSkipsUnneededComponent(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Empty(t, eng.ups, "15.2/15.4：一个都不该启动")
 	assert.Contains(t, r.stdout, "本次没有组件会启动")
+}
+
+// 一个都不跑时，得告诉使用者去改**哪一行**。
+//
+// 顶层有两种死法，指向配置里不同的行：自己被 enabled: false 关掉，
+// 或者强依赖被关掉后跟着倒下。这里关的是 **people/basic**（不是顶层），
+// erp/backend 那两行里根本没有 enabled 字段。
+//
+// 从前这里只要看到**任何**组件被关就断言"顶层都被关掉了，移除它们的
+// enabled: false"——照着去找只会扑空，还把人从上面那张表已经写对的
+// 答案（"强依赖 people/basic 不启动"）上引开。
+func TestNothingRunningDoesNotBlameTheTopLevel(t *testing.T) {
+	comps := []comp{
+		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
+		{ID: "people/basic", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "erp/backend@1.0.0")
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+    enabled: false
+  - id: erp/backend
+    version: 1.0.0
+`)
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.Contains(t, r.stdout, "本次没有组件会启动")
+	assert.Contains(t, r.stdout, "erp/backend@1.0.0", "要把顶层点名列出来")
+	assert.NotContains(t, r.stdout, "移除其中一个的 enabled: false",
+		"erp/backend 没写过 enabled: false，叫人去删它只会扑空")
+	assert.Contains(t, r.stdout, "顶层自己都没被关掉")
 }
 
 // 15.3：钉住的组件即使没人依赖也要启动。

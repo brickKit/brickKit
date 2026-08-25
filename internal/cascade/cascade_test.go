@@ -199,7 +199,7 @@ func TestTopLevelWithoutEnabledRuns(t *testing.T) {
 			assert.Contains(t, c.Reason, "erp/backend", "要说清跟的是谁")
 		}
 	}
-	assert.True(t, result.HasTopLevel())
+	assert.Len(t, result.TopLevel(), 1, "只有 erp/backend 是顶层")
 }
 
 func cfg2(t *testing.T, ids ...string) *config.Config {
@@ -485,7 +485,7 @@ func TestComponentsInAWeakCycleBothRun(t *testing.T) {
 
 	assert.ElementsMatch(t,
 		[]string{"infra/notifier", "infra/audit"}, runningIDs(result))
-	assert.False(t, result.HasTopLevel(), "环上没有顶层——命令层据此换一套说辞")
+	assert.Empty(t, result.TopLevel(), "环上没有顶层——命令层据此换一套说辞")
 }
 
 // 环上关掉一个，另一个跟着不跑（它的唯一上层没了）。

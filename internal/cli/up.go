@@ -258,28 +258,49 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	return plan, nil
 }
 
-// renderNothingRunning 解释"一个组件都不启动"。
+// renderNothingRunning 解释"一个组件都不启动"，并说清楚该去改哪一行。
 //
-// 两种成因要分开说。常见的那种是使用者自己把顶层关掉了——照着做就行。
-// 另一种是**图里根本没有顶层组件**：每个组件都被别的组件依赖着（只可能是
-// 弱依赖成环，强依赖成环在解析阶段就报错了）。那时"跟着上层走"这句话
-// 解释不了任何事——上层是谁？没有上层。不单独说一句，使用者会照着第一种
-// 成因去翻 enabled，而配置里一个 enabled: false 都没有。
+// 把顶层逐个列出来，而不是替使用者总结成一句话。顶层有两种死法：自己被
+// enabled: false 关掉，或者它的强依赖被关掉、它跟着倒下——两者指向配置里
+// **不同的**行。每个顶层自己的理由已经写明是哪一种，照抄比概括可靠。
+//
+// 从前这里只要看到**任何**组件是 StateDisabled 就断言"顶层都被关掉了"。
+// 关掉一个底层组件时那句话是错的：顶层根本没写过 enabled: false，
+// 照着去找只会扑空，还把人从上面那张表已经写对的答案上引开
+// （表里写的是"不启动（强依赖 X 不启动）"）。
+//
+// 还有一种成因是**图里根本没有顶层**：每个组件都被别的组件依赖着
+// （只可能是弱依赖成环，强依赖成环在解析阶段就报错了）。那时"跟着上层走"
+// 解释不了任何事——上层是谁？没有上层。
 func renderNothingRunning(opts *Options, states *cascade.Result) {
 	opts.Printf("📋 本次没有组件会启动\n")
 
-	for _, c := range states.Components {
-		if c.State == cascade.StateDisabled {
-			opts.Printf("   顶层组件都被关掉了；移除它们的 enabled: false 即可（003 §4.3）\n")
-			return
-		}
-	}
-	if !states.HasTopLevel() {
+	tops := states.TopLevel()
+	if len(tops) == 0 {
 		opts.Printf("   没有找到顶层组件——每个组件都被别的组件依赖着（依赖成了环）\n")
-		opts.Printf("   给你想跑的那个写 enabled: true\n")
+		opts.Printf("   给你想跑的那个写 enabled: true（003 §4.3）\n")
 		return
 	}
-	opts.Printf("   给你想跑的组件写 enabled: true（003 §4.3）\n")
+
+	opts.Printf("   顶层组件（没有别的组件依赖它们）这次都不跑：\n")
+	for _, c := range tops {
+		opts.Printf("      %s  %s\n", c.Ref, c.Reason)
+	}
+	opts.Printf("   %s\n", nothingRunningHint(tops))
+}
+
+// nothingRunningHint 指出最短的一条出路。
+//
+// 只要有一个顶层是被显式关掉的，那就是最省事的一行——删掉它，它下面整条链
+// 跟着回来。一个都没有时，顶层全是被强依赖拖下水的：那时配置里压根没有
+// 可删的 enabled: false，得顺着上面每行的理由往下找真正被关掉的那个。
+func nothingRunningHint(tops []cascade.Component) string {
+	for _, c := range tops {
+		if c.State == cascade.StateDisabled {
+			return "移除其中一个的 enabled: false，它下面那条链会跟着回来（003 §4.3）"
+		}
+	}
+	return "顶层自己都没被关掉——要放开的是上面那行理由里点名的组件（003 §4.3）"
 }
 
 // renderSyncHint 提醒可以把不启动的组件源码收起来。

@@ -89,17 +89,22 @@ func (r *Result) Running() []resolver.Ref {
 // Empty 表示这次一个组件都不启动。
 func (r *Result) Empty() bool { return len(r.Running()) == 0 }
 
-// HasTopLevel 表示图里存在顶层组件。
+// TopLevel 返回顶层组件，顺序与 Components 一致。
 //
-// 一个都没有时全图都不启动，而那时"跟着上层走"这句话解释不了任何事——
-// 上层是谁？没有上层。命令层据此换一套说辞（见 up 的"本次没有组件会启动"）。
-func (r *Result) HasTopLevel() bool {
+// 一个都不跑的时候，命令层要靠它说清楚"该去改哪一行"：顶层有两种死法，
+// 指向的是配置里**不同的**行（自己被关掉 / 强依赖被关掉后跟着倒下）。
+// 拿全体组件去猜会猜错——被关掉的那个往往根本不是顶层。
+//
+// 返回空表示图里没有顶层：每个组件都被别的组件依赖着（弱依赖成环）。
+// 那时"跟着上层走"这句话解释不了任何事——上层是谁？没有上层。
+func (r *Result) TopLevel() []Component {
+	var out []Component
 	for _, c := range r.Components {
 		if c.TopLevel {
-			return true
+			out = append(out, c)
 		}
 	}
-	return false
+	return out
 }
 
 // Compute 按 003 §4.3 判定本次启动哪些组件。
