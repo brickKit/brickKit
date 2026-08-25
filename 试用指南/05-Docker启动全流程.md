@@ -60,8 +60,7 @@ resources:
       - componentId: people/basic
         database: people
 
-  # infra/redis-event-bus 要一个 redis——它是 people/basic 的弱依赖，
-  # 但弱依赖照样会跟着上层启动（004、04），所以它的资源也得给
+  # infra/redis-event-bus 要一个 redis（它的 component.yaml 里声明的）
   - kind: cache
     engine: redis
     id: redis-main
