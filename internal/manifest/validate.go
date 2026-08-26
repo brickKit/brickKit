@@ -185,12 +185,79 @@ func escapesRepoRoot(path string) bool {
 	return cleaned == ".." || strings.HasPrefix(cleaned, "../")
 }
 
+// dependencyClaim 记下"这个组件 ID 先被哪一条依赖占了"。
+type dependencyClaim struct {
+	index   int
+	version string
+}
+
+// checkDuplicateDependency 拦下"同一个组件 ID 出现两次"。
+//
+// # 为什么按组件 ID 去重，而不是按 <ID>@<版本>
+//
+// 依赖地址的环境变量名**基于组件 ID，不带版本号**（001 §8.3）：
+//
+//	demo/hello@1.0.0  →  DEMO_HELLO_ENDPOINT=http://demo-hello-1-0-0:8080
+//	demo/hello@2.0.0  →  DEMO_HELLO_ENDPOINT=http://demo-hello-2-0-0:9090
+//
+// 两条算出来的是**同一个变量名**，而注入引擎按变量名写表
+// （inject.envBuilder.set），后写的直接覆盖先写的。放行的后果不是
+// "其中一条不生效"，而是：两个容器都起来了、都 healthy、`up` 全绿，
+// 而 1.0.0 那个**没有任何人能访问它**——调用方拿到的全是 2.0.0 的地址，
+// 连额外端口一起。整个过程零警告。
+//
+// 这比"报错"难查得多：地址完全合法、连得通、有响应，只是版本不对，
+// 表现成"调用成功但行为不符合预期"。
+//
+// # 这不与"多版本共存"矛盾
+//
+// 多版本共存是**项目级**能力：brickkit.yaml 里可以同时跑 X@1 与 X@2，
+// 供不同的调用方各用各的（002 §3.6）。而单个组件的视角里，
+// "我依赖 X 的哪个版本"只能有一个答案——这正是变量名不带版本换来的：
+// 组件代码在升级时一个字都不用改。
+//
+// 菱形依赖（A 依赖 X@1、B 依赖 X@2）不受影响，各拿各的，那是健康的形状。
+func checkDuplicateDependency(
+	p *clierr.ProblemSet, field string, index int,
+	dep ComponentDep, seen map[string]dependencyClaim,
+) {
+	if dep.ID == "" {
+		return
+	}
+
+	prev, taken := seen[dep.ID]
+	if !taken {
+		seen[dep.ID] = dependencyClaim{index: index, version: dep.Version}
+		return
+	}
+
+	// 完全相同的一条写了两遍：单纯的手误，照原来的说法报
+	if prev.version == dep.Version {
+		p.Addf(field, "与 dependencies.components[%d] 重复声明了 %s", prev.index, dep.Ref)
+		return
+	}
+
+	// 分行写：挤成一整行的话，终端里这段话会绕三四圈，
+	// 而真正要看的"是哪两个版本"埋在中间
+	p.Addf(field,
+		"同一个组件声明了两个版本\n"+
+			"     %s@%s（dependencies.components[%d]）与 %s\n"+
+			"     两者都注入 %s —— 依赖地址的环境变量名基于组件 ID、不带版本号\n"+
+			"     （001 §8.3），后者覆盖前者，而组件不会察觉自己只连上了其中一个\n"+
+			"     出路 1：只依赖其中一个版本。多版本共存是**项目级**的——\n"+
+			"             brickkit.yaml 里可以同时跑两个版本，供不同调用方各用各的（002 §3.6）\n"+
+			"     出路 2：确实要同时调两个，把第二个声明成 configSchema 里的一个配置项，\n"+
+			"             由项目填地址（003 §4.9）",
+		dep.ID, prev.version, prev.index, dep.Ref, EndpointEnvVar(dep.ID))
+}
+
 func (m *Manifest) validateDependencies(p *clierr.ProblemSet) {
 	if m.Dependencies == nil {
 		return
 	}
 
-	seen := make(map[string]int)
+	// 按**组件 ID** 记，不带版本——理由见 checkDuplicateDependency
+	seen := make(map[string]dependencyClaim)
 	for i, dep := range m.Dependencies.Components {
 		field := fmt.Sprintf("dependencies.components[%d]", i)
 		switch {
@@ -211,11 +278,7 @@ func (m *Manifest) validateDependencies(p *clierr.ProblemSet) {
 		if dep.ID != "" && dep.ID == m.Metadata.ID {
 			p.Add(field, "组件不能依赖自己")
 		}
-		if prev, ok := seen[dep.Ref]; ok {
-			p.Addf(field, "与 dependencies.components[%d] 重复声明了 %s", prev, dep.Ref)
-		} else {
-			seen[dep.Ref] = i
-		}
+		checkDuplicateDependency(p, field, i, dep, seen)
 	}
 
 	for i, res := range m.Dependencies.Resources {

@@ -332,6 +332,22 @@ configSchema:
 		{"4.30", "resources.requests 缺少 cpu 与 memory", mutate(t, "  port: 8080", `  port: 8080
   resources:
     requests: {}`), []string{"deployment.resources.requests"}},
+		// 同一个组件 ID 的两个版本：变量名不带版本（001 §8.3），
+		// 两条都注入 DEPARTMENT_TREE_ENDPOINT，后者静默覆盖前者
+		{"—", "同一依赖声明了两个版本", minimalYAML + `
+dependencies:
+  components:
+    - department/tree@1.0.0
+    - department/tree@2.0.0
+`, []string{"dependencies.components[1]", "两个版本", "DEPARTMENT_TREE_ENDPOINT"}},
+		// 强弱混写撞的是同一个变量名，一视同仁
+		{"—", "同一依赖一强一弱两个版本", minimalYAML + `
+dependencies:
+  components:
+    - department/tree@1.0.0
+    - id: department/tree@2.0.0
+      optional: true
+`, []string{"dependencies.components[1]", "两个版本"}},
 		{"—", "healthCheck.type 非法", mutate(t, "  type: http\n  path: /healthz", "  type: grpc"),
 			[]string{"healthCheck.type", "http"}},
 		{"—", "healthCheck http 缺少 path", mutate(t, "  type: http\n  path: /healthz", "  type: http"),

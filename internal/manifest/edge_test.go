@@ -409,6 +409,19 @@ dependencies:
 	assert.Contains(t, clierr.As(err).Format(), "重复声明")
 }
 
+// 菱形依赖不受影响：两个组件各依赖 X 的不同版本是**健康**的形状，
+// 各拿各的地址。被拦下的只有"同一份 Manifest 里写了两个版本"。
+func TestSameDependencyDifferentVersionsAcrossManifestsIsFine(t *testing.T) {
+	for _, version := range []string{"1.0.0", "2.0.0"} {
+		_, err := Parse([]byte(minimalYAML+`
+dependencies:
+  components:
+    - department/tree@`+version+`
+`), "component.yaml")
+		require.NoError(t, err, "单独依赖 %s 应当合法", version)
+	}
+}
+
 // 依赖写成映射但缺少 id。
 func TestDependencyMappingWithoutID(t *testing.T) {
 	_, err := Parse([]byte(minimalYAML+`
