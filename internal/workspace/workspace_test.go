@@ -116,6 +116,48 @@ func TestCloneRefusesExistingDirectory(t *testing.T) {
 	assert.Equal(t, "我的源码", string(data))
 }
 
+// 源码被 sync 归档着时，绝不在活跃目录再 clone 一份。
+//
+// 这条守的是 004 §8.1 的不变量：一个组件 ID 只有一个源码目录。
+// 从前只查活跃目录，于是"归档 → 再 add --repo"会造出两份，
+// 而下一次 sync 卡死在"目标目录已存在，无法移动组件源码"上。
+func TestCloneRefusesArchivedSource(t *testing.T) {
+	layout := newLayout(t)
+	archived := ArchivedDir(layout, "people/basic")
+	require.NoError(t, os.MkdirAll(archived, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(archived, "mine.txt"), []byte("我的源码"), 0o644))
+
+	_, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", "irrelevant")
+	require.Error(t, err)
+
+	out := clierr.As(err).Format()
+	assert.Contains(t, out, "只是被归档着", "要说清源码没丢")
+	assert.Contains(t, out, "components/.archived/people/basic", "要指出它在哪")
+	assert.Contains(t, out, "brickkit sync", "要给出把它移回来的办法")
+
+	// 活跃目录一个字节都不该被创建出来
+	assert.NoDirExists(t, SourceDir(layout, "people/basic"))
+	data, err := os.ReadFile(filepath.Join(archived, "mine.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "我的源码", string(data))
+}
+
+// Locate 三态：两处都没有 / 在活跃目录 / 在归档目录。
+func TestLocate(t *testing.T) {
+	layout := newLayout(t)
+	assert.Equal(t, StateMissing, Locate(layout, "people/basic"))
+
+	require.NoError(t, os.MkdirAll(ArchivedDir(layout, "people/basic"), 0o755))
+	assert.Equal(t, StateArchived, Locate(layout, "people/basic"))
+	assert.True(t, IsArchived(layout, "people/basic"))
+	assert.False(t, Exists(layout, "people/basic"))
+
+	// 两处都有时以活跃目录为准——那是 sync 会撞上并明确报错的状态，
+	// 不该由这里替它下结论
+	require.NoError(t, os.MkdirAll(SourceDir(layout, "people/basic"), 0o755))
+	assert.Equal(t, StateActive, Locate(layout, "people/basic"))
+}
+
 // 仓库地址不可达时报错，并且不留下半个目录。
 func TestCloneUnreachableRepository(t *testing.T) {
 	layout := newLayout(t)

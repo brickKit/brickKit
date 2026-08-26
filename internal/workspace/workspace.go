@@ -27,19 +27,73 @@ func DisplayDir(componentID string) string {
 	return config.DirComponents + "/" + componentID + "/"
 }
 
-// Exists 判断组件源码目录是否已存在。
+// State 是一个组件的源码目录当前在哪。
+type State int
+
+const (
+	// StateMissing 表示两处都没有这个组件的源码。
+	StateMissing State = iota
+	// StateActive 表示源码在 components/<scope>/<name>/。
+	StateActive
+	// StateArchived 表示源码被 brickkit sync 收进了 components/.archived/。
+	StateArchived
+)
+
+// Locate 回答"这个组件的源码在哪"。
+//
+// # 为什么要有一个统一的入口，而不是两个各查一半的布尔
+//
+// 004 §8.1 立了一条不变量：**一个组件 ID 在 components/ 下只能有一个源码目录**。
+// 从前守这条的两处（Clone 与命令层的预检）都只 stat 活跃目录，归档目录在
+// 它们眼里根本不存在——于是 `sync` 归档之后再 `add --repo`，会往活跃目录
+// 再 clone 一份，报"✅ 已 clone"，而下一次 `sync` 就卡在
+// "目标目录已存在，无法移动组件源码"上，只剩手工 rm 一条路。
+//
+// 根子上是 004 §3.9 那句"**归档只改变看不看得见，不改变取不取得到**"
+// 只被执行了一半：安装源按组件 ID 查找时会回落到归档目录（否则归档过的
+// 组件会让 up 与 sync 双双失败），而"有没有源码"这一问没有回落。
+// 同一个概念，两条路各理解了一半。
+//
+// 收成一个函数之后，那条不变量有了唯一的落点。
+func Locate(l config.Layout, componentID string) State {
+	switch {
+	case isDir(SourceDir(l, componentID)):
+		return StateActive
+	case isDir(ArchivedDir(l, componentID)):
+		return StateArchived
+	default:
+		return StateMissing
+	}
+}
+
+// Exists 判断组件源码是否在**活跃**目录里。
 func Exists(l config.Layout, componentID string) bool {
-	info, err := os.Stat(SourceDir(l, componentID))
+	return Locate(l, componentID) == StateActive
+}
+
+func isDir(path string) bool {
+	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
 }
 
-// Clone 把开源组件的完整 Git 仓库 clone 到 components/<scope>/<name>/（004 §3.3）。
+// ExistingSourceError 在组件已经有源码时给出该说的那句话，两处都没有时返回 nil。
 //
-// 目标目录已存在时报错阻断：那里可能是使用者正在开发的源码，绝不能覆盖。
-func Clone(ctx context.Context, l config.Layout, componentID, ref, gitURL string) (string, error) {
-	target := SourceDir(l, componentID)
-	if Exists(l, componentID) {
-		return "", clierr.New(clierr.CodeCloneFailed, "clone 失败：目录已存在").
+// 导出是因为**同一个判断要在两个时点各做一次**：命令层在改 brickkit.yaml
+// **之前**先做一遍（失败时不留下"配置写了一半"的现场），Clone 自己再兜一次。
+// 两处必须给出同一句话，所以只写一遍。
+//
+// 两种已存在的说法刻意不同——它们要的下一步动作不一样：
+//
+//	活跃目录里有   多半是使用者自己的源码。平台不替他决定删不删
+//	归档目录里有   源码没丢，只是被 sync 收起来了（004 §3.9）。
+//	               他要的其实是 `brickkit sync`，不是再 clone 一份
+//
+// 从前只查活跃目录，于是第二种一路绿灯：归档之后再 add --repo 会在活跃目录
+// 再 clone 一份，报"✅ 已 clone"，而下一次 sync 卡死在"目标目录已存在"上。
+func ExistingSourceError(l config.Layout, componentID, ref string) error {
+	switch Locate(l, componentID) {
+	case StateActive:
+		return clierr.New(clierr.CodeCloneFailed, "clone 失败：目录已存在").
 			WithDetail("组件", ref).
 			WithDetail("目录", DisplayDir(componentID)).
 			WithDetail("原因", "该目录已存在，可能包含你正在开发的组件源码").
@@ -47,6 +101,31 @@ func Clone(ctx context.Context, l config.Layout, componentID, ref, gitURL string
 				"如果是误操作，请先删除或重命名该目录",
 				"如果已有源码，无需再次 clone",
 			)
+	case StateArchived:
+		return clierr.New(clierr.CodeCloneFailed, "clone 失败：源码已经在了，只是被归档着").
+			WithDetail("组件", ref).
+			WithDetail("位置", DisplayArchivedDir(componentID)).
+			WithDetail("原因",
+				"brickkit sync 把这次不启动的组件源码收进了归档目录，"+
+					"它没有丢，只是不在活跃目录里（004 §3.9）").
+			WithHint(
+				"brickkit sync —— 让它跟着启停判定回到 "+DisplayDir(componentID),
+				"或直接进 "+DisplayArchivedDir(componentID)+"/ 编辑，git 命令与 IDE 都照常",
+			)
+	default:
+		return nil
+	}
+}
+
+// Clone 把开源组件的完整 Git 仓库 clone 到 components/<scope>/<name>/（004 §3.3）。
+//
+// 源码**两处任一处**已存在时报错阻断：活跃目录里可能是使用者正在开发的源码，
+// 归档目录里那份也是他自己的（只是被 sync 收起来了）。绝不覆盖，也绝不
+// 在活跃目录再造一份——那会打破"一个组件 ID 只有一个源码目录"（004 §8.1）。
+func Clone(ctx context.Context, l config.Layout, componentID, ref, gitURL string) (string, error) {
+	target := SourceDir(l, componentID)
+	if err := ExistingSourceError(l, componentID, ref); err != nil {
+		return "", err
 	}
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return "", clierr.New(clierr.CodeCloneFailed, "错误：无法创建源码目录").
@@ -134,8 +213,7 @@ func DisplayArchivedDir(componentID string) string {
 
 // IsArchived 判断组件源码是否在归档目录里。
 func IsArchived(l config.Layout, componentID string) bool {
-	info, err := os.Stat(ArchivedDir(l, componentID))
-	return err == nil && info.IsDir()
+	return Locate(l, componentID) == StateArchived
 }
 
 // Archive 把组件源码从 components/ 移到 components/.archived/。

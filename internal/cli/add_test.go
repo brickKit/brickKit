@@ -507,6 +507,33 @@ func TestAddRepoExistingDirectoryFails(t *testing.T) {
 		"已有源码一个字节都不能动")
 }
 
+// 源码被 sync 归档着时，--repo 不该在活跃目录再 clone 一份（B4）。
+//
+// 真跑过的完整路径：add --repo → enabled: false + sync → 再 add --repo。
+// 从前第三步会报"✅ 已 clone"，于是活跃目录与归档目录各有一份，
+// 而下一次 sync 卡死在"目标目录已存在，无法移动组件源码"上，只剩手工 rm。
+func TestAddRepoRefusesWhenSourceIsArchived(t *testing.T) {
+	spec := comp{ID: "people/basic", Version: "1.0.0"}
+	market := newMockMarket(t,
+		&mockComponent{Spec: spec, SourceType: "git", GitURL: newComponentRepo(t, spec)})
+	f := newProjectFixture(t, market.source())
+
+	require.Equal(t, clierr.ExitOK,
+		runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo").code)
+	archived := filepath.Join(f.Layout.ArchivedDir(), "people", "basic")
+	require.NoError(t, os.MkdirAll(filepath.Dir(archived), 0o755))
+	require.NoError(t, os.Rename(filepath.Join(f.Layout.ComponentsDir(), "people", "basic"), archived))
+
+	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo", "--yes")
+
+	require.NotEqual(t, clierr.ExitOK, r.code, "该拦下来：%s", r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "只是被归档着")
+	assert.Contains(t, r.stderr, "brickkit sync", "要给出把它移回来的办法")
+	assert.NoDirExists(t, filepath.Join(f.Layout.ComponentsDir(), "people", "basic"),
+		"活跃目录一个字节都不该被创建出来")
+	assert.DirExists(t, archived, "归档的那份原样保留")
+}
+
 // 9.17 / 9.18 --repo-all clone 所有开源依赖，闭源组件跳过并提示。
 func TestAddRepoAllClonesOpenSourceAndSkipsClosed(t *testing.T) {
 	backendSpec := comp{
@@ -532,7 +559,7 @@ func TestAddRepoAllClonesOpenSourceAndSkipsClosed(t *testing.T) {
 
 	assert.Contains(t, r.stdout, "⏭️ authorization/rbac")
 	assert.Contains(t, r.stdout, "闭源组件，跳过 clone")
-	assert.Contains(t, r.stdout, "📁 已 clone 2 个开源组件仓库（跳过 1 个闭源组件）")
+	assert.Contains(t, r.stdout, "📁 已 clone 2 个开源组件仓库（跳过 1 个，理由见上）")
 }
 
 // 9.19 已存在的组件再次 add + --repo：不重复写入 brickkit.yaml，只执行 clone。

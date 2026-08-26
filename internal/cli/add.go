@@ -415,6 +415,17 @@ type clonePlan struct {
 }
 
 // planClones 解析 --repo / --repo-all 涉及组件的来源信息，并做资格检查。
+// existingSourceSkipMessage 是 --repo-all 跳过某个组件时那一行说明。
+//
+// 归档的要单独说：`--repo-all` 打印一行"已有源码目录，跳过"，而使用者去
+// components/ 下**看不到**它——那句话在他眼里就是假的。
+func existingSourceSkipMessage(layout config.Layout, componentID string) string {
+	if workspace.Locate(layout, componentID) == workspace.StateArchived {
+		return "源码在 " + workspace.DisplayArchivedDir(componentID) + "（已归档），跳过 clone"
+	}
+	return "已有源码目录，跳过 clone"
+}
+
 func planClones(
 	ctx context.Context,
 	opts *Options,
@@ -459,24 +470,26 @@ func planClones(
 					WithDetail("安装源", origin.SourceID).
 					WithDetail("原因", "该组件来自本地安装源（type: local），安装源本身没有记录 Git 仓库地址").
 					WithHint(
-						"改用市场或 git 类型的安装源安装该组件",
-						"或去掉 --repo，直接使用本地目录中的源码",
+						// 不能笼统说"改用 git 类型的安装源"：使用者多半**已经配了**一个，
+						// 只是它排在 local 后面（003 §6.5）。而这个局面往往是 --repo
+						// 自己造成的——clone 到 ./components/ 之后，那个组件从此归本地源管。
+						// 一条照着做不通的建议比不给建议更浪费时间
+						"该组件当前由安装源 "+origin.SourceID+" 提供；要从 git 源取，"+
+							"把那个源在 brickkit.yaml 的 sources 里排到它前面（003 §6.5）",
+						"或去掉 --repo，直接用 "+workspace.DisplayDir(ref.ID)+" 里的源码",
 					)
 			}
 			plans = append(plans, clonePlan{ref: ref, skip: true, skipMsg: "无 Git 仓库地址，跳过 clone"})
-		case workspace.Exists(layout, ref.ID):
+		case workspace.Locate(layout, ref.ID) != workspace.StateMissing:
+			// 活跃目录与归档目录都算"已经有了"：往活跃目录再 clone 一份，
+			// 会打破"一个组件 ID 只有一个源码目录"（004 §8.1），
+			// 而下一次 sync 就卡死在"目标目录已存在"上
 			if f.repo {
-				return nil, clierr.New(clierr.CodeCloneFailed, "clone 失败：目录已存在").
-					WithDetail("组件", ref.String()).
-					WithDetail("目录", workspace.DisplayDir(ref.ID)).
-					WithDetail("原因", "该目录已存在，可能包含你正在开发的组件源码").
-					WithHint(
-						"如果是误操作，请先删除或重命名该目录",
-						"如果已有源码，无需再次 clone",
-					)
+				return nil, workspace.ExistingSourceError(layout, ref.ID, ref.String())
 			}
-			// --repo-all 是批量操作：已有源码目录跳过即可，不该因为一个目录已存在就整体失败
-			plans = append(plans, clonePlan{ref: ref, skip: true, skipMsg: "已有源码目录，跳过 clone"})
+			// --repo-all 是批量操作：已有源码跳过即可，不该因为一个组件就整批失败
+			plans = append(plans, clonePlan{
+				ref: ref, skip: true, skipMsg: existingSourceSkipMessage(layout, ref.ID)})
 		default:
 			plans = append(plans, clonePlan{ref: ref, gitURL: origin.GitURL})
 		}
@@ -511,7 +524,10 @@ func runClones(ctx context.Context, opts *Options, layout config.Layout, plans [
 
 	switch {
 	case f.repoAll:
-		opts.Printf("📁 已 clone %d 个开源组件仓库（跳过 %d 个闭源组件）\n", cloned, skipped)
+		// 不能笼统说"跳过 N 个闭源组件"：跳过的理由有三种（闭源、本地源没有
+		// 仓库地址、源码已经在盘上），而上面每一行 ⏭️ 已经逐个说清了是哪一种。
+		// 汇总行再断言一个具体理由，只会与它上面那几行自相矛盾
+		opts.Printf("📁 已 clone %d 个开源组件仓库（跳过 %d 个，理由见上）\n", cloned, skipped)
 	case cloned > 0:
 		opts.Printf("📁 已 clone 源码到 %s\n", workspace.DisplayDir(plans[0].ref.ID))
 		opts.Printf("💡 如需修改源码并上传，请参考文档\"修改开源组件源码后如何上传\"\n")
