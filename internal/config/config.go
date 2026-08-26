@@ -312,9 +312,67 @@ type Resource struct {
 // Binding 把资源绑定到某个组件（003 §5.3、§5.6）。
 type Binding struct {
 	ComponentID string `yaml:"componentId"`
-	Database    string `yaml:"database,omitempty"`
+
+	// Database / Vhost / Bucket / Index 是**同一格**：这个组件在这个资源里占哪一块。
+	//
+	// 分成四个名字而不是一个，是因为使用者第一反应写的就是他心里那个词——
+	// 接 RabbitMQ 的人会去写 `vhost:`，接 MinIO 的人会去写 `bucket:`。
+	// 从前只有 `database` 一个字段兼任四种含义，于是：
+	//
+	//	写对了（database: orders 当 vhost 用）  读起来是错的，别人看不懂
+	//	写了 vhost:                            未知字段 → "是不是想写 database？"
+	//	                                       ——一条帮倒忙的建议
+	//
+	// 哪个 kind 用哪个名字由校验强制（validateBindingSlot），写错了会点名
+	// 该用哪个。cache 与 smtp 两格都不用：它们没有"占哪一块"这回事。
+	Database string `yaml:"database,omitempty"`
+	Vhost    string `yaml:"vhost,omitempty"`
+	Bucket   string `yaml:"bucket,omitempty"`
+	Index    string `yaml:"index,omitempty"`
+
 	// EnvPrefix 用于一个组件绑定多个同类资源时区分环境变量（如 PRIMARY_ / ARCHIVE_）。
 	EnvPrefix string `yaml:"envPrefix,omitempty"`
+}
+
+// Slot 返回这条绑定占的那一块，没写时返回空串。
+//
+// 四个字段互斥（校验保证），所以取到哪个就是哪个。
+func (b Binding) Slot() string {
+	switch {
+	case b.Database != "":
+		return b.Database
+	case b.Vhost != "":
+		return b.Vhost
+	case b.Bucket != "":
+		return b.Bucket
+	case b.Index != "":
+		return b.Index
+	default:
+		return ""
+	}
+}
+
+// BindingSlotName 返回某种资源类型下"占哪一块"该用的字段名，
+// 空串表示这种资源没有这一格。
+//
+// 与 inject.resourceVars 里那几个变量一一对应：
+//
+//	database → DATABASE_NAME    mq     → MQ_VHOST
+//	storage  → STORAGE_BUCKET   search → SEARCH_INDEX
+//	cache / smtp                没有
+func BindingSlotName(kind string) string {
+	switch kind {
+	case ResourceKindDatabase:
+		return "database"
+	case ResourceKindMQ:
+		return "vhost"
+	case ResourceKindStorage:
+		return "bucket"
+	case ResourceKindSearch:
+		return "index"
+	default:
+		return ""
+	}
 }
 
 // Installer 是安装器行为配置（003 §3.6）。

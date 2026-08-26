@@ -311,7 +311,81 @@ func (c *Config) validateResources(p *clierr.ProblemSet) {
 			if b.EnvPrefix != "" && !envPrefixRe.MatchString(b.EnvPrefix) {
 				p.Addf(bField+".envPrefix", "必须是大写字母开头的大写字母、数字与下划线（会拼进环境变量名，如 %s_DATABASE_HOST）", b.EnvPrefix)
 			}
+			validateBindingSlot(p, bField, r.Kind, b)
 		}
+	}
+}
+
+// bindingSlots 是"占哪一块"那四个互斥字段，按 YAML 里的名字。
+var bindingSlots = []struct {
+	name  string
+	value func(Binding) string
+}{
+	{"database", func(b Binding) string { return b.Database }},
+	{"vhost", func(b Binding) string { return b.Vhost }},
+	{"bucket", func(b Binding) string { return b.Bucket }},
+	{"index", func(b Binding) string { return b.Index }},
+}
+
+// validateBindingSlot 保证"占哪一块"用的是这种资源该用的那个名字，且只写一个。
+//
+// # 为什么要管这件事
+//
+// 四个字段填的是同一格（见 Binding.Slot）。不管的话有两种静默失效：
+//
+//	kind: mq 写成 database:     能跑，但读起来是错的——别人看到 `database: orders`
+//	                            会以为那是个库名
+//	kind: cache 写了 database:  redis 的连接变量里根本没有这一格，写了完全不生效，
+//	                            而使用者以为自己指定了什么
+//
+// 后一种正是这个项目最在意的那类：写了、不报错、不生效（003 §3.2）。
+func validateBindingSlot(p *clierr.ProblemSet, field, kind string, b Binding) {
+	want := BindingSlotName(kind)
+
+	var written []string
+	for _, slot := range bindingSlots {
+		if slot.value(b) != "" {
+			written = append(written, slot.name)
+		}
+	}
+
+	switch {
+	case len(written) == 0:
+		// 没写不是错误：database 名可以不指定（组件自己拼），
+		// cache / smtp 本来就没有这一格
+		return
+
+	case len(written) > 1:
+		p.Addf(field, "%s 填的是同一格（这个组件在资源里占哪一块），只能写一个",
+			strings.Join(written, " 与 "))
+		return
+
+	case want == "":
+		p.Addf(field+"."+written[0],
+			"kind: %s 没有这一格——%s 的连接变量里不存在对应的项，写了不会生效（006 §5.2）。"+
+				"要给组件传别的东西，用 configSchema 里的配置项（006 §2.1）",
+			kind, kind)
+
+	case written[0] != want:
+		p.Addf(field+"."+written[0],
+			"kind: %s 下这一格叫 %s，不是 %s（注入为 %s）",
+			kind, want, written[0], slotEnvVar(kind))
+	}
+}
+
+// slotEnvVar 是这一格注入成哪个环境变量，用于报错时把话说到底。
+func slotEnvVar(kind string) string {
+	switch kind {
+	case ResourceKindDatabase:
+		return "DATABASE_NAME"
+	case ResourceKindMQ:
+		return "MQ_VHOST"
+	case ResourceKindStorage:
+		return "STORAGE_BUCKET"
+	case ResourceKindSearch:
+		return "SEARCH_INDEX"
+	default:
+		return ""
 	}
 }
 

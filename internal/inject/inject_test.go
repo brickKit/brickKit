@@ -711,7 +711,7 @@ func TestResourceVariableNamesPerKind(t *testing.T) {
 	b.resource(config.Resource{
 		Kind: "storage", Engine: "s3", ID: "rustfs", Host: "http://rustfs:9000",
 		Username: "ak", Password: "sk",
-		Bindings: []config.Binding{{ComponentID: "erp/backend", Database: "brickkit-artifacts"}},
+		Bindings: []config.Binding{{ComponentID: "erp/backend", Bucket: "brickkit-artifacts"}},
 	})
 
 	env := envOf(t, b.build(), "erp/backend")
@@ -723,6 +723,59 @@ func TestResourceVariableNamesPerKind(t *testing.T) {
 	assert.Equal(t, "brickkit-artifacts", env["STORAGE_BUCKET"])
 	assert.Equal(t, "ak", env["STORAGE_ACCESS_KEY"])
 	assert.Equal(t, "sk", env["STORAGE_SECRET_KEY"])
+}
+
+// STORAGE_ENDPOINT 必须带端口（006 §5.2）。
+//
+// 从前它只取 host：而 port 在 brickkit.yaml 的校验里是**必填的**，
+// 于是使用者被要求填 9000、被校验通过，然后那个端口原地蒸发——
+// 组件拿着 "minio.internal" 去连 MinIO，连不上，而配置看上去完全正确。
+func TestStorageEndpointIncludesPort(t *testing.T) {
+	m := simple("media/store", "1.0.0", 8080)
+	m.Dependencies = &manifest.Dependencies{
+		Resources: []manifest.ResourceDep{{Kind: "storage", Engine: "minio"}},
+	}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{})
+	b.resource(config.Resource{
+		Kind: "storage", Engine: "minio", ID: "minio", Host: "minio.internal", Port: 9000,
+		Username: "ak", Password: "sk",
+		Bindings: []config.Binding{{ComponentID: "media/store", Bucket: "media-prod"}},
+	})
+
+	env := envOf(t, b.build(), "media/store")
+	assert.Equal(t, "minio.internal:9000", env["STORAGE_ENDPOINT"])
+	assert.Equal(t, "media-prod", env["STORAGE_BUCKET"])
+}
+
+// mq 的 vhost / search 的 index 与 database 填的是同一格（config.Binding.Slot）。
+func TestBindingSlotFeedsEachKindsOwnVariable(t *testing.T) {
+	m := simple("shop/order", "1.0.0", 8080)
+	m.Dependencies = &manifest.Dependencies{
+		Resources: []manifest.ResourceDep{
+			{Kind: "mq", Engine: "rabbitmq"},
+			{Kind: "search", Engine: "elasticsearch"},
+		},
+	}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{})
+	b.resource(config.Resource{
+		Kind: "mq", Engine: "rabbitmq", ID: "rabbit", Host: "rabbit", Port: 5672,
+		Username: "dev", Password: "pw",
+		Bindings: []config.Binding{{ComponentID: "shop/order", Vhost: "orders"}},
+	})
+	b.resource(config.Resource{
+		Kind: "search", Engine: "elasticsearch", ID: "es", Host: "es", Port: 9200,
+		Bindings: []config.Binding{{ComponentID: "shop/order", Index: "orders-v2"}},
+	})
+
+	env := envOf(t, b.build(), "shop/order")
+	assert.Equal(t, "orders", env["MQ_VHOST"])
+	assert.Equal(t, "orders-v2", env["SEARCH_INDEX"])
+	assert.Equal(t, "rabbit", env["MQ_HOST"])
+	assert.Equal(t, "9200", env["SEARCH_PORT"])
 }
 
 // 11.12 一个组件绑多个同类资源时用 envPrefix 区分（006 §5.7）。

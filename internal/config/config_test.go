@@ -467,6 +467,47 @@ resources:
       - componentId: people/basic
         envPrefix: primary-db
 `, []string{"resources[0].bindings[0].envPrefix"}},
+
+		// "这个组件在资源里占哪一块"分成四个名字（database / vhost / bucket / index）。
+		// 使用者第一反应写的就是他心里那个词，所以让他写得对；写错了要点名该用哪个。
+		{"—", "mq 下写成 database", baseConfig + `
+resources:
+  - kind: mq
+    engine: rabbitmq
+    id: rabbit
+    host: localhost
+    port: 5672
+    bindings:
+      - componentId: people/basic
+        database: orders
+`, []string{"resources[0].bindings[0].database", "叫 vhost", "MQ_VHOST"}},
+
+		// cache / smtp 没有这一格。写了完全不生效，而使用者以为自己指定了什么——
+		// 正是 003 §3.2 那条"写了不生效就得出声"
+		{"—", "cache 下写了 database", baseConfig + `
+resources:
+  - kind: cache
+    engine: redis
+    id: rd
+    host: localhost
+    port: 6379
+    bindings:
+      - componentId: people/basic
+        database: whatever
+`, []string{"resources[0].bindings[0].database", "没有这一格"}},
+
+		{"—", "同时写了两个名字", baseConfig + `
+resources:
+  - kind: database
+    engine: postgresql
+    id: pg
+    host: localhost
+    port: 5432
+    bindings:
+      - componentId: people/basic
+        database: people
+        bucket: media
+`, []string{"resources[0].bindings[0]", "同一格", "只能写一个"}},
 	}
 
 	for _, c := range cases {

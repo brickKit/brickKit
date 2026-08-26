@@ -97,19 +97,19 @@ func requirementOf(resource config.Resource, used map[string]bool) *ResourceRequ
 		}
 		req.Components = append(req.Components, binding.ComponentID)
 
-		if resource.Kind != config.ResourceKindDatabase || binding.Database == "" {
+		if resource.Kind != config.ResourceKindDatabase || binding.Slot() == "" {
 			continue
 		}
-		if existing, ok := byDatabase[binding.Database]; ok {
+		if existing, ok := byDatabase[binding.Slot()]; ok {
 			existing.Components = append(existing.Components, binding.ComponentID)
 			continue
 		}
-		byDatabase[binding.Database] = &DatabaseRequirement{
-			Name:       binding.Database,
+		byDatabase[binding.Slot()] = &DatabaseRequirement{
+			Name:       binding.Slot(),
 			Components: []string{binding.ComponentID},
-			CreateSQL:  `CREATE DATABASE "` + binding.Database + `"`,
+			CreateSQL:  `CREATE DATABASE "` + binding.Slot() + `"`,
 		}
-		order = append(order, binding.Database)
+		order = append(order, binding.Slot())
 	}
 
 	if len(req.Components) == 0 {

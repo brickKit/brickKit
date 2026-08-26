@@ -491,7 +491,7 @@ func resourceVars(bound boundResource) []Var {
 	case config.ResourceKindDatabase:
 		pairs = []resourceVar{
 			{name: "DATABASE_HOST", value: r.Host}, {name: "DATABASE_PORT", value: portOf(r)},
-			{name: "DATABASE_NAME", value: bound.binding.Database},
+			{name: "DATABASE_NAME", value: bound.binding.Slot()},
 			{name: "DATABASE_USER", value: r.Username},
 			{name: "DATABASE_PASSWORD", value: r.Password, secretKey: secretKeyPassword},
 		}
@@ -505,19 +505,26 @@ func resourceVars(bound boundResource) []Var {
 			{name: "MQ_HOST", value: r.Host}, {name: "MQ_PORT", value: portOf(r)},
 			{name: "MQ_USER", value: r.Username},
 			{name: "MQ_PASSWORD", value: r.Password, secretKey: secretKeyPassword},
-			{name: "MQ_VHOST", value: bound.binding.Database},
+			{name: "MQ_VHOST", value: bound.binding.Slot()},
 		}
 	case config.ResourceKindStorage:
 		pairs = []resourceVar{
-			{name: "STORAGE_ENDPOINT", value: r.Host},
-			{name: "STORAGE_BUCKET", value: bound.binding.Database},
+			// 叫 ENDPOINT 就得是完整的 endpoint。
+			//
+			// 从前这里只有 r.Host：而 port 在配置校验里是**必填的**
+			// （validateResources），于是使用者被要求填 9000、被校验通过，
+			// 然后那个端口原地蒸发——组件拿到 "host.docker.internal" 去连 MinIO，
+			// 连不上，而配置看上去完全正确。006 §2.1 把 minio / s3 列为常见引擎，
+			// 而 MinIO 就跑在 9000 上。
+			{name: "STORAGE_ENDPOINT", value: hostPort(r)},
+			{name: "STORAGE_BUCKET", value: bound.binding.Slot()},
 			{name: "STORAGE_ACCESS_KEY", value: r.Username},
 			{name: "STORAGE_SECRET_KEY", value: r.Password, secretKey: secretKeySecretKey},
 		}
 	case config.ResourceKindSearch:
 		pairs = []resourceVar{
 			{name: "SEARCH_HOST", value: r.Host}, {name: "SEARCH_PORT", value: portOf(r)},
-			{name: "SEARCH_INDEX", value: bound.binding.Database},
+			{name: "SEARCH_INDEX", value: bound.binding.Slot()},
 		}
 	case config.ResourceKindSMTP:
 		pairs = []resourceVar{
@@ -554,6 +561,14 @@ const (
 	secretKeyPassword  = "password"
 	secretKeySecretKey = "secret-key"
 )
+
+// hostPort 把 host 与 port 拼成 "host:port"；没配端口时只给 host。
+func hostPort(r config.Resource) string {
+	if r.Host == "" || r.Port == 0 {
+		return r.Host
+	}
+	return fmt.Sprintf("%s:%d", r.Host, r.Port)
+}
 
 func portOf(r config.Resource) string {
 	if r.Port == 0 {
