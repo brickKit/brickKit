@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-guide-output cover-check ## 静态检查（文档引用 + 命令 + 目录树 + 字段骨架 + 指南预期输出 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-market-api check-guide-output cover-check ## 静态检查（文档引用 + 命令 + 目录树 + 字段骨架 + 市场 API 表 + 指南预期输出 + 覆盖率门槛）
 	@if [ -x "$(GOLANGCI)" ]; then \
 		echo "▶ golangci-lint run"; \
 		$(GOLANGCI) run ./... && (cd market-server && $(GOLANGCI) run ./...); \
@@ -139,6 +139,10 @@ lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-guide-outp
 .PHONY: check-doc-fields
 check-doc-fields: ## 检查文档里画的字段骨架与 component.yaml / brickkit.yaml 结构体一致
 	@go test ./tests/docfields/
+
+.PHONY: check-market-api
+check-market-api: ## 检查 007 §9 的 API 表与市场真实路由表双向一致
+	@cd market-server && $(GO) test ./internal/handler/ -run 'TestEveryRouteIsDocumented|TestEveryDocumentedRouteExists|TestRouteDocParsingSelfCheck'
 
 .PHONY: check-docs
 check-docs: ## 检查文档引用（悬空小节号、断链、指南编号与前置）

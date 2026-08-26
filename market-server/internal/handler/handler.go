@@ -9,6 +9,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/brickkit/market-server/internal/middleware"
@@ -40,7 +41,31 @@ func New(svc *service.Service, opts Options) http.Handler {
 	}
 
 	rt := &router{api: &api{svc: svc, version: opts.Version, now: opts.Now}}
+	registerRoutes(rt)
+	return middleware.Recover(opts.Logf)(middleware.AccessLog(opts.Logf)(rt))
+}
 
+// Routes 返回全部已注册的路由，形如 `GET /api/v1/health`，按注册顺序。
+//
+// 导出是给 `TestEveryRouteIsDocumented` 用的：007 §9 那张 API 表是**对外契约**，
+// 读者会照着它写客户端。表与实现分叉的两个方向都会出事——写了没实现的，
+// 他撞 404；实现了没写的，他根本不知道有这个端点（`/api/v1/health` 就是
+// 这么漏的：它在《市场部署与运维指南》里出现了四次，而 007 一个字没提）。
+//
+// 它从**同一份**注册函数取，不是另抄一张表：抄一张表就又多一份会漂的真相。
+func Routes() []string {
+	rt := &router{}
+	registerRoutes(rt)
+
+	out := make([]string, 0, len(rt.routes))
+	for _, r := range rt.routes {
+		out = append(out, r.method+" /"+strings.Join(r.segments, "/"))
+	}
+	return out
+}
+
+// registerRoutes 是路由表的唯一来源（007 §9）。
+func registerRoutes(rt *router) {
 	rt.handle(http.MethodGet, "/api/v1/health", (*api).health)
 
 	rt.handle(http.MethodPost, "/api/v1/auth/register", (*api).register)
@@ -71,8 +96,6 @@ func New(svc *service.Service, opts Options) http.Handler {
 		(*api).uploadArtifact)
 	rt.handle(http.MethodGet, "/api/v1/components/:scope/:name/versions/:version/artifacts/:artifactId/download",
 		(*api).downloadArtifact)
-
-	return middleware.Recover(opts.Logf)(middleware.AccessLog(opts.Logf)(rt))
 }
 
 // identity 把 Authorization 头换成调用者身份。
