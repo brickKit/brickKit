@@ -175,7 +175,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	}
 
 	opts.Printf("🚀 启动项目 %s（deploy.target: %s）\n", cfg.Project, cfg.Deploy.Target)
-	warnK8sOnlyFields(opts, cfg)
+	warnTargetOnlyFields(opts, cfg)
 
 	// 先确认"要部到哪"，再做任何生成与拉取：部错集群是不可逆的，
 	// 而且这时连一份生成物都还没落盘
