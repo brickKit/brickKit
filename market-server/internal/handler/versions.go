@@ -59,7 +59,8 @@ func (a *api) setVersionStatus(w http.ResponseWriter, r *http.Request, p params)
 
 	var body struct {
 		Status string `json:"status"`
-		// Reason 只用于审计，不影响判定（运维指南 §6.5 的 blocked 示例会带上它）。
+		// Reason 落进审计条目的 detail，不影响判定（008 §10.4、运维指南 §6.5）。
+		// 这里曾经解析出来就丢掉——注释写着"只用于审计"，而它哪儿都没去。
 		Reason string `json:"reason,omitempty"`
 	}
 	if err := decodeBody(r, &body); err != nil {
@@ -67,7 +68,8 @@ func (a *api) setVersionStatus(w http.ResponseWriter, r *http.Request, p params)
 		return
 	}
 
-	err := a.svc.SetVersionStatus(r.Context(), id, p.componentID(), p["version"], body.Status)
+	err := a.svc.SetVersionStatus(
+		r.Context(), id, p.componentID(), p["version"], body.Status, body.Reason)
 	if err != nil {
 		writeError(w, err)
 		return

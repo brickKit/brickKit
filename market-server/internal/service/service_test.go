@@ -382,7 +382,7 @@ func TestUploadAndDownloadArtifact(t *testing.T) {
 		"proto/people.proto", strings.NewReader(content), int64(len(content))))
 
 	// 上传后才能转 stable（007 §18.2：文件必须与 files 列表一致）
-	require.NoError(t, f.svc.SetVersionStatus(ctx, id, "people/basic", "1.0.0", model.VersionStable))
+	require.NoError(t, f.svc.SetVersionStatus(ctx, id, "people/basic", "1.0.0", model.VersionStable, ""))
 
 	r, err := f.svc.DownloadArtifact(ctx, service.Anonymous(), "people/basic", "1.0.0", "art-0", "proto/people.proto")
 	require.NoError(t, err)
@@ -428,7 +428,7 @@ func TestSetStableRequiresAllFilesUploaded(t *testing.T) {
 	require.NoError(t, f.svc.UploadArtifact(ctx, id, "people/basic", "1.0.0", "art-0",
 		"a.proto", strings.NewReader("x"), 1))
 
-	err = f.svc.SetVersionStatus(ctx, id, "people/basic", "1.0.0", model.VersionStable)
+	err = f.svc.SetVersionStatus(ctx, id, "people/basic", "1.0.0", model.VersionStable, "")
 	e := apiErrorOf(t, err)
 	assert.Equal(t, model.CodeConflict, e.Code)
 	assert.Contains(t, e.Message, "b.proto")
@@ -606,7 +606,7 @@ func TestSetVersionStatus(t *testing.T) {
 	ctx := context.Background()
 	f.publish(t, owner, "people/basic", "1.0.0")
 
-	require.NoError(t, f.svc.SetVersionStatus(ctx, owner, "people/basic", "1.0.0", model.VersionDeprecated))
+	require.NoError(t, f.svc.SetVersionStatus(ctx, owner, "people/basic", "1.0.0", model.VersionDeprecated, ""))
 	v, err := f.repo.GetVersion(ctx, "people/basic", "1.0.0")
 	require.NoError(t, err)
 	assert.Equal(t, model.VersionDeprecated, v.Status)
@@ -624,13 +624,13 @@ func TestOnlyAdminCanBlockVersion(t *testing.T) {
 	ctx := context.Background()
 	f.publish(t, owner, "people/basic", "1.0.0")
 
-	err := f.svc.SetVersionStatus(ctx, owner, "people/basic", "1.0.0", model.VersionBlocked)
+	err := f.svc.SetVersionStatus(ctx, owner, "people/basic", "1.0.0", model.VersionBlocked, "")
 	e := apiErrorOf(t, err)
 	assert.Equal(t, model.CodeForbidden, e.Code)
 	assert.Contains(t, e.Message, "管理员")
 
 	admin := f.promoteAdmin(t, owner)
-	require.NoError(t, f.svc.SetVersionStatus(ctx, admin, "people/basic", "1.0.0", model.VersionBlocked))
+	require.NoError(t, f.svc.SetVersionStatus(ctx, admin, "people/basic", "1.0.0", model.VersionBlocked, ""), "")
 }
 
 // 18.25 blocked 组件/版本不可安装。
@@ -640,7 +640,7 @@ func TestBlockedVersionCannotBeInstalled(t *testing.T) {
 	ctx := context.Background()
 	f.publish(t, owner, "people/basic", "1.0.0")
 	admin := f.promoteAdmin(t, owner)
-	require.NoError(t, f.svc.SetVersionStatus(ctx, admin, "people/basic", "1.0.0", model.VersionBlocked))
+	require.NoError(t, f.svc.SetVersionStatus(ctx, admin, "people/basic", "1.0.0", model.VersionBlocked, ""), "")
 
 	_, err := f.svc.GetManifest(ctx, service.Anonymous(), "people/basic", "1.0.0")
 	e := apiErrorOf(t, err)
@@ -820,7 +820,7 @@ func TestAuditRecordsPublishAndChanges(t *testing.T) {
 
 	f.publish(t, owner, "people/basic", "1.0.0")
 	require.NoError(t, f.svc.SetVisibility(ctx, owner, "people/basic", model.VisibilityPrivate))
-	require.NoError(t, f.svc.SetVersionStatus(ctx, owner, "people/basic", "1.0.0", model.VersionDeprecated))
+	require.NoError(t, f.svc.SetVersionStatus(ctx, owner, "people/basic", "1.0.0", model.VersionDeprecated, ""))
 	require.NoError(t, f.svc.DeleteVersion(ctx, owner, "people/basic", "1.0.0"))
 
 	entries, err := f.svc.ListAudit(ctx, owner, repo.AuditQuery{ComponentID: "people/basic"})
@@ -842,6 +842,66 @@ func TestAuditRecordsPublishAndChanges(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, published, 1)
 	assert.Equal(t, "1.0.0", published[0].Version)
+}
+
+// 下架的**理由**必须进审计（008 §10.4、运维指南 §6.5）。
+//
+// blocked 是整个信任模型的最后一道闸（001 §12）。从前 HTTP 层接收了 reason
+// 却解析出来就丢掉，审计里只有 "blocked" 一个词——而 Action 本身已经是
+// component.version.status_changed 了，那一格几乎没加任何信息。
+// 半年后回头看，唯一能回答"这个版本当初为什么被下架"的那句话不见了。
+func TestBlockReasonReachesAudit(t *testing.T) {
+	f := newFixture(t)
+	owner := f.registerUser(t, "zhangsan")
+	admin := f.promoteAdmin(t, f.registerUser(t, "root"))
+	ctx := context.Background()
+
+	f.publish(t, owner, "people/basic", "1.0.0")
+	require.NoError(t, f.svc.SetVersionStatus(
+		ctx, admin, "people/basic", "1.0.0", model.VersionBlocked, "发现恶意行为"))
+
+	entries, err := f.svc.ListAudit(ctx, admin, repo.AuditQuery{Action: model.ActionVersionStatus})
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Contains(t, entries[0].Detail, model.VersionBlocked, "状态本身还要在")
+	assert.Contains(t, entries[0].Detail, "发现恶意行为", "理由必须记下来")
+}
+
+// 没给理由时不留一个空冒号。
+func TestStatusWithoutReasonKeepsDetailClean(t *testing.T) {
+	f := newFixture(t)
+	owner := f.registerUser(t, "zhangsan")
+	ctx := context.Background()
+
+	f.publish(t, owner, "people/basic", "1.0.0")
+	require.NoError(t, f.svc.SetVersionStatus(
+		ctx, owner, "people/basic", "1.0.0", model.VersionDeprecated, "   "))
+
+	entries, err := f.svc.ListAudit(ctx, owner, repo.AuditQuery{Action: model.ActionVersionStatus})
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, model.VersionDeprecated, entries[0].Detail)
+}
+
+// 理由过长要截断，不能让一行审计变成几十 KB。
+//
+// 请求体没有大小限制，粘错一段日志进去就会这样。截断比拒绝好——
+// 理由写太长不该让下架失败。
+func TestLongReasonIsTruncated(t *testing.T) {
+	f := newFixture(t)
+	owner := f.registerUser(t, "zhangsan")
+	admin := f.promoteAdmin(t, f.registerUser(t, "root"))
+	ctx := context.Background()
+
+	f.publish(t, owner, "people/basic", "1.0.0")
+	require.NoError(t, f.svc.SetVersionStatus(
+		ctx, admin, "people/basic", "1.0.0", model.VersionBlocked, strings.Repeat("很", 5000)))
+
+	entries, err := f.svc.ListAudit(ctx, admin, repo.AuditQuery{Action: model.ActionVersionStatus})
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Less(t, len([]rune(entries[0].Detail)), 250, "审计日志要能一眼扫过去")
+	assert.True(t, strings.HasSuffix(entries[0].Detail, "…"), "截断要看得出来")
 }
 
 func TestAuditRecordsRegistrationAndLogin(t *testing.T) {

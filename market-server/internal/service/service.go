@@ -16,6 +16,7 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -456,7 +457,7 @@ func (s *Service) SearchComponents(
 //
 // 权限：stable / deprecated 由所有者变更；blocked 只有市场管理员。
 func (s *Service) SetVersionStatus(
-	ctx context.Context, id *Identity, componentID, version, status string,
+	ctx context.Context, id *Identity, componentID, version, status, reason string,
 ) error {
 	if !validVersionStatus(status) {
 		return model.Errorf(model.CodeInvalidRequest, "版本状态不合法："+status)
@@ -488,9 +489,44 @@ func (s *Service) SetVersionStatus(
 	}
 	s.audit(ctx, &model.AuditEntry{
 		Action: model.ActionVersionStatus, ComponentID: componentID, Version: version,
-		Operator: id.Username, Result: model.ResultSuccess, Detail: status,
+		Operator: id.Username, Result: model.ResultSuccess,
+		Detail: statusDetail(status, reason),
 	})
 	return nil
+}
+
+// maxReasonRunes 是写进审计的理由长度上限。
+//
+// 有上限不是怕它长，是怕它**不是一句话**：请求体没有大小限制，
+// 一个粘错的日志片段会让这一行审计变成几十 KB，而审计日志的价值
+// 恰恰在于能一眼扫过去。截断比拒绝好——理由写太长不该让下架失败。
+const maxReasonRunes = 200
+
+// statusDetail 组织审计条目的 Detail。
+//
+// # 为什么理由必须落到这里
+//
+// 从前 Detail 填的就是 status 一个词，而 Action 已经是
+// component.version.status_changed 了——那一格几乎没加任何信息。
+//
+// 而 HTTP 层**一直在接收** reason（008 §10.4 与运维指南 §6.5 都在教人填），
+// 只是解析出来就丢掉了，它自己的注释还写着"只用于审计"。
+// 这正是 002 §2.3 删掉 observability 时点名的那一类：不生效的字段，
+// 代价是每个读到它的人都要想一遍该不该填，而填了没有任何效果——
+// 这里还更糟一点，文档在两处教人填它。
+//
+// blocked 是整个信任模型的最后一道闸（001 §12：平台只做最后的 blocked 下架）。
+// 一条不记**为什么**的下架审计，在这个动作上等于没记：半年后回头看，
+// 唯一能回答"这个版本当初为什么被下架"的那句话，被丢在了 HTTP 层。
+func statusDetail(status, reason string) string {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return status
+	}
+	if runes := []rune(reason); len(runes) > maxReasonRunes {
+		reason = string(runes[:maxReasonRunes]) + "…"
+	}
+	return status + "：" + reason
 }
 
 // ensureArtifactsUploaded 校验声明的产物文件都已上传（007 §18.2）。

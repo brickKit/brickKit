@@ -33,7 +33,7 @@ func TestOperationsOnMissingComponent(t *testing.T) {
 				strings.NewReader("x"), 1)
 		},
 		"变更版本状态": func() error {
-			return f.svc.SetVersionStatus(ctx, id, "nope/missing", "1.0.0", model.VersionDeprecated)
+			return f.svc.SetVersionStatus(ctx, id, "nope/missing", "1.0.0", model.VersionDeprecated, "")
 		},
 		"删除版本":   func() error { return f.svc.DeleteVersion(ctx, id, "nope/missing", "1.0.0") },
 		"变更可见性":  func() error { return f.svc.SetVisibility(ctx, id, "nope/missing", model.VisibilityPrivate) },
@@ -60,7 +60,7 @@ func TestOperationsOnMissingVersion(t *testing.T) {
 	ctx := context.Background()
 	f.publish(t, id, "people/basic", "1.0.0")
 
-	err := f.svc.SetVersionStatus(ctx, id, "people/basic", "9.9.9", model.VersionDeprecated)
+	err := f.svc.SetVersionStatus(ctx, id, "people/basic", "9.9.9", model.VersionDeprecated, "")
 	assert.Equal(t, model.CodeNotFound, apiErrorOf(t, err).Code)
 
 	err = f.svc.DeleteVersion(ctx, id, "people/basic", "9.9.9")
@@ -112,7 +112,7 @@ func TestInvalidStatusValues(t *testing.T) {
 	ctx := context.Background()
 	f.publish(t, id, "people/basic", "1.0.0")
 
-	err := f.svc.SetVersionStatus(ctx, id, "people/basic", "1.0.0", "随便什么状态")
+	err := f.svc.SetVersionStatus(ctx, id, "people/basic", "1.0.0", "随便什么状态", "")
 	assert.Equal(t, model.CodeInvalidRequest, apiErrorOf(t, err).Code)
 
 	admin := f.promoteAdmin(t, id)
@@ -229,7 +229,7 @@ func TestSetStableWithoutFileArtifacts(t *testing.T) {
 	_, err := f.svc.Publish(ctx, owner, "people/basic", req)
 	require.NoError(t, err)
 
-	assert.NoError(t, f.svc.SetVersionStatus(ctx, owner, "people/basic", "1.0.0", model.VersionStable))
+	assert.NoError(t, f.svc.SetVersionStatus(ctx, owner, "people/basic", "1.0.0", model.VersionStable, ""))
 }
 
 // ============================================================

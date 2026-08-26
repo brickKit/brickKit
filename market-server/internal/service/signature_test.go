@@ -199,7 +199,7 @@ func TestSignatureSurvivesStatusChange(t *testing.T) {
 	_, err := f.svc.Publish(ctx, id, "people/basic", req)
 	require.NoError(t, err)
 
-	require.NoError(t, f.svc.SetVersionStatus(ctx, id, "people/basic", "1.2.0", model.VersionStable))
+	require.NoError(t, f.svc.SetVersionStatus(ctx, id, "people/basic", "1.2.0", model.VersionStable, ""), "")
 
 	stored, err := f.repo.GetVersion(ctx, "people/basic", "1.2.0")
 	require.NoError(t, err)
