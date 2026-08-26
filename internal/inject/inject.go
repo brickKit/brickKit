@@ -20,6 +20,7 @@ import (
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
 
 // CLI 默认资源配额（004 §5.6.2 第 4 条）。
@@ -252,7 +253,17 @@ func endpoint(service string, port int) string {
 // 新增的配置项自动用新默认值；被删掉的配置项即使 brickkit.yaml 里还留着覆盖
 // 也不会注入（静默忽略，不打扰使用者）。
 func (b *envBuilder) addConfig(m *manifest.Manifest, entry config.Component) ([]*clierr.Error, []string) {
-	if m == nil || m.ConfigSchema == nil {
+	if m == nil {
+		return nil, nil
+	}
+	if m.ConfigSchema == nil {
+		// 组件根本没声明 configSchema，而项目写了 config —— 整块蒸发。
+		// 这是最常撞的一种：先写个最小组件跑通，再想让它可配置，
+		// 直觉是去 brickkit.yaml 加 config，而正确做法是先回 component.yaml
+		// 加 configSchema。不说一句的话，没有任何一处会告诉他
+		if len(entry.Config) > 0 {
+			return []*clierr.Error{noConfigSchemaWarning(b.componentID, entry.Config)}, nil
+		}
 		return nil, nil
 	}
 
@@ -291,7 +302,109 @@ func (b *envBuilder) addConfig(m *manifest.Manifest, entry config.Component) ([]
 		}
 		b.set(Var{Name: name, Value: formatValue(value), Source: source})
 	}
+
+	warnings = append(warnings, b.unknownConfigWarnings(m.ConfigSchema, entry.Config)...)
 	return warnings, missing
+}
+
+// unknownConfigWarnings 提醒"你写的这个配置项，组件的 configSchema 里没有"。
+//
+// # 为什么这不违反"configSchema 是说明书，不是安检机"
+//
+// 012 §2.12 拒绝的是**校验值**（类型、枚举、范围），理由的地基是那一句
+// "两种方式都能让用户发现错误"——类型填错了，组件拿到 "abc" 去 int()
+// 会崩，用户一定会发现。
+//
+// 对**键名**填错，这句话整个不成立：没有任何运行时失败可以兜底。
+// 变量根本不出现，组件走进 os.environ.get(k, 默认值) 的默认分支，
+// 一切正常运行——只是不按你配的运行。用户永远不会"在运行时发现问题"，
+// 他只会某天疑惑为什么改了配置没效果。
+//
+// §2.12 担心的滑坡（type → enum → minimum → pattern）也不适用：
+// 那些都是 JSON Schema 的**约束**，开一个口子就得追下去；
+// 而"这个键在 properties 里有没有"不是约束，是 yamlcheck.Walk 对结构体
+// 字段做的同一件事，一次检查，没有下一步。
+//
+// # 为什么不在解析 brickkit.yaml 时查
+//
+// 那时候 CLI 手上根本没有 Manifest（brickkit.yaml 可以在 add 之前就写好），
+// 任何检查都只能瞎猜。003 §10.1 规则 10 把 `components[].config` 列为
+// 未知字段检查的例外，正是这个原因——那条例外是对的，不用动。
+// 检查放在这里：up 的时候 Manifest 已经读进来了。
+//
+// # 为什么是警告不是错误
+//
+// 与保留变量冲突（004 §5.6.1）同一条线：一个配置项名字写错就整个项目
+// 起不来，代价不成比例。而且它还覆盖第三种情形——升级后新版本删掉了
+// 某个配置项，而 brickkit.yaml 里还留着覆盖（002 §7.9）。那也是
+// "你写的这行不起作用"，同样值得说一句，但绝不该阻断升级。
+func (b *envBuilder) unknownConfigWarnings(
+	schema *manifest.ConfigSchema, overrides map[string]any,
+) []*clierr.Error {
+	if len(overrides) == 0 {
+		return nil
+	}
+
+	known := make([]string, 0, len(schema.Properties))
+	for name := range schema.Properties {
+		known = append(known, name)
+	}
+	sort.Strings(known)
+
+	var out []*clierr.Error
+	for _, key := range sortedOverrideKeys(overrides) {
+		if _, declared := schema.Properties[key]; declared {
+			continue
+		}
+		out = append(out, unknownConfigWarning(b.componentID, key, known))
+	}
+	return out
+}
+
+func sortedOverrideKeys(overrides map[string]any) []string {
+	keys := make([]string, 0, len(overrides))
+	for key := range overrides {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// unknownConfigWarning 是"这一项不会生效"的提醒。
+//
+// "是不是想写 X"用的是 yamlcheck 里那一份实现（前缀 + 编辑距离），
+// 与未知字段提示同一段代码——两处不可能给出不同的答案。
+func unknownConfigWarning(componentID, key string, known []string) *clierr.Error {
+	w := clierr.Warn(clierr.CodeConfigInvalid,
+		"config 里有配置项不会生效：组件 "+componentID+" 的 "+key).
+		WithDetail("组件", componentID).
+		WithDetail("配置项", key)
+
+	reason := "组件的 configSchema 里没有这一项"
+	if guess := yamlcheck.Closest(key, known); guess != "" {
+		reason += "，是不是想写 " + guess + "？"
+	}
+	w = w.WithDetail("原因", reason).
+		WithDetail("影响", "这一项不会被注入任何环境变量；组件会使用它自己的默认值")
+
+	if len(known) > 0 {
+		w = w.WithDetail("组件声明的配置项", strings.Join(known, "、"))
+	}
+	return w.WithTip("组件升级后删掉了这一项时也会看到这条——" +
+		"那说明这行覆盖从此不起作用了，可以清掉（002 §7.9）")
+}
+
+// noConfigSchemaWarning 提醒"这个组件压根没有可配置项"。
+func noConfigSchemaWarning(componentID string, overrides map[string]any) *clierr.Error {
+	keys := sortedOverrideKeys(overrides)
+	return clierr.Warn(clierr.CodeConfigInvalid,
+		"config 整块不会生效：组件 "+componentID+" 没有声明 configSchema").
+		WithDetail("组件", componentID).
+		WithDetailf("被忽略的配置项", "%s（共 %d 项）", strings.Join(keys, "、"), len(keys)).
+		WithDetail("影响", "一项都不会被注入任何环境变量").
+		WithHint("要让它可配置，先在组件的 component.yaml 里加 configSchema（002 §6.5）").
+		WithTip("平台只注入 configSchema 里声明过的配置项——" +
+			"没有声明，就没有对应的环境变量")
 }
 
 // sorted 返回按变量名排序的环境变量表。

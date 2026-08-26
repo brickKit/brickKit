@@ -119,9 +119,22 @@ func unknownFieldMessage(keyNode *yaml.Node, known map[string]reflect.StructFiel
 	return msg + "。这一层可用的字段：" + strings.Join(names, "、")
 }
 
-// closestField 猜使用者想写的是哪个字段。
+// closestField 猜使用者想写的是哪个结构体字段。
 //
-// 只在**足够接近**时才给建议：乱猜一个八竿子打不着的字段名，
+// 先排序再猜：距离相同时 Closest 取先遇到的那个，而 map 的遍历顺序是随机的
+// ——不排的话，同一份配置连跑两次可能给出不同的建议。
+func closestField(input string, known map[string]reflect.StructField) string {
+	names := make([]string, 0, len(known))
+	for name := range known {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return Closest(input, names)
+}
+
+// Closest 猜使用者想写的是哪个名字，猜不出时返回空串。
+//
+// 只在**足够接近**时才给建议：乱猜一个八竿子打不着的名字，
 // 比不给建议更误导人。
 //
 // 两条规则，前缀优先：
@@ -131,14 +144,19 @@ func unknownFieldMessage(keyNode *yaml.Node, known map[string]reflect.StructFiel
 //
 // 前缀单独列一条，是因为编辑距离对它无能为力：user 与 username 差 4 个字符，
 // 按距离早就被筛掉了，而它恰恰是真实装配时踩到的那一个。
-func closestField(input string, known map[string]reflect.StructField) string {
+//
+// 导出是因为**同一件事在两个时点各做一次**：这里按结构体字段查
+// （brickkit.yaml / component.yaml 的字段名，解析期），注入引擎按
+// configSchema 的配置项名查（`components[].config` 的键，up 期，
+// 那时才读得到 Manifest）。两处必须给出同一个答案，所以共用同一段代码。
+func Closest(input string, known []string) string {
 	lowered := strings.ToLower(input)
 
 	// 前缀匹配。要求至少 3 个字符：一两个字母的前缀能命中一大片，
 	// 挑出来的多半不是使用者想要的
 	if len(lowered) >= minPrefixLength {
 		best := ""
-		for name := range known {
+		for _, name := range known {
 			candidate := strings.ToLower(name)
 			if !strings.HasPrefix(candidate, lowered) && !strings.HasPrefix(lowered, candidate) {
 				continue
@@ -155,7 +173,7 @@ func closestField(input string, known map[string]reflect.StructField) string {
 	}
 
 	best, bestDistance := "", 0
-	for name := range known {
+	for _, name := range known {
 		distance := editDistance(lowered, strings.ToLower(name))
 		// 允许的差距随字段名长度放宽，但最多两处改动
 		limit := 2

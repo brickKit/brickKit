@@ -418,8 +418,12 @@ func TestUpgradeAddedConfigKeyUsesDefault(t *testing.T) {
 }
 
 // 新版本删掉了配置项，而 brickkit.yaml 里还留着旧的覆盖 →
-// 静默忽略，不报错（11.14）。使用者升级时不该被一堆遗留配置卡住。
-func TestUpgradeRemovedConfigKeyIsSilentlyIgnored(t *testing.T) {
+// 不注入、不阻断，但**警告一声**（11.14、002 §7.9）。
+//
+// 这一条曾经是"静默忽略"，改成警告的理由：使用者刚升完级，他配的那一行
+// 从此不起作用了，而他多半以为还在生效——那正是最该说一句的时刻。
+// 警告不阻断任何事，代价只是多一行输出。
+func TestUpgradeRemovedConfigKeyWarnsButDoesNotBlock(t *testing.T) {
 	m := simple("people/basic", "2.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
 		"defaultPageSize": {Default: 20},
@@ -434,8 +438,107 @@ func TestUpgradeRemovedConfigKeyIsSilentlyIgnored(t *testing.T) {
 	result := b.build()
 	env := envOf(t, result, "people/basic")
 
-	assert.NotContains(t, env, "REMOVED_IN_V2")
-	assert.Empty(t, result.Warnings, "这是升级的正常现象，不该产生警告")
+	assert.NotContains(t, env, "REMOVED_IN_V2", "删掉的配置项不注入")
+	assert.Equal(t, "50", env["DEFAULT_PAGE_SIZE"], "还在的配置项照常生效")
+
+	require.Len(t, result.Warnings, 1, "该出一条警告：%v", result.Warnings)
+	text := result.Warnings[0].Format()
+	assert.Contains(t, text, "removedInV2", "要点名是哪一项")
+	assert.Contains(t, text, "不会生效")
+}
+
+// ============================================================
+// config 里写了组件不认识的配置项（B3）
+// ============================================================
+
+// 拼错一个字母 → 警告，并猜出他想写的那个。
+//
+// 这是最难查的一类：变量根本不出现，组件走进 os.environ.get(k, 默认值)
+// 的默认分支，一切正常运行——只是不按你配的运行。没有任何运行时失败兜底。
+func TestUnknownConfigKeyWarnsWithSuggestion(t *testing.T) {
+	m := simple("demo/hello", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"greeting": {Default: "你好"},
+	}}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{Config: map[string]any{"greetting": "哈罗"}})
+
+	result := b.build()
+	env := envOf(t, result, "demo/hello")
+	assert.Equal(t, "你好", env["GREETING"], "写错的键不生效，用的是默认值")
+	assert.NotContains(t, env, "GREETTING")
+
+	require.Len(t, result.Warnings, 1, "%v", result.Warnings)
+	text := result.Warnings[0].Format()
+	assert.Contains(t, text, "greetting", "要点名是哪一项")
+	assert.Contains(t, text, "是不是想写 greeting？", "猜拼写用的是 yamlcheck 那一份实现")
+}
+
+// 猜不出来时不硬猜，改成把可用的配置项列出来。
+func TestUnknownConfigKeyWithoutSuggestionListsKnownKeys(t *testing.T) {
+	m := simple("demo/hello", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"greeting": {Default: "你好"},
+	}}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{Config: map[string]any{"totallyUnrelated": 1}})
+
+	text := b.build().Warnings[0].Format()
+	assert.NotContains(t, text, "是不是想写", "八竿子打不着就别硬猜")
+	assert.Contains(t, text, "greeting", "至少告诉他有哪些可用")
+}
+
+// 组件根本没声明 configSchema，而项目写了 config → 整块蒸发，必须出声。
+//
+// 这一种大概比拼错还常见：先写个最小组件跑通，再想让它可配置，
+// 直觉是去 brickkit.yaml 加 config，而正确做法是先回 component.yaml
+// 加 configSchema。
+func TestConfigOnComponentWithoutSchemaWarns(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("demo/nocfg", "1.0.0", 8080), config.Component{
+		Config: map[string]any{"anything": "随便写", "logLevel": "debug"},
+	})
+
+	result := b.build()
+	env := envOf(t, result, "demo/nocfg")
+	assert.NotContains(t, env, "ANYTHING")
+	assert.NotContains(t, env, "LOG_LEVEL")
+
+	require.Len(t, result.Warnings, 1, "整块只说一次，不是每项一条：%v", result.Warnings)
+	text := result.Warnings[0].Format()
+	assert.Contains(t, text, "没有声明 configSchema")
+	assert.Contains(t, text, "anything")
+	assert.Contains(t, text, "logLevel")
+}
+
+// 没写 config 的组件不该被打扰——哪怕它也没有 configSchema。
+func TestNoConfigNoWarning(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("demo/nocfg", "1.0.0", 8080), config.Component{})
+
+	assert.Empty(t, b.build().Warnings)
+}
+
+// 键都对得上时一条警告都不该有。
+//
+// 这条比"能不能报出来"更要紧：一个见谁都喊的告警，两天之内就会被无视。
+func TestCorrectConfigKeysProduceNoWarning(t *testing.T) {
+	m := simple("demo/hello", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"greeting":  {Default: "你好"},
+		"logLevel":  {Default: "info"},
+		"pageSize":  {Default: 20},
+		"enableFoo": {Default: true},
+	}}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{Config: map[string]any{
+		"greeting": "哈罗", "logLevel": "debug", "pageSize": 50, "enableFoo": false,
+	}})
+
+	assert.Empty(t, b.build().Warnings)
 }
 
 // 新版本改了默认值且使用者没覆盖 → 用新默认值（11.15）。
