@@ -158,26 +158,23 @@ cat .brickkit/generated/docker-compose.yaml
 ### 🔍 顺便看一眼资源配额
 
 ```bash
-sed -n '/demo-hello-1-0-0:/,/environment:/p' .brickkit/generated/docker-compose.yaml | grep -A7 deploy:
+sed -n '/demo-hello-1-0-0:/,/environment:/p' .brickkit/generated/docker-compose.yaml | grep -A6 deploy:
 ```
 
 ```
     deploy:
       resources:
-        limits:
-          cpus: "0.20"
-          memory: 128M
         reservations:
           cpus: "0.05"
           memory: 32M
 ```
 
-`reservations` 是 compose 对 requests 的叫法。这里两段都有，是因为 **`demo/hello` 的
-`component.yaml` 里自己声明了推荐配额**（`requests: 50m/32Mi`、`limits: 200m/128Mi`）。
+**只有 `reservations`，没有 `limits`。** `reservations` 是 compose 对 requests 的叫法，
+这里的值来自 `demo/hello` 自己的 `component.yaml`（它声明了 `requests: 50m/32Mi`）。
 
-**组件没声明、项目也没写时，只会有 `reservations`，不会有 `limits`。** 平台给
-`requests` 兜底（`100m` / `128Mi`），给 `limits` **不兜底**——猜一个上限的后果是
-去 kill 一个跑得好好的组件：它真的需要 600Mi，而那个数字是平台编的。
+上限一个都没有，是因为**没人写过**：组件没声明、项目也没写，平台就不生成。
+平台只给 `requests` 兜底（`100m` / `128Mi`），**给 `limits` 不兜底**——猜一个上限的
+后果是去 kill 一个跑得好好的组件：它真的需要 600Mi，而那个数字是平台编的。
 
 起来之后可以直接问 docker 要真实值：
 
@@ -187,12 +184,13 @@ docker inspect brickkit-demo-shop-demo-hello-1-0-0-1 \
 ```
 
 ```
-NanoCpus=200000000  Memory=134217728  MemoryReservation=33554432
+NanoCpus=0  Memory=0  MemoryReservation=33554432
 ```
 
-`NanoCpus=200000000` 就是 0.2 核（**不是** `CpuQuota`，那一项一直是 0）。
+`NanoCpus=0` 与 `Memory=0` 就是"不限"。（CPU 上限看的是 **`NanoCpus`**，
+不是 `CpuQuota`——后者在 compose 起的容器上一直是 0，别看错。）
 
-### 覆盖它
+### 给它设一个内存上限
 
 在 `brickkit.yaml` 里给这个组件加几行：
 
@@ -201,37 +199,30 @@ NanoCpus=200000000  Memory=134217728  MemoryReservation=33554432
     version: 1.0.0
     resources:
       requests: { cpu: "50m", memory: "64Mi" }
-      limits:   { memory: "64Mi" }     # 内存 requests = limits
+      limits:   { memory: "64Mi" }     # 内存 requests = limits；CPU 仍不设上限
 ```
 
 `brickkit up` 之后再 inspect：
 
 ```
-NanoCpus=200000000  Memory=67108864  MemoryReservation=67108864
+NanoCpus=0  Memory=67108864  MemoryReservation=67108864
 ```
 
-内存变成 64Mi 了，而 **CPU 上限还是 0.2 核**——注意这一点：
-
-⚠️ **配额是逐字段合并的，不是整块覆盖。** 你只写了 `limits.memory`，`limits.cpu`
-就沿用组件声明的那个。好处是"只想调大内存"不会把组件推荐的 CPU 配额一起丢掉；
-代价是**组件作者一旦写了 CPU 上限，项目只能改它、没法删掉它**。
-
-所以 002 §4.6 建议：**组件作者声明 `requests` 就好，`limits` 留给部署方决定**——
-作者知道自己占多少，但"允许它涨到多少"是部署环境的判断。
-
-### 为什么建议这么设
-
-CPU 与内存的建议是**相反**的：
+内存被压到 64Mi，**CPU 依然不限**。这正是推荐的形状——两种资源的建议是**相反**的：
 
 | | 建议 | 一句话理由 |
 | --- | --- | --- |
-| CPU | 设 `requests`，不设 `limits` | CPU 上限走 CFS quota，**节点空闲时也照样限流**，表现成毫无来由的 p99 毛刺 |
+| CPU | 设 `requests`，**不设** `limits` | CPU 上限走 CFS quota，**节点空闲时也照样限流**，表现成毫无来由的 p99 毛刺 |
 | 内存 | `requests` = `limits` | 拿到 `Guaranteed` QoS，节点缺内存时**最后**才被驱逐 |
 
-⚠️ **内存 `requests` 千万别为了"多塞几个组件"报低。** `requests` 是给调度器的
-承诺，不是给自己的配额——写 `50Mi` 不会让它只用 50Mi，只会让调度器把机器塞爆。
-然后节点内存耗尽时，kubelet 按「`BestEffort` → 超出 requests 最多的 → `Guaranteed`」
-的顺序驱逐，**报低的组件排在处刑队列前面，而排最前的往往正是你最忙的那个**。
+⚠️ **内存 `requests` 千万别为了"多塞几个组件"报低。** `requests` 是给调度器的承诺，
+不是给自己的配额——写 `50Mi` 不会让它只用 50Mi，只会让调度器把机器塞爆。然后节点
+内存耗尽时，kubelet 按「`BestEffort` → 超出 requests 最多的 → `Guaranteed`」的顺序
+驱逐，**报低的组件排在处刑队列前面，而排最前的往往正是你最忙的那个**。
+
+💡 **组件作者建议只写 `requests`，别写 `limits`**（002 §4.6）。配额是**逐字段合并**的，
+所以组件一旦写了 `limits.cpu`，用它的项目就只能改那个数字、删不掉——而"不设 CPU 上限"
+恰恰是推荐做法。本篇这些自测组件就是这么写的。
 
 完整规则与三个可直接抄的场景（Go 组件群 / JVM / 突发型）见 005 §2.5。
 

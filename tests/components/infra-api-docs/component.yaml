@@ -57,12 +57,12 @@ deployment:
   image: brickkit-demo/infra-api-docs:1.0.0
   port: 8080
   resources:
+    # 只声明 requests，不声明 limits（002 §4.6）：
+    # 组件知道自己稳态占多少，而"允许它涨到多少"是部署方的判断。
+    # 而且逐字段合并意味着这里写了 limits.cpu，用它的项目就删不掉了
     requests:
       cpu: "50m"
       memory: "64Mi"
-    limits:
-      cpu: "300m"
-      memory: "256Mi"
 
 healthCheck:
   type: http

@@ -357,8 +357,8 @@ deployment:                      # 必须
     - name: grpc
       port: 9090
   resources:                     # 可选，**推荐值**，CLI 透传不校验
-    requests: { cpu: "100m", memory: "128Mi" }
-    limits:   { cpu: "500m", memory: "512Mi" }
+    requests: { cpu: "100m", memory: "128Mi" }   # 建议只写 requests（002 §4.6）
+  # limits 建议留给部署方：配额逐字段合并，组件写了 limits.cpu，项目就删不掉
 
 migration:                       # 可选
   command: ["<命令>", "<参数>"]   # 数组格式
