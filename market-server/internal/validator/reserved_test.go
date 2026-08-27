@@ -215,3 +215,35 @@ func fieldsOf(problems []model.Problem) string {
 	}
 	return out
 }
+
+// 改名建议必须**真的避得开**那条模式，而且与 CLI 侧给出同一个答案。
+//
+// 从前市场一律加 custom 前缀：对 DATABASE_* 这类前缀模式有效，
+// 对 *_ENDPOINT 这类后缀模式完全无效——发布者照着改成
+// customDepartmentTreeEndpoint，再发一次，被拒同一条。
+//
+// 这批用例与 CLI 侧 inject.TestRenameSuggestionAvoidsThePattern 是**同一批**，
+// 两个 module 没法共享代码，所以靠两边钉住同一组期望值。改一边就要改另一边。
+func TestSuggestionMatchesCLI(t *testing.T) {
+	cases := []struct{ key, pattern, want string }{
+		// 后缀模式：换掉结尾才躲得开
+		{"departmentTreeEndpoint", "*_ENDPOINT", "departmentTreeBaseUrl"},
+		{"notifierEndpoint", "*_ENDPOINT", "notifierBaseUrl"},
+		// 结尾不是那个词时兜底，但仍然换掉结尾
+		{"endpoint", "*_ENDPOINT", "endpointValue"},
+		// 前缀模式：加前缀就够
+		{"databaseHost", "DATABASE_*", "customDatabaseHost"},
+		{"redisPort", "REDIS_*", "customRedisPort"},
+	}
+	for _, c := range cases {
+		got := renamed(c.key, c.pattern)
+		if got != c.want {
+			t.Errorf("renamed(%q, %q) = %q，期望 %q", c.key, c.pattern, got, c.want)
+		}
+		// 建议本身必须避得开：照着改一次就该通过
+		schema := &model.ConfigSchema{Properties: map[string]model.ConfigProperty{got: {}}}
+		if conflicts := ReservedConflicts(schema); len(conflicts) > 0 {
+			t.Errorf("按建议改成 %q 之后仍然冲突：%v——照着做不管用的建议比不给更糟", got, conflicts)
+		}
+	}
+}

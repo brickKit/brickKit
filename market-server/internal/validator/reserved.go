@@ -41,7 +41,7 @@ func ReservedConflicts(cs *model.ConfigSchema) []model.ReservedConflict {
 			ConfigKey:       key,
 			EnvVarName:      envVar,
 			ConflictPattern: pattern,
-			Suggestion:      suggestion(key),
+			Suggestion:      suggestion(key, pattern),
 		})
 	}
 	return conflicts
@@ -92,10 +92,33 @@ func EnvVarName(key string) string {
 	return b.String()
 }
 
-// suggestion 给出改名建议：加业务前缀是最不容易再撞车的做法。
-func suggestion(key string) string {
-	renamed := "custom" + strings.ToUpper(key[:1]) + key[1:]
-	return "请修改配置项名称，避免与平台保留变量冲突（如改为 " + renamed + "）"
+// suggestion 给出一个**真的避得开**那条模式的新名字。
+//
+// 从前一律加 custom 前缀。那对 DATABASE_* 这类**前缀**模式有效，
+// 对 *_ENDPOINT 这类**后缀**模式完全无效：customDepartmentTreeEndpoint
+// 照样以 _ENDPOINT 结尾，发布者照着改、再发一次、被拒同一条——
+// 一条照着做不管用的建议，比不给建议更浪费时间。
+//
+// ⚠️ 与 CLI 侧 inject.renameSuggestion **必须给出同一个答案**：
+// 两处都会对同一个配置项名提建议（市场在发布时拒绝，CLI 在注入时警告），
+// 说法不一致会让人以为自己改错了。两个 module 没法共享代码，
+// 所以由 TestSuggestionMatchesCLI 钉住同一批用例。
+func suggestion(key string, pattern string) string {
+	return "请修改配置项名称，避免与平台保留变量冲突（如改为 " + renamed(key, pattern) + "）"
+}
+
+// renamed 按模式类型给出新名字：后缀模式要换掉结尾，前缀模式才加前缀。
+func renamed(key, pattern string) string {
+	if strings.HasPrefix(pattern, "*") {
+		// 后缀模式：Endpoint → BaseUrl 是最自然的同义替换
+		suffix := strings.TrimPrefix(pattern, "*_")
+		camel := strings.ToUpper(suffix[:1]) + strings.ToLower(suffix[1:])
+		if trimmed := strings.TrimSuffix(key, camel); trimmed != key && trimmed != "" {
+			return trimmed + "BaseUrl"
+		}
+		return key + "Value"
+	}
+	return "custom" + strings.ToUpper(key[:1]) + key[1:]
 }
 
 // sortedKeys 让冲突列表的顺序稳定，便于测试与排查。

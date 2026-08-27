@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""核对试用指南里的「✅ 预期」块与 CLI 真实输出是否一致。
+"""核对文档里抄下来的 CLI 输出块与真实输出是否一致。
+
+守两处：**试用指南**的「✅ 预期」块，以及**设计书**（design/）里的输出样例。
+
+设计书那部分是后加的。从前只守指南，而 004 是"CLI 开发者、高级用户"的核心
+读物、标着"定稿"，里面 30 多个输出块一个都没人管——复核时逐个对了一遍，
+发现同一个错误在同一份文档里有**两种互相矛盾的写法**（`brickkit init` 不给
+项目名那条），还有一整块描述的是**已经删掉的功能**（`--only` 的报错）。
 
 # 它和 check-guides.sh 有什么不同
 
@@ -208,6 +215,64 @@ CASES = [
         "check": ("add notify/webhook@1.0.0", "17-开发自己的组件.md",
                   "📦 添加 notify/webhook@1.0.0", 0),
     },
+
+    # ---- 设计书（design/）----
+    #
+    # 004 是"CLI 开发者、高级用户"的核心读物、标着"定稿"，而它里面 30 多个
+    # 输出块从前一个都没人管。复核时逐个对了一遍，抓到的不只是文案漂移：
+    # 同一个错误有两种互相矛盾的写法，还有一块描述的是已经删掉的功能。
+    #
+    # 只挂**构造得出来**的场景。真集群、市场、多组件拓扑那些留给人工，
+    # 但账目要报出来（见结尾的"设计书：共 N 个……本次看守 M 个"）。
+    {
+        "what": "004 §3.2 init 的输出",
+        "reset": True,
+        "run": [],
+        "check": ("init my-project", "design/004-CLI 设计.md",
+                  "✅ 项目已初始化：my-project", 0),
+    },
+    {
+        "what": "004 §3.2 init 不给项目名",
+        "reset": True,
+        "run": [],
+        "check": ("init", "design/004-CLI 设计.md",
+                  "❌ 请指定项目名称：brickkit init <项目名称>", 0),
+    },
+    {
+        "what": "004 §3.4 有依赖方时拦下 remove",
+        "reset": True,
+        "run": BASELINE,
+        "check": ("remove department/tree", "design/004-CLI 设计.md",
+                  "❌ 无法移除 department/tree", 0),
+    },
+    {
+        "what": "004 §3.8 dry-run 的启动顺序",
+        "reset": True,
+        "run": BASELINE,
+        "check": ("up --dry-run", "design/004-CLI 设计.md",
+                  "📋 启动顺序（拓扑排序）：", 0),
+    },
+    {
+        "what": "004 §4.3 循环依赖报错",
+        "reset": True,
+        "run": ["init demo-shop", "!cycle"],
+        "check": ("add demo/caller@1.0.0", "design/004-CLI 设计.md",
+                  "❌ 错误：检测到循环依赖", 0),
+    },
+    {
+        "what": "003 §4.3 什么都不写时全跑",
+        "reset": True,
+        "run": BASELINE,
+        "check": ("up --dry-run", "design/003-项目配置规范.md",
+                  "📋 组件状态计算：", 0),
+    },
+    {
+        "what": "003 §4.3 关掉一个顶层，它下面那条链跟着关",
+        "reset": True,
+        "run": BASELINE + ["!disable people/basic"],
+        "check": ("up --dry-run", "design/003-项目配置规范.md",
+                  "📋 组件状态计算：", 1),
+    },
 ]
 
 
@@ -228,15 +293,27 @@ def fenced_blocks(path):
     return blocks
 
 
+def doc_path(filename):
+    """用例里的文件名：带 `/` 的相对仓库根（design/004-…），否则相对试用指南。"""
+    if "/" in filename:
+        return os.path.join(ROOT, filename)
+    return os.path.join(GUIDE, filename)
+
+
+def doc_label(filename):
+    """报错时显示的路径。"""
+    return filename if "/" in filename else "试用指南/" + filename
+
+
 def find_block(filename, anchor, nth):
     """取出以 anchor 开头的第 nth 个围栏块。找不到是硬失败，不是跳过。"""
-    path = os.path.join(GUIDE, filename)
+    path = doc_path(filename)
     hits = [b for b in fenced_blocks(path) if b and b[0].rstrip() == anchor]
     if len(hits) <= nth:
         # 硬失败（2），与"内容对不上"（1）区分开：前者是脚本自己坏了/脱节了，
         # 后者是指南该改。两种都不能静默跳过——跳过和通过长得一模一样。
-        print(f"❌ {filename} 里找不到以「{anchor}」开头的第 {nth + 1} 个块。")
-        print("   指南改过而这个脚本没跟上——修锚点，别把用例删掉。")
+        print(f"❌ {doc_label(filename)} 里找不到以「{anchor}」开头的第 {nth + 1} 个块。")
+        print("   文档改过而这个脚本没跟上——修锚点，别把用例删掉。")
         sys.exit(2)
     return hits[nth]
 
@@ -284,6 +361,22 @@ def prepare(work):
         os.makedirs(os.path.dirname(target), exist_ok=True)
         shutil.copytree(os.path.join(ROOT, "tests", "components", src), target)
     return proj
+
+
+def make_cycle(proj):
+    """让 demo/hello 反过来强依赖 demo/caller，造出一个真的强依赖环。
+
+    004 §4.3 那块报错从前写的是"❌ 循环依赖 detected："——那是很早以前的文案，
+    现在是"错误：检测到循环依赖"，而且多了循环路径与两条出路。
+    """
+    path = os.path.join(proj, "components", "demo", "hello", "component.yaml")
+    s = open(path, encoding="utf-8").read()
+    marker = "deployment:"
+    if marker not in s:
+        sys.exit("❌ demo/hello 的 component.yaml 里找不到 deployment:")
+    s = s.replace(marker,
+                  "dependencies:\n  components:\n    - demo/caller@1.0.0\n" + marker, 1)
+    open(path, "w", encoding="utf-8").write(s)
 
 
 def disable(proj, component_id):
@@ -384,11 +477,11 @@ OUTPUT_MARKS = ("✅", "📦", "📋", "🔍", "⬆️", "🎯", "⚠️", "❌"
                 "🗑️", "⏭️", "🔏", "📂", "ℹ️", "🚀", "🛑", "📊")
 
 
-def total_output_blocks():
-    """数一数指南里一共有多少个看起来是 CLI 输出的块。"""
+def count_output_blocks(pattern):
+    """数一数这批文件里有多少个看起来是 CLI 输出的块。"""
     import glob
     n = 0
-    for path in glob.glob(os.path.join(GUIDE, "[0-9]*-*.md")):
+    for path in glob.glob(pattern):
         for b in fenced_blocks(path):
             if b and b[0].startswith(OUTPUT_MARKS):
                 n += 1
@@ -445,6 +538,8 @@ def main():
                     use_sample(proj, step.split(None, 1)[1])
                 elif step.startswith("!enable "):
                     enable(proj, step.split(None, 1)[1])
+                elif step == "!cycle":
+                    make_cycle(proj)
                 elif step == "!corrupt":
                     corrupt(proj)
                 else:
@@ -477,19 +572,26 @@ def main():
     if problems:
         print(f"❌ 指南预期输出对不上：{len(problems)} 处")
         for what, filename, cmd, line, hint in problems:
-            print(f"   试用指南/{filename}（{what}）")
+            print(f"   {doc_label(filename)}（{what}）")
             print(f"     命令：brickkit {cmd}")
             print(f"     指南里写着：{line}")
             print(f"     {hint}")
-        print("\n指南里的「✅ 预期」是手抄的快照，CLI 文案一改它就过期。")
-        print("请以**真实输出**为准改指南，而不是反过来。")
+        print("\n文档里抄下来的输出是手写快照，CLI 文案一改它就过期。")
+        print("请以**真实输出**为准改文档，而不是反过来。")
         sys.exit(1)
 
-    total = total_output_blocks()
-    print(f"✅ 指南预期输出：{compared} 个块逐行一致"
+    guide_done = sum(1 for c in CASES
+                     if "/" not in c["check"][1] and c.get("tier", "core") in wanted)
+    design_done = compared - guide_done
+    guide_total = count_output_blocks(os.path.join(GUIDE, "[0-9]*-*.md"))
+    design_total = count_output_blocks(os.path.join(ROOT, "design", "*.md"))
+
+    print(f"✅ 文档里的 CLI 输出：{compared} 个块逐行一致"
           + (f"（另跳过 {skipped} 个用例）" if skipped else ""))
-    print(f"   看守账目：指南里共 {total} 个 CLI 输出块，本次看守 {compared} 个。"
-          f"其余多在 05–19——那些篇要 Docker / minikube / 市场 / cosign。")
+    print(f"   试用指南：共 {guide_total} 个输出块，本次看守 {guide_done} 个"
+          f"（其余多在 05–19——那些篇要 Docker / minikube / 市场 / cosign）")
+    print(f"   设计书：共 {design_total} 个输出块，本次看守 {design_done} 个"
+          f"（其余多是构造不出来的场景：真集群、市场、多组件拓扑）")
 
 
 if __name__ == "__main__":
