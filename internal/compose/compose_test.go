@@ -617,16 +617,21 @@ func TestResourceQuotaConversion(t *testing.T) {
 	assert.Equal(t, "128M", reservations["memory"])
 }
 
-// 没声明配额的组件用 CLI 默认值（004 §5.6.2）。
-func TestResourceQuotaFallsBackToDefaults(t *testing.T) {
+// 没声明配额的组件：requests 用 CLI 默认值，**limits 整段不生成**（004 §5.6.2）。
+//
+// 平台不替人猜上限：猜一个数字的后果是去 kill 一个跑得好好的组件，
+// 而组件作者从没同意过那个数字。
+func TestResourceQuotaFallsBackToRequestsOnly(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
 
 	deploy := serviceOf(t, b.parsed(), "people-basic-1-0-0")["deploy"].(map[string]any)
-	limits := deploy["resources"].(map[string]any)["limits"].(map[string]any)
+	resources := deploy["resources"].(map[string]any)
 
-	assert.Equal(t, "0.50", limits["cpus"])
-	assert.Equal(t, "512M", limits["memory"])
+	reservations := resources["reservations"].(map[string]any)
+	assert.Equal(t, "0.10", reservations["cpus"])
+	assert.Equal(t, "128M", reservations["memory"])
+	assert.NotContains(t, resources, "limits", "没人写上限就不该有 limits 这一段")
 }
 
 // brickkit.yaml 里的覆盖要落到最终文件里（P2）。

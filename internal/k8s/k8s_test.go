@@ -501,8 +501,9 @@ func TestResourcesUseCLIDefaults(t *testing.T) {
 
 	assert.Equal(t, inject.DefaultRequestCPU, dig(t, resources, "requests", "cpu"), "16.11")
 	assert.Equal(t, inject.DefaultRequestMemory, dig(t, resources, "requests", "memory"))
-	assert.Equal(t, inject.DefaultLimitCPU, dig(t, resources, "limits", "cpu"))
-	assert.Equal(t, inject.DefaultLimitMemory, dig(t, resources, "limits", "memory"))
+	// 没人写上限就不生成 limits：CPU limit 会让组件在节点空闲时也被 CFS 限流，
+	// 内存 limit 是平台凭空猜的一个 OOMKill 阈值
+	assert.NotContains(t, resources, "limits", "没人写上限就不该有 limits")
 }
 
 // K8s 的写法就是 Manifest 的写法（100m / 128Mi），不需要 compose 那样的换算。

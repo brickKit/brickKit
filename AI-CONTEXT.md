@@ -384,6 +384,17 @@ healthCheck:                     # 必须
 
 **资源配额优先级链：** `brickkit.yaml` 的 `resources` > `component.yaml` 的 `resources` > CLI 默认值。
 
+⚠️ **只有 `requests` 有默认值（`100m` / `128Mi`），`limits` 没有。** 都没写就**不生成 `limits`**——
+限额是业务判断，平台猜一个数字的后果是去 OOMKill 一个跑得好好的组件（它真需要 600Mi，
+而 512Mi 是平台编的）。建议**相反**地设：CPU 设 requests、**不设上限**（CPU limit 走 CFS quota，
+节点空闲时也会限流成 p99 毛刺）；内存 **requests = limits**（拿 Guaranteed QoS，缺内存时最后被驱逐）。
+
+**能塞多少组件：** 硬约束只有"一个节点上所有 Pod 的 `requests` 之和 ≤ 节点 allocatable"，
+`limits` 之和可以远超容量（超卖是正常用法）。20 个组件按默认 requests 合计仅 2 核 / 2.5G。
+真正的成本是**每个进程的内存地板**，几乎完全由语言决定：Go 8–20MB、Python/Node 40–90MB、
+JVM 200–450MB——20 个 Spring Boot 光空转就 4–9G。**别为省内存去合并组件**，
+那是解错了题（该换运行时或用 `enabled: false` 少跑几个）。
+
 **⚠️ 健康检查禁令：** `/healthz` 只检查本进程存活。在健康检查里查数据库或依赖组件
 会导致生产环境雪崩——一个下游抖动会让所有上游同时被判不健康并重启。
 

@@ -23,12 +23,28 @@ import (
 	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
 
-// CLI 默认资源配额（004 §5.6.2 第 4 条）。
+// CLI 默认资源配额（004 §5.6.2）。
+//
+// **只有 requests 有默认值，limits 没有。** 没人写就不生成 limits——
+// 这是刻意的，两个方向的失败代价完全不对称：
+//
+//	不设上限   组件用多少是多少。真出问题（内存泄漏）时节点变紧，
+//	           kubelet 按 QoS 驱逐，运维看得见、查得出
+//	设错上限   平台凭空猜一个数字去 kill 一个跑得好好的组件：
+//	           内存超了直接 OOMKilled、CPU 超了被 CFS 限流成 p99 毛刺，
+//	           而组件作者从没同意过那个数字
+//
+// 从前这里默认给 500m / 512Mi。那意味着**任何一个真的需要 600Mi 的组件，
+// 都会被一个平台编出来的数字反复 OOMKill**，而配置里一个字都没写过它。
+// 这与"平台提供工具，不替人做决定"（001 §12）直接冲突——限额是业务判断，
+// 只有写下它的人知道那个数字对不对。
+//
+// requests 保留默认值，因为它的性质相反：它是**给调度器的提示**，
+// 不设会让 Pod 掉进 BestEffort（节点一紧第一个被驱逐），
+// 而给一个保守的小值只影响调度密度，不会杀任何东西。
 const (
 	DefaultRequestCPU    = "100m"
 	DefaultRequestMemory = "128Mi"
-	DefaultLimitCPU      = "500m"
-	DefaultLimitMemory   = "512Mi"
 )
 
 // Var 是一条环境变量。
@@ -586,14 +602,13 @@ func portOf(r config.Resource) string {
 // 逐字段合并而不是整块覆盖：使用者常常只想调大内存，
 // 不该因此把组件推荐的 CPU 配额一起丢掉。
 func mergeResources(recommended, override *manifest.Resources) manifest.Resources {
-	defaults := manifest.Resources{
-		Requests: &manifest.ResourceSpec{CPU: DefaultRequestCPU, Memory: DefaultRequestMemory},
-		Limits:   &manifest.ResourceSpec{CPU: DefaultLimitCPU, Memory: DefaultLimitMemory},
-	}
+	defaults := &manifest.ResourceSpec{CPU: DefaultRequestCPU, Memory: DefaultRequestMemory}
 
 	return manifest.Resources{
-		Requests: mergeSpec(defaults.Requests, specOf(recommended, true), specOf(override, true)),
-		Limits:   mergeSpec(defaults.Limits, specOf(recommended, false), specOf(override, false)),
+		Requests: mergeSpec(defaults, specOf(recommended, true), specOf(override, true)),
+		// limits 没有兜底那一层：两边都没写就是**不设上限**，
+		// 生成物里连 limits 这一段都不会出现
+		Limits: mergeSpec(specOf(recommended, false), specOf(override, false)),
 	}
 }
 
@@ -608,6 +623,11 @@ func specOf(r *manifest.Resources, requests bool) *manifest.ResourceSpec {
 }
 
 // mergeSpec 按优先级从低到高叠加，空字符串表示"没写"。
+//
+// 一层都没写出东西时返回 nil，而不是一个两个字段都空的结构体——
+// 渲染器据此判断"这一段要不要生成"。limits 全靠它：没人写 limits 时，
+// compose 的 deploy.resources.limits 与 K8s 的 resources.limits
+// **整段不出现**，而不是出现一个空对象。
 func mergeSpec(layers ...*manifest.ResourceSpec) *manifest.ResourceSpec {
 	out := &manifest.ResourceSpec{}
 	for _, layer := range layers {
@@ -620,6 +640,9 @@ func mergeSpec(layers ...*manifest.ResourceSpec) *manifest.ResourceSpec {
 		if layer.Memory != "" {
 			out.Memory = layer.Memory
 		}
+	}
+	if out.CPU == "" && out.Memory == "" {
+		return nil
 	}
 	return out
 }

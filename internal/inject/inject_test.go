@@ -851,7 +851,11 @@ func TestResourceQuotaMergePriority(t *testing.T) {
 	assert.Equal(t, "256Mi", quota.Requests.Memory)
 }
 
-// 组件没声明、使用者也没覆盖 → CLI 默认值（004 §5.6.2 第 4 条）。
+// 组件没声明、使用者也没覆盖 → requests 用 CLI 默认值，**limits 不生成**。
+//
+// 两个方向的失败代价不对称：不设上限最差是节点变紧、按 QoS 驱逐，运维查得出；
+// 而平台凭空猜一个上限，会去 OOMKill 一个跑得好好的组件——它真的需要 600Mi，
+// 而 512Mi 是平台编的，配置里一个字都没写过。
 func TestResourceQuotaFallsBackToCLIDefaults(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
@@ -860,11 +864,10 @@ func TestResourceQuotaFallsBackToCLIDefaults(t *testing.T) {
 
 	assert.Equal(t, "100m", quota.Requests.CPU)
 	assert.Equal(t, "128Mi", quota.Requests.Memory)
-	assert.Equal(t, "500m", quota.Limits.CPU)
-	assert.Equal(t, "512Mi", quota.Limits.Memory)
+	assert.Nil(t, quota.Limits, "没人写上限就不该有上限")
 }
 
-// 组件声明了推荐值、使用者没覆盖 → 用组件的。
+// 组件声明了推荐值、使用者没覆盖 → 用组件的；没写的那半边不补默认值。
 func TestResourceQuotaUsesManifestWhenNotOverridden(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.Deployment.Resources = &manifest.Resources{Requests: spec2("300m", "384Mi")}
@@ -876,15 +879,32 @@ func TestResourceQuotaUsesManifestWhenNotOverridden(t *testing.T) {
 
 	assert.Equal(t, "300m", quota.Requests.CPU)
 	assert.Equal(t, "384Mi", quota.Requests.Memory)
-	assert.Equal(t, "500m", quota.Limits.CPU, "没声明的那半边仍用 CLI 默认值")
+	assert.Nil(t, quota.Limits, "组件只声明了 requests，就只有 requests")
+}
+
+// 只写内存上限时，CPU 上限不该被凭空补出来。
+//
+// 这是推荐写法（005 §5.3）：内存 requests = limits 拿 Guaranteed，
+// 而 CPU 不设上限——CPU limit 走 CFS quota，即使节点空闲也会在每个
+// 100ms 周期里限流，表现成毫无来由的 p99 毛刺。
+func TestMemoryLimitOnlyDoesNotInventCPULimit(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{
+		Resources: &manifest.Resources{Limits: &manifest.ResourceSpec{Memory: "1Gi"}},
+	})
+
+	quota := quotaOf(t, b.build(), "people/basic")
+
+	require.NotNil(t, quota.Limits)
+	assert.Equal(t, "1Gi", quota.Limits.Memory)
+	assert.Empty(t, quota.Limits.CPU, "只写了内存上限，CPU 就不该有上限")
 }
 
 func quotaOf(t *testing.T, r *inject.Result, id string) manifest.Resources {
 	t.Helper()
 	for _, c := range r.Components {
 		if c.Ref.ID == id {
-			require.NotNil(t, c.Resources.Requests)
-			require.NotNil(t, c.Resources.Limits)
+			require.NotNil(t, c.Resources.Requests, "requests 永远有默认值")
 			return c.Resources
 		}
 	}
