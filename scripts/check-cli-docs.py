@@ -168,7 +168,12 @@ def usages(line):
 
 
 def docs():
-    for pattern in ["design/**/*.md", "试用指南/**/*.md", "*.md", "deploy/**/*.md"]:
+    # llms.txt 不是 .md，但它是**喂给 AI 助手的摘要**——里面写错一个命令名或
+    # 一个数字，AI 就会照着教用户敲一条不存在的命令。它比任何一份 .md 都
+    # 更该被守着。（真漏过：命令数目那条守卫上线时，llms.txt 里写的还是
+    # "11 个命令 + version"，而扫描范围没覆盖它。）
+    for pattern in ["design/**/*.md", "试用指南/**/*.md", "*.md", "deploy/**/*.md",
+                    "llms.txt"]:
         for path in glob.glob(pattern, recursive=True):
             if any(d in path for d in SKIP_DIRS):
                 continue
@@ -229,6 +234,42 @@ def check(surface):
                     re.findall(r"(?<![\w-])--[a-z][a-z-]*", line))
 
     return bad_cmd, bad_flag, seen_cmd, seen_flag, documented
+
+
+# COBRA_BUILTINS 是 cobra 自带、不属于"BrickKit 的命令集"的那几个。
+# 文档说"N 个命令"指的是业务命令，不含它们。
+COBRA_BUILTINS = {"completion", "help"}
+
+# COUNT_CLAIM 匹配文档里的数量声明：「11 个命令」「10 个命令 + version」。
+COUNT_CLAIM = re.compile(r"(\d+)\s*个命令")
+
+
+def check_command_count(surface):
+    """文档里写的"N 个命令"必须与真实数目一致。
+
+    # 为什么值得单独查
+
+    这个数字没有任何东西守着，而它散在好几份文档里。复核时实测三处三个数：
+    000 说"11 个命令"、AI-CONTEXT 说"10 个命令 + version"、
+    llms.txt 说"11 个命令 + version"（那是 12）。
+
+    命令有没有、参数对不对都有守卫，唯独"一共几个"没有——而 000 是**导航
+    文档**，读者拿它当索引核对；llms.txt 是喂给 AI 助手的摘要，数错了它会
+    照着编出一个不存在的命令来凑数。
+
+    只查业务命令数（不含 cobra 自带的 completion / help）。声明里
+    "+ version" 那部分不参与比对——那是各文档自己的措辞。
+    """
+    real = len({name for name in surface if name and name not in COBRA_BUILTINS
+                and name != "version"})
+
+    bad = []
+    for path in docs():
+        for i, line in enumerate(open(path, encoding="utf-8"), 1):
+            for m in COUNT_CLAIM.finditer(line):
+                if int(m.group(1)) != real:
+                    bad.append((path, i, m.group(0), line.strip()[:60]))
+    return real, bad
 
 
 def undocumented(surface, documented):
@@ -293,6 +334,16 @@ def main():
               "而不是文档里真的没有命令。")
         sys.exit(2)
     print(f"   （检查了 {seen_cmd} 处命令用法、{seen_flag} 处参数）\n")
+
+    real, bad_count = check_command_count(surface)
+    if bad_count:
+        print(f"❌ 文档里的命令数目对不上：{len(bad_count)} 处（真实是 {real} 个业务命令）")
+        for path, line_no, claim, text in bad_count:
+            print(f"   {path}:{line_no}  写着「{claim}」")
+            print(f"     {text}")
+        print("   → 增删命令时改了实现与各处说明，唯独这个数字没人动")
+        sys.exit(1)
+    print(f"✅ 命令数目：文档与实现一致（{real} 个业务命令）\n")
 
     failed = report("文档写了不存在的命令", bad_cmd, "命令被改名或删掉了，文档没跟着改")
     failed |= report("文档写了不存在的参数", bad_flag, "参数被改名或删掉了，文档没跟着改")
