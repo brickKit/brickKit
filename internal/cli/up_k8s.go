@@ -36,6 +36,7 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 		len(plan.k8s.Files), displayPath(opts.WorkDir, dir))
 	opts.Printf("   命名空间：%s\n", plan.k8s.Namespace)
 	renderResourceRequirements(opts, plan.k8s.Resources)
+	renderNetworkPolicyNotice(opts, plan.k8s)
 
 	if flags.dryRun {
 		renderUpgradeSummary(opts, plan)
@@ -52,6 +53,48 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 	renderMigrations(opts, plan.migrations)
 
 	return applyK8s(ctx, opts, eng, plan, dir, projectSelector(plan.cfg))
+}
+
+// renderNetworkPolicyNotice 提醒"策略生成了，但生不生效取决于集群的 CNI"。
+//
+// # 为什么必须每次都打印
+//
+// NetworkPolicy 在不支持执行的集群上是**无声失效**的：`kubectl apply` 成功、
+// `kubectl get networkpolicy` 看得见、流量完全不受限制、没有任何报错。
+// 所有现象都指向"策略生效了"，而实际一条也没生效——minikube / kind 的
+// **默认** CNI 就属于这一类。
+//
+// 而 CLI **测不出来**：K8s 没有任何 API 能回答"本集群是否执行 NetworkPolicy"，
+// 靠 grep 去猜会在托管集群（CNI 跑在控制面、用户看不见）上误报"不支持"，
+// 把本来正确的部署拦下来。
+//
+// 既然测不出来，就必须说出来。从前这句话只写在 005 §5.13.0 与 003 §3.2 里，
+// 而打开这个开关的人多半是从附录 D 抄了个字段——他不会回去读那两节。
+// 于是完整的失败路径是：抄字段 → up 静默生成 → apply 成功 →
+// get networkpolicy 看得见 → 以为收紧了，实际全通。
+//
+// **一个"打开了也可能完全没生效、而工具一个字不说"的安全功能，价值是负的**：
+// 不做的时候大家知道自己没做。
+//
+// 与 renderResourceRequirements 同一个道理：每次都打印，不是只在出错时——
+// 换个集群部署就换了一次前提，而这件事没有别的地方会提醒他。
+func renderNetworkPolicyNotice(opts *Options, result *k8s.Result) {
+	n := 0
+	for _, ref := range result.Desired {
+		if strings.HasPrefix(ref, "networkpolicy/") {
+			n++
+		}
+	}
+	if n == 0 {
+		return
+	}
+
+	opts.Printf("\n🔒 已生成 %d 份 NetworkPolicy（deploy.networkPolicy.enabled: true）\n", n)
+	opts.Printf("   ⚠️ 它们只在集群的 CNI 支持执行时才有效。不支持时：apply 会成功、\n")
+	opts.Printf("      kubectl get networkpolicy 看得见、而流量完全不受限制——没有任何报错。\n")
+	opts.Printf("      minikube / kind 的**默认** CNI 就属于这一类。\n")
+	opts.Printf("   平台测不出来（K8s 没有这个 API），只能你自己验一次：\n")
+	opts.Printf("      按 005 §5.13.0 真的连一次，看该通的通、该断的断\n")
 }
 
 // projectSelector 是本项目全部生成物共有的标签选择器。

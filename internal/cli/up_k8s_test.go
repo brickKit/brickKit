@@ -267,3 +267,38 @@ func TestStatusK8sDoesNotProbeResourcesFromHost(t *testing.T) {
 	assert.NotContains(t, r.stdout, "不可达", "本机解析不了集群内地址，不能据此判不可达")
 	assert.Contains(t, r.stdout, "集群内", "要说清为什么不下结论")
 }
+
+// 生成了 NetworkPolicy 就必须提醒"生不生效取决于集群的 CNI"（O1）。
+//
+// 不支持执行 NetworkPolicy 的集群上，apply 会成功、get networkpolicy 看得见、
+// 而流量完全不受限制——没有任何报错。而 CLI 测不出来（K8s 没有这个 API）。
+// 既然测不出来就必须说出来：从前这句话只写在 005 §5.13.0 与 003 §3.2 里，
+// 而打开这个开关的人多半是从附录 D 抄了个字段，不会回去读那两节。
+func TestNetworkPolicyNoticeIsPrinted(t *testing.T) {
+	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0"}, "", "")
+
+	// networkPolicy 挂在 deploy 下，而 extra 是追加到文件末尾的，所以在这里插
+	body := strings.Replace(readFile(t, f.Layout.ConfigPath()), "  target: k8s\n",
+		"  target: k8s\n  networkPolicy:\n    enabled: true\n"+
+			"    ingressController:\n      namespace: ingress-nginx\n", 1)
+	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(body), 0o644))
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+	out := r.stdout + r.stderr
+
+	require.Equal(t, clierr.ExitOK, r.code, out)
+	assert.Contains(t, out, "NetworkPolicy", out)
+	assert.Contains(t, out, "CNI", "要点名是 CNI 决定的")
+	assert.Contains(t, out, "没有任何报错", "要说清失败是无声的")
+}
+
+// 没打开 networkPolicy 时不该有这条——每次 up 都多几行与自己无关的话，
+// 会让人开始整块跳过输出。
+func TestNetworkPolicyNoticeAbsentWhenDisabled(t *testing.T) {
+	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0"}, "", "")
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.NotContains(t, r.stdout+r.stderr, "NetworkPolicy")
+}
