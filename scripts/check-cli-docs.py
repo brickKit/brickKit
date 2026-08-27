@@ -240,8 +240,12 @@ def check(surface):
 # 文档说"N 个命令"指的是业务命令，不含它们。
 COBRA_BUILTINS = {"completion", "help"}
 
-# COUNT_CLAIM 匹配文档里的数量声明：「11 个命令」「10 个命令 + version」。
-COUNT_CLAIM = re.compile(r"(\d+)\s*个命令")
+# COUNT_CLAIM 匹配文档里的数量声明：「11 个命令」「10 个命令 + version」「12 条命令」。
+#
+# 量词写两个（个 / 条）不是凑数：第一版只认"个命令"，而 llms.txt 与 README
+# 里写的恰好是"12 条命令"——守卫上线当天就漏了两处。文档是人写的，
+# 同一件事换个量词很正常，认死一个等于给自己留个后门。
+COUNT_CLAIM = re.compile(r"(\d+)\s*[个条]命令")
 
 
 def check_command_count(surface):

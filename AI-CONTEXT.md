@@ -109,7 +109,7 @@ CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，**不依赖 `components/
 | 环境变量注入 | Env Injection | CLI 生成部署文件时写入依赖地址、资源连接、自身配置 |
 | 部署目标 | Deploy Target | `docker` 或 `k8s`，决定 CLI 生成哪种部署文件 |
 | 数据库迁移 | Migration | 组件声明 `migration.command`，CLI 在部署前执行 |
-| 配置覆盖 | Config Override | `brickkit.yaml` 的 `config` 覆盖 configSchema 默认值，**CLI 不校验类型** |
+| 配置覆盖 | Config Override | `brickkit.yaml` 的 `config` 覆盖 configSchema 默认值。**不校验值的类型，但校验键名存不存在** |
 | 连接组件 | Connector Component | 协调多个单一组件的编排组件 |
 | 单一组件 | Standalone Component | 独立完成一个功能、内部事务自洽的组件 |
 | 精确版本 | Exact Version | `major.minor.patch`，依赖声明**不接受** `^` / `~` 范围约束 |
@@ -132,7 +132,7 @@ CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，**不依赖 `components/
 | **开源优先** | CLI 与市场开源；闭源组件通过市场受控分发 |
 | **平台提供工具，不替人做决定** | 多版本默认共存；降级逻辑归组件；破坏性变更是组织协调问题 |
 | **安装即信任** | 平台不做前置安全审查，只做事后 `blocked` 下架 |
-| **configSchema 是说明书，不是安检机** | CLI 不校验使用者填的 config 值类型 |
+| **configSchema 是说明书，不是安检机** | CLI 不校验使用者填的 config **值**（类型 / 枚举 / 范围）。但**键名**要查：写了 configSchema 里没有的配置项会警告 |
 | **一个组件一个仓库** | 不支持 monorepo 拆子目录；组件是独立的发布 / 移动 / 权限单元 |
 | **brickkit.yaml 就是声明** | 配置即意图。写了就执行，CLI 不反问"你确定吗" |
 
@@ -177,6 +177,12 @@ CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，**不依赖 `components/
 这一条带来两个直接后果：**多版本天然共存**（`people-basic-1-0-0` 和 `people-basic-2-0-0`
 是两个互不冲突的 DNS 名），以及**调用方永远明确知道自己调的是哪个版本**，不存在隐式升级。
 
+⚠️ **多版本共存是「项目级」能力，不是「组件级」。** `brickkit.yaml` 里可以并列两个版本
+（供不同调用方各用各的），但**同一份 `component.yaml` 的 `dependencies` 里，一个组件 ID
+只能出现一次**——依赖地址的变量名基于组件 ID、不带版本号，写两个版本会撞同一个
+`*_ENDPOINT`，后者静默覆盖前者。CLI 在解析 Manifest 时就报错（002 §3.6）。
+菱形依赖（A 依赖 X@1、B 依赖 X@2）不受影响，各拿各的。
+
 ### 5.2 环境变量注入规范
 
 **核心原则：环境变量名不带版本号（基于组件 ID），值带版本号（指向具体服务）。**
@@ -190,7 +196,7 @@ DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
 | 依赖组件主端口 | `{组件ID前缀}_ENDPOINT`（`/` 和 `-` → `_`，全大写） | `people/basic` → `PEOPLE_BASIC_ENDPOINT` |
 | 依赖组件额外端口 | `{组件ID前缀}_{NAME大写}_ENDPOINT` | `PEOPLE_BASIC_GRPC_ENDPOINT` |
 | 平台通用变量 | 固定 | `COMPONENT_ID`、`COMPONENT_VERSION` |
-| 资源连接 | 按资源类型 | `DATABASE_HOST/PORT/NAME/USER/PASSWORD`、`REDIS_HOST/PORT/PASSWORD` |
+| 资源连接 | 按资源类型（kind 名就是前缀） | `DATABASE_*`、`REDIS_*`、`MQ_*`、`STORAGE_*`、`SEARCH_*`、`SMTP_*` |
 | 自身配置 | configSchema 驼峰项转大写下划线 | `defaultPageSize` → `DEFAULT_PAGE_SIZE` |
 
 **保留变量保护（两层防御）：** `COMPONENT_ID`、`COMPONENT_VERSION`（精确匹配），
@@ -333,7 +339,7 @@ dependencies:                    # 可选
     - kind: database             # database / cache / mq / storage / search / smtp
       engine: postgresql
 
-configSchema:                    # 可选，自身配置项的"说明书"（CLI 不校验值类型）
+configSchema:                    # 可选，自身配置项的"说明书"（不校验值类型，但键名要对得上）
   type: object                   # 配置项名不得与保留变量冲突（见 5.2）
   properties:
     defaultPageSize:
@@ -380,6 +386,13 @@ healthCheck:                     # 必须
 
 **⚠️ 健康检查禁令：** `/healthz` 只检查本进程存活。在健康检查里查数据库或依赖组件
 会导致生产环境雪崩——一个下游抖动会让所有上游同时被判不健康并重启。
+
+**⚠️ 冷启动超过 30 秒的组件要写 `startPeriodSeconds`。** `interval` / `timeout` /
+`failureThreshold` 由平台固定（10s / 3s / 3），相乘就是默认的启动预算 = 30 秒。
+超过它：Docker 下判 `unhealthy` 让 `up -d --wait` 失败、依赖方卡在 `service_healthy`；
+K8s 下 Pod 被 kill 重启、再走一遍同样的 30 秒 → **永久 CrashLoopBackOff**，
+而容器日志一路正常。Spring Boot / Django 预加载 / .NET 首次 JIT 都在射程内。
+宽限期只推迟"判死"不推迟"判活"（两秒就绪的组件照样两秒转 healthy），所以写大一点没有代价。
 
 ---
 
@@ -428,7 +441,7 @@ components:
     tlsSecret: <Secret 名>        # 可选，仅 K8s + expose，Ingress 的 TLS 证书
     replicas: 3                  # 可选，仅 K8s，默认 1；>1 时自动生成 PDB
     serviceAccountName: <SA 名>   # 可选，仅 K8s；用运维建好的 SA，平台只引用不生成
-    config:                      # 可选，覆盖 configSchema 默认值（不校验类型）
+    config:                      # 可选，覆盖 configSchema 默认值（不校验值类型；键名写错会警告）
       defaultPageSize: 50
     resources:                   # 可选，覆盖组件推荐配额
       requests: { cpu: "200m", memory: "256Mi" }
@@ -444,7 +457,13 @@ resources:                       # 基础资源声明与绑定（资源本身由
     password: ${DB_PASSWORD}     # 必须通过环境变量引用
     bindings:
       - componentId: people/basic
-        database: people         # 数据库资源特有；database 由使用者创建一次
+        # ↓ 下面四个是**同一格**（这个组件在资源里占哪一块），按 kind 用对应的
+        #   那个、只能写一个。用错名字会报错并点名该用哪个（006 §5.2）
+        database: people         # kind: database → DATABASE_NAME（库由使用者建一次）
+      # vhost: orders            # kind: mq      → MQ_VHOST
+      # bucket: media-prod       # kind: storage → STORAGE_BUCKET
+      # index: products          # kind: search  → SEARCH_INDEX
+      #                            kind: cache / smtp 没有这一格，写了会报错
         envPrefix: <前缀>         # 可选，多同类资源时区分环境变量
 
 installer:
@@ -567,6 +586,17 @@ Git diff 时一目了然，也不会因基础层变更**隐式**影响到生产�
 JSON Schema 能力极其丰富，CLI 会越来越臃肿。而且组件自治——组件自己决定怎么处理错误配置
 （报错、降级、用默认值），不该由平台越俎代庖。**说明书已经给你了，你不看或看错，平台不兜底。**
 
+⚠️ **但这条不能顺延到「键名」——那里 CLI 会警告。** 分界在**有没有运行时兜底**：
+类型填错了，组件拿到 `"abc"` 去 `int()` 会崩，你一定会发现；而键名填错**没有任何
+运行时失败**——变量根本不出现，组件走进 `os.environ.get(k, 默认值)` 的默认分支，
+一切正常运行，只是不按你配的运行。所以 `brickkit up` 会说一句
+"config 里有配置项不会生效"，并猜出你想写的那个（`greetting` → `greeting`？）。
+组件**根本没声明 `configSchema`** 而项目写了 `config` 时，整块都不生效，也会警告。
+
+这也不在上面那条滑坡上：`type` / `enum` / `minimum` 都是 JSON Schema 的**约束**，
+开一个口子就得追下去；而"这个键在 `properties` 里有没有"只是一次存在性检查，没有下一步——
+和 Manifest 拒绝未知字段（002 §2.2.1）是同一条推理。
+
 **9.13 为什么弱依赖缺失时完全不注入环境变量，而不是注入空字符串？**
 这是最能体现 BrickKit 哲学的一条。注入空字符串最致命的问题是**制造静默失败**：
 开发者忘记判空，写出 `requests.get(f"{ENDPOINT}/healthz")`，空字符串会拼出 `/healthz`，
@@ -631,6 +661,10 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 | 写健康检查 | `/healthz` 只查本进程。**不要**在里面 ping 数据库或依赖组件 |
 | 读弱依赖的环境变量 | 必须 `os.environ.get()` / `System.getenv()`。**绝不能**用 `os.environ["X"]` |
 | 组件镜像里没有 `wget` / `curl` | Compose healthcheck 会判它 unhealthy——组件日志写着"已就绪"平台却说不健康，多半是这个 |
+| 组件冷启动要几十秒（Spring Boot / Django / .NET） | 写 `healthCheck.startPeriodSeconds`。默认预算只有 30 秒，超了 K8s 下会永久 CrashLoopBackOff |
+| 用户想在一个组件里同时调 X 的两个版本 | 不行，`dependencies` 里一个组件 ID 只能出现一次（变量名不带版本会撞）。多版本共存是**项目级**的 |
+| 改了 `config` 却"没生效" | 先看键名对不对——`brickkit up` 会警告"config 里有配置项不会生效"，并猜出你想写的那个 |
+| 给 MQ / 对象存储 / 搜索写绑定 | 那一格分别叫 `vhost` / `bucket` / `index`，不是 `database`。用错会报错并点名该用哪个 |
 | 用户说"前端不用打包成镜像吧" | 平台里没有 static 类型。前端 = nginx 容器，`port: 80` |
 | 用户想在一个仓库里放多个组件 | 不支持。一个组件一个 Git 仓库 |
 | 用户问 `database` 谁来建 | **数据库由使用者创建一次**（运维侧），表由组件的 migration 建 |
