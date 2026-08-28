@@ -26,6 +26,21 @@ type Plan struct {
 	Steps []PlanStep
 	// Optional 是只被弱依赖引入的组件：它们可以不启动（004 §4.5）。
 	Optional []Ref
+	// Chain 是最长的一条**强依赖**链，从最底层排到最上层（启动的关键路径）。
+	//
+	// 没有任何强依赖边时它只有一个元素；图为空时为 nil。
+	//
+	// # 它替掉的是什么
+	//
+	// 输出里从前有一句"必须最后启动：X（需等前 N 个组件就绪）"，那个 N 取的是
+	// **拓扑序号减一**。而序号是把整张图压平成的一条直线——它把毫不相干的另一条
+	// 链上的组件也算进了"要等的前 N 个"。设计书自己的例子就是错的：
+	// people/basic 只强依赖 department/tree（3 号），却写着"需等前 4 个组件就绪"，
+	// 而紧挨着它的那张依赖图正在打脸。
+	//
+	// 使用者据此得到的印象是"整个 up 是串行的"，于是组件一多就以为启动会线性变慢。
+	// 真正决定 up 时长的是这条链的长度，不在链上的组件是并行起的。
+	Chain []Ref
 }
 
 // Independent 返回可独立启动的组件（没有强依赖）。
@@ -37,14 +52,6 @@ func (p *Plan) Independent() []PlanStep {
 		}
 	}
 	return out
-}
-
-// Last 返回启动顺序中的最后一步，没有组件时返回 nil。
-func (p *Plan) Last() *PlanStep {
-	if len(p.Steps) == 0 {
-		return nil
-	}
-	return &p.Steps[len(p.Steps)-1]
 }
 
 // Order 用 Kahn 算法对依赖图做拓扑排序（004 §4.3）。
@@ -124,7 +131,63 @@ func Order(g *Graph) (*Plan, error) {
 	}
 
 	plan.Optional = optionalOnlyRefs(g, nodes)
+	plan.Chain = longestChain(plan.Steps, nodes)
 	return plan, nil
+}
+
+// longestChain 求最长的一条强依赖链（关键路径）。
+//
+// Steps 已是拓扑序（依赖排在依赖方之前），所以一趟 DP 就够：
+// 每个组件的深度 = 它最深的那个强依赖的深度 + 1。
+//
+// 弱依赖不参与：它可能根本不启动，让它撑长关键路径等于把"可选"偷偷变成"必选"
+// （与 Order 的排序约束同一条规则）。
+//
+// 一样长的链要挑出稳定的那一条：Steps 本身是确定的（同层按 ID + 版本排序），
+// 所以只在**严格更深**时才换人，相同深度保留先出现的那个。
+func longestChain(steps []PlanStep, nodes map[Ref]*Node) []Ref {
+	if len(steps) == 0 {
+		return nil
+	}
+
+	depth := make(map[Ref]int, len(steps))
+	from := make(map[Ref]Ref, len(steps))
+	var deepest Ref
+	best := 0
+
+	for _, step := range steps {
+		d, predecessor := 1, Ref{}
+		for _, dep := range nodes[step.Ref].Requires {
+			if _, ok := nodes[dep]; !ok {
+				continue
+			}
+			if depth[dep]+1 > d {
+				d, predecessor = depth[dep]+1, dep
+			}
+		}
+		depth[step.Ref] = d
+		if predecessor != (Ref{}) {
+			from[step.Ref] = predecessor
+		}
+		if d > best {
+			best, deepest = d, step.Ref
+		}
+	}
+
+	chain := make([]Ref, 0, best)
+	for ref := deepest; ; {
+		chain = append(chain, ref)
+		previous, ok := from[ref]
+		if !ok {
+			break
+		}
+		ref = previous
+	}
+	// 回溯是从上往下走的，反过来才是启动顺序
+	for i, j := 0, len(chain)-1; i < j; i, j = i+1, j-1 {
+		chain[i], chain[j] = chain[j], chain[i]
+	}
+	return chain
 }
 
 // optionalOnlyRefs 找出"只被弱依赖引入"的组件。

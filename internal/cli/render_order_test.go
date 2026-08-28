@@ -62,7 +62,16 @@ func TestDryRunOrderOutputFormat(t *testing.T) {
 	assert.Contains(t, out, "portal-user-frontend-1-0-0")
 
 	assert.Contains(t, out, "可独立启动：")
-	assert.Contains(t, out, "必须最后启动：portal/user-frontend")
+	// 报的是最长的那条**强依赖链**，用版本化服务名（多版本时不带版本会歧义）。
+	//
+	// 这个夹具正好说明旧那句话错在哪：六个组件，旧输出会说
+	// "必须最后启动：portal/user-frontend（需等前 5 个组件就绪）"，
+	// 而真实的关键路径只有 4 层——infra/redis-event-bus 是弱依赖，
+	// 根本不在链上，它与整条链并行启动。
+	assert.Contains(t, out,
+		"最长依赖链（4 层）：department-tree-1-0-0 → people-basic-1-0-0 → "+
+			"erp-backend-1-0-0 → portal-user-frontend-1-0-0")
+	assert.Contains(t, out, "不在这条链上的组件与它并行启动")
 	assert.Contains(t, out, "依赖图：")
 	assert.Contains(t, out, "→")
 }
@@ -217,7 +226,7 @@ func TestRenderDependencyGraphSkipsUnknownNode(t *testing.T) {
 	assert.Empty(t, out.String())
 }
 
-// 只有一个组件时不打印"必须最后启动"（它同时也是第一个）。
+// 只有一个组件时不打印最长链：那时"链"这个词解释不了任何事。
 func TestDryRunOrderSingleComponentOutput(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
 
@@ -225,7 +234,7 @@ func TestDryRunOrderSingleComponentOutput(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "1. people-basic-1-0-0")
 	assert.Contains(t, r.stdout, "可独立启动：people-basic-1-0-0（无依赖）")
-	assert.NotContains(t, r.stdout, "必须最后启动")
+	assert.NotContains(t, r.stdout, "最长依赖链")
 	assert.NotContains(t, r.stdout, "依赖图：")
 }
 

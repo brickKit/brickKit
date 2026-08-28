@@ -97,5 +97,5 @@ func TestOrderAllIndependent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"a/one@1.0.0", "b/two@1.0.0"}, refsInOrder(plan))
 	assert.Len(t, plan.Independent(), 2)
-	assert.Equal(t, "b/two@1.0.0", plan.Last().Ref.String())
+	assert.Len(t, plan.Chain, 1, "谁都不依赖谁，最长链就是一个组件")
 }

@@ -96,8 +96,8 @@ func TestOrderRecordsDependencyPositions(t *testing.T) {
 	assert.Equal(t, []int{1, 2}, steps["erp/backend"].RequirePositions, "序号升序排列")
 }
 
-// 可独立启动的是没有强依赖的组件；"必须最后启动"的是依赖最多的那个。
-func TestPlanIndependentAndLast(t *testing.T) {
+// 可独立启动的是没有强依赖的组件；最长链是那条最深的强依赖路径。
+func TestPlanIndependentAndChain(t *testing.T) {
 	f := newFixture(t,
 		comp{ID: "erp/backend", Version: "1.0.0", Requires: []string{
 			"people/basic@1.0.0", "department/tree@1.0.0",
@@ -119,9 +119,12 @@ func TestPlanIndependentAndLast(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []string{"department/tree", "infra/cache"}, independent)
 
-	last := plan.Last()
-	require.NotNil(t, last)
-	assert.Equal(t, "erp/backend", last.Ref.ID, "依赖最多的排最后")
+	var chain []string
+	for _, ref := range plan.Chain {
+		chain = append(chain, ref.ID)
+	}
+	assert.Equal(t, []string{"department/tree", "people/basic", "erp/backend"}, chain,
+		"最深的那条路径；infra/cache 谁都不依赖，不在链上")
 }
 
 // ============================================================
@@ -237,7 +240,7 @@ func TestOrderEmptyGraph(t *testing.T) {
 	assert.Empty(t, plan.Steps)
 	assert.Empty(t, plan.Optional)
 	assert.Empty(t, plan.Independent())
-	assert.Nil(t, plan.Last())
+	assert.Empty(t, plan.Chain)
 }
 
 func TestOrderNilGraph(t *testing.T) {
@@ -272,4 +275,116 @@ func TestOrderIsDeterministic(t *testing.T) {
 		"authorization/rbac@1.0.0", "department/tree@1.0.0",
 		"people/basic@1.0.0", "erp/backend@1.0.0",
 	}, refsInOrder(first))
+}
+
+// ============================================================
+// 最长依赖链
+// ============================================================
+
+// 最长链只沿**强依赖**边走，且与图里别的分支无关。
+//
+// 这是替掉"必须最后启动：X（需等前 N 个组件就绪）"的那个数。旧说法拿的是
+// 拓扑序号，而序号是一条把整张图压平的直线——它把毫不相干的另一条链上的组件
+// 也算进了"要等的前 N 个"。使用者据此以为整个 up 是串行的，
+// 而它下面那张依赖图恰好在打脸。
+func TestPlanLongestChain(t *testing.T) {
+	f := newFixture(t,
+		// 一条三层链
+		comp{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
+		comp{ID: "people/basic", Version: "1.0.0", Requires: []string{"department/tree@1.0.0"}},
+		comp{ID: "department/tree", Version: "1.0.0"},
+		// 一条与它完全无关的两层链
+		comp{ID: "demo/caller", Version: "1.0.0", Requires: []string{"demo/hello@1.0.0"}},
+		comp{ID: "demo/hello", Version: "1.0.0"},
+	)
+
+	g, err := f.Resolver.Resolve(context.Background(),
+		Ref{"erp/backend", "1.0.0"}, Ref{"demo/caller", "1.0.0"})
+	require.NoError(t, err)
+	plan, err := Order(g)
+	require.NoError(t, err)
+
+	var chain []string
+	for _, ref := range plan.Chain {
+		chain = append(chain, ref.ID)
+	}
+	assert.Equal(t, []string{"department/tree", "people/basic", "erp/backend"}, chain,
+		"从最底层排到最上层；demo 那条链更短，不该混进来")
+}
+
+// 弱依赖不进链：它不约束启动顺序（弱依赖可能根本不启动）。
+//
+// 图的形状是刻意挑的：**只有跨过那条弱边才够得到最深的那个节点**。
+//
+//	erp/backend --强--> people/basic                      （强链深 2）
+//	erp/backend --弱--> infra/bus --强--> infra/mid --强--> infra/deep
+//
+// 弱边算数的话，erp/backend 的深度是 4、链尾就是它；只认强边时最长的是
+// infra 那条（深 3），erp/backend 根本不在链上。断言"链里没有 erp/backend"
+// 才真的证明了弱边没被算进去——两条链一样长的时候，这个断言证明不了任何事。
+func TestLongestChainIgnoresOptional(t *testing.T) {
+	f := newFixture(t,
+		comp{ID: "erp/backend", Version: "1.0.0",
+			Requires: []string{"people/basic@1.0.0"},
+			Optional: []string{"infra/bus@1.0.0"}},
+		comp{ID: "people/basic", Version: "1.0.0"},
+		comp{ID: "infra/bus", Version: "1.0.0", Requires: []string{"infra/mid@1.0.0"}},
+		comp{ID: "infra/mid", Version: "1.0.0", Requires: []string{"infra/deep@1.0.0"}},
+		comp{ID: "infra/deep", Version: "1.0.0"},
+	)
+
+	g, err := f.Resolver.Resolve(context.Background(), Ref{"erp/backend", "1.0.0"})
+	require.NoError(t, err)
+	plan, err := Order(g)
+	require.NoError(t, err)
+
+	var chain []string
+	for _, ref := range plan.Chain {
+		chain = append(chain, ref.ID)
+	}
+	assert.Equal(t, []string{"infra/deep", "infra/mid", "infra/bus"}, chain,
+		"最长的强依赖链是 infra 那条")
+	assert.NotContains(t, chain, "erp/backend",
+		"跨过弱边才够得到 infra/deep——弱依赖可能根本不启动，不能算进关键路径")
+}
+
+// 全是独立组件时没有链可言：不该报一个假的"深度 2"。
+func TestLongestChainIsSingleWhenNothingDepends(t *testing.T) {
+	f := newFixture(t,
+		comp{ID: "demo/one", Version: "1.0.0"},
+		comp{ID: "demo/two", Version: "1.0.0"},
+	)
+
+	g, err := f.Resolver.Resolve(context.Background(),
+		Ref{"demo/one", "1.0.0"}, Ref{"demo/two", "1.0.0"})
+	require.NoError(t, err)
+	plan, err := Order(g)
+	require.NoError(t, err)
+
+	assert.Len(t, plan.Chain, 1, "没有任何强依赖边时，最长链就是一个组件")
+}
+
+// 同样长的两条链要给出稳定的那一条：同一份配置连跑两次必须输出一致，
+// 否则使用者会以为哪里在飘。
+func TestLongestChainIsDeterministic(t *testing.T) {
+	f := newFixture(t,
+		comp{ID: "a/top", Version: "1.0.0", Requires: []string{"a/leaf@1.0.0"}},
+		comp{ID: "a/leaf", Version: "1.0.0"},
+		comp{ID: "b/top", Version: "1.0.0", Requires: []string{"b/leaf@1.0.0"}},
+		comp{ID: "b/leaf", Version: "1.0.0"},
+	)
+
+	var first []Ref
+	for i := 0; i < 5; i++ {
+		g, err := f.Resolver.Resolve(context.Background(),
+			Ref{"a/top", "1.0.0"}, Ref{"b/top", "1.0.0"})
+		require.NoError(t, err)
+		plan, err := Order(g)
+		require.NoError(t, err)
+		if i == 0 {
+			first = plan.Chain
+			continue
+		}
+		assert.Equal(t, first, plan.Chain, "两条一样长的链，每次都要挑同一条")
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/cascade"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -70,12 +71,49 @@ func renderOrder(opts *Options, plan *resolver.Plan, graph *resolver.Graph) {
 		opts.Printf("只被弱依赖引用（关掉不影响别人：enabled: false）：%s\n",
 			strings.Join(ids, "、"))
 	}
-	if last := plan.Last(); last != nil && last.Position > 1 {
-		opts.Printf("必须最后启动：%s（需等前 %d 个组件就绪）\n",
-			last.Ref.ID, last.Position-1)
-	}
+	renderLongestChain(opts, plan)
 
 	renderDependencyGraph(opts, plan, graph)
+}
+
+// renderLongestChain 报出最长的那条强依赖链（启动的关键路径）。
+//
+// # 它替掉了一句错话
+//
+// 这里从前写的是"必须最后启动：X（需等前 N 个组件就绪）"，N 取的是**拓扑序号
+// 减一**。而序号只是把整张图压平成的一条直线，它把毫不相干的另一条链上的组件
+// 也算进了"要等的前 N 个"。两个零依赖的组件就能让它出错：
+//
+//  1. demo-a-1-0-0  无依赖
+//  2. demo-b-1-0-0  无依赖
+//     必须最后启动：demo/b（需等前 1 个组件就绪）    ← 它谁都不等
+//
+// 设计书自己的例子也是错的（004 §3.8）：people/basic 只强依赖 department/tree，
+// 却写着"需等前 4 个组件就绪"，而紧挨着它的那张依赖图正在打脸。使用者据此得到的
+// 印象是"整个 up 是串行的"，于是组件一多就以为启动会线性变慢。
+//
+// 而且它打的是不带版本的组件 ID——多版本共存时两行看起来一模一样。
+//
+// # 现在说的是真话
+//
+// 真正决定 up 时长的是最长的那条强依赖链，**不在链上的组件是并行起的**。
+// 这个数在组件多起来之后自己看不出来（上面那张表要逐行反推），
+// 恰恰是值得平台算一次的东西。
+//
+// 只有一个组件、或者压根没有强依赖边时不打印：那时"链"这个词解释不了任何事。
+func renderLongestChain(opts *Options, plan *resolver.Plan) {
+	if len(plan.Chain) < 2 {
+		return
+	}
+
+	names := make([]string, 0, len(plan.Chain))
+	for _, ref := range plan.Chain {
+		names = append(names, manifest.ServiceName(ref.ID, ref.Version))
+	}
+	opts.Printf("最长依赖链（%d 层）：%s\n", len(names), strings.Join(names, " → "))
+	if len(names) < len(plan.Steps) {
+		opts.Printf("   不在这条链上的组件与它并行启动\n")
+	}
 }
 
 // dependencyNote 生成 "无依赖" 或 "← 依赖 1, 2"。
