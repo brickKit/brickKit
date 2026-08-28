@@ -6,6 +6,10 @@
 # 这份文件是**唯一事实源**：regression_test.go 读它来验证每个测试真的存在，
 # `make test-regression` 读它来执行。改清单只改这里。
 #
+# R1–R25 来自开发计划 Step 37（那份计划已冻结成历史记录）。**从 R26 起是冻结之后
+# 新增的承诺**，Step 一列写 `-`：它们不属于任何 Step，只是"这件事我们答应了使用者，
+# 而这个测试证明它今天还成立"。顺延编号即可，不需要回头改开发计划。
+#
 # 为什么要有「测试名」这一列：没有它，清单就只是 25 个要人手打勾的方框，
 # 谁也证明不了勾是真的。有了它，测试被改名或删掉时守卫会立刻喊出来。
 #
@@ -36,3 +40,5 @@ R22	K8s 部署文件生成	16	.	./internal/k8s	TestDeploymentBasics
 R23	市场发布校验	18	.	./internal/cli	TestPublishRejectsInvalidManifest
 R24	签名校验	20	.	./internal/cli	TestAddVerifiesSignature
 R25	升级兼容性检查	7	.	./internal/cli	TestUpgradeIsReported
+R26	brickkit down 不依赖安装源（读不到 Manifest 也停得掉）	-	.	./internal/cli	TestDownStopsEvenWhenManifestIsBroken
+R27	依赖图取不到时 status 降级而不是失败	-	.	./internal/cli	TestStatusReportsRunningWhenGraphUnavailable

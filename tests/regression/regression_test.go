@@ -25,6 +25,7 @@ package regression
 import (
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -74,10 +75,28 @@ func loadManifest(t *testing.T) []item {
 	return items
 }
 
-// 清单必须正好覆盖 R1–R25，不重不漏。
+// planItems 是开发计划 Step 37 列出的回归项数（R1–R25）。
 //
-// 计划里是 25 项。少一条说明有承诺没了证据，多一条说明清单和计划已经对不上——
-// 两种情况都会让「跑完回归就安全了」变成一句没有依据的话。
+// 它是**下限**，不是总数：见 TestManifestCoversEveryChecklistItem。
+const planItems = 25
+
+// regressionID 是清单编号的形状：R 加一个十进制数。
+var regressionID = regexp.MustCompile(`^R[1-9][0-9]*$`)
+
+// 清单必须**至少**覆盖 R1–R25，并允许在其之上继续添加。
+//
+// # 只守一个方向
+//
+// 计划里那 25 条承诺一条都不能失去证据——这个方向必须守死，
+// 否则「跑完回归就安全了」就成了一句没有依据的话。
+//
+// 反方向（"不许有计划之外的条目"）**已经取消**。开发计划在 41 个 Step 全部
+// 完成后冻结成了历史记录（见它的头部说明），而项目还在继续改。继续守"不许多"
+// 等于规定此后新增的每一条用户承诺都不准进这份清单——而这份清单恰恰是
+// 「承诺 → 证明它的测试」的唯一落点。那会把一个防止清单变成谎话的守卫，
+// 变成一个阻止清单继续记录真话的守卫。
+//
+// 新增条目从 R26 起顺延编号，不需要回头改开发计划。
 func TestManifestCoversEveryChecklistItem(t *testing.T) {
 	items := loadManifest(t)
 
@@ -86,16 +105,20 @@ func TestManifestCoversEveryChecklistItem(t *testing.T) {
 		seen[it.id]++
 		assert.NotEmpty(t, it.desc, "%s 没有说明", it.id)
 		assert.NotEmpty(t, it.test, "%s 没有指向任何测试", it.id)
+		assert.Regexp(t, regressionID, it.id,
+			"第 %d 行的编号 %q 不是 R<数字>：编号是清单与执行目标之间的键，"+
+				"错一个字那一行就再也不会被跑到，而清单看上去仍然是满的", it.line, it.id)
 	}
 
-	for i := 1; i <= 25; i++ {
+	for i := 1; i <= planItems; i++ {
 		id := "R" + strconv.Itoa(i)
 		assert.Equal(t, 1, seen[id],
 			"Step 37：清单里 %s 出现了 %d 次（应当正好 1 次）", id, seen[id])
 		delete(seen, id)
 	}
+	// 剩下的是计划冻结之后新增的承诺：不限数量，但同样不许重号
 	for id, n := range seen {
-		t.Errorf("Step 37：清单里有计划之外的条目 %s（%d 次）", id, n)
+		assert.Equal(t, 1, n, "清单里 %s 出现了 %d 次（应当正好 1 次）", id, n)
 	}
 }
 

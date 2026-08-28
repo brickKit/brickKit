@@ -165,8 +165,8 @@ make lint             # vet + 文档检查
 
 | 命令 | 守住什么 |
 | --- | --- |
-| `make test-regression` | 25 条面向用户的承诺 → 证明它们的测试 |
-| `make test-boundary` 等 | 75 项验收条目 → 证明它们的测试 |
+| `make test-regression` | 面向用户的承诺 → 证明它们的测试（`tests/regression/清单.tsv`） |
+| `make test-boundary` 等 | 边界 / 错误 / 兼容 / 安全验收条目 → 证明它们的测试（`tests/checklist/清单.tsv`） |
 | `make check-docs` | 悬空的小节引用与断链 |
 | `make check-cli-docs` | 文档（和 `--help` 自己）里写的每条命令和参数都真的存在 |
 | `make check-doc-tree` | 文档里画的 `.brickkit/` 目录树与 CLI 真的会创建的东西一致 |
@@ -180,11 +180,14 @@ make lint             # vet + 文档检查
 
 ## 项目状态
 
-计划内的每一步都已完成，延后项也已全部结清。
+计划内的每一步都已完成，延后项也已全部结清；
+[开发计划](%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92.md) 与
+[开发进度](%E5%BC%80%E5%8F%91%E8%BF%9B%E5%BA%A6/README.md) 已冻结为历史记录，
+后续改动以 `design/` 与 `tests/` 下的两份清单为准。
 
 | | |
 | --- | --- |
-| 测试 | 1728 个测试函数，race-clean |
+| 测试 | 1762 个测试函数，race-clean |
 | 试用指南 | 23 篇，全部对着真实 Docker / Kubernetes / 活的市场跑过 |
 | 设计书 | 14 本，与实现交叉复核过两轮 |
 | 决策记录 | 566 条，每条都带当初的推理 |

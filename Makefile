@@ -208,7 +208,7 @@ test-regression: ## 回归测试（读 tests/regression/清单.tsv，先验清�
 	@echo "▶ 校验回归清单（每一项指向的测试是否仍然存在）"
 	@$(GO) test $(TESTFLAGS) ./tests/regression/...
 	@echo ""
-	@echo "▶ 执行清单里的 25 项回归测试"
+	@echo "▶ 执行清单里的 $$(awk -F'\t' '!/^#/ && NF==6' tests/regression/清单.tsv | wc -l | tr -d ' ') 项回归测试"
 	@awk -F'\t' '!/^#/ && NF==6 { print $$4 "\t" $$5 "\t" $$6 }' tests/regression/清单.tsv \
 	  | sort -u \
 	  | awk -F'\t' '{ if (k != $$1 "\t" $$2) { if (k) print k "\t" p; k=$$1 "\t" $$2; p=$$3 } \

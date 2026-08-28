@@ -39,6 +39,8 @@ import (
 const manifestName = "清单.tsv"
 
 // 计划里每个 Step 的验收项数量（开发计划 Step 32–35）。
+//
+// total 是**下限**，不是总数：见 TestManifestCoversEveryPlanItem。
 var plan = []struct {
 	category string
 	step     string
@@ -77,10 +79,21 @@ func repoRoot(t *testing.T) string {
 	return root
 }
 
-// 清单必须覆盖 Step 32–35 的每一项，一项都不能少。
+// 清单必须覆盖 Step 32–35 的每一项，一项都不能少；允许在其之上继续添加。
 //
-// 少一条说明有承诺没了证据；多一条说明清单与计划已经对不上——
-// 两种情况都会让"跑完这四类就安全了"变成一句没有依据的话。
+// # 只守一个方向
+//
+// 计划里那 75 项一条都不能失去证据——这个方向必须守死，否则
+// "跑完这四类就安全了"就成了一句没有依据的话。
+//
+// 反方向（"不许有计划之外的条目"）**已经取消**。开发计划在 41 个 Step 全部
+// 完成后冻结成了历史记录（见它的头部说明），而项目还在继续改：今天补一条
+// 边界用例、明天补一条安全用例，它们都该落在这份清单上，因为这里是
+// 「验收项 → 证明它的证据」的唯一落点。继续守"不许多"，等于规定此后新增的
+// 每一项都不准被记录——那是把防止清单变成谎话的守卫，变成阻止它继续记录真话。
+//
+// 新增条目在对应 Step 的编号上顺延即可（如 security.19），
+// 类别与编号必须对得上仍由 TestCategoryMatchesStepNumber 守着。
 func TestManifestCoversEveryPlanItem(t *testing.T) {
 	rows := load(t)
 
@@ -92,7 +105,9 @@ func TestManifestCoversEveryPlanItem(t *testing.T) {
 		assert.NotEmpty(t, r.Cell(colTest), "第 %d 行（%s）没有指向任何证据", r.Line, id)
 	}
 
+	knownStep := map[string]bool{}
 	for _, p := range plan {
+		knownStep[p.step] = true
 		for i := 1; i <= p.total; i++ {
 			id := p.step + "." + strconv.Itoa(i)
 			assert.NotZero(t, seen[id],
@@ -101,8 +116,13 @@ func TestManifestCoversEveryPlanItem(t *testing.T) {
 			delete(seen, id)
 		}
 	}
-	for id, n := range seen {
-		t.Errorf("清单里有计划之外的条目 %s（%d 次）", id, n)
+	// 剩下的是计划冻结之后新增的验收项：不限数量，但必须仍属于这四个 Step，
+	// 否则 make test-boundary 那几个目标筛不到它，那一行从此不会被执行
+	for id := range seen {
+		step, _, ok := strings.Cut(id, ".")
+		assert.True(t, ok && knownStep[step],
+			"清单里的 %s 不属于 Step 32–35 中的任何一个——"+
+				"那样它不会被任何 make 目标跑到，而清单看上去仍然是满的", id)
 	}
 }
 
