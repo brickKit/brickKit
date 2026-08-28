@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -221,6 +222,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		plan.done = true
 		return plan, nil
 	}
+	renderDegradedWeakDeps(opts, plan.graph, plan.states)
 	renderSyncHint(opts, layout, plan.states)
 	warnDanglingBindings(opts, cfg)
 	warnHardcodedPasswords(opts, cfg)
@@ -306,6 +308,60 @@ func nothingRunningHint(tops []cascade.Component) string {
 		}
 	}
 	return "顶层自己都没被关掉——要放开的是上面那行理由里点名的组件（003 §4.3）"
+}
+
+// renderDegradedWeakDeps 说清楚"这次哪些弱依赖没跑、谁因此拿不到什么"。
+//
+// # 为什么值得单独说一句
+//
+// 状态表里只有一行「⬜ demo/hello 显式禁用」，依赖图里只有一条「（弱）」。
+// 两处都对，但"于是 demo/caller 这次会走降级分支"要使用者自己把它们对起来——
+// 而弱依赖的整个约定就建立在"调用方拿不到 *_ENDPOINT 时自己降级"上（002 §3.4）。
+// 003 §4.3 与 004 §4.1 / §4.5 都承诺过这一句。
+//
+// # 为什么是 💡 而不是 ⚠️
+//
+// 关掉只被弱依赖引用的组件，正是 003 §4.3 推荐的"嫌容器多就下手"的做法，
+// `up --dry-run` 甚至专门列出那份可以下手的名单。给一个推荐动作配警告，
+// 只会训练使用者整块跳过警告区——而真正要紧的那几条也一起被跳过。
+//
+// 与它对应的**警告**是另一回事：弱依赖**取不到**（安装源里没有）那是异常，
+// 由解析器报 ⚠️（resolver.optionalMissingWarning）。两者从前被 004 §4.5
+// 合成一条，说辞也只有一种，现已拆开。
+func renderDegradedWeakDeps(opts *Options, graph *resolver.Graph, states *cascade.Result) {
+	if graph == nil || states == nil {
+		return
+	}
+
+	type pair struct{ dep, dependent resolver.Ref }
+	var pairs []pair
+	for _, node := range graph.Nodes {
+		if !states.IsRunning(node.Ref) {
+			continue // 它自己都不跑，谈不上"它拿不到"
+		}
+		for _, dep := range node.Optional {
+			if !states.IsRunning(dep) {
+				pairs = append(pairs, pair{dep: dep, dependent: node.Ref})
+			}
+		}
+	}
+	if len(pairs) == 0 {
+		return
+	}
+
+	// 按依赖方排序：同一份配置每次都要给出同一个顺序
+	sort.Slice(pairs, func(i, j int) bool {
+		if pairs[i].dep != pairs[j].dep {
+			return pairs[i].dep.String() < pairs[j].dep.String()
+		}
+		return pairs[i].dependent.String() < pairs[j].dependent.String()
+	})
+
+	opts.Printf("💡 这次有弱依赖不启动，调用方会走降级分支（002 §3.4）：\n")
+	for _, p := range pairs {
+		opts.Printf("   %s 不启动 → %s 拿不到 %s\n",
+			p.dep, p.dependent.ID, manifest.EndpointEnvVar(p.dep.ID))
+	}
 }
 
 // renderSyncHint 提醒可以把不启动的组件源码收起来。

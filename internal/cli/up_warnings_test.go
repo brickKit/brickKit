@@ -12,6 +12,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -249,4 +250,95 @@ func TestDryRunNeedsNoEngineAndNeverProbes(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.False(t, probed)
 	assert.Contains(t, r.stdout, "只生成文件")
+}
+
+// ============================================================
+// 弱依赖这次不跑：说清楚谁失去了什么
+// ============================================================
+
+// 关掉一个只被弱依赖指着的组件，调用方就拿不到它的 *_ENDPOINT。
+//
+// 003 §4.3 与 004 §4.1/§4.5 都承诺过这一句，而代码从前一个字不说：
+// 状态表里只有一行"⬜ 显式禁用"，依赖图里只有一条"（弱）"，
+// 两者都不说"于是 demo/caller 这次会走降级分支"。使用者得自己把两处对起来。
+func TestWeakDependencyNotRunningIsReported(t *testing.T) {
+	f := addedProject(t, []comp{
+		{ID: "demo/caller", Version: "1.0.0", Optional: []string{"demo/hello@1.0.0"}},
+		{ID: "demo/hello", Version: "1.0.0"},
+	}, "demo/caller@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/caller
+    version: 1.0.0
+  - id: demo/hello
+    version: 1.0.0
+    enabled: false
+`)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "demo/hello@1.0.0", "要点名是谁没跑")
+	assert.Contains(t, r.stdout, "demo/caller", "要点名谁受影响")
+	assert.Contains(t, r.stdout, "DEMO_HELLO_ENDPOINT", "要说清哪个变量拿不到")
+	assert.Contains(t, r.stdout, "降级", "要说清后果由调用方自己处理（002 §3.4）")
+}
+
+// 这是信息，不是警告。
+//
+// 关掉只被弱依赖引用的组件，正是 003 §4.3 推荐的"嫌容器多就下手"的做法，
+// `up --dry-run` 甚至专门列出那份可以下手的名单。给一个推荐动作配 ⚠️，
+// 只会训练使用者整块跳过警告区——而真正要紧的那几条也一起被跳过。
+func TestWeakDependencyNotRunningIsNotAWarning(t *testing.T) {
+	f := addedProject(t, []comp{
+		{ID: "demo/caller", Version: "1.0.0", Optional: []string{"demo/hello@1.0.0"}},
+		{ID: "demo/hello", Version: "1.0.0"},
+	}, "demo/caller@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/caller
+    version: 1.0.0
+  - id: demo/hello
+    version: 1.0.0
+    enabled: false
+`)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code)
+	line := lineContaining(t, r.stdout, "DEMO_HELLO_ENDPOINT")
+	assert.NotContains(t, line, "⚠️", "这是使用者刚做的决定，不是出了问题：%s", line)
+}
+
+// 弱依赖照常在跑时不该冒出这一行。
+func TestRunningWeakDependencyIsQuiet(t *testing.T) {
+	f := addedProject(t, []comp{
+		{ID: "demo/caller", Version: "1.0.0", Optional: []string{"demo/hello@1.0.0"}},
+		{ID: "demo/hello", Version: "1.0.0"},
+	}, "demo/caller@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/caller
+    version: 1.0.0
+  - id: demo/hello
+    version: 1.0.0
+`)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "DEMO_HELLO_ENDPOINT")
+}
+
+// lineContaining 返回输出里包含该片段的那一行（含它上面那行标题）。
+func lineContaining(t *testing.T, out, fragment string) string {
+	t.Helper()
+	lines := strings.Split(out, "\n")
+	for i, line := range lines {
+		if strings.Contains(line, fragment) {
+			if i > 0 {
+				return lines[i-1] + "\n" + line
+			}
+			return line
+		}
+	}
+	t.Fatalf("输出里找不到含 %q 的行：\n%s", fragment, out)
+	return ""
 }

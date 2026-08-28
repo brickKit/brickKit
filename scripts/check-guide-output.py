@@ -260,6 +260,20 @@ CASES = [
                   "❌ 错误：检测到循环依赖", 0),
     },
     {
+        "what": "004 §4.5 / 003 §4.3 弱依赖这次不跑",
+        "reset": True,
+        "run": BASELINE + ["!disable infra/redis-event-bus"],
+        "check": ("up --dry-run", "design/004-CLI 设计.md",
+                  "💡 这次有弱依赖不启动，调用方会走降级分支（002 §3.4）：", 0),
+    },
+    {
+        "what": "003 §4.3 弱依赖这次不跑（003 里的那一份）",
+        "reset": True,
+        "run": BASELINE + ["!disable infra/redis-event-bus"],
+        "check": ("up --dry-run", "design/003-项目配置规范.md",
+                  "💡 这次有弱依赖不启动，调用方会走降级分支（002 §3.4）：", 0),
+    },
+    {
         "what": "003 §4.5 Docker 下两个组件抢同一个宿主机端口",
         "reset": True,
         "run": BASELINE + ["!expose demo/hello", "!expose demo/caller"],

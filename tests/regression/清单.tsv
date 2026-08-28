@@ -49,3 +49,4 @@ R31	local 组件上写了 expose 会出声，并给出真实地址	-	.	./interna
 R32	版本变更的基线是上一个版本，不是缓存里字典序最前的	-	.	./internal/cli	TestSecondUpgradeReportsThePreviousVersion
 R33	安装源里版本不符时说清它实际是哪个版本	-	.	./internal/source	TestSourceWithDifferentVersionSaysWhichVersionItHas
 R34	engine 拼法不同时点名是哪个资源，而不是谎报「未声明」	-	.	./internal/resolver	TestCheckResourceBindingsSaysWhichEngineIsDeclared
+R35	弱依赖这次不跑时说清谁拿不到什么（信息，不是警告）	-	.	./internal/cli	TestWeakDependencyNotRunningIsReported
