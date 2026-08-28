@@ -233,6 +233,72 @@ def guide_prerequisites():
     return problems
 
 
+# 篇尾那一行的样子：➡️ 下一节：[08-升级与多版本.md](…)
+NEXT_MARK = re.compile(r"➡️ 下一节[：:]\s*\[([^\]]+)\]")
+
+
+def guide_next_chain():
+    """每一篇篇尾的「➡️ 下一节」必须指向**编号上的下一篇**。
+
+    2026-08-18 改号时漏掉的第三处——前两处（篇内小节号、README 前置列）
+    都已经有看守，而这一条链一直没人查，于是它整整保留了**旧编号时代的路线**：
+
+        05 → 06 → 08 → 10 → 20 →（11）→ ⬅️ 20
+
+    按旧号读一遍就明白：旧 06 是本地调试、旧 07 是 K8s、旧 09 是市场、
+    旧 10 是排障速查。改号脚本把链接的**标签和文件名**都改对了，
+    所以 ①②③④ 四道检查全绿——断链没有，编号没错位，前置也对得上。
+    错的是**顺序本身**。
+
+    代价是实打实的：跟着篇尾走的人在 20 那里到头，一共只看到 8 篇，
+    13「完整装配」（八组件真实项目，00a 把它列进两小时主线）一次都到不了；
+    而 10 → 20 → 11 → ⬅️ 20 还是个原地打转的环。
+
+    不变式：**除末篇外，每一篇都要有 ➡️ 下一节，且第一个链接指向编号后继。**
+    00a / 00b 是查阅篇（README 说明它们没有 ▶️ 操作），不在链上。
+    """
+    problems = []
+
+    chapters = []
+    for path in sorted(glob.glob("试用指南/[0-9]*-*.md")):
+        tag = os.path.basename(path).split("-")[0]
+        if not tag.isdigit():        # 00a / 00b 是查的，不是照着做的
+            continue
+        chapters.append((tag, path))
+
+    if len(chapters) < 10:
+        print(f"❌ 只扫到 {len(chapters)} 篇正文——多半是文件名规则变了，"
+              "而不是指南真的只剩这么几篇。")
+        sys.exit(2)
+
+    checked = 0
+    for i, (tag, path) in enumerate(chapters):
+        text = open(path, encoding="utf-8").read()
+        m = re.search(NEXT_MARK, text)
+        last = i == len(chapters) - 1
+
+        if last:
+            if m:
+                problems.append((path, 0, f"{tag} 是最后一篇，不该再有「➡️ 下一节」"))
+            continue
+
+        checked += 1
+        want_tag, want_path = chapters[i + 1]
+        if not m:
+            problems.append((path, 0, f"{tag} 篇尾没有「➡️ 下一节」，"
+                                      f"读者跟着走会在这里断掉（该指向 {want_tag}）"))
+            continue
+        got = m.group(1)
+        if got != os.path.basename(want_path):
+            problems.append((path, 0, f"{tag} 的下一节指向 {got}，"
+                                      f"但编号后继是 {os.path.basename(want_path)}"))
+
+    if checked == 0:
+        print("❌ 一条「➡️ 下一节」都没比对——多半是标记文案变了。")
+        sys.exit(2)
+    return problems
+
+
 def main():
     sections = design_sections()
     self_check(sections)
@@ -242,6 +308,7 @@ def main():
     failed |= report("文档断链", check_links())
     failed |= report("指南编号错位", guide_section_numbers())
     failed |= report("指南前置对不上", guide_prerequisites())
+    failed |= report("指南「下一节」链断开", guide_next_chain())
 
     if failed:
         print("\n引用坏掉的常见原因：重写某一节时改了编号、拆分文件时换了路径。")
