@@ -266,3 +266,46 @@ func TestDownAlwaysPassesSelector(t *testing.T) {
 	assert.Equal(t, "brickkit.io/project=my-erp", eng.downs[0].Selector,
 		"即便这条路用不上，也不该留一个空字段")
 }
+
+// ============================================================
+// down 不依赖安装源
+// ============================================================
+
+// 组件的 component.yaml 写坏了，down 照样要能把容器停掉。
+//
+// down 需要的只有项目名——它交给引擎的就是"停掉 brickkit-<项目名> 名下的一切"
+// （005 §5.9.3）。而它从前会先把每个组件的 component.yaml 都读一遍去建依赖图，
+// 那套结论一个字段都没用上，却让 component.yaml 里的一处笔误、本地源目录被删、
+// 市场连不上……任何一种都能把"停容器"这件事拦下来，而容器还好好跑着。
+//
+// 一条停不掉项目的 down，比一条不存在的 down 更糟：使用者以为自己有退路。
+func TestDownStopsEvenWhenManifestIsBroken(t *testing.T) {
+	f, eng := startedProject(t)
+	breakLocalManifest(t, f, "erp/backend")
+
+	r := runWithEngine(t, eng, f.Dir, "down")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	require.Len(t, eng.downs, 1, "容器必须真的被停掉，而不是先去解析一遍依赖图")
+	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project)
+	assert.Contains(t, r.stdout, "已停止")
+}
+
+// 本地安装源整个目录没了，down 同样照停。
+//
+// 这是最常见的一种：`components/` 在 init 生成的 .gitignore 里，
+// 同事 clone 下来的仓库里根本没有它。
+func TestDownStopsEvenWhenLocalSourceIsGone(t *testing.T) {
+	f, eng := startedProject(t)
+	matches, err := filepath.Glob(filepath.Join(f.Dir, "src*"))
+	require.NoError(t, err)
+	require.NotEmpty(t, matches)
+	for _, dir := range matches {
+		require.NoError(t, os.RemoveAll(dir))
+	}
+
+	r := runWithEngine(t, eng, f.Dir, "down")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	require.Len(t, eng.downs, 1)
+}

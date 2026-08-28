@@ -4,13 +4,16 @@ package cli
 // 把版本化服务名映射回"人认识的"组件 ID。
 //
 // up 之后的两个命令都在回答同一个问题的不同侧面："现在这个项目是什么样"。
-// 让它们共用同一份读取逻辑，才不会出现 status 说在跑、down 却停不掉的情况。
+// 但**共用的只该是它们都需要的那部分**：两条命令都要项目名，只有 status
+// 要依赖图。从前它们共用一个把两件事一起做完的 loadProject，
+// 于是解析依赖图成了停容器的前置条件——那是一次沉默的越界。
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/brickkit/brickkit/internal/cascade"
+	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/k8s"
@@ -38,49 +41,91 @@ type project struct {
 	states *cascade.Result
 	// order 是启动顺序（停止时倒着来）。
 	order []resolver.Ref
-	// localPorts 是 local: true 组件在宿主机上的监听端口。
-	localPorts map[resolver.Ref]int
+	// degraded 非 nil 表示**依赖图没解析出来**，本次只能给出部分结论。
+	//
+	// 它是一个结论，不是一个错误：读不到 Manifest 并不妨碍回答
+	// "现在什么在跑"——那个答案只来自引擎。谁需要依赖图、需要它回答哪一句，
+	// 由各个渲染函数自己决定（见 status.go 的 buildView）。
+	degraded *clierr.Error
 }
 
-// loadProject 读配置、算级联。
+// loadConfig 只读 brickkit.yaml，**不碰安装源**。
 //
-// 不重新生成部署文件：down / status 面对的是**已经跑起来的东西**，
-// 重新生成只会掩盖"配置改了但还没 up"这个事实。
-func loadProject(ctx context.Context, opts *Options) (*project, error) {
+// down 走这条：它交给引擎的只有项目名（"停掉 brickkit-<项目名> 名下的一切"，
+// 005 §5.9.3），依赖图里的任何东西它都用不上。
+//
+// 从前它和 status 共用下面那个 loadProject，于是解析依赖图成了停容器的前置条件——
+// component.yaml 里一处笔误、本地源目录被删（`components/` 本来就在 .gitignore 里）、
+// 市场连不上，任何一种都让 down 直接失败，而容器好好跑着。
+// 一条停不掉项目的 down 比没有 down 更糟：使用者以为自己有退路。
+func loadConfig(opts *Options) (*project, error) {
 	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
 	cfg, err := config.ParseConfigFile(layout.ConfigPath())
 	if err != nil {
 		return nil, err
 	}
+	return &project{layout: layout, cfg: cfg}, nil
+}
 
-	p := &project{
-		layout:     layout,
-		cfg:        cfg,
-		localPorts: map[resolver.Ref]int{},
-	}
-
-	if len(cfg.Components) == 0 {
-		return p, nil
-	}
-
-	client, err := newSourceClient(opts, layout, cfg, source.Options{})
+// loadProject 读配置，并**尽力**解析依赖图。
+//
+// 不重新生成部署文件：down / status 面对的是**已经跑起来的东西**，
+// 重新生成只会掩盖"配置改了但还没 up"这个事实。
+//
+// 解析失败不算命令失败，只记进 degraded：status 的五节里只有"未启动"
+// 那一列**原因**真的需要依赖图，为它把整条命令拖死，换来的是
+// 使用者连"容器还在不在"都问不到。
+func loadProject(ctx context.Context, opts *Options) (*project, error) {
+	p, err := loadConfig(opts)
 	if err != nil {
 		return nil, err
 	}
+	if len(p.cfg.Components) == 0 {
+		return p, nil
+	}
+	if err := p.resolve(ctx, opts); err != nil {
+		p.graph, p.states, p.order = nil, nil, nil
+		p.degraded = clierr.As(err)
+	}
+	return p, nil
+}
+
+// resolve 解析依赖图并算出级联与启动顺序。
+func (p *project) resolve(ctx context.Context, opts *Options) error {
+	client, err := newSourceClient(opts, p.layout, p.cfg, source.Options{})
+	if err != nil {
+		return err
+	}
 	defer func() { _ = client.Close() }()
 
-	if p.graph, err = resolver.New(resolver.FromSource(client)).ResolveConfig(ctx, cfg); err != nil {
-		return nil, err
+	if p.graph, err = resolver.New(resolver.FromSource(client)).ResolveConfig(ctx, p.cfg); err != nil {
+		return err
 	}
-	if p.states, err = cascade.Compute(cfg, p.graph); err != nil {
-		return nil, err
+	if p.states, err = cascade.Compute(p.cfg, p.graph); err != nil {
+		return err
 	}
 	if plan, err := resolver.Order(p.graph.Subgraph(p.states.Running())); err == nil {
 		for _, step := range plan.Steps {
 			p.order = append(p.order, step.Ref)
 		}
 	}
-	return p, nil
+	return nil
+}
+
+// componentRefs 是本次要汇报的组件。
+//
+//	正常   级联判定为"会启动"的那些，按启动顺序
+//	降级   brickkit.yaml 里声明的全部，按声明顺序——判不出谁该跑，
+//	       那就一个都不漏地列出来，由调用方去说明各自的处境
+func (p *project) componentRefs() []resolver.Ref {
+	if p.degraded == nil {
+		return p.order
+	}
+	out := make([]resolver.Ref, 0, len(p.cfg.Components))
+	for _, c := range p.cfg.Components {
+		out = append(out, resolver.Ref{ID: c.ID, Version: c.Version})
+	}
+	return out
 }
 
 // entry 返回 brickkit.yaml 中该组件的条目。
@@ -100,7 +145,7 @@ func (p *project) entry(ref resolver.Ref) config.Component {
 // 不混在"未在运行"里——那会让人以为它们出问题了。
 func (p *project) containerRefs() []resolver.Ref {
 	var out []resolver.Ref
-	for _, ref := range p.order {
+	for _, ref := range p.componentRefs() {
 		if !p.entry(ref).Local {
 			out = append(out, ref)
 		}
@@ -111,7 +156,7 @@ func (p *project) containerRefs() []resolver.Ref {
 // localRefs 返回 local: true 且本次会启动的组件。
 func (p *project) localRefs() []resolver.Ref {
 	var out []resolver.Ref
-	for _, ref := range p.order {
+	for _, ref := range p.componentRefs() {
 		if p.entry(ref).Local {
 			out = append(out, ref)
 		}

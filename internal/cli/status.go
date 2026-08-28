@@ -12,6 +12,7 @@ import (
 	"github.com/brickkit/brickkit/internal/deploy"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/resolver"
 )
 
 // newStatusCommand 实现 brickkit status（004 §3.7）。
@@ -82,50 +83,160 @@ func runStatus(ctx context.Context, opts *Options) error {
 		byService[s.Service] = s
 	}
 
-	renderComponentStatus(opts, p, byService)
-	renderSkipped(opts, p)
-	renderLocalDebug(opts, p)
+	view := buildView(p, byService)
+	renderDegradedNotice(opts, p)
+	renderComponentStatus(opts, p, view)
+	renderSkipped(opts, view)
+	renderLocalDebug(opts, p, view)
 	renderResourceStatus(ctx, opts, p)
 	return nil
+}
+
+// ============================================================
+// 归属判定
+// ============================================================
+
+// reasonUnknown 是降级时给不出真实原因的那一句。
+//
+// 写"未知"而不是编一个：使用者据此去改配置，一句猜出来的原因会把他引向
+// 一个根本没问题的地方。上面那条 renderDegradedNotice 已经说清楚为什么未知。
+const reasonUnknown = "原因未知（依赖图取不到）"
+
+// statusRow 是表格里的一行：一个组件 + 一句话。
+type statusRow struct {
+	ref resolver.Ref
+	// text 是状态（运行中 / exited…）或不启动的原因。
+	text  string
+	ports string
+}
+
+// componentView 是"每个组件这次归到哪一节"的**唯一**判定。
+//
+// 正常与降级两条路的差别全部收在 buildView 里：渲染只认这份结果，
+// 不再各自去问 p.order / p.states——那样两条路会各写一遍分类逻辑，
+// 而它们必须永远给出同一种归属。
+type componentView struct {
+	// running 是引擎里在跑的；failed 是该跑却没跑的。
+	running []statusRow
+	failed  []statusRow
+	// skipped 是本次不启动的组件及原因。
+	skipped []statusRow
+	// local 是 local: true、由使用者自己在 IDE 里跑的组件（没有容器）。
+	local []resolver.Ref
+}
+
+func buildView(p *project, byService map[string]engine.Status) componentView {
+	if p.degraded != nil {
+		return degradedView(p, byService)
+	}
+	return resolvedView(p, byService)
+}
+
+// resolvedView 是依赖图解析成功时的归属：判定说了算。
+func resolvedView(p *project, byService map[string]engine.Status) componentView {
+	var v componentView
+	for _, ref := range p.containerRefs() {
+		status, ok := byService[manifest.ServiceName(ref.ID, ref.Version)]
+		row := statusRow{ref: ref, text: statusText(status, ok), ports: status.Ports}
+		if ok && status.Running() {
+			v.running = append(v.running, row)
+			continue
+		}
+		v.failed = append(v.failed, row)
+	}
+	if p.states != nil {
+		for _, c := range p.states.Components {
+			if c.State != cascade.StateRunning {
+				v.skipped = append(v.skipped, statusRow{ref: c.Ref, text: c.Reason})
+			}
+		}
+	}
+	v.local = p.localRefs()
+	return v
+}
+
+// degradedView 是依赖图取不到时的归属：改由**引擎里有没有它**说了算。
+//
+//	在跑        ✅ 运行中
+//	有记录没跑  ❌ 未在运行 —— 引擎里有它，说明它确实被部署过
+//	查不到      判不出它该不该跑，一律进"未启动"，原因写实话：
+//	            enabled: false 是 brickkit.yaml 里就写着的，其余写"原因未知"
+//
+// **绝不把"查不到"算成"未在运行"**：那一节的意思是"该跑却没跑"，
+// 而这时恰恰不知道它该不该跑——说成没起来，是在冤枉一个本来就该停着的组件，
+// 而使用者会照着这句话去查一个根本不存在的故障。
+//
+// 同样绝不把它整个略去：配置里声明过的组件凭空消失，使用者只会以为组件没了。
+func degradedView(p *project, byService map[string]engine.Status) componentView {
+	var v componentView
+	for _, c := range p.cfg.Components {
+		ref := resolver.Ref{ID: c.ID, Version: c.Version}
+		status, ok := byService[manifest.ServiceName(ref.ID, ref.Version)]
+		switch {
+		case ok && status.Running():
+			v.running = append(v.running,
+				statusRow{ref: ref, text: statusText(status, ok), ports: status.Ports})
+		case ok:
+			v.failed = append(v.failed, statusRow{ref: ref, text: statusText(status, ok)})
+		case c.IsDisabled():
+			v.skipped = append(v.skipped, statusRow{ref: ref, text: reasonDisabled})
+		case c.Local:
+			// local 组件本来就不会出现在引擎里，"查不到"是它的正常状态
+			v.local = append(v.local, ref)
+		default:
+			v.skipped = append(v.skipped, statusRow{ref: ref, text: reasonUnknown})
+		}
+	}
+	return v
+}
+
+// renderDegradedNotice 说明"依赖图没取到，因此下面有一节不完整"。
+//
+// 放在最前面：使用者要先知道这份报告哪里打了折扣，再去读它。
+// 解析失败的原因原样带出来（哪个文件、第几行、哪个字段）——那正是他要改的地方，
+// 只说一句"解析失败"等于让他自己再跑一次别的命令去问。
+func renderDegradedNotice(opts *Options, p *project) {
+	if p.degraded == nil {
+		return
+	}
+
+	opts.Printf("\u26a0\ufe0f 未能解析依赖图，「未启动」那一节只能给出部分原因\n")
+	opts.Printf("   %s\n", strings.TrimPrefix(p.degraded.Message, "错误："))
+	for _, d := range p.degraded.Details {
+		opts.Printf("   %s：%s\n", d.Key, d.Value)
+	}
+	opts.Printf("   「运行中」与「资源状态」不受影响——它们只问引擎和 brickkit.yaml\n\n")
 }
 
 // renderComponentStatus 输出"该跑的组件现在怎么样了"。
 //
 // 只列 brickkit.yaml 里的组件：迁移容器与基础资源是平台的实现细节，
 // 使用者装的是组件，看到的也该是组件（资源单独一节汇报）。
-func renderComponentStatus(opts *Options, p *project, byService map[string]engine.Status) {
-	refs := p.containerRefs()
-	if len(refs) == 0 {
+func renderComponentStatus(opts *Options, p *project, v componentView) {
+	if len(v.running) == 0 && len(v.failed) == 0 && len(v.skipped) == 0 && len(v.local) == 0 {
 		opts.Printf("⬜ 本次没有需要容器化启动的组件\n\n")
 		return
 	}
 
-	running := newTable("组件", "版本", "状态", "端口")
-	stopped := newTable("组件", "版本", "状态")
-	stoppedCount := 0
-
-	for _, ref := range refs {
-		service := manifest.ServiceName(ref.ID, ref.Version)
-		status, ok := byService[service]
-		if ok && status.Running() {
-			running.add(ref.ID, ref.Version, statusText(status, ok), status.Ports)
-			continue
+	if len(v.running) > 0 {
+		t := newTable("组件", "版本", "状态", "端口")
+		for _, row := range v.running {
+			t.add(row.ref.ID, row.ref.Version, row.text, row.ports)
 		}
-		stopped.add(ref.ID, ref.Version, statusText(status, ok))
-		stoppedCount++
+		opts.Printf("✅ 运行中（%d 个组件）\n", len(v.running))
+		opts.Printf("%s\n", t.render(" "))
 	}
-
-	if len(running.rows) > 0 {
-		opts.Printf("✅ 运行中（%d 个组件）\n", len(running.rows))
-		opts.Printf("%s\n", running.render(" "))
-	}
-	if stoppedCount > 0 {
-		opts.Printf("❌ 未在运行（%d 个组件）\n", stoppedCount)
-		opts.Printf("%s", stopped.render(" "))
+	if len(v.failed) > 0 {
+		t := newTable("组件", "版本", "状态")
+		for _, row := range v.failed {
+			t.add(row.ref.ID, row.ref.Version, row.text)
+		}
+		opts.Printf("❌ 未在运行（%d 个组件）\n", len(v.failed))
+		opts.Printf("%s", t.render(" "))
 		opts.Printf("   看日志定位：%s\n\n",
 			logsCommand(engineName(opts), p.engineProject(), "<服务名>"))
 	}
-	if len(running.rows) == 0 && stoppedCount > 0 {
+	if len(v.running) == 0 && len(v.failed) > 0 {
 		opts.Printf("📋 没有正在运行的组件（可能已经 brickkit down 过）\n")
 		opts.Printf("   重新启动：brickkit up\n\n")
 	}
@@ -158,23 +269,16 @@ func statusText(s engine.Status, found bool) string {
 }
 
 // renderSkipped 输出没启动的组件及原因（15.16）。
-func renderSkipped(opts *Options, p *project) {
-	if p.states == nil {
+func renderSkipped(opts *Options, v componentView) {
+	if len(v.skipped) == 0 {
 		return
 	}
 
 	t := newTable("组件", "版本", "原因")
-	for _, c := range p.states.Components {
-		if c.State == cascade.StateRunning {
-			continue
-		}
-		t.add(c.Ref.ID, c.Ref.Version, c.Reason)
+	for _, row := range v.skipped {
+		t.add(row.ref.ID, row.ref.Version, row.text)
 	}
-	if len(t.rows) == 0 {
-		return
-	}
-
-	opts.Printf("⬜ 未启动（%d 个组件）\n", len(t.rows))
+	opts.Printf("⬜ 未启动（%d 个组件）\n", len(v.skipped))
 	opts.Printf("%s\n", t.render(" "))
 }
 
@@ -182,26 +286,34 @@ func renderSkipped(opts *Options, p *project) {
 //
 // 它们没有容器，引擎里查不到——不单独说一句的话，
 // 使用者会以为这些组件"消失了"。
-func renderLocalDebug(opts *Options, p *project) {
-	refs := p.localRefs()
-	if len(refs) == 0 {
+func renderLocalDebug(opts *Options, p *project, v componentView) {
+	if len(v.local) == 0 {
 		return
 	}
 
 	t := newTable("组件", "版本", "本地地址")
-	for _, ref := range refs {
-		port := p.entry(ref).LocalPort
-		if port == 0 {
-			// 没写 localPort 时默认取组件声明的主端口（005 §4.6）
-			if node := p.graph.Node(ref); node != nil && node.Manifest != nil {
-				port = node.Manifest.Deployment.Port
-			}
-		}
-		t.add(ref.ID, ref.Version, fmt.Sprintf("localhost:%d（IDE 调试模式）", port))
+	for _, ref := range v.local {
+		t.add(ref.ID, ref.Version, localAddress(p, ref))
 	}
 
 	opts.Printf("🔧 本地调试（local: true，不由平台启动）\n")
 	opts.Printf("%s\n", t.render(" "))
+}
+
+// localAddress 是 local 组件在宿主机上的地址。
+//
+// 没写 localPort 时默认取组件自己声明的主端口（005 §4.6）——那要读 Manifest。
+// 降级时读不到，就老实说读不到：编一个端口号出来，使用者会照着它去连一个没人监听的口。
+func localAddress(p *project, ref resolver.Ref) string {
+	if port := p.entry(ref).LocalPort; port > 0 {
+		return fmt.Sprintf("localhost:%d（IDE 调试模式）", port)
+	}
+	if p.graph != nil {
+		if node := p.graph.Node(ref); node != nil && node.Manifest != nil {
+			return fmt.Sprintf("localhost:%d（IDE 调试模式）", node.Manifest.Deployment.Port)
+		}
+	}
+	return "端口未知（没写 localPort，而组件声明的端口取不到）"
 }
 
 // renderResourceStatus 输出基础资源的可达性（15.18）。
@@ -236,7 +348,7 @@ func renderResourceStatus(ctx context.Context, opts *Options, p *project) {
 // usedResources 返回被本次启动的组件用到的资源。
 func usedResources(p *project) []config.Resource {
 	used := map[string]bool{}
-	for _, ref := range p.order {
+	for _, ref := range p.componentRefs() {
 		used[ref.ID] = true
 	}
 

@@ -45,7 +45,9 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 		ctx = context.Background()
 	}
 
-	p, err := loadProject(ctx, opts)
+	// 只读 brickkit.yaml，不碰安装源：down 交给引擎的只有项目名，
+	// 依赖图里的东西它一个都用不上（见 loadConfig 的说明）。
+	p, err := loadConfig(opts)
 	if err != nil {
 		return err
 	}

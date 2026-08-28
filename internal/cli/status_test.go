@@ -306,3 +306,102 @@ func TestStatusPrintsUsableLogsCommand(t *testing.T) {
 
 	assert.Contains(t, r.stdout, "-p brickkit-my-erp")
 }
+
+// ============================================================
+// 依赖图取不到时的降级（A′）
+// ============================================================
+
+// 依赖图取不到时，"现在什么在跑"照样要答得出来。
+//
+// status 的五节里，只有"未启动"那一列**原因**真的需要依赖图；运行中、
+// 未在运行、资源可达性问的是引擎与 brickkit.yaml。从前依赖图取不到就
+// 整条命令报错退出，另外四节一起没了——使用者连"容器还在不在"都问不到，
+// 而那恰恰是他打开 status 想知道的第一件事。
+func TestStatusReportsRunningWhenGraphUnavailable(t *testing.T) {
+	f, eng := startedProject(t)
+	eng.statuses = []engine.Status{
+		{Service: "people-basic-1-0-0", State: "running", Health: "healthy", Ports: "8080/tcp"},
+	}
+	breakLocalManifest(t, f, "erp/backend")
+
+	r := statusOf(t, eng, f.Dir)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "运行中")
+	assert.Contains(t, r.stdout, "people/basic")
+	assert.Contains(t, r.stdout, "未能解析依赖图", "信息不全就得说清楚为什么")
+	assert.Contains(t, r.stdout, "prot", "把解析失败的原因原样带出来，他才知道去改哪一行")
+}
+
+// 降级时，brickkit.yaml 里声明过的组件一个都不能少。
+//
+// 少列一个的代价是使用者以为组件没了；而把"引擎里查不到"算成"未在运行"
+// 又是在冤枉它——那一节的意思是"该跑却没跑"，可这时恰恰判不出它该不该跑。
+// 所以一律进"未启动"，原因写实话。
+func TestStatusListsEveryDeclaredComponentWhenGraphUnavailable(t *testing.T) {
+	f, eng := startedProject(t)
+	eng.statuses = []engine.Status{
+		{Service: "people-basic-1-0-0", State: "running", Health: "healthy"},
+	}
+	breakLocalManifest(t, f, "erp/backend")
+
+	r := statusOf(t, eng, f.Dir)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "erp/backend", "声明过的组件不能凭空消失")
+	assert.Contains(t, r.stdout, "原因未知")
+	assert.NotContains(t, r.stdout, "未在运行", "引擎里查不到 ≠ 它没起来")
+}
+
+// 引擎里有记录、只是没在跑，那就是实打实的"未在运行"——降级也照报。
+func TestStatusKeepsFailedComponentWhenGraphUnavailable(t *testing.T) {
+	f, eng := startedProject(t)
+	eng.statuses = []engine.Status{
+		{Service: "people-basic-1-0-0", State: "running", Health: "healthy"},
+		{Service: "erp-backend-1-0-0", State: "exited", ExitCode: 1},
+	}
+	breakLocalManifest(t, f, "erp/backend")
+
+	r := statusOf(t, eng, f.Dir)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "未在运行")
+	assert.Contains(t, r.stdout, "退出码 1")
+}
+
+// enabled: false 是 brickkit.yaml 里就写着的，不该跟着退化成"原因未知"。
+func TestStatusKeepsDisabledReasonWhenGraphUnavailable(t *testing.T) {
+	f, eng := startedProject(t)
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+  - id: erp/backend
+    version: 1.0.0
+    enabled: false
+`)
+	eng.statuses = []engine.Status{
+		{Service: "people-basic-1-0-0", State: "running", Health: "healthy"},
+	}
+	breakLocalManifest(t, f, "erp/backend")
+
+	r := statusOf(t, eng, f.Dir)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "显式禁用")
+	assert.NotContains(t, r.stdout, "原因未知", "配置里写着的原因就该照实说")
+}
+
+// 资源可达性只问 brickkit.yaml 与 TCP，依赖图取不到不该连它一起丢掉。
+func TestStatusStillProbesResourcesWhenGraphUnavailable(t *testing.T) {
+	f, eng := startedProject(t)
+	breakLocalManifest(t, f, "erp/backend")
+
+	r := runWith(t, func(o *Options) {
+		o.Engine = eng
+		o.Probe = func(context.Context, string) error { return nil }
+	}, f.Dir, "status")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "postgres-main")
+	assert.Contains(t, r.stdout, "可达")
+}
