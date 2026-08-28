@@ -235,3 +235,28 @@ func TestAddWarnsWhenRequiringSignatureWithoutKeys(t *testing.T) {
 	assert.Contains(t, r.stdout+r.stderr, "requireSignature")
 	assert.Contains(t, r.stdout+r.stderr, "publicKeys")
 }
+
+// 没配公钥时那句提醒只出一次，不是每个组件刷一遍。
+//
+// requireSignature 默认为 true，而绝大多数项目还没配过 publicKeys——于是
+// `add erp/backend` 拉下六个依赖，就是六份一模一样的多行警告块。
+//
+// 这与 warnTargetOnlyFields 自己写下的那条理由直接矛盾："同一件事说 N 遍会把
+// 警告区刷满，而使用者一旦开始整块跳过警告，真正要紧的那几条也一起被跳过。"
+// 而这一条恰恰是最容易被刷屏的：它跟组件无关，讲的是项目的配置。
+func TestNoPublicKeysWarningIsSaidOnce(t *testing.T) {
+	market := newMockMarket(t,
+		&mockComponent{Spec: comp{ID: "erp/backend", Version: "1.0.0",
+			Requires: []string{"people/basic@1.0.0", "department/tree@1.0.0"}}},
+		&mockComponent{Spec: comp{ID: "people/basic", Version: "1.0.0"}},
+		&mockComponent{Spec: comp{ID: "department/tree", Version: "1.0.0"}},
+	)
+	f := newProjectFixture(t, market.source())
+
+	r := runIn(t, f.Dir, "add", "erp/backend@1.0.0", "--yes")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	out := r.stdout + r.stderr
+	assert.Equal(t, 1, strings.Count(out, "requireSignature 为 true"),
+		"三个组件只该说一次：\n%s", out)
+}

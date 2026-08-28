@@ -61,6 +61,14 @@ func (c *Client) Login(ctx context.Context, username, password string) (*LoginRe
 	return &result, nil
 }
 
+// Logout 作废服务端那一侧的令牌（007 §9.5）。
+//
+// 重复注销是幂等的（市场侧保证），所以本地凭据已经删了、再调一次也没关系。
+func (c *Client) Logout(ctx context.Context) error {
+	_, err := c.do(ctx, http.MethodPost, "/auth/logout", nil, nil, "退出登录")
+	return err
+}
+
 // PublishRequest 是发布一个版本的请求体（007 §3.7）。
 type PublishRequest struct {
 	Version    string          `json:"version"`

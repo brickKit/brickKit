@@ -360,9 +360,38 @@ func renderSignatures(opts *Options, statuses []source.SignatureStatus) {
 		}
 		opts.Printf("%s\n", line)
 	}
+	renderWarnings(opts, dedupeWarnings(statuses))
+}
+
+// dedupeWarnings 把逐组件产生、内容却完全一样的签名警告合成一条。
+//
+// # 为什么必须合
+//
+// `installer.requireSignature` 默认为 true，而绝大多数项目还没配过 publicKeys
+// （008 §8.5.1：没有信任锚点就没有"强制"可言，此时放行 + 警告）。这条警告
+// **讲的是项目的配置，与具体是哪个组件无关**——可它是在取每个组件的 Manifest
+// 时产生的，于是 `add erp/backend` 拉下六个依赖就刷六份一模一样的多行块。
+//
+// warnTargetOnlyFields 早就把这条理由写下来了："同一件事说 N 遍会把警告区刷满，
+// 而使用者一旦开始整块跳过警告，真正要紧的那几条也一起被跳过。"
+//
+// 判据是**标题 + 建议**是否相同，而不是"是不是那一条"：这样任何将来新增的、
+// 同样与组件无关的签名提醒都自动受益，不用回来改这里。明细里的组件引用被丢掉
+// ——它恰恰是唯一不同的那部分，而合并之后它也不再是重点。
+func dedupeWarnings(statuses []source.SignatureStatus) []*clierr.Error {
+	var out []*clierr.Error
+	seen := map[string]bool{}
 	for _, st := range statuses {
-		renderWarnings(opts, st.Warnings)
+		for _, w := range st.Warnings {
+			key := w.Message + "\x00" + strings.Join(w.Hints, "\x00")
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, w)
+		}
 	}
+	return out
 }
 
 func renderWarnings(opts *Options, warnings []*clierr.Error) {

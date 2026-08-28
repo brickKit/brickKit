@@ -8,7 +8,7 @@
 
 ## 先读这两份
 
-- [AI 导读](https://raw.githubusercontent.com/brickKit/brickKit/main/AI-CONTEXT.md): 全站文档的压缩件。BrickKit 的全部核心理念与做法：定位与边界、术语表、12 条设计原则、拒绝清单、核心机制、两个 yaml 的字段骨架、10 条命令 + version、20 个「为什么」。**只读一份的话读这份。**
+- [AI 导读](https://raw.githubusercontent.com/brickKit/brickKit/main/AI-CONTEXT.md): 全站文档的压缩件。BrickKit 的全部核心理念与做法：定位与边界、术语表、12 条设计原则、拒绝清单、核心机制、两个 yaml 的字段骨架、11条命令 + version、20 个「为什么」。**只读一份的话读这份。**
 - [README](https://raw.githubusercontent.com/brickKit/brickKit/main/README.md): 项目门面：一分钟示例、能力概览、仓库结构、构建与测试、当前状态。
 
 ## 设计书（规范性文档，有歧义时以此为准）
@@ -19,7 +19,7 @@
 - [001 平台理念与总体架构](https://raw.githubusercontent.com/brickKit/brickKit/main/design/001-%E5%B9%B3%E5%8F%B0%E7%90%86%E5%BF%B5%E4%B8%8E%E6%80%BB%E4%BD%93%E6%9E%B6%E6%9E%84.md): 根文档。BrickKit 是什么、不是什么，四个部分怎么协作，服务发现模型，本地调试模型，角色定义，设计原则，系统边界。
 - [002 组件规范](https://raw.githubusercontent.com/brickKit/brickKit/main/design/002-%E7%BB%84%E4%BB%B6%E8%A7%84%E8%8C%83.md): component.yaml 每个字段的规则；强/弱依赖（一个组件 ID 在 dependencies 里只能出现一次——多版本共存是项目级能力）；精确版本；破坏性变更协同守则；健康检查禁令与启动宽限期 startPeriodSeconds（冷启动超 30 秒的组件必须写它）；数据库迁移的组织方式与状态表设计。
 - [003 项目配置规范](https://raw.githubusercontent.com/brickKit/brickKit/main/design/003-%E9%A1%B9%E7%9B%AE%E9%85%8D%E7%BD%AE%E8%A7%84%E8%8C%83.md): brickkit.yaml 每个字段的规则；组件启停（跟着上层走）、本地调试、暴露声明、配置覆盖（不校验值类型，但键名写错会警告）、资源绑定、部署目标。
-- [004 CLI 设计](https://raw.githubusercontent.com/brickKit/brickKit/main/design/004-CLI%20%E8%AE%BE%E8%AE%A1.md): 10 个命令 + version 的完整参数与行为；依赖解析引擎；启停判定（跟着上层走）；部署文件生成逻辑；错误码与错误文案。
+- [004 CLI 设计](https://raw.githubusercontent.com/brickKit/brickKit/main/design/004-CLI%20%E8%AE%BE%E8%AE%A1.md): 11个命令 + version 的完整参数与行为；依赖解析引擎；启停判定（跟着上层走）；部署文件生成逻辑；错误码与错误文案。
 - [005 部署与运行规范](https://raw.githubusercontent.com/brickKit/brickKit/main/design/005-%E9%83%A8%E7%BD%B2%E4%B8%8E%E8%BF%90%E8%A1%8C%E8%A7%84%E8%8C%83.md): Docker 与 K8s 两条部署路径的生成细节；本地调试（local: true）；Ingress；迁移 Job；网络策略；优雅排空；为什么移除了 Podman。
 - [006 基础资源规范](https://raw.githubusercontent.com/brickKit/brickKit/main/design/006-%E5%9F%BA%E7%A1%80%E8%B5%84%E6%BA%90%E8%A7%84%E8%8C%83.md): 六类资源（database / cache / mq / storage / search / smtp）怎么声明、绑定、注入；绑定里「占哪一块」按 kind 分别叫 database / vhost / bucket / index；平台管连接身份、产品特有的旋钮走 configSchema；密钥管理；生产资源策略；「数据库谁建、表谁建」。
 - [007 组件市场设计](https://raw.githubusercontent.com/brickKit/brickKit/main/design/007-%E7%BB%84%E4%BB%B6%E5%B8%82%E5%9C%BA%E8%AE%BE%E8%AE%A1.md): 市场的 HTTP API（只有 API，**没有 Web 界面**；CLI 也还没有搜索命令，发现组件目前只能直接调 API）、数据模型、权限模型、可见性、版本状态机、签名、产物存储。

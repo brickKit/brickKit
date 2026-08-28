@@ -51,3 +51,5 @@ R33	安装源里版本不符时说清它实际是哪个版本	-	.	./internal/sou
 R34	engine 拼法不同时点名是哪个资源，而不是谎报「未声明」	-	.	./internal/resolver	TestCheckResourceBindingsSaysWhichEngineIsDeclared
 R35	弱依赖这次不跑时说清谁拿不到什么（信息，不是警告）	-	.	./internal/cli	TestWeakDependencyNotRunningIsReported
 R36	remove 不会删掉找不回来的源码（手写组件、脏工作区、没推的提交）	-	.	./internal/cli	TestRemoveRefusesToDeleteUnrecoverableSource
+R37	brickkit logout 作废市场 Token 并删本地凭据	-	.	./internal/cli	TestLogoutRevokesTokenAndRemovesCredentials
+R38	没配公钥的签名提醒只说一次，不逐个组件刷屏	-	.	./internal/cli	TestNoPublicKeysWarningIsSaidOnce

@@ -1,6 +1,6 @@
 // Package cli 实现 BrickKit CLI 的命令树。
 //
-// 设计依据：004 §3 命令集设计（11 个命令 + version）。
+// 设计依据：004 §3 命令集设计（11 个业务命令 + version）。
 //
 // 输出分工（见 internal/logging 说明）：人类可读输出走 stdout，
 // 结构化 JSON 日志与错误块走 stderr。
@@ -206,6 +206,7 @@ CLI 只做六件事（001 §5.1）：
 		newDownCommand(opts),
 		newStatusCommand(opts),
 		newLoginCommand(opts),
+		newLogoutCommand(opts),
 		newPublishCommand(opts),
 		newVersionCommand(opts),
 	)

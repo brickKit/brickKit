@@ -247,6 +247,13 @@ COBRA_BUILTINS = {"completion", "help"}
 # 同一件事换个量词很正常，认死一个等于给自己留个后门。
 COUNT_CLAIM = re.compile(r"(\d+)\s*[个条]命令")
 
+# FROZEN_DOCS 是已冻结的历史记录：它们描述的是"当初做完时是什么样"，
+# 不该被迫跟着现状变——那正是"冻结"的含义（见 开发计划.md 的头部说明）。
+#
+# 只对**数量声明**豁免。命令名与参数名照查：那两条是"文档写了不存在的东西"，
+# 冻结的文档同样不该指向一个不存在的命令——它会把考古的人引向虚空。
+FROZEN_DOCS = ("开发计划.md", "开发进度/")
+
 
 def check_command_count(surface):
     """文档里写的"N 个命令"必须与真实数目一致。
@@ -269,6 +276,8 @@ def check_command_count(surface):
 
     bad = []
     for path in docs():
+        if any(path.startswith(f) for f in FROZEN_DOCS):
+            continue
         for i, line in enumerate(open(path, encoding="utf-8"), 1):
             for m in COUNT_CLAIM.finditer(line):
                 if int(m.group(1)) != real:

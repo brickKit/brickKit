@@ -83,6 +83,18 @@ func SaveCredentials(path string, c *Credentials) error {
 	return nil
 }
 
+// RemoveCredentials 删除登录凭据（brickkit logout 用）。文件不存在不算错误。
+func RemoveCredentials(path string) error {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return clierr.New(clierr.CodeAuthFailed, "错误：删除登录凭据失败").
+			WithDetail("路径", path).
+			WithDetail("原因", err.Error()).
+			WithHint("检查文件权限，或手工删除该文件").
+			WithCause(err)
+	}
+	return nil
+}
+
 func credentialWriteError(path string, err error) error {
 	return clierr.New(clierr.CodeAuthFailed, "错误：写入登录凭据失败").
 		WithDetail("路径", path).
