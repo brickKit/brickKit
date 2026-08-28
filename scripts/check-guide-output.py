@@ -76,6 +76,10 @@ COMPONENTS = [
 # 那个脚本也是 init + 这两条 add，两处必须保持一致（03–08 的前置就是它）。
 BASELINE = ["init demo-shop", "add demo/caller@1.0.0 --yes", "add people/basic@1.0.0 --yes"]
 
+# 八组件装配。与 13-完整装配.md §13.1–13.2 走的是同一条路：一条 add 拉出整棵树。
+# 005 / 011 / 14 里那几屏"启动顺序"讲的都是这个拓扑——它们互相抄，而抄错了没人知道。
+FULLSTACK = ["init erp-demo", "add portal/user-frontend@1.0.0 --yes"]
+
 # 用例：先按 run 里的命令把状态推到位，再跑 check 里那条命令，与指南块比对。
 #
 #   tier   core（默认，无需外部环境）| docker（要 Docker 与组件镜像）
@@ -318,6 +322,119 @@ CASES = [
         "check": ("up --dry-run", "design/003-项目配置规范.md",
                   "📋 组件状态计算：", 1),
     },
+
+    # ---- 同一屏输出的**别处那几份** ----
+    #
+    # 上面守住 004 的那份之后，复核里又撞到同一件事：「必须最后启动」这句话
+    # 在三份文档里各有一份，只有一份被看守，而三份**全是错的**。
+    # 一屏输出被抄到 N 份文档，守住其中一份并不会让另外 N-1 份跟着对。
+    # 所以下面这批不是新场景，全是**已看守场景的其他副本**——构造成本为零，
+    # 抓的正是"改了 CLI 只回头改了被守的那一份"。
+    {
+        "what": "011 §1.1 init 的输出（004 之外的那一份）",
+        "reset": True,
+        "run": [],
+        "check": ("init my-project", "design/011-组件安装与拼装指南.md",
+                  "✅ 项目已初始化：my-project", 0),
+    },
+    {
+        "what": "004 §3.2 init 不给项目名（同一份文档里的第二处）",
+        "reset": True,
+        "run": [],
+        "check": ("init", "design/004-CLI 设计.md",
+                  "❌ 请指定项目名称：brickkit init <项目名称>", 1),
+    },
+    {
+        "what": "011 §2.4 有依赖方时拦下 remove（004 之外的那一份）",
+        "reset": True,
+        "run": BASELINE,
+        "check": ("remove department/tree", "design/011-组件安装与拼装指南.md",
+                  "❌ 无法移除 department/tree", 0),
+    },
+    {
+        "what": "002 §5.3 有依赖方时拦下 remove（004 之外的那一份）",
+        "reset": True,
+        "run": BASELINE,
+        "check": ("remove department/tree", "design/002-组件规范.md",
+                  "❌ 无法移除 department/tree", 0),
+    },
+    {
+        "what": "005 §3.3 启动顺序（004 之外的那一份）",
+        "reset": True,
+        "run": FULLSTACK,
+        "check": ("up --dry-run", "design/005-部署与运行规范.md",
+                  "📋 启动顺序（拓扑排序）：", 0),
+    },
+    {
+        "what": "011 §3.2 启动顺序（004 之外的那一份）",
+        "reset": True,
+        "run": FULLSTACK,
+        "check": ("up --dry-run", "design/011-组件安装与拼装指南.md",
+                  "📋 启动顺序（拓扑排序）：", 0),
+    },
+
+    # ---- 还构造得出来的新场景 ----
+    #
+    # "强依赖被禁用 + 被钉住"这一屏在 003 / 004 / 011 里各写了一份，而三份
+    # **不一样**：003 写的是「建议：1. …… 2. ……」，004 / 011 写的是两行 💡。
+    # 谁对只有 CLI 说了算，所以三份一起挂上来。
+    {
+        "what": "003 §4.3 强依赖被禁用 + 被钉住",
+        "reset": True,
+        "run": BASELINE + ["!disable department/tree", "!pin people/basic"],
+        "check": ("up --dry-run", "design/003-项目配置规范.md",
+                  "❌ 错误：强依赖 department/tree 被禁用", 0),
+    },
+    {
+        "what": "004 §4.x 强依赖被禁用 + 被钉住",
+        "reset": True,
+        "run": BASELINE + ["!disable department/tree", "!pin people/basic"],
+        "check": ("up --dry-run", "design/004-CLI 设计.md",
+                  "❌ 错误：强依赖 department/tree 被禁用", 0),
+    },
+    {
+        "what": "011 §3.x 强依赖被禁用 + 被钉住",
+        "reset": True,
+        "run": BASELINE + ["!disable department/tree", "!pin people/basic"],
+        "check": ("up --dry-run", "design/011-组件安装与拼装指南.md",
+                  "❌ 错误：强依赖 department/tree 被禁用", 0),
+    },
+    {
+        "what": "003 §4.4 local: true 上的 expose 不生效",
+        "reset": True,
+        "run": BASELINE + ["!local-expose demo/hello"],
+        "check": ("up --dry-run", "design/003-项目配置规范.md",
+                  "⚠️ local: true 的组件上，expose / exposePort 本次不生效", 0),
+    },
+    {
+        "what": "005 §4.6.1 local: true 上的 expose 不生效（003 之外的那一份）",
+        "reset": True,
+        "run": BASELINE + ["!local-expose demo/hello"],
+        "check": ("up --dry-run", "design/005-部署与运行规范.md",
+                  "⚠️ local: true 的组件上，expose / exposePort 本次不生效", 0),
+    },
+
+    # ---- 试用指南 14：全是 dry-run，不需要 13 真的把八个组件跑起来 ----
+    {
+        "what": "14 §14.4 关掉中间那一层，链往两个方向收敛",
+        "reset": True,
+        "run": FULLSTACK + ["!disable erp/backend"],
+        "check": ("up --dry-run", "14-依赖组合实验.md", "📋 组件状态计算：", 0),
+    },
+    {
+        "what": "14 §14.5 强依赖被禁用 + 被钉住",
+        "reset": True,
+        "run": FULLSTACK + ["!disable erp/backend", "!pin portal/user-frontend"],
+        "check": ("up --dry-run", "14-依赖组合实验.md",
+                  "❌ 错误：强依赖 erp/backend 被禁用", 0),
+    },
+    {
+        "what": "14 §14.6 一次看清所有关系",
+        "reset": True,
+        "run": FULLSTACK,
+        "check": ("up --dry-run", "14-依赖组合实验.md",
+                  "📋 启动顺序（拓扑排序）：", 0),
+    },
 ]
 
 
@@ -461,6 +578,22 @@ def expose(proj, component_id, hostname=None):
     extra = "    expose: true\n"
     if hostname:
         extra += f"    hostname: {hostname}\n"
+    open(path, "w", encoding="utf-8").write(s.replace(old, old + extra, 1))
+
+
+def local_expose(proj, component_id):
+    """把组件改成"跑在 IDE 里"，同时给它写上只对容器生效的 expose 字段。
+
+    这是 003 §4.4 / 005 §4.6.1 那条警告的构造方式：两个意图直接打架——
+    `local: true` 说"平台不给我建容器"，`expose` 说"把我的容器端口映出去"。
+    """
+    path = os.path.join(proj, "brickkit.yaml")
+    s = open(path, encoding="utf-8").read()
+    old = f"  - id: {component_id}\n    version: 1.0.0\n"
+    if old not in s:
+        sys.exit(f"❌ 配置里找不到 {component_id}，无法改成 local")
+    extra = ("    local: true\n    localPort: 9999\n"
+             "    expose: true\n    exposePort: 8888\n")
     open(path, "w", encoding="utf-8").write(s.replace(old, old + extra, 1))
 
 
@@ -612,6 +745,8 @@ def main():
                     enable(proj, step.split(None, 1)[1])
                 elif step.startswith("!expose "):
                     expose(proj, *step.split(None, 1)[1].split())
+                elif step.startswith("!local-expose "):
+                    local_expose(proj, step.split(None, 1)[1])
                 elif step == "!k8s":
                     use_k8s(proj)
                 elif step == "!cycle":
@@ -667,7 +802,7 @@ def main():
     print(f"   试用指南：共 {guide_total} 个输出块，本次看守 {guide_done} 个"
           f"（其余多在 05–19——那些篇要 Docker / minikube / 市场 / cosign）")
     print(f"   设计书：共 {design_total} 个输出块，本次看守 {design_done} 个"
-          f"（其余多是构造不出来的场景：真集群、市场、多组件拓扑）")
+          f"（其余多要真集群 / 市场 / cosign；纯本地能构造的已陆续挂上来）")
 
 
 if __name__ == "__main__":
