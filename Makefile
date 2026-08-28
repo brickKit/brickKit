@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-market-api check-guide-output cover-check ## 静态检查（文档引用 + 命令 + 目录树 + 字段骨架 + 市场 API 表 + 指南预期输出 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-market-api check-guide-output check-no-binaries cover-check ## 静态检查（文档引用 + 命令 + 目录树 + 字段骨架 + 市场 API 表 + 指南预期输出 + 仓库无二进制 + 覆盖率门槛）
 	@if [ -x "$(GOLANGCI)" ]; then \
 		echo "▶ golangci-lint run"; \
 		$(GOLANGCI) run ./... && (cd market-server && $(GOLANGCI) run ./...); \
@@ -135,6 +135,10 @@ lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-market-api
 		echo "ℹ️  未安装 golangci-lint（make tools-lint 可安装），回退到 go vet"; \
 		$(MAKE) --no-print-directory vet; \
 	fi
+
+.PHONY: check-no-binaries
+check-no-binaries: ## 确认没有编译产物 / 超大文件被提交进仓库
+	@python3 scripts/check-no-binaries.py
 
 .PHONY: check-doc-fields
 check-doc-fields: ## 检查文档里画的字段骨架与 component.yaml / brickkit.yaml 结构体一致

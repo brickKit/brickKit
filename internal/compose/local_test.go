@@ -890,3 +890,66 @@ func hostMachineDatabase(componentID string) config.Resource {
 		Bindings: []config.Binding{{ComponentID: componentID, Database: "people"}},
 	}
 }
+
+// ============================================================
+// local 组件上写了 expose：说清楚它不生效、以及东西真正在哪
+// ============================================================
+
+// local: true 的组件不生成容器，所以 expose / exposePort 没有任何东西可映射。
+//
+// 003 §3.2 立的规矩是"写了不生效就得出声"。这一条从前完全没守：配了
+// exposePort: 8888 的人打开浏览器访问 8888 什么都没有，而 up 全程一个字不说。
+func TestLocalComponentWithExposeIsWarned(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("portal/user-frontend", "1.0.0", 80),
+		config.Component{Local: true, LocalPort: 9999, Expose: true, ExposePort: 8888})
+
+	result, err := b.build(compose.Options{})
+	require.NoError(t, err, "只是警告，不该阻断")
+
+	text := joinWarnings(result.Warnings)
+	assert.Contains(t, text, "portal/user-frontend")
+	assert.Contains(t, text, "exposePort")
+	// 光说"不生效"没用——必须告诉他东西到底在哪，否则他还得自己去翻另一段输出
+	assert.Contains(t, text, "9999", "要给出真实地址（localPort）")
+	assert.NotContains(t, text, "8888（", "别把那个不生效的端口说得像是真的")
+}
+
+// 只写 expose、没写 exposePort 时同样要出声：平台一样什么都不做。
+func TestLocalComponentWithExposeOnlyIsWarned(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("portal/user-frontend", "1.0.0", 8080),
+		config.Component{Local: true, Expose: true})
+
+	result, err := b.build(compose.Options{})
+	require.NoError(t, err)
+
+	text := joinWarnings(result.Warnings)
+	assert.Contains(t, text, "expose")
+	// 没写 localPort 时默认取组件声明的主端口（005 §4.6）
+	assert.Contains(t, text, "8080")
+}
+
+// 没写 expose 的 local 组件不该被这条警告打扰。
+func TestLocalComponentWithoutExposeIsQuiet(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("portal/user-frontend", "1.0.0", 8080),
+		config.Component{Local: true, LocalPort: 9999})
+
+	result, err := b.build(compose.Options{})
+	require.NoError(t, err)
+
+	assert.NotContains(t, joinWarnings(result.Warnings), "expose")
+}
+
+// 普通（非 local）组件的 expose 照常生效，不该被误报。
+func TestContainerComponentWithExposeIsQuiet(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("portal/user-frontend", "1.0.0", 8080),
+		config.Component{Expose: true, ExposePort: 8888})
+
+	result, err := b.build(compose.Options{})
+	require.NoError(t, err)
+
+	assert.NotContains(t, joinWarnings(result.Warnings), "不生效")
+}

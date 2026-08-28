@@ -252,6 +252,7 @@ func newPlan(
 	}
 	p.rewriteEndpointsForLocalDependencies()
 	p.warnings = append(p.warnings, p.localMigrationWarnings()...)
+	p.warnings = append(p.warnings, p.localExposeWarnings()...)
 	p.warnings = append(p.warnings, p.serviceNameResourceWarnings()...)
 	// 只传**会生成容器**的组件：绑定它的全是 local: true 时，
 	// localhost 恰恰是对的（那些进程就在宿主机上）

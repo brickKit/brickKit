@@ -133,6 +133,52 @@ func (t *portTable) allocate(preferred, base int, owner string) int {
 	return 0
 }
 
+// localExposeWarnings 提醒"local 组件上的 expose / exposePort 本次不生效"。
+//
+// local: true 的组件不生成容器，平台因此没有任何东西可以映射到宿主机——
+// 那两个字段就是写了不算数。003 §3.2 立的规矩是**写了不生效就得出声**，
+// 而这一条从前完全没守：配了 exposePort: 8888 的人打开浏览器访问 8888
+// 什么都没有，而 up 全程一个字不说。
+//
+// # 为什么是警告，而 local + replicas 是硬错误
+//
+// 两者不是一回事。`replicas: 3` 与 local 真的互相矛盾——IDE 里只有一个进程，
+// 没有任何说得通的读法，所以校验阶段直接拒（config.validateReplicas）。
+//
+// 而 `expose: true` 与 local 并不矛盾：那个进程**确实**在宿主机上、**确实**
+// 对外可达，只是这件事不再由平台来做。真正错的只有"在哪个端口"。所以这里
+// 要说的不是"你写错了"，而是"它不归平台管了，而且地址是这个"——报错反而会
+// 打断一个很正常的流程：给一个长期 expose 的前端组件临时加上 local: true 去调试。
+func (p *plan) localExposeWarnings() []*clierr.Error {
+	var out []*clierr.Error
+	for _, l := range p.locals {
+		if !l.Entry.Expose && l.Entry.ExposePort == 0 {
+			continue
+		}
+
+		fields := "expose"
+		if l.Entry.ExposePort > 0 {
+			fields = "expose / exposePort"
+		}
+		w := clierr.Warn(clierr.CodeConfigInvalid,
+			"local: true 的组件上，"+fields+" 本次不生效").
+			WithDetail("组件", refText(l.Ref)).
+			WithDetail("原因", "它不生成容器（跑在你的 IDE 里），平台没有端口可以映射到宿主机")
+		if l.Entry.ExposePort > 0 {
+			// 点名那个数字：使用者正是照着它去开浏览器的
+			w = w.WithDetailf("写着的 exposePort", "%d —— 没有容器会去 bind 它", l.Entry.ExposePort)
+		}
+		// 光说"不生效"不够，得说清楚东西到底在哪，否则他还要自己去翻另一段输出
+		out = append(out, w.
+			WithDetailf("实际地址", "localhost:%d（由 localPort 决定，005 §4.6）", l.Port).
+			WithHint(
+				"让你的进程监听这个端口，浏览器直接访问它",
+				"要回到平台映射端口的模式，去掉这个组件的 local: true",
+			))
+	}
+	return out
+}
+
 // ============================================================
 // 端口分配
 // ============================================================

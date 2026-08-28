@@ -11,6 +11,15 @@
 # Test binary, built with `go test -c`
 *.test
 
+# 组件目录里 `go build` 直接输出的可执行文件。
+#
+# 上面那几行（*.exe / *.so / *.test）挡不住这一类：Linux 上 `go build` 输出的是
+# 一个**与所在目录同名、没有后缀**的文件，而 gitignore 表达不了"与目录同名"。
+# 只能一个个列——所以真正的防线是 `make check-no-binaries`（按魔数认二进制，
+# 不按名字），这里列的只是已经踩过的那两个。
+tests/components/auth-password-login/auth-password-login
+tests/components/infra-api-docs/infra-api-docs
+
 # Code coverage profiles and other test artifacts
 *.out
 coverage.*
