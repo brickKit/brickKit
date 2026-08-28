@@ -429,6 +429,13 @@ CASES = [
                   "❌ 错误：强依赖 erp/backend 被禁用", 0),
     },
     {
+        "what": "20 依赖图取不到时的 status",
+        "reset": True,
+        "run": BASELINE + ["!break-manifest people/basic"],
+        "check": ("status", "20-排障速查.md",
+                  "📊 项目状态：demo-shop（deploy.target: docker）", 0),
+    },
+    {
         "what": "15 §15.1 fetch 只下产物、不动配置",
         "reset": True,
         "run": FULLSTACK,
@@ -604,6 +611,20 @@ def local_expose(proj, component_id):
     open(path, "w", encoding="utf-8").write(s.replace(old, old + extra, 1))
 
 
+def break_manifest(proj, component_id):
+    """把某个组件的 component.yaml 写坏（把 port 敲成 prot）。
+
+    这是"依赖图取不到"最日常的成因，也是 status / down 降级路径的唯一入口：
+    解析失败之后 status 退成降级视图、down 干脆不读安装源。20 那一节抄的
+    就是这一屏，而它是**出错时**才看得到的——最容易在文案改动后悄悄过期。
+    """
+    cy = os.path.join(proj, "components", *component_id.split("/"), "component.yaml")
+    s = open(cy, encoding="utf-8").read()
+    if "\n  port:" not in s:
+        sys.exit(f"❌ {component_id} 的 component.yaml 里没有 port 字段，改不坏")
+    open(cy, "w", encoding="utf-8").write(s.replace("\n  port:", "\n  prot:", 1))
+
+
 def use_k8s(proj):
     """把 deploy.target 改成 k8s（域名冲突只在 K8s 下成立）。"""
     path = os.path.join(proj, "brickkit.yaml")
@@ -754,6 +775,8 @@ def main():
                     expose(proj, *step.split(None, 1)[1].split())
                 elif step.startswith("!local-expose "):
                     local_expose(proj, step.split(None, 1)[1])
+                elif step.startswith("!break-manifest "):
+                    break_manifest(proj, step.split(None, 1)[1])
                 elif step == "!k8s":
                     use_k8s(proj)
                 elif step == "!cycle":
