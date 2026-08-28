@@ -429,6 +429,13 @@ CASES = [
                   "❌ 错误：强依赖 erp/backend 被禁用", 0),
     },
     {
+        "what": "15 §15.1 fetch 只下产物、不动配置",
+        "reset": True,
+        "run": FULLSTACK,
+        "check": ("fetch demo/hello@1.0.0", "15-查看组件文档.md",
+                  "📦 已下载 demo/hello@1.0.0 的产物（未写入 brickkit.yaml）", 0),
+    },
+    {
         "what": "14 §14.6 一次看清所有关系",
         "reset": True,
         "run": FULLSTACK,
