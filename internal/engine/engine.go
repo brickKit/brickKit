@@ -68,11 +68,15 @@ type UpRequest struct {
 	Services []string
 	// Context 是 kubeconfig 上下文，只对 K8s 目标有意义；为空表示用当前 context。
 	Context string
-	// MigrationJobs 是本次要执行的迁移 Job 名，只对 K8s 目标有意义。
+	// MigrationGroups 是本次要执行的迁移 Job，**按组件 ID 分组**，只对 K8s 目标有意义。
 	//
 	// compose 用 depends_on + service_completed_successfully 表达"等迁移跑完"，
 	// K8s 没有这种东西，只能由 CLI 串行控制：清理旧 Job → apply → wait（005 §6.3）。
-	MigrationJobs []string
+	//
+	// 组内必须**一个跑完再下发下一个**：同一组件的多个版本共用一个库、共用一个
+	// component_id，同时下发会在空库上撞主键（分组理由见 k8s.Result.MigrationGroups）。
+	// 组间彼此独立，先全部下发再逐个等，不白白串行。
+	MigrationGroups [][]string
 	// Desired 是本次生成的**每一个** K8s 对象，写成 `<小写类型>/<名字>`
 	// （如 `deployment/people-basic-1-0-0`、`secret/pg-main-secret`）。
 	// 只对 K8s 目标有意义，由 k8s.Result.Desired 直接给出。

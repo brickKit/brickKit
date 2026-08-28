@@ -101,3 +101,102 @@ func TestMultiVersionServicesAreIndependent(t *testing.T) {
 	assert.Equal(t, "1.0.0", one["COMPONENT_VERSION"], "29.2：各自知道自己是哪一版")
 	assert.Equal(t, "2.0.0", two["COMPONENT_VERSION"])
 }
+
+// ============================================================
+// 多版本 + 迁移：同一组件的迁移必须串行
+// ============================================================
+
+// 同一个组件的两个版本都有迁移时，它们必须按版本号先后跑，不能同时跑。
+//
+// # 为什么这是平台的责任
+//
+// 资源绑定按**组件 ID** 记（不带版本，003 §5.3），所以同一组件的多个版本
+// 拿到的 DATABASE_NAME 必然是同一个；而迁移状态表的主键是
+// (component_id, version)（002 §8.11），两个版本的 component_id 也是同一个。
+// 于是"两个迁移容器同时对同一个库、用同一个身份跑迁移"这件事，
+// 完全是平台自己生成出来的——使用者在 brickkit.yaml 里只是照 003 §8.3
+// 写了两行版本号。
+//
+// # 撞的恰好是超集里重合的那部分
+//
+// 迁移只增不改（002 §8.10），所以 2.0.0 的迁移集合是 1.0.0 的超集。
+// 这在**老库**上没问题：1.0.0 发现 0001 已应用就跳过、干净退出。
+// 但在**空库**上两个容器都会去跑 0001——一个成功，另一个撞主键退出，
+// 那个版本的主服务永远停在 Created。
+//
+// 而且它只在空库上撞、重跑一次就好（那时 0001 已经写进去了），
+// 错误信息指向数据库主键冲突，与"我配了多版本"看不出任何关系。
+// 间歇性 + 自愈 + 报错指向别处，是最费时间的那一类。
+func TestSameComponentMigrationsAreChainedByVersion(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withMigration(withDatabase(simple("demo/hello", "1.0.0", 8080))), config.Component{})
+	b.component(withMigration(withDatabase(simple("demo/hello", "2.0.0", 8080))), config.Component{})
+	b.resource(pgResource(config.Binding{ComponentID: "demo/hello", Database: "hello"}))
+
+	doc := b.parsed()
+
+	// 低版本先跑：它不等任何人
+	first := serviceOf(t, doc, "demo-hello-1-0-0-migration")
+	assert.NotContains(t, first, "depends_on", "版本最低的那个迁移不该等任何人")
+
+	// 高版本等低版本**成功结束**
+	second := serviceOf(t, doc, "demo-hello-2-0-0-migration")
+	dependsOn, ok := second["depends_on"].(map[string]any)
+	require.True(t, ok, "2.0.0 的迁移要等 1.0.0 的迁移：%v", second)
+	condition, ok := dependsOn["demo-hello-1-0-0-migration"].(map[string]any)
+	require.True(t, ok, "应当依赖 demo-hello-1-0-0-migration，实际是 %v", keysOf(dependsOn))
+	assert.Equal(t, "service_completed_successfully", condition["condition"],
+		"要等它**成功**结束——失败了还往下跑，等于拿半个 schema 去跑下一批迁移")
+}
+
+// 顺序按版本号，不是按服务名的字典序。
+//
+// 字典序会把 10.0.0 排在 2.0.0 前面，于是先跑的是**更新**的那一版——
+// 迁移是只增不改的，顺序反了会让旧版本的迁移在新 schema 上执行。
+func TestMigrationChainOrdersByVersionNotByName(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withMigration(withDatabase(simple("demo/hello", "2.0.0", 8080))), config.Component{})
+	b.component(withMigration(withDatabase(simple("demo/hello", "10.0.0", 8080))), config.Component{})
+	b.resource(pgResource(config.Binding{ComponentID: "demo/hello", Database: "hello"}))
+
+	doc := b.parsed()
+
+	assert.NotContains(t, serviceOf(t, doc, "demo-hello-2-0-0-migration"), "depends_on",
+		"2.0.0 才是版本号最小的那个（字典序会把 10.0.0 排前面）")
+	dependsOn, ok := serviceOf(t, doc, "demo-hello-10-0-0-migration")["depends_on"].(map[string]any)
+	require.True(t, ok, "10.0.0 的迁移要等 2.0.0 的迁移")
+	assert.Contains(t, dependsOn, "demo-hello-2-0-0-migration")
+}
+
+// 不同组件之间不串：它们的 component_id 不同，迁移状态表的主键
+// (component_id, version) 已经让它们互不相干（002 §8.11 的设计目的）。
+// 串起来只会平白拖慢 up，而 up 里迁移是所有组件的前置阻塞步骤。
+func TestDifferentComponentsMigrationsStayParallel(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withMigration(withDatabase(simple("demo/hello", "1.0.0", 8080))), config.Component{})
+	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
+	b.resource(pgResource(
+		config.Binding{ComponentID: "demo/hello", Database: "shared"},
+		config.Binding{ComponentID: "people/basic", Database: "shared"}))
+
+	doc := b.parsed()
+
+	assert.NotContains(t, serviceOf(t, doc, "demo-hello-1-0-0-migration"), "depends_on")
+	assert.NotContains(t, serviceOf(t, doc, "people-basic-1-0-0-migration"), "depends_on")
+}
+
+// 只有一个版本有迁移时，不该凭空生成一条指向不存在 service 的依赖
+// （compose 遇到不存在的 depends_on 会直接报错，整个项目起不来）。
+func TestMigrationChainSkipsVersionsWithoutMigration(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("demo/hello", "1.0.0", 8080)), config.Component{})
+	b.component(withMigration(withDatabase(simple("demo/hello", "2.0.0", 8080))), config.Component{})
+	b.resource(pgResource(config.Binding{ComponentID: "demo/hello", Database: "hello"}))
+
+	doc := b.parsed()
+	services := doc["services"].(map[string]any)
+
+	require.NotContains(t, services, "demo-hello-1-0-0-migration", "1.0.0 没有迁移")
+	assert.NotContains(t, serviceOf(t, doc, "demo-hello-2-0-0-migration"), "depends_on",
+		"前面没有别的迁移可等，就不该有 depends_on")
+}

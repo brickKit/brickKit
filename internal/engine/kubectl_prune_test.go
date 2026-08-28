@@ -109,7 +109,7 @@ func TestKubectlUpKeepsMigrationJobs(t *testing.T) {
 	)
 
 	req := pruneRequest()
-	req.MigrationJobs = []string{"demo-hello-2-0-0-migration"}
+	req.MigrationGroups = [][]string{{"demo-hello-2-0-0-migration"}}
 	req.Desired = append(req.Desired, "job/demo-hello-2-0-0-migration")
 	require.NoError(t, kubectlWith(rec).Up(context.Background(), req))
 

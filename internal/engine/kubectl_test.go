@@ -95,7 +95,7 @@ func TestKubectlUpDeletesStaleJobsBeforeApply(t *testing.T) {
 
 	require.NoError(t, kubectlWith(rec).Up(context.Background(), UpRequest{
 		File: "/p/k8s", Project: "brickkit-my-erp",
-		MigrationJobs: []string{"people-basic-1-0-0-migration"},
+		MigrationGroups: [][]string{{"people-basic-1-0-0-migration"}},
 	}))
 
 	commands := rec.commands()
@@ -113,7 +113,7 @@ func TestKubectlUpWaitsForMigrationBeforeDeployments(t *testing.T) {
 
 	require.NoError(t, kubectlWith(rec).Up(context.Background(), UpRequest{
 		File: "/p/k8s", Project: "brickkit-my-erp",
-		MigrationJobs: []string{"people-basic-1-0-0-migration"},
+		MigrationGroups: [][]string{{"people-basic-1-0-0-migration"}},
 	}))
 
 	commands := rec.commands()
@@ -168,7 +168,7 @@ func TestKubectlMigrationFailure(t *testing.T) {
 
 	err := kubectlWith(rec).Up(context.Background(), UpRequest{
 		File: "/p/k8s", Project: "brickkit-my-erp",
-		MigrationJobs: []string{"people-basic-1-0-0-migration"},
+		MigrationGroups: [][]string{{"people-basic-1-0-0-migration"}},
 	})
 
 	require.Error(t, err)
@@ -430,11 +430,62 @@ func TestKubectlMigrationTimeoutPointsAtEvents(t *testing.T) {
 
 	err := kubectlWith(rec).Up(context.Background(), UpRequest{
 		File: "/p/k8s", Project: "team-a",
-		MigrationJobs: []string{"people-basic-1-0-0-migration"},
+		MigrationGroups: [][]string{{"people-basic-1-0-0-migration"}},
 	})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "kubectl describe job/people-basic-1-0-0-migration",
 		"Pod 没被创建时没有日志可看，只能看 events")
 	assert.Contains(t, err.Error(), "准入控制", "要点出这个最常见的原因")
+}
+
+// 同一个组件的多个版本，迁移 Job 必须一个跑完再下发下一个。
+//
+// 全部 apply 完再逐个 wait 是不够的：Job 一 apply 就开始跑，两个版本会同时
+// 对同一个库、用同一个 component_id 跑那批重合的迁移，空库上必有一个撞主键
+// 退出（002 §8.11、§8.10；分组理由见 k8s.Result.MigrationGroups）。
+func TestKubectlRunsGroupedMigrationsInOrder(t *testing.T) {
+	rec := newRecorder()
+
+	require.NoError(t, kubectlWith(rec).Up(context.Background(), UpRequest{
+		File: "/p/k8s", Project: "brickkit-my-erp",
+		MigrationGroups: [][]string{{"demo-hello-1-0-0-migration", "demo-hello-2-0-0-migration"}},
+	}))
+
+	commands := rec.commands()
+	applyFirst := indexOfCommand(commands, "apply -f /p/k8s/migrations/demo-hello-1-0-0-migration.yaml")
+	waitFirst := indexOfCommand(commands, "wait --for=condition=complete --timeout="+migrationTimeout+" job/demo-hello-1-0-0-migration")
+	applySecond := indexOfCommand(commands, "apply -f /p/k8s/migrations/demo-hello-2-0-0-migration.yaml")
+
+	require.NotEqual(t, -1, applyFirst, "要逐个 apply：%v", commands)
+	require.NotEqual(t, -1, waitFirst, "要逐个等：%v", commands)
+	require.NotEqual(t, -1, applySecond, "第二个也要 apply：%v", commands)
+	assert.Less(t, applyFirst, waitFirst, "先 apply 再等")
+	assert.Less(t, waitFirst, applySecond,
+		"1.0.0 的迁移必须**跑完**才下发 2.0.0 的——同时下发就等于让它们抢同一个库")
+}
+
+// 不同组件之间不串：它们的 component_id 不同，主键已经让它们互不相干，
+// 串起来只会平白拖慢 up。所以两个组的 Job 要在互相等待之前就都下发出去。
+func TestKubectlAppliesIndependentMigrationsTogether(t *testing.T) {
+	rec := newRecorder()
+
+	require.NoError(t, kubectlWith(rec).Up(context.Background(), UpRequest{
+		File: "/p/k8s", Project: "brickkit-my-erp",
+		MigrationGroups: [][]string{
+			{"demo-hello-1-0-0-migration"},
+			{"people-basic-1-0-0-migration"},
+		},
+	}))
+
+	commands := rec.commands()
+	applyA := indexOfCommand(commands, "apply -f /p/k8s/migrations/demo-hello-1-0-0-migration.yaml")
+	applyB := indexOfCommand(commands, "apply -f /p/k8s/migrations/people-basic-1-0-0-migration.yaml")
+	waitA := indexOfCommand(commands, "wait --for=condition=complete --timeout="+migrationTimeout+" job/demo-hello-1-0-0-migration")
+
+	require.NotEqual(t, -1, applyA)
+	require.NotEqual(t, -1, applyB)
+	require.NotEqual(t, -1, waitA)
+	assert.Less(t, applyB, waitA,
+		"两个组彼此独立，第二组不该等第一组跑完才下发——那是白白串行")
 }

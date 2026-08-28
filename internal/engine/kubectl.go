@@ -235,8 +235,21 @@ func setOf(names []string) map[string]bool {
 }
 
 // runMigrations 执行数据库迁移并等它跑完（005 §6.3）。
+//
+// # 为什么不是"全部 apply 再逐个 wait"
+//
+// Job 一 apply 就开始跑，所以那种写法等于让所有迁移同时开跑，wait 只是
+// 在旁边看着。同一个组件的两个版本共用一个库、共用一个 component_id，
+// 同时跑会在**空库**上去抢那批重合的迁移——一个成功，另一个撞
+// (component_id, version) 主键退出，那个版本的 Deployment 永远起不来
+// （002 §8.11、§8.10；分组的完整理由见 k8s.Result.MigrationGroups）。
+//
+// 所以按组走：**组内**一个 apply、一个 wait，跑完再下发下一个；
+// **组间**先把每组的头一个都下发出去，再逐个往下推——不同组件之间没有
+// 冲突的可能，串起来只会平白拖慢 up。
 func (k *Kubectl) runMigrations(ctx context.Context, req UpRequest) error {
-	if len(req.MigrationJobs) == 0 {
+	jobs := flatten(req.MigrationGroups)
+	if len(jobs) == 0 {
 		return nil
 	}
 
@@ -244,24 +257,53 @@ func (k *Kubectl) runMigrations(ctx context.Context, req UpRequest) error {
 	//
 	// Job 的 spec 是不可变的：上一次失败留下的同名 Job 还在时，直接 apply 会以
 	// "field is immutable" 失败——而使用者只是改了迁移脚本想重跑一次。
-	for _, job := range req.MigrationJobs {
+	for _, job := range jobs {
 		if _, err := k.exec(ctx, k.args(req.Project,
 			"delete", "job/"+job, "--ignore-not-found")...); err != nil {
 			return err
 		}
 	}
-	if err := k.applyDir(ctx, req.Project, req.File, "migrations"); err != nil {
-		return err
-	}
 
-	for _, job := range req.MigrationJobs {
-		_, err := k.exec(ctx, k.args(req.Project, "wait", "--for=condition=complete",
-			"--timeout="+migrationTimeout, "job/"+job)...)
-		if err != nil {
-			return migrationFailure(job, req.Project, err)
+	// 按"第几轮"横着推：每一轮把各组的当前这个 Job 都下发出去，再逐个等。
+	// 组间因此是并行的，组内是严格串行的。
+	for round := 0; ; round++ {
+		var running []string
+		for _, group := range req.MigrationGroups {
+			if round >= len(group) {
+				continue
+			}
+			job := group[round]
+			if err := k.applyFile(ctx, req.Project, req.File,
+				path.Join("migrations", job+".yaml")); err != nil {
+				return err
+			}
+			running = append(running, job)
+		}
+		if len(running) == 0 {
+			return nil
+		}
+		for _, job := range running {
+			_, err := k.exec(ctx, k.args(req.Project, "wait", "--for=condition=complete",
+				"--timeout="+migrationTimeout, "job/"+job)...)
+			if err != nil {
+				return migrationFailure(job, req.Project, err)
+			}
 		}
 	}
-	return nil
+}
+
+// flatten 把分组摊平成一张 Job 名单（清理旧 Job 时不关心顺序）。
+func flatten(groups [][]string) []string {
+	var out []string
+	for _, group := range groups {
+		out = append(out, group...)
+	}
+	return out
+}
+
+// applyFile apply 生成目录下的一份清单。
+func (k *Kubectl) applyFile(ctx context.Context, namespace, root, name string) error {
+	return k.apply(ctx, namespace, path.Join(root, name))
 }
 
 // waitRollout 等每个 Deployment 的副本真正就绪。

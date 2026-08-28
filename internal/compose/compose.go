@@ -167,6 +167,10 @@ type plan struct {
 	locals []localComponent
 	// rendered 是最终会出现在文件里的 service 名集合。
 	rendered map[string]bool
+	// migrationAfter 是"这个组件的迁移要等哪个迁移先成功结束"：
+	// 服务名 → 前一个版本的迁移 service 名。同一组件 ID 的多个版本共用一个库，
+	// 必须串起来（详见 chainMigrations）。
+	migrationAfter map[string]string
 
 	// 宿主机端口台账（详见 local.go）。
 	//
@@ -189,6 +193,7 @@ func newPlan(
 	p := &plan{
 		cfg: cfg, graph: graph, states: states, engine: engine,
 		rendered:       map[string]bool{},
+		migrationAfter: map[string]string{},
 		localPort:      map[string]int{},
 		exposedPort:    map[string]int{},
 		debugPort:      map[string]int{},
@@ -237,6 +242,8 @@ func newPlan(
 	sort.Slice(p.components, func(i, j int) bool { return p.components[i].Service < p.components[j].Service })
 	sort.Slice(p.locals, func(i, j int) bool { return p.locals[i].Service < p.locals[j].Service })
 
+	p.chainMigrations()
+
 	if err := p.checkExposePorts(); err != nil {
 		return nil, err
 	}
@@ -252,6 +259,61 @@ func newPlan(
 		p.cfg, p.containerIDs(), config.TargetDocker)...)
 	return p, nil
 }
+
+// chainMigrations 把**同一个组件 ID** 的多个版本的迁移按版本号串成一条链。
+//
+// # 为什么必须串
+//
+// 资源绑定按组件 ID 记（不带版本，003 §5.3），所以同一组件的多个版本拿到的
+// `DATABASE_NAME` 必然是同一个；迁移状态表的主键是 (component_id, version)
+// （002 §8.11），两个版本的 component_id 也是同一个。于是"两个迁移容器同时对
+// 同一个库、用同一个身份跑迁移"完全是**平台自己生成出来的**——使用者在
+// brickkit.yaml 里只是照 003 §8.3 写了两行版本号。
+//
+// 迁移只增不改（002 §8.10），所以高版本的迁移集合是低版本的超集。这在老库上
+// 没问题（低版本发现已应用就跳过、干净退出），但在**空库**上两个容器都会去跑
+// 那批重合的迁移——一个成功，另一个撞主键退出，那个版本的主服务永远停在
+// Created。而且重跑一次就好（那时已经写进去了），错误指向数据库主键冲突，
+// 与"我配了多版本"看不出任何关系。
+//
+// # 为什么只串同一个组件 ID
+//
+// 不同组件的 component_id 不同，主键 (component_id, version) 已经让它们互不
+// 相干——那正是 002 §8.11 设计这个主键的目的。把它们也串起来只会平白拖慢
+// `up`（迁移是所有组件的前置阻塞步骤），换不来任何东西。
+//
+// # 平台挡不住的那一半
+//
+// 这条链只作用于**这一次 up**。两个人同时 `brickkit up` 打同一个开发库、
+// 或者 CI 与人撞上，平台一点办法没有——那要靠迁移工具自己的库级锁
+// （002 §8.12 的第四条不变量）。
+func (p *plan) chainMigrations() {
+	// 按组件 ID 归集有迁移的版本
+	byID := map[string][]componentPlan{}
+	for _, c := range p.components {
+		if c.Manifest.Migration == nil {
+			continue
+		}
+		byID[c.Ref.ID] = append(byID[c.Ref.ID], c)
+	}
+
+	for _, versions := range byID {
+		if len(versions) < 2 {
+			continue
+		}
+		// 按**版本号**排，不是按服务名：字典序会把 10.0.0 排在 2.0.0 前面，
+		// 于是先跑的是更新的那一版，而迁移是只增不改、必须由低到高的
+		sort.Slice(versions, func(i, j int) bool {
+			return manifest.CompareVersions(versions[i].Ref.Version, versions[j].Ref.Version) < 0
+		})
+		for i := 1; i < len(versions); i++ {
+			p.migrationAfter[versions[i].Service] = migrationService(versions[i-1].Service)
+		}
+	}
+}
+
+// migrationService 是某个组件的迁移 service 名。
+func migrationService(service string) string { return service + "-migration" }
 
 // checkExposePorts 检查宿主机端口冲突（延后项 P4、004 §10.3）。
 //
@@ -297,7 +359,7 @@ func (p *plan) services() map[string]any {
 
 	for _, c := range p.components {
 		if c.Manifest.Migration != nil {
-			services[c.Service+"-migration"] = p.migrationService(c)
+			services[migrationService(c.Service)] = p.migrationDoc(c)
 		}
 		services[c.Service] = p.componentService(c)
 	}
@@ -382,7 +444,7 @@ func (p *plan) componentDependsOn(c componentPlan) map[string]any {
 
 	if c.Manifest.Migration != nil {
 		// 12.12：等迁移成功结束，而不是等它"起来了"
-		dependsOn[c.Service+"-migration"] = condition("service_completed_successfully")
+		dependsOn[migrationService(c.Service)] = condition("service_completed_successfully")
 	}
 
 	node := p.graph.Node(c.Ref)
@@ -412,8 +474,8 @@ func (p *plan) readyCondition(ref resolver.Ref) string {
 
 func condition(value string) map[string]any { return map[string]any{"condition": value} }
 
-// migrationService 生成迁移用的一次性 service（002 §8.3、12.6）。
-func (p *plan) migrationService(c componentPlan) map[string]any {
+// migrationDoc 生成迁移用的一次性 service（002 §8.3、12.6）。
+func (p *plan) migrationDoc(c componentPlan) map[string]any {
 	svc := map[string]any{
 		// 002 §8.4：用组件自己的镜像，迁移脚本与业务代码同版本
 		"image":    c.Manifest.Deployment.Image,
@@ -443,9 +505,17 @@ func (p *plan) migrationService(c componentPlan) map[string]any {
 		svc["extra_hosts"] = hosts
 	}
 
-	// 资源不由平台部署，因此没有可等的 service：迁移是第一个连库的东西，
-	// 库没起来它就是第一个失败的——那条错误（connection refused）比任何
+	// 同一组件的上一个版本的迁移必须先成功结束（见 chainMigrations）。
+	//
+	// 资源不在这里：资源不由平台部署，compose 文件里根本没有对应的 service，
+	// 写进 depends_on 只会让 compose 直接报错。迁移是第一个连库的东西，
+	// 库没起来它就是第一个失败的——那条 connection refused 比任何
 	// 平台自己编的说法都准确
+	if previous := p.migrationAfter[c.Service]; previous != "" {
+		svc["depends_on"] = map[string]any{
+			previous: condition("service_completed_successfully"),
+		}
+	}
 	return svc
 }
 

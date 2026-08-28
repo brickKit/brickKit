@@ -98,10 +98,23 @@ type Result struct {
 	//
 	// 两种目标下平台都不部署它们，但"要先准备什么"照样得说清楚。
 	Resources []deploy.ResourceRequirement
-	// MigrationJobs 是本次会执行的迁移 Job 名，按启动顺序无关的字典序排列。
+	// MigrationGroups 是本次会执行的迁移 Job，**按组件 ID 分组**。
 	//
-	// 命令层要用它清理上一次残留的 Job 并等待本次跑完（005 §6.3）。
-	MigrationJobs []string
+	// 组内按版本号升序、必须串行；组间彼此独立、可以并行（005 §6.3）。
+	// 命令层要用它清理上一次残留的 Job 并等待本次跑完。
+	//
+	// # 为什么是分组而不是一张平表
+	//
+	// 同一组件 ID 的多个版本共用一个库（绑定按组件 ID 记，003 §5.3），
+	// 迁移状态表的主键 (component_id, version) 里的 component_id 也是同一个
+	// （002 §8.11）。同时下发这些 Job，在**空库**上两个版本会去跑那批重合的
+	// 迁移——一个成功，另一个撞主键退出，那个版本的 Deployment 永远起不来。
+	// 而迁移只增不改（002 §8.10），高版本的迁移集合本就是低版本的超集，
+	// 让它们抢没有任何意义。
+	//
+	// 不同组件 ID 之间不串：主键里的 component_id 已经让它们互不相干，
+	// 串起来只会平白拖慢 up（迁移是所有组件的前置阻塞步骤）。
+	MigrationGroups [][]string
 	// Desired 是本次生成的**每一个** K8s 对象，写成 `<小写类型>/<名字>`
 	// （如 `deployment/people-basic-1-0-0`、`secret/pg-main-secret`），已排序去重。
 	//
@@ -202,13 +215,48 @@ func Generate(
 				dirMigrations+"/"+job+".yaml", p.migrationJobDoc(c)); err != nil {
 				return nil, err
 			}
-			result.MigrationJobs = append(result.MigrationJobs, job)
 		}
 	}
+	result.MigrationGroups = p.migrationGroups()
 
 	sort.Slice(result.Files, func(i, j int) bool { return result.Files[i].Path < result.Files[j].Path })
 	sort.Strings(result.Desired)
 	return result, nil
+}
+
+// migrationGroups 把迁移 Job 按组件 ID 分组，组内按版本升序（见 Result.MigrationGroups）。
+//
+// 组间按组件 ID 字典序：同一份配置每次都要给出同一个执行顺序，
+// 否则连跑两次的输出不一样，使用者会以为哪里在飘。
+func (p *plan) migrationGroups() [][]string {
+	byID := map[string][]componentPlan{}
+	var ids []string
+	for _, c := range p.components {
+		if c.Manifest.Migration == nil {
+			continue
+		}
+		if _, seen := byID[c.Ref.ID]; !seen {
+			ids = append(ids, c.Ref.ID)
+		}
+		byID[c.Ref.ID] = append(byID[c.Ref.ID], c)
+	}
+	sort.Strings(ids)
+
+	groups := make([][]string, 0, len(ids))
+	for _, id := range ids {
+		versions := byID[id]
+		// 按**版本号**排，不是服务名的字典序：后者会把 10.0.0 排在 2.0.0 前面，
+		// 于是先跑的是更新的那一版，而迁移是只增不改、必须由低到高的
+		sort.Slice(versions, func(i, j int) bool {
+			return manifest.CompareVersions(versions[i].Ref.Version, versions[j].Ref.Version) < 0
+		})
+		group := make([]string, 0, len(versions))
+		for _, c := range versions {
+			group = append(group, MigrationJobName(c.Service))
+		}
+		groups = append(groups, group)
+	}
+	return groups
 }
 
 // NamespaceOf 返回本项目实际使用的命名空间。

@@ -117,7 +117,7 @@ func TestUpK8sPassesMigrationJobs(t *testing.T) {
 
 	runWithEngine(t, eng, f.Dir, "up")
 
-	assert.Equal(t, []string{"people-basic-1-0-0-migration"}, eng.lastUp(t).MigrationJobs)
+	assert.Equal(t, [][]string{{"people-basic-1-0-0-migration"}}, eng.lastUp(t).MigrationGroups)
 }
 
 func TestUpK8sWithoutMigrationsPassesNoJobs(t *testing.T) {
@@ -126,7 +126,7 @@ func TestUpK8sWithoutMigrationsPassesNoJobs(t *testing.T) {
 
 	runWithEngine(t, eng, f.Dir, "up")
 
-	assert.Empty(t, eng.lastUp(t).MigrationJobs)
+	assert.Empty(t, eng.lastUp(t).MigrationGroups)
 }
 
 // --dry-run 只生成清单，不碰集群。

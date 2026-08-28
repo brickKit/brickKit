@@ -223,7 +223,7 @@ func TestResultCarriesMigrationJobs(t *testing.T) {
 	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
 	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
 
-	assert.Equal(t, []string{"people-basic-1-0-0-migration"}, b.generate().MigrationJobs)
+	assert.Equal(t, [][]string{{"people-basic-1-0-0-migration"}}, b.generate().MigrationGroups)
 }
 
 // ============================================================
@@ -299,4 +299,28 @@ func TestSecretFileIsNotWorldReadable(t *testing.T) {
 	info, err = os.Stat(filepath.Join(dir, "deployments", "people-basic-1-0-0.yaml"))
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm(), "其余清单照常")
+}
+
+// 同一个组件的多个版本，迁移 Job 归到同一组并按版本号排序。
+//
+// 分组是给引擎用的执行顺序：组内串行、组间并行。理由与 compose 侧的
+// chainMigrations 完全一样——同一组件 ID 的多个版本共用一个库、共用一个
+// component_id，同时跑会在空库上撞主键（002 §8.11、§8.10）。
+func TestMigrationJobsAreGroupedByComponent(t *testing.T) {
+	b := newBuilder(t)
+	b.component(migrating(withDatabase(simple("demo/hello", "2.0.0", 8080))), config.Component{})
+	b.component(migrating(withDatabase(simple("demo/hello", "10.0.0", 8080))), config.Component{})
+	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
+	b.resource(pgResource(
+		config.Binding{ComponentID: "demo/hello", Database: "hello"},
+		config.Binding{ComponentID: "people/basic", Database: "people"}))
+
+	groups := b.generate().MigrationGroups
+
+	require.Len(t, groups, 2, "两个组件 ID → 两组：%v", groups)
+	assert.Equal(t, [][]string{
+		// 按版本号排，不是服务名的字典序：10.0.0 必须排在 2.0.0 后面
+		{"demo-hello-2-0-0-migration", "demo-hello-10-0-0-migration"},
+		{"people-basic-1-0-0-migration"},
+	}, groups, "组内按版本升序；组间按组件 ID 字典序（同一份配置每次都要给出同一个顺序）")
 }

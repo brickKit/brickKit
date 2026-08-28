@@ -124,21 +124,21 @@ func applyK8s(
 	ctx context.Context, opts *Options, eng engine.Engine, plan *upPlan, dir, pruneSelector string,
 ) error {
 	opts.Printf("\n☸️  正在部署到 Kubernetes（命名空间 %s）...\n", plan.k8s.Namespace)
-	if len(plan.k8s.MigrationJobs) > 0 {
+	if len(plan.k8s.MigrationGroups) > 0 {
 		// 16.14：先清旧 Job 再 apply，然后等它跑完
 		opts.Printf("   先执行数据库迁移，完成后才启动主服务\n")
 	}
 
 	var pruned []string
 	if err := eng.Up(ctx, engine.UpRequest{
-		File:          dir,
-		Project:       plan.k8s.Namespace,
-		Context:       plan.kubeContext,
-		Services:      plan.services,
-		MigrationJobs: plan.k8s.MigrationJobs,
-		Desired:       plan.k8s.Desired,
-		PruneSelector: pruneSelector,
-		OnPrune:       func(resource string) { pruned = append(pruned, resource) },
+		File:            dir,
+		Project:         plan.k8s.Namespace,
+		Context:         plan.kubeContext,
+		Services:        plan.services,
+		MigrationGroups: plan.k8s.MigrationGroups,
+		Desired:         plan.k8s.Desired,
+		PruneSelector:   pruneSelector,
+		OnPrune:         func(resource string) { pruned = append(pruned, resource) },
 	}); err != nil {
 		return engineFailure("部署", err)
 	}
