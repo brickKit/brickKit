@@ -171,7 +171,8 @@ func TestCheckResourceBindingsReportsAllProblems(t *testing.T) {
 	assert.Contains(t, out, "componentId: people/basic")
 }
 
-// engine 不匹配时不算已声明（database:mysql 满足不了 database:postgresql）。
+// engine 不同就不算满足（database:mysql 满足不了 database:postgresql），
+// 而且要点名是哪个资源对不上——它就在配置里，只是那个词不一样。
 func TestCheckResourceBindingsEngineMustMatch(t *testing.T) {
 	m := &manifest.Manifest{
 		Metadata: manifest.Metadata{ID: "people/basic", Version: "1.0.0"},
@@ -181,6 +182,58 @@ func TestCheckResourceBindingsEngineMustMatch(t *testing.T) {
 	}
 	cfg := &config.Config{Resources: []config.Resource{{
 		Kind: "database", Engine: "mysql", ID: "mysql-main",
+		Bindings: []config.Binding{{ComponentID: "people/basic"}},
+	}}}
+
+	err := CheckResourceBindings(cfg, m)
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Format(), "mysql-main", "要点名是哪个资源对不上")
+}
+
+// engine 只差一个拼法时，必须点名是哪个资源、它的 engine 是什么。
+//
+// # 这是这条检查最容易伤人的地方
+//
+// engine 是自由字符串（006 §2.2），却要在**两个人写的两份文件**里逐字相同：
+// 组件作者写 postgresql、管理员写 postgres，两边都觉得自己写对了。
+//
+// 从前这时报的是"brickkit.yaml 的 resources 中未声明"——一句**假话**：
+// 它明明声明了，也绑定了。使用者会去翻 sources 和 resources 找那个"没声明"的
+// 东西，而问题只是 engine 那个词。matchResource 的 declared 只在 kind + engine
+// 都对时才赋值，所以那条更准确的"已声明但未绑定"分支永远走不到。
+func TestCheckResourceBindingsSaysWhichEngineIsDeclared(t *testing.T) {
+	m := &manifest.Manifest{
+		Metadata: manifest.Metadata{ID: "people/basic", Version: "1.0.0"},
+		Dependencies: &manifest.Dependencies{Resources: []manifest.ResourceDep{
+			{Kind: "database", Engine: "postgresql"},
+		}},
+	}
+	cfg := &config.Config{Resources: []config.Resource{{
+		Kind: "database", Engine: "postgres", ID: "pg-main",
+		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people"}},
+	}}}
+
+	err := CheckResourceBindings(cfg, m)
+	require.Error(t, err)
+
+	out := clierr.As(err).Format()
+	assert.Contains(t, out, "pg-main", "要点名是哪个资源")
+	assert.Contains(t, out, "postgres", "要说出它写的 engine")
+	assert.Contains(t, out, "postgresql", "也要说出组件要的那个")
+	assert.NotContains(t, out, "未声明",
+		"它明明声明了也绑定了，说「未声明」是句假话：%s", out)
+}
+
+// 连这一类资源都没声明时，才是真的"未声明"。
+func TestCheckResourceBindingsSaysNotDeclaredWhenKindIsAbsent(t *testing.T) {
+	m := &manifest.Manifest{
+		Metadata: manifest.Metadata{ID: "people/basic", Version: "1.0.0"},
+		Dependencies: &manifest.Dependencies{Resources: []manifest.ResourceDep{
+			{Kind: "cache", Engine: "redis"},
+		}},
+	}
+	cfg := &config.Config{Resources: []config.Resource{{
+		Kind: "database", Engine: "postgresql", ID: "pg-main",
 		Bindings: []config.Binding{{ComponentID: "people/basic"}},
 	}}}
 
@@ -208,9 +261,8 @@ func TestCheckResourceBindingsMultipleInstances(t *testing.T) {
 }
 
 func TestMatchResourceWithNilConfig(t *testing.T) {
-	declared, bound := matchResource(nil, manifest.ResourceDep{Kind: "database", Engine: "postgresql"}, "people/basic")
-	assert.Empty(t, declared)
-	assert.False(t, bound)
+	problem := matchResource(nil, manifest.ResourceDep{Kind: "database", Engine: "postgresql"}, "people/basic")
+	assert.Contains(t, problem, "未声明", "没有配置就等于什么都没声明")
 }
 
 // ============================================================

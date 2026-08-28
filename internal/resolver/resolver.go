@@ -443,11 +443,8 @@ func CheckRunningResourceBindings(cfg *config.Config, graph *Graph, running []Re
 
 	e := clierr.New(clierr.CodeResourceUnbound, "错误：资源依赖未满足")
 	e.Details = append(e.Details, details...)
-	return e.WithHint(
-		"在 brickkit.yaml → resources 中声明该资源（kind + engine 必须与组件声明的一致）",
-		"在该资源的 bindings 中加入 componentId: <组件ID>",
-		"暂时不想跑这个组件的话，给它写 enabled: false",
-	)
+	// 这一条报的是多个组件，给不出具体的 componentId
+	return e.WithHint(resourceHints("", "暂时不想跑这个组件的话，给它写 enabled: false")...)
 }
 
 // CheckResourceBindings 校验组件声明的资源依赖是否已在 brickkit.yaml 中
@@ -465,10 +462,7 @@ func CheckResourceBindings(cfg *config.Config, m *manifest.Manifest) error {
 
 	e := clierr.New(clierr.CodeResourceUnbound, "错误：资源依赖未满足")
 	e.Details = append(e.Details, problems...)
-	return e.WithHint(
-		"在 brickkit.yaml → resources 中声明该资源（kind + engine 必须匹配）",
-		"在该资源的 bindings 中加入 componentId: "+m.Metadata.ID,
-	)
+	return e.WithHint(resourceHints(m.Metadata.ID)...)
 }
 
 // unboundResourceDetails 列出一个组件没被满足的资源依赖。
@@ -482,44 +476,124 @@ func unboundResourceDetails(cfg *config.Config, m *manifest.Manifest) []clierr.D
 
 	out := make([]clierr.Detail, 0, len(m.Dependencies.Resources))
 	for _, dep := range m.Dependencies.Resources {
-		declared, bound := matchResource(cfg, dep, m.Metadata.ID)
-		switch {
-		case bound:
-			continue
-		case declared == "":
+		if problem := matchResource(cfg, dep, m.Metadata.ID); problem != "" {
 			out = append(out, clierr.Detail{
 				Key:   ref.String(),
-				Value: "需要 kind: " + dep.Kind + "、engine: " + dep.Engine + "（brickkit.yaml 的 resources 中未声明）",
-			})
-		default:
-			out = append(out, clierr.Detail{
-				Key:   ref.String(),
-				Value: "需要 kind: " + dep.Kind + "、engine: " + dep.Engine + "（资源 " + declared + " 已声明，但未绑定给该组件）",
+				Value: "需要 kind: " + dep.Kind + "、engine: " + dep.Engine + "（" + problem + "）",
 			})
 		}
 	}
 	return out
 }
 
-// matchResource 返回匹配该资源依赖的资源 ID，以及是否已绑定给该组件。
-func matchResource(cfg *config.Config, dep manifest.ResourceDep, componentID string) (declared string, bound bool) {
-	if cfg == nil {
-		return "", false
+// resourceHints 给出三条出路，与 matchResource 报出的三种明细一一对应。
+//
+// 从前只有两条通用建议（"去 resources 声明它" + "去 bindings 加一行"），
+// 而三种明细里有一种是 engine 拼法不同——那时第一条是**误导**：他明明声明了。
+// 一条照着做不管用的建议，比不给建议更浪费时间。
+func resourceHints(componentID string, extra ...string) []string {
+	bind := "声明了但没绑 → 在该资源的 bindings 中加一行 componentId"
+	if componentID != "" {
+		bind += ": " + componentID
 	}
+	return append([]string{
+		"没声明这一类资源 → 在 brickkit.yaml → resources 中加一条",
+		"engine 写的不一样 → 改两处中的一处让它们逐字相同" +
+			"（平台不认别名：postgres 与 postgresql 是两个不同的值，006 §4.4）",
+		bind,
+	}, extra...)
+}
+
+// matchResource 检查这条资源依赖有没有被满足；满足时返回空串，否则返回**具体**哪儿不对。
+//
+// # 三种不满足，指向配置里三个不同的地方
+//
+//	这一类资源压根没声明     去 resources 加一条
+//	声明了、engine 对不上    去改那两个词里的一个
+//	声明了、没绑给这个组件   去 bindings 加一行
+//
+// 从前只区分前两种，而且"engine 对不上"被归进了第一种——因为 declared 只在
+// kind 与 engine **都**对时才赋值。于是使用者会看到一句**假话**：
+//
+//	demo/hello@1.0.0：需要 kind: database、engine: postgresql
+//	                  （brickkit.yaml 的 resources 中未声明）
+//
+// 可他明明声明了 pg-main，也把 demo/hello 绑上去了——只是他写的是 postgres。
+// 那句话会让他去翻 sources 与 resources 找一个"没声明"的东西，
+// 而问题只在 engine 那个词上。
+//
+// # 为什么 engine 值得参与匹配
+//
+// 006 §2.2 从前说"engine 是自由字符串，平台对它一无所知——只是写给人看的"，
+// 那与这里的行为直接矛盾（也与 §4.4 矛盾）。真相是：**engine 不参与决定注入
+// 哪组变量**（那由 kind 决定），但它**参与匹配**——项目里同时有 postgres 与
+// mysql 时，它是平台唯一能看出"组件要的和管理员绑的不是同一样东西"的依据。
+// 而绑定是管理员显式写下的，这个不一致平台看得见，就不该放过去。
+//
+// 代价是两个人写的两份文件里那个词必须逐字相同。所以报错必须把两个词都摆出来
+// ——平台不认别名，postgres 与 postgresql 在它眼里就是两个不同的值。
+func matchResource(cfg *config.Config, dep manifest.ResourceDep, componentID string) string {
+	if cfg == nil {
+		return "brickkit.yaml 的 resources 中未声明"
+	}
+
+	// 同 kind 但 engine 不同的那些：留着，报错时要点名
+	var otherEngines []config.Resource
+	var declaredSameEngine string
+
 	for _, res := range cfg.Resources {
-		if res.Kind != dep.Kind || res.Engine != dep.Engine {
+		if res.Kind != dep.Kind {
 			continue
 		}
-		if declared == "" {
-			declared = res.ID
+		if res.Engine != dep.Engine {
+			otherEngines = append(otherEngines, res)
+			continue
+		}
+		if declaredSameEngine == "" {
+			declaredSameEngine = res.ID
 		}
 		for _, b := range res.Bindings {
 			if b.ComponentID == componentID {
-				return res.ID, true
+				return "" // 满足
 			}
 		}
 	}
-	return declared, false
+
+	if declaredSameEngine != "" {
+		return "资源 " + declaredSameEngine + " 已声明，但未绑定给该组件"
+	}
+	if len(otherEngines) > 0 {
+		return engineMismatch(otherEngines, dep, componentID)
+	}
+	return "brickkit.yaml 的 resources 中未声明"
+}
+
+// engineMismatch 说清楚"这一类资源有，但 engine 那个词对不上"。
+//
+// 已经绑给这个组件的那个优先点名——那是最常见的情形（管理员绑对了，
+// 只是拼法不同），也最需要一眼看出问题在哪。
+func engineMismatch(candidates []config.Resource, dep manifest.ResourceDep, componentID string) string {
+	pick := candidates[0]
+	boundToMe := false
+	for _, res := range candidates {
+		for _, b := range res.Bindings {
+			if b.ComponentID == componentID {
+				pick, boundToMe = res, true
+				break
+			}
+		}
+		if boundToMe {
+			break
+		}
+	}
+
+	who := "资源 " + pick.ID
+	if boundToMe {
+		who += " 已经绑给它了"
+	} else {
+		who += " 是同一类资源"
+	}
+	return who + "，但它的 engine 写的是 " + pick.Engine
 }
 
 // ============================================================
