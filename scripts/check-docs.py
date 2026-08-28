@@ -233,6 +233,64 @@ def guide_prerequisites():
     return problems
 
 
+# 正文里指向别的篇时的裸写法：「12 节」「13 那一篇」。
+BARE_REF = re.compile(r"(?<![\d.])(\d{2})(?= ?节|\s*那一篇|\s*那篇)")
+
+
+def guide_bare_chapter_refs():
+    """正文里指别的篇，必须写成链接，不能写裸编号。
+
+    这是 2026-08-18 改号漏掉的第四处，也是最难看见的一处。改号脚本改得了
+    `[13-完整装配.md](13-完整装配.md)`，改不了藏在句子和**注释**里的裸数字：
+
+        15 §15.1  cd 试用指南/erp-demo      # 12 节建的项目
+        16 §16.1  把 12 节那套八个组件原样搬到 Kubernetes
+        13 §13.8  13 节会让你亲手把它停掉验证这一点
+
+    12 现在是「市场进阶」。照着做的人打开它，找不到任何 erp-demo。
+    最后一条更绕：13 在说 13 自己——旧号里「依赖组合实验」正是 13。
+
+    前面四道检查一条都抓不到：这些不是链接（断链检查跳过），不是小节号
+    （编号检查只看 `## N.x`），也不在 README 的前置列里。
+
+    不变式：**跨篇引用一律走链接**。理由不是格式洁癖——链接会被断链检查
+    盯着，裸数字不会被任何东西盯着，而改号这件事一定还会再发生一次。
+    本篇引自己的号（「见 18.5」）不算跨篇，放行。
+    """
+    # 这道检查健康时的正常状态就是**一处都不命中**，所以"命中了几处"
+    # 不能当分母——那样一个失效的正则和一份干净的文档长得一模一样。
+    # 分母换成两样：正则对着已知样本还认不认得出来，以及到底扫了多少行。
+    probe = "把 12 节那套八个组件搬过去，见 13 那一篇"
+    if [m.group(1) for m in BARE_REF.finditer(probe)] != ["12", "13"]:
+        print("❌ BARE_REF 认不出样例句里的裸篇号了——正则坏了，"
+              "而不是文档突然全都规范了。")
+        sys.exit(2)
+    if BARE_REF.search("见 18.5 那一段") or BARE_REF.search("005 §5.13 讲的"):
+        print("❌ BARE_REF 把小节号 / 设计书号也当成篇号了，会误报。")
+        sys.exit(2)
+
+    problems = []
+    lines = 0
+
+    for path in sorted(glob.glob("试用指南/[0-9]*-*.md")):
+        tag = os.path.basename(path).split("-")[0]
+        for i, line in enumerate(open(path, encoding="utf-8"), 1):
+            lines += 1
+            # 先把 markdown 链接整段拿掉，剩下的才是"裸"的
+            bare = re.sub(r"\[[^\]]*\]\([^)]*\)", "", line)
+            for m in BARE_REF.finditer(bare):
+                if m.group(1) != tag:
+                    problems.append((path, i,
+                        f"「{m.group(0)}」是裸篇号——写成链接，"
+                        f"否则下次改号时没有任何检查看得见它"))
+
+    if lines < 5000:
+        print(f"❌ 只扫到 {lines} 行——多半是路径规则变了，而不是指南真的这么短。")
+        sys.exit(2)
+    print(f"   （裸篇号：扫了 {lines} 行）")
+    return problems
+
+
 # 篇尾那一行的样子：➡️ 下一节：[08-升级与多版本.md](…)
 NEXT_MARK = re.compile(r"➡️ 下一节[：:]\s*\[([^\]]+)\]")
 
@@ -309,6 +367,7 @@ def main():
     failed |= report("指南编号错位", guide_section_numbers())
     failed |= report("指南前置对不上", guide_prerequisites())
     failed |= report("指南「下一节」链断开", guide_next_chain())
+    failed |= report("指南里的裸篇号", guide_bare_chapter_refs())
 
     if failed:
         print("\n引用坏掉的常见原因：重写某一节时改了编号、拆分文件时换了路径。")
