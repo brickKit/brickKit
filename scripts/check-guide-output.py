@@ -260,6 +260,31 @@ CASES = [
                   "❌ 错误：检测到循环依赖", 0),
     },
     {
+        "what": "003 §4.5 Docker 下两个组件抢同一个宿主机端口",
+        "reset": True,
+        "run": BASELINE + ["!expose demo/hello", "!expose demo/caller"],
+        "check": ("up --dry-run", "design/003-项目配置规范.md",
+                  "❌ 错误：宿主机端口 8080 被多个组件占用", 0),
+    },
+    {
+        "what": "003 §4.5 / 005 §5.5.0 K8s 下两个组件抢同一个域名",
+        "reset": True,
+        "run": BASELINE + ["!k8s",
+                           "!expose demo/hello shop.example.com",
+                           "!expose demo/caller shop.example.com"],
+        "check": ("up --dry-run", "design/003-项目配置规范.md",
+                  "❌ 错误：域名 shop.example.com 被多个组件占用", 0),
+    },
+    {
+        "what": "005 §5.5.0 K8s 域名冲突（005 里的那一份）",
+        "reset": True,
+        "run": BASELINE + ["!k8s",
+                           "!expose demo/hello shop.example.com",
+                           "!expose demo/caller shop.example.com"],
+        "check": ("up --dry-run", "design/005-部署与运行规范.md",
+                  "❌ 错误：域名 shop.example.com 被多个组件占用", 0),
+    },
+    {
         "what": "003 §4.3 什么都不写时全跑",
         "reset": True,
         "run": BASELINE,
@@ -401,6 +426,33 @@ def pin(proj, component_id):
         s.replace(old_entry, old_entry + "    enabled: true\n", 1))
 
 
+def expose(proj, component_id, hostname=None):
+    """给某个组件加 expose: true（可选带 hostname）。
+
+    两个组件同时 expose 就会撞：Docker 下抢宿主机端口、K8s 下抢域名
+    （003 §4.5、005 §5.5.0）。两条报错都在生成阶段，构造成本很低，
+    所以它们进了看守——而"抢了会怎样"恰恰是最容易在文档里写漂的一类。
+    """
+    path = os.path.join(proj, "brickkit.yaml")
+    s = open(path, encoding="utf-8").read()
+    old = f"  - id: {component_id}\n    version: 1.0.0\n"
+    if old not in s:
+        sys.exit(f"❌ 配置里找不到 {component_id}，无法加 expose: true")
+    extra = "    expose: true\n"
+    if hostname:
+        extra += f"    hostname: {hostname}\n"
+    open(path, "w", encoding="utf-8").write(s.replace(old, old + extra, 1))
+
+
+def use_k8s(proj):
+    """把 deploy.target 改成 k8s（域名冲突只在 K8s 下成立）。"""
+    path = os.path.join(proj, "brickkit.yaml")
+    s = open(path, encoding="utf-8").read()
+    if "  target: docker" not in s:
+        sys.exit("❌ 配置里找不到 deploy.target: docker")
+    open(path, "w", encoding="utf-8").write(s.replace("  target: docker", "  target: k8s", 1))
+
+
 def enable(proj, component_id):
     """把某个组件的 enabled: false 改成 true（02 §2.5 的"改回去再 sync"）。"""
     path = os.path.join(proj, "brickkit.yaml")
@@ -538,6 +590,10 @@ def main():
                     use_sample(proj, step.split(None, 1)[1])
                 elif step.startswith("!enable "):
                     enable(proj, step.split(None, 1)[1])
+                elif step.startswith("!expose "):
+                    expose(proj, *step.split(None, 1)[1].split())
+                elif step == "!k8s":
+                    use_k8s(proj)
                 elif step == "!cycle":
                     make_cycle(proj)
                 elif step == "!corrupt":

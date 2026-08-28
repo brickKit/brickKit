@@ -3,6 +3,8 @@ package k8s
 // 本文件渲染 Service 与 Ingress（005 §5.4、§5.5）。
 
 import (
+	"sort"
+
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
@@ -102,12 +104,24 @@ func (p *plan) ingressDoc(c componentPlan) map[string]any {
 	}
 }
 
-// checkHostnames 拦下 expose: true 却没写 hostname 的组件。
+// checkHostnames 守住 Ingress 的两条：**每个对外的组件都要有域名，
+// 而且一个域名只能归一个组件。**
+//
+// 两条都指向同一个失败：一条规则匹配上了它不该匹配的请求，而 `kubectl apply`
+// 一句抱怨都没有。
+func (p *plan) checkHostnames() error {
+	if err := p.checkHostnamePresent(); err != nil {
+		return err
+	}
+	return p.checkHostnameUnique()
+}
+
+// checkHostnamePresent 拦下 expose: true 却没写 hostname 的组件。
 //
 // K8s 下 hostname 是必填（003 §4.5）。生成一条没有 host 的 Ingress，等于把这个组件
 // 挂到**所有**进入集群的域名上，谁先匹配上谁生效——一个内部组件可能就这样
 // 顶掉了门户站点，而 kubectl apply 不会有任何抱怨。
-func (p *plan) checkHostnames() error {
+func (p *plan) checkHostnamePresent() error {
 	var missing []resolver.Ref
 	for _, c := range p.components {
 		if c.Entry.Expose && c.Entry.Hostname == "" {
@@ -129,4 +143,70 @@ func (p *plan) checkHostnames() error {
 			"在 brickkit.yaml 里给这些组件补上 hostname: xxx.example.com",
 			"组件之间在集群内互访不需要 expose，只有要对外开放才写",
 		)
+}
+
+// checkHostnameUnique 拦下两个组件占同一个域名。
+//
+// # 为什么这是错的
+//
+// 平台生成的每条 Ingress 规则都是 `host: <hostname>` + `path: /`（005 §5.5）。
+// 两个组件共用一个 hostname，就是两条一模一样的规则指向不同的后端——K8s 对此
+// 没有定义行为（nginx-ingress 取创建时间最早的那份并记一条冲突日志），表现是
+// 外面打进来的请求稳定落到其中一个上，而生成、apply、`kubectl get ingress`
+// 全都看不出任何问题。
+//
+// # 为什么是报错而不是警告
+//
+// 与 Docker 侧对称：那边两个组件抢同一个宿主机端口同样是硬错误
+// （compose.checkExposePorts），而且两条出路的形状完全一样——给其中一个换个值。
+// 一个"生成成功、apply 成功、路由随机"的部署，比一次生成期的失败难查得多。
+//
+// # 多版本共存时几乎必然踩到
+//
+// 照 003 §8.3 加第二个版本时，整个组件条目是复制出来的，hostname 跟着一起复制。
+// 而这里没有"两个版本轮流服务"这种解释可用——两份 Ingress 不是负载均衡。
+//
+// # 那想让一个域名下挂多个组件怎么办
+//
+// 平台不做 path 路由（`example.com/api` → A、`example.com/` → B）：那是一个新字段、
+// 新语义，而 K8s 的常规做法本来就是一个组件一个子域名。真的需要按路径分流时，
+// 那是集群侧的路由策略，自己写一份 Ingress——平台只负责"把这个组件按域名暴露出去"。
+func (p *plan) checkHostnameUnique() error {
+	// 按 hostname 归集，值是占用它的组件（按服务名排序，输出稳定）
+	claimed := map[string][]resolver.Ref{}
+	var hosts []string
+	for _, c := range p.components {
+		if !c.Entry.Expose || c.Entry.Hostname == "" {
+			continue
+		}
+		host := c.Entry.Hostname
+		if _, seen := claimed[host]; !seen {
+			hosts = append(hosts, host)
+		}
+		claimed[host] = append(claimed[host], c.Ref)
+	}
+	sort.Strings(hosts)
+
+	for _, host := range hosts {
+		refs := claimed[host]
+		if len(refs) < 2 {
+			continue
+		}
+		err := clierr.Newf(clierr.CodeConfigInvalid,
+			"错误：域名 %s 被多个组件占用", host)
+		for _, ref := range refs {
+			// 必须带版本号：多版本共存时两行组件 ID 一模一样
+			err = err.WithDetail("组件", ref.ID+"@"+ref.Version)
+		}
+		return err.
+			WithDetail("原因",
+				"每个 expose 的组件都生成一条 host + path: / 的 Ingress 规则；"+
+					"两条一模一样的规则指向不同后端，K8s 没有定义行为——"+
+					"请求会稳定落到其中一个上，而 apply 不会有任何抱怨").
+			WithHint(
+				"在 brickkit.yaml 中给其中一个组件换一个 hostname（一个组件一个子域名）",
+				"或去掉其中一个组件的 expose: true（组件之间在集群内互访不需要 expose）",
+			)
+	}
+	return nil
 }

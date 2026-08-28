@@ -5,6 +5,7 @@ package k8s_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -109,6 +110,75 @@ func TestExposeWithoutHostnameIsAnError(t *testing.T) {
 	assert.Equal(t, clierr.CodeConfigInvalid, clierr.As(err).Code)
 	assert.Contains(t, err.Error(), "hostname")
 	assert.Contains(t, err.Error(), "portal/user-frontend")
+}
+
+// 两个组件写同一个 hostname：必须报错，不能安静地生成两份 Ingress。
+//
+// # 为什么这是错的
+//
+// 平台生成的每条 Ingress 规则都是 `host: <hostname>` + `path: /`（§5.5）。
+// 两个组件共用一个 hostname，就是两条一模一样的规则指向不同的后端——
+// K8s 对此没有定义行为（nginx-ingress 取创建时间最早的那份并记一条冲突日志），
+// 表现是外面打进来的请求随机落到其中一个，而 `kubectl apply` 一句抱怨都没有。
+//
+// # 为什么是报错而不是警告
+//
+// 与 Docker 侧对称：那边两个组件抢同一个宿主机端口同样是硬错误
+// （compose.checkExposePorts），而且两者的出路形状完全一样——给其中一个换个值。
+// 一个"生成成功、apply 成功、路由随机"的部署，比一次生成期的失败难查得多。
+//
+// # 多版本共存时几乎必然踩到
+//
+// 照 003 §8.3 加第二个版本时，那一整个条目是复制出来的，hostname 会跟着复制。
+func TestDuplicateHostnameIsAnError(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("portal/user-frontend", "1.0.0", 80),
+		config.Component{Expose: true, Hostname: "shop.example.com"})
+	b.component(simple("erp/backend", "1.0.0", 8080),
+		config.Component{Expose: true, Hostname: "shop.example.com"})
+
+	_, err := b.build()
+
+	require.Error(t, err, "两个组件占同一个域名，不该安静地生成两份 Ingress")
+	assert.Equal(t, clierr.CodeConfigInvalid, clierr.As(err).Code)
+	text := err.Error()
+	assert.Contains(t, text, "shop.example.com")
+	assert.Contains(t, text, "portal/user-frontend", "要点名是哪两个组件")
+	assert.Contains(t, text, "erp/backend")
+	// 出路必须给出来：使用者未必想得到"一个组件一个子域名"这条约定
+	assert.Contains(t, strings.Join(clierr.As(err).Hints, "\n"), "hostname")
+}
+
+// 同一个组件的两个版本共用一个 hostname 同样报错。
+//
+// 这是最常撞的一种：003 §8.3 的多版本条目是复制出来的。
+// 而且这里没有"让它俩轮流服务"这种解释——两份 Ingress 不是负载均衡，
+// 是未定义行为，请求会稳定落到其中一个版本上。
+func TestDuplicateHostnameAcrossVersionsIsAnError(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("portal/user-frontend", "1.0.0", 80),
+		config.Component{Expose: true, Hostname: "shop.example.com"})
+	b.component(simple("portal/user-frontend", "2.0.0", 80),
+		config.Component{Expose: true, Hostname: "shop.example.com"})
+
+	_, err := b.build()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "1.0.0")
+	assert.Contains(t, err.Error(), "2.0.0", "要带版本号，否则两行看起来一模一样")
+}
+
+// 没 expose 的组件即使写了 hostname 也不占域名——它根本不生成 Ingress。
+func TestHostnameOnUnexposedComponentDoesNotConflict(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("portal/user-frontend", "1.0.0", 80),
+		config.Component{Expose: true, Hostname: "shop.example.com"})
+	b.component(simple("erp/backend", "1.0.0", 8080),
+		config.Component{Hostname: "shop.example.com"})
+
+	_, err := b.build()
+
+	require.NoError(t, err, "没 expose 就不生成 Ingress，谈不上抢域名")
 }
 
 // ============================================================

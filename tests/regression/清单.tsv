@@ -43,3 +43,4 @@ R25	升级兼容性检查	7	.	./internal/cli	TestUpgradeIsReported
 R26	brickkit down 不依赖安装源（读不到 Manifest 也停得掉）	-	.	./internal/cli	TestDownStopsEvenWhenManifestIsBroken
 R27	依赖图取不到时 status 降级而不是失败	-	.	./internal/cli	TestStatusReportsRunningWhenGraphUnavailable
 R28	同一组件的多个版本，迁移按版本号串行（不抢同一个库）	-	.	./internal/compose	TestSameComponentMigrationsAreChainedByVersion
+R29	K8s 下一个域名只能归一个组件（抢了在生成阶段报错）	-	.	./internal/k8s	TestDuplicateHostnameIsAnError
