@@ -151,6 +151,71 @@ func Clone(ctx context.Context, l config.Layout, componentID, ref, gitURL string
 	return target, nil
 }
 
+// DeletionRisk 回答一个问题：**把这份源码删掉，还找得回来吗？**
+//
+// 找得回来时返回空串；否则返回一句"为什么找不回来"，由调用方决定是拦下还是放行。
+//
+// # 为什么要问这一句
+//
+// `brickkit remove` 会删掉组件的源码目录。012 §2.20 论证过这是对的——"remove
+// 就是彻底移除"，"未提交的修改应该先 commit + push"。**但那句话的前提是有地方
+// 可 push**，也就是源码来自 `--repo` clone。
+//
+// 而 `init` 生成的骨架把本地安装源指向 `./components`，试用指南 17 教的正是在
+// 那儿手写自己的组件。那种源码没有远端，`remove` 一删就是**永久丢失**——
+// 没有确认、没有 `--yes`、没有任何一句提示。这条路是默认约定自己铺出来的。
+//
+// 同一个仓库在别处的立场恰好相反：`Clone` 遇到已存在的目录**坚决不覆盖**
+// （"活跃目录里多半是使用者自己的源码，平台不替他决定删不删"），`move` 遇到
+// 已存在的目标同样拒绝。删除比覆盖更彻底，却是唯一不问的那个。
+//
+// # 判据只有一条：这些字节在别的地方还有没有
+//
+//	不是 Git 仓库          没有副本，删了就没了
+//	有未提交的改动         那些改动只在这一份工作区里
+//	有提交没推到任何远端   删掉 .git 就一起没了（没有远端时，所有提交都算）
+//
+// 干净、且全部推上去了的 clone → 删掉不丢任何东西，照常删。那正是 012 §2.20
+// 写的那种情况，行为一点没变。
+func DeletionRisk(dir string) string {
+	if !isDir(dir) {
+		return ""
+	}
+	if !gitOK(dir, "rev-parse", "--is-inside-work-tree") {
+		return "它不是一个 Git 仓库——这些文件没有别的副本"
+	}
+	// 两条查询都要**限定到这个目录**（`-- .`）。不限定的话它们报的是整个仓库的
+	// 状态——组件目录常常嵌在一个更大的仓库里（试用指南的 playground 就是），
+	// 那时仓库别处的任何一点改动都会让这个组件被判成"删不得"。
+	if out, ok := gitOut(dir, "status", "--porcelain", "--", "."); !ok ||
+		strings.TrimSpace(out) != "" {
+		return "有未提交的改动（含未跟踪的文件）"
+	}
+	// --branches --not --remotes：本地任何分支上、而任何远端分支上都没有的提交。
+	// 没有配远端时它等于"全部提交"，正好也该拦——那时 .git 就是唯一的副本。
+	if out, ok := gitOut(dir, "log", "--branches", "--not", "--remotes", "--oneline", "--", "."); !ok ||
+		strings.TrimSpace(out) != "" {
+		return "有提交还没推到任何远端"
+	}
+	return ""
+}
+
+// gitOut 在目录里跑一条 git 命令，返回输出与是否成功。
+func gitOut(dir string, args ...string) (string, bool) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	// 不读使用者的全局配置：别人的 alias / hook 不该影响这个判断
+	cmd.Env = append(os.Environ(),
+		"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null", "GIT_TERMINAL_PROMPT=0")
+	out, err := cmd.Output()
+	return string(out), err == nil
+}
+
+func gitOK(dir string, args ...string) bool {
+	_, ok := gitOut(dir, args...)
+	return ok
+}
+
 // RemoveSource 删除组件活跃源码目录。目录不存在时返回 false（不是错误）。
 func RemoveSource(l config.Layout, componentID string) (bool, error) {
 	return removeDir(activeLoc(l, componentID))

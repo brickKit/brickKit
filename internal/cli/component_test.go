@@ -285,7 +285,7 @@ func TestRunAddAndRemoveWithNilContext(t *testing.T) {
 	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
 
 	//nolint:staticcheck // 同上
-	require.NoError(t, runRemove(nil, opts, "people/basic"))
+	require.NoError(t, runRemove(nil, opts, "people/basic", false))
 	assert.Empty(t, f.refs(t))
 }
 

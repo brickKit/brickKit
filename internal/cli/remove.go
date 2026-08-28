@@ -18,6 +18,8 @@ import (
 
 // newRemoveCommand 实现 brickkit remove（004 §3.4）。
 func newRemoveCommand(opts *Options) *cobra.Command {
+	var force bool
+
 	cmd := &cobra.Command{
 		Use:     "remove <组件ID>[@版本]",
 		Short:   "移除组件，并删除对应的源码目录与缓存",
@@ -44,13 +46,16 @@ func newRemoveCommand(opts *Options) *cobra.Command {
 					WithDetail("示例", "brickkit remove people/basic@1.0.0").
 					WithExit(clierr.ExitUsage)
 			}
-			return runRemove(cmd.Context(), opts, args[0])
+			return runRemove(cmd.Context(), opts, args[0], force)
 		},
 	}
+
+	cmd.Flags().BoolVar(&force, "force", false,
+		"源码删了就找不回来时（不是 Git 仓库、有未提交的改动、有没推的提交）照样删")
 	return cmd
 }
 
-func runRemove(ctx context.Context, opts *Options, arg string) error {
+func runRemove(ctx context.Context, opts *Options, arg string, force bool) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -84,6 +89,12 @@ func runRemove(ctx context.Context, opts *Options, arg string) error {
 			WithDetail("版本", target.Version).
 			WithDetail("以下组件强依赖它", strings.Join(dep.strong, "、")).
 			WithHint("请先移除依赖方")
+	}
+
+	// 删源码之前先确认它找得回来。放在改配置**之前**：拦下时不该留下
+	// "配置改了一半、源码还在"的现场（与 add 的 planClones 同一个道理）
+	if err := checkSourceDeletable(layout, cfg, target, force); err != nil {
+		return err
 	}
 
 	edit, err := config.OpenEdit(layout.ConfigPath())
@@ -329,4 +340,52 @@ func cleanupError(action, path string, cause error) error {
 		WithDetail("原因", cause.Error()).
 		WithHint("检查文件与目录权限").
 		WithCause(cause)
+}
+
+// checkSourceDeletable 在删源码之前确认它删了还找得回来。
+//
+// # 为什么这一步必须有
+//
+// `init` 的骨架把本地安装源指向 `./components`，试用指南 17 教的正是在那儿手写
+// 自己的组件。于是这条路完全由默认约定铺出来：照着写 → `add --local` 加进来 →
+// 觉得暂时不用了 → `remove` → **源码永久没了**，没有确认、没有 `--yes`、
+// 一句提示都没有。真跑验证过：手写的 `main.go` 一并消失。
+//
+// 012 §2.20 论证过"未提交的修改是用户自己的问题，应该先 commit + push"。
+// 那句话的前提是**有地方可 push**——即源码来自 `--repo` clone。手写的组件没有
+// 远端，那条论证覆盖不到它。
+//
+// 所以判据不是"你有没有做对"，而是"这些字节在别的地方还有没有"
+// （见 workspace.DeletionRisk）。干净又推过的 clone 照常删，行为一点没变。
+//
+// # 多版本共存时不查
+//
+// 那时源码目录根本不会被删（同 ID 的其他版本还要用它），没有可丢的东西。
+func checkSourceDeletable(
+	layout config.Layout, cfg *config.Config, target resolver.Ref, force bool,
+) error {
+	if force || len(cfg.ComponentsByID(target.ID)) > 1 {
+		return nil
+	}
+
+	for _, candidate := range []struct{ dir, display string }{
+		{workspace.SourceDir(layout, target.ID), workspace.DisplayDir(target.ID)},
+		{workspace.ArchivedDir(layout, target.ID), workspace.DisplayArchivedDir(target.ID)},
+	} {
+		risk := workspace.DeletionRisk(candidate.dir)
+		if risk == "" {
+			continue
+		}
+		return clierr.New(clierr.CodeConfigInvalid, "错误：源码删掉就找不回来了").
+			WithDetail("组件", target.String()).
+			WithDetail("目录", candidate.display).
+			WithDetail("原因", risk).
+			WithHint(
+				"先把它保住：提交并推到远端，或者把这个目录拷走 / 改名",
+				"确认不要了就加 --force：brickkit remove "+target.ID+" --force",
+				"只是暂时不用的话，给它写 enabled: false 再 brickkit sync"+
+					"——那会把源码收进归档目录，而不是删掉（004 §3.9）",
+			)
+	}
+	return nil
 }

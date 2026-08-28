@@ -4,6 +4,7 @@ package cli
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -107,6 +108,10 @@ func TestRemoveKeepsSourceDirWhenAnotherVersionRemains(t *testing.T) {
 }
 
 // 源码被 brickkit sync 归档后再 remove：归档目录不能留下孤儿。
+//
+// 带 --force：这份归档目录是手工造的、不是 Git 仓库，删了就找不回来，
+// 因此会被删除前的可恢复性检查拦下（见 TestRemoveChecksArchivedSourceToo）。
+// 这条用例要验的是**清理本身**（连空的 scope 目录一起收走），不是那道检查。
 func TestRemoveDeletesArchivedSourceDirectory(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
 
@@ -114,7 +119,7 @@ func TestRemoveDeletesArchivedSourceDirectory(t *testing.T) {
 	require.NoError(t, os.MkdirAll(archived, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(archived, "main.go"), []byte("package main"), 0o644))
 
-	r := runIn(t, f.Dir, "remove", "people/basic")
+	r := runIn(t, f.Dir, "remove", "people/basic", "--force")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	assert.NoDirExists(t, archived)
@@ -131,7 +136,9 @@ func TestRemoveDeletesBothActiveAndArchivedSource(t *testing.T) {
 	require.NoError(t, os.MkdirAll(active, 0o755))
 	require.NoError(t, os.MkdirAll(archived, 0o755))
 
-	r := runIn(t, f.Dir, "remove", "people/basic")
+	// 两个都是手工造的目录、不是 Git 仓库，会被删除前的可恢复性检查拦下；
+	// 这条用例验的是"两处都清掉"，不是那道检查（见 TestRemoveRefuses*）
+	r := runIn(t, f.Dir, "remove", "people/basic", "--force")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	assert.NoDirExists(t, active)
@@ -409,4 +416,134 @@ func TestRemoveWarnsWhenDependentManifestUnavailable(t *testing.T) {
 	assert.Contains(t, r.stdout, "⚠️")
 	assert.Contains(t, r.stdout, "无法确认")
 	assert.Contains(t, r.stdout, "erp/backend@1.0.0")
+}
+
+// ============================================================
+// 删源码之前先确认它找得回来
+// ============================================================
+
+// 手写的组件源码不是 clone 来的，删掉就没了——必须拦下。
+//
+// # 这条路是默认约定铺出来的
+//
+// init 生成的骨架把本地安装源指向 ./components，试用指南 17 教的正是在那儿
+// 写自己的组件。于是：照着写 → add --local 加进来 → 觉得暂时不用了 → remove
+// → **源码没了**。没有确认、没有 --yes、没有任何一句提示。
+//
+// 012 §2.20 论证过"未提交的修改是用户自己的问题，应该先 commit + push"。
+// 那句话的前提是**有地方可 push**——即源码来自 --repo clone。手写的组件没有
+// 远端，那条论证覆盖不到它。
+func TestRemoveRefusesToDeleteUnrecoverableSource(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	src := filepath.Join(f.Dir, "components", "demo", "hello")
+	require.NoError(t, os.MkdirAll(src, 0o755))
+	writeTree(t, src, map[string]string{"main.go": "package main // 我写了三个月\n"})
+
+	r := runIn(t, f.Dir, "remove", "demo/hello")
+
+	require.NotEqual(t, clierr.ExitOK, r.code, "删了就找不回来的东西不该无声删掉：%s", r.stdout)
+	assert.FileExists(t, filepath.Join(src, "main.go"), "源码必须还在")
+	assert.Contains(t, r.stderr, "components/demo/hello")
+	assert.Contains(t, r.stderr, "--force", "要给出明确的出路")
+	// 拦下时配置一个字节都不能动——否则留下"配置改了一半"的现场
+	assert.Contains(t, f.config(t), "demo/hello", "拦下了就不该改 brickkit.yaml")
+}
+
+// --force 是那条明确的出路。
+func TestRemoveForceDeletesUnrecoverableSource(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	src := filepath.Join(f.Dir, "components", "demo", "hello")
+	require.NoError(t, os.MkdirAll(src, 0o755))
+	writeTree(t, src, map[string]string{"main.go": "package main\n"})
+
+	r := runIn(t, f.Dir, "remove", "demo/hello", "--force")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NoDirExists(t, src)
+	assert.NotContains(t, f.config(t), "demo/hello")
+}
+
+// clone 下来、干干净净、全推上去了的仓库照常删——那正是 012 §2.20 写的那种情况。
+func TestRemoveDeletesCleanPushedClone(t *testing.T) {
+	spec := comp{ID: "demo/hello", Version: "1.0.0"}
+	f := addedProject(t, []comp{spec}, "demo/hello@1.0.0")
+	src := filepath.Join(f.Dir, "components", "demo", "hello")
+	cloneInto(t, src, newComponentRepo(t, spec))
+
+	r := runIn(t, f.Dir, "remove", "demo/hello")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NoDirExists(t, src, "干净又推过的 clone 删掉不丢任何东西")
+}
+
+// clone 来的、但有没提交的改动 → 拦下。
+func TestRemoveRefusesDirtyClone(t *testing.T) {
+	spec := comp{ID: "demo/hello", Version: "1.0.0"}
+	f := addedProject(t, []comp{spec}, "demo/hello@1.0.0")
+	src := filepath.Join(f.Dir, "components", "demo", "hello")
+	cloneInto(t, src, newComponentRepo(t, spec))
+	writeTree(t, src, map[string]string{"main.go": "package main // 改了没提交\n"})
+
+	r := runIn(t, f.Dir, "remove", "demo/hello")
+
+	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
+	assert.FileExists(t, filepath.Join(src, "main.go"))
+	assert.Contains(t, r.stderr, "未提交")
+}
+
+// clone 来的、提交了但没推 → 同样拦下：删掉 .git 就一起没了。
+func TestRemoveRefusesUnpushedCommits(t *testing.T) {
+	spec := comp{ID: "demo/hello", Version: "1.0.0"}
+	f := addedProject(t, []comp{spec}, "demo/hello@1.0.0")
+	src := filepath.Join(f.Dir, "components", "demo", "hello")
+	cloneInto(t, src, newComponentRepo(t, spec))
+	writeTree(t, src, map[string]string{"main.go": "package main\n"})
+	gitCmd(t, src, "add", "-A")
+	gitCmd(t, src, "-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "-m", "wip")
+
+	r := runIn(t, f.Dir, "remove", "demo/hello")
+
+	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
+	assert.Contains(t, r.stderr, "推")
+}
+
+// cloneInto 把仓库 clone 到指定目录（先清掉占位的目录）。
+func cloneInto(t *testing.T, target, repo string) {
+	t.Helper()
+	require.NoError(t, os.RemoveAll(target))
+	require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+	cmd := exec.Command("git", "clone", "--quiet", repo, target)
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null")
+	out, err := cmd.CombinedOutput()
+	require.NoErrorf(t, err, "clone: %s", out)
+}
+
+// 归档目录里那份源码同样受检：sync 只是把它挪了个位置，字节一个没少。
+func TestRemoveChecksArchivedSourceToo(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	archived := filepath.Join(f.Layout.ArchivedDir(), "demo", "hello")
+	require.NoError(t, os.MkdirAll(archived, 0o755))
+	writeTree(t, archived, map[string]string{"main.go": "package main // 归档着，但还是我的\n"})
+
+	r := runIn(t, f.Dir, "remove", "demo/hello")
+
+	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
+	assert.FileExists(t, filepath.Join(archived, "main.go"))
+	assert.Contains(t, r.stderr, ".archived", "要点名是归档目录里那一份")
+}
+
+// 多版本共存时源码目录根本不会被删，也就不该拦。
+func TestRemoveDoesNotCheckSourceWhenOtherVersionsRemain(t *testing.T) {
+	f := addedProject(t, []comp{
+		{ID: "demo/hello", Version: "1.0.0"},
+		{ID: "demo/hello", Version: "2.0.0"},
+	}, "demo/hello@1.0.0", "demo/hello@2.0.0")
+	src := filepath.Join(f.Dir, "components", "demo", "hello")
+	require.NoError(t, os.MkdirAll(src, 0o755))
+	writeTree(t, src, map[string]string{"main.go": "package main\n"})
+
+	r := runIn(t, f.Dir, "remove", "demo/hello@1.0.0")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.FileExists(t, filepath.Join(src, "main.go"), "2.0.0 还要用这份源码")
 }

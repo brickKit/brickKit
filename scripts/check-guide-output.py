@@ -131,9 +131,15 @@ CASES = [
                   "❌ 无法移除 people/basic", 0),
     },
     {
-        "what": "02 §2.6 移除根组件时连归档的那份一起删",
+        "what": "02 §2.6 删源码之前先确认它找得回来",
         "run": [],
         "check": ("remove infra/api-docs@1.0.0", "02-添加与移除组件.md",
+                  "❌ 错误：源码删掉就找不回来了", 0),
+    },
+    {
+        "what": "02 §2.6 --force 之后连归档的那份一起删",
+        "run": [],
+        "check": ("remove infra/api-docs@1.0.0 --force", "02-添加与移除组件.md",
                   "✅ 已移除 infra/api-docs@1.0.0", 0),
     },
     {
