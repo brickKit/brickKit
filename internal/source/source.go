@@ -480,7 +480,7 @@ func (c *Client) Origin(ctx context.Context, id, version string) (*Origin, error
 		}
 		return origin, nil
 	}
-	return nil, c.aggregateError(id, version, failures)
+	return nil, c.aggregateError(id, version, failures, nil)
 }
 
 // fetchManifest 按优先级遍历安装源，返回首个命中的 Manifest
@@ -493,6 +493,7 @@ func (c *Client) fetchManifest(
 	}
 
 	var failures []failure
+	var mismatches []versionMismatch
 	for _, f := range c.fetchers {
 		raw, err := f.manifestBytes(ctx, id, version)
 		if err != nil {
@@ -506,12 +507,28 @@ func (c *Client) fetchManifest(
 		}
 		if m.Metadata.ID != id || m.Metadata.Version != version {
 			// 该源提供的是另一个组件/版本：等同于"这里没有"，继续下一个源。
+			//
+			// 但**同一个组件、只是版本不同**要记下来：它与"这里根本没有它"
+			// 是两回事，该让人去看的地方也完全不同。详见 versionMismatch。
+			if m.Metadata.ID == id {
+				mismatches = append(mismatches, versionMismatch{
+					sourceID: f.id(), kind: f.kind(), found: m.Metadata.Version,
+				})
+			}
 			failures = append(failures, failure{sourceID: f.id(), err: errNotFound})
 			continue
 		}
 		return raw, m, f.id(), f.kind(), signatureFrom(f, id, version), nil
 	}
-	return nil, nil, "", "", nil, c.aggregateError(id, version, failures)
+	return nil, nil, "", "", nil, c.aggregateError(id, version, failures, mismatches)
+}
+
+// versionMismatch 是"这个源里有这个组件，但版本不是要的那个"。
+type versionMismatch struct {
+	sourceID string
+	kind     string
+	// found 是该源实际提供的版本。
+	found string
 }
 
 // signedFetcher 是能提供签名的安装源。只有市场源实现它——本地源与 git 源
@@ -560,11 +577,52 @@ type failure struct {
 //
 // 只要有一个源是"真失败"（路径不存在、克隆失败、市场不可达……），就把该错误报出来——
 // 那通常才是使用者要修的问题；全部都只是"没有"时，报 004 §10.2 的组件未找到。
-func (c *Client) aggregateError(id, version string, failures []failure) error {
+func (c *Client) aggregateError(
+	id, version string, failures []failure, mismatches []versionMismatch,
+) error {
+	// 真失败（路径不存在、市场不可达……）优先：那才是要先解决的问题
+	if err := firstRealError(failures, id+"@"+version); err != nil {
+		return err
+	}
+	if err := versionMismatchError(id, version, mismatches); err != nil {
+		return err
+	}
 	return c.notFoundError(id+"@"+version, failures,
 		"检查安装源配置（brickkit.yaml → sources）",
 		"确认组件是否已发布到市场",
 		"确认版本号是否正确",
+	)
+}
+
+// versionMismatchError 说清楚"源里有这个组件，只是版本不同"。
+//
+// # 为什么值得单独说一句
+//
+// 本地安装源的目录结构是 `<root>/<scope>/<name>/component.yaml`——**一个组件 ID
+// 只放得下一个版本**（003 §6.4）。本地开发时把某个组件升上去（改那份
+// component.yaml），而别的组件还依赖着旧版本，旧版本就只剩 Manifest 缓存里
+// 那一份；缓存一冷（同事 clone 而 .brickkit/manifests 被 gitignore、
+// 或者 rm -rf .brickkit），解析立刻断在"强依赖缺失"上。
+//
+// 而这时 CLI **知道**真相：它读到了那个文件、解析成功了、看见里面写着 2.0.0。
+// 从前这个信息被丢掉，只剩一句"该组件在所有安装源中均未找到"，配三条
+// （查安装源配置 / 查有没有发布到市场 / 查版本号）没有一条说到点子上——
+// 使用者会去翻 sources 配置，而问题在他自己刚改过的那份 component.yaml 里。
+func versionMismatchError(id, version string, mismatches []versionMismatch) error {
+	if len(mismatches) == 0 {
+		return nil
+	}
+
+	e := clierr.New(clierr.CodeComponentNotFound, "错误：安装源里有这个组件，但版本不是要的那个").
+		WithDetail("要的版本", id+"@"+version)
+	for _, m := range mismatches {
+		e = e.WithDetailf("安装源 "+m.sourceID+"（"+m.kind+"）", "这里是 %s", m.found)
+	}
+	return e.WithHint(
+		"本地安装源一个组件目录只放得下一个版本（003 §6.4）——"+
+			"要的那个版本只可能在 .brickkit/manifests/ 缓存里，而缓存是可以被删掉的",
+		"要让依赖 "+id+"@"+version+" 的组件继续跑，把它的依赖改到源里那个版本并适配",
+		"或者把安装源里那份 component.yaml 改回 "+version+"（新版本改从别处装）",
 	)
 }
 

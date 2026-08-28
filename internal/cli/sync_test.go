@@ -480,4 +480,3 @@ func TestAddLocalStillIgnoresArchived(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
 	assert.NotContains(t, f.refs(t), "demo/hello@1.0.0", "归档的组件不该被 add --local 拽回来")
 }
-

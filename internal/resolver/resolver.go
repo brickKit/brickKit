@@ -321,16 +321,42 @@ func unwrapFetch(err error) error {
 // ============================================================
 
 // missingDependencyError 逐字对齐 004 §10.2 的"强依赖缺失"错误块。
+//
+// # 底下那层的明细与建议要带上来
+//
+// "强依赖缺失"只是标题，**为什么**缺才是使用者要解决的东西，而那句话在安装源
+// 给出的错误里。从前这里只用 reasonOf 取一行"原因"，其余明细与建议全丢掉：
+//
+//	市场不可达      丢掉了具体地址与网络错误
+//	源里版本不符    丢掉了"哪个源、里面实际是哪个版本"，以及那三条真正管用的建议
+//	                ——而剩下的通用三条会把人指向 sources 配置，
+//	                可问题在他自己刚改过的那份 component.yaml 里
+//
+// 所以：底层给了建议就用它的（它更具体），没给才回落到通用的三条。
 func missingDependencyError(dependent, missing Ref, cause error) error {
-	return clierr.New(clierr.CodeDependencyMissing, "错误：强依赖缺失").
+	e := clierr.New(clierr.CodeDependencyMissing, "错误：强依赖缺失").
 		WithDetail("组件", dependent.String()).
 		WithDetail("缺失依赖", missing.String()).
-		WithDetail("原因", reasonOf(cause)).
-		WithHint(
-			"检查安装源配置（brickkit.yaml → sources）",
-			"确认组件是否已发布到市场",
-			"确认版本号是否正确",
-		).WithCause(cause)
+		WithDetail("原因", reasonOf(cause))
+
+	inner := clierr.As(cause)
+	if inner != nil {
+		for _, d := range inner.Details {
+			// 这三个上面已经写过（值也更贴题），不重复
+			if d.Key == "组件" || d.Key == "原因" || d.Key == "要的版本" {
+				continue
+			}
+			e = e.WithDetail(d.Key, d.Value)
+		}
+	}
+	if inner != nil && len(inner.Hints) > 0 {
+		return e.WithHint(inner.Hints...).WithCause(cause)
+	}
+	return e.WithHint(
+		"检查安装源配置（brickkit.yaml → sources）",
+		"确认组件是否已发布到市场",
+		"确认版本号是否正确",
+	).WithCause(cause)
 }
 
 // optionalMissingWarning 逐字对齐 004 §4.5 的弱依赖警告块。
@@ -378,78 +404,6 @@ func reasonOf(err error) string {
 		}
 	}
 	return strings.TrimPrefix(e.Message, "错误：")
-}
-
-// ============================================================
-// 升级兼容性检查（002 §7.7）
-// ============================================================
-
-// UpgradeReport 是升级兼容性检查的结果。
-type UpgradeReport struct {
-	// Target 是要升级到的版本。
-	Target Ref
-	// Graph 是新版本的依赖图。
-	Graph *Graph
-	// NewDependencies 是新版本引入、但 brickkit.yaml 中尚不存在的组件。
-	NewDependencies []Ref
-	// Warnings 是弱依赖缺失等不阻断的问题。
-	Warnings []*clierr.Error
-}
-
-// CheckUpgrade 执行 002 §7.7 的升级依赖兼容性检查：
-//
-//	1 新版本 Manifest 可获取        ❌ 报错阻断
-//	2 新版本的强依赖可满足          ❌ 报错阻断
-//	3 新版本的资源依赖已绑定        ❌ 报错阻断
-//	4 新版本的弱依赖可获取          ⚠️ 警告但继续
-//	5 新版本无循环依赖              ❌ 报错阻断
-//
-// CLI **不检查** API 兼容性、数据库结构兼容性、configSchema 值兼容性（002 §7.7）。
-func (r *Resolver) CheckUpgrade(ctx context.Context, cfg *config.Config, target Ref) (*UpgradeReport, error) {
-	if cfg == nil || len(cfg.ComponentsByID(target.ID)) == 0 {
-		return nil, clierr.Newf(clierr.CodeComponentNotFound, "错误：组件不在项目中：%s", target.ID).
-			WithDetail("原因", "brickkit.yaml 的 components 中没有该组件").
-			WithHint(
-				"确认组件 ID 是否正确",
-				"如果是新增组件，请使用 brickkit add "+target.String(),
-			)
-	}
-
-	// 检查项 1、2、4、5：一次递归解析全部覆盖
-	graph, err := r.Resolve(ctx, target)
-	if err != nil {
-		return nil, err
-	}
-
-	// 检查项 3：新版本的资源依赖必须已在 brickkit.yaml 中声明并绑定
-	targetNode := graph.Node(target)
-	if err := CheckResourceBindings(cfg, targetNode.Manifest); err != nil {
-		return nil, err
-	}
-
-	return &UpgradeReport{
-		Target:          target,
-		Graph:           graph,
-		NewDependencies: newDependencies(cfg, graph, target),
-		Warnings:        graph.Warnings,
-	}, nil
-}
-
-// newDependencies 列出新版本引入、而 brickkit.yaml 中还没有的组件版本。
-func newDependencies(cfg *config.Config, graph *Graph, target Ref) []Ref {
-	installed := map[Ref]bool{}
-	for _, c := range cfg.Components {
-		installed[Ref{ID: c.ID, Version: c.Version}] = true
-	}
-
-	var out []Ref
-	for _, ref := range graph.Refs() {
-		if ref == target || installed[ref] {
-			continue
-		}
-		out = append(out, ref)
-	}
-	return out
 }
 
 // CheckRunningResourceBindings 校验**本次会启动的**组件的资源依赖都已绑定

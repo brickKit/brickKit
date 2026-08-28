@@ -134,6 +134,10 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	}
 	opts.Printf("📄 已生成：%s\n", displayPath(opts.WorkDir, path))
 	renderResourceRequirements(opts, plan.generated.Resources)
+	// 在 --dry-run 的分岔**之前**："这次会动哪些库"正是 dry-run 最该回答的问题
+	// 之一，而它与升不升级无关。从前它在分岔之后，于是 dry-run 里一个字都没有，
+	// 唯一提到迁移的地方是升级摘要里那一行——还得先检测到升级才会出现
+	renderMigrations(opts, plan.migrations)
 
 	if flags.dryRun {
 		renderUpgradeSummary(opts, plan)
@@ -150,7 +154,6 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	if err := checkImages(ctx, opts, eng, plan.images); err != nil {
 		return err
 	}
-	renderMigrations(opts, plan.migrations)
 
 	return start(ctx, opts, eng, plan, path, projectSelector(plan.cfg))
 }
@@ -195,11 +198,10 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	}
 	defer func() { _ = client.Close() }()
 
-	// 版本号与缓存里的对不上就是升级：拉新版本 Manifest 与产物、做兼容性检查
-	// （004 §3.5.1，回填 P10 / P15）。要在解析依赖图之前做完
-	if plan.upgrades, err = handleUpgrades(ctx, opts, layout, cfg, client); err != nil {
-		return nil, err
-	}
+	// 版本号变了就报一句（004 §3.5.1）。检测只读配置与本地缓存，不碰网络；
+	// 差异描述与产物下载要等依赖图建好，见 describeUpgrades
+	plan.upgrades = detectUpgrades(layout, cfg)
+	renderUpgradeBanner(opts, plan.upgrades)
 
 	plan.graph, err = resolver.New(resolver.FromSource(client)).ResolveConfig(ctx, cfg)
 	if err != nil {
@@ -255,6 +257,9 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		return nil, err
 	}
 	plan.collectTargets(order)
+	// 放在生成之后：这一步只补摘要用的差异描述与新版本产物，
+	// 它取不到东西也不该拦住已经算好的这份计划（004 §10.1）
+	describeUpgrades(ctx, opts, layout, client, plan.graph, plan.upgrades)
 	return plan, nil
 }
 

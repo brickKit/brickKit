@@ -46,3 +46,5 @@ R28	同一组件的多个版本，迁移按版本号串行（不抢同一个库�
 R29	K8s 下一个域名只能归一个组件（抢了在生成阶段报错）	-	.	./internal/k8s	TestDuplicateHostnameIsAnError
 R30	启动顺序小结报的是真实关键路径，不是拓扑序号	-	.	./internal/resolver	TestPlanLongestChain
 R31	local 组件上写了 expose 会出声，并给出真实地址	-	.	./internal/compose	TestLocalComponentWithExposeIsWarned
+R32	版本变更的基线是上一个版本，不是缓存里字典序最前的	-	.	./internal/cli	TestSecondUpgradeReportsThePreviousVersion
+R33	安装源里版本不符时说清它实际是哪个版本	-	.	./internal/source	TestSourceWithDifferentVersionSaysWhichVersionItHas

@@ -37,6 +37,8 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 	opts.Printf("   命名空间：%s\n", plan.k8s.Namespace)
 	renderResourceRequirements(opts, plan.k8s.Resources)
 	renderNetworkPolicyNotice(opts, plan.k8s)
+	// 与 Docker 侧同一条：在 --dry-run 的分岔之前说清会不会动数据库
+	renderMigrations(opts, plan.migrations)
 
 	if flags.dryRun {
 		renderUpgradeSummary(opts, plan)
@@ -50,8 +52,6 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 	if err != nil {
 		return err
 	}
-	renderMigrations(opts, plan.migrations)
-
 	return applyK8s(ctx, opts, eng, plan, dir, projectSelector(plan.cfg))
 }
 

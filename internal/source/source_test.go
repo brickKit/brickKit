@@ -770,3 +770,51 @@ func TestNoEnabledSources(t *testing.T) {
 	assert.Equal(t, clierr.CodeConfigInvalid, e.Code)
 	assert.Contains(t, e.Format(), "sources")
 }
+
+// 安装源里有这个组件、但版本对不上时，要说清楚它是哪个版本。
+//
+// # 为什么这条特别值钱
+//
+// 本地安装源的目录结构是 `<root>/<scope>/<name>/component.yaml`——**一个组件 ID
+// 只放得下一个版本**。本地开发时把某个组件升级（改那份 component.yaml），
+// 而别的组件还依赖着旧版本，旧版本就只剩 Manifest 缓存里那一份了；缓存一冷
+// （同事 clone、rm -rf .brickkit），解析立刻断在"强依赖缺失"上。
+//
+// 而 CLI 其实知道真相：它读到了那个文件、解析成功了、看见里面写着 2.0.0，
+// 然后把这个信息丢掉，只说一句"该组件在所有安装源中均未找到"，
+// 建议里三条（查安装源配置 / 查有没有发布到市场 / 查版本号）没有一条说到点子上。
+func TestSourceWithDifferentVersionSaysWhichVersionItHas(t *testing.T) {
+	layout := newProject(t)
+	writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{
+		ID: "department/tree", Version: "2.0.0",
+	})
+
+	c := newClient(t, layout, cfgWithSources(config.Source{
+		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	}), Options{})
+
+	_, err := c.Manifest(context.Background(), "department/tree", "1.0.0")
+
+	require.Error(t, err)
+	text := clierr.As(err).Format()
+	assert.Contains(t, text, "2.0.0", "要说出这个源里实际是哪个版本：%s", text)
+	assert.Contains(t, text, "department/tree@1.0.0", "也要说清要的是哪个")
+	assert.Contains(t, text, "local-dev", "要点名是哪个安装源")
+}
+
+// 源里连这个组件都没有时，还是原来那句"未找到"——两种情况该让人去看的地方不同。
+func TestSourceWithoutComponentStillSaysNotFound(t *testing.T) {
+	layout := newProject(t)
+	writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{
+		ID: "department/tree", Version: "1.0.0",
+	})
+
+	c := newClient(t, layout, cfgWithSources(config.Source{
+		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	}), Options{})
+
+	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Format(), "该组件在所有安装源中均未找到")
+}

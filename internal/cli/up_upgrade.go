@@ -12,10 +12,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -36,78 +38,118 @@ type upgradeInfo struct {
 	Quota         string
 }
 
-// handleUpgrades 处理"使用者把版本号改了"这件事。
-//
-// 判据是**缓存里有这个组件的别的版本、却没有现在这个版本**：
-//   - 首次安装 → 缓存里一个版本都没有，不是升级
-//   - 缓存被清空 → 同上，不是升级（否则每次清缓存都会被当成全量升级）
-//
-// 检测到之后：兼容性检查（002 §7.7，阻断项在这里就报错）→ 拉产物。
-// 都要在解析依赖图之前做完——不然新版本的依赖还没进图就先报"缺依赖"。
-func handleUpgrades(
-	ctx context.Context, opts *Options, layout config.Layout,
-	cfg *config.Config, client *source.Client,
-) ([]upgradeInfo, error) {
-	upgrades := detectUpgrades(layout, cfg)
-	if len(upgrades) == 0 {
-		return nil, nil
-	}
-
-	opts.Printf("⬆️ 检测到版本变更（升级流程，004 §3.5.1）：\n")
-	for _, u := range upgrades {
-		opts.Printf("   %s: %s → %s\n", u.ID, u.From, u.To)
-	}
-
-	r := resolver.New(resolver.FromSource(client))
-	for i, u := range upgrades {
-		target := resolver.Ref{ID: u.ID, Version: u.To}
-
-		// 002 §7.7：强依赖不可满足 / 资源未绑定 / 循环依赖 → 阻断
-		report, err := r.CheckUpgrade(ctx, cfg, target)
-		if err != nil {
-			return nil, err
-		}
-		renderWarnings(opts, report.Warnings)
-
-		node := report.Graph.Node(target)
-		if node != nil && node.Manifest != nil {
-			if node.Manifest.Migration != nil {
-				upgrades[i].Migration = strings.Join(node.Manifest.Migration.Command, " ")
-			}
-			// 004 §3.5.1 的其余五项：拿缓存里的旧 Manifest 与新的比
-			describeUpgradeDiff(&upgrades[i], cachedManifest(layout, u.ID, u.From), node.Manifest)
-			// P10：新版本的产物要下载到新的版本化服务名目录下。
-			// 旧版本的保留——调用方可能还指着旧版本（002 §7.8）
-			if result, err := client.DownloadArtifacts(ctx, node.Manifest); err == nil {
-				renderWarnings(opts, result.Warnings)
-			} else {
-				// 产物是开发时的辅助，取不到不该拦住启动（004 §10.1）
-				opts.Printf("⚠️ %s 的产物下载失败：%s\n", refText(target), clierr.As(err).Message)
-			}
-		}
-	}
-	opts.Printf("\n")
-	return upgrades, nil
-}
-
 // detectUpgrades 比对 brickkit.yaml 与 Manifest 缓存，找出版本变更。
+//
+// # 判据：缓存里有、而配置里已经没有的版本，才是"被换掉的"
+//
+// 从前的判据是"缓存里有这个组件的别的版本、却没有现在这个版本"，`From` 取
+// os.ReadDir 顺序的第一个——那是**文件名的字典序**，与"上一个装的是哪个"
+// 毫无关系。四个场景里错了三个：
+//
+//	1.0.0 → 2.0.0 → 3.0.0   缓存 {1,2}、配置 {3} → 报成 1.0.0 → 3.0.0
+//	                        六项摘要也拿 1.0.0 当基线，把 2.0.0 早有的配置项报成"新增"
+//	加一个共存版本           缓存 {1}、配置 {1,2} → 误报成升级，而使用者要的是两个一起跑
+//	回退 2.0.0 → 1.0.0      目标就在缓存里 → 完全检测不到，摘要一个字都没有
+//
+// 换成"被换掉的 = 缓存有 ∖ 配置有"之后四个场景全对，规则反而更短：
+//
+//	首次安装      缓存空 → 没有被换掉的 → 不是变更
+//	加共存版本    两个版本都还在配置里 → 没有被换掉的 → 不是变更
+//	升级 / 回退   旧版本从配置里消失了 → 它就是基线
+//
+// 基线取被换掉的那些里**版本号最高**的一个：连续升级时那正是上一个。
+//
+// # 缓存被清空时检测不到，这是有意的
+//
+// 否则每次 `rm -rf .brickkit` 都会被当成一次全量升级。代价也小——跳过的只有
+// 那份信息性的摘要，检查一项都不会漏（它们本来就在常规 up 路径上）。
 func detectUpgrades(layout config.Layout, cfg *config.Config) []upgradeInfo {
 	cached := cachedVersions(layout)
 
+	configured := map[string]map[string]bool{}
+	for _, c := range cfg.Components {
+		if configured[c.ID] == nil {
+			configured[c.ID] = map[string]bool{}
+		}
+		configured[c.ID][c.Version] = true
+	}
+
 	var out []upgradeInfo
 	for _, c := range cfg.Components {
-		versions := cached[c.ID]
-		if len(versions) == 0 {
-			continue // 首次安装，或缓存被清空
+		// 该组件曾经在这个项目里出现过、如今配置里已经没有的版本
+		var replaced []string
+		for _, v := range cached[c.ID] {
+			if !configured[c.ID][v] {
+				replaced = append(replaced, v)
+			}
 		}
-		if contains(versions, c.Version) {
-			continue // 这个版本本来就装着
+		if len(replaced) == 0 {
+			continue
 		}
-		// 同一组件的多版本共存时，取字典序最前的那个当"从哪来"——
-		// 只用于展示，不影响任何判定
-		out = append(out, upgradeInfo{ID: c.ID, From: versions[0], To: c.Version})
+		sort.Slice(replaced, func(i, j int) bool {
+			return manifest.CompareVersions(replaced[i], replaced[j]) < 0
+		})
+		out = append(out, upgradeInfo{
+			ID: c.ID, From: replaced[len(replaced)-1], To: c.Version,
+		})
 	}
 	return out
+}
+
+// describeUpgrades 补齐每条变更的差异描述，并拉新版本的产物。
+//
+// # 为什么不在这里做兼容性检查
+//
+// 这里从前还跑一遍 `resolver.CheckUpgrade`（002 §7.7 的五项）。**那五项常规
+// `up` 路径一项不落地全做了**——解析拿不到 Manifest 就报错、强依赖缺失报错、
+// 弱依赖缺失警告、循环依赖报错、资源未绑定报错。它是同一套判断的第二份拷贝，
+// 而且复制得不完整，于是升级路径上多出两个只有升级才会撞的 bug：
+//
+//	--dry-run 被阻断      常规路径把资源检查降级成警告（004 §4.4），这份拷贝没有
+//	enabled: false 被阻断  常规路径只查会启动的组件（006 §4.4），这份拷贝无条件查
+//
+// 删掉之后两个 bug 一起消失，002 §7.7 那五项一项没少——只是由常规路径统一执行。
+//
+// 放在依赖图解析**之后**：新版本的 Manifest 已经在图里，不必再取一次。
+func describeUpgrades(
+	ctx context.Context, opts *Options, layout config.Layout,
+	client *source.Client, graph *resolver.Graph, upgrades []upgradeInfo,
+) {
+	for i, u := range upgrades {
+		target := resolver.Ref{ID: u.ID, Version: u.To}
+		node := graph.Node(target)
+		if node == nil || node.Manifest == nil {
+			continue
+		}
+
+		if node.Manifest.Migration != nil {
+			upgrades[i].Migration = strings.Join(node.Manifest.Migration.Command, " ")
+		}
+		// 004 §3.5.1 的其余五项：拿缓存里的旧 Manifest 与新的比
+		describeUpgradeDiff(&upgrades[i], cachedManifest(layout, u.ID, u.From), node.Manifest)
+
+		// P10：新版本的产物要下载到新的版本化服务名目录下。手改版本号时没跑过
+		// `add`，这是唯一会拉它们的地方。旧版本的保留——调用方可能还指着
+		// 旧版本（002 §7.8）
+		if result, err := client.DownloadArtifacts(ctx, node.Manifest); err == nil {
+			renderWarnings(opts, result.Warnings)
+		} else {
+			// 产物是开发时的辅助，取不到不该拦住启动（004 §10.1）
+			opts.Printf("⚠️ %s 的产物下载失败：%s\n", refText(target), clierr.As(err).Message)
+		}
+	}
+}
+
+// renderUpgradeBanner 说明这次检测到了哪些版本变更。
+func renderUpgradeBanner(opts *Options, upgrades []upgradeInfo) {
+	if len(upgrades) == 0 {
+		return
+	}
+	opts.Printf("⬆️ 检测到版本变更（004 §3.5.1）：\n")
+	for _, u := range upgrades {
+		opts.Printf("   %s: %s → %s\n", u.ID, u.From, u.To)
+	}
+	opts.Printf("\n")
 }
 
 // cachedVersions 读出 .brickkit/manifests/ 里每个组件已缓存的版本。
@@ -159,24 +201,18 @@ func splitCachedName(name string) (id, version string, ok bool) {
 	return prefix[:slash] + "/" + prefix[slash+1:], version, true
 }
 
-func contains(items []string, want string) bool {
-	for _, item := range items {
-		if item == want {
-			return true
-		}
-	}
-	return false
-}
-
-// renderUpgradeSummary 输出 --dry-run 的升级变更摘要（004 §3.5.1）。
+// renderUpgradeSummary 输出 --dry-run 的版本变更摘要（004 §3.5.1）。
 //
 // 只是信息展示，不阻断任何操作。
+//
+// 叫"版本变更"而不是"升级"：判据换成"配置里没有了的那个版本"之后，
+// 回退（2.0.0 → 1.0.0）同样会走到这里，而那不是升级。
 func renderUpgradeSummary(opts *Options, plan *upPlan) {
 	if len(plan.upgrades) == 0 {
 		return
 	}
 
-	opts.Printf("\n📋 升级变更摘要：\n")
+	opts.Printf("\n📋 版本变更摘要：\n")
 	for _, u := range plan.upgrades {
 		opts.Printf("   %s: %s → %s\n", u.ID, u.From, u.To)
 
