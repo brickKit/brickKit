@@ -53,3 +53,5 @@ R35	弱依赖这次不跑时说清谁拿不到什么（信息，不是警告）	
 R36	remove 不会删掉找不回来的源码（手写组件、脏工作区、没推的提交）	-	.	./internal/cli	TestRemoveRefusesToDeleteUnrecoverableSource
 R37	brickkit logout 作废市场 Token 并删本地凭据	-	.	./internal/cli	TestLogoutRevokesTokenAndRemovesCredentials
 R38	没配公钥的签名提醒只说一次，不逐个组件刷屏	-	.	./internal/cli	TestNoPublicKeysWarningIsSaidOnce
+R39	egress 覆盖不全在 --dry-run 下只警告，真 up 才阻断	-	.	./internal/cli	TestEgressCoverageOnlyWarnsInDryRun
+R40	publish 中途失败后能续传，不烧掉版本号	-	.	./internal/cli	TestPublishResumesUnfinishedDraft

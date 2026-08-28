@@ -95,6 +95,53 @@ func (c *Client) CreateVersion(ctx context.Context, componentID string, req Publ
 	return err
 }
 
+// VersionInfo 是市场上一个版本的状态（007 §9.2 的版本列表）。
+type VersionInfo struct {
+	Version string `json:"version"`
+	Status  string `json:"status"`
+}
+
+// FindVersion 查这个版本在市场上的状态；不存在时返回 nil。
+//
+// publish 撞上 VERSION_EXISTS 时靠它分辨两种完全不同的情况：上一次没发完留下的
+// draft（可以续传），还是真的已经发布过了（只能换版本号）。
+func (c *Client) FindVersion(ctx context.Context, componentID, version string) (*VersionInfo, error) {
+	body, err := c.do(ctx, http.MethodGet, versionsPath(componentID), nil, nil, "查询版本列表")
+	if err != nil {
+		return nil, err
+	}
+	var versions []VersionInfo
+	if err := decodeData(body, &versions); err != nil {
+		return nil, err
+	}
+	for _, v := range versions {
+		if v.Version == version {
+			found := v
+			return &found, nil
+		}
+	}
+	return nil, nil
+}
+
+// FetchManifest 取市场上登记的那份 Manifest（原始 JSON）。
+//
+// 续传之前要拿它与本地逐字节比对：draft 里登记的是**上一次**那份 Manifest，
+// 组件改过之后闷头续传，会把旧 Manifest 配上新产物发出去。
+func (c *Client) FetchManifest(ctx context.Context, componentID, version string) (json.RawMessage, error) {
+	body, err := c.do(ctx, http.MethodGet,
+		versionPath(componentID, version)+"/manifest", nil, nil, "获取已登记的 Manifest")
+	if err != nil {
+		return nil, err
+	}
+	var envelope struct {
+		Manifest json.RawMessage `json:"manifest"`
+	}
+	if err := decodeData(body, &envelope); err != nil {
+		return nil, err
+	}
+	return envelope.Manifest, nil
+}
+
 // ListArtifacts 取该版本已登记的产物，用来知道每个文件该往哪个 artifactId 上传。
 func (c *Client) ListArtifacts(ctx context.Context, componentID, version string) ([]Artifact, error) {
 	body, err := c.do(ctx, http.MethodGet,

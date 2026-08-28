@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -266,7 +267,14 @@ func uploadRelease(
 		Changelog:  f.changelog,
 		Signature:  pkg.signature,
 	})
-	if err != nil {
+	switch {
+	case market.IsVersionExists(err):
+		// 上一次没发完留下的 draft？能续就续（见 resumable）
+		if err := resumable(ctx, client, pkg); err != nil {
+			return err
+		}
+		opts.Printf("   ↩️ 续传：这个版本上次建好了但没发完，接着上传产物\n")
+	case err != nil:
 		return err
 	}
 
@@ -289,6 +297,71 @@ func uploadRelease(
 		}
 	}
 	return nil
+}
+
+// resumable 判断"这个版本已经存在"能不能接着往下发；不能时给出该说的那句话。
+//
+// # 为什么值得救
+//
+// 发布是三步：建版本（draft）→ 逐个上传产物 → 转 stable（004 §3.11）。第一步一旦
+// 成功，那个版本号就**永久占住了**——版本不可回收，软删除也占位（007 §6.4）。
+// 于是网络在第二步抖一下，使用者就只剩"跳一个版本号"这一条路，而中断的原因
+// 跟他毫无关系。服务端本来就支持接着发（draft 可以继续上传产物再转 stable），
+// 缺的只是 CLI 这一侧。
+//
+// # 两个前提，缺一不可
+//
+//	状态还是 draft        stable / deprecated / blocked 都是真的发布过了，
+//	                      那时"续传"等于偷偷改一个已经在用的版本
+//	Manifest 逐字节相同   draft 里登记的是**上一次**那份。组件改过之后用同一个
+//	                      版本号再发，闷头续传会把旧 Manifest 配上新产物发出去——
+//	                      比烧掉版本号更糟，因为它悄无声息地成功了
+func resumable(ctx context.Context, client *market.Client, pkg *publishPackage) error {
+	id, version := pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version
+
+	info, err := client.FindVersion(ctx, id, version)
+	if err != nil {
+		return err
+	}
+	if info == nil || info.Status != versionStatusDraft {
+		status := "stable"
+		if info != nil {
+			status = info.Status
+		}
+		return clierr.Newf(clierr.CodeConfigConflict,
+			"错误：%s@%s 已经发布过了", id, version).
+			WithDetail("市场上的状态", status).
+			WithDetail("原因", "版本号一旦发布就不可回收，软删除的版本同样占位（007 §6.4）").
+			WithHint(
+				"换一个版本号：改 component.yaml 的 metadata.version 再发",
+				"只是想下架它的话，改版本状态而不是重新发布（007 §6.2）",
+			)
+	}
+
+	remote, err := client.FetchManifest(ctx, id, version)
+	if err != nil {
+		return err
+	}
+	if !sameJSON(remote, pkg.document) {
+		return clierr.Newf(clierr.CodeConfigConflict,
+			"错误：%s@%s 上次建好了但没发完，而这次的 Manifest 与那份不一样", id, version).
+			WithDetail("原因", "续传只能补上传产物，改不了已经登记的 Manifest——"+
+				"闷头续下去会把上次那份 Manifest 配上这次的产物发出去").
+			WithHint(
+				"换一个版本号：改 component.yaml 的 metadata.version 再发",
+				"确实要发上次那份的话，把 component.yaml 改回去再执行一次",
+			)
+	}
+	return nil
+}
+
+// sameJSON 比较两份 JSON 的**语义**是否相同（键序与空白不算数）。
+func sameJSON(a, b []byte) bool {
+	var x, y any
+	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+		return false
+	}
+	return reflect.DeepEqual(x, y)
 }
 
 // uploadArtifacts 按市场登记的产物条目逐个文件上传。

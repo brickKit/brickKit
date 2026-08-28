@@ -342,3 +342,86 @@ func lineContaining(t *testing.T, out, fragment string) string {
 	t.Fatalf("输出里找不到含 %q 的行：\n%s", fragment, out)
 	return ""
 }
+
+// ============================================================
+// egress 覆盖不全：真 up 阻断，--dry-run 只警告
+// ============================================================
+
+// egressProject 打开出站策略，但故意漏声明那个绑着的资源。
+//
+// 不能用 f.writeConfig：它的头部写死了 deploy.target: docker，而 egress 只在
+// K8s 下生成（见 k8sProjectWith 的同一条说明）。
+func egressProject(t *testing.T) *projectFixture {
+	t.Helper()
+	f := addedProject(t, []comp{{
+		ID: "demo/hello", Version: "1.0.0", ResourceDeps: []string{"database:postgresql"},
+	}}, "demo/hello@1.0.0")
+
+	var b strings.Builder
+	b.WriteString(`project: my-erp
+
+deploy:
+  target: k8s
+  networkPolicy:
+    enabled: true
+    egress:
+      enabled: true
+      allowTo: []
+
+sources:
+`)
+	for _, src := range f.Sources {
+		b.WriteString(src)
+	}
+	b.WriteString(`
+components:
+  - id: demo/hello
+    version: 1.0.0
+
+resources:
+  - kind: database
+    engine: postgresql
+    id: pg-main
+    host: postgres.infra
+    port: 5432
+    username: app
+    password: pw
+    bindings:
+      - componentId: demo/hello
+        database: hello
+`)
+	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
+	return f
+}
+
+// 真 up 照旧阻断：漏一个资源，出站策略就会把数据库挡在外面。
+func TestEgressCoverageBlocksRealUp(t *testing.T) {
+	f := egressProject(t)
+	eng := newK8sEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up")
+
+	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
+	assert.Contains(t, r.stderr, "pg-main")
+	assert.Empty(t, eng.ups, "拦下了就不该部署")
+}
+
+// `--dry-run` 只警告，不阻断，而且清单要真的生成出来。
+//
+// 004 §4.4 立的规矩：那条命令的语义是"告诉我会发生什么"。资源绑定检查早就按这条
+// 降级了（dryRunResourceWarning），egress 覆盖是同一类——运行期会出事，不是生成
+// 不出来。硬拦的后果是：一个正在配 egress 的人连"看看会生成什么策略"都做不到，
+// 而那恰恰是他最需要看的东西。
+func TestEgressCoverageOnlyWarnsInDryRun(t *testing.T) {
+	f := egressProject(t)
+
+	r := runWithEngine(t, newK8sEngine(), f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code,
+		"--dry-run 不该因为 egress 没配全就失败：%s", r.stdout+r.stderr)
+	out := r.stdout + r.stderr
+	assert.Contains(t, out, "pg-main", "但必须说出来")
+	assert.Contains(t, out, "--dry-run 不阻断")
+	assert.DirExists(t, filepath.Join(f.Layout.GeneratedDir(), "k8s"),
+		"清单要真的生成出来——那正是他想看的")
+}

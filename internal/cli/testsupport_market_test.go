@@ -44,6 +44,44 @@ type fakeMarket struct {
 	failLogin bool
 	// status 覆盖特定路径前缀的响应（用于构造错误路径）。
 	overrides map[string]marketResponse
+
+	// storedVersion / storedStatus / storedManifest 是这个假市场"记住"的那个版本。
+	//
+	// 它像真市场一样有状态：第一次建版本记下 Manifest 与 draft 状态，之后再建
+	// 同一个版本就返回 409（版本号不可回收，007 §6.4），转 stable 时改状态。
+	// 有了它，"上一次没发完"这个场景可以**照真实路径构造**——让上传产物失败一次
+	// 就行，不用手工编一份 Manifest（而手工编的那份还对不上：publish 会先把
+	// image tag 钉成 digest 再发，P29）。
+	storedVersion  string
+	storedStatus   string
+	storedManifest any
+}
+
+// createVersion 模拟 POST /versions：第一次记下来，之后一律 409。
+func (m *fakeMarket) createVersion(w http.ResponseWriter, body []byte) {
+	if m.storedVersion != "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = io.WriteString(w, `{"success":false,"error":{"code":"VERSION_ALREADY_EXISTS",`+
+			`"message":"该版本已存在，版本号不可重复发布"}}`)
+		return
+	}
+
+	var req struct {
+		Version  string `json:"version"`
+		Manifest any    `json:"manifest"`
+	}
+	_ = json.Unmarshal(body, &req)
+	m.storedVersion, m.storedStatus, m.storedManifest = req.Version, "draft", req.Manifest
+	writeOK(w, http.StatusCreated,
+		map[string]any{"version": req.Version, "status": "draft"})
+}
+
+func (m *fakeMarket) versionList() []map[string]any {
+	if m.storedVersion == "" {
+		return nil
+	}
+	return []map[string]any{{"version": m.storedVersion, "status": m.storedStatus}}
 }
 
 type marketResponse struct {
@@ -123,7 +161,11 @@ func (m *fakeMarket) handle(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/auth/login"):
 		m.handleLogin(w, body)
 	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/versions"):
-		writeOK(w, http.StatusCreated, map[string]any{"componentId": "x", "version": "1.0.0", "status": "draft"})
+		m.createVersion(w, body)
+	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/versions"):
+		writeOK(w, http.StatusOK, m.versionList())
+	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/manifest"):
+		writeOK(w, http.StatusOK, map[string]any{"manifest": m.storedManifest})
 	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/artifacts"):
 		writeOK(w, http.StatusOK, m.artifacts)
 	case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/upload"):
@@ -131,6 +173,7 @@ func (m *fakeMarket) handle(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/visibility"):
 		writeOK(w, http.StatusOK, map[string]any{"visibility": "public"})
 	case r.Method == http.MethodPut:
+		m.storedStatus = "stable"
 		writeOK(w, http.StatusOK, map[string]any{"status": "stable"})
 	default:
 		w.Header().Set("Content-Type", "application/json")

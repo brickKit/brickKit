@@ -243,6 +243,16 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		renderWarnings(opts, []*clierr.Error{dryRunResourceWarning(problem)})
 	}
 
+	// egress 覆盖不全是同一类问题：运行期会出事，不是生成不出来。
+	// 所以它也归命令层决定阻不阻断——从前它在生成器内部硬拦，于是一个正在配
+	// egress 的人连"看看会生成什么策略"都做不到（k8s.CheckEgressCoverage）
+	if problem := k8s.CheckEgressCoverage(cfg, runningIDs(plan.states)); problem != nil {
+		if !flags.dryRun {
+			return nil, problem
+		}
+		renderWarnings(opts, []*clierr.Error{dryRunEgressWarning(problem)})
+	}
+
 	order, err := resolver.Order(plan.graph.Subgraph(plan.states.Running()))
 	if err != nil {
 		return nil, err
@@ -394,6 +404,30 @@ func dryRunResourceWarning(problem *clierr.Error) *clierr.Error {
 		"生成的部署文件里**不会有**这些组件的资源连接变量（DATABASE_* 等）",
 		"在 brickkit.yaml → resources 中声明并绑定后再 up；不加 --dry-run 时这里会直接阻断",
 	)
+}
+
+// runningIDs 是本次会启动的组件 ID（去重）。
+func runningIDs(states *cascade.Result) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, ref := range states.Running() {
+		if !seen[ref.ID] {
+			seen[ref.ID] = true
+			out = append(out, ref.ID)
+		}
+	}
+	return out
+}
+
+// dryRunEgressWarning 把"egress 没配全"降级成 --dry-run 下的警告。
+//
+// 与 dryRunResourceWarning 同一个手法：换掉标题与建议里"已阻断"那层意思，
+// 其余明细原样保留——使用者要看的是"哪个资源没声明"，那部分两种模式下完全一样。
+func dryRunEgressWarning(problem *clierr.Error) *clierr.Error {
+	w := clierr.Warn(problem.Code, "警告：出站策略没覆盖全部资源（--dry-run 不阻断）")
+	w.Details = problem.Details
+	return w.WithHint(append(problem.Hints,
+		"不加 --dry-run 时这里会直接阻断——出站一旦生效，没声明的资源一律连不上")...)
 }
 
 // generate 按部署目标渲染部署文件（005 §5）。

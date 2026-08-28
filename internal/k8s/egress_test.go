@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
@@ -214,17 +215,27 @@ func TestEgressAllowsDeclaredResource(t *testing.T) {
 // 两种都没有任何一处提示你是刚打开的那个开关干的。
 //
 // 平台有能力拦住它：谁绑了哪个资源，`resources[].bindings` 里写着。
-func TestEgressBlocksWhenResourceUndeclared(t *testing.T) {
+//
+// **这一句由 k8s.CheckEgressCoverage 给出，生成器自己不再拦。** "该不该阻断"是
+// 命令层的决定：真 up 拦下，--dry-run 降级成警告（004 §4.4，与资源绑定检查同一条
+// 规则）。生成器内部硬拦的后果是，一个正在配 egress 的人连"看看会生成什么策略"
+// 都做不到——而那恰恰是他最需要看的东西。
+func TestEgressCoverageReportsUndeclaredResource(t *testing.T) {
 	b := withEgress(newBuilder(t)) // ← 没给任何 allowTo
 	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
 	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
 
+	// 生成本身不再失败——策略会照常生成出来（只是那份策略会把库挡在外面）
 	_, err := b.build()
+	require.NoError(t, err, "拦不拦由命令层决定，生成器只负责生成")
 
-	require.Error(t, err, "P37：这个组合必须阻断")
-	assert.Contains(t, err.Error(), "people-db", "错误要点名缺的是哪个资源：%v", err)
-	assert.Contains(t, err.Error(), "people/basic", "以及谁要用它：%v", err)
-	assert.Contains(t, err.Error(), "allowTo", "以及该往哪儿补：%v", err)
+	problem := k8s.CheckEgressCoverage(b.cfg, []string{"people/basic"})
+
+	require.NotNil(t, problem, "P37：这个组合必须被报出来")
+	out := problem.Format()
+	assert.Contains(t, out, "people-db", "要点名缺的是哪个资源：%s", out)
+	assert.Contains(t, out, "people/basic", "以及谁要用它：%s", out)
+	assert.Contains(t, out, "allowTo", "以及该往哪儿补：%s", out)
 }
 
 // 组件没绑任何资源时，不该逼人去声明什么。
@@ -233,8 +244,9 @@ func TestEgressWithoutResourcesNeedsNoDeclaration(t *testing.T) {
 	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
 
 	_, err := b.build()
-
-	assert.NoError(t, err, "P37：没有资源就没什么要声明的")
+	assert.NoError(t, err)
+	assert.Nil(t, k8s.CheckEgressCoverage(b.cfg, []string{"people/basic"}),
+		"P37：没有资源就没什么要声明的")
 }
 
 // 集群外的目标用 CIDR。

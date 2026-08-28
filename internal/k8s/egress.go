@@ -170,13 +170,23 @@ func (p *plan) usesResource(c componentPlan, resourceID string) bool {
 // 问题要等到下一次重启才暴露——那时离改配置可能已经过去几周。
 //
 // 平台有能力拦住它：谁绑了哪个资源，`resources[].bindings` 里写着。
-func (p *plan) checkEgressCoverage() error {
-	if !p.cfg.Deploy.EgressEnabled() {
+//
+// # 为什么它返回 *clierr.Error，而不是自己决定阻断
+//
+// "该不该阻断"是命令层的决定，与资源绑定检查（resolver.CheckRunningResourceBindings）
+// 完全同一条规则：真的 `up` 必须拦下，而 `--dry-run` 的语义是"告诉我会发生什么"，
+// 那时它该以警告出现。硬拦的后果是：一个正在配 egress 的人连"看看会生成什么策略"
+// 都做不到——而那恰恰是他最需要看的东西。
+//
+// 导出是因为命令层要在**生成之前**问这一句（与那条资源绑定检查并排），
+// 而不是等生成器自己抛出来。
+func CheckEgressCoverage(cfg *config.Config, runningIDs []string) *clierr.Error {
+	if cfg == nil || !cfg.Deploy.EgressEnabled() {
 		return nil
 	}
 
 	declared := map[string]bool{}
-	for _, target := range p.cfg.Deploy.NetworkPolicy.Egress.AllowTo {
+	for _, target := range cfg.Deploy.NetworkPolicy.Egress.AllowTo {
 		if target.Resource != "" {
 			declared[target.Resource] = true
 		}
@@ -184,14 +194,14 @@ func (p *plan) checkEgressCoverage() error {
 
 	// 资源 ID → 用到它的组件，按资源 ID 排序保证报错顺序稳定
 	users := map[string][]string{}
-	for _, c := range p.components {
-		for _, r := range p.cfg.Resources {
+	for _, id := range runningIDs {
+		for _, r := range cfg.Resources {
 			if declared[r.ID] {
 				continue
 			}
 			for _, b := range r.Bindings {
-				if b.ComponentID == c.Ref.ID {
-					users[r.ID] = append(users[r.ID], c.Ref.ID)
+				if b.ComponentID == id {
+					users[r.ID] = append(users[r.ID], id)
 				}
 			}
 		}

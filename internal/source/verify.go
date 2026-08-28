@@ -63,7 +63,7 @@ func (p SignaturePolicy) verify(
 	// 没有信任锚点就无从校验，Require 也无从谈起。这不是"验过了"，只是"没得验"。
 	if p.Ring.Empty() {
 		if p.Require {
-			return verifyResult{warnings: []*clierr.Error{noKeysWarning(ref)}}, nil
+			return verifyResult{warnings: []*clierr.Error{noKeysWarning()}}, nil
 		}
 		return verifyResult{}, nil
 	}
@@ -109,10 +109,18 @@ func unsignedError(ref string) *clierr.Error {
 //
 // 只在 requireSignature 为 true 时出现：设成 false 就是明确表示不校验，
 // 那种情况下每装一个组件都唠叨一遍纯属噪音。
-func noKeysWarning(ref string) *clierr.Error {
+func noKeysWarning() *clierr.Error {
 	return clierr.Warn(clierr.CodeSignatureInvalid,
 		"警告：requireSignature 为 true，但项目没有声明任何可信公钥，签名校验实际未生效").
-		WithDetail("组件", ref).
+		// **不带组件引用**：这条讲的是项目的配置，与具体是哪个组件无关。
+		// 带上它会让人以为只有那一个组件受影响，而实际上每一个都没验过；
+		// 命令层也正是靠"内容完全相同"把它合成一条（cli.dedupeWarnings）。
+		//
+		// 先说"这不是你写错了"：requireSignature 默认就是 true，绝大多数项目是
+		// **还没配到这一步**。不点破的话，人的第一反应是回去检查自己的
+		// brickkit.yaml 哪里写坏了——那里什么都没坏。
+		WithDetail("说明", "这不是配置错误，是还没配完——requireSignature 默认为 true，"+
+			"而 publicKeys 要等你从发布者那里拿到公钥才填得上（008 §8.5.1）").
 		WithHint(
 			"在 brickkit.yaml 的 installer.publicKeys 下声明发布者公钥，校验才会真正开始生效",
 			"确实不需要校验时，把 installer.requireSignature 显式设为 false，这条提醒就不再出现",

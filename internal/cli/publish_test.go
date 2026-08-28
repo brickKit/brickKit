@@ -4,6 +4,7 @@ package cli
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -616,4 +617,96 @@ func TestPublishAcceptsRegistryWithPortAndDigest(t *testing.T) {
 			assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 		})
 	}
+}
+
+// ============================================================
+// 上一次没发完留下的 draft：能续传就续传
+// ============================================================
+
+// interruptedPublish 造出"上一次发布中断在上传产物这一步"的现场。
+//
+// 走的是**真实路径**：让 /upload 返回 500，publish 在第二步失败，而市场那边
+// 已经留下一个 draft 版本。手工编一份 Manifest 塞进去是构造不出来的——
+// publish 会先把 image tag 钉成 digest 再发（P29），编的那份对不上。
+func interruptedPublish(t *testing.T, spec comp) (*projectFixture, *fakeMarket, string) {
+	t.Helper()
+	dir := t.TempDir()
+	writeTree(t, dir, spec.files())
+
+	market := newFakeMarket(t)
+	market.artifacts = []map[string]any{
+		{"id": "a1", "type": "api-docs", "files": []string{"openapi.json"}},
+	}
+	market.overrides = map[string]marketResponse{
+		"/upload": {status: 500, body: `{"success":false,"error":{"code":"INTERNAL","message":"存储抖了一下"}}`},
+	}
+
+	f := newProjectFixtureAt(t, t.TempDir(), marketSourceFragment("m", market.url(), "tok"))
+	r := runIn(t, f.Dir, "publish", "--path", dir)
+	require.NotEqual(t, clierr.ExitOK, r.code, "上传产物这一步应当失败：%s", r.stdout)
+	require.Equal(t, "draft", market.storedStatus, "而版本已经建出来了")
+
+	market.overrides = nil // 网络恢复
+	return f, market, dir
+}
+
+// 中途失败之后再 publish，从"上传产物"接着做，而不是让版本号作废。
+//
+// # 为什么这条重要
+//
+// 发布是三步：建版本（draft）→ 逐个上传产物 → 转 stable（004 §3.11）。第一步一旦
+// 成功，那个版本号就**永久占住了**——版本不可回收，软删除也占位（007 §6.4）。
+// 于是网络在第二步抖一下，使用者就只剩"跳一个版本号"这一条路，而中断的原因
+// 跟他毫无关系。
+//
+// 服务端本来就支持接着发：draft 可以继续上传产物再转 stable
+// （SetVersionStatus 会先 ensureArtifactsUploaded）。缺的只是 CLI 这一侧。
+func TestPublishResumesUnfinishedDraft(t *testing.T) {
+	f, market, dir := interruptedPublish(t, comp{
+		ID: "people/basic", Version: "1.0.0", Artifacts: []string{"api-docs:openapi.json"},
+	})
+
+	r := runIn(t, f.Dir, "publish", "--path", dir)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "续传", "要说清这是在接着上次那次往下做")
+	assert.Equal(t, "stable", market.storedStatus, "这次要真的发出去")
+	market.find(t, http.MethodPost, "/upload")
+}
+
+// 版本已经是 stable：那是真的"已经发过了"，照旧拦下。
+func TestPublishRejectsAlreadyPublishedVersion(t *testing.T) {
+	f, market, dir := interruptedPublish(t, comp{
+		ID: "people/basic", Version: "1.0.0", Artifacts: []string{"api-docs:openapi.json"},
+	})
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "publish", "--path", dir).code)
+	require.Equal(t, "stable", market.storedStatus)
+
+	r := runIn(t, f.Dir, "publish", "--path", dir)
+
+	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
+	assert.Contains(t, r.stderr, "已经发布过", "要说清它不是半成品")
+	assert.Contains(t, r.stderr, "换一个版本号")
+}
+
+// draft 里登记的 Manifest 与本地不一样 → **绝不续传**。
+//
+// 这是续传唯一危险的地方：draft 里那份 Manifest 是上一次登记的。组件改过之后
+// 用同一个版本号再发，闷头续传会把**旧 Manifest** 配上**新产物**发出去——
+// 比烧掉版本号更糟，因为它悄无声息地成功了。
+func TestPublishRefusesToResumeWhenManifestChanged(t *testing.T) {
+	f, _, dir := interruptedPublish(t, comp{
+		ID: "people/basic", Version: "1.0.0", Artifacts: []string{"api-docs:openapi.json"},
+	})
+
+	// 改了组件，但版本号没动
+	changed := comp{ID: "people/basic", Version: "1.0.0",
+		Artifacts: []string{"api-docs:openapi.json"}, Migration: []string{"/app/migrate"}}
+	writeTree(t, dir, changed.files())
+
+	r := runIn(t, f.Dir, "publish", "--path", dir)
+
+	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
+	assert.Contains(t, r.stderr, "不一样", "要说清是 Manifest 变了")
+	assert.Contains(t, r.stderr, "换一个版本号")
 }

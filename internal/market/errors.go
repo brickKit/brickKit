@@ -6,6 +6,7 @@ package market
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -40,6 +41,14 @@ const (
 	CodeComponentBlocked = "COMPONENT_BLOCKED"
 	CodeVersionExists    = "VERSION_ALREADY_EXISTS"
 )
+
+// IsVersionExists 判断这个错误是不是"该版本已存在"。
+//
+// publish 靠它决定要不要去看能不能续传（那个版本可能只是上次没发完的 draft）。
+func IsVersionExists(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.Code == CodeVersionExists
+}
 
 // DecodeError 从响应里解出市场给的错误。
 //
@@ -116,6 +125,10 @@ func AsCLIError(action string, apiErr *APIError) *clierr.Error {
 // 保留变量冲突、Manifest 校验问题这类错误，真正有用的信息全在 details 里；
 // 只显示一句 message 等于让人对着"校验失败"发呆。
 func WithDetails(err *clierr.Error, apiErr *APIError) *clierr.Error {
+	// 把原始的 APIError 挂上去：调用方要按**错误码**分流时（如 publish 撞上
+	// VERSION_ALREADY_EXISTS 要去看能不能续传），只能靠它——翻译过的那层
+	// 只剩面向使用者的文案，码丢了。
+	err = err.WithCause(apiErr)
 	for _, key := range sortedKeys(apiErr.Details) {
 		if key == "cause" {
 			// 服务端内部原因，对使用者没有意义
