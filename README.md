@@ -167,6 +167,7 @@ make lint             # vet + 文档检查
 | --- | --- |
 | `make test-regression` | 面向用户的承诺 → 证明它们的测试（`tests/regression/清单.tsv`） |
 | `make test-boundary` 等 | 边界 / 错误 / 兼容 / 安全验收条目 → 证明它们的测试（`tests/checklist/清单.tsv`） |
+| `make check-doc-fields` | 文档里画的 yaml 片段与字段表，字段名都真的存在（真相来源是结构体本身） |
 | `make check-docs` | 悬空的小节引用与断链 |
 | `make check-cli-docs` | 文档（和 `--help` 自己）里写的每条命令和参数都真的存在 |
 | `make check-doc-tree` | 文档里画的 `.brickkit/` 目录树与 CLI 真的会创建的东西一致 |

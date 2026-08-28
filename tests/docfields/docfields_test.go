@@ -26,9 +26,11 @@
 package docfields_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -109,17 +111,78 @@ func yamlBlocksOf(d docFile) []yamlBlock {
 // 生成物（docker-compose.yaml、K8s 清单）因此天然被排除：
 // 它们既没有 kind: Component，也没有顶层 project:。
 func classify(body string) reflect.Type {
+	// K8s 清单长得很像 component.yaml（apiVersion / kind / metadata 三个键都一样），
+	// 而它的 metadata.labels 在 Manifest 里不存在。先按 kind 把它们剔出去。
 	for _, line := range strings.Split(body, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "kind: Component" {
-			return reflect.TypeOf(manifest.Manifest{})
-		}
-		// 顶层 project:（不缩进）——brickkit.yaml 的必填第一字段
-		if strings.HasPrefix(line, "project:") {
-			return reflect.TypeOf(config.Config{})
+		if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, "kind:") {
+			if strings.TrimSpace(strings.TrimPrefix(trimmed, "kind:")) != "Component" {
+				return nil
+			}
 		}
 	}
-	return nil
+
+	keys := topLevelKeys(body)
+	if len(keys) == 0 {
+		return nil
+	}
+
+	// 判据是"顶层键是不是全都属于某一边"，而不是"有没有那个招牌字段"。
+	//
+	// 从前只认整份骨架（有 kind: Component 或顶层 project:），于是 221 段 YAML
+	// 里只查了 24 段——而剩下那 197 段恰恰是**人们真正照抄的东西**：
+	// components: 46 段、apiVersion: 20 段、resources: 16 段、sources: 13 段、
+	// dependencies: 11 段、deployment: 9 段……真出过的两个字段 bug
+	// （006 §3.2 教了一个不存在的 resources[].database、附录 D.1 漏了
+	// sources[].ref）都在那 197 段的势力范围里。
+	//
+	// 片段本身就是合法的部分文档：`resources:` 开头的那段就是一份只写了
+	// resources 的 brickkit.yaml，直接拿去 Walk 即可。
+	cfg, man := reflect.TypeOf(config.Config{}), reflect.TypeOf(manifest.Manifest{})
+	inCfg, inMan := true, true
+	for _, k := range keys {
+		if !hasYAMLField(cfg, k) {
+			inCfg = false
+		}
+		if !hasYAMLField(man, k) {
+			inMan = false
+		}
+	}
+	switch {
+	case inMan && !inCfg:
+		return man
+	case inCfg:
+		// 两边都认（如 resources / version）时归 brickkit.yaml：那边的顶层
+		// 字段集合更大，误判成它只会让检查更宽，不会冤枉正确的文档
+		return cfg
+	default:
+		// 顶层出现了两边都不认的键——那多半根本不是这两份文件之一
+		// （K8s 清单、docker-compose、示意用的伪 YAML）
+		return nil
+	}
+}
+
+// topLevelKeys 取出不缩进的那些键名。
+func topLevelKeys(body string) []string {
+	var out []string
+	for _, line := range strings.Split(body, "\n") {
+		if line == "" || line[0] == ' ' || line[0] == '\t' || line[0] == '#' || line[0] == '-' {
+			continue
+		}
+		if i := strings.Index(line, ":"); i > 0 {
+			out = append(out, strings.TrimSpace(line[:i]))
+		}
+	}
+	return out
+}
+
+// hasYAMLField 判断结构体有没有这个 yaml 字段名。
+func hasYAMLField(typ reflect.Type, name string) bool {
+	for i := 0; i < typ.NumField(); i++ {
+		if tag := strings.Split(typ.Field(i).Tag.Get("yaml"), ",")[0]; tag == name {
+			return true
+		}
+	}
+	return false
 }
 
 // ============================================================
@@ -248,4 +311,196 @@ func collectFields(typ reflect.Type, path string, out map[string]string) {
 		}
 		collectFields(field.Type, child, out)
 	}
+}
+
+// ============================================================
+// 「完整字段参考」必须真的完整
+// ============================================================
+
+// referenceSkeleton 是自称"完整字段参考"的那两处。
+//
+// 它们与别处不同：附录 B.1 与 D.1 是**开发时查阅**的那一份（000 的阅读路径里
+// 就是这么引导的——"附录 B：Manifest 完整字段参考（开发时查阅）"）。
+// 一个字段没写进去，读者的结论就是"平台没有这个能力"。
+type referenceSkeleton struct {
+	heading string
+	typ     reflect.Type
+	what    string
+}
+
+var referenceSkeletons = []referenceSkeleton{
+	{"### B.1 完整字段结构", reflect.TypeOf(manifest.Manifest{}), "component.yaml"},
+	{"### D.1 完整字段结构", reflect.TypeOf(config.Config{}), "brickkit.yaml"},
+}
+
+// 附录 B.1 / D.1 里必须列全每一个字段。
+//
+// # 与上面那条宽松检查的分工
+//
+// TestEveryFieldIsMentionedInDesignDocs 只问"在设计书里出现过没有"，而且刻意
+// 保持宽松——收紧了会开始误伤，然后被人加例外，然后就没用了。
+//
+// 这条不一样：它只盯**两处**，而那两处自己许下了"完整"这个承诺。守它不是收紧
+// 一条宽松的规则，是让一句自我声明能被验证。
+//
+// 真漏过：`sources[].ref`（git 安装源指定分支 / tag / commit）在 003 §6.3 写得
+// 清清楚楚，附录 D.1 里一个字都没有——而 D.1 恰恰是"配置时查阅"的那一份。
+// 上面那条检查看见 003 提过就放行了。
+func TestReferenceSkeletonsListEveryField(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(repoRoot, "design", "附录合集.md"))
+	require.NoError(t, err, "读不到附录合集——这条守卫失去了对象")
+	body := string(raw)
+
+	for _, ref := range referenceSkeletons {
+		section := sectionAfter(t, body, ref.heading)
+
+		fields := map[string]string{}
+		collectFields(ref.typ, ref.what, fields)
+		require.NotEmpty(t, fields, "%s：一个字段都没提取到，结论不可信", ref.heading)
+
+		var missing []string
+		for name, path := range fields {
+			// 认字段名出现在 `名字:`（含 `- 名字:` 这种列表项、以及注释掉的那种）
+			// 或表格 `| 名字 |` 里，就算列了
+			if !regexp.MustCompile(`(?m)(^[\s#-]*` + regexp.QuoteMeta(name) + `\s*:|\|\s*` +
+				regexp.QuoteMeta(name) + `\s*\|)`).MatchString(section) {
+				missing = append(missing, path)
+			}
+		}
+		sort.Strings(missing)
+
+		assert.Empty(t, missing,
+			"%s 自称「完整字段结构」，但这些字段没有列出来——"+
+				"而它正是使用者开发/配置时查阅的那一份：\n   %s",
+			ref.heading, strings.Join(missing, "\n   "))
+	}
+}
+
+// sectionAfter 取出某个标题到下一个同级（或更高级）标题之间的内容。
+//
+// 必须**跳过围栏内的行**：YAML 骨架里满是 `# ===== 项目基本信息 =====` 这样的
+// 注释，它们在行首、以 # 开头，正则一眼看去就是个标题——不跳的话这一节会被
+// 切在第一行注释上，于是"字段没列出来"全体误报。
+func sectionAfter(t *testing.T, body, heading string) string {
+	t.Helper()
+	i := strings.Index(body, heading)
+	require.NotEqual(t, -1, i, "附录里找不到标题 %q——这条守卫失去了对象", heading)
+
+	level := strings.Count(strings.SplitN(heading, " ", 2)[0], "#")
+	var out []string
+	inFence := false
+	for _, line := range strings.Split(body[i+len(heading):], "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			inFence = !inFence
+		} else if !inFence && strings.HasPrefix(line, "#") {
+			if n := len(line) - len(strings.TrimLeft(line, "#")); n <= level {
+				break
+			}
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+// ============================================================
+// 字段表：写在表里的字段必须真的存在
+// ============================================================
+
+// fieldTableTypes 是 `<!-- 字段表: X -->` 注解认得的类型名。
+//
+// 用注解而不是靠标题猜：一张表描述的是哪个结构体，只有写它的人知道
+// （003 §4.4 那张"local（本地调试）"讲的是 config.Component 的两个字段，
+// 从标题里推不出来）。注解一行，判据就唯一了。
+var fieldTableTypes = map[string]reflect.Type{
+	"config.Config":       reflect.TypeOf(config.Config{}),
+	"config.Deploy":       reflect.TypeOf(config.Deploy{}),
+	"config.Component":    reflect.TypeOf(config.Component{}),
+	"config.Resource":     reflect.TypeOf(config.Resource{}),
+	"config.Binding":      reflect.TypeOf(config.Binding{}),
+	"config.Source":       reflect.TypeOf(config.Source{}),
+	"config.Installer":    reflect.TypeOf(config.Installer{}),
+	"manifest.Metadata":   reflect.TypeOf(manifest.Metadata{}),
+	"manifest.Artifact":   reflect.TypeOf(manifest.Artifact{}),
+	"manifest.Deployment": reflect.TypeOf(manifest.Deployment{}),
+}
+
+var fieldTableMark = regexp.MustCompile(`<!-- 字段表: ([\w.]+) -->`)
+
+// 字段表里列的每个字段名，都必须是那个结构体真有的字段。
+//
+// # 为什么骨架检查覆盖不到它
+//
+// 上面那条查的是 ```yaml 围栏里的 YAML；而**字段表是 markdown 表格**，在它眼里
+// 只是一段普通文本。可字段表恰恰是"查阅"用的那种东西——读者不会去数骨架里的
+// 缩进，他会看那张表。
+//
+// 真出过：006 §3.2「资源字段说明」里写着 `database`（"默认数据库名，可被
+// bindings 覆盖"），而 `config.Resource` 根本没有这个字段——照着填会被 CLI
+// 当场拒绝（`resources[0].database：未知字段`），而报错还让人去查附录 D.1，
+// 那里是对的。两份文档打架，读者按错的那份做。
+//
+// # 只查正向
+//
+// 不要求"结构体的字段都在表里"：好几张表是**有意的子集**（003 §4.4 只讲
+// local / localPort 两个字段）。完备性由附录 B.1 / D.1 那条守着——
+// 那两处自己许下了"完整"这个承诺，别处没有。
+func TestFieldTablesListOnlyRealFields(t *testing.T) {
+	tables := 0
+	var bad []string
+
+	for _, d := range docs(t) {
+		lines := strings.Split(d.body, "\n")
+		for i, line := range lines {
+			m := fieldTableMark.FindStringSubmatch(line)
+			if m == nil {
+				continue
+			}
+			typ, ok := fieldTableTypes[m[1]]
+			require.True(t, ok,
+				"%s 第 %d 行：注解写的类型 %q 不认识——"+
+					"要么拼错了，要么该加进 fieldTableTypes", d.name, i+1, m[1])
+			tables++
+
+			for _, name := range tableFieldNames(lines[i:]) {
+				if !hasYAMLField(typ, name) {
+					bad = append(bad, fmt.Sprintf("%s：字段表（%s）里的 %q 不存在于该结构体",
+						d.name, m[1], name))
+				}
+			}
+		}
+	}
+
+	require.NotZero(t, tables,
+		"一张标注过的字段表都没找到——注解格式变了？那样这条检查会安静地什么都不查")
+	sort.Strings(bad)
+	assert.Empty(t, bad, "字段表写了不存在的字段：\n   %s", strings.Join(bad, "\n   "))
+	t.Logf("检查了 %d 张字段表", tables)
+}
+
+// tableFieldNames 取出注解之后那张表第一列的字段名。
+//
+// 归一化两件事：去掉反引号（表里常写 `podSecurity`），以及点号路径只取最后一段
+// （`deploy.target` / `migration.command` 指的是 target / command）。
+func tableFieldNames(lines []string) []string {
+	var out []string
+	started := false
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "|") {
+			if started {
+				break
+			}
+			continue
+		}
+		started = true
+		cell := strings.TrimSpace(strings.Trim(strings.SplitN(line, "|", 3)[1], " "))
+		cell = strings.Trim(cell, "`")
+		if cell == "" || cell == "字段" || strings.HasPrefix(cell, "-") {
+			continue
+		}
+		if i := strings.LastIndex(cell, "."); i >= 0 {
+			cell = cell[i+1:]
+		}
+		out = append(out, cell)
+	}
+	return out
 }

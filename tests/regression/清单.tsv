@@ -55,3 +55,6 @@ R37	brickkit logout 作废市场 Token 并删本地凭据	-	.	./internal/cli	Tes
 R38	没配公钥的签名提醒只说一次，不逐个组件刷屏	-	.	./internal/cli	TestNoPublicKeysWarningIsSaidOnce
 R39	egress 覆盖不全在 --dry-run 下只警告，真 up 才阻断	-	.	./internal/cli	TestEgressCoverageOnlyWarnsInDryRun
 R40	publish 中途失败后能续传，不烧掉版本号	-	.	./internal/cli	TestPublishResumesUnfinishedDraft
+R41	文档里的 yaml 片段不会教出 CLI 拒绝的字段	-	.	./tests/docfields	TestDocSkeletonsUseOnlyKnownFields
+R42	字段表不会列出结构体没有的字段	-	.	./tests/docfields	TestFieldTablesListOnlyRealFields
+R43	附录 B.1 / D.1 的「完整字段参考」真的完整	-	.	./tests/docfields	TestReferenceSkeletonsListEveryField
