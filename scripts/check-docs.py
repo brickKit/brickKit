@@ -233,6 +233,50 @@ def guide_prerequisites():
     return problems
 
 
+def why_sections_reachable():
+    """012 里每一节「为什么」，都要有某一篇指南指过去。
+
+    012 是**架构辩护书**——二十节，每一节回答一个"为什么不那样做"。
+    它是整套文档里唯一系统回答「为什么该这么用」的地方，而在补上这道
+    检查之前，整份试用指南只引过它**一次**（04 §2.14）。
+
+    照着指南做完一遍的人，因此学会了怎么用，却一次都没被告知为什么是这样：
+    为什么只收精确版本、为什么 remove 连源码一起删、为什么弱依赖缺失时
+    连环境变量都不注入。这些不是背景知识——每一条都直接决定他会不会
+    误用，或者在踩到之后以为是 bug。
+
+    不变式：**012 §2.x 全部可达**。新写一节辩护而没有任何一篇指过去，
+    等于写完就沉底；这道检查会当场说出是哪一节。
+    """
+    book = "design/012-架构设计原理与考量.md"
+    if not os.path.exists(book):
+        return []
+
+    have = set()
+    for line in open(book, encoding="utf-8"):
+        m = re.match(r"### (2\.\d+) ", line)
+        if m:
+            have.add(m.group(1))
+    if len(have) < 10:
+        print(f"❌ 012 里只解析出 {len(have)} 节——多半是标题格式变了。")
+        sys.exit(2)
+
+    # 只认**同一行里点了 012 的名**的引用。散在指南各处的裸 §2.x 多得是
+    # （005 §2.5 讲内存上限、02 §2.7 是指南自己的小节），把它们算进来的话，
+    # 删掉一条真正的 012 指路这道检查也照样绿——那就等于没有这道检查。
+    cited = set()
+    for path in glob.glob("试用指南/*.md"):
+        for line in open(path, encoding="utf-8"):
+            if "012" not in line:
+                continue
+            cited.update(re.findall(r"§(2\.\d+)", line))
+
+    missing = sorted(have - cited, key=lambda x: [int(n) for n in x.split(".")])
+    return [(book, 0, f"§{sec} 没有任何一篇指南指过去——"
+                      "读者做完一遍也不会知道为什么是这样")
+            for sec in missing]
+
+
 # 正文里指向别的篇时的裸写法：「12 节」「13 那一篇」。
 BARE_REF = re.compile(r"(?<![\d.])(\d{2})(?= ?节|\s*那一篇|\s*那篇)")
 
@@ -368,6 +412,7 @@ def main():
     failed |= report("指南前置对不上", guide_prerequisites())
     failed |= report("指南「下一节」链断开", guide_next_chain())
     failed |= report("指南里的裸篇号", guide_bare_chapter_refs())
+    failed |= report("012 有「为什么」没人指过去", why_sections_reachable())
 
     if failed:
         print("\n引用坏掉的常见原因：重写某一节时改了编号、拆分文件时换了路径。")
