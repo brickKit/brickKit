@@ -75,7 +75,7 @@
 | 05 | [05-Docker启动全流程.md](05-Docker启动全流程.md) | `up` / `status` / `down`、迁移、资源、建库 | `--baseline` + `--images` |
 | 06 | [06-K8s部署.md](06-K8s部署.md) | minikube 上的完整部署、迁移 Job、Ingress | 05 + minikube |
 | 07 | [07-本地调试.md](07-本地调试.md) | `local: true`、`local-debug.env`、双向打通 | 05 |
-| 08 | [08-升级与多版本.md](08-升级与多版本.md) | 改版本号即升级、兼容性检查、多版本共存 | 05 |
+| 08 | [08-升级与多版本.md](08-升级与多版本.md) | 改版本号即升级（没有专门的升级路径）、多版本共存 | 05 |
 | 09 | [09-多副本与优雅排空.md](09-多副本与优雅排空.md) | 一个组件跑几份，以及**运维换机器时不会把你的服务一次干掉** | `--images` + minikube |
 | 10 | [10-组件市场.md](10-组件市场.md) | 起市场后端、`login`、`publish`、从市场安装 | 00 + Docker |
 | 11 | [11-组件签名.md](11-组件签名.md) | **cosign 签名发布、验签安装、篡改后被拦住、digest 钉住** | 10 |
@@ -180,7 +180,7 @@ cd <仓库根目录>
 | 生成 docker-compose.yaml | [internal/compose/](../internal/compose/) | 005 §3 |
 | 生成 K8s 清单 | [internal/k8s/](../internal/k8s/) | 005 §5 |
 | 调 docker / kubectl | [internal/engine/](../internal/engine/) | 005 §3.3、§5.7 |
-| 升级兼容性检查 | [internal/resolver/resolver.go](../internal/resolver/resolver.go) | 002 §7.7 |
+| 依赖可满足 / 资源已绑定 / 无环（换版本时走的也是这一套） | [internal/resolver/resolver.go](../internal/resolver/resolver.go) | 002 §7.7 |
 | 组件源码工作区（`sync` / `--repo`） | [internal/workspace/](../internal/workspace/) | 004 §3.9 |
 | 市场后端 | [market-server/](../market-server/) | 007 |
 | 试验用的真实组件 | [tests/components/](../tests/components/) | 009 |
