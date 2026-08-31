@@ -63,6 +63,7 @@
 
 - [部署模式](https://raw.githubusercontent.com/brickKit/brickKit/main/%E9%83%A8%E7%BD%B2%E6%A8%A1%E5%BC%8F.md): 两样需要部署的东西别混在一起：组件市场（平台方部署一次）和你拼装出来的项目（每个使用者部署一次）。
 - [市场部署与运维指南](https://raw.githubusercontent.com/brickKit/brickKit/main/%E5%B8%82%E5%9C%BA%E9%83%A8%E7%BD%B2%E4%B8%8E%E8%BF%90%E7%BB%B4%E6%8C%87%E5%8D%97.md): 用 Docker Compose 把市场部署起来：库表、对象存储、认证、备份、升级。
+- [组件合并部署](https://raw.githubusercontent.com/brickKit/brickKit/main/%E7%BB%84%E4%BB%B6%E5%90%88%E5%B9%B6%E9%83%A8%E7%BD%B2.md): 把同框架的多个组件跑成一个实例（省 JVM 内存）：平台不提供任何支持，但地址注入天然支持它。可行性、五道关卡、要付的账、两条不通的路。
 
 ## 开发过程记录
 
