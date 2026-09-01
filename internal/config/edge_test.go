@@ -333,7 +333,6 @@ func TestPublicKeysAbsentIsNotAnError(t *testing.T) {
 	assert.True(t, c.RequireSignature())
 }
 
-
 // ============================================================
 // 校验细节补充
 // ============================================================

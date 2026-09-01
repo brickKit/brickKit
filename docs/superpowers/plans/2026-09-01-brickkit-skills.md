@@ -152,7 +152,7 @@ func TestAgentsMdTellsHowToWireUpClaudeCode(t *testing.T) {
 }
 
 // 反过来钉住：CLAUDE.md 绝不能出现在资产清单里。
-// 往使用者的流程文件里写东西是这套方案里唯一真正侵入的动作，已经明确拒绝（spec §11.6）。
+// 往使用者的流程文件里写东西是这套方案里唯一真正侵入的动作，已经明确拒绝（spec §11）。
 func TestClaudeMdIsNotShipped(t *testing.T) {
 	for _, a := range Assets() {
 		assert.NotEqual(t, "CLAUDE.md", a.Target,
