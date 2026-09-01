@@ -38,7 +38,6 @@
 | --- | --- |
 | `internal/skills/assets.go` | `//go:embed` 声明 + 资产清单（源路径 → 项目内落点） |
 | `internal/skills/assets/AGENTS.md` | 项目级导读，唯一的内容载体 |
-| `internal/skills/assets/CLAUDE.md` | 一行 `@AGENTS.md`，Claude Code 的入口 |
 | `internal/skills/assets/claude/skills/brickkit-assemble/SKILL.md` | 拼装项目 |
 | `internal/skills/assets/claude/skills/brickkit-component/SKILL.md` | 写组件 |
 | `internal/skills/assets/claude/skills/brickkit-deploy/SKILL.md` | 部署上线 |
@@ -68,7 +67,6 @@
 **Files:**
 - Create: `internal/skills/assets.go`
 - Create: `internal/skills/assets/AGENTS.md`
-- Create: `internal/skills/assets/CLAUDE.md`
 - Test: `internal/skills/assets_test.go`
 
 **Interfaces:**
@@ -77,7 +75,7 @@
   `func (a Asset) Content() ([]byte, error)`、`func Sum(b []byte) string`（返回 `sha256:` + 十六进制）
 
 本任务只做资产载体与自检，SKILL.md 留给 Task 2。交付物本身可用：
-`Assets()` 能列出 AGENTS.md 与 CLAUDE.md，内容可读，自检通过。
+`Assets()` 能列出 AGENTS.md，内容可读，自检通过。
 
 - [ ] **Step 1: 写失败的测试**
 
@@ -134,20 +132,32 @@ func TestSumIsStableAndPrefixed(t *testing.T) {
 	assert.NotEqual(t, s, Sum([]byte("hello!")))
 }
 
-// CLAUDE.md 必须导入 AGENTS.md：官方文档明确 Claude Code 读 CLAUDE.md 而不读
-// AGENTS.md，这一行是两边读同一份内容的唯一连接点。断了就等于 Claude Code
-// 什么导读都没有，而且不会有任何报错。
-func TestClaudeMdImportsAgentsMd(t *testing.T) {
+// 我们刻意不写用户的 CLAUDE.md（那是他自己的流程文件），但 Claude Code 只读
+// CLAUDE.md 而不读 AGENTS.md。所以 AGENTS.md 里必须留着那行接线说明——
+// 少了它，想接上的人根本不知道有这个选项。
+func TestAgentsMdTellsHowToWireUpClaudeCode(t *testing.T) {
 	for _, a := range Assets() {
-		if a.Target != "CLAUDE.md" {
+		if a.Target != "AGENTS.md" {
 			continue
 		}
 		b, err := a.Content()
 		require.NoError(t, err)
-		assert.Contains(t, string(b), "@AGENTS.md")
+		assert.Contains(t, string(b), "@AGENTS.md",
+			"要写出那行让人照抄的导入语句")
+		assert.Contains(t, string(b), "CLAUDE.md",
+			"要说清这行加到哪个文件里")
 		return
 	}
-	t.Fatal("资产清单里没有 CLAUDE.md")
+	t.Fatal("资产清单里没有 AGENTS.md")
+}
+
+// 反过来钉住：CLAUDE.md 绝不能出现在资产清单里。
+// 往使用者的流程文件里写东西是这套方案里唯一真正侵入的动作，已经明确拒绝（spec §11.6）。
+func TestClaudeMdIsNotShipped(t *testing.T) {
+	for _, a := range Assets() {
+		assert.NotEqual(t, "CLAUDE.md", a.Target,
+			"不装用户的 CLAUDE.md：那是他自己的流程文件")
+	}
 }
 ```
 
@@ -280,28 +290,29 @@ BrickKit 是**组件管理与拼装平台**：每块积木（组件）独立开�
 ## 更细的东西在哪
 
 `.claude/skills/` 下按任务分了四个技能（拼装 / 写组件 / 部署 / 排障），
-Claude Code 会在相关时自动加载。
+Claude Code 会在相关时自动加载——这部分不需要你做任何配置。
+
+**想让 Claude Code 也读到这一页导读**（它只读 `CLAUDE.md`，不读本文件），
+在你自己的 `CLAUDE.md` 里加一行：
+
+```
+@AGENTS.md
+```
+
+不加也行，四个技能照样能用。你的 `CLAUDE.md` 是你自己的流程文件，
+`brickkit` 不会去动它。
 
 完整规范在仓库文档：<https://github.com/brickKit/brickKit>
 （`AI-CONTEXT.md` 是全站压缩件；`design/` 下 14 本是规范性文档，
 试用指南是验证——两者冲突时**以设计书为准**。）
 ```
 
-- [ ] **Step 5: 写 `internal/skills/assets/CLAUDE.md`**
-
-```markdown
-@AGENTS.md
-```
-
-<!-- 只有这一行。Claude Code 读 CLAUDE.md 而不读 AGENTS.md，这一行把两边接上。
-     内容一律写在 AGENTS.md 里，这里永远只有导入。 -->
-
-- [ ] **Step 6: 跑测试确认通过**
+- [ ] **Step 5: 跑测试确认通过**
 
 Run: `cd /home/zhijie/Desktop/github/brickKit && go test ./internal/skills/ -v`
-Expected: 全部 PASS（5 个测试）
+Expected: 全部 PASS（6 个测试）
 
-- [ ] **Step 7: 提交**
+- [ ] **Step 6: 提交**
 
 ```bash
 git add internal/skills/
@@ -310,9 +321,10 @@ git commit -m "skills 资产载体：清单从 embed 遍历得来，不写死名
 写死名单的漏法不报错，只是静默少装一份文件。清单改从 assets/ 遍历，
 加文件就自动纳入。
 
-CLAUDE.md 里那一行 @AGENTS.md 有专门的测试守着：Claude Code 读
-CLAUDE.md 而不读 AGENTS.md，这一行断了等于它什么导读都没有，
-而且不会有任何报错。"
+刻意不装用户的 CLAUDE.md——那是他自己的流程文件，而 skill 的
+description 是常驻的，Claude Code 不靠它也能发现那四个技能。
+AGENTS.md 里留一行告诉他怎么自己接上，接不接由他决定。
+两条测试分别钉住「那行说明在」和「CLAUDE.md 不在清单里」。"
 ```
 
 ---
@@ -375,7 +387,10 @@ description: brickkit 命令报错、组件起不来、地址注入不生效、�
 
 1. `## 什么时候用这个技能` —— 三到五个具体场景，一行一个
 2. `## 你会猜错的地方` —— 本技能覆盖范围内那些反直觉的规则，**这是技能的核心价值**
-3. `## 典型流程` —— 按步骤写，命令只写命令名与必需参数，可选参数指向 `--help`
+3. `## 机制是怎么运作的` —— 讲清平台在这一块**怎么算、怎么判**（依赖如何解析、
+   启停如何判定、地址如何注入），**不写「你应该先做 A 再做 B」**。使用者很可能
+   已经有自己的一套做法；技能的职责是让他不撞上猜不到的坑，不是安排他怎么干活。
+   命令只在说明机制时提到名字，参数一律指向 `--help`
 4. `## 去哪查更细的` —— 指向 `design/` 具体小节与在线文档
 
 每个技能正文的出处与必须覆盖的事实：
@@ -906,18 +921,18 @@ func TestModifiedFileIsNeverOverwritten(t *testing.T) {
 	assert.Equal(t, string(mine), string(after), "手改的内容被覆盖了")
 }
 
-// lock 里没有记录的既有文件也不碰：可能是用户自己建的 CLAUDE.md。
+// lock 里没有记录的既有文件也不碰：可能是用户自己写的同名文件。
 func TestUntrackedFileIsNeverOverwritten(t *testing.T) {
 	in := newInstaller(t)
-	p := filepath.Join(in.Root, "CLAUDE.md")
-	mine := []byte("@我自己的规则.md\n")
+	p := filepath.Join(in.Root, "AGENTS.md")
+	mine := []byte("# 我自己写的导读\n")
 	require.NoError(t, os.WriteFile(p, mine, 0o644))
 
-	assert.Equal(t, StateUntracked, stateOf(t, in, "CLAUDE.md").State)
+	assert.Equal(t, StateUntracked, stateOf(t, in, "AGENTS.md").State)
 
 	res, err := in.Apply()
 	require.NoError(t, err)
-	assert.NotContains(t, res.Written, "CLAUDE.md")
+	assert.NotContains(t, res.Written, "AGENTS.md")
 
 	after, err := os.ReadFile(p)
 	require.NoError(t, err)
@@ -1244,7 +1259,6 @@ func TestInitInstallsSkills(t *testing.T) {
 
 	for _, rel := range []string{
 		"AGENTS.md",
-		"CLAUDE.md",
 		filepath.Join(".claude", "skills", "brickkit-assemble", "SKILL.md"),
 		filepath.Join(".brickkit", "skills.lock"),
 	} {
@@ -1259,7 +1273,7 @@ func TestInitNoSkillsInstallsNothing(t *testing.T) {
 	r := runIn(t, dir, "init", "my-project", "--no-skills")
 	require.Equal(t, 0, r.code, r.stderr)
 
-	for _, rel := range []string{"AGENTS.md", "CLAUDE.md", ".claude",
+	for _, rel := range []string{"AGENTS.md", ".claude",
 		filepath.Join(".brickkit", "skills.lock")} {
 		_, err := os.Stat(filepath.Join(dir, rel))
 		assert.True(t, os.IsNotExist(err), "--no-skills 却产生了 %s", rel)
@@ -1275,33 +1289,35 @@ func TestInitDoesNotIgnoreSkillFiles(t *testing.T) {
 
 	b, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
 	require.NoError(t, err)
-	for _, forbidden := range []string{".claude", "AGENTS.md", "CLAUDE.md", "skills.lock"} {
+	for _, forbidden := range []string{".claude", "AGENTS.md", "skills.lock"} {
 		assert.NotContains(t, string(b), forbidden,
 			".gitignore 忽略了技能文件，团队共享会静默失效")
 	}
 }
 
-// 用户已有的 CLAUDE.md 是他项目里最要紧的一份指令文件，绝不能被动。
-func TestInitKeepsExistingClaudeMd(t *testing.T) {
+// CLAUDE.md 是使用者自己的流程文件：既不新建，也不往已有的里面加东西。
+func TestInitNeverTouchesClaudeMd(t *testing.T) {
 	dir := t.TempDir()
-	mine := "# 我自己的规则\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte(mine), 0o644))
-
 	r := runIn(t, dir, "init", "my-project")
 	require.Equal(t, 0, r.code, r.stderr)
+	_, err := os.Stat(filepath.Join(dir, "CLAUDE.md"))
+	assert.True(t, os.IsNotExist(err), "不该建出 CLAUDE.md")
 
-	after, err := os.ReadFile(filepath.Join(dir, "CLAUDE.md"))
+	dir2 := t.TempDir()
+	mine := "# 我自己的规则\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir2, "CLAUDE.md"), []byte(mine), 0o644))
+	require.Equal(t, 0, runIn(t, dir2, "init", "my-project").code)
+
+	after, err := os.ReadFile(filepath.Join(dir2, "CLAUDE.md"))
 	require.NoError(t, err)
 	assert.Equal(t, mine, string(after), "已有的 CLAUDE.md 被改了")
-	assert.Contains(t, r.stdout, "CLAUDE.md", "跳过了要说出来")
-	assert.Contains(t, r.stdout, "@AGENTS.md", "要告诉用户自己加哪一行")
 }
 
 ```
 
 - [ ] **Step 2: 跑测试确认它失败**
 
-Run: `cd /home/zhijie/Desktop/github/brickKit && go test ./internal/cli/ -run 'InitInstallsSkills|NoSkills|ExistingClaudeMd|DoesNotIgnore' -v`
+Run: `cd /home/zhijie/Desktop/github/brickKit && go test ./internal/cli/ -run 'InitInstallsSkills|NoSkills|NeverTouchesClaudeMd|DoesNotIgnore' -v`
 Expected: FAIL —— `unknown flag: --no-skills`，且文件都不存在
 
 - [ ] **Step 3: 改 `internal/cli/init.go`**
@@ -1318,7 +1334,7 @@ Expected: FAIL —— `unknown flag: --no-skills`，且文件都不存在
   1. 创建项目目录结构（.brickkit/、components/）
   2. 生成 brickkit.yaml 骨架
   3. 追加 .gitignore 规则（003 §11）
-  4. 装入 AI 助手技能（.claude/skills/、AGENTS.md、CLAUDE.md）
+  4. 装入 AI 助手技能（.claude/skills/、AGENTS.md）
 
 项目名称必须显式指定：只能包含小写字母、数字与中划线，
 且以字母或数字开头结尾（用于 K8s namespace 与 Docker Network 命名）。
@@ -1340,7 +1356,7 @@ Expected: FAIL —— `unknown flag: --no-skills`，且文件都不存在
 		},
 	}
 	cmd.Flags().BoolVar(&noSkills, "no-skills", false,
-		"不装 AI 助手技能（.claude/skills/、AGENTS.md、CLAUDE.md）")
+		"不装 AI 助手技能（.claude/skills/、AGENTS.md）")
 	return cmd
 ```
 
@@ -1410,9 +1426,6 @@ func installSkills(opts *Options, layout config.Layout) error {
 	}
 	for _, s := range res.Skipped {
 		opts.Printf("   ⏭  %-21s%s\n", s.Target, "已存在，未改动（"+string(s.State)+"）")
-		if s.Target == "CLAUDE.md" {
-			opts.Printf("      %s\n", "想让 Claude Code 也读到导读，在它开头加一行：@AGENTS.md")
-		}
 	}
 	logging.Info("AI 助手技能已装入",
 		"written", len(res.Written), "skipped", len(res.Skipped))
@@ -1432,10 +1445,11 @@ Expected: 全部 PASS
 
 ```bash
 git add internal/cli/init.go internal/cli/init_test.go
-git commit -m "init 装技能；已有的 CLAUDE.md 只提示、不追加
+git commit -m "init 装技能，但压根不碰 CLAUDE.md
 
-用户已有的 CLAUDE.md 是他项目里最要紧的一份指令文件，往里追加内容
-是不能接受的。所以跳过它，并把该加的那行 @AGENTS.md 直接打给他看。
+CLAUDE.md 是使用者自己的流程文件。skill 的 description 是常驻的，
+Claude Code 不靠它也能发现那四个技能——为一页导读去动他最要紧的
+配置文件，不划算。AGENTS.md 里留一行告诉他怎么自己接上。
 
 装不上算错误而不是静默跳过——init 说了它会装。但错误文案里要讲明
 项目本身已经建好了，否则人会以为整个 init 都白跑了。"
@@ -1580,7 +1594,7 @@ func newSkillsCommand(opts *Options) *cobra.Command {
 		Use:     "skills",
 		Short:   "查看与刷新装进项目的 AI 助手技能",
 		GroupID: groupProject,
-		Long: `管理装进本项目的 AI 助手技能（.claude/skills/、AGENTS.md、CLAUDE.md）。
+		Long: `管理装进本项目的 AI 助手技能（.claude/skills/、AGENTS.md）。
 
 这些文件由 brickkit init 装入，跟着项目提交、团队共享。它们描述的是
 **当前这个 CLI 版本**的行为，所以 CLI 升级后需要刷新一次。
@@ -1876,7 +1890,7 @@ cd $(mktemp -d) && /home/zhijie/Desktop/github/brickKit/bin/brickkit init my-pro
 ```
 
 把真实输出贴进指南，并在目录树里补上 `.claude/skills/`、`AGENTS.md`、
-`CLAUDE.md`、`.brickkit/skills.lock`。
+`.brickkit/skills.lock`。
 
 - [ ] **Step 4: `AI-CONTEXT.md` 补目录树与导航**
 
@@ -1889,7 +1903,8 @@ cd $(mktemp -d) && /home/zhijie/Desktop/github/brickKit/bin/brickkit init my-pro
 ① 技能内容只写「AI 会猜错的东西」，参数指向 `--help`；
 ② 不做框架级技能（平台不越界 + 18 份 CI 跑不到的散文会集体腐烂）；
 ③ 手改过的文件不覆盖、不提供 `--force`；
-④ Claude Code 不读 `AGENTS.md`，所以另配一行 `@AGENTS.md` 的 `CLAUDE.md`。
+④ Claude Code 不读 `AGENTS.md`，但**不因此去写使用者的 `CLAUDE.md`**——
+那是他自己的流程文件，`description` 常驻已经够用；`AGENTS.md` 里留一行接线说明。
 
 - [ ] **Step 6: 跑全部检查**
 
@@ -1923,10 +1938,10 @@ git commit -m "文档跟上 skills：目录树、附录 E、指南预期输出�
 
 - [ ] `make test-unit` 通过
 - [ ] `make lint` 通过（含 `check-cli-docs`、`check-doc-tree`、`check-guide-output`、`cover-check`）
-- [ ] 空目录里 `brickkit init p` 装出 4 个 SKILL.md + `AGENTS.md` + `CLAUDE.md` + `skills.lock`
+- [ ] 空目录里 `brickkit init p` 装出 4 个 SKILL.md + `AGENTS.md` + `skills.lock`，**且没有 `CLAUDE.md`**
 - [ ] `brickkit init p --no-skills` 一个技能文件都不产生
 - [ ] `brickkit skills update` 连跑两次，第二次报「已是最新」
 - [ ] 手改任一技能文件后 `brickkit skills update` 不覆盖它，且提示怎么放弃本地修改
-- [ ] 预先存在的 `CLAUDE.md` 在 `init` 后内容不变，且输出里提示了 `@AGENTS.md`
+- [ ] 预先存在的 `CLAUDE.md` 在 `init` 后内容一字不变
 - [ ] 删掉 `skills.lock` 后 `brickkit skills update` 一个文件都不改
 - [ ] `.gitignore` 里没有任何一条忽略技能文件（团队共享靠它们入库）

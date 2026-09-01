@@ -49,7 +49,6 @@ BrickKit 的上手成本几乎全部集中在一处：**11 条命令与两个 ya
 ```
 <project>/
 ├── AGENTS.md                              一页导读（已存在则不碰）
-├── CLAUDE.md                              只有一行 `@AGENTS.md`（已存在则不碰）
 ├── .claude/skills/
 │   ├── brickkit-assemble/SKILL.md
 │   ├── brickkit-component/SKILL.md
@@ -58,18 +57,21 @@ BrickKit 的上手成本几乎全部集中在一处：**11 条命令与两个 ya
 └── .brickkit/skills.lock                  托管清单，跟着项目入库
 ```
 
-**为什么有两份导读文件。** 官方文档明确写着「Claude Code reads `CLAUDE.md`, not
-`AGENTS.md`」，并给出了推荐做法：写一个 `CLAUDE.md` 用 `@AGENTS.md` 把它导入进来，
-让两边读同一份、不重复内容。所以：
+**为什么不写 `CLAUDE.md`。** 官方文档明确写着「Claude Code reads `CLAUDE.md`, not
+`AGENTS.md`」，推荐做法是写一个 `CLAUDE.md` 用 `@AGENTS.md` 把它导入进来。
+本设计**刻意不这么做**。
 
-- `AGENTS.md` 是唯一的内容载体，服务 Cursor / Codex 等读它的 agent；
-- `CLAUDE.md` 只有一行 `@AGENTS.md`，是 Claude Code 的入口。
+`CLAUDE.md` 是使用者自己的流程文件——他可能已经有一套自己的做法，也可能压根不用
+Claude Code。往那儿写东西是这套方案里唯一真正侵入的动作，而收益很有限：
+skill 的 `description` 是常驻上下文，**Claude Code 不靠 `CLAUDE.md` 也能发现那四个
+技能**；`CLAUDE.md` 只是让 `AGENTS.md` 那一页导读也被读到。
 
-导入的是工作目录内的相对路径，不会触发外部导入的审批弹窗。
+少一页导读，换掉「我们动了你最要紧的配置文件」，这笔交换是值的。
+所以 `AGENTS.md` 末尾写一行说明——想接上就自己在 `CLAUDE.md` 里加 `@AGENTS.md`，
+接不接由他决定。
 
-若用户已有 `CLAUDE.md`（很可能——它和 BrickKit 无关也会存在），按「未托管」跳过，
-并在输出里明确提示他自己加一行 `@AGENTS.md`。**绝不**往用户已有的 CLAUDE.md 里追加内容：
-那是他项目里最要紧的一份指令文件。
+这条也定下了整套东西的分量：**装进项目的技能是为了让人少踩几个猜不到的坑，
+不是为了替他安排流程。**
 
 `.gitignore` 不新增任何规则：以上文件全部提交。
 `.brickkit/skills.lock` 落在 `.brickkit/` 下但**不在** `generated/` 里——
@@ -163,6 +165,10 @@ internal/skills/
 ① 一个文件的 sha256 没法写在它自己里面（自指）；
 ② `status` 要一次读完全部状态，读一个 lock 比逐个解析 frontmatter 简单得多。
 
+**正文不规定流程。** 只讲机制与禁区（依赖怎么算、什么是保留变量、哪些行为是刻意
+设计的），不写「你应该先做 A 再做 B」。使用者很可能已经有自己的一套做法，技能的职责
+是保证他不撞上那几个猜不到的坑，不是安排他怎么干活。
+
 **内容判据（贯穿全部正文）：不写这条，AI 会不会猜错？猜错才值得写。**
 
 必然猜错、因此必须写的：保留变量的确切模式（`COMPONENT_ID`、`COMPONENT_VERSION`、
@@ -172,6 +178,9 @@ internal/skills/
 
 **一律不写**：任何命令的参数清单（`--help` 是唯一真相，且永不过期）、
 任何通用语言/框架知识（读者本来就会）。
+
+`AGENTS.md` 末尾必须有一行告诉读者怎么接上 Claude Code（在自己的 `CLAUDE.md` 里
+加 `@AGENTS.md`）——我们不替他写那个文件，但得让他知道这个选项存在。
 
 `AGENTS.md` 是一页导读：BrickKit 是什么、两个 yaml 在哪、几条铁律
 （精确版本、保留变量不许碰、健康检查禁令、跟着上层走），并指向 skills 与在线文档。
@@ -253,14 +262,21 @@ skill 只是多一批文档；接上之后，「skill 开始说谎」会在 CI �
 3. **不在别的命令里自动刷新**。CLI 是「用完即走」的工具，不该在用户没要求时改他的仓库文件。
 4. **不从远端拉取 skill**。会引入签名信任问题，与「安装即信任」的既有立场和离线优先的定位冲突。
 5. **skill 里不复刻参数清单**。`--help` 是唯一真相；复刻一份就是承诺维护两份。
+6. **不写使用者的 `CLAUDE.md`**（哪怕只有一行导入）。那是他自己的流程文件，
+   而 skill 的 `description` 常驻、不靠它也能被发现——侵入换来的收益太小。
+   见 §4。
+7. **技能正文不规定流程**。只讲机制与禁区。使用者有自己的做法，我们只保证他
+   不踩坑。见 §7。
 
 ## 12. 已核实的外部事实
 
 原先留作「实现前需验证」的两项已经查证，结论直接改了设计：
 
 1. **Claude Code 不读 `AGENTS.md`。** 文档原文：「Claude Code reads `CLAUDE.md`,
-   not `AGENTS.md`」，并推荐用 `@AGENTS.md` 导入。因此 §4 增加了一份只含一行导入的
-   `CLAUDE.md`。原设计里「若 Claude Code 读 AGENTS.md 则一份文件通吃」的分支作废。
+   not `AGENTS.md`」，并推荐用 `@AGENTS.md` 导入。原设计里「若 Claude Code 读
+   AGENTS.md 则一份文件通吃」的分支作废。
+   但结论**不是**「那就替他写一份 `CLAUDE.md`」——见 §4 与 §11 第 6 条：
+   那是他自己的流程文件，而 skill 的 `description` 常驻，不靠它也能被发现。
 2. **SKILL.md 的 frontmatter 约束**见 §7，要点：`name` 可选且只是显示标签、
    调用名来自目录名、`description` 在 1,536 字符处截断、frontmatter 必须从第一行开始、
    跨工具可移植只用规范的六个字段。
