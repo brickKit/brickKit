@@ -68,12 +68,18 @@ if [ "$local_head" != "$remote_head" ]; then
 fi
 
 # ---- 5. tag 还不存在 ----
-if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
-	die "本地已经有 tag ${tag}" "改用下一个版本号，或先 git tag -d ${tag}"
-fi
+#
+# 远端先查：上一步的 git fetch --tags 会把远端 tag 拉成本地 tag，两条顺序反过来
+# 的话，一个"已经发过的版本"命中的会是本地那条，而它的提示是 git tag -d——
+# 删掉本地那个屁用没有，远端的 release 还在。真跑一遍才看得出来这个坑。
 if [ -n "$(git ls-remote --tags origin "refs/tags/${tag}")" ]; then
 	die "远端已经有 tag ${tag}" \
-		"这个版本已经发过了——版本号只发一次，改用下一个"
+		"这个版本已经发过了——版本号只发一次，改用下一个" \
+		"https://github.com/${REPO_SLUG}/releases/tag/${tag}"
+fi
+if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+	die "本地已经有 tag ${tag}（远端没有）" \
+		"多半是上次发布中途停下留的。确认没用了就删掉：git tag -d ${tag}"
 fi
 
 # ---- 6. 检查全绿 ----
