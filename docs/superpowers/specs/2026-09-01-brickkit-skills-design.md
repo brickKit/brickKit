@@ -49,6 +49,7 @@ BrickKit 的上手成本几乎全部集中在一处：**11 条命令与两个 ya
 ```
 <project>/
 ├── AGENTS.md                              一页导读（已存在则不碰）
+├── CLAUDE.md                              只有一行 `@AGENTS.md`（已存在则不碰）
 ├── .claude/skills/
 │   ├── brickkit-assemble/SKILL.md
 │   ├── brickkit-component/SKILL.md
@@ -56,6 +57,19 @@ BrickKit 的上手成本几乎全部集中在一处：**11 条命令与两个 ya
 │   └── brickkit-troubleshoot/SKILL.md
 └── .brickkit/skills.lock                  托管清单，跟着项目入库
 ```
+
+**为什么有两份导读文件。** 官方文档明确写着「Claude Code reads `CLAUDE.md`, not
+`AGENTS.md`」，并给出了推荐做法：写一个 `CLAUDE.md` 用 `@AGENTS.md` 把它导入进来，
+让两边读同一份、不重复内容。所以：
+
+- `AGENTS.md` 是唯一的内容载体，服务 Cursor / Codex 等读它的 agent；
+- `CLAUDE.md` 只有一行 `@AGENTS.md`，是 Claude Code 的入口。
+
+导入的是工作目录内的相对路径，不会触发外部导入的审批弹窗。
+
+若用户已有 `CLAUDE.md`（很可能——它和 BrickKit 无关也会存在），按「未托管」跳过，
+并在输出里明确提示他自己加一行 `@AGENTS.md`。**绝不**往用户已有的 CLAUDE.md 里追加内容：
+那是他项目里最要紧的一份指令文件。
 
 `.gitignore` 不新增任何规则：以上文件全部提交。
 `.brickkit/skills.lock` 落在 `.brickkit/` 下但**不在** `generated/` 里——
@@ -129,6 +143,25 @@ internal/skills/
 | `brickkit-component` | 要新写组件、改 `component.yaml`、加数据库迁移、对外提供 gRPC/HTTP 时。含组件硬性契约与保留变量禁区 |
 | `brickkit-deploy` | 要部署到 Docker 或 K8s、绑定基础资源、配置密钥、对外暴露服务时 |
 | `brickkit-troubleshoot` | brickkit 命令报错、组件起不来、地址注入不生效、要按错误码定位时 |
+
+**已核实的 frontmatter 约束**（决定资产自检怎么写断言）：
+
+- 只有开头的 `---` 位于**文件第一行**时 frontmatter 才被解析；否则整个文件连 `---`
+  都被当作正文。
+- `name` 是**可选**的：项目级 skill 的调用名来自**目录名**，`name` 只是显示标签。
+  我们仍然显式写 `name`，并让它与目录名一致——两者不一致会让 `/brickkit-deploy`
+  和列表里显示的名字对不上。
+- `description` 建议写，且 skill listing 里 `description` 会在 **1,536 字符**处被截断。
+  本设计给每条 description 的预算是 200–350 字，硬上限 1,024（自检断言按 1,024 判）。
+- 为了跨工具可移植，frontmatter **只用 Agent Skills 规范的六个字段**
+  （`name`、`description`、`allowed-tools`、`metadata`、`license`、`compatibility`）。
+  写规范外的键会在其他分发路径上报 `Unexpected key(s) in SKILL.md frontmatter`。
+
+顺带修正一处原先的顾虑：规范里有一个 `metadata` 自由映射，官方明说是留给自有工具链的
+（Claude Code 不解释其内容）。所以往 frontmatter 放元数据本身并不违规。本设计仍把指纹
+放在 `.brickkit/skills.lock` 而不是 `metadata`，理由变成两条纯技术的：
+① 一个文件的 sha256 没法写在它自己里面（自指）；
+② `status` 要一次读完全部状态，读一个 lock 比逐个解析 frontmatter 简单得多。
 
 **内容判据（贯穿全部正文）：不写这条，AI 会不会猜错？猜错才值得写。**
 
@@ -221,14 +254,16 @@ skill 只是多一批文档；接上之后，「skill 开始说谎」会在 CI �
 4. **不从远端拉取 skill**。会引入签名信任问题，与「安装即信任」的既有立场和离线优先的定位冲突。
 5. **skill 里不复刻参数清单**。`--help` 是唯一真相；复刻一份就是承诺维护两份。
 
-## 12. 实现前需验证的开放项
+## 12. 已核实的外部事实
 
-1. **Claude Code 是否读取 `AGENTS.md`。** 不凭印象写进设计。实现第一步先确认：
-   - 若读：`AGENTS.md` 同时是 Claude Code 与其他 agent 的项目级导读；
-   - 若不读：Claude Code 侧靠 skills 的常驻 `description` 已足够，`AGENTS.md` 纯粹服务
-     其他 agent。两种情况下文件都照写，只是文档措辞不同。
-2. **`.claude/skills/` 的 frontmatter 字段要求**是否只需 `name` 与 `description`。
-   资产自检要按实际要求写断言。
+原先留作「实现前需验证」的两项已经查证，结论直接改了设计：
+
+1. **Claude Code 不读 `AGENTS.md`。** 文档原文：「Claude Code reads `CLAUDE.md`,
+   not `AGENTS.md`」，并推荐用 `@AGENTS.md` 导入。因此 §4 增加了一份只含一行导入的
+   `CLAUDE.md`。原设计里「若 Claude Code 读 AGENTS.md 则一份文件通吃」的分支作废。
+2. **SKILL.md 的 frontmatter 约束**见 §7，要点：`name` 可选且只是显示标签、
+   调用名来自目录名、`description` 在 1,536 字符处截断、frontmatter 必须从第一行开始、
+   跨工具可移植只用规范的六个字段。
 
 ## 13. 后续路线（不在本次范围）
 
