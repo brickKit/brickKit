@@ -28,6 +28,8 @@ const (
 	FileCredentials = "credentials"
 	// FileGitignore 是项目的 .gitignore。
 	FileGitignore = ".gitignore"
+	// FileSkillsLock 是 AI 助手技能的托管清单（brickkit skills 管理）。
+	FileSkillsLock = "skills.lock"
 )
 
 // Layout 描述一个 BrickKit 项目的目录布局。
@@ -89,6 +91,9 @@ func (l Layout) ComponentsDir() string { return l.path(DirComponents) }
 
 // ArchivedDir 返回组件源码归档目录。
 func (l Layout) ArchivedDir() string { return l.path(DirComponents, DirArchived) }
+
+// SkillsLockPath 返回 AI 助手技能托管清单的路径。
+func (l Layout) SkillsLockPath() string { return l.path(DirBrickkit, FileSkillsLock) }
 
 // GitignorePath 返回项目 .gitignore 路径。
 func (l Layout) GitignorePath() string { return l.path(FileGitignore) }

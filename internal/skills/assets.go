@@ -74,3 +74,9 @@ func Sum(b []byte) string {
 	h := sha256.Sum256(b)
 	return "sha256:" + hex.EncodeToString(h[:])
 }
+
+// 文件权限：与 internal/config 保持一致（配置 0644、目录 0755）。
+const (
+	filePerm = 0o644
+	dirPerm  = 0o755
+)

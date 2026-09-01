@@ -55,3 +55,9 @@ func TestManagedDirs(t *testing.T) {
 		filepath.Join("root", "components", ".archived"),
 	}, l.ManagedDirs())
 }
+
+func TestSkillsLockPath(t *testing.T) {
+	l := NewLayout("/proj", DefaultConfigFile)
+	assert.Equal(t, filepath.Join("/proj", DirBrickkit, FileSkillsLock),
+		l.SkillsLockPath())
+}
