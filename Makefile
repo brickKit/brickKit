@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-market-api check-guide-output check-no-binaries cover-check ## 静态检查（文档引用 + 命令 + 目录树 + 字段骨架 + 市场 API 表 + 指南预期输出 + 仓库无二进制 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-market-api check-guide-output check-install-sh check-no-binaries cover-check ## 静态检查（文档引用 + 命令 + 目录树 + 字段骨架 + 市场 API 表 + 指南预期输出 + 安装脚本 + 仓库无二进制 + 覆盖率门槛）
 	@if [ -x "$(GOLANGCI)" ]; then \
 		echo "▶ golangci-lint run"; \
 		$(GOLANGCI) run ./... && (cd market-server && $(GOLANGCI) run ./...); \
@@ -172,6 +172,13 @@ check-guide-output: build-cli ## 核对试用指南的预期输出与 CLI 真实
 .PHONY: check-guides
 check-guides: build-cli ## 真跑试用指南里的关键步骤（缺环境的层会响亮跳过）
 	@bash scripts/check-guides.sh
+
+# install.sh 是唯一一条不需要 Go 就能拿到 CLI 的路，而它坏掉的方式最难被发现：
+# 校验和逻辑退化成"永远通过"不会有任何症状。所以这个检查专门把校验和改坏，
+# 确认它真的会拒绝安装（《发布与分发》§7）。
+.PHONY: check-install-sh
+check-install-sh: ## 真跑 install.sh：装得上，且校验和坏掉时真的拒绝装
+	@bash scripts/check-install-sh.sh
 
 .PHONY: tidy
 tidy: ## go mod tidy（两个 module）
