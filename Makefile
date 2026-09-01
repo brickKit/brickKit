@@ -540,3 +540,46 @@ env: ## 打印开发环境基线（对照开发计划附录 G）
 	@echo "python   : $$(python3 --version 2>/dev/null || echo 未安装)"
 	@echo "cosign   : $$(cosign version 2>/dev/null | head -1 || echo 未安装)"
 	@echo "grpcurl  : $$(grpcurl --version 2>&1 | head -1 || echo 未安装)"
+
+# ============================================================
+# 发布与分发（详见《发布与分发.md》）
+# ============================================================
+
+DIST              := $(ROOT)/dist
+RELEASE_PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
+# 产物名里的版本号不带 v：brickkit_0.1.0_linux_amd64.tar.gz
+RELEASE_VERSION   := $(patsubst v%,%,$(VERSION))
+RELEASE_TAG       := v$(RELEASE_VERSION)
+
+.PHONY: release-artifacts
+release-artifacts: ## 交叉编译发布产物到 dist/（VERSION=0.1.0）
+	@rm -rf $(DIST) && mkdir -p $(DIST)
+	@echo "▶ 构建发布产物 $(RELEASE_TAG)（commit $(COMMIT)）"
+	@for platform in $(RELEASE_PLATFORMS); do \
+		os=$${platform%/*}; arch=$${platform#*/}; \
+		exe=brickkit; [ "$$os" = windows ] && exe=brickkit.exe; \
+		stage=$(DIST)/.stage; rm -rf $$stage; mkdir -p $$stage; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build -trimpath \
+			-ldflags "$(LDFLAGS)" -o $$stage/$$exe ./cmd/brickkit || exit 1; \
+		base=brickkit_$(RELEASE_VERSION)_$${os}_$${arch}; \
+		if [ "$$os" = windows ]; then \
+			(cd $$stage && zip -q ../$$base.zip $$exe) \
+				|| { echo "❌ 打不出 $$base.zip——本机没有 zip 命令"; exit 1; }; \
+		else \
+			tar -czf $(DIST)/$$base.tar.gz -C $$stage $$exe || exit 1; \
+		fi; \
+		echo "   ✅ $$base"; \
+	done
+	@rm -rf $(DIST)/.stage
+	@cd $(DIST) && { sha256sum brickkit_* 2>/dev/null || shasum -a 256 brickkit_*; } > checksums.txt
+	@# 自检：产物数对不上矩阵条数就失败。一个产出零个产物却退出码为 0 的发布
+	@# 目标，和一个安静跳过的测试套件是同一种错（《发布与分发》§4.1）。
+	@n=$$(ls $(DIST)/brickkit_* | wc -l); \
+	if [ "$$n" -ne $(words $(RELEASE_PLATFORMS)) ]; then \
+		echo "❌ 产物数 $$n ≠ 矩阵条数 $(words $(RELEASE_PLATFORMS))——有平台没打出来"; exit 1; \
+	fi; \
+	echo "✅ $$n 个产物 + checksums.txt 在 $(DIST)/"
+
+.PHONY: release
+release: ## 打 tag 并推送，触发 CI 发布（VERSION=0.1.0；CONFIRM=yes 免交互）
+	@bash scripts/release.sh "$(VERSION)"

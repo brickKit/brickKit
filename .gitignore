@@ -52,6 +52,9 @@ go.work.sum
 # 构建产物
 /bin/
 
+# 发布产物（make release-artifacts 每次重建，只上传到 GitHub Releases）
+/dist/
+
 # 本地工具链（protoc 及插件，由 make tools 安装）+ proto 工具链自检生成物
 # 目录以 . 开头，Go 工具链天然忽略，不会进入 ./... 的构建范围
 /.tools/
