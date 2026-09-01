@@ -60,6 +60,80 @@ BrickKit **不是**操作系统，不是 ERP，也不是任何一个具体的业
 
 ---
 
+## 安装
+
+CLI 是一个**单文件** Go 二进制，装它只需要 Go 1.22+。它不常驻、不写全局配置 ——
+所有状态都在你项目目录的 `brickkit.yaml` 与 `.brickkit/` 里，真正干活时调用你机器上的
+`docker` / `kubectl`。
+
+### 方式一：`go install`（推荐）
+
+```bash
+go install github.com/brickkit/brickkit/cmd/brickkit@latest
+```
+
+装到 `$(go env GOPATH)/bin`（默认 `~/go/bin`）。确认它在 `PATH` 里：
+
+```bash
+export PATH="$(go env GOPATH)/bin:$PATH"   # 需要的话写进 ~/.bashrc / ~/.zshrc
+```
+
+### 方式二：从源码构建
+
+```bash
+git clone https://github.com/brickKit/brickKit.git
+cd brickKit
+make build-cli                 # 产出 bin/brickkit
+```
+
+`bin/` 不进 `PATH`，自己拷走或建软链：
+
+```bash
+sudo install -m 0755 bin/brickkit /usr/local/bin/brickkit
+```
+
+或者直接 `make install` —— 等价于方式一，但会把版本号、commit、构建时间**注入进二进制**
+（`go install` 不走 Makefile，所以拿不到这些，`version` 会显示 `v0.0.0-dev`）。
+
+### 验证
+
+```bash
+brickkit version
+```
+
+```
+BrickKit CLI v0.1.0-dev          # go install 装的会显示 v0.0.0-dev（见上）
+支持 Manifest 版本：brickkit/v1
+支持部署目标：docker, k8s
+```
+
+> stderr 上那串 JSON 是结构化日志，不影响正常输出，嫌吵加 `--log-level off`。
+
+### 还需要什么
+
+| | 什么时候要 |
+| --- | --- |
+| Go 1.22+ | 只在**安装 CLI** 时要；装完就不需要了（除非组件本身是 Go 写的） |
+| Docker 20.10+（含 Compose V2） | `brickkit up` 起本地容器时 |
+| kubectl + 一个集群（minikube 够用） | `deploy.target: k8s` 时 |
+| [cosign](https://github.com/sigstore/cosign) | **只有发布方**签名时；验签用 Go 标准库，装 CLI 的人不需要 |
+
+各篇指南分别需要什么，见 [00b · 底层环境清单](试用指南/00b-底层环境清单.md)。
+
+### 卸载
+
+```bash
+rm "$(go env GOPATH)/bin/brickkit"      # 或 rm /usr/local/bin/brickkit
+```
+
+没有全局配置要清 —— 删掉项目目录就等于删干净了。
+
+> **暂时没有预编译二进制、没有 Homebrew / apt 包。** 仓库还没打过 tag，
+> `@latest` 拉的是主分支的最新提交。想跑试用指南的话不用手动装：
+> [00 · 准备](试用指南/00-准备.md) 里的 `准备.sh` 会构建一份放进 `试用指南/bin/`。
+
+---
+
 ## 一分钟看完
 
 ```bash
@@ -210,6 +284,13 @@ Kubernetes manifests, by changing a single field.
 The platform is deliberately minimal: no registry, no control plane, no config
 server, no gateway. Service discovery is Docker/K8s DNS. Health checking is the
 engine's own probes. Everything else belongs to the components.
+
+Install the CLI (Go 1.22+; no prebuilt binaries yet):
+
+```bash
+go install github.com/brickkit/brickkit/cmd/brickkit@latest
+brickkit version
+```
 
 **All documentation is written in Chinese.** For a complete overview in one file,
 read [AI-CONTEXT.md](AI-CONTEXT.md) — it is a condensed version of the full
