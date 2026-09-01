@@ -182,8 +182,13 @@ def docs():
     # 一个数字，AI 就会照着教用户敲一条不存在的命令。它比任何一份 .md 都
     # 更该被守着。（真漏过：命令数目那条守卫上线时，llms.txt 里写的还是
     # "11 个命令 + version"，而扫描范围没覆盖它。）
+    #
+    # internal/skills/assets/ 是内嵌进 CLI、由 brickkit init 直接装进用户项目的
+    # AI 助手技能。它们也算文档，而且是**最会被照着敲**的一类：读者是 AI 助手，
+    # 它不会像人一样怀疑"是不是我装错了版本"，只会自信地把假参数敲下去。
+    # 而且这些文件不在用户仓库里，用户改不了——说谎只能在这里被拦住。
     for pattern in ["design/**/*.md", "试用指南/**/*.md", "*.md", "deploy/**/*.md",
-                    "llms.txt"]:
+                    "llms.txt", "internal/skills/assets/**/*.md"]:
         for path in glob.glob(pattern, recursive=True):
             if any(d in path for d in SKIP_DIRS):
                 continue
