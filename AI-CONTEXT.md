@@ -714,6 +714,7 @@ internal/              CLI 实现
   ├── manifest/          component.yaml 解析与校验
   ├── resolver/          依赖解析、拓扑排序
   ├── cascade/           启停判定：算出这次实际启动谁（跟着上层走）
+  ├── skills/           内嵌的 AI 助手技能资产 + 五态判定（brickkit skills）
   ├── inject/            环境变量注入与资源配额合并
   ├── compose/           docker-compose.yaml 生成
   ├── k8s/               Kubernetes 清单生成
@@ -746,6 +747,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | `component.yaml` 全部字段与规则 | `design/002-组件规范.md` |
 | `brickkit.yaml` 全部字段与规则 | `design/003-项目配置规范.md` |
 | CLI 命令、依赖解析引擎、生成逻辑 | `design/004-CLI 设计.md` |
+| 装进项目的 AI 助手技能：装什么、怎么刷新、为什么不碰 `CLAUDE.md` | `design/004-CLI 设计.md` §3.2.1 |
 | Docker / K8s 部署、本地调试、迁移 | `design/005-部署与运行规范.md` |
 | 数据库 / Redis 等资源的声明与绑定 | `design/006-基础资源规范.md` |
 | 市场 API、数据模型、权限、签名 | `design/007-组件市场设计.md` |
