@@ -1,0 +1,143 @@
+# 发布流水线（《发布与分发》§5）—— 这个仓库的第一份 CI。
+#
+# 顺序是 build → smoke → sign → publish，不能改：**先验后发**。
+# 一个已经挂到 release 页面上、再回头发现跑不起来的二进制撤不干净——
+# 已经有人下走了。所以任何一个平台冒烟不过，就一个字节都不发布。
+#
+# 触发：make release VERSION=x.y.z 推上来的 v* tag。
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# 默认只读。只有 publish 那个 job 拿 contents: write，sign 那个拿 id-token: write。
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: 构建五个平台的产物
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      # 构建逻辑在 Makefile 里，这里只是调它——本地 make release-artifacts 能出
+      # 完全一样的产物。一个只有 CI 能复现的产物，坏掉的时候没人能在本地查。
+      - run: make release-artifacts VERSION=${{ github.ref_name }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  smoke:
+    name: 冒烟 ${{ matrix.name }}
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false # 一个平台坏了也要看到其余平台的结果，好一次修完
+      matrix:
+        include:
+          - name: linux/amd64
+            runner: ubuntu-latest
+            asset: linux_amd64.tar.gz
+          # 原生 arm64 Linux runner 是免费的（public 仓库），所以五个平台全都在
+          # 真硬件上跑，没有 QEMU 这一层。macos-13 已经退役，intel 版走 15-intel。
+          - name: linux/arm64
+            runner: ubuntu-24.04-arm
+            asset: linux_arm64.tar.gz
+          - name: darwin/amd64
+            runner: macos-15-intel
+            asset: darwin_amd64.tar.gz
+          - name: darwin/arm64
+            runner: macos-14
+            asset: darwin_arm64.tar.gz
+          # Windows 只验不需要 Docker 的那一半：GitHub 的 windows runner 跑不了
+          # Linux 容器，up 真起容器与 K8s 那条线在这里没法验（§3.1）。
+          - name: windows/amd64
+            runner: windows-latest
+            asset: windows_amd64.zip
+            windows: true
+    steps:
+      - uses: actions/checkout@v4 # smoke.sh 与它用的自测组件都在仓库里
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: 解包
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          file="dist/brickkit_${version}_${{ matrix.asset }}"
+          mkdir -p smoke
+          case "$file" in
+            *.zip) unzip -q "$file" -d smoke ;;
+            *)     tar -xzf "$file" -C smoke ;;
+          esac
+
+      - name: 跑一遍
+        shell: bash
+        run: bash .github/smoke.sh "$PWD/smoke/brickkit${{ matrix.windows && '.exe' || '' }}"
+
+  sign:
+    name: cosign keyless 签 checksums
+    needs: smoke
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # keyless 要用 GitHub OIDC 换一张短期证书
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: sigstore/cosign-installer@v3
+      # 组件签名用的是固定密钥且关掉 tlog（010 §6.2）；发布产物是另一回事：
+      # keyless 没有私钥要保管，签名者身份就是这条 workflow 本身。
+      - run: >
+          cosign sign-blob --yes
+          --output-signature dist/checksums.txt.sig
+          --output-certificate dist/checksums.txt.pem
+          dist/checksums.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed
+          path: |
+            dist/checksums.txt.sig
+            dist/checksums.txt.pem
+
+  publish:
+    name: 发布 release
+    needs: sign
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 建 release 要写权限，整条流水线只有这个 job 有
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: signed
+          path: dist
+      # 到这一步为止，五个平台都拿真二进制跑过了。
+      - name: 生成 release 正文
+        run: bash .github/release-notes.sh "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" > notes.md
+      - name: 发布
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME"
+          --repo "$GITHUB_REPOSITORY"
+          --title "BrickKit $GITHUB_REF_NAME"
+          --notes-file notes.md
+          --verify-tag
+          dist/*
