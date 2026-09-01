@@ -198,6 +198,7 @@ CLI 只做六件事（001 §5.1）：
 
 	root.AddCommand(
 		newInitCommand(opts),
+		newSkillsCommand(opts),
 		newAddCommand(opts),
 		newRemoveCommand(opts),
 		newFetchCommand(opts),

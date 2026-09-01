@@ -249,6 +249,8 @@ func TestInitOutputMatchesDesignDocs(t *testing.T) {
 		"   📁 brickkit.yaml        项目配置\n" +
 		"   📁 components/          组件源码（已配为本地安装源 local-dev）\n" +
 		"   📁 .brickkit/           CLI 工作目录\n" +
+		"   📁 .claude/skills/      AI 助手技能（4 个）\n" +
+		"   📁 AGENTS.md            AI 助手项目导读\n" +
 		"\n" +
 		"下一步：\n" +
 		"  brickkit add --local               把 components/ 下的组件全加进来\n" +
@@ -285,4 +287,83 @@ func TestInitRejectsTooManyArgs(t *testing.T) {
 	r := runIn(t, dir, "init", "a", "b")
 	assert.Equal(t, clierr.ExitUsage, r.code)
 	assert.NoFileExists(t, filepath.Join(dir, "brickkit.yaml"))
+}
+
+func TestInitInstallsSkills(t *testing.T) {
+	dir := t.TempDir()
+	r := runIn(t, dir, "init", "my-project")
+	require.Equal(t, 0, r.code, r.stderr)
+
+	for _, rel := range []string{
+		"AGENTS.md",
+		filepath.Join(".claude", "skills", "brickkit-assemble", "SKILL.md"),
+		filepath.Join(".claude", "skills", "brickkit-component", "SKILL.md"),
+		filepath.Join(".claude", "skills", "brickkit-deploy", "SKILL.md"),
+		filepath.Join(".claude", "skills", "brickkit-troubleshoot", "SKILL.md"),
+		filepath.Join(".brickkit", "skills.lock"),
+	} {
+		_, err := os.Stat(filepath.Join(dir, rel))
+		assert.NoError(t, err, "init 没装出 %s", rel)
+	}
+	assert.Contains(t, r.stdout, ".claude/skills/")
+}
+
+func TestInitNoSkillsInstallsNothing(t *testing.T) {
+	dir := t.TempDir()
+	r := runIn(t, dir, "init", "my-project", "--no-skills")
+	require.Equal(t, 0, r.code, r.stderr)
+
+	for _, rel := range []string{"AGENTS.md", ".claude",
+		filepath.Join(".brickkit", "skills.lock")} {
+		_, err := os.Stat(filepath.Join(dir, rel))
+		assert.True(t, os.IsNotExist(err), "--no-skills 却产生了 %s", rel)
+	}
+	assert.NotContains(t, r.stdout, ".claude/skills/")
+}
+
+// 技能文件是要提交进 Git 的（团队共享），所以 .gitignore 里绝不能出现它们。
+// 这条没人守着：下一个人「顺手」把 .claude/ 加进忽略规则，共享就静默失效了。
+func TestInitDoesNotIgnoreSkillFiles(t *testing.T) {
+	dir := t.TempDir()
+	require.Equal(t, 0, runIn(t, dir, "init", "my-project").code)
+
+	b, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	require.NoError(t, err)
+	for _, forbidden := range []string{".claude", "AGENTS.md", "skills.lock"} {
+		assert.NotContains(t, string(b), forbidden,
+			".gitignore 忽略了技能文件，团队共享会静默失效")
+	}
+}
+
+// CLAUDE.md 是使用者自己的流程文件：既不新建，也不往已有的里面加东西。
+func TestInitNeverTouchesClaudeMd(t *testing.T) {
+	dir := t.TempDir()
+	r := runIn(t, dir, "init", "my-project")
+	require.Equal(t, 0, r.code, r.stderr)
+	_, err := os.Stat(filepath.Join(dir, "CLAUDE.md"))
+	assert.True(t, os.IsNotExist(err), "不该建出 CLAUDE.md")
+
+	dir2 := t.TempDir()
+	mine := "# 我自己的规则\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir2, "CLAUDE.md"), []byte(mine), 0o644))
+	require.Equal(t, 0, runIn(t, dir2, "init", "my-project").code)
+
+	after, err := os.ReadFile(filepath.Join(dir2, "CLAUDE.md"))
+	require.NoError(t, err)
+	assert.Equal(t, mine, string(after), "已有的 CLAUDE.md 被改了")
+}
+
+// 目录里预先有一份自己的 AGENTS.md：跳过它，并且说出来。
+func TestInitKeepsExistingAgentsMd(t *testing.T) {
+	dir := t.TempDir()
+	mine := "# 我自己写的导读\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(mine), 0o644))
+
+	r := runIn(t, dir, "init", "my-project")
+	require.Equal(t, 0, r.code, r.stderr)
+
+	after, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	require.NoError(t, err)
+	assert.Equal(t, mine, string(after), "已有的 AGENTS.md 被覆盖了")
+	assert.Contains(t, r.stdout, "AGENTS.md", "跳过了要说出来")
 }

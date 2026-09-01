@@ -497,11 +497,12 @@ installer:
 
 ---
 
-## 8. CLI 命令集（11 个命令 + `version`）
+## 8. CLI 命令集（12 个命令 + `version`）
 
 | 命令 | 核心行为 |
 | --- | --- |
-| `brickkit init <name>` | 生成 `brickkit.yaml` 骨架和 `.brickkit/` 目录 |
+| `brickkit init <name>` | 生成 `brickkit.yaml` 骨架和 `.brickkit/` 目录，并装入 AI 助手技能（`--no-skills` 跳过） |
+| `brickkit skills` | 查看/刷新装进项目的 AI 助手技能（`status` / `update`）。手改过的绝不覆盖；不碰使用者的 `CLAUDE.md` |
 | `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `enabled` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘 |
 | `brickkit remove <id>` | 检查强依赖方后移除，自动删除源码目录（含归档的那份）。多版本共存时必须指定版本 |
 | `brickkit fetch <id>[@版本]` | 只下载组件的产物到 `.brickkit/artifacts/<版本化服务名>/`，**不写入 brickkit.yaml、不部署**。跨项目调用别人的服务时用（003 §4.9） |
