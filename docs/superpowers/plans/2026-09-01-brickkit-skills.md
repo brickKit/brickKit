@@ -1943,5 +1943,5 @@ git commit -m "文档跟上 skills：目录树、附录 E、指南预期输出�
 - [ ] `brickkit skills update` 连跑两次，第二次报「已是最新」
 - [ ] 手改任一技能文件后 `brickkit skills update` 不覆盖它，且提示怎么放弃本地修改
 - [ ] 预先存在的 `CLAUDE.md` 在 `init` 后内容一字不变
-- [ ] 删掉 `skills.lock` 后 `brickkit skills update` 一个文件都不改
+- [ ] 删掉 `skills.lock` 后 `brickkit skills update` 不重写任何文件；没动过的补登记回 lock，改过的仍判「未托管」
 - [ ] `.gitignore` 里没有任何一条忽略技能文件（团队共享靠它们入库）
