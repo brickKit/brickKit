@@ -111,6 +111,19 @@ func TestInstallHookWritesExecutableAndIsIdempotent(t *testing.T) {
 	script, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Len(t, parseHookProjects(string(script)), 2, "第二个项目要追加，不是覆盖")
+
+	_, _, err = installHook(repo, hookProject{".", "brickkit.prod.yaml"}, "/x/brickkit", "v1")
+	require.NoError(t, err)
+
+	script, err = os.ReadFile(path)
+	require.NoError(t, err)
+	updated := parseHookProjects(string(script))
+	assert.Len(t, updated, 2, "同一目录换配置文件名是就地更新，不是新增一条")
+	for _, p := range updated {
+		if p.Dir == "." {
+			assert.Equal(t, "brickkit.prod.yaml", p.Config, "换了名字的那一条要跟着改")
+		}
+	}
 }
 
 func TestInstallHookNeverOverwritesForeignHook(t *testing.T) {
@@ -131,6 +144,44 @@ func TestInstallHookNeverOverwritesForeignHook(t *testing.T) {
 	got, readErr := os.ReadFile(foreign)
 	require.NoError(t, readErr)
 	assert.Contains(t, string(got), "# husky", "别人的 hook 一个字都不能改")
+}
+
+func TestInstallHookRejectsHookThatOnlyMentionsMarkerInAComment(t *testing.T) {
+	dir := newTestRepo(t)
+	repo, err := gitrepo.Open(dir)
+	require.NoError(t, err)
+	hooks, err := repo.HooksDir()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(hooks, 0o755))
+	foreign := filepath.Join(hooks, "pre-commit")
+	// 别人的 hook：第二行不是标记本身，只是在注释里提到了这个词。
+	// 全文子串匹配会把这份文件误判成"我们写的"，从而在 installHook 里被
+	// 整个覆盖掉——这正是要防的事。
+	content := "#!/bin/sh\n# see also: " + hookMarker + " for context, not actually managed\necho hi\n"
+	require.NoError(t, os.WriteFile(foreign, []byte(content), 0o755))
+
+	_, _, err = installHook(repo, hookProject{".", "brickkit.yaml"}, "/x/brickkit", "v1")
+	require.Error(t, err, "第二行不是标记本身，不该被认成自己人")
+	assert.Contains(t, err.Error(), "已存在")
+
+	got, readErr := os.ReadFile(foreign)
+	require.NoError(t, readErr)
+	assert.Equal(t, content, string(got), "别人的 hook 一个字节都不能变")
+}
+
+func TestHookSnippetPassesWhenBinaryMissing(t *testing.T) {
+	dir := t.TempDir()
+	snippet := hookSnippet(hookProject{Dir: ".", Config: "brickkit.yaml"},
+		filepath.Join(dir, "does-not-exist"))
+	script := filepath.Join(dir, "pre-commit")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\n"+snippet+"\n"), 0o755))
+
+	cmd := exec.Command("/bin/sh", script)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "PATH=/nonexistent")
+	out, err := cmd.CombinedOutput()
+	assert.NoError(t, err,
+		"递给别人贴进自己 hook 的那几行，也必须在找不到 brickkit 时放行：%s", out)
 }
 
 // newTestRepo 建一个空的 git 仓库。

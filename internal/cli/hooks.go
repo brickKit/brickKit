@@ -93,6 +93,16 @@ func parseHookProjects(script string) []hookProject {
 	return projects
 }
 
+// ownedByBrickkit 判断这份 pre-commit 是不是 brickkit 写的。
+//
+// 按**行位置**认，不是在全文里搜字符串：一份别人的 hook 只要在注释里提到过
+// 这行标记，子串匹配就会判成"我们的"，然后把它整个覆盖掉——那正是
+// "绝不覆盖别人的 hook"这条底线要防的事，而它无声无息、连错误都不报。
+func ownedByBrickkit(script string) bool {
+	lines := strings.Split(script, "\n")
+	return len(lines) >= 2 && strings.HasPrefix(lines[1], hookMarker)
+}
+
 // installHook 把 pre-commit hook 装进仓库，幂等追加项目。
 //
 // added 报告这次是不是真加了一个新项目，用于输出措辞（"已装上" / "已经装过了"）。
@@ -115,8 +125,8 @@ func installHook(
 	before := len(parseHookProjectsFile(path))
 	projects := []hookProject{p}
 	if existing, err := os.ReadFile(path); err == nil {
-		if !strings.Contains(string(existing), hookMarker) {
-			return "", false, foreignHookError(path, p)
+		if !ownedByBrickkit(string(existing)) {
+			return "", false, foreignHookError(path, p, binPath)
 		}
 		projects = mergeHookProjects(parseHookProjects(string(existing)), p)
 	}
@@ -151,21 +161,43 @@ func mergeHookProjects(existing []hookProject, p hookProject) []hookProject {
 	return append(existing, p)
 }
 
+// hookSnippet 生成可以直接粘进别人 pre-commit 里的那几行。
+//
+// 它必须和自动生成的 hook 一样有韧性：找不到 brickkit 就放行。递给别人一段
+// "PATH 里没有它就每次提交都失败"的代码，比不递更糟。
+//
+// 用 if 而不是 `[ -n "$BK" ] && ... || exit 1`：后者在 BK 为空时会落到
+// `|| exit 1`，把"找不到就放行"拧成"找不到就拦死"。
+func hookSnippet(p hookProject, binPath string) string {
+	run := `"$BK" restore --check --config ` + shellQuote(p.Config)
+	if p.Dir != "." {
+		run = `( cd ` + shellQuote(p.Dir) + ` && ` + run + ` )`
+	}
+	return "BK=" + shellQuote(binPath) + "\n" +
+		`[ -x "$BK" ] || BK=$(command -v brickkit 2>/dev/null)` + "\n" +
+		`if [ -n "$BK" ]; then` + "\n" +
+		"\t" + run + ` || exit 1` + "\n" +
+		"fi"
+}
+
+// shellQuote 把一个值包成 sh 的单引号字面量。内部的单引号转义成：
+//
+//	'\''
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // foreignHookError 是"这儿已经有别人的 hook 了"该说的那句话。
 //
 // 绝不覆盖：那可能是 husky、lefthook，或者他自己写的十几行。平台没有立场
-// 替他决定丢掉它——所以把该插进去的那一行给他，让他自己放。
-func foreignHookError(path string, p hookProject) error {
-	line := "brickkit restore --check --config " + p.Config + " || exit 1"
-	if p.Dir != "." {
-		line = "( cd " + p.Dir + " && brickkit restore --check --config " + p.Config + " ) || exit 1"
-	}
+// 替他决定丢掉它——所以把该插进去的那几行给他，让他自己放。
+func foreignHookError(path string, p hookProject, binPath string) error {
 	return clierr.New(clierr.CodeConfigConflict, "错误：pre-commit hook 已存在，不是 brickkit 写的").
 		WithDetail("文件", path).
-		WithDetail("要插进去的那一行", line).
+		WithDetail("要插进去的这几行", hookSnippet(p, binPath)).
 		WithHint(
 			"平台绝不覆盖你自己的 hook——它可能是 husky / lefthook，也可能是你写的",
-			"把上面那一行加进你的 pre-commit 即可",
+			"把上面那几行加进你的 pre-commit 即可",
 			"确认那个文件没用了，也可以删掉它再跑 brickkit init --hooks",
 		)
 }
