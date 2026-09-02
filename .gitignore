@@ -85,3 +85,6 @@ local-debug.*.env
 
 # 市场 K8s 部署的口令文件（kustomize secretGenerator 读它）
 deploy/market/k8s/**/.env
+
+# SDD 执行台账与临时产物（superpowers subagent-driven-development）
+/.superpowers/
