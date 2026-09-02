@@ -6,10 +6,15 @@ package cli
 // 「判定结果 × index 里源码在哪」这张 3 × 4 的表逐格都有一个测试。
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/gitrepo"
 )
 
@@ -115,4 +120,132 @@ func TestUnderMatchesPrefixItselfAndChildren(t *testing.T) {
 	assert.True(t, under("components/erp/backend/m.go", "components/erp/backend"))
 	assert.False(t, under("components/erp/backend2/m.go", "components/erp/backend"),
 		"前缀匹配不能把 backend2 也算进来")
+}
+
+// ============================================================
+// 以下是 brickkit restore --check 的接线测试：真的 git 仓库、真的 sync。
+// ============================================================
+
+// gitProject 把测试项目本身变成一个 git 仓库，并把 components/ 一起提交进去。
+//
+// 这正是本设计要服务的那种项目：使用者把 components/ 从 .gitignore 去掉了。
+func gitProject(t *testing.T, dir string) {
+	t.Helper()
+	for _, args := range [][]string{
+		{"init", "--quiet"},
+		{"config", "user.email", "t@example.com"},
+		{"config", "user.name", "t"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, "git %v：%s", args, out)
+	}
+	// 让 components/ 进得去：init 生成的 .gitignore 里有它
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("/.brickkit/\n"), 0o644))
+}
+
+func gitDo(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git %v：%s", args, out)
+}
+
+func TestCheckPassesWhenComponentsNotTracked(t *testing.T) {
+	f := newSyncFixture(t, helloDisabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	// 只提交配置，components/ 不进仓库（默认情形）
+	gitDo(t, f.Dir, "add", "brickkit.yaml", ".gitignore")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	assert.Equal(t, clierr.ExitOK, r.code, "components/ 没进仓库时必须零成本放行：%s%s", r.stdout, r.stderr)
+}
+
+func TestCheckBlocksArchivedStructureWithoutTheYAML(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	// 本地关掉 hello 并 sync（caller 跟着级联归档）
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+
+	// 只暂存结构变动，**不**暂存 yaml —— 就是那个反复发生的失误
+	gitDo(t, f.Dir, "add", "-A", "components")
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "提交被拦下")
+	assert.Contains(t, r.stderr, "demo/hello")
+	assert.Contains(t, r.stderr, "brickkit restore")
+	assert.Contains(t, r.stderr, "git add brickkit.yaml")
+}
+
+func TestCheckPassesWhenYAMLGoesInWithTheStructure(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	gitDo(t, f.Dir, "add", "-A") // yaml 一起进提交 = 意图声明
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	assert.Equal(t, clierr.ExitOK, r.code,
+		"enabled: false 一起提交了就是他要这个结构：%s%s", r.stdout, r.stderr)
+}
+
+func TestCheckBlocksSourceInBothPlaces(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	// 窄 pathspec：只暂存新增的归档路径，旧活跃路径的删除没进 index
+	gitDo(t, f.Dir, "add", filepath.Join("components", ".archived"))
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "出现了两处")
+	assert.Contains(t, r.stderr, "git add -A")
+}
+
+func TestCheckSkipsDuringMergeConflict(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	gitDo(t, f.Dir, "checkout", "--quiet", "-b", "other")
+	require.NoError(t, os.WriteFile(filepath.Join(f.Dir, "k.txt"), []byte("v1\n"), 0o644))
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "v1")
+	gitDo(t, f.Dir, "checkout", "--quiet", "-")
+	require.NoError(t, os.WriteFile(filepath.Join(f.Dir, "k.txt"), []byte("v2\n"), 0o644))
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "v2")
+	// 制造冲突（合并会失败，这里刻意忽略返回值）
+	cmd := exec.Command("git", "merge", "other")
+	cmd.Dir = f.Dir
+	_ = cmd.Run()
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	assert.Equal(t, clierr.ExitOK, r.code, "冲突中必须放行：git show :<path> 在那时会 fatal")
+	assert.Contains(t, r.stdout, "跳过")
+}
+
+func TestCheckOutsideGitRepoPasses(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello")
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	assert.Equal(t, clierr.ExitOK, r.code, "不在 git 仓库里就没有「即将提交的东西」可判")
 }

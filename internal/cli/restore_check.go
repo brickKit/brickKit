@@ -9,9 +9,11 @@ package cli
 // Manifest 解析之后，写全那 12 格的代价会高到没人愿意写。
 
 import (
+	"context"
 	"sort"
 	"strings"
 
+	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
 )
@@ -105,4 +107,171 @@ func judgeCommit(ids []string, running map[string]bool, l commitLayout) []violat
 		}
 	}
 	return vs
+}
+
+// runRestoreCheck 执行 brickkit restore --check。
+//
+// # 它读哪两份东西，以及为什么不能读别处
+//
+//	即将提交的 yaml    → index（git show :<rel>）
+//	即将提交的结构      → index（git ls-files --cached --stage）
+//
+// 读 HEAD 的 yaml 会造出一个真死锁：yaml 的改动永远比结构晚一拍，于是
+// "改 yaml + 归档结构一起提交"这件事**永远做不成**。读工作区的结构则会管到
+// 没 git add 的东西——那些不进这次提交，不该拦。
+//
+// # 四种情形放行，绝不拦
+//
+// 冲突中、配置没交给 git、全图算不出来、找不到自己——闸门是抓一个特定失误，
+// 不是质量门。把提交堵死在一次网络错误上，代价远大于漏掉一次。
+func runRestoreCheck(ctx context.Context, opts *Options) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
+
+	repo, err := gitrepo.Open(layout.Root)
+	if err != nil {
+		return nil // 不在 git 仓库里：没有"即将提交的东西"可判
+	}
+	if repo.Unmerged() {
+		opts.Printf("⚠️  正在解决冲突，跳过组件结构检查\n")
+		return nil
+	}
+	cfgRel, ok := repo.Rel(layout.ConfigPath())
+	if !ok || !repo.Tracked(cfgRel) {
+		return nil // 配置在仓库外、或没交给 git：管不着
+	}
+	compRel, ok := repo.Rel(layout.ComponentsDir())
+	if !ok {
+		return nil
+	}
+
+	// 只查这一次：判定、短路、gitlink 提醒三处共用同一份结果。
+	// 分成多次查会让短路把 gitlink 提醒一起短路掉。
+	entries, err := repo.IndexEntries(compRel)
+	if err != nil {
+		return skipCheck(opts, "读不到即将提交的组件目录结构", err)
+	}
+	if !hasArchivedEntry(entries, compRel) {
+		// components/ 还在 .gitignore 里的默认情形走的就是这一条：零成本
+		warnGitlinks(opts, gitlinkPaths(entries))
+		return nil
+	}
+
+	data, err := repo.IndexBlob(cfgRel)
+	if err != nil {
+		return skipCheck(opts, "读不到即将提交的 "+layout.ConfigName(), err)
+	}
+	cfg, err := config.ParseConfig(data, "index:"+cfgRel)
+	if err != nil {
+		return skipCheck(opts, "即将提交的 "+layout.ConfigName()+" 解析不了", err)
+	}
+	f, err := syncFocus(ctx, opts, layout, cfg)
+	if err != nil {
+		// 算不出来 ≠ 判据不通过。Manifest 缺失或要联网时会走到这里。
+		return skipCheck(opts, "算不出这次会启动哪些组件", err)
+	}
+
+	ids := declaredIDs(cfg)
+	l := layoutFromIndex(entries, compRel, ids)
+	warnGitlinks(opts, l.gitlinks)
+
+	vs := judgeCommit(ids, f.keep, l)
+	if len(vs) == 0 {
+		return nil
+	}
+	return violationError(vs, compRel, layout.ConfigName())
+}
+
+// hasArchivedEntry 报告即将提交的东西里有没有归档目录下的路径。
+func hasArchivedEntry(entries []gitrepo.IndexEntry, componentsRel string) bool {
+	root := componentsRel + "/" + config.DirArchived
+	for _, e := range entries {
+		if under(e.Path, root) {
+			return true
+		}
+	}
+	return false
+}
+
+// gitlinkPaths 挑出 index 里的嵌套仓库指针路径。
+func gitlinkPaths(entries []gitrepo.IndexEntry) []string {
+	var paths []string
+	for _, e := range entries {
+		if e.IsGitlink() {
+			paths = append(paths, e.Path)
+		}
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+// skipCheck 说明为什么这次没检查，然后放行。
+//
+// 放行而不是拦：闸门守的是一个特定失误，不是"什么都得对"。堵死一次提交的
+// 代价，远大于漏掉一次——尤其当原因是网络或缓存，与使用者正在做的事毫无关系。
+func skipCheck(opts *Options, reason string, cause error) error {
+	opts.Printf("%s", clierr.Warn(clierr.CodeConfigInvalid, "跳过组件结构检查："+reason).
+		WithDetail("原因", cause.Error()).
+		WithHint("这次提交照常进行；想手工确认就跑 brickkit restore --check").
+		Format())
+	return nil
+}
+
+// warnGitlinks 提醒嵌套的 Git 仓库进了提交。**只提醒，不改退出码。**
+//
+// 它超出"结构还原"的职责，但和"把 components/ 从 .gitignore 去掉"是同一个决定
+// 引出来的坑：没有 .gitmodules 的 gitlink 不是指针，是个死记录。
+// 004 §8.2 早就点过"会出现 Git 嵌套仓库的问题"，这里只是让它在真发生时说话。
+func warnGitlinks(opts *Options, paths []string) {
+	for _, p := range paths {
+		opts.Printf("%s", clierr.Warn(clierr.CodeConfigInvalid,
+			p+" 是一个嵌套的 Git 仓库（提交进去的只是一个指针）").
+			WithHint(
+				"仓库里没有 .gitmodules，队友 clone 下来只会得到一个空目录",
+				"git submodule update 也拉不回来——没有地方记着它的 URL",
+			).Format())
+	}
+}
+
+// violationError 把违规清单变成那句该说的话。
+//
+// "两处都有"优先：它比"提交在归档目录里"更准，而且出路完全不同。两种同时存在时
+// 先报它——修完再跑一次就看到另一种。
+func violationError(vs []violation, componentsRel, configName string) error {
+	archivedRoot := componentsRel + "/" + config.DirArchived
+
+	var both, archived []string
+	for _, v := range vs {
+		if v.kind == violationBoth {
+			both = append(both, v.componentID)
+			continue
+		}
+		archived = append(archived, v.componentID)
+	}
+
+	if len(both) > 0 {
+		e := clierr.New(clierr.CodeConfigConflict,
+			"提交被拦下：同一个组件的源码在提交里出现了两处")
+		for _, id := range both {
+			e = e.WithDetail(id, componentsRel+"/"+id+"  与  "+archivedRoot+"/"+id)
+		}
+		return e.WithHint(
+			"一个组件 ID 只能有一个源码目录（004 §8.1）",
+			"多半是 git add 的路径太窄，漏掉了旧路径的删除：git add -A "+componentsRel+"/",
+			"两处都有源码时，平台不替你决定保留哪一份",
+		)
+	}
+
+	e := clierr.New(clierr.CodeConfigConflict,
+		"提交被拦下：组件源码提交在归档目录里，但 "+configName+" 说它该启动")
+	for _, id := range archived {
+		e = e.WithDetail(id, "即将提交的位置："+archivedRoot+"/"+id)
+	}
+	return e.WithHint(
+		"想保留这个归档结构 → git add "+configName+
+			"（yaml 里的 enabled: false 进了提交，就是你的意图声明）",
+		"不想 → brickkit restore，然后重新 git add",
+	)
 }

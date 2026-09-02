@@ -165,13 +165,11 @@ func focusFrom(cfg *config.Config, states *cascade.Result) *focus {
 	return f
 }
 
-// planSync 决定每个**有源码**的组件该去哪。
+// declaredIDs 返回配置里声明过的组件 ID，排序去重。
 //
-// 只看 brickkit.yaml 里声明过的组件：`components/` 下还可能有使用者正在开发、
-// 尚未 add 进来的组件源码——判定结果里没有它，不代表"它该被归档"，
-// 只代表"这不归我们管"。
-func planSync(layout config.Layout, cfg *config.Config, f *focus) []syncAction {
-	// 一个组件 ID 只有一份源码目录（与版本无关），因此按 ID 去重
+// 一个组件 ID 只有一份源码目录（004 §8.1），与版本无关，所以按 ID 去重。
+// 排序是为了输出与判据结果稳定——错误信息每次顺序不同会让人以为在变。
+func declaredIDs(cfg *config.Config) []string {
 	var ids []string
 	seen := map[string]bool{}
 	for _, c := range cfg.Components {
@@ -181,6 +179,16 @@ func planSync(layout config.Layout, cfg *config.Config, f *focus) []syncAction {
 		}
 	}
 	sort.Strings(ids)
+	return ids
+}
+
+// planSync 决定每个**有源码**的组件该去哪。
+//
+// 只看 brickkit.yaml 里声明过的组件：`components/` 下还可能有使用者正在开发、
+// 尚未 add 进来的组件源码——判定结果里没有它，不代表"它该被归档"，
+// 只代表"这不归我们管"。
+func planSync(layout config.Layout, cfg *config.Config, f *focus) []syncAction {
+	ids := declaredIDs(cfg)
 
 	var actions []syncAction
 	for _, id := range ids {
