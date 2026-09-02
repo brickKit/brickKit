@@ -251,6 +251,7 @@ func TestInitOutputMatchesDesignDocs(t *testing.T) {
 		"   📁 .brickkit/           CLI 工作目录\n" +
 		"   📁 .claude/skills/      AI 助手技能（4 个）\n" +
 		"   📁 AGENTS.md            AI 助手项目导读\n" +
+		"   💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查\n" +
 		"\n" +
 		"下一步：\n" +
 		"  brickkit add --local               把 components/ 下的组件全加进来\n" +
@@ -351,6 +352,77 @@ func TestInitNeverTouchesClaudeMd(t *testing.T) {
 	after, err := os.ReadFile(filepath.Join(dir2, "CLAUDE.md"))
 	require.NoError(t, err)
 	assert.Equal(t, mine, string(after), "已有的 CLAUDE.md 被改了")
+}
+
+func TestInitInstallsHookWhenProjectIsRepoRoot(t *testing.T) {
+	dir := newTestRepo(t)
+
+	r := runIn(t, dir, "init", "my-erp")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	hook := filepath.Join(dir, ".git", "hooks", "pre-commit")
+	assert.FileExists(t, hook)
+	assert.Contains(t, r.stdout, "pre-commit")
+
+	script, err := os.ReadFile(hook)
+	require.NoError(t, err)
+	assert.Contains(t, string(script), hookMarker)
+}
+
+func TestInitSkipsHookOutsideGitRepo(t *testing.T) {
+	dir := t.TempDir()
+
+	r := runIn(t, dir, "init", "my-erp")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "brickkit init --hooks",
+		"装不上要提示怎么补装——init 常常跑在 git init 之前")
+}
+
+// init 完全可能跑在一个跟本项目无关的仓库的子目录里（本仓库的
+// 试用指南/playground/ 就是）。那时自动装等于往别人的 .git/hooks 里写东西。
+func TestInitDoesNotWriteHookIntoAnUnrelatedRepo(t *testing.T) {
+	repo := newTestRepo(t)
+	nested := filepath.Join(repo, "sub", "project")
+	require.NoError(t, os.MkdirAll(nested, 0o755))
+
+	r := runIn(t, nested, "init", "my-erp")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	assert.NoFileExists(t, filepath.Join(repo, ".git", "hooks", "pre-commit"),
+		"嵌套项目要装 hook，得自己显式说一句")
+	assert.Contains(t, r.stdout, "brickkit init --hooks")
+}
+
+func TestInitHooksOnlyInstallsIntoExistingProject(t *testing.T) {
+	repo := newTestRepo(t)
+	nested := filepath.Join(repo, "sub", "project")
+	require.NoError(t, os.MkdirAll(nested, 0o755))
+	require.Equal(t, clierr.ExitOK, runIn(t, nested, "init", "my-erp").code)
+
+	r := runIn(t, nested, "init", "--hooks")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	hook := filepath.Join(repo, ".git", "hooks", "pre-commit")
+	require.FileExists(t, hook)
+	script, err := os.ReadFile(hook)
+	require.NoError(t, err)
+	assert.Contains(t, string(script), "sub/project|brickkit.yaml",
+		"清单里记的是项目根相对仓库根的路径")
+}
+
+func TestInitHooksOnlyRejectsProjectName(t *testing.T) {
+	r := runIn(t, newTestRepo(t), "init", "--hooks", "my-erp")
+	assert.Equal(t, clierr.ExitUsage, r.code)
+	assert.Contains(t, r.stderr, "不需要项目名称")
+}
+
+func TestInitHooksOnlyFailsLoudlyOutsideGitRepo(t *testing.T) {
+	dir := t.TempDir()
+	require.Equal(t, clierr.ExitOK, runIn(t, dir, "init", "my-erp").code)
+
+	r := runIn(t, dir, "init", "--hooks")
+	assert.Equal(t, clierr.ExitError, r.code, "显式要求装就得装上，装不上是错误")
+	assert.Contains(t, r.stderr, "git")
 }
 
 // 目录里预先有一份自己的 AGENTS.md：跳过它，并且说出来。
