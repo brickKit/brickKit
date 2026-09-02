@@ -162,3 +162,35 @@ func TestHooksDirFollowsCoreHooksPath(t *testing.T) {
 	assert.Equal(t, filepath.Join(r.Root(), ".githooks"), got,
 		"husky / lefthook 会设 core.hooksPath，装错地方等于 hook 永不运行")
 }
+
+func TestHooksDirHonorsGloballySetHooksPath(t *testing.T) {
+	dir := newRepo(t)
+	// 把 core.hooksPath 设在**全局**配置里——husky / lefthook 就是这么设的。
+	// 这是 HooksDir 唯一一处不屏蔽全局配置的理由：屏蔽掉就会装到 git 根本不看的
+	// .git/hooks，hook 装了却永不运行，而且没有任何迹象。
+	globalCfg := filepath.Join(t.TempDir(), "gitconfig")
+	require.NoError(t, os.WriteFile(globalCfg,
+		[]byte("[core]\n\thooksPath = .globalhooks\n"), 0o644))
+	t.Setenv("GIT_CONFIG_GLOBAL", globalCfg)
+	t.Setenv("GIT_CONFIG_SYSTEM", "/dev/null")
+
+	r, err := Open(dir)
+	require.NoError(t, err)
+
+	got, err := r.HooksDir()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(r.Root(), ".globalhooks"), got,
+		"全局设的 core.hooksPath 必须认——屏蔽掉它就会装到 git 不看的地方")
+}
+
+func TestStagedUnderBeforeFirstCommit(t *testing.T) {
+	dir := newRepo(t)
+	r, err := Open(dir)
+	require.NoError(t, err)
+	assert.False(t, r.StagedUnder("components"), "空仓库、什么都没 add：没有已暂存的东西")
+
+	write(t, dir, "components/people/basic/main.go", "package main\n")
+	git(t, dir, "add", "components")
+	assert.True(t, r.StagedUnder("components"),
+		"还没有任何提交时，index 里的每一条都算已暂存——diff --cached 在无 HEAD 时用不了")
+}
