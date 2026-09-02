@@ -70,9 +70,40 @@ func (p *plan) annotationsOf(c componentPlan) map[string]any {
 	return map[string]any{annotationComponentID: c.Ref.ID}
 }
 
+// passthroughAnnotationsOf 是平台注解加上使用者的透传 labels（002 §4.7）。
+//
+// # 为什么 K8s 下落在 annotations 而不是 labels
+//
+// 两条理由，各自都足够：
+//
+//	打架  平台的 `app: <版本化服务名>` 是 Deployment 找到自己 Pod 的唯一依据，
+//	      也是 NetworkPolicy 的匹配依据（005 §5.3、§5.13.1）。使用者的键透传进
+//	      labels，一旦撞上就是选择器选空或策略放行错对象——两者都不报错
+//	限制  labels 的**值**只许 [A-Za-z0-9._-]，而要透传的键值里全是斜杠、
+//	      反引号与括号（`PathPrefix(`+"`"+`/erp/sales`+"`"+`)`）。写进 labels 会被
+//	      API Server 整份拒绝；annotations 没有这个约束
+//
+// 而 K8s 生态里真正需要透传的那些（`prometheus.io/*`、各类 CRD 提示）
+// 本来就是 annotation。一个目标，一条规则。
+//
+// # 为什么只落在 Deployment 与 Pod
+//
+// Service / Ingress / PDB / NetworkPolicy 都不加：Ingress 的注解口已经是
+// `deploy.ingressAnnotations`（003 §3），两个口子写同一处会互相覆盖而且没人
+// 说得清谁赢。Pod 必须加，`prometheus.io/scrape` 这一类抓的是 Pod。
+// 迁移 Job 不加，理由与 Docker 侧相同（见 compose.componentService）。
+func (p *plan) passthroughAnnotationsOf(c componentPlan) map[string]any {
+	out := p.annotationsOf(c)
+	for key, value := range c.Env.Labels {
+		out[key] = value
+	}
+	return out
+}
+
 // deploymentDoc 渲染一个组件的 Deployment。
 func (p *plan) deploymentDoc(c componentPlan) map[string]any {
 	labels := p.labelsOf(c)
+	annotations := p.passthroughAnnotationsOf(c)
 
 	return map[string]any{
 		"apiVersion": "apps/v1",
@@ -81,7 +112,7 @@ func (p *plan) deploymentDoc(c componentPlan) map[string]any {
 			"name":        c.Service,
 			"namespace":   p.namespace,
 			"labels":      labels,
-			"annotations": p.annotationsOf(c),
+			"annotations": annotations,
 		},
 		"spec": map[string]any{
 			// 副本数由 brickkit.yaml 的 replicas 决定，不写就是 1（005 §5.8）。
@@ -91,8 +122,13 @@ func (p *plan) deploymentDoc(c componentPlan) map[string]any {
 			// 多写一个会变的标签（比如版本）就会在升级时选空
 			"selector": map[string]any{"matchLabels": map[string]any{labelApp: c.Service}},
 			"template": map[string]any{
-				"metadata": map[string]any{"labels": labels},
-				"spec":     p.podSpec(c, p.containerDoc(c)),
+				"metadata": map[string]any{
+					"labels": labels,
+					// Pod 也要带：抓取类注解（prometheus.io/*）读的是 Pod，
+					// 只写在 Deployment 上等于没写
+					"annotations": annotations,
+				},
+				"spec": p.podSpec(c, p.containerDoc(c)),
 			},
 		},
 	}

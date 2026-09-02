@@ -252,11 +252,16 @@ func checkConfigShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 				p.Addf(indexed("components", i), "必须是映射（至少包含 id 与 version）")
 				continue
 			}
-			for _, key := range []string{"config", "resources"} {
+			for _, key := range []string{"config", "resources", "labels"} {
 				node := lookupNode(item, key)
 				if node != nil && node.Tag != "!!null" && node.Kind != yaml.MappingNode {
 					p.Addf(indexed("components", i)+"."+key, "必须是映射（当前是 %s）", nodeKind(node))
 				}
+			}
+			// labels 的每个值都得是字符串——`traefik.enable: true` 少的
+			// 那对引号在这里报（003 §4.11）。
+			if labels := lookupNode(item, "labels"); labels != nil && labels.Kind == yaml.MappingNode {
+				yamlcheck.CheckStringValues(labels, indexed("components", i)+".labels", p.Add)
 			}
 		}
 	}

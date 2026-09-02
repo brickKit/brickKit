@@ -226,6 +226,57 @@ NanoCpus=0  Memory=67108864  MemoryReservation=67108864
 
 完整规则与三个可直接抄的场景（Go 组件群 / JVM / 突发型）见 005 §2.5。
 
+### 给它挂一段 labels（网关 / 监控要读的那些）
+
+平台不做 API 网关，也不生成路由表。想让 Traefik、Caddy 或 Prometheus 认出这些容器，
+走的是它们本来的路：**读容器标签**。`brickkit.yaml` 里给组件加几行：
+
+```yaml
+  - id: demo/hello
+    version: 1.0.0
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.demo-hello.rule: "PathPrefix(`/hello`)"
+      prometheus.io/scrape: "true"
+```
+
+`brickkit up --dry-run` 之后看生成物：
+
+```bash
+sed -n '/demo-hello-1-0-0:/,/^  [a-z]/p' .brickkit/generated/docker-compose.yaml | grep -A4 'labels:'
+```
+
+```
+    labels:
+      prometheus.io/scrape: "true"
+      traefik.enable: "true"
+      traefik.http.routers.demo-hello.rule: PathPrefix(`/hello`)
+```
+
+**平台一个字都没解释。** 它不知道 `PathPrefix` 是什么，只是把这三行原样搬了过去
+——和 `deployment.resources`「透传不校验」是同一种姿态。带外部署的那个网关自己
+接进 `brickkit-demo-shop-net` 就能看到它们。
+
+⚠️ **值必须加引号。** 写成 `traefik.enable: true` 会被 YAML 读成布尔，当场报错：
+
+```
+   components[0].labels.traefik.enable：值必须是字符串，加上引号写成 "true"（第 12 行）
+```
+
+⚠️ **平台自己的键写了就报错**（`app`、`brickkit.io/*`、`com.docker.compose.*`）。
+不是不让你写标签，是那几个键平台正靠着它们工作——K8s 下 `app` 就是 Deployment
+找到自己 Pod 的唯一依据。撞了当场报错而不是悄悄丢掉：悄悄丢掉的症状是
+「标签写了但网关里查不到这条路由」，那时你只能去翻 Traefik 的日志，而那里什么都没有。
+
+组件作者也能写一份推荐值（`component.yaml` 的 `deployment.labels`，002 §4.7），
+`brickkit.yaml` **逐键**覆盖它——只改一个键不会把其余的一起丢掉。
+
+💡 **为什么"平台不做网关"反而要加这个口子**：不加的话，你只能退回去手写一份
+file-provider 配置，而那份配置里必须写满**版本化服务名**（`demo-hello-1-0-0`），
+组件每升一次版本就静默过期一次，**而平台一个字都不会提醒**。理由见 012 §2.23。
+
+⚠️ **K8s 下它落在 `annotations`，不是 labels。** 理由与两个目标的对照见 005 §3.8 与 §5.3.2。
+
 ---
 
 ## 5.4 第一次 up：它会告诉你还差什么

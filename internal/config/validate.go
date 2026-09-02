@@ -216,6 +216,7 @@ func (c *Config) validateComponents(p *clierr.ProblemSet) {
 
 		c.validateComponentPorts(p, field, i, item, localPorts, exposePorts)
 		validateReplicas(p, field, item)
+		manifest.ValidateLabels(item.Labels, field+".labels", p.Add)
 	}
 }
 

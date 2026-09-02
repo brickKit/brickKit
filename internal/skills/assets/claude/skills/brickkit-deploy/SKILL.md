@@ -81,6 +81,28 @@ password: ${DB_PASSWORD}
 Go 8–20MB、Python/Node 40–90MB、JVM 200–450MB。20 个 Spring Boot 光空转就 4–9G。
 那时该换运行时或用 `enabled: false` 少跑几个，合并组件是解错了题。
 
+**10. 平台不做网关，但 `labels` 是给网关准备的透传口。**
+
+用户想接 Traefik / Caddy / Prometheus 时，**别劝他放弃，也别建议平台加网关**——
+给组件条目写 `labels`，平台原样搬进 Docker 的 service `labels` /
+K8s 的 Deployment 与 Pod `annotations`，网关带外部署、自己接进
+`brickkit-<项目名>-net` 就能发现它们。平台不解释键值（003 §4.11、012 §2.23）。
+
+```yaml
+  - id: erp/sales
+    version: 1.0.0
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.erp-sales.rule: "PathPrefix(`/erp/sales`)"
+```
+
+三个坑：**值必须加引号**（`traefik.enable: true` 当场报错）；**平台自己的键会被拒**
+（`app`、`brickkit.io/*`、`com.docker.compose.*`）；**`local: true` 的组件上写了会警告**
+——它不生成容器，没有挂标签的对象。
+
+别退回去手写 file-provider 配置：那份文件里必须写满**版本化服务名**
+（`erp-sales-1-0-0`），组件每升一次版本就静默过期一次，而平台一个字都不会提醒。
+
 ## 机制是怎么运作的
 
 **地址格式两个环境完全一样**：`http://<版本化服务名>:<端口>`。本地是

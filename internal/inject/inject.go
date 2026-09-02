@@ -84,6 +84,10 @@ type Component struct {
 	Env []Var
 	// Resources 是合并后的资源配额（004 §5.6.2）。
 	Resources manifest.Resources
+	// Labels 是合并后的透传部署元数据（004 §5.6.2）。
+	//
+	// 一个键都没有时是 nil，渲染器据此判断"这一段要不要生成"。
+	Labels map[string]string
 }
 
 // EnvMap 把环境变量表转成 map，便于查询。
@@ -219,6 +223,8 @@ func buildComponent(
 		Service:   manifest.ServiceName(node.Ref.ID, node.Ref.Version),
 		Env:       builder.sorted(),
 		Resources: mergeResources(manifestResources(m), entry.Resources),
+		// brickkit.yaml 逐键覆盖 component.yaml（004 §5.6.2）
+		Labels: manifest.MergeLabels(manifestLabels(m), entry.Labels),
 	}
 	return component, warnings, missing
 }
@@ -652,6 +658,13 @@ func manifestResources(m *manifest.Manifest) *manifest.Resources {
 		return nil
 	}
 	return m.Deployment.Resources
+}
+
+func manifestLabels(m *manifest.Manifest) map[string]string {
+	if m == nil {
+		return nil
+	}
+	return m.Deployment.Labels
 }
 
 // configEntries 按组件引用归集 brickkit.yaml 中的条目。

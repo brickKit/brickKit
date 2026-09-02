@@ -264,6 +264,13 @@ type Component struct {
 	// 而 replicas: 0 绕过这一切，依赖方照常启动、照常拿到地址，然后连一个
 	// 不存在的后端，表现是 503 而状态表里那个组件显示"正常"。
 	Replicas *int `yaml:"replicas,omitempty"`
+	// Labels 是透传给底层引擎的部署元数据（003 §4.11）。
+	//
+	// 平台**不解释键值**：Docker 写进 service 的 labels，K8s 写进
+	// Deployment 与 Pod 的 annotations。逐键覆盖 Manifest 的
+	// deployment.labels（002 §4.7）。这是使用者自己接 Traefik / Prometheus
+	// 这类"读容器标签"的工具的唯一入口——平台不做网关，也就必须让人自己做。
+	Labels map[string]string `yaml:"labels,omitempty"`
 }
 
 // ReplicaCount 返回副本数，未声明时为 1。

@@ -370,6 +370,7 @@ func (m *Manifest) validateDeployment(p *clierr.ProblemSet) {
 	}
 
 	m.validateResources(p)
+	ValidateLabels(d.Labels, "deployment.labels", p.Add)
 }
 
 func (m *Manifest) validateResources(p *clierr.ProblemSet) {

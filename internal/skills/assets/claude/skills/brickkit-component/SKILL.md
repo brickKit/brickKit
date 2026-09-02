@@ -22,6 +22,12 @@ description: 新写一个 BrickKit 组件、修改 component.yaml、加数据库
 两个「预留」字段，已经删掉了：它们从未被任何一处读取，而后者更糟，它长得像一道安全闸，
 但写了 `minCliVersion: 2.0.0` 的组件在旧 CLI 上照装不误。
 
+两个例外，用对了就不必自造字段：**要给底层引擎带一段元数据**（网关路由、监控抓取）
+用 `deployment.labels`（第 8 条）；**要给自己的工具链带一份文件**（额外的元数据、
+契约、SDK）用 `artifacts` —— 它随 Manifest 一起登记、闭源组件由市场存储、
+`add` / `fetch` 都会下载到 `.brickkit/artifacts/<版本化服务名>/<type>/`，
+而 CLI **只下载不解析**，正好是这类东西要的语义（002 §2.2.1、007 §11.4）。
+
 **2. 保留变量不许碰。** 这是最容易踩的一条。
 
 `configSchema` 里的配置项名转成大写下划线后，不得与这些冲突：
@@ -74,6 +80,16 @@ CLI 解析 Manifest 时就报错。
 
 配额优先级是 `brickkit.yaml` > `component.yaml` > CLI 默认值，而且**逐字段合并**——
 组件写了 `limits.cpu`，部署方就删不掉它。限额是业务判断，留给部署方。
+
+**8. `deployment.labels` 是唯一的部署元数据透传口，值必须是字符串。**
+
+平台**不解释键值**，只搬过去：Docker 写进 service 的 `labels`，K8s 写进
+Deployment 与 Pod 的 `annotations`。组件作者该写的是自己知道的事实
+（`prometheus.io/port: "9090"` —— 我在哪个端口暴露指标），网关路由那类留给部署方，
+他会在 `brickkit.yaml` 里**逐键**覆盖（002 §4.7）。
+
+两个坑：**值少了引号会当场报错**（`prometheus.io/scrape: true` 被 YAML 读成布尔）；
+**平台自己的键写了就报错**（`app`、`brickkit.io/*`、`com.docker.compose.*`）。
 
 ## 机制是怎么运作的
 

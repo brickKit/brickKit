@@ -163,6 +163,16 @@ func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 			}
 		}
 	}
+
+	// deployment.labels 必须是映射，而且每个值都得是字符串
+	// ——`traefik.enable: true` 少的那对引号在这里报（002 §4.7）。
+	if labels := lookup(doc, "deployment", "labels"); labels != nil && !isNull(labels) {
+		if labels.Kind != yaml.MappingNode {
+			p.Addf("deployment.labels", "必须是映射（当前是 %s）", nodeKindName(labels))
+		} else {
+			yamlcheck.CheckStringValues(labels, "deployment.labels", p.Add)
+		}
+	}
 }
 
 // lookup 按路径逐层查找映射中的值节点，未找到返回 nil。

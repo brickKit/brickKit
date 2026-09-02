@@ -183,6 +183,12 @@ type Deployment struct {
 	Port       int         `yaml:"port"`
 	ExtraPorts []ExtraPort `yaml:"extraPorts,omitempty"`
 	Resources  *Resources  `yaml:"resources,omitempty"`
+	// Labels 是组件作者推荐的部署元数据（002 §4.7）。
+	//
+	// 平台**不解释键值，只透传**：Docker 写进 service 的 labels，
+	// K8s 写进 Deployment 与 Pod 的 annotations。与 Resources 一样，
+	// 这里是"作者的推荐值"，brickkit.yaml 的 labels 逐键覆盖它（004 §5.6.2）。
+	Labels map[string]string `yaml:"labels,omitempty"`
 }
 
 // ExtraPort 是额外端口声明（附录 B.7）。

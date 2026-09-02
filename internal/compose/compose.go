@@ -253,6 +253,7 @@ func newPlan(
 	p.rewriteEndpointsForLocalDependencies()
 	p.warnings = append(p.warnings, p.localMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.localExposeWarnings()...)
+	p.warnings = append(p.warnings, p.localLabelWarnings()...)
 	p.warnings = append(p.warnings, p.serviceNameResourceWarnings()...)
 	// 只传**会生成容器**的组件：绑定它的全是 local: true 时，
 	// localhost 恰恰是对的（那些进程就在宿主机上）
@@ -424,6 +425,15 @@ func (p *plan) componentService(c componentPlan) map[string]any {
 	}
 	if deploy := deployOf(c.Env); deploy != nil {
 		svc["deploy"] = deploy
+	}
+	// 002 §4.7：平台不解释键值，只透传。
+	//
+	// **只写主容器，不写迁移容器。** 迁移不是服务：Traefik / Prometheus 一类
+	// 工具读到同一份 labels，会把那个跑完就退出的一次性容器当成路由目标或抓取
+	// 目标。这与"环境变量必须与主容器完全一致"（002 §8.5）不冲突——那是因为
+	// 迁移要连同一个库，而 labels 说的是"外面怎么找到这个服务"。
+	if len(c.Env.Labels) > 0 {
+		svc["labels"] = c.Env.Labels
 	}
 	if dependsOn := p.componentDependsOn(c); len(dependsOn) > 0 {
 		svc["depends_on"] = dependsOn

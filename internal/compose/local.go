@@ -179,6 +179,46 @@ func (p *plan) localExposeWarnings() []*clierr.Error {
 	return out
 }
 
+// localLabelWarnings 提醒"local 组件上的 labels 本次没有落脚点"。
+//
+// 与 expose 那条是同一类事故的同一种处理：写了、没生效、而且**没有任何征兆**
+// ——生成物里既不会多一段也不会少一段，`up` 一路绿灯。而 labels 这个字段的
+// 用途恰恰是"让外面的工具找到它"，静默失效的表现是"Traefik 里查不到这条路由"，
+// 那时人会去翻 Traefik 的日志，翻不出任何东西。
+//
+// 也和 expose 一样只警告不报错：合并部署交付现场满是 local: true
+// （《组件合并部署》§4.3），而那份 brickkit.yaml 常常是从一份完整配置改出来的
+// ——labels 留在那里是正常的，只是这一次挂不上。真正要挂 labels 的是使用者
+// 自己写的那个外壳，不是这个不生成容器的条目。
+func (p *plan) localLabelWarnings() []*clierr.Error {
+	var out []*clierr.Error
+	for _, l := range p.locals {
+		if len(l.Entry.Labels) == 0 {
+			continue
+		}
+		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
+			"local: true 的组件上，labels 本次不生效").
+			WithDetail("组件", refText(l.Ref)).
+			WithDetail("原因", "它不生成容器（跑在你的 IDE 里），没有可以挂标签的对象").
+			WithDetailf("写着的键", "%s", strings.Join(sortedLabelKeys(l.Entry.Labels), "、")).
+			WithHint(
+				"要给自己写的外壳挂标签，写在你那份 compose 文件里",
+				"要回到平台挂标签的模式，去掉这个组件的 local: true",
+			))
+	}
+	return out
+}
+
+// sortedLabelKeys 让警告里点名的键顺序稳定（map 的遍历顺序是随机的）。
+func sortedLabelKeys(labels map[string]string) []string {
+	out := make([]string, 0, len(labels))
+	for key := range labels {
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // ============================================================
 // 端口分配
 // ============================================================
