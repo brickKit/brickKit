@@ -89,13 +89,19 @@ func runSync(ctx context.Context, opts *Options) error {
 		return err
 	}
 
-	actions := planSync(layout, cfg, keep)
+	return applyWorkspacePlan(opts, layout, planSync(layout, cfg, keep))
+}
+
+// applyWorkspacePlan 执行工作区整理计划，并如实汇报。
+//
+// sync 与 restore 共用它：同一件事只有一处渲染代码，两个命令的输出也就不可能
+// 各说一套。
+func applyWorkspacePlan(opts *Options, layout config.Layout, actions []syncAction) error {
 	if len(actions) == 0 {
 		opts.Printf("📂 工作区无需整理\n")
 		opts.Printf("   %s 下没有需要归档或激活的组件源码\n", config.DirComponents)
 		return nil
 	}
-
 	return applySync(opts, layout, actions)
 }
 

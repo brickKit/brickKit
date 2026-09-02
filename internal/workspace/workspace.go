@@ -281,6 +281,20 @@ func IsArchived(l config.Layout, componentID string) bool {
 	return Locate(l, componentID) == StateArchived
 }
 
+// InBothPlaces 报告一个组件的源码是不是活跃目录与归档目录**都有**。
+//
+// # 为什么 Locate 答不出这一问
+//
+// Locate 回答"在哪"时活跃优先——两处都有时它答 StateActive，于是 planSync 判它
+// "已经在该在的位置"、什么都不做。而这种状态是**错的**：004 §8.1 立过
+// "一个组件 ID 只有一个源码目录"。
+//
+// 不单独回答这一问，它就会和提交前的闸门形成死循环：闸门拦下提交、
+// restore 说没事可做，两边都没错，人却没有任何出路。
+func InBothPlaces(l config.Layout, componentID string) bool {
+	return isDir(SourceDir(l, componentID)) && isDir(ArchivedDir(l, componentID))
+}
+
 // Archive 把组件源码从 components/ 移到 components/.archived/。
 func Archive(l config.Layout, componentID string) error {
 	return move(activeLoc(l, componentID), archivedLoc(l, componentID), componentID)

@@ -292,3 +292,16 @@ func TestFirstLine(t *testing.T) {
 		firstLine("\n fatal: repository not found\n更多\n", assert.AnError))
 	assert.Equal(t, assert.AnError.Error(), firstLine("  \n\n", assert.AnError))
 }
+
+func TestInBothPlacesAnswersWhatLocateCannot(t *testing.T) {
+	dir := t.TempDir()
+	l := config.NewLayout(dir, "")
+	const id = "demo/hello"
+
+	require.NoError(t, os.MkdirAll(SourceDir(l, id), 0o755))
+	assert.False(t, InBothPlaces(l, id))
+
+	require.NoError(t, os.MkdirAll(ArchivedDir(l, id), 0o755))
+	assert.True(t, InBothPlaces(l, id))
+	assert.Equal(t, StateActive, Locate(l, id), "Locate 活跃优先，答不出这一种")
+}
