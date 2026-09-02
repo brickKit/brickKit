@@ -329,3 +329,79 @@ func TestRestoreBlankLinesNoop(t *testing.T) {
 	encoded := []byte("a: 1\nb: 2\n")
 	assert.Equal(t, encoded, restoreBlankLines([]byte("a: 1\nb: 2\n"), encoded))
 }
+
+// enabled 的读写必须保住注释与排版：restore 会在使用者的配置上动这个字段，
+// 把注释吃掉一次，人就再也不敢用它了。
+const editEnabledFixture = `# 顶部注释必须活着
+project: my-erp
+deploy:
+  target: docker
+
+components:
+  - id: demo/hello
+    version: 1.0.0
+    enabled: false          # 这条行尾注释也必须活着
+  - id: demo/caller
+    version: 1.0.0
+resources: []
+`
+
+func TestSetComponentEnabledFlipsValueAndKeepsComments(t *testing.T) {
+	path := writeTemp(t, editEnabledFixture)
+
+	e, err := OpenEdit(path)
+	require.NoError(t, err)
+	require.True(t, e.SetComponentEnabled("demo/hello", "1.0.0", true))
+	require.NoError(t, e.Save())
+
+	got := read(t, path)
+	assert.Contains(t, got, "enabled: true")
+	assert.NotContains(t, got, "enabled: false")
+	assert.Contains(t, got, "# 顶部注释必须活着")
+	assert.Contains(t, got, "# 这条行尾注释也必须活着")
+
+	cfg, err := ParseConfigFile(path)
+	require.NoError(t, err)
+	require.NotNil(t, cfg.Components[0].Enabled)
+	assert.True(t, *cfg.Components[0].Enabled)
+}
+
+func TestSetComponentEnabledAddsFieldWhenAbsent(t *testing.T) {
+	path := writeTemp(t, editEnabledFixture)
+
+	e, err := OpenEdit(path)
+	require.NoError(t, err)
+	require.True(t, e.SetComponentEnabled("demo/caller", "1.0.0", false))
+	require.NoError(t, e.Save())
+
+	cfg, err := ParseConfigFile(path)
+	require.NoError(t, err)
+	require.NotNil(t, cfg.Components[1].Enabled)
+	assert.False(t, *cfg.Components[1].Enabled)
+}
+
+func TestClearComponentEnabledRemovesField(t *testing.T) {
+	path := writeTemp(t, editEnabledFixture)
+
+	e, err := OpenEdit(path)
+	require.NoError(t, err)
+	require.True(t, e.ClearComponentEnabled("demo/hello", "1.0.0"))
+	require.NoError(t, e.Save())
+
+	got := read(t, path)
+	assert.NotContains(t, got, "enabled:")
+
+	cfg, err := ParseConfigFile(path)
+	require.NoError(t, err)
+	assert.Nil(t, cfg.Components[0].Enabled, "删掉字段 = 回到默认，不是 false")
+}
+
+func TestEnabledEditsReportMissingTargets(t *testing.T) {
+	path := writeTemp(t, editEnabledFixture)
+
+	e, err := OpenEdit(path)
+	require.NoError(t, err)
+	assert.False(t, e.SetComponentEnabled("demo/hello", "9.9.9", true), "版本对不上就不是同一个条目")
+	assert.False(t, e.ClearComponentEnabled("nope/thing", "1.0.0"))
+	assert.False(t, e.ClearComponentEnabled("demo/caller", "1.0.0"), "本来就没写 enabled")
+}

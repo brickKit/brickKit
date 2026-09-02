@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -88,6 +89,63 @@ func (e *Edit) RemoveComponent(id, version string) bool {
 	seq := e.componentsNode(false)
 	seq.Content = append(seq.Content[:i], seq.Content[i+1:]...)
 	return true
+}
+
+// keyEnabled 是组件条目里那个启停字段的键名。
+const keyEnabled = "enabled"
+
+// SetComponentEnabled 把某个组件条目的 enabled 设成给定值。条目不存在时返回 false。
+//
+// 在节点层改而不是重新序列化整个结构体：注释、字段顺序、`${ENV_VAR}` 全部原样
+// （与 AddComponent / RemoveComponent 同一个理由）。
+func (e *Edit) SetComponentEnabled(id, version string, enabled bool) bool {
+	item := e.componentItem(id, version)
+	if item == nil {
+		return false
+	}
+	if node := mappingValue(item, keyEnabled); node != nil {
+		// 就地改标量：这样行尾注释（yaml.Node 挂在键或值上的 LineComment）留得住
+		node.Kind = yaml.ScalarNode
+		node.Tag = "!!bool"
+		node.Value = strconv.FormatBool(enabled)
+		node.Style = 0
+		node.Content = nil
+		node.Alias = nil
+		return true
+	}
+	item.Content = append(item.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: keyEnabled},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: strconv.FormatBool(enabled)})
+	return true
+}
+
+// ClearComponentEnabled 删掉某个组件条目的 enabled 字段。
+//
+// 条目不存在、或本来就没写 enabled 时返回 false。
+//
+// 删字段与写 enabled: false **不是一回事**：不写才是默认（跟着上层走），
+// 写了才是"钉住"的显式意图（004 §3.3）。还原时必须能表达"回到不写"。
+func (e *Edit) ClearComponentEnabled(id, version string) bool {
+	item := e.componentItem(id, version)
+	if item == nil {
+		return false
+	}
+	for i := 0; i+1 < len(item.Content); i += 2 {
+		if item.Content[i].Value == keyEnabled {
+			item.Content = append(item.Content[:i], item.Content[i+2:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// componentItem 找到某个组件条目的映射节点，不存在时返回 nil。
+func (e *Edit) componentItem(id, version string) *yaml.Node {
+	i := e.findComponent(id, version)
+	if i < 0 {
+		return nil
+	}
+	return e.componentsNode(false).Content[i]
 }
 
 // HasComponentID 判断配置中还有没有该组件 ID 的**任何**版本。
