@@ -220,7 +220,11 @@ func TestCheckBlocksSourceInBothPlaces(t *testing.T) {
 }
 
 func TestCheckSkipsDuringMergeConflict(t *testing.T) {
-	f := newSyncFixture(t, allEnabled, "demo/hello")
+	f := newSyncFixture(t, helloDisabled, "demo/hello")
+	// 先把 demo/hello 归档好，再进 git：短路排到了冲突判断前面之后，
+	// 「即将提交的结构里有没有归档路径」必须先为真，测试才走得到冲突那一支——
+	// 否则重排后的短路会在 Unmerged 之前就把它放行掉。
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 	gitProject(t, f.Dir)
 	gitDo(t, f.Dir, "add", "-A")
 	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
@@ -248,4 +252,63 @@ func TestCheckOutsideGitRepoPasses(t *testing.T) {
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	assert.Equal(t, clierr.ExitOK, r.code, "不在 git 仓库里就没有「即将提交的东西」可判")
+}
+
+// 审查发现：「配置未被 git 跟踪」原来静默 return nil，与「四种情形放行+警告」
+// 的约束矛盾——一个 brickkit.yaml 还没 git add 过的人，根本不知道闸门没跑。
+func TestCheckWarnsWhenConfigNotTracked(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+
+	// 归档结构已暂存，但 brickkit.yaml 从来没有 git add 过——闸门从这里开始
+	// 才算真的启动，短路挡不住它，必须走到"配置未跟踪"这一支并出声。
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	gitDo(t, f.Dir, "add", filepath.Join("components", ".archived"))
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	assert.Equal(t, clierr.ExitOK, r.code, "配置没交给 git，管不着，但必须放行：%s%s", r.stdout, r.stderr)
+	assert.Contains(t, r.stdout, "跳过")
+	assert.Contains(t, r.stdout, "brickkit.yaml")
+	assert.Contains(t, r.stdout, "未被 git 跟踪", "必须是走到了配置未跟踪这一支，不是撞在别的放行分支上")
+}
+
+// helloDisabledWithUnresolvable 语法上是合法配置（能过 config.ParseConfig），
+// 但 solo/thing@9.9.9 在本地安装源里根本不存在——用来在不碰网络的前提下，
+// 制造一次"全图解不出来"的失败（对应真实场景里的网络错误 / Manifest 缺失）。
+const helloDisabledWithUnresolvable = `components:
+  - id: demo/hello
+    version: 1.0.0
+    enabled: false
+  - id: demo/caller
+    version: 1.0.0
+  - id: solo/thing
+    version: 9.9.9
+resources: []
+`
+
+// 审查要求补的第二条：四条放行路径里最要命的一条——「全图算不出来」——
+// 之前零测试。一次网络错误或 Manifest 缺失如果能堵死提交，这道闸门就是灾难。
+func TestCheckWarnsWhenGraphResolutionFails(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	// 先用能正常解析的配置真的 sync 一次，产出真实的归档结构，并把 yaml
+	// 一起暂存——不然会先撞在"配置未跟踪"那一支，测不到这里要测的东西。
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	gitDo(t, f.Dir, "add", "-A")
+
+	// 再把暂存的 yaml 换成引用不存在版本的配置：语法仍合法，但 resolver
+	// 解不出图。
+	f.writeConfig(t, helloDisabledWithUnresolvable)
+	gitDo(t, f.Dir, "add", "brickkit.yaml")
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	assert.Equal(t, clierr.ExitOK, r.code, "算不出来 ≠ 判据不通过，必须放行：%s%s", r.stdout, r.stderr)
+	assert.Contains(t, r.stdout, "跳过")
+	assert.Contains(t, r.stdout, "算不出这次会启动哪些组件",
+		"必须是走到了 syncFocus 失败这一支，不是撞在别的放行分支上")
 }

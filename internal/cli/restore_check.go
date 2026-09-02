@@ -10,6 +10,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 
@@ -120,10 +121,18 @@ func judgeCommit(ids []string, running map[string]bool, l commitLayout) []violat
 // "改 yaml + 归档结构一起提交"这件事**永远做不成**。读工作区的结构则会管到
 // 没 git add 的东西——那些不进这次提交，不该拦。
 //
-// # 四种情形放行，绝不拦
+// # 四种情形放行，绝不拦——但只在闸门真的有事可判时才发声
 //
-// 冲突中、配置没交给 git、全图算不出来、找不到自己——闸门是抓一个特定失误，
+// 冲突中、配置没交给 git、全图算不出来、读不到结构——闸门是抓一个特定失误，
 // 不是质量门。把提交堵死在一次网络错误上，代价远大于漏掉一次。
+//
+// 但这四支里除了"读不到结构"，其余三支都排在**便宜的短路之后**：
+// `components/` 还在 `.gitignore` 里是绝大多数项目的默认状态，那时闸门本来
+// 就是空操作。若"冲突中""配置未跟踪"这类警告排在短路前面，默认项目每次
+// 正常提交都会先看一遍"跳过组件结构检查"——告警疲劳最终只会让人把 hook
+// 卸掉，这比漏掉一次判定更糟。所以顺序是：先看即将提交的结构里有没有归档
+// 路径，没有就直接放行、不出声；有，闸门才算真的启动，这时再逐项检查
+// 冲突 / 配置是否可比对 / 图解不解得出来。
 func runRestoreCheck(ctx context.Context, opts *Options) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -132,15 +141,7 @@ func runRestoreCheck(ctx context.Context, opts *Options) error {
 
 	repo, err := gitrepo.Open(layout.Root)
 	if err != nil {
-		return nil // 不在 git 仓库里：没有"即将提交的东西"可判
-	}
-	if repo.Unmerged() {
-		opts.Printf("⚠️  正在解决冲突，跳过组件结构检查\n")
-		return nil
-	}
-	cfgRel, ok := repo.Rel(layout.ConfigPath())
-	if !ok || !repo.Tracked(cfgRel) {
-		return nil // 配置在仓库外、或没交给 git：管不着
+		return nil // 不在 git 仓库里：没有"即将提交的东西"可判，唯一该静默的一支
 	}
 	compRel, ok := repo.Rel(layout.ComponentsDir())
 	if !ok {
@@ -154,9 +155,26 @@ func runRestoreCheck(ctx context.Context, opts *Options) error {
 		return skipCheck(opts, "读不到即将提交的组件目录结构", err)
 	}
 	if !hasArchivedEntry(entries, compRel) {
-		// components/ 还在 .gitignore 里的默认情形走的就是这一条：零成本
+		// components/ 还在 .gitignore 里的默认情形走的就是这一条：零成本、零噪音。
+		// 排在最前面：闸门在这种情形下本来就无事可判，后面几支"跳过"类警告
+		// 不该在这里也响一遍。
 		warnGitlinks(opts, gitlinkPaths(entries))
 		return nil
+	}
+
+	// 走到这里，即将提交的结构里已经有归档路径——闸门从这里开始才真的有意义，
+	// 后面几支"放行"也就都该发声：不发声，配置没被跟踪的人根本不知道
+	// 这道闸门刚才没跑。
+	if repo.Unmerged() {
+		opts.Printf("⚠️  正在解决冲突，跳过组件结构检查\n")
+		return nil
+	}
+	cfgRel, ok := repo.Rel(layout.ConfigPath())
+	if !ok || !repo.Tracked(cfgRel) {
+		// 静默 return nil 会让"yaml 还没 git add"的人以为闸门跑过了、其实
+		// 根本没跑——他手上没有可比对的意图声明。这里必须出声。
+		return skipCheck(opts, layout.ConfigName()+" 未被 git 跟踪，没有可比对的意图声明",
+			errors.New("index 里没有 "+layout.ConfigName()+" 的记录"))
 	}
 
 	data, err := repo.IndexBlob(cfgRel)
