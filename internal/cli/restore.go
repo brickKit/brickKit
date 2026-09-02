@@ -167,11 +167,15 @@ func runRestore(ctx context.Context, opts *Options) error {
 	if err != nil {
 		return err
 	}
+
+	// 被覆盖的旧值必须在落盘之前印出来：restore 不可逆，旧的 enabled 没有
+	// 第二份副本，如实汇报是唯一的缓解措施。这两句之间如果被杀掉进程
+	// （OOM、SIGKILL、断电），旧值不能既从磁盘上没了、又从未被报告过。
+	printEnabledChanges(opts, layout, changes, untouched)
 	if err := writeEnabled(layout, changes); err != nil {
 		return err
 	}
 
-	printEnabledChanges(opts, layout, changes, untouched)
 	return applyWorkspacePlan(opts, layout, planSync(layout, work, f))
 }
 
