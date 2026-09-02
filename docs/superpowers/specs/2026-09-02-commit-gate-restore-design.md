@@ -242,8 +242,11 @@ $ brickkit restore
 📂 工作区整理：
    📂 components/.archived/people/basic → components/people/basic
       原因：恢复启用
-✅ 已还原（yaml 改动 2 处，1 个激活）
+✅ 工作区整理完成（1 个活跃，0 个归档，1 个激活）
 ```
+
+结构那一段连收尾行**原样复用 `applySync`**：同一件事只有一处渲染代码，
+`sync` 与 `restore` 的输出也就不可能各说一套。
 
 ## 6. pre-commit hook
 
