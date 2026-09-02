@@ -22,7 +22,7 @@
 >
 > 那是本项目 1.7MB 中文文档的压缩件（约 38KB，一次抓取即可读完），涵盖 BrickKit 的**全部核心理念与做法**：
 > 定位与边界、术语表、12 条设计原则、明确拒绝做的事、核心机制、两个 yaml 的字段骨架、
-> 12 条命令 + `version`、以及 20 个「为什么这样设计」的完整辩护。
+> 13 条命令 + `version`、以及 20 个「为什么这样设计」的完整辩护。
 >
 > 需要更深的细节时，抓取全站文档索引（每条都带绝对链接与一句话定位）：
 > **https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt**
@@ -169,8 +169,8 @@ deploy:
 组件代码一个字都不用改：两个环境下的地址格式完全一样，都是
 `http://<版本化服务名>:<端口>`（例如 `http://people-basic-1-0-0:8080`）。
 
-**命令共 12 条：** `init` `add` `remove` `fetch` `up` `down` `status` `sync`
-`login` `logout` `publish` `version`
+**命令共 13 条：** `init` `add` `remove` `fetch` `up` `down` `status` `sync`
+`restore` `login` `logout` `publish` `version`
 
 ---
 

@@ -288,6 +288,11 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
 `brickkit sync` 是**独立命令**，刻意不集成进 `brickkit up`（理由见 9.17）。
 CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 
+**把 `components/` 从 `.gitignore` 去掉的项目**（组件源码要跟项目一起进版本库），
+`sync` 的整目录移动会进项目的 diff——`brickkit restore` 与 `brickkit init --hooks`
+装的 pre-commit hook 就是为了拦住「归档结构进了提交、`enabled` 却没跟着提交」
+这个反复出现的失误（004 §3.14）。
+
 ### 5.8 市场、签名与信任模型
 
 市场是独立的公共平台，**不是组件，不需要被安装**。它只回答两个问题：
@@ -503,7 +508,7 @@ installer:
 
 ---
 
-## 8. CLI 命令集（12 个命令 + `version`）
+## 8. CLI 命令集（13 个命令 + `version`）
 
 | 命令 | 核心行为 |
 | --- | --- |
@@ -516,6 +521,7 @@ installer:
 | `brickkit down` | 停止所有组件。**不删除 volume，保留数据** |
 | `brickkit status` | 读底层引擎，展示运行表格（含多版本检测、不启动的组件也列出来） |
 | `brickkit sync` | 按启停判定结果双向归档 / 激活组件源码。无参数 |
+| `brickkit restore` | 把 `enabled` 与组件源码结构还原到最后一次提交。`--check` 供 pre-commit hook 判断这次提交自洽不自洽（004 §3.14） |
 | `brickkit login` | 终端交互登录市场，Token 存 `.brickkit/credentials` |
 | `brickkit publish` | 上传 Manifest + 镜像引用 + 产物到市场（需先 login） |
 
