@@ -186,9 +186,13 @@ index 里同一个组件出现两次（实测确认；`git add components/` 才�
 | 工作区有、HEAD 有同 `(id, version)` | `enabled` 设成 HEAD 的值；HEAD 里没写 `enabled` 就把工作区这个字段**删掉**（004 §3.3：不写才是默认，写了才是「钉住」） |
 | 工作区有、HEAD 没有该条目（本地新 `add` 的，或本地改了版本号） | **一个字不动 + 如实汇报**。这是「不吃掉未提交的 add」的解药 |
 | HEAD 有、工作区没有（本地 `remove` 掉的） | **不动，绝不加回来。** `restore` 不是 `revert` |
-| HEAD 里那个 `enabled` 不是普通标量（anchor / alias / 非布尔） | 跳过这一条 + 如实汇报。只照抄普通标量的值与 style |
 
-改写走 `internal/config/edit.go` 的节点级编辑器——注释、字段顺序、空行、`${ENV}`
+新旧值的比较走**解析后的** `config.Component.Enabled`（`*bool`，`nil` = 没写）：
+YAML 的 anchor / alias 在这一层已经解析成布尔，而 `enabled: "false"` 这类垃圾值
+本来就会让配置解析失败——那属于「工作区 yaml 非法」/「基准坏了」（§5.4），
+不需要单独一条规则。
+
+落盘走 `internal/config/edit.go` 的节点级编辑器——注释、字段顺序、空行、`${ENV}`
 全部原样。需要给它加两个方法：设置与删除单个组件条目的 `enabled` 字段。
 
 ### 5.2 结构部分
@@ -277,8 +281,12 @@ hook 里存一个「项目根相对仓库根」的**路径列表**，逐个 `cd`
 
 ### 6.5 与 `init` 的集成
 
-- `brickkit init`：有 `.git` 就装；没有就在输出末尾提示 `brickkit init --hooks`。
+- `brickkit init`：**只在「项目根 == 仓库根」时自动装。** 其余情况（不在仓库里、
+  或项目嵌在别人的仓库子目录里）都不装，只在输出末尾提示 `brickkit init --hooks`。
   `init` 常常跑在 `git init` **之前**，装不上是常态，不是错误
+- 为什么加「== 仓库根」这一条：`init` 完全可能跑在一个跟本项目无关的仓库的子目录里
+  （本仓库的 `试用指南/playground/` 就是——它在 brickKit 自己的仓库里），
+  那时自动装等于往别人的 `.git/hooks` 里写东西。**嵌套项目要装，就自己显式说一句。**
 - `brickkit init --hooks`：只装 hook，不动别的（在已有项目里补装）。`init` 的
   `Args` 已是 `MaximumNArgs(1)`，不带项目名即可
 
