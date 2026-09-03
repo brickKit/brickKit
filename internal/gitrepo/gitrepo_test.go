@@ -75,6 +75,37 @@ func TestHasHEADAndUnmerged(t *testing.T) {
 	assert.True(t, r.HasHEAD())
 }
 
+// Fix 2（复审）：TestHasHEADAndUnmerged 从前只在干净仓库里断言过
+// assert.False(t, r.Unmerged())——一个永远返回 false 的实现能原样通过它。
+// 而 Unmerged 判错会静默关掉 runRestoreCheck / restoreBaseline 的冲突守卫，
+// git show :<path> 在真冲突里会直接 fatal。这里造一次真的合并冲突，
+// 断言 Unmerged() 在冲突中必须是 true。
+func TestUnmergedDuringRealConflict(t *testing.T) {
+	dir := newRepo(t)
+	write(t, dir, "k.txt", "base\n")
+	git(t, dir, "add", "-A")
+	git(t, dir, "commit", "--quiet", "-m", "base")
+
+	git(t, dir, "checkout", "--quiet", "-b", "other")
+	write(t, dir, "k.txt", "v1\n")
+	git(t, dir, "add", "-A")
+	git(t, dir, "commit", "--quiet", "-m", "v1")
+
+	git(t, dir, "checkout", "--quiet", "-")
+	write(t, dir, "k.txt", "v2\n")
+	git(t, dir, "add", "-A")
+	git(t, dir, "commit", "--quiet", "-m", "v2")
+
+	// 制造冲突（合并会失败，这里刻意忽略返回值）
+	cmd := exec.Command("git", "merge", "other")
+	cmd.Dir = dir
+	_ = cmd.Run()
+
+	r, err := Open(dir)
+	require.NoError(t, err)
+	assert.True(t, r.Unmerged(), "冲突中 index 里必须有未合并条目")
+}
+
 func TestIndexBlobReadsStagedVersionNotHead(t *testing.T) {
 	dir := newRepo(t)
 	write(t, dir, "brickkit.yaml", "project: old\n")

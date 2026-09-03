@@ -219,6 +219,45 @@ func TestCheckBlocksSourceInBothPlaces(t *testing.T) {
 	assert.Contains(t, r.stderr, "git add -A")
 }
 
+// Fix 1（复审第二条）：index 里源码还是归档的，暂存的 yaml 说该启动，
+// 但磁盘上源码已经被 brickkit sync 激活——只是这次目录移动没有暂存。
+//
+// 这是「两处都有」那个死锁的同类：judgeCommit 只看 index，判成 violationArchived，
+// 而 restore 的三道前置检查都通不过（StagedUnder 看不到已暂存的 components/
+// 改动，InBothPlaces 看磁盘也只找到一处），restorePlan 也算不出 enabled 差异，
+// planSync 一看磁盘已经是对的、什么都不做——「brickkit restore」与
+// 「git add brickkit.yaml」两条路都已经走过，唯一没人说出口的是
+// 「git add -A components/」。
+func TestCheckArchivedInIndexActiveOnDiskNamesGitAddDashA(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	// 归档 hello（caller 级联跟着走），把这份归档结构连同 enabled: false
+	// 一起提交下来——这是「归档在 git 里」的合法起点（004 §3.9.3）。
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "archive")
+
+	// 使用者决定重新启用：改 yaml，跑 sync 把磁盘上的源码激活……
+	f.writeConfig(t, allEnabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	f.assertActive(t, "demo/hello")
+	f.assertActive(t, "demo/caller")
+
+	// ……但只暂存了 yaml，没暂存这次目录移动：index 里源码仍是归档的。
+	gitDo(t, f.Dir, "add", "brickkit.yaml")
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "demo/hello")
+	assert.Contains(t, r.stderr, "git add -A components/",
+		"出路是暂存已经发生的那次目录移动，不是 git add brickkit.yaml 或 brickkit restore——"+
+			"这两条路使用者都已经走过、也走不通")
+}
+
 func TestCheckSkipsDuringMergeConflict(t *testing.T) {
 	f := newSyncFixture(t, helloDisabled, "demo/hello")
 	// 先把 demo/hello 归档好，再进 git：短路排到了冲突判断前面之后，

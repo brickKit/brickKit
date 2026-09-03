@@ -17,6 +17,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
+	"github.com/brickkit/brickkit/internal/workspace"
 )
 
 // commitLayout 是"即将提交的那份目录结构"按**组件 ID** 折出来的结果。
@@ -199,7 +200,7 @@ func runRestoreCheck(ctx context.Context, opts *Options) error {
 	if len(vs) == 0 {
 		return nil
 	}
-	return violationError(vs, compRel, layout.ConfigName())
+	return violationError(vs, layout, compRel)
 }
 
 // hasArchivedEntry 报告即将提交的东西里有没有归档目录下的路径。
@@ -257,16 +258,32 @@ func warnGitlinks(opts *Options, paths []string) {
 //
 // "两处都有"优先：它比"提交在归档目录里"更准，而且出路完全不同。两种同时存在时
 // 先报它——修完再跑一次就看到另一种。
-func violationError(vs []violation, componentsRel, configName string) error {
+//
+// # archived 这一种里还要再分一次：磁盘上它到底在哪
+//
+// judgeCommit 只看 index，答不出磁盘上这份源码现在在哪。而"index 里归档、
+// 磁盘上已经活跃"是另一个死锁：使用者已经跑过 brickkit sync 把它移回了活跃
+// 目录，只是没 git add 那次移动——"git add "+configName（yaml 早就暂存过了）
+// 与"brickkit restore"（预检全过、什么都不做）两条路都已经走过、也都走不通，
+// 真正的出路是暂存已经发生的那次目录移动。这里按磁盘状态把两种分组，
+// 让每条建议只挂在它管得着的那些组件上——不分组，两种建议混在一起，
+// 读者猜不出哪条对哪个组件。
+func violationError(vs []violation, layout config.Layout, componentsRel string) error {
+	configName := layout.ConfigName()
 	archivedRoot := componentsRel + "/" + config.DirArchived
 
-	var both, archived []string
+	var both, archivedOnDisk, activeOnDisk []string
 	for _, v := range vs {
-		if v.kind == violationBoth {
+		switch {
+		case v.kind == violationBoth:
 			both = append(both, v.componentID)
-			continue
+		case workspace.Exists(layout, v.componentID):
+			// index 里还是归档路径，但磁盘上已经被 sync 移回了活跃目录——
+			// 这份源码不在 archivedRoot 那儿了，别再指给使用者一个空目录。
+			activeOnDisk = append(activeOnDisk, v.componentID)
+		default:
+			archivedOnDisk = append(archivedOnDisk, v.componentID)
 		}
-		archived = append(archived, v.componentID)
 	}
 
 	if len(both) > 0 {
@@ -284,12 +301,39 @@ func violationError(vs []violation, componentsRel, configName string) error {
 
 	e := clierr.New(clierr.CodeConfigConflict,
 		"提交被拦下：组件源码提交在归档目录里，但 "+configName+" 说它该启动")
-	for _, id := range archived {
+	for _, id := range archivedOnDisk {
 		e = e.WithDetail(id, "即将提交的位置："+archivedRoot+"/"+id)
 	}
-	return e.WithHint(
-		"想保留这个归档结构 → git add "+configName+
-			"（yaml 里的 enabled: false 进了提交，就是你的意图声明）",
-		"不想 → brickkit restore，然后重新 git add",
-	)
+	for _, id := range activeOnDisk {
+		e = e.WithDetail(id,
+			"即将提交的位置："+archivedRoot+"/"+id+"（工作区里它已经不在这儿了：sync 已经把它移回了活跃目录）")
+	}
+
+	// 两组都非空时才在建议前面点名——单独一组时保持原来的措辞，
+	// 那条措辞是设计书 004 §3.14.5 原样抄下来的输出块。
+	mixed := len(archivedOnDisk) > 0 && len(activeOnDisk) > 0
+
+	var hints []string
+	if len(archivedOnDisk) > 0 {
+		prefix := ""
+		if mixed {
+			prefix = strings.Join(archivedOnDisk, "、") + "："
+		}
+		hints = append(hints,
+			prefix+"想保留这个归档结构 → git add "+configName+
+				"（yaml 里的 enabled: false 进了提交，就是你的意图声明）",
+			"不想 → brickkit restore，然后重新 git add",
+		)
+	}
+	if len(activeOnDisk) > 0 {
+		prefix := ""
+		if mixed {
+			prefix = strings.Join(activeOnDisk, "、") + "："
+		}
+		hints = append(hints,
+			prefix+"工作区里源码已经是活跃状态了（大概是跑过 brickkit sync 却没暂存这次移动）"+
+				"→ git add -A "+componentsRel+"/",
+		)
+	}
+	return e.WithHint(hints...)
 }
