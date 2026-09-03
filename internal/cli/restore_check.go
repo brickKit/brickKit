@@ -319,10 +319,18 @@ func violationError(vs []violation, layout config.Layout, componentsRel string) 
 		if mixed {
 			prefix = strings.Join(archivedOnDisk, "、") + "："
 		}
+		// 混合时这一条也必须自己说清管的是哪几个。它光秃秃地夹在两条点了名的
+		// 建议中间，读者会以为它对所有列出的组件都适用——而对 activeOnDisk
+		// 那些，brickkit restore 恰恰不是解法：它会把使用者还没提交的重新启用
+		// 一起回退掉。不重复一遍 ID 列表，因为两条建议紧挨着输出、编号相邻。
+		unwanted := "不想 → brickkit restore，然后重新 git add"
+		if mixed {
+			unwanted = "同上这几个，不想保留 → brickkit restore，然后重新 git add"
+		}
 		hints = append(hints,
 			prefix+"想保留这个归档结构 → git add "+configName+
 				"（yaml 里的 enabled: false 进了提交，就是你的意图声明）",
-			"不想 → brickkit restore，然后重新 git add",
+			unwanted,
 		)
 	}
 	if len(activeOnDisk) > 0 {

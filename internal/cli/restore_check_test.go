@@ -219,15 +219,23 @@ func TestCheckBlocksSourceInBothPlaces(t *testing.T) {
 	assert.Contains(t, r.stderr, "git add -A")
 }
 
-// Fix 1（复审第二条）：index 里源码还是归档的，暂存的 yaml 说该启动，
-// 但磁盘上源码已经被 brickkit sync 激活——只是这次目录移动没有暂存。
+// index 里源码还是归档的，暂存的 yaml 说该启动，但磁盘上源码已经被
+// brickkit sync 激活——只是这次目录移动没有暂存。
 //
 // 这是「两处都有」那个死锁的同类：judgeCommit 只看 index，判成 violationArchived，
-// 而 restore 的三道前置检查都通不过（StagedUnder 看不到已暂存的 components/
-// 改动，InBothPlaces 看磁盘也只找到一处），restorePlan 也算不出 enabled 差异，
-// planSync 一看磁盘已经是对的、什么都不做——「brickkit restore」与
-// 「git add brickkit.yaml」两条路都已经走过，唯一没人说出口的是
-// 「git add -A components/」。
+// 而闸门给出的两条老出路在这里都走不通：
+//
+//	git add brickkit.yaml   yaml 本来就已经暂存了，再 add 一次什么都不变
+//	brickkit restore        它比的是**工作区 yaml 与 HEAD**。这份历史里 HEAD 是
+//	                        那次 archive 提交（enabled: false），所以它会算出差异，
+//	                        把使用者刚做的重新启用**回退掉**、再把源码重新归档——
+//	                        不是空转，是把人往反方向拽（旧值动手前会打印，找得回来）
+//
+// 唯一对的一步是把已经发生的那次目录移动暂存进来，而那句话从前没人说。
+//
+// 还有一个更窄的变体走到同一句建议上：如果 HEAD 的 yaml 本身就说该启动
+// （有人绕过闸门提交过一次归档结构），restore 才是真的完全空转。两种状态
+// 都该被指向 git add -A —— 所以这条出路按**磁盘状态**给，而不是按 HEAD 给。
 func TestCheckArchivedInIndexActiveOnDiskNamesGitAddDashA(t *testing.T) {
 	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
 	gitProject(t, f.Dir)
@@ -256,6 +264,45 @@ func TestCheckArchivedInIndexActiveOnDiskNamesGitAddDashA(t *testing.T) {
 	assert.Contains(t, r.stderr, "git add -A components/",
 		"出路是暂存已经发生的那次目录移动，不是 git add brickkit.yaml 或 brickkit restore——"+
 			"这两条路使用者都已经走过、也走不通")
+}
+
+// 混合分组：一个组件磁盘上还是归档的、另一个已经被激活，两个都违规。
+//
+// 两组的出路互相排斥——对已激活的那个，brickkit restore 恰恰不是解法（它会把
+// 使用者未提交的重新启用回退掉）。所以建议里每一条都必须自己说清管的是哪几个，
+// 不能留下一条没有归属、看起来对所有组件都适用的话。
+func TestCheckMixedGroupsScopeEveryHint(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "archive")
+
+	// 重新启用两个，sync 把两份源码都激活
+	f.writeConfig(t, allEnabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+
+	// 使用者又手工把 caller 挪回归档目录（手工搬目录是真会发生的事）：
+	// 于是 caller 在磁盘上是归档的、hello 是活跃的，而 index 里两个都还是归档的。
+	require.NoError(t, os.MkdirAll(filepath.Dir(f.archived("demo/caller")), 0o755))
+	require.NoError(t, os.Rename(f.active("demo/caller"), f.archived("demo/caller")))
+
+	gitDo(t, f.Dir, "add", "brickkit.yaml")
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+
+	assert.Contains(t, r.stderr, "demo/caller：",
+		"磁盘上还归档着的那组，建议要点名是哪几个")
+	assert.Contains(t, r.stderr, "demo/hello：",
+		"磁盘上已激活的那组，建议要点名是哪几个")
+	assert.Contains(t, r.stderr, "同上这几个",
+		"「不想 → brickkit restore」这条也必须有归属：对已激活的那组，restore 会回退掉他未提交的改动")
+	assert.Contains(t, r.stderr, "git add -A components/")
 }
 
 func TestCheckSkipsDuringMergeConflict(t *testing.T) {
