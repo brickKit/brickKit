@@ -157,6 +157,27 @@ func installSkills(opts *Options, layout config.Layout) error {
 // 所以顺带装只服务最常见的那一种：项目根就是仓库根。嵌套的项目要装，
 // 就自己显式说一句 brickkit init --hooks——那时 explicit 为真，装不上是错误。
 func installCommitHook(opts *Options, layout config.Layout, explicit bool) error {
+	// 显式请求时先确认这儿真有个项目。
+	//
+	// 没有 brickkit.yaml 却把 hook 装上去，是这套设计一直在防的那种**静默误判**：
+	// 使用者敲完命令以为"闸门开了"，而那个 hook 在这儿永远不会响——它要比对的
+	// 意图声明根本不存在。多项目仓库里从仓库根跑这条命令，撞的正是这一条，
+	// 而他要的是进每个项目根各跑一次。
+	//
+	// 只在 explicit 时查：runInit 顺带装的那一次，配置是它自己刚生成的。
+	if explicit {
+		if _, err := os.Stat(layout.ConfigPath()); err != nil {
+			return clierr.New(clierr.CodeProjectMissing,
+				"错误：这里没有 "+layout.ConfigName()+"，不是一个 BrickKit 项目").
+				WithDetail("找过的位置", layout.ConfigPath()).
+				WithHint(
+					"pre-commit hook 要比对的是这个项目的 "+layout.ConfigName()+"，没有它就无从比对",
+					"先执行 brickkit init <项目名称>——它在项目根就是仓库根时会顺带把 hook 装上",
+					"一个仓库里有多个项目时，进每个项目根各跑一次 brickkit init --hooks",
+				).WithCause(err)
+		}
+	}
+
 	repo, err := gitrepo.Open(layout.Root)
 	if err != nil {
 		if explicit {

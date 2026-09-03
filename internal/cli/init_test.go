@@ -429,6 +429,21 @@ func TestInitHooksOnlyRejectsProjectName(t *testing.T) {
 	assert.Contains(t, r.stderr, "不需要项目名称")
 }
 
+// brickkit init --hooks 在没有 brickkit.yaml 的目录里必须报错，不能一声不响装上。
+//
+// 装上去的那个 hook 在那儿永远不会响——它要比对的意图声明根本不存在。使用者
+// 敲完命令却以为「闸门开了」，这正是这套设计一直在防的那种静默误判。
+// 多项目仓库里从仓库根跑这条命令，撞的就是这一条。
+func TestInitHooksOnlyRequiresAProject(t *testing.T) {
+	dir := newTestRepo(t)
+
+	r := runIn(t, dir, "init", "--hooks")
+	assert.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "不是一个 BrickKit 项目")
+	assert.NoFileExists(t, filepath.Join(dir, ".git", "hooks", "pre-commit"),
+		"报错了就不该留下一个永远不会响的 hook")
+}
+
 func TestInitHooksOnlyFailsLoudlyOutsideGitRepo(t *testing.T) {
 	dir := t.TempDir()
 	require.Equal(t, clierr.ExitOK, runIn(t, dir, "init", "my-erp").code)
