@@ -272,17 +272,22 @@ func violationError(vs []violation, layout config.Layout, componentsRel string) 
 	configName := layout.ConfigName()
 	archivedRoot := componentsRel + "/" + config.DirArchived
 
-	var both, archivedOnDisk, activeOnDisk []string
+	// 按「磁盘上那份源码到底还在归档目录里吗」分组，而**不是**按「它是不是活跃」。
+	//
+	// 只有真的还归档着，「想保留 / 不想就 restore」这两条老出路才成立。其余两种
+	// ——被 sync 移回了活跃目录、或者干脆被删了——病根是同一个：**index 陈旧了**，
+	// 而 brickkit restore 治不了它。实测过推荐 restore 有多糟：它会把使用者刚做的
+	// 重新启用回退掉、打印「工作区无需整理」、退出 0，而闸门照样拦——白丢一次
+	// 编辑，问题一点没动。
+	var both, archivedOnDisk, staleIndex []string
 	for _, v := range vs {
 		switch {
 		case v.kind == violationBoth:
 			both = append(both, v.componentID)
-		case workspace.Exists(layout, v.componentID):
-			// index 里还是归档路径，但磁盘上已经被 sync 移回了活跃目录——
-			// 这份源码不在 archivedRoot 那儿了，别再指给使用者一个空目录。
-			activeOnDisk = append(activeOnDisk, v.componentID)
-		default:
+		case workspace.IsArchived(layout, v.componentID):
 			archivedOnDisk = append(archivedOnDisk, v.componentID)
+		default:
+			staleIndex = append(staleIndex, v.componentID)
 		}
 	}
 
@@ -304,14 +309,19 @@ func violationError(vs []violation, layout config.Layout, componentsRel string) 
 	for _, id := range archivedOnDisk {
 		e = e.WithDetail(id, "即将提交的位置："+archivedRoot+"/"+id)
 	}
-	for _, id := range activeOnDisk {
+	for _, id := range staleIndex {
+		// 两种陈旧要分别说清楚：使用者得知道该暂存的是一次移动还是一次删除
+		why := "源码已经从磁盘上删掉了"
+		if workspace.Exists(layout, id) {
+			why = "sync 已经把它移回了活跃目录"
+		}
 		e = e.WithDetail(id,
-			"即将提交的位置："+archivedRoot+"/"+id+"（工作区里它已经不在这儿了：sync 已经把它移回了活跃目录）")
+			"即将提交的位置："+archivedRoot+"/"+id+"（工作区里它已经不在这儿了："+why+"）")
 	}
 
 	// 两组都非空时才在建议前面点名——单独一组时保持原来的措辞，
 	// 那条措辞是设计书 004 §3.14.5 原样抄下来的输出块。
-	mixed := len(archivedOnDisk) > 0 && len(activeOnDisk) > 0
+	mixed := len(archivedOnDisk) > 0 && len(staleIndex) > 0
 
 	var hints []string
 	if len(archivedOnDisk) > 0 {
@@ -333,14 +343,14 @@ func violationError(vs []violation, layout config.Layout, componentsRel string) 
 			unwanted,
 		)
 	}
-	if len(activeOnDisk) > 0 {
+	if len(staleIndex) > 0 {
 		prefix := ""
 		if mixed {
-			prefix = strings.Join(activeOnDisk, "、") + "："
+			prefix = strings.Join(staleIndex, "、") + "："
 		}
 		hints = append(hints,
-			prefix+"工作区里源码已经是活跃状态了（大概是跑过 brickkit sync 却没暂存这次移动）"+
-				"→ git add -A "+componentsRel+"/",
+			prefix+"即将提交的归档路径已经对不上工作区了（源码被 sync 移走或被删掉，"+
+				"而那次改动没有暂存）→ git add -A "+componentsRel+"/",
 		)
 	}
 	return e.WithHint(hints...)

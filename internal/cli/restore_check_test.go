@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
 )
 
@@ -303,6 +304,40 @@ func TestCheckMixedGroupsScopeEveryHint(t *testing.T) {
 	assert.Contains(t, r.stderr, "同上这几个",
 		"「不想 → brickkit restore」这条也必须有归属：对已激活的那组，restore 会回退掉他未提交的改动")
 	assert.Contains(t, r.stderr, "git add -A components/")
+}
+
+// index 里归档路径还在，但磁盘上那份源码已经**不存在**了（删了却没暂存删除）。
+//
+// 与「已被 sync 激活」是同一个病根：index 陈旧了，而 brickkit restore 治不了它。
+// 实测过它有多糟：restore 会把使用者刚做的重新启用回退掉、打印「工作区无需整理」、
+// 退出 0，而闸门照样拦——白丢一次编辑，问题一点没动。
+//
+// 所以出路按「磁盘上那份源码到底还在归档目录里吗」分组，而不是按「它是不是活跃」：
+// 活跃了、还是没了，都是同一句 git add -A（一个暂存移动、一个暂存删除，
+// 两者都会让 index 里的归档路径消失，闸门随即放行）。
+func TestCheckArchivedInIndexMissingOnDiskNamesGitAddDashA(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "archive")
+
+	// 重新启用，但把磁盘上那两份归档源码手工删了、删除没进 index
+	f.writeConfig(t, allEnabled)
+	require.NoError(t, os.RemoveAll(filepath.Join(f.Dir, "components", config.DirArchived)))
+	gitDo(t, f.Dir, "add", "brickkit.yaml")
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+
+	assert.Contains(t, r.stderr, "git add -A components/",
+		"磁盘上源码已经没了，restore 无从下手——出路是把这次删除暂存进来")
+	assert.NotContains(t, r.stderr, "不想 → brickkit restore",
+		"这里绝不能推荐 restore：它会回退掉使用者未提交的重新启用，而闸门照样拦")
 }
 
 func TestCheckSkipsDuringMergeConflict(t *testing.T) {
