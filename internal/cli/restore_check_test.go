@@ -188,6 +188,40 @@ func TestCheckBlocksArchivedStructureWithoutTheYAML(t *testing.T) {
 	assert.Contains(t, r.stderr, "git add brickkit.yaml")
 }
 
+// 主场景里「不想保留 → restore」这条出路必须把 git reset 一起说出来。
+//
+// 真跑一遍才发现的：使用者把归档结构 git add 了（那恰恰是闸门看见它的原因），
+// 而 brickkit restore 遇到 components/ 下的已暂存改动会**直接拒绝跑**。两个守卫
+// 各自都对，但建议不衔接的话，人得连撞两次墙才凑出完整次序。
+func TestCheckNamesResetWhenComponentsAreStaged(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	// 只暂存结构、不暂存 yaml —— 这就是那个反复发生的失误
+	gitDo(t, f.Dir, "add", "-A", "components")
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "git reset components/ && brickkit restore",
+		"结构已暂存时 restore 会拒绝跑，出路必须把 reset 一起说出来")
+
+	// 反面：结构没暂存时不该多这一步（yaml 已暂存、归档结构来自上一次提交）
+	gitDo(t, f.Dir, "reset", "--quiet")
+	gitDo(t, f.Dir, "add", "-A", "components")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "archive")
+	f.writeConfig(t, allEnabled)
+	gitDo(t, f.Dir, "add", "brickkit.yaml")
+
+	r2 := runIn(t, f.Dir, "restore", "--check")
+	require.Equal(t, clierr.ExitError, r2.code, r2.stdout+r2.stderr)
+	assert.NotContains(t, r2.stderr, "git reset",
+		"结构没暂存时 restore 跑得起来，不该让人多做一步")
+}
+
 func TestCheckPassesWhenYAMLGoesInWithTheStructure(t *testing.T) {
 	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
 	gitProject(t, f.Dir)

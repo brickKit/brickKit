@@ -50,6 +50,30 @@ func TestRenderedHookRunsAndBlocks(t *testing.T) {
 	assert.Error(t, err, "brickkit restore --check 非零时 hook 必须非零：%s", out)
 }
 
+// hook 必须把 --log-level off 真的传下去。
+//
+// 默认日志级别会往 stderr 吐 JSON，于是被拦下的人看到的是夹在
+// {"time":...,"level":"INFO"} 中间的那句人话。所有单元测试都把 LogLevel 设成
+// Off，所以这条只有真跑一次 CLI 才会暴露——这里用一个把参数原样打印出来的
+// 假 brickkit 来守它，而不是在脚本文本里搜字符串。
+func TestRenderedHookSilencesLogs(t *testing.T) {
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "fake-brickkit")
+	require.NoError(t, os.WriteFile(fake, []byte("#!/bin/sh\necho \"ARGS: $*\"\nexit 0\n"), 0o755))
+
+	script := filepath.Join(dir, "pre-commit")
+	require.NoError(t, os.WriteFile(script,
+		[]byte(renderHook(fake, "v0", []hookProject{{Dir: ".", Config: "brickkit.yaml"}})), 0o755))
+
+	cmd := exec.Command("/bin/sh", script)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Contains(t, string(out), "--log-level off",
+		"hook 必须关掉日志：被拦下的人要看的是那句人话，不是 JSON")
+	assert.Contains(t, string(out), "restore --check")
+}
+
 func TestRenderedHookPassesWhenBinaryMissing(t *testing.T) {
 	dir := t.TempDir()
 	script := filepath.Join(dir, "pre-commit")

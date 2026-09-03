@@ -410,6 +410,19 @@ func TestInitHooksOnlyInstallsIntoExistingProject(t *testing.T) {
 		"清单里记的是项目根相对仓库根的路径")
 }
 
+// 升级 CLI 之后重跑 brickkit init --hooks：文件确实被重写（版本戳与写死在里面的
+// 可执行文件路径都刷新），所以输出必须说"已刷新"，而不是"已经装过了"——
+// 后者会让人以为什么都没发生，于是继续用着旧 hook。
+func TestInitHooksOnlyReportsRefreshOnReinstall(t *testing.T) {
+	dir := newTestRepo(t)
+	require.Equal(t, clierr.ExitOK, runIn(t, dir, "init", "my-erp").code)
+
+	r := runIn(t, dir, "init", "--hooks")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "已刷新到当前版本")
+	assert.NotContains(t, r.stdout, "已经装过了")
+}
+
 func TestInitHooksOnlyRejectsProjectName(t *testing.T) {
 	r := runIn(t, newTestRepo(t), "init", "--hooks", "my-erp")
 	assert.Equal(t, clierr.ExitUsage, r.code)

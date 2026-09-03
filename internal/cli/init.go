@@ -197,7 +197,10 @@ func installCommitHook(opts *Options, layout config.Layout, explicit bool) error
 		display = p
 	}
 	if !added && explicit {
-		opts.Printf("✅ pre-commit hook 已经装过了：%s\n", display)
+		// 说"已经装过了"会误导：这一次**确实**重写了文件——版本戳与写死在
+		// 里面的可执行文件绝对路径都跟着刷新了。升级 CLI 之后跑这条命令的人
+		// 要的正是这个刷新，看到"已经装过了"却会以为什么都没发生。
+		opts.Printf("✅ pre-commit hook 已刷新到当前版本（%s）：%s\n", version.Version, display)
 		return nil
 	}
 	opts.Printf("   🪝 %-21s%s\n", display, "提交前检查组件结构（004 §3.14）")

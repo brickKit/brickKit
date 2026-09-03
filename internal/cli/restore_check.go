@@ -200,7 +200,10 @@ func runRestoreCheck(ctx context.Context, opts *Options) error {
 	if len(vs) == 0 {
 		return nil
 	}
-	return violationError(vs, layout, compRel)
+	// 顺带问一句 components/ 下有没有已暂存的改动：有的话，下面那条
+	// "不想就 restore" 的出路必须先带上 git reset ——restore 自己会拒绝跑。
+	// 这一问只在真要报错时才发生，不在零成本的短路路径上。
+	return violationError(vs, layout, compRel, repo.StagedUnder(compRel))
 }
 
 // hasArchivedEntry 报告即将提交的东西里有没有归档目录下的路径。
@@ -264,11 +267,22 @@ func warnGitlinks(opts *Options, paths []string) {
 // judgeCommit 只看 index，答不出磁盘上这份源码现在在哪。而"index 里归档、
 // 磁盘上已经活跃"是另一个死锁：使用者已经跑过 brickkit sync 把它移回了活跃
 // 目录，只是没 git add 那次移动——"git add "+configName（yaml 早就暂存过了）
-// 与"brickkit restore"（预检全过、什么都不做）两条路都已经走过、也都走不通，
+// 与"brickkit restore"（要么被已暂存的组件改动拒掉，要么把使用者未提交的
+// 重新启用回退掉却仍解不开）两条路都已经走过、也都走不通，
 // 真正的出路是暂存已经发生的那次目录移动。这里按磁盘状态把两种分组，
 // 让每条建议只挂在它管得着的那些组件上——不分组，两种建议混在一起，
 // 读者猜不出哪条对哪个组件。
-func violationError(vs []violation, layout config.Layout, componentsRel string) error {
+//
+// # stagedComponents：为什么"不想就 restore"这条路要先带 git reset
+//
+// stagedComponents 是"components/ 下有已暂存的改动"。它决定"不想保留就 restore"
+// 那条出路要不要先带上 git reset：**主场景里正是有的**——使用者把归档结构
+// git add 进去了（那恰恰是闸门看见它的原因），而 restore 遇到已暂存的组件改动
+// 会直接拒绝跑（它移动目录会让那些已暂存的路径悬空）。两个守卫各自都对，
+// 但如果这里不把 reset 说出来，使用者就得连撞两次墙才知道完整的次序。
+func violationError(
+	vs []violation, layout config.Layout, componentsRel string, stagedComponents bool,
+) error {
 	configName := layout.ConfigName()
 	archivedRoot := componentsRel + "/" + config.DirArchived
 
@@ -333,9 +347,14 @@ func violationError(vs []violation, layout config.Layout, componentsRel string) 
 		// 建议中间，读者会以为它对所有列出的组件都适用——而对 activeOnDisk
 		// 那些，brickkit restore 恰恰不是解法：它会把使用者还没提交的重新启用
 		// 一起回退掉。不重复一遍 ID 列表，因为两条建议紧挨着输出、编号相邻。
-		unwanted := "不想 → brickkit restore，然后重新 git add"
+		restoreRoute := "brickkit restore，然后重新 git add"
+		if stagedComponents {
+			// restore 会拒绝跑，先退暂存区
+			restoreRoute = "git reset " + componentsRel + "/ && brickkit restore，然后重新 git add"
+		}
+		unwanted := "不想 → " + restoreRoute
 		if mixed {
-			unwanted = "同上这几个，不想保留 → brickkit restore，然后重新 git add"
+			unwanted = "同上这几个，不想保留 → " + restoreRoute
 		}
 		hints = append(hints,
 			prefix+"想保留这个归档结构 → git add "+configName+

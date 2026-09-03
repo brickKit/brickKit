@@ -55,6 +55,11 @@ func renderHook(binPath, ver string, projects []hookProject) string {
 #
 # 它拦一件事：组件源码提交在 components/.archived/ 里，而 brickkit.yaml 说它该启动。
 # 判据与出路见 brickkit restore --check。
+#
+# --log-level off 是必需的，不是洁癖：默认日志级别会往 stderr 吐 JSON，
+# 而这里的读者是一个正在提交、突然被拦下的人——他要看的是那句人话，
+# 不是夹在两行 {"time":...,"level":"INFO"} 中间的它。错误本身不走日志，
+# 关掉日志不会让它消失。
 BRICKKIT_BIN='` + binPath + `'
 [ -x "$BRICKKIT_BIN" ] || BRICKKIT_BIN=$(command -v brickkit 2>/dev/null)
 if [ -z "$BRICKKIT_BIN" ]; then
@@ -65,7 +70,7 @@ rc=0
 while IFS='|' read -r dir cfg; do
 	[ -n "$dir" ] || continue
 	[ -d "$dir" ] || continue
-	( cd "$dir" && "$BRICKKIT_BIN" restore --check --config "$cfg" ) || rc=1
+	( cd "$dir" && "$BRICKKIT_BIN" --log-level off restore --check --config "$cfg" ) || rc=1
 done <<'` + hookListStart + `'
 ` + list.String() + hookListEnd + `
 exit $rc
@@ -169,7 +174,7 @@ func mergeHookProjects(existing []hookProject, p hookProject) []hookProject {
 // 用 if 而不是 `[ -n "$BK" ] && ... || exit 1`：后者在 BK 为空时会落到
 // `|| exit 1`，把"找不到就放行"拧成"找不到就拦死"。
 func hookSnippet(p hookProject, binPath string) string {
-	run := `"$BK" restore --check --config ` + shellQuote(p.Config)
+	run := `"$BK" --log-level off restore --check --config ` + shellQuote(p.Config)
 	if p.Dir != "." {
 		run = `( cd ` + shellQuote(p.Dir) + ` && ` + run + ` )`
 	}
