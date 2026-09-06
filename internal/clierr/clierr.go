@@ -81,6 +81,10 @@ const (
 
 	// 源码工作区。
 	CodeCloneFailed Code = "CLONE_FAILED"
+	// CodeSubmoduleGuard 是"目标已登记为 git submodule，阻断 sync/remove 的
+	// 直接文件系统操作"（2026-09-06 gap report §5.3）。os.Rename/os.RemoveAll
+	// 不懂 .gitmodules，会把子模块的独立版本历史和 superproject 脱钩且不报错。
+	CodeSubmoduleGuard Code = "SUBMODULE_GUARD"
 )
 
 // 退出码。004 未规定具体数值，此处约定：

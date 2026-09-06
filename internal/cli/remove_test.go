@@ -532,6 +532,63 @@ func TestRemoveChecksArchivedSourceToo(t *testing.T) {
 	assert.Contains(t, r.stderr, ".archived", "要点名是归档目录里那一份")
 }
 
+// 已登记为真 submodule 的组件同样要在改配置**之前**拦下——跟
+// TestRemoveRefusesToDeleteUnrecoverableSource 守的是同一条次序：
+// 拦下时 brickkit.yaml 不能被动过一个字节，否则留下"配置说组件没了、
+// 源码却还在（而且还是个没人管的 submodule）"的现场。
+func TestRemoveBlocksRegisteredSubmoduleBeforeTouchingConfig(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	src := filepath.Join(f.Dir, "components", "demo", "hello")
+	require.NoError(t, os.MkdirAll(src, 0o755))
+
+	gitCmd(t, f.Dir, "init", "-q", "-b", "main")
+	gitCmd(t, f.Dir, "config", "-f", ".gitmodules", "submodule.demo/hello.path", "components/demo/hello")
+	gitCmd(t, f.Dir, "config", "-f", ".gitmodules", "submodule.demo/hello.url", "git@example.com:x.git")
+
+	r := runIn(t, f.Dir, "remove", "demo/hello")
+
+	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
+	assert.DirExists(t, src, "阻断之前不该删除任何东西")
+	assert.Contains(t, r.stderr, "submodule")
+	assert.Contains(t, f.config(t), "demo/hello", "拦下了就不该改 brickkit.yaml")
+}
+
+// --force 对"数据会不会丢"这类风险是明确的出路，但对 submodule 阻断不是：
+// 强删只会把 os.RemoveAll 直接扔到 .gitmodules 还登记着的路径上，
+// 该出的账目问题一点没少，所以 --force 不该绕过这一条。
+func TestRemoveForceDoesNotBypassSubmoduleGuard(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	src := filepath.Join(f.Dir, "components", "demo", "hello")
+	require.NoError(t, os.MkdirAll(src, 0o755))
+
+	gitCmd(t, f.Dir, "init", "-q", "-b", "main")
+	gitCmd(t, f.Dir, "config", "-f", ".gitmodules", "submodule.demo/hello.path", "components/demo/hello")
+	gitCmd(t, f.Dir, "config", "-f", ".gitmodules", "submodule.demo/hello.url", "git@example.com:x.git")
+
+	r := runIn(t, f.Dir, "remove", "demo/hello", "--force")
+
+	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
+	assert.DirExists(t, src, "--force 不该绕开 submodule 阻断")
+	assert.Contains(t, f.config(t), "demo/hello")
+}
+
+// 多版本共存时目录根本不会被删，submodule 阻断也就没什么好查的——
+// 不该无中生有地拦下一次原本会成功的移除。
+func TestRemoveSkipsSubmoduleGuardWhenOtherVersionsRemain(t *testing.T) {
+	f := addedProject(t, []comp{
+		{ID: "demo/hello", Version: "1.0.0"},
+		{ID: "demo/hello", Version: "2.0.0"},
+	}, "demo/hello@1.0.0", "demo/hello@2.0.0")
+
+	gitCmd(t, f.Dir, "init", "-q", "-b", "main")
+	gitCmd(t, f.Dir, "config", "-f", ".gitmodules", "submodule.demo/hello.path", "components/demo/hello")
+	gitCmd(t, f.Dir, "config", "-f", ".gitmodules", "submodule.demo/hello.url", "git@example.com:x.git")
+
+	r := runIn(t, f.Dir, "remove", "demo/hello@1.0.0")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+}
+
 // 多版本共存时源码目录根本不会被删，也就不该拦。
 func TestRemoveDoesNotCheckSourceWhenOtherVersionsRemain(t *testing.T) {
 	f := addedProject(t, []comp{

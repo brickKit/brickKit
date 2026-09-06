@@ -10,11 +10,13 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	stdpath "path"
 	"path/filepath"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/gitrepo"
 )
 
 // SourceDir 返回组件源码目录的完整路径。
@@ -217,8 +219,11 @@ func gitOK(dir string, args ...string) bool {
 }
 
 // RemoveSource 删除组件活跃源码目录。目录不存在时返回 false（不是错误）。
-func RemoveSource(l config.Layout, componentID string) (bool, error) {
-	return removeDir(activeLoc(l, componentID))
+//
+// repo 为 nil（不在 git 仓库里、或调用方查不清楚）时完全不受影响；repo 非
+// nil 时，若这份源码已经是登记过的 git submodule，直接阻断（见 removeDir）。
+func RemoveSource(l config.Layout, componentID string, repo *gitrepo.Repo) (bool, error) {
+	return removeDir(repo, activeLoc(l, componentID), componentID)
 }
 
 // RemoveArchived 删除组件归档源码目录。目录不存在时返回 false（不是错误）。
@@ -226,15 +231,52 @@ func RemoveSource(l config.Layout, componentID string) (bool, error) {
 // remove 必须连归档目录一起清：sync 把源码搬进 .archived/ 之后，组件又从
 // brickkit.yaml 里被移除，sync 就再也不认识它了（planSync 只看配置里声明过的
 // 组件）——不在这里删掉，那份源码就是永远没人回收的孤儿。
-func RemoveArchived(l config.Layout, componentID string) (bool, error) {
-	return removeDir(archivedLoc(l, componentID))
+func RemoveArchived(l config.Layout, componentID string, repo *gitrepo.Repo) (bool, error) {
+	return removeDir(repo, archivedLoc(l, componentID), componentID)
+}
+
+// registeredSubmodulePath 检查 path（绝对路径）是不是 repo 里已登记的 submodule，
+// 是的话返回它的仓库相对路径。
+//
+// repo 为 nil、或 path 不在这个仓库里、或没有 .gitmodules 登记时一律返回
+// false——查不清楚时当"没登记"处理，不能让这条判断反过来在没有 git、或
+// git 状态异常的项目里制造新的阻断（2026-09-06 gap report §5.1/§5.3，与
+// gitrepo.Submodules 同一个"漏查代价小于堵死一次"的立场）。
+func registeredSubmodulePath(repo *gitrepo.Repo, path string) (string, bool) {
+	if repo == nil {
+		return "", false
+	}
+	rel, ok := repo.Rel(path)
+	if !ok {
+		return "", false
+	}
+	_, ok = repo.Submodules()[rel]
+	return rel, ok
+}
+
+// SubmoduleRemoveGuard 检查 dir 是不是 repo 里已登记的 submodule；是的话
+// 返回 RemoveSource/RemoveArchived 会给的那个阻断错误，不是就返回 nil。
+//
+// 导出是因为**这一问必须在改 brickkit.yaml 之前先问一遍**：`brickkit remove`
+// 先写配置、再删源码，等 removeDir 自己查到时配置已经存盘——拦下也留下了
+// "配置说组件没了、源码却还在"的现场（2026-09-06 gap report 之后发现的
+// 时序问题，与 workspace.ExistingSourceError 必须在改配置前先查一遍是
+// 同一个道理）。调用方在改配置之前先调这个函数，removeDir 自己再兜一次。
+func SubmoduleRemoveGuard(repo *gitrepo.Repo, dir, componentID, display string) error {
+	if _, ok := registeredSubmodulePath(repo, dir); !ok {
+		return nil
+	}
+	return submoduleRemoveBlockedError(componentID, display)
 }
 
 // removeDir 删掉一份组件源码目录，并收走随之变空的 scope 目录。
-func removeDir(loc srcLoc) (bool, error) {
+func removeDir(repo *gitrepo.Repo, loc srcLoc, componentID string) (bool, error) {
 	info, err := os.Stat(loc.path)
 	if err != nil || !info.IsDir() {
 		return false, nil
+	}
+	if err := SubmoduleRemoveGuard(repo, loc.path, componentID, loc.display); err != nil {
+		return false, err
 	}
 	if err := os.RemoveAll(loc.path); err != nil {
 		return false, clierr.New(clierr.CodeConfigInvalid, "错误：删除源码目录失败").
@@ -245,6 +287,24 @@ func removeDir(loc srcLoc) (bool, error) {
 	}
 	loc.pruneEmptyScope()
 	return true, nil
+}
+
+// submoduleRemoveBlockedError 说清楚"为什么不直接删"以及等价的手工步骤。
+//
+// 直接 os.RemoveAll 只删工作目录：.gitmodules 里的 stanza、superproject 索引
+// 里的 gitlink 记录、.git/modules/ 下的内部仓库数据都还留着——之后 git 状态
+// 会"引用一个不存在的东西"，需要人工清理（gap report §2.3）。
+func submoduleRemoveBlockedError(componentID, display string) error {
+	return clierr.New(clierr.CodeSubmoduleGuard, "错误：无法删除组件源码——它是一个已登记的 git submodule").
+		WithDetail("组件", componentID).
+		WithDetail("路径", display).
+		WithDetail("原因", "直接删除工作目录不会清理 .gitmodules、superproject 索引里的 gitlink 记录、"+
+			"以及 .git/modules/ 下的内部仓库数据，git 状态会从此引用一个不存在的东西").
+		WithHint(
+			"手工执行：git submodule deinit -f -- "+display,
+			"再执行：git rm -f "+display,
+			"需要彻底清理时：rm -rf .git/modules/"+display,
+		)
 }
 
 // firstLine 取命令输出的首行作为原因；没有输出时回落到 error 本身。
@@ -296,13 +356,16 @@ func InBothPlaces(l config.Layout, componentID string) bool {
 }
 
 // Archive 把组件源码从 components/ 移到 components/.archived/。
-func Archive(l config.Layout, componentID string) error {
-	return move(activeLoc(l, componentID), archivedLoc(l, componentID), componentID)
+//
+// repo 为 nil 时完全不受影响；非 nil 时，若源码是登记过的 git submodule，
+// 阻断而不搬（见 move）。
+func Archive(l config.Layout, componentID string, repo *gitrepo.Repo) error {
+	return move(repo, activeLoc(l, componentID), archivedLoc(l, componentID), componentID)
 }
 
 // Activate 把组件源码从归档目录移回 components/。
-func Activate(l config.Layout, componentID string) error {
-	return move(archivedLoc(l, componentID), activeLoc(l, componentID), componentID)
+func Activate(l config.Layout, componentID string, repo *gitrepo.Repo) error {
+	return move(repo, archivedLoc(l, componentID), activeLoc(l, componentID), componentID)
 }
 
 // srcLoc 是一份组件源码目录的位置：活跃的或归档的。
@@ -339,7 +402,15 @@ func (loc srcLoc) pruneEmptyScope() {
 // 用 os.Rename 而不是复制：每个组件是一个独立的 Git 仓库，整目录移动才能
 // 保住 .git（以及里面的 index、hooks、文件权限）。归档目录就在 components/
 // 底下，同一个文件系统，Rename 不会跨设备失败。
-func move(from, to srcLoc, componentID string) error {
+//
+// 搬之前先问一句 from 是不是已登记的 submodule：直接 os.Rename 不会跟着改
+// .gitmodules 的 path 字段，也不会更新 superproject 索引，移动之后 git 会把
+// 旧路径判成删除、新路径判成未跟踪——下一次 git add -A 就会把这个组件的
+// 独立版本历史拍扁成普通文件，且没有任何报错（gap report §2.2 的最小复现）。
+func move(repo *gitrepo.Repo, from, to srcLoc, componentID string) error {
+	if _, ok := registeredSubmodulePath(repo, from.path); ok {
+		return submoduleMoveBlockedError(componentID, from.display, to.display)
+	}
 	if _, err := os.Stat(to.path); err == nil {
 		// 目标已存在：那里可能是使用者手工放的东西，绝不覆盖
 		return clierr.New(clierr.CodeConfigInvalid, "错误：目标目录已存在，无法移动组件源码").
@@ -370,4 +441,26 @@ func moveError(action, componentID, from, to string, cause error) error {
 		WithDetail("原因", cause.Error()).
 		WithHint("检查目录权限与磁盘空间").
 		WithCause(cause)
+}
+
+// submoduleMoveBlockedError 说清楚"为什么不直接搬"以及等价的手工步骤。
+//
+// git mv 对 submodule 是安全的：它会同时更新 .gitmodules 的 path 字段、
+// superproject 索引里的 gitlink 记录、以及 .git/modules/ 里的内部路径——
+// os.Rename 三样都不管，纯属巧合地看起来像是搬成功了。
+func submoduleMoveBlockedError(componentID, from, to string) error {
+	// git mv 不会自动建目标的父目录（这一点对 submodule 和普通文件一样）——
+	// 第一次归档某个 scope 时目标父目录还不存在，裸给一句 git mv 会让照抄的人
+	// 当场撞上 "fatal: renaming ... failed: No such file or directory"。
+	toParent := stdpath.Dir(strings.TrimSuffix(to, "/"))
+	return clierr.New(clierr.CodeSubmoduleGuard, "错误：无法移动组件源码——它是一个已登记的 git submodule").
+		WithDetail("组件", componentID).
+		WithDetail("从", from).
+		WithDetail("到", to).
+		WithDetail("原因", "直接移动目录不会更新 .gitmodules 的 path 字段与 superproject 索引，"+
+			"下一次 git add -A 会把这个组件的独立版本历史拍扁成普通文件，且没有任何报错").
+		WithHint(
+			"手工执行等价操作：mkdir -p "+toParent+" && git mv "+from+" "+to,
+			"确认 .gitmodules 与 git status 都正常之后，再重跑一次 brickkit sync",
+		)
 }

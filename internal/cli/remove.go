@@ -9,6 +9,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/gitrepo"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
@@ -91,9 +92,15 @@ func runRemove(ctx context.Context, opts *Options, arg string, force bool) error
 			WithHint("请先移除依赖方")
 	}
 
-	// 删源码之前先确认它找得回来。放在改配置**之前**：拦下时不该留下
-	// "配置改了一半、源码还在"的现场（与 add 的 planClones 同一个道理）
-	if err := checkSourceDeletable(layout, cfg, target, force); err != nil {
+	// 不在 git 仓库里时 repo 为 nil：submodule 阻断自己会跳过，现有行为不变。
+	repo, _ := gitrepo.Open(layout.Root)
+
+	// 删源码之前先确认它找得回来、也确认它不是已登记的 submodule。
+	// 放在改配置**之前**：拦下时不该留下"配置改了一半、源码还在"的现场
+	// （与 add 的 planClones 同一个道理——2026-09-06 gap report 之后补的
+	// submodule 阻断最早只写在 removeDir 里，复核时发现它晚了一步：
+	// edit.Save() 已经跑完，配置早就先改了）。
+	if err := checkSourceDeletable(layout, cfg, target, repo, force); err != nil {
 		return err
 	}
 
@@ -114,7 +121,7 @@ func runRemove(ctx context.Context, opts *Options, arg string, force bool) error
 		return err
 	}
 
-	cleanup, err := cleanupComponent(layout, client, cfg, target)
+	cleanup, err := cleanupComponent(layout, client, cfg, target, repo)
 	if err != nil {
 		return err
 	}
@@ -282,6 +289,7 @@ func cleanupComponent(
 	client *source.Client,
 	cfg *config.Config,
 	target resolver.Ref,
+	repo *gitrepo.Repo,
 ) (cleanupResult, error) {
 	var res cleanupResult
 
@@ -309,13 +317,13 @@ func cleanupComponent(
 	if remainingVersions(cfg, target) > 0 {
 		return res, nil
 	}
-	sourceRemoved, err := workspace.RemoveSource(layout, target.ID)
+	sourceRemoved, err := workspace.RemoveSource(layout, target.ID, repo)
 	if err != nil {
 		return res, err
 	}
 	res.sourceRemoved = sourceRemoved
 
-	archivedRemoved, err := workspace.RemoveArchived(layout, target.ID)
+	archivedRemoved, err := workspace.RemoveArchived(layout, target.ID, repo)
 	if err != nil {
 		return res, err
 	}
@@ -361,17 +369,38 @@ func cleanupError(action, path string, cause error) error {
 // # 多版本共存时不查
 //
 // 那时源码目录根本不会被删（同 ID 的其他版本还要用它），没有可丢的东西。
+//
+// # submodule 阻断不受 --force 影响
+//
+// --force 是"数据会不会丢"这类风险判断的明确出路；已登记的 git submodule
+// 不是这类风险——直接删只会把 .gitmodules、superproject 索引、
+// .git/modules/ 的账目搞乱，--force 掉这一步不会让账目变干净，只会把同一个
+// 坑推到 workspace.removeDir 里，那时 brickkit.yaml 已经改完存盘了
+// （2026-09-06 gap report 之后发现的时序问题）。所以这一条查在 force 短路
+// 之前，且不受它影响。
 func checkSourceDeletable(
-	layout config.Layout, cfg *config.Config, target resolver.Ref, force bool,
+	layout config.Layout, cfg *config.Config, target resolver.Ref, repo *gitrepo.Repo, force bool,
 ) error {
-	if force || len(cfg.ComponentsByID(target.ID)) > 1 {
+	if len(cfg.ComponentsByID(target.ID)) > 1 {
 		return nil
 	}
 
-	for _, candidate := range []struct{ dir, display string }{
+	candidates := []struct{ dir, display string }{
 		{workspace.SourceDir(layout, target.ID), workspace.DisplayDir(target.ID)},
 		{workspace.ArchivedDir(layout, target.ID), workspace.DisplayArchivedDir(target.ID)},
-	} {
+	}
+
+	for _, candidate := range candidates {
+		if err := workspace.SubmoduleRemoveGuard(repo, candidate.dir, target.ID, candidate.display); err != nil {
+			return err
+		}
+	}
+
+	if force {
+		return nil
+	}
+
+	for _, candidate := range candidates {
 		risk := workspace.DeletionRisk(candidate.dir)
 		if risk == "" {
 			continue

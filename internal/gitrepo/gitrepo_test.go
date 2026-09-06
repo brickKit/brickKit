@@ -225,3 +225,53 @@ func TestStagedUnderBeforeFirstCommit(t *testing.T) {
 	assert.True(t, r.StagedUnder("components"),
 		"还没有任何提交时，index 里的每一条都算已暂存——diff --cached 在无 HEAD 时用不了")
 }
+
+func TestSubmodulesEmptyWithoutGitmodulesFile(t *testing.T) {
+	r, err := Open(newRepo(t))
+	require.NoError(t, err)
+	assert.Empty(t, r.Submodules(), "没有 .gitmodules 时必须是空 map，不是 nil 之外的别的东西")
+}
+
+func TestSubmodulesParsesRegisteredEntry(t *testing.T) {
+	dir := newRepo(t)
+	git(t, dir, "config", "-f", ".gitmodules", "submodule.components/mdm/customer.path", "components/mdm/customer")
+	git(t, dir, "config", "-f", ".gitmodules", "submodule.components/mdm/customer.url", "git@github.com:brickKit/mdm-customer.git")
+
+	r, err := Open(dir)
+	require.NoError(t, err)
+
+	got := r.Submodules()
+	require.Contains(t, got, "components/mdm/customer")
+	assert.Equal(t, "git@github.com:brickKit/mdm-customer.git", got["components/mdm/customer"].URL)
+	assert.Equal(t, "components/mdm/customer", got["components/mdm/customer"].Path)
+}
+
+func TestSubmodulesParsesMultipleEntries(t *testing.T) {
+	dir := newRepo(t)
+	git(t, dir, "config", "-f", ".gitmodules", "submodule.tools/be-ops.path", "tools/be-ops")
+	git(t, dir, "config", "-f", ".gitmodules", "submodule.tools/be-ops.url", "git@github.com:brickKit/be-ops.git")
+	git(t, dir, "config", "-f", ".gitmodules", "submodule.components/mdm/customer.path", "components/mdm/customer")
+	git(t, dir, "config", "-f", ".gitmodules", "submodule.components/mdm/customer.url", "git@github.com:brickKit/mdm-customer.git")
+
+	r, err := Open(dir)
+	require.NoError(t, err)
+
+	got := r.Submodules()
+	assert.Len(t, got, 2)
+	assert.Contains(t, got, "tools/be-ops")
+	assert.Contains(t, got, "components/mdm/customer")
+}
+
+func TestSubmodulesKeyedByRegisteredPathNotSectionName(t *testing.T) {
+	dir := newRepo(t)
+	// 子模块的 section 名可以和 path 不一样（比如改名之后没跟着改 section）；
+	// 判据要靠 path 字段本身，不是 section 名。
+	git(t, dir, "config", "-f", ".gitmodules", "submodule.old-name.path", "components/mdm/customer")
+	git(t, dir, "config", "-f", ".gitmodules", "submodule.old-name.url", "git@github.com:brickKit/mdm-customer.git")
+
+	r, err := Open(dir)
+	require.NoError(t, err)
+
+	got := r.Submodules()
+	assert.Contains(t, got, "components/mdm/customer")
+}

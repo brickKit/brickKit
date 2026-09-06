@@ -467,3 +467,60 @@ func TestCheckWarnsWhenGraphResolutionFails(t *testing.T) {
 	assert.Contains(t, r.stdout, "算不出这次会启动哪些组件",
 		"必须是走到了 syncFocus 失败这一支，不是撞在别的放行分支上")
 }
+
+// ============================================================
+// 已登记 submodule 的三个行为缺口（2026-09-06 gap report）
+// ============================================================
+
+// newBareSubmoduleRemote 造一个裸仓库当"组件仓库"的远端，避免依赖网络。
+func newBareSubmoduleRemote(t *testing.T) string {
+	t.Helper()
+	work := filepath.Join(t.TempDir(), "comp")
+	require.NoError(t, os.MkdirAll(work, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(work, "file.txt"), []byte("hello\n"), 0o644))
+	for _, args := range [][]string{
+		{"init", "--quiet", "-b", "main"},
+		{"config", "user.email", "t@example.com"},
+		{"config", "user.name", "t"},
+		{"add", "-A"},
+		{"commit", "--quiet", "-m", "init"},
+	} {
+		gitDo(t, work, args...)
+	}
+
+	bare := filepath.Join(t.TempDir(), "comp.git")
+	cmd := exec.Command("git", "clone", "--quiet", "--bare", work, bare)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git clone --bare：%s", out)
+	return bare
+}
+
+// 现状必须先保住：没有 .gitmodules 登记的死 gitlink 仍然要提醒——
+// 这条修复只该消除"已登记"这一种情形的假警告，不能连带把真正的坑一起消音。
+func TestCheckWarnsForUnregisteredGitlink(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout+r.stderr, "嵌套的 Git 仓库",
+		"没有 .gitmodules 登记的死 gitlink 仍然要提醒")
+}
+
+// gap report §2.1：be-assembly-standard 的 .gitmodules 里明明登记了
+// components/mdm/customer，但 warnGitlinks 只看 index 的 160000，
+// 每次提交都收到"没有 .gitmodules"这句误报。
+func TestCheckDoesNotWarnForRegisteredSubmodule(t *testing.T) {
+	f := newSyncFixture(t, allEnabled)
+	gitProject(t, f.Dir)
+
+	remote := newBareSubmoduleRemote(t)
+	gitDo(t, f.Dir, "-c", "protocol.file.allow=always",
+		"submodule", "add", "--quiet", remote, "components/demo/hello")
+
+	r := runIn(t, f.Dir, "restore", "--check")
+	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout+r.stderr, "嵌套的 Git 仓库",
+		"已在 .gitmodules 里登记的 submodule 不该被当成意外死 gitlink 报警")
+}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/gitrepo"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
@@ -232,6 +233,10 @@ func skipReason(c config.Component, states *cascade.Result) string {
 func applySync(opts *Options, layout config.Layout, actions []syncAction) error {
 	opts.Printf("📂 工作区整理：\n")
 
+	// 不在 git 仓库里时 repo 为 nil：Archive/Activate 自己会跳过 submodule 阻断，
+	// 现有行为完全不变。只查一次：这一轮里每个组件共用同一份 .gitmodules 判断。
+	repo, _ := gitrepo.Open(layout.Root)
+
 	var active, archived, activated int
 	for _, a := range actions {
 		switch a.kind {
@@ -240,7 +245,7 @@ func applySync(opts *Options, layout config.Layout, actions []syncAction) error 
 			opts.Printf("   ✅ %-36s 活跃\n", workspace.DisplayDir(a.componentID))
 
 		case actionArchive:
-			if err := workspace.Archive(layout, a.componentID); err != nil {
+			if err := workspace.Archive(layout, a.componentID, repo); err != nil {
 				return err
 			}
 			archived++
@@ -249,7 +254,7 @@ func applySync(opts *Options, layout config.Layout, actions []syncAction) error 
 			opts.Printf("      原因：%s\n", a.reason)
 
 		case actionActivate:
-			if err := workspace.Activate(layout, a.componentID); err != nil {
+			if err := workspace.Activate(layout, a.componentID, repo); err != nil {
 				return err
 			}
 			activated++

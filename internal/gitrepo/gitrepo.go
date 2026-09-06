@@ -170,6 +170,68 @@ func (r *Repo) HooksDir() (string, error) {
 	return dir, nil
 }
 
+// Submodule 是 .gitmodules 里登记的一条记录。
+type Submodule struct {
+	// Path 是 .gitmodules 里的 path 字段本身（相对仓库根，以 / 分隔）。
+	Path string
+	// URL 是 .gitmodules 里的 url 字段。
+	URL string
+}
+
+// Submodules 解析仓库根目录下的 .gitmodules，返回 path → 登记信息。
+//
+// 键是 path **字段的值**，不是 section 名——两者可能不一致（比如目录改名后
+// 没跟着改 section），调用方要靠"这个磁盘路径有没有被登记"来判断，答案只能
+// 从 path 字段本身找。
+//
+// 没有 .gitmodules、或解析失败时返回空 map，不返回 error：查不清楚时一律当
+// "没登记"处理——不能让这条新增的判断反过来制造新的假阻断或假警告
+// （与 skipCheck 同一个"漏查代价小于堵死一次"的立场）。
+func (r *Repo) Submodules() map[string]Submodule {
+	if _, err := os.Stat(filepath.Join(r.root, ".gitmodules")); err != nil {
+		return map[string]Submodule{}
+	}
+	out, err := query(r.root, "config", "-f", ".gitmodules", "--get-regexp", `^submodule\.`)
+	if err != nil {
+		return map[string]Submodule{}
+	}
+
+	type record struct{ path, url string }
+	byName := map[string]*record{}
+	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+		key, value, ok := strings.Cut(line, " ")
+		if !ok {
+			continue
+		}
+		rest := strings.TrimPrefix(key, "submodule.")
+		dot := strings.LastIndex(rest, ".")
+		if dot < 0 {
+			continue
+		}
+		name, field := rest[:dot], rest[dot+1:]
+		rec := byName[name]
+		if rec == nil {
+			rec = &record{}
+			byName[name] = rec
+		}
+		switch field {
+		case "path":
+			rec.path = value
+		case "url":
+			rec.url = value
+		}
+	}
+
+	byPath := make(map[string]Submodule, len(byName))
+	for _, rec := range byName {
+		if rec.path == "" {
+			continue
+		}
+		byPath[rec.path] = Submodule{Path: rec.path, URL: rec.url}
+	}
+	return byPath
+}
+
 // query 在仓库里跑一条只读的 git 命令。
 //
 // 不读使用者的全局 / 系统配置：别人的 core.* 设置不该影响这些查询

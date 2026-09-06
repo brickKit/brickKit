@@ -159,7 +159,7 @@ func runRestoreCheck(ctx context.Context, opts *Options) error {
 		// components/ 还在 .gitignore 里的默认情形走的就是这一条：零成本、零噪音。
 		// 排在最前面：闸门在这种情形下本来就无事可判，后面几支"跳过"类警告
 		// 不该在这里也响一遍。
-		warnGitlinks(opts, gitlinkPaths(entries))
+		warnGitlinks(opts, gitlinkPaths(entries), repo.Submodules())
 		return nil
 	}
 
@@ -194,7 +194,7 @@ func runRestoreCheck(ctx context.Context, opts *Options) error {
 
 	ids := declaredIDs(cfg)
 	l := layoutFromIndex(entries, compRel, ids)
-	warnGitlinks(opts, l.gitlinks)
+	warnGitlinks(opts, l.gitlinks, repo.Submodules())
 
 	vs := judgeCommit(ids, f.keep, l)
 	if len(vs) == 0 {
@@ -246,8 +246,16 @@ func skipCheck(opts *Options, reason string, cause error) error {
 // 它超出"结构还原"的职责，但和"把 components/ 从 .gitignore 去掉"是同一个决定
 // 引出来的坑：没有 .gitmodules 的 gitlink 不是指针，是个死记录。
 // 004 §8.2 早就点过"会出现 Git 嵌套仓库的问题"，这里只是让它在真发生时说话。
-func warnGitlinks(opts *Options, paths []string) {
+//
+// registered 是 repo.Submodules() 的结果：路径在里面说明这不是"意外死
+// gitlink"，是 `git submodule add` 正确登记过的真 submodule——别再报警
+// （2026-09-06 gap report §2.1：之前不分青红皂白，已登记的项目每次提交都收到
+// 一句"仓库里没有 .gitmodules"的假警告，其实明明有）。
+func warnGitlinks(opts *Options, paths []string, registered map[string]gitrepo.Submodule) {
 	for _, p := range paths {
+		if _, ok := registered[p]; ok {
+			continue
+		}
 		opts.Printf("%s", clierr.Warn(clierr.CodeConfigInvalid,
 			p+" 是一个嵌套的 Git 仓库（提交进去的只是一个指针）").
 			WithHint(

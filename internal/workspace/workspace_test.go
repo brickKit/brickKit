@@ -14,6 +14,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/gitrepo"
 )
 
 func newLayout(t *testing.T) config.Layout {
@@ -192,7 +193,7 @@ func TestRemoveSource(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(target, "sub"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(target, "sub", "a.go"), []byte("x"), 0o644))
 
-	removed, err := RemoveSource(layout, "people/basic")
+	removed, err := RemoveSource(layout, "people/basic", nil)
 	require.NoError(t, err)
 	assert.True(t, removed)
 	assert.NoDirExists(t, target)
@@ -202,7 +203,7 @@ func TestRemoveSource(t *testing.T) {
 func TestRemoveSourceMissingIsNotAnError(t *testing.T) {
 	layout := newLayout(t)
 
-	removed, err := RemoveSource(layout, "people/basic")
+	removed, err := RemoveSource(layout, "people/basic", nil)
 	require.NoError(t, err)
 	assert.False(t, removed)
 }
@@ -213,7 +214,7 @@ func TestRemoveSourceKeepsNonEmptyScope(t *testing.T) {
 	require.NoError(t, os.MkdirAll(SourceDir(layout, "people/basic"), 0o755))
 	require.NoError(t, os.MkdirAll(SourceDir(layout, "people/advanced"), 0o755))
 
-	removed, err := RemoveSource(layout, "people/basic")
+	removed, err := RemoveSource(layout, "people/basic", nil)
 	require.NoError(t, err)
 	assert.True(t, removed)
 	assert.DirExists(t, filepath.Join(layout.ComponentsDir(), "people"))
@@ -245,7 +246,7 @@ func TestRemoveArchived(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(target, "sub"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(target, "sub", "a.go"), []byte("x"), 0o644))
 
-	removed, err := RemoveArchived(layout, "people/basic")
+	removed, err := RemoveArchived(layout, "people/basic", nil)
 	require.NoError(t, err)
 	assert.True(t, removed)
 	assert.NoDirExists(t, target)
@@ -255,7 +256,7 @@ func TestRemoveArchived(t *testing.T) {
 func TestRemoveArchivedMissingIsNotAnError(t *testing.T) {
 	layout := newLayout(t)
 
-	removed, err := RemoveArchived(layout, "people/basic")
+	removed, err := RemoveArchived(layout, "people/basic", nil)
 	require.NoError(t, err)
 	assert.False(t, removed)
 }
@@ -266,7 +267,7 @@ func TestRemoveArchivedLeavesActiveSourceAlone(t *testing.T) {
 	require.NoError(t, os.MkdirAll(SourceDir(layout, "people/basic"), 0o755))
 	require.NoError(t, os.MkdirAll(ArchivedDir(layout, "people/basic"), 0o755))
 
-	removed, err := RemoveArchived(layout, "people/basic")
+	removed, err := RemoveArchived(layout, "people/basic", nil)
 	require.NoError(t, err)
 	assert.True(t, removed)
 	assert.DirExists(t, SourceDir(layout, "people/basic"))
@@ -282,7 +283,7 @@ func TestRemoveSourceUnreadableDir(t *testing.T) {
 	require.NoError(t, os.Chmod(target, 0o500)) // 只读：无法删除子目录
 	t.Cleanup(func() { _ = os.Chmod(target, 0o755) })
 
-	_, err := RemoveSource(layout, "people/basic")
+	_, err := RemoveSource(layout, "people/basic", nil)
 	require.Error(t, err)
 	assert.Contains(t, clierr.As(err).Format(), "删除源码目录失败")
 }
@@ -304,4 +305,116 @@ func TestInBothPlacesAnswersWhatLocateCannot(t *testing.T) {
 	require.NoError(t, os.MkdirAll(ArchivedDir(l, id), 0o755))
 	assert.True(t, InBothPlaces(l, id))
 	assert.Equal(t, StateActive, Locate(l, id), "Locate 活跃优先，答不出这一种")
+}
+
+// ============================================================
+// submodule 阻断（2026-09-06 gap report §2.2 / §2.3 的安全版修复）
+//
+// Archive/Activate（move）与 RemoveSource/RemoveArchived（removeDir）在真正
+// 动文件系统之前，先问一句"目标是不是已登记的 submodule"——是就阻断并报错，
+// 不静默地把 .gitmodules 记的 path 和实际位置弄得对不上，也不留下需要人工
+// 善后的 git 状态。
+// ============================================================
+
+// newGitLayout 造一个本身是 git 仓库的项目布局：submodule 阻断要靠
+// gitrepo.Open 才能生效，plain newLayout(t) 不是 git 仓库。
+func newGitLayout(t *testing.T) config.Layout {
+	t.Helper()
+	dir := t.TempDir()
+	git(t, dir, "init", "-q", "-b", "main")
+	layout := config.NewLayout(dir, "")
+	require.NoError(t, os.MkdirAll(layout.ComponentsDir(), 0o755))
+	return layout
+}
+
+// registerSubmodule 手写一条 .gitmodules 登记记录。不需要真的跑
+// git submodule add——阻断逻辑只看"这个路径有没有登记"，不看子模块内部
+// 结构是否完整（那部分已经由 internal/gitrepo 自己的测试覆盖）。
+func registerSubmodule(t *testing.T, layout config.Layout, name, rel string) *gitrepo.Repo {
+	t.Helper()
+	git(t, layout.Root, "config", "-f", ".gitmodules", "submodule."+name+".path", rel)
+	git(t, layout.Root, "config", "-f", ".gitmodules", "submodule."+name+".url", "git@example.com:x.git")
+	repo, err := gitrepo.Open(layout.Root)
+	require.NoError(t, err)
+	return repo
+}
+
+func TestArchiveBlocksRegisteredSubmodule(t *testing.T) {
+	layout := newGitLayout(t)
+	dir := SourceDir(layout, "mdm/customer")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	repo := registerSubmodule(t, layout, "mdm/customer", "components/mdm/customer")
+
+	err := Archive(layout, "mdm/customer", repo)
+	require.Error(t, err)
+	assert.DirExists(t, dir, "阻断之前不该移动任何东西")
+	assert.NoDirExists(t, ArchivedDir(layout, "mdm/customer"))
+
+	// 真跑一遍才发现的：git mv 不会自动建目标的父目录——第一次归档某个
+	// scope 时 components/.archived/mdm/ 还不存在，裸给 "git mv 源 目标"
+	// 会当场 fatal: renaming ... failed: No such file or directory。
+	// 建议里必须先有 mkdir -p，不然照抄的人会撞墙。
+	assert.Contains(t, clierr.As(err).Format(), "mkdir -p components/.archived/mdm")
+}
+
+func TestActivateBlocksRegisteredSubmodule(t *testing.T) {
+	layout := newGitLayout(t)
+	dir := ArchivedDir(layout, "mdm/customer")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	repo := registerSubmodule(t, layout, "mdm/customer", "components/.archived/mdm/customer")
+
+	err := Activate(layout, "mdm/customer", repo)
+	require.Error(t, err)
+	assert.DirExists(t, dir, "阻断之前不该移动任何东西")
+	assert.NoDirExists(t, SourceDir(layout, "mdm/customer"))
+}
+
+func TestRemoveSourceBlocksRegisteredSubmodule(t *testing.T) {
+	layout := newGitLayout(t)
+	dir := SourceDir(layout, "mdm/customer")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	repo := registerSubmodule(t, layout, "mdm/customer", "components/mdm/customer")
+
+	removed, err := RemoveSource(layout, "mdm/customer", repo)
+	require.Error(t, err)
+	assert.False(t, removed)
+	assert.DirExists(t, dir, "阻断之前不该删除任何东西")
+}
+
+func TestRemoveArchivedBlocksRegisteredSubmodule(t *testing.T) {
+	layout := newGitLayout(t)
+	dir := ArchivedDir(layout, "mdm/customer")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	repo := registerSubmodule(t, layout, "mdm/customer", "components/.archived/mdm/customer")
+
+	removed, err := RemoveArchived(layout, "mdm/customer", repo)
+	require.Error(t, err)
+	assert.False(t, removed)
+	assert.DirExists(t, dir, "阻断之前不该删除任何东西")
+}
+
+// 没有 .gitmodules 登记时（意外死 gitlink、或压根没有 submodule 概念），
+// 现有行为必须完全不变——这条修复只该拦"已登记"的情形。
+func TestArchiveIgnoresUnregisteredGitlink(t *testing.T) {
+	layout := newGitLayout(t)
+	dir := SourceDir(layout, "mdm/customer")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	repo, err := gitrepo.Open(layout.Root)
+	require.NoError(t, err)
+
+	require.NoError(t, Archive(layout, "mdm/customer", repo))
+	assert.NoDirExists(t, dir)
+	assert.DirExists(t, ArchivedDir(layout, "mdm/customer"))
+}
+
+// repo 为 nil（不在任何 git 仓库里，up/sync 在没有 git 的项目里也得能用）时
+// 也必须完全不受影响。
+func TestArchiveWorksOutsideGitRepo(t *testing.T) {
+	layout := newLayout(t)
+	dir := SourceDir(layout, "mdm/customer")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+
+	require.NoError(t, Archive(layout, "mdm/customer", nil))
+	assert.NoDirExists(t, dir)
+	assert.DirExists(t, ArchivedDir(layout, "mdm/customer"))
 }
