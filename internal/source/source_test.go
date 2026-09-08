@@ -424,6 +424,72 @@ func TestLocalSourceBrokenManifestErrorsInsteadOfUsingCache(t *testing.T) {
 	assert.Contains(t, clierr.As(err).Format(), "component.yaml")
 }
 
+// 本地源里 component.yaml 语法完全合法、只是 metadata.id 被改成了另一个身份时，
+// 也必须重新判定，而不是悄悄退回改名前那份缓存。
+//
+// 这是 TestLocalSourceBrokenManifestErrorsInsteadOfUsingCache 漏掉的一种"改坏了"：
+// 前者防的是"改成坏 YAML"，这条防的是"改成合法但对不上的身份"——同样触发
+// §7.5 那段设计意图描述的后果："up 却拿上一份好的缓存照常成功，一个字都不说"。
+func TestLocalSourceIDRenamedErrorsInsteadOfUsingCache(t *testing.T) {
+	layout := newProject(t)
+	sourceDir := filepath.Join(layout.Root, "components")
+	writeComponent(t, sourceDir, componentSpec{
+		ID: "foo/bar", Version: "1.0.0", Description: "改名前",
+	})
+
+	c := newClient(t, layout, cfgWithSources(config.Source{
+		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	}), Options{})
+
+	first, err := c.Manifest(context.Background(), "foo/bar", "1.0.0")
+	require.NoError(t, err)
+	require.Equal(t, "改名前", first.Manifest.Metadata.Description)
+	require.FileExists(t, filepath.Join(layout.ManifestsDir(), "foo-bar-1.0.0.yaml"))
+
+	// 目录不动、缓存不清，只把 metadata.id 改成另一个身份
+	writeFile(t, filepath.Join(sourceDir, "foo", "bar", "component.yaml"),
+		componentSpec{ID: "foo/bar2", Version: "1.0.0", Description: "改名后"}.yamlText())
+
+	_, err = c.Manifest(context.Background(), "foo/bar", "1.0.0")
+	require.Error(t, err, "本地源那个目录已经不再声明自己是 foo/bar，不能拿改名前的缓存顶上")
+	assert.Equal(t, clierr.CodeComponentNotFound, clierr.As(err).Code)
+}
+
+// 但"id 不变、只是版本升上去了"是另一回事：本地源一个目录只放得下一个版本，
+// 把组件升到 2.0.0 之后，还依赖 1.0.0 的调用方只能从缓存里取那一份——这是
+// 多版本共存的正常用法（试用指南 §8.2、§8.6），不能跟"身份改错了"一起误伤。
+func TestLocalSourceUpgradedStillServesOldVersionFromCache(t *testing.T) {
+	layout := newProject(t)
+	sourceDir := filepath.Join(layout.Root, "components")
+	writeComponent(t, sourceDir, componentSpec{
+		ID: "foo/bar", Version: "1.0.0", Description: "旧版本",
+	})
+
+	c := newClient(t, layout, cfgWithSources(config.Source{
+		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	}), Options{})
+
+	_, err := c.Manifest(context.Background(), "foo/bar", "1.0.0")
+	require.NoError(t, err)
+	require.FileExists(t, filepath.Join(layout.ManifestsDir(), "foo-bar-1.0.0.yaml"))
+
+	// 把这个组件升上去（一个目录只放得下一个版本）
+	writeFile(t, filepath.Join(sourceDir, "foo", "bar", "component.yaml"),
+		componentSpec{ID: "foo/bar", Version: "2.0.0", Description: "新版本"}.yamlText())
+
+	// 依赖 1.0.0 的调用方仍然解析得到它——从缓存里那份
+	old, err := c.Manifest(context.Background(), "foo/bar", "1.0.0")
+	require.NoError(t, err, "升级不该切断还指向旧版本的调用方（试用指南 §8.2）")
+	assert.True(t, old.FromCache)
+	assert.Equal(t, "旧版本", old.Manifest.Metadata.Description)
+
+	// 而新版本走的是硬盘上那份，不吃缓存
+	got, err := c.Manifest(context.Background(), "foo/bar", "2.0.0")
+	require.NoError(t, err)
+	assert.False(t, got.FromCache)
+	assert.Equal(t, "新版本", got.Manifest.Metadata.Description)
+}
+
 // 远程源该缓存还是缓存：那里的同一个版本内容不会变，省下的是真实的网络往返。
 func TestMarketSourceStillUsesCache(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})

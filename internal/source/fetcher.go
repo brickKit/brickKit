@@ -106,6 +106,20 @@ func manifestMatches(data []byte, componentID, version string) bool {
 	return h.Metadata.ID == componentID && h.Metadata.Version == version
 }
 
+// manifestIDMatches 判断一份 component.yaml 声明的 metadata.id 是否正是该组件
+// （不看版本）。解析失败时返回 false。
+//
+// 与 manifestMatches 分开：id 对不上是"这个目录已经不认这个组件了"，版本对不上
+// 是"同一个组件、只是升到了别的版本"——本地源里前者该报未找到，后者要放行旧版本
+// 的缓存（多版本共存，见 Client.servedByLocalSource）。
+func manifestIDMatches(data []byte, componentID string) bool {
+	var h componentHeader
+	if err := yaml.Unmarshal(data, &h); err != nil {
+		return false
+	}
+	return h.Metadata.ID == componentID
+}
+
 // manifestParses 判断这份 component.yaml 至少还是合法 YAML。
 //
 // 与 manifestMatches 分开，是因为"解析不了"和"是别的组件"必须区别对待：

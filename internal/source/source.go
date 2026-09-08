@@ -376,6 +376,19 @@ func (c *Client) writeCachedSignature(id, version, kind string, sig *security.Si
 //
 // 所以只要本地源真的拿得出这个文件，就返回 true，让后面的
 // fetchManifest 去解析并把那条语法错误抛出来。
+//
+// # 文件在、id 却被改成了另一个身份，同样不算"这个源没有"
+//
+// component.yaml 语法完全合法、只是 metadata.id 被改成跟请求的 id 对不上
+// （手滑重命名，而目录和 brickkit.yaml 的引用都没动），是"改错了"的又一种
+// 形态，后果和坏 YAML 一样：调用方退回改名前那份缓存，`up` 一声不吭照常成功。
+// 目录还在、里面的 id 却已经不认这次请求——就该让 fetchManifest 走一遍、
+// 报"未找到"，而不是拿旧缓存顶上。
+//
+// **但版本对不上要放行缓存**：本地源一个目录只放得下一个版本，把组件升上去
+// （改 metadata.version）之后，还依赖旧版本的调用方就只能从缓存里取那一份
+// ——这是多版本共存的正常用法（试用指南 §8.2、§8.6），不是"改错了"。
+// 所以只在 id 也匹配、单纯版本不同时才继续往下走、允许缓存生效。
 func (c *Client) servedByLocalSource(ctx context.Context, id, version string) bool {
 	for _, f := range c.fetchers {
 		if f.kind() != config.SourceTypeLocal {
@@ -385,7 +398,7 @@ func (c *Client) servedByLocalSource(ctx context.Context, id, version string) bo
 		if err != nil {
 			continue
 		}
-		if !manifestParses(raw) || manifestMatches(raw, id, version) {
+		if !manifestParses(raw) || !manifestIDMatches(raw, id) || manifestMatches(raw, id, version) {
 			return true
 		}
 	}
