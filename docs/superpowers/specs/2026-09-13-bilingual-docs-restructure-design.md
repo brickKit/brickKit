@@ -43,6 +43,8 @@ brickKit 现在的文档默认中文、英文只在 README 末尾留一小节"In
 | 目录命名 | 全部英文目录名（`architecture/`、`guide/`、`patterns/`），中文内容挪出仓库根目录，不再用中文做目录名 | 用户明确要求"文件夹肯定不能是中文名字" |
 | AI 入口文件命名 | `AI-CONTEXT.md` 改名为 `AGENTS.md` + 一行 `CLAUDE.md`（内容 `@AGENTS.md`） | 对齐当前 AI 编码工具生态的通用约定（Cursor / Claude Code / 其他多家工具会自动读取 `AGENTS.md`），与 be-assembly-standard 自己的约定一致 |
 | README 定位 | 保持用户向，不吸收 AGENTS.md 的压缩说明书内容 | 用户明确纠正："readme 还是以用户为主……具体内容用链接指引" |
+| README 语言 | 根目录同时维护 `README.md`（英文，规范渲染的那一份）与 `README.zh.md`（中文），互相在顶部一行"Read this in: …"互链 | 用户明确要求"readme 记得也准备一份中文版本"——对称双语这条原则没有例外，入口文件也不能只有英文 |
+| 语言范围 | 现在只做英文 + 中文两种，但目录/命名约定要能直接扩展到第三种语言，不能是只服务两种语言的硬编码结构 | 用户明确要求"未来得适配多种语言……我们准备构建或修改的文档，都应该有多种语言"——`docs/<lang>/` 与 `README.<lang>.md` 这两个约定天然支持新增语言代码，不需要改结构 |
 | 新方法论内容位置 | 新增第三个顶层类别 `patterns/`，与 `architecture/`（回答"平台是什么"）、`guide/`（回答"怎么跑一遍"）并列 | 现有两类文档定位都不适合装"怎么用好"的方法论内容 |
 | 旧 `design/`/`试用指南/` 的命运 | 整体挪进 `docs/archive/`，标注历史记录；核心内容重新提炼成 `architecture/`、`guide/` 下的新文档 | 用户明确表示"这两类内容都可能要完全重构"，旧内容归档而不是删除 |
 
@@ -50,7 +52,8 @@ brickKit 现在的文档默认中文、英文只在 README 末尾留一小节"In
 
 ```
 brickKit/
-├── README.md                    英文，用户向入口
+├── README.md                    英文，用户向入口，顶部一行语言切换链接
+├── README.zh.md                 中文镜像，内容对等，顶部同样一行语言切换链接
 ├── AGENTS.md                    英文，AI 向压缩全貌 + 路由表
 ├── CLAUDE.md                    一行 @AGENTS.md
 ├── llms.txt                     机器可读全站索引，单文件，中英文分节（§5.3）
@@ -72,6 +75,8 @@ brickKit/
 │
 ├── cmd/ internal/ market-server/ tests/ deploy/    不变
 ```
+
+**语言扩展性**：`docs/<语言代码>/` 与根目录 `README.<语言代码>.md` 这两个命名约定本身不依赖"只有英中两种"——将来要加第三种语言，只需要新增一棵 `docs/<lang>/` 与一份 `README.<lang>.md`，不需要改任何现有结构。本轮只落地英文与中文两种，但命名约定从一开始就按这个可扩展形态写。
 
 **四份根目录方法论文档的处理**（发布与分发/市场部署与运维指南/部署模式/组件合并部署）：性质上是"怎么部署好、怎么发布好"的实操方法论，不是历史记录，但内容需要重写才能达到新标准——旧版原文挪进 `docs/archive/planning/` 留痕，内容重写后归入 `docs/{en,zh}/patterns/deployment/` 或 `architecture/`（视具体内容归属，实现计划里逐篇判断）。
 
