@@ -66,8 +66,10 @@ Expected: 与搬迁前 `design/`（14）+ `试用指南/`（23 篇 + README，�
 
 - [ ] **Step 4: 批量给归档文件加历史存档提示**
 
+⚠️ **归档文件名里有空格**（`000 阅读指南与文档导航.md`、`004-CLI 设计.md`），`for f in $(find ...)` 这种写法会按空白字符拆分 `find` 的输出，把这两个文件名从中间断开，各自产生一个不存在的伪路径——用下面这种 `-print0` + `while read -d ''` 的写法，全程不经过会做词法拆分的地方：
+
 ```bash
-for f in $(find docs/archive -name '*.md'); do
+find docs/archive -name '*.md' -print0 | while IFS= read -r -d '' f; do
   if ! head -3 "$f" | grep -q "历史存档"; then
     printf '> ⚠️ **历史存档，可能与当前 CLI 行为不一致。** 这是 brickKit 重构文档体系前的旧版原文，不再维护——理解现在的平台请看 <https://github.com/brickKit/brickKit/tree/main/docs/zh/architecture> 与 <https://github.com/brickKit/brickKit/tree/main/docs/zh/guide>。\n\n%s\n' "$(cat "$f")" > "$f.tmp"
     mv "$f.tmp" "$f"
