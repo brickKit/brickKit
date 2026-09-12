@@ -56,7 +56,30 @@ git mv 部署模式.md docs/archive/planning/部署模式.md
 git mv 组件合并部署.md docs/archive/planning/组件合并部署.md
 ```
 
-- [ ] **Step 3: 验证搬迁没丢文件**
+- [ ] **Step 3: 更新 `.gitignore` 里跟着 `试用指南/` 走的两条路径规则——这一步必须在 `git add docs/archive` 之前做**
+
+⚠️ **这一步不能跳过，也不能挪到提交之后。** `.gitignore` 里有两条路径字面量规则专门用来防止一个临时试验场目录和一个编译产物被提交：
+
+```
+试用指南/playground/
+试用指南/bin/
+```
+
+`git mv 试用指南 docs/archive/guide` 会把整个目录（含这两个被忽略的子目录里的真实内容）物理搬到新路径，但 `.gitignore` 的规则是路径字面量，不会跟着走——搬完之后这两条规则在新路径上谁都不匹配。如果这时候直接 `git add docs/archive`，会把一个编译出来的 CLI 二进制（`试用指南/bin/brickkit`，几十 MB）、一个指向开发者本机绝对路径的 kubectl 符号链接、以及一份本该被 `准备.sh --reset` 随时重建的试验场源码副本（`试用指南/playground/`，跟 `tests/components/` 下的真实源码大量重复）全部悄悄提交进 git 历史——这正是当初把这两条路径写进 `.gitignore` 要防的事。
+
+编辑 `.gitignore`，把这两行改成新路径：
+
+```
+# 修改前
+试用指南/playground/
+试用指南/bin/
+
+# 修改后
+docs/archive/guide/playground/
+docs/archive/guide/bin/
+```
+
+- [ ] **Step 4: 验证搬迁没丢文件**
 
 ```bash
 find docs/archive -name '*.md' | wc -l
@@ -64,7 +87,7 @@ find docs/archive -name '*.md' | wc -l
 
 Expected: 与搬迁前 `design/`（14）+ `试用指南/`（23 篇 + README，共 24，playground 里的 README 不计入 md 主体但也会被这条 find 数进去，属预期）+ `开发进度/`（README + 决策索引 + 延后实现清单 + 项目元信息 + 完成记录 7 篇 = 11）+ 5 份根目录方法论文档，总数应该与搬迁前 `find design 试用指南 开发进度 -name '*.md' | wc -l` 加 5 的结果一致——搬迁前后各跑一次这条命令，两个数字（后者 = 前者 + 5）对不上就说明漏了文件，先排查再继续。
 
-- [ ] **Step 4: 批量给归档文件加历史存档提示**
+- [ ] **Step 5: 批量给归档文件加历史存档提示**
 
 ⚠️ **归档文件名里有空格**（`000 阅读指南与文档导航.md`、`004-CLI 设计.md`），`for f in $(find ...)` 这种写法会按空白字符拆分 `find` 的输出，把这两个文件名从中间断开，各自产生一个不存在的伪路径——用下面这种 `-print0` + `while read -d ''` 的写法，全程不经过会做词法拆分的地方：
 
@@ -77,7 +100,7 @@ find docs/archive -name '*.md' -print0 | while IFS= read -r -d '' f; do
 done
 ```
 
-- [ ] **Step 5: 抽查三个文件确认 banner 正确插入且原内容完整**
+- [ ] **Step 6: 抽查三个文件确认 banner 正确插入且原内容完整**
 
 ```bash
 head -5 docs/archive/design/001-平台理念与总体架构.md
@@ -93,17 +116,27 @@ git diff --stat docs/archive/design/001-平台理念与总体架构.md
 
 Expected: `2 insertions(+)`（只加了 banner 行和空行）。
 
-- [ ] **Step 6: 提交**
+- [ ] **Step 7: 提交前最后确认 `.gitignore` 排除的内容真的没有被暂存**
 
 ```bash
-git add docs/archive
+git add docs/archive .gitignore
+git status --short | grep -E "docs/archive/guide/(bin|playground)/"
+```
+
+Expected: 无输出。如果这条命令有输出，说明 Step 3 的 `.gitignore` 修改没生效或者做晚了——先排查，不要带着这个问题提交。
+
+- [ ] **Step 8: 提交**
+
+```bash
 git commit -m "$(cat <<'EOF'
 文档重构 1/9：旧 design/试用指南/开发进度 与四份方法论文档整体归档为历史记录
 
 对称双语重构的第一步：把当初为开发 brickKit 本身沉淀的规范/验证/决策记录
 挪进 docs/archive/，保留 git 历史，每篇顶部加历史存档提示。这些内容不再
 维护、不追译，价值是可追溯而不是给新读者理解平台用——理解平台改看后续
-任务新建的 docs/{en,zh}/architecture 与 docs/{en,zh}/guide。
+任务新建的 docs/{en,zh}/architecture 与 docs/{en,zh}/guide。同时更新
+.gitignore 里跟着 试用指南/ 走的两条路径规则（playground/、bin/），避免
+试验场源码副本与编译产物被误提交。
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
