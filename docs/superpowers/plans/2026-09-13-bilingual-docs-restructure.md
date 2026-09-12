@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 把 brickKit 仓库自己的文档从"默认中文、英文只有一句打发"重建成"默认英文、中文对等服务、AI 优先可发现"的结构；旧的 `design/`、`试用指南/` 等整体归档为历史记录；新增 `docs/en/`、`docs/zh/` 对称双语内容树，并用两篇示范文档（一篇 architecture、一篇 patterns）证明新结构立得住。
+**Goal:** 把 brickKit 仓库自己的文档从"默认中文、英文只有一句打发"重建成"默认英文、中文对等服务、AI 优先可发现"的结构；旧的 `design/`、`试用指南/` 等整体归档为历史记录；新增 `docs/en/`、`docs/zh/` 对称双语内容树，根目录 README 也拆成 `README.md`/`README.zh.md` 对等的一对；目录与文件命名从一开始就按可扩展到第三种语言设计（`docs/<lang>/`、`README.<lang>.md`），本轮只落地英文与中文；并用两篇示范文档（一篇 architecture、一篇 patterns）证明新结构立得住。
 
 **Architecture:** 新建 `docs/{en,zh}/{architecture,guide,patterns}/` 三个类别，`docs/archive/` 收纳冻结的旧内容；`README.md` 保持用户向定位，`AI-CONTEXT.md` 改名 `AGENTS.md`（+ 一行 `CLAUDE.md`）承担 AI 压缩全貌 + 路由；`llms.txt` 重新生成为中英文分节的全站索引。九道现有文档门禁按"是否还在验证一份仍在维护的文档"重新分工：三道纯"文档跟不跟得上 CLI"的门禁收窄范围排除归档内容，两道"拿文档当测试脚本"的真回归测试改路径继续跑，新增一道双语镜像 + 链接完整性门禁。
 
@@ -17,6 +17,8 @@
 - 全部新目录用英文命名：`architecture/`、`guide/`、`patterns/`（spec §3）。
 - AI 入口文件命名为 `AGENTS.md` + 一行 `CLAUDE.md`（内容固定为 `@AGENTS.md`），不再叫 `AI-CONTEXT.md`（spec §3）。
 - README.md 保持用户向定位（是什么/怎么装/怎么卸/基础命令/不做什么/怎么上手/仓库结构），不吸收 AGENTS.md 的压缩说明书内容（spec §3）。
+- README 也要对称双语：`README.md`（英文）与 `README.zh.md`（中文）内容对等，顶部各一行语言切换链接互指（spec §3）。
+- 语言约定要能直接扩展到第三种语言：`docs/<lang>/` 与 `README.<lang>.md` 这两个命名模式本身不写死"只支持英中两种"，本轮只落地 `en`/`zh`（spec §4）。
 - `docs/{en,zh}/architecture/` 与 `docs/{en,zh}/patterns/` 下的新文档：每份只回答一个问题；禁止裸的"见上文"引用；每条禁令带"为什么"+"症状"；用 mermaid + 真实代码示例，不用纯文字描述机制（spec §6）。
 - "用户把裸仓库地址丢给 AI 就能找到一切"这条链路必须保留：README 顶部固定一段给 AI 的指令块，指向 `AGENTS.md` 的 raw 链接与 `llms.txt`（spec §5）。
 - 每完成一个 Task 就提交一次（仓库约定：改完测过就提交，不用等确认）。所有 commit message 末尾按仓库当前约定加 `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`。
@@ -355,14 +357,15 @@ EOF
 
 ```python
 #!/usr/bin/env python3
-"""docs/en 与 docs/zh 镜像一致性 + llms.txt 链接完整性。
+"""docs/en 与 docs/zh 镜像一致性 + 根目录 README 双语齐全 + llms.txt 链接完整性。
 
-守两件事：① docs/en 下每一份文档，docs/zh 下必须有同一相对路径的对应文件，
+守三件事：① docs/en 下每一份文档，docs/zh 下必须有同一相对路径的对应文件，
 反之亦然——对称双语意味着任何一份都不是"翻译附属"，少了一份就是承诺被打破。
-② llms.txt 里每一条 raw.githubusercontent.com 链接指向的文件必须真实存在——
-这条呼应 be-assembly-standard 反馈里"结构检查脚本自己也要用真实反例验证"
-那条教训：一个检查规则本身也是代码，链接指向的文件被改名/删除时必须报错，
-不能悄悄继续"通过"。
+② 根目录的 README.md / README.zh.md 必须成对存在——同一条原则用在入口文件
+上。③ llms.txt 里每一条 raw.githubusercontent.com 链接指向的文件必须真实
+存在——这条呼应 be-assembly-standard 反馈里"结构检查脚本自己也要用真实
+反例验证"那条教训：一个检查规则本身也是代码，链接指向的文件被改名/删除时
+必须报错，不能悄悄继续"通过"。
 """
 import glob
 import os
@@ -413,14 +416,32 @@ def check_llms_txt_links():
     return bad
 
 
+def check_root_readme_pair():
+    """根目录的多语言 README 必须成对存在。
+
+    README 不在 docs/en|zh 树下，是单独的一对文件（README.md / README.zh.md），
+    mirror_pairs() 那套按目录扫描的逻辑覆盖不到它，所以单独查一次。将来新增
+    第三种语言时，这里也要跟着加一行——这条检查本身不会自动发现"该有却没有"
+    的语言，只能守住"已经存在的语言必须两两都在"。
+    """
+    root = os.path.join(ROOT, "README.md")
+    zh = os.path.join(ROOT, "README.zh.md")
+    bad = []
+    if os.path.isfile(root) and not os.path.isfile(zh):
+        bad.append("README.md 存在，但 README.zh.md 缺失")
+    if os.path.isfile(zh) and not os.path.isfile(root):
+        bad.append("README.zh.md 存在，但 README.md 缺失")
+    return bad
+
+
 def main():
-    bad = check_mirror() + check_llms_txt_links()
+    bad = check_mirror() + check_llms_txt_links() + check_root_readme_pair()
     if bad:
         print("❌ 文档双语/链接完整性检查失败：")
         for line in bad:
             print(f"   - {line}")
         sys.exit(1)
-    print("✅ docs/en ↔ docs/zh 镜像完整，llms.txt 全部链接可解析")
+    print("✅ docs/en ↔ docs/zh 镜像完整，README 双语齐全，llms.txt 全部链接可解析")
 
 
 if __name__ == "__main__":
@@ -434,7 +455,7 @@ chmod +x scripts/check-docs-bilingual.py
 python3 scripts/check-docs-bilingual.py
 ```
 
-Expected: 因为 `docs/en/.gitkeep`、`docs/zh/.gitkeep` 都不是 `*.md`，`check_mirror()` 这一步此刻应该无输出（两边都还没有真正的 `.md` 文件，找不到不对称）；`check_llms_txt_links()` 会因为 llms.txt 还没更新（Task 6 才做）而可能报出一些指向旧 `design/`、`试用指南/` 路径的失败——这是预期状态，属于"脚本正确地抓到了当前确实存在的不一致"，不是脚本写错了。把这一步的真实输出记在这个 Step 的提交信息里，留给 Task 6 完成后再验证一次全绿。
+Expected: 因为 `docs/en/.gitkeep`、`docs/zh/.gitkeep` 都不是 `*.md`，`check_mirror()` 这一步此刻应该无输出（两边都还没有真正的 `.md` 文件，找不到不对称）；`check_llms_txt_links()` 会因为 llms.txt 还没更新（Task 6 才做）而可能报出一些指向旧 `design/`、`试用指南/` 路径的失败；`check_root_readme_pair()` 此时会报 `README.md 存在，但 README.zh.md 缺失`（Task 4 才会建 `README.zh.md`）——这些都是预期状态，属于"脚本正确地抓到了当前确实存在的不一致"，不是脚本写错了。把这一步的真实输出记在这个 Step 的提交信息里，留给 Task 4/6 完成后再验证一次全绿。
 
 - [ ] **Step 3: 接入 Makefile**
 
@@ -465,7 +486,8 @@ git commit -m "$(cat <<'EOF'
 
 对称双语的承诺（任何一份都不是翻译附属）需要机器守住，不能只靠人记得同步
 维护两边。新增 check-docs-bilingual 接入 make lint：docs/en 与 docs/zh 必须
-逐文件镜像，llms.txt 里的每条 raw 链接必须指向真实存在的文件。
+逐文件镜像，根目录 README.md/README.zh.md 必须成对存在，llms.txt 里的每条
+raw 链接必须指向真实存在的文件。
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
@@ -474,15 +496,23 @@ EOF
 
 ---
 
-### Task 4: 重写 README.md（英文，用户向）
+### Task 4: 重写 README.md（英文，用户向）+ README.zh.md（中文对等版）
 
 **Files:**
 - Modify: `README.md`（整份重写，用户已明确 README 不吸收 AGENTS.md 的压缩说明书内容，保持现有中文版的性质：是什么/怎么装/怎么卸/基础命令/不做什么/怎么上手/仓库结构）
+- Create: `README.zh.md`（与 `README.md` 内容对等的中文版，根目录多语言 README 是 GitHub 的通用约定——将来加第三种语言，只需要照这个模式再加一份 `README.<lang>.md`）
 
 **Interfaces:**
 - Produces: README 顶部固定一段"给 AI 的指令"块，是 Task 5（AGENTS.md）与 Task 6（llms.txt）能被"裸仓库地址"发现的唯一入口——这段文字的措辞是本任务里最容易出错的部分，下面给出完整定稿文本，不要改写措辞。
+- Produces: `README.md` 与 `README.zh.md` 顶部各一行语言切换链接，互相指向对方——Task 3 的 `check_root_readme_pair()` 会验证这两个文件成对存在。
 
-- [ ] **Step 1: 写 README 顶部的 AI 指令块（原文照抄，这是关键的可发现性设计，不是可自由发挥的部分）**
+- [ ] **Step 1: 写 README 顶部的语言切换行 + AI 指令块（原文照抄，这是关键的可发现性设计，不是可自由发挥的部分）**
+
+`README.md` 标题正下方先加一行语言切换（后面还有更多语言时，这一行只需要追加一个链接）：
+
+```markdown
+[English](README.md) | [中文](README.zh.md)
+```
 
 紧跟在标题和一句话定位之后：
 
@@ -509,7 +539,15 @@ EOF
 > `docs/en/`. `llms.txt`'s two sections point at the same structure in both languages.
 ```
 
-- [ ] **Step 2: 重写正文——严格按下面这份大纲写，每节的信息来自当前中文版 README（内容不能丢，只是换成英文、去掉"对称双语"之外不该出现在这里的东西）**
+- [ ] **Step 2: 写 `README.zh.md` 顶部同样的语言切换行（先做中文版是因为素材本来就是中文——当前仓库根目录的 README.md 本身就是中文，直接挪过来改造比先写英文版再回译省一轮转换）**
+
+```markdown
+[English](README.md) | [中文](README.zh.md)
+```
+
+`README.zh.md` 的 AI 指令块是 Step 1 那段英文的中文对照版，同样固定在标题与一句话定位之后，措辞与 Step 1 一一对应（"先抓取 AGENTS.md 与 llms.txt 两份文件""按用户提问语言选 docs/zh 还是 docs/en，不是按这份文件的语言选"），不要另起一套说法。
+
+- [ ] **Step 3: 重写正文——严格按下面这份大纲写，`README.zh.md` 与 `README.md` 两份都要写，内容对等（不要求逐句直译），每节的信息来自当前仓库根目录的旧版中文 README（内容不能丢，只是拆成两份语言、去掉"对称双语"之外不该出现在这里的东西）**
 
 大纲（标题固定，每节要点必须覆盖，具体行文由执行者写）：
 
@@ -523,25 +561,40 @@ EOF
 8. `## Build & test` —— 现有 `make build/test/test-all/lint` 与九道门禁表格（门禁描述保持不变，Task 2/3 已经把它们的行为改对，表格文字本身不用因为路径变了而改）。
 9. `## Project status` —— 现有测试数/试用指南数/设计书数等统计行，替换措辞为符合新结构的说法（比如"14 design books"变成指向 `docs/archive/design/`的历史统计，注明"superseded by `docs/{en,zh}/architecture/`"）。
 
-- [ ] **Step 3: 确认 README 里没有出现"全部文档为中文"一类与新架构矛盾的措辞**
+- [ ] **Step 4: 确认两份 README 都没有出现与新架构矛盾的措辞，且互相的语言切换链接可达**
 
 ```bash
-grep -n "全部文档\|以此为准\|简体中文" README.md
+grep -n "全部文档\|以此为准\|简体中文" README.md README.zh.md
 ```
 
 Expected: 无匹配（旧版这几处措辞必须被新文案取代）。
 
-- [ ] **Step 4: 提交**
+```bash
+grep -n "README.zh.md" README.md && grep -n "README.md" README.zh.md
+```
+
+Expected: 两条都有输出——确认两份文件顶部的语言切换行确实互相指向对方。
+
+- [ ] **Step 5: 用 Task 3 的双语门禁验证 README 这一对文件**
 
 ```bash
-git add README.md
+python3 scripts/check-docs-bilingual.py
+```
+
+Expected: 输出中不再包含"README.md 存在，但 README.zh.md 缺失"这类报错（`docs/en`↔`docs/zh` 部分与 `llms.txt` 部分此时仍会报错，那是 Task 6/7/8 才解决的，属预期）。
+
+- [ ] **Step 6: 提交**
+
+```bash
+git add README.md README.zh.md
 git commit -m "$(cat <<'EOF'
-文档重构 4/9：README 改写为英文、用户向，AI 指令块指向新的 AGENTS.md/llms.txt
+文档重构 4/9：README 改写为英文、用户向 + 新增 README.zh.md 对等中文版
 
 README 保持现有的用户向定位（是什么/怎么装/怎么卸/基础命令/不做什么/怎么
-上手/仓库结构），只是换成默认英文；顶部固定的 AI 指令块是"裸仓库地址丢给
-AI 就能找到一切"这条链路的起点，改成指向 AGENTS.md 与 llms.txt，并明确
-按用户提问语言路由到 docs/en 或 docs/zh。
+上手/仓库结构），只是换成默认英文；新增 README.zh.md 作为对等的中文版，
+两份顶部各一行语言切换互链——对称双语没有例外，入口文件也不能只有英文。
+顶部固定的 AI 指令块是"裸仓库地址丢给 AI 就能找到一切"这条链路的起点，
+指向 AGENTS.md 与 llms.txt，并明确按用户提问语言路由到 docs/en 或 docs/zh。
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
@@ -697,7 +750,7 @@ were asked, not based on this file's own language.
 ## 中文文档
 
 - [AGENTS.md](https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.md): 全平台压缩件——定位、术语表、十二条设计原则、拒绝清单、核心机制、两个 yaml 字段骨架、命令参考、二十三个"为什么"。
-- [README](https://raw.githubusercontent.com/brickKit/brickKit/main/README.md): 项目门面（英文），是什么/怎么装/怎么卸/一分钟示例/不做什么/怎么上手。
+- [README（中文版）](https://raw.githubusercontent.com/brickKit/brickKit/main/README.zh.md): 项目门面，是什么/怎么装/怎么卸/一分钟示例/不做什么/怎么上手——与英文版 README.md 内容对等。
 - [架构总览](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/overview.md): 一次声明怎么变成运行中的容器，含真实的依赖解析→注入→生成流水线。
 - [基于 BrickKit 的组件该怎么分层测试](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/testing.md): 契约/业务规则/单元/集成四层怎么分工，以及一个真实生产部署踩过的权限边界与幂等性陷阱。
 
@@ -907,8 +960,8 @@ Expected: 能看到这份文件在 `design/001-...` 路径下的历史提交记�
 - [ ] **Step 4: 手工用浏览器或 curl 验证"裸仓库地址"链路的两个关键 raw 链接可访问（需要已经 push 到 GitHub；本地验证的替代方式是确认文件路径与 README/llms.txt 里写的完全一致）**
 
 ```bash
-# 本地等价验证：确认 README 与 llms.txt 里写的每个路径本地都真实存在
-grep -oE 'AGENTS\.md|llms\.txt|docs/(en|zh)/[a-z/]+\.md' README.md llms.txt | sort -u | while read -r p; do
+# 本地等价验证：确认 README、README.zh.md 与 llms.txt 里写的每个路径本地都真实存在
+grep -oE 'AGENTS\.md|README\.zh\.md|llms\.txt|docs/(en|zh)/[a-z/]+\.md' README.md README.zh.md llms.txt | sort -u | while read -r p; do
   [ -f "$p" ] && echo "OK   $p" || echo "MISS $p"
 done
 ```
