@@ -851,3 +851,89 @@ resources:
 
 	require.NoError(t, err, "006 §7.3 推荐的正是这种写法：%v", err)
 }
+
+// ============================================================
+// servedBy（外壳合并部署）
+// ============================================================
+
+func TestServedByFieldParsed(t *testing.T) {
+	cfg, err := ParseConfig([]byte(baseConfig+`
+components:
+  - id: infra/shell-go-core
+    version: 1.0.0
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: infra/shell-go-core@1.0.0
+`), "brickkit.yaml")
+	require.NoError(t, err)
+	require.Len(t, cfg.Components, 2)
+	assert.Equal(t, "infra/shell-go-core@1.0.0", cfg.Components[1].ServedBy)
+	assert.Empty(t, cfg.Components[0].ServedBy)
+}
+
+func TestServedByValidationErrors(t *testing.T) {
+	cases := []struct {
+		name     string
+		yaml     string
+		contains []string
+	}{
+		{"缺少版本号", baseConfig + `
+components:
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: infra/shell-go-core
+`, []string{"components[0].servedBy", "id@version"}},
+		{"版本号是范围约束", baseConfig + `
+components:
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: infra/shell-go-core@^1.0.0
+`, []string{"components[0].servedBy", "精确版本"}},
+		{"指向自己", baseConfig + `
+components:
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: mdm/customer@1.0.7
+`, []string{"components[0].servedBy", "不能指向自己"}},
+		{"链式嵌套", baseConfig + `
+components:
+  - id: infra/shell-a
+    version: 1.0.0
+    servedBy: infra/shell-b@1.0.0
+  - id: infra/shell-b
+    version: 1.0.0
+    servedBy: infra/shell-c@1.0.0
+`, []string{"components[0].servedBy", "链式嵌套"}},
+		{"与 local 同时声明", baseConfig + `
+components:
+  - id: mdm/customer
+    version: 1.0.7
+    local: true
+    servedBy: infra/shell-go-core@1.0.0
+`, []string{"components[0].servedBy", "local: true"}},
+		{"外壳自己是 local", baseConfig + `
+components:
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: infra/shell-go-core@1.0.0
+  - id: infra/shell-go-core
+    version: 1.0.0
+    local: true
+`, []string{"components[1].local", "servedBy 指向"}},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg, err := ParseConfig([]byte(c.yaml), "brickkit.yaml")
+			require.Error(t, err, "该配置应校验失败")
+			assert.Nil(t, cfg)
+
+			e := clierr.As(err)
+			assert.Equal(t, clierr.CodeConfigInvalid, e.Code)
+			out := e.Format()
+			for _, want := range c.contains {
+				assert.Contains(t, out, want)
+			}
+		})
+	}
+}

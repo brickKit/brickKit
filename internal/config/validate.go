@@ -27,6 +27,7 @@ func (c *Config) Validate() error {
 	c.validateDeploy(p)
 	c.validateSources(p)
 	c.validateComponents(p)
+	c.validateServedBy(p)
 	c.validateResources(p)
 	c.validateResourceEnvCollisions(p)
 
@@ -264,6 +265,67 @@ func (c *Config) validateComponentPorts(
 	}
 	if item.Expose && item.Hostname == "" && c.Deploy.Target == TargetK8s {
 		p.Add(field+".hostname", "缺失（deploy.target: k8s 且 expose: true 时必填，Ingress 需要域名）")
+	}
+}
+
+// validateServedBy 静态校验 servedBy 字段本身：格式对不对、有没有自引用、
+// 有没有链式嵌套、有没有跟 local: true 打架——这些都不需要依赖图，在解析
+// 阶段就能查完。存在性、运行态、端口冲突、合并后的环境变量/标签冲突需要
+// 依赖图 + cascade 结果，在 internal/shell.Resolve 里查
+// （servedBy 设计书 §5-§6）。
+func (c *Config) validateServedBy(p *clierr.ProblemSet) {
+	declaresServedBy := make(map[string]bool, len(c.Components))
+	for _, item := range c.Components {
+		if item.ServedBy != "" {
+			declaresServedBy[item.Ref()] = true
+		}
+	}
+
+	// 谁被谁 servedBy 指向：下面第二轮要反过来查目标是不是 local: true
+	servedByTarget := make(map[string]bool, len(c.Components))
+
+	for i, item := range c.Components {
+		if item.ServedBy == "" {
+			continue
+		}
+		field := indexed("components", i) + ".servedBy"
+
+		if item.Local {
+			p.Add(field, "不能跟 local: true 同时声明——local 是本机调试，"+
+				"servedBy 是代码已经打进另一个外壳镜像，两者是矛盾的意图")
+			continue
+		}
+
+		id, version, found := strings.Cut(item.ServedBy, "@")
+		if !found || id == "" || version == "" {
+			p.Addf(field, "必须是 <组件ID>@<精确版本>（id@version）形式（当前是 %s）", item.ServedBy)
+			continue
+		}
+		if !manifest.IsExactVersion(version) {
+			p.Addf(field, "版本必须是精确版本 major.minor.patch，不接受 ^ 或 ~ 等范围约束（当前是 %s）", version)
+			continue
+		}
+
+		target := id + "@" + version
+		if target == item.Ref() {
+			p.Add(field, "不能指向自己")
+			continue
+		}
+		if declaresServedBy[target] {
+			p.Addf(field, "指向的 %s 自己也声明了 servedBy，不能链式嵌套"+
+				"（一个外壳不能被另一个外壳收编）", target)
+			continue
+		}
+		servedByTarget[target] = true
+	}
+
+	for i, item := range c.Components {
+		if item.Local && servedByTarget[item.Ref()] {
+			p.Addf(indexed("components", i)+".local",
+				"%s 被别的组件 servedBy 指向，不能同时是 local: true"+
+					"（外壳要能在集群/容器网络里被访问到，跑在开发者本机上做不到这件事）",
+				item.Ref())
+		}
 	}
 }
 
