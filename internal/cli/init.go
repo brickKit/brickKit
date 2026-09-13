@@ -151,7 +151,7 @@ func installSkills(opts *Options, layout config.Layout) error {
 // # 为什么 init 顺带装时要多一条"项目根 == 仓库根"
 //
 // init 完全可能跑在一个**跟本项目无关的仓库**的子目录里——本仓库的
-// 试用指南/playground/ 就是这样（它在 brickKit 自己的仓库里）。那时候
+// docs/archive/guide/playground/ 就是这样（它在 brickKit 自己的仓库里）。那时候
 // 自动装等于往别人的 .git/hooks 里写东西，而那个人根本没要求过。
 //
 // 所以顺带装只服务最常见的那一种：项目根就是仓库根。嵌套的项目要装，

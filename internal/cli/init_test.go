@@ -379,7 +379,7 @@ func TestInitSkipsHookOutsideGitRepo(t *testing.T) {
 }
 
 // init 完全可能跑在一个跟本项目无关的仓库的子目录里（本仓库的
-// 试用指南/playground/ 就是）。那时自动装等于往别人的 .git/hooks 里写东西。
+// docs/archive/guide/playground/ 就是）。那时自动装等于往别人的 .git/hooks 里写东西。
 func TestInitDoesNotWriteHookIntoAnUnrelatedRepo(t *testing.T) {
 	repo := newTestRepo(t)
 	nested := filepath.Join(repo, "sub", "project")

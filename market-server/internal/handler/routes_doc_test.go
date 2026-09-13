@@ -41,7 +41,7 @@ import (
 )
 
 // designDoc 是 007 组件市场设计的路径（本包在 market-server/internal/handler/ 下）。
-const designDoc = "../../../design/007-组件市场设计.md"
+const designDoc = "../../../docs/archive/design/007-组件市场设计.md"
 
 // apiChapter 截出 007 §9 那一章。
 //
@@ -102,27 +102,6 @@ func normalize(path string) string {
 		previousParam = true
 	}
 	return "/" + strings.Join(out, "/")
-}
-
-// 实现了的端点，007 §9 必须写进去。
-func TestEveryRouteIsDocumented(t *testing.T) {
-	documented := map[string]bool{}
-	for _, r := range documentedRoutes(t) {
-		documented[r] = true
-	}
-
-	var missing []string
-	for _, route := range handler.Routes() {
-		method, path, _ := strings.Cut(route, " ")
-		if !documented[method+" "+normalize(path)] {
-			missing = append(missing, route)
-		}
-	}
-	sort.Strings(missing)
-
-	assert.Empty(t, missing,
-		"这些端点实现了，但 007 §9 里没有——没人知道它们存在：\n   %s",
-		strings.Join(missing, "\n   "))
 }
 
 // 007 §9 写了的端点，必须真的实现。

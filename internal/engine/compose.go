@@ -400,7 +400,7 @@ func podmanNotSupported() error {
 		WithHint(
 			"安装 Docker 20.10+ 后重试",
 			"只想生成部署文件而不启动的话，用 brickkit up --dry-run（不需要任何引擎）",
-			"详见 design/005 §7",
+			"详见 docs/archive/design/005-部署与运行规范.md §7",
 		)
 }
 
