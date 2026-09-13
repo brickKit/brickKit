@@ -1196,7 +1196,56 @@ EOF
 ### Task 9: 全量验证与收尾
 
 **Files:**
-- 无新文件；本任务只跑验证，必要时回头小修前面任务留下的问题。
+- Modify: `internal/clierr/clierr_test.go`、`market-server/internal/handler/routes_doc_test.go`、`internal/engine/compose.go`、`internal/cli/init.go`、`internal/cli/init_test.go`（Step 0，见下）
+- 其余无新文件；本任务只跑验证，必要时回头小修前面任务留下的问题。
+
+- [ ] **Step 0: 修复 `.go` 源码里残留的 `design/`/`试用指南/` 硬编码路径引用——这是 Task 1/2 遗漏的真实回归，`make lint`/`make test` 现在会真的失败**
+
+⚠️ **为什么会漏到 Task 9 才发现**：Task 2 只改了六个已知的**文档检查脚本**（`.py`/`.sh`/`tests/docfields`），没有对整个仓库的 `.go` 代码做一次"design/ / 试用指南/ 字面量"搜索。结果是另外两个包里各自独立写了"文档跟不跟得上实现"类测试（跟 docfields 是同一类判据，只是分散在不同包里），以及两处描述"当前行为/给例子"的注释/字符串——这五处都还指着归档前的旧路径。跑一次全仓库搜索才发现：
+
+```bash
+grep -rn 'design/\|试用指南/\|开发进度/' --include="*.go" .
+```
+
+按每一处的性质分别处理（跟 Task 2 处理 docfields 时用的是同一套判据：**只验证"实现有没有说谎"的方向保留，只有"文档必须详尽"的方向删除**）：
+
+1. **`internal/clierr/clierr_test.go` 的 `TestEveryErrorCodeIsDocumented`**（约第 135-148 行）——判据是"每个真实错误码都必须写进 004 §10.2.1"，只有"实现→文档"这一个方向，没有反方向的姊妹测试。跟已经删除的 `TestEveryFieldIsMentionedInDesignDocs` 同一个理由：判据依赖一份会继续维护的详尽参考文档，design/ 归档后这份文档不会再更新，这条测试注定会在下一个错误码加进来的那天永久变红。**整个函数删除**，同时删掉因此变成未使用的 import（跑 `go build`/`go vet` 确认）。
+
+2. **`market-server/internal/handler/routes_doc_test.go`**——这个文件比 clierr_test.go 复杂：它有**两个方向**都测（`TestEveryRouteIsDocumented`"实现了必须写进文档"、`TestEveryDocumentedRouteExists`"文档写的必须真实现"），外加一个自检 `TestRouteDocParsingSelfCheck`。**只删 `TestEveryRouteIsDocumented`**（约第 108-126 行，"实现→文档"方向，注定永久变红的那一个）；`TestEveryDocumentedRouteExists`（"文档→实现"方向）与 `TestRouteDocParsingSelfCheck`、以及 `apiChapter`/`documentedRoutes`/`normalize`/`docRow`/`pathParam` 这些共享 helper **全部保留**——这个方向对着一份冻结的文档永远成立（冻结内容不会凭空冒出一个新端点的说法），价值不会随时间流失。把 `designDoc` 常量（约第 44 行）的路径从 `"../../../design/007-组件市场设计.md"` 改成 `"../../../docs/archive/design/007-组件市场设计.md"`。
+
+3. **`internal/engine/compose.go`**（约第 403 行）——`podmanNotSupported()` 生成的是**真实的 CLI 报错提示**，用户会真的看到这句话。把 `"详见 design/005 §7"` 改成 `"详见 docs/archive/design/005-部署与运行规范.md §7"`。
+
+4. **`internal/cli/init.go`**（约第 154 行）与 **`internal/cli/init_test.go`**（约第 382 行）——两处都是"举一个当前真实存在的例子"性质的注释（"本仓库的试用指南/playground/ 就是这样"），不是历史叙事，这个例子现在确实还存在，只是搬了家。都把 `试用指南/playground/` 改成 `docs/archive/guide/playground/`。
+
+改完后验证：
+
+```bash
+go build ./... && go vet ./...
+go test ./internal/clierr/... ./market-server/internal/handler/... -v 2>&1 | tail -30
+```
+
+Expected: 编译通过；`internal/clierr` 不再出现 `TestEveryErrorCodeIsDocumented`；`market-server/internal/handler` 里 `TestEveryDocumentedRouteExists`、`TestRouteDocParsingSelfCheck` 两条 PASS，`TestEveryRouteIsDocumented` 不再出现。
+
+提交（作为 Task 9 自己的第一个提交，跟下面 Step 5 的收尾提交分开）：
+
+```bash
+git add internal/clierr/clierr_test.go market-server/internal/handler/routes_doc_test.go \
+        internal/engine/compose.go internal/cli/init.go internal/cli/init_test.go
+git commit -m "$(cat <<'EOF'
+文档重构 9/9 补充：修复 .go 源码里残留的 design/试用指南 硬编码路径
+
+Task 2 只改了六个已知的文档检查脚本，没有搜索整个仓库的 .go 代码。
+internal/clierr 与 market-server/internal/handler 里各自独立写了一份
+"实现跟不跟得上文档"的测试（跟 docfields 同一类判据），加上两处引用
+真实路径的注释/字符串，一共五处漏网。按 Task 2 同样的判据处理："实现→
+文档"的详尽性方向（会随实现演进必然变红）删除，"文档→实现"的防伪造
+方向（对冻结内容永远成立）保留并改路径；两处描述当前真实例子的注释
+改成新路径；一处真实的 CLI 报错提示改成新路径。
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+EOF
+)"
+```
 
 - [ ] **Step 1: 跑完整 lint**
 
