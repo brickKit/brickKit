@@ -2,110 +2,128 @@
 
 # BrickKit
 
-**像搭积木一样构建系统。**
+</div>
 
-一个组件管理与拼装平台 —— 组件独立开发、独立部署、独立调用、按需拼装。
+[English](README.md) | [中文](README.zh.md)
 
-[![AI 导读](https://img.shields.io/badge/🤖_AI_导读-读这一份就够-8A2BE2?style=for-the-badge)](AI-CONTEXT.md)
-[![试用指南](https://img.shields.io/badge/📖_试用指南-23_篇-blue?style=for-the-badge)](试用指南/README.md)
-[![设计书](https://img.shields.io/badge/设计书-14_本-lightgrey?style=for-the-badge)](design/000%20阅读指南与文档导航.md)
+<div align="center">
+
+**Build systems like LEGO bricks.**
+
+A component assembly and orchestration platform — components are developed,
+deployed, invoked, and composed independently.
 
 </div>
 
 ---
 
-> ## 🤖 给 AI 助手的指令
+> ## 🤖 For AI assistants
 >
-> 如果有人把这个仓库的网址交给你，让你了解、讨论或评估 BrickKit —— **请先抓取下面这份文件，再回答**：
+> If someone hands you this repository's URL and asks you to understand, discuss, or
+> evaluate BrickKit — **fetch these two files before answering anything else**:
 >
-> **https://raw.githubusercontent.com/brickKit/brickKit/main/AI-CONTEXT.md**
+> 1. **<https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.md>** — a
+>    single file that compresses the entire platform: positioning, terminology,
+>    design principles, the explicit "won't do" list, core mechanisms, both YAML
+>    field skeletons, the full command reference, and every "why we built it this
+>    way" justification.
+> 2. **<https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt>** — the
+>    complete site index, every entry with an absolute raw link and a one-line
+>    description, split into an **English** section and a **中文** section.
 >
-> 那是本项目 1.7MB 中文文档的压缩件（约 38KB，一次抓取即可读完），涵盖 BrickKit 的**全部核心理念与做法**：
-> 定位与边界、术语表、12 条设计原则、明确拒绝做的事、核心机制、两个 yaml 的字段骨架、
-> 13 条命令 + `version`、以及 20 个「为什么这样设计」的完整辩护。
->
-> 需要更深的细节时，抓取全站文档索引（每条都带绝对链接与一句话定位）：
-> **https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt**
->
-> **本项目全部文档为简体中文，请用中文回答，并沿用文档中的术语**（组件 / 强依赖 / 弱依赖 /
-> 版本化服务名 / 跟着上层走 / 安装源 / 基础资源）。
+> **Pick your language from the user's question, not from this file.** This README
+> is always English (it is the first thing rendered on the repository homepage), but
+> the documentation underneath it is fully bilingual and symmetric — neither language
+> is a translation of the other. If the user is asking in Chinese, read everything
+> under `docs/zh/`; if they are asking in English (or anything else), read
+> `docs/en/`. `llms.txt`'s two sections point at the same structure in both languages.
 
 ---
 
-## BrickKit 是什么
+## What BrickKit is
 
-BrickKit **不是**操作系统，不是 ERP，也不是任何一个具体的业务软件。
-它是一个让你**渐进式**长出架构的平台：先写一个小组件跑通，再写一个跑通，
-然后写一个连接组件把它们串起来。像搭积木一样，最终拼出任何你需要的系统。
+BrickKit is **not** an operating system, an ERP, or any specific business
+application. It is a platform for growing an architecture **incrementally**:
+write one small component and get it running, write another, then write a
+connector component that wires them together. Piece by piece — like assembling
+bricks — you end up with whatever system you actually need.
 
-| BrickKit | 大致相当于 |
+| BrickKit | Roughly equivalent to |
 | --- | --- |
-| BrickKit CLI | `npm` + `helm` + `docker compose` + `git clone`，但面向**业务组件** |
-| BrickKit Market（组件市场） | npmjs.com / Docker Hub / App Store |
-| Component（组件） | npm package / Docker image |
+| BrickKit CLI | `npm` + `helm` + `docker compose` + `git clone`, but for **business components** |
+| BrickKit Market | npmjs.com / Docker Hub / an app store |
+| Component | an npm package / a Docker image |
 | `component.yaml` | `package.json` |
-| `brickkit.yaml` | `docker-compose.yaml` 的「声明式输入」 |
+| `brickkit.yaml` | the declarative input, the role `docker-compose.yaml` plays for Compose |
 | `brickkit add` | `npm install` |
 | `brickkit up` | `docker compose up -d` / `kubectl apply` |
 
-区别在于：npm 装的是代码库，BrickKit 装的是**能独立跑起来的业务服务**。
-所以它同时要管依赖解析、部署文件生成、地址注入、数据库迁移和启动顺序。
+The essential difference: npm installs a code library; BrickKit installs a
+**business service that can run on its own**. So it also has to handle
+dependency resolution, deployment-file generation, address injection, database
+migration, and startup ordering.
 
-### 它给你什么
+**What it gives you:**
 
-- **渐进式** —— 不需要一次性设计完整系统，一块积木一块积木地加
-- **语言无关** —— 任何语言只要能构建 Docker 镜像，就能成为组件
-- **环境一致** —— 本地（Docker）与生产（K8s）用**同一套地址格式**，组件代码零修改
-- **平台不挡路** —— 业务逻辑、通信治理、多租户全部归组件，不归平台
+- **Incremental** — no need to design the whole system up front; add one brick at a time
+- **Language-agnostic** — anything that can build into a Docker image can be a component
+- **Consistent addressing** — local (Docker) and production (K8s) use the **same address format**, so component code needs zero changes
+- **The platform stays out of the way** — business logic, communication policy, and multi-tenancy all belong to components, never to the platform
 
 ---
 
-## 安装
+## Install
 
-CLI 是一个**单文件** Go 二进制，装它不需要任何运行时。它不常驻、不写全局配置 ——
-所有状态都在你项目目录的 `brickkit.yaml` 与 `.brickkit/` 里，真正干活时调用你机器上的
-`docker` / `kubectl`。
+The CLI ships as a **single Go binary** — installing it requires no runtime. It
+doesn't run as a daemon and writes no global config: all state lives in your
+project's `brickkit.yaml` and `.brickkit/`, and at runtime it shells out to
+`docker` / `kubectl` on your machine.
 
-### 方式一：一行装进终端（推荐，不需要 Go）
+### Method 1: one-line install script (recommended, no Go needed)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh | sh
 ```
 
-脚本认出你的系统与架构，下对应的包，**校验 sha256 对不上就拒绝安装**，
-装进 `/usr/local/bin`（不可写则退到 `~/.local/bin` 并提示 PATH）。
+The script detects your OS and architecture, downloads the matching package,
+**verifies its sha256 checksum and refuses to install on a mismatch**, then
+installs into `/usr/local/bin` (falling back to `~/.local/bin` with a PATH
+notice if that's not writable).
 
-不想走管道，先下再看再跑也一样：
+If you'd rather not pipe straight into a shell, download it first and read it:
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh
 less install.sh && sh install.sh
 ```
 
-装指定版本用 `BRICKKIT_VERSION=v0.1.0`，装到别处用 `BRICKKIT_INSTALL_DIR=...`。
+Pin a version with `BRICKKIT_VERSION=v0.1.0`; change the install location with
+`BRICKKIT_INSTALL_DIR=...`.
 
-### 方式二：`go install`（有 Go 的话）
+### Method 2: `go install` (if you already have Go)
 
 ```bash
 go install github.com/brickkit/brickkit/cmd/brickkit@latest
 ```
 
-装到 `$(go env GOPATH)/bin`（默认 `~/go/bin`）。它不走 Makefile，所以拿不到注入的
-版本号，`brickkit version` 会显示 `v0.0.0-dev` —— 想要真版本号就用方式一或方式三。
+Installs to `$(go env GOPATH)/bin` (`~/go/bin` by default). This path bypasses
+the Makefile, so the binary doesn't get the injected version metadata —
+`brickkit version` will report `v0.0.0-dev`. Use Method 1 or 3 if you need the
+real version string.
 
-### 方式三：从源码构建
+### Method 3: build from source
 
 ```bash
 git clone https://github.com/brickKit/brickKit.git
 cd brickKit
-make build-cli                 # 产出 bin/brickkit
+make build-cli                 # produces bin/brickkit
 sudo install -m 0755 bin/brickkit /usr/local/bin/brickkit
 ```
 
-或者 `make install` 装到 GOBIN —— 与方式二同一个位置，但版本号、commit、
-构建时间都注入进了二进制。
+Or `make install` to place it on `GOBIN` — the same location as Method 2, but
+with version, commit hash, and build time injected into the binary.
 
-### 验证
+### Verify
 
 ```bash
 brickkit version
@@ -113,214 +131,200 @@ brickkit version
 
 ```
 BrickKit CLI v0.1.0
-支持 Manifest 版本：brickkit/v1
-支持部署目标：docker, k8s
+Supported manifest version: brickkit/v1
+Supported deploy targets: docker, k8s
 ```
 
-> stderr 上那串 JSON 是结构化日志，不影响正常输出，嫌吵加 `--log-level off`。
+> Any JSON you see on stderr is structured logging — it doesn't affect normal
+> output. Silence it with `--log-level off`.
 
-### 还需要什么
+### What else you'll need
 
-| | 什么时候要 |
+| | Needed when |
 | --- | --- |
-| Docker 20.10+（含 Compose V2） | `brickkit up` 起本地容器时 |
-| kubectl + 一个集群（minikube 够用） | `deploy.target: k8s` 时 |
-| Go 1.22+ | **只有方式二、三**要；方式一不需要（除非组件本身是 Go 写的） |
-| [cosign](https://github.com/sigstore/cosign) | **只有发布方**签名时；验签用 Go 标准库，装 CLI 的人不需要 |
+| Docker 20.10+ (with Compose V2) | Running `brickkit up` for local containers |
+| kubectl + a cluster (minikube is enough) | `deploy.target: k8s` |
+| Go 1.22+ | **Only** Methods 2 and 3 need it; Method 1 doesn't (unless a component itself is written in Go) |
+| [cosign](https://github.com/sigstore/cosign) | **Only** publishers signing releases need it; verification uses the Go standard library, so installing the CLI doesn't require it |
 
-各篇指南分别需要什么，见 [00b · 底层环境清单](试用指南/00b-底层环境清单.md)。
+> **Windows:** a `windows/amd64` zip is available for manual download from
+> [Releases](https://github.com/brickKit/brickKit/releases). Only the parts of
+> the CLI that don't touch Docker have been verified there — starting
+> containers and the Kubernetes path **haven't been verified** on Windows.
+> That's not the same as unsupported; it's simply untested. Details in
+> [docs/archive/planning/发布与分发.md](docs/archive/planning/发布与分发.md)
+> §3.1 (historical, Chinese only).
+>
+> **There's no Homebrew / Scoop / apt package yet.** All of those are
+> downstream of GitHub Releases; the upstream has to exist first.
 
-### 卸载
+---
+
+## Uninstall
 
 ```bash
 rm "$(command -v brickkit)"
 ```
 
-没有全局配置要清 —— 删掉项目目录就等于删干净了。
-
-> **Windows：** 有 `windows/amd64` 的 zip，[Releases](https://github.com/brickKit/brickKit/releases)
-> 页面手动下。但它只验过不需要 Docker 的那部分命令 —— 起容器和 K8s 那条线在
-> Windows 上**没验过**，不是不支持，是没验过。详见 [发布与分发](发布与分发.md) §3.1。
->
-> **还没有 Homebrew / Scoop / apt 包。** 它们都是 Releases 的下游，先把上游做出来。
->
-> 想跑试用指南的话这些都不用管：[00 · 准备](试用指南/00-准备.md) 里的 `准备.sh`
-> 会构建一份放进 `试用指南/bin/`。
+There is no global config to clean up — deleting your project directory
+removes everything else.
 
 ---
 
-## 一分钟看完
+## One-minute tour
 
 ```bash
-brickkit init my-shop                 # 创建项目
-brickkit add erp/backend@1.0.0        # 一条命令拉下整棵依赖树
-brickkit up --dry-run                        # 看启动顺序（拓扑排序）
-brickkit up                           # 生成部署文件 → 跑迁移 → 起容器
+brickkit init my-shop                 # create a project
+brickkit add erp/backend@1.0.0        # pull the entire dependency tree in one shot
+brickkit up --dry-run                 # preview the startup order (topological sort)
+brickkit up                           # generate deployment files → run migrations → start containers
 ```
 
-一次 `add` 拉下全部依赖。一次 `up` 把声明变成运行中的容器 ——
-或者变成 Kubernetes 清单，只改一个字段：
+One `add` pulls every dependency. One `up` turns the declaration into running
+containers — or into Kubernetes manifests, by changing a single field:
 
 ```yaml
 deploy:
-  target: k8s        # 原本是 docker
+  target: k8s        # was: docker
 ```
 
-组件代码一个字都不用改：两个环境下的地址格式完全一样，都是
-`http://<版本化服务名>:<端口>`（例如 `http://people-basic-1-0-0:8080`）。
+Not a single line of component code changes: addressing is identical in both
+environments, always `http://<versioned-service-name>:<port>` (for example
+`http://people-basic-1-0-0:8080`).
 
-**命令共 13 条：** `init` `add` `remove` `fetch` `up` `down` `status` `sync`
-`restore` `login` `logout` `publish` `version`
+**13 commands in total:** `init` `add` `remove` `fetch` `up` `down` `status`
+`sync` `restore` `login` `logout` `publish` `version`
 
 ---
 
-## 它刻意不做的事
+## What it deliberately doesn't do
 
-这份清单和上面的功能同样重要 —— 它们不是「还没做」，而是**被论证过并拒绝**的：
+This list matters as much as the feature list above — these aren't things
+that are "not built yet," they are things that were **argued through and
+rejected**:
 
-| 不做 | 替代方案 |
+| Doesn't do | Instead |
 | --- | --- |
-| 注册中心 / 地址簿 | Docker DNS / K8s Service DNS |
-| 常驻服务 / 控制面 | CLI 用完即走，状态外置到 `brickkit.yaml` + 底层引擎 |
-| 健康检查轮询 | K8s Probe / Compose healthcheck + 重启策略 |
-| API 网关 / 服务网格 | 组件之间 DNS 直连 |
-| 配置中心 / 动态热更新 | 环境变量注入，改配置就重启 |
-| 熔断 / 限流 / 降级 | 组件自己的业务代码 |
-| 版本范围（`^1.0.0`） | 只接受精确版本，杜绝隐式升级 |
-| 多环境 overlay 继承 | 每个环境一份完整自包含的配置 |
-| 第三方组件安全审查 | 安装即信任，事后 `blocked` 下架 |
+| Service registry / address book | Docker DNS / Kubernetes Service DNS |
+| A long-running daemon / control plane | The CLI runs and exits; state lives externally, in `brickkit.yaml` and the underlying engine |
+| Health-check polling | Kubernetes probes / Compose healthchecks, plus restart policies |
+| API gateway / service mesh | Components talk to each other directly over DNS |
+| Config center / dynamic hot-reload | Config is injected as environment variables; change it and restart |
+| Circuit breaking / rate limiting / graceful degradation | That's the component's own business logic |
+| Version ranges (`^1.0.0`) | Only exact versions are accepted — no implicit upgrades |
+| Multi-environment overlay inheritance | Each environment gets one complete, self-contained config |
+| Security review of third-party components | Trust at install time; a bad actor gets `blocked` after the fact |
 
-> **平台只做「连接器」和「翻译官」，绝不越界去做「业务逻辑」和「基础设施」已经做好的事情。**
+> **The platform only does two jobs — connector and translator — and
+> deliberately stays out of both business logic and anything infrastructure
+> already does well.**
 
-每一条的完整论证见 [012 架构设计原理与考量](design/012-架构设计原理与考量.md)。
+The full reasoning behind every row lives under
+[`docs/en/architecture/`](https://github.com/brickKit/brickKit/tree/main/docs/en/architecture).
 
 ---
 
-## 从哪开始
+## Where to go next
 
-| 我想… | 去这里 |
+| I want to... | Go here |
 | --- | --- |
-| **让 AI 读懂这个项目** | [AI 导读](AI-CONTEXT.md) ｜ [文档索引 llms.txt](llms.txt) |
-| **两小时试一遍** | [00a · 两小时上手](试用指南/00a-两小时上手.md) |
-| 按顺序走完 23 篇指南 | [试用指南](试用指南/README.md) |
-| 先确认要装什么 | [00b · 底层环境清单](试用指南/00b-底层环境清单.md) |
-| 理解设计 | [设计书导航](design/000%20阅读指南与文档导航.md) |
-| 写我自己的组件 | [009 组件开发快速入门](design/009-组件开发快速入门.md) |
-| 弄明白东西跑在哪 | [部署模式](部署模式.md) |
-| 把市场跑起来 | [市场部署与运维指南](市场部署与运维指南.md) |
-| 查某个决策当初为什么这么定 | [决策索引](开发进度/决策索引.md)（566 条） |
+| Understand the platform | [`docs/en/architecture/`](https://github.com/brickKit/brickKit/tree/main/docs/en/architecture), starting with [overview](https://github.com/brickKit/brickKit/blob/main/docs/en/architecture/overview.md) |
+| A hands-on tutorial | [`docs/en/guide/`](https://github.com/brickKit/brickKit/tree/main/docs/en/guide) |
+| Learn how to test, plan seed data, or tune a deployment | [`docs/en/patterns/`](https://github.com/brickKit/brickKit/tree/main/docs/en/patterns), e.g. [testing](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/testing.md) |
+| See why a specific decision was made | [`docs/archive/decisions/`](docs/archive/decisions/) (historical, Chinese only) |
 
 ---
 
-## 仓库结构
+## Repository layout
 
 ```
-cmd/brickkit/          CLI 入口
-internal/              CLI 实现
-  ├── config/            brickkit.yaml 解析与校验
-  ├── manifest/          component.yaml 解析与校验
-  ├── resolver/          依赖解析、拓扑排序
-  ├── cascade/           启停判定：算出这次实际启动谁（跟着上层走）
-  ├── inject/            环境变量注入与资源配额合并
-  ├── compose/           docker-compose.yaml 生成
-  ├── k8s/               Kubernetes 清单生成
-  ├── engine/            docker compose / kubectl 驱动
-  ├── source/            安装源：market / git / local
-  ├── security/          cosign 签名与标准库验签
-  └── workspace/         组件源码工作区（--repo / sync）
-market-server/         组件市场后端（独立 Go module）
-design/                14 本设计书 —— 规范性文档，有歧义时以它为准
-试用指南/               23 篇动手指南，每一篇都真跑过
-tests/components/      10 个真实组件，用来测试平台本身
-tests/checklist/       验收清单 → 证明它们的测试
-deploy/market/         市场的 compose / kustomize / Helm
+cmd/brickkit/          CLI entry point
+internal/              CLI implementation
+  ├── config/            brickkit.yaml parsing & validation
+  ├── manifest/          component.yaml parsing & validation
+  ├── resolver/          dependency resolution, topological sort
+  ├── cascade/           start/stop decisions: what actually needs to start this run ("follow the parent")
+  ├── inject/             environment-variable injection & resource-quota merging
+  ├── compose/            docker-compose.yaml generation
+  ├── k8s/                Kubernetes manifest generation
+  ├── engine/             docker compose / kubectl drivers
+  ├── source/             install sources: market / git / local
+  ├── security/           cosign signing & standard-library verification
+  └── workspace/          component source workspace (--repo / sync)
+market-server/         component market backend (a separate Go module)
+tests/components/      10 real components, used to test the platform itself
+tests/checklist/       acceptance checklists → the tests that prove them
+deploy/market/         the market's compose / kustomize / Helm manifests
+docs/en/               English documentation: architecture, guide, patterns
+docs/zh/               中文文档：architecture、guide、patterns（对称镜像，不是英文的译本）
+docs/archive/          pre-restructure documentation, kept as historical record only
 ```
 
-单元测试**紧挨着被测代码**（`internal/**/*_test.go`），不建平行目录。
-`tests/` 只放没法放在旁边的：清单、基准，以及当夹具用的组件。
+Unit tests live **next to the code they test** (`internal/**/*_test.go`) — no
+parallel test tree. `tests/` only holds what can't live alongside the code:
+checklists, benchmarks, and components used as fixtures.
 
 ---
 
-## 构建与测试
+## Build & test
 
 ```bash
 make build            # bin/brickkit + bin/market-server
-make test             # 单元测试
-make test-all         # 全部测试套件
-make lint             # vet + 文档检查
+make test             # unit tests
+make test-all         # the full test suite
+make lint             # vet + doc checks
 ```
 
-九道检查持续运行，而且**每一道坏掉时都会大声报错**，而不是安静地报告零问题：
+Nine gates run continuously, and **every one of them fails loudly when it
+breaks**, instead of quietly reporting zero problems:
 
-| 命令 | 守住什么 |
+| Command | Guards |
 | --- | --- |
-| `make test-regression` | 面向用户的承诺 → 证明它们的测试（`tests/regression/清单.tsv`） |
-| `make test-boundary` 等 | 边界 / 错误 / 兼容 / 安全验收条目 → 证明它们的测试（`tests/checklist/清单.tsv`） |
-| `make check-doc-fields` | 文档里画的 yaml 片段与字段表，字段名都真的存在（真相来源是结构体本身） |
-| `make check-docs` | 悬空的小节引用与断链 |
-| `make check-cli-docs` | 文档（和 `--help` 自己）里写的每条命令和参数都真的存在 |
-| `make check-doc-tree` | 文档里画的 `.brickkit/` 目录树与 CLI 真的会创建的东西一致 |
-| `make check-guide-output` | 试用指南的「✅ 预期」与 CLI 真实输出逐行一致 |
-| `make check-guides` | 试用指南里的步骤仍然跑得通 |
-| `make check-install-sh` | `install.sh` 装得上，而且校验和坏掉时**真的**拒绝装 |
+| `make test-regression` | User-facing promises → the tests that prove them (`tests/regression/清单.tsv`) |
+| `make test-boundary` (and friends) | Boundary / error / compatibility / security acceptance items → the tests that prove them (`tests/checklist/清单.tsv`) |
+| `make check-doc-fields` | Every field name drawn in the docs' YAML snippets and field tables really exists (the source of truth is the struct itself) |
+| `make check-docs` | Dangling section references and broken links |
+| `make check-cli-docs` | Every command and flag written in the docs (and in `--help` itself) really exists |
+| `make check-doc-tree` | The `.brickkit/` directory tree drawn in the docs matches what the CLI actually creates |
+| `make check-guide-output` | The guides' "✅ expected" output matches the CLI's real output, line for line |
+| `make check-guides` | The steps in the guides still work |
+| `make check-install-sh` | `install.sh` installs successfully, and *actually* refuses to install when the checksum is broken |
 
-一份指向已不存在的测试的清单会让构建失败。一个目录变空的测试目标同样会 ——
-**安静跳过的套件比没有套件更糟**，因为它还占着计分板上的一行。
+A checklist pointing at a test that no longer exists fails the build. So does
+a test target whose directory has gone empty — **a suite that silently skips
+is worse than no suite at all**, because it still occupies a line on the
+scoreboard.
 
 ---
 
-## 项目状态
+## Project status
 
-计划内的每一步都已完成，延后项也已全部结清；
-[开发计划](%E5%BC%80%E5%8F%91%E8%AE%A1%E5%88%92.md) 与
-[开发进度](%E5%BC%80%E5%8F%91%E8%BF%9B%E5%BA%A6/README.md) 已冻结为历史记录，
-后续改动以 `design/` 与 `tests/` 下的两份清单为准。
+Every planned step is complete, and every deferred item has been resolved.
+The original dev plan and dev log are frozen as historical record under
+[`docs/archive/planning/`](docs/archive/planning/) and
+[`docs/archive/decisions/`](docs/archive/decisions/). Going forward, behavior
+is governed by the two living checklists under `tests/checklist/` and
+`tests/regression/` — the design books that used to serve that role have been
+superseded by `docs/en/architecture/` and `docs/zh/architecture/` (their old
+text lives on, read-only, under
+[`docs/archive/design/`](docs/archive/design/)).
 
 | | |
 | --- | --- |
-| 测试 | 1762 个测试函数，race-clean |
-| 试用指南 | 23 篇，全部对着真实 Docker / Kubernetes / 活的市场跑过 |
-| 设计书 | 14 本，与实现交叉复核过两轮 |
-| 决策记录 | 566 条，每条都带当初的推理 |
+| Tests | 1762 test functions, race-clean |
+| Hands-on guides | 23, each run against real Docker / Kubernetes / a live market — archived at `docs/archive/guide/`, superseded by `docs/{en,zh}/guide/` |
+| Design books | 14, cross-checked against the implementation twice — archived at `docs/archive/design/`, superseded by `docs/{en,zh}/architecture/` |
+| Decision records | 566, each with the reasoning behind it, archived at `docs/archive/decisions/` |
 
-**运行要求：** Go 1.22+、Docker 20.10+（含 Compose V2）。
-Kubernetes 相关指南需要 minikube；签名需要
-[cosign](https://github.com/sigstore/cosign)（**仅发布方** —— 验签用 Go 标准库）。
-
----
-
-## In English
-
-BrickKit is a component assembly platform: develop, deploy, call, and compose
-business components independently. Think `npm` + `helm` + `docker compose`, but
-for services rather than libraries. One `brickkit add` pulls an entire dependency
-tree; one `brickkit up` turns the declaration into running containers — or into
-Kubernetes manifests, by changing a single field.
-
-The platform is deliberately minimal: no registry, no control plane, no config
-server, no gateway. Service discovery is Docker/K8s DNS. Health checking is the
-engine's own probes. Everything else belongs to the components.
-
-Install the CLI (no Go required; the script verifies sha256 before installing):
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh | sh
-brickkit version
-```
-
-Prebuilt binaries for linux/macOS (amd64 + arm64) and windows/amd64; with Go,
-`go install github.com/brickkit/brickkit/cmd/brickkit@latest` works too.
-
-**All documentation is written in Chinese.** For a complete overview in one file,
-read [AI-CONTEXT.md](AI-CONTEXT.md) — it is a condensed version of the full
-1.7MB documentation set and covers every core idea and mechanism.
+**Runtime requirements:** Go 1.22+, Docker 20.10+ (with Compose V2).
+Kubernetes-related guides need minikube; signing needs
+[cosign](https://github.com/sigstore/cosign) (**publishers only** —
+verification uses the Go standard library).
 
 ---
 
 <div align="center">
 
-**[🤖 AI 导读 →](AI-CONTEXT.md)** ｜ **[📖 开始动手 →](试用指南/README.md)**
-
-Apache License 2.0
+[Apache License 2.0](LICENSE)
 
 </div>
