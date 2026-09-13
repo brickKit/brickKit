@@ -187,7 +187,7 @@ def docs():
     # AI 助手技能。它们也算文档，而且是**最会被照着敲**的一类：读者是 AI 助手，
     # 它不会像人一样怀疑"是不是我装错了版本"，只会自信地把假参数敲下去。
     # 而且这些文件不在用户仓库里，用户改不了——说谎只能在这里被拦住。
-    for pattern in ["design/**/*.md", "试用指南/**/*.md", "*.md", "deploy/**/*.md",
+    for pattern in ["*.md", "deploy/**/*.md", "docs/en/**/*.md", "docs/zh/**/*.md",
                     "llms.txt", "internal/skills/assets/**/*.md"]:
         for path in glob.glob(pattern, recursive=True):
             if any(d in path for d in SKIP_DIRS):

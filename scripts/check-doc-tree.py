@@ -46,7 +46,7 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LAYOUT = os.path.join(ROOT, "internal", "config", "layout.go")
 
-SKIP_DIRS = ("playground", "node_modules", ".tools", "bin", "data", ".git")
+SKIP_DIRS = ("playground", "node_modules", ".tools", "bin", "data", ".git", "archive")
 
 # 树里出现、但不是"CLI 创建的东西"的行，跳过而不是报错。
 # 只有这一类：省略号。别的都该老实对上。

@@ -55,7 +55,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GUIDE = os.path.join(ROOT, "试用指南")
+GUIDE = os.path.join(ROOT, "docs", "archive", "guide")
 BIN = os.path.join(ROOT, "bin", "brickkit")
 
 # 试验场里的组件，与 试用指南/准备.sh 保持一致
@@ -238,56 +238,56 @@ CASES = [
         "what": "004 §3.2 init 的输出",
         "reset": True,
         "run": [],
-        "check": ("init my-project", "design/004-CLI 设计.md",
+        "check": ("init my-project", "docs/archive/design/004-CLI 设计.md",
                   "✅ 项目已初始化：my-project", 0),
     },
     {
         "what": "004 §3.2 init 不给项目名",
         "reset": True,
         "run": [],
-        "check": ("init", "design/004-CLI 设计.md",
+        "check": ("init", "docs/archive/design/004-CLI 设计.md",
                   "❌ 请指定项目名称：brickkit init <项目名称>", 0),
     },
     {
         "what": "004 §3.4 有依赖方时拦下 remove",
         "reset": True,
         "run": BASELINE,
-        "check": ("remove department/tree", "design/004-CLI 设计.md",
+        "check": ("remove department/tree", "docs/archive/design/004-CLI 设计.md",
                   "❌ 无法移除 department/tree", 0),
     },
     {
         "what": "004 §3.8 dry-run 的启动顺序",
         "reset": True,
         "run": BASELINE,
-        "check": ("up --dry-run", "design/004-CLI 设计.md",
+        "check": ("up --dry-run", "docs/archive/design/004-CLI 设计.md",
                   "📋 启动顺序（拓扑排序）：", 0),
     },
     {
         "what": "004 §4.3 循环依赖报错",
         "reset": True,
         "run": ["init demo-shop", "!cycle"],
-        "check": ("add demo/caller@1.0.0", "design/004-CLI 设计.md",
+        "check": ("add demo/caller@1.0.0", "docs/archive/design/004-CLI 设计.md",
                   "❌ 错误：检测到循环依赖", 0),
     },
     {
         "what": "004 §4.5 / 003 §4.3 弱依赖这次不跑",
         "reset": True,
         "run": BASELINE + ["!disable infra/redis-event-bus"],
-        "check": ("up --dry-run", "design/004-CLI 设计.md",
+        "check": ("up --dry-run", "docs/archive/design/004-CLI 设计.md",
                   "💡 这次有弱依赖不启动，调用方会走降级分支（002 §3.4）：", 0),
     },
     {
         "what": "003 §4.3 弱依赖这次不跑（003 里的那一份）",
         "reset": True,
         "run": BASELINE + ["!disable infra/redis-event-bus"],
-        "check": ("up --dry-run", "design/003-项目配置规范.md",
+        "check": ("up --dry-run", "docs/archive/design/003-项目配置规范.md",
                   "💡 这次有弱依赖不启动，调用方会走降级分支（002 §3.4）：", 0),
     },
     {
         "what": "003 §4.5 Docker 下两个组件抢同一个宿主机端口",
         "reset": True,
         "run": BASELINE + ["!expose demo/hello", "!expose demo/caller"],
-        "check": ("up --dry-run", "design/003-项目配置规范.md",
+        "check": ("up --dry-run", "docs/archive/design/003-项目配置规范.md",
                   "❌ 错误：宿主机端口 8080 被多个组件占用", 0),
     },
     {
@@ -296,7 +296,7 @@ CASES = [
         "run": BASELINE + ["!k8s",
                            "!expose demo/hello shop.example.com",
                            "!expose demo/caller shop.example.com"],
-        "check": ("up --dry-run", "design/003-项目配置规范.md",
+        "check": ("up --dry-run", "docs/archive/design/003-项目配置规范.md",
                   "❌ 错误：域名 shop.example.com 被多个组件占用", 0),
     },
     {
@@ -305,21 +305,21 @@ CASES = [
         "run": BASELINE + ["!k8s",
                            "!expose demo/hello shop.example.com",
                            "!expose demo/caller shop.example.com"],
-        "check": ("up --dry-run", "design/005-部署与运行规范.md",
+        "check": ("up --dry-run", "docs/archive/design/005-部署与运行规范.md",
                   "❌ 错误：域名 shop.example.com 被多个组件占用", 0),
     },
     {
         "what": "003 §4.3 什么都不写时全跑",
         "reset": True,
         "run": BASELINE,
-        "check": ("up --dry-run", "design/003-项目配置规范.md",
+        "check": ("up --dry-run", "docs/archive/design/003-项目配置规范.md",
                   "📋 组件状态计算：", 0),
     },
     {
         "what": "003 §4.3 关掉一个顶层，它下面那条链跟着关",
         "reset": True,
         "run": BASELINE + ["!disable people/basic"],
-        "check": ("up --dry-run", "design/003-项目配置规范.md",
+        "check": ("up --dry-run", "docs/archive/design/003-项目配置规范.md",
                   "📋 组件状态计算：", 1),
     },
 
@@ -334,42 +334,42 @@ CASES = [
         "what": "011 §1.1 init 的输出（004 之外的那一份）",
         "reset": True,
         "run": [],
-        "check": ("init my-project", "design/011-组件安装与拼装指南.md",
+        "check": ("init my-project", "docs/archive/design/011-组件安装与拼装指南.md",
                   "✅ 项目已初始化：my-project", 0),
     },
     {
         "what": "004 §3.2 init 不给项目名（同一份文档里的第二处）",
         "reset": True,
         "run": [],
-        "check": ("init", "design/004-CLI 设计.md",
+        "check": ("init", "docs/archive/design/004-CLI 设计.md",
                   "❌ 请指定项目名称：brickkit init <项目名称>", 1),
     },
     {
         "what": "011 §2.4 有依赖方时拦下 remove（004 之外的那一份）",
         "reset": True,
         "run": BASELINE,
-        "check": ("remove department/tree", "design/011-组件安装与拼装指南.md",
+        "check": ("remove department/tree", "docs/archive/design/011-组件安装与拼装指南.md",
                   "❌ 无法移除 department/tree", 0),
     },
     {
         "what": "002 §5.3 有依赖方时拦下 remove（004 之外的那一份）",
         "reset": True,
         "run": BASELINE,
-        "check": ("remove department/tree", "design/002-组件规范.md",
+        "check": ("remove department/tree", "docs/archive/design/002-组件规范.md",
                   "❌ 无法移除 department/tree", 0),
     },
     {
         "what": "005 §3.3 启动顺序（004 之外的那一份）",
         "reset": True,
         "run": FULLSTACK,
-        "check": ("up --dry-run", "design/005-部署与运行规范.md",
+        "check": ("up --dry-run", "docs/archive/design/005-部署与运行规范.md",
                   "📋 启动顺序（拓扑排序）：", 0),
     },
     {
         "what": "011 §3.2 启动顺序（004 之外的那一份）",
         "reset": True,
         "run": FULLSTACK,
-        "check": ("up --dry-run", "design/011-组件安装与拼装指南.md",
+        "check": ("up --dry-run", "docs/archive/design/011-组件安装与拼装指南.md",
                   "📋 启动顺序（拓扑排序）：", 0),
     },
 
@@ -382,35 +382,35 @@ CASES = [
         "what": "003 §4.3 强依赖被禁用 + 被钉住",
         "reset": True,
         "run": BASELINE + ["!disable department/tree", "!pin people/basic"],
-        "check": ("up --dry-run", "design/003-项目配置规范.md",
+        "check": ("up --dry-run", "docs/archive/design/003-项目配置规范.md",
                   "❌ 错误：强依赖 department/tree 被禁用", 0),
     },
     {
         "what": "004 §4.x 强依赖被禁用 + 被钉住",
         "reset": True,
         "run": BASELINE + ["!disable department/tree", "!pin people/basic"],
-        "check": ("up --dry-run", "design/004-CLI 设计.md",
+        "check": ("up --dry-run", "docs/archive/design/004-CLI 设计.md",
                   "❌ 错误：强依赖 department/tree 被禁用", 0),
     },
     {
         "what": "011 §3.x 强依赖被禁用 + 被钉住",
         "reset": True,
         "run": BASELINE + ["!disable department/tree", "!pin people/basic"],
-        "check": ("up --dry-run", "design/011-组件安装与拼装指南.md",
+        "check": ("up --dry-run", "docs/archive/design/011-组件安装与拼装指南.md",
                   "❌ 错误：强依赖 department/tree 被禁用", 0),
     },
     {
         "what": "003 §4.4 local: true 上的 expose 不生效",
         "reset": True,
         "run": BASELINE + ["!local-expose demo/hello"],
-        "check": ("up --dry-run", "design/003-项目配置规范.md",
+        "check": ("up --dry-run", "docs/archive/design/003-项目配置规范.md",
                   "⚠️ local: true 的组件上，expose / exposePort 本次不生效", 0),
     },
     {
         "what": "005 §4.6.1 local: true 上的 expose 不生效（003 之外的那一份）",
         "reset": True,
         "run": BASELINE + ["!local-expose demo/hello"],
-        "check": ("up --dry-run", "design/005-部署与运行规范.md",
+        "check": ("up --dry-run", "docs/archive/design/005-部署与运行规范.md",
                   "⚠️ local: true 的组件上，expose / exposePort 本次不生效", 0),
     },
 
@@ -478,7 +478,7 @@ def doc_path(filename):
 
 def doc_label(filename):
     """报错时显示的路径。"""
-    return filename if "/" in filename else "试用指南/" + filename
+    return filename if "/" in filename else "docs/archive/guide/" + filename
 
 
 def find_block(filename, anchor, nth):
@@ -728,7 +728,7 @@ def docker_ready():
     for image in ("brickkit-demo/hello:1.0.0", "brickkit-demo/caller:1.0.0"):
         if subprocess.run(["docker", "image", "inspect", image],
                           capture_output=True).returncode != 0:
-            return False, f"缺组件镜像 {image}（见 试用指南/00-准备.md）"
+            return False, f"缺组件镜像 {image}（见 docs/archive/guide/00-准备.md）"
     return True, ""
 
 

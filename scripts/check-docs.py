@@ -58,8 +58,8 @@ def walk(patterns):
 def design_sections():
     """收集每本设计书里实际存在的小节号：{"005": {"5.1", "5.13.1", …}}"""
     found = defaultdict(set)
-    for path in glob.glob("design/[0-9][0-9][0-9]*.md"):
-        number = re.match(r"design/(\d{3})", path).group(1)
+    for path in glob.glob("docs/archive/design/[0-9][0-9][0-9]*.md"):
+        number = re.match(r"docs/archive/design/(\d{3})", path).group(1)
         with open(path, encoding="utf-8") as f:
             for line in f:
                 # 标题写法有两种：`## 2. 完整结构` 与 `### 3.2 deploy`
@@ -86,7 +86,9 @@ def check_sections(sections):
     """① 悬空小节引用。"""
     bad = []
     for path in walk(["internal/**/*.go", "market-server/**/*.go",
-                      "design/*.md", "试用指南/*.md", "开发进度/**/*.md", "*.md"]):
+                      "docs/archive/design/*.md", "docs/archive/guide/*.md",
+                      "docs/archive/decisions/**/*.md",
+                      "docs/en/**/*.md", "docs/zh/**/*.md", "*.md"]):
         try:
             lines = open(path, encoding="utf-8").read().split("\n")
         except (OSError, UnicodeDecodeError):
@@ -106,8 +108,9 @@ def check_sections(sections):
 def check_links():
     """② markdown 断链。"""
     bad = []
-    for path in walk(["design/**/*.md", "试用指南/**/*.md",
-                      "开发进度/**/*.md", "deploy/**/*.md", "*.md"]):
+    for path in walk(["docs/archive/design/**/*.md", "docs/archive/guide/**/*.md",
+                      "docs/archive/decisions/**/*.md", "deploy/**/*.md",
+                      "docs/en/**/*.md", "docs/zh/**/*.md", "*.md"]):
         root = os.path.dirname(path)
         try:
             lines = open(path, encoding="utf-8").read().split("\n")
@@ -151,7 +154,7 @@ def guide_section_numbers():
     problems = []
     seen_h1 = seen_sec = 0
 
-    for path in sorted(glob.glob("试用指南/[0-9]*-*.md")):
+    for path in sorted(glob.glob("docs/archive/guide/[0-9]*-*.md")):
         tag = os.path.basename(path).split("-")[0]      # "09" / "00a"
         prefixes = set()
         h1 = None
@@ -199,13 +202,13 @@ def guide_prerequisites():
     """
     problems = []
 
-    readme = "试用指南/README.md"
+    readme = "docs/archive/guide/README.md"
     if not os.path.exists(readme):
         return problems
 
     # 各篇自己声明的前置：文件号 → 那一行里出现的所有篇号
     declared = {}
-    for path in sorted(glob.glob("试用指南/[0-9]*-*.md")):
+    for path in sorted(glob.glob("docs/archive/guide/[0-9]*-*.md")):
         tag = os.path.basename(path).split("-")[0]
         head = "".join(open(path, encoding="utf-8").readlines()[:12])
         m = re.search(r"前置[：:]\**\s*(.+)", head)
@@ -248,7 +251,7 @@ def why_sections_reachable():
     不变式：**012 §2.x 全部可达**。新写一节辩护而没有任何一篇指过去，
     等于写完就沉底；这道检查会当场说出是哪一节。
     """
-    book = "design/012-架构设计原理与考量.md"
+    book = "docs/archive/design/012-架构设计原理与考量.md"
     if not os.path.exists(book):
         return []
 
@@ -265,7 +268,7 @@ def why_sections_reachable():
     # （005 §2.5 讲内存上限、02 §2.7 是指南自己的小节），把它们算进来的话，
     # 删掉一条真正的 012 指路这道检查也照样绿——那就等于没有这道检查。
     cited = set()
-    for path in glob.glob("试用指南/*.md"):
+    for path in glob.glob("docs/archive/guide/*.md"):
         for line in open(path, encoding="utf-8"):
             if "012" not in line:
                 continue
@@ -316,7 +319,7 @@ def guide_bare_chapter_refs():
     problems = []
     lines = 0
 
-    for path in sorted(glob.glob("试用指南/[0-9]*-*.md")):
+    for path in sorted(glob.glob("docs/archive/guide/[0-9]*-*.md")):
         tag = os.path.basename(path).split("-")[0]
         for i, line in enumerate(open(path, encoding="utf-8"), 1):
             lines += 1
@@ -362,7 +365,7 @@ def guide_next_chain():
     problems = []
 
     chapters = []
-    for path in sorted(glob.glob("试用指南/[0-9]*-*.md")):
+    for path in sorted(glob.glob("docs/archive/guide/[0-9]*-*.md")):
         tag = os.path.basename(path).split("-")[0]
         if not tag.isdigit():        # 00a / 00b 是查的，不是照着做的
             continue

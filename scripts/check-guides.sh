@@ -105,7 +105,7 @@ bind_pg() {
 
 tier_why() {
 	case "$1" in
-		docker) [[ $have_docker -eq 0 ]] && echo "没有可用的 Docker" || echo "缺组件镜像（brickkit-demo/hello:1.0.0 等，见 试用指南/00-准备.md）" ;;
+		docker) [[ $have_docker -eq 0 ]] && echo "没有可用的 Docker" || echo "缺组件镜像（brickkit-demo/hello:1.0.0 等，见 docs/archive/guide/00-准备.md）" ;;
 		k8s) echo "minikube 没在跑" ;;
 	esac
 }

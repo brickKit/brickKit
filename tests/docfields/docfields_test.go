@@ -54,18 +54,19 @@ type docFile struct {
 	body string
 }
 
-// docs 收集 design/ 下的设计书、根目录的 AI-CONTEXT.md 与 README.md。
+// docs 收集根目录的 AI-CONTEXT.md 与 README.md。
 //
-// 试用指南不在其中：那里的 YAML 多是"改这一行"的片段，而片段既没有
-// kind: Component 也没有顶层 project:，本来就不会被分类到（见 classify）。
+// design/ 已归档为历史记录，不再参与"文档跟不跟得上 CLI"的验证——继续验证
+// 一份承诺不再更新的文档没有意义。试用指南也不在其中：那里的 YAML 多是
+// "改这一行"的片段，本来就不会被分类到（见 classify）。
 func docs(t *testing.T) []docFile {
 	t.Helper()
 
 	var out []docFile
-	paths, err := filepath.Glob(filepath.Join(repoRoot, "design", "*.md"))
-	require.NoError(t, err)
-	paths = append(paths, filepath.Join(repoRoot, "AI-CONTEXT.md"),
-		filepath.Join(repoRoot, "README.md"))
+	paths := []string{
+		filepath.Join(repoRoot, "AI-CONTEXT.md"),
+		filepath.Join(repoRoot, "README.md"),
+	}
 
 	for _, path := range paths {
 		body, err := os.ReadFile(path)
@@ -252,6 +253,8 @@ func fileNameOf(typ reflect.Type) string {
 // 判据宽松——只要求字段名在设计书里出现过，不要求出现在哪一节、
 // 更不要求出现在骨架里。宽松是有意的：这条测试要抓的是"完全没提"，
 // 不是"没写进某张表"。收紧了它会开始误伤，然后被人加例外，然后就没用了。
+//
+// 完整性检查已随 design/ 归档一并移除，这条测试保持宽松判据不变。
 func TestEveryFieldIsMentionedInDesignDocs(t *testing.T) {
 	var all strings.Builder
 	for _, d := range docs(t) {
@@ -314,95 +317,6 @@ func collectFields(typ reflect.Type, path string, out map[string]string) {
 }
 
 // ============================================================
-// 「完整字段参考」必须真的完整
-// ============================================================
-
-// referenceSkeleton 是自称"完整字段参考"的那两处。
-//
-// 它们与别处不同：附录 B.1 与 D.1 是**开发时查阅**的那一份（000 的阅读路径里
-// 就是这么引导的——"附录 B：Manifest 完整字段参考（开发时查阅）"）。
-// 一个字段没写进去，读者的结论就是"平台没有这个能力"。
-type referenceSkeleton struct {
-	heading string
-	typ     reflect.Type
-	what    string
-}
-
-var referenceSkeletons = []referenceSkeleton{
-	{"### B.1 完整字段结构", reflect.TypeOf(manifest.Manifest{}), "component.yaml"},
-	{"### D.1 完整字段结构", reflect.TypeOf(config.Config{}), "brickkit.yaml"},
-}
-
-// 附录 B.1 / D.1 里必须列全每一个字段。
-//
-// # 与上面那条宽松检查的分工
-//
-// TestEveryFieldIsMentionedInDesignDocs 只问"在设计书里出现过没有"，而且刻意
-// 保持宽松——收紧了会开始误伤，然后被人加例外，然后就没用了。
-//
-// 这条不一样：它只盯**两处**，而那两处自己许下了"完整"这个承诺。守它不是收紧
-// 一条宽松的规则，是让一句自我声明能被验证。
-//
-// 真漏过：`sources[].ref`（git 安装源指定分支 / tag / commit）在 003 §6.3 写得
-// 清清楚楚，附录 D.1 里一个字都没有——而 D.1 恰恰是"配置时查阅"的那一份。
-// 上面那条检查看见 003 提过就放行了。
-func TestReferenceSkeletonsListEveryField(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join(repoRoot, "design", "附录合集.md"))
-	require.NoError(t, err, "读不到附录合集——这条守卫失去了对象")
-	body := string(raw)
-
-	for _, ref := range referenceSkeletons {
-		section := sectionAfter(t, body, ref.heading)
-
-		fields := map[string]string{}
-		collectFields(ref.typ, ref.what, fields)
-		require.NotEmpty(t, fields, "%s：一个字段都没提取到，结论不可信", ref.heading)
-
-		var missing []string
-		for name, path := range fields {
-			// 认字段名出现在 `名字:`（含 `- 名字:` 这种列表项、以及注释掉的那种）
-			// 或表格 `| 名字 |` 里，就算列了
-			if !regexp.MustCompile(`(?m)(^[\s#-]*` + regexp.QuoteMeta(name) + `\s*:|\|\s*` +
-				regexp.QuoteMeta(name) + `\s*\|)`).MatchString(section) {
-				missing = append(missing, path)
-			}
-		}
-		sort.Strings(missing)
-
-		assert.Empty(t, missing,
-			"%s 自称「完整字段结构」，但这些字段没有列出来——"+
-				"而它正是使用者开发/配置时查阅的那一份：\n   %s",
-			ref.heading, strings.Join(missing, "\n   "))
-	}
-}
-
-// sectionAfter 取出某个标题到下一个同级（或更高级）标题之间的内容。
-//
-// 必须**跳过围栏内的行**：YAML 骨架里满是 `# ===== 项目基本信息 =====` 这样的
-// 注释，它们在行首、以 # 开头，正则一眼看去就是个标题——不跳的话这一节会被
-// 切在第一行注释上，于是"字段没列出来"全体误报。
-func sectionAfter(t *testing.T, body, heading string) string {
-	t.Helper()
-	i := strings.Index(body, heading)
-	require.NotEqual(t, -1, i, "附录里找不到标题 %q——这条守卫失去了对象", heading)
-
-	level := strings.Count(strings.SplitN(heading, " ", 2)[0], "#")
-	var out []string
-	inFence := false
-	for _, line := range strings.Split(body[i+len(heading):], "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "```") {
-			inFence = !inFence
-		} else if !inFence && strings.HasPrefix(line, "#") {
-			if n := len(line) - len(strings.TrimLeft(line, "#")); n <= level {
-				break
-			}
-		}
-		out = append(out, line)
-	}
-	return strings.Join(out, "\n")
-}
-
-// ============================================================
 // 字段表：写在表里的字段必须真的存在
 // ============================================================
 
@@ -442,8 +356,8 @@ var fieldTableMark = regexp.MustCompile(`<!-- 字段表: ([\w.]+) -->`)
 // # 只查正向
 //
 // 不要求"结构体的字段都在表里"：好几张表是**有意的子集**（003 §4.4 只讲
-// local / localPort 两个字段）。完备性由附录 B.1 / D.1 那条守着——
-// 那两处自己许下了"完整"这个承诺，别处没有。
+// local / localPort 两个字段）。完整性检查已随 design/ 归档一并移除，
+// 这条测试保持宽松判据不变。
 func TestFieldTablesListOnlyRealFields(t *testing.T) {
 	tables := 0
 	var bad []string
