@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-doc-fields check-market-api check-guide-output check-install-sh check-no-binaries cover-check ## 静态检查（文档引用 + 字段骨架 + 市场 API 表 + 指南预期输出 + 安装脚本 + 仓库无二进制 + 覆盖率门槛）
+lint: check-docs check-doc-fields check-docs-bilingual check-market-api check-guide-output check-install-sh check-no-binaries cover-check ## 静态检查（文档引用 + 字段骨架 + 市场 API 表 + 指南预期输出 + 安装脚本 + 仓库无二进制 + 覆盖率门槛）
 # check-cli-docs、check-doc-tree 暂时移出 lint：两者都要求"新增的命令/参数/
 # 目录树画法必须写进活文档"，而 design/试用指南 归档、docs/en/architecture
 # 尚未长出详尽内容期间，没有地方能满足这条判据。手动跑
@@ -166,6 +166,10 @@ check-cli-docs: build-cli ## 检查文档里的命令与参数是否真的存在
 .PHONY: check-doc-tree
 check-doc-tree: build-cli ## 检查文档里画的 .brickkit/ 目录树与 CLI 真的会创建的东西一致
 	@python3 scripts/check-doc-tree.py $(BIN)/brickkit
+
+.PHONY: check-docs-bilingual
+check-docs-bilingual: ## 检查 docs/en 与 docs/zh 镜像完整、llms.txt 链接不悬空
+	@python3 scripts/check-docs-bilingual.py
 
 # 两个"真跑"检查的分工：
 #   check-guide-output  指南里的「✅ 预期」块必须逐行等于 CLI 真实输出。
