@@ -635,8 +635,16 @@ def check_llms_txt_links():
         # raw URL 里目录/文件名做过 URL 编码，还原成真实路径再判断存在性
         from urllib.parse import unquote
         local = os.path.join(ROOT, unquote(rel))
-        if not os.path.isfile(local):
-            bad.append(f"llms.txt 链接 {url} 指向的文件不存在：{local}")
+        # 以 / 结尾的是目录类入口链接（比如「旧设计书」整个目录，不指向具体
+        # 某一篇），按目录判存在性；其余按文件判——这条区分是必须的，不是
+        # 可选的润色：GitHub raw 链接允许指向目录（渲染成 GitHub 的目录浏览
+        # 页），如果统一按 os.path.isfile 判断，任何目录类链接都会被判定
+        # "文件不存在"，哪怕那个目录真实存在。
+        is_dir_link = rel.endswith("/")
+        exists = os.path.isdir(local) if is_dir_link else os.path.isfile(local)
+        if not exists:
+            kind = "目录" if is_dir_link else "文件"
+            bad.append(f"llms.txt 链接 {url} 指向的{kind}不存在：{local}")
     return bad
 
 
@@ -985,7 +993,7 @@ were asked, not based on this file's own language.
 - [决策索引（566 条）](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/decisions/%E5%86%B3%E7%AD%96%E7%B4%A2%E5%BC%95.md): 查某个决策当初为什么这么定。
 ```
 
-（llms.txt 里目录类链接（`docs/archive/design/` 不带具体文件名）不会被 Task 3 的 `check-docs-bilingual.py` 当成需要校验存在性的文件链接——那条正则只匹配以文件扩展名结尾的具体路径，目录链接放在这里纯粹是给人/AI 看的入口提示，这是有意的设计，不是漏洞。）
+（llms.txt 里目录类链接（`docs/archive/design/` 不带具体文件名）会被 `check-docs-bilingual.py` 的 `check_llms_txt_links()` 按目录而不是文件判存在性——这是 Task 3 review 中发现的一处必须修的问题：那条正则本身不区分文件链接和目录链接，如果统一用 `os.path.isfile` 判断，这两条目录链接会被永远误判成"文件不存在"，哪怕目录真实存在。`check_llms_txt_links()` 已经改成"链接以 `/` 结尾就按 `os.path.isdir` 判，否则按 `os.path.isfile` 判"，Task 3 的脚本需要同步这个修复——见 Task 3 Step 1 的最新脚本内容。）
 
 - [ ] **Step 2: 跑双语门禁，确认所有具体文件链接都能解析**
 
