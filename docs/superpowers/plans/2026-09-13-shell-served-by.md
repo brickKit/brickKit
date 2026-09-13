@@ -536,6 +536,48 @@ func TestApplyUpsertsEndpointsAndServedMembers(t *testing.T) {
 	assert.Equal(t, "mdm-customer-1-0-7", byName[shell.EnvVarServedMembers])
 }
 
+// ---- 同一个外壳收编同一个组件的两个不同版本（版本迁移期间的真实用法：
+// 一部分调用方还依赖旧版本，一部分已经切到新版本，两个版本同时活在
+// 同一个外壳里）----
+
+func TestResolveGroupsTwoVersionsOfSameComponentUnderOneShell(t *testing.T) {
+	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+		comp("infra/shell-go-core", "1.0.0", ""),
+		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
+		comp("mdm/customer", "2.0.0", "infra/shell-go-core@1.0.0"),
+	}}
+	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
+		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
+		"mdm/customer@1.0.7":        simple("mdm/customer", "1.0.7", 8080),
+		"mdm/customer@2.0.0":        simple("mdm/customer", "2.0.0", 8081),
+	})
+	require.NoError(t, err, "同一个逻辑组件的两个版本，只要端口不同，同一个外壳完全装得下")
+	require.Len(t, groups, 1)
+	require.Len(t, groups[0].Members, 2)
+
+	byVersion := map[string]shell.Member{}
+	for _, m := range groups[0].Members {
+		byVersion[m.Ref.Version] = m
+	}
+	assert.Equal(t, 8080, byVersion["1.0.7"].Port)
+	assert.Equal(t, 8081, byVersion["2.0.0"].Port)
+}
+
+func TestResolveErrorsWhenTwoVersionsOfSameComponentSharePort(t *testing.T) {
+	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+		comp("infra/shell-go-core", "1.0.0", ""),
+		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
+		comp("mdm/customer", "2.0.0", "infra/shell-go-core@1.0.0"),
+	}}
+	_, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
+		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
+		"mdm/customer@1.0.7":        simple("mdm/customer", "1.0.7", 8080),
+		"mdm/customer@2.0.0":        simple("mdm/customer", "2.0.0", 8080), // 忘了改端口
+	})
+	require.Error(t, err, "两份代码要在同一个进程里各自监听，端口不能一样，哪怕是同一个逻辑组件的两个版本")
+	assert.Contains(t, err.Error(), "8080")
+}
+
 // ---- ParseRef ----
 
 func TestParseRef(t *testing.T) {
@@ -1132,6 +1174,27 @@ func TestLocalStillWorksAlongsideServedBy(t *testing.T) {
 	services := servicesOf(t, doc)
 	assert.NotContains(t, services, "erp-backend-1-0-0", "local: true 组件依旧不生成容器")
 	assert.NotContains(t, services, "mdm-customer-1-0-7")
+}
+
+// ---- 版本迁移期间的混合场景：旧调用方依赖的旧版本独立部署，
+// 新调用方依赖的新版本收编进外壳，互不干扰、都不用感知对方存在 ----
+
+func TestOldCallerAndNewCallerGetDifferentAddressesForDifferentVersions(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("mdm/customer", "1.0.7", 8080), config.Component{}) // 旧版本，独立部署
+	b.component(simple("mdm/customer", "2.0.0", 8081), servedByEntry("infra/shell-go-core", "1.0.0")) // 新版本，收编
+	b.component(dependsOn(simple("erp/legacy-caller", "1.0.0", 8080), "mdm/customer", "1.0.7"), config.Component{})
+	b.component(dependsOn(simple("erp/new-caller", "1.0.0", 8080), "mdm/customer", "2.0.0"), config.Component{})
+
+	doc := b.parsed()
+	legacyEnv := envOf(t, serviceOf(t, doc, "erp-legacy-caller-1-0-0"))
+	newEnv := envOf(t, serviceOf(t, doc, "erp-new-caller-1-0-0"))
+
+	assert.Equal(t, "http://mdm-customer-1-0-7:8080", legacyEnv["MDM_CUSTOMER_ENDPOINT"],
+		"旧调用方依赖的旧版本自己独立部署，地址指向它自己的 service")
+	assert.Equal(t, "http://infra-shell-go-core-1-0-0:8081", newEnv["MDM_CUSTOMER_ENDPOINT"],
+		"新调用方依赖的新版本被收编，地址指向外壳、端口是它自己声明的那个")
 }
 ```
 
@@ -2204,6 +2267,96 @@ such.
    limitation of merging code into one artifact — not a gap a future
    platform version is expected to close.
 
+## Multiple versions, mixed deployment shapes
+
+A real migration is never a clean cutover — some callers upgrade before
+others, and a shell's own contents change over time. `servedBy` doesn't add
+a new axis of complexity here; every scenario below already falls out of
+BrickKit's existing exact-version-pinning and versioned-service-naming
+rules (AGENTS.md §5.1/§9.2/§9.3), because `servedBy` is just one more field
+on one more ordinary `components:` entry.
+
+**Old callers on the old version, new callers on the new, one version
+merged and the other standalone — no coordination required between them.**
+
+```yaml
+components:
+  - id: infra/shell-go-core
+    version: 1.0.0
+    image: brickenterprise/be-shell-go:1.0.0
+    healthCheck: { path: /healthz }
+    deployment: { port: 9000 }
+
+  - id: mdm/customer
+    version: 1.0.7                       # not yet migrated; still its own container
+    deployment: { port: 8080 }
+
+  - id: mdm/customer
+    version: 2.0.0                       # migrated; lives inside the shell
+    servedBy: infra/shell-go-core@1.0.0
+    deployment: { port: 8081 }
+```
+
+A component still declaring `mdm/customer@1.0.7` as a dependency gets an
+endpoint pointing at that version's own independent service, exactly as
+before this feature existed. A component declaring `mdm/customer@2.0.0`
+gets an endpoint pointing at the shell, on port 8081. Neither caller's own
+dependency declaration ever needs to change based on where its dependency
+happens to live — that indirection is the entire point of the platform's
+address injection.
+
+**The same shell can absorb two versions of the same logical component at
+once** — this is exactly the state a migration passes through while some
+callers are on the old version and some are on the new, and both versions
+are already merged for footprint reasons:
+
+```yaml
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: infra/shell-go-core@1.0.0
+    deployment: { port: 8080 }
+  - id: mdm/customer
+    version: 2.0.0
+    servedBy: infra/shell-go-core@1.0.0
+    deployment: { port: 8081 }           # must differ from 1.0.7's port
+```
+
+Give each version its own port and the platform treats them as two entirely
+independent members of the same group — merged endpoints, network
+routing, and `BRICKKIT_SERVED_MEMBERS` all handle this with no special
+casing, the same way they'd handle two unrelated components sharing a
+shell. The only thing you must get right yourself: your shell's own module
+registry needs to be keyed by the full versioned service name
+(`mdm-customer-1-0-7` vs. `mdm-customer-2-0-0`), not by the bare component
+ID — if it's keyed by ID alone, the second version silently overwrites the
+first in your registry, with no error from the platform (which never
+inspects your registry) and no error from the merge (which validated the
+*addresses*, not your shell's internal bookkeeping).
+
+**What you cannot do: give one exact version two deployment shapes at
+once.**
+
+```yaml
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: infra/shell-go-core@1.0.0
+  - id: mdm/customer
+    version: 1.0.7                       # rejected: duplicate id+version
+```
+
+This isn't a `servedBy`-specific restriction — a project config can never
+declare the same exact `(id, version)` twice, with or without `servedBy`
+(AGENTS.md §9.2's "one component ID appears once" rule, applied literally:
+`servedBy` is just one more field on that one entry, not a second axis a
+duplicate could vary on). If you genuinely need "most callers share one
+merged instance, one caller needs an independently-scaled instance of what
+is conceptually the same code," the answer is to publish that code under a
+second version number — even a trivial one — and give the two versions
+their two different deployment shapes. A single version number cannot mean
+two different things at once; that would be exactly the kind of implicit,
+unguessable state this platform's "explicit over implicit" principle exists
+to rule out.
+
 ## What this guide deliberately never asks of you
 
 Nothing here requires disclosing your shell's language, process count,
@@ -2216,7 +2369,7 @@ that line is yours to build however fits your stack.
 
 - [ ] **Step 2: Write `docs/zh/patterns/shell-implementers-guide.md`**
 
-Independently written, native Chinese — not a translation pass, matching the symmetric-bilingual convention already established for `docs/zh/architecture/overview.md` and `docs/zh/patterns/testing.md`. Cover the exact same section structure and make every one of the same substantive claims as the English version above (the "什么给、什么不给" boundary, all nine properties including the explicit protobuf/generated-code-sharing exception in point 8, and the closing non-scope statement) — read `docs/zh/architecture/overview.md` first for tone before writing.
+Independently written, native Chinese — not a translation pass, matching the symmetric-bilingual convention already established for `docs/zh/architecture/overview.md` and `docs/zh/patterns/testing.md`. Cover the exact same section structure and make every one of the same substantive claims as the English version above (the "什么给、什么不给" boundary, all nine properties including the explicit protobuf/generated-code-sharing exception in point 8, the "multiple versions, mixed deployment shapes" section with its three worked YAML examples — old/new version split, one shell absorbing two versions at once, and the one-version-can't-have-two-shapes hard rule — and the closing non-scope statement) — read `docs/zh/architecture/overview.md` first for tone before writing.
 
 - [ ] **Step 3: Update `llms.txt`**
 
