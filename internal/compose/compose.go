@@ -21,6 +21,7 @@ import (
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/shell"
 )
 
 // 生成文件里的固定值。
@@ -165,6 +166,12 @@ type plan struct {
 	components []componentPlan
 	// locals 是 local: true 的组件：不生成容器，但要参与端口分配与 env 文件生成。
 	locals []localComponent
+	// served 是 servedBy 的组件：不生成自己的容器/迁移，但要走它专属的
+	// 几条提醒（见 servedby.go）。
+	served []servedComponent
+	// shellAliases 是外壳的服务名 → 它要挂的额外网络别名（收编成员的
+	// 版本化服务名），供 componentService 渲染 networks 段。
+	shellAliases map[string][]string
 	// rendered 是最终会出现在文件里的 service 名集合。
 	rendered map[string]bool
 	// migrationAfter 是"这个组件的迁移要等哪个迁移先成功结束"：
@@ -198,6 +205,7 @@ func newPlan(
 		exposedPort:    map[string]int{},
 		debugPort:      map[string]int{},
 		debugExtraPort: map[string]map[int]int{},
+		shellAliases:   map[string][]string{},
 	}
 
 	entries := map[resolver.Ref]config.Component{}
@@ -227,6 +235,17 @@ func newPlan(
 			})
 			continue
 		}
+		if entry.ServedBy != "" {
+			shellRef, ok := shell.ParseRef(entry.ServedBy)
+			if !ok {
+				continue // config.Validate 已经挡过格式问题
+			}
+			p.served = append(p.served, servedComponent{
+				Ref: ref, Service: service, Manifest: node.Manifest,
+				Entry: entry, Shell: shellRef,
+			})
+			continue
+		}
 		p.components = append(p.components, componentPlan{
 			Ref:      ref,
 			Service:  service,
@@ -241,6 +260,7 @@ func newPlan(
 	// map 的随机顺序会让同一份配置每次生成出不同的端口号
 	sort.Slice(p.components, func(i, j int) bool { return p.components[i].Service < p.components[j].Service })
 	sort.Slice(p.locals, func(i, j int) bool { return p.locals[i].Service < p.locals[j].Service })
+	sort.Slice(p.served, func(i, j int) bool { return p.served[i].Service < p.served[j].Service })
 
 	p.chainMigrations()
 
@@ -251,9 +271,19 @@ func newPlan(
 		return nil, err
 	}
 	p.rewriteEndpointsForLocalDependencies()
+
+	groups, err := shell.Resolve(cfg, graph, states, env)
+	if err != nil {
+		return nil, err
+	}
+	p.applyShellGroups(groups)
+
 	p.warnings = append(p.warnings, p.localMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.localExposeWarnings()...)
 	p.warnings = append(p.warnings, p.localLabelWarnings()...)
+	p.warnings = append(p.warnings, p.servedMigrationWarnings()...)
+	p.warnings = append(p.warnings, p.servedHealthCheckWarnings()...)
+	p.warnings = append(p.warnings, p.servedUnsupportedFieldWarnings()...)
 	p.warnings = append(p.warnings, p.serviceNameResourceWarnings()...)
 	// 只传**会生成容器**的组件：绑定它的全是 local: true 时，
 	// localhost 恰恰是对的（那些进程就在宿主机上）
@@ -373,28 +403,34 @@ func (p *plan) requirements() []ResourceRequirement {
 	return deploy.Requirements(p.cfg, p.componentIDs())
 }
 
-// containerIDs 是本次**会生成容器**的组件 ID（不含 local: true）。
-//
-// 与 componentIDs 的差别只在 local 组件，而那正是 localhost 判定的分水岭：
-// 跑在宿主机 IDE 里的进程连 localhost 是对的，容器连 localhost 是连自己。
+// containerIDs 是本次**会生成容器**的组件 ID（含 servedBy：它们的代码
+// 跑在外壳容器里，用的是容器网络寻址，不是本地调试的宿主机寻址；
+// 不含 local: true）。
 func (p *plan) containerIDs() []string {
-	out := make([]string, 0, len(p.components))
+	out := make([]string, 0, len(p.components)+len(p.served))
 	for _, c := range p.components {
 		out = append(out, c.Ref.ID)
+	}
+	for _, s := range p.served {
+		out = append(out, s.Ref.ID)
 	}
 	return out
 }
 
 // componentIDs 是本次会跑起来的组件 ID。
 //
-// local 组件也算：它不生成容器，但它照样要连自己的库。
+// local 与 servedBy 组件都算：它们都不生成自己的容器，但都照样要连
+// 自己的库。
 func (p *plan) componentIDs() []string {
-	out := make([]string, 0, len(p.components)+len(p.locals))
+	out := make([]string, 0, len(p.components)+len(p.locals)+len(p.served))
 	for _, c := range p.components {
 		out = append(out, c.Ref.ID)
 	}
 	for _, l := range p.locals {
 		out = append(out, l.Ref.ID)
+	}
+	for _, s := range p.served {
+		out = append(out, s.Ref.ID)
 	}
 	return out
 }
@@ -405,9 +441,17 @@ func (p *plan) componentIDs() []string {
 
 func (p *plan) componentService(c componentPlan) map[string]any {
 	svc := map[string]any{
-		"image":    c.Manifest.Deployment.Image,
-		"networks": []any{networkAlias},
-		"restart":  "unless-stopped", // 12.10
+		"image":   c.Manifest.Deployment.Image,
+		"restart": "unless-stopped", // 12.10
+	}
+	if aliases := p.shellAliases[c.Service]; len(aliases) > 0 {
+		aliasList := make([]any, len(aliases))
+		for i, a := range aliases {
+			aliasList[i] = a
+		}
+		svc["networks"] = map[string]any{networkAlias: map[string]any{"aliases": aliasList}}
+	} else {
+		svc["networks"] = []any{networkAlias}
 	}
 
 	if env := environmentOf(c.Env); len(env) > 0 {
