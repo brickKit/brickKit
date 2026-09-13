@@ -1191,10 +1191,17 @@ func TestOldCallerAndNewCallerGetDifferentAddressesForDifferentVersions(t *testi
 	legacyEnv := envOf(t, serviceOf(t, doc, "erp-legacy-caller-1-0-0"))
 	newEnv := envOf(t, serviceOf(t, doc, "erp-new-caller-1-0-0"))
 
+	// 两边调用方拿到的都是各自依赖版本**自己的**版本化服务名——`inject.Build`
+	// 完全不知道 servedBy 存在，从不改写地址值；地址真正指向外壳，靠的是
+	// 外壳容器挂上 mdm-customer-2-0-0 这个网络别名（TestShellGetsNetworkAliasForEachMember
+	// 已经验证过这一半），不是靠改写调用方的环境变量值。这正是"调用方永远
+	// 不需要知道对方是不是被收编"这条设计承诺的字面体现：地址字符串本身
+	// 与独立部署时一模一样，只是它现在解析到别处。
 	assert.Equal(t, "http://mdm-customer-1-0-7:8080", legacyEnv["MDM_CUSTOMER_ENDPOINT"],
 		"旧调用方依赖的旧版本自己独立部署，地址指向它自己的 service")
-	assert.Equal(t, "http://infra-shell-go-core-1-0-0:8081", newEnv["MDM_CUSTOMER_ENDPOINT"],
-		"新调用方依赖的新版本被收编，地址指向外壳、端口是它自己声明的那个")
+	assert.Equal(t, "http://mdm-customer-2-0-0:8081", newEnv["MDM_CUSTOMER_ENDPOINT"],
+		"新调用方依赖的新版本被收编，地址值依然是它自己的版本化服务名——"+
+			"重定向发生在网络层（外壳的别名），不是在这个环境变量的值上")
 }
 ```
 
@@ -2297,13 +2304,20 @@ components:
     deployment: { port: 8081 }
 ```
 
-A component still declaring `mdm/customer@1.0.7` as a dependency gets an
-endpoint pointing at that version's own independent service, exactly as
-before this feature existed. A component declaring `mdm/customer@2.0.0`
-gets an endpoint pointing at the shell, on port 8081. Neither caller's own
-dependency declaration ever needs to change based on where its dependency
-happens to live — that indirection is the entire point of the platform's
-address injection.
+A component still declaring `mdm/customer@1.0.7` as a dependency gets
+`MDM_CUSTOMER_ENDPOINT=http://mdm-customer-1-0-7:8080` — that version's own
+independent service, exactly as before this feature existed. A component
+declaring `mdm/customer@2.0.0` gets
+`MDM_CUSTOMER_ENDPOINT=http://mdm-customer-2-0-0:8081` — note that this is
+still `mdm/customer`'s *own* versioned service name and its *own* declared
+port, identical in shape to what an independently-deployed version would
+produce. What's different is invisible at this layer: the platform makes
+that name resolve to the shell instead of a container of its own (a Docker
+network alias, or a dedicated Kubernetes Service selecting the shell's
+Pods — see below). Neither caller's own dependency declaration, nor the
+address it computes, ever needs to change based on where its dependency
+happens to physically live — that indirection is the entire point of the
+platform's address injection.
 
 **The same shell can absorb two versions of the same logical component at
 once** — this is exactly the state a migration passes through while some
