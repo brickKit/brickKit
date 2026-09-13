@@ -189,20 +189,20 @@ cd <仓库根目录>
 
 | 能力 | 代码位置 | 设计书 |
 | --- | --- | --- |
-| 命令入口、参数、输出 | [internal/cli/](../internal/cli/) | 004 |
-| `brickkit.yaml` 解析与校验 | [internal/config/](../internal/config/) | 003 |
-| `component.yaml` 解析与校验 | [internal/manifest/](../internal/manifest/) | 002 |
-| 安装源（market / git / local） | [internal/source/](../internal/source/) | 003 §6 |
-| 依赖解析、拓扑排序 | [internal/resolver/](../internal/resolver/) | 004 §4 |
-| 启停判定（跟着上层走） | [internal/cascade/cascade.go](../internal/cascade/cascade.go) | 003 §4.3 |
-| 环境变量注入、资源配额合并 | [internal/inject/](../internal/inject/) | 004 §5.6、006 §5 |
-| 生成 docker-compose.yaml | [internal/compose/](../internal/compose/) | 005 §3 |
-| 生成 K8s 清单 | [internal/k8s/](../internal/k8s/) | 005 §5 |
-| 调 docker / kubectl | [internal/engine/](../internal/engine/) | 005 §3.3、§5.7 |
-| 依赖可满足 / 资源已绑定 / 无环（换版本时走的也是这一套） | [internal/resolver/resolver.go](../internal/resolver/resolver.go) | 002 §7.7 |
-| 组件源码工作区（`sync` / `--repo`） | [internal/workspace/](../internal/workspace/) | 004 §3.9 |
-| 市场后端 | [market-server/](../market-server/) | 007 |
-| 试验用的真实组件 | [tests/components/](../tests/components/) | 009 |
+| 命令入口、参数、输出 | [internal/cli/](../../../internal/cli/) | 004 |
+| `brickkit.yaml` 解析与校验 | [internal/config/](../../../internal/config/) | 003 |
+| `component.yaml` 解析与校验 | [internal/manifest/](../../../internal/manifest/) | 002 |
+| 安装源（market / git / local） | [internal/source/](../../../internal/source/) | 003 §6 |
+| 依赖解析、拓扑排序 | [internal/resolver/](../../../internal/resolver/) | 004 §4 |
+| 启停判定（跟着上层走） | [internal/cascade/cascade.go](../../../internal/cascade/cascade.go) | 003 §4.3 |
+| 环境变量注入、资源配额合并 | [internal/inject/](../../../internal/inject/) | 004 §5.6、006 §5 |
+| 生成 docker-compose.yaml | [internal/compose/](../../../internal/compose/) | 005 §3 |
+| 生成 K8s 清单 | [internal/k8s/](../../../internal/k8s/) | 005 §5 |
+| 调 docker / kubectl | [internal/engine/](../../../internal/engine/) | 005 §3.3、§5.7 |
+| 依赖可满足 / 资源已绑定 / 无环（换版本时走的也是这一套） | [internal/resolver/resolver.go](../../../internal/resolver/resolver.go) | 002 §7.7 |
+| 组件源码工作区（`sync` / `--repo`） | [internal/workspace/](../../../internal/workspace/) | 004 §3.9 |
+| 市场后端 | [market-server/](../../../market-server/) | 007 |
+| 试验用的真实组件 | [tests/components/](../../../tests/components/) | 009 |
 
 设计书全在 [design/](../design/)，导航见 [design/000 阅读指南与文档导航.md](../design/000%20阅读指南与文档导航.md)。
 
@@ -217,8 +217,8 @@ cd <仓库根目录>
 | 市场侧密码学校验 | ⬜ **想清楚之后决定不做**：任何形态都需要「发布凭据不能管理密钥」这条权限分离，而市场 Token 没有 scope。真正的保护在你自己的 `installer.publicKeys`（P30） |
 | **Podman** | ❌ 写过、跑过，最后**移除了**。`up` / `status` / 业务请求都通，但 `down` 失败（`rootless netns: kill network process: permission denied`），而纯 `podman compose down` 不经过 BrickKit 也一样失败。**一个停不掉的项目比不支持更糟**——详见 [005 §7](../design/005-部署与运行规范.md) |
 
-完整的进度与延后清单见 [开发进度/](../开发进度/README.md)——
-其中 [延后实现清单](../开发进度/延后实现清单.md) 是 P 编号的权威出处。
+完整的进度与延后清单见 [开发进度/](../decisions/README.md)——
+其中 [延后实现清单](../decisions/延后实现清单.md) 是 P 编号的权威出处。
 
 ---
 

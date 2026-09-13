@@ -477,13 +477,13 @@ docker compose -f deploy/dev-resources/docker-compose.yaml down -v    # 连数�
 
 | 能力 | 位置 |
 | --- | --- |
-| `up` 的完整流程 | [internal/cli/up.go](../internal/cli/up.go) |
-| 升级处理 | [internal/cli/up_upgrade.go](../internal/cli/up_upgrade.go) |
-| `down` / `status` | [internal/cli/down.go](../internal/cli/down.go)、[status.go](../internal/cli/status.go) |
-| 生成 docker-compose.yaml | [internal/compose/compose.go](../internal/compose/compose.go) |
-| 环境变量注入、配额合并 | [internal/inject/inject.go](../internal/inject/inject.go) |
-| 调 docker compose | [internal/engine/compose.go](../internal/engine/compose.go) |
-| 状态表格渲染 | [internal/cli/table.go](../internal/cli/table.go) |
+| `up` 的完整流程 | [internal/cli/up.go](../../../internal/cli/up.go) |
+| 升级处理 | [internal/cli/up_upgrade.go](../../../internal/cli/up_upgrade.go) |
+| `down` / `status` | [internal/cli/down.go](../../../internal/cli/down.go)、[status.go](../../../internal/cli/status.go) |
+| 生成 docker-compose.yaml | [internal/compose/compose.go](../../../internal/compose/compose.go) |
+| 环境变量注入、配额合并 | [internal/inject/inject.go](../../../internal/inject/inject.go) |
+| 调 docker compose | [internal/engine/compose.go](../../../internal/engine/compose.go) |
+| 状态表格渲染 | [internal/cli/table.go](../../../internal/cli/table.go) |
 
 设计书：005 §3（Docker 部署）、005 §6（迁移）、006 §9（建库责任）、004 §3.5–3.7。
 
