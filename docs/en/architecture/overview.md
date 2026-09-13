@@ -38,11 +38,11 @@ Here is that same pipeline made concrete with components that actually exist in 
 - **① cascade** finds none of the three declare `enabled`, and each is either at the top of the dependency chain or required by something that is, so all three start;
 - **② resolve** expands the dependency tree and topologically sorts it, which forces the start order `department-tree` → `people-basic` → `erp-backend` (dependencies before dependents);
 - **③ inject** writes `DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080` for `people/basic`, and a similar address pointing at `people-basic` for `erp/backend`;
-- **④ generate** translates each component's `component.yaml` into one of three services in `docker-compose.yaml`;
-- **⑤ run migrations** runs the migration commands declared by `department-tree` and `people-basic` first (`erp/backend` has no `migration` field, so it's skipped);
+- **④ generate** translates each of these components' `component.yaml` into its own service in `docker-compose.yaml` — one part of the full service set generated for `erp/backend`'s complete dependency tree;
+- **⑤ run migrations** runs the migration commands `department-tree` and `people-basic` each declare (`erp/backend` itself has no `migration` field, so it's skipped) — `auth/password-login` and `authorization/rbac` each declare their own migration too, run the same way;
 - **⑥** finally, `docker compose up -d` brings these containers up (along with the rest of `erp/backend`'s dependency set).
 
-The resulting service names are `erp-backend-1-0-0`, `department-tree-1-0-0`, and `people-basic-1-0-0` — the next section explains exactly how that name is derived.
+Among the resulting service names are `erp-backend-1-0-0`, `department-tree-1-0-0`, and `people-basic-1-0-0` — the next section explains exactly how each name is derived.
 
 ## Versioned service names and the unified address format
 
