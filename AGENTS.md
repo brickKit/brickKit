@@ -11,6 +11,13 @@
 >
 > 全站文档为中文，术语请沿用本文的中文说法（组件 / 强依赖 / 版本化服务名 / 跟着上层走……）。
 
+> **语言路由：按用户提问的语言选文档，不是按这份文件的语言选。** 这份 `AGENTS.md`
+> 本身是全平台唯一一份不区分语言的压缩全貌；但涉及具体细节、需要深挖某个机制时——
+> 用户用中文提问，去读 `docs/zh/` 下对应路径；用户用英文（或其他语言）提问，去读
+> `docs/en/` 下对应路径。两棵树结构完全镜像，路径公式是
+> `docs/{en,zh}/<architecture|guide|patterns>/<同一相对路径>`。第 11 节的表格默认给
+> 中文路径，把 `zh` 换成 `en` 就是对应的英文版。
+
 ---
 
 ## 1. 一句话定位
@@ -758,8 +765,8 @@ internal/              CLI 实现
   ├── workspace/         组件源码工作区（--repo / sync）
   └── market/            市场客户端
 market-server/         组件市场后端（独立 Go module）
-design/                14 本设计书 —— 规范性文档，有歧义时以它为准
-试用指南/               23 篇动手指南，每一篇都真跑过
+docs/zh/、docs/en/     现行文档（architecture / guide / patterns，双语镜像）
+docs/archive/          历史记录：旧设计书（design/）、旧试用指南（试用指南/）、决策索引、部署方法论
 tests/components/      10 个真实组件，用来测试平台本身
 tests/checklist/       验收清单 → 证明它们的测试
 deploy/market/         市场的 compose / kustomize / Helm
@@ -776,30 +783,37 @@ deploy/market/         市场的 compose / kustomize / Helm
 
 | 想深挖什么 | 抓哪一份 |
 | --- | --- |
+| 平台是什么、核心机制怎么工作（现行版本） | `docs/zh/architecture/`（英文版把 `zh` 换 `en`） |
+| 动手教程 | `docs/zh/guide/`（英文版同上） |
+| 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/patterns/`（英文版同上） |
+| 旧设计书当初的论证过程（历史记录，可能与当前实现不一致） | `docs/archive/design/`，只中文 |
+| 旧试用指南原文（历史记录） | `docs/archive/guide/`，只中文 |
 | 全站文档索引（带链接） | `llms.txt` |
-| 平台理念与总体架构（根文档） | `design/001-平台理念与总体架构.md` |
-| `component.yaml` 全部字段与规则 | `design/002-组件规范.md` |
-| `brickkit.yaml` 全部字段与规则 | `design/003-项目配置规范.md` |
-| CLI 命令、依赖解析引擎、生成逻辑 | `design/004-CLI 设计.md` |
-| 装进项目的 AI 助手技能：装什么、怎么刷新、为什么不碰 `CLAUDE.md` | `design/004-CLI 设计.md` §3.2.1 |
-| Docker / K8s 部署、本地调试、迁移 | `design/005-部署与运行规范.md` |
-| 数据库 / Redis 等资源的声明与绑定 | `design/006-基础资源规范.md` |
-| 市场 API、数据模型、权限、签名 | `design/007-组件市场设计.md` |
-| 信任模型、密钥、保留变量保护 | `design/008-安全与治理.md` |
-| 手把手写第一个组件 | `design/009-组件开发快速入门.md` |
-| 构建、签名、发布到市场 | `design/010-组件发布与上架指南.md` |
-| 安装、拼装、调试、更新、回滚 | `design/011-组件安装与拼装指南.md` |
-| 把多个组件跑成一个实例（平台不支持，用户自理） | 仓库根 `组件合并部署.md`；不做的理由见 `design/012` §2.21 |
-| **所有"为什么"的完整论证** | `design/012-架构设计原理与考量.md` |
-| 术语表 / Manifest 与配置完整参考 / 环境变量规范 / 生成产物示例 / 通信实践模板 | `design/附录合集.md` |
-| 按角色和场景的阅读路径 | `design/000 阅读指南与文档导航.md` |
-| 动手跑一遍（23 篇） | `试用指南/README.md` |
-| 某个决策当初为什么这么定（566 条） | `开发进度/决策索引.md` |
-| 市场自己怎么部署 | `市场部署与运维指南.md` |
-| 市场和项目分别跑在哪 | `部署模式.md` |
+| 平台理念与总体架构（根文档） | `docs/archive/design/001-平台理念与总体架构.md` |
+| `component.yaml` 全部字段与规则 | `docs/archive/design/002-组件规范.md` |
+| `brickkit.yaml` 全部字段与规则 | `docs/archive/design/003-项目配置规范.md` |
+| CLI 命令、依赖解析引擎、生成逻辑 | `docs/archive/design/004-CLI 设计.md` |
+| 装进项目的 AI 助手技能：装什么、怎么刷新、为什么不碰 `CLAUDE.md` | `docs/archive/design/004-CLI 设计.md` §3.2.1 |
+| Docker / K8s 部署、本地调试、迁移 | `docs/archive/design/005-部署与运行规范.md` |
+| 数据库 / Redis 等资源的声明与绑定 | `docs/archive/design/006-基础资源规范.md` |
+| 市场 API、数据模型、权限、签名 | `docs/archive/design/007-组件市场设计.md` |
+| 信任模型、密钥、保留变量保护 | `docs/archive/design/008-安全与治理.md` |
+| 手把手写第一个组件 | `docs/archive/design/009-组件开发快速入门.md` |
+| 构建、签名、发布到市场 | `docs/archive/design/010-组件发布与上架指南.md` |
+| 安装、拼装、调试、更新、回滚 | `docs/archive/design/011-组件安装与拼装指南.md` |
+| 把多个组件跑成一个实例（平台不支持，用户自理） | `docs/archive/planning/组件合并部署.md`；不做的理由见 `docs/archive/design/012` §2.21 |
+| **所有"为什么"的完整论证** | `docs/archive/design/012-架构设计原理与考量.md` |
+| 术语表 / Manifest 与配置完整参考 / 环境变量规范 / 生成产物示例 / 通信实践模板 | `docs/archive/design/附录合集.md` |
+| 按角色和场景的阅读路径 | `docs/archive/design/000 阅读指南与文档导航.md` |
+| 动手跑一遍（23 篇） | `docs/archive/guide/README.md` |
+| 某个决策当初为什么这么定（566 条） | `docs/archive/decisions/决策索引.md` |
+| 市场自己怎么部署 | `docs/archive/planning/市场部署与运维指南.md` |
+| 市场和项目分别跑在哪 | `docs/archive/planning/部署模式.md` |
 
-**文档权威顺序：** `design/` 下的设计书是规范性文档；`试用指南/` 是可执行的验证；
-`开发进度/` 是执行台账。三者冲突时以 `design/` 为准。
+**文档权威顺序（历史记录内部，仅用于理解归档内容）：** 归档前，`design/` 下的设计书是规范性文档；
+`试用指南/` 是可执行的验证；`开发进度/` 是执行台账；三者冲突时以 `design/` 为准——现已分别对应
+`docs/archive/design/`、`docs/archive/guide/`、`docs/archive/decisions/`。理解当前实现请看本表顶部
+指向 `docs/zh/architecture/` 等新结构的行。
 
 ---
 
