@@ -215,6 +215,49 @@ func TestResolveEndpointCollisionDifferentVersionErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "INFRA_DATABASE_ENDPOINT")
 }
 
+// ---- labels 合并：同名同值放过，同名不同值报错 ----
+
+func TestResolveLabelCollisionSameValueIsFine(t *testing.T) {
+	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+		comp("infra/shell-go-core", "1.0.0", ""),
+		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
+		comp("erp/sales", "1.0.0", "infra/shell-go-core@1.0.0"),
+	}}
+	a := simple("mdm/customer", "1.0.7", 8080)
+	a.Deployment.Labels = map[string]string{"team.owner": "erp"}
+	b := simple("erp/sales", "1.0.0", 8081)
+	b.Deployment.Labels = map[string]string{"team.owner": "erp"}
+
+	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
+		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
+		"mdm/customer@1.0.7":        a,
+		"erp/sales@1.0.0":           b,
+	})
+	require.NoError(t, err, "两个成员对同一个标签键给出相同的值，不该报冲突")
+	require.Len(t, groups, 1)
+	assert.Equal(t, "erp", groups[0].Labels["team.owner"])
+}
+
+func TestResolveLabelCollisionDifferentValueErrors(t *testing.T) {
+	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+		comp("infra/shell-go-core", "1.0.0", ""),
+		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
+		comp("erp/sales", "1.0.0", "infra/shell-go-core@1.0.0"),
+	}}
+	a := simple("mdm/customer", "1.0.7", 8080)
+	a.Deployment.Labels = map[string]string{"team.owner": "erp"}
+	b := simple("erp/sales", "1.0.0", 8081)
+	b.Deployment.Labels = map[string]string{"team.owner": "sales"} // 撞了 mdm/customer 的值
+
+	_, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
+		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
+		"mdm/customer@1.0.7":        a,
+		"erp/sales@1.0.0":           b,
+	})
+	require.Error(t, err, "同一个标签键不可能同时代表两个不同的值")
+	assert.Contains(t, err.Error(), "team.owner")
+}
+
 // ---- BRICKKIT_SERVED_MEMBERS ----
 
 func TestServedMembersFormatting(t *testing.T) {
