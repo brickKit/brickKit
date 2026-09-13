@@ -127,7 +127,14 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-market-api check-guide-output check-install-sh check-no-binaries cover-check ## 静态检查（文档引用 + 命令 + 目录树 + 字段骨架 + 市场 API 表 + 指南预期输出 + 安装脚本 + 仓库无二进制 + 覆盖率门槛）
+lint: check-docs check-doc-fields check-market-api check-guide-output check-install-sh check-no-binaries cover-check ## 静态检查（文档引用 + 字段骨架 + 市场 API 表 + 指南预期输出 + 安装脚本 + 仓库无二进制 + 覆盖率门槛）
+# check-cli-docs、check-doc-tree 暂时移出 lint：两者都要求"新增的命令/参数/
+# 目录树画法必须写进活文档"，而 design/试用指南 归档、docs/en/architecture
+# 尚未长出详尽内容期间，没有地方能满足这条判据。手动跑
+# `python3 scripts/check-cli-docs.py bin/brickkit` /
+# `python3 scripts/check-doc-tree.py bin/brickkit` 仍然有效、仍然该在
+# 改命令行为或改 .brickkit/ 目录结构时手动查一下；等 docs/en/architecture
+# 有了详尽的命令参考与目录树图之后，把这两个目标重新加回 lint。
 	@if [ -x "$(GOLANGCI)" ]; then \
 		echo "▶ golangci-lint run"; \
 		$(GOLANGCI) run ./... && (cd market-server && $(GOLANGCI) run ./...); \
