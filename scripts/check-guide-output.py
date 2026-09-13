@@ -825,7 +825,7 @@ def main():
                      if "/" not in c["check"][1] and c.get("tier", "core") in wanted)
     design_done = compared - guide_done
     guide_total = count_output_blocks(os.path.join(GUIDE, "[0-9]*-*.md"))
-    design_total = count_output_blocks(os.path.join(ROOT, "design", "*.md"))
+    design_total = count_output_blocks(os.path.join(ROOT, "docs", "archive", "design", "*.md"))
 
     print(f"✅ 文档里的 CLI 输出：{compared} 个块逐行一致"
           + (f"（另跳过 {skipped} 个用例）" if skipped else ""))

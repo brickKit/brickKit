@@ -375,8 +375,13 @@ def main():
 
     failed = report("文档写了不存在的命令", bad_cmd, "命令被改名或删掉了，文档没跟着改")
     failed |= report("文档写了不存在的参数", bad_flag, "参数被改名或删掉了，文档没跟着改")
-    failed |= report("命令有、文档没写", miss_cmd, "新增了命令却没写进任何文档")
-    failed |= report("参数有、文档没写", miss_flag, "新增了参数却没写进任何文档")
+
+    # 这两条是"详尽性"方向（新增了却没写进任何文档），不计入退出码：design/ 试用指南
+    # 归档后，全仓库没有任何一份"详尽命令参考"活文档，这个方向注定会随 CLI 新增
+    # 命令/参数永久报警，直到 docs/en/architecture 长出详尽命令参考。继续打印是为了
+    # 让人知道有哪些新东西没写文档，但不能让 make lint 因此永久变红。
+    report("命令有、文档没写（仅供参考，不计入退出码）", miss_cmd, "新增了命令却没写进任何文档")
+    report("参数有、文档没写（仅供参考，不计入退出码）", miss_flag, "新增了参数却没写进任何文档")
 
     if bad_cmd or bad_flag:
         print("\n照着文档敲一遍会得到 unknown flag/command——"

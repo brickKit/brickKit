@@ -275,7 +275,7 @@ make test-all         # the full test suite
 make lint             # vet + doc checks
 ```
 
-Nine gates run continuously, and **every one of them fails loudly when it
+A set of gates run continuously, and **every one of them fails loudly when it
 breaks**, instead of quietly reporting zero problems:
 
 | Command | Guards |
@@ -284,11 +284,11 @@ breaks**, instead of quietly reporting zero problems:
 | `make test-boundary` (and friends) | Boundary / error / compatibility / security acceptance items → the tests that prove them (`tests/checklist/清单.tsv`) |
 | `make check-doc-fields` | Every field name drawn in the docs' YAML snippets and field tables really exists (the source of truth is the struct itself) |
 | `make check-docs` | Dangling section references and broken links |
-| `make check-cli-docs` | Every command and flag written in the docs (and in `--help` itself) really exists |
-| `make check-doc-tree` | The `.brickkit/` directory tree drawn in the docs matches what the CLI actually creates |
+| `make check-cli-docs` | Every command/flag the docs claim to exist, really does (the reverse direction — new commands not yet documented — isn't enforced here; see `docs/archive/planning/` era history for why) |
 | `make check-guide-output` | The guides' "✅ expected" output matches the CLI's real output, line for line |
 | `make check-guides` | The steps in the guides still work |
 | `make check-install-sh` | `install.sh` installs successfully, and *actually* refuses to install when the checksum is broken |
+| `make check-docs-bilingual` | docs/en and docs/zh stay mirrored, root README.md/README.zh.md stay paired, every llms.txt link resolves |
 
 A checklist pointing at a test that no longer exists fails the build. So does
 a test target whose directory has gone empty — **a suite that silently skips

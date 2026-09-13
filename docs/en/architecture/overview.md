@@ -33,14 +33,14 @@ sequenceDiagram
     Docker-->>U: running containers
 ```
 
-Here is that same pipeline made concrete with components that actually exist in this repository. Running `brickkit add erp/backend@1.0.0` recursively pulls in two required dependencies: [`tests/components/people-basic/`](../../../tests/components/people-basic/) is a direct one, and [`tests/components/department-tree/`](../../../tests/components/department-tree/) comes along transitively because `people/basic` itself requires it. That's why all three components — [`tests/components/erp-backend/`](../../../tests/components/erp-backend/), `department-tree`, and `people-basic` — end up together in one `brickkit.yaml`. Now run `brickkit up`:
+Here is that same pipeline made concrete with components that actually exist in this repository. Running `brickkit add erp/backend@1.0.0` recursively pulls in `erp/backend`'s three required dependencies (`people/basic`, `auth/password-login`, `authorization/rbac`) plus one optional one — to keep this walkthrough focused, it follows just one of those chains: [`tests/components/people-basic/`](../../../tests/components/people-basic/) is a direct dependency, and [`tests/components/department-tree/`](../../../tests/components/department-tree/) comes along transitively because `people/basic` itself requires it. That's why (among the others) [`tests/components/erp-backend/`](../../../tests/components/erp-backend/), `department-tree`, and `people-basic` end up together in one `brickkit.yaml`. Now run `brickkit up`:
 
 - **① cascade** finds none of the three declare `enabled`, and each is either at the top of the dependency chain or required by something that is, so all three start;
 - **② resolve** expands the dependency tree and topologically sorts it, which forces the start order `department-tree` → `people-basic` → `erp-backend` (dependencies before dependents);
 - **③ inject** writes `DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080` for `people/basic`, and a similar address pointing at `people-basic` for `erp/backend`;
 - **④ generate** translates each component's `component.yaml` into one of three services in `docker-compose.yaml`;
 - **⑤ run migrations** runs the migration commands declared by `department-tree` and `people-basic` first (`erp/backend` has no `migration` field, so it's skipped);
-- **⑥** finally, `docker compose up -d` brings all three containers up.
+- **⑥** finally, `docker compose up -d` brings these containers up (along with the rest of `erp/backend`'s dependency set).
 
 The resulting service names are `erp-backend-1-0-0`, `department-tree-1-0-0`, and `people-basic-1-0-0` — the next section explains exactly how that name is derived.
 

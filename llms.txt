@@ -23,6 +23,7 @@ were asked, not based on this file's own language.
 - [AGENTS.md](https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.md): The entire platform compressed into one file — positioning, terminology, twelve design principles, the explicit "won't do" list, core mechanisms, both YAML field skeletons, the full command reference, twenty-three "why" justifications.
 - [README](https://raw.githubusercontent.com/brickKit/brickKit/main/README.md): The project's front door — what it is, install/uninstall, a one-minute tour, what it deliberately doesn't do, where to go next.
 - [Architecture overview](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/architecture/overview.md): How a declaration turns into running containers, with the real dependency-resolution → injection → generation pipeline.
+- [Hands-on guides](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/guide/README.md): Not yet written — points at the old archived guides in the meantime.
 - [Testing patterns for components built on BrickKit](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/patterns/testing.md): How to layer tests for a component assembled with BrickKit — contract, business-rule, unit, integration, plus the permission-boundary and idempotency pitfalls a real production deployment hit.
 
 ## 中文文档
@@ -30,6 +31,7 @@ were asked, not based on this file's own language.
 - [AGENTS.md](https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.md): 全平台压缩件——定位、术语表、十二条设计原则、拒绝清单、核心机制、两个 yaml 字段骨架、命令参考、二十三个"为什么"。
 - [README（中文版）](https://raw.githubusercontent.com/brickKit/brickKit/main/README.zh.md): 项目门面，是什么/怎么装/怎么卸/一分钟示例/不做什么/怎么上手——与英文版 README.md 内容对等。
 - [架构总览](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/overview.md): 一次声明怎么变成运行中的容器，含真实的依赖解析→注入→生成流水线。
+- [动手教程](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/README.md): 还没写，暂时指向旧的归档指南。
 - [基于 BrickKit 的组件该怎么分层测试](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/testing.md): 契约/业务规则/单元/集成四层怎么分工，以及一个真实生产部署踩过的权限边界与幂等性陷阱。
 
 ## Historical record（历史记录，只中文，不维护）

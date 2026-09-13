@@ -26,6 +26,10 @@ coverage.*
 *.coverprofile
 profile.cov
 
+# Python bytecode cache (scripts/*.py 用 python3 直接跑，会在旁边生成这些)
+__pycache__/
+*.pyc
+
 # Dependency directories (remove the comment below to include it)
 # vendor/
 

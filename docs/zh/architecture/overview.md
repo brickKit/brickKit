@@ -33,14 +33,14 @@ sequenceDiagram
     Docker-->>U: running containers
 ```
 
-用一个仓库里真实存在的例子把这六步具体化。执行 `brickkit add erp/backend@1.0.0` 会递归拉下它的两个强依赖：[`tests/components/people-basic/`](../../../tests/components/people-basic/) 直接依赖，[`tests/components/department-tree/`](../../../tests/components/department-tree/) 是 `people/basic` 自己的强依赖，随之一并被拉入项目（这就是仓库里三个组件——[`tests/components/erp-backend/`](../../../tests/components/erp-backend/)、`department-tree`、`people-basic`——会一起出现在同一个 `brickkit.yaml` 里的原因）。接下来跑 `brickkit up`：
+用一个仓库里真实存在的例子把这六步具体化。`erp/backend` 实际有三个强依赖（`people/basic`、`auth/password-login`、`authorization/rbac`）外加一个弱依赖，执行 `brickkit add erp/backend@1.0.0` 会把它们全部递归拉下来；为了让示例聚焦，这里只顺着其中一条依赖链往下看：[`tests/components/people-basic/`](../../../tests/components/people-basic/) 是直接依赖，[`tests/components/department-tree/`](../../../tests/components/department-tree/) 是 `people/basic` 自己的强依赖，随之一并被拉入项目（这也是——在其它依赖之外——[`tests/components/erp-backend/`](../../../tests/components/erp-backend/)、`department-tree`、`people-basic` 会一起出现在同一个 `brickkit.yaml` 里的原因）。接下来跑 `brickkit up`：
 
 - **① cascade** 判定这三个组件都没写 `enabled`，且都处于依赖链顶端或被顶端组件需要，三个都启动；
 - **② resolve** 展开依赖树、拓扑排序，得出启动顺序必须是 `department-tree` → `people-basic` → `erp-backend`（被依赖的先起）；
 - **③ inject** 给 `people/basic` 写入 `DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080`，给 `erp/backend` 写入指向 `people-basic` 的地址；
 - **④ generate** 把三个组件各自的 `component.yaml` 翻译成 `docker-compose.yaml` 里的三个 service；
 - **⑤ run migrations** 先跑 `department-tree` 和 `people-basic` 各自声明的迁移命令（`erp/backend` 没有 `migration` 字段，跳过）；
-- **⑥** 最后 `docker compose up -d` 把三个容器拉起来。
+- **⑥** 最后 `docker compose up -d` 把这几个容器拉起来（`erp/backend` 剩下的依赖也一并起来）。
 
 服务名分别是 `erp-backend-1-0-0`、`department-tree-1-0-0`、`people-basic-1-0-0`——下一节说明这个名字是怎么算出来的。
 

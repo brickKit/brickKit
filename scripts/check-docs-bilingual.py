@@ -42,6 +42,18 @@ def check_mirror():
     return bad
 
 
+def self_check():
+    """解析坏了会安静地全部通过，比没有检查更糟——同 check-doc-tree.py 的自我防御。"""
+    path = os.path.join(ROOT, "llms.txt")
+    text = open(path, encoding="utf-8").read()
+    prefix = "https://raw.githubusercontent.com/brickKit/brickKit/main/"
+    count = sum(1 for _ in re.finditer(r"\[([^\]]+)\]\(" + re.escape(prefix) + r"[^)]+\)", text))
+    if count < 5:
+        print(f"❌ 自检失败：llms.txt 里只解析出 {count} 条 raw 链接——正则或路径前缀多半坏了，"
+              "而不是链接真的这么少。")
+        sys.exit(2)
+
+
 def check_llms_txt_links():
     path = os.path.join(ROOT, "llms.txt")
     text = open(path, encoding="utf-8").read()
@@ -85,6 +97,7 @@ def check_root_readme_pair():
 
 
 def main():
+    self_check()
     bad = check_mirror() + check_llms_txt_links() + check_root_readme_pair()
     if bad:
         print("❌ 文档双语/链接完整性检查失败：")
