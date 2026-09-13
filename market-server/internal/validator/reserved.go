@@ -14,7 +14,7 @@ import (
 // 防御负责（004 §5.6.1：警告但跳过）。
 var (
 	// 精确匹配的保留变量。
-	reservedExact = []string{"COMPONENT_ID", "COMPONENT_VERSION"}
+	reservedExact = []string{"COMPONENT_ID", "COMPONENT_VERSION", "BRICKKIT_SERVED_MEMBERS"}
 	// 后缀匹配：依赖组件地址（含额外端口）。
 	reservedSuffix = []string{"_ENDPOINT"}
 	// 前缀匹配：各类资源连接信息。

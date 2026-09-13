@@ -622,10 +622,11 @@ func TestReservedConflictSuggestionActuallyAvoidsThePattern(t *testing.T) {
 func TestReservedPatternsCoverPlatformAndResourceVariables(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"componentId":  {Default: "冒充组件 ID"},
-		"databaseHost": {Default: "冒充数据库地址"},
-		"redisPort":    {Default: 1234},
-		"smtpUser":     {Default: "x"},
+		"componentId":           {Default: "冒充组件 ID"},
+		"databaseHost":          {Default: "冒充数据库地址"},
+		"redisPort":             {Default: 1234},
+		"smtpUser":              {Default: "x"},
+		"brickkitServedMembers": {Default: "冒充外壳收编列表"},
 	}}
 
 	b := newBuilder(t)
@@ -638,7 +639,8 @@ func TestReservedPatternsCoverPlatformAndResourceVariables(t *testing.T) {
 	assert.NotContains(t, env, "DATABASE_HOST", "没绑数据库就不该凭空出现这个变量")
 	assert.NotContains(t, env, "REDIS_PORT")
 	assert.NotContains(t, env, "SMTP_USER")
-	assert.Len(t, result.Warnings, 4, "四个冲突各有一条警告")
+	assert.NotContains(t, env, "BRICKKIT_SERVED_MEMBERS", "组件自己的配置不能冒充这个平台保留变量")
+	assert.Len(t, result.Warnings, 5, "五个冲突各有一条警告")
 }
 
 // envPrefix 是使用者在 brickkit.yaml 里定的，市场发布时无从校验，
