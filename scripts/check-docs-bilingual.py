@@ -53,8 +53,16 @@ def check_llms_txt_links():
         # raw URL 里目录/文件名做过 URL 编码，还原成真实路径再判断存在性
         from urllib.parse import unquote
         local = os.path.join(ROOT, unquote(rel))
-        if not os.path.isfile(local):
-            bad.append(f"llms.txt 链接 {url} 指向的文件不存在：{local}")
+        # 以 / 结尾的是目录类入口链接（比如「旧设计书」整个目录，不指向具体
+        # 某一篇），按目录判存在性；其余按文件判——这条区分是必须的，不是
+        # 可选的润色：GitHub raw 链接允许指向目录（渲染成 GitHub 的目录浏览
+        # 页），如果统一按 os.path.isfile 判断，任何目录类链接都会被判定
+        # "文件不存在"，哪怕那个目录真实存在。
+        is_dir_link = rel.endswith("/")
+        exists = os.path.isdir(local) if is_dir_link else os.path.isfile(local)
+        if not exists:
+            kind = "目录" if is_dir_link else "文件"
+            bad.append(f"llms.txt 链接 {url} 指向的{kind}不存在：{local}")
     return bad
 
 
