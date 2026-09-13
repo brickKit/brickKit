@@ -1199,7 +1199,7 @@ EOF
 - Modify: `internal/clierr/clierr_test.go`、`market-server/internal/handler/routes_doc_test.go`、`internal/engine/compose.go`、`internal/cli/init.go`、`internal/cli/init_test.go`（Step 0，见下）
 - 其余无新文件；本任务只跑验证，必要时回头小修前面任务留下的问题。
 
-- [ ] **Step 0: 修复 `.go` 源码里残留的 `design/`/`试用指南/` 硬编码路径引用——这是 Task 1/2 遗漏的真实回归，`make lint`/`make test` 现在会真的失败**
+- [x] **Step 0: 修复 `.go` 源码里残留的 `design/`/`试用指南/` 硬编码路径引用——这是 Task 1/2 遗漏的真实回归，`make lint`/`make test` 现在会真的失败**
 
 ⚠️ **为什么会漏到 Task 9 才发现**：Task 2 只改了六个已知的**文档检查脚本**（`.py`/`.sh`/`tests/docfields`），没有对整个仓库的 `.go` 代码做一次"design/ / 试用指南/ 字面量"搜索。结果是另外两个包里各自独立写了"文档跟不跟得上实现"类测试（跟 docfields 是同一类判据，只是分散在不同包里），以及两处描述"当前行为/给例子"的注释/字符串——这五处都还指着归档前的旧路径。跑一次全仓库搜索才发现：
 
@@ -1247,7 +1247,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 1: 跑完整 lint**
+- [x] **Step 1: 跑完整 lint**
 
 ```bash
 make lint
@@ -1255,7 +1255,7 @@ make lint
 
 Expected: `check-docs check-doc-fields check-docs-bilingual check-market-api check-guide-output check-install-sh check-no-binaries cover-check` 全部通过（`check-cli-docs`、`check-doc-tree` 从 Task 2 起就不在 `lint` 依赖列表里，是已知、有记录的暂时状态，不是这一步要修的东西——见 Task 2 的背景说明）。任何一项在这个列表里的失败，回到对应 Task 修复，不要在这里绕过。
 
-- [ ] **Step 2: 跑单元测试全集**
+- [x] **Step 2: 跑单元测试全集**
 
 ```bash
 make test
@@ -1263,7 +1263,7 @@ make test
 
 Expected: 全绿，`tests/docfields` 的四条（收窄后是三条）测试都在里面且通过。
 
-- [ ] **Step 3: 抽查 git 历史确认归档文件保留了 blame**
+- [x] **Step 3: 抽查 git 历史确认归档文件保留了 blame**
 
 ```bash
 git log --follow --oneline -- docs/archive/design/001-平台理念与总体架构.md | tail -5
@@ -1271,7 +1271,7 @@ git log --follow --oneline -- docs/archive/design/001-平台理念与总体架�
 
 Expected: 能看到这份文件在 `design/001-...` 路径下的历史提交记录，证明 `git mv` 正确保留了历史，不是删除重建。
 
-- [ ] **Step 4: 手工用浏览器或 curl 验证"裸仓库地址"链路的两个关键 raw 链接可访问（需要已经 push 到 GitHub；本地验证的替代方式是确认文件路径与 README/llms.txt 里写的完全一致）**
+- [x] **Step 4: 手工用浏览器或 curl 验证"裸仓库地址"链路的两个关键 raw 链接可访问（需要已经 push 到 GitHub；本地验证的替代方式是确认文件路径与 README/llms.txt 里写的完全一致）**
 
 ```bash
 # 本地等价验证：确认 README、README.zh.md 与 llms.txt 里写的每个路径本地都真实存在
@@ -1282,7 +1282,7 @@ done
 
 Expected: 全部 `OK`，没有 `MISS`。
 
-- [ ] **Step 5: 更新本计划文件的完成状态，提交收尾**
+- [x] **Step 5: 更新本计划文件的完成状态，提交收尾**
 
 ```bash
 git add -A
