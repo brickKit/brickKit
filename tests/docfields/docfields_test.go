@@ -52,12 +52,15 @@ type docFile struct {
 
 // 完整性检查（"每个字段都出现过"、"每张标注过的表都完整"）随 design/ 归档一并
 // 移除——它们的判据依赖一份详尽的参考文档，而 design/ 归档后不再维护，
-// docs()现在只扫两份刻意压缩的一页纸导读（AGENTS.md、README.md），要求
-// 它们详尽是不合理的。docs/en/architecture 长出comprehensive 内容之后，
-// 应该在那里重新引入等价的详尽性检查，而不是勉强让这两个刻意收窄的文件满足
-// 一条为详尽参考文档设计的判据。
+// docs()现在只扫几份刻意压缩的一页纸导读（AGENTS.md/AGENTS.zh.md、
+// README.md/README.zh.md），要求它们详尽是不合理的。docs/en/architecture
+// 长出comprehensive 内容之后，应该在那里重新引入等价的详尽性检查，而不是
+// 勉强让这几个刻意收窄的文件满足一条为详尽参考文档设计的判据。
 
-// docs 收集根目录的 AGENTS.md 与 README.md。
+// docs 收集根目录的 AGENTS.md/AGENTS.zh.md 与 README.md/README.zh.md。
+//
+// AGENTS.zh.md、README.zh.md 各自与英文版内容对等（不是翻译附属），YAML
+// 骨架逐字相同，一并扫描能防止两份文件里的骨架悄悄改出分叉。
 //
 // design/ 已归档为历史记录，不再参与"文档跟不跟得上 CLI"的验证——继续验证
 // 一份承诺不再更新的文档没有意义。试用指南也不在其中：那里的 YAML 多是
@@ -68,7 +71,9 @@ func docs(t *testing.T) []docFile {
 	var out []docFile
 	paths := []string{
 		filepath.Join(repoRoot, "AGENTS.md"),
+		filepath.Join(repoRoot, "AGENTS.zh.md"),
 		filepath.Join(repoRoot, "README.md"),
+		filepath.Join(repoRoot, "README.zh.md"),
 	}
 
 	for _, path := range paths {

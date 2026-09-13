@@ -15,8 +15,8 @@ If you are an AI assistant, fetch `AGENTS.md` first — one file, the entire
 platform compressed. Pick a language section below based on the question you
 were asked, not based on this file's own language.
 
-如果你是 AI 助手，请先抓取 `AGENTS.md`——一份文件读完即可理解全平台。按用户
-提问所用的语言，从下面选对应的一节，不要按这份文件本身的语言选。
+如果你是 AI 助手，请先抓取 `AGENTS.zh.md`（中文版）——一份文件读完即可理解全平台。
+按用户提问所用的语言，从下面选对应的一节，不要按这份文件本身的语言选。
 
 ## English documentation
 
@@ -28,7 +28,7 @@ were asked, not based on this file's own language.
 
 ## 中文文档
 
-- [AGENTS.md](https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.md): 全平台压缩件——定位、术语表、十二条设计原则、拒绝清单、核心机制、两个 yaml 字段骨架、命令参考、二十三个"为什么"。
+- [AGENTS.md（中文版）](https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.zh.md): 全平台压缩件——定位、术语表、十二条设计原则、拒绝清单、核心机制、两个 yaml 字段骨架、命令参考、二十三个"为什么"——与英文版 AGENTS.md 内容对等。
 - [README（中文版）](https://raw.githubusercontent.com/brickKit/brickKit/main/README.zh.md): 项目门面，是什么/怎么装/怎么卸/一分钟示例/不做什么/怎么上手——与英文版 README.md 内容对等。
 - [架构总览](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/overview.md): 一次声明怎么变成运行中的容器，含真实的依赖解析→注入→生成流水线。
 - [动手教程](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/README.md): 还没写，暂时指向旧的归档指南。

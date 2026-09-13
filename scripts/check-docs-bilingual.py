@@ -78,33 +78,39 @@ def check_llms_txt_links():
     return bad
 
 
-def check_root_readme_pair():
-    """根目录的多语言 README 必须成对存在。
+def check_root_language_pair(en_name, zh_name):
+    """根目录的一对多语言入口文件必须成对存在（README.md/README.zh.md、
+    AGENTS.md/AGENTS.zh.md 都是这个形状）。
 
-    README 不在 docs/en|zh 树下，是单独的一对文件（README.md / README.zh.md），
-    mirror_pairs() 那套按目录扫描的逻辑覆盖不到它，所以单独查一次。将来新增
-    第三种语言时，这里也要跟着加一行——这条检查本身不会自动发现"该有却没有"
-    的语言，只能守住"已经存在的语言必须两两都在"。
+    这类文件不在 docs/en|zh 树下，是仓库根目录单独的一对，mirror_pairs() 那套
+    按目录扫描的逻辑覆盖不到它们，所以单独查一次。将来新增第三种语言时，
+    这里也要跟着给每一对加一行——这条检查本身不会自动发现"该有却没有"的
+    语言，只能守住"已经存在的语言必须两两都在"。
     """
-    root = os.path.join(ROOT, "README.md")
-    zh = os.path.join(ROOT, "README.zh.md")
+    en = os.path.join(ROOT, en_name)
+    zh = os.path.join(ROOT, zh_name)
     bad = []
-    if os.path.isfile(root) and not os.path.isfile(zh):
-        bad.append("README.md 存在，但 README.zh.md 缺失")
-    if os.path.isfile(zh) and not os.path.isfile(root):
-        bad.append("README.zh.md 存在，但 README.md 缺失")
+    if os.path.isfile(en) and not os.path.isfile(zh):
+        bad.append(f"{en_name} 存在，但 {zh_name} 缺失")
+    if os.path.isfile(zh) and not os.path.isfile(en):
+        bad.append(f"{zh_name} 存在，但 {en_name} 缺失")
     return bad
 
 
 def main():
     self_check()
-    bad = check_mirror() + check_llms_txt_links() + check_root_readme_pair()
+    bad = (
+        check_mirror()
+        + check_llms_txt_links()
+        + check_root_language_pair("README.md", "README.zh.md")
+        + check_root_language_pair("AGENTS.md", "AGENTS.zh.md")
+    )
     if bad:
         print("❌ 文档双语/链接完整性检查失败：")
         for line in bad:
             print(f"   - {line}")
         sys.exit(1)
-    print("✅ docs/en ↔ docs/zh 镜像完整，README 双语齐全，llms.txt 全部链接可解析")
+    print("✅ docs/en ↔ docs/zh 镜像完整，README/AGENTS 双语齐全，llms.txt 全部链接可解析")
 
 
 if __name__ == "__main__":
