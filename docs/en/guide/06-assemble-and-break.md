@@ -123,4 +123,4 @@ docker rm -f guide-pg
 
 ---
 
-Next in this series (see [the guide index](README.md)): what a component publishes for others to discover and use — artifacts and API docs, from the consuming side.
+Next: [Consume someone else's component](07-consuming-artifacts.md) — what a component publishes for others to discover and use, artifacts and API docs, from the consuming side.

@@ -10,12 +10,13 @@ This series is being written incrementally; articles not yet linked below are pl
 4. [Deploy to Kubernetes](04-kubernetes.md) — plus a real gotcha with `brickkit down` and shared namespaces
 5. [Upgrade and run multiple versions side by side](05-upgrades-and-versions.md)
 6. [Assemble a real system, then break it on purpose](06-assemble-and-break.md) — a real database this time, and two different real failure modes
-7. Consume someone else's component — artifacts and API docs
-8. The same system, deployed to Kubernetes
-9. Publish and install from a marketplace — plus visibility and org scoping
-10. Sign and verify components
-11. Build your first component from scratch
-12. Network policy and least privilege
-13. Multi-project sharing
+7. [Consume someone else's component](07-consuming-artifacts.md) — artifacts and API docs
+8. Publish and install from a marketplace — plus visibility and org scoping
+9. Sign and verify components
+10. Build your first component from scratch
+11. Network policy and least privilege
+12. Multi-project sharing
+
+(Article 4 already covered Kubernetes deployment directly with real components, so this series doesn't repeat it as a separate "same system on K8s" step the way the original 23-article series did.)
 
 Not a tutorial step, but referenced throughout: a troubleshooting lookup, once enough of the series above exists to populate it with real, recurring failure modes rather than guesses.
