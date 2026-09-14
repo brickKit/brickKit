@@ -134,4 +134,4 @@ brickkit add demo/hello@2.0.0   # from a project that never logged in
 
 ---
 
-Next in this series (see [the guide index](README.md)): closing the gap the warning above pointed at — actually configuring a trust anchor and verifying a signature for real.
+Next: [Sign and verify components](09-signing.md) — closing the gap the warning above pointed at, actually configuring a trust anchor and verifying a signature for real.
