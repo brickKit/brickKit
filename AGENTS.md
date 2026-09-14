@@ -636,6 +636,7 @@ overlay / inheritance / merge mechanism** (see §9.9 for why).
 | `brickkit sync` | Bidirectionally archives / activates component source based on the cascade decision. Takes no arguments |
 | `brickkit restore` | Restores `enabled` and the component-source layout to the last commit. `--check` is for the pre-commit hook to judge whether this commit is self-consistent (design/004 §3.14) |
 | `brickkit login` | Interactive terminal login to the marketplace, token stored in `.brickkit/credentials` |
+| `brickkit logout` | Revokes the marketplace token server-side, then deletes `.brickkit/credentials` locally. The local deletion always happens, even if the marketplace is unreachable — otherwise a network blip leaves someone believing they've logged out while the credential still sits on disk. Doing nothing when already logged out is not a failure |
 | `brickkit publish` | Uploads the Manifest + image reference + artifacts to the marketplace (requires login first) |
 
 **Common flags:**
@@ -643,11 +644,20 @@ overlay / inheritance / merge mechanism** (see §9.9 for why).
 ```bash
 brickkit up --config brickkit.prod.yaml           # multi-environment
 brickkit up --dry-run                             # only generate deployment files, for review
+brickkit up --context prod-cluster                # override deploy.context for this one run (k8s only)
+brickkit down --context prod-cluster              # same override, for tearing down a specific cluster
 brickkit add people/basic@1.1.0 --yes             # non-interactive (CI/CD)
 brickkit add --local                              # add every component in a local source at once
 brickkit add erp/backend@1.0.0 --repo-all         # clone the source of every open-source dependency
 brickkit fetch infra/notifier@1.0.0               # fetch artifacts only (cross-project calls, not installed into the project)
 brickkit remove people/basic@1.0.0                # specify the version to remove when multiple versions coexist
+brickkit remove people/basic@1.0.0 --force        # delete the source directory even with uncommitted or unpushed changes
+brickkit login --market https://market.example.com/api/v1   # only needed with more than one market source configured
+brickkit logout                                   # revoke the market token and delete local credentials
+brickkit logout --keep-remote                     # delete local credentials only, without calling the market (offline)
+brickkit publish --path ./components/people/basic --market https://market.example.com/api/v1 --visibility private --changelog "added X"
+brickkit publish --path ./components/people/basic --git-url https://github.com/org/people-basic --sign --key cosign.key --signed-by release-bot@example.com --public-key-ref keys/vendor.pub
+brickkit version --verbose                        # also print the git commit hash and build time
 ```
 
 ### 8.1 A one-minute example

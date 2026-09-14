@@ -572,6 +572,7 @@ installer:
 | `brickkit sync` | 按启停判定结果双向归档 / 激活组件源码。无参数 |
 | `brickkit restore` | 把 `enabled` 与组件源码结构还原到最后一次提交。`--check` 供 pre-commit hook 判断这次提交自洽不自洽（004 §3.14） |
 | `brickkit login` | 终端交互登录市场，Token 存 `.brickkit/credentials` |
+| `brickkit logout` | 先调市场作废 Token，再删本地的 `.brickkit/credentials`。**本地那份一定会删**，即使市场连不上——否则一次网络抖动就让人以为自己已经退出、凭据却还躺在盘上。没登录时什么都不做，也不算失败 |
 | `brickkit publish` | 上传 Manifest + 镜像引用 + 产物到市场（需先 login） |
 
 **常用参数：**
@@ -579,11 +580,20 @@ installer:
 ```bash
 brickkit up --config brickkit.prod.yaml           # 多环境
 brickkit up --dry-run                             # 只生成部署文件，供审查
+brickkit up --context prod-cluster                # 本次运行覆盖 deploy.context（仅 k8s）
+brickkit down --context prod-cluster              # 同样的覆盖，用来关停指定集群
 brickkit add people/basic@1.1.0 --yes             # 非交互（CI/CD）
 brickkit add --local                              # 把本地安装源里的组件一次全部添加
 brickkit add erp/backend@1.0.0 --repo-all         # clone 所有开源依赖的源码
 brickkit fetch infra/notifier@1.0.0               # 只取产物（跨项目调用，不装进项目）
 brickkit remove people/basic@1.0.0                # 多版本共存时指定版本移除
+brickkit remove people/basic@1.0.0 --force        # 有未提交/未推送的改动也照样删源码目录
+brickkit login --market https://market.example.com/api/v1   # 配了多个市场安装源时才需要
+brickkit logout                                   # 作废市场 Token，删本地凭据
+brickkit logout --keep-remote                     # 只删本地凭据，不调市场（离线时用）
+brickkit publish --path ./components/people/basic --market https://market.example.com/api/v1 --visibility private --changelog "新增 X"
+brickkit publish --path ./components/people/basic --git-url https://github.com/org/people-basic --sign --key cosign.key --signed-by release-bot@example.com --public-key-ref keys/vendor.pub
+brickkit version --verbose                        # 额外输出 Git commit 与构建时间
 ```
 
 ### 8.1 一分钟示例
