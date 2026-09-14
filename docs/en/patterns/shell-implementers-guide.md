@@ -224,6 +224,16 @@ address it computes, ever needs to change based on where its dependency
 happens to physically live — that indirection is the entire point of the
 platform's address injection.
 
+**One practical trap when you actually set this up locally**, confirmed against
+a real `local`-type install source: each version needs its own source
+directory. A `local` source's directory holds exactly one `component.yaml`,
+so writing 1.0.7 and then overwriting it with 2.0.0 in the same directory
+doesn't give you two versions — it gives you one directory that only ever
+resolves to whichever version was written last, and the platform reports
+`COMPONENT_NOT_FOUND` for the missing one rather than hinting at the
+directory itself. Two separate `sources: - type: local` entries, each
+pointing at its own directory, is what actually works.
+
 **The same shell can absorb two versions of the same logical component at
 once** — this is exactly the state a migration passes through while some
 callers are on the old version and some are on the new, and both versions
@@ -251,6 +261,24 @@ ID — if it's keyed by ID alone, the second version silently overwrites the
 first in your registry, with no error from the platform (which never
 inspects your registry) and no error from the merge (which validated the
 *addresses*, not your shell's internal bookkeeping).
+
+**This only works if your language's own toolchain actually lets you
+compile in two versions of the same code at once — check this before
+relying on it.** Confirmed against real Go components: it doesn't hold by
+default. `go.mod`'s `require` directive resolves one version per module
+path per build, and a module path only becomes version-distinguishable
+across major versions if its author has opted into Go's semantic import
+versioning (a `/v2`-suffixed module path) — a `1.0.7`→`2.0.0` bump alone
+never triggers this, and nothing about `servedBy` makes it happen either.
+If your components don't use semantic import versioning (most don't), a Go
+shell physically cannot statically link two versions of the same component
+into one binary — put them in two separate shell images instead. This is a
+property of how each language's build system resolves dependencies, not
+something the platform can see or compensate for (the platform never
+inspects what's actually compiled into your shell image, per property 9
+above) — other statically-compiled languages likely have their own version
+of this same constraint, worth checking against your specific toolchain
+before you build on this pattern.
 
 **What you cannot do: give one exact version two deployment shapes at
 once.**
