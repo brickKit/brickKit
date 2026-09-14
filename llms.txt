@@ -25,6 +25,7 @@ were asked, not based on this file's own language.
 - [Architecture overview](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/architecture/overview.md): How a declaration turns into running containers, with the real dependency-resolution → injection → generation pipeline.
 - [Hands-on guides](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/guide/README.md): Not yet written — points at the old archived guides in the meantime.
 - [Testing patterns for components built on BrickKit](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/patterns/testing.md): How to layer tests for a component assembled with BrickKit — contract, business-rule, unit, integration, plus the permission-boundary and idempotency pitfalls a real production deployment hit.
+- [Building a qualified shell](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/patterns/shell-implementers-guide.md): What a component's `servedBy` field asks of the shell that hosts it — the nine correctness properties a merged process must satisfy, and exactly what the platform does and doesn't inject into a shell's environment.
 
 ## 中文文档
 
@@ -33,6 +34,7 @@ were asked, not based on this file's own language.
 - [架构总览](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/overview.md): 一次声明怎么变成运行中的容器，含真实的依赖解析→注入→生成流水线。
 - [动手教程](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/README.md): 还没写，暂时指向旧的归档指南。
 - [基于 BrickKit 的组件该怎么分层测试](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/testing.md): 契约/业务规则/单元/集成四层怎么分工，以及一个真实生产部署踩过的权限边界与幂等性陷阱。
+- [合格外壳该满足什么](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/shell-implementers-guide.md): `servedBy` 字段对收编它的外壳提出了什么要求——合并进程必须满足的九条性质，以及平台到底会不会把哪些东西注入外壳的环境。
 
 ## Historical record（历史记录，只中文，不维护）
 
