@@ -6,7 +6,7 @@
 
 1. [把一个项目跑起来](01-first-project.md)——init、add、up、用 HTTP 跟它说上话、改配置、down
 2. [平台是怎么决定谁跑起来的](02-what-runs.md)——依赖、`enabled` 级联、`--dry-run`
-3. 本地调试一个组件——`local: true`
+3. [本地调试一个组件](03-local-debugging.md)——`local: true`
 4. 部署到 Kubernetes——外加副本数与 PodDisruptionBudget
 5. 升级，以及让多个版本并存
 6. 拼装一个真实的多组件系统，然后故意把它弄坏
