@@ -24,11 +24,18 @@ before any of them do a single unit of work — a real constraint during a
 private, resource-capped on-prem delivery. Twenty idle Go components is
 well under half a gigabyte, which is rarely worth the trade below.
 
-Before reaching for `servedBy`, check the cheaper options first: is a
-lighter runtime available for this component (a JVM component moved to a
-GraalVM native image drops most of that 200–450MB floor by itself)? Is
-`enabled: false` simply turning off components this particular deployment
-doesn't need? Only once neither applies does merging make sense.
+Before reaching for `servedBy`, measure the real footprint first — `docker
+stats` against what's actually running, not a number from a table someone
+else published — then check the options below, roughly in this order:
+
+| Option | Verdict |
+| --- | --- |
+| **A lighter runtime** (a JVM component rebuilt as a GraalVM native image, a smaller heap) | **Try this first.** The memory floor drops from 200–450MB to tens of MB, and the deployment shape doesn't change at all — still one component, one container, one process; signing, health checks, migrations, and independent scaling all keep working exactly as before. This is the component author's problem to solve, not something `servedBy` or this checklist has anything to do with. If the motivation is "the JVM is expensive," this option's cost-to-benefit ratio beats merging by an order of magnitude. |
+| **On-demand activation** (`enabled: false` for whatever this deployment doesn't need) | A 50-component project might only run 4 containers locally — check whether the components driving the memory number are even needed in this deployment before assuming they all have to run. |
+| **Scale-to-zero** (KEDA, Knative scaling to 0 replicas) | **Doesn't work on this platform.** Components call each other over direct DNS — nothing on that call path can wake a scaled-to-zero component back up, so the request just fails. Making it work needs an activator or proxy inserted into the call path, which is exactly the API-gateway/service-mesh shape the platform deliberately doesn't build (AGENTS.md §4.1) — and once something sits between a caller and its `*_ENDPOINT`, the very property that makes `servedBy` safe to build on (a caller never needs to know what's on the other end) stops holding. |
+| **Memory overselling** (`requests` set low, `limits` set high) | **Actively harmful, not just unhelpful.** Memory isn't compressible: `requests` far below `limits` produces Burstable QoS, and when a node runs short, eviction is ordered by how far a Pod's real usage exceeds its own `requests` — which puts your heaviest, most important component first in line to be killed. AGENTS.md §6 already recommends the opposite: `requests == limits` for memory (Guaranteed QoS, evicted last), CPU `requests` with no `limits` at all. |
+
+Only once the cheaper options above are exhausted does merging make sense.
 
 And merging has a real cost, paid by the shell's author, not by the
 platform: every component absorbed into one shell shares its fault domain
@@ -40,9 +47,13 @@ migration container (someone's startup code has to run migrations in the
 right order by hand). `servedBy` is the right call when the memory
 economics justify paying that cost for *this specific set* of components,
 against a shell you already have — or are willing to build and verify —
-that satisfies the implementers guide's requirements. It's the wrong call
-as a default way to tidy up a project, and the platform doesn't nudge you
-toward it: the ordinary path (each component in its own container) remains
+that satisfies the implementers guide's requirements. (If the components
+you're merging talk to PostgreSQL or Oracle, there's a second resource
+question beyond memory worth reading before you commit to this — see
+[Sharing a database connection pool inside a shell](shared-connection-pools.md).)
+It's the wrong call as a default way to tidy up a project, and the platform
+doesn't nudge you toward it: the ordinary path (each component in its own
+container) remains
 what you get by simply not writing `servedBy` at all.
 
 ## Before you write `servedBy:`

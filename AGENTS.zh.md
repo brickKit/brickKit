@@ -833,6 +833,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 怎么造一个能接 `servedBy` 的合格外壳 | `docs/zh/patterns/shell-implementers-guide.md`（英文版把 `zh` 换 `en`） |
 | 要不要在自己项目里声明 `servedBy`、怎么声明 | `docs/zh/patterns/servedby-deployment-checklist.md`（英文版把 `zh` 换 `en`） |
 | 怎么自己搭一套组件市场 | `docs/zh/patterns/deployment/self-hosted-market.md`（英文版把 `zh` 换 `en`） |
+| 合并进壳里的组件怎么共用一个数据库连接池 | `docs/zh/patterns/shared-connection-pools.md`（英文版把 `zh` 换 `en`） |
 | 怎么防止闭源组件的逻辑从自己的镜像里泄露出去 | `docs/zh/patterns/closed-source-image-hardening.md`（英文版把 `zh` 换 `en`） |
 | 旧设计书当初的论证过程（历史记录，可能与当前实现不一致） | `docs/archive/design/`，只中文 |
 | 旧试用指南原文（历史记录） | `docs/archive/guide/`，只中文 |
