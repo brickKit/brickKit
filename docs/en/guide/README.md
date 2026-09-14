@@ -9,7 +9,7 @@ This series is being written incrementally; articles not yet linked below are pl
 3. [Debug a component locally](03-local-debugging.md) — `local: true`
 4. [Deploy to Kubernetes](04-kubernetes.md) — plus a real gotcha with `brickkit down` and shared namespaces
 5. [Upgrade and run multiple versions side by side](05-upgrades-and-versions.md)
-6. Assemble a real multi-component system, then break it on purpose
+6. [Assemble a real system, then break it on purpose](06-assemble-and-break.md) — a real database this time, and two different real failure modes
 7. Consume someone else's component — artifacts and API docs
 8. The same system, deployed to Kubernetes
 9. Publish and install from a marketplace — plus visibility and org scoping

@@ -147,4 +147,4 @@ brickkit remove demo/hello@1.0.0
 
 ---
 
-Next in this series (see [the guide index](README.md)): a real multi-component system — assembling several of these together, and then deliberately breaking the connections between them to see exactly how each failure mode actually looks.
+Next: [Assemble a real system, then break it on purpose](06-assemble-and-break.md) — a real database this time, and deliberately breaking the connections between components to see exactly how each failure mode actually looks.
