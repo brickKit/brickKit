@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -111,12 +112,20 @@ func TestUpDryRunReportsRequiredDatabases(t *testing.T) {
 }
 
 // 重复执行覆盖同一个文件，且内容一致（生成是确定性的）。
+//
+// 文件头的生成时间戳精确到秒，两次真跑 time.Now() 之间如果恰好跨过秒的
+// 边界，内容就会只在这一行上不一致——这不是生成不确定，是测试自己在跟
+// 墙钟赛跑。固定 Options.Now（compose.Options.Now 已经支持注入，见
+// internal/compose/compose.go）让两次调用拿到同一个时间戳，测的才是
+// "生成本身是不是确定的"，不是"两次调用有没有跨过同一秒"。
 func TestUpDryRunIsRepeatable(t *testing.T) {
 	f := composeProject(t)
+	fixedNow := func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
+	pinClock := func(o *Options) { o.Now = fixedNow }
 
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "up", "--dry-run").code)
+	require.Equal(t, clierr.ExitOK, runWith(t, pinClock, f.Dir, "up", "--dry-run").code)
 	first := generatedCompose(t, f.Dir)
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "up", "--dry-run").code)
+	require.Equal(t, clierr.ExitOK, runWith(t, pinClock, f.Dir, "up", "--dry-run").code)
 
 	assert.Equal(t, strings.Count(first, "services:"), 1)
 	assert.Equal(t, first, generatedCompose(t, f.Dir))
