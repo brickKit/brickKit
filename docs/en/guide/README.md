@@ -11,7 +11,7 @@ This series is being written incrementally; articles not yet linked below are pl
 5. [Upgrade and run multiple versions side by side](05-upgrades-and-versions.md)
 6. [Assemble a real system, then break it on purpose](06-assemble-and-break.md) — a real database this time, and two different real failure modes
 7. [Consume someone else's component](07-consuming-artifacts.md) — artifacts and API docs
-8. Publish and install from a marketplace — plus visibility and org scoping
+8. [Publish and install from a marketplace](08-marketplace.md) — plus version immutability and private visibility
 9. Sign and verify components
 10. Build your first component from scratch
 11. Network policy and least privilege

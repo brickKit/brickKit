@@ -88,4 +88,4 @@ Not an error, not a blank page — a clean, complete answer naming every compone
 
 ---
 
-Next in this series (see [the guide index](README.md)): publishing a component to a marketplace, and installing it from there instead of a local source.
+Next: [Publish and install from a marketplace](08-marketplace.md) — publishing a component to a marketplace, and installing it from there instead of a local source.
