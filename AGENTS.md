@@ -956,6 +956,7 @@ The complete machine-readable index is at the repo root, **[`llms.txt`](llms.txt
 | Dependency resolution, diamond dedup, cycles, and why more components doesn't mean more serial steps | `docs/en/architecture/dependency-resolution.md` (swap `en` for `zh`) |
 | Real generated Docker Compose and Kubernetes files, side by side, from the same Manifest | `docs/en/architecture/deployment-generation.md` (swap `en` for `zh`) |
 | What actually happens when a resource binding collides, and how the quota chain really merges field by field | `docs/en/architecture/resource-binding.md` (swap `en` for `zh`) |
+| What actually gets signed, why verification needs no cosign dependency, and why the public key can't come from the marketplace | `docs/en/architecture/signing-and-trust.md` (swap `en` for `zh`) |
 | How to layer tests for a component built on BrickKit | `docs/en/patterns/testing.md` (swap `en` for `zh`) |
 | How to plan seed data and test data | `docs/en/patterns/data-construction.md` (swap `en` for `zh`) |
 | How to research a domain and recognize when a feature needs a component family, not a flag | `docs/en/patterns/component-design.md` (swap `en` for `zh`) |

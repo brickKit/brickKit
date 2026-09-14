@@ -109,7 +109,10 @@ whether or not the running process ever touches any of it.
   covering a reference that can't be silently repointed. Skipping this
   needs an explicit `--no-pin-digest` flag, and doing so prints a loud
   warning naming this exact risk — it's a deliberate opt-out, not
-  something that happens by forgetting a step.
+  something that happens by forgetting a step. For exactly what gets
+  signed and why it has to be a canonicalized payload rather than the
+  Manifest's raw bytes, see [Signing and the trust
+  model](../architecture/signing-and-trust.md).
 
 ## Hardening by language — the achievable ceiling is set by the compilation model, not by effort
 
