@@ -246,6 +246,7 @@ index, but every link is a raw, directly-fetchable URL.
 | [Deployment file generation](https://github.com/brickKit/brickKit/blob/main/docs/en/architecture/deployment-generation.md) | The same project generated for Docker and Kubernetes side by side, byte for byte |
 | [Resource binding mechanics](https://github.com/brickKit/brickKit/blob/main/docs/en/architecture/resource-binding.md) | What happens when a resource binding collides, and how the quota chain really merges |
 | [Signing and the trust model](https://github.com/brickKit/brickKit/blob/main/docs/en/architecture/signing-and-trust.md) | What actually gets signed, and why the public key can never come from the marketplace |
+| [CLI command reference](https://github.com/brickKit/brickKit/blob/main/docs/en/architecture/cli-reference.md) | Every command, every flag, real generated output — the detailed complement to the one-minute tour above |
 
 **Hands-on guide — 12 tutorials, each one run for real against the CLI, in order**
 
