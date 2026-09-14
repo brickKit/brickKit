@@ -268,14 +268,14 @@ index, but every link is a raw, directly-fetchable URL.
 
 | Doc | What it covers |
 | --- | --- |
+| [Component design guidelines](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/component-design.md) | Researching a domain, and when a feature needs a component family instead of a flag |
 | [Testing patterns for components built on BrickKit](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/testing.md) | How to layer tests: contract, business-rule, unit, integration |
 | [Planning seed data and test data](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/data-construction.md) | Two paths that must stay physically separate, and why |
-| [Component design guidelines](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/component-design.md) | Researching a domain, and when a feature needs a component family instead of a flag |
+| [Protecting closed-source components from image-based extraction](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/closed-source-image-hardening.md) | Pulling an image isn't the same guarantee as a private Git repo |
 | [Building a qualified shell](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/shell-implementers-guide.md) | What `servedBy` asks of the shell that hosts a merged component |
 | [Declaring servedBy: a deployment checklist](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/servedby-deployment-checklist.md) | For whoever declares `servedBy`, not whoever builds the shell |
-| [Self-hosting the BrickKit Market](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/deployment/self-hosted-market.md) | Deploying the marketplace itself, from local dev to production |
 | [Sharing a database connection pool inside a shell](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/shared-connection-pools.md) | For components merged into one shell that also share PostgreSQL or Oracle |
-| [Protecting closed-source components from image-based extraction](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/closed-source-image-hardening.md) | Pulling an image isn't the same guarantee as a private Git repo |
+| [Self-hosting the BrickKit Market](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/deployment/self-hosted-market.md) | Deploying the marketplace itself, from local dev to production |
 
 Not covered by any of the above: [`docs/archive/decisions/`](docs/archive/decisions/) explains
 why a specific historical decision was made the way it was (566 entries, historical record, Chinese

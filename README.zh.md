@@ -242,14 +242,14 @@ deploy:
 
 | 文档 | 讲什么 |
 | --- | --- |
+| [组件设计准则](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/component-design.md) | 怎么做领域研究，什么时候该做成组件家族而不是开关 |
 | [基于 BrickKit 的组件该怎么分层测试](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/testing.md) | 怎么分层：契约、业务规则、单元、集成 |
 | [怎么规划种子数据与测试数据](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/data-construction.md) | 两条必须物理隔离的路径，以及为什么 |
-| [组件设计准则](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/component-design.md) | 怎么做领域研究，什么时候该做成组件家族而不是开关 |
+| [闭源组件的镜像安全规范](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/closed-source-image-hardening.md) | 拉取镜像跟私有 Git 仓库不是同一种保证 |
 | [合格外壳该满足什么](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/shell-implementers-guide.md) | `servedBy` 对收编组件的外壳提出了什么要求 |
 | [怎么声明 servedBy：部署方检查清单](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/servedby-deployment-checklist.md) | 写给声明 `servedBy` 的人，不是造壳的人 |
-| [自己搭一套 BrickKit Market](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/deployment/self-hosted-market.md) | 部署市场本身，从本地开发到生产环境 |
 | [在外壳里合并数据库连接池](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/shared-connection-pools.md) | 合并进同一个壳、又共用 PostgreSQL 或 Oracle 的组件该怎么办 |
-| [闭源组件的镜像安全规范](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/closed-source-image-hardening.md) | 拉取镜像跟私有 Git 仓库不是同一种保证 |
+| [自己搭一套 BrickKit Market](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/deployment/self-hosted-market.md) | 部署市场本身，从本地开发到生产环境 |
 
 以上都没覆盖到的：[`docs/archive/decisions/`](docs/archive/decisions/) 讲清楚某个历史决策当初为什么
 这么定（566 条，历史存档，仅中文）。
