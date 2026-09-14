@@ -183,7 +183,7 @@ argued through and rejected (reasoning in §9):
 | Config value type validation | configSchema is just a spec sheet |
 | Third-party component security review | Install implies trust + after-the-fact `blocked` |
 | Monorepo sub-directory components | One component, one Git repository |
-| Consolidated deployment / monolithic shell (multiple components running as one instance) | The platform provides no command for this, but **the path is open**: address injection means a caller has no way to know the shape of the other end, so a user can build their own shell. See *Merged Component Deployment* and §2.21 of the architecture rationale |
+| Consolidated deployment / monolithic shell — the platform does not, and will not, ship its own shell scaffolding or process supervisor | But a small, structural piece **is** built in: `servedBy` lets a component declare "my workload is provided by another component," and the platform correctly wires `*_ENDPOINT` addresses to it on both Docker and K8s — without ever needing to understand what's inside the shell. See §5.7 below and *Merged Component Deployment* / §2.21 of the architecture rationale for the full boundary |
 | Dependency aliases (`dependencies.components[].as`) | Variable names derived from component ID are bidirectionally computable; an alias only preserves half of that. "One capability, multiple implementations" should go through a `kind` resource or a `configSchema` address field instead. See §2.24 of the architecture rationale |
 | Low-code / BI / DevOps pipelines | Out of scope |
 
@@ -233,9 +233,9 @@ DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
 | Resource connections | Prefixed by resource type (the `kind` name is the prefix) | `DATABASE_*`, `REDIS_*`, `MQ_*`, `STORAGE_*`, `SEARCH_*`, `SMTP_*` |
 | Own config | configSchema camelCase key → uppercase snake_case | `defaultPageSize` → `DEFAULT_PAGE_SIZE` |
 
-**Reserved-variable protection (two layers of defense):** `COMPONENT_ID`, `COMPONENT_VERSION`
-(exact match), `*_ENDPOINT` (suffix match), `DATABASE_*` / `REDIS_*` / `MQ_*` / `STORAGE_*` /
-`SEARCH_*` / `SMTP_*` / `{envPrefix}_*` (prefix match). A configSchema key, once uppercased, must
+**Reserved-variable protection (two layers of defense):** `COMPONENT_ID`, `COMPONENT_VERSION`,
+`BRICKKIT_SERVED_MEMBERS` (exact match), `*_ENDPOINT` (suffix match), `DATABASE_*` / `REDIS_*` /
+`MQ_*` / `STORAGE_*` / `SEARCH_*` / `SMTP_*` / `{envPrefix}_*` (prefix match). A configSchema key, once uppercased, must
 not collide with these — **the marketplace refuses this at publish time**, and **the CLI warns and
 skips that config item at injection time** (the platform-injected value wins).
 
@@ -323,7 +323,44 @@ the Docker network:
 - The CLI generates `local-debug.env` for the IDE to load
 - **Zero component-code changes** (it reads env vars exactly as it normally would)
 
-### 5.7 Component source workspace
+### 5.7 Consolidated deployment (`servedBy`)
+
+A component can declare `servedBy: <shell-component-id>@<version>` to mean
+"my workload is provided by that other component" — the shell it names is an
+ordinary component, with its own image, port, and health check. The platform:
+
+- Skips generating a workload (container/Deployment) and a migration
+  container/Job for the `servedBy` component.
+- Still computes a correct `*_ENDPOINT` for anything depending on it — the
+  address points at the shell's actual location, using the `servedBy`
+  component's own declared port.
+- Merges only `*_ENDPOINT`-class variables and `labels` into the shell's
+  environment — never `COMPONENT_ID`/`COMPONENT_VERSION`, never a component's
+  own `configSchema`-derived config, never resource-connection variables.
+  Those aren't namespaced by component ID, so two independently-authored
+  modules could easily reuse the same name; giving each module its own
+  isolated configuration is the shell author's job, not the platform's.
+- Writes `BRICKKIT_SERVED_MEMBERS` (a reserved variable) into the shell's
+  environment: a comma-separated list of the versioned service names
+  currently part of the deployment. A compliant shell may read it to skip
+  initializing (including skipping migrations and resource connections for)
+  any compiled-in module not on the list — this is optional; the platform
+  never checks whether a shell actually honors it.
+
+`local: true` is untouched by this — same field, same meaning, same code
+paths as always; `servedBy` is a wholly separate, independent mechanism that
+happens to share the same "in the dependency graph but generates no workload"
+shape.
+
+**What a `servedBy` component's own `expose`/`exposePort`/`hostname`/
+`replicas`/`resources`/`serviceAccountName` do:** nothing — the platform
+warns, it doesn't error and doesn't silently ignore. These fields describe
+"how my own container/Pod is deployed," and a `servedBy` component has none.
+
+Full field-level detail, the validation rules, and what a shell implementation
+itself must get right: [Building a qualified shell](docs/en/patterns/shell-implementers-guide.md).
+
+### 5.8 Component source workspace
 
 | Command | Behavior |
 | --- | --- |
@@ -343,7 +380,7 @@ pre-commit hook installed by `brickkit restore` and `brickkit init --hooks` exis
 catch the recurring mistake of "an archive-state change got committed but `enabled` didn't come
 along with it" (design/004 §3.14).
 
-### 5.8 Marketplace, signing, and the trust model
+### 5.9 Marketplace, signing, and the trust model
 
 The marketplace is an independent public platform — **it is not a component and doesn't need to be
 installed**. It only answers two questions: **what's available to install? who's allowed to install
@@ -522,6 +559,7 @@ components:
     enabled: true                # optional, see §5.4 for how to write it
     local: false                 # optional, local debug mode
     localPort: 8081              # host port when local: true
+    servedBy: <id>@<version>     # optional, this component's workload is provided by that other component
     expose: false                # optional, default false
     hostname: <domain>           # required when expose + k8s
     exposePort: 8080             # optional, Docker only
@@ -778,22 +816,22 @@ longer recognizes it — even harder to spot than an ordinary zombie directory. 
 changes? Commit them before removing — the platform provides tools, it doesn't make that call for
 you.
 
-**9.21 Why doesn't the platform offer consolidated deployment (multiple components as one
-instance)?**
+**9.21 Why doesn't the platform offer a full consolidated-deployment command, when it does offer
+`servedBy`?**
 The need is real: a JVM component's memory floor is 200–450MB, so 20 of them is 4–9G, and that
-genuinely might not fit during a private on-prem delivery. But the platform has **already done the
+genuinely might not fit during a private on-prem delivery. The platform has **already done the
 hardest half of this for free** — a caller only reads `*_ENDPOINT`; whether the other end is 10
-containers, 1 container, or 10 modules inside one JVM is something it has no way to know. Everything
-left (avoid port collisions, alias N versioned service names onto the shell, take over health checks
-and migrations) lives entirely in the user's own compose / Service / framework — not one line of
-platform code is needed there. And if the platform actually built `--consolidated`, it would have to
-start understanding "the shell": which things can be merged, which path inside the image the
-artifact lives at (the Manifest has no such field), supervisord or s6, how Spring's multiple
-connectors get started — it would never catch up with the ecosystem. The harder point: merging would
-void fault isolation, independent releases, mandatory signing, and "components don't share code" one
-by one — **the platform can't promise something and hand out the tool to break that same promise at
-the same time.** So the stance is "don't do it, but document exactly how": see *Merged Component
-Deployment*.
+containers, 1 container, or 10 modules inside one JVM is something it has no way to know. `servedBy`
+(§5.7) closes the one gap that was actually the platform's own — correctly routing addresses to a
+merged unit without borrowing `local: true` and without the K8s-side gap that had no equivalent at
+all. Everything past that (avoid port collisions inside the merged process, take over health checks
+and migrations, isolate each module's config) still lives entirely in the shell author's own code —
+not one more line of platform code is needed there, and the platform still never has to understand
+which things *can* be merged, what supervisor manages them, or how any given framework starts
+multiple listeners. Building a full `--consolidated` command would still mean starting to understand
+"the shell" in exactly the way §2.21 of the architecture rationale argues against — `servedBy` is
+deliberately the smallest structural piece that helps, not a step toward that larger, rejected
+command.
 
 **9.22 The platform doesn't do gateways — so why add `labels` passthrough?**
 Because it lets the platform **keep not understanding gateways**. The standard way tools like
@@ -858,7 +896,7 @@ hit:
 | A `local: true` component reports `relation does not exist` | Local components don't generate a migration container; you have to run the migration by hand once |
 | Discussing signing | The publisher needs **cosign** installed; **the installer doesn't** (verification uses the Go standard library) |
 | The user wants the platform to help with security review | Install implies trust. The platform only steps in after the fact with `blocked` |
-| A user asks "can I merge multiple components into one instance to save memory" | **Don't shoot it down, and don't say the platform supports it.** First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation (§2.15 of the architecture rationale); if they still want to merge, point them at *Merged Component Deployment* — there are five gates there and real costs to pay. ⚠️ `enabled: false` **cannot** be used as a "I'm taking this over myself" switch (a required dependency being off means whatever depends on it stops too); there's no equivalent switch on K8s |
+| A user asks "can I merge multiple components into one instance to save memory" | First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation (§2.15 of the architecture rationale). If they still want to merge: **`servedBy` (§5.7) is the supported path** — it handles address routing correctly on both Docker and K8s; everything else (module isolation, config, migrations ordering inside the shell) is still their own code, see the shell implementer's guide. `enabled: false` is unrelated to this — it still can't be used as a "I'm taking this over myself" switch |
 
 ---
 
@@ -872,6 +910,7 @@ internal/               CLI implementation
   ├── config/            brickkit.yaml parsing and validation
   ├── manifest/           component.yaml parsing and validation
   ├── resolver/           dependency resolution, topological sort
+  ├── shell/              servedBy grouping/merging, shared by compose and k8s renderers
   ├── cascade/            cascade decision: figures out who actually starts this time (follows the top)
   ├── skills/            embedded AI-assistant skill assets + the five-state check (brickkit skills)
   ├── inject/             env-var injection and resource-quota merging
@@ -905,6 +944,7 @@ The complete machine-readable index is at the repo root, **[`llms.txt`](llms.txt
 | What the platform is, how the core mechanisms work (current) | `docs/en/architecture/` (swap `en` for `zh` for the Chinese version) |
 | Hands-on tutorials | `docs/en/guide/` (same swap) |
 | How to layer tests, plan seed/test data, design components well, tune deployment | `docs/en/patterns/` (same swap) |
+| How to build a shell that qualifies for `servedBy` | `docs/en/patterns/shell-implementers-guide.md` (swap `en` for `zh`) |
 | The old design books' original reasoning (historical record, may not match current implementation) | `docs/archive/design/`, Chinese only |
 | The old hands-on guides, as originally written (historical record) | `docs/archive/guide/`, Chinese only |
 | The full site index (with links) | `llms.txt` |

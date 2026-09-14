@@ -166,7 +166,7 @@ CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，**不依赖 `components/
 | config 值类型校验 | configSchema 只是说明书 |
 | 第三方组件安全审查 | 安装即信任 + 事后 `blocked` |
 | monorepo 子目录组件 | 一个组件一个 Git 仓库 |
-| 合并部署 / 单体外壳（多个组件跑成一个实例） | 平台不提供命令，但**这条路是通的**：地址注入让调用方无从知道对端形态，用户可以自己做外壳。见《组件合并部署》与 012 §2.21 |
+| 合并部署 / 单体外壳——平台不会、也不打算自己提供外壳脚手架或进程管理器 | 但一小块**结构性支撑已经落地**：`servedBy` 让一个组件声明"我的工作负载由另一个组件提供"，平台在 Docker 和 K8s 下都会把 `*_ENDPOINT` 地址正确接到它身上——全程不需要理解外壳里面是什么。见下文 §5.7，完整边界见《组件合并部署》与 012 §2.21 |
 | 依赖别名（`dependencies.components[].as`） | 变量名基于组件 ID 是双向可推算的，别名只保住一半；"一个能力多个实现"该走 `kind` 资源或 `configSchema` 里的地址项。见 012 §2.24 |
 | 低代码 / BI / DevOps 流水线 | 不在范围内 |
 
@@ -211,8 +211,9 @@ DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
 | 资源连接 | 按资源类型（kind 名就是前缀） | `DATABASE_*`、`REDIS_*`、`MQ_*`、`STORAGE_*`、`SEARCH_*`、`SMTP_*` |
 | 自身配置 | configSchema 驼峰项转大写下划线 | `defaultPageSize` → `DEFAULT_PAGE_SIZE` |
 
-**保留变量保护（两层防御）：** `COMPONENT_ID`、`COMPONENT_VERSION`（精确匹配），
-`*_ENDPOINT`（后缀匹配），`DATABASE_*` / `REDIS_*` / `MQ_*` / `STORAGE_*` / `SEARCH_*` /
+**保留变量保护（两层防御）：** `COMPONENT_ID`、`COMPONENT_VERSION`、
+`BRICKKIT_SERVED_MEMBERS`（精确匹配），`*_ENDPOINT`（后缀匹配），
+`DATABASE_*` / `REDIS_*` / `MQ_*` / `STORAGE_*` / `SEARCH_*` /
 `SMTP_*` / `{envPrefix}_*`（前缀匹配）。
 configSchema 里的配置项名转大写后不得与之冲突——**市场在发布时拒绝**，
 **CLI 在注入时警告并跳过该配置项**（平台注入的值优先）。
@@ -285,7 +286,39 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
 - CLI 生成 `local-debug.env` 供 IDE 加载
 - **组件代码零修改**（照常读环境变量）
 
-### 5.7 组件源码工作区
+### 5.7 合并部署（`servedBy`）
+
+组件可以声明 `servedBy: <外壳组件ID>@<版本>`，意思是"我的工作负载由那个
+组件提供"——被指向的外壳本身就是一个普通组件，有自己的镜像、端口、健康
+检查。平台会做这些事：
+
+- 不为这个 `servedBy` 组件生成工作负载（容器 / Deployment），也不生成
+  迁移容器 / Job。
+- 照常给依赖它的组件算出正确的 `*_ENDPOINT`——地址指向外壳的真实位置，
+  端口用的是这个 `servedBy` 组件自己声明的端口。
+- 只把 `*_ENDPOINT` 一类变量和 `labels` 合并进外壳的环境——绝不合并
+  `COMPONENT_ID` / `COMPONENT_VERSION`，绝不合并某个组件自己
+  `configSchema` 生成的配置，也绝不合并资源连接变量。这些变量本来就不按
+  组件 ID 做命名空间隔离，两个各自独立开发的模块很容易撞同一个名字；
+  给每个模块做好隔离是外壳作者自己的事，不是平台的事。
+- 往外壳的环境里写入 `BRICKKIT_SERVED_MEMBERS`（一个保留变量）：当前
+  部署里实际包含的版本化服务名，逗号分隔。合规的外壳可以读它来跳过
+  初始化（包括跳过迁移和资源连接）任何编译进来、但不在这份名单上的
+  模块——这是可选的，平台从不检查外壳有没有真的照做。
+
+`local: true` 不受影响——字段、含义、代码路径都和以前一样；`servedBy`
+是一套完全独立的机制，只是碰巧和它共享"在依赖图里、但不生成工作负载"
+这个形状。
+
+**一个 `servedBy` 组件自己的 `expose` / `exposePort` / `hostname` /
+`replicas` / `resources` / `serviceAccountName` 会怎样：** 什么都不会
+发生，平台只警告，不报错，也不会悄悄忽略。这些字段描述的是"我自己的
+容器 / Pod 怎么部署"，而一个 `servedBy` 组件根本没有属于自己的容器 / Pod。
+
+字段级细节、校验规则、外壳实现本身必须做对的事：
+[打造一个合格的外壳](docs/zh/patterns/shell-implementers-guide.md)。
+
+### 5.8 组件源码工作区
 
 | 命令 | 行为 |
 | --- | --- |
@@ -303,7 +336,7 @@ CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 装的 pre-commit hook 就是为了拦住「归档结构进了提交、`enabled` 却没跟着提交」
 这个反复出现的失误（004 §3.14）。
 
-### 5.8 市场、签名与信任模型
+### 5.9 市场、签名与信任模型
 
 市场是独立的公共平台，**不是组件，不需要被安装**。它只回答两个问题：
 **有什么可以装？谁有权装？** 它不安装组件、不运行组件、不管运行状态。
@@ -466,6 +499,7 @@ components:
     enabled: true                # 可选，写法见 5.4
     local: false                 # 可选，本地调试模式
     localPort: 8081              # local: true 时的宿主机端口
+    servedBy: <id>@<版本>         # 可选，这个组件的工作负载由另一个组件提供
     expose: false                # 可选，默认 false
     hostname: <域名>              # expose + k8s 时必填
     exposePort: 8080             # 可选，仅 Docker 生效
@@ -679,16 +713,17 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 `sync` 就再也不认识它了，比普通僵尸目录更难被发现。有未提交的修改？
 那应该在 remove 前先 commit——平台提供工具，不替人做决定。
 
-**9.21 为什么平台不提供合并部署（多个组件跑成一个实例）？**
+**9.21 既然已经有了 `servedBy`，为什么平台还是不提供完整的合并部署命令？**
 需求是真的：JVM 组件的内存地板 200–450MB，20 个就是 4–9G，私有化交付时会真的装不下。
-但平台**已经免费把最难的一半做完了**——调用方只读 `*_ENDPOINT`，对端是 10 个容器、
-1 个容器还是 1 个 JVM 里的 10 个模块，它无从知道。剩下的活（端口别撞、把 N 个版本化服务名
-alias 到外壳、接手健康检查与迁移）全在用户自己的 compose / Service / 框架里，
-一行平台代码也用不上。而平台真做了 `--consolidated`，就得开始理解「外壳」：哪些能合、
-产物在镜像里哪个路径（Manifest 没这个字段）、supervisord 还是 s6、Spring 的多 connector
-怎么起——永远追不上生态。更硬的一条：合并会把故障隔离、独立发布、强制签名、
-「组件之间不共享代码」一条条作废，**平台不能一边承诺一边提供违约工具**。
-所以立场是「不做，但写清楚怎么做」：《组件合并部署》。
+平台**已经免费把最难的一半做完了**——调用方只读 `*_ENDPOINT`，对端是 10 个容器、
+1 个容器还是 1 个 JVM 里的 10 个模块，它无从知道。`servedBy`（5.7）补上了那个真正
+属于平台自己的缺口——不用借用 `local: true`、也不用在 K8s 侧留一个完全没有对应
+方案的空档，就能把地址正确路由到合并后的整体。再往后的活（合并进程内部端口别撞、
+接手健康检查与迁移、把各模块的配置互相隔离开）还是全在外壳作者自己的代码里，
+一行平台代码也用不上——平台依然不需要理解哪些东西*能*合、由什么进程管理器
+统一调度、某个框架怎么起多个 listener。真做一条完整的 `--consolidated` 命令，
+还是得像 012 §2.21 论证过的那样开始理解「外壳」；`servedBy` 刻意只做到
+"有帮助的最小结构性支撑"为止，不是通向那条被否掉的命令的第一步。
 
 **9.22 平台不做网关，为什么反而要加 `labels` 透传？**
 因为它让平台可以**继续不理解网关**。Traefik / Prometheus 这一整类工具的标准接入方式就是
@@ -743,7 +778,7 @@ alias 到外壳、接手健康检查与迁移）全在用户自己的 compose / 
 | `local: true` 的组件报 `relation does not exist` | local 组件不生成迁移容器，迁移要自己手动跑一次 |
 | 讨论签名 | 发布方需要装 **cosign**；**安装方不需要**（验签用 Go 标准库） |
 | 用户想让平台帮忙做安全审查 | 安装即信任。平台只在事后 `blocked` |
-| 用户问「能不能把多个组件合并成一个实例省内存」 | **别否掉，也别说平台支持。**先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用（012 §2.15）；还要合并就指向《组件合并部署》——那里有五道关卡与要付的账。⚠️ `enabled: false` **不能**拿来当「我自己接管」的开关（强依赖不跑，依赖方跟着不跑）；K8s 下平台没有对应开关 |
+| 用户问「能不能把多个组件合并成一个实例省内存」 | 先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用（012 §2.15）。还要合并的话：**`servedBy`（5.7）是平台支持的路径**——它在 Docker 和 K8s 下都能正确处理地址路由；其余的事（模块隔离、配置、外壳内部的迁移顺序）还是他们自己的代码，参见外壳实现者指南。`enabled: false` 和这个无关——它照样不能拿来当「我自己接管」的开关 |
 
 ---
 
@@ -757,6 +792,7 @@ internal/              CLI 实现
   ├── config/            brickkit.yaml 解析与校验
   ├── manifest/          component.yaml 解析与校验
   ├── resolver/          依赖解析、拓扑排序
+  ├── shell/             servedBy 分组/合并，compose 与 k8s 两边渲染器共用
   ├── cascade/           启停判定：算出这次实际启动谁（跟着上层走）
   ├── skills/           内嵌的 AI 助手技能资产 + 五态判定（brickkit skills）
   ├── inject/            环境变量注入与资源配额合并
@@ -789,6 +825,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 平台是什么、核心机制怎么工作（现行版本） | `docs/zh/architecture/`（英文版把 `zh` 换 `en`） |
 | 动手教程 | `docs/zh/guide/`（英文版同上） |
 | 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/patterns/`（英文版同上） |
+| 怎么造一个能接 `servedBy` 的合格外壳 | `docs/zh/patterns/shell-implementers-guide.md`（英文版把 `zh` 换 `en`） |
 | 旧设计书当初的论证过程（历史记录，可能与当前实现不一致） | `docs/archive/design/`，只中文 |
 | 旧试用指南原文（历史记录） | `docs/archive/guide/`，只中文 |
 | 全站文档索引（带链接） | `llms.txt` |
