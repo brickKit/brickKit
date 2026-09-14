@@ -265,7 +265,7 @@ once.**
 
 This isn't a `servedBy`-specific restriction — a project config can never
 declare the same exact `(id, version)` twice, with or without `servedBy`
-(AGENTS.md §9.2's "one component ID appears once" rule, applied literally:
+(AGENTS.md §5.1's "one component ID appears once" rule, applied literally:
 `servedBy` is just one more field on that one entry, not a second axis a
 duplicate could vary on). If you genuinely need "most callers share one
 merged instance, one caller needs an independently-scaled instance of what
