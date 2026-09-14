@@ -215,9 +215,16 @@ func TestResolveEndpointCollisionDifferentVersionErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "INFRA_DATABASE_ENDPOINT")
 }
 
-// ---- labels 合并：同名同值放过，同名不同值报错 ----
+// ---- labels：成员自己的不参与合并，只有外壳自己的算数 ----
+//
+// 从前这里测的是"同名同值放过，同名不同值报错"——跟 env 变量同一套规则。
+// 但 prometheus.io/port 这类值就该因组件而异的标签，在真实多组件收编场景
+// 里几乎必然"同名不同值"，那套规则套在这种键上是必然假阳性
+// （brickKit 反馈：servedBy 的 labels 合并漏了排除规则）。现在的规则是
+// "成员的 labels 一律不参与合并"，下面两个测试改成验证这一点：
+// 值相同不再意味着会被合并进 Group，值不同也不再报错。
 
-func TestResolveLabelCollisionSameValueIsFine(t *testing.T) {
+func TestResolveMemberLabelsAreNotMerged(t *testing.T) {
 	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
 		comp("infra/shell-go-core", "1.0.0", ""),
 		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
@@ -226,36 +233,37 @@ func TestResolveLabelCollisionSameValueIsFine(t *testing.T) {
 	a := simple("mdm/customer", "1.0.7", 8080)
 	a.Deployment.Labels = map[string]string{"team.owner": "erp"}
 	b := simple("erp/sales", "1.0.0", 8081)
-	b.Deployment.Labels = map[string]string{"team.owner": "erp"}
+	b.Deployment.Labels = map[string]string{"team.owner": "erp"} // 即使两边给的值相同
 
 	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
 		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
 		"mdm/customer@1.0.7":        a,
 		"erp/sales@1.0.0":           b,
 	})
-	require.NoError(t, err, "两个成员对同一个标签键给出相同的值，不该报冲突")
+	require.NoError(t, err)
 	require.Len(t, groups, 1)
-	assert.Equal(t, "erp", groups[0].Labels["team.owner"])
+	// Group 已经没有 Labels 字段——这不是一句能在运行时断言的话，而是编译期
+	// 就成立的事实：成员的 labels 无论值是否相同，从 shell.Resolve 的返回
+	// 结构上就已经无法再被外壳读到。这里只确认合并本身仍然成功、不受影响。
 }
 
-func TestResolveLabelCollisionDifferentValueErrors(t *testing.T) {
+func TestResolveMemberLabelsDifferingDoesNotError(t *testing.T) {
 	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
 		comp("infra/shell-go-core", "1.0.0", ""),
 		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
 		comp("erp/sales", "1.0.0", "infra/shell-go-core@1.0.0"),
 	}}
 	a := simple("mdm/customer", "1.0.7", 8080)
-	a.Deployment.Labels = map[string]string{"team.owner": "erp"}
+	a.Deployment.Labels = map[string]string{"prometheus.io/port": "8080"}
 	b := simple("erp/sales", "1.0.0", 8081)
-	b.Deployment.Labels = map[string]string{"team.owner": "sales"} // 撞了 mdm/customer 的值
+	b.Deployment.Labels = map[string]string{"prometheus.io/port": "8081"} // 语义上就该因组件而异
 
 	_, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
 		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
 		"mdm/customer@1.0.7":        a,
 		"erp/sales@1.0.0":           b,
 	})
-	require.Error(t, err, "同一个标签键不可能同时代表两个不同的值")
-	assert.Contains(t, err.Error(), "team.owner")
+	require.NoError(t, err, "成员的 labels 不参与合并，不同值不该报冲突")
 }
 
 // ---- BRICKKIT_SERVED_MEMBERS ----

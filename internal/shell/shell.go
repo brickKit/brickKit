@@ -8,7 +8,8 @@
 // servedBy 字段本身的语法、自引用、链式嵌套、跟 local: true 互斥已经在
 // config.Validate 里静态查过（不需要依赖图就能查），这里只做需要依赖图 +
 // cascade 结果才能查出来的部分：目标存不存在、有没有在跑、端口撞不撞车、
-// 合并后的环境变量/labels 撞不撞值（servedBy 设计书 §5-§7）。
+// 合并后的环境变量撞不撞值（servedBy 设计书 §5-§7）。labels 不参与合并，
+// 见 mergeGroup 的注释。
 package shell
 
 import (
@@ -40,8 +41,8 @@ type Group struct {
 	// Env 是全部成员贡献的 *_ENDPOINT 类变量，已经和外壳自己的同类变量、
 	// 以及成员相互之间做过合并与冲突检查（同名同值跳过，同名不同值报错）。
 	Env []inject.Var
-	// Labels 是全部成员贡献的透传标签，合并规则与 Env 相同。
-	Labels map[string]string
+	// 注意：这里没有 Labels 字段——成员自己的 labels 不参与合并，
+	// 只有外壳自己条目上的 labels 算数，见 mergeGroup 的注释。
 }
 
 // Member 是被外壳收编的一个组件。
@@ -49,6 +50,20 @@ type Member struct {
 	Ref resolver.Ref
 	// Port 是该组件自己 component.yaml 声明的 deployment.port。
 	Port int
+}
+
+// MemberLabels 返回一个 servedBy 成员自己声明的 labels（component.yaml 的
+// deployment.labels 与 brickkit.yaml 覆盖合并后的结果），全空时返回 nil。
+//
+// 两个渲染器（compose / k8s）在判断"该不该警告 labels 本次不生效"时都调
+// 这一个函数，不各写一份——判据必须与"这些 labels 不参与合并"（mergeGroup
+// 的注释）是同一件事的两面。
+func MemberLabels(m *manifest.Manifest, entry config.Component) map[string]string {
+	var manifestLabels map[string]string
+	if m != nil {
+		manifestLabels = m.Deployment.Labels
+	}
+	return manifest.MergeLabels(manifestLabels, entry.Labels)
 }
 
 // ServedMembers 返回这个外壳该写进 BRICKKIT_SERVED_MEMBERS 的值：当前
@@ -166,11 +181,11 @@ func Resolve(
 		if err := checkPortConflicts(shellRef, graph.Node(shellRef), members); err != nil {
 			return nil, err
 		}
-		mergedEnv, mergedLabels, err := mergeGroup(shellRef, envByRef[shellRef], members, envByRef)
+		mergedEnv, err := mergeGroup(shellRef, envByRef[shellRef], members, envByRef)
 		if err != nil {
 			return nil, err
 		}
-		groups = append(groups, Group{Shell: shellRef, Members: members, Env: mergedEnv, Labels: mergedLabels})
+		groups = append(groups, Group{Shell: shellRef, Members: members, Env: mergedEnv})
 	}
 	return groups, nil
 }
@@ -210,12 +225,33 @@ func checkPortConflicts(shellRef resolver.Ref, shellNode *resolver.Node, members
 	return nil
 }
 
-// mergeGroup 合并外壳自己的端点变量/透传标签与全部成员的端点变量/标签，
-// 同名同值跳过，同名不同值报错（设计书 §6）。
+// mergeGroup 合并外壳自己的端点变量与全部成员的端点变量，同名同值跳过，
+// 同名不同值报错（设计书 §6）。
+//
+// # labels 不在合并范围内
+//
+// 成员自己声明的 labels（不管是 component.yaml 的 deployment.labels 还是
+// brickkit.yaml 的覆盖）一概不参与合并，只有外壳自己条目上的 labels 算数
+// ——跟 expose/exposePort/hostname/replicas/resources/serviceAccountName
+// 归同一类：这些字段描述的都是"我自己这个容器该怎么部署"，而 servedBy
+// 成员没有自己的容器。
+//
+// 这不是从一开始就这样：最初 labels 跟 env 变量走的是同一套"同名同值跳过，
+// 同名不同值报错"逻辑。但 env 变量在合并前已经先按 inject.SourceEndpoint
+// 筛过一轮——天然排掉了 COMPONENT_ID/COMPONENT_VERSION 这类"语义上必然
+// 因组件而异"的变量；labels 没有这层筛选，而 labels 里恰恰存在这样的键
+// （典型例子：component.yaml 常见的 prometheus.io/port，值就是各自的
+// 端口号）。真实的多组件收编场景里，这类键之间"同名不同值"是必然出现的
+// 常态，却被套用了本该只用来拦真实冲突的规则，导致合并时几乎必然假阳性
+// 报错。要不重新发明一份"哪些键语义上必然因组件而异"的名单（这本身就是
+// 平台去解释具体 label 键的语义，跟"labels 只透传、平台不解释键值"的
+// 立场直接冲突），要么就不再把它当一个可以合并的东西——选的是后者
+// （brickKit 反馈：servedBy 的 labels 合并漏了排除规则）。
+// servedUnsupportedFieldWarnings 会在成员声明了 labels 时给出提示。
 func mergeGroup(
 	shellRef resolver.Ref, shellComponent inject.Component, members []Member,
 	envByRef map[resolver.Ref]inject.Component,
-) ([]inject.Var, map[string]string, *clierr.Error) {
+) ([]inject.Var, *clierr.Error) {
 	envValues := map[string]string{}
 	envVars := map[string]inject.Var{}
 	envOwner := map[string]resolver.Ref{}
@@ -228,13 +264,6 @@ func mergeGroup(
 		envOwner[v.Name] = shellRef
 	}
 
-	labelValues := map[string]string{}
-	labelOwner := map[string]resolver.Ref{}
-	for key, value := range shellComponent.Labels {
-		labelValues[key] = value
-		labelOwner[key] = shellRef
-	}
-
 	for _, m := range members {
 		mEnv := envByRef[m.Ref]
 		for _, v := range mEnv.Env {
@@ -245,21 +274,11 @@ func mergeGroup(
 				if existing == v.Value {
 					continue
 				}
-				return nil, nil, endpointCollisionError(shellRef, envOwner[v.Name], m.Ref, v.Name, existing, v.Value)
+				return nil, endpointCollisionError(shellRef, envOwner[v.Name], m.Ref, v.Name, existing, v.Value)
 			}
 			envValues[v.Name] = v.Value
 			envVars[v.Name] = v
 			envOwner[v.Name] = m.Ref
-		}
-		for key, value := range mEnv.Labels {
-			if existing, exists := labelValues[key]; exists {
-				if existing == value {
-					continue
-				}
-				return nil, nil, labelCollisionError(shellRef, labelOwner[key], m.Ref, key, existing, value)
-			}
-			labelValues[key] = value
-			labelOwner[key] = m.Ref
 		}
 	}
 
@@ -268,12 +287,7 @@ func mergeGroup(
 		env = append(env, v)
 	}
 	sort.Slice(env, func(i, j int) bool { return env[i].Name < env[j].Name })
-
-	var labels map[string]string
-	if len(labelValues) > 0 {
-		labels = labelValues
-	}
-	return env, labels, nil
+	return env, nil
 }
 
 func shellNotFoundError(member, target resolver.Ref) *clierr.Error {
@@ -305,15 +319,4 @@ func endpointCollisionError(
 		WithDetail("原因", "这两个组件各自依赖同一个组件 ID 的不同精确版本——独立部署时互不冲突，"+
 			"合并进同一个外壳的共享环境后，同一个变量名不可能同时指向两个地址").
 		WithHint("让这两个成员依赖同一个精确版本，或者不要把它们放进同一个外壳")
-}
-
-func labelCollisionError(
-	shellRef, firstOwner, secondOwner resolver.Ref, key, firstValue, secondValue string,
-) *clierr.Error {
-	return clierr.Newf(clierr.CodeConfigInvalid,
-		"错误：外壳 %s 下两个成员对同一个透传标签给出了不同的值", shellRef.String()).
-		WithDetail("标签键", key).
-		WithDetailf(firstOwner.String(), "%s", firstValue).
-		WithDetailf(secondOwner.String(), "%s", secondValue).
-		WithHint("给其中一个成员改用不同的标签键，或者统一成同一个值")
 }

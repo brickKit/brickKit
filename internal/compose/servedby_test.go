@@ -126,6 +126,67 @@ func TestServedByHealthCheckWarns(t *testing.T) {
 	assert.True(t, found, "应该有一条关于健康检查不生效的警告：%+v", result.Warnings)
 }
 
+// ---- labels：成员自己的不参与合并，只有外壳自己的算数 ----
+
+// 两个成员各自声明了同名不同值的标签（典型例子：prometheus.io/port，
+// 值本该是各自的端口号）——从前会被当成"同名不同值"报错，真实的 11 个
+// Go 组件几乎必然撞上这条（brickKit 反馈：servedBy 的 labels 合并漏了
+// 排除规则）。现在成员的 labels 完全不参与合并，生成必须成功，且外壳
+// 自己的 service 上不该出现任何一个成员的标签值。
+func TestServedByMemberLabelsDoNotAffectShellService(t *testing.T) {
+	shell := simple("infra/shell-go-core", "1.0.0", 9000)
+	a := simple("mdm/customer", "1.0.7", 8080)
+	a.Deployment.Labels = map[string]string{"prometheus.io/port": "8080"}
+	b := simple("mdm/product", "1.0.9", 8082)
+	b.Deployment.Labels = map[string]string{"prometheus.io/port": "8082"}
+
+	b2 := newBuilder(t)
+	b2.component(shell, config.Component{})
+	b2.component(a, servedByEntry("infra/shell-go-core", "1.0.0"))
+	b2.component(b, servedByEntry("infra/shell-go-core", "1.0.0"))
+
+	svc := serviceOf(t, b2.parsed(), "infra-shell-go-core-1-0-0")
+	_, present := svc["labels"]
+	assert.False(t, present, "外壳自己没声明 labels，成员的不该被合并上来：%v", svc)
+}
+
+// 外壳自己的 labels 不受影响，成员声明了什么都不会覆盖或污染它。
+func TestServedByShellOwnLabelsAreUnaffectedByMembers(t *testing.T) {
+	shell := simple("infra/shell-go-core", "1.0.0", 9000)
+	shell.Deployment.Labels = map[string]string{"team.owner": "platform"}
+	member := simple("mdm/customer", "1.0.7", 8080)
+	member.Deployment.Labels = map[string]string{"team.owner": "mdm", "prometheus.io/port": "8080"}
+
+	b := newBuilder(t)
+	b.component(shell, config.Component{})
+	b.component(member, servedByEntry("infra/shell-go-core", "1.0.0"))
+
+	labels := labelsOf(t, serviceOf(t, b.parsed(), "infra-shell-go-core-1-0-0"))
+	assert.Equal(t, map[string]string{"team.owner": "platform"}, labels,
+		"外壳自己的 labels 原样保留，成员的一个键都不该混进来")
+}
+
+// 成员声明了 labels（不管是 component.yaml 还是 brickkit.yaml 覆盖）就该
+// 警告——它没有自己的容器，这些 labels 落不到任何地方。
+func TestServedByLabelsWarn(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	member := simple("mdm/customer", "1.0.7", 8080)
+	member.Deployment.Labels = map[string]string{"prometheus.io/port": "8080"}
+	b.component(member, servedByEntry("infra/shell-go-core", "1.0.0"))
+
+	result, err := b.build(compose.Options{})
+	require.NoError(t, err)
+	var found string
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Format(), "labels") {
+			found = w.Format()
+		}
+	}
+	require.NotEmpty(t, found, "应该有一条关于 labels 不生效的警告：%+v", result.Warnings)
+	assert.Contains(t, found, "mdm/customer")
+}
+
 func TestServedByUnsupportedFieldsWarn(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})

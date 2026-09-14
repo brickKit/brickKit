@@ -126,17 +126,30 @@ generation time (`brickkit up`) rather than parse time:
 
 ## What moves to the shell's own entry instead
 
-`expose`, `exposePort`, `hostname`, `replicas`, `resources`, and
-`serviceAccountName` on a `servedBy` component's own entry do nothing —
-the platform warns about this rather than silently ignoring it or
+`expose`, `exposePort`, `hostname`, `replicas`, `resources`,
+`serviceAccountName`, and `labels` on a `servedBy` component's own entry do
+nothing — the platform warns about this rather than silently ignoring it or
 erroring, because these fields all describe "how my own
 container/Pod gets deployed," and a `servedBy` component doesn't have
-one. If you need the merged deployment exposed, scaled, or resourced a
-particular way, write those fields on **the shell's own entry** — it's
-the one that actually has a container. This is easy to miss the first
+one. If you need the merged deployment exposed, scaled, resourced, or
+labeled a particular way, write those fields on **the shell's own entry** —
+it's the one that actually has a container. This is easy to miss the first
 time: you migrate a previously-standalone component into a shell, forget
 its old `resources:` block is now inert, and the shell silently runs
 without the quota you thought you'd carried over.
+
+`labels` used to be the one field on this list that actually did merge from
+every member (same collision rule as `*_ENDPOINT` variables below), until
+real multi-component migrations showed that rule was unworkable: a label
+whose value is legitimately supposed to differ per component —
+`prometheus.io/port` is the everyday case, its value is each component's own
+port number — triggered a "same key, different value" collision on
+essentially every real merge, not on a genuine mistake. The platform doesn't
+special-case that one key (or start a list of "keys known to vary"), because
+that would mean interpreting specific label semantics — exactly what
+`labels` as a plain passthrough is supposed to avoid. So it moved into this
+bucket instead: a member's `labels` are ignored (with a warning), and only
+the shell's own entry's `labels` land on the merged container.
 
 ## What happens automatically once you declare it
 
@@ -162,6 +175,13 @@ a special case that opts out of it:
 - **Docker's `depends_on`**: a Compose service that depends on a
   `servedBy` component automatically depends on the shell's service and
   its readiness condition instead.
+- **Resource-binding checks**: a member's own `dependencies.resources` (in
+  its `component.yaml`) count as satisfied once the shell's own componentId
+  is bound to a resource of the same `kind`+`engine` — you don't need a
+  second, functionally-inert `bindings` entry under the member's own
+  componentId just to satisfy `brickkit up`'s check. The real connection env
+  vars only ever land in the shell's container regardless of which
+  componentId the binding names.
 
 ## What does not happen automatically
 
@@ -198,9 +218,11 @@ than generating something that quietly does the wrong thing:
   from the component ID with no version in it) to hold two different
   values at once — a genuine conflict, not something the platform can
   silently resolve by picking one, so it refuses to generate.
-- **Label collision.** The same as the above, for `deployment.labels`
-  passthrough: two members setting the same label key to two different
-  values fails generation instead of one silently overwriting the other.
+
+Members' `deployment.labels` used to be merged the same way, with the same
+collision check — it no longer is. See "What moves to the shell's own entry
+instead," above: a member's `labels` are ignored (with a warning) rather
+than merged or checked for collisions at all.
 
 ## Multiple versions and mixed deployment shapes
 

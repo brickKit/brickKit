@@ -346,12 +346,21 @@ ordinary component, with its own image, port, and health check. The platform:
 - Still computes a correct `*_ENDPOINT` for anything depending on it — the
   address points at the shell's actual location, using the `servedBy`
   component's own declared port.
-- Merges only `*_ENDPOINT`-class variables and `labels` into the shell's
-  environment — never `COMPONENT_ID`/`COMPONENT_VERSION`, never a component's
-  own `configSchema`-derived config, never resource-connection variables.
-  Those aren't namespaced by component ID, so two independently-authored
-  modules could easily reuse the same name; giving each module its own
-  isolated configuration is the shell author's job, not the platform's.
+- Merges only `*_ENDPOINT`-class variables into the shell's environment —
+  never `COMPONENT_ID`/`COMPONENT_VERSION`, never a component's own
+  `configSchema`-derived config, never resource-connection variables, and
+  (see below) never `labels`. None of these are namespaced by component ID,
+  so two independently-authored modules could easily reuse the same name;
+  giving each module its own isolated configuration is the shell author's
+  job, not the platform's.
+- Treats a `servedBy` member's own resource bindings (`dependencies.resources`
+  in its `component.yaml`) as satisfied once the shell's own componentId is
+  bound to the same `kind`+`engine` resource — the member doesn't also need
+  its own (redundant, and functionally inert) entry in that resource's
+  `bindings`. The real connection env vars only ever land in the shell's
+  container regardless of which componentId the binding is written under, so
+  requiring a second copy would only exist to satisfy the checker, not to
+  produce anything real.
 - Writes `BRICKKIT_SERVED_MEMBERS` (a reserved variable) into the shell's
   environment: a comma-separated list of the versioned service names
   currently part of the deployment. A compliant shell may read it to skip
@@ -365,9 +374,20 @@ happens to share the same "in the dependency graph but generates no workload"
 shape.
 
 **What a `servedBy` component's own `expose`/`exposePort`/`hostname`/
-`replicas`/`resources`/`serviceAccountName` do:** nothing — the platform
-warns, it doesn't error and doesn't silently ignore. These fields describe
-"how my own container/Pod is deployed," and a `servedBy` component has none.
+`replicas`/`resources`/`serviceAccountName`/`labels` do:** nothing — the
+platform warns, it doesn't error and doesn't silently ignore. These fields
+describe "how my own container/Pod is deployed," and a `servedBy` component
+has none. `labels` used to be the one exception (merged from every member,
+same collision rule as `*_ENDPOINT` vars) until real multi-component testing
+showed that rule was unworkable: labels whose value is legitimately supposed
+to differ per component (`prometheus.io/port` being the everyday case — its
+value is each component's own port number) triggered "same key, different
+value" collisions on essentially every real merge. Carving out an exceptions
+list for "keys known to vary by nature" would mean the platform interpreting
+specific label semantics, which directly contradicts labels' whole reason
+for existing (§9.22: the platform stays deliberately ignorant of what any
+label key means) — so `labels` was moved into this same-as-`expose` bucket
+instead of growing that list.
 
 Full field-level detail, the validation rules, and what a shell implementation
 itself must get right: [Building a qualified shell](docs/en/patterns/shell-implementers-guide.md).

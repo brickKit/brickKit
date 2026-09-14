@@ -64,7 +64,6 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 			g = shell.Group{Shell: ref}
 		}
 		p.components[i].Env.Env = shell.Apply(p.components[i].Env.Env, g)
-		p.components[i].Env.Labels = manifest.MergeLabels(p.components[i].Env.Labels, g.Labels)
 
 		aliases := make([]string, 0, len(g.Members))
 		for _, m := range g.Members {
@@ -130,9 +129,12 @@ func (p *plan) servedHealthCheckWarnings() []*clierr.Error {
 // servedUnsupportedFieldWarnings 提醒"这些字段对 servedBy 组件不生效"。
 //
 // expose / exposePort / hostname / replicas / resources /
-// serviceAccountName 描述的都是"我自己这个容器该怎么部署"——而 servedBy
-// 组件没有自己的容器，这些字段天然没有对象可以落地（v1 范围裁剪，见
-// 设计书实施记录）。
+// serviceAccountName / labels 描述的都是"我自己这个容器该怎么部署"——而
+// servedBy 组件没有自己的容器，这些字段天然没有对象可以落地（v1 范围裁剪，
+// 见设计书实施记录）。labels 原先走的是合并路线，直到真机复现出
+// prometheus.io/port 这类"语义上必然因组件而异"的键必然合并冲突，才改成
+// 跟这一批字段同样的"警告 + 忽略"（brickKit 反馈：servedBy 的 labels
+// 合并漏了排除规则；见 mergeGroup 的注释）。
 func (p *plan) servedUnsupportedFieldWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, s := range p.served {
@@ -154,6 +156,9 @@ func (p *plan) servedUnsupportedFieldWarnings() []*clierr.Error {
 		}
 		if s.Entry.ServiceAccountName != "" {
 			fields = append(fields, "serviceAccountName")
+		}
+		if shell.MemberLabels(s.Manifest, s.Entry) != nil {
+			fields = append(fields, "labels")
 		}
 		if len(fields) == 0 {
 			continue

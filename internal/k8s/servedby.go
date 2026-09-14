@@ -61,7 +61,6 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 			g = shell.Group{Shell: ref}
 		}
 		p.components[i].Env.Env = shell.Apply(p.components[i].Env.Env, g)
-		p.components[i].Env.Labels = manifest.MergeLabels(p.components[i].Env.Labels, g.Labels)
 	}
 }
 
@@ -130,6 +129,10 @@ func (p *plan) servedHealthCheckWarnings() []*clierr.Error {
 	return out
 }
 
+// labels 原先走的是合并路线，直到真机复现出 prometheus.io/port 这类
+// "语义上必然因组件而异"的键必然合并冲突，才改成跟这一批字段同样的
+// "警告 + 忽略"（brickKit 反馈：servedBy 的 labels 合并漏了排除规则；
+// 见 internal/shell.mergeGroup 的注释）。
 func (p *plan) servedUnsupportedFieldWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, s := range p.served {
@@ -148,6 +151,9 @@ func (p *plan) servedUnsupportedFieldWarnings() []*clierr.Error {
 		}
 		if s.Entry.ServiceAccountName != "" {
 			fields = append(fields, "serviceAccountName")
+		}
+		if shell.MemberLabels(s.Manifest, s.Entry) != nil {
+			fields = append(fields, "labels")
 		}
 		if len(fields) == 0 {
 			continue
