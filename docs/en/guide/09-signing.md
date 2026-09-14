@@ -83,4 +83,4 @@ The message doesn't — and cryptographically can't — distinguish "this was ge
 
 ---
 
-Next in this series (see [the guide index](README.md)): building a component from nothing, start to finish — the perspective every other article in this series has been the consuming side of.
+Next: [Build your first component from scratch](10-build-your-own.md) — building a component from nothing, start to finish, the perspective every other article in this series has been the consuming side of.

@@ -13,7 +13,7 @@ This series is being written incrementally; articles not yet linked below are pl
 7. [Consume someone else's component](07-consuming-artifacts.md) — artifacts and API docs
 8. [Publish and install from a marketplace](08-marketplace.md) — plus version immutability and private visibility
 9. [Sign and verify components](09-signing.md)
-10. Build your first component from scratch
+10. [Build your first component from scratch](10-build-your-own.md)
 11. Network policy and least privilege
 12. Multi-project sharing
 
