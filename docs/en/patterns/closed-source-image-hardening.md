@@ -94,16 +94,22 @@ whether or not the running process ever touches any of it.
   documentation, test fixtures, and CI configuration** — none of it runs,
   none of it needs to be a byte inside the image, and `.git/` in particular
   hands over your entire commit history, not just the current tree.
-- **Pin the published image reference to a content digest
-  (`image@sha256:...`), not a mutable tag.** brickKit's own signing model
-  is worth being precise about here: the marketplace signature covers the
+- **The image reference you publish should resolve to a content digest
+  (`image@sha256:...`), not stay a mutable tag** — and `brickkit publish`
+  already does this for you by default. brickKit's own signing model is
+  worth being precise about here: the marketplace signature covers the
   Manifest (AGENTS.md §5.9), and the image reference is a string inside
   that Manifest — so the signature guarantees the *string* wasn't altered,
   not that the string still resolves to the same bytes it did when you
   signed it. A mutable tag can be repointed at a different image after the
-  fact with the signed Manifest never changing at all. A digest reference
-  closes that gap for free, with no new brickKit mechanism required — it's
-  a property of the reference you already write into `deployment.image`.
+  fact with the signed Manifest never changing at all. `brickkit publish`
+  closes exactly this gap before it ever signs anything: it resolves
+  whatever tag `deployment.image` names to that image's current digest and
+  rewrites the Manifest to the digest form, so the signature ends up
+  covering a reference that can't be silently repointed. Skipping this
+  needs an explicit `--no-pin-digest` flag, and doing so prints a loud
+  warning naming this exact risk — it's a deliberate opt-out, not
+  something that happens by forgetting a step.
 
 ## Hardening by language — the achievable ceiling is set by the compilation model, not by effort
 
@@ -202,12 +208,14 @@ inspecting while it runs.
 
 ## What brickKit itself does here
 
-Exactly one thing, and it's already built: the marketplace signs the
-Manifest with cosign, and the CLI verifies that signature with no
-dependency on cosign being installed (AGENTS.md §5.9). Everything in this
-guide beyond "pin your image to a digest so that signature actually means
-something about the bytes, not just the string" is your own build
-pipeline's responsibility, not brickKit's. That split isn't an oversight —
+Two things, and both are already built: the marketplace signs the
+Manifest with cosign, verified by the CLI with no dependency on cosign
+being installed (AGENTS.md §5.9); and `brickkit publish` pins a mutable
+image tag to its digest by default before signing, so the signature ends
+up covering a reference that can't be silently repointed later — closing
+exactly the gap this guide would otherwise have to ask you to close by
+hand. Everything else in this guide is your own build pipeline's
+responsibility, not brickKit's. That split isn't an oversight —
 it's the same principle behind every item on the platform's own
 "won't do" list (AGENTS.md §4.1): brickKit connects and orchestrates
 components, it doesn't audit, scan, or make business decisions about what's
