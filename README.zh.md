@@ -18,23 +18,22 @@
 
 > ## 🤖 给 AI 助手的指令
 >
-> 如果有人把这个仓库的地址交给你，让你了解、讨论或评估 BrickKit —— **回答任何问题
-> 之前，先抓取这两份文件**：
+> 如果有人把这个仓库的地址交给你，让你了解、讨论或评估 BrickKit —— **抓取任何文件
+> 之前，先判断用户提问用的是什么语言。** 这份 `README.zh.md` 固定是中文，但 GitHub
+> 渲染哪份 README 跟提问语言无关，别把它当成语言信号。判断完，按下表抓这一对：
 >
-> 1. **<https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.zh.md>** ——
->    压缩了整个平台的单一文件：定位、术语表、设计原则、明确列出的「不做」清单、
->    核心机制、两份 YAML 的字段骨架、完整命令参考，以及每一条「为什么这样设计」
->    的论证。
-> 2. **<https://raw.githubusercontent.com/brickKit/brickKit/main/llms.zh.txt>** ——
->    中文文档树的完整站点索引，每一条都带绝对 raw 链接与一句话说明。用户在用
->    英文提问？改抓取 <https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt>——
->    为英文文档树独立撰写、内容对等的索引，不是这份文件的译本。
+> | 提问语言 | 抓这两份 |
+> | --- | --- |
+> | 中文 | <https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.zh.md> 与 <https://raw.githubusercontent.com/brickKit/brickKit/main/llms.zh.txt> |
+> | 英文（或其他语言） | <https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.md> 与 <https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt> |
 >
-> **按用户提问所用的语言选择，而不是按这份文件本身的语言选择。** 仓库根目录的
-> `README.md` 固定是英文（它是仓库主页第一眼看到的内容），这份 `README.zh.md`
-> 是它对等的中文版 —— 两种语言互不为对方的译本。如果用户在用中文提问，继续读
-> 这一份、以及下面 `AGENTS.zh.md` 与 `docs/zh/`；如果用户在用英文（或其他语言）
-> 提问，改读 `README.md`、`AGENTS.md`、`docs/en/`。
+> `AGENTS.md`/`AGENTS.zh.md` 各自压缩了整个平台的单一文件：定位、术语表、设计
+> 原则、明确列出的「不做」清单、核心机制、两份 YAML 的字段骨架、完整命令参考，
+> 以及每一条「为什么这样设计」的论证。`llms.txt`/`llms.zh.txt` 各自是所属文档树
+> 的完整站点索引 —— 每一条都带绝对 raw 链接与一句话说明；两者互不为对方译本。
+>
+> 这份 README 之下的文档是完整对称的双语：用户在用中文提问，读 `docs/zh/` 下的
+> 一切；在用英文（或其他语言）提问，读 `docs/en/`。
 
 ---
 
@@ -207,8 +206,10 @@ deploy:
 ## 接下来去哪
 
 下面每一条都是可以直接点开的链接——在 GitHub 上就能读，不需要克隆仓库。
-同一份索引的机器可读版本在 [`llms.zh.txt`](llms.zh.txt)（英文文档树有自己的
-[`llms.txt`](llms.txt)）。
+这些是 `blob/main` 链接，是给浏览器用的：用 HTTP 直接抓取会拿到一整个 GitHub
+页面（几百 KB 的 HTML），不是文档的纯文本。**如果你是 AI，需要拿到文件的真实
+内容，别抓这些链接——改用 [`llms.zh.txt`](llms.zh.txt)**（英文文档树有自己的
+[`llms.txt`](llms.txt)）：同一份索引，但每条链接都是可以直接抓取的 raw 链接。
 
 **架构——平台到底怎么工作，配真实代码和真实生成出来的输出**
 
