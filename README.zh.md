@@ -206,12 +206,51 @@ deploy:
 
 ## 接下来去哪
 
-| 我想… | 去这里 |
+下面每一条都是可以直接点开的链接——在 GitHub 上就能读，不需要克隆仓库。
+同一份索引的机器可读版本在 [`llms.txt`](llms.txt)。
+
+**架构——平台到底怎么工作，配真实代码和真实生成出来的输出**
+
+| 文档 | 讲什么 |
 | --- | --- |
-| 理解平台 | [`docs/zh/architecture/`](https://github.com/brickKit/brickKit/tree/main/docs/zh/architecture)，从[总览](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/overview.md)开始 |
-| 动手教程 | [`docs/zh/guide/`](https://github.com/brickKit/brickKit/tree/main/docs/zh/guide) |
-| 怎么测试、怎么规划种子数据、怎么优化部署 | [`docs/zh/patterns/`](https://github.com/brickKit/brickKit/tree/main/docs/zh/patterns)，比如[测试](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/testing.md) |
-| 查某个决策当初为什么这么定 | [`docs/archive/decisions/`](docs/archive/decisions/)（历史存档，仅中文） |
+| [架构总览](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/overview.md) | 一次声明怎么变成运行中的容器——完整的真实流水线 |
+| [依赖解析与启动顺序](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/dependency-resolution.md) | 一个真实的菱形依赖、一个真实的循环依赖，以及为什么真正决定 `up` 要跑多久的是最长依赖链而不是组件数量 |
+| [部署文件是怎么生成出来的](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/deployment-generation.md) | 同一个项目分别为 Docker 和 Kubernetes 生成出来的文件，逐字节对照 |
+| [资源绑定的实际机制](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/resource-binding.md) | 资源绑定撞车时到底会发生什么、配额链到底怎么合并 |
+| [签名与信任模型](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/signing-and-trust.md) | 真正被签名的是什么，以及公钥为什么永远不能来自市场 |
+
+**动手教程——12 篇，每一篇都对着真实 CLI 跑过，按顺序读**
+
+| # | 文档 | 讲什么 |
+| --- | --- | --- |
+| 1 | [把一个项目跑起来](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/01-first-project.md) | init、add、up、curl 它、改配置、down |
+| 2 | [平台是怎么决定谁跑起来的](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/02-what-runs.md) | 依赖、`enabled` 级联、`--dry-run` |
+| 3 | [本地调试一个组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/03-local-debugging.md) | `local: true`，带断点调试 |
+| 4 | [部署到 Kubernetes](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/04-kubernetes.md) | 真实的 minikube 部署，外加一个真实的 `brickkit down` 坑 |
+| 5 | [升级，以及让多个版本并存](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/05-upgrades-and-versions.md) | 版本升级，以及故意让两个版本并存 |
+| 6 | [拼装一个真实的系统，然后故意把它弄坏](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/06-assemble-and-break.md) | 一个真实数据库，两种真正不同的真实失败模式 |
+| 7 | [消费别人的组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/07-consuming-artifacts.md) | 产物、API 文档、`brickkit fetch` |
+| 8 | [从市场发布与安装](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/08-marketplace.md) | 真实市场、版本不可变性、私有可见性 |
+| 9 | [给组件签名与验签](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/09-signing.md) | 真实的 cosign 密钥对、一次真实的验签失败 |
+| 10 | [从零开发自己的第一个组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/10-build-your-own.md) | 四个文件，从零到真正跑起来 |
+| 11 | [网络策略与最小权限](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/11-network-policy.md) | Kubernetes 上真实生效的 NetworkPolicy |
+| 12 | [多项目共享](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/12-multi-project-sharing.md) | 共享资源、隔离资源、把一个组件当成别人的 API |
+
+**Patterns——推荐实践，可选，对着真实部署验证过**
+
+| 文档 | 讲什么 |
+| --- | --- |
+| [基于 BrickKit 的组件该怎么分层测试](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/testing.md) | 怎么分层：契约、业务规则、单元、集成 |
+| [怎么规划种子数据与测试数据](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/data-construction.md) | 两条必须物理隔离的路径，以及为什么 |
+| [组件设计准则](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/component-design.md) | 怎么做领域研究，什么时候该做成组件家族而不是开关 |
+| [合格外壳该满足什么](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/shell-implementers-guide.md) | `servedBy` 对收编组件的外壳提出了什么要求 |
+| [怎么声明 servedBy：部署方检查清单](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/servedby-deployment-checklist.md) | 写给声明 `servedBy` 的人，不是造壳的人 |
+| [自己搭一套 BrickKit Market](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/deployment/self-hosted-market.md) | 部署市场本身，从本地开发到生产环境 |
+| [在外壳里合并数据库连接池](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/shared-connection-pools.md) | 合并进同一个壳、又共用 PostgreSQL 或 Oracle 的组件该怎么办 |
+| [闭源组件的镜像安全规范](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/closed-source-image-hardening.md) | 拉取镜像跟私有 Git 仓库不是同一种保证 |
+
+以上都没覆盖到的：[`docs/archive/decisions/`](docs/archive/decisions/) 讲清楚某个历史决策当初为什么
+这么定（566 条，历史存档，仅中文）。
 
 ---
 

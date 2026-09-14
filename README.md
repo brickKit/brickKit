@@ -226,12 +226,53 @@ The full reasoning behind every row lives under
 
 ## Where to go next
 
-| I want to... | Go here |
+Everything below is a direct link — click through to read it on GitHub, no
+cloning required. The same index, machine-readable, is in
+[`llms.txt`](llms.txt).
+
+**Architecture — how the platform actually works, with real code and real generated output**
+
+| Doc | What it covers |
 | --- | --- |
-| Understand the platform | [`docs/en/architecture/`](https://github.com/brickKit/brickKit/tree/main/docs/en/architecture), starting with [overview](https://github.com/brickKit/brickKit/blob/main/docs/en/architecture/overview.md) |
-| A hands-on tutorial | [`docs/en/guide/`](https://github.com/brickKit/brickKit/tree/main/docs/en/guide) |
-| Learn how to test, plan seed data, or tune a deployment | [`docs/en/patterns/`](https://github.com/brickKit/brickKit/tree/main/docs/en/patterns), e.g. [testing](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/testing.md) |
-| See why a specific decision was made | [`docs/archive/decisions/`](docs/archive/decisions/) (historical, Chinese only) |
+| [Overview](https://github.com/brickKit/brickKit/blob/main/docs/en/architecture/overview.md) | How a declaration becomes running containers — the real pipeline, start to finish |
+| [Dependency resolution and start order](https://github.com/brickKit/brickKit/blob/main/docs/en/architecture/dependency-resolution.md) | A real diamond dependency, a real cycle, and why the longest dependency chain — not the component count — decides how long `up` takes |
+| [Deployment file generation](https://github.com/brickKit/brickKit/blob/main/docs/en/architecture/deployment-generation.md) | The same project generated for Docker and Kubernetes side by side, byte for byte |
+| [Resource binding mechanics](https://github.com/brickKit/brickKit/blob/main/docs/en/architecture/resource-binding.md) | What happens when a resource binding collides, and how the quota chain really merges |
+| [Signing and the trust model](https://github.com/brickKit/brickKit/blob/main/docs/en/architecture/signing-and-trust.md) | What actually gets signed, and why the public key can never come from the marketplace |
+
+**Hands-on guide — 12 tutorials, each one run for real against the CLI, in order**
+
+| # | Doc | What it covers |
+| --- | --- | --- |
+| 1 | [Get a project running](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/01-first-project.md) | init, add, up, curl it, change config, down |
+| 2 | [How the platform decides what runs](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/02-what-runs.md) | Dependencies, the `enabled` cascade, `--dry-run` |
+| 3 | [Debug a component locally](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/03-local-debugging.md) | `local: true`, with breakpoints |
+| 4 | [Deploy to Kubernetes](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/04-kubernetes.md) | A real minikube deployment, plus a real `brickkit down` gotcha |
+| 5 | [Upgrade and run multiple versions side by side](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/05-upgrades-and-versions.md) | Version bumps, and two versions coexisting on purpose |
+| 6 | [Assemble a real system, then break it on purpose](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/06-assemble-and-break.md) | A real database, and two genuinely different real failure modes |
+| 7 | [Consume someone else's component](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/07-consuming-artifacts.md) | Artifacts, API docs, and `brickkit fetch` |
+| 8 | [Publish and install from a marketplace](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/08-marketplace.md) | A real marketplace, version immutability, private visibility |
+| 9 | [Sign and verify components](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/09-signing.md) | A real cosign keypair, a real signature failure |
+| 10 | [Build your first component from scratch](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/10-build-your-own.md) | Four files, from nothing to running |
+| 11 | [Network policy and least privilege](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/11-network-policy.md) | Real NetworkPolicy enforcement on Kubernetes |
+| 12 | [Multi-project sharing](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/12-multi-project-sharing.md) | Shared resources, isolated resources, treating a component as someone else's API |
+
+**Patterns — recommended practices, optional, validated against real deployments**
+
+| Doc | What it covers |
+| --- | --- |
+| [Testing patterns for components built on BrickKit](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/testing.md) | How to layer tests: contract, business-rule, unit, integration |
+| [Planning seed data and test data](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/data-construction.md) | Two paths that must stay physically separate, and why |
+| [Component design guidelines](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/component-design.md) | Researching a domain, and when a feature needs a component family instead of a flag |
+| [Building a qualified shell](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/shell-implementers-guide.md) | What `servedBy` asks of the shell that hosts a merged component |
+| [Declaring servedBy: a deployment checklist](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/servedby-deployment-checklist.md) | For whoever declares `servedBy`, not whoever builds the shell |
+| [Self-hosting the BrickKit Market](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/deployment/self-hosted-market.md) | Deploying the marketplace itself, from local dev to production |
+| [Sharing a database connection pool inside a shell](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/shared-connection-pools.md) | For components merged into one shell that also share PostgreSQL or Oracle |
+| [Protecting closed-source components from image-based extraction](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/closed-source-image-hardening.md) | Pulling an image isn't the same guarantee as a private Git repo |
+
+Not covered by any of the above: [`docs/archive/decisions/`](docs/archive/decisions/) explains
+why a specific historical decision was made the way it was (566 entries, historical record, Chinese
+only).
 
 ---
 
