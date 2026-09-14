@@ -836,6 +836,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 合并进壳里的组件怎么共用一个数据库连接池 | `docs/zh/patterns/shared-connection-pools.md`（英文版把 `zh` 换 `en`） |
 | 依赖解析、菱形依赖去重、循环依赖、为什么组件多不等于串行步骤多 | `docs/zh/architecture/dependency-resolution.md`（英文版把 `zh` 换 `en`） |
 | 同一份 Manifest 生成出的真实 Docker Compose 与 Kubernetes 文件，逐行对照 | `docs/zh/architecture/deployment-generation.md`（英文版把 `zh` 换 `en`） |
+| 资源绑定撞车时到底会发生什么、配额链到底怎么逐字段合并 | `docs/zh/architecture/resource-binding.md`（英文版把 `zh` 换 `en`） |
 | 基于 BrickKit 的组件该怎么分层测试 | `docs/zh/patterns/testing.md`（英文版把 `zh` 换 `en`） |
 | 怎么规划种子数据与测试数据 | `docs/zh/patterns/data-construction.md`（英文版把 `zh` 换 `en`） |
 | 怎么做领域研究、怎么识别一个特性该做成组件家族而不是开关 | `docs/zh/patterns/component-design.md`（英文版把 `zh` 换 `en`） |
