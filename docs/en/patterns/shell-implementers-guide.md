@@ -1,6 +1,6 @@
 # Building a Qualified Shell
 
-> Prerequisite: read [Architecture overview](overview.md) first if you
+> Prerequisite: read [Architecture overview](../architecture/overview.md) first if you
 > haven't — this guide assumes you already understand versioned service
 > names and environment-variable injection.
 
