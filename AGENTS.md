@@ -186,6 +186,7 @@ argued through and rejected (reasoning in §9):
 | Consolidated deployment / monolithic shell — the platform does not, and will not, ship its own shell scaffolding or process supervisor | But a small, structural piece **is** built in: `servedBy` lets a component declare "my workload is provided by another component," and the platform correctly wires `*_ENDPOINT` addresses to it on both Docker and K8s — without ever needing to understand what's inside the shell. See §5.7 below and *Merged Component Deployment* / §2.21 of the architecture rationale for the full boundary |
 | Dependency aliases (`dependencies.components[].as`) | Variable names derived from component ID are bidirectionally computable; an alias only preserves half of that. "One capability, multiple implementations" should go through a `kind` resource or a `configSchema` address field instead. See §2.24 of the architecture rationale |
 | Low-code / BI / DevOps pipelines | Out of scope |
+| Podman as a deploy target | Support was built and ran — `up`, `status`, real requests, idempotent reruns all passed — but `down` fails on rootless Podman with `rootless netns: kill network process: permission denied`, reproducible even with plain `podman rm -f`, outside BrickKit's own code entirely. A project that can't be torn down is worse than one that never came up — containers keep holding ports and volumes while the CLI would have reported success — so support was pulled rather than shipped half-working. `up`/`status` on a machine with only Podman installed name this exact failure and point at Docker instead of a generic "no engine found." Design/005 §7.5 sets an explicit bar for reversing this: a real machine where `podman compose down` itself works cleanly, a full lifecycle verified on it, and a repeatable check added so it can't silently regress again |
 
 ---
 
@@ -238,6 +239,17 @@ DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
 `MQ_*` / `STORAGE_*` / `SEARCH_*` / `SMTP_*` / `{envPrefix}_*` (prefix match). A configSchema key, once uppercased, must
 not collide with these — **the marketplace refuses this at publish time**, and **the CLI warns and
 skips that config item at injection time** (the platform-injected value wins).
+
+**A third, distinct failure mode: `configSchema.required` naming a key with no `default` blocks
+`up` outright** (design/004 §5.6.3) — this is different from both a reserved-variable collision
+(warns, skips) and an ordinary unset optional key (silently not injected, the component's own
+"unconfigured" branch runs). A required key with no default means "the platform genuinely cannot
+guess this — the project has to supply it" (the standard shape for a cross-project service address,
+design/003 §4.9, since the platform has no way to derive where another project's service lives).
+Missing it isn't a crash and isn't a warning — the variable simply never exists — so leaving this as
+a silent skip would mean the component runs, looks healthy, and has one call path that quietly never
+works. `brickkit up` errors instead, naming the exact missing item and which component declared it
+required.
 
 ### 5.3 Required vs. optional dependencies
 
@@ -468,6 +480,9 @@ deployment:                      # required
 
 migration:                       # optional
   command: ["<command>", "<args>"]   # array form
+  # ⚠️ the migration container and the main container are the same image — the entrypoint
+  # must fail fast (non-zero exit) on any argument it doesn't recognize, never fall through
+  # to "start the service" (see the callout below)
 
 healthCheck:                     # required
   type: http                     # http | tcp | none
@@ -482,6 +497,19 @@ healthCheck:                     # required
 > Django / .NET) will make `up` fail under Docker, and permanently CrashLoopBackOff under K8s, while
 > the container's own logs look perfectly healthy the whole time. The grace period only delays
 > "declaring it dead," never "declaring it alive," so setting it generously costs nothing.
+
+> **A component's entrypoint must fail fast on an argument it doesn't recognize** (design/002
+> §8.5.1) — this is a hard requirement on the component author, not something the platform can
+> enforce. The migration container and the main service container run from the exact same image,
+> distinguished only by the command-line argument the platform passes. If the entrypoint's dispatch
+> logic falls through to "start the service" on an unrecognized argument (a typo in
+> `migration.command`, say) instead of erroring, the migration container silently becomes a second
+> service container: it never exits, the main service waits forever for
+> `service_completed_successfully`, and the whole deployment hangs at `Created` — while that
+> container's own logs still say the component is ready, which is exactly what makes this so
+> misleading to debug. Validate the argument **before** reading environment variables or opening a
+> database connection, too — otherwise a typo'd argument surfaces as a misleading "failed to connect
+> to the database" instead of the actual problem.
 
 > **That's the complete field list.** The Manifest **has no extension-field mechanism** — an
 > unrecognized key is rejected on the spot (design/002 §2.2.1), not silently ignored — so the
@@ -540,7 +568,7 @@ deploy:
   imagePullSecrets: [<secret>]   # optional
   ingressClass: <class name>
   ingressAnnotations: { <key>: <value> }
-  serviceAccount: { enabled: true }        # one SA per component, no mounted token
+  serviceAccount: { enabled: true }        # one SA per component, no mounted token — opt-in (see below)
   networkPolicy:                           # generates network policies from the dependency graph
     enabled: true
     ingressController: { namespace: <ns>, podSelector: {<key>: <value>} }
@@ -604,6 +632,16 @@ installer:
   publicKeys:                    # publisher public keys the project trusts: publicKeyRef → public-key file path
     keys/vendor.pub: keys/vendor.pub
 ```
+
+> ⚠️ **`serviceAccount.enabled` is opt-in — skip it, and every Pod runs under the namespace's
+> `default` ServiceAccount, whose token is auto-mounted as normal** (design/008 §9.4). This is easy
+> to misread against §4's "secure by default" principle: that principle covers what a component
+> can reach (no dependency edge, no resource binding, no exposure — all opt-in on the *other* side),
+> not this specific K8s default. The platform doesn't flip this on for you for the same reason it
+> doesn't force `podSecurity: restricted` on by default — either one can stop an already-working
+> component from starting, and that's a real, project-specific cost the platform isn't in a position
+> to weigh on your behalf. Write `serviceAccount: { enabled: true }` deliberately if a component
+> genuinely has no business ever calling the Kubernetes API.
 
 > ⚠️ **`publicKeys` is the only field that actually makes signature verification take effect.** With
 > zero public keys configured, signature verification **is disabled entirely**, and

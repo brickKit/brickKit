@@ -169,6 +169,7 @@ CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，**不依赖 `components/
 | 合并部署 / 单体外壳——平台不会、也不打算自己提供外壳脚手架或进程管理器 | 但一小块**结构性支撑已经落地**：`servedBy` 让一个组件声明"我的工作负载由另一个组件提供"，平台在 Docker 和 K8s 下都会把 `*_ENDPOINT` 地址正确接到它身上——全程不需要理解外壳里面是什么。见下文 5.7，完整边界见《组件合并部署》与 012 §2.21 |
 | 依赖别名（`dependencies.components[].as`） | 变量名基于组件 ID 是双向可推算的，别名只保住一半；"一个能力多个实现"该走 `kind` 资源或 `configSchema` 里的地址项。见 012 §2.24 |
 | 低代码 / BI / DevOps 流水线 | 不在范围内 |
+| Podman 作为部署目标 | 支持写过、也跑通过——`up`、`status`、真实请求、幂等重跑全部正常——但 `down` 在 rootless Podman 上失败，报 `rootless netns: kill network process: permission denied`，纯 `podman rm -f` 都能复现，完全在 BrickKit 自己的代码之外。一个停不掉的项目比根本不支持更糟——容器会一直占着端口和卷，而 CLI 却报告成功——所以选择整个撤回，不留一个跑到一半的支持。只装了 Podman、没装 Docker 的机器上，`up`/`status` 会明确点出这个具体原因、并指向装 Docker，而不是笼统报"找不到引擎"。005 §7.5 给了明确的恢复条件：先有一台 `podman compose down` 本身就能干净跑通的机器，在那台机器上验证完整生命周期，再加一条可重复的检查防止它悄悄再次坏掉 |
 
 ---
 
@@ -217,6 +218,15 @@ DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
 `SMTP_*` / `{envPrefix}_*`（前缀匹配）。
 configSchema 里的配置项名转大写后不得与之冲突——**市场在发布时拒绝**，
 **CLI 在注入时警告并跳过该配置项**（平台注入的值优先）。
+
+**第三种、跟前两种都不一样的失败方式：`configSchema.required` 里声明了一项、又没给
+`default`，会直接阻断 `up`**（004 §5.6.3）——这既不是保留变量冲突（警告、跳过），
+也不是普通的未设置可选项（悄悄不注入，组件走自己的"未配置"分支）。必填又没默认值，
+说的正是"这一项平台真的猜不出来，必须由项目告诉我"（典型场景是跨项目服务的地址，
+003 §4.9——那台服务归别的项目管，平台没法推导出它在哪）。缺了它既不会崩溃也不会
+报警——那个变量根本不存在——如果照旧悄悄跳过，组件会照常跑起来、看着很健康，只是
+其中一条调用路径永远走不通，而使用者以为自己配好了。所以 `brickkit up` 直接报错，
+并点名到底缺了哪一项、是哪个组件声明它为必填的。
 
 ### 5.3 强依赖与弱依赖
 
@@ -420,6 +430,8 @@ deployment:                      # 必须
 
 migration:                       # 可选
   command: ["<命令>", "<参数>"]   # 数组格式
+  # ⚠️ 迁移容器跟主容器是同一个镜像——入口对识别不出的参数必须 fail fast（非零码退出），
+  # 绝不能落到"那就启动服务吧"（见下面的说明）
 
 healthCheck:                     # 必须
   type: http                     # http | tcp | none
@@ -433,6 +445,15 @@ healthCheck:                     # 必须
 > 30 秒——冷启动超过它的组件（Spring Boot / Django / .NET）在 Docker 下会让
 > `up` 失败、在 K8s 下会永久 CrashLoopBackOff，而容器日志一路正常。
 > 宽限期只推迟"判死"，不推迟"判活"，所以写大一点没有代价。
+
+> **组件入口必须对识别不出的参数 fail fast**（002 §8.5.1）——这是组件开发者的责任，
+> 平台没法替你强制。迁移容器和主服务容器用的是**同一个镜像**，只靠平台传的命令行
+> 参数区分。如果入口的分发逻辑碰到一个不认识的参数（比如 `migration.command` 写错
+> 一个字）没有报错，而是落到"那就启动服务吧"，迁移容器就会悄悄变成第二个服务容器：
+> 它永不退出，主服务永远等不到 `service_completed_successfully`，整个部署卡在
+> `Created`——而这个容器自己的日志还在说组件已就绪，这正是它排查起来极具误导性的
+> 原因。参数校验也要放在**读环境变量、连数据库之前**——否则一个写错的参数会表现成
+> 一句误导人的"连接数据库失败"，而不是真正的问题。
 
 > **这就是全部字段。** Manifest **没有扩展字段机制**，不认识的键会被当场拒绝
 > （002 §2.2.1），不是静默忽略——所以上面这份骨架照抄下来必须能过。
@@ -480,7 +501,7 @@ deploy:
   imagePullSecrets: [<secret>]   # 可选
   ingressClass: <class 名>
   ingressAnnotations: { <键>: <值> }
-  serviceAccount: { enabled: true }        # 每组件一个不挂载令牌的 SA
+  serviceAccount: { enabled: true }        # 每组件一个不挂载令牌的 SA——这是 opt-in（见下文）
   networkPolicy:                           # 按依赖图生成网络策略
     enabled: true
     ingressController: { namespace: <ns>, podSelector: {<键>: <值>} }
@@ -543,6 +564,14 @@ installer:
   publicKeys:                    # 项目信任的发布者公钥：publicKeyRef → 公钥文件路径
     keys/vendor.pub: keys/vendor.pub
 ```
+
+> ⚠️ **`serviceAccount.enabled` 是 opt-in——不写它，每个 Pod 用的还是命名空间的 `default`
+> ServiceAccount，那张令牌照常自动挂载**（008 §9.4）。这一点很容易跟 §4 的"默认安全"原则
+> 搞混：那条原则管的是组件能碰到什么（没有依赖边、没有资源绑定、没有暴露——全都是**对方
+> 那一侧**的 opt-in），不是这个 K8s 默认行为。平台不替你打开这个开关，理由跟不默认打开
+> `podSecurity: restricted` 一样：两者都可能让一个本来跑得好好的组件起不来，而这是一项
+> 真实的、因项目而异的代价，平台没资格替你权衡。如果一个组件确实完全不该有调用 K8s API
+> 的理由，就该主动写上 `serviceAccount: { enabled: true }`。
 
 > ⚠️ **`publicKeys` 是唯一让验签真正生效的字段。** 一个公钥都没配时，
 > 签名校验**整体失效**，`requireSignature: true` 也一并不起作用——

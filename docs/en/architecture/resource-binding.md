@@ -75,3 +75,16 @@ deploy:
 ```
 
 `cpu` came from the Manifest, `memory` came from the project, in the same generated block. This is a genuine field-level merge, not "the more specific layer replaces the whole thing" — writing a memory override doesn't require also restating whatever `cpu` value you're happy to leave alone, and it can't accidentally reset a field you didn't mention.
+
+## Why `up` never pre-flight-checks whether a bound resource is actually reachable
+
+`brickkit up` doesn't dial the database, ping Redis, or otherwise probe a `resources:` entry before generating and starting anything. If a resource isn't actually up, the error comes from the component itself (or its migration container, usually the first thing to open a connection) — an ordinary `dial tcp 172.17.0.1:5432: connect: connection refused`, not a platform-level check.
+
+An earlier version of the CLI had exactly this feature (`brickkit up --check-resources`, a plain TCP dial against `host:port`) and it was deliberately removed. The reasoning isn't "not implemented yet" — a preflight probe turns out to be actively misleading, in both directions at once:
+
+| Scenario | What a TCP dial reports | What's actually true |
+| --- | --- | --- |
+| `host: localhost`, with a component bound to it that runs in a container | ✅ reachable | ❌ inside that container, `localhost` resolves to the container itself, not the host |
+| `host` is a real in-network service name (correct for a containerized component) | ❌ unreachable | ✅ the component resolves and reaches it perfectly normally |
+
+The CLI runs on the host, outside any container network, using whatever credentials the user typed — a component runs inside the container network, using its own bound credentials. A successful dial from the host proves nothing about whether the component itself can connect, and a failed one is just as likely to be an artifact of dialing from the wrong network as a real outage. Worse, a passing check is a "green light" with no promise behind it — and the whole point of a green light is that people stop looking in that direction. The two rows above show it fails convincingly in both directions, not just "isn't thorough enough." Letting the component report its own connection failure gives a more accurate error for free — it's already using the right credentials from the right network — so `up` limits itself to stating up front which resources need to already be running (AGENTS.md §2.1), and leaves verifying reachability to whatever actually has to make the real connection.

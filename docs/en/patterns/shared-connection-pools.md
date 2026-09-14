@@ -60,9 +60,25 @@ everything else a qualifying shell already has to get right.
 | **Same authentication role** | Connections carry a role too — eight separate accounts still means eight pools |
 
 The second condition runs into a real tension: giving each component its
-own least-privilege database account is the platform's own recommended
-default (see [docs/archive/design/006-基础资源规范.md](../../archive/design/006-基础资源规范.md)
-for the original reasoning). Inside a merged deployment, that tension has
+own least-privilege database account, in its own database, is the
+platform's own recommended default. That default isn't about connection
+count — "one database per component" and "one schema per component, one
+shared database" cost exactly the same number of connections in the
+platform's normal, unmerged shape, since connection count is driven by
+process count × pool size, not database count, and a per-component account
+still means one server-side pool per account either way (PgBouncer's own
+pools key on `(user, database)`). The real reason for the default is
+that one-database-per-component needs nobody to get anything right for the
+isolation to hold — a connection is physically bound to one database, so
+crossing into another component's data isn't a permission a migration tool
+or a `search_path` reset can quietly get wrong. Schema grouping only pays
+for itself once several components are actually merged into one shell for
+memory reasons — which is exactly the situation this document is about —
+and even then, it's a deliberate, narrow trade of some of that
+by-construction safety for the ability to actually share a pool, not a
+general-purpose way to save connections.
+
+Inside a merged deployment, that tension has
 a real resolution — and it's a better one than routing everything through
 an external pooler like PgBouncer — because the shell itself controls
 exactly when a connection is borrowed and returned:
