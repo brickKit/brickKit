@@ -352,6 +352,22 @@ func TestUpWithLocalComponentTellsHowToDebug(t *testing.T) {
 	assert.Contains(t, r.stdout, "local-debug.people-basic-1-0-0.env")
 }
 
+// servedBy 成员没有自己的容器，真机 `up`（非 --dry-run）传给引擎的目标
+// service 列表里不该混进它的版本化服务名——否则 docker compose 会因为
+// 这个 service 在生成文件里根本不存在而报 no such service，整个命令
+// 直接失败，一个容器都起不来（brickKit 反馈：真机 brickkit up 对
+// servedBy 成员报 no_such_service）。
+func TestUpSkipsServedByComponentInTargetServices(t *testing.T) {
+	f := servedByProject(t)
+	eng := newFakeEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.ElementsMatch(t, []string{"infra-shell-go-core-1-0-0"}, eng.lastUp(t).Services,
+		"servedBy 成员没有自己的容器，不该出现在启动目标里")
+}
+
 // 空项目不该去调引擎。
 func TestUpOnEmptyProjectDoesNothing(t *testing.T) {
 	f := newProjectFixture(t)

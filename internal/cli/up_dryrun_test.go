@@ -155,6 +155,29 @@ func localDebugProject(t *testing.T) *projectFixture {
 	return f
 }
 
+// ============================================================
+// servedBy 外壳合并部署
+// ============================================================
+
+// servedByProject：mdm/customer 被 infra/shell-go-core 收编，自己没有容器。
+func servedByProject(t *testing.T) *projectFixture {
+	t.Helper()
+
+	comps := []comp{
+		{ID: "infra/shell-go-core", Version: "1.0.0"},
+		{ID: "mdm/customer", Version: "1.0.7", Port: 8081},
+	}
+	f := addedProject(t, comps, "infra/shell-go-core@1.0.0", "mdm/customer@1.0.7")
+	f.writeConfig(t, `components:
+  - id: infra/shell-go-core
+    version: 1.0.0
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: infra/shell-go-core@1.0.0
+`)
+	return f
+}
+
 // 13.4：env 文件按版本化服务名落到 .brickkit/generated/。
 func TestUpDryRunWritesLocalDebugEnvFile(t *testing.T) {
 	f := localDebugProject(t)

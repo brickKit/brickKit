@@ -42,6 +42,9 @@ type comp struct {
 	Memory string
 	// ResourceDeps 是 "kind:engine" 的列表，如 "database:postgres"（38.7 要用）。
 	ResourceDeps []string
+	// Port 覆盖默认的 deployment.port（8080）——同一个外壳下的 servedBy
+	// 成员测试要用不同端口，否则端口冲突校验会先一步报错。
+	Port int
 }
 
 // imageRef 是该组件的 deployment.image。
@@ -99,7 +102,11 @@ func (c comp) yamlText() string {
 	}
 	b.WriteString("deployment:\n  type: container\n")
 	fmt.Fprintf(&b, "  image: %s\n", c.imageRef())
-	b.WriteString("  port: 8080\n")
+	port := c.Port
+	if port == 0 {
+		port = 8080
+	}
+	fmt.Fprintf(&b, "  port: %d\n", port)
 	if c.CPU != "" || c.Memory != "" {
 		b.WriteString("  resources:\n    limits:\n")
 		if c.CPU != "" {
