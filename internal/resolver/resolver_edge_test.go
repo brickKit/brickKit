@@ -260,9 +260,49 @@ func TestCheckResourceBindingsMultipleInstances(t *testing.T) {
 	assert.NoError(t, CheckResourceBindings(cfg, m))
 }
 
+func TestServingShellIDReturnsEmptyWithoutServedBy(t *testing.T) {
+	cfg := &config.Config{Components: []config.Component{{ID: "mdm/customer", Version: "1.0.7"}}}
+	assert.Empty(t, servingShellID(cfg, Ref{"mdm/customer", "1.0.7"}))
+	assert.Empty(t, servingShellID(nil, Ref{"mdm/customer", "1.0.7"}))
+}
+
+func TestServingShellIDMatchesExactVersionOnly(t *testing.T) {
+	cfg := &config.Config{Components: []config.Component{
+		{ID: "mdm/customer", Version: "1.0.7", ServedBy: "infra/shell-go-core@1.0.0"},
+		{ID: "mdm/customer", Version: "2.0.0"}, // 另一个版本独立部署，没有 servedBy
+	}}
+	assert.Equal(t, "infra/shell-go-core", servingShellID(cfg, Ref{"mdm/customer", "1.0.7"}))
+	assert.Empty(t, servingShellID(cfg, Ref{"mdm/customer", "2.0.0"}),
+		"同一个组件的另一个版本独立部署，不该被当成也收编进外壳")
+}
+
 func TestMatchResourceWithNilConfig(t *testing.T) {
-	problem := matchResource(nil, manifest.ResourceDep{Kind: "database", Engine: "postgresql"}, "people/basic")
+	problem := matchResource(nil, manifest.ResourceDep{Kind: "database", Engine: "postgresql"}, "people/basic", "")
 	assert.Contains(t, problem, "未声明", "没有配置就等于什么都没声明")
+}
+
+// servedBy 成员自己没绑，但收编它的外壳绑了同一份资源——该算满足。
+func TestMatchResourceSatisfiedByShellBinding(t *testing.T) {
+	cfg := &config.Config{Resources: []config.Resource{{
+		Kind: "database", Engine: "postgresql", ID: "postgres-main",
+		Bindings: []config.Binding{{ComponentID: "infra/shell-go-core"}},
+	}}}
+
+	problem := matchResource(cfg, manifest.ResourceDep{Kind: "database", Engine: "postgresql"},
+		"mdm/customer", "infra/shell-go-core")
+	assert.Empty(t, problem, "外壳已经绑了，成员不该被要求重复绑")
+}
+
+// 外壳也没绑的话，servedBy 感知不能变成绕过校验的口子。
+func TestMatchResourceStillFailsWhenShellAlsoUnbound(t *testing.T) {
+	cfg := &config.Config{Resources: []config.Resource{{
+		Kind: "database", Engine: "postgresql", ID: "postgres-main",
+		Bindings: []config.Binding{{ComponentID: "some/other-component"}},
+	}}}
+
+	problem := matchResource(cfg, manifest.ResourceDep{Kind: "database", Engine: "postgresql"},
+		"mdm/customer", "infra/shell-go-core")
+	assert.Contains(t, problem, "已声明，但未绑定给该组件")
 }
 
 // ============================================================

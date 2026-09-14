@@ -473,10 +473,11 @@ func unboundResourceDetails(cfg *config.Config, m *manifest.Manifest) []clierr.D
 		return nil
 	}
 	ref := Ref{ID: m.Metadata.ID, Version: m.Metadata.Version}
+	shellID := servingShellID(cfg, ref)
 
 	out := make([]clierr.Detail, 0, len(m.Dependencies.Resources))
 	for _, dep := range m.Dependencies.Resources {
-		if problem := matchResource(cfg, dep, m.Metadata.ID); problem != "" {
+		if problem := matchResource(cfg, dep, m.Metadata.ID, shellID); problem != "" {
 			out = append(out, clierr.Detail{
 				Key:   ref.String(),
 				Value: "需要 kind: " + dep.Kind + "、engine: " + dep.Engine + "（" + problem + "）",
@@ -484,6 +485,29 @@ func unboundResourceDetails(cfg *config.Config, m *manifest.Manifest) []clierr.D
 		}
 	}
 	return out
+}
+
+// servingShellID 返回 ref 的 servedBy 外壳组件 ID，没有 servedBy 就返回空串。
+//
+// 资源绑定按 componentId 记账，而 servedBy 组件自己不生成容器——它没有
+// 独立的 DATABASE_*/MQ_* 之类的真实环境变量可言，那份连接信息实际上只会
+// 出现在外壳的容器里。要求它在 bindings 里为自己重复绑一份不会被使用的
+// 记录，只是为了骗过这条校验，没有任何真实作用。所以判断"满足没满足"
+// 时，外壳自己是否已经绑了同一份资源，跟这个成员自己是否绑了，是等价的
+// 两条路（brickKit 反馈：servedBy 成员的资源绑定校验没有跟上 servedBy
+// 语义）。
+func servingShellID(cfg *config.Config, ref Ref) string {
+	if cfg == nil {
+		return ""
+	}
+	for _, c := range cfg.Components {
+		if c.ID != ref.ID || c.Version != ref.Version || c.ServedBy == "" {
+			continue
+		}
+		shellID, _, _ := strings.Cut(c.ServedBy, "@")
+		return shellID
+	}
+	return ""
 }
 
 // resourceHints 给出三条出路，与 matchResource 报出的三种明细一一对应。
@@ -532,7 +556,13 @@ func resourceHints(componentID string, extra ...string) []string {
 //
 // 代价是两个人写的两份文件里那个词必须逐字相同。所以报错必须把两个词都摆出来
 // ——平台不认别名，postgres 与 postgresql 在它眼里就是两个不同的值。
-func matchResource(cfg *config.Config, dep manifest.ResourceDep, componentID string) string {
+//
+// # shellID
+//
+// 只有 componentID 对应的组件声明了 servedBy 时才非空，此时它指向 componentID
+// 收编进的那个外壳的组件 ID。外壳自己绑过同一份资源，就等价于这个成员绑过——
+// 见 servingShellID 的注释。
+func matchResource(cfg *config.Config, dep manifest.ResourceDep, componentID, shellID string) string {
 	if cfg == nil {
 		return "brickkit.yaml 的 resources 中未声明"
 	}
@@ -553,8 +583,8 @@ func matchResource(cfg *config.Config, dep manifest.ResourceDep, componentID str
 			declaredSameEngine = res.ID
 		}
 		for _, b := range res.Bindings {
-			if b.ComponentID == componentID {
-				return "" // 满足
+			if b.ComponentID == componentID || (shellID != "" && b.ComponentID == shellID) {
+				return "" // 满足：自己绑了，或者收编它的外壳绑了
 			}
 		}
 	}

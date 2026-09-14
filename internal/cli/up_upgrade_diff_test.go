@@ -156,6 +156,61 @@ func TestUpSkipsBindingCheckForComponentsThatDoNotStart(t *testing.T) {
 		"被显式关掉的组件不该因为没绑资源而卡住整个项目：%s", r.stdout+r.stderr)
 }
 
+// servedBy 成员声明的资源依赖，只要外壳自己已经绑了同一份，就该算满足
+// ——不该逼使用者在 bindings 里为一个不会生成任何真实容器/环境变量的
+// 成员重复写一份绑定（brickKit 反馈：servedBy 成员的资源绑定校验没有
+// 跟上 servedBy 语义）。
+func TestUpServedByMemberSatisfiedByShellBinding(t *testing.T) {
+	f := addedProject(t, []comp{
+		{ID: "infra/shell-go-core", Version: "1.0.0"},
+		{ID: "mdm/customer", Version: "1.0.7", Port: 8081, ResourceDeps: []string{"database:postgresql"}},
+	}, "infra/shell-go-core@1.0.0", "mdm/customer@1.0.7")
+	f.writeConfig(t, `components:
+  - id: infra/shell-go-core
+    version: 1.0.0
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: infra/shell-go-core@1.0.0
+
+resources:
+  - kind: database
+    engine: postgresql
+    id: postgres-main
+    host: postgres
+    port: 5432
+    username: brickkit
+    password: ${POSTGRES_PASSWORD}
+    bindings:
+      - componentId: infra/shell-go-core
+`)
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code,
+		"外壳已经绑了同一份资源，servedBy 成员不该被要求重复绑定：%s", r.stdout+r.stderr)
+}
+
+// 外壳自己也没绑的话，该拦还是要拦——servedBy 感知不能变成绕过校验的口子。
+func TestUpServedByMemberStillBlockedWhenNeitherBound(t *testing.T) {
+	f := addedProject(t, []comp{
+		{ID: "infra/shell-go-core", Version: "1.0.0"},
+		{ID: "mdm/customer", Version: "1.0.7", Port: 8081, ResourceDeps: []string{"database:postgresql"}},
+	}, "infra/shell-go-core@1.0.0", "mdm/customer@1.0.7")
+	f.writeConfig(t, `components:
+  - id: infra/shell-go-core
+    version: 1.0.0
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: infra/shell-go-core@1.0.0
+`)
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
+
+	require.NotEqual(t, clierr.ExitOK, r.code,
+		"外壳和成员都没绑，该拦的还是要拦：%s", r.stdout)
+	assert.Contains(t, r.stderr+r.stdout, "mdm/customer")
+}
+
 // ============================================================
 // 38.18 / 38.19 / 38.21 / 38.22 升级摘要要说清"改了什么"
 // ============================================================
