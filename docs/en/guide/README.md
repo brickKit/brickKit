@@ -8,7 +8,7 @@ This series is being written incrementally; articles not yet linked below are pl
 2. [How the platform decides what runs](02-what-runs.md) — dependencies, the `enabled` cascade, `--dry-run`
 3. [Debug a component locally](03-local-debugging.md) — `local: true`
 4. [Deploy to Kubernetes](04-kubernetes.md) — plus a real gotcha with `brickkit down` and shared namespaces
-5. Upgrade and run multiple versions side by side
+5. [Upgrade and run multiple versions side by side](05-upgrades-and-versions.md)
 6. Assemble a real multi-component system, then break it on purpose
 7. Consume someone else's component — artifacts and API docs
 8. The same system, deployed to Kubernetes

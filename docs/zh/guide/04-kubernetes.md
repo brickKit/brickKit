@@ -152,4 +152,4 @@ minikube image rm brickkit-demo/hello:1.0.0 brickkit-demo/caller:1.0.0
 
 ---
 
-这个系列的下一篇（完整规划见[教程索引](README.md)）：把一个跑着的组件升级到新版本，以及故意让两个版本并存。
+下一篇：[升级，以及让多个版本并存](05-upgrades-and-versions.md)——把一个跑着的组件升级到新版本，以及故意让两个版本并存。

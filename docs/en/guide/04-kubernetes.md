@@ -152,4 +152,4 @@ minikube image rm brickkit-demo/hello:1.0.0 brickkit-demo/caller:1.0.0
 
 ---
 
-Next in this series (see [the guide index](README.md)): upgrading a running component to a new version, and running two versions side by side on purpose.
+Next: [Upgrade and run multiple versions side by side](05-upgrades-and-versions.md) — upgrading a running component to a new version, and running two versions side by side on purpose.
