@@ -59,7 +59,7 @@ error	33.13	钉住的组件强依赖了被关掉的组件	test	.	./internal/cli	
 error	33.14	所有错误的退出码非 0	test	.	./internal/clierr	TestExitCodes
 error	33.15	所有警告的退出码为 0	test	.	./internal/cli	TestRunRendersWarningWithZeroExit
 error	33.16	错误信息不暴露内部实现细节	test	.	./internal/market	TestWithDetailsRendersNestedDetails
-error	33.17	错误信息包含建议（154 处全量审计）	record	-	-	开发进度/完成记录/07-复核与结欠账.md
+error	33.17	错误信息包含建议（154 处全量审计）	record	-	-	docs/archive/decisions/完成记录/07-复核与结欠账.md
 error	33.18	brickkit.yaml 格式错误指出行号	test	.	./internal/config	TestParseConfigInvalidYAML
 error	33.19	市场不可达时提示检查网络	test	.	./internal/source	TestMarketSourceUnreachable
 error	33.20	Git 仓库不可达时提示检查 URL	test	.	./internal/source	TestGitSourceUnreachableURL
