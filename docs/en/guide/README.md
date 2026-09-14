@@ -5,7 +5,7 @@ A sequence of tutorials, each one run for real against the actual CLI — not a 
 This series is being written incrementally; articles not yet linked below are planned but don't exist yet — see [`docs/superpowers/specs/2026-09-13-bilingual-docs-restructure-design.md`](../../../docs/superpowers/specs/2026-09-13-bilingual-docs-restructure-design.md) §7 for the rollout plan. In the meantime, the old (frozen, Chinese-only, may not reflect current CLI behavior) 23-article series is still readable at [`docs/archive/guide/`](../../archive/guide/).
 
 1. [Get a project running](01-first-project.md) — init, add, up, talk to it over HTTP, change config, down
-2. How the platform decides what runs — dependencies, the `enabled` cascade, `--dry-run`
+2. [How the platform decides what runs](02-what-runs.md) — dependencies, the `enabled` cascade, `--dry-run`
 3. Debug a component locally — `local: true`
 4. Deploy to Kubernetes — plus replicas and PodDisruptionBudgets
 5. Upgrade and run multiple versions side by side

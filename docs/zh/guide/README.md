@@ -5,7 +5,7 @@
 这个系列是逐篇写出来的；下面还没挂链接的篇目已经规划好但还没写——完整的推进节奏见 [`docs/superpowers/specs/2026-09-13-bilingual-docs-restructure-design.md`](../../../docs/superpowers/specs/2026-09-13-bilingual-docs-restructure-design.md) §7。在此之前，旧的（已冻结、只有中文、可能与当前 CLI 行为不一致的）23 篇系列仍然可以在 [`docs/archive/guide/`](../../archive/guide/) 读到。
 
 1. [把一个项目跑起来](01-first-project.md)——init、add、up、用 HTTP 跟它说上话、改配置、down
-2. 平台是怎么决定谁跑起来的——依赖、`enabled` 级联、`--dry-run`
+2. [平台是怎么决定谁跑起来的](02-what-runs.md)——依赖、`enabled` 级联、`--dry-run`
 3. 本地调试一个组件——`local: true`
 4. 部署到 Kubernetes——外加副本数与 PodDisruptionBudget
 5. 升级，以及让多个版本并存

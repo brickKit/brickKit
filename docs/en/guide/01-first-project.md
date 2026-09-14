@@ -172,4 +172,4 @@ brickkit down
 
 ---
 
-Next in this series (see [the guide index](README.md) for the full planned list): the same project, grown to several components with real dependencies between them, and what `enabled` actually does when you start turning pieces off.
+Next: [How the platform decides what runs](02-what-runs.md) — the same project, grown to several components with real dependencies between them, and what `enabled` actually does when you start turning pieces off.
