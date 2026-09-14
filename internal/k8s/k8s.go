@@ -27,6 +27,7 @@ import (
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/shell"
 )
 
 // LabelProject 是打在本项目每份生成物上的标签键。
@@ -217,6 +218,12 @@ func Generate(
 			}
 		}
 	}
+	for _, m := range p.served {
+		if err := p.emit(result, cfg, now,
+			dirServices+"/"+m.Service+".yaml", p.servedServiceDoc(m)); err != nil {
+			return nil, err
+		}
+	}
 	result.MigrationGroups = p.migrationGroups()
 
 	sort.Slice(result.Files, func(i, j int) bool { return result.Files[i].Path < result.Files[j].Path })
@@ -300,6 +307,8 @@ type plan struct {
 
 	// components 按服务名排序。
 	components []componentPlan
+	// served 是 servedBy 的组件：只生成一个指向外壳 Pod 的 Service。
+	served []servedPlan
 	// secrets 按 Secret 名排序。
 	secrets []secretPlan
 
@@ -333,15 +342,27 @@ func newPlan(
 		if node == nil {
 			continue
 		}
-		if entries[ref].Local {
+		entry := entries[ref]
+		if entry.Local {
 			locals = append(locals, ref)
+			continue
+		}
+		if entry.ServedBy != "" {
+			shellRef, ok := shell.ParseRef(entry.ServedBy)
+			if !ok {
+				continue // config.Validate 已经挡过格式问题
+			}
+			p.served = append(p.served, servedPlan{
+				Ref: ref, Service: manifest.ServiceName(ref.ID, ref.Version),
+				Manifest: node.Manifest, Entry: entry, Shell: shellRef,
+			})
 			continue
 		}
 		p.components = append(p.components, componentPlan{
 			Ref:      ref,
 			Service:  manifest.ServiceName(ref.ID, ref.Version),
 			Manifest: node.Manifest,
-			Entry:    entries[ref],
+			Entry:    entry,
 			Env:      envByRef[ref],
 		})
 	}
@@ -350,6 +371,13 @@ func newPlan(
 	}
 
 	sort.Slice(p.components, func(i, j int) bool { return p.components[i].Service < p.components[j].Service })
+	sort.Slice(p.served, func(i, j int) bool { return p.served[i].Service < p.served[j].Service })
+
+	groups, err := shell.Resolve(cfg, graph, states, env)
+	if err != nil {
+		return nil, err
+	}
+	p.applyShellGroups(groups)
 
 	if err := p.checkHostnames(); err != nil {
 		return nil, err
@@ -361,6 +389,9 @@ func newPlan(
 		return nil, err
 	}
 	p.warnings = append(p.warnings, p.privilegedPortWarnings()...)
+	p.warnings = append(p.warnings, p.servedMigrationWarnings()...)
+	p.warnings = append(p.warnings, p.servedHealthCheckWarnings()...)
+	p.warnings = append(p.warnings, p.servedUnsupportedFieldWarnings()...)
 	// K8s 下没有 local: true（上面已经拦下），所以全部组件都是容器组件
 	p.warnings = append(p.warnings, deploy.LocalhostResourceWarnings(
 		cfg, p.componentIDs(), config.TargetK8s)...)
@@ -378,9 +409,12 @@ func (p *plan) privilegedPortWarnings() []*clierr.Error {
 	}
 
 	var out []*clierr.Error
-	for _, c := range p.components {
-		ports := []int{c.Manifest.Deployment.Port}
-		for _, extra := range c.Manifest.Deployment.ExtraPorts {
+	check := func(m *manifest.Manifest, refText string) {
+		if m == nil {
+			return
+		}
+		ports := []int{m.Deployment.Port}
+		for _, extra := range m.Deployment.ExtraPorts {
 			ports = append(ports, extra.Port)
 		}
 		for _, port := range ports {
@@ -389,7 +423,7 @@ func (p *plan) privilegedPortWarnings() []*clierr.Error {
 			}
 			out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
 				fmt.Sprintf("组件监听特权端口 %d，但 podSecurity: restricted 下绑不了", port)).
-				WithDetail("组件", c.Ref.ID+"@"+c.Ref.Version).
+				WithDetail("组件", refText).
 				WithDetailf("端口", "%d", port).
 				WithDetail("原因", "restricted 会 drop 掉全部 capabilities，包括 NET_BIND_SERVICE").
 				WithHint(
@@ -397,6 +431,13 @@ func (p *plan) privilegedPortWarnings() []*clierr.Error {
 					"或去掉 deploy.podSecurity: restricted",
 				))
 		}
+	}
+
+	for _, c := range p.components {
+		check(c.Manifest, c.Ref.ID+"@"+c.Ref.Version)
+	}
+	for _, s := range p.served {
+		check(s.Manifest, s.Ref.ID+"@"+s.Ref.Version+"（servedBy "+s.Shell.String()+"）")
 	}
 	return out
 }
@@ -420,12 +461,14 @@ func localNotSupported(refs []resolver.Ref) error {
 		)
 }
 
-// componentIDs 是本次会跑起来的组件 ID。
+// componentIDs 是本次会跑起来的组件 ID（含 servedBy：它没有自己的
+// Pod，但照样要连自己的资源）。
 func (p *plan) componentIDs() []string {
-	out := make([]string, 0, len(p.components))
+	out := make([]string, 0, len(p.components)+len(p.served))
 	for _, c := range p.components {
 		out = append(out, c.Ref.ID)
 	}
+	out = append(out, servedComponentIDs(p.served)...)
 	return out
 }
 
