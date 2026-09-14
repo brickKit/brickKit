@@ -317,6 +317,8 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
 
 字段级细节、校验规则、外壳实现本身必须做对的事：
 [打造一个合格的外壳](docs/zh/patterns/shell-implementers-guide.md)。
+要不要在自己项目里声明 `servedBy`、怎么声明：
+[怎么声明 servedBy：部署方检查清单](docs/zh/patterns/servedby-deployment-checklist.md)。
 
 ### 5.8 组件源码工作区
 
@@ -826,6 +828,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 动手教程 | `docs/zh/guide/`（英文版同上） |
 | 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/patterns/`（英文版同上） |
 | 怎么造一个能接 `servedBy` 的合格外壳 | `docs/zh/patterns/shell-implementers-guide.md`（英文版把 `zh` 换 `en`） |
+| 要不要在自己项目里声明 `servedBy`、怎么声明 | `docs/zh/patterns/servedby-deployment-checklist.md`（英文版把 `zh` 换 `en`） |
 | 怎么防止闭源组件的逻辑从自己的镜像里泄露出去 | `docs/zh/patterns/closed-source-image-hardening.md`（英文版把 `zh` 换 `en`） |
 | 旧设计书当初的论证过程（历史记录，可能与当前实现不一致） | `docs/archive/design/`，只中文 |
 | 旧试用指南原文（历史记录） | `docs/archive/guide/`，只中文 |
