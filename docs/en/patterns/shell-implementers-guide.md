@@ -2,7 +2,12 @@
 
 > Prerequisite: read [Architecture overview](../architecture/overview.md) first if you
 > haven't — this guide assumes you already understand versioned service
-> names and environment-variable injection.
+> names and environment-variable injection. If you haven't already decided
+> `servedBy` is the right call for your situation, read
+> [Declaring servedBy: a deployment checklist § When servedBy is the right
+> call — and when it isn't](servedby-deployment-checklist.md#when-servedby-is-the-right-call--and-when-it-isnt)
+> first — it covers the memory-floor problem this feature exists to solve,
+> and the cheaper options worth trying before reaching for it.
 
 `servedBy` (see AGENTS.md §5.7) lets a component declare that its workload
 runs inside another component's container instead of its own. This guide is
