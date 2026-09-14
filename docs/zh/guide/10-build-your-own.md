@@ -174,4 +174,4 @@ curl http://localhost:8085/api/v1/count
 
 ---
 
-这个系列的下一篇（完整规划见[教程索引](README.md)）：网络策略与最小权限——在 Kubernetes 上锁定哪些组件真的能跟哪些说上话。
+下一篇：[网络策略与最小权限](11-network-policy.md)——在 Kubernetes 上锁定哪些组件真的能跟哪些说上话。

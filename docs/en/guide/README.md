@@ -14,7 +14,7 @@ This series is being written incrementally; articles not yet linked below are pl
 8. [Publish and install from a marketplace](08-marketplace.md) — plus version immutability and private visibility
 9. [Sign and verify components](09-signing.md)
 10. [Build your first component from scratch](10-build-your-own.md)
-11. Network policy and least privilege
+11. [Network policy and least privilege](11-network-policy.md)
 12. Multi-project sharing
 
 (Article 4 already covered Kubernetes deployment directly with real components, so this series doesn't repeat it as a separate "same system on K8s" step the way the original 23-article series did.)

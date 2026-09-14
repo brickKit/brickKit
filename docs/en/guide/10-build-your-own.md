@@ -174,4 +174,4 @@ Nothing in this article introduced a new mechanism — the point was confirming 
 
 ---
 
-Next in this series (see [the guide index](README.md)): network policy and least privilege — locking down which components can actually talk to which, on Kubernetes.
+Next: [Network policy and least privilege](11-network-policy.md) — locking down which components can actually talk to which, on Kubernetes.
