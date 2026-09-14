@@ -945,6 +945,7 @@ The complete machine-readable index is at the repo root, **[`llms.txt`](llms.txt
 | Hands-on tutorials | `docs/en/guide/` (same swap) |
 | How to layer tests, plan seed/test data, design components well, tune deployment | `docs/en/patterns/` (same swap) |
 | How to build a shell that qualifies for `servedBy` | `docs/en/patterns/shell-implementers-guide.md` (swap `en` for `zh`) |
+| How to keep a closed-source component's logic from leaking out of its own image | `docs/en/patterns/closed-source-image-hardening.md` (swap `en` for `zh`) |
 | The old design books' original reasoning (historical record, may not match current implementation) | `docs/archive/design/`, Chinese only |
 | The old hands-on guides, as originally written (historical record) | `docs/archive/guide/`, Chinese only |
 | The full site index (with links) | `llms.txt` |

@@ -826,6 +826,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 动手教程 | `docs/zh/guide/`（英文版同上） |
 | 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/patterns/`（英文版同上） |
 | 怎么造一个能接 `servedBy` 的合格外壳 | `docs/zh/patterns/shell-implementers-guide.md`（英文版把 `zh` 换 `en`） |
+| 怎么防止闭源组件的逻辑从自己的镜像里泄露出去 | `docs/zh/patterns/closed-source-image-hardening.md`（英文版把 `zh` 换 `en`） |
 | 旧设计书当初的论证过程（历史记录，可能与当前实现不一致） | `docs/archive/design/`，只中文 |
 | 旧试用指南原文（历史记录） | `docs/archive/guide/`，只中文 |
 | 全站文档索引（带链接） | `llms.txt` |
