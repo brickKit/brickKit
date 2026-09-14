@@ -1000,6 +1000,7 @@ this table pointing at the new `docs/en/architecture/` structure instead.
 | --- | --- |
 | Development progress | Every planned step is done, deferred items have all been closed out |
 | Tests | 1728 test functions, race-clean |
+| Hands-on guides (current) | 12 articles, every one run for real; see `docs/en/guide/` |
 | Hands-on guides (archived) | 23 articles, every one run against real Docker / Kubernetes / a live marketplace |
 | Design books (archived) | 14 volumes, cross-checked against the implementation twice |
 | Decision record | 566 entries, each carrying the reasoning behind it at the time |

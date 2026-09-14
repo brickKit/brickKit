@@ -1,8 +1,6 @@
 # Hands-on Guides
 
-A sequence of tutorials, each one run for real against the actual CLI — not a described mechanism, a followed one. Every command and every output block in an existing article was actually executed while writing it, the same standard the old (now archived) 23-article series held itself to.
-
-This series is being written incrementally; articles not yet linked below are planned but don't exist yet — see [`docs/superpowers/specs/2026-09-13-bilingual-docs-restructure-design.md`](../../../docs/superpowers/specs/2026-09-13-bilingual-docs-restructure-design.md) §7 for the rollout plan. In the meantime, the old (frozen, Chinese-only, may not reflect current CLI behavior) 23-article series is still readable at [`docs/archive/guide/`](../../archive/guide/).
+A sequence of tutorials, each one run for real against the actual CLI — not a described mechanism, a followed one. Every command and every output block was actually executed while writing it, the same standard the old (now archived) 23-article series held itself to. This series is complete: 12 articles, deliberately fewer and more tightly scoped than the original 23 (see the note after the list for why). The old series is still readable at [`docs/archive/guide/`](../../archive/guide/) if you want the original, more exhaustive walkthroughs, with the usual caveat that it may not reflect current CLI behavior.
 
 1. [Get a project running](01-first-project.md) — init, add, up, talk to it over HTTP, change config, down
 2. [How the platform decides what runs](02-what-runs.md) — dependencies, the `enabled` cascade, `--dry-run`
@@ -15,8 +13,8 @@ This series is being written incrementally; articles not yet linked below are pl
 9. [Sign and verify components](09-signing.md)
 10. [Build your first component from scratch](10-build-your-own.md)
 11. [Network policy and least privilege](11-network-policy.md)
-12. Multi-project sharing
+12. [Multi-project sharing](12-multi-project-sharing.md)
 
-(Article 4 already covered Kubernetes deployment directly with real components, so this series doesn't repeat it as a separate "same system on K8s" step the way the original 23-article series did.)
+Two deliberate departures from the old 23-article series, both explained where they happen rather than just here: Article 4 already deploys real components to Kubernetes, so there's no separate "same system on K8s" repeat later the way the old series had one; and every article after the first few reuses the same two or three minimal fixture components (`demo/hello`, `demo/caller`, `infra/redis-event-bus`) rather than building out realistic, larger ones — the point of each article is a platform mechanism, not a business scenario, so the fixtures stay deliberately small.
 
-Not a tutorial step, but referenced throughout: a troubleshooting lookup, once enough of the series above exists to populate it with real, recurring failure modes rather than guesses.
+Not a tutorial step, but worth building once enough of this series exists to populate it with real, recurring failure modes rather than guesses: a troubleshooting lookup, still not written.

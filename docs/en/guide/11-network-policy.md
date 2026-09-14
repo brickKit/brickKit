@@ -76,4 +76,4 @@ Not a connection refused, not an HTTP error — a timeout. The packet never gets
 
 ---
 
-Next in this series (see [the guide index](README.md), the last article): sharing components across projects deliberately, using `brickkit fetch` from Article 7 for real, across two genuinely separate projects.
+Next: [Multi-project sharing](12-multi-project-sharing.md), the last article in this series — sharing components across projects deliberately, using `brickkit fetch` from Article 7 for real, across two genuinely separate projects.
