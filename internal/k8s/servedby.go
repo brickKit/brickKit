@@ -162,6 +162,19 @@ func (p *plan) servedUnsupportedFieldWarnings() []*clierr.Error {
 	return out
 }
 
+// shellOf 判断 ref 是不是某个 servedBy 成员，是则返回它指向的外壳 ref。
+//
+// 供 hardening.go/egress.go 在依赖图上走边时用：一条边的另一端如果是
+// servedBy 成员，它没有自己的 Pod，真正的流量目的地是它的外壳。
+func (p *plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
+	for _, s := range p.served {
+		if s.Ref == ref {
+			return s.Shell, true
+		}
+	}
+	return resolver.Ref{}, false
+}
+
 // servedComponentIDs 是 servedBy 组件的组件 ID，供 componentIDs 复用。
 func servedComponentIDs(served []servedPlan) []string {
 	out := make([]string, 0, len(served))

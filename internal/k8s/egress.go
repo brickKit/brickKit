@@ -29,6 +29,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -80,14 +81,31 @@ func (p *plan) dependencyTargets(c componentPlan) []any {
 		running[other.Ref] = other
 	}
 
-	var deps []componentPlan
+	type depTarget struct {
+		service string
+		mf      *manifest.Manifest
+	}
+	var deps []depTarget
 	// 强依赖与弱依赖都算：弱依赖在对方存在时是真会去连的（D381）
 	for _, ref := range append(append([]resolver.Ref{}, node.Requires...), node.Optional...) {
 		if dep, ok := running[ref]; ok {
-			deps = append(deps, dep)
+			deps = append(deps, depTarget{service: dep.Service, mf: dep.Manifest})
+			continue
+		}
+		// 依赖的这个组件是 servedBy 成员：它没有自己的 Pod，真正的连接
+		// 目的地是它的外壳，端口用它自己声明的那个（不是外壳的端口）。
+		if shellRef, ok := p.shellOf(ref); ok {
+			memberNode := p.graph.Node(ref)
+			if memberNode == nil || memberNode.Manifest == nil {
+				continue
+			}
+			deps = append(deps, depTarget{
+				service: manifest.ServiceName(shellRef.ID, shellRef.Version),
+				mf:      memberNode.Manifest,
+			})
 		}
 	}
-	sort.Slice(deps, func(i, j int) bool { return deps[i].Service < deps[j].Service })
+	sort.Slice(deps, func(i, j int) bool { return deps[i].service < deps[j].service })
 
 	out := make([]any, 0, len(deps))
 	for _, dep := range deps {
@@ -95,10 +113,10 @@ func (p *plan) dependencyTargets(c componentPlan) []any {
 			// 不带 namespaceSelector 就是"同命名空间内"——一个项目的组件都在一起
 			"to": []any{map[string]any{
 				"podSelector": map[string]any{
-					"matchLabels": map[string]any{labelApp: dep.Service},
+					"matchLabels": map[string]any{labelApp: dep.service},
 				},
 			}},
-			"ports": policyPorts(allPortsOf(dep.Manifest)),
+			"ports": policyPorts(allPortsOf(dep.mf)),
 		})
 	}
 	return out

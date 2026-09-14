@@ -233,9 +233,9 @@ type Component struct {
 	ID      string `yaml:"id"`
 	Version string `yaml:"version"`
 	// Enabled 是三态字段：nil=默认开启可被级联 / true=钉住 / false=显式关闭。
-	Enabled    *bool  `yaml:"enabled,omitempty"`
-	Local      bool   `yaml:"local,omitempty"`
-	LocalPort  int    `yaml:"localPort,omitempty"`
+	Enabled   *bool `yaml:"enabled,omitempty"`
+	Local     bool  `yaml:"local,omitempty"`
+	LocalPort int   `yaml:"localPort,omitempty"`
 	// ServedBy 表示这个组件的工作负载由另一个组件条目提供（外壳合并部署，
 	// servedBy 设计书）。声明了它的组件不生成自己的容器/迁移 Job，但平台
 	// 照常为依赖它的其它组件计算正确的 *_ENDPOINT——地址指向 servedBy

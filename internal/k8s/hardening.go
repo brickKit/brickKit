@@ -48,6 +48,7 @@ func (p *plan) networkPolicyDoc(c componentPlan) map[string]any {
 			"ports": policyPorts(allPortsOf(c.Manifest)),
 		})
 	}
+	rules = append(rules, p.servedMemberIngressRules(c)...)
 	if c.Entry.Expose {
 		rules = append(rules, map[string]any{
 			"from": []any{p.ingressControllerSource()},
@@ -95,7 +96,14 @@ func (p *plan) dependentSources(c componentPlan) []any {
 	if node == nil {
 		return nil
 	}
+	return p.dependentsOf(node)
+}
 
+// dependentsOf 是"谁可以连这个依赖图节点"，抽出来是因为 servedBy 的外壳
+// 除了自己的直接依赖方，还要为它收编的每个成员单独放行各自的依赖方
+// （见 servedMemberIngressRules）——两处需要同一段"依赖方 → podSelector"
+// 的转换逻辑，不能各写一份。
+func (p *plan) dependentsOf(node *resolver.Node) []any {
 	running := map[resolver.Ref]string{}
 	for _, other := range p.components {
 		running[other.Ref] = other.Service
@@ -121,6 +129,46 @@ func (p *plan) dependentSources(c componentPlan) []any {
 		})
 	}
 	return out
+}
+
+// servedMemberIngressRules 补上"依赖某个被这个外壳收编的成员"这条入站
+// 规则。被收编成员没有自己的 Pod，它的依赖方永远不会出现在
+// dependentSources(c) 里——那张依赖图上根本没有任何一条边指向外壳
+// 本身——但流量最终确实会打到这个 Pod 上，端口是成员自己声明的那个，
+// 不是外壳自己的端口。
+//
+// 每个成员单独一条规则，而不是把全部成员的依赖方和端口并进同一条：
+// 并起来会让"只依赖 A"的调用方顺带拿到连 B 端口的权限——与
+// dependentSources 自身那条规则同一个最小权限原则。
+func (p *plan) servedMemberIngressRules(c componentPlan) []any {
+	if !p.cfg.Deploy.NetworkPolicyEnabled() {
+		return nil
+	}
+
+	var members []servedPlan
+	for _, m := range p.served {
+		if m.Shell == c.Ref {
+			members = append(members, m)
+		}
+	}
+	sort.Slice(members, func(i, j int) bool { return members[i].Service < members[j].Service })
+
+	var rules []any
+	for _, m := range members {
+		memberNode := p.graph.Node(m.Ref)
+		if memberNode == nil {
+			continue
+		}
+		from := p.dependentsOf(memberNode)
+		if len(from) == 0 {
+			continue
+		}
+		rules = append(rules, map[string]any{
+			"from":  from,
+			"ports": policyPorts(allPortsOf(m.Manifest)),
+		})
+	}
+	return rules
 }
 
 // ingressControllerSource 是 ingress controller 那条来源。

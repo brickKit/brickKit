@@ -75,6 +75,16 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 	}
 }
 
+// shellOf 判断 ref 是不是某个 servedBy 成员，是则返回它指向的外壳 ref。
+func (p *plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
+	for _, s := range p.served {
+		if s.Ref == ref {
+			return s.Shell, true
+		}
+	}
+	return resolver.Ref{}, false
+}
+
 // servedMigrationWarnings 提醒"servedBy 组件的迁移由外壳自己负责编排"
 // ——责任主体与 local: true 的对应警告（localMigrationWarnings）不同：
 // 那边是调试者本人要手动执行，这边是外壳作者的编排责任。

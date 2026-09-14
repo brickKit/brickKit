@@ -35,8 +35,8 @@ func (e errNotFound) Error() string { return "夹具里没有 " + e.ref }
 func simple(id, version string, port int) *manifest.Manifest {
 	return &manifest.Manifest{
 		APIVersion: manifest.APIVersion, Kind: manifest.Kind,
-		Metadata:   manifest.Metadata{ID: id, Name: id, Version: version},
-		Deployment: manifest.Deployment{Type: manifest.DeploymentTypeContainer, Image: "x:" + version, Port: port},
+		Metadata:    manifest.Metadata{ID: id, Name: id, Version: version},
+		Deployment:  manifest.Deployment{Type: manifest.DeploymentTypeContainer, Image: "x:" + version, Port: port},
 		HealthCheck: manifest.HealthCheck{Type: manifest.HealthCheckHTTP, Path: "/healthz"},
 	}
 }

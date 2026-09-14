@@ -506,11 +506,21 @@ func (p *plan) componentDependsOn(c componentPlan) map[string]any {
 	if node != nil {
 		for _, dep := range node.Requires {
 			service := manifest.ServiceName(dep.ID, dep.Version)
-			// local: true 或被跳过的依赖不在文件里，写进去 compose 会直接报错
-			if !p.rendered[service] {
+			if p.rendered[service] {
+				dependsOn[service] = condition(p.readyCondition(dep))
 				continue
 			}
-			dependsOn[service] = condition(p.readyCondition(dep))
+			// 依赖的这个组件是 servedBy 成员：它没有自己的 service，
+			// 真正要等的是它的外壳启动/健康
+			if shellRef, ok := p.shellOf(dep); ok {
+				shellService := manifest.ServiceName(shellRef.ID, shellRef.Version)
+				if p.rendered[shellService] {
+					// 多个成员可能指向同一个外壳，只写一次
+					if _, exists := dependsOn[shellService]; !exists {
+						dependsOn[shellService] = condition(p.readyCondition(shellRef))
+					}
+				}
+			}
 		}
 	}
 	return dependsOn

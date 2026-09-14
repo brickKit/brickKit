@@ -186,3 +186,20 @@ func TestOldCallerAndNewCallerGetDifferentAddressesForDifferentVersions(t *testi
 		"新调用方依赖的新版本被收编，地址值依然是它自己的版本化服务名——"+
 			"重定向发生在网络层（外壳的别名），不是在这个环境变量的值上")
 }
+
+// ---- servedBy + depends_on：依赖被收编成员时要等外壳，而不是不写 depends_on ----
+
+func TestServedByMemberDependencyGetsDependsOn(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
+	b.component(dependsOn(simple("erp/caller", "1.0.0", 8080), "mdm/customer", "1.0.7"), config.Component{})
+
+	svc := serviceOf(t, b.parsed(), "erp-caller-1-0-0")
+	dependsOn, ok := svc["depends_on"].(map[string]any)
+	require.True(t, ok, "依赖被收编成员时也必须有 depends_on，等的是外壳：%v", svc)
+
+	dep, ok := dependsOn["infra-shell-go-core-1-0-0"].(map[string]any)
+	require.True(t, ok, "depends_on 的目标应该是外壳自己的 service，不是成员自己（它没有 service）：%v", keysOf(dependsOn))
+	assert.Equal(t, "service_healthy", dep["condition"], "等外壳健康，因为外壳有健康检查")
+}

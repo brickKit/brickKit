@@ -125,6 +125,7 @@ BRICKKIT_SERVED_MEMBERS=mdm-customer-1-0-7,erp-inventory-2-0-0
   - 写入 `BRICKKIT_SERVED_MEMBERS`（见 §7），值永远显式生成（即使当前零个成员在跑，也写一个空字符串，不省略这个变量）。
 - 每个 member **不生成**独立的 compose service。
 - member 若声明了 `expose`/`exposePort`（host 端口映射），可以正常支持：只是在外壳这一个 service 的 `ports:` 列表里再加一条映射，指向外壳容器上 member 自己的端口——这是对旧方案（"expose 会失效"）的实质改进，不是新增复杂度。
+  - **实施勘误**（最终评审补记）：v1 实际交付时把这一条裁掉了，走的是本节其余字段同样的路线——警告、不支持，而不是本段描述的"正常支持"。原因见实施计划（`docs/superpowers/plans/2026-09-13-shell-served-by.md`）的 Global Constraints：这是规划阶段主动做的范围裁剪，为的是不去碰 K8s 侧 Ingress/PDB/ServiceAccount 那套条件生成逻辑，而当时没有任何人真的提出过这个需求。
 - member 若声明了 `migration`，跳过生成迁移容器，改为发一条警告：**外壳作者需要确保自己的启动逻辑覆盖了这个组件的迁移**（措辞与 `local: true` 现有的"请手动执行"警告区分，因为责任主体不同——一个是外壳作者的编排责任，一个是调试者本人的手动操作）。
 - member 若声明了 `healthCheck`，发一条警告：**这个字段不会生效，健康检查完全是外壳实现者自己的责任，平台不做任何聚合、也不替外壳生成任何健康检查逻辑**。
 

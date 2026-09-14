@@ -130,3 +130,45 @@ func TestLocalStillRejectedAlongsideServedBy(t *testing.T) {
 	require.Error(t, err, "local: true 在 K8s 下必须依旧被拒绝，不受 servedBy 存在与否影响")
 	assert.Contains(t, err.Error(), "local: true 只能在 deploy.target: docker 下使用")
 }
+
+// ---- servedBy + NetworkPolicy：外壳要为被收编成员的依赖方放行入站 ----
+
+func TestServedByMemberDependentsGetIngressRule(t *testing.T) {
+	b := withNetworkPolicy(newBuilder(t))
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
+	b.component(dependsOn(simple("erp/caller", "1.0.0", 8080), "mdm/customer", "1.0.7"), config.Component{})
+
+	doc := b.doc(npPath("infra-shell-go-core-1-0-0"))
+	allowed := allowedFrom(t, doc)
+	assert.True(t, allowed["erp-caller-1-0-0"],
+		"依赖被收编成员的调用方，也必须出现在外壳自己的 NetworkPolicy 入站白名单里——实际放行的是 %v", allowed)
+
+	foundMemberPort := false
+	for _, rule := range ingressRules(t, doc) {
+		ports, _ := dig(t, rule, "ports").([]any)
+		for _, p := range ports {
+			entry, _ := p.(map[string]any)
+			if entry["port"] == 8080 {
+				foundMemberPort = true
+			}
+		}
+	}
+	assert.True(t, foundMemberPort,
+		"必须有一条规则放行成员自己声明的端口 8080，不能只放行外壳自己的端口")
+}
+
+// ---- servedBy + egress：调用方要放行到外壳的出站，端口是成员自己的 ----
+
+func TestServedByMemberDependencyGetsEgressRule(t *testing.T) {
+	b := withEgress(newBuilder(t))
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
+	b.component(dependsOn(simple("erp/caller", "1.0.0", 8080), "mdm/customer", "1.0.7"), config.Component{})
+
+	rule := ruleWithPort(t, b.doc(npPath("erp-caller-1-0-0")), 8080)
+
+	assert.Equal(t, []any{map[string]any{
+		"podSelector": map[string]any{"matchLabels": map[string]any{"app": "infra-shell-go-core-1-0-0"}},
+	}}, rule["to"], "依赖 servedBy 成员时，出站目标要指向外壳的 Pod，不是成员自己（它没有 Pod）")
+}
