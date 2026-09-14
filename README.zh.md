@@ -243,7 +243,7 @@ deploy:
 | 文档 | 讲什么 |
 | --- | --- |
 | [组件设计准则](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/component-design.md) | 怎么做领域研究，什么时候该做成组件家族而不是开关 |
-| [基于 BrickKit 的组件该怎么分层测试](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/testing.md) | 怎么分层：契约、业务规则、单元、集成 |
+| [基于 BrickKit 的组件该怎么分层测试](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/testing.md) | 后端的契约/业务规则/单元/集成四层，加前端自己的四层，以及端到端测试为啥要先经你同意才能跑 |
 | [怎么规划种子数据与测试数据](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/data-construction.md) | 两条必须物理隔离的路径，以及为什么 |
 | [闭源组件的镜像安全规范](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/closed-source-image-hardening.md) | 拉取镜像跟私有 Git 仓库不是同一种保证 |
 | [怎么声明 servedBy：部署方检查清单](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/servedby-deployment-checklist.md) | `servedBy` 到底解决什么问题、什么时候该用、什么时候不该用 |

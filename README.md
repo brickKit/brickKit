@@ -269,7 +269,7 @@ index, but every link is a raw, directly-fetchable URL.
 | Doc | What it covers |
 | --- | --- |
 | [Component design guidelines](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/component-design.md) | Researching a domain, and when a feature needs a component family instead of a flag |
-| [Testing patterns for components built on BrickKit](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/testing.md) | How to layer tests: contract, business-rule, unit, integration |
+| [Testing patterns for components built on BrickKit](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/testing.md) | Backend's contract/business-rule/unit/integration layers and frontend's own four layers, plus why an end-to-end run needs your go-ahead before it drives a browser |
 | [Planning seed data and test data](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/data-construction.md) | Two paths that must stay physically separate, and why |
 | [Protecting closed-source components from image-based extraction](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/closed-source-image-hardening.md) | Pulling an image isn't the same guarantee as a private Git repo |
 | [Declaring servedBy: a deployment checklist](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/servedby-deployment-checklist.md) | What problem `servedBy` actually solves, when it's the right call — and when it isn't |

@@ -34,7 +34,7 @@
 - [资源绑定的实际机制](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/resource-binding.md): 绑定槽位写错、同类资源没区分开这两种真实校验错误，然后是配额链三层（CLI 默认值、Manifest、项目覆盖）逐字段合并而不是整块替换的真实验证，每一层都有真实生成的输出。
 - [签名与信任模型](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/signing-and-trust.md): 为什么 Manifest 签的是规范化载荷而不是原始字节、为什么签名需要 cosign 而验签完全不需要、为什么公钥必须放在自己项目里而不能来自市场，以及一个真实验证过的保留变量冲突警告。
 - [组件设计准则](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/component-design.md): 设计自己的领域模型之前怎么参考成熟实现、一批值得设计规避的结构性失败模式，以及"这个特性该做成一组可互换组件，而不是一个配置开关"这个信号该怎么识别。
-- [基于 BrickKit 的组件该怎么分层测试](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/testing.md): 契约/业务规则/单元/集成四层怎么分工，以及一个真实生产部署踩过的权限边界与幂等性陷阱。
+- [基于 BrickKit 的组件该怎么分层测试](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/testing.md): 后端契约/业务规则/单元/集成四层怎么分工、一个真实生产部署踩过的权限边界与幂等性陷阱，加上前端自己的四层（单元/逻辑、组件、端到端、视觉回归）以及端到端/视觉回归测试为啥要先经用户明确同意才能跑。
 - [怎么规划种子数据与测试数据](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/data-construction.md): 两条必须物理隔离、永不共用存储的路径——种子/演示数据（幂等、持久、组件间可复用）和测试现场构造的数据（唯一后缀、从不清理）——以及怎么设计才能让种子数据真正够用来演示和探索。
 - [闭源组件的镜像安全规范](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/closed-source-image-hardening.md): 拉取镜像就等于交出它将来会跑的每一个字节——这跟私有 Git 仓库不是同一种保证。Docker 镜像卫生习惯、按语言分类的加固上限，以及这些手段一个都防不住的事。
 - [怎么声明 servedBy：部署方检查清单](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/servedby-deployment-checklist.md): `servedBy` 到底解决的是什么内存问题、什么时候该用什么时候不该用、该先试哪些更便宜的替代方案，以及——写给在自己项目里声明 `servedBy` 的人，而不是造壳的人——写之前的检查清单、哪些写法会被拒绝。
