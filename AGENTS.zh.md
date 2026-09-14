@@ -357,6 +357,9 @@ CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 
 认证：`brickkit login` 终端交互输入账密，Token 存 `.brickkit/credentials`。
 
+跑市场本身（而不是用别人跑好的市场）是另一件独立的部署工作，见
+[自己搭一套 BrickKit Market](docs/zh/patterns/deployment/self-hosted-market.md)。
+
 ---
 
 ## 6. `component.yaml`（Manifest）字段骨架
@@ -829,6 +832,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/patterns/`（英文版同上） |
 | 怎么造一个能接 `servedBy` 的合格外壳 | `docs/zh/patterns/shell-implementers-guide.md`（英文版把 `zh` 换 `en`） |
 | 要不要在自己项目里声明 `servedBy`、怎么声明 | `docs/zh/patterns/servedby-deployment-checklist.md`（英文版把 `zh` 换 `en`） |
+| 怎么自己搭一套组件市场 | `docs/zh/patterns/deployment/self-hosted-market.md`（英文版把 `zh` 换 `en`） |
 | 怎么防止闭源组件的逻辑从自己的镜像里泄露出去 | `docs/zh/patterns/closed-source-image-hardening.md`（英文版把 `zh` 换 `en`） |
 | 旧设计书当初的论证过程（历史记录，可能与当前实现不一致） | `docs/archive/design/`，只中文 |
 | 旧试用指南原文（历史记录） | `docs/archive/guide/`，只中文 |
