@@ -942,7 +942,9 @@ components used as fixtures.
 
 Every document lives in this same repository; the raw-link prefix is
 `https://raw.githubusercontent.com/brickKit/brickKit/main/`.
-The complete machine-readable index is at the repo root, **[`llms.txt`](llms.txt)**.
+The complete machine-readable index for this (English) tree is at the repo root,
+**[`llms.txt`](llms.txt)**; the Chinese tree has its own, independently written,
+**[`llms.zh.txt`](llms.zh.txt)**.
 
 | What you want to dig into | Grab this |
 | --- | --- |
@@ -963,7 +965,7 @@ The complete machine-readable index is at the repo root, **[`llms.txt`](llms.txt
 | How to keep a closed-source component's logic from leaking out of its own image | `docs/en/patterns/closed-source-image-hardening.md` (swap `en` for `zh`) |
 | The old design books' original reasoning (historical record, may not match current implementation) | `docs/archive/design/`, Chinese only |
 | The old hands-on guides, as originally written (historical record) | `docs/archive/guide/`, Chinese only |
-| The full site index (with links) | `llms.txt` |
+| The full site index (with links) | `llms.txt` (Chinese: `llms.zh.txt`) |
 | Platform philosophy and overall architecture (the root document) | `docs/archive/design/001-平台理念与总体架构.md` |
 | Every `component.yaml` field and rule | `docs/archive/design/002-组件规范.md` |
 | Every `brickkit.yaml` field and rule | `docs/archive/design/003-项目配置规范.md` |

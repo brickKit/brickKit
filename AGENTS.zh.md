@@ -823,7 +823,8 @@ deploy/market/         市场的 compose / kustomize / Helm
 
 所有文档都在同一个仓库里，raw 链接前缀为
 `https://raw.githubusercontent.com/brickKit/brickKit/main/`。
-完整的机器可读索引见仓库根的 **[`llms.txt`](llms.txt)**。
+中文文档树完整的机器可读索引见仓库根的 **[`llms.zh.txt`](llms.zh.txt)**；
+英文文档树有自己独立撰写的一份，**[`llms.txt`](llms.txt)**。
 
 | 想深挖什么 | 抓哪一份 |
 | --- | --- |
@@ -844,7 +845,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 怎么防止闭源组件的逻辑从自己的镜像里泄露出去 | `docs/zh/patterns/closed-source-image-hardening.md`（英文版把 `zh` 换 `en`） |
 | 旧设计书当初的论证过程（历史记录，可能与当前实现不一致） | `docs/archive/design/`，只中文 |
 | 旧试用指南原文（历史记录） | `docs/archive/guide/`，只中文 |
-| 全站文档索引（带链接） | `llms.txt` |
+| 全站文档索引（带链接） | `llms.zh.txt`（英文版是 `llms.txt`） |
 | 平台理念与总体架构（根文档） | `docs/archive/design/001-平台理念与总体架构.md` |
 | `component.yaml` 全部字段与规则 | `docs/archive/design/002-组件规范.md` |
 | `brickkit.yaml` 全部字段与规则 | `docs/archive/design/003-项目配置规范.md` |

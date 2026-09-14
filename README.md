@@ -28,15 +28,18 @@ deployed, invoked, and composed independently.
 >    field skeletons, the full command reference, and every "why we built it this
 >    way" justification.
 > 2. **<https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt>** — the
->    complete site index, every entry with an absolute raw link and a one-line
->    description, split into an **English** section and a **中文** section.
+>    complete site index for the English documentation tree, every entry with an
+>    absolute raw link and a one-line description. Asking in Chinese? Fetch
+>    <https://raw.githubusercontent.com/brickKit/brickKit/main/llms.zh.txt> instead —
+>    an independently written, content-equivalent index for `docs/zh/`, not a
+>    translation of this one.
 >
 > **Pick your language from the user's question, not from this file.** This README
 > is always English (it is the first thing rendered on the repository homepage), but
 > the documentation underneath it is fully bilingual and symmetric — neither language
 > is a translation of the other. If the user is asking in Chinese, read everything
 > under `docs/zh/`; if they are asking in English (or anything else), read
-> `docs/en/`. `llms.txt`'s two sections point at the same structure in both languages.
+> `docs/en/`.
 
 ---
 
@@ -228,7 +231,8 @@ The full reasoning behind every row lives under
 
 Everything below is a direct link — click through to read it on GitHub, no
 cloning required. The same index, machine-readable, is in
-[`llms.txt`](llms.txt).
+[`llms.txt`](llms.txt) (the Chinese documentation tree has its own,
+[`llms.zh.txt`](llms.zh.txt)).
 
 **Architecture — how the platform actually works, with real code and real generated output**
 
@@ -329,7 +333,7 @@ breaks**, instead of quietly reporting zero problems:
 | `make check-guide-output` | The guides' "✅ expected" output matches the CLI's real output, line for line |
 | `make check-guides` | The steps in the guides still work |
 | `make check-install-sh` | `install.sh` installs successfully, and *actually* refuses to install when the checksum is broken |
-| `make check-docs-bilingual` | docs/en and docs/zh stay mirrored, root README.md/README.zh.md stay paired, every llms.txt link resolves |
+| `make check-docs-bilingual` | docs/en and docs/zh stay mirrored, every root multi-language pair (README, AGENTS, llms) stays paired, every llms.txt/llms.zh.txt link resolves |
 
 A checklist pointing at a test that no longer exists fails the build. So does
 a test target whose directory has gone empty — **a suite that silently skips

@@ -4,21 +4,16 @@
 > Each component is developed, deployed, and called independently; the BrickKit
 > CLI resolves dependencies, orders startup, generates deployment files, and
 > hands off to Docker or Kubernetes.
->
-> 一个组件管理与拼装平台，像搭积木一样构建系统。每块积木（组件）独立开发、
-> 独立部署、独立调用；BrickKit CLI 负责把积木拉来、解析依赖、排好启动顺序、
-> 生成部署文件、交给 Docker 或 Kubernetes 跑起来。
 
 Repository: https://github.com/brickKit/brickKit ｜ License: Apache-2.0
 
 If you are an AI assistant, fetch `AGENTS.md` first — one file, the entire
-platform compressed. Pick a language section below based on the question you
-were asked, not based on this file's own language.
+platform compressed. **If the question you were asked is in Chinese, stop
+here and fetch [`llms.zh.txt`](https://raw.githubusercontent.com/brickKit/brickKit/main/llms.zh.txt)
+instead** — it's the same index, independently written for the Chinese
+documentation tree, not a translation of this file.
 
-如果你是 AI 助手，请先抓取 `AGENTS.zh.md`（中文版）——一份文件读完即可理解全平台。
-按用户提问所用的语言，从下面选对应的一节，不要按这份文件本身的语言选。
-
-## English documentation
+## Documentation
 
 - [AGENTS.md](https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.md): The entire platform compressed into one file — positioning, terminology, twelve design principles, the explicit "won't do" list, core mechanisms, both YAML field skeletons, the full command reference, twenty-three "why" justifications.
 - [README](https://raw.githubusercontent.com/brickKit/brickKit/main/README.md): The project's front door — what it is, install/uninstall, a one-minute tour, what it deliberately doesn't do, where to go next.
@@ -49,39 +44,8 @@ were asked, not based on this file's own language.
 - [Sharing a database connection pool inside a shell](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/patterns/shared-connection-pools.md): For components merged into one `servedBy` shell that also share PostgreSQL or Oracle — why the pools usually can't merge without schema regrouping, the `SET LOCAL ROLE` technique, and the one decision that has a deadline before the database exists.
 - [Protecting closed-source components from image-based extraction](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/patterns/closed-source-image-hardening.md): Pulling an image hands over every byte it will ever run — this is not the same guarantee as a private Git repository. Docker image hygiene, per-language hardening ceilings, and what none of it protects against.
 
-## 中文文档
+## Historical record (Chinese only, not maintained)
 
-- [AGENTS.md（中文版）](https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.zh.md): 全平台压缩件——定位、术语表、十二条设计原则、拒绝清单、核心机制、两个 yaml 字段骨架、命令参考、二十三个"为什么"——与英文版 AGENTS.md 内容对等。
-- [README（中文版）](https://raw.githubusercontent.com/brickKit/brickKit/main/README.zh.md): 项目门面，是什么/怎么装/怎么卸/一分钟示例/不做什么/怎么上手——与英文版 README.md 内容对等。
-- [架构总览](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/overview.md): 一次声明怎么变成运行中的容器，含真实的依赖解析→注入→生成流水线。
-- [动手教程](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/README.md): 一个完整的 12 篇教程系列，每一篇都对着真实 CLI 跑过，刻意复用几个最小夹具组件，而不是搭一套接近真实业务的大型拼装。
-- [把一个项目跑起来](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/01-first-project.md): 教程第 1 篇——init、从本地安装源加一个组件、up、curl 它、改配置看响应跟着变、down。每一条命令、每一段输出都是真实的。
-- [平台是怎么决定谁跑起来的](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/02-what-runs.md): 教程第 2 篇——加一个真正依赖的第二个组件、一条真实的弱依赖缺失警告、关掉一个强依赖看停止怎么传导、以及两头都钉死时的真实报错。
-- [本地调试一个组件](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/03-local-debugging.md): 教程第 3 篇——一个组件跑成普通操作系统进程，一个按容器配置的兄弟组件通过 `extra_hosts`/`host-gateway` 解析并连到它，用一个真实的主机进程和一个真实的一次性容器验证过，不只是生成的配置。
-- [部署到 Kubernetes](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/04-kubernetes.md): 教程第 4 篇——真实的 minikube 部署，配一个真实的 Postgres，一次真实的跨 Pod 调用证明注入的地址真能连上，以及真跑 `brickkit down` 才发现的一个真实的坑：它删的是它创建的整个命名空间，不只是它生成的那些对象。
-- [升级，以及让多个版本并存](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/05-upgrades-and-versions.md): 教程第 5 篇——原地升级版本号，干净地清掉旧容器留下的孤儿；然后同一个组件的两个版本作为真正独立、各自可寻址的容器并存；以及一个 ID 跨版本有歧义时 `remove` 的真实报错。
-- [拼装一个真实的系统，然后故意把它弄坏](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/06-assemble-and-break.md): 教程第 6 篇——终于绑了一个真实的 Postgres，一条关于资源 host 看起来像服务名的智能警告，然后两种真正不同的真实失败模式：停掉一个依赖导致实时 502、调用方自己却照样"健康"；一次失败的迁移在组件真正启动之前就挡住了整条 up 命令。
-- [消费别人的组件](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/07-consuming-artifacts.md): 教程第 7 篇——下载下来的 API 文档产物到底落在哪、`brickkit fetch` 只拿契约不装任何东西、以及一个整个存在意义就是聚合别的组件文档的真实组件，展示它的全部弱依赖同时缺失时是怎么应对的。
-- [从市场发布与安装](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/08-marketplace.md): 教程第 8 篇——真实市场、钉摘要拒绝发布一个解析不了的镜像引用、闭源发布因为缺机器可读契约被拒、一个完全独立的项目从市场安装并撞见真实的信任锚点未配置警告，以及私有版本的真实拒绝访问报错。
-- [给组件签名与验签](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/09-signing.md): 教程第 9 篇——真实的 cosign 密钥对、一次签过名的发布、消费方只靠 Go 标准库就验证成功，以及 `installer.publicKeys` 指向错误密钥时真实的硬性失败。
-- [从零开发自己的第一个组件](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/10-build-your-own.md): 教程第 10 篇——一个真正全新的四文件组件（源码、Dockerfile、Manifest），用这个系列其它每一篇对已有夹具用过的同一套 add/up/配置覆盖机制构建并跑起来。
-- [网络策略与最小权限](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/11-network-policy.md): 教程第 11 篇——从依赖图自动生成的 NetworkPolicy，在一个特意用支持执行策略的 CNI 启动的 minikube 集群上真实验证过（默认 CNI 完全不执行，CLI 自己会警告这一点），证明授权调用方立刻成功，一个不相关的 pod 发同样的请求却会超时。
-- [多项目共享](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/12-multi-project-sharing.md): 教程第 12 篇，系列最后一篇——两个真正独立的项目共享一个基于 Redis 的事件总线、一个配置字段把共享变成隔离、一个必填且无默认值的 configSchema 字段把组件当成别人的 API 来对待，以及一个早先的跨项目便利字段为什么被删掉。
-- [依赖解析与启动顺序](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/dependency-resolution.md): 把架构总览里的级联与解析两个阶段往难处推——一个真实的菱形依赖、一个靠一条弱边放行/没有弱边就拒绝的循环依赖，以及为什么真正决定 `up` 要跑多久的是最长强依赖链而不是组件数量。
-- [部署文件是怎么生成出来的](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/deployment-generation.md): 同一个两组件项目，两个目标各生成一遍，原样呈现——Compose 的迁移独立成服务、配额要换算单位，对照 Kubernetes 的三段式启动探针、密码走 Secret 引用，以及两边唯一一字不差的那个地址字符串。
-- [资源绑定的实际机制](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/resource-binding.md): 绑定槽位写错、同类资源没区分开这两种真实校验错误，然后是配额链三层（CLI 默认值、Manifest、项目覆盖）逐字段合并而不是整块替换的真实验证，每一层都有真实生成的输出。
-- [签名与信任模型](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/signing-and-trust.md): 为什么 Manifest 签的是规范化载荷而不是原始字节、为什么签名需要 cosign 而验签完全不需要、为什么公钥必须放在自己项目里而不能来自市场，以及一个真实验证过的保留变量冲突警告。
-- [基于 BrickKit 的组件该怎么分层测试](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/testing.md): 契约/业务规则/单元/集成四层怎么分工，以及一个真实生产部署踩过的权限边界与幂等性陷阱。
-- [怎么规划种子数据与测试数据](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/data-construction.md): 两条必须物理隔离、永不共用存储的路径——种子/演示数据（幂等、持久、组件间可复用）和测试现场构造的数据（唯一后缀、从不清理）——以及怎么设计才能让种子数据真正够用来演示和探索。
-- [组件设计准则](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/component-design.md): 设计自己的领域模型之前怎么参考成熟实现、一批值得设计规避的结构性失败模式，以及"这个特性该做成一组可互换组件，而不是一个配置开关"这个信号该怎么识别。
-- [合格外壳该满足什么](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/shell-implementers-guide.md): `servedBy` 字段对收编它的外壳提出了什么要求——合并进程必须满足的九条性质，以及平台到底会不会把哪些东西注入外壳的环境。
-- [怎么声明 servedBy：部署方检查清单](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/servedby-deployment-checklist.md): 写给在自己项目里声明 `servedBy` 的人，而不是造壳的人——什么时候该用、写之前的检查清单、哪些写法会被拒绝、哪些事平台会自动做好。
-- [自己搭一套 BrickKit Market](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/deployment/self-hosted-market.md): 部署市场本身（跟部署你自己的项目是两件事）——三种部署模式、编排文件走一遍（带两处真实踩过的坑）、怎么升级、怎么搬上云。
-- [在外壳里合并数据库连接池](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/shared-connection-pools.md): 写给合并进同一个 servedBy 外壳、又共用 PostgreSQL 或 Oracle 的组件——为什么池子通常合不了、要靠 schema 重新分组、`SET LOCAL ROLE` 技巧，以及唯一一件有截止日期的决定。
-- [闭源组件的镜像安全规范](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/closed-source-image-hardening.md): 拉取镜像就等于交出它将来会跑的每一个字节——这跟私有 Git 仓库不是同一种保证。Docker 镜像卫生习惯、按语言分类的加固上限，以及这些手段一个都防不住的事。
-
-## Historical record（历史记录，只中文，不维护）
-
-- [旧设计书（design/，14 本）](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/design/): 重构前的规范性文档，可能与当前实现不一致，理解现行版本看上面的 architecture。
-- [旧试用指南（23 篇）](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/guide/): 重构前的动手教程，理解现行版本看上面的 guide。
-- [决策索引（566 条）](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/decisions/%E5%86%B3%E7%AD%96%E7%B4%A2%E5%BC%95.md): 查某个决策当初为什么这么定。
+- [Old design books (design/, 14 volumes)](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/design/): The pre-restructure normative spec, may not match the current implementation — for the current version, use the architecture section above.
+- [Old hands-on guides (23 articles)](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/guide/): The pre-restructure hands-on guides — for the current version, use the guide section above.
+- [Decision index (566 entries)](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/decisions/%E5%86%B3%E7%AD%96%E7%B4%A2%E5%BC%95.md): Look up why a specific decision was made the way it was.
