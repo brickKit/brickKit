@@ -109,7 +109,9 @@ fi
 #
 # 这一条是整个脚本存在的理由。
 echo "▶ 校验和被改坏时必须拒绝安装"
-sed -i.bak 's/^./0/' "$rel/checksums.txt" # 把第一个字符改掉，其余不动
+# 换成 x：sha256sum 只输出小写 0-9a-f，这个字符不可能已经是它，
+# 不会像换成 "0" 那样有 1/16 的概率把第一位换回原样、悄悄没有真的改坏
+sed -i.bak 's/^./x/' "$rel/checksums.txt" # 把第一个字符改掉，其余不动
 if out="$(run_install "$tmp/bin2")"; then
 	bad "校验和是错的，它却装成功了——这正是这个检查要防的那种坏法"
 else
