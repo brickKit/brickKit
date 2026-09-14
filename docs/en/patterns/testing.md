@@ -50,4 +50,4 @@ Three criteria decide whether a cross-component test is doing its job:
 
 ---
 
-How to plan seed data and test data — which rows belong in migration scripts versus which should be constructed fresh at test time — is a separate question, and it's the subject of the next doc in this series (`docs/en/patterns/data-construction.md`). It hasn't been written yet, so no link to it appears here.
+How to plan seed data and test data — which rows belong in migration scripts versus which should be constructed fresh at test time — is a separate question, covered in [Planning seed data and test data](data-construction.md).
