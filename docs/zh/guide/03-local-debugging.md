@@ -107,4 +107,4 @@ docker network rm brickkit-hello-world-net
 
 ---
 
-这个系列的下一篇（完整规划见[教程索引](README.md)）：同样形状的项目，改部署到 Kubernetes 而不是 Docker——同一份 Manifest、同一张依赖图，生成出来的是完全不同的一套文件。
+下一篇：[部署到 Kubernetes](04-kubernetes.md)——同样形状的项目，改部署到 Kubernetes 而不是 Docker——同一份 Manifest、同一张依赖图，生成出来的是完全不同的一套文件。

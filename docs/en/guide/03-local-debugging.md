@@ -107,4 +107,4 @@ Multiple components can be `local: true` at once, each with its own `localPort` 
 
 ---
 
-Next in this series (see [the guide index](README.md)): the same shape of project, deployed to Kubernetes instead of Docker — same Manifest, same dependency graph, a different set of generated files entirely.
+Next: [Deploy to Kubernetes](04-kubernetes.md) — the same shape of project, deployed to Kubernetes instead of Docker — same Manifest, same dependency graph, a different set of generated files entirely.

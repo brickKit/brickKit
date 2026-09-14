@@ -7,7 +7,7 @@ This series is being written incrementally; articles not yet linked below are pl
 1. [Get a project running](01-first-project.md) — init, add, up, talk to it over HTTP, change config, down
 2. [How the platform decides what runs](02-what-runs.md) — dependencies, the `enabled` cascade, `--dry-run`
 3. [Debug a component locally](03-local-debugging.md) — `local: true`
-4. Deploy to Kubernetes — plus replicas and PodDisruptionBudgets
+4. [Deploy to Kubernetes](04-kubernetes.md) — plus a real gotcha with `brickkit down` and shared namespaces
 5. Upgrade and run multiple versions side by side
 6. Assemble a real multi-component system, then break it on purpose
 7. Consume someone else's component — artifacts and API docs
