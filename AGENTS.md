@@ -953,6 +953,7 @@ The complete machine-readable index is at the repo root, **[`llms.txt`](llms.txt
 | Whether and how to declare `servedBy` on your own project | `docs/en/patterns/servedby-deployment-checklist.md` (swap `en` for `zh`) |
 | How to self-host the component marketplace | `docs/en/patterns/deployment/self-hosted-market.md` (swap `en` for `zh`) |
 | How to share one database connection pool across components merged into a shell | `docs/en/patterns/shared-connection-pools.md` (swap `en` for `zh`) |
+| Dependency resolution, diamond dedup, cycles, and why more components doesn't mean more serial steps | `docs/en/architecture/dependency-resolution.md` (swap `en` for `zh`) |
 | How to layer tests for a component built on BrickKit | `docs/en/patterns/testing.md` (swap `en` for `zh`) |
 | How to plan seed data and test data | `docs/en/patterns/data-construction.md` (swap `en` for `zh`) |
 | How to research a domain and recognize when a feature needs a component family, not a flag | `docs/en/patterns/component-design.md` (swap `en` for `zh`) |

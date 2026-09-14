@@ -42,7 +42,7 @@ Here is that same pipeline made concrete with components that actually exist in 
 - **⑤ run migrations** runs the migration commands `department-tree` and `people-basic` each declare (`erp/backend` itself has no `migration` field, so it's skipped) — `auth/password-login` and `authorization/rbac` each declare their own migration too, run the same way;
 - **⑥** finally, `docker compose up -d` brings these containers up (along with the rest of `erp/backend`'s dependency set).
 
-Among the resulting service names are `erp-backend-1-0-0`, `department-tree-1-0-0`, and `people-basic-1-0-0` — the next section explains exactly how each name is derived.
+Among the resulting service names are `erp-backend-1-0-0`, `department-tree-1-0-0`, and `people-basic-1-0-0` — the next section explains exactly how each name is derived. For a harder version of steps ① and ② — a real diamond dependency, a real cycle, and turning a component off — see [Dependency resolution and start order](dependency-resolution.md).
 
 ## Versioned service names and the unified address format
 

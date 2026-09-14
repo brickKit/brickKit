@@ -834,6 +834,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 要不要在自己项目里声明 `servedBy`、怎么声明 | `docs/zh/patterns/servedby-deployment-checklist.md`（英文版把 `zh` 换 `en`） |
 | 怎么自己搭一套组件市场 | `docs/zh/patterns/deployment/self-hosted-market.md`（英文版把 `zh` 换 `en`） |
 | 合并进壳里的组件怎么共用一个数据库连接池 | `docs/zh/patterns/shared-connection-pools.md`（英文版把 `zh` 换 `en`） |
+| 依赖解析、菱形依赖去重、循环依赖、为什么组件多不等于串行步骤多 | `docs/zh/architecture/dependency-resolution.md`（英文版把 `zh` 换 `en`） |
 | 基于 BrickKit 的组件该怎么分层测试 | `docs/zh/patterns/testing.md`（英文版把 `zh` 换 `en`） |
 | 怎么规划种子数据与测试数据 | `docs/zh/patterns/data-construction.md`（英文版把 `zh` 换 `en`） |
 | 怎么做领域研究、怎么识别一个特性该做成组件家族而不是开关 | `docs/zh/patterns/component-design.md`（英文版把 `zh` 换 `en`） |
