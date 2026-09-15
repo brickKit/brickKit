@@ -306,13 +306,15 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
   迁移容器 / Job。
 - 照常给依赖它的组件算出正确的 `*_ENDPOINT`——地址指向外壳的真实位置，
   端口用的是这个 `servedBy` 组件自己声明的端口。
-- 只把 `*_ENDPOINT` 一类变量摊平合并进外壳共享的操作系统环境——绝不
-  合并 `COMPONENT_ID` / `COMPONENT_VERSION`，绝不合并某个组件自己
-  `configSchema` 生成的配置，绝不合并资源连接变量，（见下文）也绝不合并
-  `labels`。这些东西本来就不按组件 ID 做命名空间隔离，两个各自独立开发
-  的模块很容易撞同一个名字；给每个模块做好隔离是外壳作者自己的事，
-  不是平台的事。（一个成员合并后的自身配置仍然拿得到，只是不走摊平合并
-  这条路——见下面两条之后的 `BRICKKIT_SERVED_MEMBERS_CONFIG`。）
+- 把 `*_ENDPOINT` 一类变量不带前缀地合并进外壳共享的操作系统环境
+  （组件 ID 本身已经让这些名字唯一），也把每个成员自己 `configSchema`
+  生成的配置合并进来——但一律带组件 ID 前缀
+  （`{EnvPrefix(组件ID)}_{名字}`，跟 `*_ENDPOINT` 用同一个前缀），两个
+  各自独立开发的模块就算用了同一个配置项名字也不可能撞车。绝不会替
+  成员合并 `COMPONENT_ID` / `COMPONENT_VERSION`、资源连接变量，（见下文）
+  也不会合并 `labels`——这些始终只是外壳自己那一套平台/资源变量，不按
+  成员各来一份。`BRICKKIT_SERVED_MEMBERS_CONFIG`（下面两条之后）是这些
+  带前缀变量的一份索引，不是它们值的第二份拷贝。
 - 一个 `servedBy` 成员自己 `component.yaml` 里 `dependencies.resources`
   声明的资源依赖，只要外壳自己的 componentId 已经绑了同一个
   `kind`+`engine` 的资源，就算满足——不需要成员自己在那份资源的
@@ -325,13 +327,18 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
   模块——这是可选的，平台从不检查外壳有没有真的照做。
 - 还会写入 `BRICKKIT_SERVED_MEMBERS_CONFIG`（另一个保留变量）：一个
   JSON 数组，跟上面那份名单里的每个成员一一对应，各自带上
-  `componentId`/`version`/`httpPort`/`extraPorts`/`config`（`config` 是
-  该成员合并后的自身配置，键是原始 configSchema key，不是转换后的
-  `*_ENDPOINT` 风格变量名）。这才是外壳作者真正要装配每个模块所需的
-  数据——没有它，唯一的办法是在每次部署前手算一份等价的 JSON、贴进某个
+  `componentId`/`version`/`httpPort`/`extraPorts`/`configEnvVars`
+  （`configEnvVars` 把该成员原始的 configSchema key 映射到上面那条带
+  前缀变量的名字——不是值本身）。这是外壳作者真正要装配每个模块所需的
+  索引——没有它，唯一的办法是在每次部署前手算一份等价的 JSON、贴进某个
   字符串配置项，而这份手工数据只要成员的版本号、config 或 `servedBy`
   归属一变就会过期，平台不会提醒，只会在下一次真机启动时才表现成
-  crash-loop。零个成员时是 `[]`，不是变量缺失。
+  crash-loop。只携带变量名、从不携带值是故意的：成员的 config 值经常是
+  指向密钥的 `${VAR}` 引用，brickKit 生成 Docker Compose 文件时刻意不
+  自己展开这类引用（好让生成的文件能安全地打开看、进 git diff）——把这
+  类占位符最终会展开成的值塞进一段 JSON 字符串，一旦这个值带引号、反
+  斜杠或换行符，就会被 docker compose 自己那套无结构感知的变量替换撑
+  坏这段 JSON。零个成员时是 `[]`，不是变量缺失。
 
 `local: true` 不受影响——字段、含义、代码路径都和以前一样；`servedBy`
 是一套完全独立的机制，只是碰巧和它共享"在依赖图里、但不生成工作负载"

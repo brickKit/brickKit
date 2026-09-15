@@ -346,15 +346,18 @@ ordinary component, with its own image, port, and health check. The platform:
 - Still computes a correct `*_ENDPOINT` for anything depending on it — the
   address points at the shell's actual location, using the `servedBy`
   component's own declared port.
-- Merges only `*_ENDPOINT`-class variables into the shell's shared,
-  flat OS environment — never `COMPONENT_ID`/`COMPONENT_VERSION`, never a
-  component's own `configSchema`-derived config, never resource-connection
-  variables, and (see below) never `labels`. None of these are namespaced
-  by component ID, so two independently-authored modules could easily
-  reuse the same name; giving each module its own isolated configuration
-  is the shell author's job, not the platform's. (A member's own merged
-  config is still reachable, just not by flat-merging it — see
-  `BRICKKIT_SERVED_MEMBERS_CONFIG` two bullets down.)
+- Merges `*_ENDPOINT`-class variables into the shell's shared OS
+  environment unprefixed (component IDs already make these names unique),
+  and merges each member's own `configSchema`-derived config values in
+  too — but always under a component-ID prefix
+  (`{EnvPrefix(componentId)}_{name}`, the same prefix `*_ENDPOINT`
+  variables use), so two independently-authored modules reusing the same
+  config key can never collide. Never merges `COMPONENT_ID`/
+  `COMPONENT_VERSION`, resource-connection variables, or (see below)
+  `labels` on a member's behalf — those stay the shell's own, single set
+  of platform/resource variables. `BRICKKIT_SERVED_MEMBERS_CONFIG` (two
+  bullets down) is an index into the prefixed config variables, not a
+  second copy of their values.
 - Treats a `servedBy` member's own resource bindings (`dependencies.resources`
   in its `component.yaml`) as satisfied once the shell's own componentId is
   bound to the same `kind`+`engine` resource — the member doesn't also need
@@ -371,15 +374,23 @@ ordinary component, with its own image, port, and health check. The platform:
   never checks whether a shell actually honors it.
 - Also writes `BRICKKIT_SERVED_MEMBERS_CONFIG` (a reserved variable): a JSON
   array, one element per member on that same list, each carrying
-  `componentId`/`version`/`httpPort`/`extraPorts`/`config` (`config` is that
-  member's own merged configuration, keyed by the original configSchema key,
-  not the converted `*_ENDPOINT`-style variable name). This is the data a
-  shell author actually needs to wire each module up — without it, the only
-  option was hand-computing an equivalent JSON blob before every deployment
-  and pasting it into a string field, which goes stale the moment a member's
+  `componentId`/`version`/`httpPort`/`extraPorts`/`configEnvVars`
+  (`configEnvVars` maps that member's own original configSchema key to the
+  name of the prefixed environment variable above where its actual value
+  lives — not the value itself). This is the index a shell author actually
+  needs to wire each module up — without it, the only option was
+  hand-computing an equivalent JSON blob before every deployment and
+  pasting it into a string field, which goes stale the moment a member's
   version, config, or `servedBy` membership changes and only surfaces as a
-  crash-loop at the next real startup. Empty deployments still get `[]`, not
-  a missing variable.
+  crash-loop at the next real startup. Carrying only variable names (never
+  values) is deliberate, not incidental: a member's config value is often a
+  `${VAR}` reference to a secret that brickKit's Docker Compose generation
+  deliberately leaves unresolved (so the generated file stays safe to open
+  and diff) — embedding such a placeholder's eventual value inside a JSON
+  string would let `docker compose`'s own blind, structure-unaware
+  variable substitution corrupt that JSON the moment the value contains a
+  quote, backslash, or newline. Empty deployments still get `[]`, not a
+  missing variable.
 
 `local: true` is untouched by this — same field, same meaning, same code
 paths as always; `servedBy` is a wholly separate, independent mechanism that
