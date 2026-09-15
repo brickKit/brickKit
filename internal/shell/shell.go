@@ -359,19 +359,39 @@ func mergeGroup(
 
 	for _, m := range members {
 		mEnv := envByRef[m.Ref]
+		prefix := manifest.EnvPrefix(m.Ref.ID)
 		for _, v := range mEnv.Env {
-			if v.Source != inject.SourceEndpoint {
-				continue
-			}
-			if existing, exists := envValues[v.Name]; exists {
-				if existing == v.Value {
-					continue
+			switch v.Source {
+			case inject.SourceEndpoint:
+				if existing, exists := envValues[v.Name]; exists {
+					if existing == v.Value {
+						continue
+					}
+					return nil, endpointCollisionError(shellRef, envOwner[v.Name], m.Ref, v.Name, existing, v.Value)
 				}
-				return nil, endpointCollisionError(shellRef, envOwner[v.Name], m.Ref, v.Name, existing, v.Value)
+				envValues[v.Name] = v.Value
+				envVars[v.Name] = v
+				envOwner[v.Name] = m.Ref
+			case inject.SourceConfig, inject.SourceOverride:
+				// 每个成员自己的 config 值各自生成一条带组件 ID 前缀的
+				// 独立变量（跟 *_ENDPOINT 用同一个前缀算法），${VAR} 占位符
+				// 语义完全不变，交给 docker compose 自己展开——不摊平进
+				// 不带前缀的共享键（那是被否决过的方案，两个模块用同一个
+				// 通用 key 名会撞车），也不塞进 BRICKKIT_SERVED_MEMBERS_CONFIG
+				// 的 JSON 内部（那正是密钥类 ${VAR} 占位符撑坏 JSON 的根源，
+				// 见 docs/superpowers/specs/2026-09-16-servedby-config-env-vars-design.md）。
+				name := prefix + "_" + v.Name
+				if existing, exists := envValues[name]; exists {
+					if existing == v.Value {
+						continue
+					}
+					return nil, configVarCollisionError(shellRef, envOwner[name], m.Ref, name, existing, v.Value)
+				}
+				v.Name = name
+				envValues[name] = v.Value
+				envVars[name] = v
+				envOwner[name] = m.Ref
 			}
-			envValues[v.Name] = v.Value
-			envVars[v.Name] = v
-			envOwner[v.Name] = m.Ref
 		}
 	}
 
@@ -412,4 +432,21 @@ func endpointCollisionError(
 		WithDetail("原因", "这两个组件各自依赖同一个组件 ID 的不同精确版本——独立部署时互不冲突，"+
 			"合并进同一个外壳的共享环境后，同一个变量名不可能同时指向两个地址").
 		WithHint("让这两个成员依赖同一个精确版本，或者不要把它们放进同一个外壳")
+}
+
+// configVarCollisionError 生成"两个成员的 config 值算出了同一个环境变量名，
+// 但值不同"的错误——跟 endpointCollisionError 同一个报错形状，原因文案不同：
+// 这条变量名由组件 ID 与 config 项名拼出来、不含版本号，最常见的成因是同一个
+// 组件 ID 的两个不同版本被同一个外壳收编，且这一项 config 的值不一样。
+func configVarCollisionError(
+	shellRef, firstOwner, secondOwner resolver.Ref, name, firstValue, secondValue string,
+) *clierr.Error {
+	return clierr.Newf(clierr.CodeConfigInvalid,
+		"错误：外壳 %s 下两个成员的 config 算出了同一个环境变量名，但值不同", shellRef.String()).
+		WithDetail("变量名", name).
+		WithDetailf(firstOwner.String(), "%s", firstValue).
+		WithDetailf(secondOwner.String(), "%s", secondValue).
+		WithDetail("原因", "这条变量名由组件 ID 与 config 项名拼出来，不含版本号——最常见的成因是"+
+			"同一个组件 ID 的两个不同版本被同一个外壳收编，且这一项 config 的值不一样").
+		WithHint("让这两个成员这一项 config 的值保持一致，或者不要把它们放进同一个外壳")
 }

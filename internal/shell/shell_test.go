@@ -172,6 +172,39 @@ func TestResolveMergesOnlyEndpointVars(t *testing.T) {
 	assert.NotContains(t, names, "COMPONENT_VERSION")
 }
 
+// ---- 环境变量合并：成员自己的 config 值改走带组件 ID 前缀的独立变量
+// （brickKit 反馈：servedBy 的密钥类 config 值会被 docker-compose 撑坏
+// JSON——密钥类 config 值必须继续走 "${VAR} 占位符 + docker compose
+// 自己展开" 这条已证明安全的老路，不能被塞进 BRICKKIT_SERVED_MEMBERS_CONFIG
+// 的 JSON 字符串内部，那样会被 docker compose 的全文本替换撑坏结构）----
+
+func TestResolveMergesMemberConfigAsNamespacedVars(t *testing.T) {
+	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+		comp("infra/shell-go-core", "1.0.0", ""),
+		{ID: "erp/sales", Version: "1.0.0", ServedBy: "infra/shell-go-core@1.0.0",
+			Config: map[string]any{"pgSchema": "sales"}},
+	}}
+	member := simple("erp/sales", "1.0.0", 8080)
+	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"pgSchema": {Type: "string", Default: "public"},
+	}}
+
+	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
+		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
+		"erp/sales@1.0.0":           member,
+	})
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+
+	byName := map[string]string{}
+	for _, v := range groups[0].Env {
+		byName[v.Name] = v.Value
+	}
+	assert.Equal(t, "sales", byName["ERP_SALES_PG_SCHEMA"],
+		"成员自己的 config 值要各自生成一条带组件 ID 前缀的独立变量，进外壳共享环境——"+
+			"跟 *_ENDPOINT 用同一个前缀算法（manifest.EnvPrefix）")
+}
+
 // ---- 环境变量合并：同名同值放过，同名不同值报错 ----
 
 func TestResolveEndpointCollisionSameValueIsFine(t *testing.T) {
@@ -214,6 +247,56 @@ func TestResolveEndpointCollisionDifferentVersionErrors(t *testing.T) {
 	})
 	require.Error(t, err, "同一个变量名不可能同时指向两个不同版本的地址")
 	assert.Contains(t, err.Error(), "INFRA_DATABASE_ENDPOINT")
+}
+
+// 同一个外壳收编同一组件的两个版本（TestResolveGroupsTwoVersionsOfSameComponentUnderOneShell
+// 已证明是合法用法），这一项 config 值恰好相同时不该报冲突——跟 *_ENDPOINT 的
+// "同名同值放过" 是同一条规则。
+func TestResolveConfigVarCollisionSameValueIsFine(t *testing.T) {
+	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+		comp("infra/shell-go-core", "1.0.0", ""),
+		{ID: "mdm/customer", Version: "1.0.7", ServedBy: "infra/shell-go-core@1.0.0",
+			Config: map[string]any{"pgSchema": "customer"}},
+		{ID: "mdm/customer", Version: "2.0.0", ServedBy: "infra/shell-go-core@1.0.0",
+			Config: map[string]any{"pgSchema": "customer"}},
+	}}
+	v1 := simple("mdm/customer", "1.0.7", 8080)
+	v1.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"pgSchema": {Type: "string"}}}
+	v2 := simple("mdm/customer", "2.0.0", 8081)
+	v2.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"pgSchema": {Type: "string"}}}
+
+	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
+		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
+		"mdm/customer@1.0.7":        v1,
+		"mdm/customer@2.0.0":        v2,
+	})
+	require.NoError(t, err, "两个版本这一项 config 值相同，不该报冲突")
+	require.Len(t, groups, 1)
+}
+
+// 同一个外壳收编同一组件的两个版本，这一项 config 值不同时必须报错并点名双方——
+// 这条变量名不含版本号（跟 *_ENDPOINT 一致），两个不同版本给出不同值时，
+// 同一个变量名不可能同时代表两个值。
+func TestResolveConfigVarCollisionDifferentValueErrors(t *testing.T) {
+	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+		comp("infra/shell-go-core", "1.0.0", ""),
+		{ID: "mdm/customer", Version: "1.0.7", ServedBy: "infra/shell-go-core@1.0.0",
+			Config: map[string]any{"pgSchema": "customer_v1"}},
+		{ID: "mdm/customer", Version: "2.0.0", ServedBy: "infra/shell-go-core@1.0.0",
+			Config: map[string]any{"pgSchema": "customer_v2"}},
+	}}
+	v1 := simple("mdm/customer", "1.0.7", 8080)
+	v1.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"pgSchema": {Type: "string"}}}
+	v2 := simple("mdm/customer", "2.0.0", 8081)
+	v2.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"pgSchema": {Type: "string"}}}
+
+	_, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
+		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
+		"mdm/customer@1.0.7":        v1,
+		"mdm/customer@2.0.0":        v2,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "MDM_CUSTOMER_PG_SCHEMA")
 }
 
 // ---- labels：成员自己的不参与合并，只有外壳自己的算数 ----
