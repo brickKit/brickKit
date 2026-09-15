@@ -203,6 +203,19 @@ instead for a `servedBy` component's logs, metrics, or shell access —
 the platform has no mechanism to paper over this, because there
 genuinely isn't a separate container to point at.
 
+**External tools/scripts hitting a component's port directly — you compute
+the address yourself.** A local dev script (a seed-data script, say) or an
+ops tool that needs to bypass a component's business API and hit its
+gRPC/HTTP port directly gets no dedicated platform support for this — and
+doesn't need any, because the formula is exactly the same as for a
+standalone-deployed component: `http://<versioned-service-name>:<the
+component's own declared port>`, detailed in [the overview's "External
+tools connecting to a component's port directly" section](../architecture/overview.md#external-tools-connecting-to-a-components-port-directly).
+The easy trap is carrying over pre-migration habits — locating a container
+by name prefix (a `servedBy` component has no container of its own), or
+assuming the port is published to the host (`expose: true` has no effect
+at all on a `servedBy` member).
+
 ## Conflicts the platform catches for you
 
 All three of these fail `brickkit up` outright, at generation time, rather

@@ -71,6 +71,12 @@ dependencies:
 
 (The comments are in Chinese in the source file, quoted here verbatim rather than translated, since this is meant to be the literal file content.) The four dependency lines map to four environment variable names, each **derived directly from the component ID** (`/` and `-` become `_`, uppercased, with `_ENDPOINT` appended) — no separate variable-name declaration is needed. This is also why BrickKit has no dependency aliasing: once that two-way mapping between variable name and component ID is broken, seeing `IAM_ENDPOINT` no longer tells you which component it points at.
 
+### External tools connecting to a component's port directly
+
+This transformation rule isn't only for the platform's own `*_ENDPOINT` injection. When you write a standalone script or tool — a local dev script, an ops tool, a one-off debugging session, not another BrickKit component — and need to bypass a component's business API to hit its gRPC/HTTP port directly, the address is computed with the exact same rule the platform uses internally: `http://<versioned-service-name>:<the component's own declared port>`. This holds whether the component is currently deployed standalone or merged into a shell via `servedBy` (see the [shell implementer's guide](../patterns/shell-implementers-guide.md)) — the shell container's network alias uses this exact same computed name. An external tool never needs to know or care whether the component is currently merged, or whether it has its own container.
+
+The one precondition: this code has to run inside the Docker network BrickKit manages — for example, `docker run --rm --network <project-network-name> <image> ...` to join it temporarily. Don't assume the component's port is published to the host: `expose: true` only takes effect for a standalone-deployed component — a `servedBy` member is completely unaffected by it, and there is never a `localhost:<port>` to hit.
+
 ## What the platform deliberately doesn't do, and why
 
 | Doesn't do | Why | Symptom if you route around it |
