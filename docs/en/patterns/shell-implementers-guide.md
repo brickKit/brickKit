@@ -62,10 +62,11 @@ where."
   on the list.
 - **`BRICKKIT_SERVED_MEMBERS_CONFIG`** — the detailed counterpart to the
   list above: a JSON array with one element per currently-absorbed member,
-  each carrying `componentId`/`version`/`httpPort`/`extraPorts`/`config`
-  (`config` is that member's own merged configuration, keyed by the
-  original configSchema key — camelCase, not the converted uppercase
-  environment-variable name). Zero members still gives you `[]`, not a
+  each carrying `componentId`/`version`/`httpPort`/`extraPorts`/`configEnvVars`
+  (`configEnvVars` maps that member's own configSchema key — camelCase, not
+  the converted uppercase environment-variable name — to the name of the
+  independent environment variable, in your own process environment, where
+  its actual merged value lives). Zero members still gives you `[]`, not a
   missing variable. This one is for shell authors who actually have to wire
   each module up: no more hand-writing a CLI tool that computes a JSON blob
   before every deployment and pastes it into a string field under some
@@ -75,28 +76,42 @@ where."
   you; it just crash-loops (or wires up the wrong module) the next time the
   shell actually starts.
 
-## What the platform deliberately does not put there
+## What gets merged in, and what doesn't
 
-An absorbed component's own `configSchema`-derived configuration values are
-never flattened into your shell's shared OS environment the way
-`*_ENDPOINT` variables are, and this is not an oversight to work around —
-it's a hard boundary. `*_ENDPOINT` variable names are derived from a
-component ID, so they're guaranteed unique across your whole system; a
-config key like `pgSchema` is not — two independently-authored modules can
-easily reuse the same generic name for two entirely different values, and
-flattening those into one shared process environment would silently let one
-overwrite the other. The values are still available, just in a shape that
-can't collide: `BRICKKIT_SERVED_MEMBERS_CONFIG` above packages them into a
-JSON array keyed by `componentId`, not a flat table of environment
-variables. Resource-connection variables (`DATABASE_*` and friends) never
-appear in that JSON at all — they can carry a secret identity that's
-supposed to go through a K8s Secret, and folding them into a plaintext
-variable would route around that handling. Giving each of your absorbed
-modules its own isolated resource connections is still squarely your job,
-not the platform's — see property 5 below. The platform also never puts
-`COMPONENT_ID` or `COMPONENT_VERSION` for anything but the shell itself
-into that environment, for the same reason: those variable names are fixed
-and would collide the instant you absorb more than one component.
+An absorbed component's own `configSchema`-derived configuration values
+*do* get merged into your shell's shared OS environment — just never under
+the component's own, unprefixed name. Each one lands under
+`{EnvPrefix(componentId)}_{the same uppercase name a standalone deployment
+would use}` — the identical prefix rule `*_ENDPOINT` variables already use.
+A config key like `pgSchema` on its own is not guaranteed unique (two
+independently-authored modules can easily reuse the same generic name for
+two entirely different values), which is exactly why it never appears
+unprefixed; prefixed by component ID, it structurally cannot collide with
+another member's same-named key. `BRICKKIT_SERVED_MEMBERS_CONFIG` above is
+an index into these variables, not a second copy of their values — read
+`configEnvVars[key]` to get the variable *name*, then read that variable
+from your own environment to get the real value. This indirection is
+deliberate: a member's config value in `brickkit.yaml` is frequently a
+`${VAR}` reference to a secret, and brickKit's Docker Compose generation
+deliberately never resolves those itself (the generated file is meant to
+stay safe to open and diff) — the placeholder is left for `docker compose`
+to expand only at container-start time. Packing such a placeholder's
+*value* into a JSON string would let `docker compose`'s own blind,
+structure-unaware text substitution corrupt that JSON the moment the
+placeholder expands into something containing a quote, backslash, or
+newline (a multi-line PEM key, say); keeping each value in its own
+single-purpose environment variable — exactly like a standalone
+component's own config — avoids that entirely.
+
+Resource-connection variables (`DATABASE_*` and friends) still never merge
+in on a member's behalf — they can carry a secret identity that's supposed
+to go through a K8s Secret, and folding them in would route around that
+handling. Giving each of your absorbed modules its own isolated resource
+connections is still squarely your job, not the platform's — see property
+5 below. The platform also never puts `COMPONENT_ID` or `COMPONENT_VERSION`
+for anything but the shell itself into that environment, for the same
+reason: those variable names are fixed and would collide the instant you
+absorb more than one component.
 
 ## Nine properties a merged process must satisfy
 
