@@ -57,6 +57,7 @@ func TestMatchReserved(t *testing.T) {
 		hit     bool
 	}{
 		{"COMPONENT_ID", "COMPONENT_ID", true},
+		{"BRICKKIT_SERVED_MEMBERS_CONFIG", "BRICKKIT_SERVED_MEMBERS_CONFIG", true},
 		{"DEPARTMENT_TREE_ENDPOINT", "*_ENDPOINT", true},
 		{"DATABASE_URL", "DATABASE_*", true},
 		{"SMTP_HOST", "SMTP_*", true},

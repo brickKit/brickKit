@@ -5,6 +5,7 @@ package shell_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -300,6 +301,87 @@ func TestApplyUpsertsEndpointsAndServedMembers(t *testing.T) {
 	assert.Equal(t, "infra/shell-go-core", byName["COMPONENT_ID"], "外壳自己的变量不受影响")
 	assert.Equal(t, "http://infra-database-1-0-0:5432", byName["INFRA_DATABASE_ENDPOINT"])
 	assert.Equal(t, "mdm-customer-1-0-7", byName[shell.EnvVarServedMembers])
+}
+
+// ---- BRICKKIT_SERVED_MEMBERS_CONFIG（brickKit 反馈：两个降低 servedBy
+// 运维摩擦的架构提案，提案一）----
+
+// Resolve 要把每个成员的 extraPorts 与合并后的自身 config（原始 key）
+// 一并存进 Member，供 ServedMembersConfig 使用——这份数据在 inject.Build
+// 阶段已经算好，Resolve 只是把它顺路捎带上，不重新计算。
+func TestResolvePopulatesMemberExtraPortsAndConfig(t *testing.T) {
+	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+		comp("infra/shell-go-core", "1.0.0", ""),
+		{ID: "erp/sales", Version: "1.0.0", ServedBy: "infra/shell-go-core@1.0.0",
+			Config: map[string]any{"pgSchema": "sales"}},
+	}}
+	member := simple("erp/sales", "1.0.0", 8080)
+	member.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9090}}
+	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"pgSchema":        {Type: "string", Default: "public"},
+		"defaultPageSize": {Type: "integer", Default: 20},
+	}}
+
+	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
+		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
+		"erp/sales@1.0.0":           member,
+	})
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+	require.Len(t, groups[0].Members, 1)
+
+	m := groups[0].Members[0]
+	assert.Equal(t, []manifest.ExtraPort{{Name: "grpc", Port: 9090}}, m.ExtraPorts)
+	assert.Equal(t, map[string]string{"pgSchema": "sales", "defaultPageSize": "20"}, m.Config,
+		"覆盖值（pgSchema）与默认值（defaultPageSize）都要进来，原始 key 不是转换后的环境变量名")
+}
+
+func TestServedMembersConfigFormatting(t *testing.T) {
+	g := shell.Group{Members: []shell.Member{
+		{
+			Ref: resolver.Ref{ID: "erp/sales", Version: "1.0.0"}, Port: 8080,
+			ExtraPorts: []manifest.ExtraPort{{Name: "grpc", Port: 9090}},
+			Config:     map[string]string{"pgSchema": "sales"},
+		},
+		{
+			Ref: resolver.Ref{ID: "mdm/customer", Version: "1.0.7"}, Port: 8081,
+			Config: map[string]string{"pgSchema": "customer"},
+		},
+	}}
+
+	var entries []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(g.ServedMembersConfig()), &entries))
+	require.Len(t, entries, 2, "按 componentId 字典序排列")
+
+	assert.Equal(t, "erp/sales", entries[0]["componentId"])
+	assert.Equal(t, "1.0.0", entries[0]["version"])
+	assert.Equal(t, float64(8080), entries[0]["httpPort"])
+	assert.Equal(t, []any{map[string]any{"name": "grpc", "port": float64(9090)}}, entries[0]["extraPorts"])
+	assert.Equal(t, map[string]any{"pgSchema": "sales"}, entries[0]["config"])
+
+	assert.Equal(t, "mdm/customer", entries[1]["componentId"])
+}
+
+func TestServedMembersConfigEmptyWhenNoMembers(t *testing.T) {
+	assert.Equal(t, "[]", shell.Group{}.ServedMembersConfig(),
+		"零个成员时是空数组，不是 null——外壳读到它必须知道'确实是零个'，跟 ServedMembers 空字符串同一个精神")
+}
+
+func TestApplyUpsertsServedMembersConfig(t *testing.T) {
+	g := shell.Group{Members: []shell.Member{
+		{Ref: resolver.Ref{ID: "mdm/customer", Version: "1.0.7"}, Port: 8080, Config: map[string]string{"pgSchema": "customer"}},
+	}}
+
+	out := shell.Apply(nil, g)
+
+	byName := map[string]string{}
+	for _, v := range out {
+		byName[v.Name] = v.Value
+	}
+	var entries []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(byName[shell.EnvVarServedMembersConfig]), &entries))
+	require.Len(t, entries, 1)
+	assert.Equal(t, "mdm/customer", entries[0]["componentId"])
 }
 
 // ---- 同一个外壳收编同一个组件的两个不同版本（版本迁移期间的真实用法：

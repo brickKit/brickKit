@@ -60,23 +60,43 @@ where."
   `.` replaced by `-`), and skip initializing — including skipping its
   migrations and skipping opening its resource connections — any module not
   on the list.
+- **`BRICKKIT_SERVED_MEMBERS_CONFIG`** — the detailed counterpart to the
+  list above: a JSON array with one element per currently-absorbed member,
+  each carrying `componentId`/`version`/`httpPort`/`extraPorts`/`config`
+  (`config` is that member's own merged configuration, keyed by the
+  original configSchema key — camelCase, not the converted uppercase
+  environment-variable name). Zero members still gives you `[]`, not a
+  missing variable. This one is for shell authors who actually have to wire
+  each module up: no more hand-writing a CLI tool that computes a JSON blob
+  before every deployment and pastes it into a string field under some
+  shell component's own `configSchema` in `brickkit.yaml` — that kind of
+  hand-maintained data goes stale the instant a member's version, config
+  values, or `servedBy` membership changes, and the platform won't warn
+  you; it just crash-loops (or wires up the wrong module) the next time the
+  shell actually starts.
 
 ## What the platform deliberately does not put there
 
-An absorbed component's own `configSchema`-derived configuration values and
-its resource-connection variables (`DATABASE_*` and friends) are never
-merged into your shell's environment, and this is not an oversight to work
-around — it's a hard boundary. `*_ENDPOINT` variable names are derived from
-a component ID, so they're guaranteed unique across your whole system; a
+An absorbed component's own `configSchema`-derived configuration values are
+never flattened into your shell's shared OS environment the way
+`*_ENDPOINT` variables are, and this is not an oversight to work around —
+it's a hard boundary. `*_ENDPOINT` variable names are derived from a
+component ID, so they're guaranteed unique across your whole system; a
 config key like `pgSchema` is not — two independently-authored modules can
 easily reuse the same generic name for two entirely different values, and
-merging those into one shared process environment would silently let one
-overwrite the other. Giving each of your absorbed modules its own isolated
-view of its configuration and its own resource connections is squarely your
-job, not the platform's — see property 5 below. The platform also never
-puts `COMPONENT_ID` or `COMPONENT_VERSION` for anything but the shell
-itself into that environment, for the same reason: those variable names
-are fixed and would collide the instant you absorb more than one component.
+flattening those into one shared process environment would silently let one
+overwrite the other. The values are still available, just in a shape that
+can't collide: `BRICKKIT_SERVED_MEMBERS_CONFIG` above packages them into a
+JSON array keyed by `componentId`, not a flat table of environment
+variables. Resource-connection variables (`DATABASE_*` and friends) never
+appear in that JSON at all — they can carry a secret identity that's
+supposed to go through a K8s Secret, and folding them into a plaintext
+variable would route around that handling. Giving each of your absorbed
+modules its own isolated resource connections is still squarely your job,
+not the platform's — see property 5 below. The platform also never puts
+`COMPONENT_ID` or `COMPONENT_VERSION` for anything but the shell itself
+into that environment, for the same reason: those variable names are fixed
+and would collide the instant you absorb more than one component.
 
 ## Nine properties a merged process must satisfy
 

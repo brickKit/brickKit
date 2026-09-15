@@ -61,6 +61,14 @@ type Var struct {
 	// 由注入引擎标记而不是让渲染器按变量名猜：谁生成的谁最清楚哪一条是密码，
 	// 靠 `strings.HasSuffix(name, "_PASSWORD")` 去猜，早晚会漏掉一种资源。
 	SecretKey string
+	// Key 是这条变量对应的原始 configSchema key（驼峰形式），只有
+	// Source 为 SourceConfig/SourceOverride 时才有值。Name 是转换后的
+	// 环境变量名，这条转换是单向的（无法从 DEFAULT_PAGE_SIZE 反推出
+	// defaultPageSize 还是 default_page_size）；servedBy 的
+	// BRICKKIT_SERVED_MEMBERS_CONFIG 需要把合并后的 config 原样交给
+	// 外壳作者，用的是原始 key，所以在算这条变量的地方顺手记一份，
+	// 而不是事后去猜。
+	Key string
 }
 
 // IsSecret 表示这条变量是密码或密钥，不能明文写进部署清单。
@@ -322,7 +330,7 @@ func (b *envBuilder) addConfig(m *manifest.Manifest, entry config.Component) ([]
 			warnings = append(warnings, reservedConflictWarning(b.componentID, key, name, pattern))
 			continue
 		}
-		b.set(Var{Name: name, Value: formatValue(value), Source: source})
+		b.set(Var{Name: name, Value: formatValue(value), Source: source, Key: key})
 	}
 
 	warnings = append(warnings, b.unknownConfigWarnings(m.ConfigSchema, entry.Config)...)

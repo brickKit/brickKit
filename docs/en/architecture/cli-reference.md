@@ -265,6 +265,7 @@ as a fresh install (design/004 §3.5.1).
 | --- | --- | --- |
 | `--dry-run` | off | Generate the deployment files and print the plan (cascade decision, start order, resource-binding warnings, dependency graph) without starting anything. On an upgrade, also prints a summary of what changed |
 | `--context` | (from `deploy.context`) | Override which kubeconfig context to deploy to for this one run. K8s only — meaningless (and rejected) under `deploy.target: docker` |
+| `--ignore-served-by` | off | Clear every `servedBy` declaration in memory and run again — a formerly-absorbed member gets generated and started as a standalone component this time, for machine-checking the design principle that every component must be able to `brickkit up` on its own. Never writes back to `brickkit.yaml`; stack it with `--dry-run` to only inspect the generated output, or run it alone for a real standalone start |
 
 **Example** (real project: `people/basic` depending on `department/tree`, a
 missing optional dependency, and no `resources:` bound yet)
@@ -316,6 +317,7 @@ telling you).
 ```bash
 brickkit up --config brickkit.prod.yaml   # act on a non-default environment file
 brickkit up --context prod-cluster        # target a specific kubeconfig context for this run (k8s only)
+brickkit up --ignore-served-by --dry-run  # verify: can these components still generate standalone without servedBy?
 ```
 
 ---

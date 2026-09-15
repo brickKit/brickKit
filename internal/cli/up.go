@@ -32,8 +32,9 @@ const composeFileName = "docker-compose.yaml"
 // newUpCommand 实现 brickkit up（004 §3.5）。
 func newUpCommand(opts *Options) *cobra.Command {
 	var (
-		dryRun      bool
-		kubeContext string
+		dryRun         bool
+		kubeContext    string
+		ignoreServedBy bool
 	)
 
 	cmd := &cobra.Command{
@@ -59,13 +60,15 @@ func newUpCommand(opts *Options) *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUp(cmd.Context(), opts, upOptions{
-				dryRun: dryRun, kubeContext: kubeContext,
+				dryRun: dryRun, kubeContext: kubeContext, ignoreServedBy: ignoreServedBy,
 			})
 		},
 	}
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "只生成部署文件，不启动（升级时额外输出变更摘要）")
 	cmd.Flags().StringVar(&kubeContext, "context", "", "kubeconfig 上下文，覆盖 deploy.context（仅 deploy.target: k8s）")
+	cmd.Flags().BoolVar(&ignoreServedBy, "ignore-served-by", false,
+		"内存里清空全部 servedBy 声明再跑一次，验证每个组件能否独立启动；不写回 brickkit.yaml")
 	return cmd
 }
 
@@ -110,6 +113,11 @@ type upOptions struct {
 	dryRun bool
 	// kubeContext 是 --context 的值，覆盖 deploy.context。
 	kubeContext string
+	// ignoreServedBy 是 --ignore-served-by 的值：内存里清空全部 servedBy
+	// 声明再跑一次，验证"每个组件必须能独立 brickkit up 起来"这条设计
+	// 原则，从不写回 brickkit.yaml（brickKit 反馈：两个降低 servedBy
+	// 运维摩擦的架构提案，提案二）。
+	ignoreServedBy bool
 }
 
 // runUp 执行 brickkit up。
@@ -165,6 +173,17 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	cfg, err := config.ParseConfigFile(layout.ConfigPath())
 	if err != nil {
 		return nil, err
+	}
+	if flags.ignoreServedBy {
+		// 格式校验已经跑完（ParseConfigFile 内部已做），不会被这一步绕过。
+		// 下游 resolver/shell.Resolve/compose/k8s 全部只读 ServedBy 这一个
+		// 字段，没有任何一处维护自己的派生状态，清空一次就够，不需要逐处
+		// 打补丁。只在内存里改，cfg 从这次 ParseConfigFile 解析出来，从不
+		// 写回磁盘上的 brickkit.yaml。
+		for i := range cfg.Components {
+			cfg.Components[i].ServedBy = ""
+		}
+		opts.Printf("⚠️  已忽略全部 servedBy 声明（仅用于验证组件独立启动能力，不写回 brickkit.yaml）\n")
 	}
 
 	plan := &upPlan{layout: layout, cfg: cfg, kubeContext: contextOf(cfg, flags.kubeContext)}

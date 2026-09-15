@@ -213,7 +213,7 @@ DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
 | 自身配置 | configSchema 驼峰项转大写下划线 | `defaultPageSize` → `DEFAULT_PAGE_SIZE` |
 
 **保留变量保护（两层防御）：** `COMPONENT_ID`、`COMPONENT_VERSION`、
-`BRICKKIT_SERVED_MEMBERS`（精确匹配），`*_ENDPOINT`（后缀匹配），
+`BRICKKIT_SERVED_MEMBERS`、`BRICKKIT_SERVED_MEMBERS_CONFIG`（精确匹配），`*_ENDPOINT`（后缀匹配），
 `DATABASE_*` / `REDIS_*` / `MQ_*` / `STORAGE_*` / `SEARCH_*` /
 `SMTP_*` / `{envPrefix}_*`（前缀匹配）。
 configSchema 里的配置项名转大写后不得与之冲突——**市场在发布时拒绝**，
@@ -306,12 +306,13 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
   迁移容器 / Job。
 - 照常给依赖它的组件算出正确的 `*_ENDPOINT`——地址指向外壳的真实位置，
   端口用的是这个 `servedBy` 组件自己声明的端口。
-- 只把 `*_ENDPOINT` 一类变量合并进外壳的环境——绝不合并
-  `COMPONENT_ID` / `COMPONENT_VERSION`，绝不合并某个组件自己
+- 只把 `*_ENDPOINT` 一类变量摊平合并进外壳共享的操作系统环境——绝不
+  合并 `COMPONENT_ID` / `COMPONENT_VERSION`，绝不合并某个组件自己
   `configSchema` 生成的配置，绝不合并资源连接变量，（见下文）也绝不合并
   `labels`。这些东西本来就不按组件 ID 做命名空间隔离，两个各自独立开发
   的模块很容易撞同一个名字；给每个模块做好隔离是外壳作者自己的事，
-  不是平台的事。
+  不是平台的事。（一个成员合并后的自身配置仍然拿得到，只是不走摊平合并
+  这条路——见下面两条之后的 `BRICKKIT_SERVED_MEMBERS_CONFIG`。）
 - 一个 `servedBy` 成员自己 `component.yaml` 里 `dependencies.resources`
   声明的资源依赖，只要外壳自己的 componentId 已经绑了同一个
   `kind`+`engine` 的资源，就算满足——不需要成员自己在那份资源的
@@ -322,6 +323,15 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
   部署里实际包含的版本化服务名，逗号分隔。合规的外壳可以读它来跳过
   初始化（包括跳过迁移和资源连接）任何编译进来、但不在这份名单上的
   模块——这是可选的，平台从不检查外壳有没有真的照做。
+- 还会写入 `BRICKKIT_SERVED_MEMBERS_CONFIG`（另一个保留变量）：一个
+  JSON 数组，跟上面那份名单里的每个成员一一对应，各自带上
+  `componentId`/`version`/`httpPort`/`extraPorts`/`config`（`config` 是
+  该成员合并后的自身配置，键是原始 configSchema key，不是转换后的
+  `*_ENDPOINT` 风格变量名）。这才是外壳作者真正要装配每个模块所需的
+  数据——没有它，唯一的办法是在每次部署前手算一份等价的 JSON、贴进某个
+  字符串配置项，而这份手工数据只要成员的版本号、config 或 `servedBy`
+  归属一变就会过期，平台不会提醒，只会在下一次真机启动时才表现成
+  crash-loop。零个成员时是 `[]`，不是变量缺失。
 
 `local: true` 不受影响——字段、含义、代码路径都和以前一样；`servedBy`
 是一套完全独立的机制，只是碰巧和它共享"在依赖图里、但不生成工作负载"
@@ -625,6 +635,7 @@ installer:
 brickkit up --config brickkit.prod.yaml           # 多环境
 brickkit up --dry-run                             # 只生成部署文件，供审查
 brickkit up --context prod-cluster                # 本次运行覆盖 deploy.context（仅 k8s）
+brickkit up --ignore-served-by --dry-run          # 验证：去掉 servedBy 之后每个组件还能不能独立起来
 brickkit down --context prod-cluster              # 同样的覆盖，用来关停指定集群
 brickkit add people/basic@1.1.0 --yes             # 非交互（CI/CD）
 brickkit add --local                              # 把本地安装源里的组件一次全部添加

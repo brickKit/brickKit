@@ -235,7 +235,7 @@ DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
 | Own config | configSchema camelCase key → uppercase snake_case | `defaultPageSize` → `DEFAULT_PAGE_SIZE` |
 
 **Reserved-variable protection (two layers of defense):** `COMPONENT_ID`, `COMPONENT_VERSION`,
-`BRICKKIT_SERVED_MEMBERS` (exact match), `*_ENDPOINT` (suffix match), `DATABASE_*` / `REDIS_*` /
+`BRICKKIT_SERVED_MEMBERS`, `BRICKKIT_SERVED_MEMBERS_CONFIG` (exact match), `*_ENDPOINT` (suffix match), `DATABASE_*` / `REDIS_*` /
 `MQ_*` / `STORAGE_*` / `SEARCH_*` / `SMTP_*` / `{envPrefix}_*` (prefix match). A configSchema key, once uppercased, must
 not collide with these — **the marketplace refuses this at publish time**, and **the CLI warns and
 skips that config item at injection time** (the platform-injected value wins).
@@ -346,13 +346,15 @@ ordinary component, with its own image, port, and health check. The platform:
 - Still computes a correct `*_ENDPOINT` for anything depending on it — the
   address points at the shell's actual location, using the `servedBy`
   component's own declared port.
-- Merges only `*_ENDPOINT`-class variables into the shell's environment —
-  never `COMPONENT_ID`/`COMPONENT_VERSION`, never a component's own
-  `configSchema`-derived config, never resource-connection variables, and
-  (see below) never `labels`. None of these are namespaced by component ID,
-  so two independently-authored modules could easily reuse the same name;
-  giving each module its own isolated configuration is the shell author's
-  job, not the platform's.
+- Merges only `*_ENDPOINT`-class variables into the shell's shared,
+  flat OS environment — never `COMPONENT_ID`/`COMPONENT_VERSION`, never a
+  component's own `configSchema`-derived config, never resource-connection
+  variables, and (see below) never `labels`. None of these are namespaced
+  by component ID, so two independently-authored modules could easily
+  reuse the same name; giving each module its own isolated configuration
+  is the shell author's job, not the platform's. (A member's own merged
+  config is still reachable, just not by flat-merging it — see
+  `BRICKKIT_SERVED_MEMBERS_CONFIG` two bullets down.)
 - Treats a `servedBy` member's own resource bindings (`dependencies.resources`
   in its `component.yaml`) as satisfied once the shell's own componentId is
   bound to the same `kind`+`engine` resource — the member doesn't also need
@@ -367,6 +369,17 @@ ordinary component, with its own image, port, and health check. The platform:
   initializing (including skipping migrations and resource connections for)
   any compiled-in module not on the list — this is optional; the platform
   never checks whether a shell actually honors it.
+- Also writes `BRICKKIT_SERVED_MEMBERS_CONFIG` (a reserved variable): a JSON
+  array, one element per member on that same list, each carrying
+  `componentId`/`version`/`httpPort`/`extraPorts`/`config` (`config` is that
+  member's own merged configuration, keyed by the original configSchema key,
+  not the converted `*_ENDPOINT`-style variable name). This is the data a
+  shell author actually needs to wire each module up — without it, the only
+  option was hand-computing an equivalent JSON blob before every deployment
+  and pasting it into a string field, which goes stale the moment a member's
+  version, config, or `servedBy` membership changes and only surfaces as a
+  crash-loop at the next real startup. Empty deployments still get `[]`, not
+  a missing variable.
 
 `local: true` is untouched by this — same field, same meaning, same code
 paths as always; `servedBy` is a wholly separate, independent mechanism that
@@ -703,6 +716,7 @@ overlay / inheritance / merge mechanism** (see §9.9 for why).
 brickkit up --config brickkit.prod.yaml           # multi-environment
 brickkit up --dry-run                             # only generate deployment files, for review
 brickkit up --context prod-cluster                # override deploy.context for this one run (k8s only)
+brickkit up --ignore-served-by --dry-run          # verify every component can still stand alone without servedBy
 brickkit down --context prod-cluster              # same override, for tearing down a specific cluster
 brickkit add people/basic@1.1.0 --yes             # non-interactive (CI/CD)
 brickkit add --local                              # add every component in a local source at once

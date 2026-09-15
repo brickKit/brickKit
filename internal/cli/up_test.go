@@ -7,6 +7,7 @@ package cli
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -366,6 +367,52 @@ func TestUpSkipsServedByComponentInTargetServices(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.ElementsMatch(t, []string{"infra-shell-go-core-1-0-0"}, eng.lastUp(t).Services,
 		"servedBy 成员没有自己的容器，不该出现在启动目标里")
+}
+
+// ---- --ignore-served-by（brickKit 反馈：两个降低 servedBy 运维摩擦的
+// 架构提案，提案二）：内存里清空全部 servedBy 声明再跑一次，验证"每个
+// 组件必须能独立 brickkit up 起来"这条设计原则，不写回 brickkit.yaml ----
+
+// 加了这个 flag，原本被收编的成员要当成独立组件一样启动，出现在引擎的
+// 目标 service 列表里——这正好是 TestUpSkipsServedByComponentInTargetServices
+// 不带这个 flag 时的反面。
+func TestUpIgnoreServedByStartsMemberStandalone(t *testing.T) {
+	f := servedByProject(t)
+	eng := newFakeEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up", "--ignore-served-by")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.ElementsMatch(t, []string{"infra-shell-go-core-1-0-0", "mdm-customer-1-0-7"}, eng.lastUp(t).Services,
+		"--ignore-served-by 之后，mdm/customer 要像从没写过 servedBy 一样独立启动")
+}
+
+// 命中这个 flag 要在输出里留一句提示，跟 --dry-run 现有的提示风格一致，
+// 免得使用者事后忘了这是一次非常规运行、把结果误当成真实的部署形态。
+func TestUpIgnoreServedByPrintsBanner(t *testing.T) {
+	f := servedByProject(t)
+	eng := newFakeEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up", "--ignore-served-by")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "已忽略全部 servedBy 声明")
+}
+
+// 这是一次内存里的验证运行，不是持久化配置的方式——brickkit.yaml 本身
+// 一个字节都不该变（AGENTS.md §9.9：配置即真相，不搞临时覆盖落盘）。
+func TestUpIgnoreServedByDoesNotModifyConfigFile(t *testing.T) {
+	f := servedByProject(t)
+	before, err := os.ReadFile(filepath.Join(f.Dir, "brickkit.yaml"))
+	require.NoError(t, err)
+
+	eng := newFakeEngine()
+	r := runWithEngine(t, eng, f.Dir, "up", "--ignore-served-by")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	after, err := os.ReadFile(filepath.Join(f.Dir, "brickkit.yaml"))
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after))
 }
 
 // 空项目不该去调引擎。

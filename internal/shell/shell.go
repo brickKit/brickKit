@@ -13,6 +13,7 @@
 package shell
 
 import (
+	"encoding/json"
 	"sort"
 	"strings"
 
@@ -29,6 +30,15 @@ import (
 // internal/inject/reserved.go 与 market-server/internal/validator/reserved.go
 // 的 reservedExact 里，任何组件的 configSchema 都不能声明出这个变量名。
 const EnvVarServedMembers = "BRICKKIT_SERVED_MEMBERS"
+
+// EnvVarServedMembersConfig 是外壳容器上"当前实际收编的每个成员，完整的
+// componentId/version/端口/合并后 config"的保留变量名（brickKit 反馈：
+// 两个降低 servedBy 运维摩擦的架构提案，提案一）。跟 BRICKKIT_SERVED_MEMBERS
+// （只有一份名字列表）互补：外壳实现者从这里能拿到装配每个模块所需的
+// 全部数据，不需要再自己维护一份容易过期的手工 JSON（brickkit.yaml 一改
+// 版本号/config/servedBy 归属，那份手工数据就得跟着重新生成，忘了就是
+// 外壳真机启动时才炸）。
+const EnvVarServedMembersConfig = "BRICKKIT_SERVED_MEMBERS_CONFIG"
 
 // SourceServed 标记 BRICKKIT_SERVED_MEMBERS 这条变量的来源，
 // 与 inject.SourceEndpoint 等常量同一用途（--verbose 输出、排障）。
@@ -50,6 +60,12 @@ type Member struct {
 	Ref resolver.Ref
 	// Port 是该组件自己 component.yaml 声明的 deployment.port。
 	Port int
+	// ExtraPorts 是该组件自己 component.yaml 声明的 deployment.extraPorts。
+	ExtraPorts []manifest.ExtraPort
+	// Config 是该组件合并后的自身配置：原始 configSchema key（驼峰形式，
+	// 不是转换后的环境变量名）→ 值，来自 inject.Build 已经算好的结果
+	// （inject.Var.Key），不重新计算。用于 BRICKKIT_SERVED_MEMBERS_CONFIG。
+	Config map[string]string
 }
 
 // MemberLabels 返回一个 servedBy 成员自己声明的 labels（component.yaml 的
@@ -80,6 +96,61 @@ func (g Group) ServedMembers() string {
 	return strings.Join(names, ",")
 }
 
+// servedMemberExtraPort 是 ServedMembersConfig JSON 里一个成员的额外端口。
+// 独立于 manifest.ExtraPort：后者只有 yaml 标签，直接编码会得到大写字段名。
+type servedMemberExtraPort struct {
+	Name string `json:"name"`
+	Port int    `json:"port"`
+}
+
+// servedMemberConfigEntry 是 BRICKKIT_SERVED_MEMBERS_CONFIG JSON 数组里的
+// 一个元素。
+//
+// 刻意不包含的两类数据：
+//   - configSchema 本身（字段类型、默认值定义）——外壳作者编译时就知道
+//     自己模块的 schema，这部分不会过期，带上只是净增负载，不解决任何
+//     实际问题（真正会过期的只有下面这些值）；
+//   - 资源连接变量（DATABASE_* 等）——这些可能标了 inject.Var.SecretKey，
+//     该走 K8s Secret（005 §5.6），混进这条明文 JSON 会绕开那层处理。
+//     而且提案本身要的也只是"把已经算好的 config 数据交出来"。
+type servedMemberConfigEntry struct {
+	ComponentID string                  `json:"componentId"`
+	Version     string                  `json:"version"`
+	HTTPPort    int                     `json:"httpPort"`
+	ExtraPorts  []servedMemberExtraPort `json:"extraPorts"`
+	Config      map[string]string       `json:"config"`
+}
+
+// ServedMembersConfig 返回这个外壳该写进 BRICKKIT_SERVED_MEMBERS_CONFIG 的
+// JSON 值：每个当前收编成员的 componentId/version/端口/合并后 config，
+// 按 componentId 字典序排列。零个成员时是 "[]"，不是 "null"——跟
+// ServedMembers 的空字符串同一个精神：外壳读到它必须能区分"零个成员"和
+// "变量不存在"，不能把前者误当成后者去回退成全部初始化。
+func (g Group) ServedMembersConfig() string {
+	entries := make([]servedMemberConfigEntry, 0, len(g.Members))
+	for _, m := range g.Members {
+		ports := make([]servedMemberExtraPort, 0, len(m.ExtraPorts))
+		for _, p := range m.ExtraPorts {
+			ports = append(ports, servedMemberExtraPort{Name: p.Name, Port: p.Port})
+		}
+		cfg := m.Config
+		if cfg == nil {
+			cfg = map[string]string{}
+		}
+		entries = append(entries, servedMemberConfigEntry{
+			ComponentID: m.Ref.ID, Version: m.Ref.Version, HTTPPort: m.Port,
+			ExtraPorts: ports, Config: cfg,
+		})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].ComponentID < entries[j].ComponentID })
+
+	// entries 全部由 string/int/slice/map[string]string 拼成，没有 channel、
+	// func 这类 json 编不了的类型，也没有自定义 MarshalJSON 会出岔子——
+	// 这里的 err 结构性地不可能非 nil。
+	out, _ := json.Marshal(entries)
+	return string(out)
+}
+
 // Apply 把这个外壳分组合并进外壳自己已经算好的环境变量：先放外壳自己的，
 // 再把 Group.Env 与 BRICKKIT_SERVED_MEMBERS 逐个 upsert 进去（同名覆盖，
 // 不存在则追加），按变量名排序返回，保证生成物稳定可比对。
@@ -96,6 +167,9 @@ func Apply(shellEnv []inject.Var, g Group) []inject.Var {
 	}
 	byName[EnvVarServedMembers] = inject.Var{
 		Name: EnvVarServedMembers, Value: g.ServedMembers(), Source: SourceServed,
+	}
+	byName[EnvVarServedMembersConfig] = inject.Var{
+		Name: EnvVarServedMembersConfig, Value: g.ServedMembersConfig(), Source: SourceServed,
 	}
 
 	out := make([]inject.Var, 0, len(byName))
@@ -168,7 +242,11 @@ func Resolve(
 		if _, seen := byShell[target]; !seen {
 			order = append(order, target)
 		}
-		byShell[target] = append(byShell[target], Member{Ref: ref, Port: node.Manifest.Deployment.Port})
+		byShell[target] = append(byShell[target], Member{
+			Ref: ref, Port: node.Manifest.Deployment.Port,
+			ExtraPorts: node.Manifest.Deployment.ExtraPorts,
+			Config:     memberConfig(envByRef[ref]),
+		})
 	}
 
 	sort.Slice(order, func(i, j int) bool { return order[i].String() < order[j].String() })
@@ -188,6 +266,21 @@ func Resolve(
 		groups = append(groups, Group{Shell: shellRef, Members: members, Env: mergedEnv})
 	}
 	return groups, nil
+}
+
+// memberConfig 从一个成员已经算好的注入结果里，挑出 SourceConfig/
+// SourceOverride 这两类变量，还原成"原始 key → 值"，供
+// BRICKKIT_SERVED_MEMBERS_CONFIG 使用。不重新跑一遍 addConfig 那套合并
+// 逻辑——inject.Build 早就把默认值/覆盖值都算好了，这里只是换一种形状
+// 把它交出去。
+func memberConfig(env inject.Component) map[string]string {
+	cfg := map[string]string{}
+	for _, v := range env.Env {
+		if v.Source == inject.SourceConfig || v.Source == inject.SourceOverride {
+			cfg[v.Key] = v.Value
+		}
+	}
+	return cfg
 }
 
 // checkPortConflicts 校验外壳自己的端口 + 全部成员的端口互不冲突——它们

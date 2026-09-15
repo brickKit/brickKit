@@ -118,6 +118,23 @@ func envOf(t *testing.T, r *inject.Result, id string) map[string]string {
 	return nil
 }
 
+// varOf 取某个组件某一条环境变量的完整 Var（不止值，含 Source/Key）。
+func varOf(t *testing.T, r *inject.Result, id, name string) inject.Var {
+	t.Helper()
+	for _, c := range r.Components {
+		if c.Ref.ID != id {
+			continue
+		}
+		for _, v := range c.Env {
+			if v.Name == name {
+				return v
+			}
+		}
+	}
+	require.Failf(t, "结果里没有该变量", "%s 的 %s", id, name)
+	return inject.Var{}
+}
+
 // simple 造一个最简单的组件 Manifest。
 func simple(id, version string, port int) *manifest.Manifest {
 	return &manifest.Manifest{
@@ -278,6 +295,48 @@ func TestConfigDefaultsAndOverrides(t *testing.T) {
 	assert.Equal(t, "50", env["DEFAULT_PAGE_SIZE"], "11.7：覆盖值优先")
 	assert.Equal(t, "false", env["ENABLE_AUDIT"], "11.7：false 也是有效覆盖，不能当成没写")
 	assert.Equal(t, "300", env["CACHE_TTL_SECONDS"], "11.8：没覆盖的用默认值")
+}
+
+// Var.Key 要记住原始 configSchema key（驼峰形式），不只是转换后的环境变量名——
+// servedBy 的 BRICKKIT_SERVED_MEMBERS_CONFIG（提案一）要把合并后的 config
+// 原样交给外壳作者，用的就是这个原始 key，不是转换后的大写下划线名。
+func TestConfigVarRecordsOriginalKeyForOverride(t *testing.T) {
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"defaultPageSize": {Type: "integer", Default: 20},
+	}}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{Config: map[string]any{"defaultPageSize": 50}})
+
+	v := varOf(t, b.build(), "people/basic", "DEFAULT_PAGE_SIZE")
+	assert.Equal(t, "defaultPageSize", v.Key)
+	assert.Equal(t, inject.SourceOverride, v.Source)
+}
+
+func TestConfigVarRecordsOriginalKeyForDefault(t *testing.T) {
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"cacheTtlSeconds": {Type: "integer", Default: 300},
+	}}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{})
+
+	v := varOf(t, b.build(), "people/basic", "CACHE_TTL_SECONDS")
+	assert.Equal(t, "cacheTtlSeconds", v.Key, "默认值（SourceConfig）同样要记原始 key，不只是覆盖值")
+}
+
+// 非 config 来源的变量（依赖地址、资源连接、平台变量）不是靠某个 configSchema
+// key 转换出来的，Key 该保持空——不能误导外壳作者以为它对应一个 config 项。
+func TestNonConfigVarsHaveNoKey(t *testing.T) {
+	m := simple("people/basic", "1.0.0", 8080)
+
+	b := newBuilder(t)
+	b.component(m, config.Component{})
+
+	v := varOf(t, b.build(), "people/basic", "COMPONENT_ID")
+	assert.Empty(t, v.Key)
 }
 
 // 11.17 驼峰转大写下划线。
@@ -622,11 +681,12 @@ func TestReservedConflictSuggestionActuallyAvoidsThePattern(t *testing.T) {
 func TestReservedPatternsCoverPlatformAndResourceVariables(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"componentId":           {Default: "冒充组件 ID"},
-		"databaseHost":          {Default: "冒充数据库地址"},
-		"redisPort":             {Default: 1234},
-		"smtpUser":              {Default: "x"},
-		"brickkitServedMembers": {Default: "冒充外壳收编列表"},
+		"componentId":                 {Default: "冒充组件 ID"},
+		"databaseHost":                {Default: "冒充数据库地址"},
+		"redisPort":                   {Default: 1234},
+		"smtpUser":                    {Default: "x"},
+		"brickkitServedMembers":       {Default: "冒充外壳收编列表"},
+		"brickkitServedMembersConfig": {Default: "冒充外壳收编成员配置"},
 	}}
 
 	b := newBuilder(t)
@@ -640,7 +700,8 @@ func TestReservedPatternsCoverPlatformAndResourceVariables(t *testing.T) {
 	assert.NotContains(t, env, "REDIS_PORT")
 	assert.NotContains(t, env, "SMTP_USER")
 	assert.NotContains(t, env, "BRICKKIT_SERVED_MEMBERS", "组件自己的配置不能冒充这个平台保留变量")
-	assert.Len(t, result.Warnings, 5, "五个冲突各有一条警告")
+	assert.NotContains(t, env, "BRICKKIT_SERVED_MEMBERS_CONFIG", "同上，这条也是精确匹配的保留变量")
+	assert.Len(t, result.Warnings, 6, "六个冲突各有一条警告")
 }
 
 // envPrefix 是使用者在 brickkit.yaml 里定的，市场发布时无从校验，

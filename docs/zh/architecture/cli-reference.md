@@ -238,6 +238,7 @@ Manifest 和产物，跑一遍跟全新安装一样的兼容性检查（004 §3.
 | --- | --- | --- |
 | `--dry-run` | 关闭 | 只生成部署文件并打印计划（启停判定、启动顺序、资源绑定警告、依赖图），不启动任何东西。升级场景下还会额外打印一份变更摘要 |
 | `--context` | （取 `deploy.context`） | 本次运行覆盖要部署到哪个 kubeconfig 上下文。仅 k8s 有意义——`deploy.target: docker` 下写这个参数会被拒绝 |
+| `--ignore-served-by` | 关闭 | 内存里清空全部 `servedBy` 声明再跑一次，原本被收编的成员这次当独立组件生成、启动——用来机器化验证"每个组件必须能独立 `brickkit up` 起来"这条设计原则。从不写回 `brickkit.yaml`，可以跟 `--dry-run` 叠加（只看生成结果）也可以单独用（真实启动一遍）|
 
 **示例**（真实项目：`people/basic` 依赖 `department/tree`，有一个缺失的
 弱依赖，还没绑定任何 `resources:`）
@@ -288,6 +289,7 @@ AGENTS.zh.md §5.4 说的"每一条启停决定都带着理由"这条性质。�
 ```bash
 brickkit up --config brickkit.prod.yaml   # 对非默认环境的配置文件生效
 brickkit up --context prod-cluster        # 本次运行指定某个 kubeconfig 上下文（仅 k8s）
+brickkit up --ignore-served-by --dry-run  # 验证：去掉 servedBy 之后这些组件还能不能各自独立生成部署文件
 ```
 
 ---
