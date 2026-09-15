@@ -31,13 +31,17 @@ import (
 // 的 reservedExact 里，任何组件的 configSchema 都不能声明出这个变量名。
 const EnvVarServedMembers = "BRICKKIT_SERVED_MEMBERS"
 
-// EnvVarServedMembersConfig 是外壳容器上"当前实际收编的每个成员，完整的
-// componentId/version/端口/合并后 config"的保留变量名（brickKit 反馈：
-// 两个降低 servedBy 运维摩擦的架构提案，提案一）。跟 BRICKKIT_SERVED_MEMBERS
-// （只有一份名字列表）互补：外壳实现者从这里能拿到装配每个模块所需的
-// 全部数据，不需要再自己维护一份容易过期的手工 JSON（brickkit.yaml 一改
-// 版本号/config/servedBy 归属，那份手工数据就得跟着重新生成，忘了就是
-// 外壳真机启动时才炸）。
+// EnvVarServedMembersConfig 是外壳容器上"当前实际收编的每个成员，
+// componentId/version/端口，以及每一项 config 对应的环境变量名"的保留
+// 变量名（brickKit 反馈：两个降低 servedBy 运维摩擦的架构提案，提案一；
+// JSON 形状定稿见 docs/superpowers/specs/2026-09-16-servedby-config-env-vars-design.md）。
+// 跟 BRICKKIT_SERVED_MEMBERS（只有一份名字列表）互补：外壳实现者从这里
+// 能拿到装配每个模块所需的索引信息，不需要再自己维护一份容易过期的手工
+// JSON。**这份 JSON 不携带 config 的值本身**——每个值都在外壳环境里
+// 独立成一条带组件 ID 前缀的变量（mergeGroup 负责合并），这里只给"这个
+// key 对应哪个变量名"，避免密钥类 config 值（常以未展开的 ${VAR} 占位符
+// 形式存在）被塞进这条 JSON 字符串内部、被 docker compose 自己的全文本
+// ${VAR} 替换撑坏结构。
 const EnvVarServedMembersConfig = "BRICKKIT_SERVED_MEMBERS_CONFIG"
 
 // SourceServed 标记 BRICKKIT_SERVED_MEMBERS 这条变量的来源，
@@ -113,12 +117,20 @@ type servedMemberExtraPort struct {
 //   - 资源连接变量（DATABASE_* 等）——这些可能标了 inject.Var.SecretKey，
 //     该走 K8s Secret（005 §5.6），混进这条明文 JSON 会绕开那层处理。
 //     而且提案本身要的也只是"把已经算好的 config 数据交出来"。
+//
+// ConfigEnvVars 携带的是变量名，不是值——member.Ref.ID 与原始 config key
+// 拼出来的那条独立环境变量（mergeGroup 已经把它并入 Group.Env）才是真正
+// 的值所在，外壳读这份 JSON 拿变量名，再去自己的进程环境读值。这样即使
+// 某个成员的 config 值本身还是未展开的 ${VAR} 占位符（密钥类配置的标准
+// 写法），也不会被塞进这条 JSON 字符串内部——那正是 docker compose 自己
+// 的全文本 ${VAR} 替换会撑坏 JSON 结构的根源，见
+// docs/superpowers/specs/2026-09-16-servedby-config-env-vars-design.md。
 type servedMemberConfigEntry struct {
-	ComponentID string                  `json:"componentId"`
-	Version     string                  `json:"version"`
-	HTTPPort    int                     `json:"httpPort"`
-	ExtraPorts  []servedMemberExtraPort `json:"extraPorts"`
-	Config      map[string]string       `json:"config"`
+	ComponentID   string                  `json:"componentId"`
+	Version       string                  `json:"version"`
+	HTTPPort      int                     `json:"httpPort"`
+	ExtraPorts    []servedMemberExtraPort `json:"extraPorts"`
+	ConfigEnvVars map[string]string       `json:"configEnvVars"`
 }
 
 // ServedMembersConfig 返回这个外壳该写进 BRICKKIT_SERVED_MEMBERS_CONFIG 的
@@ -133,13 +145,14 @@ func (g Group) ServedMembersConfig() string {
 		for _, p := range m.ExtraPorts {
 			ports = append(ports, servedMemberExtraPort{Name: p.Name, Port: p.Port})
 		}
-		cfg := m.Config
-		if cfg == nil {
-			cfg = map[string]string{}
+		prefix := manifest.EnvPrefix(m.Ref.ID)
+		configEnvVars := make(map[string]string, len(m.Config))
+		for key := range m.Config {
+			configEnvVars[key] = prefix + "_" + inject.EnvVarName(key)
 		}
 		entries = append(entries, servedMemberConfigEntry{
 			ComponentID: m.Ref.ID, Version: m.Ref.Version, HTTPPort: m.Port,
-			ExtraPorts: ports, Config: cfg,
+			ExtraPorts: ports, ConfigEnvVars: configEnvVars,
 		})
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].ComponentID < entries[j].ComponentID })

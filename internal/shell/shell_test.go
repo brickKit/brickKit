@@ -440,9 +440,35 @@ func TestServedMembersConfigFormatting(t *testing.T) {
 	assert.Equal(t, "1.0.0", entries[0]["version"])
 	assert.Equal(t, float64(8080), entries[0]["httpPort"])
 	assert.Equal(t, []any{map[string]any{"name": "grpc", "port": float64(9090)}}, entries[0]["extraPorts"])
-	assert.Equal(t, map[string]any{"pgSchema": "sales"}, entries[0]["config"])
+	assert.Equal(t, map[string]any{"pgSchema": "ERP_SALES_PG_SCHEMA"}, entries[0]["configEnvVars"],
+		"携带的是算出来的变量名，不是原始值——外壳去读那条独立变量，不从 JSON 里抠值")
 
 	assert.Equal(t, "mdm/customer", entries[1]["componentId"])
+	assert.Equal(t, map[string]any{"pgSchema": "MDM_CUSTOMER_PG_SCHEMA"}, entries[1]["configEnvVars"])
+}
+
+// 直接的回归测试：就算某个成员的 config 值本身还是未展开的 ${VAR} 占位符
+// （brickkit up 那个进程查不到这个环境变量、只在 .env 里有时，就会是这个
+// 样子——见 config.ExpandEnv），BRICKKIT_SERVED_MEMBERS_CONFIG 的 JSON 里
+// 也不该出现这段文本——这正是撑坏 JSON 那个 bug 的根源。
+func TestServedMembersConfigNeverEmbedsRawPlaceholderText(t *testing.T) {
+	g := shell.Group{Members: []shell.Member{
+		{
+			Ref: resolver.Ref{ID: "infra/iam-casdoor", Version: "1.0.0"}, Port: 8080,
+			Config: map[string]string{"appTokenSigningKeyPem": "${APP_TOKEN_SIGNING_KEY_PEM}"},
+		},
+	}}
+
+	out := g.ServedMembersConfig()
+
+	assert.NotContains(t, out, "${",
+		"值本身是不是 ${VAR} 占位符不该影响 JSON 是否合法——JSON 里现在只装变量名")
+
+	var entries []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(out), &entries))
+	configEnvVars, ok := entries[0]["configEnvVars"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "INFRA_IAM_CASDOOR_APP_TOKEN_SIGNING_KEY_PEM", configEnvVars["appTokenSigningKeyPem"])
 }
 
 func TestServedMembersConfigEmptyWhenNoMembers(t *testing.T) {
