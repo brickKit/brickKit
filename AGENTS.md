@@ -353,19 +353,17 @@ the Docker network:
   parse config string contents, so switching that component to `local: true` doesn't retarget the
   literal to a host-reachable address — the developer has to edit it themselves (typically to
   `localhost`)
-- A dependency that's a `servedBy` member (§5.7) has no host-reachable address at all: it has no
-  container of its own for the CLI to map a port on, and `local: true`/`servedBy` deliberately don't
-  share an implementation path (mixing them was judged more likely to cause "changing local's logic
-  broke servedBy" accidents than to save the small amount of code a shared path would save). Both
-  the dependency's main-port and extra-port `*_ENDPOINT` variables keep their container-network
-  value in `local-debug.<service>.env`, and `brickkit up` warns about each one by name (component,
-  dependency, and which shell it's merged into) rather than staying silent about an address that
-  will never be reachable from the host. Reaching it anyway means a temporary, hand-added `ports:`
-  mapping on the shell's own compose service (drop it before committing — the shell's own
-  `brickkit.yaml` entry never declares this). Before this was fixed, the extra-port variable didn't
-  even fail loudly: it silently guessed a `localhost:<port>` value that looked entirely plausible
-  and simply had nothing listening behind it (brickKit feedback: local component addresses go
-  wrong when depending on a servedBy member)
+- A dependency that's a `servedBy` member (§5.7) has no compose service of its own — its host-port
+  mapping gets opened on its **shell's** compose service instead, using the member's own declared
+  port (the same port the shell is already required to listen on: `checkPortConflicts` in
+  `internal/shell/shell.go` validates this at generation time, and it's the same assumption the K8s
+  renderer already relies on to route `*_ENDPOINT` addresses into a shell — nothing new is being
+  assumed about shell internals here). Both the dependency's main-port and extra-port `*_ENDPOINT`
+  variables in `local-debug.<service>.env` resolve to a real `http://localhost:<port>`, exactly like
+  an ordinary dependency. Before this was fixed, the extra-port variable didn't even fail loudly: it
+  silently guessed a `localhost:<port>` value that looked entirely plausible and had nothing
+  listening behind it (brickKit feedback: local component addresses go wrong when depending on a
+  servedBy member)
 
 ### 5.7 Consolidated deployment (`servedBy`)
 
@@ -1025,7 +1023,7 @@ hit:
 | `local: true` and the caller keeps getting 503 | The process's actual listening port doesn't match `localPort` |
 | A `local: true` component reports `relation does not exist` | Local components don't generate a migration container; you have to run the migration by hand once |
 | A `local: true` component's own config still points at `host.docker.internal` for some out-of-band dependency | That's a string literal the user wrote; brickKit doesn't parse config values, so it doesn't get rewritten when the component becomes `local: true`. Edit that literal yourself (usually to `localhost`) |
-| A `local: true` component depends on a `servedBy` member and its `*_ENDPOINT` is unreachable | Expected today — that dependency has no container of its own to map a host port onto. `up` warns about it by name; the only workaround is a temporary, hand-added `ports:` mapping on the shell's own compose service (§5.6) |
+| A `local: true` component depends on a `servedBy` member | Works: its `*_ENDPOINT` resolves to a real `localhost:<port>` — the CLI opens the mapping on the shell's compose service, since the member has none of its own (§5.6) |
 | Discussing signing | The publisher needs **cosign** installed; **the installer doesn't** (verification uses the Go standard library) |
 | The user wants the platform to help with security review | Install implies trust. The platform only steps in after the fact with `blocked` |
 | A user asks "can I merge multiple components into one instance to save memory" | First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation (§2.15 of the architecture rationale). If they still want to merge: **`servedBy` (§5.7) is the supported path** — it handles address routing correctly on both Docker and K8s; everything else (module isolation, config, migrations ordering inside the shell) is still their own code, see the shell implementer's guide. `enabled: false` is unrelated to this — it still can't be used as a "I'm taking this over myself" switch |

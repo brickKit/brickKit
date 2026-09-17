@@ -1,6 +1,7 @@
 // 本文件测试 servedBy（外壳合并部署）在 Docker 目标下的渲染，覆盖
 // servedBy 设计书 §6-§8。local: true 的既有行为不受影响，回归覆盖见
-// TestLocalStillWorksAlongsideServedBy。
+// TestLocalStillWorksAlongsideServedBy；local 组件依赖 servedBy 成员时的
+// 宿主机端口映射，见文件末尾 "local: true 依赖 servedBy 成员" 一节。
 package compose_test
 
 import (
@@ -265,16 +266,19 @@ func TestServedByMemberDependencyGetsDependsOn(t *testing.T) {
 	assert.Equal(t, "service_healthy", dep["condition"], "等外壳健康，因为外壳有健康检查")
 }
 
-// ---- local: true 依赖 servedBy 成员：没有宿主机连通性 ----
+// ---- local: true 依赖 servedBy 成员：映射到外壳身上的宿主机端口 ----
 //
 // brickKit 反馈：local 组件依赖 servedBy 成员时本地调试地址错误。
 // mapDependencyToHost 对 servedBy 成员整个 return（它没有自己的 compose
 // service block），额外端口那条路径从前误把这当成"依赖也是 local"的唯一
-// 剩余情况，凭空拼出一个 localhost:<声明端口>——宿主机上根本没人监听，
-// 而主端口那条路径本来就已经是"查不到就不改"，两条路径处理不一致正是
-// bug 的根因。
+// 剩余情况，凭空拼出一个 localhost:<声明端口>——宿主机上根本没人监听。
+//
+// 现在 mapDependencyToHost 认得出这是一个 servedBy 成员，把宿主机端口
+// 映射发布到它的外壳身上——外壳容器本来就要在这个端口上监听（成员自己
+// 声明的端口），这是 internal/shell/shell.go 的 checkPortConflicts 已经
+// 校验过的不变量，不是这里凭空新增的假设。
 
-func TestLocalDependencyOnServedByMemberKeepsContainerAddress(t *testing.T) {
+func TestLocalDependencyOnServedByMemberGetsHostPortOnShell(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
 	b.component(withExtraPort(simple("mdm/customer", "1.0.9", 8080), "grpc", 9090),
@@ -283,35 +287,71 @@ func TestLocalDependencyOnServedByMemberKeepsContainerAddress(t *testing.T) {
 		config.Component{Local: true, LocalPort: 8081})
 
 	result := b.generate()
+	doc := docOf(t, result)
 	env := localEnv(t, result, "infra-bff-mobile-1-0-19")
+	shellPorts := portsOf(t, serviceOf(t, doc, "infra-shell-go-core-1-0-0"))
 
-	// 两条路径现在一致：查不到宿主机映射就不改，保留容器形式的取值——
-	// 至少诚实地"连不上"，而不是伪装成一个看起来对、实际没人监听的 localhost 地址。
-	assert.Equal(t, "http://mdm-customer-1-0-9:8080", env["MDM_CUSTOMER_ENDPOINT"])
-	assert.Equal(t, "http://mdm-customer-1-0-9:9090", env["MDM_CUSTOMER_GRPC_ENDPOINT"])
+	assert.Equal(t, "http://localhost:18080", env["MDM_CUSTOMER_ENDPOINT"])
+	assert.Equal(t, "http://localhost:19090", env["MDM_CUSTOMER_GRPC_ENDPOINT"])
+	// 端口映射发布在外壳身上——mdm/customer 自己没有 compose service，
+	// 没有地方可以发布这条 ports:。
+	assert.ElementsMatch(t, []string{"18080:8080", "19090:9090"}, shellPorts)
+	assert.NotContains(t, servicesOf(t, doc), "mdm-customer-1-0-9",
+		"servedBy 成员依旧不生成自己的 service")
 }
 
-func TestLocalDependencyOnServedByMemberWarns(t *testing.T) {
+// 两个不同的 local 组件依赖同一个 servedBy 成员：只应该映射、发布一次，
+// 不能在外壳的 ports: 列表里重复出现同一条。
+func TestLocalDependencyOnServedByMemberIsMappedOnceForMultipleLocalCallers(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
 	b.component(simple("mdm/customer", "1.0.9", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 	b.component(dependsOn(simple("infra/bff-mobile", "1.0.19", 8080), "mdm/customer", "1.0.9"),
 		config.Component{Local: true, LocalPort: 8081})
+	b.component(dependsOn(simple("infra/bff-web", "1.0.0", 8080), "mdm/customer", "1.0.9"),
+		config.Component{Local: true, LocalPort: 8082})
 
 	result := b.generate()
+	doc := docOf(t, result)
+	mobileEnv := localEnv(t, result, "infra-bff-mobile-1-0-19")
+	webEnv := localEnv(t, result, "infra-bff-web-1-0-0")
+	shellPorts := portsOf(t, serviceOf(t, doc, "infra-shell-go-core-1-0-0"))
 
-	warnings := joinWarnings(result.Warnings)
-	assert.Contains(t, warnings, "infra/bff-mobile", "要点名是哪个 local 组件")
-	assert.Contains(t, warnings, "mdm/customer", "要点名是哪个依赖")
-	assert.Contains(t, warnings, "infra/shell-go-core", "要点名依赖被收编进了哪个外壳")
+	assert.Equal(t, "http://localhost:18080", mobileEnv["MDM_CUSTOMER_ENDPOINT"])
+	assert.Equal(t, "http://localhost:18080", webEnv["MDM_CUSTOMER_ENDPOINT"],
+		"两个调用方共享同一个宿主机端口，不应该各分配一个")
+	assert.Equal(t, []string{"18080:8080"}, shellPorts, "只应该发布一条，不能重复")
 }
 
-// 依赖既不是 local 也不是 servedBy 成员时，这条警告不该出现——回归覆盖，
-// 避免以后改动误伤普通依赖。
-func TestLocalDependencyOnOrdinaryComponentDoesNotWarnAboutServedBy(t *testing.T) {
-	b := localProject(t, config.Component{Local: true, LocalPort: 8081})
+// 同一个外壳收编了两个不同的成员，各自被 local 组件依赖：两个成员各自
+// 声明的端口都要单独映射、单独发布，互不覆盖。
+func TestLocalDependenciesOnDifferentServedByMembersOfSameShellGetDistinctPorts(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("mdm/customer", "1.0.9", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
+	b.component(simple("erp/sales", "2.0.0", 8081), servedByEntry("infra/shell-go-core", "1.0.0"))
+	b.component(dependsOn(simple("infra/bff-mobile", "1.0.19", 8080), "mdm/customer", "1.0.9"),
+		config.Component{Local: true, LocalPort: 8082})
+	b.component(dependsOn(simple("erp/legacy-caller", "1.0.0", 8080), "erp/sales", "2.0.0"),
+		config.Component{Local: true, LocalPort: 8083})
 
 	result := b.generate()
+	doc := docOf(t, result)
+	shellPorts := portsOf(t, serviceOf(t, doc, "infra-shell-go-core-1-0-0"))
 
-	assert.NotContains(t, joinWarnings(result.Warnings), "servedBy 合并进了外壳")
+	assert.Equal(t, "http://localhost:18080", localEnv(t, result, "infra-bff-mobile-1-0-19")["MDM_CUSTOMER_ENDPOINT"])
+	assert.Equal(t, "http://localhost:18081", localEnv(t, result, "erp-legacy-caller-1-0-0")["ERP_SALES_ENDPOINT"])
+	assert.ElementsMatch(t, []string{"18080:8080", "18081:8081"}, shellPorts)
+}
+
+// 依赖既不是 local 也不是 servedBy 成员时，外壳不该被平白发布端口——
+// 回归覆盖，避免以后改动误伤普通场景。
+func TestShellWithoutLocalDependentsPublishesNoExtraPorts(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("mdm/customer", "1.0.9", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
+
+	svc := serviceOf(t, b.parsed(), "infra-shell-go-core-1-0-0")
+
+	assert.Empty(t, portsOf(t, svc))
 }

@@ -190,7 +190,19 @@ type plan struct {
 	debugPort      map[string]int
 	debugExtraPort map[string]map[int]int
 
+	// shellMemberHostPorts 是"外壳自己的 service 名 → 还要额外发布哪些端口"。
+	// 这些映射不是外壳自己的端口，而是它某个 servedBy 成员的端口——成员
+	// 没有自己的 compose service，映射只能落在外壳身上（详见 local.go
+	// mapDependencyToHost）。
+	shellMemberHostPorts map[string][]hostPortMapping
+
 	warnings []*clierr.Error
+}
+
+// hostPortMapping 是一条"宿主机端口 → 容器端口"映射。
+type hostPortMapping struct {
+	hostPort      int
+	containerPort int
 }
 
 func newPlan(
@@ -206,6 +218,8 @@ func newPlan(
 		debugPort:      map[string]int{},
 		debugExtraPort: map[string]map[int]int{},
 		shellAliases:   map[string][]string{},
+
+		shellMemberHostPorts: map[string][]hostPortMapping{},
 	}
 
 	entries := map[resolver.Ref]config.Component{}
@@ -281,7 +295,6 @@ func newPlan(
 	p.warnings = append(p.warnings, p.localMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.localExposeWarnings()...)
 	p.warnings = append(p.warnings, p.localLabelWarnings()...)
-	p.warnings = append(p.warnings, p.localServedByDependencyWarnings()...)
 	p.warnings = append(p.warnings, p.servedMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.servedHealthCheckWarnings()...)
 	p.warnings = append(p.warnings, p.servedUnsupportedFieldWarnings()...)

@@ -182,6 +182,15 @@ a special case that opts out of it:
   componentId just to satisfy `brickkit up`'s check. The real connection env
   vars only ever land in the shell's container regardless of which
   componentId the binding names.
+- **A `local: true` component's outbound reach to this member**: if a
+  component running in `local: true` debug mode depends on a `servedBy`
+  member, its `*_ENDPOINT` variables in `local-debug.<service>.env` resolve
+  to a real, host-reachable `localhost:<port>` — the CLI opens the mapping
+  on the **shell's** own compose service (the member has none of its own),
+  using the member's own declared port, exactly the port the shell is
+  already required to listen on (`checkPortConflicts` validates this at
+  generation time; it's the same assumption the K8s addressing above
+  already depends on, just reused here rather than something new).
 
 ## What does not happen automatically
 
@@ -202,26 +211,6 @@ build this assumption in) needs to be told to look inside the shell
 instead for a `servedBy` component's logs, metrics, or shell access —
 the platform has no mechanism to paper over this, because there
 genuinely isn't a separate container to point at.
-
-**`local: true` reaching a `servedBy` member.** A component running in
-`local: true` debug mode gets its running dependencies' addresses mapped to
-a host-reachable `localhost:<port>` — except a dependency that's a
-`servedBy` member, which has no container of its own for the CLI to map a
-port onto. `local: true` and `servedBy` deliberately don't share an
-implementation path (mixing the two was judged more likely to produce
-"changing local's logic broke servedBy" accidents than to save the small
-amount of shared code), so this isn't a gap that gets closed as a side
-effect of some other fix. Both the dependency's main-port and extra-port
-`*_ENDPOINT` variables in `local-debug.<service>.env` keep their
-container-network value, and `brickkit up` warns about each one by name
-(the local component, the dependency, and which shell it's merged into)
-instead of staying silent about an address that will never resolve from the
-host. Reaching it anyway means a temporary, hand-added `ports:` mapping on
-the shell's own compose service — drop it before committing, since the
-shell's own `brickkit.yaml` entry never declares this. (An earlier version
-of this fix was itself incomplete: the extra-port variable didn't fail
-loudly at all — it silently guessed a `localhost:<port>` value that looked
-entirely plausible and simply had nothing listening behind it.)
 
 **External tools/scripts hitting a component's port directly — you compute
 the address yourself.** A local dev script (a seed-data script, say) or an

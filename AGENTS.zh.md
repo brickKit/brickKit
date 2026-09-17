@@ -311,16 +311,15 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
   （比如 `http://host.docker.internal:8000`）。brickKit 不解析 config 字符串的
   内容，所以把该组件改成 `local: true` 并不会把这个字面量换算成宿主机视角能
   访问到的地址，需要开发者自己手工改（通常改成 `localhost`）
-- 依赖如果是一个 `servedBy` 成员（§5.7），它压根没有宿主机可达的地址：它没有
-  自己的容器，CLI 没有端口可以映射；而且 `local: true` 与 `servedBy` 刻意不共享
-  实现路径（混在一起被判断为更容易出"改 local 的逻辑却波及 servedBy"这类事故，
-  省下的那点代码不值当）。这个依赖的主端口和额外端口两个 `*_ENDPOINT` 变量在
-  `local-debug.<服务名>.env` 里都会保留容器网络形式的取值，`brickkit up` 会
-  逐条点名警告（哪个组件、依赖了谁、被合并进了哪个外壳），而不是对一个注定连不上
-  的地址一声不吭。真要连上，只能临时手工给外壳自己的 compose service 加一条
-  `ports:` 映射（提交前记得撤掉——外壳自己的 `brickkit.yaml` 条目从不声明这个）。
-  这处修复之前，额外端口那个变量甚至不是"诚实地连不上"：它会静默猜出一个看起来
-  完全合理的 `localhost:<端口>`，实际上背后没有任何进程监听（brickKit 反馈：
+- 依赖如果是一个 `servedBy` 成员（§5.7），它没有自己的 compose service——它的
+  宿主机端口映射改开在它的**外壳**身上，用的是这个成员自己声明的端口（正是
+  外壳本来就必须监听的那个端口：`internal/shell/shell.go` 的
+  `checkPortConflicts` 在生成阶段就校验过这一点，K8s 渲染器把 `*_ENDPOINT`
+  路由进外壳靠的也是同一个假设——这里没有对外壳内部结构引入任何新的理解）。
+  这个依赖的主端口和额外端口两个 `*_ENDPOINT` 变量在 `local-debug.<服务名>.env`
+  里都会解析成一个真正的 `http://localhost:<端口>`，跟普通依赖一样。这处修复
+  之前，额外端口那个变量甚至不是"诚实地连不上"：它会静默猜出一个看起来完全
+  合理的 `localhost:<端口>`，实际上背后没有任何进程监听（brickKit 反馈：
   local 组件依赖 servedBy 成员时本地调试地址错误）
 
 ### 5.7 合并部署（`servedBy`）
@@ -881,7 +880,7 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 | `local: true` 后调用方持续 503 | 进程实际监听的端口与 `localPort` 不一致 |
 | `local: true` 的组件报 `relation does not exist` | local 组件不生成迁移容器，迁移要自己手动跑一次 |
 | `local: true` 组件自己的 config 里，某个带外依赖的地址还是 `host.docker.internal` | 那是使用者自己写的字面量，brickKit 不解析 config 值，改成 `local: true` 不会帮你换算。自己把这个字面量改掉（通常改成 `localhost`） |
-| `local: true` 组件依赖了一个 `servedBy` 成员，它的 `*_ENDPOINT` 连不上 | 目前是预期行为——这个依赖没有自己的容器，没有端口可以映射到宿主机。`up` 会点名警告；唯一的绕开办法是临时手工给外壳自己的 compose service 加一条 `ports:` 映射（§5.6） |
+| `local: true` 组件依赖了一个 `servedBy` 成员 | 能连上：它的 `*_ENDPOINT` 会解析成一个真正的 `localhost:<端口>`——这个成员没有自己的容器，CLI 把映射开在它的外壳身上（§5.6） |
 | 讨论签名 | 发布方需要装 **cosign**；**安装方不需要**（验签用 Go 标准库） |
 | 用户想让平台帮忙做安全审查 | 安装即信任。平台只在事后 `blocked` |
 | 用户问「能不能把多个组件合并成一个实例省内存」 | 先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用（012 §2.15）。还要合并的话：**`servedBy`（5.7）是平台支持的路径**——它在 Docker 和 K8s 下都能正确处理地址路由；其余的事（模块隔离、配置、外壳内部的迁移顺序）还是他们自己的代码，参见外壳实现者指南。`enabled: false` 和这个无关——它照样不能拿来当「我自己接管」的开关 |
