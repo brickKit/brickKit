@@ -51,7 +51,7 @@ func Load(path string, cols int) ([]Row, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var rows []Row
 	scanner := bufio.NewScanner(f)

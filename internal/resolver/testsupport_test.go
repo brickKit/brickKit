@@ -36,8 +36,6 @@ type comp struct {
 	EmptyDependencies bool
 }
 
-func (c comp) ref() Ref { return Ref{ID: c.ID, Version: c.Version} }
-
 // yamlText 渲染出一份合法的 component.yaml（002 §2.2）。
 func (c comp) yamlText() string {
 	var b strings.Builder
@@ -201,12 +199,6 @@ func (p *fakeProvider) Manifest(_ context.Context, id, version string) (*manifes
 func dep(ref string) manifest.ComponentDep {
 	id, version, _ := strings.Cut(ref, "@")
 	return manifest.ComponentDep{ID: id, Version: version, Ref: ref}
-}
-
-func optDep(ref string) manifest.ComponentDep {
-	d := dep(ref)
-	d.Optional = true
-	return d
 }
 
 // notFoundErr 模拟安装源的"组件未找到"（与 internal/source 的错误形状一致）。

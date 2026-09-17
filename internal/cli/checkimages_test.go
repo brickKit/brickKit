@@ -69,7 +69,7 @@ func (s *slowEngine) CheckImage(_ context.Context, image string) error {
 	s.active--
 	s.mu.Unlock()
 
-	return s.fakeEngine.checkErr[image]
+	return s.checkErr[image]
 }
 
 func (s *slowEngine) checkedImages() []string {

@@ -111,12 +111,12 @@ func envOr(key, fallback string) string {
 
 // Printf 把人类可读输出写到 stdout。
 func (o *Options) Printf(format string, args ...any) {
-	fmt.Fprintf(o.Stdout, format, args...)
+	_, _ = fmt.Fprintf(o.Stdout, format, args...)
 }
 
 // Println 把人类可读输出写到 stdout。
 func (o *Options) Println(args ...any) {
-	fmt.Fprintln(o.Stdout, args...)
+	_, _ = fmt.Fprintln(o.Stdout, args...)
 }
 
 // NewRootCommand 构建完整的命令树。

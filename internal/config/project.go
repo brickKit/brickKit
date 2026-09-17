@@ -43,7 +43,7 @@ func ValidateProjectName(name string) error {
 		WithDetail("原因", reason).
 		WithDetail("命名规则", ProjectNameRule)
 	if suggestion := SuggestProjectName(name); suggestion != "" && suggestion != name {
-		err.WithHint(fmt.Sprintf("改用 %s", suggestion))
+		_ = err.WithHint(fmt.Sprintf("改用 %s", suggestion))
 	}
 	return err
 }

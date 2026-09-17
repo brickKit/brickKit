@@ -93,7 +93,7 @@ func writeNewFile(path string, content []byte) error {
 	if err != nil {
 		return wrapIOError("写入文件", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := f.Write(content); err != nil {
 		return wrapIOError("写入文件", path, err)
 	}

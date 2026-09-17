@@ -31,14 +31,6 @@ type spec struct {
 
 func ref(id string) resolver.Ref { return resolver.Ref{ID: id, Version: "1.0.0"} }
 
-func refs(ids ...string) []resolver.Ref {
-	out := make([]resolver.Ref, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, ref(id))
-	}
-	return out
-}
-
 // stubProvider 按 spec 提供 Manifest，让测试走真实的解析器建图。
 type stubProvider map[string]*manifest.Manifest
 

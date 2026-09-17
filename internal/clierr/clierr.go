@@ -252,7 +252,7 @@ func Render(w io.Writer, err error) int {
 	if e == nil {
 		return ExitOK
 	}
-	fmt.Fprint(w, e.Format())
+	_, _ = fmt.Fprint(w, e.Format())
 	return e.ExitCode()
 }
 

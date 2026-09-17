@@ -75,10 +75,10 @@ func (s *ProblemSet) Err() error {
 	}
 	e := New(s.code, s.message)
 	if s.source != nil {
-		e.WithDetail(s.source.Key, s.source.Value)
+		_ = e.WithDetail(s.source.Key, s.source.Value)
 	}
 	for _, item := range s.items {
-		e.WithDetail(item.Field, item.Reason)
+		_ = e.WithDetail(item.Field, item.Reason)
 	}
 	return e.WithHint(s.hints...)
 }

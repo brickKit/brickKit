@@ -190,8 +190,8 @@ func (c *Config) validateComponents(p *clierr.ProblemSet) {
 	for i, item := range c.Components {
 		field := indexed("components", i)
 
-		switch {
-		case item.ID == "":
+		switch item.ID {
+		case "":
 			p.Missing(field + ".id")
 		default:
 			if reason := manifest.ComponentIDProblem(item.ID); reason != "" {

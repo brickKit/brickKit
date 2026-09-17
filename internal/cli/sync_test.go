@@ -97,29 +97,6 @@ const allEnabled = `components:
 resources: []
 `
 
-// 三个组件都在：caller 强依赖 hello，solo/thing 与它们无关。
-const allEnabledWithSolo = `components:
-  - id: demo/hello
-    version: 1.0.0
-  - id: demo/caller
-    version: 1.0.0
-  - id: solo/thing
-    version: 1.0.0
-resources: []
-`
-
-// hello 关掉（caller 跟着级联跳过），solo/thing 照常。
-const helloDisabledWithSolo = `components:
-  - id: demo/hello
-    version: 1.0.0
-    enabled: false
-  - id: demo/caller
-    version: 1.0.0
-  - id: solo/thing
-    version: 1.0.0
-resources: []
-`
-
 // hello 被显式关掉 —— caller 会被级联跳过。
 const helloDisabled = `components:
   - id: demo/hello
