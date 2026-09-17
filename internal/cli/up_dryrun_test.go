@@ -6,6 +6,7 @@ package cli
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -192,6 +193,60 @@ func TestUpDryRunWritesLocalDebugEnvFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "COMPONENT_ID=people/basic", "13.7")
 	assert.Contains(t, string(data), "DEPARTMENT_TREE_ENDPOINT=http://localhost:", "13.5")
+}
+
+// sourceLocalDebugEnvVar 用真实 bash `source` 这份文件，取出某个变量的值。
+//
+// brickKit 反馈：local-debug.*.env 序列化多行值和特殊字符会截断或解析错误——
+// v0.4.4 复核指出，`readDotEnv` 从前按物理行 `Cut("=")`，一个跨多行的
+// 双引号 `.env` 值会在第一行就被切断，而这条 bug 只有真的走"读 .env 文件"
+// 这条路才会触发，不能直接构造内存字符串绕过去。所以这里跟 compose 包的
+// `sourceEnvFile` 一样，让真实 shell 去读生成的文件，而不是自己写解析器。
+func sourceLocalDebugEnvVar(t *testing.T, path, name string) string {
+	t.Helper()
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("未安装 bash，跳过 env 文件的真实 source 校验")
+	}
+	cmd := exec.Command("bash", "-c",
+		`set -a && source "$1" && set +a && printf '%s' "${!2}"`, "_", path, name)
+	out, err := cmd.Output()
+	require.NoError(t, err, "生成的 env 文件 source 失败")
+	return string(out)
+}
+
+// v0.4.4 复核结果：这条从前是 TestLocalDebugEnvHandlesMultilineValue（compose 包）
+// 用 config.Component{Config: map[string]any{...}} 直接塞一个内存里的完整字符串，
+// 跳过了真实项目里几乎总会走的那条路——brickkit.yaml 里这类值写的是
+// `"${VAR}"` 引用，真正的值要从项目根目录的 `.env` 文件里查（`readDotEnv`）。
+// 这条测试走完整链路：真实 `.env` 文件 → `envLookup` → `expandValue` →
+// `shellQuote`，而不是绕过第一步——正是这条链路里 `readDotEnv` 按物理行
+// `Cut("=")` 截断多行值的地方，之前的回归测试没测到。
+func TestUpDryRunLocalDebugEnvResolvesMultilineDotEnvValue(t *testing.T) {
+	comps := []comp{
+		{ID: "infra/iam-casdoor", Version: "1.0.0", ConfigSchema: []string{"appTokenSigningKeyPem:"}},
+	}
+	f := addedProject(t, comps, "infra/iam-casdoor@1.0.0")
+	f.writeConfig(t, `components:
+  - id: infra/iam-casdoor
+    version: 1.0.0
+    local: true
+    localPort: 8081
+    config:
+      appTokenSigningKeyPem: "${APP_TOKEN_SIGNING_KEY_PEM}"
+`)
+	pem := "-----BEGIN PRIVATE KEY-----\n" +
+		"MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEA\n" +
+		"-----END PRIVATE KEY-----"
+	dotenv := `APP_TOKEN_SIGNING_KEY_PEM="` + pem + "\"\n"
+	require.NoError(t, os.WriteFile(filepath.Join(f.Dir, ".env"), []byte(dotenv), 0o600))
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	path := filepath.Join(f.Dir, ".brickkit", "generated", "local-debug.infra-iam-casdoor-1-0-0.env")
+	got := sourceLocalDebugEnvVar(t, path, "APP_TOKEN_SIGNING_KEY_PEM")
+	assert.Equal(t, pem, got,
+		"跨多行的 .env 值经过完整链路 source 之后应该保留三行，不能被 readDotEnv 截断成第一行")
 }
 
 // 使用者需要知道：这个组件不会被启动，得自己在 IDE 里跑，监听哪个端口。

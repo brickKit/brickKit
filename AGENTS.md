@@ -339,6 +339,14 @@ the Docker network:
   PEM value or a `|`-delimited list survives `set -a && source … && set +a` intact instead of
   getting cut off at its first newline or blowing up with `command not found`. A plain value with
   none of those characters is left unquoted
+- The other half of that same guarantee: a `${VAR}` config value is looked up from the project
+  root's `.env` file (`config.envLookup` — process env first, `.env` second) using the same
+  quoted/multi-line convention real `docker compose` itself uses for that file (double-quoted
+  values support `\n`/`\r`/`\t`/`\"`/`\\` escapes and may span physical lines; single-quoted values
+  are kept fully literal and may also span lines) — not a naive line-by-line `KEY=value` split. This
+  is the same lookup the K8s renderer uses for a plain (non-secret) env value, so a multi-line
+  `.env` value lands intact in a generated Deployment's `env` list too, not just in
+  `local-debug.env`
 - What it does **not** rewrite: a config value that's an opaque string literal pointing at
   something outside brickKit's own dependency graph (an out-of-band container's address, say,
   written assuming a container network — `http://host.docker.internal:8000`). brickKit doesn't

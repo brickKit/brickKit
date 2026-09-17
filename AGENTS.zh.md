@@ -299,6 +299,13 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
   真实换行……）就会按 POSIX shell 规则加上引号——多行的 PEM 值或竖线分隔的列表
   经过 `set -a && source … && set +a` 之后完整保留，不会在第一个换行处截断，
   也不会报一串 `command not found`。不含这些字符的值原样写出，不加引号
+- 同一个保证的另一半：`${VAR}` 这类 config 值是从项目根目录的 `.env` 文件里
+  查出来的（`envLookup`——先看进程环境，再看 `.env`），解析这个文件时用的是
+  真实 `docker compose` 自己对它的解释规则（双引号值支持 `\n`/`\r`/`\t`/`\"`/`\\`
+  转义、可以跨多个物理行；单引号值原样保留、同样可以跨行），不是简单地逐行
+  按 `KEY=value` 切。K8s 那条渲染路径查的是同一个函数，所以一个跨多行的
+  `.env` 值同样会完整出现在生成的 Deployment 的 `env` 列表里，不只是
+  `local-debug.env` 才对
 - 它**不会**改写的东西：一个指向 brickKit 依赖图之外某个东西（比如一个带外容器
   的地址）的 config 字面量——这类值本来就是按"另一端也在容器网络里"写的
   （比如 `http://host.docker.internal:8000`）。brickKit 不解析 config 字符串的

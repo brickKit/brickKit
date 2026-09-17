@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/engine"
@@ -91,6 +92,64 @@ func TestUpK8sGeneratesManifests(t *testing.T) {
 	assert.NoFileExists(t,
 		filepath.Join(f.Dir, ".brickkit", "generated", "docker-compose.yaml"),
 		"K8s 项目不该留下一份毫无意义的 compose 文件")
+}
+
+// deploymentEnvValue 从生成的 Deployment YAML 里取出某个 env 变量的值。
+//
+// 不用字符串 Contains 去比对多行值：YAML 库把跨行字符串渲染成块状标量
+// （`|-` 那种），除第一行外每一行都会被加上统一的缩进，直接拿原始多行
+// 字符串去 Contains 十有八九匹配不上，得真的按 YAML 语义解析出字段值。
+func deploymentEnvValue(t *testing.T, path, varName string) string {
+	t.Helper()
+	var doc map[string]any
+	require.NoError(t, yaml.Unmarshal([]byte(readFile(t, path)), &doc))
+
+	spec, _ := doc["spec"].(map[string]any)
+	tmpl, _ := spec["template"].(map[string]any)
+	podSpec, _ := tmpl["spec"].(map[string]any)
+	containers, _ := podSpec["containers"].([]any)
+	require.NotEmpty(t, containers, "Deployment 里应该有容器")
+	container, _ := containers[0].(map[string]any)
+	envList, _ := container["env"].([]any)
+
+	for _, e := range envList {
+		entry, _ := e.(map[string]any)
+		if entry["name"] == varName {
+			value, _ := entry["value"].(string)
+			return value
+		}
+	}
+	t.Fatalf("Deployment 的 env 里没有变量 %s", varName)
+	return ""
+}
+
+// v0.4.4 复核结果：readDotEnv 从前按物理行 Cut("=")，一个跨多行的双引号
+// .env 值会在第一行就被切断——这条路径 K8s 和 Docker（local-debug.env）
+// 共用同一个 envLookup/readDotEnv，只是落点从 env 文件换成了 Deployment
+// 的 env 数组，值本身该不该完整跟"往哪写"无关。
+func TestUpK8sDeploymentEnvResolvesMultilineDotEnvValue(t *testing.T) {
+	spec := comp{
+		ID: "infra/iam-casdoor", Version: "1.0.0",
+		ConfigSchema: []string{"appTokenSigningKeyPem:"},
+	}
+	f := k8sProjectWith(t, spec, `    config:
+      appTokenSigningKeyPem: "${APP_TOKEN_SIGNING_KEY_PEM}"
+`, "")
+
+	pem := "-----BEGIN PRIVATE KEY-----\n" +
+		"MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEA\n" +
+		"-----END PRIVATE KEY-----"
+	dotenv := `APP_TOKEN_SIGNING_KEY_PEM="` + pem + "\"\n"
+	require.NoError(t, os.WriteFile(filepath.Join(f.Dir, ".env"), []byte(dotenv), 0o600))
+
+	r := runWithEngine(t, newK8sEngine(), f.Dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+
+	got := deploymentEnvValue(t,
+		filepath.Join(k8sDir(f), "deployments", "infra-iam-casdoor-1-0-0.yaml"),
+		"APP_TOKEN_SIGNING_KEY_PEM")
+	assert.Equal(t, pem, got,
+		"跨多行的 .env 值不能被 readDotEnv 截断成第一行")
 }
 
 // 交给引擎的是**清单目录**与**命名空间**，不是 compose 那套。
