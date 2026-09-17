@@ -100,17 +100,19 @@ jobs:
       - uses: sigstore/cosign-installer@v4.1.2
       # 组件签名用的是固定密钥且关掉 tlog（010 §6.2）；发布产物是另一回事：
       # keyless 没有私钥要保管，签名者身份就是这条 workflow 本身。
+      #
+      # cosign-installer@v4 装的是 cosign v3，默认 --new-bundle-format=true——
+      # 这时旧的 --output-signature/--output-certificate 会被直接忽略，
+      # --bundle 又没给，cosign 试图往空路径写文件，直接报错退出。改用
+      # --bundle 输出单一的 Sigstore bundle 文件，这是 v3 之后官方推荐的形式。
       - run: >
           cosign sign-blob --yes
-          --output-signature dist/checksums.txt.sig
-          --output-certificate dist/checksums.txt.pem
+          --bundle dist/checksums.txt.sigstore.json
           dist/checksums.txt
       - uses: actions/upload-artifact@v7
         with:
           name: signed
-          path: |
-            dist/checksums.txt.sig
-            dist/checksums.txt.pem
+          path: dist/checksums.txt.sigstore.json
 
   publish:
     name: 发布 release

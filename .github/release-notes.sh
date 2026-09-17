@@ -32,7 +32,7 @@ less install.sh && sh install.sh
 
 \`\`\`bash
 cosign verify-blob \\
-  --certificate checksums.txt.pem --signature checksums.txt.sig \\
+  --bundle checksums.txt.sigstore.json \\
   --certificate-identity-regexp "https://github.com/${repo}/" \\
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \\
   checksums.txt
