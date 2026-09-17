@@ -21,14 +21,14 @@ jobs:
     name: 构建五个平台的产物
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.22"
       # 构建逻辑在 Makefile 里，这里只是调它——本地 make release-artifacts 能出
       # 完全一样的产物。一个只有 CI 能复现的产物，坏掉的时候没人能在本地查。
       - run: make release-artifacts VERSION=${{ github.ref_name }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -63,8 +63,8 @@ jobs:
             asset: windows_amd64.zip
             windows: true
     steps:
-      - uses: actions/checkout@v4 # smoke.sh 与它用的自测组件都在仓库里
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7 # smoke.sh 与它用的自测组件都在仓库里
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist
@@ -93,11 +93,11 @@ jobs:
       id-token: write # keyless 要用 GitHub OIDC 换一张短期证书
       contents: read
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist
-      - uses: sigstore/cosign-installer@v3
+      - uses: sigstore/cosign-installer@v4
       # 组件签名用的是固定密钥且关掉 tlog（010 §6.2）；发布产物是另一回事：
       # keyless 没有私钥要保管，签名者身份就是这条 workflow 本身。
       - run: >
@@ -105,7 +105,7 @@ jobs:
           --output-signature dist/checksums.txt.sig
           --output-certificate dist/checksums.txt.pem
           dist/checksums.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: signed
           path: |
@@ -119,12 +119,12 @@ jobs:
     permissions:
       contents: write # 建 release 要写权限，整条流水线只有这个 job 有
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: signed
           path: dist
