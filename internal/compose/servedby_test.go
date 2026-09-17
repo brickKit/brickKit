@@ -264,3 +264,54 @@ func TestServedByMemberDependencyGetsDependsOn(t *testing.T) {
 	require.True(t, ok, "depends_on 的目标应该是外壳自己的 service，不是成员自己（它没有 service）：%v", keysOf(dependsOn))
 	assert.Equal(t, "service_healthy", dep["condition"], "等外壳健康，因为外壳有健康检查")
 }
+
+// ---- local: true 依赖 servedBy 成员：没有宿主机连通性 ----
+//
+// brickKit 反馈：local 组件依赖 servedBy 成员时本地调试地址错误。
+// mapDependencyToHost 对 servedBy 成员整个 return（它没有自己的 compose
+// service block），额外端口那条路径从前误把这当成"依赖也是 local"的唯一
+// 剩余情况，凭空拼出一个 localhost:<声明端口>——宿主机上根本没人监听，
+// 而主端口那条路径本来就已经是"查不到就不改"，两条路径处理不一致正是
+// bug 的根因。
+
+func TestLocalDependencyOnServedByMemberKeepsContainerAddress(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(withExtraPort(simple("mdm/customer", "1.0.9", 8080), "grpc", 9090),
+		servedByEntry("infra/shell-go-core", "1.0.0"))
+	b.component(dependsOn(simple("infra/bff-mobile", "1.0.19", 8080), "mdm/customer", "1.0.9"),
+		config.Component{Local: true, LocalPort: 8081})
+
+	result := b.generate()
+	env := localEnv(t, result, "infra-bff-mobile-1-0-19")
+
+	// 两条路径现在一致：查不到宿主机映射就不改，保留容器形式的取值——
+	// 至少诚实地"连不上"，而不是伪装成一个看起来对、实际没人监听的 localhost 地址。
+	assert.Equal(t, "http://mdm-customer-1-0-9:8080", env["MDM_CUSTOMER_ENDPOINT"])
+	assert.Equal(t, "http://mdm-customer-1-0-9:9090", env["MDM_CUSTOMER_GRPC_ENDPOINT"])
+}
+
+func TestLocalDependencyOnServedByMemberWarns(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("mdm/customer", "1.0.9", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
+	b.component(dependsOn(simple("infra/bff-mobile", "1.0.19", 8080), "mdm/customer", "1.0.9"),
+		config.Component{Local: true, LocalPort: 8081})
+
+	result := b.generate()
+
+	warnings := joinWarnings(result.Warnings)
+	assert.Contains(t, warnings, "infra/bff-mobile", "要点名是哪个 local 组件")
+	assert.Contains(t, warnings, "mdm/customer", "要点名是哪个依赖")
+	assert.Contains(t, warnings, "infra/shell-go-core", "要点名依赖被收编进了哪个外壳")
+}
+
+// 依赖既不是 local 也不是 servedBy 成员时，这条警告不该出现——回归覆盖，
+// 避免以后改动误伤普通依赖。
+func TestLocalDependencyOnOrdinaryComponentDoesNotWarnAboutServedBy(t *testing.T) {
+	b := localProject(t, config.Component{Local: true, LocalPort: 8081})
+
+	result := b.generate()
+
+	assert.NotContains(t, joinWarnings(result.Warnings), "servedBy 合并进了外壳")
+}

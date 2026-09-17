@@ -509,14 +509,27 @@ func (p *plan) pointDependenciesAtLocalhost(l localComponent, vars []inject.Var)
 		for _, extra := range node.Manifest.Deployment.ExtraPorts {
 			port, ok := p.debugExtraPort[service][extra.Port]
 			if !ok {
-				// 只剩一种情况：依赖自己也是 local。它的进程就在宿主机上，
-				// 监听的还是 Manifest 里声明的那个额外端口（local 组件的额外端口
-				// 不重新分配，见 assignHostPorts 第 3 步）。
+				// 查不到有两种可能，处理方式完全不同：
 				//
-				// 从前这里还兜着"它的额外端口没被映射"——那是 mapDependencyToHost
-				// 在依赖 expose 时提前 return 造成的漏洞，会写出一个宿主机上
-				// 没人监听的地址。现在额外端口无论 expose 与否都会映射，
-				// 这条兜底只服务于 local 依赖了。
+				//  1) 依赖自己也是 local：它的进程就在宿主机上，监听的还是
+				//     Manifest 里声明的那个额外端口（local 组件的额外端口不
+				//     重新分配，见 assignHostPorts 第 3 步）——这时补上
+				//     localhost:<声明端口> 是对的。
+				//  2) 依赖是一个 servedBy 成员：mapDependencyToHost 在函数
+				//     开头就因为 `!p.rendered[service]` 直接 return 了（它没有
+				//     自己的 compose service block），从来没机会往
+				//     debugExtraPort 里写任何东西。这种情况下这里不能像
+				//     情况 1 那样直接拿 extra.Port 拼 localhost——宿主机上
+				//     根本没有任何进程监听那个端口号，拼出来的地址会是一个
+				//     看起来完全合理、实际连不通的假地址（brickKit 反馈：
+				//     local 组件依赖 servedBy 成员时本地调试地址错误）。
+				//     跟主端口（hostAccessPort 查不到时 setVar 不会被调用，
+				//     变量保留原始的容器形式取值）保持一致的处理方式——
+				//     查不到就不改，而不是查不到就瞎猜一个。真正的提醒见
+				//     localServedByDependencyWarnings。
+				if _, isLocal := p.localPort[service]; !isLocal {
+					continue
+				}
 				port = extra.Port
 			}
 			setVar(vars, prefix+"_"+strings.ToUpper(extra.Name)+"_ENDPOINT",
@@ -657,6 +670,45 @@ func (p *plan) localMigrationWarnings() []*clierr.Error {
 					strings.Join(l.Manifest.Migration.Command, " "),
 				"环境变量用 local-debug."+l.Service+".env 里的那一份",
 			))
+	}
+	return out
+}
+
+// localServedByDependencyWarnings 提醒"local 组件依赖的这个组件没有宿主机
+// 连通性"——它是一个 servedBy 成员（§5.7），没有自己的容器，平台没有端口
+// 可以映射到宿主机（brickKit 反馈：local 组件依赖 servedBy 成员时本地调试
+// 地址错误）。
+//
+// local: true 只解决了"依赖是一个独立容器"这一种情况的宿主机映射
+// （mapDependencyToHost），依赖是 servedBy 成员时完全没有对应的通路——这不是
+// 一个可以顺手打通的小缺口：servedby.go 顶部就写明了 local: true 与
+// servedBy 刻意不共享实现路径，为 servedBy 成员开一条宿主机端口映射通路
+// 意味着 local.go 要开始理解外壳的内部结构（外壳是否，以及如何，把每个
+// 成员自己声明的端口单独监听出来），这是比"本地调试"更大的一个产品决策，
+// 不是这个警告要顺带解决的问题。
+//
+// 生成物在这种情况下看起来完全正确（语法、格式都对），直到真的发起一次
+// 请求才会发现连不通——这正是本项目最不愿见到的一类失败（§9.13），所以
+// 即使平台暂时没有办法让地址真正可达，也不能对此一言不发。
+func (p *plan) localServedByDependencyWarnings() []*clierr.Error {
+	var out []*clierr.Error
+	for _, l := range p.locals {
+		for _, dep := range p.runningDependencies(l.Ref) {
+			shellRef, ok := p.shellOf(dep)
+			if !ok {
+				continue
+			}
+			out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
+				"local: true 组件依赖的这个组件目前没有宿主机连通性").
+				WithDetail("组件", refText(l.Ref)).
+				WithDetail("依赖", refText(dep)).
+				WithDetail("原因", "这个依赖被 servedBy 合并进了外壳 "+refText(shellRef)+
+					"，它没有自己的容器，平台没有端口可以映射到宿主机").
+				WithHint(
+					"临时手工给外壳的 compose service 加一条 ports 映射，测完记得撤销、不要提交进 brickkit.yaml",
+					"或者去掉这个依赖的 servedBy，让它照常独立部署，就能正常参与本地调试的端口映射",
+				))
+		}
 	}
 	return out
 }
