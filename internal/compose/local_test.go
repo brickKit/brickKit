@@ -10,7 +10,9 @@
 package compose_test
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -63,21 +65,57 @@ func localEnv(t *testing.T, result *compose.Result, service string) map[string]s
 		if file.Name != name {
 			continue
 		}
-		out := map[string]string{}
-		for _, line := range strings.Split(string(file.Content), "\n") {
-			line = strings.TrimSpace(line)
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-			key, value, ok := strings.Cut(line, "=")
-			require.True(t, ok, "env 文件每一行都应是 KEY=VALUE：%q", line)
-			out[key] = value
-		}
-		return out
+		return sourceEnvFile(t, file.Content)
 	}
 
 	t.Fatalf("应生成 %s，实际生成了 %v", name, envFileNames(result))
 	return nil
+}
+
+// sourceEnvFile 用真实 shell `source` 这份文件，返回结果环境变量。
+//
+// 值现在按 POSIX shell 规则加了引号（brickKit 反馈：local-debug.*.env
+// 序列化多行值和特殊字符会截断或解析错误），一份自己手写的按行/按 `=`
+// 切的解析器测不出这类值是否真的能被 source 出正确结果——那份手写解析器
+// 本身就可能踩中与 shellQuote 同一类"没处理到的字符"的坑。所以这里改成
+// 让真实 bash 去读这份文件，测的是"source 之后进程实际拿到的值"，
+// 而不是"我以为 shell 会怎么解析"。
+//
+// 只保留这份文件真正写入/覆盖的变量：子进程继承的 PATH 之类不属于
+// 这份文件的断言范围，混进结果只会让测试断言的意图变得含糊。
+func sourceEnvFile(t *testing.T, content []byte) map[string]string {
+	t.Helper()
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("未安装 bash，跳过 env 文件的真实 source 校验")
+	}
+
+	path := filepath.Join(t.TempDir(), "local-debug.env")
+	require.NoError(t, writeFile(path, content))
+
+	before := map[string]string{}
+	for _, kv := range os.Environ() {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			before[k] = v
+		}
+	}
+
+	cmd := exec.Command("bash", "-c", `set -a && source "$1" && set +a && env -0`, "_", path)
+	out, err := cmd.Output()
+	require.NoError(t, err, "生成的 env 文件 source 失败：\n%s", content)
+
+	result := map[string]string{}
+	for _, kv := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
+		if kv == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(kv, "=")
+		require.True(t, ok, "env -0 输出每一条都应是 KEY=VALUE：%q", kv)
+		if bv, existed := before[k]; existed && bv == v {
+			continue // 继承自当前进程环境，不是这份文件写的
+		}
+		result[k] = v
+	}
+	return result
 }
 
 func envFileNames(result *compose.Result) []string {
@@ -86,6 +124,22 @@ func envFileNames(result *compose.Result) []string {
 		out = append(out, file.Name)
 	}
 	return out
+}
+
+// localEnvRaw 取出某个 local 组件调试 env 文件的原始字节，未经 source 解析。
+//
+// 只在需要断言"文件本身长什么样"（比如有没有被平白加上引号）时才用这个；
+// 断言"值是什么"一律用 localEnv，那才是 source 之后进程真正拿到的东西。
+func localEnvRaw(t *testing.T, result *compose.Result, service string) string {
+	t.Helper()
+	name := "local-debug." + service + ".env"
+	for _, file := range result.LocalEnvFiles {
+		if file.Name == name {
+			return string(file.Content)
+		}
+	}
+	t.Fatalf("应生成 %s，实际生成了 %v", name, envFileNames(result))
+	return ""
 }
 
 // portsOf 取出 service 的 ports 列表。
@@ -685,6 +739,77 @@ func TestLocalDebugEnvContainsConfigValues(t *testing.T) {
 
 	assert.Equal(t, "debug", env["LOG_LEVEL"], "13.9：覆盖值优先")
 	assert.Equal(t, "20", env["PAGE_SIZE"], "13.9：没覆盖的用默认值")
+}
+
+// ============================================================
+// 13.9 续：需要加引号才能被正确 source 的 config 值
+// ============================================================
+//
+// 三个用例对应 brickKit 反馈《local-debug.*.env 序列化多行值和特殊字符会
+// 截断或解析错误》里的两个真实复现（PEM 私钥、竖线分隔的枚举列表），
+// 外加一条"没有特殊字符就不该被加引号"的反向断言——防止将来把
+// "只在需要时加引号"悄悄改成"无条件加引号"却没人发现。
+
+// 从前 "%s=%s" 直接写、不做任何转义：换行符原样落进文件，视觉上"看起来"
+// 只有第一行属于这个 KEY，任何按行解析的加载器都会把值截成第一行。
+func TestLocalDebugEnvHandlesMultilineValue(t *testing.T) {
+	b := newBuilder(t)
+	m := simple("infra/iam-casdoor", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{
+		Type: "object",
+		Properties: map[string]manifest.ConfigProperty{
+			"appTokenSigningKeyPem": {Type: "string", Default: ""},
+		},
+	}
+	pem := "-----BEGIN PRIVATE KEY-----\n" +
+		"MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEA\n" +
+		"-----END PRIVATE KEY-----"
+	b.component(m, config.Component{
+		Local: true, LocalPort: 8081,
+		Config: map[string]any{"appTokenSigningKeyPem": pem},
+	})
+
+	env := localEnv(t, b.generate(), "infra-iam-casdoor-1-0-0")
+
+	assert.Equal(t, pem, env["APP_TOKEN_SIGNING_KEY_PEM"],
+		"多行值 source 之后应完整保留三行，不能只剩第一行")
+}
+
+// 值里的 `|` 在 shell 里是控制操作符，不加引号 source 时会被当成管道解析，
+// 报一长串 command not found，而报错完全看不出是"该给这个值加引号"。
+func TestLocalDebugEnvHandlesPipeCharacter(t *testing.T) {
+	b := newBuilder(t)
+	m := simple("infra/authz", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{
+		Type: "object",
+		Properties: map[string]manifest.ConfigProperty{
+			"permissionCatalog": {Type: "string", Default: ""},
+		},
+	}
+	catalog := "crm.opportunity.edit|编辑商机|action|crm/opportunity," +
+		"crm.opportunity.view|查看|action|crm/opportunity"
+	b.component(m, config.Component{
+		Local: true, LocalPort: 8081,
+		Config: map[string]any{"permissionCatalog": catalog},
+	})
+
+	env := localEnv(t, b.generate(), "infra-authz-1-0-0")
+
+	assert.Equal(t, catalog, env["PERMISSION_CATALOG"])
+}
+
+// 反向断言：没有特殊字符的值必须原样写出，不能被平白加上引号——
+// 无条件加引号会让现有文档里那些朴素的例子（GREETING=你好 这类）
+// 平白多出一层引号，徒增阅读负担且没有安全收益。
+func TestLocalDebugEnvLeavesSimpleValuesUnquoted(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080),
+		config.Component{Local: true, LocalPort: 8081})
+
+	content := localEnvRaw(t, b.generate(), "people-basic-1-0-0")
+
+	assert.Contains(t, content, "\nCOMPONENT_ID=people/basic\n",
+		"不含特殊字符的值不该被加引号")
 }
 
 // ============================================================

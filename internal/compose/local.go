@@ -556,10 +556,13 @@ func renderEnvFile(
 	fmt.Fprintf(&b, "# 生成时间：%s\n", now.UTC().Format(time.RFC3339))
 	b.WriteString("# 用法：VS Code 在 launch.json 里配 envFile；\n")
 	b.WriteString("#       命令行 `set -a && source 本文件 && set +a` 之后再启动进程\n")
+	b.WriteString("# 值按 POSIX shell 规则加了引号，多行值（PEM 私钥等）与含 |、空格等\n")
+	b.WriteString("# 特殊字符的值都能被正确 source（brickKit 反馈：local-debug.*.env 序列化\n")
+	b.WriteString("# 多行值和特殊字符会截断或解析错误）\n")
 	b.WriteString("# ============================================================\n\n")
 
 	for _, v := range vars {
-		fmt.Fprintf(&b, "%s=%s\n", v.Name, expandValue(v.Value, lookup))
+		fmt.Fprintf(&b, "%s=%s\n", v.Name, shellQuote(expandValue(v.Value, lookup)))
 	}
 	return b.Bytes()
 }
@@ -582,6 +585,57 @@ func expandValue(raw string, lookup func(string) (string, bool)) string {
 		}
 		return match
 	})
+}
+
+// shellQuote 把一个值变成可以安全 source 的形式，需要时才加引号。
+//
+// 这份文件唯一的用法就是被 shell `source` 或喂给 IDE 的 envFile 机制——两者
+// 都是按 POSIX shell 语法读的，而从前这里对值不做任何转义，`%s=%s` 直接写
+// 下去（brickKit 反馈：local-debug.*.env 序列化多行值和特殊字符会截断或
+// 解析错误）：
+//
+//   - 值本身含换行（PEM 私钥这类多行 config 值）：写出来的文件在视觉上"看似"
+//     只有第一行属于这个 KEY，后面几行变成裸行——被任何按行解析的 env 加载器
+//     当成别的（残缺的）条目，实际生效的值只剩第一行。
+//   - 值含 `|`、空格等 shell 特殊字符：source 时被当成控制操作符解析，
+//     报一长串 `command not found`，而报错信息完全看不出"该给这个值加引号"。
+//
+// 用单引号包住整个值可以一次性解决这两类问题：POSIX shell 里单引号内的
+// 换行是字面量的一部分（source 读到未闭合的引号会自动跨行继续读），
+// 引号内除了单引号自己，其他任何字符（包括 `$`、反引号、双引号、反斜杠）
+// 都不会被特殊解释。值里如果本来就有单引号，用标准写法 `'` + `\'` + `'` 转义
+// （闭合当前引号、写一个转义单引号、重新打开引号）。
+//
+// 只在真的需要时才加引号：不是每个值都含特殊字符，无条件加引号会让
+// 现有文档里那些朴素的例子（`GREETING=你好` 这类）平白多出一层引号，
+// 徒增阅读负担且没有安全收益。安全字符集参照 Python `shlex.quote` 的
+// 允许列表（字母、数字、`@%_+=:,./-`），非 ASCII 字节（中文这类）从不是
+// shell 元字符，同样不需要加引号。
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	for _, r := range s {
+		if needsShellQuoting(r) {
+			return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+		}
+	}
+	return s
+}
+
+// needsShellQuoting 判断单个字符是否需要触发整体加引号。
+func needsShellQuoting(r rune) bool {
+	switch {
+	case r > 127: // 非 ASCII：UTF-8 多字节字符，从不是 shell 元字符
+		return false
+	case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		return false
+	}
+	switch r {
+	case '@', '%', '_', '+', '=', ':', ',', '.', '/', '-':
+		return false
+	}
+	return true
 }
 
 // localMigrationWarnings 提醒 local 组件的迁移得自己跑（13.1）。

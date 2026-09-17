@@ -334,6 +334,17 @@ the Docker network:
   injects the matching port automatically
 - The CLI generates `local-debug.env` for the IDE to load
 - **Zero component-code changes** (it reads env vars exactly as it normally would)
+- Values written into that file are POSIX-shell-quoted whenever they contain a character a shell
+  would otherwise misparse (whitespace, `|`, `$`, an embedded literal newline, …) — a multi-line
+  PEM value or a `|`-delimited list survives `set -a && source … && set +a` intact instead of
+  getting cut off at its first newline or blowing up with `command not found`. A plain value with
+  none of those characters is left unquoted
+- What it does **not** rewrite: a config value that's an opaque string literal pointing at
+  something outside brickKit's own dependency graph (an out-of-band container's address, say,
+  written assuming a container network — `http://host.docker.internal:8000`). brickKit doesn't
+  parse config string contents, so switching that component to `local: true` doesn't retarget the
+  literal to a host-reachable address — the developer has to edit it themselves (typically to
+  `localhost`)
 
 ### 5.7 Consolidated deployment (`servedBy`)
 
@@ -992,6 +1003,7 @@ hit:
 | Edited a local source's `component.yaml` but `up` doesn't react | Local sources don't get cached; confirm the component actually comes from that local source |
 | `local: true` and the caller keeps getting 503 | The process's actual listening port doesn't match `localPort` |
 | A `local: true` component reports `relation does not exist` | Local components don't generate a migration container; you have to run the migration by hand once |
+| A `local: true` component's own config still points at `host.docker.internal` for some out-of-band dependency | That's a string literal the user wrote; brickKit doesn't parse config values, so it doesn't get rewritten when the component becomes `local: true`. Edit that literal yourself (usually to `localhost`) |
 | Discussing signing | The publisher needs **cosign** installed; **the installer doesn't** (verification uses the Go standard library) |
 | The user wants the platform to help with security review | Install implies trust. The platform only steps in after the fact with `blocked` |
 | A user asks "can I merge multiple components into one instance to save memory" | First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation (§2.15 of the architecture rationale). If they still want to merge: **`servedBy` (§5.7) is the supported path** — it handles address routing correctly on both Docker and K8s; everything else (module isolation, config, migrations ordering inside the shell) is still their own code, see the shell implementer's guide. `enabled: false` is unrelated to this — it still can't be used as a "I'm taking this over myself" switch |
