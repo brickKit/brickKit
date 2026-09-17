@@ -97,7 +97,7 @@ jobs:
         with:
           name: dist
           path: dist
-      - uses: sigstore/cosign-installer@v4
+      - uses: sigstore/cosign-installer@v4.1.2
       # 组件签名用的是固定密钥且关掉 tlog（010 §6.2）；发布产物是另一回事：
       # keyless 没有私钥要保管，签名者身份就是这条 workflow 本身。
       - run: >
