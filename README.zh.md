@@ -328,6 +328,8 @@ Manifest 和依赖方的 API 契约，就能写出一个完整的、可独立运
 内容，别抓这些链接——改用 [`llms.zh.txt`](llms.zh.txt)**（英文文档树有自己的
 [`llms.txt`](llms.txt)）：同一份索引，但每条链接都是可以直接抓取的 raw 链接。
 
+更想按主题找文档而不是往下翻这一页？[`docs/README.md`](https://github.com/brickKit/brickKit/blob/main/docs/README.md) 是一份进入两棵语言树的短导航页。
+
 **新手入门**
 
 | 文档 | 讲什么 |
@@ -335,6 +337,8 @@ Manifest 和依赖方的 API 契约，就能写出一个完整的、可独立运
 | [Quick Start（5 分钟）](https://github.com/brickKit/brickKit/blob/main/docs/zh/quick-start.md) | 从空目录到一个可以 curl 通的容器，每一步都真跑过 |
 | [核心概念](https://github.com/brickKit/brickKit/blob/main/docs/zh/concepts.md) | 一页纸的术语速查 + 贯穿全平台的那条服务名规则 |
 | [故障排除](https://github.com/brickKit/brickKit/blob/main/docs/zh/troubleshooting.md) | `up`/`down` 失败、签名验证失败等最常见的坑，症状 → 真实原因 → 解决 |
+| [对比](https://github.com/brickKit/brickKit/blob/main/docs/zh/comparison.md) | BrickKit 和 Compose、Helm、Kustomize、Tilt/Skaffold、Backstage、monorepo 工具到底哪里重叠、哪里不重叠 |
+| [AI 辅助开发指南](https://github.com/brickKit/brickKit/blob/main/docs/zh/ai-development.md) | 为什么组件模型适合 AI 写代码，以及一套具体的工作流 |
 
 **架构——平台到底怎么工作，配真实代码和真实生成出来的输出**
 

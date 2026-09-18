@@ -368,6 +368,8 @@ don't fetch these — use [`llms.txt`](llms.txt) instead** (the Chinese
 documentation tree has its own, [`llms.zh.txt`](llms.zh.txt)): the same
 index, but every link is a raw, directly-fetchable URL.
 
+Prefer navigating by topic instead of scrolling this page? [`docs/README.md`](https://github.com/brickKit/brickKit/blob/main/docs/README.md) is a short way-finding index into both language trees.
+
 **Getting started**
 
 | Doc | What it covers |
@@ -375,6 +377,8 @@ index, but every link is a raw, directly-fetchable URL.
 | [Quick Start (5 minutes)](https://github.com/brickKit/brickKit/blob/main/docs/en/quick-start.md) | Empty directory to a curl-able container, every step run for real |
 | [Core Concepts](https://github.com/brickKit/brickKit/blob/main/docs/en/concepts.md) | A one-page glossary plus the one service-naming rule that runs through everything |
 | [Troubleshooting](https://github.com/brickKit/brickKit/blob/main/docs/en/troubleshooting.md) | The most common `up`/`down` and signature-verification failures — symptom → real cause → fix |
+| [Comparison](https://github.com/brickKit/brickKit/blob/main/docs/en/comparison.md) | Where BrickKit actually overlaps with Compose, Helm, Kustomize, Tilt/Skaffold, Backstage, and monorepo tooling — and where it doesn't |
+| [AI-assisted development](https://github.com/brickKit/brickKit/blob/main/docs/en/ai-development.md) | Why the component model fits AI-written code, and a concrete workflow for it |
 
 **Architecture — how the platform actually works, with real code and real generated output**
 
