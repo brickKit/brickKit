@@ -110,9 +110,9 @@ its shell's entry instead.
 
 |  | Bare process | Docker | K8s | Docker + local debug |
 | --- | --- | --- | --- | --- |
-| **Independent components** | [§1](#1-independent-components--bare-process) | [§2](#2-independent-components--docker) | [§3](#3-independent-components--k8s) | [§4](#4-independent-components--docker--local-debug) |
-| **Shell-merged (`servedBy`)** | [§5](#5-shell-merged--bare-process) | [§6](#6-shell-merged--docker) | [§7](#7-shell-merged--k8s) | [§8](#8-shell-merged--docker--local-debug) |
-| **Mixed** | [§9](#9-mixed--bare-process) | [§10](#10-mixed--docker) | [§11](#11-mixed--k8s) | [§12](#12-mixed--docker--local-debug) |
+| **Independent components** | [The everyday starting point, before any shell exists](#1-independent-components--bare-process) | [The standard shape while everything comfortably fits on one machine](#2-independent-components--docker) | [The resource-rich end of the cloud-native spectrum](#3-independent-components--k8s) | [Debugging one component while the rest stays real](#4-independent-components--docker--local-debug) |
+| **Shell-merged (`servedBy`)** | [Testing a shell's own internal wiring in isolation](#5-shell-merged--bare-process) | [Solving the memory-floor problem once independent no longer fits](#6-shell-merged--docker) | [The tightest end of the cloud-native spectrum](#7-shell-merged--k8s) | [Debugging one component while the merged rest stays real](#8-shell-merged--docker--local-debug) |
+| **Mixed** | [The everyday default once your project already has a shell](#9-mixed--bare-process) | [The structural shape most real projects actually settle into](#10-mixed--docker) | [The middle of the cloud-native spectrum](#11-mixed--k8s) | [The most realistic development-time combination there is](#12-mixed--docker--local-debug) |
 
 There is deliberately no thirteenth cell for "K8s + local debug." `local:
 true` is rejected outright, at generation time, the moment `deploy.target:
@@ -156,7 +156,7 @@ machinery — just the component's own code.
 - A config value that's a hand-written literal assuming a container network
   (an `http://host.docker.internal:...`-shaped address, say) won't resolve
   from a bare host process; you correct it to `localhost` yourself — the
-  same correction `local: true` (§4) needs, for the same reason.
+  same correction the local-debug overlay below needs, for the same reason.
 - Doesn't scale past a handful of components at a time — reconstructing
   every environment variable by hand for a dozen components is real,
   tedious, error-prone work.
@@ -190,7 +190,8 @@ Twenty idle Go components is well under half a gigabyte; twenty idle Spring
 Boot components is 4–9GB before any of them do a single unit of work. Stay
 here — this covers project early-stage, most demos, and most small on-prem
 deliveries — until that arithmetic genuinely stops fitting the machine
-you're targeting; only then move to §6/§10.
+you're targeting; only then does merging some or all components into a
+shell start to pay off.
 
 **Advantages:**
 - Matches the platform's core design invariant most directly: every
@@ -204,7 +205,7 @@ you're targeting; only then move to §6/§10.
 
 **Costs / limitations:**
 - Every component pays its own runtime's memory floor, independently — this
-  is the direct cost the shell-merged topology (§6) exists to avoid once
+  is the direct cost merging components into a shell exists to avoid once
   component count grows.
 - A single-machine shape by construction — it doesn't need a Kubernetes
   cluster, but also doesn't get any of K8s's cross-machine scheduling or
@@ -229,7 +230,7 @@ separate registry, no polling health checker, just the cluster's own
 primitives.
 
 **When to use it:** the resource-rich end of a three-point spectrum this
-guide's shell-merged and mixed cells (§7, §11) also sit on. Pick it once
+guide's shell-merged-on-K8s and mixed-on-K8s cells also sit on. Pick it once
 your cluster has enough headroom that you're no longer trading per-component
 control for a lower aggregate memory floor — every component keeps its own
 independently tunable replica count and its own `resources.requests`/
@@ -241,8 +242,8 @@ container's quota.
   more replicas without touching any other component's resourcing at all.
 - Cross-machine scheduling and failure recovery are native K8s behavior,
   and they apply individually, per component.
-- The same blast-radius-of-one property as §2, now backed by a whole
-  cluster instead of a single machine.
+- The same blast-radius-of-one property independent components get on
+  Docker, now backed by a whole cluster instead of a single machine.
 
 **Costs / limitations:**
 - The highest operational complexity of any cell in this row — you need
@@ -252,7 +253,7 @@ container's quota.
   and errors out by name if it can't find one; it never substitutes
   something like `minikube kubectl --` for it.
 - Component count still means Deployment/Service object count — merging
-  (§7/§11) is the lever for reducing that, not this cell.
+  into shells is the lever for reducing that, not this cell.
 
 **Things worth knowing:**
 - `expose: true` requires `hostname` under `deploy.target: k8s` — the
@@ -290,7 +291,8 @@ switching it on or off doesn't change any of that.
 - Several components can be debugged locally at once, each with its own
   `localPort`, without disturbing the rest of the topology.
 - Everything a `local: true` component depends on still gets real,
-  generated addresses — you're not hand-simulating anything, unlike §1.
+  generated addresses — you're not hand-simulating anything, unlike running
+  everything as bare processes.
 
 **Costs / limitations:**
 - Needs you to actually understand the `extra_hosts` mechanism — when an
@@ -320,8 +322,8 @@ is started directly as a host process — you're testing the shell's own
 multi-module wiring, not deploying anything. There's no
 `BRICKKIT_SERVED_MEMBERS`/`BRICKKIT_SERVED_MEMBERS_CONFIG` injected by any
 platform here either; whoever runs this constructs (or hard-codes, for a
-test) that data by hand, the same way §1 hand-constructs a bare component's
-environment.
+test) that data by hand, the same way running an ordinary component as a
+bare process means hand-constructing its environment.
 
 **When to use it:** almost never something an end user of a shell needs —
 it's aimed squarely at whoever is *building or testing* the shell itself:
@@ -329,7 +331,7 @@ verifying the shell's own startup sequencing (which absorbed modules
 initialize, in what order, whether migrations run correctly relative to
 each other), its health-check behavior, and its fault isolation between
 modules, in complete isolation from any container or K8s layer, before
-trusting any of that in §6/§7/§8.
+trusting any of that in a real Docker or Kubernetes deployment.
 
 **Advantages:**
 - Fastest possible iteration loop for shell-internal development — no image
@@ -351,8 +353,9 @@ trusting any of that in §6/§7/§8.
 **Things worth knowing:**
 - A shell's compiled module registry has to be keyed by the full versioned
   service name (`mdm-customer-1-0-7`, not the bare `mdm-customer`) if it's
-  ever going to absorb two versions of the same component under §6/§7's
-  real merging — a registry bug here stays invisible until it's tested with
+  ever going to absorb two versions of the same component once it's really
+  merging inside a real Docker or K8s deployment — a registry bug here
+  stays invisible until it's tested with
   two real versions present, so it's worth deliberately exercising even in
   this isolated cell.
 
@@ -364,8 +367,9 @@ shell and none for the members it absorbs — a caller's `*_ENDPOINT` for an
 absorbed member resolves straight to the shell's own address and port, with
 no code change on the caller's side.
 
-**When to use it:** once §2's arithmetic (independent components, each
-paying their own runtime's memory floor) genuinely stops fitting the
+**When to use it:** once the arithmetic behind running everything as
+independent Docker containers (each paying their own runtime's memory
+floor) genuinely stops fitting the
 machine you're targeting — not before. Before reaching for this: try a
 lighter runtime for the expensive components first (a JVM component
 rebuilt as a GraalVM native image drops its floor from 200–450MB to tens of
@@ -412,15 +416,17 @@ specific set of components.
 
 ### 7. Shell-merged × K8s
 
-**What it is:** the same merging as §6, aimed at a real cluster instead:
+**What it is:** the same merging as shell-merging on Docker above, aimed
+at a real cluster instead:
 each shell is one Deployment, and every absorbed member gets its own
 Service whose `selector` targets the shell's Pods and whose `targetPort` is
 that member's own declared port — no Deployment or migration Job generated
 for the member itself.
 
 **When to use it:** the tightest end of the cloud-native resource spectrum
-that also includes §3 (resource-rich, don't merge) and §11 (moderate, merge
-most). Pick it when cluster resources are genuinely scarce and minimizing
+that also includes running independent components on K8s (resource-rich,
+don't merge) and the mixed topology on K8s (moderate, merge most). Pick it
+when cluster resources are genuinely scarce and minimizing
 the aggregate footprint matters more than being able to independently scale
 any one absorbed component.
 
@@ -434,11 +440,12 @@ any one absorbed component.
   also hosts one more component.
 
 **Costs / limitations:**
-- Every cost from §6 still applies (shared fault domain, shared scaling
-  unit, hand-rolled migration ordering) — merging doesn't get cheaper just
-  because the target changed.
-- Every K8s-specific cost from §3 also still applies unchanged: real
-  cluster-management skill required, `kubectl` installed separately,
+- Every cost from merging on Docker still applies (shared fault domain,
+  shared scaling unit, hand-rolled migration ordering) — merging doesn't
+  get cheaper just because the target changed.
+- Every K8s-specific cost from running independent components on K8s also
+  still applies unchanged: real cluster-management skill required,
+  `kubectl` installed separately,
   `hostname` (not `exposePort`) for exposure — merging components doesn't
   reduce what K8s itself demands operationally.
 
@@ -454,8 +461,9 @@ any one absorbed component.
 
 ### 8. Shell-merged × Docker + local debug
 
-**What it is:** the same `local: true` overlay as §4, but the "rest of the
-topology" running for real is one or more shells rather than independent
+**What it is:** the same `local: true` overlay described for independent
+components above, but the "rest of the topology" running for real is one
+or more shells rather than independent
 containers. A component you pull out this way can depend on a `servedBy`
 member exactly like it would depend on any ordinary component: its
 `*_ENDPOINT` resolves to a real, host-reachable `localhost:<port>` — the CLI
@@ -475,7 +483,8 @@ any image.
   — is fully supported; you don't need to know anything special about which
   shell the member happens to live in.
 - Everything else in the topology (other shells, other independent
-  containers) keeps its full realism exactly as in §4.
+  containers) keeps its full realism exactly as it does for independent
+  components.
 
 **Costs / limitations:**
 - You cannot pull a shell-absorbed member itself out this way — there's no
@@ -483,9 +492,9 @@ any image.
   lives inside a shell means debugging it inside the shell's own process, or
   temporarily removing its `servedBy` field and giving it back an
   independent container for the session.
-- Everything from §4's limitations (hand-written literals not
-  auto-rewritten, no migration container for the `local: true` component)
-  still applies unchanged.
+- Every limitation already described for the independent-components version
+  of this overlay (hand-written literals not auto-rewritten, no migration
+  container for the `local: true` component) still applies unchanged.
 
 **Things worth knowing:**
 - This mapping depends on the shell already being required to listen on the
@@ -494,14 +503,16 @@ any image.
   doesn't silently misroute).
 - The reverse direction — an ordinary container depending on something
   you've made `local: true` — works too, through the same `extra_hosts`
-  mechanism §4 describes; neither direction is the "special case."
+  mechanism described above; neither direction is the "special case."
 
 ### 9. Mixed × bare process
 
 **What it is:** whichever components you actually need for what you're
 working on — some independent, some living inside a shell in the real
-topology — all run as plain host processes, following §1's caveats for the
-independent ones and §5's for anything shell-shaped.
+topology — all run as plain host processes, with the same caveats as
+running independent components by hand (nothing platform-managed,
+everything hand-supplied) or running a shell by hand (hand-built member
+data), whichever shape each one really is.
 
 **When to use it:** the everyday local-development default *once your
 project's real production topology already includes at least one shell*.
@@ -512,8 +523,8 @@ calls still reflect what the real deployment will actually do, because
 you're not simulating a different topology than production uses.
 
 **Advantages:**
-- Keeps the fast bare-process iteration loop from §1 available even after
-  your project has grown past "everything's independent."
+- Keeps the fast bare-process iteration loop available even after your
+  project has grown past "everything's independent."
 - Because you're deliberately mirroring each component's *real* shape
   (independent vs. shell-shaped) rather than always treating everything as
   independent, you catch shape-specific bugs (a shell's module-registry
@@ -528,8 +539,8 @@ you're not simulating a different topology than production uses.
   mirrors the real `brickkit.yaml` — that consistency is entirely on you.
 
 **Things worth knowing:**
-- The `local: true` + `--dry-run` cheat-sheet trick from §1 works the same
-  way here for an independent component; for a component that's really
+- The `local: true` + `--dry-run` cheat-sheet trick described above works
+  the same way here for an independent component; for a component that's really
   shell-shaped in production, there's no equivalent shortcut — you either
   construct its `BRICKKIT_SERVED_MEMBERS`-shaped data by hand, or skip
   modeling that part and just run the bare business logic you need to
@@ -545,7 +556,8 @@ declaration (or absence of one) in `brickkit.yaml`.
 
 **When to use it:** this is usually where a real, mature project actually
 settles — and it's worth being clear that it's typically a *structural*
-shape, not a resource-tuning compromise between §2 and §6. Some components
+shape, not a resource-tuning compromise between running everything
+independently and merging everything into shells. Some components
 genuinely can't or shouldn't merge regardless of how much memory headroom
 the rest of the topology has: a pure frontend served by something like
 nginx has no backend process to absorb into anything, and a stateless
@@ -555,21 +567,23 @@ inside any shell. If you're trying to pick one combination for a typical
 on-prem delivery and aren't sure, this is usually the right default.
 
 **Advantages:**
-- Gets §2's per-component independence exactly where it's structurally
-  needed, and §6's memory savings everywhere else, in one deployment —
-  you're not forced to choose one trade-off for the whole project.
+- Gets independent components' per-component independence exactly where
+  it's structurally needed, and shell-merging's memory savings everywhere
+  else, in one deployment — you're not forced to choose one trade-off for
+  the whole project.
 - Nothing about mixing the two shapes needs special-casing anywhere in
-  `brickkit.yaml` — an independent component's entry looks like §2's, a
-  merged one's looks like §6's, side by side, in the same file.
+  `brickkit.yaml` — an independent component's entry looks exactly like an
+  ordinary one, a merged one's looks exactly like a `servedBy` one, side by
+  side, in the same file.
 
 **Costs / limitations:**
 - The heaviest cognitive load of the three Docker-target cells:
   troubleshooting means holding two mental models at once — "which shell is
   this member actually in" for merged components, and ordinary per-container
   reasoning for independent ones.
-- Every cost specific to shells (§6) still applies to the merged half, and
-  every cost specific to independence (§2) still applies to the independent
-  half — mixing doesn't average the costs away, it just lets you place them
+- Every cost specific to shells still applies to the merged half, and every
+  cost specific to independence still applies to the independent half —
+  mixing doesn't average the costs away, it just lets you place them
   deliberately.
 
 **Things worth knowing:**
@@ -586,20 +600,23 @@ on-prem delivery and aren't sure, this is usually the right default.
 
 ### 11. Mixed × K8s
 
-**What it is:** the same hybrid topology as §10, targeting a real cluster:
+**What it is:** the same hybrid topology as the mixed-on-Docker cell above,
+targeting a real cluster:
 independent components get their own Deployment + Service, absorbed ones
 get a Service routed to their shell's Pods with no Deployment or migration
 Job of their own — generated in one pass from the same `servedBy`
 declarations, no extra configuration needed for the mix itself.
 
 **When to use it:** the middle point of the cloud-native resource spectrum,
-between §7 (resources tight, merge as much as possible) and §3 (resources
-plentiful, merge nothing) — reach for this when cluster resources are
-moderate: keep most components inside shells to hold down the aggregate
-footprint, and deliberately pull out just the few that genuinely need their
-own replica count or resource quota, independent of everything else. Unlike
-§10's structural mixing, the mixing decision here is often a resource-tuning
-one — a component that could be merged might be kept independent here
+between shell-merging on K8s (resources tight, merge as much as possible)
+and running independent components on K8s (resources plentiful, merge
+nothing) — reach for this when cluster resources are moderate: keep most
+components inside shells to hold down the aggregate footprint, and
+deliberately pull out just the few that genuinely need their own replica
+count or resource quota, independent of everything else. Unlike the
+structural mixing described for the Docker version of this cell, the
+mixing decision here is often a resource-tuning one — a component that
+could be merged might be kept independent here
 specifically because it needs to scale on its own, even though nothing
 structural prevents merging it.
 
@@ -612,7 +629,8 @@ structural prevents merging it.
   mode" to configure beyond ordinary `servedBy` declarations.
 
 **Costs / limitations:**
-- Combines §3's full K8s operational cost with §7's full merging cost —
+- Combines the full K8s operational cost of running components
+  independently with the full merging cost of merging them into shells —
   nothing about mixing reduces either.
 - The most moving parts to reason about when something goes wrong: is this
   component independent or merged, is the problem in K8s itself, in the
@@ -620,16 +638,18 @@ structural prevents merging it.
   means checking all three possibilities, not assuming one.
 
 **Things worth knowing:**
-- Every caveat from §3 (hostname required for `expose`, `kubectl` installed
-  separately) applies to whichever components in this deployment are
-  independent; every caveat from §7 (shared fault domain, hand-rolled
-  migration order inside the shell) applies to whichever ones are merged —
-  read both if you're troubleshooting a mixed deployment and don't yet know
-  which half the problem is in.
+- Every caveat already described for independent components on K8s
+  (hostname required for `expose`, `kubectl` installed separately) applies
+  to whichever components in this deployment are independent; every caveat
+  already described for shell-merging on K8s (shared fault domain,
+  hand-rolled migration order inside the shell) applies to whichever ones
+  are merged — check both if you're troubleshooting a mixed deployment and
+  don't yet know which half the problem is in.
 
 ### 12. Mixed × Docker + local debug
 
-**What it is:** a real hybrid topology (§10) running in Docker, with one
+**What it is:** a real hybrid topology — independent components and shells
+side by side — running in Docker, with one
 component pulled out via `local: true` for active debugging — the most
 realistic development-time combination in this guide, because "the rest of
 the system" is whatever your project's actual production shape already is,
@@ -638,9 +658,9 @@ not a simplified stand-in for it.
 **When to use it:** you're changing and verifying one component against a
 topology that's already the real mix your project runs in production —
 typically the component you're pulling out is one of the
-structurally-independent ones from §10 (a frontend, a gateway), since a
+structurally-independent ones (a frontend, a gateway), since a
 shell-absorbed member has the same "can't be pulled out individually"
-limitation described in §8.
+limitation already described for the shell-merged version of this overlay.
 
 **Advantages:**
 - The closest thing to "debug against production" available without
@@ -650,16 +670,16 @@ limitation described in §8.
   component sits on the other end: your `local: true` component can depend
   on an independent container or a shell member, and an independent
   container or shell can depend right back on your `local: true` component,
-  all through the same `extra_hosts` mechanism §4 and §8 each describe for
-  their own half.
+  all through the same `extra_hosts` mechanism described above.
 
 **Costs / limitations:**
 - Requires understanding every mechanism this guide covers at once: shell
   merging, the `local: true` `extra_hosts` trick, and ordinary
   independent-container behavior — there's no simpler mental model to fall
   back on here.
-- Same hard boundary as §8: you cannot pull a shell-absorbed member itself
-  out to debug it this way.
+- Same hard boundary already described for the shell-merged version of
+  this overlay: you cannot pull a shell-absorbed member itself out to
+  debug it this way.
 
 **Things worth knowing:**
 - Nothing about this cell changes based on how many components are merged
