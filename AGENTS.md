@@ -1079,8 +1079,14 @@ The complete machine-readable index for this (English) tree is at the repo root,
 
 | What you want to dig into | Grab this |
 | --- | --- |
+| A 5-minute hands-on start, before reading anything else | `docs/en/quick-start.md` (swap `en` for `zh`) |
+| A one-page glossary and the service-naming rule everything else builds on | `docs/en/concepts.md` (swap `en` for `zh`) |
+| The most common `up`/`down`, local-debug, and signature failures, symptom → cause → fix | `docs/en/troubleshooting.md` (swap `en` for `zh`) |
+| How BrickKit compares to Docker Compose, Helm, Kustomize, Tilt/Skaffold, Backstage, monorepo tooling | `docs/en/comparison.md` (swap `en` for `zh`) |
+| Why the component model suits AI-written code, and a concrete workflow for it | `docs/en/ai-development.md` (swap `en` for `zh`) |
 | What the platform is, how the core mechanisms work (current) | `docs/en/architecture/` (swap `en` for `zh` for the Chinese version) |
 | Hands-on tutorials | `docs/en/guide/` (same swap) |
+| A deep, real walkthrough of a Go component with a database and migrations | `docs/en/go-component-template.md` (swap `en` for `zh`) |
 | How to layer tests, plan seed/test data, design components well, tune deployment | `docs/en/patterns/` (same swap) |
 | Which deployment shape to pick for a whole project — topology (independent / shell-merged / mixed) × `docker`/`k8s`, plus the `local: true` debug toggle and where running components by hand fits in | `docs/en/patterns/deployment-selection-guide.md` (swap `en` for `zh`) |
 | How to build a shell that qualifies for `servedBy` | `docs/en/patterns/shell-implementers-guide.md` (swap `en` for `zh`) |
@@ -1092,6 +1098,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | What actually happens when a resource binding collides, and how the quota chain really merges field by field | `docs/en/architecture/resource-binding.md` (swap `en` for `zh`) |
 | What actually gets signed, why verification needs no cosign dependency, and why the public key can't come from the marketplace | `docs/en/architecture/signing-and-trust.md` (swap `en` for `zh`) |
 | Every command's full flag reference, with real generated output — the detailed complement to §8 above | `docs/en/architecture/cli-reference.md` (swap `en` for `zh`) |
+| Every marketplace HTTP endpoint, auth, error codes, and what publishing sends over the wire | `docs/en/market-api.md` (swap `en` for `zh`) |
 | How to layer tests for a component built on BrickKit | `docs/en/patterns/testing.md` (swap `en` for `zh`) |
 | How to plan seed data and test data | `docs/en/patterns/data-construction.md` (swap `en` for `zh`) |
 | How to research a domain and recognize when a feature needs a component family, not a flag | `docs/en/patterns/component-design.md` (swap `en` for `zh`) |

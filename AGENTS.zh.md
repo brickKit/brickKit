@@ -933,8 +933,14 @@ deploy/market/         市场的 compose / kustomize / Helm
 
 | 想深挖什么 | 抓哪一份 |
 | --- | --- |
+| 5 分钟动手起步，在读别的之前先看这个 | `docs/zh/quick-start.md`（英文版把 `zh` 换 `en`） |
+| 一页纸术语速查，以及贯穿全平台的那条服务名规则 | `docs/zh/concepts.md`（英文版把 `zh` 换 `en`） |
+| `up`/`down`、本地调试、签名验证最常见的坑，症状 → 原因 → 解决 | `docs/zh/troubleshooting.md`（英文版把 `zh` 换 `en`） |
+| BrickKit 和 Docker Compose、Helm、Kustomize、Tilt/Skaffold、Backstage、monorepo 工具怎么比 | `docs/zh/comparison.md`（英文版把 `zh` 换 `en`） |
+| 为什么组件模型适合 AI 写代码，以及一套具体工作流 | `docs/zh/ai-development.md`（英文版把 `zh` 换 `en`） |
 | 平台是什么、核心机制怎么工作（现行版本） | `docs/zh/architecture/`（英文版把 `zh` 换 `en`） |
 | 动手教程 | `docs/zh/guide/`（英文版同上） |
+| 一个带数据库和迁移的 Go 组件，深入真实走一遍 | `docs/zh/go-component-template.md`（英文版把 `zh` 换 `en`） |
 | 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/patterns/`（英文版同上） |
 | 整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）× `docker`/`k8s`，外加 `local: true` 调试开关、手动裸跑组件放在哪个位置 | `docs/zh/patterns/deployment-selection-guide.md`（英文版把 `zh` 换 `en`） |
 | 怎么造一个能接 `servedBy` 的合格外壳 | `docs/zh/patterns/shell-implementers-guide.md`（英文版把 `zh` 换 `en`） |
@@ -946,6 +952,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 资源绑定撞车时到底会发生什么、配额链到底怎么逐字段合并 | `docs/zh/architecture/resource-binding.md`（英文版把 `zh` 换 `en`） |
 | 真正被签名的是什么、验签为什么不需要 cosign 依赖、公钥为什么不能来自市场 | `docs/zh/architecture/signing-and-trust.md`（英文版把 `zh` 换 `en`） |
 | 每个命令完整的参数参考，带真实生成的输出——上面 §8 的详细版 | `docs/zh/architecture/cli-reference.md`（英文版把 `zh` 换 `en`） |
+| 市场每一个 HTTP 端点、认证、错误码，以及发布时到底传了什么 | `docs/zh/market-api.md`（英文版把 `zh` 换 `en`） |
 | 基于 BrickKit 的组件该怎么分层测试 | `docs/zh/patterns/testing.md`（英文版把 `zh` 换 `en`） |
 | 怎么规划种子数据与测试数据 | `docs/zh/patterns/data-construction.md`（英文版把 `zh` 换 `en`） |
 | 怎么做领域研究、怎么识别一个特性该做成组件家族而不是开关 | `docs/zh/patterns/component-design.md`（英文版把 `zh` 换 `en`） |
