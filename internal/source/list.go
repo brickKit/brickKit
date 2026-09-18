@@ -5,6 +5,9 @@ package source
 import (
 	"context"
 	"sort"
+
+	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/manifest"
 )
 
 // listableFetcher 是能枚举自己有哪些组件的安装源。
@@ -54,6 +57,9 @@ type LocalProblem struct {
 type LocalScan struct {
 	Components []LocalComponent
 	Problems   []LocalProblem
+	// Warnings 是不阻断的提醒：本地源是作者自己的工作副本，Manifest 里
+	// 静默失效的写法（属性声明里拼错的键）该在这里就让作者听到。
+	Warnings []*clierr.Error
 }
 
 // LocalComponents 列出所有本地安装源里的组件，按组件 ID 排序。
@@ -97,6 +103,10 @@ func (c *Client) LocalComponents(ctx context.Context) (*LocalScan, error) {
 			seen[id] = true
 			scan.Components = append(scan.Components,
 				LocalComponent{ID: id, Version: version, SourceID: f.id()})
+			if raw, err := f.manifestBytes(ctx, id, version); err == nil {
+				scan.Warnings = append(scan.Warnings,
+					manifest.PropertyKeyWarnings(raw, describe(f, id, version))...)
+			}
 		}
 	}
 

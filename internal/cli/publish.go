@@ -109,6 +109,7 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 
 	opts.Printf("📤 发布 %s@%s\n", pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version)
 	opts.Printf("   ✅ Manifest 校验通过\n")
+	renderWarnings(opts, pkg.warnings)
 	opts.Printf("   ✅ 镜像引用有效：%s\n", pkg.manifest.Deployment.Image)
 
 	// ⚠️ 钉 digest 必须在**签名之前**：反过来的话签的是旧 Manifest，
@@ -156,6 +157,8 @@ type publishPackage struct {
 	fileOrder  []string
 	sourceType string
 	gitURL     string
+	// warnings 是不阻断发布的提醒（如属性声明里拼错的键）。
+	warnings []*clierr.Error
 }
 
 // loadPublishPackage 读组件目录并做全部本地校验。
@@ -192,6 +195,9 @@ func loadPublishPackage(f publishFlags) (*publishPackage, error) {
 	}
 
 	pkg := &publishPackage{root: root, manifest: m, document: document, files: map[string][]byte{}}
+	if raw, err := os.ReadFile(manifestPath); err == nil {
+		pkg.warnings = manifest.PropertyKeyWarnings(raw, manifestPath)
+	}
 	if err := pkg.loadArtifactFiles(); err != nil {
 		return nil, err
 	}

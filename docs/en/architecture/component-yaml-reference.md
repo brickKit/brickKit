@@ -95,6 +95,8 @@ This block is optional self-documentation, not a functional requirement — noth
 
 `required` is where the one real teeth in this whole block live: a property listed in `required` with no `default` and no `brickkit.yaml` override blocks `brickkit up` outright, for the whole project, not just this component — [environment-variables.md](environment-variables.md) §5.3 has the full mechanism and the real error text.
 
+**A misspelled key inside a property declaration** (say `defualt` for `default`) doesn't fail Manifest validation; the parser silently drops it — and the component ends up with no default. `Parse` stays quiet about it because a Manifest already published with extra keys (`format`, `examples`, … written out of JSON Schema habit) has to keep installing, and a consumer can do nothing about someone else's Manifest. So this is a **warning** raised only where the author can hear it and fix it, and it guesses the key you meant: `brickkit publish`, and `brickkit add --local` when it scans a local source. It never blocks, and the property names themselves under `configSchema.properties` (names the author chose) are never checked.
+
 ## `deployment`
 
 | Field | Type | Required | Constraint |

@@ -262,3 +262,39 @@ func TestLocalComponentsReportsMissingRoot(t *testing.T) {
 	assert.Contains(t, text, "本地安装源路径不存在")
 	assert.Contains(t, text, "local-dev")
 }
+
+// 本地源是作者自己的工作副本：属性声明里拼错的键在扫描时就该听到，不必等到 publish。
+// 只是警告——组件照常被列出、照常能装。
+func TestLocalComponentsWarnsOnMisspelledPropertyKey(t *testing.T) {
+	layout := newProject(t)
+	root := filepath.Join(layout.Root, "components")
+	dir := writeComponent(t, root, componentSpec{ID: "people/basic", Version: "1.0.0"})
+	path := filepath.Join(dir, "component.yaml")
+	writeFile(t, path, readFile(t, path)+
+		"configSchema:\n  type: object\n  properties:\n    pageSize:\n      type: integer\n      defualt: 20\n")
+
+	c := newClient(t, layout, cfgWithSources(
+		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+	), Options{})
+
+	got, err := c.LocalComponents(context.Background())
+	require.NoError(t, err)
+	require.Len(t, got.Components, 1, "警告不影响装配")
+	require.Len(t, got.Warnings, 1)
+	assert.True(t, got.Warnings[0].Warning)
+	assert.Contains(t, got.Warnings[0].Format(), "configSchema.properties.pageSize.defualt")
+}
+
+func TestLocalComponentsNoWarningsForWellFormedComponents(t *testing.T) {
+	layout := newProject(t)
+	root := filepath.Join(layout.Root, "components")
+	writeComponent(t, root, componentSpec{ID: "people/basic", Version: "1.0.0"})
+
+	c := newClient(t, layout, cfgWithSources(
+		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+	), Options{})
+
+	got, err := c.LocalComponents(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, got.Warnings)
+}

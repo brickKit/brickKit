@@ -69,6 +69,7 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 		return nil
 	}
 	renderLocalScan(opts, scan.Components)
+	renderWarnings(opts, scan.Warnings)
 
 	plan := planLocalAdd(cfg, scan.Components)
 	renderLocalSkips(opts, plan)

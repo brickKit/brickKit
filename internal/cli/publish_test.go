@@ -90,6 +90,41 @@ func TestPublishOutputReportsEachCheck(t *testing.T) {
 	assert.Contains(t, r.stdout, "组件：people/basic@1.2.0")
 }
 
+// 属性声明里拼错的键（defualt）会被解析器静默丢掉，组件拿不到默认值。
+// publish 是作者最后一次听得到的地方：警告，但不阻断发布。
+func TestPublishWarnsOnMisspelledPropertyKey(t *testing.T) {
+	m := newFakeMarket(t)
+	m.artifacts = []map[string]any{artifactEntry("art-0", "api-docs", "openapi", "openapi.json")}
+	f := newMarketProject(t, m, "")
+	loginTo(t, f, m)
+	c := publishable()
+	c.ConfigSchema = []string{"greeting:hi"}
+	root := writeComponentDir(t, f.Dir, c)
+	replaceInFile(t, filepath.Join(root, "component.yaml"), "default:", "defualt:")
+
+	r := runIn(t, f.Dir, "publish", "--path", root)
+
+	require.Equal(t, clierr.ExitOK, r.code, "只是警告，不能阻断发布："+r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "configSchema.properties.greeting.defualt")
+	assert.Contains(t, r.stdout, "是不是想写 default")
+	assert.Contains(t, r.stdout, "🎉 发布完成")
+}
+
+func TestPublishIsQuietAboutWellFormedConfigSchema(t *testing.T) {
+	m := newFakeMarket(t)
+	m.artifacts = []map[string]any{artifactEntry("art-0", "api-docs", "openapi", "openapi.json")}
+	f := newMarketProject(t, m, "")
+	loginTo(t, f, m)
+	c := publishable()
+	c.ConfigSchema = []string{"greeting:hi"}
+	root := writeComponentDir(t, f.Dir, c)
+
+	r := runIn(t, f.Dir, "publish", "--path", root)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "不会生效")
+}
+
 // 发布请求体必须带上完整 Manifest 与来源类型（007 §3.7）。
 func TestPublishSendsManifestAndSourceType(t *testing.T) {
 	m := newFakeMarket(t)

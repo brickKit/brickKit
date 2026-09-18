@@ -95,6 +95,8 @@ AGENTS.zh.md §6 是那份可以直接复制粘贴的骨架。这篇文档是骨
 
 `required` 是这整块里唯一真正有牙齿的地方：一个列进 `required`、既没有 `default` 也没有被 `brickkit.yaml` 覆盖的属性，会让整个项目的 `brickkit up` 直接拒绝启动，不只是这一个组件——完整机制和真实报错文案见 [environment-variables.md](environment-variables.md) 第五节第三条。
 
+**属性声明里拼错的键**（比如把 `default` 写成 `defualt`）不会让 Manifest 校验失败，解析器会把它静默丢掉——组件于是拿不到默认值。`Parse` 对这件事不报错，是因为已发布组件里带着多余键（照 JSON Schema 习惯写的 `format`、`examples`……）的 Manifest 必须继续装得上，而消费方对别人的 Manifest 无能为力。所以这是一条只在作者自己听得到的地方给出的**警告**，并会猜你想写的是哪个键：`brickkit publish`，以及 `brickkit add --local` 扫描本地安装源的时候。警告不阻断，`configSchema.properties` 底下的属性名本身（作者自己起的名字）从来不查。
+
 ## `deployment`
 
 | 字段 | 类型 | 是否必填 | 约束 |

@@ -220,3 +220,20 @@ func TestAddLocalRejectsRepoFlags(t *testing.T) {
 		assert.Contains(t, r.stderr, flag)
 	}
 }
+
+// 本地源是作者自己的工作副本：属性声明里拼错的键（defualt）会被解析器静默丢掉，
+// add --local 扫描时就该说一声——只是警告，组件照常加进来。
+func TestAddLocalWarnsOnMisspelledPropertyKey(t *testing.T) {
+	dir := t.TempDir()
+	c := comp{ID: "demo/hello", Version: "1.0.0", ConfigSchema: []string{"greeting:hi"}}
+	sources := oneLocalSource(t, dir, c)
+	replaceInFile(t, filepath.Join(dir, "shared", "demo", "hello", "component.yaml"), "default:", "defualt:")
+	f := newProjectFixtureAt(t, dir, sources...)
+
+	r := runIn(t, f.Dir, "add", "--local")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "configSchema.properties.greeting.defualt")
+	assert.Contains(t, r.stdout, "是不是想写 default")
+	assert.Equal(t, []string{"demo/hello@1.0.0"}, f.refs(t), "警告不影响装配")
+}
