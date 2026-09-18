@@ -27,15 +27,6 @@ import (
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
-// yamlSurfaceOverrides 列出自己实现了 UnmarshalYAML 的类型：它们的结构体标签
-// 不是真实的 YAML 写法，反射读出来的字段名会撒谎。
-//
-// ComponentDep 的映射写法只认 id 与 optional（见 manifest.ComponentDep.UnmarshalYAML）；
-// Version 是从 id 里 "@" 后面切出来的派生值，不是一个 YAML 键。
-var yamlSurfaceOverrides = map[reflect.Type][]string{
-	reflect.TypeOf(manifest.ComponentDep{}): {"id", "optional"},
-}
-
 // fieldPaths 是从结构体反射出来的字段路径。
 type fieldPaths struct {
 	// leaves 是必须有文档的字段：标量、标量数组、map、any。
@@ -71,12 +62,6 @@ func collectPaths(typ reflect.Type, path string, out *fieldPaths) {
 	case reflect.Struct:
 		if path != "" {
 			out.nodes[path] = true
-		}
-		if names, ok := yamlSurfaceOverrides[typ]; ok {
-			for _, name := range names {
-				out.leaves[joinFieldPath(path, name)] = true
-			}
-			return
 		}
 		for i := 0; i < typ.NumField(); i++ {
 			field := typ.Field(i)

@@ -63,7 +63,7 @@ func Parse(data []byte, source string) (*Manifest, error) {
 	checkShapes(doc, shape)
 	// 与形状问题一起报：两者都是"这份 Manifest 根本读不对"，
 	// 分两轮报会让人改完一处又撞下一处
-	yamlcheck.Walk(doc, reflect.TypeOf(Manifest{}), shape)
+	walkUnknownFields(doc, shape)
 	if shape.Len() > 0 {
 		return nil, shape.Err()
 	}
@@ -78,6 +78,23 @@ func Parse(data []byte, source string) (*Manifest, error) {
 		return nil, err
 	}
 	return &m, nil
+}
+
+// walkUnknownFields 做未知字段检查，并给"依赖项里另写 version:"补一句该怎么写。
+//
+// 这是最自然的写错法（别的生态里版本几乎都是独立的键），而通用的"这一层可用的
+// 字段：id、optional"只告诉作者它不认识，没告诉作者版本去了哪儿。
+func walkUnknownFields(doc *yaml.Node, shape *clierr.ProblemSet) {
+	found := clierr.NewProblemSet(clierr.CodeManifestInvalid, "未知字段")
+	yamlcheck.Walk(doc, reflect.TypeOf(Manifest{}), found)
+	for _, problem := range found.Items() {
+		reason := problem.Reason
+		if strings.HasPrefix(problem.Field, "dependencies.components[") &&
+			strings.HasSuffix(problem.Field, "].version") {
+			reason += "——版本不是独立的键，写在 id 里：id: <组件ID>@<精确版本>"
+		}
+		shape.Add(problem.Field, reason)
+	}
 }
 
 func syntaxError(source string, cause error) error {

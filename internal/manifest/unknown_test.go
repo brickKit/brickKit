@@ -222,3 +222,45 @@ func TestRemovedFieldsAreRejected(t *testing.T) {
 		assert.Error(t, err, "%s 已删除，不该被静默接受", field)
 	}
 }
+
+// 依赖项的映射写法只认 id 与 optional。版本是 id 里 "@" 后面切出来的派生值，
+// 不是一个 YAML 键——写成独立的 version: 从前会被静默丢掉（id 里的版本照样生效），
+// 作者以为自己钉了 2.0.0，实际钉的是 1.0.0。
+func TestDependencyMappingRejectsStrayVersionKey(t *testing.T) {
+	for name, dep := range map[string]string{
+		"id 已带版本，又多写 version": "    - id: department/tree@1.0.0\n      version: 2.0.0\n",
+		"id 不带版本，另写 version":  "    - id: department/tree\n      version: 1.0.0\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Parse([]byte(minimalYAML+"dependencies:\n  components:\n"+dep), "component.yaml")
+			require.Error(t, err)
+
+			text := clierr.As(err).Format()
+			assert.Contains(t, text, "dependencies.components[0].version")
+			assert.Contains(t, text, "id: <组件ID>@<精确版本>", "要告诉作者版本该写在哪")
+		})
+	}
+}
+
+// Ref 是解析时留给错误提示用的原始写法，不是给作者写的键。
+func TestDependencyMappingRejectsRefKey(t *testing.T) {
+	_, err := Parse([]byte(minimalYAML+
+		"dependencies:\n  components:\n    - id: department/tree@1.0.0\n      ref: whatever\n"), "component.yaml")
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Format(), "dependencies.components[0].ref")
+}
+
+// 两种合法写法不受影响。
+func TestDependencyBothValidFormsStillParse(t *testing.T) {
+	m, err := Parse([]byte(minimalYAML+`dependencies:
+  components:
+    - department/tree@1.0.0
+    - id: infra/redis@1.0.0
+      optional: true
+`), "component.yaml")
+	require.NoError(t, err)
+	require.Len(t, m.Dependencies.Components, 2)
+	assert.False(t, m.Dependencies.Components[0].Optional)
+	assert.True(t, m.Dependencies.Components[1].Optional)
+	assert.Equal(t, "1.0.0", m.Dependencies.Components[1].Version)
+}

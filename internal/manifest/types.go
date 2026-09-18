@@ -137,15 +137,20 @@ type Dependencies struct {
 //   - department/tree@1.0.0                 # 强依赖
 //   - id: infra/redis-event-bus@1.0.0       # 弱依赖
 //     optional: true
+//
+// 结构体标签写的是**真实的 YAML 写法**：映射里只认 id 与 optional。Version 是从
+// id 里 "@" 后面切出来的派生值，Ref 是留给错误提示用的原始写法——它们不是作者能写的键，
+// 标为 "-"。没有这些标签时，未知字段检查会把 version:/ref: 当成合法键放过去，
+// 而 UnmarshalYAML 只读 id 与 optional，于是 `version: 2.0.0` 被静默丢掉。
 type ComponentDep struct {
 	// ID 是组件 ID（不含版本）。
-	ID string
+	ID string `yaml:"id"`
 	// Version 是精确版本。
-	Version string
+	Version string `yaml:"-"`
 	// Optional 为 true 表示弱依赖：缺失时警告但继续，且完全不注入环境变量。
-	Optional bool
+	Optional bool `yaml:"optional"`
 	// Ref 是 YAML 中的原始写法（如 department/tree@1.0.0），用于错误提示。
-	Ref string
+	Ref string `yaml:"-"`
 }
 
 // ResourceDep 是一条资源依赖（002 §3.5）。
