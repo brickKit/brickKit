@@ -2,6 +2,8 @@
 
 The failure modes people actually hit around `brickkit up`/`down` and signature verification. If your problem isn't here, check the relevant command's `--help` first, or the [architecture docs](architecture/overview.md) for how that mechanism is actually designed.
 
+If you're looking at a `❌` block rather than a symptom, the `error_code` in the JSON log line printed right after it is the index into [Error codes](architecture/error-codes.md), which covers every code and the situations behind each.
+
 ## `brickkit up` fails
 
 ### Image not found
@@ -15,17 +17,31 @@ The failure modes people actually hit around `brickkit up`/`down` and signature 
 - Double-check `deployment.image`'s spelling and tag
 - Private registries need `docker login` first
 
+**Code:** `IMAGE_UNAUTHORIZED` — the CLI usually translates Docker's raw text into `错误：镜像不存在` or `错误：镜像拉取未授权`; see [Error codes](architecture/error-codes.md#image_unauthorized).
+
 ### Two components claim the same host port
 
-**Symptom:** `brickkit up` (or `--dry-run`) fails immediately at generation time:
+**Symptom:** `brickkit up` (or `--dry-run`) fails immediately at generation time. What it prints depends on whether the components write `exposePort` themselves. If neither does, both default to their own `deployment.port`:
+
+```
+❌ 错误：宿主机端口 8080 被多个组件占用
+   组件：demo/caller@1.0.0
+   组件：demo/hello@1.0.0
+   宿主机端口：8080
+   建议：
+   1. 在 brickkit.yaml 中给其中一个组件设置不同的 exposePort
+   2. 或去掉其中一个组件的 expose: true（组件之间在容器网络内互访不需要 expose）
+```
+
+If both write the same explicit `exposePort`:
 
 ```
 ❌ 错误：brickkit.yaml 校验失败
    文件：brickkit.yaml
-   components[1].exposePort：与 components[0].exposePort 冲突（宿主机端口 8080 已被占用）
+   components[1].exposePort：与 components[0].exposePort 冲突（宿主机端口 9000 已被占用）
 ```
 
-**Cause:** two `expose: true` components ended up on the same host port (with no `exposePort` set, a component defaults to its own `deployment.port`). This conflict is caught while generating the deployment file, before Docker ever starts a second container on the same port — which is why you won't actually see Docker's own "port is already allocated".
+**Cause:** two `expose: true` components ended up on the same host port. Either way it is caught while the CLI is still generating, before Docker ever starts a second container on the same port — which is why you won't actually see Docker's own "port is already allocated". The first form is `PORT_CONFLICT`, the second `CONFIG_INVALID`; see [Error codes](architecture/error-codes.md).
 
 **Fix:** give one of the components an explicit `exposePort: <different port>`, or drop `expose: true` from one of them (components reach each other over the container network without needing exposure at all).
 
@@ -42,6 +58,8 @@ If you're seeing Docker's raw `Error: port is already allocated` instead of the 
 - K8s: `kubectl logs job/<migration-job>`
 - Fix the script and re-run `brickkit up`
 - On K8s you don't need to delete the old Job by hand first — the CLI already does that for you, equivalent to running `kubectl delete job --ignore-not-found` before every migration
+
+**Code:** `MIGRATION_FAILED` on Kubernetes; on Docker the same failure surfaces as `ENGINE_FAILED` — see [Error codes](architecture/error-codes.md#migration_failed).
 
 ### Can't reach a dependency
 
@@ -106,8 +124,11 @@ If you're seeing Docker's raw `Error: port is already allocated` instead of the 
 
 **Worth knowing:** `publicKeys` is the only field that actually makes verification take effect — with zero keys configured, `requireSignature: true` does nothing at all (the CLI warns once, but it won't supply a trust anchor for you).
 
+**Code:** `SIGNATURE_INVALID` — see [Error codes](architecture/error-codes.md#signature_invalid).
+
 ## Read further
 
+- [Error codes](architecture/error-codes.md)
 - [Signing and trust](architecture/signing-and-trust.md)
 - [Dependency resolution](architecture/dependency-resolution.md)
 - [Deployment generation](architecture/deployment-generation.md)

@@ -90,8 +90,9 @@ func docPrinciples(markdown, section string) []string {
 	return out
 }
 
-// principleDrift 比较清单与文档：missing 是清单有、文档没有的，extra 反过来。
-func principleDrift(want, got []string) (missing, extra []string) {
+// nameDrift 按名字比较两份清单：missing 是 want 有、got 没有的，extra 反过来。
+// 原则清单与错误码清单共用它。
+func nameDrift(want, got []string) (missing, extra []string) {
 	contains := func(list []string, name string) bool {
 		for _, item := range list {
 			if item == name {
@@ -128,7 +129,7 @@ func TestPrinciplesDocMirrorsAgents(t *testing.T) {
 		require.NoError(t, err, "%s 不存在：这份文档是 %s §4 十二条原则的论证版", rel, pair.agents)
 		got := docPrinciples(string(docBody), pair.section)
 
-		missing, extra := principleDrift(want, got)
+		missing, extra := nameDrift(want, got)
 		for _, name := range missing {
 			t.Errorf("%s：%s §4 有原则「%s」，文档「%s」一节下没有对应的三级标题\n"+
 				"   标题要与 AGENTS 表格第一列逐字相同", rel, pair.agents, name, pair.section)
@@ -158,7 +159,7 @@ func TestPrincipleDriftDetectorCatchesBothDirections(t *testing.T) {
 	got := docPrinciples(doc, "The twelve principles")
 	require.Equal(t, []string{"A", "X"}, got, "只认目标那一节下的三级标题")
 
-	missing, extra := principleDrift([]string{"A", "B"}, got)
+	missing, extra := nameDrift([]string{"A", "B"}, got)
 	require.Equal(t, []string{"B"}, missing, "清单有、文档没写的原则必须被报出来")
 	require.Equal(t, []string{"X"}, extra, "文档写了、清单里没有的原则必须被报出来")
 }

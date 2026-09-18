@@ -2,6 +2,8 @@
 
 覆盖 `brickkit up`/`down` 和签名验证里最容易踩的失败模式。这里没有的问题，先看对应命令的 `--help`，或者去看 [架构文档](architecture/overview.md) 里那个机制具体怎么设计的。
 
+如果你手里的是一段 `❌` 错误块，而不是一个症状：它后面紧跟的那行 JSON 日志里的 `error_code`，就是 [错误码](architecture/error-codes.md) 的索引——那一篇覆盖了每个错误码，以及每个码底下的各种情形。
+
 ## `brickkit up` 失败
 
 ### 镜像拉不到
@@ -15,17 +17,31 @@
 - 检查 `deployment.image` 拼写和 tag 是否正确
 - 私有镜像仓库需要先 `docker login`
 
+**错误码：** `IMAGE_UNAUTHORIZED`——CLI 通常会把 Docker 的原始报错翻译成 `错误：镜像不存在` 或 `错误：镜像拉取未授权`；见[错误码](architecture/error-codes.md#image_unauthorized)。
+
 ### 同一个宿主机端口被多个组件占用
 
-**症状：** `brickkit up`（或 `--dry-run`）在生成阶段就直接报错：
+**症状：** `brickkit up`（或 `--dry-run`）在生成阶段就直接报错。具体打印什么，取决于组件自己有没有写 `exposePort`。两个都没写时，都默认用自己的 `deployment.port`：
+
+```
+❌ 错误：宿主机端口 8080 被多个组件占用
+   组件：demo/caller@1.0.0
+   组件：demo/hello@1.0.0
+   宿主机端口：8080
+   建议：
+   1. 在 brickkit.yaml 中给其中一个组件设置不同的 exposePort
+   2. 或去掉其中一个组件的 expose: true（组件之间在容器网络内互访不需要 expose）
+```
+
+两个都显式写了同一个 `exposePort` 时：
 
 ```
 ❌ 错误：brickkit.yaml 校验失败
    文件：brickkit.yaml
-   components[1].exposePort：与 components[0].exposePort 冲突（宿主机端口 8080 已被占用）
+   components[1].exposePort：与 components[0].exposePort 冲突（宿主机端口 9000 已被占用）
 ```
 
-**原因：** 两个 `expose: true` 的组件用了同一个宿主机端口（没写 `exposePort` 时默认用组件自己的 `deployment.port`）。这个冲突在生成部署文件那一步就会被挡下来，不会等到 Docker 启动第二个容器时才失败——所以你不会看到 Docker 自己的 "port is already allocated"。
+**原因：** 两个 `expose: true` 的组件用了同一个宿主机端口。两种情形都是在 CLI 还在生成阶段就会被挡下来，不会等到 Docker 启动第二个容器时才失败——所以你不会看到 Docker 自己的 "port is already allocated"。第一种是 `PORT_CONFLICT`，第二种是 `CONFIG_INVALID`；见[错误码](architecture/error-codes.md)。
 
 **解决：** 给其中一个组件加 `exposePort: <不同端口>`，或者去掉其中一个的 `expose: true`（组件之间在容器网络内互相访问本来就不需要 expose）。
 
@@ -41,6 +57,8 @@
 - Docker：`docker logs <迁移容器名>` 查看日志
 - K8s：`kubectl logs job/<迁移-job-名>` 查看日志
 - 修好迁移脚本后重新 `brickkit up`。K8s 下 CLI 自己会先清理掉任何残留的旧 Job（等价于 `kubectl delete job --ignore-not-found`），保证幂等，不用你手动删
+
+**错误码：** K8s 上是 `MIGRATION_FAILED`；Docker 上同样的失败以 `ENGINE_FAILED` 出现——见[错误码](architecture/error-codes.md#migration_failed)。
 
 ### 依赖组件访问不到
 
@@ -105,8 +123,11 @@
 
 **提醒：** `publicKeys` 是唯一真正让签名校验生效的字段——一个公钥都没配的话，`requireSignature: true` 什么都不做（CLI 会警告一次，但不会替你补上信任锚点）。
 
+**错误码：** `SIGNATURE_INVALID`——见[错误码](architecture/error-codes.md#signature_invalid)。
+
 ## 深入阅读
 
-- [安装与信任模型](architecture/signing-and-trust.md)
+- [错误码](architecture/error-codes.md)
+- [签名与信任模型](architecture/signing-and-trust.md)
 - [依赖解析与启动顺序](architecture/dependency-resolution.md)
 - [部署文件生成](architecture/deployment-generation.md)

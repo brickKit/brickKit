@@ -4,7 +4,7 @@
 //
 // 所有面向用户的错误都应该是 *clierr.Error，它包含四部分：
 //
-//	Code     机器可读的错误码，便于测试与文档交叉引用
+//	Code     机器可读的错误码：对外契约，只增不改（CI 据此判断该重试还是该报警）
 //	Message  一句话错误标题（渲染为 "❌ <Message>"）
 //	Details  有序的明细行（组件、镜像、退出码……）
 //	Hints    建议（一条时单行，多条时自动编号）
@@ -33,7 +33,8 @@ import (
 // Code 是机器可读的错误码。分类依据 004 §10.1。
 type Code string
 
-// 错误码目录。新增错误场景时在此登记，便于测试与文档对照。
+// 错误码目录。新增错误场景时在此登记，并写进 docs/{en,zh}/architecture/error-codes.md
+// ——tests/docfields 会拦住漏写；码一旦发布就不改名、不挪作他用、不删除。
 const (
 	// 内部错误（未归类，通常是 bug）。
 	CodeInternal Code = "INTERNAL"
