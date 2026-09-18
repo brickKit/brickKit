@@ -141,6 +141,19 @@ brickkit down
 
 这句话是真的——BrickKit 从来不会对资源本身发出删除指令。它没提醒你的、而真跑一遍立刻就会暴露出来的是：**默认情况下，这个项目的命名空间是 BrickKit 自己创建的，`down` 会删掉它创建的整个命名空间**——不管里面的东西是不是 BrickKit 放进去的，全都一起删。如果 `guide-pg` 图省事（少打一条命令）被部署进了 `brickkit-hello-world`，而不是它自己的 `guide-resources`，这次 `brickkit down` 会把数据库一起带走，直接跟刚才那条控制台消息说的相反——不是因为那条消息说错了，而是"资源本身从没被针对性删除过"和"资源恰好活在一个刚被整体删掉的命名空间里"是两个不同的保证。
 
+```mermaid
+graph TB
+    subgraph 安全：命名空间分开
+        NS1["brickkit-hello-world<br/>（BrickKit 拥有，down 会删）"]
+        NS2["guide-resources<br/>（运维管理，不受影响）"]
+        PG1[("PostgreSQL")] -.->|活在| NS2
+    end
+    subgraph 不安全：同一个命名空间
+        NS3["brickkit-hello-world<br/>（down 会把里面全删掉）"]
+        PG2[("PostgreSQL")] -.->|活在| NS3
+    end
+```
+
 解法就是这篇文章已经在做的两件事之一——把资源放在 BrickKit 不拥有的命名空间里——或者，如果一个项目的命名空间本来就该由别人管理，在 `deploy:` 里设 `createNamespace: false`（AGENTS.zh.md §7）：这样 BrickKit 就永远不会创建、也永远不会删除这个命名空间，`down` 只会动它自己在里面生成的那些对象。
 
 ## 清理

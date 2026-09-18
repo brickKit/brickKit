@@ -17,4 +17,4 @@ A sequence of tutorials, each one run for real against the actual CLI — not a 
 
 Two deliberate departures from the old 23-article series, both explained where they happen rather than just here: Article 4 already deploys real components to Kubernetes, so there's no separate "same system on K8s" repeat later the way the old series had one; and every article after the first few reuses the same two or three minimal fixture components (`demo/hello`, `demo/caller`, `infra/redis-event-bus`) rather than building out realistic, larger ones — the point of each article is a platform mechanism, not a business scenario, so the fixtures stay deliberately small.
 
-Not a tutorial step, but worth building once enough of this series exists to populate it with real, recurring failure modes rather than guesses: a troubleshooting lookup, still not written.
+Not a tutorial step, but the natural companion once something goes wrong partway through one of these: [Troubleshooting](../troubleshooting.md) — the common `up`/`down` and signature-verification failures, symptom → real cause → fix.

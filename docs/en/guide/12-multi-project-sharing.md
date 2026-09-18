@@ -4,14 +4,12 @@ Two teams, two separate BrickKit projects, and a real question: do they need to 
 
 ## The one question that decides everything
 
-```
-Does this component itself hold authoritative state?
-├─ No, and it doesn't depend on shared data
-│    → Run one per project. Free, and usually better.
-├─ It's stateless itself, but the state lives in a resource it connects to
-│    → One instance per project, pointed at the same resource — the common case
-└─ The component itself is the authority (a singleton side effect, or expensive to run twice)
-     → Treat it like someone else's API
+```mermaid
+graph TD
+    Q{"Does this component itself<br/>hold authoritative state?"}
+    Q -->|"No, and it doesn't depend<br/>on shared data"| A["Run one per project.<br/>Free, and usually better."]
+    Q -->|"Stateless itself, but state<br/>lives in a connected resource"| B["One instance per project,<br/>pointed at the same resource<br/>— the common case"]
+    Q -->|"The component itself is<br/>the authority (a singleton<br/>side effect, expensive to run twice)"| C["Treat it like<br/>someone else's API"]
 ```
 
 The middle case is the one people skip past. Component autonomy (AGENTS.md §4) already pushes every component toward statelessness — config from environment variables, state in a bound resource — so "this component genuinely owns authoritative state" is rarer than it sounds. `infra/redis-event-bus` looks like it should obviously need to be a shared, central thing; it holds zero state of its own. Everything lives in Redis Streams. Two projects each running their own instance, pointed at the same Redis, *is* a shared event stream.

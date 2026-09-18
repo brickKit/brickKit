@@ -36,6 +36,17 @@ brickkit up --dry-run
 
 ## 真正生成出了什么
 
+```mermaid
+graph LR
+    subgraph 容器网络
+        Caller["demo/caller<br/>容器"]
+    end
+    subgraph 你的机器
+        Hello["demo/hello<br/>普通进程<br/>（local: true）"]
+    end
+    Caller -->|"demo-hello-1-0-0<br/>走 extra_hosts: host-gateway"| Hello
+```
+
 生成的编排文件里只有一个服务——`demo/caller` 的——文件头的注释本身就写着（`组件数：1`），而且它带着完整的地址桥接配置：
 
 ```yaml

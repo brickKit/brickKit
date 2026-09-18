@@ -141,6 +141,19 @@ brickkit down
 
 That message is true — BrickKit never issues a delete against the resource itself. What it doesn't warn you about, and what running this for real surfaces immediately: **by default, BrickKit created this project's namespace, and `down` deletes the entire namespace it created** — every object in it, whether BrickKit put it there or not. Had `guide-pg` been deployed into `brickkit-hello-world` instead of its own `guide-resources` namespace (for convenience — one less command to type), this exact `brickkit down` would have taken the database with it, directly contradicting what the console message just told you, not because the message is wrong, but because "the resource itself was never targeted" and "the resource happened to live in a namespace that just got deleted" are two different guarantees.
 
+```mermaid
+graph TB
+    subgraph "Safe: separate namespaces"
+        NS1["brickkit-hello-world<br/>(BrickKit owns, down deletes)"]
+        NS2["guide-resources<br/>(ops-managed, untouched)"]
+        PG1[("PostgreSQL")] -.->|lives in| NS2
+    end
+    subgraph "Unsafe: same namespace"
+        NS3["brickkit-hello-world<br/>(down deletes everything inside)"]
+        PG2[("PostgreSQL")] -.->|lives in| NS3
+    end
+```
+
 The fix is either of the two things this article already does — keep resources in a namespace BrickKit doesn't own — or, if a project's namespace is meant to be managed by someone else entirely, set `createNamespace: false` in `deploy:` (AGENTS.md §7): BrickKit then never creates *or* deletes the namespace, and `down` only ever touches the objects it generated inside it.
 
 ## Cleanup

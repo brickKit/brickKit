@@ -36,6 +36,17 @@ brickkit up --dry-run
 
 ## What actually got generated
 
+```mermaid
+graph LR
+    subgraph "Container network"
+        Caller["demo/caller<br/>container"]
+    end
+    subgraph "Your machine"
+        Hello["demo/hello<br/>plain process<br/>(local: true)"]
+    end
+    Caller -->|"demo-hello-1-0-0<br/>via extra_hosts: host-gateway"| Hello
+```
+
 The compose file only has one service in it — `demo/caller`'s — confirmed by the header comment (`组件数：1`), and it carries the exact address-bridging config:
 
 ```yaml

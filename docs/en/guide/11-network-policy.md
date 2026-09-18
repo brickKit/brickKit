@@ -60,6 +60,12 @@ Instant, unaffected — the policy that just got generated is exactly permissive
 
 ## Prove an unauthorized path actually gets blocked
 
+```mermaid
+graph LR
+    Caller["demo/caller<br/>(in the dependency graph)"] -->|allowed| Hello["demo/hello"]
+    Intruder["intruder pod<br/>(not in the dependency graph)"] -.->|blocked: timeout| Hello
+```
+
 A plain pod, in the same namespace, matching nothing `demo/hello`'s policy allows:
 
 ```bash

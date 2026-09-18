@@ -60,6 +60,12 @@ kubectl -n brickkit-hello-world exec deploy/demo-caller-1-0-0 -- \
 
 ## 证明未授权路径真的被挡住了
 
+```mermaid
+graph LR
+    Caller["demo/caller<br/>（在依赖图里）"] -->|放行| Hello["demo/hello"]
+    Intruder["intruder pod<br/>（不在依赖图里）"] -.->|挡住：超时| Hello
+```
+
 一个普通的 pod，在同一个命名空间里，不匹配 `demo/hello` 策略允许的任何东西：
 
 ```bash
