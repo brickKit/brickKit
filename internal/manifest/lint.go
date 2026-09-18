@@ -53,7 +53,7 @@ func PropertyKeyWarnings(raw []byte, source string) []*clierr.Error {
 	warning := clierr.Warn(clierr.CodeManifestInvalid, "警告：configSchema 里有配置项声明的键不会生效").
 		WithDetail("来源", source)
 	for _, problem := range found {
-		warning.WithDetail(problem.Field, problem.Reason)
+		warning = warning.WithDetail(problem.Field, problem.Reason)
 	}
 	return []*clierr.Error{warning.
 		WithDetail("影响", "这些键会被解析器静默丢弃——比如 default 拼错，组件就拿不到默认值").
