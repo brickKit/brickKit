@@ -129,6 +129,38 @@ func TestEveryDocumentedRouteExists(t *testing.T) {
 		strings.Join(phantom, "\n   "))
 }
 
+// 实现了的端点，必须真的写进 007 §9。
+//
+// 反方向同样要守：`/api/v1/health` 曾经在这份文档里一个字都没有，
+// 却在《市场部署与运维指南》里出现了四次——compose 的 healthcheck 探的
+// 就是它。一个只活在代码里、文档一个字没提的端点，使用者根本无从知道
+// 它存在，也就无从知道能不能依赖它。
+//
+// 这条此前只在注释和 Makefile 的 -run 参数里被提到过，函数本身并不存在——
+// check-market-api 的 -run 过滤器匹配不到任何测试就悄悄跳过，这个方向
+// 因此从未被真正执行过。补上它。
+func TestEveryRouteIsDocumented(t *testing.T) {
+	documented := map[string]bool{}
+	for _, r := range documentedRoutes(t) {
+		documented[r] = true
+	}
+
+	var undocumented []string
+	for _, route := range handler.Routes() {
+		method, path, _ := strings.Cut(route, " ")
+		normalized := method + " " + normalize(path)
+		if !documented[normalized] {
+			undocumented = append(undocumented, route)
+		}
+	}
+	sort.Strings(undocumented)
+
+	assert.Empty(t, undocumented,
+		"服务端实现了这些端点，但 007 §9 没写——没人知道它们存在：\n   %s\n"+
+			"   补进 §9 对应的小节，或者如果它不该对外，说清楚为什么",
+		strings.Join(undocumented, "\n   "))
+}
+
 // 自检：解析没坏。
 //
 // 照着 check-docs.py 的做法——一个永远返回"没问题"的守卫比没有守卫更糟，
