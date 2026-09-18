@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 """检查文档里写的 brickkit 命令与参数是不是真的存在（开发计划 Step 40）。
 
-查两类：
+查三类：
 
   ① 不存在的命令   文档写了 `brickkit foo`，而 CLI 里没有 foo
   ② 不存在的参数   文档写了 `brickkit up --bar`，而 up 没有 --bar
+  ③ 测试数量过期   文档写「N 个测试函数」，而仓库里 `^func Test` 的真实数目对不上
 
 # 为什么需要它
 
@@ -28,6 +29,7 @@ Step 39 的证据审计，都是先报出一堆假结果）。所以**自检是�
 """
 
 import glob
+import os
 import re
 import subprocess
 import sys
@@ -300,6 +302,55 @@ def check_command_count(surface):
     return real, bad
 
 
+# TEST_COUNT_CLAIM 匹配文档里的测试数量声明：「1728 个测试函数」
+# 「2,000+ test functions」。数字里的千位逗号要能认，紧跟数字的 `+` 要能认——
+# 那代表这条声明是"下限"（"2000+ 个"），不是精确值，后面单独处理。
+TEST_COUNT_CLAIM = re.compile(r"([\d,]+)(\+?)\s*(?:个测试函数|test functions?)")
+
+
+def real_test_function_count():
+    """数一下仓库里真实的 `^func Test` 数量（跨 internal/、market-server/ 等全部模块）。"""
+    n = 0
+    for root, dirs, files in os.walk("."):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
+        for name in files:
+            if not name.endswith("_test.go"):
+                continue
+            path = os.path.join(root, name)
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("func Test"):
+                        n += 1
+    return n
+
+
+def check_test_count(real):
+    """文档里写的「N 个测试函数」必须与真实数目对得上。
+
+    # 为什么值得单独查
+
+    复核时实测过三处三个数：README 写的是 1762，AGENTS.md 写的是 1728，
+    `^func Test` 的真实数目是 2019——三个都不一样，说明这个数字从来没有
+    自动化校验过，纯靠手改维护，改动一多就没人记得同步。跟 `check_command_count`
+    是同一类问题：没有任何东西守着的数字，迟早会在某一份文档里率先烂掉。
+
+    「2000+」「2,000+」这类写法算下限声明，真实数目只要不小于它就算数——
+    测试数量只会随开发增长，用下限描述本来就是为了不用每次都精确对齐；
+    但没写 `+` 的精确数字（比如历史存档之外的地方写「1728」）必须精确相等，
+    差一个都说明这句话已经不真实了。
+    """
+    bad = []
+    for path in docs():
+        for i, line in enumerate(open(path, encoding="utf-8"), 1):
+            for m in TEST_COUNT_CLAIM.finditer(line):
+                claimed = int(m.group(1).replace(",", ""))
+                is_floor = m.group(2) == "+"
+                ok = real >= claimed if is_floor else real == claimed
+                if not ok:
+                    bad.append((path, i, m.group(0), line.strip()[:60]))
+    return bad
+
+
 def undocumented(surface, documented):
     """反向：二进制里有、而文档里一次都没出现的命令与参数。
 
@@ -372,6 +423,18 @@ def main():
         print("   → 增删命令时改了实现与各处说明，唯独这个数字没人动")
         sys.exit(1)
     print(f"✅ 命令数目：文档与实现一致（{real} 个业务命令）\n")
+
+    real_tests = real_test_function_count()
+    bad_test_count = check_test_count(real_tests)
+    if bad_test_count:
+        print(f"❌ 文档里的测试数量对不上：{len(bad_test_count)} 处（真实是 {real_tests} 个）")
+        for path, line_no, claim, text in bad_test_count:
+            print(f"   {path}:{line_no}  写着「{claim}」")
+            print(f"     {text}")
+        print("   → 测试数量只涨不跌，精确数字迟早过期；不想每次都同步就改成"
+              "「N+ 个测试函数」这种下限写法")
+        sys.exit(1)
+    print(f"✅ 测试数量：文档里的声明与实际一致（{real_tests} 个测试函数）\n")
 
     failed = report("文档写了不存在的命令", bad_cmd, "命令被改名或删掉了，文档没跟着改")
     failed |= report("文档写了不存在的参数", bad_flag, "参数被改名或删掉了，文档没跟着改")

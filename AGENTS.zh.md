@@ -986,7 +986,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | | |
 | --- | --- |
 | 开发进度 | 计划内的每一步都已完成，延后项也已全部结清 |
-| 测试 | 1728 个测试函数，race-clean |
+| 测试 | 2000+ 个测试函数，race-clean |
 | 动手教程（现行） | 12 篇，每一篇都真跑过；见 `docs/zh/guide/` |
 | 试用指南（归档） | 23 篇，全部对着真实 Docker / Kubernetes / 活的市场跑过 |
 | 设计书 | 14 本，与实现交叉复核过两轮 |
