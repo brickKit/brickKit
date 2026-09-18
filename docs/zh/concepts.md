@@ -1,8 +1,27 @@
 # 核心概念
 
-一页纸讲清楚 BrickKit 的几个部件怎么配合，以及看文档和错误提示时最常碰到的术语。更完整的定义在 [AGENTS.md](../../AGENTS.md) 的术语表和十二条设计原则里，这里只是一个更快的入口。
+如果你只想花五分钟弄懂 BrickKit 的骨架、看文档和错误提示时不至于被术语绊住，看这一页就够了。更完整的定义在 [AGENTS.md](../../AGENTS.md) 的术语表和十二条设计原则里，这里只是一个更快的入口。
 
 ## 四个部分
+
+```mermaid
+graph TB
+    subgraph 用完即走
+        CLI["BrickKit CLI<br/>单二进制"]
+    end
+    subgraph 常驻运行
+        Market[("BrickKit Market<br/>组件市场")]
+        CompA["组件 A"]
+        CompB["组件 B"]
+        Infra[("基础设施层<br/>PostgreSQL / Redis")]
+    end
+    CLI -.->|发布 / 拉取| Market
+    CLI ==>|生成部署文件| CompA
+    CLI ==>|生成部署文件| CompB
+    CompA <-->|DNS 直连| CompB
+    CompA --> Infra
+    CompB --> Infra
+```
 
 | 部分 | 形态 | 是否常驻 | 职责 |
 | --- | --- | --- | --- |
@@ -11,7 +30,7 @@
 | **组件层** | Docker 容器 / K8s Pod | ✅ | 业务本体，组件之间直接走 DNS 互相调用 |
 | **基础设施层** | PostgreSQL / Redis 等 | ✅ | 运维手动部署，在 `brickkit.yaml` 里声明绑定关系 |
 
-没有第五个部分——没有常驻的"主系统"。`brickkit up` 跑完就退出，真正跑着的只有你的组件容器和基础设施。
+图里故意只给 CLI 画了虚线、画在"用完即走"那个框里——没有第五个部分，没有常驻的"主系统"。`brickkit up` 跑完就退出，真正跑着的只有你的组件容器和基础设施。
 
 ## 关键术语
 
@@ -30,9 +49,24 @@
 | 部署目标 | Deploy Target | `docker` 或 `k8s`，决定 CLI 生成哪种部署文件 |
 | servedBy | servedBy | 组件声明"我的工作负载由另一个组件（外壳）承载"，不生成自己的容器 |
 
-## 一条贯穿始终的规则：服务名怎么来的
+## 一条贯穿始终的规则：服务名怎么来的，环境变量怎么分名字和值
 
-**服务名 = 组件 ID 转换 + 精确版本号。** 转换规则：`/` → `-`，`.` → `-`，全部小写。
+**服务名 = 组件 ID 转换 + 精确版本号。** 转换规则：`/` → `-`，`.` → `-`，全部小写。**环境变量名只从组件 ID 推导，从不带版本；变量的值才指向具体版本。** 这一条规则拆开看是两句话，合起来看其实是同一个设计：
+
+```mermaid
+graph LR
+    ID["组件 ID<br/>department/tree"]
+    VER["精确版本<br/>1.0.0"]
+    SVC["服务名<br/>department-tree-1-0-0"]
+    ADDR["地址＝环境变量的值<br/>http://department-tree-1-0-0:8080"]
+    VARNAME["环境变量名（不含版本）<br/>DEPARTMENT_TREE_ENDPOINT"]
+
+    ID -->|"转换：/→-，.→-，小写"| SVC
+    VER -->|拼接版本号| SVC
+    SVC --> ADDR
+    ID -->|"推导：大写 + 下划线"| VARNAME
+    VARNAME -.->|其值是| ADDR
+```
 
 | 组件 ID | 版本 | 服务名 |
 | --- | --- | --- |
@@ -41,13 +75,7 @@
 
 地址格式在本地（Docker）和生产（K8s）下**完全一样**：`http://<版本化服务名>:<端口>`。这一条规则单独就解释了两件事：多版本共存不需要额外机制（两个版本就是两个不冲突的 DNS 名字），调用方永远知道自己在跟哪个版本说话（没有隐式升级）。
 
-## 环境变量注入：名字不带版本，值带版本
-
-```bash
-DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
-```
-
-变量名 `DEPARTMENT_TREE_ENDPOINT` 是从组件 ID `department/tree` 推出来的，不带版本号；变量的值指向一个具体的版本化服务名。这样一个组件 ID 在同一份 `component.yaml` 的 `dependencies` 里只能出现一次——两个版本会在变量名上撞车，值互相覆盖，所以 CLI 在解析 Manifest 时就会直接拒绝。多版本共存因此是一个**项目级**能力（`brickkit.yaml` 可以并排列两个版本条目给不同调用方各自使用），不是组件级能力。
+而变量**名**不带版本，正是上图右侧那条推导路径决定的——`DEPARTMENT_TREE_ENDPOINT` 只从 `department/tree` 这个 ID 推出来，跟具体连的是哪个版本无关。这样一个组件 ID 在同一份 `component.yaml` 的 `dependencies` 里只能出现一次——两个版本会在变量名上撞车，值互相覆盖，所以 CLI 在解析 Manifest 时就会直接拒绝。多版本共存因此是一个**项目级**能力（`brickkit.yaml` 可以并排列两个版本条目给不同调用方各自使用），不是组件级能力。
 
 ## 启停规则：跟着上层走
 

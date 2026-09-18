@@ -2,6 +2,20 @@
 
 这些工具大多解决的是**相邻但不同**的问题——下面每张表都尽量只比较真正重叠的那部分，而不是用 BrickKit 有的东西去衬托别的工具"没有"，因为很多时候它们本来就不打算做那件事。想知道 BrickKit 自己拒绝做什么、为什么，看 [README 的"设计哲学"一节](../../README.zh.md)或[架构文档](architecture/overview.md)。
 
+如果你只想先有个大致方向，这张图给个粗略的起点——细节仍然在下面各节的表格里：
+
+```mermaid
+graph TD
+    Q{"组件需要独立发布、独立版本，<br/>且本地/生产要用同一份声明？"}
+    Q -->|要| BrickKit["BrickKit"]
+    Q -->|不要，只想本地开发循环更快| Tilt["Tilt / Skaffold"]
+    Q -->|不要，只想要个服务目录/门户| Backstage["Backstage"]
+    Q -->|不要，模块本来就该一起改一起发| Mono["monorepo 工具<br/>Turborepo / Nx / Lerna"]
+    Q -->|不要，已经在 K8s，只想管好清单| K8s{"环境差异大，<br/>需要参数化整个应用？"}
+    K8s -->|要| Helm["Helm"]
+    K8s -->|不要，只是清单字段小改动| Kustomize["Kustomize"]
+```
+
 ## vs Docker Compose
 
 | 维度 | Docker Compose | BrickKit |

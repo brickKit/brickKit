@@ -55,6 +55,17 @@ An AI-generated v2 can run right alongside v1:
 
 ## Using AI to develop a component
 
+Five steps in a loop, each with real feedback — not "have the AI write the whole component in one shot":
+
+```mermaid
+graph LR
+    S1["1. Feed context<br/>AGENTS.md + skills"] --> S2["2. Scaffold<br/>Manifest/code/Dockerfile"]
+    S2 --> S3["3. Generate contract<br/>openapi.json"]
+    S3 --> S4["4. Generate tests"]
+    S4 --> S5["5. Run it<br/>debug if it doesn't work"]
+    S5 -.->|paste the error back| S5
+```
+
 ### Step 1: give the AI context on your project
 
 `brickkit init` already generates a `.claude/skills/` directory with several AI-assistant skill files in your project. Feed it the root `AGENTS.md` too — it compresses the platform's positioning, terminology, and design principles into one file, so the AI has real judgment instead of you re-explaining "what BrickKit is" every session.

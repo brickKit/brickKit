@@ -87,6 +87,14 @@ func parseArgs(args []string) (mode string, rest []string, err error) {
 }
 ```
 
+```mermaid
+graph LR
+    Img["同一个镜像<br/>brickkit-demo/department-tree"]
+    Img -->|"不带参数"| Serve["serve 模式<br/>启动 HTTP/gRPC 服务"]
+    Img -->|"migrate"| Migrate["migrate 模式<br/>跑数据库迁移，跑完即退出"]
+    Img -->|"其他任何参数"| Fail["直接报错退出<br/>绝不回落到 serve"]
+```
+
 `component.yaml` 的 `migration.command` 和主服务用的是**同一个镜像**，靠这个命令行参数区分。这里最容易踩的坑，也是这段代码专门要防住的：**不认识的参数必须直接报错，绝不能回落到"那就启动服务吧"。** 一个拼错的迁移命令如果被静默当成启动服务处理，迁移容器就会变成一个永不退出的服务容器——主服务永远等不到"迁移完成"，整个项目卡在 `Created` 状态，而这个容器自己的日志还写着"组件已就绪"，看起来一切正常。`parseArgs` 是个纯函数，不读环境变量、不连数据库：**先确认参数写对了，再去连一个可能根本连不上的数据库**，不要在报错信息里把"参数错了"和"数据库连不上"混在一起。
 
 ## 配置：只从环境变量读

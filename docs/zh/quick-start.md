@@ -4,6 +4,17 @@
 
 **前置条件：** BrickKit CLI 已经构建好（`make build-cli`，或者装了发行版），Docker 在运行。
 
+六步，从空目录到能 curl 通：
+
+```mermaid
+graph LR
+    A["1. docker build<br/>构建镜像"] --> B["2. brickkit init<br/>建项目"]
+    B --> C["3. add --local<br/>加组件"]
+    C --> D["4. 配置 expose<br/>打开端口"]
+    D --> E["5. brickkit up<br/>启动"]
+    E --> F["6. curl<br/>访问"]
+```
+
 ## 1. 构建测试夹具镜像
 
 `demo/hello` 是这个仓库自己的测试夹具，没有发布到任何镜像仓库，先在仓库根目录本地构建一次：

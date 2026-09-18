@@ -56,6 +56,17 @@ AI 生成的 v2 可以直接和 v1 并存：
 
 ## 怎么用 AI 辅助开发组件
 
+五步一个循环，每一步都有真实反馈，不是让 AI 一口气把组件全写完：
+
+```mermaid
+graph LR
+    S1["1. 喂上下文<br/>AGENTS.md + skills"] --> S2["2. 生成骨架<br/>Manifest/代码/Dockerfile"]
+    S2 --> S3["3. 生成契约<br/>openapi.json"]
+    S3 --> S4["4. 生成测试"]
+    S4 --> S5["5. 跑起来<br/>不通就调试"]
+    S5 -.->|报错拿去问 AI| S5
+```
+
 ### 步骤 1：让 AI 理解你的项目
 
 `brickkit init` 会自动在项目里生成 `.claude/skills/` 目录，装好几个 AI 助手技能文件。把项目根目录的 `AGENTS.md` 也喂给 AI——它压缩了整个平台的定位、术语、设计原则，AI 读完就有了判断力，不用你每次都重新解释一遍"BrickKit 是什么"。

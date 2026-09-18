@@ -1,8 +1,27 @@
 # Core Concepts
 
-A one-page map of how BrickKit's pieces fit together, and the terms you'll run into most often in docs and error messages. The full definitions live in [AGENTS.md](../../AGENTS.md)'s glossary and twelve design principles — this page is just a faster way in.
+If all you want is BrickKit's skeleton in five minutes, so the docs and error messages stop throwing unfamiliar terms at you — this page is that. The full definitions live in [AGENTS.md](../../AGENTS.md)'s glossary and twelve design principles; this is just a faster way in.
 
 ## Four parts
+
+```mermaid
+graph TB
+    subgraph "Runs and exits"
+        CLI["BrickKit CLI<br/>single binary"]
+    end
+    subgraph "Long-running"
+        Market[("BrickKit Market<br/>marketplace")]
+        CompA["Component A"]
+        CompB["Component B"]
+        Infra[("Infrastructure<br/>PostgreSQL / Redis")]
+    end
+    CLI -.->|publish / pull| Market
+    CLI ==>|generates deployment files| CompA
+    CLI ==>|generates deployment files| CompB
+    CompA <-->|direct DNS| CompB
+    CompA --> Infra
+    CompB --> Infra
+```
 
 | Part | Form | Long-running? | Responsibility |
 | --- | --- | --- | --- |
@@ -11,7 +30,7 @@ A one-page map of how BrickKit's pieces fit together, and the terms you'll run i
 | **Component layer** | Docker containers / K8s Pods | ✅ | The business logic itself, components call each other over DNS directly |
 | **Infrastructure layer** | PostgreSQL / Redis, etc. | ✅ | Deployed manually by ops, declared and bound in `brickkit.yaml` |
 
-There's no fifth part — no resident "main system." `brickkit up` runs and exits; what's actually running afterward is just your component containers and infrastructure.
+The diagram deliberately draws the CLI with a dashed line, boxed off in its own "runs and exits" corner — there's no fifth part, no resident "main system." `brickkit up` runs and exits; what's actually running afterward is just your component containers and infrastructure.
 
 ## Key terms
 
@@ -30,9 +49,24 @@ There's no fifth part — no resident "main system." `brickkit up` runs and exit
 | Deploy Target | `docker` or `k8s`, decides which kind of deployment file the CLI generates |
 | servedBy | A component declaring "my workload is provided by another component (a shell)" — it generates no container of its own |
 
-## The one rule that runs through everything: where the service name comes from
+## The one rule that runs through everything: service names, and why the env var name never carries a version
 
-**Service name = transformed component ID + exact version.** Transform rule: `/` → `-`, `.` → `-`, all lowercase.
+**Service name = transformed component ID + exact version.** Transform rule: `/` → `-`, `.` → `-`, all lowercase. **The environment variable name is derived from the component ID alone and never carries a version; only its value points at a specific one.** Split apart those read as two rules — put together, they're the same design:
+
+```mermaid
+graph LR
+    ID["Component ID<br/>department/tree"]
+    VER["Exact version<br/>1.0.0"]
+    SVC["Service name<br/>department-tree-1-0-0"]
+    ADDR["Address = the env var's value<br/>http://department-tree-1-0-0:8080"]
+    VARNAME["Env var name (no version)<br/>DEPARTMENT_TREE_ENDPOINT"]
+
+    ID -->|"transform: /→-, .→-, lowercase"| SVC
+    VER -->|append version| SVC
+    SVC --> ADDR
+    ID -->|"derive: uppercase + underscores"| VARNAME
+    VARNAME -.->|its value is| ADDR
+```
 
 | Component ID | Version | Service name |
 | --- | --- | --- |
@@ -41,13 +75,7 @@ There's no fifth part — no resident "main system." `brickkit up` runs and exit
 
 The address format is **exactly the same** locally (Docker) and in production (K8s): `http://<versioned-service-name>:<port>`. This one rule alone explains two things: multiple versions coexist for free (two versions are just two non-conflicting DNS names), and a caller always knows exactly which version it's talking to — no implicit upgrades.
 
-## Env injection: the name carries no version, the value does
-
-```bash
-DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
-```
-
-The variable name `DEPARTMENT_TREE_ENDPOINT` is derived from the component ID `department/tree` and carries no version; the value points at a specific versioned service. This is also why a single component ID can only appear once within one `component.yaml`'s `dependencies` — two versions would collide on the same variable name, with the latter silently overwriting the former, so the CLI rejects this outright while parsing the Manifest. Version coexistence is therefore a **project-level** capability (`brickkit.yaml` can list two version entries side by side for different callers), not a component-level one.
+And the variable *name* carrying no version is exactly what that right-hand derivation path in the diagram gives you — `DEPARTMENT_TREE_ENDPOINT` is derived purely from `department/tree`, independent of which version it happens to be pointing at. This is also why a single component ID can only appear once within one `component.yaml`'s `dependencies` — two versions would collide on the same variable name, with the latter silently overwriting the former, so the CLI rejects this outright while parsing the Manifest. Version coexistence is therefore a **project-level** capability (`brickkit.yaml` can list two version entries side by side for different callers), not a component-level one.
 
 ## `enabled`: top-down inheritance
 

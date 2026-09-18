@@ -4,6 +4,17 @@ The shortest real path from an empty directory to an HTTP-reachable container, u
 
 **Prerequisites:** the BrickKit CLI built (`make build-cli`, or an installed release), and Docker running.
 
+Six steps, empty directory to something you can curl:
+
+```mermaid
+graph LR
+    A["1. docker build<br/>image"] --> B["2. brickkit init<br/>project"]
+    B --> C["3. add --local<br/>component"]
+    C --> D["4. set expose<br/>open the port"]
+    D --> E["5. brickkit up<br/>start it"]
+    E --> F["6. curl<br/>talk to it"]
+```
+
 ## 1. Build the fixture's image
 
 `demo/hello` is this repository's own fixture and isn't published anywhere, so build it once from the repo root:

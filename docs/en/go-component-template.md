@@ -87,6 +87,14 @@ func parseArgs(args []string) (mode string, rest []string, err error) {
 }
 ```
 
+```mermaid
+graph LR
+    Img["Same image<br/>brickkit-demo/department-tree"]
+    Img -->|"no args"| Serve["serve mode<br/>starts the HTTP/gRPC service"]
+    Img -->|"migrate"| Migrate["migrate mode<br/>runs the DB migration, then exits"]
+    Img -->|"anything else"| Fail["errors out immediately<br/>never falls through to serve"]
+```
+
 `component.yaml`'s `migration.command` and the main service run from the exact **same image** — this argument is the only thing that tells them apart. The mistake this code specifically guards against: **an unrecognized argument must error outright, never fall through to "start the service anyway."** If a typo'd migration argument silently started the service instead, the migration container would become a second service container that never exits — the main service waits forever for it to finish, and the whole deployment hangs at `Created`, while that container's own logs cheerfully say "ready." `parseArgs` is a pure function — it doesn't read environment variables or touch the database. **Validate the argument first, before connecting to a database that might not even be reachable** — don't let a typo surface as a misleading "failed to connect to the database."
 
 ## Config: environment variables only

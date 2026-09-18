@@ -117,7 +117,26 @@ The body for `POST /api/v1/components/{scope}/{name}/versions`:
 
 `sourceType` is `git` (open source — the CLI can clone the source) or `registry` (closed source — only an image and artifacts, and an `api-contract` artifact is required). `signature` is optional — the market only stores it and checks its structure (is the algorithm recognized, are the required fields present, is `value` valid base64). **It does no cryptographic verification** — the market has no trusted public key of its own to check against. Real verification happens on the installer's side, against whatever public key is configured in `installer.publicKeys`.
 
-Publishing is three steps: `POST .../versions` (create a `draft`), upload each artifact's content one at a time (`POST .../artifacts/{artifactId}/upload`), then `PUT .../versions/{version}` to mark it `stable`. `brickkit publish` wraps all three into one command.
+Publishing is three steps: `POST .../versions` (create a `draft`), upload each artifact's content one at a time (`POST .../artifacts/{artifactId}/upload`), then `PUT .../versions/{version}` to mark it `stable`. `brickkit publish` wraps all three into one command:
+
+```mermaid
+sequenceDiagram
+    participant CLI as brickkit publish
+    participant Market as BrickKit Market
+
+    CLI->>Market: POST .../versions (submit Manifest, status: draft)
+    Market-->>CLI: 201 Created (version registered, artifact list known)
+
+    loop each artifact
+        CLI->>Market: POST .../artifacts/{artifactId}/upload
+        Market-->>CLI: 200 OK
+    end
+
+    CLI->>Market: PUT .../versions/{version} (status: stable)
+    Market-->>CLI: 200 OK (now installable via brickkit add)
+```
+
+A version stuck at `draft` is never installable — `brickkit add`/`brickkit fetch` both skip it. A failure partway through doesn't leave a half-finished mess behind either: re-running `brickkit publish` recognizes the same unfinished draft and resumes uploading, instead of creating a new version from scratch. But if the Manifest genuinely changed in the meantime (even with the version number unchanged), the CLI refuses to resume and tells you to bump the version — so you never end up thinking you shipped new code while the server is still holding the old draft.
 
 ## Artifacts
 

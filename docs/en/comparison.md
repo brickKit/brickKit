@@ -2,6 +2,20 @@
 
 Most of these tools solve **adjacent, not identical** problems. Each table below tries to compare only the parts that actually overlap, rather than scoring BrickKit against something a tool was never trying to do. For what BrickKit itself deliberately doesn't do, and why, see the ["design philosophy" section](../../README.md) in the README, or the [architecture docs](architecture/overview.md).
 
+If you just want a rough starting point, this gives one — the actual detail is still in the tables below:
+
+```mermaid
+graph TD
+    Q{"Do components need to publish and<br/>version independently, with local/prod<br/>sharing one declaration?"}
+    Q -->|Yes| BrickKit["BrickKit"]
+    Q -->|No, just a faster local inner loop| Tilt["Tilt / Skaffold"]
+    Q -->|No, just a service catalog / portal| Backstage["Backstage"]
+    Q -->|No, modules should move and ship together| Mono["Monorepo tooling<br/>Turborepo / Nx / Lerna"]
+    Q -->|No, already on K8s, just need manifests managed| K8s{"Environments differ a lot —<br/>need to template a whole app?"}
+    K8s -->|Yes| Helm["Helm"]
+    K8s -->|No, just small manifest-field tweaks| Kustomize["Kustomize"]
+```
+
 ## vs. Docker Compose
 
 | Dimension | Docker Compose | BrickKit |

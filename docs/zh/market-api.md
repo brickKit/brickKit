@@ -117,7 +117,26 @@ Token 从 `POST /api/v1/auth/login` 拿到——就是 `brickkit login` 写进 `
 
 `sourceType` 是 `git`（开源，CLI 可以 clone 源码）或 `registry`（闭源，只有镜像和产物，必须提供 `api-contract` 类型的产物）。`signature` 可选——市场只存下来、做结构校验（算法认不认识、必填项在不在、`value` 是不是合法 base64），**不做密码学校验**，因为市场手里没有任何可信的公钥；真正的验签发生在安装方，用 `installer.publicKeys` 里配的公钥。
 
-发布分三步：`POST .../versions`（建 `draft` 版本）→ 逐个 `POST .../artifacts/{artifactId}/upload`（上传产物内容）→ `PUT .../versions/{version}`（置为 `stable`）。`brickkit publish` 把这三步封装成了一条命令。
+发布分三步：`POST .../versions`（建 `draft` 版本）→ 逐个 `POST .../artifacts/{artifactId}/upload`（上传产物内容）→ `PUT .../versions/{version}`（置为 `stable`）。`brickkit publish` 把这三步封装成了一条命令：
+
+```mermaid
+sequenceDiagram
+    participant CLI as brickkit publish
+    participant Market as BrickKit Market
+
+    CLI->>Market: POST .../versions（提交 Manifest，status: draft）
+    Market-->>CLI: 201 Created（版本已登记，产物清单已知）
+
+    loop 每一个产物
+        CLI->>Market: POST .../artifacts/{artifactId}/upload
+        Market-->>CLI: 200 OK
+    end
+
+    CLI->>Market: PUT .../versions/{version}（status: stable）
+    Market-->>CLI: 200 OK（可被 brickkit add 安装了）
+```
+
+只要还停在 `draft`，这个版本就不可安装——`brickkit add`/`brickkit fetch` 都会跳过它。中途失败也不用担心留下半成品：`brickkit publish` 重跑会识别出同一个未完成的 draft 接着续传，不会从头建一个新版本；但如果这期间 Manifest 真的改过（哪怕版本号没变），CLI 会直接拒绝续传，提示你换一个版本号——避免"以为传的是新代码，其实服务端还认得旧的 draft"这种错位。
 
 ## 产物
 
