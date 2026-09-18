@@ -971,9 +971,9 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 真正被签名的是什么、验签为什么不需要 cosign 依赖、公钥为什么不能来自市场 | `docs/zh/architecture/signing-and-trust.md`（英文版把 `zh` 换 `en`） |
 | 每个命令完整的参数参考，带真实生成的输出——上面 §8 的详细版 | `docs/zh/architecture/cli-reference.md`（英文版把 `zh` 换 `en`） |
 | 市场每一个 HTTP 端点、认证、错误码，以及发布时到底传了什么 | `docs/zh/market-api.md`（英文版把 `zh` 换 `en`） |
-| 基于 BrickKit 的组件该怎么分层测试 | `docs/zh/patterns/testing.md`（英文版把 `zh` 换 `en`） |
+| 基于 BrickKit 的组件该怎么分层测试，以及让 AI 写组件时"先立规格、再写实现"的推荐顺序 | `docs/zh/patterns/testing.md`（英文版把 `zh` 换 `en`） |
 | 怎么规划种子数据与测试数据 | `docs/zh/patterns/data-construction.md`（英文版把 `zh` 换 `en`） |
-| 怎么做领域研究、怎么识别一个特性该做成组件家族而不是开关 | `docs/zh/patterns/component-design.md`（英文版把 `zh` 换 `en`） |
+| 怎么做领域研究、怎么识别一个特性该做成组件家族而不是开关、怎么用 DDD 的语言对照组件边界 | `docs/zh/patterns/component-design.md`（英文版把 `zh` 换 `en`） |
 | 怎么防止闭源组件的逻辑从自己的镜像里泄露出去 | `docs/zh/patterns/closed-source-image-hardening.md`（英文版把 `zh` 换 `en`） |
 | 旧设计书当初的论证过程（历史记录，可能与当前实现不一致） | `docs/archive/design/`，只中文 |
 | 旧试用指南原文（历史记录） | `docs/archive/guide/`，只中文 |

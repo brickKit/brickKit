@@ -179,3 +179,25 @@ family member is closest to what they actually need: the more closely a
 family's members already track the real divergence found during
 reference research, the closer a customer's fork starting point already
 is to what they want, and the less custom work is left to do afterward.
+
+## If your team thinks in DDD
+
+This section doesn't ask you to use DDD. It's a translation table: if your team already speaks in bounded contexts and aggregates, here is where those concepts line up in BrickKit. Unlike the sections above, there's no real deployment's field record behind it — it translates mechanisms the platform already has into DDD's vocabulary, plus a few recommended criteria.
+
+| DDD concept | What it maps to in BrickKit | Basis |
+| --- | --- | --- |
+| Bounded context | at least one component; a component shouldn't straddle two contexts | component autonomy: a component owns its model and its schema (AGENTS.md §4) |
+| Aggregate (consistency boundary) | must live in the **same component**: a component is internally transactionally self-consistent, components only make direct request/response calls to each other, and the platform isn't on the call path — so there is no cross-component transaction to lean on | AGENTS.md §3 ("Standalone Component"), §2.2 (no long-running service) |
+| Ubiquitous language | the component ID and the `configSchema` key names — a component ID becomes, verbatim, an environment variable name in every caller's code (`people/basic` → `PEOPLE_BASIC_ENDPOINT`), so name it with the domain's own word, not an implementation detail | AGENTS.md §5.2, §9.23 |
+| Published language / open host service | the contract files under `artifacts` | [Consuming other components](../guide/07-consuming-artifacts.md) |
+| Customer–supplier | the caller pins the supplier's exact version in `dependencies`; there is no implicit upgrade, and an upgrade is an explicit change the caller writes down | AGENTS.md §9.2 |
+
+**One term that's easy to get backwards.** In DDD, "upstream" is the supplier being depended on and "downstream" is the consumer. When BrickKit says "top-down inheritance" (AGENTS.md §5.4: "any upstream component that needs it"), "upstream" is the component that **depends on others** — a top-level component is one nothing depends on. So BrickKit's "upstream" is DDD's downstream, and BrickKit's lower-level component is DDD's upstream. When you read "a lower component starts because an upstream one needs it", don't reflexively read the direction the DDD way.
+
+**Whether to split can come down to three questions** (recommended criteria, not platform rules):
+
+1. Is there an invariant between these two pieces of data that must hold **at every instant** (say, "a balance never goes negative" constraining both the account and its ledger)? If yes → put them in one component, because there are no cross-component transactions.
+2. Do they need to **release independently, or belong to different people or different customers**? If yes → split them. A component is one unit of publishing, one unit of versioning, one unit of permission (AGENTS.md §9.16).
+3. After the split, can a caller write its calling code from the contract under `artifacts` alone, without knowing what tables the other side has? If not → the boundary is in the wrong place; go back to question 1.
+
+This doesn't conflict with "slot families" in the section above — it answers a different question. This section asks "should these two things live in the same component?"; the previous one asks "should this one feature become a set of interchangeable components?"

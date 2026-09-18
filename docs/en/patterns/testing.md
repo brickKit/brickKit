@@ -53,6 +53,48 @@ Three criteria decide whether a cross-component test is doing its job:
 2. **If the dependency's contract can't yet produce the data you need, add that capability to the dependency's contract** — don't route around the contract, and don't write to the dependency's database with raw SQL either;
 3. **A mock can prove, at best, that a call happened** — the right arguments, the right number of times — but it can never prove the call's result was correct. Only standing up the real dependency can verify that.
 
+## Writing components with AI: spec first, implementation second
+
+This section is different from the ones above: every section above is distilled from a real production deployment, while this one is a **recommended working order** with no comparable field record behind it. It does one thing — it strings the four layers above together with one check BrickKit itself gives you that needs no containers, in a "spec before implementation" order. Whether and how to adapt it is your call.
+
+**Why the order matters.** If an AI writes the implementation first and the tests afterwards, the tests turn into a restatement of the code already written: they verify "the code does what it does", not "what the code should do". For a test to actually constrain anything, there has to be a spec that doesn't depend on the implementation. A BrickKit component happens to have three, all in `component.yaml`, readable without opening a single line of implementation:
+
+| Spec | Where | What it constrains |
+| --- | --- | --- |
+| Config spec sheet | `configSchema` | which keys the component reads from its environment, their defaults, which are required |
+| Dependency declaration | `dependencies` | which `*_ENDPOINT` variables the component will receive (an optional dependency that isn't running is **not** injected — see [Environment Variable Contract](../architecture/environment-variables.md)) |
+| Interface contract | the contract files under `artifacts` (OpenAPI, protobuf, …; see [Consuming other components](../guide/07-consuming-artifacts.md)) | what the component says to the outside |
+
+The recommended order:
+
+| Step | What to do | How to know it's right | Needs containers? |
+| --- | --- | --- | --- |
+| 1 | Write `component.yaml` completely first: `dependencies`, `configSchema` (keys, defaults, `required`), contract files | `brickkit up --dry-run` (below) | no |
+| 2 | Write L1 contract tests from the contract file | They must all be red — and red for a reason (the interface isn't implemented yet). A test that is green on its first run tested nothing | no |
+| 3 | Write each L2 business rule as one sentence first, then translate it into a test (example below) | Also red first | no |
+| 4 | Let the AI write the implementation until L1 and L2 are green | The tests are the acceptance — nobody has to read the implementation line by line | no |
+| 5 | Add L3: the branches of this particular implementation | every branch is exercised | no |
+| 6 | Run L4: `brickkit up` with real dependencies, one real end-to-end pass | the whole chain works | yes |
+
+**The step-1 check is BrickKit-specific.** `brickkit up --dry-run` starts nothing, but the injection-stage checks still run, so anything where `component.yaml` and `brickkit.yaml` disagree surfaces right there. Below is real output (excerpt) from the `demo/hello` fixture with the config key `greeting` deliberately misspelled as `greetting`:
+
+```
+⚠️ config 里有配置项不会生效：组件 demo/hello 的 greetting
+   配置项：greetting
+   原因：组件的 configSchema 里没有这一项，是不是想写 greeting？
+   影响：这一项不会被注入任何环境变量；组件会使用它自己的默认值
+```
+
+The same path also catches: a config key whose name collides with a platform-reserved variable (a warning), and a `configSchema.required` key that has neither a default nor a project override (a **block** — even under `--dry-run` it refuses to go on, with exit code 1). The full error text is in the [Environment Variable Contract](../architecture/environment-variables.md), section 5.
+
+**How to write step 3.** State the rule as a "given … when … then …" sentence first, then translate it into a test. The idempotency rule from "Pitfall one" above reads:
+
+> Given an idempotency key that hasn't been processed yet; when two requests carrying the same key arrive at the same time; then exactly one actually executes, and the other gets the same result.
+
+That sentence is itself the most precise prompt you can give an AI, and it points straight at the concurrency window a serial-replay test can never reach.
+
+Every other step holds for any project with tests and isn't specific to BrickKit; the one thing this section genuinely adds for BrickKit is the step-1 check — a check that needs no containers and not one line of implementation.
+
 ## Frontend: four layers of its own
 
 Same thinking as the backend layers above — spec separated from implementation, shared things prioritized over feature-specific ones, real environments preferred over simulated ones — just with different tools and different boundaries:

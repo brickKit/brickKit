@@ -44,8 +44,8 @@
 - [CLI 命令完整参考](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/cli-reference.md): 13 个命令加 version，每一个的每一个参数，每个都配真实生成的输出——AGENTS.zh.md §8 那份一句话摘要的详尽版。
 - [Market API 参考](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/market-api.md): 市场的每一个 HTTP 端点、响应信封、错误码，以及 `brickkit publish` 到底往网络上发了什么——从真实路由表核实出来的，不是想当然写的。
 - [用 Go 写一个 BrickKit 组件](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/go-component-template.md): 逐段拆解 `tests/components/department-tree`——一个依赖 PostgreSQL、带数据库迁移的真实组件——覆盖 Manifest、serve/migrate 双模式的二进制、`go:embed` 打包的迁移引擎、多阶段 Dockerfile，从头到尾真跑了一遍。
-- [组件设计准则](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/component-design.md): 设计自己的领域模型之前怎么参考成熟实现、一批值得设计规避的结构性失败模式，以及"这个特性该做成一组可互换组件，而不是一个配置开关"这个信号该怎么识别。
-- [基于 BrickKit 的组件该怎么分层测试](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/testing.md): 后端契约/业务规则/单元/集成四层怎么分工、一个真实生产部署踩过的权限边界与幂等性陷阱，加上前端自己的四层（单元/逻辑、组件、端到端、视觉回归）以及端到端/视觉回归测试为啥要先经用户明确同意才能跑。
+- [组件设计准则](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/component-design.md): 设计自己的领域模型之前怎么参考成熟实现、一批值得设计规避的结构性失败模式，"这个特性该做成一组可互换组件，而不是一个配置开关"这个信号该怎么识别，以及怎么用 DDD 的语言对照组件边界。
+- [基于 BrickKit 的组件该怎么分层测试](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/testing.md): 后端契约/业务规则/单元/集成四层怎么分工、一个真实生产部署踩过的权限边界与幂等性陷阱，加上前端自己的四层（单元/逻辑、组件、端到端、视觉回归）端到端/视觉回归测试为啥要先经用户明确同意才能跑，以及让 AI 写组件时"先立规格、再写实现"的推荐顺序。
 - [怎么规划种子数据与测试数据](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/data-construction.md): 两条必须物理隔离、永不共用存储的路径——种子/演示数据（幂等、持久、组件间可复用）和测试现场构造的数据（唯一后缀、从不清理）——以及怎么设计才能让种子数据真正够用来演示和探索。
 - [闭源组件的镜像安全规范](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/closed-source-image-hardening.md): 拉取镜像就等于交出它将来会跑的每一个字节——这跟私有 Git 仓库不是同一种保证。Docker 镜像卫生习惯、按语言分类的加固上限，以及这些手段一个都防不住的事。
 - [怎么选部署形态](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/deployment-selection-guide.md): 整个项目的拓扑（纯独立/纯外壳/混搭）× 部署目标（`docker`/`k8s`）该怎么选，外加 `local: true` 调试开关、以及手动裸跑组件——一个平台完全不管理的真实选项——放在哪个位置。十二种组合的完整矩阵，以及为什么没有第十三种（"K8s+本地调试"在生成阶段就被直接拒绝）。

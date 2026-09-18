@@ -1120,9 +1120,9 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | What actually gets signed, why verification needs no cosign dependency, and why the public key can't come from the marketplace | `docs/en/architecture/signing-and-trust.md` (swap `en` for `zh`) |
 | Every command's full flag reference, with real generated output — the detailed complement to §8 above | `docs/en/architecture/cli-reference.md` (swap `en` for `zh`) |
 | Every marketplace HTTP endpoint, auth, error codes, and what publishing sends over the wire | `docs/en/market-api.md` (swap `en` for `zh`) |
-| How to layer tests for a component built on BrickKit | `docs/en/patterns/testing.md` (swap `en` for `zh`) |
+| How to layer tests for a component built on BrickKit, and a recommended spec-first order for having an AI write one | `docs/en/patterns/testing.md` (swap `en` for `zh`) |
 | How to plan seed data and test data | `docs/en/patterns/data-construction.md` (swap `en` for `zh`) |
-| How to research a domain and recognize when a feature needs a component family, not a flag | `docs/en/patterns/component-design.md` (swap `en` for `zh`) |
+| How to research a domain, recognize when a feature needs a component family, not a flag, and map component boundaries onto DDD's vocabulary | `docs/en/patterns/component-design.md` (swap `en` for `zh`) |
 | How to keep a closed-source component's logic from leaking out of its own image | `docs/en/patterns/closed-source-image-hardening.md` (swap `en` for `zh`) |
 | The old design books' original reasoning (historical record, may not match current implementation) | `docs/archive/design/`, Chinese only |
 | The old hands-on guides, as originally written (historical record) | `docs/archive/guide/`, Chinese only |

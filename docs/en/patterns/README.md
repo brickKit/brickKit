@@ -1,13 +1,13 @@
 # Patterns
 
-These are **recommended practices**, not hard requirements the platform enforces — `brickkit up` won't check whether you followed any of them. Each one comes from lessons learned in a real deployment.
+These are **recommended practices**, not hard requirements the platform enforces — `brickkit up` won't check whether you followed any of them. Each one's core comes from lessons learned in a real deployment; a few individual sections are a recommended working order or a concept table without the same field record, and say so at their start.
 
 ## Find your problem first
 
 | What you're doing | Read this |
 | --- | --- |
 | Just got a requirement, not sure how many components it should split into | [Component Design Guidelines](component-design.md) |
-| Writing tests for a component, unsure how many layers or what each should cover | [Testing patterns for components built on BrickKit](testing.md) |
+| Writing tests for a component, unsure how many layers or what each should cover, or want an AI to write the component | [Testing patterns for components built on BrickKit](testing.md) |
 | Planning seed/test data, worried about polluting production | [Planning Seed Data and Test Data](data-construction.md) |
 | A component needs to stay closed-source, worried about the image being reverse-engineered | [Protecting Closed-Source Components from Image-Based Extraction](closed-source-image-hardening.md) |
 | A project needs dozens of components and memory/ports are running out | [Choosing a deployment shape](deployment-selection-guide.md) → may lead you to `servedBy` |
@@ -21,8 +21,8 @@ These are **recommended practices**, not hard requirements the platform enforces
 
 ### Component developers
 
-- [Component Design Guidelines](component-design.md) — how to research a domain, and when a feature needs a component family rather than a flag
-- [Testing patterns for components built on BrickKit](testing.md) — four backend layers (contract/business-rule/unit/integration), four frontend layers (unit/component/e2e/visual regression)
+- [Component Design Guidelines](component-design.md) — how to research a domain, when a feature needs a component family rather than a flag, and how component boundaries map onto DDD's vocabulary
+- [Testing patterns for components built on BrickKit](testing.md) — four backend layers (contract/business-rule/unit/integration), four frontend layers (unit/component/e2e/visual regression), and a recommended order for having an AI write a component
 - [Planning Seed Data and Test Data](data-construction.md) — two paths that must stay physically separate
 - [Protecting Closed-Source Components from Image-Based Extraction](closed-source-image-hardening.md) — pulling an image isn't the same guarantee as a private Git repo
 - [Calling a Dependency's Address Reliably](service-addressing.md) — real, measured behavior of Go/Python/Node HTTP clients across a dependency's container being replaced
