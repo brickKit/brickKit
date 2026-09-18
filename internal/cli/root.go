@@ -127,7 +127,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 
 	root := &cobra.Command{
 		Use:   "brickkit",
-		Short: "BrickKit：组件管理与拼装平台的命令行工具",
+		Short: "BrickKit：声明式组件管理与拼装平台的命令行工具",
 		Long: `BrickKit CLI —— 像搭积木一样构建系统。
 
 CLI 只做六件事（001 §5.1）：

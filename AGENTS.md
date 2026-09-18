@@ -30,7 +30,7 @@ English | [中文](AGENTS.zh.md)
 
 ## 1. One-sentence positioning
 
-**BrickKit is a component assembly and management platform. Build systems like snapping together bricks.**
+**BrickKit is a declarative component assembly and management platform: declare the components and what they depend on, and it derives the rest. Build systems like snapping together bricks.**
 
 Each brick (component) is manufactured, tested, deployed, and called independently. The BrickKit
 CLI pulls the bricks, sorts out the order, generates the blueprints, and hands them off to Docker

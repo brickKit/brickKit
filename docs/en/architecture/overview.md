@@ -1,6 +1,6 @@
 # Architecture overview
 
-BrickKit is a **component management and assembly platform**: build systems like snapping together bricks, where each component (brick) is developed, deployed, and called independently, and the CLI's only job is to pull them, order them, generate the deployment files, and hand off to Docker or Kubernetes. It is **not** an operating system, not an ERP, and not any specific piece of business software — it's a tool for growing an architecture incrementally.
+BrickKit is a **declarative component management and assembly platform**: build systems like snapping together bricks, where each component (brick) is developed, deployed, and called independently. You declare which components exist and what they depend on; the CLI's job is to derive everything else — the order, the addresses, the deployment files — and hand off to Docker or Kubernetes (the idea behind that is spelled out in [Design principles and trade-offs](design-principles.md)). It is **not** an operating system, not an ERP, and not any specific piece of business software — it's a tool for growing an architecture incrementally.
 
 ## The four parts
 

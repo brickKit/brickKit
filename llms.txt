@@ -1,6 +1,7 @@
 # BrickKit
 
-> A component assembly platform — build systems like snapping together bricks.
+> A declarative component assembly platform — declare the components and what they
+> depend on, and it derives the rest. Build systems like snapping together bricks.
 > Each component is developed, deployed, and called independently; the BrickKit
 > CLI resolves dependencies, orders startup, generates deployment files, and
 > hands off to Docker or Kubernetes.

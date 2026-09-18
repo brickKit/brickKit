@@ -8,15 +8,22 @@
 
 <div align="center">
 
-**Watch your system grow organically, one component at a time.**
+**Declare the components. BrickKit derives the rest.**
+
+*Watch your system grow organically, one component at a time.*
 
 BrickKit is neither a heavy microservices framework nor an opinionated PaaS.
-It's a component assembly engine purpose-built for the era of **Domain-Driven
-Design (DDD)** and **AI-assisted development** — each component an
-independent domain unit, developed, tested, deployed, and called
-independently. The CLI handles dependency resolution, deployment generation,
-and address injection, then hands off to Docker or Kubernetes. No registry, no
-config center, no gateway, no resident process.
+It's a **declarative component assembly platform**: you say which components
+exist and what they depend on, and the CLI derives everything else — startup
+order, service addresses, environment variables, Docker Compose or Kubernetes
+manifests, network policies — then hands off to Docker or Kubernetes and
+exits. No registry, no config center, no gateway, no resident process.
+
+Each component is an independent domain unit, developed, tested, deployed, and
+called on its own. The design leans on ideas engineers already trust — bounded
+contexts, declarative desired state, twelve-factor configuration, exact-version
+pinning, least-privilege networking — and works in units small enough for a
+person, or an AI, to read in one pass.
 
 </div>
 
@@ -47,6 +54,27 @@ config center, no gateway, no resident process.
 > anything else), read `docs/en/`.
 
 ---
+
+## The ideas underneath
+
+BrickKit isn't a pile of features. It's a handful of well-known engineering
+ideas, applied consistently, each tied to a mechanism you can run — and all of
+them in service of one: **declare a graph of components and their dependencies,
+and derive the rest.**
+
+| Idea | What BrickKit does with it | What it buys you — and an AI |
+| --- | --- | --- |
+| **Bounded contexts** (DDD) | A component is an independent unit with its own repository, Manifest, version lifecycle, and contract | Only one component has to be understood at a time |
+| **Declarative desired state** | `brickkit.yaml` is the only input, lives in Git, one complete file per environment. The CLI runs and exits — no control plane | Describe the target, not the deployment script; the diff is the review |
+| **Derivation over configuration** | Start order, service addresses, `*_ENDPOINT` variables, Compose/Kubernetes manifests, and network policies are all computed from the dependency graph | A derived value can't drift from its source, and nobody guesses a variable name or a port |
+| **Twelve-factor configuration** | Addresses, resource connections, and config arrive as environment variables; the same address format on Docker and Kubernetes | Component code never learns where it runs — zero changes between environments |
+| **Exact versions, side by side** | No ranges; the version is part of the service name (`people-basic-1-0-0`) | Two versions coexist as two DNS names, so an AI-written v2 runs beside v1 without touching its callers |
+| **Contract-first** | `artifacts` ships API contracts with the Manifest; the Market requires one from a closed-source component that provides an API | A component's boundary is readable without reading its code |
+| **Loud failure** | Unknown Manifest keys are rejected; a missing weak dependency injects *nothing* (never an empty string); a mistyped config key warns | Mistakes surface at `up` or at startup, not as a quiet wrong answer in production |
+| **Least privilege** | Nothing is reachable until declared; optional network policies come from the dependency graph; cosign-signed components are verified with the Go standard library alone | A smaller blast radius by default, with the trust anchor in *your* project |
+
+What each idea buys, what it costs, and what it refused is in
+[Design principles and trade-offs](docs/en/architecture/design-principles.md).
 
 ## If you're coming from DDD
 
@@ -118,10 +146,11 @@ Zero changes. Not "barely any changes" — zero.
 ### Language-agnostic
 
 ```yaml
-# people/basic is written in Go
-# auth/password-login is written in Java
-# portal/frontend is TypeScript + nginx
-# To BrickKit, all three are just "one Docker image + one component.yaml".
+# people/basic is written in Python
+# auth/password-login is written in Go
+# portal/user-frontend is plain HTML served by nginx
+# To BrickKit, all three are just "one Docker image + one component.yaml" —
+# and all three ship as fixtures in this repository's tests/components/.
 ```
 
 ### The platform stays out of the way
