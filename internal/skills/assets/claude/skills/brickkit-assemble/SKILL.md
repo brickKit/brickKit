@@ -82,6 +82,8 @@ description: 在 BrickKit 项目里增删组件、调整启停、启动或停止
 ## 去哪查更细的
 
 - 参数：`brickkit <命令> --help`。这份技能刻意不复刻参数清单
-- 命令的完整行为：`design/004-CLI 设计.md`
-- `enabled` 与启停：`design/003-项目配置规范.md` §4.3
-- 安装、拼装、更新、回滚、卸载的完整流程：`design/011-组件安装与拼装指南.md`
+- 命令的完整行为：`docs/zh/architecture/cli-reference.md`
+- `enabled` 与启停的完整规则：`docs/zh/architecture/brickkit-yaml-reference.md`（`enabled` 字段）、
+  根目录 `AGENTS.zh.md` §5.4
+- 安装、拼装、更新、依赖解析细节：`docs/zh/architecture/dependency-resolution.md`、
+  `docs/zh/guide/06-assemble-and-break.md`、`docs/zh/guide/05-upgrades-and-versions.md`

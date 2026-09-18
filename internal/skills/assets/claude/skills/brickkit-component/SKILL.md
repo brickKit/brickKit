@@ -120,8 +120,7 @@ PEOPLE_BASIC_GRPC_ENDPOINT=http://people-basic-1-0-0:9090
 
 ## 去哪查更细的
 
-- `component.yaml` 每个字段的规则：`design/002-组件规范.md`
-- 完整字段参考：`design/附录合集.md` 附录 B
-- 环境变量命名与保留变量：`design/附录合集.md` 附录 C
-- 手把手教程（从 mkdir 到 publish，含 gRPC 双协议、前端 nginx 组件、迁移、断点调试）：
-  `design/009-组件开发快速入门.md`
+- `component.yaml` 每个字段的规则与完整参考：`docs/zh/architecture/component-yaml-reference.md`
+- 环境变量命名与保留变量的完整字典：`docs/zh/architecture/environment-variables.md`
+- 手把手教程（从零写一个组件）：`docs/zh/guide/10-build-your-own.md`；
+  完整的 Go 组件示例（含数据库、迁移）：`docs/zh/go-component-template.md`
