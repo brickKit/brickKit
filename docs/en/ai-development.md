@@ -59,9 +59,9 @@ Five steps in a loop, each with real feedback — not "have the AI write the who
 
 ```mermaid
 graph LR
-    S1["1. Feed context<br/>AGENTS.md + skills"] --> S2["2. Scaffold<br/>Manifest/code/Dockerfile"]
-    S2 --> S3["3. Generate contract<br/>openapi.json"]
-    S3 --> S4["4. Generate tests"]
+    S1["1. Feed context<br/>AGENTS.md + skills"] --> S2["2. Spec first<br/>Manifest + contract"]
+    S2 --> S3["3. Tests first<br/>they must be red"]
+    S3 --> S4["4. Implement<br/>until the tests go green"]
     S4 --> S5["5. Run it<br/>debug if it doesn't work"]
     S5 -.->|paste the error back| S5
 ```
@@ -70,7 +70,7 @@ graph LR
 
 `brickkit init` already generates a `.claude/skills/` directory with several AI-assistant skill files in your project. Feed it the root `AGENTS.md` too — it compresses the platform's positioning, terminology, and design principles into one file, so the AI has real judgment instead of you re-explaining "what BrickKit is" every session.
 
-### Step 2: have the AI scaffold a component
+### Step 2: have the AI write the spec first — the Manifest and the API contract, no implementation
 
 Example prompt:
 
@@ -83,31 +83,39 @@ I need a BrickKit component:
 - Config: page_size (integer, default 20)
 - Port: 8080 (HTTP)
 - Health check: /healthz
+- Public interface: look up and update a user's profile by user ID (describe your own interface here)
 
-Please generate:
+Generate only the two specs first — no implementation code at all:
 1. component.yaml
-2. main.py
-3. Dockerfile
-4. migrations/001_init.sql
+2. openapi.json (OpenAPI 3.0, covering every endpoint's request/response schema)
 ```
 
-### Step 3: have the AI generate the API contract
+The contract is written from the requirements, not reverse-engineered from code — anything depending on this component, whether an AI or a person wrote it, can start building against it right now, without waiting for `user-profile`'s implementation and without ever reading its source. Once it's written, add the component to a project (`brickkit add --local`) and run `brickkit up --dry-run`: a misspelled config key or a required config with no value surfaces at this step, with no containers started (real output in [Testing patterns](patterns/testing.md#writing-components-with-ai-spec-first-implementation-second)).
+
+### Step 3: have the AI write the tests first, and confirm they're red
 
 ```
-Based on the user-profile component's main.py you just generated, produce
-an OpenAPI 3.0 spec (openapi.json) covering every endpoint's request/response
-schema.
+Based on openapi.json and the requirements above, generate:
+1. Contract tests (verify every endpoint's request/response matches openapi.json)
+2. Business-rule tests (write each rule as one "given … when … then …" sentence
+   first, then translate it into a test)
+3. Integration tests (covering at least /healthz)
+
+Don't write the implementation yet — I want to see these fail first, because
+"the interface isn't implemented".
 ```
 
-With that contract in hand, anything depending on this component — whether written by an AI or a person — never has to read `user-profile`'s source.
+A test that passes on its very first run tested nothing. This step comes before the implementation because a contract and tests reverse-engineered from the implementation can only restate it: if the contract was generated from the code, "verify the implementation matches the contract" becomes the code reconciling against itself.
 
-### Step 4: have the AI write tests
+### Step 4: have the AI write the implementation until the tests go green
 
 ```
-Based on user-profile's main.py and openapi.json, generate:
-1. Unit tests
-2. Integration tests (covering at least /healthz)
-3. Contract tests (verifying the implementation matches openapi.json)
+Based on component.yaml, openapi.json and the tests above, generate:
+1. main.py
+2. Dockerfile
+3. migrations/001_init.sql
+
+Then run the tests until they all pass.
 ```
 
 ### Step 5: have the AI help you debug
@@ -131,9 +139,9 @@ Don't have an AI write several mutually dependent components in one pass — fin
 
 When you're asking an AI to write a component that depends on `people/basic`, point it at `people/basic`'s `openapi.json`, not `people/basic`'s implementation. That keeps the generated code dependent only on the contract, in line with component autonomy — whatever `people/basic` refactors internally never has to ripple outward.
 
-### Have the AI write tests immediately after
+### Tests before the implementation
 
-Tests are the most direct way to check whether AI-generated code is actually correct — leaving that for later tends to mean it never happens.
+Tests are the most direct way to check whether AI-generated code is actually correct, and the **order** matters more than whether they exist: write the tests, watch them go red, then have the AI write the implementation, and the tests genuinely constrain it; derive tests from the implementation afterwards and they only check that "the code does what it does". The full order and the reasoning are in [Testing patterns](patterns/testing.md#writing-components-with-ai-spec-first-implementation-second).
 
 ## What this doesn't replace
 

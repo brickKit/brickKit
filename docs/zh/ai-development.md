@@ -60,9 +60,9 @@ AI 生成的 v2 可以直接和 v1 并存：
 
 ```mermaid
 graph LR
-    S1["1. 喂上下文<br/>AGENTS.md + skills"] --> S2["2. 生成骨架<br/>Manifest/代码/Dockerfile"]
-    S2 --> S3["3. 生成契约<br/>openapi.json"]
-    S3 --> S4["4. 生成测试"]
+    S1["1. 喂上下文<br/>AGENTS.md + skills"] --> S2["2. 先写规格<br/>Manifest + 契约"]
+    S2 --> S3["3. 先写测试<br/>必须先红"]
+    S3 --> S4["4. 写实现<br/>直到测试变绿"]
     S4 --> S5["5. 跑起来<br/>不通就调试"]
     S5 -.->|报错拿去问 AI| S5
 ```
@@ -71,7 +71,7 @@ graph LR
 
 `brickkit init` 会自动在项目里生成 `.claude/skills/` 目录，装好几个 AI 助手技能文件。把项目根目录的 `AGENTS.md` 也喂给 AI——它压缩了整个平台的定位、术语、设计原则，AI 读完就有了判断力，不用你每次都重新解释一遍"BrickKit 是什么"。
 
-### 步骤 2：让 AI 生成组件骨架
+### 步骤 2：让 AI 先写规格——Manifest 和 API 契约，不写实现
 
 Prompt 示例：
 
@@ -84,30 +84,37 @@ Prompt 示例：
 - 配置: page_size (integer, 默认 20)
 - 端口: 8080 (HTTP)
 - 健康检查: /healthz
+- 对外接口: 按用户 ID 查询、更新用户资料（这里写你自己的接口描述）
 
-请生成：
+先只生成两份规格，不要写任何实现代码：
 1. component.yaml
-2. main.py
-3. Dockerfile
-4. migrations/001_init.sql
+2. openapi.json（OpenAPI 3.0，覆盖每个端点的请求/响应 schema）
 ```
 
-### 步骤 3：让 AI 生成 API 契约
+契约是从需求写出来的，不是从代码里反推的——依赖这个组件的其他组件（不管是 AI 写的还是人写的）从这一刻起就可以对着它开发，既不用等 `user-profile` 的实现，也不用读它的源码。写完之后把它加进项目（`brickkit add --local`）跑一次 `brickkit up --dry-run`：配置键写错、必填配置缺值这类问题在这一步就会暴露，不需要起任何容器（真实输出见[分层测试](patterns/testing.md#让-ai-写组件先立规格再写实现)）。
+
+### 步骤 3：让 AI 先写测试，并确认它们是红的
 
 ```
-根据刚才生成的 user-profile 组件的 main.py，生成 OpenAPI 3.0 规范
-（openapi.json），包含所有端点的请求/响应 schema。
+根据 openapi.json 和上面的需求，生成：
+1. 契约测试（验证每个端点的请求/响应符合 openapi.json）
+2. 业务规则测试（先把每条规则写成一句"给定……当……则……"，再翻成测试）
+3. 集成测试（至少覆盖 /healthz）
+
+先不要写实现——我要先看到这些测试因为"接口还没实现"而失败。
 ```
 
-有了这份契约，依赖这个组件的其他组件（不管是 AI 写的还是人写的）就不需要读 `user-profile` 的源码。
+一个第一次运行就通过的测试什么都没测到。这一步放在实现之前，是因为从实现里反推出来的契约和测试只会复述实现：契约是照着代码生成的，"验证实现和契约对得上"就成了自己跟自己对账。
 
-### 步骤 4：让 AI 生成测试
+### 步骤 4：让 AI 写实现，直到测试变绿
 
 ```
-根据 user-profile 组件的 main.py 和 openapi.json，生成：
-1. 单元测试
-2. 集成测试（至少覆盖 /healthz）
-3. 契约测试（验证实现和 openapi.json 对得上）
+根据 component.yaml、openapi.json 和上面这些测试，生成：
+1. main.py
+2. Dockerfile
+3. migrations/001_init.sql
+
+然后运行测试，直到全部通过。
 ```
 
 ### 步骤 5：让 AI 帮你调试
@@ -131,9 +138,9 @@ KeyError: 'PEOPLE_BASIC_ENDPOINT'
 
 当你让 AI 写一个依赖 `people/basic` 的组件时，让它读 `people/basic` 的 `openapi.json`，不要让它去翻 `people/basic` 的实现代码。这样 AI 生成的代码只依赖契约本身，符合组件自治原则——`people/basic` 内部怎么重构都不会波及它。
 
-### 让 AI 写完就立刻写测试
+### 让测试先于实现
 
-测试是验证 AI 生成的代码是否真的对的最直接方式，等到后面一起补往往就不了了之。
+测试是验证 AI 生成的代码是否真的对的最直接方式，而且**顺序**比"写没写"更重要：先写测试、看着它们变红，再让 AI 写实现，测试才真的约束了实现；反过来从实现里反推测试，测的只是"代码做了它做的事"。完整的顺序和理由见[分层测试](patterns/testing.md#让-ai-写组件先立规格再写实现)。
 
 ## 局限性
 
