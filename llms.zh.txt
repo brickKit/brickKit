@@ -15,6 +15,11 @@
 
 - [AGENTS.md（中文版）](https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.zh.md): 全平台压缩件——定位、术语表、十二条设计原则、拒绝清单、核心机制、两个 yaml 字段骨架、命令参考、二十三个"为什么"——与英文版 AGENTS.md 内容对等。
 - [README（中文版）](https://raw.githubusercontent.com/brickKit/brickKit/main/README.zh.md): 项目门面，是什么/怎么装/怎么卸/一分钟示例/不做什么/怎么上手——与英文版 README.md 内容对等。
+- [Quick Start（5 分钟）](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/quick-start.md): 用仓库自带的 `demo/hello` 夹具，从空目录到一个可以 curl 通的容器，每一条命令和每一段输出都真跑过。
+- [核心概念](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/concepts.md): 一页纸的术语速查，以及贯穿整个平台的那条服务名规则——组件 ID + 精确版本号。
+- [故障排除](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/troubleshooting.md): `up`/`down`、本地调试、签名验证里最常见的坑，每条都是症状 → 真实原因 → 解决；其中两条对照真实 CLI 源码重新核实过，不是凭经验猜的。
+- [对比现有方案](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/comparison.md): BrickKit 和 Docker Compose、Helm、Kustomize、Tilt/Skaffold、Backstage、monorepo 工具（Turborepo/Nx/Lerna）到底哪里真的重叠、哪里其实是不同的问题。
+- [AI 辅助开发指南](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/ai-development.md): 为什么组件粒度、契约先行的 Manifest、环境变量注入、多版本共存恰好适合 AI 写代码，外加一套骨架生成→契约→测试→调试的具体工作流。
 - [架构总览](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/overview.md): 一次声明怎么变成运行中的容器，含真实的依赖解析→注入→生成流水线。
 - [动手教程](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/README.md): 一个完整的 12 篇教程系列，每一篇都对着真实 CLI 跑过，刻意复用几个最小夹具组件，而不是搭一套接近真实业务的大型拼装。
 - [把一个项目跑起来](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/01-first-project.md): 教程第 1 篇——init、从本地安装源加一个组件、up、curl 它、改配置看响应跟着变、down。每一条命令、每一段输出都是真实的。
@@ -34,6 +39,8 @@
 - [资源绑定的实际机制](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/resource-binding.md): 绑定槽位写错、同类资源没区分开这两种真实校验错误，然后是配额链三层（CLI 默认值、Manifest、项目覆盖）逐字段合并而不是整块替换的真实验证，每一层都有真实生成的输出。
 - [签名与信任模型](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/signing-and-trust.md): 为什么 Manifest 签的是规范化载荷而不是原始字节、为什么签名需要 cosign 而验签完全不需要、为什么公钥必须放在自己项目里而不能来自市场，以及一个真实验证过的保留变量冲突警告。
 - [CLI 命令完整参考](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/cli-reference.md): 13 个命令加 version，每一个的每一个参数，每个都配真实生成的输出——AGENTS.zh.md §8 那份一句话摘要的详尽版。
+- [Market API 参考](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/market-api.md): 市场的每一个 HTTP 端点、响应信封、错误码，以及 `brickkit publish` 到底往网络上发了什么——从真实路由表核实出来的，不是想当然写的。
+- [用 Go 写一个 BrickKit 组件](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/go-component-template.md): 逐段拆解 `tests/components/department-tree`——一个依赖 PostgreSQL、带数据库迁移的真实组件——覆盖 Manifest、serve/migrate 双模式的二进制、`go:embed` 打包的迁移引擎、多阶段 Dockerfile，从头到尾真跑了一遍。
 - [组件设计准则](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/component-design.md): 设计自己的领域模型之前怎么参考成熟实现、一批值得设计规避的结构性失败模式，以及"这个特性该做成一组可互换组件，而不是一个配置开关"这个信号该怎么识别。
 - [基于 BrickKit 的组件该怎么分层测试](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/testing.md): 后端契约/业务规则/单元/集成四层怎么分工、一个真实生产部署踩过的权限边界与幂等性陷阱，加上前端自己的四层（单元/逻辑、组件、端到端、视觉回归）以及端到端/视觉回归测试为啥要先经用户明确同意才能跑。
 - [怎么规划种子数据与测试数据](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/data-construction.md): 两条必须物理隔离、永不共用存储的路径——种子/演示数据（幂等、持久、组件间可复用）和测试现场构造的数据（唯一后缀、从不清理）——以及怎么设计才能让种子数据真正够用来演示和探索。
