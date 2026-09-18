@@ -2,7 +2,11 @@
 
 > Prerequisite: read [Architecture overview](../architecture/overview.md) first if you
 > haven't — this guide assumes you already understand versioned service
-> names and environment-variable injection.
+> names and environment-variable injection. If you haven't yet settled on
+> your project's overall deployment shape — which components run
+> independently, which get merged, and `docker` vs `k8s` — read
+> [Choosing a deployment shape](deployment-selection-guide.md) first; this
+> one is about the per-component decision once merging is on the table.
 
 This is a different document from [Building a Qualified Shell](shell-implementers-guide.md).
 That one is for whoever *builds* the shell component — the container that

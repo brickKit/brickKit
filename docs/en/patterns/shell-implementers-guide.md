@@ -2,8 +2,12 @@
 
 > Prerequisite: read [Architecture overview](../architecture/overview.md) first if you
 > haven't — this guide assumes you already understand versioned service
-> names and environment-variable injection. If you haven't already decided
-> `servedBy` is the right call for your situation, read
+> names and environment-variable injection. If you haven't yet settled on
+> your project's overall deployment shape — which components run
+> independently, which get merged, and `docker` vs `k8s` — read
+> [Choosing a deployment shape](deployment-selection-guide.md) first. If
+> you've already got that far but haven't decided `servedBy` is the right
+> call for your situation, read
 > [Declaring servedBy: a deployment checklist § When servedBy is the right
 > call — and when it isn't](servedby-deployment-checklist.md#when-servedby-is-the-right-call--and-when-it-isnt)
 > first — it covers the memory-floor problem this feature exists to solve,

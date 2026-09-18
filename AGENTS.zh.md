@@ -387,6 +387,9 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
 [打造一个合格的外壳](docs/zh/patterns/shell-implementers-guide.md)。
 要不要在自己项目里声明 `servedBy`、怎么声明：
 [怎么声明 servedBy：部署方检查清单](docs/zh/patterns/servedby-deployment-checklist.md)。
+再往上一层，整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）×
+`docker`/`k8s`、`local: true` 调试开关、手动裸跑组件放在哪个位置：
+[怎么选部署形态](docs/zh/patterns/deployment-selection-guide.md)。
 
 ### 5.8 组件源码工作区
 
@@ -884,6 +887,8 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 | 讨论签名 | 发布方需要装 **cosign**；**安装方不需要**（验签用 Go 标准库） |
 | 用户想让平台帮忙做安全审查 | 安装即信任。平台只在事后 `blocked` |
 | 用户问「能不能把多个组件合并成一个实例省内存」 | 先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用（012 §2.15）。还要合并的话：**`servedBy`（5.7）是平台支持的路径**——它在 Docker 和 K8s 下都能正确处理地址路由；其余的事（模块隔离、配置、外壳内部的迁移顺序）还是他们自己的代码，参见外壳实现者指南。`enabled: false` 和这个无关——它照样不能拿来当「我自己接管」的开关 |
+| 用户问「纯独立/纯外壳/混搭，docker 还是 k8s，到底该选哪个」 | 这正是 `docs/zh/patterns/deployment-selection-guide.md` 那份矩阵存在的目的——照着它的矩阵走，不要临场现编答案。里面唯一一条值得直接记住的硬规则：`local: true`（调试开关）只在 `deploy.target: docker` 下存在，`k8s` 下会在生成阶段直接拒绝 |
+| 用户问「完全不经过 Docker/K8s，怎么把整套东西跑在本地」 | 这是平台唯一完全不管理、不注入任何东西的一档——见 `deployment-selection-guide.md` 的"手动跑起来"那节。值得告诉他们的一个技巧：把那个组件临时改成 `local: true` 之后跑一次 `brickkit up --dry-run`，能拿到一份真实部署会注入的环境变量清单当参考——抄完就还原这次改动，不要真的照这个方式部署 |
 
 ---
 
@@ -931,6 +936,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 平台是什么、核心机制怎么工作（现行版本） | `docs/zh/architecture/`（英文版把 `zh` 换 `en`） |
 | 动手教程 | `docs/zh/guide/`（英文版同上） |
 | 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/patterns/`（英文版同上） |
+| 整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）× `docker`/`k8s`，外加 `local: true` 调试开关、手动裸跑组件放在哪个位置 | `docs/zh/patterns/deployment-selection-guide.md`（英文版把 `zh` 换 `en`） |
 | 怎么造一个能接 `servedBy` 的合格外壳 | `docs/zh/patterns/shell-implementers-guide.md`（英文版把 `zh` 换 `en`） |
 | 要不要在自己项目里声明 `servedBy`、怎么声明 | `docs/zh/patterns/servedby-deployment-checklist.md`（英文版把 `zh` 换 `en`） |
 | 怎么自己搭一套组件市场 | `docs/zh/patterns/deployment/self-hosted-market.md`（英文版把 `zh` 换 `en`） |

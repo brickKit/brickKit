@@ -447,6 +447,10 @@ Full field-level detail, the validation rules, and what a shell implementation
 itself must get right: [Building a qualified shell](docs/en/patterns/shell-implementers-guide.md).
 For whoever is deciding whether and how to declare `servedBy` on their own project:
 [Declaring servedBy: a deployment checklist](docs/en/patterns/servedby-deployment-checklist.md).
+For deciding a whole project's deployment shape in the first place — topology
+(independent / shell-merged / mixed) × `docker`/`k8s`, the `local: true` debug
+toggle, and where running components by hand fits in — start one level up:
+[Choosing a deployment shape](docs/en/patterns/deployment-selection-guide.md).
 
 ### 5.8 Component source workspace
 
@@ -1027,6 +1031,8 @@ hit:
 | Discussing signing | The publisher needs **cosign** installed; **the installer doesn't** (verification uses the Go standard library) |
 | The user wants the platform to help with security review | Install implies trust. The platform only steps in after the fact with `blocked` |
 | A user asks "can I merge multiple components into one instance to save memory" | First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation (§2.15 of the architecture rationale). If they still want to merge: **`servedBy` (§5.7) is the supported path** — it handles address routing correctly on both Docker and K8s; everything else (module isolation, config, migrations ordering inside the shell) is still their own code, see the shell implementer's guide. `enabled: false` is unrelated to this — it still can't be used as a "I'm taking this over myself" switch |
+| A user asks "which of independent/shell-merged/mixed, or docker/k8s, should I actually use" | This is the topology × deploy-target decision `docs/en/patterns/deployment-selection-guide.md` exists to answer — walk through its matrix rather than improvising an answer inline. Its one hard rule worth remembering directly: `local: true` (the debug toggle) only exists under `deploy.target: docker`; it's rejected outright, at generation time, under `k8s` |
+| A user asks "how do I run everything locally without Docker/K8s at all" | That's the one shape the platform doesn't manage or inject anything for — see `deployment-selection-guide.md`'s "Running components by hand" section. The one thing worth telling them: `brickkit up --dry-run` after a temporary `local: true` on the component in question dumps the exact env vars a real deployment would inject, as a cheat sheet — then revert the edit, don't actually deploy that way |
 
 ---
 
@@ -1076,6 +1082,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | What the platform is, how the core mechanisms work (current) | `docs/en/architecture/` (swap `en` for `zh` for the Chinese version) |
 | Hands-on tutorials | `docs/en/guide/` (same swap) |
 | How to layer tests, plan seed/test data, design components well, tune deployment | `docs/en/patterns/` (same swap) |
+| Which deployment shape to pick for a whole project — topology (independent / shell-merged / mixed) × `docker`/`k8s`, plus the `local: true` debug toggle and where running components by hand fits in | `docs/en/patterns/deployment-selection-guide.md` (swap `en` for `zh`) |
 | How to build a shell that qualifies for `servedBy` | `docs/en/patterns/shell-implementers-guide.md` (swap `en` for `zh`) |
 | Whether and how to declare `servedBy` on your own project | `docs/en/patterns/servedby-deployment-checklist.md` (swap `en` for `zh`) |
 | How to self-host the component marketplace | `docs/en/patterns/deployment/self-hosted-market.md` (swap `en` for `zh`) |

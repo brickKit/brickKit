@@ -38,6 +38,7 @@
 - [基于 BrickKit 的组件该怎么分层测试](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/testing.md): 后端契约/业务规则/单元/集成四层怎么分工、一个真实生产部署踩过的权限边界与幂等性陷阱，加上前端自己的四层（单元/逻辑、组件、端到端、视觉回归）以及端到端/视觉回归测试为啥要先经用户明确同意才能跑。
 - [怎么规划种子数据与测试数据](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/data-construction.md): 两条必须物理隔离、永不共用存储的路径——种子/演示数据（幂等、持久、组件间可复用）和测试现场构造的数据（唯一后缀、从不清理）——以及怎么设计才能让种子数据真正够用来演示和探索。
 - [闭源组件的镜像安全规范](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/closed-source-image-hardening.md): 拉取镜像就等于交出它将来会跑的每一个字节——这跟私有 Git 仓库不是同一种保证。Docker 镜像卫生习惯、按语言分类的加固上限，以及这些手段一个都防不住的事。
+- [怎么选部署形态](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/deployment-selection-guide.md): 整个项目的拓扑（纯独立/纯外壳/混搭）× 部署目标（`docker`/`k8s`）该怎么选，外加 `local: true` 调试开关、以及手动裸跑组件——一个平台完全不管理的真实选项——放在哪个位置。十二种组合的完整矩阵，以及为什么没有第十三种（"K8s+本地调试"在生成阶段就被直接拒绝）。
 - [怎么声明 servedBy：部署方检查清单](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/servedby-deployment-checklist.md): `servedBy` 到底解决的是什么内存问题、什么时候该用什么时候不该用、该先试哪些更便宜的替代方案，以及——写给在自己项目里声明 `servedBy` 的人，而不是造壳的人——写之前的检查清单、哪些写法会被拒绝。
 - [合格外壳该满足什么](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/shell-implementers-guide.md): 写给造壳的人：`servedBy` 字段对收编它的外壳提出了什么要求——合并进程必须满足的九条性质，以及平台到底会不会把哪些东西注入外壳的环境。
 - [在外壳里合并数据库连接池](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/shared-connection-pools.md): 写给合并进同一个 servedBy 外壳、又共用 PostgreSQL 或 Oracle 的组件——为什么池子通常合不了、要靠 schema 重新分组、`SET LOCAL ROLE` 技巧，以及唯一一件有截止日期的决定。
