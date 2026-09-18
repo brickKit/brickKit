@@ -165,8 +165,8 @@ docker build -t brickkit-demo/department-tree:1.0.0 tests/components/department-
 **2. 起一套本地开发用的 PostgreSQL**（仓库自带这份栈，不用自己拼 compose 文件）：
 
 ```bash
-PG_PORT=55432 docker compose -f deploy/dev-resources/docker-compose.yaml up -d postgres
-docker exec brickkit-dev-resources-postgres-1 psql -U brickkit -c "CREATE DATABASE brickkit_department"
+PG_PORT=55432 PG_USER=demo docker compose -f deploy/dev-resources/docker-compose.yaml up -d postgres
+docker exec brickkit-dev-resources-postgres-1 psql -U demo -c "CREATE DATABASE brickkit_department"
 ```
 
 **3. 配置 `brickkit.yaml`**（起本地开发资源栈时，资源要走 `host.docker.internal`，不是容器名——原因和 `deploy/dev-resources/docker-compose.yaml` 顶部注释解释的一样：这套资源栈和你的 BrickKit 项目不在同一张 Docker 网络上）：
@@ -184,7 +184,7 @@ resources:
     id: postgres-main
     host: host.docker.internal
     port: 55432
-    username: brickkit
+    username: demo
     password: ${PG_PASSWORD}
     bindings:
       - componentId: department/tree
@@ -235,7 +235,7 @@ brickkit up
 迁移容器的真实日志（结构化 JSON，写到 stdout）：
 
 ```
-{"time":"...","level":"INFO","msg":"开始执行数据库迁移","componentId":"department/tree","config":"component=department/tree@1.0.0 database=host.docker.internal:55432/brickkit_department user=brickkit logLevel=info"}
+{"time":"...","level":"INFO","msg":"开始执行数据库迁移","componentId":"department/tree","config":"component=department/tree@1.0.0 database=host.docker.internal:55432/brickkit_department user=demo logLevel=info"}
 {"time":"...","level":"INFO","msg":"迁移完成","componentId":"department/tree"}
 ```
 

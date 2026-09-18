@@ -165,8 +165,8 @@ docker build -t brickkit-demo/department-tree:1.0.0 tests/components/department-
 **2. Start a local PostgreSQL** (the repository already ships this stack — no need to write your own compose file):
 
 ```bash
-PG_PORT=55432 docker compose -f deploy/dev-resources/docker-compose.yaml up -d postgres
-docker exec brickkit-dev-resources-postgres-1 psql -U brickkit -c "CREATE DATABASE brickkit_department"
+PG_PORT=55432 PG_USER=demo docker compose -f deploy/dev-resources/docker-compose.yaml up -d postgres
+docker exec brickkit-dev-resources-postgres-1 psql -U demo -c "CREATE DATABASE brickkit_department"
 ```
 
 **3. Configure `brickkit.yaml`** — with the dev-resources stack, the resource address is `host.docker.internal`, not a container name (same reason the comment at the top of `deploy/dev-resources/docker-compose.yaml` gives: that stack and your BrickKit project don't share a Docker network):
@@ -184,7 +184,7 @@ resources:
     id: postgres-main
     host: host.docker.internal
     port: 55432
-    username: brickkit
+    username: demo
     password: ${PG_PASSWORD}
     bindings:
       - componentId: department/tree
@@ -235,7 +235,7 @@ brickkit up
 The migration container's real log output (structured JSON, written to stdout):
 
 ```
-{"time":"...","level":"INFO","msg":"开始执行数据库迁移","componentId":"department/tree","config":"component=department/tree@1.0.0 database=host.docker.internal:55432/brickkit_department user=brickkit logLevel=info"}
+{"time":"...","level":"INFO","msg":"开始执行数据库迁移","componentId":"department/tree","config":"component=department/tree@1.0.0 database=host.docker.internal:55432/brickkit_department user=demo logLevel=info"}
 {"time":"...","level":"INFO","msg":"迁移完成","componentId":"department/tree"}
 ```
 
