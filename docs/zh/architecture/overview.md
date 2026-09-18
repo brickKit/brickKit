@@ -46,6 +46,32 @@ sequenceDiagram
 
 其中的服务名包括 `erp-backend-1-0-0`、`department-tree-1-0-0`、`people-basic-1-0-0`——下一节说明这个名字是怎么算出来的。想看①②两个阶段更难的版本——一个真实的菱形依赖、一个真实的循环依赖、关掉一个组件会发生什么——见[依赖解析与启动顺序](dependency-resolution.md)。
 
+## 项目目录里都有什么
+
+`brickkit init` 在**当前目录**里生成下面这些东西。真正属于"期望状态"的只有 `brickkit.yaml` 一个文件；`.brickkit/` 是 CLI 自己的工作目录，里面每一项要么是可以重新拿回来的缓存，要么是每次 `up` 重新生成的产物，要么是登录凭据。
+
+```
+my-shop/                          ← 项目根目录
+├── brickkit.yaml                 ← 项目配置：唯一的"期望状态"
+├── components/                   ← 组件源码工作区（默认不提交：每个组件是独立的 Git 仓库）
+│   └── .archived/                ← brickkit sync 归档的、这次不启动的组件源码
+├── .brickkit/                    ← CLI 工作目录
+│   ├── manifests/                ← Manifest 缓存：<组件ID>-<版本>.yaml，如 people-basic-1.0.0.yaml
+│   ├── artifacts/                ← 组件附带的契约、文档等产物：<版本化服务名>/<type>/…
+│   ├── generated/                ← up 生成的部署文件（勿手改，不提交）
+│   ├── credentials               ← brickkit login 存下的 Token（权限 0600，不提交）
+│   └── skills.lock               ← 记录 AI 助手技能文件上次是谁写的（提交）
+├── .claude/skills/               ← AI 助手技能（init 装入，提交）
+├── AGENTS.md                     ← AI 助手项目导读（init 装入，提交）
+└── .gitignore                    ← init 追加的忽略规则
+```
+
+- **`manifests/` 与 `artifacts/` 是缓存，默认提交、团队共享同一份。** `up` 读的是 `manifests/` 里的 Manifest，不依赖 `components/` 下的源码；缺失或损坏时会从安装源重新拉取。产物由 `add` / `fetch` 下载。`init` 追加的 `.gitignore` 里对应的两行默认是注释掉的，想忽略它们就取消注释。
+- **`generated/` 每次 `up` 都会重写，别手改。** 里面是 `docker-compose.yaml`（`deploy.target: k8s` 时是 `k8s/` 目录），以及 `local: true` 组件的 `local-debug.<版本化服务名>.env`。默认被 `.gitignore` 忽略——后一种文件里可能带着解析后的配置值。
+- **`credentials` 只有 `brickkit login` 之后才存在**，默认被 `.gitignore` 忽略。
+- **`skills.lock` 要提交**：它让别人的 CLI 分得清"你手改过这个技能文件"和"CLI 升级让它过期了"。
+
+
 ## 版本化服务名与统一地址格式
 
 **服务名 = 组件 ID 转换 + 精确版本号。** 转换规则只有三条：`/` → `-`，`.` → `-`，全部小写。`erp/backend` 的 `1.0.0` 版就是 `erp-backend-1-0-0`。

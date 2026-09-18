@@ -127,18 +127,17 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-fields check-docs-bilingual check-market-api check-guide-output check-install-sh check-no-binaries cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + 字段骨架 + 双语镜像 + 市场 API 表 + 指南预期输出 + 安装脚本 + 仓库无二进制 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-docs-bilingual check-market-api check-guide-output check-install-sh check-no-binaries cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + 双语镜像 + 市场 API 表 + 指南预期输出 + 安装脚本 + 仓库无二进制 + 覆盖率门槛）
 # check-cli-docs 拆成了两个方向：「文档写了不存在的命令/参数」（防伪造）计入
 # 退出码，重新加回 lint；「命令/参数有、文档没写」（详尽性）只打印不计入退出
 # 码——design/试用指南 归档后全仓库没有任何一份"详尽命令参考"活文档，这个
 # 方向注定会随 CLI 新增命令/参数永久报警，直到 docs/en/architecture 长出
 # 详尽命令参考为止。
 #
-# check-doc-tree 不在此列，且不会像 check-cli-docs 这样拆开重接：它的判断
-# 整体依赖"至少有一份活文档画了 .brickkit/ 目录树"，而现在一份都没有，没有
-# 部分可以先恢复。手动跑 `python3 scripts/check-doc-tree.py bin/brickkit`
-# 仍然有效、仍然该在改 .brickkit/ 目录结构时手动查一下；等 docs/en/architecture
-# 长出目录树图之后，再把它整个加回 lint。
+# check-doc-tree 只在有活文档画了 .brickkit/ 目录树时才有东西可查：它扫不到
+# 任何一棵树就直接退出 2（"多半是树的画法变了"），而不是给出一个漂亮的通过。
+# docs/{en,zh}/architecture/overview.md 现在画着这棵树，所以它回到了 lint 里；
+# 哪天那两份文档里的树被删掉或改了画法，这里会立刻红，而不是悄悄不再检查。
 	@if [ -x "$(GOLANGCI)" ]; then \
 		echo "▶ golangci-lint run"; \
 		$(GOLANGCI) run ./... && (cd market-server && $(GOLANGCI) run ./...); \
