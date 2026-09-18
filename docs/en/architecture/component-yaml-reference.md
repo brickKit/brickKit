@@ -48,9 +48,9 @@ Two YAML shapes for the same underlying `ComponentDep`:
 
 | Field | Type | Required | Constraint |
 | --- | --- | --- | --- |
-| id (the part before `@`) | string | yes | same `scope/name` rule as `metadata.id` |
-| version (the part after `@`) | string | yes | exact version, same rule as `metadata.version` — a range (`^1.0.0`) is rejected here, not silently accepted |
-| `optional` | bool | no (default `false`) | only meaningful on the mapping form |
+| `dependencies.components[].id` (the part before `@`) | string | yes | same `scope/name` rule as `metadata.id` |
+| version (the part after `@` — not a separate YAML key) | string | yes | exact version, same rule as `metadata.version` — a range (`^1.0.0`) is rejected here, not silently accepted |
+| `dependencies.components[].optional` | bool | no (default `false`) | only meaningful on the mapping form |
 
 Three things the validator catches that aren't obvious from the shape alone:
 
@@ -87,7 +87,7 @@ This block is optional self-documentation, not a functional requirement — noth
 | `configSchema.properties.<key>.default` | any | no | not type-checked against the declared `type` (AGENTS.md §9.12) — see [environment-variables.md](environment-variables.md) §4 for exactly how each type renders into an environment variable, including the array/object footgun (it becomes Go's `fmt.Sprint` form, not JSON) |
 | `configSchema.properties.<key>.description` | string | no | free text |
 | `configSchema.properties.<key>.enum` | `[]any` | no | **parsed and stored, never read anywhere else in the codebase.** Not by the CLI (no value is ever checked against it), not by the marketplace, not by any renderer. It's pure documentation today — useful for a human or an AI reading the schema, enforced by nothing. |
-| `configSchema.properties.<key>.items` | `{type: string}` | no | **parsed and stored, never read anywhere else in the codebase either** — grep the whole repo and the only other `.Items` hits are an unrelated Kubernetes list type. Meaningful only by convention on a `type: array` property; today it has exactly the same effect as not writing it at all. |
+| `configSchema.properties.<key>.items.type` | string | no (the `items` block as a whole is optional; `type` is the only key in it) | **parsed and stored, never read anywhere else in the codebase either** — grep the whole repo and the only other `.Items` hits are an unrelated Kubernetes list type. Meaningful only by convention on a `type: array` property; today it has exactly the same effect as not writing it at all. |
 | `configSchema.required` | `[]string` | no | each entry must name a key that's also declared in `properties` — a `required` entry with no matching property is rejected at Manifest-validation time, before the project ever gets a chance to supply a value for it |
 
 `required` is where the one real teeth in this whole block live: a property listed in `required` with no `default` and no `brickkit.yaml` override blocks `brickkit up` outright, for the whole project, not just this component — [environment-variables.md](environment-variables.md) §5.3 has the full mechanism and the real error text.

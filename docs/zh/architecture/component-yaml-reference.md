@@ -48,9 +48,9 @@ AGENTS.zh.md §6 是那份可以直接复制粘贴的骨架。这篇文档是骨
 
 | 字段 | 类型 | 是否必填 | 约束 |
 | --- | --- | --- | --- |
-| id（`@` 前面那部分） | string | 是 | 跟 `metadata.id` 同一条 `scope/name` 规则 |
-| version（`@` 后面那部分） | string | 是 | 精确版本，跟 `metadata.version` 同一条规则——这里写范围（`^1.0.0`）也会被拒绝，不会被悄悄接受 |
-| `optional` | bool | 否（默认 `false`） | 只在映射写法下才有意义 |
+| `dependencies.components[].id`（`@` 前面那部分） | string | 是 | 跟 `metadata.id` 同一条 `scope/name` 规则 |
+| version（`@` 后面那部分，不是独立的 YAML 键） | string | 是 | 精确版本，跟 `metadata.version` 同一条规则——这里写范围（`^1.0.0`）也会被拒绝，不会被悄悄接受 |
+| `dependencies.components[].optional` | bool | 否（默认 `false`） | 只在映射写法下才有意义 |
 
 校验器还会拦下三件从写法本身看不出来的事：
 
@@ -87,7 +87,7 @@ AGENTS.zh.md §6 是那份可以直接复制粘贴的骨架。这篇文档是骨
 | `configSchema.properties.<key>.default` | any | 否 | 不会拿去跟声明的 `type` 做类型核对（AGENTS.zh.md §9.12）——每种类型具体怎么渲染成环境变量，包括 array/object 的那个坑（渲染成 Go 的 `fmt.Sprint` 形式，不是 JSON），见 [environment-variables.md](environment-variables.md) 第四节 |
 | `configSchema.properties.<key>.description` | string | 否 | 自由文本 |
 | `configSchema.properties.<key>.enum` | `[]any` | 否 | **只是被解析、存下来，代码库里再没有任何地方读过它。** CLI 不读（没有任何一个值会拿去跟它核对），市场不读，任何渲染器都不读。今天它就是纯文档，给人（或者给 AI）读 schema 时看的，没有任何东西在真正执行它。 |
-| `configSchema.properties.<key>.items` | `{type: string}` | 否 | **同样只是被解析、存下来，代码库里再没有任何地方读过它**——全仓库搜一遍，唯一命中的 `.Items` 是一个毫不相关的 Kubernetes 列表类型。按惯例只在 `type: array` 的属性上才有意义，但今天写不写它效果完全一样。 |
+| `configSchema.properties.<key>.items.type` | string | 否（`items` 这一块整体可选，里面只有 `type` 一个键） | **同样只是被解析、存下来，代码库里再没有任何地方读过它**——全仓库搜一遍，唯一命中的 `.Items` 是一个毫不相关的 Kubernetes 列表类型。按惯例只在 `type: array` 的属性上才有意义，但今天写不写它效果完全一样。 |
 | `configSchema.required` | `[]string` | 否 | 每一条都必须是 `properties` 里真的声明过的 key——写了一个 `properties` 里没有的名字，在 Manifest 校验阶段就会被拒绝，项目根本没机会为它提供值 |
 
 `required` 是这整块里唯一真正有牙齿的地方：一个列进 `required`、既没有 `default` 也没有被 `brickkit.yaml` 覆盖的属性，会让整个项目的 `brickkit up` 直接拒绝启动，不只是这一个组件——完整机制和真实报错文案见 [environment-variables.md](environment-variables.md) 第五节第三条。

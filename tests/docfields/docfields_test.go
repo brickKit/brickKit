@@ -50,12 +50,10 @@ type docFile struct {
 	body string
 }
 
-// 完整性检查（"每个字段都出现过"、"每张标注过的表都完整"）随 design/ 归档一并
-// 移除——它们的判据依赖一份详尽的参考文档，而 design/ 归档后不再维护，
-// docs()现在只扫几份刻意压缩的一页纸导读（AGENTS.md/AGENTS.zh.md、
-// README.md/README.zh.md），要求它们详尽是不合理的。docs/en/architecture
-// 长出comprehensive 内容之后，应该在那里重新引入等价的详尽性检查，而不是
-// 勉强让这几个刻意收窄的文件满足一条为详尽参考文档设计的判据。
+// 完整性检查（"每个字段都出现过"）随 design/ 归档一并移除——它的判据依赖一份
+// 详尽的参考文档，而 docs() 只扫几份刻意压缩的一页纸导读（AGENTS.md/
+// AGENTS.zh.md、README.md/README.zh.md），要求它们详尽是不合理的。等价的检查
+// 现在落在真正详尽的那份文档上，见 reference_test.go。
 
 // docs 收集根目录的 AGENTS.md/AGENTS.zh.md 与 README.md/README.zh.md。
 //
