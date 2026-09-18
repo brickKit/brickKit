@@ -69,7 +69,7 @@ graph LR
 
 ### 步骤 1：让 AI 理解你的项目
 
-`brickkit init` 会自动在项目里生成 `.claude/skills/` 目录，装好几个 AI 助手技能文件。把项目根目录的 `AGENTS.md` 也喂给 AI——它压缩了整个平台的定位、术语、设计原则，AI 读完就有了判断力，不用你每次都重新解释一遍"BrickKit 是什么"。
+`brickkit init` 会自动在项目里生成 `.claude/skills/` 目录，装好几个 AI 助手技能文件。把项目根目录的 `AGENTS.md` 也喂给 AI——它压缩了整个平台的定位、术语、设计原则，AI 读完就有了判断力，不用你每次都重新解释一遍"BrickKit 是什么"。如果你是在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）开发，在那个目录里执行 `brickkit skills update`，会把 `brickkit-component` 这个技能装进 `.claude/skills/`——组件作者最需要的那一份。
 
 ### 步骤 2：让 AI 先写规格——Manifest 和 API 契约，不写实现
 

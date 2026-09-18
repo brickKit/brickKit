@@ -94,6 +94,8 @@ CLI 的报错带错误码。按码定位比按文案快。
 
 ## 去哪查更细的
 
+（下面的 `docs/...` 与 `AGENTS.zh.md` 路径都在 BrickKit 仓库 <https://github.com/brickKit/brickKit> 里；`docs/` 下每篇有 `en/` 与 `zh/` 两份，内容对等。）
+
 - 参数：`brickkit <命令> --help`
 - 常见报错的完整处置（症状 → 原因 → 修复，含真实输出样例）：`docs/zh/troubleshooting.md`
 - 错误码的权威定义（常量名、文案）：`internal/clierr/clierr.go`

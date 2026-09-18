@@ -92,9 +92,64 @@ func TestSkillsRefusesOutsideProject(t *testing.T) {
 	r := runIn(t, dir, "skills", "update")
 	assert.NotEqual(t, 0, r.code)
 	assert.Contains(t, r.stderr+r.stdout, "brickkit init")
+	assert.Contains(t, r.stderr+r.stdout, "component.yaml", "也要说清组件仓库这条路")
 
 	_, err := os.Stat(filepath.Join(dir, "AGENTS.md"))
 	assert.True(t, os.IsNotExist(err), "不是项目就一个文件都别写")
+}
+
+// 独立组件仓库（一个组件一个仓库，通常没有 brickkit.yaml）：skills 只管
+// brickkit-component 这一份，不写项目导读，也不装拼装/部署/排障三个项目层面的技能。
+func TestSkillsInComponentRepoManagesOnlyTheComponentSkill(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, comp{ID: "people/basic", Version: "1.0.0"}.files())
+
+	st := runIn(t, dir, "skills", "status")
+	require.Equal(t, 0, st.code, st.stderr)
+	assert.Contains(t, st.stdout, ".claude/skills/brickkit-component/SKILL.md")
+	assert.Contains(t, st.stdout, "缺失")
+	assert.Contains(t, st.stdout, "组件仓库", "要说明这是组件仓库模式，不然人会奇怪怎么只有一个文件")
+	assert.NotContains(t, st.stdout, "brickkit-deploy")
+	assert.NotContains(t, st.stdout, "AGENTS.md")
+
+	up := runIn(t, dir, "skills", "update")
+	require.Equal(t, 0, up.code, up.stderr)
+	_, err := os.Stat(filepath.Join(dir, ".claude", "skills", "brickkit-component", "SKILL.md"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(dir, "AGENTS.md"))
+	assert.True(t, os.IsNotExist(err), "组件仓库里不该被写进项目导读")
+	_, err = os.Stat(filepath.Join(dir, ".claude", "skills", "brickkit-assemble"))
+	assert.True(t, os.IsNotExist(err))
+
+	again := runIn(t, dir, "skills", "update")
+	require.Equal(t, 0, again.code, again.stderr)
+	assert.Contains(t, again.stdout, "已是最新")
+}
+
+// 组件仓库多半有自己的 AGENTS.md——一个字都不能碰。
+func TestSkillsInComponentRepoLeavesOwnAgentsMdAlone(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, comp{ID: "people/basic", Version: "1.0.0"}.files())
+	mine := []byte("# 这个组件自己的说明\n")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), mine, 0o644))
+
+	require.Equal(t, 0, runIn(t, dir, "skills", "update").code)
+
+	after, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
+	require.NoError(t, err)
+	assert.Equal(t, string(mine), string(after))
+}
+
+// 目录里既有 brickkit.yaml 又有 component.yaml 时按项目处理，和以前一样。
+func TestSkillsPrefersProjectWhenBothFilesPresent(t *testing.T) {
+	dir := t.TempDir()
+	require.Equal(t, 0, runIn(t, dir, "init", "p", "--no-skills").code)
+	writeTree(t, dir, comp{ID: "people/basic", Version: "1.0.0"}.files())
+
+	r := runIn(t, dir, "skills", "status")
+	require.Equal(t, 0, r.code, r.stderr)
+	assert.Contains(t, r.stdout, "AGENTS.md", "按项目处理：完整的一套")
+	assert.NotContains(t, r.stdout, "组件仓库")
 }
 
 func sumOf(b []byte) string {

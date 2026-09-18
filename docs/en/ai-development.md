@@ -68,7 +68,7 @@ graph LR
 
 ### Step 1: give the AI context on your project
 
-`brickkit init` already generates a `.claude/skills/` directory with several AI-assistant skill files in your project. Feed it the root `AGENTS.md` too — it compresses the platform's positioning, terminology, and design principles into one file, so the AI has real judgment instead of you re-explaining "what BrickKit is" every session.
+`brickkit init` already generates a `.claude/skills/` directory with several AI-assistant skill files in your project. Feed it the root `AGENTS.md` too — it compresses the platform's positioning, terminology, and design principles into one file, so the AI has real judgment instead of you re-explaining "what BrickKit is" every session. If you're developing inside a standalone component repo (a `component.yaml`, no `brickkit.yaml`), run `brickkit skills update` in that directory: it installs the `brickkit-component` skill into `.claude/skills/` — the one a component author needs most.
 
 ### Step 2: have the AI write the spec first — the Manifest and the API contract, no implementation
 

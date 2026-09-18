@@ -759,7 +759,7 @@ silently unused under `k8s` with nothing catching it) is
 | Command | Core behavior |
 | --- | --- |
 | `brickkit init <name>` | Generates a `brickkit.yaml` skeleton and a `.brickkit/` directory, and installs the AI assistant skills (`--no-skills` to skip) |
-| `brickkit skills` | View/refresh the AI assistant skills installed in the project (`status` / `update`). Never overwrites something hand-edited; never touches the user's own `CLAUDE.md` |
+| `brickkit skills` | View/refresh the AI assistant skills installed in the project (`status` / `update`). In a standalone component repo (a `component.yaml`, no `brickkit.yaml`) it manages just the `brickkit-component` skill. Never overwrites something hand-edited; never touches the user's own `CLAUDE.md` |
 | `brickkit add <id>[@ver]` | Recursively pulls dependencies, downloads artifacts, writes them into the config (**doesn't write an `enabled` field**). If no version is given, takes the latest installable version from the source and pins it to disk as an **exact version** |
 | `brickkit remove <id>` | Checks for required-dependency callers before removing, automatically deletes the source directory (including an archived copy). Must specify a version when multiple versions coexist |
 | `brickkit fetch <id>[@version]` | Only downloads the component's artifacts into `.brickkit/artifacts/<versioned-service-name>/`, **doesn't write to `brickkit.yaml`, doesn't deploy**. Used when calling another project's service across project boundaries (design/003 §4.9) |

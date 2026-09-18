@@ -7,12 +7,14 @@ package cli
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/skills"
 	"github.com/brickkit/brickkit/internal/version"
 )
@@ -35,6 +37,10 @@ func newSkillsCommand(opts *Options) *cobra.Command {
 **手改过的文件绝不覆盖。** update 会把它们列出来并跳过。想放弃本地
 修改，删掉那个文件再执行一次 update——刻意不提供 --force：删文件这个
 动作本身已经足够明确，而多一个开关就多一条误伤路径。
+
+在独立的组件仓库里（有 component.yaml、没有 brickkit.yaml）也能用：这时只管理
+brickkit-component 这一个技能——项目导读与拼装/部署/排障三个技能在那里讲不通。
+组件仓库自己的 AGENTS.md 一个字都不碰。
 
 不碰你的 CLAUDE.md：那是你自己的流程文件。`,
 		Example: `  brickkit skills          看装了什么、有没有过期
@@ -67,24 +73,40 @@ func newSkillsCommand(opts *Options) *cobra.Command {
 	return cmd
 }
 
-// skillsInstaller 构造 Installer，并先确认这儿真是个 BrickKit 项目。
+// skillsInstaller 构造 Installer，并先确认这儿是它管得着的地方：
+// BrickKit 项目（有 brickkit.yaml），或独立的组件仓库（有 component.yaml、没有 brickkit.yaml）。
 //
 // 不确认的话，在随便一个目录里敲 skills update 会默默建出 .claude/ 与
 // AGENTS.md——在别人家里留下文件，比报个错糟糕得多。
 func skillsInstaller(opts *Options) (skills.Installer, error) {
 	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
-	if _, err := os.Stat(layout.ConfigPath()); err != nil {
-		return skills.Installer{}, clierr.New(clierr.CodeProjectMissing,
-			"错误：当前目录不是 BrickKit 项目").
-			WithDetail("找不到", layout.ConfigName()).
-			WithHint("先执行 brickkit init <项目名称>",
-				"或用 --config 指定配置文件")
-	}
-	return skills.Installer{
+	in := skills.Installer{
 		Root:     layout.Root,
 		LockPath: layout.SkillsLockPath(),
 		Version:  version.Version,
-	}, nil
+	}
+
+	// 两样都有时按项目处理：那是这条命令一直以来的行为
+	if _, err := os.Stat(layout.ConfigPath()); err == nil {
+		return in, nil
+	}
+	if _, err := os.Stat(filepath.Join(layout.Root, manifest.FileName)); err == nil {
+		in.Scope = skills.ScopeComponent
+		return in, nil
+	}
+	return skills.Installer{}, clierr.New(clierr.CodeProjectMissing,
+		"错误：当前目录既不是 BrickKit 项目，也不是组件仓库").
+		WithDetail("找不到", layout.ConfigName()+"，也没有 "+manifest.FileName).
+		WithHint("项目：先执行 brickkit init <项目名称>，或用 --config 指定配置文件",
+			"组件仓库：在含 "+manifest.FileName+" 的目录里执行")
+}
+
+// renderSkillsScope 在组件仓库模式下说一句"为什么只有一个文件"。
+func renderSkillsScope(opts *Options, in skills.Installer) {
+	if in.Scope == skills.ScopeComponent {
+		opts.Printf("📦 组件仓库（有 %s、没有 %s）：只管理 brickkit-component 技能\n",
+			manifest.FileName, config.NewLayout(opts.WorkDir, opts.ConfigPath).ConfigName())
+	}
 }
 
 func runSkillsStatus(opts *Options) error {
@@ -97,6 +119,7 @@ func runSkillsStatus(opts *Options) error {
 		return wrapSkillsError(err)
 	}
 
+	renderSkillsScope(opts, in)
 	t := newTable("文件", "状态")
 	stale := 0
 	for _, s := range list {
@@ -129,6 +152,7 @@ func runSkillsUpdate(opts *Options) error {
 		return wrapSkillsError(err)
 	}
 
+	renderSkillsScope(opts, in)
 	if len(res.Written) == 0 && len(res.Skipped) == 0 {
 		opts.Printf("✅ AI 助手技能已是最新（CLI %s）\n", version.Display())
 		return nil

@@ -120,6 +120,8 @@ PEOPLE_BASIC_GRPC_ENDPOINT=http://people-basic-1-0-0:9090
 
 ## 去哪查更细的
 
+（下面的 `docs/...` 与 `AGENTS.zh.md` 路径都在 BrickKit 仓库 <https://github.com/brickKit/brickKit> 里；`docs/` 下每篇有 `en/` 与 `zh/` 两份，内容对等。）
+
 - `component.yaml` 每个字段的规则与完整参考：`docs/zh/architecture/component-yaml-reference.md`
 - 环境变量命名与保留变量的完整字典：`docs/zh/architecture/environment-variables.md`
 - 手把手教程（从零写一个组件）：`docs/zh/guide/10-build-your-own.md`；

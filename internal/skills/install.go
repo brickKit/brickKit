@@ -46,6 +46,8 @@ type Installer struct {
 	LockPath string
 	// Version 是当前 CLI 版本，写进 lock。
 	Version string
+	// Scope 是管理哪一部分资产，零值是完整的项目那一套。
+	Scope Scope
 }
 
 // Status 计算全部资产的当前状态。只读，不写任何文件。
@@ -55,7 +57,7 @@ func (in Installer) Status() ([]FileStatus, error) {
 		return nil, err
 	}
 	var out []FileStatus
-	for _, a := range Assets() {
+	for _, a := range AssetsFor(in.Scope) {
 		st, err := in.stateOf(a, lock)
 		if err != nil {
 			return nil, err
@@ -129,7 +131,7 @@ func (in Installer) Apply() (*ApplyResult, error) {
 		return nil, err
 	}
 	res := &ApplyResult{}
-	for _, a := range Assets() {
+	for _, a := range AssetsFor(in.Scope) {
 		st, err := in.stateOf(a, lock)
 		if err != nil {
 			return nil, err

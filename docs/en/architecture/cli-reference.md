@@ -92,6 +92,16 @@ unambiguous action, and a force flag would only add one more way to
 accidentally clobber someone's edit. Like `init`, `skills` never touches
 your own `CLAUDE.md`.
 
+**It also works inside a standalone component repo.** In a directory with a `component.yaml` and no `brickkit.yaml` (the platform asks for "one component, one repository", so that's usually where a component author works), `skills` manages just the `brickkit-component` skill — the project guide and the assemble, deploy and troubleshoot skills make no sense there, so they aren't installed, and the repo's own `AGENTS.md` is never touched. The order it checks is: `brickkit.yaml` first (if present it's treated as a project, exactly as before), then `component.yaml`, and if neither exists it errors rather than writing files into someone else's directory. It also creates a `.brickkit/skills.lock` in the repo, recording "who wrote this file last", to be committed along with the skill file.
+
+```
+$ brickkit skills update
+📦 组件仓库（有 component.yaml、没有 brickkit.yaml）：只管理 brickkit-component 技能
+✅ AI 助手技能已更新
+   已写入 1 个：
+     .claude/skills/brickkit-component/SKILL.md
+```
+
 **Subcommands**
 
 | Subcommand | What it does |

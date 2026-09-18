@@ -10,6 +10,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"path"
+	"slices"
 	"strings"
 )
 
@@ -40,6 +41,39 @@ func Assets() []Asset {
 	var list []Asset
 	walk(assetRoot, &list)
 	return list
+}
+
+// Scope 决定一个 Installer 管理哪一部分资产。
+type Scope int
+
+const (
+	// ScopeProject 是完整的一套：项目导读加四个技能，也就是 brickkit init 装进项目的那些。
+	// 它是零值，所以不指定范围时行为不变。
+	ScopeProject Scope = iota
+	// ScopeComponent 是独立组件仓库（有 component.yaml、没有 brickkit.yaml）里讲得通的那一份。
+	ScopeComponent
+)
+
+// componentTargets 是 ScopeComponent 管理的资产落点。
+//
+// 写死一份名单而不是在 assets/ 下另开一棵树：组件仓库要的那份技能与项目里装的是
+// 同一个文件，另开一棵树就是两份内容要同步。它改名或被删掉时，
+// TestComponentScopeTargetsAllExistAmongAssets 会立刻红，而不是让组件仓库静默少装一份。
+var componentTargets = []string{".claude/skills/brickkit-component/SKILL.md"}
+
+// AssetsFor 返回某个范围内的资产，顺序与 Assets 一致。
+func AssetsFor(scope Scope) []Asset {
+	all := Assets()
+	if scope != ScopeComponent {
+		return all
+	}
+	var out []Asset
+	for _, a := range all {
+		if slices.Contains(componentTargets, a.Target) {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 func walk(dir string, list *[]Asset) {

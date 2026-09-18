@@ -125,6 +125,8 @@ Docker 下写了不生效。`replicas > 1` 时自动生成 PDB。
 
 ## 去哪查更细的
 
+（下面的 `docs/...` 与 `AGENTS.zh.md` 路径都在 BrickKit 仓库 <https://github.com/brickKit/brickKit> 里；`docs/` 下每篇有 `en/` 与 `zh/` 两份，内容对等。）
+
 - 参数：`brickkit up --help`、`brickkit down --help`
 - 两条部署路径的生成细节、Ingress、迁移 Job：`docs/zh/architecture/deployment-generation.md`
 - 网络策略：`docs/zh/guide/11-network-policy.md`

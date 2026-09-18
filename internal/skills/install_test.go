@@ -303,3 +303,71 @@ func TestWriteFailsOnReadOnlyDirectory(t *testing.T) {
 	_, err := in.Apply()
 	require.Error(t, err)
 }
+
+// 组件仓库里只装 brickkit-component 这一份：没有 brickkit.yaml 的地方，
+// 项目导读（"这个项目用 BrickKit 拼装"）与拼装/部署/排障三个技能都讲不通。
+func TestComponentScopeManagesOnlyTheComponentSkill(t *testing.T) {
+	in := newInstaller(t)
+	in.Scope = ScopeComponent
+
+	list := mustStatus(t, in)
+	require.Len(t, list, 1)
+	assert.Equal(t, ".claude/skills/brickkit-component/SKILL.md", list[0].Target)
+	assert.Equal(t, StateMissing, list[0].State)
+
+	res, err := in.Apply()
+	require.NoError(t, err)
+	assert.Equal(t, []string{".claude/skills/brickkit-component/SKILL.md"}, res.Written)
+
+	for _, absent := range []string{
+		"AGENTS.md",
+		".claude/skills/brickkit-assemble/SKILL.md",
+		".claude/skills/brickkit-deploy/SKILL.md",
+		".claude/skills/brickkit-troubleshoot/SKILL.md",
+	} {
+		_, err := os.Stat(filepath.Join(in.Root, filepath.FromSlash(absent)))
+		assert.True(t, os.IsNotExist(err), "组件仓库里不该出现 %s", absent)
+	}
+}
+
+// 不指定范围时行为不变：完整的一套（brickkit init 装进项目的那些）。
+func TestDefaultScopeStaysTheFullProjectSet(t *testing.T) {
+	in := newInstaller(t)
+	assert.Len(t, mustStatus(t, in), len(Assets()))
+	assert.Greater(t, len(Assets()), 1)
+}
+
+// 组件范围的清单是一份按落点写死的名单——改名或删掉那份资产时，这里要立刻红，
+// 而不是让组件仓库里静默少装一份。
+func TestComponentScopeTargetsAllExistAmongAssets(t *testing.T) {
+	all := map[string]bool{}
+	for _, a := range Assets() {
+		all[a.Target] = true
+	}
+	require.NotEmpty(t, componentTargets)
+	for _, target := range componentTargets {
+		assert.True(t, all[target], "组件范围里列了 %s，但内嵌资产里没有它", target)
+	}
+}
+
+// 组件范围下同样不覆盖手改过的文件（复用同一套状态机）。
+func TestComponentScopeNeverOverwritesHandEdits(t *testing.T) {
+	in := newInstaller(t)
+	in.Scope = ScopeComponent
+	_, err := in.Apply()
+	require.NoError(t, err)
+
+	p := filepath.Join(in.Root, ".claude", "skills", "brickkit-component", "SKILL.md")
+	mine := []byte("我改过了\n")
+	require.NoError(t, os.WriteFile(p, mine, 0o644))
+
+	res, err := in.Apply()
+	require.NoError(t, err)
+	assert.Empty(t, res.Written)
+	require.Len(t, res.Skipped, 1)
+	assert.Equal(t, StateModified, res.Skipped[0].State)
+
+	after, err := os.ReadFile(p)
+	require.NoError(t, err)
+	assert.Equal(t, string(mine), string(after))
+}

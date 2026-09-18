@@ -82,6 +82,16 @@ brickkit init --hooks                                 # 给已有项目单独补
 件这个动作本身已经足够明确，多一个开关只会多一条误伤路径。跟 `init` 一
 样，`skills` 也绝不碰你自己的 `CLAUDE.md`。
 
+**在独立的组件仓库里也能用。** 目录里有 `component.yaml`、没有 `brickkit.yaml` 时（平台要求"一个组件一个仓库"，组件作者通常就在这样的目录里干活），`skills` 只管理 `brickkit-component` 这一个技能——项目导读和拼装、部署、排障三个技能在那里讲不通，所以不装；仓库自己的 `AGENTS.md` 一个字都不碰。判定顺序是：先看有没有 `brickkit.yaml`（有就按项目处理，跟以前一样），再看有没有 `component.yaml`，两样都没有就报错，不会往别人的目录里写文件。它同样会在仓库里建一个 `.brickkit/skills.lock`，记录"这个文件上次是谁写的"，跟技能文件一起提交。
+
+```
+$ brickkit skills update
+📦 组件仓库（有 component.yaml、没有 brickkit.yaml）：只管理 brickkit-component 技能
+✅ AI 助手技能已更新
+   已写入 1 个：
+     .claude/skills/brickkit-component/SKILL.md
+```
+
 **子命令**
 
 | 子命令 | 作用 |
