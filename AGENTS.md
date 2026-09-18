@@ -251,6 +251,11 @@ a silent skip would mean the component runs, looks healthy, and has one call pat
 works. `brickkit up` errors instead, naming the exact missing item and which component declared it
 required.
 
+The table above states the naming *shape*; the full dictionary — every resource `kind`'s exact
+variable names, real generated examples for each warning and the one hard error, and how `servedBy`
+merges a member's config onto its shell — is
+[Environment Variable Contract](docs/en/architecture/environment-variables.md).
+
 ### 5.3 Required vs. optional dependencies
 
 | | Declaration | CLI behavior when missing |
@@ -1096,6 +1101,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | Dependency resolution, diamond dedup, cycles, and why more components doesn't mean more serial steps | `docs/en/architecture/dependency-resolution.md` (swap `en` for `zh`) |
 | Real generated Docker Compose and Kubernetes files, side by side, from the same Manifest | `docs/en/architecture/deployment-generation.md` (swap `en` for `zh`) |
 | What actually happens when a resource binding collides, and how the quota chain really merges field by field | `docs/en/architecture/resource-binding.md` (swap `en` for `zh`) |
+| The full dictionary of every environment variable the platform can inject — every resource `kind`'s exact variable names, the reserved-variable warnings and the one case that's a hard error, and how `servedBy` merges a member's config onto the shell | `docs/en/architecture/environment-variables.md` (swap `en` for `zh`) |
 | What actually gets signed, why verification needs no cosign dependency, and why the public key can't come from the marketplace | `docs/en/architecture/signing-and-trust.md` (swap `en` for `zh`) |
 | Every command's full flag reference, with real generated output — the detailed complement to §8 above | `docs/en/architecture/cli-reference.md` (swap `en` for `zh`) |
 | Every marketplace HTTP endpoint, auth, error codes, and what publishing sends over the wire | `docs/en/market-api.md` (swap `en` for `zh`) |

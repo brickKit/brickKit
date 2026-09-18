@@ -37,6 +37,7 @@
 - [依赖解析与启动顺序](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/dependency-resolution.md): 把架构总览里的级联与解析两个阶段往难处推——一个真实的菱形依赖、一个靠一条弱边放行/没有弱边就拒绝的循环依赖，以及为什么真正决定 `up` 要跑多久的是最长强依赖链而不是组件数量。
 - [部署文件是怎么生成出来的](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/deployment-generation.md): 同一个两组件项目，两个目标各生成一遍，原样呈现——Compose 的迁移独立成服务、配额要换算单位，对照 Kubernetes 的三段式启动探针、密码走 Secret 引用，以及两边唯一一字不差的那个地址字符串。
 - [资源绑定的实际机制](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/resource-binding.md): 绑定槽位写错、同类资源没区分开这两种真实校验错误，然后是配额链三层（CLI 默认值、Manifest、项目覆盖）逐字段合并而不是整块替换的真实验证，每一层都有真实生成的输出。
+- [环境变量注入契约](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/environment-variables.md): 平台可能注入的每一个变量的完整字典——六种资源 kind 各自精确的变量名（包括没人猜得到的，比如 Redis 根本没有用户名变量）、数组/对象类型配置值会被渲染成 Go 的 `fmt.Sprint` 而不是 JSON 这个真实踩过的坑、前缀与后缀两种保留变量冲突的真实警告、唯一一种是阻断错误而不是警告的情形，以及 `servedBy` 到底怎么把成员的配置合并到外壳身上。
 - [签名与信任模型](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/signing-and-trust.md): 为什么 Manifest 签的是规范化载荷而不是原始字节、为什么签名需要 cosign 而验签完全不需要、为什么公钥必须放在自己项目里而不能来自市场，以及一个真实验证过的保留变量冲突警告。
 - [CLI 命令完整参考](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/cli-reference.md): 13 个命令加 version，每一个的每一个参数，每个都配真实生成的输出——AGENTS.zh.md §8 那份一句话摘要的详尽版。
 - [Market API 参考](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/market-api.md): 市场的每一个 HTTP 端点、响应信封、错误码，以及 `brickkit publish` 到底往网络上发了什么——从真实路由表核实出来的，不是想当然写的。

@@ -228,6 +228,10 @@ configSchema 里的配置项名转大写后不得与之冲突——**市场在�
 其中一条调用路径永远走不通，而使用者以为自己配好了。所以 `brickkit up` 直接报错，
 并点名到底缺了哪一项、是哪个组件声明它为必填的。
 
+上表给的是命名的"形状"；完整字典——每种资源 `kind` 精确的变量名、每条警告和那唯一
+一种阻断错误的真实生成样例、`servedBy` 怎么把成员的配置合并到外壳身上——见
+[环境变量注入契约](docs/zh/architecture/environment-variables.md)。
+
 ### 5.3 强依赖与弱依赖
 
 | | 声明 | 缺失时 CLI 的行为 |
@@ -950,6 +954,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 依赖解析、菱形依赖去重、循环依赖、为什么组件多不等于串行步骤多 | `docs/zh/architecture/dependency-resolution.md`（英文版把 `zh` 换 `en`） |
 | 同一份 Manifest 生成出的真实 Docker Compose 与 Kubernetes 文件，逐行对照 | `docs/zh/architecture/deployment-generation.md`（英文版把 `zh` 换 `en`） |
 | 资源绑定撞车时到底会发生什么、配额链到底怎么逐字段合并 | `docs/zh/architecture/resource-binding.md`（英文版把 `zh` 换 `en`） |
+| 平台可能注入的每一个环境变量——每种资源 `kind` 精确的变量名、保留变量冲突警告与唯一一种阻断错误、`servedBy` 怎么把成员的配置合并到外壳身上 | `docs/zh/architecture/environment-variables.md`（英文版把 `zh` 换 `en`） |
 | 真正被签名的是什么、验签为什么不需要 cosign 依赖、公钥为什么不能来自市场 | `docs/zh/architecture/signing-and-trust.md`（英文版把 `zh` 换 `en`） |
 | 每个命令完整的参数参考，带真实生成的输出——上面 §8 的详细版 | `docs/zh/architecture/cli-reference.md`（英文版把 `zh` 换 `en`） |
 | 市场每一个 HTTP 端点、认证、错误码，以及发布时到底传了什么 | `docs/zh/market-api.md`（英文版把 `zh` 换 `en`） |
