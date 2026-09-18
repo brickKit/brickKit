@@ -369,6 +369,8 @@ Manifest 和依赖方的 API 契约，就能写出一个完整的、可独立运
 | 11 | [网络策略与最小权限](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/11-network-policy.md) | Kubernetes 上真实生效的 NetworkPolicy |
 | 12 | [多项目共享](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/12-multi-project-sharing.md) | 共享资源、隔离资源、把一个组件当成别人的 API |
 
+上面第 10 篇的例子刻意写得很简单。想看更深入、更完整的参考组件——真实的 PostgreSQL 依赖、真实的数据库迁移、多阶段 Dockerfile、每一处"为什么这么写"的推理——看 [用 Go 写一个 BrickKit 组件：完整走一遍](https://github.com/brickKit/brickKit/blob/main/docs/zh/go-component-template.md)，带你逐段读懂仓库里真实存在、有测试覆盖的 `department/tree` 夹具。
+
 **Patterns——推荐实践，可选，对着真实部署验证过**（[索引页](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/README.md) 按角色/主题分类导航）
 
 | 文档 | 讲什么 |

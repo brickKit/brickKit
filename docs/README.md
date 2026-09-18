@@ -24,6 +24,7 @@ link on this page points at the matching file in it.
 | Compare BrickKit to Compose/Helm/Kustomize/etc. | [Comparison](en/comparison.md) |
 | Use AI to write components | [AI-assisted development](en/ai-development.md) |
 | Write a client against the marketplace's HTTP API | [Market API reference](en/market-api.md) |
+| Build a real Go component with a database, step by step | [Go component template](en/go-component-template.md) |
 
 ## 中文
 
@@ -38,6 +39,7 @@ link on this page points at the matching file in it.
 | 对比 BrickKit 和 Compose/Helm/Kustomize 等 | [对比](zh/comparison.md) |
 | 用 AI 写组件 | [AI 辅助开发指南](zh/ai-development.md) |
 | 对着市场的 HTTP API 写客户端 | [Market API 参考](zh/market-api.md) |
+| 一步步搭一个带数据库的真实 Go 组件 | [Go 组件模板](zh/go-component-template.md) |
 
 ---
 

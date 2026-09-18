@@ -409,6 +409,8 @@ Prefer navigating by topic instead of scrolling this page? [`docs/README.md`](ht
 | 11 | [Network policy and least privilege](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/11-network-policy.md) | Real NetworkPolicy enforcement on Kubernetes |
 | 12 | [Multi-project sharing](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/12-multi-project-sharing.md) | Shared resources, isolated resources, treating a component as someone else's API |
 
+Article 10 above keeps its example deliberately minimal. For a deeper, complete reference component — PostgreSQL dependency, real migrations, a multi-stage Dockerfile, all the "why write it this way" reasoning — see [Writing a Go Component for BrickKit](https://github.com/brickKit/brickKit/blob/main/docs/en/go-component-template.md), a guided read through the real, tested `department/tree` fixture.
+
 **Patterns — recommended practices, optional, validated against real deployments** ([index](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/README.md) organized by role/topic)
 
 | Doc | What it covers |
