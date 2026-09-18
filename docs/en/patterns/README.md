@@ -15,6 +15,7 @@ These are **recommended practices**, not hard requirements the platform enforces
 | Building a "shell" component to host others | [Building a Qualified Shell](shell-implementers-guide.md) |
 | Components merged into a shell need to share one database connection pool | [Sharing a Database Connection Pool Inside a Shell](shared-connection-pools.md) |
 | Need to self-host a BrickKit Market instance | [Self-Hosting the BrickKit Market](deployment/self-hosted-market.md) |
+| Calling a dependency's `*_ENDPOINT` address, wondering if your HTTP client needs special handling for a redeploy | [Calling a Dependency's Address Reliably](service-addressing.md) |
 
 ## By role
 
@@ -24,6 +25,7 @@ These are **recommended practices**, not hard requirements the platform enforces
 - [Testing patterns for components built on BrickKit](testing.md) — four backend layers (contract/business-rule/unit/integration), four frontend layers (unit/component/e2e/visual regression)
 - [Planning Seed Data and Test Data](data-construction.md) — two paths that must stay physically separate
 - [Protecting Closed-Source Components from Image-Based Extraction](closed-source-image-hardening.md) — pulling an image isn't the same guarantee as a private Git repo
+- [Calling a Dependency's Address Reliably](service-addressing.md) — real, measured behavior of Go/Python/Node HTTP clients across a dependency's container being replaced
 
 ### Deployers / platform admins
 
@@ -44,6 +46,7 @@ These are **recommended practices**, not hard requirements the platform enforces
 - [Testing patterns for components built on BrickKit](testing.md)
 - [Planning Seed Data and Test Data](data-construction.md)
 - [Protecting Closed-Source Components from Image-Based Extraction](closed-source-image-hardening.md)
+- [Calling a Dependency's Address Reliably](service-addressing.md)
 
 ### Deployment shape and merged deployment
 

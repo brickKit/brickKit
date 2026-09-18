@@ -52,6 +52,7 @@
 - [怎么声明 servedBy：部署方检查清单](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/servedby-deployment-checklist.md): `servedBy` 到底解决的是什么内存问题、什么时候该用什么时候不该用、该先试哪些更便宜的替代方案，以及——写给在自己项目里声明 `servedBy` 的人，而不是造壳的人——写之前的检查清单、哪些写法会被拒绝。
 - [合格外壳该满足什么](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/shell-implementers-guide.md): 写给造壳的人：`servedBy` 字段对收编它的外壳提出了什么要求——合并进程必须满足的九条性质，以及平台到底会不会把哪些东西注入外壳的环境。
 - [在外壳里合并数据库连接池](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/shared-connection-pools.md): 写给合并进同一个 servedBy 外壳、又共用 PostgreSQL 或 Oracle 的组件——为什么池子通常合不了、要靠 schema 重新分组、`SET LOCAL ROLE` 技巧，以及唯一一件有截止日期的决定。
+- [怎么可靠地调用一个依赖的地址](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/service-addressing.md): 一次真实的 Docker Compose 实验——流量不停的情况下把依赖容器强制重建到一个真正不同的 IP——测出 Go 的 `net/http`、Python 的 `requests.Session`、Node 的 `http.Agent(keepAlive)` 各自到底会怎样：Go 快速失败一次、下一次请求就恢复；Python 完全不报错但悄悄卡顿 2.5 秒；Node 不设超时就会无限期挂起。外加 Kubernetes 稳定的 ClusterIP 为什么抹掉了其中一种失败方式、却抹不掉另外两种。
 - [自己搭一套 BrickKit Market](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/deployment/self-hosted-market.md): 部署市场本身（跟部署你自己的项目是两件事）——三种部署模式、编排文件走一遍（带两处真实踩过的坑）、怎么升级、怎么搬上云。
 
 ## 历史记录（只中文，不维护）

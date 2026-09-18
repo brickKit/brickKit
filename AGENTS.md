@@ -1107,6 +1107,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | Whether and how to declare `servedBy` on your own project | `docs/en/patterns/servedby-deployment-checklist.md` (swap `en` for `zh`) |
 | How to self-host the component marketplace | `docs/en/patterns/deployment/self-hosted-market.md` (swap `en` for `zh`) |
 | How to share one database connection pool across components merged into a shell | `docs/en/patterns/shared-connection-pools.md` (swap `en` for `zh`) |
+| Whether calling a dependency's `*_ENDPOINT` needs special client-side handling across a redeploy — real measured Go/Python/Node HTTP client behavior, not assumed | `docs/en/patterns/service-addressing.md` (swap `en` for `zh`) |
 | Dependency resolution, diamond dedup, cycles, and why more components doesn't mean more serial steps | `docs/en/architecture/dependency-resolution.md` (swap `en` for `zh`) |
 | Real generated Docker Compose and Kubernetes files, side by side, from the same Manifest | `docs/en/architecture/deployment-generation.md` (swap `en` for `zh`) |
 | What actually happens when a resource binding collides, and how the quota chain really merges field by field | `docs/en/architecture/resource-binding.md` (swap `en` for `zh`) |

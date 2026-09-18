@@ -15,6 +15,7 @@
 | 要自己写一个"外壳"组件去承载别的组件 | [合格外壳该满足什么](shell-implementers-guide.md) |
 | 合并进外壳的几个组件要共用一个数据库连接池 | [在外壳里合并数据库连接池](shared-connection-pools.md) |
 | 要自己部署一套 BrickKit Market | [自己搭一套 BrickKit Market](deployment/self-hosted-market.md) |
+| 要调用依赖的 `*_ENDPOINT` 地址，不确定 HTTP 客户端要不要为重新部署做特殊处理 | [怎么可靠地调用一个依赖的地址](service-addressing.md) |
 
 ## 按角色分类
 
@@ -24,6 +25,7 @@
 - [分层测试](testing.md) — 后端契约/业务规则/单元/集成四层，前端单元/组件/端到端/视觉回归四层
 - [种子数据与测试数据规划](data-construction.md) — 两条必须物理隔离的路径
 - [闭源组件镜像安全](closed-source-image-hardening.md) — 拉取镜像跟私有 Git 仓库不是同一种保证
+- [怎么可靠地调用一个依赖的地址](service-addressing.md) — Go/Python/Node 的 HTTP 客户端在依赖容器被换掉时的真实测量结果
 
 ### 项目部署方 / 平台管理员
 
@@ -44,6 +46,7 @@
 - [分层测试](testing.md)
 - [种子数据与测试数据规划](data-construction.md)
 - [闭源组件镜像安全](closed-source-image-hardening.md)
+- [怎么可靠地调用一个依赖的地址](service-addressing.md)
 
 ### 部署形态与合并部署
 

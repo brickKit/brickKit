@@ -958,6 +958,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 要不要在自己项目里声明 `servedBy`、怎么声明 | `docs/zh/patterns/servedby-deployment-checklist.md`（英文版把 `zh` 换 `en`） |
 | 怎么自己搭一套组件市场 | `docs/zh/patterns/deployment/self-hosted-market.md`（英文版把 `zh` 换 `en`） |
 | 合并进壳里的组件怎么共用一个数据库连接池 | `docs/zh/patterns/shared-connection-pools.md`（英文版把 `zh` 换 `en`） |
+| 调用依赖的 `*_ENDPOINT` 在重新部署时要不要客户端特殊处理——Go/Python/Node 的 HTTP 客户端真实测量出来的行为，不是猜的 | `docs/zh/patterns/service-addressing.md`（英文版把 `zh` 换 `en`） |
 | 依赖解析、菱形依赖去重、循环依赖、为什么组件多不等于串行步骤多 | `docs/zh/architecture/dependency-resolution.md`（英文版把 `zh` 换 `en`） |
 | 同一份 Manifest 生成出的真实 Docker Compose 与 Kubernetes 文件，逐行对照 | `docs/zh/architecture/deployment-generation.md`（英文版把 `zh` 换 `en`） |
 | 资源绑定撞车时到底会发生什么、配额链到底怎么逐字段合并 | `docs/zh/architecture/resource-binding.md`（英文版把 `zh` 换 `en`） |
