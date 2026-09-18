@@ -224,3 +224,4 @@ MDM_PRODUCT_PAGE_SIZE=100
 - [resource-binding.md](resource-binding.md)——绑定写错、两个绑定撞车会发生什么，以及配额链（另一套合并逻辑，本文不涉及）怎么逐字段合并三层
 - [deployment-generation.md](deployment-generation.md)——一条被标记为敏感的变量，是怎么变成 Kubernetes 的 `Secret` 引用而不是明文值的
 - [shell-implementers-guide.md](../patterns/shell-implementers-guide.md)——`BRICKKIT_SERVED_MEMBERS`/`BRICKKIT_SERVED_MEMBERS_CONFIG` 落进进程之后，`servedBy` 外壳作者具体该拿它们做什么
+- [service-addressing.md](../patterns/service-addressing.md)——一条 `*_ENDPOINT` 变量到了你的运行环境之后，它背后的容器被换掉时，一条已经建好的连接实际会发生什么——Go/Python/Node 真测出来的结果，不是猜的

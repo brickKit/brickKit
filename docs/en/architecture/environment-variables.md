@@ -224,3 +224,4 @@ Two things worth reading closely in that output: **`BRICKKIT_SERVED_MEMBERS_CONF
 - [resource-binding.md](resource-binding.md) — what happens when a binding is wrong or two bindings collide, and how the *quota* chain (a different merge, not covered here) combines three layers field by field
 - [deployment-generation.md](deployment-generation.md) — how a secret-flagged variable becomes a Kubernetes `Secret` reference instead of a plain value
 - [shell-implementers-guide.md](../patterns/shell-implementers-guide.md) — what a `servedBy` shell author actually has to do with `BRICKKIT_SERVED_MEMBERS`/`BRICKKIT_SERVED_MEMBERS_CONFIG` once they land in the process
+- [service-addressing.md](../patterns/service-addressing.md) — once a `*_ENDPOINT` variable is in your environment, what actually happens to an open connection through it when the container behind it gets replaced — measured, not assumed, across Go/Python/Node
