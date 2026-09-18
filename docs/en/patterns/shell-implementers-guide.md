@@ -20,6 +20,21 @@ say precisely what the platform hands your shell and what it doesn't, and
 lay out the nine correctness properties every real merged process ends up
 needing, regardless of language or framework.
 
+```mermaid
+graph TB
+    subgraph "Independent deployment (default)"
+        A1["Component A<br/>its own container"]
+        B1["Component B<br/>its own container"]
+        C1["Component C<br/>its own container"]
+    end
+    subgraph "servedBy merged deployment"
+        Shell["Shell container<br/>(one process, one image)"]
+        Shell -.->|absorbs| A2["Component A's code"]
+        Shell -.->|absorbs| B2["Component B's code"]
+        Shell -.->|absorbs| C2["Component C's code"]
+    end
+```
+
 ## What `servedBy` does and doesn't ask of the platform
 
 A `servedBy` component's code runs inside your shell's single container or

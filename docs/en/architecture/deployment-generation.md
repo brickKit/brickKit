@@ -4,6 +4,15 @@ A component's repository never ships a deployment file of its own — the CLI re
 
 Every file quoted below is real, unedited output from `brickkit up --dry-run` against [`tests/components/department-tree/`](../../../tests/components/department-tree/) and [`tests/components/people-basic/`](../../../tests/components/people-basic/), trimmed only to drop repeated boilerplate (labels, the generation-timestamp header). `department/tree` declares a `database` resource, a `migration.command`, a `logLevel` config item, and only a resource `requests` block (no `limits`) — deliberately chosen because it exercises resource binding, migrations, config override, and quota translation all at once. The project overrides `department/tree`'s `logLevel` to `debug` but leaves `people/basic`'s config untouched, which turns out to matter below.
 
+```mermaid
+graph LR
+    M["One component.yaml"]
+    M -->|"deploy.target: docker"| C["Compose: 2 services<br/>(main + migration)"]
+    M -->|"deploy.target: k8s"| K["K8s: 3 resources<br/>(Deployment + Job + Secret)"]
+    C -.->|byte-identical address| Addr["http://department-tree-1-0-0:8080"]
+    K -.->|byte-identical address| Addr
+```
+
 ## Docker Compose: one component becomes two services
 
 ```yaml

@@ -32,6 +32,14 @@ Before reaching for `servedBy`, measure the real footprint first — `docker
 stats` against what's actually running, not a number from a table someone
 else published — then check the options below, roughly in this order:
 
+```mermaid
+graph LR
+    A["1. Lighter runtime<br/>try this first"] --> B["2. On-demand activation<br/>enabled: false"] --> C["3. servedBy<br/>last resort"]
+```
+
+(Scale-to-zero and memory overselling aren't on this ladder at all — they're
+ruled out below, not skipped steps.)
+
 | Option | Verdict |
 | --- | --- |
 | **A lighter runtime** (a JVM component rebuilt as a GraalVM native image, a smaller heap) | **Try this first.** The memory floor drops from 200–450MB to tens of MB, and the deployment shape doesn't change at all — still one component, one container, one process; signing, health checks, migrations, and independent scaling all keep working exactly as before. This is the component author's problem to solve, not something `servedBy` or this checklist has anything to do with. If the motivation is "the JVM is expensive," this option's cost-to-benefit ratio beats merging by an order of magnitude. |

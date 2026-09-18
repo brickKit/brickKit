@@ -4,6 +4,11 @@ This is **recommended practice**, not a BrickKit platform requirement. BrickKit 
 
 ## Backend: four layers, plus two cross-cutting categories
 
+```mermaid
+graph LR
+    L1["L1 Contract<br/>interface shape"] --> L2["L2 Business rule<br/>invariants"] --> L3["L3 Unit<br/>implementation branches"] --> L4["L4 Integration<br/>real end-to-end"]
+```
+
 | Layer | What it checks | What it covers |
 | --- | --- | --- |
 | **L1 — Contract tests** | The interface's external shape | The contract itself has no breaking change, and every interface can actually be called across a process boundary — over the real protocol with real serialization, not just a passing local function call |
@@ -51,6 +56,11 @@ Three criteria decide whether a cross-component test is doing its job:
 ## Frontend: four layers of its own
 
 Same thinking as the backend layers above — spec separated from implementation, shared things prioritized over feature-specific ones, real environments preferred over simulated ones — just with different tools and different boundaries:
+
+```mermaid
+graph LR
+    F1["FE-1 Unit/logic<br/>pure functions"] --> F2["FE-2 Component<br/>shared UI pieces"] --> F3["FE-3 End-to-end<br/>real browser + real backend"] --> F4["FE-4 Visual regression<br/>pixel-diff screenshots"]
+```
 
 | Layer | What it checks | What it covers |
 | --- | --- | --- |

@@ -20,6 +20,13 @@
 PostgreSQL，产物在对象存储，所以它可以随时重建、随时横向扩容，不用担心丢
 东西。
 
+```mermaid
+graph LR
+    CLI["brickkit CLI<br/>（login / publish / add）"] --> Market["市场进程<br/>（无状态，随便扩）"]
+    Market --> PG[("PostgreSQL<br/>元数据")]
+    Market --> Obj[("对象存储<br/>产物")]
+```
+
 ## 把单机部署跑起来
 
 编排文件已经在仓库里：`deploy/market/docker-compose.yaml`，配套的

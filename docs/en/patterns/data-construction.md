@@ -14,6 +14,16 @@ data as well, generalized into BrickKit-neutral guidance.
 
 ## Two paths, physically separate, never shared
 
+```mermaid
+graph TB
+    subgraph "Path 1: seed/demo data"
+        Seed["Seed script<br/>fixed identifier"] --> SeedData[("persists<br/>can be wiped wholesale")]
+    end
+    subgraph "Path 2: test-built data"
+        Test["Each test run<br/>unique suffix"] --> TestData[("never cleaned up<br/>every run gets fresh rows")]
+    end
+```
+
 | | Seed/demo data | Test-built data |
 | --- | --- | --- |
 | **Used for** | A human exploring the system locally, or a demo | Automated tests, at every layer |

@@ -44,6 +44,14 @@ REPORT_DATABASE_USER=brickkit_report
 
 AGENTS.zh.md 给出了优先级顺序（`brickkit.yaml` > `component.yaml` > CLI 默认值），也说了这是逐字段合并、不是整块替换；下面是这三层各自单独生效时真正会生成出什么、以及它们合在一起时会怎样，全部来自真实生成的 Compose 输出（`deploy.resources.reservations`，从 Kubernetes 风格的毫核/MiB 记法换算成 Compose 的普通数字）。
 
+```mermaid
+graph LR
+    L3["CLI 默认值<br/>cpu: 100m, memory: 128Mi"] --> Merge{{"逐字段合并"}}
+    L2["组件 Manifest<br/>cpu: 50m, memory: 32Mi"] --> Merge
+    L1["项目 brickkit.yaml<br/>只写了 memory: 256Mi"] --> Merge
+    Merge --> Final["cpu: 50m（来自 Manifest）<br/>memory: 256Mi（来自项目覆盖）"]
+```
+
 **第三层——哪里都没声明。** 把 [`demo/hello`](../../../tests/components/demo-hello/) 自己的 `deployment.resources` 删掉，`brickkit.yaml` 里也不写覆盖：
 
 ```yaml

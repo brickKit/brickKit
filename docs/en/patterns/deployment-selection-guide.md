@@ -57,6 +57,16 @@ once you declare it" covers the mechanics). It cannot be combined with
 mutually exclusive fields, because they claim contradictory things about
 where that component's code physically runs.
 
+The two decisions are genuinely independent axes — that's what makes this a 3×4 grid rather than a short list of named presets:
+
+```mermaid
+graph TD
+    Topo["Decision 1: topology<br/>independent / shell-merged / mixed"]
+    Target["Decision 2: target<br/>bare process / Docker / K8s / Docker+local"]
+    Topo --> Cell["one of 12 cells"]
+    Target --> Cell
+```
+
 ## A real option that isn't governed by any of this: running components by hand
 
 There's a fourth way projects actually get run day to day, and it deserves

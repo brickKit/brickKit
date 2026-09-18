@@ -18,6 +18,16 @@
 
 **开关——`local: true`（AGENTS.zh.md §5.6）：把一个或几个组件拉到宿主机变成可调试的进程，其余部分照常真实运行。** 这个开关**只在 `deploy.target: docker` 下存在**——`deploy.target: k8s` 时平台会在生成阶段直接拒绝（见下方矩阵后的旁注）。它能跟任意一种拓扑组合：一个 `local: true` 组件可以依赖一个普通独立组件、一个外壳，或者一个 `servedBy` 成员（这种情况下它的 `*_ENDPOINT` 会解析成 `localhost:<端口>`，走的是外壳自己的 compose service——具体机制见 servedby-deployment-checklist.md 的"声明之后，哪些事平台会自动帮你做好"）。它不能跟 `servedBy` 写在**同一个组件条目**上——`local: true` 和 `servedBy` 是两个互相矛盾的字段，因为它们各自声称的"这段代码到底跑在物理上的哪里"是相反的。
 
+这两个决策是真正独立的两根轴——这才是它变成一张 3×4 矩阵、而不是几个预设名字可以简单列完的原因：
+
+```mermaid
+graph TD
+    Topo["决策一：拓扑<br/>独立 / 外壳合并 / 混搭"]
+    Target["决策二：部署目标<br/>裸进程 / Docker / K8s / Docker+本地调试"]
+    Topo --> Cell["矩阵里的某一格<br/>（共 12 格）"]
+    Target --> Cell
+```
+
 ## 一个不被上面任何机制管辖、但真实存在的选项：手动跑起来
 
 项目日常真实运作里还有第四种方式，值得直接说清楚，而不是含糊不提：没有任何东西阻止你把每个组件当成宿主机上的普通进程启动（`go run`、`uvicorn`，或者你的语言对应的那个东西），完全不碰 `brickkit.yaml`，也完全不经过 `brickkit up`。

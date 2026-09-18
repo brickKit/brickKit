@@ -116,6 +116,14 @@ whether or not the running process ever touches any of it.
 
 ## Hardening by language — the achievable ceiling is set by the compilation model, not by effort
 
+```mermaid
+graph TD
+    Lang{"What does your language<br/>ship as an artifact?"}
+    Lang -->|"machine code<br/>Go, Rust, C, C++, Zig"| Native["Strip debug symbols<br/>strong protection, low effort"]
+    Lang -->|"bytecode with structure<br/>Java, .NET/C#"| Byte["Real obfuscator required<br/>ProGuard/R8, ConfuserEx, ..."]
+    Lang -->|"source-equivalent<br/>Python, Ruby, PHP, plain JS"| Interp["Needs a real compile step<br/>Cython, bundling to bytecode, ..."]
+```
+
 This is the part that doesn't generalize, and pretending it does is the
 fastest way to waste effort on the wrong technique. What's achievable is
 set almost entirely by how your language turns source into what actually

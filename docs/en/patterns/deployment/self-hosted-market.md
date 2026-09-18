@@ -24,6 +24,13 @@ market at. The market process itself is stateless: metadata lives in
 PostgreSQL, artifacts live in object storage, so the market can be rebuilt
 or scaled out at any time without carrying any state of its own.
 
+```mermaid
+graph LR
+    CLI["brickkit CLI<br/>(login / publish / add)"] --> Market["Market process<br/>(stateless, scale freely)"]
+    Market --> PG[("PostgreSQL<br/>metadata")]
+    Market --> Obj[("Object storage<br/>artifacts")]
+```
+
 ## Getting a single-machine deployment running
 
 The compose file already exists in the repository at

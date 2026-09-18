@@ -4,6 +4,15 @@
 
 下面引用的每一份文件都是对着 [`tests/components/department-tree/`](../../../tests/components/department-tree/) 和 [`tests/components/people-basic/`](../../../tests/components/people-basic/) 真跑 `brickkit up --dry-run` 得到的原始输出，只删掉了重复的样板内容（标签、生成时间戳这类）。`department/tree` 声明了一个 `database` 资源、一条 `migration.command`、一个 `logLevel` 配置项，而且只写了 `requests` 没写 `limits`——特意选它是因为它一次性把资源绑定、迁移、配置覆盖、配额换算全都用上了。项目配置只覆盖了 `department/tree` 的 `logLevel` 为 `debug`，`people/basic` 的配置完全没动——这一点下面会看到它的意义。
 
+```mermaid
+graph LR
+    M["同一份 component.yaml"]
+    M -->|"deploy.target: docker"| C["Compose：2 个服务<br/>（主服务 + 迁移）"]
+    M -->|"deploy.target: k8s"| K["K8s：3 个资源<br/>（Deployment + Job + Secret）"]
+    C -.->|逐字节相同的地址| Addr["http://department-tree-1-0-0:8080"]
+    K -.->|逐字节相同的地址| Addr
+```
+
 ## Docker Compose：一个组件变成两个服务
 
 ```yaml

@@ -17,6 +17,20 @@ eight Spring Boot components into one process brings eight independent
 connection pools along with it unless something is deliberately done about
 it:
 
+```mermaid
+graph LR
+    subgraph "Unmerged: 8 pools"
+        M1["Module 1"] --> P1[("pool: 10")]
+        M2["Module 2"] --> P2[("pool: 10")]
+        Mdots["... 6 more"] --> Pdots[("...")]
+    end
+    subgraph "Shared: 1 pool"
+        S1["Module 1"] --> SP[("pool: 20")]
+        S2["Module 2"] --> SP
+        Sdots["... 6 more"] --> SP
+    end
+```
+
 | | Connections per instance | Running 2 replicas |
 | --- | --- | --- |
 | 8 modules, each its own pool (HikariCP's default `maximumPoolSize: 10`) | **80** | **160** |

@@ -12,6 +12,20 @@ Canonicalization itself has to close one attack surface to be trustworthy: **dup
 
 This is also where the closed-source image-hardening guide's digest-pinning recommendation actually closes its gap (see [Protecting closed-source components from image-based extraction](../patterns/closed-source-image-hardening.md)): the signature covers the Manifest, and `deployment.image` is a string field inside it — signing the Manifest alone only guarantees that string wasn't altered, not that the string still resolves to the same image bytes it did at signing time. `brickkit publish` resolves a mutable tag to its digest *before* canonicalizing and signing, by default, so the string the signature actually covers is one a registry can't quietly repoint later. Skipping this needs the explicit `--no-pin-digest` flag, which prints a loud warning naming this exact risk rather than skipping silently.
 
+```mermaid
+graph LR
+    subgraph "Publisher (needs cosign)"
+        M["Manifest"] -->|canonicalize| Canon["canonical payload<br/>JSON, lexicographic keys"]
+        Canon -->|cosign sign-blob| Sig["signature"]
+    end
+    subgraph "Market"
+        Sig -->|stores only, never verifies| Store[("signature value")]
+    end
+    subgraph "Installer (zero dependency)"
+        Store -->|"key from installer.publicKeys"| Verify["Go stdlib verification"]
+    end
+```
+
 ## Why signing needs cosign installed, but verifying never does
 
 The asymmetry is deliberate, not an inconsistency: **every installer has to verify, but only a publisher — usually a CI pipeline — ever signs.** cosign's `sign-blob` produces a standard ECDSA P-256-over-SHA-256 signature (ASN.1 DER, base64-encoded) against a standard PKIX PEM public key — both are things the Go standard library can check natively, so verification carries zero additional dependencies. Signing is the side that actually benefits from cosign's own scope: password-protected keys, KMS-backed keys, hardware keys, keyless signing tied to an OIDC identity — key management this varied is squarely cosign's problem to solve, not something worth re-implementing to shave off one dependency on the publishing side.

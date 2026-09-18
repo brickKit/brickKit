@@ -44,6 +44,14 @@ The validation only fires when a genuine collision exists — a single component
 
 AGENTS.md states the priority order (`brickkit.yaml` > `component.yaml` > CLI default) and that it merges field-by-field rather than replacing the whole block; here is what each of the three levels actually produces on its own, and what happens when they combine, all from real generated Compose output (`deploy.resources.reservations`, converted from Kubernetes-style millicpu/mebibyte notation into Compose's plain numbers).
 
+```mermaid
+graph LR
+    L3["CLI default<br/>cpu: 100m, memory: 128Mi"] --> Merge{{"field-by-field<br/>merge"}}
+    L2["Component Manifest<br/>cpu: 50m, memory: 32Mi"] --> Merge
+    L1["Project brickkit.yaml<br/>only sets memory: 256Mi"] --> Merge
+    Merge --> Final["cpu: 50m (from Manifest)<br/>memory: 256Mi (from project)"]
+```
+
 **Level 3 — nothing declared anywhere.** [`demo/hello`](../../../tests/components/demo-hello/) with its own `deployment.resources` removed and no override in `brickkit.yaml`:
 
 ```yaml

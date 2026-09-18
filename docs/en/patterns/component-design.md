@@ -24,6 +24,11 @@ already live on the new system, not during design review.
 **The order matters, and reversing it produces a worse result than
 skipping the research altogether:**
 
+```mermaid
+graph LR
+    S1["1. Sketch your own design first"] --> S2["2. Consult a reference<br/>only for the unsolved parts"] --> S3["3. Reconcile against<br/>your own constraints"]
+```
+
 | Step | What to do | Why this order |
 | --- | --- | --- |
 | **1. Design your own version first** | Sketch a design against your own project's actual constraints before opening any reference | Bringing your own plan to someone else's implementation is what lets you see where the real difference is. Reading with an empty head just produces a copy. |

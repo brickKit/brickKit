@@ -12,6 +12,20 @@ AGENTS.zh.md §5.9 用一句话概括了信任模型：发布者用 cosign 签�
 
 这也正是[闭源组件的镜像安全规范](../patterns/closed-source-image-hardening.md)里"钉住摘要"这条建议真正补上缺口的地方：签名签的是 Manifest，而 `deployment.image` 只是它里面的一个字符串字段——只签 Manifest，保证的只是这个字符串没被改，不保证这个字符串现在还指向签名那一刻的那些字节。`brickkit publish` 默认会在做规范化和签名之前，先把一个可变的 tag 解析成它当时的摘要，这样签名真正覆盖的那个字符串，就是一个 registry 事后没法悄悄重新指向的引用。要跳过这一步得显式加 `--no-pin-digest` 参数，加了会打印一条点名这个风险的大大的警告，而不是悄悄跳过。
 
+```mermaid
+graph LR
+    subgraph 发布方（需要 cosign）
+        M["Manifest"] -->|规范化| Canon["规范载荷<br/>JSON，键按字典序"]
+        Canon -->|cosign sign-blob| Sig["签名"]
+    end
+    subgraph 市场
+        Sig -->|只存，不验| Store[("签名值")]
+    end
+    subgraph 安装方（零依赖）
+        Store -->|"公钥来自 installer.publicKeys"| Verify["Go 标准库验签"]
+    end
+```
+
 ## 为什么签名需要装 cosign，验签却完全不需要
 
 这种不对称是刻意设计的，不是不一致：**每一个安装者都要验签，但只有发布者——通常是一条 CI 流水线——才会去签名。** cosign 的 `sign-blob` 产出的是标准的 ECDSA P-256 over SHA-256 签名（ASN.1 DER，再 base64 编码），对应的是标准的 PKIX PEM 公钥——这两样东西 Go 标准库都能原生校验，所以验签不需要引入任何额外依赖。真正用得上 cosign 自身能力的是签名这一侧：口令保护的私钥、KMS 托管的密钥、硬件密钥、绑定 OIDC 身份的 keyless 签名——密钥管理的花样这么多，本来就该是 cosign 去解决的问题，不值得为了在发布这一侧少装一个依赖就重新造一遍轮子。
