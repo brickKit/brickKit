@@ -133,4 +133,4 @@ dependencies:
 
 ---
 
-想深挖某条设计决策当初的完整论证，看 [`docs/archive/design/012-架构设计原理与考量.md`](../../archive/design/012-架构设计原理与考量.md)（历史记录）；想查某个字段或命令的完整参考，看 `AGENTS.md` 第 6、7、8 节（`component.yaml` 骨架、`brickkit.yaml` 骨架、CLI 命令集）。
+想了解这些决策背后的原则、以及每一条的论证，看[设计原则与取舍](design-principles.md)；二十三个"为什么"在 [`AGENTS.zh.md`](../../../AGENTS.zh.md) 第 9 节。想查某个字段或命令的完整参考，看 [component.yaml 字段完整参考](component-yaml-reference.md)、[brickkit.yaml 字段完整参考](brickkit-yaml-reference.md)与 [CLI 命令完整参考](cli-reference.md)。

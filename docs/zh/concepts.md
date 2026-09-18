@@ -1,6 +1,6 @@
 # 核心概念
 
-如果你只想花五分钟弄懂 BrickKit 的骨架、看文档和错误提示时不至于被术语绊住，看这一页就够了。更完整的定义在 [AGENTS.md](../../AGENTS.md) 的术语表和十二条设计原则里，这里只是一个更快的入口。
+如果你只想花五分钟弄懂 BrickKit 的骨架、看文档和错误提示时不至于被术语绊住，看这一页就够了。更完整的定义在 [AGENTS.zh.md](../../AGENTS.zh.md) 的术语表里，十二条设计原则背后的论证在[设计原则与取舍](architecture/design-principles.md)，这里只是一个更快的入口。
 
 ## 四个部分
 
@@ -90,6 +90,7 @@ graph LR
 ## 深入阅读
 
 - [架构总览](architecture/overview.md)
+- [设计原则与取舍](architecture/design-principles.md)
 - [依赖解析与启动顺序](architecture/dependency-resolution.md)
 - [部署文件生成](architecture/deployment-generation.md)
 - [AGENTS.md](../../AGENTS.md) — 完整术语表、十二条设计原则、二十三条"为什么"

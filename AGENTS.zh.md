@@ -146,6 +146,10 @@ CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，**不依赖 `components/
 | **一个组件一个仓库** | 不支持 monorepo 拆子目录；组件是独立的发布 / 移动 / 权限单元 |
 | **brickkit.yaml 就是声明** | 配置即意图。写了就执行，CLI 不反问"你确定吗" |
 
+> 每条原则背后的论证——换来了什么、付出了什么、拒绝了什么——在
+> [设计原则与取舍](docs/zh/architecture/design-principles.md)（英文版把 `zh` 换 `en`）。
+> 那里的十二个小节标题与本表第一列逐字一致；两边一旦分叉，`make lint` 会失败。
+
 ### 4.1 平台明确**不做**的事（拒绝清单）
 
 这份清单是"平台极简"的具体落地。**向用户提议时，不要建议 BrickKit 去做下面任何一项**——
@@ -953,6 +957,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | BrickKit 和 Docker Compose、Helm、Kustomize、Tilt/Skaffold、Backstage、monorepo 工具怎么比 | `docs/zh/comparison.md`（英文版把 `zh` 换 `en`） |
 | 为什么组件模型适合 AI 写代码，以及一套具体工作流 | `docs/zh/ai-development.md`（英文版把 `zh` 换 `en`） |
 | 平台是什么、核心机制怎么工作（现行版本） | `docs/zh/architecture/`（英文版把 `zh` 换 `en`） |
+| 平台为什么长成这样：贯穿一切的那个想法（声明一张图，其余派生）、从你熟悉的范式（DDD、GitOps、十二要素、契约先行……）到"BrickKit 拿了什么、在哪里沉默"的对照、十二条原则各自的论证 | `docs/zh/architecture/design-principles.md`（英文版把 `zh` 换 `en`） |
 | 动手教程 | `docs/zh/guide/`（英文版同上） |
 | 一个带数据库和迁移的 Go 组件，深入真实走一遍 | `docs/zh/go-component-template.md`（英文版把 `zh` 换 `en`） |
 | 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/patterns/`（英文版同上） |

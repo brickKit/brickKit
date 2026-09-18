@@ -123,4 +123,4 @@ The one precondition: this code has to run inside the Docker network BrickKit ma
 
 ---
 
-To dig into the full argument behind any one of these decisions, see [`docs/archive/design/012-架构设计原理与考量.md`](../../archive/design/012-架构设计原理与考量.md) (historical record, Chinese only). For the complete field or command reference, see sections 6, 7, and 8 of `AGENTS.md` (the `component.yaml` skeleton, the `brickkit.yaml` skeleton, and the CLI command set).
+For the principles behind these decisions and the argument for each one, see [Design principles and trade-offs](design-principles.md); the twenty-three "why" justifications are in section 9 of [`AGENTS.md`](../../../AGENTS.md). For the complete field or command reference, see the [component.yaml Field Reference](component-yaml-reference.md), the [brickkit.yaml Field Reference](brickkit-yaml-reference.md), and the [CLI Command Reference](cli-reference.md).

@@ -162,6 +162,11 @@ Use these twelve to judge whether any design proposal actually belongs to BrickK
 | **One component, one repository** | No monorepo sub-directories supported; a component is an independent unit of publishing / moving / permissions |
 | **`brickkit.yaml` is the declaration** | Config is intent. Write it and it executes — the CLI never asks "are you sure?" |
 
+> The argument behind each principle — what it buys, what it costs, what it refused — is in
+> [Design principles and trade-offs](docs/en/architecture/design-principles.md) (swap `en` for
+> `zh` for the Chinese version). Its twelve section headings match this table's first column
+> word for word; `make lint` fails if they drift.
+
 ### 4.1 What the platform explicitly refuses to do (the rejection list)
 
 This list is "platform minimalism" made concrete. **When proposing something to a user, never
@@ -1102,6 +1107,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | How BrickKit compares to Docker Compose, Helm, Kustomize, Tilt/Skaffold, Backstage, monorepo tooling | `docs/en/comparison.md` (swap `en` for `zh`) |
 | Why the component model suits AI-written code, and a concrete workflow for it | `docs/en/ai-development.md` (swap `en` for `zh`) |
 | What the platform is, how the core mechanisms work (current) | `docs/en/architecture/` (swap `en` for `zh` for the Chinese version) |
+| Why the platform is shaped this way: the one idea underneath (declare a graph, derive the rest), a map from paradigms you already know (DDD, GitOps, twelve-factor, contract-first…) to what BrickKit takes and where it stays silent, and the argument behind each of the twelve principles | `docs/en/architecture/design-principles.md` (swap `en` for `zh`) |
 | Hands-on tutorials | `docs/en/guide/` (same swap) |
 | A deep, real walkthrough of a Go component with a database and migrations | `docs/en/go-component-template.md` (swap `en` for `zh`) |
 | How to layer tests, plan seed/test data, design components well, tune deployment | `docs/en/patterns/` (same swap) |

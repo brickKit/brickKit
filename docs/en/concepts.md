@@ -1,6 +1,6 @@
 # Core Concepts
 
-If all you want is BrickKit's skeleton in five minutes, so the docs and error messages stop throwing unfamiliar terms at you — this page is that. The full definitions live in [AGENTS.md](../../AGENTS.md)'s glossary and twelve design principles; this is just a faster way in.
+If all you want is BrickKit's skeleton in five minutes, so the docs and error messages stop throwing unfamiliar terms at you — this page is that. The full definitions live in [AGENTS.md](../../AGENTS.md)'s glossary, and the reasoning behind the twelve design principles is in [Design principles and trade-offs](architecture/design-principles.md); this is just a faster way in.
 
 ## Four parts
 
@@ -90,6 +90,7 @@ A lower-level component shared by multiple upstream components keeps running as 
 ## Read further
 
 - [Architecture overview](architecture/overview.md)
+- [Design principles and trade-offs](architecture/design-principles.md)
 - [Dependency resolution](architecture/dependency-resolution.md)
 - [Deployment generation](architecture/deployment-generation.md)
 - [AGENTS.md](../../AGENTS.md) — the full glossary, twelve design principles, and twenty-three "why" justifications

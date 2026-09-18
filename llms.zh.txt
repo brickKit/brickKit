@@ -21,6 +21,7 @@
 - [对比现有方案](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/comparison.md): BrickKit 和 Docker Compose、Helm、Kustomize、Tilt/Skaffold、Backstage、monorepo 工具（Turborepo/Nx/Lerna）到底哪里真的重叠、哪里其实是不同的问题。
 - [AI 辅助开发指南](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/ai-development.md): 为什么组件粒度、契约先行的 Manifest、环境变量注入、多版本共存恰好适合 AI 写代码，外加一套骨架生成→契约→测试→调试的具体工作流。
 - [架构总览](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/overview.md): 一次声明怎么变成运行中的容器，含真实的依赖解析→注入→生成流水线。
+- [设计原则与取舍](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/architecture/design-principles.md): 贯穿设计的那一个想法（声明一张图，其余全部派生）、一张把你熟悉的范式——DDD、GitOps、十二要素、契约先行、最小权限——对照到 BrickKit"拿了什么、在哪里刻意沉默"的表，以及十二条设计原则各自的论证：换来了什么、付出了什么、拒绝了什么。
 - [动手教程](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/README.md): 一个完整的 12 篇教程系列，每一篇都对着真实 CLI 跑过，刻意复用几个最小夹具组件，而不是搭一套接近真实业务的大型拼装。
 - [把一个项目跑起来](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/01-first-project.md): 教程第 1 篇——init、从本地安装源加一个组件、up、curl 它、改配置看响应跟着变、down。每一条命令、每一段输出都是真实的。
 - [平台是怎么决定谁跑起来的](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/guide/02-what-runs.md): 教程第 2 篇——加一个真正依赖的第二个组件、一条真实的弱依赖缺失警告、关掉一个强依赖看停止怎么传导、以及两头都钉死时的真实报错。
