@@ -8,10 +8,13 @@
 
 <div align="center">
 
-**Build systems like LEGO bricks.**
+**Write one component, get it running. Write another, get it running. Look up — the system is already there.**
 
-A component assembly and orchestration platform — components are developed,
-deployed, invoked, and composed independently.
+BrickKit is a component assembly and management platform. Each component is an
+independent domain unit — developed, tested, deployed, and called
+independently. The CLI handles dependency resolution, deployment generation,
+and address injection, then hands off to Docker or Kubernetes. No registry, no
+config center, no gateway, no resident process.
 
 </div>
 
@@ -43,13 +46,129 @@ deployed, invoked, and composed independently.
 
 ---
 
-## What BrickKit is
+## If you're coming from DDD
 
-BrickKit is **not** an operating system, an ERP, or any specific business
-application. It is a platform for growing an architecture **incrementally**:
-write one small component and get it running, write another, then write a
-connector component that wires them together. Piece by piece — like assembling
-bricks — you end up with whatever system you actually need.
+BrickKit's components naturally line up with bounded-context engineering
+boundaries:
+
+- **Independent evolution:** every component owns its repository, Manifest,
+  version lifecycle, and API contract.
+- **Contract-based communication:** components are expected to talk to each
+  other through contracts (HTTP/gRPC), but **the platform doesn't enforce
+  isolation beyond that** — whether they share a database (via schema
+  namespacing or a primary-key prefix) or get merged into one deployment unit
+  (a `servedBy` shell) is entirely the component developer's call, made for
+  the business at hand.
+
+You don't need a heavyweight microservice-governance framework to manage any
+of this — DNS is service discovery, environment variables are config
+injection, exact versions are the compatibility contract.
+
+## If you're writing components with AI
+
+BrickKit's component model happens to fit AI-assisted development well.
+
+Measured across the 10 real components this repository ships as fixtures,
+component size ranges from 200 to 3,500 lines. That's small enough for an AI
+to read and understand an entire component in one pass, with the
+`component.yaml` contract giving it a clear boundary instead of having to
+infer one from a half-million-line monolith.
+
+Environment-variable injection means AI-generated code never has to deal with
+service discovery or a config center's complexity. Exact versions plus
+multi-version coexistence mean an AI-generated v2 can run safely alongside v1
+without breaking anything that still depends on it.
+
+---
+
+## Core capabilities
+
+### Incremental construction
+
+```bash
+brickkit init my-shop && brickkit add people/basic@1.0.0 && brickkit up
+# One component running.
+
+brickkit add department/tree@1.0.0 && brickkit up
+# Two components running — people/basic automatically got department/tree's address.
+
+brickkit add erp/backend@1.0.0 && brickkit up
+# The whole dependency tree resolves, topologically sorts, migrates, and starts.
+# You never "designed an architecture" at any point. It grew on its own.
+```
+
+### Environment consistency
+
+```yaml
+# brickkit.yaml — change this one field
+deploy:
+  target: k8s    # was: docker
+```
+
+The address a component's code reads is identical in both environments:
+
+```bash
+DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
+```
+
+Zero changes. Not "barely any changes" — zero.
+
+### Language-agnostic
+
+```yaml
+# people/basic is written in Go
+# auth/password-login is written in Java
+# portal/frontend is TypeScript + nginx
+# To BrickKit, all three are just "one Docker image + one component.yaml".
+```
+
+### The platform stays out of the way
+
+No SDK to pull in. No sidecar to inject. No agent to deploy.
+
+The only trace of the platform in a component's code is
+`os.environ.get("XXX_ENDPOINT")`.
+
+Delete that one environment-variable read and the component runs anywhere.
+
+---
+
+## Architecture at a glance
+
+```mermaid
+graph LR
+    subgraph Developer
+        A[Write a component] --> B[brickkit add]
+        B --> C[brickkit up]
+    end
+
+    subgraph CLI
+        C --> D[Resolve dependencies]
+        D --> E[Topological sort]
+        E --> F[Inject env vars]
+        F --> G[Generate deployment files]
+    end
+
+    subgraph Runtime
+        G --> H[docker compose up / kubectl apply]
+        H --> I[Component A]
+        H --> J[Component B]
+        H --> K[Component C]
+
+        I <-->|Direct DNS| J
+        J <-->|Direct DNS| K
+    end
+
+    subgraph Infrastructure
+        I --> L[(PostgreSQL)]
+        J --> L
+        K --> M[(Redis)]
+    end
+```
+
+---
+
+## In terms you already know
 
 | BrickKit | Roughly equivalent to |
 | --- | --- |
@@ -65,13 +184,6 @@ The essential difference: npm installs a code library; BrickKit installs a
 **business service that can run on its own**. So it also has to handle
 dependency resolution, deployment-file generation, address injection, database
 migration, and startup ordering.
-
-**What it gives you:**
-
-- **Incremental** — no need to design the whole system up front; add one brick at a time
-- **Language-agnostic** — anything that can build into a Docker image can be a component
-- **Consistent addressing** — local (Docker) and production (K8s) use the **same address format**, so component code needs zero changes
-- **The platform stays out of the way** — business logic, communication policy, and multi-tenancy all belong to components, never to the platform
 
 ---
 
@@ -198,25 +310,30 @@ environments, always `http://<versioned-service-name>:<port>` (for example
 **13 commands in total:** `init` `add` `remove` `fetch` `up` `down` `status`
 `sync` `restore` `login` `logout` `publish` `version`
 
+Want to actually run it? The [5-minute Quick Start](docs/en/quick-start.md)
+walks this exact path with the repository's own test fixture — every command
+and every output block is real.
+
 ---
 
 ## What it deliberately doesn't do
 
-This list matters as much as the feature list above — these aren't things
+This list matters as much as the capabilities above — these aren't things
 that are "not built yet," they are things that were **argued through and
 rejected**:
 
-| Doesn't do | Instead |
+| Doesn't do | Which means you... |
 | --- | --- |
-| Service registry / address book | Docker DNS / Kubernetes Service DNS |
-| A long-running daemon / control plane | The CLI runs and exits; state lives externally, in `brickkit.yaml` and the underlying engine |
-| Health-check polling | Kubernetes probes / Compose healthchecks, plus restart policies |
-| API gateway / service mesh | Components talk to each other directly over DNS |
-| Config center / dynamic hot-reload | Config is injected as environment variables; change it and restart |
-| Circuit breaking / rate limiting / graceful degradation | That's the component's own business logic |
-| Version ranges (`^1.0.0`) | Only exact versions are accepted — no implicit upgrades |
-| Multi-environment overlay inheritance | Each environment gets one complete, self-contained config |
-| Security review of third-party components | Trust at install time; a bad actor gets `blocked` after the fact |
+| Service registry / address book | Don't need to learn Eureka/Consul/Nacos — DNS is the service discovery |
+| A long-running daemon / control plane | No background process to operate, no port to open, no single point of failure |
+| Health-check polling | Don't have to tune polling intervals or failure thresholds yourself — Kubernetes probes / Compose healthchecks already do this natively |
+| API gateway / service mesh | Don't need to maintain a platform-level Kong/Traefik config — components talk to each other directly over DNS |
+| Config center / dynamic hot-reload | Don't need to run Apollo/Nacos Config — change `brickkit.yaml`, then `brickkit up` |
+| Circuit breaking / rate limiting / degradation | Aren't constrained by a platform-wide default policy — that complexity is your component's own business logic |
+| Version ranges (`^1.0.0`) | Never deal with the production incidents implicit upgrades cause — exact versions are the contract |
+| Multi-environment overlay inheritance | Don't need to reason about "base layer / override layer / merge rules" — each environment is one complete, self-contained config, and a Git diff shows you everything |
+| Multi-tenancy | Aren't boxed in by a platform-imposed isolation model — each component decides its own isolation strategy |
+| Security review of third-party components | Don't wait on a platform review process — install implies trust, the same model npm and the VS Code marketplace use |
 
 > **The platform only does two jobs — connector and translator — and
 > deliberately stays out of both business logic and anything infrastructure
@@ -224,6 +341,20 @@ rejected**:
 
 The full reasoning behind every row lives under
 [`docs/en/architecture/`](https://github.com/brickKit/brickKit/tree/main/docs/en/architecture).
+
+---
+
+## AI-ready documentation
+
+Every document has a matching AI-readable index (`llms.txt`), the entire
+platform compresses into one file for an AI to read (`AGENTS.md`), and
+`brickkit init` generates AI-assistant skill files for your project
+automatically (`.claude/skills/`).
+
+When you're using AI to develop a component, it never has to read your whole
+codebase — just the current component's Manifest and the API contracts of
+whatever it depends on are enough for it to write a complete, independently
+runnable component.
 
 ---
 
@@ -236,6 +367,14 @@ document's plain text. **If you're an AI and need the actual file content,
 don't fetch these — use [`llms.txt`](llms.txt) instead** (the Chinese
 documentation tree has its own, [`llms.zh.txt`](llms.zh.txt)): the same
 index, but every link is a raw, directly-fetchable URL.
+
+**Getting started**
+
+| Doc | What it covers |
+| --- | --- |
+| [Quick Start (5 minutes)](https://github.com/brickKit/brickKit/blob/main/docs/en/quick-start.md) | Empty directory to a curl-able container, every step run for real |
+| [Core Concepts](https://github.com/brickKit/brickKit/blob/main/docs/en/concepts.md) | A one-page glossary plus the one service-naming rule that runs through everything |
+| [Troubleshooting](https://github.com/brickKit/brickKit/blob/main/docs/en/troubleshooting.md) | The most common `up`/`down` and signature-verification failures — symptom → real cause → fix |
 
 **Architecture — how the platform actually works, with real code and real generated output**
 
@@ -265,7 +404,7 @@ index, but every link is a raw, directly-fetchable URL.
 | 11 | [Network policy and least privilege](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/11-network-policy.md) | Real NetworkPolicy enforcement on Kubernetes |
 | 12 | [Multi-project sharing](https://github.com/brickKit/brickKit/blob/main/docs/en/guide/12-multi-project-sharing.md) | Shared resources, isolated resources, treating a component as someone else's API |
 
-**Patterns — recommended practices, optional, validated against real deployments**
+**Patterns — recommended practices, optional, validated against real deployments** ([index](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/README.md) organized by role/topic)
 
 | Doc | What it covers |
 | --- | --- |
@@ -273,6 +412,7 @@ index, but every link is a raw, directly-fetchable URL.
 | [Testing patterns for components built on BrickKit](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/testing.md) | Backend's contract/business-rule/unit/integration layers and frontend's own four layers, plus why an end-to-end run needs your go-ahead before it drives a browser |
 | [Planning seed data and test data](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/data-construction.md) | Two paths that must stay physically separate, and why |
 | [Protecting closed-source components from image-based extraction](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/closed-source-image-hardening.md) | Pulling an image isn't the same guarantee as a private Git repo |
+| [Choosing a deployment shape](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/deployment-selection-guide.md) | Picking among topology (independent/shell-merged/mixed) × `docker`/`k8s` |
 | [Declaring servedBy: a deployment checklist](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/servedby-deployment-checklist.md) | What problem `servedBy` actually solves, when it's the right call — and when it isn't |
 | [Building a qualified shell](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/shell-implementers-guide.md) | For whoever builds the shell: what `servedBy` asks of the container that hosts a merged component |
 | [Sharing a database connection pool inside a shell](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/shared-connection-pools.md) | For components merged into one shell that also share PostgreSQL or Oracle |
@@ -292,6 +432,7 @@ internal/              CLI implementation
   ├── config/            brickkit.yaml parsing & validation
   ├── manifest/          component.yaml parsing & validation
   ├── resolver/          dependency resolution, topological sort
+  ├── shell/              servedBy grouping/merging, shared by the compose and k8s renderers
   ├── cascade/           start/stop decisions: what actually needs to start this run ("follow the parent")
   ├── inject/             environment-variable injection & resource-quota merging
   ├── compose/            docker-compose.yaml generation
@@ -360,7 +501,7 @@ text lives on, read-only, under
 
 | | |
 | --- | --- |
-| Tests | 1762 test functions, race-clean |
+| Tests | 2,000+ test functions, race-clean |
 | Hands-on guides | 23, each run against real Docker / Kubernetes / a live market — archived at `docs/archive/guide/`, superseded by `docs/{en,zh}/guide/` |
 | Design books | 14, cross-checked against the implementation twice — archived at `docs/archive/design/`, superseded by `docs/{en,zh}/architecture/` |
 | Decision records | 566, each with the reasoning behind it, archived at `docs/archive/decisions/` |

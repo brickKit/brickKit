@@ -8,9 +8,11 @@
 
 <div align="center">
 
-**像搭积木一样构建系统。**
+**写一个组件，跑通。再写一个，跑通。回头一看——系统已经在那了。**
 
-一个组件管理与拼装平台 —— 组件独立开发、独立部署、独立调用、按需拼装。
+BrickKit 是一个组件管理与拼装平台。每个组件是一个独立的领域单元，独立开发、
+独立测试、独立部署、独立调用。CLI 负责依赖解析、部署生成、地址注入——然后
+交给 Docker 或 Kubernetes。没有注册中心，没有配置中心，没有网关，没有常驻进程。
 
 </div>
 
@@ -37,11 +39,118 @@
 
 ---
 
-## BrickKit 是什么
+## 如果你是 DDD 实践者
 
-BrickKit **不是**操作系统，不是 ERP，也不是任何一个具体的业务软件。它是一个
-让你**渐进式**长出架构的平台：先写一个小组件跑通，再写一个跑通，然后写一个
-连接组件把它们串起来。像搭积木一样，最终拼出任何你需要的系统。
+BrickKit 的组件天然对齐限界上下文（Bounded Context）的工程边界：
+
+- **独立演进：** 每个组件拥有自己的仓库、Manifest、版本生命周期和 API 契约。
+- **契约通信：** 组件间推荐通过契约（HTTP/gRPC）通信，但**平台不强制隔离**——
+  是否共享数据库（如通过 schema 分组或主键前缀隔离）、是否合并部署（`servedBy`
+  外壳），完全由组件开发者根据业务场景自行决定。
+
+你不需要引入沉重的「微服务治理框架」来管理它们——DNS 就是服务发现，环境变量
+就是配置注入，精确版本就是兼容性契约。
+
+## 如果你在用 AI 写代码
+
+BrickKit 的组件模型天然适合 AI 辅助开发。
+
+实测项目自带的 10 个真实组件，代码行数在 200 到 3500 行之间。这种极小的上下文
+规模，加上明确的 `component.yaml` 契约边界，意味着 AI 可以一次性完整读取并理解
+整个组件，不需要在庞大的单体代码库中迷失。
+
+环境变量注入意味着 AI 永远不需要处理服务发现或配置中心的复杂性；精确版本 +
+多版本共存意味着 AI 生成的 v2 可以和 v1 安全并存，不会搞坏依赖 v1 的其他组件。
+
+---
+
+## 核心能力
+
+### 渐进式构建
+
+```bash
+brickkit init my-shop && brickkit add people/basic@1.0.0 && brickkit up
+# 一个组件跑起来了。
+
+brickkit add department/tree@1.0.0 && brickkit up
+# 两个组件跑起来了，people/basic 自动拿到了 department/tree 的地址。
+
+brickkit add erp/backend@1.0.0 && brickkit up
+# 整棵依赖树自动拉齐，拓扑排序，迁移跑完，容器全起来。
+# 你没有在任何时候「设计过架构」。它自己长出来了。
+```
+
+### 环境一致
+
+```yaml
+# brickkit.yaml —— 只改这一个字段
+deploy:
+  target: k8s    # 原本是 docker
+```
+
+组件代码里读到的地址，在两个环境下完全一样：
+
+```bash
+DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
+```
+
+零修改。不是「几乎不用改」，是零。
+
+### 语言无关
+
+```yaml
+# people/basic 是 Go 写的
+# auth/password-login 是 Java 写的
+# portal/frontend 是 TypeScript + nginx
+# 对 BrickKit 来说，它们都是「一个 Docker 镜像 + 一份 component.yaml」。
+```
+
+### 平台不挡路
+
+没有 SDK 要引入。没有 sidecar 要注入。没有 agent 要部署。
+
+组件代码里唯一的平台痕迹是 `os.environ.get("XXX_ENDPOINT")`。
+
+把这个环境变量去掉，组件在任何地方都能跑。
+
+---
+
+## 架构一瞥
+
+```mermaid
+graph LR
+    subgraph 开发者
+        A[写组件] --> B[brickkit add]
+        B --> C[brickkit up]
+    end
+
+    subgraph CLI
+        C --> D[解析依赖]
+        D --> E[拓扑排序]
+        E --> F[注入环境变量]
+        F --> G[生成部署文件]
+    end
+
+    subgraph 运行环境
+        G --> H[docker compose up / kubectl apply]
+        H --> I[组件 A]
+        H --> J[组件 B]
+        H --> K[组件 C]
+
+        I <-->|DNS 直连| J
+        J <-->|DNS 直连| K
+    end
+
+    subgraph 基础设施
+        I --> L[(PostgreSQL)]
+        J --> L
+        K --> M[(Redis)]
+    end
+```
+
+---
+
+## 用你已经会的工具类比一下
 
 | BrickKit | 大致相当于 |
 | --- | --- |
@@ -55,13 +164,6 @@ BrickKit **不是**操作系统，不是 ERP，也不是任何一个具体的业
 
 区别在于：npm 装的是代码库，BrickKit 装的是**能独立跑起来的业务服务**。所以
 它同时要管依赖解析、部署文件生成、地址注入、数据库迁移和启动顺序。
-
-**它给你什么：**
-
-- **渐进式** —— 不需要一次性设计完整系统，一块积木一块积木地加
-- **语言无关** —— 任何语言只要能构建 Docker 镜像，就能成为组件
-- **环境一致** —— 本地（Docker）与生产（K8s）用**同一套地址格式**，组件代码零修改
-- **平台不挡路** —— 业务逻辑、通信治理、多租户全部归组件，不归平台
 
 ---
 
@@ -177,29 +279,44 @@ deploy:
 **命令共 13 条：** `init` `add` `remove` `fetch` `up` `down` `status` `sync`
 `restore` `login` `logout` `publish` `version`
 
+想动手照着跑一遍？[5 分钟 Quick Start](docs/zh/quick-start.md) 用仓库自带的
+测试夹具走完这整条路径，每一步都是真实命令和真实输出。
+
 ---
 
-## 它刻意不做的事
+## 设计哲学：为什么这么少
 
-这份清单和上面的功能同样重要 —— 它们不是「还没做」，而是**被论证过并拒绝**的：
+这份清单和上面的能力同样重要 —— 它们不是「还没做」，而是**被论证过并拒绝**的：
 
-| 不做 | 替代方案 |
+| 不做 | 这意味着你…… |
 | --- | --- |
-| 注册中心 / 地址簿 | Docker DNS / K8s Service DNS |
-| 常驻服务 / 控制面 | CLI 用完即走，状态外置到 `brickkit.yaml` + 底层引擎 |
-| 健康检查轮询 | K8s Probe / Compose healthcheck + 重启策略 |
-| API 网关 / 服务网格 | 组件之间 DNS 直连 |
-| 配置中心 / 动态热更新 | 环境变量注入，改配置就重启 |
-| 熔断 / 限流 / 降级 | 组件自己的业务代码 |
-| 版本范围（`^1.0.0`） | 只接受精确版本，杜绝隐式升级 |
-| 多环境 overlay 继承 | 每个环境一份完整自包含的配置 |
-| 第三方组件安全审查 | 安装即信任，事后 `blocked` 下架 |
+| 注册中心 / 地址簿 | 不需要学 Eureka/Consul/Nacos，DNS 就是服务发现 |
+| 常驻服务 / 控制面 | 没有后台进程要运维、没有端口要开、没有单点故障 |
+| 健康检查轮询 | 不用为轮询频率、超时阈值这些运维细节操心，K8s Probe / Compose healthcheck 原生就有 |
+| API 网关 / 服务网格 | 不需要维护 Kong/Traefik 的平台级配置，组件间 DNS 直连 |
+| 配置中心 / 动态热更新 | 不需要部署 Apollo/Nacos Config，改 `brickkit.yaml` 然后 `brickkit up` |
+| 通信治理（熔断 / 限流 / 降级） | 不需要被平台的默认策略限制，业务复杂度由业务代码自己处理 |
+| 版本范围解析（`^1.0.0`） | 不需要处理「隐式升级」带来的生产事故，精确版本就是契约 |
+| 多环境 overlay / 继承合并 | 不需要理解「基础层 / 覆盖层 / 合并规则」，每个环境一份完整配置，Git diff 一目了然 |
+| 多租户 | 不需要被平台的数据隔离模型束缚，每个组件自己决定隔离策略 |
+| 第三方组件安全审查 | 不需要等平台的审核流程，安装即信任（和 npm、VS Code 插件市场同一套模型） |
 
 > **平台只做「连接器」和「翻译官」，绝不越界去做「业务逻辑」和「基础设施」已经
 > 做好的事情。**
 
 每一条的完整论证见
 [`docs/zh/architecture/`](https://github.com/brickKit/brickKit/tree/main/docs/zh/architecture)。
+
+---
+
+## AI-ready 的文档体系
+
+每一份文档都有对应的 AI 可读索引（`llms.txt`），整个平台可以压缩进一个文件供
+AI 理解（`AGENTS.md`），`brickkit init` 自动为你的项目生成 AI 助手技能文件
+（`.claude/skills/`）。
+
+当你用 AI 辅助开发组件时，AI 不需要读完你的整个代码库——它只需要读当前组件的
+Manifest 和依赖方的 API 契约，就能写出一个完整的、可独立运行的组件。
 
 ---
 
@@ -210,6 +327,14 @@ deploy:
 页面（几百 KB 的 HTML），不是文档的纯文本。**如果你是 AI，需要拿到文件的真实
 内容，别抓这些链接——改用 [`llms.zh.txt`](llms.zh.txt)**（英文文档树有自己的
 [`llms.txt`](llms.txt)）：同一份索引，但每条链接都是可以直接抓取的 raw 链接。
+
+**新手入门**
+
+| 文档 | 讲什么 |
+| --- | --- |
+| [Quick Start（5 分钟）](https://github.com/brickKit/brickKit/blob/main/docs/zh/quick-start.md) | 从空目录到一个可以 curl 通的容器，每一步都真跑过 |
+| [核心概念](https://github.com/brickKit/brickKit/blob/main/docs/zh/concepts.md) | 一页纸的术语速查 + 贯穿全平台的那条服务名规则 |
+| [故障排除](https://github.com/brickKit/brickKit/blob/main/docs/zh/troubleshooting.md) | `up`/`down` 失败、签名验证失败等最常见的坑，症状 → 真实原因 → 解决 |
 
 **架构——平台到底怎么工作，配真实代码和真实生成出来的输出**
 
@@ -239,7 +364,7 @@ deploy:
 | 11 | [网络策略与最小权限](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/11-network-policy.md) | Kubernetes 上真实生效的 NetworkPolicy |
 | 12 | [多项目共享](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/12-multi-project-sharing.md) | 共享资源、隔离资源、把一个组件当成别人的 API |
 
-**Patterns——推荐实践，可选，对着真实部署验证过**
+**Patterns——推荐实践，可选，对着真实部署验证过**（[索引页](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/README.md) 按角色/主题分类导航）
 
 | 文档 | 讲什么 |
 | --- | --- |
@@ -247,6 +372,7 @@ deploy:
 | [基于 BrickKit 的组件该怎么分层测试](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/testing.md) | 后端的契约/业务规则/单元/集成四层，加前端自己的四层，以及端到端测试为啥要先经你同意才能跑 |
 | [怎么规划种子数据与测试数据](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/data-construction.md) | 两条必须物理隔离的路径，以及为什么 |
 | [闭源组件的镜像安全规范](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/closed-source-image-hardening.md) | 拉取镜像跟私有 Git 仓库不是同一种保证 |
+| [怎么选部署形态](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/deployment-selection-guide.md) | 拓扑（独立/外壳合并/混合）× `docker`/`k8s` 的组合怎么选 |
 | [怎么声明 servedBy：部署方检查清单](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/servedby-deployment-checklist.md) | `servedBy` 到底解决什么问题、什么时候该用、什么时候不该用 |
 | [合格外壳该满足什么](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/shell-implementers-guide.md) | 写给造壳的人：`servedBy` 对收编组件的外壳提出了什么要求 |
 | [在外壳里合并数据库连接池](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/shared-connection-pools.md) | 合并进同一个壳、又共用 PostgreSQL 或 Oracle 的组件该怎么办 |
@@ -265,6 +391,7 @@ internal/              CLI 实现
   ├── config/            brickkit.yaml 解析与校验
   ├── manifest/          component.yaml 解析与校验
   ├── resolver/          依赖解析、拓扑排序
+  ├── shell/             servedBy 分组与合并，compose 和 k8s 渲染器共用
   ├── cascade/           启停判定：算出这次实际启动谁（跟着上层走）
   ├── inject/            环境变量注入与资源配额合并
   ├── compose/           docker-compose.yaml 生成
@@ -327,7 +454,7 @@ make lint             # vet + 文档检查
 
 | | |
 | --- | --- |
-| 测试 | 1762 个测试函数，race-clean |
+| 测试 | 2000+ 个测试函数，race-clean |
 | 试用指南 | 23 篇，全部对着真实 Docker / Kubernetes / 活的市场跑过 —— 已归档到 `docs/archive/guide/`，由 `docs/{en,zh}/guide/` 取代 |
 | 设计书 | 14 本，与实现交叉复核过两轮 —— 已归档到 `docs/archive/design/`，由 `docs/{en,zh}/architecture/` 取代 |
 | 决策记录 | 566 条，每条都带当初的推理，归档在 `docs/archive/decisions/` |
