@@ -1,45 +1,84 @@
 # BrickKit Documentation / BrickKit 文档
 
-This is a way-finding index by topic. The documentation itself lives in two
-fully symmetric, independently-written trees — [`en/`](en/) and [`zh/`](zh/) —
-not a base language plus translations. Pick your tree once below, then every
-link on this page points at the matching file in it.
+This is a way-finding index by intent, not by document type. The documentation
+itself lives in two fully symmetric, independently-written trees —
+[`en/`](en/) and [`zh/`](zh/) — not a base language plus translations. Pick
+your language below, then every link points at the matching file in that tree.
 
-这是一个按主题组织的导航页。文档本体分别在两棵**完全对称、各自独立撰写**
-的目录树里——[`en/`](en/) 和 [`zh/`](zh/)——不是"一种语言是原文、另一种是
-译本"的关系。下面先选你要读的那棵树，之后每条链接都指向那棵树里对应的文件。
+这是一个按"我想做什么"组织的导航页，不是按文档类型分类。文档本体分别在两棵
+**完全对称、各自独立撰写**的目录树里——[`en/`](en/) 和 [`zh/`](zh/)——不是
+"一种语言是原文、另一种是译本"的关系。先选你要读的语言，之后每条链接都指向
+那棵树里对应的文件。
 
 ---
 
 ## English
 
-| I want to... | Read this |
-| --- | --- |
-| Get something running in 5 minutes | [Quick Start](en/quick-start.md) |
-| Understand the core concepts and terminology | [Core Concepts](en/concepts.md) |
-| Understand how it works internally | [Architecture overview](en/architecture/overview.md) |
-| Follow a full hands-on walkthrough | [Tutorial series](en/guide/README.md) |
-| Design and build my own component | [Patterns index](en/patterns/README.md) |
-| Fix something that just broke | [Troubleshooting](en/troubleshooting.md) |
-| Compare BrickKit to Compose/Helm/Kustomize/etc. | [Comparison](en/comparison.md) |
-| Use AI to write components | [AI-assisted development](en/ai-development.md) |
-| Write a client against the marketplace's HTTP API | [Market API reference](en/market-api.md) |
-| Build a real Go component with a database, step by step | [Go component template](en/go-component-template.md) |
+### 🚀 I want to get started
+- **Get something running in 5 minutes** → [Quick Start](en/quick-start.md)
+  *(the repo's own `demo/hello` fixture, empty directory to a curl-able container)*
+
+### 🧠 I want to understand the core mechanics
+- **Core concepts and terminology** → [Core Concepts](en/concepts.md)
+  *(component IDs, exact versions, required/optional dependencies — the basic contract)*
+- **How it works internally** → [Architecture overview](en/architecture/overview.md)
+  *(why "no registry" and "platform minimalism" hold together as one pipeline)*
+- **How BrickKit compares to Compose/Helm/Kustomize/etc.** → [Comparison](en/comparison.md)
+
+### 🛠️ I want to develop a new component
+- **Build your first component from scratch** → [Guide: Build your first component](en/guide/10-build-your-own.md)
+  *(a minimal, complete walkthrough: Manifest, `os.environ.get()`, `/healthz`)*
+- **A deep Go component template with a database** → [Go component template](en/go-component-template.md)
+  *(a real, tested component — migrations, a multi-stage Dockerfile, the works)*
+- **Every pattern, organized by role** → [Patterns index](en/patterns/README.md)
+- **Write a client against the marketplace's HTTP API** → [Market API reference](en/market-api.md)
+
+### 🤖 I want to use AI to develop components
+- **AI-assisted development, with prompt examples** → [AI-assisted development](en/ai-development.md)
+  *(scaffold → contract → tests → debug, plus what AI still can't do for you)*
+
+### 🛡️ I want production-grade, advanced patterns
+- **Upgrades and running multiple versions side by side** → [Guide: Upgrades and versions](en/guide/05-upgrades-and-versions.md)
+  *(a real v1/v2 coexistence, and the `remove` error when an ID is ambiguous)*
+- **Common failures and weak-dependency degradation** → [Troubleshooting](en/troubleshooting.md)
+  *(symptom → real cause → fix, plus the missing-optional-dependency warning from [Guide 2](en/guide/02-what-runs.md))*
+
+### 📖 The full walkthrough
+- **12-part tutorial series, in order** → [Tutorial series](en/guide/README.md)
 
 ## 中文
 
-| 我想…… | 看这篇 |
-| --- | --- |
-| 5 分钟内跑起来点什么 | [Quick Start](zh/quick-start.md) |
-| 搞懂核心概念和术语 | [核心概念](zh/concepts.md) |
-| 理解内部到底是怎么工作的 | [架构总览](zh/architecture/overview.md) |
-| 跟着完整教程动手做一遍 | [教程系列](zh/guide/README.md) |
-| 自己设计并开发一个组件 | [Patterns 索引](zh/patterns/README.md) |
-| 修一个刚刚坏掉的东西 | [故障排除](zh/troubleshooting.md) |
-| 对比 BrickKit 和 Compose/Helm/Kustomize 等 | [对比](zh/comparison.md) |
-| 用 AI 写组件 | [AI 辅助开发指南](zh/ai-development.md) |
-| 对着市场的 HTTP API 写客户端 | [Market API 参考](zh/market-api.md) |
-| 一步步搭一个带数据库的真实 Go 组件 | [Go 组件模板](zh/go-component-template.md) |
+### 🚀 我想快速上手
+- **5 分钟内跑起来点什么** → [Quick Start](zh/quick-start.md)
+  *(仓库自带的 `demo/hello` 夹具，从空目录到一个可以 curl 通的容器)*
+
+### 🧠 我想理解核心机制
+- **核心概念与术语表** → [核心概念](zh/concepts.md)
+  *(组件 ID、精确版本、强/弱依赖——最基础的契约)*
+- **架构总览与设计原理** → [架构总览](zh/architecture/overview.md)
+  *("无注册中心"和"平台极简"怎么在同一条流水线里落地)*
+- **对比 BrickKit 和 Compose/Helm/Kustomize 等** → [对比](zh/comparison.md)
+
+### 🛠️ 我想开发新组件
+- **从零开发第一个组件** → [指南：从零开发第一个组件](zh/guide/10-build-your-own.md)
+  *(一个极简但完整的例子：Manifest、`os.environ.get()`、`/healthz`)*
+- **带数据库的 Go 组件深度模板** → [Go 组件模板](zh/go-component-template.md)
+  *(一个真实的、有测试覆盖的组件——数据库迁移、多阶段 Dockerfile，一应俱全)*
+- **按角色查看全部 Patterns** → [Patterns 索引](zh/patterns/README.md)
+- **对着市场的 HTTP API 写客户端** → [Market API 参考](zh/market-api.md)
+
+### 🤖 我想用 AI 辅助开发
+- **AI 辅助开发指南，含 Prompt 示例** → [AI 辅助开发指南](zh/ai-development.md)
+  *(骨架 → 契约 → 测试 → 调试，以及 AI 目前还替代不了的部分)*
+
+### 🛡️ 我想了解生产级的进阶用法
+- **升级与多版本共存** → [指南：升级与多版本共存](zh/guide/05-upgrades-and-versions.md)
+  *(真实的 v1/v2 并存，以及 ID 跨版本有歧义时 `remove` 的真实报错)*
+- **常见故障与弱依赖降级** → [故障排除](zh/troubleshooting.md)
+  *(症状 → 真实原因 → 解决，弱依赖缺失的真实警告见[教程第 2 篇](zh/guide/02-what-runs.md))*
+
+### 📖 完整教程
+- **12 篇系列教程，按顺序读** → [教程系列](zh/guide/README.md)
 
 ---
 

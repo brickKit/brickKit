@@ -51,7 +51,7 @@
 **解决：**
 - `brickkit status` 看依赖组件是不是 `healthy`
 - 检查 `brickkit.yaml`/`component.yaml` 里依赖是否正确声明
-- 如果是弱依赖：组件代码必须用 `os.environ.get()` 而不是 `os.environ["X"]`——弱依赖缺失时这个环境变量根本不会被注入，用后者会直接 `KeyError` 崩溃（这是设计好的行为，不是 bug，见 AGENTS.md §9.13）
+- 如果是弱依赖：组件代码必须用 `os.environ.get()` 而不是 `os.environ["X"]`——弱依赖缺失时这个环境变量根本不会被注入，用后者会直接 `KeyError` 崩溃（这是设计好的行为，不是 bug，见 AGENTS.md §9.13）。[教程第 2 篇](guide/02-what-runs.md) 有 `brickkit up` 遇到弱依赖缺失时打出的真实警告。
 
 ## `brickkit down` 之后
 

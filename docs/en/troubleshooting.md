@@ -52,7 +52,7 @@ If you're seeing Docker's raw `Error: port is already allocated` instead of the 
 **Fix:**
 - `brickkit status` to check whether the dependency is `healthy`
 - Verify the dependency declaration
-- If it's an optional dependency: the component's code must read it with `os.environ.get()`, never `os.environ["X"]` — a missing optional dependency means that environment variable is never injected at all, and the bracket form crashes with a `KeyError` (this is deliberate, not a bug — see AGENTS.md §9.13)
+- If it's an optional dependency: the component's code must read it with `os.environ.get()`, never `os.environ["X"]` — a missing optional dependency means that environment variable is never injected at all, and the bracket form crashes with a `KeyError` (this is deliberate, not a bug — see AGENTS.md §9.13). [Guide 2](guide/02-what-runs.md) shows the real warning `brickkit up` prints for a missing optional dependency.
 
 ## After `brickkit down`
 

@@ -8,10 +8,12 @@
 
 <div align="center">
 
-**Write one component, get it running. Write another, get it running. Look up — the system is already there.**
+**Watch your system grow organically, one component at a time.**
 
-BrickKit is a component assembly and management platform. Each component is an
-independent domain unit — developed, tested, deployed, and called
+BrickKit is neither a heavy microservices framework nor an opinionated PaaS.
+It's a component assembly engine purpose-built for the era of **Domain-Driven
+Design (DDD)** and **AI-assisted development** — each component an
+independent domain unit, developed, tested, deployed, and called
 independently. The CLI handles dependency resolution, deployment generation,
 and address injection, then hands off to Docker or Kubernetes. No registry, no
 config center, no gateway, no resident process.
