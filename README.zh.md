@@ -350,6 +350,7 @@ Manifest 和依赖方的 API 契约，就能写出一个完整的、可独立运
 | [资源绑定的实际机制](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/resource-binding.md) | 资源绑定撞车时到底会发生什么、配额链到底怎么合并 |
 | [签名与信任模型](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/signing-and-trust.md) | 真正被签名的是什么，以及公钥为什么永远不能来自市场 |
 | [CLI 命令完整参考](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/cli-reference.md) | 每个命令、每个参数、真实生成的输出——上面"一分钟上手"的详细版 |
+| [Market API 参考](https://github.com/brickKit/brickKit/blob/main/docs/zh/market-api.md) | 市场的每一个 HTTP 端点、认证方式、错误码，以及发布一个版本时到底传了什么 |
 
 **动手教程——12 篇，每一篇都对着真实 CLI 跑过，按顺序读**
 
