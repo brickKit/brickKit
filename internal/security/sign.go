@@ -2,6 +2,7 @@ package security
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -70,13 +71,13 @@ func Sign(ctx context.Context, payload []byte, opts SignOptions) (*Signature, er
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	blob := filepath.Join(dir, "payload")
-	sigFile := filepath.Join(dir, "signature")
+	bundleFile := filepath.Join(dir, "bundle.json")
 	if err := os.WriteFile(blob, payload, 0o600); err != nil {
 		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：写入待签名内容失败").
 			WithDetail("路径", blob).WithCause(err)
 	}
 
-	args := signArgs(opts.KeyPath, sigFile, blob)
+	args := signArgs(opts.KeyPath, bundleFile, blob)
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Stdin = os.Stdin // 私钥有口令、且在终端里执行时，cosign 在这里提示输入
 	out, err := cmd.CombinedOutput()
@@ -84,10 +85,9 @@ func Sign(ctx context.Context, payload []byte, opts SignOptions) (*Signature, er
 		return nil, signFailed(bin, args, out, err)
 	}
 
-	value, err := os.ReadFile(sigFile)
+	value, err := readBundleSignature(bundleFile)
 	if err != nil {
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：读取 cosign 签名结果失败").
-			WithDetail("路径", sigFile).WithCause(err)
+		return nil, err
 	}
 
 	now := opts.Now
@@ -97,10 +97,56 @@ func Sign(ctx context.Context, payload []byte, opts SignOptions) (*Signature, er
 	return &Signature{
 		Algorithm:    AlgorithmCosign,
 		PublicKeyRef: opts.PublicKeyRef,
-		Value:        strings.TrimSpace(string(value)),
+		Value:        value,
 		SignedAt:     now().UTC(),
 		SignedBy:     opts.SignedBy,
 	}, nil
+}
+
+// cosignBundle 只取 sign-blob --bundle 输出里我们需要的那一个字段（Sigstore
+// bundle 的完整 schema 里还有证书链、Rekor 条目等，我们一概不关心——本包全部
+// 验签逻辑只吃 Signature.Value 这一个 base64 签名值，见包注释）。
+//
+// 两个字段对应实测过的两种真实 --bundle 输出形状，不是猜的：
+//   - cosign v2.x（本包 cosignInstallHint 让人 go install 装的那个版本就是这
+//     一支）写的是扁平的 {"base64Signature": "..."}
+//   - cosign v3.x（sigstore/cosign-installer@v4 装的那支，commit 5b2d70a 就是
+//     在这支上踩的）写的是新版 Sigstore bundle，签名嵌在
+//     {"messageSignature": {"signature": "..."}} 里
+//
+// 两种目前都在用（见上面两条各自的出处），所以两个字段都要认，谁非空用谁。
+type cosignBundle struct {
+	Base64Signature  string `json:"base64Signature"` // cosign v2.x
+	MessageSignature struct {
+		Signature string `json:"signature"`
+	} `json:"messageSignature"` // cosign v3.x 起
+}
+
+// readBundleSignature 从 cosign --bundle 写出的 JSON 里取出签名值。
+func readBundleSignature(bundleFile string) (string, error) {
+	raw, err := os.ReadFile(bundleFile)
+	if err != nil {
+		return "", clierr.New(clierr.CodeConfigInvalid, "错误：读取 cosign 签名结果失败").
+			WithDetail("路径", bundleFile).WithCause(err)
+	}
+
+	var bundle cosignBundle
+	if err := json.Unmarshal(raw, &bundle); err != nil {
+		return "", clierr.New(clierr.CodeConfigInvalid, "错误：解析 cosign bundle 失败").
+			WithDetail("路径", bundleFile).
+			WithHint("cosign 输出格式可能变了，需要跟着更新 signArgs/readBundleSignature").
+			WithCause(err)
+	}
+	value := strings.TrimSpace(bundle.MessageSignature.Signature)
+	if value == "" {
+		value = strings.TrimSpace(bundle.Base64Signature)
+	}
+	if value == "" {
+		return "", clierr.New(clierr.CodeConfigInvalid, "错误：cosign bundle 里没有签名值").
+			WithDetail("路径", bundleFile).
+			WithHint("cosign 输出格式可能变了，需要跟着更新 signArgs/readBundleSignature")
+	}
+	return value, nil
 }
 
 // signFailed 把 cosign 的失败翻译成看得懂的话。
@@ -144,13 +190,23 @@ func isPasswordPromptFailure(output string) bool {
 // 可发现伪造），但 BrickKit 的组件大量是 private 的（007 §5.1），默认上传等于
 // 把"某公司在某时刻发布了某个内部组件、其内容哈希是什么"公开出去。
 // 要透明日志的项目可以自建 Rekor，那是另一件事。
-func signArgs(keyPath, sigFile, blob string) []string {
+//
+// --bundle（不是旧版 --output-signature）+ --use-signing-config=false：
+// cosign v3 起，--use-signing-config 默认 true，这时旧的
+// --output-signature/--output-certificate 被直接忽略——不给 --bundle 就直接
+// 报错退出（"must specify --bundle with --new-bundle-format"）。这条已经在
+// .github/workflows/release.yml 的另一处签名调用上踩过一次（commit
+// 5b2d70a），当时只改了那一处，这里的组件签名调用留着旧参数没跟着改，
+// 本该是同一个 bug。--bundle 输出的 JSON 里 messageSignature.signature
+// 字段就是我们一直在用的那个 base64 签名值，见 readBundleSignature。
+func signArgs(keyPath, bundleFile, blob string) []string {
 	return []string{
 		"sign-blob",
 		"--key", keyPath,
+		"--use-signing-config=false",
 		"--tlog-upload=false",
 		"--yes", // 不做交互确认，CI 里才能跑
-		"--output-signature", sigFile,
+		"--bundle", bundleFile,
 		blob,
 	}
 }

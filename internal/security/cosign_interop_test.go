@@ -1,6 +1,7 @@
 package security_test
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -65,27 +66,47 @@ func cosignKeyPair(t *testing.T, bin string) (dir, keyPath, pubPath string) {
 // 传到 Sigstore 的公共 Rekor 透明日志（全世界可见）。对开源组件那是优点，
 // 对私有组件等于把"某公司某时刻发布了某个哈希"公开了。测试里更是绝不能
 // 往公网写任何东西。
+//
+// --bundle + --use-signing-config=false：跟 internal/security/sign.go 的
+// signArgs 用一样的参数组合，理由见那边的注释——cosign v3 起旧版
+// --output-signature 不给 --bundle 就直接报错，这个测试助手独立造了一份
+// cosign 调用，得跟着生产代码一起改，否则这个"真 cosign 签名"就名不副实。
 func cosignSignBlob(t *testing.T, bin, keyPath string, payload []byte) string {
 	t.Helper()
 
 	dir := t.TempDir()
 	blob := filepath.Join(dir, "payload")
-	sigFile := filepath.Join(dir, "signature")
+	bundleFile := filepath.Join(dir, "bundle.json")
 	require.NoError(t, os.WriteFile(blob, payload, 0o600))
 
 	cmd := exec.Command(bin, "sign-blob",
 		"--key", keyPath,
+		"--use-signing-config=false",
 		"--tlog-upload=false",
 		"--yes",
-		"--output-signature", sigFile,
+		"--bundle", bundleFile,
 		blob)
 	cmd.Env = append(os.Environ(), "COSIGN_PASSWORD=")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "cosign sign-blob 失败：%s", out)
 
-	value, err := os.ReadFile(sigFile)
+	raw, err := os.ReadFile(bundleFile)
 	require.NoError(t, err)
-	return strings.TrimSpace(string(value))
+	// 两种真实 --bundle 输出形状都要认，见 sign.go 的 cosignBundle 注释：
+	// v2.x 是扁平的 base64Signature，v3.x 起嵌在 messageSignature.signature 里。
+	var bundle struct {
+		Base64Signature  string `json:"base64Signature"`
+		MessageSignature struct {
+			Signature string `json:"signature"`
+		} `json:"messageSignature"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &bundle))
+	value := bundle.MessageSignature.Signature
+	if value == "" {
+		value = bundle.Base64Signature
+	}
+	require.NotEmpty(t, value)
+	return strings.TrimSpace(value)
 }
 
 // TestCosignSignedManifestVerifiesWithStdlib 是本包的立身之本：
