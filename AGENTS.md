@@ -634,6 +634,10 @@ the container's own logs look completely normal the whole time. Spring Boot / Dj
 never "declaring it alive" (a component that's ready in two seconds still turns healthy in two
 seconds), so setting it generously costs nothing.
 
+This is the skeleton — every field's exact type, required-ness, default, and validation constraint
+(the port ranges, the regexes, which fields silently do nothing without another field set) is
+[component-yaml-reference.md](docs/en/architecture/component-yaml-reference.md).
+
 ---
 
 ## 7. `brickkit.yaml` (project config) field skeleton
@@ -739,6 +743,11 @@ installer:
 **Multiple environments:** each environment gets its own **fully self-contained** `brickkit.yaml`
 (e.g. `brickkit.prod.yaml`), selected with `brickkit up --config brickkit.prod.yaml`. **There's no
 overlay / inheritance / merge mechanism** (see §9.9 for why).
+
+This is the skeleton — every field's exact type, required-ness, default, and validation constraint
+(every `local`/`servedBy`/`replicas` mutual exclusion, the binding-slot rules, the one field that's
+silently unused under `k8s` with nothing catching it) is
+[brickkit-yaml-reference.md](docs/en/architecture/brickkit-yaml-reference.md).
 
 ---
 
@@ -1102,6 +1111,8 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | Real generated Docker Compose and Kubernetes files, side by side, from the same Manifest | `docs/en/architecture/deployment-generation.md` (swap `en` for `zh`) |
 | What actually happens when a resource binding collides, and how the quota chain really merges field by field | `docs/en/architecture/resource-binding.md` (swap `en` for `zh`) |
 | The full dictionary of every environment variable the platform can inject — every resource `kind`'s exact variable names, the reserved-variable warnings and the one case that's a hard error, and how `servedBy` merges a member's config onto the shell | `docs/en/architecture/environment-variables.md` (swap `en` for `zh`) |
+| Every `component.yaml` field's type, required-ness, default, and the exact constraint the validator applies — including the two fields (`enum`, `items`) that parse but are never actually read anywhere | `docs/en/architecture/component-yaml-reference.md` (swap `en` for `zh`) |
+| Every `brickkit.yaml` field's type, required-ness, default, and constraint — including every `local`/`servedBy`/`replicas` mutual exclusion and the one "written but silently unused" field nothing currently catches | `docs/en/architecture/brickkit-yaml-reference.md` (swap `en` for `zh`) |
 | What actually gets signed, why verification needs no cosign dependency, and why the public key can't come from the marketplace | `docs/en/architecture/signing-and-trust.md` (swap `en` for `zh`) |
 | Every command's full flag reference, with real generated output — the detailed complement to §8 above | `docs/en/architecture/cli-reference.md` (swap `en` for `zh`) |
 | Every marketplace HTTP endpoint, auth, error codes, and what publishing sends over the wire | `docs/en/market-api.md` (swap `en` for `zh`) |

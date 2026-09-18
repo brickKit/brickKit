@@ -549,6 +549,9 @@ K8s 下 Pod 被 kill 重启、再走一遍同样的 30 秒 → **永久 CrashLoo
 而容器日志一路正常。Spring Boot / Django 预加载 / .NET 首次 JIT 都在射程内。
 宽限期只推迟"判死"不推迟"判活"（两秒就绪的组件照样两秒转 healthy），所以写大一点没有代价。
 
+以上是骨架——每个字段精确的类型、是否必填、默认值、校验约束（端口范围、正则、哪些字段
+不配另一个字段就悄悄不生效）见 [component-yaml-reference.md](docs/zh/architecture/component-yaml-reference.md)。
+
 ---
 
 ## 7. `brickkit.yaml`（项目配置）字段骨架
@@ -648,6 +651,10 @@ installer:
 
 **多环境：** 每个环境一份**完整自包含**的 `brickkit.yaml`（如 `brickkit.prod.yaml`），
 用 `brickkit up --config brickkit.prod.yaml` 指定。**没有 overlay / 继承 / 合并机制**（理由见 9.9）。
+
+以上是骨架——每个字段精确的类型、是否必填、默认值、校验约束（`local`/`servedBy`/`replicas`
+之间的每一种互斥、绑定槽位规则、那个在 `k8s` 下悄悄不生效却没人拦住的字段）见
+[brickkit-yaml-reference.md](docs/zh/architecture/brickkit-yaml-reference.md)。
 
 ---
 
@@ -955,6 +962,8 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 同一份 Manifest 生成出的真实 Docker Compose 与 Kubernetes 文件，逐行对照 | `docs/zh/architecture/deployment-generation.md`（英文版把 `zh` 换 `en`） |
 | 资源绑定撞车时到底会发生什么、配额链到底怎么逐字段合并 | `docs/zh/architecture/resource-binding.md`（英文版把 `zh` 换 `en`） |
 | 平台可能注入的每一个环境变量——每种资源 `kind` 精确的变量名、保留变量冲突警告与唯一一种阻断错误、`servedBy` 怎么把成员的配置合并到外壳身上 | `docs/zh/architecture/environment-variables.md`（英文版把 `zh` 换 `en`） |
+| `component.yaml` 每个字段的类型、是否必填、默认值、校验器真正套用的约束——包括 `enum`、`items` 这两个会被解析但代码库里从没有任何地方真正读过的字段 | `docs/zh/architecture/component-yaml-reference.md`（英文版把 `zh` 换 `en`） |
+| `brickkit.yaml` 每个字段的类型、是否必填、默认值、约束——包括 `local`/`servedBy`/`replicas` 之间的每一种互斥，以及唯一一个"写了不生效、但目前没有任何东西拦住"的字段 | `docs/zh/architecture/brickkit-yaml-reference.md`（英文版把 `zh` 换 `en`） |
 | 真正被签名的是什么、验签为什么不需要 cosign 依赖、公钥为什么不能来自市场 | `docs/zh/architecture/signing-and-trust.md`（英文版把 `zh` 换 `en`） |
 | 每个命令完整的参数参考，带真实生成的输出——上面 §8 的详细版 | `docs/zh/architecture/cli-reference.md`（英文版把 `zh` 换 `en`） |
 | 市场每一个 HTTP 端点、认证、错误码，以及发布时到底传了什么 | `docs/zh/market-api.md`（英文版把 `zh` 换 `en`） |
