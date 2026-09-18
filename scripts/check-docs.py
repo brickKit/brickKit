@@ -117,6 +117,8 @@ def check_links():
         except (OSError, UnicodeDecodeError):
             continue
         for i, line in enumerate(lines, 1):
+            # 行内代码不是链接：`[a-z0-9]([a-z0-9-]*[a-z0-9])?` 这类正则文本长得像 [文字](目标)
+            line = re.sub(r"`[^`]*`", "", line)
             for _, href in re.findall(r"\[([^\]]*)\]\(([^)]+)\)", line):
                 if href.startswith(("http", "#", "mailto")):
                     continue
