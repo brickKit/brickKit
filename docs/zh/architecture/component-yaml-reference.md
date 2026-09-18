@@ -88,6 +88,9 @@ AGENTS.zh.md §6 是那份可以直接复制粘贴的骨架。这篇文档是骨
 | `configSchema.properties.<key>.description` | string | 否 | 自由文本 |
 | `configSchema.properties.<key>.enum` | `[]any` | 否 | **只是被解析、存下来，代码库里再没有任何地方读过它。** CLI 不读（没有任何一个值会拿去跟它核对），市场不读，任何渲染器都不读。今天它就是纯文档，给人（或者给 AI）读 schema 时看的，没有任何东西在真正执行它。 |
 | `configSchema.properties.<key>.items.type` | string | 否（`items` 这一块整体可选，里面只有 `type` 一个键） | **同样只是被解析、存下来，代码库里再没有任何地方读过它**——全仓库搜一遍，唯一命中的 `.Items` 是一个毫不相关的 Kubernetes 列表类型。按惯例只在 `type: array` 的属性上才有意义，但今天写不写它效果完全一样。 |
+| `configSchema.properties.<key>.minimum` | number | 否 | **同样只是被解析、存下来，没有任何东西去执行它。** 按惯例只在 `type: integer`/`number` 的属性上才有意义，但写不写它效果完全一样。必须是数字——写成字符串会在解析阶段被拒绝，这查的是说明书自己的结构，不是使用者填的值：默认值越界、`minimum` 大于 `maximum`，都照样通过，不会有任何警告。 |
+| `configSchema.properties.<key>.maximum` | number | 否 | 同 `minimum`。 |
+| `configSchema.properties.<key>.pattern` | string | 否 | **同样只是被解析、存下来。** 按惯例只在 `type: string` 的属性上才有意义。它不会被当成正则编译，所以写一个非法的正则也照样通过——没有任何东西会去跑它。 |
 | `configSchema.required` | `[]string` | 否 | 每一条都必须是 `properties` 里真的声明过的 key——写了一个 `properties` 里没有的名字，在 Manifest 校验阶段就会被拒绝，项目根本没机会为它提供值 |
 
 `required` 是这整块里唯一真正有牙齿的地方：一个列进 `required`、既没有 `default` 也没有被 `brickkit.yaml` 覆盖的属性，会让整个项目的 `brickkit up` 直接拒绝启动，不只是这一个组件——完整机制和真实报错文案见 [environment-variables.md](environment-variables.md) 第五节第三条。

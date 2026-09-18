@@ -476,7 +476,10 @@ configSchema:                    # 可选，自身配置项的"说明书"（不�
       type: integer              # string | integer | number | boolean | array | object
       default: 20
       description: <说明>
-      enum: [...]                # 可选
+      enum: [...]                # 可选——enum、items、minimum、maximum、pattern 都只是
+      minimum: 1                 #   说明书：被解析、存下来，从不被校验
+      maximum: 100               #   （minimum/maximum 是数字，pattern 是字符串，
+      pattern: <正则>            #   items 在数组类型的配置项上写成 `{ type: <类型> }`）
   required: [<必填项>]
 
 deployment:                      # 必须

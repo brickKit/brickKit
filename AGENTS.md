@@ -543,7 +543,10 @@ configSchema:                    # optional, the "spec sheet" for its own config
       type: integer              # string | integer | number | boolean | array | object
       default: 20
       description: <description>
-      enum: [...]                # optional
+      enum: [...]                # optional — enum, items, minimum, maximum, pattern are
+      minimum: 1                 #   documentation only: parsed and stored, never enforced
+      maximum: 100               #   (minimum/maximum are numbers, pattern is a string,
+      pattern: <regex>           #   items is `{ type: <type> }` on array properties)
   required: [<required items>]
 
 deployment:                      # required

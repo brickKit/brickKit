@@ -169,6 +169,11 @@ type ConfigProperty struct {
 	Description string   `yaml:"description,omitempty"`
 	Enum        []any    `yaml:"enum,omitempty"`
 	Items       *ItemDef `yaml:"items,omitempty"`
+	// Minimum、Maximum、Pattern 与 Enum、Items 同属说明书上的一栏：被解析、存下来，
+	// 没有任何代码拿它们去核对使用者填的值（AGENTS.md §9.12）。
+	Minimum *float64 `yaml:"minimum,omitempty"`
+	Maximum *float64 `yaml:"maximum,omitempty"`
+	Pattern string   `yaml:"pattern,omitempty"`
 }
 
 // ItemDef 描述数组类型配置项的元素类型。

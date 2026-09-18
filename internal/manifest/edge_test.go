@@ -397,6 +397,68 @@ configSchema:
 	assert.Equal(t, "string", m.ConfigSchema.Properties["allowedHosts"].Items.Type)
 }
 
+// minimum / maximum / pattern 与 enum、items 同一个待遇：被解析、存下来，给读
+// schema 的人（或 AI）看，没有任何东西拿它们去核对使用者填的值。
+func TestConfigSchemaBoundsAndPatternAreStored(t *testing.T) {
+	m, err := Parse([]byte(minimalYAML+`
+configSchema:
+  type: object
+  properties:
+    dbPort:
+      type: integer
+      default: 5432
+      minimum: 1
+      maximum: 65535
+    tenantSlug:
+      type: string
+      pattern: "^[a-z][a-z0-9-]*$"
+`), "component.yaml")
+	require.NoError(t, err)
+
+	port := m.ConfigSchema.Properties["dbPort"]
+	require.NotNil(t, port.Minimum)
+	require.NotNil(t, port.Maximum)
+	assert.Equal(t, 1.0, *port.Minimum)
+	assert.Equal(t, 65535.0, *port.Maximum)
+	assert.Equal(t, "^[a-z][a-z0-9-]*$", m.ConfigSchema.Properties["tenantSlug"].Pattern)
+}
+
+// 声明的范围与模式**从不被执行**：默认值越界、范围自相矛盾、模式不是合法正则，
+// 都照样通过。configSchema 是说明书，不是安检机（AGENTS.md §9.12）——这条测试
+// 钉住的是这个立场，防止有人出于好意在这里加一道校验。
+func TestConfigSchemaBoundsAndPatternAreNeverEnforced(t *testing.T) {
+	_, err := Parse([]byte(minimalYAML+`
+configSchema:
+  type: object
+  properties:
+    dbPort:
+      type: integer
+      default: 0
+      minimum: 100
+      maximum: 10
+    slug:
+      type: string
+      default: "NOT-MATCHING"
+      pattern: "([unclosed"
+`), "component.yaml")
+	require.NoError(t, err)
+}
+
+// 说明书自己的结构还是要对：minimum / maximum 必须是数字。
+func TestConfigSchemaBoundMustBeNumeric(t *testing.T) {
+	_, err := Parse([]byte(minimalYAML+`
+configSchema:
+  type: object
+  properties:
+    dbPort:
+      type: integer
+      minimum: lots
+`), "component.yaml")
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Format(), "类型不匹配")
+	assert.Contains(t, clierr.As(err).Format(), "lots", "报错要带上出错的那个值")
+}
+
 // 重复声明同一依赖应报错。
 func TestDuplicateDependency(t *testing.T) {
 	_, err := Parse([]byte(minimalYAML+`

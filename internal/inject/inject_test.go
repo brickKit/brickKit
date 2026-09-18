@@ -378,6 +378,28 @@ func TestConfigValuesAreInjectedVerbatim(t *testing.T) {
 		"configSchema 是配置说明书不是安检机：填错类型也原样注入，后果由使用者承担")
 }
 
+// 声明了 minimum / maximum / pattern 也一样：越界、不匹配的值照样原样注入，
+// 既不阻断也不改写。这三栏是给读 schema 的人看的说明，没有代码去执行它们。
+func TestConfigValuesOutsideDeclaredBoundsAreInjectedVerbatim(t *testing.T) {
+	lo, hi := 1.0, 100.0
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"defaultPageSize": {Type: "integer", Default: 20, Minimum: &lo, Maximum: &hi},
+		"tenantSlug":      {Type: "string", Pattern: "^[a-z]+$"},
+	}}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{Config: map[string]any{
+		"defaultPageSize": 100000,
+		"tenantSlug":      "NOT-A-SLUG",
+	}})
+
+	env := envOf(t, b.build(), "people/basic")
+
+	assert.Equal(t, "100000", env["DEFAULT_PAGE_SIZE"])
+	assert.Equal(t, "NOT-A-SLUG", env["TENANT_SLUG"])
+}
+
 // 没有默认值、也没有覆盖的配置项不注入 ——
 // 注入空串会让组件以为"配置过了但值是空的"。
 func TestConfigWithoutDefaultOrOverrideIsNotInjected(t *testing.T) {
