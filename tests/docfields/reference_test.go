@@ -1,6 +1,7 @@
-// 本文件守着 docs/{en,zh}/architecture/component-yaml-reference.md 的**完整性**：
-// 结构体里每一个 YAML 字段，参考文档里都得有一行讲它；文档里讲的每一个字段，
-// 结构体里都得真的存在。
+// 本文件守着 docs/{en,zh}/architecture/ 下两份字段参考文档的**完整性**：
+// component-yaml-reference.md 对着 manifest.Manifest，brickkit-yaml-reference.md
+// 对着 config.Config。结构体里每一个 YAML 字段，参考文档里都得有一行讲它；
+// 文档里讲的每一个字段，结构体里都得真的存在。
 //
 // # 为什么要有它
 //
@@ -10,7 +11,9 @@
 // 长出详尽的参考文档，就在那里重新引入"。参考文档已经有了，这条测试就是那个
 // 重新引入。
 //
-// 真相来源仍然是结构体本身（反射），不是又抄一份字段清单。
+// 真相来源仍然是结构体本身（反射），不是又抄一份字段清单。所以结构体标签必须说
+// 真话：自己实现了 UnmarshalYAML 的类型（如 manifest.ComponentDep）要把"不是作者
+// 能写的键"标成 yaml:"-"，否则反射读出来的字段名会撒谎。
 package docfields_test
 
 import (
@@ -24,6 +27,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
@@ -173,29 +177,40 @@ func referenceDrift(documented []string, fields fieldPaths) (missing, phantom []
 	return missing, phantom
 }
 
-// component.yaml 的参考文档必须覆盖结构体里的每一个字段，且不多讲结构体没有的。
-func TestComponentYAMLReferenceCoversEveryField(t *testing.T) {
-	fields := structPaths(reflect.TypeOf(manifest.Manifest{}))
-	require.GreaterOrEqual(t, len(fields.leaves), 25,
-		"只反射出 %d 个字段——structPaths 坏了，这条测试的结论不可信", len(fields.leaves))
+// 每份字段参考文档，对着它负责的那个结构体。
+var referenceDocs = []struct {
+	file string
+	typ  reflect.Type
+}{
+	{"component-yaml-reference.md", reflect.TypeOf(manifest.Manifest{})},
+	{"brickkit-yaml-reference.md", reflect.TypeOf(config.Config{})},
+}
 
-	for _, lang := range []string{"en", "zh"} {
-		rel := filepath.Join("docs", lang, "architecture", "component-yaml-reference.md")
-		body, err := os.ReadFile(filepath.Join(repoRoot, rel))
-		require.NoError(t, err)
+// 字段参考文档必须覆盖结构体里的每一个字段，且不多讲结构体没有的。
+func TestYAMLReferencesCoverEveryField(t *testing.T) {
+	for _, ref := range referenceDocs {
+		fields := structPaths(ref.typ)
+		require.GreaterOrEqual(t, len(fields.leaves), 25,
+			"%s 只反射出 %d 个字段——structPaths 坏了，这条测试的结论不可信", ref.file, len(fields.leaves))
 
-		documented := documentedPaths(string(body))
-		require.GreaterOrEqual(t, len(documented), 25,
-			"%s 只抽出 %d 个字段路径——documentedPaths 坏了，这条测试的结论不可信", rel, len(documented))
+		for _, lang := range []string{"en", "zh"} {
+			rel := filepath.Join("docs", lang, "architecture", ref.file)
+			body, err := os.ReadFile(filepath.Join(repoRoot, rel))
+			require.NoError(t, err)
 
-		missing, phantom := referenceDrift(documented, fields)
-		for _, path := range missing {
-			t.Errorf("%s：结构体有字段 %s，参考文档没有任何一行讲它\n"+
-				"   在对应的表格里补一行（第一列写完整路径，用反引号包住）", rel, path)
-		}
-		for _, path := range phantom {
-			t.Errorf("%s：参考文档讲了 %s，结构体里没有这个字段\n"+
-				"   字段被删了/改名了，或者这一格第一列的路径写错了", rel, path)
+			documented := documentedPaths(string(body))
+			require.GreaterOrEqual(t, len(documented), 25,
+				"%s 只抽出 %d 个字段路径——documentedPaths 坏了，这条测试的结论不可信", rel, len(documented))
+
+			missing, phantom := referenceDrift(documented, fields)
+			for _, path := range missing {
+				t.Errorf("%s：结构体有字段 %s，参考文档没有任何一行讲它\n"+
+					"   在对应的表格里补一行（第一列写完整路径，用反引号包住）", rel, path)
+			}
+			for _, path := range phantom {
+				t.Errorf("%s：参考文档讲了 %s，结构体里没有这个字段\n"+
+					"   字段被删了/改名了，或者这一格第一列的路径写错了", rel, path)
+			}
 		}
 	}
 }

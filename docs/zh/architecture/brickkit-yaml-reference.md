@@ -28,7 +28,7 @@ AGENTS.zh.md §7 是那份骨架。这篇文档是骨架背后的字典——每
 | `deploy.ingressAnnotations` | `map[string]string` | 否 | 透传，不校验，跟组件那侧的 `deployment.labels` 是同一种姿态；**仅 K8s** |
 | `deploy.createNamespace` | `*bool` | 否（默认 `true`） | **仅 K8s**——`false` 表示 CLI 既不生成也不 apply `Namespace` 对象，给那些只有命名空间级权限的项目用 |
 | `deploy.networkPolicy` | 对象 | 否 | 见下；**仅 K8s** |
-| `deploy.serviceAccount` | `{enabled: bool}` | 否（默认 `enabled: false`） | **仅 K8s**——`true` 会给每个组件生成一个专属、不挂载令牌的 ServiceAccount；不写的话每个 Pod 都用命名空间的 `default` ServiceAccount，令牌照常自动挂载（AGENTS.zh.md §7 的警告） |
+| `deploy.serviceAccount.enabled` | bool | 否（默认 `false`；`serviceAccount` 这一块整体可选） | **仅 K8s**——`true` 会给每个组件生成一个专属、不挂载令牌的 ServiceAccount；不写的话每个 Pod 都用命名空间的 `default` ServiceAccount，令牌照常自动挂载（AGENTS.zh.md §7 的警告） |
 
 ### `deploy.networkPolicy`
 
@@ -88,11 +88,12 @@ AGENTS.zh.md §7 是那份骨架。这篇文档是骨架背后的字典——每
 | `components[].tlsSecret` | string | 只有 `expose: true` 时才合法 | **仅 K8s**，指向一个已经存在的、装着 Ingress TLS 证书的 Secret 名 |
 | `components[].serviceAccountName` | string | 否 | **仅 K8s**；引用一个运维已经建好的 SA——写了它，平台只引用、绝不为这个组件生成一个新的 |
 | `components[].config` | `map[string]any` | 否 | key 会拿去跟组件自己的 `configSchema.properties` 核对（对不上只警告、不阻断，见 [environment-variables.md](environment-variables.md) 第五节第二条）；值从不做类型校验 |
-| `components[].resources.requests`/`.limits` | 跟 Manifest 的 `deployment.resources` 同一个结构 | 否 | 怎么跟 Manifest 自己的推荐值、CLI 默认值三层合并见 [resource-binding.md](resource-binding.md) |
+| `components[].resources.requests.cpu` / `.memory` | string | 否 | 跟 Manifest 的 `deployment.resources.requests` 同一个结构（自由字符串，Kubernetes 数量语法）。怎么跟 Manifest 自己的推荐值、CLI 默认值三层合并见 [resource-binding.md](resource-binding.md) |
+| `components[].resources.limits.cpu` / `.memory` | string | 否 | 同上，对应 Manifest 的 `deployment.resources.limits` |
 | `components[].replicas` | `*int` | 否（默认 `1`，**仅 K8s**） | 写了就必须 `≥1`——`0` 会被拒绝，不会被当成"关掉"处理；真要停掉一个组件请用 `enabled: false`，它会走级联计算、提醒依赖方，而 `replicas: 0` 会让依赖方照常启动、照常拿到地址，然后连到一个根本不存在的后端 |
 | `components[].labels` | `map[string]string` | 否 | 跟 Manifest 的 `deployment.labels` 同一条保留键规则（不能以 `brickkit.io/` 或 `com.docker.compose.` 开头，不能精确等于 `app`）；逐键合并覆盖 Manifest 自己的 `deployment.labels`，冲突时这一侧赢 |
 
-### `local` / `servedBy` / `replicas` 之间的互斥
+### `components[].local` / `.servedBy` / `.replicas` 之间的互斥
 
 这三个字段描述的是三种不同、互不相容的"这个组件的进程到底跑在哪"的设想，校验器把每一对组合都拦了下来：
 

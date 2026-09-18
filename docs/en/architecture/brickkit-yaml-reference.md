@@ -28,7 +28,7 @@ This document owns the *fields*. What a field actually does once it's set correc
 | `deploy.ingressAnnotations` | `map[string]string` | no | passthrough, unvalidated, same posture as `deployment.labels` on the component side; **K8s only** |
 | `deploy.createNamespace` | `*bool` | no (default `true`) | **K8s only** — `false` means the CLI neither generates nor applies a `Namespace` object at all, for projects with only namespace-scoped RBAC permissions |
 | `deploy.networkPolicy` | object | no | see below; **K8s only** |
-| `deploy.serviceAccount` | `{enabled: bool}` | no (default `enabled: false`) | **K8s only** — `true` generates one dedicated, tokenless ServiceAccount per component; unset, every Pod runs under the namespace's `default` ServiceAccount with its token auto-mounted as normal (AGENTS.md §7's warning) |
+| `deploy.serviceAccount.enabled` | bool | no (default `false`; the `serviceAccount` block as a whole is optional) | **K8s only** — `true` generates one dedicated, tokenless ServiceAccount per component; unset, every Pod runs under the namespace's `default` ServiceAccount with its token auto-mounted as normal (AGENTS.md §7's warning) |
 
 ### `deploy.networkPolicy`
 
@@ -88,11 +88,12 @@ Writing neither `namespace` nor `cidr` is rejected; writing both is also rejecte
 | `components[].tlsSecret` | string | only legal when `expose: true` | **K8s only**, names a pre-existing Secret holding the Ingress TLS cert |
 | `components[].serviceAccountName` | string | no | **K8s only**; references an SA the operator already created — the platform never generates one for a component that sets this |
 | `components[].config` | `map[string]any` | no | keys checked against the component's `configSchema.properties` (warns, doesn't block, if a key doesn't match — [environment-variables.md](environment-variables.md) §5.2); values never type-checked |
-| `components[].resources.requests`/`.limits` | same shape as a Manifest's `deployment.resources` | no | see [resource-binding.md](resource-binding.md) for how this merges against the Manifest's own recommendation and the CLI default |
+| `components[].resources.requests.cpu` / `.memory` | string | no | same shape as a Manifest's `deployment.resources.requests` (free-form strings, Kubernetes quantity syntax). See [resource-binding.md](resource-binding.md) for how this merges against the Manifest's own recommendation and the CLI default |
+| `components[].resources.limits.cpu` / `.memory` | string | no | same as above, matching a Manifest's `deployment.resources.limits` |
 | `components[].replicas` | `*int` | no (default `1`, **K8s only**) | must be `≥ 1` if set — `0` is rejected rather than treated as "off"; use `enabled: false` to actually stop a component, since that goes through the cascade and warns dependents, while `replicas: 0` would leave dependents starting normally and connecting to nothing |
 | `components[].labels` | `map[string]string` | no | same reserved-key rule as a Manifest's `deployment.labels` (can't start with `brickkit.io/` or `com.docker.compose.`, can't be exactly `app`); merges key-by-key over the Manifest's own `deployment.labels`, this side winning on conflicts |
 
-### Mutual exclusions among `local` / `servedBy` / `replicas`
+### Mutual exclusions among `components[].local` / `.servedBy` / `.replicas`
 
 These three fields describe three different, incompatible ideas about where a component's process actually runs, and the validator rejects every pairwise combination:
 
