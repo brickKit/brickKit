@@ -5,6 +5,7 @@ import (
 	"unicode"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/manifest"
 )
 
 // 平台保留变量（004 §5.6.1）。
@@ -18,8 +19,13 @@ var (
 	reservedPrefix = []string{"DATABASE_", "REDIS_", "MQ_", "STORAGE_", "SEARCH_", "SMTP_"}
 )
 
-// matchReserved 判断环境变量名是否命中保留模式，返回命中的模式。
-func (b *envBuilder) matchReserved(name string) (string, bool) {
+// staticReserved 判断环境变量名是否命中保留模式中**不依赖项目配置**的那部分
+// （精确匹配、*_ENDPOINT 后缀、资源类型前缀），返回命中的模式。
+//
+// 与市场发布时校验的是同一套规则（007 §18.1）。它单独成函数，是为了让不在
+// 注入现场的调用方——brickkit lint 在组件仓库里检查 Manifest——也能用同一份判断，
+// 而不是再抄一遍。
+func staticReserved(name string) (string, bool) {
 	for _, exact := range reservedExact {
 		if name == exact {
 			return exact, true
@@ -35,12 +41,41 @@ func (b *envBuilder) matchReserved(name string) (string, bool) {
 			return prefix + "*", true
 		}
 	}
+	return "", false
+}
+
+// matchReserved 判断环境变量名是否命中保留模式，返回命中的模式。
+func (b *envBuilder) matchReserved(name string) (string, bool) {
+	if pattern, hit := staticReserved(name); hit {
+		return pattern, true
+	}
 	for _, prefix := range b.reservedPrefixes {
 		if strings.HasPrefix(name, prefix) {
 			return prefix + "*", true
 		}
 	}
 	return "", false
+}
+
+// ReservedKeyWarnings 检查一份 Manifest 的 configSchema 里有没有配置项名字撞上平台保留变量。
+//
+// 这是 up 注入时那条警告的离线版：规则同一份（staticReserved），措辞同一份
+// （reservedConflictWarning）。不含使用者在 brickkit.yaml 里定的 envPrefix——组件仓库里
+// 看不到它，市场发布时同样看不到，所以那一半只能留给注入现场。
+//
+// 是警告不是错误，理由同 reservedConflictWarning：一个配置项名字写错，不该让整个项目起不来。
+func ReservedKeyWarnings(m *manifest.Manifest) []*clierr.Error {
+	if m == nil || m.ConfigSchema == nil {
+		return nil
+	}
+	var warnings []*clierr.Error
+	for _, key := range sortedConfigKeys(m.ConfigSchema.Properties) {
+		name := EnvVarName(key)
+		if pattern, hit := staticReserved(name); hit {
+			warnings = append(warnings, reservedConflictWarning(m.Metadata.ID, key, name, pattern))
+		}
+	}
+	return warnings
 }
 
 // reservedConflictWarning 生成保留变量冲突的警告（004 §5.6.1 的输出样例）。
