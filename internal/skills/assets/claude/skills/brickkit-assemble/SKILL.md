@@ -84,8 +84,8 @@ description: 在 BrickKit 项目里增删组件、调整启停、启动或停止
 （下面的 `docs/...` 与 `AGENTS.zh.md` 路径都在 BrickKit 仓库 <https://github.com/brickKit/brickKit> 里；`docs/` 下每篇有 `en/` 与 `zh/` 两份，内容对等。）
 
 - 参数：`brickkit <命令> --help`。这份技能刻意不复刻参数清单
-- 命令的完整行为：`docs/zh/architecture/cli-reference.md`
-- `enabled` 与启停的完整规则：`docs/zh/architecture/brickkit-yaml-reference.md`（`enabled` 字段）、
+- 命令的完整行为：`docs/zh/06-architecture/09-cli-reference.md`
+- `enabled` 与启停的完整规则：`docs/zh/06-architecture/08-brickkit-yaml-reference.md`（`enabled` 字段）、
   根目录 `AGENTS.zh.md` §5.4
-- 安装、拼装、更新、依赖解析细节：`docs/zh/architecture/dependency-resolution.md`、
-  `docs/zh/guide/06-assemble-and-break.md`、`docs/zh/guide/05-upgrades-and-versions.md`
+- 安装、拼装、更新、依赖解析细节：`docs/zh/06-architecture/02-dependency-resolution.md`、
+  `docs/zh/03-guide/06-assemble-and-break.md`、`docs/zh/03-guide/05-upgrades-and-versions.md`

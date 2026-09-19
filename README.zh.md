@@ -63,7 +63,7 @@ BrickKit 不是一堆功能的堆砌。它是几个广为人知的工程想法�
 | **最小权限** | 声明之前什么都不可达；可选的网络策略由依赖图生成；cosign 签名的组件只用 Go 标准库验证 | 默认更小的爆炸半径，信任锚在**你自己的**项目里 |
 
 每个想法的通俗介绍、代价，以及 BrickKit 怎么对待它，见
-[设计原则与取舍](docs/zh/architecture/design-principles.md#认识这些想法)。
+[设计原则与取舍](docs/zh/06-architecture/01-design-principles.md#认识这些想法)。
 
 ## 如果你在用 AI 写代码
 
@@ -292,7 +292,7 @@ deploy:
 **命令共 14 条：** `init` `new` `add` `remove` `fetch` `up` `down` `status` `sync`
 `restore` `login` `logout` `publish` `version`
 
-想动手照着跑一遍？[5 分钟 Quick Start](docs/zh/quick-start.md) 用仓库自带的
+想动手照着跑一遍？[5 分钟 Quick Start](docs/zh/00-quick-start.md) 用仓库自带的
 测试夹具走完这整条路径，每一步都是真实命令和真实输出。
 
 ---
@@ -318,7 +318,7 @@ deploy:
 > 做好的事情。**
 
 每一条的完整论证见
-[`docs/zh/architecture/`](https://github.com/brickKit/brickKit/tree/main/docs/zh/architecture)。
+[`docs/zh/06-architecture/`](https://github.com/brickKit/brickKit/tree/main/docs/zh/06-architecture)。
 
 ---
 
@@ -347,56 +347,56 @@ Manifest 和依赖方的 API 契约，就能写出一个完整的、可独立运
 
 | 文档 | 讲什么 |
 | --- | --- |
-| [Quick Start（5 分钟）](https://github.com/brickKit/brickKit/blob/main/docs/zh/quick-start.md) | 从空目录到一个可以 curl 通的容器，每一步都真跑过 |
-| [核心概念](https://github.com/brickKit/brickKit/blob/main/docs/zh/concepts.md) | 一页纸的术语速查 + 贯穿全平台的那条服务名规则 |
-| [故障排除](https://github.com/brickKit/brickKit/blob/main/docs/zh/troubleshooting.md) | `up`/`down` 失败、签名验证失败等最常见的坑，症状 → 真实原因 → 解决 |
-| [对比](https://github.com/brickKit/brickKit/blob/main/docs/zh/comparison.md) | BrickKit 和 Compose、Helm、Kustomize、Tilt/Skaffold、Backstage、monorepo 工具到底哪里重叠、哪里不重叠 |
-| [AI 辅助开发指南](https://github.com/brickKit/brickKit/blob/main/docs/zh/ai-development.md) | 为什么组件模型适合 AI 写代码，以及一套具体的工作流 |
+| [Quick Start（5 分钟）](https://github.com/brickKit/brickKit/blob/main/docs/zh/00-quick-start.md) | 从空目录到一个可以 curl 通的容器，每一步都真跑过 |
+| [核心概念](https://github.com/brickKit/brickKit/blob/main/docs/zh/01-concepts.md) | 一页纸的术语速查 + 贯穿全平台的那条服务名规则 |
+| [故障排除](https://github.com/brickKit/brickKit/blob/main/docs/zh/08-troubleshooting.md) | `up`/`down` 失败、签名验证失败等最常见的坑，症状 → 真实原因 → 解决 |
+| [对比](https://github.com/brickKit/brickKit/blob/main/docs/zh/02-comparison.md) | BrickKit 和 Compose、Helm、Kustomize、Tilt/Skaffold、Backstage、monorepo 工具到底哪里重叠、哪里不重叠 |
+| [AI 辅助开发指南](https://github.com/brickKit/brickKit/blob/main/docs/zh/05-ai-development.md) | 为什么组件模型适合 AI 写代码，以及一套具体的工作流 |
 
 **架构——平台到底怎么工作，配真实代码和真实生成出来的输出**
 
 | 文档 | 讲什么 |
 | --- | --- |
-| [架构总览](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/overview.md) | 一次声明怎么变成运行中的容器——完整的真实流水线 |
-| [依赖解析与启动顺序](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/dependency-resolution.md) | 一个真实的菱形依赖、一个真实的循环依赖，以及为什么真正决定 `up` 要跑多久的是最长依赖链而不是组件数量 |
-| [部署文件是怎么生成出来的](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/deployment-generation.md) | 同一个项目分别为 Docker 和 Kubernetes 生成出来的文件，逐字节对照 |
-| [资源绑定的实际机制](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/resource-binding.md) | 资源绑定撞车时到底会发生什么、配额链到底怎么合并 |
-| [签名与信任模型](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/signing-and-trust.md) | 真正被签名的是什么，以及公钥为什么永远不能来自市场 |
-| [CLI 命令完整参考](https://github.com/brickKit/brickKit/blob/main/docs/zh/architecture/cli-reference.md) | 每个命令、每个参数、真实生成的输出——上面"一分钟上手"的详细版 |
-| [Market API 参考](https://github.com/brickKit/brickKit/blob/main/docs/zh/market-api.md) | 市场的每一个 HTTP 端点、认证方式、错误码，以及发布一个版本时到底传了什么 |
+| [架构总览](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/00-overview.md) | 一次声明怎么变成运行中的容器——完整的真实流水线 |
+| [依赖解析与启动顺序](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/02-dependency-resolution.md) | 一个真实的菱形依赖、一个真实的循环依赖，以及为什么真正决定 `up` 要跑多久的是最长依赖链而不是组件数量 |
+| [部署文件是怎么生成出来的](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/03-deployment-generation.md) | 同一个项目分别为 Docker 和 Kubernetes 生成出来的文件，逐字节对照 |
+| [资源绑定的实际机制](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/05-resource-binding.md) | 资源绑定撞车时到底会发生什么、配额链到底怎么合并 |
+| [签名与信任模型](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/06-signing-and-trust.md) | 真正被签名的是什么，以及公钥为什么永远不能来自市场 |
+| [CLI 命令完整参考](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/09-cli-reference.md) | 每个命令、每个参数、真实生成的输出——上面"一分钟上手"的详细版 |
+| [Market API 参考](https://github.com/brickKit/brickKit/blob/main/docs/zh/09-market-api.md) | 市场的每一个 HTTP 端点、认证方式、错误码，以及发布一个版本时到底传了什么 |
 
 **动手教程——12 篇，每一篇都对着真实 CLI 跑过，按顺序读**
 
 | # | 文档 | 讲什么 |
 | --- | --- | --- |
-| 1 | [把一个项目跑起来](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/01-first-project.md) | init、add、up、curl 它、改配置、down |
-| 2 | [平台是怎么决定谁跑起来的](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/02-what-runs.md) | 依赖、`enabled` 级联、`--dry-run` |
-| 3 | [本地调试一个组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/03-local-debugging.md) | `local: true`，带断点调试 |
-| 4 | [部署到 Kubernetes](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/04-kubernetes.md) | 真实的 minikube 部署，外加一个真实的 `brickkit down` 坑 |
-| 5 | [升级，以及让多个版本并存](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/05-upgrades-and-versions.md) | 版本升级，以及故意让两个版本并存 |
-| 6 | [拼装一个真实的系统，然后故意把它弄坏](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/06-assemble-and-break.md) | 一个真实数据库，两种真正不同的真实失败模式 |
-| 7 | [消费别人的组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/07-consuming-artifacts.md) | 产物、API 文档、`brickkit fetch` |
-| 8 | [从市场发布与安装](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/08-marketplace.md) | 真实市场、版本不可变性、私有可见性 |
-| 9 | [给组件签名与验签](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/09-signing.md) | 真实的 cosign 密钥对、一次真实的验签失败 |
-| 10 | [从零开发自己的第一个组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/10-build-your-own.md) | 四个文件，从零到真正跑起来 |
-| 11 | [网络策略与最小权限](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/11-network-policy.md) | Kubernetes 上真实生效的 NetworkPolicy |
-| 12 | [多项目共享](https://github.com/brickKit/brickKit/blob/main/docs/zh/guide/12-multi-project-sharing.md) | 共享资源、隔离资源、把一个组件当成别人的 API |
+| 1 | [把一个项目跑起来](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/01-first-project.md) | init、add、up、curl 它、改配置、down |
+| 2 | [平台是怎么决定谁跑起来的](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/02-what-runs.md) | 依赖、`enabled` 级联、`--dry-run` |
+| 3 | [本地调试一个组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/03-local-debugging.md) | `local: true`，带断点调试 |
+| 4 | [部署到 Kubernetes](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/04-kubernetes.md) | 真实的 minikube 部署，外加一个真实的 `brickkit down` 坑 |
+| 5 | [升级，以及让多个版本并存](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/05-upgrades-and-versions.md) | 版本升级，以及故意让两个版本并存 |
+| 6 | [拼装一个真实的系统，然后故意把它弄坏](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/06-assemble-and-break.md) | 一个真实数据库，两种真正不同的真实失败模式 |
+| 7 | [消费别人的组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/07-consuming-artifacts.md) | 产物、API 文档、`brickkit fetch` |
+| 8 | [从市场发布与安装](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/08-marketplace.md) | 真实市场、版本不可变性、私有可见性 |
+| 9 | [给组件签名与验签](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/09-signing.md) | 真实的 cosign 密钥对、一次真实的验签失败 |
+| 10 | [从零开发自己的第一个组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/10-build-your-own.md) | 四个文件，从零到真正跑起来 |
+| 11 | [网络策略与最小权限](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/11-network-policy.md) | Kubernetes 上真实生效的 NetworkPolicy |
+| 12 | [多项目共享](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/12-multi-project-sharing.md) | 共享资源、隔离资源、把一个组件当成别人的 API |
 
-上面第 10 篇的例子刻意写得很简单。想看更深入、更完整的参考组件——真实的 PostgreSQL 依赖、真实的数据库迁移、多阶段 Dockerfile、每一处"为什么这么写"的推理——看 [用 Go 写一个 BrickKit 组件：完整走一遍](https://github.com/brickKit/brickKit/blob/main/docs/zh/go-component-template.md)，带你逐段读懂仓库里真实存在、有测试覆盖的 `department/tree` 夹具。
+上面第 10 篇的例子刻意写得很简单。想看更深入、更完整的参考组件——真实的 PostgreSQL 依赖、真实的数据库迁移、多阶段 Dockerfile、每一处"为什么这么写"的推理——看 [用 Go 写一个 BrickKit 组件：完整走一遍](https://github.com/brickKit/brickKit/blob/main/docs/zh/04-go-component-template.md)，带你逐段读懂仓库里真实存在、有测试覆盖的 `department/tree` 夹具。
 
-**Patterns——推荐实践，可选，对着真实部署验证过**（[索引页](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/README.md) 按角色/主题分类导航）
+**Patterns——推荐实践，可选，对着真实部署验证过**（[索引页](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/README.md) 按角色/主题分类导航）
 
 | 文档 | 讲什么 |
 | --- | --- |
-| [组件设计准则](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/component-design.md) | 怎么做领域研究，什么时候该做成组件家族而不是开关 |
-| [基于 BrickKit 的组件该怎么分层测试](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/testing.md) | 后端的契约/业务规则/单元/集成四层，加前端自己的四层，以及端到端测试为啥要先经你同意才能跑 |
-| [怎么规划种子数据与测试数据](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/data-construction.md) | 两条必须物理隔离的路径，以及为什么 |
-| [闭源组件的镜像安全规范](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/closed-source-image-hardening.md) | 拉取镜像跟私有 Git 仓库不是同一种保证 |
-| [怎么选部署形态](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/deployment-selection-guide.md) | 拓扑（独立/外壳合并/混合）× `docker`/`k8s` 的组合怎么选 |
-| [怎么声明 servedBy：部署方检查清单](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/servedby-deployment-checklist.md) | `servedBy` 到底解决什么问题、什么时候该用、什么时候不该用 |
-| [合格外壳该满足什么](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/shell-implementers-guide.md) | 写给造壳的人：`servedBy` 对收编组件的外壳提出了什么要求 |
-| [在外壳里合并数据库连接池](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/shared-connection-pools.md) | 合并进同一个壳、又共用 PostgreSQL 或 Oracle 的组件该怎么办 |
-| [自己搭一套 BrickKit Market](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/deployment/self-hosted-market.md) | 部署市场本身，从本地开发到生产环境 |
+| [组件设计准则](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/00-component-design.md) | 怎么做领域研究，什么时候该做成组件家族而不是开关 |
+| [基于 BrickKit 的组件该怎么分层测试](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/01-testing.md) | 后端的契约/业务规则/单元/集成四层，加前端自己的四层，以及端到端测试为啥要先经你同意才能跑 |
+| [怎么规划种子数据与测试数据](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/02-data-construction.md) | 两条必须物理隔离的路径，以及为什么 |
+| [闭源组件的镜像安全规范](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/04-closed-source-image-hardening.md) | 拉取镜像跟私有 Git 仓库不是同一种保证 |
+| [怎么选部署形态](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/05-deployment-selection-guide.md) | 拓扑（独立/外壳合并/混合）× `docker`/`k8s` 的组合怎么选 |
+| [怎么声明 servedBy：部署方检查清单](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/06-servedby-deployment-checklist.md) | `servedBy` 到底解决什么问题、什么时候该用、什么时候不该用 |
+| [合格外壳该满足什么](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/07-shell-implementers-guide.md) | 写给造壳的人：`servedBy` 对收编组件的外壳提出了什么要求 |
+| [在外壳里合并数据库连接池](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/08-shared-connection-pools.md) | 合并进同一个壳、又共用 PostgreSQL 或 Oracle 的组件该怎么办 |
+| [自己搭一套 BrickKit Market](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/09-deployment/self-hosted-market.md) | 部署市场本身，从本地开发到生产环境 |
 
 ---
 
@@ -450,7 +450,7 @@ make lint             # vet + 文档检查
 | `make check-docs` | 悬空的小节引用与断链 |
 | `make check-cli-docs` | 文档里写的每条命令 / 参数都真的存在（反过来——新增了命令却还没写进文档——这里不管） |
 | `make check-guides` | 试用指南里的步骤仍然跑得通 |
-| `make check-guide-output` | 教程（`docs/{en,zh}/guide/`）里嵌的 CLI 输出块，逐行对得上真实输出，且中英文抄的是同一份 |
+| `make check-guide-output` | 教程（`docs/{en,zh}/03-guide/`）里嵌的 CLI 输出块，逐行对得上真实输出，且中英文抄的是同一份 |
 | `make check-install-sh` | `install.sh` 装得上，而且校验和坏掉时**真的**拒绝装 |
 | `make check-docs-bilingual` | docs/en 与 docs/zh 保持镜像、根目录每一对多语言文件（README、AGENTS、llms）都保持成对、llms.txt/llms.zh.txt 里每条链接都能解析到真实文件 |
 
@@ -467,7 +467,7 @@ make lint             # vet + 文档检查
 | | |
 | --- | --- |
 | 测试 | 2000+ 个测试函数，race-clean |
-| 试用指南（现行） | 12 篇，每一篇都真跑过；见 `docs/zh/guide/` |
+| 试用指南（现行） | 12 篇，每一篇都真跑过；见 `docs/zh/03-guide/` |
 | 试用指南（已归档） | 23 篇，全部对着真实 Docker / Kubernetes / 活的市场跑过 |
 | 设计书（已归档） | 14 本，与实现交叉复核过两轮 |
 | 决策记录（已归档） | 566 条，每条都带当初的推理 |

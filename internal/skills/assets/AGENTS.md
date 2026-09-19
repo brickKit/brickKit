@@ -55,5 +55,5 @@ Claude Code 会在相关时自动加载——这部分不需要你做任何配�
 `brickkit` 不会去动它。
 
 完整规范在仓库文档：<https://github.com/brickKit/brickKit>
-（根目录 `AGENTS.md` 是全站压缩件；`docs/{en,zh}/architecture/`、`patterns/`、
+（根目录 `AGENTS.md` 是全站压缩件；`docs/{en,zh}/06-architecture/`、`patterns/`、
 `guide/` 是当前权威文档。）

@@ -132,19 +132,19 @@ lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-docs-bilin
 # docs/archive/ 里的输出块，而归档已明确不再要求与 CLI 保持同步（错误文案里
 # 的设计书章节引用被清掉后，这份检查立刻发现了这一点——archive 里的旧文案
 # 永远不会再改，于是永远报"对不上"）。同一天已经整份重写并重新加回来：
-# 现在核对的是 docs/{en,zh}/guide/ 教程里的真实输出块（覆盖不需要 Docker /
+# 现在核对的是 docs/{en,zh}/03-guide/ 教程里的真实输出块（覆盖不需要 Docker /
 # minikube / 市场 / cosign 的"核心层"场景），并新增了 docs/en 与 docs/zh
 # 对同一场景必须逐字节一致的检查——check-docs-bilingual 只查文件是否配对，
 # 从不查内容是否一致，这是它专门补上的那道口子。见脚本顶部的说明。
 # check-cli-docs 拆成了两个方向：「文档写了不存在的命令/参数」（防伪造）计入
 # 退出码，重新加回 lint；「命令/参数有、文档没写」（详尽性）只打印不计入退出
 # 码——design/试用指南 归档后全仓库没有任何一份"详尽命令参考"活文档，这个
-# 方向注定会随 CLI 新增命令/参数永久报警，直到 docs/en/architecture 长出
+# 方向注定会随 CLI 新增命令/参数永久报警，直到 docs/en/06-architecture 长出
 # 详尽命令参考为止。
 #
 # check-doc-tree 只在有活文档画了 .brickkit/ 目录树时才有东西可查：它扫不到
 # 任何一棵树就直接退出 2（"多半是树的画法变了"），而不是给出一个漂亮的通过。
-# docs/{en,zh}/architecture/overview.md 现在画着这棵树，所以它回到了 lint 里；
+# docs/{en,zh}/06-architecture/00-overview.md 现在画着这棵树，所以它回到了 lint 里；
 # 哪天那两份文档里的树被删掉或改了画法，这里会立刻红，而不是悄悄不再检查。
 	@if [ -x "$(GOLANGCI)" ]; then \
 		echo "▶ golangci-lint run"; \
@@ -183,14 +183,14 @@ check-docs-bilingual: ## 检查 docs/en 与 docs/zh 镜像完整、llms.txt 链�
 	@python3 scripts/check-docs-bilingual.py
 
 # 两个"真跑"检查的分工：
-#   check-guide-output  docs/{en,zh}/guide/ 教程里的输出块必须逐行等于 CLI 真实
+#   check-guide-output  docs/{en,zh}/03-guide/ 教程里的输出块必须逐行等于 CLI 真实
 #                       输出，且 en/zh 对同一场景必须逐字节一致。只覆盖不需要
 #                       Docker / minikube / 市场 / cosign 的"核心层"场景，因此
 #                       能稳定进 lint。
 #   check-guides        分层冒烟：关键步骤跑得通、输出里有该有的关键词。
 #                       要 Docker / minikube 的层缺环境时响亮跳过，因此不进 lint。
 .PHONY: check-guide-output
-check-guide-output: build-cli ## 核对 docs/{en,zh}/guide/ 教程的预期输出与 CLI 真实输出逐行一致，且中英文一致
+check-guide-output: build-cli ## 核对 docs/{en,zh}/03-guide/ 教程的预期输出与 CLI 真实输出逐行一致，且中英文一致
 	@python3 scripts/check-guide-output.py
 
 .PHONY: check-guides

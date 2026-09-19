@@ -15,7 +15,7 @@ import (
 //
 // 只生成一份能通过 Parse + Validate 的 component.yaml（外加可选的契约占位
 // 文件），不生成 Dockerfile、不生成任何源码——平台语言无关，不替组件作者
-// 选语言；起步代码由 docs/{en,zh}/go-component-template.md 这类"带读一个
+// 选语言；起步代码由 docs/{en,zh}/04-go-component-template.md 这类"带读一个
 // 真实组件"的文档承担。
 func newNewCommand(opts *Options) *cobra.Command {
 	var path string

@@ -47,7 +47,7 @@ func newProblems(source string) *clierr.ProblemSet {
 	return clierr.NewProblemSet(clierr.CodeManifestInvalid, "错误："+FileName+" 校验失败").
 		WithSource("文件", source).
 		WithHint(
-			"完整字段参考见 docs/zh/architecture/component-yaml-reference.md（英文版把 zh 换 en）",
+			"完整字段参考见 docs/zh/06-architecture/07-component-yaml-reference.md（英文版把 zh 换 en）",
 		)
 }
 

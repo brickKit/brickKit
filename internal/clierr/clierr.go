@@ -33,7 +33,7 @@ import (
 // Code 是机器可读的错误码。分类依据 004 §10.1。
 type Code string
 
-// 错误码目录。新增错误场景时在此登记，并写进 docs/{en,zh}/architecture/error-codes.md
+// 错误码目录。新增错误场景时在此登记，并写进 docs/{en,zh}/06-architecture/10-error-codes.md
 // ——tests/docfields 会拦住漏写；码一旦发布就不改名、不挪作他用、不删除。
 const (
 	// 内部错误（未归类，通常是 bug）。

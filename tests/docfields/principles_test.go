@@ -1,10 +1,10 @@
-// 本文件守着 docs/{en,zh}/architecture/design-principles.md 与根目录 AGENTS.md /
+// 本文件守着 docs/{en,zh}/06-architecture/01-design-principles.md 与根目录 AGENTS.md /
 // AGENTS.zh.md §4「十二条设计原则」**不漂移**。
 //
 // # 为什么要有它
 //
 // 同一份原则清单现在有两个家：AGENTS.md 是写给 AI 的压缩版（一页表格，一条一行），
-// design-principles.md 是写给人的论证版（每条原则一节：是什么、为什么、代价、拒绝了什么）。
+// 01-design-principles.md 是写给人的论证版（每条原则一节：是什么、为什么、代价、拒绝了什么）。
 // 两份内容天然要互相引用，也就天然会分叉——一边新增了第十三条、改了某条的名字，
 // 另一边没人记得跟着改。它不会让任何测试失败，只会让读到不同版本的人对"BrickKit
 // 到底有哪几条原则"得出不同答案。
@@ -150,7 +150,7 @@ func TestPrinciplesDocMirrorsAgents(t *testing.T) {
 			"%s §4 抽出了 %d 条原则，应该是 %d——agentsPrinciples 坏了，这条测试的结论不可信",
 			pair.agents, len(want), principleCount)
 
-		rel := filepath.Join("docs", pair.lang, "architecture", "design-principles.md")
+		rel := filepath.Join("docs", pair.lang, "06-architecture", "01-design-principles.md")
 		docBody, err := os.ReadFile(filepath.Join(repoRoot, rel))
 		require.NoError(t, err, "%s 不存在：这份文档是 %s §4 十二条原则的论证版", rel, pair.agents)
 		got, numberingProblems := splitNumbered(docPrinciples(string(docBody), pair.section))

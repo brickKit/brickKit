@@ -35,7 +35,7 @@ type ScaffoldFile struct {
 // 它选的目录里，这样测试不用真的建目录就能验证内容对不对。
 //
 // 语言无关：不生成 Dockerfile，也不生成任何源码。平台不替组件作者选语言，
-// 起步代码由 docs/{en,zh}/go-component-template.md 这类"带读一个真实组件"
+// 起步代码由 docs/{en,zh}/04-go-component-template.md 这类"带读一个真实组件"
 // 的文档承担，不是这里的事。
 func Scaffold(id string, opts ScaffoldOptions) ([]ScaffoldFile, error) {
 	if problem := ComponentIDProblem(id); problem != "" {

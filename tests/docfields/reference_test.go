@@ -1,5 +1,5 @@
-// 本文件守着 docs/{en,zh}/architecture/ 下两份字段参考文档的**完整性**：
-// component-yaml-reference.md 对着 manifest.Manifest，brickkit-yaml-reference.md
+// 本文件守着 docs/{en,zh}/06-architecture/ 下两份字段参考文档的**完整性**：
+// 07-component-yaml-reference.md 对着 manifest.Manifest，08-brickkit-yaml-reference.md
 // 对着 config.Config。结构体里每一个 YAML 字段，参考文档里都得有一行讲它；
 // 文档里讲的每一个字段，结构体里都得真的存在。
 //
@@ -182,8 +182,8 @@ var referenceDocs = []struct {
 	file string
 	typ  reflect.Type
 }{
-	{"component-yaml-reference.md", reflect.TypeOf(manifest.Manifest{})},
-	{"brickkit-yaml-reference.md", reflect.TypeOf(config.Config{})},
+	{"07-component-yaml-reference.md", reflect.TypeOf(manifest.Manifest{})},
+	{"08-brickkit-yaml-reference.md", reflect.TypeOf(config.Config{})},
 }
 
 // 字段参考文档必须覆盖结构体里的每一个字段，且不多讲结构体没有的。
@@ -194,7 +194,7 @@ func TestYAMLReferencesCoverEveryField(t *testing.T) {
 			"%s 只反射出 %d 个字段——structPaths 坏了，这条测试的结论不可信", ref.file, len(fields.leaves))
 
 		for _, lang := range []string{"en", "zh"} {
-			rel := filepath.Join("docs", lang, "architecture", ref.file)
+			rel := filepath.Join("docs", lang, "06-architecture", ref.file)
 			body, err := os.ReadFile(filepath.Join(repoRoot, rel))
 			require.NoError(t, err)
 

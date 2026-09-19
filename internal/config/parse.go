@@ -77,7 +77,7 @@ func ParseConfig(data []byte, source string) (*Config, error) {
 	if root.Kind == 0 || len(root.Content) == 0 {
 		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：项目配置文件内容为空").
 			WithDetail("文件", source).
-			WithHint("完整字段参考见 docs/zh/architecture/brickkit-yaml-reference.md（英文版把 zh 换 en）")
+			WithHint("完整字段参考见 docs/zh/06-architecture/08-brickkit-yaml-reference.md（英文版把 zh 换 en）")
 	}
 
 	doc := root.Content[0]
@@ -136,7 +136,7 @@ func newConfigProblems(source string) *clierr.ProblemSet {
 	return clierr.NewProblemSet(clierr.CodeConfigInvalid, "错误："+DefaultConfigFile+" 校验失败").
 		WithSource("文件", source).
 		WithHint(
-			"完整字段参考见 docs/zh/architecture/brickkit-yaml-reference.md（英文版把 zh 换 en）",
+			"完整字段参考见 docs/zh/06-architecture/08-brickkit-yaml-reference.md（英文版把 zh 换 en）",
 		)
 }
 

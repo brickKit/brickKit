@@ -130,7 +130,7 @@ PEOPLE_BASIC_GRPC_ENDPOINT=http://people-basic-1-0-0:9090
 
 （下面的 `docs/...` 与 `AGENTS.zh.md` 路径都在 BrickKit 仓库 <https://github.com/brickKit/brickKit> 里；`docs/` 下每篇有 `en/` 与 `zh/` 两份，内容对等。）
 
-- `component.yaml` 每个字段的规则与完整参考：`docs/zh/architecture/component-yaml-reference.md`
-- 环境变量命名与保留变量的完整字典：`docs/zh/architecture/environment-variables.md`
-- 手把手教程（从零写一个组件）：`docs/zh/guide/10-build-your-own.md`；
-  完整的 Go 组件示例（含数据库、迁移）：`docs/zh/go-component-template.md`
+- `component.yaml` 每个字段的规则与完整参考：`docs/zh/06-architecture/07-component-yaml-reference.md`
+- 环境变量命名与保留变量的完整字典：`docs/zh/06-architecture/04-environment-variables.md`
+- 手把手教程（从零写一个组件）：`docs/zh/03-guide/10-build-your-own.md`；
+  完整的 Go 组件示例（含数据库、迁移）：`docs/zh/04-go-component-template.md`

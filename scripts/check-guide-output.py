@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""核对现行教程（docs/{en,zh}/guide/）里抄下来的 CLI 输出块与真实输出是否一致。
+"""核对现行教程（docs/{en,zh}/03-guide/）里抄下来的 CLI 输出块与真实输出是否一致。
 
 # 这是对旧版本的重写，不是修补
 
@@ -9,7 +9,7 @@
 继续拿它们当活契约，等于逼着每一次改 CLI 文案都要回头去改一份声明"不维护"
 的文档，自相矛盾，所以旧版本被整个撤下 `make lint`。
 
-而现行的 `docs/{en,zh}/guide/`（12 篇，取代了归档的 23 篇）从来没有被这种
+而现行的 `docs/{en,zh}/03-guide/`（12 篇，取代了归档的 23 篇）从来没有被这种
 逐行核对覆盖过——它们同样在文中嵌了大量真实 CLI 输出的围栏块，只是没人
 守着这些块会不会悄悄过期。这个脚本就是补上这个缺口，机制基本照抄旧版本
 （找锚点、逐行比对、省略号跳过任意行数、硬失败而不是静默跳过），换的只是
@@ -60,8 +60,8 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EN_GUIDE = os.path.join(ROOT, "docs", "en", "guide")
-ZH_GUIDE = os.path.join(ROOT, "docs", "zh", "guide")
+EN_GUIDE = os.path.join(ROOT, "docs", "en", "03-guide")
+ZH_GUIDE = os.path.join(ROOT, "docs", "zh", "03-guide")
 BIN = os.path.join(ROOT, "bin", "brickkit")
 
 # 用例里用到的组件，来自 tests/components/，与教程正文引用的路径一致。
@@ -421,7 +421,7 @@ def main():
     if problems:
         print(f"❌ 教程预期输出对不上：{len(problems)} 处")
         for what, filename, cmd, line, hint in problems:
-            print(f"   docs/en/guide/{filename}（{what}）")
+            print(f"   docs/en/03-guide/{filename}（{what}）")
             print(f"     命令：brickkit {cmd}")
             print(f"     教程里写着：{line}")
             print(f"     {hint}")
@@ -441,9 +441,9 @@ def main():
     en_total = count_output_blocks(os.path.join(EN_GUIDE, "[0-9]*-*.md"))
     zh_total = count_output_blocks(os.path.join(ZH_GUIDE, "[0-9]*-*.md"))
     print(f"✅ 教程里的 CLI 输出：{compared} 个场景逐行一致，docs/en 与 docs/zh 抄的是同一份")
-    print(f"   docs/en/guide：共 {en_total} 个输出块，本次看守 {compared} 个场景"
+    print(f"   docs/en/03-guide：共 {en_total} 个输出块，本次看守 {compared} 个场景"
           f"（其余大多要 Docker 真的把容器跑起来，或要 minikube / 市场 / cosign）")
-    print(f"   docs/zh/guide：共 {zh_total} 个输出块，同上")
+    print(f"   docs/zh/03-guide：共 {zh_total} 个输出块，同上")
 
 
 if __name__ == "__main__":

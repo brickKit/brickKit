@@ -147,7 +147,7 @@ CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，**不依赖 `components/
 | **brickkit.yaml 就是声明** | 配置即意图。写了就执行，CLI 不反问"你确定吗" |
 
 > 每条原则背后的论证——换来了什么、付出了什么、拒绝了什么——在
-> [设计原则与取舍](docs/zh/architecture/design-principles.md)（英文版把 `zh` 换 `en`）。
+> [设计原则与取舍](docs/zh/06-architecture/01-design-principles.md)（英文版把 `zh` 换 `en`）。
 > 那里的十二个小节标题，去掉编号后，与本表第一列逐字一致；两边一旦分叉、或编号错位，`make lint` 会失败。
 
 ### 4.1 平台明确**不做**的事（拒绝清单）
@@ -234,7 +234,7 @@ configSchema 里的配置项名转大写后不得与之冲突——**市场在�
 
 上表给的是命名的"形状"；完整字典——每种资源 `kind` 精确的变量名、每条警告和那唯一
 一种阻断错误的真实生成样例、`servedBy` 怎么把成员的配置合并到外壳身上——见
-[环境变量注入契约](docs/zh/architecture/environment-variables.md)。
+[环境变量注入契约](docs/zh/06-architecture/04-environment-variables.md)。
 
 ### 5.3 强依赖与弱依赖
 
@@ -392,12 +392,12 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
 而不是去扩张那份名单。
 
 字段级细节、校验规则、外壳实现本身必须做对的事：
-[打造一个合格的外壳](docs/zh/patterns/shell-implementers-guide.md)。
+[打造一个合格的外壳](docs/zh/07-patterns/07-shell-implementers-guide.md)。
 要不要在自己项目里声明 `servedBy`、怎么声明：
-[怎么声明 servedBy：部署方检查清单](docs/zh/patterns/servedby-deployment-checklist.md)。
+[怎么声明 servedBy：部署方检查清单](docs/zh/07-patterns/06-servedby-deployment-checklist.md)。
 再往上一层，整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）×
 `docker`/`k8s`、`local: true` 调试开关、手动裸跑组件放在哪个位置：
-[怎么选部署形态](docs/zh/patterns/deployment-selection-guide.md)。
+[怎么选部署形态](docs/zh/07-patterns/05-deployment-selection-guide.md)。
 
 ### 5.8 组件源码工作区
 
@@ -437,7 +437,7 @@ CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 认证：`brickkit login` 终端交互输入账密，Token 存 `.brickkit/credentials`。
 
 跑市场本身（而不是用别人跑好的市场）是另一件独立的部署工作，见
-[自己搭一套 BrickKit Market](docs/zh/patterns/deployment/self-hosted-market.md)。
+[自己搭一套 BrickKit Market](docs/zh/07-patterns/09-deployment/self-hosted-market.md)。
 
 ---
 
@@ -557,7 +557,7 @@ K8s 下 Pod 被 kill 重启、再走一遍同样的 30 秒 → **永久 CrashLoo
 宽限期只推迟"判死"不推迟"判活"（两秒就绪的组件照样两秒转 healthy），所以写大一点没有代价。
 
 以上是骨架——每个字段精确的类型、是否必填、默认值、校验约束（端口范围、正则、哪些字段
-不配另一个字段就悄悄不生效）见 [component-yaml-reference.md](docs/zh/architecture/component-yaml-reference.md)。
+不配另一个字段就悄悄不生效）见 [07-component-yaml-reference.md](docs/zh/06-architecture/07-component-yaml-reference.md)。
 
 ---
 
@@ -661,7 +661,7 @@ installer:
 
 以上是骨架——每个字段精确的类型、是否必填、默认值、校验约束（`local`/`servedBy`/`replicas`
 之间的每一种互斥、绑定槽位规则、那个在 `k8s` 下悄悄不生效却没人拦住的字段）见
-[brickkit-yaml-reference.md](docs/zh/architecture/brickkit-yaml-reference.md)。
+[08-brickkit-yaml-reference.md](docs/zh/06-architecture/08-brickkit-yaml-reference.md)。
 
 ---
 
@@ -906,9 +906,9 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 | 讨论签名 | 发布方需要装 **cosign**；**安装方不需要**（验签用 Go 标准库） |
 | 用户想让平台帮忙做安全审查 | 安装即信任。平台只在事后 `blocked` |
 | 用户问「能不能把多个组件合并成一个实例省内存」 | 先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用。还要合并的话：**`servedBy`（5.7）是平台支持的路径**——它在 Docker 和 K8s 下都能正确处理地址路由；其余的事（模块隔离、配置、外壳内部的迁移顺序）还是他们自己的代码，参见外壳实现者指南。`enabled: false` 和这个无关——它照样不能拿来当「我自己接管」的开关 |
-| 用户问「纯独立/纯外壳/混搭，docker 还是 k8s，到底该选哪个」 | 这正是 `docs/zh/patterns/deployment-selection-guide.md` 那份矩阵存在的目的——照着它的矩阵走，不要临场现编答案。里面唯一一条值得直接记住的硬规则：`local: true`（调试开关）只在 `deploy.target: docker` 下存在，`k8s` 下会在生成阶段直接拒绝 |
+| 用户问「纯独立/纯外壳/混搭，docker 还是 k8s，到底该选哪个」 | 这正是 `docs/zh/07-patterns/05-deployment-selection-guide.md` 那份矩阵存在的目的——照着它的矩阵走，不要临场现编答案。里面唯一一条值得直接记住的硬规则：`local: true`（调试开关）只在 `deploy.target: docker` 下存在，`k8s` 下会在生成阶段直接拒绝 |
 | 用户问「完全不经过 Docker/K8s，怎么把整套东西跑在本地」 | 这是平台唯一完全不管理、不注入任何东西的一档——见 `deployment-selection-guide.md` 的"手动跑起来"那节。值得告诉他们的一个技巧：把那个组件临时改成 `local: true` 之后跑一次 `brickkit up --dry-run`，能拿到一份真实部署会注入的环境变量清单当参考——抄完就还原这次改动，不要真的照这个方式部署 |
-| 用户贴了一段 `brickkit` 的报错，或问怎么在脚本里应对失败（重试还是报警） | 每条终止命令的错误，在 `❌` 块后面紧跟的那行 stderr JSON 日志里都带一个稳定的 `error_code`。去 `docs/zh/architecture/error-codes.md`（英文版把 `zh` 换 `en`）查——它按 CLI 打印的确切标题列出每个码底下的各种情形、原因与解法。只有 `NETWORK_UNREACHABLE` 值得原样重试；码稳定，只增不改 |
+| 用户贴了一段 `brickkit` 的报错，或问怎么在脚本里应对失败（重试还是报警） | 每条终止命令的错误，在 `❌` 块后面紧跟的那行 stderr JSON 日志里都带一个稳定的 `error_code`。去 `docs/zh/06-architecture/10-error-codes.md`（英文版把 `zh` 换 `en`）查——它按 CLI 打印的确切标题列出每个码底下的各种情形、原因与解法。只有 `NETWORK_UNREACHABLE` 值得原样重试；码稳定，只增不改 |
 
 ---
 
@@ -953,36 +953,36 @@ deploy/market/         市场的 compose / kustomize / Helm
 
 | 想深挖什么 | 抓哪一份 |
 | --- | --- |
-| 5 分钟动手起步，在读别的之前先看这个 | `docs/zh/quick-start.md`（英文版把 `zh` 换 `en`） |
-| 一页纸术语速查，以及贯穿全平台的那条服务名规则 | `docs/zh/concepts.md`（英文版把 `zh` 换 `en`） |
-| `up`/`down`、本地调试、签名验证最常见的坑，症状 → 原因 → 解决 | `docs/zh/troubleshooting.md`（英文版把 `zh` 换 `en`） |
-| BrickKit 和 Docker Compose、Helm、Kustomize、Tilt/Skaffold、Backstage、monorepo 工具怎么比 | `docs/zh/comparison.md`（英文版把 `zh` 换 `en`） |
-| 为什么组件模型适合 AI 写代码，以及一套具体工作流 | `docs/zh/ai-development.md`（英文版把 `zh` 换 `en`） |
-| 平台是什么、核心机制怎么工作（现行版本） | `docs/zh/architecture/`（英文版把 `zh` 换 `en`） |
-| 每个错误码、每个码底下的各种情形（按 CLI 打印的确切标题）、原因与解法；哪个码值得重试；退出码；⚠️ 警告 | `docs/zh/architecture/error-codes.md`（英文版把 `zh` 换 `en`） |
-| 平台为什么长成这样：贯穿一切的那个想法（声明一张图，其余派生）；它用到或刻意没用的每个工程想法（DDD、GitOps、十二要素、契约先行、六边形架构、TDD……），逐个编号介绍：从"它是什么"讲起，说清好处、代价、对应 AI 开发的什么痛点、BrickKit 怎么做、BrickKit 不做什么、AI 怎么应对；十二条原则各自的论证 | `docs/zh/architecture/design-principles.md`（英文版把 `zh` 换 `en`） |
-| 动手教程 | `docs/zh/guide/`（英文版同上） |
-| 一个带数据库和迁移的 Go 组件，深入真实走一遍 | `docs/zh/go-component-template.md`（英文版把 `zh` 换 `en`） |
-| 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/patterns/`（英文版同上） |
-| 整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）× `docker`/`k8s`，外加 `local: true` 调试开关、手动裸跑组件放在哪个位置 | `docs/zh/patterns/deployment-selection-guide.md`（英文版把 `zh` 换 `en`） |
-| 怎么造一个能接 `servedBy` 的合格外壳 | `docs/zh/patterns/shell-implementers-guide.md`（英文版把 `zh` 换 `en`） |
-| 要不要在自己项目里声明 `servedBy`、怎么声明 | `docs/zh/patterns/servedby-deployment-checklist.md`（英文版把 `zh` 换 `en`） |
-| 怎么自己搭一套组件市场 | `docs/zh/patterns/deployment/self-hosted-market.md`（英文版把 `zh` 换 `en`） |
-| 合并进壳里的组件怎么共用一个数据库连接池 | `docs/zh/patterns/shared-connection-pools.md`（英文版把 `zh` 换 `en`） |
-| 调用依赖的 `*_ENDPOINT` 在重新部署时要不要客户端特殊处理——Go/Python/Node 的 HTTP 客户端真实测量出来的行为，不是猜的 | `docs/zh/patterns/service-addressing.md`（英文版把 `zh` 换 `en`） |
-| 依赖解析、菱形依赖去重、循环依赖、为什么组件多不等于串行步骤多 | `docs/zh/architecture/dependency-resolution.md`（英文版把 `zh` 换 `en`） |
-| 同一份 Manifest 生成出的真实 Docker Compose 与 Kubernetes 文件，逐行对照 | `docs/zh/architecture/deployment-generation.md`（英文版把 `zh` 换 `en`） |
-| 资源绑定撞车时到底会发生什么、配额链到底怎么逐字段合并 | `docs/zh/architecture/resource-binding.md`（英文版把 `zh` 换 `en`） |
-| 平台可能注入的每一个环境变量——每种资源 `kind` 精确的变量名、保留变量冲突警告与唯一一种阻断错误、`servedBy` 怎么把成员的配置合并到外壳身上 | `docs/zh/architecture/environment-variables.md`（英文版把 `zh` 换 `en`） |
-| `component.yaml` 每个字段的类型、是否必填、默认值、校验器真正套用的约束——包括 `enum`、`items` 这两个会被解析但代码库里从没有任何地方真正读过的字段 | `docs/zh/architecture/component-yaml-reference.md`（英文版把 `zh` 换 `en`） |
-| `brickkit.yaml` 每个字段的类型、是否必填、默认值、约束——包括 `local`/`servedBy`/`replicas` 之间的每一种互斥，以及唯一一个"写了不生效、但目前没有任何东西拦住"的字段 | `docs/zh/architecture/brickkit-yaml-reference.md`（英文版把 `zh` 换 `en`） |
-| 真正被签名的是什么、验签为什么不需要 cosign 依赖、公钥为什么不能来自市场 | `docs/zh/architecture/signing-and-trust.md`（英文版把 `zh` 换 `en`） |
-| 每个命令完整的参数参考，带真实生成的输出——上面 §8 的详细版 | `docs/zh/architecture/cli-reference.md`（英文版把 `zh` 换 `en`） |
-| 市场每一个 HTTP 端点、认证、错误码，以及发布时到底传了什么 | `docs/zh/market-api.md`（英文版把 `zh` 换 `en`） |
-| 基于 BrickKit 的组件该怎么分层测试，以及让 AI 写组件时"先立规格、再写实现"的推荐顺序 | `docs/zh/patterns/testing.md`（英文版把 `zh` 换 `en`） |
-| 怎么规划种子数据与测试数据 | `docs/zh/patterns/data-construction.md`（英文版把 `zh` 换 `en`） |
-| 怎么做领域研究、怎么识别一个特性该做成组件家族而不是开关、怎么用 DDD 的语言对照组件边界 | `docs/zh/patterns/component-design.md`（英文版把 `zh` 换 `en`） |
-| 怎么防止闭源组件的逻辑从自己的镜像里泄露出去 | `docs/zh/patterns/closed-source-image-hardening.md`（英文版把 `zh` 换 `en`） |
+| 5 分钟动手起步，在读别的之前先看这个 | `docs/zh/00-quick-start.md`（英文版把 `zh` 换 `en`） |
+| 一页纸术语速查，以及贯穿全平台的那条服务名规则 | `docs/zh/01-concepts.md`（英文版把 `zh` 换 `en`） |
+| `up`/`down`、本地调试、签名验证最常见的坑，症状 → 原因 → 解决 | `docs/zh/08-troubleshooting.md`（英文版把 `zh` 换 `en`） |
+| BrickKit 和 Docker Compose、Helm、Kustomize、Tilt/Skaffold、Backstage、monorepo 工具怎么比 | `docs/zh/02-comparison.md`（英文版把 `zh` 换 `en`） |
+| 为什么组件模型适合 AI 写代码，以及一套具体工作流 | `docs/zh/05-ai-development.md`（英文版把 `zh` 换 `en`） |
+| 平台是什么、核心机制怎么工作（现行版本） | `docs/zh/06-architecture/`（英文版把 `zh` 换 `en`） |
+| 每个错误码、每个码底下的各种情形（按 CLI 打印的确切标题）、原因与解法；哪个码值得重试；退出码；⚠️ 警告 | `docs/zh/06-architecture/10-error-codes.md`（英文版把 `zh` 换 `en`） |
+| 平台为什么长成这样：贯穿一切的那个想法（声明一张图，其余派生）；它用到或刻意没用的每个工程想法（DDD、GitOps、十二要素、契约先行、六边形架构、TDD……），逐个编号介绍：从"它是什么"讲起，说清好处、代价、对应 AI 开发的什么痛点、BrickKit 怎么做、BrickKit 不做什么、AI 怎么应对；十二条原则各自的论证 | `docs/zh/06-architecture/01-design-principles.md`（英文版把 `zh` 换 `en`） |
+| 动手教程 | `docs/zh/03-guide/`（英文版同上） |
+| 一个带数据库和迁移的 Go 组件，深入真实走一遍 | `docs/zh/04-go-component-template.md`（英文版把 `zh` 换 `en`） |
+| 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/07-patterns/`（英文版同上） |
+| 整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）× `docker`/`k8s`，外加 `local: true` 调试开关、手动裸跑组件放在哪个位置 | `docs/zh/07-patterns/05-deployment-selection-guide.md`（英文版把 `zh` 换 `en`） |
+| 怎么造一个能接 `servedBy` 的合格外壳 | `docs/zh/07-patterns/07-shell-implementers-guide.md`（英文版把 `zh` 换 `en`） |
+| 要不要在自己项目里声明 `servedBy`、怎么声明 | `docs/zh/07-patterns/06-servedby-deployment-checklist.md`（英文版把 `zh` 换 `en`） |
+| 怎么自己搭一套组件市场 | `docs/zh/07-patterns/09-deployment/self-hosted-market.md`（英文版把 `zh` 换 `en`） |
+| 合并进壳里的组件怎么共用一个数据库连接池 | `docs/zh/07-patterns/08-shared-connection-pools.md`（英文版把 `zh` 换 `en`） |
+| 调用依赖的 `*_ENDPOINT` 在重新部署时要不要客户端特殊处理——Go/Python/Node 的 HTTP 客户端真实测量出来的行为，不是猜的 | `docs/zh/07-patterns/03-service-addressing.md`（英文版把 `zh` 换 `en`） |
+| 依赖解析、菱形依赖去重、循环依赖、为什么组件多不等于串行步骤多 | `docs/zh/06-architecture/02-dependency-resolution.md`（英文版把 `zh` 换 `en`） |
+| 同一份 Manifest 生成出的真实 Docker Compose 与 Kubernetes 文件，逐行对照 | `docs/zh/06-architecture/03-deployment-generation.md`（英文版把 `zh` 换 `en`） |
+| 资源绑定撞车时到底会发生什么、配额链到底怎么逐字段合并 | `docs/zh/06-architecture/05-resource-binding.md`（英文版把 `zh` 换 `en`） |
+| 平台可能注入的每一个环境变量——每种资源 `kind` 精确的变量名、保留变量冲突警告与唯一一种阻断错误、`servedBy` 怎么把成员的配置合并到外壳身上 | `docs/zh/06-architecture/04-environment-variables.md`（英文版把 `zh` 换 `en`） |
+| `component.yaml` 每个字段的类型、是否必填、默认值、校验器真正套用的约束——包括 `enum`、`items` 这两个会被解析但代码库里从没有任何地方真正读过的字段 | `docs/zh/06-architecture/07-component-yaml-reference.md`（英文版把 `zh` 换 `en`） |
+| `brickkit.yaml` 每个字段的类型、是否必填、默认值、约束——包括 `local`/`servedBy`/`replicas` 之间的每一种互斥，以及唯一一个"写了不生效、但目前没有任何东西拦住"的字段 | `docs/zh/06-architecture/08-brickkit-yaml-reference.md`（英文版把 `zh` 换 `en`） |
+| 真正被签名的是什么、验签为什么不需要 cosign 依赖、公钥为什么不能来自市场 | `docs/zh/06-architecture/06-signing-and-trust.md`（英文版把 `zh` 换 `en`） |
+| 每个命令完整的参数参考，带真实生成的输出——上面 §8 的详细版 | `docs/zh/06-architecture/09-cli-reference.md`（英文版把 `zh` 换 `en`） |
+| 市场每一个 HTTP 端点、认证、错误码，以及发布时到底传了什么 | `docs/zh/09-market-api.md`（英文版把 `zh` 换 `en`） |
+| 基于 BrickKit 的组件该怎么分层测试，以及让 AI 写组件时"先立规格、再写实现"的推荐顺序 | `docs/zh/07-patterns/01-testing.md`（英文版把 `zh` 换 `en`） |
+| 怎么规划种子数据与测试数据 | `docs/zh/07-patterns/02-data-construction.md`（英文版把 `zh` 换 `en`） |
+| 怎么做领域研究、怎么识别一个特性该做成组件家族而不是开关、怎么用 DDD 的语言对照组件边界 | `docs/zh/07-patterns/00-component-design.md`（英文版把 `zh` 换 `en`） |
+| 怎么防止闭源组件的逻辑从自己的镜像里泄露出去 | `docs/zh/07-patterns/04-closed-source-image-hardening.md`（英文版把 `zh` 换 `en`） |
 | 全站文档索引（带链接） | `llms.zh.txt`（英文版是 `llms.txt`） |
 
 ---
@@ -993,7 +993,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | --- | --- |
 | 开发进度 | 计划内的每一步都已完成，延后项也已全部结清 |
 | 测试 | 2000+ 个测试函数，race-clean |
-| 动手教程（现行） | 12 篇，每一篇都真跑过；见 `docs/zh/guide/` |
+| 动手教程（现行） | 12 篇，每一篇都真跑过；见 `docs/zh/03-guide/` |
 | 试用指南（归档） | 23 篇，全部对着真实 Docker / Kubernetes / 活的市场跑过 |
 | 设计书 | 14 本，与实现交叉复核过两轮 |
 | 决策记录 | 566 条，每条都带当初的推理 |

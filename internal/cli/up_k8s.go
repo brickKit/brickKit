@@ -93,7 +93,7 @@ func renderNetworkPolicyNotice(opts *Options, result *k8s.Result) {
 	opts.Printf("      kubectl get networkpolicy 看得见、而流量完全不受限制——没有任何报错。\n")
 	opts.Printf("      minikube / kind 的**默认** CNI 就属于这一类。\n")
 	opts.Printf("   平台测不出来（K8s 没有这个 API），只能你自己验一次：\n")
-	opts.Printf("      详见 docs/zh/guide/11-network-policy.md（英文版把 zh 换 en）\n")
+	opts.Printf("      详见 docs/zh/03-guide/11-network-policy.md（英文版把 zh 换 en）\n")
 }
 
 // projectSelector 是本项目全部生成物共有的标签选择器。

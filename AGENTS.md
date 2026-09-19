@@ -163,7 +163,7 @@ Use these twelve to judge whether any design proposal actually belongs to BrickK
 | **`brickkit.yaml` is the declaration** | Config is intent. Write it and it executes — the CLI never asks "are you sure?" |
 
 > The argument behind each principle — what it buys, what it costs, what it refused — is in
-> [Design principles and trade-offs](docs/en/architecture/design-principles.md) (swap `en` for
+> [Design principles and trade-offs](docs/en/06-architecture/01-design-principles.md) (swap `en` for
 > `zh` for the Chinese version). Ignoring their 1–12 numbering, its twelve section headings
 > match this table's first column word for word; `make lint` fails if they drift or the
 > numbering slips.
@@ -260,7 +260,7 @@ required.
 The table above states the naming *shape*; the full dictionary — every resource `kind`'s exact
 variable names, real generated examples for each warning and the one hard error, and how `servedBy`
 merges a member's config onto its shell — is
-[Environment Variable Contract](docs/en/architecture/environment-variables.md).
+[Environment Variable Contract](docs/en/06-architecture/04-environment-variables.md).
 
 ### 5.3 Required vs. optional dependencies
 
@@ -455,13 +455,13 @@ label key means) — so `labels` was moved into this same-as-`expose` bucket
 instead of growing that list.
 
 Full field-level detail, the validation rules, and what a shell implementation
-itself must get right: [Building a qualified shell](docs/en/patterns/shell-implementers-guide.md).
+itself must get right: [Building a qualified shell](docs/en/07-patterns/07-shell-implementers-guide.md).
 For whoever is deciding whether and how to declare `servedBy` on their own project:
-[Declaring servedBy: a deployment checklist](docs/en/patterns/servedby-deployment-checklist.md).
+[Declaring servedBy: a deployment checklist](docs/en/07-patterns/06-servedby-deployment-checklist.md).
 For deciding a whole project's deployment shape in the first place — topology
 (independent / shell-merged / mixed) × `docker`/`k8s`, the `local: true` debug
 toggle, and where running components by hand fits in — start one level up:
-[Choosing a deployment shape](docs/en/patterns/deployment-selection-guide.md).
+[Choosing a deployment shape](docs/en/07-patterns/05-deployment-selection-guide.md).
 
 ### 5.8 Component source workspace
 
@@ -506,7 +506,7 @@ Authentication: `brickkit login` prompts interactively in the terminal for crede
 stored in `.brickkit/credentials`.
 
 Running the marketplace itself (as opposed to using one someone else runs) is a separate deployment
-of its own, covered in [Self-hosting the BrickKit Market](docs/en/patterns/deployment/self-hosted-market.md).
+of its own, covered in [Self-hosting the BrickKit Market](docs/en/07-patterns/09-deployment/self-hosted-market.md).
 
 ---
 
@@ -645,7 +645,7 @@ seconds), so setting it generously costs nothing.
 
 This is the skeleton — every field's exact type, required-ness, default, and validation constraint
 (the port ranges, the regexes, which fields silently do nothing without another field set) is
-[component-yaml-reference.md](docs/en/architecture/component-yaml-reference.md).
+[07-component-yaml-reference.md](docs/en/06-architecture/07-component-yaml-reference.md).
 
 ---
 
@@ -756,7 +756,7 @@ overlay / inheritance / merge mechanism** (see §9.9 for why).
 This is the skeleton — every field's exact type, required-ness, default, and validation constraint
 (every `local`/`servedBy`/`replicas` mutual exclusion, the binding-slot rules, the one field that's
 silently unused under `k8s` with nothing catching it) is
-[brickkit-yaml-reference.md](docs/en/architecture/brickkit-yaml-reference.md).
+[08-brickkit-yaml-reference.md](docs/en/06-architecture/08-brickkit-yaml-reference.md).
 
 ---
 
@@ -1055,9 +1055,9 @@ hit:
 | Discussing signing | The publisher needs **cosign** installed; **the installer doesn't** (verification uses the Go standard library) |
 | The user wants the platform to help with security review | Install implies trust. The platform only steps in after the fact with `blocked` |
 | A user asks "can I merge multiple components into one instance to save memory" | First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation. If they still want to merge: **`servedBy` (§5.7) is the supported path** — it handles address routing correctly on both Docker and K8s; everything else (module isolation, config, migrations ordering inside the shell) is still their own code, see the shell implementer's guide. `enabled: false` is unrelated to this — it still can't be used as a "I'm taking this over myself" switch |
-| A user asks "which of independent/shell-merged/mixed, or docker/k8s, should I actually use" | This is the topology × deploy-target decision `docs/en/patterns/deployment-selection-guide.md` exists to answer — walk through its matrix rather than improvising an answer inline. Its one hard rule worth remembering directly: `local: true` (the debug toggle) only exists under `deploy.target: docker`; it's rejected outright, at generation time, under `k8s` |
+| A user asks "which of independent/shell-merged/mixed, or docker/k8s, should I actually use" | This is the topology × deploy-target decision `docs/en/07-patterns/05-deployment-selection-guide.md` exists to answer — walk through its matrix rather than improvising an answer inline. Its one hard rule worth remembering directly: `local: true` (the debug toggle) only exists under `deploy.target: docker`; it's rejected outright, at generation time, under `k8s` |
 | A user asks "how do I run everything locally without Docker/K8s at all" | That's the one shape the platform doesn't manage or inject anything for — see `deployment-selection-guide.md`'s "Running components by hand" section. The one thing worth telling them: `brickkit up --dry-run` after a temporary `local: true` on the component in question dumps the exact env vars a real deployment would inject, as a cheat sheet — then revert the edit, don't actually deploy that way |
-| A user pastes a `brickkit` error, or asks how to script around failures (retry vs. alert) | Every command-ending error carries a stable `error_code` in the JSON log line on stderr, right after the `❌` block. Look it up in `docs/en/architecture/error-codes.md` (swap `en` for `zh`) — it lists each code's situations by the exact title the CLI prints, with cause and fix. Only `NETWORK_UNREACHABLE` is worth retrying unchanged; codes are stable and only ever added |
+| A user pastes a `brickkit` error, or asks how to script around failures (retry vs. alert) | Every command-ending error carries a stable `error_code` in the JSON log line on stderr, right after the `❌` block. Look it up in `docs/en/06-architecture/10-error-codes.md` (swap `en` for `zh`) — it lists each code's situations by the exact title the CLI prints, with cause and fix. Only `NETWORK_UNREACHABLE` is worth retrying unchanged; codes are stable and only ever added |
 
 ---
 
@@ -1104,36 +1104,36 @@ The complete machine-readable index for this (English) tree is at the repo root,
 
 | What you want to dig into | Grab this |
 | --- | --- |
-| A 5-minute hands-on start, before reading anything else | `docs/en/quick-start.md` (swap `en` for `zh`) |
-| A one-page glossary and the service-naming rule everything else builds on | `docs/en/concepts.md` (swap `en` for `zh`) |
-| The most common `up`/`down`, local-debug, and signature failures, symptom → cause → fix | `docs/en/troubleshooting.md` (swap `en` for `zh`) |
-| How BrickKit compares to Docker Compose, Helm, Kustomize, Tilt/Skaffold, Backstage, monorepo tooling | `docs/en/comparison.md` (swap `en` for `zh`) |
-| Why the component model suits AI-written code, and a concrete workflow for it | `docs/en/ai-development.md` (swap `en` for `zh`) |
-| What the platform is, how the core mechanisms work (current) | `docs/en/architecture/` (swap `en` for `zh` for the Chinese version) |
-| Every error code, the situations behind each (by the exact title the CLI prints), cause and fix; which code is worth retrying; exit statuses; the ⚠️ warnings | `docs/en/architecture/error-codes.md` (swap `en` for `zh`) |
-| Why the platform is shaped this way: the one idea underneath (declare a graph, derive the rest); each engineering idea it draws on or deliberately leaves alone (DDD, GitOps, twelve-factor, contract-first, hexagonal architecture, TDD…) each a numbered entry explained from scratch — what it is, its upside and cost, the AI-development pain it maps to, what BrickKit does, what it deliberately doesn't do, and how an AI copes; and the argument behind each of the twelve principles | `docs/en/architecture/design-principles.md` (swap `en` for `zh`) |
-| Hands-on tutorials | `docs/en/guide/` (same swap) |
-| A deep, real walkthrough of a Go component with a database and migrations | `docs/en/go-component-template.md` (swap `en` for `zh`) |
-| How to layer tests, plan seed/test data, design components well, tune deployment | `docs/en/patterns/` (same swap) |
-| Which deployment shape to pick for a whole project — topology (independent / shell-merged / mixed) × `docker`/`k8s`, plus the `local: true` debug toggle and where running components by hand fits in | `docs/en/patterns/deployment-selection-guide.md` (swap `en` for `zh`) |
-| How to build a shell that qualifies for `servedBy` | `docs/en/patterns/shell-implementers-guide.md` (swap `en` for `zh`) |
-| Whether and how to declare `servedBy` on your own project | `docs/en/patterns/servedby-deployment-checklist.md` (swap `en` for `zh`) |
-| How to self-host the component marketplace | `docs/en/patterns/deployment/self-hosted-market.md` (swap `en` for `zh`) |
-| How to share one database connection pool across components merged into a shell | `docs/en/patterns/shared-connection-pools.md` (swap `en` for `zh`) |
-| Whether calling a dependency's `*_ENDPOINT` needs special client-side handling across a redeploy — real measured Go/Python/Node HTTP client behavior, not assumed | `docs/en/patterns/service-addressing.md` (swap `en` for `zh`) |
-| Dependency resolution, diamond dedup, cycles, and why more components doesn't mean more serial steps | `docs/en/architecture/dependency-resolution.md` (swap `en` for `zh`) |
-| Real generated Docker Compose and Kubernetes files, side by side, from the same Manifest | `docs/en/architecture/deployment-generation.md` (swap `en` for `zh`) |
-| What actually happens when a resource binding collides, and how the quota chain really merges field by field | `docs/en/architecture/resource-binding.md` (swap `en` for `zh`) |
-| The full dictionary of every environment variable the platform can inject — every resource `kind`'s exact variable names, the reserved-variable warnings and the one case that's a hard error, and how `servedBy` merges a member's config onto the shell | `docs/en/architecture/environment-variables.md` (swap `en` for `zh`) |
-| Every `component.yaml` field's type, required-ness, default, and the exact constraint the validator applies — including the two fields (`enum`, `items`) that parse but are never actually read anywhere | `docs/en/architecture/component-yaml-reference.md` (swap `en` for `zh`) |
-| Every `brickkit.yaml` field's type, required-ness, default, and constraint — including every `local`/`servedBy`/`replicas` mutual exclusion and the one "written but silently unused" field nothing currently catches | `docs/en/architecture/brickkit-yaml-reference.md` (swap `en` for `zh`) |
-| What actually gets signed, why verification needs no cosign dependency, and why the public key can't come from the marketplace | `docs/en/architecture/signing-and-trust.md` (swap `en` for `zh`) |
-| Every command's full flag reference, with real generated output — the detailed complement to §8 above | `docs/en/architecture/cli-reference.md` (swap `en` for `zh`) |
-| Every marketplace HTTP endpoint, auth, error codes, and what publishing sends over the wire | `docs/en/market-api.md` (swap `en` for `zh`) |
-| How to layer tests for a component built on BrickKit, and a recommended spec-first order for having an AI write one | `docs/en/patterns/testing.md` (swap `en` for `zh`) |
-| How to plan seed data and test data | `docs/en/patterns/data-construction.md` (swap `en` for `zh`) |
-| How to research a domain, recognize when a feature needs a component family, not a flag, and map component boundaries onto DDD's vocabulary | `docs/en/patterns/component-design.md` (swap `en` for `zh`) |
-| How to keep a closed-source component's logic from leaking out of its own image | `docs/en/patterns/closed-source-image-hardening.md` (swap `en` for `zh`) |
+| A 5-minute hands-on start, before reading anything else | `docs/en/00-quick-start.md` (swap `en` for `zh`) |
+| A one-page glossary and the service-naming rule everything else builds on | `docs/en/01-concepts.md` (swap `en` for `zh`) |
+| The most common `up`/`down`, local-debug, and signature failures, symptom → cause → fix | `docs/en/08-troubleshooting.md` (swap `en` for `zh`) |
+| How BrickKit compares to Docker Compose, Helm, Kustomize, Tilt/Skaffold, Backstage, monorepo tooling | `docs/en/02-comparison.md` (swap `en` for `zh`) |
+| Why the component model suits AI-written code, and a concrete workflow for it | `docs/en/05-ai-development.md` (swap `en` for `zh`) |
+| What the platform is, how the core mechanisms work (current) | `docs/en/06-architecture/` (swap `en` for `zh` for the Chinese version) |
+| Every error code, the situations behind each (by the exact title the CLI prints), cause and fix; which code is worth retrying; exit statuses; the ⚠️ warnings | `docs/en/06-architecture/10-error-codes.md` (swap `en` for `zh`) |
+| Why the platform is shaped this way: the one idea underneath (declare a graph, derive the rest); each engineering idea it draws on or deliberately leaves alone (DDD, GitOps, twelve-factor, contract-first, hexagonal architecture, TDD…) each a numbered entry explained from scratch — what it is, its upside and cost, the AI-development pain it maps to, what BrickKit does, what it deliberately doesn't do, and how an AI copes; and the argument behind each of the twelve principles | `docs/en/06-architecture/01-design-principles.md` (swap `en` for `zh`) |
+| Hands-on tutorials | `docs/en/03-guide/` (same swap) |
+| A deep, real walkthrough of a Go component with a database and migrations | `docs/en/04-go-component-template.md` (swap `en` for `zh`) |
+| How to layer tests, plan seed/test data, design components well, tune deployment | `docs/en/07-patterns/` (same swap) |
+| Which deployment shape to pick for a whole project — topology (independent / shell-merged / mixed) × `docker`/`k8s`, plus the `local: true` debug toggle and where running components by hand fits in | `docs/en/07-patterns/05-deployment-selection-guide.md` (swap `en` for `zh`) |
+| How to build a shell that qualifies for `servedBy` | `docs/en/07-patterns/07-shell-implementers-guide.md` (swap `en` for `zh`) |
+| Whether and how to declare `servedBy` on your own project | `docs/en/07-patterns/06-servedby-deployment-checklist.md` (swap `en` for `zh`) |
+| How to self-host the component marketplace | `docs/en/07-patterns/09-deployment/self-hosted-market.md` (swap `en` for `zh`) |
+| How to share one database connection pool across components merged into a shell | `docs/en/07-patterns/08-shared-connection-pools.md` (swap `en` for `zh`) |
+| Whether calling a dependency's `*_ENDPOINT` needs special client-side handling across a redeploy — real measured Go/Python/Node HTTP client behavior, not assumed | `docs/en/07-patterns/03-service-addressing.md` (swap `en` for `zh`) |
+| Dependency resolution, diamond dedup, cycles, and why more components doesn't mean more serial steps | `docs/en/06-architecture/02-dependency-resolution.md` (swap `en` for `zh`) |
+| Real generated Docker Compose and Kubernetes files, side by side, from the same Manifest | `docs/en/06-architecture/03-deployment-generation.md` (swap `en` for `zh`) |
+| What actually happens when a resource binding collides, and how the quota chain really merges field by field | `docs/en/06-architecture/05-resource-binding.md` (swap `en` for `zh`) |
+| The full dictionary of every environment variable the platform can inject — every resource `kind`'s exact variable names, the reserved-variable warnings and the one case that's a hard error, and how `servedBy` merges a member's config onto the shell | `docs/en/06-architecture/04-environment-variables.md` (swap `en` for `zh`) |
+| Every `component.yaml` field's type, required-ness, default, and the exact constraint the validator applies — including the two fields (`enum`, `items`) that parse but are never actually read anywhere | `docs/en/06-architecture/07-component-yaml-reference.md` (swap `en` for `zh`) |
+| Every `brickkit.yaml` field's type, required-ness, default, and constraint — including every `local`/`servedBy`/`replicas` mutual exclusion and the one "written but silently unused" field nothing currently catches | `docs/en/06-architecture/08-brickkit-yaml-reference.md` (swap `en` for `zh`) |
+| What actually gets signed, why verification needs no cosign dependency, and why the public key can't come from the marketplace | `docs/en/06-architecture/06-signing-and-trust.md` (swap `en` for `zh`) |
+| Every command's full flag reference, with real generated output — the detailed complement to §8 above | `docs/en/06-architecture/09-cli-reference.md` (swap `en` for `zh`) |
+| Every marketplace HTTP endpoint, auth, error codes, and what publishing sends over the wire | `docs/en/09-market-api.md` (swap `en` for `zh`) |
+| How to layer tests for a component built on BrickKit, and a recommended spec-first order for having an AI write one | `docs/en/07-patterns/01-testing.md` (swap `en` for `zh`) |
+| How to plan seed data and test data | `docs/en/07-patterns/02-data-construction.md` (swap `en` for `zh`) |
+| How to research a domain, recognize when a feature needs a component family, not a flag, and map component boundaries onto DDD's vocabulary | `docs/en/07-patterns/00-component-design.md` (swap `en` for `zh`) |
+| How to keep a closed-source component's logic from leaking out of its own image | `docs/en/07-patterns/04-closed-source-image-hardening.md` (swap `en` for `zh`) |
 | The full site index (with links) | `llms.txt` (Chinese: `llms.zh.txt`) |
 
 ---
@@ -1144,7 +1144,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | --- | --- |
 | Development progress | Every planned step is done, deferred items have all been closed out |
 | Tests | 2,000+ test functions, race-clean |
-| Hands-on guides (current) | 12 articles, every one run for real; see `docs/en/guide/` |
+| Hands-on guides (current) | 12 articles, every one run for real; see `docs/en/03-guide/` |
 | Hands-on guides (archived) | 23 articles, every one run against real Docker / Kubernetes / a live marketplace |
 | Design books (archived) | 14 volumes, cross-checked against the implementation twice |
 | Decision record | 566 entries, each carrying the reasoning behind it at the time |
