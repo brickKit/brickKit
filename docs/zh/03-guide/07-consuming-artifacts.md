@@ -88,7 +88,7 @@ curl http://localhost:8095/api/v1/sources
 
 ## 上游还没做好：先立一个桩
 
-接口已经和对方谈妥，可对方的 `demo/hello` 还在开发，或者做完了还没发布；你手上的 `demo/caller` 偏偏强依赖着 `demo/hello@1.0.0`。这时执行 `brickkit add --local` 会直接被拒（后面会亲眼看到），项目卡在一个装不上的依赖上。
+接口已经和对方谈妥，可对方的 `demo/hello` 还在开发，或者做完了还没发布；你手上的 `demo/caller` 偏偏强依赖着 `demo/hello@1.0.0`。这时执行 `brickkit add --local` 会直接被拒，项目卡在一个装不上的依赖上。
 
 干等不划算。在 `demo/caller` 里临时写死几条假数据倒也行得通，可真上游一到，还得回头一处处拆掉。BrickKit 给的是另一条路：`demo/caller` 的代码一行不动，只改"它读到的那个地址，最后指向谁"。
 
@@ -224,7 +224,7 @@ brickkit add --local
 
 ### 第 3 步：声明"桩不用起容器"
 
-桩不会真的跑，可骨架里还留着 `image: demo/hello:0.1.0`、`port: 8080` 这些 `TODO`——要不要认真填？不用。只要给桩加两行声明，BrickKit 就根本不去读它们：
+桩不会真的跑，可骨架里还留着 `image: demo/hello:0.1.0`、`port: 8080` 这些 `TODO`——要不要认真填？不用。CLI 仍然会校验它们（比如 `port` 得是 1~65535 之间的数字，`image` 不能留空），但只要给桩加两行声明，BrickKit 就不会为它生成容器，这两个字段也就永远用不上：
 
 ```yaml
 components:
@@ -260,7 +260,7 @@ brickkit up --dry-run
 ...
 ```
 
-`image` 和 `port` 真的没被读，有两处证据。其一，🔧 那一段要你在 `localhost:18081` 提供服务：这是 `localPort` 的值，Manifest 里写的 8080 没起作用。其二更硬：把完整的 `brickkit up` 真跑一遍（临时起个 PostgreSQL、照第 6 篇的办法绑上），检测镜像拉取权限那一步照样 `✅ 全部通过`，而这个占位镜像从来没人构建过。
+`image` 和 `port` 真的没被用到，有两处证据。其一，🔧 那一段要你在 `localhost:18081` 提供服务：这是 `localPort` 的值，Manifest 里写的 8080 没起作用。其二更硬：把完整的 `brickkit up` 真跑一遍（临时起个 PostgreSQL、照第 6 篇的办法绑上），检测镜像拉取权限那一步照样 `✅ 全部通过`，而这个占位镜像从来没人构建过——如果 BrickKit 真要去拉取或校验这个镜像本身，这一步该报错才对。
 
 如果你对那句 `请在 IDE 里启动它` 心存疑惑：它沿用的是 `local: true` 最初的用途——在 IDE 里下断点调试。对 mock 来说，谁来监听 18081 无所谓，IDE 里的程序也好，终端里的脚本也好，只要那个端口上有东西在应答就行。
 
@@ -285,7 +285,7 @@ grep -n "DEMO_HELLO_ENDPOINT\|extra_hosts\|demo-hello-1-0-0" .brickkit/generated
 
 再看 `DEMO_HELLO_ENDPOINT`：地址的形状跟真 `demo/hello` 完全一样，都是"组件 ID 加精确版本"拼成的版本化服务名，唯一的差别是端口换成了你写的 `localPort`。`demo/caller` 照常读这个变量，对面是真组件还是替身，它无从分辨。
 
-最后回答"为什么各出现两次"：一次属于 `demo/caller` 自己的容器，一次属于它的迁移容器。`demo/caller` 声明了数据库迁移，启动前会先跑一个一次性的容器（与主容器同一个镜像）去做这件事，这个容器同样得知道上游在哪（见 AGENTS.zh.md §5.5、§6）。
+最后回答"为什么各出现两次"：一次属于 `demo/caller` 自己的容器，一次属于它的迁移容器。`demo/caller` 声明了数据库迁移，启动前会先跑一个一次性的容器（与主容器同一个镜像）去做这件事；平台按同一套规则生成这两个容器，环境变量和主机名映射一律给成一样的一份，迁移容器不会因为"只做迁移"就被单独裁掉一部分（见 AGENTS.zh.md §5.5、§6）。
 
 ### 第 5 步：起 mock，看请求真的到达
 
