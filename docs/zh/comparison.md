@@ -1,6 +1,6 @@
 # BrickKit vs 现有方案
 
-这些工具大多解决的是**相邻但不同**的问题——下面每张表都尽量只比较真正重叠的那部分，而不是用 BrickKit 有的东西去衬托别的工具"没有"，因为很多时候它们本来就不打算做那件事。想知道 BrickKit 自己拒绝做什么、为什么，看 [README 的"设计哲学"一节](../../README.zh.md)或[架构文档](architecture/overview.md)。这一页对比的是工具；想看 BrickKit 与这些工具背后的**想法**（DDD、GitOps、十二要素……）是什么关系、又在哪里刻意沉默，见[设计原则与取舍](architecture/design-principles.md#如果你是从某个熟悉的范式进来的)。
+这些工具大多解决的是**相邻但不同**的问题——下面每张表都尽量只比较真正重叠的那部分，而不是用 BrickKit 有的东西去衬托别的工具"没有"，因为很多时候它们本来就不打算做那件事。想知道 BrickKit 自己拒绝做什么、为什么，看 [README 的"设计哲学"一节](../../README.zh.md)或[架构文档](architecture/overview.md)。这一页对比的是工具；想看这些工具背后的**想法**（DDD、GitOps、十二要素……）各是什么、有什么代价、BrickKit 又怎么对待它们，见[设计原则与取舍](architecture/design-principles.md#认识这些想法)。
 
 如果你只想先有个大致方向，这张图给个粗略的起点——细节仍然在下面各节的表格里：
 

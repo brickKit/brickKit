@@ -24,7 +24,7 @@ your language below, then every link points at the matching file in that tree.
 - **How it works internally** → [Architecture overview](en/architecture/overview.md)
   *(why "no registry" and "platform minimalism" hold together as one pipeline)*
 - **Why it's shaped this way, and what each principle refused** → [Design principles and trade-offs](en/architecture/design-principles.md)
-  *(the one idea underneath, a map from paradigms you already know — DDD, GitOps, twelve-factor — to what BrickKit takes and where it stays silent, and the argument behind each of the twelve principles)*
+  *(the one idea underneath; each engineering idea BrickKit uses or deliberately leaves alone — DDD, GitOps, TDD, hexagonal architecture — explained from scratch with its upside, its cost and how BrickKit treats it; and the argument behind each of the twelve principles)*
 - **How BrickKit compares to Compose/Helm/Kustomize/etc.** → [Comparison](en/comparison.md)
 
 ### 🛠️ I want to develop a new component
@@ -60,7 +60,7 @@ your language below, then every link points at the matching file in that tree.
 - **架构总览与设计原理** → [架构总览](zh/architecture/overview.md)
   *("无注册中心"和"平台极简"怎么在同一条流水线里落地)*
 - **为什么这样设计，每条原则拒绝了什么** → [设计原则与取舍](zh/architecture/design-principles.md)
-  *(贯穿一切的那个想法、从熟悉的范式——DDD、GitOps、十二要素——到"BrickKit 拿了什么、在哪里沉默"的对照，以及十二条原则各自的论证)*
+  *(贯穿一切的那个想法；BrickKit 用到或刻意没用的每个工程想法——DDD、GitOps、TDD、六边形架构——从"它是什么"讲起，说清好处、代价和 BrickKit 怎么对待它；以及十二条原则各自的论证)*
 - **对比 BrickKit 和 Compose/Helm/Kustomize 等** → [对比](zh/comparison.md)
 
 ### 🛠️ 我想开发新组件

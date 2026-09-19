@@ -1,6 +1,6 @@
 # BrickKit vs. existing tools
 
-Most of these tools solve **adjacent, not identical** problems. Each table below tries to compare only the parts that actually overlap, rather than scoring BrickKit against something a tool was never trying to do. For what BrickKit itself deliberately doesn't do, and why, see [What it deliberately doesn't do](../../README.md#what-it-deliberately-doesnt-do) in the README, or the [architecture docs](architecture/overview.md). This page compares tools; for how BrickKit relates to the *ideas* behind them — DDD, GitOps, twelve-factor and the rest — and where it deliberately stays silent, see [Design principles and trade-offs](architecture/design-principles.md#if-you-arrive-from-a-paradigm-you-already-know).
+Most of these tools solve **adjacent, not identical** problems. Each table below tries to compare only the parts that actually overlap, rather than scoring BrickKit against something a tool was never trying to do. For what BrickKit itself deliberately doesn't do, and why, see [What it deliberately doesn't do](../../README.md#what-it-deliberately-doesnt-do) in the README, or the [architecture docs](architecture/overview.md). This page compares tools; for the *ideas* behind them — DDD, GitOps, twelve-factor and the rest — what each one is, what it costs, and how BrickKit treats it, see [Design principles and trade-offs](architecture/design-principles.md#meet-the-ideas).
 
 If you just want a rough starting point, this gives one — the actual detail is still in the tables below:
 
