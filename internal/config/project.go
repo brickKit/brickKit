@@ -116,7 +116,7 @@ project: %s
 deploy:
   target: docker          # docker | k8s
 
-# 安装源：按声明顺序依次尝试，前一个找不到就试下一个（003 §6.5）
+# 安装源：按声明顺序依次尝试，前一个找不到就试下一个
 sources:
   - id: local-dev
     type: local

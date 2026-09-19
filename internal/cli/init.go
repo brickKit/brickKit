@@ -24,10 +24,10 @@ func newInitCommand(opts *Options) *cobra.Command {
 		GroupID: groupProject,
 		Long: `在当前目录初始化一个 BrickKit 项目。
 
-行为（004 §3.2）：
+行为：
   1. 创建项目目录结构（.brickkit/、components/）
   2. 生成 brickkit.yaml 骨架
-  3. 追加 .gitignore 规则（003 §11）
+  3. 追加 .gitignore 规则
   4. 装入 AI 助手技能（.claude/skills/、AGENTS.md）
 
 项目名称必须显式指定：只能包含小写字母、数字与中划线，
@@ -41,7 +41,7 @@ func newInitCommand(opts *Options) *cobra.Command {
 不会碰你的 CLAUDE.md：那是你自己的流程文件。
 
 组件源码要跟项目一起进 Git 的话，还会装一个 pre-commit hook，
-拦住"源码归档了、而 brickkit.yaml 没跟着提交"这个失误（004 §3.14）。
+拦住"源码归档了、而 brickkit.yaml 没跟着提交"这个失误。
 它只在项目根就是仓库根时自动装——嵌套在别人仓库里的项目，
 用 brickkit init --hooks 显式补装。`,
 		Example: `  brickkit init my-project

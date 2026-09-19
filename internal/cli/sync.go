@@ -26,14 +26,14 @@ func newSyncCommand(opts *Options) *cobra.Command {
 		Use:     "sync",
 		Short:   "整理组件源码工作区：把这次用不上的组件源码收进 .archived/",
 		GroupID: groupComponent,
-		Long: `把当前用不上的组件源码从 components/ 收进 components/.archived/（004 §3.9）。
+		Long: `把当前用不上的组件源码从 components/ 收进 components/.archived/。
 
 项目里组件一多，那些当下根本不碰的源码仍然堆在 components/ 下：
 IDE 索引、全局搜索、grep、以及替你读代码的 AI 都得连它们一起扫。
 sync 把它们挪进一个固定的目录——不打开就不用关心，要找时又一眼知道在哪。
 
 **判据与 brickkit up 完全一致**：这次会启动的留在活跃目录，不启动的归档。
-想收窄范围就改 brickkit.yaml 的 enabled（顶层关掉，下面一串跟着走，003 §4.3），
+想收窄范围就改 brickkit.yaml 的 enabled（顶层关掉，下面一串跟着走），
 sync 跟着走就行。
 
 规则：

@@ -31,7 +31,7 @@ func newAddCommand(opts *Options) *cobra.Command {
 		Use:     "add [组件ID[@精确版本]]",
 		Short:   "添加组件，递归拉取依赖与产物，写入 brickkit.yaml",
 		GroupID: groupComponent,
-		Long: `添加组件到项目（004 §3.3）。
+		Long: `添加组件到项目。
 
 行为：
   1. 未指定版本 → 按安装源优先级解析出最新的可安装版本

@@ -44,7 +44,7 @@ func newPublishCommand(opts *Options) *cobra.Command {
 		Use:     "publish",
 		Short:   "发布组件到市场（需先 brickkit login）",
 		GroupID: groupMarket,
-		Long: `把组件发布到市场（004 §3.11）。
+		Long: `把组件发布到市场。
 
 行为：
   1. 检查登录状态（credentials 或 sources.authToken），未登录报错

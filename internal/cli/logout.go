@@ -30,7 +30,7 @@ func newLogoutCommand(opts *Options) *cobra.Command {
 		Use:     "logout",
 		Short:   "退出市场登录：作废服务端的 Token，并删除本地凭据",
 		GroupID: groupMarket,
-		Long: `退出组件市场的登录（004 §3.13）。
+		Long: `退出组件市场的登录。
 
 做两件事：
   1. 调市场的 POST /auth/logout 作废这个 Token（服务端那一侧）

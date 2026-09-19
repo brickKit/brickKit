@@ -31,7 +31,7 @@ func newLoginCommand(opts *Options) *cobra.Command {
 		Use:     "login",
 		Short:   "登录组件市场，Token 存入 .brickkit/credentials",
 		GroupID: groupMarket,
-		Long: `登录 BrickKit 市场（004 §3.12）。
+		Long: `登录 BrickKit 市场。
 
 行为：
   1. 终端输入用户名

@@ -25,7 +25,7 @@ func newRemoveCommand(opts *Options) *cobra.Command {
 		Use:     "remove <组件ID>[@版本]",
 		Short:   "移除组件，并删除对应的源码目录与缓存",
 		GroupID: groupComponent,
-		Long: `从项目中移除组件（004 §3.4）。
+		Long: `从项目中移除组件。
 
 行为：
   1. 检查是否有其他组件强依赖它 → 有则阻止移除

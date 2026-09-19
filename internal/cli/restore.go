@@ -21,7 +21,7 @@ func newRestoreCommand(opts *Options) *cobra.Command {
 		Use:     "restore",
 		Short:   "把 brickkit.yaml 的 enabled 与组件源码结构还原到最后一次提交",
 		GroupID: groupProject,
-		Long: `把 brickkit.yaml 里各组件的 enabled 还原成最后一次提交的值，再让源码结构跟着走（004 §3.14）。
+		Long: `把 brickkit.yaml 里各组件的 enabled 还原成最后一次提交的值，再让源码结构跟着走。
 
 给谁用：把 components/ 从 .gitignore 去掉、让组件源码跟项目一起进版本库的项目。
 那种项目里 brickkit sync 移动目录会进项目的 diff，而"本地关掉几个顶层、

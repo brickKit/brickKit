@@ -43,7 +43,7 @@ func newFetchCommand(opts *Options) *cobra.Command {
 		Use:     "fetch <组件ID>[@<版本>]",
 		Short:   "下载组件的产物（API 契约、SDK 等），不装进项目",
 		GroupID: groupComponent,
-		Long: `下载一个组件声明的产物文件，但**不把它装进本项目**（003 §4.9）。
+		Long: `下载一个组件声明的产物文件，但**不把它装进本项目**。
 
 用于跨项目调用：你要对方的 .proto / openapi.json 来生成客户端，
 但那个服务由别的项目部署，写进 brickkit.yaml 会让平台在你这边再部一份。

@@ -18,7 +18,7 @@ func newDownCommand(opts *Options) *cobra.Command {
 		Use:     "down",
 		Short:   "一键停止所有组件（不删除 volume）",
 		GroupID: groupLifecycle,
-		Long: `停止项目（004 §3.6）。
+		Long: `停止项目。
 
 停止顺序与启动顺序相反（依赖方先停，被依赖方后停），交给引擎处理。
 

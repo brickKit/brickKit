@@ -21,7 +21,7 @@ func newStatusCommand(opts *Options) *cobra.Command {
 		Use:     "status",
 		Short:   "查看组件运行状态（读取底层引擎）",
 		GroupID: groupLifecycle,
-		Long: `查看当前项目所有组件的运行状态（004 §3.7）。
+		Long: `查看当前项目所有组件的运行状态。
 
 CLI 本身不存储运行状态，查询时直接调用底层引擎：
   Docker  docker compose ps --format json

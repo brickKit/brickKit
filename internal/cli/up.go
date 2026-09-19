@@ -41,11 +41,11 @@ func newUpCommand(opts *Options) *cobra.Command {
 		Use:     "up",
 		Short:   "生成部署文件、执行迁移并一键启动所有组件",
 		GroupID: groupLifecycle,
-		Long: `一键启动项目（004 §3.5）。
+		Long: `一键启动项目。
 
 行为流程：
   1. 读取 brickkit.yaml 与所有组件 Manifest
-  2. 启停判定（跟着上层走：顶层没写 enabled 就跑，下层跟上层，003 §4.3）
+  2. 启停判定（跟着上层走：顶层没写 enabled 就跑，下层跟上层）
   3. 检查强依赖（缺失报错）与弱依赖（缺失警告，且完全不注入环境变量）
   4. 拓扑排序得出启动顺序
   5. 生成 docker-compose.yaml，注入环境变量、合并资源配额
@@ -53,7 +53,7 @@ func newUpCommand(opts *Options) *cobra.Command {
   7. 检测镜像拉取权限（未授权时提示 docker login）
   8. 调用底层引擎启动；数据库迁移由一次性容器执行，失败则阻断主服务
 
-版本号改了就是升级：CLI 自动拉新版本 Manifest 与产物、做兼容性检查（004 §3.5.1）。`,
+版本号改了就是升级：CLI 自动拉新版本 Manifest 与产物、做兼容性检查。`,
 		Example: `  brickkit up
   brickkit up --dry-run                    只生成文件，不启动
   brickkit up --config brickkit.prod.yaml  使用指定配置文件`,

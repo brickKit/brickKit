@@ -130,7 +130,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		Short: "BrickKit：声明式组件管理与拼装平台的命令行工具",
 		Long: `BrickKit CLI —— 像搭积木一样构建系统。
 
-CLI 只做六件事（001 §5.1）：
+CLI 只做六件事：
   1. 管理项目配置（brickkit.yaml）
   2. 拉取组件与产物（市场 / Git / 本地）
   3. 解析依赖与推测顺序（强/弱依赖 + 拓扑排序）
