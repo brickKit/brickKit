@@ -245,7 +245,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	renderSyncHint(opts, layout, plan.states)
 	warnDanglingBindings(opts, cfg)
 	warnHardcodedPasswords(opts, cfg)
-	warnConfigSecrets(opts, cfg)
+	warnConfigSecrets(opts, cfg, plan.graph)
 
 	// 资源绑定必须在生成之前查（006 §4.4、011 §5.3）：没绑定就一个
 	// DATABASE_* 都注不进去，而那份 compose 看上去完全正常——

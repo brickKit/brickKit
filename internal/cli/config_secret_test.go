@@ -140,3 +140,48 @@ func TestConfigSecretSitsInCommittedConfig(t *testing.T) {
 	assert.Contains(t, string(body), "sk-live-REALSECRET123456",
 		"35.17：密钥就在 brickkit.yaml 里，而 003 §1.2 建议把它提交进 Git")
 }
+
+// 组件亲口声明了 secret: true 的配置项，不必名字长得像密钥也要警告：
+// 名字启发式宁可漏报，而组件作者的声明比它准得多。
+func TestDeclaredSecretConfigWarnsRegardlessOfName(t *testing.T) {
+	f := addedProject(t,
+		[]comp{{ID: "demo/hello", Version: "1.0.0",
+			ConfigSchema: []string{"webhookUrl:"}, SecretConfig: []string{"webhookUrl"}}},
+		"demo/hello@1.0.0")
+	body := configHeader + `
+components:
+  - id: demo/hello
+    version: 1.0.0
+    config:
+      webhookUrl: "https://hooks.example.com/services/T000/B000/XXXX"
+`
+	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(body), 0o644))
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, "是警告不是错误：%s", r.stderr)
+	out := r.stdout + r.stderr
+	assert.Contains(t, out, "webhookUrl", "要点名是哪个配置项：%s", out)
+	assert.NotContains(t, out, "hooks.example.com", "绝不能把值本身打出来")
+}
+
+// 声明了 secret: true 又写成 ${VAR} 引用，就是做对了，不警告。
+func TestDeclaredSecretConfigWithReferenceDoesNotWarn(t *testing.T) {
+	f := addedProject(t,
+		[]comp{{ID: "demo/hello", Version: "1.0.0",
+			ConfigSchema: []string{"webhookUrl:"}, SecretConfig: []string{"webhookUrl"}}},
+		"demo/hello@1.0.0")
+	body := configHeader + `
+components:
+  - id: demo/hello
+    version: 1.0.0
+    config:
+      webhookUrl: ${HELLO_WEBHOOK}
+`
+	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(body), 0o644))
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+	assert.NotContains(t, r.stdout+r.stderr, "明文密钥")
+}

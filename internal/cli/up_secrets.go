@@ -14,6 +14,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/resolver"
 )
 
 // warnHardcodedPasswords 提醒 brickkit.yaml 里写了明文密码。
@@ -84,6 +85,28 @@ func secretishKey(name string) bool {
 	return false
 }
 
+// declaredSecretKeys 返回组件在 configSchema 里声明了 secret: true 的配置项。
+//
+// 名字启发式（secretishKey）宁可漏报也不误报，只配拿来发警告；
+// 组件作者亲口声明的事实比它准得多，所以两者取并集。
+// graph 里没有这个组件（还没 add、Manifest 读不到）时返回 nil，退回按名字判断。
+func declaredSecretKeys(graph *resolver.Graph, c config.Component) map[string]bool {
+	if graph == nil {
+		return nil
+	}
+	node := graph.Node(resolver.Ref{ID: c.ID, Version: c.Version})
+	if node == nil || node.Manifest == nil || node.Manifest.ConfigSchema == nil {
+		return nil
+	}
+	out := map[string]bool{}
+	for key, property := range node.Manifest.ConfigSchema.Properties {
+		if property.Secret {
+			out[key] = true
+		}
+	}
+	return out
+}
+
 // warnConfigSecrets 提醒 component.config 里写了明文密钥（35.17）。
 //
 // 泄漏路径不是生成物，而是 **brickkit.yaml 本身**：那个文件是明确建议
@@ -93,14 +116,17 @@ func secretishKey(name string) bool {
 // 与 P5 一样是警告不是错误：config 里放什么由使用者决定，
 // 平台不该替他判断哪个值算密钥；但看着像密钥的东西必须说一声。
 //
+// 判据是：组件声明了 secret: true，或名字长得像密钥（只看名字，不看值）。
+//
 // **绝不打印值本身**——那等于把密钥又抄了一遍到终端和 CI 日志里。
-func warnConfigSecrets(opts *Options, cfg *config.Config) {
+func warnConfigSecrets(opts *Options, cfg *config.Config, graph *resolver.Graph) {
 	var offenders []string
 	for _, c := range cfg.Components {
+		declared := declaredSecretKeys(graph, c)
 		for name, value := range c.Config {
 			// 写成 ${ENV_VAR} 就是做对了。解析时这处不展开（config.deferredRefs），
 			// 所以值本身就是原文
-			if isEnvRef(value) || !secretishKey(name) {
+			if isEnvRef(value) || (!declared[name] && !secretishKey(name)) {
 				continue
 			}
 			offenders = append(offenders, c.Ref()+" → "+name)
