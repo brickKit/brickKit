@@ -19,6 +19,8 @@ import (
 type listableFetcher interface {
 	// listComponents 返回该源里的组件 ID（已排序），以及"像组件但用不了"的那些。
 	listComponents() ([]string, []listProblem, error)
+	// manifestFiles 返回该源里每一份 component.yaml 的位置，不解析内容。
+	manifestFiles() ([]localManifestFile, error)
 }
 
 // listProblem 是扫描时发现的"这个目录像组件、但用不了"。
@@ -113,4 +115,41 @@ func (c *Client) LocalComponents(ctx context.Context) (*LocalScan, error) {
 	sort.Slice(scan.Components, func(i, j int) bool { return scan.Components[i].ID < scan.Components[j].ID })
 	sort.Slice(scan.Problems, func(i, j int) bool { return scan.Problems[i].ID < scan.Problems[j].ID })
 	return scan, nil
+}
+
+// LocalManifestFile 是本地安装源目录下的一份 component.yaml。
+type LocalManifestFile struct {
+	// ID 是按目录名（<scope>/<name>）拼出来的组件 ID——不是文件里写的那个，
+	// 两者对不上正是 lint 要报的一种问题。
+	ID string
+	// SourceID 是提供它的安装源 id。
+	SourceID string
+	// Path 是这份文件的完整路径。
+	Path string
+}
+
+// LocalManifestFiles 列出所有启用的本地安装源里、活跃目录下的 component.yaml。
+//
+// 只做枚举，不解析内容、不写任何缓存、不碰 git / market 源——brickkit lint 靠它
+// 离线、只读地找到"使用者自己能编辑的那些文件"。
+//
+// 与 LocalComponents 用同一套目录规则（manifestFiles），但不像它那样先过一遍"表头"筛选：
+// 表头不合格的文件正是 lint 要完整报告的对象。归档目录（.archived/）因此同样不扫：
+// 那是 sync 挪开的、暂时不用的那份，不是使用者此刻在编辑的文件。
+func (c *Client) LocalManifestFiles() ([]LocalManifestFile, error) {
+	var out []LocalManifestFile
+	for _, f := range c.fetchers {
+		lister, ok := f.(listableFetcher)
+		if !ok {
+			continue
+		}
+		files, err := lister.manifestFiles()
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range files {
+			out = append(out, LocalManifestFile{ID: m.id, SourceID: f.id(), Path: m.path})
+		}
+	}
+	return out, nil
 }
