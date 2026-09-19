@@ -1573,7 +1573,7 @@ func TestLintInvalidBrickkitYamlSkipsLocalSources(t *testing.T) {
 	r := runIn(t, f.Dir, "lint")
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stdout, "deploy.target")
-	assert.NotContains(t, r.stdout, "component.yaml\n", "brickkit.yaml 没通过就不去扫本地源")
+	assert.NotContains(t, r.stdout, filepath.Join("shared", "demo"), "brickkit.yaml 没通过就不去扫本地源，报告里不出现任何本地组件的路径")
 	assert.Contains(t, r.stdout, "ℹ️")
 	assert.Contains(t, r.stdout, "1 个有错误")
 }
