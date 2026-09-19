@@ -357,7 +357,7 @@ Manifest 和依赖方的 API 契约，就能写出一个完整的、可独立运
 | 00 | [Quick Start](https://github.com/brickKit/brickKit/blob/main/docs/zh/00-quick-start.md) | 5 分钟，从空目录到一个可以 curl 通的容器，每一步都真跑过 |
 | 01 | [核心概念](https://github.com/brickKit/brickKit/blob/main/docs/zh/01-concepts.md) | 一页术语表，加上那条贯穿一切的命名规则 |
 | 02 | [和现有方案对比](https://github.com/brickKit/brickKit/blob/main/docs/zh/02-comparison.md) | BrickKit 和 Compose、Helm、Kustomize 等在哪里重叠，又在哪里不重叠 |
-| 03 | [动手教程](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/README.md) | 12 篇教程，每一篇都对着真实的 CLI 真跑过 |
+| 03 | [动手教程](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/README.md) | 13 篇教程，每一篇都对着真实的 CLI 真跑过 |
 | 04 | [用 Go 写一个组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/04-go-component-template.md) | 带读一个带数据库的、有测试覆盖的真实组件 |
 | 05 | [AI 辅助开发](https://github.com/brickKit/brickKit/blob/main/docs/zh/05-ai-development.md) | 组件模型为什么适合 AI 写代码，以及具体怎么用 |
 | 06 | [架构](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/README.md) | 平台怎么工作、为什么这样设计，以及字段、命令、错误码的完整参考 |
@@ -436,7 +436,7 @@ make lint             # vet + 文档检查
 | | |
 | --- | --- |
 | 测试 | 2000+ 个测试函数，race-clean |
-| 试用指南（现行） | 12 篇，每一篇都真跑过；见 `docs/zh/03-guide/` |
+| 试用指南（现行） | 13 篇，每一篇都真跑过；见 `docs/zh/03-guide/` |
 | 试用指南（已归档） | 23 篇，全部对着真实 Docker / Kubernetes / 活的市场跑过 |
 | 设计书（已归档） | 14 本，与实现交叉复核过两轮 |
 | 决策记录（已归档） | 566 条，每条都带当初的推理 |

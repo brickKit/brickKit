@@ -66,7 +66,7 @@ my-shop/                          ← 项目根目录
 └── .gitignore                    ← init 追加的忽略规则
 ```
 
-- **`manifests/` 与 `artifacts/` 是缓存，默认提交、团队共享同一份。** `up` 读的是 `manifests/` 里的 Manifest，不依赖 `components/` 下的源码；缺失或损坏时会从安装源重新拉取。产物由 `add` / `fetch` 下载。`init` 追加的 `.gitignore` 里对应的两行默认是注释掉的，想忽略它们就取消注释。
+- **`manifests/` 与 `artifacts/` 是缓存，默认提交、团队共享同一份。** `up` 读的是 `manifests/` 里的 Manifest，从不需要组件的代码；缺失或损坏时会从安装源重新拉取。例外是由本地安装源提供的组件（包括你用 `--repo` 克隆进 `components/` 的）：它的 `component.yaml` 每次运行都直接从那个目录重读，不走缓存。产物由 `add` / `fetch` 下载。`init` 追加的 `.gitignore` 里对应的两行默认是注释掉的，想忽略它们就取消注释。
 - **`generated/` 每次 `up` 都会重写，别手改。** 里面是 `docker-compose.yaml`（`deploy.target: k8s` 时是 `k8s/` 目录），以及 `local: true` 组件的 `local-debug.<版本化服务名>.env`。默认被 `.gitignore` 忽略——后一种文件里可能带着解析后的配置值。
 - **`credentials` 只有 `brickkit login` 之后才存在**，默认被 `.gitignore` 忽略。
 - **`skills.lock` 要提交**：它让别人的 CLI 分得清"你手改过这个技能文件"和"CLI 升级让它过期了"。

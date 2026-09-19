@@ -140,4 +140,4 @@ NOTIFIER_BASE_URL=http://host.docker.internal:18080
 
 ---
 
-这是当前这个系列的最后一篇（还规划了哪些内容见[教程索引](README.md)）。这个系列动手走过的任何一个具体机制，想深挖细节，`docs/zh/06-architecture/` 和 `docs/zh/07-patterns/` 里都有配着真实代码和真实生成输出的完整讲解——AGENTS.zh.md §11.2 有完整的索引。
+下一篇：[管理组件源码](13-component-source.md)——把别人的组件源码克隆下来、只留手边要动的那几个、改完推回去、用完删干净，以及源码跟着项目一起提交时的提交钩子。

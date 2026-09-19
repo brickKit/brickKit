@@ -82,4 +82,4 @@ command terminated with exit code 1
 
 ---
 
-下一篇：[多项目共享](12-multi-project-sharing.md)，这个系列的最后一篇——故意跨项目共享组件，真跑一遍第 7 篇用过的 `brickkit fetch`，这次是在两个真正独立的项目之间。
+下一篇：[多项目共享](12-multi-project-sharing.md)——故意跨项目共享组件，真跑一遍第 7 篇用过的 `brickkit fetch`，这次是在两个真正独立的项目之间。

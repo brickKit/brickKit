@@ -112,9 +112,15 @@ brickkit.yaml (declaration)
 Running containers
 ```
 
-The CLI's Manifest comes from the `.brickkit/manifests/` cache — it **does not depend on** the
-source directories under `components/`. The source directory only serves IDE-side development; it
-has nothing to do with runtime.
+For a component from the marketplace or a Git source, the CLI's Manifest comes from the
+`.brickkit/manifests/` cache and needs nothing under `components/`. A component that a **local**
+source provides is different: `init`'s default `local-dev` points at `./components/`, so that
+covers every component whose source you `--repo`-cloned or wrote there. Its `component.yaml` is
+re-read from that directory on every run and never served from the cache — an edit shows up on the
+next `up`, and a copy `sync` archived is still found. (Asking for a version other than the one the
+directory holds is still answered from the cache; that is how multiple versions coexist.) Either
+way `up` reads only the Manifest, never the component's code — the rest of the source directory
+only serves development (IDE, debugging).
 
 ---
 
@@ -483,6 +489,10 @@ project in version control), `sync`'s whole-directory moves land in the project'
 pre-commit hook installed by `brickkit restore` and `brickkit init --hooks` exists specifically to
 catch the recurring mistake of "an archive-state change got committed but `enabled` didn't come
 along with it".
+
+A hands-on walkthrough of all of this with real output — cloning, pushing changes back, archiving,
+the guards on `remove`, `restore` and the hook — is
+[Manage component source](docs/en/03-guide/13-component-source.md).
 
 ### 5.9 Marketplace, signing, and the trust model
 
@@ -954,10 +964,10 @@ multiple parts of the same piece of business (proto + backend code + migration s
 **the same component** — they don't need to be split apart.
 
 **9.17 Why isn't `brickkit sync` folded into `brickkit up`?**
-Separation of concerns: `up` manages runtime, `sync` manages the source directory. And `up` doesn't
-depend on the source directory at all (the Manifest is read from the `.brickkit/manifests/` cache).
-If `up` moved files around automatically, users would be confused about why their files suddenly
-moved.
+Separation of concerns: `up` manages runtime, `sync` manages the source directory. And `up` never
+needs a component's code, only its Manifest (§2.3: cached for marketplace/Git components, re-read
+from the source directory for locally-provided ones — `sync`-archived copies included). If `up` moved
+files around automatically, users would be confused about why their files suddenly moved.
 
 **9.18 Why doesn't `add --repo` clone all the source automatically?**
 Most users only want to **use** a component, not **modify** it. A single `add` can recursively pull
@@ -1118,6 +1128,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | Every error code, the situations behind each (by the exact title the CLI prints), cause and fix; which code is worth retrying; exit statuses; the ⚠️ warnings | `docs/en/06-architecture/10-error-codes.md` (swap `en` for `zh`) |
 | Why the platform is shaped this way: the one idea underneath (declare a graph, derive the rest); each engineering idea it draws on or deliberately leaves alone (DDD, GitOps, twelve-factor, contract-first, hexagonal architecture, TDD…) each a numbered entry explained from scratch — what it is, its upside and cost, the AI-development pain it maps to, what BrickKit does, what it deliberately doesn't do, and how an AI copes; and the argument behind each of the twelve principles | `docs/en/06-architecture/01-design-principles.md` (swap `en` for `zh`) |
 | Hands-on tutorials | `docs/en/03-guide/` (same swap) |
+| Cloning, archiving, removing and restoring component source (`add --repo` / `sync` / `remove` / `restore`, the pre-commit hook), hands-on with real output | `docs/en/03-guide/13-component-source.md` (swap `en` for `zh`) |
 | A deep, real walkthrough of a Go component with a database and migrations | `docs/en/04-go-component-template.md` (swap `en` for `zh`) |
 | How to layer tests, plan seed/test data, design components well, tune deployment | `docs/en/07-patterns/` (same swap) |
 | Which deployment shape to pick for a whole project — topology (independent / shell-merged / mixed) × `docker`/`k8s`, plus the `local: true` debug toggle and where running components by hand fits in | `docs/en/07-patterns/05-deployment-selection-guide.md` (swap `en` for `zh`) |
@@ -1149,7 +1160,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | --- | --- |
 | Development progress | Every planned step is done, deferred items have all been closed out |
 | Tests | 2,000+ test functions, race-clean |
-| Hands-on guides (current) | 12 articles, every one run for real; see `docs/en/03-guide/` |
+| Hands-on guides (current) | 13 articles, every one run for real; see `docs/en/03-guide/` |
 | Hands-on guides (archived) | 23 articles, every one run against real Docker / Kubernetes / a live marketplace |
 | Design books (archived) | 14 volumes, cross-checked against the implementation twice |
 | Decision record | 566 entries, each carrying the reasoning behind it at the time |

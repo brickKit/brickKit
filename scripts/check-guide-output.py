@@ -9,7 +9,7 @@
 继续拿它们当活契约，等于逼着每一次改 CLI 文案都要回头去改一份声明"不维护"
 的文档，自相矛盾，所以旧版本被整个撤下 `make lint`。
 
-而现行的 `docs/{en,zh}/03-guide/`（12 篇，取代了归档的 23 篇）从来没有被这种
+而现行的 `docs/{en,zh}/03-guide/`（13 篇，取代了归档的 23 篇）从来没有被这种
 逐行核对覆盖过——它们同样在文中嵌了大量真实 CLI 输出的围栏块，只是没人
 守着这些块会不会悄悄过期。这个脚本就是补上这个缺口，机制基本照抄旧版本
 （找锚点、逐行比对、省略号跳过任意行数、硬失败而不是静默跳过），换的只是
@@ -25,11 +25,16 @@
 
 # 只挑不需要 Docker / minikube / 市场 / cosign 的场景
 
-12 篇里能在任何机器上确定性构造的，只是其中一部分：01（部分）、02、03
-（部分）、05（部分）、06（部分）、07（部分）——04 要 minikube、08 要市场、
-09 要 cosign、11 要支持执行策略的 CNI，10/12 的核心内容也要 Docker 真的把
-容器跑起来。这跟旧版本的分层哲学一致：能确定性构造的进 `make lint` 天天跑，
-要真实环境的留给人工（或者以后配一个 docker 层的 CI job，见文末的账目）。
+13 篇里能在任何机器上确定性构造的，只是其中一部分：01（部分）、02、03
+（部分）、05（部分）、06（部分）、07（部分）、13（几乎全部）——04 要 minikube、
+08 要市场、09 要 cosign、11 要支持执行策略的 CNI，10/12 的核心内容也要 Docker
+真的把容器跑起来。这跟旧版本的分层哲学一致：能确定性构造的进 `make lint`
+天天跑，要真实环境的留给人工（或者以后配一个 docker 层的 CI job，见文末的账目）。
+
+第 13 篇（组件源码）是个例外的"几乎全部"：它讲的 add --repo / sync / remove /
+restore / 提交钩子都不启动容器，只需要 git。所以它的场景用本地裸仓库当"远端"
+（!make-remotes），用真实的 git 命令（!git）造出未提交、未推送、归档、
+submodule 这些状态，再拿真实 CLI 的输出与教程逐行比对。
 
 一篇文章里能被抄的输出块通常不止这些——一个场景一旦需要真的启动容器、
 真的连数据库、真的等 K8s 探针，这个脚本就没法在任何机器上确定性地跑，只能
@@ -54,6 +59,7 @@
 
 import glob
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -167,6 +173,141 @@ CASES = [
         "file": "07-consuming-artifacts.md",
         "check": ("fetch demo/hello@1.0.0", "📦 已下载 demo/hello@1.0.0 的产物（未写入 brickkit.yaml）", 0),
     },
+    # ---- 13 组件源码：只需要 git，不需要 Docker ----
+    # 这一组按教程的行文顺序连着跑（同一个项目里一路推进），中间夹着的 !git / !append
+    # 步骤对应教程里那些不是 brickkit 输出的命令（改源码、提交、推送）。
+    {
+        "what": "13 add 默认不克隆源码",
+        "reset": True,
+        "run": ["!make-remotes", "init workspace-demo --no-skills", "!git-sources"],
+        "file": "13-component-source.md",
+        "check": ("add demo/caller@1.0.0", "📦 添加 demo/caller@1.0.0", 0),
+    },
+    {
+        "what": "13 --repo 克隆一个已在配置里的组件",
+        "run": [],
+        "file": "13-component-source.md",
+        "check": ("add demo/hello@1.0.0 --repo --yes",
+                  "ℹ️ demo/hello@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存", 0),
+    },
+    {
+        "what": "13 克隆过再 --repo：说源码已经在了，而不是没有 Git 地址",
+        "run": [],
+        "file": "13-component-source.md",
+        "check": ("add demo/hello@1.0.0 --repo --yes",
+                  "ℹ️ demo/hello@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存", 1),
+    },
+    {
+        "what": "13 --repo-all：已有源码的跳过并说理由",
+        "run": [],
+        "file": "13-component-source.md",
+        "check": ("add demo/caller@1.0.0 --repo-all --yes",
+                  "ℹ️ demo/caller@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存", 0),
+    },
+    {
+        "what": "13 关掉 caller，hello 也跟着不启动",
+        # 教程「改了源码，怎么推回去」那一节的两条路，顺手走完，让后面的状态与教程一致
+        "run": ["!git components/demo/hello checkout -q -b feature/greeting",
+                "!append components/demo/hello/main.go // 换一句问候",
+                '!git components/demo/hello commit -q -am "调整问候语"',
+                "!git components/demo/hello push -q origin feature/greeting",
+                "!git components/demo/hello remote add myfork {work}/remotes/hello-fork.git",
+                "!git components/demo/hello push -q myfork feature/greeting",
+                "!disable demo/caller"],
+        "file": "13-component-source.md",
+        "check": ("up --dry-run", "📋 组件状态计算：", 0),
+    },
+    {
+        "what": "13 sync 把两个的源码都收进归档",
+        "run": [],
+        "file": "13-component-source.md",
+        "check": ("sync", "📂 工作区整理：", 0),
+    },
+    {
+        "what": "13 钉住 hello 之后的判定",
+        "run": ["!pin demo/hello"],
+        "file": "13-component-source.md",
+        "check": ("up --dry-run", "📋 组件状态计算：", 1),
+    },
+    {
+        "what": "13 sync 把 hello 搬回来",
+        "run": [],
+        "file": "13-component-source.md",
+        "check": ("sync", "📂 工作区整理：", 1),
+    },
+    {
+        "what": "13 删掉 enabled，sync 把 caller 也搬回来",
+        "run": ["!clear-enabled"],
+        "file": "13-component-source.md",
+        "check": ("sync", "📂 工作区整理：", 2),
+    },
+    {
+        "what": "13 remove 被依赖方挡住",
+        "run": [],
+        "file": "13-component-source.md",
+        "check": ("remove demo/hello", "❌ 无法移除 demo/hello", 0),
+    },
+    {
+        "what": "13 remove 拦下未提交的改动",
+        "run": ["!append components/demo/caller/main.go // 我正在改这里"],
+        "file": "13-component-source.md",
+        "check": ("remove demo/caller", "❌ 错误：源码删掉就找不回来了", 0),
+    },
+    {
+        "what": "13 remove 拦下没推的提交",
+        "run": ['!git components/demo/caller commit -q -am "wip: 调整 caller"'],
+        "file": "13-component-source.md",
+        "check": ("remove demo/caller", "❌ 错误：源码删掉就找不回来了", 1),
+    },
+    {
+        "what": "13 推上去之后 remove 放行",
+        "run": ["!git components/demo/caller push -q origin main"],
+        "file": "13-component-source.md",
+        "check": ("remove demo/caller", "✅ 已移除 demo/caller@1.0.0", 0),
+    },
+    {
+        "what": "13 remove 连归档里的那份源码一起删",
+        "run": ["!disable demo/hello", "sync"],
+        "file": "13-component-source.md",
+        "check": ("remove demo/hello", "✅ 已移除 demo/hello@1.0.0", 0),
+    },
+    {
+        "what": "13 项目根就是仓库根：init 顺手装上钩子",
+        "reset": True,
+        "run": ["!git-init"],
+        "file": "13-component-source.md",
+        "check": ("init shared-src", "✅ 项目已初始化：shared-src", 0),
+    },
+    {
+        "what": "13 只提交归档的源码：钩子拦下",
+        "run": ["!drop-components-ignore",
+                "!copy-into components/demo/hello demo-hello",
+                "!copy-into components/demo/caller demo-caller",
+                "add --local",
+                "!git . add -A",
+                "!git . commit -q -m 初始",
+                "!pin demo/hello", "!disable demo/caller", "sync",
+                "!append components/demo/hello/main.go // 调整 hello 的问候",
+                "!git . add components/"],
+        "file": "13-component-source.md",
+        "check": ('!git . commit -m "调整 hello 的问候"',
+                  "❌ 提交被拦下：组件源码提交在归档目录里，但 brickkit.yaml 说它该启动", 0),
+    },
+    {
+        "what": "13 restore 还原 enabled，源码结构跟着走",
+        "run": ["!git . reset -q components/"],
+        "file": "13-component-source.md",
+        "check": ("restore", "📄 brickkit.yaml：按最后一次提交还原 enabled（其余改动未动）", 0),
+    },
+    {
+        "what": "13 submodule 挡住 remove（--force 也不放行的那一道）",
+        "reset": True,
+        "run": ["!make-remotes", "!git-init", "init sub-demo --no-skills", "!drop-components-ignore",
+                "!git . -c protocol.file.allow=always submodule add -q ../remotes/hello.git components/demo/hello",
+                "add --local", "!git . add -A", "!git . commit -q -m 挂上子模块"],
+        "file": "13-component-source.md",
+        "check": ("remove demo/hello", "❌ 错误：无法删除组件源码——它是一个已登记的 git submodule", 0),
+    },
 ]
 
 
@@ -230,10 +371,15 @@ def compare(expected, actual):
 
 
 def prepare(work):
-    """铺一个干净的试验场：只建目录，组件源码由 !copy-into 按用例需要拷贝。"""
+    """铺一个干净的试验场：只建目录，组件源码由 !copy-into 按用例需要拷贝。
+
+    "远端"（!make-remotes 造的裸仓库）与项目目录同级，也一起推倒：推送会改
+    它们，留着会让下一个场景带着上一个场景的提交。
+    """
     proj = os.path.join(work, "proj")
-    if os.path.exists(proj):
-        shutil.rmtree(proj)
+    for stale in (proj, os.path.join(work, "remotes")):
+        if os.path.exists(stale):
+            shutil.rmtree(stale)
     os.makedirs(proj)
     return proj
 
@@ -309,6 +455,96 @@ def add_second_version(proj, component_id, slug):
     run_cli(proj, f"add {component_id}@1.0.0 --yes")
 
 
+# git 一律不读使用者自己的全局配置：别人的 alias、core.hooksPath、提交签名
+# 都会让同一个场景在不同机器上跑出不同的结果。身份用固定值，提交才不会因为
+# "没配 user.name"失败。
+GIT_ENV = {
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "GIT_AUTHOR_NAME": "demo", "GIT_AUTHOR_EMAIL": "demo@example.com",
+    "GIT_COMMITTER_NAME": "demo", "GIT_COMMITTER_EMAIL": "demo@example.com",
+    "GIT_TERMINAL_PROMPT": "0",
+}
+
+
+def run_git(cwd, args):
+    """跑一条 git，返回 stdout+stderr（不管成败——失败的输出正是有时要比对的东西）。"""
+    r = subprocess.run(["git"] + args, cwd=cwd, stdin=subprocess.DEVNULL,
+                       capture_output=True, text=True, env={**os.environ, **GIT_ENV})
+    return r.stdout + r.stderr
+
+
+def git_must(cwd, args):
+    """准备阶段的 git：失败就直接退出，别让一个坏掉的前置悄悄变成后面的假失败。"""
+    r = subprocess.run(["git"] + args, cwd=cwd, stdin=subprocess.DEVNULL,
+                       capture_output=True, text=True, env={**os.environ, **GIT_ENV})
+    if r.returncode != 0:
+        sys.exit(f"❌ 准备阶段 git {' '.join(args)} 失败（在 {cwd}）：{r.stderr.strip()}")
+
+
+def make_remotes(work):
+    """13 的舞台：两个夹具组件各做成一个裸仓库（work/remotes/<name>.git），外加
+    一个空的 hello-fork.git。与教程「准备」那一节的命令一一对应。"""
+    remotes = os.path.join(work, "remotes")
+    os.makedirs(remotes, exist_ok=True)
+    for name in ("hello", "caller"):
+        seed = os.path.join(work, f"seed-{name}")
+        shutil.copytree(os.path.join(ROOT, "tests", "components", f"demo-{name}"), seed)
+        git_must(seed, ["init", "-q", "-b", "main"])
+        git_must(seed, ["add", "."])
+        git_must(seed, ["commit", "-q", "-m", f"demo/{name} 1.0.0"])
+        git_must(work, ["clone", "-q", "--bare", seed, os.path.join(remotes, f"{name}.git")])
+        shutil.rmtree(seed)
+    git_must(work, ["init", "-q", "--bare", "-b", "main", os.path.join(remotes, "hello-fork.git")])
+
+
+def git_sources(proj):
+    """把两个 git 源追加在 init 生成的 local-dev 后面（13 的「准备」那一节）。"""
+    cfg = os.path.join(proj, "brickkit.yaml")
+    s = open(cfg, encoding="utf-8").read()
+    old = "    path: ./components # brickkit init 已经建好这个目录\n"
+    if old not in s:
+        # init 的骨架里注释是对齐过的；对不上时用更宽松的锚点，再不行就报错
+        m = "    path: ./components      # brickkit init 已经建好这个目录\n"
+        if m not in s:
+            sys.exit("❌ brickkit.yaml 里的 local-dev 段不是预期的样子，git_sources 需要更新")
+        old = m
+    add = ("  - id: hello-remote\n    type: git\n    url: ../remotes/hello.git\n"
+           "  - id: caller-remote\n    type: git\n    url: ../remotes/caller.git\n")
+    open(cfg, "w", encoding="utf-8").write(s.replace(old, old + add, 1))
+
+
+def clear_enabled(proj):
+    """删掉 brickkit.yaml 里所有 enabled: 行——回到"不写"，也就是跟着上层走。"""
+    cfg = os.path.join(proj, "brickkit.yaml")
+    lines = open(cfg, encoding="utf-8").read().split("\n")
+    kept = [l for l in lines if not l.strip().startswith("enabled:")]
+    open(cfg, "w", encoding="utf-8").write("\n".join(kept))
+
+
+def append_line(proj, rel, text):
+    """往文件末尾追加一行（教程里的 `echo '...' >> file`）。"""
+    with open(os.path.join(proj, rel), "a", encoding="utf-8") as f:
+        f.write(text + "\n")
+
+
+def drop_components_ignore(proj):
+    """把 init 追加进 .gitignore 的 components/ 规则删掉——"源码跟着项目一起提交"。"""
+    path = os.path.join(proj, ".gitignore")
+    s = open(path, encoding="utf-8").read()
+    rule = "# 组件源码目录（每个组件是独立的 Git 仓库，不提交到项目仓库）\ncomponents/\n\n"
+    if rule not in s:
+        sys.exit("❌ .gitignore 里找不到 components/ 那段规则，drop_components_ignore 需要更新")
+    open(path, "w", encoding="utf-8").write(s.replace(rule, "", 1))
+
+
+def git_step(proj, work, spec):
+    """`!git <相对项目的目录> <git 参数……>`：参数按 shell 规则切分，{work} 换成试验场根。"""
+    directory, rest = spec.split(None, 1)
+    args = [a.replace("{work}", work) for a in shlex.split(rest)]
+    return run_git(os.path.join(proj, directory), args)
+
+
 def bind_resource(proj, resource_id, host):
     """给项目加一条数据库资源声明，host 写成一个看起来像服务名的值（06 的场景）。
 
@@ -336,7 +572,7 @@ def bind_resource(proj, resource_id, host):
 
 
 def run_cli(proj, args, env=None):
-    full_env = dict(os.environ)
+    full_env = {**os.environ, **GIT_ENV}
     if env:
         full_env.update(env)
     r = subprocess.run([BIN] + args.split(), cwd=proj, stdin=subprocess.DEVNULL,
@@ -390,6 +626,21 @@ def main():
                 elif step.startswith("!bind-resource "):
                     _, resource_id, host = step.split(None, 2)
                     bind_resource(proj, resource_id, host)
+                elif step == "!make-remotes":
+                    make_remotes(work)
+                elif step == "!git-sources":
+                    git_sources(proj)
+                elif step == "!clear-enabled":
+                    clear_enabled(proj)
+                elif step == "!git-init":
+                    git_must(proj, ["init", "-q", "-b", "main"])
+                elif step == "!drop-components-ignore":
+                    drop_components_ignore(proj)
+                elif step.startswith("!append "):
+                    _, rel, text = step.split(None, 2)
+                    append_line(proj, rel, text)
+                elif step.startswith("!git "):
+                    git_step(proj, work, step[len("!git "):])
                 else:
                     run_cli(proj, step)
 
@@ -400,7 +651,10 @@ def main():
             zh_expected = find_block(zh_path, anchor, nth)
 
             env = {"DB_PASSWORD": "devpass"} if "bind-resource" in " ".join(case["run"]) else None
-            actual = run_cli(proj, cmd, env=env)
+            if cmd.startswith("!git "):
+                actual = git_step(proj, work, cmd[len("!git "):])
+            else:
+                actual = run_cli(proj, cmd, env=env)
             compared += 1
 
             bad = compare(expected, actual)

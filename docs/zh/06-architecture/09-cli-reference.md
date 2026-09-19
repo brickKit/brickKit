@@ -268,6 +268,8 @@ brickkit new demo/widget --path ../widget-repo     # 写到别的目录——那
 给一个已装组件添加第二个版本时，会先弹出确认再让两者共存（非交互模式用
 `--yes` 跳过）。
 
+克隆组件源码（`--repo` / `--repo-all`）怎么用、克隆之后怎么管，见上手教程：[管理组件源码](../03-guide/13-component-source.md)。
+
 **参数**
 
 | 参数 | 默认值 | 作用 |
@@ -316,6 +318,8 @@ brickkit add --local                        # 把本地安装源声明的组件�
 录——`components/<scope>/<name>/` 以及归档中的
 `components/.archived/<scope>/<name>/`——除非同 ID 还有其他已装版本仍然
 需要那份源码。多个版本共存时必须显式指定版本。
+
+带真实输出的上手教程：[管理组件源码](../03-guide/13-component-source.md)——被依赖挡住、源码删了找不回来、git submodule 这几道拦截，每一种都真的触发了一遍。
 
 **参数**
 
@@ -512,6 +516,8 @@ $ brickkit status
 `brickkit.yaml`、且已有源码的组件。没有 `--dry-run`——搞错了再跑一次就
 换回来了。
 
+带真实输出、一步一步走的上手教程：[管理组件源码](../03-guide/13-component-source.md)——归档、激活、和它与 `enabled` 的配合都在里面。
+
 **示例**
 
 ```
@@ -540,6 +546,8 @@ $ brickkit sync
 - 提交里有、但工作区没有的 → 绝不加回来——这不是 `git revert`
 
 要覆盖的旧值会在真正改动之前先打印出来。
+
+带真实输出的上手教程：[管理组件源码](../03-guide/13-component-source.md)最后一节，从制造那个失误、被钩子拦下，一直走到 `restore` 把它修好。
 
 **参数**
 

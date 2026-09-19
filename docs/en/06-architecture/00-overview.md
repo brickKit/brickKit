@@ -66,7 +66,7 @@ my-shop/                          ← project root
 └── .gitignore                    ← ignore rules init appended
 ```
 
-- **`manifests/` and `artifacts/` are caches, committed by default so the team shares one copy.** `up` reads the Manifests in `manifests/` and doesn't depend on any source under `components/`; a missing or corrupt one is fetched again from its source. Artifacts are downloaded by `add` / `fetch`. The two matching lines in the `.gitignore` that `init` appends are commented out by default; uncomment them to ignore these.
+- **`manifests/` and `artifacts/` are caches, committed by default so the team shares one copy.** `up` reads the Manifests in `manifests/` and never needs a component's code; a missing or corrupt one is fetched again from its source. The exception is a component a local source provides (including any you `--repo`-cloned into `components/`): its `component.yaml` is re-read from that directory on every run and never cached. Artifacts are downloaded by `add` / `fetch`. The two matching lines in the `.gitignore` that `init` appends are commented out by default; uncomment them to ignore these.
 - **`generated/` is rewritten by every `up` — don't hand-edit it.** It holds `docker-compose.yaml` (a `k8s/` directory when `deploy.target: k8s`), plus `local-debug.<versioned-service-name>.env` for `local: true` components. It's ignored by `.gitignore` by default — the latter can carry resolved config values.
 - **`credentials` only exists after `brickkit login`**, and is ignored by `.gitignore` by default.
 - **`skills.lock` should be committed**: it lets someone else's CLI tell "you hand-edited this skill file" apart from "a CLI upgrade made it stale".

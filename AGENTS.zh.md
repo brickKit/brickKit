@@ -97,8 +97,13 @@ brickkit.yaml（声明）
 运行中的容器
 ```
 
-CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，**不依赖 `components/` 下的源码目录**。
-源码目录只服务于 IDE 里的开发，与运行时无关。
+对来自市场或 Git 源的组件，CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，不需要
+`components/` 下的任何东西。由**本地**安装源提供的组件则不同：`init` 默认的 `local-dev`
+指向 `./components/`，所以你用 `--repo` 克隆下来的、或直接写在那里的组件都算。它的
+`component.yaml` 每次运行都直接从那个目录重读，不走缓存——改了它，下一次 `up` 就生效，
+被 `sync` 归档的那份也照样找得到。（请求的版本和目录里放的不一样时，仍从缓存取；
+多版本共存靠的就是这个。）不管哪种，`up` 读的都只是 Manifest，从不碰组件的代码——
+源码目录里的其余部分只服务于开发（IDE、调试）。
 
 ---
 
@@ -417,6 +422,9 @@ CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 `sync` 的整目录移动会进项目的 diff——`brickkit restore` 与 `brickkit init --hooks`
 装的 pre-commit hook 就是为了拦住「归档结构进了提交、`enabled` 却没跟着提交」
 这个反复出现的失误。
+
+这一整块——克隆、改了推回去、归档、`remove` 的几道保护、`restore` 与钩子——带真实输出
+一步一步走一遍，见 [管理组件源码](docs/zh/03-guide/13-component-source.md)。
 
 ### 5.9 市场、签名与信任模型
 
@@ -823,9 +831,9 @@ B 后面连着什么与 A 无关——单个开发者的认知边界永远是"�
 注意：同一业务的多部分内容（proto + 后端代码 + 迁移脚本）属于**同一个组件**，不必拆开。
 
 **9.17 为什么 `brickkit sync` 不集成进 `brickkit up`？**
-职责分离：`up` 管运行时，`sync` 管源码目录。而且 `up` 根本不依赖源码目录
-（Manifest 从 `.brickkit/manifests/` 缓存读）。如果 `up` 自动移动文件，
-用户会困惑"我的文件怎么突然 moved 了"。
+职责分离：`up` 管运行时，`sync` 管源码目录。而且 `up` 从不需要组件的代码，只要它的
+Manifest（§2.3：市场/Git 组件读缓存，本地源提供的组件每次从源码目录重读——被 `sync`
+归档的也找得到）。如果 `up` 自动移动文件，用户会困惑"我的文件怎么突然 moved 了"。
 
 **9.18 为什么 `add --repo` 不自动 clone 所有源码？**
 大多数用户只想**使用**组件，不想**修改**它。一条 `add` 递归下来可能有 5~10 个依赖，
@@ -965,6 +973,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 每个错误码、每个码底下的各种情形（按 CLI 打印的确切标题）、原因与解法；哪个码值得重试；退出码；⚠️ 警告 | `docs/zh/06-architecture/10-error-codes.md`（英文版把 `zh` 换 `en`） |
 | 平台为什么长成这样：贯穿一切的那个想法（声明一张图，其余派生）；它用到或刻意没用的每个工程想法（DDD、GitOps、十二要素、契约先行、六边形架构、TDD……），逐个编号介绍：从"它是什么"讲起，说清好处、代价、对应 AI 开发的什么痛点、BrickKit 怎么做、BrickKit 不做什么、AI 怎么应对；十二条原则各自的论证 | `docs/zh/06-architecture/01-design-principles.md`（英文版把 `zh` 换 `en`） |
 | 动手教程 | `docs/zh/03-guide/`（英文版同上） |
+| 克隆、归档、移除、还原组件源码（`add --repo` / `sync` / `remove` / `restore`、pre-commit 钩子），带真实输出的上手教程 | `docs/zh/03-guide/13-component-source.md`（英文版同上） |
 | 一个带数据库和迁移的 Go 组件，深入真实走一遍 | `docs/zh/04-go-component-template.md`（英文版把 `zh` 换 `en`） |
 | 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/07-patterns/`（英文版同上） |
 | 整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）× `docker`/`k8s`，外加 `local: true` 调试开关、手动裸跑组件放在哪个位置 | `docs/zh/07-patterns/05-deployment-selection-guide.md`（英文版把 `zh` 换 `en`） |
@@ -996,7 +1005,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | --- | --- |
 | 开发进度 | 计划内的每一步都已完成，延后项也已全部结清 |
 | 测试 | 2000+ 个测试函数，race-clean |
-| 动手教程（现行） | 12 篇，每一篇都真跑过；见 `docs/zh/03-guide/` |
+| 动手教程（现行） | 13 篇，每一篇都真跑过；见 `docs/zh/03-guide/` |
 | 试用指南（归档） | 23 篇，全部对着真实 Docker / Kubernetes / 活的市场跑过 |
 | 设计书 | 14 本，与实现交叉复核过两轮 |
 | 决策记录 | 566 条，每条都带当初的推理 |

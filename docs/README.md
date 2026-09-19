@@ -87,7 +87,7 @@ reading order — [`en/README.md`](en/README.md) lays it out.
   *(症状 → 真实原因 → 解决，弱依赖缺失的真实警告见[教程第 2 篇](zh/03-guide/02-what-runs.md))*
 
 ### 📖 完整教程
-- **12 篇系列教程，按顺序读** → [教程系列](zh/03-guide/README.md)
+- **13 篇系列教程，按顺序读** → [教程系列](zh/03-guide/README.md)
 
 ---
 
