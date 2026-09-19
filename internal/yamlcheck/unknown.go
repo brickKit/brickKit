@@ -228,6 +228,13 @@ func min3(a, b, c int) int {
 	return a
 }
 
+// KnownFields 列出结构体在 YAML 里认识的键（键 → 字段）。
+//
+// 导出是因为"这份 YAML 认识哪些键"有两个读者：Walk 用它拒绝拼错的键，
+// internal/schemagen 用它生成 JSON Schema 里的 properties。两边共用同一个判断，
+// 编辑器里的红线与 CLI 报的"未知字段"就不可能各说各话。
+func KnownFields(typ reflect.Type) map[string]reflect.StructField { return knownFieldsOf(typ) }
+
 // knownFieldsOf 列出结构体在 YAML 里认识的键。
 func knownFieldsOf(typ reflect.Type) map[string]reflect.StructField {
 	out := map[string]reflect.StructField{}
