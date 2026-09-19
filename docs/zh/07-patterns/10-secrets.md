@@ -294,7 +294,7 @@ $ grep -A4 "name: DATABASE_PASSWORD" .brickkit/generated/k8s/deployments/acme-he
 
 ### 为什么 BrickKit 不自己去调密钥管理器的 SDK
 
-一种很自然的想法是：既然值在 Vault 或 AWS Secrets Manager 里，就让 BrickKit 内置一个"去那里取值"的功能。它属于同一份[拒绝清单](../06-architecture/00-overview.md#平台刻意不做的事以及为什么)（AGENTS.zh.md §4.1），和被拒绝的[配置中心](../06-architecture/00-overview.md#6-配置中心与动态热更新)是近邻，理由也几乎一样。真做了会碰上三件事，按严重程度排：
+一种很自然的想法是：既然值在 Vault 或 AWS Secrets Manager 里，就让 BrickKit 内置一个"去那里取值"的功能。这正是[拒绝清单第 18 条](../06-architecture/00-overview.md#18-代平台向外部密钥存储取值)（AGENTS.zh.md §4.1），和被拒绝的配置中心是近邻，理由也几乎一样。真做了会碰上三件事，按严重程度排：
 
 - **CLI 得拿着存储本身的凭据。** 要去 Vault 或 AWS 取值，CLI——以及每一个跑它的 CI 任务——就得带上一份能登录那个存储的凭据，而这类凭据能读的，通常远不止一个项目要用的那几个值。今天的两种方式里，CLI 经手的只有项目自己放进环境的那几个值。
 - **`--dry-run` 不再是"不碰真东西"。** 这条命令存在的全部意义，就是只生成文件、不动任何真实系统。一旦要取值，它就得联网、登录存储，只为了打印出一份根本不会被用到的文件。

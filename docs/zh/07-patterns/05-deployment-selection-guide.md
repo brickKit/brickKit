@@ -278,3 +278,77 @@ graph TD
 - 有组件要合并进外壳:每往一个壳里路由一个组件,看一遍[怎么声明 servedBy：部署方检查清单](06-servedby-deployment-checklist.md)；如果你是造那个壳的人,再看[外壳该怎么造才合格](07-shell-implementers-guide.md)。
 - 目标是 K8s:[`brickkit up --context <集群>`](../06-architecture/09-cli-reference.md#brickkit-up)；想看清楚同一份 Manifest 在两种目标下到底各自生成出什么,看[真实生成的 Docker Compose 与 Kubernetes 文件对照](../06-architecture/03-deployment-generation.md)。
 - 多环境（比如默认配置之外再有一份 `brickkit.prod.yaml`）:每一份都是完全自包含的——`brickkit up --config brickkit.prod.yaml`——彼此之间没有覆盖或继承关系（AGENTS.zh.md §9.9）。
+
+### 对比两份环境配置
+
+因为每份环境配置都是完全自包含的，对比两份配置用不着任何专门命令——两次普通的 `diff` 就够了：
+
+1. `diff -u brickkit.dev.yaml brickkit.prod.yaml` 看**你写了什么不同**。
+2. `diff <(brickkit up --dry-run --config brickkit.dev.yaml 2>&1 | grep -v '^{') <(brickkit up --dry-run --config brickkit.prod.yaml 2>&1 | grep -v '^{')` 看**这些不同带来的后果**——哪些组件因此不启动、为什么。
+
+下面是真实输出：项目里 `acme/web` 依赖 `erp/backend`，`brickkit.prod.yaml` 把 `deploy.target` 改成了 `k8s`、并且关掉了 `erp/backend`：
+
+```
+$ diff -u brickkit.dev.yaml brickkit.prod.yaml
+--- brickkit.dev.yaml
++++ brickkit.prod.yaml
+@@ -3,7 +3,7 @@
+ project: shop
+
+ deploy:
+-  target: docker # docker | k8s
++  target: k8s # docker | k8s
+
+ # sources: ...
+ components:
+   - id: erp/backend
+     version: 0.1.0
++    enabled: false
+   - id: acme/web
+     version: 0.1.0
+ resources: []
+```
+
+```
+$ diff <(brickkit up --dry-run --config brickkit.dev.yaml 2>&1 | grep -v '^{') \
+       <(brickkit up --dry-run --config brickkit.prod.yaml 2>&1 | grep -v '^{')
+1c1
+< 🚀 启动项目 shop（deploy.target: docker）
+---
+> 🚀 启动项目 shop（deploy.target: k8s）
+3,4c3,4
+<    ✅ erp/backend@0.1.0  启动（acme/web 需要）
+<    ✅ acme/web@0.1.0     启动（顶层）
+---
+>    ⬜ erp/backend@0.1.0  显式禁用（enabled: false）
+>    ⬜ acme/web@0.1.0     不启动（强依赖 erp/backend 不启动）
+6,18c6,10
+< 📋 启动顺序（拓扑排序）：
+<    1. erp-backend-0-1-0  无依赖
+<    2. acme-web-0-1-0     ← 依赖 1
+<
+< 可独立启动：erp-backend-0-1-0（无依赖）
+< 最长依赖链（2 层）：erp-backend-0-1-0 → acme-web-0-1-0
+<
+< 依赖图：
+<    acme/web@0.1.0 → erp/backend@0.1.0
+< 📄 已生成：.brickkit/generated/docker-compose.yaml
+<
+< 💡 --dry-run 只生成文件，未启动任何组件
+<    查看：cat .brickkit/generated/docker-compose.yaml
+---
+> 📋 本次没有组件会启动
+>    顶层组件（没有别的组件依赖它们）这次都不跑：
+>       acme/web@0.1.0  不启动（强依赖 erp/backend 不启动）
+>    顶层自己都没被关掉——要放开的是上面那行理由里点名的组件
+> 💡 有 2 个组件本次不启动，brickkit sync 可以把它们的源码收进 components/.archived/
+```
+
+第二条 `diff` 直接看到的是后果本身，而不只是那一行导致后果的配置：不是只有 `erp/backend` 不启动，`acme/web` 也跟着不启动，那一行还点了名：`不启动（强依赖 erp/backend 不启动）`。只看第一条 `diff`（某个组件多了一行 `enabled: false`）是推不出这个后果的。
+
+两点提醒，都是实测出来的：
+
+- `--dry-run` 每次都会覆盖 `.brickkit/generated/`，想留下某一份环境生成出来的文件，就把那份配置的 `up --dry-run` 放到最后跑。
+- `grep -v '^{'` 是为了滤掉 CLI 写在 stderr 上的 JSON 日志行——不滤掉的话，它们会跟上面人读的输出混在一起，`diff` 出来一堆噪音。
+
+一句诚实的话：这里比的只是**启动决策**——哪些组件会跑、为什么——比的是文本，不是渲染出来的部署文件本身；dev 是 `docker`、prod 是 `k8s` 时，两边本来就不是同一种东西（一份 `docker-compose.yaml` 对一组 Kubernetes 清单），没法比。这里没有一个专门对比生成的部署文件的命令，这是有意的暂缓，不是遗漏。

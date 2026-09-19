@@ -180,6 +180,10 @@ brickkit.yaml（声明）
 | 依赖别名（`dependencies.components[].as`） | 变量名基于组件 ID 是双向可推算的，别名只保住一半；"一个能力多个实现"该走 `kind` 资源或 `configSchema` 里的地址项 |
 | 低代码 / BI / DevOps 流水线 | 不在范围内 |
 | Podman 作为部署目标 | 支持写过、也跑通过——`up`、`status`、真实请求、幂等重跑全部正常——但 `down` 在 rootless Podman 上失败，报 `rootless netns: kill network process: permission denied`，纯 `podman rm -f` 都能复现，完全在 BrickKit 自己的代码之外。一个停不掉的项目比根本不支持更糟——容器会一直占着端口和卷，而 CLI 却报告成功——所以选择整个撤回，不留一个跑到一半的支持。只装了 Podman、没装 Docker 的机器上，`up`/`status` 会明确点出这个具体原因、并指向装 Docker，而不是笼统报"找不到引擎"。要恢复支持，需要先有一台 `podman compose down` 本身就能干净跑通的机器，在那台机器上验证完整生命周期，再加一条可重复的检查防止它悄悄再次坏掉 |
+| 平台代为从外部密钥存储（Vault / AWS Secrets Manager 的 SDK）取值 | `${VAR}` 先查进程环境、再查 `.env`——任何能把值放进环境的工具今天就能接入，平台零代码。内置的话，每接一种存储就多一个 SDK，每次 `up`（含 `--dry-run`）都要带存储凭据并联网，还是被否决的"配置中心"的邻居。**已经支持的：** `resources[].existingSecret` 与 `secret: true` 配置项写成 `{ existingSecret, key }`，引用外部系统（Vault Secrets Operator、External Secrets Operator、Sealed Secrets……）已经放进集群的 Secret——两种写法平台都不读写值本身，仅 K8s（§5.2） |
+| 引擎插件 / 第三方部署目标（`up` 上一个假想的 `--engine nomad` 风格参数） | 一个目标的 `Down` / `Status` / 孤儿清理保证，才让"一个能拆干净的项目"成立；插件要自己担保它们，而 CLI 会替它报"成功"——撤掉 Podman 的同一个理由。`deploy.target` 是 `brickkit.yaml` 里的声明，绝不变成命令行参数。新目标在仓库内实现，带全套测试守卫。（`engine.Engine` 本来就是接口；这里说的是谁来担保它的语义，不是代码怎么分层） |
+| 增量生成缓存（`.brickkit/` 里存哈希状态） | 没有可加速的东西：50 个组件走完整条链路约 2 ms（`tests/perf`），使用者真正在等的是 `docker compose up` / `kubectl apply`，而它们本来就只动有变化的。缓存要维护状态，过期时静默产出错误的部署文件 |
+| 按契约生成 mock（一个完整的 `mock` 命令）、自动替换缺失的强依赖（`up --with-mocks` 风格的参数） | 平台从不解析契约（`artifacts.format` 只是个字符串）；给缺失的强依赖换上替身，违反"强依赖缺失就阻断启动"，还可能被误部署；mock 起在另一个名字下接不到流量，因为注入的地址指向真实组件的版本化服务名。现在就能用的：`brickkit new <id> --contract openapi` + `local: true` + 任意 mock 工具（`docs/zh/03-guide/07-consuming-artifacts.md`） |
 
 ---
 
@@ -649,7 +653,7 @@ resources:                       # 基础资源声明与绑定（资源本身由
     username: <用户名>
     password: ${DB_PASSWORD}     # 必须通过环境变量引用
     existingSecret: <K8s Secret 名>  # 可选，仅 K8s，与 password 互斥——
-                                    #   引用运维/Vault/ESO 已经建好的 Secret，而不是让平台生成
+                                    #   引用运维/Vault Secrets Operator/ESO 已经建好的 Secret，而不是让平台生成
     bindings:
       - componentId: people/basic
         # ↓ 下面四个是**同一格**（这个组件在资源里占哪一块），按 kind 用对应的

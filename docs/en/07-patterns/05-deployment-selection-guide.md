@@ -732,3 +732,98 @@ you're actually deploying under.
   config): each one is fully self-contained — `brickkit up --config
   brickkit.prod.yaml` — with no overlay or inheritance between them
   (AGENTS.md §9.9).
+
+### Comparing two environment files
+
+Because each environment's config is fully self-contained, comparing two of
+them doesn't need any dedicated command — two ordinary `diff`s cover it:
+
+1. `diff -u brickkit.dev.yaml brickkit.prod.yaml` shows **what you actually
+   wrote differently**.
+2. `diff <(brickkit up --dry-run --config brickkit.dev.yaml 2>&1 | grep -v
+   '^{') <(brickkit up --dry-run --config brickkit.prod.yaml 2>&1 | grep -v
+   '^{')` shows **the consequence of those differences** — which components
+   don't start as a result, and why.
+
+Real output, from a project where `acme/web` depends on `erp/backend` and
+`brickkit.prod.yaml` turns `deploy.target` to `k8s` and `erp/backend` off:
+
+```
+$ diff -u brickkit.dev.yaml brickkit.prod.yaml
+--- brickkit.dev.yaml
++++ brickkit.prod.yaml
+@@ -3,7 +3,7 @@
+ project: shop
+
+ deploy:
+-  target: docker # docker | k8s
++  target: k8s # docker | k8s
+
+ # sources: ...
+ components:
+   - id: erp/backend
+     version: 0.1.0
++    enabled: false
+   - id: acme/web
+     version: 0.1.0
+ resources: []
+```
+
+```
+$ diff <(brickkit up --dry-run --config brickkit.dev.yaml 2>&1 | grep -v '^{') \
+       <(brickkit up --dry-run --config brickkit.prod.yaml 2>&1 | grep -v '^{')
+1c1
+< 🚀 启动项目 shop（deploy.target: docker）
+---
+> 🚀 启动项目 shop（deploy.target: k8s）
+3,4c3,4
+<    ✅ erp/backend@0.1.0  启动（acme/web 需要）
+<    ✅ acme/web@0.1.0     启动（顶层）
+---
+>    ⬜ erp/backend@0.1.0  显式禁用（enabled: false）
+>    ⬜ acme/web@0.1.0     不启动（强依赖 erp/backend 不启动）
+6,18c6,10
+< 📋 启动顺序（拓扑排序）：
+<    1. erp-backend-0-1-0  无依赖
+<    2. acme-web-0-1-0     ← 依赖 1
+<
+< 可独立启动：erp-backend-0-1-0（无依赖）
+< 最长依赖链（2 层）：erp-backend-0-1-0 → acme-web-0-1-0
+<
+< 依赖图：
+<    acme/web@0.1.0 → erp/backend@0.1.0
+< 📄 已生成：.brickkit/generated/docker-compose.yaml
+<
+< 💡 --dry-run 只生成文件，未启动任何组件
+<    查看：cat .brickkit/generated/docker-compose.yaml
+---
+> 📋 本次没有组件会启动
+>    顶层组件（没有别的组件依赖它们）这次都不跑：
+>       acme/web@0.1.0  不启动（强依赖 erp/backend 不启动）
+>    顶层自己都没被关掉——要放开的是上面那行理由里点名的组件
+> 💡 有 2 个组件本次不启动，brickkit sync 可以把它们的源码收进 components/.archived/
+```
+
+The second `diff` shows the consequence directly, not just the config line
+that caused it: it isn't only `erp/backend` that stops — `acme/web` stops
+too, and the line names why: `不启动（强依赖 erp/backend 不启动）` ("not
+starting — required dependency erp/backend isn't starting"). Reading just
+the first `diff` (`enabled: false` on one component) would never tell you
+that on its own.
+
+Two things worth knowing, both found by actually running this:
+
+- `--dry-run` overwrites `.brickkit/generated/` on every run, so if you want
+  to keep one environment's generated files around afterward, run that
+  config's `up --dry-run` last.
+- `grep -v '^{'` filters out the structured JSON log lines the CLI writes to
+  stderr — without it, they interleave with the human-readable lines above
+  and the diff gets noisy.
+
+One honest limitation: this only compares the *startup decision* — which
+components would run, and why — as text. It doesn't compare the rendered
+deployment files themselves; when dev is `docker` and prod is `k8s`, those
+two outputs (a `docker-compose.yaml` versus a set of Kubernetes manifests)
+aren't comparable to begin with. There's no dedicated command here for
+diffing the generated deployment files — that's a deliberate deferral, not
+an oversight.

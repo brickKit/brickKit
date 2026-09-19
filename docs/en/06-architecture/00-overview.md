@@ -144,6 +144,7 @@ This list matters as much as the platform's abilities: none of the items below i
 | --- | --- | --- |
 | [13. Security review of third-party components](#13-security-review-of-third-party-components)<br>The platform scanning and vetting a component before it's published | An upfront scan either flags too much or misses cleverly disguised malicious code | Signature verification, plus marking a malicious component `blocked` afterwards |
 | [14. Monorepo sub-directory components](#14-monorepo-sub-directory-components)<br>Several components in different folders of one Git repository | A component is an independent unit of publishing, moving and permissions | One component, one Git repository |
+| [18. Fetching secrets from an external store](#18-fetching-secrets-from-an-external-store)<br>The CLI calling a secret-manager SDK on your behalf to fetch values into Secrets | An SDK and credentials per store, and network access on every `up` including `--dry-run` | Put the value in the environment yourself; for a Secret that already exists, reference it with `existingSecret` |
 
 ### E. Deployment shape and scope
 
@@ -152,6 +153,9 @@ This list matters as much as the platform's abilities: none of the items below i
 | [15. A full consolidated-deployment command](#15-a-full-consolidated-deployment-command)<br>Merging many components into one process to save memory, with the platform managing all of it | It would mean the platform starting to understand what's inside the "shell" | One small structural piece only: `servedBy` |
 | [16. Podman as a deploy target](#16-podman-as-a-deploy-target)<br>Deploying with Podman instead of Docker | It worked, but `down` fails on rootless Podman, and a project that can't be torn down is worse than one that isn't supported | Use Docker |
 | [17. Low-code, BI and DevOps pipelines](#17-low-code-bi-and-devops-pipelines) | Out of the platform's scope | — |
+| [19. Engine plugins and third-party deploy targets](#19-engine-plugins-and-third-party-deploy-targets)<br>A pluggable interface for deploying somewhere the platform doesn't know | A plugin would own tear-down and status guarantees while the CLI reported success on its behalf — the Podman lesson | Build a new target in-tree, with the full test guard set |
+| [20. An incremental generation cache](#20-an-incremental-generation-cache)<br>Remembering hashes so `up` regenerates only what changed | Generating 50 components already takes about 2 ms; there's nothing to speed up | Nothing — measure first if a real project ever shows otherwise |
+| [21. Generated mocks and substituting missing dependencies](#21-generated-mocks-and-substituting-missing-dependencies)<br>Building a fake server from a contract, and auto-swapping it in for a missing required dependency | The platform never parses contracts; a silent stand-in contradicts "missing required dependency blocks startup" | A stub via `brickkit new --contract`, then `local: true` plus any mock tool |
 
 ---
 
@@ -221,7 +225,7 @@ This list matters as much as the platform's abilities: none of the items below i
 
 - **What it is:** a base config plus a layer of "overrides" per environment, merged into the final config at runtime.
 - **Why it doesn't:** an overlay forces you to mentally reconstruct "base layer / override layer / merge rules" before you can read the final config, and a Git diff of the base layer can't tell you which environments it silently affects.
-- **What to do instead:** one complete, self-contained `brickkit.yaml` per environment, chosen with `brickkit up --config brickkit.prod.yaml`.
+- **What to do instead:** one complete, self-contained `brickkit.yaml` per environment, chosen with `brickkit up --config brickkit.prod.yaml`. To see how two environment files differ — and what the differences do — see the two-line recipe in [Choosing a deployment shape](../07-patterns/05-deployment-selection-guide.md).
 - **What you'd see if you built one anyway:** reuse config via `base.yaml` plus `prod-overlay.yaml` and the only thing you save is typing a few lines — the cost is that a change to the base layer can silently affect environments you can't identify from the diff, and the CLI provides no command to merge such files anyway.
 
 ---
@@ -299,6 +303,38 @@ This list matters as much as the platform's abilities: none of the items below i
 ### 17. Low-code, BI and DevOps pipelines
 
 - **Why it doesn't:** out of the platform's scope. BrickKit is a platform for assembling components: it is not an operating system, not an ERP, and not any specific piece of business software.
+
+---
+
+### 18. Fetching secrets from an external store
+
+- **What it is:** the CLI calling Vault / AWS Secrets Manager SDKs at `up` time to fetch values and turn them into Secrets.
+- **Why it doesn't:** an SDK and its credentials per store, network access on every `up` including `--dry-run`, and a neighbour of the rejected config center; `${VAR}` already reads the process environment first.
+- **What to do instead:** put the value in the environment with whatever tool you use, then `brickkit up`; declare `secret: true` in `configSchema` so a config credential stays out of Deployments; or, for a Secret an external system already created, reference it directly with `resources[].existingSecret` or a `secret: true` config value's `{ existingSecret, key }` form — see [Secrets](../07-patterns/10-secrets.md).
+
+---
+
+### 19. Engine plugins and third-party deploy targets
+
+- **What it is:** an interface external programs implement so a flag like `--engine nomad` on `up` deploys somewhere the platform doesn't know.
+- **Why it doesn't:** a target's tear-down, status and orphan-cleanup guarantees are the reason "a project can be torn down" is true, and a plugin would own them while the CLI reported success (the Podman lesson, entry 16); a CLI flag would also bypass `deploy.target`, the declaration.
+- **What to do instead:** build a new target in-tree with the full test guard set.
+
+---
+
+### 20. An incremental generation cache
+
+- **What it is:** remembering hashes under `.brickkit/` so `up` regenerates only what changed.
+- **Why it doesn't:** generating 50 components takes about 2 ms; what users wait for is `docker compose up` / `kubectl apply`, which already touch only what changed; a cache that goes stale silently produces wrong deployment files.
+- **What to do instead:** nothing — there is nothing to speed up. Measure first (`go test ./tests/perf -bench .`); reopen it only if a real project shows generation above ~100 ms.
+
+---
+
+### 21. Generated mocks and substituting missing dependencies
+
+- **What it is:** a `mock`-style command building a fake server from a component's contract, and a `--with-mocks`-style flag on `up` swapping it in for a required dependency that isn't there.
+- **Why it doesn't:** the platform never parses contracts; a stand-in swapped in silently contradicts "a missing required dependency blocks startup"; and a mock under its own name gets no traffic because injected addresses point at the real component's versioned service name.
+- **What to do instead:** `brickkit new <id> --contract openapi` for a stub, `local: true` + `localPort`, and any mock tool listening on that port — [walkthrough](../03-guide/07-consuming-artifacts.md).
 
 ---
 
