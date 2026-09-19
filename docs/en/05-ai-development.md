@@ -1,6 +1,6 @@
 # AI-Assisted Development Guide
 
-BrickKit's component model happens to fit AI-assisted development well. This explains why, and how to actually use it.
+BrickKit's component model is a natural fit for AI-assisted development. This explains why, and how to actually use it.
 
 New to the component contract itself? [Build your first component from scratch](03-guide/10-build-your-own.md) walks through the same Manifest/env-var/health-check basics an AI-generated component still has to follow — worth reading once before handing the rest to an AI, so you can tell whether what it produces is actually correct.
 

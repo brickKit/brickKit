@@ -19,8 +19,14 @@ Kubernetes manifests, network policies — then hands off to Docker or Kubernete
 and exits. No registry, no config center, no gateway, no resident process.
 
 Each component is an independent domain unit, developed, tested, deployed, and
-called on its own. The design leans on ideas engineers already trust, and works
-in units small enough for a person, or an AI, to read in one pass.
+called on its own. The design leans on ideas engineers already trust.
+
+**AI-friendly, and a natural fit for AI-assisted development.** A component is
+small enough for an AI to read whole, its boundary is a contract file rather than
+a guess, and everything an AI would otherwise have to invent — service addresses,
+variable names, deployment files — is derived. Wiring mistakes surface at
+`brickkit up --dry-run`, before anything starts, and `brickkit init` installs AI
+assistant skills into the project.
 
 </div>
 
@@ -75,7 +81,7 @@ Each idea in plain words — what it costs, and how BrickKit treats it — is in
 
 ## If you're writing components with AI
 
-BrickKit's component model happens to fit AI-assisted development well.
+BrickKit's component model is a natural fit for AI-assisted development.
 
 Measured across the 10 real components this repository ships as fixtures,
 component size ranges from 200 to 3,500 lines. That's small enough for an AI
@@ -87,6 +93,9 @@ Environment-variable injection means AI-generated code never has to deal with
 service discovery or a config center's complexity. Exact versions plus
 multi-version coexistence mean an AI-generated v2 can run safely alongside v1
 without breaking anything that still depends on it.
+
+The full reasoning and a step-by-step workflow are in
+[AI-assisted development](docs/en/05-ai-development.md).
 
 ---
 
