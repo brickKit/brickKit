@@ -23,8 +23,9 @@ English | [中文](AGENTS.zh.md)
 > user is asking in Chinese, read `AGENTS.zh.md` instead; if they're asking in English (or anything
 > else), stay here. For deeper detail on a specific mechanism — English digs into `docs/en/`,
 > Chinese digs into `docs/zh/`. The two trees are structurally identical; the path formula is
-> `docs/{en,zh}/<architecture|guide|patterns>/<same relative path>`. §11's table below gives
-> English paths; swap `en` for `zh` to get the Chinese equivalent.
+> `docs/{en,zh}/<same relative path>` (folder and file names start with a reading-order
+> number, e.g. `06-architecture/00-overview.md`, identical in both trees). §11's table below
+> gives English paths; swap `en` for `zh` to get the Chinese equivalent.
 
 ---
 

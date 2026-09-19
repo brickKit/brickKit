@@ -2,6 +2,8 @@
 
 These are **recommended practices**, not hard requirements the platform enforces — `brickkit up` won't check whether you followed any of them. Each one's core comes from lessons learned in a real deployment; a few individual sections are a recommended working order or a concept table without the same field record, and say so at their start.
 
+**The numbers in the file names are the suggested reading order:** 00–04 first (component developers), then 05–08 (deployers), and 09 last (operations).
+
 ## Find your problem first
 
 | What you're doing | Read this |
@@ -21,22 +23,22 @@ These are **recommended practices**, not hard requirements the platform enforces
 
 ### Component developers
 
-- [Component Design Guidelines](00-component-design.md) — how to research a domain, when a feature needs a component family rather than a flag, and how component boundaries map onto DDD's vocabulary
-- [Testing patterns for components built on BrickKit](01-testing.md) — four backend layers (contract/business-rule/unit/integration), four frontend layers (unit/component/e2e/visual regression), and a recommended order for having an AI write a component
-- [Planning Seed Data and Test Data](02-data-construction.md) — two paths that must stay physically separate
-- [Protecting Closed-Source Components from Image-Based Extraction](04-closed-source-image-hardening.md) — pulling an image isn't the same guarantee as a private Git repo
-- [Calling a Dependency's Address Reliably](03-service-addressing.md) — real, measured behavior of Go/Python/Node HTTP clients across a dependency's container being replaced
+- **00** [Component Design Guidelines](00-component-design.md) — how to research a domain, when a feature needs a component family rather than a flag, and how component boundaries map onto DDD's vocabulary
+- **01** [Testing patterns for components built on BrickKit](01-testing.md) — four backend layers (contract/business-rule/unit/integration), four frontend layers (unit/component/e2e/visual regression), and a recommended order for having an AI write a component
+- **02** [Planning Seed Data and Test Data](02-data-construction.md) — two paths that must stay physically separate
+- **03** [Calling a Dependency's Address Reliably](03-service-addressing.md) — real, measured behavior of Go/Python/Node HTTP clients across a dependency's container being replaced
+- **04** [Protecting Closed-Source Components from Image-Based Extraction](04-closed-source-image-hardening.md) — pulling an image isn't the same guarantee as a private Git repo
 
 ### Deployers / platform admins
 
-- [Choosing a deployment shape](05-deployment-selection-guide.md) — how to pick among topology (independent / shell-merged / mixed) × `docker`/`k8s`
-- [Declaring `servedBy`: A Deployment Checklist](06-servedby-deployment-checklist.md) — a checklist for deciding whether and how to use it
-- [Building a Qualified Shell](07-shell-implementers-guide.md) — for whoever is building the shell component itself
-- [Sharing a Database Connection Pool Inside a Shell](08-shared-connection-pools.md) — how components merged into the same shell share a pool
+- **05** [Choosing a deployment shape](05-deployment-selection-guide.md) — how to pick among topology (independent / shell-merged / mixed) × `docker`/`k8s`
+- **06** [Declaring `servedBy`: A Deployment Checklist](06-servedby-deployment-checklist.md) — a checklist for deciding whether and how to use it
+- **07** [Building a Qualified Shell](07-shell-implementers-guide.md) — for whoever is building the shell component itself
+- **08** [Sharing a Database Connection Pool Inside a Shell](08-shared-connection-pools.md) — how components merged into the same shell share a pool
 
 ### Operations
 
-- [Self-Hosting the BrickKit Market](09-deployment/self-hosted-market.md) — deploying the marketplace itself, from local dev to production
+- **09** [Self-Hosting the BrickKit Market](09-deployment/self-hosted-market.md) — deploying the marketplace itself, from local dev to production
 
 ## By topic
 

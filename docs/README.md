@@ -4,11 +4,14 @@ This is a way-finding index by intent, not by document type. The documentation
 itself lives in two fully symmetric, independently-written trees —
 [`en/`](en/) and [`zh/`](zh/) — not a base language plus translations. Pick
 your language below, then every link points at the matching file in that tree.
+Inside each tree, the numbers in front of folder and file names are the suggested
+reading order — [`en/README.md`](en/README.md) lays it out.
 
 这是一个按"我想做什么"组织的导航页，不是按文档类型分类。文档本体分别在两棵
 **完全对称、各自独立撰写**的目录树里——[`en/`](en/) 和 [`zh/`](zh/)——不是
 "一种语言是原文、另一种是译本"的关系。先选你要读的语言，之后每条链接都指向
-那棵树里对应的文件。
+那棵树里对应的文件。每棵树里，文件夹和文件名前面的编号就是推荐的阅读顺序，见
+[`zh/README.md`](zh/README.md)。
 
 ---
 
@@ -86,8 +89,8 @@ your language below, then every link points at the matching file in that tree.
 
 ---
 
-Both trees follow the same layout —
-`{en,zh}/<architecture|guide|patterns>/<same relative path>` — so once you
-know a document's location in one language, you know it in the other too.
-两棵树的目录结构完全一致——`{en,zh}/<architecture|guide|patterns>/相同的相对
-路径`——知道一篇文档在一种语言下的位置，就知道它在另一种语言下的位置。
+Both trees follow the same layout — `{en,zh}/<same relative path>`, numbers
+included — so once you know a document's location in one language, you know it
+in the other too.
+两棵树的目录结构完全一致——`{en,zh}/<相同的相对路径>`，连编号都一样——知道一篇
+文档在一种语言下的位置，就知道它在另一种语言下的位置。

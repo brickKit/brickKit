@@ -343,60 +343,20 @@ Manifest 和依赖方的 API 契约，就能写出一个完整的、可独立运
 
 更想按主题找文档而不是往下翻这一页？[`docs/README.md`](https://github.com/brickKit/brickKit/blob/main/docs/README.md) 是一份进入两棵语言树的短导航页。
 
-**新手入门**
+**按阅读顺序**——`docs/` 下文件夹和文件名前面的编号就是推荐的顺序，每个文件夹里的 README 会把它讲清楚。
 
-| 文档 | 讲什么 |
-| --- | --- |
-| [Quick Start（5 分钟）](https://github.com/brickKit/brickKit/blob/main/docs/zh/00-quick-start.md) | 从空目录到一个可以 curl 通的容器，每一步都真跑过 |
-| [核心概念](https://github.com/brickKit/brickKit/blob/main/docs/zh/01-concepts.md) | 一页纸的术语速查 + 贯穿全平台的那条服务名规则 |
-| [故障排除](https://github.com/brickKit/brickKit/blob/main/docs/zh/08-troubleshooting.md) | `up`/`down` 失败、签名验证失败等最常见的坑，症状 → 真实原因 → 解决 |
-| [对比](https://github.com/brickKit/brickKit/blob/main/docs/zh/02-comparison.md) | BrickKit 和 Compose、Helm、Kustomize、Tilt/Skaffold、Backstage、monorepo 工具到底哪里重叠、哪里不重叠 |
-| [AI 辅助开发指南](https://github.com/brickKit/brickKit/blob/main/docs/zh/05-ai-development.md) | 为什么组件模型适合 AI 写代码，以及一套具体的工作流 |
-
-**架构——平台到底怎么工作，配真实代码和真实生成出来的输出**
-
-| 文档 | 讲什么 |
-| --- | --- |
-| [架构总览](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/00-overview.md) | 一次声明怎么变成运行中的容器——完整的真实流水线 |
-| [依赖解析与启动顺序](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/02-dependency-resolution.md) | 一个真实的菱形依赖、一个真实的循环依赖，以及为什么真正决定 `up` 要跑多久的是最长依赖链而不是组件数量 |
-| [部署文件是怎么生成出来的](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/03-deployment-generation.md) | 同一个项目分别为 Docker 和 Kubernetes 生成出来的文件，逐字节对照 |
-| [资源绑定的实际机制](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/05-resource-binding.md) | 资源绑定撞车时到底会发生什么、配额链到底怎么合并 |
-| [签名与信任模型](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/06-signing-and-trust.md) | 真正被签名的是什么，以及公钥为什么永远不能来自市场 |
-| [CLI 命令完整参考](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/09-cli-reference.md) | 每个命令、每个参数、真实生成的输出——上面"一分钟上手"的详细版 |
-| [Market API 参考](https://github.com/brickKit/brickKit/blob/main/docs/zh/09-market-api.md) | 市场的每一个 HTTP 端点、认证方式、错误码，以及发布一个版本时到底传了什么 |
-
-**动手教程——12 篇，每一篇都对着真实 CLI 跑过，按顺序读**
-
-| # | 文档 | 讲什么 |
+| 编号 | 文档 | 你会得到什么 |
 | --- | --- | --- |
-| 1 | [把一个项目跑起来](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/01-first-project.md) | init、add、up、curl 它、改配置、down |
-| 2 | [平台是怎么决定谁跑起来的](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/02-what-runs.md) | 依赖、`enabled` 级联、`--dry-run` |
-| 3 | [本地调试一个组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/03-local-debugging.md) | `local: true`，带断点调试 |
-| 4 | [部署到 Kubernetes](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/04-kubernetes.md) | 真实的 minikube 部署，外加一个真实的 `brickkit down` 坑 |
-| 5 | [升级，以及让多个版本并存](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/05-upgrades-and-versions.md) | 版本升级，以及故意让两个版本并存 |
-| 6 | [拼装一个真实的系统，然后故意把它弄坏](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/06-assemble-and-break.md) | 一个真实数据库，两种真正不同的真实失败模式 |
-| 7 | [消费别人的组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/07-consuming-artifacts.md) | 产物、API 文档、`brickkit fetch` |
-| 8 | [从市场发布与安装](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/08-marketplace.md) | 真实市场、版本不可变性、私有可见性 |
-| 9 | [给组件签名与验签](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/09-signing.md) | 真实的 cosign 密钥对、一次真实的验签失败 |
-| 10 | [从零开发自己的第一个组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/10-build-your-own.md) | 四个文件，从零到真正跑起来 |
-| 11 | [网络策略与最小权限](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/11-network-policy.md) | Kubernetes 上真实生效的 NetworkPolicy |
-| 12 | [多项目共享](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/12-multi-project-sharing.md) | 共享资源、隔离资源、把一个组件当成别人的 API |
-
-上面第 10 篇的例子刻意写得很简单。想看更深入、更完整的参考组件——真实的 PostgreSQL 依赖、真实的数据库迁移、多阶段 Dockerfile、每一处"为什么这么写"的推理——看 [用 Go 写一个 BrickKit 组件：完整走一遍](https://github.com/brickKit/brickKit/blob/main/docs/zh/04-go-component-template.md)，带你逐段读懂仓库里真实存在、有测试覆盖的 `department/tree` 夹具。
-
-**Patterns——推荐实践，可选，对着真实部署验证过**（[索引页](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/README.md) 按角色/主题分类导航）
-
-| 文档 | 讲什么 |
-| --- | --- |
-| [组件设计准则](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/00-component-design.md) | 怎么做领域研究，什么时候该做成组件家族而不是开关 |
-| [基于 BrickKit 的组件该怎么分层测试](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/01-testing.md) | 后端的契约/业务规则/单元/集成四层，加前端自己的四层，以及端到端测试为啥要先经你同意才能跑 |
-| [怎么规划种子数据与测试数据](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/02-data-construction.md) | 两条必须物理隔离的路径，以及为什么 |
-| [闭源组件的镜像安全规范](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/04-closed-source-image-hardening.md) | 拉取镜像跟私有 Git 仓库不是同一种保证 |
-| [怎么选部署形态](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/05-deployment-selection-guide.md) | 拓扑（独立/外壳合并/混合）× `docker`/`k8s` 的组合怎么选 |
-| [怎么声明 servedBy：部署方检查清单](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/06-servedby-deployment-checklist.md) | `servedBy` 到底解决什么问题、什么时候该用、什么时候不该用 |
-| [合格外壳该满足什么](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/07-shell-implementers-guide.md) | 写给造壳的人：`servedBy` 对收编组件的外壳提出了什么要求 |
-| [在外壳里合并数据库连接池](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/08-shared-connection-pools.md) | 合并进同一个壳、又共用 PostgreSQL 或 Oracle 的组件该怎么办 |
-| [自己搭一套 BrickKit Market](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/09-deployment/self-hosted-market.md) | 部署市场本身，从本地开发到生产环境 |
+| 00 | [Quick Start](https://github.com/brickKit/brickKit/blob/main/docs/zh/00-quick-start.md) | 5 分钟，从空目录到一个可以 curl 通的容器，每一步都真跑过 |
+| 01 | [核心概念](https://github.com/brickKit/brickKit/blob/main/docs/zh/01-concepts.md) | 一页术语表，加上那条贯穿一切的命名规则 |
+| 02 | [和现有方案对比](https://github.com/brickKit/brickKit/blob/main/docs/zh/02-comparison.md) | BrickKit 和 Compose、Helm、Kustomize 等在哪里重叠，又在哪里不重叠 |
+| 03 | [动手教程](https://github.com/brickKit/brickKit/blob/main/docs/zh/03-guide/README.md) | 12 篇教程，每一篇都对着真实的 CLI 真跑过 |
+| 04 | [用 Go 写一个组件](https://github.com/brickKit/brickKit/blob/main/docs/zh/04-go-component-template.md) | 带读一个带数据库的、有测试覆盖的真实组件 |
+| 05 | [AI 辅助开发](https://github.com/brickKit/brickKit/blob/main/docs/zh/05-ai-development.md) | 组件模型为什么适合 AI 写代码，以及具体怎么用 |
+| 06 | [架构](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/README.md) | 平台怎么工作、为什么这样设计，以及字段、命令、错误码的完整参考 |
+| 07 | [推荐实践](https://github.com/brickKit/brickKit/blob/main/docs/zh/07-patterns/README.md) | 来自真实部署验证过的做法 |
+| 08 | [故障排除](https://github.com/brickKit/brickKit/blob/main/docs/zh/08-troubleshooting.md) | 症状 → 原因 → 解决 |
+| 09 | [Market API](https://github.com/brickKit/brickKit/blob/main/docs/zh/09-market-api.md) | 市场的每一个 HTTP 接口 |
 
 ---
 
