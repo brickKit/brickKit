@@ -1986,7 +1986,7 @@ Expected: PASS
 
 - [ ] **Step 5: 把命令总数的文字声明改成 16**（见 Global Constraints；此时应看到上一任务留下的 15）
 
-`git grep -nE "1[0-9] (个命令|条命令|commands)" -- ':!docs/archive' ':!docs/superpowers' ':!改进计划.md'`，15 → 16，只改数字。
+`git grep -nE "1[0-9] (个命令|条命令|commands)|命令共 [0-9]+ 条" -- ':!docs/archive' ':!docs/superpowers' ':!改进计划.md'`，15 → 16，只改数字（第二种写法 `README.zh.md` 里的"命令共 15 条"是 Task 3 实现者发现的——数字在"条"前面，`check-cli-docs` 不认这种措辞，不改就悄悄过期）。
 
 - [ ] **Step 6: 全量检查并提交**
 
@@ -2980,7 +2980,7 @@ git commit -F <写好信息的文件>   # 新增：component.yaml / brickkit.yam
 
 Task 3 与 Task 6 已经各自把"命令总数"的文字声明改过（14→15→16），这里只确认没有遗漏——中英文一起：
 ```bash
-git grep -nE "[0-9]+ (个命令|条命令|commands)" -- ':!docs/archive' ':!docs/superpowers' ':!改进计划.md'   # 期望：数字全是 16
+git grep -nE "[0-9]+ (个命令|条命令|commands)|命令共 [0-9]+ 条" -- ':!docs/archive' ':!docs/superpowers' ':!改进计划.md'   # 期望：数字全是 16
 make build-cli   # 得到 bin/brickkit
 ```
 在一个真实项目里跑两条新命令拿输出：用 `tests/components/` 里的两个真实组件（`demo-hello`、`demo-caller`，与 cli-reference 现有的示例同一套）建项目，跑 `brickkit graph`（一次带 `--ignore-served-by` 不必，除非文档要讲它）与 `brickkit lint`（一次干净、一次故意在某个 `component.yaml` 里拼错一个键——例如把 `dependencies` 写成 `dependancies`）。输出块**逐字**取自真实输出。
