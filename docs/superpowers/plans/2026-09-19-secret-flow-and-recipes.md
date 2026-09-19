@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 让"密钥值写到哪"在 Docker / K8s 两种目标下都符合平台自己文档写的设计（compose 文件永远没有密钥；K8s 里密钥进 Secret、不进 Deployment）；新增 `existingSecret` 引用机制，让资源密码与组件配置密钥都能指向外部系统（Vault Agent Injector / External Secrets Operator / Sealed Secrets）已经建好的 K8s Secret，平台从头到尾不接触密钥值；并补上两份缺失的文档配方（契约先行、对比两份环境配置），把被否决的想法记进拒绝清单。
+**Goal:** 让"密钥值写到哪"在 Docker / K8s 两种目标下都符合平台自己文档写的设计（compose 文件永远没有密钥；K8s 里密钥进 Secret、不进 Deployment）；新增 `existingSecret` 引用机制，让资源密码与组件配置密钥都能指向外部系统（Vault Secrets Operator / External Secrets Operator / Sealed Secrets）已经建好的 K8s Secret，平台从头到尾不接触密钥值；并补上两份缺失的文档配方（契约先行、对比两份环境配置），把被否决的想法记进拒绝清单。
 
 **Architecture:** 四处改动、一个原则——**每个值只在最终需要它的那一处求值，密钥性质由声明给出**。① `config.ParseConfig` 不再提前展开 `components[].config` 与 `resources[].password` 的 `${VAR}`，让 compose / K8s / local-debug 三个渲染器各自决定；② `configSchema` 属性新增 `secret: true`，注入层把它标成敏感变量，K8s 渲染器为它生成 `Secret/<服务名>-config-secret` 并在 Deployment 里用 `secretKeyRef`，servedBy 成员的 Secret 仍归成员；③ 新增 `resources[].existingSecret`（资源层）与配置密钥的 `{ existingSecret, key }` 写法（配置层），两者都只引用一个外部系统已经建好的 Secret，平台不生成、不接触值，语义与 `serviceAccountName`（"运维已建好，平台只引用"）同构；④ 文档与拒绝清单。不新增任何 CLI 命令，只新增字段与写法。
 
@@ -1124,7 +1124,7 @@ EOF
 ## Task 4: `existingSecret`——引用外部系统已经建好的 Secret（仅 K8s）
 
 **背景（第二次评判改判的一条，见 Spec §2.1、§3.2）：** 提案 1 的两个真实例子——数据库密码、第三方 API 密钥——
-都是"运维/安全团队已经用 Vault Agent Injector / External Secrets Operator / Sealed Secrets 之类的工具，
+都是"运维/安全团队已经用 Vault Secrets Operator / External Secrets Operator / Sealed Secrets 之类的工具，
 在集群里建好了一个 K8s Secret"，平台需要做的只是"引用它，别自己生成一份"，与 `serviceAccountName`
 （"运维已建好，平台只引用"）同一个模式，Helm 生态里也是被验证过的成熟写法。这不是"代取值"（已否决，见 §2.1），
 CLI 从头到尾不接触密钥的值。本任务分两层：**资源层**（`resources[].existingSecret`，一个真实的结构体字段）
@@ -1307,7 +1307,7 @@ func ExistingSecretRef(v any) (secretName, key string, ok bool) {
 ```go
 	// ExistingSecret 是这个资源的密钥字段（database/cache/mq/smtp 的 password，
 	// storage 的 secret-key）该引用的 K8s Secret 名，而不是由平台生成一份——
-	// 用在运维已经用 Vault Agent Injector / External Secrets Operator / Sealed Secrets
+	// 用在运维已经用 Vault Secrets Operator / External Secrets Operator / Sealed Secrets
 	// 之类的工具把密钥同步进集群的场景，CLI 从头到尾不接触值本身（仅 K8s，语义与
 	// ServiceAccountName 一致：只引用、不生成）。与 Password 二选一，两者都写会报错——
 	// 已经有一个外部管理的 Secret 时，Password 是多余的、也可能对不上。
@@ -1414,7 +1414,7 @@ Expected: FAIL（`ExistingSecretRef` 字段不存在；或者行为不对——e
 
 ```go
 	// ExistingSecretRef 非空表示这条敏感变量不该由平台生成 Secret，而是引用外部系统
-	// （Vault Agent Injector / External Secrets Operator / Sealed Secrets……）已经建好的
+	// （Vault Secrets Operator / External Secrets Operator / Sealed Secrets……）已经建好的
 	// 这个名字的 K8s Secret；值是那个 Secret 的名字。只在 IsSecret() 为 true 时有意义。
 	// K8s 渲染器（secretRef）优先看它；Docker 没有对应概念，这类变量的 Value 始终是空串，
 	// 由 compose 的 environmentOf 跳过（表现成"没配"）。
@@ -1892,13 +1892,13 @@ Run: `go test ./internal/cli -count=1` → PASS。
 `docs/en/06-architecture/08-brickkit-yaml-reference.md`，`resources[].password` 那一行之后加：
 
 ```markdown
-| `resources[].existingSecret` | string | no | K8s only. References a Secret an external system (Vault Agent Injector, External Secrets Operator, Sealed Secrets, …) already put in the cluster, instead of the platform generating one from `password`. Mutually exclusive with `password` — writing both errors. The platform never reads or writes the value; it only points the `secretKeyRef` at this name, using the same key (`password` or `secret-key`) it would use for a generated Secret. Ignored (with a warning) under `docker`. A `configSchema` property declared `secret: true` can use the same idea for a component's own config value: write `{ existingSecret: <name>, key: <key-in-secret> }` in place of a scalar — see [Secrets](../07-patterns/10-secrets.md). |
+| `resources[].existingSecret` | string | no | K8s only. References a Secret an external system (Vault Secrets Operator, External Secrets Operator, Sealed Secrets, …) already put in the cluster, instead of the platform generating one from `password`. Mutually exclusive with `password` — writing both errors. The platform never reads or writes the value; it only points the `secretKeyRef` at this name, using the same key (`password` or `secret-key`) it would use for a generated Secret. Ignored (with a warning) under `docker`. A `configSchema` property declared `secret: true` can use the same idea for a component's own config value: write `{ existingSecret: <name>, key: <key-in-secret> }` in place of a scalar — see [Secrets](../07-patterns/10-secrets.md). |
 ```
 
 `docs/zh/06-architecture/08-brickkit-yaml-reference.md` 同位置：
 
 ```markdown
-| `resources[].existingSecret` | string | 否 | 仅 K8s。引用外部系统（Vault Agent Injector、External Secrets Operator、Sealed Secrets……）已经放进集群的 Secret，而不是让平台从 `password` 生成一份。与 `password` 互斥——两个都写会报错。平台从不读写这个值，只是把 `secretKeyRef` 指向这个名字，用的 key 与平台自己生成时会用的一样（`password` 或 `secret-key`）。`docker` 下被忽略（有警告）。声明了 `secret: true` 的 `configSchema` 属性也能用同一个想法：把标量值换成 `{ existingSecret: <名>, key: <Secret 里的 key> }`——见[密钥](../07-patterns/10-secrets.md)。 |
+| `resources[].existingSecret` | string | 否 | 仅 K8s。引用外部系统（Vault Secrets Operator、External Secrets Operator、Sealed Secrets……）已经放进集群的 Secret，而不是让平台从 `password` 生成一份。与 `password` 互斥——两个都写会报错。平台从不读写这个值，只是把 `secretKeyRef` 指向这个名字，用的 key 与平台自己生成时会用的一样（`password` 或 `secret-key`）。`docker` 下被忽略（有警告）。声明了 `secret: true` 的 `configSchema` 属性也能用同一个想法：把标量值换成 `{ existingSecret: <名>, key: <Secret 里的 key> }`——见[密钥](../07-patterns/10-secrets.md)。 |
 ```
 
 Run: `go test ./tests/docfields/... -count=1` → PASS。
@@ -1914,7 +1914,7 @@ git commit -m "$(cat <<'EOF'
 新增 existingSecret：引用外部系统已经建好的 Secret（仅 K8s），CLI 不接触值
 
 提案 1（外部密钥集成）的两个真实例子——数据库密码、第三方 API 密钥——都是"运维已经用
-Vault Agent Injector / External Secrets Operator / Sealed Secrets 把密钥同步进集群"，
+Vault Secrets Operator / External Secrets Operator / Sealed Secrets 把密钥同步进集群"，
 不是"CLI 自己去问 Vault 要值"。这与平台已有的 serviceAccountName 模式（运维已建好，
 平台只引用、不生成）同构，Helm 生态里也是被验证过的成熟写法。
 
@@ -2002,7 +2002,7 @@ plain `env` value. On Docker, `${VAR}` in `config` and `resources[].password` is
 the CLI when it writes `docker-compose.yaml` — `docker compose` resolves it at start (process
 environment first, `.env` second). `brickkit.yaml` only ever holds the reference. There is no
 "fetch from Vault" built in and there won't be (§4.1): anything that can put the value in the process
-environment works — and for a Secret an external system (Vault Agent Injector, External Secrets
+environment works — and for a Secret an external system (Vault Secrets Operator, External Secrets
 Operator, Sealed Secrets, …) already created in the cluster, `resources[].existingSecret` and a
 `secret: true` config value's `{ existingSecret, key }` form reference it directly, K8s only; the
 platform never reads or writes the value either way. Details: [Secrets](docs/en/07-patterns/10-secrets.md).
@@ -2016,7 +2016,7 @@ platform never reads or writes the value either way. Details: [Secrets](docs/en/
 `Secret`（文件权限 0600），Deployment 里只有 `secretKeyRef`；其余都是明文 `env`。Docker 下，`config` 与
 `resources[].password` 里的 `${VAR}` 在 CLI 写 `docker-compose.yaml` 时**从不**求值——由 `docker compose`
 启动时求值（先进程环境、后 `.env`）。`brickkit.yaml` 里永远只有引用。平台没有内置"去 Vault 取值"，
-以后也不会有（§4.1）：任何能把值放进进程环境的工具都行——而对于外部系统（Vault Agent Injector、
+以后也不会有（§4.1）：任何能把值放进进程环境的工具都行——而对于外部系统（Vault Secrets Operator、
 External Secrets Operator、Sealed Secrets……）已经在集群里建好的 Secret，`resources[].existingSecret`
 与 `secret: true` 配置项的 `{ existingSecret, key }` 写法能直接引用它，仅 K8s，平台从不读写那个值。
 详见[密钥](docs/zh/07-patterns/10-secrets.md)。
@@ -2363,7 +2363,7 @@ diff <("$S/brickkit" up --dry-run --config brickkit.dev.yaml 2>&1 | grep -v '^{'
 `AGENTS.md` §4.1 表格末尾（Podman 那行之后）加：
 
 ```
-| Fetching secrets from an external store (Vault / AWS Secrets Manager SDKs) on the platform's behalf | `${VAR}` is looked up in the process environment first, `.env` second — anything that can put the value in the environment works today with zero platform code. Built in, it would mean an SDK per store, store credentials and network access on every `up` (`--dry-run` included), and a neighbour of the rejected "config center". **What is supported:** `resources[].existingSecret` and a `secret: true` config value written as `{ existingSecret, key }` reference a Secret an external system (Vault Agent Injector, External Secrets Operator, Sealed Secrets, …) already put in the cluster — the platform never reads or writes the value either way, K8s only (§5.2) |
+| Fetching secrets from an external store (Vault / AWS Secrets Manager SDKs) on the platform's behalf | `${VAR}` is looked up in the process environment first, `.env` second — anything that can put the value in the environment works today with zero platform code. Built in, it would mean an SDK per store, store credentials and network access on every `up` (`--dry-run` included), and a neighbour of the rejected "config center". **What is supported:** `resources[].existingSecret` and a `secret: true` config value written as `{ existingSecret, key }` reference a Secret an external system (Vault Secrets Operator, External Secrets Operator, Sealed Secrets, …) already put in the cluster — the platform never reads or writes the value either way, K8s only (§5.2) |
 | Engine plugins / third-party deploy targets (`brickkit up --engine nomad`) | A target's `Down`/`Status`/orphan-pruning guarantees are what make "a project that can be torn down" true; a plugin would own them while the CLI reported success on its behalf — the same reason Podman was pulled. `deploy.target` in `brickkit.yaml` stays the declaration, never a CLI flag. New targets are built in-tree, with the full test guard set. (`engine.Engine` is already an interface; this is about who guarantees its semantics, not about code layout) |
 | Incremental generation cache (`.brickkit/` hash state) | Nothing to speed up: generating 50 components through the whole pipeline takes about 2 ms (`tests/perf`), and the time users wait on is `docker compose up` / `kubectl apply`, which already touch only what changed. A cache adds state whose staleness silently produces wrong deployment files |
 | Mock generation from contracts (`brickkit mock`) and auto-substituting missing required dependencies (`up --with-mocks`) | The platform never parses contracts (`artifacts.format` is a free string); a stand-in swapped in for a missing required dependency contradicts "missing required dependency blocks startup" and could be deployed by mistake; a mock under another name receives no traffic because injected addresses point at the real component's versioned service name. What works today: `brickkit new <id> --contract openapi` + `local: true` + any mock tool (`docs/en/03-guide/07-consuming-artifacts.md`) |
@@ -2372,7 +2372,7 @@ diff <("$S/brickkit" up --dry-run --config brickkit.dev.yaml 2>&1 | grep -v '^{'
 `AGENTS.zh.md` §4.1 同位置加对应 4 行（中文独立撰写，含义一致；引用链接指向 `docs/zh/…`）：
 
 ```
-| 平台代为从外部密钥存储（Vault / AWS Secrets Manager 的 SDK）取值 | `${VAR}` 先查进程环境、再查 `.env`——任何能把值放进环境的工具今天就能接入，平台零代码。内置的话，每接一种存储就多一个 SDK，每次 `up`（含 `--dry-run`）都要带存储凭据并联网，还是被否决的"配置中心"的邻居。**已经支持的：** `resources[].existingSecret` 与 `secret: true` 配置项写成 `{ existingSecret, key }`，引用外部系统（Vault Agent Injector、External Secrets Operator、Sealed Secrets……）已经放进集群的 Secret——两种写法平台都不读写值本身，仅 K8s（§5.2） |
+| 平台代为从外部密钥存储（Vault / AWS Secrets Manager 的 SDK）取值 | `${VAR}` 先查进程环境、再查 `.env`——任何能把值放进环境的工具今天就能接入，平台零代码。内置的话，每接一种存储就多一个 SDK，每次 `up`（含 `--dry-run`）都要带存储凭据并联网，还是被否决的"配置中心"的邻居。**已经支持的：** `resources[].existingSecret` 与 `secret: true` 配置项写成 `{ existingSecret, key }`，引用外部系统（Vault Secrets Operator、External Secrets Operator、Sealed Secrets……）已经放进集群的 Secret——两种写法平台都不读写值本身，仅 K8s（§5.2） |
 | 引擎插件 / 第三方部署目标（`brickkit up --engine nomad`） | 一个目标的 `Down` / `Status` / 孤儿清理保证，才让"一个能拆干净的项目"成立；插件要自己担保它们，而 CLI 会替它报"成功"——撤掉 Podman 的同一个理由。`deploy.target` 是 `brickkit.yaml` 里的声明，绝不变成命令行参数。新目标在仓库内实现，带全套测试守卫。（`engine.Engine` 本来就是接口；这里说的是谁来担保它的语义，不是代码怎么分层） |
 | 增量生成缓存（`.brickkit/` 里存哈希状态） | 没有可加速的东西：50 个组件走完整条链路约 2 ms（`tests/perf`），使用者真正在等的是 `docker compose up` / `kubectl apply`，而它们本来就只动有变化的。缓存要维护状态，过期时静默产出错误的部署文件 |
 | 按契约生成 mock（`brickkit mock`）、自动替换缺失的强依赖（`up --with-mocks`） | 平台从不解析契约（`artifacts.format` 只是个字符串）；给缺失的强依赖换上替身，违反"强依赖缺失就阻断启动"，还可能被误部署；mock 起在另一个名字下接不到流量，因为注入的地址指向真实组件的版本化服务名。现在就能用的：`brickkit new <id> --contract openapi` + `local: true` + 任意 mock 工具（`docs/zh/03-guide/07-consuming-artifacts.md`） |

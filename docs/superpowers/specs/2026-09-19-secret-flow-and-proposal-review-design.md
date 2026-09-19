@@ -62,7 +62,7 @@
   而 CLI 自己警告文案建议的写法 `${MY_TOKEN}`（`up_secrets.go`）落到 K8s 上恰恰是明文进 Deployment。
   Secret 与 Deployment 在 K8s 里是分开授权的，这正是拆开它们的意义。
 
-**第二次评判改判的一条：** 引用**已存在**的 K8s Secret（External Secrets Operator / Vault Agent Injector / Sealed
+**第二次评判改判的一条：** 引用**已存在**的 K8s Secret（External Secrets Operator / Vault Secrets Operator / Sealed
 Secrets 建的），让 CLI 完全不经手密钥值本身——第一次评判把它写进了"没采纳、以后有需求再做"，理由是"目前没有需求"。
 重新核实后这个理由不成立：提案 1 举的两个例子（数据库密码、第三方 API 密钥）**恰恰就是**这个需求，而不是"另一种
 以后才会有的需求"；平台已经有同构、验证过的模式（`serviceAccountName`："运维已经建好，平台只引用、不生成"），
@@ -201,7 +201,7 @@ brickkit up --dry-run
 
 ### 3.2 `existingSecret`：引用外部系统已经建好的 Secret（仅 K8s）
 
-**动机：** 提案 1 的两个例子——数据库密码、第三方 API 密钥——都是"运维/安全团队已经用 Vault Agent Injector /
+**动机：** 提案 1 的两个例子——数据库密码、第三方 API 密钥——都是"运维/安全团队已经用 Vault Secrets Operator /
 External Secrets Operator / Sealed Secrets 之类的工具，在集群里建好了一个 K8s Secret"，而不是"CLI 自己去问 Vault
 要一个值"。平台需要做的只是"引用那个 Secret，别自己生成一份"——与 `serviceAccountName`（"运维已建好，平台只引用"）
 同一个模式，Helm 生态里也是被验证过的成熟写法（很多 chart 的 `values.yaml` 都有一个 `existingSecret` 字段）。
@@ -228,7 +228,7 @@ External Secrets Operator / Sealed Secrets 之类的工具，在集群里建好�
   加一条"值为空就不写这一行"的防线，行为上等价于"这个连接项没配"，与 §9.13 的"缺失就不注入，绝不注入空值"是同一条原则，
   不是新发明一条规则。
 - 好处：不会像"平台代取值"那样引入 SDK/网络依赖，`brickkit up`（含 `--dry-run`）在生成阶段完全不需要知道密钥的值，
-  值什么时候进 Secret、怎么轮换，都完全是 Vault Agent Injector/ESO 自己的事——这正是"平台只当连接器和翻译器"（§9.24）。
+  值什么时候进 Secret、怎么轮换，都完全是 Vault Secrets Operator/ESO 自己的事——这正是"平台只当连接器和翻译器"（§9.24）。
 
 **组件配置层：声明了 `secret: true` 的配置项，值可以写成 `{ existingSecret: <名>, key: <Secret 里的 key> }`（仅 K8s）**
 
