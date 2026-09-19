@@ -218,18 +218,21 @@ JSON Schema，落盘到仓库根目录新建的 `schemas/` 目录：`schemas/com
 - 每个字段的 JSON Schema `properties.<name>`：字段名取 yaml tag（去掉 `,omitempty` 等修饰符；`-` 的跳过）；
   类型按 Go 类型映射（`string`→`string`，`int`→`integer`，`float`→`number`，`bool`→`boolean`，slice→`array`，
   嵌套 struct→嵌套 `object`，`map[string]T`→`additionalProperties`，`any`→不加约束）。
-- **必填字段**：yaml tag 没写 `,omitempty` **且不是 `bool`** 的字段进 `required` 列表。
+- **必填字段**：yaml tag 没写 `,omitempty`、**不是 `bool`、不是指针**、且没有标 `jsonschema:"optional"` 的字段进 `required` 列表
+  （指针天然可缺省——真实类型里的指针字段全都带 `omitempty`，所以"不是指针"目前不改变任何真实字段的结果，只是让规则自洽）。
   这条规则是逐个核对过 `manifest.Validate` / `config.Validate` 之后定的，不是只看了 `Metadata`：
   `bool` 必须排除，因为 `NetworkPolicy.enabled`、`Egress.enabled`、`ServiceAccount.enabled`、
   `ComponentDep.optional` 都没写 `omitempty`，却并不必填。规则由一份**手写的、按类型列出的必填集合**在测试里钉住
   （`TestRequiredFieldsMatchValidators`）——生成器哪天改了这条规则，测试会告诉你哪个类型的必填集合变了。
 - `additionalProperties: false`——镜像"Manifest 没有扩展字段机制，未知键直接拒绝"这条平台规则（AGENTS §6）。
   `map` 类型（`config`、`labels`、`configSchema.properties`……）里键是使用者自己定的，不受这条限制。
-- **自定义 `UnmarshalYAML` 的类型需要单独交代**：`manifest.ComponentDep` 既能写成字符串
+- **自定义解码逻辑的类型需要单独交代**：`manifest.ComponentDep` 既能写成字符串
   （`department/tree@1.0.0`）也能写成 `{id, optional}` 映射，反射看不出来。生成器里有一张小小的
-  "类型 → 手写 schema"覆盖表，目前只有这一项；遇到有 `UnmarshalYAML` 方法却不在表里的类型，
-  生成器直接报错（而不是生成一份悄悄错误的 schema）。
-- 递归类型不支持（目前两份 schema 里没有），遇到时生成器报错而不是无限展开。
+  "类型 → 手写 schema"覆盖表，目前只有这一项；遇到 yaml.v3 会当作自定义解码来处理、却不在表里的类型——
+  `UnmarshalYAML`（新旧两种签名都算）或 `encoding.TextUnmarshaler`——生成器直接报错
+  （而不是生成一份悄悄错误的 schema）。同理，`,inline` 与 `time.Duration` 这两种 yaml.v3 会特殊对待的形状也报错，
+  不去猜它们该长什么样。
+- 递归类型不支持（目前两份 schema 里没有），遇到时生成器报错而不是无限展开——结构体、以及经由具名 slice / map 的递归都算。
 
 ### 4.3 富约束——新增一个小的 struct tag
 
@@ -255,7 +258,9 @@ JSON Schema，落盘到仓库根目录新建的 `schemas/` 目录：`schemas/com
 封闭取值、`Validate` 里有对应的精确比较——而且正是使用者敲 `apiVersion: ` 之后最想让编辑器补全的东西。）
 
 tag 语法：关键字之间用 `,` 分隔，`enum` 的取值之间用 `|` 分隔；取值与 `pattern` 里不能出现 `,`、`|`
-（也就不用在 struct tag 里转义反斜杠）。生成器不认识的关键字直接报错，写错关键字不会悄悄不生效。
+（也就不用在 struct tag 里转义反斜杠）。另有一个不带 `=` 的关键字 `optional`：把一个没写 `omitempty` 的字段挪出 `required`
+（目前只有 `manifest.ItemDef.Type` 用它——校验器从不检查 `items.type`，`items` 只是说明书）。
+生成器不认识的关键字、重复的关键字、空的 `enum` 取值、关键字与字段类型对不上，一律直接报错，写错不会悄悄不生效。
 
 **tag 是"额外的一份真相"，怎么防它与校验代码不一致。** 校验规则还在 `Validate` 里，tag 里抄了一份取值。
 初稿把它标成"这个设计唯一没有自动防漂移的地方"。可以做得更好：`TestConstraintsAgreeWithValidators`
