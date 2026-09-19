@@ -120,8 +120,8 @@ add up to, rather than listing every commit individually.
 ### Changed
 
 - The full documentation tree restructured: `design/`, the old hands-on
-  guide, and dev-progress logs archived as historical record under
-  `docs/archive/`; `AI-CONTEXT.md` renamed to `AGENTS.md` with language
+  guide, and dev-progress logs archived as historical record; `AI-CONTEXT.md`
+  renamed to `AGENTS.md` with language
   routing rules; `README.md`/`README.zh.md` and `AGENTS.md`/`AGENTS.zh.md`
   became independently-written language pairs instead of one file with
   translated sections; `docs/en/`/`docs/zh/` established as the current,

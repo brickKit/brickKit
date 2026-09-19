@@ -266,9 +266,7 @@ BrickKit CLI v0.1.0
 
 > **Windows：** 有 `windows/amd64` 的 zip，[Releases](https://github.com/brickKit/brickKit/releases)
 > 页面手动下。但它只验过不需要 Docker 的那部分命令 —— 起容器和 K8s 那条线在
-> Windows 上**没验过**，不是不支持，是没验过。详见
-> [docs/archive/planning/发布与分发.md](docs/archive/planning/发布与分发.md) §3.1
-> （历史存档）。
+> Windows 上**没验过**，不是不支持，是没验过。
 >
 > **还没有 Homebrew / Scoop / apt 包。** 它们都是 Releases 的下游，先把上游做出来。
 
@@ -413,9 +411,6 @@ Manifest 和依赖方的 API 契约，就能写出一个完整的、可独立运
 | [在外壳里合并数据库连接池](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/shared-connection-pools.md) | 合并进同一个壳、又共用 PostgreSQL 或 Oracle 的组件该怎么办 |
 | [自己搭一套 BrickKit Market](https://github.com/brickKit/brickKit/blob/main/docs/zh/patterns/deployment/self-hosted-market.md) | 部署市场本身，从本地开发到生产环境 |
 
-以上都没覆盖到的：[`docs/archive/decisions/`](docs/archive/decisions/) 讲清楚某个历史决策当初为什么
-这么定（566 条，历史存档，仅中文）。
-
 ---
 
 ## 仓库结构
@@ -441,7 +436,7 @@ tests/checklist/       验收清单 → 证明它们的测试
 deploy/market/         市场的 compose / kustomize / Helm
 docs/en/               英文文档：architecture、guide、patterns
 docs/zh/               中文文档：architecture、guide、patterns（与英文对称镜像，不是英文的译本）
-docs/archive/          重构前的旧文档，仅作历史记录保留
+docs/archive/          历史记录，不属于现行文档
 ```
 
 单元测试**紧挨着被测代码**（`internal/**/*_test.go`），不建平行目录。`tests/`
@@ -466,8 +461,7 @@ make lint             # vet + 文档检查
 | `make test-boundary` 等 | 边界 / 错误 / 兼容 / 安全验收条目 → 证明它们的测试（`tests/checklist/清单.tsv`） |
 | `make check-doc-fields` | 文档里画的 yaml 片段与字段表，字段名都真的存在（真相来源是结构体本身） |
 | `make check-docs` | 悬空的小节引用与断链 |
-| `make check-cli-docs` | 文档里写的每条命令 / 参数都真的存在（反过来——新增了命令却还没写进文档——这里不管，见 `docs/archive/planning/` 那段历史） |
-| `make check-guide-output` | 试用指南的「✅ 预期」与 CLI 真实输出逐行一致 |
+| `make check-cli-docs` | 文档里写的每条命令 / 参数都真的存在（反过来——新增了命令却还没写进文档——这里不管） |
 | `make check-guides` | 试用指南里的步骤仍然跑得通 |
 | `make check-install-sh` | `install.sh` 装得上，而且校验和坏掉时**真的**拒绝装 |
 | `make check-docs-bilingual` | docs/en 与 docs/zh 保持镜像、根目录每一对多语言文件（README、AGENTS、llms）都保持成对、llms.txt/llms.zh.txt 里每条链接都能解析到真实文件 |
@@ -479,20 +473,16 @@ make lint             # vet + 文档检查
 
 ## 项目状态
 
-计划内的每一步都已完成，延后项也已全部结清；旧的开发计划与开发进度已冻结为
-历史记录，分别存放在
-[`docs/archive/planning/`](docs/archive/planning/) 与
-[`docs/archive/decisions/`](docs/archive/decisions/)。后续行为以 `tests/checklist/`
-与 `tests/regression/` 下的两份活的清单为准 —— 曾经承担这个角色的设计书，
-已被 `docs/en/architecture/` 与 `docs/zh/architecture/` 取代（旧文原样保留、
-只读，存放在 [`docs/archive/design/`](docs/archive/design/)）。
+计划内的每一步都已完成，延后项也已全部结清。后续行为以 `tests/checklist/`
+与 `tests/regression/` 下的两份活的清单为准，文档以 `docs/en/` 与 `docs/zh/` 为准。
 
 | | |
 | --- | --- |
 | 测试 | 2000+ 个测试函数，race-clean |
-| 试用指南 | 23 篇，全部对着真实 Docker / Kubernetes / 活的市场跑过 —— 已归档到 `docs/archive/guide/`，由 `docs/{en,zh}/guide/` 取代 |
-| 设计书 | 14 本，与实现交叉复核过两轮 —— 已归档到 `docs/archive/design/`，由 `docs/{en,zh}/architecture/` 取代 |
-| 决策记录 | 566 条，每条都带当初的推理，归档在 `docs/archive/decisions/` |
+| 试用指南（现行） | 12 篇，每一篇都真跑过；见 `docs/zh/guide/` |
+| 试用指南（已归档） | 23 篇，全部对着真实 Docker / Kubernetes / 活的市场跑过 |
+| 设计书（已归档） | 14 本，与实现交叉复核过两轮 |
+| 决策记录（已归档） | 566 条，每条都带当初的推理 |
 
 **运行要求：** Go 1.22+、Docker 20.10+（含 Compose V2）。Kubernetes 相关指南
 需要 minikube；签名需要 [cosign](https://github.com/sigstore/cosign)（**仅

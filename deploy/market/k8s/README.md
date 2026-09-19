@@ -112,7 +112,4 @@ kubectl -n brickkit-market scale deployment/market-api --replicas=3
 
 | 内容 | 出处 |
 | --- | --- |
-| 市场的架构与端点 | [docs/archive/design/007-组件市场设计.md](../../../docs/archive/design/007-组件市场设计.md) |
-| 部署模式选择 | [部署模式.md](../../../docs/archive/planning/部署模式.md) |
-| 单机部署与运维 | [市场部署与运维指南.md](../../../docs/archive/planning/市场部署与运维指南.md) |
-| K8s 清单的写法（探针、Secret、PSA） | [docs/archive/design/005-部署与运行规范.md](../../../docs/archive/design/005-部署与运行规范.md) §5 |
+| 自己搭一套 BrickKit Market | [docs/zh/patterns/deployment/self-hosted-market.md](../../../docs/zh/patterns/deployment/self-hosted-market.md) |

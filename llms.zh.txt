@@ -57,8 +57,3 @@
 - [怎么可靠地调用一个依赖的地址](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/service-addressing.md): 一次真实的 Docker Compose 实验——流量不停的情况下把依赖容器强制重建到一个真正不同的 IP——测出 Go 的 `net/http`、Python 的 `requests.Session`、Node 的 `http.Agent(keepAlive)` 各自到底会怎样：Go 快速失败一次、下一次请求就恢复；Python 完全不报错但悄悄卡顿 2.5 秒；Node 不设超时就会无限期挂起。外加 Kubernetes 稳定的 ClusterIP 为什么抹掉了其中一种失败方式、却抹不掉另外两种。
 - [自己搭一套 BrickKit Market](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/patterns/deployment/self-hosted-market.md): 部署市场本身（跟部署你自己的项目是两件事）——三种部署模式、编排文件走一遍（带两处真实踩过的坑）、怎么升级、怎么搬上云。
 
-## 历史记录（只中文，不维护）
-
-- [旧设计书（design/，14 本）](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/design/): 重构前的规范性文档，可能与当前实现不一致，理解现行版本看上面的 architecture。
-- [旧试用指南（23 篇）](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/guide/): 重构前的动手教程，理解现行版本看上面的 guide。
-- [决策索引（566 条）](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/decisions/%E5%86%B3%E7%AD%96%E7%B4%A2%E5%BC%95.md): 查某个决策当初为什么这么定。

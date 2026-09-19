@@ -178,7 +178,7 @@ argued through and rejected (reasoning in §9):
 | Long-running services / control plane | The CLI runs and exits; state lives externally in `brickkit.yaml` + the underlying engine |
 | Registry / address book | Docker DNS / K8s Service DNS |
 | Health-check polling | K8s Probes / Compose healthcheck + restart policy |
-| API gateway / service mesh / load balancing | Components call each other via DNS directly; K8s Service does native load balancing. **An out-of-band gateway hooks in via `labels` passthrough** (design/002 §4.7, §2.23) — the platform passes labels through without interpreting the routing |
+| API gateway / service mesh / load balancing | Components call each other via DNS directly; K8s Service does native load balancing. **An out-of-band gateway hooks in via `labels` passthrough** — the platform passes labels through without interpreting the routing |
 | Config center / dynamic hot reload | Env-var injection; change config, then `brickkit up` restarts |
 | Communication governance (circuit breaking / rate limiting / retries) | The component's own code |
 | Weak-dependency degradation logic | The component's own business logic |
@@ -188,10 +188,10 @@ argued through and rejected (reasoning in §9):
 | Config value type validation | configSchema is just a spec sheet |
 | Third-party component security review | Install implies trust + after-the-fact `blocked` |
 | Monorepo sub-directory components | One component, one Git repository |
-| Consolidated deployment / monolithic shell — the platform does not, and will not, ship its own shell scaffolding or process supervisor | But a small, structural piece **is** built in: `servedBy` lets a component declare "my workload is provided by another component," and the platform correctly wires `*_ENDPOINT` addresses to it on both Docker and K8s — without ever needing to understand what's inside the shell. See §5.7 below and *Merged Component Deployment* / §2.21 of the architecture rationale for the full boundary |
-| Dependency aliases (`dependencies.components[].as`) | Variable names derived from component ID are bidirectionally computable; an alias only preserves half of that. "One capability, multiple implementations" should go through a `kind` resource or a `configSchema` address field instead. See §2.24 of the architecture rationale |
+| Consolidated deployment / monolithic shell — the platform does not, and will not, ship its own shell scaffolding or process supervisor | But a small, structural piece **is** built in: `servedBy` lets a component declare "my workload is provided by another component," and the platform correctly wires `*_ENDPOINT` addresses to it on both Docker and K8s — without ever needing to understand what's inside the shell. See §5.7 below for the full boundary |
+| Dependency aliases (`dependencies.components[].as`) | Variable names derived from component ID are bidirectionally computable; an alias only preserves half of that. "One capability, multiple implementations" should go through a `kind` resource or a `configSchema` address field instead |
 | Low-code / BI / DevOps pipelines | Out of scope |
-| Podman as a deploy target | Support was built and ran — `up`, `status`, real requests, idempotent reruns all passed — but `down` fails on rootless Podman with `rootless netns: kill network process: permission denied`, reproducible even with plain `podman rm -f`, outside BrickKit's own code entirely. A project that can't be torn down is worse than one that never came up — containers keep holding ports and volumes while the CLI would have reported success — so support was pulled rather than shipped half-working. `up`/`status` on a machine with only Podman installed name this exact failure and point at Docker instead of a generic "no engine found." Design/005 §7.5 sets an explicit bar for reversing this: a real machine where `podman compose down` itself works cleanly, a full lifecycle verified on it, and a repeatable check added so it can't silently regress again |
+| Podman as a deploy target | Support was built and ran — `up`, `status`, real requests, idempotent reruns all passed — but `down` fails on rootless Podman with `rootless netns: kill network process: permission denied`, reproducible even with plain `podman rm -f`, outside BrickKit's own code entirely. A project that can't be torn down is worse than one that never came up — containers keep holding ports and volumes while the CLI would have reported success — so support was pulled rather than shipped half-working. `up`/`status` on a machine with only Podman installed name this exact failure and point at Docker instead of a generic "no engine found." Reversing this needs a real machine where `podman compose down` itself works cleanly, a full lifecycle verified on it, and a repeatable check added so it can't silently regress again |
 
 ---
 
@@ -219,7 +219,7 @@ which version it's talking to** — there is no implicit upgrade.
 own), but **within a single `component.yaml`'s `dependencies`, one component ID can only appear
 once** — the dependency address's variable name is based on the component ID and carries no
 version, so writing two versions would collide on the same `*_ENDPOINT`, with the latter silently
-overwriting the former. The CLI errors on this when parsing the Manifest (design/002 §3.6). Diamond
+overwriting the former. The CLI errors on this when parsing the Manifest. Diamond
 dependencies (A depends on X@1, B depends on X@2) are unaffected — each gets its own.
 
 ### 5.2 Environment-variable injection specification
@@ -246,11 +246,11 @@ not collide with these — **the marketplace refuses this at publish time**, and
 skips that config item at injection time** (the platform-injected value wins).
 
 **A third, distinct failure mode: `configSchema.required` naming a key with no `default` blocks
-`up` outright** (design/004 §5.6.3) — this is different from both a reserved-variable collision
+`up` outright** — this is different from both a reserved-variable collision
 (warns, skips) and an ordinary unset optional key (silently not injected, the component's own
 "unconfigured" branch runs). A required key with no default means "the platform genuinely cannot
 guess this — the project has to supply it" (the standard shape for a cross-project service address,
-design/003 §4.9, since the platform has no way to derive where another project's service lives).
+since the platform has no way to derive where another project's service lives).
 Missing it isn't a crash and isn't a warning — the variable simply never exists — so leaving this as
 a silent skip would mean the component runs, looks healthy, and has one call path that quietly never
 works. `brickkit up` errors instead, naming the exact missing item and which component declared it
@@ -300,7 +300,7 @@ A few points:
 - When two components depend on each other (only possible via a weak-dependency cycle), there's
   nothing above the cycle, so both are top-level and both run
 - The implementation computes "**who doesn't run**" (a least fixed point), so cycles need no
-  special-casing at all (§2.14 of the architecture rationale)
+  special-casing at all
 - Every line of CLI output carries its reason: `starting (top-level)` / `starting (enabled: true)`
   / `starting (X needs it)`
 
@@ -480,7 +480,7 @@ business.
 project in version control), `sync`'s whole-directory moves land in the project's diff — the
 pre-commit hook installed by `brickkit restore` and `brickkit init --hooks` exists specifically to
 catch the recurring mistake of "an archive-state change got committed but `enabled` didn't come
-along with it" (design/004 §3.14).
+along with it".
 
 ### 5.9 Marketplace, signing, and the trust model
 
@@ -562,10 +562,10 @@ deployment:                      # required
     - name: grpc
       port: 9090
   resources:                     # optional, **recommended values**, the CLI passes them through without validation
-    requests: { cpu: "100m", memory: "128Mi" }   # recommend writing only requests (design/002 §4.6)
+    requests: { cpu: "100m", memory: "128Mi" }   # recommend writing only requests
   # limits are better left to the deployer: quotas merge field-by-field, and a component
   # that writes limits.cpu can never have it removed by the project config
-  labels:                        # optional, deployment metadata passthrough, the platform doesn't interpret key/value (design/002 §4.7)
+  labels:                        # optional, deployment metadata passthrough, the platform doesn't interpret key/value
     prometheus.io/scrape: "true" # value must be a string — don't drop the quotes
     prometheus.io/port: "9090"   # Docker → service labels; K8s → Pod annotations
 
@@ -582,15 +582,15 @@ healthCheck:                     # required
   # ⚠️ only checks that this process itself is alive; never check the database / a dependency component / any external system
 ```
 
-> **`startPeriodSeconds` is the only overridable timing parameter under `healthCheck`** (design/002
-> §9.3). `interval` / `timeout` / `failureThreshold` are fixed by the platform; their product gives a
+> **`startPeriodSeconds` is the only overridable timing parameter under `healthCheck`.**
+> `interval` / `timeout` / `failureThreshold` are fixed by the platform; their product gives a
 > startup budget of 30 seconds — a component with a cold start longer than that (Spring Boot /
 > Django / .NET) will make `up` fail under Docker, and permanently CrashLoopBackOff under K8s, while
 > the container's own logs look perfectly healthy the whole time. The grace period only delays
 > "declaring it dead," never "declaring it alive," so setting it generously costs nothing.
 
-> **A component's entrypoint must fail fast on an argument it doesn't recognize** (design/002
-> §8.5.1) — this is a hard requirement on the component author, not something the platform can
+> **A component's entrypoint must fail fast on an argument it doesn't recognize** — this is a
+> hard requirement on the component author, not something the platform can
 > enforce. The migration container and the main service container run from the exact same image,
 > distinguished only by the command-line argument the platform passes. If the entrypoint's dispatch
 > logic falls through to "start the service" on an unrecognized argument (a typo in
@@ -603,9 +603,9 @@ healthCheck:                     # required
 > to the database" instead of the actual problem.
 
 > **That's the complete field list.** The Manifest **has no extension-field mechanism** — an
-> unrecognized key is rejected on the spot (design/002 §2.2.1), not silently ignored — so the
+> unrecognized key is rejected on the spot, not silently ignored — so the
 > skeleton above must be copy-pasteable exactly as-is. There used to be two "reserved" fields,
-> `observability` and `compatibility.minCliVersion`; both were removed (design/002 §2.3): neither was
+> `observability` and `compatibility.minCliVersion`; both were removed: neither was
 > ever read anywhere, and the second was worse — it looked like a safety gate, but a component
 > declaring `minCliVersion: 2.0.0` would install just fine on CLI 0.1.0.
 
@@ -700,7 +700,7 @@ components:
       requests: { cpu: "200m", memory: "256Mi" }
       limits:   { cpu: "1", memory: "1Gi" }
     labels:                      # optional, deployment metadata passthrough, overrides the component's deployment.labels key by key
-      traefik.enable: "true"     # the platform doesn't interpret key/value; value must be a string (design/003 §4.11)
+      traefik.enable: "true"     # the platform doesn't interpret key/value; value must be a string
 
 resources:                       # base-resource declarations and bindings (the resource itself is deployed by ops)
   - kind: database
@@ -714,7 +714,7 @@ resources:                       # base-resource declarations and bindings (the 
       - componentId: people/basic
         # ↓ the following four are **the same slot** (which spot this component occupies in the
         #   resource) — use the one matching `kind`, only one is allowed. A wrong name errors and
-        #   names the right one to use (design/006 §5.2)
+        #   names the right one to use
         database: people         # kind: database → DATABASE_NAME (the user creates the database itself, once)
       # vhost: orders            # kind: mq      → MQ_VHOST
       # bucket: media-prod       # kind: storage → STORAGE_BUCKET
@@ -729,7 +729,7 @@ installer:
 ```
 
 > ⚠️ **`serviceAccount.enabled` is opt-in — skip it, and every Pod runs under the namespace's
-> `default` ServiceAccount, whose token is auto-mounted as normal** (design/008 §9.4). This is easy
+> `default` ServiceAccount, whose token is auto-mounted as normal**. This is easy
 > to misread against §4's "secure by default" principle: that principle covers what a component
 > can reach (no dependency edge, no resource binding, no exposure — all opt-in on the *other* side),
 > not this specific K8s default. The platform doesn't flip this on for you for the same reason it
@@ -741,12 +741,12 @@ installer:
 > ⚠️ **`publicKeys` is the only field that actually makes signature verification take effect.** With
 > zero public keys configured, signature verification **is disabled entirely**, and
 > `requireSignature: true` does nothing either — there's no trust anchor to check against
-> (design/008 §8.5). The CLI warns once about this, but by then it hasn't verified anything.
+> — there's no trust anchor to check against. The CLI warns once about this, but by then it hasn't verified anything.
 >
 > Public keys have to be configured here, rather than pulled alongside the signature from the
 > marketplace — otherwise the marketplace would be issuing its own certificates to itself, and if
 > the marketplace were ever compromised, an attacker could swap out both the component and the
-> public key together, and verification would still pass (design/003 §3.6).
+> public key together, and verification would still pass.
 
 **Multiple environments:** each environment gets its own **fully self-contained** `brickkit.yaml`
 (e.g. `brickkit.prod.yaml`), selected with `brickkit up --config brickkit.prod.yaml`. **There's no
@@ -767,12 +767,12 @@ silently unused under `k8s` with nothing catching it) is
 | `brickkit skills` | View/refresh the AI assistant skills installed in the project (`status` / `update`). In a standalone component repo (a `component.yaml`, no `brickkit.yaml`) it manages just the `brickkit-component` skill. Never overwrites something hand-edited; never touches the user's own `CLAUDE.md` |
 | `brickkit add <id>[@ver]` | Recursively pulls dependencies, downloads artifacts, writes them into the config (**doesn't write an `enabled` field**). If no version is given, takes the latest installable version from the source and pins it to disk as an **exact version** |
 | `brickkit remove <id>` | Checks for required-dependency callers before removing, automatically deletes the source directory (including an archived copy). Must specify a version when multiple versions coexist |
-| `brickkit fetch <id>[@version]` | Only downloads the component's artifacts into `.brickkit/artifacts/<versioned-service-name>/`, **doesn't write to `brickkit.yaml`, doesn't deploy**. Used when calling another project's service across project boundaries (design/003 §4.9) |
+| `brickkit fetch <id>[@version]` | Only downloads the component's artifacts into `.brickkit/artifacts/<versioned-service-name>/`, **doesn't write to `brickkit.yaml`, doesn't deploy**. Used when calling another project's service across project boundaries |
 | `brickkit up` | Cascade decision → generate deployment files → generate `local-debug.env` → check image permissions → run migrations → invoke the engine |
 | `brickkit down` | Stops all components. **Doesn't delete volumes, data is preserved** |
 | `brickkit status` | Reads the underlying engine, shows a running-state table (including multi-version detection; components not running are listed too) |
 | `brickkit sync` | Bidirectionally archives / activates component source based on the cascade decision. Takes no arguments |
-| `brickkit restore` | Restores `enabled` and the component-source layout to the last commit. `--check` is for the pre-commit hook to judge whether this commit is self-consistent (design/004 §3.14) |
+| `brickkit restore` | Restores `enabled` and the component-source layout to the last commit. `--check` is for the pre-commit hook to judge whether this commit is self-consistent |
 | `brickkit login` | Interactive terminal login to the marketplace, token stored in `.brickkit/credentials` |
 | `brickkit logout` | Revokes the marketplace token server-side, then deletes `.brickkit/credentials` locally. The local deletion always happens, even if the marketplace is unreachable — otherwise a network blip leaves someone believing they've logged out while the credential still sits on disk. Doing nothing when already logged out is not a failure |
 | `brickkit publish` | Uploads the Manifest + image reference + artifacts to the marketplace (requires login first) |
@@ -814,7 +814,7 @@ brickkit up                           # generate deployment files → run migrat
 
 This section is the most valuable part of BrickKit's philosophy. Each entry is a defense of one
 design that **looks counter-intuitive at first glance**. When a user asks "why doesn't it …", the
-answer is almost always here. (Full argument in the architecture rationale document, design/012.)
+answer is almost always here.
 
 **9.1 Why no registry, and no health-check polling?**
 Building your own registry means the platform has to be a long-running, highly-available cluster —
@@ -905,7 +905,7 @@ says "a config item won't take effect," and guesses which one you meant (`greett
 This also isn't on the same slippery slope as above: `type` / `enum` / `minimum` are all **constraints**
 from JSON Schema — open that door and you have to keep going; whereas "does this key exist in
 `properties`" is a single existence check with no follow-up — the same reasoning as the Manifest
-rejecting unknown fields (design/002 §2.2.1).
+rejecting unknown fields.
 
 **9.13 Why does a missing weak dependency inject nothing at all, instead of an empty string?**
 This is the entry that most fully embodies BrickKit's philosophy. The most dangerous thing about
@@ -927,7 +927,7 @@ and reading it carefully would lead you to the wrong conclusion that "this rule 
 substantive rule changed alongside it: what counts as a "dependency" in the decision switched from
 "required dependencies only" to "required and optional treated the same" — otherwise a weak
 dependency that `add` wrote into the config wouldn't start by default, and you'd install a component
-only to find half its functionality mute. See §2.14 of the architecture rationale for the full story.
+only to find half its functionality mute.
 
 **9.15 Why doesn't it fall apart at 50 components?**
 ① **Locality principle**: component A only needs to know the API contract of its direct
@@ -983,7 +983,7 @@ and migrations, isolate each module's config) still lives entirely in the shell 
 not one more line of platform code is needed there, and the platform still never has to understand
 which things *can* be merged, what supervisor manages them, or how any given framework starts
 multiple listeners. Building a full `--consolidated` command would still mean starting to understand
-"the shell" in exactly the way §2.21 of the architecture rationale argues against — `servedBy` is
+"the shell" in exactly the way this platform argues against — `servedBy` is
 deliberately the smallest structural piece that helps, not a step toward that larger, rejected
 command.
 
@@ -1000,7 +1000,7 @@ nothing. It's just a `map[string]string`. This is the same posture as `deploymen
 ("passed through, not validated") and `deploy.ingressAnnotations` ("passed through verbatim").
 **What should be rejected is a semantic-layer custom field, not a deployment-layer passthrough** —
 the former requires the platform to grow understanding it doesn't have; the latter openly says the
-platform isn't looking. Full argument in §2.23 of the architecture rationale.
+platform isn't looking.
 
 **9.23 Why no dependency aliases (`as:`)?**
 "The variable name is derived from the component ID" is now a **bidirectional** rule: see
@@ -1009,13 +1009,13 @@ you know exactly which component it points at. `as: iam` only preserves half of 
 `IAM_ENDPOINT` can't be traced back to which component it points at from anywhere, and tracing
 "where did this address point wrong" is exactly where that investigation starts. It would also
 require re-deriving reserved-variable protection (§5.2's two layers of defense) and dependency
-deduplication (design/002 §3.6, keyed by component ID) from scratch, when both mechanisms' current
+deduplication (keyed by component ID) from scratch, when both mechanisms' current
 shape is entirely built on "the name is computed from the ID." The platform already offers cheaper
 places for the cases that genuinely need to swap implementations: an event bus / object storage /
 cache / search go through a `kind` resource (change one `engine` field); a service that needs an
 address but not a dependency edge (like IAM) goes through a non-reserved key in `configSchema`. For
 anything that sits on a real dependency edge, the implementation's name showing up in the variable
-name isn't a flaw — **it's the fact of that dependency.** See §2.24 of the architecture rationale.
+name isn't a flaw — **it's the fact of that dependency.**
 
 ### 9.24 One-sentence summary
 
@@ -1052,7 +1052,7 @@ hit:
 | A `local: true` component depends on a `servedBy` member | Works: its `*_ENDPOINT` resolves to a real `localhost:<port>` — the CLI opens the mapping on the shell's compose service, since the member has none of its own (§5.6) |
 | Discussing signing | The publisher needs **cosign** installed; **the installer doesn't** (verification uses the Go standard library) |
 | The user wants the platform to help with security review | Install implies trust. The platform only steps in after the fact with `blocked` |
-| A user asks "can I merge multiple components into one instance to save memory" | First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation (§2.15 of the architecture rationale). If they still want to merge: **`servedBy` (§5.7) is the supported path** — it handles address routing correctly on both Docker and K8s; everything else (module isolation, config, migrations ordering inside the shell) is still their own code, see the shell implementer's guide. `enabled: false` is unrelated to this — it still can't be used as a "I'm taking this over myself" switch |
+| A user asks "can I merge multiple components into one instance to save memory" | First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation. If they still want to merge: **`servedBy` (§5.7) is the supported path** — it handles address routing correctly on both Docker and K8s; everything else (module isolation, config, migrations ordering inside the shell) is still their own code, see the shell implementer's guide. `enabled: false` is unrelated to this — it still can't be used as a "I'm taking this over myself" switch |
 | A user asks "which of independent/shell-merged/mixed, or docker/k8s, should I actually use" | This is the topology × deploy-target decision `docs/en/patterns/deployment-selection-guide.md` exists to answer — walk through its matrix rather than improvising an answer inline. Its one hard rule worth remembering directly: `local: true` (the debug toggle) only exists under `deploy.target: docker`; it's rejected outright, at generation time, under `k8s` |
 | A user asks "how do I run everything locally without Docker/K8s at all" | That's the one shape the platform doesn't manage or inject anything for — see `deployment-selection-guide.md`'s "Running components by hand" section. The one thing worth telling them: `brickkit up --dry-run` after a temporary `local: true` on the component in question dumps the exact env vars a real deployment would inject, as a cheat sheet — then revert the edit, don't actually deploy that way |
 | A user pastes a `brickkit` error, or asks how to script around failures (retry vs. alert) | Every command-ending error carries a stable `error_code` in the JSON log line on stderr, right after the `❌` block. Look it up in `docs/en/architecture/error-codes.md` (swap `en` for `zh`) — it lists each code's situations by the exact title the CLI prints, with cause and fix. Only `NETWORK_UNREACHABLE` is worth retrying unchanged; codes are stable and only ever added |
@@ -1082,7 +1082,7 @@ internal/               CLI implementation
   └── market/             marketplace client
 market-server/          the component marketplace backend (an independent Go module)
 docs/en/, docs/zh/      current documentation (architecture / guide / patterns, bilingual mirror)
-docs/archive/           historical record: the old design books (design/), the old hands-on guides (试用指南/), the decision index, deployment methodology
+docs/archive/           historical record, not part of current docs
 tests/components/       10 real components used to test the platform itself
 tests/checklist/        acceptance checklists → the tests that prove them
 deploy/market/          the marketplace's compose / kustomize / Helm
@@ -1132,36 +1132,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | How to plan seed data and test data | `docs/en/patterns/data-construction.md` (swap `en` for `zh`) |
 | How to research a domain, recognize when a feature needs a component family, not a flag, and map component boundaries onto DDD's vocabulary | `docs/en/patterns/component-design.md` (swap `en` for `zh`) |
 | How to keep a closed-source component's logic from leaking out of its own image | `docs/en/patterns/closed-source-image-hardening.md` (swap `en` for `zh`) |
-| The old design books' original reasoning (historical record, may not match current implementation) | `docs/archive/design/`, Chinese only |
-| The old hands-on guides, as originally written (historical record) | `docs/archive/guide/`, Chinese only |
 | The full site index (with links) | `llms.txt` (Chinese: `llms.zh.txt`) |
-| Platform philosophy and overall architecture (the root document) | `docs/archive/design/001-平台理念与总体架构.md` |
-| Every `component.yaml` field and rule | `docs/archive/design/002-组件规范.md` |
-| Every `brickkit.yaml` field and rule | `docs/archive/design/003-项目配置规范.md` |
-| CLI commands, the dependency-resolution engine, generation logic | `docs/archive/design/004-CLI 设计.md` |
-| The AI-assistant skills installed into a project: what gets installed, how to refresh, why it never touches `CLAUDE.md` | `docs/archive/design/004-CLI 设计.md` §3.2.1 |
-| Docker / K8s deployment, local debugging, migrations | `docs/archive/design/005-部署与运行规范.md` |
-| Declaring and binding resources like databases / Redis | `docs/archive/design/006-基础资源规范.md` |
-| Marketplace API, data model, permissions, signing | `docs/archive/design/007-组件市场设计.md` |
-| Trust model, secrets, reserved-variable protection | `docs/archive/design/008-安全与治理.md` |
-| Writing your first component, step by step | `docs/archive/design/009-组件开发快速入门.md` |
-| Building, signing, publishing to the marketplace | `docs/archive/design/010-组件发布与上架指南.md` |
-| Installing, assembling, debugging, updating, rolling back | `docs/archive/design/011-组件安装与拼装指南.md` |
-| Running multiple components as one instance (not platform-supported, DIY) | `docs/archive/planning/组件合并部署.md`; why it's not built: §2.21 of `docs/archive/design/012` |
-| **The complete argument behind every "why"** | `docs/archive/design/012-架构设计原理与考量.md` |
-| Glossary / full Manifest & config reference / env-var spec / generated-artifact examples / communication-practice templates | `docs/archive/design/附录合集.md` |
-| Reading paths by role and scenario | `docs/archive/design/000 阅读指南与文档导航.md` |
-| Walking through it hands-on (23 articles) | `docs/archive/guide/README.md` |
-| Why a particular decision was made the way it was (566 entries) | `docs/archive/decisions/决策索引.md` |
-| How the marketplace itself gets deployed | `docs/archive/planning/市场部署与运维指南.md` |
-| Where the marketplace and a project each run | `docs/archive/planning/部署模式.md` |
-
-**Documentation authority order (inside the historical record, for understanding archived content
-only):** before archival, the design books under `design/` were the normative spec; `试用指南/` was
-executable verification; `开发进度/` was the execution ledger; where they conflicted, `design/` won.
-These now correspond respectively to `docs/archive/design/`, `docs/archive/guide/`,
-`docs/archive/decisions/`. To understand the current implementation, use the rows at the top of
-this table pointing at the new `docs/en/architecture/` structure instead.
 
 ---
 

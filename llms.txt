@@ -60,8 +60,3 @@ documentation tree, not a translation of this file.
 - [Calling a dependency's address reliably](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/patterns/service-addressing.md): A real Docker Compose experiment — a dependency container force-recreated mid-traffic on a genuinely new IP — measuring what Go's `net/http`, Python's `requests.Session`, and Node's `http.Agent(keepAlive)` actually do: Go fails once fast and recovers next request, Python silently stalls 2.5s with no error at all, Node hangs indefinitely without an explicit timeout. Plus why Kubernetes's stable ClusterIP removes one of these failure modes but not the others.
 - [Self-hosting the BrickKit Market](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/patterns/deployment/self-hosted-market.md): Deploying the marketplace itself (a separate job from deploying your own project) — the three deployment modes, the compose walkthrough with the two real incidents baked into it, upgrading, and moving to the cloud.
 
-## Historical record (Chinese only, not maintained)
-
-- [Old design books (design/, 14 volumes)](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/design/): The pre-restructure normative spec, may not match the current implementation — for the current version, use the architecture section above.
-- [Old hands-on guides (23 articles)](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/guide/): The pre-restructure hands-on guides — for the current version, use the guide section above.
-- [Decision index (566 entries)](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/archive/decisions/%E5%86%B3%E7%AD%96%E7%B4%A2%E5%BC%95.md): Look up why a specific decision was made the way it was.

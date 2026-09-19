@@ -85,9 +85,5 @@ your language below, then every link points at the matching file in that tree.
 Both trees follow the same layout —
 `{en,zh}/<architecture|guide|patterns>/<same relative path>` — so once you
 know a document's location in one language, you know it in the other too.
-`docs/archive/` is a separate, historical-only tree (mostly Chinese) kept for
-reference; it isn't part of this symmetric structure.
-
 两棵树的目录结构完全一致——`{en,zh}/<architecture|guide|patterns>/相同的相对
 路径`——知道一篇文档在一种语言下的位置，就知道它在另一种语言下的位置。
-`docs/archive/` 是单独的历史存档（多为中文），不属于这套对称结构。

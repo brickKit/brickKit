@@ -127,7 +127,13 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-docs-bilingual check-market-api check-guide-output check-install-sh check-no-binaries cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + 双语镜像 + 市场 API 表 + 指南预期输出 + 安装脚本 + 仓库无二进制 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-docs-bilingual check-market-api check-install-sh check-no-binaries cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + 双语镜像 + 市场 API 表 + 安装脚本 + 仓库无二进制 + 覆盖率门槛）
+# check-guide-output 2026-09-19 起移出 lint：它的全部用例都核对 docs/archive/
+# 里的输出块，而归档已明确不再要求与 CLI 保持同步（错误文案里的设计书章节
+# 引用被清掉后，这份检查立刻发现了这一点——archive 里的旧文案永远不会再改，
+# 于是永远报"对不上"）。它现在只是待决定的历史包袱：要么整份重写成核对
+# docs/{en,zh}/guide/（现行教程反而完全没有这种逐行输出核对），要么整个退役。
+# 见 scripts/check-guide-output.py 顶部的说明。
 # check-cli-docs 拆成了两个方向：「文档写了不存在的命令/参数」（防伪造）计入
 # 退出码，重新加回 lint；「命令/参数有、文档没写」（详尽性）只打印不计入退出
 # 码——design/试用指南 归档后全仓库没有任何一份"详尽命令参考"活文档，这个
@@ -174,13 +180,12 @@ check-doc-tree: build-cli ## 检查文档里画的 .brickkit/ 目录树与 CLI �
 check-docs-bilingual: ## 检查 docs/en 与 docs/zh 镜像完整、llms.txt 链接不悬空
 	@python3 scripts/check-docs-bilingual.py
 
-# 两个"真跑"检查的分工：
-#   check-guide-output  指南里的「✅ 预期」块必须逐行等于 CLI 真实输出。
-#                       只覆盖不需要 Docker/minikube 的步骤，所以能进 lint 天天跑。
+# 两个"真跑"检查的分工（check-guide-output 目前不在 lint 里，见上方注释）：
+#   check-guide-output  归档试用指南/设计书里的「✅ 预期」块必须逐行等于 CLI 真实输出。
 #   check-guides        分层冒烟：关键步骤跑得通、输出里有该有的关键词。
 #                       要 Docker / minikube 的层缺环境时响亮跳过，因此不进 lint。
 .PHONY: check-guide-output
-check-guide-output: build-cli ## 核对试用指南的预期输出与 CLI 真实输出逐行一致
+check-guide-output: build-cli ## 核对归档试用指南/设计书的预期输出与 CLI 真实输出逐行一致（不在 lint 里，见脚本顶部说明）
 	@python3 scripts/check-guide-output.py
 
 .PHONY: check-guides

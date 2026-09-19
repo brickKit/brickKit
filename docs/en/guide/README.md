@@ -1,6 +1,6 @@
 # Hands-on Guides
 
-A sequence of tutorials, each one run for real against the actual CLI — not a described mechanism, a followed one. Every command and every output block was actually executed while writing it, the same standard the old (now archived) 23-article series held itself to. This series is complete: 12 articles, deliberately fewer and more tightly scoped than the original 23 (see the note after the list for why). The old series is still readable at [`docs/archive/guide/`](../../archive/guide/) if you want the original, more exhaustive walkthroughs, with the usual caveat that it may not reflect current CLI behavior.
+A sequence of tutorials, each one run for real against the actual CLI — not a described mechanism, a followed one. Every command and every output block was actually executed while writing it. This series is complete: 12 articles, deliberately fewer and more tightly scoped than the old 23-article series (see the note after the list for why).
 
 1. [Get a project running](01-first-project.md) — init, add, up, talk to it over HTTP, change config, down
 2. [How the platform decides what runs](02-what-runs.md) — dependencies, the `enabled` cascade, `--dry-run`

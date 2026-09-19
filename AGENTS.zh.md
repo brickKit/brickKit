@@ -160,7 +160,7 @@ CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，**不依赖 `components/
 | 常驻服务 / 控制面 | CLI 用完即走，状态外置到 `brickkit.yaml` + 底层引擎 |
 | 注册中心 / 地址簿 | Docker DNS / K8s Service DNS |
 | 健康检查轮询 | K8s Probe / Compose healthcheck + 重启策略 |
-| API 网关 / 服务网格 / 负载均衡 | 组件 DNS 直连；K8s Service 原生负载均衡。**带外部署的网关靠 `labels` 透传接进来**（002 §4.7、012 §2.23）——平台透传标签但不理解路由 |
+| API 网关 / 服务网格 / 负载均衡 | 组件 DNS 直连；K8s Service 原生负载均衡。**带外部署的网关靠 `labels` 透传接进来**——平台透传标签但不理解路由 |
 | 配置中心 / 动态热更新 | 环境变量注入；改配置就 `brickkit up` 重启 |
 | 通信治理（熔断 / 限流 / 重试） | 组件自己的代码 |
 | 弱依赖降级逻辑 | 组件自己的业务逻辑 |
@@ -170,10 +170,10 @@ CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，**不依赖 `components/
 | config 值类型校验 | configSchema 只是说明书 |
 | 第三方组件安全审查 | 安装即信任 + 事后 `blocked` |
 | monorepo 子目录组件 | 一个组件一个 Git 仓库 |
-| 合并部署 / 单体外壳——平台不会、也不打算自己提供外壳脚手架或进程管理器 | 但一小块**结构性支撑已经落地**：`servedBy` 让一个组件声明"我的工作负载由另一个组件提供"，平台在 Docker 和 K8s 下都会把 `*_ENDPOINT` 地址正确接到它身上——全程不需要理解外壳里面是什么。见下文 5.7，完整边界见《组件合并部署》与 012 §2.21 |
-| 依赖别名（`dependencies.components[].as`） | 变量名基于组件 ID 是双向可推算的，别名只保住一半；"一个能力多个实现"该走 `kind` 资源或 `configSchema` 里的地址项。见 012 §2.24 |
+| 合并部署 / 单体外壳——平台不会、也不打算自己提供外壳脚手架或进程管理器 | 但一小块**结构性支撑已经落地**：`servedBy` 让一个组件声明"我的工作负载由另一个组件提供"，平台在 Docker 和 K8s 下都会把 `*_ENDPOINT` 地址正确接到它身上——全程不需要理解外壳里面是什么。见下文 5.7 |
+| 依赖别名（`dependencies.components[].as`） | 变量名基于组件 ID 是双向可推算的，别名只保住一半；"一个能力多个实现"该走 `kind` 资源或 `configSchema` 里的地址项 |
 | 低代码 / BI / DevOps 流水线 | 不在范围内 |
-| Podman 作为部署目标 | 支持写过、也跑通过——`up`、`status`、真实请求、幂等重跑全部正常——但 `down` 在 rootless Podman 上失败，报 `rootless netns: kill network process: permission denied`，纯 `podman rm -f` 都能复现，完全在 BrickKit 自己的代码之外。一个停不掉的项目比根本不支持更糟——容器会一直占着端口和卷，而 CLI 却报告成功——所以选择整个撤回，不留一个跑到一半的支持。只装了 Podman、没装 Docker 的机器上，`up`/`status` 会明确点出这个具体原因、并指向装 Docker，而不是笼统报"找不到引擎"。005 §7.5 给了明确的恢复条件：先有一台 `podman compose down` 本身就能干净跑通的机器，在那台机器上验证完整生命周期，再加一条可重复的检查防止它悄悄再次坏掉 |
+| Podman 作为部署目标 | 支持写过、也跑通过——`up`、`status`、真实请求、幂等重跑全部正常——但 `down` 在 rootless Podman 上失败，报 `rootless netns: kill network process: permission denied`，纯 `podman rm -f` 都能复现，完全在 BrickKit 自己的代码之外。一个停不掉的项目比根本不支持更糟——容器会一直占着端口和卷，而 CLI 却报告成功——所以选择整个撤回，不留一个跑到一半的支持。只装了 Podman、没装 Docker 的机器上，`up`/`status` 会明确点出这个具体原因、并指向装 Docker，而不是笼统报"找不到引擎"。要恢复支持，需要先有一台 `podman compose down` 本身就能干净跑通的机器，在那台机器上验证完整生命周期，再加一条可重复的检查防止它悄悄再次坏掉 |
 
 ---
 
@@ -197,7 +197,7 @@ CLI 的 Manifest 来自 `.brickkit/manifests/` 缓存，**不依赖 `components/
 ⚠️ **多版本共存是「项目级」能力，不是「组件级」。** `brickkit.yaml` 里可以并列两个版本
 （供不同调用方各用各的），但**同一份 `component.yaml` 的 `dependencies` 里，一个组件 ID
 只能出现一次**——依赖地址的变量名基于组件 ID、不带版本号，写两个版本会撞同一个
-`*_ENDPOINT`，后者静默覆盖前者。CLI 在解析 Manifest 时就报错（002 §3.6）。
+`*_ENDPOINT`，后者静默覆盖前者。CLI 在解析 Manifest 时就报错。
 菱形依赖（A 依赖 X@1、B 依赖 X@2）不受影响，各拿各的。
 
 ### 5.2 环境变量注入规范
@@ -224,10 +224,10 @@ configSchema 里的配置项名转大写后不得与之冲突——**市场在�
 **CLI 在注入时警告并跳过该配置项**（平台注入的值优先）。
 
 **第三种、跟前两种都不一样的失败方式：`configSchema.required` 里声明了一项、又没给
-`default`，会直接阻断 `up`**（004 §5.6.3）——这既不是保留变量冲突（警告、跳过），
+`default`，会直接阻断 `up`**——这既不是保留变量冲突（警告、跳过），
 也不是普通的未设置可选项（悄悄不注入，组件走自己的"未配置"分支）。必填又没默认值，
 说的正是"这一项平台真的猜不出来，必须由项目告诉我"（典型场景是跨项目服务的地址，
-003 §4.9——那台服务归别的项目管，平台没法推导出它在哪）。缺了它既不会崩溃也不会
+那台服务归别的项目管，平台没法推导出它在哪）。缺了它既不会崩溃也不会
 报警——那个变量根本不存在——如果照旧悄悄跳过，组件会照常跑起来、看着很健康，只是
 其中一条调用路径永远走不通，而使用者以为自己配好了。所以 `brickkit up` 直接报错，
 并点名到底缺了哪一项、是哪个组件声明它为必填的。
@@ -266,7 +266,7 @@ configSchema 里的配置项名转大写后不得与之冲突——**市场在�
 
 - 被多个上层共用时，只要还有一个上层在跑，它就跑——共享的底层组件不会被误伤
 - 两个组件互相依赖（只可能是弱依赖成环）时，环上没有更上层的东西，两个都是顶层，都跑
-- 实现算的是"**谁不跑**"（最小不动点），环因此不需要任何特例（012 §2.14）
+- 实现算的是"**谁不跑**"（最小不动点），环因此不需要任何特例
 - CLI 输出里每一行都带着理由：`启动（顶层）` / `启动（enabled: true）` / `启动（X 需要）`
 
 **收窄启动范围只有一条路：改 `enabled`。** 没有 `--only` 之类的命令行参数——
@@ -415,7 +415,7 @@ CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 **把 `components/` 从 `.gitignore` 去掉的项目**（组件源码要跟项目一起进版本库），
 `sync` 的整目录移动会进项目的 diff——`brickkit restore` 与 `brickkit init --hooks`
 装的 pre-commit hook 就是为了拦住「归档结构进了提交、`enabled` 却没跟着提交」
-这个反复出现的失误（004 §3.14）。
+这个反复出现的失误。
 
 ### 5.9 市场、签名与信任模型
 
@@ -494,9 +494,9 @@ deployment:                      # 必须
     - name: grpc
       port: 9090
   resources:                     # 可选，**推荐值**，CLI 透传不校验
-    requests: { cpu: "100m", memory: "128Mi" }   # 建议只写 requests（002 §4.6）
+    requests: { cpu: "100m", memory: "128Mi" }   # 建议只写 requests
   # limits 建议留给部署方：配额逐字段合并，组件写了 limits.cpu，项目就删不掉
-  labels:                        # 可选，部署元数据透传，平台不解释键值（002 §4.7）
+  labels:                        # 可选，部署元数据透传，平台不解释键值
     prometheus.io/scrape: "true" # 值必须是字符串——引号别丢
     prometheus.io/port: "9090"   # Docker → service labels；K8s → Pod annotations
 
@@ -512,13 +512,13 @@ healthCheck:                     # 必须
   # ⚠️ 只检查本进程存活，禁止检查数据库 / 依赖组件 / 任何外部系统
 ```
 
-> **`startPeriodSeconds` 是 `healthCheck` 下唯一可覆盖的时间参数**（002 §9.3）。
+> **`startPeriodSeconds` 是 `healthCheck` 下唯一可覆盖的时间参数。**
 > interval / timeout / failureThreshold 由平台固定，三者相乘给出的启动预算是
 > 30 秒——冷启动超过它的组件（Spring Boot / Django / .NET）在 Docker 下会让
 > `up` 失败、在 K8s 下会永久 CrashLoopBackOff，而容器日志一路正常。
 > 宽限期只推迟"判死"，不推迟"判活"，所以写大一点没有代价。
 
-> **组件入口必须对识别不出的参数 fail fast**（002 §8.5.1）——这是组件开发者的责任，
+> **组件入口必须对识别不出的参数 fail fast**——这是组件开发者的责任，
 > 平台没法替你强制。迁移容器和主服务容器用的是**同一个镜像**，只靠平台传的命令行
 > 参数区分。如果入口的分发逻辑碰到一个不认识的参数（比如 `migration.command` 写错
 > 一个字）没有报错，而是落到"那就启动服务吧"，迁移容器就会悄悄变成第二个服务容器：
@@ -528,9 +528,9 @@ healthCheck:                     # 必须
 > 一句误导人的"连接数据库失败"，而不是真正的问题。
 
 > **这就是全部字段。** Manifest **没有扩展字段机制**，不认识的键会被当场拒绝
-> （002 §2.2.1），不是静默忽略——所以上面这份骨架照抄下来必须能过。
+> ，不是静默忽略——所以上面这份骨架照抄下来必须能过。
 > 曾经有过 `observability` 与 `compatibility.minCliVersion` 两个"预留"字段，
-> 已删除（002 §2.3）：两者从未被任何一处读取，而后者更糟——它长得像一道安全闸，
+> 已删除：两者从未被任何一处读取，而后者更糟——它长得像一道安全闸，
 > 写了 `minCliVersion: 2.0.0` 的组件在 0.1.0 的 CLI 上照装不误。
 
 **资源配额优先级链：** `brickkit.yaml` 的 `resources` > `component.yaml` 的 `resources` > CLI 默认值。
@@ -613,7 +613,7 @@ components:
       requests: { cpu: "200m", memory: "256Mi" }
       limits:   { cpu: "1", memory: "1Gi" }
     labels:                      # 可选，部署元数据透传，逐键覆盖组件的 deployment.labels
-      traefik.enable: "true"     # 平台不解释键值；值必须是字符串（003 §4.11）
+      traefik.enable: "true"     # 平台不解释键值；值必须是字符串
 
 resources:                       # 基础资源声明与绑定（资源本身由运维部署）
   - kind: database
@@ -626,7 +626,7 @@ resources:                       # 基础资源声明与绑定（资源本身由
     bindings:
       - componentId: people/basic
         # ↓ 下面四个是**同一格**（这个组件在资源里占哪一块），按 kind 用对应的
-        #   那个、只能写一个。用错名字会报错并点名该用哪个（006 §5.2）
+        #   那个、只能写一个。用错名字会报错并点名该用哪个
         database: people         # kind: database → DATABASE_NAME（库由使用者建一次）
       # vhost: orders            # kind: mq      → MQ_VHOST
       # bucket: media-prod       # kind: storage → STORAGE_BUCKET
@@ -641,7 +641,7 @@ installer:
 ```
 
 > ⚠️ **`serviceAccount.enabled` 是 opt-in——不写它，每个 Pod 用的还是命名空间的 `default`
-> ServiceAccount，那张令牌照常自动挂载**（008 §9.4）。这一点很容易跟 §4 的"默认安全"原则
+> ServiceAccount，那张令牌照常自动挂载**。这一点很容易跟 §4 的"默认安全"原则
 > 搞混：那条原则管的是组件能碰到什么（没有依赖边、没有资源绑定、没有暴露——全都是**对方
 > 那一侧**的 opt-in），不是这个 K8s 默认行为。平台不替你打开这个开关，理由跟不默认打开
 > `podSecurity: restricted` 一样：两者都可能让一个本来跑得好好的组件起不来，而这是一项
@@ -650,11 +650,11 @@ installer:
 
 > ⚠️ **`publicKeys` 是唯一让验签真正生效的字段。** 一个公钥都没配时，
 > 签名校验**整体失效**，`requireSignature: true` 也一并不起作用——
-> 没有信任锚点就没有可校验的对象（008 §8.5）。CLI 会为此警告一句，
+> 没有信任锚点就没有可校验的对象。CLI 会为此警告一句，
 > 但那时它已经什么都没验过了。
 >
 > 公钥必须配在这里、而不是跟着签名从市场取：否则就成了市场自己给自己发证，
-> 市场被攻破时攻击者把组件和公钥一起换掉，验签照样通过（003 §3.6）。
+> 市场被攻破时攻击者把组件和公钥一起换掉，验签照样通过。
 
 **多环境：** 每个环境一份**完整自包含**的 `brickkit.yaml`（如 `brickkit.prod.yaml`），
 用 `brickkit up --config brickkit.prod.yaml` 指定。**没有 overlay / 继承 / 合并机制**（理由见 9.9）。
@@ -673,12 +673,12 @@ installer:
 | `brickkit skills` | 查看/刷新装进项目的 AI 助手技能（`status` / `update`）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）只管理 `brickkit-component` 这一个技能。手改过的绝不覆盖；不碰使用者的 `CLAUDE.md` |
 | `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `enabled` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘 |
 | `brickkit remove <id>` | 检查强依赖方后移除，自动删除源码目录（含归档的那份）。多版本共存时必须指定版本 |
-| `brickkit fetch <id>[@版本]` | 只下载组件的产物到 `.brickkit/artifacts/<版本化服务名>/`，**不写入 brickkit.yaml、不部署**。跨项目调用别人的服务时用（003 §4.9） |
+| `brickkit fetch <id>[@版本]` | 只下载组件的产物到 `.brickkit/artifacts/<版本化服务名>/`，**不写入 brickkit.yaml、不部署**。跨项目调用别人的服务时用 |
 | `brickkit up` | 启停判定 → 生成部署文件 → 生成 `local-debug.env` → 检测镜像权限 → 执行迁移 → 调用引擎 |
 | `brickkit down` | 停止所有组件。**不删除 volume，保留数据** |
 | `brickkit status` | 读底层引擎，展示运行表格（含多版本检测、不启动的组件也列出来） |
 | `brickkit sync` | 按启停判定结果双向归档 / 激活组件源码。无参数 |
-| `brickkit restore` | 把 `enabled` 与组件源码结构还原到最后一次提交。`--check` 供 pre-commit hook 判断这次提交自洽不自洽（004 §3.14） |
+| `brickkit restore` | 把 `enabled` 与组件源码结构还原到最后一次提交。`--check` 供 pre-commit hook 判断这次提交自洽不自洽 |
 | `brickkit login` | 终端交互登录市场，Token 存 `.brickkit/credentials` |
 | `brickkit logout` | 先调市场作废 Token，再删本地的 `.brickkit/credentials`。**本地那份一定会删**，即使市场连不上——否则一次网络抖动就让人以为自己已经退出、凭据却还躺在盘上。没登录时什么都不做，也不算失败 |
 | `brickkit publish` | 上传 Manifest + 镜像引用 + 产物到市场（需先 login） |
@@ -788,7 +788,7 @@ JSON Schema 能力极其丰富，CLI 会越来越臃肿。而且组件自治—�
 
 这也不在上面那条滑坡上：`type` / `enum` / `minimum` 都是 JSON Schema 的**约束**，
 开一个口子就得追下去；而"这个键在 `properties` 里有没有"只是一次存在性检查，没有下一步——
-和 Manifest 拒绝未知字段（002 §2.2.1）是同一条推理。
+和 Manifest 拒绝未知字段是同一条推理。
 
 **9.13 为什么弱依赖缺失时完全不注入环境变量，而不是注入空字符串？**
 这是最能体现 BrickKit 哲学的一条。注入空字符串最致命的问题是**制造静默失败**：
@@ -803,7 +803,7 @@ JSON Schema 能力极其丰富，CLI 会越来越臃肿。而且组件自治—�
 但只有后者读得懂：使用者要做的决定就是"这个顶层我要不要"，下面那一串跟着走，不用他算。
 这不是措辞洁癖——原来那句话真的把人读岔过，照着它认真读完会得出"这条规则错了"的结论。
 配套改了一处实质规则：判定里的"依赖"从只算强依赖改成强弱一视同仁，
-否则 `add` 写进配置的弱依赖默认不启动，装了组件却发现一半功能是哑的。详见 012 §2.14。
+否则 `add` 写进配置的弱依赖默认不启动，装了组件却发现一半功能是哑的。
 
 **9.15 为什么 50 个组件不会失控？**
 ① **局部性原则**：组件 A 只需要知道自己直接依赖的 B、C、D 的 API 契约，
@@ -846,7 +846,7 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 接手健康检查与迁移、把各模块的配置互相隔离开）还是全在外壳作者自己的代码里，
 一行平台代码也用不上——平台依然不需要理解哪些东西*能*合、由什么进程管理器
 统一调度、某个框架怎么起多个 listener。真做一条完整的 `--consolidated` 命令，
-还是得像 012 §2.21 论证过的那样开始理解「外壳」；`servedBy` 刻意只做到
+还是得像本平台一贯反对的那样开始理解「外壳」；`servedBy` 刻意只做到
 "有帮助的最小结构性支撑"为止，不是通向那条被否掉的命令的第一步。
 
 **9.22 平台不做网关，为什么反而要加 `labels` 透传？**
@@ -858,18 +858,18 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 平台在加它前后要理解的东西**完全一样**：零。它只是一个 `map[string]string`。
 这与 `deployment.resources`「透传不校验」、`deploy.ingressAnnotations`「原样透传」是同一种姿态。
 **该拒绝的是语义层的自定义字段，不是部署层的透传口**——前者要求平台跟着长出理解能力，
-后者明说了平台不看。完整论证见 012 §2.23。
+后者明说了平台不看。
 
 **9.23 为什么不做依赖别名（`as:`）？**
 「变量名基于组件 ID」现在是一条**双向**规则：看到 `people/basic` 知道变量叫
 `PEOPLE_BASIC_ENDPOINT`，看到 `PEOPLE_BASIC_ENDPOINT` 也知道它指的是谁。`as: iam` 只保住
 前一半——`IAM_ENDPOINT` 在任何一处都查不出它指向哪个组件，而排查"地址怎么指错了"恰恰
-是从变量名开始的。它还要求保留变量保护（§5.2 两层防御）与依赖查重（002 §3.6 按组件 ID）
+是从变量名开始的。它还要求保留变量保护（§5.2 两层防御）与依赖查重（按组件 ID）
 各重新推导一遍，而那两套机制的现有形状全都建立在"名字从 ID 算出来"之上。
 真要换实现的那几类东西平台已经给了更便宜的位置：event-bus / 对象存储 / 缓存 / 搜索走
 `kind` 资源（改 `engine` 一个字段），需要地址但不需要依赖边的服务（如 IAM）走
 `configSchema` 里一个非保留键。走到依赖边上的关系里，实现的名字出现在变量名里不是缺陷
-——**它就是那条依赖的事实**。见 012 §2.24。
+——**它就是那条依赖的事实**。
 
 ### 9.24 一句话总结
 
@@ -904,7 +904,7 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 | `local: true` 组件依赖了一个 `servedBy` 成员 | 能连上：它的 `*_ENDPOINT` 会解析成一个真正的 `localhost:<端口>`——这个成员没有自己的容器，CLI 把映射开在它的外壳身上（§5.6） |
 | 讨论签名 | 发布方需要装 **cosign**；**安装方不需要**（验签用 Go 标准库） |
 | 用户想让平台帮忙做安全审查 | 安装即信任。平台只在事后 `blocked` |
-| 用户问「能不能把多个组件合并成一个实例省内存」 | 先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用（012 §2.15）。还要合并的话：**`servedBy`（5.7）是平台支持的路径**——它在 Docker 和 K8s 下都能正确处理地址路由；其余的事（模块隔离、配置、外壳内部的迁移顺序）还是他们自己的代码，参见外壳实现者指南。`enabled: false` 和这个无关——它照样不能拿来当「我自己接管」的开关 |
+| 用户问「能不能把多个组件合并成一个实例省内存」 | 先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用。还要合并的话：**`servedBy`（5.7）是平台支持的路径**——它在 Docker 和 K8s 下都能正确处理地址路由；其余的事（模块隔离、配置、外壳内部的迁移顺序）还是他们自己的代码，参见外壳实现者指南。`enabled: false` 和这个无关——它照样不能拿来当「我自己接管」的开关 |
 | 用户问「纯独立/纯外壳/混搭，docker 还是 k8s，到底该选哪个」 | 这正是 `docs/zh/patterns/deployment-selection-guide.md` 那份矩阵存在的目的——照着它的矩阵走，不要临场现编答案。里面唯一一条值得直接记住的硬规则：`local: true`（调试开关）只在 `deploy.target: docker` 下存在，`k8s` 下会在生成阶段直接拒绝 |
 | 用户问「完全不经过 Docker/K8s，怎么把整套东西跑在本地」 | 这是平台唯一完全不管理、不注入任何东西的一档——见 `deployment-selection-guide.md` 的"手动跑起来"那节。值得告诉他们的一个技巧：把那个组件临时改成 `local: true` 之后跑一次 `brickkit up --dry-run`，能拿到一份真实部署会注入的环境变量清单当参考——抄完就还原这次改动，不要真的照这个方式部署 |
 | 用户贴了一段 `brickkit` 的报错，或问怎么在脚本里应对失败（重试还是报警） | 每条终止命令的错误，在 `❌` 块后面紧跟的那行 stderr JSON 日志里都带一个稳定的 `error_code`。去 `docs/zh/architecture/error-codes.md`（英文版把 `zh` 换 `en`）查——它按 CLI 打印的确切标题列出每个码底下的各种情形、原因与解法。只有 `NETWORK_UNREACHABLE` 值得原样重试；码稳定，只增不改 |
@@ -934,7 +934,7 @@ internal/              CLI 实现
   └── market/            市场客户端
 market-server/         组件市场后端（独立 Go module）
 docs/zh/、docs/en/     现行文档（architecture / guide / patterns，双语镜像）
-docs/archive/          历史记录：旧设计书（design/）、旧试用指南（试用指南/）、决策索引、部署方法论
+docs/archive/          历史记录，不属于现行文档
 tests/components/      10 个真实组件，用来测试平台本身
 tests/checklist/       验收清单 → 证明它们的测试
 deploy/market/         市场的 compose / kustomize / Helm
@@ -982,34 +982,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 怎么规划种子数据与测试数据 | `docs/zh/patterns/data-construction.md`（英文版把 `zh` 换 `en`） |
 | 怎么做领域研究、怎么识别一个特性该做成组件家族而不是开关、怎么用 DDD 的语言对照组件边界 | `docs/zh/patterns/component-design.md`（英文版把 `zh` 换 `en`） |
 | 怎么防止闭源组件的逻辑从自己的镜像里泄露出去 | `docs/zh/patterns/closed-source-image-hardening.md`（英文版把 `zh` 换 `en`） |
-| 旧设计书当初的论证过程（历史记录，可能与当前实现不一致） | `docs/archive/design/`，只中文 |
-| 旧试用指南原文（历史记录） | `docs/archive/guide/`，只中文 |
 | 全站文档索引（带链接） | `llms.zh.txt`（英文版是 `llms.txt`） |
-| 平台理念与总体架构（根文档） | `docs/archive/design/001-平台理念与总体架构.md` |
-| `component.yaml` 全部字段与规则 | `docs/archive/design/002-组件规范.md` |
-| `brickkit.yaml` 全部字段与规则 | `docs/archive/design/003-项目配置规范.md` |
-| CLI 命令、依赖解析引擎、生成逻辑 | `docs/archive/design/004-CLI 设计.md` |
-| 装进项目的 AI 助手技能：装什么、怎么刷新、为什么不碰 `CLAUDE.md` | `docs/archive/design/004-CLI 设计.md` §3.2.1 |
-| Docker / K8s 部署、本地调试、迁移 | `docs/archive/design/005-部署与运行规范.md` |
-| 数据库 / Redis 等资源的声明与绑定 | `docs/archive/design/006-基础资源规范.md` |
-| 市场 API、数据模型、权限、签名 | `docs/archive/design/007-组件市场设计.md` |
-| 信任模型、密钥、保留变量保护 | `docs/archive/design/008-安全与治理.md` |
-| 手把手写第一个组件 | `docs/archive/design/009-组件开发快速入门.md` |
-| 构建、签名、发布到市场 | `docs/archive/design/010-组件发布与上架指南.md` |
-| 安装、拼装、调试、更新、回滚 | `docs/archive/design/011-组件安装与拼装指南.md` |
-| 把多个组件跑成一个实例（平台不支持，用户自理） | `docs/archive/planning/组件合并部署.md`；不做的理由见 `docs/archive/design/012` §2.21 |
-| **所有"为什么"的完整论证** | `docs/archive/design/012-架构设计原理与考量.md` |
-| 术语表 / Manifest 与配置完整参考 / 环境变量规范 / 生成产物示例 / 通信实践模板 | `docs/archive/design/附录合集.md` |
-| 按角色和场景的阅读路径 | `docs/archive/design/000 阅读指南与文档导航.md` |
-| 动手跑一遍（23 篇） | `docs/archive/guide/README.md` |
-| 某个决策当初为什么这么定（566 条） | `docs/archive/decisions/决策索引.md` |
-| 市场自己怎么部署 | `docs/archive/planning/市场部署与运维指南.md` |
-| 市场和项目分别跑在哪 | `docs/archive/planning/部署模式.md` |
-
-**文档权威顺序（历史记录内部，仅用于理解归档内容）：** 归档前，`design/` 下的设计书是规范性文档；
-`试用指南/` 是可执行的验证；`开发进度/` 是执行台账；三者冲突时以 `design/` 为准——现已分别对应
-`docs/archive/design/`、`docs/archive/guide/`、`docs/archive/decisions/`。理解当前实现请看本表顶部
-指向 `docs/zh/architecture/` 等新结构的行。
 
 ---
 

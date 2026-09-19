@@ -297,9 +297,7 @@ Supported deploy targets: docker, k8s
 > [Releases](https://github.com/brickKit/brickKit/releases). Only the parts of
 > the CLI that don't touch Docker have been verified there — starting
 > containers and the Kubernetes path **haven't been verified** on Windows.
-> That's not the same as unsupported; it's simply untested. Details in
-> [docs/archive/planning/发布与分发.md](docs/archive/planning/发布与分发.md)
-> §3.1 (historical, Chinese only).
+> That's not the same as unsupported; it's simply untested.
 >
 > **There's no Homebrew / Scoop / apt package yet.** All of those are
 > downstream of GitHub Releases; the upstream has to exist first.
@@ -456,10 +454,6 @@ Article 10 above keeps its example deliberately minimal. For a deeper, complete 
 | [Sharing a database connection pool inside a shell](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/shared-connection-pools.md) | For components merged into one shell that also share PostgreSQL or Oracle |
 | [Self-hosting the BrickKit Market](https://github.com/brickKit/brickKit/blob/main/docs/en/patterns/deployment/self-hosted-market.md) | Deploying the marketplace itself, from local dev to production |
 
-Not covered by any of the above: [`docs/archive/decisions/`](docs/archive/decisions/) explains
-why a specific historical decision was made the way it was (566 entries, historical record, Chinese
-only).
-
 ---
 
 ## Repository layout
@@ -485,7 +479,7 @@ tests/checklist/       acceptance checklists → the tests that prove them
 deploy/market/         the market's compose / kustomize / Helm manifests
 docs/en/               English documentation: architecture, guide, patterns
 docs/zh/               中文文档：architecture、guide、patterns（对称镜像，不是英文的译本）
-docs/archive/          pre-restructure documentation, kept as historical record only
+docs/archive/          historical record, not part of current docs
 ```
 
 Unit tests live **next to the code they test** (`internal/**/*_test.go`) — no
@@ -512,8 +506,7 @@ breaks**, instead of quietly reporting zero problems:
 | `make test-boundary` (and friends) | Boundary / error / compatibility / security acceptance items → the tests that prove them (`tests/checklist/清单.tsv`) |
 | `make check-doc-fields` | Every field name drawn in the docs' YAML snippets and field tables really exists (the source of truth is the struct itself) |
 | `make check-docs` | Dangling section references and broken links |
-| `make check-cli-docs` | Every command/flag the docs claim to exist, really does (the reverse direction — new commands not yet documented — isn't enforced here; see `docs/archive/planning/` era history for why) |
-| `make check-guide-output` | The guides' "✅ expected" output matches the CLI's real output, line for line |
+| `make check-cli-docs` | Every command/flag the docs claim to exist, really does (the reverse direction — new commands not yet documented — isn't enforced here) |
 | `make check-guides` | The steps in the guides still work |
 | `make check-install-sh` | `install.sh` installs successfully, and *actually* refuses to install when the checksum is broken |
 | `make check-docs-bilingual` | docs/en and docs/zh stay mirrored, every root multi-language pair (README, AGENTS, llms) stays paired, every llms.txt/llms.zh.txt link resolves |
@@ -528,21 +521,17 @@ scoreboard.
 ## Project status
 
 Every planned step is complete, and every deferred item has been resolved.
-The original dev plan and dev log are frozen as historical record under
-[`docs/archive/planning/`](docs/archive/planning/) and
-[`docs/archive/decisions/`](docs/archive/decisions/). Going forward, behavior
-is governed by the two living checklists under `tests/checklist/` and
-`tests/regression/` — the design books that used to serve that role have been
-superseded by `docs/en/architecture/` and `docs/zh/architecture/` (their old
-text lives on, read-only, under
-[`docs/archive/design/`](docs/archive/design/)).
+Behavior going forward is governed by the two living checklists under
+`tests/checklist/` and `tests/regression/`, and by the current documentation
+under `docs/en/` and `docs/zh/`.
 
 | | |
 | --- | --- |
 | Tests | 2,000+ test functions, race-clean |
-| Hands-on guides | 23, each run against real Docker / Kubernetes / a live market — archived at `docs/archive/guide/`, superseded by `docs/{en,zh}/guide/` |
-| Design books | 14, cross-checked against the implementation twice — archived at `docs/archive/design/`, superseded by `docs/{en,zh}/architecture/` |
-| Decision records | 566, each with the reasoning behind it, archived at `docs/archive/decisions/` |
+| Hands-on guides (current) | 12 articles, every one run for real; see `docs/en/guide/` |
+| Hands-on guides (archived) | 23 articles, every one run against real Docker / Kubernetes / a live marketplace |
+| Design books (archived) | 14 volumes, cross-checked against the implementation twice |
+| Decision record (archived) | 566 entries, each carrying the reasoning behind it at the time |
 
 **Runtime requirements:** Go 1.22+, Docker 20.10+ (with Compose V2).
 Kubernetes-related guides need minikube; signing needs
