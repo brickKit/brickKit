@@ -38,6 +38,7 @@ Click a command name to jump to its full description.
 | | [`brickkit logout`](#brickkit-logout) | Revoke the token and delete the local credentials | Logging out |
 | | [`brickkit publish`](#brickkit-publish) | Upload the Manifest, image reference and artifacts to the marketplace | Publishing your own component |
 | Other | [`brickkit version`](#brickkit-version) | Print the version | Checking which version you have installed |
+| | [`brickkit completion`](#brickkit-completion) | Print a shell auto-completion script | You want Tab to complete command and flag names in your terminal |
 
 There are also [two global flags](#two-global-flags-on-every-command), available on every command.
 
@@ -727,6 +728,54 @@ Supported deploy targets: docker, k8s
 
 ```bash
 brickkit version --verbose   # also print the git commit and build time
+```
+
+---
+
+## brickkit completion
+
+**Syntax:** `brickkit completion <shell>` — `<shell>` is one of `bash`, `zsh`, `fish`, `powershell`
+
+Prints the auto-completion script for that shell to standard output. Once installed, pressing Tab in your terminal completes command names and flag names, each candidate with a one-line description: type `brickkit up --` and press Tab, and it lists `--dry-run`, `--context` and the rest. It does **not** complete component IDs — pressing Tab after `brickkit remove` won't list the components in your project.
+
+This is a command the cobra framework ships with, not a platform capability: it doesn't read `brickkit.yaml`, doesn't touch the network, doesn't modify any file — it just prints the script, so it runs from any directory. It isn't counted among the commands AGENTS.md §8 lists either.
+
+**Flags**
+
+| Flag | Default | What it does |
+| --- | --- | --- |
+| `--no-descriptions` | off | Leave the one-line description off each completion candidate (every shell's subcommand has this flag) |
+
+**Installing it**
+
+There are two ways for each shell: try it in the current terminal first, or install it once so every new terminal has it. Either way, it's terminals you open *after* installing that get the completion.
+
+Try it in the current terminal:
+
+```bash
+source <(brickkit completion bash)                                  # bash
+source <(brickkit completion zsh)                                   # zsh
+brickkit completion fish | source                                   # fish
+brickkit completion powershell | Out-String | Invoke-Expression     # PowerShell
+```
+
+For every new terminal (once per shell):
+
+```bash
+# bash: needs the bash-completion package installed first
+brickkit completion bash > /etc/bash_completion.d/brickkit          # Linux
+prefix=$(brew --prefix)                                             # macOS, with Homebrew
+brickkit completion bash > "$prefix/etc/bash_completion.d/brickkit"
+
+# zsh: if completion isn't enabled in zsh yet, run this once first:  echo "autoload -U compinit; compinit" >> ~/.zshrc
+brickkit completion zsh > "${fpath[1]}/_brickkit"                   # Linux
+prefix=$(brew --prefix)                                             # macOS, with Homebrew
+brickkit completion zsh > "$prefix/share/zsh/site-functions/_brickkit"
+
+# fish
+brickkit completion fish > ~/.config/fish/completions/brickkit.fish
+
+# PowerShell: add the output of the "try it" command above to your PowerShell profile
 ```
 
 ---

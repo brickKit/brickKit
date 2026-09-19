@@ -48,6 +48,8 @@ brickkit init hello
 
 `init` already wired `components/` up as a `local`-type install source — that's where the next step looks.
 
+The `.claude/skills/` and `AGENTS.md` lines in that output are for AI assistants: `init` installs them by default so an AI knows, from the start, the platform rules that common sense gets wrong. They describe **this version of the CLI**, so after you upgrade the CLI, run `brickkit skills update` once in the project to refresh them — a file you've edited by hand is never overwritten, and `brickkit skills` on its own only looks, without changing anything. Don't want them? `brickkit init --no-skills` skips them.
+
 ## 3. Add the component
 
 Copy the component's Manifest and artifacts into the local source, matching the `<scope>/<name>/component.yaml` layout a local source expects:
@@ -139,4 +141,5 @@ brickkit down
 
 - Want to understand what just happened? → [Core Concepts](01-concepts.md)
 - Want the fuller walkthrough? → [Tutorial series](03-guide/README.md) (this Quick Start is the core path of [article 1](03-guide/01-first-project.md), which also covers dependencies, config changes, and K8s deployment)
+- Want to look up a command? → [Command overview](06-architecture/09-cli-reference.md#all-the-commands-at-a-glance)
 - Hit a problem? → [Troubleshooting](08-troubleshooting.md)

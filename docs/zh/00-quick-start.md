@@ -48,6 +48,8 @@ brickkit init hello
 
 `init` 已经把 `components/` 配成了一个 `local` 类型的安装源——下一步就是往这里放东西。
 
+输出里的 `.claude/skills/` 和 `AGENTS.md` 是给 AI 助手看的：`init` 默认会装上，让 AI 一开始就知道平台里那些"凭常识会猜错"的规则。它们描述的是**当前这个版本的 CLI**，所以以后升级了 CLI，在项目里跑一次 `brickkit skills update` 就能刷新——你手改过的文件不会被覆盖；只想看有没有过期，用 `brickkit skills`，它只读不改。不想要，`init` 时加 `--no-skills`。
+
 ## 3. 添加组件
 
 把组件的 Manifest 和 artifacts 复制进本地安装源，按 `<scope>/<name>/component.yaml` 的目录结构摆放：
@@ -139,4 +141,5 @@ brickkit down
 
 - 想理解刚才发生了什么？→ [核心概念](01-concepts.md)
 - 想跟着更完整的教程动手做？→ [教程系列](03-guide/README.md)（这个 Quick Start 走的就是 [第一篇](03-guide/01-first-project.md) 的核心路径，教程里还讲了依赖、配置修改、K8s 部署等更多内容）
+- 想查某个命令怎么用？→ [命令一览](06-architecture/09-cli-reference.md#命令一览)
 - 遇到问题了？→ [故障排除](08-troubleshooting.md)

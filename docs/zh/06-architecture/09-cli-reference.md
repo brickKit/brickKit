@@ -35,6 +35,7 @@ AGENTS.zh.md §8 给每个命令一句话概括，加一小撮精选的参数示
 | | [`brickkit logout`](#brickkit-logout) | 撤销令牌并删除本地凭据 | 退出登录 |
 | | [`brickkit publish`](#brickkit-publish) | 把 Manifest、镜像引用和产物上传到市场 | 发布自己的组件 |
 | 其他 | [`brickkit version`](#brickkit-version) | 打印版本 | 确认装的是哪一版 |
+| | [`brickkit completion`](#brickkit-completion) | 生成 shell 的自动补全脚本 | 想在终端里按 Tab 补全命令名和参数名 |
 
 另外还有[两个全局参数](#两个全局参数每个命令都有)，每个命令都能用。
 
@@ -673,6 +674,54 @@ Supported deploy targets: docker, k8s
 
 ```bash
 brickkit version --verbose   # 额外输出 git commit 与构建时间
+```
+
+---
+
+## brickkit completion
+
+**用法：** `brickkit completion <shell>`——`<shell>` 是 `bash`、`zsh`、`fish`、`powershell` 之一
+
+把对应 shell 的自动补全脚本打印到标准输出。装好之后，在终端里按 Tab 就能补全命令名和参数名，候选后面还带一句说明：敲 `brickkit up --` 再按 Tab，会列出 `--dry-run`、`--context` 这些参数。它**不**补全组件 ID——`brickkit remove` 后面按 Tab，不会列出项目里的组件。
+
+这是 cobra 框架自带的命令，不是平台的能力：它不读 `brickkit.yaml`、不联网、不改任何文件，只把脚本打印出来，所以在任何目录里都能跑。它也不算在 AGENTS.zh.md §8 数的那些命令里。
+
+**参数**
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `--no-descriptions` | 关闭 | 补全候选里不带那句说明（每种 shell 的子命令上都有这个参数） |
+
+**装法**
+
+每种 shell 有两种装法：先在当前终端里试一试，或者一次装好、以后每个新终端都生效。两种都是装完之后，新开的终端才会带上补全。
+
+先在当前终端里试：
+
+```bash
+source <(brickkit completion bash)                                  # bash
+source <(brickkit completion zsh)                                   # zsh
+brickkit completion fish | source                                   # fish
+brickkit completion powershell | Out-String | Invoke-Expression     # PowerShell
+```
+
+每个新终端都生效（每种 shell 只做一次）：
+
+```bash
+# bash：需要先装 bash-completion 这个包
+brickkit completion bash > /etc/bash_completion.d/brickkit          # Linux
+prefix=$(brew --prefix)                                             # macOS，用 Homebrew
+brickkit completion bash > "$prefix/etc/bash_completion.d/brickkit"
+
+# zsh：如果 zsh 还没启用补全，先执行一次  echo "autoload -U compinit; compinit" >> ~/.zshrc
+brickkit completion zsh > "${fpath[1]}/_brickkit"                   # Linux
+prefix=$(brew --prefix)                                             # macOS，用 Homebrew
+brickkit completion zsh > "$prefix/share/zsh/site-functions/_brickkit"
+
+# fish
+brickkit completion fish > ~/.config/fish/completions/brickkit.fish
+
+# PowerShell：把上面"先试一试"那条命令的输出，加进你的 PowerShell profile
 ```
 
 ---

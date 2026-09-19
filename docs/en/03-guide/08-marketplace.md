@@ -132,6 +132,39 @@ brickkit add demo/hello@2.0.0   # from a project that never logged in
    2. 私有组件需要所有者授权后才能访问
 ```
 
+## Log out when you're done
+
+Back in the publisher's project (that's where you logged in, and where `.brickkit/credentials` lives). Publishing and installing are done, so clear the login:
+
+```bash
+brickkit logout
+```
+```
+✅ 已退出登录
+   用户：admin
+   已删除：.brickkit/credentials
+```
+
+`logout` works in two steps: it tells the marketplace to revoke the token, then deletes the local `.brickkit/credentials`. **The local file is always deleted**, even if the marketplace can't be reached at that moment — otherwise one network blip would leave you believing you'd logged out while the credential still sat on disk. If the marketplace couldn't be told, it says so plainly: that token stays valid on the marketplace side until it expires on its own. Working offline and want to skip the notification outright? Add `--keep-remote`:
+
+```bash
+brickkit logout --keep-remote
+```
+```
+✅ 已退出登录
+   用户：admin
+   已删除：.brickkit/credentials
+   ⚠️ 按 --keep-remote 跳过了通知市场
+      那个 Token 在市场那边仍然有效，直到 2026-10-14 15:47:20 过期
+```
+
+Running it again when you're already logged out does nothing, and isn't a failure:
+
+```
+📋 当前没有登录凭据（.brickkit/credentials 不存在）
+   用 brickkit login 登录市场
+```
+
 ---
 
 Next: [Sign and verify components](09-signing.md) — closing the gap the warning above pointed at, actually configuring a trust anchor and verifying a signature for real.

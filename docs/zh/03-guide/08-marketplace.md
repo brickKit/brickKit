@@ -132,6 +132,39 @@ brickkit add demo/hello@2.0.0   # 来自一个从没登录过的项目
    2. 私有组件需要所有者授权后才能访问
 ```
 
+## 用完之后退出登录
+
+回到发布方的项目（登录发生在那里，`.brickkit/credentials` 也在那里）。发布和安装都做完了，把登录态清掉：
+
+```bash
+brickkit logout
+```
+```
+✅ 已退出登录
+   用户：admin
+   已删除：.brickkit/credentials
+```
+
+`logout` 分两步：先通知市场把这个 Token 作废，再删掉本地的 `.brickkit/credentials`。**本地那份一定会删**，哪怕市场这时连不上——否则一次网络抖动，就会让你以为自己已经退出了，凭据却还躺在盘上。市场没通知到的时候，它会明说：那个 Token 在市场那边仍然有效，直到它自己过期。离线干活时想直接跳过通知，加 `--keep-remote`：
+
+```bash
+brickkit logout --keep-remote
+```
+```
+✅ 已退出登录
+   用户：admin
+   已删除：.brickkit/credentials
+   ⚠️ 按 --keep-remote 跳过了通知市场
+      那个 Token 在市场那边仍然有效，直到 2026-10-14 15:47:20 过期
+```
+
+已经退出了再跑一次，什么也不会发生，也不算失败：
+
+```
+📋 当前没有登录凭据（.brickkit/credentials 不存在）
+   用 brickkit login 登录市场
+```
+
 ---
 
 下一篇：[给组件签名与验签](09-signing.md)——把上面那条警告指出的缺口补上，真正配一个信任锚点，真正验一次签名。

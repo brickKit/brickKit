@@ -365,6 +365,8 @@ Manifest 和依赖方的 API 契约，就能写出一个完整的、可独立运
 | 08 | [故障排除](https://github.com/brickKit/brickKit/blob/main/docs/zh/08-troubleshooting.md) | 症状 → 原因 → 解决 |
 | 09 | [Market API](https://github.com/brickKit/brickKit/blob/main/docs/zh/09-market-api.md) | 市场的每一个 HTTP 接口 |
 
+只想查某个命令怎么用？看[命令一览](https://github.com/brickKit/brickKit/blob/main/docs/zh/06-architecture/09-cli-reference.md#命令一览)。
+
 ---
 
 ## 仓库结构

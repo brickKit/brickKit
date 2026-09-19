@@ -402,6 +402,8 @@ Prefer navigating by topic instead of scrolling this page? [`docs/README.md`](ht
 | 08 | [Troubleshooting](https://github.com/brickKit/brickKit/blob/main/docs/en/08-troubleshooting.md) | Symptom → cause → fix |
 | 09 | [Market API](https://github.com/brickKit/brickKit/blob/main/docs/en/09-market-api.md) | Every marketplace HTTP endpoint |
 
+Just looking up a command? See the [command overview](https://github.com/brickKit/brickKit/blob/main/docs/en/06-architecture/09-cli-reference.md#all-the-commands-at-a-glance).
+
 ---
 
 ## Repository layout
