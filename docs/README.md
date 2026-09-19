@@ -41,6 +41,7 @@ reading order — [`en/README.md`](en/README.md) lays it out.
 ### 🤖 I want to use AI to develop components
 - **AI-assisted development, with prompt examples** → [AI-assisted development](en/05-ai-development.md)
   *(scaffold → contract → tests → debug, plus what AI still can't do for you)*
+- **Which AI-development pain each engineering idea maps to, and how an AI copes** → [Meet the ideas](en/06-architecture/01-design-principles.md#meet-the-ideas)
 
 ### 🛡️ I want production-grade, advanced patterns
 - **Upgrades and running multiple versions side by side** → [Guide: Upgrades and versions](en/03-guide/05-upgrades-and-versions.md)
@@ -77,6 +78,7 @@ reading order — [`en/README.md`](en/README.md) lays it out.
 ### 🤖 我想用 AI 辅助开发
 - **AI 辅助开发指南，含 Prompt 示例** → [AI 辅助开发指南](zh/05-ai-development.md)
   *(骨架 → 契约 → 测试 → 调试，以及 AI 目前还替代不了的部分)*
+- **每个工程想法对应 AI 开发的什么痛点，AI 该怎么应对** → [认识这些想法](zh/06-architecture/01-design-principles.md#认识这些想法)
 
 ### 🛡️ 我想了解生产级的进阶用法
 - **升级与多版本共存** → [指南：升级与多版本共存](zh/03-guide/05-upgrades-and-versions.md)

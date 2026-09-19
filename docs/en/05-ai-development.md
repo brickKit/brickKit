@@ -167,4 +167,5 @@ Tests are the most direct way to check whether AI-generated code is actually cor
 
 - [Component Design Guidelines](07-patterns/00-component-design.md) — the domain research to do before writing a component
 - [Testing patterns for components built on BrickKit](07-patterns/01-testing.md) — which layers AI-generated tests should cover
+- [Meet the ideas](06-architecture/01-design-principles.md#meet-the-ideas) — for each engineering idea, the pain it maps to when you write code with an AI, what BrickKit does, and how an AI should cope
 - [AGENTS.md](../../AGENTS.md) — the whole platform compressed for an AI to read

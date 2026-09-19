@@ -165,4 +165,5 @@ KeyError: 'PEOPLE_BASIC_ENDPOINT'
 
 - [组件设计准则](07-patterns/00-component-design.md) — 动手写组件之前先做的领域研究
 - [分层测试](07-patterns/01-testing.md) — AI 生成测试时该覆盖哪几层
+- [认识这些想法](06-architecture/01-design-principles.md#认识这些想法) — 每个工程想法对应用 AI 写代码时的什么痛点、BrickKit 怎么做、AI 又该怎么应对
 - [AGENTS.md](../../AGENTS.md) — 喂给 AI 的全平台压缩件
