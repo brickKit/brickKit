@@ -11,7 +11,7 @@
 | 提案原话 | 裁决 | 为什么 |
 | --- | --- | --- |
 | `brickkit graph`：Mermaid + HTML/SVG 两种输出 | **只做 Mermaid，砍掉 HTML/SVG** | Mermaid 在 GitHub、VS Code 里已经原生可交互渲染；自己再造一个 HTML/SVG 渲染器是重新发明已经免费拿到的东西，直接违反"平台极简"（每一个额外渲染器都是永久维护成本） |
-| `brickkit lint`：四类结构错误 + 跨文件引用检查 | **四类错误的校验逻辑本来就已经存在，只是没有独立入口；跨文件引用检查明确不做** | 实测确认 `manifest.Validate`/`config.Validate` 早就覆盖了拼写、类型、保留变量冲突、版本格式；真正缺的是"不用 `add`/`up` 就能单独跑一遍"这个入口。跨文件引用（`servedBy` 目标是否真实存在）需要完整依赖图，天然要联网，跟"离线秒回"的定位不是一回事，留给 `up`/`add` |
+| `brickkit lint`：四类结构错误 + 跨文件引用检查 | **四类错误的校验逻辑本来就已经存在，只是没有独立入口；跨文件引用检查明确不做** | 实测确认 `manifest.Validate`/`config.Validate` 早就覆盖了拼写、类型、版本格式（保留变量冲突的规则也早就存在，只是散在市场发布与 `up` 注入两处，见 §3.1）；真正缺的是"不用 `add`/`up` 就能单独跑一遍"这个入口。跨文件引用（`servedBy` 目标是否真实存在）需要完整依赖图，天然要联网，跟"离线秒回"的定位不是一回事，留给 `up`/`add` |
 | JSON Schema：随便写一份 | **从 Go struct 反射生成，不手写** | 手写的 schema 是仓库里从没有过的一种"容易悄悄过期"的东西，跟 `tests/docfields` 已经在防的问题是同一类；生成 + 防漂移测试才是"架构正确的完整方案" |
 
 三处都已经过 `AskUserQuestion` 得到确认：graph 只做 Mermaid；lint 按收窄范围；schema 用 struct tag 表达
@@ -23,49 +23,74 @@ enum/pattern 这类约束（而不是纯反射，纯反射拿不到 `deploy.targ
 ### 2.1 做什么
 
 新增命令 `brickkit graph`（连同 `brickkit lint`，命令总数从 14 个变成 16 个），把当前项目的依赖拓扑渲染成 Mermaid 代码，
-打印到 stdout。数据来源与 `up --dry-run` 完全相同（`resolver.Graph` + `cascade.Result` + `shell.Group`），
-但跳过 `up` 才需要的东西：镜像权限检查、迁移展示、引擎解析、生成部署文件。
+打印到 stdout。数据来源与 `up --dry-run` 相同的两样东西——`resolver.Graph`（依赖图）与 `cascade.Result`（谁跑谁不跑），
+再加 `brickkit.yaml` 里每个组件条目自己写的 `local` / `servedBy`。它跳过 `up` 才需要的一切：
+镜像权限检查、迁移展示、引擎解析、环境变量注入、生成部署文件。
 
 ### 2.2 复用而不是重复计算——抽出 `resolveTopology`
 
-`internal/cli/up.go` 的 `buildUpPlan` 开头三步（`resolver.New(...).ResolveConfig` → `cascade.Compute` →
-`shell.Resolve`）是 `graph` 唯一需要的东西。把这三步抽成一个新函数，放进新文件 `internal/cli/topology.go`：
+"解析依赖图 → 算级联"这两步今天在**四处**各写了一遍：`up.go` 的 `buildUpPlan`、`lifecycle.go` 的
+`project.resolve`（down/status 用）、`sync.go` 的 `syncFocus`，`graph` 是第四个。
+把这两步抽成一个函数，放进新文件 `internal/cli/topology.go`：
 
 ```go
-// resolveTopology 算出一个项目的依赖图、级联状态与 servedBy 分组——
-// up 与 graph 共用的部分，到这里为止两者需要的信息完全一致。
+// resolveTopology 解析依赖图并算出级联状态——up、down/status、sync 与 graph 共用的两步。
 func resolveTopology(
-    ctx context.Context, opts *Options, layout config.Layout, cfg *config.Config, ignoreServedBy bool,
-) (*resolver.Graph, *cascade.Result, []shell.Group, error)
+    ctx context.Context, client *source.Client, cfg *config.Config,
+) (*resolver.Graph, *cascade.Result, error)
 ```
 
-`buildUpPlan` 改成调用 `resolveTopology`，不再自己内联这三步——这是一处真实的、值得顺手做的重构（不是新引入的抽象）：
-两处各写一遍"解析依赖图 → 算级联 → 算 servedBy 分组"，以后这三步里任何一步的调用方式变了（比如 `shell.Resolve`
-需要的参数变化），都要记得同步改两处，是一个真实存在、没必要留着的维护负担。
+三处现有调用点改成调用它，行为一字不变。这是一处真实的、值得顺手做的重构而不是新引入的抽象：
+四处各写一遍意味着以后这两步的调用方式任何一处变了（比如 `Compute` 多要一个参数），都要记得同步四处。
+
+> **更正（对着代码核实后）：** 早先的草稿写的是"`buildUpPlan` 开头三步（含 `shell.Resolve`）"，并让
+> `resolveTopology` 返回 `[]shell.Group`。这是错的：`shell.Resolve` 需要 `inject.Build` 的结果（`*inject.Result`）
+> 作输入，并且只在 compose / k8s 生成阶段被调用，不属于"拓扑"。`graph` 需要的外壳分组信息直接来自
+> `cfg.Components[].ServedBy`（见 §2.4），不需要也不该跑一遍环境变量注入。
+
+`--ignore-served-by` 的"清空所有 `servedBy`"这一小段（今天内联在 `buildUpPlan` 里）同样抽成
+`clearServedBy(cfg *config.Config)`，放在同一个文件，`up` 与 `graph` 共用——它只清空、不打印，
+各自决定怎么告诉使用者（见 §2.3）。
 
 ### 2.3 输出
 
 - 只有 Mermaid（`graph TD`），只写 stdout，**没有 `--output <文件>` 参数**——要存文件用 `brickkit graph > graph.mmd`，
   平台不需要为"写文件"这件事再开一个关。
-- 支持 `--ignore-served-by`（与 `up` 同名同义，因为共用 `resolveTopology`，成本接近零）。
+- **stdout 里只有 Mermaid，一个多余的字符都没有**——否则 `> graph.mmd` 存下来的文件不是合法的 Mermaid。所以：
+  - `--ignore-served-by` 的提示写成 Mermaid 注释行（`%% 已忽略全部 servedBy 声明……`），而不是像 `up` 那样 `Printf`；
+  - 依赖解析产生的警告（弱依赖取不到之类）写到 stderr；
+  - 项目里没有组件时，输出 `graph TD` 加一行 `%% 当前项目没有组件`，退出码 0。
+- 支持 `--ignore-served-by`（与 `up` 同名同义，因为共用 `clearServedBy`，成本接近零）。
 - 支持全局 `--config`（root 的 persistent flag，新命令自动继承，不用额外接线）。
+- 依赖解析失败（强依赖找不到、依赖成环……）时与 `up` 一样报错退出，报错文案就是 `up` 那一份——`graph` 不发明新的解释。
+- 需要读组件 Manifest：市场 / Git 源里还没缓存的组件会联网取（和 `up --dry-run`、`status` 一样）。
+  `graph` **不**承诺离线——承诺离线的是 `lint`（§3）。
 
 ### 2.4 Mermaid 具体形状
 
 - **节点 ID**：复用 `manifest.ServiceName(id, version)`（已经是合法的 Mermaid 标识符：小写、`/`/`.` 都换成 `-`），
-  不新发明一套命名规则。
-- **节点标签**：原始的 `id@version`；`local: true` 的节点标签追加一行 `本地调试 :<port>`（Mermaid 标签内
-  `<br/>` 换行）；`servedBy` 成员标签不特殊处理（它已经被包进所属外壳的 `subgraph` 里，参见下一条）。
-- **边**：强依赖（`resolver.Node.Requires`）实线 `-->`；弱依赖（`resolver.Node.Optional`）虚线 `-.->`。
-  边总是画出来（不管对方这次有没有实际启动）——图要展示的是**声明的结构**，"启动与否"用节点样式表达（见下一条），
-  两件事分开表达，别混在一起。
-- **样式（`classDef` + `class`，不逐节点写 `style`）**：
-  - `classDef disabled fill:#eee,stroke:#999,color:#999;`——套给 `cascade.Result` 里没有运行的组件。
+  不新发明一套命名规则。边一律写成 `A --> B`（箭头两侧留空格），避开 Mermaid 里 `o`/`x` 开头的节点名被吞进箭头的坑。
+- **节点标签**：原始的 `id@version`，写在引号里（`["erp/backend@1.0.0"]`）；`local: true` 的节点标签追加一行
+  `本地调试 :<localPort>`（Mermaid 标签内 `<br/>` 换行）。
+- **边**：强依赖（`resolver.Node.Requires`）实线 `-->`；弱依赖（`resolver.Node.Optional`）虚线 `-.->`；
+  弱依赖里**取不到**的那些（`resolver.Node.MissingOptional`）同样画虚线，指向一个标签为 `id@version<br/>未安装` 的
+  `missing` 节点——`up` 的"依赖图"一节今天就是把它们写成"（弱，未安装）"，图里不画等于悄悄丢掉一条声明过的依赖，
+  而"为什么这个地址没注入"恰恰是这张图最该回答的问题之一。
+  边总是画出来（不管对方这次有没有实际启动）——图要展示的是**声明的结构**，"启动与否"用节点样式表达
+  （见下一条），两件事分开表达，别混在一起。
+- **样式（`classDef` + `class`，不逐节点写 `style`；某个 class 没有节点用到时不输出它的 `classDef`）**：
+  - `classDef disabled fill:#eee,stroke:#999,color:#999;`——套给 `cascade.Result` 里没有运行的组件
+    （被 `enabled: false` 关掉的与跟着上层一起不跑的，两种都算）。
   - `classDef local fill:#e6f2ff,stroke:#3673a8;`——套给 `local: true` 的组件。
-  - 一个组件可能同时是 `disabled` 又不可能是 `local`（`local: true` 就在跑，二者互斥，不需要处理"两个 class 一起套"
-    的情况）。
-- **`servedBy` 外壳分组**：一个 `subgraph <外壳的服务名>["外壳：<外壳 id@version>"] ... end` 包住这个外壳收编的全部成员节点。
-  外壳自己的节点画在 `subgraph` 外面（它是独立的容器，收编的成员才没有自己的容器）。
+  - `classDef missing fill:#fff4e5,stroke:#c77700,stroke-dasharray:4 3;`——套给上面说的"未安装"占位节点。
+  - `local: true` 的组件一定在跑，所以 `local` 与 `disabled` 不会同时出现在一个节点上。
+- **`servedBy` 外壳分组**：来自 `brickkit.yaml` 里各组件条目自己的 `servedBy`（用 `shell.ParseRef` 拆成外壳的
+  `id@version`）。一个 `subgraph <外壳服务名>-members["外壳：<外壳 id@version>"] ... end` 包住这个外壳收编的全部成员节点；
+  子图 ID 带 `-members` 后缀，是因为外壳自己也是一个以它的服务名为 ID 的普通节点（它是独立的容器，画在 `subgraph` 外面，
+  收编的成员才没有自己的容器），两者不能同名。版本化服务名总是以 `-<数字>-<数字>-<数字>` 结尾，
+  所以带 `-members` 的 ID 永远不会跟任何组件节点撞名。
+  外壳不在图里（`servedBy` 指向的目标不存在）时照样画出这个分组——`graph` 展示的是声明的结构；
+  目标是否存在是 `up` 在生成阶段报的事。
 
 ### 2.5 不做什么
 
@@ -81,13 +106,13 @@ func resolveTopology(
 新增命令 `brickkit lint`，对着当前目录**离线**（不联网、不需要 Docker/K8s）跑一遍结构校验，输出错误/警告列表，
 退出码 0（干净）或 1（有结构性错误，或 `--strict` 下有警告）。
 
-**校验的四类错误全部复用已有逻辑，一条新规则都不增加：**
+**四类错误全部复用已有的规则，一条新规则都不增加**——但对着代码核实后，"已有"分成两种：
 
-| 类别 | 复用的现成逻辑 |
-| --- | --- |
-| 必填字段缺失、类型错误、端口范围、版本号格式 | `manifest.Parse` + `Manifest.Validate`（component.yaml）、`config.ParseConfig` + `Config.Validate`（brickkit.yaml） |
-| `configSchema.properties.<key>` 拼写笔误（如 `defualt:`） | `manifest.PropertyKeyWarnings`（今天只在 `publish`/`add --local` 时跑） |
-| 保留变量冲突 | 已经是 `Validate`/注入阶段警告的一部分 |
+| 类别 | 已有的规则在哪 | `lint` 怎么用它 |
+| --- | --- | --- |
+| 必填字段缺失、类型错误、未知字段、端口范围、版本号格式 | `manifest.Parse` + `Manifest.Validate`（component.yaml）、`config.ParseConfigFile` + `Config.Validate`（brickkit.yaml）——今天 `up`/`add`/`publish` 一律会跑 | 直接调用 |
+| `configSchema.properties.<key>` 里拼错的键（如 `defualt:`） | `manifest.PropertyKeyWarnings`——今天只在 `publish` 与 `add --local` 时跑 | 直接调用，结果是警告 |
+| 配置项名字撞上平台保留变量 | **不在 `Validate` 里。** 今天只有两处：市场发布时拒绝（`market-server/internal/validator`），与 `up` 注入时警告并跳过该项（`inject.envBuilder.matchReserved`）——组件作者在自己的仓库里、发布之前，没有任何办法提前知道 | `inject` 新导出 `ReservedKeyWarnings(m)`：把 `matchReserved` 里"不依赖 envPrefix 的那部分"提成包级函数，`up` 注入与 `lint` 共用同一份，结果是警告（与 `up` 的严重程度一致：写错一个配置项名不该让整个项目起不来）。`envPrefix` 是使用者在 `brickkit.yaml` 里定的，组件仓库里看不到，所以不在检查范围内——与市场发布时看不到它是同一个道理 |
 
 ### 3.2 真正的缺口：入口，不是规则
 
@@ -108,15 +133,42 @@ func resolveTopology(
 // detectScope 判断当前目录是 BrickKit 项目（有 brickkit.yaml）还是独立组件仓库
 // （有 component.yaml、没有 brickkit.yaml）；两者都没有时返回错误。两者都有时按项目算——
 // 这是 brickkit skills 一直以来的行为，lint 沿用同一条规则，不新发明一条。
-func detectScope(opts *Options) (scope skills.Scope, layout config.Layout, err error)
+func detectScope(opts *Options) (skills.Scope, config.Layout, error)
 ```
 
 放进 `internal/cli/skills.go`（它是这段逻辑原来的家），`skillsInstaller` 与新的 `lint.go` 都调它。
 
-- **项目模式**：校验 `brickkit.yaml` 本身（`config.ParseConfigFile` + `Validate`，跟 `up` 用的是同一份逻辑）；
-  再扫描本地安装源目录（`sources[].type: local` 声明的路径）下**每一个** `component.yaml`（不管有没有被
-  `add` 过），逐个跑 `manifest.Parse` + `Validate` + `PropertyKeyWarnings`。
-- **独立组件仓库模式**：只校验这一份 `component.yaml`，同样跑 `Parse` + `Validate` + `PropertyKeyWarnings`。
+- **项目模式**：先校验 `brickkit.yaml` 本身（`config.ParseConfigFile`，跟 `up` 用的是同一份逻辑）；
+  通过之后，再枚举本地安装源（`sources[].type: local` 且启用的）目录下**每一个** `<scope>/<name>/component.yaml`
+  （不管有没有被 `add` 过），逐个跑 `manifest.Parse`（含 `Validate`）+ `PropertyKeyWarnings`，
+  并核对"目录名拼出来的组件 ID"与 `metadata.id` 一致（`add --local` 今天就是靠这一条把不一致的组件跳过的）。
+  `brickkit.yaml` 自己没通过时，本地源在哪儿都不可信，所以跳过这一步并明说跳过了。
+- **独立组件仓库模式**：只校验当前目录这一份 `component.yaml`，同样跑 `Parse` + `PropertyKeyWarnings`。
+
+**枚举本地源文件的方式（`internal/source` 新增一个方法）。** 不走 `Client.Manifest`：它会把取到的 Manifest
+写进 `.brickkit/manifests/` 缓存，而 `lint` 必须是纯只读；也不走 `LocalComponents`：它先过一遍"表头"筛选
+（能解析出 id、版本精确），表头不合格的文件被当成"问题"单独返回，而这些正是 `lint` 要完整报告的对象，
+且它只给一句话原因，报不出 `Validate` 那种逐字段的全部问题。所以新增：
+
+```go
+// LocalManifestFile 是本地安装源目录下的一份 component.yaml。
+type LocalManifestFile struct {
+    ID       string // 按目录名（<scope>/<name>）拼出来的组件 ID
+    SourceID string // 提供它的安装源 id
+    Path     string // 这份文件的完整路径
+}
+
+// LocalManifestFiles 列出所有启用的本地安装源里、活跃目录下的 component.yaml。
+func (c *Client) LocalManifestFiles() ([]LocalManifestFile, error)
+```
+
+它与 `listComponents` 共用同一段"扫 `<scope>/<name>`、跳过点开头的目录、跳过非法组件 ID"的目录遍历
+（从 `listComponents` 里抽出来，不复制第二份）。`.archived/` 因此同样不扫——与 `add --local` 一致：
+归档目录里的是 `sync` 挪开的、暂时不用的那份，不是使用者此刻在编辑的文件。
+
+`lint` 用 `source.New(layout, cfg, source.Options{})` 直接构造客户端，**不**走 `newSourceClient`：后者会先按
+`installer.publicKeys` 去读公钥文件，而公钥文件缺失是 `up`/`add` 该报的事，不该让一条"离线校验 YAML"的命令因此失败。
+`source.New` 本身不联网——三种安装源都是惰性的，只有真去取 Manifest 才会碰网络，而 `lint` 从不取。
 
 ### 3.4 明确不做
 
@@ -126,12 +178,18 @@ func detectScope(opts *Options) (scope skills.Scope, layout config.Layout, err e
 - 不新增任何校验规则——`configSchema` 里作者自己声明的 `enum`/`minimum` 这类，§9.12 明确不校验值，`lint`
   同样不碰这条线。
 
-### 3.5 `--strict` 与退出码
+### 3.5 输出、`--strict` 与退出码
 
-- 不加 `--strict`：结构性错误（必填缺失、类型错误、未知字段……）退出码 1；警告（`PropertyKeyWarnings` 一类）
-  只打印，退出码 0。
-- 加 `--strict`：警告也算错误，退出码跟着变成 1——给 CI 门禁用。
-- 输出格式复用现有的 `clierr.Error`/`renderWarnings` 风格，跟其余命令保持一致，不新发明一套格式。
+- 报告写到 **stdout**（它是这条命令的产出，不是"命令失败了"的错误）：每个检查过的文件，干净的一行 `✅ <路径>`；
+  有问题的直接打印它的 `clierr.Error` 块（错误 `❌`、警告 `⚠️`，块里已经带着文件路径与逐字段的全部问题，
+  不再另起一行标题）；最后一行汇总"检查了几个文件、几个有错误、几条警告"。
+- 不加 `--strict`：有错误 → 退出码 1，只有警告 → 退出码 0。
+- 加 `--strict`：警告也算，退出码跟着变成 1——给 CI 门禁用。
+- 失败时命令返回一个汇总错误，走 stderr 与 JSON 日志行的老路径。它用**新增的**错误码 `LINT_FAILED`，写进
+  `docs/{en,zh}/06-architecture/10-error-codes.md`（`tests/docfields` 会拦住漏写）。不复用 `CONFIG_INVALID` /
+  `MANIFEST_INVALID`：一次 lint 可以两者兼有，汇总只能带一个码；而 CI 脚本要区分的恰恰是
+  "lint 查出了问题"和"配置读不出来"。
+- 不新发明输出格式：块的排版就是 `clierr.Error.Format()`，跟 `up`/`add` 打印警告的方式一致。
 
 ## 4. JSON Schema 生成
 
@@ -145,39 +203,62 @@ JSON Schema，落盘到仓库根目录新建的 `schemas/` 目录：`schemas/com
 
 ### 4.2 生成器
 
-新增 `internal/schemagen` 包，反射 `manifest.Manifest`/`config.Config` 及其全部嵌套类型，产出：
+新增 `internal/schemagen` 包，反射 `manifest.Manifest`/`config.Config` 及其全部嵌套类型，产出 JSON Schema draft-07
+（Red Hat YAML 扩展——VS Code 的 YAML 支持——认这个版本）：
 
-- 每个字段的 JSON Schema `properties.<name>`：字段名取 yaml tag（去掉 `,omitempty` 等修饰符）；
-  类型按 Go 类型映射（`string`→`string`，`int`→`integer`，`bool`→`boolean`，slice→`array`，
-  嵌套 struct→嵌套 `object`，`map[string]T`→`additionalProperties`）。
-- **必填字段**：yaml tag 没写 `,omitempty` 的字段进 `required` 列表（已核实这是仓库现有的约定——
-  `Metadata.ID`/`Name`/`Version` 等真正必填的字段确实都没有 `,omitempty`）。
+- 每个字段的 JSON Schema `properties.<name>`：字段名取 yaml tag（去掉 `,omitempty` 等修饰符；`-` 的跳过）；
+  类型按 Go 类型映射（`string`→`string`，`int`→`integer`，`float`→`number`，`bool`→`boolean`，slice→`array`，
+  嵌套 struct→嵌套 `object`，`map[string]T`→`additionalProperties`，`any`→不加约束）。
+- **必填字段**：yaml tag 没写 `,omitempty` **且不是 `bool`** 的字段进 `required` 列表。
+  这条规则是逐个核对过 `manifest.Validate` / `config.Validate` 之后定的，不是只看了 `Metadata`：
+  `bool` 必须排除，因为 `NetworkPolicy.enabled`、`Egress.enabled`、`ServiceAccount.enabled`、
+  `ComponentDep.optional` 都没写 `omitempty`，却并不必填。规则由一份**手写的、按类型列出的必填集合**在测试里钉住
+  （`TestRequiredFieldsMatchValidators`）——生成器哪天改了这条规则，测试会告诉你哪个类型的必填集合变了。
 - `additionalProperties: false`——镜像"Manifest 没有扩展字段机制，未知键直接拒绝"这条平台规则（AGENTS §6）。
+  `map` 类型（`config`、`labels`、`configSchema.properties`……）里键是使用者自己定的，不受这条限制。
+- **自定义 `UnmarshalYAML` 的类型需要单独交代**：`manifest.ComponentDep` 既能写成字符串
+  （`department/tree@1.0.0`）也能写成 `{id, optional}` 映射，反射看不出来。生成器里有一张小小的
+  "类型 → 手写 schema"覆盖表，目前只有这一项；遇到有 `UnmarshalYAML` 方法却不在表里的类型，
+  生成器直接报错（而不是生成一份悄悄错误的 schema）。
+- 递归类型不支持（目前两份 schema 里没有），遇到时生成器报错而不是无限展开。
 
 ### 4.3 富约束——新增一个小的 struct tag
 
 纯反射只能拿到"字段存在、类型是什么、必填不必填"，拿不到 `deploy.target` 只能是 `docker`/`k8s`、
 版本号要匹配 `x.y.z`、端口要在 1-65535 这类约束——而这些恰恰是"IDE 红线"最有价值的部分。
-给以下这一小批字段（预计 5-8 个，都是已经在 Go 代码里能找到对应常量/校验规则的）加一个新的 struct tag
+给以下这一小批字段（都是 Go 代码里已经有对应常量/校验规则的**封闭取值集合**）加一个新的 struct tag
 `jsonschema:"..."`，生成器读这个 tag 补上对应的 JSON Schema 关键字：
 
 | 字段 | tag 内容 | 依据 |
 | --- | --- | --- |
-| `config.Deploy.Target` | `enum=docker,k8s` | `internal/config/validate.go`：`case TargetDocker, TargetK8s` |
-| `manifest.Metadata.Version` | `pattern=^\d+\.\d+\.\d+$` | `manifest.IsExactVersion` |
-| `manifest.Deployment.Port` / `ExtraPort.Port` | `minimum=1,maximum=65535` | `internal/config/validate.go` 的 `MinPort`/`MaxPort` |
-| `manifest.HealthCheck.Type` | `enum=http,tcp,none` | `manifest.HealthCheckHTTP/TCP/None` 常量 |
-| `manifest.ResourceDep.Kind` / `config.Resource.Kind` | `enum=database,cache,mq,storage,search,smtp` | `manifest.ResourceKinds` |
-| `manifest.ConfigProperty.Type` | `enum=string,integer,number,boolean,array,object` | AGENTS §6 骨架里列的合法类型 |
+| `config.Deploy.Target` | `enum=docker\|k8s` | `internal/config/validate.go`：`case TargetDocker, TargetK8s` |
+| `config.Source.Type` | `enum=market\|git\|local` | `config.SourceType*` 常量；`source.newFetcher` 对其余值报错 |
+| `manifest.Manifest.APIVersion` | `enum=brickkit/v1` | `manifest.APIVersion` |
+| `manifest.Manifest.Kind` | `enum=Component` | `manifest.Kind` |
+| `manifest.Metadata.Version` | `pattern=^[0-9]+[.][0-9]+[.][0-9]+$` | `manifest.IsExactVersion`（正则 `^\d+\.\d+\.\d+$`；tag 里写成不含反斜杠的等价形式） |
+| `manifest.Deployment.Type` | `enum=container` | `manifest.DeploymentTypeContainer` |
+| `manifest.Deployment.Port` / `ExtraPort.Port` | `minimum=1,maximum=65535` | `manifest.MinPort`/`MaxPort` |
+| `manifest.HealthCheck.Type` | `enum=http\|tcp\|none` | `manifest.HealthCheckHTTP/TCP/None` 常量 |
+| `manifest.ResourceDep.Kind` / `config.Resource.Kind` | `enum=database\|cache\|mq\|storage\|search\|smtp` | `manifest.ResourceKinds` |
+| `manifest.ConfigProperty.Type` | `enum=string\|integer\|number\|boolean\|array\|object` | `manifest.configSchemaTypes` |
 
-这是一个新的标注约定：以后给这些"已知取值范围"的字段加校验规则时，要记得同步这个 tag（防漂移测试会在
-tag 与代码实际校验规则不一致时不会自动发现——tag 是"额外的一份真相"，需要人在改校验逻辑时想起来同步；
-这是这个设计唯一没有自动防漂移的地方，值得在生成器的包注释里显著标出来）。
+（`apiVersion`/`kind`/`deployment.type`/`sources[].type` 四行是设计书初稿没有的：它们与其余各行是同一类——
+封闭取值、`Validate` 里有对应的精确比较——而且正是使用者敲 `apiVersion: ` 之后最想让编辑器补全的东西。）
 
-### 4.4 防漂移
+tag 语法：关键字之间用 `,` 分隔，`enum` 的取值之间用 `|` 分隔；取值与 `pattern` 里不能出现 `,`、`|`
+（也就不用在 struct tag 里转义反斜杠）。生成器不认识的关键字直接报错，写错关键字不会悄悄不生效。
+
+**tag 是"额外的一份真相"，怎么防它与校验代码不一致。** 校验规则还在 `Validate` 里，tag 里抄了一份取值。
+初稿把它标成"这个设计唯一没有自动防漂移的地方"。可以做得更好：`TestConstraintsAgreeWithValidators`
+对上表每一行，拿一份真实合法的 component.yaml / brickkit.yaml，把那个字段依次改成"tag 说合法的每个取值"
+（`manifest.Parse` / `config.ParseConfig` 必须通过）与"tag 说不合法的取值"（必须失败）。
+校验代码改了而 tag 没跟着改，这个测试会红。
+
+### 4.4 防漂移与落盘
 
 新增 `internal/schemagen` 的一个测试：在内存里重新生成一遍两份 schema，跟 `schemas/` 目录下签入的文件做
 字节比对，不一致就失败并提示"跑 `make generate-schemas`"——与 `tests/docfields` 同一个套路。
+它同时挂进 `make lint`（新目标 `check-schemas`，跟 `check-doc-fields` 并列），不只是躲在 `make test` 里。
 
 落盘由 `make generate-schemas` 触发，实际执行体是一个不进最终 `brickkit` 二进制的小工具
 （`cmd/gen-schemas/main.go`，调用 `internal/schemagen` 的导出函数，写文件）。
@@ -200,6 +281,9 @@ tag 与代码实际校验规则不一致时不会自动发现——tag 是"额�
 - `llms.txt`/`llms.zh.txt`：命令列表补两行。
 - `docs/{en,zh}/08-troubleshooting.md`：如果 `lint`/`graph` 有值得记录的常见误用，顺手补一条（内容在实现阶段
   真跑出来再定，不在这里预先编）。
+- `README.md`/`README.zh.md` 里那一行命令清单（"14 commands in total"）；`CHANGELOG.md` 的 `[Unreleased]`。
+- 装进项目的 AI 助手技能（`internal/skills/assets/`）：`brickkit-component` 技能补一句"写完 component.yaml 先跑
+  `brickkit lint`"——这正是独立组件仓库模式服务的场景。
 
 ## 6. 范围之外（本次明确不做）
 
