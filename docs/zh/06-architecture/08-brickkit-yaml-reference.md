@@ -115,7 +115,7 @@ AGENTS.zh.md §7 是那份骨架。这篇文档是骨架背后的字典——每
 | `resources[].port` | int | 是 | `1`–`65535` |
 | `resources[].username` | string | 否 | |
 | `resources[].password` | string | 否 | 解析器不强制要求这里必须写 `${ENV_VAR}` 引用，但写一个明文密码会在 `up` 时触发一条明文密码警告（AGENTS.zh.md §7 那条"必须用 ${ENV_VAR} 引用"是靠警告落地的，不是解析阶段的硬错误） |
-| `resources[].existingSecret` | string | 否 | 仅 K8s。引用外部系统（Vault Agent Injector、External Secrets Operator、Sealed Secrets……）已经放进集群的 Secret，而不是让平台从 `password` 生成一份。与 `password` 互斥——两个都写会报错。平台从不读写这个值，只是把 `secretKeyRef` 指向这个名字，用的 key 与平台自己生成时会用的一样（`password` 或 `secret-key`）。`docker` 下被忽略（有警告）。声明了 `secret: true` 的 `configSchema` 属性也能用同一个想法：把标量值换成 `{ existingSecret: <名>, key: <Secret 里的 key> }`。 |
+| `resources[].existingSecret` | string | 否 | 仅 K8s。引用外部系统（Vault Agent Injector、External Secrets Operator、Sealed Secrets……）已经放进集群的 Secret，而不是让平台从 `password` 生成一份。与 `password` 互斥——两个都写会报错。平台从不读写这个值，只是把 `secretKeyRef` 指向这个名字，用的 key 与平台自己生成时会用的一样（`password` 或 `secret-key`）。`docker` 下被忽略（有警告）。声明了 `secret: true` 的 `configSchema` 属性也能用同一个想法：把标量值换成 `{ existingSecret: <名>, key: <Secret 里的 key> }`。这条路与"把值放进进程环境"那条路怎么取舍，见[密钥](../07-patterns/10-secrets.md)。 |
 | `resources[].bindings[]` | `[]Binding` | 否 | 见下 |
 
 ### `resources[].bindings[]`
