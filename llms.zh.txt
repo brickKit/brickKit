@@ -45,7 +45,7 @@
 - [签名与信任模型](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/06-signing-and-trust.md): 为什么 Manifest 签的是规范化载荷而不是原始字节、为什么签名需要 cosign 而验签完全不需要、为什么公钥必须放在自己项目里而不能来自市场，以及一个真实验证过的保留变量冲突警告。
 - [component.yaml 字段完整参考](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/07-component-yaml-reference.md): 每个字段的类型、是否必填、默认值、校验器真正套用的约束——组件 ID 与版本号的正则、端口范围、额外端口的 K8s Service 端口名规则，以及 `enum`、`items` 这两个能被成功解析、却在代码库里再没有任何地方读过的字段。
 - [brickkit.yaml 字段完整参考](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/08-brickkit-yaml-reference.md): 每个字段的类型、是否必填、默认值、约束——`local`/`servedBy`/`replicas` 之间校验器会拦下的每一种互斥、绑定槽位规则，以及唯一一个（`deploy.target: k8s` 下的 `exposePort`）写了会悄悄不生效、却没有任何东西拦住它的字段。
-- [CLI 命令完整参考](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/09-cli-reference.md): 14 个命令加 version，每一个的每一个参数，每个都配真实生成的输出——AGENTS.zh.md §8 那份一句话摘要的详尽版。
+- [CLI 命令完整参考](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/09-cli-reference.md): 15 个命令加 version，每一个的每一个参数，每个都配真实生成的输出——AGENTS.zh.md §8 那份一句话摘要的详尽版。
 - [错误码](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/10-error-codes.md): 每条终止命令的错误在 stderr JSON 日志里带的稳定 `error_code`，以及全部错误码的字典——每个码底下的各种情形，按 CLI 打印的确切标题列出，附原因与解法；哪个码值得重试（只有 `NETWORK_UNREACHABLE`）；退出码 `0`/`1`/`2`；以及输出里不带码的 ⚠️ 警告。有测试守着每个码、每条引用的标题都与源码对得上。
 - [推荐实践索引](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/07-patterns/README.md): 按"你在做什么"和按角色整理的推荐实践——找该看哪一篇，从这里开始。
 - [组件设计准则](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/07-patterns/00-component-design.md): 设计自己的领域模型之前怎么参考成熟实现、一批值得设计规避的结构性失败模式，"这个特性该做成一组可互换组件，而不是一个配置开关"这个信号该怎么识别，以及怎么用 DDD 的语言对照组件边界。

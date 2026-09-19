@@ -324,7 +324,7 @@ Not a single line of component code changes: addressing is identical in both
 environments, always `http://<versioned-service-name>:<port>` (for example
 `http://people-basic-1-0-0:8080`).
 
-**14 commands in total:** `init` `new` `add` `remove` `fetch` `up` `down` `status`
+**15 commands in total:** `init` `new` `add` `remove` `fetch` `up` `down` `status`
 `sync` `restore` `login` `logout` `publish` `version`
 
 Want to actually run it? The [5-minute Quick Start](docs/en/00-quick-start.md)

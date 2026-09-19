@@ -199,6 +199,7 @@ CLI 只做六件事：
 	root.AddCommand(
 		newInitCommand(opts),
 		newSkillsCommand(opts),
+		newGraphCommand(opts),
 		newNewCommand(opts),
 		newAddCommand(opts),
 		newRemoveCommand(opts),
