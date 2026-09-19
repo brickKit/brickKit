@@ -236,8 +236,9 @@ PG_PASSWORD="$(cat /run/secrets/pg-password)" brickkit up
 | 工具 | 大致是什么 | 最后会不会有一个 K8s Secret | `existingSecret` 能不能指向它 |
 | --- | --- | --- | --- |
 | External Secrets Operator | 跑在集群里的程序，盯着集群外的密钥库（HashiCorp Vault、AWS Secrets Manager 之类），把里面的值同步成普通的 K8s Secret | 会 | 能 |
+| Vault Secrets Operator | HashiCorp 官方专门为 Vault 做的同类程序：跑在集群里，把 Vault 里的值同步成普通的 K8s Secret | 会 | 能 |
 | Sealed Secrets | 让你把**加密后**的 Secret 提交进 Git，只有集群里的控制器持有解密的钥匙，在集群内把它还原成真正的 Secret | 会 | 能 |
-| Vault Agent Injector | 给你的 Pod 加一个辅助容器，登录 Vault 取值，写成 Pod 内部的文件 | 不会——值只以文件的形式给到 Pod | 不能。存储是 Vault 的话，中间得放一个会写出真 Secret 的工具（External Secrets Operator 就能读 Vault） |
+| Vault Agent Injector | 给你的 Pod 加一个辅助容器，登录 Vault 取值，写成 Pod 内部的文件 | 不会——值只以文件的形式给到 Pod | 不能。存储是 Vault 的话，中间得放一个会写出真 Secret 的工具：Vault Secrets Operator 或 External Secrets Operator，选哪个都行 |
 
 你不需要知道怎么运行其中任何一个。`existingSecret` 只要求：Pod 启动的时候，命名空间里有一个你写的那个名字的普通 Secret。
 

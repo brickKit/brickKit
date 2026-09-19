@@ -243,7 +243,7 @@ configSchema 里的配置项名转大写后不得与之冲突——**市场在�
 `Secret`（文件权限 0600），Deployment 里只有 `secretKeyRef`；其余都是明文 `env`。Docker 下，`config` 与
 `resources[].password` 里的 `${VAR}` 在 CLI 写 `docker-compose.yaml` 时**从不**求值——由 `docker compose`
 启动时求值（先进程环境、后 `.env`）。`brickkit.yaml` 里永远只有引用。平台没有内置"去 Vault 取值"，
-以后也不会有（§4.1）：任何能把值放进进程环境的工具都行——而对于外部系统（Vault Agent Injector、
+以后也不会有（§4.1）：任何能把值放进进程环境的工具都行——而对于外部系统（Vault Secrets Operator、
 External Secrets Operator、Sealed Secrets……）已经在集群里建好的 Secret，`resources[].existingSecret`
 与 `secret: true` 配置项的 `{ existingSecret, key }` 写法能直接引用它，仅 K8s，平台从不读写那个值。
 详见[密钥](docs/zh/07-patterns/10-secrets.md)。

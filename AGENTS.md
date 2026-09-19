@@ -272,7 +272,7 @@ plain `env` value. On Docker, `${VAR}` in `config` and `resources[].password` is
 the CLI when it writes `docker-compose.yaml` — `docker compose` resolves it at start (process
 environment first, `.env` second). `brickkit.yaml` only ever holds the reference. There is no
 "fetch from Vault" built in and there won't be (§4.1): anything that can put the value in the process
-environment works — and for a Secret an external system (Vault Agent Injector, External Secrets
+environment works — and for a Secret an external system (Vault Secrets Operator, External Secrets
 Operator, Sealed Secrets, …) already created in the cluster, `resources[].existingSecret` and a
 `secret: true` config value's `{ existingSecret, key }` form reference it directly, K8s only; the
 platform never reads or writes the value either way. Details: [Secrets](docs/en/07-patterns/10-secrets.md).

@@ -75,7 +75,7 @@ type Var struct {
 	// （加组件 ID 前缀）时，Owner 原样带着——所以 Secret 仍归成员，外壳的 Deployment 只是引用它。
 	Owner string
 	// ExistingSecretRef 非空表示这条敏感变量不该由平台生成 Secret，而是引用外部系统
-	// （Vault Agent Injector / External Secrets Operator / Sealed Secrets……）已经建好的
+	// （Vault Secrets Operator / External Secrets Operator / Sealed Secrets……）已经建好的
 	// 这个名字的 K8s Secret；值是那个 Secret 的名字。只在 IsSecret() 为 true 时有意义。
 	// K8s 渲染器（secretRef）优先看它；Docker 没有对应概念，这类变量的 Value 始终是空串，
 	// 由 compose 的 environmentOf 跳过（表现成"没配"）。
