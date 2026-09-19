@@ -1,20 +1,24 @@
-# Hands-on Guides
+# Hands-on guides
 
-A sequence of tutorials, each one run for real against the actual CLI — not a described mechanism, a followed one. Every command and every output block was actually executed while writing it. This series is complete: 12 articles, deliberately fewer and more tightly scoped than the old 23-article series (see the note after the list for why).
+A sequence of tutorials, each one run for real against the actual CLI — not a described mechanism, a followed one. Every command and every output block was actually executed while writing it.
 
-1. [Get a project running](01-first-project.md) — init, add, up, talk to it over HTTP, change config, down
-2. [How the platform decides what runs](02-what-runs.md) — dependencies, the `enabled` cascade, `--dry-run`
-3. [Debug a component locally](03-local-debugging.md) — `local: true`
-4. [Deploy to Kubernetes](04-kubernetes.md) — plus a real gotcha with `brickkit down` and shared namespaces
-5. [Upgrade and run multiple versions side by side](05-upgrades-and-versions.md)
-6. [Assemble a real system, then break it on purpose](06-assemble-and-break.md) — a real database this time, and two different real failure modes
-7. [Consume someone else's component](07-consuming-artifacts.md) — artifacts and API docs
-8. [Publish and install from a marketplace](08-marketplace.md) — plus version immutability and private visibility
-9. [Sign and verify components](09-signing.md)
-10. [Build your first component from scratch](10-build-your-own.md)
-11. [Network policy and least privilege](11-network-policy.md)
-12. [Multi-project sharing](12-multi-project-sharing.md)
+**The numbers in the file names are the reading order:** one after the next, each using what the earlier ones taught. Every tutorial assumes you've built the BrickKit CLI and Docker is running (the prerequisite of tutorial 1); the last column below lists what one tutorial needs **on top of that**.
 
-Two deliberate departures from the old 23-article series, both explained where they happen rather than just here: Article 4 already deploys real components to Kubernetes, so there's no separate "same system on K8s" repeat later the way the old series had one; and every article after the first few reuses the same two or three minimal fixture components (`demo/hello`, `demo/caller`, `infra/redis-event-bus`) rather than building out realistic, larger ones — the point of each article is a platform mechanism, not a business scenario, so the fixtures stay deliberately small.
+| No. | Tutorial | What you'll learn | Also needs |
+| --- | --- | --- | --- |
+| 01 | [Get a project running](01-first-project.md) | `init`, `add`, `up`, talk to it over HTTP, change config, `down` | — |
+| 02 | [How the platform decides what runs](02-what-runs.md) | Dependencies, the `enabled` cascade, `--dry-run` | — |
+| 03 | [Debug a component locally](03-local-debugging.md) | `local: true`: one component runs in your IDE while the rest stay in containers | — |
+| 04 | [Deploy to Kubernetes](04-kubernetes.md) | The same declaration, only `deploy.target` changes; plus a real gotcha with `brickkit down` and shared namespaces | minikube and `kubectl` |
+| 05 | [Upgrade and run multiple versions side by side](05-upgrades-and-versions.md) | Changing the version number is the upgrade; two versions running together on purpose | — |
+| 06 | [Assemble a real system, then break it on purpose](06-assemble-and-break.md) | Binding a real database, and meeting two different real failure modes | A PostgreSQL (the tutorial starts one with `docker run`) |
+| 07 | [Consume someone else's component](07-consuming-artifacts.md) | Artifacts and API docs; getting them without installing anything (`fetch`) | — |
+| 08 | [Publish and install from a marketplace](08-marketplace.md) | Publishing and installing; version immutability; private visibility | A marketplace (the tutorial starts one with `docker compose up`) |
+| 09 | [Sign and verify components](09-signing.md) | Generating a key pair, signing, verifying, and what a failed verification looks like | cosign (only the publisher needs it) |
+| 10 | [Build your first component from scratch](10-build-your-own.md) | Four files, from an empty directory to running | — |
+| 11 | [Network policy and least privilege](11-network-policy.md) | Generating a NetworkPolicy from the dependency graph and proving what it really blocks | A minikube that enforces NetworkPolicy (`--cni=calico`) |
+| 12 | [Multi-project sharing](12-multi-project-sharing.md) | Shared resources and isolated resources; treating another project's component as someone else's API | A Redis (the tutorial starts one with `docker run`) |
 
-Not a tutorial step, but the natural companion once something goes wrong partway through one of these: [Troubleshooting](../08-troubleshooting.md) — the common `up`/`down` and signature-verification failures, symptom → real cause → fix.
+**Why every tutorial uses such small components:** after the first, every tutorial reuses the same two or three minimal fixture components (`demo/hello`, `demo/caller`, `infra/redis-event-bus`) rather than building out a larger, more realistic one. The point of each tutorial is a platform mechanism, not a business scenario, so the fixtures stay deliberately small.
+
+**Something went wrong partway through:** [Troubleshooting](../08-troubleshooting.md) lists the most common `up`/`down`, local-debug and signature failures by symptom, symptom → real cause → fix.

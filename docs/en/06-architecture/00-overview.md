@@ -107,19 +107,198 @@ The one precondition: this code has to run inside the Docker network BrickKit ma
 
 ## What the platform deliberately doesn't do, and why
 
-| Doesn't do | Why | Symptom if you route around it |
+This list matters as much as the platform's abilities: none of the items below is "not built yet" — each was argued through and rejected. BrickKit stays a "connector" and a "translator": it never reaches into business logic, and it never repeats what the underlying infrastructure already does well.
+
+**How to read this:** start with the five overview tables below, grouped by theme; click a name in the first column to jump to its numbered write-up.
+
+### A. Runtime and communication
+
+| Doesn't do | Why | What to do instead |
 | --- | --- | --- |
-| A long-running daemon / control plane | The CLI runs and exits; state lives externally in `brickkit.yaml` plus the underlying engine. No background process means no single point of failure, no idle resource usage, no listening port | Build your own persistent orchestration daemon to solve "nobody remembers to run `up`," and you've recreated the exact single point of failure and attack surface BrickKit was designed to avoid |
-| Service registry / address book | Docker Compose service DNS and Kubernetes Service DNS already provide service discovery for free; the platform doesn't need to build and keep highly available a registry of its own | Wire a custom service-discovery SDK into component code and the component is no longer a "zero-touch" deployment — it now depends on something that must be kept alive by hand, while the free DNS it replaced sits unused |
-| API gateway / service mesh / load balancing | Components call each other directly over DNS; Kubernetes Service already load-balances. Gateway routing rules vary too much by business to standardize without forcing a bad fit | Skip the platform's `labels` passthrough and hand-write a Traefik file-provider config with versioned service names baked in, and that config silently goes stale the moment a component's version bumps — the platform won't warn you |
-| Version-range resolution (`^1.0.0`) | Ranges are the classic cause of "works on my machine, breaks in production"; exact versions also let the version number be embedded directly in the service name, making multi-version coexistence free | Write `^1.0.0` / `~1.0.0` / `latest` in `dependencies` or `brickkit.yaml` and the CLI rejects it immediately at resolve time — the problem never survives to reach runtime |
-| Multi-environment overlay inheritance | An overlay forces you to mentally reconstruct "base layer / override layer / merge rules" before you can read the final config, and a Git diff of the base layer can't tell you which environments it silently affects | Reuse config via `base.yaml` + `prod-overlay.yaml` and the only thing you save is typing a few lines — the cost is that a change to the base layer can silently affect environments you can't identify by looking at the diff, and the CLI provides no command to merge such files anyway |
-| Config value type validation | Once value validation is allowed, the questions never stop — validate `enum`? `minimum`? `pattern`? — and JSON Schema's full complexity ends up inside the CLI; a component should decide for itself whether to error or fall back to a default on bad config | Declare `type: integer` in `configSchema` and let a user fill in a string — the CLI won't stop it. The component crashes only when its own code calls `int()` on that string — discovered at runtime, not at `brickkit up` |
-| Weak-dependency fallback logic | Whether a missing Redis means "query the database instead," "return an empty list," or "write to a local file and retry" is a pure business decision, and the right answer differs by component | Expect the platform to "automatically" handle a missing weak dependency and nothing happens — the platform's only action is to skip injecting the corresponding `*_ENDPOINT` entirely. Component code that reads it with `os.environ["X"]` crashes immediately with a `KeyError` (this is intentional — safer than silently injecting an empty string) |
-| Health-check polling | K8s Probes and Docker Compose's own `healthcheck` + restart policy already do this natively; a platform-built poller would mean either a background process (the same daemon problem this list starts with) or a client library every component would have to embed | Have a component call a dependency's `/healthz` from inside its own health check "just to be safe," and you've built exactly the cascading-restart failure mode the platform's own health-check rule (check only the process itself, never a downstream dependency) exists to prevent — one flaky dependency now makes every upstream component look unhealthy and restart at once |
-| Communication governance (circuit breaking / rate limiting / retries) | Retry backoff and circuit-breaker thresholds vary by business need; a platform-wide default is both hard to get universally right and takes away flexibility a component might genuinely need | Wait for the platform to retry a failed call on a component's behalf, and nothing happens — a transient network blip surfaces directly as an unhandled error in whichever component made the call, because retry/backoff logic was never the platform's job |
-| Multi-tenancy | Whether to isolate tenants with a shared schema and a tenant column, a schema per tenant, or a database per tenant is a business/domain decision with no single answer that fits every component's data model | Look for a `tenant_id` field or an isolation switch anywhere in `brickkit.yaml` or a component's Manifest, and there isn't one — tenant isolation lives entirely inside each component's own schema and business logic |
-| Third-party component security review | The same trust model as npm, the VS Code Marketplace, or GitHub: installing means trusting. An upfront scan either has too many false positives (blocking legitimate components) or too many false negatives (missing deliberately disguised malicious code) | Assume every Market component has passed some kind of security audit before publish, and you'd be wrong — `brickkit add` performs no scanning at all; the only real enforcement is after the fact, marking a component `blocked` once it's confirmed malicious |
+| [1. Long-running daemon and control plane](#1-long-running-daemon-and-control-plane)<br>A program that runs in the background and manages every component | Run-and-exit means no single point of failure, no idle resources, no open port | The CLI exits when it's done; state lives in `brickkit.yaml` and the underlying engine |
+| [2. Service registry](#2-service-registry)<br>An address book of "which service is where" | The DNS that Docker and Kubernetes already provide is service discovery, for free | Use DNS directly: `http://<versioned service name>:<port>` |
+| [3. API gateway, service mesh and load balancing](#3-api-gateway-service-mesh-and-load-balancing)<br>A single front door, a layer managing service-to-service traffic, spreading requests over instances | Components call each other directly over DNS; gateway routing rules differ by business | Kubernetes Service load-balances; for a gateway, pass `labels` through |
+| [4. Communication governance](#4-communication-governance)<br>Circuit breaking, rate limiting, retries | Thresholds and backoff differ by business; no platform default fits | Write it in the component's own code |
+| [5. Health-check polling](#5-health-check-polling)<br>The platform periodically asking each component "are you alive?" | Compose and Kubernetes already do it natively | The component serves `/healthz`; the engine does the probing |
+| [6. Config center and hot reload](#6-config-center-and-hot-reload)<br>A service that stores config centrally and pushes changes to running programs | A whole heavy mechanism, and most basic config only takes effect safely on a restart anyway | Environment-variable injection; change config, then `brickkit up` restarts |
+
+### B. Configuration and versions
+
+| Doesn't do | Why | What to do instead |
+| --- | --- | --- |
+| [7. Version-range resolution](#7-version-range-resolution)<br>Writing a dependency as `^1.0.0` and letting the tool pick the latest | A range is a classic cause of "works on my machine, breaks in production" | Exact versions only; `add` resolves once and pins the result |
+| [8. Multi-environment overlays and inheritance](#8-multi-environment-overlays-and-inheritance)<br>A base config plus a per-environment "override" layer, merged at runtime | You have to assemble the inheritance chain in your head to read the final config | One complete, self-contained `brickkit.yaml` per environment |
+| [9. Type validation of config values](#9-type-validation-of-config-values)<br>Checking that a config value has the right type and range | Once you start you can't stop, and JSON Schema's complexity ends up in the CLI | `configSchema` is a spec sheet; key names are checked, values aren't |
+| [10. Dependency aliases](#10-dependency-aliases)<br>Giving a dependency an alias so the variable name no longer comes from the component ID | The variable name and the component ID map both ways; an alias keeps only half | For "one capability, many implementations", use a `kind` resource or an address setting in `configSchema` |
+
+### C. Inside a component
+
+| Doesn't do | Why | What to do instead |
+| --- | --- | --- |
+| [11. Weak-dependency fallback logic](#11-weak-dependency-fallback-logic)<br>What a component does when an optional dependency is unavailable | Querying the database, returning an empty list or writing a file is pure business judgment | In the component's own business code; the platform just doesn't inject the variable |
+| [12. Multi-tenancy](#12-multi-tenancy)<br>One system serving several isolated customers | How to isolate (shared table, schema per tenant, database per tenant) is a business decision | Each component decides its own isolation strategy |
+
+### D. Security and distribution
+
+| Doesn't do | Why | What to do instead |
+| --- | --- | --- |
+| [13. Security review of third-party components](#13-security-review-of-third-party-components)<br>The platform scanning and vetting a component before it's published | An upfront scan either flags too much or misses cleverly disguised malicious code | Signature verification, plus marking a malicious component `blocked` afterwards |
+| [14. Monorepo sub-directory components](#14-monorepo-sub-directory-components)<br>Several components in different folders of one Git repository | A component is an independent unit of publishing, moving and permissions | One component, one Git repository |
+
+### E. Deployment shape and scope
+
+| Doesn't do | Why | What to do instead |
+| --- | --- | --- |
+| [15. A full consolidated-deployment command](#15-a-full-consolidated-deployment-command)<br>Merging many components into one process to save memory, with the platform managing all of it | It would mean the platform starting to understand what's inside the "shell" | One small structural piece only: `servedBy` |
+| [16. Podman as a deploy target](#16-podman-as-a-deploy-target)<br>Deploying with Podman instead of Docker | It worked, but `down` fails on rootless Podman, and a project that can't be torn down is worse than one that isn't supported | Use Docker |
+| [17. Low-code, BI and DevOps pipelines](#17-low-code-bi-and-devops-pipelines) | Out of the platform's scope | — |
+
+---
+
+### 1. Long-running daemon and control plane
+
+- **What it is:** a program that runs in the background and manages every component.
+- **Why it doesn't:** the CLI runs and exits, and state lives in `brickkit.yaml` and the underlying engine (Docker, Kubernetes). No background process means no single point of failure, no idle resource use, no listening port, and no attack surface.
+- **What to do instead:** the CLI exits when it's done. If a visual console is ever needed, it should be an ordinary frontend component plus an API component, not something built into the platform core.
+- **What you'd see if you built one anyway:** build your own persistent orchestration daemon to solve "nobody remembers to run `up`" and you've recreated the exact single point of failure and attack surface BrickKit was designed to avoid.
+
+---
+
+### 2. Service registry
+
+- **What it is:** an address book of "which service is where": services register when they come up and look each other up when they need to call.
+- **Why it doesn't:** the DNS that Docker Compose and Kubernetes already provide is service discovery, for free; the platform doesn't need to build and keep highly available a registry of its own. It also means a component needs no registration SDK at all.
+- **What to do instead:** use DNS directly: `http://<versioned service name>:<port>`, identical on Docker and Kubernetes.
+- **What you'd see if you built one anyway:** wire a custom service-discovery SDK into component code and the component is no longer a "zero-touch" deployment — it now depends on something that must be kept alive by hand, while the free DNS it replaced sits unused.
+
+---
+
+### 3. API gateway, service mesh and load balancing
+
+- **What it is:** a gateway is the single front door for requests coming in from outside, and does the routing; a service mesh is a layer of infrastructure dedicated to how services talk to each other; load balancing spreads requests over the instances of one service.
+- **Why it doesn't:** components call each other directly over DNS, and a Kubernetes Service already load-balances. Gateway routing rules vary too much by business to standardize without forcing a bad fit.
+- **What to do instead:** when you need an outside gateway (Traefik, say), pass `labels` through verbatim to it: the platform doesn't understand what a label means, it just passes it on.
+- **What you'd see if you built one anyway:** skip the `labels` passthrough and hand-write a Traefik file-provider config with versioned service names baked in, and that config silently goes stale the moment a component's version bumps — the platform won't warn you.
+
+---
+
+### 4. Communication governance
+
+- **What it is:** the whole set of policies that protect calls between services: circuit breaking (pausing calls to something that keeps failing), rate limiting, and retrying failed calls with backoff.
+- **Why it doesn't:** retry backoff and circuit-breaker thresholds vary by business need; a platform-wide default is both hard to get universally right and takes away flexibility a component might genuinely need.
+- **What to do instead:** write it in the component's own code.
+- **What you'd see if you built one anyway:** wait for the platform to retry a failed call on a component's behalf, and nothing happens — a transient network blip surfaces directly as an unhandled error in whichever component made the call, because retry and backoff were never the platform's job.
+
+---
+
+### 5. Health-check polling
+
+- **What it is:** the platform periodically asking each component "are you alive?".
+- **Why it doesn't:** Kubernetes Probes and Docker Compose's own `healthcheck` plus restart policy already do this natively. A platform-built poller would mean either a background process (the same daemon problem as item 1) or a client library every component would have to embed.
+- **What to do instead:** the component serves `/healthz` (checking only the process itself), and the engine does the probing and restarting.
+- **What you'd see if you built one anyway:** have a component call a dependency's `/healthz` from inside its own health check "just to be safe," and you've built exactly the cascading failure the platform's own health-check rule exists to prevent: one flaky dependency makes every upstream component look unhealthy and restart at once.
+
+---
+
+### 6. Config center and hot reload
+
+- **What it is:** a service that stores configuration centrally and can push changes to running programs in real time.
+- **Why it doesn't:** that is a whole heavy mechanism of long-lived connections, pushes and version comparison — and for most basic configuration (connection-pool size, timeouts), a restart is already the only safe way to make it take effect.
+- **What to do instead:** environment-variable injection. Change `brickkit.yaml`, then `brickkit up` restarts. If a business toggle truly needs millisecond-level updates, the component can poll Redis itself.
+
+---
+
+### 7. Version-range resolution
+
+- **What it is:** writing a dependency's version as a "range" such as `^1.0.0` and letting the tool pick the latest match at install time.
+- **Why it doesn't:** ranges are the classic cause of "works on my machine, breaks in production"; exact versions also let the version number go straight into the service name, making multi-version coexistence free.
+- **What to do instead:** exact versions only. When you run `brickkit add` with no version, it resolves once, at that moment, and pins the result.
+- **What you'd see if you built one anyway:** write `^1.0.0`, `~1.0.0` or `latest` in `dependencies` or `brickkit.yaml` and the CLI rejects it immediately at resolve time — the problem never survives to reach runtime.
+
+---
+
+### 8. Multi-environment overlays and inheritance
+
+- **What it is:** a base config plus a layer of "overrides" per environment, merged into the final config at runtime.
+- **Why it doesn't:** an overlay forces you to mentally reconstruct "base layer / override layer / merge rules" before you can read the final config, and a Git diff of the base layer can't tell you which environments it silently affects.
+- **What to do instead:** one complete, self-contained `brickkit.yaml` per environment, chosen with `brickkit up --config brickkit.prod.yaml`.
+- **What you'd see if you built one anyway:** reuse config via `base.yaml` plus `prod-overlay.yaml` and the only thing you save is typing a few lines — the cost is that a change to the base layer can silently affect environments you can't identify from the diff, and the CLI provides no command to merge such files anyway.
+
+---
+
+### 9. Type validation of config values
+
+- **What it is:** checking that a config value you filled in has the right type and is within the allowed range.
+- **Why it doesn't:** once value validation is allowed, the questions never stop — validate `enum`? `minimum`? `pattern`? — and JSON Schema's full complexity ends up inside the CLI. And what to do about a bad value (error, or fall back to a default) is the component's call anyway.
+- **What to do instead:** `configSchema` is a spec sheet. The CLI checks that a setting's *name* exists (a typo warns) and never checks its *value*. See [the matching principle](01-design-principles.md#10-configschema-is-a-spec-sheet-not-a-security-gate).
+- **What you'd see if you built one anyway:** declare `type: integer` in `configSchema` and let a user fill in a string — the CLI won't stop it. The component crashes only when its own code calls `int()` on that string — discovered at runtime, not at `brickkit up`.
+
+---
+
+### 10. Dependency aliases
+
+- **What it is:** giving a dependency an alias (say `as: iam`) so the environment variable name no longer comes from the component ID.
+- **Why it doesn't:** today the variable name is computed from the component ID, and the mapping runs **both ways**: from `people/basic` you can compute `PEOPLE_BASIC_ENDPOINT`, and from `PEOPLE_BASIC_ENDPOINT` you know exactly which component it points at. An alias keeps only half of that — `IAM_ENDPOINT` can't be traced back to the component it points at, and that is exactly where an investigation into "why is this address wrong" starts. It would also mean re-deriving reserved-variable protection and dependency de-duplication from scratch, both of which are built on "the name is computed from the ID".
+- **What to do instead:** for "one capability, many implementations", use a `kind` resource (changing one `engine` field swaps the implementation); for a service that needs an address but not a dependency edge (IAM, say), use a non-reserved key in `configSchema`. For anything on a real dependency edge, the implementation's name showing up in the variable name isn't a flaw — it's the fact of that dependency.
+
+---
+
+### 11. Weak-dependency fallback logic
+
+- **What it is:** what a component does when an optional dependency isn't available.
+- **Why it doesn't:** whether a missing Redis means "query the database instead," "return an empty list," or "write to a local file and retry" is a pure business decision, and the right answer differs by component.
+- **What to do instead:** in the component's own business code. The platform's only action is to skip injecting the corresponding `*_ENDPOINT` entirely.
+- **What you'd see if you built one anyway:** expect the platform to "automatically" handle a missing weak dependency and nothing happens. Component code that reads the variable with `os.environ["X"]` crashes immediately with a `KeyError` — intentional, and safer than silently injecting an empty string.
+
+---
+
+### 12. Multi-tenancy
+
+- **What it is:** one system serving several customers who must be kept isolated from each other.
+- **Why it doesn't:** whether to isolate tenants with a shared schema and a tenant column, a schema per tenant, or a database per tenant is a business and domain decision with no single answer that fits every component's data model.
+- **What to do instead:** each component decides its own isolation strategy.
+- **What you'd see if you built one anyway:** look for a `tenant_id` field or an isolation switch anywhere in `brickkit.yaml` or a component's Manifest, and there isn't one — tenant isolation lives entirely inside each component's own schema and business logic.
+
+---
+
+### 13. Security review of third-party components
+
+- **What it is:** the platform scanning and vetting a component for safety before it is published.
+- **Why it doesn't:** the same trust model as npm, the VS Code Marketplace or GitHub: installing means trusting. An upfront scan has either too many false negatives (missing deliberately disguised malicious code) or too many false positives (blocking legitimate components).
+- **What to do instead:** signature verification (with the trusted public key in your own project), plus marking a malicious component `blocked` afterwards. See [signing and the trust model](06-signing-and-trust.md).
+- **What you'd see if you built one anyway:** assume every Market component has passed some kind of security audit before publish, and you'd be wrong — `brickkit add` performs no scanning at all; the only real enforcement is after the fact, marking a component `blocked` once it's confirmed malicious.
+
+---
+
+### 14. Monorepo sub-directory components
+
+- **What it is:** several components living in different sub-directories of one Git repository.
+- **Why it doesn't:** a component is an independent unit of **publishing** (it has its own version — how would you even tag it inside a monorepo?), of **moving** (`brickkit sync` archives the whole repository directory, `.git` and all) and of **permissions** (its own visibility and publisher).
+- **What to do instead:** one component, one Git repository. Several parts of the same piece of business — the proto, the backend code, the migration scripts — belong to the *same* component and don't need splitting.
+
+---
+
+### 15. A full consolidated-deployment command
+
+- **What it is:** merging many components into one process (one container) to save memory, with the platform managing all of it.
+- **Why it doesn't:** the platform does not, and will not, ship its own shell scaffolding or process supervisor. That would mean the platform starting to understand what's inside the "shell", what can be merged, what supervises the processes, how a given framework starts several listeners — exactly what this platform argues against.
+- **What to do instead:** one small **structural piece** is built in: `servedBy` lets a component declare "my workload is provided by that other component", and the platform wires `*_ENDPOINT` addresses to it correctly on both Docker and Kubernetes, without ever needing to understand what's inside the shell. Everything else — avoiding port collisions, taking over health checks and migrations, isolating each module's config — is the shell author's own code. See the [servedBy deployment checklist](../07-patterns/06-servedby-deployment-checklist.md) and [building a qualified shell](../07-patterns/07-shell-implementers-guide.md).
+- **First ask whether you need it at all:** memory cost is mostly decided by language: 8–20MB for a Go component, 200–450MB for a JVM one. Don't merge just to save memory — that is usually solving the wrong problem: switch runtime, or run fewer components with `enabled: false`.
+
+---
+
+### 16. Podman as a deploy target
+
+- **What it is:** deploying with Podman, another container engine, instead of Docker.
+- **Why it doesn't:** support was built and ran — `up`, `status`, real requests and idempotent reruns all passed — but `down` fails on rootless Podman with `rootless netns: kill network process: permission denied`, reproducible even with plain `podman rm -f`, outside BrickKit's own code entirely. A project that can't be torn down is worse than one that never came up: containers keep holding ports and volumes while the CLI would have reported success. So support was pulled rather than shipped half-working.
+- **What to do instead:** use Docker. On a machine with only Podman installed, `up` and `status` name this exact failure and point at Docker instead of a generic "no engine found".
+- **When it could come back:** it needs a real machine where `podman compose down` itself works cleanly, a full lifecycle verified on it, and a repeatable check added so it can't silently regress again.
+
+---
+
+### 17. Low-code, BI and DevOps pipelines
+
+- **Why it doesn't:** out of the platform's scope. BrickKit is a platform for assembling components: it is not an operating system, not an ERP, and not any specific piece of business software.
 
 ---
 

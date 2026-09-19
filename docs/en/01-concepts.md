@@ -26,7 +26,7 @@ graph TB
 | Part | Form | Long-running? | Responsibility |
 | --- | --- | --- | --- |
 | **BrickKit CLI** | Local single binary | ❌ Runs and exits | Pulling, parsing, generating, invoking, publishing, source-workspace management |
-| **BrickKit Market** | Independent SaaS (self-hostable) | ✅ | Component publishing/discovery, versions/visibility/signing, artifact storage |
+| **BrickKit Market** | An independent online service (you can host your own) | ✅ | Component publishing/discovery, versions/visibility/signing, artifact storage |
 | **Component layer** | Docker containers / K8s Pods | ✅ | The business logic itself, components call each other over DNS directly |
 | **Infrastructure layer** | PostgreSQL / Redis, etc. | ✅ | Deployed manually by ops, declared and bound in `brickkit.yaml` |
 
@@ -36,18 +36,18 @@ The diagram deliberately draws the CLI with a dashed line, boxed off in its own 
 
 | Term | Definition |
 | --- | --- |
-| Component | The most basic install-and-run unit, **always a container**, including frontends |
-| Manifest (`component.yaml`) | A component's self-description: dependencies, ports, config schema, health check |
-| Project config (`brickkit.yaml`) | Project-level declaration: component list, enabled state, local debug, exposure, config overrides, resource bindings, deploy target |
-| Required Dependency | Missing → the CLI **errors and blocks startup** |
-| Optional Dependency | `optional: true`; missing → only a warning, and **the env var is not injected at all** (not injected as an empty string) |
-| Versioned Service Name | A service name carrying an exact version, e.g. `people-basic-1-0-0` |
-| Local Debug Mode | `local: true`; the component runs on the host inside an IDE, mapped into the container network via `extra_hosts` |
+| Component | The most basic install-and-run unit: a business program that runs on its own, **always packaged as a container (a Docker image)** — frontends included |
+| Manifest (`component.yaml`) | A component's introduction of itself: what it depends on, which port it listens on, which settings it has, and how to check that it's healthy |
+| Project config (`brickkit.yaml`) | Your project's order form: which components you want, which are enabled, whether to expose them, how config is overridden, where the databases and other resources are, and where to deploy |
+| Required Dependency | The component can't work without it; missing → the CLI **errors and blocks startup** |
+| Optional Dependency | Nice to have, but the component can get by without it (`optional: true`); missing → only a warning, and **the env var is not injected at all** (not injected as an empty string) |
+| Versioned Service Name | A service name carrying an exact version, e.g. `people-basic-1-0-0`: two versions are two different names and can run side by side |
+| Local Debug Mode | `local: true`: one component runs on your own machine (in an IDE with breakpoints, say) while the other components in containers can still find it |
 | Source | Where a component comes from: the marketplace (HTTP) / a Git repo / a local directory |
-| Resource | External systems a component depends on (databases, Redis, etc.), deployed by ops, bound in `brickkit.yaml` |
-| Env Injection | The CLI writes dependency addresses, resource connections, and own config into env vars when generating deployment files |
-| Deploy Target | `docker` or `k8s`, decides which kind of deployment file the CLI generates |
-| servedBy | A component declaring "my workload is provided by another component (a shell)" — it generates no container of its own |
+| Resource | External systems a component depends on (databases, Redis, etc.): deployed by ops, declared and bound in `brickkit.yaml` |
+| Env Injection | When generating deployment files, the CLI writes dependency addresses, resource connections and the component's own config into environment variables and hands them to the component |
+| Deploy Target | `docker` or `k8s`: decides which kind of deployment file the CLI generates (Docker Compose or Kubernetes manifests) |
+| servedBy | Used when several components are merged into one process to save memory: a merged component gets no container of its own and is hosted by a "shell" component instead |
 
 ## The one rule that runs through everything: service names, and why the env var name never carries a version
 

@@ -26,7 +26,7 @@ graph TB
 | 部分 | 形态 | 是否常驻 | 职责 |
 | --- | --- | --- | --- |
 | **BrickKit CLI** | 本地单二进制 | ❌ 用完即走 | 拉取、解析、生成、调用、发布、源码工作区管理 |
-| **BrickKit Market** | 独立 SaaS（可自建） | ✅ | 组件发布与发现、版本/可见性/签名、产物存储 |
+| **BrickKit Market** | 独立的在线服务（可自己部署一套） | ✅ | 组件发布与发现、版本/可见性/签名、产物存储 |
 | **组件层** | Docker 容器 / K8s Pod | ✅ | 业务本体，组件之间直接走 DNS 互相调用 |
 | **基础设施层** | PostgreSQL / Redis 等 | ✅ | 运维手动部署，在 `brickkit.yaml` 里声明绑定关系 |
 
@@ -36,18 +36,18 @@ graph TB
 
 | 术语 | 英文 | 定义 |
 | --- | --- | --- |
-| 组件 | Component | 最基本的安装和运行单元，**全部是 container**，包括前端 |
-| Manifest | component.yaml | 组件的自我描述文件：依赖、端口、配置项、健康检查 |
-| 项目配置 | brickkit.yaml | 项目级声明：组件列表、启停、本地调试、暴露、配置覆盖、资源绑定、部署目标 |
-| 强依赖 | Required Dependency | 缺失时 CLI **报错并阻断启动** |
-| 弱依赖 | Optional Dependency | `optional: true`；缺失时只警告，且**这个环境变量完全不会被注入**（不是注入空字符串） |
-| 版本化服务名 | Versioned Service Name | 带精确版本号的服务名，如 `people-basic-1-0-0` |
-| 本地调试模式 | Local Debug Mode | `local: true`；组件跑在宿主机 IDE 里，通过 `extra_hosts` 映射进容器网络 |
+| 组件 | Component | 最基本的安装和运行单元：一个可以单独运行的业务程序，**一律打包成容器（Docker 镜像）**，前端也不例外 |
+| Manifest | component.yaml | 组件的"自我介绍"文件：它依赖谁、监听哪个端口、有哪些配置项、怎么检查它是否健康 |
+| 项目配置 | brickkit.yaml | 你的项目的"订单"：要哪些组件、启用哪些、要不要对外开放、配置怎么覆盖、数据库等资源在哪、部署到哪 |
+| 强依赖 | Required Dependency | 没有它组件就没法工作；缺失时 CLI **报错并阻断启动** |
+| 弱依赖 | Optional Dependency | 有它更好、没有也能凑合（写 `optional: true`）；缺失时只警告，且**这个环境变量完全不会被注入**（不是注入空字符串） |
+| 版本化服务名 | Versioned Service Name | 带精确版本号的服务名，如 `people-basic-1-0-0`：两个版本就是两个不同的名字，可以并排运行 |
+| 本地调试模式 | Local Debug Mode | `local: true`：让一个组件跑在你自己的电脑上（比如在 IDE 里打断点调试），容器里的其它组件照样能找到它 |
 | 安装源 | Source | 组件来源：市场（HTTP）/ Git 仓库 / 本地目录 |
-| 基础资源 | Resource | 组件依赖的外部系统（数据库、Redis 等），运维部署，在 `brickkit.yaml` 里绑定 |
-| 环境变量注入 | Env Injection | CLI 生成部署文件时，把依赖地址、资源连接、自身配置写成环境变量 |
-| 部署目标 | Deploy Target | `docker` 或 `k8s`，决定 CLI 生成哪种部署文件 |
-| servedBy | servedBy | 组件声明"我的工作负载由另一个组件（外壳）承载"，不生成自己的容器 |
+| 基础资源 | Resource | 组件依赖的外部系统（数据库、Redis 等）：由运维部署好，在 `brickkit.yaml` 里声明并绑定 |
+| 环境变量注入 | Env Injection | CLI 生成部署文件时，把依赖地址、资源连接和组件自己的配置写成环境变量，交给组件 |
+| 部署目标 | Deploy Target | `docker` 或 `k8s`：决定 CLI 生成哪种部署文件（Docker Compose 或 Kubernetes 清单） |
+| servedBy | servedBy | 为了省内存，把几个组件合并进一个进程里运行时用：被合并的组件不再有自己的容器，改由一个"外壳"组件承载 |
 
 ## 一条贯穿始终的规则：服务名怎么来的，环境变量怎么分名字和值
 
