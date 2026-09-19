@@ -98,10 +98,7 @@ func (p *project) resolve(ctx context.Context, opts *Options) error {
 	}
 	defer func() { _ = client.Close() }()
 
-	if p.graph, err = resolver.New(resolver.FromSource(client)).ResolveConfig(ctx, p.cfg); err != nil {
-		return err
-	}
-	if p.states, err = cascade.Compute(p.cfg, p.graph); err != nil {
+	if p.graph, p.states, err = resolveTopology(ctx, client, p.cfg); err != nil {
 		return err
 	}
 	if plan, err := resolver.Order(p.graph.Subgraph(p.states.Running())); err == nil {

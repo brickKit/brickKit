@@ -175,14 +175,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		return nil, err
 	}
 	if flags.ignoreServedBy {
-		// 格式校验已经跑完（ParseConfigFile 内部已做），不会被这一步绕过。
-		// 下游 resolver/shell.Resolve/compose/k8s 全部只读 ServedBy 这一个
-		// 字段，没有任何一处维护自己的派生状态，清空一次就够，不需要逐处
-		// 打补丁。只在内存里改，cfg 从这次 ParseConfigFile 解析出来，从不
-		// 写回磁盘上的 brickkit.yaml。
-		for i := range cfg.Components {
-			cfg.Components[i].ServedBy = ""
-		}
+		clearServedBy(cfg)
 		opts.Printf("⚠️  已忽略全部 servedBy 声明（仅用于验证组件独立启动能力，不写回 brickkit.yaml）\n")
 	}
 
@@ -223,11 +216,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	plan.upgrades = detectUpgrades(layout, cfg)
 	renderUpgradeBanner(opts, plan.upgrades)
 
-	plan.graph, err = resolver.New(resolver.FromSource(client)).ResolveConfig(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-	plan.states, err = cascade.Compute(cfg, plan.graph)
+	plan.graph, plan.states, err = resolveTopology(ctx, client, cfg)
 	if err != nil {
 		return nil, err
 	}

@@ -15,7 +15,6 @@ import (
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
 	"github.com/brickkit/brickkit/internal/logging"
-	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
@@ -138,12 +137,7 @@ func syncFocus(
 	}
 	defer func() { _ = client.Close() }()
 
-	graph, err := resolver.New(resolver.FromSource(client)).ResolveConfig(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	states, err := cascade.Compute(cfg, graph)
+	_, states, err := resolveTopology(ctx, client, cfg)
 	if err != nil {
 		return nil, err
 	}
