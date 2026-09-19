@@ -185,3 +185,19 @@ components:
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
 	assert.NotContains(t, r.stdout+r.stderr, "明文密钥")
 }
+
+// existingSecret 形状是"做对了"，不该被明文密钥警告误伤——它不是字面密钥，是一个引用。
+func TestExistingSecretShapeDoesNotTriggerPlaintextWarning(t *testing.T) {
+	declared := secretFlowComp
+	declared.SecretConfig = []string{"apiToken"}
+	f := k8sProjectWith(t, declared, `    config:
+      apiToken:
+        existingSecret: acme-hello-vault-synced
+        key: api-key
+`, "")
+
+	r := runWithEngine(t, newK8sEngine(), f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+	assert.NotContains(t, r.stdout+r.stderr, "明文密钥")
+}

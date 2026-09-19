@@ -115,6 +115,7 @@ These three fields describe three different, incompatible ideas about where a co
 | `resources[].port` | int | yes | `1`–`65535` |
 | `resources[].username` | string | no | |
 | `resources[].password` | string | no | not required to be an `${ENV_VAR}` reference by the parser, but writing a literal secret here triggers a plaintext-password warning at `up` time (AGENTS.md §7's "must be referenced via an env var" is enforced as a warning, not a hard parse error) |
+| `resources[].existingSecret` | string | no | K8s only. References a Secret an external system (Vault Agent Injector, External Secrets Operator, Sealed Secrets, …) already put in the cluster, instead of the platform generating one from `password`. Mutually exclusive with `password` — writing both errors. The platform never reads or writes the value; it only points the `secretKeyRef` at this name, using the same key (`password` or `secret-key`) it would use for a generated Secret. Ignored (with a warning) under `docker`. A `configSchema` property declared `secret: true` can use the same idea for a component's own config value: write `{ existingSecret: <name>, key: <key-in-secret> }` in place of a scalar. |
 | `resources[].bindings[]` | `[]Binding` | no | see below |
 
 ### `resources[].bindings[]`

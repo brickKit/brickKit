@@ -90,6 +90,9 @@ type fieldUse struct {
 	name string
 	// components 为空表示它是项目级字段（deploy.* 那些）。
 	components []string
+	// noun 是 describeUsers 该怎么称呼 components 里的这些名字："组件"还是"资源"；
+	// 空值按"组件"处理（历史上所有调用方都是组件级字段）。
+	noun string
 }
 
 // k8sOnlyFields 收集只在 K8s 下生效、而当前是 Docker 目标的字段。
@@ -124,11 +127,14 @@ func k8sOnlyFields(cfg *config.Config) []fieldUse {
 	//
 	// hostname 与 tlsSecret 是一对，都只服务于 Ingress。从前只报后者，
 	// 没有理由——那是同一个函数里的自相矛盾。
-	return append(out, componentFields(cfg, []componentField{
+	out = append(out, componentFields(cfg, []componentField{
 		{"replicas", func(c config.Component) bool { return c.Replicas != nil }},
 		{"hostname", func(c config.Component) bool { return c.Hostname != "" }},
 		{"tlsSecret", func(c config.Component) bool { return c.TLSSecret != "" }},
 		{"serviceAccountName", func(c config.Component) bool { return c.ServiceAccountName != "" }},
+	})...)
+	return append(out, resourceFields(cfg, []resourceField{
+		{"existingSecret", func(r config.Resource) bool { return r.ExistingSecret != "" }},
 	})...)
 }
 
@@ -161,6 +167,28 @@ func componentFields(cfg *config.Config, fields []componentField) []fieldUse {
 	return out
 }
 
+// resourceField 是一个资源级字段与"它写了没有"的判断，与 componentField 同构。
+type resourceField struct {
+	name string
+	set  func(config.Resource) bool
+}
+
+func resourceFields(cfg *config.Config, fields []resourceField) []fieldUse {
+	var out []fieldUse
+	for _, f := range fields {
+		var users []string
+		for _, r := range cfg.Resources {
+			if f.set(r) {
+				users = append(users, r.ID)
+			}
+		}
+		if len(users) > 0 {
+			out = append(out, fieldUse{name: "resources[]." + f.name, components: users, noun: "资源"})
+		}
+	}
+	return out
+}
+
 // maxListedComponents 是每个字段最多点名几个组件。
 //
 // 有上限是因为组件多起来之后，一行会长到换行三四次，而"是哪几个"
@@ -178,7 +206,7 @@ func warnFields(opts *Options, cfg *config.Config, target string, fields []field
 			err = err.WithDetail("字段", f.name)
 			continue
 		}
-		err = err.WithDetailf("字段", "%s（%s）", f.name, describeUsers(f.components))
+		err = err.WithDetailf("字段", "%s（%s）", f.name, describeUsers(f.components, f.noun))
 	}
 	renderWarnings(opts, []*clierr.Error{err.
 		WithDetail("当前目标", "deploy.target: "+cfg.Deploy.Target).
@@ -186,11 +214,14 @@ func warnFields(opts *Options, cfg *config.Config, target string, fields []field
 		WithHint(hint)})
 }
 
-// describeUsers 说清是哪几个组件写了它。
-func describeUsers(components []string) string {
-	if len(components) <= maxListedComponents {
-		return fmt.Sprintf("%d 个组件：%s", len(components), strings.Join(components, "、"))
+// describeUsers 说清是哪几个组件/资源写了它。
+func describeUsers(components []string, noun string) string {
+	if noun == "" {
+		noun = "组件"
 	}
-	return fmt.Sprintf("%d 个组件：%s 等",
-		len(components), strings.Join(components[:maxListedComponents], "、"))
+	if len(components) <= maxListedComponents {
+		return fmt.Sprintf("%d 个%s：%s", len(components), noun, strings.Join(components, "、"))
+	}
+	return fmt.Sprintf("%d 个%s：%s 等",
+		len(components), noun, strings.Join(components[:maxListedComponents], "、"))
 }

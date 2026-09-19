@@ -712,6 +712,49 @@ func TestUnresolvedSecretConfigIsAnError(t *testing.T) {
 	assert.Contains(t, err.Error(), "THIRD_PARTY_KEY")
 }
 
+// ============================================================
+// existingSecret：引用外部已建好的 Secret（Spec 2026-09-19 §3.2）
+// ============================================================
+
+// 资源声明了 existingSecret：Deployment 里的 secretKeyRef 直接指向那个名字，
+// 平台不生成任何 Secret 条目——resource-secrets.yaml 里完全找不到这个资源的痕迹。
+func TestResourceExistingSecretReferencesGivenName(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
+	b.resource(config.Resource{
+		Kind: config.ResourceKindDatabase, Engine: "postgresql", ID: "main-db",
+		Host: "pg.infra.svc", Port: 5432, Username: "app",
+		ExistingSecret: "acme-db-vault-synced",
+		Bindings:       []config.Binding{{ComponentID: "people/basic", Database: "people"}},
+	})
+
+	env := envOf(t, b.container("people-basic-1-0-0"))
+
+	assert.Equal(t, map[string]any{"secretKeyRef": map[string]any{
+		"name": "acme-db-vault-synced", "key": "password",
+	}}, env["DATABASE_PASSWORD"])
+	assert.False(t, hasFile(b.generate(), "secrets/resource-secrets.yaml"),
+		"这个资源的值不该由平台知道，也就没有 Secret 可生成")
+}
+
+// 组件声明的配置密钥写成 existingSecret 形状：secretKeyRef 指向使用者给的名字与 key，
+// 不是平台按 <服务名>-config-secret 算出来的那个。
+func TestConfigExistingSecretReferencesGivenNameAndKey(t *testing.T) {
+	m := secretConfigManifest() // Task 2 加的：apiKey 声明了 secret: true
+	b := newBuilder(t)
+	b.component(m, config.Component{Config: map[string]any{
+		"apiKey": map[string]any{"existingSecret": "acme-hello-vault-synced", "key": "api-key"},
+	}})
+
+	env := envOf(t, b.container("acme-hello-0-1-0"))
+
+	assert.Equal(t, map[string]any{"secretKeyRef": map[string]any{
+		"name": "acme-hello-vault-synced", "key": "api-key",
+	}}, env["API_KEY"])
+	assert.False(t, hasFile(b.generate(), "secrets/config-secrets.yaml"),
+		"值在外部已建好的 Secret 里，平台没有值可以生成一份自己的 Secret")
+}
+
 // ${VAR} 没定义时必须报错。
 //
 // 放过去的后果是把字面量 "${POSTGRES_PASSWORD}" 当成密码部署上去：

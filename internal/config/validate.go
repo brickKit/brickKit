@@ -349,6 +349,11 @@ func (c *Config) validateResources(p *clierr.ProblemSet) {
 		if r.Host == "" {
 			p.Missing(field + ".host")
 		}
+		if r.ExistingSecret != "" && r.Password != "" {
+			p.Addf(field+".existingSecret",
+				"不能同时写 password——已经有一个外部系统管理的 Secret 时，"+
+					"password 是多余的、也可能对不上")
+		}
 
 		if r.ID == "" {
 			p.Missing(field + ".id")

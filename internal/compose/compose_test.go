@@ -991,6 +991,27 @@ func TestSecretsStayAsEnvironmentReferences(t *testing.T) {
 	assert.Contains(t, text, "${POSTGRES_PASSWORD}", "密钥引用要原样落盘")
 }
 
+// existingSecret 场景下密钥变量没有值——Docker 没有"引用外部 Secret"这个概念，
+// 这条变量必须表现成"没配"（不能写出 DATABASE_PASSWORD= 这种空字符串，那正是
+// §9.13 反对的"注入空值"）。
+func TestExistingSecretVarsAreOmittedUnderDocker(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
+	b.resource(config.Resource{
+		Kind: config.ResourceKindDatabase, Engine: "postgresql", ID: "main-db",
+		Host: "pg.infra.svc", Port: 5432, Username: "app",
+		ExistingSecret: "acme-db-vault-synced",
+		Bindings:       []config.Binding{{ComponentID: "people/basic", Database: "people"}},
+	})
+
+	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0")
+	raw := svc["environment"].([]any)
+	for _, item := range raw {
+		assert.NotContains(t, item.(string), "DATABASE_PASSWORD=",
+			"existingSecret 在 Docker 下没有意义，这个变量不该出现，哪怕是空值")
+	}
+}
+
 // 环境变量按名字排序：生成文件要稳定可比对，否则每次 diff 都是噪音。
 func TestEnvironmentIsSorted(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)

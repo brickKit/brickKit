@@ -123,3 +123,85 @@ func TestK8sConfigSecretGoesToSecretNotDeployment(t *testing.T) {
 	assert.NotContains(t, string(deployment), "sk-live-TOKEN-VALUE", "配置密钥不再明文进 Deployment")
 	assert.NotContains(t, string(deployment), "pw-DB-VALUE")
 }
+
+// resources[].existingSecret 只在 K8s 生效；Docker 下要警告，不是错误——existingSecret
+// 对 Docker 没有意义，跟 replicas/tlsSecret 那批"只在 K8s 生效"的字段同一条路。
+func TestExistingSecretWarnsUnderDocker(t *testing.T) {
+	f := addedProject(t, []comp{secretFlowComp}, secretFlowComp.ref())
+
+	var b strings.Builder
+	b.WriteString(configHeader)
+	b.WriteString("\nsources:\n")
+	for _, s := range f.Sources {
+		b.WriteString(s)
+	}
+	b.WriteString(`
+components:
+  - id: demo/hello
+    version: 1.0.0
+resources:
+  - kind: database
+    engine: postgresql
+    id: main-db
+    host: db.example.com
+    port: 5432
+    existingSecret: acme-db-vault-synced
+    bindings:
+      - componentId: demo/hello
+        database: hello
+`)
+	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, "是警告不是错误：%s", r.stderr)
+	out := r.stdout + r.stderr
+	assert.Contains(t, out, "只对 K8s 生效")
+	assert.Contains(t, out, "existingSecret")
+	assert.Contains(t, out, "main-db", "要点名是哪个资源，不能只说组件")
+}
+
+// existingSecret 形状但配置项没有声明 secret: true：警告，且不能把值糊成
+// map[...] 字符串塞给组件——inject 层已经确保它不被注入，这里确认使用者能看懂为什么。
+func TestConfigExistingSecretWithoutDeclaredSecretWarns(t *testing.T) {
+	declared := secretFlowComp
+	declared.SecretConfig = nil // apiToken 没有声明 secret: true
+	f := k8sProjectWith(t, declared, `    config:
+      apiToken:
+        existingSecret: acme-hello-vault-synced
+        key: api-key
+`, "")
+
+	r := runWithEngine(t, newK8sEngine(), f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, "是警告不是错误：%s%s", r.stdout, r.stderr)
+	out := r.stdout + r.stderr
+	assert.Contains(t, out, "apiToken")
+	assert.Contains(t, out, "existingSecret")
+	assert.Contains(t, out, "secret: true")
+}
+
+// existingSecret 形状但目标是 docker：警告，且不出现在生成的 compose 里。
+func TestConfigExistingSecretUnderDockerWarns(t *testing.T) {
+	declared := secretFlowComp
+	declared.SecretConfig = []string{"apiToken"}
+	f := addedProject(t, []comp{declared}, declared.ref())
+
+	var b strings.Builder
+	b.WriteString(configHeader)
+	b.WriteString("\nsources:\n")
+	for _, s := range f.Sources {
+		b.WriteString(s)
+	}
+	b.WriteString("\ncomponents:\n  - id: demo/hello\n    version: 1.0.0\n    config:\n" +
+		"      apiToken:\n        existingSecret: acme-hello-vault-synced\n        key: api-key\n")
+	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+	out := r.stdout + r.stderr
+	assert.Contains(t, out, "existingSecret")
+	assert.Contains(t, out, "只")
+	assert.Contains(t, out, "K8s")
+}

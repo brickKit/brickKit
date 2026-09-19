@@ -74,6 +74,12 @@ type Var struct {
 	// K8s 据此给声明了 secret: true 的配置项起 Secret 名。servedBy 合并把成员变量改名
 	// （加组件 ID 前缀）时，Owner 原样带着——所以 Secret 仍归成员，外壳的 Deployment 只是引用它。
 	Owner string
+	// ExistingSecretRef 非空表示这条敏感变量不该由平台生成 Secret，而是引用外部系统
+	// （Vault Agent Injector / External Secrets Operator / Sealed Secrets……）已经建好的
+	// 这个名字的 K8s Secret；值是那个 Secret 的名字。只在 IsSecret() 为 true 时有意义。
+	// K8s 渲染器（secretRef）优先看它；Docker 没有对应概念，这类变量的 Value 始终是空串，
+	// 由 compose 的 environmentOf 跳过（表现成"没配"）。
+	ExistingSecretRef string
 }
 
 // IsSecret 表示这条变量是密码或密钥，不能明文写进部署清单。
@@ -318,6 +324,24 @@ func (b *envBuilder) addConfig(m *manifest.Manifest, entry config.Component) ([]
 		value, source := property.Default, SourceConfig
 		if override, ok := entry.Config[key]; ok {
 			value, source = override, SourceOverride
+		}
+		if secretName, secretKeyInRef, ok := config.ExistingSecretRef(value); ok {
+			if !property.Secret {
+				// 没有声明 secret: true，existingSecret 写法不会生效——
+				// 不能把这个对象糊成 Go 的 map[...] 字符串塞给组件，交给 cli 层的
+				// 警告说清楚原因（up_secrets.go 的 warnExistingSecretConfigIssues）
+				continue
+			}
+			name := EnvVarName(key)
+			if pattern, hit := b.matchReserved(name); hit {
+				warnings = append(warnings, reservedConflictWarning(b.componentID, key, name, pattern))
+				continue
+			}
+			b.set(Var{
+				Name: name, Source: source, Key: key, Owner: b.service,
+				SecretKey: secretKeyInRef, ExistingSecretRef: secretName,
+			})
+			continue
 		}
 		if value == nil {
 			// 既没有默认值也没有覆盖。
@@ -579,14 +603,24 @@ func resourceVars(bound boundResource) []Var {
 
 	out := make([]Var, 0, len(pairs))
 	for _, pair := range pairs {
-		if pair.value == "" {
-			// 没配的字段不注入空值：组件据此判断"这项没提供"
+		usesExistingSecret := pair.secretKey != "" && r.ExistingSecret != ""
+		if pair.value == "" && !usesExistingSecret {
+			// 没配的字段不注入空值：组件据此判断"这项没提供"。
+			//
+			// 例外：existingSecret 场景下密钥字段压根没有值可言（值在外部已经建好的
+			// Secret 里），但这条变量仍然要存在——K8s 才有东西可以挂 secretKeyRef；
+			// Docker 没有"引用外部 Secret"这个概念，由 compose 的 environmentOf
+			// 在写文件那一步跳过空值变量，表现成"没配"，与其它未配置字段一致。
 			continue
 		}
-		out = append(out, Var{
+		v := Var{
 			Name: prefix + pair.name, Value: pair.value, Source: SourceResource,
 			ResourceID: r.ID, SecretKey: pair.secretKey,
-		})
+		}
+		if usesExistingSecret {
+			v.ExistingSecretRef = r.ExistingSecret
+		}
+		out = append(out, v)
 	}
 	return out
 }

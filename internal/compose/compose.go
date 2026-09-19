@@ -602,9 +602,24 @@ func (p *plan) migrationDoc(c componentPlan) map[string]any {
 //
 // 用 `KEY=value` 的列表而不是 map：列表保序，生成的文件可比对
 // （map 在 YAML 里会被重排，每次 diff 都是噪音）。
+//
+// 跳过值为空的变量：今天所有会产生空值的路径都在生成 Var 之前就被挡掉了
+// （§9.13：缺失就不注入，绝不注入空值），唯一的例外是 resources[].existingSecret /
+// 配置密钥的 existingSecret 写法——那条密钥字段的值本来就不存在（值在外部已建好的
+// Secret 里），K8s 侧靠 secretKeyRef 引用它，Docker 没有对应概念，这里让它表现成
+// "没配"，与其它未配置字段一致。
+//
+// 唯一的反例是 shell.EnvVarServedMembers：零个成员时它的值本来就是空字符串
+// （shell.Group.ServedMembers 的约定），但这条变量必须显式存在——"空字符串"
+// （零个成员激活）与"变量不存在"（不受平台管辖）语义相反，外壳读到前者要
+// 一个模块都不初始化，读到后者才回退成全部启动，两者不能被这里的空值跳过
+// 逻辑合并处理（servedBy 设计书 §7）。
 func environmentOf(c inject.Component) []string {
 	out := make([]string, 0, len(c.Env))
 	for _, v := range c.Env {
+		if v.Value == "" && v.Name != shell.EnvVarServedMembers {
+			continue
+		}
 		out = append(out, v.Name+"="+v.Value)
 	}
 	return out

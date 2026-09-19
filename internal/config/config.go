@@ -311,8 +311,15 @@ type Resource struct {
 	Port     int    `yaml:"port"`
 	Username string `yaml:"username,omitempty"`
 	// Password 的值里的 ${VAR} 解析时不展开，理由同 Component.Config。
-	Password string    `yaml:"password,omitempty"`
-	Bindings []Binding `yaml:"bindings,omitempty"`
+	Password string `yaml:"password,omitempty"`
+	// ExistingSecret 是这个资源的密钥字段（database/cache/mq/smtp 的 password，
+	// storage 的 secret-key）该引用的 K8s Secret 名，而不是由平台生成一份——
+	// 用在运维已经用 Vault Agent Injector / External Secrets Operator / Sealed Secrets
+	// 之类的工具把密钥同步进集群的场景，CLI 从头到尾不接触值本身（仅 K8s，语义与
+	// ServiceAccountName 一致：只引用、不生成）。与 Password 二选一，两者都写会报错——
+	// 已经有一个外部管理的 Secret 时，Password 是多余的、也可能对不上。
+	ExistingSecret string    `yaml:"existingSecret,omitempty"`
+	Bindings       []Binding `yaml:"bindings,omitempty"`
 }
 
 // Binding 把资源绑定到某个组件（003 §5.3、§5.6）。

@@ -34,10 +34,11 @@ func secretName(resourceID string) string { return sanitizeName(resourceID) + "-
 func configSecretName(service string) string { return sanitizeName(service) + "-config-secret" }
 
 // secretRef 返回一条敏感变量在 K8s Secret 里的位置：Secret 名 + key。
-//
-// Task 4 会在这里插入第一条分支：ExistingSecretRef 非空时直接引用那个名字，
-// 不生成任何平台自己的 Secret。
 func secretRef(v inject.Var) (name, key string) {
+	if v.ExistingSecretRef != "" {
+		// 引用外部系统已经建好的 Secret，不生成任何平台自己的 Secret
+		return v.ExistingSecretRef, v.SecretKey
+	}
 	if v.Source == inject.SourceResource {
 		return secretName(v.ResourceID), v.SecretKey
 	}
@@ -58,7 +59,7 @@ func (p *plan) collectSecrets() error {
 
 	for _, c := range p.components {
 		for _, v := range c.Env.Env {
-			if !v.IsSecret() {
+			if !v.IsSecret() || v.ExistingSecretRef != "" {
 				continue
 			}
 			name, key := secretRef(v)

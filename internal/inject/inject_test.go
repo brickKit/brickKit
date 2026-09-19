@@ -163,6 +163,17 @@ func weaklyDependsOn(m *manifest.Manifest, id, version string) *manifest.Manifes
 	return m
 }
 
+// withDatabase 给 Manifest 加一条 database 资源依赖，与
+// internal/k8s、internal/compose 两处测试夹具同名同构。
+func withDatabase(m *manifest.Manifest) *manifest.Manifest {
+	if m.Dependencies == nil {
+		m.Dependencies = &manifest.Dependencies{}
+	}
+	m.Dependencies.Resources = append(m.Dependencies.Resources,
+		manifest.ResourceDep{Kind: "database", Engine: "postgresql"})
+	return m
+}
+
 func off() *bool { v := false; return &v }
 func on() *bool  { v := true; return &v }
 
@@ -357,6 +368,79 @@ func TestNonConfigVarsHaveNoOwner(t *testing.T) {
 	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
 
 	assert.Empty(t, varOf(t, b.build(), "people/basic", "COMPONENT_ID").Owner)
+}
+
+// 资源声明了 existingSecret 而不是 password：密钥变量仍要产出（K8s 才有东西可以挂
+// secretKeyRef），但值留空——existingSecret 场景下压根没有值可言。
+func TestResourceExistingSecretProducesVarWithoutValue(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
+	b.resource(config.Resource{
+		Kind: config.ResourceKindDatabase, Engine: "postgresql", ID: "main-db",
+		Host: "pg.infra.svc", Port: 5432, Username: "app",
+		ExistingSecret: "acme-db-vault-synced",
+		Bindings:       []config.Binding{{ComponentID: "people/basic", Database: "people"}},
+	})
+
+	pw := varOf(t, b.build(), "people/basic", "DATABASE_PASSWORD")
+	assert.True(t, pw.IsSecret())
+	assert.Empty(t, pw.Value, "existingSecret 场景下没有值可言")
+	assert.Equal(t, "acme-db-vault-synced", pw.ExistingSecretRef)
+	assert.Equal(t, "main-db", pw.ResourceID)
+}
+
+// 既没写 password 也没写 existingSecret：跟今天一样，字段没配就不注入（不是本次改动的范围，
+// 只是确认没有被新代码影响）。
+func TestResourceWithNeitherPasswordNorExistingSecretStillSkipped(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
+	b.resource(config.Resource{
+		Kind: config.ResourceKindDatabase, Engine: "postgresql", ID: "main-db",
+		Host: "pg.infra.svc", Port: 5432, Username: "app",
+		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people"}},
+	})
+
+	env := envOf(t, b.build(), "people/basic")
+	_, exists := env["DATABASE_PASSWORD"]
+	assert.False(t, exists)
+}
+
+// 声明了 secret: true 的配置项写成 existingSecret 形状：产出的变量没有值，
+// ExistingSecretRef/SecretKey 分别是 Secret 名与 Secret 里的 key（不是环境变量名）。
+func TestConfigExistingSecretShapeProducesVarWithoutValue(t *testing.T) {
+	m := simple("acme/hello", "0.1.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"apiKey": {Type: "string", Secret: true},
+	}}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{Config: map[string]any{
+		"apiKey": map[string]any{"existingSecret": "acme-hello-vault-synced", "key": "api-key"},
+	}})
+
+	v := varOf(t, b.build(), "acme/hello", "API_KEY")
+	assert.True(t, v.IsSecret())
+	assert.Empty(t, v.Value)
+	assert.Equal(t, "acme-hello-vault-synced", v.ExistingSecretRef)
+	assert.Equal(t, "api-key", v.SecretKey, "Secret 里的 key 是使用者自己写的，不是转换后的环境变量名")
+}
+
+// 写了 existingSecret 形状，但这个配置项没有声明 secret: true：不注入（不能把这个对象
+// 糊成 Go 的 map[...] 字符串塞给组件），交给 cli 层的警告说清楚原因（Task 4 Step 7）。
+func TestConfigExistingSecretShapeWithoutDeclaredSecretIsNotInjected(t *testing.T) {
+	m := simple("acme/hello", "0.1.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"apiKey": {Type: "string"}, // 没有 Secret: true
+	}}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{Config: map[string]any{
+		"apiKey": map[string]any{"existingSecret": "acme-hello-vault-synced", "key": "api-key"},
+	}})
+
+	env := envOf(t, b.build(), "acme/hello")
+	_, exists := env["API_KEY"]
+	assert.False(t, exists)
 }
 
 // 非 config 来源的变量（依赖地址、资源连接、平台变量）不是靠某个 configSchema

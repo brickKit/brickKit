@@ -124,9 +124,10 @@ func warnConfigSecrets(opts *Options, cfg *config.Config, graph *resolver.Graph)
 	for _, c := range cfg.Components {
 		declared := declaredSecretKeys(graph, c)
 		for name, value := range c.Config {
-			// 写成 ${ENV_VAR} 就是做对了。解析时这处不展开（config.deferredRefs），
-			// 所以值本身就是原文
-			if isEnvRef(value) || (!declared[name] && !secretishKey(name)) {
+			// 写成 ${ENV_VAR} 就是做对了，existingSecret 引用也是——解析时这两处
+			// 都不展开/不改写（config.deferredRefs），所以值本身就是原文/原形状
+			_, _, isExistingSecretRef := config.ExistingSecretRef(value)
+			if isEnvRef(value) || isExistingSecretRef || (!declared[name] && !secretishKey(name)) {
 				continue
 			}
 			offenders = append(offenders, c.Ref()+" → "+name)
@@ -148,4 +149,49 @@ func warnConfigSecrets(opts *Options, cfg *config.Config, graph *resolver.Graph)
 				"确实不是密钥的话可以忽略这条——判据只看名字，不看值",
 			),
 	})
+}
+
+// warnExistingSecretConfigIssues 检查 component.config 里写了 existingSecret 形状的两类问题：
+//
+//	① 配置项没有声明 secret: true——这个形状不会生效（见 inject.addConfig），
+//	   使用者会以为自己配好了，实际这条变量根本不会被注入；
+//	② deploy.target 是 docker——existingSecret 是 K8s 专属概念，Docker 没有
+//	   "引用外部已建好的 Secret"这回事，同样不会生效。
+//
+// 与 declaredSecretKeys 用同一份"这个组件的 configSchema 怎么说"的读取方式：graph 里
+// 没有这个组件（还没 add、Manifest 读不到）时什么都不查，等 add 完、下一次 up 自然查得到。
+func warnExistingSecretConfigIssues(opts *Options, cfg *config.Config, graph *resolver.Graph) {
+	var notDeclaredSecret, dockerOnly []string
+	for _, c := range cfg.Components {
+		declared := declaredSecretKeys(graph, c)
+		for name, value := range c.Config {
+			if _, _, ok := config.ExistingSecretRef(value); !ok {
+				continue
+			}
+			ref := c.Ref() + " → " + name
+			if !declared[name] {
+				notDeclaredSecret = append(notDeclaredSecret, ref)
+			}
+			if cfg.Deploy.Target != config.TargetK8s {
+				dockerOnly = append(dockerOnly, ref)
+			}
+		}
+	}
+
+	if len(notDeclaredSecret) > 0 {
+		sort.Strings(notDeclaredSecret)
+		renderWarnings(opts, []*clierr.Error{
+			clierr.Warn(clierr.CodeConfigInvalid, "existingSecret 写法不会生效：配置项没有声明 secret: true").
+				WithDetail("配置项", strings.Join(notDeclaredSecret, "、")).
+				WithHint("给对应的 configSchema.properties.<key> 加一行 secret: true，或者把这个值改回普通写法"),
+		})
+	}
+	if len(dockerOnly) > 0 {
+		sort.Strings(dockerOnly)
+		renderWarnings(opts, []*clierr.Error{
+			clierr.Warn(clierr.CodeConfigInvalid, "existingSecret 只在 K8s 生效，当前是 docker 目标").
+				WithDetail("配置项", strings.Join(dockerOnly, "、")).
+				WithHint("Docker 下没有\"引用外部已建好的 Secret\"这个概念，请直接给这个配置项写字面值或 ${VAR} 引用"),
+		})
+	}
 }
