@@ -61,6 +61,8 @@ Each bound resource contributes a fixed set of variables, one set per `kind` —
 
 🔒 marks a secret: on `deploy.target: k8s` this variable is generated as a `valueFrom.secretKeyRef` against a generated `Secret`, not a plain value (see [03-deployment-generation.md](03-deployment-generation.md)); on Docker it's a plain environment value like everything else, since Compose has no native secret object to delegate to.
 
+A component's own config variable gets the 🔒 too when its `configSchema` property says `secret: true`. Its Secret is `Secret/<versioned-service-name>-config-secret` (key = the variable's name), separate from the resource Secrets, and under `servedBy` it stays with the *member* — the shell's prefixed variable (e.g. `MDM_CUSTOMER_API_KEY`) is a `secretKeyRef` into the member's Secret. Either kind of secret can instead reference a Secret an external system already created (`resources[].existingSecret`, or a `secret: true` config value written as `{ existingSecret, key }`) — the platform then generates no Secret of its own for that one variable.
+
 Real generated output — one component bound to all six kinds at once (`database`/`cache`/`mq`/`storage`/`search`/`smtp`, no `envPrefix` on any of them):
 
 ```

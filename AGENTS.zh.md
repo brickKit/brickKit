@@ -238,6 +238,16 @@ configSchema 里的配置项名转大写后不得与之冲突——**市场在�
 其中一条调用路径永远走不通，而使用者以为自己配好了。所以 `brickkit up` 直接报错，
 并点名到底缺了哪一项、是哪个组件声明它为必填的。
 
+**密钥与普通值走不同的路。** 资源密码（`DATABASE_PASSWORD` 等）一律是密钥；组件自己的配置项只有在
+`configSchema` 里写了 `secret: true` 才算（平台从不按名字猜）。`deploy.target: k8s` 下，密钥进平台生成的
+`Secret`（文件权限 0600），Deployment 里只有 `secretKeyRef`；其余都是明文 `env`。Docker 下，`config` 与
+`resources[].password` 里的 `${VAR}` 在 CLI 写 `docker-compose.yaml` 时**从不**求值——由 `docker compose`
+启动时求值（先进程环境、后 `.env`）。`brickkit.yaml` 里永远只有引用。平台没有内置"去 Vault 取值"，
+以后也不会有（§4.1）：任何能把值放进进程环境的工具都行——而对于外部系统（Vault Agent Injector、
+External Secrets Operator、Sealed Secrets……）已经在集群里建好的 Secret，`resources[].existingSecret`
+与 `secret: true` 配置项的 `{ existingSecret, key }` 写法能直接引用它，仅 K8s，平台从不读写那个值。
+详见[密钥](docs/zh/07-patterns/10-secrets.md)。
+
 上表给的是命名的"形状"；完整字典——每种资源 `kind` 精确的变量名、每条警告和那唯一
 一种阻断错误的真实生成样例、`servedBy` 怎么把成员的配置合并到外壳身上——见
 [环境变量注入契约](docs/zh/06-architecture/04-environment-variables.md)。
@@ -314,7 +324,9 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
   经过 `set -a && source … && set +a` 之后完整保留，不会在第一个换行处截断，
   也不会报一串 `command not found`。不含这些字符的值原样写出，不加引号
 - 同一个保证的另一半：`${VAR}` 这类 config 值是从项目根目录的 `.env` 文件里
-  查出来的（`envLookup`——先看进程环境，再看 `.env`），解析这个文件时用的是
+  查出来的（`internal/cli/up_k8s.go` 的 `envLookup`——K8s 渲染与 local-debug 共用的查找函数；
+  Docker 的 compose 文件本身由 `docker compose` 自己按同样顺序求值——先看进程环境，再看
+  `.env`），解析这个文件时用的是
   真实 `docker compose` 自己对它的解释规则（双引号值支持 `\n`/`\r`/`\t`/`\"`/`\\`
   转义、可以跨多个物理行；单引号值原样保留、同样可以跨行），不是简单地逐行
   按 `KEY=value` 切。K8s 那条渲染路径查的是同一个函数，所以一个跨多行的
@@ -493,6 +505,8 @@ configSchema:                    # 可选，自身配置项的"说明书"（不�
       minimum: 1                 #   说明书：被解析、存下来，从不被校验
       maximum: 100               #   （minimum/maximum 是数字，pattern 是字符串，
       pattern: <正则>            #   items 在数组类型的配置项上写成 `{ type: <类型> }`）
+      secret: true               # 可选——声明这是凭据：K8s 下值走平台生成的 Secret（secretKeyRef），
+                                 #   绝不明文进 env。不校验任何值（§5.2）
   required: [<必填项>]
 
 deployment:                      # 必须
@@ -634,6 +648,8 @@ resources:                       # 基础资源声明与绑定（资源本身由
     port: 5432
     username: <用户名>
     password: ${DB_PASSWORD}     # 必须通过环境变量引用
+    existingSecret: <K8s Secret 名>  # 可选，仅 K8s，与 password 互斥——
+                                    #   引用运维/Vault/ESO 已经建好的 Secret，而不是让平台生成
     bindings:
       - componentId: people/basic
         # ↓ 下面四个是**同一格**（这个组件在资源里占哪一块），按 kind 用对应的
@@ -981,6 +997,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 要不要在自己项目里声明 `servedBy`、怎么声明 | `docs/zh/07-patterns/06-servedby-deployment-checklist.md`（英文版把 `zh` 换 `en`） |
 | 怎么自己搭一套组件市场 | `docs/zh/07-patterns/09-deployment/self-hosted-market.md`（英文版把 `zh` 换 `en`） |
 | 合并进壳里的组件怎么共用一个数据库连接池 | `docs/zh/07-patterns/08-shared-connection-pools.md`（英文版把 `zh` 换 `en`） |
+| 密钥在每种部署目标上住哪、落在哪，两种接密钥管理器的方式（进程环境 vs. `existingSecret`），以及如实交代的边界 | `docs/zh/07-patterns/10-secrets.md`（英文版把 `zh` 换 `en`） |
 | 调用依赖的 `*_ENDPOINT` 在重新部署时要不要客户端特殊处理——Go/Python/Node 的 HTTP 客户端真实测量出来的行为，不是猜的 | `docs/zh/07-patterns/03-service-addressing.md`（英文版把 `zh` 换 `en`） |
 | 依赖解析、菱形依赖去重、循环依赖、为什么组件多不等于串行步骤多 | `docs/zh/06-architecture/02-dependency-resolution.md`（英文版把 `zh` 换 `en`） |
 | 同一份 Manifest 生成出的真实 Docker Compose 与 Kubernetes 文件，逐行对照 | `docs/zh/06-architecture/03-deployment-generation.md`（英文版把 `zh` 换 `en`） |

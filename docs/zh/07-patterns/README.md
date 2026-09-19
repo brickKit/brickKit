@@ -2,7 +2,7 @@
 
 这里是**推荐实践**，不是 BrickKit 平台本身的硬性要求——`brickkit up` 不会检查你有没有照做。每一篇的主体都来自真实生产部署踩出来的经验；个别小节是推荐的工作顺序或概念对照表，没有同样的实战背书，会在该小节开头明说。
 
-**文件名前的编号是推荐的阅读顺序：**先读 00–04（组件开发者），再读 05–08（项目部署方），最后是 09（运维）。
+**文件名前的编号是推荐的阅读顺序，但有一个例外：**先读 00–04（组件开发者），再读 05–08 和 10（项目部署方），最后是 09（运维）——`10-secrets.md` 是在 `09-deployment/` 已经占了编号之后才加进来的，跟其它部署方文档放一起读，比硬塞在"永远最后读"的那一篇前面更顺。
 
 ## 先搞清楚要解决什么问题
 
@@ -16,6 +16,7 @@
 | 已经决定要用 `servedBy` 合并部署 | [声明 servedBy 的部署检查清单](06-servedby-deployment-checklist.md) |
 | 要自己写一个"外壳"组件去承载别的组件 | [合格外壳该满足什么](07-shell-implementers-guide.md) |
 | 合并进外壳的几个组件要共用一个数据库连接池 | [在外壳里合并数据库连接池](08-shared-connection-pools.md) |
+| 密码或 API Key 要传给组件、又不想明文写进 brickkit.yaml，或者要接 Vault/ESO | [密钥](10-secrets.md) |
 | 要自己部署一套 BrickKit Market | [自己搭一套 BrickKit Market](09-deployment/self-hosted-market.md) |
 | 要调用依赖的 `*_ENDPOINT` 地址，不确定 HTTP 客户端要不要为重新部署做特殊处理 | [怎么可靠地调用一个依赖的地址](03-service-addressing.md) |
 
@@ -35,6 +36,7 @@
 - **06** [声明 servedBy 的部署检查清单](06-servedby-deployment-checklist.md) — 决定要不要用、怎么用的检查清单
 - **07** [合格外壳该满足什么](07-shell-implementers-guide.md) — 写给要自己造"外壳"组件的人
 - **08** [在外壳里合并数据库连接池](08-shared-connection-pools.md) — 合并进同一个外壳的组件怎么共用连接池
+- **10** [密钥](10-secrets.md) — 密钥在每种部署目标上住哪、落在哪，以及两种接密钥管理器的方式
 
 ### 运维
 
@@ -56,4 +58,5 @@
 - [声明 servedBy 的部署检查清单](06-servedby-deployment-checklist.md)
 - [合格外壳该满足什么](07-shell-implementers-guide.md)
 - [在外壳里合并数据库连接池](08-shared-connection-pools.md)
+- [密钥](10-secrets.md)
 - [自己搭一套 BrickKit Market](09-deployment/self-hosted-market.md)

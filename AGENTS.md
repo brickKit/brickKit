@@ -264,6 +264,19 @@ a silent skip would mean the component runs, looks healthy, and has one call pat
 works. `brickkit up` errors instead, naming the exact missing item and which component declared it
 required.
 
+**Secrets take a different road from ordinary values.** Resource passwords (`DATABASE_PASSWORD`, …)
+are always secrets; a component's own config item is a secret only if its `configSchema` says
+`secret: true` (the platform never guesses from the name). On `deploy.target: k8s` a secret goes into
+a generated `Secret` (file mode 0600) and the Deployment holds a `secretKeyRef`; everything else is a
+plain `env` value. On Docker, `${VAR}` in `config` and `resources[].password` is **never** resolved by
+the CLI when it writes `docker-compose.yaml` — `docker compose` resolves it at start (process
+environment first, `.env` second). `brickkit.yaml` only ever holds the reference. There is no
+"fetch from Vault" built in and there won't be (§4.1): anything that can put the value in the process
+environment works — and for a Secret an external system (Vault Agent Injector, External Secrets
+Operator, Sealed Secrets, …) already created in the cluster, `resources[].existingSecret` and a
+`secret: true` config value's `{ existingSecret, key }` form reference it directly, K8s only; the
+platform never reads or writes the value either way. Details: [Secrets](docs/en/07-patterns/10-secrets.md).
+
 The table above states the naming *shape*; the full dictionary — every resource `kind`'s exact
 variable names, real generated examples for each warning and the one hard error, and how `servedBy`
 merges a member's config onto its shell — is
@@ -358,7 +371,9 @@ the Docker network:
   getting cut off at its first newline or blowing up with `command not found`. A plain value with
   none of those characters is left unquoted
 - The other half of that same guarantee: a `${VAR}` config value is looked up from the project
-  root's `.env` file (`config.envLookup` — process env first, `.env` second) using the same
+  root's `.env` file (`internal/cli/up_k8s.go`'s `envLookup` — the lookup function shared by the K8s
+  renderer and local-debug generation; the Docker compose file itself is evaluated by `docker
+  compose`, in that same order — process env first, `.env` second) using the same
   quoted/multi-line convention real `docker compose` itself uses for that file (double-quoted
   values support `\n`/`\r`/`\t`/`\"`/`\\` escapes and may span physical lines; single-quoted values
   are kept fully literal and may also span lines) — not a naive line-by-line `KEY=value` split. This
@@ -564,6 +579,8 @@ configSchema:                    # optional, the "spec sheet" for its own config
       minimum: 1                 #   documentation only: parsed and stored, never enforced
       maximum: 100               #   (minimum/maximum are numbers, pattern is a string,
       pattern: <regex>           #   items is `{ type: <type> }` on array properties)
+      secret: true               # optional — a credential: on K8s its value goes through a generated
+                                 #   Secret (secretKeyRef), never plaintext env. Not validated (§5.2)
   required: [<required items>]
 
 deployment:                      # required
@@ -726,6 +743,8 @@ resources:                       # base-resource declarations and bindings (the 
     port: 5432
     username: <username>
     password: ${DB_PASSWORD}     # must be referenced via an env var
+    existingSecret: <K8s Secret name>  # optional, K8s only, mutually exclusive with password —
+                                       #   reference a Secret already created by ops/Vault/ESO instead
     bindings:
       - componentId: people/basic
         # ↓ the following four are **the same slot** (which spot this component occupies in the
@@ -1136,6 +1155,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | Whether and how to declare `servedBy` on your own project | `docs/en/07-patterns/06-servedby-deployment-checklist.md` (swap `en` for `zh`) |
 | How to self-host the component marketplace | `docs/en/07-patterns/09-deployment/self-hosted-market.md` (swap `en` for `zh`) |
 | How to share one database connection pool across components merged into a shell | `docs/en/07-patterns/08-shared-connection-pools.md` (swap `en` for `zh`) |
+| Where secrets live and end up on each deploy target, the two ways a secret manager plugs in (process environment vs. `existingSecret`), and the honest limits | `docs/en/07-patterns/10-secrets.md` (swap `en` for `zh`) |
 | Whether calling a dependency's `*_ENDPOINT` needs special client-side handling across a redeploy — real measured Go/Python/Node HTTP client behavior, not assumed | `docs/en/07-patterns/03-service-addressing.md` (swap `en` for `zh`) |
 | Dependency resolution, diamond dedup, cycles, and why more components doesn't mean more serial steps | `docs/en/06-architecture/02-dependency-resolution.md` (swap `en` for `zh`) |
 | Real generated Docker Compose and Kubernetes files, side by side, from the same Manifest | `docs/en/06-architecture/03-deployment-generation.md` (swap `en` for `zh`) |

@@ -402,7 +402,9 @@ Docker Compose 或 `kubectl` 跑了，但失败了。引擎自己的原始输出
 | `警告：<component> 被弱依赖` | `DEPENDENCY_MISSING` | 你在移除一个被别的组件弱依赖着的东西。允许这样做；它们会在没有它的情况下运行 |
 | `警告：无法确认 <component> 的依赖关系` | `MANIFEST_INVALID` | `brickkit remove` 读不了另一个组件的 Manifest，所以没法核对它是否需要被移除的这个组件 |
 | `brickkit.yaml 中存在明文密码` | `CONFIG_INVALID` | 密码被直接写在了文件里。改成 `password: ${DB_PASSWORD}`，真实值放进 `.env`，并让 `.env` 在 `.gitignore` 里 |
-| `brickkit.yaml 的 config 里可能写了明文密钥` | `CONFIG_INVALID` | `config` 里一个名字像密钥的项写了字面值。判据只看名字，不看值；确实不是密钥的话可以忽略 |
+| `brickkit.yaml 的 config 里可能写了明文密钥` | `CONFIG_INVALID` | `config` 里一个在组件 `configSchema` 里声明了 `secret: true`、或者只是名字像密钥的项写了字面值（`existingSecret` 引用不是字面值，不会触发这条）。只是名字像的，判据只看名字、不看值，确实不是密钥的话可以忽略 |
+| `existingSecret 写法不会生效：配置项没有声明 secret: true` | `CONFIG_INVALID` | 一个配置项写成了 `{ existingSecret, key }`，但对应的 `configSchema` 属性没声明 `secret: true`——这个写法会悄悄不生效，这条把它点出来 |
+| `existingSecret 只在 K8s 生效，当前是 docker 目标` | `CONFIG_INVALID` | Docker 没有"引用外部已建好的 Secret"这回事；直接给这个配置项写字面值或 `${VAR}` 引用 |
 | `config 里有配置项不会生效：组件 <component> 的 <key>` | `CONFIG_INVALID` | `config` 里的某个键不在该组件 `configSchema.properties` 里——通常是笔误，CLI 会猜你想写的是哪一个。没有这个检查的话，那个变量会压根不存在，组件悄悄走默认值 |
 | `config 整块不会生效：组件 <component> 没有声明 configSchema` | `CONFIG_INVALID` | 你给一个没声明 `configSchema` 的组件写了 `config`，所以整块都不会生效 |
 | `警告：configSchema 里有配置项声明的键不会生效` | `MANIFEST_INVALID` | `configSchema` 下某个属性有拼错的键（`defualt:`）。发布、或从本地安装源添加时显示 |

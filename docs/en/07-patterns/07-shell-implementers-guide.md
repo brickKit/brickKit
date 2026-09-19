@@ -132,6 +132,8 @@ for anything but the shell itself into that environment, for the same
 reason: those variable names are fixed and would collide the instant you
 absorb more than one component.
 
+On `deploy.target: k8s`, a member's config value whose `configSchema` property says `secret: true` is not a plain `env` entry in your shell's Pod: it lives in that member's own `Secret/<versioned-service-name>-config-secret`, and the prefixed variable in your shell's environment is a `secretKeyRef` into it — or, if that member's config value was written as `{ existingSecret, key }`, straight into the Secret named there instead. You read it exactly like any other environment variable either way.
+
 ## Nine properties a merged process must satisfy
 
 Every one of these was found the hard way, by teams who actually shipped a

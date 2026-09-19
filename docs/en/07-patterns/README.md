@@ -2,7 +2,7 @@
 
 These are **recommended practices**, not hard requirements the platform enforces — `brickkit up` won't check whether you followed any of them. Each one's core comes from lessons learned in a real deployment; a few individual sections are a recommended working order or a concept table without the same field record, and say so at their start.
 
-**The numbers in the file names are the suggested reading order:** 00–04 first (component developers), then 05–08 (deployers), and 09 last (operations).
+**The numbers in the file names are the suggested reading order, with one exception:** 00–04 first (component developers), then 05–08 and 10 (deployers), and 09 last (operations) — `10-secrets.md` was added after `09-deployment/` was already numbered, and reads better grouped with the other deployer docs than wedged in front of the chapter that's deliberately always last.
 
 ## Find your problem first
 
@@ -16,6 +16,7 @@ These are **recommended practices**, not hard requirements the platform enforces
 | Already decided to merge components with `servedBy` | [Declaring `servedBy`: A Deployment Checklist](06-servedby-deployment-checklist.md) |
 | Building a "shell" component to host others | [Building a Qualified Shell](07-shell-implementers-guide.md) |
 | Components merged into a shell need to share one database connection pool | [Sharing a Database Connection Pool Inside a Shell](08-shared-connection-pools.md) |
+| A password or API key needs to reach a component without ever sitting in `brickkit.yaml` as plaintext, or you need to hook up Vault/ESO | [Secrets](10-secrets.md) |
 | Need to self-host a BrickKit Market instance | [Self-Hosting the BrickKit Market](09-deployment/self-hosted-market.md) |
 | Calling a dependency's `*_ENDPOINT` address, wondering if your HTTP client needs special handling for a redeploy | [Calling a Dependency's Address Reliably](03-service-addressing.md) |
 
@@ -35,6 +36,7 @@ These are **recommended practices**, not hard requirements the platform enforces
 - **06** [Declaring `servedBy`: A Deployment Checklist](06-servedby-deployment-checklist.md) — a checklist for deciding whether and how to use it
 - **07** [Building a Qualified Shell](07-shell-implementers-guide.md) — for whoever is building the shell component itself
 - **08** [Sharing a Database Connection Pool Inside a Shell](08-shared-connection-pools.md) — how components merged into the same shell share a pool
+- **10** [Secrets](10-secrets.md) — where a secret lives and ends up on each deploy target, and the two ways a secret manager plugs in
 
 ### Operations
 
@@ -56,4 +58,5 @@ These are **recommended practices**, not hard requirements the platform enforces
 - [Declaring `servedBy`: A Deployment Checklist](06-servedby-deployment-checklist.md)
 - [Building a Qualified Shell](07-shell-implementers-guide.md)
 - [Sharing a Database Connection Pool Inside a Shell](08-shared-connection-pools.md)
+- [Secrets](10-secrets.md)
 - [Self-Hosting the BrickKit Market](09-deployment/self-hosted-market.md)

@@ -61,6 +61,8 @@ people/basic            → EnvPrefix 是 PEOPLE_BASIC
 
 🔒 标的是敏感字段：`deploy.target: k8s` 下这条变量会生成成 `valueFrom.secretKeyRef`，指向一个专门生成的 `Secret`，不是明文值（详见 [03-deployment-generation.md](03-deployment-generation.md)）；Docker 下它跟其它变量一样是明文值，因为 Compose 根本没有原生的密钥对象可以委托。
 
+组件自己的配置变量，只要它在 `configSchema` 里写了 `secret: true`，也带 🔒。它的 Secret 是 `Secret/<版本化服务名>-config-secret`（key 是变量名），与资源 Secret 分开；`servedBy` 下它仍归**成员**——外壳里带前缀的变量（如 `MDM_CUSTOMER_API_KEY`）是指向成员 Secret 的 `secretKeyRef`。两类密钥都可以改成引用外部系统已经建好的 Secret（`resources[].existingSecret`，或 `secret: true` 的配置值写成 `{ existingSecret, key }`）——这种情况下平台不再为这一条变量生成自己的 Secret。
+
 真实生成结果——一个组件同时绑定了全部六种 `kind`（`database`/`cache`/`mq`/`storage`/`search`/`smtp`，都没写 `envPrefix`）：
 
 ```
