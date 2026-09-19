@@ -27,6 +27,7 @@
 - 不碰仓库根目录未跟踪的 `改进计划.md`。若 `make lint` 的 `check-docs` / `check-cli-docs` 被它拦住，临时 `mv` 到 scratchpad、跑完再 `mv` 回来，别改它、别提交它；移回后 `git status --porcelain` 只应比任务开始前多出你自己的改动，不应少了它。
 - 文档：`docs/en` 与 `docs/zh` 各写一份，各自用自己的语言写得自然，**事实与结论必须一致，CLI 输出块必须逐字取自真实输出，且两边一致**。结构允许平行（这是仓库现有文档的实际做法：段落几乎一一对应）。面向用户的文字不预设读者背景（先大白话讲是什么，再讲好处与代价，最后讲 BrickKit 怎么对待）；不引用、不链接 `docs/archive/`。`AGENTS.md` / `AGENTS.zh.md` 是写给 AI 的压缩版，不受"不预设背景"约束。
 - 凡是关于"解析器 / 渲染器 / 校验器会怎样"的说法，**先跑再写**。测试里写死的期望输出（尤其 Mermaid 的节点顺序）是按设计书推演的：若真实输出**只有顺序不同**，连跑五次确认顺序稳定，再采用真实顺序；若有别的差异，停下来报告，不要为了让测试变绿去改断言。
+- **命令总数的文字声明每个加命令的任务自己顺手改**：`scripts/check-cli-docs.py` 的 `check_command_count` 在真实命令数一变就红（它只认中文措辞 `N 个命令` / `N 条命令`），而 `make` 停在第一个失败的前置目标——不改的话，golangci-lint 与覆盖率两道门在后面的任务里根本不会被跑到。所以 Task 3（14→15）与 Task 6（15→16）各自 `git grep -nE "1[0-9] (个命令|条命令|commands)"`（排除 `docs/archive`、`docs/superpowers`、`改进计划.md`）把**所有**这类声明（中英文一起，避免两种语言的数字不一致）改成当时的真实数。中间状态里数字会比 AGENTS §8 / README 的命令清单多一两条——清单在 Task 9 补齐，最终状态自洽。
 - 覆盖率门槛 92%（`./internal/...`，`make cover-check`）：新增代码要有测试，不靠门槛的余量。
 - `market-server/` 是独立 module，本计划不碰它。
 
@@ -958,14 +959,24 @@ Expected: PASS。若 Task 3 的期望输出只有顺序不同，按 Global Const
 把 `TestGraphGroupsServedByMembersUnderTheirShell` 那种带子图的输出存成文件，确认 Mermaid 能解析：
 `npx --yes @mermaid-js/mermaid-cli -i graph.mmd -o graph.svg`（需要联网与 Chromium；装不上就跳过，在报告里写明"未做渲染器核对"，不要假装做了）。子图 ID 带 `-members`、标签里的 `<br/>`、`class a,b name` 这三处是最可能踩到语法坑的地方。
 
-- [ ] **Step 6: 全量检查并提交**
+- [ ] **Step 6: 把命令总数的文字声明改成 15**（见 Global Constraints）
+
+`git grep -nE "1[0-9] (个命令|条命令|commands)" -- ':!docs/archive' ':!docs/superpowers' ':!改进计划.md'`，把所有"14 个命令""14 commands"之类改成 15（`AGENTS.md`/`AGENTS.zh.md` §8 标题、`README.md`/`README.zh.md`、`llms.txt`/`llms.zh.txt`），只改数字，不动命令清单（清单在 Task 9 补齐）。改完 `bash .superpowers/sdd/2026-09-19-graph-lint-schema/lint.sh` 必须 exit=0。
+
+- [ ] **Step 7: 全量检查并提交**
 
 ```bash
 go test ./... -count=1
 # 完整 make lint
-git add internal/cli/graph.go internal/cli/graph_test.go internal/cli/root.go internal/cli/cli_test.go
+git add AGENTS.md AGENTS.zh.md README.md README.zh.md llms.txt llms.zh.txt internal/cli/graph.go internal/cli/graph_test.go internal/cli/root.go internal/cli/cli_test.go
 git commit -F <写好信息的文件>   # 新增：brickkit graph，把依赖拓扑输出成 Mermaid
 ```
+
+> **实施修订（Task 3 实现者发现、控制器裁决，代码已按此实现；上面的代码块与测试是初稿）：**
+> ① `local: true` 没写 `localPort` 时**不画端口**（初稿会画出 `本地调试 :0`——`localPort` 是可选的，没写时由 compose 分配）；`本地调试` 恒有，`:<port>` 只在写了 `localPort` 时带。
+> ② `local` 样式类只套给**在跑**的组件：`cascade` 从不读 `local`，`local: true` 的组件也可能被跳过；不在跑的节点只套 `disabled`，标签里的"本地调试"保留。（设计书 §2.4 已同步更正，Task 9 的文档不要写"local 与 disabled 不会同时出现"。）
+> ③ `TestGraphFailsLikeUpWhenRequiredDependencyMissing` 用 `runWith(... LogLevel: logging.LevelInfo ...)` 并断言 `"error_code":"DEPENDENCY_MISSING"`：`runIn` 把日志关了，错误码只在 JSON 日志行里。Task 6 的测试同理，已改用 `runWithLogs`。
+> ④ 命令总数的文字声明由每个加命令的任务自己改（见 Global Constraints）。
 
 ---
 
@@ -1494,7 +1505,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/logging"
 )
+
+// runWithLogs 把日志级别打开再执行：错误码只出现在 stderr 的 JSON 日志行里
+// （❌ 块本身不带码，AGENTS §10），而 runIn 默认把日志关了。
+func runWithLogs(t *testing.T, dir string, args ...string) result {
+	t.Helper()
+	return runWith(t, func(o *Options) { o.LogLevel = logging.LevelInfo }, dir, args...)
+}
 
 // newLintFixture 建一个带本地源的项目，并把 comps 都 add 进 brickkit.yaml。
 // （不叫 lintProject：那是 lint.go 里生产代码的函数名，同一个包里不能重名。）
@@ -1534,7 +1553,7 @@ func TestLintCatchesTypoInAlreadyAddedLocalComponent(t *testing.T) {
 	f := newLintFixture(t, comp{ID: "demo/hello", Version: "1.0.0"})
 	appendTo(t, manifestPath(f, "demo/hello"), "dependancies:\n  components: []\n")
 
-	r := runIn(t, f.Dir, "lint")
+	r := runWithLogs(t, f.Dir, "lint")
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stdout, "dependancies")
 	assert.Contains(t, r.stdout, "未知字段")
@@ -1633,7 +1652,7 @@ func TestLintStrictTurnsWarningsIntoFailure(t *testing.T) {
 	f := newLintFixture(t, comp{ID: "demo/hello", Version: "1.0.0"})
 	appendTo(t, manifestPath(f, "demo/hello"), misspelledPropertyKey)
 
-	r := runIn(t, f.Dir, "lint", "--strict")
+	r := runWithLogs(t, f.Dir, "lint", "--strict")
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stdout, "defualt")
 	assert.Contains(t, r.stderr, "LINT_FAILED")
@@ -1674,7 +1693,7 @@ func TestLintStandaloneComponentRepository(t *testing.T) {
 }
 
 func TestLintOutsideAnyProjectFails(t *testing.T) {
-	r := runIn(t, t.TempDir(), "lint")
+	r := runWithLogs(t, t.TempDir(), "lint")
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stderr, "PROJECT_MISSING")
 }
@@ -1965,12 +1984,16 @@ func reportLint(opts *Options, files []lintFile, notes []string, strict bool) er
 Run: `go test ./internal/cli/ -run 'TestLint|TestRootHelp|TestEachSubcommandHelp|TestSubcommandFlags' -count=1 && go test ./tests/docfields/ -count=1`
 Expected: PASS
 
-- [ ] **Step 5: 全量检查并提交**
+- [ ] **Step 5: 把命令总数的文字声明改成 16**（见 Global Constraints；此时应看到上一任务留下的 15）
+
+`git grep -nE "1[0-9] (个命令|条命令|commands)" -- ':!docs/archive' ':!docs/superpowers' ':!改进计划.md'`，15 → 16，只改数字。
+
+- [ ] **Step 6: 全量检查并提交**
 
 ```bash
 go test ./... -count=1
 # 完整 make lint
-git add internal/cli/lint.go internal/cli/lint_test.go internal/cli/root.go internal/cli/cli_test.go internal/clierr/clierr.go docs/en/06-architecture/10-error-codes.md docs/zh/06-architecture/10-error-codes.md
+git add AGENTS.md AGENTS.zh.md README.md README.zh.md llms.txt llms.zh.txt internal/cli/lint.go internal/cli/lint_test.go internal/cli/root.go internal/cli/cli_test.go internal/clierr/clierr.go docs/en/06-architecture/10-error-codes.md docs/zh/06-architecture/10-error-codes.md
 git commit -F <写好信息的文件>   # 新增：brickkit lint，离线检查 brickkit.yaml 与 component.yaml 的结构
 ```
 
@@ -2953,17 +2976,18 @@ git commit -F <写好信息的文件>   # 新增：component.yaml / brickkit.yam
 - `docs/{en,zh}/08-troubleshooting.md`（仅当真跑出值得记的误用）
 - `internal/skills/assets/claude/skills/brickkit-component/SKILL.md`（及 `brickkit-troubleshoot`、`brickkit-assemble` 里合适的一句）
 
-- [ ] **Step 1: 找出所有写死"14"的地方，并拿真实输出**
+- [ ] **Step 1: 确认命令总数的声明都已经是 16，并拿真实输出**
 
+Task 3 与 Task 6 已经各自把"命令总数"的文字声明改过（14→15→16），这里只确认没有遗漏——中英文一起：
 ```bash
-git grep -n "14 个命令\|14 commands\|14 条命令" -- ':!docs/archive' ':!docs/superpowers' ':!改进计划.md'
+git grep -nE "[0-9]+ (个命令|条命令|commands)" -- ':!docs/archive' ':!docs/superpowers' ':!改进计划.md'   # 期望：数字全是 16
 make build-cli   # 得到 bin/brickkit
 ```
 在一个真实项目里跑两条新命令拿输出：用 `tests/components/` 里的两个真实组件（`demo-hello`、`demo-caller`，与 cli-reference 现有的示例同一套）建项目，跑 `brickkit graph`（一次带 `--ignore-served-by` 不必，除非文档要讲它）与 `brickkit lint`（一次干净、一次故意在某个 `component.yaml` 里拼错一个键——例如把 `dependencies` 写成 `dependancies`）。输出块**逐字**取自真实输出。
 
 - [ ] **Step 2: AGENTS.md / AGENTS.zh.md**
 
-- §8 标题里的 `14` 改成 `16`；命令表里加 `brickkit graph`、`brickkit lint` 两行（一句话核心行为）；"Common flags" 里各加一条例子（`brickkit graph > graph.mmd`、`brickkit lint --strict`）。
+- §8 标题里的数字（Task 3/6 已改成 16）；命令表里加 `brickkit graph`、`brickkit lint` 两行（一句话核心行为）；"Common flags" 里各加一条例子（`brickkit graph > graph.mmd`、`brickkit lint --strict`）。
 - §11.1 代码结构图：`internal/` 下加 `schemagen/`（一行说明：从 Go 结构体反射生成 JSON Schema），仓库根加 `schemas/`、`cmd/gen-schemas/`（注意 §11.1 现在写的是 `cmd/brickkit/   CLI entry point`，照那个格式）。
 - §11.2 "where to dig deeper" 表：加一行"编辑器补全 / JSON Schema"指向 `schemas/` 与 quick-start 的对应一节。
 - §4.1 拒绝清单：加两行——① `brickkit graph` 的 HTML/SVG 输出 / 自建渲染器 → 替代：Mermaid 文本，GitHub 与 VS Code 原生渲染；② `brickkit lint` 做依赖解析 / 跨文件引用检查（比如 `servedBy` 目标是否存在）→ 替代：`brickkit up --dry-run`，它本来就要联网解析依赖图。每一行的措辞要和现有行一致，且英文版**不能**出现字面的 `brickkit <不存在的命令>`（`check-cli-docs` 的规矩：只有中文里的墓碑标记豁免；`graph` 与 `lint` 现在是真命令，没这个问题，但别写 `brickkit graph --output`、`brickkit lint --fix` 这类不存在的参数）。参照第一轮加拒绝清单的那次提交（`git log --oneline --grep 拒绝清单` 找到，`git show` 看它改了哪几处、编号怎么排）把 `docs/{en,zh}/06-architecture/00-overview.md` 里对应的编号条目同步加上（接在现有最后一条之后）。
@@ -2971,7 +2995,7 @@ make build-cli   # 得到 bin/brickkit
 
 - [ ] **Step 3: README、llms、CHANGELOG**
 
-- `README.md` 里 "**14 commands in total:** …" 那一行改成 16，命令清单里补 `graph` `lint`（放在 `new` 附近，与 AGENTS §8 的顺序一致）；`README.zh.md` 同步。
+- `README.md` 里 "**16 commands in total:** …" 那一行（数字 Task 3/6 已改）的命令清单里补 `graph` `lint`（放在 `new` 附近，与 AGENTS §8 的顺序一致）；`README.zh.md` 同步。
 - `llms.txt` 里 "Every one of the 14 commands plus `version`" 改成 16；`llms.zh.txt` 里 "14 个命令加 version" 改成 16。两份 llms 文件在 CLI 参考那一条之后各加一条 JSON Schema 的条目（指向 `schemas/component.schema.json` 与 `schemas/brickkit.schema.json` 的 raw 链接，一句话说明用途）。**注意 `check-docs-bilingual.py` 对 llms 链接的检查**——先读它，确认新加的条目符合它的规则（能过就行，别为它改脚本）。
 - `CHANGELOG.md`：`## [Unreleased]` 下新增 `### Added`，三条（英文，"loosely Keep a Changelog"，一条一个用户可感知的东西）：`brickkit graph`、`brickkit lint`（含 `--strict`，含独立组件仓库模式）、`schemas/component.schema.json` 与 `schemas/brickkit.schema.json`；再加一条 `### Changed`：`brickkit up` / `status` / `sync` 内部共用同一份依赖解析（**行为不变**，用户看不到，就别写进去——只写用户感知得到的）。所以 Changed 不加。
 
@@ -3003,7 +3027,7 @@ make build-cli   # 得到 bin/brickkit
 make check-docs check-docs-bilingual check-doc-fields
 go test ./tests/docfields/ ./internal/skills/ -count=1
 make build-cli && python3 scripts/check-cli-docs.py bin/brickkit
-git grep -n "14 个命令\|14 commands\|14 条命令" -- ':!docs/archive' ':!docs/superpowers' ':!改进计划.md'   # 期望：无输出
+git grep -nE "[0-9]+ (个命令|条命令|commands)" -- ':!docs/archive' ':!docs/superpowers' ':!改进计划.md'   # 期望：出现的数字全是 16
 ```
 `check-cli-docs.py` 的"详尽性"方向只打印不计入退出码，但这次要看它的输出：`brickkit graph`/`lint` 及它们的参数都应该被文档覆盖，不该出现在"未写进任何文档"的清单里。
 

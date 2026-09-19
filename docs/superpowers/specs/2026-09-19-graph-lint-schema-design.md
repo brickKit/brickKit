@@ -71,7 +71,9 @@ func resolveTopology(
 - **节点 ID**：复用 `manifest.ServiceName(id, version)`（已经是合法的 Mermaid 标识符：小写、`/`/`.` 都换成 `-`），
   不新发明一套命名规则。边一律写成 `A --> B`（箭头两侧留空格），避开 Mermaid 里 `o`/`x` 开头的节点名被吞进箭头的坑。
 - **节点标签**：原始的 `id@version`，写在引号里（`["erp/backend@1.0.0"]`）；`local: true` 的节点标签追加一行
-  `本地调试 :<localPort>`（Mermaid 标签内 `<br/>` 换行）。
+  `本地调试`（Mermaid 标签内 `<br/>` 换行）——使用者在 `brickkit.yaml` 里写了 `localPort` 时连端口一起标
+  （`本地调试 :8081`），**没写时不画端口**：`localPort` 是可选的，没写时由 compose 在生成阶段分配
+  （默认取组件自己声明的主端口，被占了才另选），图上算不出真值，宁可不说，也不编一个使用者会照着去连的假端口。
 - **边**：强依赖（`resolver.Node.Requires`）实线 `-->`；弱依赖（`resolver.Node.Optional`）虚线 `-.->`；
   弱依赖里**取不到**的那些（`resolver.Node.MissingOptional`）同样画虚线，指向一个标签为 `id@version<br/>未安装` 的
   `missing` 节点——`up` 的"依赖图"一节今天就是把它们写成"（弱，未安装）"，图里不画等于悄悄丢掉一条声明过的依赖，
@@ -83,7 +85,10 @@ func resolveTopology(
     （被 `enabled: false` 关掉的与跟着上层一起不跑的，两种都算）。
   - `classDef local fill:#e6f2ff,stroke:#3673a8;`——套给 `local: true` 的组件。
   - `classDef missing fill:#fff4e5,stroke:#c77700,stroke-dasharray:4 3;`——套给上面说的"未安装"占位节点。
-  - `local: true` 的组件一定在跑，所以 `local` 与 `disabled` 不会同时出现在一个节点上。
+  - `local` 只套给**在跑**的 `local: true` 组件。`cascade` 从不读 `local`——`local: true` 的组件与别的组件一样
+    跟着上层走，也可能被跳过——所以"`local` 与 `disabled` 不会同时出现"靠**构造**成立（不在跑的节点只套 `disabled`，
+    标签里的"本地调试"仍保留），而不依赖各家 Mermaid 渲染器怎么合并同一个节点上的两个 class。
+    "置灰 = 这次不会启动"因此是唯一的信号。
 - **`servedBy` 外壳分组**：来自 `brickkit.yaml` 里各组件条目自己的 `servedBy`（用 `shell.ParseRef` 拆成外壳的
   `id@version`）。一个 `subgraph <外壳服务名>-members["外壳：<外壳 id@version>"] ... end` 包住这个外壳收编的全部成员节点；
   子图 ID 带 `-members` 后缀，是因为外壳自己也是一个以它的服务名为 ID 的普通节点（它是独立的容器，画在 `subgraph` 外面，
