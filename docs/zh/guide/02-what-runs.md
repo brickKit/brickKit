@@ -25,7 +25,7 @@ brickkit add --local
    └── artifacts ✅（1 个文件）
 ⚠️ 警告：弱依赖缺失：demo/bus@1.0.0
    影响组件：demo/caller@1.0.0
-   原因：该组件在所有安装源中都没有找到
+   原因：该组件在所有安装源中均未找到
    影响：该组件的环境变量 DEMO_BUS_ENDPOINT 不会被注入
 📦 添加 demo/hello@1.0.0
    ├── Manifest ✅

@@ -463,6 +463,7 @@ make lint             # vet + 文档检查
 | `make check-docs` | 悬空的小节引用与断链 |
 | `make check-cli-docs` | 文档里写的每条命令 / 参数都真的存在（反过来——新增了命令却还没写进文档——这里不管） |
 | `make check-guides` | 试用指南里的步骤仍然跑得通 |
+| `make check-guide-output` | 教程（`docs/{en,zh}/guide/`）里嵌的 CLI 输出块，逐行对得上真实输出，且中英文抄的是同一份 |
 | `make check-install-sh` | `install.sh` 装得上，而且校验和坏掉时**真的**拒绝装 |
 | `make check-docs-bilingual` | docs/en 与 docs/zh 保持镜像、根目录每一对多语言文件（README、AGENTS、llms）都保持成对、llms.txt/llms.zh.txt 里每条链接都能解析到真实文件 |
 

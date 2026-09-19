@@ -508,6 +508,7 @@ breaks**, instead of quietly reporting zero problems:
 | `make check-docs` | Dangling section references and broken links |
 | `make check-cli-docs` | Every command/flag the docs claim to exist, really does (the reverse direction — new commands not yet documented — isn't enforced here) |
 | `make check-guides` | The steps in the guides still work |
+| `make check-guide-output` | The CLI output blocks embedded in the tutorials (`docs/{en,zh}/guide/`) match real output line by line, and docs/en and docs/zh quote the exact same output |
 | `make check-install-sh` | `install.sh` installs successfully, and *actually* refuses to install when the checksum is broken |
 | `make check-docs-bilingual` | docs/en and docs/zh stay mirrored, every root multi-language pair (README, AGENTS, llms) stays paired, every llms.txt/llms.zh.txt link resolves |
 
