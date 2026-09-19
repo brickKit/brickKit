@@ -27,6 +27,77 @@ CLI 的报错文案本身就是中文，下面原样引用，所以你可以直�
 - **写脚本时。** 只有 `NETWORK_UNREACHABLE` 值得原样重试：网络或市场可能恢复。`CONFIG_INVALID` 重试多少次结果都一样。其他任何码，都当作"得先改点什么"。
 - **警告单独算。** ⚠️ 块永远不会让命令失败。CLI 在继续往下跑的过程中打印的那些警告根本不产生那行日志，所以要靠标题来认——见[警告](#警告)。
 
+## 索引：按类别找错误码
+
+点错误码跳到对应的一节；每一节里的表格按"你会看到的标题"列出具体情形。
+
+**用法与内部错误**
+
+| 错误码 | 一句话 |
+| --- | --- |
+| [`INVALID_ARGUMENT`](#invalid_argument) | 命令行写错了：缺参数、格式不对、未知的命令或参数 |
+| [`NOT_IMPLEMENTED`](#not_implemented) | 保留码，如今没有任何命令会产生它 |
+| [`INTERNAL`](#internal) | 原因不在你的输入（多半是往工作目录写文件出了问题），或 CLI 撞上一个没归类的错误 |
+
+**配置**
+
+| 错误码 | 一句话 |
+| --- | --- |
+| [`CONFIG_INVALID`](#config_invalid) | 范围最宽：`brickkit.yaml` 不合法，或项目当前的状态不满足某个前置条件 |
+| [`CONFIG_CONFLICT`](#config_conflict) | 你要做的事，和已经存在的东西撞了 |
+| [`PROJECT_EXISTS`](#project_exists) | 在已经是项目的目录里又执行了 `brickkit init` |
+| [`PROJECT_MISSING`](#project_missing) | 命令需要一个 BrickKit 项目，而这里没有 |
+
+**Manifest 与依赖**
+
+| 错误码 | 一句话 |
+| --- | --- |
+| [`MANIFEST_INVALID`](#manifest_invalid) | 某份 `component.yaml` 用不了（不认识的键会被当场拒绝） |
+| [`DEPENDENCY_MISSING`](#dependency_missing) | 有个强依赖在任何安装源里都找不到 |
+| [`DEPENDENCY_CYCLE`](#dependency_cycle) | 强依赖连成了一个环 |
+| [`VERSION_AMBIGUOUS`](#version_ambiguous) | 同时有多个版本，而命令没指明是哪一个 |
+| [`COMPONENT_DISABLED`](#component_disabled) | 一个要运行的组件强依赖的那个组件被关掉了 |
+| [`COMPONENT_NOT_FOUND`](#component_not_found) | 没有任何已启用的安装源有这个组件（或这个版本） |
+| [`COMPONENT_BLOCKED`](#component_blocked) | 市场已经把那个版本下架（`blocked`） |
+
+**资源与端口**
+
+| 错误码 | 一句话 |
+| --- | --- |
+| [`RESOURCE_UNBOUND`](#resource_unbound) | 组件需要的资源，`brickkit.yaml` 里没有绑定 |
+| [`PORT_CONFLICT`](#port_conflict) | 两个组件要用同一个宿主机端口（或同一个外壳里两个成员要用同一个端口） |
+
+**迁移与引擎**
+
+| 错误码 | 一句话 |
+| --- | --- |
+| [`MIGRATION_FAILED`](#migration_failed) | K8s 上的迁移 Job 失败，主服务被刻意拦住不启动 |
+| [`MIGRATION_SKIPPED`](#migration_skipped) | 只会作为警告出现：`local: true` 或 `servedBy` 的组件不跑迁移 |
+| [`ENGINE_FAILED`](#engine_failed) | Docker Compose 或 `kubectl` 跑了，但失败了 |
+| [`ENGINE_MISSING`](#engine_missing) | 找不到容器引擎的可执行文件 |
+
+**网络、认证与镜像**
+
+| 错误码 | 一句话 |
+| --- | --- |
+| [`NETWORK_UNREACHABLE`](#network_unreachable) | 网络或市场连不上——唯一值得原样重试的码 |
+| [`AUTH_REQUIRED`](#auth_required) | 这一步需要先登录 |
+| [`AUTH_FAILED`](#auth_failed) | 登录失败：凭据不对，或没拿到令牌 |
+| [`TOKEN_EXPIRED`](#token_expired) | 存着的令牌过期了 |
+| [`IMAGE_UNAUTHORIZED`](#image_unauthorized) | 镜像仓库拒绝了这次拉取，或者镜像根本不存在 |
+
+**签名与源码工作区**
+
+| 错误码 | 一句话 |
+| --- | --- |
+| [`SIGNATURE_INVALID`](#signature_invalid) | 签名验证挡下了这次安装：没签名，或签名对不上 |
+| [`CLONE_FAILED`](#clone_failed) | 克隆 Git 仓库失败 |
+| [`SUBMODULE_GUARD`](#submodule_guard) | 组件源码是已登记的 git submodule，`remove` 和 `sync` 不会去碰它 |
+
+警告不产生错误码，只能靠标题来认——见[警告](#警告)。
+
+---
+
 ## 用法与内部错误
 
 ### INVALID_ARGUMENT

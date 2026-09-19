@@ -17,6 +17,32 @@ otherwise.
 
 ---
 
+## All the commands at a glance
+
+Click a command name to jump to its full description.
+
+| Group | Command | In one line | When to use it |
+| --- | --- | --- | --- |
+| Project and components | [`brickkit init`](#brickkit-init) | Create a project: generate the `brickkit.yaml` skeleton and `.brickkit/`, and install the AI assistant skills | Starting a new project from scratch |
+| | [`brickkit skills`](#brickkit-skills) | See or refresh the AI assistant skills installed in the project | After upgrading the CLI, to update the skill files |
+| | [`brickkit new`](#brickkit-new) | Generate a new component's minimal skeleton: a `component.yaml` that already passes validation | You're developing a new component |
+| | [`brickkit add`](#brickkit-add) | Pull a component and its whole dependency tree, download its artifacts, write it into `brickkit.yaml` | You want to use a component |
+| | [`brickkit remove`](#brickkit-remove) | Remove a component and delete its source directory | You no longer need a component |
+| | [`brickkit fetch`](#brickkit-fetch) | Download only a component's artifacts — no config change, no deployment | Calling another project's service and needing its contract |
+| Running | [`brickkit up`](#brickkit-up) | Decide what runs, generate deployment files, run migrations, call the underlying engine | Actually running the project (or `--dry-run` first to see the plan) |
+| | [`brickkit down`](#brickkit-down) | Stop every component (volumes are kept, so data survives) | Done for now |
+| | [`brickkit status`](#brickkit-status) | Show a table of what's running | Checking what's up right now |
+| Source workspace | [`brickkit sync`](#brickkit-sync) | Archive the source of components that aren't starting and restore those that are, following the "who runs" decision | You want `components/` to hold only what you're working on |
+| | [`brickkit restore`](#brickkit-restore) | Put `enabled` and the source layout back to the last commit | You want to undo a `sync` |
+| Marketplace | [`brickkit login`](#brickkit-login) | Log in to the marketplace interactively | Before publishing, or installing private components |
+| | [`brickkit logout`](#brickkit-logout) | Revoke the token and delete the local credentials | Logging out |
+| | [`brickkit publish`](#brickkit-publish) | Upload the Manifest, image reference and artifacts to the marketplace | Publishing your own component |
+| Other | [`brickkit version`](#brickkit-version) | Print the version | Checking which version you have installed |
+
+There are also [two global flags](#two-global-flags-on-every-command), available on every command.
+
+---
+
 ## brickkit init
 
 **Syntax:** `brickkit init <project-name> [flags]`

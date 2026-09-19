@@ -27,6 +27,77 @@ The `error_code` in that log line is what this page is organized by. The first l
 - **For scripts.** `NETWORK_UNREACHABLE` is the one worth retrying unchanged: the network, or the Market, may come back. `CONFIG_INVALID` fails identically however often you retry. Treat any other code as "something has to change first".
 - **Warnings are separate.** A ⚠️ block never fails a command. The ones the CLI prints while it carries on don't produce the log line at all, so you recognize them by their title — see [Warnings](#warnings).
 
+## Index: error codes by category
+
+Click a code to jump to its section; the table in each section lists the specific situations by the title you'll see.
+
+**Usage and internal errors**
+
+| Code | In one line |
+| --- | --- |
+| [`INVALID_ARGUMENT`](#invalid_argument) | The command line is wrong: missing or malformed arguments, an unknown command or flag |
+| [`NOT_IMPLEMENTED`](#not_implemented) | Reserved; no command produces it today |
+| [`INTERNAL`](#internal) | The cause isn't your input (often a failure writing to the working directory), or the CLI hit an error it hasn't categorized |
+
+**Configuration**
+
+| Code | In one line |
+| --- | --- |
+| [`CONFIG_INVALID`](#config_invalid) | The widest code: `brickkit.yaml` is invalid, or the project's current state doesn't meet a precondition |
+| [`CONFIG_CONFLICT`](#config_conflict) | What you're doing collides with something that already exists |
+| [`PROJECT_EXISTS`](#project_exists) | You ran `brickkit init` in a directory that's already a project |
+| [`PROJECT_MISSING`](#project_missing) | The command needs a BrickKit project and there isn't one here |
+
+**Manifest and dependencies**
+
+| Code | In one line |
+| --- | --- |
+| [`MANIFEST_INVALID`](#manifest_invalid) | A `component.yaml` is unusable (an unknown key is rejected on the spot) |
+| [`DEPENDENCY_MISSING`](#dependency_missing) | A required dependency can't be found in any source |
+| [`DEPENDENCY_CYCLE`](#dependency_cycle) | Required dependencies form a cycle |
+| [`VERSION_AMBIGUOUS`](#version_ambiguous) | Several versions are listed and the command didn't say which |
+| [`COMPONENT_DISABLED`](#component_disabled) | A component that something running requires has been turned off |
+| [`COMPONENT_NOT_FOUND`](#component_not_found) | No enabled source has the component (or that version) |
+| [`COMPONENT_BLOCKED`](#component_blocked) | The Market has marked that version `blocked` |
+
+**Resources and ports**
+
+| Code | In one line |
+| --- | --- |
+| [`RESOURCE_UNBOUND`](#resource_unbound) | A resource a component needs isn't bound in `brickkit.yaml` |
+| [`PORT_CONFLICT`](#port_conflict) | Two components want the same host port (or two members of one shell want the same port) |
+
+**Migration and engine**
+
+| Code | In one line |
+| --- | --- |
+| [`MIGRATION_FAILED`](#migration_failed) | The migration Job failed on Kubernetes; the main service is deliberately not started |
+| [`MIGRATION_SKIPPED`](#migration_skipped) | Only ever a warning: `local: true` and `servedBy` components don't get migrations |
+| [`ENGINE_FAILED`](#engine_failed) | Docker Compose or `kubectl` ran, and failed |
+| [`ENGINE_MISSING`](#engine_missing) | The container engine's executable can't be found |
+
+**Network, authentication and images**
+
+| Code | In one line |
+| --- | --- |
+| [`NETWORK_UNREACHABLE`](#network_unreachable) | The network or the Market can't be reached — the one code worth retrying as-is |
+| [`AUTH_REQUIRED`](#auth_required) | This step needs you to be logged in |
+| [`AUTH_FAILED`](#auth_failed) | Login failed: wrong credentials, or no token came back |
+| [`TOKEN_EXPIRED`](#token_expired) | The stored token has expired |
+| [`IMAGE_UNAUTHORIZED`](#image_unauthorized) | The registry refused the pull, or the image doesn't exist |
+
+**Signing and the source workspace**
+
+| Code | In one line |
+| --- | --- |
+| [`SIGNATURE_INVALID`](#signature_invalid) | Signature verification blocked the install: unsigned, or it doesn't verify |
+| [`CLONE_FAILED`](#clone_failed) | Cloning a Git repository failed |
+| [`SUBMODULE_GUARD`](#submodule_guard) | A component's source is a registered git submodule, which `remove` and `sync` won't touch |
+
+Warnings carry no error code and can only be recognized by their title — see [Warnings](#warnings).
+
+---
+
 ## Usage and internal errors
 
 ### INVALID_ARGUMENT

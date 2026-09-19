@@ -14,6 +14,32 @@ AGENTS.zh.md §8 给每个命令一句话概括，加一小撮精选的参数示
 
 ---
 
+## 命令一览
+
+点命令名，跳到它的完整说明。
+
+| 分组 | 命令 | 一句话 | 什么时候用 |
+| --- | --- | --- | --- |
+| 项目与组件 | [`brickkit init`](#brickkit-init) | 创建项目：生成 `brickkit.yaml` 骨架和 `.brickkit/` 目录，并安装 AI 助手技能 | 从零开始一个新项目 |
+| | [`brickkit skills`](#brickkit-skills) | 查看或刷新项目里安装的 AI 助手技能 | 升级 CLI 之后想更新技能文件 |
+| | [`brickkit new`](#brickkit-new) | 生成一个新组件的最小骨架：一份能通过校验的 `component.yaml` | 要自己开发一个新组件 |
+| | [`brickkit add`](#brickkit-add) | 拉取组件及其整棵依赖树，下载产物，写进 `brickkit.yaml` | 想用某个组件 |
+| | [`brickkit remove`](#brickkit-remove) | 移除组件，并删除它的源码目录 | 不再需要某个组件 |
+| | [`brickkit fetch`](#brickkit-fetch) | 只下载组件的产物，不写配置、不部署 | 跨项目调用别人的服务，需要它的接口契约 |
+| 运行 | [`brickkit up`](#brickkit-up) | 判定谁该跑，生成部署文件，跑迁移，调用底层引擎 | 把项目真正跑起来（或先 `--dry-run` 看计划） |
+| | [`brickkit down`](#brickkit-down) | 停止全部组件（不删卷，数据保留） | 收工 |
+| | [`brickkit status`](#brickkit-status) | 显示运行状态表 | 看现在跑着什么 |
+| 源码工作区 | [`brickkit sync`](#brickkit-sync) | 按"谁该跑"的结果，把不启动的组件源码归档、要跑的还原 | 想让 `components/` 里只留当前关心的 |
+| | [`brickkit restore`](#brickkit-restore) | 把 `enabled` 和源码布局恢复到上一次提交 | `sync` 之后想撤回 |
+| 市场 | [`brickkit login`](#brickkit-login) | 交互式登录市场 | 发布或安装私有组件之前 |
+| | [`brickkit logout`](#brickkit-logout) | 撤销令牌并删除本地凭据 | 退出登录 |
+| | [`brickkit publish`](#brickkit-publish) | 把 Manifest、镜像引用和产物上传到市场 | 发布自己的组件 |
+| 其他 | [`brickkit version`](#brickkit-version) | 打印版本 | 确认装的是哪一版 |
+
+另外还有[两个全局参数](#两个全局参数每个命令都有)，每个命令都能用。
+
+---
+
 ## brickkit init
 
 **用法：** `brickkit init <项目名称> [flags]`
