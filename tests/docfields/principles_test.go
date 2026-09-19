@@ -13,6 +13,8 @@
 //
 // AGENTS 文件 §4 的表格是清单的来源：每行第一列 `**原则名**` 一条。论证版文档里
 // 「十二条原则」那一节下，必须恰好有同样的十二个三级标题——名字逐字相同，顺序相同。
+// 标题带编号，形如 `### 3. 环境无关`：去掉编号后的名字才与 AGENTS 表格逐字对照；
+// 编号本身必须是按出现顺序连续的 1、2、3……——它是给人看的目录，错位了比没有更糟。
 // 英文与中文各自对着自己的 AGENTS 文件比：两个语言树是对等的，不是翻译附属，
 // 原则的措辞在两边本来就不同（"精确优于隐式" / "Explicit over implicit"）。
 //
@@ -22,9 +24,11 @@
 package docfields_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -90,6 +94,28 @@ func docPrinciples(markdown, section string) []string {
 	return out
 }
 
+// numberedHeading 匹配 "3. 环境无关" 这样的标题：编号、点、空格、名字。
+var numberedHeading = regexp.MustCompile(`^(\d+)\.\s+(.+)$`)
+
+// splitNumbered 把带编号的标题拆成名字与问题清单。编号必须从 1 开始、按出现顺序
+// 连续递增；没有编号、编号跳号或重复，都记成 problems。返回的 names 已去掉编号，
+// 没有编号的标题原样保留，这样名字对照仍能给出有用的报错。
+func splitNumbered(headings []string) (names []string, problems []string) {
+	for i, h := range headings {
+		m := numberedHeading.FindStringSubmatch(h)
+		if m == nil {
+			problems = append(problems, fmt.Sprintf("标题「%s」没有编号，应为「%d. %s」", h, i+1, h))
+			names = append(names, h)
+			continue
+		}
+		if n, _ := strconv.Atoi(m[1]); n != i+1 {
+			problems = append(problems, fmt.Sprintf("标题「%s」的编号是 %d，按顺序应为 %d", h, n, i+1))
+		}
+		names = append(names, m[2])
+	}
+	return names, problems
+}
+
 // nameDrift 按名字比较两份清单：missing 是 want 有、got 没有的，extra 反过来。
 // 原则清单与错误码清单共用它。
 func nameDrift(want, got []string) (missing, extra []string) {
@@ -127,12 +153,15 @@ func TestPrinciplesDocMirrorsAgents(t *testing.T) {
 		rel := filepath.Join("docs", pair.lang, "architecture", "design-principles.md")
 		docBody, err := os.ReadFile(filepath.Join(repoRoot, rel))
 		require.NoError(t, err, "%s 不存在：这份文档是 %s §4 十二条原则的论证版", rel, pair.agents)
-		got := docPrinciples(string(docBody), pair.section)
+		got, numberingProblems := splitNumbered(docPrinciples(string(docBody), pair.section))
+		for _, problem := range numberingProblems {
+			t.Errorf("%s：%s", rel, problem)
+		}
 
 		missing, extra := nameDrift(want, got)
 		for _, name := range missing {
 			t.Errorf("%s：%s §4 有原则「%s」，文档「%s」一节下没有对应的三级标题\n"+
-				"   标题要与 AGENTS 表格第一列逐字相同", rel, pair.agents, name, pair.section)
+				"   去掉编号后，标题要与 AGENTS 表格第一列逐字相同", rel, pair.agents, name, pair.section)
 		}
 		for _, name := range extra {
 			t.Errorf("%s：文档「%s」一节下有三级标题「%s」，%s §4 里没有这条原则\n"+
@@ -155,11 +184,18 @@ func TestPrincipleDriftDetectorCatchesBothDirections(t *testing.T) {
 	require.Equal(t, []string{"A", "B"}, agentsPrinciples(agents),
 		"§4.1 之后的表格不能算进原则清单")
 
-	doc := "# Title\n\n## Intro\n\n### Z\n\n## The twelve principles\n\n### A\n\n### X\n\n## Next\n\n### Y\n"
-	got := docPrinciples(doc, "The twelve principles")
-	require.Equal(t, []string{"A", "X"}, got, "只认目标那一节下的三级标题")
+	doc := "# Title\n\n## Intro\n\n### Z\n\n## The twelve principles\n\n### 1. A\n\n### 2. X\n\n## Next\n\n### Y\n"
+	headings := docPrinciples(doc, "The twelve principles")
+	require.Equal(t, []string{"1. A", "2. X"}, headings, "只认目标那一节下的三级标题")
+	got, problems := splitNumbered(headings)
+	require.Equal(t, []string{"A", "X"}, got, "名字要去掉编号再与清单对照")
+	require.Empty(t, problems, "1、2 是合规的编号")
 
 	missing, extra := nameDrift([]string{"A", "B"}, got)
 	require.Equal(t, []string{"B"}, missing, "清单有、文档没写的原则必须被报出来")
 	require.Equal(t, []string{"X"}, extra, "文档写了、清单里没有的原则必须被报出来")
+
+	// 编号本身也要有人守：跳号、没编号都得报出来，重复编号同样算错位。
+	_, problems = splitNumbered([]string{"1. A", "3. B", "C", "3. D"})
+	require.Len(t, problems, 3, "跳号（3 应为 2）、没有编号（C）、重复编号（3 应为 4）各一条")
 }

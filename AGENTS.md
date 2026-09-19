@@ -164,8 +164,9 @@ Use these twelve to judge whether any design proposal actually belongs to BrickK
 
 > The argument behind each principle — what it buys, what it costs, what it refused — is in
 > [Design principles and trade-offs](docs/en/architecture/design-principles.md) (swap `en` for
-> `zh` for the Chinese version). Its twelve section headings match this table's first column
-> word for word; `make lint` fails if they drift.
+> `zh` for the Chinese version). Ignoring their 1–12 numbering, its twelve section headings
+> match this table's first column word for word; `make lint` fails if they drift or the
+> numbering slips.
 
 ### 4.1 What the platform explicitly refuses to do (the rejection list)
 
@@ -1110,7 +1111,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | Why the component model suits AI-written code, and a concrete workflow for it | `docs/en/ai-development.md` (swap `en` for `zh`) |
 | What the platform is, how the core mechanisms work (current) | `docs/en/architecture/` (swap `en` for `zh` for the Chinese version) |
 | Every error code, the situations behind each (by the exact title the CLI prints), cause and fix; which code is worth retrying; exit statuses; the ⚠️ warnings | `docs/en/architecture/error-codes.md` (swap `en` for `zh`) |
-| Why the platform is shaped this way: the one idea underneath (declare a graph, derive the rest); each engineering idea it draws on or deliberately leaves alone (DDD, GitOps, twelve-factor, contract-first, hexagonal architecture, TDD…) each a numbered entry explained from scratch — what it is, its upside and cost, the AI-development pain it maps to, how BrickKit provides it, why it deliberately doesn't provide the rest, and how an AI adapts to that gap; and the argument behind each of the twelve principles | `docs/en/architecture/design-principles.md` (swap `en` for `zh`) |
+| Why the platform is shaped this way: the one idea underneath (declare a graph, derive the rest); each engineering idea it draws on or deliberately leaves alone (DDD, GitOps, twelve-factor, contract-first, hexagonal architecture, TDD…) each a numbered entry explained from scratch — what it is, its upside and cost, the AI-development pain it maps to, what BrickKit does, what it deliberately doesn't do and why, and how an AI copes; and the argument behind each of the twelve principles | `docs/en/architecture/design-principles.md` (swap `en` for `zh`) |
 | Hands-on tutorials | `docs/en/guide/` (same swap) |
 | A deep, real walkthrough of a Go component with a database and migrations | `docs/en/go-component-template.md` (swap `en` for `zh`) |
 | How to layer tests, plan seed/test data, design components well, tune deployment | `docs/en/patterns/` (same swap) |
