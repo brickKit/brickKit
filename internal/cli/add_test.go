@@ -590,3 +590,83 @@ func TestAddRepoFromLocalSourceFails(t *testing.T) {
 	assert.Contains(t, r.stderr, "clone 失败")
 	assert.Contains(t, r.stderr, "本地安装源")
 }
+
+// ============================================================
+// --repo 与 init 默认布局：local-dev（./components）排在所有安装源前面
+// ============================================================
+//
+// 上面那几个用例的项目只配了一个市场源，而 `brickkit init` 生成的项目把
+// local-dev（./components）排在最前面。两者的区别恰好藏着一个坑：
+// --repo 克隆完，源码就躺在 ./components/ 里，local-dev 从此**先于**任何
+// git 源认领这个组件——于是"源码已经在了"这条分支被更靠前的"来自本地源、
+// 没有 Git 地址"截走，报出一句对不上号的话：
+//
+//	克隆过一次再 --repo   → "没有可用的 Git 仓库地址"（你明明克隆过）
+//	被 sync 归档后 --repo → 同上，还叫你"直接用 components/x/ 里的源码"
+//	                        ——那个目录此刻并不存在，源码在 .archived/
+//
+// 专门讲这两种情况的提示（"目录已存在"、"只是被归档着"）早就写好了，
+// 只是在这个布局下永远走不到。
+
+const localDevSource = "  - id: local-dev\n    type: local\n    path: ./components\n"
+
+func defaultLayoutFixture(t *testing.T, spec comp) *projectFixture {
+	t.Helper()
+	market := newMockMarket(t,
+		&mockComponent{Spec: spec, SourceType: "git", GitURL: newComponentRepo(t, spec)})
+	return newProjectFixture(t, localDevSource, market.source())
+}
+
+// 克隆过一次之后再 --repo：要说"源码已经在了"，不能说"没有 Git 地址"。
+func TestAddRepoAgainAfterCloneSaysSourceIsAlreadyThere(t *testing.T) {
+	f := defaultLayoutFixture(t, comp{ID: "people/basic", Version: "1.0.0"})
+	require.Equal(t, clierr.ExitOK,
+		runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo").code)
+
+	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo", "--yes")
+
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "clone 失败：目录已存在")
+	assert.NotContains(t, r.stderr, "没有可用的 Git 仓库地址",
+		"用户明明克隆过——那句话对他来说是错的")
+}
+
+// 源码被 sync 归档着时再 --repo：要指向 .archived/ 与 brickkit sync，
+// 而不是叫人去一个不存在的 components/x/。
+func TestAddRepoWhenArchivedUnderDefaultLayoutPointsAtArchive(t *testing.T) {
+	f := defaultLayoutFixture(t, comp{ID: "people/basic", Version: "1.0.0"})
+	require.Equal(t, clierr.ExitOK,
+		runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo").code)
+	archived := filepath.Join(f.Layout.ArchivedDir(), "people", "basic")
+	require.NoError(t, os.MkdirAll(filepath.Dir(archived), 0o755))
+	require.NoError(t, os.Rename(filepath.Join(f.Layout.ComponentsDir(), "people", "basic"), archived))
+
+	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo", "--yes")
+
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "只是被归档着")
+	assert.Contains(t, r.stderr, "brickkit sync")
+	assert.NotContains(t, r.stderr, "没有可用的 Git 仓库地址")
+	assert.NoDirExists(t, filepath.Join(f.Layout.ComponentsDir(), "people", "basic"))
+}
+
+// --repo-all 批量操作：已经克隆过的、被归档的，各自说真正的原因。
+func TestAddRepoAllSkipReasonsUnderDefaultLayout(t *testing.T) {
+	f := defaultLayoutFixture(t, comp{ID: "people/basic", Version: "1.0.0"})
+	require.Equal(t, clierr.ExitOK,
+		runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo").code)
+
+	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo-all", "--yes")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "已有源码目录，跳过 clone")
+	assert.NotContains(t, r.stdout, "无 Git 仓库地址")
+
+	archived := filepath.Join(f.Layout.ArchivedDir(), "people", "basic")
+	require.NoError(t, os.MkdirAll(filepath.Dir(archived), 0o755))
+	require.NoError(t, os.Rename(filepath.Join(f.Layout.ComponentsDir(), "people", "basic"), archived))
+
+	r = runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo-all", "--yes")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "已归档")
+	assert.NotContains(t, r.stdout, "无 Git 仓库地址")
+}

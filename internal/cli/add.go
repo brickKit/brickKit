@@ -492,24 +492,16 @@ func planClones(
 						"   brickkit add "+ref.String())
 			}
 			plans = append(plans, clonePlan{ref: ref, skip: true, skipMsg: "闭源组件，跳过 clone"})
-		case !origin.IsOpenSource():
-			if f.repo {
-				return nil, clierr.New(clierr.CodeCloneFailed, "clone 失败：没有可用的 Git 仓库地址").
-					WithDetail("组件", ref.String()).
-					WithDetail("安装源", origin.SourceID).
-					WithDetail("原因", "该组件来自本地安装源（type: local），安装源本身没有记录 Git 仓库地址").
-					WithHint(
-						// 不能笼统说"改用 git 类型的安装源"：使用者多半**已经配了**一个，
-						// 只是它排在 local 后面（003 §6.5）。而这个局面往往是 --repo
-						// 自己造成的——clone 到 ./components/ 之后，那个组件从此归本地源管。
-						// 一条照着做不通的建议比不给建议更浪费时间
-						"该组件当前由安装源 "+origin.SourceID+" 提供；要从 git 源取，"+
-							"把那个源在 brickkit.yaml 的 sources 里排到它前面",
-						"或去掉 --repo，直接用 "+workspace.DisplayDir(ref.ID)+" 里的源码",
-					)
-			}
-			plans = append(plans, clonePlan{ref: ref, skip: true, skipMsg: "无 Git 仓库地址，跳过 clone"})
 		case workspace.Locate(layout, ref.ID) != workspace.StateMissing:
+			// **先问"源码是不是已经在盘上"，再问"来源有没有 Git 地址"。**
+			//
+			// 顺序不是随意的：`init` 生成的项目把 local-dev（./components）排在所有
+			// 安装源前面，而 --repo 克隆完，源码正躺在 ./components/ 里——从此 local-dev
+			// 先于任何 git 源认领这个组件。若先问后一个问题，"克隆过一次再 --repo"
+			// 会得到"没有可用的 Git 仓库地址"（用户明明克隆过），"被 sync 归档后
+			// --repo"还会被劝去"直接用 components/x/ 里的源码"——那个目录此刻并不存在。
+			// 专门讲这两种情况的提示早就写好了，只是在默认布局下永远走不到。
+			//
 			// 活跃目录与归档目录都算"已经有了"：往活跃目录再 clone 一份，
 			// 会打破"一个组件 ID 只有一个源码目录"（004 §8.1），
 			// 而下一次 sync 就卡死在"目标目录已存在"上
@@ -519,6 +511,25 @@ func planClones(
 			// --repo-all 是批量操作：已有源码跳过即可，不该因为一个组件就整批失败
 			plans = append(plans, clonePlan{
 				ref: ref, skip: true, skipMsg: existingSourceSkipMessage(layout, ref.ID)})
+		case !origin.IsOpenSource():
+			if f.repo {
+				return nil, clierr.New(clierr.CodeCloneFailed, "clone 失败：没有可用的 Git 仓库地址").
+					WithDetail("组件", ref.String()).
+					WithDetail("安装源", origin.SourceID).
+					WithDetail("原因", "该组件来自本地安装源（type: local），安装源本身没有记录 Git 仓库地址").
+					WithHint(
+						// 不能笼统说"改用 git 类型的安装源"：使用者多半**已经配了**一个，
+						// 只是它排在 local 后面（003 §6.5）。一条照着做不通的建议比不给建议
+						// 更浪费时间。
+						// 走到这里说明源码**不在** components/ 里（在的话上面已经拦下了）：
+						// 是某个 path 指到别处的本地安装源在提供它，所以第二条建议指向那个源，
+						// 而不是一个不存在的 components/x/
+						"该组件当前由安装源 "+origin.SourceID+" 提供；要从 git 源取，"+
+							"把那个源在 brickkit.yaml 的 sources 里排到它前面",
+						"或去掉 --repo，直接用安装源 "+origin.SourceID+" 里的源码",
+					)
+			}
+			plans = append(plans, clonePlan{ref: ref, skip: true, skipMsg: "无 Git 仓库地址，跳过 clone"})
 		default:
 			plans = append(plans, clonePlan{ref: ref, gitURL: origin.GitURL})
 		}
