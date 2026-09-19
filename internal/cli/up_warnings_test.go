@@ -222,8 +222,10 @@ func TestUpDoesNotWarnAboutEnvVarPassword(t *testing.T) {
 
 // 变量**真的配了**的时候更不该报警——这正是使用者做对了的情形。
 //
-// 解析器在读配置时就把 ${VAR} 展开掉了（003 §5.4），拿展开后的值去判断
-// "是不是明文密码"，结论会完全反过来：配对了才骂人，漏配反而不吭声。
+// resources[].password 是 deferredRefs 之一，解析阶段从不展开 ${VAR}
+// （003 §5.4）：这条检查看到的始终是 brickkit.yaml 里的原文。isEnvRef
+// 只需要看到字面包含 `${` 就认定这是引用，跟对应环境变量有没有真的
+// 设置无关——设了值只是让 up 本身能跑到底，不影响这条警告的判断。
 func TestUpDoesNotWarnWhenEnvVarIsSet(t *testing.T) {
 	t.Setenv("POSTGRES_PASSWORD", "a-real-password")
 	f := externalResourceProject(t)

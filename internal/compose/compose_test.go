@@ -1012,6 +1012,48 @@ func TestExistingSecretVarsAreOmittedUnderDocker(t *testing.T) {
 	}
 }
 
+// 回归测试（最终审查 finding 1）：configSchema 属性的默认值、或 brickkit.yaml
+// 的 config 覆盖，只要显式写成空字符串，就是"配了一个空值"，跟"完全没配"
+// 是两回事，必须照样落进 compose 的 environment——K8s 的 Deployment 与
+// local-debug.<svc>.env 对同一份配置从不省略它，Docker 也不该是例外。
+//
+// 此前 environmentOf 按 `v.Value == ""` 判断要不要跳过，把这种情况和
+// existingSecret（值本来就不存在）混在一起，导致这条变量在 compose 里
+// 整条消失，而 K8s 侧正常生成 `value: ""`。
+func TestEmptyStringConfigValueStillReachesCompose(t *testing.T) {
+	t.Run("默认值就是空字符串", func(t *testing.T) {
+		m := simple("people/basic", "1.0.0", 8080)
+		m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+			"region": {Type: "string", Default: ""},
+		}}
+
+		b := newBuilder(t)
+		b.component(m, config.Component{})
+
+		svc := serviceOf(t, b.parsed(), "people-basic-1-0-0")
+		raw := svc["environment"].([]any)
+
+		assert.Contains(t, raw, "REGION=",
+			"空字符串默认值必须照样出现在 environment 里，而不是整条消失：%v", raw)
+	})
+
+	t.Run("brickkit.yaml 把它覆盖成空字符串", func(t *testing.T) {
+		m := simple("erp/backend", "1.0.0", 8080)
+		m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+			"region": {Type: "string", Default: "cn-north"},
+		}}
+
+		b := newBuilder(t)
+		b.component(m, config.Component{Config: map[string]any{"region": ""}})
+
+		svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
+		raw := svc["environment"].([]any)
+
+		assert.Contains(t, raw, "REGION=",
+			"覆盖成空字符串也必须照样出现在 environment 里：%v", raw)
+	})
+}
+
 // 环境变量按名字排序：生成文件要稳定可比对，否则每次 diff 都是噪音。
 func TestEnvironmentIsSorted(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)

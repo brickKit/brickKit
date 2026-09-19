@@ -146,7 +146,8 @@ func warnConfigSecrets(opts *Options, cfg *config.Config, graph *resolver.Graph)
 			WithHint(
 				"改成 ${MY_TOKEN} 这样的引用，把真实值放进 .env",
 				".env 必须在 .gitignore 中",
-				"确实不是密钥的话可以忽略这条——判据只看名字，不看值",
+				"声明了 secret: true 的项，是组件作者认定它是凭据；"+
+					"只是名字像的，判据只看名字、不看值，确实不是的话可以忽略",
 			),
 	})
 }

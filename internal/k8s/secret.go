@@ -30,7 +30,9 @@ func secretName(resourceID string) string { return sanitizeName(resourceID) + "-
 // configSecretName 是某个组件的配置类 Secret 名：<版本化服务名>-config-secret。
 //
 // 与资源 Secret 分开命名：资源 ID 是使用者起的，可能恰好等于某个服务名；
-// 多一个 -config- 才保证两类 Secret 永远不会撞名。
+// 多一个 -config- 让两类 Secret 极难撞名——真要撞上，得资源 ID 恰好写成
+// 某个版本化服务名再手动加上 -config 后缀，几乎不会在正常使用中发生，
+// 但严格说并非结构上不可能。
 func configSecretName(service string) string { return sanitizeName(service) + "-config-secret" }
 
 // secretRef 返回一条敏感变量在 K8s Secret 里的位置：Secret 名 + key。

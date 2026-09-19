@@ -626,6 +626,13 @@ func renderEnvFile(
 	b.WriteString("# ============================================================\n\n")
 
 	for _, v := range vars {
+		if v.ExistingSecretRef != "" {
+			// existingSecret 引用外部已建好的 K8s Secret，值本来就不存在
+			// （005 §5.6：Docker 没有对应概念，这里让它表现成"没配"）——
+			// 不跳过的话会写出一个真的空字符串，组件读到的是"密码是空串"
+			// 而不是"未配置"，正是 §9.13 反对的"注入空值"
+			continue
+		}
 		fmt.Fprintf(&b, "%s=%s\n", v.Name, shellQuote(expandValue(v.Value, lookup)))
 	}
 	return b.Bytes()

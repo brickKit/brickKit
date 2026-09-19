@@ -63,7 +63,7 @@ configSchema:
       secret: true
 ```
 
-项目的 `brickkit.yaml`（除了 `deploy.target`——每次运行按情况写 `docker` 或 `k8s`——其余如下）把数据库和配置值都写成引用；项目的 `.env` 文件里是 `PG_PASSWORD=pw-from-dotenv` 和 `THIRD_PARTY_KEY=key-from-dotenv`：
+项目的 `brickkit.yaml` 里，`deploy.target` 每次运行按情况写 `docker` 或 `k8s`；下面摘出与这两个密钥相关的 `components` 和 `resources` 这部分，把数据库和配置值都写成引用（`project`、`sources` 等其余字段不在此处展开，但下文命令输出里出现的 `brickkit.io/project: demo`、`namespace: brickkit-demo` 就是来自完整文件里的这两处）。项目的 `.env` 文件里是 `PG_PASSWORD=pw-from-dotenv` 和 `THIRD_PARTY_KEY=key-from-dotenv`：
 
 ```yaml
 components:
@@ -198,7 +198,7 @@ CLI 写出来的文件里从来没有真值，对着它跑一遍 `docker compose
 
 ### `local: true`：明文，给 IDE 用
 
-`local: true` 只存在于 Docker 目标下。这样的组件没有容器，CLI 会为它写一份 `local-debug.<版本化服务名>.env`，由 IDE 加载后把进程跑起来。这份文件里的值是 CLI 求好的**明文**，这是刻意的——IDE 不做变量替换，拿到什么就用什么。它和其它生成物一样放在 `.brickkit/generated/` 下（已被 `.gitignore` 忽略），文件权限 `0600`。
+`local: true` 只存在于 Docker 目标下。这样的组件没有容器，CLI 会为它写一份 `local-debug.<版本化服务名>.env`，由 IDE 加载后把进程跑起来。这份文件里的值是 CLI 求好的**明文**，这是刻意的——IDE 或 shell 加载这份文件时，是按 `KEY=value` 逐行读取（`envFile` 配置或者 `source` 命令），并不会再去解析值里面的 `${VAR}` 占位符；真写一个 `${PG_PASSWORD}` 进去，加载出来的就是这段原文字符串，而不是它指向的真实密码。所以 CLI 必须在写这份文件**之前**先把值求好，而不是留给加载它的那一步去做。它和其它生成物一样放在 `.brickkit/generated/` 下（已被 `.gitignore` 忽略），文件权限 `0600`。
 
 ### 小结
 
