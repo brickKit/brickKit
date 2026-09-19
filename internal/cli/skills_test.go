@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/skills"
 )
 
@@ -154,4 +155,59 @@ func TestSkillsPrefersProjectWhenBothFilesPresent(t *testing.T) {
 
 func sumOf(b []byte) string {
 	return skills.Sum(b)
+}
+
+func TestDetectScope(t *testing.T) {
+	touch := func(t *testing.T, dir string, names ...string) {
+		t.Helper()
+		for _, name := range names {
+			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("x: 1\n"), 0o644))
+		}
+	}
+	optsFor := func(dir, configPath string) *Options {
+		return &Options{WorkDir: dir, ConfigPath: configPath}
+	}
+
+	t.Run("只有 brickkit.yaml 是项目", func(t *testing.T) {
+		dir := t.TempDir()
+		touch(t, dir, "brickkit.yaml")
+		scope, layout, err := detectScope(optsFor(dir, DefaultConfigFile))
+		require.NoError(t, err)
+		assert.Equal(t, skills.ScopeProject, scope)
+		assert.Equal(t, dir, layout.Root)
+	})
+
+	t.Run("只有 component.yaml 是组件仓库", func(t *testing.T) {
+		dir := t.TempDir()
+		touch(t, dir, "component.yaml")
+		scope, _, err := detectScope(optsFor(dir, DefaultConfigFile))
+		require.NoError(t, err)
+		assert.Equal(t, skills.ScopeComponent, scope)
+	})
+
+	t.Run("两者都有时按项目算", func(t *testing.T) {
+		dir := t.TempDir()
+		touch(t, dir, "brickkit.yaml", "component.yaml")
+		scope, _, err := detectScope(optsFor(dir, DefaultConfigFile))
+		require.NoError(t, err)
+		assert.Equal(t, skills.ScopeProject, scope)
+	})
+
+	t.Run("--config 指向别的文件名", func(t *testing.T) {
+		dir := t.TempDir()
+		touch(t, dir, "brickkit.prod.yaml")
+		scope, _, err := detectScope(optsFor(dir, "brickkit.prod.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, skills.ScopeProject, scope)
+	})
+
+	t.Run("两者都没有报 PROJECT_MISSING", func(t *testing.T) {
+		dir := t.TempDir()
+		_, layout, err := detectScope(optsFor(dir, DefaultConfigFile))
+		require.Error(t, err)
+		e := clierr.As(err)
+		assert.Equal(t, clierr.CodeProjectMissing, e.Code)
+		assert.Contains(t, e.Message, "既不是 BrickKit 项目，也不是组件仓库")
+		assert.Equal(t, dir, layout.Root, "出错时 Layout 仍然有效")
+	})
 }

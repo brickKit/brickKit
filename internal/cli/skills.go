@@ -73,32 +73,43 @@ brickkit-component 这一个技能——项目导读与拼装/部署/排障三�
 	return cmd
 }
 
+// detectScope 判断当前目录是 BrickKit 项目（有 brickkit.yaml）还是独立组件仓库
+// （有 component.yaml、没有 brickkit.yaml）；两者都没有时返回错误。
+//
+// 两者都有时按项目算：那是 brickkit skills 一直以来的行为，lint 沿用同一条规则，
+// 不新发明一条。返回的 Layout 无论成败都有效——调用方走哪一支都要用它定位文件。
+func detectScope(opts *Options) (skills.Scope, config.Layout, error) {
+	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
+
+	if _, err := os.Stat(layout.ConfigPath()); err == nil {
+		return skills.ScopeProject, layout, nil
+	}
+	if _, err := os.Stat(filepath.Join(layout.Root, manifest.FileName)); err == nil {
+		return skills.ScopeComponent, layout, nil
+	}
+	return skills.ScopeProject, layout, clierr.New(clierr.CodeProjectMissing,
+		"错误：当前目录既不是 BrickKit 项目，也不是组件仓库").
+		WithDetail("找不到", layout.ConfigName()+"，也没有 "+manifest.FileName).
+		WithHint("项目：先执行 brickkit init <项目名称>，或用 --config 指定配置文件",
+			"组件仓库：在含 "+manifest.FileName+" 的目录里执行")
+}
+
 // skillsInstaller 构造 Installer，并先确认这儿是它管得着的地方：
 // BrickKit 项目（有 brickkit.yaml），或独立的组件仓库（有 component.yaml、没有 brickkit.yaml）。
 //
 // 不确认的话，在随便一个目录里敲 skills update 会默默建出 .claude/ 与
 // AGENTS.md——在别人家里留下文件，比报个错糟糕得多。
 func skillsInstaller(opts *Options) (skills.Installer, error) {
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
-	in := skills.Installer{
+	scope, layout, err := detectScope(opts)
+	if err != nil {
+		return skills.Installer{}, err
+	}
+	return skills.Installer{
 		Root:     layout.Root,
 		LockPath: layout.SkillsLockPath(),
 		Version:  version.Version,
-	}
-
-	// 两样都有时按项目处理：那是这条命令一直以来的行为
-	if _, err := os.Stat(layout.ConfigPath()); err == nil {
-		return in, nil
-	}
-	if _, err := os.Stat(filepath.Join(layout.Root, manifest.FileName)); err == nil {
-		in.Scope = skills.ScopeComponent
-		return in, nil
-	}
-	return skills.Installer{}, clierr.New(clierr.CodeProjectMissing,
-		"错误：当前目录既不是 BrickKit 项目，也不是组件仓库").
-		WithDetail("找不到", layout.ConfigName()+"，也没有 "+manifest.FileName).
-		WithHint("项目：先执行 brickkit init <项目名称>，或用 --config 指定配置文件",
-			"组件仓库：在含 "+manifest.FileName+" 的目录里执行")
+		Scope:    scope,
+	}, nil
 }
 
 // renderSkillsScope 在组件仓库模式下说一句"为什么只有一个文件"。
