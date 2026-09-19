@@ -252,13 +252,11 @@ type Component struct {
 	// 写了它，平台就只引用、不生成——重新生成一份会把那份授权安静地抹掉。
 	ServiceAccountName string `yaml:"serviceAccountName,omitempty"`
 	// Config 覆盖 configSchema 默认值。CLI 不校验值的类型（003 §4.6）。
-	Config map[string]any `yaml:"config,omitempty"`
-	// ConfigFromEnv 记录哪些 config 项**原文**写的是 ${ENV_VAR} 引用。
 	//
-	// 必须在展开之前取，理由与 PasswordFromEnv 完全相同：展开之后
-	// `${MY_TOKEN}` 与一个写死的密钥长得一模一样，据此判断会在使用者
-	// **做对了**的时候误报，而漏配变量时反倒不吭声——正好反了。
-	ConfigFromEnv map[string]bool `yaml:"-"`
+	// 值里的 ${VAR} **解析时不展开**（见 deferredRefs）：写进 compose 文件还是进 Secret 是渲染器的事。
+	// 想知道"这一项写的是不是引用"，看值本身就是原文。这个位置也允许写成 existingSecret 引用
+	// 的形状（见 ExistingSecretRef，Task 4），同样不受这里的展开逻辑影响。
+	Config map[string]any `yaml:"config,omitempty"`
 	// Resources 覆盖 Manifest 中的 deployment.resources（003 §4.7）。
 	// 与 Manifest 共用同一结构，Step 11 负责按优先级链合并。
 	Resources *manifest.Resources `yaml:"resources,omitempty"`
@@ -312,13 +310,9 @@ type Resource struct {
 	Host     string `yaml:"host"`
 	Port     int    `yaml:"port"`
 	Username string `yaml:"username,omitempty"`
-	Password string `yaml:"password,omitempty"`
-	// PasswordFromEnv 表示 password 原文写的是 ${ENV_VAR} 引用。
-	//
-	// 由解析器在展开环境变量**之前**记下（008：密码不该写进 brickkit.yaml）。
-	// 展开之后两者长得一模一样，靠 Password 的值判断只会在使用者做对时误报。
-	PasswordFromEnv bool      `yaml:"-"`
-	Bindings        []Binding `yaml:"bindings,omitempty"`
+	// Password 的值里的 ${VAR} 解析时不展开，理由同 Component.Config。
+	Password string    `yaml:"password,omitempty"`
+	Bindings []Binding `yaml:"bindings,omitempty"`
 }
 
 // Binding 把资源绑定到某个组件（003 §5.3、§5.6）。

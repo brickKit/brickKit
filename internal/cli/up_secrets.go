@@ -43,15 +43,23 @@ func warnHardcodedPasswords(opts *Options, cfg *config.Config) {
 
 // isHardcodedSecret 判断这条资源的密码是不是写死在 brickkit.yaml 里的。
 //
-// 判据是**原文**写没写 ${ENV_VAR}，不是解析后的值：解析器在读配置时就把
-// ${VAR} 展开掉了（003 §5.4），拿展开后的值去判断，只会在变量**真的配了**
-// 的时候把使用者骂一顿，而变量漏配时（占位符原样保留）反倒不吭声——
-// 正好反了。空值表示没配密码（比如不需要密码的资源），不算问题。
+// 判据是**原文**写没写 ${ENV_VAR}：config.deferredRefs 让 password 解析时不展开，
+// 值本身就是原文，不需要再额外记一份"展开前的样子"。空值表示没配密码
+// （比如不需要密码的资源），不算问题。
 func isHardcodedSecret(r config.Resource) bool {
-	if r.PasswordFromEnv || strings.TrimSpace(r.Password) == "" {
+	if isEnvRef(r.Password) || strings.TrimSpace(r.Password) == "" {
 		return false
 	}
 	return true
+}
+
+// isEnvRef 判断一个配置值写的是不是 ${ENV_VAR} 引用。
+//
+// config.deferredRefs 让这两处字段解析时不展开，所以值本身就是原文——
+// 不再需要"展开前先记下"的补丁字段。
+func isEnvRef(v any) bool {
+	s, ok := v.(string)
+	return ok && strings.Contains(s, "${")
 }
 
 // ============================================================
@@ -89,10 +97,10 @@ func secretishKey(name string) bool {
 func warnConfigSecrets(opts *Options, cfg *config.Config) {
 	var offenders []string
 	for _, c := range cfg.Components {
-		for name := range c.Config {
-			// 写成 ${ENV_VAR} 就是做对了。判据取的是**展开前**的原文
-			// （config.ConfigFromEnv），理由见那个字段的说明
-			if c.ConfigFromEnv[name] || !secretishKey(name) {
+		for name, value := range c.Config {
+			// 写成 ${ENV_VAR} 就是做对了。解析时这处不展开（config.deferredRefs），
+			// 所以值本身就是原文
+			if isEnvRef(value) || !secretishKey(name) {
 				continue
 			}
 			offenders = append(offenders, c.Ref()+" → "+name)

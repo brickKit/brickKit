@@ -92,14 +92,14 @@ func TestParseConfigFileFullProject(t *testing.T) {
 	assert.Equal(t, "localhost", pg.Host)
 	assert.Equal(t, 5432, pg.Port)
 	assert.Equal(t, "dev", pg.Username)
-	assert.Equal(t, "pg-secret", pg.Password, "5.2 ${POSTGRES_PASSWORD} 应被解析")
+	assert.Equal(t, "${POSTGRES_PASSWORD}", pg.Password, "resources[].password 是 deferredRefs，解析时不展开，留给渲染器")
 	require.Len(t, pg.Bindings, 3)
 	assert.Equal(t, "department/tree", pg.Bindings[0].ComponentID)
 	assert.Equal(t, "department", pg.Bindings[0].Database)
 
 	redis := c.Resources[1]
 	assert.Equal(t, "cache", redis.Kind)
-	assert.Equal(t, "redis-secret", redis.Password)
+	assert.Equal(t, "${REDIS_PASSWORD}", redis.Password)
 	require.Len(t, redis.Bindings, 2)
 	assert.Empty(t, redis.Bindings[0].Database, "cache 资源不需要 database 名")
 
@@ -114,20 +114,21 @@ func TestParseConfigFileFullProject(t *testing.T) {
 // 5.2 / 5.3 ${ENV_VAR} 解析
 // ============================================================
 
+// password 是 deferredRefs（Task 1：密钥候选值留给渲染器求值），
+// 所以这条测试改用 host 字段验证一般字段仍在解析时展开。
 func TestEnvVarResolved(t *testing.T) {
-	t.Setenv("PG_PWD", "secret-value")
+	t.Setenv("PG_HOST", "db.internal")
 
 	c, err := ParseConfig([]byte(baseConfig+`
 resources:
   - kind: database
     engine: postgresql
     id: pg
-    host: localhost
+    host: ${PG_HOST}
     port: 5432
-    password: ${PG_PWD}
 `), "brickkit.yaml")
 	require.NoError(t, err)
-	assert.Equal(t, "secret-value", c.Resources[0].Password)
+	assert.Equal(t, "db.internal", c.Resources[0].Host)
 }
 
 // 5.3 环境变量不存在时保留原样（便于用户发现漏配，而不是静默注入空值）。
@@ -145,6 +146,9 @@ resources:
 	assert.Equal(t, "${DEFINITELY_NOT_SET_12345}", c.Resources[0].Password)
 }
 
+// components[].config 是 deferredRefs（Task 1），这里改用 labels 字段验证
+// 一般字段解析时展开的各类边界情形——单个变量层面的行为已由 TestExpandEnv 直接盯住，
+// 这条测试盯的是"解析 YAML 到具体字段"这条线路本身没被 deferredRefs 误伤。
 func TestEnvVarEdgeCases(t *testing.T) {
 	t.Setenv("A", "1")
 	t.Setenv("B", "2")
@@ -157,7 +161,7 @@ deploy:
 components:
   - id: demo/app
     version: 1.0.0
-    config:
+    labels:
       both: "${A}-${B}"
       onlyOne: "prefix-${A}-suffix"
       missing: "x-${NOT_SET_XYZ}-y"
@@ -167,12 +171,12 @@ resources: []
 `), "brickkit.yaml")
 	require.NoError(t, err)
 
-	cfg := c.Components[0].Config
-	assert.Equal(t, "1-2", cfg["both"])
-	assert.Equal(t, "prefix-1-suffix", cfg["onlyOne"])
-	assert.Equal(t, "x-${NOT_SET_XYZ}-y", cfg["missing"])
-	assert.Equal(t, "[]", cfg["emptyVar"], "环境变量存在但为空 → 注入空字符串")
-	assert.Equal(t, "$A ${} ${1BAD}", cfg["notAVar"], "不合法的变量写法原样保留")
+	labels := c.Components[0].Labels
+	assert.Equal(t, "1-2", labels["both"])
+	assert.Equal(t, "prefix-1-suffix", labels["onlyOne"])
+	assert.Equal(t, "x-${NOT_SET_XYZ}-y", labels["missing"])
+	assert.Equal(t, "[]", labels["emptyVar"], "环境变量存在但为空 → 注入空字符串")
+	assert.Equal(t, "$A ${} ${1BAD}", labels["notAVar"], "不合法的变量写法原样保留")
 }
 
 // 环境变量只在值上展开，不动 key。

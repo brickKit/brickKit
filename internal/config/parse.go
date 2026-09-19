@@ -58,7 +58,7 @@ func ParseConfigFile(path string) (*Config, error) {
 //
 // 解析分四步：
 //  1. YAML 语法解析（语法错误带行号）
-//  2. ${ENV_VAR} 展开（只作用于值，不动 key）
+//  2. ${ENV_VAR} 展开（只作用于值，不动 key；deferredRefs 里的字段除外）
 //  3. 结构形状检查（该是数组的字段必须是数组）+ 未知字段检查（拼错的键）
 //  4. 字段级语义校验（一次报出全部问题）
 func ParseConfig(data []byte, source string) (*Config, error) {
@@ -81,11 +81,7 @@ func ParseConfig(data []byte, source string) (*Config, error) {
 	}
 
 	doc := root.Content[0]
-	// 展开**前**先记下哪些密码写的是 ${ENV_VAR}：展开之后就分不出
-	// "使用者写死了密码" 与 "使用者写了引用、而这个变量恰好有值" 了
-	cfgRefs := configEnvRefs(doc)
-	envRefs := passwordEnvRefs(doc)
-	expandEnvNode(doc)
+	expandEnvNode(doc, nil)
 
 	shape := newConfigProblems(source)
 	checkConfigShapes(doc, shape)
@@ -111,16 +107,6 @@ func ParseConfig(data []byte, source string) (*Config, error) {
 		return nil, p.Err()
 	}
 	c.Source = source
-	for i := range c.Resources {
-		if i < len(envRefs) {
-			c.Resources[i].PasswordFromEnv = envRefs[i]
-		}
-	}
-	for i := range c.Components {
-		if i < len(cfgRefs) {
-			c.Components[i].ConfigFromEnv = cfgRefs[i]
-		}
-	}
 
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -144,60 +130,61 @@ func cleanYAMLError(err error) string {
 	return strings.TrimSpace(strings.TrimPrefix(err.Error(), "yaml: "))
 }
 
-// passwordEnvRefs 按 resources 的顺序返回"这条资源的 password 写的是 ${ENV_VAR} 吗"。
+// deferredRefs 是"${VAR} 引用要原样留给渲染器"的字段路径，`*` 匹配数组下标。
 //
-// 必须在展开**之前**取：展开之后 `${POSTGRES_PASSWORD}` 与一个写死的密码
-// 长得一模一样，P5 的明文密码告警会在使用者**做对了**的时候误报
-// （变量真的配了才会被展开成明文），而在变量漏配时反倒不吭声。
-func passwordEnvRefs(doc *yaml.Node) []bool {
-	resources := lookupNode(doc, "resources")
-	if resources == nil || resources.Kind != yaml.SequenceNode {
-		return nil
-	}
-
-	out := make([]bool, 0, len(resources.Content))
-	for _, item := range resources.Content {
-		password := lookupNode(item, "password")
-		out = append(out, password != nil && strings.Contains(password.Value, "${"))
-	}
-	return out
+// 这两处装的都是要进部署清单的密钥候选值，而"什么时候求值"只有渲染器知道：
+//
+//	docker compose  文件里保留 ${VAR}，由 docker compose 启动时自己从进程环境与 .env 求值——
+//	                那份文件因此永远可以放心打开、diff
+//	K8s             生成时求值，密钥进 Secret（0600），绝不进 Deployment
+//	local-debug     生成时求值，IDE 不做变量替换
+//
+// 在这里提前展开，变量在进程环境里（CI 里最常见）时明文就会被写进 docker-compose.yaml，
+// 变量在 .env 里时却不会——同一份配置、两种结果，取决于变量放在哪。
+//
+// 其余字段（sources[].url / authToken、deploy.*、资源的 host 等）是 CLI 自己要用的值，仍在解析时展开。
+var deferredRefs = [][]string{
+	{"components", "*", "config"},
+	{"resources", "*", "password"},
 }
 
-// configEnvRefs 按 components 的顺序返回"这个组件的哪些 config 项写的是 ${ENV_VAR}"。
-//
-// 与 passwordEnvRefs 同一个道理，也必须在展开**之前**取。
-func configEnvRefs(doc *yaml.Node) []map[string]bool {
-	components := lookupNode(doc, "components")
-	if components == nil || components.Kind != yaml.SequenceNode {
-		return nil
-	}
-
-	out := make([]map[string]bool, 0, len(components.Content))
-	for _, item := range components.Content {
-		refs := map[string]bool{}
-		if cfg := lookupNode(item, "config"); cfg != nil && cfg.Kind == yaml.MappingNode {
-			for i := 0; i+1 < len(cfg.Content); i += 2 {
-				key, value := cfg.Content[i], cfg.Content[i+1]
-				refs[key.Value] = strings.Contains(value.Value, "${")
+// isDeferredRef 判断一条字段路径是不是 deferredRefs 里的一项。
+func isDeferredRef(path []string) bool {
+	for _, want := range deferredRefs {
+		if len(want) != len(path) {
+			continue
+		}
+		matched := true
+		for i := range want {
+			if want[i] != "*" && want[i] != path[i] {
+				matched = false
+				break
 			}
 		}
-		out = append(out, refs)
+		if matched {
+			return true
+		}
 	}
-	return out
+	return false
 }
 
-// expandEnvNode 递归展开节点中的 ${ENV_VAR}。
+// expandEnvNode 递归展开节点中的 ${ENV_VAR}，path 是当前节点的字段路径。
 //
 // 只展开**值**：映射的 key 不展开，避免环境变量影响配置结构。
-func expandEnvNode(node *yaml.Node) {
+func expandEnvNode(node *yaml.Node, path []string) {
+	if isDeferredRef(path) {
+		return
+	}
 	switch node.Kind {
 	case yaml.MappingNode:
 		for i := 0; i+1 < len(node.Content); i += 2 {
-			expandEnvNode(node.Content[i+1])
+			child := append(append([]string(nil), path...), node.Content[i].Value)
+			expandEnvNode(node.Content[i+1], child)
 		}
 	case yaml.SequenceNode:
 		for _, item := range node.Content {
-			expandEnvNode(item)
+			child := append(append([]string(nil), path...), "*")
+			expandEnvNode(item, child)
 		}
 	case yaml.ScalarNode:
 		if node.Tag == "!!str" {
