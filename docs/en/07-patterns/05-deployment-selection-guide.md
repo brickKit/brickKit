@@ -813,9 +813,20 @@ that on its own.
 
 Two things worth knowing, both found by actually running this:
 
-- `--dry-run` overwrites `.brickkit/generated/` on every run, so if you want
-  to keep one environment's generated files around afterward, run that
-  config's `up --dry-run` last.
+- Any `up --dry-run` that has at least one component to start fully
+  regenerates that target's output from scratch: Docker's
+  `docker-compose.yaml` gets overwritten whole, and Kubernetes'
+  `.brickkit/generated/k8s/` subdirectory gets removed and rewritten. So
+  narrowing the config and re-running the *same* target correctly cleans up
+  a disabled component's old files too — no leftover `deployments/`,
+  `services/`, and so on. Wanting to keep *both* runs' output around only
+  matters when the two configs share a target (both `docker`, or both
+  `k8s`); here dev is `docker` and prod is `k8s`, so they write to
+  non-overlapping paths (one file versus a subdirectory), and running one
+  never touches the other's output. The one real edge case: a config change
+  that leaves nothing to start at all (`📋 本次没有组件会启动`) makes the
+  CLI return before generation ever runs — the previous successful run's
+  files are left exactly as they were, not cleared.
 - `grep -v '^{'` filters out the structured JSON log lines the CLI writes to
   stderr — without it, they interleave with the human-readable lines above
   and the diff gets noisy.
