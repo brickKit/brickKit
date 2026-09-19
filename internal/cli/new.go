@@ -62,7 +62,12 @@ func runNew(opts *Options, id, path, contract string) error {
 	if rel == "" {
 		rel = filepath.Join(config.DirComponents, id)
 	}
-	dir := filepath.Join(opts.WorkDir, rel)
+	// 绝对路径就是它自己：filepath.Join 会把它当成相对路径接在 WorkDir 后面，
+	// 写出去的位置和屏幕上打印的对不上。
+	dir := rel
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(opts.WorkDir, rel)
+	}
 
 	if _, statErr := os.Stat(dir); statErr == nil {
 		return clierr.New(clierr.CodeConfigInvalid, "错误：目标目录已存在").

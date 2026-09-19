@@ -40,6 +40,24 @@ func TestNewWithPath(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "--path 指定后不该再额外建 components/ 目录")
 }
 
+// --path 给绝对路径，就写到那个绝对路径——不能被当成相对路径接在项目目录后面。
+// `--path ~/code/widget-repo` 经 shell 展开后就是绝对路径；曾经它会在当前目录下
+// 长出 ./home/…，而屏幕上打印的还是用户敲的那个路径，写到哪和说写到哪对不上。
+func TestNewWithAbsolutePath(t *testing.T) {
+	work := t.TempDir()
+	target := filepath.Join(t.TempDir(), "widget-repo")
+	r := runIn(t, work, "new", "demo/widget", "--path", target)
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+
+	_, err := os.Stat(filepath.Join(target, manifest.FileName))
+	require.NoError(t, err, "文件应该在用户给的绝对路径上")
+	assert.Contains(t, r.stdout, filepath.Join(target, manifest.FileName))
+
+	entries, err := os.ReadDir(work)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "项目目录里不该长出任何东西——那说明绝对路径被拼到了它下面")
+}
+
 // --contract openapi 顺带生成一份占位契约文件，并写进 artifacts。
 func TestNewWithOpenAPIContract(t *testing.T) {
 	dir := t.TempDir()
