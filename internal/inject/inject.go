@@ -60,6 +60,7 @@ type Var struct {
 	//
 	// 由注入引擎标记而不是让渲染器按变量名猜：谁生成的谁最清楚哪一条是密码，
 	// 靠 `strings.HasSuffix(name, "_PASSWORD")` 去猜，早晚会漏掉一种资源。
+	// 声明了 secret: true 的配置项也带（值是它自己的变量名），此时 Owner 指明 Secret 归哪个组件。
 	SecretKey string
 	// Key 是这条变量对应的原始 configSchema key（驼峰形式），只有
 	// Source 为 SourceConfig/SourceOverride 时才有值。Name 是转换后的
@@ -69,6 +70,10 @@ type Var struct {
 	// 外壳作者，用的是原始 key，所以在算这条变量的地方顺手记一份，
 	// 而不是事后去猜。
 	Key string
+	// Owner 是配置类变量（SourceConfig / SourceOverride）来自哪个组件，写成它的版本化服务名。
+	// K8s 据此给声明了 secret: true 的配置项起 Secret 名。servedBy 合并把成员变量改名
+	// （加组件 ID 前缀）时，Owner 原样带着——所以 Secret 仍归成员，外壳的 Deployment 只是引用它。
+	Owner string
 }
 
 // IsSecret 表示这条变量是密码或密钥，不能明文写进部署清单。
@@ -200,6 +205,7 @@ func buildComponent(
 		// 使用者定的资源前缀也是保留的：市场发布时看不到它们，
 		// 只有读完 brickkit.yaml 才知道（004 §5.6.1）
 		reservedPrefixes: envPrefixesOf(bindings),
+		service:          manifest.ServiceName(node.Ref.ID, node.Ref.Version),
 	}
 
 	// 1. 平台通用变量
@@ -247,6 +253,8 @@ type envBuilder struct {
 	// reservedPrefixes 是使用者定义的资源前缀（PRIMARY_ / ARCHIVE_ …）。
 	// 它们只有在读完 brickkit.yaml 之后才知道，市场发布时无从校验。
 	reservedPrefixes []string
+	// service 是这个组件自己的版本化服务名，写进配置类变量的 Owner。
+	service string
 }
 
 func (b *envBuilder) set(v Var) { b.vars[v.Name] = v }
@@ -330,7 +338,12 @@ func (b *envBuilder) addConfig(m *manifest.Manifest, entry config.Component) ([]
 			warnings = append(warnings, reservedConflictWarning(b.componentID, key, name, pattern))
 			continue
 		}
-		b.set(Var{Name: name, Value: formatValue(value), Source: source, Key: key})
+		v := Var{Name: name, Value: formatValue(value), Source: source, Key: key, Owner: b.service}
+		if property.Secret {
+			// 值是凭据：变量名本身就是它在 Secret 里的 key（K8s 渲染器据此引用）
+			v.SecretKey = name
+		}
+		b.set(v)
 	}
 
 	warnings = append(warnings, b.unknownConfigWarnings(m.ConfigSchema, entry.Config)...)

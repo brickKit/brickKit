@@ -132,6 +132,21 @@ func TestDesiredDropsConditionalKindsWhenTurnedOff(t *testing.T) {
 	}, result.Desired, "没打开的开关不该在期望集合里留下任何东西")
 }
 
+// 声明了 secret: true 的配置项：它自己的 Secret 也要出现在 Desired 里，
+// 否则关掉这个配置项之后，孤儿清理找不到理由去删它。
+func TestDesiredCoversConfigSecret(t *testing.T) {
+	m := simple("acme/hello", "0.1.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"apiKey": {Type: "string", Secret: true},
+	}}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{Config: map[string]any{"apiKey": "${THIRD_PARTY_KEY}"}})
+	b.env["THIRD_PARTY_KEY"] = "sk-live-SECRET123"
+
+	assert.Contains(t, b.generate().Desired, "secret/acme-hello-0-1-0-config-secret")
+}
+
 // Desired 是排序的：同一份配置两次生成给出同样的顺序。
 func TestDesiredIsSorted(t *testing.T) {
 	result := fullFeatured(t)

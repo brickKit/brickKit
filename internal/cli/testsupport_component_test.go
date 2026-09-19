@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -42,6 +43,8 @@ type comp struct {
 	Memory string
 	// ResourceDeps 是 "kind:engine" 的列表，如 "database:postgres"（38.7 要用）。
 	ResourceDeps []string
+	// SecretConfig 是 ConfigSchema 里声明了 secret: true 的键名。
+	SecretConfig []string
 	// Port 覆盖默认的 deployment.port（8080）——同一个外壳下的 servedBy
 	// 成员测试要用不同端口，否则端口冲突校验会先一步报错。
 	Port int
@@ -98,6 +101,9 @@ func (c comp) yamlText() string {
 		for _, item := range c.ConfigSchema {
 			name, def, _ := strings.Cut(item, ":")
 			fmt.Fprintf(&b, "    %s:\n      type: string\n      default: \"%s\"\n", name, def)
+			if slices.Contains(c.SecretConfig, name) {
+				b.WriteString("      secret: true\n")
+			}
 		}
 	}
 	b.WriteString("deployment:\n  type: container\n")

@@ -48,6 +48,9 @@ configSchema:
       type: array
       items:
         type: string
+    apiKey:
+      type: string
+      secret: true
 `), "component.yaml")
 
 	assert.Empty(t, warnings)

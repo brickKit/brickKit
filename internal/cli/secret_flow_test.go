@@ -102,3 +102,24 @@ func TestK8sResourcePasswordStaysInSecretNotDeployment(t *testing.T) {
 	assert.Contains(t, string(secrets), "pw-DB-VALUE", "K8s 没有变量替换，Secret 必须在生成时求值")
 	assert.NotContains(t, string(deployment), "pw-DB-VALUE")
 }
+
+// 组件声明了 secret: true：K8s 下配置密钥与资源密码一样进 Secret，Deployment 里两者都没有。
+func TestK8sConfigSecretGoesToSecretNotDeployment(t *testing.T) {
+	t.Setenv("HELLO_TOKEN", "sk-live-TOKEN-VALUE")
+	t.Setenv("HELLO_DB_PASSWORD", "pw-DB-VALUE")
+	declared := secretFlowComp
+	declared.SecretConfig = []string{"apiToken"}
+	f := k8sProjectWith(t, declared, secretFlowEntry, secretFlowResources)
+
+	r := runWithEngine(t, newK8sEngine(), f.Dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+
+	secrets, err := os.ReadFile(filepath.Join(k8sDir(f), "secrets", "config-secrets.yaml"))
+	require.NoError(t, err)
+	deployment, err := os.ReadFile(filepath.Join(k8sDir(f), "deployments", "demo-hello-1-0-0.yaml"))
+	require.NoError(t, err)
+
+	assert.Contains(t, string(secrets), "sk-live-TOKEN-VALUE")
+	assert.NotContains(t, string(deployment), "sk-live-TOKEN-VALUE", "配置密钥不再明文进 Deployment")
+	assert.NotContains(t, string(deployment), "pw-DB-VALUE")
+}

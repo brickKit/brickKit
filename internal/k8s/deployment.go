@@ -221,13 +221,11 @@ func (p *plan) envDoc(c componentPlan) []any {
 	out := make([]any, 0, len(c.Env.Env))
 	for _, v := range c.Env.Env {
 		if v.IsSecret() {
+			name, key := secretRef(v)
 			out = append(out, map[string]any{
 				"name": v.Name,
 				"valueFrom": map[string]any{
-					"secretKeyRef": map[string]any{
-						"name": secretName(v.ResourceID),
-						"key":  v.SecretKey,
-					},
+					"secretKeyRef": map[string]any{"name": name, "key": key},
 				},
 			})
 			continue

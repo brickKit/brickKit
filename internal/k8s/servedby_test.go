@@ -12,6 +12,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/shell"
 )
 
@@ -214,4 +215,31 @@ func TestServedByMemberDependencyGetsEgressRule(t *testing.T) {
 	assert.Equal(t, []any{map[string]any{
 		"podSelector": map[string]any{"matchLabels": map[string]any{"app": "infra-shell-go-core-1-0-0"}},
 	}}, rule["to"], "依赖 servedBy 成员时，出站目标要指向外壳的 Pod，不是成员自己（它没有 Pod）")
+}
+
+// servedBy 成员声明了 secret: true 的配置项：Secret 仍归成员，
+// 外壳的 Deployment 里带前缀的那个变量是指向成员 Secret 的 secretKeyRef。
+func TestServedByMemberSecretConfigStaysWithMemberSecret(t *testing.T) {
+	member := simple("mdm/customer", "1.0.7", 8080)
+	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"apiKey": {Type: "string", Secret: true},
+	}}
+	entry := servedByEntry("infra/shell-go-core", "1.0.0")
+	entry.Config = map[string]any{"apiKey": "${CUSTOMER_KEY}"}
+
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(member, entry)
+	b.env["CUSTOMER_KEY"] = "sk-customer"
+
+	env := envOf(t, b.container("infra-shell-go-core-1-0-0"))
+	secret := b.doc("secrets/config-secrets.yaml")
+	deployment := string(b.file("deployments/infra-shell-go-core-1-0-0.yaml").YAML)
+
+	assert.Equal(t, map[string]any{"secretKeyRef": map[string]any{
+		"name": "mdm-customer-1-0-7-config-secret", "key": "API_KEY",
+	}}, env["MDM_CUSTOMER_API_KEY"], "外壳里带前缀的变量指向成员自己的 Secret")
+	assert.Equal(t, "mdm-customer-1-0-7-config-secret", dig(t, secret, "metadata", "name"))
+	assert.Equal(t, "sk-customer", dig(t, secret, "stringData", "API_KEY"))
+	assert.NotContains(t, deployment, "sk-customer")
 }

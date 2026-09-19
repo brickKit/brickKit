@@ -544,3 +544,21 @@ func TestParseHealthCheckTypes(t *testing.T) {
 		assert.Empty(t, m.HealthCheck.Path)
 	}
 }
+
+// secret: true 是说明书上的一栏：被解析、存下来，不校验任何值。
+func TestConfigPropertySecretIsParsed(t *testing.T) {
+	m, err := Parse([]byte(minimalYAML+`
+configSchema:
+  type: object
+  properties:
+    apiKey:
+      type: string
+      secret: true
+    region:
+      type: string
+`), "component.yaml")
+
+	require.NoError(t, err)
+	assert.True(t, m.ConfigSchema.Properties["apiKey"].Secret)
+	assert.False(t, m.ConfigSchema.Properties["region"].Secret, "不写就是 false")
+}

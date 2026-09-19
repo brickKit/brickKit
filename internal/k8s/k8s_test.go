@@ -7,6 +7,8 @@ package k8s_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -633,6 +635,81 @@ func TestNoSecretFileWithoutSensitiveVars(t *testing.T) {
 	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
 
 	assert.False(t, hasFile(b.generate(), "secrets/resource-secrets.yaml"))
+}
+
+// ============================================================
+// 声明了 secret: true 的配置项（Spec 2026-09-19 §3.1）
+// ============================================================
+
+func secretConfigManifest() *manifest.Manifest {
+	m := simple("acme/hello", "0.1.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"apiKey": {Type: "string", Secret: true},
+		"region": {Type: "string"},
+	}}
+	return m
+}
+
+// 值进 Secret，Deployment 里只留引用：Secret 与 Deployment 在 K8s 里是分开授权的，
+// 密钥明文写进 Deployment，能读 Deployment 的人就都读得到。
+func TestSecretConfigGoesThroughSecret(t *testing.T) {
+	b := newBuilder(t)
+	b.component(secretConfigManifest(), config.Component{Config: map[string]any{
+		"apiKey": "${THIRD_PARTY_KEY}", "region": "eu-west-1",
+	}})
+	b.env["THIRD_PARTY_KEY"] = "sk-live-SECRET123"
+
+	doc := b.doc("secrets/config-secrets.yaml")
+	env := envOf(t, b.container("acme-hello-0-1-0"))
+	deployment := string(b.file("deployments/acme-hello-0-1-0.yaml").YAML)
+
+	assert.Equal(t, "acme-hello-0-1-0-config-secret", dig(t, doc, "metadata", "name"),
+		"<版本化服务名>-config-secret，与资源 Secret（<资源ID>-secret）永不撞名")
+	assert.Equal(t, "sk-live-SECRET123", dig(t, doc, "stringData", "API_KEY"),
+		"${VAR} 在生成时求值——kubectl 不做变量替换")
+	assert.Equal(t, map[string]any{"secretKeyRef": map[string]any{
+		"name": "acme-hello-0-1-0-config-secret", "key": "API_KEY",
+	}}, env["API_KEY"])
+	assert.Equal(t, "eu-west-1", env["REGION"], "没声明 secret 的配置项照常明文")
+	assert.NotContains(t, deployment, "sk-live-SECRET123", "密钥绝不能出现在 Deployment 里")
+}
+
+// 没有声明 secret 的配置项时不生成 config-secrets 文件（空文件只会让人以为漏了什么）。
+func TestNoConfigSecretFileWithoutDeclaredSecrets(t *testing.T) {
+	b := newBuilder(t)
+	m := simple("acme/hello", "0.1.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"region": {Type: "string"},
+	}}
+	b.component(m, config.Component{Config: map[string]any{"region": "eu-west-1"}})
+
+	assert.False(t, hasFile(b.generate(), "secrets/config-secrets.yaml"))
+}
+
+// 值文件权限同样是 0600：Secret 目录整个是。
+func TestConfigSecretFileIsNotWorldReadable(t *testing.T) {
+	b := newBuilder(t)
+	b.component(secretConfigManifest(), config.Component{Config: map[string]any{"apiKey": "${THIRD_PARTY_KEY}"}})
+	b.env["THIRD_PARTY_KEY"] = "sk-live-SECRET123"
+
+	dir := t.TempDir()
+	require.NoError(t, k8s.WriteFiles(dir, b.generate().Files))
+
+	info, err := os.Stat(filepath.Join(dir, "secrets", "config-secrets.yaml"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
+// 变量没定义要报错，与资源密码同一条规则：放过去就是把字面量 "${THIRD_PARTY_KEY}" 当密钥部署上去。
+func TestUnresolvedSecretConfigIsAnError(t *testing.T) {
+	b := newBuilder(t)
+	b.component(secretConfigManifest(), config.Component{Config: map[string]any{"apiKey": "${THIRD_PARTY_KEY}"}})
+
+	_, err := b.build()
+
+	require.Error(t, err)
+	assert.Equal(t, clierr.CodeConfigInvalid, clierr.As(err).Code)
+	assert.Contains(t, err.Error(), "THIRD_PARTY_KEY")
 }
 
 // ${VAR} 没定义时必须报错。

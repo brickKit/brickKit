@@ -169,10 +169,17 @@ func Generate(
 			return nil, err
 		}
 	}
-	if docs := p.secretDocs(); len(docs) > 0 {
-		if err := p.emitAll(result, cfg, now,
-			dirSecrets+"/resource-secrets.yaml", docs); err != nil {
-			return nil, err
+	for _, group := range []struct {
+		file   string
+		config bool
+	}{
+		{"resource-secrets.yaml", false},
+		{"config-secrets.yaml", true},
+	} {
+		if docs := p.secretDocs(group.config); len(docs) > 0 {
+			if err := p.emitAll(result, cfg, now, dirSecrets+"/"+group.file, docs); err != nil {
+				return nil, err
+			}
 		}
 	}
 	for _, c := range p.components {

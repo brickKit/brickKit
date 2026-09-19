@@ -327,6 +327,38 @@ func TestConfigVarRecordsOriginalKeyForDefault(t *testing.T) {
 	assert.Equal(t, "cacheTtlSeconds", v.Key, "默认值（SourceConfig）同样要记原始 key，不只是覆盖值")
 }
 
+// configSchema 里声明了 secret: true 的配置项，注入结果里要标成敏感变量，
+// 并记着它属于哪个组件（K8s 据此起 Secret 名）。
+func TestSecretConfigVarIsMarkedSensitive(t *testing.T) {
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"apiKey": {Type: "string", Secret: true},
+		"region": {Type: "string", Default: "eu-west-1"},
+	}}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{Config: map[string]any{"apiKey": "${THIRD_PARTY_KEY}"}})
+	result := b.build()
+
+	key := varOf(t, result, "people/basic", "API_KEY")
+	assert.True(t, key.IsSecret(), "声明了 secret: true")
+	assert.Equal(t, "API_KEY", key.SecretKey, "变量名就是它在 Secret 里的 key")
+	assert.Equal(t, "people-basic-1-0-0", key.Owner)
+	assert.Equal(t, "${THIRD_PARTY_KEY}", key.Value, "值原样保留，求值是渲染器的事")
+
+	region := varOf(t, result, "people/basic", "REGION")
+	assert.False(t, region.IsSecret(), "没声明 secret 的照常明文")
+	assert.Equal(t, "people-basic-1-0-0", region.Owner, "所有配置类变量都带 Owner")
+}
+
+// 非配置来源的变量没有 Owner——它们不属于任何"某个组件的配置项"。
+func TestNonConfigVarsHaveNoOwner(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+
+	assert.Empty(t, varOf(t, b.build(), "people/basic", "COMPONENT_ID").Owner)
+}
+
 // 非 config 来源的变量（依赖地址、资源连接、平台变量）不是靠某个 configSchema
 // key 转换出来的，Key 该保持空——不能误导外壳作者以为它对应一个 config 项。
 func TestNonConfigVarsHaveNoKey(t *testing.T) {

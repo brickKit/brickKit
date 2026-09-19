@@ -91,6 +91,7 @@ AGENTS.zh.md §6 是那份可以直接复制粘贴的骨架。这篇文档是骨
 | `configSchema.properties.<key>.minimum` | number | 否 | **同样只是被解析、存下来，没有任何东西去执行它。** 按惯例只在 `type: integer`/`number` 的属性上才有意义，但写不写它效果完全一样。必须是数字——写成字符串会在解析阶段被拒绝，这查的是说明书自己的结构，不是使用者填的值：默认值越界、`minimum` 大于 `maximum`，都照样通过，不会有任何警告。 |
 | `configSchema.properties.<key>.maximum` | number | 否 | 同 `minimum`。 |
 | `configSchema.properties.<key>.pattern` | string | 否 | **同样只是被解析、存下来。** 按惯例只在 `type: string` 的属性上才有意义。它不会被当成正则编译，所以写一个非法的正则也照样通过——没有任何东西会去跑它。 |
+| `configSchema.properties.<key>.secret` | boolean | 否 | 默认 `false`。与上面的 `enum`/`items`/`minimum`/`maximum`/`pattern` 不同，这一栏**不是**摆设：它同样不校验任何值，但它决定**值写到哪里**。`deploy.target: k8s` 下，声明了 `secret: true` 的配置项会有自己的 Secret（`secrets/config-secrets.yaml`，名为 `<版本化服务名>-config-secret`），Deployment 里只留 `secretKeyRef`，绝不出现明文。`docker` 目标下这个字段目前没有额外效果（compose 里的 `${VAR}` 占位符本来就从不在文件里展开）。 |
 | `configSchema.required` | `[]string` | 否 | 每一条都必须是 `properties` 里真的声明过的 key——写了一个 `properties` 里没有的名字，在 Manifest 校验阶段就会被拒绝，项目根本没机会为它提供值 |
 
 `required` 是这整块里唯一真正有牙齿的地方：一个列进 `required`、既没有 `default` 也没有被 `brickkit.yaml` 覆盖的属性，会让整个项目的 `brickkit up` 直接拒绝启动，不只是这一个组件——完整机制和真实报错文案见 [04-environment-variables.md](04-environment-variables.md) 第五节第三条。
