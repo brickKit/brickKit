@@ -457,8 +457,8 @@ git commit -F <写好信息的文件>   # 重构：抽出 resolveTopology / clea
 **输出规则（设计书 §2.3–§2.4，逐条实现）：**
 
 - 首行 `graph TD`；缩进 4 个空格，`subgraph` 里的节点缩进 8 个。
-- 节点 `ID["标签"]`，ID = `manifest.ServiceName(id, version)`，标签 = `id@version`；`local: true` 的追加 `<br/>本地调试 :<localPort>`。
-- 声明顺序：① 每个 `servedBy` 外壳一个 `subgraph <外壳服务名>-members["外壳：<外壳 id@version>"] … end`，里面是它收编的成员节点；② 其余节点，按 `graph.Nodes` 的顺序；③ "取不到的弱依赖"占位节点 `ID["id@version<br/>未安装"]`（同一个 ref 只声明一次）；④ 边；⑤ `classDef` + `class`。
+- 节点 `ID["标签"]`，ID = `manifest.ServiceName(id, version)` 把 `-` 全换成 `_`（见下面"实施修订 ⑤"），标签 = `id@version`；`local: true` 的追加 `<br/>本地调试 :<localPort>`。
+- 声明顺序：① 每个 `servedBy` 外壳一个 `subgraph <外壳节点 ID>_members["外壳：<外壳 id@version>"] … end`，里面是它收编的成员节点；② 其余节点，按 `graph.Nodes` 的顺序；③ "取不到的弱依赖"占位节点 `ID["id@version<br/>未安装"]`（同一个 ref 只声明一次）；④ 边；⑤ `classDef` + `class`。
 - 边：强依赖 `A --> B`；弱依赖 `A -.-> B`；取不到的弱依赖 `A -.-> 占位节点`。箭头两侧留空格。
 - 样式类只输出用到的：`disabled`（`!states.IsRunning`）、`local`（`local: true`）、`missing`（占位节点），`classDef` 文本见下面代码；`class` 行把该类的节点 ID 用逗号连起来。
 - 空项目：`graph TD` 加一行 `    %% 当前项目没有组件`，退出码 0；此时不构造安装源客户端。
@@ -2991,7 +2991,7 @@ make build-cli   # 得到 bin/brickkit
 - §8 标题里的数字（Task 3/6 已改成 16）；命令表里加 `brickkit graph`、`brickkit lint` 两行（一句话核心行为）；"Common flags" 里各加一条例子（`brickkit graph > graph.mmd`、`brickkit lint --strict`）。
 - §11.1 代码结构图：`internal/` 下加 `schemagen/`（一行说明：从 Go 结构体反射生成 JSON Schema），仓库根加 `schemas/`、`cmd/gen-schemas/`（注意 §11.1 现在写的是 `cmd/brickkit/   CLI entry point`，照那个格式）。
 - §11.2 "where to dig deeper" 表：加一行"编辑器补全 / JSON Schema"指向 `schemas/` 与 quick-start 的对应一节。
-- §4.1 拒绝清单：加两行——① `brickkit graph` 的 HTML/SVG 输出 / 自建渲染器 → 替代：Mermaid 文本，GitHub 与 VS Code 原生渲染；② `brickkit lint` 做依赖解析 / 跨文件引用检查（比如 `servedBy` 目标是否存在）→ 替代：`brickkit up --dry-run`，它本来就要联网解析依赖图。每一行的措辞要和现有行一致，且英文版**不能**出现字面的 `brickkit <不存在的命令>`（`check-cli-docs` 的规矩：只有中文里的墓碑标记豁免；`graph` 与 `lint` 现在是真命令，没这个问题，但别写 `brickkit graph --output`、`brickkit lint --fix` 这类不存在的参数）。参照第一轮加拒绝清单的那次提交（`git log --oneline --grep 拒绝清单` 找到，`git show` 看它改了哪几处、编号怎么排）把 `docs/{en,zh}/06-architecture/00-overview.md` 里对应的编号条目同步加上（接在现有最后一条之后）。
+- §4.1 拒绝清单：加两行——① `brickkit graph` 的 HTML/SVG 输出 / 自建渲染器 → 替代：Mermaid 文本，GitHub 直接渲染 `.mmd` 文件与 mermaid 围栏；② `brickkit lint` 做依赖解析 / 跨文件引用检查（比如 `servedBy` 目标是否存在）→ 替代：`brickkit up --dry-run`，它本来就要联网解析依赖图。每一行的措辞要和现有行一致，且英文版**不能**出现字面的 `brickkit <不存在的命令>`（`check-cli-docs` 的规矩：只有中文里的墓碑标记豁免；`graph` 与 `lint` 现在是真命令，没这个问题，但别写 `brickkit graph --output`、`brickkit lint --fix` 这类不存在的参数）。参照第一轮加拒绝清单的那次提交（`git log --oneline --grep 拒绝清单` 找到，`git show` 看它改了哪几处、编号怎么排）把 `docs/{en,zh}/06-architecture/00-overview.md` 里对应的编号条目同步加上（接在现有最后一条之后）。
 - §9 是"为什么"的论证；这两条拒绝的理由若 §9 里还没有覆盖，在 §9 加一条简短的 `9.25`（AGENTS 现在的最后一条是 `9.23`/`9.24`，先看清编号再加，并同步 `tests/docfields/principles_test.go` 若它盯着这里的编号）。
 
 - [ ] **Step 3: README、llms、CHANGELOG**
