@@ -960,7 +960,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 为什么组件模型适合 AI 写代码，以及一套具体工作流 | `docs/zh/ai-development.md`（英文版把 `zh` 换 `en`） |
 | 平台是什么、核心机制怎么工作（现行版本） | `docs/zh/architecture/`（英文版把 `zh` 换 `en`） |
 | 每个错误码、每个码底下的各种情形（按 CLI 打印的确切标题）、原因与解法；哪个码值得重试；退出码；⚠️ 警告 | `docs/zh/architecture/error-codes.md`（英文版把 `zh` 换 `en`） |
-| 平台为什么长成这样：贯穿一切的那个想法（声明一张图，其余派生）；它用到或刻意没用的每个工程想法（DDD、GitOps、十二要素、契约先行、六边形架构、TDD……），逐个编号介绍：从"它是什么"讲起，说清好处、代价、对应 AI 开发的什么痛点、BrickKit 怎么做、BrickKit 不做什么以及为什么、AI 怎么应对；十二条原则各自的论证 | `docs/zh/architecture/design-principles.md`（英文版把 `zh` 换 `en`） |
+| 平台为什么长成这样：贯穿一切的那个想法（声明一张图，其余派生）；它用到或刻意没用的每个工程想法（DDD、GitOps、十二要素、契约先行、六边形架构、TDD……），逐个编号介绍：从"它是什么"讲起，说清好处、代价、对应 AI 开发的什么痛点、BrickKit 怎么做、BrickKit 不做什么、AI 怎么应对；十二条原则各自的论证 | `docs/zh/architecture/design-principles.md`（英文版把 `zh` 换 `en`） |
 | 动手教程 | `docs/zh/guide/`（英文版同上） |
 | 一个带数据库和迁移的 Go 组件，深入真实走一遍 | `docs/zh/go-component-template.md`（英文版把 `zh` 换 `en`） |
 | 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/patterns/`（英文版同上） |

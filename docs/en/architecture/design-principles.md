@@ -1,6 +1,6 @@
 # Design principles and trade-offs
 
-The [overview](overview.md) explains *what* the platform does. This page explains *why it is shaped this way*: the one idea that ties the design together; the engineering ideas BrickKit uses — and, just as deliberately, the ones it leaves alone — each explained from scratch, with no assumption that you've met them, and tied to the AI-development pain it answers, what BrickKit does, what it deliberately doesn't do and why, and how an AI copes; and the twelve principles every proposal is checked against.
+The [overview](overview.md) explains *what* the platform does. This page explains *why it is shaped this way*: the one idea that ties the design together; the engineering ideas BrickKit uses — and, just as deliberately, the ones it leaves alone — each explained from scratch, with no assumption that you've met them, and tied to the AI-development pain it answers, what BrickKit does, what it deliberately doesn't do, and how an AI copes; and the twelve principles every proposal is checked against.
 
 [AGENTS.md](../../../AGENTS.md) carries the same twelve principles in compressed form, one line each, written so an AI assistant can judge a proposal against them. This page is the argument behind those lines: what each one means, what it buys, what it costs, and what it refused. Ignoring the 1–12 numbering, the twelve headings below match AGENTS.md §4 word for word, and `make lint` fails if they drift apart or the numbering slips.
 
@@ -31,7 +31,7 @@ The cost is that what can't be derived has to be written down, and the escape ha
 
 ## Meet the ideas
 
-Everything BrickKit uses — and everything it deliberately doesn't — is an idea software engineering has had for a long time. You don't need to know any of them beforehand. Each idea below starts from what it is, then gives its upside and cost, the pain it maps to when you write code with an AI, what BrickKit does about it, what BrickKit deliberately does **not** do and why, and finally how an AI should cope.
+Everything BrickKit uses — and everything it deliberately doesn't — is an idea software engineering has had for a long time. You don't need to know any of them beforehand. Each idea below starts from what it is, then gives its upside and cost, the pain it maps to when you write code with an AI, what BrickKit does about it, what BrickKit deliberately does **not** do, and finally how an AI should cope.
 
 **"What BrickKit doesn't do"** means what the platform deliberately leaves alone, for the component's author (and an AI) to decide. It is a trade-off made on purpose, not a gap waiting to be filled — every item has a reason.
 
@@ -39,7 +39,7 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
 
 ### A. How the system is split
 
-| Idea | The AI-development pain | What BrickKit does | What BrickKit doesn't do, and why | How an AI copes |
+| Idea | The AI-development pain | What BrickKit does | What BrickKit doesn't do | How an AI copes |
 | --- | --- | --- | --- | --- |
 | [1. Bounded contexts (DDD)](#1-bounded-contexts-ddd)<br>Draw a boundary per business area | The system is too big for an AI to read at once, so it guesses | One component = one business boundary, its interface in `component.yaml`; 200–3,500 lines, readable in one pass | Doesn't dictate how a component models its inside, or whether components share a database. Inside the boundary is the author's | People draw the boundaries (an AI can't make that domain call); the AI works inside one, one component at a time |
 | [2. Microservices and service mesh](#2-microservices-and-service-mesh)<br>Many small services; a mesh manages their traffic | Service discovery, config centers, registration SDKs — all of it lands on the AI | Components are built and deployed on their own; addresses come from DNS + an env var, so the AI reads one variable | No registry, gateway, mesh, circuit breaking or rate limiting: each is something that must run permanently and be operated | Ask the AI explicitly to write retries, timeouts and fallbacks into the component's own code |
@@ -47,7 +47,7 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
 
 ### B. How to keep an AI from guessing
 
-| Idea | The AI-development pain | What BrickKit does | What BrickKit doesn't do, and why | How an AI copes |
+| Idea | The AI-development pain | What BrickKit does | What BrickKit doesn't do | How an AI copes |
 | --- | --- | --- | --- | --- |
 | [4. Declarative and GitOps](#4-declarative-and-gitops)<br>Write what you want; keep it in Git | Having an AI write deployment scripts: many steps, hard to review | `brickkit.yaml` says only what you want; order, addresses, variables and deployment files are computed by the CLI, and the diff is the review | No continuous correction: `up` is a one-shot apply, the CLI exits, nothing keeps watching | Have it change only `brickkit.yaml`; run `up --dry-run` to see the plan, then `up`; never hand-edit running containers |
 | [5. Convention over configuration](#5-convention-over-configuration)<br>The tool sets the rules; follow them and configure little | An AI has to guess variable names, ports and addresses — and a wrong guess often raises no error | Names come from fixed rules: `people/basic` → `PEOPLE_BASIC_ENDPOINT`, no guessing | Doesn't decide for you: version, exposure and enabling must all be written down, never guessed | Derive variable names by the rule instead of letting the AI invent them; make it write versions and exposure explicitly |
@@ -56,7 +56,7 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
 
 ### C. How the boundary is stated, and what happens on error
 
-| Idea | The AI-development pain | What BrickKit does | What BrickKit doesn't do, and why | How an AI copes |
+| Idea | The AI-development pain | What BrickKit does | What BrickKit doesn't do | How an AI copes |
 | --- | --- | --- | --- | --- |
 | [8. Contract-first](#8-contract-first)<br>Write the interface down as a file, then build | To call another component an AI can only dig through its source and guess | `artifacts` carry OpenAPI / protobuf contracts with the component; a closed-source component must still publish its contract | Doesn't dictate a format or check that the implementation matches the contract | Have it read the contract, not the source; whether they agree is up to contract tests you write |
 | [9. Design by contract](#9-design-by-contract)<br>State what you require and guarantee; fail when broken | An AI doesn't know which settings a component accepts, or in what range | `configSchema` states the settings, types and ranges; a misspelled key in the project's config gets a CLI warning | Doesn't check values: a wrong value makes the component fail on its own, a wrong name is the one nobody would notice | Have it read `configSchema` before writing; put value checks in the component's startup |
@@ -64,14 +64,14 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
 
 ### D. Security
 
-| Idea | The AI-development pain | What BrickKit does | What BrickKit doesn't do, and why | How an AI copes |
+| Idea | The AI-development pain | What BrickKit does | What BrickKit doesn't do | How an AI copes |
 | --- | --- | --- | --- | --- |
 | [11. Least privilege](#11-least-privilege)<br>Grant only the access needed; the rest is closed | With a bug or a break-in, the more a component can reach, the bigger the damage | No port mapping means no outside access; no `expose` means no entry point; network policies can be generated from the dependency graph | Network policies and ServiceAccount isolation are opt-in: turning them on can stop a working component from starting, and that cost is yours to weigh | The AI declares only the dependencies it really needs; a person decides whether to turn those two on |
 | [12. Supply-chain security](#12-supply-chain-security)<br>Check who published third-party code and that it wasn't altered | When an AI pulls in a third-party component, the source is hard to verify | Publishers sign with cosign; the installer verifies with the Go standard library; the trusted keys live in your own project | No upfront review (scanning, sandboxing): installing implies trust, and a bad component is marked `blocked` afterwards | A person confirms any new component and any new trusted key — don't leave those to the AI |
 
 ### E. How a component is written and tested inside
 
-| Idea | The AI-development pain | What BrickKit does | What BrickKit doesn't do, and why | How an AI copes |
+| Idea | The AI-development pain | What BrickKit does | What BrickKit doesn't do | How an AI copes |
 | --- | --- | --- | --- | --- |
 | [13. Type-driven development](#13-type-driven-development)<br>Use types so wrong code won't compile | Whether AI-written code is right can't be seen just by reading it | Nothing (the CLI is written in Go, but components aren't required to be) | No language restriction: anything that builds a container image is a component | Pick a language with type checking for the AI, and let the compiler be the first gate |
 | [14. TDD and BDD](#14-tdd-and-bdd)<br>Write tests or behavior descriptions first, then the code | Code first and tests after, so the tests merely restate the code | Advice: [layered testing](../patterns/testing.md) and a spec-first order; `up --dry-run` checks the assembly without starting a container | How to test is the component's; the platform checks nothing. `--dry-run` checks the assembly, not the code | Have it write the spec and tests first and watch them fail, then the implementation; add the edge cases yourself |
@@ -98,7 +98,7 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
   - Components are small: the 10 real components the project ships range from 200 to 3,500 lines, readable in one pass.
   - A component shouldn't straddle two contexts; a context can be one component or several. Data that must hold together (say "a balance never goes negative", which constrains both accounts and ledger entries) belongs in the **same component**, because there is no transaction across components.
   - Whether to split can be settled with three questions (recommended criteria, not platform rules): is there an invariant between the two pieces of data that must hold at every moment? Do they need to be released independently, or belong to different people? After the split, can a caller write its calling code from the contract alone?
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - It doesn't dictate how a component models its inside (how aggregates and entities are drawn). That is component autonomy: the platform manages the boundary; inside it belongs to the author.
   - It doesn't enforce isolation: whether components share a database (isolated by schema or by a primary-key prefix, say) or get merged into one process (a `servedBy` shell) is your call, made for the business at hand. If they share one, mind this: the migration state table's primary key must include a component identifier, or the components' migrations will clobber each other.
   - The reason: once the platform starts prescribing the inside, it stops being an orchestrator and becomes a framework, and a framework can only produce components of one shape.
@@ -126,7 +126,7 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
   - Components are built, deployed and called independently; every component is a container (frontends too).
   - Addresses come from DNS plus an environment variable: a caller reads one variable (say `PEOPLE_BASIC_ENDPOINT`, whose value is `http://people-basic-1-0-0:8080`) and never has to understand service discovery. A component needs no registration SDK at all — zero intrusion.
   - What is needed is left to the underlying engine, which already provides it: load balancing is Kubernetes Service's own; health checks and restarts are Compose's `healthcheck` and Kubernetes Probes; if you need a gateway, `labels` are passed through verbatim to a tool like Traefik — the platform doesn't understand what a label means, it just passes it on.
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - **A registry:** the DNS that Docker Compose and Kubernetes already provide is service discovery, for free. Building one means keeping it highly available; and once a component adopts a home-made discovery SDK it is no longer "zero intrusion".
   - **A gateway, a mesh, load balancing:** routing rules differ by business, and forcing one shape on them fits nobody. If you bypass `labels` and hand-write a routing config full of versioned service names, it silently goes stale the moment a component bumps a version, and the platform won't tell you.
   - **Circuit breaking, rate limiting, retries:** thresholds and backoff strategies differ by business — a platform default would rarely suit every case and would limit the flexibility some component really needs. Wait for the platform to retry for you and nothing happens: one transient network blip surfaces as an unhandled exception.
@@ -157,7 +157,7 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
 - **What BrickKit does:**
   - It enforces no internal structure. The platform specifies only how a component looks *at its boundary*: a Manifest, a health check, and reading environment variables (see the principle "[Component autonomy](#2-component-autonomy)").
   - There is a real layered reference: [writing a Go component](../go-component-template.md). It is a real component that depends on PostgreSQL and has migrations; `server.go` / `service.go` / `store.go` are the HTTP layer, the business layer and the data-access layer, alongside `config.go` (configuration read only from the environment) and `migrate.go`.
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - It doesn't dictate how to layer, or whether to use hexagonal. `brickkit new` generates only a `component.yaml` that passes validation — no code structure, and it doesn't pick a language for you.
   - The reason: once the platform manages the inside, it stops being an orchestrator and becomes a framework, and a framework can only produce components of one shape.
 - **How an AI copes:**
@@ -185,7 +185,7 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
   - Each environment gets its own complete, self-contained file, chosen with `brickkit up --config brickkit.prod.yaml`.
   - `brickkit up --dry-run` starts nothing and prints the plan first, so you (and an AI) look before acting.
   - The only way to narrow what starts is to change `enabled`; there is no `--only`-style flag.
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - **Continuous correction:** `brickkit up` is a one-shot apply and the CLI exits; nothing keeps watching. If someone hand-edits a running container, no program changes it back, and it lines up again at the next `up`. Continuous correction needs a resident program that somebody has to operate. Build a daemon to fix "nobody remembers to run `up`" and you have re-created the single point of failure and attack surface BrickKit deliberately avoids (see the principle "[Platform minimalism](#1-platform-minimalism)").
   - **Multi-environment overlays (a base layer plus override layers):** an overlay makes you assemble "base, override, merge rules" in your head to understand the final config, and a Git diff can't tell you whether a change to the base ripples into another environment. BrickKit chooses one complete file per environment: what you see is what you get, and the cost is some repetition between the files.
   - **An "are you sure?" prompt:** `brickkit.yaml` is the declaration — write it and it executes.
@@ -231,7 +231,7 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
   | Resource connection variables | The resource's `kind` is the prefix | `DATABASE_*`, `REDIS_*` … |
 
   The rule runs **both ways**: from `people/basic` you can compute the variable name, and from `PEOPLE_BASIC_ENDPOINT` you know exactly which component it points at. Defaults are conventions too: no `expose` means not reachable from outside, and no `enabled` means follow whatever is above.
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - **Decide for you:** which version, which port to expose, whether to enable a component — the platform never guesses these, and you have to write them down (see the principle "[Explicit over implicit](#5-explicit-over-implicit)"). That is why BrickKit's own phrase is "derivation over configuration": what can be *computed* from what you wrote is derived; what can't, you write.
   - **Dependency aliases:** someone proposed letting a dependency have an alias (`as: iam`). An alias keeps only half of that two-way relationship — `IAM_ENDPOINT` can't be traced back to the component it points at, and that is exactly where an investigation into "why is this address wrong" starts.
   - The cost is real too: a component ID becomes, unchanged, the variable name in every caller's code, so name it with the domain's own words, not implementation words.
@@ -260,7 +260,7 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
   - The address format is identical on Docker and Kubernetes; moving between them changes one field (`deploy.target`) and no component code.
   - `up` checks, moving the "found out too late" cost up to deploy time: a misspelled config key warns and guesses which one you meant; a setting that is required, has no default and isn't set in the project stops `up`; a config key that collides with a reserved platform variable warns and is skipped (the platform's value wins).
   - The full list of variables is in the [environment variable contract](environment-variables.md).
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - **A config center, hot reload:** that is a whole heavy mechanism of long-lived connections, pushes and version comparison, and settings such as connection-pool size and timeouts only take effect safely on a restart anyway. Change `brickkit.yaml`, then `brickkit up`. If a business toggle truly needs millisecond-level updates, the component can poll Redis itself.
   - **Validating a config value:** `configSchema` is only a spec sheet — see [9. Design by contract](#9-design-by-contract).
 - **How an AI copes:**
@@ -301,7 +301,7 @@ if not bus:
   - The version becomes part of the service name: `people-basic-1-0-0` and `people-basic-2-0-0` are two different DNS names that run side by side without colliding.
   - The variable *name* carries no version, but the variable *value* does: `DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080`. A caller always knows which version it is talking to; there is no implicit upgrade.
   - See [core concepts](../concepts.md).
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - **Resolving version ranges:** a range is a classic cause of "works on my machine, breaks in production".
   - **Two versions of one component inside another component:** within a single `component.yaml`'s `dependencies`, one component ID can appear only once — the variable name carries no version, so two would collide on the same `*_ENDPOINT` and the later would silently overwrite the earlier. Side-by-side coexistence is therefore a **project-level** capability, not a component-level one: `brickkit.yaml` can list two version entries so different callers each use their own.
   - **Data compatibility between side-by-side versions:** the platform offers only a physical buffer; a breaking change is an organizational coordination problem, and whether the data layer stays compatible is your responsibility.
@@ -338,7 +338,7 @@ components:
   - A component ships its contract files with the Manifest through `artifacts`, and `brickkit add` and `brickkit fetch` download them. `fetch` downloads only the artifacts — it doesn't touch `brickkit.yaml` and deploys nothing — for calling a service in another project.
   - The Market requires a closed-source component that provides an API to include an `api-contract` artifact: the code may be closed, the contract may not.
   - The platform's one job is to make sure what's listed under `files` really reaches whoever wants it.
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - It doesn't dictate a format: `type` and `format` are free-form strings the CLI never parses (OpenAPI, protobuf, anything of your own). Parsing formats would mean the platform first had to understand OpenAPI and protobuf.
   - It doesn't check that an implementation actually matches its contract. Whether they agree is the component's own matter.
 - **How an AI copes:**
@@ -375,7 +375,7 @@ artifacts:
   - A component uses it to state which settings it has, their types, defaults and allowed ranges (`enum`, `minimum`, `maximum`, `pattern`), where both people and AI can read them.
   - The CLI checks that a key's *name* in the project's config exists in `configSchema`: a typo warns and guesses which key you meant. If a component declares no `configSchema` at all but the project writes `config` anyway, the whole block has no effect, and that warns too.
   - A setting that is required (`required`), has no default and isn't set in the project stops `up`, naming exactly which component and which item.
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - **It doesn't check a setting's *value*.** A setting declared `type: integer` that is filled in with a string isn't stopped by the CLI; the component fails when it calls `int()` on it — the discovery happens at runtime, not at `brickkit up`.
   - The line falls where a runtime safety net exists or doesn't: a wrong value makes the component fail on its own, so you'll certainly notice; a wrong name just means the variable quietly doesn't exist and the component takes its default branch and runs normally, with nothing to tell you. So names are checked and values are not.
   - And once you start validating values you can't stop — enums? ranges? regexes? `required`? JSON Schema's power is enormous, and the CLI would keep growing. What to do about a bad value (fail, degrade, fall back to a default) is also the component's call.
@@ -424,7 +424,7 @@ configSchema:
   - A missing required dependency makes `up` refuse to generate anything; a misspelled config key warns; a setting that is required, has no default and isn't set in the project stops `up`.
   - A failed migration keeps the main service from starting; a port conflict is an error.
   - **The clearest case is a weak dependency:** when one is missing, the platform injects *no variable at all* rather than an empty string.
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - **Decide how a component degrades.** If Redis goes down, one component queries the database, another returns an empty list, another writes to a local file and retries later — that is pure business judgment, and the platform has no universal definition of "degrade". Its only action is to not inject the variable.
   - The cost is real too: a component that reads that variable with `os.environ["X"]` crashes at startup when it's absent. That is deliberate: better to crash loudly at startup than to be quietly wrong at runtime.
 - **How an AI copes:**
@@ -452,7 +452,7 @@ configSchema:
   - **ServiceAccount:** `serviceAccount: { enabled: true }` gives each component its own ServiceAccount, with no token mounted.
   - The CLI itself never mounts the Docker socket.
   - See [network policy and least privilege](../guide/11-network-policy.md).
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - **Turn them on by default:** network policies, ServiceAccount isolation and `podSecurity: restricted` can each stop a component that already works from starting — a real, project-specific cost the platform isn't in a position to weigh for you.
   - **Verify that a network policy takes effect:** many clusters accept these objects and enforce none of them — `kubectl apply` succeeds and `kubectl get networkpolicy` shows them, yet traffic flows freely, with no error. The default network plugin (CNI) of minikube and kind is one of these. Kubernetes has no API to ask, so the platform can't tell, and `brickkit up` warns you every time to check it yourself once.
 - **How an AI copes:**
@@ -500,7 +500,7 @@ spec:
   - **Installing:** the installer verifies with the Go standard library alone, so cosign needn't be installed. The public keys you trust go in your own project's `installer.publicKeys`, and `requireSignature` defaults to `true`.
   - **States and visibility:** a component version is `draft`, `stable`, `deprecated` or `blocked`, and its visibility is `public` or `private`.
   - See [signing and the trust model](signing-and-trust.md).
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - **Upfront review:** no scanning, no sandboxing, no static analysis. Installing implies trust — the same model as npm, the VS Code extension marketplace and GitHub. Upfront review either flags too many legitimate components or misses cleverly disguised malicious ones: expensive and unreliable. When a component is later confirmed malicious, the only tool is to mark it `blocked`, which stops new installs.
   - **Take public keys from the Market:** otherwise a compromised Market could swap the component and the key together, and verification would still pass — the Market issuing its own certificates to itself.
   - **Note:** with no public key configured at all, signature verification is **switched off entirely**, and `requireSignature: true` does nothing either (the CLI warns once).
@@ -522,7 +522,7 @@ spec:
   - Designing the types takes effort of its own; done badly, they become a burden.
 - **The AI-development pain:** AI-written code reads smoothly, but whether it is right can't be seen just by reading it — a machine has to check.
 - **What BrickKit does:** Nothing, and it doesn't need to. BrickKit's own CLI is written in Go and benefits from type checking, but components aren't required to do the same.
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - **Restrict the language, as completely as anywhere:** anything that builds a container image will do. The fixtures in the repository already use three: `people/basic` is Python, `auth/password-login` is Go, and `portal/user-frontend` is plain HTML served by nginx. Being language-agnostic is one of the platform's core values.
   - **Provide an SDK:** the only trace of the platform in a component's code is reading environment variables. So everything the platform hands a component is a **string** (numbers and booleans included), and turning it into types is the component's own job.
 - **How an AI copes:**
@@ -559,7 +559,7 @@ charge(qty) // won't compile: a Quantity can't be used as Cents
   - [Layered testing](../patterns/testing.md) covers how to test a component in layers: L1 contract tests (the shape of the interface), L2 business-rule tests (invariants, idempotency, legal state transitions), L3 unit tests (the branches of this implementation), L4 integration tests (real dependencies, end to end). One criterion separates L2 from L3: delete the implementation entirely and rewrite it in another language — should this test still hold? If so, it's L2.
   - It also gives a "spec first, implementation after" order (the table below). A BrickKit component happens to have three specs that don't depend on the implementation, all in `component.yaml`: `configSchema`, `dependencies` and the contract files.
   - What BrickKit adds is `brickkit up --dry-run`: it starts no container, yet checks whether `component.yaml` and `brickkit.yaml` agree (a misspelled config key, for instance).
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - It neither requires nor checks how you test: testing strategy has never been within the platform's remit — it's part of component autonomy.
   - `--dry-run` checks whether the **assembly** is right, not whether the **component's code** is.
   - And a word on the evidence: the layered-testing method comes from the retrospective of a real production deployment (14 components); the "spec first, implementation after" order is a recommendation that doesn't yet have the same field backing, so use it as you judge.
@@ -600,7 +600,7 @@ charge(qty) // won't compile: a Quantity can't be used as Cents
   - **Resource-quota merging (`inject`):** checks field-by-field precedence, that `limits` has no default layer, and that merging the result in again changes nothing.
   - Everything uses a fixed random seed, and failure messages carry the seed so a failure reproduces exactly; no new dependency. To check that the tests really bite, two bugs were planted in each of the three implementations, and all six were caught; all three implementations also matched the documented rules.
   - For components it only gets a mention in the [data construction guide](../patterns/data-construction.md): property-based testing suits a "core invariant" (a balance never going negative, a state machine never reaching an invalid transition). It needs volume, but for a different reason than seed data — to maximize the chance that random inputs land on a boundary, not to give a complete experience.
-- **What BrickKit doesn't do, and why:**
+- **What BrickKit doesn't do:**
   - It's neither required nor recommended for components: it applies fairly narrowly, mainly to core invariants; for most business code, ordinary example-based tests are enough.
   - It doesn't provide a property-testing framework or library: the platform itself uses the standard library's random numbers.
 - **How an AI copes:**
