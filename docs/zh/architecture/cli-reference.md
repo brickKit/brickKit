@@ -19,7 +19,7 @@ AGENTS.zh.md §8 给每个命令一句话概括，加一小撮精选的参数示
 **用法：** `brickkit init <项目名称> [flags]`
 
 在当前目录生成 `brickkit.yaml`、`components/`、`.brickkit/`，把平台自己
-那份规则追加进 `.gitignore`（003 §11），并装入 AI 助手技能
+那份规则追加进 `.gitignore`，并装入 AI 助手技能
 （`.claude/skills/`、`AGENTS.md`）。项目名称必须显式指定，没有默认值，
 只能是小写字母/数字/中划线，且以字母或数字开头结尾（要喂给 Docker 网络
 名和 K8s namespace）。
@@ -31,7 +31,7 @@ AGENTS.zh.md §8 给每个命令一句话概括，加一小撮精选的参数示
 
 如果项目还把组件源码一起纳入版本控制（把 `components/` 从 `.gitignore`
 里去掉），`init` 会额外装一个 pre-commit hook，拦住"归档状态变了、
-`enabled` 却没跟着改"这个失误（004 §3.14）——但只有当项目根目录**就是**
+`enabled` 却没跟着改"这个失误——但只有当项目根目录**就是**
 Git 仓库根目录时才会自动装；嵌套在别人仓库里的项目，需要用 `--hooks` 显
 式补装。
 
@@ -262,7 +262,7 @@ $ brickkit add people/basic@1.0.0 --yes
    影响组件：people/basic@1.0.0
    原因：该组件在所有安装源中均未找到
    影响：该组件的环境变量 INFRA_REDIS_EVENT_BUS_ENDPOINT 不会被注入
-   💡 弱依赖降级由组件自行处理（002 §3.4）；如需启用，请确认该组件已发布并可从安装源获取
+   💡 弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取
 ✅ 已写入 brickkit.yaml（2 个组件）
 📁 已下载 artifacts 到 .brickkit/artifacts/（4 个文件）
 ```
@@ -321,7 +321,7 @@ brickkit remove people/basic@1.0.0 --force    # 有未提交/未推送的改动�
 Manifest 的 `artifacts` 段里列的东西），但**不把它装进本项目**——不写
 `brickkit.yaml`，不参与部署，不进依赖图。这是跨项目场景：你需要另一个
 团队的契约去生成客户端，但那个服务是他们的项目部署的，不是你的，把它写
-成依赖会让平台在你这边再部署一份（003 §4.9）。
+成依赖会让平台在你这边再部署一份。
 
 产物落在 `.brickkit/artifacts/<版本化服务名>/<type>/...`——跟
 `brickkit add` 下载的完全同一个位置，默认同样跟着项目提交、团队共享。
@@ -351,7 +351,7 @@ Manifest → 启停判定（跟着上层走：顶层组件没写 `enabled` 就�
 断主服务。
 
 改 `brickkit.yaml` 里某个组件的版本号**就是**升级——`up` 会拉新的
-Manifest 和产物，跑一遍跟全新安装一样的兼容性检查（004 §3.5.1）。
+Manifest 和产物，跑一遍跟全新安装一样的兼容性检查。
 
 **参数**
 
@@ -371,7 +371,7 @@ $ brickkit up --dry-run
    影响组件：people/basic@1.0.0
    原因：该组件在所有安装源中均未找到
    影响：该组件的环境变量 INFRA_REDIS_EVENT_BUS_ENDPOINT 不会被注入
-   💡 弱依赖降级由组件自行处理（002 §3.4）；如需启用，请确认该组件已发布并可从安装源获取
+   💡 弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取
 📋 组件状态计算：
    ✅ department/tree@1.0.0  启动（people/basic 需要）
    ✅ people/basic@1.0.0     启动（顶层）

@@ -22,8 +22,8 @@ otherwise.
 **Syntax:** `brickkit init <project-name> [flags]`
 
 Creates `brickkit.yaml`, `components/`, and `.brickkit/` in the current
-directory, appends the platform's own rules to `.gitignore` (design/003
-§11), and installs the AI assistant skills (`.claude/skills/`, `AGENTS.md`).
+directory, appends the platform's own rules to `.gitignore`, and installs
+the AI assistant skills (`.claude/skills/`, `AGENTS.md`).
 The project name is required — no default — and must be lowercase
 letters/digits/hyphens, starting and ending with a letter or digit (it feeds
 both the Docker network name and the K8s namespace).
@@ -38,7 +38,7 @@ never touches your own `CLAUDE.md` — that file is yours.
 If the project also puts component source under version control (removing
 `components/` from `.gitignore`), `init` additionally installs a pre-commit
 hook that catches "the archive state changed but `enabled` didn't come with
-it" (design/004 §3.14) — but only when the project root **is** the Git repo
+it" — but only when the project root **is** the Git repo
 root; a project nested inside someone else's repo needs `--hooks` to install
 it explicitly.
 
@@ -282,7 +282,7 @@ $ brickkit add people/basic@1.0.0 --yes
    影响组件：people/basic@1.0.0
    原因：该组件在所有安装源中均未找到
    影响：该组件的环境变量 INFRA_REDIS_EVENT_BUS_ENDPOINT 不会被注入
-   💡 弱依赖降级由组件自行处理（002 §3.4）；如需启用，请确认该组件已发布并可从安装源获取
+   💡 弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取
 ✅ 已写入 brickkit.yaml（2 个组件）
 📁 已下载 artifacts 到 .brickkit/artifacts/（4 个文件）
 ```
@@ -347,8 +347,7 @@ installing the component into this project — no `brickkit.yaml` write, no
 deployment, no dependency-graph involvement. This is the cross-project
 case: you need another team's contract to generate a client against, but
 that service is deployed by their project, not yours, and adding it as a
-dependency here would make this platform try to deploy a second copy of it
-(design/003 §4.9).
+dependency here would make this platform try to deploy a second copy of it.
 
 Artifacts land at `.brickkit/artifacts/<versioned-service-name>/<type>/...`
 — the exact same location `brickkit add` uses, and by the same default,
@@ -383,7 +382,7 @@ container first and blocking the main service on its failure.
 
 Changing a component's version in `brickkit.yaml` **is** an upgrade — `up`
 pulls the new Manifest and artifacts and runs the same compatibility checks
-as a fresh install (design/004 §3.5.1).
+as a fresh install.
 
 **Flags**
 
@@ -403,7 +402,7 @@ $ brickkit up --dry-run
    影响组件：people/basic@1.0.0
    原因：该组件在所有安装源中均未找到
    影响：该组件的环境变量 INFRA_REDIS_EVENT_BUS_ENDPOINT 不会被注入
-   💡 弱依赖降级由组件自行处理（002 §3.4）；如需启用，请确认该组件已发布并可从安装源获取
+   💡 弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取
 📋 组件状态计算：
    ✅ department/tree@1.0.0  启动（people/basic 需要）
    ✅ people/basic@1.0.0     启动（顶层）

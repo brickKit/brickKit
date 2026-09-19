@@ -48,7 +48,7 @@ brickkit publish --path ./components/demo/hello --source-type git \
 ```
 ❌ 错误：无法确定镜像的 digest，发布已中止
    镜像：brickkit-demo/hello:1.0.0
-   为什么要拦住：发布出去的版本号不可回收（007 §6.4）。取不到 digest
+   为什么要拦住：发布出去的版本号不可回收。取不到 digest
    通常意味着这个镜像消费方也拉不到——与其在市场里留下一个装不上的
    版本，不如现在停下
 ```
@@ -75,7 +75,7 @@ brickkit publish --path ./components/demo/hello --source-type git \
 ❌ 错误：发布组件版本失败
    原因：闭源组件提供 API 时必须上传 API 契约文件
    hint：在 artifacts 中声明至少一个 type: api-contract 的产物
-   （002 §5.11：代码可以闭源，API 契约不能闭源）
+   （代码可以闭源，API 契约不能闭源）
 ```
 
 `demo/hello` 唯一声明的产物是 `type: api-docs`——给人看的文档，不是机器能直接消费的契约（一份 protobuf 文件，一份给 codegen 用的 OpenAPI 规范）。市场专门对闭源组件强制这条区分：藏起实现可以，藏起调用方要对接的那个形状不行。
@@ -97,7 +97,7 @@ brickkit add demo/hello@1.0.0
    └── artifacts ✅（1 个文件）
 ⚠️ 警告：requireSignature 为 true，但项目没有声明任何可信公钥，签名校验实际未生效
    说明：这不是配置错误，是还没配完——requireSignature 默认为 true，
-   而 publicKeys 要等你从发布者那里拿到公钥才填得上（008 §8.5.1）
+   而 publicKeys 要等你从发布者那里拿到公钥才填得上
 ```
 
 这个项目从没在这个市场装过任何东西，而 Manifest 和产物是真的从市场取回来的——这条警告也是真的，不是假设性的：这个项目现在真的没有配任何信任锚点，正是[签名与信任模型](../architecture/signing-and-trust.md)描述的那个缺口。`brickkit up` 照样能跑——签名校验没配完是警告，不是拦截：
@@ -117,7 +117,7 @@ curl http://localhost:8099/api/v1/hello
 ```
 ❌ 错误：demo/hello@1.0.0 已经发布过了
    市场上的状态：stable
-   原因：版本号一旦发布就不可回收，软删除的版本同样占位（007 §6.4）
+   原因：版本号一旦发布就不可回收，软删除的版本同样占位
 ```
 
 换成把 `2.0.0` 发成 `--visibility private`，一个没登录过的项目想装它，会拿到一条真实、具体的拒绝，不是一个假装这个版本不存在的通用 404：

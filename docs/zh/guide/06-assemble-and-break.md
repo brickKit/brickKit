@@ -32,7 +32,7 @@ resources:
 ⚠️ 基础资源的 host 看起来是个服务名，容器里可能解析不了
    资源：caller-db
    host：guide-pg
-   原因：平台不部署基础资源（006 §9.1），compose 里不会有叫这个名字的 service
+   原因：平台不部署基础资源，compose 里不会有叫这个名字的 service
    建议：
    1. 资源跑在本机时写 host: host.docker.internal（平台会自动补 extra_hosts）
    2. 资源跑在别处时写它的 IP 或域名
@@ -46,7 +46,7 @@ brickkit up
 ```
 
 ```
-📌 以下基础资源需要先跑起来（平台不代为部署，见 006 §9.1）：
+📌 以下基础资源需要先跑起来（平台不代为部署）：
    caller-db    postgresql   host.docker.internal:15432  供 demo/caller 使用
 🔧 启动前会执行的数据库迁移（失败则该组件不会启动）：
    demo/caller@1.0.0  /app/caller migrate

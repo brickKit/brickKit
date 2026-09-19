@@ -48,7 +48,7 @@ The first attempt, with no flags about the image, refuses outright:
 ```
 ❌ 错误：无法确定镜像的 digest，发布已中止
    镜像：brickkit-demo/hello:1.0.0
-   为什么要拦住：发布出去的版本号不可回收（007 §6.4）。取不到 digest
+   为什么要拦住：发布出去的版本号不可回收。取不到 digest
    通常意味着这个镜像消费方也拉不到——与其在市场里留下一个装不上的
    版本，不如现在停下
 ```
@@ -75,7 +75,7 @@ A closed-source attempt (`--source-type registry`) with this exact same Manifest
 ❌ 错误：发布组件版本失败
    原因：闭源组件提供 API 时必须上传 API 契约文件
    hint：在 artifacts 中声明至少一个 type: api-contract 的产物
-   （002 §5.11：代码可以闭源，API 契约不能闭源）
+   （代码可以闭源，API 契约不能闭源）
 ```
 
 `demo/hello`'s only declared artifact is `type: api-docs` — human-readable documentation, not a machine-consumable contract (a protobuf file, an OpenAPI spec meant for codegen). The marketplace enforces this distinction specifically for closed-source components: hiding the implementation is fine, hiding the shape callers need to integrate against is not.
@@ -97,7 +97,7 @@ brickkit add demo/hello@1.0.0
    └── artifacts ✅（1 个文件）
 ⚠️ 警告：requireSignature 为 true，但项目没有声明任何可信公钥，签名校验实际未生效
    说明：这不是配置错误，是还没配完——requireSignature 默认为 true，
-   而 publicKeys 要等你从发布者那里拿到公钥才填得上（008 §8.5.1）
+   而 publicKeys 要等你从发布者那里拿到公钥才填得上
 ```
 
 The Manifest and artifacts really did come from the market this project has never installed anything from before — and the warning is real, not hypothetical: this project genuinely has no trust anchor configured yet, exactly the gap [Signing and the trust model](../architecture/signing-and-trust.md) describes. `brickkit up` still works — signature enforcement being unconfigured is a warning, not a block:
@@ -117,7 +117,7 @@ Publishing `demo/hello@1.0.0` a second time — even identically — is refused:
 ```
 ❌ 错误：demo/hello@1.0.0 已经发布过了
    市场上的状态：stable
-   原因：版本号一旦发布就不可回收，软删除的版本同样占位（007 §6.4）
+   原因：版本号一旦发布就不可回收，软删除的版本同样占位
 ```
 
 Publish `2.0.0` as `--visibility private` instead, and an unauthenticated project trying to install it gets a real, specific denial — not a generic 404 pretending the version doesn't exist:

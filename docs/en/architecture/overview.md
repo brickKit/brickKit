@@ -92,7 +92,7 @@ dependencies:
     # 强依赖：注入 AUTHORIZATION_RBAC_ENDPOINT（gRPC 与 HTTP 共用主端口）
     - authorization/rbac@1.0.0
     # **弱依赖**：没装它时平台完全不注入 INFRA_REDIS_EVENT_BUS_ENDPOINT，
-    # 本组件据此降级——审批照常成功，只是不发事件（003 §4.3）
+    # 本组件据此降级——审批照常成功，只是不发事件
     - id: infra/redis-event-bus@1.0.0
       optional: true
 ```

@@ -205,7 +205,7 @@ Get this wrong and `brickkit up --dry-run` warns you at generation time (this is
 ⚠️ 基础资源的 host 看起来是个服务名，容器里可能解析不了
    资源：postgres-main
    host：brickkit-template-pg
-   原因：平台不部署基础资源（006 §9.1），compose 里不会有叫这个名字的 service
+   原因：平台不部署基础资源，compose 里不会有叫这个名字的 service
    建议：
    1. 资源跑在本机时写 host: host.docker.internal（平台会自动补 extra_hosts）
    2. 资源跑在别处时写它的 IP 或域名
@@ -226,7 +226,7 @@ brickkit up
 📋 启动顺序（拓扑排序）：
    1. department-tree-1-0-0  无依赖
 
-📌 以下基础资源需要先跑起来（平台不代为部署，见 006 §9.1）：
+📌 以下基础资源需要先跑起来（平台不代为部署）：
    postgres-main postgresql   host.docker.internal:55432  供 department/tree 使用
       需要库 brickkit_department（供 department/tree 使用）：CREATE DATABASE "brickkit_department";
 

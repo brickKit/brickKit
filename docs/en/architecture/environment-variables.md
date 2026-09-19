@@ -174,7 +174,7 @@ The same warning fires, worded identically, when the component has **no `configS
 ⚠️ config 整块不会生效：组件 shop/cart 没有声明 configSchema
    被忽略的配置项：maxItems（共 1 项）
    影响：一项都不会被注入任何环境变量
-   建议：要让它可配置，先在组件的 component.yaml 里加 configSchema（002 §6.5）
+   建议：要让它可配置，先在组件的 component.yaml 里加 configSchema
 ```
 
 **5.3 — A `configSchema.required` key has no default and no override anywhere.** This is the one case in this whole document that's a **hard error, not a warning** — `brickkit up` refuses to generate anything at all, for any component in the project, naming the exact missing key and which component declared it required:
@@ -189,10 +189,10 @@ The same warning fires, worded identically, when the component has **no `configS
       - id: shop/pricing
         config:
           pricingServiceUrl: <值>
-   2. 值里可以写 ${ENV_VAR}，真值放 .env（003 §4.6）
+   2. 值里可以写 ${ENV_VAR}，真值放 .env
 ```
 
-Why this one alone gets to block startup: a required key with no default is the component author saying "I genuinely cannot guess this — the project has to supply it," the standard shape for a cross-project service address (AGENTS.md §5.2, design/003 §4.9 — the platform has no way to derive where another project's own service lives). Letting it through silently would mean the component starts, looks healthy, and has exactly one call path that quietly never works — indistinguishable from "configured correctly" until someone hits that path in production. Compare this against §5.1/§5.2: those are typos with a working (if wrong) fallback behind them; this is "there is no fallback," so the platform can't afford to treat it the same way.
+Why this one alone gets to block startup: a required key with no default is the component author saying "I genuinely cannot guess this — the project has to supply it," the standard shape for a cross-project service address (AGENTS.md §5.2 — the platform has no way to derive where another project's own service lives). Letting it through silently would mean the component starts, looks healthy, and has exactly one call path that quietly never works — indistinguishable from "configured correctly" until someone hits that path in production. Compare this against §5.1/§5.2: those are typos with a working (if wrong) fallback behind them; this is "there is no fallback," so the platform can't afford to treat it the same way.
 
 ## 6. `servedBy`: how member variables land on the shell
 

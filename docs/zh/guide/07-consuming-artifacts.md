@@ -59,7 +59,7 @@ brickkit fetch demo/hello@1.0.0
      api-docs/openapi.json
 
 💡 这个组件不会被本项目部署。要连它，把对方给的地址填进依赖方的 config
-   （003 §4.9 跨项目共用组件）
+   （跨项目共用组件）
 ```
 
 `brickkit.yaml` 的 `components:` 列表完全没动——`fetch` 只写文件，从来不写配置。这正是它跟 `add` 真正的区别：`add` 说的是"我要跑这个"，`fetch` 说的是"我只需要知道它长什么样"。

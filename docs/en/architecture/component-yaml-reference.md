@@ -55,18 +55,18 @@ Two YAML shapes for the same underlying `ComponentDep`:
 Three things the validator catches that aren't obvious from the shape alone:
 
 - **A component can't depend on itself** — `id == metadata.id` is a hard error.
-- **The same component ID can't appear twice** in `dependencies.components`, required or optional, same version or different — the *variable name* a dependency resolves to (`{EnvPrefix}_ENDPOINT`) has no version slot, so a second entry can only ever silently overwrite the first at injection time, not add anything. AGENTS.md §5.1 has the full "why," and the validator's own error message spells out both ways out: depend on only one version (version coexistence is project-level, AGENTS.md §5.1), or route the second one through a `configSchema` property instead (AGENTS.md §9.23, design/003 §4.9).
+- **The same component ID can't appear twice** in `dependencies.components`, required or optional, same version or different — the *variable name* a dependency resolves to (`{EnvPrefix}_ENDPOINT`) has no version slot, so a second entry can only ever silently overwrite the first at injection time, not add anything. AGENTS.md §5.1 has the full "why," and the validator's own error message spells out both ways out: depend on only one version (version coexistence is project-level, AGENTS.md §5.1), or route the second one through a `configSchema` property instead (AGENTS.md §9.23).
 - Real, verbatim error text for the second case:
 
   ```
   同一个组件声明了两个版本
        demo/hello@1.0.0（dependencies.components[0]）与 demo/hello@2.0.0
-       两者都注入 DEMO_HELLO_ENDPOINT —— 依赖地址的环境变量名基于组件 ID、不带版本号
-       （001 §8.3），后者覆盖前者，而组件不会察觉自己只连上了其中一个
+       两者都注入 DEMO_HELLO_ENDPOINT —— 依赖地址的环境变量名基于组件 ID、不带版本号，
+       后者覆盖前者，而组件不会察觉自己只连上了其中一个
        出路 1：只依赖其中一个版本。多版本共存是**项目级**的——
-               brickkit.yaml 里可以同时跑两个版本，供不同调用方各用各的（002 §3.6）
+               brickkit.yaml 里可以同时跑两个版本，供不同调用方各用各的
        出路 2：确实要同时调两个，把第二个声明成 configSchema 里的一个配置项，
-               由项目填地址（003 §4.9）
+               由项目填地址
   ```
 
 ## `dependencies.resources[]`
@@ -120,7 +120,7 @@ This block is optional self-documentation, not a functional requirement — noth
 | --- | --- | --- | --- |
 | `migration.command` | `[]string` | yes, if `migration` is present at all | at least one element; every element must be non-empty after trimming whitespace |
 
-`migration` itself is optional — omit the whole block for a component with nothing to migrate. There's no separate `migration.image`: the migration container always reuses `deployment.image`, distinguished only by which command gets passed — which is exactly why AGENTS.md's callout about entrypoints failing fast on an unrecognized argument exists (§6's block quote, and design/002 §8.5.1).
+`migration` itself is optional — omit the whole block for a component with nothing to migrate. There's no separate `migration.image`: the migration container always reuses `deployment.image`, distinguished only by which command gets passed — which is exactly why AGENTS.md's callout about entrypoints failing fast on an unrecognized argument exists (§6's block quote).
 
 ## `healthCheck`
 

@@ -391,7 +391,7 @@ func validateClosedSourceContract(req model.PublishRequest, m *model.Manifest) e
 		WithDetail("componentId", m.Metadata.ID).
 		WithDetail("version", m.Metadata.Version).
 		WithDetail("sourceType", model.SourceTypeRegistry).
-		WithDetail("hint", "在 artifacts 中声明至少一个 type: api-contract 的产物（002 §5.11：代码可以闭源，API 契约不能闭源）")
+		WithDetail("hint", "在 artifacts 中声明至少一个 type: api-contract 的产物（代码可以闭源，API 契约不能闭源）")
 }
 
 func indexed(field string, i int) string {
