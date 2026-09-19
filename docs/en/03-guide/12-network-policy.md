@@ -1,4 +1,4 @@
-# 11. Network Policy and Least Privilege
+# 12. Network Policy and Least Privilege
 
 `deploy.networkPolicy.enabled: true` turns on Kubernetes `NetworkPolicy` generation, computed directly from the dependency graph (AGENTS.md §7) — no separate access-control list to maintain by hand. This article turns it on for `demo/hello` + `demo/caller`, and proves it actually blocks something, not just that it generates plausible-looking YAML.
 
@@ -82,4 +82,4 @@ Not a connection refused, not an HTTP error — a timeout. The packet never gets
 
 ---
 
-Next: [Multi-project sharing](12-multi-project-sharing.md) — sharing components across projects deliberately, using `brickkit fetch` from Article 7 for real, across two genuinely separate projects.
+Next: [Multi-project sharing](13-multi-project-sharing.md), the last article in this series — sharing components across projects deliberately, using `brickkit fetch` from Article 7 for real, across two genuinely separate projects.

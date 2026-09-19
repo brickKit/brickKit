@@ -1,4 +1,4 @@
-# 13. Manage Component Source
+# 8. Manage Component Source
 
 Until now, `components/` has been either empty or a folder of Manifests copied in from `tests/components/`. One obvious question has gone unanswered: **you want to read another team's component source — maybe change it. What then?** This walks through the whole life of component source: cloning it, keeping only what you're working on, pushing your changes back, deleting it cleanly, and keeping things consistent when the source is committed along with the project. Everything below ran against the real CLI, using the same two tiny fixtures ([`demo/hello`](../../../tests/components/demo-hello/) and [`demo/caller`](../../../tests/components/demo-caller/)) — this time turned into two Git repositories.
 
@@ -106,7 +106,7 @@ brickkit add demo/hello@1.0.0 --repo --yes
 ✅ 已刷新 demo/hello@1.0.0 的 Manifest 与 artifacts 缓存
 📁 已下载 artifacts 到 .brickkit/artifacts/（1 个文件）
 📁 已 clone 源码到 components/demo/hello/
-💡 改了源码怎么推回去、以及之后怎么管这份源码，见 docs/zh/03-guide/13-component-source.md（英文版把 zh 换 en）
+💡 改了源码怎么推回去、以及之后怎么管这份源码，见 docs/zh/03-guide/08-component-source.md（英文版把 zh 换 en）
 ```
 
 The `--yes` is there because `demo/hello` is already in `brickkit.yaml`: when `add` meets a component that's already been added, it first asks "refresh the Manifest and artifacts cache? [y/N]", and `--yes` answers y for you. Where there's no terminal to answer (a script, CI), leaving `--yes` off is taken as N — nothing happens, and nothing is cloned. **A component that isn't in `brickkit.yaml` yet gets no such question**, so `brickkit add demo/hello@1.0.0 --repo` alone is enough.
@@ -212,7 +212,7 @@ git -C components/demo/hello push myfork feature/greeting
 
 (If you'd rather move over to your fork entirely and stop caring about upstream, replace `origin` instead: `git remote set-url origin <your fork's address>`.)
 
-To get your change into use — for other people, or for your other projects — is a matter of publishing a new version: bump the version in `component.yaml`, build a new image, `brickkit publish` ([article 8](08-marketplace.md)); how projects already on the old version upgrade is [article 5](05-upgrades-and-versions.md).
+To get your change into use — for other people, or for your other projects — is a matter of publishing a new version: bump the version in `component.yaml`, build a new image, `brickkit publish` ([article 9](09-marketplace.md)); how projects already on the old version upgrade is [article 5](05-upgrades-and-versions.md).
 
 ## Keep only what you're working on: `enabled` and `sync`
 
@@ -562,4 +562,4 @@ The hook blocks only **one direction**: source in the archive directory while th
 
 ---
 
-This is the last article in the current series (see [the guide index](README.md) for what's still planned). For deeper detail on any single mechanism this series walked through hands-on, `docs/en/06-architecture/` and `docs/en/07-patterns/` are where it's explained properly, with real code and real generated output — AGENTS.md §11.2 has the full map.
+Next: [Publish and install from a marketplace](09-marketplace.md) — publishing a component to a marketplace, and installing it from there instead of a local source.

@@ -451,7 +451,7 @@ configSchema:
   - **网络策略：** 在 Kubernetes 上，`deploy.networkPolicy.enabled: true` 会从依赖图直接算出网络策略——流量只沿着你声明过的依赖方向放行，不需要另外手工维护一份访问控制列表。依赖图之外的访问者（比如 Ingress 控制器、另一个团队的命名空间），用 `allowFrom` 手写放行。还可以打开出站方向的策略（`egress`），并在 `allowTo` 里说明资源在哪。
   - **ServiceAccount：** `serviceAccount: { enabled: true }` 会给每个组件一个单独的 ServiceAccount，且不挂载令牌。
   - CLI 本身从不挂载 Docker socket。
-  - 见[网络策略与最小权限](../03-guide/11-network-policy.md)。
+  - 见[网络策略与最小权限](../03-guide/12-network-policy.md)。
 - **BrickKit 不做什么：**
   - **不默认开启**网络策略、ServiceAccount 隔离和 `podSecurity: restricted`：每一项都可能让一个本来能跑的组件起不来，这是真实的、因项目而异的代价，平台没法替你权衡。
   - **验证不了网络策略是否生效：** 很多集群接受这些对象却完全不执行——`kubectl apply` 成功、`kubectl get networkpolicy` 看得见，流量却照样畅通无阻，而且没有任何报错。minikube 和 kind 的默认网络插件（CNI）就属于这一类。Kubernetes 没有提供查询这件事的 API，平台测不出来，所以 `brickkit up` 每次都会警告你自己验一次。
@@ -528,7 +528,7 @@ spec:
 - **AI 怎么应对：**
   - 选一门带类型检查的语言让 AI 写，让编译器（或类型检查器）当第一道关：写完先过编译，再谈别的。
   - 在组件启动时，把环境变量一次性读成一个有类型的配置结构，缺了必需项就立刻启动失败，别悄悄退化成默认值。[用 Go 写一个 BrickKit 组件](../04-go-component-template.md)里的 `config.go` 就是这样做的：缺了 `DATABASE_HOST` 这类必需项，启动即失败并一次列出缺了哪几个，绝不退化到 `localhost`（见 [10. 大声失败](#10-大声失败)）。
-  - 见[从零开发自己的第一个组件](../03-guide/10-build-your-own.md)。
+  - 见[从零开发自己的第一个组件](../03-guide/11-build-your-own.md)。
 
 **例：** 类型怎么让错误的写法编译不过（Go）：
 
@@ -687,7 +687,7 @@ CLI 能不做的事就不做。每多一个功能就是永远多一份维护成�
 
 CLI 与市场都开源。闭源组件通过市场受控分发。
 
-**为什么。** 你把部署交给它的平台，应该是你读得懂的。闭源是一个商业事实，不该被禁止，所以市场用 Manifest 与镜像引用取代 Git 仓库来存放它。它唯一不允许一直闭着的是契约：提供 API 的闭源组件必须声明 `api-contract` 产物（[市场指南](../03-guide/08-marketplace.md)里能看到这条拒绝）。
+**为什么。** 你把部署交给它的平台，应该是你读得懂的。闭源是一个商业事实，不该被禁止，所以市场用 Manifest 与镜像引用取代 Git 仓库来存放它。它唯一不允许一直闭着的是契约：提供 API 的闭源组件必须声明 `api-contract` 产物（[市场指南](../03-guide/09-marketplace.md)里能看到这条拒绝）。
 
 **代价。** 让闭源组件保持闭源，是发布者自己的工作，而且拉下镜像就等于交出了它要运行的每一个字节——见[闭源组件的镜像安全规范](../07-patterns/04-closed-source-image-hardening.md)。
 

@@ -570,7 +570,7 @@ func runClones(ctx context.Context, opts *Options, layout config.Layout, plans [
 		opts.Printf("📁 已 clone %d 个开源组件仓库（跳过 %d 个，理由见上）\n", cloned, skipped)
 	case cloned > 0:
 		opts.Printf("📁 已 clone 源码到 %s\n", workspace.DisplayDir(plans[0].ref.ID))
-		opts.Printf("💡 改了源码怎么推回去、以及之后怎么管这份源码，见 docs/zh/03-guide/13-component-source.md（英文版把 zh 换 en）\n")
+		opts.Printf("💡 改了源码怎么推回去、以及之后怎么管这份源码，见 docs/zh/03-guide/08-component-source.md（英文版把 zh 换 en）\n")
 	}
 
 	logging.Info("源码 clone 完成", "cloned", cloned, "skipped", skipped)

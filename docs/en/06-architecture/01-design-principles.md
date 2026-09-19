@@ -451,7 +451,7 @@ configSchema:
   - **Network policies:** on Kubernetes, `deploy.networkPolicy.enabled: true` computes network policies straight from the dependency graph — traffic is allowed only along the dependencies you declared, with no access-control list to maintain by hand. For callers outside the dependency graph (an Ingress controller, another team's namespace) you write the allowance with `allowFrom`. You can also turn on the outbound direction (`egress`) and say where the resources are in `allowTo`.
   - **ServiceAccount:** `serviceAccount: { enabled: true }` gives each component its own ServiceAccount, with no token mounted.
   - The CLI itself never mounts the Docker socket.
-  - See [network policy and least privilege](../03-guide/11-network-policy.md).
+  - See [network policy and least privilege](../03-guide/12-network-policy.md).
 - **What BrickKit doesn't do:**
   - **Turn them on by default:** network policies, ServiceAccount isolation and `podSecurity: restricted` can each stop a component that already works from starting — a real, project-specific cost the platform isn't in a position to weigh for you.
   - **Verify that a network policy takes effect:** many clusters accept these objects and enforce none of them — `kubectl apply` succeeds and `kubectl get networkpolicy` shows them, yet traffic flows freely, with no error. The default network plugin (CNI) of minikube and kind is one of these. Kubernetes has no API to ask, so the platform can't tell, and `brickkit up` warns you every time to check it yourself once.
@@ -528,7 +528,7 @@ spec:
 - **How an AI copes:**
   - Pick a language with type checking for the AI, and let the compiler (or type checker) be the first gate: it must compile before anything else is discussed.
   - At startup, read the environment once into a typed config structure, and fail to start at once when a required item is missing rather than quietly falling back to a default. `config.go` in [writing a Go component](../04-go-component-template.md) does exactly this: a missing `DATABASE_HOST` or similar fails startup, lists everything missing in one go, and never falls back to `localhost` (see [10. Loud failure](#10-loud-failure)).
-  - See [build your first component](../03-guide/10-build-your-own.md).
+  - See [build your first component](../03-guide/11-build-your-own.md).
 
 **Example:** how types make a wrong way of writing it fail to compile (Go):
 
@@ -687,7 +687,7 @@ Nothing is reachable until you say so. No port mapping means no outside access; 
 
 The CLI and the Market are open source. Closed-source components are distributed through the Market in a controlled way.
 
-**Why.** A platform you hand your deployments to should be one you can read. Closed source is a commercial fact, not something to forbid, so the Market stores the Manifest and the image reference in place of a Git repository. The one thing it won't let stay closed is the contract: a closed-source component that provides an API must declare an `api-contract` artifact ([the marketplace guide](../03-guide/08-marketplace.md) shows the rejection).
+**Why.** A platform you hand your deployments to should be one you can read. Closed source is a commercial fact, not something to forbid, so the Market stores the Manifest and the image reference in place of a Git repository. The one thing it won't let stay closed is the contract: a closed-source component that provides an API must declare an `api-contract` artifact ([the marketplace guide](../03-guide/09-marketplace.md) shows the rejection).
 
 **Cost.** Keeping a closed-source component closed is the publisher's job, and pulling an image hands over every byte it will run — see [Protecting closed-source components](../07-patterns/04-closed-source-image-hardening.md).
 

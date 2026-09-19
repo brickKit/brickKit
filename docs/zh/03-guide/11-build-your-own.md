@@ -1,8 +1,8 @@
-# 10. Build Your First Component From Scratch
+# 11. 从零开发自己的第一个组件
 
-Every earlier article installed something that already existed. This one writes a genuinely new component — a minimal HTTP counter, deliberately small enough to type out in full — and gets it running the exact same way as everything else in this series: no special onboarding path, just a `component.yaml` and an image. Typing the Manifest out by hand here is deliberate, to show there's no hidden magic in it; for real use, `brickkit new my-scope/counter` generates the same shape of file, already valid, with the fields you'd otherwise be typing left as TODOs.
+前面每一篇装的都是本来就已经存在的东西。这一篇真写一个全新的组件——一个最小的 HTTP 计数器，故意小到能完整抄下来——然后用这个系列里其它每一篇一模一样的方式把它跑起来：没有专门的上手路径，就是一份 `component.yaml` 加一个镜像。这里手打 Manifest 是故意的，为了说明它没有任何藏起来的魔法；真要用的话，`brickkit new my-scope/counter` 生成的是同一个形状的文件，已经合法，本该你手打的那些字段留着 TODO 等你填。
 
-## The whole thing, four files
+## 整个组件，四个文件
 
 ```go
 // main.go
@@ -60,7 +60,7 @@ go 1.22
 ```
 
 ```dockerfile
-# Dockerfile — the same multi-stage shape as every fixture used earlier in this series
+# Dockerfile —— 跟这个系列前面用到的每一个夹具同样的多阶段构建形状
 FROM golang:1.22-alpine AS build
 WORKDIR /src
 COPY go.mod ./
@@ -104,9 +104,9 @@ healthCheck:
   path: /healthz
 ```
 
-No `deploy.target`-specific file anywhere in this component's own directory — that generation step is entirely the CLI's job, for whichever target the *project* using this component chooses (AGENTS.md §5.5).
+这个组件自己的目录里没有任何一份跟具体 `deploy.target` 绑定的文件——生成这一步完全是 CLI 的活，具体生成成什么由**使用**这个组件的那个项目自己选（AGENTS.zh.md §5.5）。
 
-## Build it, add it, run it — exactly like everything else in this series
+## 构建它、加它、跑它——跟这个系列里其它一切完全一样
 
 ```bash
 docker build -t tutorial/counter:1.0.0 .
@@ -140,9 +140,9 @@ curl http://localhost:8085/api/v1/count
 {"component":"tutorial/counter","count":2,"version":"1.0.0"}
 ```
 
-A brand new component, never seen by this platform before, went from four files to a running, incrementing, curl-able service using the exact same `add`/`up` this whole series has used on `demo/hello` from Article 1 onward. Nothing about the platform's own mechanics cared that this one didn't exist an hour ago.
+一个这个平台从没见过的全新组件，从四个文件变成一个真正跑着、会计数、能 curl 到的服务，用的是这个系列从第 1 篇开始对 `demo/hello` 用的一模一样的 `add`/`up`。平台自己的机制完全不在乎这个组件一小时前根本不存在。
 
-## Config override works exactly the same way too
+## 配置覆盖也是一模一样的方式
 
 ```yaml
 components:
@@ -161,17 +161,17 @@ curl http://localhost:8085/api/v1/count
 {"component":"tutorial/counter","count":101,"version":"1.0.0"}
 ```
 
-`startAt: 100` became `START_AT=100` in the container's real environment (AGENTS.md §5.2's camelCase-to-`UPPER_SNAKE_CASE` rule), and the handler picked it up on first read — the same configSchema override mechanism used against `demo/hello`'s `greeting` back in Article 1.
+`startAt: 100`在容器真实的环境里变成了 `START_AT=100`（AGENTS.zh.md §5.2 的驼峰转大写下划线规则），处理函数第一次读到它就用上了——跟第 1 篇对 `demo/hello` 的 `greeting` 用的是同一套 configSchema 覆盖机制。
 
-## From here, everything else in this series already applies
+## 从这里开始，这个系列前面的一切都直接适用
 
-This component didn't need anything special to plug into the rest of what this series covers, because none of it was ever specific to `demo/hello` or `demo/caller` in the first place:
+这个组件不需要任何特殊操作就能接上这个系列讲过的其它内容，因为那些内容从来就不是专属于 `demo/hello` 或 `demo/caller` 的：
 
-- [Debug a component locally](03-local-debugging.md) works the same way — `local: true`, run the binary on your own machine, breakpoints and all.
-- [Publish and install from a marketplace](08-marketplace.md) and [Sign and verify components](09-signing.md) work the same way — `brickkit publish --path ./components/tutorial/counter`, sign it, install it somewhere else.
+- [本地调试一个组件](03-local-debugging.md)用的是同一套方式——`local: true`，在自己机器上跑那个二进制，断点照挂不误。
+- [从市场发布与安装](09-marketplace.md)和[给组件签名与验签](10-signing.md)也是同一套方式——`brickkit publish --path ./components/tutorial/counter`，签名，装到别的地方去。
 
-Nothing in this article introduced a new mechanism — the point was confirming that writing a component from nothing really does land you in the exact same platform every other article in this series already walked through.
+这一篇没有引入任何新机制——重点是确认了"从零开发一个组件"真的会把你带到这个系列前面每一篇早就走过的那同一个平台上，不多不少。
 
 ---
 
-Next: [Network policy and least privilege](11-network-policy.md) — locking down which components can actually talk to which, on Kubernetes.
+下一篇：[网络策略与最小权限](12-network-policy.md)——在 Kubernetes 上锁定哪些组件真的能跟哪些说上话。

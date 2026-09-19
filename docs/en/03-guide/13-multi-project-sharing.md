@@ -1,4 +1,4 @@
-# 12. Multi-Project Sharing
+# 13. Multi-Project Sharing
 
 Two teams, two separate BrickKit projects, and a real question: do they need to share anything at all? This article works through the one question that actually matters — where does the state live — and the three shapes that fall out of it, verified against two genuinely independent projects and a shared Redis, not a single project pretending to be two.
 
@@ -140,4 +140,4 @@ An earlier version of this platform had exactly that: an `external: {project: X}
 
 ---
 
-Next: [Manage component source](13-component-source.md) — cloning another team's component source, keeping only what you're working on, pushing changes back, deleting it cleanly, and the commit hook that guards source committed along with the project.
+This is the last article in the current series (see [the guide index](README.md) for what's still planned). For deeper detail on any single mechanism this series walked through hands-on, `docs/en/06-architecture/` and `docs/en/07-patterns/` are where it's explained properly, with real code and real generated output — AGENTS.md §11.2 has the full map.

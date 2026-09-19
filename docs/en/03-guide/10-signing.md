@@ -1,6 +1,6 @@
-# 9. Sign and Verify Components
+# 10. Sign and Verify Components
 
-Article 8 ended with a real, live warning: a project that installs from a marketplace with no `installer.publicKeys` configured gets `requireSignature: true` for free, and it does nothing. This article closes that gap for real — generating an actual keypair, publishing a signed component, configuring a project to actually trust that key, and watching verification both succeed and genuinely fail.
+Article 9 ended with a real, live warning: a project that installs from a marketplace with no `installer.publicKeys` configured gets `requireSignature: true` for free, and it does nothing. This article closes that gap for real — generating an actual keypair, publishing a signed component, configuring a project to actually trust that key, and watching verification both succeed and genuinely fail.
 
 **Prerequisite, publisher side only:** cosign (`go install github.com/sigstore/cosign/v2/cmd/cosign@latest`) — signing is the one operation in this whole series that needs it; every `brickkit add` in every other article has verified with nothing but the Go standard library (AGENTS.md §5.9), and that doesn't change here either.
 
@@ -83,4 +83,4 @@ The message doesn't — and cryptographically can't — distinguish "this was ge
 
 ---
 
-Next: [Build your first component from scratch](10-build-your-own.md) — building a component from nothing, start to finish, the perspective every other article in this series has been the consuming side of.
+Next: [Build your first component from scratch](11-build-your-own.md) — building a component from nothing, start to finish, the perspective every other article in this series has been the consuming side of.

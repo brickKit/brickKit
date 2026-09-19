@@ -492,7 +492,7 @@ along with it".
 
 A hands-on walkthrough of all of this with real output — cloning, pushing changes back, archiving,
 the guards on `remove`, `restore` and the hook — is
-[Manage component source](docs/en/03-guide/13-component-source.md).
+[Manage component source](docs/en/03-guide/08-component-source.md).
 
 ### 5.9 Marketplace, signing, and the trust model
 
@@ -1128,7 +1128,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | Every error code, the situations behind each (by the exact title the CLI prints), cause and fix; which code is worth retrying; exit statuses; the ⚠️ warnings | `docs/en/06-architecture/10-error-codes.md` (swap `en` for `zh`) |
 | Why the platform is shaped this way: the one idea underneath (declare a graph, derive the rest); each engineering idea it draws on or deliberately leaves alone (DDD, GitOps, twelve-factor, contract-first, hexagonal architecture, TDD…) each a numbered entry explained from scratch — what it is, its upside and cost, the AI-development pain it maps to, what BrickKit does, what it deliberately doesn't do, and how an AI copes; and the argument behind each of the twelve principles | `docs/en/06-architecture/01-design-principles.md` (swap `en` for `zh`) |
 | Hands-on tutorials | `docs/en/03-guide/` (same swap) |
-| Cloning, archiving, removing and restoring component source (`add --repo` / `sync` / `remove` / `restore`, the pre-commit hook), hands-on with real output | `docs/en/03-guide/13-component-source.md` (swap `en` for `zh`) |
+| Cloning, archiving, removing and restoring component source (`add --repo` / `sync` / `remove` / `restore`, the pre-commit hook), hands-on with real output | `docs/en/03-guide/08-component-source.md` (swap `en` for `zh`) |
 | A deep, real walkthrough of a Go component with a database and migrations | `docs/en/04-go-component-template.md` (swap `en` for `zh`) |
 | How to layer tests, plan seed/test data, design components well, tune deployment | `docs/en/07-patterns/` (same swap) |
 | Which deployment shape to pick for a whole project — topology (independent / shell-merged / mixed) × `docker`/`k8s`, plus the `local: true` debug toggle and where running components by hand fits in | `docs/en/07-patterns/05-deployment-selection-guide.md` (swap `en` for `zh`) |

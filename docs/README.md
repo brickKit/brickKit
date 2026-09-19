@@ -31,7 +31,7 @@ reading order — [`en/README.md`](en/README.md) lays it out.
 - **How BrickKit compares to Compose/Helm/Kustomize/etc.** → [Comparison](en/02-comparison.md)
 
 ### 🛠️ I want to develop a new component
-- **Build your first component from scratch** → [Guide: Build your first component](en/03-guide/10-build-your-own.md)
+- **Build your first component from scratch** → [Guide: Build your first component](en/03-guide/11-build-your-own.md)
   *(a minimal, complete walkthrough: Manifest, `os.environ.get()`, `/healthz`)*
 - **A deep Go component template with a database** → [Go component template](en/04-go-component-template.md)
   *(a real, tested component — migrations, a multi-stage Dockerfile, the works)*
@@ -68,7 +68,7 @@ reading order — [`en/README.md`](en/README.md) lays it out.
 - **对比 BrickKit 和 Compose/Helm/Kustomize 等** → [对比](zh/02-comparison.md)
 
 ### 🛠️ 我想开发新组件
-- **从零开发第一个组件** → [指南：从零开发第一个组件](zh/03-guide/10-build-your-own.md)
+- **从零开发第一个组件** → [指南：从零开发第一个组件](zh/03-guide/11-build-your-own.md)
   *(一个极简但完整的例子：Manifest、`os.environ.get()`、`/healthz`)*
 - **带数据库的 Go 组件深度模板** → [Go 组件模板](zh/04-go-component-template.md)
   *(一个真实的、有测试覆盖的组件——数据库迁移、多阶段 Dockerfile，一应俱全)*

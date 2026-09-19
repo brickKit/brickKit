@@ -203,7 +203,7 @@
 - **症状：** `deploy.networkPolicy.enabled: true` 之后，`brickkit up` 报"已生成 N 份 NetworkPolicy"，并带一段警告；`kubectl get networkpolicy` 也看得见，可没被授权的访问照样能通，没有任何报错。
 - **原因：** 集群的网络插件（CNI）不执行 NetworkPolicy。很多集群接受这些对象却完全不执行，minikube 和 kind 的**默认** CNI 就属于这一类。Kubernetes 没有提供查询这件事的 API，平台测不出来，所以 `up` 每次都会警告，让你自己验一次。
 - **解决：**
-  - 换一个会执行 NetworkPolicy 的 CNI（[教程第 11 篇](03-guide/11-network-policy.md)用的是 `minikube start --cni=calico`）。
+  - 换一个会执行 NetworkPolicy 的 CNI（[教程第 12 篇](03-guide/12-network-policy.md)用的是 `minikube start --cni=calico`）。
   - 然后按教程里的办法验证：授权的路径照常能用，未授权的路径真的被挡住。
 
 `brickkit up` 打出的警告：

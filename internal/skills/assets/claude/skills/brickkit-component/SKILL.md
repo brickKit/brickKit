@@ -132,5 +132,5 @@ PEOPLE_BASIC_GRPC_ENDPOINT=http://people-basic-1-0-0:9090
 
 - `component.yaml` 每个字段的规则与完整参考：`docs/zh/06-architecture/07-component-yaml-reference.md`
 - 环境变量命名与保留变量的完整字典：`docs/zh/06-architecture/04-environment-variables.md`
-- 手把手教程（从零写一个组件）：`docs/zh/03-guide/10-build-your-own.md`；
+- 手把手教程（从零写一个组件）：`docs/zh/03-guide/11-build-your-own.md`；
   完整的 Go 组件示例（含数据库、迁移）：`docs/zh/04-go-component-template.md`

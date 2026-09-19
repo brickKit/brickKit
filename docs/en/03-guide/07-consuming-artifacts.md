@@ -88,4 +88,4 @@ Not an error, not a blank page — a clean, complete answer naming every compone
 
 ---
 
-Next: [Publish and install from a marketplace](08-marketplace.md) — publishing a component to a marketplace, and installing it from there instead of a local source.
+Next: [Manage component source](08-component-source.md) — cloning another team's component source, keeping only what you're working on, pushing changes back, deleting it cleanly, and the commit hook that guards source committed along with the project.

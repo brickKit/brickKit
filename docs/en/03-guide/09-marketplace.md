@@ -1,6 +1,6 @@
-# 8. Publish and Install from a Marketplace
+# 9. Publish and Install from a Marketplace
 
-Every earlier article installed `demo/hello` from a `local` source — a directory on disk. This one runs a real marketplace (the same one [Self-hosting the BrickKit Market](../07-patterns/09-deployment/self-hosted-market.md) covers deploying), publishes `demo/hello` to it, and installs it into a completely separate project that never touches the component's source directory at all.
+Every earlier article installed `demo/hello` from a directory on disk — a `local` source, or the local Git repositories of the previous article. This one runs a real marketplace (the same one [Self-hosting the BrickKit Market](../07-patterns/09-deployment/self-hosted-market.md) covers deploying), publishes `demo/hello` to it, and installs it into a completely separate project that never touches the component's source directory at all.
 
 ## Start a real marketplace
 
@@ -167,4 +167,4 @@ Running it again when you're already logged out does nothing, and isn't a failur
 
 ---
 
-Next: [Sign and verify components](09-signing.md) — closing the gap the warning above pointed at, actually configuring a trust anchor and verifying a signature for real.
+Next: [Sign and verify components](10-signing.md) — closing the gap the warning above pointed at, actually configuring a trust anchor and verifying a signature for real.

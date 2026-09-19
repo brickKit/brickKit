@@ -156,7 +156,7 @@ placeholder contract file, registered under `artifacts`. Nothing else — no
 Dockerfile, no source code in any language. The platform is
 language-agnostic and doesn't pick one for you; for a real worked example,
 see [Writing a Go component](../04-go-component-template.md) or
-[Build your first component](../03-guide/10-build-your-own.md).
+[Build your first component](../03-guide/11-build-your-own.md).
 
 By default it writes to `components/<scope>/<name>/` — the exact layout a
 `local`-type source already scans (`<scope>/<name>/component.yaml`), and the
@@ -288,7 +288,7 @@ Adding a second version of an already-installed component prompts for
 confirmation before letting the two coexist (skipped non-interactively with
 `--yes`).
 
-How to clone component source (`--repo` / `--repo-all`) and manage it afterwards is in the hands-on walkthrough [Manage component source](../03-guide/13-component-source.md).
+How to clone component source (`--repo` / `--repo-all`) and manage it afterwards is in the hands-on walkthrough [Manage component source](../03-guide/08-component-source.md).
 
 **Flags**
 
@@ -343,7 +343,7 @@ clears its Manifest/artifact cache, and deletes its source directory —
 of the same ID still needs that source. A version must be given explicitly
 when more than one version of the same component is installed.
 
-A hands-on walkthrough with real output: [Manage component source](../03-guide/13-component-source.md) — being blocked by a dependent, source that couldn't be found again, and git submodules, each one actually triggered.
+A hands-on walkthrough with real output: [Manage component source](../03-guide/08-component-source.md) — being blocked by a dependent, source that couldn't be found again, and git submodules, each one actually triggered.
 
 **Flags**
 
@@ -557,7 +557,7 @@ on an archived component. Only components already declared in
 `brickkit.yaml`, with source already present, are ever touched. There's no
 `--dry-run` — the move is fully reversible by running it again.
 
-A hands-on walkthrough with real output: [Manage component source](../03-guide/13-component-source.md) — archiving, activating, and how it works with `enabled`.
+A hands-on walkthrough with real output: [Manage component source](../03-guide/08-component-source.md) — archiving, activating, and how it works with `enabled`.
 
 **Example**
 
@@ -593,7 +593,7 @@ It only ever touches `enabled`, one entry at a time:
 
 Every value it's about to overwrite is printed before it changes anything.
 
-A hands-on walkthrough with real output: the last section of [Manage component source](../03-guide/13-component-source.md), from making the mistake and being stopped by the hook, to `restore` fixing it.
+A hands-on walkthrough with real output: the last section of [Manage component source](../03-guide/08-component-source.md), from making the mistake and being stopped by the hook, to `restore` fixing it.
 
 **Flags**
 

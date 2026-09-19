@@ -26,12 +26,12 @@
 # 只挑不需要 Docker / minikube / 市场 / cosign 的场景
 
 13 篇里能在任何机器上确定性构造的，只是其中一部分：01（部分）、02、03
-（部分）、05（部分）、06（部分）、07（部分）、13（几乎全部）——04 要 minikube、
-08 要市场、09 要 cosign、11 要支持执行策略的 CNI，10/12 的核心内容也要 Docker
+（部分）、05（部分）、06（部分）、07（部分）、08（几乎全部）——04 要 minikube、
+09 要市场、10 要 cosign、12 要支持执行策略的 CNI，11/13 的核心内容也要 Docker
 真的把容器跑起来。这跟旧版本的分层哲学一致：能确定性构造的进 `make lint`
 天天跑，要真实环境的留给人工（或者以后配一个 docker 层的 CI job，见文末的账目）。
 
-第 13 篇（组件源码）是个例外的"几乎全部"：它讲的 add --repo / sync / remove /
+第 8 篇（组件源码）是个例外的"几乎全部"：它讲的 add --repo / sync / remove /
 restore / 提交钩子都不启动容器，只需要 git。所以它的场景用本地裸仓库当"远端"
 （!make-remotes），用真实的 git 命令（!git）造出未提交、未推送、归档、
 submodule 这些状态，再拿真实 CLI 的输出与教程逐行比对。
@@ -173,39 +173,39 @@ CASES = [
         "file": "07-consuming-artifacts.md",
         "check": ("fetch demo/hello@1.0.0", "📦 已下载 demo/hello@1.0.0 的产物（未写入 brickkit.yaml）", 0),
     },
-    # ---- 13 组件源码：只需要 git，不需要 Docker ----
+    # ---- 08 组件源码：只需要 git，不需要 Docker ----
     # 这一组按教程的行文顺序连着跑（同一个项目里一路推进），中间夹着的 !git / !append
     # 步骤对应教程里那些不是 brickkit 输出的命令（改源码、提交、推送）。
     {
-        "what": "13 add 默认不克隆源码",
+        "what": "08 add 默认不克隆源码",
         "reset": True,
         "run": ["!make-remotes", "init workspace-demo --no-skills", "!git-sources"],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("add demo/caller@1.0.0", "📦 添加 demo/caller@1.0.0", 0),
     },
     {
-        "what": "13 --repo 克隆一个已在配置里的组件",
+        "what": "08 --repo 克隆一个已在配置里的组件",
         "run": [],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("add demo/hello@1.0.0 --repo --yes",
                   "ℹ️ demo/hello@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存", 0),
     },
     {
-        "what": "13 克隆过再 --repo：说源码已经在了，而不是没有 Git 地址",
+        "what": "08 克隆过再 --repo：说源码已经在了，而不是没有 Git 地址",
         "run": [],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("add demo/hello@1.0.0 --repo --yes",
                   "ℹ️ demo/hello@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存", 1),
     },
     {
-        "what": "13 --repo-all：已有源码的跳过并说理由",
+        "what": "08 --repo-all：已有源码的跳过并说理由",
         "run": [],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("add demo/caller@1.0.0 --repo-all --yes",
                   "ℹ️ demo/caller@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存", 0),
     },
     {
-        "what": "13 关掉 caller，hello 也跟着不启动",
+        "what": "08 关掉 caller，hello 也跟着不启动",
         # 教程「改了源码，怎么推回去」那一节的两条路，顺手走完，让后面的状态与教程一致
         "run": ["!git components/demo/hello checkout -q -b feature/greeting",
                 "!append components/demo/hello/main.go // 换一句问候",
@@ -214,72 +214,72 @@ CASES = [
                 "!git components/demo/hello remote add myfork {work}/remotes/hello-fork.git",
                 "!git components/demo/hello push -q myfork feature/greeting",
                 "!disable demo/caller"],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("up --dry-run", "📋 组件状态计算：", 0),
     },
     {
-        "what": "13 sync 把两个的源码都收进归档",
+        "what": "08 sync 把两个的源码都收进归档",
         "run": [],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("sync", "📂 工作区整理：", 0),
     },
     {
-        "what": "13 钉住 hello 之后的判定",
+        "what": "08 钉住 hello 之后的判定",
         "run": ["!pin demo/hello"],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("up --dry-run", "📋 组件状态计算：", 1),
     },
     {
-        "what": "13 sync 把 hello 搬回来",
+        "what": "08 sync 把 hello 搬回来",
         "run": [],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("sync", "📂 工作区整理：", 1),
     },
     {
-        "what": "13 删掉 enabled，sync 把 caller 也搬回来",
+        "what": "08 删掉 enabled，sync 把 caller 也搬回来",
         "run": ["!clear-enabled"],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("sync", "📂 工作区整理：", 2),
     },
     {
-        "what": "13 remove 被依赖方挡住",
+        "what": "08 remove 被依赖方挡住",
         "run": [],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("remove demo/hello", "❌ 无法移除 demo/hello", 0),
     },
     {
-        "what": "13 remove 拦下未提交的改动",
+        "what": "08 remove 拦下未提交的改动",
         "run": ["!append components/demo/caller/main.go // 我正在改这里"],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("remove demo/caller", "❌ 错误：源码删掉就找不回来了", 0),
     },
     {
-        "what": "13 remove 拦下没推的提交",
+        "what": "08 remove 拦下没推的提交",
         "run": ['!git components/demo/caller commit -q -am "wip: 调整 caller"'],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("remove demo/caller", "❌ 错误：源码删掉就找不回来了", 1),
     },
     {
-        "what": "13 推上去之后 remove 放行",
+        "what": "08 推上去之后 remove 放行",
         "run": ["!git components/demo/caller push -q origin main"],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("remove demo/caller", "✅ 已移除 demo/caller@1.0.0", 0),
     },
     {
-        "what": "13 remove 连归档里的那份源码一起删",
+        "what": "08 remove 连归档里的那份源码一起删",
         "run": ["!disable demo/hello", "sync"],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("remove demo/hello", "✅ 已移除 demo/hello@1.0.0", 0),
     },
     {
-        "what": "13 项目根就是仓库根：init 顺手装上钩子",
+        "what": "08 项目根就是仓库根：init 顺手装上钩子",
         "reset": True,
         "run": ["!git-init"],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("init shared-src", "✅ 项目已初始化：shared-src", 0),
     },
     {
-        "what": "13 只提交归档的源码：钩子拦下",
+        "what": "08 只提交归档的源码：钩子拦下",
         "run": ["!drop-components-ignore",
                 "!copy-into components/demo/hello demo-hello",
                 "!copy-into components/demo/caller demo-caller",
@@ -289,23 +289,23 @@ CASES = [
                 "!pin demo/hello", "!disable demo/caller", "sync",
                 "!append components/demo/hello/main.go // 调整 hello 的问候",
                 "!git . add components/"],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ('!git . commit -m "调整 hello 的问候"',
                   "❌ 提交被拦下：组件源码提交在归档目录里，但 brickkit.yaml 说它该启动", 0),
     },
     {
-        "what": "13 restore 还原 enabled，源码结构跟着走",
+        "what": "08 restore 还原 enabled，源码结构跟着走",
         "run": ["!git . reset -q components/"],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("restore", "📄 brickkit.yaml：按最后一次提交还原 enabled（其余改动未动）", 0),
     },
     {
-        "what": "13 submodule 挡住 remove（--force 也不放行的那一道）",
+        "what": "08 submodule 挡住 remove（--force 也不放行的那一道）",
         "reset": True,
         "run": ["!make-remotes", "!git-init", "init sub-demo --no-skills", "!drop-components-ignore",
                 "!git . -c protocol.file.allow=always submodule add -q ../remotes/hello.git components/demo/hello",
                 "add --local", "!git . add -A", "!git . commit -q -m 挂上子模块"],
-        "file": "13-component-source.md",
+        "file": "08-component-source.md",
         "check": ("remove demo/hello", "❌ 错误：无法删除组件源码——它是一个已登记的 git submodule", 0),
     },
 ]

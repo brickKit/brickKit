@@ -424,7 +424,7 @@ CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 这个反复出现的失误。
 
 这一整块——克隆、改了推回去、归档、`remove` 的几道保护、`restore` 与钩子——带真实输出
-一步一步走一遍，见 [管理组件源码](docs/zh/03-guide/13-component-source.md)。
+一步一步走一遍，见 [管理组件源码](docs/zh/03-guide/08-component-source.md)。
 
 ### 5.9 市场、签名与信任模型
 
@@ -973,7 +973,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 每个错误码、每个码底下的各种情形（按 CLI 打印的确切标题）、原因与解法；哪个码值得重试；退出码；⚠️ 警告 | `docs/zh/06-architecture/10-error-codes.md`（英文版把 `zh` 换 `en`） |
 | 平台为什么长成这样：贯穿一切的那个想法（声明一张图，其余派生）；它用到或刻意没用的每个工程想法（DDD、GitOps、十二要素、契约先行、六边形架构、TDD……），逐个编号介绍：从"它是什么"讲起，说清好处、代价、对应 AI 开发的什么痛点、BrickKit 怎么做、BrickKit 不做什么、AI 怎么应对；十二条原则各自的论证 | `docs/zh/06-architecture/01-design-principles.md`（英文版把 `zh` 换 `en`） |
 | 动手教程 | `docs/zh/03-guide/`（英文版同上） |
-| 克隆、归档、移除、还原组件源码（`add --repo` / `sync` / `remove` / `restore`、pre-commit 钩子），带真实输出的上手教程 | `docs/zh/03-guide/13-component-source.md`（英文版同上） |
+| 克隆、归档、移除、还原组件源码（`add --repo` / `sync` / `remove` / `restore`、pre-commit 钩子），带真实输出的上手教程 | `docs/zh/03-guide/08-component-source.md`（英文版同上） |
 | 一个带数据库和迁移的 Go 组件，深入真实走一遍 | `docs/zh/04-go-component-template.md`（英文版把 `zh` 换 `en`） |
 | 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/07-patterns/`（英文版同上） |
 | 整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）× `docker`/`k8s`，外加 `local: true` 调试开关、手动裸跑组件放在哪个位置 | `docs/zh/07-patterns/05-deployment-selection-guide.md`（英文版把 `zh` 换 `en`） |
