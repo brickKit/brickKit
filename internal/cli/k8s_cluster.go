@@ -72,7 +72,7 @@ func contextOf(cfg *config.Config, flag string) string {
 func warnTargetOnlyFields(opts *Options, cfg *config.Config) {
 	if cfg.Deploy.Target == config.TargetK8s {
 		warnFields(opts, cfg, "Docker", dockerOnlyFields(cfg),
-			"K8s 通过 Ingress + 域名路由对外暴露，不映射宿主机端口（003 §4.5）",
+			"K8s 通过 Ingress + 域名路由对外暴露，不映射宿主机端口",
 			"对外暴露请给组件填 hostname")
 		return
 	}

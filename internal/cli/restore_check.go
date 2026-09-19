@@ -320,7 +320,7 @@ func violationError(
 			e = e.WithDetail(id, componentsRel+"/"+id+"  与  "+archivedRoot+"/"+id)
 		}
 		return e.WithHint(
-			"一个组件 ID 只能有一个源码目录（004 §8.1）",
+			"一个组件 ID 只能有一个源码目录",
 			"多半是 git add 的路径太窄，漏掉了旧路径的删除：git add -A "+componentsRel+"/",
 			"两处都有源码时，平台不替你决定保留哪一份",
 		)

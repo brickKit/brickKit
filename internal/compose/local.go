@@ -170,7 +170,7 @@ func (p *plan) localExposeWarnings() []*clierr.Error {
 		}
 		// 光说"不生效"不够，得说清楚东西到底在哪，否则他还要自己去翻另一段输出
 		out = append(out, w.
-			WithDetailf("实际地址", "localhost:%d（由 localPort 决定，005 §4.6）", l.Port).
+			WithDetailf("实际地址", "localhost:%d（由 localPort 决定）", l.Port).
 			WithHint(
 				"让你的进程监听这个端口，浏览器直接访问它",
 				"要回到平台映射端口的模式，去掉这个组件的 local: true",

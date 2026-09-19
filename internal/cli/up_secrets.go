@@ -33,7 +33,7 @@ func warnHardcodedPasswords(opts *Options, cfg *config.Config) {
 
 	err := clierr.Warn(clierr.CodeConfigInvalid, "brickkit.yaml 中存在明文密码").
 		WithDetail("资源", strings.Join(offenders, "、")).
-		WithDetail("要求", "密码必须用 ${ENV_VAR} 引用（006 §3.3、008）").
+		WithDetail("要求", "密码必须用 ${ENV_VAR} 引用").
 		WithHint(
 			"改成 password: ${POSTGRES_PASSWORD}，并把真实值放进 .env",
 			".env 必须在 .gitignore 中",
@@ -106,7 +106,7 @@ func warnConfigSecrets(opts *Options, cfg *config.Config) {
 	renderWarnings(opts, []*clierr.Error{
 		clierr.Warn(clierr.CodeConfigInvalid, "brickkit.yaml 的 config 里可能写了明文密钥").
 			WithDetail("配置项", strings.Join(offenders, "、")).
-			WithDetail("为什么要紧", "brickkit.yaml 是建议提交进 Git 的（003 §1.2），"+
+			WithDetail("为什么要紧", "brickkit.yaml 是建议提交进 Git 的，"+
 				"写在这里的密钥会跟着进版本库，而且历史里删不掉").
 			WithHint(
 				"改成 ${MY_TOKEN} 这样的引用，把真实值放进 .env",

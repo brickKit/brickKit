@@ -120,7 +120,7 @@ func noKeysWarning() *clierr.Error {
 		// **还没配到这一步**。不点破的话，人的第一反应是回去检查自己的
 		// brickkit.yaml 哪里写坏了——那里什么都没坏。
 		WithDetail("说明", "这不是配置错误，是还没配完——requireSignature 默认为 true，"+
-			"而 publicKeys 要等你从发布者那里拿到公钥才填得上（008 §8.5.1）").
+			"而 publicKeys 要等你从发布者那里拿到公钥才填得上").
 		WithHint(
 			"在 brickkit.yaml 的 installer.publicKeys 下声明发布者公钥，校验才会真正开始生效",
 			"确实不需要校验时，把 installer.requireSignature 显式设为 false，这条提醒就不再出现",

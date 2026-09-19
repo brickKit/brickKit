@@ -189,7 +189,7 @@ func (c *Client) newFetcher(s config.Source) (fetcher, error) {
 	default:
 		return nil, clierr.Newf(clierr.CodeConfigInvalid, "错误：安装源类型不合法：%s", s.Type).
 			WithDetail("安装源", s.ID).
-			WithHint("type 必须是 market、git 或 local 之一（003 §6.1）")
+			WithHint("type 必须是 market、git 或 local 之一")
 	}
 }
 
@@ -632,7 +632,7 @@ func versionMismatchError(id, version string, mismatches []versionMismatch) erro
 		e = e.WithDetailf("安装源 "+m.sourceID+"（"+m.kind+"）", "这里是 %s", m.found)
 	}
 	return e.WithHint(
-		"本地安装源一个组件目录只放得下一个版本（003 §6.4）——"+
+		"本地安装源一个组件目录只放得下一个版本——"+
 			"要的那个版本只可能在 .brickkit/manifests/ 缓存里，而缓存是可以被删掉的",
 		"要让依赖 "+id+"@"+version+" 的组件继续跑，把它的依赖改到源里那个版本并适配",
 		"或者把安装源里那份 component.yaml 改回 "+version+"（新版本改从别处装）",
@@ -681,7 +681,7 @@ func noSourcesError() error {
 	return clierr.New(clierr.CodeConfigInvalid, "错误：没有可用的安装源").
 		WithDetail("原因", "brickkit.yaml 中未配置 sources，或全部 sources 都是 enabled: false").
 		WithHint(
-			"在 brickkit.yaml → sources 中配置至少一个安装源（003 §6）",
+			"在 brickkit.yaml → sources 中配置至少一个安装源",
 			"本地开发可用 type: local 指向 ./components",
 		)
 }
@@ -691,12 +691,12 @@ func checkRef(id, version string) error {
 	if problem := manifest.ComponentIDProblem(id); problem != "" {
 		return clierr.Newf(clierr.CodeInvalidArgument, "错误：组件 ID 不合法：%s", id).
 			WithDetail("原因", problem).
-			WithHint("组件 ID 格式为 <scope>/<name>，如 people/basic（002 §2.3）")
+			WithHint("组件 ID 格式为 <scope>/<name>，如 people/basic")
 	}
 	if !manifest.IsExactVersion(version) {
 		return clierr.Newf(clierr.CodeInvalidArgument, "错误：版本号不合法：%s", version).
 			WithDetail("组件", id).
-			WithHint("必须是精确版本 major.minor.patch，如 1.0.0；不接受 ^ 或 ~ 等范围约束（002 §7.1）")
+			WithHint("必须是精确版本 major.minor.patch，如 1.0.0；不接受 ^ 或 ~ 等范围约束")
 	}
 	return nil
 }

@@ -337,10 +337,10 @@ func resumable(ctx context.Context, client *market.Client, pkg *publishPackage) 
 		return clierr.Newf(clierr.CodeConfigConflict,
 			"错误：%s@%s 已经发布过了", id, version).
 			WithDetail("市场上的状态", status).
-			WithDetail("原因", "版本号一旦发布就不可回收，软删除的版本同样占位（007 §6.4）").
+			WithDetail("原因", "版本号一旦发布就不可回收，软删除的版本同样占位").
 			WithHint(
 				"换一个版本号：改 component.yaml 的 metadata.version 再发",
-				"只是想下架它的话，改版本状态而不是重新发布（007 §6.2）",
+				"只是想下架它的话，改版本状态而不是重新发布",
 			)
 	}
 

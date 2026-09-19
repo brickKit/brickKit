@@ -48,7 +48,7 @@ func checkImageReference(image string) error {
 	}
 	if tag == "" {
 		return imageError(image, "镜像地址缺少标签",
-			"必须使用明确版本的标签，例如 "+name+":1.2.0（010 §5：生产环境不使用 latest）")
+			"必须使用明确版本的标签，例如 "+name+":1.2.0（生产环境不使用 latest）")
 	}
 	if tag == "latest" {
 		return imageError(image, "镜像标签不能是 latest",

@@ -224,7 +224,7 @@ func installCommitHook(opts *Options, layout config.Layout, explicit bool) error
 		opts.Printf("✅ pre-commit hook 已刷新到当前版本（%s）：%s\n", version.Version, display)
 		return nil
 	}
-	opts.Printf("   🪝 %-21s%s\n", display, "提交前检查组件结构（004 §3.14）")
+	opts.Printf("   🪝 %-21s%s\n", display, "提交前检查组件结构")
 	return nil
 }
 

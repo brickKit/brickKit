@@ -250,7 +250,7 @@ func findDependents(
 						WithDetail("依赖方", other.Ref()).
 						WithDetailf("影响", "移除后 %s 的环境变量 %s 不会再被注入",
 							other.Ref(), manifest.EndpointEnvVar(target.ID)).
-						WithTip("弱依赖降级由组件自行处理（002 §3.4）"))
+						WithTip("弱依赖降级由组件自行处理"))
 				continue
 			}
 			report.strong = append(report.strong, other.Ref())
@@ -413,7 +413,7 @@ func checkSourceDeletable(
 				"先把它保住：提交并推到远端，或者把这个目录拷走 / 改名",
 				"确认不要了就加 --force：brickkit remove "+target.ID+" --force",
 				"只是暂时不用的话，给它写 enabled: false 再 brickkit sync"+
-					"——那会把源码收进归档目录，而不是删掉（004 §3.9）",
+					"——那会把源码收进归档目录，而不是删掉",
 			)
 	}
 	return nil

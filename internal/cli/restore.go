@@ -245,7 +245,7 @@ func restorePreflight(repo *gitrepo.Repo, layout config.Layout, cfg *config.Conf
 				workspace.DisplayDir(id)+"  与  "+workspace.DisplayArchivedDir(id))
 		}
 		return e.WithHint(
-			"一个组件 ID 只能有一个源码目录（004 §8.1），restore 不知道该保留哪一份",
+			"一个组件 ID 只能有一个源码目录，restore 不知道该保留哪一份",
 			"先检查两个目录里各是什么，确认无用后删除或重命名其中一份",
 			"两处都有源码时，平台不替你决定保留哪一份",
 		)

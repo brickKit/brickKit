@@ -184,7 +184,7 @@ func missingRequiredError(missing map[string][]string) *clierr.Error {
 				"      - id: "+strings.SplitN(first, "@", 2)[0]+"\n"+
 				"        config:\n"+
 				"          "+firstKey+": <值>",
-			"值里可以写 ${ENV_VAR}，真值放 .env（003 §4.6）",
+			"值里可以写 ${ENV_VAR}，真值放 .env",
 		)
 }
 
@@ -421,7 +421,7 @@ func unknownConfigWarning(componentID, key string, known []string) *clierr.Error
 		w = w.WithDetail("组件声明的配置项", strings.Join(known, "、"))
 	}
 	return w.WithTip("组件升级后删掉了这一项时也会看到这条——" +
-		"那说明这行覆盖从此不起作用了，可以清掉（002 §7.9）")
+		"那说明这行覆盖从此不起作用了，可以清掉")
 }
 
 // noConfigSchemaWarning 提醒"这个组件压根没有可配置项"。
@@ -432,7 +432,7 @@ func noConfigSchemaWarning(componentID string, overrides map[string]any) *clierr
 		WithDetail("组件", componentID).
 		WithDetailf("被忽略的配置项", "%s（共 %d 项）", strings.Join(keys, "、"), len(keys)).
 		WithDetail("影响", "一项都不会被注入任何环境变量").
-		WithHint("要让它可配置，先在组件的 component.yaml 里加 configSchema（002 §6.5）").
+		WithHint("要让它可配置，先在组件的 component.yaml 里加 configSchema").
 		WithTip("平台只注入 configSchema 里声明过的配置项——" +
 			"没有声明，就没有对应的环境变量")
 }

@@ -145,7 +145,7 @@ func renderUpgradeBanner(opts *Options, upgrades []upgradeInfo) {
 	if len(upgrades) == 0 {
 		return
 	}
-	opts.Printf("⬆️ 检测到版本变更（004 §3.5.1）：\n")
+	opts.Printf("⬆️ 检测到版本变更：\n")
 	for _, u := range upgrades {
 		opts.Printf("   %s: %s → %s\n", u.ID, u.From, u.To)
 	}

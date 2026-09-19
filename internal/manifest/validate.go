@@ -47,8 +47,7 @@ func newProblems(source string) *clierr.ProblemSet {
 	return clierr.NewProblemSet(clierr.CodeManifestInvalid, "错误："+FileName+" 校验失败").
 		WithSource("文件", source).
 		WithHint(
-			"参考 002 组件规范 §2.2 的 Manifest 完整结构",
-			"参考附录 B.1 的完整字段参考",
+			"完整字段参考见 docs/zh/architecture/component-yaml-reference.md（英文版把 zh 换 en）",
 		)
 }
 
@@ -138,7 +137,7 @@ func componentIDProblem(id string) string {
 			len(id), MaxComponentIDLen)
 	}
 	if hasUpper(id) {
-		return "必须全部小写（002 §10.3），格式为 scope/name"
+		return "必须全部小写，格式为 scope/name"
 	}
 	if !componentIDRe.MatchString(id) {
 		return "格式必须为 scope/name，只能包含小写字母、数字与中划线"
@@ -242,12 +241,12 @@ func checkDuplicateDependency(
 	p.Addf(field,
 		"同一个组件声明了两个版本\n"+
 			"     %s@%s（dependencies.components[%d]）与 %s\n"+
-			"     两者都注入 %s —— 依赖地址的环境变量名基于组件 ID、不带版本号\n"+
-			"     （001 §8.3），后者覆盖前者，而组件不会察觉自己只连上了其中一个\n"+
+			"     两者都注入 %s —— 依赖地址的环境变量名基于组件 ID、不带版本号，\n"+
+			"     后者覆盖前者，而组件不会察觉自己只连上了其中一个\n"+
 			"     出路 1：只依赖其中一个版本。多版本共存是**项目级**的——\n"+
-			"             brickkit.yaml 里可以同时跑两个版本，供不同调用方各用各的（002 §3.6）\n"+
+			"             brickkit.yaml 里可以同时跑两个版本，供不同调用方各用各的\n"+
 			"     出路 2：确实要同时调两个，把第二个声明成 configSchema 里的一个配置项，\n"+
-			"             由项目填地址（003 §4.9）",
+			"             由项目填地址",
 		dep.ID, prev.version, prev.index, dep.Ref, EndpointEnvVar(dep.ID))
 }
 

@@ -425,8 +425,8 @@ func validateBindingSlot(p *clierr.ProblemSet, field, kind string, b Binding) {
 
 	case want == "":
 		p.Addf(field+"."+written[0],
-			"kind: %s 没有这一格——%s 的连接变量里不存在对应的项，写了不会生效（006 §5.2）。"+
-				"要给组件传别的东西，用 configSchema 里的配置项（006 §2.1）",
+			"kind: %s 没有这一格——%s 的连接变量里不存在对应的项，写了不会生效。"+
+				"要给组件传别的东西，用 configSchema 里的配置项",
 			kind, kind)
 
 	case written[0] != want:
@@ -530,7 +530,7 @@ func envCollisionMessage(first envClaim, r Resource, componentID, prefix string)
 		"与 %s 抢同一批连接变量：组件 %s 同时绑定了 %s 与 %s（都是 %s，%s），"+
 			"两者都注入 %s_HOST / %s_PORT / … —— 后者覆盖前者，"+
 			"而组件不会察觉自己连错了地方。"+
-			"给其中一个加 envPrefix 区分开（如 envPrefix: ARCHIVE，注入为 ARCHIVE_%s_HOST，003 §5.6）；"+
+			"给其中一个加 envPrefix 区分开（如 envPrefix: ARCHIVE，注入为 ARCHIVE_%s_HOST）；"+
 			"只需要一个的话删掉多余的那条绑定",
 		first.field, componentID, first.resourceID, r.ID, r.Kind,
 		envPrefixText(prefix), vars, vars, manifest.ResourceEnvPrefix(r.Kind))

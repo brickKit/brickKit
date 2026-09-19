@@ -504,7 +504,7 @@ func planClones(
 						// 自己造成的——clone 到 ./components/ 之后，那个组件从此归本地源管。
 						// 一条照着做不通的建议比不给建议更浪费时间
 						"该组件当前由安装源 "+origin.SourceID+" 提供；要从 git 源取，"+
-							"把那个源在 brickkit.yaml 的 sources 里排到它前面（003 §6.5）",
+							"把那个源在 brickkit.yaml 的 sources 里排到它前面",
 						"或去掉 --repo，直接用 "+workspace.DisplayDir(ref.ID)+" 里的源码",
 					)
 			}

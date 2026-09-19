@@ -55,7 +55,7 @@ func Parse(data []byte, source string) (*Manifest, error) {
 	if root.Kind == 0 || len(root.Content) == 0 {
 		return nil, clierr.New(clierr.CodeManifestInvalid, "错误："+FileName+" 内容为空").
 			WithDetail("文件", source).
-			WithHint("参考 002 组件规范 §2.2 编写 component.yaml")
+			WithHint("完整字段参考见 docs/zh/architecture/component-yaml-reference.md（英文版把 zh 换 en）")
 	}
 
 	doc := root.Content[0]

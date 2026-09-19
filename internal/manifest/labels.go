@@ -55,7 +55,7 @@ func ReservedLabelKey(key string) string {
 	case strings.HasPrefix(key, reservedComposePrefix):
 		return "`" + reservedComposePrefix + "` 是 docker compose 自己写的标签，覆盖后 compose 认不出自己生成的容器"
 	case key == reservedAppLabel:
-		return "`" + reservedAppLabel + "` 是 K8s 下 Deployment 找到自己 Pod 的唯一依据，也是 NetworkPolicy 的匹配依据（005 §5.3、§5.13.1）"
+		return "`" + reservedAppLabel + "` 是 K8s 下 Deployment 找到自己 Pod 的唯一依据，也是 NetworkPolicy 的匹配依据"
 	}
 	return ""
 }

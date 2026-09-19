@@ -20,7 +20,7 @@ func parseComponentRef(arg string, requireVersion bool) (id, version string, err
 	if problem := manifest.ComponentIDProblem(id); problem != "" {
 		return "", "", clierr.Newf(clierr.CodeInvalidArgument, "错误：组件 ID 不合法：%s", id).
 			WithDetail("原因", problem).
-			WithHint("组件 ID 格式为 <scope>/<name>，如 people/basic（002 §2.3）").
+			WithHint("组件 ID 格式为 <scope>/<name>，如 people/basic").
 			WithExit(clierr.ExitUsage)
 	}
 
@@ -29,7 +29,7 @@ func parseComponentRef(arg string, requireVersion bool) (id, version string, err
 			return "", "", clierr.New(clierr.CodeInvalidArgument, "错误：请指定精确版本").
 				WithDetail("用法", "brickkit add <组件ID>@<精确版本>").
 				WithDetail("示例", "brickkit add "+id+"@1.0.0").
-				WithHint("BrickKit 只接受精确版本 major.minor.patch，不接受 ^ 或 ~ 范围约束（002 §3.3）").
+				WithHint("BrickKit 只接受精确版本 major.minor.patch，不接受 ^ 或 ~ 范围约束").
 				WithExit(clierr.ExitUsage)
 		}
 		return id, "", nil
@@ -38,7 +38,7 @@ func parseComponentRef(arg string, requireVersion bool) (id, version string, err
 	if !manifest.IsExactVersion(version) {
 		return "", "", clierr.Newf(clierr.CodeInvalidArgument, "错误：版本号不合法：%s", version).
 			WithDetail("组件", id).
-			WithHint("必须是精确版本 major.minor.patch，如 1.0.0；不接受 ^ 或 ~ 等范围约束（002 §3.3）").
+			WithHint("必须是精确版本 major.minor.patch，如 1.0.0；不接受 ^ 或 ~ 等范围约束").
 			WithExit(clierr.ExitUsage)
 	}
 	return id, version, nil

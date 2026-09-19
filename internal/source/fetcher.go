@@ -78,7 +78,7 @@ func singleVersionLatest(ctx context.Context, f fetcher, componentID string) (st
 		}
 		return "", manifestUnusable(f, componentID,
 			"metadata.version 不是精确版本："+got,
-			"改成 major.minor.patch，如 1.0.0（002 §7.1）")
+			"改成 major.minor.patch，如 1.0.0")
 	}
 	return h.Metadata.Version, nil
 }

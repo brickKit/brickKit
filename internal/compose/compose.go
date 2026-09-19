@@ -730,7 +730,7 @@ func (p *plan) serviceNameResourceWarnings() []*clierr.Error {
 			"基础资源的 host 看起来是个服务名，容器里可能解析不了").
 			WithDetail("资源", r.ID).
 			WithDetail("host", r.Host).
-			WithDetail("原因", "平台不部署基础资源（006 §9.1），compose 里不会有叫这个名字的 service").
+			WithDetail("原因", "平台不部署基础资源，compose 里不会有叫这个名字的 service").
 			WithHint(
 				"资源跑在本机时写 host: "+hostMachineAlias+"（平台会自动补 extra_hosts）",
 				"资源跑在别处时写它的 IP 或域名",

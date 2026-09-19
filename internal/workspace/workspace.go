@@ -109,7 +109,7 @@ func ExistingSourceError(l config.Layout, componentID, ref string) error {
 			WithDetail("位置", DisplayArchivedDir(componentID)).
 			WithDetail("原因",
 				"brickkit sync 把这次不启动的组件源码收进了归档目录，"+
-					"它没有丢，只是不在活跃目录里（004 §3.9）").
+					"它没有丢，只是不在活跃目录里").
 			WithHint(
 				"brickkit sync —— 让它跟着启停判定回到 "+DisplayDir(componentID),
 				"或直接进 "+DisplayArchivedDir(componentID)+"/ 编辑，git 命令与 IDE 都照常",

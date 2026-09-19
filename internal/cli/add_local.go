@@ -65,7 +65,7 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 
 	if len(scan.Components) == 0 {
 		opts.Printf("📂 没有扫到可用的组件\n")
-		opts.Printf("   本地安装源里没有 <scope>/<name>/%s（003 §6.4）\n", manifest.FileName)
+		opts.Printf("   本地安装源里没有 <scope>/<name>/%s\n", manifest.FileName)
 		return nil
 	}
 	renderLocalScan(opts, scan.Components)

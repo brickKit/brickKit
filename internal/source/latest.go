@@ -32,7 +32,7 @@ func (c *Client) LatestVersion(ctx context.Context, id string) (*Latest, error) 
 	if problem := manifest.ComponentIDProblem(id); problem != "" {
 		return nil, clierr.Newf(clierr.CodeInvalidArgument, "错误：组件 ID 不合法：%s", id).
 			WithDetail("原因", problem).
-			WithHint("组件 ID 格式为 <scope>/<name>，如 people/basic（002 §2.3）")
+			WithHint("组件 ID 格式为 <scope>/<name>，如 people/basic")
 	}
 	if len(c.fetchers) == 0 {
 		return nil, noSourcesError()

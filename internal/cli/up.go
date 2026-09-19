@@ -314,7 +314,7 @@ func renderNothingRunning(opts *Options, states *cascade.Result) {
 	tops := states.TopLevel()
 	if len(tops) == 0 {
 		opts.Printf("   没有找到顶层组件——每个组件都被别的组件依赖着（依赖成了环）\n")
-		opts.Printf("   给你想跑的那个写 enabled: true（003 §4.3）\n")
+		opts.Printf("   给你想跑的那个写 enabled: true\n")
 		return
 	}
 
@@ -333,10 +333,10 @@ func renderNothingRunning(opts *Options, states *cascade.Result) {
 func nothingRunningHint(tops []cascade.Component) string {
 	for _, c := range tops {
 		if c.State == cascade.StateDisabled {
-			return "移除其中一个的 enabled: false，它下面那条链会跟着回来（003 §4.3）"
+			return "移除其中一个的 enabled: false，它下面那条链会跟着回来"
 		}
 	}
-	return "顶层自己都没被关掉——要放开的是上面那行理由里点名的组件（003 §4.3）"
+	return "顶层自己都没被关掉——要放开的是上面那行理由里点名的组件"
 }
 
 // renderDegradedWeakDeps 说清楚"这次哪些弱依赖没跑、谁因此拿不到什么"。
@@ -386,7 +386,7 @@ func renderDegradedWeakDeps(opts *Options, graph *resolver.Graph, states *cascad
 		return pairs[i].dependent.String() < pairs[j].dependent.String()
 	})
 
-	opts.Printf("💡 这次有弱依赖不启动，调用方会走降级分支（002 §3.4）：\n")
+	opts.Printf("💡 这次有弱依赖不启动，调用方会走降级分支：\n")
 	for _, p := range pairs {
 		opts.Printf("   %s 不启动 → %s 拿不到 %s\n",
 			p.dep, p.dependent.ID, manifest.EndpointEnvVar(p.dep.ID))
@@ -845,7 +845,7 @@ func renderResourceRequirements(opts *Options, requirements []deploy.ResourceReq
 		return
 	}
 
-	opts.Printf("\n📌 以下基础资源需要先跑起来（平台不代为部署，见 006 §9.1）：\n")
+	opts.Printf("\n📌 以下基础资源需要先跑起来（平台不代为部署）：\n")
 	needDatabase := false
 	for _, r := range requirements {
 		opts.Printf("   %-12s %-12s %s:%d  供 %s 使用\n",

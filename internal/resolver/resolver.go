@@ -365,7 +365,7 @@ func optionalMissingWarning(dependent, missing Ref, cause error) *clierr.Error {
 		WithDetail("影响组件", dependent.String()).
 		WithDetail("原因", reasonOf(cause)).
 		WithDetailf("影响", "该组件的环境变量 %s 不会被注入", manifest.EndpointEnvVar(missing.ID)).
-		WithTip("弱依赖降级由组件自行处理（002 §3.4）；如需启用，请确认该组件已发布并可从安装源获取")
+		WithTip("弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取")
 }
 
 // cycleError 打印完整循环路径（004 §4.3）。
@@ -523,7 +523,7 @@ func resourceHints(componentID string, extra ...string) []string {
 	return append([]string{
 		"没声明这一类资源 → 在 brickkit.yaml → resources 中加一条",
 		"engine 写的不一样 → 改两处中的一处让它们逐字相同" +
-			"（平台不认别名：postgres 与 postgresql 是两个不同的值，006 §4.4）",
+			"（平台不认别名：postgres 与 postgresql 是两个不同的值）",
 		bind,
 	}, extra...)
 }

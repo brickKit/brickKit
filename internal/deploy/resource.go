@@ -208,7 +208,7 @@ func loopbackWarning(r config.Resource, consumers []string, target string) *clie
 		"基础资源的 host 写成了 "+r.Host+"，容器里连不上").
 		WithDetail("资源", r.ID).
 		WithDetail("要连它的组件", strings.Join(consumers, "、")).
-		WithDetail("原因", "容器里的 "+r.Host+" 指的是**容器自己**，不是你的机器（006 §10.2）")
+		WithDetail("原因", "容器里的 "+r.Host+" 指的是**容器自己**，不是你的机器")
 
 	if target == config.TargetK8s {
 		return w.WithHint(
