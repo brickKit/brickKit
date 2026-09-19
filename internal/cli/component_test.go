@@ -32,19 +32,19 @@ func skipIfRoot(t *testing.T) {
 // ============================================================
 
 func TestParseComponentRef(t *testing.T) {
-	id, version, err := parseComponentRef("people/basic@1.0.0", true)
+	id, version, err := parseComponentRef("people/basic@1.0.0")
 	require.NoError(t, err)
 	assert.Equal(t, "people/basic", id)
 	assert.Equal(t, "1.0.0", version)
 
-	// remove 允许省略版本
-	id, version, err = parseComponentRef("people/basic", false)
+	// 省略版本合法：add 由此触发"取最新版本"，remove/fetch 由调用方推断
+	id, version, err = parseComponentRef("people/basic")
 	require.NoError(t, err)
 	assert.Equal(t, "people/basic", id)
 	assert.Empty(t, version)
 
 	// 前后空白无所谓
-	id, _, err = parseComponentRef("  people/basic@1.0.0 ", true)
+	id, _, err = parseComponentRef("  people/basic@1.0.0 ")
 	require.NoError(t, err)
 	assert.Equal(t, "people/basic", id)
 }
@@ -53,19 +53,17 @@ func TestParseComponentRefErrors(t *testing.T) {
 	cases := []struct {
 		name     string
 		arg      string
-		require  bool
 		contains string
 	}{
-		{"组件 ID 非法", "PeopleBasic@1.0.0", true, "<scope>/<name>"},
-		{"组件 ID 含大写", "People/Basic@1.0.0", true, "组件 ID 不合法"},
-		{"缺版本", "people/basic", true, "请指定精确版本"},
-		{"版本非法", "people/basic@abc", true, "版本号不合法"},
-		{"版本非精确", "people/basic@^1.0.0", true, "精确版本"},
-		{"remove 的 ID 也要合法", "Nope", false, "组件 ID 不合法"},
+		{"组件 ID 非法", "PeopleBasic@1.0.0", "<scope>/<name>"},
+		{"组件 ID 含大写", "People/Basic@1.0.0", "组件 ID 不合法"},
+		{"版本非法", "people/basic@abc", "版本号不合法"},
+		{"版本非精确", "people/basic@^1.0.0", "精确版本"},
+		{"remove 的 ID 也要合法", "Nope", "组件 ID 不合法"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, _, err := parseComponentRef(c.arg, c.require)
+			_, _, err := parseComponentRef(c.arg)
 			require.Error(t, err)
 			e := clierr.As(err)
 			assert.Equal(t, clierr.ExitUsage, e.ExitCode(), "参数写错属于用法错误")

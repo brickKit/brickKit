@@ -69,7 +69,7 @@ func runFetch(ctx context.Context, opts *Options, arg string) error {
 		ctx = context.Background()
 	}
 
-	id, version, err := parseComponentRef(arg, false)
+	id, version, err := parseComponentRef(arg)
 	if err != nil {
 		return err
 	}

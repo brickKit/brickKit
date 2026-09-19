@@ -176,7 +176,7 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 		ctx = context.Background()
 	}
 
-	id, version, err := parseComponentRef(arg, false)
+	id, version, err := parseComponentRef(arg)
 	if err != nil {
 		return err
 	}

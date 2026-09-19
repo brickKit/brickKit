@@ -12,9 +12,9 @@ import (
 
 // parseComponentRef 解析命令行上的组件引用 `<组件ID>[@<精确版本>]`。
 //
-// requireVersion 为 true 时（add）必须带版本；为 false 时（remove）允许省略，
-// 由调用方按 brickkit.yaml 中的条目推断，多版本时再要求指定。
-func parseComponentRef(arg string, requireVersion bool) (id, version string, err error) {
+// 省略版本合法：add 由此触发"取安装源最新版本"，remove/fetch 由调用方按
+// brickkit.yaml 中的条目推断，多版本时再要求指定。
+func parseComponentRef(arg string) (id, version string, err error) {
 	id, version, hasVersion := strings.Cut(strings.TrimSpace(arg), "@")
 
 	if problem := manifest.ComponentIDProblem(id); problem != "" {
@@ -25,13 +25,6 @@ func parseComponentRef(arg string, requireVersion bool) (id, version string, err
 	}
 
 	if !hasVersion {
-		if requireVersion {
-			return "", "", clierr.New(clierr.CodeInvalidArgument, "错误：请指定精确版本").
-				WithDetail("用法", "brickkit add <组件ID>@<精确版本>").
-				WithDetail("示例", "brickkit add "+id+"@1.0.0").
-				WithHint("BrickKit 只接受精确版本 major.minor.patch，不接受 ^ 或 ~ 范围约束").
-				WithExit(clierr.ExitUsage)
-		}
 		return id, "", nil
 	}
 
