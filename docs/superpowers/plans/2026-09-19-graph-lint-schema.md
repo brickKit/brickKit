@@ -977,6 +977,7 @@ git commit -F <写好信息的文件>   # 新增：brickkit graph，把依赖拓
 > ② `local` 样式类只套给**在跑**的组件：`cascade` 从不读 `local`，`local: true` 的组件也可能被跳过；不在跑的节点只套 `disabled`，标签里的"本地调试"保留。（设计书 §2.4 已同步更正，Task 9 的文档不要写"local 与 disabled 不会同时出现"。）
 > ③ `TestGraphFailsLikeUpWhenRequiredDependencyMissing` 用 `runWith(... LogLevel: logging.LevelInfo ...)` 并断言 `"error_code":"DEPENDENCY_MISSING"`：`runIn` 把日志关了，错误码只在 JSON 日志行里。Task 6 的测试同理，已改用 `runWithLogs`。
 > ④ 命令总数的文字声明由每个加命令的任务自己改（见 Global Constraints）。
+> ⑤ **节点 ID 不能直接用服务名**（Task 3 评审用真实 mermaid-cli 验出）：含 `--` 的 ID 与以 `end`/`style`/`class`/`graph`/`subgraph`/`flowchart`/`interpolate` 开头的 ID 会让输出静默不可渲染。节点 ID = 服务名把 `-` 全换成 `_`（`demo_hello_1_0_0`），子图 ID 后缀 `_members`。上面代码块与测试里写的 `demo-hello-1-0-0`、`-members` 是初稿；Task 9 文档里的输出块取真实输出。
 
 ---
 

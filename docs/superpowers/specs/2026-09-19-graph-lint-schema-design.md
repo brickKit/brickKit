@@ -68,8 +68,12 @@ func resolveTopology(
 
 ### 2.4 Mermaid 具体形状
 
-- **节点 ID**：复用 `manifest.ServiceName(id, version)`（已经是合法的 Mermaid 标识符：小写、`/`/`.` 都换成 `-`），
-  不新发明一套命名规则。边一律写成 `A --> B`（箭头两侧留空格），避开 Mermaid 里 `o`/`x` 开头的节点名被吞进箭头的坑。
+- **节点 ID**：`manifest.ServiceName(id, version)`（版本化服务名）再把 `-` 全部换成 `_`（`demo-hello-1-0-0` → `demo_hello_1_0_0`）。
+  不能直接用服务名：组件 ID 的规则允许 `--`（`my--scope/a`）与任何单词作 scope（`graph/store`、`end/x`），而 Mermaid
+  里含 `--` 的 ID 会被当成边、以 `end` / `style` / `class` / `graph` / `subgraph` / `flowchart` / `interpolate` 开头的 ID
+  会被当成关键字，两种都让整段输出**静默变成任何渲染器都不认的文本**（`up` 对这些 ID 完全正常，`graph` 却退出码 0）。
+  服务名只含 `[a-z0-9-]`，所以 `-`→`_` 是单射，不会让两个组件撞 ID。边一律写成 `A --> B`（箭头两侧留空格），
+  避开 Mermaid 里 `o`/`x` 开头的节点名被吞进箭头的坑。
 - **节点标签**：原始的 `id@version`，写在引号里（`["erp/backend@1.0.0"]`）；`local: true` 的节点标签追加一行
   `本地调试`（Mermaid 标签内 `<br/>` 换行）——使用者在 `brickkit.yaml` 里写了 `localPort` 时连端口一起标
   （`本地调试 :8081`），**没写时不画端口**：`localPort` 是可选的，没写时由 compose 在生成阶段分配
@@ -90,10 +94,10 @@ func resolveTopology(
     标签里的"本地调试"仍保留），而不依赖各家 Mermaid 渲染器怎么合并同一个节点上的两个 class。
     "置灰 = 这次不会启动"因此是唯一的信号。
 - **`servedBy` 外壳分组**：来自 `brickkit.yaml` 里各组件条目自己的 `servedBy`（用 `shell.ParseRef` 拆成外壳的
-  `id@version`）。一个 `subgraph <外壳服务名>-members["外壳：<外壳 id@version>"] ... end` 包住这个外壳收编的全部成员节点；
-  子图 ID 带 `-members` 后缀，是因为外壳自己也是一个以它的服务名为 ID 的普通节点（它是独立的容器，画在 `subgraph` 外面，
-  收编的成员才没有自己的容器），两者不能同名。版本化服务名总是以 `-<数字>-<数字>-<数字>` 结尾，
-  所以带 `-members` 的 ID 永远不会跟任何组件节点撞名。
+  `id@version`）。一个 `subgraph <外壳节点 ID>_members["外壳：<外壳 id@version>"] ... end` 包住这个外壳收编的全部成员节点；
+  子图 ID 带 `_members` 后缀，是因为外壳自己也是一个以它的节点 ID 为 ID 的普通节点（它是独立的容器，画在 `subgraph` 外面，
+  收编的成员才没有自己的容器），两者不能同名。节点 ID 总是以 `_<数字>_<数字>_<数字>` 结尾，
+  所以带 `_members` 的 ID 永远不会跟任何组件节点撞名。
   外壳不在图里（`servedBy` 指向的目标不存在）时照样画出这个分组——`graph` 展示的是声明的结构；
   目标是否存在是 `up` 在生成阶段报的事。
 
