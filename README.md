@@ -61,17 +61,19 @@ and derive the rest.**
 
 | Idea | What BrickKit does with it | What it buys you — and an AI |
 | --- | --- | --- |
-| **Bounded contexts** (DDD) | A component is an independent unit with its own repository, Manifest, version lifecycle, and contract | Only one component has to be understood at a time |
-| **Declarative desired state** | `brickkit.yaml` is the only input, lives in Git, one complete file per environment. The CLI runs and exits — no control plane | Describe the target, not the deployment script; the diff is the review |
-| **Derivation over configuration** | Start order, service addresses, `*_ENDPOINT` variables, Compose/Kubernetes manifests, and network policies are all computed from the dependency graph | A derived value can't drift from its source, and nobody guesses a variable name or a port |
-| **Twelve-factor configuration** | Addresses, resource connections, and config arrive as environment variables; the same address format on Docker and Kubernetes | Component code never learns where it runs — zero changes between environments |
-| **Exact versions, side by side** | No ranges; the version is part of the service name (`people-basic-1-0-0`) | Two versions coexist as two DNS names, so an AI-written v2 runs beside v1 without touching its callers |
-| **Contract-first** | `artifacts` ships API contracts with the Manifest; the Market requires one from a closed-source component that provides an API | A component's boundary is readable without reading its code |
-| **Loud failure** | Unknown Manifest keys are rejected; a missing weak dependency injects *nothing* (never an empty string); a mistyped config key warns | Mistakes surface at `up` or at startup, not as a quiet wrong answer in production |
-| **Least privilege** | Nothing is reachable until declared; optional network policies come from the dependency graph; cosign-signed components are verified with the Go standard library alone | A smaller blast radius by default, with the trust anchor in *your* project |
+| **Bounded contexts** (DDD)<br>Cut a system along business lines; each piece owns its own model | A component is an independent unit with its own repository, Manifest, version lifecycle, and contract | Only one component has to be understood at a time |
+| **Declarative desired state**<br>Write what you want, not the steps to get there | `brickkit.yaml` is the only input, lives in Git, one complete file per environment. The CLI runs and exits — no control plane | Describe the target, not the deployment script; the diff is the review |
+| **Derivation over configuration**<br>Let the tool compute what can be computed, instead of asking you to write it | Start order, service addresses, `*_ENDPOINT` variables, Compose/Kubernetes manifests, and network policies are all computed from the dependency graph | A derived value can't drift from its source, and nobody guesses a variable name or a port |
+| **Twelve-factor configuration**<br>Keep config out of the code; hand it in at startup as environment variables | Addresses, resource connections, and config arrive as environment variables; the same address format on Docker and Kubernetes | Component code never learns where it runs — zero changes between environments |
+| **Exact versions, side by side**<br>Pin one specific version, never a range like `^1.0.0` | No ranges; the version is part of the service name (`people-basic-1-0-0`) | Two versions coexist as two DNS names, so an AI-written v2 runs beside v1 without touching its callers |
+| **Contract-first**<br>Write the interface down as a file before building either side | `artifacts` ships API contracts with the Manifest; the Market requires one from a closed-source component that provides an API | A component's boundary is readable without reading its code |
+| **Loud failure**<br>Fail at once and visibly, rather than quietly answer wrong later | Unknown Manifest keys are rejected; a missing weak dependency injects *nothing* (never an empty string); a mistyped config key warns | Mistakes surface at `up` or at startup, not as a quiet wrong answer in production |
+| **Least privilege**<br>Reach only what the job needs; everything else is closed by default | Nothing is reachable until declared; optional network policies come from the dependency graph; cosign-signed components are verified with the Go standard library alone | A smaller blast radius by default, with the trust anchor in *your* project |
 
-What each idea buys, what it costs, and what it refused is in
-[Design principles and trade-offs](docs/en/architecture/design-principles.md).
+What each idea is in plain words, what it buys and costs you, and how BrickKit
+treats it — including the ones it deliberately leaves to you, such as hexagonal
+architecture and TDD — is in
+[Design principles and trade-offs](docs/en/architecture/design-principles.md#meet-the-ideas).
 
 ## If you're writing components with AI
 
