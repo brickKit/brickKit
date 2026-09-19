@@ -33,6 +33,11 @@ const (
 )
 
 // Config 是 brickkit.yaml 的完整结构（003、附录 D.1）。
+//
+// 它连同引用到的全部类型，就是 schemas/brickkit.schema.json 的来源（internal/schemagen 反射生成）。
+// 两件事因此要记得：yaml tag 里有没有 omitempty 决定该字段在 schema 里是不是必填（规则见
+// schemagen 的包注释），加减 omitempty 之前先看那里；`jsonschema` tag 写的是封闭取值的约束，
+// 与 Validate 里的规则是同一份取值，改一处要改另一处，schemas_test.go 会核对。
 type Config struct {
 	Project    string      `yaml:"project"`
 	Deploy     Deploy      `yaml:"deploy"`
@@ -48,8 +53,11 @@ type Config struct {
 // Deploy 是部署目标声明。
 //
 // Context / Namespace / CreateNamespace 只在 deploy.target: k8s 下有意义。
+//
+// Target 的 jsonschema enum 与 validateDeploy 里的 case 是同一份取值，改一处要改另一处，
+// schemas_test.go 会核对（见 internal/schemagen）。
 type Deploy struct {
-	Target string `yaml:"target"`
+	Target string `yaml:"target" jsonschema:"enum=docker|k8s"`
 	// Context 钉住 kubeconfig 上下文（005 §5.11）。
 	//
 	// 不写就用 kubectl 当前的 context。写了就必须对得上——kubectl 默认
@@ -212,9 +220,12 @@ type ServiceAccount struct {
 }
 
 // Source 是一个安装源（003 §6）。
+//
+// Type 的 jsonschema enum 与 SourceType* 常量、validateSources 里的 case 是同一份取值，改一处要改另一处，
+// schemas_test.go 会核对（见 internal/schemagen）。
 type Source struct {
 	ID   string `yaml:"id"`
-	Type string `yaml:"type"`
+	Type string `yaml:"type" jsonschema:"enum=market|git|local"`
 	URL  string `yaml:"url,omitempty"`
 	Path string `yaml:"path,omitempty"`
 	// Ref 是 git 源要取的分支 / tag / commit（003 §6.3）。
@@ -303,8 +314,11 @@ func (c Component) IsDisabled() bool { return c.Enabled != nil && !*c.Enabled }
 func (c Component) Ref() string { return c.ID + "@" + c.Version }
 
 // Resource 是一个基础资源声明与绑定（003 §5）。
+//
+// Kind 的 jsonschema enum 就是 manifest.ResourceKinds：改一处要改另一处，schemas_test.go 会核对
+// （见 internal/schemagen）。
 type Resource struct {
-	Kind     string `yaml:"kind"`
+	Kind     string `yaml:"kind" jsonschema:"enum=database|cache|mq|storage|search|smtp"`
 	Engine   string `yaml:"engine"`
 	ID       string `yaml:"id"`
 	Host     string `yaml:"host"`

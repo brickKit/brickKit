@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-docs-bilingual check-market-api check-install-sh check-no-binaries check-guide-output cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + 双语镜像 + 市场 API 表 + 安装脚本 + 仓库无二进制 + 教程输出核对 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-docs-bilingual check-market-api check-install-sh check-no-binaries check-guide-output cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + 双语镜像 + 市场 API 表 + 安装脚本 + 仓库无二进制 + 教程输出核对 + 覆盖率门槛）
 # check-guide-output 2026-09-19 曾移出 lint：当时它的全部用例都核对
 # docs/archive/ 里的输出块，而归档已明确不再要求与 CLI 保持同步（错误文案里
 # 的设计书章节引用被清掉后，这份检查立刻发现了这一点——archive 里的旧文案
@@ -161,6 +161,18 @@ check-no-binaries: ## 确认没有编译产物 / 超大文件被提交进仓库
 .PHONY: check-doc-fields
 check-doc-fields: ## 检查文档里画的字段骨架与 component.yaml / brickkit.yaml 结构体一致
 	@go test ./tests/docfields/
+
+# schemas/*.json 是从 manifest.Manifest / config.Config 反射生成的（internal/schemagen），
+# 给编辑器做字段补全与未知字段红线。改了这两个结构体的字段、omitempty 或 jsonschema tag 之后跑
+# generate-schemas 并把结果一起提交；check-schemas 在 lint 里拦住"忘了跑"，并且拿真实的
+# manifest.Parse / config.ParseConfig 核对 tag 里的取值（schema 不能比校验器更严）。
+.PHONY: generate-schemas
+generate-schemas: ## 从 Go 结构体重新生成 schemas/*.json（改了 manifest / config 的字段或 jsonschema tag 之后跑）
+	@$(GO) run ./cmd/gen-schemas
+
+.PHONY: check-schemas
+check-schemas: ## 检查签入的 schemas/*.json 与结构体生成的一致，且约束与真实校验器一致
+	@$(GO) test ./internal/schemagen/ -count=1
 
 .PHONY: check-market-api
 check-market-api: ## 检查 007 §9 的 API 表与市场真实路由表双向一致

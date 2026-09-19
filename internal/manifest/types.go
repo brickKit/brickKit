@@ -90,9 +90,14 @@ func ResourceKindsText() string {
 }
 
 // Manifest 是 component.yaml 的完整结构。
+//
+// 它连同引用到的全部类型，就是 schemas/component.schema.json 的来源（internal/schemagen 反射生成）。
+// 两件事因此要记得：yaml tag 里有没有 omitempty 决定该字段在 schema 里是不是必填（规则见
+// schemagen 的包注释），加减 omitempty 之前先看那里；`jsonschema` tag 写的是封闭取值的约束，
+// 与 Validate 里的规则是同一份取值，改一处要改另一处，schemas_test.go 会核对。
 type Manifest struct {
-	APIVersion   string        `yaml:"apiVersion"`
-	Kind         string        `yaml:"kind"`
+	APIVersion   string        `yaml:"apiVersion" jsonschema:"enum=brickkit/v1"`
+	Kind         string        `yaml:"kind" jsonschema:"enum=Component"`
 	Metadata     Metadata      `yaml:"metadata"`
 	Tags         []string      `yaml:"tags,omitempty"`
 	Artifacts    []Artifact    `yaml:"artifacts,omitempty"`
@@ -107,10 +112,13 @@ type Manifest struct {
 }
 
 // Metadata 是组件元信息（002 §2.3）。
+//
+// Version 的 jsonschema pattern 是 exactVersionRe 的等价写法（tag 里不写反斜杠，所以用 [0-9]、[.]）：
+// 与 validateMetadata 里的规则是同一份取值，改一处要改另一处，schemas_test.go 会核对（见 internal/schemagen）。
 type Metadata struct {
 	ID          string `yaml:"id"`
 	Name        string `yaml:"name"`
-	Version     string `yaml:"version"`
+	Version     string `yaml:"version" jsonschema:"pattern=^[0-9]+[.][0-9]+[.][0-9]+$"`
 	Description string `yaml:"description"`
 	Vendor      string `yaml:"vendor,omitempty"`
 	License     string `yaml:"license,omitempty"`
@@ -142,6 +150,10 @@ type Dependencies struct {
 // id 里 "@" 后面切出来的派生值，Ref 是留给错误提示用的原始写法——它们不是作者能写的键，
 // 标为 "-"。没有这些标签时，未知字段检查会把 version:/ref: 当成合法键放过去，
 // 而 UnmarshalYAML 只读 id 与 optional，于是 `version: 2.0.0` 被静默丢掉。
+//
+// 它有自定义的 UnmarshalYAML（parse.go），反射看不出它接受哪些写法，所以 JSON Schema 里这一项是
+// internal/schemagen 的覆盖表手写的（schemagen.componentDepSchema）：改这里的写法
+// （多一种形式、多一个键）要同步改那份手写的 schema。
 type ComponentDep struct {
 	// ID 是组件 ID（不含版本）。
 	ID string `yaml:"id"`
@@ -154,8 +166,10 @@ type ComponentDep struct {
 }
 
 // ResourceDep 是一条资源依赖（002 §3.5）。
+//
+// Kind 的 jsonschema enum 就是 ResourceKinds：改一处要改另一处，schemas_test.go 会核对（见 internal/schemagen）。
 type ResourceDep struct {
-	Kind   string `yaml:"kind"`
+	Kind   string `yaml:"kind" jsonschema:"enum=database|cache|mq|storage|search|smtp"`
 	Engine string `yaml:"engine"`
 }
 
@@ -168,8 +182,10 @@ type ConfigSchema struct {
 }
 
 // ConfigProperty 是单个配置项的声明。
+//
+// Type 的 jsonschema enum 就是 configSchemaTypes：改一处要改另一处，schemas_test.go 会核对（见 internal/schemagen）。
 type ConfigProperty struct {
-	Type        string   `yaml:"type"`
+	Type        string   `yaml:"type" jsonschema:"enum=string|integer|number|boolean|array|object"`
 	Default     any      `yaml:"default,omitempty"`
 	Description string   `yaml:"description,omitempty"`
 	Enum        []any    `yaml:"enum,omitempty"`
@@ -191,15 +207,21 @@ type ConfigProperty struct {
 }
 
 // ItemDef 描述数组类型配置项的元素类型。
+//
+// Type 没写 omitempty，可是并不必填：校验器从不检查 items.type（items 只是说明书，AGENTS.md §9.12），
+// 所以用 jsonschema:"optional" 把它挪出 JSON Schema 的 required（见 internal/schemagen）。
 type ItemDef struct {
-	Type string `yaml:"type"`
+	Type string `yaml:"type" jsonschema:"optional"`
 }
 
 // Deployment 是部署声明（002 §4）。
+//
+// Type 与 Port 的 jsonschema 约束（enum、范围）与 validateDeployment 里的规则是同一份取值，
+// 改一处要改另一处，schemas_test.go 会核对（见 internal/schemagen）。
 type Deployment struct {
-	Type       string      `yaml:"type"`
+	Type       string      `yaml:"type" jsonschema:"enum=container"`
 	Image      string      `yaml:"image"`
-	Port       int         `yaml:"port"`
+	Port       int         `yaml:"port" jsonschema:"minimum=1,maximum=65535"`
 	ExtraPorts []ExtraPort `yaml:"extraPorts,omitempty"`
 	Resources  *Resources  `yaml:"resources,omitempty"`
 	// Labels 是组件作者推荐的部署元数据（002 §4.7）。
@@ -211,9 +233,12 @@ type Deployment struct {
 }
 
 // ExtraPort 是额外端口声明（附录 B.7）。
+//
+// Port 的 jsonschema 范围与 MinPort / MaxPort 是同一份取值，改一处要改另一处，
+// schemas_test.go 会核对（见 internal/schemagen）。
 type ExtraPort struct {
 	Name string `yaml:"name"`
-	Port int    `yaml:"port"`
+	Port int    `yaml:"port" jsonschema:"minimum=1,maximum=65535"`
 }
 
 // Resources 是推荐的资源配额（002 §4.6）。CLI 透传，不校验数值合理性。
@@ -257,8 +282,11 @@ const DefaultStartPeriodSeconds = 60
 
 // HealthCheck 是健康检查声明（002 §9）。
 // 注意：/healthz 只检查本进程存活，禁止检查外部依赖（002 §9.4）。
+//
+// Type 的 jsonschema enum 与 HealthCheckHTTP / TCP / None 是同一份取值，改一处要改另一处，
+// schemas_test.go 会核对（见 internal/schemagen）。
 type HealthCheck struct {
-	Type string `yaml:"type"`
+	Type string `yaml:"type" jsonschema:"enum=http|tcp|none"`
 	Path string `yaml:"path,omitempty"`
 	// StartPeriodSeconds 是启动宽限期：这段时间内探测失败不算数（002 §9.3）。
 	//
