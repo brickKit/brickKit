@@ -224,6 +224,10 @@ JSON Schema，落盘到仓库根目录新建的 `schemas/` 目录：`schemas/com
   `bool` 必须排除，因为 `NetworkPolicy.enabled`、`Egress.enabled`、`ServiceAccount.enabled`、
   `ComponentDep.optional` 都没写 `omitempty`，却并不必填。规则由一份**手写的、按类型列出的必填集合**在测试里钉住
   （`TestRequiredFieldsMatchValidators`）——生成器哪天改了这条规则，测试会告诉你哪个类型的必填集合变了。
+- **不必填的字段允许写成显式的 `null`**（`type` 写成 `["array", "null"]` 这种联合形式；`enum` 里补上 `null`）。
+  原因：一个小节下面的条目全被注释掉时（`dependencies:` 后面只剩注释），YAML 把它读成 `null`，CLI 接受（解码成零值），
+  schema 若拒绝就是编辑器对一份 CLI 认可的文件画红线——违反"schema 永远不比校验器更严"。必填字段不加：
+  `port:` 写成 null 会解码成 0，校验器报"缺失"，schema 同样该拒绝。
 - `additionalProperties: false`——镜像"Manifest 没有扩展字段机制，未知键直接拒绝"这条平台规则（AGENTS §6）。
   `map` 类型（`config`、`labels`、`configSchema.properties`……）里键是使用者自己定的，不受这条限制。
 - **自定义解码逻辑的类型需要单独交代**：`manifest.ComponentDep` 既能写成字符串
@@ -247,7 +251,7 @@ JSON Schema，落盘到仓库根目录新建的 `schemas/` 目录：`schemas/com
 | `config.Source.Type` | `enum=market\|git\|local` | `config.SourceType*` 常量；`source.newFetcher` 对其余值报错 |
 | `manifest.Manifest.APIVersion` | `enum=brickkit/v1` | `manifest.APIVersion` |
 | `manifest.Manifest.Kind` | `enum=Component` | `manifest.Kind` |
-| `manifest.Metadata.Version` | `pattern=^[0-9]+[.][0-9]+[.][0-9]+$` | `manifest.IsExactVersion`（正则 `^\d+\.\d+\.\d+$`；tag 里写成不含反斜杠的等价形式） |
+| `manifest.Metadata.Version`、`config.Component.Version` | `pattern=^[0-9]+[.][0-9]+[.][0-9]+$` | `manifest.IsExactVersion`（正则 `^\d+\.\d+\.\d+$`；tag 里写成不含反斜杠的等价形式）；`brickkit.yaml` 里 `components[].version` 是使用者最常敲版本号的地方，`^1.0.0` 在编辑器里就该红（AGENTS §9.2） |
 | `manifest.Deployment.Type` | `enum=container` | `manifest.DeploymentTypeContainer` |
 | `manifest.Deployment.Port` / `ExtraPort.Port` | `minimum=1,maximum=65535` | `manifest.MinPort`/`MaxPort` |
 | `manifest.HealthCheck.Type` | `enum=http\|tcp\|none` | `manifest.HealthCheckHTTP/TCP/None` 常量 |
@@ -280,7 +284,8 @@ tag 语法：关键字之间用 `,` 分隔，`enum` 的取值之间用 `|` 分�
 ### 4.5 文档
 
 - `docs/{en,zh}/00-quick-start.md` 补一小节："给编辑器接上自动补全"，给出两份文件各自的 `$schema` 注释写法
-  与 VS Code `yaml.schemas` 配置写法。
+  与 VS Code `yaml.schemas` 配置写法；并讲清一个已知的边界：`brickkit.yaml` 解析时会先展开 `${VAR}` 再校验，
+  所以 `deploy.target: ${TARGET}` 这种写法 CLI 接受、schema 会标红——schema 校验的是**字面文本**，封闭取值的字段请写字面值。
 - `07-component-yaml-reference.md`/`08-brickkit-yaml-reference.md` 顶部各加一句指向对应 schema 文件的链接。
 - AGENTS §11.2 的仓库地图加 `schemas/`、`internal/schemagen/`、`cmd/gen-schemas/` 三行。
 
