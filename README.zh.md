@@ -296,7 +296,7 @@ deploy:
 组件代码一个字都不用改：两个环境下的地址格式完全一样，都是
 `http://<版本化服务名>:<端口>`（例如 `http://people-basic-1-0-0:8080`）。
 
-**命令共 15 条：** `init` `new` `add` `remove` `fetch` `up` `down` `status` `sync`
+**命令共 16 条：** `init` `new` `add` `remove` `fetch` `up` `down` `status` `sync`
 `restore` `login` `logout` `publish` `version`
 
 想动手照着跑一遍？[5 分钟 Quick Start](docs/zh/00-quick-start.md) 用仓库自带的

@@ -25,7 +25,7 @@ CLI 的报错文案本身就是中文，下面原样引用，所以你可以直�
 - **一个码是一个类别，不是一种情形。** `CONFIG_INVALID` 背后有七十多种不同的报错。下面的表格列出你最可能遇到的那些，每一条都写着 CLI 打印的标题。
 - **退出码。** `0`——成功，包括打印了警告的那次运行。`1`——命令失败。`2`——命令行本身写错了：缺参数或参数格式不对、未知的命令或参数、或者参数指名了一个不存在的东西（对不在 `brickkit.yaml` 里的组件执行 `brickkit remove`）。
 - **写脚本时。** 只有 `NETWORK_UNREACHABLE` 值得原样重试：网络或市场可能恢复。`CONFIG_INVALID` 重试多少次结果都一样。其他任何码，都当作"得先改点什么"。
-- **警告单独算。** ⚠️ 块永远不会让命令失败。CLI 在继续往下跑的过程中打印的那些警告根本不产生那行日志，所以要靠标题来认——见[警告](#警告)。
+- **警告单独算。** ⚠️ 块本身永远不会让命令失败——唯一会把警告变成失败的是 `brickkit lint --strict`，它报的码是 `LINT_FAILED`。CLI 在继续往下跑的过程中打印的那些警告根本不产生那行日志，所以要靠标题来认——见[警告](#警告)。
 
 ## 索引：按类别找错误码
 
@@ -93,6 +93,12 @@ CLI 的报错文案本身就是中文，下面原样引用，所以你可以直�
 | [`SIGNATURE_INVALID`](#signature_invalid) | 签名验证挡下了这次安装：没签名，或签名对不上 |
 | [`CLONE_FAILED`](#clone_failed) | 克隆 Git 仓库失败 |
 | [`SUBMODULE_GUARD`](#submodule_guard) | 组件源码是已登记的 git submodule，`remove` 和 `sync` 不会去碰它 |
+
+**结构检查**
+
+| 错误码 | 一句话 |
+| --- | --- |
+| [`LINT_FAILED`](#lint_failed) | `brickkit lint` 查出了问题——逐条明细已经打印在汇总的上面 |
 
 警告不产生错误码，只能靠标题来认——见[警告](#警告)。
 
@@ -193,7 +199,7 @@ CLI 的报错文案本身就是中文，下面原样引用，所以你可以直�
 | --- | --- | --- |
 | `错误：项目配置文件不存在` | 指定路径（默认是当前目录）下没有 `brickkit.yaml` | 在项目根执行、先执行 `brickkit init <项目名称>`，或用 `--config` 指向那个文件 |
 | `错误：项目未初始化` | 同上，只是经由一个要改配置的命令走到这里 | 同上 |
-| `错误：当前目录既不是 BrickKit 项目，也不是组件仓库` | `brickkit skills` 既没找到 `brickkit.yaml`，也没找到 `component.yaml` | 在项目根或组件仓库里执行 |
+| `错误：当前目录既不是 BrickKit 项目，也不是组件仓库` | `brickkit skills` 或 `brickkit lint` 既没找到 `brickkit.yaml`，也没找到 `component.yaml` | 在项目根或组件仓库里执行 |
 | `错误：这里没有 <file>，不是一个 BrickKit 项目` | 在没有 `brickkit.yaml` 的目录里执行了 `brickkit init --hooks` | 先 `brickkit init <项目名称>`——项目根就是仓库根时它会顺带装上 hook |
 
 ## Manifest 与依赖
@@ -208,6 +214,8 @@ CLI 的报错文案本身就是中文，下面原样引用，所以你可以直�
 | `错误：component.yaml 不是合法的 YAML` | YAML 语法错误 | 按报出的行号检查缩进 |
 | `错误：component.yaml 不存在` | 目录里没有它 | 检查 `--path`，或安装源指向的目录 |
 | `错误：component.yaml 内容为空` | 文件在，但是空的 | 把 Manifest 写出来 |
+| `错误：component.yaml 里的组件 ID 与目录名对不上` | `brickkit lint` 发现某份 `component.yaml` 的 `metadata.id`，与它所在的 `<scope>/<name>` 目录名不一致——本地安装源是按目录名找组件的 | 让两者一致：改目录名，或改 `metadata.id` |
+| `错误：读取 component.yaml 失败` | `brickkit lint` 读不了这份文件——通常是权限问题 | 改好文件权限 |
 | `错误：组件目录中没有 component.yaml` | `brickkit publish` 指向的目录里没有它 | 用 `--path` 指向组件源码目录——归档目录（`components/.archived/…`）也可以 |
 | `错误：artifacts 声明的文件不存在` | 某个 `artifacts[].files` 路径不存在——常常是契约文件还没生成 | 先生成（protobuf、OpenAPI），或改对路径 |
 | `错误：component.yaml 里没有 deployment 段，无法钉住 digest` | 发布会钉住镜像 digest，而没有 `deployment` 段可钉 | 补上 `deployment` |
@@ -392,9 +400,30 @@ Docker Compose 或 `kubectl` 跑了，但失败了。引擎自己的原始输出
 | `错误：无法删除组件源码——它是一个已登记的 git submodule` | `brickkit remove` 不会碰已登记的 submodule：直接删或改名不认识 `.gitmodules`，会悄悄让它的版本历史脱钩 | 手工执行错误块里列出的 `git submodule deinit` / `git rm`，再重跑 |
 | `错误：无法移动组件源码——它是一个已登记的 git submodule` | `brickkit sync` 同样不会移动它 | 手工执行错误块里列出的等价 `git mv`，确认 `.gitmodules` 与 `git status` 都正常，再重跑 `brickkit sync` |
 
+## 结构检查
+
+### LINT_FAILED
+
+`brickkit lint` 是离线、只读的结构检查：不联网，不需要 Docker 或 Kubernetes。它读 `brickkit.yaml` 和本地安装源里的 `component.yaml`（在独立的组件仓库里，就读当前目录那一份 `component.yaml`），把不合格的地方报出来。`LINT_FAILED` 是它对整趟检查的结论，不是对某一个具体问题的描述：逐条问题早已打印在 **stdout** 上，每个问题一个块，最后是一行 `📋 检查了 N 个文件：M 个有错误，K 条警告` 的汇总。下面这个块写在 stderr 上，排在那份报告之后，紧跟着照常的那行 JSON 日志：
+
+```
+❌ 错误：结构检查未通过
+   已检查：4 个文件
+   有错误：2 个文件
+   建议：按上面逐条列出的位置修改，再执行 brickkit lint
+```
+
+| 你会看到 | 原因 | 怎么办 |
+| --- | --- | --- |
+| `错误：结构检查未通过` | 至少有一个文件有错误（块里写着 `有错误：N 个文件`）——或者加了 `--strict` 时，至少有一条警告（`警告：N 条（--strict：警告也算失败）`）。退出码 `1` | 逐个看 `brickkit lint` 打印在 stdout 上的块——每个都指明了文件和字段——改掉之后再执行一次 `brickkit lint` |
+
+stdout 上的那些问题保留它们在别处本来的标题：`component.yaml` 校验不过，仍然是 `MANIFEST_INVALID` 下的 `错误：component.yaml 校验失败`；`brickkit.yaml` 不合法，仍然是 `CONFIG_INVALID`。但它们只是 stdout 上的普通块，不带 JSON 日志行，所以脚本看到的只有 `LINT_FAILED` 这一个码。这是刻意的：一趟检查可以同时查出两种问题，而汇总只能带一个码——况且 CI 脚本要区分的，恰恰是"lint 查出了问题"和"配置压根读不出来"。要分支，就认 `LINT_FAILED`。
+
+它不值得重试：同样的文件会同样地失败。只有警告时 `brickkit lint` 不算失败（退出码 `0`），除非加 `--strict`——那是给 CI 门禁用的。
+
 ## 警告
 
-⚠️ 块永远不会让命令失败（退出码 `0`）。CLI 继续往下跑时打印的那些不产生 `error_code` 日志行，所以这张表按标题索引；"码"一列是同一条消息在 CLI 源码里带的码，供好奇的人参考。
+⚠️ 块本身永远不会让命令失败（退出码 `0`；`brickkit lint --strict` 是主动选用的例外）。CLI 继续往下跑时打印的那些不产生 `error_code` 日志行，所以这张表按标题索引；"码"一列是同一条消息在 CLI 源码里带的码，供好奇的人参考。
 
 | 你会看到 | 码 | 含义与怎么办 |
 | --- | --- | --- |
@@ -407,8 +436,8 @@ Docker Compose 或 `kubectl` 跑了，但失败了。引擎自己的原始输出
 | `existingSecret 只在 K8s 生效，当前是 docker 目标` | `CONFIG_INVALID` | Docker 没有"引用外部已建好的 Secret"这回事；直接给这个配置项写字面值或 `${VAR}` 引用 |
 | `config 里有配置项不会生效：组件 <component> 的 <key>` | `CONFIG_INVALID` | `config` 里的某个键不在该组件 `configSchema.properties` 里——通常是笔误，CLI 会猜你想写的是哪一个。没有这个检查的话，那个变量会压根不存在，组件悄悄走默认值 |
 | `config 整块不会生效：组件 <component> 没有声明 configSchema` | `CONFIG_INVALID` | 你给一个没声明 `configSchema` 的组件写了 `config`，所以整块都不会生效 |
-| `警告：configSchema 里有配置项声明的键不会生效` | `MANIFEST_INVALID` | `configSchema` 下某个属性有拼错的键（`defualt:`）。发布、或从本地安装源添加时显示 |
-| `配置冲突：组件 <component> 的配置项已被忽略` | `CONFIG_CONFLICT` | 一个 `configSchema` 键转成大写后与保留变量（`*_ENDPOINT`、`DATABASE_*` ……）冲突；平台注入的值优先，这个键被跳过。把键改名——见[环境变量注入契约](04-environment-variables.md) |
+| `警告：configSchema 里有配置项声明的键不会生效` | `MANIFEST_INVALID` | `configSchema` 下某个属性有拼错的键（`defualt:`）。发布、从本地安装源添加、以及 `brickkit lint` 时显示 |
+| `配置冲突：组件 <component> 的配置项已被忽略` | `CONFIG_CONFLICT` | 一个 `configSchema` 键转成大写后与保留变量（`*_ENDPOINT`、`DATABASE_*` ……）冲突；平台注入的值优先，这个键被跳过。把键改名——见[环境变量注入契约](04-environment-variables.md)。`brickkit lint` 能在你执行 `up` 之前离线报出它，而且 `configSchema` 里声明的每个键都会查——`up` 只对有默认值或写了 `config` 值的键才会碰到它 |
 | `基础资源的 host 看起来是个服务名，容器里可能解析不了` | `CONFIG_INVALID` | 资源的 `host` 像是一个 Compose 服务名，但资源并不属于本项目。资源在你本机时写 `host.docker.internal`，否则写它的真实地址 |
 | `配置里有只对 <target> 生效的字段` | `CONFIG_INVALID` | 有个字段只对另一种 `deploy.target` 生效——比如 `k8s` 下的 `exposePort`——现在它什么也没做 |
 | `local: true 的组件上，labels 本次不生效` | `CONFIG_INVALID` | `local: true` 的组件没有容器可以挂标签。想让平台管标签，就去掉 `local: true` |

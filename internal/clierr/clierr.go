@@ -86,6 +86,13 @@ const (
 	// 直接文件系统操作"（2026-09-06 gap report §5.3）。os.Rename/os.RemoveAll
 	// 不懂 .gitmodules，会把子模块的独立版本历史和 superproject 脱钩且不报错。
 	CodeSubmoduleGuard Code = "SUBMODULE_GUARD"
+
+	// 结构检查（brickkit lint）。
+	//
+	// CodeLintFailed 是"lint 查出了问题"——逐条问题已经打印在 stdout，这个码只标记整条命令的结局。
+	// 不复用 CONFIG_INVALID / MANIFEST_INVALID：一次 lint 可以两者兼有，汇总只能带一个码；
+	// 而 CI 脚本要区分的恰恰是"lint 查出了问题"和"配置读不出来"。
+	CodeLintFailed Code = "LINT_FAILED"
 )
 
 // 退出码。004 未规定具体数值，此处约定：

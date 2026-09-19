@@ -17,7 +17,7 @@ import (
 // allCommands 是设计书 004 §3.1 定义的命令 + version。
 var allCommands = []string{
 	"init", "new", "add", "remove", "up", "down", "status",
-	"fetch", "sync", "restore", "login", "publish", "version", "graph",
+	"fetch", "sync", "restore", "login", "publish", "version", "graph", "lint",
 }
 
 type result struct {
@@ -281,6 +281,7 @@ func TestSubcommandFlags(t *testing.T) {
 		"publish": {"path", "visibility"},
 		"version": {"verbose"},
 		"graph":   {"ignore-served-by"},
+		"lint":    {"strict"},
 	}
 	for name, flags := range want {
 		sub := findCommand(root, name)

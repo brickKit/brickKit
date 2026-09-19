@@ -25,7 +25,7 @@ The `error_code` in that log line is what this page is organized by. The first l
 - **A code is a category, not a single situation.** `CONFIG_INVALID` sits behind seventy-odd different messages. The tables below list the ones you are likely to meet, each under the title the CLI prints.
 - **Exit status.** `0` — success, including a run that printed warnings. `1` — the command failed. `2` — the command line itself was wrong: a missing or malformed argument, an unknown command or flag, or an argument that names something that isn't there (`brickkit remove` of a component that isn't in `brickkit.yaml`).
 - **For scripts.** `NETWORK_UNREACHABLE` is the one worth retrying unchanged: the network, or the Market, may come back. `CONFIG_INVALID` fails identically however often you retry. Treat any other code as "something has to change first".
-- **Warnings are separate.** A ⚠️ block never fails a command. The ones the CLI prints while it carries on don't produce the log line at all, so you recognize them by their title — see [Warnings](#warnings).
+- **Warnings are separate.** A ⚠️ block never fails a command on its own — the one thing that turns warnings into a failure is `brickkit lint --strict`, which reports it as `LINT_FAILED`. The ones the CLI prints while it carries on don't produce the log line at all, so you recognize them by their title — see [Warnings](#warnings).
 
 ## Index: error codes by category
 
@@ -93,6 +93,12 @@ Click a code to jump to its section; the table in each section lists the specifi
 | [`SIGNATURE_INVALID`](#signature_invalid) | Signature verification blocked the install: unsigned, or it doesn't verify |
 | [`CLONE_FAILED`](#clone_failed) | Cloning a Git repository failed |
 | [`SUBMODULE_GUARD`](#submodule_guard) | A component's source is a registered git submodule, which `remove` and `sync` won't touch |
+
+**Structure check**
+
+| Code | In one line |
+| --- | --- |
+| [`LINT_FAILED`](#lint_failed) | `brickkit lint` found problems — the details were printed above the summary |
 
 Warnings carry no error code and can only be recognized by their title — see [Warnings](#warnings).
 
@@ -193,7 +199,7 @@ The command needs a BrickKit project and there isn't one here.
 | --- | --- | --- |
 | `错误：项目配置文件不存在` | No `brickkit.yaml` at the path (default: the current directory) | Run it in the project root, run `brickkit init <name>` first, or point at the file with `--config` |
 | `错误：项目未初始化` | The same, reached through a command that edits the config | Same |
-| `错误：当前目录既不是 BrickKit 项目，也不是组件仓库` | `brickkit skills` found neither a `brickkit.yaml` nor a `component.yaml` | Run it in a project root, or in a component repository |
+| `错误：当前目录既不是 BrickKit 项目，也不是组件仓库` | `brickkit skills` or `brickkit lint` found neither a `brickkit.yaml` nor a `component.yaml` | Run it in a project root, or in a component repository |
 | `错误：这里没有 <file>，不是一个 BrickKit 项目` | `brickkit init --hooks` in a directory without a `brickkit.yaml` | `brickkit init <name>` first — it installs the hook when the project root is the repository root |
 
 ## Manifest and dependencies
@@ -208,6 +214,8 @@ A `component.yaml` can't be used. The Manifest has no extension mechanism: an un
 | `错误：component.yaml 不是合法的 YAML` | A YAML syntax error | Check the indentation at the reported line |
 | `错误：component.yaml 不存在` | The directory doesn't contain one | Check the `--path`, or the directory the source points at |
 | `错误：component.yaml 内容为空` | The file exists but is empty | Write the Manifest |
+| `错误：component.yaml 里的组件 ID 与目录名对不上` | `brickkit lint` found a `component.yaml` whose `metadata.id` differs from the `<scope>/<name>` directory it sits in — a local source finds components by directory name | Make the two agree: rename the directory, or fix `metadata.id` |
+| `错误：读取 component.yaml 失败` | `brickkit lint` couldn't read the file — usually its permissions | Fix the file's permissions |
 | `错误：组件目录中没有 component.yaml` | `brickkit publish` was pointed at a directory without one | `--path` at the component's source directory — an archived one (`components/.archived/…`) works |
 | `错误：artifacts 声明的文件不存在` | An `artifacts[].files` path doesn't exist — often a contract that hasn't been generated yet | Generate the file (protobuf, OpenAPI), or fix the path |
 | `错误：component.yaml 里没有 deployment 段，无法钉住 digest` | Publishing pins the image digest, and there's no `deployment` section to pin | Add `deployment` |
@@ -392,9 +400,30 @@ A signature that doesn't verify against your `installer.publicKeys` also arrives
 | `错误：无法删除组件源码——它是一个已登记的 git submodule` | `brickkit remove` won't touch a registered submodule: a plain delete or rename doesn't understand `.gitmodules` and would silently detach its history | Run the `git submodule deinit` / `git rm` commands the block lists, then re-run |
 | `错误：无法移动组件源码——它是一个已登记的 git submodule` | `brickkit sync` won't move one either | Do the equivalent `git mv` the block lists, check `.gitmodules` and `git status`, then re-run `brickkit sync` |
 
+## Structure check
+
+### LINT_FAILED
+
+`brickkit lint` is the offline, read-only structure check: no network, no Docker or Kubernetes. It reads `brickkit.yaml` and the `component.yaml` files under your local sources (in a component repository, the one `component.yaml` in the current directory) and reports what is malformed. `LINT_FAILED` is its verdict on the whole run, not a description of any one problem: the problems themselves were already printed to **stdout**, one block each, followed by a `📋 检查了 N 个文件：M 个有错误，K 条警告` summary line. The block below goes to stderr, after that report, and is followed by the usual JSON log line:
+
+```
+❌ 错误：结构检查未通过
+   已检查：4 个文件
+   有错误：2 个文件
+   建议：按上面逐条列出的位置修改，再执行 brickkit lint
+```
+
+| You'll see | Cause | What to do |
+| --- | --- | --- |
+| `错误：结构检查未通过` | At least one file has an error (the block says `有错误：N 个文件`) — or, with `--strict`, at least one warning does (`警告：N 条（--strict：警告也算失败）`). Exit status `1` | Go through the blocks `brickkit lint` printed on stdout — each names its file and field — fix them, and run `brickkit lint` again |
+
+The problems on stdout keep the titles they'd have anywhere else: a `component.yaml` that doesn't validate is still `错误：component.yaml 校验失败` under `MANIFEST_INVALID`, and an invalid `brickkit.yaml` is still `CONFIG_INVALID`. But they are plain blocks on stdout, with no JSON log line, so `LINT_FAILED` is the only code a script sees. That's deliberate: one run can find both kinds, and the summary can carry only one code — and what a CI script needs to tell apart is "lint found problems" from "the configuration couldn't be read at all". Branch on `LINT_FAILED`.
+
+It is not worth retrying: the same files fail the same way. Warnings alone don't fail `brickkit lint` (exit status `0`) unless you pass `--strict`, which is there for CI gates.
+
 ## Warnings
 
-A ⚠️ block never fails a command (exit status `0`). The ones printed while the CLI carries on don't produce the `error_code` log line, so this table is keyed by title; the code is what the same message carries in the CLI's source, for the curious.
+A ⚠️ block never fails a command by itself (exit status `0`; `brickkit lint --strict` is the opt-in exception). The ones printed while the CLI carries on don't produce the `error_code` log line, so this table is keyed by title; the code is what the same message carries in the CLI's source, for the curious.
 
 | You'll see | Code | Meaning and what to do |
 | --- | --- | --- |
@@ -407,8 +436,8 @@ A ⚠️ block never fails a command (exit status `0`). The ones printed while t
 | `existingSecret 只在 K8s 生效，当前是 docker 目标` | `CONFIG_INVALID` | Docker has no concept of referencing an externally-created Secret; write the value directly (literal or `${VAR}`) |
 | `config 里有配置项不会生效：组件 <component> 的 <key>` | `CONFIG_INVALID` | A `config` key isn't in that component's `configSchema.properties` — usually a typo, and the CLI suggests the key it thinks you meant. Without this check the variable would simply never exist and the component would quietly use its default |
 | `config 整块不会生效：组件 <component> 没有声明 configSchema` | `CONFIG_INVALID` | You wrote `config` for a component that declares no `configSchema`, so none of it takes effect |
-| `警告：configSchema 里有配置项声明的键不会生效` | `MANIFEST_INVALID` | A property under `configSchema` has a misspelled key (`defualt:`). Shown when publishing or adding from a local source |
-| `配置冲突：组件 <component> 的配置项已被忽略` | `CONFIG_CONFLICT` | A `configSchema` key, uppercased, collides with a reserved variable (`*_ENDPOINT`, `DATABASE_*`, …); the platform's value wins and the key is skipped. Rename the key — see the [Environment variable contract](04-environment-variables.md) |
+| `警告：configSchema 里有配置项声明的键不会生效` | `MANIFEST_INVALID` | A property under `configSchema` has a misspelled key (`defualt:`). Shown when publishing, when adding from a local source, and by `brickkit lint` |
+| `配置冲突：组件 <component> 的配置项已被忽略` | `CONFIG_CONFLICT` | A `configSchema` key, uppercased, collides with a reserved variable (`*_ENDPOINT`, `DATABASE_*`, …); the platform's value wins and the key is skipped. Rename the key — see the [Environment variable contract](04-environment-variables.md). `brickkit lint` reports it offline, before you run `up`, and for every key `configSchema` declares — `up` only meets it for a key that has a default or a `config` value |
 | `基础资源的 host 看起来是个服务名，容器里可能解析不了` | `CONFIG_INVALID` | A resource `host` looks like a Compose service name, but resources aren't part of the project. Use `host.docker.internal` for one on your machine, or its real address |
 | `配置里有只对 <target> 生效的字段` | `CONFIG_INVALID` | A field that only applies to the other `deploy.target` — for example `exposePort` under `k8s` — is doing nothing |
 | `local: true 的组件上，labels 本次不生效` | `CONFIG_INVALID` | A `local: true` component has no container to label. Remove `local: true` to get platform-managed labels back |

@@ -78,6 +78,7 @@ brickkit-component 这一个技能——项目导读与拼装/部署/排障三�
 //
 // 两者都有时按项目算：那是 brickkit skills 一直以来的行为，lint 沿用同一条规则，
 // 不新发明一条。返回的 Layout 无论成败都有效——调用方走哪一支都要用它定位文件。
+// 出错时返回的 Scope 只是占位，没有含义：调用方必须先检查 err。
 func detectScope(opts *Options) (skills.Scope, config.Layout, error) {
 	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
 

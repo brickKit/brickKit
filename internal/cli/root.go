@@ -200,6 +200,7 @@ CLI 只做六件事：
 		newInitCommand(opts),
 		newSkillsCommand(opts),
 		newGraphCommand(opts),
+		newLintCommand(opts),
 		newNewCommand(opts),
 		newAddCommand(opts),
 		newRemoveCommand(opts),

@@ -798,7 +798,7 @@ silently unused under `k8s` with nothing catching it) is
 
 ---
 
-## 8. The CLI command set (15 commands + `version`)
+## 8. The CLI command set (16 commands + `version`)
 
 | Command | Core behavior |
 | --- | --- |
