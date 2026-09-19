@@ -363,6 +363,10 @@ func TestInitInstallsHookWhenProjectIsRepoRoot(t *testing.T) {
 	hook := filepath.Join(dir, ".git", "hooks", "pre-commit")
 	assert.FileExists(t, hook)
 	assert.Contains(t, r.stdout, "pre-commit")
+	// `.git/hooks/pre-commit` 正好 21 列，占满了对齐用的 %-21s——说明文字曾经
+	// 直接粘在路径后面（"…pre-commit提交前检查组件结构"）。
+	assert.Contains(t, r.stdout, ".git/hooks/pre-commit 提交前检查组件结构",
+		"路径与说明之间至少要有一个空格")
 
 	script, err := os.ReadFile(hook)
 	require.NoError(t, err)

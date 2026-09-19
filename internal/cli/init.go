@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
@@ -224,7 +225,13 @@ func installCommitHook(opts *Options, layout config.Layout, explicit bool) error
 		opts.Printf("✅ pre-commit hook 已刷新到当前版本（%s）：%s\n", version.Version, display)
 		return nil
 	}
-	opts.Printf("   🪝 %-21s%s\n", display, "提交前检查组件结构")
+	// %-21s 只管对齐：路径恰好占满 21 列时（`.git/hooks/pre-commit` 就是）
+	// 它和后面的说明会粘在一起，所以那种情况补一个空格。
+	sep := ""
+	if utf8.RuneCountInString(display) >= 21 {
+		sep = " "
+	}
+	opts.Printf("   🪝 %-21s%s%s\n", display, sep, "提交前检查组件结构")
 	return nil
 }
 
