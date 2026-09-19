@@ -97,7 +97,7 @@ Two more words, used below in a precise sense:
 
 BrickKit only ever deals with the stub; the mock is an ordinary process you start yourself, and BrickKit never learns it exists. Most of what follows is about keeping those two apart.
 
-The upside: you can build and run `demo/caller` today against the agreed shape, and on the day the real component arrives nothing in `demo/caller` changes. The cost: the mock knows only what the contract says, so anything the real component does differently — or beyond it — you find out late; and the stub is fake, so it has to be taken out again (the last part shows how).
+The upside: you can build and run `demo/caller` today against the agreed shape, and on the day the real component arrives nothing in `demo/caller` changes. The cost: the mock knows only what the contract says, so anything the real component does differently — or beyond it — you find out late; and the stub is fake, so it has to be taken out again (the last part shows how). It is a development-time expedient, not a replacement for verifying against the real component once that exists: [the testing patterns](../07-patterns/01-testing.md) explain why a cross-component test should hit the real dependency rather than a stand-in.
 
 There is no dedicated command for any of this, on purpose (the reasons are near the end). The recipe chains three features you have already met: `brickkit new --contract` makes the stub, `brickkit add --local` registers it, and `local: true` ([Article 3](03-local-debugging.md)) tells BrickKit "I run this one myself".
 
@@ -256,6 +256,8 @@ An excerpt — `...` marks lines left out:
 
 The stub still takes part in the status calculation and the dependency graph. What changed is "不生成容器" (no container is generated) and where it is expected: `localhost:18081`. That is `localPort`, not the `8080` written in the stub's own Manifest — a `local: true` component's `image` and `port` are never used, which is why the skeleton's `TODO`s can stay. (A real `brickkit up` doesn't check the stub's image either: with a throwaway PostgreSQL bound as in [Article 6](06-assemble-and-break.md), the image check passed even though nothing had ever built the placeholder image.) The message talks about "your IDE" because `local: true` was made for debugging; for a mock it just means "any program you start on your own machine".
 
+The `...` lines also hide one more warning, `⚠️ 警告：资源依赖未满足（--dry-run 不阻断）`: `demo/caller` declares that it needs a database, and this project hasn't bound one. It has nothing to do with the stub, and the end-to-end section below comes back to it.
+
 ### Step 4: start a mock on that port
 
 This step is not BrickKit's. Anything that listens on port 18081 of your machine and answers the way the contract says will do; BrickKit doesn't start it, watch it, or know what it is. A short Python script is enough to try the idea:
@@ -286,12 +288,12 @@ python3 mock_hello.py
 
 Leave it running in its own terminal.
 
-The script listens on `0.0.0.0` rather than `127.0.0.1` on purpose. `demo/caller` will reach your machine from *outside* it — from inside a container — and a program that listens only on the loopback address never sees that traffic. Both were tried: bound to `127.0.0.1`, the mock answered a request from the host itself but the caller got a `502` (it couldn't reach its dependency); bound to `0.0.0.0`, the caller got the mock's answer.
+The script listens on `0.0.0.0` rather than `127.0.0.1` on purpose. `127.0.0.1` is the loopback address — "this machine talking to itself" — and a program bound to it only accepts connections made from the machine itself, while `0.0.0.0` means every network interface. `demo/caller` will reach your machine from *outside* it, from inside a container, so a mock bound only to the loopback address would never see that traffic. Both were tried: bound to `127.0.0.1`, the mock answered a request from the host itself but the caller got a `502` (it couldn't reach its dependency); bound to `0.0.0.0`, the caller got the mock's answer.
 
-Hand-written answers stop scaling after a few endpoints, so real projects usually reach for a tool that reads the contract itself. One example is Prism. It is third-party and unrelated to BrickKit, and this is the command line it was run with while writing this (check its own documentation if the flags have changed); it answered the same request with the `example` value from the contract above:
+Hand-written answers stop scaling after a few endpoints, so real projects usually reach for a tool that reads the contract itself. One example is Prism. It is third-party and unrelated to BrickKit. The command below was verified with version `5.16.0` while writing this (check its own documentation if the flags have changed), and it answered the same request with the `example` value from the contract above. Note that `npx --yes` skips the confirmation prompt, so it downloads and runs third-party code without asking:
 
 ```bash
-npx --yes @stoplight/prism-cli mock -p 18081 -h 0.0.0.0 components/demo/hello/api/openapi.yaml
+npx --yes @stoplight/prism-cli@5.16.0 mock -p 18081 -h 0.0.0.0 components/demo/hello/api/openapi.yaml
 ```
 
 ### What `demo/caller` is told
@@ -311,11 +313,11 @@ grep -n "DEMO_HELLO_ENDPOINT\|extra_hosts\|demo-hello-1-0-0" .brickkit/generated
 52:      - demo-hello-1-0-0:host-gateway
 ```
 
-Two settings matter, and each appears twice: once for `demo/caller`'s own container and once for its migration container, which runs from the same image (AGENTS.md §5.5 and §6). The environment variable hands the caller the same kind of address it would get for a real `demo/hello` — the versioned service name — but with your `localPort`. `extra_hosts` is what makes that name mean something: `host-gateway` is Docker's special value for "the host machine, seen from inside a container", so `demo-hello-1-0-0` resolves to your machine, and port 18081 is where the mock listens ([Article 3](03-local-debugging.md) went through this in detail). `demo/caller` reads `DEMO_HELLO_ENDPOINT` as it always does and has no idea the other end is a stand-in.
+Two settings matter, and each appears twice: once for `demo/caller`'s own container and once for its migration container — the one-shot container that runs the component's database setup before the main one starts, from the same image (AGENTS.md §5.5 and §6). The environment variable hands the caller the same kind of address it would get for a real `demo/hello` — the versioned service name, the component ID plus its exact version — but with your `localPort`. `extra_hosts` is what makes that name mean something: it adds one entry, name to address, to the container's own hosts table, and `host-gateway` is Docker's special value for "the host machine, seen from inside a container" — so `demo-hello-1-0-0` resolves to your machine, and port 18081 is where the mock listens ([Article 3](03-local-debugging.md) went through this in detail). `demo/caller` reads `DEMO_HELLO_ENDPOINT` as it always does and has no idea the other end is a stand-in.
 
 ### Prove it end to end (needs Docker and Python 3)
 
-The steps above needed neither. To watch a real container hit the mock, there is a catch: `demo/caller`'s image needs a real database to come up under `brickkit up` ([Article 6](06-assemble-and-break.md) binds one), yet started by hand it answers without one. So skip `brickkit up` for this check and run the image directly, carrying exactly the two settings from the `grep` above:
+The steps above needed neither. To watch a real container hit the mock, there is a catch: `demo/caller`'s image needs a real database to come up under `brickkit up` (that is the warning the `...` above left out; [Article 6](06-assemble-and-break.md) binds one), yet started by hand it answers without one. So skip `brickkit up` for this check and run the image directly, carrying exactly the two settings from the `grep` above:
 
 ```bash
 docker build -t brickkit-demo/caller:1.0.0 ../tests/components/demo-caller
@@ -349,7 +351,7 @@ Clean up with `docker rm -f stub-demo-caller`, and stop the mock with Ctrl-C.
 You might expect a `mock` command that builds a fake server from the contract, or a switch on `up` that swaps a stand-in in for any required dependency that is missing. Neither exists, for three reasons:
 
 - **The platform never reads a contract's content.** `artifacts.format` is a free-form string that BrickKit carries along and never interprets (AGENTS.md §6). Generating mocks would mean understanding OpenAPI, protobuf, gRPC and whatever format comes next — a job that is never finished, and one that dedicated tools already do. BrickKit's part stays small: getting the address to whatever you run.
-- **Swapping in a stand-in automatically contradicts two of its principles.** A missing required dependency is supposed to stop `up`, not be papered over (AGENTS.md §5.3), and explicit beats implicit (§4): one misuse and a component that answers everything with made-up data gets deployed for real. The recipe above is explicit instead. The substitution is written into `brickkit.yaml`, where a reviewer sees it; it generates no container; and pointing the project at Kubernetes is refused while `local: true` is still there (a Pod can't reach a process on your machine — the CLI says so and stops).
+- **Swapping in a stand-in automatically contradicts two of its principles.** A missing required dependency is supposed to stop `up`, not be papered over (AGENTS.md §5.3), and explicit beats implicit (§4): one misuse and a component that answers everything with made-up data gets deployed for real. The recipe above is explicit instead. The substitution is written into `brickkit.yaml`, where a reviewer sees it; it generates no container; and pointing the project at Kubernetes is refused while `local: true` is still there. (A Pod is the unit Kubernetes runs your containers in; one running on a cluster's servers can't reach a process on your machine, and the CLI says so and stops.)
 - **A mock under its own name would never receive traffic.** The address `demo/caller` is given is built from the real component's versioned service name, `demo-hello-1-0-0` (AGENTS.md §5.1). The stub keeps that name, and `extra_hosts` points that very name at your machine. A mock that answered to some other name would sit there unused.
 
 ### When the real component arrives
@@ -361,7 +363,7 @@ Taking the stub out again is a few edits and one command — and the command is 
 3. Delete `.brickkit/artifacts/demo-hello-1-0-0/`, the copy of the stub's contract that `add` made.
 4. Make sure a source that carries the real `demo/hello@1.0.0` is listed under `sources:`, then run `brickkit add demo/hello@1.0.0 --yes`.
 
-Don't skip that last command. A component that comes from a marketplace or a Git source has its Manifest read from the copy cached under `.brickkit/manifests/` rather than fetched again on every run (AGENTS.md §2.3), and the copy cached for `demo/hello@1.0.0` is still the stub's. With a Git source listed and only steps 1 and 2 done, `brickkit up --dry-run` carried on quietly and generated a service that runs the stub's placeholder image, `demo/hello:0.1.0`. Because the component is already in `brickkit.yaml`, `brickkit add` asks whether to refresh that cache, and its `--yes` flag answers for you; it then reads the Manifest again from the first source that still has the component (with the stub directory gone, no longer `local-dev`). This was checked with a Git source — a local bare repository standing in for the real upstream. Step 3 matters for a quieter reason: without it the stub's placeholder contract stays behind in `.brickkit/artifacts/demo-hello-1-0-0/api-contract/`, and anyone generating a client from that directory would be reading the placeholder.
+Don't skip that last command. A component that comes from a marketplace or a Git source has its Manifest read from the copy cached under `.brickkit/manifests/` rather than fetched again on every run (AGENTS.md §2.3), and the copy cached for `demo/hello@1.0.0` is still the stub's. (A `local` source is the exception: it is re-read on every run, so a real upstream that is itself a local source doesn't have this trap.) With a Git source listed and only steps 1 and 2 done, `brickkit up --dry-run` carried on quietly and generated a service that runs the stub's placeholder image, `demo/hello:0.1.0`. Because the component is already in `brickkit.yaml`, `brickkit add` asks whether to refresh that cache, and its `--yes` flag answers for you; it then reads the Manifest again from the first source that still has the component (with the stub directory gone, no longer `local-dev`). This was checked with a Git source — a local bare repository standing in for the real upstream. Step 3 matters for a quieter reason: without it the stub's placeholder contract stays behind in `.brickkit/artifacts/demo-hello-1-0-0/api-contract/`, and anyone generating a client from that directory would be reading the placeholder.
 
 ---
 
