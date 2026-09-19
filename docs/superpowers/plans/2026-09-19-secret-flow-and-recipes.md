@@ -21,7 +21,7 @@
 - 提交命令从 `git` 开头，**不带 `cd` 前缀**；提交信息末尾加一行 `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`。
 - zsh 会把 `--include=*.go` 当通配符展开，一律写成 `--include='*.go'`；不要 `echo "======"`。
 - 不碰仓库根目录未跟踪的 `改进计划.md`。若 `make lint` 的 `check-docs` 被它拦住，临时 `mv` 到 scratchpad、跑完再 `mv` 回来，别改它、别提交它。
-- 文档：`docs/en` 与 `docs/zh` 各写一份（独立撰写，不是互译），但**教程里的 CLI 输出块必须逐字取自真实输出，且两边一致**；
+- 文档：`docs/en` 与 `docs/zh` 各写一份，各自用自己的语言写得自然（不是逐词机翻），但**事实与结论必须一致，教程里的 CLI 输出块必须逐字取自真实输出，且两边一致**。**结构允许平行**——这是仓库现有文档的实际做法（实测：`03-guide` 97%、`07-patterns` 98%、`06-architecture` 99% 的中文段落与某个英文段落一一对应，段落数几乎全等），并行结构还让"中英事实是否一致"能直接对照检查。**不要求**两边论证路径、类比、段落划分各不相同（本计划最初写成"独立撰写，不是互译"，Task 5/6 因此被返工，并在独立重写后引入过中文事实错误；控制器于 Task 6 修复轮次 2 前实测后改为此标准，见 ledger 的 Ruling）；
   面向用户的文字不预设读者背景（先大白话讲是什么，再讲好处与代价，最后讲 BrickKit 怎么对待）；不引用、不链接 `docs/archive/`。
   `AGENTS.md` / `AGENTS.zh.md` 是写给 AI 的压缩版，不受"不预设背景"约束。
 - 凡是关于"解析器 / 渲染器会怎样"的说法，**先跑再写**（这个仓库里曾凭读代码说错过一次解析器行为；本计划的 `existingSecret` 部分也已经用一个独立小程序核实过 `gopkg.in/yaml.v3` 把嵌套映射解到 `interface{}` 时产出的是 `map[string]interface{}`，不是 `map[interface{}]interface{}`）。
