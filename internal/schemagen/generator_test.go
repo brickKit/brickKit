@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -406,16 +407,20 @@ func TestJSONSchemaTagRangeAcceptsFractionsAndNegatives(t *testing.T) {
 	assert.EqualValues(t, -10, p["offset"].(schema)["minimum"], "指针字段的约束写在它指向的类型的 schema 上")
 }
 
-// bool 与指针不算必填，与它们写没写 omitempty 无关。sample 里的指针字段自带 omitempty，
-// 测不到指针这一半规则，所以单独来一遍。
-func TestBoolAndPointerFieldsAreNeverRequired(t *testing.T) {
+// 必填只豁免 bool 与指针（以及 omitempty / optional），与字段是标量、slice、map 还是 any 无关：
+// 没写 omitempty 的 slice / map / any 照样必填。sample 里这几个字段都自带 omitempty，
+// 单看它测不到这两半规则，所以单独来一遍。
+func TestRequiredExemptsOnlyBoolAndPointerFields(t *testing.T) {
 	type noOmitempty struct {
-		Flag      bool   `yaml:"flag"`
-		Ptr       *int   `yaml:"ptr"`
-		PtrStruct *inner `yaml:"ptrStruct"`
-		Must      int    `yaml:"must"`
+		Flag      bool              `yaml:"flag"`
+		Ptr       *int              `yaml:"ptr"`
+		PtrStruct *inner            `yaml:"ptrStruct"`
+		Must      int               `yaml:"must"`
+		Tags      []string          `yaml:"tags"`
+		Labels    map[string]string `yaml:"labels"`
+		Anything  any               `yaml:"anything"`
 	}
-	assert.Equal(t, []string{"must"}, generate(t, noOmitempty{})["required"])
+	assert.Equal(t, []string{"anything", "labels", "must", "tags"}, generate(t, noOmitempty{})["required"])
 }
 
 // 覆盖表命中之后，字段上的 jsonschema tag 仍然生效；并且每用一次就重新调用一次构造函数，
@@ -494,4 +499,258 @@ func TestDocumentExactBytes(t *testing.T) {
 }
 `
 	assert.Equal(t, want, string(out))
+}
+
+// ---- 修复轮 1：守卫补全、递归检测覆盖所有类型、tag 与 yaml 形状里的静默接受改成报错 ----
+
+// 旧式签名（UnmarshalYAML(func(any) error) error），指针接收者。yaml.v3 照样会调用它。
+type oldStyleUnmarshaler struct{ Raw string }
+
+func (o *oldStyleUnmarshaler) UnmarshalYAML(unmarshal func(any) error) error {
+	return unmarshal(&o.Raw)
+}
+
+// 新式签名，值接收者：*T 的方法集里也有它，yaml.v3 一样会调用。
+type valueReceiverUnmarshaler struct{ Raw string }
+
+func (valueReceiverUnmarshaler) UnmarshalYAML(*yaml.Node) error { return nil }
+
+// encoding.TextUnmarshaler：yaml.v3 会把标量交给 UnmarshalText，而不是按字段反射。
+type textDecoded struct{ Raw string }
+
+func (x *textDecoded) UnmarshalText(b []byte) error { x.Raw = string(b); return nil }
+
+// 自定义解码的类型：每一种都必须在覆盖表里，否则报错并说清是哪种机制；进了覆盖表就放行。
+func TestEveryCustomDecodingMechanismNeedsAnOverride(t *testing.T) {
+	cases := []struct {
+		name      string
+		typ       reflect.Type
+		mechanism string
+	}{
+		{"新式 UnmarshalYAML（指针接收者）", reflect.TypeOf(withUnmarshaler{}), "UnmarshalYAML"},
+		{"新式 UnmarshalYAML（值接收者）", reflect.TypeOf(valueReceiverUnmarshaler{}), "UnmarshalYAML"},
+		{"旧式 UnmarshalYAML", reflect.TypeOf(oldStyleUnmarshaler{}), "UnmarshalYAML"},
+		{"encoding.TextUnmarshaler", reflect.TypeOf(textDecoded{}), "TextUnmarshaler"},
+		{"time.Time（它是 TextUnmarshaler）", reflect.TypeOf(time.Time{}), "TextUnmarshaler"},
+		{"time.Duration（yaml.v3 会把 5s 解析成时长）", reflect.TypeOf(time.Duration(0)), "特殊解码"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			holder := reflect.StructOf([]reflect.StructField{{
+				Name: "V", Type: c.typ, Tag: `yaml:"v"`,
+			}})
+
+			_, err := newGenerator(nil).typeSchema(holder)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), c.mechanism, "要说清是哪种机制")
+			assert.Contains(t, err.Error(), c.typ.String(), "要点名是哪个类型")
+			assert.Contains(t, err.Error(), "V：", "要点名是哪个字段")
+
+			// 指针、slice、map 里装着它也一样
+			for name, wrapped := range map[string]reflect.Type{
+				"指针":    reflect.PointerTo(c.typ),
+				"slice": reflect.SliceOf(c.typ),
+				"map":   reflect.MapOf(reflect.TypeOf(""), c.typ),
+			} {
+				_, err := newGenerator(nil).typeSchema(wrapped)
+				require.Error(t, err, name)
+				assert.Contains(t, err.Error(), c.mechanism, name)
+			}
+
+			overrides := map[reflect.Type]func() schema{
+				c.typ: func() schema { return schema{"type": "string"} },
+			}
+			s, err := newGenerator(overrides).typeSchema(holder)
+			require.NoError(t, err, "进了覆盖表就放行")
+			assert.Equal(t, schema{"type": "string"}, props(s)["v"])
+		})
+	}
+}
+
+// 名字叫 UnmarshalYAML、签名却不是 yaml.v3 认的那两种：宁可多报一次让人确认，也不放过。
+type oddSignature struct{ Raw string }
+
+func (o *oddSignature) UnmarshalYAML(n int) {}
+
+func TestUnmarshalYAMLByNameIsEnoughToNeedAnOverride(t *testing.T) {
+	_, err := newGenerator(nil).typeSchema(reflect.TypeOf(oddSignature{}))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "UnmarshalYAML")
+}
+
+// 只要类型没有自定义解码，就不该被守卫误伤：time.Duration 之外的整数、普通 struct、具名标量都照常生成。
+func TestPlainTypesAreNotMistakenForCustomDecoding(t *testing.T) {
+	type mode string
+	type plain struct {
+		D  int64 `yaml:"d"`
+		M  mode  `yaml:"m"`
+		In inner `yaml:"in"`
+	}
+	s := generate(t, plain{})
+	assert.Equal(t, schema{"type": "integer"}, props(s)["d"])
+	assert.Equal(t, schema{"type": "string"}, props(s)["m"])
+	assert.Equal(t, "object", props(s)["in"].(schema)["type"])
+}
+
+// time.Duration：yaml.v3 会把 timeout: 5s 解析成时长，反射却只会看到一个整数——
+// 照实生成就是一份把 5s 标成红线的 schema。要么在覆盖表里交代，要么报错。
+func TestDurationFieldsAreRejectedUnlessOverridden(t *testing.T) {
+	type settings struct {
+		Timeout time.Duration `yaml:"timeout"`
+	}
+	type withRetries struct {
+		Timeout time.Duration   `yaml:"timeout"`
+		Retries []time.Duration `yaml:"retries,omitempty"`
+	}
+
+	_, err := newGenerator(nil).typeSchema(reflect.TypeOf(settings{}))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "settings.Timeout", "要点名类型与字段")
+	assert.Contains(t, err.Error(), "time.Duration")
+
+	// 装在 slice 里也一样
+	_, err = newGenerator(nil).typeSchema(reflect.TypeOf([]time.Duration{}))
+	require.Error(t, err)
+
+	overrides := map[reflect.Type]func() schema{
+		reflect.TypeOf(time.Duration(0)): func() schema { return schema{"type": "string", "pattern": "^[0-9]+[smh]$"} },
+	}
+	s, err := newGenerator(overrides).typeSchema(reflect.TypeOf(withRetries{}))
+	require.NoError(t, err)
+	assert.Equal(t, schema{"type": "string", "pattern": "^[0-9]+[smh]$"}, props(s)["timeout"])
+	assert.Equal(t,
+		schema{"type": "array", "items": schema{"type": "string", "pattern": "^[0-9]+[smh]$"}},
+		props(s)["retries"])
+
+	// 不是 time.Duration 的整数不受影响
+	assert.Equal(t, schema{"type": "integer"}, generate(t, int64(0)))
+}
+
+// 具名的 slice / map 也能递归；以前只有 struct 检查，这两种会把栈撑爆。
+type nestedMap map[string]nestedMap
+
+type nestedSlice []nestedSlice
+
+type mapOfSlices map[string][]mapOfSlices
+
+func TestRecursionThroughNamedContainersIsRejected(t *testing.T) {
+	type viaField struct {
+		M nestedMap `yaml:"m"`
+	}
+	for name, v := range map[string]any{
+		"具名 map 的值是自己":               nestedMap{},
+		"具名 slice 的元素是自己":            nestedSlice{},
+		"map 的值是 slice，slice 的元素是自己": mapOfSlices{},
+		"藏在 struct 字段里":              viaField{},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := newGenerator(nil).typeSchema(reflect.TypeOf(v))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "递归")
+		})
+	}
+}
+
+// 同一个具名容器类型并列出现、或者出错之后再用，都不算递归。
+func TestNamedContainersUsedTwiceAreNotMistakenForRecursion(t *testing.T) {
+	type names []string
+	type twice struct {
+		A names            `yaml:"a"`
+		B names            `yaml:"b"`
+		C map[string]names `yaml:"c"`
+	}
+	g := newGenerator(nil)
+	_, err := g.typeSchema(reflect.TypeOf(nestedMap{}))
+	require.Error(t, err)
+
+	s, err := g.typeSchema(reflect.TypeOf(twice{}))
+	require.NoError(t, err)
+	assert.Equal(t, props(s)["a"], props(s)["b"])
+}
+
+// 重复的关键字：后写的会悄悄盖掉先写的，所以一律报错。
+func TestRepeatedTagKeywordsAreRejected(t *testing.T) {
+	str, num := reflect.TypeOf(""), reflect.TypeOf(0)
+	cases := []struct {
+		name string
+		typ  reflect.Type
+		tag  string
+	}{
+		{"minimum 写了两次", num, "minimum=1,minimum=2"},
+		{"maximum 写了两次", num, "maximum=1,maximum=2"},
+		{"enum 写了两次", str, "enum=a,enum=b"},
+		{"pattern 写了两次", str, "pattern=^a$,pattern=^b$"},
+		{"optional 写了两次", str, "optional,optional"},
+		{"中间隔着别的关键字也算重复", str, "enum=a|b,optional,enum=c"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			typ := reflect.StructOf([]reflect.StructField{{
+				Name: "A", Type: c.typ, Tag: reflect.StructTag(`yaml:"a" jsonschema:"` + c.tag + `"`),
+			}})
+			_, err := newGenerator(nil).typeSchema(typ)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "重复")
+			assert.Contains(t, err.Error(), "A：", "错误要带着字段名")
+		})
+	}
+}
+
+// 空的 enum 取值：`enum=` 没写取值、`enum=a||b` 中间漏了一个，都是手滑，不该生成一个只允许空串的 schema。
+func TestEmptyEnumValuesAreRejected(t *testing.T) {
+	for name, tag := range map[string]string{
+		"enum 完全没写取值": "enum=",
+		"中间漏了一个":      "enum=a||b",
+		"末尾多了个 |":     "enum=a|b|",
+		"开头多了个 |":     "enum=|a",
+	} {
+		t.Run(name, func(t *testing.T) {
+			typ := reflect.StructOf([]reflect.StructField{{
+				Name: "A", Type: reflect.TypeOf(""), Tag: reflect.StructTag(`yaml:"a" jsonschema:"` + tag + `"`),
+			}})
+			_, err := newGenerator(nil).typeSchema(typ)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "enum")
+			assert.Contains(t, err.Error(), "为空")
+			assert.Contains(t, err.Error(), "A：", "错误要带着字段名")
+		})
+	}
+}
+
+type inlined struct {
+	A string `yaml:"a"`
+}
+
+// ,inline：yaml.v3 把被内联的字段的键摊平到外层，生成器却会生成一层嵌套对象——两边对不上，所以报错。
+func TestInlineFieldsAreRejected(t *testing.T) {
+	type flattenedStruct struct {
+		Inner inlined `yaml:",inline"`
+		B     string  `yaml:"b"`
+	}
+	type flattenedNamed struct {
+		Inner inlined `yaml:"inner,inline"`
+	}
+	type flattenedMap struct {
+		Extra map[string]any `yaml:",inline,omitempty"`
+	}
+	for name, v := range map[string]any{
+		"内联一个 struct":     flattenedStruct{},
+		"名字之后还带 inline":   flattenedNamed{},
+		"内联一个 map（收纳未知键）": flattenedMap{},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := newGenerator(nil).typeSchema(reflect.TypeOf(v))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "inline")
+			assert.Contains(t, err.Error(), reflect.TypeOf(v).Name()+".", "要点名类型与字段")
+		})
+	}
+
+	// 只要没写 inline 选项就照常生成：名字里带 inline 字样、或者别的选项，都不受影响
+	type notInlined struct {
+		Inlined inlined  `yaml:"inlineThing,omitempty"`
+		Flow    []string `yaml:"flow,flow"`
+	}
+	s := generate(t, notInlined{})
+	assert.Contains(t, props(s), "inlineThing")
 }
