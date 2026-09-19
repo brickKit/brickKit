@@ -56,16 +56,16 @@ description: 新写一个 BrickKit 组件、修改 component.yaml、加数据库
 **禁止**在里面查数据库、查依赖组件、查任何外部系统。原因是级联：一个下游抖动会让
 所有上游同时被判不健康并一起重启，把一次局部故障放大成整片雪崩。
 
-**4. 冷启动超过 30 秒的组件必须写 `startPeriodSeconds`。**
+**4. 冷启动超过默认 60 秒的组件必须调大 `startPeriodSeconds`。**
 
-`interval` / `timeout` / `failureThreshold` 由平台固定（10s / 3s / 3），相乘就是默认启动
-预算 = **30 秒**。超过它：Docker 下判 `unhealthy` 让 `up` 失败、依赖方卡在
-`service_healthy`；K8s 下 Pod 被 kill 重启、再走一遍同样的 30 秒 → **永久
-CrashLoopBackOff，而容器日志一路正常**。
+`interval` / `timeout` / `failureThreshold` 由平台固定（10s / 3s / 3），相乘只有 30 秒，
+所以平台默认给每个组件 **60 秒**启动宽限期，绝大多数组件不用碰它。超过 60 秒：Docker 下判
+`unhealthy` 让 `up` 失败、依赖方卡在 `service_healthy`；K8s 下 Pod 被 kill 重启、
+再走一遍同样的 60 秒 → **永久 CrashLoopBackOff，而容器日志一路正常**。
 
-Spring Boot、Django 预加载、.NET 首次 JIT 都在射程内。宽限期只推迟「判死」不推迟
-「判活」（两秒就绪的组件照样两秒转 healthy），**所以写大一点没有任何代价**。
-它是 `healthCheck` 下唯一可覆盖的时间参数，默认 60。
+很重的 Spring Boot、预加载很多东西的 Django、.NET 首次 JIT 可能碰到这条线。宽限期只推迟
+「判死」不推迟「判活」（两秒就绪的组件照样两秒转 healthy），**所以写大一点没有任何代价**。
+它是 `healthCheck` 下唯一可覆盖的时间参数。
 
 **5. `dependencies` 里一个组件 ID 只能出现一次。**
 

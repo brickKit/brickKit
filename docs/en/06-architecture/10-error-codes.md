@@ -292,7 +292,7 @@ Docker Compose or `kubectl` ran and failed. The engine's own raw output is print
 
 | You'll see | Cause | What to do |
 | --- | --- | --- |
-| `错误：部分组件没有正常启动` | `up` finished but some containers aren't healthy | `brickkit status`, then the container's logs. A component that takes longer than 30 seconds to start needs `healthCheck.startPeriodSeconds` |
+| `错误：部分组件没有正常启动` | `up` finished but some containers aren't healthy | `brickkit status`, then the container's logs. A component that takes longer than the default 60-second grace period to start needs a larger `healthCheck.startPeriodSeconds` |
 | `错误：<command> 执行失败` | The engine command itself exited non-zero | Read the raw output above the block |
 | `错误：kubectl 执行失败` | A `kubectl` call failed | Same |
 | `错误：无法解析容器引擎的状态输出` | The Docker Compose installed is older than V2 | Upgrade Compose — `brickkit version` prints the detected engine |

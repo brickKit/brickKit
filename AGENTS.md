@@ -585,11 +585,13 @@ healthCheck:                     # required
 ```
 
 > **`startPeriodSeconds` is the only overridable timing parameter under `healthCheck`.**
-> `interval` / `timeout` / `failureThreshold` are fixed by the platform; their product gives a
-> startup budget of 30 seconds — a component with a cold start longer than that (Spring Boot /
-> Django / .NET) will make `up` fail under Docker, and permanently CrashLoopBackOff under K8s, while
-> the container's own logs look perfectly healthy the whole time. The grace period only delays
-> "declaring it dead," never "declaring it alive," so setting it generously costs nothing.
+> `interval` / `timeout` / `failureThreshold` are fixed by the platform (10s / 3s / 3); their product
+> is only 30 seconds, so every component gets a startup grace period of **60 seconds** by default,
+> and this field overrides it. A component whose cold start outlasts 60 seconds (a heavy Spring Boot /
+> Django / .NET app) has to raise it, or `up` fails under Docker and the Pod permanently
+> CrashLoopBackOffs under K8s, while the container's own logs look perfectly healthy the whole time.
+> The grace period only delays "declaring it dead," never "declaring it alive," so setting it
+> generously costs nothing.
 
 > **A component's entrypoint must fail fast on an argument it doesn't recognize** — this is a
 > hard requirement on the component author, not something the platform can
@@ -634,15 +636,17 @@ or use `enabled: false` to run fewer of them).
 database or a dependency component inside a health check causes production cascading failures — one
 downstream hiccup gets every upstream marked unhealthy and restarted at once.
 
-**⚠️ A component with a cold start longer than 30 seconds must set `startPeriodSeconds`.**
+**⚠️ A component with a cold start longer than 60 seconds must raise `startPeriodSeconds`.**
 `interval` / `timeout` / `failureThreshold` are fixed by the platform (10s / 3s / 3); their product is
-the default startup budget of 30 seconds. Exceed it: under Docker, it's marked `unhealthy`, failing
-`up -d --wait` and stalling any dependent waiting on `service_healthy`; under K8s, the Pod gets
-killed and restarted, runs through the same 30 seconds again → **permanent CrashLoopBackOff**, while
-the container's own logs look completely normal the whole time. Spring Boot / Django preloading /
-.NET's first JIT pass are all squarely in range. The grace period only delays "declaring it dead,"
-never "declaring it alive" (a component that's ready in two seconds still turns healthy in two
-seconds), so setting it generously costs nothing.
+only 30 seconds — too short for anything slow to start — so the platform gives every component a
+**60-second startup grace period** by default, and most components never need to touch it. Exceed
+60 seconds: under Docker, it's marked `unhealthy`, failing `up -d --wait` and stalling any dependent
+waiting on `service_healthy`; under K8s, the startup probe gives up, the Pod gets killed and
+restarted, runs through the same 60 seconds again → **permanent CrashLoopBackOff**, while the
+container's own logs look completely normal the whole time. A heavy Spring Boot app, a Django
+project that preloads a lot, or .NET's first JIT pass can reach that. The grace period only delays
+"declaring it dead," never "declaring it alive" (a component that's ready in two seconds still turns
+healthy in two seconds), so setting it generously costs nothing.
 
 This is the skeleton — every field's exact type, required-ness, default, and validation constraint
 (the port ranges, the regexes, which fields silently do nothing without another field set) is
@@ -1039,7 +1043,7 @@ hit:
 | Writing a health check | `/healthz` only checks this process. **Never** ping a database or a dependency component inside it |
 | Reading a weak dependency's env var | Must use `os.environ.get()` / `System.getenv()`. **Never** `os.environ["X"]` |
 | The component image has no `wget` / `curl` | The Compose healthcheck will call it unhealthy — if the component's own logs say "ready" but the platform says unhealthy, this is usually why |
-| A component's cold start takes tens of seconds (Spring Boot / Django / .NET) | Write `healthCheck.startPeriodSeconds`. The default budget is only 30 seconds; exceed it under K8s and it permanently CrashLoopBackOffs |
+| A component's cold start takes longer than a minute (a heavy Spring Boot / Django / .NET app) | Raise `healthCheck.startPeriodSeconds` above the real cold start. The default grace period is 60 seconds; exceed it and, under K8s, the component permanently CrashLoopBackOffs. Under 60 seconds, leave it alone |
 | A user wants to call two versions of X from within one component | Not possible — within `dependencies`, one component ID can only appear once (the variable name carries no version, so it would collide). Version coexistence is a **project-level** capability |
 | Changed `config`, but "nothing happened" | Check the key name first — `brickkit up` warns "a config item won't take effect" and guesses which one you meant |
 | Writing a binding for MQ / object storage / search | The slot is called `vhost` / `bucket` / `index` respectively, not `database`. A wrong one errors and names the right one |

@@ -29,7 +29,7 @@ BrickKit 是**声明式的组件管理与拼装平台**：每块积木（组件�
    任何以 `_ENDPOINT` 结尾的、以及 `DATABASE_` / `REDIS_` / `MQ_` /
    `STORAGE_` / `SEARCH_` / `SMTP_` 开头的。
 3. **健康检查有禁令。** 别把依赖的可用性写进自己的健康检查——那会让一个组件的
-   抖动级联成整片不健康。冷启动超过 30 秒的组件要写 `startPeriodSeconds`。
+   抖动级联成整片不健康。冷启动超过默认 60 秒的组件要调大 `startPeriodSeconds`。
 4. **启停跟着上层走。** 顶层组件关掉，它下面那一串跟着不启动。想收窄范围就改
    `brickkit.yaml` 的 `enabled`，别去逐个关。
 

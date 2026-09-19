@@ -292,7 +292,7 @@ Docker Compose 或 `kubectl` 跑了，但失败了。引擎自己的原始输出
 
 | 你会看到 | 原因 | 怎么办 |
 | --- | --- | --- |
-| `错误：部分组件没有正常启动` | `up` 走完了，但有些容器不健康 | 先 `brickkit status`，再看容器日志。冷启动超过 30 秒的组件需要写 `healthCheck.startPeriodSeconds` |
+| `错误：部分组件没有正常启动` | `up` 走完了，但有些容器不健康 | 先 `brickkit status`，再看容器日志。冷启动超过默认 60 秒宽限期的组件，要把 `healthCheck.startPeriodSeconds` 调大 |
 | `错误：<command> 执行失败` | 引擎命令本身以非零状态退出 | 看错误块上方的原始输出 |
 | `错误：kubectl 执行失败` | 某次 `kubectl` 调用失败 | 同上 |
 | `错误：无法解析容器引擎的状态输出` | 装的 Docker Compose 比 V2 旧 | 升级 Compose——`brickkit version` 会打印检测到的引擎 |

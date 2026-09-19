@@ -212,8 +212,8 @@ deployment:
 healthCheck:
   type: http
   path: /healthz
-  # 冷启动超过 30 秒（Spring Boot / Django 预加载 / .NET 首次 JIT 等）要写
-  # startPeriodSeconds，否则 K8s 下会永久 CrashLoopBackOff
+  # 冷启动超过默认的 60 秒（很重的 Spring Boot / Django 预加载 / .NET 首次 JIT 等）
+  # 要写 startPeriodSeconds，否则 K8s 下会永久 CrashLoopBackOff
 ```
 
 `--contract openapi` additionally writes `api/openapi.yaml`:

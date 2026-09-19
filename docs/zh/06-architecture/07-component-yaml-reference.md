@@ -130,7 +130,7 @@ AGENTS.zh.md §6 是那份可以直接复制粘贴的骨架。这篇文档是骨
 | `healthCheck.path` | string | 只有 `type: http` 时必填 | 必须以 `/` 开头 |
 | `healthCheck.startPeriodSeconds` | int | 否（默认 `60`，即 `DefaultStartPeriodSeconds`） | 必须是正整数，`≤3600`（一小时）——**而且在 `type: none` 下写了这个字段本身就会被拒绝**，不是悄悄不生效：`type: none` 根本不生成任何探测，也就谈不上"宽限期"该套用在谁身上，校验器会点名说这件事，不会让这个字段就那么闲置在那 |
 
-3600 秒这道上限不是嫌宽限期长了有害——一个真的要花十分钟预热的组件完全可以这么写。它存在的理由是这个字段最常见的写错方式是习惯性地按毫秒来写：`startPeriodSeconds: 60000` 读起来像"60 秒"，实际是 16 小时，而且——跟这篇文档里几乎所有别的错误都不一样——**这个错误不会产生任何报错**：组件就那么在 `starting` 里挂上大半天，表面上看不出哪里明显坏了。`startPeriodSeconds` 往下具体改变了什么——K8s `startupProbe` 的 `failureThreshold` 是按 `ceil(startPeriodSeconds ÷ 5)` 算出来的、不写它时你拿到的是固定 30 秒的预算——这些机制在 [03-deployment-generation.md](03-deployment-generation.md) 里讲，这里不重复。
+3600 秒这道上限不是嫌宽限期长了有害——一个真的要花十分钟预热的组件完全可以这么写。它存在的理由是这个字段最常见的写错方式是习惯性地按毫秒来写：`startPeriodSeconds: 60000` 读起来像"60 秒"，实际是 16 小时，而且——跟这篇文档里几乎所有别的错误都不一样——**这个错误不会产生任何报错**：组件就那么在 `starting` 里挂上大半天，表面上看不出哪里明显坏了。`startPeriodSeconds` 往下具体改变了什么——K8s `startupProbe` 的 `failureThreshold` 是按 `ceil(startPeriodSeconds ÷ 5)` 算出来的、不写它时你拿到的是默认的 60 秒——这些机制在 [03-deployment-generation.md](03-deployment-generation.md) 里讲，这里不重复。
 
 **⚠️ AGENTS.zh.md §6 那条健康检查的禁令依然成立，而且 CLI 不会重新校验它**：`healthCheck.path` 只能检查这个进程自己是否存活。`internal/manifest/validate.go` 里没有任何代码能检测出"这个处理函数还顺便查了一下数据库"——那是代码评审阶段该管的规矩，不是一条能写成校验的约束，这正是为什么 AGENTS.zh.md 把它当作设计原则来陈述，而不是这篇文档把它列成一条字段约束。
 

@@ -514,9 +514,10 @@ healthCheck:                     # 必须
 ```
 
 > **`startPeriodSeconds` 是 `healthCheck` 下唯一可覆盖的时间参数。**
-> interval / timeout / failureThreshold 由平台固定，三者相乘给出的启动预算是
-> 30 秒——冷启动超过它的组件（Spring Boot / Django / .NET）在 Docker 下会让
-> `up` 失败、在 K8s 下会永久 CrashLoopBackOff，而容器日志一路正常。
+> interval / timeout / failureThreshold 由平台固定（10s / 3s / 3），三者相乘只有
+> 30 秒，所以平台默认给每个组件 **60 秒**的启动宽限期，这个字段就是用来改它的。
+> 冷启动超过 60 秒的组件（很重的 Spring Boot / Django / .NET）要调大：不调的话，
+> Docker 下 `up` 会失败、K8s 下会永久 CrashLoopBackOff，而容器日志一路正常。
 > 宽限期只推迟"判死"，不推迟"判活"，所以写大一点没有代价。
 
 > **组件入口必须对识别不出的参数 fail fast**——这是组件开发者的责任，
@@ -550,11 +551,12 @@ JVM 200–450MB——20 个 Spring Boot 光空转就 4–9G。**别为省内存�
 **⚠️ 健康检查禁令：** `/healthz` 只检查本进程存活。在健康检查里查数据库或依赖组件
 会导致生产环境雪崩——一个下游抖动会让所有上游同时被判不健康并重启。
 
-**⚠️ 冷启动超过 30 秒的组件要写 `startPeriodSeconds`。** `interval` / `timeout` /
-`failureThreshold` 由平台固定（10s / 3s / 3），相乘就是默认的启动预算 = 30 秒。
-超过它：Docker 下判 `unhealthy` 让 `up -d --wait` 失败、依赖方卡在 `service_healthy`；
-K8s 下 Pod 被 kill 重启、再走一遍同样的 30 秒 → **永久 CrashLoopBackOff**，
-而容器日志一路正常。Spring Boot / Django 预加载 / .NET 首次 JIT 都在射程内。
+**⚠️ 冷启动超过 60 秒的组件要调大 `startPeriodSeconds`。** `interval` / `timeout` /
+`failureThreshold` 由平台固定（10s / 3s / 3），相乘只有 30 秒——对启动慢的组件太短，
+所以平台**默认给每个组件 60 秒的启动宽限期**，绝大多数组件不用碰它。
+超过 60 秒：Docker 下判 `unhealthy` 让 `up -d --wait` 失败、依赖方卡在 `service_healthy`；
+K8s 下启动探针放弃、Pod 被 kill 重启、再走一遍同样的 60 秒 → **永久 CrashLoopBackOff**，
+而容器日志一路正常。很重的 Spring Boot、预加载很多东西的 Django、.NET 首次 JIT 可能碰到这条线。
 宽限期只推迟"判死"不推迟"判活"（两秒就绪的组件照样两秒转 healthy），所以写大一点没有代价。
 
 以上是骨架——每个字段精确的类型、是否必填、默认值、校验约束（端口范围、正则、哪些字段
@@ -890,7 +892,7 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 | 写健康检查 | `/healthz` 只查本进程。**不要**在里面 ping 数据库或依赖组件 |
 | 读弱依赖的环境变量 | 必须 `os.environ.get()` / `System.getenv()`。**绝不能**用 `os.environ["X"]` |
 | 组件镜像里没有 `wget` / `curl` | Compose healthcheck 会判它 unhealthy——组件日志写着"已就绪"平台却说不健康，多半是这个 |
-| 组件冷启动要几十秒（Spring Boot / Django / .NET） | 写 `healthCheck.startPeriodSeconds`。默认预算只有 30 秒，超了 K8s 下会永久 CrashLoopBackOff |
+| 组件冷启动超过一分钟（很重的 Spring Boot / Django / .NET） | 把 `healthCheck.startPeriodSeconds` 调到比实际冷启动更长。默认宽限期是 60 秒，超了 K8s 下会永久 CrashLoopBackOff；不到 60 秒不用管 |
 | 用户想在一个组件里同时调 X 的两个版本 | 不行，`dependencies` 里一个组件 ID 只能出现一次（变量名不带版本会撞）。多版本共存是**项目级**的 |
 | 改了 `config` 却"没生效" | 先看键名对不对——`brickkit up` 会警告"config 里有配置项不会生效"，并猜出你想写的那个 |
 | 给 MQ / 对象存储 / 搜索写绑定 | 那一格分别叫 `vhost` / `bucket` / `index`，不是 `database`。用错会报错并点名该用哪个 |

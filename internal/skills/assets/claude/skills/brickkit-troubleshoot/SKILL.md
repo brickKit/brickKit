@@ -26,11 +26,11 @@ description: brickkit 命令报错、组件起不来、地址注入不生效、�
 **2. Pod 永久 CrashLoopBackOff 而容器日志一路正常。**
 
 几乎总是启动预算问题。平台固定 `interval`/`timeout`/`failureThreshold` 为 10s/3s/3，
-相乘 = **30 秒**默认启动预算。冷启动超过它的组件（Spring Boot、Django 预加载、
-.NET 首次 JIT）会被 kill 重启，再走一遍同样的 30 秒。
+相乘只有 30 秒，所以默认给每个组件 **60 秒**启动宽限期。冷启动超过它的组件（很重的
+Spring Boot、Django 预加载、.NET 首次 JIT）会被 kill 重启，再走一遍同样的 60 秒。
 
-修法：在 `component.yaml` 的 `healthCheck` 里写 `startPeriodSeconds`（默认 60，
-写大一点没有代价——宽限期只推迟「判死」不推迟「判活」）。
+修法：在 `component.yaml` 的 `healthCheck` 里把 `startPeriodSeconds` 写得比实际冷启动更大
+（默认 60，写大一点没有代价——宽限期只推迟「判死」不推迟「判活」）。
 
 **3. 没有注册中心、没有常驻服务、没有配置中心、没有网关。**
 
@@ -81,7 +81,7 @@ CLI 的报错带错误码。按码定位比按文案快。
 1. `brickkit status` —— 它到底有没有被判定为「启动」？不启动的组件也会列出来
 2. 看 CLI 输出里那一行的**理由**（顶层 / enabled / X 需要）
 3. 组件日志 —— 进程本身有没有起来
-4. 健康检查是不是超了 30 秒预算（见上面第 2 条）
+4. 启动是不是超过了默认的 60 秒宽限期（见上面第 2 条）
 5. 环境变量 —— 依赖真在跑吗？弱依赖没在跑时**不会注入**那个 `*_ENDPOINT`
 6. 资源绑定 —— `kind` 和 `engine` 对得上吗
 
