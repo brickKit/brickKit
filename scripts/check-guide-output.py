@@ -26,7 +26,7 @@
 # 只挑不需要 Docker / minikube / 市场 / cosign 的场景
 
 13 篇里能在任何机器上确定性构造的，只是其中一部分：01（部分）、02、03
-（部分）、05（部分）、06（部分）、07（部分）、08（几乎全部）——04 要 minikube、
+（部分）、05（部分）、06（部分）、07（部分，含契约先行一节）、08（几乎全部）——04 要 minikube、
 09 要市场、10 要 cosign、12 要支持执行策略的 CNI，11/13 的核心内容也要 Docker
 真的把容器跑起来。这跟旧版本的分层哲学一致：能确定性构造的进 `make lint`
 天天跑，要真实环境的留给人工（或者以后配一个 docker 层的 CI job，见文末的账目）。
@@ -172,6 +172,37 @@ CASES = [
         "run": ["init hello-world --no-skills", "!copy-into components/demo/hello demo-hello"],
         "file": "07-consuming-artifacts.md",
         "check": ("fetch demo/hello@1.0.0", "📦 已下载 demo/hello@1.0.0 的产物（未写入 brickkit.yaml）", 0),
+    },
+    # 07 的"上游还没好"一节：桩（new --contract）→ add --local → 桩标 local: true。
+    # 只用现有命令，不需要 Docker；桩之后在主机上起什么 mock 工具不归平台管，
+    # 也就没有可比对的 brickkit 输出。
+    {
+        "what": "07 上游还没好：new 出桩",
+        "reset": True,
+        "run": ["init hello-world --no-skills", "!copy-into components/demo/caller demo-caller"],
+        "file": "07-consuming-artifacts.md",
+        "check": ("new demo/hello --contract openapi", "✅ 已生成组件骨架：demo/hello", 0),
+    },
+    # 桩的版本号没改（骨架默认 0.1.0），而消费方要的是精确的 1.0.0：add --local 整个中止、
+    # brickkit.yaml 不动，所以不影响下一个场景的起点。这是这条配方里最容易踩的坑，
+    # 教程里贴了这段报错，就得有人守着它。
+    {
+        "what": "07 忘了改桩的版本号：add --local 被挡住",
+        "run": [],
+        "file": "07-consuming-artifacts.md",
+        "check": ("add --local", "❌ 错误：强依赖缺失", 0),
+    },
+    {
+        "what": "07 桩与消费方一起 add --local",
+        "run": ["!set-version components/demo/hello 1.0.0"],
+        "file": "07-consuming-artifacts.md",
+        "check": ("add --local", "🔍 从本地安装源 local-dev 扫到 2 个组件", 0),
+    },
+    {
+        "what": "07 桩接成 local 之后的 dry-run",
+        "run": ["!local-debug demo/hello 18081"],
+        "file": "07-consuming-artifacts.md",
+        "check": ("up --dry-run", "🚀 启动项目 hello-world（deploy.target: docker）", 0),
     },
     # ---- 08 组件源码：只需要 git，不需要 Docker ----
     # 这一组按教程的行文顺序连着跑（同一个项目里一路推进），中间夹着的 !git / !append
@@ -395,6 +426,16 @@ def copy_into(proj, dst_rel, slug):
     shutil.copytree(src, dst)
 
 
+def set_version(proj, dir_rel, version):
+    """把 <proj>/<dir_rel>/component.yaml 里的 version 改掉（brickkit new 出来的骨架默认是 0.1.0）。"""
+    path = os.path.join(proj, dir_rel, "component.yaml")
+    s = open(path, encoding="utf-8").read()
+    old = "  version: 0.1.0\n"
+    if old not in s:
+        sys.exit(f"❌ {path} 里找不到 version: 0.1.0，无法改成 {version}")
+    open(path, "w", encoding="utf-8").write(s.replace(old, f"  version: {version}\n", 1))
+
+
 def disable(proj, component_id):
     """给某个组件加一行 enabled: false。"""
     path = os.path.join(proj, "brickkit.yaml")
@@ -613,6 +654,9 @@ def main():
                 if step.startswith("!copy-into "):
                     _, dst_rel, slug = step.split(None, 2)
                     copy_into(proj, dst_rel, slug)
+                elif step.startswith("!set-version "):
+                    _, dir_rel, version = step.split(None, 2)
+                    set_version(proj, dir_rel, version)
                 elif step.startswith("!disable "):
                     disable(proj, step.split(None, 1)[1])
                 elif step.startswith("!pin "):
