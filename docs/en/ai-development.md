@@ -72,6 +72,12 @@ graph LR
 
 ### Step 2: have the AI write the spec first — the Manifest and the API contract, no implementation
 
+`brickkit new my-scope/user-profile` generates a `component.yaml` that already
+passes validation before the AI ever touches it — useful when you'd rather
+have it fill in a guaranteed-valid skeleton's TODOs than write the whole file
+from a blank page. Either way the result is the same file; which one you
+start from is a matter of taste.
+
 Example prompt:
 
 ```

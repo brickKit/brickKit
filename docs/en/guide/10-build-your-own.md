@@ -1,6 +1,6 @@
 # 10. Build Your First Component From Scratch
 
-Every earlier article installed something that already existed. This one writes a genuinely new component — a minimal HTTP counter, deliberately small enough to type out in full — and gets it running the exact same way as everything else in this series: no special onboarding path, no scaffolding command, just a `component.yaml` and an image.
+Every earlier article installed something that already existed. This one writes a genuinely new component — a minimal HTTP counter, deliberately small enough to type out in full — and gets it running the exact same way as everything else in this series: no special onboarding path, just a `component.yaml` and an image. Typing the Manifest out by hand here is deliberate, to show there's no hidden magic in it; for real use, `brickkit new my-scope/counter` generates the same shape of file, already valid, with the fields you'd otherwise be typing left as TODOs.
 
 ## The whole thing, four files
 

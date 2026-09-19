@@ -118,6 +118,122 @@ brickkit skills update    # bring everything up to the current CLI version
 
 ---
 
+## brickkit new
+
+**Syntax:** `brickkit new <scope>/<name> [flags]`
+
+Generates a component's minimal skeleton: a `component.yaml` that already
+passes `Parse` + `Validate`, so a dry run doesn't turn up an invalid-YAML
+surprise on the very first try. With the `--contract` flag it also writes a
+placeholder contract file, registered under `artifacts`. Nothing else — no
+Dockerfile, no source code in any language. The platform is
+language-agnostic and doesn't pick one for you; for a real worked example,
+see [Writing a Go component](../go-component-template.md) or
+[Build your first component](../guide/10-build-your-own.md).
+
+By default it writes to `components/<scope>/<name>/` — the exact layout a
+`local`-type source already scans (`<scope>/<name>/component.yaml`), and the
+same place a component's existing source gets cloned to. The `--path` flag
+writes somewhere else instead, with no `<scope>/<name>` nesting — that
+directory becomes the component's own repository root ("one component, one
+repository"). Either way, the target directory must not already exist; `new`
+never overwrites.
+
+It never runs `brickkit add` for you — writing to `brickkit.yaml` is a
+separate, reviewable step — and it never touches `.claude/skills/`: inside a
+project the skills are already installed by `init`, and for a standalone
+repository you run `brickkit skills update` yourself once there's a
+`component.yaml` to detect.
+
+**Flags**
+
+| Flag | Default | What it does |
+| --- | --- | --- |
+| `--path <dir>` | `components/<scope>/<name>/` | Write here instead, with no extra nesting |
+| `--contract <format>` | (none) | `openapi` or `proto`: also write a placeholder contract file and register it under `artifacts` |
+
+**Example**
+
+```
+$ brickkit new demo/widget
+✅ 已生成组件骨架：demo/widget
+   📄 components/demo/widget/component.yaml
+
+下一步：
+  改完骨架里的 TODO
+  brickkit add --local               把它加进 brickkit.yaml（本地安装源里能扫到它的话）
+  brickkit up --dry-run               校验能不能通过
+```
+
+```yaml
+# component.yaml
+# demo/widget —— 由 brickkit new 生成的骨架
+# 下面每一处 TODO 都要改成真的；结构本身已经能通过 brickkit up --dry-run 的校验
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: demo/widget
+  name: widget # TODO：改成人看的展示名
+  version: 0.1.0
+  description: TODO：一句话说清楚这个组件做什么
+
+deployment:
+  type: container
+  image: demo/widget:0.1.0 # TODO：换成真实构建出来的镜像（本地开发前先 docker build）
+  port: 8080 # TODO：换成组件实际监听的端口
+
+healthCheck:
+  type: http
+  path: /healthz
+  # 冷启动超过 30 秒（Spring Boot / Django 预加载 / .NET 首次 JIT 等）要写
+  # startPeriodSeconds，否则 K8s 下会永久 CrashLoopBackOff
+```
+
+`--contract openapi` additionally writes `api/openapi.yaml`:
+
+```yaml
+openapi: 3.0.3
+info:
+  title: demo/gadget
+  version: 0.1.0
+  description: TODO：这个组件对外提供的 API
+paths: {}
+```
+
+...and registers it:
+
+```yaml
+artifacts:
+  - type: api-contract
+    format: openapi
+    files:
+      - api/openapi.yaml
+```
+
+`--contract proto` writes `api/service.proto` and registers `format: proto`
+instead, with the equivalent `files: [api/service.proto]`.
+
+Running it again on a directory that already exists refuses rather than
+overwriting:
+
+```
+$ brickkit new demo/widget
+❌ 错误：目标目录已存在
+   目录：components/demo/widget
+   建议：
+   1. 如果是误操作，请先删除或重命名该目录
+   2. 想写到别的地方，用 --path 指定
+```
+
+```bash
+brickkit new demo/widget --contract openapi        # also scaffold an OpenAPI contract placeholder
+brickkit new demo/widget --contract proto          # also scaffold a proto contract placeholder
+brickkit new demo/widget --path ../widget-repo     # write elsewhere — that directory becomes the repo root
+```
+
+---
+
 ## brickkit add
 
 **Syntax:** `brickkit add [<component-id>[@exact-version]] [flags]`

@@ -13,6 +13,14 @@ description: 新写一个 BrickKit 组件、修改 component.yaml、加数据库
 - 让组件多开一个端口（比如 gRPC）
 - 组件起不来，怀疑是声明写错了
 
+## 从零写：先跑 brickkit new
+
+`brickkit new <scope>/<name>` 生成一份已经能通过校验的 `component.yaml`
+骨架，写到 `components/<scope>/<name>/`（本地安装源本来就扫描这个布局）。
+带 `--contract openapi` 或 `--contract proto` 还会顺带生成一份契约占位
+文件并登记进 `artifacts`。骨架里全是 TODO——不生成 Dockerfile，不生成
+任何源码，平台不替你选语言。改完 TODO 就是下面这些"你会猜错的地方"。
+
 ## 你会猜错的地方
 
 **1. `component.yaml` 没有扩展字段机制。**

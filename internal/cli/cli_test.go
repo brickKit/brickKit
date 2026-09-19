@@ -16,7 +16,7 @@ import (
 
 // allCommands 是设计书 004 §3.1 定义的命令 + version。
 var allCommands = []string{
-	"init", "add", "remove", "up", "down", "status",
+	"init", "new", "add", "remove", "up", "down", "status",
 	"fetch", "sync", "restore", "login", "publish", "version",
 }
 

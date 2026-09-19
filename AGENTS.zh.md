@@ -665,12 +665,13 @@ installer:
 
 ---
 
-## 8. CLI 命令集（13 个命令 + `version`）
+## 8. CLI 命令集（14 个命令 + `version`）
 
 | 命令 | 核心行为 |
 | --- | --- |
 | `brickkit init <name>` | 生成 `brickkit.yaml` 骨架和 `.brickkit/` 目录，并装入 AI 助手技能（`--no-skills` 跳过） |
 | `brickkit skills` | 查看/刷新装进项目的 AI 助手技能（`status` / `update`）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）只管理 `brickkit-component` 这一个技能。手改过的绝不覆盖；不碰使用者的 `CLAUDE.md` |
+| `brickkit new <scope>/<name>` | 生成一个组件的最小骨架——一份已经能通过校验的 `component.yaml`，带 `--contract openapi\|proto` 时还生成一份契约占位文件并登记进 `artifacts`。默认写到 `components/<scope>/<name>/`（`local` 安装源本来就扫描这个布局）；`--path` 写到别的地方、不再套一层，给独立组件仓库用。不生成 Dockerfile，不生成源码——平台不替你选语言，也不会替你执行 `add` |
 | `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `enabled` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘 |
 | `brickkit remove <id>` | 检查强依赖方后移除，自动删除源码目录（含归档的那份）。多版本共存时必须指定版本 |
 | `brickkit fetch <id>[@版本]` | 只下载组件的产物到 `.brickkit/artifacts/<版本化服务名>/`，**不写入 brickkit.yaml、不部署**。跨项目调用别人的服务时用 |

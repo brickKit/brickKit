@@ -108,6 +108,117 @@ brickkit skills update    # 刷新到当前 CLI 版本
 
 ---
 
+## brickkit new
+
+**语法：** `brickkit new <scope>/<name> [参数]`
+
+生成一个组件的最小骨架：一份已经能通过 `Parse` + `Validate` 的
+`component.yaml`（第一次 `brickkit up --dry-run` 不会撞上"不是合法 YAML"
+这种意外），带 `--contract` 时还会生成一份契约占位文件并登记进
+`artifacts`。仅此而已——不生成 Dockerfile，不生成任何语言的源码。平台
+语言无关，不替你选语言；想看一个真实的完整例子，看
+[用 Go 写一个 BrickKit 组件](../go-component-template.md) 或
+[从零开发自己的第一个组件](../guide/10-build-your-own.md)。
+
+默认写到 `components/<scope>/<name>/`——这正是 `local` 类型安装源本来就
+扫描的布局（`<scope>/<name>/component.yaml`），`brickkit add --repo`
+克隆已有组件的源码也放在这里。`--path` 写到别的地方，不再套
+`<scope>/<name>` 这层——那个目录本身就成了组件的仓库根（"一个组件一个
+仓库"）。不管哪种情况，目标目录都不能已经存在；`new` 从不覆盖。
+
+它不会替你执行 `brickkit add`——写进 `brickkit.yaml` 是一次单独、可审阅
+的动作——也不会碰 `.claude/skills/`：项目内的技能早就由 `init` 装好了；
+独立仓库场景，等有了 `component.yaml` 之后自己执行一次
+`brickkit skills update`。
+
+**参数**
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `--path <目录>` | `components/<scope>/<name>/` | 写到这里，不再额外套一层 |
+| `--contract <格式>` | （不生成） | `openapi` 或 `proto`：顺带生成一份契约占位文件并登记进 `artifacts` |
+
+**示例**
+
+```
+$ brickkit new demo/widget
+✅ 已生成组件骨架：demo/widget
+   📄 components/demo/widget/component.yaml
+
+下一步：
+  改完骨架里的 TODO
+  brickkit add --local               把它加进 brickkit.yaml（本地安装源里能扫到它的话）
+  brickkit up --dry-run               校验能不能通过
+```
+
+```yaml
+# component.yaml
+# demo/widget —— 由 brickkit new 生成的骨架
+# 下面每一处 TODO 都要改成真的；结构本身已经能通过 brickkit up --dry-run 的校验
+apiVersion: brickkit/v1
+kind: Component
+
+metadata:
+  id: demo/widget
+  name: widget # TODO：改成人看的展示名
+  version: 0.1.0
+  description: TODO：一句话说清楚这个组件做什么
+
+deployment:
+  type: container
+  image: demo/widget:0.1.0 # TODO：换成真实构建出来的镜像（本地开发前先 docker build）
+  port: 8080 # TODO：换成组件实际监听的端口
+
+healthCheck:
+  type: http
+  path: /healthz
+  # 冷启动超过 30 秒（Spring Boot / Django 预加载 / .NET 首次 JIT 等）要写
+  # startPeriodSeconds，否则 K8s 下会永久 CrashLoopBackOff
+```
+
+`--contract openapi` 还会写一份 `api/openapi.yaml`：
+
+```yaml
+openapi: 3.0.3
+info:
+  title: demo/gadget
+  version: 0.1.0
+  description: TODO：这个组件对外提供的 API
+paths: {}
+```
+
+……并把它登记进 Manifest：
+
+```yaml
+artifacts:
+  - type: api-contract
+    format: openapi
+    files:
+      - api/openapi.yaml
+```
+
+`--contract proto` 写的是 `api/service.proto`，登记成 `format: proto`，
+`files: [api/service.proto]`。
+
+目标目录已经存在时会拒绝，而不是覆盖：
+
+```
+$ brickkit new demo/widget
+❌ 错误：目标目录已存在
+   目录：components/demo/widget
+   建议：
+   1. 如果是误操作，请先删除或重命名该目录
+   2. 想写到别的地方，用 --path 指定
+```
+
+```bash
+brickkit new demo/widget --contract openapi        # 顺带生成一份 OpenAPI 契约占位文件
+brickkit new demo/widget --contract proto          # 顺带生成一份 proto 契约占位文件
+brickkit new demo/widget --path ../widget-repo     # 写到别的目录——那个目录就是组件仓库根
+```
+
+---
+
 ## brickkit add
 
 **用法：** `brickkit add [<组件ID>[@精确版本]] [flags]`

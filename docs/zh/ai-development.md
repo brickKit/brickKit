@@ -73,6 +73,11 @@ graph LR
 
 ### 步骤 2：让 AI 先写规格——Manifest 和 API 契约，不写实现
 
+`brickkit new my-scope/user-profile` 会生成一份 AI 动手之前就已经能通过
+校验的 `component.yaml`——想让它填一份保证合法的骨架，而不是从空白页
+开始写整份文件，这条命令更省心。两条路最终写出来的是同一份文件，从哪
+一头起步只是习惯问题。
+
 Prompt 示例：
 
 ```
