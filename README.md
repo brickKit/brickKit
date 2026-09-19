@@ -12,18 +12,15 @@
 
 *Watch your system grow organically, one component at a time.*
 
-BrickKit is neither a heavy microservices framework nor an opinionated PaaS.
-It's a **declarative component assembly platform**: you say which components
-exist and what they depend on, and the CLI derives everything else — startup
-order, service addresses, environment variables, Docker Compose or Kubernetes
-manifests, network policies — then hands off to Docker or Kubernetes and
-exits. No registry, no config center, no gateway, no resident process.
+BrickKit is a **declarative component assembly platform**: you say which
+components exist and what they depend on, and the CLI derives everything else —
+startup order, service addresses, environment variables, Docker Compose or
+Kubernetes manifests, network policies — then hands off to Docker or Kubernetes
+and exits. No registry, no config center, no gateway, no resident process.
 
 Each component is an independent domain unit, developed, tested, deployed, and
-called on its own. The design leans on ideas engineers already trust — bounded
-contexts, declarative desired state, twelve-factor configuration, exact-version
-pinning, least-privilege networking — and works in units small enough for a
-person, or an AI, to read in one pass.
+called on its own. The design leans on ideas engineers already trust, and works
+in units small enough for a person, or an AI, to read in one pass.
 
 </div>
 
@@ -75,24 +72,6 @@ and derive the rest.**
 
 What each idea buys, what it costs, and what it refused is in
 [Design principles and trade-offs](docs/en/architecture/design-principles.md).
-
-## If you're coming from DDD
-
-BrickKit's components naturally line up with bounded-context engineering
-boundaries:
-
-- **Independent evolution:** every component owns its repository, Manifest,
-  version lifecycle, and API contract.
-- **Contract-based communication:** components are expected to talk to each
-  other through contracts (HTTP/gRPC), but **the platform doesn't enforce
-  isolation beyond that** — whether they share a database (via schema
-  namespacing or a primary-key prefix) or get merged into one deployment unit
-  (a `servedBy` shell) is entirely the component developer's call, made for
-  the business at hand.
-
-You don't need a heavyweight microservice-governance framework to manage any
-of this — DNS is service discovery, environment variables are config
-injection, exact versions are the compatibility contract.
 
 ## If you're writing components with AI
 
