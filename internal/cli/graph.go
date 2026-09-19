@@ -42,8 +42,9 @@ func newGraphCommand(opts *Options) *cobra.Command {
 
 边总是画出来，不管对方这次有没有启动——图展示的是声明的结构，"启动与否"用节点样式表达。
 
-stdout 里只有 Mermaid，可以直接存文件（brickkit graph > graph.mmd），粘进
-GitHub / Notion / Markdown 里就会被渲染。依赖解析产生的警告写到 stderr。
+stdout 里只有 Mermaid，可以直接存成 .mmd 文件（brickkit graph > graph.mmd），
+GitHub 会直接渲染 .mmd / .mermaid 文件；放进 Markdown 时要用 mermaid 代码块围起来
+（围栏语言写 mermaid），光粘一段文字是不会被渲染的。依赖解析产生的警告写到 stderr。
 和 up 一样，还没缓存的市场 / Git 组件会联网取 Manifest；解析不出依赖图时报同样的错误。`,
 		Example: `  brickkit graph
   brickkit graph > graph.mmd
@@ -114,9 +115,19 @@ var mermaidClassDefs = []struct{ name, style string }{
 	{classMissing, "fill:#fff4e5,stroke:#c77700,stroke-dasharray:4 3"},
 }
 
-// mermaidID 是组件在图里的节点 ID：版本化服务名（小写、/ 与 . 都换成 -），
-// 已经是合法的 Mermaid 标识符，不必再发明一套命名规则。
-func mermaidID(ref resolver.Ref) string { return manifest.ServiceName(ref.ID, ref.Version) }
+// mermaidID 是组件在图里的节点 ID：版本化服务名，再把 - 全部换成 _。
+//
+// 不能直接用服务名——它并不总是合法的 Mermaid 标识符。组件 ID 的规则
+// （manifest.componentIDRe）允许连续的 `--`（my--scope/a），也允许任何单词作 scope
+// （graph/store、end/x）；而 Mermaid 把含 `--` 的 ID 当成边，把以 end / style /
+// class / graph / subgraph / flowchart / interpolate 开头的 ID 当成关键字。`up` 对这些
+// ID 完全正常，graph 若直接用服务名，却会退出码 0 地打印出任何渲染器都不认的文本。
+//
+// 服务名只含 [a-z0-9-]（组件 ID 的规则里没有 _），所以 - → _ 是单射：不会让两个
+// 不同的服务名撞成同一个 ID。节点 ID 因此总以 _数字_数字_数字 结尾。
+func mermaidID(ref resolver.Ref) string {
+	return strings.ReplaceAll(manifest.ServiceName(ref.ID, ref.Version), "-", "_")
+}
 
 // renderMermaid 把拓扑渲染成 Mermaid 文本。
 //
@@ -190,10 +201,10 @@ func renderMermaid(
 		inShell[node.Ref] = true
 	}
 
-	// 子图 ID 带 -members 后缀：外壳自己也是一个以它的服务名为 ID 的普通节点，
-	// 两者不能同名。版本化服务名总以 -数字-数字-数字 结尾，所以不会撞上任何组件节点。
+	// 子图 ID 带 _members 后缀：外壳自己也是一个以它的节点 ID 为 ID 的普通节点，
+	// 两者不能同名。节点 ID 总以 _数字_数字_数字 结尾，所以不会撞上任何组件节点。
 	for _, target := range shells {
-		fmt.Fprintf(&b, "    subgraph %s-members[\"外壳：%s\"]\n", mermaidID(target), target)
+		fmt.Fprintf(&b, "    subgraph %s_members[\"外壳：%s\"]\n", mermaidID(target), target)
 		for _, ref := range members[target] {
 			declare("        ", ref)
 		}

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -24,6 +25,45 @@ func graphProject(t *testing.T, body string, comps ...comp) *projectFixture {
 	return f
 }
 
+// classLineOf 返回 `class <ids> <class>` 那一行（没有就返回空串）。
+func classLineOf(stdout, class string) string {
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.HasPrefix(line, "    class ") && strings.HasSuffix(line, " "+class) {
+			return line
+		}
+	}
+	return ""
+}
+
+// mermaidStatement 列出 graph 会输出的每一种语句：顶层缩进 4 格，子图里的节点缩进 8 格。
+// 输出里出现这之外的任何一行，就说明有别的东西写进了 stdout——`> graph.mmd` 存下来的
+// 文件就不再是合法的 Mermaid。
+var mermaidStatement = regexp.MustCompile(`^(?:` +
+	` {4}(?:` +
+	`%% \S.*|` + // 注释：提示只能写成这样
+	`subgraph [a-z0-9_]+\["[^"]*"\]|end|` + // 子图
+	`[a-z0-9_]+\["[^"]*"\]|` + // 节点
+	`[a-z0-9_]+ (?:-->|-\.->) [a-z0-9_]+|` + // 边
+	`classDef [a-z]+ \S.*;|` + // 样式定义
+	`class [a-z0-9_,]+ [a-z]+` + // 样式套用
+	`)| {8}[a-z0-9_]+\["[^"]*"\]` + // 子图里只有节点
+	`)$`)
+
+// requirePureMermaid 断言 stdout 是纯 Mermaid：第一行是 graph TD，其余每一行都是
+// mermaidStatement 里的某一种，没有警告、没有状态符号、没有别的说明文字。
+func requirePureMermaid(t *testing.T, stdout string) {
+	t.Helper()
+	require.True(t, strings.HasSuffix(stdout, "\n"), "输出以换行结尾：%q", stdout)
+	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
+	require.Equal(t, "graph TD", lines[0])
+	for _, line := range lines[1:] {
+		assert.Regexp(t, mermaidStatement, line, "不是 graph 会输出的 Mermaid 语句：%q", line)
+	}
+	for _, prose := range []string{"⚠️", "✅", "❌", "📋", "🚀"} {
+		assert.NotContains(t, stdout, prose)
+	}
+}
+
 func TestGraphBasicEdges(t *testing.T) {
 	f := graphProject(t, `components:
   - id: demo/hello
@@ -39,9 +79,9 @@ resources: []
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, `graph TD
-    demo-hello-1-0-0["demo/hello@1.0.0"]
-    demo-caller-1-0-0["demo/caller@1.0.0"]
-    demo-caller-1-0-0 --> demo-hello-1-0-0
+    demo_hello_1_0_0["demo/hello@1.0.0"]
+    demo_caller_1_0_0["demo/caller@1.0.0"]
+    demo_caller_1_0_0 --> demo_hello_1_0_0
 `, r.stdout)
 }
 
@@ -59,8 +99,9 @@ resources: []
 
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "    demo-caller-1-0-0 -.-> demo-cache-1-0-0\n")
-	assert.NotContains(t, r.stdout, "demo-caller-1-0-0 --> demo-cache-1-0-0")
+	requirePureMermaid(t, r.stdout)
+	assert.Contains(t, r.stdout, "    demo_caller_1_0_0 -.-> demo_cache_1_0_0\n")
+	assert.NotContains(t, r.stdout, "demo_caller_1_0_0 --> demo_cache_1_0_0")
 }
 
 // 被关掉的顶层带着它下面的一串一起置灰；不相干的组件不受影响。
@@ -82,18 +123,14 @@ resources: []
 
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	requirePureMermaid(t, r.stdout)
 	assert.Contains(t, r.stdout, "    classDef disabled fill:#eee,stroke:#999,color:#999;\n")
 
-	var classLine string
-	for _, line := range strings.Split(r.stdout, "\n") {
-		if strings.HasPrefix(line, "    class ") && strings.HasSuffix(line, " disabled") {
-			classLine = line
-		}
-	}
+	classLine := classLineOf(r.stdout, "disabled")
 	require.NotEmpty(t, classLine, r.stdout)
-	assert.Contains(t, classLine, "demo-caller-1-0-0")
-	assert.Contains(t, classLine, "demo-hello-1-0-0")
-	assert.NotContains(t, classLine, "demo-solo-1-0-0")
+	assert.Contains(t, classLine, "demo_caller_1_0_0")
+	assert.Contains(t, classLine, "demo_hello_1_0_0")
+	assert.NotContains(t, classLine, "demo_solo_1_0_0")
 }
 
 func TestGraphMarksLocalDebugComponent(t *testing.T) {
@@ -107,9 +144,10 @@ resources: []
 
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, `demo-hello-1-0-0["demo/hello@1.0.0<br/>本地调试 :8081"]`)
+	requirePureMermaid(t, r.stdout)
+	assert.Contains(t, r.stdout, `demo_hello_1_0_0["demo/hello@1.0.0<br/>本地调试 :8081"]`)
 	assert.Contains(t, r.stdout, "    classDef local fill:#e6f2ff,stroke:#3673a8;\n")
-	assert.Contains(t, r.stdout, "    class demo-hello-1-0-0 local\n")
+	assert.Contains(t, r.stdout, "    class demo_hello_1_0_0 local\n")
 	assert.NotContains(t, r.stdout, "classDef disabled", "没有被关掉的组件就不输出 disabled 样式")
 }
 
@@ -124,19 +162,9 @@ resources: []
 
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, `demo-hello-1-0-0["demo/hello@1.0.0<br/>本地调试"]`)
+	assert.Contains(t, r.stdout, `demo_hello_1_0_0["demo/hello@1.0.0<br/>本地调试"]`)
 	assert.NotContains(t, r.stdout, "本地调试 :")
-	assert.Contains(t, r.stdout, "    class demo-hello-1-0-0 local\n")
-}
-
-// classLineOf 返回 `class <ids> <class>` 那一行（没有就返回空串）。
-func classLineOf(stdout, class string) string {
-	for _, line := range strings.Split(stdout, "\n") {
-		if strings.HasPrefix(line, "    class ") && strings.HasSuffix(line, " "+class) {
-			return line
-		}
-	}
-	return ""
+	assert.Contains(t, r.stdout, "    class demo_hello_1_0_0 local\n")
 }
 
 // cascade 从不读 local：local: true 的组件与别的组件一样跟着上层走，也可能被跳过。
@@ -168,15 +196,17 @@ resources: []
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
+	requirePureMermaid(t, r.stdout)
+
 	// 被跳过的 local 组件：标签保留，样式只有 disabled
-	assert.Contains(t, r.stdout, `demo-db-1-0-0["demo/db@1.0.0<br/>本地调试 :9001"]`)
+	assert.Contains(t, r.stdout, `demo_db_1_0_0["demo/db@1.0.0<br/>本地调试 :9001"]`)
 	disabled := classLineOf(r.stdout, "disabled")
 	require.NotEmpty(t, disabled, r.stdout)
-	assert.Contains(t, disabled, "demo-db-1-0-0")
-	assert.NotContains(t, disabled, "demo-solo-1-0-0")
+	assert.Contains(t, disabled, "demo_db_1_0_0")
+	assert.NotContains(t, disabled, "demo_solo_1_0_0")
 
 	// 在跑的 local 组件：只有它套 local
-	assert.Equal(t, "    class demo-solo-1-0-0 local", classLineOf(r.stdout, "local"), r.stdout)
+	assert.Equal(t, "    class demo_solo_1_0_0 local", classLineOf(r.stdout, "local"), r.stdout)
 }
 
 const graphServedByBody = `components:
@@ -208,13 +238,14 @@ func TestGraphGroupsServedByMembersUnderTheirShell(t *testing.T) {
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
-	assert.Contains(t, r.stdout, "    subgraph demo-shell-1-0-0-members[\"外壳：demo/shell@1.0.0\"]\n"+
-		"        demo-a-1-0-0[\"demo/a@1.0.0\"]\n"+
-		"        demo-b-1-0-0[\"demo/b@1.0.0\"]\n"+
+	requirePureMermaid(t, r.stdout)
+	assert.Contains(t, r.stdout, "    subgraph demo_shell_1_0_0_members[\"外壳：demo/shell@1.0.0\"]\n"+
+		"        demo_a_1_0_0[\"demo/a@1.0.0\"]\n"+
+		"        demo_b_1_0_0[\"demo/b@1.0.0\"]\n"+
 		"    end\n")
 	// 外壳自己与不相干的组件画在子图外面
-	assert.Contains(t, r.stdout, "\n    demo-shell-1-0-0[\"demo/shell@1.0.0\"]\n")
-	assert.Contains(t, r.stdout, "\n    demo-free-1-0-0[\"demo/free@1.0.0\"]\n")
+	assert.Contains(t, r.stdout, "\n    demo_shell_1_0_0[\"demo/shell@1.0.0\"]\n")
+	assert.Contains(t, r.stdout, "\n    demo_free_1_0_0[\"demo/free@1.0.0\"]\n")
 }
 
 func TestGraphIgnoreServedByDropsGroupingAndSaysSo(t *testing.T) {
@@ -222,6 +253,7 @@ func TestGraphIgnoreServedByDropsGroupingAndSaysSo(t *testing.T) {
 
 	r := runIn(t, f.Dir, "graph", "--ignore-served-by")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	requirePureMermaid(t, r.stdout)
 	assert.NotContains(t, r.stdout, "subgraph")
 	assert.Contains(t, r.stdout, "    %% 已忽略全部 servedBy 声明")
 
@@ -239,13 +271,13 @@ resources: []
 
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, `demo-ghost-1-0-0["demo/ghost@1.0.0<br/>未安装"]`)
-	assert.Contains(t, r.stdout, "    demo-caller-1-0-0 -.-> demo-ghost-1-0-0\n")
-	assert.Contains(t, r.stdout, "    class demo-ghost-1-0-0 missing\n")
+	assert.Contains(t, r.stdout, `demo_ghost_1_0_0["demo/ghost@1.0.0<br/>未安装"]`)
+	assert.Contains(t, r.stdout, "    demo_caller_1_0_0 -.-> demo_ghost_1_0_0\n")
+	assert.Contains(t, r.stdout, "    class demo_ghost_1_0_0 missing\n")
 	assert.Contains(t, r.stdout, "    classDef missing ")
 
 	// stdout 里只有 Mermaid：解析警告在 stderr
-	assert.NotContains(t, r.stdout, "⚠️")
+	requirePureMermaid(t, r.stdout)
 	assert.Contains(t, r.stderr, "⚠️")
 }
 
@@ -258,11 +290,7 @@ resources: []
 
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code)
-	lines := strings.Split(strings.TrimSuffix(r.stdout, "\n"), "\n")
-	require.Equal(t, "graph TD", lines[0])
-	for _, line := range lines[1:] {
-		assert.True(t, strings.HasPrefix(line, "    "), "每一行都是 Mermaid 的缩进语句：%q", line)
-	}
+	requirePureMermaid(t, r.stdout)
 }
 
 func TestGraphEmptyProject(t *testing.T) {
@@ -316,10 +344,10 @@ resources: []
 
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Equal(t, 1, strings.Count(r.stdout, `demo-ghost-1-0-0["`), r.stdout)
-	assert.Contains(t, r.stdout, "    demo-a-1-0-0 -.-> demo-ghost-1-0-0\n")
-	assert.Contains(t, r.stdout, "    demo-b-1-0-0 -.-> demo-ghost-1-0-0\n")
-	assert.Contains(t, r.stdout, "    class demo-ghost-1-0-0 missing\n")
+	assert.Equal(t, 1, strings.Count(r.stdout, `demo_ghost_1_0_0["`), r.stdout)
+	assert.Contains(t, r.stdout, "    demo_a_1_0_0 -.-> demo_ghost_1_0_0\n")
+	assert.Contains(t, r.stdout, "    demo_b_1_0_0 -.-> demo_ghost_1_0_0\n")
+	assert.Contains(t, r.stdout, "    class demo_ghost_1_0_0 missing\n")
 }
 
 // brickkit.yaml 里没列出来的传递依赖照样画：resolver 会把它拉进图（up 也是），
@@ -337,9 +365,9 @@ resources: []
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, `graph TD
-    demo-hello-1-0-0["demo/hello@1.0.0"]
-    demo-caller-1-0-0["demo/caller@1.0.0"]
-    demo-caller-1-0-0 --> demo-hello-1-0-0
+    demo_hello_1_0_0["demo/hello@1.0.0"]
+    demo_caller_1_0_0["demo/caller@1.0.0"]
+    demo_caller_1_0_0 --> demo_hello_1_0_0
 `, r.stdout)
 }
 
@@ -395,7 +423,7 @@ resources: []
 	}
 	//nolint:staticcheck // 显式传 nil 是本用例的目的
 	require.NoError(t, runGraph(nil, opts, false))
-	assert.Contains(t, out.String(), `demo-hello-1-0-0["demo/hello@1.0.0"]`)
+	assert.Contains(t, out.String(), `demo_hello_1_0_0["demo/hello@1.0.0"]`)
 }
 
 // config 校验保证 servedBy 是合法的 id@version，但渲染这一层不依赖这个保证
@@ -409,5 +437,99 @@ func TestRenderMermaidIgnoresMalformedServedBy(t *testing.T) {
 
 	out := renderMermaid(cfg, graph, &cascade.Result{}, false)
 	assert.NotContains(t, out, "subgraph")
-	assert.Contains(t, out, `    demo-a-1-0-0["demo/a@1.0.0"]`+"\n")
+	assert.Contains(t, out, `    demo_a_1_0_0["demo/a@1.0.0"]`+"\n")
+}
+
+// 版本化服务名不总是合法的 Mermaid 标识符：组件 ID 的规则允许连续的 `--`（my--scope/a）
+// 和任何单词作 scope（graph/store、end/x）。含 `--` 的 ID 会被 Mermaid 当成边，以
+// end / graph 之类开头的会被当成关键字——`up` 对这些 ID 完全正常，而 graph 若直接
+// 用服务名，会退出码 0 地打印出任何渲染器都不认的文本（用真实的 mermaid-cli 验过）。
+// 所以节点 ID 里一个 `-` 都不留。
+func TestGraphNodeIDsAreLegalMermaidIdentifiers(t *testing.T) {
+	f := graphProject(t, `components:
+  - id: my--scope/a
+    version: 1.0.0
+  - id: graph/store
+    version: 1.0.0
+  - id: end/x
+    version: 1.0.0
+resources: []
+`,
+		comp{ID: "end/x", Version: "1.0.0"},
+		comp{ID: "graph/store", Version: "1.0.0", Requires: []string{"end/x@1.0.0"}},
+		comp{ID: "my--scope/a", Version: "1.0.0", Requires: []string{"graph/store@1.0.0"}},
+	)
+
+	r := runIn(t, f.Dir, "graph")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	requirePureMermaid(t, r.stdout)
+
+	nodeID := regexp.MustCompile(`(?m)^\s+([^\s\[]+)\["`)
+	ids := nodeID.FindAllStringSubmatch(r.stdout, -1)
+	require.Len(t, ids, 3, r.stdout)
+	for _, m := range ids {
+		assert.NotContains(t, m[1], "-", "节点 ID 不能含连字符：%s", m[1])
+	}
+
+	// 直接用服务名的话会是这几个——它们一个都不能出现
+	for _, naive := range []string{"my--scope-a-1-0-0", "graph-store-1-0-0", "end-x-1-0-0"} {
+		assert.NotContains(t, r.stdout, naive)
+	}
+
+	assert.Equal(t, `graph TD
+    end_x_1_0_0["end/x@1.0.0"]
+    graph_store_1_0_0["graph/store@1.0.0"]
+    my__scope_a_1_0_0["my--scope/a@1.0.0"]
+    graph_store_1_0_0 --> end_x_1_0_0
+    my__scope_a_1_0_0 --> graph_store_1_0_0
+`, r.stdout)
+}
+
+// 服务名只含 [a-z0-9-]，所以把 - 换成 _ 是单射：不会让两个不同的组件撞 ID
+// （my-scope/a 与 my--scope/a 是两个组件）。
+func TestMermaidIDReplacesEveryHyphen(t *testing.T) {
+	cases := []struct{ id, version, want string }{
+		{"demo/hello", "1.0.0", "demo_hello_1_0_0"},
+		{"my--scope/a", "1.0.0", "my__scope_a_1_0_0"},
+		{"my-scope/a", "1.0.0", "my_scope_a_1_0_0"},
+		{"graph/store", "1.0.0", "graph_store_1_0_0"},
+		{"end/x", "2.10.3", "end_x_2_10_3"},
+	}
+	seen := map[string]string{}
+	for _, c := range cases {
+		got := mermaidID(resolver.Ref{ID: c.id, Version: c.version})
+		assert.Equal(t, c.want, got)
+		assert.NotContains(t, got, "-")
+		if prev, dup := seen[got]; dup {
+			t.Errorf("%s 与 %s 撞了同一个节点 ID %s", prev, c.id, got)
+		}
+		seen[got] = c.id
+	}
+}
+
+// servedBy 指向的外壳不在项目里：配置校验不管这件事，up 才在生成阶段报。graph 画的是
+// 声明的结构，照样把成员归在那个外壳名下，只是外壳自己没有节点。
+func TestGraphGroupsMembersEvenWhenTheShellIsNotInTheProject(t *testing.T) {
+	f := graphProject(t, `components:
+  - id: demo/a
+    version: 1.0.0
+    servedBy: demo/absentshell@1.0.0
+  - id: demo/b
+    version: 1.0.0
+    servedBy: demo/absentshell@1.0.0
+resources: []
+`,
+		comp{ID: "demo/a", Version: "1.0.0", Port: 8081},
+		comp{ID: "demo/b", Version: "1.0.0", Port: 8082},
+	)
+
+	r := runIn(t, f.Dir, "graph")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	requirePureMermaid(t, r.stdout)
+	assert.Equal(t, `graph TD
+    subgraph demo_absentshell_1_0_0_members["外壳：demo/absentshell@1.0.0"]
+        demo_a_1_0_0["demo/a@1.0.0"]
+        demo_b_1_0_0["demo/b@1.0.0"]
+    end
+`, r.stdout)
 }
