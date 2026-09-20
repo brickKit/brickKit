@@ -42,19 +42,24 @@ func generate(t *testing.T, v any) schema {
 
 func props(s schema) map[string]any { return s["properties"].(map[string]any) }
 
+// 必填的字段是纯类型；不必填的（omitempty、bool、指针）是"类型 + null"的联合形式，
+// 见 TestOptionalFieldsAreNullableAndRequiredFieldsAreNot。这里先钉住各种 Go 类型映射成什么。
 func TestScalarAndContainerMapping(t *testing.T) {
 	s := generate(t, sample{})
 	p := props(s)
 
 	assert.Equal(t, schema{"type": "string"}, p["id"])
-	assert.Equal(t, schema{"type": "boolean"}, p["enabled"])
-	assert.Equal(t, schema{"type": "integer"}, p["count"], "指针与它指向的类型同形")
-	assert.Equal(t, schema{"type": "number"}, p["ratio"])
-	assert.Equal(t, schema{"type": "array", "items": schema{"type": "string"}}, p["tags"])
-	assert.Equal(t, schema{"type": "object", "additionalProperties": schema{"type": "string"}}, p["labels"])
-	assert.Equal(t, schema{}, p["anything"], "any 不加约束")
-	assert.Equal(t, "array", p["items"].(schema)["type"])
-	assert.Equal(t, "object", p["byName"].(schema)["type"])
+	assert.Equal(t, schema{"type": []string{"boolean", "null"}}, p["enabled"])
+	assert.Equal(t, schema{"type": []string{"integer", "null"}}, p["count"], "指针与它指向的类型同形，只多允许 null")
+	assert.Equal(t, schema{"type": []string{"number", "null"}}, p["ratio"])
+	assert.Equal(t,
+		schema{"type": []string{"array", "null"}, "items": schema{"type": "string"}}, p["tags"],
+		"数组的元素不因为数组可以是 null 而可以是 null")
+	assert.Equal(t,
+		schema{"type": []string{"object", "null"}, "additionalProperties": schema{"type": "string"}}, p["labels"])
+	assert.Equal(t, schema{}, p["anything"], "any 不加约束（本来就接受 null）")
+	assert.Equal(t, []string{"array", "null"}, p["items"].(schema)["type"])
+	assert.Equal(t, []string{"object", "null"}, p["byName"].(schema)["type"])
 	assert.Equal(t, schema{"type": "string"}, p["notag"], "没写 yaml 名时用小写字段名，与 yamlcheck 一致")
 }
 
@@ -101,6 +106,10 @@ func TestJSONSchemaTagKeywords(t *testing.T) {
 	assert.EqualValues(t, 1, p["port"].(schema)["minimum"])
 	assert.EqualValues(t, 65535, p["port"].(schema)["maximum"])
 	assert.Equal(t, []string{"mode", "port", "ver"}, s["required"], "optional 把字段挪出 required")
+
+	// 挪出 required 的字段同时变成可空的：enum 里也要有 null，否则 type 允许 null、enum 却拒绝它
+	assert.Equal(t, schema{"type": []string{"string", "null"}, "enum": []any{"a", "b", nil}}, p["both"])
+	assert.Equal(t, schema{"type": []string{"string", "null"}}, p["opt"])
 }
 
 func TestJSONSchemaTagErrorsAreLoud(t *testing.T) {
@@ -443,9 +452,11 @@ func TestTagsApplyToOverriddenTypesWithoutLeaking(t *testing.T) {
 
 	assert.Equal(t, schema{"type": "string", "enum": []any{"a", "b"}}, p["mode"])
 	assert.Equal(t, schema{"type": "string"}, p["other"], "没写 tag 的同类型字段不受影响")
-	assert.Equal(t, schema{"type": "string"}, p["ptr"], "指向覆盖类型的指针也命中覆盖表")
-	assert.Equal(t, schema{"type": "array", "items": schema{"type": "string"}}, p["list"])
-	assert.Equal(t, schema{"type": "object", "additionalProperties": schema{"type": "string"}}, p["map"])
+	assert.Equal(t, schema{"type": []string{"string", "null"}}, p["ptr"], "指向覆盖类型的指针也命中覆盖表；指针字段不必填，所以可空")
+	assert.Equal(t,
+		schema{"type": []string{"array", "null"}, "items": schema{"type": "string"}}, p["list"])
+	assert.Equal(t,
+		schema{"type": []string{"object", "null"}, "additionalProperties": schema{"type": "string"}}, p["map"])
 	assert.Equal(t, 5, calls, "五处用到，构造函数就被调用五次")
 }
 
@@ -465,7 +476,8 @@ func TestDocumentReportsSchemasThatCannotBeEncoded(t *testing.T) {
 	assert.Nil(t, out)
 }
 
-// 逐字节钉住输出的样子：键按字母序、缩进 2 空格、整数写成 65535 而不是 65535.0、末尾一个换行。
+// 逐字节钉住输出的样子：键按字母序、缩进 2 空格、整数写成 65535 而不是 65535.0、末尾一个换行；
+// 不必填的 port 写成 ["integer", "null"]，必填的 name 仍是纯 "string" 加 enum。
 func TestDocumentExactBytes(t *testing.T) {
 	type tiny struct {
 		Name string `yaml:"name" jsonschema:"enum=a|b"`
@@ -488,7 +500,10 @@ func TestDocumentExactBytes(t *testing.T) {
     "port": {
       "maximum": 65535,
       "minimum": 1,
-      "type": "integer"
+      "type": [
+        "integer",
+        "null"
+      ]
     }
   },
   "required": [
@@ -619,7 +634,7 @@ func TestDurationFieldsAreRejectedUnlessOverridden(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, schema{"type": "string", "pattern": "^[0-9]+[smh]$"}, props(s)["timeout"])
 	assert.Equal(t,
-		schema{"type": "array", "items": schema{"type": "string", "pattern": "^[0-9]+[smh]$"}},
+		schema{"type": []string{"array", "null"}, "items": schema{"type": "string", "pattern": "^[0-9]+[smh]$"}},
 		props(s)["retries"])
 
 	// 不是 time.Duration 的整数不受影响
@@ -753,4 +768,139 @@ func TestInlineFieldsAreRejected(t *testing.T) {
 	}
 	s := generate(t, notInlined{})
 	assert.Contains(t, props(s), "inlineThing")
+}
+
+// ---- 修复轮 2：不必填的字段允许写成显式的 null ----
+//
+// 一个小节下面的条目全被注释掉时（`dependencies:` 后面只剩注释），YAML 把它读成 null，CLI 当作没写。
+// schema 若拒绝它，就是编辑器对一份 CLI 认可的文件画红线。必填的字段不行：`port:` 写成 null 会解码成 0，
+// 校验器报"缺失"，schema 同样该拒绝。
+
+func TestOptionalFieldsAreNullableAndRequiredFieldsAreNot(t *testing.T) {
+	type shapes struct {
+		Req      string            `yaml:"req"`
+		ReqList  []string          `yaml:"reqList"`
+		ReqAny   any               `yaml:"reqAny"`
+		Flag     bool              `yaml:"flag"`
+		Ptr      *int              `yaml:"ptr"`
+		PtrObj   *inner            `yaml:"ptrObj"`
+		Omit     string            `yaml:"omit,omitempty"`
+		Float    float64           `yaml:"float,omitempty"`
+		Tagged   int               `yaml:"tagged" jsonschema:"optional"`
+		List     []string          `yaml:"list,omitempty"`
+		Map      map[string]string `yaml:"map,omitempty"`
+		Nested   inner             `yaml:"nested,omitempty"`
+		Anything any               `yaml:"anything,omitempty"`
+	}
+	p := props(generate(t, shapes{}))
+
+	// 必填：纯类型，不允许 null
+	assert.Equal(t, schema{"type": "string"}, p["req"])
+	assert.Equal(t, schema{"type": "array", "items": schema{"type": "string"}}, p["reqList"], "必填的数组也不允许 null")
+	assert.Equal(t, schema{}, p["reqAny"], "any 没有类型可加：{} 本来就接受任何值，包括 null")
+
+	// 不必填的四种来源：bool、指针、omitempty、optional 标记
+	assert.Equal(t, schema{"type": []string{"boolean", "null"}}, p["flag"], "bool")
+	assert.Equal(t, schema{"type": []string{"integer", "null"}}, p["ptr"], "指针")
+	assert.Equal(t, schema{"type": []string{"string", "null"}}, p["omit"], "omitempty")
+	assert.Equal(t, schema{"type": []string{"number", "null"}}, p["float"], "omitempty")
+	assert.Equal(t, schema{"type": []string{"integer", "null"}}, p["tagged"], "jsonschema:\"optional\"")
+	assert.Equal(t, schema{"type": []string{"array", "null"}, "items": schema{"type": "string"}}, p["list"])
+	assert.Equal(t,
+		schema{"type": []string{"object", "null"}, "additionalProperties": schema{"type": "string"}}, p["map"])
+	assert.Equal(t, schema{}, p["anything"], "any + omitempty 仍是 {}")
+
+	// 可空的对象保留自己的全部约束：null 只是多允许了一种取值，不是放松了对象内部的规则
+	for _, name := range []string{"ptrObj", "nested"} {
+		node := p[name].(schema)
+		assert.Equal(t, []string{"object", "null"}, node["type"], name)
+		assert.Equal(t, false, node["additionalProperties"], name)
+		assert.Equal(t, []string{"name"}, node["required"], name)
+	}
+}
+
+func TestNullableEnumIncludesNull(t *testing.T) {
+	type modes struct {
+		Must string `yaml:"must" jsonschema:"enum=fast|slow"`
+		Opt  string `yaml:"opt,omitempty" jsonschema:"enum=fast|slow"`
+	}
+	p := props(generate(t, modes{}))
+	assert.Equal(t, schema{"type": "string", "enum": []any{"fast", "slow"}}, p["must"], "必填：enum 里没有 null")
+	assert.Equal(t,
+		schema{"type": []string{"string", "null"}, "enum": []any{"fast", "slow", nil}}, p["opt"],
+		"type 允许 null 而 enum 不列它，等于没允许：两处要一起")
+
+	// 落到文件里是 JSON 的 null，不是字符串 "null"
+	out, err := newGenerator(nil).document(reflect.TypeOf(modes{}), "t")
+	require.NoError(t, err)
+	assert.Contains(t, string(out), "\"slow\",\n        null\n")
+}
+
+// 覆盖表里的 schema 可能没有 type，而是 oneOf：null 是多出来的一支。
+func TestNullableOverrideWithOneOfGainsANullBranch(t *testing.T) {
+	alternatives := make([]any, 2, 8) // 多留容量：原地 append 会写进这个共享的底层数组
+	alternatives[0] = schema{"type": "string"}
+	alternatives[1] = schema{"type": "object"}
+	overrides := map[reflect.Type]func() schema{
+		reflect.TypeOf(withUnmarshaler{}): func() schema { return schema{"oneOf": alternatives} },
+	}
+	type holder struct {
+		Must withUnmarshaler   `yaml:"must"`
+		Opt  *withUnmarshaler  `yaml:"opt,omitempty"`
+		List []withUnmarshaler `yaml:"list,omitempty"`
+	}
+	s, err := newGenerator(overrides).typeSchema(reflect.TypeOf(holder{}))
+	require.NoError(t, err)
+	p := props(s)
+
+	assert.Equal(t, schema{"oneOf": []any{schema{"type": "string"}, schema{"type": "object"}}}, p["must"],
+		"必填：没有 null 那一支")
+	assert.Equal(t,
+		schema{"oneOf": []any{schema{"type": "string"}, schema{"type": "object"}, schema{"type": "null"}}}, p["opt"])
+	assert.Equal(t,
+		schema{"type": []string{"array", "null"}, "items": schema{"oneOf": []any{schema{"type": "string"}, schema{"type": "object"}}}},
+		p["list"], "数组可以是 null，它的元素（覆盖表里的类型）仍然不可以")
+
+	assert.Len(t, alternatives, 2)
+	assert.Nil(t, alternatives[:3][2], "没有原地改覆盖表返回的切片：下一次用到它的字段不该看到 null 那一支")
+}
+
+// 生成器只知道怎么给 type / enum / oneOf 加上 null。覆盖表里的 schema 用了别的组合关键字、
+// 又落在一个不必填的字段上时，报错而不是悄悄生成一个拒绝 null 的 schema。
+func TestNullableOverridesWithUnknownShapesAreRejected(t *testing.T) {
+	cases := map[string]schema{
+		"anyOf":      {"anyOf": []any{schema{"type": "string"}}},
+		"allOf":      {"allOf": []any{schema{"type": "string"}}},
+		"not":        {"not": schema{"type": "integer"}},
+		"const":      {"const": "x"},
+		"$ref":       {"$ref": "#/definitions/x"},
+		"联合形式的 type": {"type": []string{"string", "integer"}},
+	}
+	for name, node := range cases {
+		t.Run(name, func(t *testing.T) {
+			overrides := map[reflect.Type]func() schema{
+				reflect.TypeOf(withUnmarshaler{}): func() schema {
+					fresh := schema{}
+					for k, v := range node {
+						fresh[k] = v
+					}
+					return fresh
+				},
+			}
+			type optional struct {
+				V *withUnmarshaler `yaml:"v,omitempty"`
+			}
+			type required struct {
+				V withUnmarshaler `yaml:"v"`
+			}
+
+			_, err := newGenerator(overrides).typeSchema(reflect.TypeOf(optional{}))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "optional.V", "要点名类型与字段")
+			assert.Contains(t, err.Error(), "null")
+
+			_, err = newGenerator(overrides).typeSchema(reflect.TypeOf(required{}))
+			assert.NoError(t, err, "必填的字段不需要可空，用什么形状都行")
+		})
+	}
 }

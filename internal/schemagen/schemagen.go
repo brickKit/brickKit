@@ -35,6 +35,11 @@ func overrides() map[reflect.Type]func() schema {
 // 长度没法用一个 pattern 表达，只抄一半反而多出一处要同步的真相；而 schema 宁可松也不能比校验器
 // 更严。这里只钉"<id>@<精确版本>"这个骨架：id 非空、不含 @ 与空格，版本是三段数字。
 //
+// 不必填的属性要能写成 null（生成器对反射出来的字段也是这条规则，见 makeNullable）：映射写法里
+// optional 是 bool，没写就是 false，`optional:` 后面留空 CLI 同样当作没写，所以它是 ["boolean", "null"]；
+// id 必填，null 会解码成空串、校验器报缺失，所以不允许。schemas_test.go 有一条对整份 schema
+// 通用的检查（"可空 ⇔ 不必填"）会把手写的这里也算进去。
+//
 // 改 ComponentDep 的写法（多一种形式、多一个键）要同步改这里。schemas_test.go 会拿真实的
 // manifest.Parse 与 yamlcheck.KnownFields 核对其中的版本 pattern、id 必填、optional 可缺省、
 // 映射写法认的键集合；核对不到的是新增的写法本身，那要改 UnmarshalYAML 的人自己想起来这里。
@@ -46,7 +51,7 @@ func componentDepSchema() schema {
 			"type": "object",
 			"properties": map[string]any{
 				"id":       schema{"type": "string", "pattern": ref},
-				"optional": schema{"type": "boolean"},
+				"optional": schema{"type": []string{"boolean", "null"}},
 			},
 			"required":             []string{"id"},
 			"additionalProperties": false,

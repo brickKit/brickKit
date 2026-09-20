@@ -14,6 +14,8 @@
 //   - 反射：字段名（与 CLI 拒绝未知字段用的是同一份，见 yamlcheck.KnownFields）、类型、
 //     必填与否。必填 = yaml tag 没有 omitempty，且不是 bool、不是指针，且没写
 //     jsonschema:"optional"。
+//   - 反射还决定"能不能写成 null"：不必填的字段（同上：omitempty、bool、指针、optional）允许，
+//     必填的不允许。理由与写法见 makeNullable。
 //   - `jsonschema` struct tag：封闭取值的约束——enum、pattern、minimum、maximum。
 //     关键字之间用 `,` 分隔，enum 的取值之间用 `|` 分隔；取值与 pattern 里不能出现
 //     `,` 与 `|`（也就不必在 struct tag 里转义反斜杠，正则写成 [.] 而不是 \.）。
@@ -197,12 +199,14 @@ func (g *generator) structSchema(t reflect.Type) (schema, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s.%s：%w", t.Name(), field.Name, err)
 		}
-		properties[name] = node
 
 		if !hasYAMLOption(field, "omitempty") && !optional &&
 			field.Type.Kind() != reflect.Bool && field.Type.Kind() != reflect.Pointer {
 			required = append(required, name)
+		} else if err := makeNullable(node); err != nil {
+			return nil, fmt.Errorf("%s.%s：%w", t.Name(), field.Name, err)
 		}
+		properties[name] = node
 	}
 
 	out := schema{"type": "object", "properties": properties, "additionalProperties": false}
@@ -210,6 +214,56 @@ func (g *generator) structSchema(t reflect.Type) (schema, error) {
 		out["required"] = required
 	}
 	return out, nil
+}
+
+// makeNullable 让一个不必填字段的 schema 也接受显式的 null。
+//
+// # 为什么不必填的字段要允许 null
+//
+// 一个小节下面的条目全被注释掉时（`dependencies:` 后面只剩注释），YAML 把它读成 null。CLI 把它当作没写：
+// yaml.v3 把 null 解码成零值，形状检查也明写着放过 null。schema 若拒绝它，就是编辑器对一份 CLI 认可的文件
+// 画红线，违反"schema 永远不比校验器更严"。
+//
+// 必填的字段不加：`port:` 写成 null 会解码成 0，校验器报"缺失"，schema 同样该拒绝。
+// 数组的元素、map 的值也不加：那不是"这一节什么都没写"，而是列表里多了一个空项。CLI 对它并不一致——
+// `dependencies.components: [null]` 被 yaml.v3 悄悄丢掉，`migration.command: [null]` 却报缺失——
+// 而一个空的列表项几乎总是没写完的笔误，schema 该把它指出来。
+//
+// # 怎么加
+//
+//   - "type": "string" → "type": ["string", "null"]；
+//   - 有 enum 的，enum 里也补上 null——type 允许而 enum 不列它，等于没允许；
+//   - 覆盖表里没有 type、只有 oneOf 的（ComponentDep），oneOf 里补一支 {"type": "null"}；
+//   - {}（Go 的 any）本来就接受任何值，不用动。
+//
+// 覆盖表里用了别的组合关键字（anyOf、allOf、not、const、$ref），或者 type 是别的形状的，生成器不知道该怎么让它
+// 接受 null，直接报错，而不是悄悄生成一份拒绝 null 的 schema。
+//
+// node 会被原地修改：typeSchema 每次都返回新的 map（覆盖表的构造函数也一样），这里改的不会被别的字段看到；
+// 但覆盖表可能把同一个切片放进每次返回的 oneOf，所以往 enum / oneOf 里追加时先复制。
+func makeNullable(node schema) error {
+	for _, keyword := range []string{"anyOf", "allOf", "not", "const", "$ref"} {
+		if _, ok := node[keyword]; ok {
+			return fmt.Errorf("不必填的字段要能写成 null，但这个 schema 用了 %s，生成器不知道怎么给它加上 null", keyword)
+		}
+	}
+
+	switch kind := node["type"].(type) {
+	case nil:
+		// 没有 type：{}（any）已经接受 null；oneOf 在下面补一支
+	case string:
+		node["type"] = []string{kind, "null"}
+	default:
+		return fmt.Errorf("不必填的字段要能写成 null，但这个 schema 的 type 是 %T，生成器只认单个类型名", kind)
+	}
+
+	if values, ok := node["enum"].([]any); ok {
+		node["enum"] = append(values[:len(values):len(values)], nil)
+	}
+	if branches, ok := node["oneOf"].([]any); ok {
+		node["oneOf"] = append(branches[:len(branches):len(branches)], schema{"type": "null"})
+	}
+	return nil
 }
 
 // hasYAMLOption 判断字段的 yaml tag 是否带某个选项（omitempty、inline、flow……）。

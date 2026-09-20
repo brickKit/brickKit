@@ -10,13 +10,20 @@ package schemagen
 // 约束测试里的取值都是先拿真实校验器验过的：表里写的"合法/非法"不是凭印象，是校验器的实际反应。
 // 某个 tag 与校验器对不上时，改 tag，不要放宽这里的测试。
 //
-// 已知的两处"schema 比校验器更严"，取证之后有意留着、这里的测试没有覆盖它们：
+// 已知的"schema 比 CLI 更严"共三类，每一类都是有意保留的，不是疏忽。下面的
+// TestKnownStricterThanTheCLICasesAreReal 与 TestUnknownKeysInConfigSchemaPropertiesAreWarnedNotRejected
+// 用真实的解析器把它们各钉了一遍：CLI 哪天改了行为，那里会红，说明这份清单过期了。
 //
-//   - 可选字段写成显式的 null（键在、后面什么都没有，比如 dependencies 下的条目全被注释掉）：
-//     校验器当作没写，schema 里的 type: array / object 会画红线；
-//   - brickkit.yaml 里 deploy.target、sources[].type、resources[].kind 写成 ${VAR}：
-//     ParseConfig 先展开环境变量再校验，schema 的 enum 不认（文档里没有这种写法，多环境的做法是
-//     每个环境一份自足的 brickkit.yaml）。
+//  1. `${VAR}` 写进有封闭取值或 pattern 的字段（brickkit.yaml 的 deploy.target、sources[].type、
+//     resources[].kind、components[].version）：ParseConfig 先展开环境变量再校验，schema 检查的是字面文本。
+//     文档里没有这种写法；多环境的做法是每个环境一份自足的 brickkit.yaml。
+//  2. yaml.v3 的宽容解码，schema 不跟着放宽：不加引号的非字符串标量写进字符串字段（`password: 123456`、
+//     `project: 2024`）被 yaml.v3 照字面转成字符串，schema 的 type: string 标红——加引号才是对的 YAML 写法，
+//     放宽会把类型提示的价值整个抹掉；列表里的 null 元素（一行没写完的 `-`）在有的位置被悄悄丢掉
+//     （dependencies.components、tags），schema 同样指出来——那几乎总是笔误。
+//  3. configSchema 里属性声明的多余键（`format: uri`、拼错的 `defualt`）：yamlcheck.Walk 不往 map 的值里下钻，
+//     manifest.Parse 不拒绝，CLI 只在 PropertyKeyWarnings（lint / publish / add --local）里警告。这些键不会生效，
+//     所以 schema 在这里保持封闭：编辑器标红与 CLI 的警告说的是同一件事。
 
 import (
 	"encoding"
@@ -26,6 +33,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -184,6 +192,11 @@ func set(t *testing.T, node *any, path []any, value any, remove bool) {
 		m[key] = child
 	case int:
 		s := (*node).([]any)
+		if len(path) == 1 && remove {
+			// 从数组里删一项会让后面的元素挪位，下标从此指向别的东西；把它改成 null 又不是"删除"。
+			// 不猜：要去掉一个元素就改写整个数组。
+			panic(fmt.Sprintf("删除路径不能以数组下标结尾（下标 %d）：要去掉一个元素就改写整个数组", key))
+		}
 		child := s[key]
 		set(t, &child, path[1:], value, remove)
 		s[key] = child
@@ -232,13 +245,44 @@ func fieldPath(path []any) string {
 	return b.String()
 }
 
-// relatedField 判断校验器报的字段落没落在被删掉的字段上：相同，或者其一是另一个的父路径
-// （删掉整个 metadata 会报 metadata.id……；删掉映射写法依赖里的 id 会报在依赖项本身）。
-func relatedField(reported, removed string) bool {
+// fieldRelation 是校验器报的字段与被改动的字段（被删掉，或被写成 null）之间的关系。
+type fieldRelation int
+
+const (
+	unrelated              fieldRelation = iota
+	reportedOnAncestor                   // 报在被改字段的祖先上
+	reportedOnFieldOrBelow               // 报在被改字段本身，或它的后代上
+)
+
+// relationOf 在校验器报的所有字段里，找与 changed 关系最近的一个。
+//
+// 它比"必须报在这个字段本身"宽松，要知道宽到哪里：报在被改字段的**祖先**上也算相关。这一支是为映射写法的
+// 依赖专门留的——删掉（或写成 null）`dependencies.components[1].id` 之后，Ref 是空的，校验器只能指着依赖项
+// 本身说"缺失"，报的是 `dependencies.components[1]`，不是 `.id`。黄金表里除了这一行，没有哪一行靠祖先这一支
+// 才算相关：其余各行校验器报的都是被改的字段本身或它的后代（删掉整个 metadata 会报 metadata.id、
+// metadata.name……）。这一点由 ancestorOnly 与用到它的测试保证，不只是这句注释——将来某一行只能靠祖先才
+// 对得上，必须来这里登记。
+//
+// 它拦得住"失败其实是别的字段引起的"；拦不住"报在同一个祖先上的另一个字段"，这张表里没有那种情形。
+func relationOf(reported []string, changed string) fieldRelation {
 	under := func(child, parent string) bool {
 		return strings.HasPrefix(child, parent+".") || strings.HasPrefix(child, parent+"[")
 	}
-	return reported == removed || under(reported, removed) || under(removed, reported)
+	best := unrelated
+	for _, field := range reported {
+		switch {
+		case field == changed || under(field, changed):
+			return reportedOnFieldOrBelow
+		case under(changed, field):
+			best = reportedOnAncestor
+		}
+	}
+	return best
+}
+
+// ancestorOnly 登记黄金表里校验器只报在被改字段祖先上的那些行（键是被改字段的路径）。
+var ancestorOnly = map[string]bool{
+	"dependencies.components[1].id": true, // 映射写法的依赖：见 relationOf
 }
 
 // ---- 辅助：读 schema、按路径定位节点 ----
@@ -429,25 +473,37 @@ func TestRequiredFieldsMatchGoldenTable(t *testing.T) {
 	}
 }
 
-// 黄金表里的每个必填字段，从合法基准里删掉，真实的解析必须失败——
-// schema 说必填而校验器并不要求，就是 schema 比校验器更严。
+// 黄金表里的每个必填字段，从合法基准里删掉、或者写成显式的 null，真实的解析都必须失败——
+// schema 说必填（并且不许 null）而校验器并不要求，就是 schema 比校验器更严。
+// 写成 null 这一半是为了 makeNullable：必填字段不能被它误伤，`port:` 留空会解码成 0，校验器报缺失。
 func TestRequiredFieldsAreReallyRequiredByTheValidators(t *testing.T) {
+	modes := []struct {
+		name   string
+		remove bool
+	}{{"删掉", true}, {"写成 null", false}}
+
 	for _, c := range requiredGolden {
 		d := documents[c.doc]
 		for _, field := range c.required {
 			path := append(append([]any(nil), c.dataPath...), field)
-			t.Run(c.doc+"/"+fieldPath(path), func(t *testing.T) {
-				err := d.parse(mutate(t, d.baseline, path, nil, true))
-				require.Error(t, err, "%s 删掉之后校验器居然通过了：它不是必填，schema 里不该列它", fieldPath(path))
+			changed := fieldPath(path)
+			for _, mode := range modes {
+				t.Run(c.doc+"/"+changed+"/"+mode.name, func(t *testing.T) {
+					err := d.parse(mutate(t, d.baseline, path, nil, mode.remove))
+					require.Error(t, err, "%s %s之后校验器居然通过了：它不是必填，schema 里不该列它",
+						changed, mode.name)
 
-				removed := fieldPath(path)
-				related := false
-				for _, reported := range problemFields(err) {
-					related = related || relatedField(reported, removed)
-				}
-				assert.True(t, related, "校验器确实失败了，但报的字段（%v）与被删的 %s 不相干——"+
-					"失败可能是别的原因，这一行没有证明什么", problemFields(err), removed)
-			})
+					switch relationOf(problemFields(err), changed) {
+					case unrelated:
+						assert.Fail(t, "校验器确实失败了，但报的字段与被改的字段不相干——失败可能是别的原因，这一行没有证明什么",
+							"报的字段：%v；被改的：%s", problemFields(err), changed)
+					case reportedOnAncestor:
+						assert.True(t, ancestorOnly[changed],
+							"校验器只报在了 %s 的祖先上（%v）：要么这一行真的只能这样，登记进 ancestorOnly，"+
+								"要么是别的字段引起的失败", changed, problemFields(err))
+					}
+				})
+			}
 		}
 	}
 }
@@ -476,7 +532,7 @@ func TestBoolFieldsAreDeclaredButNotRequired(t *testing.T) {
 			properties, _ := node["properties"].(map[string]any)
 			property, _ := properties[c.field].(map[string]any)
 			require.NotNil(t, property, "%s 里没有声明 %s", c.schemaPath, c.field)
-			assert.Equal(t, "boolean", property["type"])
+			assert.Equal(t, []any{"boolean", "null"}, property["type"], "bool 字段不必填，所以可空")
 			assert.NotContains(t, requiredOf(node), c.field, "bool 字段不是必填")
 
 			base := d.baseline
@@ -560,6 +616,13 @@ func constraintCases() []constraintCase {
 			dataPath: []any{"metadata", "version"}, errField: "metadata.version",
 			valid:   []any{"1.0.0", "10.20.30", "0.0.0"},
 			invalid: []any{"1.0", "^1.0.0", "~1.0.0", "1.0.0-beta", "v1.0.0", "1.0.0.0", " 1.0.0", ""},
+		},
+		{
+			// 与 metadata.version 同一条 pattern：brickkit.yaml 里 components[].version 是使用者最常敲版本号的地方。
+			name: "components[0].version", doc: "project", schemaPath: "components[]/version",
+			dataPath: []any{"components", 0, "version"}, errField: "components[0].version",
+			valid:   []any{"1.0.0", "10.20.30", "0.0.0"},
+			invalid: []any{"^1.0.0", "~1.0.0", "1.0", "latest", "1.0.0-beta", ""},
 		},
 		{
 			name: "deployment.type", doc: "component", schemaPath: "deployment/type",
@@ -790,19 +853,39 @@ func TestEveryUnmarshalerTypeIsCoveredByAnOverride(t *testing.T) {
 	}
 }
 
+// mapValueStructs 是"经由 map 的值才够得着的 struct 类型"，目前恰好两个，都在 configSchema.properties.<键> 之下：
+// ConfigProperty，以及它里面的 ItemDef。
+//
+// yamlcheck.Walk 不往 map 的值里下钻（map 的键是使用者自己定的，那里写什么都合法），所以 manifest.Parse 对这两个
+// 类型里的多余键一声不吭——`format: uri`、拼错的 `defualt` 被静默丢掉；CLI 改在 PropertyKeyWarnings 里警告
+// （lint / publish / add --local）。schema 在这里仍然封闭，这是**有意的**"比 Parse 更严"：那些键不会生效，
+// 编辑器标红与 CLI 的警告说的是同一件事（TestUnknownKeysInConfigSchemaPropertiesAreWarnedNotRejected 用真实的
+// 解析器把这一点钉住了）。
+//
+// 其余 struct 节点的 additionalProperties: false 是在镜像 CLI 的"未知字段"拒绝；这两个不是，所以单列。
+// 新出现一个经由 map 的值才够得着的 struct，checkNode 会失败，逼着加它的人来这里决定：也这样封闭，还是放开。
+var mapValueStructs = map[reflect.Type]bool{
+	reflect.TypeOf(manifest.ConfigProperty{}): true,
+	reflect.TypeOf(manifest.ItemDef{}):        true,
+}
+
 // schema 里每个 struct 节点的 properties 键集合必须等于 yamlcheck.KnownFields 给出的键集合——
 // CLI 拒绝未知字段用的是同一份。覆盖表里的类型除外（那是手写的）。
 // 顺带核对两种节点的封闭性：struct 是 additionalProperties: false，map 不是（键是使用者自己定的）。
+// 经由 map 的值才够得着的 struct 是个例外，见 mapValueStructs。
 func TestPropertyNamesMatchWhatTheCLIAccepts(t *testing.T) {
 	roots := map[string]reflect.Type{
 		"component": reflect.TypeOf(manifest.Manifest{}),
 		"project":   reflect.TypeOf(config.Config{}),
 	}
+	reached := map[reflect.Type]bool{}
 	for _, doc := range sortedKeys(roots) {
 		t.Run(doc, func(t *testing.T) {
-			checkNode(t, roots[doc], loadSchema(t, doc), schemaRoot)
+			checkNode(t, roots[doc], loadSchema(t, doc), schemaRoot, false, reached)
 		})
 	}
+	assert.Equal(t, mapValueStructs, reached,
+		"mapValueStructs 里登记的类型与真正经由 map 的值才够得着的类型不一致：登记过期了，或者多了一个要交代的")
 }
 
 // 覆盖表里的 ComponentDep 是手写的，checkNode 不去比它；但映射写法认哪些键，CLI 用的也是
@@ -817,7 +900,9 @@ func TestComponentDepOverrideKnowsTheSameKeysAsTheCLI(t *testing.T) {
 	assert.Equal(t, false, mapping["additionalProperties"], "映射写法要拒绝未知键（CLI 就是这样）")
 }
 
-func checkNode(t *testing.T, typ reflect.Type, node map[string]any, path string) {
+// checkNode 沿着 Go 类型与 schema 节点同时下行。belowMapValue 表示当前节点在某个 map 的值之下
+// （yamlcheck.Walk 走不到那里）；reached 收集在那里遇到的 struct 类型。
+func checkNode(t *testing.T, typ reflect.Type, node map[string]any, path string, belowMapValue bool, reached map[reflect.Type]bool) {
 	t.Helper()
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
@@ -833,19 +918,351 @@ func checkNode(t *testing.T, typ reflect.Type, node map[string]any, path string)
 		properties, _ := node["properties"].(map[string]any)
 		assert.ElementsMatch(t, sortedKeys(known), sortedKeys(properties),
 			"%s：schema 认识的键与 CLI 认识的键不一致", where)
+		// 两种情形下 schema 都是封闭的，但理由不同：一般的 struct 节点是在镜像 CLI 拒绝未知字段；
+		// 经由 map 的值才够得着的 struct，CLI 并不拒绝（yamlcheck.Walk 不下钻），封闭是 schema 有意为之
 		assert.Equal(t, false, node["additionalProperties"], "%s：struct 节点要拒绝未知字段", where)
+		if belowMapValue {
+			reached[typ] = true
+			assert.True(t, mapValueStructs[typ],
+				"%s：这个 struct 经由 map 的值才够得着，yamlcheck.Walk 不下钻到这里，CLI 不拒绝里面的多余键。"+
+					"schema 在这里封闭是一个决定：要在 mapValueStructs 里登记并写清理由", where)
+		}
 		for name, field := range known {
 			if child, ok := properties[name].(map[string]any); ok {
-				checkNode(t, field.Type, child, joinSchemaPath(path, name))
+				checkNode(t, field.Type, child, joinSchemaPath(path, name), belowMapValue, reached)
 			}
 		}
 	case reflect.Slice, reflect.Array:
 		items, ok := node["items"].(map[string]any)
 		require.True(t, ok, "%s：数组节点没有 items", where)
-		checkNode(t, typ.Elem(), items, path+"[]")
+		checkNode(t, typ.Elem(), items, path+"[]", belowMapValue, reached)
 	case reflect.Map:
 		values, ok := node["additionalProperties"].(map[string]any)
 		require.True(t, ok, "%s：map 节点的 additionalProperties 应该是值的 schema，而不是 false", where)
-		checkNode(t, typ.Elem(), values, path+"{}")
+		checkNode(t, typ.Elem(), values, path+"{}", true, reached)
 	}
+}
+
+// ---- 修复轮 2：可空性、configSchema 的例外、已知"更严"的清单 ----
+
+// acceptsNull 按 JSON Schema 的语义判断一个节点是否接受 null，只认生成器会写出来的那几个关键字
+// （type、enum、oneOf）：type 缺省（{}）接受任何值；有 type 就得列着 "null"；有 enum 就得含 null；
+// oneOf 有一支接受就行。
+func acceptsNull(node map[string]any) bool {
+	if branches, ok := node["oneOf"].([]any); ok {
+		for _, branch := range branches {
+			if acceptsNull(branch.(map[string]any)) {
+				return true
+			}
+		}
+		return false
+	}
+	switch kind := node["type"].(type) {
+	case string:
+		if kind != "null" {
+			return false
+		}
+	case []any:
+		if !slices.Contains(kind, any("null")) {
+			return false
+		}
+	}
+	if values, ok := node["enum"].([]any); ok && !slices.Contains(values, nil) {
+		return false
+	}
+	return true
+}
+
+// 整份 schema 通用：一个属性接受 null，当且仅当它不在父节点的 required 里。
+// 手写的覆盖表（ComponentDep 的映射写法）也在这份遍历里，所以它的 optional 忘了写 null 会红。
+//
+// 没有允许名单：Go 的 any 是 {}，本来就接受 null；今天没有必填的 any。哪天有了，这里会红，
+// 由加它的人决定该怎么办，而不是悄悄放过。
+func TestNullabilityMatchesRequiredness(t *testing.T) {
+	for _, doc := range sortedKeys(documents) {
+		t.Run(doc, func(t *testing.T) {
+			checked := 0
+			walkSchema(loadSchema(t, doc), schemaRoot, func(path string, node map[string]any) {
+				properties, _ := node["properties"].(map[string]any)
+				required := requiredOf(node)
+				for name, child := range properties {
+					checked++
+					assert.Equal(t, !slices.Contains(required, name), acceptsNull(child.(map[string]any)),
+						"%s：必填的属性不接受 null，不必填的接受", joinSchemaPath(path, name))
+				}
+			})
+			assert.Positive(t, checked, "一个属性都没检查到，遍历坏了")
+		})
+	}
+}
+
+func TestAcceptsNullFollowsJSONSchemaSemantics(t *testing.T) {
+	for name, tc := range map[string]struct {
+		node map[string]any
+		want bool
+	}{
+		"没有 type（any）":          {map[string]any{}, true},
+		"type: string":          {map[string]any{"type": "string"}, false},
+		"type: null":            {map[string]any{"type": "null"}, true},
+		"type: [string, null]":  {map[string]any{"type": []any{"string", "null"}}, true},
+		"type: [string, other]": {map[string]any{"type": []any{"string", "integer"}}, false},
+		"type 允许 null，enum 不列它": {map[string]any{"type": []any{"string", "null"}, "enum": []any{"a"}}, false},
+		"type 与 enum 都允许 null":  {map[string]any{"type": []any{"string", "null"}, "enum": []any{"a", nil}}, true},
+		"oneOf 没有 null 那一支": {map[string]any{"oneOf": []any{
+			map[string]any{"type": "string"}, map[string]any{"type": "object"}}}, false},
+		"oneOf 有 null 那一支": {map[string]any{"oneOf": []any{
+			map[string]any{"type": "string"}, map[string]any{"type": "null"}}}, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, acceptsNull(tc.node))
+		})
+	}
+}
+
+// optionalPropertyPaths 沿着 schema 与基准 YAML 同时下行，把"基准里已经存在其父对象"的每个不必填属性的
+// 数据路径交给 visit。父对象不在基准里的属性够不着，这里不管；oneOf 的节点（覆盖表手写的 ComponentDep）
+// 不进去，它们单独核对。
+func optionalPropertyPaths(node map[string]any, data any, path []any, visit func(path []any)) {
+	child := func(step any) []any { return append(append([]any(nil), path...), step) }
+
+	switch value := data.(type) {
+	case map[string]any:
+		if properties, ok := node["properties"].(map[string]any); ok {
+			required := requiredOf(node)
+			for _, name := range sortedKeys(properties) {
+				if !slices.Contains(required, name) {
+					visit(child(name))
+				}
+				if present, ok := value[name]; ok {
+					optionalPropertyPaths(properties[name].(map[string]any), present, child(name), visit)
+				}
+			}
+		}
+		if values, ok := node["additionalProperties"].(map[string]any); ok {
+			for _, key := range sortedKeys(value) {
+				optionalPropertyPaths(values, value[key], child(key), visit)
+			}
+		}
+	case []any:
+		if items, ok := node["items"].(map[string]any); ok {
+			for i, item := range value {
+				optionalPropertyPaths(items, item, child(i), visit)
+			}
+		}
+	}
+}
+
+// conditionallyRequired：yaml tag 写了 omitempty，可是校验器在基准的取值下要求它——写成 null 等于没写，
+// 校验器拒绝。这是"校验器比 schema 更严"，是允许的方向；登记在这里，并且要求它们真的被拒绝，名单才不会过期。
+var conditionallyRequired = map[string]string{
+	"component:healthCheck.path": "healthCheck.type 是 http 时必填（validateHealthCheck）",
+	"project:sources[0].path":    "sources[].type 是 local 时必填（validateSources）",
+	"project:deploy.networkPolicy.egress.allowTo[0].namespace": "allowTo 的 namespace 与 cidr 必须写一个，" +
+		"基准里写的是 namespace（validateEgress）",
+}
+
+// 不必填的属性写成显式的 null，真实的解析器放行：这是 schema 允许 null 的依据。
+// 遍历基准里已经存在父对象的全部不必填属性（不是抽几个来看），使用者最常踩到的几个另外点名，
+// 确认遍历真的走到了它们。
+func TestExplicitNullIsAcceptedForOptionalPropertiesByTheRealParsers(t *testing.T) {
+	representatives := map[string][]string{
+		"component": {
+			"tags", "dependencies", "dependencies.components", "dependencies.resources", "configSchema",
+			"configSchema.properties", "configSchema.required", "migration", "metadata.vendor",
+			"deployment.labels", "deployment.resources", "healthCheck.startPeriodSeconds",
+			"configSchema.properties.pageSize.default", "configSchema.properties.tags.items.type",
+		},
+		"project": {
+			"sources", "components", "resources", "installer", "deploy.networkPolicy",
+			"deploy.networkPolicy.egress", "deploy.networkPolicy.enabled", "deploy.serviceAccount",
+			"components[0].config", "components[0].local", "resources[0].bindings", "resources[0].password",
+		},
+	}
+
+	for _, doc := range sortedKeys(documents) {
+		d := documents[doc]
+		var root any
+		require.NoError(t, yaml.Unmarshal([]byte(d.baseline), &root))
+
+		var visited []string
+		optionalPropertyPaths(loadSchema(t, doc), root, nil, func(path []any) {
+			visited = append(visited, fieldPath(path))
+			name := fieldPath(path)
+			t.Run(doc+"/"+name, func(t *testing.T) {
+				err := d.parse(mutate(t, d.baseline, path, nil, false))
+				if why, conditional := conditionallyRequired[doc+":"+name]; conditional {
+					assert.Error(t, err, "%s：%s。它写成 null 应该被校验器拒绝；不拒绝了就把它从 conditionallyRequired 里删掉", name, why)
+					return
+				}
+				assert.NoError(t, err, "%s 写成 null：schema 允许，校验器却拒绝——schema 比校验器更严", name)
+			})
+		})
+
+		for _, want := range representatives[doc] {
+			assert.Contains(t, visited, want, "遍历没有走到 %s:%s", doc, want)
+		}
+	}
+
+	// 覆盖表手写的映射写法不在上面的遍历里
+	t.Run("component/dependencies.components[1].optional", func(t *testing.T) {
+		d := documents["component"]
+		path := []any{"dependencies", "components", 1, "optional"}
+		assert.NoError(t, d.parse(mutate(t, d.baseline, path, nil, false)))
+	})
+
+	// 名单里的每一项都得真的存在：字段改名、条件改了之后，这里要跟着删
+	for key := range conditionallyRequired {
+		doc, name, _ := strings.Cut(key, ":")
+		found := false
+		var root any
+		require.NoError(t, yaml.Unmarshal([]byte(documents[doc].baseline), &root))
+		optionalPropertyPaths(loadSchema(t, doc), root, nil, func(path []any) { found = found || fieldPath(path) == name })
+		assert.True(t, found, "conditionallyRequired 里的 %s 已经不是基准里的不必填属性了", key)
+	}
+}
+
+// ---- configSchema 属性声明里的多余键：CLI 只警告，schema 封闭（已知例外三）----
+
+func TestUnknownKeysInConfigSchemaPropertiesAreWarnedNotRejected(t *testing.T) {
+	cases := []struct {
+		name string
+		path []any  // 在基准里插入这个多余的键
+		key  string // 警告里应该点名的字段
+	}{
+		{"属性声明里的 format（照着 JSON Schema 习惯写的）",
+			[]any{"configSchema", "properties", "pageSize", "format"}, "configSchema.properties.pageSize.format"},
+		{"属性声明里拼错的 defualt",
+			[]any{"configSchema", "properties", "pageSize", "defualt"}, "configSchema.properties.pageSize.defualt"},
+		{"items 里的多余键",
+			[]any{"configSchema", "properties", "tags", "items", "minItems"}, "configSchema.properties.tags.items.minItems"},
+	}
+	index := indexSchema(t, "component")
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			data := mutate(t, baselineComponent, c.path, "x", false)
+
+			// manifest.Parse 不拒绝：yamlcheck.Walk 不往 map 的值里下钻
+			_, err := manifest.Parse(data, "component.yaml")
+			require.NoError(t, err, "manifest.Parse 不该拒绝属性声明里的多余键")
+
+			// PropertyKeyWarnings 警告，并且点名了这个键
+			warnings := manifest.PropertyKeyWarnings(data, "component.yaml")
+			require.Len(t, warnings, 1)
+			assert.True(t, warnings[0].Warning, "是警告，不是错误")
+			assert.Contains(t, problemFields(warnings[0]), c.key)
+		})
+	}
+
+	// schema 在这里封闭：ConfigProperty 与 ItemDef 两个节点
+	for _, path := range []string{"configSchema/properties{}", "configSchema/properties{}/items"} {
+		assert.Equal(t, false, index[path]["additionalProperties"], path)
+	}
+}
+
+// ---- 已知例外一、二：同样拿真实的解析器钉住 ----
+
+func TestKnownStricterThanTheCLICasesAreReal(t *testing.T) {
+	// 一、${VAR} 写进有封闭取值或 pattern 的字段：ParseConfig 先展开再校验，schema 检查字面文本
+	t.Run("${VAR}", func(t *testing.T) {
+		t.Setenv("BRICKKIT_SCHEMATEST_TARGET", "docker")
+		t.Setenv("BRICKKIT_SCHEMATEST_VERSION", "1.0.0")
+		index := indexSchema(t, "project")
+		d := documents["project"]
+
+		for _, c := range []struct {
+			path       []any
+			schemaPath string
+			reference  string
+		}{
+			{[]any{"deploy", "target"}, "deploy/target", "${BRICKKIT_SCHEMATEST_TARGET}"},
+			{[]any{"components", 0, "version"}, "components[]/version", "${BRICKKIT_SCHEMATEST_VERSION}"},
+		} {
+			require.NoError(t, d.parse(mutate(t, d.baseline, c.path, c.reference, false)),
+				"ParseConfig 展开 %s 之后校验，放行", c.reference)
+
+			node := index[c.schemaPath]
+			if enum, ok := node["enum"].([]any); ok {
+				assert.NotContains(t, enum, c.reference, "schema 的 enum 检查字面文本")
+			}
+			if pattern, ok := node["pattern"].(string); ok {
+				assert.NotRegexp(t, pattern, c.reference, "schema 的 pattern 检查字面文本")
+			}
+		}
+	})
+
+	// 二、yaml.v3 的宽容解码：schema 不跟着放宽
+	t.Run("不加引号的非字符串标量写进字符串字段", func(t *testing.T) {
+		index := indexSchema(t, "project")
+		d := documents["project"]
+		for _, c := range []struct {
+			path       []any
+			schemaPath string
+			value      any
+		}{
+			{[]any{"resources", 0, "password"}, "resources[]/password", 123456},
+			{[]any{"project"}, "project", 2024},
+		} {
+			require.NoError(t, d.parse(mutate(t, d.baseline, c.path, c.value, false)),
+				"yaml.v3 把 %v 照字面转成字符串", c.value)
+
+			names := typeNames(index[c.schemaPath])
+			assert.Contains(t, names, "string", c.schemaPath)
+			for _, other := range []string{"integer", "number", "boolean"} {
+				assert.NotContains(t, names, other, "%s 的 type 只认字符串：它是 schema 更严的地方", c.schemaPath)
+			}
+		}
+	})
+
+	t.Run("列表里的 null 元素", func(t *testing.T) {
+		d := documents["component"]
+		index := indexSchema(t, "component")
+
+		// 在有的位置被悄悄丢掉：dependencies.components 的第一项、tags 的唯一一项
+		require.NoError(t, d.parse(mutate(t, d.baseline, []any{"dependencies", "components", 0}, nil, false)))
+		require.NoError(t, d.parse(mutate(t, d.baseline, []any{"tags"}, []any{nil}, false)))
+
+		// schema 指出来：数组的元素不接受 null
+		assert.False(t, acceptsNull(index["dependencies/components[]"]))
+		assert.False(t, acceptsNull(index["tags[]"]))
+	})
+}
+
+// typeNames 读出一个节点的 type：单个类型名，或者联合形式里的每一个。
+func typeNames(node map[string]any) []string {
+	switch kind := node["type"].(type) {
+	case string:
+		return []string{kind}
+	case []any:
+		names := make([]string, len(kind))
+		for i, name := range kind {
+			names[i] = name.(string)
+		}
+		return names
+	}
+	return nil
+}
+
+// ---- 测试辅助自己的行为 ----
+
+func TestMutateRefusesToRemoveAnArrayElement(t *testing.T) {
+	assert.PanicsWithValue(t,
+		"删除路径不能以数组下标结尾（下标 0）：要去掉一个元素就改写整个数组",
+		func() { mutate(t, baselineComponent, []any{"artifacts", 0}, nil, true) })
+
+	// 删映射的键（哪怕它在数组元素里）、把数组元素改写成别的值，都照常
+	removed := string(mutate(t, baselineComponent, []any{"artifacts", 0, "type"}, nil, true))
+	assert.NotContains(t, removed, "api-contract")
+	replaced := string(mutate(t, baselineComponent, []any{"artifacts", 0}, "x", false))
+	assert.Contains(t, replaced, "- x")
+}
+
+func TestRelationOfNamesHowFarTheReportedFieldIs(t *testing.T) {
+	assert.Equal(t, reportedOnFieldOrBelow, relationOf([]string{"文件", "a.b"}, "a.b"), "同一个字段")
+	assert.Equal(t, reportedOnFieldOrBelow, relationOf([]string{"metadata.id"}, "metadata"), "后代")
+	assert.Equal(t, reportedOnFieldOrBelow, relationOf([]string{"list[0].id"}, "list[0]"), "数组元素的后代")
+	assert.Equal(t, reportedOnAncestor, relationOf([]string{"dependencies.components[1]"}, "dependencies.components[1].id"), "祖先")
+	assert.Equal(t, unrelated, relationOf([]string{"文件", "deployment.port"}, "deployment.image"), "同一层的别的字段")
+	assert.Equal(t, unrelated, relationOf([]string{"deployment.portal"}, "deployment.port"), "前缀相同但不是同一个路径")
+	assert.Equal(t, reportedOnFieldOrBelow, relationOf([]string{"a", "a.b"}, "a.b"), "祖先与本身同时报了，取更近的")
 }

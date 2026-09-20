@@ -13,7 +13,10 @@
         "additionalProperties": false,
         "properties": {
           "description": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "files": {
             "items": {
@@ -22,7 +25,10 @@
             "type": "array"
           },
           "format": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "type": {
             "type": "string"
@@ -34,7 +40,10 @@
         ],
         "type": "object"
       },
-      "type": "array"
+      "type": [
+        "array",
+        "null"
+      ]
     },
     "configSchema": {
       "additionalProperties": false,
@@ -45,32 +54,56 @@
             "properties": {
               "default": {},
               "description": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "enum": {
                 "items": {},
-                "type": "array"
+                "type": [
+                  "array",
+                  "null"
+                ]
               },
               "items": {
                 "additionalProperties": false,
                 "properties": {
                   "type": {
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
-                "type": "object"
+                "type": [
+                  "object",
+                  "null"
+                ]
               },
               "maximum": {
-                "type": "number"
+                "type": [
+                  "number",
+                  "null"
+                ]
               },
               "minimum": {
-                "type": "number"
+                "type": [
+                  "number",
+                  "null"
+                ]
               },
               "pattern": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "secret": {
-                "type": "boolean"
+                "type": [
+                  "boolean",
+                  "null"
+                ]
               },
               "type": {
                 "enum": [
@@ -89,19 +122,31 @@
             ],
             "type": "object"
           },
-          "type": "object"
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "required": {
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "type": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "dependencies": {
       "additionalProperties": false,
@@ -121,7 +166,10 @@
                     "type": "string"
                   },
                   "optional": {
-                    "type": "boolean"
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
                   }
                 },
                 "required": [
@@ -131,7 +179,10 @@
               }
             ]
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "resources": {
           "items": {
@@ -158,10 +209,16 @@
             ],
             "type": "object"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "deployment": {
       "additionalProperties": false,
@@ -185,7 +242,10 @@
             ],
             "type": "object"
           },
-          "type": "array"
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "image": {
           "type": "string"
@@ -194,7 +254,10 @@
           "additionalProperties": {
             "type": "string"
           },
-          "type": "object"
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "port": {
           "maximum": 65535,
@@ -208,28 +271,49 @@
               "additionalProperties": false,
               "properties": {
                 "cpu": {
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "memory": {
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
-              "type": "object"
+              "type": [
+                "object",
+                "null"
+              ]
             },
             "requests": {
               "additionalProperties": false,
               "properties": {
                 "cpu": {
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "memory": {
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
-              "type": "object"
+              "type": [
+                "object",
+                "null"
+              ]
             }
           },
-          "type": "object"
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "type": {
           "enum": [
@@ -249,10 +333,16 @@
       "additionalProperties": false,
       "properties": {
         "path": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "startPeriodSeconds": {
-          "type": "integer"
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "type": {
           "enum": [
@@ -278,7 +368,10 @@
       "additionalProperties": false,
       "properties": {
         "apiDocs": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "description": {
           "type": "string"
@@ -287,13 +380,19 @@
           "type": "string"
         },
         "license": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "name": {
           "type": "string"
         },
         "vendor": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "version": {
           "pattern": "^[0-9]+[.][0-9]+[.][0-9]+$",
@@ -321,13 +420,19 @@
       "required": [
         "command"
       ],
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "tags": {
       "items": {
         "type": "string"
       },
-      "type": "array"
+      "type": [
+        "array",
+        "null"
+      ]
     }
   },
   "required": [

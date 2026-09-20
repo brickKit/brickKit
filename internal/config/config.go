@@ -240,9 +240,12 @@ type Source struct {
 func (s Source) IsEnabled() bool { return s.Enabled == nil || *s.Enabled }
 
 // Component 是 components 列表中的一个条目（003 §4.1）。
+//
+// Version 的 jsonschema pattern 是 manifest.IsExactVersion 那条正则的等价写法（tag 里不写反斜杠，所以用 [0-9]、[.]）：
+// 与 validateComponents 里的规则是同一份取值，改一处要改另一处，schemas_test.go 会核对（见 internal/schemagen）。
 type Component struct {
 	ID      string `yaml:"id"`
-	Version string `yaml:"version"`
+	Version string `yaml:"version" jsonschema:"pattern=^[0-9]+[.][0-9]+[.][0-9]+$"`
 	// Enabled 是三态字段：nil=默认开启可被级联 / true=钉住 / false=显式关闭。
 	Enabled   *bool `yaml:"enabled,omitempty"`
 	Local     bool  `yaml:"local,omitempty"`
