@@ -115,7 +115,7 @@ sed -i.bak 's/^./x/' "$rel/checksums.txt" # 把第一个字符改掉，其余不
 if out="$(run_install "$tmp/bin2")"; then
 	bad "校验和是错的，它却装成功了——这正是这个检查要防的那种坏法"
 else
-	if echo "$out" | grep -q "校验失败"; then
+	if echo "$out" | grep -q "Checksum verification failed"; then
 		ok "拒绝安装，且报的是校验失败"
 	else
 		# 它失败了，但不是因为校验——比如下载就挂了。那样的话，就算校验逻辑
@@ -135,7 +135,7 @@ echo "▶ 版本不存在时报得清楚"
 if out="$(env BRICKKIT_VERSION=v0.0.404 BRICKKIT_BASE_URL="file://$tmp/release" \
 	BRICKKIT_INSTALL_DIR="$tmp/bin3" sh "$ROOT/install.sh" 2>&1)"; then
 	bad "版本不存在，它却成功了"
-elif echo "$out" | grep -q "下载失败"; then
+elif echo "$out" | grep -q "Download failed"; then
 	ok "报了下载失败，并带上了 URL"
 else
 	bad "失败了，但没说清是下载失败：$(echo "$out" | head -2 | tr '\n' ' ')"
@@ -143,7 +143,7 @@ fi
 
 # ---------- 6. PATH 提示 ----------
 echo "▶ 装到不在 PATH 的目录时要提醒"
-if run_install "$tmp/bin4" | grep -q "不在 PATH 里"; then
+if run_install "$tmp/bin4" | grep -q "is not on PATH"; then
 	ok "提醒了"
 else
 	bad "没提醒——装完了却敲不到 brickkit，最容易被当成没装上"
