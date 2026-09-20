@@ -9,6 +9,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
 
@@ -38,11 +40,11 @@ func ParseConfigFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	switch {
 	case os.IsNotExist(err):
-		return nil, clierr.New(clierr.CodeProjectMissing, "错误：项目配置文件不存在").
-			WithDetail("路径", path).
+		return nil, clierr.New(clierr.CodeProjectMissing, i18n.T(msgid.ProjectMissing)).
+			WithDetail(i18n.T(msgid.LabelPath), path).
 			WithHint(
-				"在项目目录中执行 brickkit init <项目名称> 初始化项目",
-				"或用 --config 指定正确的配置文件路径",
+				i18n.T(msgid.ProjectMissingHintInit),
+				i18n.T(msgid.ProjectMissingHintConfig),
 			).WithCause(err)
 	case err != nil:
 		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：读取项目配置文件失败").

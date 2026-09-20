@@ -509,6 +509,18 @@ GIT_ENV = {
     "GIT_TERMINAL_PROMPT": "0",
 }
 
+# 13 篇教程里嵌的真实输出快照全部是中文——这在 CLI 本身还没有语言设置时
+# 天然成立，不需要显式声明。CLI 多语言支持（docs/superpowers/specs/
+# 2026-09-20-cli-i18n-design.md）引入 BRICKKIT_LANG 之后，CLI 的默认语言
+# 变成了英文，这里就必须显式钉住中文，否则真实输出会跟着跑这个脚本的
+# 环境（或跑测试的人自己机器上的全局配置）里设了什么语言而变，快照比对
+# 就成了追一个移动的目标。放在字典最后一位覆盖 os.environ，保证跟谁的
+# 机器、谁的环境变量都没关系。等子项目 3 把某些场景改成"docs/en 配真实
+# 英文输出"之后，再给那些场景单独传 env={"BRICKKIT_LANG": "en"} 覆盖它。
+CLI_ENV_DEFAULTS = {
+    "BRICKKIT_LANG": "zh",
+}
+
 
 def run_git(cwd, args):
     """跑一条 git，返回 stdout+stderr（不管成败——失败的输出正是有时要比对的东西）。"""
@@ -615,7 +627,7 @@ def bind_resource(proj, resource_id, host):
 
 
 def run_cli(proj, args, env=None):
-    full_env = {**os.environ, **GIT_ENV}
+    full_env = {**os.environ, **GIT_ENV, **CLI_ENV_DEFAULTS}
     if env:
         full_env.update(env)
     r = subprocess.run([BIN] + args.split(), cwd=proj, stdin=subprocess.DEVNULL,

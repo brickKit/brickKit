@@ -622,7 +622,7 @@ func TestParseConfigFileNotExist(t *testing.T) {
 	require.Error(t, err)
 
 	out := clierr.As(err).Format()
-	assert.Contains(t, out, "不存在")
+	assert.Contains(t, out, "not found")
 	assert.Contains(t, out, "brickkit init", "应提示先初始化项目")
 }
 

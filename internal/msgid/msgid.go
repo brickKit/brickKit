@@ -14,4 +14,10 @@ const (
 	VersionTargetsLine   = "version.targets_line"
 	VersionCommitLine    = "version.commit_line"
 	VersionBuildDateLine = "version.build_date_line"
+
+	// internal/config/parse.go：PROJECT_MISSING
+	ProjectMissing           = "project.missing"
+	LabelPath                = "label.path"
+	ProjectMissingHintInit   = "project.missing.hint.init"
+	ProjectMissingHintConfig = "project.missing.hint.config"
 )

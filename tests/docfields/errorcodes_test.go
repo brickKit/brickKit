@@ -39,7 +39,10 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/brickkit/brickkit/internal/i18n"
 )
 
 // titlePlaceholder 是报错标题里"这里会填进一个变量"的占位符：
@@ -50,7 +53,7 @@ var (
 	// codeConst 匹配 clierr.go 里的错误码常量：CodeXxx Code = "XXX_YYY"。
 	codeConst = regexp.MustCompile(`(?m)^\s*Code\w+\s+Code\s*=\s*"([A-Z][A-Z_]*)"`)
 	// formatVerb 匹配格式串里的动词：%s %d %v %q %-10s 等。
-	formatVerb = regexp.MustCompile(`%[-+# 0-9.]*[a-zA-Z]`)
+	formatVerb = regexp.MustCompile(`%(?:\[\d+\])?[-+# 0-9.]*[a-zA-Z]`)
 	// docPlaceholder 匹配文档标题里的占位写法：<组件>、<component>。
 	docPlaceholder = regexp.MustCompile(`<[^<>]*>`)
 	// codeHeading 匹配错误码参考里的一节：### DEPENDENCY_MISSING。
@@ -69,6 +72,61 @@ func clierrCodes(t *testing.T) []string {
 		out = append(out, m[1])
 	}
 	return out
+}
+
+// msgidKeys 从 internal/msgid 源码里取出常量名 → key 字符串值的映射
+// （msgid.ProjectMissing -> "project.missing"），用来把 i18n.T(msgid.X)
+// 调用还原成它实际查到的文案。跟 clierrCodes() 是同一个手法：真相来自
+// 源码本身，不是又抄一份清单。
+func msgidKeys(t *testing.T) map[string]string {
+	t.Helper()
+	dir := filepath.Join(repoRoot, "internal", "msgid")
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+
+	re := regexp.MustCompile(`(?m)^\s*(\w+)\s*=\s*"([^"]+)"`)
+	out := map[string]string{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		require.NoError(t, err)
+		for _, m := range re.FindAllStringSubmatch(string(body), -1) {
+			out[m[1]] = m[2]
+		}
+	}
+	return out
+}
+
+// i18nCallTitle 把 i18n.T(msgid.Name, ...) 形状的调用还原成它在 zh 目录里
+// 的实际文案。错误码文档现在两侧（docs/en 与 docs/zh）都还照抄同一句
+// 中文原文（子项目 3 才会改成两侧各自的真实语言），所以这里统一按 zh
+// 目录解析，跟文档现状对齐；子项目 3 改变文档约定之后，这里要跟着改成
+// 按文档所在的语言分别解析。
+func i18nCallTitle(call *ast.CallExpr, msgidToKey map[string]string, zhCatalog map[string]string) (string, bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	pkg, ok := sel.X.(*ast.Ident)
+	if !ok || pkg.Name != "i18n" || sel.Sel.Name != "T" || len(call.Args) < 1 {
+		return "", false
+	}
+	idSel, ok := call.Args[0].(*ast.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	idPkg, ok := idSel.X.(*ast.Ident)
+	if !ok || idPkg.Name != "msgid" {
+		return "", false
+	}
+	key, ok := msgidToKey[idSel.Sel.Name]
+	if !ok {
+		return "", false
+	}
+	text, ok := zhCatalog[key]
+	return text, ok
 }
 
 // titleLiteral 取出一个报错标题表达式里的字面量：字符串字面量直接取；
@@ -106,6 +164,8 @@ func titleLiteral(e ast.Expr) (string, bool) {
 // 格式串里的动词统一换成占位符。
 func sourceTitles(t *testing.T) []string {
 	t.Helper()
+	msgidToKey := msgidKeys(t)
+	zhCatalog := i18n.CatalogFor(i18n.ZH)
 	fset := token.NewFileSet()
 	var out []string
 	for _, dir := range []string{"internal", "cmd"} {
@@ -133,7 +193,13 @@ func sourceTitles(t *testing.T) []string {
 				default:
 					return true
 				}
-				if title, ok := titleLiteral(call.Args[1]); ok {
+				title, ok := titleLiteral(call.Args[1])
+				if !ok {
+					if inner, isCall := call.Args[1].(*ast.CallExpr); isCall {
+						title, ok = i18nCallTitle(inner, msgidToKey, zhCatalog)
+					}
+				}
+				if ok {
 					// 源码标题里本来就带尖括号的（"init <项目名称>"）也归一成占位符，
 					// 与文档那一侧的归一化对称。
 					title = formatVerb.ReplaceAllString(title, titlePlaceholder)
@@ -276,4 +342,38 @@ func TestErrorTitleMatcher(t *testing.T) {
 	doc := parseErrorCodeDoc("| 退出码 | 含义 |\n| `0` | 成功 |\n\n### A_B\n\n| 标题 | 原因 |\n| --- | --- |\n| `错误：x` | y |\n\n### C\n")
 	require.Equal(t, []string{"A_B"}, doc.codes, "单字母的小节标题不是错误码")
 	require.Equal(t, []string{"错误：x"}, doc.titles, "第一节之前的表格不算报错标题")
+}
+
+func TestFormatVerbMatchesPositionalVerbs(t *testing.T) {
+	assert.Equal(t, titlePlaceholder+" 已启动", formatVerb.ReplaceAllString("%[1]s 已启动", titlePlaceholder))
+	assert.Equal(t, titlePlaceholder+" 个", formatVerb.ReplaceAllString("%d 个", titlePlaceholder))
+}
+
+func TestI18nCallTitleResolvesKnownMessage(t *testing.T) {
+	msgidToKey := msgidKeys(t)
+	zhCatalog := i18n.CatalogFor(i18n.ZH)
+
+	fset := token.NewFileSet()
+	expr, err := parser.ParseExprFrom(fset, "", `i18n.T(msgid.ProjectMissing)`, 0)
+	require.NoError(t, err)
+	call, ok := expr.(*ast.CallExpr)
+	require.True(t, ok)
+
+	title, ok := i18nCallTitle(call, msgidToKey, zhCatalog)
+	require.True(t, ok)
+	assert.Equal(t, "错误：项目配置文件不存在", title)
+}
+
+func TestI18nCallTitleRejectsUnrelatedCalls(t *testing.T) {
+	msgidToKey := msgidKeys(t)
+	zhCatalog := i18n.CatalogFor(i18n.ZH)
+
+	fset := token.NewFileSet()
+	expr, err := parser.ParseExprFrom(fset, "", `fmt.Sprintf("x")`, 0)
+	require.NoError(t, err)
+	call, ok := expr.(*ast.CallExpr)
+	require.True(t, ok)
+
+	_, ok = i18nCallTitle(call, msgidToKey, zhCatalog)
+	assert.False(t, ok, "不是 i18n.T(msgid.X) 形状的调用要直接放行返回 false，不能误判")
 }

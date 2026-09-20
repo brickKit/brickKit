@@ -1515,10 +1515,37 @@ Expected: stderr 输出形如：
    2. Or point --config at the correct config file path
 ```
 
-- [ ] **Step 15: Commit**
+- [ ] **Step 15: 跑一次完整 `make lint`，发现并处理一个计划外的连带问题**
+
+Run: `make lint 2>&1 | tail -60`
+
+执行时实测发现：`check-guide-output`（校验 `docs/{en,zh}/03-guide/` 教程里嵌的真实
+输出快照）报了 15 处不一致——根源其实是 **Task 2**（`clierr.Format()` 的分隔符/
+标签接入 i18n）：这份脚本一直没被单独跑过完整 `make lint`（Task 2-6 的验证步骤
+只跑了 `go test`），直到这里才发现它假设"CLI 输出恒为中文、docs/en 与 docs/zh
+嵌的快照必须逐字相同"——这个假设从 Task 2 那一刻就已经不成立，只是没人发现。
+
+处理方式（跟用户确认过，按"最终结果最实用最完美、不为了守住计划边界而妥协"处理，
+不是留一个已知缺口不管）：`scripts/check-guide-output.py` 新增 `CLI_ENV_DEFAULTS =
+{"BRICKKIT_LANG": "zh"}`，合并进 `run_cli()` 的 `full_env`（放在 `os.environ` 之后，
+保证跟谁的机器、谁的环境变量都无关）——13 篇教程现在全部还是中文内容，钉住中文
+才能让"真实输出"继续对应它们一直断言的东西；等子项目 3 真的把某些场景改成
+"docs/en 配真实英文输出"，再给那些场景单独传 `env={"BRICKKIT_LANG": "en"}` 覆盖。
+
+**这个修复现在改不完、验证不了**：实测 `BRICKKIT_LANG=zh` 对真实二进制此刻完全
+没有作用——`internal/cli/root.go` 里还没有任何地方调用 `i18n.Resolve()`/
+`SetCurrent()`，这正是 **Task 7** 要接的线。所以 `make check-guide-output` 在
+Task 6 结束时仍然是红的，这是预期状态，不是本步骤没做完；Task 7 完成后要回来
+再跑一次确认它真的转绿（已经加进 Task 7 的验证步骤）。
+
+Expected: `tests/docfields`、`internal/...`、`check-*`（`check-guide-output` 除外）
+全部 ✅；`check-guide-output` 仍然报同样的 15 处不一致，属于已知的、待 Task 7
+解开的暂时状态。
+
+- [ ] **Step 16: Commit**
 
 ```bash
-git add internal/msgid internal/i18n internal/config tests/docfields
+git add internal/msgid internal/i18n internal/config tests/docfields scripts/check-guide-output.py
 git commit -m "$(cat <<'EOF'
 改进：PROJECT_MISSING 走 i18n；docfields 错误码标题核对认得 i18n.T 调用
 
@@ -1528,6 +1555,13 @@ go/ast 静态解析 clierr.New(...) 的第二个参数核对错误码文档标�
 （文档现在两侧都还照抄中文原文，子项目 3 才会改这个约定）。顺手修了
 formatVerb 正则，让它认得 %[1]s 这种位置 verb，子项目 2 转换带参数的
 消息时不用再回来碰。
+
+顺带发现并处理一个追溯到 Task 2 的连带问题：跑完整 make lint 才发现
+check-guide-output.py 假设"CLI 输出恒为中文"，这个假设从 clierr.Format()
+接入 i18n 那一刻就已经不成立。给它的真实 CLI 调用钉住 BRICKKIT_LANG=zh，
+匹配 13 篇教程现在仍然全部是中文内容的事实。这个修复现在还生效不了——
+i18n.Resolve() 还没接进 root.go 的真实命令路径（Task 7 才接），
+check-guide-output 会继续红到 Task 7 做完，这是已知的暂时状态。
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
