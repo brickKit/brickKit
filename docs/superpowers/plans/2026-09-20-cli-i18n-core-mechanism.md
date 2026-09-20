@@ -129,6 +129,10 @@ func TestTInterpolatesPositionalArgs(t *testing.T) {
 }
 
 func TestCatalogForReturnsIndependentSnapshot(t *testing.T) {
+	prev := Current()
+	defer SetCurrent(prev)
+	SetCurrent(ZH)
+
 	snap := CatalogFor(ZH)
 	snap[msgid.HintLabelMulti] = "被改了"
 	assert.Equal(t, "建议：", T(msgid.HintLabelMulti), "CatalogFor 返回的必须是拷贝，不能让调用方改到真的目录")
