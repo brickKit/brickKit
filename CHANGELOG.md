@@ -30,8 +30,10 @@ add up to, rather than listing every commit individually.
   collides with a reserved variable — checked for every key `configSchema`
   declares, a wider net than the warning `up` prints. It exits `1` on errors;
   `--strict` makes warnings fail too, for a CI gate. Error code
-  `LINT_FAILED`. It does not resolve dependencies or check that a `servedBy`
-  target exists — that stays with `brickkit up --dry-run`
+  `LINT_FAILED`. It does not resolve dependencies, check that a `servedBy`
+  target exists, or run the few combination rules that are only checked when
+  deployment files are generated (`local: true` under `deploy.target: k8s`) —
+  those stay with `brickkit up --dry-run`
 - `schemas/component.schema.json` and `schemas/brickkit.schema.json`: JSON
   Schemas for `component.yaml` and `brickkit.yaml`, generated from the CLI's
   own Go structs (`make generate-schemas`). An editor with YAML-schema support

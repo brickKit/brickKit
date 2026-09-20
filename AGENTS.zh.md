@@ -705,7 +705,7 @@ installer:
 | `brickkit init <name>` | 生成 `brickkit.yaml` 骨架和 `.brickkit/` 目录，并装入 AI 助手技能（`--no-skills` 跳过） |
 | `brickkit skills` | 查看/刷新装进项目的 AI 助手技能（`status` / `update`）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）只管理 `brickkit-component` 这一个技能。手改过的绝不覆盖；不碰使用者的 `CLAUDE.md` |
 | `brickkit graph` | 把项目的依赖拓扑画成 Mermaid 文本，打印到 stdout：实线是强依赖，虚线是弱依赖（取不到的弱依赖画成"未安装"节点），置灰的节点是这次不会启动的组件，`servedBy` 收编的成员画在各自的外壳里。**stdout 里只有 Mermaid**，所以 `brickkit graph > graph.mmd` 存下来的文件 GitHub 能直接渲染。它读的是与 `up --dry-run` 同一份解析出来的依赖图（所以还没缓存的市场 / Git 组件的 Manifest 要联网取），不生成部署文件、不碰引擎。`--ignore-served-by` 把每个组件都画成独立部署 |
-| `brickkit lint` | **离线、只读**地检查当前目录里 YAML 的结构——不联网，不需要 Docker / K8s。在项目里：先查 `brickkit.yaml`，再查 `local` 安装源目录下的每一份 `component.yaml`（不管有没有 add 过；`.archived/` 不查）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）：只查那一份。报告必填字段、类型、未知键（拼写笔误）、版本号格式、端口范围，另有两类警告——`configSchema` 属性声明里拼错的键（不会生效）、配置项名字撞上保留变量。不新增任何规则；有错误时退出码 `1`（`LINT_FAILED`），只有警告时退出码 `0`，加 `--strict` 则警告也算失败（给 CI 门禁用）。**不做**依赖解析、不查 `servedBy` 目标——那是 `up --dry-run` 的事 |
+| `brickkit lint` | **离线、只读**地检查当前目录里 YAML 的结构——不联网，不需要 Docker / K8s。在项目里：先查 `brickkit.yaml`，再查 `local` 安装源目录下的每一份 `component.yaml`（不管有没有 add 过；`.archived/` 不查）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）：只查那一份。报告必填字段、类型、未知键（拼写笔误）、版本号格式、端口范围，另有两类警告——`configSchema` 属性声明里拼错的键（不会生效）、配置项名字撞上保留变量。不新增任何规则；有错误时退出码 `1`（`LINT_FAILED`），只有警告时退出码 `0`，加 `--strict` 则警告也算失败（给 CI 门禁用）。**不做**依赖解析、不查 `servedBy` 目标、也不跑少数要到生成部署文件时才检查的组合规则（比如 `local: true` 配 `deploy.target: k8s`）——那是 `up --dry-run` 的事 |
 | `brickkit new <scope>/<name>` | 生成一个组件的最小骨架——一份已经能通过校验的 `component.yaml`，带 `--contract openapi\|proto` 时还生成一份契约占位文件并登记进 `artifacts`。默认写到 `components/<scope>/<name>/`（`local` 安装源本来就扫描这个布局）；`--path` 写到别的地方、不再套一层，给独立组件仓库用。不生成 Dockerfile，不生成源码——平台不替你选语言，也不会替你执行 `add` |
 | `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `enabled` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘 |
 | `brickkit remove <id>` | 检查强依赖方后移除，自动删除源码目录（含归档的那份）。多版本共存时必须指定版本 |
@@ -998,7 +998,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | --- | --- |
 | 5 分钟动手起步，在读别的之前先看这个 | `docs/zh/00-quick-start.md`（英文版把 `zh` 换 `en`） |
 | 一页纸术语速查，以及贯穿全平台的那条服务名规则 | `docs/zh/01-concepts.md`（英文版把 `zh` 换 `en`） |
-| `up`/`down`、本地调试、签名验证最常见的坑，症状 → 原因 → 解决 | `docs/zh/08-troubleshooting.md`（英文版把 `zh` 换 `en`） |
+| `up`/`down`、本地调试、签名验证最常见的坑，以及离线检查（`brickkit lint` 与编辑器 schema）出问题时怎么办，症状 → 原因 → 解决 | `docs/zh/08-troubleshooting.md`（英文版把 `zh` 换 `en`） |
 | BrickKit 和 Docker Compose、Helm、Kustomize、Tilt/Skaffold、Backstage、monorepo 工具怎么比 | `docs/zh/02-comparison.md`（英文版把 `zh` 换 `en`） |
 | 为什么组件模型适合 AI 写代码，以及一套具体工作流 | `docs/zh/05-ai-development.md`（英文版把 `zh` 换 `en`） |
 | 平台是什么、核心机制怎么工作（现行版本） | `docs/zh/06-architecture/`（英文版把 `zh` 换 `en`） |
