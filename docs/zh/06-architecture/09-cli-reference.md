@@ -22,6 +22,8 @@ AGENTS.zh.md §8 给每个命令一句话概括，加一小撮精选的参数示
 | --- | --- | --- | --- |
 | 项目与组件 | [`brickkit init`](#brickkit-init) | 创建项目：生成 `brickkit.yaml` 骨架和 `.brickkit/` 目录，并安装 AI 助手技能 | 从零开始一个新项目 |
 | | [`brickkit skills`](#brickkit-skills) | 查看或刷新项目里安装的 AI 助手技能 | 升级 CLI 之后想更新技能文件 |
+| | [`brickkit graph`](#brickkit-graph) | 把依赖拓扑画成 Mermaid 文本，打印到 stdout | 想在 `up` 之前看清谁需要谁、这次谁会（不会）启动 |
+| | [`brickkit lint`](#brickkit-lint) | 离线、只读地检查 `brickkit.yaml` 与 `component.yaml` 的结构 | 刚写完或改完 YAML，不用联网、不用 Docker |
 | | [`brickkit new`](#brickkit-new) | 生成一个新组件的最小骨架：一份能通过校验的 `component.yaml` | 要自己开发一个新组件 |
 | | [`brickkit add`](#brickkit-add) | 拉取组件及其整棵依赖树，下载产物，写进 `brickkit.yaml` | 想用某个组件 |
 | | [`brickkit remove`](#brickkit-remove) | 移除组件，并删除它的源码目录 | 不再需要某个组件 |
@@ -131,6 +133,198 @@ $ brickkit skills update
 ```bash
 brickkit skills           # 看装了什么、有没有过期
 brickkit skills update    # 刷新到当前 CLI 版本
+```
+
+---
+
+## brickkit graph
+
+**用法：** `brickkit graph [flags]`
+
+把项目的依赖拓扑——谁需要谁——画成一张图，让你直接看到 `brickkit.yaml` 和各组件的 Manifest 合起来是什么样，不用再对着十几份 `component.yaml` 自己拼。图是用 Mermaid 写的，Mermaid 是一种画图用的纯文本写法：命令只打印文本，由 GitHub 把这段文本变成图（见下面的"怎么看它"）。
+
+它读的和 `up --dry-run` 读的一样——`brickkit.yaml` 和每个组件的 Manifest——也走同样的两步：解析依赖图，再判定谁启动（AGENTS.zh.md §5.4）。然后就停了：不检测镜像拉取权限，不跑迁移，不注入环境变量，不生成部署文件，也不碰 Docker 或 Kubernetes。跟 `up --dry-run` 一样，市场或 Git 组件的 Manifest 还没缓存时会联网去取，所以 `graph` 不承诺离线可用（承诺离线的是 `lint`）。依赖图解析不出来时——比如某个强依赖在所有安装源里都找不到——报的就是 `up` 会报的那个错，不另发明一套说法。
+
+**图上有什么**
+
+| 图上的东西 | 意思 |
+| --- | --- |
+| 标着 `id@版本` 的方框 | 一个组件。如果它是 `local: true`，标签会多一行 `本地调试`；`brickkit.yaml` 里写了 `localPort` 的话，后面再带 `:<端口>`。没写 `localPort` 时端口要等 `up` 才会选定，图上就不画端口，不编一个 |
+| 实线箭头 `A --> B` | A **强依赖** B |
+| 虚线箭头 `A -.-> B` | A **弱依赖** B。如果所有安装源里都没有 B，它照样会被画出来：一个橙色虚线框，标签是 `id@版本` 加 `未安装`——这正是 `up --dry-run` 里写作 `（弱，未安装）` 的那件事，也是"为什么这个地址没被注入"的答案 |
+| 灰色方框 | 这次不会启动的组件：被 `enabled: false` 关掉了，或者上面没有任何在跑的组件需要它（AGENTS.zh.md §5.4） |
+| 浅蓝色方框 | 会启动的 `local: true` 组件 |
+| 带标题 `外壳：id@版本` 的大框，框住一些组件 | 这些组件用 `servedBy` 并进了另一个组件的进程里（AGENTS.zh.md §5.7），标题写的就是那个外壳。外壳自己是框外一个普通方框。`servedBy` 指向的外壳不在项目里时，这个分组照样画出来——目标不存在由 `up` 去报 |
+
+箭头总是画出来，不管另一头这次有没有启动：图展示的是你**声明**的结构，"启动与否"用颜色表达，两件事不混在一起。
+
+**输出是纯 Mermaid。** 标准输出里只有这张图，一个多余的字符都没有，所以把它重定向到 `graph.mmd` 得到的就是合法文件。不是图的东西都去了别处：解析依赖图时的警告（比如弱依赖取不到）写到 stderr；`--ignore-served-by` 生效的提示是一行 Mermaid 注释（`%% …`），渲染器会跳过它；项目里没有组件时只输出 `graph TD` 和一行注释（`%% 当前项目没有组件`）。同一份配置每次画出的文本逐字节相同，被依赖的排在依赖它的前面，所以存下来的 `.mmd` 文件放进 Git 里看 diff 很干净。（文本里每个节点的 ID 是组件的版本化服务名，把 `-` 换成 `_`——`demo-hello-1-0-0` 变成 `demo_hello_1_0_0`；给人看的是标签，不是 ID。）
+
+**怎么看它。** GitHub 直接渲染 `.mmd`（或 `.mermaid`）文件，也渲染 Markdown 里语言写成 `mermaid` 的围栏代码块。把图直接粘进 Markdown 而**不加**这层围栏，它就只是一段文字。
+
+**刻意不做的事。** 没有 `--output` 参数，没有 HTML 或 SVG，也没有"只画某个组件周围一圈"的过滤。GitHub 本来就免费渲染 Mermaid，自己再造一个渲染器等于多背一份永远要维护的东西（AGENTS.zh.md §4.1）；写文件用 shell 重定向就够了，不需要为它多开一个参数。
+
+**参数**
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `--ignore-served-by` | 关闭 | 在内存里清空全部 `servedBy` 声明再画一次：原本被外壳收编的组件会作为独立的普通方框出现，各画各的、就像它们各自单独启动时的样子。含义与 `up --ignore-served-by` 相同，也同样从不写回 `brickkit.yaml`。输出里会多一行 `%%` 注释，说明这个参数生效了 |
+
+**示例**（就是上面 `up --dry-run` 示例的那个项目：`people/basic` 需要 `department/tree`，还有一个没有任何安装源提供的弱依赖）
+
+```
+$ brickkit graph > graph.mmd
+⚠️ 警告：弱依赖缺失：infra/redis-event-bus@1.0.0
+   影响组件：people/basic@1.0.0
+   原因：该组件在所有安装源中均未找到
+   影响：该组件的环境变量 INFRA_REDIS_EVENT_BUS_ENDPOINT 不会被注入
+   💡 弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取
+```
+
+警告写在 stderr，所以它留在屏幕上，图则进了文件。下面就是 `graph.mmd` 的内容——GitHub 会渲染 `mermaid` 围栏，所以它同时也是那张图：
+
+```mermaid
+graph TD
+    department_tree_1_0_0["department/tree@1.0.0"]
+    people_basic_1_0_0["people/basic@1.0.0"]
+    infra_redis_event_bus_1_0_0["infra/redis-event-bus@1.0.0<br/>未安装"]
+    people_basic_1_0_0 --> department_tree_1_0_0
+    people_basic_1_0_0 -.-> infra_redis_event_bus_1_0_0
+    classDef missing fill:#fff4e5,stroke:#c77700,stroke-dasharray:4 3;
+    class infra_redis_event_bus_1_0_0 missing
+```
+
+实线是强依赖；虚线、指向橙色框的那条，是没有任何东西提供的弱依赖。现在在 `brickkit.yaml` 里给 `department/tree` 写上 `local: true` 和 `localPort: 8081`：
+
+```yaml
+components:
+  - id: department/tree
+    version: 1.0.0
+    local: true
+    localPort: 8081
+  - id: people/basic
+    version: 1.0.0
+```
+
+它的方框就多了第二行，并套上浅蓝色样式：
+
+```mermaid
+graph TD
+    department_tree_1_0_0["department/tree@1.0.0<br/>本地调试 :8081"]
+    people_basic_1_0_0["people/basic@1.0.0"]
+    infra_redis_event_bus_1_0_0["infra/redis-event-bus@1.0.0<br/>未安装"]
+    people_basic_1_0_0 --> department_tree_1_0_0
+    people_basic_1_0_0 -.-> infra_redis_event_bus_1_0_0
+    classDef local fill:#e6f2ff,stroke:#3673a8;
+    class department_tree_1_0_0 local
+    classDef missing fill:#fff4e5,stroke:#c77700,stroke-dasharray:4 3;
+    class infra_redis_event_bus_1_0_0 missing
+```
+
+```bash
+brickkit graph > graph.mmd                   # 存下来——GitHub 会渲染 .mmd 文件
+brickkit graph --ignore-served-by            # 把每个组件都当成单独启动来画
+brickkit graph --config brickkit.prod.yaml   # 对非默认环境的配置文件生效
+```
+
+---
+
+## brickkit lint
+
+**用法：** `brickkit lint [flags]`
+
+检查你写的 YAML 文件"形状"对不对——必填字段在不在、值的类型对不对、有没有拼错的键、版本是不是 `major.minor.patch`、端口在不在范围内——而且什么都不启动：不联网，不需要 Docker 或 Kubernetes，也不写任何文件。它大约一秒就回答"这份文件我写对了吗"，不用等到 `add` 或 `up` 才发现。
+
+它没有任何自己的新规则：每一条检查都是平台读这些文件时本来就会在别处做的——在 `add`、`up`、`publish` 或者市场里。以前缺的是一个能单独跑它们的入口，尤其是有两样东西没有任何命令能单独检查：组件仓库（有 `component.yaml`、没有 `brickkit.yaml`），以及你已经加进项目的本地组件——`add --local` 对已经写在 `brickkit.yaml` 里的同版本组件是直接跳过的，所以之后手改引入的笔误，要到跑 `up`（要引擎、要走完整的启停判定）才会发现。
+
+**两种模式**，看当前目录里有什么来定（与 `brickkit skills` 是同一条规则；两个文件都有时按项目算）：
+
+- **项目**——有 `brickkit.yaml`（或 `--config` 指定的那份）。先检查 `brickkit.yaml`，再检查项目的本地安装源（`type: local`）下的每一份 `component.yaml`，也就是 `<scope>/<name>/component.yaml`，不管你有没有 `add` 过那个组件。`.archived/` 不检查：那是 `sync` 收起来的副本。每一份还会拿目录名和里面的 `metadata.id` 比一下——`add --local` 也靠这一条来认组件。`brickkit.yaml` 自己没通过时，会跳过第二步并说明：配置都坏了，本地安装源在哪儿就没法确定。
+- **独立的组件仓库**——有 `component.yaml`、没有 `brickkit.yaml`。只检查这一份文件。
+
+**查什么。** 上面那些命令本来就会套用的结构规则：必填字段、类型、未知字段（拼错的键会被直接拒绝，提示里还会猜你想写哪个）、版本格式、端口范围。另外有两类**警告**：`configSchema` 的某个配置项声明里拼错了键（比如把 `default` 写成 `defualt`），它永远不会生效；以及某个 `configSchema` 的键变成环境变量之后撞上了平台保留变量（AGENTS.zh.md §5.2）。后一类比 `up` 查得更全：`up` 只在这个键有默认值、或被 `config` 覆盖时才会碰到它，`lint` 则把 schema 里声明的每个键都查一遍——与市场发布时是同一个范围。`envPrefix` 它看不到（那是项目在 `brickkit.yaml` 里定的，组件仓库里没有这份文件），所以取决于 `envPrefix` 的撞名仍然留给 `up`。
+
+**不查什么，以及为什么**
+
+- 依赖能不能在某个安装源里找到，`servedBy` 指向的组件在不在。这两样都要用到项目里其余组件的 Manifest——市场和 Git 组件还得联网——就不是"离线、一秒回"了。它们归 `brickkit up --dry-run`，反正它本来就要解析依赖图。
+- `configSchema` 里的**值**——`enum`、`minimum` 之类。平台把它们写出来是给读的人看的，从不强制执行（AGENTS.zh.md §9.12：那是说明书，不是安全闸）。
+- 市场或 Git 组件的 Manifest。它们在你 `add` 的时候已经校验过一次；`lint` 只看你自己能编辑的文件，也就是本地安装源。
+
+**退出码，以及输出去哪儿。** 报告写到 stdout，因为它是这条命令的产出：每个干净的文件一行 `✅ <路径>`，有问题的文件打印它的错误和警告块，最后一行汇总 `📋 检查了 N 个文件：M 个有错误，K 条警告`。没有问题、或者只有警告时退出码为 `0`；任何一个文件有错误就是 `1`；加了 `--strict`，警告也算失败，这正是 CI 门禁想要的。失败的运行会在 stderr 上再以一条汇总错误收尾，错误码是 `LINT_FAILED`（在紧跟着它的那行 JSON 日志里）——见[错误码](10-error-codes.md#lint_failed)。
+
+编辑器可以在你敲字的时候就抓出其中结构上的问题：见[给编辑器接上自动补全](../00-quick-start.md#给编辑器接上自动补全)。
+
+**参数**
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `--strict` | 关闭 | 警告也算失败（退出码 `1`），给 CI 门禁用 |
+
+**示例**（就是上面 `add` 示例的那个项目：`components/` 里有 `department/tree` 和 `people/basic`）
+
+干净的一次：
+
+```
+$ brickkit lint
+✅ brickkit.yaml
+✅ components/department/tree/component.yaml
+✅ components/people/basic/component.yaml
+
+📋 检查了 3 个文件：0 个有错误，0 条警告
+```
+
+现在把 `components/people/basic/component.yaml` 里的 `dependencies` 拼成 `dependancies`：
+
+```
+$ brickkit lint
+✅ brickkit.yaml
+✅ components/department/tree/component.yaml
+❌ 错误：component.yaml 校验失败
+   文件：components/people/basic/component.yaml
+   dependancies：未知字段（第 35 行），是不是想写 dependencies？
+   建议：完整字段参考见 docs/zh/06-architecture/07-component-yaml-reference.md（英文版把 zh 换 en）
+
+📋 检查了 3 个文件：1 个有错误，0 条警告
+❌ 错误：结构检查未通过
+   已检查：3 个文件
+   有错误：1 个文件
+   建议：按上面逐条列出的位置修改，再执行 brickkit lint
+```
+
+到 `📋` 那一行为止都是报告，写在 stdout；最后那一块是 stderr 上的汇总错误，退出码为 `1`。报告里点了文件、点了行号，还猜了你想写的键。
+
+在独立的组件仓库里（这里是 `demo/hello` 的 `component.yaml` 拷贝），它会先说自己在哪种模式，再检查这一份文件：
+
+```
+$ brickkit lint
+📦 组件仓库（有 component.yaml、没有 brickkit.yaml）：只检查 component.yaml
+✅ component.yaml
+
+📋 检查了 1 个文件：0 个有错误，0 条警告
+```
+
+只有警告不会让运行失败。把 `configSchema` 里 `greeting` 那一项的 `default` 拼成 `defualt`，`brickkit lint` 会打印下面这一块然后退出 `0`；加上 `--strict` 就退出 `1`：
+
+```
+$ brickkit lint --strict
+📦 组件仓库（有 component.yaml、没有 brickkit.yaml）：只检查 component.yaml
+⚠️ 警告：configSchema 里有配置项声明的键不会生效
+   来源：component.yaml
+   configSchema.properties.greeting.defualt：未知字段（第 31 行），是不是想写 default？
+   影响：这些键会被解析器静默丢弃——比如 default 拼错，组件就拿不到默认值
+   💡 configSchema 是说明书，每个配置项只认固定的几个键（清单见 component.yaml 字段参考）；JSON Schema 里别的关键字（format、examples……）写了也没有任何效果
+
+📋 检查了 1 个文件：0 个有错误，1 条警告
+❌ 错误：结构检查未通过
+   已检查：1 个文件
+   警告：1 条（--strict：警告也算失败）
+   建议：按上面逐条列出的位置修改，再执行 brickkit lint
+```
+
+```bash
+brickkit lint                                # 把这个目录里能检查的都检查一遍
+brickkit lint --strict                       # 警告也算失败（CI 门禁）
+brickkit lint --config brickkit.prod.yaml    # 对非默认环境的配置文件生效
 ```
 
 ---
