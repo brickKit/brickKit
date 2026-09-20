@@ -7,7 +7,7 @@ package cli
 // 这两种东西单独跑一遍校验：
 //   - 独立的组件仓库（只有 component.yaml、没有 brickkit.yaml）；
 //   - 已经 add --local 过的本地组件——add --local 对已在配置里的同版本组件是静默跳过，
-//     编辑之后引入的拼写错误，要跑到 up（要引擎、要走完整级联）才会发现。
+//     编辑之后引入的拼写错误，要到跑 up（或 up --dry-run）读到那份文件时才会暴露。
 //
 // 不做的事（都有明确的理由，见设计书 §3.4）：不解析依赖图、不检查 servedBy 指向的组件
 // 是否存在（那要联网，留给 up / add）、不校验 configSchema 里 enum / minimum 对应的值
@@ -96,6 +96,10 @@ func runLint(opts *Options, strict bool) error {
 	return reportLint(opts, files, notes, strict)
 }
 
+// localSkippedNote 说明"本地组件的 component.yaml 没能检查"，与 brickkit.yaml 没通过时的那条对称。
+// 原因已经由前面那条错误块说了，这里只交代后果：汇总里的文件数因此比实际少。
+const localSkippedNote = "本地安装源枚举失败，已跳过本地组件的 " + manifest.FileName + "（先修好上面那条）"
+
 // lintProject 检查 brickkit.yaml，再检查本地安装源里的每一份 component.yaml。
 func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 	head := lintFile{path: displayPath(opts.WorkDir, layout.ConfigPath())}
@@ -111,18 +115,25 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 	// 直接 source.New，不走 newSourceClient：后者会先去读 installer.publicKeys 指向的公钥文件，
 	// 而公钥缺失是 up / add 该报的事，不该让一条"离线校验 YAML"的命令因此失败。
 	// source.New 本身不联网——三种安装源都是惰性的，只有真去取 Manifest 才会碰网络，lint 从不取。
+	//
+	// 这是整个 CLI 里唯一不经 newSourceClient（也就是不带签名策略）的取源客户端。这个例外
+	// **只安全在** lint 只调 LocalManifestFiles、从不取 Manifest：将来谁在这里加一次
+	// client.Manifest，就等于悄悄绕过验签，还会写 .brickkit/manifests/ 缓存、可能联网，
+	// "纯只读、不联网"的承诺当场破功。
 	client, err := source.New(layout, cfg, source.Options{})
 	if err != nil {
 		head.errors = append(head.errors, clierr.As(err))
-		return []lintFile{head}, nil
+		return []lintFile{head}, []string{localSkippedNote}
 	}
 	defer func() { _ = client.Close() }()
 
 	found, err := client.LocalManifestFiles()
 	if err != nil {
-		// 本地源的根目录不存在之类：那是 brickkit.yaml 里 sources[].path 配错了
+		// 本地源的根目录不存在之类：那是 brickkit.yaml 里 sources[].path 配错了。
+		// 枚举遇到第一个出错的源就整体失败，别的本地源里的组件因此一份也没查——汇总里的
+		// 文件数会被低估，必须说出来，否则使用者改好 path 之前不知道还有文件没被检查
 		head.errors = append(head.errors, clierr.As(err))
-		return []lintFile{head}, nil
+		return []lintFile{head}, []string{localSkippedNote}
 	}
 
 	files := []lintFile{head}

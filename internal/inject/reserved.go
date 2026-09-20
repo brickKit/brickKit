@@ -59,9 +59,13 @@ func (b *envBuilder) matchReserved(name string) (string, bool) {
 
 // ReservedKeyWarnings 检查一份 Manifest 的 configSchema 里有没有配置项名字撞上平台保留变量。
 //
-// 这是 up 注入时那条警告的离线版：规则同一份（staticReserved），措辞同一份
-// （reservedConflictWarning）。不含使用者在 brickkit.yaml 里定的 envPrefix——组件仓库里
-// 看不到它，市场发布时同样看不到，所以那一半只能留给注入现场。
+// 这是 up 注入时那条警告的离线版，也是它的**超集**：规则同一份（staticReserved），措辞同一份
+// （reservedConflictWarning），但 up 只对有值的配置项才走到保留变量检查——有默认值，
+// 或者被 brickkit.yaml 的 config 覆盖；既没默认值、又没被覆盖的键，up 根本不会检查它。
+// 这里把 configSchema 里声明的每一个键都查一遍，与市场发布时同一个范围。
+//
+// 不含使用者在 brickkit.yaml 里定的 envPrefix——组件仓库里看不到它，市场发布时同样看不到，
+// 所以那一半只能留给注入现场。
 //
 // 是警告不是错误，理由同 reservedConflictWarning：一个配置项名字写错，不该让整个项目起不来。
 func ReservedKeyWarnings(m *manifest.Manifest) []*clierr.Error {

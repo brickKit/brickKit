@@ -309,8 +309,7 @@ func TestGraphFailsLikeUpWhenRequiredDependencyMissing(t *testing.T) {
 resources: []
 `, comp{ID: "demo/caller", Version: "1.0.0", Requires: []string{"demo/ghost@1.0.0"}})
 
-	// 错误码只在 stderr 的 JSON 日志行里（runIn 把日志整个关掉了），所以这里打开日志级别
-	r := runWith(t, func(o *Options) { o.LogLevel = logging.LevelInfo }, f.Dir, "graph")
+	r := runWithLogs(t, f.Dir, "graph")
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Empty(t, r.stdout, "解析不出来就什么都不画")
 	assert.Contains(t, r.stderr, `"error_code":"DEPENDENCY_MISSING"`)
@@ -372,10 +371,10 @@ resources: []
 }
 
 func TestGraphFailsWithoutProjectConfig(t *testing.T) {
-	r := runIn(t, t.TempDir(), "graph")
+	r := runWithLogs(t, t.TempDir(), "graph")
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Empty(t, r.stdout)
-	assert.Contains(t, r.stderr, "项目配置文件不存在")
+	assert.Contains(t, r.stderr, `"error_code":"PROJECT_MISSING"`)
 }
 
 const graphUnreadableKeyConfig = `installer:
@@ -394,6 +393,8 @@ func TestGraphEmptyProjectDoesNotNeedTrustedKeys(t *testing.T) {
 }
 
 // 有组件时同一份配置照样报错：graph 不绕过验签配置，报的就是 up 那一条。
+// 上一条证明了这份配置本身能通过解析，所以这里的失败只可能来自读公钥；断言稳定的错误码，
+// 而不是别的包里那句报错文案——文案改了，这条不该跟着碎。
 func TestGraphReportsUnreadableTrustedKey(t *testing.T) {
 	f := graphProject(t, graphUnreadableKeyConfig+`components:
   - id: demo/hello
@@ -401,10 +402,10 @@ func TestGraphReportsUnreadableTrustedKey(t *testing.T) {
 resources: []
 `, comp{ID: "demo/hello", Version: "1.0.0"})
 
-	r := runIn(t, f.Dir, "graph")
+	r := runWithLogs(t, f.Dir, "graph")
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Empty(t, r.stdout)
-	assert.Contains(t, r.stderr, "读取可信公钥失败")
+	assert.Contains(t, r.stderr, `"error_code":"CONFIG_INVALID"`)
 }
 
 // runGraph 允许 ctx 为 nil（与 runAdd / runRemove 一样：cobra 在某些路径下不注入 context）。

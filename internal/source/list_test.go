@@ -419,9 +419,7 @@ func TestLocalManifestFilesWritesNothing(t *testing.T) {
 // LocalManifestFiles 必须照样列出它——lint 要报"读不了这份文件"，不能在枚举这一步悄悄丢掉；
 // LocalComponents 则保持重构前的样子：读不动的文件不进 Components，也不进 Problems。
 func TestLocalManifestFilesListsUnreadableFile(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("以 root 运行时权限位不生效")
-	}
+	skipIfRoot(t)
 	layout := newProject(t)
 	root := filepath.Join(layout.Root, "components")
 	writeComponent(t, root, componentSpec{ID: "demo/ok", Version: "1.0.0"})
@@ -442,4 +440,31 @@ func TestLocalManifestFilesListsUnreadableFile(t *testing.T) {
 	require.Len(t, scan.Components, 1)
 	assert.Equal(t, "demo/ok", scan.Components[0].ID)
 	assert.Empty(t, scan.Problems)
+}
+
+// 点开头的目录（.archived/、.git/）不被读：其中一个读不动，不能让整次枚举失败。
+// 这是 manifestFiles 里点开头那道过滤唯一有输出后果的地方——ID 检查只管拼出来的名字合不合法，
+// 挡不住"先 ReadDir 才轮得到它"；lint 与 add --local 共用这段遍历，因此都不该被这种目录拖垮。
+func TestLocalManifestFilesDoesNotReadDotDirectories(t *testing.T) {
+	skipIfRoot(t)
+	layout := newProject(t)
+	root := filepath.Join(layout.Root, "components")
+	writeComponent(t, root, componentSpec{ID: "demo/ok", Version: "1.0.0"})
+	for _, name := range []string{".archived", ".git"} {
+		dir := filepath.Join(root, name)
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "inner"), 0o755))
+		require.NoError(t, os.Chmod(dir, 0o000))
+		t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	}
+	c := newClient(t, layout, localDevConfig(), Options{})
+
+	files, err := c.LocalManifestFiles()
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	assert.Equal(t, "demo/ok", files[0].ID)
+
+	scan, err := c.LocalComponents(context.Background())
+	require.NoError(t, err)
+	require.Len(t, scan.Components, 1)
+	assert.Equal(t, "demo/ok", scan.Components[0].ID)
 }

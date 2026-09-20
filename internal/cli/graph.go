@@ -2,9 +2,12 @@ package cli
 
 // 本文件实现 brickkit graph：把项目的依赖拓扑输出成 Mermaid。
 //
-// 它是纯读取：数据来源与 up --dry-run 相同（依赖图 + 级联结果），再加 brickkit.yaml
-// 里各组件条目自己写的 local / servedBy。跳过 up 才需要的一切——镜像权限检查、迁移展示、
-// 引擎解析、环境变量注入、生成部署文件。
+// 它不生成部署文件、不碰引擎、不启动任何东西，但**不是**只读、也不保证离线：数据来源与
+// up --dry-run 相同（依赖图 + 级联结果），再加 brickkit.yaml 里各组件条目自己写的
+// local / servedBy，而解析依赖图取 Manifest 是 resolver 的既有行为——与 up --dry-run、
+// status 一样，会把取到的 Manifest 写进 .brickkit/manifests/ 缓存，还没缓存的市场 / Git
+// 组件还要联网去取。真正只读、不联网、不写任何文件的是 lint。
+// 跳过 up 才需要的一切——镜像权限检查、迁移展示、引擎解析、环境变量注入、生成部署文件。
 //
 // 只输出 Mermaid、只写 stdout：GitHub 直接渲染 .mmd / .mermaid 文件，也渲染 Markdown 里
 // mermaid 围栏里的内容，自己再造一个 HTML/SVG 渲染器是重新发明已经免费拿到的东西。

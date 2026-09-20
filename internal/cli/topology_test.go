@@ -79,6 +79,35 @@ resources: []
 	assert.NotEmpty(t, clierr.As(err).Code, "是结构化错误，带稳定的错误码")
 }
 
+// 依赖图解析成功、级联算不出来（钉住的组件撞上被关掉的强依赖）：两个结果都必须是 nil。
+// 这是 resolveTopology 与它取代的内联写法唯一有差别的路径：内联写法把结果直接赋给调用方
+// 自己的字段（up 的 plan.graph、down / status 的 p.graph），级联失败时依赖图已经落在那里了；
+// 共用函数保证出错时不交出任何半成品，哪个调用方将来忘了先看 err，也拿不到能用的东西。
+func TestResolveTopologyFailsWhenCascadeCannotBeComputed(t *testing.T) {
+	dir := t.TempDir()
+	sources := oneLocalSource(t, dir,
+		comp{ID: "demo/caller", Version: "1.0.0", Requires: []string{"demo/hello@1.0.0"}},
+		comp{ID: "demo/hello", Version: "1.0.0"},
+	)
+	f := newProjectFixtureAt(t, dir, sources...)
+	f.writeConfig(t, `components:
+  - id: demo/caller
+    version: 1.0.0
+    enabled: true
+  - id: demo/hello
+    version: 1.0.0
+    enabled: false
+resources: []
+`)
+
+	cfg := f.parsed(t)
+	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, cfg), cfg)
+	require.Error(t, err)
+	assert.Nil(t, graph, "依赖图是解析成功了的，但出错时不交出半成品")
+	assert.Nil(t, states)
+	assert.Equal(t, clierr.CodeComponentDisabled, clierr.As(err).Code, "是级联报的错，不是依赖解析报的")
+}
+
 func TestClearServedBy(t *testing.T) {
 	cfg := &config.Config{Components: []config.Component{
 		{ID: "demo/a", Version: "1.0.0", ServedBy: "demo/shell@1.0.0"},

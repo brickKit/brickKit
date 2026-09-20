@@ -25,6 +25,11 @@ type localSource struct {
 	root string
 }
 
+// 编译期断言：localSource 是（也是唯一的）listableFetcher。list.go 里靠类型断言找它，
+// 方法一改名，断言会静默变成"不是"——LocalComponents / LocalManifestFiles 悄悄什么都不列；
+// 有了这一行，那会变成编译错误。
+var _ listableFetcher = (*localSource)(nil)
+
 func (s *localSource) id() string   { return s.sourceID }
 func (s *localSource) kind() string { return "local" }
 func (s *localSource) close() error { return nil }
@@ -66,11 +71,18 @@ type localManifestFile struct {
 
 // manifestFiles 枚举 <root>/<scope>/<name>/component.yaml（003 §6.4）。
 //
-// 两道过滤缺一不可：
-//   - 点开头的目录一律不当作 scope。默认约定里 local 源就指向 ./components，
-//     而 components/.archived/（brickkit sync 的归档目录）和 .git/ 都在那底下。
+// 两道过滤各管一件事：
 //   - 目录名拼出来必须是合法组件 ID。非法 ID 进不了 brickkit.yaml，
-//     扫出来只会在后面炸；这里挡住，报错才有意义。
+//     扫出来只会在后面炸；这里挡住，报错才有意义。就输出而言，光这一道就够了：
+//     组件 ID 不能以点开头，.archived/、.git/ 这类目录本来就拼不出合法 ID。
+//   - 点开头的目录不当作 scope。默认约定里 local 源就指向 ./components，
+//     而 components/.archived/（brickkit sync 的归档目录）和 .git/ 都在那底下。
+//     这一道的作用不在输出，而在**不去读那些目录**：没有它，要先 ReadDir 一遍它们才会被
+//     上一道丢掉，其中任何一个读不了（权限之类）都会让整次枚举报错中断——
+//     lint 和 add --local 会因为一个使用者根本不会编辑的目录而整体失败
+//     （TestLocalManifestFilesDoesNotReadDotDirectories 钉着这一点）。
+//     scope 之下点开头的名字同样跳过，但那里没有读目录的动作，纯属被 ID 检查覆盖，
+//     留着只为让意图一眼看得懂。
 //
 // 只看文件在不在，读不读得动、内容对不对是调用方的事：listComponents 要在此之上
 // 做"表头"筛选，lint 要完整报告每一份文件——枚举这一步不能替它们丢东西。
