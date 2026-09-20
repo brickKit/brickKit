@@ -12,8 +12,22 @@ var en = map[string]string{
 	msgid.VersionCommitLine:    "Git commit: %[1]s",
 	msgid.VersionBuildDateLine: "Build date: %[1]s",
 
+	msgid.LabelPath:      "Path",
+	msgid.LabelReason:    "Reason",
+	msgid.LabelComponent: "Component",
+	msgid.LabelSource:    "Install source",
+	msgid.LabelFile:      "File",
+	msgid.LabelDir:       "Directory",
+	msgid.LabelImage:     "Image",
+	msgid.LabelConfigKey: "Config item",
+	msgid.LabelImpact:    "Impact",
+	msgid.LabelAddress:   "Address",
+	msgid.LabelOutput:    "Output",
+	msgid.LabelCommand:   "Command",
+	msgid.LabelRepo:      "Repository",
+	msgid.LabelResource:  "Resource",
+
 	msgid.ProjectMissing:           "Error: project config file not found",
-	msgid.LabelPath:                "Path",
 	msgid.ProjectMissingHintInit:   "Run brickkit init <project-name> inside the project directory to initialize it",
 	msgid.ProjectMissingHintConfig: "Or point --config at the correct config file path",
 

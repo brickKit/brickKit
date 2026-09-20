@@ -9,6 +9,24 @@ const (
 	HintLabelSingle = "hint.label.single"
 	HintLabelMulti  = "hint.label.multi"
 
+	// 跨包共享的通用 Detail 标签——WithDetail 的 key 往往是"原因"、"组件"这类
+	// 到处都用得到的词，不按来源包各开一份，统一在这里声明一次。是否该收进
+	// 这里的判断标准：在两个以上不相关的包里出现、含义完全一致。
+	LabelPath      = "label.path"
+	LabelReason    = "label.reason"
+	LabelComponent = "label.component"
+	LabelSource    = "label.source" // "安装源"（sources 配置项），不是泛指任意来源
+	LabelFile      = "label.file"
+	LabelDir       = "label.dir"
+	LabelImage     = "label.image"
+	LabelConfigKey = "label.config_key"
+	LabelImpact    = "label.impact"
+	LabelAddress   = "label.address"
+	LabelOutput    = "label.output"
+	LabelCommand   = "label.command"
+	LabelRepo      = "label.repo"
+	LabelResource  = "label.resource"
+
 	// internal/cli/version.go
 	VersionManifestLine  = "version.manifest_line"
 	VersionTargetsLine   = "version.targets_line"
@@ -17,7 +35,6 @@ const (
 
 	// internal/config/parse.go：PROJECT_MISSING
 	ProjectMissing           = "project.missing"
-	LabelPath                = "label.path"
 	ProjectMissingHintInit   = "project.missing.hint.init"
 	ProjectMissingHintConfig = "project.missing.hint.config"
 

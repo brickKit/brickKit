@@ -12,8 +12,22 @@ var zh = map[string]string{
 	msgid.VersionCommitLine:    "Git commit：%[1]s",
 	msgid.VersionBuildDateLine: "构建时间：%[1]s",
 
+	msgid.LabelPath:      "路径",
+	msgid.LabelReason:    "原因",
+	msgid.LabelComponent: "组件",
+	msgid.LabelSource:    "安装源",
+	msgid.LabelFile:      "文件",
+	msgid.LabelDir:       "目录",
+	msgid.LabelImage:     "镜像",
+	msgid.LabelConfigKey: "配置项",
+	msgid.LabelImpact:    "影响",
+	msgid.LabelAddress:   "地址",
+	msgid.LabelOutput:    "输出",
+	msgid.LabelCommand:   "命令",
+	msgid.LabelRepo:      "仓库",
+	msgid.LabelResource:  "资源",
+
 	msgid.ProjectMissing:           "错误：项目配置文件不存在",
-	msgid.LabelPath:                "路径",
 	msgid.ProjectMissingHintInit:   "在项目目录中执行 brickkit init <项目名称> 初始化项目",
 	msgid.ProjectMissingHintConfig: "或用 --config 指定正确的配置文件路径",
 
