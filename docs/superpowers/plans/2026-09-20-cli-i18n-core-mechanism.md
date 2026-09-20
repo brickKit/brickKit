@@ -1532,15 +1532,23 @@ Run: `make lint 2>&1 | tail -60`
 才能让"真实输出"继续对应它们一直断言的东西；等子项目 3 真的把某些场景改成
 "docs/en 配真实英文输出"，再给那些场景单独传 `env={"BRICKKIT_LANG": "en"}` 覆盖。
 
-**这个修复现在改不完、验证不了**：实测 `BRICKKIT_LANG=zh` 对真实二进制此刻完全
-没有作用——`internal/cli/root.go` 里还没有任何地方调用 `i18n.Resolve()`/
-`SetCurrent()`，这正是 **Task 7** 要接的线。所以 `make check-guide-output` 在
-Task 6 结束时仍然是红的，这是预期状态，不是本步骤没做完；Task 7 完成后要回来
-再跑一次确认它真的转绿（已经加进 Task 7 的验证步骤）。
+**这个修复现在验证不了（不是没做完，是有前置依赖）**：实测 `BRICKKIT_LANG=zh`
+对真实二进制此刻完全没有作用——`internal/cli/root.go` 里还没有任何地方调用
+`i18n.Resolve()`/`SetCurrent()`，这正是 **Task 7** 要接的线。所以
+`make check-guide-output` 在 Task 6 结束时仍然是红的，这是预期状态；Task 7
+完成后要回来再跑一次确认（已经加进 Task 7 的验证步骤）。
 
-Expected: `tests/docfields`、`internal/...`、`check-*`（`check-guide-output` 除外）
-全部 ✅；`check-guide-output` 仍然报同样的 15 处不一致，属于已知的、待 Task 7
-解开的暂时状态。
+> **Task 7 完成后的实际结果（比这里预期的更好）：** 全部 15 处不一致真的全部修完了，
+> `make lint` 完全全绿，不需要留任何"已知缺口"——Task 7 把 `i18n.Resolve()` 接进
+> `NewRootCommand` 之后，这里钉的 `BRICKKIT_LANG=zh` 就完全生效了，14 处当场消失；
+> 剩下 1 处（`08-component-source.md`"只提交归档的源码：钩子拦下"）根源是同一个
+> 问题在另一条路径上的分身：那个场景走的是 `!git commit` 触发 pre-commit 钩子、
+> 钩子再调用 `brickkit restore --check`，这条路径经过的是 `run_git()`/`git_must()`，
+> 当时只给 `run_cli()` 合并了 `CLI_ENV_DEFAULTS`，没想到 git 命令也会通过钩子
+> 间接调用 CLI——在 Task 7 里一并给这两个函数补上，详见 Task 7 Step 6。
+
+Expected: `tests/docfields`、`internal/...`、`check-*`（`check-guide-output` 除外，
+留给 Task 7 收尾时确认）全部 ✅。
 
 - [ ] **Step 16: Commit**
 
@@ -1753,16 +1761,62 @@ Expected: 全部 PASS
 
 - [ ] **Step 6: 跑真实二进制分别验证两种语言的 `--help`**
 
-Run: `/tmp/brickkit-i18n-check --help | head -5`
-Expected: 第一行是 `Usage:`（cobra 原生英文模板）
+实测更正：root 命令自己的 `Long` 描述（这次不转换、留给子项目 2）排在
+`Usage:`/`用法：`之前，所以不是字面意义的"第一行"——用 `Contains` 而不是
+"第一行是"来验证，跟 Step 4/5 的自动化测试断言方式一致：
 
-Run: `BRICKKIT_LANG=zh /tmp/brickkit-i18n-check --help | head -5`
-Expected: 第一行是 `用法：`（现有的中文模板，行为不变）
+Run: `/tmp/brickkit-i18n-check --help | grep -n "^Usage:"`
+Expected: 有输出（英文模板的 `Usage:` 那一行确实存在）
 
-- [ ] **Step 7: Commit**
+Run: `BRICKKIT_LANG=zh /tmp/brickkit-i18n-check --help | grep -n "^用法："`
+Expected: 有输出（现有的中文模板 `用法：` 那一行确实存在，行为不变）
+
+- [ ] **Step 7: 跑一次完整 `make lint`，确认 Task 6 留下的 check-guide-output 缺口是否真的解开**
+
+`i18n.Resolve()` 接进 `NewRootCommand` 之后，Task 6 里给 `check-guide-output.py`
+钉的 `BRICKKIT_LANG=zh` 才第一次真正生效。
+
+Run: `make check-guide-output 2>&1 | tail -20`
+
+实测：14 处不一致当场消失，剩 1 处（`08-component-source.md`"只提交归档的源码：
+钩子拦下"）——这个场景走 `!git commit` 触发 pre-commit 钩子、钩子再调用
+`brickkit restore --check`，经过的是 `run_git()`/`git_must()`，Task 6 当时只给
+`run_cli()` 合并了 `CLI_ENV_DEFAULTS`，没想到 git 命令也会通过钩子间接调用 CLI。
+按同样的道理把 `scripts/check-guide-output.py` 的 `run_git`/`git_must` 也补上：
+
+```python
+def run_git(cwd, args):
+    """跑一条 git，返回 stdout+stderr（不管成败——失败的输出正是有时要比对的东西）。
+
+    env 里也带 CLI_ENV_DEFAULTS：git commit 可能触发 pre-commit hook，
+    hook 脚本会调用 brickkit（比如 restore --check），继承的是这个
+    子进程的环境——不带上就是同一个"追着系统默认语言跑"的问题，只是
+    换了一条从 hook 而不是直接调用触发的路径。
+    """
+    r = subprocess.run(["git"] + args, cwd=cwd, stdin=subprocess.DEVNULL,
+                       capture_output=True, text=True, env={**os.environ, **GIT_ENV, **CLI_ENV_DEFAULTS})
+    return r.stdout + r.stderr
+
+
+def git_must(cwd, args):
+    """准备阶段的 git：失败就直接退出，别让一个坏掉的前置悄悄变成后面的假失败。"""
+    r = subprocess.run(["git"] + args, cwd=cwd, stdin=subprocess.DEVNULL,
+                       capture_output=True, text=True, env={**os.environ, **GIT_ENV, **CLI_ENV_DEFAULTS})
+    if r.returncode != 0:
+        sys.exit(f"❌ 准备阶段 git {' '.join(args)} 失败（在 {cwd}）：{r.stderr.strip()}")
+```
+
+Run: `make check-guide-output 2>&1 | tail -20`
+Expected: 全部 15 处不一致都修完，✅ 全绿
+
+Run: `make lint 2>&1 | tail -50`
+Expected: **完全全绿**——不需要留 check-guide-output 这个例外了，比 Task 6 结束时
+预期的"已知缺口留给 Task 7"这个说法更好：Task 7 做完之后就是真的全绿。
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add internal/cli/root.go internal/cli/cli_test.go
+git add internal/cli/root.go internal/cli/cli_test.go scripts/check-guide-output.py
 git commit -m "$(cat <<'EOF'
 改进：root 命令 --help 默认走 cobra 原生英文模板
 
@@ -1772,6 +1826,12 @@ usageTemplate/localize()，只是从"无条件调用"改成"语言=zh 才调用"
 NewRootCommand 现在每次构建命令树都会重新解析语言，跟 logging.Init
 每次 Run() 都重新初始化是同一种用法，run() 测试 helper 相应地隔离了
 全局配置目录。
+
+顺带解开 Task 6 留下的 check-guide-output 缺口：i18n.Resolve() 接进
+NewRootCommand 之后，Task 6 钉的 BRICKKIT_LANG=zh 第一次真正生效，
+14 处不一致当场消失；剩下 1 处是 pre-commit 钩子间接调用 CLI 走的
+run_git()/git_must() 路径，当时没给这两个函数也带上 CLI_ENV_DEFAULTS，
+一并补上。make lint 现在完全全绿，不需要留任何已知缺口到子项目 3。
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF

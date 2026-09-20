@@ -20,6 +20,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/version"
 )
@@ -125,6 +126,12 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		opts = NewOptions()
 	}
 
+	// 每次都重新解析并设置当前语言（跟 internal/logging.Init 在每次
+	// Run() 都重新初始化是同一种用法）：命令树里每个子命令的 Short/Long
+	// 是在这里构建时就写死的字符串，语言必须先确定下来。
+	lang, _ := i18n.Resolve()
+	i18n.SetCurrent(lang)
+
 	root := &cobra.Command{
 		Use:   "brickkit",
 		Short: "BrickKit：声明式组件管理与拼装平台的命令行工具",
@@ -216,7 +223,9 @@ CLI 只做六件事：
 		newVersionCommand(opts),
 	)
 
-	localize(root)
+	if lang == i18n.ZH {
+		localize(root)
+	}
 	return root
 }
 

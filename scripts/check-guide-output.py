@@ -523,16 +523,22 @@ CLI_ENV_DEFAULTS = {
 
 
 def run_git(cwd, args):
-    """跑一条 git，返回 stdout+stderr（不管成败——失败的输出正是有时要比对的东西）。"""
+    """跑一条 git，返回 stdout+stderr（不管成败——失败的输出正是有时要比对的东西）。
+
+    env 里也带 CLI_ENV_DEFAULTS：git commit 可能触发 pre-commit hook，
+    hook 脚本会调用 brickkit（比如 restore --check），继承的是这个
+    子进程的环境——不带上就是同一个"追着系统默认语言跑"的问题，只是
+    换了一条从 hook 而不是直接调用触发的路径。
+    """
     r = subprocess.run(["git"] + args, cwd=cwd, stdin=subprocess.DEVNULL,
-                       capture_output=True, text=True, env={**os.environ, **GIT_ENV})
+                       capture_output=True, text=True, env={**os.environ, **GIT_ENV, **CLI_ENV_DEFAULTS})
     return r.stdout + r.stderr
 
 
 def git_must(cwd, args):
     """准备阶段的 git：失败就直接退出，别让一个坏掉的前置悄悄变成后面的假失败。"""
     r = subprocess.run(["git"] + args, cwd=cwd, stdin=subprocess.DEVNULL,
-                       capture_output=True, text=True, env={**os.environ, **GIT_ENV})
+                       capture_output=True, text=True, env={**os.environ, **GIT_ENV, **CLI_ENV_DEFAULTS})
     if r.returncode != 0:
         sys.exit(f"❌ 准备阶段 git {' '.join(args)} 失败（在 {cwd}）：{r.stderr.strip()}")
 

@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/userconfig"
 )
 
 // allCommands 是设计书 004 §3.1 定义的命令 + version。
@@ -29,8 +31,18 @@ type result struct {
 // run 在隔离的缓冲区与临时目录上执行一次 CLI。
 //
 // WorkDir 必须指向临时目录：否则会写到测试进程的当前目录（源码目录）里去。
+//
+// 顺手隔离全局语言配置目录：NewRootCommand 每次调用都会重新解析语言
+// （见 root.go），如果不隔离，测试结果会取决于跑测试的人自己的机器上
+// 是否真的执行过 brickkit lang set。只在调用方还没有自己设置过的情况下
+// 才覆盖——需要跨多次 run() 调用验证"设置后持久生效"的测试，可以在
+// 调用 run() 之前自己先 t.Setenv(userconfig.EnvDirOverride, ...)，
+// 这里就不会覆盖掉。
 func run(t *testing.T, args ...string) result {
 	t.Helper()
+	if os.Getenv(userconfig.EnvDirOverride) == "" {
+		t.Setenv(userconfig.EnvDirOverride, t.TempDir())
+	}
 	var out, errBuf bytes.Buffer
 	opts := &Options{
 		WorkDir:    t.TempDir(),
@@ -71,10 +83,17 @@ func TestRootHelpListsAllCommands(t *testing.T) {
 func TestNoArgsPrintsHelp(t *testing.T) {
 	r := run(t)
 	assert.Equal(t, clierr.ExitOK, r.code)
-	assert.Contains(t, r.stdout, "用法：")
+	assert.Contains(t, r.stdout, "Usage:")
 	for _, name := range allCommands {
 		assert.Contains(t, r.stdout, name)
 	}
+}
+
+func TestRootHelpIsLocalizedWhenBrickkitLangIsZH(t *testing.T) {
+	t.Setenv("BRICKKIT_LANG", "zh")
+	r := run(t, "--help")
+	assert.Equal(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stdout, "用法：")
 }
 
 // 2.3 未知命令报错，退出码非 0。
@@ -101,7 +120,7 @@ func TestEachSubcommandHelp(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := run(t, name, "--help")
 			assert.Equal(t, clierr.ExitOK, r.code)
-			assert.Contains(t, r.stdout, "用法：")
+			assert.Contains(t, r.stdout, "Usage:")
 			assert.Contains(t, r.stdout, "brickkit "+name)
 			assert.NotEmpty(t, strings.TrimSpace(r.stdout))
 		})
