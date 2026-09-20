@@ -1,6 +1,6 @@
 # Troubleshooting
 
-The failure modes people actually hit around `brickkit up`/`down`, local debugging and signature verification. If your problem isn't here, check the relevant command's `--help` first, or the [architecture docs](06-architecture/00-overview.md) for how that mechanism is actually designed.
+The failure modes people actually hit around `brickkit up`/`down`, local debugging, signature verification and the offline checks (`brickkit lint` and the editor schemas). If your problem isn't here, check the relevant command's `--help` first, or the [architecture docs](06-architecture/00-overview.md) for how that mechanism is actually designed.
 
 If you're looking at a `❌` block rather than a symptom, the `error_code` in the JSON log line printed right after it is the index into [Error codes](06-architecture/10-error-codes.md), which covers every code and the situations behind each.
 
@@ -51,6 +51,14 @@ If you're looking at a `❌` block rather than a symptom, the `error_code` in th
 | Symptom | Cause in one line | The fix |
 | --- | --- | --- |
 | [16. Wrong public key](#16-wrong-public-key)<br>`brickkit add` reports a signature failure | The key in `installer.publicKeys` doesn't match the publisher's private key | Confirm the right key with the publisher, update the path |
+
+### G. `brickkit lint` and editor schemas
+
+| Symptom | Cause in one line | The fix |
+| --- | --- | --- |
+| [17. `brickkit lint` says everything is fine, but `up` fails](#17-brickkit-lint-says-everything-is-fine-but-up-fails)<br>`错误：强依赖缺失` | `lint` checks each file on its own; whether a dependency or a `servedBy` target exists needs the whole graph | `brickkit up --dry-run` (or `brickkit graph`) resolves the graph and names what's missing |
+| [18. The editor underlines almost every field of a valid `component.yaml`](#18-the-editor-underlines-almost-every-field-of-a-valid-componentyaml)<br>`Property apiVersion is not allowed.` | No BrickKit schema is attached, so the editor applies another tool's schema to that file name | Attach the schema with a `$schema` comment or the `yaml.schemas` setting |
+| [19. The editor underlines something the CLI accepts](#19-the-editor-underlines-something-the-cli-accepts) | The schemas are stricter than the CLI in three deliberate places | Write the literal value, quote the number, or fix the key |
 
 ---
 
@@ -265,6 +273,55 @@ The warning `brickkit up` prints:
 - **Fix:** confirm the correct public key with the publisher (usually a file like `<component>-release.pub`) and update the path in `installer.publicKeys`.
 - **Worth knowing:** `publicKeys` is the only field that actually makes verification take effect — with zero keys configured, `requireSignature: true` does nothing at all (the CLI warns once, but it won't supply a trust anchor for you).
 - **Code:** `SIGNATURE_INVALID` — see [Error codes](06-architecture/10-error-codes.md#signature_invalid).
+
+---
+
+### 17. `brickkit lint` says everything is fine, but `up` fails
+
+- **Symptom:** `brickkit lint` prints a `✅` for every file and exits `0`, then `brickkit up` (or `--dry-run`) stops with `错误：强依赖缺失` — or with `错误：servedBy 指向的组件不存在`.
+- **Cause:** `lint` checks each file's own structure and nothing else. Whether a dependency can be found in some source, or a `servedBy` target exists, depends on the rest of the project's Manifests (over the network, for market and Git components), so `lint` never looks — it would stop being offline. A clean `lint` means every YAML file is well-formed, not that the project will start.
+- **Fix:** run `brickkit up --dry-run`. It resolves the dependency graph and names the component, the dependency it can't find and the sources it tried. Add the missing component with `brickkit add`, or correct the ID or version in the declaration. (`brickkit graph` resolves the same graph and stops on a missing dependency too; for a missing `servedBy` target it draws the group as declared and leaves the report to `up`.)
+- **Code:** `DEPENDENCY_MISSING` (`CONFIG_INVALID` for a missing `servedBy` target); see [Error codes](06-architecture/10-error-codes.md#dependency_missing).
+
+Here `department/tree`, which `people/basic` needs, is in no source:
+
+```
+$ brickkit lint
+✅ brickkit.yaml
+✅ components/people/basic/component.yaml
+
+📋 检查了 2 个文件：0 个有错误，0 条警告
+$ brickkit up --dry-run
+🚀 启动项目 demo-shop（deploy.target: docker）
+❌ 错误：强依赖缺失
+   组件：people/basic@1.0.0
+   缺失依赖：department/tree@1.0.0
+   原因：该组件在所有安装源中均未找到
+   已尝试的安装源：local-dev（local）
+   建议：
+   1. 检查安装源配置（brickkit.yaml → sources）
+   2. 确认组件是否已发布到市场
+   3. 确认版本号是否正确
+```
+
+---
+
+### 18. The editor underlines almost every field of a valid `component.yaml`
+
+- **Symptom:** you open a `component.yaml` that `brickkit lint` accepts, and the editor draws red lines nearly everywhere: `Property apiVersion is not allowed.` on `apiVersion`, `Missing property "implementation".` at the top of the file.
+- **Cause:** no BrickKit schema is attached, so the YAML language server falls back to SchemaStore, a public catalog of schemas, which maps the file name `component.yaml` to Kubeflow Pipelines' schema. Those messages are about Kubeflow's fields, not BrickKit's. (A `brickkit.yaml` has no such namesake in the catalog, so it simply gets no checking until you attach the schema.)
+- **Fix:** attach the BrickKit schema — a `# yaml-language-server: $schema=…` comment on the file's first line, or a `yaml.schemas` entry mapping `component.yaml` to it. Either replaces the catalog's guess; both are in [Wire up your editor](00-quick-start.md#wire-up-your-editor).
+
+---
+
+### 19. The editor underlines something the CLI accepts
+
+- **Symptom:** a red line in `brickkit.yaml` or `component.yaml`, yet `brickkit lint` and `brickkit up` run without complaint.
+- **Cause:** the schemas are stricter than the CLI in three deliberate places:
+  - a `${VAR}` in a field with a closed set of values (`deploy.target: ${TARGET}`; also `sources[].type` and `resources[].kind`) — the CLI expands the variable first, the schema checks the literal text;
+  - YAML the CLI reads loosely — an unquoted number in a string field (`project: 2024`), `yes` or `on` for a boolean, a `null` list item or map value, a fraction in an integer field (`port: 5432.5`);
+  - an extra key inside a `configSchema` property (`defualt` for `default`) — the CLI ignores it, and `brickkit lint` warns that it won't take effect.
+- **Fix:** treat the red line as a hint, not a bug: write the literal value, quote the number, use `true` / `false`, or correct the key. Each case is explained, with its reason, in the last list of [Wire up your editor](00-quick-start.md#wire-up-your-editor).
 
 ---
 

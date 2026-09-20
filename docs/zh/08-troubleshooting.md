@@ -1,6 +1,6 @@
 # 故障排除
 
-覆盖 `brickkit up` / `down`、本地调试和签名验证里最容易踩的失败模式。这里没有的问题，先看对应命令的 `--help`，或者去看[架构文档](06-architecture/00-overview.md)里那个机制具体怎么设计的。
+覆盖 `brickkit up` / `down`、本地调试、签名验证和离线检查（`brickkit lint` 与编辑器 schema）里最容易踩的失败模式。这里没有的问题，先看对应命令的 `--help`，或者去看[架构文档](06-architecture/00-overview.md)里那个机制具体怎么设计的。
 
 如果你手里的是一段 `❌` 错误块，而不是一个症状：它后面紧跟的那行 JSON 日志里的 `error_code`，就是[错误码](06-architecture/10-error-codes.md)的索引——那一篇覆盖了每个错误码，以及每个码底下的各种情形。
 
@@ -51,6 +51,14 @@
 | 症状 | 一句话原因 | 怎么解 |
 | --- | --- | --- |
 | [16. 公钥不对](#16-公钥不对)<br>`brickkit add` 报签名验证失败 | `installer.publicKeys` 的公钥和发布者的私钥不是一对 | 找发布者确认正确的公钥，更新路径 |
+
+### G. `brickkit lint` 与编辑器 schema
+
+| 症状 | 一句话原因 | 怎么解 |
+| --- | --- | --- |
+| [17. `brickkit lint` 说没问题，`up` 却失败](#17-brickkit-lint-说没问题up-却失败)<br>`错误：强依赖缺失` | `lint` 只看每份文件自己；依赖或 `servedBy` 目标在不在，要看整张依赖图 | `brickkit up --dry-run`（或 `brickkit graph`）会解析依赖图并点名缺了什么 |
+| [18. 合法的 `component.yaml` 被编辑器几乎处处画红线](#18-合法的-componentyaml-被编辑器几乎处处画红线)<br>`Property apiVersion is not allowed.` | 没接上 BrickKit 的 schema，编辑器给这个文件名套了别的工具的 schema | 用 `$schema` 注释或 `yaml.schemas` 设置接上 schema |
+| [19. 编辑器标红了 CLI 接受的写法](#19-编辑器标红了-cli-接受的写法) | schema 在三处有意比 CLI 更严 | 写字面值、给数字加引号，或者改对键名 |
 
 ---
 
@@ -265,6 +273,55 @@
 - **解决：** 找发布者确认正确的公钥（通常是 `<组件名>-release.pub` 这样的文件），更新 `installer.publicKeys` 里的路径。
 - **提醒：** `publicKeys` 是唯一真正让签名校验生效的字段——一个公钥都没配的话，`requireSignature: true` 什么都不做（CLI 会警告一次，但不会替你补上信任锚点）。
 - **错误码：** `SIGNATURE_INVALID`——见[错误码](06-architecture/10-error-codes.md#signature_invalid)。
+
+---
+
+### 17. `brickkit lint` 说没问题，`up` 却失败
+
+- **症状：** `brickkit lint` 给每个文件都打了 `✅`、退出码 `0`，随后 `brickkit up`（或 `--dry-run`）却停在 `错误：强依赖缺失`——或者 `错误：servedBy 指向的组件不存在`。
+- **原因：** `lint` 只检查每份文件自己的结构，别的都不管。依赖能不能在某个安装源里找到、`servedBy` 目标在不在，取决于项目里其余组件的 Manifest（市场和 Git 组件还要联网），所以 `lint` 从不去看——去看的话它就不再是离线的了。`lint` 干净只说明每份 YAML 都写得合规，不说明项目能起得来。
+- **解决：** 跑 `brickkit up --dry-run`。它会解析依赖图，点出是哪个组件、缺哪个依赖、试过哪些安装源。用 `brickkit add` 把缺的组件补上，或者把声明里的组件 ID、版本号改对。（`brickkit graph` 解析的是同一张图，缺强依赖时它同样会停下；`servedBy` 目标不存在时它照声明把分组画出来，报错留给 `up`。）
+- **错误码：** `DEPENDENCY_MISSING`（`servedBy` 目标不存在时是 `CONFIG_INVALID`）；见[错误码](06-architecture/10-error-codes.md#dependency_missing)。
+
+这里 `people/basic` 需要的 `department/tree` 不在任何安装源里：
+
+```
+$ brickkit lint
+✅ brickkit.yaml
+✅ components/people/basic/component.yaml
+
+📋 检查了 2 个文件：0 个有错误，0 条警告
+$ brickkit up --dry-run
+🚀 启动项目 demo-shop（deploy.target: docker）
+❌ 错误：强依赖缺失
+   组件：people/basic@1.0.0
+   缺失依赖：department/tree@1.0.0
+   原因：该组件在所有安装源中均未找到
+   已尝试的安装源：local-dev（local）
+   建议：
+   1. 检查安装源配置（brickkit.yaml → sources）
+   2. 确认组件是否已发布到市场
+   3. 确认版本号是否正确
+```
+
+---
+
+### 18. 合法的 `component.yaml` 被编辑器几乎处处画红线
+
+- **症状：** 你打开一份 `brickkit lint` 认可的 `component.yaml`，编辑器却几乎处处画红线：`apiVersion` 上是 `Property apiVersion is not allowed.`，文件开头还有 `Missing property "implementation".`。
+- **原因：** 没有接上 BrickKit 的 schema，YAML language server 就退回去用 SchemaStore（一个公开的 schema 目录），而它把 `component.yaml` 这个文件名对应到了 Kubeflow Pipelines 的 schema。这些提示说的是 Kubeflow 的字段，不是 BrickKit 的。（`brickkit.yaml` 在那个目录里没有同名的，所以在你接上 schema 之前它只是完全没有检查。）
+- **解决：** 接上 BrickKit 的 schema——在文件第一行写 `# yaml-language-server: $schema=…` 注释，或者用 `yaml.schemas` 设置把 `component.yaml` 映射过去。两种都会换掉目录的那个猜测；写法都在[给编辑器接上自动补全](00-quick-start.md#给编辑器接上自动补全)里。
+
+---
+
+### 19. 编辑器标红了 CLI 接受的写法
+
+- **症状：** `brickkit.yaml` 或 `component.yaml` 里有一条红线，可 `brickkit lint` 和 `brickkit up` 都没有任何意见。
+- **原因：** schema 在三处有意比 CLI 更严：
+  - 封闭取值的字段里写了 `${VAR}`（`deploy.target: ${TARGET}`；`sources[].type`、`resources[].kind` 也一样）——CLI 先展开变量再校验，schema 校验的是字面文本；
+  - CLI 读得很宽松的 YAML——字符串字段里不加引号的数字（`project: 2024`）、布尔值写成 `yes` 或 `on`、列表里的 `null` 元素或 map 里的 `null` 值、整数字段里写小数（`port: 5432.5`）；
+  - `configSchema` 配置项声明里的多余键（把 `default` 拼成 `defualt`）——CLI 忽略它，`brickkit lint` 会警告它不会生效。
+- **解决：** 把红线当成提示，不是 bug：写字面值、给数字加引号、用 `true` / `false`，或者把键名改对。每一种的来龙去脉，见[给编辑器接上自动补全](00-quick-start.md#给编辑器接上自动补全)里最后那个列表。
 
 ---
 
