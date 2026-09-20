@@ -97,6 +97,7 @@ const (
 
 // 退出码。004 未规定具体数值，此处约定：
 // 用法错误 2，其余错误 1，警告不影响退出码（0，见开发计划 33.15）。
+// 唯一的例外是 brickkit lint --strict：警告在那里也算失败，以 CodeLintFailed、退出码 1 收尾。
 const (
 	ExitOK    = 0
 	ExitError = 1

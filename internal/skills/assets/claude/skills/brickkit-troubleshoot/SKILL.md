@@ -72,6 +72,7 @@ CLI 的报错带错误码。按码定位比按文案快。
 | `ENGINE_MISSING` | Docker / kubectl 不在 PATH 上，或没起来 |
 | `PROJECT_MISSING` | 当前目录不是 BrickKit 项目，或 `--config` 指错了文件 |
 | `PROJECT_EXISTS` | 已初始化，不必重复 `init` |
+| `LINT_FAILED` | `brickkit lint` 查出了问题。逐条问题已经打在 stdout 上（每个都点明文件和字段），按它们改完再跑一次。只有警告时默认不算失败，加了 `--strict` 才算 |
 | `CLONE_FAILED` | 两种常见原因：组件是闭源的（没有 Git 仓库，但**照样能正常安装使用**），或目标目录已存在 |
 
 ## 排查顺序
@@ -91,6 +92,9 @@ CLI 的报错带错误码。按码定位比按文案快。
 （`PEOPLE_BASIC_ENDPOINT`），值才带版本。对不上就往这两条规则上核。
 
 **想在不启动任何东西的情况下看生成结果**：`brickkit up --dry-run`。
+
+**想看依赖关系是怎么连的**（谁依赖谁、哪些是弱依赖、哪些这次不启动、`servedBy` 怎么分组）：
+`brickkit graph`。它输出 Mermaid 文本，存成 `.mmd` 文件后 GitHub 能直接渲染。
 
 ## 去哪查更细的
 

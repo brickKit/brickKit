@@ -19,7 +19,20 @@ description: 新写一个 BrickKit 组件、修改 component.yaml、加数据库
 骨架，写到 `components/<scope>/<name>/`（本地安装源本来就扫描这个布局）。
 带 `--contract openapi` 或 `--contract proto` 还会顺带生成一份契约占位
 文件并登记进 `artifacts`。骨架里全是 TODO——不生成 Dockerfile，不生成
-任何源码，平台不替你选语言。改完 TODO 就是下面这些"你会猜错的地方"。
+任何源码，平台不替你选语言。改完 TODO，先跑下一节的 `brickkit lint`，再对着后面
+这些"你会猜错的地方"逐条核。
+
+## 写完、改完：先跑 brickkit lint
+
+只要动过 `component.yaml`——不管是刚改完骨架里的 TODO，还是之后手改了一处——先跑
+`brickkit lint`，再谈别的。它离线、只读、不需要 Docker，秒回，一次把结构上的问题全报出来：
+必填字段缺失、类型不对、不认识的键（拼写笔误）、版本号格式、端口范围，外加两类警告——
+`configSchema` 属性里拼错的键（比如 `defualt`，会静默不生效）、配置项名字撞上保留变量
+（下面第 2 条）。在独立的组件仓库里（只有 `component.yaml`、没有 `brickkit.yaml`）直接就能跑；
+在 BrickKit 项目里，它会顺带查本地安装源下的每一份 `component.yaml`。
+
+它**不查**依赖能不能解析、`servedBy` 指向的组件在不在——那要联网，留给 `brickkit up --dry-run`；
+也不检查 `configSchema` 里 `enum` / `minimum` 对应的值，平台不校验配置值。
 
 ## 你会猜错的地方
 

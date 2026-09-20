@@ -6,8 +6,9 @@ package cli
 // 里各组件条目自己写的 local / servedBy。跳过 up 才需要的一切——镜像权限检查、迁移展示、
 // 引擎解析、环境变量注入、生成部署文件。
 //
-// 只输出 Mermaid、只写 stdout：Mermaid 在 GitHub、VS Code 里本来就能渲染，
-// 自己再造一个 HTML/SVG 渲染器是重新发明已经免费拿到的东西。要存文件用 shell 重定向。
+// 只输出 Mermaid、只写 stdout：GitHub 直接渲染 .mmd / .mermaid 文件，也渲染 Markdown 里
+// mermaid 围栏里的内容，自己再造一个 HTML/SVG 渲染器是重新发明已经免费拿到的东西。
+// 要存文件用 shell 重定向。
 
 import (
 	"context"

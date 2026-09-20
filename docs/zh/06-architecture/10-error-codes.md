@@ -23,7 +23,7 @@ CLI 的报错文案本身就是中文，下面原样引用，所以你可以直�
 
 - **稳定。** 码只会增加——不改名、不挪作他用、不删除。脚本可以放心按它分支。
 - **一个码是一个类别，不是一种情形。** `CONFIG_INVALID` 背后有七十多种不同的报错。下面的表格列出你最可能遇到的那些，每一条都写着 CLI 打印的标题。
-- **退出码。** `0`——成功，包括打印了警告的那次运行。`1`——命令失败。`2`——命令行本身写错了：缺参数或参数格式不对、未知的命令或参数、或者参数指名了一个不存在的东西（对不在 `brickkit.yaml` 里的组件执行 `brickkit remove`）。
+- **退出码。** `0`——成功，包括打印了警告的那次运行（唯一的例外是 `brickkit lint --strict`，警告在那里会让这次运行失败）。`1`——命令失败。`2`——命令行本身写错了：缺参数或参数格式不对、未知的命令或参数、或者参数指名了一个不存在的东西（对不在 `brickkit.yaml` 里的组件执行 `brickkit remove`）。
 - **写脚本时。** 只有 `NETWORK_UNREACHABLE` 值得原样重试：网络或市场可能恢复。`CONFIG_INVALID` 重试多少次结果都一样。其他任何码，都当作"得先改点什么"。
 - **警告单独算。** ⚠️ 块本身永远不会让命令失败——唯一会把警告变成失败的是 `brickkit lint --strict`，它报的码是 `LINT_FAILED`。CLI 在继续往下跑的过程中打印的那些警告根本不产生那行日志，所以要靠标题来认——见[警告](#警告)。
 
@@ -417,7 +417,7 @@ Docker Compose 或 `kubectl` 跑了，但失败了。引擎自己的原始输出
 | --- | --- | --- |
 | `错误：结构检查未通过` | 至少有一个文件有错误（块里写着 `有错误：N 个文件`）——或者加了 `--strict` 时，至少有一条警告（`警告：N 条（--strict：警告也算失败）`）。退出码 `1` | 逐个看 `brickkit lint` 打印在 stdout 上的块——每个都指明了文件和字段——改掉之后再执行一次 `brickkit lint` |
 
-stdout 上的那些问题保留它们在别处本来的标题：`component.yaml` 校验不过，仍然是 `MANIFEST_INVALID` 下的 `错误：component.yaml 校验失败`；`brickkit.yaml` 不合法，仍然是 `CONFIG_INVALID`。但它们只是 stdout 上的普通块，不带 JSON 日志行，所以脚本看到的只有 `LINT_FAILED` 这一个码。这是刻意的：一趟检查可以同时查出两种问题，而汇总只能带一个码——况且 CI 脚本要区分的，恰恰是"lint 查出了问题"和"配置压根读不出来"。要分支，就认 `LINT_FAILED`。
+stdout 上的那些问题保留它们在别处本来的标题：`component.yaml` 校验不过，标题仍是 `错误：component.yaml 校验失败`（在别处它属于 `MANIFEST_INVALID`）；`brickkit.yaml` 不合法，标题仍是 `错误：brickkit.yaml 校验失败`（在别处它属于 `CONFIG_INVALID`）。但它们只是 stdout 上的普通块，不带 JSON 日志行，所以对"文件里写的东西有问题"这一类，脚本看到的只有 `LINT_FAILED` 这一个码——连不合法的 `brickkit.yaml` 也一样，它在 lint 里同样以 `LINT_FAILED` 收尾，不是 `CONFIG_INVALID`。这是刻意的：一趟检查可以同时查出两种问题，而汇总只能带一个码。只有两种情形有自己单独的码，而且都与文件的内容无关：无处可查时是 `PROJECT_MISSING`（目录里既没有 `brickkit.yaml` 也没有 `component.yaml`，退出码 `1`），命令行写错时是 `INVALID_ARGUMENT`（退出码 `2`）。所以在 CI 脚本里，`LINT_FAILED` 的意思是"lint 跑了，并且查出了问题"；看到别的码，说明它还没走到检查那一步。
 
 它不值得重试：同样的文件会同样地失败。只有警告时 `brickkit lint` 不算失败（退出码 `0`），除非加 `--strict`——那是给 CI 门禁用的。
 

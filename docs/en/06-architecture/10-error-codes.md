@@ -23,7 +23,7 @@ The `error_code` in that log line is what this page is organized by. The first l
 
 - **They are stable.** Codes are only ever added — never renamed, never reused for something else, never removed. A script can branch on them.
 - **A code is a category, not a single situation.** `CONFIG_INVALID` sits behind seventy-odd different messages. The tables below list the ones you are likely to meet, each under the title the CLI prints.
-- **Exit status.** `0` — success, including a run that printed warnings. `1` — the command failed. `2` — the command line itself was wrong: a missing or malformed argument, an unknown command or flag, or an argument that names something that isn't there (`brickkit remove` of a component that isn't in `brickkit.yaml`).
+- **Exit status.** `0` — success, including a run that printed warnings (the one exception is `brickkit lint --strict`, where a warning fails the run). `1` — the command failed. `2` — the command line itself was wrong: a missing or malformed argument, an unknown command or flag, or an argument that names something that isn't there (`brickkit remove` of a component that isn't in `brickkit.yaml`).
 - **For scripts.** `NETWORK_UNREACHABLE` is the one worth retrying unchanged: the network, or the Market, may come back. `CONFIG_INVALID` fails identically however often you retry. Treat any other code as "something has to change first".
 - **Warnings are separate.** A ⚠️ block never fails a command on its own — the one thing that turns warnings into a failure is `brickkit lint --strict`, which reports it as `LINT_FAILED`. The ones the CLI prints while it carries on don't produce the log line at all, so you recognize them by their title — see [Warnings](#warnings).
 
@@ -404,7 +404,7 @@ A signature that doesn't verify against your `installer.publicKeys` also arrives
 
 ### LINT_FAILED
 
-`brickkit lint` is the offline, read-only structure check: no network, no Docker or Kubernetes. It reads `brickkit.yaml` and the `component.yaml` files under your local sources (in a component repository, the one `component.yaml` in the current directory) and reports what is malformed. `LINT_FAILED` is its verdict on the whole run, not a description of any one problem: the problems themselves were already printed to **stdout**, one block each, followed by a `📋 检查了 N 个文件：M 个有错误，K 条警告` summary line. The block below goes to stderr, after that report, and is followed by the usual JSON log line:
+`brickkit lint` is the offline, read-only structure check: no network, no Docker or Kubernetes. It reads `brickkit.yaml` and the `component.yaml` files under your local sources (in a component repository, the one `component.yaml` in the current directory) and reports what is malformed. `LINT_FAILED` is its verdict on the whole run, not a description of any one problem: the problems themselves were already printed to **stdout**, one block each, followed by a summary line, `📋 检查了 N 个文件：M 个有错误，K 条警告` — N files checked, M of them with errors, K warnings. The block below goes to stderr, after that report, and is followed by the usual JSON log line:
 
 ```
 ❌ 错误：结构检查未通过
@@ -417,7 +417,7 @@ A signature that doesn't verify against your `installer.publicKeys` also arrives
 | --- | --- | --- |
 | `错误：结构检查未通过` | At least one file has an error (the block says `有错误：N 个文件`) — or, with `--strict`, at least one warning does (`警告：N 条（--strict：警告也算失败）`). Exit status `1` | Go through the blocks `brickkit lint` printed on stdout — each names its file and field — fix them, and run `brickkit lint` again |
 
-The problems on stdout keep the titles they'd have anywhere else: a `component.yaml` that doesn't validate is still `错误：component.yaml 校验失败` under `MANIFEST_INVALID`, and an invalid `brickkit.yaml` is still `CONFIG_INVALID`. But they are plain blocks on stdout, with no JSON log line, so `LINT_FAILED` is the only code a script sees. That's deliberate: one run can find both kinds, and the summary can carry only one code — and what a CI script needs to tell apart is "lint found problems" from "the configuration couldn't be read at all". Branch on `LINT_FAILED`.
+The problems on stdout keep the titles they'd have anywhere else: a `component.yaml` that doesn't validate is still `错误：component.yaml 校验失败` (a `MANIFEST_INVALID` problem anywhere else), and an invalid `brickkit.yaml` still reads `错误：brickkit.yaml 校验失败` (`CONFIG_INVALID` anywhere else). But they are plain blocks on stdout, with no JSON log line, so `LINT_FAILED` is the only code a script sees for what a file says — an invalid `brickkit.yaml` included, which ends the run as `LINT_FAILED` too, not as `CONFIG_INVALID`. That's deliberate: one run can find both kinds of problem, and the summary can carry only one code. Only two situations get a code of their own, and neither is about a file's content: `PROJECT_MISSING` when there is nothing to check (the directory has neither a `brickkit.yaml` nor a `component.yaml`; exit status `1`), and `INVALID_ARGUMENT` when the command line is wrong (exit status `2`). So in a CI script, `LINT_FAILED` means "lint ran and found problems"; any other code means it never got as far as checking.
 
 It is not worth retrying: the same files fail the same way. Warnings alone don't fail `brickkit lint` (exit status `0`) unless you pass `--strict`, which is there for CI gates.
 
