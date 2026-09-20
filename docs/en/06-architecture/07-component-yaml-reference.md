@@ -4,6 +4,8 @@ AGENTS.md §6 is the skeleton you copy-paste. This document is what's behind it:
 
 This document owns the *fields*. What actually happens once they're correct — how a dependency turns into an address, how a resource quota merges across three layers, how a healthcheck becomes three different K8s probes — is covered by [04-environment-variables.md](04-environment-variables.md), [05-resource-binding.md](05-resource-binding.md), and [03-deployment-generation.md](03-deployment-generation.md); this document cross-references them rather than repeating them.
 
+The fields on this page also exist as a JSON Schema, [`schemas/component.schema.json`](../../../schemas/component.schema.json), generated from the same Go structs. An editor can use it to complete field names and underline unknown keys as you type; [Wire up your editor](../00-quick-start.md#wire-up-your-editor) shows how to attach it, and what it deliberately doesn't cover.
+
 ## `apiVersion` / `kind`
 
 | Field | Type | Required | Constraint |

@@ -137,6 +137,61 @@ brickkit down
    重新启动：brickkit up
 ```
 
+## Wire up your editor
+
+Optional, and it takes a minute. `brickkit.yaml` and each component's `component.yaml` have a **JSON Schema**: a machine-readable description of every field — its type, whether it's required, which values it may take. An editor that understands YAML schemas turns that into help as you type:
+
+- it completes field names and values;
+- it underlines a key that doesn't exist — a misspelled `dependancies`;
+- it flags a value of the wrong type, or outside a closed set (`deploy.target` may only be `docker` or `k8s`);
+- it knows two rules people trip over: versions are exact (`^1.0.0` is flagged, in `metadata.version` and in `brickkit.yaml`'s `components[].version`), and `deployment.port` must be 1–65535.
+
+The schemas are [`schemas/component.schema.json`](../../schemas/component.schema.json) and [`schemas/brickkit.schema.json`](../../schemas/brickkit.schema.json), generated from the same Go structs the CLI parses these files into, with a test in the repository keeping them in step. `brickkit lint` is the offline counterpart: it reports the same structural problems from the terminal.
+
+There's one reason not to skip this. With no BrickKit schema attached, the YAML language server falls back to SchemaStore, a public catalog of schemas, which maps the file name `component.yaml` to Kubeflow Pipelines' schema. In our check, a perfectly valid BrickKit `component.yaml` came out underlined almost everywhere (`Property apiVersion is not allowed.`, `Missing property "implementation".`). Attaching the BrickKit schema, either way below, replaces it.
+
+**Two ways to attach it.** The thing that reads a schema is the YAML language server (`yaml-language-server`); the Red Hat "YAML" extension for VS Code bundles it, and another editor that runs the same server works the same way.
+
+1. **A comment on the first line of the file.** It travels with the file, so everyone who opens it gets the schema with nothing to configure:
+
+   ```yaml
+   # yaml-language-server: $schema=https://raw.githubusercontent.com/brickKit/brickKit/main/schemas/component.schema.json
+   apiVersion: brickkit/v1
+   kind: Component
+   ```
+
+   In `brickkit.yaml` the line names `brickkit.schema.json` instead. `brickkit init` and `brickkit new` don't write it; you add it once per file.
+
+2. **A VS Code setting**, if you'd rather not touch the files — in `.vscode/settings.json` for one project, or in your user settings:
+
+   ```json
+   {
+     "yaml.schemas": {
+       "https://raw.githubusercontent.com/brickKit/brickKit/main/schemas/component.schema.json": "component.yaml",
+       "https://raw.githubusercontent.com/brickKit/brickKit/main/schemas/brickkit.schema.json": "brickkit*.yaml"
+     }
+   }
+   ```
+
+   `component.yaml` matches that file name in any directory, so every component under `components/` is covered; `brickkit*.yaml` matches `brickkit.yaml` and environment files such as `brickkit.prod.yaml`.
+
+The URL follows `main`, so the schema is as new as the repository. If your CLI is older, the editor may accept a field it doesn't know yet: `brickkit lint` is the authority on what the CLI you have accepts.
+
+A section you leave empty is fine: `dependencies:` with every entry commented out reads as `null`, and both the CLI and the schema accept that. A required field can't be empty — `deployment.port:` with no value is flagged, and the CLI calls it missing too.
+
+**What the schemas don't cover.** They describe one file's own fields: names, types, which are required, closed value sets, patterns, ranges. Two other kinds of rule are outside them on purpose:
+
+- **Rules that need logic** — combinations that can't be written together, a `configSchema` key that collides with a reserved environment variable, a component directory whose name must match its `metadata.id` — are checked by `brickkit lint`.
+- **Rules that need another file, or the network** — whether the dependency graph resolves, whether a `servedBy` target exists — are checked by `brickkit up --dry-run`. `brickkit lint` doesn't do those either: it never resolves dependencies.
+
+**Where an editor is stricter than the CLI.** Three places, all deliberate: the schema would rather underline something that is almost certainly a slip than stay silent, even where the CLI would accept it.
+
+1. **`${VAR}` in a field with a closed set of values.** `brickkit.yaml` expands `${VAR}` from the environment *before* checking it, so `deploy.target: ${TARGET}` is accepted when `TARGET` is set. The schema checks the literal text `${TARGET}`, which is neither `docker` nor `k8s`, and underlines it. The same goes for `sources[].type` and `resources[].kind`: write the literal value there.
+2. **YAML the CLI reads loosely.** An unquoted number in a string field (`project: 2024`, `password: 123456`) is quietly turned into text; `yes` or `on` where a true/false belongs (`expose: yes`) is read as true; a `null` item in a list (an empty `-` under `tags:`) or a `null` value in a map goes through; a fraction in an integer field (`port: 5432.5`) is cut to `5432`. The schema underlines all of these — they are nearly always a typo, or a value that should have been quoted.
+3. **Extra keys inside a `configSchema` property.** Each property there understands a fixed set of keys (`type`, `default`, `description`, `enum`, `minimum`, …). The CLI's parser doesn't reject another one — a misspelled `defualt`, say, or `format`, which JSON Schema writers reach for — it ignores it, and `brickkit lint`, `brickkit publish` and `brickkit add --local` warn that it won't take effect. The schema underlines it: the same complaint, from the editor.
+
+The schemas were checked against a real `yaml-language-server` (1.24.0): unknown-field underlines, closed values, patterns and ranges, completion of `deploy.target`, and both ways of attaching them above.
+
 ## Where to go next
 
 - Want to understand what just happened? → [Core Concepts](01-concepts.md)

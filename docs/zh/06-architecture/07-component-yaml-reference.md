@@ -4,6 +4,8 @@ AGENTS.zh.md §6 是那份可以直接复制粘贴的骨架。这篇文档是骨
 
 这篇文档负责的是**字段本身**。一个字段配对了之后实际会发生什么——依赖怎么变成地址、资源配额怎么跨三层合并、健康检查怎么变成三种不同的 K8s 探针——分别是 [04-environment-variables.md](04-environment-variables.md)、[05-resource-binding.md](05-resource-binding.md)、[03-deployment-generation.md](03-deployment-generation.md) 的主题，这篇文档只做交叉引用，不重复讲一遍。
 
+本页的字段还有一份对应的 JSON Schema，[`schemas/component.schema.json`](../../../schemas/component.schema.json)，由同一批 Go 结构体生成。编辑器可以拿它在你敲字的时候补全字段名、把不认识的键标红；怎么接上、它刻意不覆盖什么，见[给编辑器接上自动补全](../00-quick-start.md#给编辑器接上自动补全)。
+
 ## `apiVersion` / `kind`
 
 | 字段 | 类型 | 是否必填 | 约束 |

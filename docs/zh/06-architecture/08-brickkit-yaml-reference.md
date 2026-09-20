@@ -4,6 +4,8 @@ AGENTS.zh.md §7 是那份骨架。这篇文档是骨架背后的字典——每
 
 这篇文档负责的是**字段本身**。一个字段配对了之后实际起什么作用——`enabled` 怎么级联、一条资源绑定怎么变成环境变量、`servedBy` 怎么把成员的配置合并到外壳身上——分别是 [04-environment-variables.md](04-environment-variables.md)、[05-resource-binding.md](05-resource-binding.md)、[02-dependency-resolution.md](02-dependency-resolution.md) 和 AGENTS.zh.md §5 的主题，这篇文档只做交叉引用，不重复讲。
 
+本页的字段还有一份对应的 JSON Schema，[`schemas/brickkit.schema.json`](../../../schemas/brickkit.schema.json)，由同一批 Go 结构体生成。编辑器可以拿它在你敲字的时候补全字段名、把不认识的键标红；怎么接上、它刻意不覆盖什么，见[给编辑器接上自动补全](../00-quick-start.md#给编辑器接上自动补全)。
+
 ## 顶层
 
 | 字段 | 类型 | 是否必填 | 约束 |
