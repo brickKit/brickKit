@@ -868,6 +868,59 @@ func TestConflictWithUserDefinedEnvPrefix(t *testing.T) {
 	assert.Contains(t, result.Warnings[0].Format(), "PRIMARY_")
 }
 
+// 改名建议本身也可能撞上使用者定义的 envPrefix——不是"两条保留规则都在
+// renameSuggestion 视野里的静态前缀"（那一类已经在 reserved_test.go 里钉过），
+// 而是配置项名字先撞上了 *_ENDPOINT 后缀（换成 BaseUrl 之后），换完的词根
+// 又恰好撞上了这个项目自己定的 envPrefix。renameSuggestion 是纯函数、要跟
+// 市场发布时给出同一个答案，看不到 envPrefix 是它的固有边界（§007 18.1）；
+// 但 up 注入现场——也就是这里——本来就拿得到 b.reservedPrefixes，
+// reservedConflictWarning 必须替它把这最后一道关也核对一遍，否则使用者
+// 照着建议改完名字、重新 up，会撞上一模一样的警告（brickKit 反馈：
+// renameSuggestion 对 <资源类型>Endpoint 形的 key 仍会撞资源前缀，
+// 同一类问题在 envPrefix 这个动态前缀上也存在）。
+func TestSuggestionAvoidsUserDefinedEnvPrefixToo(t *testing.T) {
+	m := simple("people/basic", "1.0.0", 8080)
+	m.Dependencies = &manifest.Dependencies{}
+	m.Dependencies.Resources = []manifest.ResourceDep{{Kind: "database", Engine: "postgresql"}}
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		// primaryEndpoint 先撞的是 *_ENDPOINT 这条静态后缀规则，
+		// 不是 PRIMARY_* 这条项目自定义前缀——两条规则各撞各的，顺序很重要
+		"primaryEndpoint": {Default: "http://example.com"},
+	}}
+
+	b := newBuilder(t)
+	b.component(m, config.Component{})
+	b.resource(config.Resource{
+		Kind: "database", Engine: "postgresql", ID: "pg-primary",
+		Host: "primary-db", Port: 5432,
+		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people", EnvPrefix: "PRIMARY"}},
+	})
+
+	result := b.build()
+	require.Len(t, result.Warnings, 1)
+	warning := result.Warnings[0].Format()
+	assert.Contains(t, warning, "*_ENDPOINT", "原始冲突确实是后缀模式，不是前缀模式")
+
+	suggestion := extractSuggestion(t, warning)
+	// 判据是"以 PRIMARY_ 开头"，不是"包含 PRIMARY_"——CUSTOM_PRIMARY_BASE_URL
+	// 合法地在中间带着 PRIMARY_，但开头是 CUSTOM_，并不会被 b.matchReserved 判定撞车
+	assert.False(t, strings.HasPrefix(envName(suggestion), "PRIMARY_"),
+		"照着建议 %q 改名之后，不能又落进这个项目自己定的 PRIMARY_* 前缀——"+
+			"那样重新 up 还是同一条警告", suggestion)
+}
+
+// extractSuggestion 从警告文案里把"例如改为 X"的 X 抠出来。
+func extractSuggestion(t *testing.T, warningText string) string {
+	t.Helper()
+	const marker = "例如改为 "
+	idx := strings.Index(warningText, marker)
+	require.NotEqual(t, -1, idx, "警告文案里应该有改名建议：%s", warningText)
+	rest := warningText[idx+len(marker):]
+	return strings.TrimSpace(strings.SplitN(rest, "\n", 2)[0])
+}
+
+func envName(configKey string) string { return inject.EnvVarName(configKey) }
+
 // ============================================================
 // 11.11 / 11.12 资源连接变量（006 §5）
 // ============================================================

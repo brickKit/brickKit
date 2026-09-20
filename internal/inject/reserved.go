@@ -76,7 +76,7 @@ func ReservedKeyWarnings(m *manifest.Manifest) []*clierr.Error {
 	for _, key := range sortedConfigKeys(m.ConfigSchema.Properties) {
 		name := EnvVarName(key)
 		if pattern, hit := staticReserved(name); hit {
-			warnings = append(warnings, reservedConflictWarning(m.Metadata.ID, key, name, pattern))
+			warnings = append(warnings, reservedConflictWarning(m.Metadata.ID, key, name, pattern, nil))
 		}
 	}
 	return warnings
@@ -85,7 +85,23 @@ func ReservedKeyWarnings(m *manifest.Manifest) []*clierr.Error {
 // reservedConflictWarning 生成保留变量冲突的警告（004 §5.6.1 的输出样例）。
 //
 // 是警告不是错误：报错阻断意味着一个配置项名字写错，整个项目就起不来。
-func reservedConflictWarning(componentID, configKey, envVar, pattern string) *clierr.Error {
+//
+// extraPrefixes 是使用者在 brickkit.yaml 里为某个资源绑定定的 envPrefix（004 §5.2 的
+// `{envPrefix}_*`）——lint 检查独立组件仓库时看不到它（那时还没有项目，传 nil）；
+// up 注入时能看到（传 b.reservedPrefixes）。renameSuggestion 本身只核对平台内置的静态
+// 规则，是因为它与市场发布时校验的是同一份、必须给出同一个答案（见 TestSuggestionMatchesCLI），
+// 而市场在组件发布时同样看不到任何项目的 envPrefix——这是两处永久性的、结构性的盲区，不是没修全。
+// 但 up 注入现场是唯一真正拥有完整信息的地方：这里再核对一遍 extraPrefixes，能做到就该做到，
+// 不然会出现"建议换了个名字、重跑还是同一条警告"的怪事——`renameSuggestion` 存在的
+// 唯一理由就是防止这个。
+func reservedConflictWarning(componentID, configKey, envVar, pattern string, extraPrefixes []string) *clierr.Error {
+	suggestion := renameSuggestion(configKey, pattern)
+	if hasAnyPrefix(EnvVarName(suggestion), extraPrefixes) {
+		// 静态规则躲开了，但撞上了这个项目自己定的 {envPrefix}_*——
+		// 再包一层 custom 前缀：与 renameSuggestion 前缀分支同样的手法，
+		// 对候选名字整体加前缀，不会引入新的后缀类冲突（见该分支的注释）。
+		suggestion = "custom" + strings.ToUpper(suggestion[:1]) + suggestion[1:]
+	}
 	return clierr.Warn(clierr.CodeConfigConflict,
 		"配置冲突：组件 "+componentID+" 的配置项已被忽略").
 		WithDetail("组件", componentID).
@@ -95,7 +111,7 @@ func reservedConflictWarning(componentID, configKey, envVar, pattern string) *cl
 		WithDetail("处理", "该配置项已被忽略，平台注入的值优先").
 		WithHint(
 			"修改 configSchema 中的配置项名称，避开平台保留变量",
-			"例如改为 "+renameSuggestion(configKey, pattern),
+			"例如改为 "+suggestion,
 		)
 }
 
@@ -133,6 +149,16 @@ func renameSuggestion(configKey, pattern string) string {
 func stillReserved(candidate string) bool {
 	_, hit := staticReserved(EnvVarName(candidate))
 	return hit
+}
+
+// hasAnyPrefix 判断 name 是否以 prefixes 中的任意一个开头。
+func hasAnyPrefix(name string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // EnvVarName 把配置项名称转成环境变量名（004 §5.6）。

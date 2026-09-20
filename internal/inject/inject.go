@@ -334,7 +334,7 @@ func (b *envBuilder) addConfig(m *manifest.Manifest, entry config.Component) ([]
 			}
 			name := EnvVarName(key)
 			if pattern, hit := b.matchReserved(name); hit {
-				warnings = append(warnings, reservedConflictWarning(b.componentID, key, name, pattern))
+				warnings = append(warnings, reservedConflictWarning(b.componentID, key, name, pattern, b.reservedPrefixes))
 				continue
 			}
 			b.set(Var{
@@ -359,7 +359,7 @@ func (b *envBuilder) addConfig(m *manifest.Manifest, entry config.Component) ([]
 
 		name := EnvVarName(key)
 		if pattern, hit := b.matchReserved(name); hit {
-			warnings = append(warnings, reservedConflictWarning(b.componentID, key, name, pattern))
+			warnings = append(warnings, reservedConflictWarning(b.componentID, key, name, pattern, b.reservedPrefixes))
 			continue
 		}
 		v := Var{Name: name, Value: formatValue(value), Source: source, Key: key, Owner: b.service}
