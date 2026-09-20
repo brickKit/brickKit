@@ -105,17 +105,34 @@ func reservedConflictWarning(componentID, configKey, envVar, pattern string) *cl
 // 对 `*_ENDPOINT` 这类**后缀**模式却完全无效：`customNotifierEndpoint`
 // 照样以 _ENDPOINT 结尾，改完再跑还是同一条警告。
 // 一条照着做不管用的建议，比不给建议更浪费时间。
+//
+// 换掉后缀本身也可能撞上**另一种**保留模式：`redisEndpoint` 换成
+// `redisBaseUrl` 之后，`REDIS_BASE_URL` 又落进了 `REDIS_*` 这个前缀模式——
+// 剩下的词根（redis / database / storage / smtp / mq / search）恰好
+// 就是某个资源类型的前缀词，跟 `*_ENDPOINT` 是两条独立的规则，换后缀躲不开
+// 前缀。所以候选名字算出来之后要再核对一遍：还撞的话，在词根前面也加上
+// custom，两条规则一起避开。
 func renameSuggestion(configKey, pattern string) string {
-	if strings.HasPrefix(pattern, "*") {
-		// 后缀模式：得换掉结尾。Endpoint → BaseUrl 是最自然的同义替换
-		suffix := strings.TrimPrefix(pattern, "*_")
-		camel := strings.ToUpper(suffix[:1]) + strings.ToLower(suffix[1:])
-		if trimmed := strings.TrimSuffix(configKey, camel); trimmed != configKey && trimmed != "" {
-			return trimmed + "BaseUrl"
-		}
+	if !strings.HasPrefix(pattern, "*") {
+		return "custom" + strings.ToUpper(configKey[:1]) + configKey[1:]
+	}
+	// 后缀模式：得换掉结尾。Endpoint → BaseUrl 是最自然的同义替换
+	suffix := strings.TrimPrefix(pattern, "*_")
+	camel := strings.ToUpper(suffix[:1]) + strings.ToLower(suffix[1:])
+	trimmed := strings.TrimSuffix(configKey, camel)
+	if trimmed == configKey || trimmed == "" {
 		return configKey + "Value"
 	}
-	return "custom" + strings.ToUpper(configKey[:1]) + configKey[1:]
+	if candidate := trimmed + "BaseUrl"; !stillReserved(candidate) {
+		return candidate
+	}
+	return "custom" + strings.ToUpper(trimmed[:1]) + trimmed[1:] + "BaseUrl"
+}
+
+// stillReserved 判断按建议改名之后的候选名字是否仍然撞上静态保留模式。
+func stillReserved(candidate string) bool {
+	_, hit := staticReserved(EnvVarName(candidate))
+	return hit
 }
 
 // EnvVarName 把配置项名称转成环境变量名（004 §5.6）。

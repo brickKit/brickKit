@@ -235,6 +235,16 @@ func TestSuggestionMatchesCLI(t *testing.T) {
 		// 前缀模式：加前缀就够
 		{"databaseHost", "DATABASE_*", "customDatabaseHost"},
 		{"redisPort", "REDIS_*", "customRedisPort"},
+		// 换掉 Endpoint 后缀剩下的词根，恰好又是某个资源类型的前缀词——
+		// 换后缀躲得开 *_ENDPOINT，躲不开 {前缀}_*，两条规则撞在一起，
+		// 得再加一层 custom 前缀（brickKit 反馈：renamed 对 <资源类型>Endpoint
+		// 形的 key 给出的建议仍会撞资源前缀）
+		{"redisEndpoint", "*_ENDPOINT", "customRedisBaseUrl"},
+		{"databaseEndpoint", "*_ENDPOINT", "customDatabaseBaseUrl"},
+		{"storageEndpoint", "*_ENDPOINT", "customStorageBaseUrl"},
+		{"smtpEndpoint", "*_ENDPOINT", "customSmtpBaseUrl"},
+		{"mqEndpoint", "*_ENDPOINT", "customMqBaseUrl"},
+		{"searchEndpoint", "*_ENDPOINT", "customSearchBaseUrl"},
 	}
 	for _, c := range cases {
 		got := renamed(c.key, c.pattern)
