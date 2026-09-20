@@ -20,4 +20,15 @@ const (
 	LabelPath                = "label.path"
 	ProjectMissingHintInit   = "project.missing.hint.init"
 	ProjectMissingHintConfig = "project.missing.hint.config"
+
+	// internal/cli/lang.go
+	LangCmdShort        = "lang.cmd.short"
+	LangSetCmdShort     = "lang.set_cmd.short"
+	LangCurrentLine     = "lang.current_line"
+	LangSourceEnv       = "lang.source.env"
+	LangSourceConfig    = "lang.source.config"
+	LangSourceDefault   = "lang.source.default"
+	LangSetSuccess      = "lang.set.success"
+	LangSetWriteFailed  = "lang.set.write_failed"
+	LangInvalidValue    = "lang.invalid_value"
 )

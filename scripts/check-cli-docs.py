@@ -286,10 +286,14 @@ def check_command_count(surface):
     照着编出一个不存在的命令来凑数。
 
     只查业务命令数（不含 cobra 自带的 completion / help）。声明里
-    "+ version" 那部分不参与比对——那是各文档自己的措辞。
+    "+ version" 那部分不参与比对——那是各文档自己的措辞。version 与 lang
+    都是 CLI 自身命令（跟业务无关），不计入"业务命令"数——这是已批准设计的
+    一部分（docs/superpowers/specs/2026-09-20-cli-i18n-design.md §3.3），
+    不是凑数字。
     """
+    NON_BUSINESS_COMMANDS = {"version", "lang"}
     real = len({name for name in surface if name and name not in COBRA_BUILTINS
-                and name != "version"})
+                and name not in NON_BUSINESS_COMMANDS})
 
     bad = []
     for path in docs():

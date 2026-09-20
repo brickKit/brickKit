@@ -16,4 +16,14 @@ var zh = map[string]string{
 	msgid.LabelPath:                "路径",
 	msgid.ProjectMissingHintInit:   "在项目目录中执行 brickkit init <项目名称> 初始化项目",
 	msgid.ProjectMissingHintConfig: "或用 --config 指定正确的配置文件路径",
+
+	msgid.LangCmdShort:       "查看 CLI 当前的显示语言",
+	msgid.LangSetCmdShort:    "设置 CLI 的显示语言",
+	msgid.LangCurrentLine:    "当前语言：%[1]s（来源：%[2]s）",
+	msgid.LangSourceEnv:      "BRICKKIT_LANG 环境变量",
+	msgid.LangSourceConfig:   "全局配置文件",
+	msgid.LangSourceDefault:  "默认值",
+	msgid.LangSetSuccess:     "语言已设为 %[1]s",
+	msgid.LangSetWriteFailed: "写入语言偏好失败",
+	msgid.LangInvalidValue:   "不支持的语言：%[1]s（支持：%[2]s）",
 }

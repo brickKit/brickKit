@@ -221,6 +221,7 @@ CLI 只做六件事：
 		newLogoutCommand(opts),
 		newPublishCommand(opts),
 		newVersionCommand(opts),
+		newLangCommand(opts),
 	)
 
 	if lang == i18n.ZH {

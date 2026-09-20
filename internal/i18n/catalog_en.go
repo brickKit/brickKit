@@ -16,4 +16,14 @@ var en = map[string]string{
 	msgid.LabelPath:                "Path",
 	msgid.ProjectMissingHintInit:   "Run brickkit init <project-name> inside the project directory to initialize it",
 	msgid.ProjectMissingHintConfig: "Or point --config at the correct config file path",
+
+	msgid.LangCmdShort:       "Show the CLI's current display language",
+	msgid.LangSetCmdShort:    "Set the CLI's display language",
+	msgid.LangCurrentLine:    "Current language: %[1]s (source: %[2]s)",
+	msgid.LangSourceEnv:      "BRICKKIT_LANG environment variable",
+	msgid.LangSourceConfig:   "global config file",
+	msgid.LangSourceDefault:  "default",
+	msgid.LangSetSuccess:     "Language set to %[1]s",
+	msgid.LangSetWriteFailed: "Failed to save language preference",
+	msgid.LangInvalidValue:   "Unsupported language: %[1]s (supported: %[2]s)",
 }

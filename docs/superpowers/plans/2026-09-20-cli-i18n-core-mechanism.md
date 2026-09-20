@@ -1944,7 +1944,10 @@ func TestLangSetPersistsAcrossInvocations(t *testing.T) {
 	showResult := run(t, "lang")
 	assert.Equal(t, clierr.ExitOK, showResult.code)
 	assert.Contains(t, showResult.stdout, "zh")
-	assert.Contains(t, showResult.stdout, "global config file")
+	// 语言已经被设成 zh：这次调用的输出（包括"来源"这个标签本身）
+	// 理应整句都用中文渲染，不是只翻一半——所以这里断言中文标签，
+	// 不是英文的 "global config file"。
+	assert.Contains(t, showResult.stdout, "全局配置文件")
 }
 
 func TestLangSetRejectsUnsupportedValue(t *testing.T) {
