@@ -162,13 +162,13 @@ It reads what `up --dry-run` reads — `brickkit.yaml` and every component's Man
 | A box labelled `id@version` | One component. If it's `local: true`, a second line reads `本地调试` (the CLI's wording for "local debugging"), followed by `:<port>` when `localPort` is written in `brickkit.yaml`. With no `localPort` the port is only chosen later, by `up`, so the picture shows none rather than invent one |
 | Solid arrow `A --> B` | A has a **required** dependency on B |
 | Dashed arrow `A -.-> B` | A has an **optional** dependency on B. If no source has B it's still drawn, as an orange dashed box labelled `id@version` and `未安装` ("not installed") — the same fact `up --dry-run` prints as `（弱，未安装）`, and the answer to "why isn't this address injected?" |
-| Grey box | A component that won't start this time: turned off with `enabled: false`, or nothing above it needs it (AGENTS.md §5.4) |
+| Grey box | A component that won't start this time: turned off with `enabled: false`, or no running component above it needs it (AGENTS.md §5.4) |
 | Light-blue box | A `local: true` component that would start |
 | A titled box, `外壳：id@version` ("shell: …"), around some components | Those components are folded into another component's process with `servedBy` (AGENTS.md §5.7), and the title names that shell. The shell itself is an ordinary box outside it. If the shell isn't in the project the group is drawn anyway — reporting a missing target is `up`'s job |
 
 Arrows are drawn whether or not the component at the other end starts: the picture shows the structure you *declared*, and colour shows whether each part starts, so the two never get mixed up.
 
-**Output is pure Mermaid.** Standard output holds the diagram and nothing else — not one extra character — so redirecting it to `graph.mmd` gives a valid file. Everything that isn't the diagram goes elsewhere: warnings from resolving the graph (a missing optional dependency, say) go to stderr; the note that `--ignore-served-by` was in effect is a Mermaid comment line (`%% …`), which renderers skip; and a project with no components prints `graph TD` and one comment line (`%% 当前项目没有组件`, "the project has no components"). The same configuration always draws byte-identical text, dependencies before the components that need them, so a saved `.mmd` file diffs cleanly in Git. (Inside the text, a node's ID is the component's versioned service name with `-` turned into `_` — `demo-hello-1-0-0` becomes `demo_hello_1_0_0`; only the labels are meant for reading.)
+**Output is pure Mermaid.** Standard output holds the diagram and nothing else — not one extra character — so redirecting it to `graph.mmd` gives a valid file. Everything that isn't the diagram goes elsewhere: warnings from resolving the graph (a missing optional dependency, say) go to stderr; the note that `--ignore-served-by` was in effect is a Mermaid comment line (`%% …`), which renderers skip; and a project with no components prints `graph TD` and one comment line (`%% 当前项目没有组件`, "the project has no components"). The same configuration always draws byte-identical text in a fixed order, so a saved `.mmd` file diffs cleanly in Git. Components come in the order the graph is resolved, dependencies first — except that each `servedBy` group is written ahead of the components outside any group, and the `未安装` boxes come after all the others. (Inside the text, a node's ID is the component's versioned service name with `-` turned into `_` — `demo-hello-1-0-0` becomes `demo_hello_1_0_0`; only the labels are meant for reading.)
 
 **Viewing it.** GitHub draws a `.mmd` (or `.mermaid`) file directly, and draws a fenced code block whose language is `mermaid` inside a Markdown file. Pasted into Markdown *without* that fence, the diagram is just text.
 
@@ -245,7 +245,7 @@ brickkit graph --config brickkit.prod.yaml   # a non-default environment file
 
 Checks that the YAML files you write are shaped correctly — required fields present, values of the right type, no misspelled key, versions written `major.minor.patch`, ports in range — without starting anything: no network, no Docker or Kubernetes, and it writes no file. It answers "did I write this file right?" in about a second, instead of you finding out through `add` or `up`.
 
-It adds no rules of its own: every check is one the platform already makes somewhere when it reads these files — in `add`, `up`, `publish` or the marketplace. What was missing was a way to run them on their own, and on two things nothing could check by itself: a component repository (a `component.yaml`, no `brickkit.yaml`), and a local component you already added — `add --local` skips a version that's already in `brickkit.yaml`, so a typo introduced by a later edit only surfaces when `up` reads the file, after the whole cascade — a slow way to find a typo.
+It adds no rules of its own: every check is one the platform already makes somewhere when it reads these files — in `add`, `up`, `publish` or the marketplace. What was missing was a way to run them on their own, and on two things nothing could check by itself: a component repository (a `component.yaml`, no `brickkit.yaml`), and a local component you already added — `add --local` skips a version that's already in `brickkit.yaml`, so a typo introduced by a later edit doesn't show up until you run `up` (or `up --dry-run`) and it reads that file.
 
 **Two modes**, picked by what's in the current directory (the same rule `brickkit skills` uses; when both files are there it counts as a project):
 
@@ -257,6 +257,7 @@ It adds no rules of its own: every check is one the platform already makes somew
 **What it doesn't check, and why**
 
 - Whether a dependency can be found in some source, or a `servedBy` target exists. Both need the rest of the project's Manifests — over the network, for market and Git components — and that isn't "offline, in a second". They're what `brickkit up --dry-run` is for, since it resolves the graph anyway.
+- A few combination rules that are only checked when the deployment files are generated — `local: true` under `deploy.target: k8s`, for one. `lint` passes that file and `brickkit up --dry-run` rejects it; most other combinations (`local` with `servedBy`, say) are part of what `lint` checks.
 - The *values* in a `configSchema` — an `enum`, a `minimum`. The platform declares them for the reader and never enforces them (AGENTS.md §9.12: it's a spec sheet, not a gate).
 - A market or Git component's Manifest. It was validated when you added it; `lint` only looks at files you can edit yourself, the local sources.
 
@@ -313,7 +314,7 @@ $ brickkit lint
 📋 检查了 1 个文件：0 个有错误，0 条警告
 ```
 
-A warning alone doesn't fail the run. Misspell `default` as `defualt` inside the `greeting` property of its `configSchema`, and `brickkit lint` prints the block below and exits `0`; with `--strict` it exits `1`:
+A warning alone doesn't fail the run. Misspell `default` as `defualt` inside the `greeting` property of its `configSchema`, and `brickkit lint` prints everything down to the `📋` line below and exits `0`. Add `--strict` and it prints the same, then one more block — the summary error, on stderr — and exits `1`. Here is the `--strict` run:
 
 ```
 $ brickkit lint --strict

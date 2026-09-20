@@ -309,7 +309,7 @@ $ brickkit up --dry-run
 ### 18. The editor underlines almost every field of a valid `component.yaml`
 
 - **Symptom:** you open a `component.yaml` that `brickkit lint` accepts, and the editor draws red lines nearly everywhere: `Property apiVersion is not allowed.` on `apiVersion`, `Missing property "implementation".` at the top of the file.
-- **Cause:** no BrickKit schema is attached, so the YAML language server falls back to SchemaStore, a public catalog of schemas, which maps the file name `component.yaml` to Kubeflow Pipelines' schema. Those messages are about Kubeflow's fields, not BrickKit's. (A `brickkit.yaml` has no such namesake in the catalog, so it simply gets no checking until you attach the schema.)
+- **Cause:** no BrickKit schema is attached, so the YAML language server falls back to SchemaStore, a public catalog of schemas. As of yaml-language-server 1.24.0 and the catalog at the time of writing, it maps the file name `component.yaml` to Kubeflow Pipelines' schema (both are third-party and can change). Those messages are about Kubeflow's fields, not BrickKit's. (The same check found nothing in the catalog for `brickkit.yaml`, so that file simply gets no checking until you attach the schema.)
 - **Fix:** attach the BrickKit schema — a `# yaml-language-server: $schema=…` comment on the file's first line, or a `yaml.schemas` entry mapping `component.yaml` to it. Either replaces the catalog's guess; both are in [Wire up your editor](00-quick-start.md#wire-up-your-editor).
 
 ---

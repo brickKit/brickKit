@@ -148,7 +148,7 @@ brickkit down
 
 这两份文件是 [`schemas/component.schema.json`](../../schemas/component.schema.json) 和 [`schemas/brickkit.schema.json`](../../schemas/brickkit.schema.json)，由 CLI 解析这两种文件时用的同一批 Go 结构体生成，仓库里有一条测试让它们始终同步。`brickkit lint` 是它的离线搭档：在终端里报同一批结构上的问题。
 
-有一个理由让你别跳过这一步。没有接上 BrickKit 的 schema 时，YAML language server 会退回去用 SchemaStore（一个公开的 schema 目录），而它把 `component.yaml` 这个文件名对应到了 Kubeflow Pipelines 的 schema。我们实测时，一份完全合法的 BrickKit `component.yaml` 几乎处处被画红线（`Property apiVersion is not allowed.`、`Missing property "implementation".`）。用下面任何一种方式接上 BrickKit 的 schema，就会换掉它。
+有一个理由让你别跳过这一步。没有接上 BrickKit 的 schema 时，YAML language server 会退回去用 SchemaStore（一个公开的 schema 目录）。截至 yaml-language-server 1.24.0 和写这篇时的 SchemaStore 目录，那份目录把 `component.yaml` 这个文件名对应到了 Kubeflow Pipelines 的 schema——两者都是第三方的东西，会变，以后你的编辑器里看到的可能不一样。我们实测时，一份完全合法的 BrickKit `component.yaml` 几乎处处被画红线（`Property apiVersion is not allowed.`、`Missing property "implementation".`）。用下面任何一种方式接上 BrickKit 的 schema，就会换掉它猜的那份。
 
 **两种接法。** 读 schema 的是 YAML language server（`yaml-language-server`）；VS Code 的 Red Hat "YAML" 扩展自带它，别的编辑器只要跑的是同一个 server，用法也一样。
 
@@ -181,7 +181,7 @@ brickkit down
 
 **这些 schema 不覆盖什么。** 它们描述的是一份文件自己的字段：名字、类型、哪些必填、封闭取值、格式、范围。另外两类规则刻意不在里面：
 
-- **需要逻辑判断的规则**——不能同时写的组合、`configSchema` 的键撞上平台保留的环境变量、组件目录名必须和 `metadata.id` 对得上——归 `brickkit lint`。
+- **需要逻辑判断的规则**——大多数不能同时写的组合（比如 `local` 与 `servedBy`）、`configSchema` 的键撞上平台保留的环境变量、组件目录名必须和 `metadata.id` 对得上——归 `brickkit lint`。少数组合规则要到生成部署文件时才检查，比如 `local: true` 配 `deploy.target: k8s`：`lint` 会放过这样的文件，要到 `brickkit up --dry-run` 才被拒绝。
 - **需要别的文件、或者联网的规则**——依赖图能不能解析、`servedBy` 指向的组件在不在——归 `brickkit up --dry-run`。`brickkit lint` 同样不做这些：它从不解析依赖。
 
 **编辑器比 CLI 更严的地方。** 一共三处，都是有意的：宁可给几乎肯定是笔误的写法画上红线，也不保持沉默，哪怕 CLI 本来是接受的。

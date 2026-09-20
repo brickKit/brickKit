@@ -135,8 +135,10 @@ func mermaidID(ref resolver.Ref) string {
 
 // renderMermaid 把拓扑渲染成 Mermaid 文本。
 //
-// 输出全由输入决定、顺序全按 graph.Nodes 的顺序（依赖先于依赖方）：同一份配置
-// 每次画出的图逐字节相同，才能放进版本控制里看 diff。
+// 输出全由输入决定：节点、边、样式都按 graph.Nodes 的解析顺序（依赖先于依赖方）逐段写出，
+// 同一份配置每次画出的图逐字节相同，才能放进版本控制里看 diff。这个顺序只在每一段之内成立——
+// servedBy 分组整段写在其余节点之前，"未安装"占位节点整段写在所有节点之后——
+// 所以文档里别把它说成"整份输出依赖在前"。
 func renderMermaid(
 	cfg *config.Config, graph *resolver.Graph, states *cascade.Result, ignoredServedBy bool,
 ) string {

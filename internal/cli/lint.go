@@ -53,6 +53,8 @@ func newLintCommand(opts *Options) *cobra.Command {
 碰到它，lint 把 configSchema 里声明的每一项都查一遍（与市场发布时同一个范围）。
 
 不查：依赖能不能解析、servedBy 指向的组件在不在（这些要联网，留给 up / add）；
+少数要到生成部署文件时才检查的组合规则（比如 local: true 配 deploy.target: k8s，
+lint 会放过它，up --dry-run 才拒绝）；
 configSchema 里 enum、minimum 之类对应的值（平台不校验值，见 AGENTS.md §9.12）。
 
 有错误时退出码为 1；只有警告时为 0，加 --strict 则警告也算失败，给 CI 门禁用。`,

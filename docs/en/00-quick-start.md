@@ -148,7 +148,7 @@ Optional, and it takes a minute. `brickkit.yaml` and each component's `component
 
 The schemas are [`schemas/component.schema.json`](../../schemas/component.schema.json) and [`schemas/brickkit.schema.json`](../../schemas/brickkit.schema.json), generated from the same Go structs the CLI parses these files into, with a test in the repository keeping them in step. `brickkit lint` is the offline counterpart: it reports the same structural problems from the terminal.
 
-There's one reason not to skip this. With no BrickKit schema attached, the YAML language server falls back to SchemaStore, a public catalog of schemas, which maps the file name `component.yaml` to Kubeflow Pipelines' schema. In our check, a perfectly valid BrickKit `component.yaml` came out underlined almost everywhere (`Property apiVersion is not allowed.`, `Missing property "implementation".`). Attaching the BrickKit schema, either way below, replaces it.
+There's one reason not to skip this. With no BrickKit schema attached, the YAML language server falls back to SchemaStore, a public catalog of schemas. As of yaml-language-server 1.24.0 and the SchemaStore catalog at the time of writing, that catalog maps the file name `component.yaml` to Kubeflow Pipelines' schema — both are third-party and can change, so what your editor shows later may differ. In our check, a perfectly valid BrickKit `component.yaml` came out underlined almost everywhere (`Property apiVersion is not allowed.`, `Missing property "implementation".`). Attaching the BrickKit schema, either way below, replaces whatever it would have guessed.
 
 **Two ways to attach it.** The thing that reads a schema is the YAML language server (`yaml-language-server`); the Red Hat "YAML" extension for VS Code bundles it, and another editor that runs the same server works the same way.
 
@@ -181,7 +181,7 @@ A section you leave empty is fine: `dependencies:` with every entry commented ou
 
 **What the schemas don't cover.** They describe one file's own fields: names, types, which are required, closed value sets, patterns, ranges. Two other kinds of rule are outside them on purpose:
 
-- **Rules that need logic** — combinations that can't be written together, a `configSchema` key that collides with a reserved environment variable, a component directory whose name must match its `metadata.id` — are checked by `brickkit lint`.
+- **Rules that need logic** — most combinations that can't be written together (`local` with `servedBy`, say), a `configSchema` key that collides with a reserved environment variable, a component directory whose name must match its `metadata.id` — are checked by `brickkit lint`. A few combination rules are only checked when the deployment files are generated, such as `local: true` under `deploy.target: k8s`: `lint` passes that file, and `brickkit up --dry-run` is what rejects it.
 - **Rules that need another file, or the network** — whether the dependency graph resolves, whether a `servedBy` target exists — are checked by `brickkit up --dry-run`. `brickkit lint` doesn't do those either: it never resolves dependencies.
 
 **Where an editor is stricter than the CLI.** Three places, all deliberate: the schema would rather underline something that is almost certainly a slip than stay silent, even where the CLI would accept it.

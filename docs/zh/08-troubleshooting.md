@@ -309,7 +309,7 @@ $ brickkit up --dry-run
 ### 18. 合法的 `component.yaml` 被编辑器几乎处处画红线
 
 - **症状：** 你打开一份 `brickkit lint` 认可的 `component.yaml`，编辑器却几乎处处画红线：`apiVersion` 上是 `Property apiVersion is not allowed.`，文件开头还有 `Missing property "implementation".`。
-- **原因：** 没有接上 BrickKit 的 schema，YAML language server 就退回去用 SchemaStore（一个公开的 schema 目录），而它把 `component.yaml` 这个文件名对应到了 Kubeflow Pipelines 的 schema。这些提示说的是 Kubeflow 的字段，不是 BrickKit 的。（`brickkit.yaml` 在那个目录里没有同名的，所以在你接上 schema 之前它只是完全没有检查。）
+- **原因：** 没有接上 BrickKit 的 schema，YAML language server 就退回去用 SchemaStore（一个公开的 schema 目录）。截至 yaml-language-server 1.24.0 和写作时的那份目录，它把 `component.yaml` 这个文件名对应到了 Kubeflow Pipelines 的 schema（两者都是第三方的，会变）。这些提示说的是 Kubeflow 的字段，不是 BrickKit 的。（同一次检查里，目录里没有 `brickkit.yaml` 的同名条目，所以在你接上 schema 之前它只是完全没有检查。）
 - **解决：** 接上 BrickKit 的 schema——在文件第一行写 `# yaml-language-server: $schema=…` 注释，或者用 `yaml.schemas` 设置把 `component.yaml` 映射过去。两种都会换掉目录的那个猜测；写法都在[给编辑器接上自动补全](00-quick-start.md#给编辑器接上自动补全)里。
 
 ---

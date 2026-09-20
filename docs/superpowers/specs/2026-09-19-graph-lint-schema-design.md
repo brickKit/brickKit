@@ -131,7 +131,7 @@ func resolveTopology(
    （`brickkit skills` 已经认这个模式），但没有任何命令能对着这一种仓库单独跑校验。
 2. **已经 `add --local` 过的本地组件**——读代码确认：`internal/cli/add_local.go` 对"已经在 `brickkit.yaml`
    里的同版本组件"是**静默跳过**（`configured` 分支），不会重新校验。编辑一份已加入的 `component.yaml` 引入拼写错误，
-   唯一会发现的时机是真的跑 `up`（需要引擎、走完整级联计算），没有一个轻量、离线、秒回的校验入口。
+   唯一会发现的时机是真的跑 `up`（或 `up --dry-run`）、它读到这份文件的时候，没有一个轻量、离线、秒回的校验入口。
 
 ### 3.3 双模式——复用一个共享的判断函数
 
@@ -183,6 +183,8 @@ func (c *Client) LocalManifestFiles() ([]LocalManifestFile, error)
 
 - 不解析依赖图，不检查 `servedBy` 指向的组件是否真实存在于项目里（那需要完整依赖图，天然要联网/读 manifest 缓存，
   跟"离线秒回"的定位不是一回事，留给 `up`/`add` 在生成阶段报）。
+- 不检查只在生成阶段才成立的组合规则——例如 `local: true` 配 `deploy.target: k8s`：那条规则在 K8s 渲染器里，不在
+  `config.Validate`，同一个文件里的这种互斥组合 `lint` 通过、只有 `up --dry-run` 拒绝。
 - 不校验市场/Git 源已缓存的组件（那些在 `add` 时已经校验过一次）——只管本地源目录下、使用者自己能编辑的文件。
 - 不新增任何校验规则——`configSchema` 里作者自己声明的 `enum`/`minimum` 这类，§9.12 明确不校验值，`lint`
   同样不碰这条线。
