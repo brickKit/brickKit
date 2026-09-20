@@ -230,6 +230,11 @@ JSON Schema，落盘到仓库根目录新建的 `schemas/` 目录：`schemas/com
   `port:` 写成 null 会解码成 0，校验器报"缺失"，schema 同样该拒绝。
 - `additionalProperties: false`——镜像"Manifest 没有扩展字段机制，未知键直接拒绝"这条平台规则（AGENTS §6）。
   `map` 类型（`config`、`labels`、`configSchema.properties`……）里键是使用者自己定的，不受这条限制。
+  **`map` 的值是 struct 时**（`configSchema.properties.<键>` 及其下的 `items`），`yamlcheck.Walk` 不往里下钻，
+  `manifest.Parse` 对里面的多余键一声不吭——但那些键**不会生效**（`defualt` 拼错，组件就拿不到默认值），CLI 因此在
+  作者自己听得到的地方警告（`PropertyKeyWarnings`：`lint` / `publish` / `add --local`）。schema 在这里仍然封闭：
+  编辑器标红与 CLI 的警告说的是同一件事。这是一处**有意的**"schema 比 Parse 更严"，与下面 §4.5 列的另外两处一起，
+  写进 `schemas_test.go` 顶部的已知例外清单，并在 `checkNode` 里为这两个节点开带注释的例外——让下一个人看得见这是决定而不是疏忽。
 - **自定义解码逻辑的类型需要单独交代**：`manifest.ComponentDep` 既能写成字符串
   （`department/tree@1.0.0`）也能写成 `{id, optional}` 映射，反射看不出来。生成器里有一张小小的
   "类型 → 手写 schema"覆盖表，目前只有这一项；遇到 yaml.v3 会当作自定义解码来处理、却不在表里的类型——
@@ -286,6 +291,10 @@ tag 语法：关键字之间用 `,` 分隔，`enum` 的取值之间用 `|` 分�
 - `docs/{en,zh}/00-quick-start.md` 补一小节："给编辑器接上自动补全"，给出两份文件各自的 `$schema` 注释写法
   与 VS Code `yaml.schemas` 配置写法；并讲清一个已知的边界：`brickkit.yaml` 解析时会先展开 `${VAR}` 再校验，
   所以 `deploy.target: ${TARGET}` 这种写法 CLI 接受、schema 会标红——schema 校验的是**字面文本**，封闭取值的字段请写字面值。
+  完整的"schema 比 CLI 更严"的已知边界共三处，文档里如实列出：① `${VAR}` 写进封闭取值的字段；② 不加引号的非字符串标量写进
+  字符串字段（`project: 2024`、`password: 123456`——yaml.v3 一律照字面转成字符串，CLI 接受，schema 的 `type: string`
+  标红；保留它是因为放宽会把类型提示的价值整个抹掉，而 YAML 里这类值本来就该加引号）；③ `configSchema` 属性声明里的多余键
+  （CLI 只警告，见 §4.2）。
 - `07-component-yaml-reference.md`/`08-brickkit-yaml-reference.md` 顶部各加一句指向对应 schema 文件的链接。
 - AGENTS §11.2 的仓库地图加 `schemas/`、`internal/schemagen/`、`cmd/gen-schemas/` 三行。
 
