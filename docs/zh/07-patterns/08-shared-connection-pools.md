@@ -13,12 +13,12 @@ PostgreSQL 和 Oracle；用别的引擎请直接跳到[不适用的引擎](#不�
 
 ```mermaid
 graph LR
-    subgraph 不合并：8 个池
+    subgraph "不合并：8 个池"
         M1["模块 1"] --> P1[("池: 10")]
         M2["模块 2"] --> P2[("池: 10")]
         Mdots["……还有 6 个"] --> Pdots[("……")]
     end
-    subgraph 合并：1 个池
+    subgraph "合并：1 个池"
         S1["模块 1"] --> SP[("池: 20")]
         S2["模块 2"] --> SP
         Sdots["……还有 6 个"] --> SP

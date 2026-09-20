@@ -6,12 +6,12 @@
 
 ```mermaid
 graph TB
-    subgraph 独立部署（默认）
+    subgraph "独立部署（默认）"
         A1["组件 A<br/>自己的容器"]
         B1["组件 B<br/>自己的容器"]
         C1["组件 C<br/>自己的容器"]
     end
-    subgraph servedBy 合并部署
+    subgraph "servedBy 合并部署"
         Shell["外壳容器<br/>（一个进程、一个镜像）"]
         Shell -.->|吸收| A2["组件 A 的代码"]
         Shell -.->|吸收| B2["组件 B 的代码"]

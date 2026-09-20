@@ -14,14 +14,14 @@ AGENTS.zh.md §5.9 用一句话概括了信任模型：发布者用 cosign 签�
 
 ```mermaid
 graph LR
-    subgraph 发布方（需要 cosign）
+    subgraph "发布方（需要 cosign）"
         M["Manifest"] -->|规范化| Canon["规范载荷<br/>JSON，键按字典序"]
         Canon -->|cosign sign-blob| Sig["签名"]
     end
-    subgraph 市场
+    subgraph "市场"
         Sig -->|只存，不验| Store[("签名值")]
     end
-    subgraph 安装方（零依赖）
+    subgraph "安装方（零依赖）"
         Store -->|"公钥来自 installer.publicKeys"| Verify["Go 标准库验签"]
     end
 ```

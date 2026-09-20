@@ -14,10 +14,10 @@
 
 ```mermaid
 graph TB
-    subgraph 路径一：种子/演示数据
+    subgraph "路径一：种子/演示数据"
         Seed["Seed 脚本<br/>固定标识符"] --> SeedData[("持久保留<br/>可以整体清空重建")]
     end
-    subgraph 路径二：测试数据
+    subgraph "路径二：测试数据"
         Test["每次测试运行<br/>唯一后缀"] --> TestData[("从不清理<br/>每次都是新的一批")]
     end
 ```

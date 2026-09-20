@@ -143,12 +143,12 @@ brickkit down
 
 ```mermaid
 graph TB
-    subgraph 安全：命名空间分开
+    subgraph "安全：命名空间分开"
         NS1["brickkit-hello-world<br/>（BrickKit 拥有，down 会删）"]
         NS2["guide-resources<br/>（运维管理，不受影响）"]
         PG1[("PostgreSQL")] -.->|活在| NS2
     end
-    subgraph 不安全：同一个命名空间
+    subgraph "不安全：同一个命名空间"
         NS3["brickkit-hello-world<br/>（down 会把里面全删掉）"]
         PG2[("PostgreSQL")] -.->|活在| NS3
     end
