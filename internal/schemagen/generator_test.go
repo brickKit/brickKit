@@ -310,6 +310,41 @@ func TestGeneratorIsReusableAfterAnError(t *testing.T) {
 	assert.Equal(t, "object", s["type"])
 }
 
+// 出错的那条路径也要把 visiting 释放掉：同一个生成器再遇到同一个出错的类型，报的还是原来的错，
+// 而不是被上一次留下的"正在展开"标记误报成"递归"。生产代码靠 defer 释放；
+// 把释放只放在成功路径上，这条会红（上面那条只钉了"出错之后还能生成别的类型"，钉不住这一点）。
+func TestVisitingIsReleasedOnTheErrorPathToo(t *testing.T) {
+	cases := map[string]any{
+		"字段的类型不支持": struct {
+			C chan int `yaml:"c"`
+		}{},
+		"slice 的元素类型不支持": struct {
+			L []chan int `yaml:"l"`
+		}{},
+		"map 的键不是 string": struct {
+			M map[int]string `yaml:"m"`
+		}{},
+		"jsonschema tag 写错（错在子节点都生成完之后）": struct {
+			A string `yaml:"a" jsonschema:"enumm=x"`
+		}{},
+	}
+	for name, v := range cases {
+		t.Run(name, func(t *testing.T) {
+			g := newGenerator(nil)
+			typ := reflect.TypeOf(v)
+
+			_, first := g.typeSchema(typ)
+			require.Error(t, first)
+			require.NotContains(t, first.Error(), "递归", "第一次的错本来就不该是递归")
+
+			_, second := g.typeSchema(typ)
+			require.Error(t, second)
+			assert.Equal(t, first.Error(), second.Error(), "同一个生成器、同一个类型：报同一个错")
+			assert.NotContains(t, second.Error(), "递归")
+		})
+	}
+}
+
 func TestUnsupportedTypesAreRejectedAtEveryDepth(t *testing.T) {
 	type inSlice struct {
 		L []chan int `yaml:"l"`

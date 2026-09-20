@@ -20,7 +20,10 @@ package schemagen
 //  2. yaml.v3 的宽容解码，schema 不跟着放宽：不加引号的非字符串标量写进字符串字段（`password: 123456`、
 //     `project: 2024`）被 yaml.v3 照字面转成字符串，schema 的 type: string 标红——加引号才是对的 YAML 写法，
 //     放宽会把类型提示的价值整个抹掉；列表里的 null 元素（一行没写完的 `-`）在有的位置被悄悄丢掉
-//     （dependencies.components、tags），schema 同样指出来——那几乎总是笔误。
+//     （dependencies.components、tags），schema 同样指出来——那几乎总是笔误；map 里的 null 值
+//     （`deploy.ingressAnnotations: {k: null}`、`installer.publicKeys`、`allowFrom[].podSelector`）CLI 接受，
+//     schema 要求值是字符串；bool 字段写 `yes` / `on` 被读成 true，schema 只认 true / false；
+//     整数字段写小数（`resources[].port: 5432.5`）被悄悄截断成 5432，schema 的 integer 不认小数。
 //  3. configSchema 里属性声明的多余键（`format: uri`、拼错的 `defualt`）：yamlcheck.Walk 不往 map 的值里下钻，
 //     manifest.Parse 不拒绝，CLI 只在 PropertyKeyWarnings（lint / publish / add --local）里警告。这些键不会生效，
 //     所以 schema 在这里保持封闭：编辑器标红与 CLI 的警告说的是同一件事。
@@ -281,6 +284,8 @@ func relationOf(reported []string, changed string) fieldRelation {
 }
 
 // ancestorOnly 登记黄金表里校验器只报在被改字段祖先上的那些行（键是被改字段的路径）。
+// 每一项都会被核对是不是还成立（TestRequiredFieldsAreReallyRequiredByTheValidators 的末尾）：
+// 校验器改成直接报在那个字段上，或者黄金表里没了这一行，测试都会失败，名单不会悄悄过期。
 var ancestorOnly = map[string]bool{
 	"dependencies.components[1].id": true, // 映射写法的依赖：见 relationOf
 }
@@ -482,6 +487,9 @@ func TestRequiredFieldsAreReallyRequiredByTheValidators(t *testing.T) {
 		remove bool
 	}{{"删掉", true}, {"写成 null", false}}
 
+	// 每一行、每一种改法，校验器报的字段与被改字段的关系；ancestorOnly 的过期检查要用
+	relations := map[string]fieldRelation{}
+
 	for _, c := range requiredGolden {
 		d := documents[c.doc]
 		for _, field := range c.required {
@@ -493,7 +501,9 @@ func TestRequiredFieldsAreReallyRequiredByTheValidators(t *testing.T) {
 					require.Error(t, err, "%s %s之后校验器居然通过了：它不是必填，schema 里不该列它",
 						changed, mode.name)
 
-					switch relationOf(problemFields(err), changed) {
+					relation := relationOf(problemFields(err), changed)
+					relations[changed+"/"+mode.name] = relation
+					switch relation {
 					case unrelated:
 						assert.Fail(t, "校验器确实失败了，但报的字段与被改的字段不相干——失败可能是别的原因，这一行没有证明什么",
 							"报的字段：%v；被改的：%s", problemFields(err), changed)
@@ -504,6 +514,20 @@ func TestRequiredFieldsAreReallyRequiredByTheValidators(t *testing.T) {
 					}
 				})
 			}
+		}
+	}
+
+	// ancestorOnly 里的每一项也得真的"只靠祖先字段相关"：校验器哪天改成直接报在那个字段上，
+	// 或者黄金表里已经没有这一行了，名单就过期了——与 conditionallyRequired 的做法对齐，
+	// 不然名单只会越攒越多，登记过的例外永远没人回头核对。
+	for _, changed := range sortedKeys(ancestorOnly) {
+		for _, mode := range modes {
+			relation, seen := relations[changed+"/"+mode.name]
+			require.True(t, seen, "ancestorOnly 里的 %s（%s）不在黄金表里了：字段改名或删除之后，这里要跟着删",
+				changed, mode.name)
+			assert.Equal(t, reportedOnAncestor, relation,
+				"ancestorOnly 里的 %s（%s）：校验器现在直接报在这个字段上（或它的后代上），不再只靠祖先——"+
+					"这一项过期了，从 ancestorOnly 里删掉", changed, mode.name)
 		}
 	}
 }
@@ -1167,6 +1191,8 @@ func TestKnownStricterThanTheCLICasesAreReal(t *testing.T) {
 	t.Run("${VAR}", func(t *testing.T) {
 		t.Setenv("BRICKKIT_SCHEMATEST_TARGET", "docker")
 		t.Setenv("BRICKKIT_SCHEMATEST_VERSION", "1.0.0")
+		t.Setenv("BRICKKIT_SCHEMATEST_SOURCE_TYPE", "local")
+		t.Setenv("BRICKKIT_SCHEMATEST_KIND", "database")
 		index := indexSchema(t, "project")
 		d := documents["project"]
 
@@ -1177,15 +1203,21 @@ func TestKnownStricterThanTheCLICasesAreReal(t *testing.T) {
 		}{
 			{[]any{"deploy", "target"}, "deploy/target", "${BRICKKIT_SCHEMATEST_TARGET}"},
 			{[]any{"components", 0, "version"}, "components[]/version", "${BRICKKIT_SCHEMATEST_VERSION}"},
+			{[]any{"sources", 0, "type"}, "sources[]/type", "${BRICKKIT_SCHEMATEST_SOURCE_TYPE}"},
+			{[]any{"resources", 0, "kind"}, "resources[]/kind", "${BRICKKIT_SCHEMATEST_KIND}"},
 		} {
 			require.NoError(t, d.parse(mutate(t, d.baseline, c.path, c.reference, false)),
 				"ParseConfig 展开 %s 之后校验，放行", c.reference)
 
 			node := index[c.schemaPath]
-			if enum, ok := node["enum"].([]any); ok {
+			require.NotNil(t, node, "schema 里没有 %s", c.schemaPath)
+			enum, hasEnum := node["enum"].([]any)
+			pattern, hasPattern := node["pattern"].(string)
+			require.True(t, hasEnum || hasPattern, "%s 既没有 enum 也没有 pattern，这一行什么都证明不了", c.schemaPath)
+			if hasEnum {
 				assert.NotContains(t, enum, c.reference, "schema 的 enum 检查字面文本")
 			}
-			if pattern, ok := node["pattern"].(string); ok {
+			if hasPattern {
 				assert.NotRegexp(t, pattern, c.reference, "schema 的 pattern 检查字面文本")
 			}
 		}
@@ -1225,6 +1257,105 @@ func TestKnownStricterThanTheCLICasesAreReal(t *testing.T) {
 		// schema 指出来：数组的元素不接受 null
 		assert.False(t, acceptsNull(index["dependencies/components[]"]))
 		assert.False(t, acceptsNull(index["tags[]"]))
+	})
+
+	// map 的键是使用者自己定的，值却必须是字符串：值写成 null（`key:` 后面什么都没写），
+	// CLI 照样收下，schema 的 additionalProperties 是 type: string，标红。
+	t.Run("map 里的 null 值", func(t *testing.T) {
+		d := documents["project"]
+		index := indexSchema(t, "project")
+
+		for _, c := range []struct {
+			field      string
+			path       []any
+			value      any
+			schemaPath string // map 的值在 schema 里的位置
+		}{
+			{"deploy.ingressAnnotations", []any{"deploy", "ingressAnnotations"},
+				map[string]any{"k": nil}, "deploy/ingressAnnotations{}"},
+			{"installer.publicKeys", []any{"installer"},
+				map[string]any{"publicKeys": map[string]any{"k": nil}}, "installer/publicKeys{}"},
+			{"deploy.networkPolicy.allowFrom[0].podSelector", []any{"deploy", "networkPolicy", "allowFrom", 0, "podSelector"},
+				map[string]any{"k": nil}, "deploy/networkPolicy/allowFrom[]/podSelector{}"},
+		} {
+			require.NoError(t, d.parse(mutate(t, d.baseline, c.path, c.value, false)),
+				"%s 里有一个值是 null 的键：CLI 收下", c.field)
+
+			node, found := index[c.schemaPath]
+			require.True(t, found, "schema 里没有 %s", c.schemaPath)
+			assert.False(t, acceptsNull(node), "%s 的值不接受 null——这是 schema 更严的地方", c.schemaPath)
+			assert.Equal(t, []string{"string"}, typeNames(node), c.schemaPath)
+		}
+	})
+
+	// yaml.v3 对 bool 目标有 YAML 1.1 的兼容：yes / on 读成 true。schema 只认 true / false。
+	// mutate 会把字符串 "yes" 加上引号写出来（那就成了字符串，CLI 也拒绝），所以这里直接改文本。
+	t.Run("bool 字段写 yes / on", func(t *testing.T) {
+		projectEnabled := func(read func(*config.Config) bool) func([]byte) bool {
+			return func(data []byte) bool {
+				cfg, err := config.ParseConfig(data, "brickkit.yaml")
+				require.NoError(t, err)
+				return read(cfg)
+			}
+		}
+		for _, c := range []struct {
+			doc, field, schemaPath string
+			old, new               string
+			readTrue               func(data []byte) bool // 真实的解析器把它读成了什么
+		}{
+			{"project", "deploy.networkPolicy.enabled", "deploy/networkPolicy/enabled",
+				"  networkPolicy:\n    enabled: true\n", "  networkPolicy:\n    enabled: yes\n",
+				projectEnabled(func(cfg *config.Config) bool { return cfg.Deploy.NetworkPolicy.Enabled })},
+			{"project", "deploy.networkPolicy.egress.enabled", "deploy/networkPolicy/egress/enabled",
+				"    egress:\n      enabled: true\n", "    egress:\n      enabled: on\n",
+				projectEnabled(func(cfg *config.Config) bool { return cfg.Deploy.NetworkPolicy.Egress.Enabled })},
+			{"component", "dependencies.components[1].optional", "dependencies/components[]#oneOf[1]/optional",
+				"      optional: true\n", "      optional: yes\n",
+				func(data []byte) bool {
+					m, err := manifest.Parse(data, "component.yaml")
+					require.NoError(t, err)
+					return m.Dependencies.Components[1].Optional
+				}},
+		} {
+			d := documents[c.doc]
+			require.Equal(t, 1, strings.Count(d.baseline, c.old), "基准里应该恰好有一处 %q", c.old)
+			data := []byte(strings.Replace(d.baseline, c.old, c.new, 1))
+			require.NoError(t, d.parse(data), "%s 写成 yes / on：yaml.v3 读成 true，CLI 收下", c.field)
+			assert.True(t, c.readTrue(data), "%s 被读成了 true，不是被忽略", c.field)
+
+			node, found := indexSchema(t, c.doc)[c.schemaPath]
+			require.True(t, found, "schema 里没有 %s", c.schemaPath)
+			names := typeNames(node)
+			assert.Contains(t, names, "boolean", c.schemaPath)
+			assert.NotContains(t, names, "string", "%s 只认 true / false：yes / on 是字符串，这是 schema 更严的地方", c.schemaPath)
+		}
+	})
+
+	// 整数字段里写小数：yaml.v3 悄悄截断成整数，schema 的 integer 不认小数。
+	t.Run("整数字段写小数", func(t *testing.T) {
+		for _, c := range []struct {
+			doc, field, schemaPath string
+			old, new               string
+		}{
+			{"project", "resources[0].port", "resources[]/port", "    port: 5432\n", "    port: 5432.5\n"},
+			{"component", "deployment.port", "deployment/port", "  port: 8080\n", "  port: 8080.5\n"},
+		} {
+			d := documents[c.doc]
+			require.Equal(t, 1, strings.Count(d.baseline, c.old), "基准里应该恰好有一处 %q", c.old)
+			data := []byte(strings.Replace(d.baseline, c.old, c.new, 1))
+			require.NoError(t, d.parse(data), "%s 写成小数：yaml.v3 截断成整数，CLI 收下", c.field)
+
+			node, found := indexSchema(t, c.doc)[c.schemaPath]
+			require.True(t, found, "schema 里没有 %s", c.schemaPath)
+			names := typeNames(node)
+			assert.Contains(t, names, "integer", c.schemaPath)
+			assert.NotContains(t, names, "number", "%s 是整数字段：5432.5 不是整数，这是 schema 更严的地方", c.schemaPath)
+		}
+
+		// 截断是真的：值落到了 5432，不是被拒绝
+		cfg, err := config.ParseConfig([]byte(strings.Replace(baselineProject, "    port: 5432\n", "    port: 5432.5\n", 1)), "brickkit.yaml")
+		require.NoError(t, err)
+		assert.Equal(t, 5432, cfg.Resources[0].Port)
 	})
 }
 
