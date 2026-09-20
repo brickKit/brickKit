@@ -97,4 +97,47 @@ var zh = map[string]string{
 	msgid.ShellConfigVarCollision:                "错误：外壳 %[1]s 下两个成员的 config 算出了同一个环境变量名，但值不同",
 	msgid.ShellConfigVarCollisionReasonDetail:    "这条变量名由组件 ID 与 config 项名拼出来，不含版本号——最常见的成因是同一个组件 ID 的两个不同版本被同一个外壳收编，且这一项 config 的值不一样",
 	msgid.ShellHintAlignConfigValues:             "让这两个成员这一项 config 的值保持一致，或者不要把它们放进同一个外壳",
+
+	msgid.WorkspaceLabelLocation: "位置",
+	msgid.WorkspaceLabelFrom:     "从",
+	msgid.WorkspaceLabelTo:       "到",
+
+	msgid.WorkspaceCloneFailedDirExists:  "clone 失败：目录已存在",
+	msgid.WorkspaceActiveDirReasonDetail: "该目录已存在，可能包含你正在开发的组件源码",
+	msgid.WorkspaceHintDeleteOrRename:    "如果是误操作，请先删除或重命名该目录",
+	msgid.WorkspaceHintAlreadyHaveSource: "如果已有源码，无需再次 clone",
+
+	msgid.WorkspaceCloneFailedArchived:  "clone 失败：源码已经在了，只是被归档着",
+	msgid.WorkspaceArchivedReasonDetail: "brickkit sync 把这次不启动的组件源码收进了归档目录，它没有丢，只是不在活跃目录里",
+	msgid.WorkspaceHintRunSync:          "brickkit sync —— 让它跟着启停判定回到 %[1]s",
+	msgid.WorkspaceHintEditInPlace:      "或直接进 %[1]s/ 编辑，git 命令与 IDE 都照常",
+
+	msgid.WorkspaceCannotCreateSourceDir: "错误：无法创建源码目录",
+
+	msgid.WorkspaceCloneFailed:            "错误：clone 失败",
+	msgid.WorkspaceHintCheckNetworkAndURL: "检查网络连接与仓库地址是否正确",
+	msgid.WorkspaceHintCheckAccess:        "确认对该仓库有访问权限（私有仓库需配置 Git 凭据）",
+
+	msgid.WorkspaceDeleteSourceDirFailed:  "错误：删除源码目录失败",
+	msgid.WorkspaceHintCheckDirPermission: "检查目录权限，或手工删除后重试",
+
+	msgid.WorkspaceRemoveBlockedSubmodule:    "错误：无法删除组件源码——它是一个已登记的 git submodule",
+	msgid.WorkspaceRemoveBlockedReasonDetail: "直接删除工作目录不会清理 .gitmodules、superproject 索引里的 gitlink 记录、以及 .git/modules/ 下的内部仓库数据，git 状态会从此引用一个不存在的东西",
+	msgid.WorkspaceHintManualDeinit:          "手工执行：git submodule deinit -f -- %[1]s",
+	msgid.WorkspaceHintManualRmCache:         "再执行：git rm -f %[1]s",
+	msgid.WorkspaceHintManualCleanModules:    "需要彻底清理时：rm -rf .git/modules/%[1]s",
+
+	msgid.WorkspaceMoveTargetExists:        "错误：目标目录已存在，无法移动组件源码",
+	msgid.WorkspaceHintCheckTargetContents: "先检查目标目录里是什么，确认无用后删除或重命名它",
+	msgid.WorkspaceHintNoAutoDecision:      "两处都有源码时，平台不替你决定保留哪一份",
+
+	msgid.WorkspaceActionCreateDir:     "创建目录",
+	msgid.WorkspaceActionMoveDir:       "移动目录",
+	msgid.WorkspaceMoveErrorTemplate:   "错误：%[1]s失败",
+	msgid.WorkspaceHintCheckDirAndDisk: "检查目录权限与磁盘空间",
+
+	msgid.WorkspaceMoveBlockedSubmodule:     "错误：无法移动组件源码——它是一个已登记的 git submodule",
+	msgid.WorkspaceMoveBlockedReasonDetail:  "直接移动目录不会更新 .gitmodules 的 path 字段与 superproject 索引，下一次 git add -A 会把这个组件的独立版本历史拍扁成普通文件，且没有任何报错",
+	msgid.WorkspaceHintManualMoveEquivalent: "手工执行等价操作：mkdir -p %[1]s && git mv %[2]s %[3]s",
+	msgid.WorkspaceHintConfirmThenSync:      "确认 .gitmodules 与 git status 都正常之后，再重跑一次 brickkit sync",
 }

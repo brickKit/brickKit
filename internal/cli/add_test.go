@@ -501,7 +501,7 @@ func TestAddRepoExistingDirectoryFails(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "clone 失败：目录已存在")
+	assert.Contains(t, r.stderr, "Clone failed: directory already exists")
 	assert.Contains(t, r.stderr, "components/people/basic/")
 	assert.Equal(t, "我的源码", readFile(t, filepath.Join(existing, "my-work.txt")),
 		"已有源码一个字节都不能动")
@@ -527,7 +527,7 @@ func TestAddRepoRefusesWhenSourceIsArchived(t *testing.T) {
 	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo", "--yes")
 
 	require.NotEqual(t, clierr.ExitOK, r.code, "该拦下来：%s", r.stdout+r.stderr)
-	assert.Contains(t, r.stderr, "只是被归档着")
+	assert.Contains(t, r.stderr, "already there, just archived")
 	assert.Contains(t, r.stderr, "brickkit sync", "要给出把它移回来的办法")
 	assert.NoDirExists(t, filepath.Join(f.Layout.ComponentsDir(), "people", "basic"),
 		"活跃目录一个字节都不该被创建出来")
@@ -626,7 +626,7 @@ func TestAddRepoAgainAfterCloneSaysSourceIsAlreadyThere(t *testing.T) {
 	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo", "--yes")
 
 	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stderr, "clone 失败：目录已存在")
+	assert.Contains(t, r.stderr, "Clone failed: directory already exists")
 	assert.NotContains(t, r.stderr, "没有可用的 Git 仓库地址",
 		"用户明明克隆过——那句话对他来说是错的")
 }
@@ -644,7 +644,7 @@ func TestAddRepoWhenArchivedUnderDefaultLayoutPointsAtArchive(t *testing.T) {
 	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo", "--yes")
 
 	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stderr, "只是被归档着")
+	assert.Contains(t, r.stderr, "already there, just archived")
 	assert.Contains(t, r.stderr, "brickkit sync")
 	assert.NotContains(t, r.stderr, "没有可用的 Git 仓库地址")
 	assert.NoDirExists(t, filepath.Join(f.Layout.ComponentsDir(), "people", "basic"))

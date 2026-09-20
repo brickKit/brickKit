@@ -213,7 +213,7 @@ func TestAddRepoCloneFailure(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "clone 失败")
+	assert.Contains(t, r.stderr, "clone failed")
 	assert.NoDirExists(t, filepath.Join(f.Layout.ComponentsDir(), "people", "basic"))
 }
 

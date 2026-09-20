@@ -108,7 +108,7 @@ func TestCloneRefusesExistingDirectory(t *testing.T) {
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeCloneFailed, e.Code)
 	out := e.Format()
-	assert.Contains(t, out, "clone 失败：目录已存在")
+	assert.Contains(t, out, "Clone failed: directory already exists")
 	assert.Contains(t, out, "components/people/basic/")
 	assert.Contains(t, out, "people/basic@1.0.0")
 
@@ -132,7 +132,7 @@ func TestCloneRefusesArchivedSource(t *testing.T) {
 	require.Error(t, err)
 
 	out := clierr.As(err).Format()
-	assert.Contains(t, out, "只是被归档着", "要说清源码没丢")
+	assert.Contains(t, out, "already there, just archived", "要说清源码没丢")
 	assert.Contains(t, out, "components/.archived/people/basic", "要指出它在哪")
 	assert.Contains(t, out, "brickkit sync", "要给出把它移回来的办法")
 
@@ -180,7 +180,7 @@ func TestCloneCannotCreateParent(t *testing.T) {
 
 	_, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", "irrelevant")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "无法创建源码目录")
+	assert.Contains(t, clierr.As(err).Format(), "could not create the source directory")
 }
 
 // ============================================================
@@ -285,7 +285,7 @@ func TestRemoveSourceUnreadableDir(t *testing.T) {
 
 	_, err := RemoveSource(layout, "people/basic", nil)
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "删除源码目录失败")
+	assert.Contains(t, clierr.As(err).Format(), "failed to delete the source directory")
 }
 
 func TestFirstLine(t *testing.T) {

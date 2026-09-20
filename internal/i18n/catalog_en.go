@@ -97,4 +97,47 @@ var en = map[string]string{
 	msgid.ShellConfigVarCollision:                "Error: two members' config under shell %[1]s produced the same environment variable name, with different values",
 	msgid.ShellConfigVarCollisionReasonDetail:    "This variable name is built from the component ID and the config item name, without a version — the usual cause is two different versions of the same component ID being served by the same shell, with different values for this config item",
 	msgid.ShellHintAlignConfigValues:             "Make these two members' value for this config item consistent, or don't put them in the same shell",
+
+	msgid.WorkspaceLabelLocation: "Location",
+	msgid.WorkspaceLabelFrom:     "From",
+	msgid.WorkspaceLabelTo:       "To",
+
+	msgid.WorkspaceCloneFailedDirExists:  "Clone failed: directory already exists",
+	msgid.WorkspaceActiveDirReasonDetail: "This directory already exists and may hold source you're actively working on",
+	msgid.WorkspaceHintDeleteOrRename:    "If this happened by mistake, delete or rename the directory first",
+	msgid.WorkspaceHintAlreadyHaveSource: "If the source is already there, there's no need to clone it again",
+
+	msgid.WorkspaceCloneFailedArchived: "Clone failed: the source is already there, just archived",
+	msgid.WorkspaceArchivedReasonDetail: "brickkit sync moved this component's source into the archive because it isn't starting this time — it isn't lost, it's just not in the active directory",
+	msgid.WorkspaceHintRunSync:         "Run brickkit sync — it'll follow the start/stop decision back to %[1]s",
+	msgid.WorkspaceHintEditInPlace:     "Or go edit it directly under %[1]s/ — git and your IDE both work as usual there",
+
+	msgid.WorkspaceCannotCreateSourceDir: "Error: could not create the source directory",
+
+	msgid.WorkspaceCloneFailed:            "Error: clone failed",
+	msgid.WorkspaceHintCheckNetworkAndURL: "Check the network connection and whether the repository URL is correct",
+	msgid.WorkspaceHintCheckAccess:        "Confirm you have access to this repository (private repos need Git credentials configured)",
+
+	msgid.WorkspaceDeleteSourceDirFailed:  "Error: failed to delete the source directory",
+	msgid.WorkspaceHintCheckDirPermission: "Check directory permissions, or delete it by hand and retry",
+
+	msgid.WorkspaceRemoveBlockedSubmodule:    "Error: can't remove this component's source — it's a registered git submodule",
+	msgid.WorkspaceRemoveBlockedReasonDetail: "Deleting the working directory directly doesn't clean up .gitmodules, the gitlink entry in the superproject index, or the internal repo data under .git/modules/ — git's state would end up referencing something that no longer exists",
+	msgid.WorkspaceHintManualDeinit:          "Run by hand: git submodule deinit -f -- %[1]s",
+	msgid.WorkspaceHintManualRmCache:         "Then run: git rm -f %[1]s",
+	msgid.WorkspaceHintManualCleanModules:    "For a full cleanup: rm -rf .git/modules/%[1]s",
+
+	msgid.WorkspaceMoveTargetExists:        "Error: the target directory already exists, can't move this component's source",
+	msgid.WorkspaceHintCheckTargetContents: "Check what's in the target directory first, then delete or rename it once you've confirmed it's unused",
+	msgid.WorkspaceHintNoAutoDecision:       "When source exists in both places, the platform won't decide for you which one to keep",
+
+	msgid.WorkspaceActionCreateDir:     "Create directory",
+	msgid.WorkspaceActionMoveDir:       "Move directory",
+	msgid.WorkspaceMoveErrorTemplate:   "Error: %[1]s failed",
+	msgid.WorkspaceHintCheckDirAndDisk: "Check directory permissions and disk space",
+
+	msgid.WorkspaceMoveBlockedSubmodule:     "Error: can't move this component's source — it's a registered git submodule",
+	msgid.WorkspaceMoveBlockedReasonDetail:  "Moving the directory directly doesn't update .gitmodules' path field or the superproject index — the next git add -A would flatten this component's independent version history into a plain file, with no error at all",
+	msgid.WorkspaceHintManualMoveEquivalent: "Run the equivalent by hand: mkdir -p %[1]s && git mv %[2]s %[3]s",
+	msgid.WorkspaceHintConfirmThenSync:      "Once .gitmodules and git status both look normal, rerun brickkit sync",
 }

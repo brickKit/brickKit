@@ -17,6 +17,8 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // SourceDir 返回组件源码目录的完整路径。
@@ -95,24 +97,22 @@ func isDir(path string) bool {
 func ExistingSourceError(l config.Layout, componentID, ref string) error {
 	switch Locate(l, componentID) {
 	case StateActive:
-		return clierr.New(clierr.CodeCloneFailed, "clone 失败：目录已存在").
-			WithDetail("组件", ref).
-			WithDetail("目录", DisplayDir(componentID)).
-			WithDetail("原因", "该目录已存在，可能包含你正在开发的组件源码").
+		return clierr.New(clierr.CodeCloneFailed, i18n.T(msgid.WorkspaceCloneFailedDirExists)).
+			WithDetail(i18n.T(msgid.LabelComponent), ref).
+			WithDetail(i18n.T(msgid.LabelDir), DisplayDir(componentID)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.WorkspaceActiveDirReasonDetail)).
 			WithHint(
-				"如果是误操作，请先删除或重命名该目录",
-				"如果已有源码，无需再次 clone",
+				i18n.T(msgid.WorkspaceHintDeleteOrRename),
+				i18n.T(msgid.WorkspaceHintAlreadyHaveSource),
 			)
 	case StateArchived:
-		return clierr.New(clierr.CodeCloneFailed, "clone 失败：源码已经在了，只是被归档着").
-			WithDetail("组件", ref).
-			WithDetail("位置", DisplayArchivedDir(componentID)).
-			WithDetail("原因",
-				"brickkit sync 把这次不启动的组件源码收进了归档目录，"+
-					"它没有丢，只是不在活跃目录里").
+		return clierr.New(clierr.CodeCloneFailed, i18n.T(msgid.WorkspaceCloneFailedArchived)).
+			WithDetail(i18n.T(msgid.LabelComponent), ref).
+			WithDetail(i18n.T(msgid.WorkspaceLabelLocation), DisplayArchivedDir(componentID)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.WorkspaceArchivedReasonDetail)).
 			WithHint(
-				"brickkit sync —— 让它跟着启停判定回到 "+DisplayDir(componentID),
-				"或直接进 "+DisplayArchivedDir(componentID)+"/ 编辑，git 命令与 IDE 都照常",
+				i18n.T(msgid.WorkspaceHintRunSync, DisplayDir(componentID)),
+				i18n.T(msgid.WorkspaceHintEditInPlace, DisplayArchivedDir(componentID)),
 			)
 	default:
 		return nil
@@ -130,9 +130,9 @@ func Clone(ctx context.Context, l config.Layout, componentID, ref, gitURL string
 		return "", err
 	}
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return "", clierr.New(clierr.CodeCloneFailed, "错误：无法创建源码目录").
-			WithDetail("目录", DisplayDir(componentID)).
-			WithDetail("原因", err.Error()).
+		return "", clierr.New(clierr.CodeCloneFailed, i18n.T(msgid.WorkspaceCannotCreateSourceDir)).
+			WithDetail(i18n.T(msgid.LabelDir), DisplayDir(componentID)).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
 			WithCause(err)
 	}
 
@@ -141,13 +141,13 @@ func Clone(ctx context.Context, l config.Layout, componentID, ref, gitURL string
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		_ = os.RemoveAll(target)
-		return "", clierr.New(clierr.CodeCloneFailed, "错误：clone 失败").
-			WithDetail("组件", ref).
-			WithDetail("仓库", gitURL).
-			WithDetail("原因", firstLine(string(out), err)).
+		return "", clierr.New(clierr.CodeCloneFailed, i18n.T(msgid.WorkspaceCloneFailed)).
+			WithDetail(i18n.T(msgid.LabelComponent), ref).
+			WithDetail(i18n.T(msgid.LabelRepo), gitURL).
+			WithDetail(i18n.T(msgid.LabelReason), firstLine(string(out), err)).
 			WithHint(
-				"检查网络连接与仓库地址是否正确",
-				"确认对该仓库有访问权限（私有仓库需配置 Git 凭据）",
+				i18n.T(msgid.WorkspaceHintCheckNetworkAndURL),
+				i18n.T(msgid.WorkspaceHintCheckAccess),
 			).WithCause(err)
 	}
 	return target, nil
@@ -279,10 +279,10 @@ func removeDir(repo *gitrepo.Repo, loc srcLoc, componentID string) (bool, error)
 		return false, err
 	}
 	if err := os.RemoveAll(loc.path); err != nil {
-		return false, clierr.New(clierr.CodeConfigInvalid, "错误：删除源码目录失败").
-			WithDetail("目录", loc.display).
-			WithDetail("原因", err.Error()).
-			WithHint("检查目录权限，或手工删除后重试").
+		return false, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.WorkspaceDeleteSourceDirFailed)).
+			WithDetail(i18n.T(msgid.LabelDir), loc.display).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.WorkspaceHintCheckDirPermission)).
 			WithCause(err)
 	}
 	loc.pruneEmptyScope()
@@ -295,15 +295,14 @@ func removeDir(repo *gitrepo.Repo, loc srcLoc, componentID string) (bool, error)
 // 里的 gitlink 记录、.git/modules/ 下的内部仓库数据都还留着——之后 git 状态
 // 会"引用一个不存在的东西"，需要人工清理（gap report §2.3）。
 func submoduleRemoveBlockedError(componentID, display string) error {
-	return clierr.New(clierr.CodeSubmoduleGuard, "错误：无法删除组件源码——它是一个已登记的 git submodule").
-		WithDetail("组件", componentID).
-		WithDetail("路径", display).
-		WithDetail("原因", "直接删除工作目录不会清理 .gitmodules、superproject 索引里的 gitlink 记录、"+
-			"以及 .git/modules/ 下的内部仓库数据，git 状态会从此引用一个不存在的东西").
+	return clierr.New(clierr.CodeSubmoduleGuard, i18n.T(msgid.WorkspaceRemoveBlockedSubmodule)).
+		WithDetail(i18n.T(msgid.LabelComponent), componentID).
+		WithDetail(i18n.T(msgid.LabelPath), display).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.WorkspaceRemoveBlockedReasonDetail)).
 		WithHint(
-			"手工执行：git submodule deinit -f -- "+display,
-			"再执行：git rm -f "+display,
-			"需要彻底清理时：rm -rf .git/modules/"+display,
+			i18n.T(msgid.WorkspaceHintManualDeinit, display),
+			i18n.T(msgid.WorkspaceHintManualRmCache, display),
+			i18n.T(msgid.WorkspaceHintManualCleanModules, display),
 		)
 }
 
@@ -413,33 +412,33 @@ func move(repo *gitrepo.Repo, from, to srcLoc, componentID string) error {
 	}
 	if _, err := os.Stat(to.path); err == nil {
 		// 目标已存在：那里可能是使用者手工放的东西，绝不覆盖
-		return clierr.New(clierr.CodeConfigInvalid, "错误：目标目录已存在，无法移动组件源码").
-			WithDetail("组件", componentID).
-			WithDetail("从", from.display).
-			WithDetail("到", to.display).
+		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.WorkspaceMoveTargetExists)).
+			WithDetail(i18n.T(msgid.LabelComponent), componentID).
+			WithDetail(i18n.T(msgid.WorkspaceLabelFrom), from.display).
+			WithDetail(i18n.T(msgid.WorkspaceLabelTo), to.display).
 			WithHint(
-				"先检查目标目录里是什么，确认无用后删除或重命名它",
-				"两处都有源码时，平台不替你决定保留哪一份",
+				i18n.T(msgid.WorkspaceHintCheckTargetContents),
+				i18n.T(msgid.WorkspaceHintNoAutoDecision),
 			)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(to.path), 0o755); err != nil {
-		return moveError("创建目录", componentID, from.display, to.display, err)
+		return moveError(i18n.T(msgid.WorkspaceActionCreateDir), componentID, from.display, to.display, err)
 	}
 	if err := os.Rename(from.path, to.path); err != nil {
-		return moveError("移动目录", componentID, from.display, to.display, err)
+		return moveError(i18n.T(msgid.WorkspaceActionMoveDir), componentID, from.display, to.display, err)
 	}
 	from.pruneEmptyScope()
 	return nil
 }
 
 func moveError(action, componentID, from, to string, cause error) error {
-	return clierr.Newf(clierr.CodeInternal, "错误：%s失败", action).
-		WithDetail("组件", componentID).
-		WithDetail("从", from).
-		WithDetail("到", to).
-		WithDetail("原因", cause.Error()).
-		WithHint("检查目录权限与磁盘空间").
+	return clierr.Newf(clierr.CodeInternal, i18n.T(msgid.WorkspaceMoveErrorTemplate, action)).
+		WithDetail(i18n.T(msgid.LabelComponent), componentID).
+		WithDetail(i18n.T(msgid.WorkspaceLabelFrom), from).
+		WithDetail(i18n.T(msgid.WorkspaceLabelTo), to).
+		WithDetail(i18n.T(msgid.LabelReason), cause.Error()).
+		WithHint(i18n.T(msgid.WorkspaceHintCheckDirAndDisk)).
 		WithCause(cause)
 }
 
@@ -453,14 +452,13 @@ func submoduleMoveBlockedError(componentID, from, to string) error {
 	// 第一次归档某个 scope 时目标父目录还不存在，裸给一句 git mv 会让照抄的人
 	// 当场撞上 "fatal: renaming ... failed: No such file or directory"。
 	toParent := stdpath.Dir(strings.TrimSuffix(to, "/"))
-	return clierr.New(clierr.CodeSubmoduleGuard, "错误：无法移动组件源码——它是一个已登记的 git submodule").
-		WithDetail("组件", componentID).
-		WithDetail("从", from).
-		WithDetail("到", to).
-		WithDetail("原因", "直接移动目录不会更新 .gitmodules 的 path 字段与 superproject 索引，"+
-			"下一次 git add -A 会把这个组件的独立版本历史拍扁成普通文件，且没有任何报错").
+	return clierr.New(clierr.CodeSubmoduleGuard, i18n.T(msgid.WorkspaceMoveBlockedSubmodule)).
+		WithDetail(i18n.T(msgid.LabelComponent), componentID).
+		WithDetail(i18n.T(msgid.WorkspaceLabelFrom), from).
+		WithDetail(i18n.T(msgid.WorkspaceLabelTo), to).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.WorkspaceMoveBlockedReasonDetail)).
 		WithHint(
-			"手工执行等价操作：mkdir -p "+toParent+" && git mv "+from+" "+to,
-			"确认 .gitmodules 与 git status 都正常之后，再重跑一次 brickkit sync",
+			i18n.T(msgid.WorkspaceHintManualMoveEquivalent, toParent, from, to),
+			i18n.T(msgid.WorkspaceHintConfirmThenSync),
 		)
 }
