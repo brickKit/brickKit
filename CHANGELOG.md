@@ -11,6 +11,33 @@ add up to, rather than listing every commit individually.
 
 ## [Unreleased]
 
+### Added
+
+- `brickkit graph`: prints the project's dependency topology as Mermaid text
+  on stdout — required dependencies solid, optional ones dashed (an optional
+  dependency that can't be found is drawn as a "not installed" node),
+  components that won't start this run greyed out, and `servedBy` members
+  grouped inside their shell. Nothing but Mermaid goes to stdout, so
+  `brickkit graph > graph.mmd` gives a file GitHub renders;
+  `--ignore-served-by` draws every component standalone
+- `brickkit lint`: an offline, read-only structure check of `brickkit.yaml`
+  and of the `component.yaml` files under the project's local install sources
+  — or, in a standalone component repository (a `component.yaml` and no
+  `brickkit.yaml`), of that one file. It reports what `up`, `add` and
+  `publish` would reject (missing required fields, wrong types, unknown keys,
+  malformed versions, out-of-range ports), plus two kinds of warning: a
+  misspelled key inside a `configSchema` property, and a config key that
+  collides with a reserved variable — checked for every key `configSchema`
+  declares, a wider net than the warning `up` prints. It exits `1` on errors;
+  `--strict` makes warnings fail too, for a CI gate. Error code
+  `LINT_FAILED`. It does not resolve dependencies or check that a `servedBy`
+  target exists — that stays with `brickkit up --dry-run`
+- `schemas/component.schema.json` and `schemas/brickkit.schema.json`: JSON
+  Schemas for `component.yaml` and `brickkit.yaml`, generated from the CLI's
+  own Go structs (`make generate-schemas`). An editor with YAML-schema support
+  can offer field completion and mark unknown fields, wrong types and
+  malformed versions as you type; the Quick Start shows how to wire them up
+
 ## [0.4.6] - 2026-09-17
 
 ### Fixed

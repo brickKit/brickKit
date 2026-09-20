@@ -324,8 +324,8 @@ Not a single line of component code changes: addressing is identical in both
 environments, always `http://<versioned-service-name>:<port>` (for example
 `http://people-basic-1-0-0:8080`).
 
-**16 commands in total:** `init` `new` `add` `remove` `fetch` `up` `down` `status`
-`sync` `restore` `login` `logout` `publish` `version`
+**16 commands, plus `version`:** `init` `skills` `graph` `lint` `new` `add` `remove`
+`fetch` `up` `down` `status` `sync` `restore` `login` `logout` `publish`
 
 Want to actually run it? The [5-minute Quick Start](docs/en/00-quick-start.md)
 walks this exact path with the repository's own test fixture — every command
@@ -410,9 +410,11 @@ Just looking up a command? See the [command overview](https://github.com/brickKi
 
 ```
 cmd/brickkit/          CLI entry point
+cmd/gen-schemas/       regenerates schemas/*.json (make generate-schemas)
 internal/              CLI implementation
   ├── config/            brickkit.yaml parsing & validation
   ├── manifest/          component.yaml parsing & validation
+  ├── schemagen/         generates the JSON Schemas from those two structs
   ├── resolver/          dependency resolution, topological sort
   ├── shell/              servedBy grouping/merging, shared by the compose and k8s renderers
   ├── cascade/           start/stop decisions: what actually needs to start this run ("follow the parent")
@@ -424,6 +426,7 @@ internal/              CLI implementation
   ├── security/           cosign signing & standard-library verification
   └── workspace/          component source workspace (--repo / sync)
 market-server/         component market backend (a separate Go module)
+schemas/               JSON Schema for component.yaml and brickkit.yaml (generated, checked in)
 tests/components/      10 real components, used to test the platform itself
 tests/checklist/       acceptance checklists → the tests that prove them
 deploy/market/         the market's compose / kustomize / Helm manifests
@@ -455,6 +458,7 @@ breaks**, instead of quietly reporting zero problems:
 | `make test-regression` | User-facing promises → the tests that prove them (`tests/regression/清单.tsv`) |
 | `make test-boundary` (and friends) | Boundary / error / compatibility / security acceptance items → the tests that prove them (`tests/checklist/清单.tsv`) |
 | `make check-doc-fields` | Every field name drawn in the docs' YAML snippets and field tables really exists (the source of truth is the struct itself) |
+| `make check-schemas` | The JSON Schemas in `schemas/` are exactly what the config and manifest structs generate, and the required fields, closed values, patterns and ranges they state agree with the real validators (regenerate with `make generate-schemas`) |
 | `make check-docs` | Dangling section references and broken links |
 | `make check-cli-docs` | Every command/flag the docs claim to exist, really does (the reverse direction — new commands not yet documented — isn't enforced here) |
 | `make check-guides` | The steps in the guides still work |

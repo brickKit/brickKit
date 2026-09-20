@@ -44,6 +44,18 @@ several of them exist specifically because a past change broke something a
 test suite has no way to notice — a renamed flag, a stale example, a link
 that used to point somewhere real.
 
+`make lint` also guards the JSON Schemas in `schemas/`
+(`schemas/component.schema.json` and `schemas/brickkit.schema.json` — what
+editors use to complete and check `component.yaml` and `brickkit.yaml`). They
+are generated from the Go structs in `internal/manifest` and
+`internal/config`, never hand-edited. **If you add, remove or retype a field
+there, or change its `omitempty` or a `jsonschema` tag, run `make
+generate-schemas` and commit the regenerated files along with the change** —
+otherwise `make check-schemas` (part of `make lint`) fails. That check also
+holds the schema's required fields and its closed values, patterns and ranges
+to what the real validators accept, so a `jsonschema` tag can't quietly drift
+away from `Validate`.
+
 ## Where tests live
 
 Unit tests live **next to the code they test** (`internal/**/*_test.go`,

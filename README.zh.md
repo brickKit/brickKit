@@ -296,8 +296,8 @@ deploy:
 组件代码一个字都不用改：两个环境下的地址格式完全一样，都是
 `http://<版本化服务名>:<端口>`（例如 `http://people-basic-1-0-0:8080`）。
 
-**命令共 16 条：** `init` `new` `add` `remove` `fetch` `up` `down` `status` `sync`
-`restore` `login` `logout` `publish` `version`
+**16 条命令，外加 `version`：** `init` `skills` `graph` `lint` `new` `add` `remove`
+`fetch` `up` `down` `status` `sync` `restore` `login` `logout` `publish`
 
 想动手照着跑一遍？[5 分钟 Quick Start](docs/zh/00-quick-start.md) 用仓库自带的
 测试夹具走完这整条路径，每一步都是真实命令和真实输出。
@@ -373,9 +373,11 @@ Manifest 和依赖方的 API 契约，就能写出一个完整的、可独立运
 
 ```
 cmd/brickkit/          CLI 入口
+cmd/gen-schemas/       重新生成 schemas/*.json（make generate-schemas）
 internal/              CLI 实现
   ├── config/            brickkit.yaml 解析与校验
   ├── manifest/          component.yaml 解析与校验
+  ├── schemagen/         从这两个结构体生成 JSON Schema
   ├── resolver/          依赖解析、拓扑排序
   ├── shell/             servedBy 分组与合并，compose 和 k8s 渲染器共用
   ├── cascade/           启停判定：算出这次实际启动谁（跟着上层走）
@@ -387,6 +389,7 @@ internal/              CLI 实现
   ├── security/          cosign 签名与标准库验签
   └── workspace/         组件源码工作区（--repo / sync）
 market-server/         组件市场后端（独立 Go module）
+schemas/               component.yaml 与 brickkit.yaml 的 JSON Schema（生成出来并签入仓库）
 tests/components/      10 个真实组件，用来测试平台本身
 tests/checklist/       验收清单 → 证明它们的测试
 deploy/market/         市场的 compose / kustomize / Helm
@@ -416,6 +419,7 @@ make lint             # vet + 文档检查
 | `make test-regression` | 面向用户的承诺 → 证明它们的测试（`tests/regression/清单.tsv`） |
 | `make test-boundary` 等 | 边界 / 错误 / 兼容 / 安全验收条目 → 证明它们的测试（`tests/checklist/清单.tsv`） |
 | `make check-doc-fields` | 文档里画的 yaml 片段与字段表，字段名都真的存在（真相来源是结构体本身） |
+| `make check-schemas` | `schemas/` 里的 JSON Schema 与 config、manifest 两个结构体生成出来的结果一字不差，schema 里写的必填字段、封闭取值、正则与范围也与真实校验器一致（重新生成用 `make generate-schemas`） |
 | `make check-docs` | 悬空的小节引用与断链 |
 | `make check-cli-docs` | 文档里写的每条命令 / 参数都真的存在（反过来——新增了命令却还没写进文档——这里不管） |
 | `make check-guides` | 试用指南里的步骤仍然跑得通 |

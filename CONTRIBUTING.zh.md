@@ -21,6 +21,8 @@ make lint             # vet + 全部文档一致性检查
 
 `make lint` 还会跑一组文档一致性脚本（`scripts/check-*.py`）——悬空的小节引用、断链、文档里写的命令/参数其实不存在、文档画的 YAML 字段名和真实结构体对不上、docs/en↔docs/zh 镜像，还有几个别的（完整列表和每一条守住什么，见 README 的["构建与测试"](README.zh.md#构建与测试)一节）。这些不是摆设——好几条的存在就是因为某次改动破坏了一些测试套件根本没法察觉的东西：改名的参数、过期的示例、曾经指向真实位置、后来指向空处的链接。
 
+`make lint` 还守着 `schemas/` 里的 JSON Schema（`schemas/component.schema.json`、`schemas/brickkit.schema.json`——编辑器用它们给 `component.yaml` 和 `brickkit.yaml` 做补全与检查）。它们是从 `internal/manifest` 与 `internal/config` 的 Go 结构体生成出来的，从不手改。**只要你在那里新增、删除或改了某个字段的类型，或者动了它的 `omitempty`、某个 `jsonschema` tag，就要跑 `make generate-schemas`，把重新生成的文件和你的改动一起提交**——否则 `make check-schemas`（`make lint` 的一部分）会失败。这道检查还会拿真实的校验器去核对 schema 里的必填字段、封闭取值、正则和范围，所以 `jsonschema` tag 不会悄悄和 `Validate` 脱节。
+
 ## 测试放在哪
 
 单元测试**紧挨着被测代码**（`internal/**/*_test.go`、`market-server/internal/**/*_test.go`）——不用维护一套平行的测试目录。`tests/` 只放真的没法挨着代码放的东西：`tests/checklist/` 和 `tests/regression/` 是验收清单，每一行都配着证明它的测试（两者都由 `make lint` 守着，具体见 README 的"构建与测试"表格），`tests/components/` 放的是好几个测试和教程文章实际会跑起来的真实夹具组件。
