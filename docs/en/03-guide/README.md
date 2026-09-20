@@ -22,4 +22,4 @@ A sequence of tutorials, each one run for real against the actual CLI — not a 
 
 **Why every tutorial uses such small components:** after the first, every tutorial reuses the same two or three minimal fixture components (`demo/hello`, `demo/caller`, `infra/redis-event-bus`) rather than building out a larger, more realistic one. The point of each tutorial is a platform mechanism, not a business scenario, so the fixtures stay deliberately small.
 
-**Something went wrong partway through:** [Troubleshooting](../08-troubleshooting.md) lists the most common `up`/`down`, local-debug and signature failures by symptom, symptom → real cause → fix.
+**Something went wrong partway through:** [Troubleshooting](../08-troubleshooting.md) lists the most common `up`/`down`, local-debug and signature failures, plus the offline checks (`lint` and the editor schemas), by symptom, symptom → real cause → fix.
