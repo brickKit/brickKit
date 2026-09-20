@@ -106,7 +106,7 @@ func TestResolveErrorsWhenShellDoesNotExist(t *testing.T) {
 		"mdm/customer@1.0.7": simple("mdm/customer", "1.0.7", 8080),
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "不存在")
+	assert.Contains(t, err.Error(), "does not exist")
 }
 
 func TestResolveErrorsWhenShellIsDisabled(t *testing.T) {
@@ -120,7 +120,7 @@ func TestResolveErrorsWhenShellIsDisabled(t *testing.T) {
 		"mdm/customer@1.0.7":        simple("mdm/customer", "1.0.7", 8080),
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "没有在运行")
+	assert.Contains(t, err.Error(), "is not currently running")
 }
 
 // ---- 端口冲突 ----

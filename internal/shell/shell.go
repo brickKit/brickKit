@@ -20,8 +20,10 @@ import (
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -309,10 +311,10 @@ func checkPortConflicts(shellRef resolver.Ref, shellNode *resolver.Node, members
 		}
 		if previous, taken := claimed[port]; taken && previous != owner {
 			return clierr.Newf(clierr.CodePortConflict,
-				"错误：外壳 %s 上有两个组件都要用端口 %d", shellRef.String(), port).
-				WithDetail("占用方", previous).
-				WithDetail("占用方", owner).
-				WithHint("这几个组件最终都跑在同一个外壳容器/Pod 里，端口必须互不相同")
+				i18n.T(msgid.ShellPortConflict, shellRef.String(), port)).
+				WithDetail(i18n.T(msgid.ShellLabelPortOwner), previous).
+				WithDetail(i18n.T(msgid.ShellLabelPortOwner), owner).
+				WithHint(i18n.T(msgid.ShellHintPortsMustDiffer))
 		}
 		claimed[port] = owner
 		return nil
@@ -417,20 +419,20 @@ func mergeGroup(
 }
 
 func shellNotFoundError(member, target resolver.Ref) *clierr.Error {
-	return clierr.New(clierr.CodeConfigInvalid, "错误：servedBy 指向的组件不存在").
-		WithDetail("组件", member.String()).
-		WithDetailf("servedBy 指向", "%s（当前项目的 components: 里没有这一条）", target.String()).
-		WithHint("检查 servedBy 的值有没有写错组件 ID 或版本号")
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellServedByTargetNotFound)).
+		WithDetail(i18n.T(msgid.LabelComponent), member.String()).
+		WithDetail(i18n.T(msgid.ShellLabelServedByTarget), i18n.T(msgid.ShellServedByTargetNotInProjectDetail, target.String())).
+		WithHint(i18n.T(msgid.ShellHintCheckServedByValue))
 }
 
 func shellNotRunningError(member, target resolver.Ref) *clierr.Error {
-	return clierr.New(clierr.CodeConfigInvalid, "错误：servedBy 指向的外壳当前没有在运行").
-		WithDetail("组件", member.String()).
-		WithDetail("servedBy 指向", target.String()).
-		WithDetail("原因", "这个组件在跑，但它声明的外壳被禁用或没有启动，代码没有地方可以运行").
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellServedByTargetNotRunning)).
+		WithDetail(i18n.T(msgid.LabelComponent), member.String()).
+		WithDetail(i18n.T(msgid.ShellLabelServedByTarget), target.String()).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellNotRunningReasonDetail)).
 		WithHint(
-			"确认外壳组件没有被 enabled: false 关掉",
-			"或者去掉这个组件的 servedBy，让它照常独立部署",
+			i18n.T(msgid.ShellHintCheckShellEnabled),
+			i18n.T(msgid.ShellHintRemoveServedBy),
 		)
 }
 
@@ -438,13 +440,12 @@ func endpointCollisionError(
 	shellRef, firstOwner, secondOwner resolver.Ref, name, firstValue, secondValue string,
 ) *clierr.Error {
 	return clierr.Newf(clierr.CodeConfigInvalid,
-		"错误：外壳 %s 下两个成员对同一个环境变量给出了不同的值", shellRef.String()).
-		WithDetail("变量名", name).
+		i18n.T(msgid.ShellEndpointCollision, shellRef.String())).
+		WithDetail(i18n.T(msgid.ShellLabelVariableName), name).
 		WithDetailf(firstOwner.String(), "%s", firstValue).
 		WithDetailf(secondOwner.String(), "%s", secondValue).
-		WithDetail("原因", "这两个组件各自依赖同一个组件 ID 的不同精确版本——独立部署时互不冲突，"+
-			"合并进同一个外壳的共享环境后，同一个变量名不可能同时指向两个地址").
-		WithHint("让这两个成员依赖同一个精确版本，或者不要把它们放进同一个外壳")
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellEndpointCollisionReasonDetail)).
+		WithHint(i18n.T(msgid.ShellHintAlignVersions))
 }
 
 // configVarCollisionError 生成"两个成员的 config 值算出了同一个环境变量名，
@@ -455,11 +456,10 @@ func configVarCollisionError(
 	shellRef, firstOwner, secondOwner resolver.Ref, name, firstValue, secondValue string,
 ) *clierr.Error {
 	return clierr.Newf(clierr.CodeConfigInvalid,
-		"错误：外壳 %s 下两个成员的 config 算出了同一个环境变量名，但值不同", shellRef.String()).
-		WithDetail("变量名", name).
+		i18n.T(msgid.ShellConfigVarCollision, shellRef.String())).
+		WithDetail(i18n.T(msgid.ShellLabelVariableName), name).
 		WithDetailf(firstOwner.String(), "%s", firstValue).
 		WithDetailf(secondOwner.String(), "%s", secondValue).
-		WithDetail("原因", "这条变量名由组件 ID 与 config 项名拼出来，不含版本号——最常见的成因是"+
-			"同一个组件 ID 的两个不同版本被同一个外壳收编，且这一项 config 的值不一样").
-		WithHint("让这两个成员这一项 config 的值保持一致，或者不要把它们放进同一个外壳")
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellConfigVarCollisionReasonDetail)).
+		WithHint(i18n.T(msgid.ShellHintAlignConfigValues))
 }
