@@ -293,7 +293,7 @@ tag 语法：关键字之间用 `,` 分隔，`enum` 的取值之间用 `|` 分�
   所以 `deploy.target: ${TARGET}` 这种写法 CLI 接受、schema 会标红——schema 校验的是**字面文本**，封闭取值的字段请写字面值。
   完整的"schema 比 CLI 更严"的已知边界共三处，文档里如实列出：① `${VAR}` 写进封闭取值的字段；② yaml.v3 会静默放过、schema 却标红的
   形状：不加引号的非字符串标量写进字符串字段（`project: 2024`、`password: 123456`——yaml.v3 一律照字面转成字符串），
-  以及列表里的 `null` 元素（`components: [null]`、`tags: [null]`——yaml.v3 静默丢掉）；保留它们是因为放宽会把类型提示的
+  以及列表里的 `null` 元素（`tags: [null]`、`dependencies.components: [null]`——yaml.v3 静默丢掉）；保留它们是因为放宽会把类型提示的
   价值整个抹掉，而这些写法本来就是笔误或该加引号的值；③ `configSchema` 属性声明里的多余键
   （CLI 只警告，见 §4.2）。
 - `07-component-yaml-reference.md`/`08-brickkit-yaml-reference.md` 顶部各加一句指向对应 schema 文件的链接。
