@@ -3011,7 +3011,7 @@ make build-cli   # 得到 bin/brickkit
 
 - [ ] **Step 5: quick-start 与 reference 文档里的 schema 说明**
 
-- `docs/{en,zh}/00-quick-start.md`：新增一小节"给编辑器接上自动补全 / Wire up your editor"（放在合适的位置，先读一遍全文再定，别硬塞到不相干处）：先讲它是什么、能得到什么（字段补全、类型提示、拼错的键立刻红线，与 `brickkit lint` 报的是同一批问题）；然后给两种接法——文件顶部一行注释 `# yaml-language-server: $schema=https://raw.githubusercontent.com/brickKit/brickKit/main/schemas/component.schema.json`（brickkit.yaml 对应 `brickkit.schema.json`），以及 VS Code 的 `yaml.schemas` 设置（把两个文件名模式映射到两份 schema；用 `component.yaml` 与 `brickkit*.yaml` 这两个模式）；最后一句实话：schema 只覆盖结构（字段名、类型、必填、封闭取值），不覆盖跨文件的规则，那些看 `brickkit lint`（结构）与 `brickkit up --dry-run`（依赖与生成）。
+- `docs/{en,zh}/00-quick-start.md`：新增一小节"给编辑器接上自动补全 / Wire up your editor"（放在合适的位置，先读一遍全文再定，别硬塞到不相干处）：先讲它是什么、能得到什么（字段补全、类型提示、拼错的键立刻红线，与 `brickkit lint` 报的是同一批问题）；然后给两种接法——文件顶部一行注释 `# yaml-language-server: $schema=https://raw.githubusercontent.com/brickKit/brickKit/main/schemas/component.schema.json`（brickkit.yaml 对应 `brickkit.schema.json`），以及 VS Code 的 `yaml.schemas` 设置（把两个文件名模式映射到两份 schema；用 `component.yaml` 与 `brickkit*.yaml` 这两个模式）；最后一句实话：这些生成的 schema 只覆盖字段本身的结构（字段名、类型、必填、封闭取值）。需要逻辑判断的规则（互斥组合、保留变量冲突、目录名与 `metadata.id` 对得上）归 `brickkit lint`；需要别的文件或联网的规则（依赖图能否解析、`servedBy` 目标是否存在）归 `brickkit up --dry-run`——**lint 不做跨文件检查**（以 task-9-notes.md 为准）。
 - `docs/{en,zh}/06-architecture/07-component-yaml-reference.md` 与 `08-brickkit-yaml-reference.md` 顶部各加一句：本页字段有对应的 JSON Schema，链接到仓库里的 `schemas/…`（相对链接，`check-docs.py` 会检查它不悬空）。**`tests/docfields/reference_test.go` 盯着这两份文档的字段行，加的是一段说明文字，不是字段行，改完要跑它。**
 
 - [ ] **Step 6: AI 助手技能**
