@@ -157,7 +157,7 @@ func TestGitSourceUnreachableURL(t *testing.T) {
 	out := e.Format()
 	assert.Contains(t, out, "my-git")
 	assert.Contains(t, out, "no-such-repo.git")
-	assert.Contains(t, out, "建议", "004 §10.1：网络错误应建议检查网络")
+	assert.Contains(t, out, "Suggestions", "004 §10.1：网络错误应建议检查网络")
 }
 
 // ============================================================

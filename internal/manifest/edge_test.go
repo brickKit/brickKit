@@ -93,8 +93,8 @@ healthCheck:
 	require.Error(t, err)
 
 	out := clierr.As(err).Format()
-	assert.Contains(t, out, "apiVersion：缺失")
-	assert.Contains(t, out, "kind：缺失")
+	assert.Contains(t, out, "apiVersion: 缺失")
+	assert.Contains(t, out, "kind: 缺失")
 }
 
 // artifacts 文件路径为空字符串。
@@ -105,7 +105,7 @@ artifacts:
     files: ["", "openapi.json"]
 `), "component.yaml")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "artifacts[0].files[0]：缺失")
+	assert.Contains(t, clierr.As(err).Format(), "artifacts[0].files[0]: 缺失")
 }
 
 // 依赖映射中字段类型写错（optional 不是布尔值）。
@@ -241,7 +241,7 @@ func TestParseFileUnreadable(t *testing.T) {
 func TestParseWithoutSourceName(t *testing.T) {
 	_, err := Parse([]byte("apiVersion: brickkit/v1\nkind: Component\n"), "")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "文件：component.yaml")
+	assert.Contains(t, clierr.As(err).Format(), "文件: component.yaml")
 }
 
 // Source 字段记录来源，供后续 Step 的错误提示使用。
@@ -267,7 +267,7 @@ func TestValidateOnConstructedManifest(t *testing.T) {
 	m.Metadata.Version = "1.0"
 	err := m.Validate()
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "文件：component.yaml")
+	assert.Contains(t, clierr.As(err).Format(), "文件: component.yaml")
 }
 
 // ============================================================

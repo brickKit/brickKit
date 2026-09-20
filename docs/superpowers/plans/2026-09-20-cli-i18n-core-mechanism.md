@@ -262,10 +262,13 @@ EOF
 **Files:**
 - Modify: `internal/clierr/clierr.go`
 - Modify: `internal/clierr/clierr_test.go`
+- Modify: `internal/clierr/problems_test.go`（执行时才发现：`NewProblemSet` 走同一个 `Format()`，这份测试也硬编码了旧分隔符/标签，写计划时漏查了这个文件）
+- Modify: `internal/cli/cli_test.go`、`internal/cli/lint_test.go`（执行时才发现：`Format()` 是全代码库共用的渲染函数，这两个文件里断言"建议："/"合法值："/"来源："等确切渲染文本的测试也会受影响）
+- Modify: `internal/config/edge_test.go`、`internal/manifest/edge_test.go`、`internal/source/source_test.go`（同上）
 
 **Interfaces:**
 - Consumes: `i18n.T`、`msgid.DetailLine`、`msgid.HintLabelSingle`、`msgid.HintLabelMulti`（Task 1）
-- Produces: 无新增导出符号；`(*Error).Format()` 的渲染结果从此按 `i18n.Current()` 变化
+- Produces: 无新增导出符号；`(*Error).Format()` 的渲染结果从此按 `i18n.Current()` 变化——这个影响面比"改两个文件"大得多：全代码库任何断言过 `Format()` 确切渲染文本（分隔符"："、"建议："标签）的测试都会受影响，实际触达了 5 个包、14 处断言，不只是 clierr 自己
 
 - [ ] **Step 1: 改 `internal/clierr/clierr_test.go` 里三处断言，改成英文默认值**
 
@@ -427,21 +430,36 @@ func (e *Error) Format() string {
 Run: `go test ./internal/clierr/... -v`
 Expected: PASS（全部测试，含刚改的三个）
 
-- [ ] **Step 5: 跑一次全仓库测试确认没有牵连别的包**
+- [ ] **Step 5: 跑一次全仓库测试，找出并修完所有被牵连的断言**
 
-Run: `go build ./... && go test ./internal/... 2>&1 | tail -40`
-Expected: 全部 `ok`（`internal/clierr` 被几乎所有包间接使用，这一步确认没有别处也硬编码断言了"建议："）
+Run: `go build ./... && go test ./internal/... 2>&1 | tail -60`
+
+`internal/clierr` 被几乎所有包间接使用，`Format()` 的分隔符/标签一变，
+全仓库任何断言过确切渲染文本的测试都会跟着变——实测触达了
+`internal/cli`（`cli_test.go`、`lint_test.go`）、`internal/config`
+（`edge_test.go`）、`internal/manifest`（`edge_test.go`）、
+`internal/source`（`source_test.go`）共 14 处断言，逐条按同样的规则改：
+旧的"："分隔符改成": "，旧的"建议："标签改成"Suggestion:"（单条建议）
+或"Suggestions:"（多条建议）。改完再跑一次确认全部 `ok`；额外跑一次
+`go test ./tests/...` 确认 `tests/docfields` 也没被这次改动波及
+（它核对的是 Format() 输出里的标题文字，不是分隔符，预期不受影响，
+但值得跑一次确认，不能想当然）。
+
+Expected: `go test ./internal/...`、`go test ./tests/...` 全部 `ok`
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add internal/clierr
+git add internal/clierr internal/cli internal/config internal/manifest internal/source
 git commit -m "$(cat <<'EOF'
 改进：clierr.Format() 的渲染骨架接入 i18n
 
 明细行的分隔符、"建议："这个标签本身是 Format() 自带的排版，不是任何
 一条具体错误的文案；不翻这两处，其余文案翻得再对也会渲染出中英夹杂
 的输出。调用点自己的 Message/Detail.Value/Hints 内容不变。
+
+Format() 是全代码库共用的渲染函数，这一改动波及了 5 个包、14 处
+断言过确切渲染文本的测试，一并改成新的分隔符/标签规则。
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF

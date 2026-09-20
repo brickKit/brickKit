@@ -20,10 +20,10 @@ func TestFormatFullBlock(t *testing.T) {
 
 	got := err.Format()
 	want := "❌ 错误：强依赖缺失\n" +
-		"   组件：erp/backend@1.0.0\n" +
-		"   缺失依赖：authorization/rbac@1.0.0\n" +
-		"   原因：该组件在所有安装源中均未找到\n" +
-		"   建议：\n" +
+		"   组件: erp/backend@1.0.0\n" +
+		"   缺失依赖: authorization/rbac@1.0.0\n" +
+		"   原因: 该组件在所有安装源中均未找到\n" +
+		"   Suggestions:\n" +
 		"   1. 检查安装源配置（brickkit.yaml → sources）\n" +
 		"   2. 确认组件是否已发布到市场\n"
 	assert.Equal(t, want, got)
@@ -32,7 +32,7 @@ func TestFormatFullBlock(t *testing.T) {
 func TestFormatSingleHintIsInline(t *testing.T) {
 	err := New(CodePortConflict, "错误：expose 端口冲突").
 		WithHint("在 brickkit.yaml 中为其中一个组件添加 exposePort 字段")
-	assert.Contains(t, err.Format(), "   建议：在 brickkit.yaml 中为其中一个组件添加 exposePort 字段\n")
+	assert.Contains(t, err.Format(), "   Suggestion: 在 brickkit.yaml 中为其中一个组件添加 exposePort 字段\n")
 	assert.NotContains(t, err.Format(), "   1. ")
 }
 
@@ -100,7 +100,7 @@ func TestRenderWritesAndReturnsExitCode(t *testing.T) {
 		WithHint("执行 brickkit login 登录市场"))
 	assert.Equal(t, ExitError, code)
 	assert.Contains(t, buf.String(), "❌ 错误：未登录市场")
-	assert.Contains(t, buf.String(), "建议：")
+	assert.Contains(t, buf.String(), "Suggestion:")
 
 	buf.Reset()
 	assert.Equal(t, ExitOK, Render(&buf, nil))
@@ -119,5 +119,5 @@ func TestNewfAndWithDetailf(t *testing.T) {
 	e := Newf(CodeVersionAmbiguous, "%s 存在多个版本", "people/basic").
 		WithDetailf("版本列表", "%s", "1.0.0, 2.0.0")
 	assert.Contains(t, e.Format(), "❌ people/basic 存在多个版本")
-	assert.Contains(t, e.Format(), "   版本列表：1.0.0, 2.0.0")
+	assert.Contains(t, e.Format(), "   版本列表: 1.0.0, 2.0.0")
 }

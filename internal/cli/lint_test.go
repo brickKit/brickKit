@@ -256,8 +256,8 @@ func TestLintFileWithBothAnErrorAndAWarningReportsBoth(t *testing.T) {
 	require.GreaterOrEqual(t, errorBlock, 0, "错误块要打印：%s", r.stdout)
 	require.GreaterOrEqual(t, warningBlock, 0, "警告块也要打印：%s", r.stdout)
 	assert.Less(t, errorBlock, warningBlock, "同一个文件里，错误在前、警告在后")
-	assert.Contains(t, r.stdout, "dependancies：未知字段")
-	assert.Contains(t, r.stdout, "defualt：未知字段")
+	assert.Contains(t, r.stdout, "dependancies: 未知字段")
+	assert.Contains(t, r.stdout, "defualt: 未知字段")
 	assert.Contains(t, r.stdout, "检查了 2 个文件：1 个有错误，1 条警告")
 	assert.Contains(t, r.stderr, "LINT_FAILED")
 }
@@ -274,7 +274,7 @@ func TestLintWarnsWhenConfigKeyCollidesWithReservedVariable(t *testing.T) {
 	r := runIn(t, f.Dir, "lint")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "DATABASE_HOST")
-	assert.Contains(t, r.stdout, "来源："+filepath.Join("shared", "demo", "hello", "component.yaml"),
+	assert.Contains(t, r.stdout, "来源: "+filepath.Join("shared", "demo", "hello", "component.yaml"),
 		"块里要带上文件路径，否则多个组件时不知道是哪一份")
 }
 

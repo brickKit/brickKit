@@ -222,7 +222,7 @@ func TestParseConfigFileMissingUsesProjectMissingCode(t *testing.T) {
 func TestParseConfigWithoutSourceName(t *testing.T) {
 	_, err := ParseConfig([]byte("deploy:\n  target: docker\n"), "")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "文件：brickkit.yaml")
+	assert.Contains(t, clierr.As(err).Format(), "文件: brickkit.yaml")
 }
 
 func TestParseConfigRecordsSource(t *testing.T) {
@@ -432,7 +432,7 @@ sources:
     url: https://x
 `), "brickkit.yaml")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "sources[0].type：缺失")
+	assert.Contains(t, clierr.As(err).Format(), "sources[0].type: 缺失")
 }
 
 // localPort 写了但没写 local: true（常见误配）。
@@ -460,7 +460,7 @@ resources:
     port: 5432
 `), "brickkit.yaml")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "resources[0].kind：缺失")
+	assert.Contains(t, clierr.As(err).Format(), "resources[0].kind: 缺失")
 }
 
 // 写了引用的密码与写死的密码，解析后仍然分得出来：引用保留原文，写死的就是写死的。

@@ -28,6 +28,9 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // Code 是机器可读的错误码。分类依据 004 §10.1。
@@ -212,14 +215,14 @@ func (e *Error) Format() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s %s\n", symbol, e.Message)
 	for _, d := range e.Details {
-		fmt.Fprintf(&b, "   %s：%s\n", d.Key, d.Value)
+		fmt.Fprintf(&b, "   %s\n", i18n.T(msgid.DetailLine, d.Key, d.Value))
 	}
 	switch len(e.Hints) {
 	case 0:
 	case 1:
-		fmt.Fprintf(&b, "   建议：%s\n", e.Hints[0])
+		fmt.Fprintf(&b, "   %s\n", i18n.T(msgid.HintLabelSingle, e.Hints[0]))
 	default:
-		b.WriteString("   建议：\n")
+		b.WriteString("   " + i18n.T(msgid.HintLabelMulti) + "\n")
 		for i, h := range e.Hints {
 			fmt.Fprintf(&b, "   %d. %s\n", i+1, h)
 		}
