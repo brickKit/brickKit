@@ -2178,13 +2178,16 @@ Expected: 构建无错误；`$BRICKKIT_USERCONFIG_DIR` 此后对本任务余下�
 
 - [ ] **Step 2: 默认（英文）路径——`--help`**
 
-Run: `/tmp/brickkit-i18n-check --help | head -3`
-Expected: 第一行 `Usage:`
+跟 Task 7 Step 6 一样的更正：root 的 `Long` 描述排在 `Usage:` 之前，不是字面
+意义的"第一行"，用 `grep` 确认那一行存在即可：
+
+Run: `/tmp/brickkit-i18n-check --help | grep -n "^Usage:"`
+Expected: 有输出
 
 - [ ] **Step 3: `BRICKKIT_LANG=zh` 路径——`--help`**
 
-Run: `BRICKKIT_LANG=zh /tmp/brickkit-i18n-check --help | head -3`
-Expected: 第一行 `用法：`（环境变量优先级最高，盖过 Step 1 那个空的全局配置目录）
+Run: `BRICKKIT_LANG=zh /tmp/brickkit-i18n-check --help | grep -n "^用法："`
+Expected: 有输出（环境变量优先级最高，盖过 Step 1 那个空的全局配置目录）
 
 - [ ] **Step 4: 空目录下 `brickkit up`，两种语言**
 
