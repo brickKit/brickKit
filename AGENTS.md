@@ -204,6 +204,8 @@ argued through and rejected (reasoning in §9):
 | Engine plugins / third-party deploy targets (an `--engine nomad`-style flag on `up`) | A target's `Down`/`Status`/orphan-pruning guarantees are what make "a project that can be torn down" true; a plugin would own them while the CLI reported success on its behalf — the same reason Podman was pulled. `deploy.target` in `brickkit.yaml` stays the declaration, never a CLI flag. New targets are built in-tree, with the full test guard set. (`engine.Engine` is already an interface; this is about who guarantees its semantics, not about code layout) |
 | Incremental generation cache (`.brickkit/` hash state) | Nothing to speed up: generating 50 components through the whole pipeline takes about 2 ms (`tests/perf`), and the time users wait on is `docker compose up` / `kubectl apply`, which already touch only what changed. A cache adds state whose staleness silently produces wrong deployment files |
 | Mock generation from contracts (a full `mock` command) and auto-substituting a missing required dependency (an `--with-mocks`-style flag on `up`) | The platform never parses contracts (`artifacts.format` is a free string); a stand-in swapped in for a missing required dependency contradicts "missing required dependency blocks startup" and could be deployed by mistake; a mock under another name receives no traffic because injected addresses point at the real component's versioned service name. What works today: `brickkit new <id> --contract openapi` + `local: true` + any mock tool (`docs/en/03-guide/07-consuming-artifacts.md`) |
+| A renderer of its own for `brickkit graph` — HTML / SVG output, a built-in viewer, a flag that writes the file for you | Mermaid text is already rendered for free: GitHub renders a `.mmd` / `.mermaid` file, or a Markdown code fence tagged `mermaid`, with nothing installed. A renderer inside the CLI would be a permanent maintenance cost (layout, one more output format to keep correct) for something that costs nothing today. And stdout carrying nothing but Mermaid is what makes the shell redirect `brickkit graph > graph.mmd` produce a valid file — so no file-writing flag is needed either |
+| Dependency resolution and cross-file reference checks in `brickkit lint` (does the `servedBy` target exist? can that dependency be found?) | `lint` is a promise — offline, read-only, instant, no Docker or K8s — and it adds no rule of its own: it re-runs the parse-and-validate that `up` / `add` / `publish` already apply to each file. Resolving the dependency graph needs every component's Manifest, which for a market or Git component means the network; one network call and the promise is gone. **`brickkit up --dry-run` already does this** — it has to resolve the graph anyway, and it errors, naming the culprit, on a missing `servedBy` target or a required dependency it can't find. `brickkit graph` shows the declared structure |
 
 ---
 
@@ -804,6 +806,8 @@ silently unused under `k8s` with nothing catching it) is
 | --- | --- |
 | `brickkit init <name>` | Generates a `brickkit.yaml` skeleton and a `.brickkit/` directory, and installs the AI assistant skills (`--no-skills` to skip) |
 | `brickkit skills` | View/refresh the AI assistant skills installed in the project (`status` / `update`). In a standalone component repo (a `component.yaml`, no `brickkit.yaml`) it manages just the `brickkit-component` skill. Never overwrites something hand-edited; never touches the user's own `CLAUDE.md` |
+| `brickkit graph` | Prints the project's dependency topology as Mermaid text on stdout: solid edges for required dependencies, dashed for optional (an optional one that can't be found is drawn as a "not installed" node), greyed-out nodes for components that won't start this run, `servedBy` members grouped inside their shell. **Nothing but Mermaid on stdout**, so `brickkit graph > graph.mmd` writes a file GitHub renders. It reads the same resolved graph as `brickkit up --dry-run` (so it needs the network for market/Git Manifests not yet cached), and generates no deployment files and touches no engine. `--ignore-served-by` draws every component standalone |
+| `brickkit lint` | **Offline, read-only** structure check of the YAML in the current directory — no network, no Docker/K8s. In a project: `brickkit.yaml`, then every `component.yaml` under the `local` install sources (whether or not they've been added; `.archived/` is skipped). In a standalone component repo (a `component.yaml`, no `brickkit.yaml`): just that file. Reports required fields, types, unknown keys (typos), version format, port ranges, plus two kinds of warning — a misspelled key inside a `configSchema` property (it won't take effect) and a config key that collides with a reserved variable. Adds no rule of its own; exit `1` on errors (`LINT_FAILED`), warnings alone exit `0`, `--strict` makes them fail too (a CI gate). **Does not** resolve dependencies or check `servedBy` targets — that's `up --dry-run` |
 | `brickkit new <scope>/<name>` | Generates a component's minimal skeleton — a `component.yaml` that already passes validation, plus (with `--contract openapi\|proto`) a placeholder contract file registered under `artifacts`. Writes to `components/<scope>/<name>/` by default (the same layout a `local` source scans); `--path` writes elsewhere with no nesting, for a standalone component repository. No Dockerfile, no source code — the platform doesn't pick a language for you, and it never runs `add` on your behalf |
 | `brickkit add <id>[@ver]` | Recursively pulls dependencies, downloads artifacts, writes them into the config (**doesn't write an `enabled` field**). If no version is given, takes the latest installable version from the source and pins it to disk as an **exact version** |
 | `brickkit remove <id>` | Checks for required-dependency callers before removing, automatically deletes the source directory (including an archived copy). Must specify a version when multiple versions coexist |
@@ -824,6 +828,10 @@ brickkit up --config brickkit.prod.yaml           # multi-environment
 brickkit up --dry-run                             # only generate deployment files, for review
 brickkit up --context prod-cluster                # override deploy.context for this one run (k8s only)
 brickkit up --ignore-served-by --dry-run          # verify every component can still stand alone without servedBy
+brickkit graph > graph.mmd                        # dependency topology as Mermaid text (GitHub renders a .mmd file)
+brickkit graph --ignore-served-by                 # draw every component standalone, as if no servedBy were declared
+brickkit lint                                     # offline structure check of brickkit.yaml + the local sources' component.yaml files
+brickkit lint --strict                            # warnings fail too (exit 1) — for a CI gate
 brickkit down --context prod-cluster              # same override, for tearing down a specific cluster
 brickkit add people/basic@1.1.0 --yes             # non-interactive (CI/CD)
 brickkit add --local                              # add every component in a local source at once
@@ -1106,9 +1114,11 @@ hit:
 
 ```
 cmd/brickkit/          CLI entry point
+cmd/gen-schemas/       regenerates schemas/*.json (make generate-schemas); a dev tool, not built into the CLI
 internal/               CLI implementation
   ├── config/            brickkit.yaml parsing and validation
   ├── manifest/           component.yaml parsing and validation
+  ├── schemagen/          generates the JSON Schemas from the config / manifest Go structs by reflection
   ├── resolver/           dependency resolution, topological sort
   ├── shell/              servedBy grouping/merging, shared by compose and k8s renderers
   ├── cascade/            cascade decision: figures out who actually starts this time (follows the top)
@@ -1122,6 +1132,7 @@ internal/               CLI implementation
   ├── workspace/          component source workspace (--repo / sync)
   └── market/             marketplace client
 market-server/          the component marketplace backend (an independent Go module)
+schemas/                JSON Schema for component.yaml and brickkit.yaml — generated, checked in; editors use it for completion and typo detection
 docs/en/, docs/zh/      current documentation (architecture / guide / patterns, bilingual mirror)
 docs/archive/           historical record, not part of current docs
 tests/components/       10 real components used to test the platform itself
@@ -1170,6 +1181,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | Every `brickkit.yaml` field's type, required-ness, default, and constraint — including every `local`/`servedBy`/`replicas` mutual exclusion and the one "written but silently unused" field nothing currently catches | `docs/en/06-architecture/08-brickkit-yaml-reference.md` (swap `en` for `zh`) |
 | What actually gets signed, why verification needs no cosign dependency, and why the public key can't come from the marketplace | `docs/en/06-architecture/06-signing-and-trust.md` (swap `en` for `zh`) |
 | Every command's full flag reference, with real generated output — the detailed complement to §8 above | `docs/en/06-architecture/09-cli-reference.md` (swap `en` for `zh`) |
+| Editor completion and red-squiggle typo detection for `component.yaml` / `brickkit.yaml` — the JSON Schemas in `schemas/`, how to wire them up, and what they deliberately don't cover | `docs/en/00-quick-start.md` (swap `en` for `zh`) |
 | Every marketplace HTTP endpoint, auth, error codes, and what publishing sends over the wire | `docs/en/09-market-api.md` (swap `en` for `zh`) |
 | How to layer tests for a component built on BrickKit, and a recommended spec-first order for having an AI write one | `docs/en/07-patterns/01-testing.md` (swap `en` for `zh`) |
 | How to plan seed data and test data | `docs/en/07-patterns/02-data-construction.md` (swap `en` for `zh`) |

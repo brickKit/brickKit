@@ -156,6 +156,8 @@ This list matters as much as the platform's abilities: none of the items below i
 | [19. Engine plugins and third-party deploy targets](#19-engine-plugins-and-third-party-deploy-targets)<br>A pluggable interface for deploying somewhere the platform doesn't know | A plugin would own tear-down and status guarantees while the CLI reported success on its behalf — the Podman lesson | Build a new target in-tree, with the full test guard set |
 | [20. An incremental generation cache](#20-an-incremental-generation-cache)<br>Remembering hashes so `up` regenerates only what changed | Generating 50 components already takes about 2 ms; there's nothing to speed up | Nothing — measure first if a real project ever shows otherwise |
 | [21. Generated mocks and substituting missing dependencies](#21-generated-mocks-and-substituting-missing-dependencies)<br>Building a fake server from a contract, and auto-swapping it in for a missing required dependency | The platform never parses contracts; a silent stand-in contradicts "missing required dependency blocks startup" | A stub via `brickkit new --contract`, then `local: true` plus any mock tool |
+| [22. A built-in renderer for the dependency graph](#22-a-built-in-renderer-for-the-dependency-graph)<br>HTML or SVG output, a viewer, or a flag that writes the file for you | Mermaid text is already rendered for free, and a renderer inside the CLI is a permanent maintenance cost | `brickkit graph > graph.mmd` — GitHub renders that file, or a Markdown code fence tagged `mermaid` |
+| [23. Dependency and cross-file checks in lint](#23-dependency-and-cross-file-checks-in-lint)<br>`brickkit lint` resolving the dependency graph, or checking that a `servedBy` target exists | Resolving the graph needs the network; one network call and "offline, instant" is gone | `brickkit up --dry-run`, which has to resolve the graph anyway |
 
 ---
 
@@ -335,6 +337,22 @@ This list matters as much as the platform's abilities: none of the items below i
 - **What it is:** a `mock`-style command building a fake server from a component's contract, and a `--with-mocks`-style flag on `up` swapping it in for a required dependency that isn't there.
 - **Why it doesn't:** the platform never parses contracts; a stand-in swapped in silently contradicts "a missing required dependency blocks startup"; and a mock under its own name gets no traffic because injected addresses point at the real component's versioned service name.
 - **What to do instead:** `brickkit new <id> --contract openapi` for a stub, `local: true` + `localPort`, and any mock tool listening on that port — [walkthrough](../03-guide/07-consuming-artifacts.md).
+
+---
+
+### 22. A built-in renderer for the dependency graph
+
+- **What it is:** `brickkit graph` producing an HTML page or an SVG image itself, shipping a viewer, or growing a flag that writes the output to a file — instead of just printing Mermaid text.
+- **Why it doesn't:** Mermaid text is already rendered for free: GitHub renders a `.mmd` / `.mermaid` file, and a Markdown code fence tagged `mermaid`, with nothing to install. A renderer inside the CLI would be a permanent maintenance cost — layout, one more output format to keep correct — for something that costs nothing today. A file-writing flag isn't needed either: stdout carries nothing but Mermaid (a hint is a `%%` comment line, a warning goes to stderr), so an ordinary shell redirect already writes a valid file.
+- **What to do instead:** `brickkit graph > graph.mmd`, then open that file on GitHub; or paste the output into a Markdown code fence tagged `mermaid`.
+
+---
+
+### 23. Dependency and cross-file checks in lint
+
+- **What it is:** making `brickkit lint` resolve the dependency graph and check references across files — does the component a `servedBy` names exist in the project, can a required dependency be found.
+- **Why it doesn't:** `lint` is a promise: offline, read-only, instant, no Docker or Kubernetes, and no rule of its own — it runs the same parse-and-validate that `up`, `add` and `publish` already apply to each file. Resolving the graph needs every component's Manifest, and for a market or Git component that means the network; one network call and the promise is gone.
+- **What to do instead:** `brickkit up --dry-run`, which has to resolve the graph anyway and stops with an error that names the culprit on a missing `servedBy` target or a required dependency it can't find; `brickkit graph` to see the declared structure. (`lint` doesn't check a `configSchema` value against its own `enum` or `minimum` either — that is [item 9](#9-type-validation-of-config-values).)
 
 ---
 

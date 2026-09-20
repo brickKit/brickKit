@@ -184,6 +184,8 @@ brickkit.yaml（声明）
 | 引擎插件 / 第三方部署目标（`up` 上一个假想的 `--engine nomad` 风格参数） | 一个目标的 `Down` / `Status` / 孤儿清理保证，才让"一个能拆干净的项目"成立；插件要自己担保它们，而 CLI 会替它报"成功"——撤掉 Podman 的同一个理由。`deploy.target` 是 `brickkit.yaml` 里的声明，绝不变成命令行参数。新目标在仓库内实现，带全套测试守卫。（`engine.Engine` 本来就是接口；这里说的是谁来担保它的语义，不是代码怎么分层） |
 | 增量生成缓存（`.brickkit/` 里存哈希状态） | 没有可加速的东西：50 个组件走完整条链路约 2 ms（`tests/perf`），使用者真正在等的是 `docker compose up` / `kubectl apply`，而它们本来就只动有变化的。缓存要维护状态，过期时静默产出错误的部署文件 |
 | 按契约生成 mock（一个完整的 `mock` 命令）、自动替换缺失的强依赖（`up --with-mocks` 风格的参数） | 平台从不解析契约（`artifacts.format` 只是个字符串）；给缺失的强依赖换上替身，违反"强依赖缺失就阻断启动"，还可能被误部署；mock 起在另一个名字下接不到流量，因为注入的地址指向真实组件的版本化服务名。现在就能用的：`brickkit new <id> --contract openapi` + `local: true` + 任意 mock 工具（`docs/zh/03-guide/07-consuming-artifacts.md`） |
+| 给 `brickkit graph` 自己造渲染器——HTML / SVG 输出、内置查看器、替你写文件的参数 | Mermaid 文本本来就有人免费渲染：GitHub 直接渲染 `.mmd` / `.mermaid` 文件，以及 Markdown 里标了 `mermaid` 的代码块，什么都不用装。CLI 里再内置一个渲染器，是给一件今天不花钱的事添一份永久的维护成本（排版、多一种要保证正确的输出格式）。而 stdout 里只有 Mermaid，正是 shell 重定向 `brickkit graph > graph.mmd` 得到合法文件的前提——所以连"替你写文件"的参数也不需要 |
+| 在 `brickkit lint` 里做依赖解析与跨文件引用检查（`servedBy` 指向的组件存不存在？那条依赖找不找得到？） | `lint` 是一个承诺——离线、只读、秒回、不需要 Docker / K8s——而且它不新增任何规则：只是把 `up` / `add` / `publish` 本来就对每个文件跑的解析加校验单独拿出来跑。解析依赖图要读每个组件的 Manifest，对市场 / Git 组件就意味着联网；只要联一次网，这个承诺就没了。**`brickkit up --dry-run` 本来就在做这件事**——它无论如何都要解析依赖图，`servedBy` 目标不存在、或者有解析不出来的强依赖时，会报错并点出是哪一个。想看声明出来的结构，用 `brickkit graph` |
 
 ---
 
@@ -702,6 +704,8 @@ installer:
 | --- | --- |
 | `brickkit init <name>` | 生成 `brickkit.yaml` 骨架和 `.brickkit/` 目录，并装入 AI 助手技能（`--no-skills` 跳过） |
 | `brickkit skills` | 查看/刷新装进项目的 AI 助手技能（`status` / `update`）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）只管理 `brickkit-component` 这一个技能。手改过的绝不覆盖；不碰使用者的 `CLAUDE.md` |
+| `brickkit graph` | 把项目的依赖拓扑画成 Mermaid 文本，打印到 stdout：实线是强依赖，虚线是弱依赖（取不到的弱依赖画成"未安装"节点），置灰的节点是这次不会启动的组件，`servedBy` 收编的成员画在各自的外壳里。**stdout 里只有 Mermaid**，所以 `brickkit graph > graph.mmd` 存下来的文件 GitHub 能直接渲染。它读的是与 `up --dry-run` 同一份解析出来的依赖图（所以还没缓存的市场 / Git 组件的 Manifest 要联网取），不生成部署文件、不碰引擎。`--ignore-served-by` 把每个组件都画成独立部署 |
+| `brickkit lint` | **离线、只读**地检查当前目录里 YAML 的结构——不联网，不需要 Docker / K8s。在项目里：先查 `brickkit.yaml`，再查 `local` 安装源目录下的每一份 `component.yaml`（不管有没有 add 过；`.archived/` 不查）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）：只查那一份。报告必填字段、类型、未知键（拼写笔误）、版本号格式、端口范围，另有两类警告——`configSchema` 属性声明里拼错的键（不会生效）、配置项名字撞上保留变量。不新增任何规则；有错误时退出码 `1`（`LINT_FAILED`），只有警告时退出码 `0`，加 `--strict` 则警告也算失败（给 CI 门禁用）。**不做**依赖解析、不查 `servedBy` 目标——那是 `up --dry-run` 的事 |
 | `brickkit new <scope>/<name>` | 生成一个组件的最小骨架——一份已经能通过校验的 `component.yaml`，带 `--contract openapi\|proto` 时还生成一份契约占位文件并登记进 `artifacts`。默认写到 `components/<scope>/<name>/`（`local` 安装源本来就扫描这个布局）；`--path` 写到别的地方、不再套一层，给独立组件仓库用。不生成 Dockerfile，不生成源码——平台不替你选语言，也不会替你执行 `add` |
 | `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `enabled` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘 |
 | `brickkit remove <id>` | 检查强依赖方后移除，自动删除源码目录（含归档的那份）。多版本共存时必须指定版本 |
@@ -722,6 +726,10 @@ brickkit up --config brickkit.prod.yaml           # 多环境
 brickkit up --dry-run                             # 只生成部署文件，供审查
 brickkit up --context prod-cluster                # 本次运行覆盖 deploy.context（仅 k8s）
 brickkit up --ignore-served-by --dry-run          # 验证：去掉 servedBy 之后每个组件还能不能独立起来
+brickkit graph > graph.mmd                        # 依赖拓扑存成 Mermaid 文本（GitHub 直接渲染 .mmd 文件）
+brickkit graph --ignore-served-by                 # 把每个组件都画成独立部署，当作没声明过 servedBy
+brickkit lint                                     # 离线检查 brickkit.yaml 与本地安装源里 component.yaml 的结构
+brickkit lint --strict                            # 警告也算失败（退出码 1）——给 CI 门禁用
 brickkit down --context prod-cluster              # 同样的覆盖，用来关停指定集群
 brickkit add people/basic@1.1.0 --yes             # 非交互（CI/CD）
 brickkit add --local                              # 把本地安装源里的组件一次全部添加
@@ -950,9 +958,11 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 
 ```
 cmd/brickkit/          CLI 入口
+cmd/gen-schemas/       重新生成 schemas/*.json（make generate-schemas）；开发用的小工具，不编进 CLI
 internal/              CLI 实现
   ├── config/            brickkit.yaml 解析与校验
   ├── manifest/          component.yaml 解析与校验
+  ├── schemagen/         从 config / manifest 的 Go 结构体反射生成 JSON Schema
   ├── resolver/          依赖解析、拓扑排序
   ├── shell/             servedBy 分组/合并，compose 与 k8s 两边渲染器共用
   ├── cascade/           启停判定：算出这次实际启动谁（跟着上层走）
@@ -966,6 +976,7 @@ internal/              CLI 实现
   ├── workspace/         组件源码工作区（--repo / sync）
   └── market/            市场客户端
 market-server/         组件市场后端（独立 Go module）
+schemas/               component.yaml 与 brickkit.yaml 的 JSON Schema——生成出来并签入仓库，编辑器用它做字段补全和拼写笔误检测
 docs/zh/、docs/en/     现行文档（architecture / guide / patterns，双语镜像）
 docs/archive/          历史记录，不属于现行文档
 tests/components/      10 个真实组件，用来测试平台本身
@@ -1012,6 +1023,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | `brickkit.yaml` 每个字段的类型、是否必填、默认值、约束——包括 `local`/`servedBy`/`replicas` 之间的每一种互斥，以及唯一一个"写了不生效、但目前没有任何东西拦住"的字段 | `docs/zh/06-architecture/08-brickkit-yaml-reference.md`（英文版把 `zh` 换 `en`） |
 | 真正被签名的是什么、验签为什么不需要 cosign 依赖、公钥为什么不能来自市场 | `docs/zh/06-architecture/06-signing-and-trust.md`（英文版把 `zh` 换 `en`） |
 | 每个命令完整的参数参考，带真实生成的输出——上面 §8 的详细版 | `docs/zh/06-architecture/09-cli-reference.md`（英文版把 `zh` 换 `en`） |
+| 给 `component.yaml` / `brickkit.yaml` 接上编辑器的字段补全与拼写红线——`schemas/` 里的 JSON Schema、怎么接、以及它们刻意不覆盖什么 | `docs/zh/00-quick-start.md`（英文版把 `zh` 换 `en`） |
 | 市场每一个 HTTP 端点、认证、错误码，以及发布时到底传了什么 | `docs/zh/09-market-api.md`（英文版把 `zh` 换 `en`） |
 | 基于 BrickKit 的组件该怎么分层测试，以及让 AI 写组件时"先立规格、再写实现"的推荐顺序 | `docs/zh/07-patterns/01-testing.md`（英文版把 `zh` 换 `en`） |
 | 怎么规划种子数据与测试数据 | `docs/zh/07-patterns/02-data-construction.md`（英文版把 `zh` 换 `en`） |
