@@ -45,7 +45,7 @@
 - Produces: `msgid.DetailLine`、`msgid.HintLabelSingle`、`msgid.HintLabelMulti`（`string` 常量，Task 2 消费）
 - Produces: `i18n.Lang`（`type Lang string`）、`i18n.EN`、`i18n.ZH`、`i18n.Current() Lang`、`i18n.SetCurrent(Lang)`、`i18n.T(id string, args ...any) string`、`i18n.CatalogFor(Lang) map[string]string`
 
-- [ ] **Step 1: 写 `internal/msgid/msgid.go`**
+- [x] **Step 1: 写 `internal/msgid/msgid.go`**
 
 ```go
 // Package msgid 声明 CLI 消息目录的 key。每个常量对应 internal/i18n 两份
@@ -61,7 +61,7 @@ const (
 )
 ```
 
-- [ ] **Step 2: 写 `internal/i18n/catalog_en.go`**
+- [x] **Step 2: 写 `internal/i18n/catalog_en.go`**
 
 ```go
 package i18n
@@ -75,7 +75,7 @@ var en = map[string]string{
 }
 ```
 
-- [ ] **Step 3: 写 `internal/i18n/catalog_zh.go`**
+- [x] **Step 3: 写 `internal/i18n/catalog_zh.go`**
 
 ```go
 package i18n
@@ -89,7 +89,7 @@ var zh = map[string]string{
 }
 ```
 
-- [ ] **Step 4: 先写测试 `internal/i18n/i18n_test.go`**
+- [x] **Step 4: 先写测试 `internal/i18n/i18n_test.go`**
 
 ```go
 package i18n
@@ -154,12 +154,12 @@ func TestCatalogParity(t *testing.T) {
 }
 ```
 
-- [ ] **Step 5: 跑测试确认失败**
+- [x] **Step 5: 跑测试确认失败**
 
 Run: `go test ./internal/i18n/... -v`
 Expected: 编译失败（`i18n.go` 还不存在，`Current`/`SetCurrent`/`T`/`CatalogFor`/`EN`/`ZH` 未定义）
 
-- [ ] **Step 6: 写 `internal/i18n/i18n.go` 让测试通过**
+- [x] **Step 6: 写 `internal/i18n/i18n.go` 让测试通过**
 
 ```go
 // Package i18n 是 BrickKit CLI 的消息目录：给一个 internal/msgid 里声明的
@@ -230,17 +230,17 @@ func CatalogFor(l Lang) map[string]string {
 }
 ```
 
-- [ ] **Step 7: 跑测试确认通过**
+- [x] **Step 7: 跑测试确认通过**
 
 Run: `go test ./internal/i18n/... -v`
 Expected: PASS（全部 5 个测试）
 
-- [ ] **Step 8: 跑 `go vet` 与 build 确认没有破坏其他地方**
+- [x] **Step 8: 跑 `go vet` 与 build 确认没有破坏其他地方**
 
 Run: `go build ./... && go vet ./...`
 Expected: 无输出、无错误
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add internal/msgid internal/i18n
@@ -270,7 +270,7 @@ EOF
 - Consumes: `i18n.T`、`msgid.DetailLine`、`msgid.HintLabelSingle`、`msgid.HintLabelMulti`（Task 1）
 - Produces: 无新增导出符号；`(*Error).Format()` 的渲染结果从此按 `i18n.Current()` 变化——这个影响面比"改两个文件"大得多：全代码库任何断言过 `Format()` 确切渲染文本（分隔符"："、"建议："标签）的测试都会受影响，实际触达了 5 个包、14 处断言，不只是 clierr 自己
 
-- [ ] **Step 1: 改 `internal/clierr/clierr_test.go` 里三处断言，改成英文默认值**
+- [x] **Step 1: 改 `internal/clierr/clierr_test.go` 里三处断言，改成英文默认值**
 
 把：
 
@@ -344,12 +344,12 @@ func TestFormatSingleHintIsInline(t *testing.T) {
 
 （`Message`/`Detail` 的 `Key`/`Value`、`Hints` 的具体文字仍然是测试自己传进去的中文字面量，保持不变——`clierr` 不翻译调用点内容，这几个断言里唯一因为语言默认值改变而变化的，只有分隔符"："→": "和"建议："标签→"Suggestion(s):"。）
 
-- [ ] **Step 2: 跑测试确认失败（还没改 clierr.go）**
+- [x] **Step 2: 跑测试确认失败（还没改 clierr.go）**
 
 Run: `go test ./internal/clierr/... -run 'TestFormatFullBlock|TestFormatSingleHintIsInline|TestRenderWritesAndReturnsExitCode' -v`
 Expected: 三个都 FAIL（实际输出仍是"："和"建议："，因为 `Format()` 还没接 i18n）
 
-- [ ] **Step 3: 改 `internal/clierr/clierr.go` 的 `Format()`**
+- [x] **Step 3: 改 `internal/clierr/clierr.go` 的 `Format()`**
 
 在文件顶部 import 里加两行：
 
@@ -425,12 +425,12 @@ func (e *Error) Format() string {
 }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `go test ./internal/clierr/... -v`
 Expected: PASS（全部测试，含刚改的三个）
 
-- [ ] **Step 5: 跑一次全仓库测试，找出并修完所有被牵连的断言**
+- [x] **Step 5: 跑一次全仓库测试，找出并修完所有被牵连的断言**
 
 Run: `go build ./... && go test ./internal/... 2>&1 | tail -60`
 
@@ -447,7 +447,7 @@ Run: `go build ./... && go test ./internal/... 2>&1 | tail -60`
 
 Expected: `go test ./internal/...`、`go test ./tests/...` 全部 `ok`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add internal/clierr internal/cli internal/config internal/manifest internal/source
@@ -477,7 +477,7 @@ EOF
 **Interfaces:**
 - Produces: `userconfig.Config{Lang string}`、`userconfig.Dir() (string, error)`、`userconfig.Path() (string, error)`、`userconfig.Load() (*Config, error)`、`userconfig.Save(*Config) error`、`userconfig.EnvDirOverride`（常量，测试专用覆盖）
 
-- [ ] **Step 1: 先写测试 `internal/userconfig/userconfig_test.go`**
+- [x] **Step 1: 先写测试 `internal/userconfig/userconfig_test.go`**
 
 ```go
 package userconfig
@@ -557,12 +557,12 @@ func TestPathIsInsideDir(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `go test ./internal/userconfig/... -v`
 Expected: 编译失败（包还不存在）
 
-- [ ] **Step 3: 写 `internal/userconfig/userconfig.go`**
+- [x] **Step 3: 写 `internal/userconfig/userconfig.go`**
 
 ```go
 // Package userconfig 管理 BrickKit CLI 第一份"项目之外"的状态：机器级、
@@ -670,12 +670,12 @@ func Save(c *Config) error {
 }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `go test ./internal/userconfig/... -v`
 Expected: PASS（全部 7 个测试）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/userconfig
@@ -702,7 +702,7 @@ EOF
 - Consumes: `userconfig.Load()`、`userconfig.EnvDirOverride`（Task 3）
 - Produces: `i18n.Source`（`SourceEnv`/`SourceConfig`/`SourceDefault`）、`i18n.Resolve() (Lang, Source)`、`i18n.ParseLang(string) (Lang, bool)`、`i18n.SupportedLangs() []Lang`、`i18n.LangNames() []string`、`i18n.EnvLang`（常量）
 
-- [ ] **Step 1: 先写测试 `internal/i18n/resolve_test.go`**
+- [x] **Step 1: 先写测试 `internal/i18n/resolve_test.go`**
 
 ```go
 package i18n
@@ -776,12 +776,12 @@ func TestResolveIgnoresUnsupportedEnvValueAndFallsThrough(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `go test ./internal/i18n/... -run 'TestParseLang|TestSupportedLangs|TestResolve' -v`
 Expected: 编译失败（`Resolve`/`ParseLang`/`SupportedLangs`/`LangNames`/`Source*`/`EnvLang` 未定义）
 
-- [ ] **Step 3: 写 `internal/i18n/resolve.go`**
+- [x] **Step 3: 写 `internal/i18n/resolve.go`**
 
 ```go
 package i18n
@@ -856,12 +856,12 @@ func Resolve() (Lang, Source) {
 }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `go test ./internal/i18n/... -v`
 Expected: PASS（`internal/i18n` 全部测试，含 Task 1 与本任务的）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/i18n
@@ -892,7 +892,7 @@ EOF
 - Consumes: `i18n.T`（Task 1）
 - Produces: 无新增导出符号；`brickkit version` 的三行输出（含 `--verbose` 追加的两行）从此按语言变化，`"BrickKit CLI %s"` 这一行不变（纯产品名+版本号，不含任何语言相关词）
 
-- [ ] **Step 1: 在 `internal/msgid/msgid.go` 追加常量**
+- [x] **Step 1: 在 `internal/msgid/msgid.go` 追加常量**
 
 ```go
 	// internal/cli/version.go
@@ -902,7 +902,7 @@ EOF
 	VersionBuildDateLine = "version.build_date_line"
 ```
 
-- [ ] **Step 2: 在 `internal/i18n/catalog_en.go` 的 map 里追加**
+- [x] **Step 2: 在 `internal/i18n/catalog_en.go` 的 map 里追加**
 
 ```go
 	msgid.VersionManifestLine:  "Supported Manifest version: %[1]s",
@@ -911,7 +911,7 @@ EOF
 	msgid.VersionBuildDateLine: "Build date: %[1]s",
 ```
 
-- [ ] **Step 3: 在 `internal/i18n/catalog_zh.go` 的 map 里追加**
+- [x] **Step 3: 在 `internal/i18n/catalog_zh.go` 的 map 里追加**
 
 ```go
 	msgid.VersionManifestLine:  "支持 Manifest 版本：%[1]s",
@@ -920,12 +920,12 @@ EOF
 	msgid.VersionBuildDateLine: "构建时间：%[1]s",
 ```
 
-- [ ] **Step 4: 跑 `TestCatalogParity` 确认两份目录仍然对齐**
+- [x] **Step 4: 跑 `TestCatalogParity` 确认两份目录仍然对齐**
 
 Run: `go test ./internal/i18n/... -run TestCatalogParity -v`
 Expected: PASS
 
-- [ ] **Step 5: 改 `internal/cli/cli_test.go` 与 `internal/cli/execute_test.go` 的断言（先改测试，确认它们此刻会失败）**
+- [x] **Step 5: 改 `internal/cli/cli_test.go` 与 `internal/cli/execute_test.go` 的断言（先改测试，确认它们此刻会失败）**
 
 把 `cli_test.go` 里：
 
@@ -1013,12 +1013,12 @@ func TestVersionVerboseAddsBuildInfo(t *testing.T) {
 	"github.com/brickkit/brickkit/internal/userconfig"
 ```
 
-- [ ] **Step 6: 跑测试确认失败（还没改 version.go）**
+- [x] **Step 6: 跑测试确认失败（还没改 version.go）**
 
 Run: `go test ./internal/cli/... -run 'TestVersionCommand|TestVersionVerboseAddsBuildInfo|TestExecuteReadsOSArgs' -v`
 Expected: 三个都 FAIL（实际输出仍是中文）
 
-- [ ] **Step 7: 改 `internal/cli/version.go`**
+- [x] **Step 7: 改 `internal/cli/version.go`**
 
 把：
 
@@ -1110,17 +1110,17 @@ func newVersionCommand(opts *Options) *cobra.Command {
 }
 ```
 
-- [ ] **Step 8: 跑测试确认通过**
+- [x] **Step 8: 跑测试确认通过**
 
 Run: `go test ./internal/cli/... -run 'TestVersionCommand|TestVersionVerboseAddsBuildInfo|TestExecuteReadsOSArgs' -v`
 Expected: PASS（三个）
 
-- [ ] **Step 9: 跑真实二进制确认真的是英文**
+- [x] **Step 9: 跑真实二进制确认真的是英文**
 
 Run: `go build -o /tmp/brickkit-i18n-check ./cmd/brickkit && /tmp/brickkit-i18n-check version --verbose --log-level off`
 Expected: 四行输出全是英文（`BrickKit CLI v...` / `Supported Manifest version: brickkit/v1` / `Supported deploy targets: docker, k8s` / `Git commit: ...` / `Build date: ...`）
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add internal/msgid internal/i18n internal/cli/version.go internal/cli/cli_test.go internal/cli/execute_test.go
@@ -1152,7 +1152,7 @@ EOF
 - Consumes: `i18n.T`、`i18n.CatalogFor`（Task 1）
 - Produces: `msgid.ProjectMissing`、`msgid.LabelPath`、`msgid.ProjectMissingHintInit`、`msgid.ProjectMissingHintConfig`；`tests/docfields` 内部新增 `msgidKeys(t)`、`i18nCallTitle(...)` 两个测试专用 helper（仅在该包内使用）
 
-- [ ] **Step 1: 在 `internal/msgid/msgid.go` 追加常量**
+- [x] **Step 1: 在 `internal/msgid/msgid.go` 追加常量**
 
 ```go
 	// internal/config/parse.go：PROJECT_MISSING
@@ -1162,7 +1162,7 @@ EOF
 	ProjectMissingHintConfig = "project.missing.hint.config"
 ```
 
-- [ ] **Step 2: 在 `internal/i18n/catalog_en.go` 的 map 里追加**
+- [x] **Step 2: 在 `internal/i18n/catalog_en.go` 的 map 里追加**
 
 ```go
 	msgid.ProjectMissing:           "Error: project config file not found",
@@ -1171,7 +1171,7 @@ EOF
 	msgid.ProjectMissingHintConfig: "Or point --config at the correct config file path",
 ```
 
-- [ ] **Step 3: 在 `internal/i18n/catalog_zh.go` 的 map 里追加（文字必须跟 `parse.go` 现在的原文一字不差——docs/en、docs/zh 的 `10-error-codes.md` 都还照抄着这句中文，本任务不碰文档，靠这里的文字对齐让 Step 8 的文档核对测试继续通过）**
+- [x] **Step 3: 在 `internal/i18n/catalog_zh.go` 的 map 里追加（文字必须跟 `parse.go` 现在的原文一字不差——docs/en、docs/zh 的 `10-error-codes.md` 都还照抄着这句中文，本任务不碰文档，靠这里的文字对齐让 Step 8 的文档核对测试继续通过）**
 
 ```go
 	msgid.ProjectMissing:           "错误：项目配置文件不存在",
@@ -1180,12 +1180,12 @@ EOF
 	msgid.ProjectMissingHintConfig: "或用 --config 指定正确的配置文件路径",
 ```
 
-- [ ] **Step 4: 跑 `TestCatalogParity` 确认对齐**
+- [x] **Step 4: 跑 `TestCatalogParity` 确认对齐**
 
 Run: `go test ./internal/i18n/... -run TestCatalogParity -v`
 Expected: PASS
 
-- [ ] **Step 5: 改 `internal/config/config_test.go` 里的断言（先改测试）**
+- [x] **Step 5: 改 `internal/config/config_test.go` 里的断言（先改测试）**
 
 把 `TestParseConfigFileNotExist`：
 
@@ -1215,12 +1215,12 @@ func TestParseConfigFileNotExist(t *testing.T) {
 
 （`internal/config/edge_test.go` 里的 `TestParseConfigFileMissingUsesProjectMissingCode` 只断言 `clierr.CodeProjectMissing` 这个 Code，不断言文案内容，不用改。）
 
-- [ ] **Step 6: 跑测试确认失败（还没改 parse.go）**
+- [x] **Step 6: 跑测试确认失败（还没改 parse.go）**
 
 Run: `go test ./internal/config/... -run TestParseConfigFileNotExist -v`
 Expected: FAIL（实际输出仍是中文"不存在"）
 
-- [ ] **Step 7: 改 `internal/config/parse.go`**
+- [x] **Step 7: 改 `internal/config/parse.go`**
 
 在 import 块里加：
 
@@ -1253,7 +1253,7 @@ Expected: FAIL（实际输出仍是中文"不存在"）
 			).WithCause(err)
 ```
 
-- [ ] **Step 8: 跑测试——`internal/config` 应该转绿，`tests/docfields` 应该转红（预期之内）**
+- [x] **Step 8: 跑测试——`internal/config` 应该转绿，`tests/docfields` 应该转红（预期之内）**
 
 Run: `go test ./internal/config/... -run TestParseConfigFileNotExist -v`
 Expected: PASS
@@ -1261,7 +1261,7 @@ Expected: PASS
 Run: `go test ./tests/docfields/... -run TestErrorCodesDocTitlesExistInSource -v`
 Expected: **FAIL**——`docs/en/06-architecture/10-error-codes.md` 与 `docs/zh/06-architecture/10-error-codes.md` 里的 `` `错误：项目配置文件不存在` `` 这个标题，现在源码里找不到对应的字符串字面量了（变成了 `i18n.T(msgid.ProjectMissing)` 这个函数调用，`go/ast` 的字面量提取器认不出来）。这是本任务开头说明的第二个连带问题，下面几步来修。
 
-- [ ] **Step 9: 先写测试，证明"还原 `i18n.T(msgid.X)` 调用"这件事本身是对的**
+- [x] **Step 9: 先写测试，证明"还原 `i18n.T(msgid.X)` 调用"这件事本身是对的**
 
 在 `tests/docfields/errorcodes_test.go` 的 import 块里加：
 
@@ -1302,12 +1302,12 @@ func TestI18nCallTitleRejectsUnrelatedCalls(t *testing.T) {
 }
 ```
 
-- [ ] **Step 10: 跑测试确认编译失败**
+- [x] **Step 10: 跑测试确认编译失败**
 
 Run: `go test ./tests/docfields/... -run TestI18nCallTitle -v`
 Expected: 编译失败（`msgidKeys`/`i18nCallTitle` 未定义）
 
-- [ ] **Step 11: 在 `tests/docfields/errorcodes_test.go` 里实现 `msgidKeys` 与 `i18nCallTitle`，并接进 `sourceTitles`**
+- [x] **Step 11: 在 `tests/docfields/errorcodes_test.go` 里实现 `msgidKeys` 与 `i18nCallTitle`，并接进 `sourceTitles`**
 
 在 `clierrCodes` 函数后面追加：
 
@@ -1472,7 +1472,7 @@ func sourceTitles(t *testing.T) []string {
 }
 ```
 
-- [ ] **Step 12: 顺手修 `formatVerb` 正则，让它认得位置 verb（`%[1]s`）**
+- [x] **Step 12: 顺手修 `formatVerb` 正则，让它认得位置 verb（`%[1]s`）**
 
 本任务转换的 `PROJECT_MISSING` 没有参数，不会触发这个问题；但目录里其他带参数的 key（Task 5 已经加了好几个）一旦被某条错误引用并写进文档，现在的 `formatVerb` 正则会漏判——它认不出 `%[1]s` 这种显式参数索引写法，只认 `%s`/`%d` 这种传统写法。趁着这次已经在改这个文件，一并修掉，子项目 2 转换带参数的消息时就不用再回来碰这个正则。
 
@@ -1497,12 +1497,12 @@ func TestFormatVerbMatchesPositionalVerbs(t *testing.T) {
 }
 ```
 
-- [ ] **Step 13: 跑全部 docfields 测试确认恢复全绿**
+- [x] **Step 13: 跑全部 docfields 测试确认恢复全绿**
 
 Run: `go test ./tests/docfields/... -v`
 Expected: PASS（全部，包括 `TestErrorCodesDocCoversEveryCode`、`TestErrorCodesDocTitlesExistInSource`、新增的 `TestI18nCallTitleResolvesKnownMessage`、`TestI18nCallTitleRejectsUnrelatedCalls`、`TestFormatVerbMatchesPositionalVerbs`）
 
-- [ ] **Step 14: 跑真实二进制确认 `brickkit up` 在空目录下报英文错误**
+- [x] **Step 14: 跑真实二进制确认 `brickkit up` 在空目录下报英文错误**
 
 Run: `mkdir -p /tmp/brickkit-i18n-empty && cd /tmp/brickkit-i18n-empty && /tmp/brickkit-i18n-check up --log-level off; cd -`
 Expected: stderr 输出形如：
@@ -1515,7 +1515,7 @@ Expected: stderr 输出形如：
    2. Or point --config at the correct config file path
 ```
 
-- [ ] **Step 15: 跑一次完整 `make lint`，发现并处理一个计划外的连带问题**
+- [x] **Step 15: 跑一次完整 `make lint`，发现并处理一个计划外的连带问题**
 
 Run: `make lint 2>&1 | tail -60`
 
@@ -1550,7 +1550,7 @@ Run: `make lint 2>&1 | tail -60`
 Expected: `tests/docfields`、`internal/...`、`check-*`（`check-guide-output` 除外，
 留给 Task 7 收尾时确认）全部 ✅。
 
-- [ ] **Step 16: Commit**
+- [x] **Step 16: Commit**
 
 ```bash
 git add internal/msgid internal/i18n internal/config tests/docfields scripts/check-guide-output.py
@@ -1588,7 +1588,7 @@ EOF
 - Consumes: `i18n.Resolve()`、`i18n.SetCurrent()`、`i18n.Current()`（Task 1、4）
 - Produces: `NewRootCommand` 现在每次调用都会重新解析并设置当前语言（跟 `internal/logging.Init` 在每次 `Run()` 都重新初始化是同一种用法），`run()` 测试 helper 隔离全局配置目录
 
-- [ ] **Step 1: 改 `internal/cli/cli_test.go` 的共享测试 helper `run()`，隔离全局配置目录**
+- [x] **Step 1: 改 `internal/cli/cli_test.go` 的共享测试 helper `run()`，隔离全局配置目录**
 
 把：
 
@@ -1690,12 +1690,12 @@ func TestRootHelpIsLocalizedWhenBrickkitLangIsZH(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 跑测试确认失败（还没改 root.go）**
+- [x] **Step 2: 跑测试确认失败（还没改 root.go）**
 
 Run: `go test ./internal/cli/... -run 'TestNoArgsPrintsHelp|TestEachSubcommandHelp|TestRootHelpIsLocalizedWhenBrickkitLangIsZH' -v`
 Expected: `TestNoArgsPrintsHelp`、`TestEachSubcommandHelp` FAIL（现在还是无条件中文模板）；`TestRootHelpIsLocalizedWhenBrickkitLangIsZH` PASS（现在本来就是中文，凑巧先绿，Step 4 之后应该仍然绿）
 
-- [ ] **Step 3: 改 `internal/cli/root.go`**
+- [x] **Step 3: 改 `internal/cli/root.go`**
 
 在 import 块里加：
 
@@ -1749,17 +1749,17 @@ func NewRootCommand(opts *Options) *cobra.Command {
 }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `go test ./internal/cli/... -run 'TestNoArgsPrintsHelp|TestEachSubcommandHelp|TestRootHelpIsLocalizedWhenBrickkitLangIsZH' -v`
 Expected: PASS（三个）
 
-- [ ] **Step 5: 跑整个 `internal/cli` 包的测试，确认没有牵连其他用到 `run()`/`NewRootCommand` 的测试**
+- [x] **Step 5: 跑整个 `internal/cli` 包的测试，确认没有牵连其他用到 `run()`/`NewRootCommand` 的测试**
 
 Run: `go test ./internal/cli/... -v 2>&1 | tail -80`
 Expected: 全部 PASS
 
-- [ ] **Step 6: 跑真实二进制分别验证两种语言的 `--help`**
+- [x] **Step 6: 跑真实二进制分别验证两种语言的 `--help`**
 
 实测更正：root 命令自己的 `Long` 描述（这次不转换、留给子项目 2）排在
 `Usage:`/`用法：`之前，所以不是字面意义的"第一行"——用 `Contains` 而不是
@@ -1771,7 +1771,7 @@ Expected: 有输出（英文模板的 `Usage:` 那一行确实存在）
 Run: `BRICKKIT_LANG=zh /tmp/brickkit-i18n-check --help | grep -n "^用法："`
 Expected: 有输出（现有的中文模板 `用法：` 那一行确实存在，行为不变）
 
-- [ ] **Step 7: 跑一次完整 `make lint`，确认 Task 6 留下的 check-guide-output 缺口是否真的解开**
+- [x] **Step 7: 跑一次完整 `make lint`，确认 Task 6 留下的 check-guide-output 缺口是否真的解开**
 
 `i18n.Resolve()` 接进 `NewRootCommand` 之后，Task 6 里给 `check-guide-output.py`
 钉的 `BRICKKIT_LANG=zh` 才第一次真正生效。
@@ -1813,7 +1813,7 @@ Run: `make lint 2>&1 | tail -50`
 Expected: **完全全绿**——不需要留 check-guide-output 这个例外了，比 Task 6 结束时
 预期的"已知缺口留给 Task 7"这个说法更好：Task 7 做完之后就是真的全绿。
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add internal/cli/root.go internal/cli/cli_test.go scripts/check-guide-output.py
@@ -1855,7 +1855,7 @@ EOF
 - Consumes: `i18n.Resolve`、`i18n.ParseLang`、`i18n.SupportedLangs`、`i18n.SetCurrent`（Task 1、4）、`userconfig.Save`、`userconfig.Path`（Task 3）
 - Produces: `newLangCommand(opts *Options) *cobra.Command`（挂进 `root.AddCommand`）
 
-- [ ] **Step 1: 在 `internal/msgid/msgid.go` 追加常量**
+- [x] **Step 1: 在 `internal/msgid/msgid.go` 追加常量**
 
 ```go
 	// internal/cli/lang.go
@@ -1870,7 +1870,7 @@ EOF
 	LangInvalidValue  = "lang.invalid_value"
 ```
 
-- [ ] **Step 2: 在 `internal/i18n/catalog_en.go` 的 map 里追加**
+- [x] **Step 2: 在 `internal/i18n/catalog_en.go` 的 map 里追加**
 
 ```go
 	msgid.LangCmdShort:       "Show the CLI's current display language",
@@ -1884,7 +1884,7 @@ EOF
 	msgid.LangInvalidValue:   "Unsupported language: %[1]s (supported: %[2]s)",
 ```
 
-- [ ] **Step 3: 在 `internal/i18n/catalog_zh.go` 的 map 里追加**
+- [x] **Step 3: 在 `internal/i18n/catalog_zh.go` 的 map 里追加**
 
 ```go
 	msgid.LangCmdShort:       "查看 CLI 当前的显示语言",
@@ -1898,12 +1898,12 @@ EOF
 	msgid.LangInvalidValue:   "不支持的语言：%[1]s（支持：%[2]s）",
 ```
 
-- [ ] **Step 4: 跑 `TestCatalogParity` 确认对齐**
+- [x] **Step 4: 跑 `TestCatalogParity` 确认对齐**
 
 Run: `go test ./internal/i18n/... -run TestCatalogParity -v`
 Expected: PASS
 
-- [ ] **Step 5: 先写测试 `internal/cli/lang_test.go`**
+- [x] **Step 5: 先写测试 `internal/cli/lang_test.go`**
 
 ```go
 package cli
@@ -1964,12 +1964,12 @@ func TestLangSetRequiresExactlyOneArg(t *testing.T) {
 }
 ```
 
-- [ ] **Step 6: 跑测试确认失败**
+- [x] **Step 6: 跑测试确认失败**
 
 Run: `go test ./internal/cli/... -run TestLang -v`
 Expected: FAIL（`brickkit lang` 命令还不存在，会报 unknown command）
 
-- [ ] **Step 7: 写 `internal/cli/lang.go`**
+- [x] **Step 7: 写 `internal/cli/lang.go`**
 
 ```go
 package cli
@@ -2049,7 +2049,7 @@ func langNamesJoined() string {
 }
 ```
 
-- [ ] **Step 8: 把 `newLangCommand(opts)` 加进 `internal/cli/root.go` 的命令列表**
+- [x] **Step 8: 把 `newLangCommand(opts)` 加进 `internal/cli/root.go` 的命令列表**
 
 把 `root.AddCommand(...)` 里的：
 
@@ -2100,12 +2100,12 @@ func langNamesJoined() string {
 	)
 ```
 
-- [ ] **Step 9: 跑测试确认通过**
+- [x] **Step 9: 跑测试确认通过**
 
 Run: `go test ./internal/cli/... -run TestLang -v`
 Expected: PASS（全部 5 个）
 
-- [ ] **Step 10: 跑整个 `internal/cli` 包，确认 `lang` 新增没有把命令计数相关的东西带崩（先确认哪里会崩，下一步再修）**
+- [x] **Step 10: 跑整个 `internal/cli` 包，确认 `lang` 新增没有把命令计数相关的东西带崩（先确认哪里会崩，下一步再修）**
 
 Run: `go build -o /tmp/brickkit-i18n-check ./cmd/brickkit && go run ./scripts/gen-schemas 2>/dev/null; python3 scripts/check-cli-docs.py /tmp/brickkit-i18n-check`
 
@@ -2117,7 +2117,7 @@ Expected: 在"命令数目：文档与实现一致"这一步报错，形如：
 
 这是预期的：`scripts/check-cli-docs.py` 目前只把 `"version"` 排除在业务命令计数之外，`lang` 现在被当成了第 17 个业务命令，但所有文档仍然写着 16。下一步把 `lang` 也加进排除名单——这跟已批准的设计（`lang` 跟 `version` 一样不计入业务命令数）是同一件事，不是去改文档凑数字。
 
-- [ ] **Step 11: 改 `scripts/check-cli-docs.py`，把 `lang` 也排除在业务命令计数之外**
+- [x] **Step 11: 改 `scripts/check-cli-docs.py`，把 `lang` 也排除在业务命令计数之外**
 
 把 `check_command_count` 函数里的：
 
@@ -2137,12 +2137,12 @@ Expected: 在"命令数目：文档与实现一致"这一步报错，形如：
                 and name not in NON_BUSINESS_COMMANDS})
 ```
 
-- [ ] **Step 12: 重新跑 check-cli-docs.py 确认恢复通过**
+- [x] **Step 12: 重新跑 check-cli-docs.py 确认恢复通过**
 
 Run: `python3 scripts/check-cli-docs.py /tmp/brickkit-i18n-check`
 Expected: 全部 ✅，包括"命令数目：文档与实现一致（16 个业务命令）"
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add internal/msgid internal/i18n internal/cli/lang.go internal/cli/lang_test.go internal/cli/root.go scripts/check-cli-docs.py
@@ -2164,7 +2164,7 @@ EOF
 
 **Files:** 无代码改动，只验证。
 
-- [ ] **Step 1: 干净重新构建，并固定一个空的全局配置目录**
+- [x] **Step 1: 干净重新构建，并固定一个空的全局配置目录**
 
 后面除 Step 5、6 外的每一步都靠"默认是英语"来判断对不对；如果直接用跑这个验证的机器上真实的全局配置目录，而这台机器上又真的执行过 `brickkit lang set zh`（完全可能，这就是这个功能本身的用途），下面几步的"预期是英文"就会不成立，看起来像是改动有 bug，其实只是没隔离。用一个确定不存在的目录整个盖掉：
 
@@ -2176,7 +2176,7 @@ rm -rf "$BRICKKIT_USERCONFIG_DIR"
 ```
 Expected: 构建无错误；`$BRICKKIT_USERCONFIG_DIR` 此后对本任务余下的 Step 2-4 都生效（同一个 shell 会话），且目录此刻不存在，等价于"从没设置过语言"
 
-- [ ] **Step 2: 默认（英文）路径——`--help`**
+- [x] **Step 2: 默认（英文）路径——`--help`**
 
 跟 Task 7 Step 6 一样的更正：root 的 `Long` 描述排在 `Usage:` 之前，不是字面
 意义的"第一行"，用 `grep` 确认那一行存在即可：
@@ -2184,12 +2184,12 @@ Expected: 构建无错误；`$BRICKKIT_USERCONFIG_DIR` 此后对本任务余下�
 Run: `/tmp/brickkit-i18n-check --help | grep -n "^Usage:"`
 Expected: 有输出
 
-- [ ] **Step 3: `BRICKKIT_LANG=zh` 路径——`--help`**
+- [x] **Step 3: `BRICKKIT_LANG=zh` 路径——`--help`**
 
 Run: `BRICKKIT_LANG=zh /tmp/brickkit-i18n-check --help | grep -n "^用法："`
 Expected: 有输出（环境变量优先级最高，盖过 Step 1 那个空的全局配置目录）
 
-- [ ] **Step 4: 空目录下 `brickkit up`，两种语言**
+- [x] **Step 4: 空目录下 `brickkit up`，两种语言**
 
 Run:
 ```bash
@@ -2202,7 +2202,7 @@ Expected: 第一条输出 `❌ Error: project config file not found` 起始的�
 
 跑完这四步后 `unset BRICKKIT_USERCONFIG_DIR`，避免带进 Step 5（它要自己管理另一个专用目录）。
 
-- [ ] **Step 5: `brickkit lang set` 持久化，用一个干净的全局配置目录**
+- [x] **Step 5: `brickkit lang set` 持久化，用一个干净的全局配置目录**
 
 Run:
 ```bash
@@ -2220,7 +2220,7 @@ Expected：
 - 第二次 `lang`：`当前语言：zh（来源：全局配置文件）`
 - `config.json` 内容是 `{"lang": "zh"}` 加换行
 
-- [ ] **Step 6: `brickkit lang set` 校验不支持的值**
+- [x] **Step 6: `brickkit lang set` 校验不支持的值**
 
 用一个全新的隔离目录（不复用 Step 5 那个已经写了 `zh` 进去的目录），保证这一步的期望输出是确定的英文，不取决于跑这个验证的机器上真实的全局配置目录里已经有什么：
 
@@ -2230,17 +2230,17 @@ BRICKKIT_USERCONFIG_DIR=/tmp/brickkit-i18n-userconfig-clean /tmp/brickkit-i18n-c
 ```
 Expected: stderr 报 `❌ Unsupported language: fr (supported: en, zh)`，`exit=2`
 
-- [ ] **Step 7: 跑完整 `make lint`**
+- [x] **Step 7: 跑完整 `make lint`**
 
 Run: `cd /home/zhijie/Desktop/github/brickKit && make lint 2>&1 | tail -60`
 Expected: 全部 ✅，跟本计划开始前的那次全绿输出一致（命令数目仍是"16 个业务命令"，覆盖率仍不低于门槛）
 
-- [ ] **Step 8: 确认没有遗留的临时文件被误提交**
+- [x] **Step 8: 确认没有遗留的临时文件被误提交**
 
 Run: `git status`
 Expected: 只有本计划各任务里已经 commit 的改动，没有未跟踪的临时文件（`/tmp/` 下的构建产物与验证目录不在仓库里，不会出现）
 
-- [ ] **Step 9: 最终确认所有任务的 commit 都在**
+- [x] **Step 9: 最终确认所有任务的 commit 都在**
 
 Run: `git log --oneline -10`
 Expected: 能看到 Task 1-8 各自的 commit，共 8 个（Task 9 本身不产生代码改动，不需要 commit）
