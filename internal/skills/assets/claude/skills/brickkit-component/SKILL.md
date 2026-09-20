@@ -31,7 +31,8 @@ description: 新写一个 BrickKit 组件、修改 component.yaml、加数据库
 （下面第 2 条）。在独立的组件仓库里（只有 `component.yaml`、没有 `brickkit.yaml`）直接就能跑；
 在 BrickKit 项目里，它会顺带查本地安装源下的每一份 `component.yaml`。
 
-它**不查**依赖能不能解析、`servedBy` 指向的组件在不在——那要联网，留给 `brickkit up --dry-run`；
+它**不查**依赖能不能解析、`servedBy` 指向的组件在不在——那要联网，留给用到这个组件的 BrickKit 项目里的
+`brickkit up --dry-run`（独立的组件仓库里没有 `brickkit.yaml`，跑不了 `up`）；
 也不检查 `configSchema` 里 `enum` / `minimum` 对应的值，平台不校验配置值。
 
 ## 你会猜错的地方

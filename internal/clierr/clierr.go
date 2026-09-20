@@ -90,8 +90,10 @@ const (
 	// 结构检查（brickkit lint）。
 	//
 	// CodeLintFailed 是"lint 查出了问题"——逐条问题已经打印在 stdout，这个码只标记整条命令的结局。
-	// 不复用 CONFIG_INVALID / MANIFEST_INVALID：一次 lint 可以两者兼有，汇总只能带一个码；
-	// 而 CI 脚本要区分的恰恰是"lint 查出了问题"和"配置读不出来"。
+	// 不复用 CONFIG_INVALID / MANIFEST_INVALID：一次 lint 可以两者兼有，汇总只能带一个码。
+	// 所以 lint 里不合法的 brickkit.yaml 也以本码收尾，不是 CONFIG_INVALID；lint 自己有独立码的
+	// 只有两种情形，都与文件内容无关：PROJECT_MISSING（无处可查）与 INVALID_ARGUMENT（命令行写错）。
+	// CI 脚本据此认：本码 = "lint 跑了，并且查出了问题"。
 	CodeLintFailed Code = "LINT_FAILED"
 )
 
