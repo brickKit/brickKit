@@ -170,7 +170,7 @@ brickkit skills update    # 刷新到当前 CLI 版本
 | --- | --- | --- |
 | `--ignore-served-by` | 关闭 | 在内存里清空全部 `servedBy` 声明再画一次：原本被外壳收编的组件会作为独立的普通方框出现，各画各的、就像它们各自单独启动时的样子。含义与 `up --ignore-served-by` 相同，也同样从不写回 `brickkit.yaml`。输出里会多一行 `%%` 注释，说明这个参数生效了 |
 
-**示例**（就是上面 `up --dry-run` 示例的那个项目：`people/basic` 需要 `department/tree`，还有一个没有任何安装源提供的弱依赖）
+**示例**（就是[后面 `up --dry-run` 示例](#brickkit-up)的那个项目：`people/basic` 需要 `department/tree`，还有一个没有任何安装源提供的弱依赖）
 
 ```
 $ brickkit graph > graph.mmd
@@ -235,7 +235,7 @@ brickkit graph --config brickkit.prod.yaml   # 对非默认环境的配置文件
 
 检查你写的 YAML 文件"形状"对不对——必填字段在不在、值的类型对不对、有没有拼错的键、版本是不是 `major.minor.patch`、端口在不在范围内——而且什么都不启动：不联网，不需要 Docker 或 Kubernetes，也不写任何文件。它大约一秒就回答"这份文件我写对了吗"，不用等到 `add` 或 `up` 才发现。
 
-它没有任何自己的新规则：每一条检查都是平台读这些文件时本来就会在别处做的——在 `add`、`up`、`publish` 或者市场里。以前缺的是一个能单独跑它们的入口，尤其是有两样东西没有任何命令能单独检查：组件仓库（有 `component.yaml`、没有 `brickkit.yaml`），以及你已经加进项目的本地组件——`add --local` 对已经写在 `brickkit.yaml` 里的同版本组件是直接跳过的，所以之后手改引入的笔误，要到跑 `up`（要引擎、要走完整的启停判定）才会发现。
+它没有任何自己的新规则：每一条检查都是平台读这些文件时本来就会在别处做的——在 `add`、`up`、`publish` 或者市场里。以前缺的是一个能单独跑它们的入口，尤其是有两样东西没有任何命令能单独检查：组件仓库（有 `component.yaml`、没有 `brickkit.yaml`），以及你已经加进项目的本地组件——`add --local` 对已经写在 `brickkit.yaml` 里的同版本组件是直接跳过的，所以之后手改引入的笔误，要等 `up` 读到这份文件、走完整个启停判定之后才会发现——拿它来找笔误太慢了。
 
 **两种模式**，看当前目录里有什么来定（与 `brickkit skills` 是同一条规则；两个文件都有时按项目算）：
 
@@ -260,7 +260,7 @@ brickkit graph --config brickkit.prod.yaml   # 对非默认环境的配置文件
 | --- | --- | --- |
 | `--strict` | 关闭 | 警告也算失败（退出码 `1`），给 CI 门禁用 |
 
-**示例**（就是上面 `add` 示例的那个项目：`components/` 里有 `department/tree` 和 `people/basic`）
+**示例**（就是[后面 `add` 示例](#brickkit-add)的那个项目：`components/` 里有 `department/tree` 和 `people/basic`）
 
 干净的一次：
 

@@ -180,7 +180,7 @@ Arrows are drawn whether or not the component at the other end starts: the pictu
 | --- | --- | --- |
 | `--ignore-served-by` | off | Clear every `servedBy` declaration in memory and draw again: the components a shell had absorbed show up as ordinary standalone boxes, each as it would stand on its own. Same meaning as `up --ignore-served-by`, and like there, never written back to `brickkit.yaml`. The output gets a `%%` comment line saying it was in effect |
 
-**Example** (the project from the `up --dry-run` example above: `people/basic` needs `department/tree` and has an optional dependency no source provides)
+**Example** (the project from the [`up --dry-run` example further down](#brickkit-up): `people/basic` needs `department/tree` and has an optional dependency no source provides)
 
 ```
 $ brickkit graph > graph.mmd
@@ -245,7 +245,7 @@ brickkit graph --config brickkit.prod.yaml   # a non-default environment file
 
 Checks that the YAML files you write are shaped correctly — required fields present, values of the right type, no misspelled key, versions written `major.minor.patch`, ports in range — without starting anything: no network, no Docker or Kubernetes, and it writes no file. It answers "did I write this file right?" in about a second, instead of you finding out through `add` or `up`.
 
-It adds no rules of its own: every check is one the platform already makes somewhere when it reads these files — in `add`, `up`, `publish` or the marketplace. What was missing was a way to run them on their own, and on two things nothing could check by itself: a component repository (a `component.yaml`, no `brickkit.yaml`), and a local component you already added — `add --local` skips a version that's already in `brickkit.yaml`, so a typo introduced by a later edit only surfaces when `up` runs, with an engine and the whole cascade.
+It adds no rules of its own: every check is one the platform already makes somewhere when it reads these files — in `add`, `up`, `publish` or the marketplace. What was missing was a way to run them on their own, and on two things nothing could check by itself: a component repository (a `component.yaml`, no `brickkit.yaml`), and a local component you already added — `add --local` skips a version that's already in `brickkit.yaml`, so a typo introduced by a later edit only surfaces when `up` reads the file, after the whole cascade — a slow way to find a typo.
 
 **Two modes**, picked by what's in the current directory (the same rule `brickkit skills` uses; when both files are there it counts as a project):
 
@@ -270,7 +270,7 @@ An editor can catch the structural problems as you type: see [Wire up your edito
 | --- | --- | --- |
 | `--strict` | off | Warnings fail the run too (exit status `1`), for CI gates |
 
-**Example** (the project from the `add` example above: `department/tree` and `people/basic` in `components/`)
+**Example** (the project from the [`add` example further down](#brickkit-add): `department/tree` and `people/basic` in `components/`)
 
 A clean run:
 
