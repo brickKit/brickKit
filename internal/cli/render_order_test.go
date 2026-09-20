@@ -157,7 +157,7 @@ func TestDryRunOrderReportsCycle(t *testing.T) {
 
 	r := runIn(t, f.Dir, "up", "--dry-run")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "循环依赖")
+	assert.Contains(t, r.stderr, "dependency cycle")
 	assert.Contains(t, r.stderr, "a/one@1.0.0")
 }
 
@@ -342,7 +342,7 @@ func TestDryRunOrderReportsDisabledStrongDependency(t *testing.T) {
 	r := runIn(t, f.Dir, "up", "--dry-run")
 
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "强依赖 authorization/rbac 被禁用")
+	assert.Contains(t, r.stderr, "required dependency authorization/rbac is disabled")
 	assert.Contains(t, r.stderr, "erp/backend")
 }
 

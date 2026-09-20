@@ -194,7 +194,7 @@ func TestOrderDetectsCycle(t *testing.T) {
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeDependencyCycle, e.Code)
 	out := e.Format()
-	assert.Contains(t, out, "循环依赖")
+	assert.Contains(t, out, "dependency cycle")
 	assert.Contains(t, out, "a/one@1.0.0")
 	assert.Contains(t, out, "b/two@1.0.0")
 }

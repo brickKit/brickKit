@@ -191,7 +191,7 @@ func TestAddMissingStrongDependencyBlocks(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "erp/backend@1.0.0")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "强依赖缺失")
+	assert.Contains(t, r.stderr, "required dependency missing")
 	assert.Contains(t, r.stderr, "department/tree@1.0.0")
 	assert.Equal(t, before, f.config(t), "失败时不得修改 brickkit.yaml")
 }

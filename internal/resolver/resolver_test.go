@@ -30,7 +30,7 @@ func TestStrongDependencyMissingBlocks(t *testing.T) {
 	assert.Equal(t, clierr.CodeDependencyMissing, e.Code)
 	out := e.Format()
 	// 逐字对齐 004 §10.2 的强依赖缺失错误块
-	assert.Contains(t, out, "强依赖缺失")
+	assert.Contains(t, out, "required dependency missing")
 	assert.Contains(t, out, "erp/backend@1.0.0")
 	assert.Contains(t, out, "authorization/rbac@1.0.0")
 	assert.Contains(t, out, "所有安装源")
@@ -92,7 +92,7 @@ func TestOptionalDependencyMissingWarnsAndContinues(t *testing.T) {
 	assert.Contains(t, out, "infra/redis-event-bus@1.0.0")
 	assert.Contains(t, out, "erp/backend@1.0.0")
 	assert.Contains(t, out, "INFRA_REDIS_EVENT_BUS_ENDPOINT")
-	assert.Contains(t, out, "不会被注入")
+	assert.Contains(t, out, "will not be injected")
 }
 
 // 7.6 弱依赖 `optional: true` 正确识别：能取到时正常进入依赖图，且不产生警告。
@@ -137,7 +137,7 @@ func TestDependencyCycleIsReported(t *testing.T) {
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeDependencyCycle, e.Code)
 	out := e.Format()
-	assert.Contains(t, out, "循环依赖")
+	assert.Contains(t, out, "dependency cycle")
 	assert.Contains(t, out, "a/one@1.0.0 → b/two@1.0.0 → c/three@1.0.0 → a/one@1.0.0",
 		"004 §4.3：要打印完整循环路径")
 	assert.Contains(t, out, "Manifest")

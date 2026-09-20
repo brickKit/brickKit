@@ -90,7 +90,7 @@ func TestLocalhostHintDiffersOnK8s(t *testing.T) {
 
 	require.Len(t, warnings, 1)
 	out := warnings[0].Format()
-	assert.Contains(t, out, "集群")
+	assert.Contains(t, out, "cluster")
 	assert.NotContains(t, out, deploy.HostMachineAlias,
 		"K8s 下 host.docker.internal 毫无意义，给了只会误导")
 }

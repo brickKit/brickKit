@@ -36,6 +36,8 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -325,12 +327,12 @@ func disabledDependencyError(
 	}
 
 	culprit := current
-	return clierr.New(clierr.CodeComponentDisabled, "错误：强依赖 "+culprit.ID+" 被禁用").
-		WithDetailf("组件", "%s@%s（enabled: true，已钉住）", pinned.ID, pinned.Version).
-		WithDetail("依赖链", strings.Join(chain, " → ")).
-		WithDetailf("被禁用的组件", "%s@%s", culprit.ID, culprit.Version).
+	return clierr.New(clierr.CodeComponentDisabled, i18n.T(msgid.CascadeStrongDependencyDisabled, culprit.ID)).
+		WithDetail(i18n.T(msgid.LabelComponent), i18n.T(msgid.CascadePinnedComponentDetail, pinned.ID, pinned.Version)).
+		WithDetail(i18n.T(msgid.CascadeLabelDependencyChain), strings.Join(chain, " → ")).
+		WithDetailf(i18n.T(msgid.CascadeLabelDisabledComponent), "%s@%s", culprit.ID, culprit.Version).
 		WithHint(
-			"在 brickkit.yaml 中移除 "+culprit.ID+" 的 enabled: false",
-			"或去掉 "+pinned.ID+" 的 enabled: true，让它随上层一起不启动",
+			i18n.T(msgid.CascadeHintRemoveDisabledFlag, culprit.ID),
+			i18n.T(msgid.CascadeHintRemovePinnedFlag, pinned.ID),
 		)
 }

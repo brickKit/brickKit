@@ -22,7 +22,9 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
@@ -334,15 +336,19 @@ func unwrapFetch(err error) error {
 //
 // 所以：底层给了建议就用它的（它更具体），没给才回落到通用的三条。
 func missingDependencyError(dependent, missing Ref, cause error) error {
-	e := clierr.New(clierr.CodeDependencyMissing, "错误：强依赖缺失").
-		WithDetail("组件", dependent.String()).
-		WithDetail("缺失依赖", missing.String()).
-		WithDetail("原因", reasonOf(cause))
+	e := clierr.New(clierr.CodeDependencyMissing, i18n.T(msgid.ResolverStrongDependencyMissing)).
+		WithDetail(i18n.T(msgid.LabelComponent), dependent.String()).
+		WithDetail(i18n.T(msgid.ResolverLabelMissingDependency), missing.String()).
+		WithDetail(i18n.T(msgid.LabelReason), reasonOf(cause))
 
 	inner := clierr.As(cause)
 	if inner != nil {
 		for _, d := range inner.Details {
-			// 这三个上面已经写过（值也更贴题），不重复
+			// 这三个上面已经写过（值也更贴题），不重复。这里仍然按
+			// internal/source 目前实际产出的中文字面量比较——source.go
+			// 还没转换成 i18n，它的 Detail.Key 现在不管当前语言是什么，
+			// 永远是这三个中文字面量。等 source.go 那一批做完，要把这里
+			// 一并改成 i18n.T(msgid.LabelComponent) 这种按当前语言比较的写法。
 			if d.Key == "组件" || d.Key == "原因" || d.Key == "要的版本" {
 				continue
 			}
@@ -353,19 +359,19 @@ func missingDependencyError(dependent, missing Ref, cause error) error {
 		return e.WithHint(inner.Hints...).WithCause(cause)
 	}
 	return e.WithHint(
-		"检查安装源配置（brickkit.yaml → sources）",
-		"确认组件是否已发布到市场",
-		"确认版本号是否正确",
+		i18n.T(msgid.ResolverHintCheckSources),
+		i18n.T(msgid.ResolverHintCheckPublished),
+		i18n.T(msgid.ResolverHintCheckVersion),
 	).WithCause(cause)
 }
 
 // optionalMissingWarning 逐字对齐 004 §4.5 的弱依赖警告块。
 func optionalMissingWarning(dependent, missing Ref, cause error) *clierr.Error {
-	return clierr.Warn(clierr.CodeDependencyMissing, "警告：弱依赖缺失："+missing.String()).
-		WithDetail("影响组件", dependent.String()).
-		WithDetail("原因", reasonOf(cause)).
-		WithDetailf("影响", "该组件的环境变量 %s 不会被注入", manifest.EndpointEnvVar(missing.ID)).
-		WithTip("弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取")
+	return clierr.Warn(clierr.CodeDependencyMissing, i18n.T(msgid.ResolverOptionalDependencyMissing, missing.String())).
+		WithDetail(i18n.T(msgid.ResolverLabelAffectedComponent), dependent.String()).
+		WithDetail(i18n.T(msgid.LabelReason), reasonOf(cause)).
+		WithDetail(i18n.T(msgid.LabelImpact), i18n.T(msgid.ResolverOptionalImpactDetail, manifest.EndpointEnvVar(missing.ID))).
+		WithTip(i18n.T(msgid.ResolverOptionalTip))
 }
 
 // cycleError 打印完整循环路径（004 §4.3）。
@@ -382,17 +388,21 @@ func cycleError(path []Ref, repeated Ref) error {
 	}
 	cycle = append(cycle, repeated.String())
 
-	return clierr.New(clierr.CodeDependencyCycle, "错误：检测到循环依赖").
-		WithDetail("循环路径", strings.Join(cycle, " → ")).
-		WithDetail("原因", "这几个组件互相**强依赖**，谁都要等对方先起来，启动顺序无解").
+	return clierr.New(clierr.CodeDependencyCycle, i18n.T(msgid.ResolverDependencyCycleDetected)).
+		WithDetail(i18n.T(msgid.ResolverLabelCyclePath), strings.Join(cycle, " → ")).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ResolverCycleReasonDetail)).
 		WithHint(
-			"检查 Manifest 中的依赖声明（dependencies.components）",
-			"其中一方改成弱依赖（optional: true）即可——弱依赖不约束启动顺序，"+
-				"环上有一条弱边就不再是死结",
+			i18n.T(msgid.ResolverHintCheckManifestDeps),
+			i18n.T(msgid.ResolverHintMakeOptional),
 		)
 }
 
 // reasonOf 把安装源的错误压成一行原因。
+// reasonOf 分析的 err 来自 internal/source（还没转换成 i18n），它的
+// Detail.Key 与 Message 前缀现在不管当前语言是什么，永远是这两个中文
+// 字面量——所以这里暂时不改成按 i18n.T() 查出来的当前语言文案去比较：
+// 那样反而会在 source.go 转换完之前，永远比对失败。等 source.go 那一批
+// 做完再回来一并改成按当前语言比较的写法。
 func reasonOf(err error) string {
 	e := clierr.As(err)
 	if e == nil {
@@ -441,10 +451,10 @@ func CheckRunningResourceBindings(cfg *config.Config, graph *Graph, running []Re
 		return nil
 	}
 
-	e := clierr.New(clierr.CodeResourceUnbound, "错误：资源依赖未满足")
+	e := clierr.New(clierr.CodeResourceUnbound, i18n.T(msgid.ResolverResourceDependenciesUnmet))
 	e.Details = append(e.Details, details...)
 	// 这一条报的是多个组件，给不出具体的 componentId
-	return e.WithHint(resourceHints("", "暂时不想跑这个组件的话，给它写 enabled: false")...)
+	return e.WithHint(resourceHints("", i18n.T(msgid.ResolverHintDisableComponent))...)
 }
 
 // CheckResourceBindings 校验组件声明的资源依赖是否已在 brickkit.yaml 中
@@ -460,7 +470,7 @@ func CheckResourceBindings(cfg *config.Config, m *manifest.Manifest) error {
 		return nil
 	}
 
-	e := clierr.New(clierr.CodeResourceUnbound, "错误：资源依赖未满足")
+	e := clierr.New(clierr.CodeResourceUnbound, i18n.T(msgid.ResolverResourceDependenciesUnmet))
 	e.Details = append(e.Details, problems...)
 	return e.WithHint(resourceHints(m.Metadata.ID)...)
 }
@@ -480,7 +490,7 @@ func unboundResourceDetails(cfg *config.Config, m *manifest.Manifest) []clierr.D
 		if problem := matchResource(cfg, dep, m.Metadata.ID, shellID); problem != "" {
 			out = append(out, clierr.Detail{
 				Key:   ref.String(),
-				Value: "需要 kind: " + dep.Kind + "、engine: " + dep.Engine + "（" + problem + "）",
+				Value: i18n.T(msgid.ResolverUnboundDetailValue, dep.Kind, dep.Engine, problem),
 			})
 		}
 	}
@@ -516,14 +526,13 @@ func servingShellID(cfg *config.Config, ref Ref) string {
 // 而三种明细里有一种是 engine 拼法不同——那时第一条是**误导**：他明明声明了。
 // 一条照着做不管用的建议，比不给建议更浪费时间。
 func resourceHints(componentID string, extra ...string) []string {
-	bind := "声明了但没绑 → 在该资源的 bindings 中加一行 componentId"
+	bind := i18n.T(msgid.ResolverHintDeclaredNotBound)
 	if componentID != "" {
 		bind += ": " + componentID
 	}
 	return append([]string{
-		"没声明这一类资源 → 在 brickkit.yaml → resources 中加一条",
-		"engine 写的不一样 → 改两处中的一处让它们逐字相同" +
-			"（平台不认别名：postgres 与 postgresql 是两个不同的值）",
+		i18n.T(msgid.ResolverHintNotDeclared),
+		i18n.T(msgid.ResolverHintEngineMismatch),
 		bind,
 	}, extra...)
 }

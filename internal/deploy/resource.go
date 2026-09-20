@@ -11,6 +11,8 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // ResourceRequirement 是一个**必须先跑起来**的基础资源。
@@ -205,20 +207,20 @@ func LocalhostResourceWarnings(
 
 func loopbackWarning(r config.Resource, consumers []string, target string) *clierr.Error {
 	w := clierr.Warn(clierr.CodeConfigInvalid,
-		"基础资源的 host 写成了 "+r.Host+"，容器里连不上").
-		WithDetail("资源", r.ID).
-		WithDetail("要连它的组件", strings.Join(consumers, "、")).
-		WithDetail("原因", "容器里的 "+r.Host+" 指的是**容器自己**，不是你的机器")
+		i18n.T(msgid.DeployLoopbackHostWarning, r.Host)).
+		WithDetail(i18n.T(msgid.LabelResource), r.ID).
+		WithDetail(i18n.T(msgid.DeployLabelConsumers), strings.Join(consumers, i18n.T(msgid.ListSeparator))).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.DeployLoopbackReasonDetail, r.Host))
 
 	if target == config.TargetK8s {
 		return w.WithHint(
-			"写资源在集群里的地址，如 postgres.infra 或 postgres.infra.svc.cluster.local",
-			"资源跑在集群外时写它的 IP 或域名",
+			i18n.T(msgid.DeployLoopbackHintK8sCluster),
+			i18n.T(msgid.DeployLoopbackHintK8sExternal),
 		)
 	}
 	return w.WithHint(
-		"资源跑在本机时写 host: "+HostMachineAlias+"（平台会自动补 extra_hosts）",
-		"资源跑在别处时写它的 IP 或域名",
-		"只有 local: true 的组件用它时才可以写 localhost——那些进程确实在宿主机上",
+		i18n.T(msgid.DeployLoopbackHintDockerAlias, HostMachineAlias),
+		i18n.T(msgid.DeployLoopbackHintDockerExternal),
+		i18n.T(msgid.DeployLoopbackHintDockerLocal),
 	)
 }

@@ -27,6 +27,11 @@ const (
 	LabelRepo      = "label.repo"
 	LabelResource  = "label.resource"
 
+	// ListSeparator 是拼接一串名字（组件 ID、配置项……）时用的分隔符。
+	// 中文习惯用"、"，英文习惯用", "——这跟明细行的"："一样，是标点本身
+	// 随语言变化，不是随便哪句话里的字面量，所以放进共享 key 里。
+	ListSeparator = "list.separator"
+
 	// internal/cli/version.go
 	VersionManifestLine  = "version.manifest_line"
 	VersionTargetsLine   = "version.targets_line"

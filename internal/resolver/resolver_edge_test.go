@@ -167,8 +167,8 @@ func TestCheckResourceBindingsReportsAllProblems(t *testing.T) {
 	require.Error(t, err)
 	out := clierr.As(err).Format()
 	assert.Contains(t, out, "postgres-main 已声明，但未绑定给该组件")
-	assert.Contains(t, out, "kind: cache、engine: redis（brickkit.yaml 的 resources 中未声明）")
-	assert.Contains(t, out, "componentId: people/basic")
+	assert.Contains(t, out, "kind: cache, engine: redis (brickkit.yaml 的 resources 中未声明)")
+	assert.Contains(t, out, "bindings: people/basic")
 }
 
 // engine 不同就不算满足（database:mysql 满足不了 database:postgresql），

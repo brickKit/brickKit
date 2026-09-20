@@ -149,7 +149,7 @@ func TestUpgradeIntroducingACycleIsBlocked(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "up")
 
 	assert.Equal(t, clierr.ExitError, r.code, "002 §7.7 检查项 5")
-	assert.Contains(t, r.stderr, "循环依赖")
+	assert.Contains(t, r.stderr, "dependency cycle")
 	assert.Empty(t, eng.ups)
 }
 
