@@ -48,15 +48,15 @@ func TestVersionCommand(t *testing.T) {
 	r := run(t, "version")
 	assert.Equal(t, clierr.ExitOK, r.code)
 	assert.Contains(t, r.stdout, "BrickKit CLI v")
-	assert.Contains(t, r.stdout, "支持 Manifest 版本：brickkit/v1")
-	assert.Contains(t, r.stdout, "支持部署目标：docker, k8s")
+	assert.Contains(t, r.stdout, "Supported Manifest version: brickkit/v1")
+	assert.Contains(t, r.stdout, "Supported deploy targets: docker, k8s")
 }
 
 func TestVersionVerboseAddsBuildInfo(t *testing.T) {
 	r := run(t, "version", "--verbose")
 	assert.Equal(t, clierr.ExitOK, r.code)
-	assert.Contains(t, r.stdout, "Git commit：")
-	assert.Contains(t, r.stdout, "构建时间：")
+	assert.Contains(t, r.stdout, "Git commit:")
+	assert.Contains(t, r.stdout, "Build date:")
 }
 
 // 2.2 brickkit --help 列出所有子命令。

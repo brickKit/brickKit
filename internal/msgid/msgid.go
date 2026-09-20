@@ -8,4 +8,10 @@ const (
 	DetailLine      = "detail.line"
 	HintLabelSingle = "hint.label.single"
 	HintLabelMulti  = "hint.label.multi"
+
+	// internal/cli/version.go
+	VersionManifestLine  = "version.manifest_line"
+	VersionTargetsLine   = "version.targets_line"
+	VersionCommitLine    = "version.commit_line"
+	VersionBuildDateLine = "version.build_date_line"
 )
