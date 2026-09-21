@@ -959,6 +959,7 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 ```
 cmd/brickkit/          CLI 入口
 cmd/gen-schemas/       重新生成 schemas/*.json（make generate-schemas）；开发用的小工具，不编进 CLI
+tools/i18n/            CLI 多语言迁移工具集（AST 抽取改写用户可见文案、测试期望值批量改写）；开发用的小工具，不编进 CLI
 internal/              CLI 实现
   ├── config/            brickkit.yaml 解析与校验
   ├── manifest/          component.yaml 解析与校验

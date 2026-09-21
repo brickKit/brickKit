@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-docs-bilingual check-market-api check-install-sh check-no-binaries check-guide-output cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + 双语镜像 + 市场 API 表 + 安装脚本 + 仓库无二进制 + 教程输出核对 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-docs-bilingual check-market-api check-install-sh check-no-binaries check-guide-output check-i18n cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + 双语镜像 + 市场 API 表 + 安装脚本 + 仓库无二进制 + 教程输出核对 + 多语言守卫 + 覆盖率门槛）
 # check-guide-output 2026-09-19 曾移出 lint：当时它的全部用例都核对
 # docs/archive/ 里的输出块，而归档已明确不再要求与 CLI 保持同步（错误文案里
 # 的设计书章节引用被清掉后，这份检查立刻发现了这一点——archive 里的旧文案
@@ -157,6 +157,12 @@ lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas ch
 .PHONY: check-no-binaries
 check-no-binaries: ## 确认没有编译产物 / 超大文件被提交进仓库
 	@python3 scripts/check-no-binaries.py
+
+# check-i18n 守住"CLI 消息全部走目录"：生产代码里不许写死带中文的字符串、测试里不许写
+# 中文短语的否定断言（默认语言是英文，那种断言必然空转）；顺带跑 tools/i18n 迁移工具自己的测试。
+.PHONY: check-i18n
+check-i18n: ## 检查 CLI 消息全部走目录（无写死的中文、无空转的中文否定断言），并测迁移工具
+	@go test ./tests/i18nguard/ ./tools/i18n/...
 
 .PHONY: check-doc-fields
 check-doc-fields: ## 检查文档里画的字段骨架与 component.yaml / brickkit.yaml 结构体一致

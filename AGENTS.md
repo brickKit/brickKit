@@ -1115,6 +1115,7 @@ hit:
 ```
 cmd/brickkit/          CLI entry point
 cmd/gen-schemas/       regenerates schemas/*.json (make generate-schemas); a dev tool, not built into the CLI
+tools/i18n/            CLI i18n migration toolkit (AST-based extraction/rewrite of user-visible strings, test-expectation helpers); a dev tool, not built into the CLI
 internal/               CLI implementation
   ├── config/            brickkit.yaml parsing and validation
   ├── manifest/           component.yaml parsing and validation
