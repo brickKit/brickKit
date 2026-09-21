@@ -66,3 +66,11 @@ const (
 	LangSetWriteFailed = "lang.set.write_failed"
 	LangInvalidValue   = "lang.invalid_value"
 )
+
+// 跨包共享（改名自各包私有的同文案 key）
+const (
+	IOFailed            = "io.failed"
+	HintCheckDiskAccess = "hint.check_disk_access"
+	ActionMkdir         = "action.mkdir"
+	ActionWriteFile     = "action.write_file"
+)

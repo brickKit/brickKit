@@ -15,7 +15,9 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -299,24 +301,22 @@ func (p *plan) checkIngressController() error {
 		return nil
 	}
 
-	err := clierr.New(clierr.CodeConfigInvalid,
-		"错误：开了 deploy.networkPolicy 又有 expose: true 的组件时，"+
-			"必须写 deploy.networkPolicy.ingressController.namespace")
+	err := clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.K8sIngressControllerNamespaceMissing))
 	for _, ref := range exposed {
-		err = err.WithDetail("对外组件", ref.ID+"@"+ref.Version+"（expose: true）")
+		err = err.WithDetail(i18n.T(msgid.K8sLabelExposedComponent), i18n.T(msgid.K8sRefExposed, ref.ID+"@"+ref.Version))
 	}
 	return err.
-		WithDetail("原因", "生成的策略默认拒绝一切入站；不说明 ingress controller 在哪，"+
-			"它也会被挡在门外——部署会全部成功，网站却直接打不开").
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sIngressControllerReasonDetail)).
 		WithHint(
-			"查一下 controller 在哪个命名空间：kubectl get pods -A | grep ingress",
-			"然后写进 brickkit.yaml：\n"+
+			i18n.T(msgid.K8sHintFindControllerNamespace),
+			// 示例本身是 YAML，不随语言变；只有引导句翻译
+			i18n.T(msgid.K8sHintThenWriteBrickkitYAML)+"\n"+
 				"    deploy:\n"+
 				"      networkPolicy:\n"+
 				"        enabled: true\n"+
 				"        ingressController:\n"+
 				"          namespace: ingress-nginx",
-			"不需要网络策略就去掉 deploy.networkPolicy",
+			i18n.T(msgid.K8sHintDropNetworkPolicy),
 		)
 }
 

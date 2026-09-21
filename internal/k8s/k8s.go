@@ -24,8 +24,10 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/deploy"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
 )
@@ -429,13 +431,13 @@ func (p *plan) privilegedPortWarnings() []*clierr.Error {
 				continue
 			}
 			out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-				fmt.Sprintf("组件监听特权端口 %d，但 podSecurity: restricted 下绑不了", port)).
-				WithDetail("组件", refText).
-				WithDetailf("端口", "%d", port).
-				WithDetail("原因", "restricted 会 drop 掉全部 capabilities，包括 NET_BIND_SERVICE").
+				i18n.T(msgid.K8sPrivilegedPort, port)).
+				WithDetail(i18n.T(msgid.LabelComponent), refText).
+				WithDetailf(i18n.T(msgid.K8sLabelPort), "%d", port).
+				WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sPrivilegedPortReasonDetail)).
 				WithHint(
-					"让组件监听 1024 以上的端口（对外端口由 Service / Ingress 映射，不必是 80）",
-					"或去掉 deploy.podSecurity: restricted",
+					i18n.T(msgid.K8sHintUsePortAbove1024),
+					i18n.T(msgid.K8sHintDropPodSecurity),
 				))
 		}
 	}
@@ -444,7 +446,7 @@ func (p *plan) privilegedPortWarnings() []*clierr.Error {
 		check(c.Manifest, c.Ref.ID+"@"+c.Ref.Version)
 	}
 	for _, s := range p.served {
-		check(s.Manifest, s.Ref.ID+"@"+s.Ref.Version+"（servedBy "+s.Shell.String()+"）")
+		check(s.Manifest, i18n.T(msgid.K8sRefServedBy, s.Ref.ID+"@"+s.Ref.Version, s.Shell.String()))
 	}
 	return out
 }
@@ -455,16 +457,15 @@ func (p *plan) privilegedPortWarnings() []*clierr.Error {
 // 集群里的 Pod 连不到开发者的笔记本。悄悄跳过的后果是依赖方拿到一个指向
 // 不存在 Service 的地址，表现成随机的连接超时，很难查。
 func localNotSupported(refs []resolver.Ref) error {
-	err := clierr.New(clierr.CodeConfigInvalid,
-		"错误：local: true 只能在 deploy.target: docker 下使用")
+	err := clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.K8sLocalNotSupported))
 	for _, ref := range refs {
-		err = err.WithDetail("组件", ref.ID+"@"+ref.Version+"（local: true）")
+		err = err.WithDetail(i18n.T(msgid.LabelComponent), i18n.T(msgid.K8sRefLocal, ref.ID+"@"+ref.Version))
 	}
 	return err.
-		WithDetail("原因", "集群里的 Pod 访问不到开发者本机上的进程").
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sLocalReasonDetail)).
 		WithHint(
-			"本地调试请把 deploy.target 改成 docker",
-			"或去掉这些组件的 local: true，让它们照常部署到集群里",
+			i18n.T(msgid.K8sHintLocalUseDocker),
+			i18n.T(msgid.K8sHintDropLocal),
 		)
 }
 
@@ -533,15 +534,7 @@ func desiredRef(doc map[string]any) string {
 // 这些文件会被人打开看、被 kubectl 读、被 git 记录，所以要写清楚
 // "这是谁生成的、别手改"。
 func header(cfg *config.Config, path string, now time.Time) []byte {
-	var b bytes.Buffer
-	b.WriteString("# ============================================================\n")
-	b.WriteString("# 由 BrickKit CLI 自动生成，请勿手动编辑\n")
-	b.WriteString("# 手工改动会在下次 brickkit up 时被覆盖；请改 brickkit.yaml\n")
-	fmt.Fprintf(&b, "# 生成时间：%s\n", now.UTC().Format(time.RFC3339))
-	fmt.Fprintf(&b, "# 项目：%s\n", cfg.Project)
-	fmt.Fprintf(&b, "# 文件：k8s/%s\n", path)
-	b.WriteString("# ============================================================\n\n")
-	return b.Bytes()
+	return deploy.FileHeader(cfg.Project, now, i18n.T(msgid.K8sHeaderFile, path))
 }
 
 // marshal 渲染 YAML。缩进 2 空格，与设计书样例一致。
@@ -550,7 +543,7 @@ func marshal(doc map[string]any) ([]byte, error) {
 	encoder := yaml.NewEncoder(&b)
 	encoder.SetIndent(2)
 	if err := encoder.Encode(doc); err != nil {
-		return nil, fmt.Errorf("渲染 K8s 清单失败：%w", err)
+		return nil, fmt.Errorf("%s%w", i18n.T(msgid.K8sRenderFailed), err)
 	}
 	if err := encoder.Close(); err != nil {
 		return nil, err

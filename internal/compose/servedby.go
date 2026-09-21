@@ -96,13 +96,13 @@ func (p *plan) servedMigrationWarnings() []*clierr.Error {
 			continue
 		}
 		out = append(out, clierr.Warn(clierr.CodeMigrationSkipped,
-			i18n.T(msgid.ComposeServedMigrationSkipped)).
+			i18n.T(msgid.ServedMigrationSkipped)).
 			WithDetail(i18n.T(msgid.LabelComponent), refText(s.Ref)).
 			WithDetail(i18n.T(msgid.LabelShell), refText(s.Shell)).
 			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeServedMigrationReasonDetail)).
 			WithHint(
-				i18n.T(msgid.ComposeHintShellCoversMigration, s.Shell.ID),
-				i18n.T(msgid.ComposeHintMigrationCommand, strings.Join(s.Manifest.Migration.Command, " ")),
+				i18n.T(msgid.HintShellCoversMigration, s.Shell.ID),
+				i18n.T(msgid.HintMigrationCommand, strings.Join(s.Manifest.Migration.Command, " ")),
 			))
 	}
 	return out
@@ -118,7 +118,7 @@ func (p *plan) servedHealthCheckWarnings() []*clierr.Error {
 			continue
 		}
 		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-			i18n.T(msgid.ComposeServedHealthCheckNotIndependent)).
+			i18n.T(msgid.ServedHealthCheckNotIndependent)).
 			WithDetail(i18n.T(msgid.LabelComponent), refText(s.Ref)).
 			WithDetail(i18n.T(msgid.LabelShell), refText(s.Shell)).
 			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeServedHealthCheckReasonDetail)))
@@ -164,10 +164,10 @@ func (p *plan) servedUnsupportedFieldWarnings() []*clierr.Error {
 			continue
 		}
 		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-			i18n.T(msgid.ComposeServedFieldsIgnored, strings.Join(fields, "/"))).
+			i18n.T(msgid.ServedFieldsIgnored, strings.Join(fields, "/"))).
 			WithDetail(i18n.T(msgid.LabelComponent), refText(s.Ref)).
 			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeServedFieldsReasonDetail, s.Shell.ID)).
-			WithHint(i18n.T(msgid.ComposeHintDropServedBy)))
+			WithHint(i18n.T(msgid.HintDropServedBy)))
 	}
 	return out
 }

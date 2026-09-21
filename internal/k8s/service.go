@@ -6,7 +6,9 @@ import (
 	"sort"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -132,16 +134,15 @@ func (p *plan) checkHostnamePresent() error {
 		return nil
 	}
 
-	err := clierr.New(clierr.CodeConfigInvalid,
-		"错误：deploy.target: k8s 下 expose: true 的组件必须写 hostname")
+	err := clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.K8sHostnameMissing))
 	for _, ref := range missing {
-		err = err.WithDetail("组件", ref.ID+"@"+ref.Version)
+		err = err.WithDetail(i18n.T(msgid.LabelComponent), ref.ID+"@"+ref.Version)
 	}
 	return err.
-		WithDetail("原因", "Ingress 靠域名路由，没有 host 的规则会匹配所有进入集群的域名").
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sHostnameMissingReasonDetail)).
 		WithHint(
-			"在 brickkit.yaml 里给这些组件补上 hostname: xxx.example.com",
-			"组件之间在集群内互访不需要 expose，只有要对外开放才写",
+			i18n.T(msgid.K8sHintAddHostname),
+			i18n.T(msgid.K8sHintExposeOnlyForExternal),
 		)
 }
 
@@ -192,20 +193,16 @@ func (p *plan) checkHostnameUnique() error {
 		if len(refs) < 2 {
 			continue
 		}
-		err := clierr.Newf(clierr.CodeConfigInvalid,
-			"错误：域名 %s 被多个组件占用", host)
+		err := clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.K8sHostnameConflict, host))
 		for _, ref := range refs {
 			// 必须带版本号：多版本共存时两行组件 ID 一模一样
-			err = err.WithDetail("组件", ref.ID+"@"+ref.Version)
+			err = err.WithDetail(i18n.T(msgid.LabelComponent), ref.ID+"@"+ref.Version)
 		}
 		return err.
-			WithDetail("原因",
-				"每个 expose 的组件都生成一条 host + path: / 的 Ingress 规则；"+
-					"两条一模一样的规则指向不同后端，K8s 没有定义行为——"+
-					"请求会稳定落到其中一个上，而 apply 不会有任何抱怨").
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sHostnameConflictReasonDetail)).
 			WithHint(
-				"在 brickkit.yaml 中给其中一个组件换一个 hostname（一个组件一个子域名）",
-				"或去掉其中一个组件的 expose: true（组件之间在集群内互访不需要 expose）",
+				i18n.T(msgid.K8sHintChangeHostname),
+				i18n.T(msgid.K8sHintDropExpose),
 			)
 	}
 	return nil

@@ -43,7 +43,7 @@ func InitProject(l Layout, project string) (*InitResult, error) {
 
 	for _, dir := range l.ManagedDirs() {
 		if err := os.MkdirAll(dir, dirPerm); err != nil {
-			return nil, wrapIOError(i18n.T(msgid.ConfigActionMkdir), dir, err)
+			return nil, wrapIOError(i18n.T(msgid.ActionMkdir), dir, err)
 		}
 	}
 
@@ -92,20 +92,20 @@ func checkNotInitialized(l Layout) error {
 func writeNewFile(path string, content []byte) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePerm)
 	if err != nil {
-		return wrapIOError(i18n.T(msgid.ConfigActionWriteFile), path, err)
+		return wrapIOError(i18n.T(msgid.ActionWriteFile), path, err)
 	}
 	defer func() { _ = f.Close() }()
 	if _, err := f.Write(content); err != nil {
-		return wrapIOError(i18n.T(msgid.ConfigActionWriteFile), path, err)
+		return wrapIOError(i18n.T(msgid.ActionWriteFile), path, err)
 	}
 	return nil
 }
 
 func wrapIOError(action, path string, cause error) error {
-	return clierr.New(clierr.CodeInternal, i18n.T(msgid.ConfigIOFailed, action)).
+	return clierr.New(clierr.CodeInternal, i18n.T(msgid.IOFailed, action)).
 		WithDetail(i18n.T(msgid.LabelPath), path).
 		WithDetail(i18n.T(msgid.LabelReason), cause.Error()).
-		WithHint(i18n.T(msgid.ConfigHintCheckDiskAccess)).
+		WithHint(i18n.T(msgid.HintCheckDiskAccess)).
 		WithCause(cause)
 }
 
@@ -166,7 +166,7 @@ func EnsureGitignore(path string) (bool, error) {
 	b.WriteString("\n")
 
 	if err := os.WriteFile(path, []byte(b.String()), filePerm); err != nil {
-		return false, wrapIOError(i18n.T(msgid.ConfigActionWriteFile), path, err)
+		return false, wrapIOError(i18n.T(msgid.ActionWriteFile), path, err)
 	}
 	return true, nil
 }

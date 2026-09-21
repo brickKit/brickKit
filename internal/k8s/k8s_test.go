@@ -841,7 +841,7 @@ func TestFilesHaveHeaderComment(t *testing.T) {
 
 	text := string(b.file("deployments/people-basic-1-0-0.yaml").YAML)
 
-	assert.Contains(t, text, "由 BrickKit CLI 自动生成")
-	assert.Contains(t, text, "请勿手动编辑")
+	assert.Contains(t, text, "Generated automatically by the BrickKit CLI")
+	assert.Contains(t, text, "do not edit by hand")
 	assert.Contains(t, text, "2026-08-15T10:00:00Z")
 }

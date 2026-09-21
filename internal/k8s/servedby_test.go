@@ -172,7 +172,7 @@ func TestLocalStillRejectedAlongsideServedBy(t *testing.T) {
 
 	_, err := b.build()
 	require.Error(t, err, "local: true 在 K8s 下必须依旧被拒绝，不受 servedBy 存在与否影响")
-	assert.Contains(t, err.Error(), "local: true 只能在 deploy.target: docker 下使用")
+	assert.Contains(t, err.Error(), "local: true can only be used with deploy.target: docker")
 }
 
 // ---- servedBy + NetworkPolicy：外壳要为被收编成员的依赖方放行入站 ----

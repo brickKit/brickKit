@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // expander 按 shell 的写法展开 ${VAR} 与 ${VAR:-默认值}。
@@ -89,12 +91,11 @@ func (e *expander) check() error {
 	}
 	sort.Strings(names)
 
-	return clierr.New(clierr.CodeConfigInvalid,
-		"错误：brickkit.yaml 里引用的环境变量没有定义").
-		WithDetail("缺少的变量", strings.Join(names, "、")).
-		WithDetail("原因", "生成 K8s 清单时必须求值——kubectl 不做变量替换").
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.K8sEnvVarsUndefined)).
+		WithDetail(i18n.T(msgid.K8sLabelMissingVars), strings.Join(names, i18n.T(msgid.ListSeparator))).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sEnvVarsReasonDetail)).
 		WithHint(
-			"在项目根目录的 .env 里补上这些变量，或在当前 shell 里 export",
-			"也可以写默认值：${POSTGRES_PASSWORD:-dev}",
+			i18n.T(msgid.K8sHintDefineEnvVars),
+			i18n.T(msgid.K8sHintEnvVarDefault),
 		)
 }

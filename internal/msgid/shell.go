@@ -27,3 +27,13 @@ const (
 	ShellOwnerShellItself = "shell.owner.shell_itself"
 	ShellOwnerComponent   = "shell.owner.component"
 )
+
+// 跨包共享（改名自各包私有的同文案 key）
+const (
+	ServedMigrationSkipped          = "shell.served.migration_skipped"
+	ServedHealthCheckNotIndependent = "shell.served.health_check_not_independent"
+	ServedFieldsIgnored             = "shell.served.fields_ignored"
+	HintShellCoversMigration        = "shell.served.hint.shell_covers_migration"
+	HintMigrationCommand            = "shell.served.hint.migration_command"
+	HintDropServedBy                = "shell.served.hint.drop_served_by"
+)

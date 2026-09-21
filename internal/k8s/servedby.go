@@ -11,7 +11,9 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
 )
@@ -100,14 +102,13 @@ func (p *plan) servedMigrationWarnings() []*clierr.Error {
 			continue
 		}
 		out = append(out, clierr.Warn(clierr.CodeMigrationSkipped,
-			"提示：servedBy 组件的数据库迁移不会自动执行").
-			WithDetail("组件", s.Ref.String()).
-			WithDetail("外壳", s.Shell.String()).
-			WithDetail("原因", "servedBy 的组件不生成 Deployment/Job，它的迁移 Job 也一并跳过").
+			i18n.T(msgid.ServedMigrationSkipped)).
+			WithDetail(i18n.T(msgid.LabelComponent), s.Ref.String()).
+			WithDetail(i18n.T(msgid.LabelShell), s.Shell.String()).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sServedMigrationReasonDetail)).
 			WithHint(
-				"确保外壳 "+s.Shell.ID+" 自己的启动逻辑覆盖了这个组件的迁移，"+
-					"并按各模块真实的依赖顺序执行",
-				"迁移命令："+strings.Join(s.Manifest.Migration.Command, " "),
+				i18n.T(msgid.HintShellCoversMigration, s.Shell.ID),
+				i18n.T(msgid.HintMigrationCommand, strings.Join(s.Manifest.Migration.Command, " ")),
 			))
 	}
 	return out
@@ -120,11 +121,10 @@ func (p *plan) servedHealthCheckWarnings() []*clierr.Error {
 			continue
 		}
 		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-			"提示：servedBy 组件自己的健康检查不会独立生效").
-			WithDetail("组件", s.Ref.String()).
-			WithDetail("外壳", s.Shell.String()).
-			WithDetail("原因", "它没有自己的 Pod，健康检查完全是外壳实现者自己的责任，"+
-				"平台不做任何聚合、也不替外壳生成任何探针"))
+			i18n.T(msgid.ServedHealthCheckNotIndependent)).
+			WithDetail(i18n.T(msgid.LabelComponent), s.Ref.String()).
+			WithDetail(i18n.T(msgid.LabelShell), s.Shell.String()).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sServedHealthCheckReasonDetail)))
 	}
 	return out
 }
@@ -159,11 +159,10 @@ func (p *plan) servedUnsupportedFieldWarnings() []*clierr.Error {
 			continue
 		}
 		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-			"提示：servedBy 组件上，"+strings.Join(fields, "/")+" 本次不生效").
-			WithDetail("组件", s.Ref.String()).
-			WithDetail("原因", "这些字段描述的是它自己这个 Pod 该怎么部署，而它没有自己的 Pod"+
-				"（代码跑在外壳 "+s.Shell.ID+" 里）").
-			WithHint("要单独部署这个组件，去掉它的 servedBy"))
+			i18n.T(msgid.ServedFieldsIgnored, strings.Join(fields, "/"))).
+			WithDetail(i18n.T(msgid.LabelComponent), s.Ref.String()).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sServedFieldsReasonDetail, s.Shell.ID)).
+			WithHint(i18n.T(msgid.HintDropServedBy)))
 	}
 	return out
 }

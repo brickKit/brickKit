@@ -48,15 +48,9 @@ const (
 
 // internal/compose/servedby.go
 const (
-	ComposeServedMigrationSkipped          = "compose.served_migration_skipped"
-	ComposeServedMigrationReasonDetail     = "compose.served_migration_reason_detail"
-	ComposeHintShellCoversMigration        = "compose.hint.shell_covers_migration"
-	ComposeHintMigrationCommand            = "compose.hint.migration_command"
-	ComposeServedHealthCheckNotIndependent = "compose.served_health_check_not_independent"
-	ComposeServedHealthCheckReasonDetail   = "compose.served_health_check_reason_detail"
-	ComposeServedFieldsIgnored             = "compose.served_fields_ignored"
-	ComposeServedFieldsReasonDetail        = "compose.served_fields_reason_detail"
-	ComposeHintDropServedBy                = "compose.hint.drop_served_by"
+	ComposeServedMigrationReasonDetail   = "compose.served_migration_reason_detail"
+	ComposeServedHealthCheckReasonDetail = "compose.served_health_check_reason_detail"
+	ComposeServedFieldsReasonDetail      = "compose.served_fields_reason_detail"
 )
 
 // internal/compose/quota.go

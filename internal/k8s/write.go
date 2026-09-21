@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // 文件权限。
@@ -29,16 +31,16 @@ const secretsDir = "secrets"
 // 使用者明明已经把组件移除了，集群里却还跑着。
 func WriteFiles(dir string, files []File) error {
 	if err := os.RemoveAll(dir); err != nil {
-		return writeError("清理目录", dir, err)
+		return writeError(i18n.T(msgid.K8sActionCleanDir), dir, err)
 	}
 
 	for _, f := range files {
 		path := filepath.Join(dir, filepath.FromSlash(f.Path))
 		if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
-			return writeError("创建目录", filepath.Dir(path), err)
+			return writeError(i18n.T(msgid.ActionMkdir), filepath.Dir(path), err)
 		}
 		if err := os.WriteFile(path, f.YAML, permOf(f.Path)); err != nil {
-			return writeError("写入文件", path, err)
+			return writeError(i18n.T(msgid.ActionWriteFile), path, err)
 		}
 	}
 	return nil
@@ -53,9 +55,9 @@ func permOf(path string) os.FileMode {
 }
 
 func writeError(action, path string, cause error) error {
-	return clierr.Newf(clierr.CodeInternal, "错误：%s失败", action).
-		WithDetail("路径", path).
-		WithDetail("原因", cause.Error()).
-		WithHint("检查目录权限与磁盘空间").
+	return clierr.New(clierr.CodeInternal, i18n.T(msgid.IOFailed, action)).
+		WithDetail(i18n.T(msgid.LabelPath), path).
+		WithDetail(i18n.T(msgid.LabelReason), cause.Error()).
+		WithHint(i18n.T(msgid.HintCheckDiskAccess)).
 		WithCause(cause)
 }

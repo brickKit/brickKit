@@ -24,13 +24,15 @@ package k8s
 //	资源      平台知道谁要用哪个，只是不知道它在集群哪儿——声明不全就阻断
 
 import (
-	"fmt"
 	"sort"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"strings"
 )
 
 // dnsPort 是 DNS 端口。UDP 与 TCP 都要放：大响应会退回 TCP，
@@ -234,28 +236,26 @@ func CheckEgressCoverage(cfg *config.Config, runningIDs []string) *clierr.Error 
 	}
 	sort.Strings(missing)
 
-	err := clierr.New(clierr.CodeConfigInvalid,
-		"错误：打开了 deploy.networkPolicy.egress，但有资源没在 allowTo 里说明位置")
+	err := clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.K8sEgressMissingLocation))
 	for _, id := range missing {
-		err = err.WithDetail("缺少声明的资源",
-			fmt.Sprintf("%s（%s 要用它）", id, joinUnique(users[id])))
+		err = err.WithDetail(i18n.T(msgid.K8sLabelResourceUndeclared),
+			i18n.T(msgid.K8sEgressResourceUsers, id, joinUnique(users[id])))
 	}
 	return err.
-		WithDetail("原因", "出站方向一旦生效，未明确允许的一律拒绝。漏掉数据库时，"+
-			"启动就建连的组件会起不来，首次请求才建连的则健康检查照过、业务请求失败。"+
-			"而且已经跑着的实例不受影响，问题要到下次重启才暴露").
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sEgressReasonDetail)).
 		WithHint(
-			"补上它在集群里的位置，端口由平台从 resources[].port 取：\n"+
+			// 示例本身是 YAML，不随语言变；只有引导句和行内注释翻译
+			i18n.T(msgid.K8sHintEgressAddLocation)+"\n"+
 				"    deploy:\n"+
 				"      networkPolicy:\n"+
 				"        egress:\n"+
 				"          allowTo:\n"+
 				"            - name: "+missing[0]+"\n"+
 				"              resource: "+missing[0]+"\n"+
-				"              namespace: infra          # 资源在集群内\n"+
+				"              namespace: infra          # "+i18n.T(msgid.K8sEgressExampleInCluster)+"\n"+
 				"              podSelector: {app: postgres}",
-			"集群外的托管实例改写 cidr: 10.20.0.0/16",
-			"不需要出站策略就去掉 deploy.networkPolicy.egress",
+			i18n.T(msgid.K8sHintEgressOutsideCluster),
+			i18n.T(msgid.K8sHintDropEgress),
 		)
 }
 
@@ -271,12 +271,5 @@ func joinUnique(ids []string) string {
 	}
 	sort.Strings(out)
 
-	text := ""
-	for i, id := range out {
-		if i > 0 {
-			text += "、"
-		}
-		text += id
-	}
-	return text
+	return strings.Join(out, i18n.T(msgid.ListSeparator))
 }
