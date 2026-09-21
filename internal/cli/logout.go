@@ -30,29 +30,18 @@ func newLogoutCommand(opts *Options) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "logout",
-		Short:   "退出市场登录：作废服务端的 Token，并删除本地凭据",
+		Short:   i18n.T(msgid.CliLogoutLogOutOfTheMarket),
 		GroupID: groupMarket,
-		Long: `退出组件市场的登录。
-
-做两件事：
-  1. 调市场的 POST /auth/logout 作废这个 Token（服务端那一侧）
-  2. 删掉 .brickkit/credentials（本地那一侧）
-
-**本地那一份一定会删**，即使市场连不上——否则一次网络抖动就让人以为自己已经
-退出了，而凭据还躺在盘上。市场不可达时只警告一句，并说明那个 Token 仍然有效
-到过期为止。
-
-没登录时什么都不做，也不算失败。`,
-		Example: `  brickkit logout
-  brickkit logout --keep-remote   只删本地凭据，不通知市场`,
-		Args: cobra.NoArgs,
+		Long:    i18n.T(msgid.CliLogoutLogOutOfTheComponent),
+		Example: i18n.T(msgid.CliLogoutBrickkitLogoutBrickkitLogoutKeep),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLogout(cmd.Context(), opts, keepRemote)
 		},
 	}
 
 	cmd.Flags().BoolVar(&keepRemote, "keep-remote", false,
-		"只删本地凭据，不调市场作废 Token（离线时用）")
+		i18n.T(msgid.CliLogoutDeleteOnlyTheLocalCredentials))
 	return cmd
 }
 
@@ -70,18 +59,18 @@ func runLogout(ctx context.Context, opts *Options, keepRemote bool) error {
 	case err != nil:
 		// 文件在、但读不出来（格式坏了）。**照样删掉**——那正是使用者想清掉它的
 		// 时候，而这时既不知道用户名也不知道 Token，通知市场无从谈起
-		opts.Printf("⚠️ 登录凭据读不出来：%s\n", clierr.As(err).Message)
+		opts.Printf("%s\n", i18n.T(msgid.CliLogoutTheLoginCredentialsCouldNot, clierr.As(err).Message))
 		if err := source.RemoveCredentials(path); err != nil {
 			return err
 		}
-		opts.Printf("✅ 已删除 %s\n", displayPath(opts.WorkDir, path))
-		opts.Printf("   ⚠️ 里面那个 Token（如果有）在市场那边仍然有效，直到它自己过期\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliLogoutDeleted, displayPath(opts.WorkDir, path)))
+		opts.Printf("%s\n", i18n.T(msgid.CliLogoutTheTokenInsideItIf))
 		return nil
 
 	case creds == nil:
 		// 文件根本不存在：没登录，什么都不用做，也不算失败
-		opts.Printf("📋 当前没有登录凭据（%s 不存在）\n", displayPath(opts.WorkDir, path))
-		opts.Printf("   用 brickkit login 登录市场\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliLogoutThereAreNoLoginCredentials, displayPath(opts.WorkDir, path)))
+		opts.Printf("%s\n", i18n.T(msgid.CliLogoutLogInToTheMarket))
 		return nil
 	}
 
@@ -93,13 +82,12 @@ func runLogout(ctx context.Context, opts *Options, keepRemote bool) error {
 		return err
 	}
 
-	opts.Printf("✅ 已退出登录\n")
-	opts.Printf("   用户：%s\n", creds.Username)
-	opts.Printf("   已删除：%s\n", displayPath(opts.WorkDir, path))
+	opts.Printf("%s\n", i18n.T(msgid.CliLogoutLoggedOut))
+	opts.Printf("%s\n", i18n.T(msgid.CliLogoutUser, creds.Username))
+	opts.Printf("%s\n", i18n.T(msgid.CliLogoutDeleted2, displayPath(opts.WorkDir, path)))
 	if remote != "" {
 		opts.Printf("   ⚠️ %s\n", remote)
-		opts.Printf("      那个 Token 在市场那边仍然有效，直到 %s 过期\n",
-			creds.ExpiresAt.Format("2006-01-02 15:04:05"))
+		opts.Printf("%s\n", i18n.T(msgid.CliLogoutThatTokenRemainsValidOn, creds.ExpiresAt.Format("2006-01-02 15:04:05")))
 	}
 	logging.Info(i18n.T(msgid.LogLoggedOut), "user", creds.Username, "market", creds.MarketURL)
 	return nil
@@ -114,16 +102,16 @@ func logoutRemote(
 ) string {
 	switch {
 	case keepRemote:
-		return "按 --keep-remote 跳过了通知市场"
+		return i18n.T(msgid.CliLogoutSkippedNotifyingTheMarketBecause)
 	case creds.MarketURL == "":
-		return "凭据里没记市场地址，无法通知市场作废"
+		return i18n.T(msgid.CliLogoutTheCredentialsRecordNoMarket)
 	case creds.Token == "":
-		return "凭据里没有 Token，无需通知市场"
+		return i18n.T(msgid.CliLogoutTheCredentialsContainNoToken)
 	}
 
 	client := market.New(creds.MarketURL, creds.Token)
 	if err := client.Logout(ctx); err != nil {
-		return "市场不可达，没能作废它（" + clierr.As(err).Message + "）"
+		return i18n.T(msgid.CliLogoutTheMarketIsUnreachableSo, clierr.As(err).Message)
 	}
 	return ""
 }

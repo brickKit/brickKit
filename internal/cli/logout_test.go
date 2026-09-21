@@ -64,8 +64,8 @@ func TestLogoutRemovesCredentialsEvenWhenMarketIsDown(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, "市场不可达不该让退出失败：%s", r.stdout+r.stderr)
 	assert.NoFileExists(t, f.Layout.CredentialsPath())
-	assert.Contains(t, r.stdout, "市场不可达", "但要说清楚发生了什么")
-	assert.Contains(t, r.stdout, "仍然有效", "以及那个 Token 还没被作废")
+	assert.Contains(t, r.stdout, "The Market is unreachable", "但要说清楚发生了什么")
+	assert.Contains(t, r.stdout, "remains valid", "以及那个 Token 还没被作废")
 }
 
 // --keep-remote 只删本地，不碰市场。
@@ -91,7 +91,7 @@ func TestLogoutWithoutCredentialsIsNotAnError(t *testing.T) {
 	r := runIn(t, f.Dir, "logout")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "没有登录凭据")
+	assert.Contains(t, r.stdout, "no login credentials")
 }
 
 // 凭据文件坏了也要能退出——那正是使用者想清掉它的时候。

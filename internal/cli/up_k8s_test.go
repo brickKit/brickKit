@@ -280,7 +280,7 @@ func TestDownK8sBeforeUp(t *testing.T) {
 
 	assert.Equal(t, clierr.ExitOK, r.code)
 	require.Len(t, eng.downs, 1, "该问的还是要问集群，不能靠生成目录猜")
-	assert.Contains(t, r.stdout, "没有容器在跑")
+	assert.Contains(t, r.stdout, "no containers running")
 }
 
 func TestStatusK8s(t *testing.T) {

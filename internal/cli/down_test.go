@@ -44,7 +44,7 @@ func TestDownStopsTheProject(t *testing.T) {
 	// 交给引擎的只有项目名：停的是"这个项目现在跑着的一切"，
 	// 而不是"生成目录里此刻写着的那些"（005 §5.9.3）
 	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project)
-	assert.Contains(t, r.stdout, "已停止")
+	assert.Contains(t, r.stdout, "stopped")
 }
 
 // 停的必须是本项目：项目名传错会停掉别人的容器。
@@ -63,7 +63,7 @@ func TestDownTellsThatDataIsKept(t *testing.T) {
 
 	r := runWithEngine(t, eng, f.Dir, "down")
 
-	assert.Contains(t, r.stdout, "数据", "15.13：要让使用者知道数据没被删")
+	assert.Contains(t, r.stdout, "data", "15.13：要让使用者知道数据没被删")
 	assert.Contains(t, r.stdout, "docker volume rm", "并告诉他真想删该怎么做")
 }
 
@@ -80,7 +80,7 @@ func TestDownWithNothingRunning(t *testing.T) {
 
 	assert.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	require.Len(t, eng.downs, 1, "该问的还是要问引擎，不能靠猜")
-	assert.Contains(t, r.stdout, "没有容器在跑")
+	assert.Contains(t, r.stdout, "no containers running")
 	assert.Contains(t, r.stdout, "brickkit up", "顺手告诉他下一步")
 }
 
@@ -100,7 +100,7 @@ func TestDownStillStopsAfterGeneratedDirWiped(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	require.Len(t, eng.downs, 1, "生成目录没了，但容器还在——必须照样停")
 	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project)
-	assert.Contains(t, r.stdout, "已停止")
+	assert.Contains(t, r.stdout, "stopped")
 }
 
 // status 同理：生成目录没了，也不能谎报"尚未启动过"。
@@ -288,7 +288,7 @@ func TestDownStopsEvenWhenManifestIsBroken(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	require.Len(t, eng.downs, 1, "容器必须真的被停掉，而不是先去解析一遍依赖图")
 	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project)
-	assert.Contains(t, r.stdout, "已停止")
+	assert.Contains(t, r.stdout, "stopped")
 }
 
 // 本地安装源整个目录没了，down 同样照停。

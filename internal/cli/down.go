@@ -18,18 +18,9 @@ func newDownCommand(opts *Options) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "down",
-		Short:   "一键停止所有组件（不删除 volume）",
+		Short:   i18n.T(msgid.CliDownStopEveryComponentInOne),
 		GroupID: groupLifecycle,
-		Long: `停止项目。
-
-停止顺序与启动顺序相反（依赖方先停，被依赖方后停），交给引擎处理。
-
-只想停其中几个：在 brickkit.yaml 里给它们写 enabled: false 再 brickkit up。
-生成的部署文件里没有它们，引擎会把对应的容器一并移除——效果与"只停这几个"
-相同，而且配置里留下了痕迹，下次 up 不会又把它们拉起来。
-
-重要：down 不删除 volume，数据库数据始终保留。
-如需彻底清理，请手动执行 docker volume rm 或 docker compose down -v。`,
+		Long:    i18n.T(msgid.CliDownStopTheProjectTheStop),
 		Example: "  brickkit down",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -37,7 +28,7 @@ func newDownCommand(opts *Options) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&kubeContext, "context", "", "kubeconfig 上下文，覆盖 deploy.context（仅 deploy.target: k8s）")
+	cmd.Flags().StringVar(&kubeContext, "context", "", i18n.T(msgid.CliDownKubeconfigContextOverridesDeployContext))
 	return cmd
 }
 
@@ -62,7 +53,7 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 		return err
 	}
 
-	opts.Printf("🛑 停止项目 %s\n", p.cfg.Project)
+	opts.Printf("%s\n", i18n.T(msgid.CliDownStoppingProject, p.cfg.Project))
 
 	// 先问一句"现在有没有东西在跑"，只为决定最后那句话怎么说。
 	//
@@ -86,7 +77,7 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 		// 命名空间不是我们建的就不能由我们删
 		DeleteNamespace: p.cfg.Deploy.ShouldCreateNamespace(),
 	}); err != nil {
-		return engineFailure("停止", err)
+		return engineFailure(i18n.T(msgid.CliDownStop), err)
 	}
 
 	renderDownResult(opts, p.cfg.Deploy.Target == config.TargetK8s, running, probed)
@@ -113,20 +104,20 @@ func runningCount(ctx context.Context, eng engine.Engine, project string) (n int
 // "所以我现在该干什么"。
 func renderDownResult(opts *Options, k8sTarget bool, running int, probed bool) {
 	if probed && running == 0 {
-		opts.Printf("📋 本项目当前没有容器在跑（引擎里一个都没有）\n")
-		opts.Printf("   用 brickkit up 启动\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliDownThisProjectHasNoContainers))
+		opts.Printf("%s\n", i18n.T(msgid.CliDownStartItWithBrickkitUp))
 		return
 	}
-	opts.Printf("✅ 已停止全部组件\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliDownAllComponentsStopped))
 
 	// 004 §3.6：down 不删数据卷。这一点必须主动说——
 	// 使用者最怕的就是"我停一下会不会把数据弄没了"
 	if k8sTarget {
 		// K8s 下基础资源由运维部署，本来就不归 CLI 管，更不会被 down 碰到
-		opts.Printf("\n💡 基础资源（数据库等）由运维部署，不受 brickkit down 影响\n")
+		opts.Printf("\n%s\n", i18n.T(msgid.CliDownBaseResourcesDatabasesAndSo))
 	} else {
-		opts.Printf("\n💡 数据卷未删除，数据库数据仍然保留\n")
-		opts.Printf("   需要彻底清理时手动执行：docker volume rm <卷名>\n")
+		opts.Printf("\n%s\n", i18n.T(msgid.CliDownDataVolumesWereNotDeleted))
+		opts.Printf("%s\n", i18n.T(msgid.CliDownForAFullCleanupRun))
 	}
-	opts.Printf("   重新启动：brickkit up\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliDownStartAgainWithBrickkitUp))
 }
