@@ -36,7 +36,7 @@ func Validate(req model.PublishRequest) (*model.Manifest, error) {
 	if err := json.Unmarshal(req.Manifest, &m); err != nil {
 		return nil, manifestError([]model.Problem{{
 			Field:  "manifest",
-			Reason: "无法解析：" + err.Error(),
+			Reason: "could not be parsed: " + err.Error(),
 		}})
 	}
 
@@ -47,13 +47,13 @@ func Validate(req model.PublishRequest) (*model.Manifest, error) {
 		if manifestProblems > 0 {
 			return nil, manifestError(problems)
 		}
-		e := model.Errorf(model.CodeInvalidRequest, "发布请求不合法")
+		e := model.Errorf(model.CodeInvalidRequest, "the publish request is invalid")
 		return nil, e.WithDetail("problems", problems)
 	}
 
 	if conflicts := ReservedConflicts(m.ConfigSchema); len(conflicts) > 0 {
 		// 007 §18.1 的错误结构
-		e := model.Errorf(model.CodeReservedVariableConflict, "configSchema 配置项名称与平台保留变量冲突")
+		e := model.Errorf(model.CodeReservedVariableConflict, "a configSchema item name collides with a platform-reserved variable")
 		return nil, e.
 			WithDetail("componentId", m.Metadata.ID).
 			WithDetail("version", m.Metadata.Version).
@@ -69,7 +69,7 @@ func Validate(req model.PublishRequest) (*model.Manifest, error) {
 }
 
 func manifestError(problems []model.Problem) *model.APIError {
-	e := model.Errorf(model.CodeManifestInvalid, "Manifest 校验失败")
+	e := model.Errorf(model.CodeManifestInvalid, "the Manifest failed validation")
 	return e.WithDetail("problems", problems)
 }
 
@@ -91,10 +91,10 @@ var sequenceFields = [][]string{
 func decodeShape(raw []byte) (map[string]any, []model.Problem) {
 	var doc map[string]any
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return nil, []model.Problem{{Field: "manifest", Reason: "不是合法的 JSON：" + err.Error()}}
+		return nil, []model.Problem{{Field: "manifest", Reason: "is not valid JSON: " + err.Error()}}
 	}
 	if len(doc) == 0 {
-		return nil, []model.Problem{{Field: "manifest", Reason: "内容为空"}}
+		return nil, []model.Problem{{Field: "manifest", Reason: "is empty"}}
 	}
 
 	var problems []model.Problem
@@ -106,7 +106,7 @@ func decodeShape(raw []byte) (map[string]any, []model.Problem) {
 		if _, isSlice := value.([]any); !isSlice {
 			problems = append(problems, model.Problem{
 				Field:  strings.Join(path, "."),
-				Reason: "必须是数组格式",
+				Reason: "must be an array",
 			})
 		}
 	}
@@ -136,10 +136,10 @@ func validateManifest(m *model.Manifest) []model.Problem {
 	var p []model.Problem
 
 	if m.APIVersion != "brickkit/v1" {
-		p = append(p, model.Problem{Field: "apiVersion", Reason: "必须为 brickkit/v1"})
+		p = append(p, model.Problem{Field: "apiVersion", Reason: "must be brickkit/v1"})
 	}
 	if m.Kind != "Component" {
-		p = append(p, model.Problem{Field: "kind", Reason: "必须为 Component"})
+		p = append(p, model.Problem{Field: "kind", Reason: "must be Component"})
 	}
 
 	p = append(p, validateMetadata(m.Metadata)...)
@@ -157,24 +157,24 @@ func validateMetadata(md model.Metadata) []model.Problem {
 
 	switch {
 	case md.ID == "":
-		p = append(p, model.Problem{Field: "metadata.id", Reason: "必填"})
+		p = append(p, model.Problem{Field: "metadata.id", Reason: "is required"})
 	case strings.ToLower(md.ID) != md.ID:
-		p = append(p, model.Problem{Field: "metadata.id", Reason: "必须全部小写"})
+		p = append(p, model.Problem{Field: "metadata.id", Reason: "must be all lowercase"})
 	case !componentIDRe.MatchString(md.ID):
-		p = append(p, model.Problem{Field: "metadata.id", Reason: "格式必须为 scope/name，如 people/basic"})
+		p = append(p, model.Problem{Field: "metadata.id", Reason: "must be in the form scope/name, e.g. people/basic"})
 	}
 
 	if md.Name == "" {
-		p = append(p, model.Problem{Field: "metadata.name", Reason: "必填"})
+		p = append(p, model.Problem{Field: "metadata.name", Reason: "is required"})
 	}
 	if md.Description == "" {
-		p = append(p, model.Problem{Field: "metadata.description", Reason: "必填"})
+		p = append(p, model.Problem{Field: "metadata.description", Reason: "is required"})
 	}
 	switch {
 	case md.Version == "":
-		p = append(p, model.Problem{Field: "metadata.version", Reason: "必填"})
+		p = append(p, model.Problem{Field: "metadata.version", Reason: "is required"})
 	case !exactVersionRe.MatchString(md.Version):
-		p = append(p, model.Problem{Field: "metadata.version", Reason: "必须是精确版本 major.minor.patch"})
+		p = append(p, model.Problem{Field: "metadata.version", Reason: "must be an exact major.minor.patch version"})
 	}
 	return p
 }
@@ -184,18 +184,18 @@ func validateArtifacts(artifacts []model.Artifact) []model.Problem {
 	for i, a := range artifacts {
 		field := indexed("artifacts", i)
 		if a.Type == "" {
-			p = append(p, model.Problem{Field: field + ".type", Reason: "必填"})
+			p = append(p, model.Problem{Field: field + ".type", Reason: "is required"})
 			continue
 		}
 		// type / format 是自由字符串，市场只校验"该有的字段在不在"（007 §18.2）
 		if a.IsContainer() {
 			if a.Reference == "" {
-				p = append(p, model.Problem{Field: field + ".reference", Reason: "container 类型必须提供镜像地址"})
+				p = append(p, model.Problem{Field: field + ".reference", Reason: "a container-type artifact must provide an image reference"})
 			}
 			continue
 		}
 		if len(a.Files) == 0 {
-			p = append(p, model.Problem{Field: field + ".files", Reason: "必填且不能为空数组"})
+			p = append(p, model.Problem{Field: field + ".files", Reason: "is required and must not be an empty array"})
 		}
 	}
 	return p
@@ -211,23 +211,23 @@ func validateDependencies(deps *model.Dependencies) []model.Problem {
 		field := indexed("dependencies.components", i)
 		switch {
 		case d.ID == "":
-			p = append(p, model.Problem{Field: field, Reason: "必须写明组件 ID"})
+			p = append(p, model.Problem{Field: field, Reason: "must name a component ID"})
 		case !componentIDRe.MatchString(d.ID):
-			p = append(p, model.Problem{Field: field, Reason: "组件 ID 格式必须为 scope/name"})
+			p = append(p, model.Problem{Field: field, Reason: "component ID must be in the form scope/name"})
 		case d.Version == "":
-			p = append(p, model.Problem{Field: field, Reason: "必须写明精确版本，如 " + d.ID + "@1.0.0"})
+			p = append(p, model.Problem{Field: field, Reason: "must name an exact version, e.g. " + d.ID + "@1.0.0"})
 		case !exactVersionRe.MatchString(d.Version):
-			p = append(p, model.Problem{Field: field, Reason: "必须是精确版本 major.minor.patch，不接受 ^ 或 ~ 等范围约束"})
+			p = append(p, model.Problem{Field: field, Reason: "must be an exact major.minor.patch version; range constraints like ^ or ~ are not accepted"})
 		}
 	}
 
 	for i, r := range deps.Resources {
 		field := indexed("dependencies.resources", i)
 		if r.Kind == "" {
-			p = append(p, model.Problem{Field: field + ".kind", Reason: "必填"})
+			p = append(p, model.Problem{Field: field + ".kind", Reason: "is required"})
 		}
 		if r.Engine == "" {
-			p = append(p, model.Problem{Field: field + ".engine", Reason: "必填"})
+			p = append(p, model.Problem{Field: field + ".engine", Reason: "is required"})
 		}
 	}
 	return p
@@ -237,10 +237,10 @@ func validateDeployment(d model.Deployment) []model.Problem {
 	var p []model.Problem
 
 	if d.Type != "container" {
-		p = append(p, model.Problem{Field: "deployment.type", Reason: "必须为 container：所有组件都是容器，包括前端组件"})
+		p = append(p, model.Problem{Field: "deployment.type", Reason: "must be container: every component is a container, frontend components included"})
 	}
 	if d.Image == "" {
-		p = append(p, model.Problem{Field: "deployment.image", Reason: "必填"})
+		p = append(p, model.Problem{Field: "deployment.image", Reason: "is required"})
 	}
 	// port 缺失（0）也必须拦下。007 §18 写的是"必须存在，正整数"，而这里
 	// 一度写成 `d.Port < 0`：0 就这样溜了过去，连带 validateClosedSourceContract
@@ -248,16 +248,16 @@ func validateDeployment(d model.Deployment) []model.Problem {
 	// port 就不用交 API 契约了。CLI 侧本来就要求它非零，于是市场收得下、
 	// 使用者装不了——错落在装的人身上，而问题在发布的人那里。
 	if d.Port < 1 || d.Port > 65535 {
-		p = append(p, model.Problem{Field: "deployment.port", Reason: "必填，且必须在 1–65535 之间"})
+		p = append(p, model.Problem{Field: "deployment.port", Reason: "is required and must be between 1 and 65535"})
 	}
 
 	for i, ep := range d.ExtraPorts {
 		field := indexed("deployment.extraPorts", i)
 		if ep.Name == "" {
-			p = append(p, model.Problem{Field: field + ".name", Reason: "必填"})
+			p = append(p, model.Problem{Field: field + ".name", Reason: "is required"})
 		}
 		if ep.Port <= 0 || ep.Port > 65535 {
-			p = append(p, model.Problem{Field: field + ".port", Reason: "必须在 1–65535 之间"})
+			p = append(p, model.Problem{Field: field + ".port", Reason: "must be between 1 and 65535"})
 		}
 	}
 
@@ -274,7 +274,7 @@ func validateResources(r *model.Resources) []model.Problem {
 	if r.Requests == nil && r.Limits == nil {
 		return []model.Problem{{
 			Field:  "deployment.resources",
-			Reason: "至少要写 requests 或 limits 之一",
+			Reason: "at least one of requests or limits must be set",
 		}}
 	}
 
@@ -286,7 +286,7 @@ func validateResources(r *model.Resources) []model.Problem {
 		if spec.CPU == "" && spec.Memory == "" {
 			p = append(p, model.Problem{
 				Field:  "deployment.resources." + name,
-				Reason: "至少要写 cpu 或 memory 之一",
+				Reason: "at least one of cpu or memory must be set",
 			})
 		}
 	}
@@ -298,11 +298,11 @@ func validateMigration(m *model.Migration) []model.Problem {
 		return nil
 	}
 	if len(m.Command) == 0 {
-		return []model.Problem{{Field: "migration.command", Reason: "必须是非空数组"}}
+		return []model.Problem{{Field: "migration.command", Reason: "must be a non-empty array"}}
 	}
 	for i, arg := range m.Command {
 		if strings.TrimSpace(arg) == "" {
-			return []model.Problem{{Field: indexed("migration.command", i), Reason: "不能是空字符串"}}
+			return []model.Problem{{Field: indexed("migration.command", i), Reason: "must not be an empty string"}}
 		}
 	}
 	return nil
@@ -313,11 +313,11 @@ func validateHealthCheck(h model.HealthCheck) []model.Problem {
 
 	switch {
 	case h.Type == "":
-		p = append(p, model.Problem{Field: "healthCheck.type", Reason: "必填（http / tcp / none）"})
+		p = append(p, model.Problem{Field: "healthCheck.type", Reason: "is required (http / tcp / none)"})
 	case !healthCheckTypes[h.Type]:
-		p = append(p, model.Problem{Field: "healthCheck.type", Reason: "必须是 http、tcp 或 none 之一"})
+		p = append(p, model.Problem{Field: "healthCheck.type", Reason: "must be one of http, tcp, or none"})
 	case h.Type == "http" && h.Path == "":
-		p = append(p, model.Problem{Field: "healthCheck.path", Reason: "http 健康检查必须提供路径，如 /healthz"})
+		p = append(p, model.Problem{Field: "healthCheck.path", Reason: "an http health check must provide a path, e.g. /healthz"})
 	}
 	return p
 }
@@ -330,13 +330,13 @@ func validateConfigSchema(cs *model.ConfigSchema) []model.Problem {
 	}
 	var p []model.Problem
 	if cs.Type != "" && cs.Type != "object" {
-		p = append(p, model.Problem{Field: "configSchema.type", Reason: "必须为 object"})
+		p = append(p, model.Problem{Field: "configSchema.type", Reason: "must be object"})
 	}
 	for _, key := range cs.Required {
 		if _, ok := cs.Properties[key]; !ok {
 			p = append(p, model.Problem{
 				Field:  "configSchema.required",
-				Reason: "required 中的 " + key + " 未在 properties 中声明",
+				Reason: key + " in required is not declared in properties",
 			})
 		}
 	}
@@ -350,26 +350,26 @@ func validateRequest(req model.PublishRequest, m *model.Manifest) []model.Proble
 	switch req.SourceType {
 	case model.SourceTypeGit:
 		if strings.TrimSpace(req.GitURL) == "" {
-			p = append(p, model.Problem{Field: "gitUrl", Reason: "开源组件（sourceType: git）必须提供 Git 仓库地址"})
+			p = append(p, model.Problem{Field: "gitUrl", Reason: "an open-source component (sourceType: git) must provide a Git repository URL"})
 		}
 	case model.SourceTypeRegistry:
 	default:
-		p = append(p, model.Problem{Field: "sourceType", Reason: "必须是 git 或 registry"})
+		p = append(p, model.Problem{Field: "sourceType", Reason: "must be git or registry"})
 	}
 
 	if req.Version != "" && m.Metadata.Version != "" && req.Version != m.Metadata.Version {
 		p = append(p, model.Problem{
 			Field:  "version",
-			Reason: "与 Manifest 中的 metadata.version（" + m.Metadata.Version + "）不一致",
+			Reason: "does not match metadata.version (" + m.Metadata.Version + ") in the Manifest",
 		})
 	}
 	if req.Version == "" {
-		p = append(p, model.Problem{Field: "version", Reason: "必填"})
+		p = append(p, model.Problem{Field: "version", Reason: "is required"})
 	}
 
 	if req.Visibility != "" &&
 		req.Visibility != model.VisibilityPublic && req.Visibility != model.VisibilityPrivate {
-		p = append(p, model.Problem{Field: "visibility", Reason: "必须是 public 或 private"})
+		p = append(p, model.Problem{Field: "visibility", Reason: "must be public or private"})
 	}
 	return p
 }
@@ -386,12 +386,12 @@ func validateClosedSourceContract(req model.PublishRequest, m *model.Manifest) e
 		}
 	}
 
-	e := model.Errorf(model.CodeClosedSourceMissingAPIContract, "闭源组件提供 API 时必须上传 API 契约文件")
+	e := model.Errorf(model.CodeClosedSourceMissingAPIContract, "a closed-source component that offers an API must upload an API contract file")
 	return e.
 		WithDetail("componentId", m.Metadata.ID).
 		WithDetail("version", m.Metadata.Version).
 		WithDetail("sourceType", model.SourceTypeRegistry).
-		WithDetail("hint", "在 artifacts 中声明至少一个 type: api-contract 的产物（代码可以闭源，API 契约不能闭源）")
+		WithDetail("hint", "declare at least one artifact with type: api-contract under artifacts (the code may be closed-source; the API contract may not)")
 }
 
 func indexed(field string, i int) string {

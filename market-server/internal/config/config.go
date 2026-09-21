@@ -64,7 +64,7 @@ type Config struct {
 
 // String 返回可安全写进日志的配置摘要：只有地址与端口，没有任何口令。
 func (c Config) String() string {
-	db := "（未配置）"
+	db := "(not configured)"
 	if u, err := url.Parse(c.DatabaseURL); err == nil {
 		db = u.Host + u.Path
 	}
@@ -114,7 +114,7 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	}
 
 	if len(missing) > 0 {
-		return Config{}, fmt.Errorf("缺少必填环境变量：%s", strings.Join(sorted(missing), ", "))
+		return Config{}, fmt.Errorf("missing required environment variables: %s", strings.Join(sorted(missing), ", "))
 	}
 
 	port, err := intOrDefault(get(EnvPort), DefaultPort, EnvPort)
@@ -122,7 +122,7 @@ func FromEnv(lookup func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	if port < 1 || port > 65535 {
-		return Config{}, fmt.Errorf("%s 必须在 1-65535 之间（当前是 %d）", EnvPort, port)
+		return Config{}, fmt.Errorf("%s must be between 1 and 65535 (currently %d)", EnvPort, port)
 	}
 
 	dbPort, err := intOrDefault(get(EnvDatabasePort), DefaultDatabasePort, EnvDatabasePort)
@@ -135,11 +135,11 @@ func FromEnv(lookup func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	if hours <= 0 {
-		return Config{}, fmt.Errorf("%s 必须大于 0（当前是 %d）", EnvTokenExpiryHours, hours)
+		return Config{}, fmt.Errorf("%s must be greater than 0 (currently %d)", EnvTokenExpiryHours, hours)
 	}
 
 	if len(adminPassword) < MinAdminPasswordLength {
-		return Config{}, fmt.Errorf("%s 至少需要 %d 个字符：管理员是市场里权限最大的账号",
+		return Config{}, fmt.Errorf("%s must be at least %d characters: the admin is the most privileged account in the Market",
 			EnvAdminPassword, MinAdminPasswordLength)
 	}
 
@@ -189,7 +189,7 @@ func boolOrDefault(value string, fallback bool, name string) (bool, error) {
 	case "false", "0", "no", "n", "off":
 		return false, nil
 	default:
-		return false, fmt.Errorf("%s 只能是 true 或 false（当前是 %q）", name, value)
+		return false, fmt.Errorf("%s must be true or false (currently %q)", name, value)
 	}
 }
 
@@ -216,7 +216,7 @@ func intOrDefault(value string, fallback int, name string) (int, error) {
 	}
 	parsed, err := strconv.Atoi(value)
 	if err != nil {
-		return 0, fmt.Errorf("%s 必须是整数（当前是 %q）", name, value)
+		return 0, fmt.Errorf("%s must be an integer (currently %q)", name, value)
 	}
 	return parsed, nil
 }

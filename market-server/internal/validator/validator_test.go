@@ -163,7 +163,7 @@ func TestReservedVariableConflictIsRejected(t *testing.T) {
 
 			// 007 §18.1 的错误码与详情字段
 			assert.Equal(t, model.CodeReservedVariableConflict, apiErr.Code)
-			assert.Contains(t, apiErr.Message, "保留变量")
+			assert.Contains(t, apiErr.Message, "reserved variable")
 
 			conflicts := conflictsOf(t, apiErr)
 			require.Len(t, conflicts, 1)
@@ -235,7 +235,7 @@ func TestClosedSourceWithoutAPIContractIsRejected(t *testing.T) {
 
 	assert.Equal(t, model.CodeClosedSourceMissingAPIContract, apiErr.Code)
 	assert.Equal(t, "people/basic", apiErr.Details["componentId"])
-	assert.Contains(t, apiErr.Message, "API 契约")
+	assert.Contains(t, apiErr.Message, "API contract")
 }
 
 // 18.9 闭源 + 有 api-contract → 通过。
@@ -294,7 +294,7 @@ func TestMigrationCommandMustBeArray(t *testing.T) {
 
 	assert.Equal(t, model.CodeManifestInvalid, apiErr.Code)
 	assert.Contains(t, problemsText(t, apiErr), "migration.command")
-	assert.Contains(t, problemsText(t, apiErr), "数组")
+	assert.Contains(t, problemsText(t, apiErr), "array")
 }
 
 func TestMigrationCommandMustNotBeEmpty(t *testing.T) {
@@ -514,7 +514,7 @@ func problemsText(t *testing.T, e *model.APIError) string {
 	t.Helper()
 	out := e.Message
 	for _, p := range problemsOf(t, e) {
-		out += "\n" + p.Field + "：" + p.Reason
+		out += "\n" + p.Field + ": " + p.Reason
 	}
 	return out
 }

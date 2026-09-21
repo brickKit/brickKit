@@ -53,7 +53,7 @@ func (a *api) uploadArtifact(w http.ResponseWriter, r *http.Request, p params) {
 
 	file := strings.TrimSpace(r.URL.Query().Get("file"))
 	if file == "" {
-		writeError(w, missingQuery("file", "一个产物可以包含多个文件，必须指明传的是哪一个"))
+		writeError(w, missingQuery("file", "An artifact can contain several files; the one you're uploading must be specified"))
 		return
 	}
 
@@ -105,11 +105,11 @@ func (l *limitReader) Read(p []byte) (int, error) {
 }
 
 // errTooLarge 只在服务端内部流转，对外的说法由 tooLargeError 给。
-var errTooLarge = errors.New("产物文件超过大小上限")
+var errTooLarge = errors.New("artifact file exceeds the size limit")
 
 func tooLargeError() error {
 	return model.Errorf(model.CodeInvalidRequest,
-		"产物文件超过大小上限 "+strconv.Itoa(maxArtifactSize/(1<<20))+" MiB").
+		"artifact file exceeds the size limit of "+strconv.Itoa(maxArtifactSize/(1<<20))+" MiB").
 		WithDetail("limitBytes", maxArtifactSize)
 }
 
@@ -125,7 +125,7 @@ func (a *api) downloadArtifact(w http.ResponseWriter, r *http.Request, p params)
 
 	file := strings.TrimSpace(r.URL.Query().Get("file"))
 	if file == "" {
-		writeError(w, missingQuery("file", "一个产物可以包含多个文件，必须指明下载哪一个"))
+		writeError(w, missingQuery("file", "An artifact can contain several files; the one to download must be specified"))
 		return
 	}
 

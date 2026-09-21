@@ -28,7 +28,7 @@ func TestConfigValidate(t *testing.T) {
 		"缺少 secretKey":      {func(c *Config) { c.SecretKey = "" }, EnvSecretKey},
 		"endpoint 无 scheme": {func(c *Config) { c.Endpoint = "localhost:9000" }, "http://"},
 		"endpoint 协议不支持":    {func(c *Config) { c.Endpoint = "ftp://localhost:9000" }, "http://"},
-		"endpoint 缺主机":      {func(c *Config) { c.Endpoint = "http://" }, "缺少主机地址"},
+		"endpoint 缺主机":      {func(c *Config) { c.Endpoint = "http://" }, "is missing a host"},
 		"endpoint 非法 URL":   {func(c *Config) { c.Endpoint = "http://[::1" }, EnvEndpoint},
 	}
 	for name, c := range cases {

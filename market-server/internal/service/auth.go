@@ -52,7 +52,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*model.Use
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), s.bcryptCost)
 	if err != nil {
-		return nil, model.Errorf(model.CodeInternal, "密码处理失败")
+		return nil, model.Errorf(model.CodeInternal, "failed to process the password")
 	}
 
 	user := &model.User{
@@ -65,7 +65,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*model.Use
 	}
 	if err := s.repo.CreateUser(ctx, user); err != nil {
 		if errors.Is(err, repo.ErrConflict) {
-			return nil, model.Errorf(model.CodeConflict, "用户名已被占用："+req.Username)
+			return nil, model.Errorf(model.CodeConflict, "username is already taken: "+req.Username)
 		}
 		return nil, internalError(err)
 	}
@@ -83,13 +83,13 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*model.Use
 func validateRegister(req RegisterRequest) error {
 	switch {
 	case strings.TrimSpace(req.Username) == "":
-		return model.Errorf(model.CodeInvalidRequest, "用户名不能为空")
+		return model.Errorf(model.CodeInvalidRequest, "username must not be empty")
 	case strings.ContainsAny(req.Username, " \t\n"):
-		return model.Errorf(model.CodeInvalidRequest, "用户名不能包含空白字符")
+		return model.Errorf(model.CodeInvalidRequest, "username must not contain whitespace")
 	case req.Password == "":
-		return model.Errorf(model.CodeInvalidRequest, "密码不能为空")
+		return model.Errorf(model.CodeInvalidRequest, "password must not be empty")
 	case len(req.Password) < MinPasswordLength:
-		return model.Errorf(model.CodeInvalidRequest, "密码至少需要 8 个字符")
+		return model.Errorf(model.CodeInvalidRequest, "password must be at least 8 characters")
 	}
 	return nil
 }
@@ -126,7 +126,7 @@ func (s *Service) Login(ctx context.Context, username, password string) (*model.
 }
 
 func invalidCredentials() error {
-	return model.Errorf(model.CodeUnauthorized, "用户名或密码错误")
+	return model.Errorf(model.CodeUnauthorized, "wrong username or password")
 }
 
 // Logout 注销令牌。重复注销是幂等的。
@@ -149,18 +149,18 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*Identity, er
 	stored, err := s.repo.GetToken(ctx, token)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return nil, model.Errorf(model.CodeUnauthorized, "令牌无效，请重新登录")
+			return nil, model.Errorf(model.CodeUnauthorized, "invalid token, please log in again")
 		}
 		return nil, internalError(err)
 	}
 	if s.now().After(stored.ExpiresAt) {
-		return nil, model.Errorf(model.CodeUnauthorized, "令牌已过期，请重新登录")
+		return nil, model.Errorf(model.CodeUnauthorized, "token has expired, please log in again")
 	}
 
 	user, err := s.repo.GetUserByID(ctx, stored.UserID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return nil, model.Errorf(model.CodeUnauthorized, "令牌对应的用户已不存在")
+			return nil, model.Errorf(model.CodeUnauthorized, "the user this token belongs to no longer exists")
 		}
 		return nil, internalError(err)
 	}
@@ -180,7 +180,7 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*Identity, er
 // requireAuth 要求调用者已登录。
 func requireAuth(id *Identity, action string) error {
 	if id == nil || id.Anonymous {
-		return model.Errorf(model.CodeUnauthorized, action+"需要先登录市场")
+		return model.Errorf(model.CodeUnauthorized, action+" requires logging in to the Market first")
 	}
 	return nil
 }
@@ -193,7 +193,7 @@ func requireOwner(id *Identity, c *model.Component, action string) error {
 	if id.IsAdmin || id.UserID == c.OwnerID {
 		return nil
 	}
-	return model.Errorf(model.CodeForbidden, action+"需要是组件所有者："+c.ComponentID)
+	return model.Errorf(model.CodeForbidden, action+" requires being the component owner: "+c.ComponentID)
 }
 
 // requireAdmin 要求调用者是市场管理员（007 §6.3：blocked 只有管理员能标记）。
@@ -202,7 +202,7 @@ func requireAdmin(id *Identity, action string) error {
 		return err
 	}
 	if !id.IsAdmin {
-		return model.Errorf(model.CodeForbidden, action+"需要市场管理员权限")
+		return model.Errorf(model.CodeForbidden, action+" requires Market admin privileges")
 	}
 	return nil
 }
@@ -213,8 +213,8 @@ func requireAdmin(id *Identity, action string) error {
 // 使用者据此判断可不可信。谁都能发的话，`brickkit/saga-orchestrator`
 // 就是一次冒名——而这正是签名机制想防、却在"还没配公钥"时防不住的那一类。
 var reservedScopes = map[string]string{
-	"brickkit": "官方组件命名空间",
-	"infra":    "基础设施工具组件命名空间",
+	"brickkit": "the official-components namespace",
+	"infra":    "the infrastructure-tooling components namespace",
 }
 
 // requireNamespace 检查调用者能不能**首次创建**这个组件。
@@ -239,9 +239,9 @@ func requireNamespace(id *Identity, componentID string) error {
 		return nil
 	}
 	return model.Errorf(model.CodeForbidden,
-		"命名空间 "+scope+"/ 是"+what+"，只有市场管理员能在其中创建组件").
+		"the "+scope+"/ namespace is "+what+"; only a Market admin can create components in it").
 		WithDetail("componentId", componentID).
-		WithDetail("suggestion", "换一个命名空间，比如你的用户名或组织名："+
+		WithDetail("suggestion", "pick a different namespace, such as your username or organization name: "+
 			id.Username+"/"+afterSlash(componentID))
 }
 
@@ -291,7 +291,7 @@ func (s *Service) requireRead(ctx context.Context, id *Identity, c *model.Compon
 		return err
 	}
 	if !ok {
-		return model.Errorf(model.CodeForbidden, "无权访问该组件："+c.ComponentID).
+		return model.Errorf(model.CodeForbidden, "no access to this component: "+c.ComponentID).
 			WithDetail("componentId", c.ComponentID).
 			WithDetail("visibility", c.Visibility)
 	}

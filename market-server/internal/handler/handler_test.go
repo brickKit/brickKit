@@ -249,7 +249,7 @@ func TestPublishWithBogusTokenReturns401(t *testing.T) {
 
 	require.Equal(t, http.StatusUnauthorized, resp.status)
 	require.NotNil(t, resp.Error)
-	assert.Contains(t, resp.Error.Message, "令牌")
+	assert.Contains(t, resp.Error.Message, "token")
 }
 
 // URL 里的组件 ID 与 Manifest 里的必须一致，否则组件会被发布到错误的位置。

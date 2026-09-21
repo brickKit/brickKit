@@ -41,7 +41,7 @@ func Recover(logf func(string, ...any)) Middleware {
 				// 但至少要保证连接不是无声中断的
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
 				w.WriteHeader(http.StatusInternalServerError)
-				_, _ = w.Write([]byte(`{"success":false,"error":{"code":"INTERNAL","message":"市场内部错误"}}`))
+				_, _ = w.Write([]byte(`{"success":false,"error":{"code":"INTERNAL","message":"internal Market error"}}`))
 			}()
 			next.ServeHTTP(w, r)
 		})

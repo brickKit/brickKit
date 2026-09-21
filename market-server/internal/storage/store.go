@@ -77,18 +77,18 @@ func (c Config) Validate() error {
 		missing = append(missing, EnvSecretKey)
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("对象存储配置缺失：%s", strings.Join(missing, ", "))
+		return fmt.Errorf("missing object storage config: %s", strings.Join(missing, ", "))
 	}
 
 	u, err := url.Parse(c.Endpoint)
 	if err != nil {
-		return fmt.Errorf("%s 不是合法的 URL：%w", EnvEndpoint, err)
+		return fmt.Errorf("%s is not a valid URL: %w", EnvEndpoint, err)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("%s 必须以 http:// 或 https:// 开头（当前是 %q）", EnvEndpoint, c.Endpoint)
+		return fmt.Errorf("%s must start with http:// or https:// (currently %q)", EnvEndpoint, c.Endpoint)
 	}
 	if u.Host == "" {
-		return fmt.Errorf("%s 缺少主机地址（当前是 %q）", EnvEndpoint, c.Endpoint)
+		return fmt.Errorf("%s is missing a host (currently %q)", EnvEndpoint, c.Endpoint)
 	}
 	return nil
 }

@@ -24,9 +24,9 @@ import (
 // 仓储层的语义错误。上层据此翻译成 404 / 409。
 var (
 	// ErrNotFound 表示记录不存在。
-	ErrNotFound = errors.New("记录不存在")
+	ErrNotFound = errors.New("record not found")
 	// ErrConflict 表示唯一键冲突（版本重复、用户名重复等）。
-	ErrConflict = errors.New("记录已存在")
+	ErrConflict = errors.New("record already exists")
 )
 
 // ComponentQuery 是组件搜索条件（007 §4.2）。

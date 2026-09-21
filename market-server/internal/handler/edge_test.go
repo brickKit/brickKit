@@ -259,7 +259,7 @@ func TestUploadTooLargeReturns400(t *testing.T) {
 			"/upload?file="+url.QueryEscape(records[0].Files[0]), token, huge)
 
 	require.Equal(t, http.StatusBadRequest, resp.status, "响应：%s", resp.body)
-	assert.Contains(t, resp.Error.Message, "上限")
+	assert.Contains(t, resp.Error.Message, "size limit")
 }
 
 // 搜索结果里不能带出别人的所有权信息以外的敏感字段——
@@ -318,8 +318,8 @@ func TestEmptyListsAreArraysNotNull(t *testing.T) {
 	assert.Contains(t, string(audit.body), `"data":[]`, "响应：%s", audit.body)
 }
 
-// 所有响应都是 UTF-8 JSON：市场的错误信息是中文的，
-// 没声明字符集的话终端与浏览器都可能显示成乱码。
+// 所有响应都是 UTF-8 JSON：错误信息里可能带非 ASCII 字符（用户名、
+// 组件 ID 里的非拉丁字符等），没声明字符集的话终端与浏览器都可能显示成乱码。
 func TestResponsesDeclareUTF8(t *testing.T) {
 	f := newFixture(t)
 
@@ -328,7 +328,7 @@ func TestResponsesDeclareUTF8(t *testing.T) {
 
 	bad := f.do(t, http.MethodGet, "/api/v1/components/nobody/here", "", nil)
 	assert.Contains(t, bad.header.Get("Content-Type"), "charset=utf-8")
-	assert.Contains(t, string(bad.body), "组件", "中文原样返回：%s", bad.body)
+	assert.Contains(t, string(bad.body), "component", "响应体：%s", bad.body)
 }
 
 // 上传成功后再上传同一个文件是覆盖，不是报错：发布失败重试很常见。

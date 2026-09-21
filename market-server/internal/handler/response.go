@@ -47,7 +47,7 @@ func asAPIError(err error) *model.APIError {
 	if errors.As(err, &apiErr) {
 		return apiErr
 	}
-	return model.Errorf(model.CodeInternal, "市场内部错误")
+	return model.Errorf(model.CodeInternal, "internal Market error")
 }
 
 // statusOf 决定 HTTP 状态码。
@@ -78,7 +78,7 @@ func statusOf(err *model.APIError) int {
 // decodeBody 解析 JSON 请求体。
 func decodeBody(r *http.Request, target any) error {
 	if err := json.NewDecoder(r.Body).Decode(target); err != nil {
-		return model.Errorf(model.CodeInvalidRequest, "请求体不是合法的 JSON").
+		return model.Errorf(model.CodeInvalidRequest, "the request body is not valid JSON").
 			WithDetail("cause", err.Error())
 	}
 	return nil

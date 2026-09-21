@@ -28,7 +28,7 @@ func TestReservedScopesRequireAdmin(t *testing.T) {
 
 		require.Error(t, err, id)
 		assert.Equal(t, model.CodeForbidden, apiErrorOf(t, err).Code, id)
-		assert.Contains(t, err.Error(), "市场管理员", id)
+		assert.Contains(t, err.Error(), "Market admin", id)
 	}
 }
 

@@ -67,13 +67,13 @@ func (rt *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if len(allowed) > 0 {
 		w.Header().Set("Allow", strings.Join(allowed, ", "))
-		err := model.Errorf(model.CodeInvalidRequest, "该地址不支持 "+r.Method+" 方法").
+		err := model.Errorf(model.CodeInvalidRequest, "this endpoint does not support the "+r.Method+" method").
 			WithDetail("allow", strings.Join(allowed, ", "))
 		err.Status = http.StatusMethodNotAllowed
 		writeError(w, err)
 		return
 	}
-	writeError(w, model.Errorf(model.CodeNotFound, "接口不存在："+r.URL.Path))
+	writeError(w, model.Errorf(model.CodeNotFound, "no such endpoint: "+r.URL.Path))
 }
 
 // match 把实际路径段与路由模式比对，返回路径参数。

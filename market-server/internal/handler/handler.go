@@ -160,5 +160,5 @@ func (a *api) requireIdentity(w http.ResponseWriter, r *http.Request) (*service.
 
 // missingQuery 构造"缺少查询参数"的错误。
 func missingQuery(name, why string) error {
-	return model.Errorf(model.CodeInvalidRequest, "缺少查询参数 "+name+"："+why)
+	return model.Errorf(model.CodeInvalidRequest, "missing query parameter "+name+": "+why)
 }

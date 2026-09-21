@@ -104,7 +104,7 @@ func EnvVarName(key string) string {
 // 说法不一致会让人以为自己改错了。两个 module 没法共享代码，
 // 所以由 TestSuggestionMatchesCLI 钉住同一批用例。
 func suggestion(key string, pattern string) string {
-	return "请修改配置项名称，避免与平台保留变量冲突（如改为 " + renamed(key, pattern) + "）"
+	return "rename this config item to avoid colliding with a platform-reserved variable (for example, " + renamed(key, pattern) + ")"
 }
 
 // renamed 按模式类型给出新名字：后缀模式要换掉结尾，前缀模式才加前缀。

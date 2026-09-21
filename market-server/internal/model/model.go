@@ -142,20 +142,20 @@ func (s *Signature) Validate() error {
 
 	switch {
 	case strings.TrimSpace(s.Algorithm) == "":
-		return Errorf(CodeInvalidRequest, "签名缺少 algorithm").
+		return Errorf(CodeInvalidRequest, "signature is missing algorithm").
 			WithDetail("expected", AlgorithmCosign)
 	case s.Algorithm != AlgorithmCosign:
-		return Errorf(CodeInvalidRequest, "不支持的签名算法："+s.Algorithm).
+		return Errorf(CodeInvalidRequest, "unsupported signature algorithm: "+s.Algorithm).
 			WithDetail("supported", AlgorithmCosign)
 	case strings.TrimSpace(s.PublicKeyRef) == "":
 		return Errorf(CodeInvalidRequest,
-			"签名缺少 publicKeyRef（使用者据此在 installer.publicKeys 中查找公钥）")
+			"signature is missing publicKeyRef (the installer looks up the public key under installer.publicKeys using it)")
 	case strings.TrimSpace(s.Value) == "":
-		return Errorf(CodeInvalidRequest, "签名缺少 value")
+		return Errorf(CodeInvalidRequest, "signature is missing value")
 	}
 
 	if _, err := base64.StdEncoding.DecodeString(strings.TrimSpace(s.Value)); err != nil {
-		return Errorf(CodeInvalidRequest, "签名 value 不是合法的 base64")
+		return Errorf(CodeInvalidRequest, "signature value is not valid base64")
 	}
 	return nil
 }

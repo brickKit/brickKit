@@ -89,7 +89,7 @@ func New(r repo.Repository, store storage.ArtifactStore, opts Options) *Service 
 func (s *Service) Publish(
 	ctx context.Context, id *Identity, componentID string, req model.PublishRequest,
 ) (*model.Version, error) {
-	if err := requireAuth(id, "发布组件"); err != nil {
+	if err := requireAuth(id, "publishing a component"); err != nil {
 		return nil, err
 	}
 
@@ -103,7 +103,7 @@ func (s *Service) Publish(
 	}
 	if manifest.Metadata.ID != componentID {
 		return nil, model.Errorf(model.CodeInvalidRequest,
-			"组件 ID 与 Manifest 中的 metadata.id 不一致").
+			"the component ID does not match metadata.id in the Manifest").
 			WithDetail("path", componentID).
 			WithDetail("manifest", manifest.Metadata.ID)
 	}
@@ -111,7 +111,7 @@ func (s *Service) Publish(
 	existing, err := s.repo.GetComponent(ctx, componentID)
 	switch {
 	case err == nil:
-		if err := requireOwner(id, existing, "发布该组件的新版本"); err != nil {
+		if err := requireOwner(id, existing, "publishing a new version of this component"); err != nil {
 			return nil, err
 		}
 	case errors.Is(err, repo.ErrNotFound):
@@ -147,7 +147,7 @@ func (s *Service) Publish(
 	if err := s.repo.CreateVersion(ctx, version); err != nil {
 		if errors.Is(err, repo.ErrConflict) {
 			// 18.14：版本号不可重复，也不可回收（软删除的版本同样占位）
-			return nil, model.Errorf(model.CodeVersionExists, "该版本已存在，版本号不可重复发布").
+			return nil, model.Errorf(model.CodeVersionExists, "this version already exists; a version number cannot be republished").
 				WithDetail("componentId", componentID).
 				WithDetail("version", manifest.Metadata.Version)
 		}
@@ -226,7 +226,7 @@ func (s *Service) UploadArtifact(
 	if err != nil {
 		return err
 	}
-	if err := requireOwner(id, component, "上传产物"); err != nil {
+	if err := requireOwner(id, component, "uploading an artifact"); err != nil {
 		return err
 	}
 	if _, err := s.loadVersion(ctx, componentID, version); err != nil {
@@ -236,13 +236,13 @@ func (s *Service) UploadArtifact(
 	artifact, err := s.repo.GetArtifact(ctx, componentID, version, artifactID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return model.Errorf(model.CodeNotFound, "产物不存在："+artifactID)
+			return model.Errorf(model.CodeNotFound, "artifact not found: "+artifactID)
 		}
 		return internalError(err)
 	}
 	// 上传的文件必须与 Manifest 声明一致（007 §18.2）
 	if !containsString(artifact.Files, file) {
-		return model.Errorf(model.CodeInvalidRequest, "该文件未在 Manifest 中声明："+file).
+		return model.Errorf(model.CodeInvalidRequest, "this file was not declared in the Manifest: "+file).
 			WithDetail("declared", artifact.Files)
 	}
 
@@ -286,18 +286,18 @@ func (s *Service) DownloadArtifact(
 	artifact, err := s.repo.GetArtifact(ctx, componentID, version, artifactID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return nil, model.Errorf(model.CodeNotFound, "产物不存在："+artifactID)
+			return nil, model.Errorf(model.CodeNotFound, "artifact not found: "+artifactID)
 		}
 		return nil, internalError(err)
 	}
 	if !containsString(artifact.Files, file) {
-		return nil, model.Errorf(model.CodeNotFound, "该产物不包含文件："+file)
+		return nil, model.Errorf(model.CodeNotFound, "this artifact does not contain the file: "+file)
 	}
 
 	reader, err := s.store.Get(ctx, storage.ObjectKey(componentID, version, artifact.Type, file))
 	if err != nil {
 		if errors.Is(err, storage.ErrObjectNotFound) {
-			return nil, model.Errorf(model.CodeNotFound, "产物文件尚未上传："+file)
+			return nil, model.Errorf(model.CodeNotFound, "artifact file has not been uploaded yet: "+file)
 		}
 		return nil, internalError(err)
 	}
@@ -460,7 +460,7 @@ func (s *Service) SetVersionStatus(
 	ctx context.Context, id *Identity, componentID, version, status, reason string,
 ) error {
 	if !validVersionStatus(status) {
-		return model.Errorf(model.CodeInvalidRequest, "版本状态不合法："+status)
+		return model.Errorf(model.CodeInvalidRequest, "invalid version status: "+status)
 	}
 
 	component, err := s.loadComponent(ctx, componentID)
@@ -468,10 +468,10 @@ func (s *Service) SetVersionStatus(
 		return err
 	}
 	if status == model.VersionBlocked {
-		if err := requireAdmin(id, "阻止组件版本"); err != nil {
+		if err := requireAdmin(id, "blocking a component version"); err != nil {
 			return err
 		}
-	} else if err := requireOwner(id, component, "变更版本状态"); err != nil {
+	} else if err := requireOwner(id, component, "changing the version status"); err != nil {
 		return err
 	}
 
@@ -526,7 +526,7 @@ func statusDetail(status, reason string) string {
 	if runes := []rune(reason); len(runes) > maxReasonRunes {
 		reason = string(runes[:maxReasonRunes]) + "…"
 	}
-	return status + "：" + reason
+	return status + ": " + reason
 }
 
 // ensureArtifactsUploaded 校验声明的产物文件都已上传（007 §18.2）。
@@ -548,7 +548,7 @@ func (s *Service) ensureArtifactsUploaded(ctx context.Context, componentID, vers
 		return nil
 	}
 	return model.Errorf(model.CodeConflict,
-		"以下产物文件尚未上传，不能标记为 stable："+joinStrings(missing, "、")).
+		"the following artifact files have not been uploaded yet, so this can't be marked stable: "+joinStrings(missing, ", ")).
 		WithDetail("missing", missing)
 }
 
@@ -559,7 +559,7 @@ func (s *Service) DeleteVersion(ctx context.Context, id *Identity, componentID, 
 	if err != nil {
 		return err
 	}
-	if err := requireOwner(id, component, "删除版本"); err != nil {
+	if err := requireOwner(id, component, "deleting a version"); err != nil {
 		return err
 	}
 	if _, err := s.loadVersion(ctx, componentID, version); err != nil {
@@ -579,13 +579,13 @@ func (s *Service) DeleteVersion(ctx context.Context, id *Identity, componentID, 
 // SetVisibility 设置组件可见性（007 §9.4）。
 func (s *Service) SetVisibility(ctx context.Context, id *Identity, componentID, visibility string) error {
 	if visibility != model.VisibilityPublic && visibility != model.VisibilityPrivate {
-		return model.Errorf(model.CodeInvalidRequest, "可见性只能是 public 或 private")
+		return model.Errorf(model.CodeInvalidRequest, "visibility must be public or private")
 	}
 	component, err := s.loadComponent(ctx, componentID)
 	if err != nil {
 		return err
 	}
-	if err := requireOwner(id, component, "变更可见性"); err != nil {
+	if err := requireOwner(id, component, "changing visibility"); err != nil {
 		return err
 	}
 
@@ -602,9 +602,9 @@ func (s *Service) SetVisibility(ctx context.Context, id *Identity, componentID, 
 // SetComponentStatus 下架 / 恢复组件。只有市场管理员能做（007 §15）。
 func (s *Service) SetComponentStatus(ctx context.Context, id *Identity, componentID, status string) error {
 	if status != model.ComponentActive && status != model.ComponentBlocked {
-		return model.Errorf(model.CodeInvalidRequest, "组件状态只能是 active 或 blocked")
+		return model.Errorf(model.CodeInvalidRequest, "component status must be active or blocked")
 	}
-	if err := requireAdmin(id, "变更组件状态"); err != nil {
+	if err := requireAdmin(id, "changing component status"); err != nil {
 		return err
 	}
 	if _, err := s.loadComponent(ctx, componentID); err != nil {
@@ -629,15 +629,15 @@ func (s *Service) SetAccessPolicies(
 	if err != nil {
 		return err
 	}
-	if err := requireOwner(id, component, "变更访问策略"); err != nil {
+	if err := requireOwner(id, component, "changing the access policy"); err != nil {
 		return err
 	}
 	for _, p := range policies {
 		if p.TargetType != model.TargetUser && p.TargetType != model.TargetOrganization {
-			return model.Errorf(model.CodeInvalidRequest, "访问策略的 targetType 只能是 user 或 organization")
+			return model.Errorf(model.CodeInvalidRequest, "an access policy's targetType must be user or organization")
 		}
 		if p.TargetID == "" {
-			return model.Errorf(model.CodeInvalidRequest, "访问策略必须指定 targetId")
+			return model.Errorf(model.CodeInvalidRequest, "an access policy must specify targetId")
 		}
 	}
 
@@ -659,7 +659,7 @@ func (s *Service) ListAccessPolicies(
 	if err != nil {
 		return nil, err
 	}
-	if err := requireOwner(id, component, "查询访问策略"); err != nil {
+	if err := requireOwner(id, component, "querying the access policy"); err != nil {
 		return nil, err
 	}
 	policies, err := s.repo.ListAccessPolicies(ctx, componentID)
@@ -677,7 +677,7 @@ func (s *Service) ListAccessPolicies(
 func (s *Service) ListAudit(
 	ctx context.Context, id *Identity, q repo.AuditQuery,
 ) ([]model.AuditEntry, error) {
-	if err := requireAuth(id, "查询审计日志"); err != nil {
+	if err := requireAuth(id, "querying the audit log"); err != nil {
 		return nil, err
 	}
 	entries, err := s.repo.ListAudit(ctx, q)
@@ -705,7 +705,7 @@ func (s *Service) loadComponent(ctx context.Context, componentID string) (*model
 	c, err := s.repo.GetComponent(ctx, componentID)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return nil, model.Errorf(model.CodeNotFound, "组件不存在："+componentID)
+			return nil, model.Errorf(model.CodeNotFound, "component not found: "+componentID)
 		}
 		return nil, internalError(err)
 	}
@@ -730,7 +730,7 @@ func (s *Service) loadVersion(ctx context.Context, componentID, version string) 
 	v, err := s.repo.GetVersion(ctx, componentID, version)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return nil, model.Errorf(model.CodeNotFound, "版本不存在："+componentID+"@"+version)
+			return nil, model.Errorf(model.CodeNotFound, "version not found: "+componentID+"@"+version)
 		}
 		return nil, internalError(err)
 	}
@@ -757,7 +757,7 @@ func (s *Service) installableVersion(
 	ctx context.Context, id *Identity, component *model.Component, version string,
 ) (*model.Version, error) {
 	if component.Status == model.ComponentBlocked {
-		return nil, blockedError(component.ComponentID, version, "该组件已被市场下架，不能安装")
+		return nil, blockedError(component.ComponentID, version, "this component has been delisted by the Market and can't be installed")
 	}
 
 	v, err := s.loadVersion(ctx, component.ComponentID, version)
@@ -767,11 +767,11 @@ func (s *Service) installableVersion(
 
 	switch {
 	case v.Status == model.VersionBlocked:
-		return nil, blockedError(component.ComponentID, version, "该版本已被市场阻止，不能安装")
+		return nil, blockedError(component.ComponentID, version, "this version has been blocked by the Market and can't be installed")
 	case v.Status == model.VersionDeleted:
-		return nil, model.Errorf(model.CodeNotFound, "版本不存在："+component.ComponentID+"@"+version)
+		return nil, model.Errorf(model.CodeNotFound, "version not found: "+component.ComponentID+"@"+version)
 	case v.Status == model.VersionDraft && !isOwner(id, component):
-		return nil, model.Errorf(model.CodeNotFound, "版本不存在："+component.ComponentID+"@"+version)
+		return nil, model.Errorf(model.CodeNotFound, "version not found: "+component.ComponentID+"@"+version)
 	}
 	return v, nil
 }
@@ -803,7 +803,7 @@ func operatorOf(id *Identity) string {
 
 // internalError 把底层错误包成对外的 500，不泄漏实现细节（004 §10）。
 func internalError(err error) error {
-	return model.Errorf(model.CodeInternal, "市场内部错误").WithDetail("cause", err.Error())
+	return model.Errorf(model.CodeInternal, "internal Market error").WithDetail("cause", err.Error())
 }
 
 func containsString(items []string, target string) bool {

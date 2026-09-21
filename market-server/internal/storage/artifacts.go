@@ -17,7 +17,7 @@ import (
 )
 
 // ErrObjectNotFound 表示对象不存在。上层据此翻译成 404。
-var ErrObjectNotFound = errors.New("产物文件不存在")
+var ErrObjectNotFound = errors.New("artifact file not found")
 
 // ObjectKey 拼出产物文件在对象存储中的键：
 //
@@ -122,7 +122,7 @@ func (s *S3Store) EnsureBucket(ctx context.Context) error {
 	if errors.As(err, &owned) || errors.As(err, &exists) {
 		return nil
 	}
-	return fmt.Errorf("创建 bucket %s 失败：%w", s.bucket, err)
+	return fmt.Errorf("failed to create bucket %s: %w", s.bucket, err)
 }
 
 func (s *S3Store) Put(ctx context.Context, objectKey string, r io.Reader, size int64) error {
@@ -133,7 +133,7 @@ func (s *S3Store) Put(ctx context.Context, objectKey string, r io.Reader, size i
 		return err
 	}
 	if size > 0 && int64(len(data)) != size {
-		return fmt.Errorf("产物大小与声明不符：声明 %d 字节，实际 %d 字节", size, len(data))
+		return fmt.Errorf("artifact size does not match what was declared: declared %d bytes, got %d bytes", size, len(data))
 	}
 
 	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
@@ -143,7 +143,7 @@ func (s *S3Store) Put(ctx context.Context, objectKey string, r io.Reader, size i
 		ContentLength: aws.Int64(int64(len(data))),
 	})
 	if err != nil {
-		return fmt.Errorf("上传产物 %s 失败：%w", objectKey, err)
+		return fmt.Errorf("failed to upload artifact %s: %w", objectKey, err)
 	}
 	return nil
 }
@@ -159,7 +159,7 @@ func (s *S3Store) Get(ctx context.Context, objectKey string) (io.ReadCloser, err
 		if errors.As(err, &noKey) || errors.As(err, &notFound) {
 			return nil, ErrObjectNotFound
 		}
-		return nil, fmt.Errorf("下载产物 %s 失败：%w", objectKey, err)
+		return nil, fmt.Errorf("failed to download artifact %s: %w", objectKey, err)
 	}
 	return out.Body, nil
 }
@@ -176,7 +176,7 @@ func (s *S3Store) List(ctx context.Context, prefix string) ([]string, error) {
 			ContinuationToken: token,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("列举产物（前缀 %s）失败：%w", prefix, err)
+			return nil, fmt.Errorf("failed to list artifacts (prefix %s): %w", prefix, err)
 		}
 		for _, obj := range out.Contents {
 			keys = append(keys, aws.ToString(obj.Key))

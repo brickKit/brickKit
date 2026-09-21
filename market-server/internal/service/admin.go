@@ -56,20 +56,20 @@ func (s *Service) EnsureAdmin(ctx context.Context, username, password string) er
 // 会走到这里通常意味着凭据已经不可信，留着旧 Token 等于没改。
 func (s *Service) ResetAdminPassword(ctx context.Context, username, password string) error {
 	if len(password) < MinPasswordLength {
-		return model.Errorf(model.CodeInvalidRequest, "密码至少需要 8 个字符")
+		return model.Errorf(model.CodeInvalidRequest, "password must be at least 8 characters")
 	}
 
 	user, err := s.repo.GetUserByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
-			return model.Errorf(model.CodeNotFound, "用户不存在："+username)
+			return model.Errorf(model.CodeNotFound, "user not found: "+username)
 		}
 		return internalError(err)
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), s.bcryptCost)
 	if err != nil {
-		return model.Errorf(model.CodeInternal, "密码处理失败")
+		return model.Errorf(model.CodeInternal, "failed to process the password")
 	}
 	if err := s.repo.SetUserPassword(ctx, user.UserID, string(hash)); err != nil {
 		return internalError(err)
@@ -85,7 +85,7 @@ func (s *Service) ResetAdminPassword(ctx context.Context, username, password str
 
 	s.audit(ctx, &model.AuditEntry{
 		Action: model.ActionUserRegistered, Operator: username,
-		Result: model.ResultSuccess, Detail: "管理员口令已重置",
+		Result: model.ResultSuccess, Detail: "admin password was reset",
 	})
 	return nil
 }

@@ -73,10 +73,12 @@ brickkit publish --path ./components/demo/hello --source-type git \
 
 ```
 ❌ 错误：发布组件版本失败
-   原因：闭源组件提供 API 时必须上传 API 契约文件
-   hint：在 artifacts 中声明至少一个 type: api-contract 的产物
-   （代码可以闭源，API 契约不能闭源）
+   原因：a closed-source component that offers an API must upload an API contract file
+   hint：declare at least one artifact with type: api-contract under artifacts
+   (the code may be closed-source; the API contract may not)
 ```
+
+「原因」与「hint」这两行是市场**服务端**自己的原话，CLI 原样转发——市场服务端目前只说英文，不跟着 `BRICKKIT_LANG` 走（它是独立部署的服务，不是 CLI 本体），所以这两行会一直是英文，哪怕本页其余部分显示的是中文。这一篇的其余输出都是 CLI 自己的中文。
 
 `demo/hello` 唯一声明的产物是 `type: api-docs`——给人看的文档，不是机器能直接消费的契约（一份 protobuf 文件，一份给 codegen 用的 OpenAPI 规范）。市场专门对闭源组件强制这条区分：藏起实现可以，藏起调用方要对接的那个形状不行。
 
@@ -126,11 +128,13 @@ curl http://localhost:8099/api/v1/hello
 brickkit add demo/hello@2.0.0   # 来自一个从没登录过的项目
 ```
 ```
-❌ 错误：无权访问该组件：demo/hello
+❌ 错误：no access to this component: demo/hello
    建议：
    1. 确认当前账号是否是该组件的所有者
    2. 私有组件需要所有者授权后才能访问
 ```
+
+「错误：」后面那句话同样是市场服务端的原话（英文），CLI 只在前面接了中文的「错误：」前缀——这条错误没有 details，不像上一节那样另起一行的「原因」/「hint」。
 
 ## 用完之后退出登录
 

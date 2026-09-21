@@ -35,7 +35,7 @@ const shutdownTimeout = 15 * time.Second
 
 func main() {
 	if err := run(); err != nil {
-		log.Printf("市场启动失败：%v", err)
+		log.Printf("Market failed to start: %v", err)
 		os.Exit(1)
 	}
 }
@@ -46,7 +46,7 @@ func run() error {
 		return err
 	}
 	cfg.Version = version
-	log.Printf("BrickKit Market %s 启动中：%s", version, cfg)
+	log.Printf("BrickKit Market %s starting: %s", version, cfg)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -55,33 +55,33 @@ func run() error {
 	// 表结构用的是 CREATE TABLE IF NOT EXISTS，重启是幂等的。
 	db, err := repo.NewPostgres(cfg.DatabaseURL)
 	if err != nil {
-		return fmt.Errorf("连接数据库失败：%w", err)
+		return fmt.Errorf("failed to connect to the database: %w", err)
 	}
 	defer func() { _ = db.Close() }()
 
 	if err := db.Migrate(ctx); err != nil {
-		return fmt.Errorf("初始化库表失败：%w", err)
+		return fmt.Errorf("failed to initialize the database schema: %w", err)
 	}
 
 	// 对象存储：bucket 不存在时自动创建，省掉运维指南里手工建桶那一步
 	store, err := storage.NewS3Store(cfg.Storage)
 	if err != nil {
-		return fmt.Errorf("连接对象存储失败：%w", err)
+		return fmt.Errorf("failed to connect to object storage: %w", err)
 	}
 	if err := store.EnsureBucket(ctx); err != nil {
-		return fmt.Errorf("准备 bucket %s 失败：%w", cfg.Storage.Bucket, err)
+		return fmt.Errorf("failed to prepare bucket %s: %w", cfg.Storage.Bucket, err)
 	}
 
 	svc := service.New(db, store, service.Options{TokenTTL: cfg.TokenTTL})
 	if err := svc.EnsureAdmin(ctx, cfg.AdminUsername, cfg.AdminPassword); err != nil {
-		return fmt.Errorf("引导管理员账号失败：%w", err)
+		return fmt.Errorf("failed to bootstrap the admin account: %w", err)
 	}
 	if cfg.AdminPasswordReset {
 		if err := svc.ResetAdminPassword(ctx, cfg.AdminUsername, cfg.AdminPassword); err != nil {
-			return fmt.Errorf("重置管理员口令失败：%w", err)
+			return fmt.Errorf("failed to reset the admin password: %w", err)
 		}
-		log.Printf("⚠️  管理员 %s 的口令已按 ADMIN_PASSWORD_RESET 重置，其历史令牌已全部吊销；"+
-			"请把该开关改回 false 后再重启", cfg.AdminUsername)
+		log.Printf("⚠️  admin %s's password was reset by ADMIN_PASSWORD_RESET, and all of its existing tokens were revoked; "+
+			"set that flag back to false and restart", cfg.AdminUsername)
 	}
 
 	server := &http.Server{
@@ -96,7 +96,7 @@ func run() error {
 
 	errs := make(chan error, 1)
 	go func() {
-		log.Printf("市场已就绪，监听 %s", server.Addr)
+		log.Printf("Market is ready, listening on %s", server.Addr)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errs <- err
 		}
@@ -104,16 +104,16 @@ func run() error {
 
 	select {
 	case err := <-errs:
-		return fmt.Errorf("监听失败：%w", err)
+		return fmt.Errorf("failed to listen: %w", err)
 	case <-ctx.Done():
-		log.Printf("收到停止信号，等待在途请求结束（最多 %s）", shutdownTimeout)
+		log.Printf("Received stop signal, waiting for in-flight requests to finish (up to %s)", shutdownTimeout)
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("关闭服务失败：%w", err)
+		return fmt.Errorf("failed to shut down the server: %w", err)
 	}
-	log.Print("市场已停止")
+	log.Print("Market has stopped")
 	return nil
 }

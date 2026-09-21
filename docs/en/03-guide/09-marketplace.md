@@ -78,7 +78,7 @@ A closed-source attempt (`--source-type registry`) with this exact same Manifest
    (the code may be closed-source; the API contract may not)
 ```
 
-(A note on this block and the one under "Versions are permanent": the `Reason` text and the `hint` are the Market **server's** own words, and the server currently answers in Chinese only. They are shown translated here; everything else on this page is the CLI's own English output.)
+(The `Reason` text and the `hint` in this block are the Market **server's** own words, forwarded verbatim by the CLI — everywhere else on this page is the CLI's own output.)
 
 `demo/hello`'s only declared artifact is `type: api-docs` — human-readable documentation, not a machine-consumable contract (a protobuf file, an OpenAPI spec meant for codegen). The marketplace enforces this distinction specifically for closed-source components: hiding the implementation is fine, hiding the shape callers need to integrate against is not.
 

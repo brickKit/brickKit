@@ -230,7 +230,7 @@ func TestAuthenticateRejectsExpiredToken(t *testing.T) {
 	_, err = svc.Authenticate(ctx, token.Token)
 	e := apiErrorOf(t, err)
 	assert.Equal(t, model.CodeUnauthorized, e.Code)
-	assert.Contains(t, e.Message, "过期")
+	assert.Contains(t, e.Message, "expired")
 }
 
 func TestLogout(t *testing.T) {
@@ -307,7 +307,7 @@ func TestPublishRejectsNonOwner(t *testing.T) {
 
 	e := apiErrorOf(t, err)
 	assert.Equal(t, model.CodeForbidden, e.Code)
-	assert.Contains(t, e.Message, "所有者")
+	assert.Contains(t, e.Message, "owner")
 }
 
 // 校验不通过的 Manifest 一律拒绝（18-A 的校验器接在这里）。
@@ -334,7 +334,7 @@ func TestPublishRejectsComponentIDMismatch(t *testing.T) {
 
 	e := apiErrorOf(t, err)
 	assert.Equal(t, model.CodeInvalidRequest, e.Code)
-	assert.Contains(t, e.Message, "组件 ID")
+	assert.Contains(t, e.Message, "component ID")
 }
 
 // 发布时把 Manifest 里声明的 artifacts 落成产物记录（供上传与下载）。
@@ -410,7 +410,7 @@ func TestUploadRejectsUndeclaredFile(t *testing.T) {
 
 	e := apiErrorOf(t, err)
 	assert.Equal(t, model.CodeInvalidRequest, e.Code)
-	assert.Contains(t, e.Message, "未在 Manifest 中声明")
+	assert.Contains(t, e.Message, "was not declared in the Manifest")
 }
 
 // 文件没传齐就想转 stable → 拒绝。
@@ -627,7 +627,7 @@ func TestOnlyAdminCanBlockVersion(t *testing.T) {
 	err := f.svc.SetVersionStatus(ctx, owner, "people/basic", "1.0.0", model.VersionBlocked, "")
 	e := apiErrorOf(t, err)
 	assert.Equal(t, model.CodeForbidden, e.Code)
-	assert.Contains(t, e.Message, "管理员")
+	assert.Contains(t, e.Message, "admin")
 
 	admin := f.promoteAdmin(t, owner)
 	require.NoError(t, f.svc.SetVersionStatus(ctx, admin, "people/basic", "1.0.0", model.VersionBlocked, ""), "")
@@ -645,7 +645,7 @@ func TestBlockedVersionCannotBeInstalled(t *testing.T) {
 	_, err := f.svc.GetManifest(ctx, service.Anonymous(), "people/basic", "1.0.0")
 	e := apiErrorOf(t, err)
 	assert.Equal(t, model.CodeComponentBlocked, e.Code)
-	assert.Contains(t, e.Message, "不能安装")
+	assert.Contains(t, e.Message, "can't be installed")
 
 	_, err = f.svc.ListArtifacts(ctx, service.Anonymous(), "people/basic", "1.0.0")
 	assert.Equal(t, model.CodeComponentBlocked, apiErrorOf(t, err).Code)

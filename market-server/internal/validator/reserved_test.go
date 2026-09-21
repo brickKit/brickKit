@@ -212,7 +212,7 @@ func TestManifestProblemsTakePrecedenceOverRequestProblems(t *testing.T) {
 func fieldsOf(problems []model.Problem) string {
 	out := ""
 	for _, p := range problems {
-		out += p.Field + "：" + p.Reason + "\n"
+		out += p.Field + ": " + p.Reason + "\n"
 	}
 	return out
 }

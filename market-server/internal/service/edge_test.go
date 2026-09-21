@@ -99,7 +99,7 @@ func TestArtifactNotFound(t *testing.T) {
 	_, err = f.svc.DownloadArtifact(ctx, id, "people/basic", "1.0.0", "art-0", "openapi.json")
 	e := apiErrorOf(t, err)
 	assert.Equal(t, model.CodeNotFound, e.Code)
-	assert.Contains(t, e.Message, "尚未上传")
+	assert.Contains(t, e.Message, "not been uploaded")
 }
 
 // ============================================================
@@ -329,7 +329,7 @@ func TestInternalErrorsAreWrapped(t *testing.T) {
 			err := call(newFailingService(t, failOn[name]))
 			e := apiErrorOf(t, err)
 			assert.Equal(t, model.CodeInternal, e.Code)
-			assert.Equal(t, "市场内部错误", e.Message, "对外只说内部错误，细节放 details 供服务端日志用")
+			assert.Equal(t, "internal Market error", e.Message, "对外只说内部错误，细节放 details 供服务端日志用")
 			assert.Contains(t, e.Details["cause"], "数据库连接断了")
 		})
 	}
@@ -369,7 +369,7 @@ func TestAuthenticateWithOrphanToken(t *testing.T) {
 	_, err := svc.Authenticate(ctx, "tok-orphan")
 	e := apiErrorOf(t, err)
 	assert.Equal(t, model.CodeUnauthorized, e.Code)
-	assert.Contains(t, e.Message, "用户已不存在")
+	assert.Contains(t, e.Message, "no longer exists")
 }
 
 // 令牌两端的空白不影响认证（HTTP 头里常见）。
