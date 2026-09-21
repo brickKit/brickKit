@@ -19,7 +19,11 @@ Kubernetes manifests, network policies — then hands off to Docker or Kubernete
 and exits. No registry, no config center, no gateway, no resident process.
 
 Each component is an independent domain unit, developed, tested, deployed, and
-called on its own. The design leans on ideas engineers already trust.
+called on its own. Because nothing outside a component ever depends on more
+than its Manifest and its published contract — never its internals — the
+implementation behind that contract can be replaced or rewritten at any time,
+in any language, and nothing else in the system has to change. The design
+leans on ideas engineers already trust.
 
 **AI-friendly, and a natural fit for AI-assisted development.** A component is
 small enough for an AI to read whole, its boundary is a contract file rather than
@@ -72,7 +76,7 @@ and derive the rest.**
 | **Derivation over configuration** | Start order, service addresses, `*_ENDPOINT` variables, Compose/Kubernetes manifests, and network policies are all computed from the dependency graph | A derived value can't drift from its source, and nobody guesses a variable name or a port |
 | **Twelve-factor configuration** | Addresses, resource connections, and config arrive as environment variables; the same address format on Docker and Kubernetes | Component code never learns where it runs — zero changes between environments |
 | **Exact versions, side by side** | No ranges; the version is part of the service name (`people-basic-1-0-0`) | Two versions coexist as two DNS names, so an AI-written v2 runs beside v1 without touching its callers |
-| **Contract-first** | `artifacts` ships API contracts with the Manifest; the Market requires one from a closed-source component that provides an API | A component's boundary is readable without reading its code |
+| **Contract-first** | `artifacts` ships API contracts with the Manifest; the Market requires one from a closed-source component that provides an API | A component's boundary is readable without reading its code — and since nothing else ever depends on more than that boundary, the implementation behind it is free to be replaced or rewritten entirely |
 | **Loud failure** | Unknown Manifest keys are rejected; a missing weak dependency injects *nothing* (never an empty string); a mistyped config key warns | Mistakes surface at `up` or at startup, not as a quiet wrong answer in production |
 | **Least privilege** | Nothing is reachable until declared; optional network policies come from the dependency graph; cosign-signed components are verified with the Go standard library alone | A smaller blast radius by default, with the trust anchor in *your* project |
 
