@@ -16,6 +16,9 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# CLI 的输出语言固定成英文（默认语言，也是清单里关键词的语言）——不然结果会跟着跑脚本的人
+# 自己机器上的 BRICKKIT_LANG / 全局配置走。环境变量优先级最高，所以这一行就够了。
+export BRICKKIT_LANG=en
 LIST="$ROOT/tests/guides/清单.tsv"
 ONLY="${1:-}"
 

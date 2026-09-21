@@ -41,7 +41,7 @@ func newServerFromEnv() *server {
 	return &server{
 		componentID: envOr("COMPONENT_ID", "demo/hello"),
 		version:     envOr("COMPONENT_VERSION", "1.0.0"),
-		greeting:    envOr("GREETING", "你好"),
+		greeting:    envOr("GREETING", "Hello"),
 	}
 }
 
@@ -71,7 +71,7 @@ func (s *server) handleHello(w http.ResponseWriter, _ *http.Request) {
 		"component": s.componentID,
 		"version":   s.version,
 		"greeting":  s.greeting,
-		"message":   s.greeting + "，我是 " + s.componentID + "@" + s.version,
+		"message":   s.greeting + ", I'm " + s.componentID + "@" + s.version,
 	})
 }
 
@@ -101,10 +101,10 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("组件已启动",
+		logger.Info("component started",
 			"component", srv.componentID, "version", srv.version, "addr", addr)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("服务异常退出", "error", err.Error())
+			logger.Error("server exited unexpectedly", "error", err.Error())
 			os.Exit(1)
 		}
 	}()
@@ -117,7 +117,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := httpServer.Shutdown(ctx); err != nil {
-		logger.Error("优雅退出失败", "error", err.Error())
+		logger.Error("graceful shutdown failed", "error", err.Error())
 	}
-	logger.Info("组件已退出")
+	logger.Info("component exited")
 }

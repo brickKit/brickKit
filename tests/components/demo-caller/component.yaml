@@ -5,9 +5,9 @@ kind: Component
 
 metadata:
   id: demo/caller
-  name: 平台自测组件 caller
+  name: Platform self-test component caller
   version: 1.0.0
-  description: BrickKit 平台自测用的调用方组件，验证依赖地址注入与弱依赖降级
+  description: The caller component for BrickKit's own self-tests; verifies dependency address injection and optional-dependency degradation
   vendor: brickkit-platform
   license: MIT
 
@@ -18,7 +18,7 @@ tags:
 artifacts:
   - type: api-docs
     format: openapi
-    description: HTTP API 文档
+    description: HTTP API docs
     files:
       - openapi.json
 

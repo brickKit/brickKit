@@ -85,7 +85,7 @@ func (s *server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 func (s *server) handleCall(w http.ResponseWriter, r *http.Request) {
 	if s.helloEndpoint == "" {
 		writeJSON(w, http.StatusFailedDependency, map[string]any{
-			"error": "强依赖地址未注入：环境变量 DEMO_HELLO_ENDPOINT 为空",
+			"error": "required dependency address not injected: environment variable DEMO_HELLO_ENDPOINT is empty",
 		})
 		return
 	}
@@ -93,7 +93,7 @@ func (s *server) handleCall(w http.ResponseWriter, r *http.Request) {
 	upstream, err := s.fetchHello(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{
-			"error":    "调用 demo/hello 失败：" + err.Error(),
+			"error":    "call to demo/hello failed: " + err.Error(),
 			"endpoint": s.helloEndpoint,
 		})
 		return
@@ -121,7 +121,7 @@ func (s *server) fetchHello(ctx context.Context) (map[string]any, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("上游返回状态码 %d", resp.StatusCode)
+		return nil, fmt.Errorf("upstream returned status code %d", resp.StatusCode)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
@@ -129,7 +129,7 @@ func (s *server) fetchHello(ctx context.Context) (map[string]any, error) {
 	}
 	var out map[string]any
 	if err := json.Unmarshal(body, &out); err != nil {
-		return nil, fmt.Errorf("上游响应不是合法 JSON")
+		return nil, fmt.Errorf("upstream response is not valid JSON")
 	}
 	return out, nil
 }
@@ -174,7 +174,7 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 //   - MIGRATION_SHOULD_FAIL=1 时以非 0 退出码失败，供平台验证阻断行为
 func migrate() error {
 	if os.Getenv("MIGRATION_SHOULD_FAIL") == "1" {
-		return errors.New("迁移被 MIGRATION_SHOULD_FAIL 开关置为失败（用于平台自测）")
+		return errors.New("migration forced to fail by the MIGRATION_SHOULD_FAIL switch (for platform self-tests)")
 	}
 
 	host := os.Getenv("DATABASE_HOST")
@@ -186,7 +186,7 @@ func migrate() error {
 	port := envOr("DATABASE_PORT", "5432")
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), 5*time.Second)
 	if err != nil {
-		return fmt.Errorf("数据库不可达 %s:%s：%w", host, port, err)
+		return fmt.Errorf("database unreachable at %s:%s: %w", host, port, err)
 	}
 	return conn.Close()
 }
@@ -196,10 +196,10 @@ func main() {
 
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
 		if err := migrate(); err != nil {
-			logger.Error("迁移失败", "error", err.Error())
+			logger.Error("migration failed", "error", err.Error())
 			os.Exit(1)
 		}
-		logger.Info("迁移完成")
+		logger.Info("migration finished")
 		return
 	}
 
@@ -211,11 +211,11 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("组件已启动",
+		logger.Info("component started",
 			"component", srv.componentID, "version", srv.version,
 			"hello_endpoint", srv.helloEndpoint, "event_bus", srv.busEndpoint != "")
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("服务异常退出", "error", err.Error())
+			logger.Error("server exited unexpectedly", "error", err.Error())
 			os.Exit(1)
 		}
 	}()
@@ -227,7 +227,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := httpServer.Shutdown(ctx); err != nil {
-		logger.Error("优雅退出失败", "error", err.Error())
+		logger.Error("graceful shutdown failed", "error", err.Error())
 	}
-	logger.Info("组件已退出")
+	logger.Info("component exited")
 }

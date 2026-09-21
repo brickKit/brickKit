@@ -2,9 +2,9 @@
   "openapi": "3.0.0",
   "info": { "title": "demo/caller", "version": "1.0.0" },
   "paths": {
-    "/healthz": { "get": { "summary": "存活检查", "responses": { "200": { "description": "ok" } } } },
-    "/api/v1/call": { "get": { "summary": "调用 demo/hello 并回显", "responses": { "200": { "description": "ok" } } } },
-    "/api/v1/status": { "get": { "summary": "自身与依赖状态", "responses": { "200": { "description": "ok" } } } },
-    "/api/v1/env": { "get": { "summary": "回显平台注入的环境变量", "responses": { "200": { "description": "ok" } } } }
+    "/healthz": { "get": { "summary": "Liveness check", "responses": { "200": { "description": "ok" } } } },
+    "/api/v1/call": { "get": { "summary": "Call demo/hello and echo its response", "responses": { "200": { "description": "ok" } } } },
+    "/api/v1/status": { "get": { "summary": "Status of this component and its dependencies", "responses": { "200": { "description": "ok" } } } },
+    "/api/v1/env": { "get": { "summary": "Echo the environment variables injected by the platform", "responses": { "200": { "description": "ok" } } } }
   }
 }

@@ -50,6 +50,9 @@ func TestHelloUsesInjectedConfig(t *testing.T) {
 	if body["greeting"] != "早上好" {
 		t.Fatalf("配置项 greeting 未生效：%v", body["greeting"])
 	}
+	if body["message"] != "早上好, I'm demo/hello@2.0.0" {
+		t.Fatalf("message 拼得不对：%v", body["message"])
+	}
 }
 
 // /api/v1/env 回显平台注入的环境变量，供 CLI 的注入引擎验证。
@@ -84,8 +87,9 @@ func TestNewServerFromEnvDefaults(t *testing.T) {
 	if srv.componentID != "demo/hello" {
 		t.Fatalf("默认组件 ID 不对：%s", srv.componentID)
 	}
-	if srv.greeting == "" {
-		t.Fatalf("greeting 应有默认值")
+	// 与 component.yaml 里 configSchema 的 default 一致（教程里展示的就是这个默认值）
+	if srv.greeting != "Hello" {
+		t.Fatalf("greeting 默认值不对：%q", srv.greeting)
 	}
 }
 
