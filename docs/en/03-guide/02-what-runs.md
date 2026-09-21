@@ -18,19 +18,19 @@ brickkit add --local
 ```
 
 ```
-🔍 从本地安装源 local-dev 扫到 2 个组件
-📦 添加 demo/caller@1.0.0
+🔍 Found 2 components in local install source: local-dev
+📦 Adding demo/caller@1.0.0
    ├── Manifest ✅
-   ├── 依赖 demo/hello@1.0.0 ✅ 已拉取（artifacts 1 个文件）
-   └── artifacts ✅（1 个文件）
-⚠️ 警告：弱依赖缺失：demo/bus@1.0.0
-   影响组件：demo/caller@1.0.0
-   原因：该组件在所有安装源中均未找到
-   影响：该组件的环境变量 DEMO_BUS_ENDPOINT 不会被注入
-📦 添加 demo/hello@1.0.0
+   ├── dependency demo/hello@1.0.0 ✅ pulled (artifacts: 1 file)
+   └── artifacts ✅ (1 file)
+⚠️ Warning: optional dependency missing: demo/bus@1.0.0
+   Affected component: demo/caller@1.0.0
+   Reason: The component was not found in any install source
+   Impact: This component's environment variable DEMO_BUS_ENDPOINT will not be injected
+📦 Adding demo/hello@1.0.0
    ├── Manifest ✅
-   └── artifacts ✅（1 个文件）
-✅ 已写入 brickkit.yaml（2 个组件）
+   └── artifacts ✅ (1 file)
+✅ Written to brickkit.yaml (2 components)
 ```
 
 Two things already happened before anything is even running. `add --local` scanned the local source for `demo/caller`, found that it requires `demo/hello`, and pulled that in too — you only asked for one component and got its whole dependency subtree. And `demo/caller` also *optionally* depends on `demo/bus@1.0.0`, which doesn't exist anywhere in this project's sources — the CLI warns about it right away rather than waiting until `up`.
@@ -42,28 +42,28 @@ brickkit up --dry-run
 ```
 
 ```
-⚠️ 警告：弱依赖缺失：demo/bus@1.0.0
-   影响组件：demo/caller@1.0.0
+⚠️ Warning: optional dependency missing: demo/bus@1.0.0
+   Affected component: demo/caller@1.0.0
    ...
-📋 组件状态计算：
-   ✅ demo/hello@1.0.0   启动（demo/caller 需要）
-   ✅ demo/caller@1.0.0  启动（顶层）
+📋 Component state calculation:
+   ✅ demo/hello@1.0.0   starting (demo/caller needs it)
+   ✅ demo/caller@1.0.0  starting (top-level)
 
-⚠️ 警告：资源依赖未满足（--dry-run 不阻断）
-   demo/caller@1.0.0：需要 kind: database、engine: postgresql（brickkit.yaml 的 resources 中未声明）
-📋 启动顺序（拓扑排序）：
-   1. demo-hello-1-0-0   无依赖
-   2. demo-caller-1-0-0  ← 依赖 1
+⚠️ Warning: resource dependencies are not satisfied (--dry-run doesn't block)
+   demo/caller@1.0.0: needs kind: database, engine: postgresql (not declared under resources in brickkit.yaml)
+📋 Start order (topological sort):
+   1. demo-hello-1-0-0   no dependencies
+   2. demo-caller-1-0-0  ← depends on 1
 
-可独立启动：demo-hello-1-0-0（无依赖）
-最长依赖链（2 层）：demo-hello-1-0-0 → demo-caller-1-0-0
+Can start on their own: demo-hello-1-0-0 (no dependencies)
+Longest dependency chain (2 levels): demo-hello-1-0-0 → demo-caller-1-0-0
 
-依赖图：
+Dependency graph:
    demo/caller@1.0.0 → demo/hello@1.0.0
-                     → demo/bus@1.0.0（弱，未安装）
-📄 已生成：.brickkit/generated/docker-compose.yaml
+                     → demo/bus@1.0.0 (optional, not installed)
+📄 Generated: .brickkit/generated/docker-compose.yaml
 
-🔧 启动前会执行的数据库迁移（失败则该组件不会启动）：
+🔧 Database migrations that run before startup (on failure that component won't start):
    demo/caller@1.0.0  /app/caller migrate
 ```
 
@@ -74,14 +74,14 @@ Reading it top to bottom: `demo/hello` runs because `demo/caller` needs it, not 
 Add `enabled: false` to `demo/hello`'s entry in `brickkit.yaml` and run `--dry-run` again:
 
 ```
-📋 组件状态计算：
-   ⬜ demo/hello@1.0.0   显式禁用（enabled: false）
-   ⬜ demo/caller@1.0.0  不启动（强依赖 demo/hello 不启动）
+📋 Component state calculation:
+   ⬜ demo/hello@1.0.0   disabled explicitly (enabled: false)
+   ⬜ demo/caller@1.0.0  not starting (required dependency demo/hello is not starting)
 
-📋 本次没有组件会启动
-   顶层组件（没有别的组件依赖它们）这次都不跑：
-      demo/caller@1.0.0  不启动（强依赖 demo/hello 不启动）
-   顶层自己都没被关掉——要放开的是上面那行理由里点名的组件
+📋 No component will start this run
+   None of the top-level components (the ones no other component depends on) run this time:
+      demo/caller@1.0.0  not starting (required dependency demo/hello is not starting)
+   The top level itself isn't turned off — what to release is the component named in the reason line above
 ```
 
 `demo/caller` never had its own `enabled` field touched — on its own, being top-level, it would run by default. It stops anyway, because its *required* dependency is force-off, and "whatever depends on it stops too" (AGENTS.md §5.4) doesn't care what the dependent's own `enabled` says. The last line is the CLI actively pointing at the fix: the thing to change isn't `demo/caller`, whose behavior here is a consequence, not a cause — it's `demo/hello`.
@@ -91,13 +91,13 @@ Add `enabled: false` to `demo/hello`'s entry in `brickkit.yaml` and run `--dry-r
 Leave `demo/hello` disabled, but add `enabled: true` to `demo/caller` — insisting it must always run, no matter what:
 
 ```
-❌ 错误：强依赖 demo/hello 被禁用
-   组件：demo/caller@1.0.0（enabled: true，已钉住）
-   依赖链：demo/caller → demo/hello
-   被禁用的组件：demo/hello@1.0.0
-   建议：
-   1. 在 brickkit.yaml 中移除 demo/hello 的 enabled: false
-   2. 或去掉 demo/caller 的 enabled: true，让它随上层一起不启动
+❌ Error: required dependency demo/hello is disabled
+   Component: demo/caller@1.0.0 (enabled: true, pinned)
+   Dependency chain: demo/caller → demo/hello
+   Disabled component: demo/hello@1.0.0
+   Suggestions:
+   1. Remove enabled: false from demo/hello in brickkit.yaml
+   2. Or remove enabled: true from demo/caller, letting it follow whatever is above it
 ```
 
 Two explicit, written instructions — "`demo/hello` never runs" and "`demo/caller` always runs" — directly contradict each other once `demo/caller` actually needs `demo/hello`, and the platform refuses to silently pick a winner (AGENTS.md §5.4). This is different from the previous section on purpose: an *unwritten* `enabled` on the dependent just follows along quietly; a *written* one that conflicts is a hard stop, because now there are two explicit intents on record instead of one.

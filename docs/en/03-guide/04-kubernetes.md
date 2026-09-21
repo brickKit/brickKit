@@ -61,17 +61,17 @@ brickkit up
 ```
 
 ```
-📌 以下基础资源需要先跑起来（平台不代为部署）：
-   caller-db    postgresql   guide-pg.guide-resources.svc.cluster.local:5432  供 demo/caller 使用
+📌 These base resources have to be running first (the platform doesn't deploy them for you):
+   caller-db                   postgresql   guide-pg.guide-resources.svc.cluster.local:5432  used by demo/caller
 
-🔧 启动前会执行的数据库迁移（失败则该组件不会启动）：
+🔧 Database migrations that run before startup (on failure that component won't start):
    demo/caller@1.0.0  /app/caller migrate
 
-☸️  正在部署到 Kubernetes（命名空间 brickkit-hello-world）...
-   先执行数据库迁移，完成后才启动主服务
-   demo-hello-1-0-0             running（healthy）
-   demo-caller-1-0-0            running（healthy）
-✅ 全部组件已启动（2 个）
+☸️  Deploying to Kubernetes (namespace brickkit-hello-world)...
+   Database migrations run first; the main service starts only after they finish
+   demo-hello-1-0-0             running (healthy)
+   demo-caller-1-0-0            running (healthy)
+✅ All components started (2)
 ```
 
 ```bash
@@ -132,11 +132,11 @@ brickkit down
 ```
 
 ```
-🛑 停止项目 hello-world
-✅ 已停止全部组件
+🛑 Stopping project hello-world
+✅ All components stopped
 
-💡 基础资源（数据库等）由运维部署，不受 brickkit down 影响
-   重新启动：brickkit up
+💡 Base resources (databases and so on) are deployed by ops and are not affected by brickkit down
+   Start again with: brickkit up
 ```
 
 That message is true — BrickKit never issues a delete against the resource itself. What it doesn't warn you about, and what running this for real surfaces immediately: **by default, BrickKit created this project's namespace, and `down` deletes the entire namespace it created** — every object in it, whether BrickKit put it there or not. Had `guide-pg` been deployed into `brickkit-hello-world` instead of its own `guide-resources` namespace (for convenience — one less command to type), this exact `brickkit down` would have taken the database with it, directly contradicting what the console message just told you, not because the message is wrong, but because "the resource itself was never targeted" and "the resource happened to live in a namespace that just got deleted" are two different guarantees.

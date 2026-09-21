@@ -82,18 +82,18 @@ it explicitly.
 
 ```
 $ brickkit init demo-shop
-✅ 项目已初始化：demo-shop
-   📁 brickkit.yaml        项目配置
-   📁 components/          组件源码（已配为本地安装源 local-dev）
-   📁 .brickkit/           CLI 工作目录
-   📁 .claude/skills/      AI 助手技能（4 个）
-   📁 AGENTS.md            AI 助手项目导读
-   💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查
+✅ Project initialized: demo-shop
+   📁 brickkit.yaml        Project config
+   📁 components/          Component source (configured as the local install source local-dev)
+   📁 .brickkit/           CLI working directory
+   📁 .claude/skills/      AI assistant skills (4)
+   📁 AGENTS.md            AI assistant project guide
+   💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check
 
-下一步：
-  brickkit add --local               把 components/ 下的组件全加进来
-  brickkit add people/basic@1.0.0    从安装源添加组件
-  brickkit up                        一键启动
+Next steps:
+  brickkit add --local               add every component under components/
+  brickkit add people/basic@1.0.0    add a component from an install source
+  brickkit up                        start everything in one go
 ```
 
 ```bash
@@ -125,9 +125,9 @@ your own `CLAUDE.md`.
 
 ```
 $ brickkit skills update
-📦 组件仓库（有 component.yaml、没有 brickkit.yaml）：只管理 brickkit-component 技能
-✅ AI 助手技能已更新
-   已写入 1 个：
+📦 Component repository (has component.yaml, no brickkit.yaml): only the brickkit-component skill is managed
+✅ AI assistant skills updated
+   Wrote 1:
      .claude/skills/brickkit-component/SKILL.md
 ```
 
@@ -184,11 +184,11 @@ Arrows are drawn whether or not the component at the other end starts: the pictu
 
 ```
 $ brickkit graph > graph.mmd
-⚠️ 警告：弱依赖缺失：infra/redis-event-bus@1.0.0
-   影响组件：people/basic@1.0.0
-   原因：该组件在所有安装源中均未找到
-   影响：该组件的环境变量 INFRA_REDIS_EVENT_BUS_ENDPOINT 不会被注入
-   💡 弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取
+⚠️ Warning: optional dependency missing: infra/redis-event-bus@1.0.0
+   Affected component: people/basic@1.0.0
+   Reason: The component was not found in any install source
+   Impact: This component's environment variable INFRA_REDIS_EVENT_BUS_ENDPOINT will not be injected
+   💡 Degrading gracefully for a missing optional dependency is the component's own responsibility; to enable it, confirm it has been published and is available from an install source
 ```
 
 The warning is on stderr, so it stays on your screen while the diagram goes into the file. This is `graph.mmd` — and, since GitHub draws a fenced `mermaid` block, also the picture:
@@ -197,7 +197,7 @@ The warning is on stderr, so it stays on your screen while the diagram goes into
 graph TD
     department_tree_1_0_0["department/tree@1.0.0"]
     people_basic_1_0_0["people/basic@1.0.0"]
-    infra_redis_event_bus_1_0_0["infra/redis-event-bus@1.0.0<br/>未安装"]
+    infra_redis_event_bus_1_0_0["infra/redis-event-bus@1.0.0<br/>not installed"]
     people_basic_1_0_0 --> department_tree_1_0_0
     people_basic_1_0_0 -.-> infra_redis_event_bus_1_0_0
     classDef missing fill:#fff4e5,stroke:#c77700,stroke-dasharray:4 3;
@@ -220,9 +220,9 @@ and its box gets the second line and the light-blue style:
 
 ```mermaid
 graph TD
-    department_tree_1_0_0["department/tree@1.0.0<br/>本地调试 :8081"]
+    department_tree_1_0_0["department/tree@1.0.0<br/>local debug :8081"]
     people_basic_1_0_0["people/basic@1.0.0"]
-    infra_redis_event_bus_1_0_0["infra/redis-event-bus@1.0.0<br/>未安装"]
+    infra_redis_event_bus_1_0_0["infra/redis-event-bus@1.0.0<br/>not installed"]
     people_basic_1_0_0 --> department_tree_1_0_0
     people_basic_1_0_0 -.-> infra_redis_event_bus_1_0_0
     classDef local fill:#e6f2ff,stroke:#3673a8;
@@ -281,7 +281,7 @@ $ brickkit lint
 ✅ components/department/tree/component.yaml
 ✅ components/people/basic/component.yaml
 
-📋 检查了 3 个文件：0 个有错误，0 条警告
+📋 Checked 3 files: 0 with errors, 0 warnings
 ```
 
 Now misspell `dependencies` as `dependancies` in `components/people/basic/component.yaml`:
@@ -290,16 +290,16 @@ Now misspell `dependencies` as `dependancies` in `components/people/basic/compon
 $ brickkit lint
 ✅ brickkit.yaml
 ✅ components/department/tree/component.yaml
-❌ 错误：component.yaml 校验失败
-   文件：components/people/basic/component.yaml
-   dependancies：未知字段（第 35 行），是不是想写 dependencies？
-   建议：完整字段参考见 docs/zh/06-architecture/07-component-yaml-reference.md（英文版把 zh 换 en）
+❌ Error: component.yaml failed validation
+   File: components/people/basic/component.yaml
+   dependancies: unknown field (line 35); did you mean dependencies?
+   Suggestion: Full field reference: docs/en/06-architecture/07-component-yaml-reference.md (swap en for zh for the Chinese version)
 
-📋 检查了 3 个文件：1 个有错误，0 条警告
-❌ 错误：结构检查未通过
-   已检查：3 个文件
-   有错误：1 个文件
-   建议：按上面逐条列出的位置修改，再执行 brickkit lint
+📋 Checked 3 files: 1 with errors, 0 warnings
+❌ Error: the structure check did not pass
+   Checked: 3 files
+   With errors: 1 file
+   Suggestion: Fix them at the locations listed above, then run brickkit lint again
 ```
 
 Everything down to the `📋` line is the report, on stdout; the last block is the summary error on stderr, and exit status is `1`. The report names the file and the line and guesses the key you meant.
@@ -308,28 +308,28 @@ In a standalone component repository (here a copy of `demo/hello`'s `component.y
 
 ```
 $ brickkit lint
-📦 组件仓库（有 component.yaml、没有 brickkit.yaml）：只检查 component.yaml
+📦 Component repository (has component.yaml, no brickkit.yaml): only component.yaml is checked
 ✅ component.yaml
 
-📋 检查了 1 个文件：0 个有错误，0 条警告
+📋 Checked 1 file: 0 with errors, 0 warnings
 ```
 
 A warning alone doesn't fail the run. Misspell `default` as `defualt` inside the `greeting` property of its `configSchema`, and `brickkit lint` prints everything down to the `📋` line below and exits `0`. Add `--strict` and it prints the same, then one more block — the summary error, on stderr — and exits `1`. Here is the `--strict` run:
 
 ```
 $ brickkit lint --strict
-📦 组件仓库（有 component.yaml、没有 brickkit.yaml）：只检查 component.yaml
-⚠️ 警告：configSchema 里有配置项声明的键不会生效
-   来源：component.yaml
-   configSchema.properties.greeting.defualt：未知字段（第 31 行），是不是想写 default？
-   影响：这些键会被解析器静默丢弃——比如 default 拼错，组件就拿不到默认值
-   💡 configSchema 是说明书，每个配置项只认固定的几个键（清单见 component.yaml 字段参考）；JSON Schema 里别的关键字（format、examples……）写了也没有任何效果
+📦 Component repository (has component.yaml, no brickkit.yaml): only component.yaml is checked
+⚠️ Warning: some keys declared on configSchema items won't take effect
+   Origin: component.yaml
+   configSchema.properties.greeting.defualt: unknown field (line 31); did you mean default?
+   Impact: These keys are silently discarded by the parser — for example, if default is misspelled, the component never gets its default value
+   💡 configSchema is a spec sheet: each config item recognizes only a fixed set of keys (see the component.yaml field reference); other JSON Schema keywords (format, examples, …) have no effect even if written
 
-📋 检查了 1 个文件：0 个有错误，1 条警告
-❌ 错误：结构检查未通过
-   已检查：1 个文件
-   警告：1 条（--strict：警告也算失败）
-   建议：按上面逐条列出的位置修改，再执行 brickkit lint
+📋 Checked 1 file: 0 with errors, 1 warning
+❌ Error: the structure check did not pass
+   Checked: 1 file
+   Warnings: 1 (--strict: warnings count as failures)
+   Suggestion: Fix them at the locations listed above, then run brickkit lint again
 ```
 
 ```bash
@@ -378,13 +378,13 @@ repository you run `brickkit skills update` yourself once there's a
 
 ```
 $ brickkit new demo/widget
-✅ 已生成组件骨架：demo/widget
+✅ Component skeleton generated: demo/widget
    📄 components/demo/widget/component.yaml
 
-下一步：
-  改完骨架里的 TODO
-  brickkit add --local               把它加进 brickkit.yaml（本地安装源里能扫到它的话）
-  brickkit up --dry-run               校验能不能通过
+Next steps:
+  finish the TODOs in the skeleton
+  brickkit add --local               add it to brickkit.yaml (if the local install source can scan it)
+  brickkit up --dry-run               check that it passes validation
 ```
 
 ```yaml
@@ -441,11 +441,11 @@ overwriting:
 
 ```
 $ brickkit new demo/widget
-❌ 错误：目标目录已存在
-   目录：components/demo/widget
-   建议：
-   1. 如果是误操作，请先删除或重命名该目录
-   2. 想写到别的地方，用 --path 指定
+❌ Error: the target directory already exists
+   Directory: components/demo/widget
+   Suggestions:
+   1. If this happened by mistake, delete or rename the directory first
+   2. To write somewhere else, specify --path
 ```
 
 ```bash
@@ -498,17 +498,17 @@ How to clone component source (`--repo` / `--repo-all`) and manage it afterwards
 
 ```
 $ brickkit add people/basic@1.0.0 --yes
-📦 添加 people/basic@1.0.0
+📦 Adding people/basic@1.0.0
    ├── Manifest ✅
-   ├── 依赖 department/tree@1.0.0 ✅ 已拉取（artifacts 2 个文件）
-   └── artifacts ✅（2 个文件）
-⚠️ 警告：弱依赖缺失：infra/redis-event-bus@1.0.0
-   影响组件：people/basic@1.0.0
-   原因：该组件在所有安装源中均未找到
-   影响：该组件的环境变量 INFRA_REDIS_EVENT_BUS_ENDPOINT 不会被注入
-   💡 弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取
-✅ 已写入 brickkit.yaml（2 个组件）
-📁 已下载 artifacts 到 .brickkit/artifacts/（4 个文件）
+   ├── dependency department/tree@1.0.0 ✅ pulled (artifacts: 2 files)
+   └── artifacts ✅ (2 files)
+⚠️ Warning: optional dependency missing: infra/redis-event-bus@1.0.0
+   Affected component: people/basic@1.0.0
+   Reason: The component was not found in any install source
+   Impact: This component's environment variable INFRA_REDIS_EVENT_BUS_ENDPOINT will not be injected
+   💡 Degrading gracefully for a missing optional dependency is the component's own responsibility; to enable it, confirm it has been published and is available from an install source
+✅ Written to brickkit.yaml (2 components)
+📁 Downloaded artifacts into .brickkit/artifacts/ (4 files)
 ```
 
 Note what this real run shows: a missing **required** dependency
@@ -550,10 +550,10 @@ A hands-on walkthrough with real output: [Manage component source](../03-guide/0
 
 ```
 $ brickkit remove department/tree
-❌ 无法移除 department/tree
-   版本：1.0.0
-   以下组件强依赖它：people/basic@1.0.0
-   建议：请先移除依赖方
+❌ Cannot remove department/tree
+   Version: 1.0.0
+   These components depend on it as a required dependency: people/basic@1.0.0
+   Suggestion: Remove the dependents first
 ```
 
 ```bash
@@ -623,39 +623,39 @@ missing optional dependency, and no `resources:` bound yet)
 
 ```
 $ brickkit up --dry-run
-🚀 启动项目 demo-shop（deploy.target: docker）
-⚠️ 警告：弱依赖缺失：infra/redis-event-bus@1.0.0
-   影响组件：people/basic@1.0.0
-   原因：该组件在所有安装源中均未找到
-   影响：该组件的环境变量 INFRA_REDIS_EVENT_BUS_ENDPOINT 不会被注入
-   💡 弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取
-📋 组件状态计算：
-   ✅ department/tree@1.0.0  启动（people/basic 需要）
-   ✅ people/basic@1.0.0     启动（顶层）
+🚀 Starting project demo-shop (deploy.target: docker)
+⚠️ Warning: optional dependency missing: infra/redis-event-bus@1.0.0
+   Affected component: people/basic@1.0.0
+   Reason: The component was not found in any install source
+   Impact: This component's environment variable INFRA_REDIS_EVENT_BUS_ENDPOINT will not be injected
+   💡 Degrading gracefully for a missing optional dependency is the component's own responsibility; to enable it, confirm it has been published and is available from an install source
+📋 Component state calculation:
+   ✅ department/tree@1.0.0  starting (people/basic needs it)
+   ✅ people/basic@1.0.0     starting (top-level)
 
-⚠️ 警告：资源依赖未满足（--dry-run 不阻断）
-   department/tree@1.0.0：需要 kind: database、engine: postgresql（brickkit.yaml 的 resources 中未声明）
-   people/basic@1.0.0：需要 kind: database、engine: postgresql（brickkit.yaml 的 resources 中未声明）
-   建议：
-   1. 生成的部署文件里**不会有**这些组件的资源连接变量（DATABASE_* 等）
-   2. 在 brickkit.yaml → resources 中声明并绑定后再 up；不加 --dry-run 时这里会直接阻断
-📋 启动顺序（拓扑排序）：
-   1. department-tree-1-0-0  无依赖
-   2. people-basic-1-0-0     ← 依赖 1
+⚠️ Warning: resource dependencies are not satisfied (--dry-run doesn't block)
+   department/tree@1.0.0: needs kind: database, engine: postgresql (not declared under resources in brickkit.yaml)
+   people/basic@1.0.0: needs kind: database, engine: postgresql (not declared under resources in brickkit.yaml)
+   Suggestions:
+   1. The generated deployment files will **not contain** the resource connection variables (DATABASE_* and so on) of these components
+   2. Declare and bind them under brickkit.yaml → resources before running up; without --dry-run this blocks right here
+📋 Start order (topological sort):
+   1. department-tree-1-0-0  no dependencies
+   2. people-basic-1-0-0     ← depends on 1
 
-可独立启动：department-tree-1-0-0（无依赖）
-最长依赖链（2 层）：department-tree-1-0-0 → people-basic-1-0-0
+Can start on their own: department-tree-1-0-0 (no dependencies)
+Longest dependency chain (2 levels): department-tree-1-0-0 → people-basic-1-0-0
 
-依赖图：
+Dependency graph:
    people/basic@1.0.0 → department/tree@1.0.0
-                      → infra/redis-event-bus@1.0.0（弱，未安装）
-📄 已生成：.brickkit/generated/docker-compose.yaml
+                      → infra/redis-event-bus@1.0.0 (optional, not installed)
+📄 Generated: .brickkit/generated/docker-compose.yaml
 
-🔧 启动前会执行的数据库迁移（失败则该组件不会启动）：
+🔧 Database migrations that run before startup (on failure that component won't start):
    department/tree@1.0.0  /app/department-tree migrate
    people/basic@1.0.0  python -m app.main migrate
 
-💡 --dry-run 只生成文件，未启动任何组件
+💡 --dry-run only generates the files and starts no component
 ```
 
 Every line in this output carries its own reasoning — `department/tree`
@@ -719,19 +719,19 @@ reachability.
 
 ```
 $ brickkit status
-📊 项目状态：demo-shop（deploy.target: docker）
+📊 Project status: demo-shop (deploy.target: docker)
 
-❌ 未在运行（2 个组件）
- ┌─────────────────┬───────┬────────┐
- │ 组件            │ 版本  │ 状态   │
- ├─────────────────┼───────┼────────┤
- │ department/tree │ 1.0.0 │ 未创建 │
- │ people/basic    │ 1.0.0 │ 未创建 │
- └─────────────────┴───────┴────────┘
-   看日志定位：docker compose -p brickkit-demo-shop logs <服务名>
+❌ Not running (2 components)
+ ┌─────────────────┬─────────┬─────────────┐
+ │ Component       │ Version │ Status      │
+ ├─────────────────┼─────────┼─────────────┤
+ │ department/tree │ 1.0.0   │ not created │
+ │ people/basic    │ 1.0.0   │ not created │
+ └─────────────────┴─────────┴─────────────┘
+   View the logs to find out why: docker compose -p brickkit-demo-shop logs <service-name>
 
-📋 没有正在运行的组件（可能已经 brickkit down 过）
-   重新启动：brickkit up
+📋 No components are running (perhaps brickkit down was already run)
+   Start again with: brickkit up
 ```
 
 ---
@@ -758,8 +758,8 @@ A hands-on walkthrough with real output: [Manage component source](../03-guide/0
 
 ```
 $ brickkit sync
-📂 工作区无需整理
-   components 下没有需要归档或激活的组件源码
+📂 The workspace needs no tidying
+   There is no component source under components to archive or activate
 ```
 
 ---

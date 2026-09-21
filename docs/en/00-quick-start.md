@@ -33,17 +33,17 @@ brickkit init hello
 ```
 
 ```
-✅ 项目已初始化：hello
-   📁 brickkit.yaml        项目配置
-   📁 components/          组件源码（已配为本地安装源 local-dev）
-   📁 .brickkit/           CLI 工作目录
-   📁 .claude/skills/      AI 助手技能（4 个）
-   📁 AGENTS.md            AI 助手项目导读
+✅ Project initialized: hello
+   📁 brickkit.yaml        Project config
+   📁 components/          Component source (configured as the local install source local-dev)
+   📁 .brickkit/           CLI working directory
+   📁 .claude/skills/      AI assistant skills (4)
+   📁 AGENTS.md            AI assistant project guide
 
-下一步：
-  brickkit add --local               把 components/ 下的组件全加进来
-  brickkit add people/basic@1.0.0    从安装源添加组件
-  brickkit up                        一键启动
+Next steps:
+  brickkit add --local               add every component under components/
+  brickkit add people/basic@1.0.0    add a component from an install source
+  brickkit up                        start everything in one go
 ```
 
 `init` already wired `components/` up as a `local`-type install source — that's where the next step looks.
@@ -62,11 +62,11 @@ brickkit add --local
 ```
 
 ```
-🔍 从本地安装源 local-dev 扫到 1 个组件
-📦 添加 demo/hello@1.0.0
+🔍 Found 1 component in local install source: local-dev
+📦 Adding demo/hello@1.0.0
    ├── Manifest ✅
-   └── artifacts ✅（1 个文件）
-✅ 已写入 brickkit.yaml（1 个组件）
+   └── artifacts ✅ (1 file)
+✅ Written to brickkit.yaml (1 component)
 ```
 
 `--local` doesn't take a component ID — its meaning is "add every component in this local source at once," not "add this one component in local debug mode." That distinction is the single easiest thing to get wrong here.
@@ -90,24 +90,24 @@ brickkit up
 ```
 
 ```
-🚀 启动项目 hello（deploy.target: docker）
-📋 组件状态计算：
-   ✅ demo/hello@1.0.0  启动（顶层）
+🚀 Starting project hello (deploy.target: docker)
+📋 Component state calculation:
+   ✅ demo/hello@1.0.0  starting (top-level)
 
-📋 启动顺序（拓扑排序）：
-   1. demo-hello-1-0-0  无依赖
+📋 Start order (topological sort):
+   1. demo-hello-1-0-0  no dependencies
 
-可独立启动：demo-hello-1-0-0（无依赖）
-📄 已生成：.brickkit/generated/docker-compose.yaml
+Can start on their own: demo-hello-1-0-0 (no dependencies)
+📄 Generated: .brickkit/generated/docker-compose.yaml
 
-🔍 检测镜像拉取权限... ✅ 全部通过
+🔍 Checking image pull permissions... ✅ All passed
 
-🐳 正在启动（docker）...
-   demo-hello-1-0-0             running（healthy）
-✅ 全部组件已启动（1 个）
+🐳 Starting (docker)...
+   demo-hello-1-0-0             running (healthy)
+✅ All components started (1)
 
-💡 查看状态：brickkit status
-   查看日志：docker compose -p brickkit-hello logs -f
+💡 View the status: brickkit status
+   View the logs: docker compose -p brickkit-hello logs -f
 ```
 
 ## 6. Talk to it
@@ -129,12 +129,12 @@ brickkit down
 ```
 
 ```
-🛑 停止项目 hello
-✅ 已停止全部组件
+🛑 Stopping project hello
+✅ All components stopped
 
-💡 数据卷未删除，数据库数据仍然保留
-   需要彻底清理时手动执行：docker volume rm <卷名>
-   重新启动：brickkit up
+💡 Data volumes were not deleted; database data is still there
+   For a full cleanup, run by hand: docker volume rm <volume-name>
+   Start again with: brickkit up
 ```
 
 ## Wire up your editor

@@ -202,14 +202,14 @@ resources:
 Get this wrong and `brickkit up --dry-run` warns you at generation time (this is a real warning, not invented):
 
 ```
-⚠️ 基础资源的 host 看起来是个服务名，容器里可能解析不了
-   资源：postgres-main
-   host：brickkit-template-pg
-   原因：平台不部署基础资源，compose 里不会有叫这个名字的 service
-   建议：
-   1. 资源跑在本机时写 host: host.docker.internal（平台会自动补 extra_hosts）
-   2. 资源跑在别处时写它的 IP 或域名
-   3. 确实已经手工把该容器接进了本项目网络的话，这条提醒可以忽略
+⚠️ A resource's host looks like a service name, which may not resolve inside the container
+   Resource: postgres-main
+   host: brickkit-template-pg
+   Reason: The platform doesn't deploy resources, so compose has no service by that name
+   Suggestions:
+   1. If the resource runs on this machine, write host: host.docker.internal (the platform adds extra_hosts automatically)
+   2. If the resource runs elsewhere, write its IP or domain name
+   3. If you have already attached that container to this project's network by hand, you can ignore this reminder
 ```
 
 **4. Start it**
@@ -219,25 +219,25 @@ brickkit up
 ```
 
 ```
-🚀 启动项目 dept-demo（deploy.target: docker）
-📋 组件状态计算：
-   ✅ department/tree@1.0.0  启动（顶层）
+🚀 Starting project dept-demo (deploy.target: docker)
+📋 Component state calculation:
+   ✅ department/tree@1.0.0  starting (top-level)
 
-📋 启动顺序（拓扑排序）：
-   1. department-tree-1-0-0  无依赖
+📋 Start order (topological sort):
+   1. department-tree-1-0-0  no dependencies
 
-📌 以下基础资源需要先跑起来（平台不代为部署）：
-   postgres-main postgresql   host.docker.internal:55432  供 department/tree 使用
-      需要库 brickkit_department（供 department/tree 使用）：CREATE DATABASE "brickkit_department";
+📌 These base resources have to be running first (the platform doesn't deploy them for you):
+   postgres-main postgresql     host.docker.internal:55432  used by department/tree
+      Needs database brickkit_department (used by department/tree): CREATE DATABASE "brickkit_department";
 
-🔧 启动前会执行的数据库迁移（失败则该组件不会启动）：
+🔧 Database migrations that run before startup (on failure that component won't start):
    department/tree@1.0.0  /app/department-tree migrate
 
-🔍 检测镜像拉取权限... ✅ 全部通过
+🔍 Checking image pull permissions... ✅ All passed
 
-🐳 正在启动（docker）...
-   department-tree-1-0-0        running（healthy）
-✅ 全部组件已启动（1 个）
+🐳 Starting (docker)...
+   department-tree-1-0-0        running (healthy)
+✅ All components started (1)
 ```
 
 The migration container's real log output (structured JSON, written to stdout):

@@ -137,61 +137,61 @@ Three genuinely different outcomes exist for a `config` entry that's somehow wro
 **5.1 — A `config` key's computed env var name collides with a reserved pattern.** The reserved set is exactly: the four exact names in §1, the `*_ENDPOINT` suffix, the six resource-kind prefixes in §3 (`DATABASE_`/`REDIS_`/`MQ_`/`STORAGE_`/`SEARCH_`/`SMTP_`), and any `envPrefix` the *project* has defined for a bound resource. This last one is why the check happens at injection time and not at publish time — a component's own Manifest has no way to know what `envPrefix` a project binding it will someday choose. **This is a warning, not a blocking error** — the config item is dropped, the platform's own value (if any) wins, `up` continues:
 
 ```
-⚠️ 配置冲突：组件 shop/checkout 的配置项已被忽略
-   组件：shop/checkout
-   配置项：databaseFlavor
-   环境变量名：DATABASE_FLAVOR
-   冲突的保留模式：DATABASE_*
-   处理：该配置项已被忽略，平台注入的值优先
-   建议：
-   1. 修改 configSchema 中的配置项名称，避开平台保留变量
-   2. 例如改为 customDatabaseFlavor
+⚠️ Config conflict: the config item of component shop/checkout was ignored
+   Component: shop/checkout
+   Config item: databaseFlavor
+   Environment variable name: DATABASE_FLAVOR
+   Conflicting reserved pattern: DATABASE_*
+   Handling: This config item is ignored; the platform-injected value takes precedence
+   Suggestions:
+   1. Rename the config item in configSchema to avoid the platform's reserved variables
+   2. For example, rename it to customDatabaseFlavor
 ```
 
 The suggested rename differs by which pattern was hit — a prefix collision (`DATABASE_*`) suggests a `custom` prefix on the *key*; a suffix collision (`*_ENDPOINT`) suggests renaming the key's own `Endpoint` tail to `BaseUrl`, because prefixing a key that already ends in `Endpoint` obviously doesn't fix a suffix match:
 
 ```
-⚠️ 配置冲突：组件 shop/checkout 的配置项已被忽略
-   组件：shop/checkout
-   配置项：upstreamEndpoint
-   环境变量名：UPSTREAM_ENDPOINT
-   冲突的保留模式：*_ENDPOINT
-   建议：
-   2. 例如改为 upstreamBaseUrl
+⚠️ Config conflict: the config item of component shop/checkout was ignored
+   Component: shop/checkout
+   Config item: upstreamEndpoint
+   Environment variable name: UPSTREAM_ENDPOINT
+   Conflicting reserved pattern: *_ENDPOINT
+   Suggestions:
+   2. For example, rename it to upstreamBaseUrl
 ```
 
 **5.2 — A `config` key in `brickkit.yaml` doesn't exist in the component's `configSchema` at all** (a typo, or an override left over from before the component dropped that property). Also a warning, also non-blocking, with an edit-distance guess at what you meant:
 
 ```
-⚠️ config 里有配置项不会生效：组件 shop/checkout 的 typoLogLevel
-   配置项：typoLogLevel
-   原因：组件的 configSchema 里没有这一项
-   影响：这一项不会被注入任何环境变量；组件会使用它自己的默认值
+⚠️ A config item won't take effect: typoLogLevel on component shop/checkout
+   Config item: typoLogLevel
+   Reason: The component's configSchema has no such item
+   Impact: This item is not injected as any environment variable; the component uses its own default
    组件声明的配置项：databaseFlavor、logLevel、upstreamEndpoint
 ```
 
 The same warning fires, worded identically, when the component has **no `configSchema` at all** and the project still writes a `config:` block — the whole block is ignored, not just the unrecognized keys:
 
 ```
-⚠️ config 整块不会生效：组件 shop/cart 没有声明 configSchema
-   被忽略的配置项：maxItems（共 1 项）
-   影响：一项都不会被注入任何环境变量
-   建议：要让它可配置，先在组件的 component.yaml 里加 configSchema
+⚠️ The whole config block won't take effect: component shop/cart declares no configSchema
+   Ignored config items: maxItems (1 in total)
+   Impact: None of them are injected as environment variables
+   Suggestion: To make it configurable, first add configSchema to the component's component.yaml
 ```
 
 **5.3 — A `configSchema.required` key has no default and no override anywhere.** This is the one case in this whole document that's a **hard error, not a warning** — `brickkit up` refuses to generate anything at all, for any component in the project, naming the exact missing key and which component declared it required:
 
 ```
-❌ 错误：必填的组件配置没有值
-   缺少配置：shop/pricing@1.0.0 → pricingServiceUrl（注入为 PRICING_SERVICE_URL）
-   原因：组件在 configSchema.required 里声明了它，又没有给默认值——这一项平台推导不出来，只能由项目提供
-   建议：
-   1. 在 brickkit.yaml 里给它一个值：
+❌ Error: a required component config item has no value
+   Missing config: shop/pricing@1.0.0 → pricingServiceUrl (injected as PRICING_SERVICE_URL)
+   Reason: The component declares it in configSchema.required without a default — the platform can't derive this one, so the project has to supply it
+   Suggestions:
+   1. Give it a value in brickkit.yaml:
     components:
       - id: shop/pricing
         config:
           pricingServiceUrl: <值>
-   2. 值里可以写 ${ENV_VAR}，真值放 .env
+   2. The value may be ${ENV_VAR}; keep the real value in .env
 ```
 
 Why this one alone gets to block startup: a required key with no default is the component author saying "I genuinely cannot guess this — the project has to supply it," the standard shape for a cross-project service address (AGENTS.md §5.2 — the platform has no way to derive where another project's own service lives). Letting it through silently would mean the component starts, looks healthy, and has exactly one call path that quietly never works — indistinguishable from "configured correctly" until someone hits that path in production. Compare this against §5.1/§5.2: those are typos with a working (if wrong) fallback behind them; this is "there is no fallback," so the platform can't afford to treat it the same way.

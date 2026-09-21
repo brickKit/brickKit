@@ -59,17 +59,17 @@ brickkit add demo/caller@1.0.0
 ```
 
 ```
-📦 添加 demo/caller@1.0.0
+📦 Adding demo/caller@1.0.0
    ├── Manifest ✅
-   ├── 依赖 demo/hello@1.0.0 ✅ 已拉取（artifacts 1 个文件）
-   └── artifacts ✅（1 个文件）
-⚠️ 警告：弱依赖缺失：demo/bus@1.0.0
-   影响组件：demo/caller@1.0.0
-   原因：该组件在所有安装源中均未找到
-   影响：该组件的环境变量 DEMO_BUS_ENDPOINT 不会被注入
-   💡 弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取
-✅ 已写入 brickkit.yaml（2 个组件）
-📁 已下载 artifacts 到 .brickkit/artifacts/（2 个文件）
+   ├── dependency demo/hello@1.0.0 ✅ pulled (artifacts: 1 file)
+   └── artifacts ✅ (1 file)
+⚠️ Warning: optional dependency missing: demo/bus@1.0.0
+   Affected component: demo/caller@1.0.0
+   Reason: The component was not found in any install source
+   Impact: This component's environment variable DEMO_BUS_ENDPOINT will not be injected
+   💡 Degrading gracefully for a missing optional dependency is the component's own responsibility; to enable it, confirm it has been published and is available from an install source
+✅ Written to brickkit.yaml (2 components)
+📁 Downloaded artifacts into .brickkit/artifacts/ (2 files)
 ```
 
 (That weak-dependency warning is from article 2: `demo/caller` declares an optional dependency that isn't installed here.)
@@ -99,14 +99,14 @@ brickkit add demo/hello@1.0.0 --repo --yes
 ```
 
 ```
-ℹ️ demo/hello@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存
-📦 添加 demo/hello@1.0.0
+ℹ️ demo/hello@1.0.0 already exists in brickkit.yaml, and --yes was given: refreshing the cache directly
+📦 Adding demo/hello@1.0.0
    ├── Manifest ✅
-   └── artifacts ✅（1 个文件）
-✅ 已刷新 demo/hello@1.0.0 的 Manifest 与 artifacts 缓存
-📁 已下载 artifacts 到 .brickkit/artifacts/（1 个文件）
-📁 已 clone 源码到 components/demo/hello/
-💡 改了源码怎么推回去、以及之后怎么管这份源码，见 docs/zh/03-guide/08-component-source.md（英文版把 zh 换 en）
+   └── artifacts ✅ (1 file)
+✅ Refreshed the Manifest and artifacts cache of demo/hello@1.0.0
+📁 Downloaded artifacts into .brickkit/artifacts/ (1 file)
+📁 Cloned the source into components/demo/hello/
+💡 For how to push source changes back and how to manage this source afterwards, see docs/en/03-guide/08-component-source.md (swap en for zh for the Chinese version)
 ```
 
 The `--yes` is there because `demo/hello` is already in `brickkit.yaml`: when `add` meets a component that's already been added, it first asks "refresh the Manifest and artifacts cache? [y/N]", and `--yes` answers y for you. Where there's no terminal to answer (a script, CI), leaving `--yes` off is taken as N — nothing happens, and nothing is cloned. **A component that isn't in `brickkit.yaml` yet gets no such question**, so `brickkit add demo/hello@1.0.0 --repo` alone is enough.
@@ -137,14 +137,14 @@ brickkit add demo/hello@1.0.0 --repo --yes
 ```
 
 ```
-ℹ️ demo/hello@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存
-❌ clone 失败：目录已存在
-   组件：demo/hello@1.0.0
-   目录：components/demo/hello/
-   原因：该目录已存在，可能包含你正在开发的组件源码
-   建议：
-   1. 如果是误操作，请先删除或重命名该目录
-   2. 如果已有源码，无需再次 clone
+ℹ️ demo/hello@1.0.0 already exists in brickkit.yaml, and --yes was given: refreshing the cache directly
+❌ Clone failed: directory already exists
+   Component: demo/hello@1.0.0
+   Directory: components/demo/hello/
+   Reason: This directory already exists and may hold source you're actively working on
+   Suggestions:
+   1. If this happened by mistake, delete or rename the directory first
+   2. If the source is already there, there's no need to clone it again
 ```
 
 It **never overwrites**: a directory that already exists is most likely source you're working on, and the platform doesn't decide for you whether to delete it. A component ID has exactly one source directory under `components/`, shared by every version of that component.
@@ -171,21 +171,21 @@ brickkit add demo/caller@1.0.0 --repo-all --yes
 ```
 
 ```
-ℹ️ demo/caller@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存
-📦 添加 demo/caller@1.0.0
+ℹ️ demo/caller@1.0.0 already exists in brickkit.yaml, and --yes was given: refreshing the cache directly
+📦 Adding demo/caller@1.0.0
    ├── Manifest ✅
-   ├── 依赖 demo/hello@1.0.0 ✅ 已拉取（artifacts 1 个文件）
-   └── artifacts ✅（1 个文件）
-⚠️ 警告：弱依赖缺失：demo/bus@1.0.0
-   影响组件：demo/caller@1.0.0
-   原因：该组件在所有安装源中均未找到
-   影响：该组件的环境变量 DEMO_BUS_ENDPOINT 不会被注入
-   💡 弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取
-✅ 已刷新 demo/caller@1.0.0 的 Manifest 与 artifacts 缓存
-📁 已下载 artifacts 到 .brickkit/artifacts/（2 个文件）
-   ⏭️ demo/hello             → 已有源码目录，跳过 clone
-   ✅ demo/caller            → clone 完成（components/demo/caller/）
-📁 已 clone 1 个开源组件仓库（跳过 1 个，理由见上）
+   ├── dependency demo/hello@1.0.0 ✅ pulled (artifacts: 1 file)
+   └── artifacts ✅ (1 file)
+⚠️ Warning: optional dependency missing: demo/bus@1.0.0
+   Affected component: demo/caller@1.0.0
+   Reason: The component was not found in any install source
+   Impact: This component's environment variable DEMO_BUS_ENDPOINT will not be injected
+   💡 Degrading gracefully for a missing optional dependency is the component's own responsibility; to enable it, confirm it has been published and is available from an install source
+✅ Refreshed the Manifest and artifacts cache of demo/caller@1.0.0
+📁 Downloaded artifacts into .brickkit/artifacts/ (2 files)
+   ⏭️ demo/hello             → the source directory already exists; skipping clone
+   ✅ demo/caller            → clone finished (components/demo/caller/)
+📁 Cloned 1 open-source component repository (1 skipped, see the reasons above)
 ```
 
 The last three lines are the point. `--repo-all` is a batch operation: for each component in the tree it clones what it can and **skips the rest, stating the reason for each one**, rather than failing the whole batch over a single component — so `demo/hello` is skipped (you just cloned it) and `demo/caller` is cloned. There are three possible reasons, and each ⏭️ line says which: the component is closed-source (no repository), its source has no Git address on record, or its source is already on disk. The summary line doesn't assert one particular reason precisely because the lines above it have already said each one.
@@ -236,9 +236,9 @@ brickkit up --dry-run
 Only the decision part is shown:
 
 ```
-📋 组件状态计算：
-   ⬜ demo/hello@1.0.0   不启动（上层都不启动）
-   ⬜ demo/caller@1.0.0  显式禁用（enabled: false）
+📋 Component state calculation:
+   ⬜ demo/hello@1.0.0   not starting (nothing above it is starting)
+   ⬜ demo/caller@1.0.0  disabled explicitly (enabled: false)
 ```
 
 `demo/hello` isn't starting either — only `demo/caller` needs it, and it "follows the top". Now let `sync` put both of their sources away:
@@ -248,12 +248,12 @@ brickkit sync
 ```
 
 ```
-📂 工作区整理：
+📂 Workspace tidying:
    📦 components/demo/caller/              → components/.archived/demo/caller
-      原因：显式禁用（enabled: false）
+      Reason: disabled explicitly (enabled: false)
    📦 components/demo/hello/               → components/.archived/demo/hello
-      原因：不启动（上层都不启动）
-✅ 工作区整理完成（0 个活跃，2 个归档，0 个激活）
+      Reason: not starting (nothing above it is starting)
+✅ Workspace tidied (0 active, 2 archived, 0 activated)
 ```
 
 ```bash
@@ -293,9 +293,9 @@ brickkit up --dry-run
 ```
 
 ```
-📋 组件状态计算：
-   ✅ demo/hello@1.0.0   启动（enabled: true）
-   ⬜ demo/caller@1.0.0  显式禁用（enabled: false）
+📋 Component state calculation:
+   ✅ demo/hello@1.0.0   starting (enabled: true)
+   ⬜ demo/caller@1.0.0  disabled explicitly (enabled: false)
 ```
 
 ```bash
@@ -303,10 +303,10 @@ brickkit sync
 ```
 
 ```
-📂 工作区整理：
+📂 Workspace tidying:
    📂 components/.archived/demo/hello      → components/demo/hello/
-      原因：恢复启用
-✅ 工作区整理完成（0 个活跃，0 个归档，1 个激活）
+      Reason: re-enabled
+✅ Workspace tidied (0 active, 0 archived, 1 activated)
 ```
 
 `demo/hello` came back; `demo/caller` stays archived. When you want everything back, delete both `enabled` lines (back to "unwritten", i.e. follow the top) and run it once more:
@@ -316,11 +316,11 @@ brickkit sync
 ```
 
 ```
-📂 工作区整理：
+📂 Workspace tidying:
    📂 components/.archived/demo/caller     → components/demo/caller/
-      原因：恢复启用
-   ✅ components/demo/hello/               活跃
-✅ 工作区整理完成（1 个活跃，0 个归档，1 个激活）
+      Reason: re-enabled
+   ✅ components/demo/hello/               active
+✅ Workspace tidied (1 active, 0 archived, 1 activated)
 ```
 
 ## `remove`: clean removal, and no accidents
@@ -334,10 +334,10 @@ brickkit remove demo/hello
 ```
 
 ```
-❌ 无法移除 demo/hello
-   版本：1.0.0
-   以下组件强依赖它：demo/caller@1.0.0
-   建议：请先移除依赖方
+❌ Cannot remove demo/hello
+   Version: 1.0.0
+   These components depend on it as a required dependency: demo/caller@1.0.0
+   Suggestion: Remove the dependents first
 ```
 
 **Second: once the source is deleted, can it still be found?** It asks only one thing — do these bytes exist anywhere else? Three situations stop it: not a Git repository (no other copy), uncommitted changes, or commits not pushed to any remote. Change something in `demo/caller`'s source without committing, then try to remove it:
@@ -348,14 +348,14 @@ brickkit remove demo/caller
 ```
 
 ```
-❌ 错误：源码删掉就找不回来了
-   组件：demo/caller@1.0.0
-   目录：components/demo/caller/
-   原因：有未提交的改动（含未跟踪的文件）
-   建议：
-   1. 先把它保住：提交并推到远端，或者把这个目录拷走 / 改名
-   2. 确认不要了就加 --force：brickkit remove demo/caller --force
-   3. 只是暂时不用的话，给它写 enabled: false 再 brickkit sync——那会把源码收进归档目录，而不是删掉
+❌ Error: the source can't be recovered once it is deleted
+   Component: demo/caller@1.0.0
+   Directory: components/demo/caller/
+   Reason: It has uncommitted changes (untracked files included)
+   Suggestions:
+   1. First keep it safe: commit and push it to a remote, or copy the directory away / rename it
+   2. If you are sure you don't need it, add --force: brickkit remove demo/caller --force
+   3. If you only don't need it for now, write enabled: false for it and run brickkit sync — that moves the source into the archive directory instead of deleting it
 ```
 
 Committed, but not pushed:
@@ -366,10 +366,10 @@ brickkit remove demo/caller
 ```
 
 ```
-❌ 错误：源码删掉就找不回来了
-   组件：demo/caller@1.0.0
-   目录：components/demo/caller/
-   原因：有提交还没推到任何远端
+❌ Error: the source can't be recovered once it is deleted
+   Component: demo/caller@1.0.0
+   Directory: components/demo/caller/
+   Reason: It has commits that haven't been pushed to any remote
    ...
 ```
 
@@ -381,10 +381,10 @@ brickkit remove demo/caller
 ```
 
 ```
-✅ 已移除 demo/caller@1.0.0
-   🗑️ 已删除源码目录 components/demo/caller/
-   🗑️ 已清理 Manifest 缓存
-   🗑️ 已清理 artifacts 缓存
+✅ Removed demo/caller@1.0.0
+   🗑️ Deleted source directory components/demo/caller/
+   🗑️ Cleaned the Manifest cache
+   🗑️ Cleaned the artifacts cache
 ```
 
 Nothing stopped it this time — a clean clone with everything pushed loses nothing when deleted. The three ways out listed in that error are the point of this section: **save it** (commit and push), **confirm you don't want it** (`--force`), or **you just don't need it right now** — in which case don't delete it; `enabled: false` plus `sync` moves the source into the archive and loses nothing.
@@ -396,10 +396,10 @@ brickkit remove demo/hello
 ```
 
 ```
-✅ 已移除 demo/hello@1.0.0
-   🗑️ 已删除归档源码目录 components/.archived/demo/hello
-   🗑️ 已清理 Manifest 缓存
-   🗑️ 已清理 artifacts 缓存
+✅ Removed demo/hello@1.0.0
+   🗑️ Deleted archived source directory components/.archived/demo/hello
+   🗑️ Cleaned the Manifest cache
+   🗑️ Cleaned the artifacts cache
 ```
 
 `remove` has to clear the archive as well: the component is no longer in `brickkit.yaml`, so `sync` would no longer recognize it, and that archived source would be an orphan nobody ever reclaims.
@@ -411,14 +411,14 @@ brickkit remove demo/hello
 ```
 
 ```
-❌ 错误：无法删除组件源码——它是一个已登记的 git submodule
-   组件：demo/hello
-   路径：components/demo/hello/
-   原因：直接删除工作目录不会清理 .gitmodules、superproject 索引里的 gitlink 记录、以及 .git/modules/ 下的内部仓库数据，git 状态会从此引用一个不存在的东西
-   建议：
-   1. 手工执行：git submodule deinit -f -- components/demo/hello/
-   2. 再执行：git rm -f components/demo/hello/
-   3. 需要彻底清理时：rm -rf .git/modules/components/demo/hello/
+❌ Error: can't remove this component's source — it's a registered git submodule
+   Component: demo/hello
+   Path: components/demo/hello/
+   Reason: Deleting the working directory directly doesn't clean up .gitmodules, the gitlink entry in the superproject index, or the internal repo data under .git/modules/ — git's state would end up referencing something that no longer exists
+   Suggestions:
+   1. Run by hand: git submodule deinit -f -- components/demo/hello/
+   2. Then run: git rm -f components/demo/hello/
+   3. For a full cleanup: rm -rf .git/modules/components/demo/hello/
 ```
 
 This one is **not affected by `--force`**: `--force` is the way out of "will data be lost" risks, while this stop is about "will Git's books be corrupted", and forcing past it would only make the books worse.
@@ -437,13 +437,13 @@ brickkit init shared-src
 ```
 
 ```
-✅ 项目已初始化：shared-src
-   📁 brickkit.yaml        项目配置
-   📁 components/          组件源码（已配为本地安装源 local-dev）
-   📁 .brickkit/           CLI 工作目录
-   📁 .claude/skills/      AI 助手技能（4 个）
-   📁 AGENTS.md            AI 助手项目导读
-   🪝 .git/hooks/pre-commit 提交前检查组件结构
+✅ Project initialized: shared-src
+   📁 brickkit.yaml        Project config
+   📁 components/          Component source (configured as the local install source local-dev)
+   📁 .brickkit/           CLI working directory
+   📁 .claude/skills/      AI assistant skills (4)
+   📁 AGENTS.md            AI assistant project guide
+   🪝 .git/hooks/pre-commit Check the component layout before committing
 ...
 ```
 
@@ -452,7 +452,7 @@ The extra 🪝 line is the new thing: `init` noticed the project root **is** the
 To do it the "source travels with the project" way, delete these two lines from `.gitignore`:
 
 ```
-# 组件源码目录（每个组件是独立的 Git 仓库，不提交到项目仓库）
+# Component source directory (each component is its own Git repository, not committed to the project repository)
 components/
 ```
 
@@ -489,11 +489,11 @@ git commit -m "Adjust hello's greeting"
 ```
 
 ```
-❌ 提交被拦下：组件源码提交在归档目录里，但 brickkit.yaml 说它该启动
-   demo/caller：即将提交的位置：components/.archived/demo/caller
-   建议：
-   1. 想保留这个归档结构 → git add brickkit.yaml（yaml 里的 enabled: false 进了提交，就是你的意图声明）
-   2. 不想 → git reset components/ && brickkit restore，然后重新 git add
+❌ Commit blocked: component source is committed under the archive directory, but brickkit.yaml says it should start
+   demo/caller: Location about to be committed: components/.archived/demo/caller
+   Suggestions:
+   1. To keep this archived layout → git add brickkit.yaml (the enabled: false in the yaml going into the commit is your declaration of intent)
+   2. Don't want that → git reset components/ && brickkit restore, then git add again
 ```
 
 The hook looks at **what's about to be committed** (the staging area), not your working tree: in the staging area `brickkit.yaml` hasn't changed (no `enabled: false`, so "it should run"), yet `demo/caller`'s source is in the archive directory — a contradiction, so it stops. It offers two ways out:
@@ -508,14 +508,14 @@ brickkit restore
 ```
 
 ```
-📄 brickkit.yaml：按最后一次提交还原 enabled（其余改动未动）
-   demo/hello@1.0.0           enabled: true → 删除该字段（提交里没写）
-   demo/caller@1.0.0          enabled: false → 删除该字段（提交里没写）
-📂 工作区整理：
+📄 brickkit.yaml: enabled restored from the last commit (other changes untouched)
+   demo/hello@1.0.0           enabled: true → remove the field (the commit doesn't set it)
+   demo/caller@1.0.0          enabled: false → remove the field (the commit doesn't set it)
+📂 Workspace tidying:
    📂 components/.archived/demo/caller     → components/demo/caller/
-      原因：恢复启用
-   ✅ components/demo/hello/               活跃
-✅ 工作区整理完成（1 个活跃，0 个归档，1 个激活）
+      Reason: re-enabled
+   ✅ components/demo/hello/               active
+✅ Workspace tidied (1 active, 0 archived, 1 activated)
 ```
 
 `restore` puts each component's `enabled` back to its value in the last commit (if the commit didn't write one, the field is removed altogether), then lets the source layout follow, by the same rule `sync` uses. Remember its boundaries:

@@ -43,6 +43,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // titlePlaceholder 是报错标题里"这里会填进一个变量"的占位符：
@@ -99,12 +100,10 @@ func msgidKeys(t *testing.T) map[string]string {
 	return out
 }
 
-// i18nCallTitle 把 i18n.T(msgid.Name, ...) 形状的调用还原成它在 zh 目录里
-// 的实际文案。错误码文档现在两侧（docs/en 与 docs/zh）都还照抄同一句
-// 中文原文（子项目 3 才会改成两侧各自的真实语言），所以这里统一按 zh
-// 目录解析，跟文档现状对齐；子项目 3 改变文档约定之后，这里要跟着改成
-// 按文档所在的语言分别解析。
-func i18nCallTitle(call *ast.CallExpr, msgidToKey map[string]string, zhCatalog map[string]string) (string, bool) {
+// i18nCallTitle 把 i18n.T(msgid.Name, ...) 形状的调用还原成它在给定语言目录里
+// 的实际文案。错误码文档两棵树各写各的语言（docs/en 引英文标题，docs/zh 引中文
+// 标题），所以调用方按文档所在的语言传对应的目录。
+func i18nCallTitle(call *ast.CallExpr, msgidToKey map[string]string, catalog map[string]string) (string, bool) {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return "", false
@@ -125,7 +124,7 @@ func i18nCallTitle(call *ast.CallExpr, msgidToKey map[string]string, zhCatalog m
 	if !ok {
 		return "", false
 	}
-	text, ok := zhCatalog[key]
+	text, ok := catalog[key]
 	return text, ok
 }
 
@@ -161,11 +160,11 @@ func titleLiteral(e ast.Expr) (string, bool) {
 
 // sourceTitles 扫 internal/ 与 cmd/ 下所有非测试文件，抽出
 // clierr.New / Newf / Warn / NewProblemSet 调用的第二个参数（报错标题），
-// 格式串里的动词统一换成占位符。
-func sourceTitles(t *testing.T) []string {
+// 格式串里的动词统一换成占位符。标题按 lang 的目录还原成那种语言的文案。
+func sourceTitles(t *testing.T, lang i18n.Lang) []string {
 	t.Helper()
 	msgidToKey := msgidKeys(t)
-	zhCatalog := i18n.CatalogFor(i18n.ZH)
+	catalog := i18n.CatalogFor(lang)
 	fset := token.NewFileSet()
 	var out []string
 	for _, dir := range []string{"internal", "cmd"} {
@@ -196,7 +195,7 @@ func sourceTitles(t *testing.T) []string {
 				title, ok := titleLiteral(call.Args[1])
 				if !ok {
 					if inner, isCall := call.Args[1].(*ast.CallExpr); isCall {
-						title, ok = i18nCallTitle(inner, msgidToKey, zhCatalog)
+						title, ok = i18nCallTitle(inner, msgidToKey, catalog)
 					}
 				}
 				if ok {
@@ -214,18 +213,32 @@ func sourceTitles(t *testing.T) []string {
 	return out
 }
 
-// minFixedRunes 是一个源码标题能进匹配池所需的"固定文字"最少字数（不含开头的
-// "错误："与占位符）。"错误：<…>" 这种几乎全是变量的标题，会把任何文档标题都放行。
-const minFixedRunes = 3
+// titleRules 是各语言里"标题匹配"要用到的两个语言相关的量。
+type titleRules struct {
+	// prefix 是标题开头的"错误："/"Error: "，算固定文字字数时不计入。
+	prefix string
+	// minFixed 是一个源码标题能进匹配池所需的"固定文字"最少字数（不含开头的
+	// 前缀、空白与占位符）。"错误：<…>" 这种几乎全是变量的标题，会把任何文档标题
+	// 都放行。中文一个字信息量大，三个字就够；英文取七个字母："is empty" 这样的固定尾巴够格，单单一个 "failed" 不够。
+	minFixed int
+}
+
+func rulesFor(lang i18n.Lang) titleRules {
+	prefix := strings.TrimSpace(i18n.CatalogFor(lang)[msgid.ErrorPrefix])
+	if lang == i18n.ZH {
+		return titleRules{prefix: prefix, minFixed: 3}
+	}
+	return titleRules{prefix: prefix, minFixed: 7}
+}
 
 // compileTitlePatterns 把源码标题编译成匹配模式：占位符匹配任意非空内容。
-func compileTitlePatterns(titles []string) []*regexp.Regexp {
+func compileTitlePatterns(titles []string, rules titleRules) []*regexp.Regexp {
 	var out []*regexp.Regexp
 	for _, title := range titles {
 		fixed := strings.ReplaceAll(title, titlePlaceholder, "")
-		fixed = strings.TrimPrefix(strings.TrimSpace(fixed), "错误：")
+		fixed = strings.TrimPrefix(strings.TrimSpace(fixed), rules.prefix)
 		fixed = strings.Join(strings.Fields(fixed), "")
-		if utf8.RuneCountInString(fixed) < minFixedRunes {
+		if utf8.RuneCountInString(fixed) < rules.minFixed {
 			continue
 		}
 		pattern := regexp.QuoteMeta(title)
@@ -303,12 +316,12 @@ func TestErrorCodesDocCoversEveryCode(t *testing.T) {
 
 // 文档里引用的每个报错标题，必须真实存在于 Go 源码。
 func TestErrorCodesDocTitlesExistInSource(t *testing.T) {
-	patterns := compileTitlePatterns(sourceTitles(t))
-	require.GreaterOrEqual(t, len(patterns), 100,
-		"只从源码里编出 %d 个标题模式——sourceTitles 或 compileTitlePatterns 坏了，这条测试的结论不可信", len(patterns))
+	for _, lang := range []i18n.Lang{i18n.EN, i18n.ZH} {
+		patterns := compileTitlePatterns(sourceTitles(t, lang), rulesFor(lang))
+		require.GreaterOrEqual(t, len(patterns), 100,
+			"%s：只从源码里编出 %d 个标题模式——sourceTitles 或 compileTitlePatterns 坏了，这条测试的结论不可信", lang, len(patterns))
 
-	for _, lang := range []string{"en", "zh"} {
-		rel := errorCodesDocPath(lang)
+		rel := errorCodesDocPath(string(lang))
 		body, err := os.ReadFile(filepath.Join(repoRoot, rel))
 		require.NoError(t, err, "%s 不存在", rel)
 		doc := parseErrorCodeDoc(string(body))
@@ -331,7 +344,7 @@ func TestErrorTitleMatcher(t *testing.T) {
 		"错误：<…> 校验失败",
 		"错误：<…>",   // 全是变量：不能进匹配池
 		"错误：<…>失败", // 固定文字不足三个字：不能进匹配池
-	})
+	}, rulesFor(i18n.ZH))
 	require.Len(t, patterns, 2, "几乎全是变量的标题不该进匹配池")
 
 	require.True(t, titleExists("错误：强依赖 <组件> 被禁用", patterns), "文档占位符要能对上源码的变量")
@@ -342,6 +355,21 @@ func TestErrorTitleMatcher(t *testing.T) {
 	doc := parseErrorCodeDoc("| 退出码 | 含义 |\n| `0` | 成功 |\n\n### A_B\n\n| 标题 | 原因 |\n| --- | --- |\n| `错误：x` | y |\n\n### C\n")
 	require.Equal(t, []string{"A_B"}, doc.codes, "单字母的小节标题不是错误码")
 	require.Equal(t, []string{"错误：x"}, doc.titles, "第一节之前的表格不算报错标题")
+}
+
+func TestErrorTitleMatcherEnglish(t *testing.T) {
+	patterns := compileTitlePatterns([]string{
+		"Error: required dependency <…> is disabled",
+		"Error: <…> failed validation",
+		"Error: <…>",        // 全是变量：不能进匹配池
+		"Error: <…> failed", // 固定文字不足七个字母：不能进匹配池
+	}, rulesFor(i18n.EN))
+	require.Len(t, patterns, 2, "几乎全是变量的标题不该进匹配池")
+
+	require.True(t, titleExists("Error: required dependency <component> is disabled", patterns), "文档占位符要能对上源码的变量")
+	require.True(t, titleExists("Error: brickkit.yaml failed validation", patterns), "文档写了具体值也要能对上源码的变量")
+	require.False(t, titleExists("Error: required dependency <component> is turned off", patterns), "措辞改了必须被拦下")
+	require.False(t, titleExists("Error: something else entirely", patterns), "全变量的标题不能放行任意文档标题")
 }
 
 func TestFormatVerbMatchesPositionalVerbs(t *testing.T) {
@@ -362,6 +390,10 @@ func TestI18nCallTitleResolvesKnownMessage(t *testing.T) {
 	title, ok := i18nCallTitle(call, msgidToKey, zhCatalog)
 	require.True(t, ok)
 	assert.Equal(t, "错误：项目配置文件不存在", title)
+
+	enTitle, ok := i18nCallTitle(call, msgidToKey, i18n.CatalogFor(i18n.EN))
+	require.True(t, ok)
+	assert.Equal(t, "Error: project config file not found", enTitle, "同一个调用按英文目录解析要得到英文标题")
 }
 
 func TestI18nCallTitleRejectsUnrelatedCalls(t *testing.T) {

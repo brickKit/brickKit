@@ -48,15 +48,15 @@ Only the second option is implemented at all — a `publicKeyRef` that can't be 
 AGENTS.md §5.2 describes two layers of defense against a component's own config colliding with a platform-injected variable: the marketplace refuses a colliding `configSchema` key at publish time, and the CLI warns and skips the colliding item at injection time. The second layer is real, verified output — declare a `configSchema` property named `backendEndpoint` (which uppercases to `BACKEND_ENDPOINT`, a suffix match against the reserved `*_ENDPOINT` pattern) and run `brickkit up`:
 
 ```
-⚠️ 配置冲突：组件 demo/hello 的配置项已被忽略
-   组件：demo/hello
-   配置项：backendEndpoint
-   环境变量名：BACKEND_ENDPOINT
-   冲突的保留模式：*_ENDPOINT
-   处理：该配置项已被忽略，平台注入的值优先
-   建议：
-   1. 修改 configSchema 中的配置项名称，避开平台保留变量
-   2. 例如改为 backendBaseUrl
+⚠️ Config conflict: the config item of component demo/hello was ignored
+   Component: demo/hello
+   Config item: backendEndpoint
+   Environment variable name: BACKEND_ENDPOINT
+   Conflicting reserved pattern: *_ENDPOINT
+   Handling: This config item is ignored; the platform-injected value takes precedence
+   Suggestions:
+   1. Rename the config item in configSchema to avoid the platform's reserved variables
+   2. For example, rename it to backendBaseUrl
 ```
 
 The component still starts — this is a warning, not a blocked deployment — but `backendEndpoint`'s declared default is silently absent from the container's environment, exactly as advertised: the platform-injected value (if any component actually depended on `demo/hello` and got a real `*_ENDPOINT` injected under that name) always wins, and the CLI even proposes a concrete rename rather than just naming the problem.

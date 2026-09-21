@@ -15,15 +15,20 @@
 （找锚点、逐行比对、省略号跳过任意行数、硬失败而不是静默跳过），换的只是
 目标文档树。
 
-# 顺带守一件旧版本从没做过的事：中英文两侧是不是抄的同一份输出
+# 两种语言各跑一遍，各对各的
 
-`docs/en/` 与 `docs/zh/` 是两棵独立撰写的文档树（各自成篇，不是逐句互译，
-但内容常常平行对应——这是这个仓库实测出来的实际写作习惯，不是刻意要求），
-而 CLI 打印的文本本身是中文，不受读者语言影响——所以同一个场景下，两边嵌
-的输出块**必须逐字相同**。`check-docs-bilingual.py` 只查两棵树的文件是不是
-成对存在，从不看文件内容；这里核对英文那份是否命中真实输出的同时，顺手也
-核对中文那份的对应块跟英文那份是否一字不差——一边改了措辞、另一边没跟上，
-这里会先发现。
+CLI 的输出语言由 `BRICKKIT_LANG` 决定（默认英文，`brickkit lang set` 可切换）。
+`docs/en/` 与 `docs/zh/` 是两棵独立撰写的文档树，各自嵌着自己语言的真实输出：
+所以这个脚本把全部场景**按 en、zh 各跑一遍**——en 那遍用 `BRICKKIT_LANG=en`
+跑真实 CLI、对着 docs/en 的块；zh 那遍用 `BRICKKIT_LANG=zh`、对着 docs/zh 的块。
+每个用例的锚点因此是 `{"zh": ..., "en": ...}` 两份。
+
+两棵树不要求"抄的是同一份输出"（那是 CLI 只有中文时才成立的老约束）：英文块
+里写的是英文输出，本来就不可能与中文块逐字相同。要守的是各自与自己语言的真实
+输出一致——一边改了 CLI 文案、另一边的文档没跟上，各自那一遍都会发现。
+
+夹具改写（往 brickkit.yaml / .gitignore 里加东西）不能依赖 init 写下的注释文字，
+因为那行注释随语言变，所以一律按结构认（正则），不按整段文字认。
 
 # 只挑不需要 Docker / minikube / 市场 / cosign 的场景
 
@@ -54,13 +59,14 @@ submodule 这些状态，再拿真实 CLI 的输出与教程逐行比对。
 # 这个脚本自己会不会坏
 
 会。最危险的坏法是"锚点找不到 → 一条都没比 → 打印一个漂亮的 0 失败"。
-所以锚点找不到是**硬失败**（exit 2），而不是跳过；结束时还会核对真比过的
+所以锚点找不到是**硬失败**（exit 2），而不是跳过；结束时还会核对每种语言真比过的
 块数与用例数一致，并且报出"这两棵树一共有多少个看起来像 CLI 输出的块，
 这次覆盖了多少个"——只报分子不报分母，看起来会跟"全都守住了"一模一样。
 """
 
 import glob
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -68,8 +74,6 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EN_GUIDE = os.path.join(ROOT, "docs", "en", "03-guide")
-ZH_GUIDE = os.path.join(ROOT, "docs", "zh", "03-guide")
 BIN = os.path.join(ROOT, "bin", "brickkit")
 
 # 用例里用到的组件，来自 tests/components/，与教程正文引用的路径一致。
@@ -83,26 +87,32 @@ COMPONENTS = [
 #   reset    True 表示先把试验场推倒重来（组件源码也重新拷）
 #   run      只执行、不比对的准备命令
 #   file     教程文件名（如 "01-first-project.md"），docs/en 与 docs/zh 下同名
-#   check    (要比对的命令, 锚点, 第几个匹配的块)
+#   check    (要比对的命令, {"zh": 中文块的首行, "en": 英文块的首行}, 第几个匹配的块)
 CASES = [
     {
         "what": "01 init 的输出",
         "reset": True,
         "run": [],
         "file": "01-first-project.md",
-        "check": ("init hello-world", "✅ 项目已初始化：hello-world", 0),
+        "check": ("init hello-world",
+                  {"zh": "✅ 项目已初始化：hello-world",
+                   "en": "✅ Project initialized: hello-world"}, 0),
     },
     {
         "what": "01 单组件 add --local",
         "run": ["!copy-into components/demo/hello demo-hello"],
         "file": "01-first-project.md",
-        "check": ("add --local", "🔍 从本地安装源 local-dev 扫到 1 个组件", 0),
+        "check": ("add --local",
+                  {"zh": "🔍 从本地安装源 local-dev 扫到 1 个组件",
+                   "en": "🔍 Found 1 component in local install source: local-dev"}, 0),
     },
     {
         "what": "01 dry-run 的三段输出",
         "run": [],
         "file": "01-first-project.md",
-        "check": ("up --dry-run", "🚀 启动项目 hello-world（deploy.target: docker）", 0),
+        "check": ("up --dry-run",
+                  {"zh": "🚀 启动项目 hello-world（deploy.target: docker）",
+                   "en": "🚀 Starting project hello-world (deploy.target: docker)"}, 0),
     },
     {
         "what": "02 两组件 add --local，弱依赖缺失警告",
@@ -111,25 +121,33 @@ CASES = [
                 "!copy-into components/demo/hello demo-hello",
                 "!copy-into components/demo/caller demo-caller"],
         "file": "02-what-runs.md",
-        "check": ("add --local", "🔍 从本地安装源 local-dev 扫到 2 个组件", 0),
+        "check": ("add --local",
+                  {"zh": "🔍 从本地安装源 local-dev 扫到 2 个组件",
+                   "en": "🔍 Found 2 components in local install source: local-dev"}, 0),
     },
     {
         "what": "02 完整 dry-run 画面",
         "run": [],
         "file": "02-what-runs.md",
-        "check": ("up --dry-run", "⚠️ 警告：弱依赖缺失：demo/bus@1.0.0", 0),
+        "check": ("up --dry-run",
+                  {"zh": "⚠️ 警告：弱依赖缺失：demo/bus@1.0.0",
+                   "en": "⚠️ Warning: optional dependency missing: demo/bus@1.0.0"}, 0),
     },
     {
         "what": "02 关掉强依赖，依赖方跟着不跑",
         "run": ["!disable demo/hello"],
         "file": "02-what-runs.md",
-        "check": ("up --dry-run", "📋 组件状态计算：", 0),
+        "check": ("up --dry-run",
+                  {"zh": "📋 组件状态计算：",
+                   "en": "📋 Component state calculation:"}, 0),
     },
     {
         "what": "02 钉住撞上被禁用的强依赖",
         "run": ["!pin demo/caller"],
         "file": "02-what-runs.md",
-        "check": ("up --dry-run", "❌ 错误：强依赖 demo/hello 被禁用", 0),
+        "check": ("up --dry-run",
+                  {"zh": "❌ 错误：强依赖 demo/hello 被禁用",
+                   "en": "❌ Error: required dependency demo/hello is disabled"}, 0),
     },
     {
         "what": "03 local: true 的 dry-run 画面",
@@ -140,7 +158,9 @@ CASES = [
                 "add --local",
                 "!local-debug demo/hello 8080"],
         "file": "03-local-debugging.md",
-        "check": ("up --dry-run", "📋 组件状态计算：", 0),
+        "check": ("up --dry-run",
+                  {"zh": "📋 组件状态计算：",
+                   "en": "📋 Component state calculation:"}, 0),
     },
     {
         "what": "05 存在多个版本时 remove 报歧义",
@@ -149,13 +169,17 @@ CASES = [
                 "!copy-into components/demo/hello demo-hello",
                 "!add-second-version demo/hello demo-hello"],
         "file": "05-upgrades-and-versions.md",
-        "check": ("remove demo/hello", "❌ demo/hello 存在多个版本（2.0.0, 1.0.0），请指定版本：", 0),
+        "check": ("remove demo/hello",
+                  {"zh": "❌ demo/hello 存在多个版本（2.0.0, 1.0.0），请指定版本：",
+                   "en": "❌ demo/hello has several versions (2.0.0, 1.0.0); please specify one:"}, 0),
     },
     {
         "what": "05 指定版本后 remove 成功",
         "run": [],
         "file": "05-upgrades-and-versions.md",
-        "check": ("remove demo/hello@1.0.0", "✅ 已移除 demo/hello@1.0.0", 0),
+        "check": ("remove demo/hello@1.0.0",
+                  {"zh": "✅ 已移除 demo/hello@1.0.0",
+                   "en": "✅ Removed demo/hello@1.0.0"}, 0),
     },
     {
         "what": "06 资源 host 看起来像服务名的警告",
@@ -166,14 +190,18 @@ CASES = [
                 "add --local",
                 "!bind-resource caller-db guide-pg"],
         "file": "06-assemble-and-break.md",
-        "check": ("up --dry-run", "⚠️ 基础资源的 host 看起来是个服务名，容器里可能解析不了", 0),
+        "check": ("up --dry-run",
+                  {"zh": "⚠️ 基础资源的 host 看起来是个服务名，容器里可能解析不了",
+                   "en": "⚠️ A resource's host looks like a service name, which may not resolve inside the container"}, 0),
     },
     {
         "what": "07 fetch 只下产物、不动配置",
         "reset": True,
         "run": ["init hello-world --no-skills", "!copy-into components/demo/hello demo-hello"],
         "file": "07-consuming-artifacts.md",
-        "check": ("fetch demo/hello@1.0.0", "📦 已下载 demo/hello@1.0.0 的产物（未写入 brickkit.yaml）", 0),
+        "check": ("fetch demo/hello@1.0.0",
+                  {"zh": "📦 已下载 demo/hello@1.0.0 的产物（未写入 brickkit.yaml）",
+                   "en": "📦 Downloaded the artifacts of demo/hello@1.0.0 (not written to brickkit.yaml)"}, 0),
     },
     # 07 的"上游还没好"一节：桩（new --contract）→ add --local → 桩标 local: true。
     # 只用现有命令，不需要 Docker；桩之后在主机上起什么 mock 工具不归平台管，
@@ -183,7 +211,9 @@ CASES = [
         "reset": True,
         "run": ["init hello-world --no-skills", "!copy-into components/demo/caller demo-caller"],
         "file": "07-consuming-artifacts.md",
-        "check": ("new demo/hello --contract openapi", "✅ 已生成组件骨架：demo/hello", 0),
+        "check": ("new demo/hello --contract openapi",
+                  {"zh": "✅ 已生成组件骨架：demo/hello",
+                   "en": "✅ Component skeleton generated: demo/hello"}, 0),
     },
     # 桩的版本号没改（骨架默认 0.1.0），而消费方要的是精确的 1.0.0：add --local 整个中止、
     # brickkit.yaml 不动，所以不影响下一个场景的起点。这是这条配方里最容易踩的坑，
@@ -192,19 +222,25 @@ CASES = [
         "what": "07 忘了改桩的版本号：add --local 被挡住",
         "run": [],
         "file": "07-consuming-artifacts.md",
-        "check": ("add --local", "❌ 错误：强依赖缺失", 0),
+        "check": ("add --local",
+                  {"zh": "❌ 错误：强依赖缺失",
+                   "en": "❌ Error: required dependency missing"}, 0),
     },
     {
         "what": "07 桩与消费方一起 add --local",
         "run": ["!set-version components/demo/hello 1.0.0"],
         "file": "07-consuming-artifacts.md",
-        "check": ("add --local", "🔍 从本地安装源 local-dev 扫到 2 个组件", 0),
+        "check": ("add --local",
+                  {"zh": "🔍 从本地安装源 local-dev 扫到 2 个组件",
+                   "en": "🔍 Found 2 components in local install source: local-dev"}, 0),
     },
     {
         "what": "07 桩接成 local 之后的 dry-run",
         "run": ["!local-debug demo/hello 18081"],
         "file": "07-consuming-artifacts.md",
-        "check": ("up --dry-run", "🚀 启动项目 hello-world（deploy.target: docker）", 0),
+        "check": ("up --dry-run",
+                  {"zh": "🚀 启动项目 hello-world（deploy.target: docker）",
+                   "en": "🚀 Starting project hello-world (deploy.target: docker)"}, 0),
     },
     # ---- 08 组件源码：只需要 git，不需要 Docker ----
     # 这一组按教程的行文顺序连着跑（同一个项目里一路推进），中间夹着的 !git / !append
@@ -214,28 +250,33 @@ CASES = [
         "reset": True,
         "run": ["!make-remotes", "init workspace-demo --no-skills", "!git-sources"],
         "file": "08-component-source.md",
-        "check": ("add demo/caller@1.0.0", "📦 添加 demo/caller@1.0.0", 0),
+        "check": ("add demo/caller@1.0.0",
+                  {"zh": "📦 添加 demo/caller@1.0.0",
+                   "en": "📦 Adding demo/caller@1.0.0"}, 0),
     },
     {
         "what": "08 --repo 克隆一个已在配置里的组件",
         "run": [],
         "file": "08-component-source.md",
         "check": ("add demo/hello@1.0.0 --repo --yes",
-                  "ℹ️ demo/hello@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存", 0),
+                  {"zh": "ℹ️ demo/hello@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存",
+                   "en": "ℹ️ demo/hello@1.0.0 already exists in brickkit.yaml, and --yes was given: refreshing the cache directly"}, 0),
     },
     {
         "what": "08 克隆过再 --repo：说源码已经在了，而不是没有 Git 地址",
         "run": [],
         "file": "08-component-source.md",
         "check": ("add demo/hello@1.0.0 --repo --yes",
-                  "ℹ️ demo/hello@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存", 1),
+                  {"zh": "ℹ️ demo/hello@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存",
+                   "en": "ℹ️ demo/hello@1.0.0 already exists in brickkit.yaml, and --yes was given: refreshing the cache directly"}, 1),
     },
     {
         "what": "08 --repo-all：已有源码的跳过并说理由",
         "run": [],
         "file": "08-component-source.md",
         "check": ("add demo/caller@1.0.0 --repo-all --yes",
-                  "ℹ️ demo/caller@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存", 0),
+                  {"zh": "ℹ️ demo/caller@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存",
+                   "en": "ℹ️ demo/caller@1.0.0 already exists in brickkit.yaml, and --yes was given: refreshing the cache directly"}, 0),
     },
     {
         "what": "08 关掉 caller，hello 也跟着不启动",
@@ -248,68 +289,90 @@ CASES = [
                 "!git components/demo/hello push -q myfork feature/greeting",
                 "!disable demo/caller"],
         "file": "08-component-source.md",
-        "check": ("up --dry-run", "📋 组件状态计算：", 0),
+        "check": ("up --dry-run",
+                  {"zh": "📋 组件状态计算：",
+                   "en": "📋 Component state calculation:"}, 0),
     },
     {
         "what": "08 sync 把两个的源码都收进归档",
         "run": [],
         "file": "08-component-source.md",
-        "check": ("sync", "📂 工作区整理：", 0),
+        "check": ("sync",
+                  {"zh": "📂 工作区整理：",
+                   "en": "📂 Workspace tidying:"}, 0),
     },
     {
         "what": "08 钉住 hello 之后的判定",
         "run": ["!pin demo/hello"],
         "file": "08-component-source.md",
-        "check": ("up --dry-run", "📋 组件状态计算：", 1),
+        "check": ("up --dry-run",
+                  {"zh": "📋 组件状态计算：",
+                   "en": "📋 Component state calculation:"}, 1),
     },
     {
         "what": "08 sync 把 hello 搬回来",
         "run": [],
         "file": "08-component-source.md",
-        "check": ("sync", "📂 工作区整理：", 1),
+        "check": ("sync",
+                  {"zh": "📂 工作区整理：",
+                   "en": "📂 Workspace tidying:"}, 1),
     },
     {
         "what": "08 删掉 enabled，sync 把 caller 也搬回来",
         "run": ["!clear-enabled"],
         "file": "08-component-source.md",
-        "check": ("sync", "📂 工作区整理：", 2),
+        "check": ("sync",
+                  {"zh": "📂 工作区整理：",
+                   "en": "📂 Workspace tidying:"}, 2),
     },
     {
         "what": "08 remove 被依赖方挡住",
         "run": [],
         "file": "08-component-source.md",
-        "check": ("remove demo/hello", "❌ 无法移除 demo/hello", 0),
+        "check": ("remove demo/hello",
+                  {"zh": "❌ 无法移除 demo/hello",
+                   "en": "❌ Cannot remove demo/hello"}, 0),
     },
     {
         "what": "08 remove 拦下未提交的改动",
         "run": ["!append components/demo/caller/main.go // 我正在改这里"],
         "file": "08-component-source.md",
-        "check": ("remove demo/caller", "❌ 错误：源码删掉就找不回来了", 0),
+        "check": ("remove demo/caller",
+                  {"zh": "❌ 错误：源码删掉就找不回来了",
+                   "en": "❌ Error: the source can't be recovered once it is deleted"}, 0),
     },
     {
         "what": "08 remove 拦下没推的提交",
         "run": ['!git components/demo/caller commit -q -am "wip: 调整 caller"'],
         "file": "08-component-source.md",
-        "check": ("remove demo/caller", "❌ 错误：源码删掉就找不回来了", 1),
+        "check": ("remove demo/caller",
+                  {"zh": "❌ 错误：源码删掉就找不回来了",
+                   "en": "❌ Error: the source can't be recovered once it is deleted"}, 1),
     },
     {
         "what": "08 推上去之后 remove 放行",
         "run": ["!git components/demo/caller push -q origin main"],
         "file": "08-component-source.md",
-        "check": ("remove demo/caller", "✅ 已移除 demo/caller@1.0.0", 0),
+        "check": ("remove demo/caller",
+                  {"zh": "✅ 已移除 demo/caller@1.0.0",
+                   "en": "✅ Removed demo/caller@1.0.0"}, 0),
     },
     {
         "what": "08 remove 连归档里的那份源码一起删",
         "run": ["!disable demo/hello", "sync"],
         "file": "08-component-source.md",
-        "check": ("remove demo/hello", "✅ 已移除 demo/hello@1.0.0", 0),
+        "check": ("remove demo/hello",
+                  {"zh": "✅ 已移除 demo/hello@1.0.0",
+                   "en": "✅ Removed demo/hello@1.0.0"}, 0),
     },
     {
         "what": "08 项目根就是仓库根：init 顺手装上钩子",
         "reset": True,
         "run": ["!git-init"],
         "file": "08-component-source.md",
-        "check": ("init shared-src", "✅ 项目已初始化：shared-src", 0),
+        "check": ("init shared-src",
+                  {"zh": "✅ 项目已初始化：shared-src",
+                   "en": "✅ Project initialized: shared-src"}, 0),
     },
     {
         "what": "08 只提交归档的源码：钩子拦下",
@@ -323,14 +386,17 @@ CASES = [
                 "!append components/demo/hello/main.go // 调整 hello 的问候",
                 "!git . add components/"],
         "file": "08-component-source.md",
-        "check": ('!git . commit -m "调整 hello 的问候"',
-                  "❌ 提交被拦下：组件源码提交在归档目录里，但 brickkit.yaml 说它该启动", 0),
+        "check": ("!git . commit -m \"调整 hello 的问候\"",
+                  {"zh": "❌ 提交被拦下：组件源码提交在归档目录里，但 brickkit.yaml 说它该启动",
+                   "en": "❌ Commit blocked: component source is committed under the archive directory, but brickkit.yaml says it should start"}, 0),
     },
     {
         "what": "08 restore 还原 enabled，源码结构跟着走",
         "run": ["!git . reset -q components/"],
         "file": "08-component-source.md",
-        "check": ("restore", "📄 brickkit.yaml：按最后一次提交还原 enabled（其余改动未动）", 0),
+        "check": ("restore",
+                  {"zh": "📄 brickkit.yaml：按最后一次提交还原 enabled（其余改动未动）",
+                   "en": "📄 brickkit.yaml: enabled restored from the last commit (other changes untouched)"}, 0),
     },
     {
         "what": "08 submodule 挡住 remove（--force 也不放行的那一道）",
@@ -339,7 +405,9 @@ CASES = [
                 "!git . -c protocol.file.allow=always submodule add -q ../remotes/hello.git components/demo/hello",
                 "add --local", "!git . add -A", "!git . commit -q -m 挂上子模块"],
         "file": "08-component-source.md",
-        "check": ("remove demo/hello", "❌ 错误：无法删除组件源码——它是一个已登记的 git submodule", 0),
+        "check": ("remove demo/hello",
+                  {"zh": "❌ 错误：无法删除组件源码——它是一个已登记的 git submodule",
+                   "en": "❌ Error: can't remove this component's source — it's a registered git submodule"}, 0),
     },
 ]
 
@@ -362,7 +430,11 @@ def fenced_blocks(path):
 
 
 def find_block(path, anchor, nth):
-    """取出以 anchor 开头的第 nth 个围栏块。找不到是硬失败，不是跳过。"""
+    """取出以 anchor 开头的第 nth 个围栏块。找不到是硬失败，不是跳过。
+
+    anchor 是块的第一行，写的是这一遍要核对的那种语言的样子（用例里的锚点是
+    {"zh": ..., "en": ...} 两份，调用方按当前语言取一份传进来）。
+    """
     hits = [b for b in fenced_blocks(path) if b and b[0].rstrip() == anchor]
     if len(hits) <= nth:
         rel = os.path.relpath(path, ROOT)
@@ -418,6 +490,11 @@ def prepare(work):
 
 
 FIXTURE_BY_SLUG = dict(COMPONENTS)
+
+# init 写进 brickkit.yaml 的 local-dev 安装源：末尾那行注释是本地化文字（"brickkit init
+# 已经建好这个目录" / "brickkit init already created this directory"），所以只认结构、
+# 不认注释——夹具改写才不依赖这次跑的是哪种语言。
+LOCAL_DEV_SOURCE = r"  - id: local-dev\n    type: local\n    path: \./components[^\n]*\n"
 
 
 def copy_into(proj, dst_rel, slug):
@@ -490,11 +567,11 @@ def add_second_version(proj, component_id, slug):
 
     cfg = os.path.join(proj, "brickkit.yaml")
     s = open(cfg, encoding="utf-8").read()
-    old = "  - id: local-dev\n    type: local\n    path: ./components # brickkit init 已经建好这个目录\n"
-    if old not in s:
+    local_dev = re.search(LOCAL_DEV_SOURCE, s)
+    if not local_dev:
         sys.exit("❌ brickkit.yaml 里的 sources 段不是预期的样子，add_second_version 需要更新")
-    new = old + "  - id: local-dev-v1\n    type: local\n    path: ./components-v1\n"
-    open(cfg, "w", encoding="utf-8").write(s.replace(old, new, 1))
+    new = local_dev.group(0) + "  - id: local-dev-v1\n    type: local\n    path: ./components-v1\n"
+    open(cfg, "w", encoding="utf-8").write(s[:local_dev.start()] + new + s[local_dev.end():])
     run_cli(proj, f"add {component_id}@1.0.0 --yes")
 
 
@@ -509,36 +586,37 @@ GIT_ENV = {
     "GIT_TERMINAL_PROMPT": "0",
 }
 
-# 13 篇教程里嵌的真实输出快照全部是中文——这在 CLI 本身还没有语言设置时
-# 天然成立，不需要显式声明。CLI 多语言支持（docs/superpowers/specs/
-# 2026-09-20-cli-i18n-design.md）引入 BRICKKIT_LANG 之后，CLI 的默认语言
-# 变成了英文，这里就必须显式钉住中文，否则真实输出会跟着跑这个脚本的
-# 环境（或跑测试的人自己机器上的全局配置）里设了什么语言而变，快照比对
-# 就成了追一个移动的目标。放在字典最后一位覆盖 os.environ，保证跟谁的
-# 机器、谁的环境变量都没关系。等子项目 3 把某些场景改成"docs/en 配真实
-# 英文输出"之后，再给那些场景单独传 env={"BRICKKIT_LANG": "en"} 覆盖它。
-CLI_ENV_DEFAULTS = {
-    "BRICKKIT_LANG": "zh",
-}
+# CLI 的语言由环境变量 BRICKKIT_LANG 决定（默认英文）。这个脚本对 en、zh 各跑一遍
+# 全部场景：跑哪一遍，就把那一遍的语言写进这里，之后所有 CLI 调用、以及 git 钩子
+# 间接调用的 brickkit（git commit 会触发 pre-commit hook，hook 里跑的是继承来的
+# 环境）都带着它——否则真实输出会跟着跑脚本的人自己机器上的全局配置走，快照比对就成了
+# 追一个移动的目标。放在字典最后一位覆盖 os.environ，保证与谁的机器、谁的环境变量无关。
+LANGS = ("en", "zh")
+VERBOSE = "-v" in sys.argv[1:]
+CLI_ENV = {}
+
+
+def set_lang(lang):
+    CLI_ENV["BRICKKIT_LANG"] = lang
 
 
 def run_git(cwd, args):
     """跑一条 git，返回 stdout+stderr（不管成败——失败的输出正是有时要比对的东西）。
 
-    env 里也带 CLI_ENV_DEFAULTS：git commit 可能触发 pre-commit hook，
+    env 里也带 CLI_ENV：git commit 可能触发 pre-commit hook，
     hook 脚本会调用 brickkit（比如 restore --check），继承的是这个
     子进程的环境——不带上就是同一个"追着系统默认语言跑"的问题，只是
     换了一条从 hook 而不是直接调用触发的路径。
     """
     r = subprocess.run(["git"] + args, cwd=cwd, stdin=subprocess.DEVNULL,
-                       capture_output=True, text=True, env={**os.environ, **GIT_ENV, **CLI_ENV_DEFAULTS})
+                       capture_output=True, text=True, env={**os.environ, **GIT_ENV, **CLI_ENV})
     return r.stdout + r.stderr
 
 
 def git_must(cwd, args):
     """准备阶段的 git：失败就直接退出，别让一个坏掉的前置悄悄变成后面的假失败。"""
     r = subprocess.run(["git"] + args, cwd=cwd, stdin=subprocess.DEVNULL,
-                       capture_output=True, text=True, env={**os.environ, **GIT_ENV, **CLI_ENV_DEFAULTS})
+                       capture_output=True, text=True, env={**os.environ, **GIT_ENV, **CLI_ENV})
     if r.returncode != 0:
         sys.exit(f"❌ 准备阶段 git {' '.join(args)} 失败（在 {cwd}）：{r.stderr.strip()}")
 
@@ -563,16 +641,12 @@ def git_sources(proj):
     """把两个 git 源追加在 init 生成的 local-dev 后面（13 的「准备」那一节）。"""
     cfg = os.path.join(proj, "brickkit.yaml")
     s = open(cfg, encoding="utf-8").read()
-    old = "    path: ./components # brickkit init 已经建好这个目录\n"
-    if old not in s:
-        # init 的骨架里注释是对齐过的；对不上时用更宽松的锚点，再不行就报错
-        m = "    path: ./components      # brickkit init 已经建好这个目录\n"
-        if m not in s:
-            sys.exit("❌ brickkit.yaml 里的 local-dev 段不是预期的样子，git_sources 需要更新")
-        old = m
+    local_dev = re.search(LOCAL_DEV_SOURCE, s)
+    if not local_dev:
+        sys.exit("❌ brickkit.yaml 里的 local-dev 段不是预期的样子，git_sources 需要更新")
     add = ("  - id: hello-remote\n    type: git\n    url: ../remotes/hello.git\n"
            "  - id: caller-remote\n    type: git\n    url: ../remotes/caller.git\n")
-    open(cfg, "w", encoding="utf-8").write(s.replace(old, old + add, 1))
+    open(cfg, "w", encoding="utf-8").write(s[:local_dev.end()] + add + s[local_dev.end():])
 
 
 def clear_enabled(proj):
@@ -593,10 +667,11 @@ def drop_components_ignore(proj):
     """把 init 追加进 .gitignore 的 components/ 规则删掉——"源码跟着项目一起提交"。"""
     path = os.path.join(proj, ".gitignore")
     s = open(path, encoding="utf-8").read()
-    rule = "# 组件源码目录（每个组件是独立的 Git 仓库，不提交到项目仓库）\ncomponents/\n\n"
-    if rule not in s:
+    # 规则前面那行注释是本地化文字，所以按结构认：一行注释 + "components/" + 空行
+    rule = re.search(r"^#[^\n]*\ncomponents/\n\n", s, re.MULTILINE)
+    if not rule:
         sys.exit("❌ .gitignore 里找不到 components/ 那段规则，drop_components_ignore 需要更新")
-    open(path, "w", encoding="utf-8").write(s.replace(rule, "", 1))
+    open(path, "w", encoding="utf-8").write(s[:rule.start()] + s[rule.end():])
 
 
 def git_step(proj, work, spec):
@@ -633,7 +708,7 @@ def bind_resource(proj, resource_id, host):
 
 
 def run_cli(proj, args, env=None):
-    full_env = {**os.environ, **GIT_ENV, **CLI_ENV_DEFAULTS}
+    full_env = {**os.environ, **GIT_ENV, **CLI_ENV}
     if env:
         full_env.update(env)
     r = subprocess.run([BIN] + args.split(), cwd=proj, stdin=subprocess.DEVNULL,
@@ -656,112 +731,123 @@ def count_output_blocks(pattern):
     return n
 
 
+def run_cases(lang, work):
+    """把全部场景按 lang 跑一遍：CLI 用 BRICKKIT_LANG=lang，教程块取 docs/<lang>/03-guide。
+
+    返回 (比对过的场景数, 对不上的清单)。每种语言各起一个新试验场——场景之间
+    靠同一个项目目录一路推进，两种语言不能共用一份推进到一半的状态。
+    """
+    set_lang(lang)
+    guide = os.path.join(ROOT, "docs", lang, "03-guide")
+    proj = None
+    compared = 0
+    problems = []
+
+    for case in CASES:
+        if case.get("reset") or proj is None:
+            proj = prepare(work)
+        for step in case["run"]:
+            if step.startswith("!copy-into "):
+                _, dst_rel, slug = step.split(None, 2)
+                copy_into(proj, dst_rel, slug)
+            elif step.startswith("!set-version "):
+                _, dir_rel, version = step.split(None, 2)
+                set_version(proj, dir_rel, version)
+            elif step.startswith("!disable "):
+                disable(proj, step.split(None, 1)[1])
+            elif step.startswith("!pin "):
+                pin(proj, step.split(None, 1)[1])
+            elif step.startswith("!local-debug "):
+                _, component_id, port = step.split(None, 2)
+                local_debug(proj, component_id, port)
+            elif step.startswith("!add-second-version "):
+                _, component_id, slug = step.split(None, 2)
+                add_second_version(proj, component_id, slug)
+            elif step.startswith("!bind-resource "):
+                _, resource_id, host = step.split(None, 2)
+                bind_resource(proj, resource_id, host)
+            elif step == "!make-remotes":
+                make_remotes(work)
+            elif step == "!git-sources":
+                git_sources(proj)
+            elif step == "!clear-enabled":
+                clear_enabled(proj)
+            elif step == "!git-init":
+                git_must(proj, ["init", "-q", "-b", "main"])
+            elif step == "!drop-components-ignore":
+                drop_components_ignore(proj)
+            elif step.startswith("!append "):
+                _, rel, text = step.split(None, 2)
+                append_line(proj, rel, text)
+            elif step.startswith("!git "):
+                git_step(proj, work, step[len("!git "):])
+            else:
+                run_cli(proj, step)
+
+        cmd, anchors, nth = case["check"]
+        expected = find_block(os.path.join(guide, case["file"]), anchors[lang], nth)
+
+        env = {"DB_PASSWORD": "devpass"} if "bind-resource" in " ".join(case["run"]) else None
+        if cmd.startswith("!git "):
+            actual = git_step(proj, work, cmd[len("!git "):])
+        else:
+            actual = run_cli(proj, cmd, env=env)
+        compared += 1
+
+        bad = compare(expected, actual)
+        if bad:
+            line, hint = bad
+            problems.append((case["what"], case["file"], cmd, line, hint, actual))
+    return compared, problems
+
+
 def main():
     if not os.access(BIN, os.X_OK):
         sys.exit(f"❌ 找不到 {BIN}，先 make build-cli")
 
-    work = tempfile.mkdtemp(prefix="brickkit-guide-")
-    proj = None
-    compared = 0
-    problems = []
-    mismatched_zh = []
+    results = {}
+    for lang in LANGS:
+        work = tempfile.mkdtemp(prefix=f"brickkit-guide-{lang}-")
+        try:
+            results[lang] = run_cases(lang, work)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
 
-    try:
-        for case in CASES:
-            if case.get("reset") or proj is None:
-                proj = prepare(work)
-            for step in case["run"]:
-                if step.startswith("!copy-into "):
-                    _, dst_rel, slug = step.split(None, 2)
-                    copy_into(proj, dst_rel, slug)
-                elif step.startswith("!set-version "):
-                    _, dir_rel, version = step.split(None, 2)
-                    set_version(proj, dir_rel, version)
-                elif step.startswith("!disable "):
-                    disable(proj, step.split(None, 1)[1])
-                elif step.startswith("!pin "):
-                    pin(proj, step.split(None, 1)[1])
-                elif step.startswith("!local-debug "):
-                    _, component_id, port = step.split(None, 2)
-                    local_debug(proj, component_id, port)
-                elif step.startswith("!add-second-version "):
-                    _, component_id, slug = step.split(None, 2)
-                    add_second_version(proj, component_id, slug)
-                elif step.startswith("!bind-resource "):
-                    _, resource_id, host = step.split(None, 2)
-                    bind_resource(proj, resource_id, host)
-                elif step == "!make-remotes":
-                    make_remotes(work)
-                elif step == "!git-sources":
-                    git_sources(proj)
-                elif step == "!clear-enabled":
-                    clear_enabled(proj)
-                elif step == "!git-init":
-                    git_must(proj, ["init", "-q", "-b", "main"])
-                elif step == "!drop-components-ignore":
-                    drop_components_ignore(proj)
-                elif step.startswith("!append "):
-                    _, rel, text = step.split(None, 2)
-                    append_line(proj, rel, text)
-                elif step.startswith("!git "):
-                    git_step(proj, work, step[len("!git "):])
-                else:
-                    run_cli(proj, step)
+    for lang in LANGS:
+        compared, _ = results[lang]
+        if compared != len(CASES):
+            print(f"❌ docs/{lang}：比对 {compared} 与用例数 {len(CASES)} 对不上——"
+                  "有用例被静默漏掉了，这比失败更危险。")
+            sys.exit(2)
 
-            cmd, anchor, nth = case["check"]
-            en_path = os.path.join(EN_GUIDE, case["file"])
-            zh_path = os.path.join(ZH_GUIDE, case["file"])
-            expected = find_block(en_path, anchor, nth)
-            zh_expected = find_block(zh_path, anchor, nth)
-
-            env = {"DB_PASSWORD": "devpass"} if "bind-resource" in " ".join(case["run"]) else None
-            if cmd.startswith("!git "):
-                actual = git_step(proj, work, cmd[len("!git "):])
-            else:
-                actual = run_cli(proj, cmd, env=env)
-            compared += 1
-
-            bad = compare(expected, actual)
-            if bad:
-                line, hint = bad
-                problems.append((case["what"], case["file"], cmd, line, hint))
-
-            if expected != zh_expected:
-                mismatched_zh.append((case["what"], case["file"], anchor))
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
-
-    if compared != len(CASES):
-        print(f"❌ 比对 {compared} 与用例数 {len(CASES)} 对不上——"
-              "有用例被静默漏掉了，这比失败更危险。")
-        sys.exit(2)
-
-    if problems:
-        print(f"❌ 教程预期输出对不上：{len(problems)} 处")
-        for what, filename, cmd, line, hint in problems:
-            print(f"   docs/en/03-guide/{filename}（{what}）")
+    failed = False
+    for lang in LANGS:
+        _, problems = results[lang]
+        if not problems:
+            continue
+        failed = True
+        print(f"❌ docs/{lang} 里的教程预期输出与真实输出（BRICKKIT_LANG={lang}）对不上：{len(problems)} 处")
+        for what, filename, cmd, line, hint, actual in problems:
+            print(f"   docs/{lang}/03-guide/{filename}（{what}）")
             print(f"     命令：brickkit {cmd}")
             print(f"     教程里写着：{line}")
             print(f"     {hint}")
+            if VERBOSE:
+                print("     ---- 真实输出 ----")
+                for l in actual.splitlines():
+                    print(f"     | {l}")
+    if failed:
         print("\n文档里抄下来的输出是手写快照，CLI 文案一改它就过期。")
         print("请以**真实输出**为准改文档，而不是反过来。")
+        if not VERBOSE:
+            print("（加 -v 会把每处对不上的场景的完整真实输出也打出来）")
         sys.exit(1)
 
-    if mismatched_zh:
-        print(f"❌ docs/en 与 docs/zh 抄的不是同一份输出：{len(mismatched_zh)} 处")
-        for what, filename, anchor in mismatched_zh:
-            print(f"   {filename}（{what}），锚点：{anchor}")
-        print("\n两棵树是独立撰写的，但 CLI 打印的文本本身是中文，不受读者语言")
-        print("影响——同一个场景下两边嵌的输出块必须逐字相同。改了一边、另一边")
-        print("没跟上。")
-        sys.exit(1)
-
-    en_total = count_output_blocks(os.path.join(EN_GUIDE, "[0-9]*-*.md"))
-    zh_total = count_output_blocks(os.path.join(ZH_GUIDE, "[0-9]*-*.md"))
-    print(f"✅ 教程里的 CLI 输出：{compared} 个场景逐行一致，docs/en 与 docs/zh 抄的是同一份")
-    print(f"   docs/en/03-guide：共 {en_total} 个输出块，本次看守 {compared} 个场景"
-          f"（其余大多要 Docker 真的把容器跑起来，或要 minikube / 市场 / cosign）")
-    print(f"   docs/zh/03-guide：共 {zh_total} 个输出块，同上")
+    print(f"✅ 教程里的 CLI 输出：{len(CASES)} 个场景 × {len(LANGS)} 种语言，逐行与真实输出一致")
+    for lang in LANGS:
+        total = count_output_blocks(os.path.join(ROOT, "docs", lang, "03-guide", "[0-9]*-*.md"))
+        print(f"   docs/{lang}/03-guide：共 {total} 个输出块，本次看守 {len(CASES)} 个场景"
+              f"（其余大多要 Docker 真的把容器跑起来，或要 minikube / 市场 / cosign）")
 
 
 if __name__ == "__main__":

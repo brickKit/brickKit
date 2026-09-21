@@ -116,10 +116,10 @@ cp component.yaml components/tutorial/counter/
 brickkit add --local
 ```
 ```
-🔍 从本地安装源 local-dev 扫到 1 个组件
-📦 添加 tutorial/counter@1.0.0
+🔍 Found 1 component in local install source: local-dev
+📦 Adding tutorial/counter@1.0.0
    └── Manifest ✅
-✅ 已写入 brickkit.yaml（1 个组件）
+✅ Written to brickkit.yaml (1 component)
 ```
 
 ```yaml

@@ -7,9 +7,9 @@ A resource — a database, a cache, an object store — is deployed by ops, not 
 Each resource `kind` has exactly one binding field — `database` for `kind: database`, `vhost` for `kind: mq`, `bucket` for `kind: storage`, `index` for `kind: search` (`kind: cache` and `kind: smtp` have none at all). Write the wrong one and `brickkit up` refuses to generate anything, naming the field you actually needed:
 
 ```
-❌ 错误：brickkit.yaml 校验失败
-   文件：brickkit.yaml
-   resources[0].bindings[0].vhost：kind: database 下这一格叫 database，不是 vhost（注入为 DATABASE_NAME）
+❌ Error: brickkit.yaml failed validation
+   File: brickkit.yaml
+   resources[0].bindings[0].vhost: under kind: database this slot is called database, not vhost (injected as DATABASE_NAME)
 ```
 
 This is a validation-time catch, not a runtime mystery — you find out from `brickkit up` itself, with the correct field name handed to you, rather than discovering it later as a missing `DATABASE_NAME` in a running container.
@@ -19,7 +19,7 @@ This is a validation-time catch, not a runtime mystery — you find out from `br
 Bind `department/tree` to two separate `kind: database` resources at once — a primary database and a reporting database, say — without disambiguating either, and `brickkit up` refuses outright rather than letting the second one silently win:
 
 ```
-❌ 错误：brickkit.yaml 校验失败
+❌ Error: brickkit.yaml failed validation
    resources[1].bindings[0]：与 resources[0].bindings[0] 抢同一批连接变量：组件 department/tree 同时绑定了 main-db 与 reporting-db（都是 database，都没写 envPrefix），两者都注入 DATABASE_HOST / DATABASE_PORT / … —— 后者覆盖前者，而组件不会察觉自己连错了地方。给其中一个加 envPrefix 区分开（如 envPrefix: ARCHIVE，注入为 ARCHIVE_DATABASE_HOST）
 ```
 

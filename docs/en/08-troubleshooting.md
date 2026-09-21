@@ -84,21 +84,21 @@ If you're looking at a `❌` block rather than a symptom, the `error_code` in th
 If neither writes `exposePort`, both default to their own `deployment.port`:
 
 ```
-❌ 错误：宿主机端口 8080 被多个组件占用
-   组件：demo/caller@1.0.0
-   组件：demo/hello@1.0.0
-   宿主机端口：8080
-   建议：
-   1. 在 brickkit.yaml 中给其中一个组件设置不同的 exposePort
-   2. 或去掉其中一个组件的 expose: true（组件之间在容器网络内互访不需要 expose）
+❌ Error: host port 8080 is claimed by more than one component
+   Component: demo/caller@1.0.0
+   Component: demo/hello@1.0.0
+   Host port: 8080
+   Suggestions:
+   1. In brickkit.yaml, give one of the components a different exposePort
+   2. Or remove expose: true from one of them (components reach each other inside the container network without expose)
 ```
 
 If both write the same explicit `exposePort`:
 
 ```
-❌ 错误：brickkit.yaml 校验失败
-   文件：brickkit.yaml
-   components[1].exposePort：与 components[0].exposePort 冲突（宿主机端口 9000 已被占用）
+❌ Error: brickkit.yaml failed validation
+   File: brickkit.yaml
+   components[1].exposePort: conflicts with components[0].exposePort (host port 9000 is already taken)
 ```
 
 If you're seeing Docker's raw `Error: port is already allocated` instead of a BrickKit error like the two above, something outside BrickKit's own components is holding that host port — check with `lsof -i :<port>` or `docker ps`.
@@ -139,16 +139,16 @@ If you're seeing Docker's raw `Error: port is already allocated` instead of a Br
 The real error block (the missing setting is `pricingServiceUrl` of `shop/pricing`):
 
 ```
-❌ 错误：必填的组件配置没有值
-   缺少配置：shop/pricing@1.0.0 → pricingServiceUrl（注入为 PRICING_SERVICE_URL）
-   原因：组件在 configSchema.required 里声明了它，又没有给默认值——这一项平台推导不出来，只能由项目提供
-   建议：
-   1. 在 brickkit.yaml 里给它一个值：
+❌ Error: a required component config item has no value
+   Missing config: shop/pricing@1.0.0 → pricingServiceUrl (injected as PRICING_SERVICE_URL)
+   Reason: The component declares it in configSchema.required without a default — the platform can't derive this one, so the project has to supply it
+   Suggestions:
+   1. Give it a value in brickkit.yaml:
     components:
       - id: shop/pricing
         config:
           pricingServiceUrl: <值>
-   2. 值里可以写 ${ENV_VAR}，真值放 .env
+   2. The value may be ${ENV_VAR}; keep the real value in .env
 ```
 
 ---
@@ -190,10 +190,10 @@ The real error block (the missing setting is `pricingServiceUrl` of `shop/pricin
 The CLI's real warning when `greeting` is written `greetting`:
 
 ```
-⚠️ config 里有配置项不会生效：组件 demo/hello 的 greetting
-   配置项：greetting
-   原因：组件的 configSchema 里没有这一项，是不是想写 greeting？
-   影响：这一项不会被注入任何环境变量；组件会使用它自己的默认值
+⚠️ A config item won't take effect: greetting on component demo/hello
+   Config item: greetting
+   Reason: The component's configSchema has no such item; did you mean greeting?
+   Impact: This item is not injected as any environment variable; the component uses its own default
 ```
 
 ---
@@ -217,10 +217,10 @@ The CLI's real warning when `greeting` is written `greetting`:
 The warning `brickkit up` prints:
 
 ```
-🔒 已生成 2 份 NetworkPolicy（deploy.networkPolicy.enabled: true）
-   ⚠️ 它们只在集群的 CNI 支持执行时才有效。不支持时：apply 会成功、
-      kubectl get networkpolicy 看得见、而流量完全不受限制——没有任何报错。
-      minikube / kind 的**默认** CNI 就属于这一类。
+🔒 Generated 2 NetworkPolicy manifests (deploy.networkPolicy.enabled: true)
+   ⚠️ They only take effect when the cluster's CNI enforces them. When it doesn't: apply succeeds,
+      kubectl get networkpolicy shows them, yet traffic is not restricted at all — with no error whatsoever.
+      The **default** CNI of minikube / kind is exactly this kind.
    平台测不出来（K8s 没有这个 API），只能你自己验一次
 ```
 
@@ -290,18 +290,18 @@ $ brickkit lint
 ✅ brickkit.yaml
 ✅ components/people/basic/component.yaml
 
-📋 检查了 2 个文件：0 个有错误，0 条警告
+📋 Checked 2 files: 0 with errors, 0 warnings
 $ brickkit up --dry-run
-🚀 启动项目 demo-shop（deploy.target: docker）
-❌ 错误：强依赖缺失
-   组件：people/basic@1.0.0
-   缺失依赖：department/tree@1.0.0
-   原因：该组件在所有安装源中均未找到
+🚀 Starting project demo-shop (deploy.target: docker)
+❌ Error: required dependency missing
+   Component: people/basic@1.0.0
+   Missing dependency: department/tree@1.0.0
+   Reason: The component was not found in any install source
    已尝试的安装源：local-dev（local）
-   建议：
-   1. 检查安装源配置（brickkit.yaml → sources）
-   2. 确认组件是否已发布到市场
-   3. 确认版本号是否正确
+   Suggestions:
+   1. Check the install source configuration (brickkit.yaml → sources)
+   2. Confirm the component has been published to the Market
+   3. Confirm the version number is correct
 ```
 
 ---

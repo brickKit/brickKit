@@ -27,15 +27,15 @@ brickkit up
 ```
 
 ```
-⬆️ 检测到版本变更：
+⬆️ Version change detected:
    demo/hello: 1.0.0 → 2.0.0
 
-📋 组件状态计算：
-   ✅ demo/hello@2.0.0  启动（顶层）
+📋 Component state calculation:
+   ✅ demo/hello@2.0.0  starting (top-level)
 ...
-🐳 正在启动（docker）...
-   demo-hello-2-0-0             running（healthy）
-✅ 全部组件已启动（1 个）
+🐳 Starting (docker)...
+   demo-hello-2-0-0             running (healthy)
+✅ All components started (1)
 ```
 
 ```bash
@@ -86,13 +86,13 @@ brickkit up
 ```
 
 ```
-📋 组件状态计算：
-   ✅ demo/hello@2.0.0  启动（顶层）
-   ✅ demo/hello@1.0.0  启动（顶层）
+📋 Component state calculation:
+   ✅ demo/hello@2.0.0  starting (top-level)
+   ✅ demo/hello@1.0.0  starting (top-level)
 ...
-   demo-hello-1-0-0             running（healthy）
-   demo-hello-2-0-0             running（healthy）
-✅ 全部组件已启动（2 个）
+   demo-hello-1-0-0             running (healthy)
+   demo-hello-2-0-0             running (healthy)
+✅ All components started (2)
 ```
 
 Both versions are genuinely independent, addressable containers — not a "canary" of one underlying deployment, two full ones:
@@ -113,13 +113,13 @@ brickkit status
 ```
 
 ```
-✅ 运行中（2 个组件）
- ┌────────────┬───────┬───────────────────┬───────────────────────────────────────────────┐
- │ 组件       │ 版本  │ 状态              │ 端口                                          │
- ├────────────┼───────┼───────────────────┼───────────────────────────────────────────────┤
- │ demo/hello │ 1.0.0 │ 运行中（healthy） │ 0.0.0.0:8081->8080/tcp, [::]:8081->8080/tcp    │
- │ demo/hello │ 2.0.0 │ 运行中（healthy） │ 0.0.0.0:8082->8080/tcp, [::]:8082->8080/tcp    │
- └────────────┴───────┴───────────────────┴───────────────────────────────────────────────┘
+✅ Running (2 components)
+ ┌────────────┬─────────┬───────────────────┬─────────────────────────────────────────────┐
+ │ Component  │ Version │ Status            │ Port                                        │
+ ├────────────┼─────────┼───────────────────┼─────────────────────────────────────────────┤
+ │ demo/hello │ 1.0.0   │ running (healthy) │ 0.0.0.0:8081->8080/tcp, [::]:8081->8080/tcp │
+ │ demo/hello │ 2.0.0   │ running (healthy) │ 0.0.0.0:8082->8080/tcp, [::]:8082->8080/tcp │
+ └────────────┴─────────┴───────────────────┴─────────────────────────────────────────────┘
 ```
 
 ## Removing one version out of several
@@ -129,8 +129,8 @@ brickkit remove demo/hello
 ```
 
 ```
-❌ demo/hello 存在多个版本（2.0.0, 1.0.0），请指定版本：
-   建议：brickkit remove demo/hello@2.0.0
+❌ demo/hello has several versions (2.0.0, 1.0.0); please specify one:
+   Suggestion: brickkit remove demo/hello@2.0.0
 ```
 
 With two versions of the same ID installed, `remove` refuses to guess which one you meant — and hands you the exact command to run instead of just naming the ambiguity:
@@ -140,7 +140,7 @@ brickkit remove demo/hello@1.0.0
 ```
 
 ```
-✅ 已移除 demo/hello@1.0.0
+✅ Removed demo/hello@1.0.0
 ```
 
 `demo-hello-1-0-0`'s container is still running after this — `remove`, like `add`, only ever writes `brickkit.yaml` (AGENTS.md §8); the running state doesn't change until the next `brickkit up`, which regenerates the deployment file without that entry and cleans up the resulting orphan exactly the way the in-place version bump did earlier.

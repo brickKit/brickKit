@@ -5,10 +5,10 @@
 **Prerequisite, and this matters more than it sounds like it should:** a cluster whose CNI actually enforces `NetworkPolicy`. Plenty of clusters accept these objects without enforcing them at all — `kubectl apply` succeeds, `kubectl get networkpolicy` lists them, and every connection still gets through regardless, silently. `brickkit up` itself warns about this:
 
 ```
-🔒 已生成 2 份 NetworkPolicy（deploy.networkPolicy.enabled: true）
-   ⚠️ 它们只在集群的 CNI 支持执行时才有效。不支持时：apply 会成功、
-      kubectl get networkpolicy 看得见、而流量完全不受限制——没有任何报错。
-      minikube / kind 的**默认** CNI 就属于这一类。
+🔒 Generated 2 NetworkPolicy manifests (deploy.networkPolicy.enabled: true)
+   ⚠️ They only take effect when the cluster's CNI enforces them. When it doesn't: apply succeeds,
+      kubectl get networkpolicy shows them, yet traffic is not restricted at all — with no error whatsoever.
+      The **default** CNI of minikube / kind is exactly this kind.
    平台测不出来（K8s 没有这个 API），只能你自己验一次
 ```
 

@@ -773,35 +773,35 @@ $ diff -u brickkit.dev.yaml brickkit.prod.yaml
 $ diff <(brickkit up --dry-run --config brickkit.dev.yaml 2>&1 | grep -v '^{') \
        <(brickkit up --dry-run --config brickkit.prod.yaml 2>&1 | grep -v '^{')
 1c1
-< 🚀 启动项目 shop（deploy.target: docker）
+< 🚀 Starting project shop (deploy.target: docker)
 ---
-> 🚀 启动项目 shop（deploy.target: k8s）
+> 🚀 Starting project shop (deploy.target: k8s)
 3,4c3,4
-<    ✅ erp/backend@0.1.0  启动（acme/web 需要）
-<    ✅ acme/web@0.1.0     启动（顶层）
+<    ✅ erp/backend@0.1.0  starting (acme/web needs it)
+<    ✅ acme/web@0.1.0     starting (top-level)
 ---
->    ⬜ erp/backend@0.1.0  显式禁用（enabled: false）
->    ⬜ acme/web@0.1.0     不启动（强依赖 erp/backend 不启动）
+>    ⬜ erp/backend@0.1.0  disabled explicitly (enabled: false)
+>    ⬜ acme/web@0.1.0     not starting (required dependency erp/backend is not starting)
 6,18c6,10
-< 📋 启动顺序（拓扑排序）：
-<    1. erp-backend-0-1-0  无依赖
-<    2. acme-web-0-1-0     ← 依赖 1
+< 📋 Start order (topological sort):
+<    1. erp-backend-0-1-0  no dependencies
+<    2. acme-web-0-1-0     ← depends on 1
 <
-< 可独立启动：erp-backend-0-1-0（无依赖）
-< 最长依赖链（2 层）：erp-backend-0-1-0 → acme-web-0-1-0
+< Can start on their own: erp-backend-0-1-0 (no dependencies)
+< Longest dependency chain (2 levels): erp-backend-0-1-0 → acme-web-0-1-0
 <
-< 依赖图：
+< Dependency graph:
 <    acme/web@0.1.0 → erp/backend@0.1.0
-< 📄 已生成：.brickkit/generated/docker-compose.yaml
+< 📄 Generated: .brickkit/generated/docker-compose.yaml
 <
-< 💡 --dry-run 只生成文件，未启动任何组件
-<    查看：cat .brickkit/generated/docker-compose.yaml
+< 💡 --dry-run only generates the files and starts no component
+<    View it: cat .brickkit/generated/docker-compose.yaml
 ---
-> 📋 本次没有组件会启动
->    顶层组件（没有别的组件依赖它们）这次都不跑：
->       acme/web@0.1.0  不启动（强依赖 erp/backend 不启动）
->    顶层自己都没被关掉——要放开的是上面那行理由里点名的组件
-> 💡 有 2 个组件本次不启动，brickkit sync 可以把它们的源码收进 components/.archived/
+> 📋 No component will start this run
+>    None of the top-level components (the ones no other component depends on) run this time:
+>       acme/web@0.1.0  not starting (required dependency erp/backend is not starting)
+>    The top level itself isn't turned off — what to release is the component named in the reason line above
+> 💡 2 components aren't starting this run; brickkit sync can move their source into components/.archived/
 ```
 
 The second `diff` shows the consequence directly, not just the config line

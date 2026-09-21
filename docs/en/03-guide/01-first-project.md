@@ -22,12 +22,12 @@ brickkit init hello-world
 The `<name>` argument is *not* a directory to create — unlike tools where `init <name>` scaffolds a new folder for you, BrickKit's `init` always operates on the current directory, and `<name>` only sets `project:` inside the generated `brickkit.yaml` (used later for the Docker network and Kubernetes namespace names). Making the empty directory yourself first is the correct pattern, not a workaround.
 
 ```
-✅ 项目已初始化：hello-world
-   📁 brickkit.yaml        项目配置
-   📁 components/          组件源码（已配为本地安装源 local-dev）
-   📁 .brickkit/           CLI 工作目录
-   📁 .claude/skills/      AI 助手技能（4 个）
-   📁 AGENTS.md            AI 助手项目导读
+✅ Project initialized: hello-world
+   📁 brickkit.yaml        Project config
+   📁 components/          Component source (configured as the local install source local-dev)
+   📁 .brickkit/           CLI working directory
+   📁 .claude/skills/      AI assistant skills (4)
+   📁 AGENTS.md            AI assistant project guide
 ```
 
 `init` also wired up `components/` as a `local`-type install source in the generated `brickkit.yaml` — that's where the next step looks.
@@ -44,11 +44,11 @@ brickkit add --local
 ```
 
 ```
-🔍 从本地安装源 local-dev 扫到 1 个组件
-📦 添加 demo/hello@1.0.0
+🔍 Found 1 component in local install source: local-dev
+📦 Adding demo/hello@1.0.0
    ├── Manifest ✅
-   └── artifacts ✅（1 个文件）
-✅ 已写入 brickkit.yaml（1 个组件）
+   └── artifacts ✅ (1 file)
+✅ Written to brickkit.yaml (1 component)
 ```
 
 `brickkit.yaml` now has one entry under `components:`. Nothing is running yet — `add` only ever writes configuration (AGENTS.md §8).
@@ -60,15 +60,15 @@ brickkit up --dry-run
 ```
 
 ```
-🚀 启动项目 hello-world（deploy.target: docker）
-📋 组件状态计算：
-   ✅ demo/hello@1.0.0  启动（顶层）
+🚀 Starting project hello-world (deploy.target: docker)
+📋 Component state calculation:
+   ✅ demo/hello@1.0.0  starting (top-level)
 
-📋 启动顺序（拓扑排序）：
-   1. demo-hello-1-0-0  无依赖
+📋 Start order (topological sort):
+   1. demo-hello-1-0-0  no dependencies
 
-可独立启动：demo-hello-1-0-0（无依赖）
-📄 已生成：.brickkit/generated/docker-compose.yaml
+Can start on their own: demo-hello-1-0-0 (no dependencies)
+📄 Generated: .brickkit/generated/docker-compose.yaml
 ```
 
 `--dry-run` computes everything and writes the deployment file, but starts nothing — safe to run as often as you like while you're still checking things over. Add `expose: true` and `exposePort: 8080` to the component's entry in `brickkit.yaml` so it's actually reachable from your machine (not exposed by default is a deliberate default — AGENTS.md §4 — not an oversight):
@@ -88,9 +88,9 @@ brickkit up
 ```
 
 ```
-🐳 正在启动（docker）...
-   demo-hello-1-0-0             running（healthy）
-✅ 全部组件已启动（1 个）
+🐳 Starting (docker)...
+   demo-hello-1-0-0             running (healthy)
+✅ All components started (1)
 ```
 
 ## Talk to it
@@ -147,12 +147,12 @@ brickkit status
 ```
 
 ```
-✅ 运行中（1 个组件）
- ┌────────────┬───────┬───────────────────┬───────────────────────────────────────────────┐
- │ 组件       │ 版本  │ 状态              │ 端口                                          │
- ├────────────┼───────┼───────────────────┼───────────────────────────────────────────────┤
- │ demo/hello │ 1.0.0 │ 运行中（healthy） │ 0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp    │
- └────────────┴───────┴───────────────────┴───────────────────────────────────────────────┘
+✅ Running (1 component)
+ ┌────────────┬─────────┬───────────────────┬─────────────────────────────────────────────┐
+ │ Component  │ Version │ Status            │ Port                                        │
+ ├────────────┼─────────┼───────────────────┼─────────────────────────────────────────────┤
+ │ demo/hello │ 1.0.0   │ running (healthy) │ 0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp │
+ └────────────┴─────────┴───────────────────┴─────────────────────────────────────────────┘
 ```
 
 ```bash
@@ -160,12 +160,12 @@ brickkit down
 ```
 
 ```
-🛑 停止项目 hello-world
-✅ 已停止全部组件
+🛑 Stopping project hello-world
+✅ All components stopped
 
-💡 数据卷未删除，数据库数据仍然保留
-   需要彻底清理时手动执行：docker volume rm <卷名>
-   重新启动：brickkit up
+💡 Data volumes were not deleted; database data is still there
+   For a full cleanup, run by hand: docker volume rm <volume-name>
+   Start again with: brickkit up
 ```
 
 `down` stops containers; it never deletes volumes on its own (AGENTS.md §8) — `demo/hello` happens to have no data to keep, but the same command against a component with a real database behaves identically: stopped, not wiped.

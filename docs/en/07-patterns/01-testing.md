@@ -79,10 +79,10 @@ The recommended order:
 **The step-1 check is BrickKit-specific.** `brickkit up --dry-run` starts nothing, but the injection-stage checks still run, so anything where `component.yaml` and `brickkit.yaml` disagree surfaces right there. Below is real output (excerpt) from the `demo/hello` fixture with the config key `greeting` deliberately misspelled as `greetting`:
 
 ```
-⚠️ config 里有配置项不会生效：组件 demo/hello 的 greetting
-   配置项：greetting
-   原因：组件的 configSchema 里没有这一项，是不是想写 greeting？
-   影响：这一项不会被注入任何环境变量；组件会使用它自己的默认值
+⚠️ A config item won't take effect: greetting on component demo/hello
+   Config item: greetting
+   Reason: The component's configSchema has no such item; did you mean greeting?
+   Impact: This item is not injected as any environment variable; the component uses its own default
 ```
 
 The same path also catches: a config key whose name collides with a platform-reserved variable (a warning), and a `configSchema.required` key that has neither a default nor a project override (a **block** — even under `--dry-run` it refuses to go on, with exit code 1). The full error text is in the [Environment Variable Contract](../06-architecture/04-environment-variables.md), section 5.

@@ -41,8 +41,8 @@ resources:
 ```
 
 ```bash
-cd team-a && brickkit up   # ✅ 全部组件已启动（1 个）
-cd team-b && brickkit up   # ✅ 全部组件已启动（1 个）
+cd team-a && brickkit up   # ✅ All components started (1)
+cd team-b && brickkit up   # ✅ All components started (1)
 ```
 
 `host.docker.internal` is doing real work here: each project is its own Compose project with its own network, unreachable from the other by design — writing the other project's container name wouldn't resolve to anything. The shared Redis lives on the one thing both projects can already see, the host machine. On Kubernetes the same relationship just needs a different `host` — a Service DNS name is reachable across namespaces by default, no extra configuration.
@@ -109,8 +109,8 @@ configSchema:
 brickkit up --dry-run
 ```
 ```
-❌ 错误：必填的组件配置没有值
-   缺少配置：demo/hello@1.0.0 → notifierBaseUrl（注入为 NOTIFIER_BASE_URL）
+❌ Error: a required component config item has no value
+   Missing config: demo/hello@1.0.0 → notifierBaseUrl (injected as NOTIFIER_BASE_URL)
    原因：组件在 configSchema.required 里声明了它，又没有给默认值——
    这一项平台推导不出来，只能由项目提供
 ```

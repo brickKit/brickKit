@@ -21,15 +21,15 @@ brickkit up --dry-run
 ```
 
 ```
-📋 组件状态计算：
-   ✅ demo/hello@1.0.0   启动（demo/caller 需要）
-   ✅ demo/caller@1.0.0  启动（顶层）
+📋 Component state calculation:
+   ✅ demo/hello@1.0.0   starting (demo/caller needs it)
+   ✅ demo/caller@1.0.0  starting (top-level)
 ...
-🔧 本地调试（local: true）：
+🔧 Local debugging (local: true):
    demo/hello@1.0.0
-      不生成容器；请在 IDE 里启动它，监听 localhost:8080
-      环境变量：.brickkit/generated/local-debug.demo-hello-1-0-0.env
-      VS Code：launch.json 里配 "envFile": "${workspaceFolder}/.brickkit/generated/local-debug.demo-hello-1-0-0.env"
+      No container is generated; start it in your IDE, listening on localhost:8080
+      Environment variables: .brickkit/generated/local-debug.demo-hello-1-0-0.env
+      VS Code: set "envFile": "${workspaceFolder}/.brickkit/generated/local-debug.demo-hello-1-0-0.env" in launch.json
 ```
 
 `demo/hello` still shows up in the status calculation, still shows up in the dependency graph, still gets a real address computed for it — nothing about how it participates in the project changed. What changed is *where its code actually runs*.

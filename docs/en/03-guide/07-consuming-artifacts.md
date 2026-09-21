@@ -22,9 +22,9 @@ artifacts:
 Every earlier article's `brickkit add` output already showed this happening, just without pointing at it directly:
 
 ```
-📦 添加 demo/hello@1.0.0
+📦 Adding demo/hello@1.0.0
    ├── Manifest ✅
-   └── artifacts ✅（1 个文件）
+   └── artifacts ✅ (1 file)
 ```
 
 ```bash
@@ -54,12 +54,12 @@ brickkit fetch demo/hello@1.0.0
 ```
 
 ```
-📦 已下载 demo/hello@1.0.0 的产物（未写入 brickkit.yaml）
+📦 Downloaded the artifacts of demo/hello@1.0.0 (not written to brickkit.yaml)
    .brickkit/artifacts/demo-hello-1-0-0/
      api-docs/openapi.json
 
-💡 这个组件不会被本项目部署。要连它，把对方给的地址填进依赖方的 config
-   （跨项目共用组件）
+💡 This component won't be deployed by this project. To call it, put the address the other side gave you into the dependent's config
+   (a component shared across projects)
 ```
 
 `brickkit.yaml`'s `components:` list is untouched — `fetch` writes files, never config. This is the real difference from `add`: `add` says "I want to run this," `fetch` says "I just need to know its shape."
@@ -133,14 +133,14 @@ brickkit new demo/hello --contract openapi
 ```
 
 ```
-✅ 已生成组件骨架：demo/hello
+✅ Component skeleton generated: demo/hello
    📄 components/demo/hello/component.yaml
    📄 components/demo/hello/api/openapi.yaml
 
-下一步：
-  改完骨架里的 TODO
-  brickkit add --local               把它加进 brickkit.yaml（本地安装源里能扫到它的话）
-  brickkit up --dry-run               校验能不能通过
+Next steps:
+  finish the TODOs in the skeleton
+  brickkit add --local               add it to brickkit.yaml (if the local install source can scan it)
+  brickkit up --dry-run               check that it passes validation
 ```
 
 Two files landed in `components/demo/hello/`, the directory the `local-dev` source that `init` set up already scans: a skeleton `component.yaml` that passes validation as it is, and a placeholder contract, `api/openapi.yaml`. The skeleton has already registered that file under `artifacts` — the same kind of declaration `demo/hello` itself uses at the top of this article — so `add` will copy it into `.brickkit/artifacts/` like any other component's artifacts:
@@ -158,12 +158,12 @@ Two edits make it a usable stub.
 **The version.** The skeleton starts at `0.1.0`, but `demo/caller` asks for exactly `1.0.0` — dependency versions are exact, never ranges (AGENTS.md §9.2). In `components/demo/hello/component.yaml`, change `version: 0.1.0` (under `metadata`) to `version: 1.0.0`. Forget it and `add --local` stops, and says why. This is an excerpt; the real message goes on with suggestions, and one of them is exactly this fix:
 
 ```
-❌ 错误：强依赖缺失
-   卡在组件：demo/caller@1.0.0（来自 local-dev）
-   本次结果：已中止，brickkit.yaml 未修改
-   缺失依赖：demo/hello@1.0.0
-   原因：安装源里有这个组件，但版本不是要的那个
-   安装源 local-dev（local）：这里是 0.1.0
+❌ Error: required dependency missing
+   Stuck on component: demo/caller@1.0.0 (from local-dev)
+   Result of this run: Aborted; brickkit.yaml was not modified
+   Missing dependency: demo/hello@1.0.0
+   Reason: the install source has this component, but not the version that was asked for
+   Install source local-dev (local): it has 0.1.0 here
 ...
 ```
 
@@ -200,20 +200,20 @@ brickkit add --local
 ```
 
 ```
-🔍 从本地安装源 local-dev 扫到 2 个组件
-📦 添加 demo/caller@1.0.0
+🔍 Found 2 components in local install source: local-dev
+📦 Adding demo/caller@1.0.0
    ├── Manifest ✅
-   ├── 依赖 demo/hello@1.0.0 ✅ 已拉取（artifacts 1 个文件）
-   └── artifacts ✅（1 个文件）
-⚠️ 警告：弱依赖缺失：demo/bus@1.0.0
-   影响组件：demo/caller@1.0.0
-   原因：该组件在所有安装源中均未找到
-   影响：该组件的环境变量 DEMO_BUS_ENDPOINT 不会被注入
-   💡 弱依赖降级由组件自行处理；如需启用，请确认该组件已发布并可从安装源获取
-📦 添加 demo/hello@1.0.0
+   ├── dependency demo/hello@1.0.0 ✅ pulled (artifacts: 1 file)
+   └── artifacts ✅ (1 file)
+⚠️ Warning: optional dependency missing: demo/bus@1.0.0
+   Affected component: demo/caller@1.0.0
+   Reason: The component was not found in any install source
+   Impact: This component's environment variable DEMO_BUS_ENDPOINT will not be injected
+   💡 Degrading gracefully for a missing optional dependency is the component's own responsibility; to enable it, confirm it has been published and is available from an install source
+📦 Adding demo/hello@1.0.0
    ├── Manifest ✅
-   └── artifacts ✅（1 个文件）
-✅ 已写入 brickkit.yaml（2 个组件）
+   └── artifacts ✅ (1 file)
+✅ Written to brickkit.yaml (2 components)
 ```
 
 The stub is found in the local source like any other component, and `demo/caller`'s required dependency now resolves to it — that is the `依赖 demo/hello@1.0.0 ✅ 已拉取` line. The `demo/bus` warning is `demo/caller`'s own *optional* dependency from [Article 2](02-what-runs.md) and has nothing to do with the stub. `brickkit.yaml` now lists both components.
@@ -239,18 +239,18 @@ brickkit up --dry-run
 An excerpt — `...` marks lines left out:
 
 ```
-🚀 启动项目 hello-world（deploy.target: docker）
+🚀 Starting project hello-world (deploy.target: docker)
 ...
-📋 组件状态计算：
-   ✅ demo/hello@1.0.0   启动（demo/caller 需要）
-   ✅ demo/caller@1.0.0  启动（顶层）
+📋 Component state calculation:
+   ✅ demo/hello@1.0.0   starting (demo/caller needs it)
+   ✅ demo/caller@1.0.0  starting (top-level)
 ...
-🔧 本地调试（local: true）：
+🔧 Local debugging (local: true):
    demo/hello@1.0.0
-      不生成容器；请在 IDE 里启动它，监听 localhost:18081
-      环境变量：.brickkit/generated/local-debug.demo-hello-1-0-0.env
-      VS Code：launch.json 里配 "envFile": "${workspaceFolder}/.brickkit/generated/local-debug.demo-hello-1-0-0.env"
-📄 已生成：.brickkit/generated/docker-compose.yaml
+      No container is generated; start it in your IDE, listening on localhost:18081
+      Environment variables: .brickkit/generated/local-debug.demo-hello-1-0-0.env
+      VS Code: set "envFile": "${workspaceFolder}/.brickkit/generated/local-debug.demo-hello-1-0-0.env" in launch.json
+📄 Generated: .brickkit/generated/docker-compose.yaml
 ...
 ```
 

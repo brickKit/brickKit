@@ -32,15 +32,15 @@ Solid arrows are required dependencies, dashed arrows are optional. Two things m
 The full rule table lives in AGENTS.md §5.4; this section shows what it looks like against a real graph rather than restating it. Declare this project with `erp/backend: enabled: false` and nothing else touched, then run `brickkit up --dry-run`:
 
 ```
-📋 组件状态计算：
-   ✅ department/tree@1.0.0        启动（infra/api-docs 需要）
-   ✅ infra/redis-event-bus@1.0.0  启动（infra/api-docs 需要）
-   ✅ people/basic@1.0.0           启动（auth/password-login 需要）
-   ✅ auth/password-login@1.0.0    启动（infra/api-docs 需要）
-   ✅ authorization/rbac@1.0.0     启动（infra/api-docs 需要）
-   ⬜ erp/backend@1.0.0            显式禁用（enabled: false）
-   ⬜ portal/user-frontend@1.0.0   不启动（强依赖 erp/backend 不启动）
-   ✅ infra/api-docs@1.0.0         启动（顶层）
+📋 Component state calculation:
+   ✅ department/tree@1.0.0        starting (infra/api-docs needs it)
+   ✅ infra/redis-event-bus@1.0.0  starting (infra/api-docs needs it)
+   ✅ people/basic@1.0.0           starting (auth/password-login needs it)
+   ✅ auth/password-login@1.0.0    starting (infra/api-docs needs it)
+   ✅ authorization/rbac@1.0.0     starting (infra/api-docs needs it)
+   ⬜ erp/backend@1.0.0            disabled explicitly (enabled: false)
+   ⬜ portal/user-frontend@1.0.0   not starting (required dependency erp/backend is not starting)
+   ✅ infra/api-docs@1.0.0         starting (top-level)
 ```
 
 Two things here are easy to get wrong by reasoning about the rule in the abstract instead of watching it run:
@@ -53,15 +53,15 @@ Two things here are easy to get wrong by reasoning about the rule in the abstrac
 Re-enable `erp/backend` and run the same command again. The status calculation now shows all eight components starting, each with a real reason:
 
 ```
-📋 组件状态计算：
-   ✅ department/tree@1.0.0        启动（infra/api-docs 需要）
-   ✅ infra/redis-event-bus@1.0.0  启动（erp/backend 需要）
-   ✅ people/basic@1.0.0           启动（auth/password-login 需要）
-   ✅ auth/password-login@1.0.0    启动（erp/backend 需要）
-   ✅ authorization/rbac@1.0.0     启动（erp/backend 需要）
-   ✅ erp/backend@1.0.0            启动（infra/api-docs 需要）
-   ✅ portal/user-frontend@1.0.0   启动（顶层）
-   ✅ infra/api-docs@1.0.0         启动（顶层）
+📋 Component state calculation:
+   ✅ department/tree@1.0.0        starting (infra/api-docs needs it)
+   ✅ infra/redis-event-bus@1.0.0  starting (erp/backend needs it)
+   ✅ people/basic@1.0.0           starting (auth/password-login needs it)
+   ✅ auth/password-login@1.0.0    starting (erp/backend needs it)
+   ✅ authorization/rbac@1.0.0     starting (erp/backend needs it)
+   ✅ erp/backend@1.0.0            starting (infra/api-docs needs it)
+   ✅ portal/user-frontend@1.0.0   starting (top-level)
+   ✅ infra/api-docs@1.0.0         starting (top-level)
 ```
 
 `people/basic` is reached three separate times while walking this graph — directly from `erp/backend`, and again from each of `auth/password-login` and `authorization/rbac` — and resolves to **one** node, appearing once in the plan. The rule is identity by `(component ID, exact version)`: every path that names `people/basic@1.0.0` lands on the same node, however many different callers reached it. This is also exactly why version coexistence needs no special handling at all — `people/basic@1.0.0` and a hypothetical `people/basic@2.0.0` referenced elsewhere are two different identities, so they'd simply be two different nodes, never merged and never in conflict (AGENTS.md §5.1).
@@ -69,10 +69,10 @@ Re-enable `erp/backend` and run the same command again. The status calculation n
 **A required dependency that can't be found blocks generation immediately**, naming exactly which component demanded it — not just "something's missing":
 
 ```
-❌ 错误：强依赖缺失
-   组件：people/basic@1.0.0
-   缺失依赖：department/tree@1.0.0
-   原因：该组件在所有安装源中均未找到
+❌ Error: required dependency missing
+   Component: people/basic@1.0.0
+   Missing dependency: department/tree@1.0.0
+   Reason: The component was not found in any install source
 ```
 
 An optional dependency that can't be found produces a warning instead and the resolution continues — the missing component's `*_ENDPOINT` is simply never injected into whatever declared it as optional.
@@ -82,12 +82,12 @@ An optional dependency that can't be found produces a warning instead and the re
 Point `department/tree` back at `people/basic` as a **required** dependency (on top of `people/basic`'s own required dependency on `department/tree`) and resolution refuses outright:
 
 ```
-❌ 错误：检测到循环依赖
-   循环路径：department/tree@1.0.0 → people/basic@1.0.0 → department/tree@1.0.0
+❌ Error: dependency cycle detected
+   Cycle path: department/tree@1.0.0 → people/basic@1.0.0 → department/tree@1.0.0
    原因：这几个组件互相强依赖，谁都要等对方先起来，启动顺序无解
-   建议：
-   1. 检查 Manifest 中的依赖声明（dependencies.components）
-   2. 其中一方改成弱依赖（optional: true）即可——弱依赖不约束启动顺序，环上有一条弱边就不再是死结
+   Suggestions:
+   1. Check the dependency declarations in the Manifest (dependencies.components)
+   2. Make one side an optional dependency (optional: true) instead — an optional edge doesn't constrain startup order, and one optional edge in the cycle breaks the deadlock
 ```
 
 Make that same edge **optional** instead — `department/tree` optionally depends on `people/basic`, which still required-depends on `department/tree` — and the identical cycle resolves cleanly, no error, both directions visible in the dependency graph output (`department/tree@1.0.0 → people/basic@1.0.0（弱）`, and separately `people/basic@1.0.0 → department/tree@1.0.0` with no such marker).
@@ -99,19 +99,19 @@ The reason a cycle is only an error when every edge in it is required, never whe
 Back to all eight components enabled, the actual order:
 
 ```
-📋 启动顺序（拓扑排序）：
-   1. department-tree-1-0-0        无依赖
-   2. infra-api-docs-1-0-0         无依赖
-   3. infra-redis-event-bus-1-0-0  无依赖
-   4. people-basic-1-0-0           ← 依赖 1
-   5. auth-password-login-1-0-0    ← 依赖 4
-   6. authorization-rbac-1-0-0     ← 依赖 4
-   7. erp-backend-1-0-0            ← 依赖 4, 5, 6
-   8. portal-user-frontend-1-0-0   ← 依赖 7
+📋 Start order (topological sort):
+   1. department-tree-1-0-0        no dependencies
+   2. infra-api-docs-1-0-0         no dependencies
+   3. infra-redis-event-bus-1-0-0  no dependencies
+   4. people-basic-1-0-0           ← depends on 1
+   5. auth-password-login-1-0-0    ← depends on 4
+   6. authorization-rbac-1-0-0     ← depends on 4
+   7. erp-backend-1-0-0            ← depends on 4, 5, 6
+   8. portal-user-frontend-1-0-0   ← depends on 7
 
 可独立启动：department-tree-1-0-0、infra-api-docs-1-0-0、infra-redis-event-bus-1-0-0（无依赖）
-最长依赖链（5 层）：department-tree-1-0-0 → people-basic-1-0-0 → auth-password-login-1-0-0 → erp-backend-1-0-0 → portal-user-frontend-1-0-0
-   不在这条链上的组件与它并行启动
+Longest dependency chain (5 levels): department-tree-1-0-0 → people-basic-1-0-0 → auth-password-login-1-0-0 → erp-backend-1-0-0 → portal-user-frontend-1-0-0
+   Components not on this chain start in parallel with it
 ```
 
 Eight components, but the number that actually determines how long `up` takes to reach a fully running state is the **length of the longest required-dependency chain** — five here, not eight. `department-tree`, `infra-api-docs`, and `infra-redis-event-bus` have no required dependency at all and start immediately, in parallel with everything else. `authorization-rbac` sits at the same depth as `auth-password-login` (both wait only on `people-basic`) but isn't on the *longest* chain, since the chain through `auth-password-login` happens to be the one that continues on to `erp-backend` and `portal-user-frontend` — so `authorization-rbac` starts in parallel with that entire continuation, not serially before it.

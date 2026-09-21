@@ -29,13 +29,13 @@ resources:
 Writing a bare service-sounding name here instead (`host: guide-pg`, say — plausible if you're used to Compose services resolving each other by name) gets caught before it ever reaches Docker:
 
 ```
-⚠️ 基础资源的 host 看起来是个服务名，容器里可能解析不了
-   资源：caller-db
-   host：guide-pg
-   原因：平台不部署基础资源，compose 里不会有叫这个名字的 service
-   建议：
-   1. 资源跑在本机时写 host: host.docker.internal（平台会自动补 extra_hosts）
-   2. 资源跑在别处时写它的 IP 或域名
+⚠️ A resource's host looks like a service name, which may not resolve inside the container
+   Resource: caller-db
+   host: guide-pg
+   Reason: The platform doesn't deploy resources, so compose has no service by that name
+   Suggestions:
+   1. If the resource runs on this machine, write host: host.docker.internal (the platform adds extra_hosts automatically)
+   2. If the resource runs elsewhere, write its IP or domain name
 ```
 
 ## Bring it up for real
@@ -46,14 +46,14 @@ brickkit up
 ```
 
 ```
-📌 以下基础资源需要先跑起来（平台不代为部署）：
-   caller-db    postgresql   host.docker.internal:15432  供 demo/caller 使用
-🔧 启动前会执行的数据库迁移（失败则该组件不会启动）：
+📌 These base resources have to be running first (the platform doesn't deploy them for you):
+   caller-db                   postgresql   host.docker.internal:15432  used by demo/caller
+🔧 Database migrations that run before startup (on failure that component won't start):
    demo/caller@1.0.0  /app/caller migrate
-🐳 正在启动（docker）...
-   demo-hello-1-0-0             running（healthy）
-   demo-caller-1-0-0            running（healthy）
-✅ 全部组件已启动（2 个）
+🐳 Starting (docker)...
+   demo-hello-1-0-0             running (healthy)
+   demo-caller-1-0-0            running (healthy)
+✅ All components started (2)
 ```
 
 The migration actually ran against the real database this time — no warning about it being unsatisfied, because it isn't anymore. Confirm the whole chain end to end:
@@ -105,9 +105,9 @@ brickkit up
 ```
 
 ```
-❌ 错误：docker 执行失败
-   命令：docker compose ... up -d --wait --remove-orphans demo-hello-1-0-0 demo-caller-1-0-0
-   输出：Container brickkit-hello-world-demo-caller-1-0-0-migration-1 Error
+❌ Error: docker failed to run
+   Command: docker compose ... up -d --wait --remove-orphans demo-hello-1-0-0 demo-caller-1-0-0
+   Output: Container brickkit-hello-world-demo-caller-1-0-0-migration-1 Error
          service "demo-caller-1-0-0-migration" didn't complete successfully: exit 1
          Container brickkit-hello-world-demo-hello-1-0-0-1 Healthy
 ```

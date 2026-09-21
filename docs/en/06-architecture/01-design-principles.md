@@ -197,13 +197,13 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
 **Example:** the plan `brickkit up --dry-run` prints (an excerpt from [guide 2](../03-guide/02-what-runs.md)) — why each component starts and in what order, at a glance:
 
 ```
-📋 组件状态计算：
-   ✅ demo/hello@1.0.0   启动（demo/caller 需要）
-   ✅ demo/caller@1.0.0  启动（顶层）
+📋 Component state calculation:
+   ✅ demo/hello@1.0.0   starting (demo/caller needs it)
+   ✅ demo/caller@1.0.0  starting (top-level)
 ...
-📋 启动顺序（拓扑排序）：
-   1. demo-hello-1-0-0   无依赖
-   2. demo-caller-1-0-0  ← 依赖 1
+📋 Start order (topological sort):
+   1. demo-hello-1-0-0   no dependencies
+   2. demo-caller-1-0-0  ← depends on 1
 ```
 
 ---
@@ -400,10 +400,10 @@ configSchema:
 ```
 
 ```
-⚠️ config 里有配置项不会生效：组件 demo/hello 的 greetting
-   配置项：greetting
-   原因：组件的 configSchema 里没有这一项，是不是想写 greeting？
-   影响：这一项不会被注入任何环境变量；组件会使用它自己的默认值
+⚠️ A config item won't take effect: greetting on component demo/hello
+   Config item: greetting
+   Reason: The component's configSchema has no such item; did you mean greeting?
+   Impact: This item is not injected as any environment variable; the component uses its own default
 ```
 
 ---
