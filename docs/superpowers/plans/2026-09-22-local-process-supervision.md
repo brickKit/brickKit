@@ -39,7 +39,7 @@
 
 ## 设计决定（spec 没写死、这份计划里定下的）
 
-1. **一个进程崩了，其余的不停。** spec §3 只说"不自动重启、退出码本身就是崩溃信号"，没说一个崩了其余要不要停。全停会把还健康、可能正被调试的组件连带杀掉、丢掉它们的状态；崩溃在终端里有醒目的一行就够了（Plan 4 用 `OnExit` 打印）。要改成"一个崩了全停"，只需要 Plan 4 在 `OnExit` 里取消会话的 ctx，本计划的库不用动。
+1. **运行期一个进程崩了，其余的不停。** 这里的"进程"指 `procsup` 监管的进程——也就是 Plan 4 里 `mode: local` 组件被 brickkit 自己拉起的那些裸进程。`mode: debug` 的进程是用户自己在 IDE 里启动的，brickkit 不监管、也看不见它崩没崩；docker / k8s 的容器由 dockerd / kubelet 管，不进这个监管器。spec §3 只说"不自动重启、退出码本身就是崩溃信号"，没说一个崩了其余要不要停。全停会把还健康、可能正被调试的 local 组件连带杀掉、丢掉它们的状态；崩溃在终端里有醒目的一行就够了（Plan 4 用 `OnExit` 打印）。"不停"的范围只是：其余的 local 进程照跑，容器不受影响；依赖崩掉那个进程的组件连不上时怎么办，是组件自己的事（平台不做通信治理）。**启动阶段是另一回事**：命令刚拉起就退出（`WaitListening` 返回 `ProbeExited`）是 spec §6.4 的硬失败，`up` 整体失败、已经启动的进程一并收尾——这由 Plan 4 处理（见文末示意代码里的 `defer sup.Shutdown()`），不是本计划的库要做的决定。要把运行期也改成"一个崩了全停"，只需要 Plan 4 在 `OnExit` 里取消会话的 ctx，本计划的库不用动。
 2. **输出走管道，不走 PTY。** 加前缀必须拦下输出。代价：子进程看到的 stdout 不是终端，有些语言会因此改变行为——Python 默认整块缓冲（输出会延迟）、很多工具会关掉彩色。库不替语言擦屁股：这属于 Plan 3 的语言适配器（例如 Python 适配器产出的环境变量里带上 `PYTHONUNBUFFERED=1`）。
 3. **不用 Linux 的 `Pdeathsig`。** 它绑的是"创建子进程的那个**线程**"而不是进程，Go 运行时调度线程时会出现误杀。代价：brickkit 被 `kill -9` / OOM 杀掉时，Unix 上的子进程会变成孤儿（Windows 的 Job Object 能兜住）。正常的三种收尾——Ctrl+C、`kill`、关终端——由 `StopSignals` 覆盖，并且有用真信号驱动的测试。
 4. **收尾时无条件再对进程组发一遍 `SIGKILL`。** 领头进程可能已经自己退了，组里却还留着不理睬 `SIGTERM` 的孙进程；只等领头进程会漏。
@@ -440,7 +440,7 @@ EOF
 
 - 每个子进程自成一个进程组（Unix `Setpgid`），信号发给整组——`go run`、`npm run dev` 这类"启动器"会再拉起真正的服务进程，只给启动器发信号收不干净。副作用是终端的 Ctrl+C 不再直接打到子进程，收尾完全由 `Supervisor` 转发；所以前台会话必须自己接住 `StopSignals`。
 - Windows 用 Job Object（`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`）：关闭 Job、或者 brickkit 自己死掉，系统把整棵树收走。优雅停止用 `CTRL_BREAK_EVENT`（需要子进程有自己的进程组）。这一半**只保证能编过**（spec §6.5），没有真机验证。
-- 不自动重启；一个进程崩了不连累别的进程；`Exit.Crashed()` = 不是我们叫停的、并且退出码非零。
+- 不自动重启；运行期一个被监管的进程崩了不连累别的被监管进程（`procsup` 是通用库，它不知道什么是 `local`，被监管的就是调用方 `Start` 进来的那些）；`Exit.Crashed()` = 不是我们叫停的、并且退出码非零。
 - `Run(ctx)` 阻塞到所有进程自己退出，或 ctx 取消后完成收尾。收尾 = 先请体面退出 → 等 `GracePeriod` → 无条件强杀 → 释放平台资源。
 
 测试要真的启动子进程。做法是**让测试二进制自己当子进程**：`helperEnv` 一置位，`TestMain` 就不跑测试，而是按第一个参数扮演某种行为（打印若干行、指定退出码、装作没听见 SIGTERM、拉起孙进程、扮演一个完整的前台会话……）。这样不依赖 `sh`、`sleep` 这类外部命令。注意 `-race` 下每个子进程也是竞态插桩过的，启动慢一截，`procsup` 的测试在 `-race` 下要跑十几秒，不是卡住了。
@@ -2179,7 +2179,8 @@ for _, c := range localComponentsInTopologicalOrder {
 	p, err := sup.Start(procsup.Spec{Name: c.ID, Argv: argv, Dir: srcDir, Env: env})
 	// err != nil：命令根本起不来，同样按"硬失败"处理，提示手写 runCommand
 	switch procsup.WaitListening(ctx, port, p.Done(), timeout) {
-	case procsup.ProbeExited:   // 硬失败：报错、点名组件、提示手写 runCommand
+	case procsup.ProbeExited:   // 启动阶段的硬失败：报错、点名组件、提示手写 runCommand；
+	                            // return 出错误，上面的 defer sup.Shutdown() 把已经起来的也收掉
 	case procsup.ProbeTimedOut: // 软警告：进程在跑但没监听期望端口，不杀
 	case procsup.ProbeCanceled: // 用户按了 Ctrl+C：直接收尾
 	}
