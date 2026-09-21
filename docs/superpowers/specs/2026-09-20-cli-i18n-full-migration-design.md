@@ -155,7 +155,8 @@ key 的字符串值延续子项目 1 的点分写法，按"来源包.具体内�
   盘点后补了一批；`internal/yamlcheck`、`internal/clierr`、`internal/gitrepo`、
   `internal/skills` 也要迁，最初的包清单里没有它们。
 - `internal/cli` 约 970 行，手工逐条改写太慢也太容易出错，改成**一次性 AST 工具**
-  （`go/parser` 抽取字符串字面量、按调用点上下文改写成 `i18n.T(...)`，不进仓库）：
+  （`go/parser` 抽取字符串字面量、按调用点上下文改写成 `i18n.T(...)`；事后放进了仓库的 `tools/i18n/`，
+  用法见那里的 README）：
   机械部分自动化，人工只写英文措辞。工具处理 `Printf` 的前后换行、`Errorf` 的 `%w`、
   参数里嵌套另一处中文、复用已有的同中文同英文 key。做不了的（包级常量、比较用的字面量）
   仍手工处理。
@@ -178,8 +179,42 @@ key 的字符串值延续子项目 1 的点分写法，按"来源包.具体内�
 - `go build ./...`、`go vet ./...`、`go test ./...`、完整 `make lint` 全部通过，
   `internal` 覆盖率 93.3%（门槛 92%）。
 
-**留给子项目 3 的**：`docs/{en,zh}` 里的真实输出快照要各配自己语言的版本
-（`check-guide-output.py` 现在钉着 `BRICKKIT_LANG=zh`，让 en 与 zh 抄同一份中文快照，
-`docs/en/03-guide/03-local-debugging.md` 里还夹着一句中文）；`brickkit lang` 还没写进任何文档；
-AGENTS.md 的命令数与语言相关描述；错误码文档里 JSON 日志样例的 `message`。
+## 7. 子项目 3（文档工具链）完成情况（2026-09-21）
 
+**已完成。** 做了什么、为什么这样做：
+
+- **英文单复数**（默认换成英文之后"1 components"成了看得见的毛病）：`i18n.TN(id, n, args...)` 在
+  n==1 且目录里有 `id+".one"` 时选单数形式，否则回落到 id；`i18n.Count(id, n)` 给"数字加
+  名词"的短语（`msgid.Count*` 一族：组件/资源/文件/项/警告/清单），句子里只留一个 `%s` 接它。
+  跟着动词或代词变的整句（"1 file needs refreshing"、"its source"）走 `TN`。中文不写 `.one`
+  条目。三道守卫：`TestCatalogParity` 放行单数条目、`TestPluralOneKeysComplementTheirBase`
+  要求单数与"其他"形式用同一组参数、`tests/i18nguard` 要求 TN / Count 用到的每个 key 在英文
+  目录里都有单数形式且没有孤儿单数条目。
+- **教程输出核对**（`scripts/check-guide-output.py`）：34 个场景对 en、zh 各跑一遍，各对各的
+  真实输出，不再要求两棵树抄同一份中文；夹具改写不依赖 `init` 写下的本地化注释。
+- **docs/en 换成真实英文输出**：`tools/i18n/docs_outputs.py` 反译了 661 行，其余手改。docs/en
+  现在一个中文字符都没有——`scripts/check-docs-bilingual.py` 永久守着（白名单只有 `brickkit lang`
+  示例里刻意展示中文输出的那三行）。
+- **错误码文档**按文档所在语言分别解析标题（`tests/docfields`），docs/en 引英文标题。
+- **新增守卫 `TestDocOutputLinesConformToCatalog`**：所有文档围栏块里以符号开头的输出行必须
+  匹配该文档语言的消息目录。它当场抓到了 `version` 输出两棵树都过期、一句 "use its IP"
+  对真实的 "write its IP" 这类没有任何东西发现的漂移。
+- `brickkit lang` 写进了 09-cli-reference、00-quick-start、AGENTS.md / AGENTS.zh.md
+  （标题改成 16 commands + version + lang）、README、llms。`check-cli-docs.py` 现在也核对英文
+  文档里的 "N commands"，并且行内代码里的命令只认自己那段代码（英文文档没有"第一个中文字符"
+  这个边界）。
+- `scripts/check-guides.sh` + `tests/guides/清单.tsv`（不在 make lint 里，所以之前没人发现它
+  已经因为默认语言变英文而全部失败）固定 `BRICKKIT_LANG=en` 跑，关键词换成英文。
+- demo/hello、demo/caller 两个教程夹具的运行时输出改成英文（响应文案、日志、默认问候语
+  `Hello`、openapi summary），教程里的配置覆盖示例改用 `Howdy`。
+
+**没做、也不属于文档工具链的三件事**（留给后续，见项目记忆里的记录）：
+
+1. **AI 助手技能资产是纯中文的**（`internal/skills/assets/` 下 5 个文件，约 30KB）。
+   `brickkit init` 会把它们装进每个新项目，英文用户拿到的是中文的 AGENTS.md 与技能。
+   这需要一个产品决定，因为技能文件被提交进项目仓库，而语言偏好是机器级的：若按机器的
+   语言装，两个语言不同的队友会互相把提交进仓库的文件改来改去。见记忆里的两个方案。
+2. **市场服务端（`market-server`，另一个 Go module）的报错文案是中文**，CLI 把它原样接在
+   `Reason` 等标签后面。要国际化得让 CLI 带上 `Accept-Language` 之类的东西，是服务端的子项目。
+3. 其余 8 个夹具组件（部门树、权限、erp 等）的运行时中文输出没动——它们只在架构文档里出现
+   寥寥几处，组件用什么语言打日志是组件自己的事；docs/en 引用它们的输出时是翻译后加了说明。

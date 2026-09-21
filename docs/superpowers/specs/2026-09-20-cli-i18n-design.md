@@ -27,7 +27,7 @@ CLI 本体多语言的完整改动面太大，拆成四块分别设计和验收�
 | --- | --- | --- | --- |
 | 1 | 核心机制 | 消息目录、语言配置存储与优先级、cobra 接入方式；只挑一小片真实命令验证可行 | **本文档设计** |
 | 2 | 全量迁移 | 把其余 80+ 个命令文件、以及 resolver/compose/k8s/inject/cascade/workspace/security/manifest/config 里的中文字面量全部改成走消息目录，同步改测试断言 | 未设计，待第 1 块落地后再单独立项 |
-| 3 | 文档工具链 | 改 `10-error-codes.md`"照抄中文原文当 key"的写法；重新设计 `check-guide-output.py`"中英文教程输出必须逐字相同"的假设；修掉 `02-dependency-resolution.md` 里过时的"没有英文输出模式"；AGENTS.md/AGENTS.zh.md 的命令集标题从"16 commands + version"改成"16 commands + version + lang"（新增的 `brickkit lang` 跟 `version` 一样是 CLI 自身命令，不计入业务命令数） | 未设计 |
+| 3 | 文档工具链 | 改 `10-error-codes.md`"照抄中文原文当 key"的写法；重新设计 `check-guide-output.py`"中英文教程输出必须逐字相同"的假设；修掉 `02-dependency-resolution.md` 里过时的"没有英文输出模式"；AGENTS.md/AGENTS.zh.md 的命令集标题从"16 commands + version"改成"16 commands + version + lang"（新增的 `brickkit lang` 跟 `version` 一样是 CLI 自身命令，不计入业务命令数） | **已完成**（2026-09-21，见 full-migration 设计 §7） |
 | 4 | 扩展更多语言 | 视需求决定是否支持超出 en/zh 的语言 | 未设计，机制本身（内嵌 map）天然支持，暂不主动做 |
 
 本文档只详细设计第 1 块。第 2-4 块留到各自需要动手时再单独走一遍需求澄清+设计流程，不在这里预先钉死细节。

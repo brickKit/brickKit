@@ -70,3 +70,26 @@ python3 tools/i18n/suggest.py 已停止
 
 `go test ./tools/i18n/...` 在一个临时的迷你仓库里跑完 extract → apply，检查改写结果、
 msgid 常量、两份目录、嵌套、`%w`、复用与出错时不改文件。
+
+## 文档那一半：`docs_outputs.py`
+
+迁移完代码之后，文档里"抄下来的真实输出"也要换成对应语言。`docs_outputs.py` 把文档围栏块里的
+中文输出行按消息目录反译成英文（中文行对回目录里的中文模板、取出参数、用英文模板拼回；框线表格、
+明细行、参数里嵌套的文案都能处理），译不出的行原样保留并点名：
+
+```sh
+python3 tools/i18n/docs_outputs.py docs/en/03-guide/01-first-project.md          # 干跑：只报告
+python3 tools/i18n/docs_outputs.py --write docs/en/00-quick-start.md ...        # 原地改写
+```
+
+它已经把 docs/en 里 661 行输出译完了，之后是一次性工具，留在仓库里是为了"万一还要用"。
+两个已知的局限，用它之后要人来补：
+
+- **不认单复数**：目录里英文的单数形式（`.one`，见 `i18n.TN` / `i18n.Count`）它用不上，`n == 1`
+  的行会得到 "1 components" 这样的复数。改完之后跑 `make check-guide-output` 与 `make check-doc-fields`
+  会把这类行指出来；
+- **同一个中文标签在英文里有两种写法**（`建议：` 对 `Suggestion:` / `Suggestions:`）时，它取第一种。
+
+译完之后不需要再靠它：`make check-guide-output`（教程输出逐行对真实 CLI）、`make check-doc-fields`
+里的 `TestDocOutputLinesConformToCatalog`（所有文档里带符号的输出行必须是目录里真实存在的文案）
+和 `scripts/check-docs-bilingual.py`（docs/en 里不许有中文）会永久守着。
