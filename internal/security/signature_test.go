@@ -301,5 +301,5 @@ func TestVerifyManifestErrorNamesComponent(t *testing.T) {
 	require.ErrorAs(t, err, &cerr)
 	rendered := cerr.Format()
 	assert.Contains(t, rendered, "people/basic@1.2.0")
-	assert.Contains(t, rendered, "发布者")
+	assert.Contains(t, rendered, "component publisher")
 }

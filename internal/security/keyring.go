@@ -10,6 +10,8 @@ import (
 	"sort"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // KeyRing 是项目信任的公钥集合，来自 brickkit.yaml 的 installer.publicKeys。
@@ -95,11 +97,11 @@ func LoadKeyRing(entries map[string]string, baseDir string) (*KeyRing, error) {
 
 		pemBytes, err := os.ReadFile(path)
 		if err != nil {
-			return nil, clierr.New(clierr.CodeConfigInvalid, "错误：读取可信公钥失败").
-				WithDetail("公钥 ref", ref).
-				WithDetail("路径", path).
-				WithHint("检查 brickkit.yaml → installer.publicKeys 中该条目的路径",
-					"公钥文件要跟着项目进 Git（公钥不是密钥，可以提交）").
+			return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityReadTrustedKeyFailed)).
+				WithDetail(i18n.T(msgid.SecurityLabelKeyRef), ref).
+				WithDetail(i18n.T(msgid.LabelPath), path).
+				WithHint(i18n.T(msgid.SecurityHintCheckPublicKeysPath),
+					i18n.T(msgid.SecurityHintPublicKeyInGit)).
 				WithCause(err)
 		}
 		if err := ring.Add(ref, pemBytes); err != nil {
@@ -113,30 +115,30 @@ func LoadKeyRing(entries map[string]string, baseDir string) (*KeyRing, error) {
 func parsePublicKey(ref string, pemBytes []byte) (*ecdsa.PublicKey, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
-		return nil, badKey(ref, "不是合法的 PEM 文件").
-			WithHint("公钥应形如 -----BEGIN PUBLIC KEY----- 开头的文本",
-				"用 cosign generate-key-pair 生成的 cosign.pub 即可")
+		return nil, badKey(ref, i18n.T(msgid.SecurityKeyNotPEM)).
+			WithHint(i18n.T(msgid.SecurityHintPEMShape),
+				i18n.T(msgid.SecurityHintUseCosignPub))
 	}
 	if block.Type != "PUBLIC KEY" {
 		// 最常见的是把 cosign.key（私钥）当成公钥配了进来。这必须直说：
 		// 私钥进了 Git 是要立刻轮换的事故，不能只报一句"格式不对"。
-		return nil, badKey(ref, "PEM 类型是 "+block.Type+"，不是 PUBLIC KEY").
-			WithHint("这里要的是公钥 cosign.pub，不是私钥 cosign.key").
-			WithTip("如果误把 cosign.key 提交进了仓库，请立刻重新生成密钥对并重新签名。")
+		return nil, badKey(ref, i18n.T(msgid.SecurityKeyPEMType, block.Type)).
+			WithHint(i18n.T(msgid.SecurityHintWantsPublicKey)).
+			WithTip(i18n.T(msgid.SecurityTipRotateKey))
 	}
 
 	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, badKey(ref, "无法解析公钥内容").WithCause(err)
+		return nil, badKey(ref, i18n.T(msgid.SecurityKeyUnparseable)).WithCause(err)
 	}
 	key, ok := parsed.(*ecdsa.PublicKey)
 	if !ok {
-		return nil, badKey(ref, "不是 ECDSA 公钥").
-			WithHint("cosign 默认生成 ECDSA P-256 密钥对，请使用默认设置")
+		return nil, badKey(ref, i18n.T(msgid.SecurityKeyNotECDSA)).
+			WithHint(i18n.T(msgid.SecurityHintUseDefaultKeygen))
 	}
 	if key.Curve != elliptic.P256() {
-		return nil, badKey(ref, "不是 P-256 曲线的 ECDSA 公钥").
-			WithHint("cosign 默认生成 ECDSA P-256 密钥对，请使用默认设置")
+		return nil, badKey(ref, i18n.T(msgid.SecurityKeyNotP256)).
+			WithHint(i18n.T(msgid.SecurityHintUseDefaultKeygen))
 	}
 	return key, nil
 }
@@ -147,12 +149,12 @@ func parsePublicKey(ref string, pemBytes []byte) (*ecdsa.PublicKey, error) {
 // 配错了他完全能改。只说"不可用"而不说怎么办，人会以为是组件或市场的问题，
 // 而实际上要改的是自己那三行配置（开发计划 33.17）。
 func badKey(ref, reason string) *clierr.Error {
-	return clierr.New(clierr.CodeConfigInvalid, "错误：可信公钥不可用").
-		WithDetail("公钥 ref", ref).
-		WithDetail("原因", reason).
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityKeyUnusable)).
+		WithDetail(i18n.T(msgid.SecurityLabelKeyRef), ref).
+		WithDetail(i18n.T(msgid.LabelReason), reason).
 		WithHint(
-			"检查 brickkit.yaml 的 installer.publicKeys 里这一条：路径对不对、文件在不在",
-			"公钥必须是 PEM 格式的 PKIX 公钥（cosign generate-key-pair 产出的 .pub）",
-			"别把私钥（cosign.key）配成公钥——那个文件不能用来验签",
+			i18n.T(msgid.SecurityHintCheckPublicKeyEntry),
+			i18n.T(msgid.SecurityHintMustBePKIX),
+			i18n.T(msgid.SecurityHintNotPrivateKey),
 		)
 }

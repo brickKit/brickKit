@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // CanonicalPayload 把一份 Manifest（YAML 或 JSON 写法）规范化成待签名字节。
@@ -32,14 +35,14 @@ func CanonicalPayload(raw []byte) ([]byte, error) {
 	// 它默认对重复键报错，正好是我们要的。
 	var doc map[string]any
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
-		return nil, invalid("错误：待校验的 Manifest 无法解析").
-			WithDetail("原因", err.Error()).
-			WithHint("确认市场返回的内容是完整的 component.yaml").
+		return nil, invalid(i18n.T(msgid.SecurityManifestUnparseable)).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.SecurityHintCheckManifestComplete)).
 			WithCause(err)
 	}
 	if len(doc) == 0 {
-		return nil, invalid("错误：待校验的 Manifest 为空").
-			WithHint("确认市场返回的内容是完整的 component.yaml")
+		return nil, invalid(i18n.T(msgid.SecurityManifestEmpty)).
+			WithHint(i18n.T(msgid.SecurityHintCheckManifestComplete))
 	}
 
 	normalized, err := normalize(doc)
@@ -50,8 +53,8 @@ func CanonicalPayload(raw []byte) ([]byte, error) {
 	// json.Marshal 对 map 按键名字典序输出，这就是"固定规则"的来源。
 	payload, err := json.Marshal(normalized)
 	if err != nil {
-		return nil, invalid("错误：Manifest 无法规范化").
-			WithDetail("原因", err.Error()).
+		return nil, invalid(i18n.T(msgid.SecurityManifestNotCanonicalizable)).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
 			WithCause(err)
 	}
 	return payload, nil
@@ -80,9 +83,9 @@ func normalize(value any) (any, error) {
 		for key, item := range v {
 			name, ok := key.(string)
 			if !ok {
-				return nil, invalid("错误：Manifest 的键必须是字符串").
-					WithDetailf("出问题的键", "%v（%T）", key, key).
-					WithHint("修改 component.yaml，把该键写成字符串")
+				return nil, invalid(i18n.T(msgid.SecurityManifestKeyNotString)).
+					WithDetail(i18n.T(msgid.SecurityLabelOffendingKey), i18n.T(msgid.SecurityOffendingKeyDetail, key, key)).
+					WithHint(i18n.T(msgid.SecurityHintKeyToString))
 			}
 			normalizedItem, err := normalize(item)
 			if err != nil {

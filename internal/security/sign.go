@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // cosignInstallHint 是所有"没装 cosign"错误共用的提示。
 // 直接给命令，不让使用者自己去搜。
-const cosignInstallHint = "安装：go install github.com/sigstore/cosign/v2/cmd/cosign@latest"
+func cosignInstallHint() string { return i18n.T(msgid.SecurityHintInstallCosign) }
 
 // SignOptions 控制签名生成。
 type SignOptions struct {
@@ -46,9 +48,9 @@ func Sign(ctx context.Context, payload []byte, opts SignOptions) (*Signature, er
 		ctx = context.Background()
 	}
 	if strings.TrimSpace(opts.PublicKeyRef) == "" {
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：签名缺少 publicKeyRef").
-			WithHint("publicKeyRef 是使用者查找公钥的名字，必须显式指定",
-				"约定用 keys/<组件名>-release.pub 这样的形式")
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityPublicKeyRefMissing)).
+			WithHint(i18n.T(msgid.SecurityHintPublicKeyRefExplicit),
+				i18n.T(msgid.SecurityHintPublicKeyRefConvention))
 	}
 
 	bin, err := resolveCosign(opts.CosignPath)
@@ -56,25 +58,25 @@ func Sign(ctx context.Context, payload []byte, opts SignOptions) (*Signature, er
 		return nil, err
 	}
 	if _, err := os.Stat(opts.KeyPath); err != nil {
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：找不到 cosign 私钥").
-			WithDetail("路径", opts.KeyPath).
-			WithHint("首次发布请先执行 cosign generate-key-pair 生成密钥对",
-				"cosign.key 是私钥，绝不能提交进 Git；只有 cosign.pub 需要分发").
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityCosignKeyNotFound)).
+			WithDetail(i18n.T(msgid.LabelPath), opts.KeyPath).
+			WithHint(i18n.T(msgid.SecurityHintGenerateKeyPair),
+				i18n.T(msgid.SecurityHintPrivateKeyNeverCommit)).
 			WithCause(err)
 	}
 
 	// cosign sign-blob 只接受文件，不读 stdin
 	dir, err := os.MkdirTemp("", "brickkit-sign-")
 	if err != nil {
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：创建临时目录失败").WithCause(err)
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityTempDirFailed)).WithCause(err)
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
 	blob := filepath.Join(dir, "payload")
 	bundleFile := filepath.Join(dir, "bundle.json")
 	if err := os.WriteFile(blob, payload, 0o600); err != nil {
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：写入待签名内容失败").
-			WithDetail("路径", blob).WithCause(err)
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityWriteBlobFailed)).
+			WithDetail(i18n.T(msgid.LabelPath), blob).WithCause(err)
 	}
 
 	args := signArgs(opts.KeyPath, bundleFile, blob)
@@ -126,15 +128,15 @@ type cosignBundle struct {
 func readBundleSignature(bundleFile string) (string, error) {
 	raw, err := os.ReadFile(bundleFile)
 	if err != nil {
-		return "", clierr.New(clierr.CodeConfigInvalid, "错误：读取 cosign 签名结果失败").
-			WithDetail("路径", bundleFile).WithCause(err)
+		return "", clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityReadBundleFailed)).
+			WithDetail(i18n.T(msgid.LabelPath), bundleFile).WithCause(err)
 	}
 
 	var bundle cosignBundle
 	if err := json.Unmarshal(raw, &bundle); err != nil {
-		return "", clierr.New(clierr.CodeConfigInvalid, "错误：解析 cosign bundle 失败").
-			WithDetail("路径", bundleFile).
-			WithHint("cosign 输出格式可能变了，需要跟着更新 signArgs/readBundleSignature").
+		return "", clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityParseBundleFailed)).
+			WithDetail(i18n.T(msgid.LabelPath), bundleFile).
+			WithHint(i18n.T(msgid.SecurityHintCosignFormatChanged)).
 			WithCause(err)
 	}
 	value := strings.TrimSpace(bundle.MessageSignature.Signature)
@@ -142,9 +144,9 @@ func readBundleSignature(bundleFile string) (string, error) {
 		value = strings.TrimSpace(bundle.Base64Signature)
 	}
 	if value == "" {
-		return "", clierr.New(clierr.CodeConfigInvalid, "错误：cosign bundle 里没有签名值").
-			WithDetail("路径", bundleFile).
-			WithHint("cosign 输出格式可能变了，需要跟着更新 signArgs/readBundleSignature")
+		return "", clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityBundleNoSignature)).
+			WithDetail(i18n.T(msgid.LabelPath), bundleFile).
+			WithHint(i18n.T(msgid.SecurityHintCosignFormatChanged))
 	}
 	return value, nil
 }
@@ -159,21 +161,21 @@ func readBundleSignature(bundleFile string) (string, error) {
 // 谁看了都会往终端或权限的方向去查。真正要做的只是设 COSIGN_PASSWORD。
 func signFailed(bin string, args []string, out []byte, cause error) error {
 	output := strings.TrimSpace(string(out))
-	err := clierr.New(clierr.CodeConfigInvalid, "错误：cosign 签名失败").
-		WithDetail("命令", bin+" "+strings.Join(args, " "))
+	err := clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityCosignSignFailed)).
+		WithDetail(i18n.T(msgid.LabelCommand), bin+" "+strings.Join(args, " "))
 
 	if isPasswordPromptFailure(output) {
 		return err.
-			WithDetail("原因", "cosign 需要私钥口令，但当前环境没有终端可以输入").
-			WithHint("用环境变量传入口令后重试：COSIGN_PASSWORD=<口令> brickkit publish --sign",
-				"私钥没有口令时也要显式设置为空：COSIGN_PASSWORD= brickkit publish --sign").
-			WithTip("CI 里请把口令放在密钥管理里注入 COSIGN_PASSWORD，不要写进流水线文件。").
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.SecurityPasswordNeededDetail)).
+			WithHint(i18n.T(msgid.SecurityHintPassphraseEnv),
+				i18n.T(msgid.SecurityHintEmptyPassphrase)).
+			WithTip(i18n.T(msgid.SecurityTipCIPassphrase)).
 			WithCause(cause)
 	}
 
 	return err.
-		WithDetail("输出", output).
-		WithHint("私钥有口令时，用环境变量 COSIGN_PASSWORD 传入以便非交互执行").
+		WithDetail(i18n.T(msgid.LabelOutput), output).
+		WithHint(i18n.T(msgid.SecurityHintPassphraseNonInteractive)).
 		WithCause(cause)
 }
 
@@ -215,9 +217,9 @@ func signArgs(keyPath, bundleFile, blob string) []string {
 func resolveCosign(configured string) (string, error) {
 	if configured != "" {
 		if _, err := os.Stat(configured); err != nil {
-			return "", clierr.New(clierr.CodeConfigInvalid, "错误：找不到 cosign").
-				WithDetail("路径", configured).
-				WithHint(cosignInstallHint).
+			return "", clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityCosignNotFound)).
+				WithDetail(i18n.T(msgid.LabelPath), configured).
+				WithHint(cosignInstallHint()).
 				WithCause(err)
 		}
 		return configured, nil
@@ -233,10 +235,10 @@ func resolveCosign(configured string) (string, error) {
 				return candidate, nil
 			}
 		}
-		return "", clierr.New(clierr.CodeConfigInvalid, "错误：签名需要 cosign，但没有找到").
-			WithHint(cosignInstallHint,
-				"装好后确认 cosign version 可执行（GOPATH/bin 要在 PATH 里）").
-			WithTip("只有**发布**组件需要 cosign。安装组件时的签名校验不需要它。").
+		return "", clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityCosignRequired)).
+			WithHint(cosignInstallHint(),
+				i18n.T(msgid.SecurityHintConfirmCosignVersion)).
+			WithTip(i18n.T(msgid.SecurityTipCosignOnlyForPublish)).
 			WithCause(err)
 	}
 	return path, nil

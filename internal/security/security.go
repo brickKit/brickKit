@@ -35,6 +35,8 @@ import (
 	"time"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // AlgorithmCosign 是目前唯一支持的签名算法标识（008 §8.3）。
@@ -66,17 +68,17 @@ func (s Signature) Empty() bool {
 // JSON/YAML 序列化差异而失败，见 canonical.go 的说明。
 func Verify(payload []byte, sig Signature, ring *KeyRing) error {
 	if sig.Empty() {
-		return invalid("错误：组件版本没有签名").
-			WithHint("发布者需要执行 brickkit publish --sign 重新发布",
-				"确认无签名也要安装时，在 brickkit.yaml 设置 installer.requireSignature: false")
+		return invalid(i18n.T(msgid.SecurityUnsigned)).
+			WithHint(i18n.T(msgid.SecurityHintRepublishSigned),
+				i18n.T(msgid.SecurityHintAllowUnsigned))
 	}
 
 	// 不认识的算法只能拒绝。"不认识就放过"等于让攻击者自己挑一个我们不校验的算法。
 	if sig.Algorithm != AlgorithmCosign {
-		return invalid("错误：不支持的签名算法").
-			WithDetail("算法", sig.Algorithm).
-			WithDetail("支持", AlgorithmCosign).
-			WithHint("升级 brickkit CLI，或让发布者改用 cosign 签名")
+		return invalid(i18n.T(msgid.SecurityAlgorithmUnsupported)).
+			WithDetail(i18n.T(msgid.SecurityLabelAlgorithm), sig.Algorithm).
+			WithDetail(i18n.T(msgid.SecurityLabelSupported), AlgorithmCosign).
+			WithHint(i18n.T(msgid.SecurityHintUpgradeOrCosign))
 	}
 
 	key, err := lookupKey(sig.PublicKeyRef, ring)
@@ -86,20 +88,20 @@ func Verify(payload []byte, sig Signature, ring *KeyRing) error {
 
 	der, err := base64.StdEncoding.DecodeString(strings.TrimSpace(sig.Value))
 	if err != nil {
-		return invalid("错误：签名格式不正确").
-			WithDetail("公钥", sig.PublicKeyRef).
-			WithDetail("原因", "签名值不是合法的 base64").
-			WithHint("联系组件发布者重新签名").
+		return invalid(i18n.T(msgid.SecuritySignatureMalformed)).
+			WithDetail(i18n.T(msgid.SecurityLabelPublicKey), sig.PublicKeyRef).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.SecurityNotBase64Detail)).
+			WithHint(i18n.T(msgid.SecurityHintContactPublisher)).
 			WithCause(err)
 	}
 
 	digest := sha256.Sum256(payload)
 	if !ecdsa.VerifyASN1(key, digest[:], der) {
-		return invalid("错误：签名校验不通过").
-			WithDetail("公钥", sig.PublicKeyRef).
-			WithDetail("原因", "内容与签名不匹配，可能已被篡改，或签名不是该公钥所签").
-			WithHint("联系组件发布者重新签名",
-				"确认 installer.publicKeys 中该 ref 指向的确实是发布者的公钥")
+		return invalid(i18n.T(msgid.SecuritySignatureInvalid)).
+			WithDetail(i18n.T(msgid.SecurityLabelPublicKey), sig.PublicKeyRef).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.SecurityMismatchDetail)).
+			WithHint(i18n.T(msgid.SecurityHintContactPublisher),
+				i18n.T(msgid.SecurityHintCheckRefIsPublisher))
 	}
 	return nil
 }
@@ -107,24 +109,23 @@ func Verify(payload []byte, sig Signature, ring *KeyRing) error {
 // lookupKey 在钥匙串里找公钥，并在找不到时把"该去哪儿配"讲清楚。
 func lookupKey(ref string, ring *KeyRing) (*ecdsa.PublicKey, error) {
 	if ring == nil || ring.Empty() {
-		return nil, invalid("错误：项目没有声明任何可信公钥，无法校验签名").
-			WithDetail("签名声明的公钥", ref).
+		return nil, invalid(i18n.T(msgid.SecurityNoTrustedKeys)).
+			WithDetail(i18n.T(msgid.SecurityLabelSignedByKey), ref).
 			WithHint(
-				"在 brickkit.yaml 的 installer.publicKeys 下声明发布者的公钥",
-				"或设置 installer.requireSignature: false 关闭校验（仅限本地开发）",
+				i18n.T(msgid.SecurityHintDeclarePublisherKey),
+				i18n.T(msgid.SecurityHintDisableVerification),
 			).
-			WithTip("公钥必须由你自己配置，不能跟着签名一起从市场取——" +
-				"否则市场被攻破时，攻击者把组件和公钥一起换掉，验签照样通过。")
+			WithTip(i18n.T(msgid.SecurityTipKeyMustBeYours))
 	}
 
 	key, ok := ring.Get(ref)
 	if !ok {
-		return nil, invalid("错误：签名使用的公钥不在项目的信任列表里").
-			WithDetail("签名声明的公钥", ref).
-			WithDetail("项目信任的公钥", strings.Join(ring.Refs(), "、")).
+		return nil, invalid(i18n.T(msgid.SecurityKeyNotTrusted)).
+			WithDetail(i18n.T(msgid.SecurityLabelSignedByKey), ref).
+			WithDetail(i18n.T(msgid.SecurityLabelTrustedKeys), strings.Join(ring.Refs(), i18n.T(msgid.ListSeparator))).
 			WithHint(
-				"确认这个组件的发布者是谁，拿到其公钥后加进 brickkit.yaml 的 installer.publicKeys",
-				"ref 必须与签名里的完全一致（含 keys/ 前缀）",
+				i18n.T(msgid.SecurityHintFindPublisherKey),
+				i18n.T(msgid.SecurityHintRefMustMatch),
 			)
 	}
 	return key, nil
@@ -153,16 +154,16 @@ func VerifyManifest(raw []byte, sig Signature, ring *KeyRing, componentID, versi
 		} `json:"metadata"`
 	}
 	if err := json.Unmarshal(payload, &doc); err != nil {
-		return withComponent(invalid("错误：签名覆盖的 Manifest 无法解析").WithCause(err),
+		return withComponent(invalid(i18n.T(msgid.SecuritySignedManifestUnparseable)).WithCause(err),
 			componentID, version)
 	}
 
 	if doc.Metadata.ID != componentID || doc.Metadata.Version != version {
 		return withComponent(
-			invalid("错误：签名有效，但签的不是这个组件版本").
-				WithDetailf("签名覆盖的是", "%s@%s", doc.Metadata.ID, doc.Metadata.Version).
-				WithHint("市场返回的内容与请求不一致，可能是市场配置错误或响应被替换",
-					"换一个安装源重试，并联系市场管理员核查"),
+			invalid(i18n.T(msgid.SecurityWrongVersionSigned)).
+				WithDetailf(i18n.T(msgid.SecurityLabelSignatureCovers), "%s@%s", doc.Metadata.ID, doc.Metadata.Version).
+				WithHint(i18n.T(msgid.SecurityHintMarketMismatch),
+					i18n.T(msgid.SecurityHintTryOtherSource)),
 			componentID, version)
 	}
 	return nil
@@ -179,12 +180,12 @@ func withComponent(err error, componentID, version string) error {
 	}
 
 	// 组件放在第一条：使用者最先要知道的是"哪个组件装不上"
-	details := append([]clierr.Detail{{Key: "组件", Value: componentID + "@" + version}}, cerr.Details...)
+	details := append([]clierr.Detail{{Key: i18n.T(msgid.LabelComponent), Value: componentID + "@" + version}}, cerr.Details...)
 	cerr.Details = details
 
 	// 各处的错误已经带了自己的建议，其中好几条本来就是"联系发布者重新签名"。
 	// 无条件再追加一遍，渲染出来就是同一句话出现两次——看着像程序出了毛病。
-	const contact = "联系组件发布者重新签名"
+	contact := i18n.T(msgid.SecurityHintContactPublisher)
 	for _, hint := range cerr.Hints {
 		if hint == contact {
 			return cerr

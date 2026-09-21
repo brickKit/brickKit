@@ -194,9 +194,9 @@ func TestAddRejectsTamperedManifest(t *testing.T) {
 	r := runIn(t, f.Dir, "add", original.ref())
 
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "签名校验不通过")
-	assert.Contains(t, r.stderr, "可能已被篡改")
-	assert.Equal(t, 1, strings.Count(r.stderr, "联系组件发布者重新签名"),
+	assert.Contains(t, r.stderr, "signature verification failed")
+	assert.Contains(t, r.stderr, "it may have been tampered with")
+	assert.Equal(t, 1, strings.Count(r.stderr, "Contact the component publisher to re-sign it"),
 		"同一句建议不该出现两次——看着像程序出了毛病")
 }
 
