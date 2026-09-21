@@ -349,7 +349,8 @@ func missingDependencyError(dependent, missing Ref, cause error) error {
 			// 还没转换成 i18n，它的 Detail.Key 现在不管当前语言是什么，
 			// 永远是这三个中文字面量。等 source.go 那一批做完，要把这里
 			// 一并改成 i18n.T(msgid.LabelComponent) 这种按当前语言比较的写法。
-			if d.Key == "组件" || d.Key == "原因" || d.Key == "要的版本" {
+			if d.Key == "组件" || d.Key == "原因" || d.Key == "要的版本" ||
+				d.Key == i18n.T(msgid.LabelComponent) || d.Key == i18n.T(msgid.LabelReason) {
 				continue
 			}
 			e = e.WithDetail(d.Key, d.Value)
@@ -409,11 +410,11 @@ func reasonOf(err error) string {
 		return ""
 	}
 	for _, d := range e.Details {
-		if d.Key == "原因" {
+		if d.Key == "原因" || d.Key == i18n.T(msgid.LabelReason) {
 			return d.Value
 		}
 	}
-	return strings.TrimPrefix(e.Message, "错误：")
+	return strings.TrimPrefix(strings.TrimPrefix(e.Message, "错误："), i18n.T(msgid.ErrorPrefix))
 }
 
 // CheckRunningResourceBindings 校验**本次会启动的**组件的资源依赖都已绑定

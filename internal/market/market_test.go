@@ -78,11 +78,11 @@ func TestAsCLIErrorMapsCodesToDistinctAdvice(t *testing.T) {
 		wantHint   string
 		unwantHint string
 	}{
-		{"COMPONENT_BLOCKED", 403, clierr.CodeComponentBlocked, "市场管理员", "brickkit login"},
+		{"COMPONENT_BLOCKED", 403, clierr.CodeComponentBlocked, "Market administrator", "brickkit login"},
 		{"UNAUTHORIZED", 401, clierr.CodeAuthRequired, "brickkit login", ""},
-		{"FORBIDDEN", 403, clierr.CodeAuthFailed, "所有者", ""},
-		{"VERSION_ALREADY_EXISTS", 409, clierr.CodeConfigConflict, "版本号", ""},
-		{"NOT_FOUND", 404, clierr.CodeComponentNotFound, "组件 ID", ""},
+		{"FORBIDDEN", 403, clierr.CodeAuthFailed, "owner", ""},
+		{"VERSION_ALREADY_EXISTS", 409, clierr.CodeConfigConflict, "version number", ""},
+		{"NOT_FOUND", 404, clierr.CodeComponentNotFound, "component ID", ""},
 	}
 
 	for _, c := range cases {
@@ -117,14 +117,14 @@ func TestAsCLIErrorFallsBackWithAction(t *testing.T) {
 func TestAsCLIErrorSuggestsRetryOnServerError(t *testing.T) {
 	err := market.AsCLIError("发布组件", &market.APIError{Status: 503, Message: "服务不可用"})
 
-	assert.Contains(t, err.Format(), "稍后重试")
+	assert.Contains(t, err.Format(), "retry later")
 }
 
 // 市场没给 message 时也要有一句能看的说明。
 func TestAsCLIErrorUsesFallbackMessage(t *testing.T) {
 	err := market.AsCLIError("发布组件", &market.APIError{Code: "UNAUTHORIZED", Status: 401})
 
-	assert.Contains(t, err.Format(), "市场认证失败")
+	assert.Contains(t, err.Format(), "Market authentication failed")
 }
 
 // details 是校验类错误里唯一有价值的部分，必须显示出来。
@@ -182,7 +182,7 @@ func TestLoginWithoutTokenIsAnError(t *testing.T) {
 	_, err := market.New(server.URL, "").Login(context.Background(), "zhangsan", "pw")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "访问令牌")
+	assert.Contains(t, err.Error(), "access token")
 }
 
 // 地址指错了地方（比如指到一个返回 HTML 的站点）要说清楚。
@@ -285,7 +285,7 @@ func TestListArtifactsRejectsUnparsableBody(t *testing.T) {
 		ListArtifacts(context.Background(), "people/basic", "1.0.0")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "格式不符")
+	assert.Contains(t, err.Error(), "unexpected format")
 }
 
 // 市场不可达时要说"不可达"，并去掉 net/http 那串冗长的 URL 前缀。
@@ -297,7 +297,7 @@ func TestUnreachableMarket(t *testing.T) {
 	e := clierr.As(err)
 	require.NotNil(t, e)
 	assert.Equal(t, clierr.CodeNetworkUnreachable, e.Code)
-	assert.Contains(t, e.Format(), "市场不可达")
+	assert.Contains(t, e.Format(), "Market unreachable")
 	assert.NotContains(t, e.Format(), "原因：Post \"http", "错误里不该重复整条 URL")
 }
 

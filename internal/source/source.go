@@ -27,7 +27,9 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/security"
 )
 
@@ -741,9 +743,12 @@ func reasonOf(err error) string {
 		return "所有安装源中都没有该产物文件"
 	}
 	e := clierr.As(err)
-	title := strings.TrimPrefix(e.Message, "错误：")
+	// 过渡期（子项目 2 迁移期间）：err 可能来自还没转换的包（中文字面量），
+	// 也可能来自已转换的包（当前语言的文案），所以两种写法都认。source 自己
+	// 转换完之后，中文字面量那一支可以去掉。
+	title := strings.TrimPrefix(strings.TrimPrefix(e.Message, "错误："), i18n.T(msgid.ErrorPrefix))
 	for _, d := range e.Details {
-		if d.Key == "原因" {
+		if d.Key == "原因" || d.Key == i18n.T(msgid.LabelReason) {
 			return title + "：" + d.Value
 		}
 	}

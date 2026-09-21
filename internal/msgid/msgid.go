@@ -27,6 +27,11 @@ const (
 	LabelRepo      = "label.repo"
 	LabelResource  = "label.resource"
 
+	// ErrorPrefix 是"错误："/"Error: "这个前缀本身，只给"错误标题里要拼进一段
+	// 运行时才知道的原文"的场景用（比如把市场服务端返回的 message 接在它后面）。
+	// 标题全是固定文案的错误，照旧把前缀直接写进那一条目录文案里，不拼这个 key。
+	ErrorPrefix = "prefix.error"
+
 	// ListSeparator 是拼接一串名字（组件 ID、配置项……）时用的分隔符。
 	// 中文习惯用"、"，英文习惯用", "——这跟明细行的"："一样，是标点本身
 	// 随语言变化，不是随便哪句话里的字面量，所以放进共享 key 里。
@@ -44,13 +49,13 @@ const (
 	ProjectMissingHintConfig = "project.missing.hint.config"
 
 	// internal/cli/lang.go
-	LangCmdShort        = "lang.cmd.short"
-	LangSetCmdShort     = "lang.set_cmd.short"
-	LangCurrentLine     = "lang.current_line"
-	LangSourceEnv       = "lang.source.env"
-	LangSourceConfig    = "lang.source.config"
-	LangSourceDefault   = "lang.source.default"
-	LangSetSuccess      = "lang.set.success"
-	LangSetWriteFailed  = "lang.set.write_failed"
-	LangInvalidValue    = "lang.invalid_value"
+	LangCmdShort       = "lang.cmd.short"
+	LangSetCmdShort    = "lang.set_cmd.short"
+	LangCurrentLine    = "lang.current_line"
+	LangSourceEnv      = "lang.source.env"
+	LangSourceConfig   = "lang.source.config"
+	LangSourceDefault  = "lang.source.default"
+	LangSetSuccess     = "lang.set.success"
+	LangSetWriteFailed = "lang.set.write_failed"
+	LangInvalidValue   = "lang.invalid_value"
 )

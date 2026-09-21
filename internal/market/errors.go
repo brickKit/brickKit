@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // APIError 是市场错误信封里的 error 对象（007 §9）。
@@ -77,9 +79,9 @@ func fallbackMessage(status int, body []byte) string {
 		text = text[:200] + "…"
 	}
 	if text == "" {
-		return fmt.Sprintf("市场返回状态码 %d", status)
+		return i18n.T(msgid.MarketStatusOnly, status)
 	}
-	return fmt.Sprintf("市场返回状态码 %d：%s", status, text)
+	return i18n.T(msgid.MarketStatusWithBody, status, text)
 }
 
 // AsCLIError 把市场错误翻译成面向使用者的 CLI 错误。
@@ -89,35 +91,35 @@ func fallbackMessage(status int, body []byte) string {
 func AsCLIError(action string, apiErr *APIError) *clierr.Error {
 	switch apiErr.Code {
 	case CodeComponentBlocked:
-		return clierr.New(clierr.CodeComponentBlocked, "错误："+message(apiErr, "该组件版本已被市场下架")).
+		return clierr.New(clierr.CodeComponentBlocked, i18n.T(msgid.ErrorPrefix)+message(apiErr, i18n.T(msgid.MarketFallbackBlocked))).
 			WithHint(
-				"该版本已被市场管理员下架，不能再安装",
-				"请改用其他版本，或联系市场管理员了解原因",
+				i18n.T(msgid.MarketHintBlockedNoInstall),
+				i18n.T(msgid.MarketHintBlockedPickAnother),
 			)
 
 	case CodeUnauthorized:
-		return clierr.New(clierr.CodeAuthRequired, "错误："+message(apiErr, "市场认证失败")).
-			WithHint("执行 brickkit login 登录市场", "或在 brickkit.yaml 中配置 sources.authToken")
+		return clierr.New(clierr.CodeAuthRequired, i18n.T(msgid.ErrorPrefix)+message(apiErr, i18n.T(msgid.MarketFallbackUnauthorized))).
+			WithHint(i18n.T(msgid.MarketHintLogin), i18n.T(msgid.MarketHintSetAuthToken))
 
 	case CodeForbidden:
-		return clierr.New(clierr.CodeAuthFailed, "错误："+message(apiErr, "无权执行该操作")).
-			WithHint("确认当前账号是否是该组件的所有者", "私有组件需要所有者授权后才能访问")
+		return clierr.New(clierr.CodeAuthFailed, i18n.T(msgid.ErrorPrefix)+message(apiErr, i18n.T(msgid.MarketFallbackForbidden))).
+			WithHint(i18n.T(msgid.MarketHintCheckOwner), i18n.T(msgid.MarketHintPrivateNeedsGrant))
 
 	case CodeVersionExists:
-		return clierr.New(clierr.CodeConfigConflict, "错误："+message(apiErr, "该版本已存在")).
-			WithHint("版本号一旦发布就不可重用，请改用新的版本号")
+		return clierr.New(clierr.CodeConfigConflict, i18n.T(msgid.ErrorPrefix)+message(apiErr, i18n.T(msgid.MarketFallbackVersionExists))).
+			WithHint(i18n.T(msgid.MarketHintVersionNotReusable))
 
 	case CodeNotFound:
-		return clierr.New(clierr.CodeComponentNotFound, "错误："+message(apiErr, "市场上没有该资源")).
-			WithHint("确认组件 ID 与版本号是否正确")
+		return clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.ErrorPrefix)+message(apiErr, i18n.T(msgid.MarketFallbackNotFound))).
+			WithHint(i18n.T(msgid.MarketHintCheckIDAndVersion))
 	}
 
-	err := clierr.New(clierr.CodeNetworkUnreachable, "错误："+action+"失败").
-		WithDetail("原因", message(apiErr, "市场未说明原因"))
+	err := clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.MarketActionFailed, action)).
+		WithDetail(i18n.T(msgid.LabelReason), message(apiErr, i18n.T(msgid.MarketFallbackNoReason)))
 	if apiErr.Status >= 500 {
-		return err.WithHint("市场服务端异常，稍后重试或联系市场管理员")
+		return err.WithHint(i18n.T(msgid.MarketHintServerFault))
 	}
-	return err.WithHint("请按上面的原因调整后重试")
+	return err.WithHint(i18n.T(msgid.MarketHintFixReasonAndRetry))
 }
 
 // WithDetails 把市场返回的 details 逐条挂到错误上。
@@ -165,7 +167,7 @@ func describe(value any) string {
 		for _, item := range v {
 			parts = append(parts, describe(item))
 		}
-		return strings.Join(parts, "；")
+		return strings.Join(parts, i18n.T(msgid.MarketDescribeJoin))
 	case map[string]any:
 		parts := make([]string, 0, len(v))
 		for _, key := range sortedKeys(v) {
@@ -179,10 +181,10 @@ func describe(value any) string {
 
 // unreachable 构造"市场不可达"错误。
 func unreachable(endpoint string, cause error) *clierr.Error {
-	return clierr.New(clierr.CodeNetworkUnreachable, "错误：市场不可达").
-		WithDetail("地址", endpoint).
-		WithDetail("原因", networkReason(cause)).
-		WithHint("检查网络连接与市场地址是否正确").
+	return clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.MarketUnreachable)).
+		WithDetail(i18n.T(msgid.LabelAddress), endpoint).
+		WithDetail(i18n.T(msgid.LabelReason), networkReason(cause)).
+		WithHint(i18n.T(msgid.MarketHintCheckNetworkAndURL)).
 		WithCause(cause)
 }
 

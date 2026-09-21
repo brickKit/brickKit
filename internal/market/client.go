@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/security"
 )
 
@@ -45,7 +47,7 @@ type LoginResult struct {
 // Login 用用户名密码换取访问令牌（007 §9.6）。
 func (c *Client) Login(ctx context.Context, username, password string) (*LoginResult, error) {
 	body, err := c.do(ctx, http.MethodPost, "/auth/login", nil,
-		jsonBody(map[string]string{"username": username, "password": password}), "登录市场")
+		jsonBody(map[string]string{"username": username, "password": password}), i18n.T(msgid.MarketActionLogin))
 	if err != nil {
 		return nil, err
 	}
@@ -55,8 +57,8 @@ func (c *Client) Login(ctx context.Context, username, password string) (*LoginRe
 		return nil, err
 	}
 	if result.Token == "" {
-		return nil, clierr.New(clierr.CodeAuthFailed, "错误：市场没有返回访问令牌").
-			WithHint("确认市场服务版本是否兼容")
+		return nil, clierr.New(clierr.CodeAuthFailed, i18n.T(msgid.MarketNoToken)).
+			WithHint(i18n.T(msgid.MarketHintCheckMarketVersion))
 	}
 	return &result, nil
 }
@@ -65,7 +67,7 @@ func (c *Client) Login(ctx context.Context, username, password string) (*LoginRe
 //
 // 重复注销是幂等的（市场侧保证），所以本地凭据已经删了、再调一次也没关系。
 func (c *Client) Logout(ctx context.Context) error {
-	_, err := c.do(ctx, http.MethodPost, "/auth/logout", nil, nil, "退出登录")
+	_, err := c.do(ctx, http.MethodPost, "/auth/logout", nil, nil, i18n.T(msgid.MarketActionLogout))
 	return err
 }
 
@@ -91,7 +93,7 @@ type Artifact struct {
 
 // CreateVersion 建一个版本（发布三步中的第一步）。
 func (c *Client) CreateVersion(ctx context.Context, componentID string, req PublishRequest) error {
-	_, err := c.do(ctx, http.MethodPost, versionsPath(componentID), nil, jsonBody(req), "发布组件版本")
+	_, err := c.do(ctx, http.MethodPost, versionsPath(componentID), nil, jsonBody(req), i18n.T(msgid.MarketActionPublishVersion))
 	return err
 }
 
@@ -106,7 +108,7 @@ type VersionInfo struct {
 // publish 撞上 VERSION_EXISTS 时靠它分辨两种完全不同的情况：上一次没发完留下的
 // draft（可以续传），还是真的已经发布过了（只能换版本号）。
 func (c *Client) FindVersion(ctx context.Context, componentID, version string) (*VersionInfo, error) {
-	body, err := c.do(ctx, http.MethodGet, versionsPath(componentID), nil, nil, "查询版本列表")
+	body, err := c.do(ctx, http.MethodGet, versionsPath(componentID), nil, nil, i18n.T(msgid.MarketActionListVersions))
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +131,7 @@ func (c *Client) FindVersion(ctx context.Context, componentID, version string) (
 // 组件改过之后闷头续传，会把旧 Manifest 配上新产物发出去。
 func (c *Client) FetchManifest(ctx context.Context, componentID, version string) (json.RawMessage, error) {
 	body, err := c.do(ctx, http.MethodGet,
-		versionPath(componentID, version)+"/manifest", nil, nil, "获取已登记的 Manifest")
+		versionPath(componentID, version)+"/manifest", nil, nil, i18n.T(msgid.MarketActionFetchManifest))
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +147,7 @@ func (c *Client) FetchManifest(ctx context.Context, componentID, version string)
 // ListArtifacts 取该版本已登记的产物，用来知道每个文件该往哪个 artifactId 上传。
 func (c *Client) ListArtifacts(ctx context.Context, componentID, version string) ([]Artifact, error) {
 	body, err := c.do(ctx, http.MethodGet,
-		versionPath(componentID, version)+"/artifacts", nil, nil, "查询产物列表")
+		versionPath(componentID, version)+"/artifacts", nil, nil, i18n.T(msgid.MarketActionListArtifacts))
 	if err != nil {
 		return nil, err
 	}
@@ -164,21 +166,21 @@ func (c *Client) UploadArtifact(
 	_, err := c.do(ctx, http.MethodPost,
 		versionPath(componentID, version)+"/artifacts/"+artifactID+"/upload",
 		url.Values{"file": []string{file}},
-		bytes.NewReader(content), "上传产物 "+file)
+		bytes.NewReader(content), i18n.T(msgid.MarketActionUploadArtifact, file))
 	return err
 }
 
 // SetVersionStatus 变更版本状态（发布三步中的最后一步：draft → stable）。
 func (c *Client) SetVersionStatus(ctx context.Context, componentID, version, status string) error {
 	_, err := c.do(ctx, http.MethodPut, versionPath(componentID, version), nil,
-		jsonBody(map[string]string{"status": status}), "设置版本状态")
+		jsonBody(map[string]string{"status": status}), i18n.T(msgid.MarketActionSetStatus))
 	return err
 }
 
 // SetVisibility 设置组件可见性（007 §9.4）。
 func (c *Client) SetVisibility(ctx context.Context, componentID, visibility string) error {
 	_, err := c.do(ctx, http.MethodPut, "/components/"+componentID+"/visibility", nil,
-		jsonBody(map[string]string{"visibility": visibility}), "设置可见性")
+		jsonBody(map[string]string{"visibility": visibility}), i18n.T(msgid.MarketActionSetVisibility))
 	return err
 }
 
@@ -200,9 +202,9 @@ func (c *Client) do(
 
 	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
 	if err != nil {
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：市场地址不合法").
-			WithDetail("地址", endpoint).
-			WithHint("检查 brickkit.yaml → sources 中的市场地址，或 --market 参数").
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.MarketBadURL)).
+			WithDetail(i18n.T(msgid.LabelAddress), endpoint).
+			WithHint(i18n.T(msgid.MarketHintCheckMarketURL)).
 			WithCause(err)
 	}
 	if body != nil {
@@ -224,10 +226,10 @@ func (c *Client) do(
 		return nil, WithDetails(AsCLIError(action, apiErr), apiErr)
 	}
 	if readErr != nil {
-		return nil, clierr.New(clierr.CodeNetworkUnreachable, "错误：读取市场响应失败").
-			WithDetail("地址", endpoint).
-			WithDetail("原因", readErr.Error()).
-			WithHint("检查网络连接后重试").
+		return nil, clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.MarketReadResponseFailed)).
+			WithDetail(i18n.T(msgid.LabelAddress), endpoint).
+			WithDetail(i18n.T(msgid.LabelReason), readErr.Error()).
+			WithHint(i18n.T(msgid.MarketHintCheckNetworkRetry)).
 			WithCause(readErr)
 	}
 	return raw, nil
@@ -246,18 +248,18 @@ func decodeData(body []byte, target any) error {
 		if json.Unmarshal(body, target) == nil {
 			return nil
 		}
-		return clierr.New(clierr.CodeNetworkUnreachable, "错误：市场返回的内容无法解析").
-			WithDetail("原因", err.Error()).
-			WithHint("确认市场地址是否指向 BrickKit Market 的 /api/v1").
+		return clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.MarketBodyUnparseable)).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.MarketHintCheckAPIBase)).
 			WithCause(err)
 	}
 	if len(envelope.Data) > 0 {
 		payload = envelope.Data
 	}
 	if err := json.Unmarshal(payload, target); err != nil {
-		return clierr.New(clierr.CodeNetworkUnreachable, "错误：市场返回的内容格式不符").
-			WithDetail("原因", err.Error()).
-			WithHint("确认市场服务版本是否兼容").
+		return clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.MarketBodyShapeMismatch)).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.MarketHintCheckMarketVersion)).
 			WithCause(err)
 	}
 	return nil
