@@ -170,7 +170,7 @@ func TestAddWithoutVersionOnBrokenComponent(t *testing.T) {
 	r := runIn(t, f.Dir, "add", "demo/broken")
 	assert.NotEqual(t, clierr.ExitOK, r.code)
 	assert.Contains(t, r.stderr, "latest", "要点出那个非法的版本号")
-	assert.NotContains(t, r.stderr, "该组件在所有安装源中均未找到",
+	assert.NotContains(t, r.stderr, "not found in any install source",
 		"组件就在那儿，不该说找不到")
 }
 

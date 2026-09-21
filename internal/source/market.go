@@ -14,8 +14,10 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/market"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/security"
 )
 
@@ -250,10 +252,10 @@ func (s *marketSource) get(ctx context.Context, path string, query url.Values) (
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：市场安装源地址不合法").
-			WithDetail("安装源", s.sourceID).
-			WithDetail("地址", endpoint).
-			WithHint("检查 brickkit.yaml → sources 中该安装源的 url").
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SourceMarketURLInvalid)).
+			WithDetail(i18n.T(msgid.LabelSource), s.sourceID).
+			WithDetail(i18n.T(msgid.LabelAddress), endpoint).
+			WithHint(i18n.T(msgid.SourceHintCheckSourceURL)).
 			WithCause(err)
 	}
 	token, err := s.resolveToken()
@@ -266,13 +268,13 @@ func (s *marketSource) get(ctx context.Context, path string, query url.Values) (
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, clierr.New(clierr.CodeNetworkUnreachable, "错误：市场不可达").
-			WithDetail("安装源", s.sourceID).
-			WithDetail("地址", endpoint).
-			WithDetail("原因", networkReason(err)).
+		return nil, clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.SourceMarketUnreachable)).
+			WithDetail(i18n.T(msgid.LabelSource), s.sourceID).
+			WithDetail(i18n.T(msgid.LabelAddress), endpoint).
+			WithDetail(i18n.T(msgid.LabelReason), networkReason(err)).
 			WithHint(
-				"检查网络连接与市场地址是否正确",
-				"或改用本地安装源（sources 中 type: local）离线安装",
+				i18n.T(msgid.SourceHintCheckNetworkAndMarketURL),
+				i18n.T(msgid.SourceHintUseLocalSource),
 			).WithCause(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -286,15 +288,15 @@ func (s *marketSource) get(ctx context.Context, path string, query url.Values) (
 		// 只看状态码会把"版本已被下架"（403）说成"认证失败，请登录"，
 		// 把使用者引到完全错误的方向上去。
 		apiErr := market.DecodeError(resp.StatusCode, body)
-		return nil, market.AsCLIError("访问市场", apiErr).
-			WithDetail("安装源", s.sourceID).
-			WithDetail("地址", endpoint)
+		return nil, market.AsCLIError(i18n.T(msgid.MarketActionAccess), apiErr).
+			WithDetail(i18n.T(msgid.LabelSource), s.sourceID).
+			WithDetail(i18n.T(msgid.LabelAddress), endpoint)
 	case readErr != nil:
-		return nil, clierr.New(clierr.CodeNetworkUnreachable, "错误：读取市场响应失败").
-			WithDetail("安装源", s.sourceID).
-			WithDetail("地址", endpoint).
-			WithDetail("原因", readErr.Error()).
-			WithHint("检查网络连接后重试").
+		return nil, clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.SourceMarketReadFailed)).
+			WithDetail(i18n.T(msgid.LabelSource), s.sourceID).
+			WithDetail(i18n.T(msgid.LabelAddress), endpoint).
+			WithDetail(i18n.T(msgid.LabelReason), readErr.Error()).
+			WithHint(i18n.T(msgid.SourceHintCheckNetworkRetry)).
 			WithCause(readErr)
 	}
 	return body, nil
@@ -311,9 +313,9 @@ func (s *marketSource) resolveToken() (string, error) {
 		}
 		if creds != nil && creds.Token != "" && creds.MatchesMarket(s.baseURL) {
 			if creds.Expired(s.now()) {
-				s.tokenErr = clierr.New(clierr.CodeTokenExpired, "错误：Token 已过期").
-					WithDetail("过期时间", creds.ExpiresAt.Format(time.RFC3339)).
-					WithHint("重新执行 brickkit login 登录市场")
+				s.tokenErr = clierr.New(clierr.CodeTokenExpired, i18n.T(msgid.SourceTokenExpired)).
+					WithDetail(i18n.T(msgid.SourceLabelExpiresAt), creds.ExpiresAt.Format(time.RFC3339)).
+					WithHint(i18n.T(msgid.SourceHintLoginAgain))
 				return
 			}
 			s.token = creds.Token
@@ -344,10 +346,10 @@ func manifestFromBody(body []byte, sourceID string) ([]byte, error) {
 		return body, nil
 	}
 	if success, ok := envelope["success"].(bool); ok && !success {
-		return nil, clierr.New(clierr.CodeComponentNotFound, "错误：市场返回失败").
-			WithDetail("安装源", sourceID).
-			WithDetail("原因", envelopeError(envelope)).
-			WithHint("确认组件 ID 与版本号是否正确")
+		return nil, clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.SourceMarketResponseFailed)).
+			WithDetail(i18n.T(msgid.LabelSource), sourceID).
+			WithDetail(i18n.T(msgid.LabelReason), envelopeError(envelope)).
+			WithHint(i18n.T(msgid.MarketHintCheckIDAndVersion))
 	}
 
 	doc := any(envelope)
@@ -360,16 +362,16 @@ func manifestFromBody(body []byte, sourceID string) ([]byte, error) {
 		}
 	}
 	if doc == nil {
-		return nil, clierr.New(clierr.CodeManifestInvalid, "错误：市场返回的 Manifest 为空").
-			WithDetail("安装源", sourceID).
-			WithHint("确认市场服务是否正常")
+		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.SourceMarketManifestEmpty)).
+			WithDetail(i18n.T(msgid.LabelSource), sourceID).
+			WithHint(i18n.T(msgid.SourceHintCheckMarketHealthy))
 	}
 
 	out, err := yaml.Marshal(doc)
 	if err != nil {
-		return nil, clierr.New(clierr.CodeManifestInvalid, "错误：市场返回的 Manifest 无法解析").
-			WithDetail("安装源", sourceID).
-			WithDetail("原因", err.Error()).
+		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.SourceMarketManifestUnparseable)).
+			WithDetail(i18n.T(msgid.LabelSource), sourceID).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
 			WithCause(err)
 	}
 	return out, nil
@@ -388,10 +390,10 @@ func decodeArtifactList(body []byte, sourceID string) ([]marketArtifact, error) 
 		Error   json.RawMessage  `json:"error"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		return nil, clierr.New(clierr.CodeNetworkUnreachable, "错误：市场返回的产物列表无法解析").
-			WithDetail("安装源", sourceID).
-			WithDetail("原因", err.Error()).
-			WithHint("确认市场服务版本是否兼容").
+		return nil, clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.SourceMarketArtifactsUnparseable)).
+			WithDetail(i18n.T(msgid.LabelSource), sourceID).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.SourceHintCheckMarketVersion)).
 			WithCause(err)
 	}
 	return envelope.Data, nil
@@ -409,10 +411,10 @@ func decodeVersionList(body []byte, sourceID string) ([]marketVersion, error) {
 		Data []marketVersion `json:"data"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		return nil, clierr.New(clierr.CodeNetworkUnreachable, "错误：市场返回的版本列表无法解析").
-			WithDetail("安装源", sourceID).
-			WithDetail("原因", err.Error()).
-			WithHint("确认市场服务版本是否兼容").
+		return nil, clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.SourceMarketVersionsUnparseable)).
+			WithDetail(i18n.T(msgid.LabelSource), sourceID).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.SourceHintCheckMarketVersion)).
 			WithCause(err)
 	}
 	return envelope.Data, nil
@@ -445,7 +447,7 @@ func envelopeError(envelope map[string]any) string {
 	if msg, ok := envelope["message"].(string); ok && msg != "" {
 		return msg
 	}
-	return "市场未说明原因"
+	return i18n.T(msgid.MarketFallbackNoReason)
 }
 
 // networkReason 去掉 http.Client 错误里冗长的 URL 前缀，只保留根因。

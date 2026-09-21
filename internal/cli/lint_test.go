@@ -111,7 +111,7 @@ func TestLintMissingLocalSourceDirectoryIsReported(t *testing.T) {
 
 	r := runIn(t, f.Dir, "lint")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stdout, "本地安装源路径不存在")
+	assert.Contains(t, r.stdout, "the local install source path does not exist")
 }
 
 // 枚举遇到第一个出错的源就整体失败，别的本地源里的组件因此一份也没查，汇总里的文件数
@@ -135,7 +135,7 @@ func TestLintBrokenLocalSourceSaysTheOthersWereSkipped(t *testing.T) {
 
 			r := runIn(t, f.Dir, "lint")
 			assert.Equal(t, clierr.ExitError, r.code)
-			assert.Contains(t, r.stdout, "本地安装源路径不存在")
+			assert.Contains(t, r.stdout, "the local install source path does not exist")
 			assert.Contains(t, r.stdout, "ℹ️ 本地安装源枚举失败，已跳过本地组件的 component.yaml")
 			assert.NotContains(t, r.stdout, "dependancies", "好源里的组件没被检查")
 			assert.Contains(t, r.stdout, "检查了 1 个文件：1 个有错误，0 条警告")

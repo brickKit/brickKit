@@ -74,3 +74,9 @@ const (
 	ActionMkdir         = "action.mkdir"
 	ActionWriteFile     = "action.write_file"
 )
+
+// 跨包共享（改名自各包私有的同文案 key）
+const (
+	InvalidComponentID    = "invalid_component_id"
+	HintComponentIDFormat = "hint.component_id_format"
+)

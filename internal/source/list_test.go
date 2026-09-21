@@ -227,7 +227,7 @@ func TestLatestVersionReportsBrokenManifest(t *testing.T) {
 	require.Error(t, err)
 	text := clierr.As(err).Format()
 	assert.Contains(t, text, "latest", "要点出那个非法的版本号")
-	assert.NotContains(t, text, "该组件在所有安装源中均未找到",
+	assert.NotContains(t, text, "not found in any install source",
 		"组件就在那儿，不该说找不到")
 }
 
@@ -259,7 +259,7 @@ func TestLocalComponentsReportsMissingRoot(t *testing.T) {
 	_, err := c.LocalComponents(context.Background())
 	require.Error(t, err)
 	text := clierr.As(err).Format()
-	assert.Contains(t, text, "本地安装源路径不存在")
+	assert.Contains(t, text, "the local install source path does not exist")
 	assert.Contains(t, text, "local-dev")
 }
 
@@ -390,7 +390,7 @@ func TestLocalManifestFilesReportsMissingRoot(t *testing.T) {
 	_, err := newClient(t, layout, cfg, Options{}).LocalManifestFiles()
 	require.Error(t, err)
 	assert.Equal(t, clierr.CodeConfigInvalid, clierr.As(err).Code)
-	assert.Contains(t, clierr.As(err).Message, "本地安装源路径不存在")
+	assert.Contains(t, clierr.As(err).Message, "the local install source path does not exist")
 }
 
 // lint 靠它保证"纯只读"：调用前后，项目目录下没有多出任何文件（尤其是 .brickkit/manifests）。

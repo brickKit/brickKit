@@ -80,7 +80,7 @@ func TestComponentNotFoundInAnySource(t *testing.T) {
 	assert.Equal(t, clierr.CodeComponentNotFound, e.Code)
 	out := e.Format()
 	assert.Contains(t, out, "people/basic@1.0.0")
-	assert.Contains(t, out, "所有安装源", "对齐 004 §10.2：该组件在所有安装源中均未找到")
+	assert.Contains(t, out, "any install source", "对齐 004 §10.2：该组件在所有安装源中均未找到")
 	assert.Contains(t, out, "local-dev", "应列出已尝试的安装源")
 }
 
@@ -238,7 +238,7 @@ func TestMarketSourceUnreachable(t *testing.T) {
 	assert.Equal(t, clierr.CodeNetworkUnreachable, e.Code)
 	out := e.Format()
 	assert.Contains(t, out, "brickkit-market")
-	assert.Contains(t, out, "网络", "004 §10.1：网络错误应建议检查网络")
+	assert.Contains(t, out, "network", "004 §10.1：网络错误应建议检查网络")
 }
 
 // 市场返回 401 时，提示登录（004 §10.2 未登录市场）。
@@ -882,5 +882,5 @@ func TestSourceWithoutComponentStillSaysNotFound(t *testing.T) {
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
 
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "该组件在所有安装源中均未找到")
+	assert.Contains(t, clierr.As(err).Format(), "The component was not found in any install source")
 }

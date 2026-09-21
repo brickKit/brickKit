@@ -189,9 +189,9 @@ func (c *Client) newFetcher(s config.Source) (fetcher, error) {
 			now:             c.opts.Now,
 		}, nil
 	default:
-		return nil, clierr.Newf(clierr.CodeConfigInvalid, "错误：安装源类型不合法：%s", s.Type).
-			WithDetail("安装源", s.ID).
-			WithHint("type 必须是 market、git 或 local 之一")
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SourceTypeInvalid, s.Type)).
+			WithDetail(i18n.T(msgid.LabelSource), s.ID).
+			WithHint(i18n.T(msgid.SourceHintTypeOneOf))
 	}
 }
 
@@ -245,10 +245,10 @@ func (c *Client) Manifest(ctx context.Context, id, version string) (*Fetched, er
 	}
 
 	if err := writeFileAll(cachePath, raw); err != nil {
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：写入 Manifest 缓存失败").
-			WithDetail("路径", cachePath).
-			WithDetail("原因", err.Error()).
-			WithHint("检查 .brickkit/manifests/ 目录权限").
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SourceCacheWriteFailed)).
+			WithDetail(i18n.T(msgid.LabelPath), cachePath).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.SourceHintCheckCachePermissions)).
 			WithCause(err)
 	}
 	c.writeCachedSignature(id, version, kind, sig)
@@ -427,7 +427,7 @@ func (c *Client) ArtifactDir(id, version string) string {
 // 单个文件下载失败只记入 Warnings，不阻断（004 §10.1：产物是开发时辅助）。
 func (c *Client) DownloadArtifacts(ctx context.Context, m *manifest.Manifest) (*ArtifactResult, error) {
 	if m == nil {
-		return nil, clierr.New(clierr.CodeInternal, "错误：未提供 Manifest")
+		return nil, clierr.New(clierr.CodeInternal, i18n.T(msgid.SourceNoManifest))
 	}
 	id, version := m.Metadata.ID, m.Metadata.Version
 	if err := checkRef(id, version); err != nil {
@@ -447,7 +447,7 @@ func (c *Client) DownloadArtifacts(ctx context.Context, m *manifest.Manifest) (*
 			if !withinDir(base, dest) {
 				// Manifest 校验已禁止越界路径（002 §2.3），这里是纵深防御（008）。
 				res.Warnings = append(res.Warnings, artifactWarning(id, version, art.Type, file,
-					"产物路径越出组件的产物目录"))
+					i18n.T(msgid.SourceArtifactEscapes)))
 				continue
 			}
 			if useCache {
@@ -603,9 +603,9 @@ func (c *Client) aggregateError(
 		return err
 	}
 	return c.notFoundError(id+"@"+version, failures,
-		"检查安装源配置（brickkit.yaml → sources）",
-		"确认组件是否已发布到市场",
-		"确认版本号是否正确",
+		i18n.T(msgid.SourceHintCheckSourcesConfig),
+		i18n.T(msgid.SourceHintCheckPublished),
+		i18n.T(msgid.SourceHintCheckVersion),
 	)
 }
 
@@ -628,16 +628,15 @@ func versionMismatchError(id, version string, mismatches []versionMismatch) erro
 		return nil
 	}
 
-	e := clierr.New(clierr.CodeComponentNotFound, "错误：安装源里有这个组件，但版本不是要的那个").
-		WithDetail("要的版本", id+"@"+version)
+	e := clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.SourceVersionMismatch)).
+		WithDetail(i18n.T(msgid.SourceLabelWantedVersion), id+"@"+version)
 	for _, m := range mismatches {
-		e = e.WithDetailf("安装源 "+m.sourceID+"（"+m.kind+"）", "这里是 %s", m.found)
+		e = e.WithDetail(i18n.T(msgid.SourceLabelSourceKind, m.sourceID, m.kind), i18n.T(msgid.SourceFoundVersion, m.found))
 	}
 	return e.WithHint(
-		"本地安装源一个组件目录只放得下一个版本——"+
-			"要的那个版本只可能在 .brickkit/manifests/ 缓存里，而缓存是可以被删掉的",
-		"要让依赖 "+id+"@"+version+" 的组件继续跑，把它的依赖改到源里那个版本并适配",
-		"或者把安装源里那份 component.yaml 改回 "+version+"（新版本改从别处装）",
+		i18n.T(msgid.SourceHintSingleVersionPerDir),
+		i18n.T(msgid.SourceHintAdaptDependents, id, version),
+		i18n.T(msgid.SourceHintRevertSourceVersion, version),
 	)
 }
 
@@ -652,12 +651,12 @@ func (c *Client) notFoundError(ref string, failures []failure, hints ...string) 
 
 	tried := make([]string, 0, len(c.fetchers))
 	for _, f := range c.fetchers {
-		tried = append(tried, f.id()+"（"+f.kind()+"）")
+		tried = append(tried, i18n.T(msgid.SourceIDWithKind, f.id(), f.kind()))
 	}
-	return clierr.New(clierr.CodeComponentNotFound, "错误：组件未找到").
-		WithDetail("组件", ref).
-		WithDetail("原因", "该组件在所有安装源中均未找到").
-		WithDetail("已尝试的安装源", strings.Join(tried, "、")).
+	return clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.SourceNotFound)).
+		WithDetail(i18n.T(msgid.LabelComponent), ref).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.SourceNotFoundReasonDetail)).
+		WithDetail(i18n.T(msgid.SourceLabelTriedSources), strings.Join(tried, i18n.T(msgid.ListSeparator))).
 		WithHint(hints...)
 }
 
@@ -673,32 +672,32 @@ func firstRealError(failures []failure, ref string) error {
 		}
 		e := clierr.As(f.err)
 		dup := *e
-		dup.Details = append(append([]clierr.Detail{}, e.Details...), clierr.Detail{Key: "组件", Value: ref})
+		dup.Details = append(append([]clierr.Detail{}, e.Details...), clierr.Detail{Key: i18n.T(msgid.LabelComponent), Value: ref})
 		return &dup
 	}
 	return nil
 }
 
 func noSourcesError() error {
-	return clierr.New(clierr.CodeConfigInvalid, "错误：没有可用的安装源").
-		WithDetail("原因", "brickkit.yaml 中未配置 sources，或全部 sources 都是 enabled: false").
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SourceNoSources)).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.SourceNoSourcesReasonDetail)).
 		WithHint(
-			"在 brickkit.yaml → sources 中配置至少一个安装源",
-			"本地开发可用 type: local 指向 ./components",
+			i18n.T(msgid.SourceHintConfigureSource),
+			i18n.T(msgid.SourceHintLocalDevSource),
 		)
 }
 
 // checkRef 校验组件引用。ID 与版本要用于拼接缓存文件名与目录名，必须先合法。
 func checkRef(id, version string) error {
 	if problem := manifest.ComponentIDProblem(id); problem != "" {
-		return clierr.Newf(clierr.CodeInvalidArgument, "错误：组件 ID 不合法：%s", id).
-			WithDetail("原因", problem).
-			WithHint("组件 ID 格式为 <scope>/<name>，如 people/basic")
+		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.InvalidComponentID, id)).
+			WithDetail(i18n.T(msgid.LabelReason), problem).
+			WithHint(i18n.T(msgid.HintComponentIDFormat))
 	}
 	if !manifest.IsExactVersion(version) {
-		return clierr.Newf(clierr.CodeInvalidArgument, "错误：版本号不合法：%s", version).
-			WithDetail("组件", id).
-			WithHint("必须是精确版本 major.minor.patch，如 1.0.0；不接受 ^ 或 ~ 等范围约束")
+		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.SourceInvalidVersion, version)).
+			WithDetail(i18n.T(msgid.LabelComponent), id).
+			WithHint(i18n.T(msgid.SourceHintExactVersionOnly))
 	}
 	return nil
 }
@@ -727,11 +726,11 @@ func readCachedManifest(path, id, version string) ([]byte, *manifest.Manifest, b
 
 // artifactWarning 生成"产物下载失败"警告（⚠️，不阻断，退出码 0）。
 func artifactWarning(id, version, artType, file, reason string) *clierr.Error {
-	return clierr.Warn(clierr.CodeNetworkUnreachable, "警告：产物下载失败，已跳过").
-		WithDetail("组件", id+"@"+version).
-		WithDetail("产物", artType+" / "+file).
-		WithDetail("原因", reason).
-		WithTip("产物文件是开发时辅助，不影响运行；可稍后重新执行 brickkit add <组件> 重试")
+	return clierr.Warn(clierr.CodeNetworkUnreachable, i18n.T(msgid.SourceArtifactDownloadFailed)).
+		WithDetail(i18n.T(msgid.LabelComponent), id+"@"+version).
+		WithDetail(i18n.T(msgid.SourceLabelArtifact), artType+" / "+file).
+		WithDetail(i18n.T(msgid.LabelReason), reason).
+		WithTip(i18n.T(msgid.SourceTipArtifactsOptional))
 }
 
 // reasonOf 把一个错误压成一行原因，用于产物下载警告。
@@ -740,16 +739,13 @@ func artifactWarning(id, version, artType, file, reason string) *clierr.Error {
 // 只留标题会丢掉状态码/系统报错，只留明细则看不出是哪一环出的问题。
 func reasonOf(err error) string {
 	if isNotFound(err) {
-		return "所有安装源中都没有该产物文件"
+		return i18n.T(msgid.SourceNoArtifactAnywhere)
 	}
 	e := clierr.As(err)
-	// 过渡期（子项目 2 迁移期间）：err 可能来自还没转换的包（中文字面量），
-	// 也可能来自已转换的包（当前语言的文案），所以两种写法都认。source 自己
-	// 转换完之后，中文字面量那一支可以去掉。
-	title := strings.TrimPrefix(strings.TrimPrefix(e.Message, "错误："), i18n.T(msgid.ErrorPrefix))
+	title := strings.TrimPrefix(e.Message, i18n.T(msgid.ErrorPrefix))
 	for _, d := range e.Details {
-		if d.Key == "原因" || d.Key == i18n.T(msgid.LabelReason) {
-			return title + "：" + d.Value
+		if d.Key == i18n.T(msgid.LabelReason) {
+			return i18n.T(msgid.DetailLine, title, d.Value)
 		}
 	}
 	return title

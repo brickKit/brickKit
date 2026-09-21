@@ -31,7 +31,7 @@ func TestNewRejectsUnknownSourceType(t *testing.T) {
 	require.Error(t, err)
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeConfigInvalid, e.Code)
-	assert.Contains(t, e.Format(), "market、git 或 local")
+	assert.Contains(t, e.Format(), "market, git or local")
 }
 
 func TestResolvePath(t *testing.T) {
@@ -72,7 +72,7 @@ func TestManifestRejectsInvalidRef(t *testing.T) {
 	_, err = c.Manifest(ctx, "people/basic", "^1.0.0")
 	require.Error(t, err)
 	assert.Equal(t, clierr.CodeInvalidArgument, clierr.As(err).Code)
-	assert.Contains(t, clierr.As(err).Format(), "精确版本")
+	assert.Contains(t, clierr.As(err).Format(), "exact version")
 
 	_, err = c.Manifest(ctx, "people/basic", "1.0")
 	require.Error(t, err)
@@ -138,7 +138,7 @@ func TestManifestCacheWriteFailure(t *testing.T) {
 	require.Error(t, err)
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeConfigInvalid, e.Code)
-	assert.Contains(t, e.Format(), "写入 Manifest 缓存失败")
+	assert.Contains(t, e.Format(), "failed to write the Manifest cache")
 }
 
 // 产物写入失败只警告，不阻断。
@@ -220,7 +220,7 @@ func TestDownloadArtifactsWithoutSources(t *testing.T) {
 	res, err := c.DownloadArtifacts(context.Background(), m)
 	require.NoError(t, err)
 	require.Len(t, res.Warnings, 2)
-	assert.Contains(t, res.Warnings[0].Format(), "未配置 sources")
+	assert.Contains(t, res.Warnings[0].Format(), "No sources are configured")
 }
 
 // 纵深防御：产物路径越出组件目录时拒绝写入（008）。
@@ -240,7 +240,7 @@ func TestArtifactPathTraversalIsRefused(t *testing.T) {
 	res, err := c.DownloadArtifacts(context.Background(), m)
 	require.NoError(t, err)
 	require.Len(t, res.Warnings, 1)
-	assert.Contains(t, res.Warnings[0].Format(), "越出")
+	assert.Contains(t, res.Warnings[0].Format(), "escapes")
 	assert.NoFileExists(t, filepath.Join(layout.ArtifactsDir(), "etc", "passwd"))
 }
 
@@ -258,12 +258,12 @@ func TestWithinDir(t *testing.T) {
 }
 
 func TestReasonOf(t *testing.T) {
-	assert.Equal(t, "所有安装源中都没有该产物文件", reasonOf(errNotFound))
-	assert.Equal(t, "市场不可达：连接被拒绝", reasonOf(
-		clierr.New(clierr.CodeNetworkUnreachable, "错误：市场不可达").
-			WithDetail("安装源", "m").WithDetail("原因", "连接被拒绝")))
-	assert.Equal(t, "没有原因明细", reasonOf(
-		clierr.New(clierr.CodeInternal, "错误：没有原因明细")))
+	assert.Equal(t, "none of the install sources has this artifact file", reasonOf(errNotFound))
+	assert.Equal(t, "the Market is unreachable: connection refused", reasonOf(
+		clierr.New(clierr.CodeNetworkUnreachable, "Error: the Market is unreachable").
+			WithDetail("Install source", "m").WithDetail("Reason", "connection refused")))
+	assert.Equal(t, "no reason detail", reasonOf(
+		clierr.New(clierr.CodeInternal, "Error: no reason detail")))
 }
 
 func TestWriteFileAll(t *testing.T) {

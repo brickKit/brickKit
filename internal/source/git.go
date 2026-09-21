@@ -9,7 +9,9 @@ import (
 	"sync"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // gitSource 是 Git 仓库安装源（003 §6.3）。
@@ -117,22 +119,22 @@ func (s *gitSource) checkout(ctx context.Context) (string, error) {
 	s.once.Do(func() {
 		dir, err := os.MkdirTemp("", "brickkit-git-")
 		if err != nil {
-			s.cloneErr = clierr.New(clierr.CodeCloneFailed, "错误：无法创建临时目录").
-				WithDetail("安装源", s.sourceID).
-				WithDetail("原因", err.Error()).
+			s.cloneErr = clierr.New(clierr.CodeCloneFailed, i18n.T(msgid.SourceTempDirFailed)).
+				WithDetail(i18n.T(msgid.LabelSource), s.sourceID).
+				WithDetail(i18n.T(msgid.LabelReason), err.Error()).
 				WithCause(err)
 			return
 		}
 		if out, err := s.clone(ctx, dir); err != nil {
 			_ = os.RemoveAll(dir)
-			s.cloneErr = clierr.New(clierr.CodeCloneFailed, "错误：Git 仓库克隆失败").
-				WithDetail("安装源", s.sourceID).
-				WithDetail("仓库", s.url).
-				WithDetail("原因", firstLine(out, err)).
+			s.cloneErr = clierr.New(clierr.CodeCloneFailed, i18n.T(msgid.SourceCloneFailed)).
+				WithDetail(i18n.T(msgid.LabelSource), s.sourceID).
+				WithDetail(i18n.T(msgid.LabelRepo), s.url).
+				WithDetail(i18n.T(msgid.LabelReason), firstLine(out, err)).
 				WithHint(
-					"检查网络连接与仓库地址是否正确",
-					"确认对该仓库有访问权限（私有仓库需配置 Git 凭据）",
-					"或将该安装源设为 enabled: false",
+					i18n.T(msgid.SourceHintCheckNetworkAndRepoURL),
+					i18n.T(msgid.SourceHintCheckRepoAccess),
+					i18n.T(msgid.SourceHintDisableSource),
 				).WithCause(err)
 			return
 		}
@@ -184,10 +186,10 @@ func (s *gitSource) runIn(ctx context.Context, dir string, args ...string) (stri
 }
 
 func (s *gitSource) readError(path string, cause error) error {
-	return clierr.New(clierr.CodeCloneFailed, "错误：读取 Git 仓库文件失败").
-		WithDetail("安装源", s.sourceID).
-		WithDetail("路径", path).
-		WithDetail("原因", cause.Error()).
+	return clierr.New(clierr.CodeCloneFailed, i18n.T(msgid.SourceGitReadFailed)).
+		WithDetail(i18n.T(msgid.LabelSource), s.sourceID).
+		WithDetail(i18n.T(msgid.LabelPath), path).
+		WithDetail(i18n.T(msgid.LabelReason), cause.Error()).
 		WithCause(cause)
 }
 

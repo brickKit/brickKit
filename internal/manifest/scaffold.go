@@ -42,9 +42,9 @@ type ScaffoldFile struct {
 // 的文档承担，不是这里的事。
 func Scaffold(id string, opts ScaffoldOptions) ([]ScaffoldFile, error) {
 	if problem := ComponentIDProblem(id); problem != "" {
-		return nil, clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.ManifestScaffoldBadID, id)).
+		return nil, clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.InvalidComponentID, id)).
 			WithDetail(i18n.T(msgid.LabelReason), problem).
-			WithHint(i18n.T(msgid.ManifestScaffoldHintIDFormat)).
+			WithHint(i18n.T(msgid.HintComponentIDFormat)).
 			WithExit(clierr.ExitUsage)
 	}
 

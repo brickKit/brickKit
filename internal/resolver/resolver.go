@@ -344,13 +344,10 @@ func missingDependencyError(dependent, missing Ref, cause error) error {
 	inner := clierr.As(cause)
 	if inner != nil {
 		for _, d := range inner.Details {
-			// 这三个上面已经写过（值也更贴题），不重复。这里仍然按
-			// internal/source 目前实际产出的中文字面量比较——source.go
-			// 还没转换成 i18n，它的 Detail.Key 现在不管当前语言是什么，
-			// 永远是这三个中文字面量。等 source.go 那一批做完，要把这里
-			// 一并改成 i18n.T(msgid.LabelComponent) 这种按当前语言比较的写法。
-			if d.Key == "组件" || d.Key == "原因" || d.Key == "要的版本" ||
-				d.Key == i18n.T(msgid.LabelComponent) || d.Key == i18n.T(msgid.LabelReason) {
+			// 这三个上面已经写过（值也更贴题），不重复。明细的键是按当前语言
+			// 渲染出来的文字，所以也按当前语言的同一份文案来比。
+			if d.Key == i18n.T(msgid.LabelComponent) || d.Key == i18n.T(msgid.LabelReason) ||
+				d.Key == i18n.T(msgid.SourceLabelWantedVersion) {
 				continue
 			}
 			e = e.WithDetail(d.Key, d.Value)
@@ -399,22 +396,19 @@ func cycleError(path []Ref, repeated Ref) error {
 }
 
 // reasonOf 把安装源的错误压成一行原因。
-// reasonOf 分析的 err 来自 internal/source（还没转换成 i18n），它的
-// Detail.Key 与 Message 前缀现在不管当前语言是什么，永远是这两个中文
-// 字面量——所以这里暂时不改成按 i18n.T() 查出来的当前语言文案去比较：
-// 那样反而会在 source.go 转换完之前，永远比对失败。等 source.go 那一批
-// 做完再回来一并改成按当前语言比较的写法。
+// 错误的明细键与标题前缀都是按当前语言渲染出来的文字，所以按当前语言的
+// 同一份文案去比。
 func reasonOf(err error) string {
 	e := clierr.As(err)
 	if e == nil {
 		return ""
 	}
 	for _, d := range e.Details {
-		if d.Key == "原因" || d.Key == i18n.T(msgid.LabelReason) {
+		if d.Key == i18n.T(msgid.LabelReason) {
 			return d.Value
 		}
 	}
-	return strings.TrimPrefix(strings.TrimPrefix(e.Message, "错误："), i18n.T(msgid.ErrorPrefix))
+	return strings.TrimPrefix(e.Message, i18n.T(msgid.ErrorPrefix))
 }
 
 // CheckRunningResourceBindings 校验**本次会启动的**组件的资源依赖都已绑定

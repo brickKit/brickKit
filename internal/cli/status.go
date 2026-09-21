@@ -11,7 +11,9 @@ import (
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/deploy"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -201,7 +203,7 @@ func renderDegradedNotice(opts *Options, p *project) {
 	}
 
 	opts.Printf("\u26a0\ufe0f 未能解析依赖图，「未启动」那一节只能给出部分原因\n")
-	opts.Printf("   %s\n", strings.TrimPrefix(p.degraded.Message, "错误："))
+	opts.Printf("   %s\n", strings.TrimPrefix(p.degraded.Message, i18n.T(msgid.ErrorPrefix)))
 	for _, d := range p.degraded.Details {
 		opts.Printf("   %s：%s\n", d.Key, d.Value)
 	}

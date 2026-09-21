@@ -101,7 +101,7 @@ func TestFetchUnknownComponentErrors(t *testing.T) {
 
 	r := runIn(t, f.Dir, "fetch", "nope/missing@1.0.0")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "组件未找到")
+	assert.Contains(t, r.stderr, "component not found")
 }
 
 // 声明了产物、但一个都没拿到 → **错误**，不是警告。

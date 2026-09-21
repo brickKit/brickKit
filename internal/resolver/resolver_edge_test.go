@@ -97,11 +97,11 @@ func TestFetchErrorWrapsCause(t *testing.T) {
 
 func TestReasonOf(t *testing.T) {
 	assert.Equal(t, "", reasonOf(nil))
-	assert.Equal(t, "市场不可达", reasonOf(
-		clierr.New(clierr.CodeNetworkUnreachable, "错误：市场不可达")))
-	assert.Equal(t, "连接被拒绝", reasonOf(
-		clierr.New(clierr.CodeNetworkUnreachable, "错误：市场不可达").
-			WithDetail("原因", "连接被拒绝")))
+	assert.Equal(t, "the Market is unreachable", reasonOf(
+		clierr.New(clierr.CodeNetworkUnreachable, "Error: the Market is unreachable")))
+	assert.Equal(t, "connection refused", reasonOf(
+		clierr.New(clierr.CodeNetworkUnreachable, "Error: the Market is unreachable").
+			WithDetail("Reason", "connection refused")))
 	assert.Equal(t, "boom", reasonOf(errors.New("boom")))
 }
 

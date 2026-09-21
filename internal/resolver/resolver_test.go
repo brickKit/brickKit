@@ -33,8 +33,8 @@ func TestStrongDependencyMissingBlocks(t *testing.T) {
 	assert.Contains(t, out, "required dependency missing")
 	assert.Contains(t, out, "erp/backend@1.0.0")
 	assert.Contains(t, out, "authorization/rbac@1.0.0")
-	assert.Contains(t, out, "所有安装源")
-	assert.Contains(t, out, "检查安装源配置（brickkit.yaml → sources）")
+	assert.Contains(t, out, "any install source")
+	assert.Contains(t, out, "Check the install source configuration (brickkit.yaml → sources)")
 }
 
 // 传递依赖（第二层）缺失时，错误要指出**直接**依赖方，而不是根组件。

@@ -32,7 +32,7 @@ func TestLocalSourcePathIsFile(t *testing.T) {
 	require.Error(t, err)
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeConfigInvalid, e.Code)
-	assert.Contains(t, e.Format(), "不是目录")
+	assert.Contains(t, e.Format(), "is not a directory")
 }
 
 // 组件目录里的 component.yaml 不合法：报解析错误，而不是静默跳过。
@@ -95,7 +95,7 @@ func TestLocalSourceDisappearsBeforeArtifactDownload(t *testing.T) {
 	res, err := c.DownloadArtifacts(ctx, got.Manifest)
 	require.NoError(t, err)
 	require.Len(t, res.Warnings, 2)
-	assert.Contains(t, res.Warnings[0].Format(), "本地安装源路径不存在")
+	assert.Contains(t, res.Warnings[0].Format(), "the local install source path does not exist")
 }
 
 // ============================================================

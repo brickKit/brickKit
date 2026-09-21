@@ -50,3 +50,8 @@ const (
 	MarketActionSetStatus      = "market.action.set_status"
 	MarketActionSetVisibility  = "market.action.set_visibility"
 )
+
+// internal/source/market.go 用到的动作名
+const (
+	MarketActionAccess = "market.action.access"
+)

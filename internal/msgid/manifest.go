@@ -49,8 +49,6 @@ const (
 	ManifestLabelOrigin                  = "manifest.label.origin"
 	ManifestConfigKeysIgnoredImpact      = "manifest.config_keys_ignored_impact"
 	ManifestConfigKeysIgnoredTip         = "manifest.config_keys_ignored_tip"
-	ManifestScaffoldBadID                = "manifest.scaffold.bad_id"
-	ManifestScaffoldHintIDFormat         = "manifest.scaffold.hint_id_format"
 	ManifestScaffoldBadContract          = "manifest.scaffold.bad_contract"
 	ManifestScaffoldHintContractValues   = "manifest.scaffold.hint_contract_values"
 	ManifestScaffoldOpenAPIDescription   = "manifest.scaffold.openapi_description"

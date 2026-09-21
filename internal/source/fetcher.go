@@ -7,13 +7,21 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // errNotFound 表示"该安装源里没有这个组件（或没有这个版本）"。
 //
 // 它不是失败：调用方应继续尝试下一个安装源（003 §6.5 安装源优先级）。
-var errNotFound = errors.New("组件在该安装源中不存在")
+var errNotFound error = notFoundError{}
+
+// notFoundError 让 errNotFound 成为可以用 errors.Is 比较的哨兵，同时把消息推迟到
+// 真正要显示时才查目录——包初始化时语言还没确定，不能在那里调 i18n.T。
+type notFoundError struct{}
+
+func (notFoundError) Error() string { return i18n.T(msgid.SourceNotFoundSentinel) }
 
 // isNotFound 判断一个错误是否是"该源没有"。
 func isNotFound(err error) bool { return errors.Is(err, errNotFound) }
@@ -63,8 +71,8 @@ func singleVersionLatest(ctx context.Context, f fetcher, componentID string) (st
 		// 组件**在**这儿，只是这份 component.yaml 读不了。
 		// 从前这里返回 errNotFound，于是最终报的是"组件未找到，检查安装源配置"——
 		// 把人引向完全无关的方向，而问题就在他指定的那个目录里。
-		return "", manifestUnusable(f, componentID, "component.yaml 解析失败："+err.Error(),
-			"用 YAML 校验器看一眼这个文件")
+		return "", manifestUnusable(f, componentID, i18n.T(msgid.SourceManifestParseFailed, err.Error()),
+			i18n.T(msgid.SourceHintValidateYAML))
 	}
 
 	// 目录里放的是别的组件（git 源回落到仓库根目录时会出现）：等同于"这里没有"
@@ -74,11 +82,11 @@ func singleVersionLatest(ctx context.Context, f fetcher, componentID string) (st
 	if !manifest.IsExactVersion(h.Metadata.Version) {
 		got := h.Metadata.Version
 		if got == "" {
-			got = "（空）"
+			got = i18n.T(msgid.SourceEmptyValue)
 		}
 		return "", manifestUnusable(f, componentID,
-			"metadata.version 不是精确版本："+got,
-			"改成 major.minor.patch，如 1.0.0")
+			i18n.T(msgid.SourceVersionNotExact, got),
+			i18n.T(msgid.SourceHintFixVersion))
 	}
 	return h.Metadata.Version, nil
 }
@@ -88,9 +96,9 @@ func singleVersionLatest(ctx context.Context, f fetcher, componentID string) (st
 // 与 errNotFound 分开的理由：两者该让使用者去看的地方完全不同——
 // 一个是安装源配置，一个是他自己刚写的那份 component.yaml。
 func manifestUnusable(f fetcher, componentID, reason string, hints ...string) error {
-	return clierr.Newf(clierr.CodeManifestInvalid, "错误：%s 的 component.yaml 用不了", componentID).
-		WithDetail("安装源", f.id()+"（"+f.kind()+"）").
-		WithDetail("原因", reason).
+	return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.SourceManifestUnusable, componentID)).
+		WithDetail(i18n.T(msgid.LabelSource), i18n.T(msgid.SourceIDWithKind, f.id(), f.kind())).
+		WithDetail(i18n.T(msgid.LabelReason), reason).
 		WithHint(hints...)
 }
 

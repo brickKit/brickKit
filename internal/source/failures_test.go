@@ -42,7 +42,7 @@ func TestLocalSourceUnreadableManifest(t *testing.T) {
 	require.Error(t, err)
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeConfigInvalid, e.Code)
-	assert.Contains(t, e.Format(), "检查文件权限")
+	assert.Contains(t, e.Format(), "Check the file permissions")
 }
 
 // 安装源目录不可访问（父目录无执行权限）。
@@ -63,7 +63,7 @@ func TestLocalSourceInaccessiblePath(t *testing.T) {
 	require.Error(t, err)
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeConfigInvalid, e.Code)
-	assert.Contains(t, e.Format(), "无法访问")
+	assert.Contains(t, e.Format(), "is not accessible")
 }
 
 // 组件不在本地源里时下载产物：警告，不阻断。
@@ -82,7 +82,7 @@ func TestArtifactsWhenComponentNotInSource(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, res.Downloaded)
 	require.Len(t, res.Warnings, 2)
-	assert.Contains(t, res.Warnings[0].Format(), "所有安装源中都没有该产物文件")
+	assert.Contains(t, res.Warnings[0].Format(), "none of the install sources has this artifact file")
 }
 
 // git 仓库中的文件不可读。
@@ -111,7 +111,7 @@ func TestGitSourceUnreadableFile(t *testing.T) {
 	res, err := c.DownloadArtifacts(ctx, got.Manifest)
 	require.NoError(t, err)
 	require.Len(t, res.Warnings, 2)
-	assert.Contains(t, res.Warnings[0].Format(), "读取 Git 仓库文件失败")
+	assert.Contains(t, res.Warnings[0].Format(), "failed to read a file from the Git repository")
 }
 
 // 仓库中的产物文件不可读：警告，不阻断。
@@ -139,7 +139,7 @@ func TestGitSourceUnreadableArtifactFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, res.Downloaded, 1, "另一个产物不受影响")
 	require.Len(t, res.Warnings, 1)
-	assert.Contains(t, res.Warnings[0].Format(), "读取 Git 仓库文件失败")
+	assert.Contains(t, res.Warnings[0].Format(), "failed to read a file from the Git repository")
 }
 
 // 仓库里没有这个组件：不是失败，只是"该源没有"。
@@ -171,7 +171,7 @@ func TestGitSourceCloneFailureDuringArtifacts(t *testing.T) {
 	res, err := c.DownloadArtifacts(context.Background(), m)
 	require.NoError(t, err)
 	require.Len(t, res.Warnings, 2)
-	assert.Contains(t, res.Warnings[0].Format(), "Git 仓库克隆失败")
+	assert.Contains(t, res.Warnings[0].Format(), "failed to clone the Git repository")
 }
 
 // 仓库中缺少 Manifest 声明的产物文件：警告，不阻断。
@@ -211,7 +211,7 @@ func TestGitSourceTempDirUnavailable(t *testing.T) {
 	require.Error(t, err)
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeCloneFailed, e.Code)
-	assert.Contains(t, e.Format(), "无法创建临时目录")
+	assert.Contains(t, e.Format(), "could not create a temporary directory")
 }
 
 // clone 后 component.yaml 变得不可读：Manifest 获取阶段就报错。
@@ -239,7 +239,7 @@ func TestGitSourceUnreadableManifestOnRefetch(t *testing.T) {
 	_, err = c.Manifest(ctx, "people/basic", "1.0.0")
 	require.Error(t, err)
 	assert.Equal(t, clierr.CodeCloneFailed, clierr.As(err).Code)
-	assert.Contains(t, clierr.As(err).Format(), "读取 Git 仓库文件失败")
+	assert.Contains(t, clierr.As(err).Format(), "failed to read a file from the Git repository")
 }
 
 // 市场的产物列表响应无法解析：警告，不阻断安装。
@@ -260,7 +260,7 @@ func TestMarketArtifactListGarbage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, res.Downloaded)
 	require.Len(t, res.Warnings, 2)
-	assert.Contains(t, res.Warnings[0].Format(), "产物列表无法解析")
+	assert.Contains(t, res.Warnings[0].Format(), "artifact list returned by the Market could not be parsed")
 }
 
 // 市场的产物列表端点异常：警告，不阻断安装。

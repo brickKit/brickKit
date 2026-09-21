@@ -161,7 +161,7 @@ func localResolveError(lc source.LocalComponent, cause error) error {
 	}
 	for _, d := range e.Details {
 		// 底层已经附过一条"组件：xxx@1.0.0"，与上面那行说的是同一件事，去掉重复
-		if d.Key == "组件" && d.Value == lc.Ref() {
+		if d.Key == i18n.T(msgid.LabelComponent) && d.Value == lc.Ref() {
 			continue
 		}
 		details = append(details, d)

@@ -144,7 +144,7 @@ func TestAddBlocksUnsignedWhenRequired(t *testing.T) {
 	r := runIn(t, f.Dir, "add", c.ref())
 
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "未签名")
+	assert.Contains(t, r.stderr, "unsigned")
 	assert.Contains(t, r.stderr, "requireSignature")
 
 	// 阻断就得是彻底的：配置不能被改了一半
@@ -257,6 +257,6 @@ func TestNoPublicKeysWarningIsSaidOnce(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	out := r.stdout + r.stderr
-	assert.Equal(t, 1, strings.Count(out, "requireSignature 为 true"),
+	assert.Equal(t, 1, strings.Count(out, "requireSignature is true"),
 		"三个组件只该说一次：\n%s", out)
 }

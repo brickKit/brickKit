@@ -314,5 +314,5 @@ func TestDownloadArtifactsWarnsInsteadOfFailing(t *testing.T) {
 	sum := downloadArtifacts(context.Background(), client, graph)
 	assert.Zero(t, sum.downloaded)
 	require.Len(t, sum.warnings, 1)
-	assert.Contains(t, sum.warnings[0].Format(), "版本号不合法")
+	assert.Contains(t, sum.warnings[0].Format(), "invalid version")
 }

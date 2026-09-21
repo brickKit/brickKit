@@ -1,7 +1,11 @@
 package source
 
 import (
+	"strings"
+
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/security"
 )
 
@@ -96,12 +100,12 @@ func (p SignaturePolicy) verify(
 // 提示里必须给出关掉的办法：使用者装不上一个没签名的组件时，他既不能替
 // 发布者签名，也未必知道 requireSignature 的存在——只说"未签名"等于让他干瞪眼。
 func unsignedError(ref string) *clierr.Error {
-	return clierr.New(clierr.CodeSignatureInvalid, "错误：组件未签名，安装被阻断").
-		WithDetail("组件", ref).
-		WithDetail("原因", "项目要求强制签名校验（installer.requireSignature 默认为 true）").
+	return clierr.New(clierr.CodeSignatureInvalid, i18n.T(msgid.SourceUnsignedBlocked)).
+		WithDetail(i18n.T(msgid.LabelComponent), ref).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.SourceUnsignedReasonDetail)).
 		WithHint(
-			"联系组件发布者用 brickkit publish --sign 重新发布",
-			"本地开发可在 brickkit.yaml 设置 installer.requireSignature: false 关闭校验",
+			i18n.T(msgid.SourceHintRepublishSigned),
+			i18n.T(msgid.SourceHintDisableVerification),
 		)
 }
 
@@ -111,7 +115,7 @@ func unsignedError(ref string) *clierr.Error {
 // 那种情况下每装一个组件都唠叨一遍纯属噪音。
 func noKeysWarning() *clierr.Error {
 	return clierr.Warn(clierr.CodeSignatureInvalid,
-		"警告：requireSignature 为 true，但项目没有声明任何可信公钥，签名校验实际未生效").
+		i18n.T(msgid.SourceNoKeysWarning)).
 		// **不带组件引用**：这条讲的是项目的配置，与具体是哪个组件无关。
 		// 带上它会让人以为只有那一个组件受影响，而实际上每一个都没验过；
 		// 命令层也正是靠"内容完全相同"把它合成一条（cli.dedupeWarnings）。
@@ -119,24 +123,22 @@ func noKeysWarning() *clierr.Error {
 		// 先说"这不是你写错了"：requireSignature 默认就是 true，绝大多数项目是
 		// **还没配到这一步**。不点破的话，人的第一反应是回去检查自己的
 		// brickkit.yaml 哪里写坏了——那里什么都没坏。
-		WithDetail("说明", "这不是配置错误，是还没配完——requireSignature 默认为 true，"+
-			"而 publicKeys 要等你从发布者那里拿到公钥才填得上").
+		WithDetail(i18n.T(msgid.SourceLabelNote), i18n.T(msgid.SourceNoKeysNoteDetail)).
 		WithHint(
-			"在 brickkit.yaml 的 installer.publicKeys 下声明发布者公钥，校验才会真正开始生效",
-			"确实不需要校验时，把 installer.requireSignature 显式设为 false，这条提醒就不再出现",
+			i18n.T(msgid.SourceHintDeclarePublicKeys),
+			i18n.T(msgid.SourceHintExplicitFalse),
 		).
-		WithTip("没有可信公钥就没有可校验的对象——此时的 requireSignature: true " +
-			"不是更严格的策略，只是还没配完。")
+		WithTip(i18n.T(msgid.SourceTipNoKeysNotStricter))
 }
 
 func unknownSignerWarning(ref, keyRef string, ring *security.KeyRing) *clierr.Error {
-	w := clierr.Warn(clierr.CodeSignatureInvalid, "警告：签名来自未声明的发布者，未做校验").
-		WithDetail("组件", ref).
-		WithDetail("签名声明的公钥", keyRef)
+	w := clierr.Warn(clierr.CodeSignatureInvalid, i18n.T(msgid.SourceUnknownSignerWarning)).
+		WithDetail(i18n.T(msgid.LabelComponent), ref).
+		WithDetail(i18n.T(msgid.SecurityLabelSignedByKey), keyRef)
 	if refs := ring.Refs(); len(refs) > 0 {
-		w = w.WithDetail("项目信任的公钥", joinRefs(refs))
+		w = w.WithDetail(i18n.T(msgid.SecurityLabelTrustedKeys), strings.Join(refs, i18n.T(msgid.ListSeparator)))
 	}
-	return w.WithHint("确认发布者身份后，把该公钥加进 brickkit.yaml 的 installer.publicKeys")
+	return w.WithHint(i18n.T(msgid.SourceHintConfirmPublisherKey))
 }
 
 // withComponentRef 给错误补上"是哪个组件"。
@@ -145,17 +147,6 @@ func withComponentRef(err error, ref string) error {
 	if cerr == nil {
 		return err
 	}
-	cerr.Details = append([]clierr.Detail{{Key: "组件", Value: ref}}, cerr.Details...)
+	cerr.Details = append([]clierr.Detail{{Key: i18n.T(msgid.LabelComponent), Value: ref}}, cerr.Details...)
 	return cerr
-}
-
-func joinRefs(refs []string) string {
-	out := ""
-	for i, r := range refs {
-		if i > 0 {
-			out += "、"
-		}
-		out += r
-	}
-	return out
 }

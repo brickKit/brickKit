@@ -85,8 +85,8 @@ func TestEnvelopeError(t *testing.T) {
 		"error": map[string]any{"message": "组件不存在"},
 	}))
 	assert.Equal(t, "顶层消息", envelopeError(map[string]any{"message": "顶层消息"}))
-	assert.Equal(t, "市场未说明原因", envelopeError(map[string]any{}))
-	assert.Equal(t, "市场未说明原因", envelopeError(map[string]any{
+	assert.Equal(t, "The Market gave no reason", envelopeError(map[string]any{}))
+	assert.Equal(t, "The Market gave no reason", envelopeError(map[string]any{
 		"error": map[string]any{"code": "X"},
 	}), "只有 code 没有 message 时也要有兜底文案")
 }
@@ -167,7 +167,7 @@ func TestMarketArtifactFileNotListed(t *testing.T) {
 	res, err := c.DownloadArtifacts(context.Background(), got.Manifest)
 	require.NoError(t, err)
 	require.Len(t, res.Warnings, 1)
-	assert.Contains(t, res.Warnings[0].Format(), "所有安装源中都没有该产物文件")
+	assert.Contains(t, res.Warnings[0].Format(), "none of the install sources has this artifact file")
 }
 
 // ============================================================

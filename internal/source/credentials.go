@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // Credentials 是 .brickkit/credentials 的内容（004 §5.3）。
@@ -36,18 +38,18 @@ func LoadCredentials(path string) (*Credentials, error) {
 	case os.IsNotExist(err):
 		return nil, nil
 	case err != nil:
-		return nil, clierr.New(clierr.CodeAuthFailed, "错误：读取登录凭据失败").
-			WithDetail("路径", path).
-			WithDetail("原因", err.Error()).
-			WithHint("重新执行 brickkit login 登录市场").
+		return nil, clierr.New(clierr.CodeAuthFailed, i18n.T(msgid.SourceCredentialsReadFailed)).
+			WithDetail(i18n.T(msgid.LabelPath), path).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.SourceHintLoginAgain)).
 			WithCause(err)
 	}
 
 	var c Credentials
 	if err := json.Unmarshal(data, &c); err != nil {
-		return nil, clierr.New(clierr.CodeAuthFailed, "错误：登录凭据格式不合法").
-			WithDetail("路径", path).
-			WithHint("删除该文件后重新执行 brickkit login 登录市场").
+		return nil, clierr.New(clierr.CodeAuthFailed, i18n.T(msgid.SourceCredentialsMalformed)).
+			WithDetail(i18n.T(msgid.LabelPath), path).
+			WithHint(i18n.T(msgid.SourceHintDeleteAndLogin)).
 			WithCause(err)
 	}
 	return &c, nil
@@ -60,7 +62,7 @@ func LoadCredentials(path string) (*Credentials, error) {
 func SaveCredentials(path string, c *Credentials) error {
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
-		return clierr.New(clierr.CodeInternal, "错误：无法序列化登录凭据").WithCause(err)
+		return clierr.New(clierr.CodeInternal, i18n.T(msgid.SourceCredentialsSerializeFailed)).WithCause(err)
 	}
 	data = append(data, '\n')
 
@@ -86,20 +88,20 @@ func SaveCredentials(path string, c *Credentials) error {
 // RemoveCredentials 删除登录凭据（brickkit logout 用）。文件不存在不算错误。
 func RemoveCredentials(path string) error {
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return clierr.New(clierr.CodeAuthFailed, "错误：删除登录凭据失败").
-			WithDetail("路径", path).
-			WithDetail("原因", err.Error()).
-			WithHint("检查文件权限，或手工删除该文件").
+		return clierr.New(clierr.CodeAuthFailed, i18n.T(msgid.SourceCredentialsDeleteFailed)).
+			WithDetail(i18n.T(msgid.LabelPath), path).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.SourceHintCheckPermsOrDelete)).
 			WithCause(err)
 	}
 	return nil
 }
 
 func credentialWriteError(path string, err error) error {
-	return clierr.New(clierr.CodeAuthFailed, "错误：写入登录凭据失败").
-		WithDetail("路径", path).
-		WithDetail("原因", err.Error()).
-		WithHint("检查目录权限后重新执行 brickkit login").
+	return clierr.New(clierr.CodeAuthFailed, i18n.T(msgid.SourceCredentialsWriteFailed)).
+		WithDetail(i18n.T(msgid.LabelPath), path).
+		WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+		WithHint(i18n.T(msgid.SourceHintCheckDirPermsThenLogin)).
 		WithCause(err)
 }
 

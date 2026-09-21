@@ -435,7 +435,7 @@ func TestAddWithoutVersionNeedsASource(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "people/basic")
 	assert.NotEqual(t, clierr.ExitOK, r.code)
-	assert.Contains(t, r.stderr, "没有可用的安装源")
+	assert.Contains(t, r.stderr, "no install source is available")
 }
 
 func TestAddRequiresArgument(t *testing.T) {

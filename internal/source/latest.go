@@ -10,7 +10,9 @@ import (
 	"context"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // Latest 是一次"最新版本"解析的结果。
@@ -30,9 +32,9 @@ type Latest struct {
 // 9.9.9 顶掉，而把本地源排在前面的人要的恰恰是相反的结果。
 func (c *Client) LatestVersion(ctx context.Context, id string) (*Latest, error) {
 	if problem := manifest.ComponentIDProblem(id); problem != "" {
-		return nil, clierr.Newf(clierr.CodeInvalidArgument, "错误：组件 ID 不合法：%s", id).
-			WithDetail("原因", problem).
-			WithHint("组件 ID 格式为 <scope>/<name>，如 people/basic")
+		return nil, clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.InvalidComponentID, id)).
+			WithDetail(i18n.T(msgid.LabelReason), problem).
+			WithHint(i18n.T(msgid.HintComponentIDFormat))
 	}
 	if len(c.fetchers) == 0 {
 		return nil, noSourcesError()
@@ -55,8 +57,8 @@ func (c *Client) LatestVersion(ctx context.Context, id string) (*Latest, error) 
 	}
 
 	return nil, c.notFoundError(id, failures,
-		"检查安装源配置（brickkit.yaml → sources）",
-		"确认组件 ID 是否正确，以及它是否已发布到市场",
-		"指定精确版本重试：brickkit add "+id+"@1.0.0",
+		i18n.T(msgid.SourceHintCheckSourcesConfig),
+		i18n.T(msgid.SourceHintCheckIDAndPublished),
+		i18n.T(msgid.SourceHintPinExactVersion, id),
 	)
 }

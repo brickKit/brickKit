@@ -169,5 +169,5 @@ func TestLatestVersionWithoutSources(t *testing.T) {
 
 	_, err := c.LatestVersion(context.Background(), "people/basic")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "安装源")
+	assert.Contains(t, clierr.As(err).Format(), "install source")
 }
