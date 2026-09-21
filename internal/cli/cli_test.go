@@ -102,7 +102,7 @@ func TestUnknownCommandFails(t *testing.T) {
 	assert.NotEqual(t, clierr.ExitOK, r.code)
 	assert.Equal(t, clierr.ExitUsage, r.code)
 	assert.Contains(t, r.stderr, "❌")
-	assert.Contains(t, r.stderr, "未知命令 nosuchcommand")
+	assert.Contains(t, r.stderr, "unknown command nosuchcommand")
 	assert.Contains(t, r.stderr, "Suggestion:")
 	assert.Empty(t, r.stdout, "错误不应写入 stdout")
 }
@@ -110,7 +110,7 @@ func TestUnknownCommandFails(t *testing.T) {
 func TestUnknownFlagFails(t *testing.T) {
 	r := run(t, "version", "--nosuchflag")
 	assert.Equal(t, clierr.ExitUsage, r.code)
-	assert.Contains(t, r.stderr, "❌ 错误：参数不合法")
+	assert.Contains(t, r.stderr, "❌ Error: invalid arguments")
 	assert.Contains(t, r.stderr, "Suggestion:")
 }
 
@@ -151,13 +151,13 @@ func TestErrorOutputFormat(t *testing.T) {
 			name:     "remove 缺少组件",
 			args:     []string{"remove"},
 			wantCode: clierr.ExitUsage,
-			contains: []string{"❌ 请指定要移除的组件"},
+			contains: []string{"❌ Please specify the component to remove"},
 		},
 		{
 			name:     "日志级别非法",
 			args:     []string{"version", "--log-level", "verbose"},
 			wantCode: clierr.ExitUsage,
-			contains: []string{"❌ 错误：日志级别不合法", "合法值:"},
+			contains: []string{"❌ Error: invalid log level", "Valid values:"},
 		},
 	}
 	for _, c := range cases {
@@ -204,7 +204,7 @@ func TestNotImplementedCommands(t *testing.T) {
 func TestTooManyArgsUsesFallbackTranslation(t *testing.T) {
 	r := run(t, "init", "a", "b", "c")
 	assert.Equal(t, clierr.ExitUsage, r.code)
-	assert.Contains(t, r.stderr, "❌ 错误：命令用法不正确")
+	assert.Contains(t, r.stderr, "❌ Error: incorrect command usage")
 	assert.Contains(t, r.stderr, "accepts at most 1 arg(s)")
 	assert.Contains(t, r.stderr, "Suggestion:")
 }

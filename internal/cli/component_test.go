@@ -166,7 +166,7 @@ func TestAddConfigWriteFailure(t *testing.T) {
 	r := runIn(t, f.Dir, "add", "people/basic@1.0.0")
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stderr, "failed to write the config file")
-	assert.NotContains(t, r.stderr, "命令用法不正确",
+	assert.NotContains(t, r.stderr, "incorrect command usage",
 		"磁盘写不进去不是用法错误，不能让人去查 brickkit --help")
 	assert.Empty(t, f.refs(t), "写回失败时不得留下半改的配置")
 }
@@ -184,7 +184,7 @@ func TestRemoveArtifactCleanupFailure(t *testing.T) {
 
 	r := runIn(t, f.Dir, "remove", "people/basic")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "清理 artifacts 缓存失败")
+	assert.Contains(t, r.stderr, "failed to clean the artifacts cache")
 }
 
 // Manifest 缓存文件不可删除时同样报错。
@@ -199,7 +199,7 @@ func TestRemoveManifestCleanupFailure(t *testing.T) {
 
 	r := runIn(t, f.Dir, "remove", "people/basic")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "清理 Manifest 缓存失败")
+	assert.Contains(t, r.stderr, "failed to clean the Manifest cache")
 }
 
 // --repo 时仓库地址不可达：报错，且不留下半个源码目录。

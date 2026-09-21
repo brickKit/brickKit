@@ -134,25 +134,10 @@ func NewRootCommand(opts *Options) *cobra.Command {
 	i18n.SetCurrent(lang)
 
 	root := &cobra.Command{
-		Use:   "brickkit",
-		Short: "BrickKit：声明式组件管理与拼装平台的命令行工具",
-		Long: `BrickKit CLI —— 像搭积木一样构建系统。
-
-CLI 只做六件事：
-  1. 管理项目配置（brickkit.yaml）
-  2. 拉取组件与产物（市场 / Git / 本地）
-  3. 解析依赖与推测顺序（强/弱依赖 + 拓扑排序）
-  4. 生成部署文件并执行迁移（compose / K8s / Job）
-  5. 调用底层引擎与发布（docker compose / kubectl / publish）
-  6. 管理组件源码工作区（--repo / sync）
-
-它不是常驻服务：执行完命令就退出，不占用后台资源。`,
-		Example: `  brickkit init my-project              初始化项目
-  brickkit add erp/backend@1.0.0        添加组件（递归拉取依赖）
-  brickkit up --dry-run                 只算不启动：看这次会跑哪些、什么顺序
-  brickkit up                           生成部署文件并启动
-  brickkit status                       查看运行状态
-  brickkit down                         停止（不删除 volume）`,
+		Use:                   "brickkit",
+		Short:                 i18n.T(msgid.CliRootShort),
+		Long:                  i18n.T(msgid.CliRootLong),
+		Example:               i18n.T(msgid.CliRootExample),
 		SilenceUsage:          true, // 错误由 clierr 统一渲染，不打印 usage 噪音
 		SilenceErrors:         true,
 		DisableFlagsInUseLine: true,
@@ -166,25 +151,25 @@ CLI 只做六件事：
 	root.SetErr(opts.Stderr)
 
 	root.PersistentFlags().StringVarP(&opts.ConfigPath, "config", "c", opts.ConfigPath,
-		"项目配置文件路径（用于多环境部署，如 brickkit.prod.yaml）")
+		i18n.T(msgid.CliRootPathOfTheProjectConfig))
 	root.PersistentFlags().StringVar(&opts.LogLevel, "log-level", opts.LogLevel,
-		fmt.Sprintf("stderr 上 JSON 日志的级别（%s）", strings.Join(logging.LevelNames(), " | ")))
+		i18n.T(msgid.CliRootLevelOfTheJsonLogs, strings.Join(logging.LevelNames(), " | ")))
 
 	// flag 解析错误统一转成 CLI 错误格式。
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		return clierr.Newf(clierr.CodeInvalidArgument, "错误：参数不合法").
-			WithDetail("命令", cmd.CommandPath()).
-			WithDetail("原因", err.Error()).
-			WithHint(fmt.Sprintf("执行 %s --help 查看该命令的参数说明", cmd.CommandPath())).
+		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliRootErrorInvalidArguments)).
+			WithDetail(i18n.T(msgid.LabelCommand), cmd.CommandPath()).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.CliRootRunHelpToSeeThe, cmd.CommandPath())).
 			WithExit(clierr.ExitUsage).
 			WithCause(err)
 	})
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		if !logging.IsValidLevel(opts.LogLevel) {
-			return clierr.Newf(clierr.CodeInvalidArgument, "错误：日志级别不合法").
-				WithDetail("传入值", opts.LogLevel).
-				WithDetail("合法值", strings.Join(logging.LevelNames(), " | ")).
+			return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliRootErrorInvalidLogLevel)).
+				WithDetail(i18n.T(msgid.CliRootValueGiven), opts.LogLevel).
+				WithDetail(i18n.T(msgid.CliRootValidValues), strings.Join(logging.LevelNames(), " | ")).
 				WithExit(clierr.ExitUsage)
 		}
 		logging.SetLevel(opts.LogLevel)
@@ -198,10 +183,10 @@ CLI 只做六件事：
 	}
 
 	root.AddGroup(
-		&cobra.Group{ID: groupProject, Title: "项目命令："},
-		&cobra.Group{ID: groupComponent, Title: "组件命令："},
-		&cobra.Group{ID: groupLifecycle, Title: "生命周期命令："},
-		&cobra.Group{ID: groupMarket, Title: "市场命令："},
+		&cobra.Group{ID: groupProject, Title: i18n.T(msgid.CliRootProjectCommands)},
+		&cobra.Group{ID: groupComponent, Title: i18n.T(msgid.CliRootComponentCommands)},
+		&cobra.Group{ID: groupLifecycle, Title: i18n.T(msgid.CliRootLifecycleCommands)},
+		&cobra.Group{ID: groupMarket, Title: i18n.T(msgid.CliRootMarketCommands)},
 	)
 
 	root.AddCommand(
@@ -360,19 +345,19 @@ func translate(err error) *clierr.Error {
 	msg := err.Error()
 	switch {
 	case strings.HasPrefix(msg, "unknown command"):
-		name := "（未识别）"
+		name := i18n.T(msgid.CliRootUnrecognized)
 		if m := unknownCommandRe.FindStringSubmatch(msg); len(m) == 2 {
 			name = m[1]
 		}
-		return clierr.Newf(clierr.CodeInvalidArgument, "错误：未知命令 %s", name).
-			WithDetail("用法", "brickkit <命令> [参数]").
-			WithHint("执行 brickkit --help 查看所有可用命令").
+		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliRootErrorUnknownCommand, name)).
+			WithDetail(i18n.T(msgid.CliRootUsage), i18n.T(msgid.CliRootBrickkitCommandArguments)).
+			WithHint(i18n.T(msgid.CliRootRunBrickkitHelpToSee2)).
 			WithExit(clierr.ExitUsage).
 			WithCause(err)
 	default:
-		return clierr.New(clierr.CodeInvalidArgument, "错误：命令用法不正确").
-			WithDetail("原因", msg).
-			WithHint("执行 brickkit --help 查看命令用法").
+		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliRootErrorIncorrectCommandUsage)).
+			WithDetail(i18n.T(msgid.LabelReason), msg).
+			WithHint(i18n.T(msgid.CliRootRunBrickkitHelpToSee)).
 			WithExit(clierr.ExitUsage).
 			WithCause(err)
 	}

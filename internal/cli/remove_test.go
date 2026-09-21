@@ -48,9 +48,9 @@ func TestRemoveDeletesEntryAndCaches(t *testing.T) {
 	assert.NoDirExists(t, artifactDir, "9.12 应清理 artifacts 缓存")
 
 	// 004 §3.4 输出样例
-	assert.Contains(t, r.stdout, "✅ 已移除 people/basic@1.0.0")
-	assert.Contains(t, r.stdout, "🗑️ 已清理 Manifest 缓存")
-	assert.Contains(t, r.stdout, "🗑️ 已清理 artifacts 缓存")
+	assert.Contains(t, r.stdout, "✅ Removed people/basic@1.0.0")
+	assert.Contains(t, r.stdout, "🗑️ Cleaned the Manifest cache")
+	assert.Contains(t, r.stdout, "🗑️ Cleaned the artifacts cache")
 }
 
 // 9.10 多版本共存时指定版本移除，另一个版本完好。
@@ -85,7 +85,7 @@ func TestRemoveDeletesSourceDirectory(t *testing.T) {
 	r := runIn(t, f.Dir, "remove", "people/basic")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.NoDirExists(t, srcDir)
-	assert.Contains(t, r.stdout, "🗑️ 已删除源码目录 components/people/basic/")
+	assert.Contains(t, r.stdout, "🗑️ Deleted source directory components/people/basic/")
 }
 
 // 同 ID 还有其他版本时，源码目录必须保留（源码目录按组件 ID 而非版本组织）。
@@ -104,7 +104,7 @@ func TestRemoveKeepsSourceDirWhenAnotherVersionRemains(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	assert.DirExists(t, srcDir, "还有 2.0.0 在用这份源码目录")
-	assert.NotContains(t, r.stdout, "已删除源码目录")
+	assert.NotContains(t, r.stdout, "Deleted source directory")
 }
 
 // 源码被 brickkit sync 归档后再 remove：归档目录不能留下孤儿。
@@ -124,7 +124,7 @@ func TestRemoveDeletesArchivedSourceDirectory(t *testing.T) {
 
 	assert.NoDirExists(t, archived)
 	assert.NoDirExists(t, filepath.Join(f.Layout.ArchivedDir(), "people"), "空的 scope 目录要一并收走")
-	assert.Contains(t, r.stdout, "🗑️ 已删除归档源码目录 components/.archived/people/basic")
+	assert.Contains(t, r.stdout, "🗑️ Deleted archived source directory components/.archived/people/basic")
 }
 
 // 活跃与归档两处都有源码时，remove 要把两处都清干净。
@@ -143,8 +143,8 @@ func TestRemoveDeletesBothActiveAndArchivedSource(t *testing.T) {
 
 	assert.NoDirExists(t, active)
 	assert.NoDirExists(t, archived)
-	assert.Contains(t, r.stdout, "🗑️ 已删除源码目录 components/people/basic/")
-	assert.Contains(t, r.stdout, "🗑️ 已删除归档源码目录 components/.archived/people/basic")
+	assert.Contains(t, r.stdout, "🗑️ Deleted source directory components/people/basic/")
+	assert.Contains(t, r.stdout, "🗑️ Deleted archived source directory components/.archived/people/basic")
 }
 
 // 同 ID 还有其他版本时，归档源码和活跃源码一样必须保留。
@@ -162,7 +162,7 @@ func TestRemoveKeepsArchivedSourceWhenAnotherVersionRemains(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	assert.DirExists(t, archived, "还有 2.0.0 在用这份源码目录")
-	assert.NotContains(t, r.stdout, "已删除归档源码目录")
+	assert.NotContains(t, r.stdout, "Deleted archived source directory")
 }
 
 // remove 不破坏其他条目、注释与 ${ENV_VAR}。
@@ -218,7 +218,7 @@ resources:
 
 	r := runIn(t, f.Dir, "remove", "people/basic")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "🗑️ 已解除资源绑定：pg-main")
+	assert.Contains(t, r.stdout, "🗑️ Resource bindings dropped: pg-main")
 
 	cfg := f.parsed(t)
 	require.Len(t, cfg.Resources, 1, "资源声明本身要留着——库还在那儿跑")
@@ -257,7 +257,7 @@ resources:
 
 	r := runIn(t, f.Dir, "remove", "people/basic@1.0.0")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.NotContains(t, r.stdout, "已解除资源绑定")
+	assert.NotContains(t, r.stdout, "Resource bindings dropped")
 
 	cfg := f.parsed(t)
 	require.Len(t, cfg.Resources[0].Bindings, 1, "2.0.0 还要用这条绑定")
@@ -304,10 +304,10 @@ func TestRemoveBlockedByStrongDependent(t *testing.T) {
 
 	r := runIn(t, f.Dir, "remove", "department/tree")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "无法移除 department/tree")
+	assert.Contains(t, r.stderr, "Cannot remove department/tree")
 	assert.Contains(t, r.stderr, "erp/backend")
 	assert.Contains(t, r.stderr, "authorization/rbac")
-	assert.Contains(t, r.stderr, "请先移除依赖方")
+	assert.Contains(t, r.stderr, "Remove the dependents first")
 	assert.Equal(t, before, f.config(t), "被阻断时配置不得改动")
 }
 
@@ -339,7 +339,7 @@ func TestRemoveWeakDependentWarnsButProceeds(t *testing.T) {
 	assert.Equal(t, []string{"erp/backend@1.0.0"}, f.refs(t))
 	assert.Contains(t, r.stdout, "⚠️")
 	assert.Contains(t, r.stdout, "erp/backend@1.0.0")
-	assert.Contains(t, r.stdout, "弱依赖")
+	assert.Contains(t, r.stdout, "optional dependency")
 }
 
 // ============================================================
@@ -357,7 +357,7 @@ func TestRemoveMultiVersionRequiresVersion(t *testing.T) {
 
 	r := runIn(t, f.Dir, "remove", "people/basic")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "people/basic 存在多个版本（1.0.0, 2.0.0）")
+	assert.Contains(t, r.stderr, "people/basic has several versions (1.0.0, 2.0.0)")
 	assert.Contains(t, r.stderr, "brickkit remove people/basic@1.0.0")
 	assert.Equal(t, before, f.config(t))
 }
@@ -414,7 +414,7 @@ func TestRemoveWarnsWhenDependentManifestUnavailable(t *testing.T) {
 	r := runIn(t, f.Dir, "remove", "people/basic")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "⚠️")
-	assert.Contains(t, r.stdout, "无法确认")
+	assert.Contains(t, r.stdout, "cannot confirm")
 	assert.Contains(t, r.stdout, "erp/backend@1.0.0")
 }
 
@@ -504,7 +504,7 @@ func TestRemoveRefusesUnpushedCommits(t *testing.T) {
 	r := runIn(t, f.Dir, "remove", "demo/hello")
 
 	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
-	assert.Contains(t, r.stderr, "推")
+	assert.Contains(t, r.stderr, "push")
 }
 
 // cloneInto 把仓库 clone 到指定目录（先清掉占位的目录）。

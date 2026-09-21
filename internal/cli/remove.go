@@ -24,29 +24,17 @@ func newRemoveCommand(opts *Options) *cobra.Command {
 	var force bool
 
 	cmd := &cobra.Command{
-		Use:     "remove <组件ID>[@版本]",
-		Short:   "移除组件，并删除对应的源码目录与缓存",
+		Use:     i18n.T(msgid.CliRemoveRemoveComponentIdVersion),
+		Short:   i18n.T(msgid.CliRemoveShort),
 		GroupID: groupComponent,
-		Long: `从项目中移除组件。
-
-行为：
-  1. 检查是否有其他组件强依赖它 → 有则阻止移除
-  2. 从 brickkit.yaml 中移除条目
-  3. 解除 resources[].bindings 中指向它的绑定（同 ID 还有其他版本时保留）
-  4. 清理 Manifest 缓存与 artifacts 缓存
-  5. 自动删除源码目录：components/<scope>/<name>/ 与归档中的
-     components/.archived/<scope>/<name>/（同 ID 还有其他版本时保留）
-
-
-多版本共存时必须指定版本，否则报错。`,
-		Example: `  brickkit remove people/basic
-  brickkit remove people/basic@1.0.0    多版本共存时指定版本`,
-		Args: cobra.MaximumNArgs(1),
+		Long:    i18n.T(msgid.CliRemoveLong),
+		Example: i18n.T(msgid.CliRemoveExample2),
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return clierr.New(clierr.CodeInvalidArgument, "请指定要移除的组件").
-					WithDetail("用法", "brickkit remove <组件ID>[@版本]").
-					WithDetail("示例", "brickkit remove people/basic@1.0.0").
+				return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliRemovePleaseSpecifyTheComponentTo)).
+					WithDetail(i18n.T(msgid.CliRootUsage), i18n.T(msgid.CliRemoveBrickkitRemoveComponentIdVersion)).
+					WithDetail(i18n.T(msgid.CliRemoveExample), "brickkit remove people/basic@1.0.0").
 					WithExit(clierr.ExitUsage)
 			}
 			return runRemove(cmd.Context(), opts, args[0], force)
@@ -54,7 +42,7 @@ func newRemoveCommand(opts *Options) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false,
-		"源码删了就找不回来时（不是 Git 仓库、有未提交的改动、有没推的提交）照样删")
+		i18n.T(msgid.CliRemoveDeleteTheSourceEvenWhen))
 	return cmd
 }
 
@@ -88,10 +76,10 @@ func runRemove(ctx context.Context, opts *Options, arg string, force bool) error
 	dep := findDependents(ctx, client, cfg, target)
 	if len(dep.strong) > 0 {
 		// 002 §3.9 / 004 §3.4 输出样例
-		return clierr.Newf(clierr.CodeDependencyMissing, "无法移除 %s", target.ID).
-			WithDetail("版本", target.Version).
-			WithDetail("以下组件强依赖它", strings.Join(dep.strong, "、")).
-			WithHint("请先移除依赖方")
+		return clierr.New(clierr.CodeDependencyMissing, i18n.T(msgid.CliRemoveCannotRemove, target.ID)).
+			WithDetail(i18n.T(msgid.CliStatusVersion), target.Version).
+			WithDetail(i18n.T(msgid.CliRemoveTheseComponentsDependOnIt), strings.Join(dep.strong, i18n.T(msgid.ListSeparator))).
+			WithHint(i18n.T(msgid.CliRemoveRemoveTheDependentsFirst))
 	}
 
 	// 不在 git 仓库里时 repo 为 nil：submodule 阻断自己会跳过，现有行为不变。
@@ -131,21 +119,21 @@ func runRemove(ctx context.Context, opts *Options, arg string, force bool) error
 	for _, w := range dep.warnings {
 		opts.Printf("%s", w.Format())
 	}
-	opts.Printf("✅ 已移除 %s\n", target)
+	opts.Printf("%s\n", i18n.T(msgid.CliRemoveRemoved, target))
 	if len(unbound) > 0 {
-		opts.Printf("   🗑️ 已解除资源绑定：%s\n", strings.Join(unbound, "、"))
+		opts.Printf("%s\n", i18n.T(msgid.CliRemoveResourceBindingsDropped, strings.Join(unbound, i18n.T(msgid.ListSeparator))))
 	}
 	if cleanup.sourceRemoved {
-		opts.Printf("   🗑️ 已删除源码目录 %s\n", workspace.DisplayDir(target.ID))
+		opts.Printf("%s\n", i18n.T(msgid.CliRemoveDeletedSourceDirectory, workspace.DisplayDir(target.ID)))
 	}
 	if cleanup.archivedRemoved {
-		opts.Printf("   🗑️ 已删除归档源码目录 %s\n", workspace.DisplayArchivedDir(target.ID))
+		opts.Printf("%s\n", i18n.T(msgid.CliRemoveDeletedArchivedSourceDirectory, workspace.DisplayArchivedDir(target.ID)))
 	}
 	if cleanup.manifestRemoved {
-		opts.Printf("   🗑️ 已清理 Manifest 缓存\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliRemoveCleanedTheManifestCache))
 	}
 	if cleanup.artifactsRemoved {
-		opts.Printf("   🗑️ 已清理 artifacts 缓存\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliRemoveCleanedTheArtifactsCache))
 	}
 
 	logging.Info(i18n.T(msgid.LogComponentRemoved),
@@ -171,8 +159,8 @@ func resolveRemoveTarget(cfg *config.Config, id, version string) (resolver.Ref, 
 				versions = append(versions, e.Version)
 			}
 			// 004 §3.4 输出样例
-			return resolver.Ref{}, clierr.Newf(clierr.CodeVersionAmbiguous,
-				"%s 存在多个版本（%s），请指定版本：", id, strings.Join(versions, ", ")).
+			return resolver.Ref{}, clierr.New(clierr.CodeVersionAmbiguous,
+				i18n.T(msgid.CliRemoveHasSeveralVersionsPleaseSpecify, id, strings.Join(versions, ", "))).
 				WithHint("brickkit remove " + id + "@" + versions[0])
 		}
 		return resolver.Ref{ID: id, Version: entries[0].Version}, nil
@@ -188,23 +176,23 @@ func resolveRemoveTarget(cfg *config.Config, id, version string) (resolver.Ref, 
 	for _, e := range entries {
 		versions = append(versions, e.Version)
 	}
-	return resolver.Ref{}, clierr.Newf(clierr.CodeComponentNotFound,
-		"错误：%s@%s 不在 brickkit.yaml 中", id, version).
-		WithDetail("当前版本", strings.Join(versions, ", ")).
-		WithHint("确认版本号是否正确，或执行 brickkit remove " + id + "@" + versions[0])
+	return resolver.Ref{}, clierr.New(clierr.CodeComponentNotFound,
+		i18n.T(msgid.CliRemoveErrorIsNotInBrickkit2, id, version)).
+		WithDetail(i18n.T(msgid.CliRemoveCurrentVersion), strings.Join(versions, ", ")).
+		WithHint(i18n.T(msgid.CliRemoveCheckThatTheVersionNumber, id, versions[0]))
 }
 
 func notInConfigError(cfg *config.Config, id string) error {
-	e := clierr.Newf(clierr.CodeComponentNotFound, "错误：%s 不在 brickkit.yaml 中", id).
-		WithDetail("原因", "brickkit.yaml 的 components 中没有该组件")
+	e := clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.CliRemoveErrorIsNotInBrickkit, id)).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliRemoveBrickkitYamlHasNoSuch))
 	if len(cfg.Components) > 0 {
 		refs := make([]string, 0, len(cfg.Components))
 		for _, c := range cfg.Components {
 			refs = append(refs, c.Ref())
 		}
-		e = e.WithDetail("当前组件", strings.Join(refs, "、"))
+		e = e.WithDetail(i18n.T(msgid.CliRemoveCurrentComponents), strings.Join(refs, i18n.T(msgid.ListSeparator)))
 	}
-	return e.WithHint("确认组件 ID 是否正确")
+	return e.WithHint(i18n.T(msgid.CliRemoveCheckThatTheComponentId))
 }
 
 // ============================================================
@@ -236,10 +224,10 @@ func findDependents(
 		fetched, err := client.Manifest(ctx, other.ID, other.Version)
 		if err != nil {
 			report.warnings = append(report.warnings,
-				clierr.Warn(clierr.CodeManifestInvalid, "警告：无法确认 "+other.Ref()+" 的依赖关系").
-					WithDetail("原因", "该组件的 Manifest 既不在缓存中，也无法从安装源获取").
-					WithDetailf("影响", "无法判断它是否依赖 %s，移除后可能导致它启动失败", target).
-					WithTip("可执行 brickkit add "+other.Ref()+" 重新拉取缓存后重试（会提示是否刷新）"))
+				clierr.Warn(clierr.CodeManifestInvalid, i18n.T(msgid.CliRemoveWarningCannotConfirmTheDependencies, other.Ref())).
+					WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliRemoveThatComponentSManifestIs)).
+					WithDetail(i18n.T(msgid.LabelImpact), i18n.T(msgid.CliRemoveCannotTellWhetherItDepends, target)).
+					WithTip(i18n.T(msgid.CliRemoveRunBrickkitAddToPull, other.Ref())))
 			continue
 		}
 		for _, d := range dependenciesOf(fetched.Manifest) {
@@ -248,11 +236,10 @@ func findDependents(
 			}
 			if d.Optional {
 				report.warnings = append(report.warnings,
-					clierr.Warn(clierr.CodeDependencyMissing, "警告："+target.String()+" 被弱依赖").
-						WithDetail("依赖方", other.Ref()).
-						WithDetailf("影响", "移除后 %s 的环境变量 %s 不会再被注入",
-							other.Ref(), manifest.EndpointEnvVar(target.ID)).
-						WithTip("弱依赖降级由组件自行处理"))
+					clierr.Warn(clierr.CodeDependencyMissing, i18n.T(msgid.CliRemoveWarningIsDependedOnAs, target.String())).
+						WithDetail(i18n.T(msgid.CliRemoveDependent), other.Ref()).
+						WithDetail(i18n.T(msgid.LabelImpact), i18n.T(msgid.CliRemoveAfterRemovalTheEnvironmentVariable, other.Ref(), manifest.EndpointEnvVar(target.ID))).
+						WithTip(i18n.T(msgid.CliRemoveOptionalDependencyDegradationIsHandled)))
 				continue
 			}
 			report.strong = append(report.strong, other.Ref())
@@ -300,7 +287,7 @@ func cleanupComponent(
 	case err == nil:
 		res.manifestRemoved = true
 	case !os.IsNotExist(err):
-		return res, cleanupError("清理 Manifest 缓存", manifestPath, err)
+		return res, cleanupError(i18n.T(msgid.CliRemoveCleanTheManifestCache), manifestPath, err)
 	}
 
 	// 签名缓存跟 Manifest 是一对，必须一起删。留下孤儿签名的话，
@@ -311,7 +298,7 @@ func cleanupComponent(
 	artifactDir := client.ArtifactDir(target.ID, target.Version)
 	if _, err := os.Stat(artifactDir); err == nil {
 		if err := os.RemoveAll(artifactDir); err != nil {
-			return res, cleanupError("清理 artifacts 缓存", artifactDir, err)
+			return res, cleanupError(i18n.T(msgid.CliRemoveCleanTheArtifactsCache), artifactDir, err)
 		}
 		res.artifactsRemoved = true
 	}
@@ -345,10 +332,10 @@ func remainingVersions(cfg *config.Config, target resolver.Ref) int {
 }
 
 func cleanupError(action, path string, cause error) error {
-	return clierr.Newf(clierr.CodeConfigInvalid, "错误：%s失败", action).
-		WithDetail("路径", path).
-		WithDetail("原因", cause.Error()).
-		WithHint("检查文件与目录权限").
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.IOFailed, action)).
+		WithDetail(i18n.T(msgid.LabelPath), path).
+		WithDetail(i18n.T(msgid.LabelReason), cause.Error()).
+		WithHint(i18n.T(msgid.CliRemoveCheckTheFileAndDirectory)).
 		WithCause(cause)
 }
 
@@ -407,15 +394,14 @@ func checkSourceDeletable(
 		if risk == "" {
 			continue
 		}
-		return clierr.New(clierr.CodeConfigInvalid, "错误：源码删掉就找不回来了").
-			WithDetail("组件", target.String()).
-			WithDetail("目录", candidate.display).
-			WithDetail("原因", risk).
+		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliRemoveErrorTheSourceCanT)).
+			WithDetail(i18n.T(msgid.LabelComponent), target.String()).
+			WithDetail(i18n.T(msgid.LabelDir), candidate.display).
+			WithDetail(i18n.T(msgid.LabelReason), risk).
 			WithHint(
-				"先把它保住：提交并推到远端，或者把这个目录拷走 / 改名",
-				"确认不要了就加 --force：brickkit remove "+target.ID+" --force",
-				"只是暂时不用的话，给它写 enabled: false 再 brickkit sync"+
-					"——那会把源码收进归档目录，而不是删掉",
+				i18n.T(msgid.CliRemoveFirstKeepItSafeCommit),
+				i18n.T(msgid.CliRemoveIfYouAreSureYou, target.ID),
+				i18n.T(msgid.CliRemoveIfYouOnlyDonT),
 			)
 	}
 	return nil
