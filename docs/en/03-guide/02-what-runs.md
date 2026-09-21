@@ -71,11 +71,11 @@ Reading it top to bottom: `demo/hello` runs because `demo/caller` needs it, not 
 
 ## Turning a required dependency off
 
-Add `enabled: false` to `demo/hello`'s entry in `brickkit.yaml` and run `--dry-run` again:
+Add `mode: disable` to `demo/hello`'s entry in `brickkit.yaml` and run `--dry-run` again:
 
 ```
 📋 Component state calculation:
-   ⬜ demo/hello@1.0.0   disabled explicitly (enabled: false)
+   ⬜ demo/hello@1.0.0   disabled explicitly (mode: disable)
    ⬜ demo/caller@1.0.0  not starting (required dependency demo/hello is not starting)
 
 📋 No component will start this run
@@ -84,23 +84,23 @@ Add `enabled: false` to `demo/hello`'s entry in `brickkit.yaml` and run `--dry-r
    The top level itself isn't turned off — what to release is the component named in the reason line above
 ```
 
-`demo/caller` never had its own `enabled` field touched — on its own, being top-level, it would run by default. It stops anyway, because its *required* dependency is force-off, and "whatever depends on it stops too" (AGENTS.md §5.4) doesn't care what the dependent's own `enabled` says. The last line is the CLI actively pointing at the fix: the thing to change isn't `demo/caller`, whose behavior here is a consequence, not a cause — it's `demo/hello`.
+`demo/caller` never had its own `mode` field touched — on its own, being top-level, it would run by default. It stops anyway, because its *required* dependency is force-off, and "whatever depends on it stops too" (AGENTS.md §5.4) doesn't care what the dependent's own `mode` says. The last line is the CLI actively pointing at the fix: the thing to change isn't `demo/caller`, whose behavior here is a consequence, not a cause — it's `demo/hello`.
 
 ## Pinning both sides at once is a conflict, not a decision
 
-Leave `demo/hello` disabled, but add `enabled: true` to `demo/caller` — insisting it must always run, no matter what:
+Leave `demo/hello` disabled, but add `mode: enabled` to `demo/caller` — insisting it must always run, no matter what:
 
 ```
 ❌ Error: required dependency demo/hello is disabled
-   Component: demo/caller@1.0.0 (enabled: true, pinned)
+   Component: demo/caller@1.0.0 (mode: enabled, pinned)
    Dependency chain: demo/caller → demo/hello
    Disabled component: demo/hello@1.0.0
    Suggestions:
-   1. Remove enabled: false from demo/hello in brickkit.yaml
-   2. Or remove enabled: true from demo/caller, letting it follow whatever is above it
+   1. Remove mode: disable from demo/hello in brickkit.yaml
+   2. Or remove mode: enabled from demo/caller, letting it follow whatever is above it
 ```
 
-Two explicit, written instructions — "`demo/hello` never runs" and "`demo/caller` always runs" — directly contradict each other once `demo/caller` actually needs `demo/hello`, and the platform refuses to silently pick a winner (AGENTS.md §5.4). This is different from the previous section on purpose: an *unwritten* `enabled` on the dependent just follows along quietly; a *written* one that conflicts is a hard stop, because now there are two explicit intents on record instead of one.
+Two explicit, written instructions — "`demo/hello` never runs" and "`demo/caller` always runs" — directly contradict each other once `demo/caller` actually needs `demo/hello`, and the platform refuses to silently pick a winner (AGENTS.md §5.4). This is different from the previous section on purpose: an *unwritten* `mode` on the dependent just follows along quietly; a *written* one that conflicts is a hard stop, because now there are two explicit intents on record instead of one.
 
 ---
 

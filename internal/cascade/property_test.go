@@ -2,10 +2,11 @@
 //
 // # 为什么要有它
 //
-// 启停判定是全平台规则最密的一处：三态 enabled × 强/弱依赖 × 多个上层共享 × 环。
+// 启停判定是全平台规则最密的一处：四态 mode × 强/弱依赖 × 多个上层共享 × 环。
 // cascade_test.go 的示例式测试每条只验证一个人想到的组合，而这个组合空间远超手写
 // 用例的数量；这条规则还改过不止一次（措辞改成"跟着上层走"、删掉过"只被弱依赖
-// 引用就不自动拉起"），改一次就得把所有组合在脑子里重新推一遍。
+// 引用就不自动拉起"、enabled/local 合并成 mode），改一次就得把所有组合在脑子里
+// 重新推一遍。
 //
 // 这里换一种验证：随机生成一批小图，每张都用**暴力枚举**算出参照答案，再要求
 // Compute 与它一致。参照物不复刻 computeStopped 的传播算法，而是直接枚举全部 2^n
@@ -16,10 +17,12 @@
 //
 // 一个候选"在跑"集合 S 合规，当且仅当对每个组件 x：
 //
-//	enabled: false  → x 不在 S 里
-//	enabled: true   → x 在 S 里（钉住，不看上层）
-//	没写 enabled    → x 在 S 里，当且仅当它的强依赖全在 S 里，
-//	                  并且（它是顶层，或至少有一个上层在 S 里）
+//	mode: disable          → x 不在 S 里
+//	mode: enabled / debug  → x 在 S 里（钉住，不看上层——debug 跟 enabled 一样是
+//	                          "肯定要跑"，只是多了"在哪跑"这层意思，级联判定不
+//	                          区分这两个取值）
+//	没写 mode               → x 在 S 里，当且仅当它的强依赖全在 S 里，
+//	                          并且（它是顶层，或至少有一个上层在 S 里）
 //
 // 满足这些的集合有时不止一个：两个组件互相弱依赖时，"都跑"和"都不跑"各自自洽。
 // 文档给的答案是前者（环上没有更上层，互为顶层），所以取**最大**的合规集合——
@@ -43,7 +46,12 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/config"
 )
+
+// isPinnedMode 判断这个 mode 取值是否"肯定要跑"——enabled 和 debug 都算，
+// 级联判定不区分这两者，只是 debug 多了"在哪跑"这层意思。
+func isPinnedMode(mode string) bool { return mode == config.ModeEnabled || mode == config.ModeDebug }
 
 const (
 	propertyCases = 3000
@@ -52,16 +60,16 @@ const (
 
 // randomCase 是一个随机出来的场景。
 type randomCase struct {
-	specs   []spec
-	enabled []string // 每个组件的 enabled："" / "true" / "false"
-	listed  []bool   // 没写 enabled 的组件是否出现在 brickkit.yaml 里——不出现也要按"没写"处理
+	specs  []spec
+	mode   []string // 每个组件的 mode："" / "enabled" / "debug" / "disable"
+	listed []bool   // 没写 mode 的组件是否出现在 brickkit.yaml 里——不出现也要按"没写"处理
 }
 
 func componentID(i int) string { return fmt.Sprintf("c%d/x", i) }
 
 func generate(rng *rand.Rand) randomCase {
 	n := 1 + rng.Intn(maxComponents)
-	c := randomCase{specs: make([]spec, n), enabled: make([]string, n), listed: make([]bool, n)}
+	c := randomCase{specs: make([]spec, n), mode: make([]string, n), listed: make([]bool, n)}
 	for i := 0; i < n; i++ {
 		c.specs[i].id = componentID(i)
 		for j := 0; j < n; j++ {
@@ -74,8 +82,10 @@ func generate(rng *rand.Rand) randomCase {
 				c.specs[i].optional = append(c.specs[i].optional, componentID(j))
 			}
 		}
-		c.enabled[i] = [...]string{"", "", "", "true", "false"}[rng.Intn(5)]
-		c.listed[i] = c.enabled[i] != "" || rng.Intn(4) != 0
+		c.mode[i] = [...]string{
+			"", "", "", config.ModeEnabled, config.ModeDebug, config.ModeDisable,
+		}[rng.Intn(6)]
+		c.listed[i] = c.mode[i] != "" || rng.Intn(4) != 0
 	}
 	return c
 }
@@ -84,12 +94,12 @@ func generate(rng *rand.Rand) randomCase {
 func (c randomCase) permuted(rng *rand.Rand) randomCase {
 	order := rng.Perm(len(c.specs))
 	out := randomCase{
-		specs:   make([]spec, len(c.specs)),
-		enabled: make([]string, len(c.specs)),
-		listed:  make([]bool, len(c.specs)),
+		specs:  make([]spec, len(c.specs)),
+		mode:   make([]string, len(c.specs)),
+		listed: make([]bool, len(c.specs)),
 	}
 	for to, from := range order {
-		out.specs[to], out.enabled[to], out.listed[to] = c.specs[from], c.enabled[from], c.listed[from]
+		out.specs[to], out.mode[to], out.listed[to] = c.specs[from], c.mode[from], c.listed[from]
 	}
 	return out
 }
@@ -98,7 +108,7 @@ func (c randomCase) config() [][2]string {
 	var entries [][2]string
 	for i, s := range c.specs {
 		if c.listed[i] {
-			entries = append(entries, entry(s.id, c.enabled[i]))
+			entries = append(entries, entry(s.id, c.mode[i]))
 		}
 	}
 	return entries
@@ -108,17 +118,15 @@ func (c randomCase) config() [][2]string {
 func (c randomCase) describe() string {
 	var parts []string
 	for i, s := range c.specs {
-		state := c.enabled[i]
+		state := c.mode[i]
 		switch state {
 		case "":
 			state = "未写"
 			if !c.listed[i] {
 				state = "未列出"
 			}
-		case "true":
-			state = "enabled: true"
 		default:
-			state = "enabled: false"
+			state = "mode: " + state
 		}
 		parts = append(parts, fmt.Sprintf("%s[%s 强:%v 弱:%v]", s.id, state, s.requires, s.optional))
 	}
@@ -156,12 +164,12 @@ func (c randomCase) expected(t *testing.T) expectation {
 	valid := func(set uint) bool {
 		in := func(i int) bool { return set&(1<<uint(i)) != 0 }
 		for i := 0; i < n; i++ {
-			switch c.enabled[i] {
-			case "false":
+			switch {
+			case c.mode[i] == config.ModeDisable:
 				if in(i) {
 					return false
 				}
-			case "true":
+			case isPinnedMode(c.mode[i]):
 				if !in(i) {
 					return false
 				}
@@ -206,7 +214,7 @@ func (c randomCase) expected(t *testing.T) expectation {
 		out.hasUpper[s.id] = len(dependents[i]) > 0
 	}
 	for i := 0; i < n; i++ {
-		if c.enabled[i] != "true" {
+		if !isPinnedMode(c.mode[i]) {
 			continue
 		}
 		for _, d := range requires[i] {
@@ -220,13 +228,15 @@ func (c randomCase) expected(t *testing.T) expectation {
 
 // 参照物自己要先对得上文档里写明的规则——否则拿它去对拍实现，"全绿"没有意义。
 func TestOracleAgreesWithDocumentedRules(t *testing.T) {
-	newCase := func(enabled []string, specs ...spec) randomCase {
-		c := randomCase{specs: specs, enabled: enabled, listed: make([]bool, len(specs))}
+	newCase := func(mode []string, specs ...spec) randomCase {
+		c := randomCase{specs: specs, mode: mode, listed: make([]bool, len(specs))}
 		for i := range c.listed {
 			c.listed[i] = true
 		}
 		return c
 	}
+
+	e, d, off := config.ModeEnabled, config.ModeDebug, config.ModeDisable
 
 	tests := []struct {
 		name     string
@@ -242,44 +252,51 @@ func TestOracleAgreesWithDocumentedRules(t *testing.T) {
 		},
 		{
 			name: "环上一个被关掉：另一个的上层全都不跑，跟着不跑",
-			c: newCase([]string{"false", ""},
+			c: newCase([]string{off, ""},
 				spec{id: "a", optional: []string{"b"}}, spec{id: "b", optional: []string{"a"}}),
 			running: map[string]bool{"a": false, "b": false},
 		},
 		{
-			name: "一条链没写 enabled：顶层跑，下面跟着跑",
+			name: "一条链没写 mode：顶层跑，下面跟着跑",
 			c: newCase([]string{"", "", ""},
 				spec{id: "top", requires: []string{"mid"}}, spec{id: "mid", requires: []string{"low"}}, spec{id: "low"}),
 			running: map[string]bool{"top": true, "mid": true, "low": true},
 		},
 		{
 			name: "顶层被关掉：整条链跟着不跑",
-			c: newCase([]string{"false", "", ""},
+			c: newCase([]string{off, "", ""},
 				spec{id: "top", requires: []string{"mid"}}, spec{id: "mid", requires: []string{"low"}}, spec{id: "low"}),
 			running: map[string]bool{"top": false, "mid": false, "low": false},
 		},
 		{
 			name: "共用的下层：一个上层被关掉，另一个还在跑，它就不能倒",
-			c: newCase([]string{"false", "", ""},
+			c: newCase([]string{off, "", ""},
 				spec{id: "a", requires: []string{"shared"}}, spec{id: "b", requires: []string{"shared"}}, spec{id: "shared"}),
 			running: map[string]bool{"a": false, "b": true, "shared": true},
 		},
 		{
 			name: "强依赖不跑，没钉住的上层跟着不跑",
-			c: newCase([]string{"", "false"},
+			c: newCase([]string{"", off},
 				spec{id: "app", requires: []string{"db"}}, spec{id: "db"}),
 			running: map[string]bool{"app": false, "db": false},
 		},
 		{
-			name: "钉住的组件强依赖被关掉：两个意图冲突",
-			c: newCase([]string{"true", "false"},
+			name: "钉住的组件（mode: enabled）强依赖被关掉：两个意图冲突",
+			c: newCase([]string{e, off},
+				spec{id: "app", requires: []string{"db"}}, spec{id: "db"}),
+			running:  map[string]bool{"app": true, "db": false},
+			conflict: true,
+		},
+		{
+			name: "钉住的组件（mode: debug）强依赖被关掉：两个意图冲突，跟 enabled 同一个结论",
+			c: newCase([]string{d, off},
 				spec{id: "app", requires: []string{"db"}}, spec{id: "db"}),
 			running:  map[string]bool{"app": true, "db": false},
 			conflict: true,
 		},
 		{
 			name: "弱依赖被关掉是正常状态，不冲突",
-			c: newCase([]string{"true", "false"},
+			c: newCase([]string{e, off},
 				spec{id: "app", optional: []string{"cache"}}, spec{id: "cache"}),
 			running: map[string]bool{"app": true, "cache": false},
 		},
@@ -319,7 +336,7 @@ func TestComputeMatchesBruteForceOracle(t *testing.T) {
 		for i, s := range c.specs {
 			expectedState := cascade.StateSkipped
 			switch {
-			case c.enabled[i] == "false":
+			case c.mode[i] == config.ModeDisable:
 				expectedState = cascade.StateDisabled
 			case want.running[s.id]:
 				expectedState = cascade.StateRunning

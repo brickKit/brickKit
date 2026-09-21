@@ -214,11 +214,11 @@ git -C components/demo/hello push myfork feature/greeting
 
 To get your change into use — for other people, or for your other projects — is a matter of publishing a new version: bump the version in `component.yaml`, build a new image, `brickkit publish` ([article 9](09-marketplace.md)); how projects already on the old version upgrade is [article 5](05-upgrades-and-versions.md).
 
-## Keep only what you're working on: `enabled` and `sync`
+## Keep only what you're working on: `mode` and `sync`
 
-`components/` only grows. In a 50-component project, the ones you're actually looking at right now might be two or three. `brickkit sync` keeps `components/` to just those: it moves the source of components that **won't start** this time into `components/.archived/`, and moves back what's needed. The "who starts this time" decision is exactly the one `up` makes, so you steer it the same way — by changing `enabled` ([article 2](02-what-runs.md)).
+`components/` only grows. In a 50-component project, the ones you're actually looking at right now might be two or three. `brickkit sync` keeps `components/` to just those: it moves the source of components that **won't start** this time into `components/.archived/`, and moves back what's needed. The "who starts this time" decision is exactly the one `up` makes, so you steer it the same way — by changing `mode` ([article 2](02-what-runs.md)).
 
-Turn `demo/caller` off by giving it an `enabled: false` line:
+Turn `demo/caller` off by giving it a `mode: disable` line:
 
 ```yaml
 components:
@@ -226,7 +226,7 @@ components:
     version: 1.0.0
   - id: demo/caller
     version: 1.0.0
-    enabled: false
+    mode: disable
 ```
 
 ```bash
@@ -238,7 +238,7 @@ Only the decision part is shown:
 ```
 📋 Component state calculation:
    ⬜ demo/hello@1.0.0   not starting (nothing above it is starting)
-   ⬜ demo/caller@1.0.0  disabled explicitly (enabled: false)
+   ⬜ demo/caller@1.0.0  disabled explicitly (mode: disable)
 ```
 
 `demo/hello` isn't starting either — only `demo/caller` needs it, and it "follows the top". Now let `sync` put both of their sources away:
@@ -250,7 +250,7 @@ brickkit sync
 ```
 📂 Workspace tidying:
    📦 components/demo/caller/              → components/.archived/demo/caller
-      Reason: disabled explicitly (enabled: false)
+      Reason: disabled explicitly (mode: disable)
    📦 components/demo/hello/               → components/.archived/demo/hello
       Reason: not starting (nothing above it is starting)
 ✅ Workspace tidied (0 active, 2 archived, 0 activated)
@@ -272,20 +272,20 @@ A few things worth knowing:
 
 - **The whole directory moves, `.git` included.** An archived component still works with Git (`git -C components/.archived/demo/hello log`), and IDEs open it as usual; `up` still reads its `component.yaml` too. Archiving only changes whether you can *see* it, not whether it can be *found*.
 - **`sync` never touches running containers and never changes what `up` starts** — it only moves directories.
-- **There's no `--dry-run`.** If it moved the wrong thing, change `enabled` back and run it again; that swaps them back.
+- **There's no `--dry-run`.** If it moved the wrong thing, change `mode` back and run it again; that swaps them back.
 - **It's a separate command, deliberately not folded into `up`.** `up` manages runtime, `sync` manages the source directory; if `up` moved files as a side effect, you'd wonder why your files had moved on their own (AGENTS.md §9.17).
 - The three numbers in the parentheses mean, in order: already in place, put away this time, brought back this time.
 
-Now say you only want to read `demo/hello`'s source. Pin it with `enabled: true` — "run this regardless of what's above it":
+Now say you only want to read `demo/hello`'s source. Pin it with `mode: enabled` — "run this regardless of what's above it":
 
 ```yaml
 components:
   - id: demo/hello
     version: 1.0.0
-    enabled: true
+    mode: enabled
   - id: demo/caller
     version: 1.0.0
-    enabled: false
+    mode: disable
 ```
 
 ```bash
@@ -294,8 +294,8 @@ brickkit up --dry-run
 
 ```
 📋 Component state calculation:
-   ✅ demo/hello@1.0.0   starting (enabled: true)
-   ⬜ demo/caller@1.0.0  disabled explicitly (enabled: false)
+   ✅ demo/hello@1.0.0   starting (mode: enabled)
+   ⬜ demo/caller@1.0.0  disabled explicitly (mode: disable)
 ```
 
 ```bash
@@ -309,7 +309,7 @@ brickkit sync
 ✅ Workspace tidied (0 active, 0 archived, 1 activated)
 ```
 
-`demo/hello` came back; `demo/caller` stays archived. When you want everything back, delete both `enabled` lines (back to "unwritten", i.e. follow the top) and run it once more:
+`demo/hello` came back; `demo/caller` stays archived. When you want everything back, delete both `mode` lines (back to "unwritten", i.e. follow the top) and run it once more:
 
 ```bash
 brickkit sync
@@ -355,7 +355,7 @@ brickkit remove demo/caller
    Suggestions:
    1. First keep it safe: commit and push it to a remote, or copy the directory away / rename it
    2. If you are sure you don't need it, add --force: brickkit remove demo/caller --force
-   3. If you only don't need it for now, write enabled: false for it and run brickkit sync — that moves the source into the archive directory instead of deleting it
+   3. If you only don't need it for now, write mode: disable for it and run brickkit sync — that moves the source into the archive directory instead of deleting it
 ```
 
 Committed, but not pushed:
@@ -387,9 +387,9 @@ brickkit remove demo/caller
    🗑️ Cleaned the artifacts cache
 ```
 
-Nothing stopped it this time — a clean clone with everything pushed loses nothing when deleted. The three ways out listed in that error are the point of this section: **save it** (commit and push), **confirm you don't want it** (`--force`), or **you just don't need it right now** — in which case don't delete it; `enabled: false` plus `sync` moves the source into the archive and loses nothing.
+Nothing stopped it this time — a clean clone with everything pushed loses nothing when deleted. The three ways out listed in that error are the point of this section: **save it** (commit and push), **confirm you don't want it** (`--force`), or **you just don't need it right now** — in which case don't delete it; `mode: disable` plus `sync` moves the source into the archive and loses nothing.
 
-The archived copy is deleted too. Give `demo/hello` an `enabled: false`, run `brickkit sync` to put it in the archive (the output is the same as before, so it's skipped), then remove it:
+The archived copy is deleted too. Give `demo/hello` a `mode: disable`, run `brickkit sync` to put it in the archive (the output is the same as before, so it's skipped), then remove it:
 
 ```bash
 brickkit remove demo/hello
@@ -425,7 +425,7 @@ This one is **not affected by `--force`**: `--force` is the way out of "will dat
 
 ## Source committed with the project: `restore` and the commit hook
 
-So far `workspace-demo` has been the "one repository per component" shape: the rule `init` appended to `.gitignore` ignores `components/` entirely, the project repository holds only `brickkit.yaml`, and the source lives in its own repositories. Some teams want the other shape: **component source committed along with the project**, code and config in one commit. Then `sync`'s directory moves show up right in `git status` (a wall of `D` and `??`), and a mistake becomes easy to make again and again: you turn a few components off locally, run `sync`, and commit only the source — the `enabled` change in `brickkit.yaml` doesn't come along. The repository is now contradictory: config says the component should run, its source sits in the archive directory, and a teammate who pulls it is lost. The commit hook and `restore` exist to close exactly that hole.
+So far `workspace-demo` has been the "one repository per component" shape: the rule `init` appended to `.gitignore` ignores `components/` entirely, the project repository holds only `brickkit.yaml`, and the source lives in its own repositories. Some teams want the other shape: **component source committed along with the project**, code and config in one commit. Then `sync`'s directory moves show up right in `git status` (a wall of `D` and `??`), and a mistake becomes easy to make again and again: you turn a few components off locally, run `sync`, and commit only the source — the `mode` change in `brickkit.yaml` doesn't come along. The repository is now contradictory: config says the component should run, its source sits in the archive directory, and a teammate who pulls it is lost. The commit hook and `restore` exist to close exactly that hole.
 
 Start another project. This time `git init` **first**, then `brickkit init`:
 
@@ -475,10 +475,10 @@ The hook ran on that commit too, but everything was consistent, so it said nothi
 components:
   - id: demo/hello
     version: 1.0.0
-    enabled: true
+    mode: enabled
   - id: demo/caller
     version: 1.0.0
-    enabled: false
+    mode: disable
 ```
 
 ```bash
@@ -492,13 +492,13 @@ git commit -m "Adjust hello's greeting"
 ❌ Commit blocked: component source is committed under the archive directory, but brickkit.yaml says it should start
    demo/caller: Location about to be committed: components/.archived/demo/caller
    Suggestions:
-   1. To keep this archived layout → git add brickkit.yaml (the enabled: false in the yaml going into the commit is your declaration of intent)
+   1. To keep this archived layout → git add brickkit.yaml (the mode: disable in the yaml going into the commit is your declaration of intent)
    2. Don't want that → git reset components/ && brickkit restore, then git add again
 ```
 
-The hook looks at **what's about to be committed** (the staging area), not your working tree: in the staging area `brickkit.yaml` hasn't changed (no `enabled: false`, so "it should run"), yet `demo/caller`'s source is in the archive directory — a contradiction, so it stops. It offers two ways out:
+The hook looks at **what's about to be committed** (the staging area), not your working tree: in the staging area `brickkit.yaml` hasn't changed (no `mode: disable`, so "it should run"), yet `demo/caller`'s source is in the archive directory — a contradiction, so it stops. It offers two ways out:
 
-**Way out one: this is what you wanted.** `git add brickkit.yaml`, so `enabled: false` and the archived layout go into the commit together. The two agree, and the hook lets it through — you narrowed the scope on purpose, and the platform has no standing to change your mind.
+**Way out one: this is what you wanted.** `git add brickkit.yaml`, so `mode: disable` and the archived layout go into the commit together. The two agree, and the hook lets it through — you narrowed the scope on purpose, and the platform has no standing to change your mind.
 
 **Way out two: it was a slip.** Unstage, then `brickkit restore`:
 
@@ -518,9 +518,9 @@ brickkit restore
 ✅ Workspace tidied (1 active, 0 archived, 1 activated)
 ```
 
-`restore` puts each component's `enabled` back to its value in the last commit (if the commit didn't write one, the field is removed altogether), then lets the source layout follow, by the same rule `sync` uses. Remember its boundaries:
+`restore` puts each component's `mode` back to its value in the last commit (if the commit didn't write one, the field is removed altogether), then lets the source layout follow, by the same rule `sync` uses. Remember its boundaries:
 
-- **It touches only the `enabled` field.** The old values it's about to overwrite are printed first (the two lines right after the heading above).
+- **It touches only the `mode` field.** The old values it's about to overwrite are printed first (the two lines right after the heading above).
 - Entries you've just `add`ed, or whose version you've changed, are left **untouched**.
 - Anything in the commit but not in your working tree is **never added back** — it isn't `git revert`.
 
@@ -541,13 +541,13 @@ The hook blocks only **one direction**: source in the archive directory while th
 | --- | --- | --- |
 | `add … --repo` prints "Cancelled; brickkit.yaml was not modified" and clones nothing | The component is already in `brickkit.yaml`; `add` asked "refresh the cache?" and, with no terminal, took it as N | Add `--yes` |
 | `--repo` says "Clone failed: directory already exists" | `components/<scope>/<name>/` already holds source: cloned earlier, or hand-written by you | Use it. If you really want to clone again, move that directory away first |
-| `--repo` says "Clone failed: the source is already there, just archived" | `sync` put the source into `.archived/` | Bring it back: change `enabled`, then `brickkit sync` |
+| `--repo` says "Clone failed: the source is already there, just archived" | `sync` put the source into `.archived/` | Bring it back: change `mode`, then `brickkit sync` |
 | `--repo` says "Clone failed: this component is closed-source" | A closed-source component has no Git repository | Drop `--repo`; a plain `add` works |
-| A wall of `D` and `??` in `git status` after `sync` | When `components/` is tracked by the project repository, archiving is a directory move and shows up in the diff | Expected. Commit `enabled` and the moves together, or undo with `brickkit restore` |
+| A wall of `D` and `??` in `git status` after `sync` | When `components/` is tracked by the project repository, archiving is a directory move and shows up in the diff | Expected. Commit `mode` and the moves together, or undo with `brickkit restore` |
 | The hook blocks a commit | Archived source went into the commit while `brickkit.yaml` says it should run | Follow the message: `git add brickkit.yaml`, or `git reset components/` then `brickkit restore` |
-| `remove` says "the source can't be recovered once it is deleted" | The source isn't a Git repository, has uncommitted changes, or has commits not pushed to any remote | Commit and push; or copy it away; or `--force`; or, if you just don't need it for now, use `enabled: false` plus `sync` instead |
+| `remove` says "the source can't be recovered once it is deleted" | The source isn't a Git repository, has uncommitted changes, or has commits not pushed to any remote | Commit and push; or copy it away; or `--force`; or, if you just don't need it for now, use `mode: disable` plus `sync` instead |
 | `remove` says "it's a registered git submodule" | Deleting directly would leave `.gitmodules` and the index dangling | Run the git commands it lists by hand; `--force` doesn't apply |
-| Want an archived component back | | Change `enabled`, then `brickkit sync`; or just work in `components/.archived/<scope>/<name>/` — Git commands and IDEs work as usual |
+| Want an archived component back | | Change `mode`, then `brickkit sync`; or just work in `components/.archived/<scope>/<name>/` — Git commands and IDEs work as usual |
 
 ## At a glance
 
@@ -555,7 +555,7 @@ The hook blocks only **one direction**: source in the archive directory while th
 | --- | --- |
 | Read or change a component's source | `brickkit add <component> --repo` |
 | Get the source of a whole dependency tree | `brickkit add <component> --repo-all` |
-| Keep only what you're working on in `components/` | Change `enabled`, then `brickkit sync` |
+| Keep only what you're working on in `components/` | Change `mode`, then `brickkit sync` |
 | Get rid of a component for good | `brickkit remove <component>` |
 | Undo a narrowing you haven't committed | `brickkit restore` |
 | Check the structure is consistent before committing | `brickkit restore --check` (the hook calls it) |

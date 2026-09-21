@@ -29,7 +29,7 @@ Solid arrows are required dependencies, dashed arrows are optional. Two things m
 
 ## Stage ①: cascade — who actually runs
 
-The full rule table lives in AGENTS.md §5.4; this section shows what it looks like against a real graph rather than restating it. Declare this project with `erp/backend: enabled: false` and nothing else touched, then run `brickkit up --dry-run`:
+The full rule table lives in AGENTS.md §5.4; this section shows what it looks like against a real graph rather than restating it. Declare this project with `erp/backend: mode: disable` and nothing else touched, then run `brickkit up --dry-run`:
 
 ```
 📋 Component state calculation:
@@ -38,7 +38,7 @@ The full rule table lives in AGENTS.md §5.4; this section shows what it looks l
    ✅ people/basic@1.0.0           starting (auth/password-login needs it)
    ✅ auth/password-login@1.0.0    starting (infra/api-docs needs it)
    ✅ authorization/rbac@1.0.0     starting (infra/api-docs needs it)
-   ⬜ erp/backend@1.0.0            disabled explicitly (enabled: false)
+   ⬜ erp/backend@1.0.0            disabled explicitly (mode: disable)
    ⬜ portal/user-frontend@1.0.0   not starting (required dependency erp/backend is not starting)
    ✅ infra/api-docs@1.0.0         starting (top-level)
 ```
@@ -46,7 +46,7 @@ The full rule table lives in AGENTS.md §5.4; this section shows what it looks l
 Two things here are easy to get wrong by reasoning about the rule in the abstract instead of watching it run:
 
 - **Turning off `erp/backend` doesn't turn off its own dependency subtree.** `people/basic`, `auth/password-login`, `authorization/rbac`, and `department/tree` all keep running, because `infra/api-docs` — a completely separate, always-on top-level component — optionally depends on every one of them directly. Cascade asks "does *any* running upstream still need this," not "does the upstream I had in mind still need this." A shared lower-level component surviving through a consumer you weren't thinking about is the normal case here, not an edge case.
-- **The propagation runs in both directions from an explicit `enabled: false`.** `portal/user-frontend` never declared `enabled` at all — on its own it would default to running, being top-level. It stops anyway, because its *required* dependency (`erp/backend`) is force-off, and "whatever depends on it stops too" (AGENTS.md §5.4) applies regardless of what the dependent's own `enabled` field says. Only an explicit `enabled: true` on `portal/user-frontend` would turn this into a hard error instead of a silent stop — two conflicting explicit intents on record at once.
+- **The propagation runs in both directions from an explicit `mode: disable`.** `portal/user-frontend` never declared `mode` at all — on its own it would default to running, being top-level. It stops anyway, because its *required* dependency (`erp/backend`) is force-off, and "whatever depends on it stops too" (AGENTS.md §5.4) applies regardless of what the dependent's own `mode` field says. Only an explicit `mode: enabled` on `portal/user-frontend` would turn this into a hard error instead of a silent stop — two conflicting explicit intents on record at once.
 
 ## Stage ②: resolve — expanding the graph without duplicating the diamond
 

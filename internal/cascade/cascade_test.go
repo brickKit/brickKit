@@ -1,7 +1,7 @@
 // 本文件是启停判定的业务行为测试。
 //
-// 规则来自 003 §4.3：**跟着上层走**——顶层没写 enabled 就跑，下层跟上层，
-// 写了 enabled 就按写的来。这里的每个用例都对应设计书里写死的一条判定。
+// 规则来自 003 §4.3：**跟着上层走**——顶层没写 mode 就跑，下层跟上层，
+// 写了 mode 就按写的来。这里的每个用例都对应设计书里写死的一条判定。
 package cascade_test
 
 import (
@@ -72,25 +72,16 @@ func newGraph(t *testing.T, specs ...spec) *resolver.Graph {
 	return graph
 }
 
-// cfgOf 造一份 brickkit.yaml 配置。enabled 用 "" / "true" / "false" 表示三态。
+// cfgOf 造一份 brickkit.yaml 配置。mode 直接用 "" / "enabled" / "disable" / "debug" 表示。
 func cfgOf(entries ...[2]string) *config.Config {
 	cfg := &config.Config{}
 	for _, e := range entries {
-		c := config.Component{ID: e[0], Version: "1.0.0"}
-		switch e[1] {
-		case "true":
-			on := true
-			c.Enabled = &on
-		case "false":
-			off := false
-			c.Enabled = &off
-		}
-		cfg.Components = append(cfg.Components, c)
+		cfg.Components = append(cfg.Components, config.Component{ID: e[0], Version: "1.0.0", Mode: e[1]})
 	}
 	return cfg
 }
 
-func entry(id, enabled string) [2]string { return [2]string{id, enabled} }
+func entry(id, mode string) [2]string { return [2]string{id, mode} }
 
 // runningIDs 返回实际启动的组件 ID。
 func runningIDs(r *cascade.Result) []string {
@@ -131,8 +122,8 @@ func TestCascadeMatchesDesignExample(t *testing.T) {
 	cfg := cfgOf(
 		entry("department/tree", ""),
 		entry("people/basic", ""),
-		entry("authorization/rbac", "true"),
-		entry("erp/backend", "false"),
+		entry("authorization/rbac", "enabled"),
+		entry("erp/backend", "disable"),
 		entry("portal/user-frontend", ""),
 	)
 
@@ -156,7 +147,7 @@ func TestCascadeMatchesDesignExample(t *testing.T) {
 	assert.Contains(t, reason, "nothing above it is starting")
 
 	_, reason = reasonOf(t, result, "authorization/rbac")
-	assert.Contains(t, reason, "enabled: true")
+	assert.Contains(t, reason, "mode: enabled")
 
 	_, reason = reasonOf(t, result, "department/tree")
 	assert.Contains(t, reason, "authorization/rbac", "要说清是跟着谁在跑：%s", reason)
@@ -166,11 +157,11 @@ func TestCascadeMatchesDesignExample(t *testing.T) {
 // 三态的基本行为
 // ============================================================
 
-// 没写 enabled 的顶层组件默认启动，并在理由里标出"顶层"（003 §4.3）。
+// 没写 mode 的顶层组件默认启动，并在理由里标出"顶层"（003 §4.3）。
 //
 // 那个标记不是装饰：使用者要关一批组件时，该动手的正是顶层——
 // 关一个顶层，它下面那一串跟着走。不标他得先把依赖图看一遍。
-func TestTopLevelWithoutEnabledRuns(t *testing.T) {
+func TestTopLevelWithoutModeRuns(t *testing.T) {
 	graph := newGraph(t,
 		spec{id: "erp/backend", requires: []string{"people/basic"}},
 		spec{id: "people/basic"},
@@ -203,11 +194,11 @@ func cfg2(t *testing.T, ids ...string) *config.Config {
 	return cfgOf(entries...)
 }
 
-// enabled: false 一定不启动，哪怕它是根组件。
+// mode: disable 一定不启动，哪怕它是根组件。
 func TestExplicitlyDisabledNeverRuns(t *testing.T) {
 	graph := newGraph(t, spec{id: "people/basic"})
 
-	result, err := cascade.Compute(cfgOf(entry("people/basic", "false")), graph)
+	result, err := cascade.Compute(cfgOf(entry("people/basic", "disable")), graph)
 	require.NoError(t, err)
 
 	assert.Empty(t, runningIDs(result))
@@ -215,7 +206,7 @@ func TestExplicitlyDisabledNeverRuns(t *testing.T) {
 	assert.Equal(t, cascade.StateDisabled, state)
 }
 
-// enabled: true 是"钉住"：上层全关了它也照跑。
+// mode: enabled 是"钉住"：上层全关了它也照跑。
 func TestPinnedComponentRunsWhenItsParentsAreOff(t *testing.T) {
 	graph := newGraph(t,
 		spec{id: "erp/backend", requires: []string{"people/basic"}},
@@ -223,9 +214,9 @@ func TestPinnedComponentRunsWhenItsParentsAreOff(t *testing.T) {
 		spec{id: "infra/redis-event-bus"},
 	)
 	cfg := cfgOf(
-		entry("erp/backend", "false"),
+		entry("erp/backend", "disable"),
 		entry("people/basic", ""),
-		entry("infra/redis-event-bus", "true"),
+		entry("infra/redis-event-bus", "enabled"),
 	)
 
 	result, err := cascade.Compute(cfg, graph)
@@ -275,7 +266,7 @@ func TestWeakDependencyStopsWithItsOnlyParent(t *testing.T) {
 		spec{id: "erp/backend", optional: []string{"infra/redis-event-bus"}},
 		spec{id: "infra/redis-event-bus"},
 	)
-	cfg := cfgOf(entry("erp/backend", "false"), entry("infra/redis-event-bus", ""))
+	cfg := cfgOf(entry("erp/backend", "disable"), entry("infra/redis-event-bus", ""))
 
 	result, err := cascade.Compute(cfg, graph)
 	require.NoError(t, err)
@@ -293,7 +284,7 @@ func TestSharedComponentRunsWhileAnyParentRuns(t *testing.T) {
 		spec{id: "portal/web", optional: []string{"people/basic"}},
 		spec{id: "people/basic"},
 	)
-	cfg := cfgOf(entry("erp/backend", "false"), entry("portal/web", ""), entry("people/basic", ""))
+	cfg := cfgOf(entry("erp/backend", "disable"), entry("portal/web", ""), entry("people/basic", ""))
 
 	result, err := cascade.Compute(cfg, graph)
 	require.NoError(t, err)
@@ -312,7 +303,7 @@ func TestPinnedComponentWithDisabledStrongDependencyIsAnError(t *testing.T) {
 		spec{id: "erp/backend", requires: []string{"authorization/rbac"}},
 		spec{id: "authorization/rbac"},
 	)
-	cfg := cfgOf(entry("erp/backend", "true"), entry("authorization/rbac", "false"))
+	cfg := cfgOf(entry("erp/backend", "enabled"), entry("authorization/rbac", "disable"))
 
 	_, err := cascade.Compute(cfg, graph)
 
@@ -324,7 +315,43 @@ func TestPinnedComponentWithDisabledStrongDependencyIsAnError(t *testing.T) {
 	rendered := e.Format()
 	assert.Contains(t, rendered, "authorization/rbac")
 	assert.Contains(t, rendered, "erp/backend")
-	assert.Contains(t, rendered, "enabled: false", "要告诉使用者去哪儿改：%s", rendered)
+	assert.Contains(t, rendered, "mode: disable", "要告诉使用者去哪儿改：%s", rendered)
+	assert.Contains(t, rendered, "mode: enabled", "钉住那一侧的提示要报出具体是 enabled 还是 debug：%s", rendered)
+}
+
+// 跟上一条同一个矛盾，只是钉住那一侧换成 mode: debug——报错和提示都要原样
+// 报出 debug，不能笼统说成"钉住"，否则读者会去改错字段。
+func TestDebugComponentWithDisabledStrongDependencyIsAnError(t *testing.T) {
+	graph := newGraph(t,
+		spec{id: "erp/backend", requires: []string{"authorization/rbac"}},
+		spec{id: "authorization/rbac"},
+	)
+	cfg := cfgOf(entry("erp/backend", "debug"), entry("authorization/rbac", "disable"))
+
+	_, err := cascade.Compute(cfg, graph)
+
+	require.Error(t, err)
+	rendered := clierr.As(err).Format()
+	assert.Contains(t, rendered, "mode: disable")
+	assert.Contains(t, rendered, "mode: debug")
+}
+
+// mode: debug 组件即便没有顶层依赖它，也要强制运行——跟 mode: enabled 一样。
+func TestDebugComponentKeepsRunningEvenIfNotNeeded(t *testing.T) {
+	// people/basic 不是顶层（erp/backend 依赖它），它唯一的上层被关掉了——
+	// 没有 mode: debug 的话它该跟着不跑，debug 要把这条覆盖掉。
+	graph := newGraph(t,
+		spec{id: "erp/backend", requires: []string{"people/basic"}},
+		spec{id: "people/basic"},
+	)
+	cfg := cfgOf(entry("erp/backend", "disable"), entry("people/basic", "debug"))
+
+	result, err := cascade.Compute(cfg, graph)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"people/basic"}, runningIDs(result))
+	_, reason := reasonOf(t, result, "people/basic")
+	assert.Contains(t, reason, "mode: debug")
 }
 
 // 间接强依赖被禁用同样要报错，并且把链路指出来。
@@ -335,9 +362,9 @@ func TestPinnedComponentWithTransitivelyDisabledDependencyIsAnError(t *testing.T
 		spec{id: "department/tree"},
 	)
 	cfg := cfgOf(
-		entry("erp/backend", "true"),
+		entry("erp/backend", "enabled"),
 		entry("people/basic", ""),
-		entry("department/tree", "false"),
+		entry("department/tree", "disable"),
 	)
 
 	_, err := cascade.Compute(cfg, graph)
@@ -356,7 +383,7 @@ func TestUnpinnedComponentWithDisabledDependencyIsSkippedNotAnError(t *testing.T
 		spec{id: "erp/backend", requires: []string{"authorization/rbac"}},
 		spec{id: "authorization/rbac"},
 	)
-	cfg := cfgOf(entry("erp/backend", ""), entry("authorization/rbac", "false"))
+	cfg := cfgOf(entry("erp/backend", ""), entry("authorization/rbac", "disable"))
 
 	result, err := cascade.Compute(cfg, graph)
 	require.NoError(t, err)
@@ -373,7 +400,7 @@ func TestDisabledWeakDependencyDoesNotBlockDependent(t *testing.T) {
 		spec{id: "erp/backend", optional: []string{"infra/redis-event-bus"}},
 		spec{id: "infra/redis-event-bus"},
 	)
-	cfg := cfgOf(entry("erp/backend", ""), entry("infra/redis-event-bus", "false"))
+	cfg := cfgOf(entry("erp/backend", ""), entry("infra/redis-event-bus", "disable"))
 
 	result, err := cascade.Compute(cfg, graph)
 	require.NoError(t, err)
@@ -398,10 +425,9 @@ func TestVersionsAreJudgedIndependently(t *testing.T) {
 	g, err := resolver.New(provider).Resolve(context.Background(), roots...)
 	require.NoError(t, err)
 
-	on, off := true, false
 	cfg := &config.Config{Components: []config.Component{
-		{ID: "people/basic", Version: "1.0.0", Enabled: &on},
-		{ID: "people/basic", Version: "2.0.0", Enabled: &off},
+		{ID: "people/basic", Version: "1.0.0", Mode: config.ModeEnabled},
+		{ID: "people/basic", Version: "2.0.0", Mode: config.ModeDisable},
 	}}
 
 	result, err := cascade.Compute(cfg, g)
@@ -421,7 +447,7 @@ func TestVersionsAreJudgedIndependently(t *testing.T) {
 func TestAllDisabledIsNotAnError(t *testing.T) {
 	graph := newGraph(t, spec{id: "people/basic"})
 
-	result, err := cascade.Compute(cfgOf(entry("people/basic", "false")), graph)
+	result, err := cascade.Compute(cfgOf(entry("people/basic", "disable")), graph)
 
 	require.NoError(t, err)
 	assert.Empty(t, runningIDs(result))
@@ -429,7 +455,7 @@ func TestAllDisabledIsNotAnError(t *testing.T) {
 }
 
 // 依赖图里有、但 brickkit.yaml 里没写的组件（手工编辑过配置），
-// 按"没写 enabled"处理，跟着上层跑。
+// 按"没写 mode"处理，跟着上层跑。
 func TestComponentAbsentFromConfigCanStillBePulledIn(t *testing.T) {
 	graph := newGraph(t,
 		spec{id: "erp/backend", requires: []string{"people/basic"}},
@@ -448,7 +474,7 @@ func TestIsRunningLookup(t *testing.T) {
 		spec{id: "erp/backend", requires: []string{"people/basic"}},
 		spec{id: "people/basic"},
 	)
-	cfg := cfgOf(entry("erp/backend", "false"), entry("people/basic", ""))
+	cfg := cfgOf(entry("erp/backend", "disable"), entry("people/basic", ""))
 
 	result, err := cascade.Compute(cfg, graph)
 	require.NoError(t, err)
@@ -486,7 +512,7 @@ func TestDisablingOneSideOfAWeakCycleStopsBoth(t *testing.T) {
 		spec{id: "infra/notifier", optional: []string{"infra/audit"}},
 		spec{id: "infra/audit", optional: []string{"infra/notifier"}},
 	)
-	cfg := cfgOf(entry("infra/notifier", "false"), entry("infra/audit", ""))
+	cfg := cfgOf(entry("infra/notifier", "disable"), entry("infra/audit", ""))
 
 	result, err := cascade.Compute(cfg, graph)
 	require.NoError(t, err)

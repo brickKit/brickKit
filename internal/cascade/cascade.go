@@ -2,9 +2,9 @@
 //
 // # 规则：跟着上层走
 //
-//	顶层组件（没有任何组件依赖它）  没写 enabled → 跑；写 false → 不跑
-//	下层组件                        没写 enabled → 跟上层：任一上层在跑，它就跑
-//	任何组件                        写了 enabled → 按写的来，不看上层
+//	顶层组件（没有任何组件依赖它）  没写 mode → 跑；写 disable → 不跑
+//	下层组件                        没写 mode → 跟上层：任一上层在跑，它就跑
+//	任何组件                        写了 mode: enabled/disable/debug → 按写的来，不看上层
 //
 // 一个组件被多个顶层共用时，只要还有一个上层在跑，它就跑。
 //
@@ -47,7 +47,7 @@ type State string
 const (
 	// StateRunning 表示本次会启动。
 	StateRunning State = "running"
-	// StateDisabled 表示被 enabled: false 显式关闭。
+	// StateDisabled 表示被 mode: disable 显式关闭。
 	StateDisabled State = "disabled"
 	// StateSkipped 表示跟着上层一起不启动。
 	StateSkipped State = "skipped"
@@ -127,7 +127,7 @@ func Compute(cfg *config.Config, graph *resolver.Graph) (*Result, error) {
 			continue
 		}
 		if dep, hit := deadRequirement(node, stopped); hit {
-			return nil, disabledDependencyError(node.Ref, dep, blocker)
+			return nil, disabledDependencyError(node.Ref, decl[node.Ref].Mode, dep, blocker)
 		}
 	}
 
@@ -155,7 +155,7 @@ func Compute(cfg *config.Config, graph *resolver.Graph) (*Result, error) {
 // 反过来算就自然对了。种子是"显式关掉的"，然后两条传播规则轮流跑到稳定：
 //
 //	A  强依赖不跑 → 它也不跑（跑起来也必然连不上）
-//	B  没写 enabled、有上层、而上层全都不跑 → 它也不跑
+//	B  没写 mode、有上层、而上层全都不跑 → 它也不跑
 //
 // 顶层组件没有上层，B 的前提永远不成立 → 除非显式关，否则一定跑。
 // 环上的 A、B 互为上层，谁也没先倒下 → 两个都跑。不需要为环写任何特例。
@@ -243,8 +243,10 @@ func classify(
 
 // runningReason 说明它为什么跑。
 //
-// 三种说法对应三种决定：顶层是使用者直接要的；写了 enabled: true 是他显式钉的；
-// 其余都是"跟着上层"——这时要点出跟的是谁，否则他不知道该去关哪个。
+// 三种说法对应三种决定：顶层是使用者直接要的；写了 mode: enabled/debug 是他显式
+// 钉的（钉住的具体取值原样报出来，而不是笼统说"钉住"——debug 组件的读者要知道
+// 自己写的是 debug 不是 enabled）；其余都是"跟着上层"——这时要点出跟的是谁，
+// 否则他不知道该去关哪个。
 func runningReason(
 	node *resolver.Node, decl declSet, running map[resolver.Ref]bool, top bool,
 ) string {
@@ -252,7 +254,7 @@ func runningReason(
 	case top:
 		return i18n.T(msgid.CascadeReasonTopLevel)
 	case decl.pinned(node.Ref):
-		return i18n.T(msgid.CascadeReasonPinned)
+		return i18n.T(msgid.CascadeReasonPinned, decl[node.Ref].Mode)
 	}
 
 	// 多个上层在跑时取字典序最前的那个：同一份配置每次都要给出同一句话，
@@ -274,11 +276,16 @@ func runningReason(
 // brickkit.yaml 中的声明
 // ============================================================
 
-// declSet 是 brickkit.yaml 里对各组件的 enabled 声明。
+// declSet 是 brickkit.yaml 里对各组件的 mode 声明（未写/enabled/disable/debug）。
+//
+// 存组件本身（不只是 mode 字符串），因为 pinned/disabled 要复用 Component 上
+// 已经写好的 IsPinned/IsDisabled，避免这里和 config 包各自维护一份判定逻辑——
+// mode 取代 Enabled 时留下的教训就是"改判定规则要动两处，只有一处会被测到"，
+// 这次把判定逻辑唯一地放在 Component 方法上，declSet 只做查找。
 //
 // 依赖图里可能有配置里没写的组件（使用者手工编辑过配置），
-// 这类组件按"没写 enabled"处理。
-type declSet map[resolver.Ref]*bool
+// 这类组件按"没写 mode"处理。
+type declSet map[resolver.Ref]config.Component
 
 func declarations(cfg *config.Config) declSet {
 	out := declSet{}
@@ -286,19 +293,19 @@ func declarations(cfg *config.Config) declSet {
 		return out
 	}
 	for _, c := range cfg.Components {
-		out[resolver.Ref{ID: c.ID, Version: c.Version}] = c.Enabled
+		out[resolver.Ref{ID: c.ID, Version: c.Version}] = c
 	}
 	return out
 }
 
 func (d declSet) pinned(ref resolver.Ref) bool {
-	enabled, ok := d[ref]
-	return ok && enabled != nil && *enabled
+	c, ok := d[ref]
+	return ok && c.IsPinned()
 }
 
 func (d declSet) disabled(ref resolver.Ref) bool {
-	enabled, ok := d[ref]
-	return ok && enabled != nil && !*enabled
+	c, ok := d[ref]
+	return ok && c.IsDisabled()
 }
 
 // ============================================================
@@ -312,8 +319,12 @@ func (d declSet) disabled(ref resolver.Ref) bool {
 //
 // 没钉住的组件遇到同样的情况**不报错**——那是"我关掉了一整条链"的正常操作，
 // 跟着不跑正是他要的。报不报错的分界就在这里：他有没有说过"这个必须跑"。
+//
+// pinnedMode 是钉住这个组件的具体 mode 取值（enabled 或 debug）——提示里要
+// 原样报出来，不能笼统说"钉住"：debug 组件的读者得知道自己该去掉的是
+// mode: debug，不是 mode: enabled。
 func disabledDependencyError(
-	pinned, dep resolver.Ref, blocker map[resolver.Ref]resolver.Ref,
+	pinned resolver.Ref, pinnedMode string, dep resolver.Ref, blocker map[resolver.Ref]resolver.Ref,
 ) error {
 	chain := []string{pinned.ID}
 	current := dep
@@ -328,11 +339,11 @@ func disabledDependencyError(
 
 	culprit := current
 	return clierr.New(clierr.CodeComponentDisabled, i18n.T(msgid.CascadeStrongDependencyDisabled, culprit.ID)).
-		WithDetail(i18n.T(msgid.LabelComponent), i18n.T(msgid.CascadePinnedComponentDetail, pinned.ID, pinned.Version)).
+		WithDetail(i18n.T(msgid.LabelComponent), i18n.T(msgid.CascadePinnedComponentDetail, pinned.ID, pinned.Version, pinnedMode)).
 		WithDetail(i18n.T(msgid.CascadeLabelDependencyChain), strings.Join(chain, " → ")).
 		WithDetailf(i18n.T(msgid.CascadeLabelDisabledComponent), "%s@%s", culprit.ID, culprit.Version).
 		WithHint(
 			i18n.T(msgid.CascadeHintRemoveDisabledFlag, culprit.ID),
-			i18n.T(msgid.CascadeHintRemovePinnedFlag, pinned.ID),
+			i18n.T(msgid.CascadeHintRemovePinnedFlag, pinned.ID, pinnedMode),
 		)
 }

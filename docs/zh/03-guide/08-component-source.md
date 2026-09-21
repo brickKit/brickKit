@@ -214,11 +214,11 @@ git -C components/demo/hello push myfork feature/greeting
 
 改完想让别人（或者你自己的别的项目）用上这个改动，就是发布一个新版本的事了：改 `component.yaml` 里的版本号、构建新镜像、`brickkit publish`（[第 9 篇](09-marketplace.md)）；已经在用旧版本的项目怎么升级，是[第 5 篇](05-upgrades-and-versions.md)讲的。
 
-## 只留手边要动的：`enabled` 和 `sync`
+## 只留手边要动的：`mode` 和 `sync`
 
-`components/` 会越长越大。一个 50 个组件的项目里，你这会儿真正在看的可能就两三个。`brickkit sync` 让 `components/` 里只留那几个：把这次**不会启动**的组件源码收进 `components/.archived/`，需要的搬回来。"这次会启动谁"的判据跟 `up` 完全一样，所以你控制它的方式也一样——改 `enabled`（[第 2 篇](02-what-runs.md)）。
+`components/` 会越长越大。一个 50 个组件的项目里，你这会儿真正在看的可能就两三个。`brickkit sync` 让 `components/` 里只留那几个：把这次**不会启动**的组件源码收进 `components/.archived/`，需要的搬回来。"这次会启动谁"的判据跟 `up` 完全一样，所以你控制它的方式也一样——改 `mode`（[第 2 篇](02-what-runs.md)）。
 
-把 `demo/caller` 关掉，给它加一行 `enabled: false`：
+把 `demo/caller` 关掉，给它加一行 `mode: disable`：
 
 ```yaml
 components:
@@ -226,7 +226,7 @@ components:
     version: 1.0.0
   - id: demo/caller
     version: 1.0.0
-    enabled: false
+    mode: disable
 ```
 
 ```bash
@@ -238,7 +238,7 @@ brickkit up --dry-run
 ```
 📋 组件状态计算：
    ⬜ demo/hello@1.0.0   不启动（上层都不启动）
-   ⬜ demo/caller@1.0.0  显式禁用（enabled: false）
+   ⬜ demo/caller@1.0.0  显式禁用（mode: disable）
 ```
 
 `demo/hello` 也跟着不启动了——它只被 `demo/caller` 需要，"跟着上层走"。现在让 `sync` 把这两个的源码都收起来：
@@ -250,7 +250,7 @@ brickkit sync
 ```
 📂 工作区整理：
    📦 components/demo/caller/              → components/.archived/demo/caller
-      原因：显式禁用（enabled: false）
+      原因：显式禁用（mode: disable）
    📦 components/demo/hello/               → components/.archived/demo/hello
       原因：不启动（上层都不启动）
 ✅ 工作区整理完成（0 个活跃，2 个归档，0 个激活）
@@ -272,20 +272,20 @@ hello
 
 - **搬的是整个目录，连 `.git` 一起。** 归档后的组件照样能用 Git（`git -C components/.archived/demo/hello log`），IDE 也照常打开；`up` 也照样读得到它的 `component.yaml`。归档只改变"看不看得见"，不改变"取不取得到"。
 - **`sync` 从不碰运行中的容器，也不改变 `up` 会启动谁**——它只搬目录。
-- **没有 `--dry-run`。** 搬错了，改回 `enabled` 再跑一次就换回来了。
+- **没有 `--dry-run`。** 搬错了，改回 `mode` 再跑一次就换回来了。
 - **它是一个独立的命令，故意没有并进 `up`。** `up` 管运行，`sync` 管源码目录；要是 `up` 顺手搬文件，你会奇怪文件怎么自己动了（AGENTS.zh.md §9.17）。
 - 括号里三个数的意思依次是：本来就在原位的、这次收起来的、这次搬回来的。
 
-现在你只想看 `demo/hello` 的源码。给它钉上 `enabled: true`——"不管上层怎么样，它都要跑"：
+现在你只想看 `demo/hello` 的源码。给它钉上 `mode: enabled`——"不管上层怎么样，它都要跑"：
 
 ```yaml
 components:
   - id: demo/hello
     version: 1.0.0
-    enabled: true
+    mode: enabled
   - id: demo/caller
     version: 1.0.0
-    enabled: false
+    mode: disable
 ```
 
 ```bash
@@ -294,8 +294,8 @@ brickkit up --dry-run
 
 ```
 📋 组件状态计算：
-   ✅ demo/hello@1.0.0   启动（enabled: true）
-   ⬜ demo/caller@1.0.0  显式禁用（enabled: false）
+   ✅ demo/hello@1.0.0   启动（mode: enabled）
+   ⬜ demo/caller@1.0.0  显式禁用（mode: disable）
 ```
 
 ```bash
@@ -309,7 +309,7 @@ brickkit sync
 ✅ 工作区整理完成（0 个活跃，0 个归档，1 个激活）
 ```
 
-`demo/hello` 搬回来了，`demo/caller` 继续留在归档里。等你想要全部回来，把两个 `enabled` 都删掉（回到"不写"，也就是跟着上层走），再跑一次：
+`demo/hello` 搬回来了，`demo/caller` 继续留在归档里。等你想要全部回来，把两个 `mode` 都删掉（回到"不写"，也就是跟着上层走），再跑一次：
 
 ```bash
 brickkit sync
@@ -355,7 +355,7 @@ brickkit remove demo/caller
    建议：
    1. 先把它保住：提交并推到远端，或者把这个目录拷走 / 改名
    2. 确认不要了就加 --force：brickkit remove demo/caller --force
-   3. 只是暂时不用的话，给它写 enabled: false 再 brickkit sync——那会把源码收进归档目录，而不是删掉
+   3. 只是暂时不用的话，给它写 mode: disable 再 brickkit sync——那会把源码收进归档目录，而不是删掉
 ```
 
 提交了，但没推：
@@ -387,9 +387,9 @@ brickkit remove demo/caller
    🗑️ 已清理 artifacts 缓存
 ```
 
-这一次没有任何东西被拦——一份干净的、全部推上去了的克隆，删掉不丢任何东西。上面那条报错里的三条出路，也是这一节的要点：**保住它**（提交并推），**确认不要了**（`--force`），或者**只是暂时不用**——那就别删，`enabled: false` 加 `sync`，源码收进归档，一点不丢。
+这一次没有任何东西被拦——一份干净的、全部推上去了的克隆，删掉不丢任何东西。上面那条报错里的三条出路，也是这一节的要点：**保住它**（提交并推），**确认不要了**（`--force`），或者**只是暂时不用**——那就别删，`mode: disable` 加 `sync`，源码收进归档，一点不丢。
 
-归档里的那份也会一起删。给 `demo/hello` 写上 `enabled: false`，跑 `brickkit sync` 把它收进归档（输出和前面一样，略过），再移除它：
+归档里的那份也会一起删。给 `demo/hello` 写上 `mode: disable`，跑 `brickkit sync` 把它收进归档（输出和前面一样，略过），再移除它：
 
 ```bash
 brickkit remove demo/hello
@@ -425,7 +425,7 @@ brickkit remove demo/hello
 
 ## 源码跟着项目一起提交：`restore` 和提交钩子
 
-到现在为止，`workspace-demo` 是"一个组件一个仓库"的形状：`init` 追加进 `.gitignore` 的规则把 `components/` 整个忽略了，项目仓库只管 `brickkit.yaml`，源码在各自的仓库里。有的团队想要另一种：**组件源码跟着项目一起提交**，一次提交带上代码和配置。这时 `sync` 的目录搬运会直接出现在 `git status` 里（一大片 `D` 和 `??`），也就引出了一个反复发生的失误：本地关掉几个组件、跑了 `sync`，然后只把源码提交了，`brickkit.yaml` 里的 `enabled` 没跟着——仓库里成了一个"配置说它该跑，源码却躺在归档目录里"的矛盾状态，队友一拉下来就懵了。提交钩子和 `restore` 就是专门堵这个失误的。
+到现在为止，`workspace-demo` 是"一个组件一个仓库"的形状：`init` 追加进 `.gitignore` 的规则把 `components/` 整个忽略了，项目仓库只管 `brickkit.yaml`，源码在各自的仓库里。有的团队想要另一种：**组件源码跟着项目一起提交**，一次提交带上代码和配置。这时 `sync` 的目录搬运会直接出现在 `git status` 里（一大片 `D` 和 `??`），也就引出了一个反复发生的失误：本地关掉几个组件、跑了 `sync`，然后只把源码提交了，`brickkit.yaml` 里的 `mode` 没跟着——仓库里成了一个"配置说它该跑，源码却躺在归档目录里"的矛盾状态，队友一拉下来就懵了。提交钩子和 `restore` 就是专门堵这个失误的。
 
 另起一个项目。这次先 `git init`，**再** `brickkit init`：
 
@@ -475,10 +475,10 @@ git commit -m "初始：hello 与 caller"
 components:
   - id: demo/hello
     version: 1.0.0
-    enabled: true
+    mode: enabled
   - id: demo/caller
     version: 1.0.0
-    enabled: false
+    mode: disable
 ```
 
 ```bash
@@ -492,13 +492,13 @@ git commit -m "调整 hello 的问候"
 ❌ 提交被拦下：组件源码提交在归档目录里，但 brickkit.yaml 说它该启动
    demo/caller：即将提交的位置：components/.archived/demo/caller
    建议：
-   1. 想保留这个归档结构 → git add brickkit.yaml（yaml 里的 enabled: false 进了提交，就是你的意图声明）
+   1. 想保留这个归档结构 → git add brickkit.yaml（yaml 里的 mode: disable 进了提交，就是你的意图声明）
    2. 不想 → git reset components/ && brickkit restore，然后重新 git add
 ```
 
-钩子看的是**即将提交的内容**（暂存区），不是你的工作区：暂存区里 `brickkit.yaml` 没变（没有 `enabled: false`，也就是"它该跑"），可 `demo/caller` 的源码却在归档目录里——矛盾，拦下。它给了两条出路：
+钩子看的是**即将提交的内容**（暂存区），不是你的工作区：暂存区里 `brickkit.yaml` 没变（没有 `mode: disable`，也就是"它该跑"），可 `demo/caller` 的源码却在归档目录里——矛盾，拦下。它给了两条出路：
 
-**出路一：这就是你要的。** `git add brickkit.yaml`，让 `enabled: false` 和归档结构一起进这次提交。两者自洽，钩子放行——那是你有意收窄了范围，平台没有立场替你改主意。
+**出路一：这就是你要的。** `git add brickkit.yaml`，让 `mode: disable` 和归档结构一起进这次提交。两者自洽，钩子放行——那是你有意收窄了范围，平台没有立场替你改主意。
 
 **出路二：那是个失误。** 取消暂存，然后 `brickkit restore`：
 
@@ -518,9 +518,9 @@ brickkit restore
 ✅ 工作区整理完成（1 个活跃，0 个归档，1 个激活）
 ```
 
-`restore` 把每个组件的 `enabled` 还原成最后一次提交时的值（提交里没写，就把这个字段整个删掉），再让源码目录跟着走，判据和 `sync` 一样。要记住它的边界：
+`restore` 把每个组件的 `mode` 还原成最后一次提交时的值（提交里没写，就把这个字段整个删掉），再让源码目录跟着走，判据和 `sync` 一样。要记住它的边界：
 
-- **只动 `enabled` 这一个字段。** 要覆盖的旧值会在动手之前先打印出来（上面开头那两行）。
+- **只动 `mode` 这一个字段。** 要覆盖的旧值会在动手之前先打印出来（上面开头那两行）。
 - 新 `add` 的、改了版本号的条目，**一个字不动**。
 - 提交里有、工作区没有的，**绝不加回来**——它不是 `git revert`。
 
@@ -541,13 +541,13 @@ git commit -m "调整 hello 的问候"
 | --- | --- | --- |
 | `add … --repo` 打印"已取消，brickkit.yaml 未修改"，什么都没克隆 | 组件已经在 `brickkit.yaml` 里，`add` 问了"是否刷新缓存"，没有终端时当作答了 N | 加 `--yes` |
 | `--repo` 说"clone 失败：目录已存在" | `components/<scope>/<name>/` 里已经有源码：克隆过，或者是你自己手写的 | 直接用它。确实想重新克隆，先把那个目录挪走 |
-| `--repo` 说"源码已经在了，只是被归档着" | 源码被 `sync` 收进了 `.archived/` | 让它回来：改 `enabled`，再跑 `brickkit sync` |
+| `--repo` 说"源码已经在了，只是被归档着" | 源码被 `sync` 收进了 `.archived/` | 让它回来：改 `mode`，再跑 `brickkit sync` |
 | `--repo` 说"clone 失败：该组件为闭源组件" | 闭源组件没有 Git 仓库 | 去掉 `--repo`，照常 `add` 就能用 |
-| `sync` 之后 `git status` 一大片 `D` 和 `??` | `components/` 被项目仓库跟踪时，归档就是目录搬运，会进 diff | 预期之中。把 `enabled` 和搬运一起提交，或者 `brickkit restore` 撤回 |
+| `sync` 之后 `git status` 一大片 `D` 和 `??` | `components/` 被项目仓库跟踪时，归档就是目录搬运，会进 diff | 预期之中。把 `mode` 和搬运一起提交，或者 `brickkit restore` 撤回 |
 | 提交被钩子拦下 | 归档的源码进了提交，而 `brickkit.yaml` 说它该跑 | 按提示：`git add brickkit.yaml`，或者 `git reset components/` 再 `brickkit restore` |
-| `remove` 说"源码删掉就找不回来了" | 源码不是 Git 仓库、有未提交的改动，或有提交没推到任何远端 | 提交并推；或拷走；或 `--force`；或者只是暂时不用，改用 `enabled: false` 加 `sync` |
+| `remove` 说"源码删掉就找不回来了" | 源码不是 Git 仓库、有未提交的改动，或有提交没推到任何远端 | 提交并推；或拷走；或 `--force`；或者只是暂时不用，改用 `mode: disable` 加 `sync` |
 | `remove` 说"它是一个已登记的 git submodule" | 直接删会让 `.gitmodules` 和索引悬空 | 照提示手工执行那几条 git 命令；`--force` 对它无效 |
-| 想把归档的组件拿回来 | | 改 `enabled`，再跑 `brickkit sync`；或者直接进 `components/.archived/<scope>/<name>/` 用，Git 命令和 IDE 都照常 |
+| 想把归档的组件拿回来 | | 改 `mode`，再跑 `brickkit sync`；或者直接进 `components/.archived/<scope>/<name>/` 用，Git 命令和 IDE 都照常 |
 
 ## 一张对照表
 
@@ -555,7 +555,7 @@ git commit -m "调整 hello 的问候"
 | --- | --- |
 | 看、改某个组件的源码 | `brickkit add <组件> --repo` |
 | 拿到整棵依赖树的源码 | `brickkit add <组件> --repo-all` |
-| 让 `components/` 里只留手边要动的 | 改 `enabled`，再 `brickkit sync` |
+| 让 `components/` 里只留手边要动的 | 改 `mode`，再 `brickkit sync` |
 | 彻底不要某个组件了 | `brickkit remove <组件>` |
 | 撤回一次没提交的收窄 | `brickkit restore` |
 | 提交前检查结构是否自洽 | `brickkit restore --check`（钩子自动调用） |

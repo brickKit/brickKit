@@ -71,11 +71,11 @@ brickkit up --dry-run
 
 ## 关掉一个强依赖
 
-给 `brickkit.yaml` 里 `demo/hello` 那条加上 `enabled: false`，再跑一次 `--dry-run`：
+给 `brickkit.yaml` 里 `demo/hello` 那条加上 `mode: disable`，再跑一次 `--dry-run`：
 
 ```
 📋 组件状态计算：
-   ⬜ demo/hello@1.0.0   显式禁用（enabled: false）
+   ⬜ demo/hello@1.0.0   显式禁用（mode: disable）
    ⬜ demo/caller@1.0.0  不启动（强依赖 demo/hello 不启动）
 
 📋 本次没有组件会启动
@@ -84,23 +84,23 @@ brickkit up --dry-run
    顶层自己都没被关掉——要放开的是上面那行理由里点名的组件
 ```
 
-`demo/caller` 自己的 `enabled` 字段根本没动过——单看它自己，作为顶层组件，默认就该跑。但它照样停了，因为它的**强依赖**被强制关掉了，"依赖方跟着不启动"（AGENTS.zh.md §5.4）不管依赖方自己的 `enabled` 写了什么都照样生效。最后一行是 CLI 主动指出该改哪儿：该动的不是 `demo/caller`——它这里的行为是结果，不是原因——该动的是 `demo/hello`。
+`demo/caller` 自己的 `mode` 字段根本没动过——单看它自己，作为顶层组件，默认就该跑。但它照样停了，因为它的**强依赖**被强制关掉了，"依赖方跟着不启动"（AGENTS.zh.md §5.4）不管依赖方自己的 `mode` 写了什么都照样生效。最后一行是 CLI 主动指出该改哪儿：该动的不是 `demo/caller`——它这里的行为是结果，不是原因——该动的是 `demo/hello`。
 
 ## 两头都钉死是冲突，不是一个可以自动决定的事
 
-保持 `demo/hello` 禁用，同时给 `demo/caller` 加上 `enabled: true`——坚持它无论如何都要跑：
+保持 `demo/hello` 禁用，同时给 `demo/caller` 加上 `mode: enabled`——坚持它无论如何都要跑：
 
 ```
 ❌ 错误：强依赖 demo/hello 被禁用
-   组件：demo/caller@1.0.0（enabled: true，已钉住）
+   组件：demo/caller@1.0.0（mode: enabled，已钉住）
    依赖链：demo/caller → demo/hello
    被禁用的组件：demo/hello@1.0.0
    建议：
-   1. 在 brickkit.yaml 中移除 demo/hello 的 enabled: false
-   2. 或去掉 demo/caller 的 enabled: true，让它随上层一起不启动
+   1. 在 brickkit.yaml 中移除 demo/hello 的 mode: disable
+   2. 或去掉 demo/caller 的 mode: enabled，让它随上层一起不启动
 ```
 
-两条显式写下的指令——"`demo/hello` 永远不跑"和"`demo/caller` 永远要跑"——一旦 `demo/caller` 真的需要 `demo/hello`，就直接互相矛盾了，平台不会悄悄替你选一个赢家（AGENTS.zh.md §5.4）。这跟上一节故意不一样：一个**没写**的 `enabled` 会安静地跟着走；一个**写了**却互相矛盾的，是硬性停止，因为现在摆在配置里的是两条互相冲突的显式意图，不再是一条。
+两条显式写下的指令——"`demo/hello` 永远不跑"和"`demo/caller` 永远要跑"——一旦 `demo/caller` 真的需要 `demo/hello`，就直接互相矛盾了，平台不会悄悄替你选一个赢家（AGENTS.zh.md §5.4）。这跟上一节故意不一样：一个**没写**的 `mode` 会安静地跟着走；一个**写了**却互相矛盾的，是硬性停止，因为现在摆在配置里的是两条互相冲突的显式意图，不再是一条。
 
 ---
 

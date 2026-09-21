@@ -29,7 +29,7 @@ graph TD
 
 ## 阶段①：级联——这次到底谁会跑
 
-完整的规则表在 AGENTS.zh.md §5.4，这一节不重复那张表，只展示它对着一张真实的图跑出来长什么样。给这个项目写上 `erp/backend: enabled: false`，别的都不动，跑一次 `brickkit up --dry-run`：
+完整的规则表在 AGENTS.zh.md §5.4，这一节不重复那张表，只展示它对着一张真实的图跑出来长什么样。给这个项目写上 `erp/backend: mode: disable`，别的都不动，跑一次 `brickkit up --dry-run`：
 
 ```
 📋 组件状态计算：
@@ -38,7 +38,7 @@ graph TD
    ✅ people/basic@1.0.0           启动（auth/password-login 需要）
    ✅ auth/password-login@1.0.0    启动（infra/api-docs 需要）
    ✅ authorization/rbac@1.0.0     启动（infra/api-docs 需要）
-   ⬜ erp/backend@1.0.0            显式禁用（enabled: false）
+   ⬜ erp/backend@1.0.0            显式禁用（mode: disable）
    ⬜ portal/user-frontend@1.0.0   不启动（强依赖 erp/backend 不启动）
    ✅ infra/api-docs@1.0.0         启动（顶层）
 ```
@@ -46,7 +46,7 @@ graph TD
 这里有两件事，光靠抽象地记规则很容易想岔：
 
 - **关掉 `erp/backend` 并不会带着它自己那棵依赖子树一起关掉。** `people/basic`、`auth/password-login`、`authorization/rbac`、`department/tree` 全都照常启动，因为 `infra/api-docs`——一个完全独立、始终默认开启的顶层组件——直接弱依赖了它们每一个。级联问的是"这次跑着的**任何**上层还需不需要它"，不是"我心里想着的那个上层还需不需要它"。一个共享的底层组件因为一个你压根没想到的调用方而活下来，是这里的常态，不是特例。
-- **传导是双向的，从一个显式的 `enabled: false` 出发。** `portal/user-frontend` 自己根本没写 `enabled`——单看它自己，作为顶层组件默认就该跑。但它照样停了，因为它的**强依赖**（`erp/backend`）被显式关掉了，"依赖方跟着不启动"（AGENTS.zh.md §5.4）这条规则不管依赖方自己的 `enabled` 写了什么都照样生效。只有给 `portal/user-frontend` 也显式写上 `enabled: true`，才会把这个"悄悄停掉"变成一个硬报错——两条互相矛盾的显式意图同时摆在配置里。
+- **传导是双向的，从一个显式的 `mode: disable` 出发。** `portal/user-frontend` 自己根本没写 `mode`——单看它自己，作为顶层组件默认就该跑。但它照样停了，因为它的**强依赖**（`erp/backend`）被显式关掉了，"依赖方跟着不启动"（AGENTS.zh.md §5.4）这条规则不管依赖方自己的 `mode` 写了什么都照样生效。只有给 `portal/user-frontend` 也显式写上 `mode: enabled`，才会把这个"悄悄停掉"变成一个硬报错——两条互相矛盾的显式意图同时摆在配置里。
 
 ## 阶段②：解析——展开依赖图，但不重复展开菱形
 
