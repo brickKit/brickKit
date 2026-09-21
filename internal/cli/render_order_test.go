@@ -135,7 +135,7 @@ func TestDryRunOrderOnEmptyProject(t *testing.T) {
 
 	r := runIn(t, f.Dir, "up", "--dry-run")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "当前项目没有组件")
+	assert.Contains(t, r.stdout, "The current project has no components")
 	assert.Contains(t, r.stdout, "brickkit add")
 	assert.NotContains(t, r.stdout, "Start order")
 }
@@ -320,7 +320,7 @@ func TestDryRunOrderWithNothingRunning(t *testing.T) {
 
 	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "本次没有组件会启动")
+	assert.Contains(t, r.stdout, "No component will start this run")
 }
 
 // P14 回填：钉住的组件依赖了被禁用的组件 → 报错（004 §10.3）。

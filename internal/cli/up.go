@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -41,25 +40,11 @@ func newUpCommand(opts *Options) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "up",
-		Short:   "生成部署文件、执行迁移并一键启动所有组件",
+		Short:   i18n.T(msgid.CliUpShort),
 		GroupID: groupLifecycle,
-		Long: `一键启动项目。
-
-行为流程：
-  1. 读取 brickkit.yaml 与所有组件 Manifest
-  2. 启停判定（跟着上层走：顶层没写 enabled 就跑，下层跟上层）
-  3. 检查强依赖（缺失报错）与弱依赖（缺失警告，且完全不注入环境变量）
-  4. 拓扑排序得出启动顺序
-  5. 生成 docker-compose.yaml，注入环境变量、合并资源配额
-  6. 有 local: true 组件时生成 local-debug.<版本化服务名>.env
-  7. 检测镜像拉取权限（未授权时提示 docker login）
-  8. 调用底层引擎启动；数据库迁移由一次性容器执行，失败则阻断主服务
-
-版本号改了就是升级：CLI 自动拉新版本 Manifest 与产物、做兼容性检查。`,
-		Example: `  brickkit up
-  brickkit up --dry-run                    只生成文件，不启动
-  brickkit up --config brickkit.prod.yaml  使用指定配置文件`,
-		Args: cobra.NoArgs,
+		Long:    i18n.T(msgid.CliUpLong),
+		Example: i18n.T(msgid.CliUpExample),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUp(cmd.Context(), opts, upOptions{
 				dryRun: dryRun, kubeContext: kubeContext, ignoreServedBy: ignoreServedBy,
@@ -67,10 +52,10 @@ func newUpCommand(opts *Options) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "只生成部署文件，不启动（升级时额外输出变更摘要）")
-	cmd.Flags().StringVar(&kubeContext, "context", "", "kubeconfig 上下文，覆盖 deploy.context（仅 deploy.target: k8s）")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, i18n.T(msgid.CliUpOnlyGenerateTheDeploymentFiles))
+	cmd.Flags().StringVar(&kubeContext, "context", "", i18n.T(msgid.CliDownKubeconfigContextOverridesDeployContext))
 	cmd.Flags().BoolVar(&ignoreServedBy, "ignore-served-by", false,
-		"内存里清空全部 servedBy 声明再跑一次，验证每个组件能否独立启动；不写回 brickkit.yaml")
+		i18n.T(msgid.CliUpClearEveryServedbyDeclarationIn))
 	return cmd
 }
 
@@ -143,7 +128,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	if err := writeLocalEnvFiles(opts, plan.layout, plan.generated.LocalEnvFiles); err != nil {
 		return err
 	}
-	opts.Printf("📄 已生成：%s\n", displayPath(opts.WorkDir, path))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpGenerated, displayPath(opts.WorkDir, path)))
 	renderResourceRequirements(opts, plan.generated.Resources)
 	// 在 --dry-run 的分岔**之前**："这次会动哪些库"正是 dry-run 最该回答的问题
 	// 之一，而它与升不升级无关。从前它在分岔之后，于是 dry-run 里一个字都没有，
@@ -152,8 +137,8 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 
 	if flags.dryRun {
 		renderUpgradeSummary(opts, plan)
-		opts.Printf("\n💡 --dry-run 只生成文件，未启动任何组件\n")
-		opts.Printf("   查看：cat %s\n", displayPath(opts.WorkDir, path))
+		opts.Printf("\n%s\n", i18n.T(msgid.CliUpDryRunOnlyGeneratesThe))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpViewItCat, displayPath(opts.WorkDir, path)))
 		logging.Info(i18n.T(msgid.LogDeployFilesGenerated), "path", path)
 		return nil
 	}
@@ -178,21 +163,21 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	}
 	if flags.ignoreServedBy {
 		clearServedBy(cfg)
-		opts.Printf("⚠️  已忽略全部 servedBy 声明（仅用于验证组件独立启动能力，不写回 brickkit.yaml）\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliUpAllServedbyDeclarationsAreIgnored))
 	}
 
 	plan := &upPlan{layout: layout, cfg: cfg, kubeContext: contextOf(cfg, flags.kubeContext)}
 	if len(cfg.Components) == 0 {
-		opts.Printf("📋 当前项目没有组件\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusTheCurrentProjectHasNo))
 		// init 的骨架已经把 ./components 配成了本地安装源，所以 --local 是最短的一条路。
 		// 两条都给：有的人手上已经有组件源码，有的人要从市场装。
-		opts.Printf("   用 brickkit add --local 把 %s/ 下的组件全加进来\n", config.DirComponents)
-		opts.Printf("   或 brickkit add <组件ID> 从安装源添加\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusAddAllTheComponentsUnder, config.DirComponents))
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusOrAddOneFromAn))
 		plan.done = true
 		return plan, nil
 	}
 
-	opts.Printf("🚀 启动项目 %s（deploy.target: %s）\n", cfg.Project, cfg.Deploy.Target)
+	opts.Printf("%s\n", i18n.T(msgid.CliUpStartingProjectDeployTarget, cfg.Project, cfg.Deploy.Target))
 	warnTargetOnlyFields(opts, cfg)
 
 	// 先确认"要部到哪"，再做任何生成与拉取：部错集群是不可逆的，
@@ -301,16 +286,16 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 // （只可能是弱依赖成环，强依赖成环在解析阶段就报错了）。那时"跟着上层走"
 // 解释不了任何事——上层是谁？没有上层。
 func renderNothingRunning(opts *Options, states *cascade.Result) {
-	opts.Printf("📋 本次没有组件会启动\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliUpNoComponentWillStartThis))
 
 	tops := states.TopLevel()
 	if len(tops) == 0 {
-		opts.Printf("   没有找到顶层组件——每个组件都被别的组件依赖着（依赖成了环）\n")
-		opts.Printf("   给你想跑的那个写 enabled: true\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliUpNoTopLevelComponentWas))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpWriteEnabledTrueForThe))
 		return
 	}
 
-	opts.Printf("   顶层组件（没有别的组件依赖它们）这次都不跑：\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliUpNoneOfTheTopLevel))
 	for _, c := range tops {
 		opts.Printf("      %s  %s\n", c.Ref, c.Reason)
 	}
@@ -325,10 +310,10 @@ func renderNothingRunning(opts *Options, states *cascade.Result) {
 func nothingRunningHint(tops []cascade.Component) string {
 	for _, c := range tops {
 		if c.State == cascade.StateDisabled {
-			return "移除其中一个的 enabled: false，它下面那条链会跟着回来"
+			return i18n.T(msgid.CliUpRemoveEnabledFalseFromOne)
 		}
 	}
-	return "顶层自己都没被关掉——要放开的是上面那行理由里点名的组件"
+	return i18n.T(msgid.CliUpTheTopLevelItselfIsn)
 }
 
 // renderDegradedWeakDeps 说清楚"这次哪些弱依赖没跑、谁因此拿不到什么"。
@@ -378,10 +363,9 @@ func renderDegradedWeakDeps(opts *Options, graph *resolver.Graph, states *cascad
 		return pairs[i].dependent.String() < pairs[j].dependent.String()
 	})
 
-	opts.Printf("💡 这次有弱依赖不启动，调用方会走降级分支：\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliUpSomeOptionalDependenciesArenT))
 	for _, p := range pairs {
-		opts.Printf("   %s 不启动 → %s 拿不到 %s\n",
-			p.dep, p.dependent.ID, manifest.EndpointEnvVar(p.dep.ID))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpDoesnTStartCanT, p.dep, p.dependent.ID, manifest.EndpointEnvVar(p.dep.ID)))
 	}
 }
 
@@ -400,8 +384,7 @@ func renderSyncHint(opts *Options, layout config.Layout, states *cascade.Result)
 	if n == 0 {
 		return
 	}
-	opts.Printf("💡 有 %d 个组件本次不启动，brickkit sync 可以把它们的源码收进 %s/\n",
-		n, workspace.DisplayArchivedRoot())
+	opts.Printf("%s\n", i18n.T(msgid.CliUpComponentsArenTStartingThis, n, workspace.DisplayArchivedRoot()))
 }
 
 // dryRunResourceWarning 把"资源未绑定"降级成 --dry-run 下的警告。
@@ -409,11 +392,11 @@ func renderSyncHint(opts *Options, layout config.Layout, states *cascade.Result)
 // 换掉标题与建议里"已阻断"那层意思，其余明细原样保留——
 // 使用者要看的是"哪个组件缺哪个资源"，那部分两种模式下完全一样。
 func dryRunResourceWarning(problem *clierr.Error) *clierr.Error {
-	w := clierr.Warn(problem.Code, "警告：资源依赖未满足（--dry-run 不阻断）")
+	w := clierr.Warn(problem.Code, i18n.T(msgid.CliUpWarningResourceDependenciesAreNot))
 	w.Details = problem.Details
 	return w.WithHint(
-		"生成的部署文件里**不会有**这些组件的资源连接变量（DATABASE_* 等）",
-		"在 brickkit.yaml → resources 中声明并绑定后再 up；不加 --dry-run 时这里会直接阻断",
+		i18n.T(msgid.CliUpTheGeneratedDeploymentFilesWill),
+		i18n.T(msgid.CliUpDeclareAndBindThemUnder),
 	)
 }
 
@@ -435,10 +418,10 @@ func runningIDs(states *cascade.Result) []string {
 // 与 dryRunResourceWarning 同一个手法：换掉标题与建议里"已阻断"那层意思，
 // 其余明细原样保留——使用者要看的是"哪个资源没声明"，那部分两种模式下完全一样。
 func dryRunEgressWarning(problem *clierr.Error) *clierr.Error {
-	w := clierr.Warn(problem.Code, "警告：出站策略没覆盖全部资源（--dry-run 不阻断）")
+	w := clierr.Warn(problem.Code, i18n.T(msgid.CliUpWarningTheEgressPolicyDoesn))
 	w.Details = problem.Details
 	return w.WithHint(append(problem.Hints,
-		"不加 --dry-run 时这里会直接阻断——出站一旦生效，没声明的资源一律连不上")...)
+		i18n.T(msgid.CliUpWithoutDryRunThisBlocks))...)
 }
 
 // generate 按部署目标渲染部署文件（005 §5）。
@@ -524,19 +507,19 @@ func start(
 ) error {
 	project := engine.ProjectName(plan.cfg.Project)
 
-	opts.Printf("\n🐳 正在启动（%s）...\n", eng.Name())
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpStarting, eng.Name()))
 	if err := eng.Up(ctx, engine.UpRequest{
 		File: file, Project: project, ProjectDir: opts.WorkDir, Services: plan.services,
 		PruneSelector: pruneSelector,
 	}); err != nil {
-		return engineFailure("启动", err)
+		return engineFailure(i18n.T(msgid.CliUpStart), err)
 	}
 
 	statuses, err := eng.Status(ctx, project)
 	if err != nil {
 		// 起是起了，只是问不到状态：不该因此判定失败
-		opts.Printf("⚠️ 无法读取容器状态：%s\n", clierr.As(err).Message)
-		opts.Printf("   用 brickkit status 再看一次\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliUpTheContainerStateCouldNot, clierr.As(err).Message))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpK8sCheckAgainWithBrickkitStatus))
 		return nil
 	}
 	return reportStarted(opts, plan, statuses)
@@ -556,7 +539,7 @@ func reportStarted(
 		status, ok := byService[service]
 		switch {
 		case !ok:
-			failed = append(failed, service+"  未创建")
+			failed = append(failed, i18n.T(msgid.CliUpNotCreated, service))
 		case status.Running():
 			opts.Printf("   %-28s %s\n", service, describeStatus(status))
 		default:
@@ -565,24 +548,24 @@ func reportStarted(
 	}
 
 	if len(failed) > 0 {
-		err := clierr.New(clierr.CodeEngineFailed, "错误：部分组件没有正常启动")
+		err := clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.CliUpErrorSomeComponentsDidNot))
 		for _, item := range failed {
-			err = err.WithDetail("组件", item)
+			err = err.WithDetail(i18n.T(msgid.LabelComponent), item)
 		}
 		if plan.k8s != nil {
 			return err.WithHint(
-				"看日志定位："+logsCommand(engine.K8s, plan.k8s.Namespace, "<服务名>"),
-				"看事件：kubectl describe deployment/<服务名> -n "+plan.k8s.Namespace,
+				i18n.T(msgid.CliUpViewTheLogsToFind, logsCommand(engine.K8s, plan.k8s.Namespace, i18n.T(msgid.ServiceNamePlaceholder))),
+				i18n.T(msgid.CliUpViewTheEventsKubectlDescribe, plan.k8s.Namespace),
 			)
 		}
 		return err.WithHint(
-			"看日志定位："+logsCommand(engineName(opts),
-				engine.ProjectName(plan.cfg.Project), "<服务名>"),
-			"迁移失败会让主服务停在 Created，先看该组件的 -migration 容器",
+			i18n.T(msgid.CliUpViewTheLogsToFind, logsCommand(engineName(opts),
+				engine.ProjectName(plan.cfg.Project), i18n.T(msgid.ServiceNamePlaceholder))),
+			i18n.T(msgid.CliUpAFailedMigrationLeavesThe),
 		)
 	}
 
-	opts.Printf("✅ 全部组件已启动（%d 个）\n", len(plan.services))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpAllComponentsStarted, len(plan.services)))
 	renderNextSteps(opts, plan)
 	logging.Info(i18n.T(msgid.LogProjectStarted), "project", plan.cfg.Project, "services", len(plan.services))
 	return nil
@@ -598,9 +581,9 @@ func engineFailure(action string, err error) error {
 	if e, ok := clierr.Structured(err); ok {
 		return e
 	}
-	return clierr.Newf(clierr.CodeEngineFailed, "错误：%s失败", action).
-		WithDetail("原因", err.Error()).
-		WithHint("上面一行是容器引擎的原始输出，通常已经说明了原因").
+	return clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.IOFailed, action)).
+		WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+		WithHint(i18n.T(msgid.CliUpTheLineAboveIsThe)).
 		WithCause(err)
 }
 
@@ -608,9 +591,9 @@ func engineFailure(action string, err error) error {
 func describeStatus(s engine.Status) string {
 	switch {
 	case s.State == "running" && s.Health != "":
-		return "running（" + s.Health + "）"
+		return i18n.T(msgid.CliUpRunning, s.Health)
 	case s.State == "exited":
-		return "exited（退出码 " + itoa(s.ExitCode) + "）"
+		return i18n.T(msgid.CliUpExitedExitCode, itoa(s.ExitCode))
 	default:
 		return s.State
 	}
@@ -618,20 +601,17 @@ func describeStatus(s engine.Status) string {
 
 // renderNextSteps 给出启动之后的常用动作。
 func renderNextSteps(opts *Options, plan *upPlan) {
-	opts.Printf("\n💡 查看状态：brickkit status\n")
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpViewTheStatusBrickkitStatus))
 
 	if plan.k8s != nil {
-		opts.Printf("   查看日志：%s\n",
-			logsCommand(engine.K8s, plan.k8s.Namespace, ""))
-		opts.Printf("   查看 Pod：kubectl get pods -n %s\n", plan.k8s.Namespace)
+		opts.Printf("%s\n", i18n.T(msgid.CliUpViewTheLogs, logsCommand(engine.K8s, plan.k8s.Namespace, "")))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpViewThePodsKubectlGet, plan.k8s.Namespace))
 		return
 	}
 
-	opts.Printf("   查看日志：%s -f\n",
-		logsCommand(engineName(opts), engine.ProjectName(plan.cfg.Project), ""))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpViewTheLogsF, logsCommand(engineName(opts), engine.ProjectName(plan.cfg.Project), "")))
 	for _, env := range plan.generated.LocalEnvFiles {
-		opts.Printf("   本地调试：在 IDE 中加载 %s 启动 %s\n",
-			filepath.Join(".brickkit", "generated", env.Name), env.Ref.ID)
+		opts.Printf("%s\n", i18n.T(msgid.CliUpLocalDebuggingLoadInThe, filepath.Join(".brickkit", "generated", env.Name), env.Ref.ID))
 	}
 }
 
@@ -643,7 +623,7 @@ func renderMigrations(opts *Options, migrations []migrationInfo) {
 	if len(migrations) == 0 {
 		return
 	}
-	opts.Printf("\n🔧 启动前会执行的数据库迁移（失败则该组件不会启动）：\n")
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpDatabaseMigrationsThatRunBefore))
 	for _, m := range migrations {
 		opts.Printf("   %s  %s\n", m.component, m.command)
 	}
@@ -660,15 +640,15 @@ func warnDanglingBindings(opts *Options, cfg *config.Config) {
 		return
 	}
 
-	err := clierr.Warn(clierr.CodeConfigInvalid, "有资源绑定指向 components 里不存在的组件")
+	err := clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpSomeResourceBindingsPointAt))
 	for _, d := range dangling {
-		err = err.WithDetail("资源 "+d.ResourceID, "绑定了 "+d.ComponentID+"（该组件不在 components 中）")
+		err = err.WithDetail(i18n.T(msgid.CliUpResource, d.ResourceID), i18n.T(msgid.CliUpBoundThatComponentIsNot, d.ComponentID))
 	}
 	renderWarnings(opts, []*clierr.Error{err.
-		WithDetail("影响", "这条绑定不会生效，也不会注入任何连接变量；其余组件不受影响").
+		WithDetail(i18n.T(msgid.LabelImpact), i18n.T(msgid.CliUpThisBindingHasNoEffect)).
 		WithHint(
-			"不再需要它就从 resources[].bindings 里删掉这一条",
-			"组件是误删的话，brickkit add "+dangling[0].ComponentID+" 加回来",
+			i18n.T(msgid.CliUpIfYouNoLongerNeed),
+			i18n.T(msgid.CliUpIfTheComponentWasDeleted, dangling[0].ComponentID),
 		)})
 }
 
@@ -706,7 +686,7 @@ func checkImages(ctx context.Context, opts *Options, eng engine.Engine, images [
 		return nil
 	}
 
-	opts.Printf("\n🔍 检测镜像拉取权限...")
+	opts.Printf("\n%s", i18n.T(msgid.CliUpCheckingImagePullPermissions))
 
 	// 按下标存放结果，取错误时才能按**输入顺序**来，与并发完成的顺序无关
 	failures := make([]error, len(images))
@@ -721,7 +701,7 @@ func checkImages(ctx context.Context, opts *Options, eng engine.Engine, images [
 			defer func() { <-sem }()
 
 			if err := eng.CheckImage(ctx, item.image); err != nil {
-				failures[i] = clierr.As(err).WithDetail("组件", item.component)
+				failures[i] = clierr.As(err).WithDetail(i18n.T(msgid.LabelComponent), item.component)
 			}
 		}(i, item)
 	}
@@ -738,15 +718,15 @@ func checkImages(ctx context.Context, opts *Options, eng engine.Engine, images [
 		}
 	}
 	if first < 0 {
-		opts.Printf(" ✅ 全部通过\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliUpAllPassed))
 		return nil
 	}
 
 	opts.Printf(" ❌\n")
 	err := clierr.As(failures[first])
 	if total > 1 {
-		err = err.WithDetail("另外还有",
-			fmt.Sprintf("%d 个组件的镜像也取不到，修完这个再跑一次会看到下一个", total-1))
+		err = err.WithDetail(i18n.T(msgid.CliUpAlso),
+			i18n.T(msgid.CliUpTheImagesOfMoreComponents, total-1))
 	}
 	return err
 }
@@ -779,15 +759,15 @@ func engineName(opts *Options) string {
 func writeGenerated(layout config.Layout, content []byte) (string, error) {
 	dir := layout.GeneratedDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", clierr.New(clierr.CodeInternal, "错误：创建生成目录失败").
-			WithDetail("路径", dir).
+		return "", clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToCreateThe)).
+			WithDetail(i18n.T(msgid.LabelPath), dir).
 			WithCause(err)
 	}
 
 	path := filepath.Join(dir, composeFileName)
 	if err := os.WriteFile(path, content, 0o644); err != nil {
-		return "", clierr.New(clierr.CodeInternal, "错误：写入部署文件失败").
-			WithDetail("路径", path).
+		return "", clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToWriteThe)).
+			WithDetail(i18n.T(msgid.LabelPath), path).
 			WithCause(err)
 	}
 	return path, nil
@@ -799,20 +779,20 @@ func writeLocalEnvFiles(opts *Options, layout config.Layout, files []compose.Loc
 		return nil
 	}
 
-	opts.Printf("\n🔧 本地调试（local: true）：\n")
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpLocalDebuggingLocalTrue))
 	for _, file := range files {
 		path := filepath.Join(layout.GeneratedDir(), file.Name)
 		if err := os.WriteFile(path, file.Content, 0o600); err != nil {
-			return clierr.New(clierr.CodeInternal, "错误：写入本地调试环境变量文件失败").
-				WithDetail("路径", path).
+			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToWriteThe2)).
+				WithDetail(i18n.T(msgid.LabelPath), path).
 				WithCause(err)
 		}
 
 		relative := displayPath(opts.WorkDir, path)
 		opts.Printf("   %s@%s\n", file.Ref.ID, file.Ref.Version)
-		opts.Printf("      不生成容器；请在 IDE 里启动它，监听 localhost:%d\n", file.Port)
-		opts.Printf("      环境变量：%s\n", relative)
-		opts.Printf("      VS Code：launch.json 里配 \"envFile\": \"${workspaceFolder}/%s\"\n", relative)
+		opts.Printf("%s\n", i18n.T(msgid.CliUpNoContainerIsGeneratedStart, file.Port))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpEnvironmentVariables, relative))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpVsCodeSetEnvfileWorkspacefolder, relative))
 	}
 	return nil
 }
@@ -837,32 +817,23 @@ func renderResourceRequirements(opts *Options, requirements []deploy.ResourceReq
 		return
 	}
 
-	opts.Printf("\n📌 以下基础资源需要先跑起来（平台不代为部署）：\n")
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpTheseBaseResourcesHaveTo))
 	needDatabase := false
 	for _, r := range requirements {
-		opts.Printf("   %-12s %-12s %s:%d  供 %s 使用\n",
-			r.ID, r.Engine, r.Host, r.Port, joinComponents(r.Components))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpSSUsedBy, r.ID, r.Engine, r.Host, r.Port, joinComponents(r.Components)))
 		for _, db := range r.Databases {
 			needDatabase = true
-			opts.Printf("      需要库 %s（供 %s 使用）：%s;\n",
-				db.Name, joinComponents(db.Components), db.CreateSQL)
+			opts.Printf("%s\n", i18n.T(msgid.CliUpNeedsDatabaseUsedBy, db.Name, joinComponents(db.Components), db.CreateSQL))
 		}
 	}
 	if needDatabase {
-		opts.Printf("   库也要预先建好；已经建过就无需再执行，建库是一次性操作\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliUpTheDatabasesAlsoHaveTo))
 	}
-	opts.Printf("   本地开发想快速起一套：docker compose -f %s up -d\n", devResourcesCompose)
+	opts.Printf("%s\n", i18n.T(msgid.CliUpToBringOneUpQuickly, devResourcesCompose))
 }
 
 func joinComponents(items []string) string {
-	if len(items) == 0 {
-		return ""
-	}
-	out := items[0]
-	for _, item := range items[1:] {
-		out += "、" + item
-	}
-	return out
+	return strings.Join(items, i18n.T(msgid.ListSeparator))
 }
 
 // displayPath 把绝对路径显示成相对项目根目录的形式。

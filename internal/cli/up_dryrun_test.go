@@ -74,7 +74,7 @@ func TestUpDryRunGeneratesComposeFile(t *testing.T) {
 	assert.Contains(t, text, "people-basic-1-0-0:")
 	assert.Contains(t, text, "erp-backend-1-0-0:")
 	assert.Contains(t, text, "PEOPLE_BASIC_ENDPOINT=http://people-basic-1-0-0:8080")
-	assert.Contains(t, r.stdout, "📄 已生成")
+	assert.Contains(t, r.stdout, "📄 Generated")
 	assert.Contains(t, r.stdout, ".brickkit/generated/docker-compose.yaml")
 }
 
@@ -85,8 +85,8 @@ func TestUpDryRunDoesNotStartAnything(t *testing.T) {
 	r := runIn(t, f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code)
-	assert.NotContains(t, r.stdout, "正在启动")
-	assert.Contains(t, r.stdout, "未启动任何组件")
+	assert.NotContains(t, r.stdout, "🐳 Starting (")
+	assert.Contains(t, r.stdout, "starts no component")
 }
 
 // 生成前先展示级联结果与启动顺序：使用者要能看出"这次会跑哪些、为什么"。
@@ -255,7 +255,7 @@ func TestUpDryRunTellsHowToDebugLocally(t *testing.T) {
 
 	r := runIn(t, f.Dir, "up", "--dry-run")
 
-	assert.Contains(t, r.stdout, "本地调试")
+	assert.Contains(t, r.stdout, "Local debugging")
 	assert.Contains(t, r.stdout, "localhost:8081")
 	assert.Contains(t, r.stdout, "local-debug.people-basic-1-0-0.env")
 	assert.Contains(t, r.stdout, "envFile", "给出 IDE 里怎么用")
@@ -319,7 +319,7 @@ func TestUpDryRunWithNothingRunning(t *testing.T) {
 	r := runIn(t, f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "本次没有组件会启动")
+	assert.Contains(t, r.stdout, "No component will start this run")
 	assert.NoFileExists(t, filepath.Join(f.Dir, ".brickkit", "generated", "docker-compose.yaml"))
 }
 
@@ -330,5 +330,5 @@ func TestUpDryRunOnEmptyProject(t *testing.T) {
 	r := runIn(t, f.Dir, "up", "--dry-run")
 
 	assert.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "当前项目没有组件")
+	assert.Contains(t, r.stdout, "The current project has no components")
 }

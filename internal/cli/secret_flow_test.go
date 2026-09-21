@@ -202,6 +202,6 @@ func TestConfigExistingSecretUnderDockerWarns(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
 	out := r.stdout + r.stderr
 	assert.Contains(t, out, "existingSecret")
-	assert.Contains(t, out, "只")
+	assert.Contains(t, out, "only works on K8s")
 	assert.Contains(t, out, "K8s")
 }

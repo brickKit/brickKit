@@ -33,7 +33,7 @@ func TestUpStartsAllComponents(t *testing.T) {
 	assert.ElementsMatch(t,
 		[]string{"people-basic-1-0-0", "erp-backend-1-0-0"},
 		eng.lastUp(t).Services, "15.1")
-	assert.Contains(t, r.stdout, "全部组件已启动")
+	assert.Contains(t, r.stdout, "All components started")
 }
 
 // 部署文件交给引擎的是 CLI 刚生成的那一份。
@@ -94,7 +94,7 @@ func TestUpReportsPartialFailure(t *testing.T) {
 
 	assert.NotEqual(t, clierr.ExitOK, r.code, "有组件没起来，退出码不能是 0")
 	assert.Contains(t, r.stdout+r.stderr, "erp-backend-1-0-0")
-	assert.NotContains(t, r.stdout, "全部组件已启动")
+	assert.NotContains(t, r.stdout, "All components started")
 }
 
 // 引擎自己失败时如实报出来，并保留它的输出（那才是真正有用的信息）。
@@ -150,7 +150,7 @@ func TestUpImageUnauthorizedBlocksStart(t *testing.T) {
 	assert.Equal(t, clierr.ExitError, r.code, "15.19")
 	assert.Contains(t, r.stderr, "docker login", "引擎给出的建议要原样传到使用者眼前")
 	assert.Contains(t, r.stderr, "people-basic", "要说清是哪个镜像")
-	assert.Contains(t, r.stderr, "组件", "还要说清是哪个组件在用它")
+	assert.Contains(t, r.stderr, "Component", "还要说清是哪个组件在用它")
 	assert.Empty(t, eng.ups, "镜像取不到就别启动了——启动只会得到一堆 ImagePullBackOff")
 }
 
@@ -194,7 +194,7 @@ func TestUpCascadeSkipsUnneededComponent(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Empty(t, eng.ups, "15.2/15.4：一个都不该启动")
-	assert.Contains(t, r.stdout, "本次没有组件会启动")
+	assert.Contains(t, r.stdout, "No component will start this run")
 }
 
 // 一个都不跑时，得告诉使用者去改**哪一行**。
@@ -223,11 +223,11 @@ func TestNothingRunningDoesNotBlameTheTopLevel(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "本次没有组件会启动")
+	assert.Contains(t, r.stdout, "No component will start this run")
 	assert.Contains(t, r.stdout, "erp/backend@1.0.0", "要把顶层点名列出来")
-	assert.NotContains(t, r.stdout, "移除其中一个的 enabled: false",
+	assert.NotContains(t, r.stdout, "Remove enabled: false from one of them",
 		"erp/backend 没写过 enabled: false，叫人去删它只会扑空")
-	assert.Contains(t, r.stdout, "顶层自己都没被关掉")
+	assert.Contains(t, r.stdout, "The top level itself isn't turned off")
 }
 
 // 15.3：钉住的组件即使没人依赖也要启动。
@@ -349,7 +349,7 @@ func TestUpWithLocalComponentTellsHowToDebug(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.NotContains(t, strings.Join(eng.lastUp(t).Services, ","), "people-basic",
 		"local 组件没有容器，不该出现在启动列表里")
-	assert.Contains(t, r.stdout, "本地调试")
+	assert.Contains(t, r.stdout, "Local debugging")
 	assert.Contains(t, r.stdout, "local-debug.people-basic-1-0-0.env")
 }
 
@@ -396,7 +396,7 @@ func TestUpIgnoreServedByPrintsBanner(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "up", "--ignore-served-by")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "已忽略全部 servedBy 声明")
+	assert.Contains(t, r.stdout, "All servedBy declarations are ignored")
 }
 
 // 这是一次内存里的验证运行，不是持久化配置的方式——brickkit.yaml 本身
@@ -424,7 +424,7 @@ func TestUpOnEmptyProjectDoesNothing(t *testing.T) {
 
 	assert.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Empty(t, eng.ups)
-	assert.Contains(t, r.stdout, "当前项目没有组件")
+	assert.Contains(t, r.stdout, "The current project has no components")
 }
 
 // CLI 打印给使用者的 logs 命令必须带 -p。

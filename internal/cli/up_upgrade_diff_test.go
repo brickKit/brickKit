@@ -128,7 +128,7 @@ func TestUpDryRunWarnsButDoesNotBlockOnUnboundResource(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code,
 		"--dry-run 不该因为资源没绑就失败：%s", r.stdout+r.stderr)
 	out := r.stdout + r.stderr
-	assert.Contains(t, out, "资源依赖未满足", "但必须说出来：%s", out)
+	assert.Contains(t, out, "resource dependencies are not satisfied", "但必须说出来：%s", out)
 	assert.Contains(t, out, "people/basic", "要说清是哪个组件：%s", out)
 }
 

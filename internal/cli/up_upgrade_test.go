@@ -96,7 +96,7 @@ func TestNoUpgradeMessageWhenVersionUnchanged(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout, "升级")
+	assert.NotContains(t, r.stdout, "pgrade")
 }
 
 // 首次安装不是升级：缓存里本来就没有这个组件的任何版本。
@@ -107,7 +107,7 @@ func TestFirstInstallIsNotAnUpgrade(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout, "升级")
+	assert.NotContains(t, r.stdout, "pgrade")
 }
 
 // ============================================================
@@ -257,7 +257,7 @@ func TestSwitchingBackToAnInstalledVersionStartsIt(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, []string{"people-basic-1-0-0"}, eng.lastUp(t).Services)
-	assert.NotContains(t, r.stdout, "升级", "本地都有，没有要拉的东西")
+	assert.NotContains(t, r.stdout, "pgrade", "本地都有，没有要拉的东西")
 }
 
 // 缓存目录被清空时不该把每个组件都当成升级。
@@ -268,7 +268,7 @@ func TestMissingCacheIsNotTreatedAsUpgrade(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout, "升级")
+	assert.NotContains(t, r.stdout, "pgrade")
 }
 
 // ============================================================
@@ -368,7 +368,7 @@ func TestDryRunDoesNotBlockOnUnboundResourceDuringUpgrade(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code,
 		"--dry-run 不该因为资源没绑就失败，升级时也一样：%s", r.stdout+r.stderr)
-	assert.Contains(t, r.stdout+r.stderr, "资源依赖未满足", "但必须说出来")
+	assert.Contains(t, r.stdout+r.stderr, "resource dependencies are not satisfied", "但必须说出来")
 }
 
 // 升级一个 enabled: false 的组件不该被资源检查拦下。
@@ -410,6 +410,6 @@ func TestDryRunListsMigrations(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "数据库迁移", "dry-run 必须说清会不会动数据库：%s", r.stdout)
+	assert.Contains(t, r.stdout, "Database migrations", "dry-run 必须说清会不会动数据库：%s", r.stdout)
 	assert.Contains(t, r.stdout, "/app/people-basic migrate")
 }

@@ -196,7 +196,7 @@ resources:
 	out := r.stdout + r.stderr
 	assert.Contains(t, out, "ghost/none")
 	assert.Contains(t, out, "postgres-main")
-	assert.Contains(t, out, "不会生效")
+	assert.Contains(t, out, "no effect")
 }
 
 // 绑定都指向已声明的组件时，不该有这条警告。
@@ -206,7 +206,7 @@ func TestUpDoesNotWarnWhenAllBindingsDeclared(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "components 里不存在的组件")
+	assert.NotContains(t, r.stdout+r.stderr, "components that don't exist under components")
 }
 
 // 用了 ${ENV_VAR} 就不该有这条警告。
@@ -251,7 +251,7 @@ func TestDryRunNeedsNoEngineAndNeverProbes(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.False(t, probed)
-	assert.Contains(t, r.stdout, "只生成文件")
+	assert.Contains(t, r.stdout, "only generates the files")
 }
 
 // ============================================================
@@ -282,7 +282,7 @@ func TestWeakDependencyNotRunningIsReported(t *testing.T) {
 	assert.Contains(t, r.stdout, "demo/hello@1.0.0", "要点名是谁没跑")
 	assert.Contains(t, r.stdout, "demo/caller", "要点名谁受影响")
 	assert.Contains(t, r.stdout, "DEMO_HELLO_ENDPOINT", "要说清哪个变量拿不到")
-	assert.Contains(t, r.stdout, "降级", "要说清后果由调用方自己处理（002 §3.4）")
+	assert.Contains(t, r.stdout, "degradation", "要说清后果由调用方自己处理（002 §3.4）")
 }
 
 // 这是信息，不是警告。
@@ -423,7 +423,7 @@ func TestEgressCoverageOnlyWarnsInDryRun(t *testing.T) {
 		"--dry-run 不该因为 egress 没配全就失败：%s", r.stdout+r.stderr)
 	out := r.stdout + r.stderr
 	assert.Contains(t, out, "pg-main", "但必须说出来")
-	assert.Contains(t, out, "--dry-run 不阻断")
+	assert.Contains(t, out, "--dry-run doesn't block")
 	assert.DirExists(t, filepath.Join(f.Layout.GeneratedDir(), "k8s"),
 		"清单要真的生成出来——那正是他想看的")
 }
