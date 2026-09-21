@@ -21,3 +21,9 @@ const (
 	ShellConfigVarCollisionReasonDetail   = "shell.config_var_collision_reason_detail"
 	ShellHintAlignConfigValues            = "shell.hint.align_config_values"
 )
+
+// shell 补漏：不经过 clierr、直接当数据显示给用户的文案
+const (
+	ShellOwnerShellItself = "shell.owner.shell_itself"
+	ShellOwnerComponent   = "shell.owner.component"
+)

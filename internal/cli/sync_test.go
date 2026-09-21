@@ -297,7 +297,7 @@ func TestSyncOutputExplainsWhy(t *testing.T) {
 	r := runIn(t, f.Dir, "sync")
 
 	assert.Contains(t, r.stdout, "显式禁用", "17.12")
-	assert.Contains(t, r.stdout, "强依赖 demo/hello 不启动", "17.12")
+	assert.Contains(t, r.stdout, "required dependency demo/hello is not starting", "17.12")
 
 	f.writeConfig(t, allEnabled)
 	r = runIn(t, f.Dir, "sync")
@@ -420,7 +420,7 @@ func TestSyncArchivedComponentStillResolvableWithoutCache(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code,
 		"归档过的组件仍在 brickkit.yaml 里，级联计算必须读得到它：%s%s", r.stdout, r.stderr)
-	assert.Contains(t, r.stdout, "显式禁用", "它该被判为不启动，而不是找不到")
+	assert.Contains(t, r.stdout, "disabled explicitly", "它该被判为不启动，而不是找不到")
 }
 
 // sync 必须解得开自己造成的局面：归档 → 缓存没了 → 重新启用 → sync 能移回来。

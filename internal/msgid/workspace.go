@@ -45,3 +45,10 @@ const (
 	WorkspaceHintManualMoveEquivalent = "workspace.hint.manual_move_equivalent"
 	WorkspaceHintConfirmThenSync      = "workspace.hint.confirm_then_sync"
 )
+
+// workspace 补漏：不经过 clierr、直接当数据显示给用户的文案
+const (
+	WorkspaceRiskNotGitRepo  = "workspace.risk.not_git_repo"
+	WorkspaceRiskUncommitted = "workspace.risk.uncommitted"
+	WorkspaceRiskUnpushed    = "workspace.risk.unpushed"
+)

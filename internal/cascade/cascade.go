@@ -226,17 +226,17 @@ func classify(
 
 	switch {
 	case decl.disabled(ref):
-		c.State, c.Reason = StateDisabled, "显式禁用（enabled: false）"
+		c.State, c.Reason = StateDisabled, i18n.T(msgid.CascadeReasonDisabled)
 
 	case !stopped[ref]:
 		c.State, c.Reason = StateRunning, runningReason(node, decl, running, top)
 
 	case blocker[ref] != (resolver.Ref{}):
 		c.State = StateSkipped
-		c.Reason = "不启动（强依赖 " + blocker[ref].ID + " 不启动）"
+		c.Reason = i18n.T(msgid.CascadeReasonBlockedByRequired, blocker[ref].ID)
 
 	default:
-		c.State, c.Reason = StateSkipped, "不启动（上层都不启动）"
+		c.State, c.Reason = StateSkipped, i18n.T(msgid.CascadeReasonNothingAbove)
 	}
 	return c
 }
@@ -250,9 +250,9 @@ func runningReason(
 ) string {
 	switch {
 	case top:
-		return "启动（顶层）"
+		return i18n.T(msgid.CascadeReasonTopLevel)
 	case decl.pinned(node.Ref):
-		return "启动（enabled: true）"
+		return i18n.T(msgid.CascadeReasonPinned)
 	}
 
 	// 多个上层在跑时取字典序最前的那个：同一份配置每次都要给出同一句话，
@@ -264,10 +264,10 @@ func runningReason(
 		}
 	}
 	if len(parents) == 0 {
-		return "启动"
+		return i18n.T(msgid.CascadeReasonStarting)
 	}
 	sort.Strings(parents)
-	return "启动（" + parents[0] + " 需要）"
+	return i18n.T(msgid.CascadeReasonNeededBy, parents[0])
 }
 
 // ============================================================

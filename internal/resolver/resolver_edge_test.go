@@ -166,8 +166,8 @@ func TestCheckResourceBindingsReportsAllProblems(t *testing.T) {
 	err := CheckResourceBindings(cfg, m)
 	require.Error(t, err)
 	out := clierr.As(err).Format()
-	assert.Contains(t, out, "postgres-main 已声明，但未绑定给该组件")
-	assert.Contains(t, out, "kind: cache, engine: redis (brickkit.yaml 的 resources 中未声明)")
+	assert.Contains(t, out, "resource postgres-main is declared but not bound to this component")
+	assert.Contains(t, out, "kind: cache, engine: redis (not declared under resources in brickkit.yaml)")
 	assert.Contains(t, out, "bindings: people/basic")
 }
 
@@ -239,7 +239,7 @@ func TestCheckResourceBindingsSaysNotDeclaredWhenKindIsAbsent(t *testing.T) {
 
 	err := CheckResourceBindings(cfg, m)
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "未声明")
+	assert.Contains(t, clierr.As(err).Format(), "not declared")
 }
 
 // 同一类资源有多个实例时，只要有一个绑定了该组件就算满足（003 §5.6 多资源绑定）。
@@ -278,7 +278,7 @@ func TestServingShellIDMatchesExactVersionOnly(t *testing.T) {
 
 func TestMatchResourceWithNilConfig(t *testing.T) {
 	problem := matchResource(nil, manifest.ResourceDep{Kind: "database", Engine: "postgresql"}, "people/basic", "")
-	assert.Contains(t, problem, "未声明", "没有配置就等于什么都没声明")
+	assert.Contains(t, problem, "not declared", "没有配置就等于什么都没声明")
 }
 
 // servedBy 成员自己没绑，但收编它的外壳绑了同一份资源——该算满足。
@@ -302,7 +302,7 @@ func TestMatchResourceStillFailsWhenShellAlsoUnbound(t *testing.T) {
 
 	problem := matchResource(cfg, manifest.ResourceDep{Kind: "database", Engine: "postgresql"},
 		"mdm/customer", "infra/shell-go-core")
-	assert.Contains(t, problem, "已声明，但未绑定给该组件")
+	assert.Contains(t, problem, "is declared but not bound to this component")
 }
 
 // ============================================================

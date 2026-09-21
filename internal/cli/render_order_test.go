@@ -282,7 +282,7 @@ func TestDryRunOrderExcludesDisabledComponent(t *testing.T) {
 	// 但要在状态一览里说清它为什么不跑
 	assert.Contains(t, r.stdout, "📋 组件状态计算：")
 	assert.Contains(t, r.stdout, "department/tree@1.0.0")
-	assert.Contains(t, r.stdout, "显式禁用")
+	assert.Contains(t, r.stdout, "disabled explicitly")
 }
 
 // 上层关掉之后，下层跟着不排进启动顺序，并说清是跟着谁走的。
@@ -303,7 +303,7 @@ func TestDryRunOrderExcludesComponentsWhoseParentsAreOff(t *testing.T) {
 	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
-	assert.Contains(t, r.stdout, "上层都不启动")
+	assert.Contains(t, r.stdout, "nothing above it is starting")
 	assert.NotContains(t, startupSection(r.stdout), "people-basic-1-0-0",
 		"唯一的上层停了，它也不该启动")
 }

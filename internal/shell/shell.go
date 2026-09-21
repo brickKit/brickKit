@@ -47,8 +47,9 @@ const EnvVarServedMembers = "BRICKKIT_SERVED_MEMBERS"
 const EnvVarServedMembersConfig = "BRICKKIT_SERVED_MEMBERS_CONFIG"
 
 // SourceServed 标记 BRICKKIT_SERVED_MEMBERS 这条变量的来源，
-// 与 inject.SourceEndpoint 等常量同一用途（--verbose 输出、排障）。
-const SourceServed = "外壳收编"
+// 与 inject.SourceEndpoint 等常量同一用途：只是代码里用来区分变量种类的标识，
+// 不会显示给使用者，所以取语言中立的英文值，不进消息目录。
+const SourceServed = "served"
 
 // Group 是一个外壳与它当前收编的成员。
 type Group struct {
@@ -321,12 +322,12 @@ func checkPortConflicts(shellRef resolver.Ref, shellNode *resolver.Node, members
 	}
 
 	if shellNode != nil && shellNode.Manifest != nil {
-		if err := claim(shellNode.Manifest.Deployment.Port, "外壳自己"); err != nil {
+		if err := claim(shellNode.Manifest.Deployment.Port, i18n.T(msgid.ShellOwnerShellItself)); err != nil {
 			return err
 		}
 	}
 	for _, m := range members {
-		if err := claim(m.Port, "组件 "+m.Ref.String()); err != nil {
+		if err := claim(m.Port, i18n.T(msgid.ShellOwnerComponent, m.Ref.String())); err != nil {
 			return err
 		}
 	}

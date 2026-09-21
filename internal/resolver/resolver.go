@@ -574,7 +574,7 @@ func resourceHints(componentID string, extra ...string) []string {
 // 见 servingShellID 的注释。
 func matchResource(cfg *config.Config, dep manifest.ResourceDep, componentID, shellID string) string {
 	if cfg == nil {
-		return "brickkit.yaml 的 resources 中未声明"
+		return i18n.T(msgid.ResolverResourceNotDeclared)
 	}
 
 	// 同 kind 但 engine 不同的那些：留着，报错时要点名
@@ -600,12 +600,12 @@ func matchResource(cfg *config.Config, dep manifest.ResourceDep, componentID, sh
 	}
 
 	if declaredSameEngine != "" {
-		return "资源 " + declaredSameEngine + " 已声明，但未绑定给该组件"
+		return i18n.T(msgid.ResolverResourceNotBound, declaredSameEngine)
 	}
 	if len(otherEngines) > 0 {
 		return engineMismatch(otherEngines, dep, componentID)
 	}
-	return "brickkit.yaml 的 resources 中未声明"
+	return i18n.T(msgid.ResolverResourceNotDeclared)
 }
 
 // engineMismatch 说清楚"这一类资源有，但 engine 那个词对不上"。
@@ -627,13 +627,10 @@ func engineMismatch(candidates []config.Resource, dep manifest.ResourceDep, comp
 		}
 	}
 
-	who := "资源 " + pick.ID
 	if boundToMe {
-		who += " 已经绑给它了"
-	} else {
-		who += " 是同一类资源"
+		return i18n.T(msgid.ResolverEngineMismatchBound, pick.ID, pick.Engine)
 	}
-	return who + "，但它的 engine 写的是 " + pick.Engine
+	return i18n.T(msgid.ResolverEngineMismatchSameKind, pick.ID, pick.Engine)
 }
 
 // ============================================================

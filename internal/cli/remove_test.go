@@ -488,7 +488,7 @@ func TestRemoveRefusesDirtyClone(t *testing.T) {
 
 	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
 	assert.FileExists(t, filepath.Join(src, "main.go"))
-	assert.Contains(t, r.stderr, "未提交")
+	assert.Contains(t, r.stderr, "uncommitted changes")
 }
 
 // clone 来的、提交了但没推 → 同样拦下：删掉 .git 就一起没了。

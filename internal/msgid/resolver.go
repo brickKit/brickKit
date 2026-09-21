@@ -23,3 +23,11 @@ const (
 	ResolverHintDeclaredNotBound      = "resolver.hint.declared_not_bound"
 	ResolverHintEngineMismatch        = "resolver.hint.engine_mismatch"
 )
+
+// resolver 补漏：不经过 clierr、直接当数据显示给用户的文案
+const (
+	ResolverResourceNotDeclared    = "resolver.resource_not_declared"
+	ResolverResourceNotBound       = "resolver.resource_not_bound"
+	ResolverEngineMismatchBound    = "resolver.engine_mismatch_bound"
+	ResolverEngineMismatchSameKind = "resolver.engine_mismatch_same_kind"
+)

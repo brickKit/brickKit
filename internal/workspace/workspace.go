@@ -184,20 +184,20 @@ func DeletionRisk(dir string) string {
 		return ""
 	}
 	if !gitOK(dir, "rev-parse", "--is-inside-work-tree") {
-		return "它不是一个 Git 仓库——这些文件没有别的副本"
+		return i18n.T(msgid.WorkspaceRiskNotGitRepo)
 	}
 	// 两条查询都要**限定到这个目录**（`-- .`）。不限定的话它们报的是整个仓库的
 	// 状态——组件目录常常嵌在一个更大的仓库里（试用指南的 playground 就是），
 	// 那时仓库别处的任何一点改动都会让这个组件被判成"删不得"。
 	if out, ok := gitOut(dir, "status", "--porcelain", "--", "."); !ok ||
 		strings.TrimSpace(out) != "" {
-		return "有未提交的改动（含未跟踪的文件）"
+		return i18n.T(msgid.WorkspaceRiskUncommitted)
 	}
 	// --branches --not --remotes：本地任何分支上、而任何远端分支上都没有的提交。
 	// 没有配远端时它等于"全部提交"，正好也该拦——那时 .git 就是唯一的副本。
 	if out, ok := gitOut(dir, "log", "--branches", "--not", "--remotes", "--oneline", "--", "."); !ok ||
 		strings.TrimSpace(out) != "" {
-		return "有提交还没推到任何远端"
+		return i18n.T(msgid.WorkspaceRiskUnpushed)
 	}
 	return ""
 }

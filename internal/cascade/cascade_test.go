@@ -143,7 +143,7 @@ func TestCascadeMatchesDesignExample(t *testing.T) {
 
 	state, reason := reasonOf(t, result, "erp/backend")
 	assert.Equal(t, cascade.StateDisabled, state)
-	assert.Contains(t, reason, "显式禁用")
+	assert.Contains(t, reason, "disabled explicitly")
 
 	// portal 强依赖 erp/backend，erp 不跑 → 它跑起来也连不上
 	state, reason = reasonOf(t, result, "portal/user-frontend")
@@ -153,7 +153,7 @@ func TestCascadeMatchesDesignExample(t *testing.T) {
 	// people/basic 的上层只有 erp/backend，它关了 → people 跟着不跑
 	state, reason = reasonOf(t, result, "people/basic")
 	assert.Equal(t, cascade.StateSkipped, state)
-	assert.Contains(t, reason, "上层都不启动")
+	assert.Contains(t, reason, "nothing above it is starting")
 
 	_, reason = reasonOf(t, result, "authorization/rbac")
 	assert.Contains(t, reason, "enabled: true")
@@ -184,7 +184,7 @@ func TestTopLevelWithoutEnabledRuns(t *testing.T) {
 	for _, c := range result.Components {
 		if c.Ref.ID == "erp/backend" {
 			assert.True(t, c.TopLevel, "没人依赖它，它就是顶层")
-			assert.Contains(t, c.Reason, "顶层")
+			assert.Contains(t, c.Reason, "top-level")
 		}
 		if c.Ref.ID == "people/basic" {
 			assert.False(t, c.TopLevel)
@@ -283,7 +283,7 @@ func TestWeakDependencyStopsWithItsOnlyParent(t *testing.T) {
 	assert.Empty(t, runningIDs(result))
 	state, reason := reasonOf(t, result, "infra/redis-event-bus")
 	assert.Equal(t, cascade.StateSkipped, state)
-	assert.Contains(t, reason, "上层都不启动")
+	assert.Contains(t, reason, "nothing above it is starting")
 }
 
 // 被多个上层共用时，只要还有一个上层在跑，它就跑。

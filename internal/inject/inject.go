@@ -88,12 +88,15 @@ type Var struct {
 func (v Var) IsSecret() bool { return v.SecretKey != "" }
 
 // 变量来源。
+//
+// 这些只是代码里用来区分变量种类的标识（比较、分流），从不显示给使用者，
+// 所以取语言中立的英文值，不进消息目录。
 const (
-	SourcePlatform = "平台"
-	SourceEndpoint = "依赖地址"
-	SourceResource = "资源连接"
-	SourceConfig   = "组件配置"
-	SourceOverride = "配置覆盖"
+	SourcePlatform = "platform"
+	SourceEndpoint = "endpoint"
+	SourceResource = "resource"
+	SourceConfig   = "config"
+	SourceOverride = "override"
 )
 
 // Component 是一个组件的注入结果。

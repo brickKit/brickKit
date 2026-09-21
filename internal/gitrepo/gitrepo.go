@@ -10,16 +10,24 @@ package gitrepo
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // ErrNotRepo 表示给定目录不在任何 git 仓库里。
-var ErrNotRepo = errors.New("不在 git 仓库里")
+var ErrNotRepo error = notRepoError{}
+
+// notRepoError 让 ErrNotRepo 成为可以用 == / errors.Is 比较的哨兵，同时把消息推迟到
+// 真正要显示时才查目录——包初始化的时候语言还没确定，不能在那里调 i18n.T。
+type notRepoError struct{}
+
+func (notRepoError) Error() string { return i18n.T(msgid.GitrepoNotRepo) }
 
 // Repo 是一个已定位的 git 仓库。
 type Repo struct{ root string }
@@ -161,7 +169,7 @@ func (r *Repo) HooksDir() (string, error) {
 	cmd.Dir = r.root
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("定位 hooks 目录失败：%w", err)
+		return "", fmt.Errorf("%s%w", i18n.T(msgid.GitrepoHooksDirFailed), err)
 	}
 	dir := strings.TrimSpace(string(out))
 	if !filepath.IsAbs(dir) {
