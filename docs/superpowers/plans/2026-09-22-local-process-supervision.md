@@ -31,7 +31,7 @@
 | 计划 | 内容 | 状态 |
 | --- | --- | --- |
 | Plan 1 | `enabled` + `local` 合并成 `mode` 字段（`mode: debug` 取代 `local: true`） | 已完成，提交在 `worktree-mode-field-migration` 分支 |
-| **Plan 2（本计划）** | 本地进程监管：`procsup`、`sessionlock`、交叉编译守卫 | 待执行 |
+| **Plan 2（本计划）** | 本地进程监管：`procsup`、`sessionlock`、交叉编译守卫 | 已完成，提交在 `worktree-mode-field-migration` 分支 |
 | Plan 3 | 语言 / 启动命令自动识别（`component.yaml` 的 `local:` 块，各语言适配器） | 待写 |
 | Plan 4 | `mode: local` 整合：字段与校验、`up` 前台监管模式、端口分配与覆盖、`PORT` 保留变量、`graph` / `status` / `down` 展示、`check-guides` 的 `local` 层、文档 | 待写 |
 
@@ -2408,19 +2408,19 @@ for _, e := range exits {
 
 ## Self-Review Checklist（执行完 6 个任务后逐条核对）
 
-- [ ] spec §3「Go 内置、进程组 / Job Object」→ Task 3（`proc_unix.go`、`proc_windows.go`）
-- [ ] spec §3「日志按组件名做行前缀」→ Task 2 + Task 3（`NameWidth`）
-- [ ] spec §3「不自动重启、退出码本身就是崩溃信号」+ 用户的决定「一个崩了全停，结束前告诉用户什么崩了」→ Task 3（`Exit.Crashed`、崩溃触发整个会话收尾、`Exit.Tail`）+ Task 2（`prefixWriter.Tail`）
-- [ ] 用户的决定「只打印崩溃的进程；行数可调」→ Task 3 的 `Options.TailLines`（库，含默认值与环形缓冲）；用户能用的旋钮归 Plan 4
-- [ ] spec §3「并发保护：项目目录级锁，进程死锁自动释放」→ Task 5（含 `kill -9` 之后锁空出来的跨进程用例）
-- [ ] spec §3「`status` / `down` 跨终端可见性」→ Task 5 提供 `Inspect`；展示归 Plan 4
-- [ ] spec §3「多个本地进程按拓扑序启动、不卡在健康检查」→ Task 3 的 `Start` 一次一个、立刻返回；编排归 Plan 4
-- [ ] spec §4 / §6.4「一次性端口监听检测；进程崩了硬失败、没监听软警告」→ Task 4（四种结果）
-- [ ] spec §6.5「Windows / macOS 只要理论上站得住」→ Task 1（`make check-cross-build`）+ Task 3、Task 5 的 Windows 文件
-- [ ] `go test -race` 干净，`make lint` `exit=0`，`internal` 覆盖率不低于 92%
-- [ ] 两个包除了各自的测试，没有被任何别的代码引用（Task 6 Step 3）
-- [ ] `AGENTS.md` 与 `docs/` 没有任何改动；`deployment-selection-guide.md` 未改动
-- [ ] 计划里的每个代码块都能原样通过 `go vet`（Task 3、5 的交叉编译步骤证明了 Windows / macOS）
+- [x] spec §3「Go 内置、进程组 / Job Object」→ Task 3（`proc_unix.go`、`proc_windows.go`）
+- [x] spec §3「日志按组件名做行前缀」→ Task 2 + Task 3（`NameWidth`）
+- [x] spec §3「不自动重启、退出码本身就是崩溃信号」+ 用户的决定「一个崩了全停，结束前告诉用户什么崩了」→ Task 3（`Exit.Crashed`、崩溃触发整个会话收尾、`Exit.Tail`）+ Task 2（`prefixWriter.Tail`）
+- [x] 用户的决定「只打印崩溃的进程；行数可调」→ Task 3 的 `Options.TailLines`（库，含默认值与环形缓冲）；用户能用的旋钮归 Plan 4
+- [x] spec §3「并发保护：项目目录级锁，进程死锁自动释放」→ Task 5（含 `kill -9` 之后锁空出来的跨进程用例）
+- [x] spec §3「`status` / `down` 跨终端可见性」→ Task 5 提供 `Inspect`；展示归 Plan 4
+- [x] spec §3「多个本地进程按拓扑序启动、不卡在健康检查」→ Task 3 的 `Start` 一次一个、立刻返回；编排归 Plan 4
+- [x] spec §4 / §6.4「一次性端口监听检测；进程崩了硬失败、没监听软警告」→ Task 4（四种结果）
+- [x] spec §6.5「Windows / macOS 只要理论上站得住」→ Task 1（`make check-cross-build`）+ Task 3、Task 5 的 Windows 文件
+- [x] `go test -race` 干净，`make lint` `exit=0`，`internal` 覆盖率不低于 92%
+- [x] 两个包除了各自的测试，没有被任何别的代码引用（Task 6 Step 3）
+- [x] `AGENTS.md` 与 `docs/` 没有任何改动；`deployment-selection-guide.md` 未改动
+- [x] 计划里的每个代码块都能原样通过 `go vet`（Task 3、5 的交叉编译步骤证明了 Windows / macOS）
 
 ## Execution Handoff
 
@@ -2429,4 +2429,22 @@ for _, e := range exits {
 **1. Subagent-Driven（推荐）**——每个任务派一个新的子代理去做，任务之间做审查，迭代更快
 **2. Inline Execution**——在当前会话里按任务顺序执行，批量执行、有检查点
 
-选哪种？
+已选择 Inline Execution，六个任务全部完成，见下面的执行结果。
+
+## 执行结果与遗留（供 Plan 3、Plan 4 参考）
+
+六个任务的提交依次是 `109c6ae`（Task 1，`make check-cross-build`）→ `67328a7`（Task 2，前缀写入器）→ `276b481`（Task 3，监管器）→ `741af7e`（Task 4，端口探测）→ `3dce430`（Task 5，会话锁）；Task 6 是收尾与本节。
+
+- `make lint` `exit=0`；`internal` 覆盖率 93.2%（门槛 92%）；`make test-race` 干净（27 个包）。
+- `procsup` 覆盖率 95.7%，`sessionlock` 81.8%（未覆盖的是几个几乎不可能触发的系统调用错误分支）。
+- 没有接线：`grep` 确认除两个包自己之外没有任何引用；`AGENTS.md`、`docs/en`、`docs/zh` 没有任何改动。
+- Windows / macOS：`make check-cross-build` 通过，**没有真机验证**（spec §6.5）。
+- 偏离计划的地方：没有。所有代码文件与计划里注入的逐字节一致；`-race` 下 `procsup` 单遍约 13 秒、连跑 5 遍约 60 秒；IPv6 回环那条探测用例在这台机器上没有被跳过。
+- 执行时的一个小坑：沙箱有时会拒绝 `git commit -m "$(cat <<'EOF' … EOF)"` 这种带 heredoc 的复合命令（提示 "too complex"）。改成先用 Write 把提交信息写进一个文件，再把 `git add` 与 `git commit -F <文件>` 分开执行，就没问题。Plan 3、Plan 4 的执行者可以直接这样做。
+
+遗留，留给后面的计划或用户：
+
+- **`brickkit up --crash-lines N`**（名字，以及"只用 flag 还是也要环境变量"）还没有得到用户确认。它是新增的 CLI 表面，属于 Plan 4，写 Plan 4 之前先问。
+- 仓库 `go.mod` 本身不 tidy（`golang.org/x/term`、`gopkg.in/yaml.v3` 被直接 import 却仍标 `// indirect`），本计划特意没碰，也别用 `go mod tidy` / `-mod=mod`。哪天想整理，单独提交。
+- 这台机器没装 golangci-lint，`make lint` 回退到 `go vet`；合并前在装了它的环境再跑一次全量。
+- 整条分支（Plan 1 + Plan 2）还没合并、没推送。
