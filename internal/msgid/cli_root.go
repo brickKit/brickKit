@@ -2,7 +2,6 @@ package msgid
 
 // internal/cli/root.go
 const (
-	CliRootUsage                      = "cli.root.usage"
 	CliRootValueGiven                 = "cli.root.value_given"
 	CliRootValidValues                = "cli.root.valid_values"
 	CliRootProjectCommands            = "cli.root.project_commands"

@@ -350,7 +350,7 @@ func translate(err error) *clierr.Error {
 			name = m[1]
 		}
 		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliRootErrorUnknownCommand, name)).
-			WithDetail(i18n.T(msgid.CliRootUsage), i18n.T(msgid.CliRootBrickkitCommandArguments)).
+			WithDetail(i18n.T(msgid.LabelUsage), i18n.T(msgid.CliRootBrickkitCommandArguments)).
 			WithHint(i18n.T(msgid.CliRootRunBrickkitHelpToSee2)).
 			WithExit(clierr.ExitUsage).
 			WithCause(err)

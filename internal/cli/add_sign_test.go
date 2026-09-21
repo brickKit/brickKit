@@ -125,7 +125,7 @@ func TestAddVerifiesSignature(t *testing.T) {
 	r := runIn(t, f.Dir, "add", c.ref())
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
-	assert.Contains(t, r.stdout, "已校验", "验过了就要说出来（008 §8）")
+	assert.Contains(t, r.stdout, "verified", "验过了就要说出来（008 §8）")
 	assert.Contains(t, r.stdout, "release-bot@brickkit.io")
 }
 
@@ -170,7 +170,7 @@ func TestAddAllowsUnsignedWhenNotRequired(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join(f.Dir, "brickkit.yaml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), "people/basic")
-	assert.NotContains(t, r.stdout, "已校验", "没验过就不能说验过了")
+	assert.NotContains(t, r.stdout, "verified", "没验过就不能说验过了")
 }
 
 // ============================================================

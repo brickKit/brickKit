@@ -2,7 +2,6 @@ package msgid
 
 // internal/cli/remove.go
 const (
-	CliRemoveExample                                = "cli.remove.example"
 	CliRemoveDependent                              = "cli.remove.dependent"
 	CliRemoveCurrentVersion                         = "cli.remove.current_version"
 	CliRemoveCurrentComponents                      = "cli.remove.current_components"

@@ -33,8 +33,8 @@ func newRemoveCommand(opts *Options) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliRemovePleaseSpecifyTheComponentTo)).
-					WithDetail(i18n.T(msgid.CliRootUsage), i18n.T(msgid.CliRemoveBrickkitRemoveComponentIdVersion)).
-					WithDetail(i18n.T(msgid.CliRemoveExample), "brickkit remove people/basic@1.0.0").
+					WithDetail(i18n.T(msgid.LabelUsage), i18n.T(msgid.CliRemoveBrickkitRemoveComponentIdVersion)).
+					WithDetail(i18n.T(msgid.LabelExample), "brickkit remove people/basic@1.0.0").
 					WithExit(clierr.ExitUsage)
 			}
 			return runRemove(cmd.Context(), opts, args[0], force)

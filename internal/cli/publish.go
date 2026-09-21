@@ -14,8 +14,10 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/market"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/security"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -42,44 +44,30 @@ func newPublishCommand(opts *Options) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "publish",
-		Short:   "发布组件到市场（需先 brickkit login）",
+		Short:   i18n.T(msgid.CliPublishShort),
 		GroupID: groupMarket,
-		Long: `把组件发布到市场。
-
-行为：
-  1. 检查登录状态（credentials 或 sources.authToken），未登录报错
-  2. 读取组件目录中的 component.yaml 并校验 Manifest 格式
-  3. 检查镜像引用是否有效，并确认 artifacts 声明的文件都在
-  4. 建 draft 版本 → 上传产物 → 转 stable
-  5. 设置可见性（--visibility）
-
-发布分三步是有意的：版本转 stable 时市场会校验"文件与 artifacts 声明一致"，
-先建 draft 才能保证不会出现"已 stable 但文件没传齐"的半成品。
-
---path 支持归档目录，例如 ./components/.archived/erp/backend。`,
-		Example: `  brickkit publish --path ./components/people/basic
-  brickkit publish --path ./components/people/basic --visibility private
-  brickkit publish --path ./components/people/basic --changelog "新增人员状态字段"`,
-		Args: cobra.NoArgs,
+		Long:    i18n.T(msgid.CliPublishLong),
+		Example: i18n.T(msgid.CliPublishExample),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runPublish(cmd.Context(), opts, f)
 		},
 	}
 
-	cmd.Flags().StringVar(&f.path, "path", ".", "组件源码目录（含 component.yaml）")
-	cmd.Flags().StringVar(&f.visibility, "visibility", "", "可见性：public | private（默认沿用市场侧设置）")
-	cmd.Flags().StringVar(&f.changelog, "changelog", "", "本次版本的更新说明")
-	cmd.Flags().StringVar(&f.market, "market", "", "市场地址（默认取 brickkit.yaml 中的 market 安装源）")
+	cmd.Flags().StringVar(&f.path, "path", ".", i18n.T(msgid.CliPublishComponentSourceDirectoryContainingComponent))
+	cmd.Flags().StringVar(&f.visibility, "visibility", "", i18n.T(msgid.CliPublishVisibilityPublicPrivateDefaultsTo))
+	cmd.Flags().StringVar(&f.changelog, "changelog", "", i18n.T(msgid.CliPublishReleaseNotesForThisVersion))
+	cmd.Flags().StringVar(&f.market, "market", "", i18n.T(msgid.CliLoginMarketAddressDefaultsToThe))
 	cmd.Flags().StringVar(&f.sourceType, "source-type", "",
-		"来源类型：git（开源）| registry（闭源）。默认按组件目录的 git remote 推断")
-	cmd.Flags().StringVar(&f.gitURL, "git-url", "", "开源组件的 Git 仓库地址（默认取组件目录的 origin）")
-	cmd.Flags().BoolVar(&f.sign, "sign", false, "对组件签名后发布（cosign）")
-	cmd.Flags().StringVar(&f.key, "key", "", "cosign 私钥路径（默认 "+defaultSigningKey+"）")
+		i18n.T(msgid.CliPublishSourceTypeGitOpenSource))
+	cmd.Flags().StringVar(&f.gitURL, "git-url", "", i18n.T(msgid.CliPublishGitRepositoryAddressOfAn))
+	cmd.Flags().BoolVar(&f.sign, "sign", false, i18n.T(msgid.CliPublishSignTheComponentWithCosign))
+	cmd.Flags().StringVar(&f.key, "key", "", i18n.T(msgid.CliPublishPathOfTheCosignPrivate, defaultSigningKey))
 	cmd.Flags().StringVar(&f.publicKeyRef, "public-key-ref", "",
-		"写进签名的公钥 ref（默认按 --key 的 .key → .pub 推导）")
-	cmd.Flags().StringVar(&f.signedBy, "signed-by", "", "签名者标识，如 release-bot@example.com")
+		i18n.T(msgid.CliPublishPublicKeyRefWrittenInto))
+	cmd.Flags().StringVar(&f.signedBy, "signed-by", "", i18n.T(msgid.CliPublishSignerIdentifierForExampleRelease))
 	cmd.Flags().BoolVar(&f.noPinDigest, "no-pin-digest", false,
-		"不把镜像 tag 钉成 digest（默认会钉；跳过后 registry 上换掉同名 tag 时签名照样有效）")
+		i18n.T(msgid.CliPublishDonTPinTheImage))
 	return cmd
 }
 
@@ -107,10 +95,10 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 		return err
 	}
 
-	opts.Printf("📤 发布 %s@%s\n", pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version)
-	opts.Printf("   ✅ Manifest 校验通过\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliPublishPublishing, pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version))
+	opts.Printf("%s\n", i18n.T(msgid.CliPublishManifestValidationPassed))
 	renderWarnings(opts, pkg.warnings)
-	opts.Printf("   ✅ 镜像引用有效：%s\n", pkg.manifest.Deployment.Image)
+	opts.Printf("%s\n", i18n.T(msgid.CliPublishImageReferenceIsValid, pkg.manifest.Deployment.Image))
 
 	// ⚠️ 钉 digest 必须在**签名之前**：反过来的话签的是旧 Manifest，
 	// 上传的却是钉过的——消费方一律验签失败，而发布者这边一切正常（P29）
@@ -129,17 +117,17 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 		return err
 	}
 
-	opts.Printf("   ✅ 上传成功\n")
-	opts.Printf("🎉 发布完成\n")
-	opts.Printf("   组件：%s@%s\n", pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version)
+	opts.Printf("%s\n", i18n.T(msgid.CliPublishUploadSucceeded))
+	opts.Printf("%s\n", i18n.T(msgid.CliPublishPublished))
+	opts.Printf("%s\n", i18n.T(msgid.CliPublishComponent, pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version))
 	if f.visibility != "" {
-		opts.Printf("   可见性：%s\n", f.visibility)
+		opts.Printf("%s\n", i18n.T(msgid.CliPublishVisibility, f.visibility))
 	}
-	opts.Printf("   来源类型：%s\n", pkg.sourceType)
+	opts.Printf("%s\n", i18n.T(msgid.CliPublishSourceType, pkg.sourceType))
 	if pkg.gitURL != "" {
-		opts.Printf("   Git 仓库：%s\n", pkg.gitURL)
+		opts.Printf("%s\n", i18n.T(msgid.CliPublishGitRepository, pkg.gitURL))
 	}
-	opts.Printf("   市场地址：%s\n", marketURL)
+	opts.Printf("%s\n", i18n.T(msgid.CliLoginMarketAddress, marketURL))
 	return nil
 }
 
@@ -170,11 +158,11 @@ func loadPublishPackage(f publishFlags) (*publishPackage, error) {
 	manifestPath := filepath.Join(root, manifestFileName)
 
 	if _, err := os.Stat(manifestPath); err != nil {
-		return nil, clierr.New(clierr.CodeManifestInvalid, "错误：组件目录中没有 component.yaml").
-			WithDetail("路径", manifestPath).
+		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorThereIsNoComponent)).
+			WithDetail(i18n.T(msgid.LabelPath), manifestPath).
 			WithHint(
-				"用 --path 指向组件源码目录（含 component.yaml）",
-				"归档目录也可以，例如 --path ./components/.archived/people/basic",
+				i18n.T(msgid.CliPublishPointPathAtTheComponent),
+				i18n.T(msgid.CliPublishTheArchiveDirectoryWorksToo),
 			)
 	}
 
@@ -218,14 +206,14 @@ func (p *publishPackage) loadArtifactFiles() error {
 			path := filepath.Join(p.root, filepath.FromSlash(file))
 			content, err := os.ReadFile(path)
 			if err != nil {
-				return clierr.New(clierr.CodeManifestInvalid, "错误：artifacts 声明的文件不存在").
-					WithDetail("组件", p.manifest.Metadata.ID).
-					WithDetail("产物类型", artifact.Type).
-					WithDetail("文件", file).
-					WithDetail("查找路径", path).
+				return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorAFileDeclaredUnder)).
+					WithDetail(i18n.T(msgid.LabelComponent), p.manifest.Metadata.ID).
+					WithDetail(i18n.T(msgid.CliPublishArtifactType), artifact.Type).
+					WithDetail(i18n.T(msgid.LabelFile), file).
+					WithDetail(i18n.T(msgid.CliPublishLookedAt), path).
 					WithHint(
-						"确认文件已生成（如 proto / openapi 需要先构建）",
-						"或修正 component.yaml 中 artifacts.files 的路径",
+						i18n.T(msgid.CliPublishMakeSureTheFileHas),
+						i18n.T(msgid.CliPublishOrCorrectThePathUnder),
 					).WithCause(err)
 			}
 			p.files[file] = content
@@ -239,20 +227,20 @@ func (p *publishPackage) loadArtifactFiles() error {
 func manifestDocument(path string) (json.RawMessage, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return nil, clierr.New(clierr.CodeManifestInvalid, "错误：读取 component.yaml 失败").
-			WithDetail("路径", path).WithCause(err)
+		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorFailedToReadComponent)).
+			WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err)
 	}
 
 	var document any
 	if err := yaml.Unmarshal(raw, &document); err != nil {
-		return nil, clierr.New(clierr.CodeManifestInvalid, "错误：component.yaml 不是合法 YAML").
-			WithDetail("路径", path).WithCause(err)
+		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorComponentYamlIsNot)).
+			WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err)
 	}
 
 	encoded, err := json.Marshal(document)
 	if err != nil {
-		return nil, clierr.New(clierr.CodeManifestInvalid, "错误：component.yaml 无法转换为 JSON").
-			WithDetail("路径", path).WithCause(err)
+		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorComponentYamlCouldNot)).
+			WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err)
 	}
 	return encoded, nil
 }
@@ -279,7 +267,7 @@ func uploadRelease(
 		if err := resumable(ctx, client, pkg); err != nil {
 			return err
 		}
-		opts.Printf("   ↩️ 续传：这个版本上次建好了但没发完，接着上传产物\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliPublishResumingThisVersionWasCreated))
 	case err != nil:
 		return err
 	}
@@ -288,7 +276,7 @@ func uploadRelease(
 		if err := uploadArtifacts(ctx, client, pkg); err != nil {
 			return err
 		}
-		opts.Printf("   ✅ artifacts 上传成功（%d 个文件）\n", len(pkg.fileOrder))
+		opts.Printf("%s\n", i18n.T(msgid.CliPublishArtifactsUploadedFiles, len(pkg.fileOrder)))
 	}
 
 	// 转 stable 时市场会校验文件是否与 artifacts 声明一致，这一步过了才算真发布
@@ -334,13 +322,13 @@ func resumable(ctx context.Context, client *market.Client, pkg *publishPackage) 
 		if info != nil {
 			status = info.Status
 		}
-		return clierr.Newf(clierr.CodeConfigConflict,
-			"错误：%s@%s 已经发布过了", id, version).
-			WithDetail("市场上的状态", status).
-			WithDetail("原因", "版本号一旦发布就不可回收，软删除的版本同样占位").
+		return clierr.New(clierr.CodeConfigConflict,
+			i18n.T(msgid.CliPublishErrorHasAlreadyBeenPublished, id, version)).
+			WithDetail(i18n.T(msgid.CliPublishStatusOnTheMarket), status).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliPublishOncePublishedAVersionNumber)).
 			WithHint(
-				"换一个版本号：改 component.yaml 的 metadata.version 再发",
-				"只是想下架它的话，改版本状态而不是重新发布",
+				i18n.T(msgid.CliPublishUseAnotherVersionNumberChange),
+				i18n.T(msgid.CliPublishIfYouOnlyWantTo),
 			)
 	}
 
@@ -349,13 +337,12 @@ func resumable(ctx context.Context, client *market.Client, pkg *publishPackage) 
 		return err
 	}
 	if !sameJSON(remote, pkg.document) {
-		return clierr.Newf(clierr.CodeConfigConflict,
-			"错误：%s@%s 上次建好了但没发完，而这次的 Manifest 与那份不一样", id, version).
-			WithDetail("原因", "续传只能补上传产物，改不了已经登记的 Manifest——"+
-				"闷头续下去会把上次那份 Manifest 配上这次的产物发出去").
+		return clierr.New(clierr.CodeConfigConflict,
+			i18n.T(msgid.CliPublishErrorWasCreatedLastTime, id, version)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliPublishResumingCanOnlyUploadThe)).
 			WithHint(
-				"换一个版本号：改 component.yaml 的 metadata.version 再发",
-				"确实要发上次那份的话，把 component.yaml 改回去再执行一次",
+				i18n.T(msgid.CliPublishUseAnotherVersionNumberChange),
+				i18n.T(msgid.CliPublishIfYouReallyWantTo),
 			)
 	}
 	return nil
@@ -392,10 +379,10 @@ func uploadArtifacts(ctx context.Context, client *market.Client, pkg *publishPac
 	for _, file := range pkg.fileOrder {
 		artifactID, ok := target[file]
 		if !ok {
-			return clierr.New(clierr.CodeManifestInvalid, "错误：市场没有登记该产物文件").
-				WithDetail("组件", id+"@"+version).
-				WithDetail("文件", file).
-				WithHint("确认市场服务版本与 CLI 兼容，或稍后重试")
+			return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorTheMarketHasNo)).
+				WithDetail(i18n.T(msgid.LabelComponent), id+"@"+version).
+				WithDetail(i18n.T(msgid.LabelFile), file).
+				WithHint(i18n.T(msgid.CliPublishMakeSureTheMarketService))
 		}
 		if err := client.UploadArtifact(ctx, id, version, artifactID, file, pkg.files[file]); err != nil {
 			return err
@@ -413,9 +400,9 @@ func resolvePublishToken(opts *Options, layout config.Layout, marketURL string) 
 	}
 	if creds != nil && creds.Token != "" && creds.MatchesMarket(marketURL) {
 		if creds.Expired(opts.now()) {
-			return "", clierr.New(clierr.CodeTokenExpired, "错误：Token 已过期").
-				WithDetail("过期时间", creds.ExpiresAt.Format(timeLayoutRFC3339)).
-				WithHint("重新执行 brickkit login 登录市场")
+			return "", clierr.New(clierr.CodeTokenExpired, i18n.T(msgid.SourceTokenExpired)).
+				WithDetail(i18n.T(msgid.SourceLabelExpiresAt), creds.ExpiresAt.Format(timeLayoutRFC3339)).
+				WithHint(i18n.T(msgid.SourceHintLoginAgain))
 		}
 		return creds.Token, nil
 	}
@@ -425,11 +412,11 @@ func resolvePublishToken(opts *Options, layout config.Layout, marketURL string) 
 		return token, nil
 	}
 
-	return "", clierr.New(clierr.CodeAuthRequired, "错误：发布失败：未登录").
-		WithDetail("市场", marketURL).
+	return "", clierr.New(clierr.CodeAuthRequired, i18n.T(msgid.CliPublishErrorPublishingFailedNotLogged)).
+		WithDetail(i18n.T(msgid.CliPublishMarket), marketURL).
 		WithHint(
-			"执行 brickkit login 登录市场",
-			"或在 brickkit.yaml 中配置 sources.authToken",
+			i18n.T(msgid.MarketHintLogin),
+			i18n.T(msgid.CliPublishOrConfigureSourcesAuthtokenIn),
 		)
 }
 
@@ -495,9 +482,9 @@ func validateVisibility(visibility string) error {
 	case "", visibilityPublic, visibilityPrivate:
 		return nil
 	default:
-		return clierr.New(clierr.CodeInvalidArgument, "错误：--visibility 取值不合法").
-			WithDetail("当前值", visibility).
-			WithDetailf("可选值", "%s | %s", visibilityPublic, visibilityPrivate).
+		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliPublishErrorInvalidVisibilityValue)).
+			WithDetail(i18n.T(msgid.CliPublishCurrentValue), visibility).
+			WithDetailf(i18n.T(msgid.CliPublishAllowedValues), "%s | %s", visibilityPublic, visibilityPrivate).
 			WithExit(clierr.ExitUsage)
 	}
 }
@@ -508,7 +495,7 @@ func publishAuthHint(err error) error {
 	if cliErr == nil {
 		return err
 	}
-	return cliErr.WithHint("或用 --market 指定要发布到哪个市场")
+	return cliErr.WithHint(i18n.T(msgid.CliPublishOrSpecifyWhichMarketTo))
 }
 
 const (

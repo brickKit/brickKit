@@ -63,8 +63,8 @@ func TestAddWritesComponentToConfig(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
 	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
-	assert.Contains(t, r.stdout, "📦 添加 people/basic@1.0.0")
-	assert.Contains(t, r.stdout, "✅ 已写入 brickkit.yaml（1 个组件）")
+	assert.Contains(t, r.stdout, "📦 Adding people/basic@1.0.0")
+	assert.Contains(t, r.stdout, "✅ Written to brickkit.yaml (1 components)")
 }
 
 // 9.20 add 自动添加的组件不写 enabled 字段（004 §3.3 关键规则）。
@@ -124,9 +124,9 @@ func TestAddPullsDependenciesRecursively(t *testing.T) {
 	}, f.refs(t))
 
 	// 004 §3.3 的输出样例
-	assert.Contains(t, r.stdout, "依赖 people/basic@1.0.0")
-	assert.Contains(t, r.stdout, "弱依赖 infra/redis-event-bus@1.0.0")
-	assert.Contains(t, r.stdout, "✅ 已写入 brickkit.yaml（4 个组件）")
+	assert.Contains(t, r.stdout, "dependency people/basic@1.0.0")
+	assert.Contains(t, r.stdout, "optional dependency infra/redis-event-bus@1.0.0")
+	assert.Contains(t, r.stdout, "✅ Written to brickkit.yaml (4 components)")
 }
 
 // 9.3 add 自动下载 artifacts 到 .brickkit/artifacts/<版本化服务名>/<type>/。
@@ -144,7 +144,7 @@ func TestAddDownloadsArtifacts(t *testing.T) {
 		"people-basic-1-0-0", "api-docs", "openapi.json"))
 	// Manifest 缓存（003 §7.1）
 	assert.FileExists(t, filepath.Join(f.Layout.ManifestsDir(), "erp-backend-1.0.0.yaml"))
-	assert.Contains(t, r.stdout, "📁 已下载 artifacts 到 .brickkit/artifacts/（3 个文件）")
+	assert.Contains(t, r.stdout, "📁 Downloaded artifacts into .brickkit/artifacts/ (3 files)")
 }
 
 // 9.25 artifacts 下载失败时警告但继续（004 §10.1）。
@@ -214,7 +214,7 @@ func TestAddSecondVersionCoexists(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	assert.Equal(t, []string{"people/basic@1.0.0", "people/basic@2.0.0"}, f.refs(t))
-	assert.Contains(t, r.stdout, "多版本共存")
+	assert.Contains(t, r.stdout, "several versions coexisting")
 }
 
 // ============================================================
@@ -234,7 +234,7 @@ func TestAddWithoutVersionResolvesLatest(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
 	assert.Equal(t, []string{"people/basic@10.0.0"}, f.refs(t), "按数字比大小，不是字符串")
-	assert.Contains(t, r.stdout, "未指定版本")
+	assert.Contains(t, r.stdout, "No version given")
 	assert.Contains(t, r.stdout, "people/basic@10.0.0")
 	assert.Contains(t, f.config(t), "10.0.0", "配置里写的必须是解析后的精确版本")
 }
@@ -279,7 +279,7 @@ func TestAddWithoutVersionPromptsBeforeCoexisting(t *testing.T) {
 
 	r := runStdin(t, f.Dir, "n\n", "add", "people/basic")
 	assert.Equal(t, clierr.ExitOK, r.code)
-	assert.Contains(t, r.stdout, "已有 1.0.0")
+	assert.Contains(t, r.stdout, "already has 1.0.0")
 	assert.Contains(t, r.stdout, "2.0.0")
 	assert.Equal(t, before, f.config(t), "回答 n 时配置不变")
 	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
@@ -309,8 +309,8 @@ func TestAddWithoutVersionWhenLatestAlreadyInstalled(t *testing.T) {
 	r := runIn(t, f.Dir, "add", "people/basic", "--yes")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
-	assert.Contains(t, r.stdout, "已存在")
-	assert.NotContains(t, r.stdout, "共存")
+	assert.Contains(t, r.stdout, "already exists")
+	assert.NotContains(t, r.stdout, "coexist")
 }
 
 // 范围约束照旧拒绝：能省略的是版本号本身，不是"可以写个范围"（012 §2.2）。
@@ -347,8 +347,8 @@ func TestAddSameVersionPromptsWhenExisting(t *testing.T) {
 
 	r := runStdin(t, f.Dir, "n\n", "add", "people/basic@1.0.0")
 	assert.Equal(t, clierr.ExitOK, r.code)
-	assert.Contains(t, r.stdout, "已存在")
-	assert.Contains(t, r.stdout, "是否刷新")
+	assert.Contains(t, r.stdout, "already exists")
+	assert.Contains(t, r.stdout, "Refresh the Manifest and artifacts cache")
 	assert.Equal(t, before, f.config(t), "回答 n 时配置不变")
 	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t), "不得写入重复条目")
 }
@@ -384,8 +384,8 @@ func TestAddSameVersionWithYesRefreshesWithoutPrompt(t *testing.T) {
 	// 标准输入为空：--yes 下不得等待输入
 	r := runStdin(t, f.Dir, "", "add", "people/basic@1.0.0", "--yes")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout, "是否刷新")
-	assert.Contains(t, r.stdout, "已刷新")
+	assert.NotContains(t, r.stdout, "Refresh the Manifest and artifacts cache")
+	assert.Contains(t, r.stdout, "Refreshed the Manifest and artifacts cache")
 	assert.Contains(t, readFile(t, cache), "people/basic")
 	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
 }
@@ -398,7 +398,7 @@ func TestAddYesOnFreshComponentHasNoPrompt(t *testing.T) {
 
 	r := runStdin(t, f.Dir, "", "add", "people/basic@1.0.0", "--yes")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout, "是否")
+	assert.NotContains(t, r.stdout, "[y/N]")
 	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
 }
 
@@ -470,7 +470,7 @@ func TestAddRepoClonesOpenSourceComponent(t *testing.T) {
 	assert.DirExists(t, filepath.Join(target, ".git"), "应是完整的 Git 仓库")
 	assert.FileExists(t, filepath.Join(target, "component.yaml"))
 	assert.FileExists(t, filepath.Join(target, "README.md"))
-	assert.Contains(t, r.stdout, "📁 已 clone 源码到 components/people/basic/")
+	assert.Contains(t, r.stdout, "📁 Cloned the source into components/people/basic/")
 	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
 }
 
@@ -482,7 +482,7 @@ func TestAddRepoClosedSourceComponentFails(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "authorization/rbac@1.0.0", "--repo")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "clone 失败：该组件为闭源组件")
+	assert.Contains(t, r.stderr, "Clone failed: this component is closed-source")
 	assert.Contains(t, r.stderr, "authorization/rbac@1.0.0")
 	assert.Contains(t, r.stderr, "registry")
 	assert.NoDirExists(t, filepath.Join(f.Layout.ComponentsDir(), "authorization", "rbac"))
@@ -558,8 +558,8 @@ func TestAddRepoAllClonesOpenSourceAndSkipsClosed(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(f.Layout.ComponentsDir(), "authorization", "rbac"))
 
 	assert.Contains(t, r.stdout, "⏭️ authorization/rbac")
-	assert.Contains(t, r.stdout, "闭源组件，跳过 clone")
-	assert.Contains(t, r.stdout, "📁 已 clone 2 个开源组件仓库（跳过 1 个，理由见上）")
+	assert.Contains(t, r.stdout, "closed-source component; skipping clone")
+	assert.Contains(t, r.stdout, "📁 Cloned 2 open-source component repositories (1 skipped, see the reasons above)")
 }
 
 // 9.19 已存在的组件再次 add + --repo：不重复写入 brickkit.yaml，只执行 clone。
@@ -587,8 +587,8 @@ func TestAddRepoFromLocalSourceFails(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "clone 失败")
-	assert.Contains(t, r.stderr, "本地安装源")
+	assert.Contains(t, r.stderr, "Clone failed")
+	assert.Contains(t, r.stderr, "local install source")
 }
 
 // ============================================================
@@ -627,7 +627,7 @@ func TestAddRepoAgainAfterCloneSaysSourceIsAlreadyThere(t *testing.T) {
 
 	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stderr, "Clone failed: directory already exists")
-	assert.NotContains(t, r.stderr, "没有可用的 Git 仓库地址",
+	assert.NotContains(t, r.stderr, "no usable Git repository address",
 		"用户明明克隆过——那句话对他来说是错的")
 }
 
@@ -646,7 +646,7 @@ func TestAddRepoWhenArchivedUnderDefaultLayoutPointsAtArchive(t *testing.T) {
 	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stderr, "already there, just archived")
 	assert.Contains(t, r.stderr, "brickkit sync")
-	assert.NotContains(t, r.stderr, "没有可用的 Git 仓库地址")
+	assert.NotContains(t, r.stderr, "no usable Git repository address")
 	assert.NoDirExists(t, filepath.Join(f.Layout.ComponentsDir(), "people", "basic"))
 }
 
@@ -658,8 +658,8 @@ func TestAddRepoAllSkipReasonsUnderDefaultLayout(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo-all", "--yes")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "已有源码目录，跳过 clone")
-	assert.NotContains(t, r.stdout, "无 Git 仓库地址")
+	assert.Contains(t, r.stdout, "the source directory already exists; skipping clone")
+	assert.NotContains(t, r.stdout, "no Git repository address")
 
 	archived := filepath.Join(f.Layout.ArchivedDir(), "people", "basic")
 	require.NoError(t, os.MkdirAll(filepath.Dir(archived), 0o755))
@@ -667,6 +667,6 @@ func TestAddRepoAllSkipReasonsUnderDefaultLayout(t *testing.T) {
 
 	r = runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo-all", "--yes")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "已归档")
-	assert.NotContains(t, r.stdout, "无 Git 仓库地址")
+	assert.Contains(t, r.stdout, "archived")
+	assert.NotContains(t, r.stdout, "no Git repository address")
 }

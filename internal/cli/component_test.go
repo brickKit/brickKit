@@ -122,7 +122,7 @@ func TestDependencyKinds(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "erp/b@1.0.0")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "弱依赖 x/shared@1.0.0", "对 erp/b 而言它是弱依赖")
+	assert.Contains(t, r.stdout, "optional dependency x/shared@1.0.0", "对 erp/b 而言它是弱依赖")
 }
 
 // ============================================================
@@ -230,7 +230,7 @@ func TestAddRepoAllSkipsExistingDirectory(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo-all")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "已有源码目录，跳过 clone")
+	assert.Contains(t, r.stdout, "the source directory already exists; skipping clone")
 	assert.Equal(t, "我的源码", readFile(t, filepath.Join(existing, "mine.txt")))
 }
 
@@ -242,7 +242,7 @@ func TestAddRepoAllSkipsLocalSourceComponent(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo-all")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "无 Git 仓库地址，跳过 clone")
+	assert.Contains(t, r.stdout, "no Git repository address; skipping clone")
 	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
 }
 
@@ -263,8 +263,8 @@ func TestAddRereadsLocalSourceArtifacts(t *testing.T) {
 	r := runIn(t, f.Dir, "add", "erp/backend@1.0.0")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "已下载 artifacts")
-	assert.NotContains(t, r.stdout, "已是最新")
+	assert.Contains(t, r.stdout, "Downloaded artifacts")
+	assert.NotContains(t, r.stdout, "artifacts are up to date")
 }
 
 // runAdd / runRemove 允许 ctx 为 nil（cobra 在某些路径下不注入 context）。

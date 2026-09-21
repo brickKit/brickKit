@@ -82,12 +82,12 @@ func TestPublishOutputReportsEachCheck(t *testing.T) {
 	r := runIn(t, f.Dir, "publish", "--path", root)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "📤 发布 people/basic@1.2.0")
-	assert.Contains(t, r.stdout, "✅ Manifest 校验通过")
-	assert.Contains(t, r.stdout, "✅ 镜像引用有效")
-	assert.Contains(t, r.stdout, "✅ artifacts 上传成功（1 个文件）")
-	assert.Contains(t, r.stdout, "🎉 发布完成")
-	assert.Contains(t, r.stdout, "组件：people/basic@1.2.0")
+	assert.Contains(t, r.stdout, "📤 Publishing people/basic@1.2.0")
+	assert.Contains(t, r.stdout, "✅ Manifest validation passed")
+	assert.Contains(t, r.stdout, "✅ Image reference is valid")
+	assert.Contains(t, r.stdout, "✅ artifacts uploaded (1 files)")
+	assert.Contains(t, r.stdout, "🎉 Published")
+	assert.Contains(t, r.stdout, "Component: people/basic@1.2.0")
 }
 
 // 属性声明里拼错的键（defualt）会被解析器静默丢掉，组件拿不到默认值。
@@ -107,7 +107,7 @@ func TestPublishWarnsOnMisspelledPropertyKey(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, "只是警告，不能阻断发布："+r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "configSchema.properties.greeting.defualt")
 	assert.Contains(t, r.stdout, "did you mean default")
-	assert.Contains(t, r.stdout, "🎉 发布完成")
+	assert.Contains(t, r.stdout, "🎉 Published")
 }
 
 func TestPublishIsQuietAboutWellFormedConfigSchema(t *testing.T) {
@@ -191,7 +191,7 @@ func TestPublishUploadsArtifactFiles(t *testing.T) {
 
 	docs := m.find(t, "POST", "/artifacts/art-1/upload")
 	assert.Contains(t, docs.Query, "file=openapi.json")
-	assert.Contains(t, r.stdout, "✅ artifacts 上传成功（2 个文件）")
+	assert.Contains(t, r.stdout, "✅ artifacts uploaded (2 files)")
 }
 
 // Manifest 声明了产物文件但磁盘上没有 —— 必须在建版本之前就拦住，
@@ -223,7 +223,7 @@ func TestPublishWithoutLoginFails(t *testing.T) {
 	r := runIn(t, f.Dir, "publish", "--path", root)
 
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "未登录")
+	assert.Contains(t, r.stderr, "not logged in")
 	assert.Contains(t, r.stderr, "brickkit login")
 	assert.Empty(t, m.requests(), "未登录时不该向市场发任何请求")
 }
@@ -241,7 +241,7 @@ func TestPublishWithExpiredTokenAsksToLoginAgain(t *testing.T) {
 	r := runIn(t, f.Dir, "publish", "--path", root)
 
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "过期")
+	assert.Contains(t, r.stderr, "expired")
 	assert.Contains(t, r.stderr, "brickkit login")
 }
 
@@ -401,7 +401,7 @@ func TestPublishFromArchivedDirectory(t *testing.T) {
 	r := runIn(t, f.Dir, "publish", "--path", root)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "🎉 发布完成")
+	assert.Contains(t, r.stdout, "🎉 Published")
 	assert.Contains(t, m.requests(), "POST /components/people/basic/versions")
 }
 
@@ -431,7 +431,7 @@ func TestPublishSetsVisibilityAfterStable(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(m.find(t, "PUT", "/visibility").Body, &body))
 	assert.Equal(t, "private", body.Visibility)
-	assert.Contains(t, r.stdout, "可见性：private")
+	assert.Contains(t, r.stdout, "Visibility: private")
 }
 
 // 不传 --visibility 时不动市场上已有的可见性设置。
@@ -579,8 +579,8 @@ func TestPublishInfersGitOriginFromComponentRepo(t *testing.T) {
 	require.NoError(t, json.Unmarshal(m.find(t, "POST", "/versions").Body, &req))
 	assert.Equal(t, "git", req.SourceType)
 	assert.Equal(t, "https://github.com/brickkit/people-basic.git", req.GitURL)
-	assert.Contains(t, r.stdout, "来源类型：git")
-	assert.Contains(t, r.stdout, "Git 仓库：https://github.com/brickkit/people-basic.git")
+	assert.Contains(t, r.stdout, "Source type: git")
+	assert.Contains(t, r.stdout, "Git repository: https://github.com/brickkit/people-basic.git")
 }
 
 // 不是 Git 仓库（比如只有构建产物的闭源组件）→ 按 registry 走镜像分发。
@@ -600,7 +600,7 @@ func TestPublishDefaultsToRegistryWithoutGitRemote(t *testing.T) {
 	require.NoError(t, json.Unmarshal(m.find(t, "POST", "/versions").Body, &req))
 	assert.Equal(t, "registry", req.SourceType)
 	assert.Empty(t, req.GitURL)
-	assert.Contains(t, r.stdout, "来源类型：registry")
+	assert.Contains(t, r.stdout, "Source type: registry")
 }
 
 // 显式声明闭源时，即使目录里有 git remote 也不把仓库地址交出去。
@@ -618,7 +618,7 @@ func TestPublishAsRegistryDoesNotLeakGitURL(t *testing.T) {
 
 	body := string(m.find(t, "POST", "/versions").Body)
 	assert.NotContains(t, body, "internal.example.com", "闭源组件不该把内网仓库地址发出去")
-	assert.Contains(t, r.stdout, "来源类型：registry")
+	assert.Contains(t, r.stdout, "Source type: registry")
 }
 
 // 没有市场安装源也没有 --market 时，提示要说清楚怎么补。
@@ -704,7 +704,7 @@ func TestPublishResumesUnfinishedDraft(t *testing.T) {
 	r := runIn(t, f.Dir, "publish", "--path", dir)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "续传", "要说清这是在接着上次那次往下做")
+	assert.Contains(t, r.stdout, "Resuming", "要说清这是在接着上次那次往下做")
 	assert.Equal(t, "stable", market.storedStatus, "这次要真的发出去")
 	market.find(t, http.MethodPost, "/upload")
 }
@@ -720,8 +720,8 @@ func TestPublishRejectsAlreadyPublishedVersion(t *testing.T) {
 	r := runIn(t, f.Dir, "publish", "--path", dir)
 
 	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
-	assert.Contains(t, r.stderr, "已经发布过", "要说清它不是半成品")
-	assert.Contains(t, r.stderr, "换一个版本号")
+	assert.Contains(t, r.stderr, "has already been published", "要说清它不是半成品")
+	assert.Contains(t, r.stderr, "Use another version number")
 }
 
 // draft 里登记的 Manifest 与本地不一样 → **绝不续传**。
@@ -742,6 +742,6 @@ func TestPublishRefusesToResumeWhenManifestChanged(t *testing.T) {
 	r := runIn(t, f.Dir, "publish", "--path", dir)
 
 	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
-	assert.Contains(t, r.stderr, "不一样", "要说清是 Manifest 变了")
-	assert.Contains(t, r.stderr, "换一个版本号")
+	assert.Contains(t, r.stderr, "differs", "要说清是 Manifest 变了")
+	assert.Contains(t, r.stderr, "Use another version number")
 }
