@@ -35,7 +35,7 @@ $ grep -B1 -E '^(\.brickkit/generated/|\.env)$' .gitignore
 | K8s (`deploy.target: k8s`) | A generated `Secret` under `.brickkit/generated/k8s/secrets/` (file mode `0600`) — the Deployment's `env` entry holds only a `secretKeyRef` pointing at it | The CLI, at generation time — same order, process environment first, `.env` second |
 | `local: true` (Docker only) | `local-debug.<versioned-service-name>.env` (also `0600`, also under `.brickkit/generated/`) — deliberately plaintext, because it's what the IDE actually loads to run the process | The CLI, at generation time |
 
-Every command below was actually run for this page, against one small demo component, `acme/hello`, and each output block is exactly what its command printed. (`2>/dev/null` hides the JSON log lines the CLI writes to stderr; `grep '已生成'` keeps the one line that says what was generated.) The component declares a `database` resource and one `secret: true` config property, `apiKey`:
+Every command below was actually run for this page, against one small demo component, `acme/hello`, and each output block is exactly what its command printed. (`2>/dev/null` hides the JSON log lines the CLI writes to stderr; `grep 'Generated'` keeps the one line that says what was generated.) The component declares a `database` resource and one `secret: true` config property, `apiKey`:
 
 ```yaml
 dependencies:
@@ -76,7 +76,7 @@ resources:
 **Docker, values set in the process environment:**
 
 ```
-$ PG_PASSWORD=pw-from-env THIRD_PARTY_KEY=key-from-env brickkit up --dry-run 2>/dev/null | grep '已生成'
+$ PG_PASSWORD=pw-from-env THIRD_PARTY_KEY=key-from-env brickkit up --dry-run 2>/dev/null | grep 'Generated'
 📄 Generated: .brickkit/generated/docker-compose.yaml
 
 $ grep -n "PASSWORD\|API_KEY" .brickkit/generated/docker-compose.yaml
@@ -89,7 +89,7 @@ The two lines that carry these variables hold the placeholders exactly as writte
 **K8s, same component, nothing in the process environment (so the values come from `.env`):**
 
 ```
-$ env -u PG_PASSWORD -u THIRD_PARTY_KEY brickkit up --dry-run 2>/dev/null | grep '已生成'
+$ env -u PG_PASSWORD -u THIRD_PARTY_KEY brickkit up --dry-run 2>/dev/null | grep 'Generated'
 📄 Generated 5 manifests: .brickkit/generated/k8s/
 
 $ ls .brickkit/generated/k8s
@@ -152,7 +152,7 @@ Two things worth noticing. The resource password and the `secret: true` config v
 The lookup order really is process environment first, `.env` second. Run it again with values in the environment as well — the `.env` file is still there, and loses:
 
 ```
-$ PG_PASSWORD=pw-from-env THIRD_PARTY_KEY=key-from-env brickkit up --dry-run 2>/dev/null | grep '已生成'
+$ PG_PASSWORD=pw-from-env THIRD_PARTY_KEY=key-from-env brickkit up --dry-run 2>/dev/null | grep 'Generated'
 📄 Generated 5 manifests: .brickkit/generated/k8s/
 
 $ grep -h '^  password:\|^  API_KEY:' .brickkit/generated/k8s/secrets/*.yaml
@@ -222,7 +222,7 @@ resources:
 ```
 
 ```
-$ brickkit up --dry-run 2>/dev/null | grep '已生成'
+$ brickkit up --dry-run 2>/dev/null | grep 'Generated'
 📄 Generated 3 manifests: .brickkit/generated/k8s/
 
 $ ls .brickkit/generated/k8s

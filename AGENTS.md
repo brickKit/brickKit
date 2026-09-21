@@ -800,7 +800,7 @@ silently unused under `k8s` with nothing catching it) is
 
 ---
 
-## 8. The CLI command set (16 commands + `version`)
+## 8. The CLI command set (16 commands + `version` + `lang`)
 
 | Command | Core behavior |
 | --- | --- |
@@ -820,6 +820,8 @@ silently unused under `k8s` with nothing catching it) is
 | `brickkit login` | Interactive terminal login to the marketplace, token stored in `.brickkit/credentials` |
 | `brickkit logout` | Revokes the marketplace token server-side, then deletes `.brickkit/credentials` locally. The local deletion always happens, even if the marketplace is unreachable — otherwise a network blip leaves someone believing they've logged out while the credential still sits on disk. Doing nothing when already logged out is not a failure |
 | `brickkit publish` | Uploads the Manifest + image reference + artifacts to the marketplace (requires login first) |
+
+Two more commands sit outside those 16 because they are about the CLI itself, not your project: `brickkit version`, and `brickkit lang` — which shows or changes the language the CLI speaks. **The CLI is English by default.** The language is `BRICKKIT_LANG` (env var) if set, else what `brickkit lang set en|zh` saved in the per-user config file, else English; there is deliberately no `--lang` flag (the language must be known before the command tree — `--help` included — is built). Everything a person reads follows it, including the `message` of the JSON log lines and the comments in generated files; the `error_code`, command and flag names never do.
 
 **Common flags:**
 
@@ -845,6 +847,7 @@ brickkit logout --keep-remote                     # delete local credentials onl
 brickkit publish --path ./components/people/basic --market https://market.example.com/api/v1 --visibility private --changelog "added X"
 brickkit publish --path ./components/people/basic --git-url https://github.com/org/people-basic --sign --key cosign.key --signed-by release-bot@example.com --public-key-ref keys/vendor.pub
 brickkit version --verbose                        # also print the git commit hash and build time
+brickkit lang set zh                              # the CLI speaks Chinese from now on (BRICKKIT_LANG=en overrides it per command)
 ```
 
 ### 8.1 A one-minute example
@@ -1101,6 +1104,7 @@ hit:
 | Discussing signing | The publisher needs **cosign** installed; **the installer doesn't** (verification uses the Go standard library) |
 | The user wants the platform to help with security review | Install implies trust. The platform only steps in after the fact with `blocked` |
 | A user asks "can I merge multiple components into one instance to save memory" | First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation. If they still want to merge: **`servedBy` (§5.7) is the supported path** — it handles address routing correctly on both Docker and K8s; everything else (module isolation, config, migrations ordering inside the shell) is still their own code, see the shell implementer's guide. `enabled: false` is unrelated to this — it still can't be used as a "I'm taking this over myself" switch |
+| A user's `brickkit` output is in a language they didn't expect (or a script that greps the output broke) | The language is chosen per run: `BRICKKIT_LANG` beats the saved `brickkit lang set` value beats the English default — `brickkit lang` prints which one is in effect and why. For scripts, don't grep the human text; key off the exit status and the stable `error_code` in the JSON log line on stderr, or pin `BRICKKIT_LANG=en` |
 | A user asks "which of independent/shell-merged/mixed, or docker/k8s, should I actually use" | This is the topology × deploy-target decision `docs/en/07-patterns/05-deployment-selection-guide.md` exists to answer — walk through its matrix rather than improvising an answer inline. Its one hard rule worth remembering directly: `local: true` (the debug toggle) only exists under `deploy.target: docker`; it's rejected outright, at generation time, under `k8s` |
 | A user's upstream component isn't built or published yet and they ask for a mock, or for the CLI to substitute one | Not a platform feature — the platform never parses contracts and never swaps in a stand-in for a missing required dependency (§4.1). The path that already works: `brickkit new <id> --contract openapi` for a stub carrying the agreed contract, `brickkit add --local`, `local: true` + `localPort` on the stub, and any mock tool listening on that port. Walkthrough with real output: `docs/en/03-guide/07-consuming-artifacts.md` |
 | A user asks "how do I run everything locally without Docker/K8s at all" | That's the one shape the platform doesn't manage or inject anything for — see `deployment-selection-guide.md`'s "Running components by hand" section. The one thing worth telling them: `brickkit up --dry-run` after a temporary `local: true` on the component in question dumps the exact env vars a real deployment would inject, as a cheat sheet — then revert the edit, don't actually deploy that way |

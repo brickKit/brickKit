@@ -62,7 +62,7 @@ brickkit up
 curl http://localhost:8090/api/v1/call
 ```
 ```json
-{"component":"demo/caller","endpoint":"http://demo-hello-1-0-0:8080","upstream":{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"},"version":"1.0.0"}
+{"component":"demo/caller","endpoint":"http://demo-hello-1-0-0:8080","upstream":{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"},"version":"1.0.0"}
 ```
 
 一次真实的跨容器调用，不是缓存的或者编造的响应——`demo/caller` 刚刚真的连到了 `demo/hello`，正在把拿到的东西展示给你看。
@@ -74,7 +74,7 @@ docker stop brickkit-hello-world-demo-hello-1-0-0-1
 curl -w "\nHTTP %{http_code}\n" http://localhost:8090/api/v1/call
 ```
 ```json
-{"endpoint":"http://demo-hello-1-0-0:8080","error":"调用 demo/hello 失败：Get \"http://demo-hello-1-0-0:8080/api/v1/hello\": dial tcp: lookup demo-hello-1-0-0 on 127.0.0.11:53: server misbehaving"}
+{"endpoint":"http://demo-hello-1-0-0:8080","error":"call to demo/hello failed: Get \"http://demo-hello-1-0-0:8080/api/v1/hello\": dial tcp: lookup demo-hello-1-0-0 on 127.0.0.11:53: server misbehaving"}
 ```
 ```
 HTTP 502

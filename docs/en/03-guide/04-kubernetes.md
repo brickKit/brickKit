@@ -101,7 +101,7 @@ Through the Ingress, with the hostname it was configured for:
 curl -H "Host: hello.local" http://$(minikube ip)/api/v1/hello
 ```
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 `demo/caller` calling `demo/hello` — a real Pod-to-Pod call through the injected address, not just an environment variable that looks right:
@@ -111,7 +111,7 @@ kubectl -n brickkit-hello-world port-forward svc/demo-caller-1-0-0 18080:8080 &
 curl http://localhost:18080/api/v1/call
 ```
 ```json
-{"component":"demo/caller","endpoint":"http://demo-hello-1-0-0:8080","upstream":{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"},"version":"1.0.0"}
+{"component":"demo/caller","endpoint":"http://demo-hello-1-0-0:8080","upstream":{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"},"version":"1.0.0"}
 ```
 
 `"upstream"` is `demo/hello`'s real response, fetched live by `demo/caller` from inside its own Pod — proof the address BrickKit injected doesn't just look plausible, it actually connects. And the same missing optional dependency from Article 2 is still visibly missing here too:

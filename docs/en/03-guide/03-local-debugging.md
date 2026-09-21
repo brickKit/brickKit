@@ -47,7 +47,7 @@ graph LR
     Caller -->|"demo-hello-1-0-0<br/>via extra_hosts: host-gateway"| Hello
 ```
 
-The compose file only has one service in it — `demo/caller`'s — confirmed by the header comment (`组件数：1`), and it carries the exact address-bridging config:
+The compose file only has one service in it — `demo/caller`'s — confirmed by the header comment (`Components: 1`), and it carries the exact address-bridging config:
 
 ```yaml
 services:
@@ -66,7 +66,7 @@ The other generated file is the one the console output pointed at:
 # .brickkit/generated/local-debug.demo-hello-1-0-0.env
 COMPONENT_ID=demo/hello
 COMPONENT_VERSION=1.0.0
-GREETING=你好
+GREETING=Hello
 ```
 
 Same environment variables `demo/hello` would get injected into a container — `configSchema` defaults included — just written to a file your IDE's run configuration can point at instead.
@@ -85,7 +85,7 @@ curl http://localhost:8080/api/v1/hello
 ```
 
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 This is the same process a debugger would attach to, breakpoints and all — a plain OS process reading env vars and listening on `:8080`, no different from running it directly from your IDE's "run" button.
@@ -102,7 +102,7 @@ docker run --rm --network brickkit-hello-world-net \
 ```
 
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 A container that has never heard of your host machine by IP, on a network `demo/caller` would actually run on, reaches a process running directly on your laptop — using nothing but the same one line of config `brickkit up` would have written into `demo/caller`'s own service definition.

@@ -10,7 +10,7 @@ A component's `component.yaml` can declare `artifacts` — files a caller needs 
 artifacts:
   - type: api-docs
     format: openapi
-    description: HTTP API 文档
+    description: HTTP API docs
     files:
       - openapi.json
 ```
@@ -36,9 +36,9 @@ cat .brickkit/artifacts/demo-hello-1-0-0/api-docs/openapi.json
   "openapi": "3.0.0",
   "info": { "title": "demo/hello", "version": "1.0.0" },
   "paths": {
-    "/healthz": { "get": { "summary": "存活检查", "responses": { "200": { "description": "ok" } } } },
-    "/api/v1/hello": { "get": { "summary": "问候", "responses": { "200": { "description": "ok" } } } },
-    "/api/v1/env": { "get": { "summary": "回显平台注入的环境变量", "responses": { "200": { "description": "ok" } } } }
+    "/healthz": { "get": { "summary": "Liveness check", "responses": { "200": { "description": "ok" } } } },
+    "/api/v1/hello": { "get": { "summary": "A greeting", "responses": { "200": { "description": "ok" } } } },
+    "/api/v1/env": { "get": { "summary": "Echo the environment variables injected by the platform", "responses": { "200": { "description": "ok" } } } }
   }
 }
 ```
@@ -75,14 +75,16 @@ curl http://localhost:8095/api/v1/sources
 
 ```json
 {"sources":[
-  {"componentId":"auth/password-login","status":"absent","reason":"该组件未安装（平台没有注入它的地址）","kinds":[]},
-  {"componentId":"authorization/rbac","status":"absent","reason":"该组件未安装（平台没有注入它的地址）","kinds":[]},
-  {"componentId":"department/tree","status":"absent","reason":"该组件未安装（平台没有注入它的地址）","kinds":[]},
-  {"componentId":"erp/backend","status":"absent","reason":"该组件未安装（平台没有注入它的地址）","kinds":[]},
-  {"componentId":"infra/redis-event-bus","status":"absent","reason":"该组件未安装（平台没有注入它的地址）","kinds":[]},
-  {"componentId":"people/basic","status":"absent","reason":"该组件未安装（平台没有注入它的地址）","kinds":[]}
+  {"componentId":"auth/password-login","status":"absent","reason":"The component is not installed (the platform injected no address for it)","kinds":[]},
+  {"componentId":"authorization/rbac","status":"absent","reason":"The component is not installed (the platform injected no address for it)","kinds":[]},
+  {"componentId":"department/tree","status":"absent","reason":"The component is not installed (the platform injected no address for it)","kinds":[]},
+  {"componentId":"erp/backend","status":"absent","reason":"The component is not installed (the platform injected no address for it)","kinds":[]},
+  {"componentId":"infra/redis-event-bus","status":"absent","reason":"The component is not installed (the platform injected no address for it)","kinds":[]},
+  {"componentId":"people/basic","status":"absent","reason":"The component is not installed (the platform injected no address for it)","kinds":[]}
 ],"total":6}
 ```
+
+(The `reason` strings come from the sample component itself, which writes them in Chinese; they are translated here.)
 
 Not an error, not a blank page — a clean, complete answer naming every component it knows how to display and exactly why each one isn't showing up right now. Install any of them later, and the same endpoint would report that one as available instead, with no restart-and-hope involved on `infra/api-docs`'s side — it's just reading `*_ENDPOINT` variables that either are or aren't in its environment (AGENTS.md §5.3), the same mechanism every optional dependency in this series has used from Article 2 onward.
 
@@ -216,7 +218,7 @@ brickkit add --local
 ✅ Written to brickkit.yaml (2 components)
 ```
 
-The stub is found in the local source like any other component, and `demo/caller`'s required dependency now resolves to it — that is the `依赖 demo/hello@1.0.0 ✅ 已拉取` line. The `demo/bus` warning is `demo/caller`'s own *optional* dependency from [Article 2](02-what-runs.md) and has nothing to do with the stub. `brickkit.yaml` now lists both components.
+The stub is found in the local source like any other component, and `demo/caller`'s required dependency now resolves to it — that is the `dependency demo/hello@1.0.0 ✅ pulled` line. The `demo/bus` warning is `demo/caller`'s own *optional* dependency from [Article 2](02-what-runs.md) and has nothing to do with the stub. `brickkit.yaml` now lists both components.
 
 ### Step 3: tell BrickKit you'll run the stub yourself
 
@@ -254,9 +256,9 @@ An excerpt — `...` marks lines left out:
 ...
 ```
 
-The stub still takes part in the status calculation and the dependency graph. What changed is "不生成容器" (no container is generated) and where it is expected: `localhost:18081`. That is `localPort`, not the `8080` written in the stub's own Manifest — a `local: true` component's `image` and `port` are never used, which is why the skeleton's `TODO`s can stay. (A real `brickkit up` doesn't check the stub's image either: with a throwaway PostgreSQL bound as in [Article 6](06-assemble-and-break.md), the image check passed even though nothing had ever built the placeholder image.) The message talks about "your IDE" because `local: true` was made for debugging; for a mock it just means "any program you start on your own machine".
+The stub still takes part in the status calculation and the dependency graph. What changed is "No container is generated" and where it is expected: `localhost:18081`. That is `localPort`, not the `8080` written in the stub's own Manifest — a `local: true` component's `image` and `port` are never used, which is why the skeleton's `TODO`s can stay. (A real `brickkit up` doesn't check the stub's image either: with a throwaway PostgreSQL bound as in [Article 6](06-assemble-and-break.md), the image check passed even though nothing had ever built the placeholder image.) The message talks about "your IDE" because `local: true` was made for debugging; for a mock it just means "any program you start on your own machine".
 
-The `...` lines also hide one more warning, `⚠️ 警告：资源依赖未满足（--dry-run 不阻断）`: `demo/caller` declares that it needs a database, and this project hasn't bound one. It has nothing to do with the stub, and the end-to-end section below comes back to it.
+The `...` lines also hide one more warning, `⚠️ Warning: resource dependencies are not satisfied (--dry-run doesn't block)`: `demo/caller` declares that it needs a database, and this project hasn't bound one. It has nothing to do with the stub, and the end-to-end section below comes back to it.
 
 ### Step 4: start a mock on that port
 

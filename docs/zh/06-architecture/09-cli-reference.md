@@ -37,6 +37,7 @@ AGENTS.zh.md §8 给每个命令一句话概括，加一小撮精选的参数示
 | | [`brickkit logout`](#brickkit-logout) | 撤销令牌并删除本地凭据 | 退出登录 |
 | | [`brickkit publish`](#brickkit-publish) | 把 Manifest、镜像引用和产物上传到市场 | 发布自己的组件 |
 | 其他 | [`brickkit version`](#brickkit-version) | 打印版本 | 确认装的是哪一版 |
+| | [`brickkit lang`](#brickkit-lang) | 查看或切换 CLI 使用的语言 | 在英文与中文输出之间切换 |
 | | [`brickkit completion`](#brickkit-completion) | 生成 shell 的自动补全脚本 | 想在终端里按 Tab 补全命令名和参数名 |
 
 另外还有[两个全局参数](#两个全局参数每个命令都有)，每个命令都能用。
@@ -871,13 +872,61 @@ brickkit publish --path ./components/people/basic --git-url https://github.com/o
 ```
 $ brickkit version
 BrickKit CLI v0.1.0
-Supported manifest version: brickkit/v1
-Supported deploy targets: docker, k8s
+支持 Manifest 版本：brickkit/v1
+支持部署目标：docker, k8s
 ```
 
 ```bash
 brickkit version --verbose   # 额外输出 git commit 与构建时间
 ```
+
+---
+
+## brickkit lang
+
+**用法：** `brickkit lang`——看当前语言 · `brickkit lang set <en|zh>`——切换语言
+
+CLI 默认说英文。`brickkit lang` 告诉你它现在说的是哪种语言，**以及为什么是这一种**；`brickkit lang set` 把它在这台机器上永久改掉。
+
+**哪种语言生效**——从上往下，第一个命中的：
+
+| 顺序 | 来源 | 怎么设 |
+| --- | --- | --- |
+| 1 | 环境变量 `BRICKKIT_LANG` | `BRICKKIT_LANG=zh brickkit up` 管这一条命令，或者 `export` 管一整个会话——CI 里最顺手 |
+| 2 | 全局配置文件 | `brickkit lang set zh`，每台机器设一次 |
+| 3 | 默认值 | 英文 |
+
+不是受支持语言的值（`en` 或 `zh`，大小写不敏感）当作没设，接着看下一层——它永远不会变成一个报错，所以 shell 配置里残留一句 `BRICKKIT_LANG=fr`，你得到的是下一层的语言，而不是一个坏掉的 CLI。**刻意没有** `--lang` 参数：语言必须在命令树搭起来**之前**就确定（`--help` 的文字也是翻译过的），而命令行参数要等命令树搭好、cobra 解析完才拿得到。
+
+**跟着语言走的：** CLI 打印给人看的一切——命令输出、报错和建议、警告、`--help`；stderr 上 JSON 日志的 `message` 与 `error` 字段；以及 CLI 写进它生成的文件里的注释（`brickkit init` 生成的 `brickkit.yaml` 骨架、`docker-compose.yaml` 的文件头、`local-debug.env`、`brickkit new` 的骨架）。
+
+**永远不变的：** JSON 日志行里的 `error_code`（不管什么语言，脚本都可以放心依赖它）、命令名与参数名、YAML 的键、你自己写的任何东西，以及不是 CLI 自己说的话——组件自己的日志，或者市场服务端拒绝某个请求时回传的原因（服务端目前只说中文）。
+
+**设置存在哪。** `brickkit lang set` 在用户级配置目录里写一个很小的文件——Linux 是 `~/.config/brickkit/config.json`（认 `XDG_CONFIG_HOME`），macOS 是 `~/Library/Application Support/brickkit/config.json`，Windows 是 `%AppData%\brickkit\config.json`——里面只有 `{"lang": "zh"}`。它是**这台机器**的偏好，不是某个项目的：不在任何项目目录里，也永远不会被提交。文件是原子写入的，写失败不会毁掉已有的设置。
+
+**示例**
+
+```
+$ brickkit lang
+Current language: en (source: default)
+
+$ BRICKKIT_LANG=zh brickkit lang
+当前语言：zh（来源：BRICKKIT_LANG 环境变量）
+
+$ brickkit lang set zh
+✅ 语言已设为 zh
+
+$ brickkit lang
+当前语言：zh（来源：全局配置文件）
+
+$ brickkit lang set fr
+❌ 不支持的语言：fr（支持：en, zh）
+
+$ brickkit lang set en
+✅ Language set to en
+```
+
+`lang set` 的确认信息已经是**新**语言——它是你用新语言看到的第一句话。给了不支持的值，以错误码 `INVALID_ARGUMENT`、退出码 `2` 结束。`BRICKKIT_LANG` 设着的时候 `brickkit lang set` 照样会改掉保存的偏好，但环境变量在你取消它之前一直优先——`brickkit lang` 的"来源"那一栏会告诉你这件事。
 
 ---
 

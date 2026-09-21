@@ -806,8 +806,7 @@ $ diff <(brickkit up --dry-run --config brickkit.dev.yaml 2>&1 | grep -v '^{') \
 
 The second `diff` shows the consequence directly, not just the config line
 that caused it: it isn't only `erp/backend` that stops — `acme/web` stops
-too, and the line names why: `不启动（强依赖 erp/backend 不启动）` ("not
-starting — required dependency erp/backend isn't starting"). Reading just
+too, and the line names why: `not starting (required dependency erp/backend is not starting)`. Reading just
 the first `diff` (`enabled: false` on one component) would never tell you
 that on its own.
 
@@ -824,7 +823,7 @@ Two things worth knowing, both found by actually running this:
   `k8s`); here dev is `docker` and prod is `k8s`, so they write to
   non-overlapping paths (one file versus a subdirectory), and running one
   never touches the other's output. The one real edge case: a config change
-  that leaves nothing to start at all (`📋 本次没有组件会启动`) makes the
+  that leaves nothing to start at all (`📋 No component will start this run`) makes the
   CLI return before generation ever runs — the previous successful run's
   files are left exactly as they were, not cleared.
 - `grep -v '^{'` filters out the structured JSON log lines the CLI writes to

@@ -539,14 +539,14 @@ The hook blocks only **one direction**: source in the archive directory while th
 
 | What you see | What's going on | What to do |
 | --- | --- | --- |
-| `add … --repo` prints "已取消，brickkit.yaml 未修改" and clones nothing | The component is already in `brickkit.yaml`; `add` asked "refresh the cache?" and, with no terminal, took it as N | Add `--yes` |
-| `--repo` says "clone 失败：目录已存在" | `components/<scope>/<name>/` already holds source: cloned earlier, or hand-written by you | Use it. If you really want to clone again, move that directory away first |
-| `--repo` says "源码已经在了，只是被归档着" | `sync` put the source into `.archived/` | Bring it back: change `enabled`, then `brickkit sync` |
-| `--repo` says "clone 失败：该组件为闭源组件" | A closed-source component has no Git repository | Drop `--repo`; a plain `add` works |
+| `add … --repo` prints "Cancelled; brickkit.yaml was not modified" and clones nothing | The component is already in `brickkit.yaml`; `add` asked "refresh the cache?" and, with no terminal, took it as N | Add `--yes` |
+| `--repo` says "Clone failed: directory already exists" | `components/<scope>/<name>/` already holds source: cloned earlier, or hand-written by you | Use it. If you really want to clone again, move that directory away first |
+| `--repo` says "Clone failed: the source is already there, just archived" | `sync` put the source into `.archived/` | Bring it back: change `enabled`, then `brickkit sync` |
+| `--repo` says "Clone failed: this component is closed-source" | A closed-source component has no Git repository | Drop `--repo`; a plain `add` works |
 | A wall of `D` and `??` in `git status` after `sync` | When `components/` is tracked by the project repository, archiving is a directory move and shows up in the diff | Expected. Commit `enabled` and the moves together, or undo with `brickkit restore` |
 | The hook blocks a commit | Archived source went into the commit while `brickkit.yaml` says it should run | Follow the message: `git add brickkit.yaml`, or `git reset components/` then `brickkit restore` |
-| `remove` says "源码删掉就找不回来了" | The source isn't a Git repository, has uncommitted changes, or has commits not pushed to any remote | Commit and push; or copy it away; or `--force`; or, if you just don't need it for now, use `enabled: false` plus `sync` instead |
-| `remove` says "它是一个已登记的 git submodule" | Deleting directly would leave `.gitmodules` and the index dangling | Run the git commands it lists by hand; `--force` doesn't apply |
+| `remove` says "the source can't be recovered once it is deleted" | The source isn't a Git repository, has uncommitted changes, or has commits not pushed to any remote | Commit and push; or copy it away; or `--force`; or, if you just don't need it for now, use `enabled: false` plus `sync` instead |
+| `remove` says "it's a registered git submodule" | Deleting directly would leave `.gitmodules` and the index dangling | Run the git commands it lists by hand; `--force` doesn't apply |
 | Want an archived component back | | Change `enabled`, then `brickkit sync`; or just work in `components/.archived/<scope>/<name>/` — Git commands and IDEs work as usual |
 
 ## At a glance

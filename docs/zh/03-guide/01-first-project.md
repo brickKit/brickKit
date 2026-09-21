@@ -100,7 +100,7 @@ curl http://localhost:8080/api/v1/hello
 ```
 
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 `demo/hello` 声明了一个 `configSchema` 属性 `greeting`，注入为环境变量 `GREETING`——上面这条响应就是把它原样读回来给你看。再确认一下还注入了什么：
@@ -110,7 +110,7 @@ curl http://localhost:8080/api/v1/env
 ```
 
 ```json
-{"env":{"COMPONENT_ID":"demo/hello","COMPONENT_VERSION":"1.0.0","GREETING":"你好"}}
+{"env":{"COMPONENT_ID":"demo/hello","COMPONENT_VERSION":"1.0.0","GREETING":"Hello"}}
 ```
 
 `COMPONENT_ID` 和 `COMPONENT_VERSION` 是每个组件无条件都会拿到的两个平台级变量（AGENTS.zh.md §5.2）。
@@ -126,7 +126,7 @@ components:
     expose: true
     exposePort: 8080
     config:
-      greeting: "Hello"
+      greeting: "Howdy"
 ```
 
 ```bash
@@ -135,7 +135,7 @@ curl http://localhost:8080/api/v1/hello
 ```
 
 ```json
-{"component":"demo/hello","greeting":"Hello","message":"Hello，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Howdy","message":"Howdy, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 再跑一次 `up` 正是让配置改动真正生效的方式——这里没有热重载机制可等（AGENTS.zh.md §9.8），而且不管改没改东西，再跑一次永远是安全的。

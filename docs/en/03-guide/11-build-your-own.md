@@ -82,9 +82,9 @@ kind: Component
 
 metadata:
   id: tutorial/counter
-  name: 教程计数器
+  name: Tutorial counter
   version: 1.0.0
-  description: 教程用的最小组件，每次调用 /api/v1/count 就加一
+  description: The smallest component for the tutorial; every call to /api/v1/count adds one
 
 configSchema:
   type: object
@@ -92,7 +92,7 @@ configSchema:
     startAt:
       type: integer
       default: 0
-      description: 计数器起始值，注入为环境变量 START_AT
+      description: The counter's starting value, injected as the environment variable START_AT
 
 deployment:
   type: container

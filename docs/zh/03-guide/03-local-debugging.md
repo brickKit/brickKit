@@ -66,7 +66,7 @@ services:
 # .brickkit/generated/local-debug.demo-hello-1-0-0.env
 COMPONENT_ID=demo/hello
 COMPONENT_VERSION=1.0.0
-GREETING=你好
+GREETING=Hello
 ```
 
 跟 `demo/hello` 真的跑在容器里会拿到的环境变量完全一样——`configSchema` 的默认值也在——只是写进了一份文件，让你的 IDE 运行配置指过去就行。
@@ -85,7 +85,7 @@ curl http://localhost:8080/api/v1/hello
 ```
 
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 这就是调试器会挂上断点的那个进程——一个读环境变量、监听 `:8080` 的普通操作系统进程，跟你直接从 IDE 的"运行"按钮启动它没有任何区别。
@@ -102,7 +102,7 @@ docker run --rm --network brickkit-hello-world-net \
 ```
 
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 一个从来没听说过你主机 IP 的容器，跑在 `demo/caller` 真实会用的那张网络上，连到了一个直接跑在你笔记本上的进程——靠的仅仅是 `brickkit up` 本来就会写进 `demo/caller` 自己服务定义里的那一行配置。

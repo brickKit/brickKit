@@ -296,7 +296,7 @@ deploy:
 组件代码一个字都不用改：两个环境下的地址格式完全一样，都是
 `http://<版本化服务名>:<端口>`（例如 `http://people-basic-1-0-0:8080`）。
 
-**16 条命令，外加 `version`：** `init` `skills` `graph` `lint` `new` `add` `remove`
+**16 条命令，外加 `version` 与 `lang`：** `init` `skills` `graph` `lint` `new` `add` `remove`
 `fetch` `up` `down` `status` `sync` `restore` `login` `logout` `publish`
 
 想动手照着跑一遍？[5 分钟 Quick Start](docs/zh/00-quick-start.md) 用仓库自带的
@@ -418,14 +418,15 @@ make lint             # vet + 文档检查
 | --- | --- |
 | `make test-regression` | 面向用户的承诺 → 证明它们的测试（`tests/regression/清单.tsv`） |
 | `make test-boundary` 等 | 边界 / 错误 / 兼容 / 安全验收条目 → 证明它们的测试（`tests/checklist/清单.tsv`） |
-| `make check-doc-fields` | 文档里画的 yaml 片段与字段表，字段名都真的存在（真相来源是结构体本身） |
+| `make check-doc-fields` | 文档里画的 yaml 片段与字段表，字段名都真的存在（真相来源是结构体本身）；文档里引用的报错标题和带符号的 CLI 输出行，都是文档所在语言里真实存在的文案 |
 | `make check-schemas` | `schemas/` 里的 JSON Schema 与 config、manifest 两个结构体生成出来的结果一字不差，schema 里写的必填字段、封闭取值、正则与范围也与真实校验器一致（重新生成用 `make generate-schemas`） |
 | `make check-docs` | 悬空的小节引用与断链 |
 | `make check-cli-docs` | 文档里写的每条命令 / 参数都真的存在（反过来——新增了命令却还没写进文档——这里不管） |
 | `make check-guides` | 试用指南里的步骤仍然跑得通 |
-| `make check-guide-output` | 教程（`docs/{en,zh}/03-guide/`）里嵌的 CLI 输出块，逐行对得上真实输出，且中英文抄的是同一份 |
+| `make check-guide-output` | 教程（`docs/{en,zh}/03-guide/`）里嵌的 CLI 输出块，逐行对得上真实输出——docs/en 对 CLI 的英文输出，docs/zh 对它的中文输出 |
+| `make check-i18n` | 生产代码里没有写死的中文、测试里没有中文短语的否定断言（对英文输出它们永远空转成立）、英文的每个单复数形式都配齐；外加 `tools/i18n/` 里那套一次性迁移工具的测试 |
 | `make check-install-sh` | `install.sh` 装得上，而且校验和坏掉时**真的**拒绝装 |
-| `make check-docs-bilingual` | docs/en 与 docs/zh 保持镜像、根目录每一对多语言文件（README、AGENTS、llms）都保持成对、llms.txt/llms.zh.txt 里每条链接都能解析到真实文件 |
+| `make check-docs-bilingual` | docs/en 与 docs/zh 保持镜像、根目录每一对多语言文件（README、AGENTS、llms）都保持成对、llms.txt/llms.zh.txt 里每条链接都能解析到真实文件、docs/en 里没有中文 |
 
 一份指向已不存在的测试的清单会让构建失败。一个目录变空的测试目标同样会 ——
 **安静跳过的套件比没有套件更糟**，因为它还占着计分板上的一行。

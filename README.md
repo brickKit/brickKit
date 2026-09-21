@@ -265,7 +265,7 @@ brickkit version
 
 ```
 BrickKit CLI v0.1.0
-Supported manifest version: brickkit/v1
+Supported Manifest version: brickkit/v1
 Supported deploy targets: docker, k8s
 ```
 
@@ -324,7 +324,7 @@ Not a single line of component code changes: addressing is identical in both
 environments, always `http://<versioned-service-name>:<port>` (for example
 `http://people-basic-1-0-0:8080`).
 
-**16 commands, plus `version`:** `init` `skills` `graph` `lint` `new` `add` `remove`
+**16 commands, plus `version` and `lang`:** `init` `skills` `graph` `lint` `new` `add` `remove`
 `fetch` `up` `down` `status` `sync` `restore` `login` `logout` `publish`
 
 Want to actually run it? The [5-minute Quick Start](docs/en/00-quick-start.md)
@@ -457,14 +457,15 @@ breaks**, instead of quietly reporting zero problems:
 | --- | --- |
 | `make test-regression` | User-facing promises → the tests that prove them (`tests/regression/清单.tsv`) |
 | `make test-boundary` (and friends) | Boundary / error / compatibility / security acceptance items → the tests that prove them (`tests/checklist/清单.tsv`) |
-| `make check-doc-fields` | Every field name drawn in the docs' YAML snippets and field tables really exists (the source of truth is the struct itself) |
+| `make check-doc-fields` | Every field name drawn in the docs' YAML snippets and field tables really exists (the source of truth is the struct itself); the error titles and the emoji-led CLI output lines quoted in the docs are real messages in the docs' own language |
 | `make check-schemas` | The JSON Schemas in `schemas/` are exactly what the config and manifest structs generate, and the required fields, closed values, patterns and ranges they state agree with the real validators (regenerate with `make generate-schemas`) |
 | `make check-docs` | Dangling section references and broken links |
 | `make check-cli-docs` | Every command/flag the docs claim to exist, really does (the reverse direction — new commands not yet documented — isn't enforced here) |
 | `make check-guides` | The steps in the guides still work |
-| `make check-guide-output` | The CLI output blocks embedded in the tutorials (`docs/{en,zh}/03-guide/`) match real output line by line, and docs/en and docs/zh quote the exact same output |
+| `make check-guide-output` | The CLI output blocks embedded in the tutorials (`docs/{en,zh}/03-guide/`) match real output line by line — docs/en against the CLI's English output, docs/zh against its Chinese output |
+| `make check-i18n` | No hard-coded Chinese in production code, no Chinese-phrase negative assertions in tests (they'd pass vacuously against English output), every English plural form defined; plus the tests of the one-off migration tool under `tools/i18n/` |
 | `make check-install-sh` | `install.sh` installs successfully, and *actually* refuses to install when the checksum is broken |
-| `make check-docs-bilingual` | docs/en and docs/zh stay mirrored, every root multi-language pair (README, AGENTS, llms) stays paired, every llms.txt/llms.zh.txt link resolves |
+| `make check-docs-bilingual` | docs/en and docs/zh stay mirrored, every root multi-language pair (README, AGENTS, llms) stays paired, every llms.txt/llms.zh.txt link resolves, and docs/en contains no Chinese |
 
 A checklist pointing at a test that no longer exists fails the build. So does
 a test target whose directory has gone empty — **a suite that silently skips

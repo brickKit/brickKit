@@ -167,7 +167,7 @@ The suggested rename differs by which pattern was hit — a prefix collision (`D
    Config item: typoLogLevel
    Reason: The component's configSchema has no such item
    Impact: This item is not injected as any environment variable; the component uses its own default
-   组件声明的配置项：databaseFlavor、logLevel、upstreamEndpoint
+   Config items the component declares: databaseFlavor, logLevel, upstreamEndpoint
 ```
 
 The same warning fires, worded identically, when the component has **no `configSchema` at all** and the project still writes a `config:` block — the whole block is ignored, not just the unrecognized keys:
@@ -190,7 +190,7 @@ The same warning fires, worded identically, when the component has **no `configS
     components:
       - id: shop/pricing
         config:
-          pricingServiceUrl: <值>
+          pricingServiceUrl: <value>
    2. The value may be ${ENV_VAR}; keep the real value in .env
 ```
 

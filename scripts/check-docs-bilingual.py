@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """docs/en 与 docs/zh 镜像一致性 + 根目录多语言入口文件齐全 + llms 索引链接完整性。
 
-守三件事：① docs/en 下每一份文档，docs/zh 下必须有同一相对路径的对应文件，
+守四件事：① docs/en 下每一份文档，docs/zh 下必须有同一相对路径的对应文件，
 反之亦然——对称双语意味着任何一份都不是"翻译附属"，少了一份就是承诺被打破。
 ② 根目录的一对多语言入口文件必须成对存在——README.md/README.zh.md、
 AGENTS.md/AGENTS.zh.md、llms.txt/llms.zh.txt 都是这个形状，少了一份就是
@@ -11,7 +11,10 @@ README/AGENTS 一样的"每种语言一个文件"）。③ llms.txt 与 llms.zh.
 每一条 raw.githubusercontent.com 链接指向的文件必须真实存在——这条呼应
 be-assembly-standard 反馈里"结构检查脚本自己也要用真实反例验证"那条教训：
 一个检查规则本身也是代码，链接指向的文件被改名/删除时必须报错，不能悄悄
-继续"通过"。
+继续"通过"。④ 英文这一侧（docs/en 与 llms.txt）里不许出现中文字符——CLI 支持
+多语言之后，英文文档引用的输出、报错标题、示例文件都该是英文；一行中文悄悄
+留在英文文档里，读者只会觉得这份文档没做完。确有理由保留的（比如专门讲一个中文
+词）加进 ENGLISH_DOCS_ALLOW，并写清理由。
 """
 import glob
 import os
@@ -48,9 +51,48 @@ def check_mirror():
 
 LLMS_TXT_FILES = ["llms.txt", "llms.zh.txt"]
 
+HAN = re.compile(r"[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]")
+
+# ENGLISH_DOCS_ALLOW：允许出现中文的位置。key 是 (相对路径, 那一行里的一段文字)，value 是理由。
+# 加一条是有意识的决定，不是顺手。
+ENGLISH_DOCS_ALLOW = {
+    ("docs/en/06-architecture/09-cli-reference.md", "当前语言：zh"):
+        "brickkit lang 的示例：刻意展示切到中文之后 CLI 真实说的话",
+    ("docs/en/06-architecture/09-cli-reference.md", "语言已设为 zh"):
+        "同上",
+    ("docs/en/06-architecture/09-cli-reference.md", "不支持的语言：fr"):
+        "同上",
+}
+
+
+def english_side_files():
+    files = sorted(glob.glob(os.path.join(ROOT, "docs", "en", "**", "*.md"), recursive=True))
+    files.append(os.path.join(ROOT, "llms.txt"))
+    return files
+
+
+def check_english_docs_have_no_chinese():
+    bad = []
+    for path in english_side_files():
+        rel = os.path.relpath(path, ROOT)
+        for n, line in enumerate(open(path, encoding="utf-8"), 1):
+            if not HAN.search(line):
+                continue
+            if any(rel == r and needle in line for (r, needle) in ENGLISH_DOCS_ALLOW):
+                continue
+            bad.append(f"{rel}:{n} 英文文档里有中文：{line.strip()[:70]}")
+    return bad
+
 
 def self_check():
     """解析坏了会安静地全部通过，比没有检查更糟——同 check-doc-tree.py 的自我防御。"""
+    if not HAN.search("你好") or HAN.search("hello"):
+        print("❌ 自检失败：中文字符的正则认不出中文（或把英文当成了中文）。")
+        sys.exit(2)
+    if len(english_side_files()) < 20:
+        print(f"❌ 自检失败：只找到 {len(english_side_files())} 份英文侧文档——glob 多半坏了，"
+              "而不是文档真的这么少。")
+        sys.exit(2)
     prefix = "https://raw.githubusercontent.com/brickKit/brickKit/main/"
     for name in LLMS_TXT_FILES:
         text = open(os.path.join(ROOT, name), encoding="utf-8").read()
@@ -109,6 +151,7 @@ def main():
     bad = (
         check_mirror()
         + check_llms_txt_links()
+        + check_english_docs_have_no_chinese()
         + check_root_language_pair("README.md", "README.zh.md")
         + check_root_language_pair("AGENTS.md", "AGENTS.zh.md")
         + check_root_language_pair("llms.txt", "llms.zh.txt")
@@ -118,7 +161,7 @@ def main():
         for line in bad:
             print(f"   - {line}")
         sys.exit(1)
-    print("✅ docs/en ↔ docs/zh 镜像完整，README/AGENTS/llms 双语齐全，llms 索引全部链接可解析")
+    print("✅ docs/en ↔ docs/zh 镜像完整，README/AGENTS/llms 双语齐全，llms 索引全部链接可解析，英文文档里没有中文")
 
 
 if __name__ == "__main__":

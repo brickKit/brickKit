@@ -48,9 +48,9 @@ The first attempt, with no flags about the image, refuses outright:
 ```
 ❌ Error: the image digest could not be determined; publishing was aborted
    Image: brickkit-demo/hello:1.0.0
-   为什么要拦住：发布出去的版本号不可回收。取不到 digest
-   通常意味着这个镜像消费方也拉不到——与其在市场里留下一个装不上的
-   版本，不如现在停下
+   Why it is blocked: A published version number can't be taken back. Not being able
+   to get the digest usually means consumers can't pull this image either — better to
+   stop now than leave an uninstallable version in the Market
 ```
 
 This is [Signing and the trust model](../06-architecture/06-signing-and-trust.md)'s digest-pinning step, refusing to publish a reference nobody else could actually resolve — `demo/hello`'s image only ever existed in this one machine's local Docker cache, never pushed anywhere. `--no-pin-digest` is the honest way past that for a demo like this one (a real publish against a real registry wouldn't need it):
@@ -73,10 +73,12 @@ A closed-source attempt (`--source-type registry`) with this exact same Manifest
 
 ```
 ❌ Error: publishing the component version failed
-   原因：闭源组件提供 API 时必须上传 API 契约文件
-   hint：在 artifacts 中声明至少一个 type: api-contract 的产物
-   （代码可以闭源，API 契约不能闭源）
+   Reason: A closed-source component that offers an API must upload an API contract file
+   hint: Declare at least one artifact with type: api-contract under artifacts
+   (the code may be closed-source; the API contract may not)
 ```
+
+(A note on this block and the one under "Versions are permanent": the `Reason` text and the `hint` are the Market **server's** own words, and the server currently answers in Chinese only. They are shown translated here; everything else on this page is the CLI's own English output.)
 
 `demo/hello`'s only declared artifact is `type: api-docs` — human-readable documentation, not a machine-consumable contract (a protobuf file, an OpenAPI spec meant for codegen). The marketplace enforces this distinction specifically for closed-source components: hiding the implementation is fine, hiding the shape callers need to integrate against is not.
 
@@ -96,8 +98,9 @@ brickkit add demo/hello@1.0.0
    ├── Manifest ✅
    └── artifacts ✅ (1 file)
 ⚠️ Warning: requireSignature is true, but the project declares no trusted public keys, so signature verification isn't actually in effect
-   说明：这不是配置错误，是还没配完——requireSignature 默认为 true，
-   而 publicKeys 要等你从发布者那里拿到公钥才填得上
+   Note: This isn't a misconfiguration, just an unfinished setup — requireSignature
+   defaults to true, while publicKeys can only be filled in once you have the publisher's
+   public key
 ```
 
 The Manifest and artifacts really did come from the market this project has never installed anything from before — and the warning is real, not hypothetical: this project genuinely has no trust anchor configured yet, exactly the gap [Signing and the trust model](../06-architecture/06-signing-and-trust.md) describes. `brickkit up` still works — signature enforcement being unconfigured is a warning, not a block:
@@ -107,7 +110,7 @@ brickkit up
 curl http://localhost:8099/api/v1/hello
 ```
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 ## Versions are permanent, and visibility is enforced
@@ -126,7 +129,7 @@ Publish `2.0.0` as `--visibility private` instead, and an unauthenticated projec
 brickkit add demo/hello@2.0.0   # from a project that never logged in
 ```
 ```
-❌ 错误：无权访问该组件：demo/hello
+❌ Error: no access to this component: demo/hello
    Suggestions:
    1. Confirm the current account owns this component
    2. Private components can only be accessed with the owner's authorization

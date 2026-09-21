@@ -243,9 +243,11 @@ brickkit up
 The migration container's real log output (structured JSON, written to stdout):
 
 ```
-{"time":"...","level":"INFO","msg":"开始执行数据库迁移","componentId":"department/tree","config":"component=department/tree@1.0.0 database=host.docker.internal:55432/brickkit_department user=demo logLevel=info"}
-{"time":"...","level":"INFO","msg":"迁移完成","componentId":"department/tree"}
+{"time":"...","level":"INFO","msg":"Starting database migration","componentId":"department/tree","config":"component=department/tree@1.0.0 database=host.docker.internal:55432/brickkit_department user=demo logLevel=info"}
+{"time":"...","level":"INFO","msg":"Migration finished","componentId":"department/tree"}
 ```
+
+(The `msg` values are translated here: this sample component's own log messages are written in Chinese. What language a component logs in is entirely its own business — the platform never reads component logs.)
 
 **5. Talk to it** (`0002_seed_departments.up.sql` already seeded a few rows):
 

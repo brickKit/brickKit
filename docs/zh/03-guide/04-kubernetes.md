@@ -101,7 +101,7 @@ ingress.networking.k8s.io/demo-hello-1-0-0   nginx   hello.local   192.168.49.2
 curl -H "Host: hello.local" http://$(minikube ip)/api/v1/hello
 ```
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 `demo/caller` 调用 `demo/hello`——一次真实的 Pod 到 Pod 调用，不只是一个看起来对的环境变量：
@@ -111,7 +111,7 @@ kubectl -n brickkit-hello-world port-forward svc/demo-caller-1-0-0 18080:8080 &
 curl http://localhost:18080/api/v1/call
 ```
 ```json
-{"component":"demo/caller","endpoint":"http://demo-hello-1-0-0:8080","upstream":{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"},"version":"1.0.0"}
+{"component":"demo/caller","endpoint":"http://demo-hello-1-0-0:8080","upstream":{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"},"version":"1.0.0"}
 ```
 
 `"upstream"` 是 `demo/hello` 的真实响应，由 `demo/caller` 在自己的 Pod 里实时拉取的——证明了 BrickKit 注入的地址不只是看起来说得通，而是真的连得上。第 2 篇里那个缺失的弱依赖，在这里也照样可见：

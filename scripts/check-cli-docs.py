@@ -167,6 +167,9 @@ def usages(line):
 
     同理还有两个边界：`→`（"`brickkit up` → `docker compose up -d --wait`"
     里的 `--wait` 是 compose 的）和 `|`（markdown 表格的下一格）。
+
+    **③ 行内代码里的命令，只认自己那段代码与紧随其后的纯参数代码段**（见下面的实现注释）
+    ——英文文档没有"第一个中文字符"这个边界，全靠这一条收住。
     """
     hits = list(re.finditer(r"brickkit ([a-z][a-z-]*)", line))
     out = []
@@ -175,6 +178,16 @@ def usages(line):
         rest = line[m.end():end]
         if stop := STOP.search(rest):
             rest = rest[:stop.start()]
+        # **③ 行内代码里的命令，只认自己那段代码，外加紧随其后、通篇只有参数的代码段。**
+        # 英文文档里没有"第一个中文字符"这个边界，`brickkit up` reports `Error: …`
+        # (under Docker, `up -d --wait` …) 整句都会被当成命令行，把 docker compose 的
+        # --wait 算成 up 的参数。命令在行内代码里（它前面的反引号是奇数个）时：
+        # 它自己那段代码算；后面的散文不算；后面的别的代码段，只有"以 - 开头"（就是
+        # 一个参数，像 `--strict`）才算——`up -d --wait` 以命令词开头，是另一条命令。
+        if line.count("`", 0, m.start()) % 2 == 1 and "`" in rest:
+            parts = rest.split("`")
+            keep = [parts[0]] + [p for p in parts[2::2] if p.strip().startswith("-")]
+            rest = " ".join(keep)
         out.append((m.group(1), rest))
     return out
 
@@ -257,12 +270,13 @@ def check(surface):
 # 文档说"N 个命令"指的是业务命令，不含它们。
 COBRA_BUILTINS = {"completion", "help"}
 
-# COUNT_CLAIM 匹配文档里的数量声明：「11 个命令」「10 个命令 + version」「12 条命令」。
+# COUNT_CLAIM 匹配文档里的数量声明：「11 个命令」「10 个命令 + version」「12 条命令」，
+# 以及英文那一侧的 "16 commands"（英文文档一直有这样的声明，却从没被核对过）。
 #
 # 量词写两个（个 / 条）不是凑数：第一版只认"个命令"，而 llms.txt 与 README
 # 里写的恰好是"12 条命令"——守卫上线当天就漏了两处。文档是人写的，
 # 同一件事换个量词很正常，认死一个等于给自己留个后门。
-COUNT_CLAIM = re.compile(r"(\d+)\s*[个条]命令")
+COUNT_CLAIM = re.compile(r"(\d+)\s*(?:[个条]命令|commands\b)")
 
 # FROZEN_DOCS 是已冻结的历史记录：它们描述的是"当初做完时是什么样"，
 # 不该被迫跟着现状变——那正是"冻结"的含义（见 开发计划.md 的头部说明）。

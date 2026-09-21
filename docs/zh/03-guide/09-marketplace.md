@@ -107,7 +107,7 @@ brickkit up
 curl http://localhost:8099/api/v1/hello
 ```
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 ## 版本号是永久的，可见性会被真正强制

@@ -352,7 +352,7 @@ components:
 artifacts:
   - type: api-docs
     format: openapi
-    description: HTTP API 文档
+    description: HTTP API docs
     files:
       - openapi.json
 ```
@@ -396,7 +396,7 @@ configSchema:
       default: 20
       minimum: 1
       maximum: 100
-      description: 列表接口默认每页条数
+      description: Default page size of the list endpoints
 ```
 
 ```

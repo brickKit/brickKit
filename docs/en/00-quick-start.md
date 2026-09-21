@@ -117,7 +117,7 @@ curl http://localhost:8080/api/v1/hello
 ```
 
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 **Done.** Your first component is running, reachable over plain HTTP — no CLI-internal channel involved.
@@ -136,6 +136,18 @@ brickkit down
    For a full cleanup, run by hand: docker volume rm <volume-name>
    Start again with: brickkit up
 ```
+
+## Switch the CLI's language
+
+Everything above was printed in English, the default. To read the CLI in Chinese instead:
+
+```bash
+brickkit lang set zh                # from now on, on this machine
+BRICKKIT_LANG=zh brickkit status    # just this once
+brickkit lang                       # which language is in effect, and why
+```
+
+`BRICKKIT_LANG` beats the saved setting, which beats the English default. Error codes, command names and flag names never change with the language. Details: [`brickkit lang`](06-architecture/09-cli-reference.md#brickkit-lang).
 
 ## Wire up your editor
 

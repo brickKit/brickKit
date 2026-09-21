@@ -102,8 +102,8 @@ curl http://localhost:8081/api/v1/hello
 curl http://localhost:8082/api/v1/hello
 ```
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@2.0.0","version":"2.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@2.0.0","version":"2.0.0"}
 ```
 
 这两个镜像其实是从完全同一份源码构建出来的——每个响应里报的 `version` 完全来自平台按各自 Manifest 注入的 `COMPONENT_VERSION` 环境变量（AGENTS.zh.md §5.2），不是镜像里写死的东西。`brickkit status` 把两者摆在同一个组件 ID 底下，并排显示：

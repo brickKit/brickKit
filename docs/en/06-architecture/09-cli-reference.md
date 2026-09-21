@@ -40,6 +40,7 @@ Click a command name to jump to its full description.
 | | [`brickkit logout`](#brickkit-logout) | Revoke the token and delete the local credentials | Logging out |
 | | [`brickkit publish`](#brickkit-publish) | Upload the Manifest, image reference and artifacts to the marketplace | Publishing your own component |
 | Other | [`brickkit version`](#brickkit-version) | Print the version | Checking which version you have installed |
+| | [`brickkit lang`](#brickkit-lang) | Show or change the language the CLI speaks | Switching between English and Chinese output |
 | | [`brickkit completion`](#brickkit-completion) | Print a shell auto-completion script | You want Tab to complete command and flag names in your terminal |
 
 There are also [two global flags](#two-global-flags-on-every-command), available on every command.
@@ -159,16 +160,16 @@ It reads what `up --dry-run` reads — `brickkit.yaml` and every component's Man
 
 | On the picture | It means |
 | --- | --- |
-| A box labelled `id@version` | One component. If it's `local: true`, a second line reads `本地调试` (the CLI's wording for "local debugging"), followed by `:<port>` when `localPort` is written in `brickkit.yaml`. With no `localPort` the port is only chosen later, by `up`, so the picture shows none rather than invent one |
+| A box labelled `id@version` | One component. If it's `local: true`, a second line reads `local debug`, followed by `:<port>` when `localPort` is written in `brickkit.yaml`. With no `localPort` the port is only chosen later, by `up`, so the picture shows none rather than invent one |
 | Solid arrow `A --> B` | A has a **required** dependency on B |
-| Dashed arrow `A -.-> B` | A has an **optional** dependency on B. If no source has B it's still drawn, as an orange dashed box labelled `id@version` and `未安装` ("not installed") — the same fact `up --dry-run` prints as `（弱，未安装）`, and the answer to "why isn't this address injected?" |
+| Dashed arrow `A -.-> B` | A has an **optional** dependency on B. If no source has B it's still drawn, as an orange dashed box labelled `id@version` and `not installed` — the same fact `up --dry-run` prints as `(optional, not installed)`, and the answer to "why isn't this address injected?" |
 | Grey box | A component that won't start this time: turned off with `enabled: false`, or no running component above it needs it (AGENTS.md §5.4) |
 | Light-blue box | A `local: true` component that would start |
-| A titled box, `外壳：id@version` ("shell: …"), around some components | Those components are folded into another component's process with `servedBy` (AGENTS.md §5.7), and the title names that shell. The shell itself is an ordinary box outside it. If the shell isn't in the project the group is drawn anyway — reporting a missing target is `up`'s job |
+| A titled box, `Shell: id@version`, around some components | Those components are folded into another component's process with `servedBy` (AGENTS.md §5.7), and the title names that shell. The shell itself is an ordinary box outside it. If the shell isn't in the project the group is drawn anyway — reporting a missing target is `up`'s job |
 
 Arrows are drawn whether or not the component at the other end starts: the picture shows the structure you *declared*, and colour shows whether each part starts, so the two never get mixed up.
 
-**Output is pure Mermaid.** Standard output holds the diagram and nothing else — not one extra character — so redirecting it to `graph.mmd` gives a valid file. Everything that isn't the diagram goes elsewhere: warnings from resolving the graph (a missing optional dependency, say) go to stderr; the note that `--ignore-served-by` was in effect is a Mermaid comment line (`%% …`), which renderers skip; and a project with no components prints `graph TD` and one comment line (`%% 当前项目没有组件`, "the project has no components"). The same configuration always draws byte-identical text in a fixed order, so a saved `.mmd` file diffs cleanly in Git. Components come in the order the graph is resolved, dependencies first — except that each `servedBy` group is written ahead of the components outside any group, and the `未安装` boxes come after all the others. (Inside the text, a node's ID is the component's versioned service name with `-` turned into `_` — `demo-hello-1-0-0` becomes `demo_hello_1_0_0`; only the labels are meant for reading.)
+**Output is pure Mermaid.** Standard output holds the diagram and nothing else — not one extra character — so redirecting it to `graph.mmd` gives a valid file. Everything that isn't the diagram goes elsewhere: warnings from resolving the graph (a missing optional dependency, say) go to stderr; the note that `--ignore-served-by` was in effect is a Mermaid comment line (`%% …`), which renderers skip; and a project with no components prints `graph TD` and one comment line (`%% The current project has no components`). The same configuration always draws byte-identical text in a fixed order, so a saved `.mmd` file diffs cleanly in Git. Components come in the order the graph is resolved, dependencies first — except that each `servedBy` group is written ahead of the components outside any group, and the `not installed` boxes come after all the others. (Inside the text, a node's ID is the component's versioned service name with `-` turned into `_` — `demo-hello-1-0-0` becomes `demo_hello_1_0_0`; only the labels are meant for reading.)
 
 **Viewing it.** GitHub draws a `.mmd` (or `.mermaid`) file directly, and draws a fenced code block whose language is `mermaid` inside a Markdown file. Pasted into Markdown *without* that fence, the diagram is just text.
 
@@ -261,7 +262,7 @@ It adds no rules of its own: every check is one the platform already makes somew
 - The *values* in a `configSchema` — an `enum`, a `minimum`. The platform declares them for the reader and never enforces them (AGENTS.md §9.12: it's a spec sheet, not a gate).
 - A market or Git component's Manifest. It was validated when you added it; `lint` only looks at files you can edit yourself, the local sources.
 
-**Exit status, and where the output goes.** The report goes to stdout, because it's what the command produces: a `✅ <path>` line for each clean file, the error and warning blocks for the rest, then a summary line, `📋 检查了 N 个文件：M 个有错误，K 条警告` (N files checked, M with errors, K warnings). Exit status is `0` when nothing is wrong or there are only warnings, and `1` when any file has an error; with `--strict` a warning counts too, which is what a CI gate wants. A failing run ends with one summary error on stderr, code `LINT_FAILED` (in the JSON log line right after it) — see [Error codes](10-error-codes.md#lint_failed).
+**Exit status, and where the output goes.** The report goes to stdout, because it's what the command produces: a `✅ <path>` line for each clean file, the error and warning blocks for the rest, then a summary line, `📋 Checked N files: M with errors, K warnings`. Exit status is `0` when nothing is wrong or there are only warnings, and `1` when any file has an error; with `--strict` a warning counts too, which is what a CI gate wants. A failing run ends with one summary error on stderr, code `LINT_FAILED` (in the JSON log line right after it) — see [Error codes](10-error-codes.md#lint_failed).
 
 An editor can catch the structural problems as you type: see [Wire up your editor](../00-quick-start.md#wire-up-your-editor).
 
@@ -389,27 +390,27 @@ Next steps:
 
 ```yaml
 # component.yaml
-# demo/widget —— 由 brickkit new 生成的骨架
-# 下面每一处 TODO 都要改成真的；结构本身已经能通过 brickkit up --dry-run 的校验
+# demo/widget — skeleton generated by brickkit new
+# Every TODO below has to be replaced with the real thing; the structure itself already passes brickkit up --dry-run validation
 apiVersion: brickkit/v1
 kind: Component
 
 metadata:
   id: demo/widget
-  name: widget # TODO：改成人看的展示名
+  name: widget # TODO: change to a human-readable display name
   version: 0.1.0
-  description: TODO：一句话说清楚这个组件做什么
+  description: TODO — say in one sentence what this component does
 
 deployment:
   type: container
-  image: demo/widget:0.1.0 # TODO：换成真实构建出来的镜像（本地开发前先 docker build）
-  port: 8080 # TODO：换成组件实际监听的端口
+  image: demo/widget:0.1.0 # TODO: replace with the image you actually build (docker build it before developing locally)
+  port: 8080 # TODO: replace with the port the component actually listens on
 
 healthCheck:
   type: http
   path: /healthz
-  # 冷启动超过默认的 60 秒（很重的 Spring Boot / Django 预加载 / .NET 首次 JIT 等）
-  # 要写 startPeriodSeconds，否则 K8s 下会永久 CrashLoopBackOff
+  # If the cold start takes longer than the default 60 seconds (a heavy Spring Boot / Django preload / .NET first JIT, etc.),
+  # set startPeriodSeconds, or it will CrashLoopBackOff permanently under K8s
 ```
 
 `--contract openapi` additionally writes `api/openapi.yaml`:
@@ -419,7 +420,7 @@ openapi: 3.0.3
 info:
   title: demo/gadget
   version: 0.1.0
-  description: TODO：这个组件对外提供的 API
+  description: TODO — the API this component exposes
 paths: {}
 ```
 
@@ -659,7 +660,7 @@ Dependency graph:
 ```
 
 Every line in this output carries its own reasoning — `department/tree`
-says `（people/basic 需要）`, `people/basic` says `（顶层）` — exactly the
+says `(people/basic needs it)`, `people/basic` says `(top-level)` — exactly the
 "every start decision states its reason" property AGENTS.md §5.4 describes.
 Note too that an unmet resource binding only **warns** under `--dry-run`; a
 real `up` blocks on it (this is what the suggestion's second line is
@@ -925,13 +926,61 @@ supported deploy targets.
 ```
 $ brickkit version
 BrickKit CLI v0.1.0
-Supported manifest version: brickkit/v1
+Supported Manifest version: brickkit/v1
 Supported deploy targets: docker, k8s
 ```
 
 ```bash
 brickkit version --verbose   # also print the git commit and build time
 ```
+
+---
+
+## brickkit lang
+
+**Syntax:** `brickkit lang` — show the current language · `brickkit lang set <en|zh>` — change it
+
+The CLI speaks English by default. `brickkit lang` says which language it is speaking right now **and why**; `brickkit lang set` changes it for good on this machine.
+
+**Which language wins** — the first match from top to bottom:
+
+| Order | Where it comes from | How you set it |
+| --- | --- | --- |
+| 1 | The `BRICKKIT_LANG` environment variable | `BRICKKIT_LANG=zh brickkit up` for one command, or `export` it for a session — the natural fit for CI |
+| 2 | The global config file | `brickkit lang set zh`, once per machine |
+| 3 | The default | English |
+
+A value that isn't a supported language (`en` or `zh`, case doesn't matter) is treated as not set and the next layer is tried — it never turns into an error, so a stray `BRICKKIT_LANG=fr` in a shell profile leaves you with the language below it, not a broken CLI. There is deliberately no `--lang` flag: the language has to be known *before* the command tree is built (the `--help` text is translated too), and a flag can only be read after that.
+
+**What follows the language:** everything the CLI prints for a person — command output, errors and their suggestions, warnings, `--help`; the `message` and `error` fields of the JSON log lines on stderr; and the comments the CLI writes into files it generates (the `brickkit.yaml` skeleton from `brickkit init`, the `docker-compose.yaml` header, `local-debug.env`, the `brickkit new` skeleton).
+
+**What never changes:** the `error_code` in the JSON log line (scripts can rely on it whatever the language), command and flag names, YAML keys, anything you wrote yourself, and text that isn't the CLI's own — a component's log lines, or the reason the Market server sends back when it refuses something (the server currently answers in Chinese only).
+
+**Where the setting lives.** `brickkit lang set` writes one small file in the per-user config directory — `~/.config/brickkit/config.json` on Linux (honoring `XDG_CONFIG_HOME`), `~/Library/Application Support/brickkit/config.json` on macOS, `%AppData%\brickkit\config.json` on Windows — holding just `{"lang": "zh"}`. It is a preference of the machine, not of a project: it isn't inside any project directory and never gets committed. The file is written atomically, so a failed write can't damage a setting that was already there.
+
+**Example**
+
+```
+$ brickkit lang
+Current language: en (source: default)
+
+$ BRICKKIT_LANG=zh brickkit lang
+当前语言：zh（来源：BRICKKIT_LANG 环境变量）
+
+$ brickkit lang set zh
+✅ 语言已设为 zh
+
+$ brickkit lang
+当前语言：zh（来源：全局配置文件）
+
+$ brickkit lang set fr
+❌ 不支持的语言：fr（支持：en, zh）
+
+$ brickkit lang set en
+✅ Language set to en
+```
+
+The confirmation from `lang set` is already in the *new* language — it is the first thing you see in it. An unsupported value ends with error code `INVALID_ARGUMENT` and exit status `2`. `brickkit lang set` changes the saved preference even while `BRICKKIT_LANG` is set, but the environment variable keeps winning until you unset it — `brickkit lang` shows that in its `source` part.
 
 ---
 

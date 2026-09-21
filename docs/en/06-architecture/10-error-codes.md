@@ -2,7 +2,7 @@
 
 Every error that ends a `brickkit` command carries a **stable error code**. This page is the dictionary: what each code means, the situations that produce it, and what to do next.
 
-The CLI's messages are written in Chinese. This page quotes them verbatim, so you can search for exactly what your terminal printed.
+The CLI's messages follow its language — English by default, Chinese after `brickkit lang set zh` (see [`brickkit lang`](09-cli-reference.md#brickkit-lang)). This page quotes the English wording; the [Chinese edition](../../zh/06-architecture/10-error-codes.md) quotes the Chinese one. Either way you can search for exactly what your terminal printed. The error **codes** themselves never change with the language — that is what makes them safe for scripts to rely on.
 
 ## Reading a failure
 

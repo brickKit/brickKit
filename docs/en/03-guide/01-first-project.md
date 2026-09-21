@@ -100,7 +100,7 @@ curl http://localhost:8080/api/v1/hello
 ```
 
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 `demo/hello` declares one `configSchema` property, `greeting`, injected as the environment variable `GREETING` — and the response above is reading it straight back to you. Confirm the rest of what got injected:
@@ -110,7 +110,7 @@ curl http://localhost:8080/api/v1/env
 ```
 
 ```json
-{"env":{"COMPONENT_ID":"demo/hello","COMPONENT_VERSION":"1.0.0","GREETING":"你好"}}
+{"env":{"COMPONENT_ID":"demo/hello","COMPONENT_VERSION":"1.0.0","GREETING":"Hello"}}
 ```
 
 `COMPONENT_ID` and `COMPONENT_VERSION` are the two platform-wide variables every component gets, unconditionally (AGENTS.md §5.2).
@@ -126,7 +126,7 @@ components:
     expose: true
     exposePort: 8080
     config:
-      greeting: "Hello"
+      greeting: "Howdy"
 ```
 
 ```bash
@@ -135,7 +135,7 @@ curl http://localhost:8080/api/v1/hello
 ```
 
 ```json
-{"component":"demo/hello","greeting":"Hello","message":"Hello，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Howdy","message":"Howdy, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 Running `up` again is how a config change actually takes effect — there's no hot-reload mechanism to wait on (AGENTS.md §9.8), and running it again is always safe, whether or not anything actually changed.

@@ -102,8 +102,8 @@ curl http://localhost:8081/api/v1/hello
 curl http://localhost:8082/api/v1/hello
 ```
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@2.0.0","version":"2.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@2.0.0","version":"2.0.0"}
 ```
 
 Both images here were built from the exact same source — the `version` field each one reports comes entirely from the `COMPONENT_VERSION` environment variable the platform injects per-Manifest (AGENTS.md §5.2), not from anything baked into the image. `brickkit status` shows both under the same component ID, side by side:

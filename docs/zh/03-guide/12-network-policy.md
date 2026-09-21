@@ -53,7 +53,7 @@ kubectl -n brickkit-hello-world exec deploy/demo-caller-1-0-0 -- \
   wget -qO- --timeout=3 http://demo-hello-1-0-0:8080/api/v1/hello
 ```
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 立刻响应，完全不受影响——刚生成的这份策略，宽松程度正好够这个项目里唯一真实存在的调用方使用。

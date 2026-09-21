@@ -61,14 +61,14 @@ Three things the validator catches that aren't obvious from the shape alone:
 - Real, verbatim error text for the second case:
 
   ```
-  同一个组件声明了两个版本
-       demo/hello@1.0.0（dependencies.components[0]）与 demo/hello@2.0.0
-       两者都注入 DEMO_HELLO_ENDPOINT —— 依赖地址的环境变量名基于组件 ID、不带版本号，
-       后者覆盖前者，而组件不会察觉自己只连上了其中一个
-       出路 1：只依赖其中一个版本。多版本共存是**项目级**的——
-               brickkit.yaml 里可以同时跑两个版本，供不同调用方各用各的
-       出路 2：确实要同时调两个，把第二个声明成 configSchema 里的一个配置项，
-               由项目填地址
+  the same component is declared with two versions
+       demo/hello@1.0.0 (dependencies.components[0]) and demo/hello@2.0.0
+       both inject DEMO_HELLO_ENDPOINT — the dependency address's variable name is based on the component ID
+       and carries no version, so the latter overwrites the former, and the component never notices it only reaches one of them
+       Way out 1: depend on just one of the versions. Coexisting versions is a **project-level** capability —
+                  brickkit.yaml can run both versions side by side, for different callers to each use their own
+       Way out 2: if you really need to call both, declare the second one as a configSchema item
+                  and let the project supply the address
   ```
 
 ## `dependencies.resources[]`

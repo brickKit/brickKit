@@ -117,7 +117,7 @@ curl http://localhost:8080/api/v1/hello
 ```
 
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 **完成！** 你的第一个组件已经跑起来了，而且是通过标准 HTTP 访问的——不是 CLI 内部的什么特殊通道。
@@ -136,6 +136,18 @@ brickkit down
    需要彻底清理时手动执行：docker volume rm <卷名>
    重新启动：brickkit up
 ```
+
+## 切换 CLI 的语言
+
+上面打印的都是英文——那是默认语言。想让 CLI 说中文：
+
+```bash
+brickkit lang set zh                # 从此在这台机器上都说中文
+BRICKKIT_LANG=zh brickkit status    # 只管这一次
+brickkit lang                       # 现在生效的是哪种语言，为什么
+```
+
+`BRICKKIT_LANG` 优先于保存下来的设置，保存下来的设置优先于默认的英文。错误码、命令名、参数名不随语言变化。详见 [`brickkit lang`](06-architecture/09-cli-reference.md#brickkit-lang)。
 
 ## 给编辑器接上自动补全
 

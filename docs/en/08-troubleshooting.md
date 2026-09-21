@@ -56,7 +56,7 @@ If you're looking at a `❌` block rather than a symptom, the `error_code` in th
 
 | Symptom | Cause in one line | The fix |
 | --- | --- | --- |
-| [17. `brickkit lint` says everything is fine, but `up` fails](#17-brickkit-lint-says-everything-is-fine-but-up-fails)<br>`错误：强依赖缺失` | `lint` checks each file on its own; whether a dependency or a `servedBy` target exists needs the whole graph | `brickkit up --dry-run` (or `brickkit graph`) resolves the graph and names what's missing |
+| [17. `brickkit lint` says everything is fine, but `up` fails](#17-brickkit-lint-says-everything-is-fine-but-up-fails)<br>`Error: required dependency missing` | `lint` checks each file on its own; whether a dependency or a `servedBy` target exists needs the whole graph | `brickkit up --dry-run` (or `brickkit graph`) resolves the graph and names what's missing |
 | [18. The editor underlines almost every field of a valid `component.yaml`](#18-the-editor-underlines-almost-every-field-of-a-valid-componentyaml)<br>`Property apiVersion is not allowed.` | No BrickKit schema is attached, so the editor applies another tool's schema to that file name | Attach the schema with a `$schema` comment or the `yaml.schemas` setting |
 | [19. The editor underlines something the CLI accepts](#19-the-editor-underlines-something-the-cli-accepts) | The schemas are stricter than the CLI in three deliberate places | Write the literal value, quote the number, or fix the key |
 
@@ -70,7 +70,7 @@ If you're looking at a `❌` block rather than a symptom, the `error_code` in th
   - For local test components, build the image yourself first (a published component's image is always already in a registry — the CLI never builds anything for you).
   - Double-check `deployment.image`'s spelling and tag.
   - Private registries need `docker login` first.
-- **Code:** `IMAGE_UNAUTHORIZED` — the CLI usually translates Docker's raw text into `错误：镜像不存在` or `错误：镜像拉取未授权`; see [Error codes](06-architecture/10-error-codes.md#image_unauthorized).
+- **Code:** `IMAGE_UNAUTHORIZED` — the CLI usually translates Docker's raw text into `Error: image not found` or `Error: image pull not authorized`; see [Error codes](06-architecture/10-error-codes.md#image_unauthorized).
 
 ---
 
@@ -131,7 +131,7 @@ If you're seeing Docker's raw `Error: port is already allocated` instead of a Br
 
 ### 5. A required component setting has no value
 
-- **Symptom:** `brickkit up` refuses to generate anything and reports `错误：必填的组件配置没有值`.
+- **Symptom:** `brickkit up` refuses to generate anything and reports `Error: a required component config item has no value`.
 - **Cause:** a component lists a setting in `configSchema.required` with no default, and the project doesn't set it. The platform can't derive it (the address of a service in another project, say), so the project has to supply it. Letting it through would mean the component starts, looks completely healthy, and has one call path that quietly never works — so the platform stops here instead.
 - **Fix:** set it under that component's `config` in `brickkit.yaml`; the value may be `${ENV_VAR}`, with the real value in `.env`.
 - **Code:** `CONFIG_INVALID`; see [Error codes](06-architecture/10-error-codes.md#config_invalid).
@@ -147,7 +147,7 @@ The real error block (the missing setting is `pricingServiceUrl` of `shop/pricin
     components:
       - id: shop/pricing
         config:
-          pricingServiceUrl: <值>
+          pricingServiceUrl: <value>
    2. The value may be ${ENV_VAR}; keep the real value in .env
 ```
 
@@ -155,7 +155,7 @@ The real error block (the missing setting is `pricingServiceUrl` of `shop/pricin
 
 ### 6. An environment variable referenced in brickkit.yaml isn't defined
 
-- **Symptom:** `brickkit up` is stopped with `错误：brickkit.yaml 里引用的环境变量没有定义`.
+- **Symptom:** `brickkit up` is stopped with `Error: environment variables referenced in brickkit.yaml are not defined`.
 - **Cause:** some `${VAR}` in `brickkit.yaml` can't be resolved to a value. Kubernetes manifests can't defer the substitution to runtime, so it has to be resolved at generation time.
 - **Fix:** define it in the project root's `.env`, `export` it, or give a default: `${VAR:-dev}`.
 - **Code:** `CONFIG_INVALID`; see [Error codes](06-architecture/10-error-codes.md#config_invalid).
@@ -164,7 +164,7 @@ The real error block (the missing setting is `pricingServiceUrl` of `shop/pricin
 
 ### 7. Stays unhealthy while the component's log says it's ready
 
-- **Symptom:** `brickkit up` reports `错误：部分组件没有正常启动` (under Docker, `up -d --wait` fails as soon as it sees `unhealthy`), or `brickkit status` keeps showing `unhealthy` / `starting`. Yet the component's own log is fine all the way, and its last line is often exactly "service started".
+- **Symptom:** `brickkit up` reports `Error: some components did not start properly` (under Docker, `up -d --wait` fails as soon as it sees `unhealthy`), or `brickkit status` keeps showing `unhealthy` / `starting`. Yet the component's own log is fine all the way, and its last line is often exactly "service started".
 - **Cause:** usually one of two things:
   - **The image lacks the probe command.** The health check runs **inside the container**: an HTTP check runs `wget -q --spider <url> || curl -fsS <url>`, and a TCP check runs `nc -z localhost <port>`. A slim image such as `python:slim` or any distroless one often has none of them, so the probe fails forever even though the component is fine.
   - **Startup outlasts the grace period.** `healthCheck.startPeriodSeconds` defaults to 60 seconds. A Spring Boot cold start, a Django with heavy preloading, or a .NET first JIT can exceed it. Under Docker, `up -d --wait` fails outright; under Kubernetes the livenessProbe kills the Pod, it restarts and spends the same time again — a permanent CrashLoopBackOff — while the container log looks normal throughout.
@@ -221,7 +221,7 @@ The warning `brickkit up` prints:
    ⚠️ They only take effect when the cluster's CNI enforces them. When it doesn't: apply succeeds,
       kubectl get networkpolicy shows them, yet traffic is not restricted at all — with no error whatsoever.
       The **default** CNI of minikube / kind is exactly this kind.
-   平台测不出来（K8s 没有这个 API），只能你自己验一次
+   The platform can't detect this (K8s has no API for it), so you have to verify it yourself once:
 ```
 
 ---
@@ -278,7 +278,7 @@ The warning `brickkit up` prints:
 
 ### 17. `brickkit lint` says everything is fine, but `up` fails
 
-- **Symptom:** `brickkit lint` prints a `✅` for every file and exits `0`, then `brickkit up` (or `--dry-run`) stops with `错误：强依赖缺失` — or with `错误：servedBy 指向的组件不存在`.
+- **Symptom:** `brickkit lint` prints a `✅` for every file and exits `0`, then `brickkit up` (or `--dry-run`) stops with `Error: required dependency missing` — or with `Error: the component servedBy points to does not exist`.
 - **Cause:** `lint` checks each file's own structure and nothing else. Whether a dependency can be found in some source, or a `servedBy` target exists, depends on the rest of the project's Manifests (over the network, for market and Git components), so `lint` never looks — it would stop being offline. A clean `lint` means every YAML file is well-formed, not that the project will start.
 - **Fix:** run `brickkit up --dry-run`. It resolves the dependency graph and names the component, the dependency it can't find and the sources it tried. Add the missing component with `brickkit add`, or correct the ID or version in the declaration. (`brickkit graph` resolves the same graph and stops on a missing dependency too; for a missing `servedBy` target it draws the group as declared and leaves the report to `up`.)
 - **Code:** `DEPENDENCY_MISSING` (`CONFIG_INVALID` for a missing `servedBy` target); see [Error codes](06-architecture/10-error-codes.md#dependency_missing).
@@ -297,7 +297,7 @@ $ brickkit up --dry-run
    Component: people/basic@1.0.0
    Missing dependency: department/tree@1.0.0
    Reason: The component was not found in any install source
-   已尝试的安装源：local-dev（local）
+   Install sources tried: local-dev (local)
    Suggestions:
    1. Check the install source configuration (brickkit.yaml → sources)
    2. Confirm the component has been published to the Market

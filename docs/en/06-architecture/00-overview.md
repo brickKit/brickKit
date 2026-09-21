@@ -83,21 +83,21 @@ A real example beats the transformation rule on its own. Below is the actual `de
 ```yaml
 dependencies:
   components:
-    # 强依赖：注入 PEOPLE_BASIC_ENDPOINT（HTTP，8080）
-    # 与 PEOPLE_BASIC_GRPC_ENDPOINT（gRPC，来自它声明的 extraPorts，9090）。
-    # 本组件用的是后者
+    # Required: injects PEOPLE_BASIC_ENDPOINT (HTTP, 8080)
+    # and PEOPLE_BASIC_GRPC_ENDPOINT (gRPC, from the extraPorts it declares, 9090).
+    # This component uses the latter
     - people/basic@1.0.0
-    # 强依赖：注入 AUTH_PASSWORD_LOGIN_ENDPOINT
+    # Required: injects AUTH_PASSWORD_LOGIN_ENDPOINT
     - auth/password-login@1.0.0
-    # 强依赖：注入 AUTHORIZATION_RBAC_ENDPOINT（gRPC 与 HTTP 共用主端口）
+    # Required: injects AUTHORIZATION_RBAC_ENDPOINT (gRPC and HTTP share the main port)
     - authorization/rbac@1.0.0
-    # **弱依赖**：没装它时平台完全不注入 INFRA_REDIS_EVENT_BUS_ENDPOINT，
-    # 本组件据此降级——审批照常成功，只是不发事件
+    # **Optional**: when it isn't installed the platform injects no INFRA_REDIS_EVENT_BUS_ENDPOINT at all,
+    # and this component degrades accordingly — approvals still succeed, they just don't emit events
     - id: infra/redis-event-bus@1.0.0
       optional: true
 ```
 
-(The comments are in Chinese in the source file, quoted here verbatim rather than translated, since this is meant to be the literal file content.) The four dependency lines map to four environment variable names, each **derived directly from the component ID** (`/` and `-` become `_`, uppercased, with `_ENDPOINT` appended) — no separate variable-name declaration is needed. This is also why BrickKit has no dependency aliasing: once that two-way mapping between variable name and component ID is broken, seeing `IAM_ENDPOINT` no longer tells you which component it points at.
+(The comments in the source file are in Chinese; they are translated here.) The four dependency lines map to four environment variable names, each **derived directly from the component ID** (`/` and `-` become `_`, uppercased, with `_ENDPOINT` appended) — no separate variable-name declaration is needed. This is also why BrickKit has no dependency aliasing: once that two-way mapping between variable name and component ID is broken, seeing `IAM_ENDPOINT` no longer tells you which component it points at.
 
 ### External tools connecting to a component's port directly
 

@@ -20,7 +20,7 @@ Bind `department/tree` to two separate `kind: database` resources at once — a 
 
 ```
 ❌ Error: brickkit.yaml failed validation
-   resources[1].bindings[0]：与 resources[0].bindings[0] 抢同一批连接变量：组件 department/tree 同时绑定了 main-db 与 reporting-db（都是 database，都没写 envPrefix），两者都注入 DATABASE_HOST / DATABASE_PORT / … —— 后者覆盖前者，而组件不会察觉自己连错了地方。给其中一个加 envPrefix 区分开（如 envPrefix: ARCHIVE，注入为 ARCHIVE_DATABASE_HOST）
+   resources[1].bindings[0]: competes with resources[0].bindings[0] for the same connection variables: component department/tree binds both main-db and reporting-db (both database, neither sets envPrefix), and both inject DATABASE_HOST / DATABASE_PORT / … — the latter overwrites the former, and the component never notices it is connected to the wrong place. Add an envPrefix to one of them to tell them apart (for example envPrefix: ARCHIVE, injected as ARCHIVE_DATABASE_HOST); if you only need one, delete the redundant binding
 ```
 
 Add `envPrefix: REPORT` to the reporting binding and the exact same two bindings resolve cleanly — both fully present in the generated environment at once, one plain and one prefixed:

@@ -100,7 +100,7 @@ configSchema:
   properties:
     notifierBaseUrl:
       type: string
-      description: 共用通知服务的地址，由部署它的那个项目提供
+      description: The address of the shared notification service, supplied by the project that deploys it
 ```
 
 `required` with no `default` means the platform can't invent a value — the deploying project has to provide one. Try running without it:
@@ -111,8 +111,8 @@ brickkit up --dry-run
 ```
 ❌ Error: a required component config item has no value
    Missing config: demo/hello@1.0.0 → notifierBaseUrl (injected as NOTIFIER_BASE_URL)
-   原因：组件在 configSchema.required 里声明了它，又没有给默认值——
-   这一项平台推导不出来，只能由项目提供
+   Reason: The component declares it in configSchema.required without a default — the platform
+   can't derive this one, so the project has to supply it
 ```
 
 This is the load-bearing part of the whole pattern: without it, a forgotten address doesn't crash anything — the environment variable just never appears, the component quietly falls into whatever its own "unconfigured" branch does, and nothing ever tells you the call is silently going nowhere. Fill it in and the value flows through exactly like any other config:

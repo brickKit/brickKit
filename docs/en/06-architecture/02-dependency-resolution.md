@@ -2,7 +2,7 @@
 
 The overview walks through the six-stage `brickkit up` pipeline once, straight through, with everything turned on. This document goes back to stages ① and ② — **cascade** (which components actually run this time) and **resolve** (in what order the ones that run actually start) — and pushes each one harder: what happens when something is turned off, what happens when two paths converge on the same dependency, and why eight components starting doesn't mean eight serial steps.
 
-Every example below is a real `brickkit up --dry-run` run against real components from [`tests/components/`](../../../tests/components/), not a hand-written illustration. The CLI has no English output mode — its messages are Chinese, the same text you'd see running it yourself — so the command output below is quoted verbatim rather than translated, with English commentary around it.
+Every example below is a real `brickkit up --dry-run` run against real components from [`tests/components/`](../../../tests/components/), not a hand-written illustration. The command output below is the CLI's English output, quoted verbatim — the same text you'd see running it yourself. (English is the default; `brickkit lang set zh` switches the CLI to Chinese.)
 
 ## The graph these examples share
 
@@ -84,13 +84,13 @@ Point `department/tree` back at `people/basic` as a **required** dependency (on 
 ```
 ❌ Error: dependency cycle detected
    Cycle path: department/tree@1.0.0 → people/basic@1.0.0 → department/tree@1.0.0
-   原因：这几个组件互相强依赖，谁都要等对方先起来，启动顺序无解
+   Reason: These components all **require** each other; each is waiting for the others to start first, so there is no valid startup order
    Suggestions:
    1. Check the dependency declarations in the Manifest (dependencies.components)
    2. Make one side an optional dependency (optional: true) instead — an optional edge doesn't constrain startup order, and one optional edge in the cycle breaks the deadlock
 ```
 
-Make that same edge **optional** instead — `department/tree` optionally depends on `people/basic`, which still required-depends on `department/tree` — and the identical cycle resolves cleanly, no error, both directions visible in the dependency graph output (`department/tree@1.0.0 → people/basic@1.0.0（弱）`, and separately `people/basic@1.0.0 → department/tree@1.0.0` with no such marker).
+Make that same edge **optional** instead — `department/tree` optionally depends on `people/basic`, which still required-depends on `department/tree` — and the identical cycle resolves cleanly, no error, both directions visible in the dependency graph output (`department/tree@1.0.0 → people/basic@1.0.0 (optional)`, and separately `people/basic@1.0.0 → department/tree@1.0.0` with no such marker).
 
 The reason a cycle is only an error when every edge in it is required, never when at least one is optional: **a cycle is a problem because it makes start order unsolvable, and start order is only ever constrained by required edges** — the topological sort that produces stage ②'s output doesn't consider optional edges at all, precisely because an optional dependency might not even be running. So a cycle built entirely from required edges truly has no valid order — A waits for B, B waits for A, forever. A cycle with one optional edge in it has an obvious order: start the components without a required predecessor in the cycle first, and the optional edge simply doesn't block anything. Two components that each optionally call the other when it happens to be available — a notification service optionally calling an audit service, which optionally calls back into the notification service to record what it did — is a completely ordinary shape for two collaborating components, and there's no structural reason it should be rejected just because it happens to form a cycle on paper.
 
@@ -109,7 +109,7 @@ Back to all eight components enabled, the actual order:
    7. erp-backend-1-0-0            ← depends on 4, 5, 6
    8. portal-user-frontend-1-0-0   ← depends on 7
 
-可独立启动：department-tree-1-0-0、infra-api-docs-1-0-0、infra-redis-event-bus-1-0-0（无依赖）
+Can start on their own: department-tree-1-0-0, infra-api-docs-1-0-0, infra-redis-event-bus-1-0-0 (no dependencies)
 Longest dependency chain (5 levels): department-tree-1-0-0 → people-basic-1-0-0 → auth-password-login-1-0-0 → erp-backend-1-0-0 → portal-user-frontend-1-0-0
    Components not on this chain start in parallel with it
 ```

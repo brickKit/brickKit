@@ -9,7 +9,7 @@
    ⚠️ They only take effect when the cluster's CNI enforces them. When it doesn't: apply succeeds,
       kubectl get networkpolicy shows them, yet traffic is not restricted at all — with no error whatsoever.
       The **default** CNI of minikube / kind is exactly this kind.
-   平台测不出来（K8s 没有这个 API），只能你自己验一次
+   The platform can't detect this (K8s has no API for it), so you have to verify it yourself once:
 ```
 
 Minikube's own default CNI is explicitly named as one of the non-enforcing ones — this article's minikube was started with `minikube start --cni=calico` specifically so the demonstration below is real, not theater.
@@ -53,7 +53,7 @@ kubectl -n brickkit-hello-world exec deploy/demo-caller-1-0-0 -- \
   wget -qO- --timeout=3 http://demo-hello-1-0-0:8080/api/v1/hello
 ```
 ```json
-{"component":"demo/hello","greeting":"你好","message":"你好，我是 demo/hello@1.0.0","version":"1.0.0"}
+{"component":"demo/hello","greeting":"Hello","message":"Hello, I'm demo/hello@1.0.0","version":"1.0.0"}
 ```
 
 Instant, unaffected — the policy that just got generated is exactly permissive enough for the one real caller in this project.

@@ -59,7 +59,7 @@ brickkit add demo/hello@1.0.0
 ✅ Written to brickkit.yaml (1 component)
 ```
 
-No cosign anywhere on this machine — this verification ran entirely against the Go standard library's ECDSA implementation, checking real bytes against a real public key. `发布者 release-bot@example.com` is the exact `--signed-by` string from the publish step, carried all the way through.
+No cosign anywhere on this machine — this verification ran entirely against the Go standard library's ECDSA implementation, checking real bytes against a real public key. `publisher release-bot@example.com` is the exact `--signed-by` string from the publish step, carried all the way through.
 
 ## A verification failure that's genuinely a failure
 
