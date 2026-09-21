@@ -45,9 +45,18 @@
 
 ---
 
-## Task 1: `Component.Mode` 字段定义
+## Task 1: `Component.Mode` 字段定义 ✅ 已完成（实际范围比计划大，见下）
 
-**背景：** `internal/config/config.go` 的 `Component` 结构体（现有第 246-291 行附近）目前有 `Enabled *bool`（三态）与 `Local bool`（二态）两个独立字段。合并成 `Mode string`：空字符串等价于今天的 `Enabled == nil`（跟随上层，走容器），`"enabled"` 等价于今天的 `Enabled != nil && *Enabled == true`，`"disable"` 等价于今天的 `*Enabled == false`，`"debug"` 等价于今天的 `Local == true`。`LocalPort` 不变。这一步只改数据结构与最基础的读取方法，不改消费方——消费方在 Task 3-6 迁移，本任务结束时代码会编译失败（消费方还在读 `.Enabled`/`.Local`），这是预期状态，Task 1 的验收是"新类型与新方法本身的单元测试通过"，不要求整个仓库能编译。
+**执行记录（写计划时没预料到，执行时才发现）：** Go 要求整个包能编译才能跑包内任何一个测试，"只改数据结构、放着消费方编译失败"在 `internal/config` 包内部是做不到的——`internal/config/validate.go`、`internal/config/edit.go`、以及本包内一大批 `_test.go` 文件都在同一个包里引用旧字段。实际执行时把这些也一并处理了（仍然是纯迁移读取字段，不是新逻辑）：
+
+1. `validate.go` 的 `validateComponentPorts`/`validateServedBy`/`validateReplicas` 里读 `item.Local` 的四处改读 `item.Mode == ModeDebug`（Task 2 会在这基础上再加 mode 枚举合法性校验与 debug+k8s 拒绝，不用重做这四处）。
+2. `internal/config/edit.go` 的 `SetComponentEnabled(id, version string, enabled bool)`/`ClearComponentEnabled` ——这是计划最初完全没有列出的一块：`brickkit restore` 用它在 YAML 节点层面读写 `enabled` 字段，改成了 `SetComponentMode(id, version, mode string)`/`ClearComponentMode`，操作字符串而不是 bool（`mode` 的零值 `""` 本身就表达"没写"，不再需要 `*bool` 的指针语义）。**调用方 `internal/cli/restore.go` 还没跟着改**（`enabledChange`/`restorePlan`/`sameEnabled`/`applyEnabled`/`writeEnabled`/`printEnabledChanges`/`showEnabled`/`toEnabled` 整套 `*bool` 机制），这是 Task 6 的工作，Task 6 执行时直接调用这里新增的 `SetComponentMode`/`ClearComponentMode`，不要重新设计这两个方法。
+3. 保留变量文档文案修正：`ConfigServedByWithLocal`/`ConfigServedByTargetLocal`/`ConfigLocalPortNeedsLocal`/`ConfigReplicasWithLocal` 四条 msgid 的文案里原本硬编码着 `"local: true"` 字样——**计划里判断错了**，以为"文案本身不用改，只是判断条件换了读取字段"，实际这四句话本身就在向用户展示字段名，字段改名后文案是错的，必须改成 `"mode: debug"`。执行任何一个后续任务时，如果又见到某条 msgid 文案里硬编码着旧字段名，都要用同样的标准去查——不能想当然假设"逻辑变了、文案不用变"。
+4. `internal/compose/{compose,local}.go`、`internal/k8s/k8s.go`、`internal/cli/*.go` 的 `msgid` 目录里还有大约 20+ 条文案硬编码着 `"local: true"`（`graph`/`status`/`up` 的 `--help` 长文本、compose 的 `local: true` 组件警告、K8s 拒绝错误等），这些留给 Task 4-6 按各自触及的文件处理，不在 Task 1 范围内改（因为它们在别的包，Task 1 不需要碰那些包就能让 `internal/config` 自己编译通过）。
+
+**原计划描述（背景，仍然成立）：** `internal/config/config.go` 的 `Component` 结构体（现有第 246-291 行附近）目前有 `Enabled *bool`（三态）与 `Local bool`（二态）两个独立字段。合并成 `Mode string`：空字符串等价于今天的 `Enabled == nil`（跟随上层，走容器），`"enabled"` 等价于今天的 `Enabled != nil && *Enabled == true`，`"disable"` 等价于今天的 `*Enabled == false`，`"debug"` 等价于今天的 `Local == true`。`LocalPort` 不变。
+
+**验收结果**：`go test ./internal/config/... -count=1` 137 个测试全部通过；`go build ./...` 现在只在 `internal/cascade/cascade.go:289`（`c.Enabled undefined`）报错，符合预期——下一个未编译的包正是 Task 3 要处理的 `internal/cascade`。
 
 **Files:**
 - Modify: `internal/config/config.go`
@@ -59,6 +68,7 @@
   - 常量：`ModeEnabled = "enabled"`、`ModeDisable = "disable"`、`ModeDebug = "debug"`（都在 `internal/config` 包内）
   - `func (c Component) IsDisabled() bool`（保留原方法名与语义，内部改读 `Mode == ModeDisable`）
   - `func (c Component) IsPinned() bool`（新增，`Mode == ModeEnabled || Mode == ModeDebug`——"肯定要跑"的判定，供 Task 3 的 cascade 与 Task 2 的冲突校验复用，避免两处各写一份判断条件）
+  - **额外产出（执行时才发现需要，见下面的执行记录）**：`internal/config/edit.go` 的 `func (e *Edit) SetComponentMode(id, version, mode string) bool`、`func (e *Edit) ClearComponentMode(id, version string) bool`——Task 6 迁移 `internal/cli/restore.go` 时直接调用，不要重新实现。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -656,7 +666,17 @@ if entry.Mode == config.ModeDebug { ... }
 if c.Mode == config.ModeDebug { view.local = append(view.local, ref) }
 ```
 
-`sync.go`/`restore.go`/`lifecycle.go`/`logging.go` 里的命中点按同样模式逐一替换（具体位置以 Step 1 的清单为准，每改一个文件跑一次该文件对应的测试，不要攒到最后一次性跑全部——出错时更容易定位是哪一步引入的）。
+`sync.go`/`lifecycle.go`/`logging.go` 里的命中点按同样模式逐一替换（具体位置以 Step 1 的清单为准，每改一个文件跑一次该文件对应的测试，不要攒到最后一次性跑全部——出错时更容易定位是哪一步引入的）。
+
+**`restore.go` 的迁移范围比其它文件大，单独说清楚（Task 1 执行时发现的，`internal/config/edit.go` 那一侧的新方法已经在 Task 1 提交里落地了）**：整个文件是围绕 `enabledChange{from, to *bool}`/`restorePlan`/`sameEnabled`/`applyEnabled`/`writeEnabled`/`printEnabledChanges`/`showEnabled`/`toEnabled` 这一整套 `*bool` 三态比较机制写的，不是简单的字段读取替换。要改成：
+- `enabledChange` 的 `from`/`to` 从 `*bool` 改成 `string`——不需要指针，`""` 本身就表达"没写"（跟 `Component.Mode` 自己的语义一致）。
+- `sameEnabled(a, b *bool) bool` 这个辅助函数可以整个删掉：两个 `Mode` 字符串直接用 `==` 比较就行，不再需要专门处理"nil 与 false 不是一回事"这种指针特例。
+- `restorePlan` 里 `headEnabled := make(map[string]*bool...)` 改成 `headMode := make(map[string]string...)`，取值改成 `c.Mode`，`sameEnabled(c.Enabled, want)` 那行直接改成 `c.Mode == want`。
+- `applyEnabled` 里 `cfg.Components[i].Enabled = ch.to` 改成 `cfg.Components[i].Mode = ch.to`。
+- `writeEnabled` 里 `if ch.to == nil { edit.ClearComponentEnabled(...) } else { edit.SetComponentEnabled(ch.id, ch.version, *ch.to) }` 改成 `if ch.to == "" { edit.ClearComponentMode(ch.id, ch.version) } else { edit.SetComponentMode(ch.id, ch.version, ch.to) }`——`ClearComponentMode`/`SetComponentMode` 已经在 `internal/config/edit.go` 里了，直接调用，不要重新实现。
+- `showEnabled(v *bool)`/`toEnabled(v *bool)` 改成 `showMode(v string)`/`toMode(v string)`：`v == ""` 时走"没写"/"删除该字段"的文案分支，否则直接返回 `v` 本身（不再需要 `strconv.FormatBool`）。
+- 相应地把 `internal/cli/restore_test.go` 里构造 `enabledChange{...}`/`config.Component{Enabled: ...}` 的测试数据统一改成 `Mode: string` 的写法（用跟 Task 4 Step 2 一样的办法：先 `grep -n "Enabled:\|\*bool\|&enabled\|sameEnabled"` 定位，逐个替换，不要无差别 `sed`）。
+- 文件头部那句包注释（"本文件实现 brickkit restore：把 brickkit.yaml 的 enabled 与组件源码结构还原到最后一次提交"）与函数上那些提到"enabled"的注释一并改成"mode"。
 
 - [ ] **Step 5: 全量迁移验收**
 
