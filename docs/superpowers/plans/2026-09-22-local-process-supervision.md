@@ -4,7 +4,7 @@
 
 **Goal:** 新增两个**先不接线**的内部包——`internal/procsup`（前台监管一组裸进程：进程组 / Job Object、带前缀的合并输出、先体面停止再强杀、退出情况回调、一次性端口监听探测）与 `internal/sessionlock`（项目级会话锁，靠操作系统文件锁，持有者一死自动释放）——外加一个交叉编译守卫，让平台相关代码不会在 Windows / macOS 上悄悄编不过。
 
-**Architecture:** `procsup` 把每个子进程放进独立的进程组（Unix：`Setpgid`，信号发给整组；Windows：Job Object，关闭即整棵树收掉），所有子进程的 stdout / stderr 共用一根管道、按行加名字前缀后汇到同一个 `io.Writer`，收尾时先 `SIGTERM`（Windows：`CTRL_BREAK_EVENT`）、宽限期后强杀。它只报告退出情况，不做重启、不做健康检查、不跨会话存活。`sessionlock` 用 `flock` / `LockFileEx` 实现项目级锁，"有没有会话"看的是锁本身而不是 PID 文件里的号码。两个包都是纯库，不依赖 `internal` 里的任何别的包，Plan 4 再把它们接进 `up` / `status` / `down`。
+**Architecture:** `procsup` 把每个子进程放进独立的进程组（Unix：`Setpgid`，信号发给整组；Windows：Job Object，关闭即整棵树收掉），所有子进程的 stdout / stderr 共用一根管道、按行加名字前缀后汇到同一个 `io.Writer`，收尾时先 `SIGTERM`（Windows：`CTRL_BREAK_EVENT`）、宽限期后强杀。一个进程崩了，整个会话随即收尾，并把崩溃的现场（退出码、信号、最后 20 行输出）留在退出记录里；不做重启、不做健康检查、不跨会话存活。`sessionlock` 用 `flock` / `LockFileEx` 实现项目级锁，"有没有会话"看的是锁本身而不是 PID 文件里的号码。两个包都是纯库，不依赖 `internal` 里的任何别的包，Plan 4 再把它们接进 `up` / `status` / `down`。
 
 **Tech Stack:** Go 1.22 标准库（`os/exec`、`syscall`、`net`、`context`）；Windows 侧用 `golang.org/x/sys/windows`（已在 `go.sum` 里，本来是 cobra 的传递依赖，这次起成为直接依赖）；测试用 testify。
 
@@ -39,7 +39,7 @@
 
 ## 设计决定（spec 没写死、这份计划里定下的）
 
-1. **运行期一个进程崩了，其余的不停。** 这里的"进程"指 `procsup` 监管的进程——也就是 Plan 4 里 `mode: local` 组件被 brickkit 自己拉起的那些裸进程。`mode: debug` 的进程是用户自己在 IDE 里启动的，brickkit 不监管、也看不见它崩没崩；docker / k8s 的容器由 dockerd / kubelet 管，不进这个监管器。spec §3 只说"不自动重启、退出码本身就是崩溃信号"，没说一个崩了其余要不要停。全停会把还健康、可能正被调试的 local 组件连带杀掉、丢掉它们的状态；崩溃在终端里有醒目的一行就够了（Plan 4 用 `OnExit` 打印）。"不停"的范围只是：其余的 local 进程照跑，容器不受影响；依赖崩掉那个进程的组件连不上时怎么办，是组件自己的事（平台不做通信治理）。**启动阶段是另一回事**：命令刚拉起就退出（`WaitListening` 返回 `ProbeExited`）是 spec §6.4 的硬失败，`up` 整体失败、已经启动的进程一并收尾——这由 Plan 4 处理（见文末示意代码里的 `defer sup.Shutdown()`），不是本计划的库要做的决定。要把运行期也改成"一个崩了全停"，只需要 Plan 4 在 `OnExit` 里取消会话的 ctx，本计划的库不用动。
+1. **一个进程崩了，整个会话收尾，并把崩溃的现场留下来。**（用户 2026-09-22 的决定，spec §3 已同步。）这里的"进程"指 `procsup` 监管的进程——也就是 Plan 4 里 `mode: local` 组件被 brickkit 自己拉起的那些裸进程；`mode: debug` 的进程是用户自己在 IDE 里启动的，brickkit 不监管、也看不见它崩没崩，docker / k8s 的容器由 dockerd / kubelet 管，都不进这个监管器。"崩" = 不是我们叫它停的、并且退出码非零（含被外部信号杀死，比如 OOM killer）；自己干净退出（退出码 0）不算崩溃，也不会连累别人。有进程崩了，其余被监管的进程被体面地停掉；容器不受影响——`up` 本来就不管容器的生死，跟 spec §3"docker/k8s 部分不受影响"一致。**用户要在结束前知道什么崩了、并且能立刻排查**，所以库做两件事：① `OnExit` 先于收尾被调用，Plan 4 在那里立刻打一行"谁崩了"，它出现在其余进程被停掉的输出之前；② 每个进程的 `Exit` 里留着退出码、信号、跑了多久，**以及它最后 20 行输出（`Tail`）**——收尾时其余进程的关闭输出会刷屏，把崩溃的现场冲出屏幕，Plan 4 要在收尾结束后的最后一屏把这些重新打出来。**启动阶段用的是同一套机制**：命令刚拉起就退出，或者已经起来的某个进程在别的进程还在启动时崩了，Supervisor 都会收尾，之后的 `Start` 返回 `ErrStopped`。Plan 4 判断"谁是元凶"要看 `Exits()` 里哪些 `Crashed()`，不能看 `WaitListening` 的结果：被我们叫停的进程它也会返回 `ProbeExited`，但那不是它自己崩的。
 2. **输出走管道，不走 PTY。** 加前缀必须拦下输出。代价：子进程看到的 stdout 不是终端，有些语言会因此改变行为——Python 默认整块缓冲（输出会延迟）、很多工具会关掉彩色。库不替语言擦屁股：这属于 Plan 3 的语言适配器（例如 Python 适配器产出的环境变量里带上 `PYTHONUNBUFFERED=1`）。
 3. **不用 Linux 的 `Pdeathsig`。** 它绑的是"创建子进程的那个**线程**"而不是进程，Go 运行时调度线程时会出现误杀。代价：brickkit 被 `kill -9` / OOM 杀掉时，Unix 上的子进程会变成孤儿（Windows 的 Job Object 能兜住）。正常的三种收尾——Ctrl+C、`kill`、关终端——由 `StopSignals` 覆盖，并且有用真信号驱动的测试。
 4. **收尾时无条件再对进程组发一遍 `SIGKILL`。** 领头进程可能已经自己退了，组里却还留着不理睬 `SIGTERM` 的孙进程；只等领头进程会漏。
@@ -168,7 +168,7 @@ EOF
 
 ## Task 2: 输出前缀写入器
 
-**背景：** 多个进程的输出要合并到同一个终端，每行前面带上组件名（参考 foreman / overmind）。这是纯逻辑，没有任何平台差异，也不需要真的启动进程，所以最先做、最容易测。三个要点：① 一行一行地写，多个进程的行不会互相穿插；② 一行可能被拆成多次 `Write`（管道读到多少写多少），要按换行符重新拼；③ `Write` **永远不能返回错误**——`exec` 的拷贝 goroutine 一旦遇到写错误就会停止读管道，子进程随后会在写满管道时被卡死，不值得为终端上的一行输出把整个进程卡住。
+**背景：** 多个进程的输出要合并到同一个终端，每行前面带上组件名（参考 foreman / overmind）。这是纯逻辑，没有任何平台差异，也不需要真的启动进程，所以最先做、最容易测。四个要点：① 一行一行地写，多个进程的行不会互相穿插；② 一行可能被拆成多次 `Write`（管道读到多少写多少），要按换行符重新拼；③ `Write` **永远不能返回错误**——`exec` 的拷贝 goroutine 一旦遇到写错误就会停止读管道，子进程随后会在写满管道时被卡死，不值得为终端上的一行输出把整个进程卡住；④ 每个进程留下**最近 20 行输出**（`Tail`）——收尾时其余进程的关闭输出会刷屏，把崩溃的现场冲出屏幕，所以要把最后几行留在 `Exit` 里，由调用方在最后一屏重新打出来。
 
 **Files:**
 - Create: `internal/procsup/prefix.go`
@@ -178,8 +178,8 @@ EOF
 - Produces（同包内，Task 3 使用）：
   - `func prefixFor(name string, width int) string`——生成 `"<name 补齐到 width> | "`
   - `type lineSink struct{ mu sync.Mutex; out io.Writer }` 与 `func (s *lineSink) writeLine(prefix string, line []byte)`——一次写一整行，行间互斥
-  - `type prefixWriter struct{ sink *lineSink; prefix string; ... }`，实现 `io.Writer`，另有 `func (w *prefixWriter) Flush()`——把没遇到换行的尾巴当成一行吐出去
-  - `const maxLine = 64 * 1024`
+  - `type prefixWriter struct{ sink *lineSink; prefix string; ... }`，实现 `io.Writer`，另有 `func (w *prefixWriter) Flush()`——把没遇到换行的尾巴当成一行吐出去；`func (w *prefixWriter) Tail() []string`——最近至多 `tailLines` 行输出（不带前缀，最旧的在前，返回副本）
+  - `const maxLine = 64 * 1024`、`const tailLines = 20`
 
 - [ ] **Step 1: 写失败的测试**
 
@@ -263,6 +263,33 @@ func TestPrefixWriterSplitsOverlongLines(t *testing.T) {
 	assert.Len(t, lines[2], len("x | ")+10)
 }
 
+func TestPrefixWriterKeepsTheMostRecentLinesForTroubleshooting(t *testing.T) {
+	w, _ := newPrefixWriter("x | ")
+	for i := 0; i < tailLines+5; i++ {
+		_, _ = w.Write([]byte(fmt.Sprintf("line-%d\n", i)))
+	}
+	_, _ = w.Write([]byte("unfinished"))
+	w.Flush()
+
+	tail := w.Tail()
+
+	require.Len(t, tail, tailLines, "只留最近的 tailLines 行")
+	assert.Equal(t, "line-6", tail[0], "更早的被挤掉了")
+	assert.Equal(t, "line-24", tail[len(tail)-2])
+	assert.Equal(t, "unfinished", tail[len(tail)-1], "没换行的尾巴 Flush 之后也算一行")
+}
+
+func TestPrefixWriterTailIsEmptyForASilentProcessAndIsACopy(t *testing.T) {
+	w, _ := newPrefixWriter("x | ")
+	assert.Empty(t, w.Tail())
+
+	_, _ = w.Write([]byte("only\n"))
+	got := w.Tail()
+	got[0] = "tampered"
+
+	assert.Equal(t, []string{"only"}, w.Tail(), "改返回值不能影响内部状态")
+}
+
 func TestPrefixWriterNeverFailsTheChild(t *testing.T) {
 	w := &prefixWriter{sink: &lineSink{out: failingWriter{}}, prefix: "x | "}
 
@@ -329,6 +356,10 @@ import (
 // 免得一个不带换行的超长输出把内存吃光。
 const maxLine = 64 * 1024
 
+// tailLines 是每个进程留多少行最近的输出，供崩溃之后排查用：收尾时其余进程的关闭输出会刷屏，
+// 把崩溃的现场冲出屏幕之外，所以要把最后这几行留在 Exit 里，由调用方在最后一屏重新打出来。
+const tailLines = 20
+
 // prefixFor 生成一行输出的前缀，形如 "people/basic | "；width 用来把多个组件的前缀对齐。
 func prefixFor(name string, width int) string {
 	return fmt.Sprintf("%-*s | ", width, name)
@@ -359,8 +390,9 @@ type prefixWriter struct {
 	sink   *lineSink
 	prefix string
 
-	mu  sync.Mutex
-	buf []byte
+	mu   sync.Mutex
+	buf  []byte
+	tail []string
 }
 
 func (w *prefixWriter) Write(p []byte) (int, error) {
@@ -401,7 +433,21 @@ func (w *prefixWriter) Flush() {
 }
 
 func (w *prefixWriter) emit(line []byte) {
-	w.sink.writeLine(w.prefix, bytes.TrimSuffix(line, []byte("\r")))
+	line = bytes.TrimSuffix(line, []byte("\r"))
+	if len(w.tail) == tailLines {
+		copy(w.tail, w.tail[1:])
+		w.tail = w.tail[:tailLines-1]
+	}
+	w.tail = append(w.tail, string(line))
+	w.sink.writeLine(w.prefix, line)
+}
+
+// Tail 返回最近输出的几行（不带前缀，最旧的在前），最多 tailLines 行。返回的是副本。
+func (w *prefixWriter) Tail() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return append([]string(nil), w.tail...)
 }
 ```
 
@@ -425,7 +471,8 @@ git commit -m "$(cat <<'EOF'
 把多个子进程的输出汇到同一个 Writer 时，每行带上组件名（形如 "people/basic | ..."）。
 一行被拆成多次 Write 时按换行符重新拼；超长且不带换行的输出按 64KB 切开，免得吃光内存；
 Write 永远不返回错误——exec 的拷贝 goroutine 一遇到写错误就停止读管道，子进程会在写满
-管道时被卡死。
+管道时被卡死。同时留下每个进程最近 20 行输出（Tail），供崩溃之后排查：收尾时其余进程的输出
+会刷屏，把崩溃的现场冲出屏幕之外。
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
@@ -440,8 +487,9 @@ EOF
 
 - 每个子进程自成一个进程组（Unix `Setpgid`），信号发给整组——`go run`、`npm run dev` 这类"启动器"会再拉起真正的服务进程，只给启动器发信号收不干净。副作用是终端的 Ctrl+C 不再直接打到子进程，收尾完全由 `Supervisor` 转发；所以前台会话必须自己接住 `StopSignals`。
 - Windows 用 Job Object（`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`）：关闭 Job、或者 brickkit 自己死掉，系统把整棵树收走。优雅停止用 `CTRL_BREAK_EVENT`（需要子进程有自己的进程组）。这一半**只保证能编过**（spec §6.5），没有真机验证。
-- 不自动重启；运行期一个被监管的进程崩了不连累别的被监管进程（`procsup` 是通用库，它不知道什么是 `local`，被监管的就是调用方 `Start` 进来的那些）；`Exit.Crashed()` = 不是我们叫停的、并且退出码非零。
-- `Run(ctx)` 阻塞到所有进程自己退出，或 ctx 取消后完成收尾。收尾 = 先请体面退出 → 等 `GracePeriod` → 无条件强杀 → 释放平台资源。
+- 不自动重启。**一个进程崩了（`Exit.Crashed()` = 不是我们叫停的、并且退出码非零，含被外部信号杀死），整个会话随即收尾**（设计决定 1）：`watch` 在回调 `OnExit`、关闭 `Done` 之后起一个 goroutine 调 `Shutdown`，所以调用方先看到"谁崩了"，然后才是其余进程被停掉的输出；之后 `Start` 返回 `ErrStopped`。自己干净退出（退出码 0）不算崩溃，也不连累别人。
+- 崩溃的现场留在 `Exit` 里：退出码、信号、跑了多久，以及最后 20 行输出（`Tail`，来自 Task 2 的 `prefixWriter.Tail()`）。被我们叫停的进程 `Stopped == true`、`Crashed()` 为假——否则最后一屏会把受害者当成元凶。
+- `Run(ctx)` 阻塞到所有进程自己退出，或 ctx 取消后完成收尾（有进程崩了会话会自己收尾，`Run` 随之返回）。收尾 = 先请体面退出 → 等 `GracePeriod` → 无条件强杀 → 释放平台资源。
 
 测试要真的启动子进程。做法是**让测试二进制自己当子进程**：`helperEnv` 一置位，`TestMain` 就不跑测试，而是按第一个参数扮演某种行为（打印若干行、指定退出码、装作没听见 SIGTERM、拉起孙进程、扮演一个完整的前台会话……）。这样不依赖 `sh`、`sleep` 这类外部命令。注意 `-race` 下每个子进程也是竞态插桩过的，启动慢一截，`procsup` 的测试在 `-race` 下要跑十几秒，不是卡住了。
 
@@ -451,11 +499,11 @@ EOF
 - Modify: `go.mod`
 
 **Interfaces:**
-- Consumes（Task 2）：`prefixFor(name string, width int) string`、`lineSink`、`prefixWriter`（含 `Flush`）
+- Consumes（Task 2）：`prefixFor(name string, width int) string`、`lineSink`、`prefixWriter`（含 `Flush`、`Tail`）
 - Produces（Plan 4 依赖，签名不要改）：
   - `type Spec struct { Name string; Argv []string; Dir string; Env []string }`——`Env` 是 `"KEY=VALUE"`，追加在当前进程环境之后，同名以后者为准
   - `type Options struct { Out io.Writer; NameWidth int; GracePeriod time.Duration; OnExit func(Exit) }`
-  - `type Exit struct { Name string; PID int; Code int; Signal string; Stopped bool; Duration time.Duration }`；`func (e Exit) Crashed() bool`
+  - `type Exit struct { Name string; PID int; Code int; Signal string; Stopped bool; Duration time.Duration; Tail []string }`；`func (e Exit) Crashed() bool`
   - `type Proc`；`func (p *Proc) Name() string`、`PID() int`、`Done() <-chan struct{}`、`Exit() Exit`
   - `func New(opts Options) (*Supervisor, error)`
   - `func (s *Supervisor) Start(spec Spec) (*Proc, error)`
@@ -612,6 +660,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -673,6 +722,7 @@ func TestNonZeroExitIsReportedAsACrashExactlyOnce(t *testing.T) {
 	assert.Equal(t, 3, exits[0].Code)
 	assert.True(t, exits[0].Crashed())
 	assert.Equal(t, exits, seen, "OnExit 每个进程恰好一次")
+	assert.Equal(t, []string{"boom"}, exits[0].Tail, "崩溃前最后的输出要留在 Exit 里，供排查")
 	assert.Equal(t, "api | boom\n", out.String())
 	<-p.Done()
 	assert.Equal(t, exits[0], p.Exit())
@@ -680,9 +730,30 @@ func TestNonZeroExitIsReportedAsACrashExactlyOnce(t *testing.T) {
 	assert.Positive(t, p.PID())
 }
 
-func TestAProcessThatExitsDoesNotStopItsSiblings(t *testing.T) {
+func TestACrashShutsDownTheWholeSessionAndNamesTheCulprit(t *testing.T) {
+	var order []string
+	sup, out := newSupervisor(t, Options{OnExit: func(e Exit) { order = append(order, e.Name) }})
+	_, err := sup.Start(helperSpec("steady", "sleep"))
+	require.NoError(t, err)
+	waitForOutput(t, out, "steady | ready")
+	_, err = sup.Start(helperSpec("crasher", "exit", "1", "boom"))
+	require.NoError(t, err)
+
+	exits := sup.Run(context.Background()) // 没有人取消 ctx：崩溃本身就让会话收尾
+
+	require.Len(t, exits, 2)
+	steady, crasher := exits[0], exits[1]
+	assert.True(t, crasher.Crashed(), "谁崩了：Crashed() 为真的那个")
+	assert.Equal(t, 1, crasher.Code)
+	assert.Equal(t, []string{"boom"}, crasher.Tail, "崩溃前最后的输出留了下来")
+	assert.True(t, steady.Stopped, "没崩的被叫停")
+	assert.False(t, steady.Crashed(), "被我们叫停的不算崩溃，否则最后一屏会把受害者当成元凶")
+	assert.Equal(t, []string{"crasher", "steady"}, order, "崩溃的回调先于其余进程被停掉")
+}
+
+func TestACleanExitDoesNotStopItsSiblings(t *testing.T) {
 	sup, out := newSupervisor(t, Options{})
-	crasher, err := sup.Start(helperSpec("crasher", "exit", "1"))
+	quick, err := sup.Start(helperSpec("quick", "exit", "0"))
 	require.NoError(t, err)
 	_, err = sup.Start(helperSpec("steady", "sleep"))
 	require.NoError(t, err)
@@ -690,20 +761,35 @@ func TestAProcessThatExitsDoesNotStopItsSiblings(t *testing.T) {
 	done := make(chan []Exit, 1)
 	go func() { done <- sup.Run(ctx) }()
 
-	<-crasher.Done()
+	<-quick.Done()
 	waitForOutput(t, out, "steady | ready")
 	select {
 	case <-done:
-		t.Fatal("一个进程崩了，Run 不该跟着结束")
+		t.Fatal("自己干净退出（退出码 0）不是崩溃，Run 不该跟着结束")
 	default:
 	}
 	cancel()
 	exits := <-done
 
 	require.Len(t, exits, 2)
-	assert.True(t, exits[0].Crashed())
-	assert.False(t, exits[1].Crashed(), "被我们收尾的不算崩溃")
+	assert.False(t, exits[0].Crashed())
+	assert.False(t, exits[0].Stopped)
 	assert.True(t, exits[1].Stopped)
+}
+
+func TestNothingCanStartOnceASessionHasCrashed(t *testing.T) {
+	sup, _ := newSupervisor(t, Options{})
+	p, err := sup.Start(helperSpec("crasher", "exit", "2"))
+	require.NoError(t, err)
+	<-p.Done()
+
+	require.Eventually(t, func() bool {
+		sup.mu.Lock()
+		defer sup.mu.Unlock()
+		return sup.stopping
+	}, 5*time.Second, 5*time.Millisecond, "崩溃之后 Supervisor 应该自己进入收尾")
+	_, err = sup.Start(helperSpec("late", "exit", "0"))
+	assert.ErrorIs(t, err, ErrStopped)
 }
 
 func TestStartReportsAMissingBinaryAndRegistersNothing(t *testing.T) {
@@ -884,6 +970,29 @@ func TestShutdownAsksPolitelyFirst(t *testing.T) {
 	assert.Equal(t, -1, exits[0].Code)
 }
 
+// 被外部信号杀死（比如内存不够被 OOM killer 干掉）同样是崩溃：不是我们叫它停的，也不是干净退出。
+func TestAProcessKilledBySomeoneElseCountsAsACrash(t *testing.T) {
+	sup, out := newSupervisor(t, Options{})
+	victim, err := sup.Start(helperSpec("victim", "sleep"))
+	require.NoError(t, err)
+	_, err = sup.Start(helperSpec("bystander", "sleep"))
+	require.NoError(t, err)
+	done := make(chan []Exit, 1)
+	go func() { done <- sup.Run(context.Background()) }()
+	waitForOutput(t, out, "victim | ready")
+	waitForOutput(t, out, "bystander | ready")
+
+	require.NoError(t, syscall.Kill(victim.PID(), syscall.SIGKILL))
+
+	exits := awaitExits(t, done)
+	require.Len(t, exits, 2)
+	assert.True(t, exits[0].Crashed())
+	assert.Equal(t, "killed", exits[0].Signal)
+	assert.Equal(t, -1, exits[0].Code)
+	assert.True(t, exits[1].Stopped, "旁观者被叫停，会话结束")
+	assert.False(t, exits[1].Crashed())
+}
+
 func TestShutdownEscalatesToKillWhenTheProcessIgnoresTerm(t *testing.T) {
 	sup, out := newSupervisor(t, Options{GracePeriod: 200 * time.Millisecond})
 	_, err := sup.Start(helperSpec("stubborn", "ignore-term"))
@@ -976,8 +1085,12 @@ Expected: 编译失败，报 `undefined: Options`、`undefined: New`、`undefine
 // 把所有进程的 stdout/stderr 按行加上名字前缀，汇到同一个 io.Writer；收尾时先请进程体面地停，
 // 超时再强杀；把每个进程的退出情况交给调用方。
 //
-// 它刻意不做的：重启（崩了就是崩了，退出码本身就是信号）、健康检查、跨会话存活。
-// 进程的生命周期严格等于持有 Supervisor 的这段前台会话——所以不需要 PID 文件、也不需要后台服务。
+// 它刻意不做的：重启、健康检查、跨会话存活。进程的生命周期严格等于持有 Supervisor 的这段前台会话
+// ——所以不需要 PID 文件、也不需要后台服务。
+//
+// 一个进程崩了（不是我们叫它停的、退出码非零，含被外部信号杀死），整个会话随即收尾：其余进程被体面地停掉。
+// 崩溃的现场留在 Exit 里——退出码、信号、跑了多久，以及它最后的若干行输出——调用方可以在收尾结束之后
+// 把"谁崩了、怎么崩的"打在最后一屏，不被收尾时其余进程的输出冲走。
 package procsup
 
 import (
@@ -1033,6 +1146,7 @@ type Options struct {
 	// GracePeriod 见 DefaultGracePeriod；<= 0 时取默认值。
 	GracePeriod time.Duration
 	// OnExit 在每个进程退出时被调用一次，调用之间是串行的，并且先于该进程的 Done 关闭。
+	// 崩溃时它也先于整个会话的收尾：终端上"谁崩了"的那一行，会出现在其余进程被停掉的输出之前。
 	// 别在里面做耗时的事，更不能调用 Shutdown 或 Run——它们要等这个进程的 Done，会互相等死。
 	OnExit func(Exit)
 }
@@ -1049,6 +1163,8 @@ type Exit struct {
 	Stopped bool
 	// Duration 是从启动到退出的时长。
 	Duration time.Duration
+	// Tail 是它最后的若干行输出（stdout 与 stderr 合并，不带前缀，最旧的在前，最多 20 行），排查崩溃用。
+	Tail []string
 }
 
 // Crashed 表示进程自己异常退出了：不是我们叫它停的，而且退出码非零（含被信号杀死）。
@@ -1149,7 +1265,7 @@ func (s *Supervisor) watch(p *Proc, cmd *exec.Cmd, w *prefixWriter) {
 	}
 	p.exit = Exit{
 		Name: p.name, PID: p.pid, Code: code, Signal: signal,
-		Stopped: p.stopping.Load(), Duration: time.Since(p.started),
+		Stopped: p.stopping.Load(), Duration: time.Since(p.started), Tail: w.Tail(),
 	}
 
 	// 回调先于 close(done)：Run / Shutdown 返回时，所有回调都已经跑完，调用方读自己收集的结果不会有竞态。
@@ -1159,12 +1275,19 @@ func (s *Supervisor) watch(p *Proc, cmd *exec.Cmd, w *prefixWriter) {
 		s.exitMu.Unlock()
 	}
 	close(p.done)
+
+	// 一个崩了，整个会话收尾。放在回调与 close(done) 之后：调用方先看到"谁崩了"，
+	// 然后才是其余进程被停掉时的输出。用 goroutine 是因为 Shutdown 要等所有进程的 Done，包括我们自己。
+	if p.exit.Crashed() {
+		go s.Shutdown()
+	}
 }
 
 // Run 阻塞到所有已启动的进程都退出，或者 ctx 被取消——取消时先 Shutdown 再返回。
 // 返回全部进程的退出情况，按启动顺序。Run 期间不要再 Start。
 //
-// 某个进程崩了不会连累别的进程：其余的照常跑，直到它们自己退出或者 ctx 被取消。
+// 有进程崩了，Supervisor 会自己收尾（见包注释），Run 随之返回：返回值里 Crashed() 为真的就是"谁崩了"，
+// 其余的是被叫停的（Stopped）。自己干净退出（退出码 0）的进程不算崩溃，也不会连累别的进程。
 func (s *Supervisor) Run(ctx context.Context) []Exit {
 	s.mu.Lock()
 	procs := append([]*Proc(nil), s.procs...)
@@ -1408,9 +1531,11 @@ git commit -m "$(cat <<'EOF'
 "go run"、"npm run dev" 这类启动器拉起的孙进程也一起收掉；所有进程的输出带名字前缀汇到
 同一个 Writer；收尾先 SIGTERM（Windows 是 CTRL_BREAK_EVENT），等宽限期，再无条件强杀，
 连领头进程已经走了、组里却残留的孤儿也清掉。不重启、不做健康检查、不跨会话存活；一个进程
-崩了不连累别的进程，退出情况通过 OnExit 与 Exit 交给调用方。
+一个进程崩了（不是我们叫它停的、退出码非零，含被外部信号杀死）整个会话随即收尾，其余进程被体面地停掉；
+崩溃的现场——退出码、信号、跑了多久、最后 20 行输出——留在 Exit 里，OnExit 先于收尾被调用，调用方
+可以立刻告诉用户谁崩了，收尾之后再在最后一屏汇总。
 
-测试让测试二进制自己当子进程，覆盖：退出码、崩溃判定、环境与工作目录、并发输出行完整、
+测试让测试二进制自己当子进程，覆盖：退出码、崩溃判定与会话收尾（含被外部信号杀死、干净退出不连累别人）、环境与工作目录、并发输出行完整、
 SIGTERM 不理睬时升级为 SIGKILL、孙进程与孤儿的清理，以及用真的 SIGINT / SIGTERM /
 SIGHUP 驱动一个跑在另一个进程里的前台会话。Windows 那一半只保证编得过（spec §6.5）。
 golang.org/x/sys 从间接依赖改成直接依赖。
@@ -2170,24 +2295,33 @@ defer func() { _ = lock.Release() }()
 ctx, stop := signal.NotifyContext(ctx, procsup.StopSignals...)
 defer stop()
 
-// 3. 监管器：NameWidth 取所有 local 组件名里最长的，输出才对得齐
-sup, _ := procsup.New(procsup.Options{Out: stdout, NameWidth: widest, OnExit: printExit})
+// 3. 监管器：NameWidth 取所有 local 组件名里最长的，输出才对得齐。
+//    OnExit 在"谁崩了"发生的那一刻被调用，先于其余进程被停掉——立刻打一行，用户马上就知道
+sup, _ := procsup.New(procsup.Options{Out: stdout, NameWidth: widest, OnExit: func(e procsup.Exit) {
+	if e.Crashed() { /* i18n：❌ people/basic 崩溃了（退出码 1）——正在停止其余进程…… */ }
+}})
 defer sup.Shutdown()
 
 // 4. 按拓扑序一个个启动，每个启动完做一次性的端口探测
 for _, c := range localComponentsInTopologicalOrder {
 	p, err := sup.Start(procsup.Spec{Name: c.ID, Argv: argv, Dir: srcDir, Env: env})
-	// err != nil：命令根本起不来，同样按"硬失败"处理，提示手写 runCommand
+	if errors.Is(err, procsup.ErrStopped) { break } // 已经有进程崩了，会话在收尾：别再启动新的
+	// 其他 err：命令根本起不来，按"硬失败"处理，提示手写 runCommand
 	switch procsup.WaitListening(ctx, port, p.Done(), timeout) {
-	case procsup.ProbeExited:   // 启动阶段的硬失败：报错、点名组件、提示手写 runCommand；
-	                            // return 出错误，上面的 defer sup.Shutdown() 把已经起来的也收掉
+	case procsup.ProbeExited:   // 两种可能：它自己没跑起来（硬失败：报错、点名组件、提示手写 runCommand），
+	                            // 或者别的进程崩了、它是被我们叫停的——到 sup.Exits() 里看谁 Crashed()
 	case procsup.ProbeTimedOut: // 软警告：进程在跑但没监听期望端口，不杀
 	case procsup.ProbeCanceled: // 用户按了 Ctrl+C：直接收尾
 	}
 }
 
-// 5. 阻塞到全部退出或被取消；崩溃的通过 OnExit 已经在终端里打印过了
+// 5. 阻塞到全部退出或被取消；有进程崩了会话自己收尾，Run 随之返回
 exits := sup.Run(ctx)
+
+// 6. 收尾结束之后，在最后一屏说清楚"什么崩了"——不被刚才其余进程被停掉的输出冲走
+for _, e := range exits {
+	if e.Crashed() { /* i18n：组件名、退出码或信号、跑了多久，然后逐行打出 e.Tail 供排查 */ }
+}
 ```
 
 几件 Plan 4（与 Plan 3）要记住的事：
@@ -2201,7 +2335,7 @@ exits := sup.Run(ctx)
 
 - [ ] spec §3「Go 内置、进程组 / Job Object」→ Task 3（`proc_unix.go`、`proc_windows.go`）
 - [ ] spec §3「日志按组件名做行前缀」→ Task 2 + Task 3（`NameWidth`）
-- [ ] spec §3「不自动重启、退出码本身就是崩溃信号」→ Task 3（`Exit.Crashed`、`OnExit`；一个进程崩了不连累别的）
+- [ ] spec §3「不自动重启、退出码本身就是崩溃信号」+ 用户的决定「一个崩了全停，结束前告诉用户什么崩了」→ Task 3（`Exit.Crashed`、崩溃触发整个会话收尾、`OnExit` 先于收尾、`Exit.Tail`）+ Task 2（`prefixWriter.Tail`）
 - [ ] spec §3「并发保护：项目目录级锁，进程死锁自动释放」→ Task 5（含 `kill -9` 之后锁空出来的跨进程用例）
 - [ ] spec §3「`status` / `down` 跨终端可见性」→ Task 5 提供 `Inspect`；展示归 Plan 4
 - [ ] spec §3「多个本地进程按拓扑序启动、不卡在健康检查」→ Task 3 的 `Start` 一次一个、立刻返回；编排归 Plan 4
