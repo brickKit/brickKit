@@ -212,9 +212,28 @@ func (c *Config) validateComponents(p *clierr.ProblemSet) {
 			}
 		}
 
+		c.validateComponentMode(p, field, item)
 		c.validateComponentPorts(p, field, i, item, localPorts, exposePorts)
 		validateReplicas(p, field, item)
 		manifest.ValidateLabels(item.Labels, field+".labels", p.Add)
+	}
+}
+
+// validateComponentMode 校验 mode 的取值合法性，以及 mode: debug 与
+// deploy.target: k8s 的组合——这条检查以前在 K8s 生成阶段才报（internal/k8s/k8s.go
+// 的 localNotSupported），这次挪到解析阶段：不需要依赖图，跟 validateComponentPorts
+// 已经在做的 deploy.target 组合校验是同一类检查，挪过来后 `brickkit lint` 就能
+// 拿到这个错误，不用等真正生成部署文件。
+func (c *Config) validateComponentMode(p *clierr.ProblemSet, field string, item Component) {
+	switch item.Mode {
+	case "", ModeEnabled, ModeDisable, ModeDebug:
+		// 合法取值
+	default:
+		p.Add(field+".mode", i18n.T(msgid.ConfigModeInvalid, item.Mode))
+		return
+	}
+	if item.Mode == ModeDebug && c.Deploy.Target == TargetK8s {
+		p.Add(field+".mode", i18n.T(msgid.ConfigModeK8sUnsupported, item.Mode))
 	}
 }
 

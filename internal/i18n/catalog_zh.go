@@ -605,6 +605,8 @@ var zh = map[string]string{
 	msgid.ConfigEnvPrefixBoth:                                        "envPrefix 都是 %[1]s",
 	msgid.ConfigReplicasTooSmall:                                     "必须 >= 1（当前是 %[1]d）。要关掉这个组件请用 enabled: false——它会走级联计算并提醒依赖方，而 replicas: 0 绕过这一切：依赖方照常启动、照常拿到地址，然后连一个不存在的后端",
 	msgid.ConfigReplicasWithLocal:                                    "不能与 mode: debug 同时声明：debug 是这个组件在你的 IDE 里跑，那里只有一个进程",
+	msgid.ConfigModeInvalid:                                          "mode 只能是 enabled/disable/debug 之一（或不写），实际是 %[1]q",
+	msgid.ConfigModeK8sUnsupported:                                   "mode: %[1]s 只支持 deploy.target: docker（现在是 k8s）——集群里的 Pod 连不到开发者自己机器上的进程",
 	msgid.K8sActionCleanDir:                                          "清理目录",
 	msgid.K8sPrivilegedPort:                                          "组件监听特权端口 %[1]d，但 podSecurity: restricted 下绑不了",
 	msgid.K8sLabelPort:                                               "端口",

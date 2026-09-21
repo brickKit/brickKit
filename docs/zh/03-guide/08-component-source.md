@@ -508,9 +508,9 @@ brickkit restore
 ```
 
 ```
-📄 brickkit.yaml：按最后一次提交还原 enabled（其余改动未动）
-   demo/hello@1.0.0           enabled: true → 删除该字段（提交里没写）
-   demo/caller@1.0.0          enabled: false → 删除该字段（提交里没写）
+📄 brickkit.yaml：按最后一次提交还原 mode（其余改动未动）
+   demo/hello@1.0.0           mode: enabled → 删除该字段（提交里没写）
+   demo/caller@1.0.0          mode: disable → 删除该字段（提交里没写）
 📂 工作区整理：
    📂 components/.archived/demo/caller     → components/demo/caller/
       原因：恢复启用

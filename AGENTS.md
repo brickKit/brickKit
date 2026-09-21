@@ -723,9 +723,8 @@ sources:                         # install sources
 components:
   - id: people/basic
     version: 1.0.0               # required, exact version
-    enabled: true                # optional, see §5.4 for how to write it
-    local: false                 # optional, local debug mode
-    localPort: 8081              # host port when local: true
+    mode: debug                  # optional: enabled | disable | debug, see §5.4 for how to write it
+    localPort: 8081              # host port when mode: debug
     servedBy: <id>@<version>     # optional, this component's workload is provided by that other component
     expose: false                # optional, default false
     hostname: <domain>           # required when expose + k8s

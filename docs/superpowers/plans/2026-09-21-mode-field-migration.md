@@ -16,13 +16,13 @@
 - **`Mode` 必须是唯一真相**：完成后 `grep -rn "\.Enabled\b\|\.Local\b" internal/`（排除 `_test.go` 里对新 `Mode` 字符串值的字面量比较，以及 `internal/config/config.go`/`validate.go` 里定义 `Mode` 本身的代码）不应有命中。这是 Task 6 结束前必须跑的一条验收命令，见 Task 6 Step 5。
 - **本计划不引入 `mode: local`**：`Mode` 的合法值这次只有 `""`（未写）/`"enabled"`/`"disable"`/`"debug"` 四个，`jsonschema:"enum=enabled|disable|debug"`（空值走 `omitempty` 自动允许 `null`/缺省，不需要把 `""` 写进 enum）。`local` 由后续计划（本地进程监管完成后）追加进枚举，本计划里出现 `mode: local` 一律按未知枚举值报错，这是当前阶段的正确行为。
 - **不做旧字段兼容**：不保留 `enabled`/`local`/双写、不加过渡期。仓库自己的示例、测试固件、文档里的旧字段本次直接改成新字段。
-- 每个任务结束前：`go test ./internal/... -count=1` 与完整 `make lint` 都要绿，再单独提交。判断是否通过看退出码——这台机器是 zsh，`${PIPESTATUS[0]}` 不存在，`make lint | grep` 会把失败看成成功，写成 `make lint > "$SCRATCH/lint.log" 2>&1; echo "exit=$?"` 再 `tail` 日志。
+- **每个任务结束前的验收标准，执行 Task 1-2 时发现原表述不现实，改成这样：** Go 要求整个包能编译才能跑包内任何测试，而这份计划的任务边界是"一次迁移一个包"（config → cascade → compose → k8s → cli），Task 3 完成之前 `internal/cascade` 就没法编译、Task 6 完成之前 `internal/cli` 就没法编译——这是任务拆分本身决定的，不是哪个任务没做完。所以**完整 `go build ./...` 与完整 `make lint` 全绿，只在 Task 6（`internal/cli` 迁移完，是最后一个还在读旧字段的包）结束时才作为验收标准**；Task 1-5 的验收标准是"这个任务touch到的包自己的 `go test` 全绿 + `go build ./...` 报错的包只剩计划里还没做到的那些（不能新增其它包的报错）"。另外——`make lint` 的 `check-doc-fields`（`go test ./tests/docfields/...`）不依赖编译，是纯静态文本核对（YAML 骨架实际拿去解析、文档提到的字段跟结构体反射结果比对），**这个从 Task 1 起就必须每个任务都保持绿**，因为它检查的是"文档说的话是不是真的"，不是"整个仓库能不能编译"——每个任务touch到哪个文件涉及的文档段落，就要跟着把那一段落改对，不能留到 Task 7 才补（Task 2 执行时就因为这个补了 `AGENTS.md`/`AGENTS.zh.md` 的骨架、`08-brickkit-yaml-reference.md` 的字段表、错误码文档三处，比计划原本分配给 Task 2 的范围大）。判断退出码——这台机器是 zsh，`${PIPESTATUS[0]}` 不存在，`make lint | grep` 会把失败看成成功，写成 `make lint > "$SCRATCH/lint.log" 2>&1; echo "exit=$?"` 再 `tail` 日志。
 - 提交命令从 `git` 开头，不带 `cd` 前缀；提交信息末尾加一行 `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`。提交信息含中文全角引号时先写进文件再 `git commit -F <文件>`。
 - zsh 会把 `--include=*.go` 当通配符展开，一律写成 `--include='*.go'`。
 - 不碰仓库根目录未跟踪的 `改进计划.md`；若被 `check-docs`/`check-cli-docs` 拦住，临时 `mv` 到 scratchpad、跑完再 `mv` 回来。
 - 文档：`docs/en`、`docs/zh` 各写一份，事实与结论必须一致，结构允许平行；**`07-patterns/05-deployment-selection-guide.md` 本次不改**（另一个项目会先做完整实操测试再反馈）。`AGENTS.md`/`AGENTS.zh.md` 是写给 AI 的压缩版。
 - 新增/改动的用户可见文案一律走 `internal/msgid` + 两份 `catalog_*.go`，不写死字符串——`tests/i18nguard` 会拦。
-- 不新增 `clierr.Code` 常量，复用 `CodeConfigInvalid`；新增/改动的错误文案要在 `docs/{en,zh}/06-architecture/10-error-codes.md` 补一行，`tests/docfields` 会拦住漏写。
+- 不新增 `clierr.Code` 常量，复用 `CodeConfigInvalid`。**错误码文档要不要为一条新文案补行，执行 Task 2 时才搞清楚，跟原计划写的不一样：`docs/{en,zh}/06-architecture/10-error-codes.md` 只逐条收录直接经 `clierr.New`/`Newf`/`Warn`/`NewProblemSet` 调用产生的标题（`tests/docfields` 的 `sourceTitles` 只用 go/ast 扫这四个调用的第二个参数）。走 `ProblemSet.Add(field, reason)` 收集、最后由 `ProblemSet.Err()` 统一包成一个 `"brickkit.yaml failed validation"`/`"component.yaml 校验失败"` 的字段消息（`internal/config/validate.go`、`internal/manifest/validate.go` 里几乎所有校验都走这条路，包括这次新增的 `validateComponentMode`），不需要、也不应该在错误码文档里单独开一行——它已经被"Error: brickkit.yaml failed validation"那一行覆盖了（该行本身举的例子就是别的字段消息，同一个模式）。只有直接 `clierr.New(...)` 出来的独立错误（不经过某个 ProblemSet）才需要在文档里逐条登记。
 - 改完 `internal/config/config.go`/`internal/manifest` 里的结构体后跑 `make generate-schemas`，把 `schemas/*.json` 的 diff 一起提交，`check-schemas` 会核对没漂移。
 - 覆盖率门槛 92%（`./internal/...`，`make cover-check`）：新增代码要有测试。
 - `market-server/` 是独立 module，本计划不碰它——但 Task 1 会顺手核对 `market-server/internal/validator/reserved.go` 是否有对应的 `enabled`/`local` 校验需要同步（若有，记录成后续计划的待办，不在本计划改，因为本计划范围明确是 CLI 侧字段合并）。
@@ -308,16 +308,9 @@ if item.Mode == ModeDebug {
 Run: `go test ./internal/config/ -run 'TestValidateComponentMode|TestValidateReplicas|TestValidateServedBy' -v`
 Expected: PASS
 
-- [ ] **Step 7: 登记错误文案到错误码文档**
+- [x] **Step 7: 登记错误文案到错误码文档 —— 执行时发现这一步是错的，不需要做**
 
-在 `docs/en/06-architecture/10-error-codes.md` 找到 `CONFIG_INVALID` 那一节的文案表格（参照现有 "A field that only applies to the other deploy.target" 那一行的格式），追加两行：
-
-```
-| `mode must be one of enabled/disable/debug (or omitted), got "<value>"` | `CONFIG_INVALID` | A component's `mode` field has an unrecognized value |
-| `mode: <value> is only supported with deploy.target: docker (got k8s)` | `CONFIG_INVALID` | `mode: debug` (or later `local`) declared under a K8s deployment target — physically unreachable, a cluster Pod cannot reach the developer's own machine |
-```
-
-`docs/zh/06-architecture/10-error-codes.md` 对应位置追加中文版两行（措辞对照 catalog_zh.go 里的文案，结论与英文一致）。
+`validateComponentMode` 是通过 `p.Add(field, reason)`（`ProblemSet`）报的，最终统一包进 `"Error: brickkit.yaml failed validation"` 这一条顶层错误（`internal/config/parse.go` 的 `newConfigProblems`），不是直接 `clierr.New(...)`。`tests/docfields` 的 `TestErrorCodesDocTitlesExistInSource` 只用 go/ast 扫描直接 `clierr.New`/`Newf`/`Warn`/`NewProblemSet` 调用的第二个参数——`ProblemSet.Add` 收集的字段消息永远不会以这种形式出现，所以**不需要、也不应该**给这两条消息单独加错误码文档行，它们已经被现有的 "Error: brickkit.yaml failed validation" 那一行覆盖（该行本身举的例子就是另一个字段的校验消息）。实际验收标准是跑 `go test ./tests/docfields/... -count=1`，不需要手动编辑 `10-error-codes.md`。**这条经验已经回写进 Global Constraints，Task 3-6 遇到同类"要不要给新校验消息登记错误码文档"的问题时按同一个判断标准处理：直接 `clierr.New` 才登记，`ProblemSet.Add` 不登记。**
 
 - [ ] **Step 8: 提交**
 

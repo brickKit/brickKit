@@ -949,6 +949,49 @@ components:
 	}
 }
 
+func TestValidateComponentMode(t *testing.T) {
+	cases := []struct {
+		name    string
+		yaml    string
+		wantErr []string // 期望错误信息里包含的子串，nil 表示应该通过
+	}{
+		{
+			name:    "mode 非法取值报错",
+			yaml:    "project: p\ndeploy:\n  target: docker\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: bogus\n",
+			wantErr: []string{"mode", "enabled", "disable", "debug"},
+		},
+		{
+			name:    "mode: debug 配 docker 合法",
+			yaml:    "project: p\ndeploy:\n  target: docker\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: debug\n",
+			wantErr: nil,
+		},
+		{
+			name:    "mode: debug 配 k8s 报错",
+			yaml:    "project: p\ndeploy:\n  target: k8s\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: debug\n",
+			wantErr: []string{"mode", "k8s"},
+		},
+		{
+			name:    "mode: enabled 配 k8s 合法",
+			yaml:    "project: p\ndeploy:\n  target: k8s\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: enabled\n",
+			wantErr: nil,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseConfig([]byte(tc.yaml), "brickkit.yaml")
+			if tc.wantErr == nil {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			out := clierr.As(err).Format()
+			for _, sub := range tc.wantErr {
+				assert.Contains(t, out, sub)
+			}
+		})
+	}
+}
+
 func TestComponentModeHelpers(t *testing.T) {
 	cases := []struct {
 		name       string

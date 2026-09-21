@@ -80,4 +80,6 @@ const (
 	ConfigEnvPrefixBoth              = "config.env_prefix_both"
 	ConfigReplicasTooSmall           = "config.replicas_too_small"
 	ConfigReplicasWithLocal          = "config.replicas_with_local"
+	ConfigModeInvalid                = "config.mode_invalid"
+	ConfigModeK8sUnsupported         = "config.mode_k8s_unsupported"
 )

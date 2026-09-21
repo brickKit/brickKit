@@ -628,9 +628,8 @@ sources:                         # 安装源
 components:
   - id: people/basic
     version: 1.0.0               # 必须，精确版本
-    enabled: true                # 可选，写法见 5.4
-    local: false                 # 可选，本地调试模式
-    localPort: 8081              # local: true 时的宿主机端口
+    mode: debug                  # 可选：enabled | disable | debug，写法见 5.4
+    localPort: 8081              # mode: debug 时的宿主机端口
     servedBy: <id>@<版本>         # 可选，这个组件的工作负载由另一个组件提供
     expose: false                # 可选，默认 false
     hostname: <域名>              # expose + k8s 时必填

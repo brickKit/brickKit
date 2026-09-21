@@ -508,9 +508,9 @@ brickkit restore
 ```
 
 ```
-📄 brickkit.yaml: enabled restored from the last commit (other changes untouched)
-   demo/hello@1.0.0           enabled: true → remove the field (the commit doesn't set it)
-   demo/caller@1.0.0          enabled: false → remove the field (the commit doesn't set it)
+📄 brickkit.yaml: mode restored from the last commit (other changes untouched)
+   demo/hello@1.0.0           mode: enabled → remove the field (the commit doesn't set it)
+   demo/caller@1.0.0          mode: disable → remove the field (the commit doesn't set it)
 📂 Workspace tidying:
    📂 components/.archived/demo/caller     → components/demo/caller/
       Reason: re-enabled
