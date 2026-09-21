@@ -225,7 +225,7 @@ func (c *Config) validateComponentPorts(
 	// ---- 本地调试（003 §4.4）----
 	if item.LocalPort != 0 {
 		switch {
-		case !item.Local:
+		case item.Mode != ModeDebug:
 			p.Add(field+".localPort", i18n.T(msgid.ConfigLocalPortNeedsLocal))
 		case item.LocalPort < MinPort || item.LocalPort > MaxPort:
 			p.Add(field+".localPort", i18n.T(msgid.ProblemPortOutOfRange, MinPort, MaxPort, item.LocalPort))
@@ -285,7 +285,7 @@ func (c *Config) validateServedBy(p *clierr.ProblemSet) {
 		}
 		field := indexed("components", i) + ".servedBy"
 
-		if item.Local {
+		if item.Mode == ModeDebug {
 			p.Add(field, i18n.T(msgid.ConfigServedByWithLocal))
 			continue
 		}
@@ -313,8 +313,8 @@ func (c *Config) validateServedBy(p *clierr.ProblemSet) {
 	}
 
 	for i, item := range c.Components {
-		if item.Local && servedByTarget[item.Ref()] {
-			p.Add(indexed("components", i)+".local", i18n.T(msgid.ConfigServedByTargetLocal, item.Ref()))
+		if item.Mode == ModeDebug && servedByTarget[item.Ref()] {
+			p.Add(indexed("components", i)+".mode", i18n.T(msgid.ConfigServedByTargetLocal, item.Ref()))
 		}
 	}
 }
@@ -578,7 +578,7 @@ func validateReplicas(p *clierr.ProblemSet, field string, item Component) {
 		return
 	}
 	// 下面这条只在 >= 1 时才有意义：0 已经报过一次，再报只是噪音
-	if item.Local {
+	if item.Mode == ModeDebug {
 		p.Add(name, i18n.T(msgid.ConfigReplicasWithLocal))
 	}
 }

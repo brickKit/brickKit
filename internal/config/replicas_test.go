@@ -101,18 +101,18 @@ func TestExternalWithReplicasIsAnError(t *testing.T) {
 	assert.Contains(t, text, "external")
 }
 
-// local 组件不能写 replicas。
+// debug 组件不能写 replicas。
 //
-// local 是"这个组件在我的 IDE 里跑"——IDE 里只有一个进程。
+// mode: debug 是"这个组件在我的 IDE 里跑"——IDE 里只有一个进程。
 // 写 replicas: 3 表达不了任何东西，只能说明使用者没想清楚。
-func TestLocalWithReplicasIsAnError(t *testing.T) {
+func TestDebugWithReplicasIsAnError(t *testing.T) {
 	_, err := parseReplicas(t, `components:
   - id: demo/hello
     version: 1.0.0
-    local: true
+    mode: debug
     replicas: 3
 `)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "local")
+	assert.Contains(t, err.Error(), "debug")
 }

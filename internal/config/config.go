@@ -239,6 +239,12 @@ type Source struct {
 // IsEnabled 返回该安装源是否启用（缺省为 true）。
 func (s Source) IsEnabled() bool { return s.Enabled == nil || *s.Enabled }
 
+const (
+	ModeEnabled = "enabled"
+	ModeDisable = "disable"
+	ModeDebug   = "debug"
+)
+
 // Component 是 components 列表中的一个条目（003 §4.1）。
 //
 // Version 的 jsonschema pattern 是 manifest.IsExactVersion 那条正则的等价写法（tag 里不写反斜杠，所以用 [0-9]、[.]）：
@@ -246,10 +252,12 @@ func (s Source) IsEnabled() bool { return s.Enabled == nil || *s.Enabled }
 type Component struct {
 	ID      string `yaml:"id"`
 	Version string `yaml:"version" jsonschema:"pattern=^[0-9]+[.][0-9]+[.][0-9]+$"`
-	// Enabled 是三态字段：nil=默认开启可被级联 / true=钉住 / false=显式关闭。
-	Enabled   *bool `yaml:"enabled,omitempty"`
-	Local     bool  `yaml:"local,omitempty"`
-	LocalPort int   `yaml:"localPort,omitempty"`
+	// Mode 取代了 Enabled/Local 两个字段（mode 字段迁移设计）：
+	// ""（未写）= 跟随上层，走容器；"enabled" = 钉住，走容器；
+	// "disable" = 钉住不跑；"debug" = 裸进程，用户自己启动（原 local: true）。
+	// 校验器负责按 deploy.target 决定这四个取值里哪些合法（k8s 下只认前三个）。
+	Mode      string `yaml:"mode,omitempty" jsonschema:"enum=enabled|disable|debug"`
+	LocalPort int    `yaml:"localPort,omitempty"`
 	// ServedBy 表示这个组件的工作负载由另一个组件条目提供（外壳合并部署，
 	// servedBy 设计书）。声明了它的组件不生成自己的容器/迁移 Job，但平台
 	// 照常为依赖它的其它组件计算正确的 *_ENDPOINT——地址指向 servedBy
@@ -301,17 +309,20 @@ func (c Component) ReplicaCount() int {
 	return *c.Replicas
 }
 
-// IsDisabled 表示写了 enabled: false（一定不跑，003 §4.3）。
+// IsDisabled 表示这个组件被钉死不跑（mode: disable，003 §4.3）。
 //
-// 三种写法直接由 Enabled 这个 *bool 表达：nil = 没写（跟着上层走）、
-// true = 一定跑、false = 一定不跑。从前这里还包了一层 EnabledState 枚举，
-// 已删除——它是第二份真相（改判定规则要动两处，而只有一处会被测到），
-// 生产代码一次都没调用过它，它的 String() 返回的"默认开启"/"钉住"
-// 也早就不出现在任何输出里了。
+// 从前 Enabled 是三态 *bool，还包过一层 EnabledState 枚举，已删除——它是
+// 第二份真相（改判定规则要动两处，而只有一处会被测到），生产代码一次都
+// 没调用过它。这次引入 Mode 不是重蹈覆辙：Mode 直接取代了 Enabled/Local
+// 两个字段本身，判定逻辑唯一地放在这里与 IsPinned 上，不在别处另存一份。
 //
 // 启停判定按 Ref 查的那一套在 cascade.declSet：那里要覆盖图里有、
 // 配置里没有的组件，查法不一样。
-func (c Component) IsDisabled() bool { return c.Enabled != nil && !*c.Enabled }
+func (c Component) IsDisabled() bool { return c.Mode == ModeDisable }
+
+// IsPinned 表示这个组件被钉死一定要跑：mode: enabled 或 mode: debug 都算——
+// 写 debug 就是要盯着它调试，跟 enabled 一样不能被 cascade 判定为"没人需要就不跑"。
+func (c Component) IsPinned() bool { return c.Mode == ModeEnabled || c.Mode == ModeDebug }
 
 // Ref 返回 <组件ID>@<版本> 形式，用于日志与错误提示。
 func (c Component) Ref() string { return c.ID + "@" + c.Version }

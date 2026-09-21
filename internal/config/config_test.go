@@ -58,10 +58,10 @@ func TestParseConfigFileFullProject(t *testing.T) {
 	dept := c.Components[0]
 	assert.Equal(t, "department/tree", dept.ID)
 	assert.Equal(t, "1.0.0", dept.Version)
-	assert.Nil(t, dept.Enabled, "5.5 不写 enabled → nil（跟着上层走）")
+	assert.Equal(t, "", dept.Mode, "5.5 不写 mode → 空字符串（跟着上层走）")
 
 	people := c.Components[1]
-	assert.True(t, people.Local, "5.22 local 正确解析")
+	assert.Equal(t, ModeDebug, people.Mode, "5.22 mode: debug 正确解析")
 	assert.Equal(t, 8081, people.LocalPort, "5.22 localPort 正确解析")
 	require.NotNil(t, people.Resources, "5.7 components[].resources 正确解析")
 	require.NotNil(t, people.Resources.Limits)
@@ -69,8 +69,8 @@ func TestParseConfigFileFullProject(t *testing.T) {
 	assert.Nil(t, people.Resources.Requests, "未覆盖的部分保持为空，由 Step 11 合并 Manifest 推荐值")
 
 	rbac := c.Components[2]
-	require.NotNil(t, rbac.Enabled)
-	assert.True(t, *rbac.Enabled, "5.4 enabled: true → 一定跑")
+	assert.Equal(t, ModeEnabled, rbac.Mode)
+	assert.True(t, rbac.IsPinned(), "5.4 mode: enabled → 一定跑")
 
 	erp := c.Components[3]
 	assert.Equal(t, map[string]any{"sessionTtlSeconds": 7200}, erp.Config, "5.20 config 正确解析")
@@ -200,10 +200,10 @@ resources: []
 }
 
 // ============================================================
-// 5.4 / 5.5 / 5.6 enabled 三种写法
+// 5.4 / 5.5 / 5.6 mode 四种写法
 // ============================================================
 
-func TestEnabledThreeStates(t *testing.T) {
+func TestModeFourStates(t *testing.T) {
 	c, err := ParseConfig([]byte(`
 project: my-project
 deploy:
@@ -211,30 +211,37 @@ deploy:
 components:
   - id: a/pinned
     version: 1.0.0
-    enabled: true
+    mode: enabled
   - id: b/default
     version: 1.0.0
   - id: c/disabled
     version: 1.0.0
-    enabled: false
+    mode: disable
+  - id: d/debug
+    version: 1.0.0
+    mode: debug
 resources: []
 `), "brickkit.yaml")
 	require.NoError(t, err)
 
-	pinned, dflt, disabled := c.Components[0], c.Components[1], c.Components[2]
+	pinned, dflt, disabled, debug := c.Components[0], c.Components[1], c.Components[2], c.Components[3]
 
-	// 三种写法直接由 *bool 表达，解析器要把"没写"与"写了 false"分开——
+	// 四种写法直接由字符串表达，解析器要把"没写"（空字符串）与显式值分开——
 	// 混成同一个零值的话，跟着上层走的组件会全部变成一定不跑
-	require.NotNil(t, pinned.Enabled)
-	assert.True(t, *pinned.Enabled, "enabled: true → 一定跑")
+	assert.Equal(t, ModeEnabled, pinned.Mode)
+	assert.True(t, pinned.IsPinned(), "mode: enabled → 一定跑")
 	assert.False(t, pinned.IsDisabled())
 
-	assert.Nil(t, dflt.Enabled, "不写 enabled → nil，不是 false")
+	assert.Equal(t, "", dflt.Mode, "不写 mode → 空字符串，不是 disable")
 	assert.False(t, dflt.IsDisabled(), "没写不等于关掉")
+	assert.False(t, dflt.IsPinned(), "没写不等于钉住")
 
-	require.NotNil(t, disabled.Enabled)
-	assert.False(t, *disabled.Enabled)
-	assert.True(t, disabled.IsDisabled(), "enabled: false → 一定不跑")
+	assert.Equal(t, ModeDisable, disabled.Mode)
+	assert.True(t, disabled.IsDisabled(), "mode: disable → 一定不跑")
+
+	assert.Equal(t, ModeDebug, debug.Mode)
+	assert.True(t, debug.IsPinned(), "mode: debug → 一定跑（要盯着它调试）")
+	assert.False(t, debug.IsDisabled())
 }
 
 // ============================================================
@@ -344,18 +351,18 @@ components:
 components:
   - id: people/basic
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 99999
 `, []string{"components[0].localPort", "between 1 and 65535"}},
 		{"13.12", "localPort 冲突", baseConfig + `
 components:
   - id: a/one
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 8081
   - id: b/two
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 8081
 `, []string{"components[1].localPort", "conflicts"}},
 		{"—", "exposePort 冲突", baseConfig + `
@@ -908,22 +915,22 @@ components:
     version: 1.0.0
     servedBy: infra/shell-c@1.0.0
 `, []string{"components[0].servedBy", "chained"}},
-		{"与 local 同时声明", baseConfig + `
+		{"与 debug 同时声明", baseConfig + `
 components:
   - id: mdm/customer
     version: 1.0.7
-    local: true
+    mode: debug
     servedBy: infra/shell-go-core@1.0.0
-`, []string{"components[0].servedBy", "local: true"}},
-		{"外壳自己是 local", baseConfig + `
+`, []string{"components[0].servedBy", "mode: debug"}},
+		{"外壳自己是 debug", baseConfig + `
 components:
   - id: mdm/customer
     version: 1.0.7
     servedBy: infra/shell-go-core@1.0.0
   - id: infra/shell-go-core
     version: 1.0.0
-    local: true
-`, []string{"components[1].local", "pointed at by"}},
+    mode: debug
+`, []string{"components[1].mode", "pointed at by"}},
 	}
 
 	for _, c := range cases {
@@ -938,6 +945,27 @@ components:
 			for _, want := range c.contains {
 				assert.Contains(t, out, want)
 			}
+		})
+	}
+}
+
+func TestComponentModeHelpers(t *testing.T) {
+	cases := []struct {
+		name       string
+		mode       string
+		isDisabled bool
+		isPinned   bool
+	}{
+		{"未写跟随上层", "", false, false},
+		{"enabled 钉住", ModeEnabled, false, true},
+		{"disable 关闭", ModeDisable, true, false},
+		{"debug 钉住", ModeDebug, false, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := Component{Mode: tc.mode}
+			assert.Equal(t, tc.isDisabled, c.IsDisabled())
+			assert.Equal(t, tc.isPinned, c.IsPinned())
 		})
 	}
 }

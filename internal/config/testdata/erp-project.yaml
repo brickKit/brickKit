@@ -26,12 +26,12 @@ sources:
 components:
   - id: department/tree
     version: 1.0.0
-    # 没写 enabled → 默认开启，但可被级联关闭
+    # 没写 mode → 默认开启，但可被级联关闭
 
   - id: people/basic
     version: 1.0.0
-    # 没写 enabled → 默认开启，但可被级联关闭
-    local: true
+    # 没写 mode → 默认开启，但可被级联关闭
+    mode: debug
     localPort: 8081
     resources:                  # 可选，覆盖组件 Manifest 中的推荐资源配额
       limits:
@@ -39,21 +39,21 @@ components:
 
   - id: authorization/rbac
     version: 1.0.0
-    enabled: true               # ← 显式钉住！无论如何都必须运行
+    mode: enabled                # ← 显式钉住！无论如何都必须运行
 
   - id: erp/backend
     version: 1.0.0
-    # 没写 enabled → 默认开启，但可被级联关闭
+    # 没写 mode → 默认开启，但可被级联关闭
     config:
       sessionTtlSeconds: 7200
 
   - id: infra/redis-event-bus
     version: 1.0.0
-    enabled: false              # ← 显式关闭
+    mode: disable                # ← 显式关闭
 
   - id: portal/user-frontend
     version: 1.0.0
-    # 没写 enabled → 默认开启，但可被级联关闭
+    # 没写 mode → 默认开启，但可被级联关闭
     expose: true
     hostname: portal.example.com    # K8s 必须，Docker 可省略
     exposePort: 8080                # Docker 环境：自定义宿主机映射端口（可选）

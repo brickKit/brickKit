@@ -163,11 +163,11 @@ resources:
     host: h
     port: "abc"
 `,
-		"enabled 是字符串": baseConfig + `
+		"localPort 是字符串": baseConfig + `
 components:
   - id: a/b
     version: 1.0.0
-    enabled: maybe
+    localPort: maybe
 `,
 		"deploy 是标量": "project: p\ndeploy: docker\n",
 	}
@@ -398,16 +398,16 @@ resources:
 	assert.Equal(t, "ARCHIVE_DB2", c.Resources[1].Bindings[0].EnvPrefix)
 }
 
-// local: true 但不写 localPort 是合法的（CLI 在 Step 13 自动分配）。
-func TestLocalWithoutPortIsValid(t *testing.T) {
+// mode: debug 但不写 localPort 是合法的（CLI 在 Step 13 自动分配）。
+func TestDebugWithoutPortIsValid(t *testing.T) {
 	c, err := ParseConfig([]byte(baseConfig+`
 components:
   - id: people/basic
     version: 1.0.0
-    local: true
+    mode: debug
 `), "brickkit.yaml")
 	require.NoError(t, err)
-	assert.True(t, c.Components[0].Local)
+	assert.Equal(t, ModeDebug, c.Components[0].Mode)
 	assert.Zero(t, c.Components[0].LocalPort)
 }
 
@@ -422,8 +422,8 @@ sources:
 	assert.Contains(t, clierr.As(err).Format(), "sources[0].type: missing")
 }
 
-// localPort 写了但没写 local: true（常见误配）。
-func TestLocalPortWithoutLocal(t *testing.T) {
+// localPort 写了但没写 mode: debug（常见误配）。
+func TestLocalPortWithoutDebug(t *testing.T) {
 	_, err := ParseConfig([]byte(baseConfig+`
 components:
   - id: people/basic
@@ -434,7 +434,7 @@ components:
 
 	out := clierr.As(err).Format()
 	assert.Contains(t, out, "components[0].localPort")
-	assert.Contains(t, out, "local: true")
+	assert.Contains(t, out, "mode: debug")
 }
 
 // 资源缺少 kind。
