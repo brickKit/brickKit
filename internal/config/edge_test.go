@@ -63,21 +63,21 @@ func TestConfigShapeErrorDetails(t *testing.T) {
 		contains []string
 	}{
 		{"组件条目不是映射", baseConfig + "components:\n  - people/basic\n",
-			[]string{"components[0]", "必须是映射", "id 与 version"}},
+			[]string{"components[0]", "must be a mapping", "id and version"}},
 		{"components[].config 不是映射", baseConfig + `
 components:
   - id: a/b
     version: 1.0.0
     config: not-a-map
-`, []string{"components[0].config", "必须是映射", "标量"}},
+`, []string{"components[0].config", "must be a mapping", "scalar"}},
 		{"components[].resources 不是映射", baseConfig + `
 components:
   - id: a/b
     version: 1.0.0
     resources: [1, 2]
-`, []string{"components[0].resources", "必须是映射", "数组"}},
+`, []string{"components[0].resources", "must be a mapping", "array"}},
 		{"资源条目不是映射", baseConfig + "resources:\n  - postgres\n",
-			[]string{"resources[0]", "必须是映射"}},
+			[]string{"resources[0]", "must be a mapping"}},
 		{"bindings 不是数组", baseConfig + `
 resources:
   - kind: database
@@ -86,9 +86,9 @@ resources:
     host: h
     port: 5432
     bindings: people/basic
-`, []string{"resources[0].bindings", "必须是数组格式"}},
+`, []string{"resources[0].bindings", "must be an array"}},
 		{"别名指向标量", baseConfig + "anchor: &c x\ncomponents: *c\n",
-			[]string{"components", "别名"}},
+			[]string{"components", "alias"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -149,19 +149,6 @@ func TestLookupNodeNonMappingIntermediate(t *testing.T) {
 	assert.NotNil(t, lookupNode(doc, "a"))
 }
 
-func TestNodeKind(t *testing.T) {
-	cases := map[yaml.Kind]string{
-		yaml.ScalarNode:   "标量",
-		yaml.MappingNode:  "映射",
-		yaml.SequenceNode: "数组",
-		yaml.AliasNode:    "别名",
-		yaml.DocumentNode: "未知类型",
-	}
-	for kind, want := range cases {
-		assert.Equal(t, want, nodeKind(&yaml.Node{Kind: kind}))
-	}
-}
-
 // ============================================================
 // 解码类型错误
 // ============================================================
@@ -210,7 +197,7 @@ func TestParseConfigFileUnreadable(t *testing.T) {
 
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeConfigInvalid, e.Code)
-	assert.Contains(t, e.Format(), "读取项目配置文件失败")
+	assert.Contains(t, e.Format(), "failed to read the project config file")
 }
 
 func TestParseConfigFileMissingUsesProjectMissingCode(t *testing.T) {
@@ -222,7 +209,7 @@ func TestParseConfigFileMissingUsesProjectMissingCode(t *testing.T) {
 func TestParseConfigWithoutSourceName(t *testing.T) {
 	_, err := ParseConfig([]byte("deploy:\n  target: docker\n"), "")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "文件: brickkit.yaml")
+	assert.Contains(t, clierr.As(err).Format(), "File: brickkit.yaml")
 }
 
 func TestParseConfigRecordsSource(t *testing.T) {
@@ -647,7 +634,7 @@ resources:
 `), "brickkit.yaml")
 
 			require.Error(t, err, "不认识的 kind 不能静默放过")
-			assert.Contains(t, err.Error(), "不是平台认识的资源类型")
+			assert.Contains(t, err.Error(), "not a resource kind the platform recognizes")
 			assert.Contains(t, err.Error(), "database / cache / mq / storage / search / smtp",
 				"要把可选值列出来：使用者多半只是名字写岔了")
 		})

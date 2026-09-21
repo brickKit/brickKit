@@ -300,7 +300,7 @@ func TestConfigValidationErrors(t *testing.T) {
 		{"5.8", "缺少 project", "deploy:\n  target: docker\ncomponents: []\n",
 			[]string{"project", "missing"}},
 		{"—", "project 名称不合法", "project: My Project\ndeploy:\n  target: docker\n",
-			[]string{"project", "小写"}},
+			[]string{"project", "lowercase"}},
 		{"5.9", "缺少 deploy.target", "project: p\ncomponents: []\n",
 			[]string{"deploy.target", "missing"}},
 		{"5.10", "deploy.target 非法值", "project: p\ndeploy:\n  target: ecs\n",
@@ -317,12 +317,12 @@ components:
 components:
   - id: people/basic
     version: ^1.0.0
-`, []string{"components[0].version", "精确版本"}},
+`, []string{"components[0].version", "exact version"}},
 		{"5.13", "组件版本缺少 patch", baseConfig + `
 components:
   - id: people/basic
     version: "1.0"
-`, []string{"components[0].version", "精确版本"}},
+`, []string{"components[0].version", "exact version"}},
 		{"—", "组件 ID 含大写", baseConfig + `
 components:
   - id: People/Basic
@@ -339,14 +339,14 @@ components:
     version: 1.0.0
   - id: people/basic
     version: 1.0.0
-`, []string{"components[1]", "重复"}},
+`, []string{"components[1]", "again"}},
 		{"—", "localPort 越界", baseConfig + `
 components:
   - id: people/basic
     version: 1.0.0
     local: true
     localPort: 99999
-`, []string{"components[0].localPort", "1~65535"}},
+`, []string{"components[0].localPort", "between 1 and 65535"}},
 		{"13.12", "localPort 冲突", baseConfig + `
 components:
   - id: a/one
@@ -357,7 +357,7 @@ components:
     version: 1.0.0
     local: true
     localPort: 8081
-`, []string{"components[1].localPort", "冲突"}},
+`, []string{"components[1].localPort", "conflicts"}},
 		{"—", "exposePort 冲突", baseConfig + `
 components:
   - id: a/one
@@ -368,7 +368,7 @@ components:
     version: 1.0.0
     expose: true
     exposePort: 8080
-`, []string{"components[1].exposePort", "冲突"}},
+`, []string{"components[1].exposePort", "conflicts"}},
 		{"—", "K8s 环境 expose 缺少 hostname", `
 project: p
 deploy:
@@ -399,17 +399,17 @@ sources:
 sources:
   - id: s
     type: market
-`, []string{"sources[0].url", "缺失"}},
+`, []string{"sources[0].url", "missing"}},
 		{"—", "git 源缺少 url", baseConfig + `
 sources:
   - id: s
     type: git
-`, []string{"sources[0].url", "缺失"}},
+`, []string{"sources[0].url", "missing"}},
 		{"—", "local 源缺少 path", baseConfig + `
 sources:
   - id: s
     type: local
-`, []string{"sources[0].path", "缺失"}},
+`, []string{"sources[0].path", "missing"}},
 		{"—", "安装源 id 重复", baseConfig + `
 sources:
   - id: s
@@ -418,7 +418,7 @@ sources:
   - id: s
     type: local
     path: ./b
-`, []string{"sources[1].id", "重复"}},
+`, []string{"sources[1].id", "duplicates"}},
 		{"—", "资源缺少必填字段", baseConfig + `
 resources:
   - kind: database
@@ -430,7 +430,7 @@ resources:
     id: pg
     host: localhost
     port: 70000
-`, []string{"resources[0].port", "1~65535"}},
+`, []string{"resources[0].port", "between 1 and 65535"}},
 		{"—", "资源 id 重复", baseConfig + `
 resources:
   - kind: database
@@ -443,7 +443,7 @@ resources:
     id: pg
     host: h2
     port: 5432
-`, []string{"resources[1].id", "重复"}},
+`, []string{"resources[1].id", "duplicates"}},
 		{"—", "binding 缺少 componentId", baseConfig + `
 resources:
   - kind: database
@@ -484,7 +484,7 @@ resources:
     bindings:
       - componentId: people/basic
         database: orders
-`, []string{"resources[0].bindings[0].database", "叫 vhost", "MQ_VHOST"}},
+`, []string{"resources[0].bindings[0].database", "is called vhost", "MQ_VHOST"}},
 
 		// cache / smtp 没有这一格。写了完全不生效，而使用者以为自己指定了什么——
 		// 正是 003 §3.2 那条"写了不生效就得出声"
@@ -498,7 +498,7 @@ resources:
     bindings:
       - componentId: people/basic
         database: whatever
-`, []string{"resources[0].bindings[0].database", "没有这一格"}},
+`, []string{"resources[0].bindings[0].database", "has no such slot"}},
 
 		{"—", "同时写了两个名字", baseConfig + `
 resources:
@@ -511,7 +511,7 @@ resources:
       - componentId: people/basic
         database: people
         bucket: media
-`, []string{"resources[0].bindings[0]", "同一格", "只能写一个"}},
+`, []string{"resources[0].bindings[0]", "the same slot", "write only one"}},
 	}
 
 	for _, c := range cases {
@@ -607,7 +607,7 @@ func TestParseConfigEmptyFile(t *testing.T) {
 	for _, in := range []string{"", "  \n\n", "# 只有注释\n"} {
 		_, err := ParseConfig([]byte(in), "brickkit.yaml")
 		require.Error(t, err, "输入 %q 应报错", in)
-		assert.Contains(t, clierr.As(err).Format(), "为空")
+		assert.Contains(t, clierr.As(err).Format(), "is empty")
 	}
 }
 
@@ -629,10 +629,10 @@ func TestParseConfigFileNotExist(t *testing.T) {
 // 必须是数组的字段写成标量时给出精确字段名。
 func TestParseConfigShapeErrors(t *testing.T) {
 	cases := map[string][]string{
-		"project: p\ndeploy:\n  target: docker\ncomponents: people/basic\n": {"components", "数组"},
-		"project: p\ndeploy:\n  target: docker\nresources: database\n":      {"resources", "数组"},
-		"project: p\ndeploy:\n  target: docker\nsources: market\n":          {"sources", "数组"},
-		"- a\n- b\n": {"顶层必须是一个 YAML 映射"},
+		"project: p\ndeploy:\n  target: docker\ncomponents: people/basic\n": {"components", "array"},
+		"project: p\ndeploy:\n  target: docker\nresources: database\n":      {"resources", "array"},
+		"project: p\ndeploy:\n  target: docker\nsources: market\n":          {"sources", "array"},
+		"- a\n- b\n": {"the top level must be a YAML mapping"},
 	}
 	for in, wants := range cases {
 		_, err := ParseConfig([]byte(in), "brickkit.yaml")
@@ -892,13 +892,13 @@ components:
   - id: mdm/customer
     version: 1.0.7
     servedBy: infra/shell-go-core@^1.0.0
-`, []string{"components[0].servedBy", "精确版本"}},
+`, []string{"components[0].servedBy", "exact version"}},
 		{"指向自己", baseConfig + `
 components:
   - id: mdm/customer
     version: 1.0.7
     servedBy: mdm/customer@1.0.7
-`, []string{"components[0].servedBy", "不能指向自己"}},
+`, []string{"components[0].servedBy", "cannot point at itself"}},
 		{"链式嵌套", baseConfig + `
 components:
   - id: infra/shell-a
@@ -907,7 +907,7 @@ components:
   - id: infra/shell-b
     version: 1.0.0
     servedBy: infra/shell-c@1.0.0
-`, []string{"components[0].servedBy", "链式嵌套"}},
+`, []string{"components[0].servedBy", "chained"}},
 		{"与 local 同时声明", baseConfig + `
 components:
   - id: mdm/customer
@@ -923,7 +923,7 @@ components:
   - id: infra/shell-go-core
     version: 1.0.0
     local: true
-`, []string{"components[1].local", "servedBy 指向"}},
+`, []string{"components[1].local", "pointed at by"}},
 	}
 
 	for _, c := range cases {

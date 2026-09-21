@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 )
 
 func newTestLayout(t *testing.T) Layout {
@@ -112,8 +113,8 @@ func TestInitProjectReportsIOError(t *testing.T) {
 
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeInternal, e.Code)
-	assert.Contains(t, e.Format(), "失败")
-	assert.Contains(t, e.Format(), "检查目录权限与磁盘空间")
+	assert.Contains(t, e.Format(), "failed")
+	assert.Contains(t, e.Format(), "Check the directory permissions and free disk space")
 }
 
 // --config 指向不可写位置时，报错但不留下半个配置文件。
@@ -132,7 +133,7 @@ func TestInitProjectReportsConfigWriteError(t *testing.T) {
 
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeInternal, e.Code)
-	assert.Contains(t, e.Format(), "写入文件失败")
+	assert.Contains(t, e.Format(), "failed to write the file")
 	assert.NoFileExists(t, l.ConfigPath())
 }
 
@@ -246,4 +247,32 @@ func countLines(content, want string) int {
 		}
 	}
 	return n
+}
+
+// .gitignore 的注释随语言变，但"这一段已经在了没有"只看规则行：
+// 用中文 init 过的项目，换成英文再跑一次，不能追加一份英文注释的重复段。
+func TestEnsureGitignoreIsIdempotentAcrossLanguages(t *testing.T) {
+	prev := i18n.Current()
+	t.Cleanup(func() { i18n.SetCurrent(prev) })
+
+	path := filepath.Join(t.TempDir(), ".gitignore")
+
+	i18n.SetCurrent(i18n.ZH)
+	wrote, err := EnsureGitignore(path)
+	require.NoError(t, err)
+	require.True(t, wrote)
+	first := readTestFile(t, path)
+	assert.Contains(t, first, "# 登录凭据（包含 Token）")
+
+	i18n.SetCurrent(i18n.EN)
+	wrote, err = EnsureGitignore(path)
+	require.NoError(t, err)
+	assert.False(t, wrote, "规则都在，换语言不该再写")
+	assert.Equal(t, first, readTestFile(t, path))
+
+	// 全新的文件则按当前语言写
+	fresh := filepath.Join(t.TempDir(), ".gitignore")
+	_, err = EnsureGitignore(fresh)
+	require.NoError(t, err)
+	assert.Contains(t, readTestFile(t, fresh), "# Login credentials (contain a token)")
 }

@@ -10,6 +10,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // Edit 是 brickkit.yaml 的原地编辑器（供 brickkit add / remove 使用）。
@@ -34,27 +36,27 @@ func OpenEdit(path string) (*Edit, error) {
 	data, err := os.ReadFile(path)
 	switch {
 	case os.IsNotExist(err):
-		return nil, clierr.New(clierr.CodeProjectMissing, "错误：项目未初始化").
-			WithDetail("路径", path).
+		return nil, clierr.New(clierr.CodeProjectMissing, i18n.T(msgid.ConfigEditProjectMissing)).
+			WithDetail(i18n.T(msgid.LabelPath), path).
 			WithHint(
-				"在项目根目录执行本命令",
-				"或先执行 brickkit init <项目名称> 初始化项目",
+				i18n.T(msgid.ConfigHintRunInProjectRoot),
+				i18n.T(msgid.ConfigHintInitFirst),
 			).WithCause(err)
 	case err != nil:
-		return nil, wrapIOError("读取配置", path, err)
+		return nil, wrapIOError(i18n.T(msgid.ConfigActionReadConfig), path, err)
 	}
 
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：brickkit.yaml 不是合法的 YAML").
-			WithDetail("文件", path).
-			WithDetail("原因", cleanYAMLError(err)).
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ConfigEditNotValidYAML)).
+			WithDetail(i18n.T(msgid.LabelFile), path).
+			WithDetail(i18n.T(msgid.LabelReason), cleanYAMLError(err)).
 			WithCause(err)
 	}
 	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：brickkit.yaml 结构不合法").
-			WithDetail("文件", path).
-			WithHint("顶层必须是键值映射（project / deploy / components ...）")
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ConfigEditBadStructure)).
+			WithDetail(i18n.T(msgid.LabelFile), path).
+			WithHint(i18n.T(msgid.ConfigHintTopLevelMapping))
 	}
 	return &Edit{path: path, doc: &doc, root: doc.Content[0], original: data}, nil
 }
@@ -218,17 +220,17 @@ func (e *Edit) Save() error {
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
 	if err := enc.Encode(e.doc); err != nil {
-		return clierr.New(clierr.CodeConfigInvalid, "错误：生成 brickkit.yaml 失败").
-			WithDetail("原因", err.Error()).
+		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ConfigGenerateFailed)).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
 			WithCause(err)
 	}
 	if err := enc.Close(); err != nil {
-		return clierr.New(clierr.CodeConfigInvalid, "错误：生成 brickkit.yaml 失败").
-			WithDetail("原因", err.Error()).
+		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ConfigGenerateFailed)).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
 			WithCause(err)
 	}
 	if err := os.WriteFile(e.path, restoreBlankLines(e.original, buf.Bytes()), filePerm); err != nil {
-		return wrapIOError("写入配置", e.path, err)
+		return wrapIOError(i18n.T(msgid.ConfigActionWriteConfig), e.path, err)
 	}
 	return nil
 }

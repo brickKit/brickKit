@@ -165,7 +165,7 @@ func TestAddConfigWriteFailure(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "people/basic@1.0.0")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "写入配置失败")
+	assert.Contains(t, r.stderr, "failed to write the config file")
 	assert.NotContains(t, r.stderr, "命令用法不正确",
 		"磁盘写不进去不是用法错误，不能让人去查 brickkit --help")
 	assert.Empty(t, f.refs(t), "写回失败时不得留下半改的配置")

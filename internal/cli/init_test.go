@@ -163,7 +163,7 @@ func TestInitTwiceFails(t *testing.T) {
 
 	assert.NotEqual(t, clierr.ExitOK, r.code)
 	assert.Contains(t, r.stderr, "❌")
-	assert.Contains(t, r.stderr, "已存在")
+	assert.Contains(t, r.stderr, "Already exists")
 	assert.Equal(t, before, readFile(t, filepath.Join(dir, "brickkit.yaml")),
 		"已有 brickkit.yaml 不能被覆盖")
 }
@@ -186,16 +186,16 @@ func TestInitRejectsInvalidProjectNames(t *testing.T) {
 		args     []string
 		contains []string
 	}{
-		{"含空格", []string{"my project"}, []string{"项目名称不合法", "小写字母、数字与中划线"}},
-		{"含大写", []string{"MyProject"}, []string{"项目名称不合法", "全部小写", "myproject"}},
-		{"含下划线", []string{"my_project"}, []string{"项目名称不合法"}},
-		{"含中文", []string{"我的项目"}, []string{"项目名称不合法"}},
+		{"含空格", []string{"my project"}, []string{"invalid project name", "lowercase letters, digits and hyphens"}},
+		{"含大写", []string{"MyProject"}, []string{"invalid project name", "all lowercase", "myproject"}},
+		{"含下划线", []string{"my_project"}, []string{"invalid project name"}},
+		{"含中文", []string{"我的项目"}, []string{"invalid project name"}},
 		// 以中划线开头必须用 -- 分隔，否则 cobra 会当成 flag 解析（这是正确的 CLI 行为）
-		{"以中划线开头", []string{"--", "-my-project"}, []string{"项目名称不合法", "中划线开头"}},
-		{"以中划线结尾", []string{"my-project-"}, []string{"项目名称不合法", "中划线"}},
-		{"空字符串", []string{""}, []string{"请指定项目名称"}},
-		{"含斜杠", []string{"my/project"}, []string{"项目名称不合法"}},
-		{"超长名称", []string{strings.Repeat("a", 55)}, []string{"项目名称不合法", "长度"}},
+		{"以中划线开头", []string{"--", "-my-project"}, []string{"invalid project name", "start or end with a hyphen"}},
+		{"以中划线结尾", []string{"my-project-"}, []string{"invalid project name", "hyphen"}},
+		{"空字符串", []string{""}, []string{"Please specify a project name"}},
+		{"含斜杠", []string{"my/project"}, []string{"invalid project name"}},
+		{"超长名称", []string{strings.Repeat("a", 55)}, []string{"invalid project name", "length"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

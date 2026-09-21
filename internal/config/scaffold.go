@@ -1,12 +1,13 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // 文件权限：配置与备份 0644，目录 0755。凭据文件由 login 单独用 0600 写。
@@ -42,7 +43,7 @@ func InitProject(l Layout, project string) (*InitResult, error) {
 
 	for _, dir := range l.ManagedDirs() {
 		if err := os.MkdirAll(dir, dirPerm); err != nil {
-			return nil, wrapIOError("创建目录", dir, err)
+			return nil, wrapIOError(i18n.T(msgid.ConfigActionMkdir), dir, err)
 		}
 	}
 
@@ -81,30 +82,30 @@ func checkNotInitialized(l Layout) error {
 	if err != nil {
 		root = l.Root
 	}
-	return clierr.New(clierr.CodeProjectExists, "错误：项目已初始化，无需重复执行 init").
-		WithDetail("目录", root).
-		WithDetail("已存在", strings.Join(existing, "、")).
-		WithHint(fmt.Sprintf("如需重新初始化，请先删除 %s 与 %s/ 目录", l.ConfigName(), DirBrickkit))
+	return clierr.New(clierr.CodeProjectExists, i18n.T(msgid.ConfigProjectExists)).
+		WithDetail(i18n.T(msgid.LabelDir), root).
+		WithDetail(i18n.T(msgid.ConfigLabelExisting), strings.Join(existing, i18n.T(msgid.ListSeparator))).
+		WithHint(i18n.T(msgid.ConfigHintReinit, l.ConfigName(), DirBrickkit))
 }
 
 // writeNewFile 写入文件，已存在时报错（O_EXCL），避免覆盖用户数据。
 func writeNewFile(path string, content []byte) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePerm)
 	if err != nil {
-		return wrapIOError("写入文件", path, err)
+		return wrapIOError(i18n.T(msgid.ConfigActionWriteFile), path, err)
 	}
 	defer func() { _ = f.Close() }()
 	if _, err := f.Write(content); err != nil {
-		return wrapIOError("写入文件", path, err)
+		return wrapIOError(i18n.T(msgid.ConfigActionWriteFile), path, err)
 	}
 	return nil
 }
 
 func wrapIOError(action, path string, cause error) error {
-	return clierr.Newf(clierr.CodeInternal, "错误：%s失败", action).
-		WithDetail("路径", path).
-		WithDetail("原因", cause.Error()).
-		WithHint("检查目录权限与磁盘空间").
+	return clierr.New(clierr.CodeInternal, i18n.T(msgid.ConfigIOFailed, action)).
+		WithDetail(i18n.T(msgid.LabelPath), path).
+		WithDetail(i18n.T(msgid.LabelReason), cause.Error()).
+		WithHint(i18n.T(msgid.ConfigHintCheckDiskAccess)).
 		WithCause(cause)
 }
 
@@ -115,15 +116,21 @@ type gitignoreSection struct {
 }
 
 // gitignoreSections 是 003 §11 建议的 .gitignore 内容。
-var gitignoreSections = []gitignoreSection{
-	{"# BrickKit CLI 生成的文件（不提交到 Git）", []string{".brickkit/generated/"}},
-	{"# 登录凭据（包含 Token）", []string{".brickkit/credentials"}},
-	{"# 环境变量文件（包含密码）", []string{".env"}},
-	{"# 组件源码目录（每个组件是独立的 Git 仓库，不提交到项目仓库）", []string{"components/"}},
-	// 这两条**默认是注释掉的**：契约与 Manifest 缓存默认跟着项目一起提交，
-	// 团队共享同一份。取消注释才会忽略它们。
-	{"# API 契约与 Manifest 缓存：默认提交、团队共享。不想提交就取消下面两行的注释",
-		[]string{"# .brickkit/artifacts/", "# .brickkit/manifests/"}},
+//
+// 是函数而不是包级变量：注释文字要跟着语言变，包初始化时语言还没确定。
+// 判断"这一段已经在了没有"只看规则行（见 missingBlock），不看注释，
+// 所以换语言重跑不会重复追加。
+func gitignoreSections() []gitignoreSection {
+	return []gitignoreSection{
+		{"# " + i18n.T(msgid.ConfigGitignoreGenerated), []string{".brickkit/generated/"}},
+		{"# " + i18n.T(msgid.ConfigGitignoreCredentials), []string{".brickkit/credentials"}},
+		{"# " + i18n.T(msgid.ConfigGitignoreEnvFile), []string{".env"}},
+		{"# " + i18n.T(msgid.ConfigGitignoreComponents), []string{"components/"}},
+		// 这两条**默认是注释掉的**：契约与 Manifest 缓存默认跟着项目一起提交，
+		// 团队共享同一份。取消注释才会忽略它们。
+		{"# " + i18n.T(msgid.ConfigGitignoreCaches),
+			[]string{"# .brickkit/artifacts/", "# .brickkit/manifests/"}},
+	}
 }
 
 // EnsureGitignore 确保 .gitignore 含有 BrickKit 需要的忽略规则。
@@ -132,7 +139,7 @@ var gitignoreSections = []gitignoreSection{
 func EnsureGitignore(path string) (bool, error) {
 	existing, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
-		return false, wrapIOError("读取文件", path, err)
+		return false, wrapIOError(i18n.T(msgid.ConfigActionReadFile), path, err)
 	}
 
 	present := make(map[string]bool)
@@ -159,7 +166,7 @@ func EnsureGitignore(path string) (bool, error) {
 	b.WriteString("\n")
 
 	if err := os.WriteFile(path, []byte(b.String()), filePerm); err != nil {
-		return false, wrapIOError("写入文件", path, err)
+		return false, wrapIOError(i18n.T(msgid.ConfigActionWriteFile), path, err)
 	}
 	return true, nil
 }
@@ -168,7 +175,7 @@ func EnsureGitignore(path string) (bool, error) {
 // 某段的规则全部已存在时，整段（含注释）都不追加，避免留下孤立注释。
 func missingBlock(present map[string]bool) []string {
 	var lines []string
-	for _, section := range gitignoreSections {
+	for _, section := range gitignoreSections() {
 		var missing []string
 		for _, rule := range section.rules {
 			if !present[rule] {

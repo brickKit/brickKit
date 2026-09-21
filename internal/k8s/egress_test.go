@@ -275,7 +275,7 @@ func TestEgressTargetRequiresExactlyOneLocation(t *testing.T) {
 		{"两个都写", `
         - name: pg
           namespace: infra
-          cidr: 10.0.0.0/8`, "只能写一个"},
+          cidr: 10.0.0.0/8`, "write only one"},
 		{"两个都不写", `
         - name: pg`, "namespace"},
 	}

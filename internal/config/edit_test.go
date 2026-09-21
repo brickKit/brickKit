@@ -242,7 +242,7 @@ func TestOpenEditUnreadableFile(t *testing.T) {
 
 	_, err := OpenEdit(path)
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "读取配置失败")
+	assert.Contains(t, clierr.As(err).Format(), "failed to read the config file")
 }
 
 func TestSaveWriteFailure(t *testing.T) {
@@ -260,7 +260,7 @@ func TestSaveWriteFailure(t *testing.T) {
 
 	err = edit.Save()
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "写入配置失败")
+	assert.Contains(t, clierr.As(err).Format(), "failed to write the config file")
 }
 
 // ============================================================

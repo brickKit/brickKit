@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // envPrefixRe 是多资源绑定的环境变量前缀规则（003 §5.6）：
@@ -40,7 +42,7 @@ func (c *Config) validateProject(p *clierr.ProblemSet) {
 		return
 	}
 	if reason := projectNameProblem(c.Project); reason != "" {
-		p.Addf("project", "%s（%s）", reason, ProjectNameRule)
+		p.Add("project", i18n.T(msgid.ConfigProjectNameProblemWithRule, reason, ProjectNameRule()))
 	}
 }
 
@@ -50,18 +52,17 @@ func (c *Config) validateDeploy(p *clierr.ProblemSet) {
 		p.Missing("deploy.target")
 	case TargetDocker, TargetK8s:
 	default:
-		p.Addf("deploy.target", "必须是 %s 或 %s（当前是 %s）", TargetDocker, TargetK8s, c.Deploy.Target)
+		p.Add("deploy.target", i18n.T(msgid.ConfigMustBeOneOfTwo, TargetDocker, TargetK8s, c.Deploy.Target))
 	}
 
 	switch c.Deploy.PodSecurity {
 	case "", PodSecurityRestricted:
 	default:
-		p.Addf("deploy.podSecurity", "目前只支持 %s（当前是 %s）",
-			PodSecurityRestricted, c.Deploy.PodSecurity)
+		p.Add("deploy.podSecurity", i18n.T(msgid.ConfigPodSecurityOnly, PodSecurityRestricted, c.Deploy.PodSecurity))
 	}
 	if c.Deploy.Namespace != "" {
 		if reason := projectNameProblem(c.Deploy.Namespace); reason != "" {
-			p.Addf("deploy.namespace", "%s（K8s 命名空间遵循同样的规则）", reason)
+			p.Add("deploy.namespace", i18n.T(msgid.ConfigNamespaceSameRule, reason))
 		}
 	}
 	c.validateNetworkPolicy(p)
@@ -93,12 +94,11 @@ func (c *Config) validateNetworkPolicy(p *clierr.ProblemSet) {
 		if source.Namespace == "" {
 			// 同上：空命名空间生成的是一条谁也匹配不上的规则，
 			// 策略 apply 成功而来源照样被挡，等于什么都没做
-			p.Addf(field+".namespace", "缺失（%s 这条放行规则不知道该放行哪个命名空间）",
-				sourceLabel(source.Name, i))
+			p.Add(field+".namespace", i18n.T(msgid.ConfigAllowFromNamespaceMissing, sourceLabel(source.Name, i)))
 		}
 		for _, port := range source.Ports {
 			if port < 1 || port > 65535 {
-				p.Addf(field+".ports", "端口 %d 不合法（应在 1–65535）", port)
+				p.Add(field+".ports", i18n.T(msgid.ConfigPortInvalid, port))
 			}
 		}
 	}
@@ -123,21 +123,19 @@ func (c *Config) validateEgress(p *clierr.ProblemSet) {
 
 		switch {
 		case target.Namespace != "" && target.CIDR != "":
-			p.Addf(field, "%s 同时写了 namespace 与 cidr，只能写一个"+
-				"（集群内目标用 namespace，集群外用 cidr）", label)
+			p.Add(field, i18n.T(msgid.ConfigEgressBothNamespaceAndCIDR, label))
 		case target.Namespace == "" && target.CIDR == "":
-			p.Addf(field, "%s 缺少目标位置：集群内写 namespace，集群外写 cidr", label)
+			p.Add(field, i18n.T(msgid.ConfigEgressNoTarget, label))
 		}
 
 		// 端口只有一个来源。两处各写一份早晚不一致，
 		// 而不一致的表现是"策略看着对，组件连不上库"
 		if target.Resource != "" && len(target.Ports) > 0 {
-			p.Addf(field+".ports",
-				"%s 已经写了 resource，端口由平台从 resources[].port 取，不要再写 ports", label)
+			p.Add(field+".ports", i18n.T(msgid.ConfigEgressResourceWithPorts, label))
 		}
 		for _, port := range target.Ports {
 			if port < 1 || port > 65535 {
-				p.Addf(field+".ports", "端口 %d 不合法（应在 1–65535）", port)
+				p.Add(field+".ports", i18n.T(msgid.ConfigPortInvalid, port))
 			}
 		}
 	}
@@ -148,7 +146,7 @@ func sourceLabel(name string, index int) string {
 	if name != "" {
 		return name
 	}
-	return fmt.Sprintf("第 %d 条", index+1)
+	return i18n.T(msgid.ConfigEntryOrdinal, index+1)
 }
 
 func (c *Config) validateSources(p *clierr.ProblemSet) {
@@ -159,7 +157,7 @@ func (c *Config) validateSources(p *clierr.ProblemSet) {
 		if s.ID == "" {
 			p.Missing(field + ".id")
 		} else if prev, ok := seen[s.ID]; ok {
-			p.Addf(field+".id", "与 %s.id 重复（安装源 ID 必须唯一）", indexed("sources", prev))
+			p.Add(field+".id", i18n.T(msgid.ConfigSourceIDDuplicate, indexed("sources", prev)))
 		} else {
 			seen[s.ID] = i
 		}
@@ -169,15 +167,14 @@ func (c *Config) validateSources(p *clierr.ProblemSet) {
 			p.Missing(field + ".type")
 		case SourceTypeMarket, SourceTypeGit:
 			if s.URL == "" {
-				p.Addf(field+".url", "缺失（必填字段，%s 类型的安装源必须声明 url）", s.Type)
+				p.Add(field+".url", i18n.T(msgid.ConfigSourceURLMissing, s.Type))
 			}
 		case SourceTypeLocal:
 			if s.Path == "" {
-				p.Add(field+".path", "缺失（必填字段，local 类型的安装源必须声明 path）")
+				p.Add(field+".path", i18n.T(msgid.ConfigSourcePathMissing))
 			}
 		default:
-			p.Addf(field+".type", "必须是 %s / %s / %s 之一（当前是 %s）",
-				SourceTypeMarket, SourceTypeGit, SourceTypeLocal, s.Type)
+			p.Add(field+".type", i18n.T(msgid.ProblemMustBeOneOfThree, SourceTypeMarket, SourceTypeGit, SourceTypeLocal, s.Type))
 		}
 	}
 }
@@ -203,13 +200,13 @@ func (c *Config) validateComponents(p *clierr.ProblemSet) {
 		case item.Version == "":
 			p.Missing(field + ".version")
 		case !manifest.IsExactVersion(item.Version):
-			p.Addf(field+".version", "必须是精确版本 major.minor.patch，不接受 ^ 或 ~ 等范围约束（当前是 %s）", item.Version)
+			p.Add(field+".version", i18n.T(msgid.ConfigVersionNotExactRange, item.Version))
 		}
 
 		// 多版本共存是默认行为；同一 ID 同一版本重复才是错误（003 §4.8）。
 		if item.ID != "" && item.Version != "" {
 			if prev, ok := seen[item.Ref()]; ok {
-				p.Addf(field, "与 %s 重复声明了 %s", indexed("components", prev), item.Ref())
+				p.Add(field, i18n.T(msgid.ConfigComponentDuplicate, indexed("components", prev), item.Ref()))
 			} else {
 				seen[item.Ref()] = i
 			}
@@ -229,13 +226,12 @@ func (c *Config) validateComponentPorts(
 	if item.LocalPort != 0 {
 		switch {
 		case !item.Local:
-			p.Add(field+".localPort", "只在 local: true 时生效，请一并声明 local: true 或删除该字段")
+			p.Add(field+".localPort", i18n.T(msgid.ConfigLocalPortNeedsLocal))
 		case item.LocalPort < MinPort || item.LocalPort > MaxPort:
-			p.Addf(field+".localPort", "必须在 %d~%d 之间（当前是 %d）", MinPort, MaxPort, item.LocalPort)
+			p.Add(field+".localPort", i18n.T(msgid.ProblemPortOutOfRange, MinPort, MaxPort, item.LocalPort))
 		default:
 			if prev, ok := localPorts[item.LocalPort]; ok {
-				p.Addf(field+".localPort", "与 %s.localPort 冲突（宿主机端口 %d 已被占用）",
-					indexed("components", prev), item.LocalPort)
+				p.Add(field+".localPort", i18n.T(msgid.ConfigLocalPortConflict, indexed("components", prev), item.LocalPort))
 			} else {
 				localPorts[item.LocalPort] = index
 			}
@@ -246,13 +242,12 @@ func (c *Config) validateComponentPorts(
 	if item.ExposePort != 0 {
 		switch {
 		case !item.Expose:
-			p.Add(field+".exposePort", "只在 expose: true 时生效，请一并声明 expose: true 或删除该字段")
+			p.Add(field+".exposePort", i18n.T(msgid.ConfigExposePortNeedsExpose))
 		case item.ExposePort < MinPort || item.ExposePort > MaxPort:
-			p.Addf(field+".exposePort", "必须在 %d~%d 之间（当前是 %d）", MinPort, MaxPort, item.ExposePort)
+			p.Add(field+".exposePort", i18n.T(msgid.ProblemPortOutOfRange, MinPort, MaxPort, item.ExposePort))
 		default:
 			if prev, ok := exposePorts[item.ExposePort]; ok {
-				p.Addf(field+".exposePort", "与 %s.exposePort 冲突（宿主机端口 %d 已被占用）",
-					indexed("components", prev), item.ExposePort)
+				p.Add(field+".exposePort", i18n.T(msgid.ConfigExposePortConflict, indexed("components", prev), item.ExposePort))
 			} else {
 				exposePorts[item.ExposePort] = index
 			}
@@ -261,10 +256,10 @@ func (c *Config) validateComponentPorts(
 
 	// hostname 仅在 K8s 环境下必填（Ingress 需要域名）。
 	if item.TLSSecret != "" && !item.Expose {
-		p.Add(field+".tlsSecret", "只有 expose: true 的组件才需要 TLS 证书")
+		p.Add(field+".tlsSecret", i18n.T(msgid.ConfigTLSSecretNeedsExpose))
 	}
 	if item.Expose && item.Hostname == "" && c.Deploy.Target == TargetK8s {
-		p.Add(field+".hostname", "缺失（deploy.target: k8s 且 expose: true 时必填，Ingress 需要域名）")
+		p.Add(field+".hostname", i18n.T(msgid.ConfigHostnameMissing))
 	}
 }
 
@@ -291,29 +286,27 @@ func (c *Config) validateServedBy(p *clierr.ProblemSet) {
 		field := indexed("components", i) + ".servedBy"
 
 		if item.Local {
-			p.Add(field, "不能跟 local: true 同时声明——local 是本机调试，"+
-				"servedBy 是代码已经打进另一个外壳镜像，两者是矛盾的意图")
+			p.Add(field, i18n.T(msgid.ConfigServedByWithLocal))
 			continue
 		}
 
 		id, version, found := strings.Cut(item.ServedBy, "@")
 		if !found || id == "" || version == "" {
-			p.Addf(field, "必须是 <组件ID>@<精确版本>（id@version）形式（当前是 %s）", item.ServedBy)
+			p.Add(field, i18n.T(msgid.ConfigServedByBadFormat, item.ServedBy))
 			continue
 		}
 		if !manifest.IsExactVersion(version) {
-			p.Addf(field, "版本必须是精确版本 major.minor.patch，不接受 ^ 或 ~ 等范围约束（当前是 %s）", version)
+			p.Add(field, i18n.T(msgid.ConfigServedByVersionNotExact, version))
 			continue
 		}
 
 		target := id + "@" + version
 		if target == item.Ref() {
-			p.Add(field, "不能指向自己")
+			p.Add(field, i18n.T(msgid.ConfigServedBySelf))
 			continue
 		}
 		if declaresServedBy[target] {
-			p.Addf(field, "指向的 %s 自己也声明了 servedBy，不能链式嵌套"+
-				"（一个外壳不能被另一个外壳收编）", target)
+			p.Add(field, i18n.T(msgid.ConfigServedByChained, target))
 			continue
 		}
 		servedByTarget[target] = true
@@ -321,10 +314,7 @@ func (c *Config) validateServedBy(p *clierr.ProblemSet) {
 
 	for i, item := range c.Components {
 		if item.Local && servedByTarget[item.Ref()] {
-			p.Addf(indexed("components", i)+".local",
-				"%s 被别的组件 servedBy 指向，不能同时是 local: true"+
-					"（外壳要能在集群/容器网络里被访问到，跑在开发者本机上做不到这件事）",
-				item.Ref())
+			p.Add(indexed("components", i)+".local", i18n.T(msgid.ConfigServedByTargetLocal, item.Ref()))
 		}
 	}
 }
@@ -340,8 +330,7 @@ func (c *Config) validateResources(p *clierr.ProblemSet) {
 		case !manifest.IsKnownResourceKind(r.Kind):
 			// 不认识的 kind 不能放过去：注入引擎对它无事可做，组件一个
 			// 连接变量都拿不到，而 up 一路绿灯、部署文件看上去完全正常
-			p.Addf(field+".kind", "不是平台认识的资源类型（当前是 %s）；可选：%s",
-				r.Kind, manifest.ResourceKindsText())
+			p.Add(field+".kind", i18n.T(msgid.ProblemResourceKindUnknown, r.Kind, manifest.ResourceKindsText()))
 		}
 		if r.Engine == "" {
 			p.Missing(field + ".engine")
@@ -350,15 +339,13 @@ func (c *Config) validateResources(p *clierr.ProblemSet) {
 			p.Missing(field + ".host")
 		}
 		if r.ExistingSecret != "" && r.Password != "" {
-			p.Addf(field+".existingSecret",
-				"不能同时写 password——已经有一个外部系统管理的 Secret 时，"+
-					"password 是多余的、也可能对不上")
+			p.Add(field+".existingSecret", i18n.T(msgid.ConfigExistingSecretWithPassword))
 		}
 
 		if r.ID == "" {
 			p.Missing(field + ".id")
 		} else if prev, ok := seen[r.ID]; ok {
-			p.Addf(field+".id", "与 %s.id 重复（资源 ID 必须项目内唯一）", indexed("resources", prev))
+			p.Add(field+".id", i18n.T(msgid.ConfigResourceIDDuplicate, indexed("resources", prev)))
 		} else {
 			seen[r.ID] = i
 		}
@@ -367,7 +354,7 @@ func (c *Config) validateResources(p *clierr.ProblemSet) {
 		case r.Port == 0:
 			p.Missing(field + ".port")
 		case r.Port < MinPort || r.Port > MaxPort:
-			p.Addf(field+".port", "必须在 %d~%d 之间（当前是 %d）", MinPort, MaxPort, r.Port)
+			p.Add(field+".port", i18n.T(msgid.ProblemPortOutOfRange, MinPort, MaxPort, r.Port))
 		}
 
 		for j, b := range r.Bindings {
@@ -377,7 +364,7 @@ func (c *Config) validateResources(p *clierr.ProblemSet) {
 				p.Missing(bField + ".componentId")
 			}
 			if b.EnvPrefix != "" && !envPrefixRe.MatchString(b.EnvPrefix) {
-				p.Addf(bField+".envPrefix", "必须是大写字母开头的大写字母、数字与下划线（会拼进环境变量名，如 %s_DATABASE_HOST）", b.EnvPrefix)
+				p.Add(bField+".envPrefix", i18n.T(msgid.ConfigEnvPrefixInvalid, b.EnvPrefix))
 			}
 			validateBindingSlot(p, bField, r.Kind, b)
 		}
@@ -424,20 +411,14 @@ func validateBindingSlot(p *clierr.ProblemSet, field, kind string, b Binding) {
 		return
 
 	case len(written) > 1:
-		p.Addf(field, "%s 填的是同一格（这个组件在资源里占哪一块），只能写一个",
-			strings.Join(written, " 与 "))
+		p.Add(field, i18n.T(msgid.ConfigSlotsSameCell, strings.Join(written, i18n.T(msgid.ConfigSlotJoiner))))
 		return
 
 	case want == "":
-		p.Addf(field+"."+written[0],
-			"kind: %s 没有这一格——%s 的连接变量里不存在对应的项，写了不会生效。"+
-				"要给组件传别的东西，用 configSchema 里的配置项",
-			kind, kind)
+		p.Add(field+"."+written[0], i18n.T(msgid.ConfigSlotNotAvailable, kind, kind))
 
 	case written[0] != want:
-		p.Addf(field+"."+written[0],
-			"kind: %s 下这一格叫 %s，不是 %s（注入为 %s）",
-			kind, want, written[0], slotEnvVar(kind))
+		p.Add(field+"."+written[0], i18n.T(msgid.ConfigSlotWrongName, kind, want, written[0], slotEnvVar(kind)))
 	}
 }
 
@@ -531,21 +512,14 @@ func envCollisionMessage(first envClaim, r Resource, componentID, prefix string)
 	if prefix != "" {
 		vars = prefix + "_" + vars
 	}
-	return fmt.Sprintf(
-		"与 %s 抢同一批连接变量：组件 %s 同时绑定了 %s 与 %s（都是 %s，%s），"+
-			"两者都注入 %s_HOST / %s_PORT / … —— 后者覆盖前者，"+
-			"而组件不会察觉自己连错了地方。"+
-			"给其中一个加 envPrefix 区分开（如 envPrefix: ARCHIVE，注入为 ARCHIVE_%s_HOST）；"+
-			"只需要一个的话删掉多余的那条绑定",
-		first.field, componentID, first.resourceID, r.ID, r.Kind,
-		envPrefixText(prefix), vars, vars, manifest.ResourceEnvPrefix(r.Kind))
+	return i18n.T(msgid.ConfigEnvCollision, first.field, componentID, first.resourceID, r.ID, r.Kind, envPrefixText(prefix), vars, manifest.ResourceEnvPrefix(r.Kind))
 }
 
 func envPrefixText(prefix string) string {
 	if prefix == "" {
-		return "都没写 envPrefix"
+		return i18n.T(msgid.ConfigEnvPrefixNone)
 	}
-	return "envPrefix 都是 " + prefix
+	return i18n.T(msgid.ConfigEnvPrefixBoth, prefix)
 }
 
 // DanglingBinding 是一条指向未声明组件的资源绑定。
@@ -600,15 +574,11 @@ func validateReplicas(p *clierr.ProblemSet, field string, item Component) {
 	name := field + ".replicas"
 
 	if *item.Replicas < 1 {
-		p.Addf(name, "必须 >= 1（当前是 %d）。"+
-			"要关掉这个组件请用 enabled: false——它会走级联计算并提醒依赖方，"+
-			"而 replicas: 0 绕过这一切：依赖方照常启动、照常拿到地址，"+
-			"然后连一个不存在的后端", *item.Replicas)
+		p.Add(name, i18n.T(msgid.ConfigReplicasTooSmall, *item.Replicas))
 		return
 	}
 	// 下面这条只在 >= 1 时才有意义：0 已经报过一次，再报只是噪音
 	if item.Local {
-		p.Add(name, "不能与 local 同时声明：local 是这个组件在你的 IDE 里跑，"+
-			"那里只有一个进程")
+		p.Add(name, i18n.T(msgid.ConfigReplicasWithLocal))
 	}
 }

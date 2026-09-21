@@ -220,7 +220,7 @@ func TestCheckResourceBindingsSaysWhichEngineIsDeclared(t *testing.T) {
 	assert.Contains(t, out, "pg-main", "要点名是哪个资源")
 	assert.Contains(t, out, "postgres", "要说出它写的 engine")
 	assert.Contains(t, out, "postgresql", "也要说出组件要的那个")
-	assert.NotContains(t, out, "未声明",
+	assert.NotContains(t, out, "not declared",
 		"它明明声明了也绑定了，说「未声明」是句假话：%s", out)
 }
 

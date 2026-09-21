@@ -7,6 +7,9 @@ import (
 	"unicode"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/yamlcomment"
 )
 
 // 项目名称规则（003 §3.1）：
@@ -24,12 +27,12 @@ var projectNameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 const MaxProjectNameLen = 54
 
 // ProjectNameRule 是给用户看的命名规则说明。
-const ProjectNameRule = "只能包含小写字母、数字与中划线，且以字母或数字开头结尾"
+func ProjectNameRule() string { return i18n.T(msgid.ConfigProjectNameRule) }
 
 // ValidateProjectName 校验项目名称。不合法时返回可直接展示的 *clierr.Error。
 func ValidateProjectName(name string) error {
 	if strings.TrimSpace(name) == "" {
-		return clierr.New(clierr.CodeInvalidArgument, "请指定项目名称：brickkit init <项目名称>").
+		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.ConfigProjectNameMissing)).
 			WithExit(clierr.ExitUsage)
 	}
 
@@ -38,12 +41,12 @@ func ValidateProjectName(name string) error {
 		return nil
 	}
 
-	err := clierr.New(clierr.CodeConfigInvalid, "错误：项目名称不合法").
-		WithDetail("项目名称", name).
-		WithDetail("原因", reason).
-		WithDetail("命名规则", ProjectNameRule)
+	err := clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ConfigProjectNameInvalid)).
+		WithDetail(i18n.T(msgid.ConfigLabelProjectName), name).
+		WithDetail(i18n.T(msgid.LabelReason), reason).
+		WithDetail(i18n.T(msgid.ConfigLabelNamingRule), ProjectNameRule())
 	if suggestion := SuggestProjectName(name); suggestion != "" && suggestion != name {
-		_ = err.WithHint(fmt.Sprintf("改用 %s", suggestion))
+		_ = err.WithHint(i18n.T(msgid.ConfigHintUseName, suggestion))
 	}
 	return err
 }
@@ -52,20 +55,20 @@ func ValidateProjectName(name string) error {
 func projectNameProblem(name string) string {
 	if projectNameRe.MatchString(name) {
 		if len(name) > MaxProjectNameLen {
-			return fmt.Sprintf("长度 %d 超过上限 %d（K8s namespace 限制）", len(name), MaxProjectNameLen)
+			return i18n.T(msgid.ConfigProjectNameTooLong, len(name), MaxProjectNameLen)
 		}
 		return ""
 	}
 
 	switch {
 	case strings.ContainsAny(name, " \t"):
-		return "包含空格"
+		return i18n.T(msgid.ConfigProjectNameHasSpace)
 	case strings.HasPrefix(name, "-"), strings.HasSuffix(name, "-"):
-		return "不能以中划线开头或结尾"
+		return i18n.T(msgid.ConfigProjectNameEdgeHyphen)
 	case hasUpper(name):
-		return "包含大写字母（项目名称必须全部小写）"
+		return i18n.T(msgid.ConfigProjectNameHasUpper)
 	default:
-		return "包含非法字符（仅允许小写字母、数字与中划线）"
+		return i18n.T(msgid.ConfigProjectNameIllegalChar)
 	}
 }
 
@@ -109,24 +112,23 @@ func Skeleton(project, fileName string) []byte {
 	if fileName == "" {
 		fileName = DefaultConfigFile
 	}
-	return []byte(fmt.Sprintf(`# %s - BrickKit 项目配置
-# 由 brickkit init 生成，由用户编辑，由 CLI 读取
-project: %s
-
+	return []byte(fmt.Sprintf(`%s%s
 deploy:
   target: docker          # docker | k8s
 
-# 安装源：按声明顺序依次尝试，前一个找不到就试下一个
-sources:
+%ssources:
   - id: local-dev
     type: local
-    path: ./%s      # brickkit init 已经建好这个目录
-  # 组件市场按需取消注释并填上地址：
-  # - id: brickkit-market
+    path: ./%s      # %s
+%s  # - id: brickkit-market
   #   type: market
   #   url: https://market.example.com/api/v1
 
 components: []
 resources: []
-`, fileName, project, DirComponents))
+`,
+		yamlcomment.Block("", i18n.T(msgid.ConfigSkeletonHeader, fileName)), "project: "+project+"\n",
+		yamlcomment.Block("", i18n.T(msgid.ConfigSkeletonSources)),
+		DirComponents, i18n.T(msgid.ConfigSkeletonLocalDirNote),
+		yamlcomment.Block("  ", i18n.T(msgid.ConfigSkeletonMarketNote))))
 }

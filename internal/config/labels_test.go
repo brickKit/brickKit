@@ -66,5 +66,5 @@ components:
 `), "brickkit.yaml")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "components[0].labels")
-	assert.Contains(t, err.Error(), "必须是映射")
+	assert.Contains(t, err.Error(), "must be a mapping")
 }

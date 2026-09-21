@@ -47,10 +47,10 @@ func ParseConfigFile(path string) (*Config, error) {
 				i18n.T(msgid.ProjectMissingHintConfig),
 			).WithCause(err)
 	case err != nil:
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：读取项目配置文件失败").
-			WithDetail("路径", path).
-			WithDetail("原因", err.Error()).
-			WithHint("检查文件权限").
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ConfigReadFailed)).
+			WithDetail(i18n.T(msgid.LabelPath), path).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.ProblemHintCheckPermissions)).
 			WithCause(err)
 	}
 	return ParseConfig(data, path)
@@ -70,16 +70,16 @@ func ParseConfig(data []byte, source string) (*Config, error) {
 
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：项目配置文件不是合法的 YAML").
-			WithDetail("文件", source).
-			WithDetail("原因", cleanYAMLError(err)).
-			WithHint("按报错行号检查缩进与语法").
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ConfigNotValidYAML)).
+			WithDetail(i18n.T(msgid.LabelFile), source).
+			WithDetail(i18n.T(msgid.LabelReason), cleanYAMLError(err)).
+			WithHint(i18n.T(msgid.ProblemHintCheckSyntax)).
 			WithCause(err)
 	}
 	if root.Kind == 0 || len(root.Content) == 0 {
-		return nil, clierr.New(clierr.CodeConfigInvalid, "错误：项目配置文件内容为空").
-			WithDetail("文件", source).
-			WithHint("完整字段参考见 docs/zh/06-architecture/08-brickkit-yaml-reference.md（英文版把 zh 换 en）")
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ConfigEmpty)).
+			WithDetail(i18n.T(msgid.LabelFile), source).
+			WithHint(i18n.T(msgid.ConfigHintFieldReference))
 	}
 
 	doc := root.Content[0]
@@ -101,10 +101,10 @@ func ParseConfig(data []byte, source string) (*Config, error) {
 		if te, ok := err.(*yaml.TypeError); ok {
 			typeErr = te
 			for _, msg := range typeErr.Errors {
-				p.Add("类型不匹配", msg)
+				p.Add(i18n.T(msgid.ProblemLabelTypeMismatch), msg)
 			}
 		} else {
-			p.Add("解析失败", cleanYAMLError(err))
+			p.Add(i18n.T(msgid.ProblemLabelParseFailed), cleanYAMLError(err))
 		}
 		return nil, p.Err()
 	}
@@ -121,10 +121,10 @@ func newConfigProblems(source string) *clierr.ProblemSet {
 	if source == "" {
 		source = DefaultConfigFile
 	}
-	return clierr.NewProblemSet(clierr.CodeConfigInvalid, "错误："+DefaultConfigFile+" 校验失败").
-		WithSource("文件", source).
+	return clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.ProblemValidationFailed, DefaultConfigFile)).
+		WithSource(i18n.T(msgid.LabelFile), source).
 		WithHint(
-			"完整字段参考见 docs/zh/06-architecture/08-brickkit-yaml-reference.md（英文版把 zh 换 en）",
+			i18n.T(msgid.ConfigHintFieldReference),
 		)
 }
 
@@ -205,7 +205,7 @@ var configSequenceFields = [][]string{
 // checkConfigShapes 在解码前检查节点形状，保证错误提示能指出具体字段。
 func checkConfigShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 	if doc.Kind != yaml.MappingNode {
-		p.Add(DefaultConfigFile, "顶层必须是一个 YAML 映射（key: value 结构）")
+		p.Add(DefaultConfigFile, i18n.T(msgid.ProblemTopLevelMustBeMapping))
 		return
 	}
 
@@ -215,7 +215,7 @@ func checkConfigShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 			continue
 		}
 		if node.Kind != yaml.SequenceNode {
-			p.Addf(strings.Join(path, "."), "必须是数组格式（当前是 %s）", nodeKind(node))
+			p.Add(strings.Join(path, "."), i18n.T(msgid.ProblemMustBeArray, yamlcheck.KindName(node)))
 		}
 	}
 
@@ -223,12 +223,12 @@ func checkConfigShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 	if resources := lookupNode(doc, "resources"); resources != nil && resources.Kind == yaml.SequenceNode {
 		for i, item := range resources.Content {
 			if item.Kind != yaml.MappingNode {
-				p.Addf(indexed("resources", i), "必须是映射")
+				p.Add(indexed("resources", i), i18n.T(msgid.ConfigResourceMustBeMapping))
 				continue
 			}
 			bindings := lookupNode(item, "bindings")
 			if bindings != nil && bindings.Tag != "!!null" && bindings.Kind != yaml.SequenceNode {
-				p.Addf(indexed("resources", i)+".bindings", "必须是数组格式（当前是 %s）", nodeKind(bindings))
+				p.Add(indexed("resources", i)+".bindings", i18n.T(msgid.ProblemMustBeArray, yamlcheck.KindName(bindings)))
 			}
 		}
 	}
@@ -237,13 +237,13 @@ func checkConfigShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 	if components := lookupNode(doc, "components"); components != nil && components.Kind == yaml.SequenceNode {
 		for i, item := range components.Content {
 			if item.Kind != yaml.MappingNode {
-				p.Addf(indexed("components", i), "必须是映射（至少包含 id 与 version）")
+				p.Add(indexed("components", i), i18n.T(msgid.ConfigComponentMustBeMapping))
 				continue
 			}
 			for _, key := range []string{"config", "resources", "labels"} {
 				node := lookupNode(item, key)
 				if node != nil && node.Tag != "!!null" && node.Kind != yaml.MappingNode {
-					p.Addf(indexed("components", i)+"."+key, "必须是映射（当前是 %s）", nodeKind(node))
+					p.Add(indexed("components", i)+"."+key, i18n.T(msgid.ProblemMustBeMapping, yamlcheck.KindName(node)))
 				}
 			}
 			// labels 的每个值都得是字符串——`traefik.enable: true` 少的
@@ -274,19 +274,4 @@ func lookupNode(node *yaml.Node, path ...string) *yaml.Node {
 		current = next
 	}
 	return current
-}
-
-func nodeKind(node *yaml.Node) string {
-	switch node.Kind {
-	case yaml.ScalarNode:
-		return "标量"
-	case yaml.MappingNode:
-		return "映射"
-	case yaml.SequenceNode:
-		return "数组"
-	case yaml.AliasNode:
-		return "别名"
-	default:
-		return "未知类型"
-	}
 }

@@ -9,6 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 )
 
 // 003 §3.1 合法名称：全部小写、字母数字中划线。
@@ -30,16 +31,16 @@ func TestValidateProjectNameRejects(t *testing.T) {
 		wantCode   clierr.Code
 		wantReason string
 	}{
-		{"含空格", "my project", clierr.CodeConfigInvalid, "包含空格"},
-		{"含制表符", "my\tproject", clierr.CodeConfigInvalid, "包含空格"},
-		{"含大写", "MyProject", clierr.CodeConfigInvalid, "全部小写"},
-		{"含下划线", "my_project", clierr.CodeConfigInvalid, "包含非法字符"},
-		{"含点", "my.project", clierr.CodeConfigInvalid, "包含非法字符"},
-		{"含斜杠", "my/project", clierr.CodeConfigInvalid, "包含非法字符"},
-		{"含中文", "我的项目", clierr.CodeConfigInvalid, "包含非法字符"},
-		{"中划线开头", "-abc", clierr.CodeConfigInvalid, "中划线开头或结尾"},
-		{"中划线结尾", "abc-", clierr.CodeConfigInvalid, "中划线开头或结尾"},
-		{"超长", strings.Repeat("a", MaxProjectNameLen+1), clierr.CodeConfigInvalid, "长度"},
+		{"含空格", "my project", clierr.CodeConfigInvalid, "contains spaces"},
+		{"含制表符", "my\tproject", clierr.CodeConfigInvalid, "contains spaces"},
+		{"含大写", "MyProject", clierr.CodeConfigInvalid, "all lowercase"},
+		{"含下划线", "my_project", clierr.CodeConfigInvalid, "contains illegal characters"},
+		{"含点", "my.project", clierr.CodeConfigInvalid, "contains illegal characters"},
+		{"含斜杠", "my/project", clierr.CodeConfigInvalid, "contains illegal characters"},
+		{"含中文", "我的项目", clierr.CodeConfigInvalid, "contains illegal characters"},
+		{"中划线开头", "-abc", clierr.CodeConfigInvalid, "start or end with a hyphen"},
+		{"中划线结尾", "abc-", clierr.CodeConfigInvalid, "start or end with a hyphen"},
+		{"超长", strings.Repeat("a", MaxProjectNameLen+1), clierr.CodeConfigInvalid, "length"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -48,9 +49,9 @@ func TestValidateProjectNameRejects(t *testing.T) {
 
 			e := clierr.As(err)
 			assert.Equal(t, c.wantCode, e.Code)
-			assert.Contains(t, e.Format(), "项目名称不合法")
+			assert.Contains(t, e.Format(), "invalid project name")
 			assert.Contains(t, e.Format(), c.wantReason)
-			assert.Contains(t, e.Format(), ProjectNameRule, "错误信息应带命名规则")
+			assert.Contains(t, e.Format(), ProjectNameRule(), "错误信息应带命名规则")
 		})
 	}
 }
@@ -64,7 +65,7 @@ func TestValidateProjectNameEmpty(t *testing.T) {
 		e := clierr.As(err)
 		assert.Equal(t, clierr.CodeInvalidArgument, e.Code)
 		assert.Equal(t, clierr.ExitUsage, e.ExitCode())
-		assert.Contains(t, e.Format(), "❌ 请指定项目名称：brickkit init <项目名称>")
+		assert.Contains(t, e.Format(), "❌ Please specify a project name: brickkit init <project-name>")
 	}
 }
 
@@ -113,7 +114,7 @@ func TestSkeleton(t *testing.T) {
 	assert.Empty(t, doc["components"])
 	assert.Empty(t, doc["resources"])
 
-	assert.True(t, strings.HasPrefix(string(raw), "# brickkit.yaml - BrickKit 项目配置\n"))
+	assert.True(t, strings.HasPrefix(string(raw), "# brickkit.yaml - BrickKit project config\n"))
 	assert.True(t, strings.HasSuffix(string(raw), "\n"), "文件应以换行结尾")
 }
 
@@ -157,6 +158,27 @@ func TestSkeletonLocalSourcePointsAtManagedDir(t *testing.T) {
 
 // 文件头注释使用实际文件名，便于多环境配置自解释。
 func TestSkeletonUsesFileNameInHeader(t *testing.T) {
-	assert.Contains(t, string(Skeleton("p", "brickkit.prod.yaml")), "# brickkit.prod.yaml - BrickKit 项目配置")
-	assert.Contains(t, string(Skeleton("p", "")), "# brickkit.yaml - BrickKit 项目配置")
+	assert.Contains(t, string(Skeleton("p", "brickkit.prod.yaml")), "# brickkit.prod.yaml - BrickKit project config")
+	assert.Contains(t, string(Skeleton("p", "")), "# brickkit.yaml - BrickKit project config")
+}
+
+// brickkit.yaml 骨架里的说明注释随语言变；结构（键、值）不随语言变，
+// 两种语言生成的文件解析出来必须是同一份配置。
+func TestSkeletonFollowsLanguageButNotStructure(t *testing.T) {
+	prev := i18n.Current()
+	t.Cleanup(func() { i18n.SetCurrent(prev) })
+
+	i18n.SetCurrent(i18n.ZH)
+	zh := Skeleton("demo", DefaultConfigFile)
+	i18n.SetCurrent(i18n.EN)
+	en := Skeleton("demo", DefaultConfigFile)
+
+	assert.Contains(t, string(zh), "# 安装源：按声明顺序依次尝试，前一个找不到就试下一个\nsources:")
+	assert.Contains(t, string(en), "# Install sources: tried in declaration order")
+	assert.NotRegexp(t, "[一-鿿]", string(en), "英文骨架里不该夹中文")
+
+	var zhDoc, enDoc map[string]any
+	require.NoError(t, yaml.Unmarshal(zh, &zhDoc))
+	require.NoError(t, yaml.Unmarshal(en, &enDoc))
+	assert.Equal(t, zhDoc, enDoc)
 }
