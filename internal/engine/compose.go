@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // Compose 是基于 compose 的引擎实现。
@@ -124,36 +126,36 @@ func imageError(image, output string, cause error) error {
 	// 但两句话里都有 "no such"，顺序反了就会把 DNS 故障说成镜像名写错了
 	case containsAny(text, "dial tcp", "no such host", "connection refused",
 		"i/o timeout", "timeout exceeded", "certificate"):
-		return clierr.Newf(clierr.CodeNetworkUnreachable, "错误：无法连接镜像仓库").
-			WithDetail("镜像", image).
-			WithDetail("原因", tail(output, 2)).
-			WithHint("检查网络与 registry 地址").
+		return clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.EngineRegistryUnreachable)).
+			WithDetail(i18n.T(msgid.LabelImage), image).
+			WithDetail(i18n.T(msgid.LabelReason), tail(output, 2)).
+			WithHint(i18n.T(msgid.EngineHintCheckNetworkRegistry)).
 			WithCause(cause)
 
 	case containsAny(text, "unauthorized", "authentication required", "denied", "forbidden"):
-		return clierr.Newf(clierr.CodeImageUnauthorized, "错误：镜像拉取未授权").
-			WithDetail("镜像", image).
+		return clierr.New(clierr.CodeImageUnauthorized, i18n.T(msgid.EngineImageUnauthorized)).
+			WithDetail(i18n.T(msgid.LabelImage), image).
 			WithHint(
-				"执行 docker login <registry> 登录后重试",
-				"确认该账号有拉取这个镜像的权限",
+				i18n.T(msgid.EngineHintDockerLogin),
+				i18n.T(msgid.EngineHintCheckPullPermission),
 			).
 			WithCause(cause)
 
 	case containsAny(text, "manifest unknown", "no such image", "not found",
 		"repository does not exist"):
-		return clierr.Newf(clierr.CodeImageUnauthorized, "错误：镜像不存在").
-			WithDetail("镜像", image).
+		return clierr.New(clierr.CodeImageUnauthorized, i18n.T(msgid.EngineImageNotFound)).
+			WithDetail(i18n.T(msgid.LabelImage), image).
 			WithHint(
-				"确认 component.yaml 中的 deployment.image 写对了",
-				"本地开发的组件请先 build 出这个镜像",
+				i18n.T(msgid.EngineHintCheckImageField),
+				i18n.T(msgid.EngineHintBuildLocalImage),
 			).
 			WithCause(cause)
 
 	default:
-		return clierr.Newf(clierr.CodeNetworkUnreachable, "错误：无法连接镜像仓库").
-			WithDetail("镜像", image).
-			WithDetail("原因", tail(output, 2)).
-			WithHint("检查网络与 registry 地址").
+		return clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.EngineRegistryUnreachable)).
+			WithDetail(i18n.T(msgid.LabelImage), image).
+			WithDetail(i18n.T(msgid.LabelReason), tail(output, 2)).
+			WithHint(i18n.T(msgid.EngineHintCheckNetworkRegistry)).
 			WithCause(cause)
 	}
 }
@@ -190,13 +192,13 @@ func (c *Compose) exec(ctx context.Context, args ...string) ([]byte, error) {
 		return out, nil
 	}
 	if isMissingBinary(err) {
-		return out, clierr.Newf(clierr.CodeEngineMissing, "错误：找不到容器引擎 %s", c.bin).
-			WithHint("安装 Docker 20.10+ 后重试").
+		return out, clierr.New(clierr.CodeEngineMissing, i18n.T(msgid.EngineBinaryMissing, c.bin)).
+			WithHint(i18n.T(msgid.EngineHintInstallDocker)).
 			WithCause(err)
 	}
-	return out, clierr.Newf(clierr.CodeEngineFailed, "错误：%s 执行失败", c.bin).
-		WithDetail("命令", c.bin+" "+strings.Join(args, " ")).
-		WithDetail("输出", tail(string(out), 3)).
+	return out, clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.EngineExecFailed, c.bin)).
+		WithDetail(i18n.T(msgid.LabelCommand), c.bin+" "+strings.Join(args, " ")).
+		WithDetail(i18n.T(msgid.LabelOutput), tail(string(out), 3)).
 		WithCause(err)
 }
 
@@ -358,9 +360,9 @@ func parsePS(out []byte) ([]Status, error) {
 }
 
 func statusParseError(err error) error {
-	return clierr.New(clierr.CodeEngineFailed, "错误：无法解析容器引擎的状态输出").
-		WithDetail("原因", err.Error()).
-		WithHint("确认 Docker Compose 为 V2+（brickkit version 会打印检测到的引擎）").
+	return clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.EngineStatusParseFailed)).
+		WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+		WithHint(i18n.T(msgid.EngineHintComposeV2)).
 		WithCause(err)
 }
 
@@ -374,11 +376,11 @@ func Detect() (Engine, error) {
 	if _, err := exec.LookPath("podman"); err == nil {
 		return nil, podmanNotSupported()
 	}
-	return nil, clierr.New(clierr.CodeEngineMissing, "错误：没有找到可用的容器引擎").
-		WithDetail("已尝试", "docker compose").
+	return nil, clierr.New(clierr.CodeEngineMissing, i18n.T(msgid.EngineNoneFound)).
+		WithDetail(i18n.T(msgid.EngineLabelTried), "docker compose").
 		WithHint(
-			"安装 Docker 20.10+",
-			"只想生成部署文件而不启动的话，用 brickkit up --dry-run",
+			i18n.T(msgid.EngineHintInstallDocker),
+			i18n.T(msgid.EngineHintDryRunOnly),
 		)
 }
 
@@ -391,15 +393,13 @@ func Detect() (Engine, error) {
 // 跑到了一半、卡在一处我们绕不过去的地方**。把那一处说出来，
 // 使用者才能自己判断他的环境会不会一样卡住。
 func podmanNotSupported() error {
-	return clierr.New(clierr.CodeEngineMissing, "错误：暂不支持 Podman，请使用 Docker").
-		WithDetail("检测到", "本机装了 Podman，但没有 Docker").
-		WithDetail("卡在哪", "`up` / `status` 都能跑通，但 `down` 会失败："+
-			"rootless netns: kill network process: permission denied").
-		WithDetail("为什么不留半个", "一个停不掉的项目比不支持更糟——"+
-			"容器会一直占着端口和资源，而 CLI 报的是成功").
+	return clierr.New(clierr.CodeEngineMissing, i18n.T(msgid.EnginePodmanUnsupported)).
+		WithDetail(i18n.T(msgid.EngineLabelDetected), i18n.T(msgid.EnginePodmanDetectedDetail)).
+		WithDetail(i18n.T(msgid.EngineLabelStuckAt), i18n.T(msgid.EnginePodmanStuckDetail)).
+		WithDetail(i18n.T(msgid.EngineLabelWhyNotHalf), i18n.T(msgid.EnginePodmanWhyDetail)).
 		WithHint(
-			"安装 Docker 20.10+ 后重试",
-			"只想生成部署文件而不启动的话，用 brickkit up --dry-run（不需要任何引擎）",
+			i18n.T(msgid.EngineHintInstallDocker),
+			i18n.T(msgid.EngineHintDryRunNoEngine),
 		)
 }
 

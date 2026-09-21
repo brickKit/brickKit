@@ -56,8 +56,8 @@ func TestDetectReportsPodmanSpecifically(t *testing.T) {
 
 	require.Error(t, err)
 	text := clierr.As(err).Format()
-	assert.Contains(t, text, "暂不支持 Podman", "34.11：%s", text)
-	assert.NotContains(t, text, "没有找到可用的容器引擎",
+	assert.Contains(t, text, "Podman isn't supported yet", "34.11：%s", text)
+	assert.NotContains(t, text, "no usable container engine found",
 		"34.11：不能report成笼统的'找不到引擎'——那会让人白装一遍 Docker 之外的东西")
 }
 
@@ -71,7 +71,7 @@ func TestDetectWithoutAnyEngine(t *testing.T) {
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeEngineMissing, e.Code, "34.12")
 	text := e.Format()
-	assert.Contains(t, text, "没有找到可用的容器引擎", "34.12")
+	assert.Contains(t, text, "no usable container engine found", "34.12")
 	assert.Contains(t, text, "--dry-run",
 		"34.12：生成部署文件不需要任何引擎，这条出路必须给出来——"+
 			"否则没装 Docker 的人会以为连看一眼生成物都做不到")

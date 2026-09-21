@@ -436,7 +436,7 @@ func TestKubectlMigrationTimeoutPointsAtEvents(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "kubectl describe job/people-basic-1-0-0-migration",
 		"Pod 没被创建时没有日志可看，只能看 events")
-	assert.Contains(t, err.Error(), "准入控制", "要点出这个最常见的原因")
+	assert.Contains(t, err.Error(), "admission control", "要点出这个最常见的原因")
 }
 
 // 同一个组件的多个版本，迁移 Job 必须一个跑完再下发下一个。

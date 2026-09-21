@@ -206,7 +206,7 @@ func TestCheckImageNotFound(t *testing.T) {
 	err := dockerWith(rec).CheckImage(context.Background(), "registry.io/a:1")
 
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "先 build 出这个镜像")
+	assert.Contains(t, clierr.As(err).Format(), "build the image first")
 }
 
 // ============================================================
@@ -421,7 +421,7 @@ func TestPodmanOnlyMachineGetsSpecificError(t *testing.T) {
 	err := podmanNotSupported()
 
 	text := clierr.As(err).Format()
-	assert.Contains(t, text, "暂不支持 Podman")
+	assert.Contains(t, text, "Podman isn't supported yet")
 	assert.Contains(t, text, "Docker", "要说清该装什么")
 	assert.Contains(t, text, "down", "要说清卡在哪一步")
 	assert.Contains(t, text, "--dry-run", "生成文件不需要引擎，这条出路要给出来")

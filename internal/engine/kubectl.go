@@ -19,7 +19,9 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // 超时。K8s 侧没有 compose 那样的"等到好为止"，必须自己设上限，
@@ -367,11 +369,10 @@ func (k *Kubectl) Down(ctx context.Context, req DownRequest) error {
 	// **该命名空间里的全部** Deployment。而走到这里恰恰说明命名空间是别人的，
 	// 里面多半跑着别的团队的东西——少传一个字段就把它们全删了，代价无法挽回。
 	if req.Selector == "" {
-		return clierr.New(clierr.CodeInternal, "错误：缺少项目标签选择器，已中止删除").
-			WithDetail("命名空间", req.Project).
-			WithDetail("原因", "命名空间不是本项目创建的，只能按标签删自己的资源；"+
-				"选择器为空会匹配到该命名空间下的全部资源").
-			WithHint("这是 CLI 内部错误，请提交 issue")
+		return clierr.New(clierr.CodeInternal, i18n.T(msgid.EngineMissingSelector)).
+			WithDetail(i18n.T(msgid.EngineLabelNamespace), req.Project).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.EngineSelectorReasonDetail)).
+			WithHint(i18n.T(msgid.EngineHintInternalIssue))
 	}
 
 	// 命名空间不是我们建的，那是别人的地盘：只删带本项目标签的资源，
@@ -476,33 +477,30 @@ func (k *Kubectl) exec(ctx context.Context, args ...string) ([]byte, error) {
 		return out, nil
 	}
 	if isMissingBinary(err) {
-		return out, clierr.New(clierr.CodeEngineMissing, "错误：找不到 kubectl").
+		return out, clierr.New(clierr.CodeEngineMissing, i18n.T(msgid.EngineKubectlMissing)).
 			WithHint(
-				"安装 kubectl 后重试：https://kubernetes.io/docs/tasks/tools/",
-				"本地开发可以把 deploy.target 改成 docker",
+				i18n.T(msgid.EngineHintInstallKubectl),
+				i18n.T(msgid.EngineHintSwitchToDocker),
 			).
 			WithCause(err)
 	}
-	return out, clierr.New(clierr.CodeEngineFailed, "错误：kubectl 执行失败").
-		WithDetail("命令", k.bin+" "+strings.Join(args, " ")).
-		WithDetail("输出", tail(string(out), 3)).
+	return out, clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.EngineKubectlFailed)).
+		WithDetail(i18n.T(msgid.LabelCommand), k.bin+" "+strings.Join(args, " ")).
+		WithDetail(i18n.T(msgid.LabelOutput), tail(string(out), 3)).
 		WithCause(err)
 }
 
 // migrationFailure 把等待超时/失败翻译成一条能指出下一步的错误。
 func migrationFailure(job, namespace string, cause error) error {
-	return clierr.New(clierr.CodeMigrationFailed, "错误：数据库迁移失败").
+	return clierr.New(clierr.CodeMigrationFailed, i18n.T(msgid.EngineMigrationFailed)).
 		WithDetail("Job", job).
-		WithDetail("命名空间", namespace).
-		WithDetail("看事件", fmt.Sprintf("kubectl describe job/%s -n %s", job, namespace)).
-		WithDetail("看日志", fmt.Sprintf("kubectl logs job/%s -n %s", job, namespace)).
-		WithDetail("先看事件再看日志",
-			"Job 迟迟不结束、日志又是空的时，多半是准入控制（PodSecurity / ResourceQuota / "+
-				"LimitRange）拒绝了创建 Pod——那时 apply 是成功的，Pod 却根本没被创建，"+
-				"一条日志也不会有，原因只写在 Job 的 events 里").
+		WithDetail(i18n.T(msgid.EngineLabelNamespace), namespace).
+		WithDetail(i18n.T(msgid.EngineLabelEvents), fmt.Sprintf("kubectl describe job/%s -n %s", job, namespace)).
+		WithDetail(i18n.T(msgid.EngineLabelLogs), fmt.Sprintf("kubectl logs job/%s -n %s", job, namespace)).
+		WithDetail(i18n.T(msgid.EngineLabelEventsThenLogs), i18n.T(msgid.EngineEventsThenLogsDetail)).
 		WithHint(
-			"迁移失败时主服务不会启动（backoffLimit: 0，不会自动重试）",
-			"修好迁移脚本后重新 brickkit up：CLI 会自动清理这个 Job 再跑一次",
+			i18n.T(msgid.EngineHintMigrationBlocksMain),
+			i18n.T(msgid.EngineHintFixAndRerun),
 		).
 		WithCause(cause)
 }
@@ -548,8 +546,8 @@ func parseDeployments(out []byte) ([]Status, error) {
 
 	var list deploymentList
 	if err := json.Unmarshal([]byte(text), &list); err != nil {
-		return nil, clierr.New(clierr.CodeEngineFailed, "错误：无法解析 kubectl 的输出").
-			WithDetail("输出", tail(text, 3)).
+		return nil, clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.EngineKubectlOutputUnparseable)).
+			WithDetail(i18n.T(msgid.LabelOutput), tail(text, 3)).
 			WithCause(err)
 	}
 
