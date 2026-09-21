@@ -26,7 +26,7 @@ func TestAddLocalAddsEveryComponent(t *testing.T) {
 
 	assert.Equal(t, []string{"demo/hello@1.0.0", "people/basic@2.1.0"}, f.refs(t))
 	assert.Contains(t, r.stdout, "local-shared")
-	assert.Contains(t, r.stdout, "2 个组件")
+	assert.Contains(t, r.stdout, "2 components")
 }
 
 // 依赖照常递归拉取：本地源里的 caller 依赖 hello，两个都会进配置。
@@ -58,7 +58,7 @@ func TestAddLocalSkipsAlreadyConfigured(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
 	assert.Equal(t, []string{"demo/hello@1.0.0", "people/basic@1.0.0"}, f.refs(t))
-	assert.Contains(t, r.stdout, "已在 brickkit.yaml 中")
+	assert.Contains(t, r.stdout, "is already in brickkit.yaml")
 }
 
 // 同 ID 但版本不同：跳过并单独列出来，不替人决定多起一个容器。
@@ -76,8 +76,8 @@ resources: []
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
 	assert.Equal(t, []string{"demo/hello@1.0.0"}, f.refs(t), "配置里的 1.0.0 不动，2.0.0 不加")
-	assert.Contains(t, r.stdout, "本地是 2.0.0")
-	assert.Contains(t, r.stdout, "配置里是 1.0.0")
+	assert.Contains(t, r.stdout, "is 2.0.0 locally")
+	assert.Contains(t, r.stdout, "1.0.0 in the configuration")
 	assert.Contains(t, r.stdout, "brickkit add demo/hello@2.0.0")
 }
 
@@ -106,7 +106,7 @@ func TestAddLocalWithoutLocalSource(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "--local")
 	assert.NotEqual(t, clierr.ExitOK, r.code)
-	assert.Contains(t, r.stderr, "本地安装源")
+	assert.Contains(t, r.stderr, "local install source")
 }
 
 // 本地源是空目录：提示一下就好，不是错误。
@@ -117,7 +117,7 @@ func TestAddLocalOnEmptySource(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "--local")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "没有扫到可用的组件")
+	assert.Contains(t, r.stdout, "No usable components were found")
 	assert.Empty(t, f.refs(t))
 }
 
@@ -132,7 +132,7 @@ func TestAddLocalWhenEverythingAlreadyConfigured(t *testing.T) {
 	r := runIn(t, f.Dir, "add", "--local")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, before, f.config(t))
-	assert.Contains(t, r.stdout, "brickkit.yaml 未变更")
+	assert.Contains(t, r.stdout, "brickkit.yaml is unchanged")
 }
 
 // 坏组件必须被点名，而不是从"扫到几个"里悄悄少掉一个。
@@ -187,10 +187,10 @@ resources: []
 
 	r := runIn(t, f.Dir, "add", "--local")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "已跳过")
-	assert.NotContains(t, r.stdout, "本地组件都已在配置中",
+	assert.Contains(t, r.stdout, "skipped")
+	assert.NotContains(t, r.stdout, "Every local component is already in the configuration",
 		"2.0.0 并不在配置里，这句话与上一行自相矛盾")
-	assert.Contains(t, r.stdout, "版本都与配置里的不一致")
+	assert.Contains(t, r.stdout, "versions all differ from the configuration")
 }
 
 // ============================================================

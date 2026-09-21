@@ -17,6 +17,8 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
 
@@ -153,7 +155,7 @@ func runRestoreCheck(ctx context.Context, opts *Options) error {
 	// 分成多次查会让短路把 gitlink 提醒一起短路掉。
 	entries, err := repo.IndexEntries(compRel)
 	if err != nil {
-		return skipCheck(opts, "读不到即将提交的组件目录结构", err)
+		return skipCheck(opts, i18n.T(msgid.CliRestoreCheckCannotReadTheComponentDirectory), err)
 	}
 	if !hasArchivedEntry(entries, compRel) {
 		// components/ 还在 .gitignore 里的默认情形走的就是这一条：零成本、零噪音。
@@ -167,29 +169,29 @@ func runRestoreCheck(ctx context.Context, opts *Options) error {
 	// 后面几支"放行"也就都该发声：不发声，配置没被跟踪的人根本不知道
 	// 这道闸门刚才没跑。
 	if repo.Unmerged() {
-		opts.Printf("⚠️  正在解决冲突，跳过组件结构检查\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliRestoreCheckAConflictIsBeingResolved))
 		return nil
 	}
 	cfgRel, ok := repo.Rel(layout.ConfigPath())
 	if !ok || !repo.Tracked(cfgRel) {
 		// 静默 return nil 会让"yaml 还没 git add"的人以为闸门跑过了、其实
 		// 根本没跑——他手上没有可比对的意图声明。这里必须出声。
-		return skipCheck(opts, layout.ConfigName()+" 未被 git 跟踪，没有可比对的意图声明",
-			errors.New("index 里没有 "+layout.ConfigName()+" 的记录"))
+		return skipCheck(opts, i18n.T(msgid.CliRestoreCheckIsNotTrackedByGit, layout.ConfigName()),
+			errors.New(i18n.T(msgid.CliRestoreCheckTheIndexHasNoEntry, layout.ConfigName())))
 	}
 
 	data, err := repo.IndexBlob(cfgRel)
 	if err != nil {
-		return skipCheck(opts, "读不到即将提交的 "+layout.ConfigName(), err)
+		return skipCheck(opts, i18n.T(msgid.CliRestoreCheckCannotReadTheAboutTo, layout.ConfigName()), err)
 	}
 	cfg, err := config.ParseConfig(data, "index:"+cfgRel)
 	if err != nil {
-		return skipCheck(opts, "即将提交的 "+layout.ConfigName()+" 解析不了", err)
+		return skipCheck(opts, i18n.T(msgid.CliRestoreCheckTheAboutToBeCommitted, layout.ConfigName()), err)
 	}
 	f, err := syncFocus(ctx, opts, layout, cfg)
 	if err != nil {
 		// 算不出来 ≠ 判据不通过。Manifest 缺失或要联网时会走到这里。
-		return skipCheck(opts, "算不出这次会启动哪些组件", err)
+		return skipCheck(opts, i18n.T(msgid.CliRestoreCheckCannotWorkOutWhichComponents), err)
 	}
 
 	ids := declaredIDs(cfg)
@@ -234,9 +236,9 @@ func gitlinkPaths(entries []gitrepo.IndexEntry) []string {
 // 放行而不是拦：闸门守的是一个特定失误，不是"什么都得对"。堵死一次提交的
 // 代价，远大于漏掉一次——尤其当原因是网络或缓存，与使用者正在做的事毫无关系。
 func skipCheck(opts *Options, reason string, cause error) error {
-	opts.Printf("%s", clierr.Warn(clierr.CodeConfigInvalid, "跳过组件结构检查："+reason).
-		WithDetail("原因", cause.Error()).
-		WithHint("这次提交照常进行；想手工确认就跑 brickkit restore --check").
+	opts.Printf("%s", clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliRestoreCheckSkippingTheComponentLayoutCheck, reason)).
+		WithDetail(i18n.T(msgid.LabelReason), cause.Error()).
+		WithHint(i18n.T(msgid.CliRestoreCheckThisCommitGoesAheadAs)).
 		Format())
 	return nil
 }
@@ -257,10 +259,10 @@ func warnGitlinks(opts *Options, paths []string, registered map[string]gitrepo.S
 			continue
 		}
 		opts.Printf("%s", clierr.Warn(clierr.CodeConfigInvalid,
-			p+" 是一个嵌套的 Git 仓库（提交进去的只是一个指针）").
+			i18n.T(msgid.CliRestoreCheckIsANestedGitRepository, p)).
 			WithHint(
-				"仓库里没有 .gitmodules，队友 clone 下来只会得到一个空目录",
-				"git submodule update 也拉不回来——没有地方记着它的 URL",
+				i18n.T(msgid.CliRestoreCheckTheRepositoryHasNoGitmodules),
+				i18n.T(msgid.CliRestoreCheckGitSubmoduleUpdateCanT),
 			).Format())
 	}
 }
@@ -315,30 +317,30 @@ func violationError(
 
 	if len(both) > 0 {
 		e := clierr.New(clierr.CodeConfigConflict,
-			"提交被拦下：同一个组件的源码在提交里出现了两处")
+			i18n.T(msgid.CliRestoreCheckCommitBlockedTheSameComponent))
 		for _, id := range both {
-			e = e.WithDetail(id, componentsRel+"/"+id+"  与  "+archivedRoot+"/"+id)
+			e = e.WithDetail(id, i18n.T(msgid.CliRestoreCheckAnd, componentsRel, id, archivedRoot, id))
 		}
 		return e.WithHint(
-			"一个组件 ID 只能有一个源码目录",
-			"多半是 git add 的路径太窄，漏掉了旧路径的删除：git add -A "+componentsRel+"/",
-			"两处都有源码时，平台不替你决定保留哪一份",
+			i18n.T(msgid.CliRestoreCheckAComponentIdCanHave),
+			i18n.T(msgid.CliRestoreCheckMostLikelyThePathGiven, componentsRel),
+			i18n.T(msgid.CliRestoreWhenBothPlacesHaveSource),
 		)
 	}
 
 	e := clierr.New(clierr.CodeConfigConflict,
-		"提交被拦下：组件源码提交在归档目录里，但 "+configName+" 说它该启动")
+		i18n.T(msgid.CliRestoreCheckCommitBlockedComponentSourceIs, configName))
 	for _, id := range archivedOnDisk {
-		e = e.WithDetail(id, "即将提交的位置："+archivedRoot+"/"+id)
+		e = e.WithDetail(id, i18n.T(msgid.CliRestoreCheckLocationAboutToBeCommitted, archivedRoot, id))
 	}
 	for _, id := range staleIndex {
 		// 两种陈旧要分别说清楚：使用者得知道该暂存的是一次移动还是一次删除
-		why := "源码已经从磁盘上删掉了"
+		why := i18n.T(msgid.CliRestoreCheckTheSourceHasBeenDeleted)
 		if workspace.Exists(layout, id) {
-			why = "sync 已经把它移回了活跃目录"
+			why = i18n.T(msgid.CliRestoreCheckSyncHasAlreadyMovedIt)
 		}
 		e = e.WithDetail(id,
-			"即将提交的位置："+archivedRoot+"/"+id+"（工作区里它已经不在这儿了："+why+"）")
+			i18n.T(msgid.CliRestoreCheckLocationAboutToBeCommitted2, archivedRoot, id, why))
 	}
 
 	// 两组都非空时才在建议前面点名——单独一组时保持原来的措辞，
@@ -349,35 +351,33 @@ func violationError(
 	if len(archivedOnDisk) > 0 {
 		prefix := ""
 		if mixed {
-			prefix = strings.Join(archivedOnDisk, "、") + "："
+			prefix = i18n.T(msgid.CliRestoreCheckMsg, strings.Join(archivedOnDisk, i18n.T(msgid.ListSeparator)))
 		}
 		// 混合时这一条也必须自己说清管的是哪几个。它光秃秃地夹在两条点了名的
 		// 建议中间，读者会以为它对所有列出的组件都适用——而对 activeOnDisk
 		// 那些，brickkit restore 恰恰不是解法：它会把使用者还没提交的重新启用
 		// 一起回退掉。不重复一遍 ID 列表，因为两条建议紧挨着输出、编号相邻。
-		restoreRoute := "brickkit restore，然后重新 git add"
+		restoreRoute := i18n.T(msgid.CliRestoreCheckBrickkitRestoreThenGitAdd)
 		if stagedComponents {
 			// restore 会拒绝跑，先退暂存区
-			restoreRoute = "git reset " + componentsRel + "/ && brickkit restore，然后重新 git add"
+			restoreRoute = i18n.T(msgid.CliRestoreCheckGitResetBrickkitRestoreThen, componentsRel)
 		}
-		unwanted := "不想 → " + restoreRoute
+		unwanted := i18n.T(msgid.CliRestoreCheckDonTWantThat, restoreRoute)
 		if mixed {
-			unwanted = "同上这几个，不想保留 → " + restoreRoute
+			unwanted = i18n.T(msgid.CliRestoreCheckForTheseSameOnesIf, restoreRoute)
 		}
 		hints = append(hints,
-			prefix+"想保留这个归档结构 → git add "+configName+
-				"（yaml 里的 enabled: false 进了提交，就是你的意图声明）",
+			i18n.T(msgid.CliRestoreCheckToKeepThisArchivedLayout, prefix, configName),
 			unwanted,
 		)
 	}
 	if len(staleIndex) > 0 {
 		prefix := ""
 		if mixed {
-			prefix = strings.Join(staleIndex, "、") + "："
+			prefix = i18n.T(msgid.CliRestoreCheckMsg, strings.Join(staleIndex, i18n.T(msgid.ListSeparator)))
 		}
 		hints = append(hints,
-			prefix+"即将提交的归档路径已经对不上工作区了（源码被 sync 移走或被删掉，"+
-				"而那次改动没有暂存）→ git add -A "+componentsRel+"/",
+			i18n.T(msgid.CliRestoreCheckTheArchivedPathAboutTo, prefix, componentsRel),
 		)
 	}
 	return e.WithHint(hints...)

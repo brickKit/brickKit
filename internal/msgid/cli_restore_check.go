@@ -1,0 +1,33 @@
+package msgid
+
+// internal/cli/restore_check.go
+const (
+	CliRestoreCheckCannotReadTheComponentDirectory = "cli.restore.check.cannot_read_the_component_directory"
+	CliRestoreCheckAConflictIsBeingResolved        = "cli.restore.check.a_conflict_is_being_resolved"
+	CliRestoreCheckIsNotTrackedByGit               = "cli.restore.check.is_not_tracked_by_git"
+	CliRestoreCheckTheIndexHasNoEntry              = "cli.restore.check.the_index_has_no_entry"
+	CliRestoreCheckCannotReadTheAboutTo            = "cli.restore.check.cannot_read_the_about_to"
+	CliRestoreCheckTheAboutToBeCommitted           = "cli.restore.check.the_about_to_be_committed"
+	CliRestoreCheckCannotWorkOutWhichComponents    = "cli.restore.check.cannot_work_out_which_components"
+	CliRestoreCheckSkippingTheComponentLayoutCheck = "cli.restore.check.skipping_the_component_layout_check"
+	CliRestoreCheckThisCommitGoesAheadAs           = "cli.restore.check.this_commit_goes_ahead_as"
+	CliRestoreCheckIsANestedGitRepository          = "cli.restore.check.is_a_nested_git_repository"
+	CliRestoreCheckTheRepositoryHasNoGitmodules    = "cli.restore.check.the_repository_has_no_gitmodules"
+	CliRestoreCheckGitSubmoduleUpdateCanT          = "cli.restore.check.git_submodule_update_can_t"
+	CliRestoreCheckCommitBlockedTheSameComponent   = "cli.restore.check.commit_blocked_the_same_component"
+	CliRestoreCheckAnd                             = "cli.restore.check.and"
+	CliRestoreCheckAComponentIdCanHave             = "cli.restore.check.a_component_id_can_have"
+	CliRestoreCheckMostLikelyThePathGiven          = "cli.restore.check.most_likely_the_path_given"
+	CliRestoreCheckCommitBlockedComponentSourceIs  = "cli.restore.check.commit_blocked_component_source_is"
+	CliRestoreCheckLocationAboutToBeCommitted      = "cli.restore.check.location_about_to_be_committed"
+	CliRestoreCheckTheSourceHasBeenDeleted         = "cli.restore.check.the_source_has_been_deleted"
+	CliRestoreCheckSyncHasAlreadyMovedIt           = "cli.restore.check.sync_has_already_moved_it"
+	CliRestoreCheckLocationAboutToBeCommitted2     = "cli.restore.check.location_about_to_be_committed_2"
+	CliRestoreCheckMsg                             = "cli.restore.check.msg"
+	CliRestoreCheckBrickkitRestoreThenGitAdd       = "cli.restore.check.brickkit_restore_then_git_add"
+	CliRestoreCheckGitResetBrickkitRestoreThen     = "cli.restore.check.git_reset_brickkit_restore_then"
+	CliRestoreCheckDonTWantThat                    = "cli.restore.check.don_t_want_that"
+	CliRestoreCheckForTheseSameOnesIf              = "cli.restore.check.for_these_same_ones_if"
+	CliRestoreCheckToKeepThisArchivedLayout        = "cli.restore.check.to_keep_this_archived_layout"
+	CliRestoreCheckTheArchivedPathAboutTo          = "cli.restore.check.the_archived_path_about_to"
+)

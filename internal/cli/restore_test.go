@@ -57,7 +57,7 @@ func TestRestoreRestoresEnabledAndMovesSourceBack(t *testing.T) {
 	r := runIn(t, f.Dir, "restore")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "enabled: false")
-	assert.Contains(t, r.stdout, "删除该字段")
+	assert.Contains(t, r.stdout, "remove the field")
 
 	f.assertActive(t, "demo/hello")
 	f.assertActive(t, "demo/caller")
@@ -109,7 +109,7 @@ func TestRestoreRejectsStagedComponentChanges(t *testing.T) {
 
 	r := runIn(t, f.Dir, "restore")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "已暂存")
+	assert.Contains(t, r.stderr, "staged")
 	f.assertArchived(t, "demo/hello")
 }
 
@@ -126,8 +126,8 @@ func TestRestoreRejectsSourceInBothPlaces(t *testing.T) {
 
 	r := runIn(t, f.Dir, "restore")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "两处")
-	assert.Contains(t, r.stderr, "不替你决定")
+	assert.Contains(t, r.stderr, "two places")
+	assert.Contains(t, r.stderr, "doesn't decide for you")
 }
 
 func TestRestoreRequiresGitBaseline(t *testing.T) {
@@ -140,7 +140,7 @@ func TestRestoreRequiresGitBaseline(t *testing.T) {
 	gitProject(t, f.Dir) // 有仓库了，但还没有任何提交
 	r = runIn(t, f.Dir, "restore")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "提交")
+	assert.Contains(t, r.stderr, "no commits")
 }
 
 func TestRestoreIsIdempotent(t *testing.T) {

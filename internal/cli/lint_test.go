@@ -52,7 +52,7 @@ func TestLintCleanProject(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "✅ brickkit.yaml\n")
 	assert.Contains(t, r.stdout, "✅ "+filepath.Join("shared", "demo", "hello", "component.yaml")+"\n")
-	assert.Contains(t, r.stdout, "检查了 3 个文件：0 个有错误，0 条警告")
+	assert.Contains(t, r.stdout, "Checked 3 files: 0 with errors, 0 warnings")
 }
 
 // 这条是 lint 存在的理由：已经 add 过的本地组件，编辑之后引入拼写错误，
@@ -65,7 +65,7 @@ func TestLintCatchesTypoInAlreadyAddedLocalComponent(t *testing.T) {
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stdout, "dependancies")
 	assert.Contains(t, r.stdout, "unknown field")
-	assert.Contains(t, r.stdout, "1 个有错误")
+	assert.Contains(t, r.stdout, "1 with errors")
 	assert.Contains(t, r.stderr, "LINT_FAILED")
 }
 
@@ -78,7 +78,7 @@ func TestLintReportsEveryBrokenFileNotJustTheFirst(t *testing.T) {
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stdout, "dependancies")
 	assert.Contains(t, r.stdout, "migrations")
-	assert.Contains(t, r.stdout, "2 个有错误")
+	assert.Contains(t, r.stdout, "2 with errors")
 }
 
 func TestLintNotYetAddedComponentIsAlsoChecked(t *testing.T) {
@@ -102,7 +102,7 @@ func TestLintInvalidBrickkitYamlSkipsLocalSources(t *testing.T) {
 	assert.Contains(t, r.stdout, "deploy.target")
 	assert.NotContains(t, r.stdout, filepath.Join("shared", "demo"), "brickkit.yaml 没通过就不去扫本地源，报告里不出现任何本地组件的路径")
 	assert.Contains(t, r.stdout, "ℹ️")
-	assert.Contains(t, r.stdout, "1 个有错误")
+	assert.Contains(t, r.stdout, "1 with errors")
 }
 
 func TestLintMissingLocalSourceDirectoryIsReported(t *testing.T) {
@@ -136,9 +136,9 @@ func TestLintBrokenLocalSourceSaysTheOthersWereSkipped(t *testing.T) {
 			r := runIn(t, f.Dir, "lint")
 			assert.Equal(t, clierr.ExitError, r.code)
 			assert.Contains(t, r.stdout, "the local install source path does not exist")
-			assert.Contains(t, r.stdout, "ℹ️ 本地安装源枚举失败，已跳过本地组件的 component.yaml")
+			assert.Contains(t, r.stdout, "ℹ️ The local install sources could not be enumerated; skipped the local components' component.yaml")
 			assert.NotContains(t, r.stdout, "dependancies", "好源里的组件没被检查")
-			assert.Contains(t, r.stdout, "检查了 1 个文件：1 个有错误，0 条警告")
+			assert.Contains(t, r.stdout, "Checked 1 files: 1 with errors, 0 warnings")
 
 			// 修好 path（这里是让那个目录存在）：好源里的组件被检查到了，那行说明也随之消失
 			require.NoError(t, os.MkdirAll(filepath.Join(dir, "nowhere"), 0o755))
@@ -146,7 +146,7 @@ func TestLintBrokenLocalSourceSaysTheOthersWereSkipped(t *testing.T) {
 			assert.Equal(t, clierr.ExitError, fixed.code)
 			assert.Contains(t, fixed.stdout, "dependancies")
 			assert.NotContains(t, fixed.stdout, "ℹ️")
-			assert.Contains(t, fixed.stdout, "检查了 2 个文件：1 个有错误，0 条警告")
+			assert.Contains(t, fixed.stdout, "Checked 2 files: 1 with errors, 0 warnings")
 		})
 	}
 }
@@ -161,7 +161,7 @@ func TestLintDirectoryNameMustMatchMetadataID(t *testing.T) {
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stdout, "demo/hello")
 	assert.Contains(t, r.stdout, "demo/other")
-	assert.Contains(t, r.stdout, "对不上")
+	assert.Contains(t, r.stdout, "doesn't match")
 }
 
 func TestLintIgnoresArchivedComponents(t *testing.T) {
@@ -185,11 +185,11 @@ func TestLintReportsUnreadableManifestAndKeepsGoing(t *testing.T) {
 
 	r := runIn(t, f.Dir, "lint")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stdout, "读取 component.yaml 失败")
+	assert.Contains(t, r.stdout, "failed to read component.yaml")
 	assert.Contains(t, r.stdout, filepath.Join("shared", "demo", "hello", "component.yaml"))
 	assert.Contains(t, r.stdout, "✅ "+filepath.Join("shared", "demo", "caller", "component.yaml")+"\n",
 		"一份读不动，不该让别的组件也没被检查")
-	assert.Contains(t, r.stdout, "检查了 3 个文件：1 个有错误，0 条警告")
+	assert.Contains(t, r.stdout, "Checked 3 files: 1 with errors, 0 warnings")
 }
 
 // 同一份文件里多处笔误：PropertyKeyWarnings 合成一条警告逐条列出，
@@ -209,7 +209,7 @@ func TestLintSeveralPropertyTyposInOneFileIsOneWarning(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "defualt")
 	assert.Contains(t, r.stdout, "descripton")
-	assert.Contains(t, r.stdout, "1 条警告")
+	assert.Contains(t, r.stdout, "1 warnings")
 }
 
 const misspelledPropertyKey = `configSchema:
@@ -228,7 +228,7 @@ func TestLintWarningsDoNotFailWithoutStrict(t *testing.T) {
 	r := runIn(t, f.Dir, "lint")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "defualt")
-	assert.Contains(t, r.stdout, "1 条警告")
+	assert.Contains(t, r.stdout, "1 warnings")
 }
 
 func TestLintStrictTurnsWarningsIntoFailure(t *testing.T) {
@@ -258,7 +258,7 @@ func TestLintFileWithBothAnErrorAndAWarningReportsBoth(t *testing.T) {
 	assert.Less(t, errorBlock, warningBlock, "同一个文件里，错误在前、警告在后")
 	assert.Contains(t, r.stdout, "dependancies: unknown field")
 	assert.Contains(t, r.stdout, "defualt: unknown field")
-	assert.Contains(t, r.stdout, "检查了 2 个文件：1 个有错误，1 条警告")
+	assert.Contains(t, r.stdout, "Checked 2 files: 1 with errors, 1 warnings")
 	assert.Contains(t, r.stderr, "LINT_FAILED")
 }
 
@@ -274,7 +274,7 @@ func TestLintWarnsWhenConfigKeyCollidesWithReservedVariable(t *testing.T) {
 	r := runIn(t, f.Dir, "lint")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "DATABASE_HOST")
-	assert.Contains(t, r.stdout, "来源: "+filepath.Join("shared", "demo", "hello", "component.yaml"),
+	assert.Contains(t, r.stdout, "Origin: "+filepath.Join("shared", "demo", "hello", "component.yaml"),
 		"块里要带上文件路径，否则多个组件时不知道是哪一份")
 }
 
@@ -285,9 +285,9 @@ func TestLintStandaloneComponentRepository(t *testing.T) {
 
 	r := runIn(t, dir, "lint")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "组件仓库")
+	assert.Contains(t, r.stdout, "Component repository")
 	assert.Contains(t, r.stdout, "✅ component.yaml")
-	assert.Contains(t, r.stdout, "检查了 1 个文件")
+	assert.Contains(t, r.stdout, "Checked 1 files")
 
 	appendTo(t, filepath.Join(dir, "component.yaml"), "dependancies: []\n")
 	bad := runIn(t, dir, "lint")

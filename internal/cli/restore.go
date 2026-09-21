@@ -11,6 +11,8 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
 
@@ -19,27 +21,11 @@ func newRestoreCommand(opts *Options) *cobra.Command {
 	var check bool
 	cmd := &cobra.Command{
 		Use:     "restore",
-		Short:   "把 brickkit.yaml 的 enabled 与组件源码结构还原到最后一次提交",
+		Short:   i18n.T(msgid.CliRestoreShort),
 		GroupID: groupProject,
-		Long: `把 brickkit.yaml 里各组件的 enabled 还原成最后一次提交的值，再让源码结构跟着走。
-
-给谁用：把 components/ 从 .gitignore 去掉、让组件源码跟项目一起进版本库的项目。
-那种项目里 brickkit sync 移动目录会进项目的 diff，而"本地关掉几个顶层、
-sync 归档、干完活忘了还原就提交"这件事会反复发生。
-
-它只动 enabled 这一个字段，逐条动：
-
-  - 工作区与最后一次提交都有的条目 → enabled 回到提交里的值（提交里没写就删掉字段）
-  - 工作区新增的条目（刚 add 的、或改了版本号）→ 一个字不动
-  - 提交里有而工作区没有的 → 绝不加回来（它不是 git revert）
-
-其余改动一律不碰，所以刚 add 的组件不会被它吃掉。被覆盖的旧值会在动手前印出来。
-
---check 只检查、不改任何东西：即将提交的 yaml 与即将提交的目录结构自洽吗。
-不自洽就非零退出——pre-commit hook 调的就是它（brickkit init --hooks 装）。`,
-		Example: `  brickkit restore           还原 enabled 与源码结构
-  brickkit restore --check   只检查这次提交自洽不自洽（退出码非零表示不自洽）`,
-		Args: cobra.NoArgs,
+		Long:    i18n.T(msgid.CliRestoreLong),
+		Example: i18n.T(msgid.CliRestoreExample),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if check {
 				return runRestoreCheck(cmd.Context(), opts)
@@ -48,7 +34,7 @@ sync 归档、干完活忘了还原就提交"这件事会反复发生。
 		},
 	}
 	cmd.Flags().BoolVar(&check, "check", false,
-		"只检查即将提交的 yaml 与目录结构是否自洽，不改任何东西（供 pre-commit hook 调用）")
+		i18n.T(msgid.CliRestoreOnlyCheckWhetherTheYaml))
 	return cmd
 }
 
@@ -147,15 +133,15 @@ func runRestore(ctx context.Context, opts *Options) error {
 
 	headData, err := repo.HeadBlob(cfgRel)
 	if err != nil {
-		return restoreErr("读不到最后一次提交里的 "+layout.ConfigName(), err).
-			WithHint("确认它在最后一次提交里存在：git show HEAD:" + cfgRel)
+		return restoreErr(i18n.T(msgid.CliRestoreCannotReadFromTheLast, layout.ConfigName()), err).
+			WithHint(i18n.T(msgid.CliRestoreMakeSureItExistsIn, cfgRel))
 	}
 	head, err := config.ParseConfig(headData, "HEAD:"+cfgRel)
 	if err != nil {
-		return restoreErr("最后一次提交里的 "+layout.ConfigName()+" 不是合法配置——基准坏了", err).
+		return restoreErr(i18n.T(msgid.CliRestoreInTheLastCommitIs, layout.ConfigName()), err).
 			WithHint(
-				"还原的基准就是它，它坏了就没有可还原的目标",
-				"先修一个能解析的版本提交上去，再跑 brickkit restore",
+				i18n.T(msgid.CliRestoreTheBaselineForRestoringIs),
+				i18n.T(msgid.CliRestoreFirstCommitAVersionThat),
 			)
 	}
 
@@ -183,31 +169,31 @@ func runRestore(ctx context.Context, opts *Options) error {
 func restoreBaseline(layout config.Layout) (*gitrepo.Repo, string, error) {
 	repo, err := gitrepo.Open(layout.Root)
 	if err != nil {
-		return nil, "", restoreErr("这里不是一个 git 仓库", err).
+		return nil, "", restoreErr(i18n.T(msgid.CliRestoreThisIsNotAGit), err).
 			WithHint(
-				"brickkit restore 把配置还原到**最后一次提交**，没有 git 就没有这个基准",
-				"想收窄范围又不想提交，就手工改回 enabled 再跑 brickkit sync",
+				i18n.T(msgid.CliRestoreBrickkitRestorePutsTheConfig),
+				i18n.T(msgid.CliRestoreIfYouWantToNarrow),
 			)
 	}
 	if repo.Unmerged() {
-		return nil, "", clierr.New(clierr.CodeConfigConflict, "错误：正在解决冲突，先把冲突处理完").
-			WithHint("brickkit restore 要读最后一次提交，冲突中的 index 读不了")
+		return nil, "", clierr.New(clierr.CodeConfigConflict, i18n.T(msgid.CliRestoreErrorAConflictIsBeing)).
+			WithHint(i18n.T(msgid.CliRestoreBrickkitRestoreHasToRead))
 	}
 	if !repo.HasHEAD() {
-		return nil, "", clierr.New(clierr.CodeConfigInvalid, "错误：这个仓库还没有任何提交").
-			WithHint("还原的基准是最后一次提交，一次都没有就没有可还原的目标")
+		return nil, "", clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliRestoreErrorThisRepositoryHasNo)).
+			WithHint(i18n.T(msgid.CliRestoreTheBaselineForRestoringIs2))
 	}
 	cfgRel, ok := repo.Rel(layout.ConfigPath())
 	if !ok {
 		return nil, "", clierr.New(clierr.CodeConfigInvalid,
-			"错误："+layout.ConfigName()+" 不在这个 git 仓库里").
-			WithDetail("配置", layout.ConfigPath()).
-			WithDetail("仓库", repo.Root())
+			i18n.T(msgid.CliRestoreErrorIsNotInsideThis, layout.ConfigName())).
+			WithDetail(i18n.T(msgid.CliRestoreConfig), layout.ConfigPath()).
+			WithDetail(i18n.T(msgid.LabelRepo), repo.Root())
 	}
 	if !repo.Tracked(cfgRel) {
 		return nil, "", clierr.New(clierr.CodeConfigInvalid,
-			"错误："+layout.ConfigName()+" 没有被 git 跟踪").
-			WithHint("先 git add " + cfgRel + " 并提交一次，它才有可还原的基准")
+			i18n.T(msgid.CliRestoreErrorIsNotTrackedBy, layout.ConfigName())).
+			WithHint(i18n.T(msgid.CliRestoreFirstRunGitAddAnd, cfgRel))
 	}
 	return repo, cfgRel, nil
 }
@@ -221,10 +207,10 @@ func restorePreflight(repo *gitrepo.Repo, layout config.Layout, cfg *config.Conf
 	// 提交出去等于删文件。
 	if compRel, ok := repo.Rel(layout.ComponentsDir()); ok && repo.StagedUnder(compRel) {
 		return clierr.New(clierr.CodeConfigConflict,
-			"错误："+compRel+"/ 下有已暂存的改动，restore 会把它们悬空").
+			i18n.T(msgid.CliRestoreErrorThereAreStagedChanges, compRel)).
 			WithHint(
-				"restore 要移动源码目录，而已暂存的路径会跟着变成「删除」",
-				"先把暂存区处理掉：git commit，或者 git reset "+compRel+"/",
+				i18n.T(msgid.CliRestoreRestoreMovesTheSourceDirectories),
+				i18n.T(msgid.CliRestoreFirstDealWithTheStaging, compRel),
 			)
 	}
 
@@ -239,15 +225,15 @@ func restorePreflight(repo *gitrepo.Repo, layout config.Layout, cfg *config.Conf
 		}
 	}
 	if len(both) > 0 {
-		e := clierr.New(clierr.CodeConfigConflict, "错误：有组件的源码在两处都存在")
+		e := clierr.New(clierr.CodeConfigConflict, i18n.T(msgid.CliRestoreErrorTheSourceOfSome))
 		for _, id := range both {
 			e = e.WithDetail(id,
-				workspace.DisplayDir(id)+"  与  "+workspace.DisplayArchivedDir(id))
+				i18n.T(msgid.CliRestoreAnd, workspace.DisplayDir(id), workspace.DisplayArchivedDir(id)))
 		}
 		return e.WithHint(
-			"一个组件 ID 只能有一个源码目录，restore 不知道该保留哪一份",
-			"先检查两个目录里各是什么，确认无用后删除或重命名其中一份",
-			"两处都有源码时，平台不替你决定保留哪一份",
+			i18n.T(msgid.CliRestoreAComponentIdCanHave),
+			i18n.T(msgid.CliRestoreFirstCheckWhatEachOf),
+			i18n.T(msgid.CliRestoreWhenBothPlacesHaveSource),
 		)
 	}
 	return nil
@@ -282,21 +268,21 @@ func printEnabledChanges(
 	opts *Options, layout config.Layout, changes []enabledChange, untouched []string,
 ) {
 	if len(changes) == 0 && len(untouched) == 0 {
-		opts.Printf("📄 %s 与最后一次提交一致\n", layout.ConfigName())
+		opts.Printf("%s\n", i18n.T(msgid.CliRestoreMatchesTheLastCommit, layout.ConfigName()))
 		return
 	}
-	opts.Printf("📄 %s：按最后一次提交还原 enabled（其余改动未动）\n", layout.ConfigName())
+	opts.Printf("%s\n", i18n.T(msgid.CliRestoreEnabledRestoredFromTheLast, layout.ConfigName()))
 	for _, ch := range changes {
 		opts.Printf("   %-26s enabled: %s → %s\n", ch.ref(), showEnabled(ch.from), toEnabled(ch.to))
 	}
 	for _, ref := range untouched {
-		opts.Printf("   %-26s 未动（这个条目在最后一次提交里不存在）\n", ref)
+		opts.Printf("%s\n", i18n.T(msgid.CliRestoreSLeftAsIsThis, ref))
 	}
 }
 
 func showEnabled(v *bool) string {
 	if v == nil {
-		return "（没写）"
+		return i18n.T(msgid.CliRestoreNotSet)
 	}
 	if *v {
 		return "true"
@@ -306,14 +292,14 @@ func showEnabled(v *bool) string {
 
 func toEnabled(v *bool) string {
 	if v == nil {
-		return "删除该字段（提交里没写）"
+		return i18n.T(msgid.CliRestoreRemoveTheFieldTheCommit)
 	}
 	return showEnabled(v)
 }
 
 // restoreErr 是 restore 前置检查的统一错误壳子。
 func restoreErr(message string, cause error) *clierr.Error {
-	return clierr.New(clierr.CodeConfigInvalid, "错误："+message).
-		WithDetail("原因", cause.Error()).
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliRestoreError, message)).
+		WithDetail(i18n.T(msgid.LabelReason), cause.Error()).
 		WithCause(cause)
 }

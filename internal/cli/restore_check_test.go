@@ -182,7 +182,7 @@ func TestCheckBlocksArchivedStructureWithoutTheYAML(t *testing.T) {
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "提交被拦下")
+	assert.Contains(t, r.stderr, "Commit blocked")
 	assert.Contains(t, r.stderr, "demo/hello")
 	assert.Contains(t, r.stderr, "brickkit restore")
 	assert.Contains(t, r.stderr, "git add brickkit.yaml")
@@ -250,7 +250,7 @@ func TestCheckBlocksSourceInBothPlaces(t *testing.T) {
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "出现了两处")
+	assert.Contains(t, r.stderr, "appears in two places")
 	assert.Contains(t, r.stderr, "git add -A")
 }
 
@@ -331,11 +331,11 @@ func TestCheckMixedGroupsScopeEveryHint(t *testing.T) {
 	r := runIn(t, f.Dir, "restore", "--check")
 	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
 
-	assert.Contains(t, r.stderr, "demo/caller：",
+	assert.Contains(t, r.stderr, "demo/caller: ",
 		"磁盘上还归档着的那组，建议要点名是哪几个")
-	assert.Contains(t, r.stderr, "demo/hello：",
+	assert.Contains(t, r.stderr, "demo/hello: ",
 		"磁盘上已激活的那组，建议要点名是哪几个")
-	assert.Contains(t, r.stderr, "同上这几个",
+	assert.Contains(t, r.stderr, "For these same ones",
 		"「不想 → brickkit restore」这条也必须有归属：对已激活的那组，restore 会回退掉他未提交的改动")
 	assert.Contains(t, r.stderr, "git add -A components/")
 }
@@ -399,7 +399,7 @@ func TestCheckSkipsDuringMergeConflict(t *testing.T) {
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	assert.Equal(t, clierr.ExitOK, r.code, "冲突中必须放行：git show :<path> 在那时会 fatal")
-	assert.Contains(t, r.stdout, "跳过")
+	assert.Contains(t, r.stdout, "component layout check")
 }
 
 func TestCheckOutsideGitRepoPasses(t *testing.T) {
@@ -423,9 +423,9 @@ func TestCheckWarnsWhenConfigNotTracked(t *testing.T) {
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	assert.Equal(t, clierr.ExitOK, r.code, "配置没交给 git，管不着，但必须放行：%s%s", r.stdout, r.stderr)
-	assert.Contains(t, r.stdout, "跳过")
+	assert.Contains(t, r.stdout, "component layout check")
 	assert.Contains(t, r.stdout, "brickkit.yaml")
-	assert.Contains(t, r.stdout, "未被 git 跟踪", "必须是走到了配置未跟踪这一支，不是撞在别的放行分支上")
+	assert.Contains(t, r.stdout, "is not tracked by git", "必须是走到了配置未跟踪这一支，不是撞在别的放行分支上")
 }
 
 // helloDisabledWithUnresolvable 语法上是合法配置（能过 config.ParseConfig），
@@ -463,8 +463,8 @@ func TestCheckWarnsWhenGraphResolutionFails(t *testing.T) {
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	assert.Equal(t, clierr.ExitOK, r.code, "算不出来 ≠ 判据不通过，必须放行：%s%s", r.stdout, r.stderr)
-	assert.Contains(t, r.stdout, "跳过")
-	assert.Contains(t, r.stdout, "算不出这次会启动哪些组件",
+	assert.Contains(t, r.stdout, "component layout check")
+	assert.Contains(t, r.stdout, "cannot work out which components would start this time",
 		"必须是走到了 syncFocus 失败这一支，不是撞在别的放行分支上")
 }
 
@@ -504,7 +504,7 @@ func TestCheckWarnsForUnregisteredGitlink(t *testing.T) {
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout+r.stderr, "嵌套的 Git 仓库",
+	assert.Contains(t, r.stdout+r.stderr, "nested Git repository",
 		"没有 .gitmodules 登记的死 gitlink 仍然要提醒")
 }
 
@@ -521,6 +521,6 @@ func TestCheckDoesNotWarnForRegisteredSubmodule(t *testing.T) {
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "嵌套的 Git 仓库",
+	assert.NotContains(t, r.stdout+r.stderr, "nested Git repository",
 		"已在 .gitmodules 里登记的 submodule 不该被当成意外死 gitlink 报警")
 }

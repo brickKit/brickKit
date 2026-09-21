@@ -267,8 +267,8 @@ func TestInitLeavesProjectReadyForLocalAdd(t *testing.T) {
 
 	r := runIn(t, dir, "add", "--local")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "没有扫到可用的组件", "空目录，但安装源本身是通的")
-	assert.NotContains(t, r.stderr, "没有可用的本地安装源")
+	assert.Contains(t, r.stdout, "No usable components were found", "空目录，但安装源本身是通的")
+	assert.NotContains(t, r.stderr, "no local install source is available")
 }
 
 // --config 指定的配置文件名应被 init 采用（多环境初始化，004 §3.5）。

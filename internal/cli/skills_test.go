@@ -46,7 +46,7 @@ func TestSkillsUpdateInstallsThenIsIdempotent(t *testing.T) {
 
 	again := runIn(t, dir, "skills", "update")
 	require.Equal(t, 0, again.code, again.stderr)
-	assert.Contains(t, again.stdout, "已是最新")
+	assert.Contains(t, again.stdout, "up to date")
 }
 
 func TestSkillsUpdateSkipsModifiedAndSaysHow(t *testing.T) {
@@ -60,7 +60,7 @@ func TestSkillsUpdateSkipsModifiedAndSaysHow(t *testing.T) {
 	r := runIn(t, dir, "skills", "update")
 	require.Equal(t, 0, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "已手改")
-	assert.Contains(t, r.stdout, "删掉", "要告诉人怎么放弃本地修改")
+	assert.Contains(t, r.stdout, "delete", "要告诉人怎么放弃本地修改")
 
 	after, err := os.ReadFile(p)
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestSkillsStatusShowsOutdatedWithVersions(t *testing.T) {
 	require.Equal(t, 0, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "待更新")
 	assert.Contains(t, r.stdout, "0.0.1")
-	assert.Contains(t, r.stdout, "需要刷新")
+	assert.Contains(t, r.stdout, "need refreshing")
 }
 
 // 未初始化的目录里跑 skills 要说清楚，而不是默默在别人家里建 .claude/。
@@ -109,7 +109,7 @@ func TestSkillsInComponentRepoManagesOnlyTheComponentSkill(t *testing.T) {
 	require.Equal(t, 0, st.code, st.stderr)
 	assert.Contains(t, st.stdout, ".claude/skills/brickkit-component/SKILL.md")
 	assert.Contains(t, st.stdout, "缺失")
-	assert.Contains(t, st.stdout, "组件仓库", "要说明这是组件仓库模式，不然人会奇怪怎么只有一个文件")
+	assert.Contains(t, st.stdout, "Component repository", "要说明这是组件仓库模式，不然人会奇怪怎么只有一个文件")
 	assert.NotContains(t, st.stdout, "brickkit-deploy")
 	assert.NotContains(t, st.stdout, "AGENTS.md")
 
@@ -124,7 +124,7 @@ func TestSkillsInComponentRepoManagesOnlyTheComponentSkill(t *testing.T) {
 
 	again := runIn(t, dir, "skills", "update")
 	require.Equal(t, 0, again.code, again.stderr)
-	assert.Contains(t, again.stdout, "已是最新")
+	assert.Contains(t, again.stdout, "up to date")
 }
 
 // 组件仓库多半有自己的 AGENTS.md——一个字都不能碰。
@@ -150,7 +150,7 @@ func TestSkillsPrefersProjectWhenBothFilesPresent(t *testing.T) {
 	r := runIn(t, dir, "skills", "status")
 	require.Equal(t, 0, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "AGENTS.md", "按项目处理：完整的一套")
-	assert.NotContains(t, r.stdout, "组件仓库")
+	assert.NotContains(t, r.stdout, "Component repository")
 }
 
 func sumOf(b []byte) string {
@@ -207,7 +207,7 @@ func TestDetectScope(t *testing.T) {
 		require.Error(t, err)
 		e := clierr.As(err)
 		assert.Equal(t, clierr.CodeProjectMissing, e.Code)
-		assert.Contains(t, e.Message, "既不是 BrickKit 项目，也不是组件仓库")
+		assert.Contains(t, e.Message, "neither a BrickKit project nor a component repository")
 		assert.Equal(t, dir, layout.Root, "出错时 Layout 仍然有效")
 	})
 }

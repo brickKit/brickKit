@@ -66,8 +66,8 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 	renderLocalProblems(opts, scan.Problems)
 
 	if len(scan.Components) == 0 {
-		opts.Printf("📂 没有扫到可用的组件\n")
-		opts.Printf("   本地安装源里没有 <scope>/<name>/%s\n", manifest.FileName)
+		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalNoUsableComponentsWereFound))
+		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalTheLocalInstallSourceHas, manifest.FileName))
 		return nil
 	}
 	renderLocalScan(opts, scan.Components)
@@ -76,7 +76,7 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 	plan := planLocalAdd(cfg, scan.Components)
 	renderLocalSkips(opts, plan)
 	if len(plan.targets) == 0 {
-		opts.Printf("✅ brickkit.yaml 未变更（%s）\n", nothingToDoReason(plan))
+		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalBrickkitYamlIsUnchanged, nothingToDoReason(plan)))
 		return nil
 	}
 
@@ -100,9 +100,9 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 	renderSignatures(opts, client.SignatureStatuses())
 
 	if len(added) == 0 {
-		opts.Printf("✅ brickkit.yaml 未变更（组件已在配置中）\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalBrickkitYamlIsUnchangedThe))
 	} else {
-		opts.Printf("✅ 已写入 brickkit.yaml（%d 个组件）\n", len(added))
+		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalWrittenToBrickkitYamlComponents, len(added)))
 	}
 	logging.Info(i18n.T(msgid.LogLocalComponentsAdded),
 		"scanned", len(scan.Components), "problems", len(scan.Problems), "added", len(added))
@@ -156,8 +156,8 @@ func localResolveError(lc source.LocalComponent, cause error) error {
 	e := clierr.As(cause)
 	dup := *e
 	details := []clierr.Detail{
-		{Key: "卡在组件", Value: lc.Ref() + "（来自 " + lc.SourceID + "）"},
-		{Key: "本次结果", Value: "已中止，brickkit.yaml 未修改"},
+		{Key: i18n.T(msgid.CliAddLocalStuckOnComponent), Value: i18n.T(msgid.CliAddLocalFrom, lc.Ref(), lc.SourceID)},
+		{Key: i18n.T(msgid.CliAddLocalResultOfThisRun), Value: i18n.T(msgid.CliAddLocalAbortedBrickkitYamlWasNot)},
 	}
 	for _, d := range e.Details {
 		// 底层已经附过一条"组件：xxx@1.0.0"，与上面那行说的是同一件事，去掉重复
@@ -168,7 +168,7 @@ func localResolveError(lc source.LocalComponent, cause error) error {
 	}
 	dup.Details = details
 	dup.Hints = append(append([]string{}, e.Hints...),
-		"修好该组件后重试，或先把它移出本地安装源目录")
+		i18n.T(msgid.CliAddLocalFixThatComponentAndRetry))
 	return &dup
 }
 
@@ -220,11 +220,11 @@ func hasLocalSource(cfg *config.Config) bool {
 }
 
 func noLocalSourceError() error {
-	return clierr.New(clierr.CodeConfigInvalid, "错误：没有可用的本地安装源").
-		WithDetail("原因", "brickkit.yaml → sources 中没有 type: local 的安装源（或都是 enabled: false）").
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliAddLocalErrorNoLocalInstallSource)).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliAddLocalBrickkitYamlSourcesHasNo)).
 		WithHint(
-			"--local 只扫本地安装源；市场与 Git 源请用 brickkit add <组件ID>",
-			"本地开发可加一个：sources: - id: local-dev / type: local / path: ./components",
+			i18n.T(msgid.CliAddLocalLocalOnlyScansLocalInstall),
+			i18n.T(msgid.CliAddLocalForLocalDevelopmentYouCan),
 		).WithExit(clierr.ExitUsage)
 }
 
@@ -242,19 +242,19 @@ func noLocalSourceError() error {
 func nothingToDoReason(plan localPlan) string {
 	switch {
 	case len(plan.conflicts) > 0 && len(plan.configured) > 0:
-		return "已在配置中的跳过了，版本对不上的也跳过了"
+		return i18n.T(msgid.CliAddLocalComponentsAlreadyInTheConfiguration)
 	case len(plan.conflicts) > 0:
-		return "扫到的组件版本都与配置里的不一致，已全部跳过"
+		return i18n.T(msgid.CliAddLocalTheScannedComponentsVersionsAll)
 	default:
-		return "本地组件都已在配置中"
+		return i18n.T(msgid.CliAddLocalEveryLocalComponentIsAlready)
 	}
 }
 
 // renderLocalProblems 把"像组件、但用不了"的目录一条条说出来。
 func renderLocalProblems(opts *Options, problems []source.LocalProblem) {
 	for _, p := range problems {
-		opts.Printf("⚠️ %s 跳过：%s\n", p.ID, p.Reason)
-		opts.Printf("   来自安装源 %s；修好它再执行一次 brickkit add --local\n", p.SourceID)
+		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalSkipped, p.ID, p.Reason))
+		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalFromInstallSourceFixIt, p.SourceID))
 	}
 }
 
@@ -275,18 +275,17 @@ func renderLocalScan(opts *Options, found []source.LocalComponent) {
 			parts = append(parts, id)
 			continue
 		}
-		parts = append(parts, id+"（"+itoa(bySource[id])+" 个）")
+		parts = append(parts, i18n.T(msgid.CliAddLocalMsg, id, itoa(bySource[id])))
 	}
-	opts.Printf("🔍 从本地安装源 %s 扫到 %d 个组件\n", strings.Join(parts, "、"), len(found))
+	opts.Printf("%s\n", i18n.T(msgid.CliAddLocalFoundComponentsInLocalInstall, strings.Join(parts, i18n.T(msgid.ListSeparator)), len(found)))
 }
 
 func renderLocalSkips(opts *Options, plan localPlan) {
 	for _, ref := range plan.configured {
-		opts.Printf("⏭️ %s 已在 brickkit.yaml 中\n", ref)
+		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalIsAlreadyInBrickkitYaml, ref))
 	}
 	for _, c := range plan.conflicts {
-		opts.Printf("⚠️ %s 本地是 %s，配置里是 %s —— 已跳过\n",
-			c.id, c.local, strings.Join(c.inConfig, "、"))
-		opts.Printf("   要共存请显式执行 brickkit add %s@%s\n", c.id, c.local)
+		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalIsLocallyButInThe, c.id, c.local, strings.Join(c.inConfig, i18n.T(msgid.ListSeparator))))
+		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalToKeepBothVersionsRun, c.id, c.local))
 	}
 }

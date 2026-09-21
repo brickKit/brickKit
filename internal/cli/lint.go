@@ -14,7 +14,6 @@ package cli
 // （AGENTS.md §9.12：configSchema 是说明书，不是安全闸）。
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -22,8 +21,10 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/skills"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -34,40 +35,17 @@ func newLintCommand(opts *Options) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "lint",
-		Short:   "离线检查 brickkit.yaml 与 component.yaml 的结构",
+		Short:   i18n.T(msgid.CliLintShort),
 		GroupID: groupProject,
-		Long: `不联网、不需要 Docker / K8s，只读地把这个目录里的 YAML 结构检查一遍。
-
-两种场景，按当前目录自动判断（与 brickkit skills 同一条规则，两者都有时按项目算）：
-
-  项目（有 brickkit.yaml）
-      检查 brickkit.yaml 本身，再检查本地安装源（type: local）目录下的每一份
-      component.yaml——不管有没有 add 过。归档目录（.archived/）不检查。
-      brickkit.yaml 自己没通过时，本地安装源在哪都不可信，会跳过后一步并说明。
-  组件仓库（有 component.yaml、没有 brickkit.yaml）
-      只检查这一份 component.yaml。
-
-查的是已有的结构规则：必填字段、类型、未知字段（拼写笔误）、版本号格式、端口范围；
-警告有两类——configSchema 里拼错的键（比如 defualt）不会生效，以及配置项名字撞上
-平台保留变量。后一类比 up 查得更全：up 只在配置项有默认值、或被 config 覆盖时才会
-碰到它，lint 把 configSchema 里声明的每一项都查一遍（与市场发布时同一个范围）。
-
-不查：依赖能不能解析、servedBy 指向的组件在不在（这些要联网，留给 up / add）；
-少数要到生成部署文件时才检查的组合规则（比如 local: true 配 deploy.target: k8s，
-lint 会放过它，up --dry-run 才拒绝）；
-configSchema 里 enum、minimum 之类对应的值（平台不校验值，见 AGENTS.md §9.12）。
-
-有错误时退出码为 1；只有警告时为 0，加 --strict 则警告也算失败，给 CI 门禁用。`,
-		Example: `  brickkit lint
-  brickkit lint --strict   警告也算失败（CI 门禁）
-  brickkit lint --config brickkit.prod.yaml`,
-		Args: cobra.NoArgs,
+		Long:    i18n.T(msgid.CliLintLong),
+		Example: i18n.T(msgid.CliLintExample),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLint(opts, strict)
 		},
 	}
 
-	cmd.Flags().BoolVar(&strict, "strict", false, "警告也算失败（退出码 1），给 CI 门禁用")
+	cmd.Flags().BoolVar(&strict, "strict", false, i18n.T(msgid.CliLintWarningsCountAsFailuresToo))
 	return cmd
 }
 
@@ -88,8 +66,7 @@ func runLint(opts *Options, strict bool) error {
 	var files []lintFile
 	var notes []string
 	if scope == skills.ScopeComponent {
-		opts.Printf("📦 组件仓库（有 %s、没有 %s）：只检查 %s\n",
-			manifest.FileName, layout.ConfigName(), manifest.FileName)
+		opts.Printf("%s\n", i18n.T(msgid.CliLintComponentRepositoryHasNoOnly, manifest.FileName, layout.ConfigName(), manifest.FileName))
 		files = append(files, lintManifest(opts, filepath.Join(layout.Root, manifest.FileName), ""))
 	} else {
 		files, notes = lintProject(opts, layout)
@@ -100,7 +77,11 @@ func runLint(opts *Options, strict bool) error {
 
 // localSkippedNote 说明"本地组件的 component.yaml 没能检查"，与 brickkit.yaml 没通过时的那条对称。
 // 原因已经由前面那条错误块说了，这里只交代后果：汇总里的文件数因此比实际少。
-const localSkippedNote = "本地安装源枚举失败，已跳过本地组件的 " + manifest.FileName + "（先修好上面那条）"
+//
+// 是函数而不是常量：文案要跟着语言变，包初始化时语言还没确定。
+func localSkippedNote() string {
+	return i18n.T(msgid.CliLintLocalEnumerationFailed, manifest.FileName)
+}
 
 // lintProject 检查 brickkit.yaml，再检查本地安装源里的每一份 component.yaml。
 func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
@@ -110,7 +91,7 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 	if err != nil {
 		head.errors = append(head.errors, clierr.As(err))
 		return []lintFile{head}, []string{
-			"brickkit.yaml 没通过检查，本地安装源在哪都不可信，已跳过本地组件的 " + manifest.FileName,
+			i18n.T(msgid.CliLintBrickkitYamlDidNotPass, manifest.FileName),
 		}
 	}
 
@@ -125,7 +106,7 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 	client, err := source.New(layout, cfg, source.Options{})
 	if err != nil {
 		head.errors = append(head.errors, clierr.As(err))
-		return []lintFile{head}, []string{localSkippedNote}
+		return []lintFile{head}, []string{localSkippedNote()}
 	}
 	defer func() { _ = client.Close() }()
 
@@ -135,7 +116,7 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 		// 枚举遇到第一个出错的源就整体失败，别的本地源里的组件因此一份也没查——汇总里的
 		// 文件数会被低估，必须说出来，否则使用者改好 path 之前不知道还有文件没被检查
 		head.errors = append(head.errors, clierr.As(err))
-		return []lintFile{head}, []string{localSkippedNote}
+		return []lintFile{head}, []string{localSkippedNote()}
 	}
 
 	files := []lintFile{head}
@@ -152,10 +133,10 @@ func lintManifest(opts *Options, path, dirID string) lintFile {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		f.errors = append(f.errors, clierr.New(clierr.CodeManifestInvalid,
-			"错误：读取 "+manifest.FileName+" 失败").
-			WithDetail("路径", f.path).
-			WithDetail("原因", err.Error()).
-			WithHint("检查文件权限"))
+			i18n.T(msgid.ManifestReadFailed, manifest.FileName)).
+			WithDetail(i18n.T(msgid.LabelPath), f.path).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.ProblemHintCheckPermissions)))
 		return f
 	}
 
@@ -165,18 +146,18 @@ func lintManifest(opts *Options, path, dirID string) lintFile {
 	} else {
 		if dirID != "" && m.Metadata.ID != dirID {
 			f.errors = append(f.errors, clierr.New(clierr.CodeManifestInvalid,
-				"错误："+manifest.FileName+" 里的组件 ID 与目录名对不上").
-				WithDetail("文件", f.path).
-				WithDetail("目录名", dirID).
+				i18n.T(msgid.CliLintErrorTheComponentIdIn, manifest.FileName)).
+				WithDetail(i18n.T(msgid.LabelFile), f.path).
+				WithDetail(i18n.T(msgid.CliLintDirectoryName), dirID).
 				WithDetail("metadata.id", m.Metadata.ID).
-				WithHint("本地安装源按 <scope>/<name>/"+manifest.FileName+" 找组件，两者必须一致"))
+				WithHint(i18n.T(msgid.CliLintALocalInstallSourceFinds, manifest.FileName)))
 		}
 		// 是 up 那条警告的超集：up 只在配置项有默认值、或被 config 覆盖时才走到保留变量检查，
 		// 这里把 configSchema 里声明的每一项都查一遍——与市场发布时同一个范围，
 		// 作者在发布之前就该知道
 		for _, w := range inject.ReservedKeyWarnings(m) {
 			// 它的块里本来只有组件 ID；检查一堆文件时得告诉人是哪一份
-			f.warnings = append(f.warnings, w.WithDetail("来源", f.path))
+			f.warnings = append(f.warnings, w.WithDetail(i18n.T(msgid.ManifestLabelOrigin), f.path))
 		}
 	}
 	// 与 Parse 成败无关：它只依赖 YAML 本身，语法错误时自己返回 nil
@@ -210,18 +191,18 @@ func reportLint(opts *Options, files []lintFile, notes []string, strict bool) er
 	for _, n := range notes {
 		opts.Printf("ℹ️ %s\n", n)
 	}
-	opts.Printf("\n📋 检查了 %d 个文件：%d 个有错误，%d 条警告\n", len(files), failed, warned)
+	opts.Printf("\n%s\n", i18n.T(msgid.CliLintCheckedFilesWithErrorsWarnings, len(files), failed, warned))
 
 	if failed == 0 && (!strict || warned == 0) {
 		return nil
 	}
-	e := clierr.New(clierr.CodeLintFailed, "错误：结构检查未通过").
-		WithDetail("已检查", fmt.Sprintf("%d 个文件", len(files)))
+	e := clierr.New(clierr.CodeLintFailed, i18n.T(msgid.CliLintErrorTheStructureCheckDid)).
+		WithDetail(i18n.T(msgid.CliLintChecked), i18n.T(msgid.CliLintFiles, len(files)))
 	if failed > 0 {
-		e = e.WithDetail("有错误", fmt.Sprintf("%d 个文件", failed))
+		e = e.WithDetail(i18n.T(msgid.CliLintWithErrors), i18n.T(msgid.CliLintFiles, failed))
 	}
 	if strict && warned > 0 {
-		e = e.WithDetail("警告", fmt.Sprintf("%d 条（--strict：警告也算失败）", warned))
+		e = e.WithDetail(i18n.T(msgid.CliLintWarnings), i18n.T(msgid.CliLintStrictWarningsCountAsFailures, warned))
 	}
-	return e.WithHint("按上面逐条列出的位置修改，再执行 brickkit lint")
+	return e.WithHint(i18n.T(msgid.CliLintFixThemAtTheLocations))
 }
