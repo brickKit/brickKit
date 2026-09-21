@@ -272,6 +272,20 @@ Supported deploy targets: docker, k8s
 > Any JSON you see on stderr is structured logging — it doesn't affect normal
 > output. Silence it with `--log-level off`.
 
+### Switch the CLI's language
+
+English is the default. To read the CLI in Chinese instead:
+
+```bash
+brickkit lang set zh                # from now on, on this machine
+BRICKKIT_LANG=zh brickkit status    # just this once
+brickkit lang                       # which language is in effect, and why
+```
+
+`BRICKKIT_LANG` beats the saved setting, which beats the English default.
+Error codes, command names and flag names never change with the language.
+Details: [`brickkit lang`](docs/en/06-architecture/09-cli-reference.md#brickkit-lang).
+
 ### What else you'll need
 
 | | Needed when |

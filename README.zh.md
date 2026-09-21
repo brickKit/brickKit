@@ -249,6 +249,20 @@ BrickKit CLI v0.1.0
 
 > stderr 上那串 JSON 是结构化日志，不影响正常输出，嫌吵加 `--log-level off`。
 
+### 切换 CLI 的语言
+
+CLI 默认说英文。想让它说中文：
+
+```bash
+brickkit lang set zh                # 从此在这台机器上都说中文
+BRICKKIT_LANG=zh brickkit status    # 只管这一次
+brickkit lang                       # 现在生效的是哪种语言，为什么
+```
+
+`BRICKKIT_LANG` 优先于保存下来的设置，保存下来的设置优先于默认的英文。
+错误码、命令名、参数名不随语言变化。
+详见 [`brickkit lang`](docs/zh/06-architecture/09-cli-reference.md#brickkit-lang)。
+
 ### 还需要什么
 
 | | 什么时候要 |
