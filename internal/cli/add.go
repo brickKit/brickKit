@@ -8,7 +8,9 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/workspace"
@@ -261,7 +263,7 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 		return err
 	}
 
-	logging.Info("组件已添加",
+	logging.Info(i18n.T(msgid.LogComponentAdded),
 		"component", target.String(),
 		"written", len(added),
 		"artifacts", artifacts.downloaded,
@@ -573,6 +575,6 @@ func runClones(ctx context.Context, opts *Options, layout config.Layout, plans [
 		opts.Printf("💡 改了源码怎么推回去、以及之后怎么管这份源码，见 docs/zh/03-guide/08-component-source.md（英文版把 zh 换 en）\n")
 	}
 
-	logging.Info("源码 clone 完成", "cloned", cloned, "skipped", skipped)
+	logging.Info(i18n.T(msgid.LogSourceCloneDone), "cloned", cloned, "skipped", skipped)
 	return nil
 }

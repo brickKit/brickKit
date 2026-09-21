@@ -12,8 +12,9 @@
  62  WithDetail/WithDetailf/WithHint/WithTip 挂载的明细与建议
  40  cobra 命令的 Short:/Long:/Example: 字段（35 个命令文件）
 210  internal/cli 里直接 opts.Printf/Println 的提示文字
+ 21  JSON 日志（stderr）的 message 字段（logging.* 20 处 + root.go 里通过 level(...) 间接调用的 1 处）
 ———
-560  合计
+580  合计
 ```
 
 按包分布：`internal/cli`（24 个文件含 clierr 调用 + 35 个命令文件 + 210 处 Printf，体量最大）、
@@ -33,6 +34,14 @@
   两边都从同一份目录算期望值，测试就失去了这层独立校验。
 
 ## 3. 本次要定的约定
+
+### 3.0 日志的 message 也跟着语言走（2026-09-21 决定）
+
+JSON 日志里的键名（`command`、`elapsed_ms`、`error_code`……）是机器读的稳定接口，任何语言下
+都是英文，不进目录；只有 `message` 这句给人看的话跟着语言变，统一放在 `internal/msgid/log.go`。
+脚本要按稳定标识分支，用 `error_code`，不用 `message`——这条承诺本来就在，所以 message 变
+语言不新增风险。日志的 `error` 字段是 `clierr.Error()` 的单行摘要，随错误文案本身一起本地化。
+这一项已经在第 2 批之后单独完成（21 处）。
 
 ### 3.1 `internal/msgid` 按来源包拆文件
 

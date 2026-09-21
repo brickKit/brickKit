@@ -17,8 +17,10 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/market"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
@@ -99,7 +101,7 @@ func runLogout(ctx context.Context, opts *Options, keepRemote bool) error {
 		opts.Printf("      那个 Token 在市场那边仍然有效，直到 %s 过期\n",
 			creds.ExpiresAt.Format("2006-01-02 15:04:05"))
 	}
-	logging.Info("已退出登录", "user", creds.Username, "market", creds.MarketURL)
+	logging.Info(i18n.T(msgid.LogLoggedOut), "user", creds.Username, "market", creds.MarketURL)
 	return nil
 }
 

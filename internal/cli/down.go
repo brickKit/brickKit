@@ -7,7 +7,9 @@ import (
 
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // newDownCommand 实现 brickkit down（004 §3.6）。
@@ -88,7 +90,7 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 	}
 
 	renderDownResult(opts, p.cfg.Deploy.Target == config.TargetK8s, running, probed)
-	logging.Info("项目已停止", "project", p.cfg.Project, "stopped", running)
+	logging.Info(i18n.T(msgid.LogProjectStopped), "project", p.cfg.Project, "stopped", running)
 	return nil
 }
 

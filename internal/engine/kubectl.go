@@ -150,7 +150,7 @@ func (k *Kubectl) prune(ctx context.Context, req UpRequest) error {
 	if err != nil {
 		// 部署已经成功了，清理只是收尾。因为查不到集群状态就把一次成功的 up
 		// 判成失败，会让人以为服务没起来而去做多余的回滚
-		logging.Warn("清理旧版本资源时查询失败，本次跳过清理", "error", err)
+		logging.Warn(i18n.T(msgid.LogPruneQueryFailed), "error", err)
 		return nil
 	}
 
@@ -161,7 +161,7 @@ func (k *Kubectl) prune(ctx context.Context, req UpRequest) error {
 
 	if _, err := k.exec(ctx, k.args(req.Project,
 		append([]string{"delete"}, append(orphans, "--ignore-not-found")...)...)...); err != nil {
-		logging.Warn("清理旧版本资源失败", "error", err)
+		logging.Warn(i18n.T(msgid.LogPruneFailed), "error", err)
 		return nil
 	}
 	for _, orphan := range orphans {

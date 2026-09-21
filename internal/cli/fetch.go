@@ -32,8 +32,10 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
@@ -110,7 +112,7 @@ func runFetch(ctx context.Context, opts *Options, arg string) error {
 		// 转头去查网络——而真相是这个组件根本没声明产物。
 		opts.Printf("ℹ️ %s 没有声明任何产物，无可下载\n", ref)
 		opts.Printf("   产物由组件作者在 component.yaml 的 artifacts 里声明\n")
-		logging.Info("产物下载完成", "component", ref, "downloaded", 0)
+		logging.Info(i18n.T(msgid.LogArtifactsFetched), "component", ref, "downloaded", 0)
 		return nil
 	}
 
@@ -141,7 +143,7 @@ func runFetch(ctx context.Context, opts *Options, arg string) error {
 	opts.Printf("💡 这个组件不会被本项目部署。要连它，把对方给的地址填进依赖方的 config\n")
 	opts.Printf("   （跨项目共用组件）\n")
 
-	logging.Info("产物下载完成", "component", ref,
+	logging.Info(i18n.T(msgid.LogArtifactsFetched), "component", ref,
 		"downloaded", len(res.Downloaded), "cached", len(res.Cached))
 	return nil
 }

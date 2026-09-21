@@ -22,6 +22,7 @@ import (
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/version"
 )
 
@@ -187,7 +188,7 @@ CLI 只做六件事：
 				WithExit(clierr.ExitUsage)
 		}
 		logging.SetLevel(opts.LogLevel)
-		logging.Info("命令开始执行",
+		logging.Info(i18n.T(msgid.LogCommandStarted),
 			"command", cmd.CommandPath(),
 			"args", args,
 			"config", opts.ConfigPath,
@@ -317,7 +318,7 @@ func Run(root *cobra.Command, opts *Options, args []string) int {
 	}
 
 	if err == nil {
-		logging.Info("命令执行完成",
+		logging.Info(i18n.T(msgid.LogCommandFinished),
 			"command", path,
 			"elapsed_ms", elapsed.Milliseconds(),
 			"exit_code", clierr.ExitOK,
@@ -331,7 +332,7 @@ func Run(root *cobra.Command, opts *Options, args []string) int {
 	if e.Warning {
 		level = logging.Warn
 	}
-	level("命令执行失败",
+	level(i18n.T(msgid.LogCommandFailed),
 		"command", path,
 		"elapsed_ms", elapsed.Milliseconds(),
 		"error_code", string(e.Code),

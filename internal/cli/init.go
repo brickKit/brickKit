@@ -10,7 +10,9 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/skills"
 	"github.com/brickkit/brickkit/internal/version"
 )
@@ -81,7 +83,7 @@ func runInit(opts *Options, project string, noSkills bool) error {
 		return err
 	}
 
-	logging.Info("项目已初始化",
+	logging.Info(i18n.T(msgid.LogProjectInitialized),
 		"project", result.ProjectName,
 		"config", layout.ConfigPath(),
 		"gitignore_updated", result.GitignoreUpdated,
@@ -142,7 +144,7 @@ func installSkills(opts *Options, layout config.Layout) error {
 	for _, s := range res.Skipped {
 		opts.Printf("   ⏭  %-21s%s\n", s.Target, "已存在，未改动（"+string(s.State)+"）")
 	}
-	logging.Info("AI 助手技能已装入",
+	logging.Info(i18n.T(msgid.LogSkillsInstalled),
 		"written", len(res.Written), "skipped", len(res.Skipped))
 	return nil
 }

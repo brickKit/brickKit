@@ -12,8 +12,10 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -102,7 +104,7 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 	} else {
 		opts.Printf("✅ 已写入 brickkit.yaml（%d 个组件）\n", len(added))
 	}
-	logging.Info("本地组件已批量添加",
+	logging.Info(i18n.T(msgid.LogLocalComponentsAdded),
 		"scanned", len(scan.Components), "problems", len(scan.Problems), "added", len(added))
 	return nil
 }

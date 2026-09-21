@@ -13,8 +13,10 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/skills"
 	"github.com/brickkit/brickkit/internal/version"
 )
@@ -184,7 +186,7 @@ func runSkillsUpdate(opts *Options) error {
 		}
 		opts.Printf("\n提示：想放弃本地修改，删掉那个文件后重新执行 brickkit skills update\n")
 	}
-	logging.Info("AI 助手技能已刷新",
+	logging.Info(i18n.T(msgid.LogSkillsRefreshed),
 		"written", len(res.Written), "skipped", len(res.Skipped))
 	return nil
 }

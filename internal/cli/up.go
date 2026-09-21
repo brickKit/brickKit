@@ -17,10 +17,12 @@ import (
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/deploy"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/workspace"
@@ -152,7 +154,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		renderUpgradeSummary(opts, plan)
 		opts.Printf("\n💡 --dry-run 只生成文件，未启动任何组件\n")
 		opts.Printf("   查看：cat %s\n", displayPath(opts.WorkDir, path))
-		logging.Info("部署文件已生成", "path", path)
+		logging.Info(i18n.T(msgid.LogDeployFilesGenerated), "path", path)
 		return nil
 	}
 
@@ -582,7 +584,7 @@ func reportStarted(
 
 	opts.Printf("✅ 全部组件已启动（%d 个）\n", len(plan.services))
 	renderNextSteps(opts, plan)
-	logging.Info("项目已启动", "project", plan.cfg.Project, "services", len(plan.services))
+	logging.Info(i18n.T(msgid.LogProjectStarted), "project", plan.cfg.Project, "services", len(plan.services))
 	return nil
 }
 

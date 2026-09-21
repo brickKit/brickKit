@@ -10,8 +10,10 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/workspace"
@@ -146,7 +148,7 @@ func runRemove(ctx context.Context, opts *Options, arg string, force bool) error
 		opts.Printf("   🗑️ 已清理 artifacts 缓存\n")
 	}
 
-	logging.Info("组件已移除",
+	logging.Info(i18n.T(msgid.LogComponentRemoved),
 		"component", target.String(),
 		"unbound_resources", len(unbound),
 		"source_dir_removed", cleanup.sourceRemoved,

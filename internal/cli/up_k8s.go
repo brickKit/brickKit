@@ -17,8 +17,10 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // k8sDirName 是 K8s 清单在 .brickkit/generated/ 下的子目录名。
@@ -43,7 +45,7 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 		renderUpgradeSummary(opts, plan)
 		opts.Printf("\n💡 --dry-run 只生成清单，未部署任何东西\n")
 		opts.Printf("   查看：ls -R %s\n", displayPath(opts.WorkDir, dir))
-		logging.Info("K8s 清单已生成", "dir", dir, "files", len(plan.k8s.Files))
+		logging.Info(i18n.T(msgid.LogK8sManifestsGenerated), "dir", dir, "files", len(plan.k8s.Files))
 		return nil
 	}
 
@@ -184,7 +186,7 @@ func renderPruned(opts *Options, pruned []string) {
 		opts.Printf("   - %s\n", resource)
 	}
 	opts.Printf("   它们带着本项目的标签，但不在本次部署范围内\n")
-	logging.Info("已清理孤儿资源", "count", len(pruned))
+	logging.Info(i18n.T(msgid.LogOrphansPruned), "count", len(pruned))
 }
 
 // ============================================================

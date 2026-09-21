@@ -14,7 +14,9 @@ import (
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
@@ -259,7 +261,7 @@ func applySync(opts *Options, layout config.Layout, actions []syncAction) error 
 	}
 
 	opts.Printf("✅ 工作区整理完成（%d 个活跃，%d 个归档，%d 个激活）\n", active, archived, activated)
-	logging.Info("工作区已整理",
+	logging.Info(i18n.T(msgid.LogWorkspaceTidied),
 		"active", active, "archived", archived, "activated", activated)
 	return nil
 }
