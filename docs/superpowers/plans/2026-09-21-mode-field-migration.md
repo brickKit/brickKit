@@ -164,7 +164,7 @@ EOF
 
 ---
 
-## Task 2: `mode` 校验规则（含 k8s 拒绝前移）
+## Task 2: `mode` 校验规则（含 k8s 拒绝前移） ✅ 已完成（`8b4ba8e`）
 
 **背景：** 新增 `validateComponentMode`，校验 `mode` 的取值合法性（只认 `""`/`enabled`/`disable`/`debug` 四个字符串，其它值报错，提示合法取值），并把今天在 `internal/k8s/k8s.go` 生成阶段才报的 `local`+k8s 错误（`localNotSupported`）挪到这里、扩成 `debug`+k8s（`local` 这次还不存在，不用管）。同时把 `internal/config/validate.go` 里 `validateReplicas`（现有第 569-584 行附近）与 `validateServedBy`（现有第 271-320 行附近）里读 `item.Local` 的两处，改成读 `item.Mode == ModeDebug`。
 
@@ -332,7 +332,7 @@ EOF
 
 ---
 
-## Task 3: cascade 泛化（`declSet` 改读 `Mode`）
+## Task 3: cascade 泛化（`declSet` 改读 `Mode`） ✅ 已完成（`c65bc0a`）
 
 **背景：** `internal/cascade/cascade.go` 的 `declSet`（现有 `map[resolver.Ref]*bool`）、`declarations(cfg)`、`pinned(ref)`、`disabled(ref)` 四处都要从"三态 `*bool`"改成读 `Mode` 字符串。语义映射：`pinned` 现在要覆盖 `enabled` 与 `debug` 两个取值（用 Task 1 新增的 `Component.IsPinned()`），`disabled` 覆盖 `disable`（用 `Component.IsDisabled()`）。`disabledDependencyError`（冲突报错，现有第 315-338 行）不需要改——它已经是"钉住的组件撞上被关掉的强依赖就报错"这个通用逻辑，改的只是"钉住"（`pinned`）的判定范围，从"只有 `enabled: true`"扩到"`enabled` 或 `debug`"，报错文本和触发条件的代码结构完全不用动。
 
@@ -467,7 +467,7 @@ EOF
 
 ---
 
-## Task 4: `internal/compose` 迁移
+## Task 4: `internal/compose` 迁移 ✅ 已完成（`bf0a7c1`）
 
 **背景：** `internal/compose/local.go`、`internal/compose/compose.go` 里所有读 `.Local`（`config.Component.Local`）的地方改成 `.Mode == config.ModeDebug`：工作负载是否生成的判断、`extraHostsOf`（`host-gateway` 映射）、`localEnvFile`/`localEnvFiles`（`local-debug.<service>.env` 生成）、`localExposeWarnings`/`localLabelWarnings`（警告不报错的字段检查）、端口分配（`assignHostPorts`）。这些函数内部逻辑不变，只是判断条件从读一个 bool 字段换成比较字符串。
 
@@ -539,7 +539,7 @@ EOF
 
 ---
 
-## Task 5: `internal/k8s` 迁移（删除生成阶段的 `local`+k8s 拒绝）
+## Task 5: `internal/k8s` 迁移（删除生成阶段的 `local`+k8s 拒绝） ✅ 已完成（`7ef9eb9`）
 
 **背景：** Task 2 已经把 `debug`+k8s 的拒绝挪到了 `internal/config/validate.go` 的解析阶段，`internal/k8s/k8s.go` 里原来的 `localNotSupported` 生成阶段检查现在是死代码（在它执行到之前，解析阶段已经报错退出了）——删除它，并核对 `internal/k8s/k8s.go`、`internal/k8s/servedby.go` 里还有没有其它读 `.Local`/`.Enabled` 的地方（研究阶段没有找到别的，但改动前要用 grep 核实一遍，避免遗漏）。
 
@@ -599,7 +599,7 @@ EOF
 
 ---
 
-## Task 6: `internal/cli` 与 `internal/logging` 迁移
+## Task 6: `internal/cli` 与 `internal/logging` 迁移 ✅ 已完成（`744e557`）
 
 **背景：** 这是本计划改动面最大的一个任务——`internal/cli/up.go`（`collectTargets`）、`graph.go`、`status.go`、`sync.go`、`restore.go`、`lifecycle.go`，以及 `internal/logging/logging.go`，全部要把读 `.Local`/`.Enabled` 的地方改成读 `.Mode`。这些文件里对"local"的语义引用（比如 `graph.go` 的 `classLocal` 样式、`status.go` 的 `renderLocalDebug`）**本任务只做字段迁移，不改视觉/文案**——`mode: debug` 组件的 `graph`/`status` 输出应该跟今天 `local: true` 组件的输出完全一致，只是内部判断条件换了。
 
@@ -705,7 +705,7 @@ EOF
 
 ---
 
-## Task 7: Schema 重新生成、文档同步、仓库自身示例迁移
+## Task 7: Schema 重新生成、文档同步、仓库自身示例迁移 ✅ 已完成（Schema 随 `744e557`，文档随 `5cb411b`）
 
 **背景：** 前六个任务改完代码后，`schemas/*.json` 需要重新生成；`AGENTS.md`/`AGENTS.zh.md` 与 `docs/{en,zh}/06-architecture/{07-component-yaml-reference,08-brickkit-yaml-reference}.md` 里描述 `enabled`/`local`/`localPort` 的段落要同步改写成 `mode`；`08-brickkit-yaml-reference.md:89` 那句"`exposePort`+k8s 目前没有任何东西会挡它"是过期文案（研究阶段确认 `warnTargetOnlyFields` 早就在挡了），顺手改正；仓库自己引用到 `enabled`/`local: true`/`localPort` 的示例 yaml（`docs/03-guide/` 教程、`tests/components/`、`tests/guides/` 涉及的固定 yaml）要换成新字段，保证 `make check-guides`/`check-guide-output` 这类真机验证不会因为示例还在用旧字段而失败。
 
@@ -801,15 +801,29 @@ EOF
 
 ## Self-Review Checklist（执行完 7 个任务后逐条核对）
 
-- [ ] `grep -rn "\.Enabled\b\|\.Local\b" internal/` 除 `internal/config/{config,validate}.go` 外无命中。
-- [ ] `go test ./internal/... -count=1` 全绿，覆盖率不低于 92%。
-- [ ] `make lint` 全绿。
-- [ ] `mode: debug` + `deploy.target: k8s` 在 `brickkit lint`（不生成任何文件）阶段就报错，不需要跑到 `up`/`up --dry-run`。
-- [ ] `mode: debug` 组件生成的 `docker-compose.yaml`/`local-debug.<service>.env`/`extra_hosts` 跟迁移前的 `local: true` 逐字节一致（Task 4 Step 5 的 diff 对照）。
-- [ ] `internal/cli/up.go` 的 `collectTargets` 与 `internal/compose/compose.go` 的工作负载跳过条件逐字一致（Task 6 Step 2）。
-- [ ] `schemas/*.json` 已重新生成并随本次改动一起提交。
-- [ ] `AGENTS.md`/`AGENTS.zh.md`、`08-brickkit-yaml-reference.md`（含 `exposePort` 那处文案修正）已同步，`deployment-selection-guide.md` 未改动。
-- [ ] 没有为旧字段保留任何兼容/双写逻辑。
+- [x] `grep -rn "\.Enabled\b\|\.Local\b" internal/` 除 `internal/config/{config,validate}.go` 外无命中。——剩下的命中都是别的结构体上同名的字段（`Source.Enabled`、`NetworkPolicy.Enabled`、`ServiceAccount.Enabled`、`slog.Logger.Enabled()`），与 `Component` 无关。
+- [x] `go test ./internal/... -count=1` 全绿，覆盖率不低于 92%。——`go test ./...` 全绿，`make lint` 报覆盖率 93.3%。
+- [x] `make lint` 全绿。——`exit=0`。这台机器没装 golangci-lint，Makefile 回退到 `go vet`；合并前在装了它的环境再跑一次全量。
+- [x] `mode: debug` + `deploy.target: k8s` 在 `brickkit lint`（不生成任何文件）阶段就报错，不需要跑到 `up`/`up --dry-run`。——真二进制验证过，退出码 1，`components[0].mode: "debug" is only supported with deploy.target: docker (got k8s) ——…`。
+- [x] `mode: debug` 组件生成的 `docker-compose.yaml`/`local-debug.<service>.env`/`extra_hosts` 跟迁移前的 `local: true` 逐字节一致（Task 4 Step 5 的 diff 对照）。——用迁移前的 `4327af0` 编出旧二进制、同一份项目各跑一次 `up --dry-run`：`docker-compose.yaml` 逐字节一致；`local-debug.*.env` 只有头部注释一行从 `(local: true)` 变成 `(mode: debug)`；stdout 只有理由文案的差别，外加那条预期内的新语义——`starting (demo/caller needs it)` 变成 `starting (mode: debug)`（debug 现在是钉住的）。
+- [x] `internal/cli/up.go` 的 `collectTargets` 与 `internal/compose/compose.go` 的工作负载跳过条件逐字一致（Task 6 Step 2）。——`c.Mode == config.ModeDebug || c.ServedBy != ""` 对 compose 里 `entry.Mode == config.ModeDebug` 分支加紧随其后的 servedBy 分支，注释里互相指着，防的是上次真机反馈的 `no_such_service` 那类漂移。
+- [x] `schemas/*.json` 已重新生成并随本次改动一起提交。
+- [x] `AGENTS.md`/`AGENTS.zh.md`、`08-brickkit-yaml-reference.md`（含 `exposePort` 那处文案修正）已同步，`deployment-selection-guide.md` 未改动。
+- [x] 没有为旧字段保留任何兼容/双写逻辑。——旧的 `enabled`/`local` 现在是未知字段：`brickkit lint` 报 `unknown field`。
+
+## 执行结果与遗留（供 Plan 2–4 参考）
+
+七个任务的提交依次是 `183563f`（Task 1）→ `8b4ba8e` → `c65bc0a` → `bf0a7c1` → `7ef9eb9` → `744e557`（Task 6，含重新生成的 Schema）→ `5cb411b`（Task 7 文档）。执行中撞到、计划里没写、后续计划要知道的几件事：
+
+- **debug 是"钉住"的，这是语义变化，不只是改名。** 旧的"local 一视同仁、cascade 从不读 local"那两条测试（`TestGraphLocalClassOnlyAppliesToRunningComponents`、`TestSyncTreatsLocalComponentsTheSame`）是按旧语义写的，按新语义重写了：graph 里 debug 组件不会被置灰，sync 不会把它归档，强依赖被关掉时报错。Plan 4 加 `mode: local` 时同样要回答"它是不是钉住的"——设计上 local 与 debug 只差"谁启动进程"，答案应该一样。
+- **schemagen 的约束表多了两个字段。** `constraintCase` 新增 `baseline`（这一行需要换掉文档基准，因为 `debug` 只在 docker 下合法而 project 基准写的是 k8s）与 `validatorOnly`（校验器接受、schema 故意不列的取值——`mode: ""` 在 yaml 里与没写无法区分）。Plan 4 往枚举里加 `local` 时，`valid` 里要跟着加，`local` 同样是仅限 docker。
+- **`scripts/check-guide-output.py` 的辅助步骤改写 mode。** `!disable` / `!pin` / `!local-debug` 现在写 `mode: disable` / `mode: enabled` / `mode: debug`，`!clear-enabled` 改名 `!clear-mode`。新增教程场景时照这个写。
+- **lint 不检查的"生成阶段才查"的组合规则，现在的例子是 `expose: true` 组件需要 `ingressController`**（要知道最终哪些组件会跑起来）；原来举的 `local: true` + k8s 已经前移到解析阶段。`09-cli-reference.md`、AGENTS.md 的 lint 行、CHANGELOG 都按这个改过。
+- **故意没动的：**
+  - `deployment-selection-guide.md`（中英）——按约定等另一个项目实操之后再改，所以它现在仍写着 `local: true` 与"生成阶段拒绝"。`AGENTS.md` §10/§11 与 `llms*.txt` 里对它的一句话描述**已经**用 `mode: debug`、"解析阶段拒绝"，等那份指南更新后要核对两边对得上。
+  - msgid 常量名里带 `Enabled` / `Local` 的（如 `CliUpWriteEnabledTrueForThe`、`ConfigServedByWithLocal`）——它们是不透明的键，文案已经改对，改名只是搅动。
+  - `internal/compose` 注释里泛指"宿主机上跑的组件"的"local 组件"这个词——刻意留着，Plan 4 的 `mode: local` 落在同一批代码路径上，这个泛称正好覆盖两种。
+- **顺手修正的过期说法**：`exposePort` 在 k8s 下"悄悄不生效、没有任何东西拦住"（`warnTargetOnlyFields` 一直在警告），改动涉及参考文档、AGENTS.md §7/§11、`llms*.txt`。
 
 ## Execution Handoff
 
@@ -818,4 +832,4 @@ EOF
 **1. Subagent-Driven（推荐）**——每个任务派一个新的子代理去做，任务之间做审查，迭代更快
 **2. Inline Execution**——在当前会话里按任务顺序执行，批量执行、有检查点
 
-选哪种？
+已选择 Inline Execution，七个任务全部完成，见上面的执行结果。
