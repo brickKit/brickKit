@@ -296,13 +296,13 @@ func TestSyncOutputExplainsWhy(t *testing.T) {
 
 	r := runIn(t, f.Dir, "sync")
 
-	assert.Contains(t, r.stdout, "显式禁用", "17.12")
+	assert.Contains(t, r.stdout, "disabled explicitly", "17.12")
 	assert.Contains(t, r.stdout, "required dependency demo/hello is not starting", "17.12")
 
 	f.writeConfig(t, allEnabled)
 	r = runIn(t, f.Dir, "sync")
 
-	assert.Contains(t, r.stdout, "恢复启用", "17.12")
+	assert.Contains(t, r.stdout, "re-enabled", "17.12")
 }
 
 func TestSyncOutputSummarizesCounts(t *testing.T) {
@@ -310,7 +310,7 @@ func TestSyncOutputSummarizesCounts(t *testing.T) {
 
 	r := runIn(t, f.Dir, "sync")
 
-	assert.Contains(t, r.stdout, "2 个归档")
+	assert.Contains(t, r.stdout, "2 archived")
 }
 
 // ============================================================
@@ -323,7 +323,7 @@ func TestSyncOnEmptyWorkspace(t *testing.T) {
 	r := runIn(t, f.Dir, "sync")
 
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
-	assert.Contains(t, r.stdout, "无需整理", "17.13")
+	assert.Contains(t, r.stdout, "needs no tidying", "17.13")
 }
 
 // 没有 components/ 目录时也不能报错。
@@ -334,7 +334,7 @@ func TestSyncWithoutComponentsDir(t *testing.T) {
 	r := runIn(t, f.Dir, "sync")
 
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
-	assert.Contains(t, r.stdout, "无需整理")
+	assert.Contains(t, r.stdout, "needs no tidying")
 }
 
 // ============================================================

@@ -86,7 +86,7 @@ func TestRenderedHookPassesWhenBinaryMissing(t *testing.T) {
 	cmd.Env = append(os.Environ(), "PATH=/nonexistent")
 	out, err := cmd.CombinedOutput()
 	assert.NoError(t, err, "找不到 brickkit 必须放行，否则新人 clone 下来就提交不了：%s", out)
-	assert.Contains(t, string(out), "找不到 brickkit")
+	assert.Contains(t, string(out), "brickkit not found")
 }
 
 func TestRenderedHookSkipsMissingProjectDir(t *testing.T) {
@@ -162,7 +162,7 @@ func TestInstallHookNeverOverwritesForeignHook(t *testing.T) {
 
 	_, _, err = installHook(repo, hookProject{".", "brickkit.yaml"}, "/x/brickkit", "v1")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "已存在")
+	assert.Contains(t, err.Error(), "already exists")
 	assert.Contains(t, err.Error(), "restore --check", "要把该插进去的那一行告诉他")
 
 	got, readErr := os.ReadFile(foreign)
@@ -186,7 +186,7 @@ func TestInstallHookRejectsHookThatOnlyMentionsMarkerInAComment(t *testing.T) {
 
 	_, _, err = installHook(repo, hookProject{".", "brickkit.yaml"}, "/x/brickkit", "v1")
 	require.Error(t, err, "第二行不是标记本身，不该被认成自己人")
-	assert.Contains(t, err.Error(), "已存在")
+	assert.Contains(t, err.Error(), "already exists")
 
 	got, readErr := os.ReadFile(foreign)
 	require.NoError(t, readErr)

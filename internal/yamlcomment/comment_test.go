@@ -14,6 +14,10 @@ func TestBlockPrefixesEveryLine(t *testing.T) {
 		"缩进前缀加在 # 之前，行内自带的缩进原样保留")
 }
 
+func TestBlockKeepsBlankCommentLinesWithoutTrailingSpace(t *testing.T) {
+	assert.Equal(t, "# a\n#\n# b\n", yamlcomment.Block("", "a\n\nb"))
+}
+
 func TestBannerWrapsInRulesAndLeavesBlankLine(t *testing.T) {
 	got := string(yamlcomment.Banner("hello\nworld"))
 	rule := "# ============================================================\n"

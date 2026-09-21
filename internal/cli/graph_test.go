@@ -145,7 +145,7 @@ resources: []
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	requirePureMermaid(t, r.stdout)
-	assert.Contains(t, r.stdout, `demo_hello_1_0_0["demo/hello@1.0.0<br/>本地调试 :8081"]`)
+	assert.Contains(t, r.stdout, `demo_hello_1_0_0["demo/hello@1.0.0<br/>local debug :8081"]`)
 	assert.Contains(t, r.stdout, "    classDef local fill:#e6f2ff,stroke:#3673a8;\n")
 	assert.Contains(t, r.stdout, "    class demo_hello_1_0_0 local\n")
 	assert.NotContains(t, r.stdout, "classDef disabled", "没有被关掉的组件就不输出 disabled 样式")
@@ -162,7 +162,7 @@ resources: []
 
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, `demo_hello_1_0_0["demo/hello@1.0.0<br/>本地调试"]`)
+	assert.Contains(t, r.stdout, `demo_hello_1_0_0["demo/hello@1.0.0<br/>local debug"]`)
 	assert.NotContains(t, r.stdout, "本地调试 :")
 	assert.Contains(t, r.stdout, "    class demo_hello_1_0_0 local\n")
 }
@@ -199,7 +199,7 @@ resources: []
 	requirePureMermaid(t, r.stdout)
 
 	// 被跳过的 local 组件：标签保留，样式只有 disabled
-	assert.Contains(t, r.stdout, `demo_db_1_0_0["demo/db@1.0.0<br/>本地调试 :9001"]`)
+	assert.Contains(t, r.stdout, `demo_db_1_0_0["demo/db@1.0.0<br/>local debug :9001"]`)
 	disabled := classLineOf(r.stdout, "disabled")
 	require.NotEmpty(t, disabled, r.stdout)
 	assert.Contains(t, disabled, "demo_db_1_0_0")
@@ -239,7 +239,7 @@ func TestGraphGroupsServedByMembersUnderTheirShell(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
 	requirePureMermaid(t, r.stdout)
-	assert.Contains(t, r.stdout, "    subgraph demo_shell_1_0_0_members[\"外壳：demo/shell@1.0.0\"]\n"+
+	assert.Contains(t, r.stdout, "    subgraph demo_shell_1_0_0_members[\"Shell: demo/shell@1.0.0\"]\n"+
 		"        demo_a_1_0_0[\"demo/a@1.0.0\"]\n"+
 		"        demo_b_1_0_0[\"demo/b@1.0.0\"]\n"+
 		"    end\n")
@@ -255,7 +255,7 @@ func TestGraphIgnoreServedByDropsGroupingAndSaysSo(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	requirePureMermaid(t, r.stdout)
 	assert.NotContains(t, r.stdout, "subgraph")
-	assert.Contains(t, r.stdout, "    %% 已忽略全部 servedBy 声明")
+	assert.Contains(t, r.stdout, "    %% All servedBy declarations are ignored")
 
 	// 只在内存里清：brickkit.yaml 一个字节没动
 	assert.Contains(t, f.config(t), "servedBy: demo/shell@1.0.0")
@@ -271,7 +271,7 @@ resources: []
 
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, `demo_ghost_1_0_0["demo/ghost@1.0.0<br/>未安装"]`)
+	assert.Contains(t, r.stdout, `demo_ghost_1_0_0["demo/ghost@1.0.0<br/>not installed"]`)
 	assert.Contains(t, r.stdout, "    demo_caller_1_0_0 -.-> demo_ghost_1_0_0\n")
 	assert.Contains(t, r.stdout, "    class demo_ghost_1_0_0 missing\n")
 	assert.Contains(t, r.stdout, "    classDef missing ")
@@ -299,7 +299,7 @@ func TestGraphEmptyProject(t *testing.T) {
 
 	r := runIn(t, dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Equal(t, "graph TD\n    %% 当前项目没有组件\n", r.stdout)
+	assert.Equal(t, "graph TD\n    %% The current project has no components\n", r.stdout)
 }
 
 func TestGraphFailsLikeUpWhenRequiredDependencyMissing(t *testing.T) {
@@ -389,7 +389,7 @@ func TestGraphEmptyProjectDoesNotNeedTrustedKeys(t *testing.T) {
 
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Equal(t, "graph TD\n    %% 当前项目没有组件\n", r.stdout)
+	assert.Equal(t, "graph TD\n    %% The current project has no components\n", r.stdout)
 }
 
 // 有组件时同一份配置照样报错：graph 不绕过验签配置，报的就是 up 那一条。
@@ -528,7 +528,7 @@ resources: []
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	requirePureMermaid(t, r.stdout)
 	assert.Equal(t, `graph TD
-    subgraph demo_absentshell_1_0_0_members["外壳：demo/absentshell@1.0.0"]
+    subgraph demo_absentshell_1_0_0_members["Shell: demo/absentshell@1.0.0"]
         demo_a_1_0_0["demo/a@1.0.0"]
         demo_b_1_0_0["demo/b@1.0.0"]
     end

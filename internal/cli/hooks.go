@@ -17,6 +17,9 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/gitrepo"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/yamlcomment"
 )
 
 // hookMarker 是"这个 hook 是 brickkit 写的"的标记。认它才敢覆盖。
@@ -49,21 +52,14 @@ func renderHook(binPath, ver string, projects []hookProject) string {
 	for _, p := range projects {
 		list.WriteString(p.Dir + "|" + p.Config + "\n")
 	}
+	// 脚本骨架留在代码里，只有说明注释和那句 echo 是给人看的、要跟着语言变。
+	// 识别"这是 brickkit 写的"靠语言中立的 hookMarker，不看这些文字。
 	return `#!/bin/sh
 ` + hookMarker + ` ` + ver + `
-# 由 brickkit init --hooks 写入。可安全覆盖升级；想卸载就删掉这个文件。
-#
-# 它拦一件事：组件源码提交在 components/.archived/ 里，而 brickkit.yaml 说它该启动。
-# 判据与出路见 brickkit restore --check。
-#
-# --log-level off 是必需的，不是洁癖：默认日志级别会往 stderr 吐 JSON，
-# 而这里的读者是一个正在提交、突然被拦下的人——他要看的是那句人话，
-# 不是夹在两行 {"time":...,"level":"INFO"} 中间的它。错误本身不走日志，
-# 关掉日志不会让它消失。
-BRICKKIT_BIN='` + binPath + `'
+` + yamlcomment.Block("", i18n.T(msgid.CliHooksHeaderComment)) + `BRICKKIT_BIN='` + binPath + `'
 [ -x "$BRICKKIT_BIN" ] || BRICKKIT_BIN=$(command -v brickkit 2>/dev/null)
 if [ -z "$BRICKKIT_BIN" ]; then
-	echo "⚠️  找不到 brickkit，跳过组件结构检查（brickkit init --hooks 可重装本 hook）" >&2
+	echo "` + i18n.T(msgid.CliHooksBrickkitNotFound) + `" >&2
 	exit 0
 fi
 rc=0
@@ -116,13 +112,13 @@ func installHook(
 ) (string, bool, error) {
 	hooks, err := repo.HooksDir()
 	if err != nil {
-		return "", false, clierr.New(clierr.CodeInternal, "错误：定位 hooks 目录失败").
-			WithDetail("原因", err.Error()).WithCause(err)
+		return "", false, clierr.New(clierr.CodeInternal, i18n.T(msgid.CliHooksErrorFailedToLocateThe)).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err)
 	}
 	if err := os.MkdirAll(hooks, 0o755); err != nil {
-		return "", false, clierr.New(clierr.CodeInternal, "错误：创建 hooks 目录失败").
-			WithDetail("目录", hooks).
-			WithDetail("原因", err.Error()).WithCause(err)
+		return "", false, clierr.New(clierr.CodeInternal, i18n.T(msgid.CliHooksErrorFailedToCreateThe)).
+			WithDetail(i18n.T(msgid.LabelDir), hooks).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err)
 	}
 	path := filepath.Join(hooks, "pre-commit")
 
@@ -138,9 +134,9 @@ func installHook(
 	added := len(projects) != before
 
 	if err := os.WriteFile(path, []byte(renderHook(binPath, ver, projects)), 0o755); err != nil {
-		return "", false, clierr.New(clierr.CodeInternal, "错误：写入 pre-commit hook 失败").
-			WithDetail("文件", path).
-			WithDetail("原因", err.Error()).WithCause(err)
+		return "", false, clierr.New(clierr.CodeInternal, i18n.T(msgid.CliHooksErrorFailedToWriteThe)).
+			WithDetail(i18n.T(msgid.LabelFile), path).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err)
 	}
 	return path, added, nil
 }
@@ -197,12 +193,12 @@ func shellQuote(s string) string {
 // 绝不覆盖：那可能是 husky、lefthook，或者他自己写的十几行。平台没有立场
 // 替他决定丢掉它——所以把该插进去的那几行给他，让他自己放。
 func foreignHookError(path string, p hookProject, binPath string) error {
-	return clierr.New(clierr.CodeConfigConflict, "错误：pre-commit hook 已存在，不是 brickkit 写的").
-		WithDetail("文件", path).
-		WithDetail("要插进去的这几行", hookSnippet(p, binPath)).
+	return clierr.New(clierr.CodeConfigConflict, i18n.T(msgid.CliHooksErrorAPreCommitHook)).
+		WithDetail(i18n.T(msgid.LabelFile), path).
+		WithDetail(i18n.T(msgid.CliHooksLinesToAdd), hookSnippet(p, binPath)).
 		WithHint(
-			"平台绝不覆盖你自己的 hook——它可能是 husky / lefthook，也可能是你写的",
-			"把上面那几行加进你的 pre-commit 即可",
-			"确认那个文件没用了，也可以删掉它再跑 brickkit init --hooks",
+			i18n.T(msgid.CliHooksThePlatformNeverOverwritesYour),
+			i18n.T(msgid.CliHooksJustAddTheLinesAbove),
+			i18n.T(msgid.CliHooksIfYouAreSureThat),
 		)
 }

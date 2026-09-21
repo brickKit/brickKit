@@ -25,26 +25,10 @@ import (
 func newSyncCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "sync",
-		Short:   "整理组件源码工作区：把这次用不上的组件源码收进 .archived/",
+		Short:   i18n.T(msgid.CliSyncShort),
 		GroupID: groupComponent,
-		Long: `把当前用不上的组件源码从 components/ 收进 components/.archived/。
-
-项目里组件一多，那些当下根本不碰的源码仍然堆在 components/ 下：
-IDE 索引、全局搜索、grep、以及替你读代码的 AI 都得连它们一起扫。
-sync 把它们挪进一个固定的目录——不打开就不用关心，要找时又一眼知道在哪。
-
-**判据与 brickkit up 完全一致**：这次会启动的留在活跃目录，不启动的归档。
-想收窄范围就改 brickkit.yaml 的 enabled（顶层关掉，下面一串跟着走），
-sync 跟着走就行。
-
-规则：
-
-  - 双向：该归档的归档，该激活的移回来
-  - 不影响运行中的容器，也不改变 up 会启动谁——它只动目录
-  - 只操作 brickkit.yaml 里声明过、且已有源码的组件
-  - 整个目录连 .git 一起搬，归档后 git 命令照常
-  - 不提供 --dry-run：搞错了再执行一次就回来了`,
-		Example: `  brickkit sync   把这次不启动的组件源码收进 .archived/，该回来的移回来`,
+		Long:    i18n.T(msgid.CliSyncLong),
+		Example: i18n.T(msgid.CliSyncExample),
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSync(cmd.Context(), opts)
@@ -54,11 +38,11 @@ sync 跟着走就行。
 }
 
 // 归档 / 激活的原因（17.12）。
-const (
-	reasonDisabled = "显式禁用（enabled: false）"
-	reasonStopped  = "本次不启动"
-	reasonRestored = "恢复启用"
-)
+//
+// 是函数而不是常量：文案要跟着语言变，包初始化时语言还没确定。
+func reasonDisabled() string { return i18n.T(msgid.CascadeReasonDisabled) }
+func reasonStopped() string  { return i18n.T(msgid.CliSyncReasonStopped) }
+func reasonRestored() string { return i18n.T(msgid.CliSyncReasonRestored) }
 
 // syncAction 是对一个组件源码目录要做的事。
 type syncAction struct {
@@ -100,8 +84,8 @@ func runSync(ctx context.Context, opts *Options) error {
 // 各说一套。
 func applyWorkspacePlan(opts *Options, layout config.Layout, actions []syncAction) error {
 	if len(actions) == 0 {
-		opts.Printf("📂 工作区无需整理\n")
-		opts.Printf("   %s 下没有需要归档或激活的组件源码\n", config.DirComponents)
+		opts.Printf("%s\n", i18n.T(msgid.CliSyncTheWorkspaceNeedsNoTidying))
+		opts.Printf("%s\n", i18n.T(msgid.CliSyncThereIsNoComponentSource, config.DirComponents))
 		return nil
 	}
 	return applySync(opts, layout, actions)
@@ -130,7 +114,7 @@ func syncFocus(
 	ctx context.Context, opts *Options, layout config.Layout, cfg *config.Config,
 ) (*focus, error) {
 	if len(cfg.Components) == 0 {
-		return newFocus(reasonRestored), nil
+		return newFocus(reasonRestored()), nil
 	}
 
 	client, err := newSourceClient(opts, layout, cfg, source.Options{})
@@ -151,7 +135,7 @@ func syncFocus(
 // 与 up 完全同一套判定（003 §4.3）：两处各判一次，迟早会出现
 // "up 会启动它、sync 却把它源码归档了"这种自相矛盾的局面。
 func focusFrom(cfg *config.Config, states *cascade.Result) *focus {
-	f := newFocus(reasonRestored)
+	f := newFocus(reasonRestored())
 	for _, ref := range states.Running() {
 		f.keep[ref.ID] = true
 	}
@@ -214,7 +198,7 @@ func planSync(layout config.Layout, cfg *config.Config, f *focus) []syncAction {
 // skipReason 说明这个组件为什么不启动（17.12）。
 func skipReason(c config.Component, states *cascade.Result) string {
 	if c.IsDisabled() {
-		return reasonDisabled
+		return reasonDisabled()
 	}
 	// 判定结果里带着更具体的原因（"上层都不启动"等），优先用它
 	for _, state := range states.Components {
@@ -222,12 +206,12 @@ func skipReason(c config.Component, states *cascade.Result) string {
 			return state.Reason
 		}
 	}
-	return reasonStopped
+	return reasonStopped()
 }
 
 // applySync 真的去移动目录，并如实汇报（17.11 / 17.12）。
 func applySync(opts *Options, layout config.Layout, actions []syncAction) error {
-	opts.Printf("📂 工作区整理：\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliSyncWorkspaceTidying))
 
 	// 不在 git 仓库里时 repo 为 nil：Archive/Activate 自己会跳过 submodule 阻断，
 	// 现有行为完全不变。只查一次：这一轮里每个组件共用同一份 .gitmodules 判断。
@@ -238,7 +222,7 @@ func applySync(opts *Options, layout config.Layout, actions []syncAction) error 
 		switch a.kind {
 		case actionActive:
 			active++
-			opts.Printf("   ✅ %-36s 活跃\n", workspace.DisplayDir(a.componentID))
+			opts.Printf("%s\n", i18n.T(msgid.CliSyncSActive, workspace.DisplayDir(a.componentID)))
 
 		case actionArchive:
 			if err := workspace.Archive(layout, a.componentID, repo); err != nil {
@@ -247,7 +231,7 @@ func applySync(opts *Options, layout config.Layout, actions []syncAction) error 
 			archived++
 			opts.Printf("   📦 %-36s → %s\n",
 				workspace.DisplayDir(a.componentID), workspace.DisplayArchivedDir(a.componentID))
-			opts.Printf("      原因：%s\n", a.reason)
+			opts.Printf("%s\n", i18n.T(msgid.CliSyncReason, a.reason))
 
 		case actionActivate:
 			if err := workspace.Activate(layout, a.componentID, repo); err != nil {
@@ -256,11 +240,11 @@ func applySync(opts *Options, layout config.Layout, actions []syncAction) error 
 			activated++
 			opts.Printf("   📂 %-36s → %s\n",
 				workspace.DisplayArchivedDir(a.componentID), workspace.DisplayDir(a.componentID))
-			opts.Printf("      原因：%s\n", a.reason)
+			opts.Printf("%s\n", i18n.T(msgid.CliSyncReason, a.reason))
 		}
 	}
 
-	opts.Printf("✅ 工作区整理完成（%d 个活跃，%d 个归档，%d 个激活）\n", active, archived, activated)
+	opts.Printf("%s\n", i18n.T(msgid.CliSyncWorkspaceTidiedActiveArchivedActivated, active, archived, activated))
 	logging.Info(i18n.T(msgid.LogWorkspaceTidied),
 		"active", active, "archived", archived, "activated", activated)
 	return nil

@@ -387,7 +387,7 @@ func TestStatusKeepsDisabledReasonWhenGraphUnavailable(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "显式禁用")
+	assert.Contains(t, r.stdout, "disabled explicitly")
 	assert.NotContains(t, r.stdout, "原因未知", "配置里写着的原因就该照实说")
 }
 

@@ -16,6 +16,10 @@ const rule = "# ============================================================\n"
 func Block(indent, text string) string {
 	var b strings.Builder
 	for _, line := range strings.Split(text, "\n") {
+		if line == "" {
+			b.WriteString(indent + "#\n") // 空行不留行尾空格
+			continue
+		}
 		b.WriteString(indent + "# " + line + "\n")
 	}
 	return b.String()

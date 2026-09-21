@@ -19,7 +19,7 @@ import (
 func TestNewDefaultPath(t *testing.T) {
 	r := run(t, "new", "demo/widget")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "✅ 已生成组件骨架：demo/widget")
+	assert.Contains(t, r.stdout, "✅ Component skeleton generated: demo/widget")
 	assert.Contains(t, r.stdout, filepath.Join("components", "demo", "widget", "component.yaml"))
 }
 
@@ -84,7 +84,7 @@ func TestNewRefusesExistingDir(t *testing.T) {
 
 	r := runIn(t, dir, "new", "demo/widget")
 	assert.Equal(t, clierr.ExitUsage, r.code)
-	assert.Contains(t, r.stderr, "❌ 错误：目标目录已存在")
+	assert.Contains(t, r.stderr, "❌ Error: the target directory already exists")
 }
 
 // 非法组件 ID 直接拒绝，退出码为用法错误。

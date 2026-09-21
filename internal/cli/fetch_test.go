@@ -38,7 +38,7 @@ func TestFetchDownloadsArtifactsWithoutTouchingConfig(t *testing.T) {
 		"infra-notifier-1-0-0", "api-contract", "proto/notifier/v1/notifier.proto"))
 	assert.Equal(t, before, f.config(t), "fetch 绝不能修改 brickkit.yaml")
 	assert.Empty(t, f.refs(t), "组件不该出现在配置里")
-	assert.Contains(t, r.stdout, "未写入 brickkit.yaml")
+	assert.Contains(t, r.stdout, "not written to brickkit.yaml")
 }
 
 // 产物落到与 add 完全相同的位置：.brickkit/artifacts/<版本化服务名>/
@@ -91,8 +91,8 @@ func TestFetchComponentWithoutArtifactsSaysSo(t *testing.T) {
 	r := runIn(t, f.Dir, "fetch", "infra/notifier@1.0.0")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
-	assert.Contains(t, r.stdout, "没有声明任何产物")
-	assert.NotContains(t, r.stdout, "已下载")
+	assert.Contains(t, r.stdout, "declares no artifacts")
+	assert.NotContains(t, r.stdout, "Downloaded the artifacts")
 }
 
 // 组件在所有安装源里都找不到：报错，而不是静悄悄地什么都不做。
@@ -123,7 +123,7 @@ func TestFetchErrorsWhenNoArtifactSucceeds(t *testing.T) {
 
 	r := runIn(t, f.Dir, "fetch", "infra/notifier@1.0.0")
 	assert.Equal(t, clierr.ExitError, r.code, "一个产物都没拿到不能算成功：%s", r.stdout)
-	assert.Contains(t, r.stderr, "一个都没下载成功")
+	assert.Contains(t, r.stderr, "none of the artifacts")
 }
 
 // fetch 不接受多个参数：一次一个，版本要人工确认过（见 003 §4.9）。

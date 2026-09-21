@@ -181,7 +181,7 @@ func degradedView(p *project, byService map[string]engine.Status) componentView 
 		case ok:
 			v.failed = append(v.failed, statusRow{ref: ref, text: statusText(status, ok)})
 		case c.IsDisabled():
-			v.skipped = append(v.skipped, statusRow{ref: ref, text: reasonDisabled})
+			v.skipped = append(v.skipped, statusRow{ref: ref, text: reasonDisabled()})
 		case c.Local:
 			// local 组件本来就不会出现在引擎里，"查不到"是它的正常状态
 			v.local = append(v.local, ref)

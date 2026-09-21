@@ -8,7 +8,9 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // newNewCommand 实现 brickkit new：生成一个新组件的最小骨架。
@@ -22,33 +24,19 @@ func newNewCommand(opts *Options) *cobra.Command {
 	var contract string
 	cmd := &cobra.Command{
 		Use:     "new <scope>/<name>",
-		Short:   "生成一个新组件的最小骨架",
+		Short:   i18n.T(msgid.CliNewShort),
 		GroupID: groupComponent,
-		Long: `生成一份能通过 brickkit up --dry-run 校验的 component.yaml 骨架。
-
-默认写到 components/<scope>/<name>/ —— 本地安装源本来就按这个布局扫描
-（<scope>/<name>/component.yaml），brickkit add --repo 克隆源码也放在这里，
-不需要另外配置就能 brickkit add --local 把它加进项目。
-
---path 写到别的目录，给独立成一个 Git 仓库的组件用（一个组件一个仓库）：
-这时目录本身就是组件仓库根，不再套 <scope>/<name> 这层。
-
-生成之后不会自动 brickkit add：写进 brickkit.yaml 是一次单独、可审阅的
-动作。也不会装 AI 助手技能——项目根已经有了，独立仓库场景请自己执行
-brickkit skills update。`,
-		Example: `  brickkit new demo/widget                          写到 components/demo/widget/
-  brickkit new demo/widget --contract openapi       顺带生成一份 OpenAPI 契约占位文件
-  brickkit new demo/widget --contract proto         顺带生成一份 proto 契约占位文件
-  brickkit new demo/widget --path ../widget-repo    写到别的目录（独立仓库场景）`,
-		Args: cobra.ExactArgs(1),
+		Long:    i18n.T(msgid.CliNewLong),
+		Example: i18n.T(msgid.CliNewExample),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runNew(opts, args[0], path, contract)
 		},
 	}
 	cmd.Flags().StringVar(&path, "path", "",
-		"写到哪个目录（默认 components/<scope>/<name>/，写了这个就不再套那一层）")
+		i18n.T(msgid.CliNewWhichDirectoryToWriteTo))
 	cmd.Flags().StringVar(&contract, "contract", "",
-		"契约占位格式：openapi 或 proto（默认不生成）")
+		i18n.T(msgid.CliNewContractPlaceholderFormatOpenapiOr))
 	return cmd
 }
 
@@ -70,11 +58,11 @@ func runNew(opts *Options, id, path, contract string) error {
 	}
 
 	if _, statErr := os.Stat(dir); statErr == nil {
-		return clierr.New(clierr.CodeConfigInvalid, "错误：目标目录已存在").
-			WithDetail("目录", dir).
+		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliNewErrorTheTargetDirectoryAlready)).
+			WithDetail(i18n.T(msgid.LabelDir), dir).
 			WithHint(
-				"如果是误操作，请先删除或重命名该目录",
-				"想写到别的地方，用 --path 指定",
+				i18n.T(msgid.CliNewIfThisWasAMistake),
+				i18n.T(msgid.CliNewToWriteSomewhereElseSpecify),
 			).
 			WithExit(clierr.ExitUsage)
 	}
@@ -82,23 +70,23 @@ func runNew(opts *Options, id, path, contract string) error {
 	for _, f := range files {
 		full := filepath.Join(dir, f.Path)
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			return clierr.New(clierr.CodeInternal, "错误：创建目录失败").
-				WithDetail("目录", filepath.Dir(full)).WithCause(err)
+			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliNewErrorFailedToCreateThe)).
+				WithDetail(i18n.T(msgid.LabelDir), filepath.Dir(full)).WithCause(err)
 		}
 		if err := os.WriteFile(full, f.Content, 0o644); err != nil {
-			return clierr.New(clierr.CodeInternal, "错误：写入文件失败").
-				WithDetail("文件", full).WithCause(err)
+			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliNewErrorFailedToWriteThe)).
+				WithDetail(i18n.T(msgid.LabelFile), full).WithCause(err)
 		}
 	}
 
-	opts.Printf("✅ 已生成组件骨架：%s\n", id)
+	opts.Printf("%s\n", i18n.T(msgid.CliNewComponentSkeletonGenerated, id))
 	for _, f := range files {
 		opts.Printf("   📄 %s\n", filepath.Join(rel, f.Path))
 	}
 	opts.Printf("\n")
-	opts.Printf("下一步：\n")
-	opts.Printf("  改完骨架里的 TODO\n")
-	opts.Printf("  brickkit add --local               把它加进 brickkit.yaml（本地安装源里能扫到它的话）\n")
-	opts.Printf("  brickkit up --dry-run               校验能不能通过\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliNewNextSteps))
+	opts.Printf("%s\n", i18n.T(msgid.CliNewFinishTheTodosInThe))
+	opts.Printf("%s\n", i18n.T(msgid.CliNewBrickkitAddLocalAddIt))
+	opts.Printf("%s\n", i18n.T(msgid.CliNewBrickkitUpDryRunCheck))
 	return nil
 }

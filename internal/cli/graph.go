@@ -22,7 +22,9 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
 	"github.com/brickkit/brickkit/internal/source"
@@ -34,33 +36,18 @@ func newGraphCommand(opts *Options) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "graph",
-		Short:   "把项目的依赖拓扑输出成 Mermaid 图",
+		Short:   i18n.T(msgid.CliGraphShort),
 		GroupID: groupProject,
-		Long: `把当前项目的依赖拓扑画成 Mermaid 图，打印到 stdout。
-
-图上有什么：
-  节点     组件 id@版本；local: true 的标上"本地调试"（写了 localPort 的连端口一起标）
-  实线     强依赖；虚线是弱依赖（取不到的弱依赖画成"未安装"节点）
-  置灰     这次不会启动的组件（被 enabled: false 关掉的，以及跟着上层一起不跑的）
-  外壳分组 servedBy 收编的成员画在它们的外壳（subgraph）里
-
-边总是画出来，不管对方这次有没有启动——图展示的是声明的结构，"启动与否"用节点样式表达。
-
-stdout 里只有 Mermaid，可以直接存成 .mmd 文件（brickkit graph > graph.mmd），
-GitHub 会直接渲染 .mmd / .mermaid 文件；放进 Markdown 时要用 mermaid 代码块围起来
-（围栏语言写 mermaid），光粘一段文字是不会被渲染的。依赖解析产生的警告写到 stderr。
-和 up 一样，还没缓存的市场 / Git 组件会联网取 Manifest；解析不出依赖图时报同样的错误。`,
-		Example: `  brickkit graph
-  brickkit graph > graph.mmd
-  brickkit graph --ignore-served-by   不看 servedBy，看每个组件独立启动时的样子`,
-		Args: cobra.NoArgs,
+		Long:    i18n.T(msgid.CliGraphLong),
+		Example: i18n.T(msgid.CliGraphExample),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runGraph(cmd.Context(), opts, ignoreServedBy)
 		},
 	}
 
 	cmd.Flags().BoolVar(&ignoreServedBy, "ignore-served-by", false,
-		"内存里清空全部 servedBy 声明再画（与 up --ignore-served-by 同义）；不写回 brickkit.yaml")
+		i18n.T(msgid.CliGraphClearEveryServedbyDeclarationIn))
 	return cmd
 }
 
@@ -150,10 +137,10 @@ func renderMermaid(
 	var b strings.Builder
 	b.WriteString("graph TD\n")
 	if ignoredServedBy {
-		b.WriteString("    %% 已忽略全部 servedBy 声明（--ignore-served-by：仅用于验证组件独立启动能力）\n")
+		b.WriteString(i18n.T(msgid.CliGraphLlServedbyDeclarationsAreIgnored) + "\n")
 	}
 	if len(graph.Nodes) == 0 {
-		b.WriteString("    %% 当前项目没有组件\n")
+		b.WriteString(i18n.T(msgid.CliGraphHeCurrentProjectHasNo) + "\n")
 		return b.String()
 	}
 
@@ -166,7 +153,7 @@ func renderMermaid(
 		running := states.IsRunning(ref)
 		label := ref.String()
 		if entry := entries[ref]; entry.Local {
-			label += "<br/>本地调试"
+			label += i18n.T(msgid.CliGraphBrLocalDebug)
 			// localPort 不是必填：没写时由 up 在生成阶段分配（默认取组件自己声明的
 			// 主端口，被占了才另选），这里算不出来。只写使用者写下的，不编一个端口
 			if entry.LocalPort > 0 {
@@ -210,7 +197,7 @@ func renderMermaid(
 	// 子图 ID 带 _members 后缀：外壳自己也是一个以它的节点 ID 为 ID 的普通节点，
 	// 两者不能同名。节点 ID 总以 _数字_数字_数字 结尾，所以不会撞上任何组件节点。
 	for _, target := range shells {
-		fmt.Fprintf(&b, "    subgraph %s_members[\"外壳：%s\"]\n", mermaidID(target), target)
+		fmt.Fprintf(&b, "%s\n", i18n.T(msgid.CliGraphSubgraphMembersShell, mermaidID(target), target))
 		for _, ref := range members[target] {
 			declare("        ", ref)
 		}
@@ -231,7 +218,7 @@ func renderMermaid(
 				continue
 			}
 			placeholder[ref] = true
-			fmt.Fprintf(&b, "    %s[\"%s<br/>未安装\"]\n", mermaidID(ref), ref)
+			fmt.Fprintf(&b, "%s\n", i18n.T(msgid.CliGraphBrNotInstalled, mermaidID(ref), ref))
 			tag(classMissing, ref)
 		}
 	}
