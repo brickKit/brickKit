@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-docs-bilingual check-market-api check-install-sh check-no-binaries check-guide-output check-i18n cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + 双语镜像 + 市场 API 表 + 安装脚本 + 仓库无二进制 + 教程输出核对 + 多语言守卫 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-docs-bilingual check-market-api check-install-sh check-no-binaries check-guide-output check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + 双语镜像 + 市场 API 表 + 安装脚本 + 仓库无二进制 + 教程输出核对 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
 # check-guide-output 2026-09-19 曾移出 lint：当时它的全部用例都核对
 # docs/archive/ 里的输出块，而归档已明确不再要求与 CLI 保持同步（错误文案里
 # 的设计书章节引用被清掉后，这份检查立刻发现了这一点——archive 里的旧文案
@@ -157,6 +157,21 @@ lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas ch
 .PHONY: check-no-binaries
 check-no-binaries: ## 确认没有编译产物 / 超大文件被提交进仓库
 	@python3 scripts/check-no-binaries.py
+
+# 每个 GOOS 一个目标就够：平台相关的代码按操作系统分文件（proc_unix.go / proc_windows.go），不按 CPU 架构分。
+# 发布矩阵里有 windows 与 darwin，而日常开发只在 Linux 上——不守着的话，一处只在 Linux 上编得过的
+# 系统调用要到 make release-artifacts 那一刻才暴露。vet 顺带把测试文件也编一遍。
+CROSS_TARGETS := linux/amd64 darwin/arm64 windows/amd64
+
+.PHONY: check-cross-build
+check-cross-build: ## 三个操作系统都编得过、测试文件也过 vet（平台相关代码不能只在 Linux 上编得过）
+	@for target in $(CROSS_TARGETS); do \
+		os=$${target%/*}; arch=$${target#*/}; \
+		echo "▶ GOOS=$$os GOARCH=$$arch"; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) build ./cmd/... ./internal/... || exit 1; \
+		GOOS=$$os GOARCH=$$arch CGO_ENABLED=0 $(GO) vet ./cmd/... ./internal/... || exit 1; \
+	done
+	@echo "✅ linux / darwin / windows 都编得过"
 
 # check-i18n 守住"CLI 消息全部走目录"：生产代码里不许写死带中文的字符串、测试里不许写
 # 中文短语的否定断言（默认语言是英文，那种断言必然空转）；顺带跑 tools/i18n 迁移工具自己的测试。
