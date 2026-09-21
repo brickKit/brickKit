@@ -230,13 +230,13 @@ brickkit add --local
 components:
   - id: demo/hello
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 18081
   - id: demo/caller
     version: 1.0.0
 ```
 
-`local: true` 是[第 3 篇](03-local-debugging.md)讲过的开关，意思是"这个组件我在自己机器上跑"：BrickKit 不为它生成容器，但它仍留在依赖图里。`localPort` 指定你本机上用哪个端口；18081 只是随手挑的，别撞上已经被占用的端口就行。
+`mode: debug` 是[第 3 篇](03-local-debugging.md)讲过的开关，意思是"这个组件我在自己机器上跑"：BrickKit 不为它生成容器，但它仍留在依赖图里。`localPort` 指定你本机上用哪个端口；18081 只是随手挑的，别撞上已经被占用的端口就行。
 
 ```bash
 brickkit up --dry-run
@@ -248,10 +248,10 @@ brickkit up --dry-run
 🚀 启动项目 hello-world（deploy.target: docker）
 ...
 📋 组件状态计算：
-   ✅ demo/hello@1.0.0   启动（demo/caller 需要）
+   ✅ demo/hello@1.0.0   启动（mode: debug）
    ✅ demo/caller@1.0.0  启动（顶层）
 ...
-🔧 本地调试（local: true）：
+🔧 本地调试（mode: debug）：
    demo/hello@1.0.0
       不生成容器；请在 IDE 里启动它，监听 localhost:18081
       环境变量：.brickkit/generated/local-debug.demo-hello-1-0-0.env
@@ -262,7 +262,7 @@ brickkit up --dry-run
 
 `image` 和 `port` 真的没被用到，有两处证据。其一，🔧 那一段要你在 `localhost:18081` 提供服务：这是 `localPort` 的值，Manifest 里写的 8080 没起作用。其二更硬：把完整的 `brickkit up` 真跑一遍（临时起个 PostgreSQL、照第 6 篇的办法绑上），检测镜像拉取权限那一步照样 `✅ 全部通过`，而这个占位镜像从来没人构建过——如果 BrickKit 真要去拉取或校验这个镜像本身，这一步该报错才对。
 
-如果你对那句 `请在 IDE 里启动它` 心存疑惑：它沿用的是 `local: true` 最初的用途——在 IDE 里下断点调试。对 mock 来说，谁来监听 18081 无所谓，IDE 里的程序也好，终端里的脚本也好，只要那个端口上有东西在应答就行。
+如果你对那句 `请在 IDE 里启动它` 心存疑惑：它沿用的是 `mode: debug` 最初的用途——在 IDE 里下断点调试。对 mock 来说，谁来监听 18081 无所谓，IDE 里的程序也好，终端里的脚本也好，只要那个端口上有东西在应答就行。
 
 ### 第 4 步：确认消费方拿到的地址指向哪里
 
@@ -344,7 +344,7 @@ npx --yes @stoplight/prism-cli@5.16.0 mock -p 18081 -h 0.0.0.0 components/demo/h
 
 最自然的想法是：契约都在手上了，BrickKit 能不能直接生成 mock？或者给 `up` 加个 `--with-mocks`，缺哪个强依赖就自动补个替身？都没有做，三条理由，按分量从重到轻：
 
-**一，自动补替身，太容易补到线上去。** 强依赖缺失时，BrickKit 的既定做法是停下来报错，逼你看见这个缺口（AGENTS.zh.md §5.3）。要是有个开关能悄悄补上替身，一次误操作，线上就多出一个对所有请求都回编造数据、还照样回 200 的"下游"，不会有任何报警。本文这条路有几道保险：桩标着 `local: true`，`deploy.target` 一旦改成 `k8s`，`up` 就直接拒绝并停下——集群里的 Pod（Kubernetes 里承载容器的最小单位，可以粗略当成"集群里的一个容器实例"）够不着你个人机器上的进程；留在 Docker 上，桩也不生成容器，不会有假服务被拉起来；而且替身明明白白写在 `brickkit.yaml` 里，评审时看得到。
+**一，自动补替身，太容易补到线上去。** 强依赖缺失时，BrickKit 的既定做法是停下来报错，逼你看见这个缺口（AGENTS.zh.md §5.3）。要是有个开关能悄悄补上替身，一次误操作，线上就多出一个对所有请求都回编造数据、还照样回 200 的"下游"，不会有任何报警。本文这条路有几道保险：桩标着 `mode: debug`，`deploy.target` 一旦改成 `k8s`，`up` 就直接拒绝并停下——集群里的 Pod（Kubernetes 里承载容器的最小单位，可以粗略当成"集群里的一个容器实例"）够不着你个人机器上的进程；留在 Docker 上，桩也不生成容器，不会有假服务被拉起来；而且替身明明白白写在 `brickkit.yaml` 里，评审时看得到。
 
 **二，mock 换个名字，没人会去找它。** `demo/caller` 手里的地址是真组件的 ID 加精确版本，也就是 `demo-hello-1-0-0`（AGENTS.zh.md §5.1）。桩保住了这个名字，`extra_hosts` 再把它指到你的机器上。回到通讯录的比方：存的是"demo-hello 1.0.0"的号码，接电话的人就不能自称别的名字，否则没人会拨给他。
 
@@ -352,7 +352,7 @@ npx --yes @stoplight/prism-cli@5.16.0 mock -p 18081 -h 0.0.0.0 components/demo/h
 
 ### 真上游做好了：把桩拆干净
 
-拆桩最容易踩的坑，不是忘了拆，而是拆了以为已经好了。做完"删桩目录、去掉 `local: true`"这两步，`brickkit up --dry-run` 照样顺利通过，可生成出来的 compose 里，`demo/hello` 用的仍是桩的占位镜像 `demo/hello:0.1.0`——拿一个本地 Git 仓库冒充真上游，实际跑出来的就是这个结果。
+拆桩最容易踩的坑，不是忘了拆，而是拆了以为已经好了。做完"删桩目录、去掉 `mode: debug`"这两步，`brickkit up --dry-run` 照样顺利通过，可生成出来的 compose 里，`demo/hello` 用的仍是桩的占位镜像 `demo/hello:0.1.0`——拿一个本地 Git 仓库冒充真上游，实际跑出来的就是这个结果。
 
 原因在缓存。来自组件市场或 Git 源的组件，Manifest 不是每次运行都重新去取，而是读 `.brickkit/manifests/` 里存的那一份（AGENTS.zh.md §2.3），而 `demo/hello@1.0.0` 存的还是桩的。（`local` 类型的安装源是例外：它每次都重读目录，不走缓存，所以真上游若也是本地源，就没有这个问题。）
 
@@ -360,7 +360,7 @@ npx --yes @stoplight/prism-cli@5.16.0 mock -p 18081 -h 0.0.0.0 components/demo/h
 
 ```bash
 rm -rf components/demo/hello                  # 桩的源码
-# 手工编辑 brickkit.yaml：删掉 demo/hello 那一项下的 local: true 和 localPort
+# 手工编辑 brickkit.yaml：删掉 demo/hello 那一项下的 mode: debug 和 localPort
 rm -rf .brickkit/artifacts/demo-hello-1-0-0   # add 当初拷下来的桩契约
 brickkit add demo/hello@1.0.0 --yes           # 前提：sources 里有个带着真 demo/hello@1.0.0 的安装源
 ```

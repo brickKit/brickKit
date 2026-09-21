@@ -62,7 +62,7 @@ func (c *Compose) Up(ctx context.Context, req UpRequest) error {
 // 因为那份文件被不止一条命令写：`up --dry-run` 也会重写它（它本该只回答
 // "这次打算跑什么"，却顺手改掉了"上次实际部署了什么"的唯一记录）。
 //
-// 真跑出来的样子：up 起两个组件 → 给其中一个写 enabled: false → up --dry-run
+// 真跑出来的样子：up 起两个组件 → 给其中一个写 mode: disable → up --dry-run
 // 看一眼 → down。文件里此刻只剩一个 service，compose 就只拆那一个，
 // 另一个容器**继续跑着**，而 CLI 拿到 exit 0，照样打印"已停止全部组件"。
 // 一条谎报成功的命令比一条失败的命令危险得多。

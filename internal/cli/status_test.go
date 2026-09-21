@@ -119,7 +119,7 @@ func TestStatusShowsSkippedComponentsWithReason(t *testing.T) {
     version: 1.0.0
   - id: erp/backend
     version: 1.0.0
-    enabled: false
+    mode: disable
 `)
 	eng := newFakeEngine()
 	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
@@ -150,7 +150,7 @@ func TestStatusShowsLocalComponents(t *testing.T) {
 	assert.Contains(t, r.stdout, "localhost:8081")
 }
 
-// local 组件没有容器，不该被当成"没起来"报出来。
+// debug 组件没有容器，不该被当成"没起来"报出来。
 func TestStatusDoesNotReportLocalComponentAsDown(t *testing.T) {
 	f := localDebugProject(t)
 	eng := newFakeEngine()
@@ -369,7 +369,7 @@ func TestStatusKeepsFailedComponentWhenGraphUnavailable(t *testing.T) {
 	assert.Contains(t, r.stdout, "exit code 1")
 }
 
-// enabled: false 是 brickkit.yaml 里就写着的，不该跟着退化成"原因未知"。
+// mode: disable 是 brickkit.yaml 里就写着的，不该跟着退化成"原因未知"。
 func TestStatusKeepsDisabledReasonWhenGraphUnavailable(t *testing.T) {
 	f, eng := startedProject(t)
 	f.writeConfig(t, `components:
@@ -377,7 +377,7 @@ func TestStatusKeepsDisabledReasonWhenGraphUnavailable(t *testing.T) {
     version: 1.0.0
   - id: erp/backend
     version: 1.0.0
-    enabled: false
+    mode: disable
 `)
 	eng.statuses = []engine.Status{
 		{Service: "people-basic-1-0-0", State: "running", Health: "healthy"},

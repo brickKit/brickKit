@@ -119,7 +119,7 @@ type componentView struct {
 	failed  []statusRow
 	// skipped 是本次不启动的组件及原因。
 	skipped []statusRow
-	// local 是 local: true、由使用者自己在 IDE 里跑的组件（没有容器）。
+	// local 是 mode: debug、由使用者自己在 IDE 里跑的组件（没有容器）。
 	local []resolver.Ref
 }
 
@@ -158,7 +158,7 @@ func resolvedView(p *project, byService map[string]engine.Status) componentView 
 //	在跑        ✅ 运行中
 //	有记录没跑  ❌ 未在运行 —— 引擎里有它，说明它确实被部署过
 //	查不到      判不出它该不该跑，一律进"未启动"，原因写实话：
-//	            enabled: false 是 brickkit.yaml 里就写着的，其余写"原因未知"
+//	            mode: disable 是 brickkit.yaml 里就写着的，其余写"原因未知"
 //
 // **绝不把"查不到"算成"未在运行"**：那一节的意思是"该跑却没跑"，
 // 而这时恰恰不知道它该不该跑——说成没起来，是在冤枉一个本来就该停着的组件，
@@ -178,8 +178,8 @@ func degradedView(p *project, byService map[string]engine.Status) componentView 
 			v.failed = append(v.failed, statusRow{ref: ref, text: statusText(status, ok)})
 		case c.IsDisabled():
 			v.skipped = append(v.skipped, statusRow{ref: ref, text: reasonDisabled()})
-		case c.Local:
-			// local 组件本来就不会出现在引擎里，"查不到"是它的正常状态
+		case c.Mode == config.ModeDebug:
+			// mode: debug 组件本来就不会出现在引擎里，"查不到"是它的正常状态
 			v.local = append(v.local, ref)
 		default:
 			v.skipped = append(v.skipped, statusRow{ref: ref, text: reasonUnknown()})

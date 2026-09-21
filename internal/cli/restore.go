@@ -1,6 +1,6 @@
 package cli
 
-// 本文件实现 brickkit restore（004 §3.14）：把 brickkit.yaml 的 enabled 与组件
+// 本文件实现 brickkit restore（004 §3.14）：把 brickkit.yaml 的 mode 与组件
 // 源码结构还原到最后一次提交，以及供 pre-commit hook 调用的 --check。
 
 import (
@@ -38,19 +38,21 @@ func newRestoreCommand(opts *Options) *cobra.Command {
 	return cmd
 }
 
-// enabledChange 是一处 enabled 还原。
-type enabledChange struct {
+// modeChange 是一处 mode 还原。
+type modeChange struct {
 	id, version string
-	// from 是工作区当前的值（nil = 没写），只用于如实汇报被覆盖的旧值。
-	from *bool
-	// to 是要设成的值；nil 表示**删掉这个字段**（最后一次提交里没写）。
-	to *bool
+	// from 是工作区当前的值（"" = 没写），只用于如实汇报被覆盖的旧值。
+	from string
+	// to 是要设成的值；"" 表示**删掉这个字段**（最后一次提交里没写）——
+	// mode 本身的零值就是"没写"，不需要再用指针区分"没写"与"写了空值"
+	// （这跟 Component.Mode 自己的语义完全一致，不是又发明了一套表达方式）。
+	to string
 }
 
 // ref 返回 id@version，用于输出。
-func (c enabledChange) ref() string { return c.id + "@" + c.version }
+func (c modeChange) ref() string { return c.id + "@" + c.version }
 
-// restorePlan 算出要改哪些 enabled。纯函数。
+// restorePlan 算出要改哪些 mode。纯函数。
 //
 // 只动"工作区与 HEAD 都有的同一个 (id, version) 条目"，另外两种刻意不动：
 //
@@ -61,43 +63,35 @@ func (c enabledChange) ref() string { return c.id + "@" + c.version }
 //
 // 返回的 untouched 是那些"工作区有、提交里没有"的条目引用，要在输出里点名说
 // "未动"：使用者得知道为什么它没变，否则会以为命令漏了它。
-func restorePlan(work, head *config.Config) ([]enabledChange, []string) {
-	headEnabled := make(map[string]*bool, len(head.Components))
+func restorePlan(work, head *config.Config) ([]modeChange, []string) {
+	headMode := make(map[string]string, len(head.Components))
 	for _, c := range head.Components {
-		headEnabled[c.Ref()] = c.Enabled
+		headMode[c.Ref()] = c.Mode
 	}
 
-	var changes []enabledChange
+	var changes []modeChange
 	var untouched []string
 	for _, c := range work.Components {
-		want, ok := headEnabled[c.Ref()]
+		want, ok := headMode[c.Ref()]
 		if !ok {
 			untouched = append(untouched, c.Ref())
 			continue
 		}
-		if sameEnabled(c.Enabled, want) {
+		if c.Mode == want {
 			continue
 		}
 		changes = append(changes,
-			enabledChange{id: c.ID, version: c.Version, from: c.Enabled, to: want})
+			modeChange{id: c.ID, version: c.Version, from: c.Mode, to: want})
 	}
 	return changes, untouched
 }
 
-// sameEnabled 比较两个 enabled 值。nil（没写）与 false 不是一回事。
-func sameEnabled(a, b *bool) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	return *a == *b
-}
-
-// applyEnabled 把还原结果写进**内存里**的配置。
-func applyEnabled(cfg *config.Config, changes []enabledChange) {
+// applyMode 把还原结果写进**内存里**的配置。
+func applyMode(cfg *config.Config, changes []modeChange) {
 	for _, ch := range changes {
 		for i := range cfg.Components {
 			if cfg.Components[i].ID == ch.id && cfg.Components[i].Version == ch.version {
-				cfg.Components[i].Enabled = ch.to
+				cfg.Components[i].Mode = ch.to
 			}
 		}
 	}
@@ -107,7 +101,7 @@ func applyEnabled(cfg *config.Config, changes []enabledChange) {
 //
 // # 顺序是硬约束
 //
-//	解析工作区 yaml → 内存里还原 enabled → 算判定 → 落盘 yaml → 移动目录
+//	解析工作区 yaml → 内存里还原 mode → 算判定 → 落盘 yaml → 移动目录
 //
 // 反过来（先落盘再算判定）就会在 Manifest 缺失或需要联网时留下一个
 // "yaml 改了、结构没动"的半成品——而那正是使用者最不希望在提交前撞上的状态。
@@ -148,17 +142,17 @@ func runRestore(ctx context.Context, opts *Options) error {
 	changes, untouched := restorePlan(work, head)
 
 	// 先算判定，算成功了才落盘（见上面那段"顺序是硬约束"）
-	applyEnabled(work, changes)
+	applyMode(work, changes)
 	f, err := syncFocus(ctx, opts, layout, work)
 	if err != nil {
 		return err
 	}
 
-	// 被覆盖的旧值必须在落盘之前印出来：restore 不可逆，旧的 enabled 没有
+	// 被覆盖的旧值必须在落盘之前印出来：restore 不可逆，旧的 mode 没有
 	// 第二份副本，如实汇报是唯一的缓解措施。这两句之间如果被杀掉进程
 	// （OOM、SIGKILL、断电），旧值不能既从磁盘上没了、又从未被报告过。
-	printEnabledChanges(opts, layout, changes, untouched)
-	if err := writeEnabled(layout, changes); err != nil {
+	printModeChanges(opts, layout, changes, untouched)
+	if err := writeMode(layout, changes); err != nil {
 		return err
 	}
 
@@ -239,8 +233,8 @@ func restorePreflight(repo *gitrepo.Repo, layout config.Layout, cfg *config.Conf
 	return nil
 }
 
-// writeEnabled 把还原结果落盘。走节点级编辑器：注释与排版原样。
-func writeEnabled(layout config.Layout, changes []enabledChange) error {
+// writeMode 把还原结果落盘。走节点级编辑器：注释与排版原样。
+func writeMode(layout config.Layout, changes []modeChange) error {
 	if len(changes) == 0 {
 		return nil
 	}
@@ -249,23 +243,23 @@ func writeEnabled(layout config.Layout, changes []enabledChange) error {
 		return err
 	}
 	for _, ch := range changes {
-		if ch.to == nil {
-			edit.ClearComponentEnabled(ch.id, ch.version)
+		if ch.to == "" {
+			edit.ClearComponentMode(ch.id, ch.version)
 			continue
 		}
-		edit.SetComponentEnabled(ch.id, ch.version, *ch.to)
+		edit.SetComponentMode(ch.id, ch.version, ch.to)
 	}
 	return edit.Save()
 }
 
-// printEnabledChanges 汇报 yaml 那一半改了什么。
+// printModeChanges 汇报 yaml 那一半改了什么。
 //
-// **被覆盖的旧值必须印出来。** restore 不可逆：被覆盖的 enabled 没有第二份副本，
+// **被覆盖的旧值必须印出来。** restore 不可逆：被覆盖的 mode 没有第二份副本，
 // sync 那句"搞错了再执行一次就回来了"在这里不成立。处理办法不是加 --yes 确认
 // （那两三行本来就是 004 §3.9.2 教人 git checkout 掉的东西），而是如实汇报——
 // 使用者从终端 scrollback 里就能读回来。
-func printEnabledChanges(
-	opts *Options, layout config.Layout, changes []enabledChange, untouched []string,
+func printModeChanges(
+	opts *Options, layout config.Layout, changes []modeChange, untouched []string,
 ) {
 	if len(changes) == 0 && len(untouched) == 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliRestoreMatchesTheLastCommit, layout.ConfigName()))
@@ -273,28 +267,25 @@ func printEnabledChanges(
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliRestoreEnabledRestoredFromTheLast, layout.ConfigName()))
 	for _, ch := range changes {
-		opts.Printf("   %-26s enabled: %s → %s\n", ch.ref(), showEnabled(ch.from), toEnabled(ch.to))
+		opts.Printf("   %-26s mode: %s → %s\n", ch.ref(), showMode(ch.from), toMode(ch.to))
 	}
 	for _, ref := range untouched {
 		opts.Printf("%s\n", i18n.T(msgid.CliRestoreSLeftAsIsThis, ref))
 	}
 }
 
-func showEnabled(v *bool) string {
-	if v == nil {
+func showMode(v string) string {
+	if v == "" {
 		return i18n.T(msgid.CliRestoreNotSet)
 	}
-	if *v {
-		return "true"
-	}
-	return "false"
+	return v
 }
 
-func toEnabled(v *bool) string {
-	if v == nil {
+func toMode(v string) string {
+	if v == "" {
 		return i18n.T(msgid.CliRestoreRemoveTheFieldTheCommit)
 	}
-	return showEnabled(v)
+	return v
 }
 
 // restoreErr 是 restore 前置检查的统一错误壳子。

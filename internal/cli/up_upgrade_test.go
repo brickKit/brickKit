@@ -116,7 +116,7 @@ func TestFirstInstallIsNotAnUpgrade(t *testing.T) {
 // 这五项没有专门的"升级检查"入口——它们本来就在常规 up 路径上（解析拿不到
 // Manifest 就报错、强依赖缺失报错、弱依赖缺失警告、循环依赖报错、资源未绑定
 // 报错）。升级路径从前另跑一遍 resolver.CheckUpgrade，是同一套判断的第二份
-// 拷贝，而且复制得不完整（--dry-run 不降级、不过滤 enabled: false）。
+// 拷贝，而且复制得不完整（--dry-run 不降级、不过滤 mode: disable）。
 //
 // 那份拷贝已删除。这里的用例改为走**真正在跑的那条路**：改版本号、up、看结果。
 // ============================================================
@@ -371,7 +371,7 @@ func TestDryRunDoesNotBlockOnUnboundResourceDuringUpgrade(t *testing.T) {
 	assert.Contains(t, r.stdout+r.stderr, "resource dependencies are not satisfied", "但必须说出来")
 }
 
-// 升级一个 enabled: false 的组件不该被资源检查拦下。
+// 升级一个 mode: disable 的组件不该被资源检查拦下。
 //
 // 006 §4.4 明写"只查本次会启动的组件"。升级路径从前无条件查目标组件，
 // 于是它在让使用者给一个刚刚关掉的组件去配数据库。
@@ -383,7 +383,7 @@ func TestUpgradingADisabledComponentSkipsBindingCheck(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: people/basic
     version: 1.1.0
-    enabled: false
+    mode: disable
 `)
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")

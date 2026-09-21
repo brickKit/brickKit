@@ -69,7 +69,7 @@ const (
 
 	// 迁移与引擎。
 	CodeMigrationFailed Code = "MIGRATION_FAILED"
-	// CodeMigrationSkipped 是"这次不由 CLI 代跑迁移"（如 local: true 的组件）。
+	// CodeMigrationSkipped 是"这次不由 CLI 代跑迁移"（如 mode: debug 的组件）。
 	// 它只作警告使用，不阻断。
 	CodeMigrationSkipped Code = "MIGRATION_SKIPPED"
 	CodeEngineFailed     Code = "ENGINE_FAILED"

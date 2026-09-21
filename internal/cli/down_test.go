@@ -126,11 +126,11 @@ func TestDownReportsEngineFailure(t *testing.T) {
 }
 
 // ============================================================
-// 15.14 只停其中几个：改 enabled 再 up
+// 15.14 只停其中几个：改 mode 再 up
 // ============================================================
 
 // `down --only` 已删除（003 §4.3：要收窄范围就改配置）。它的用途由
-// "写 enabled: false 再 up" 覆盖——生成的部署文件里没有它，
+// "写 mode: disable 再 up" 覆盖——生成的部署文件里没有它，
 // 而 up 带着清理选择器（Docker 侧即 `--remove-orphans`），
 // 引擎会把它的容器一并移除。
 //
@@ -146,10 +146,10 @@ func TestDisablingAComponentRemovesItsContainerOnNextUp(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: people/basic
     version: 1.0.0
-    enabled: true
+    mode: enabled
   - id: erp/backend
     version: 1.0.0
-    enabled: false
+    mode: disable
 
 resources:
   - kind: database

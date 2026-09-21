@@ -174,9 +174,6 @@ func withDatabase(m *manifest.Manifest) *manifest.Manifest {
 	return m
 }
 
-func off() *bool { v := false; return &v }
-func on() *bool  { v := true; return &v }
-
 // ============================================================
 // 11.9 / 11.10 平台通用变量
 // ============================================================
@@ -249,7 +246,7 @@ func TestWeakDependencyNotRunningIsNotInjected(t *testing.T) {
 	b := newBuilder(t)
 	b.component(weaklyDependsOn(simple("erp/backend", "1.0.0", 8080), "infra/redis-event-bus", "1.0.0"),
 		config.Component{})
-	b.component(weak, config.Component{Enabled: off()})
+	b.component(weak, config.Component{Mode: config.ModeDisable})
 
 	env := envOf(t, b.build(), "erp/backend")
 
@@ -265,7 +262,7 @@ func TestRunningWeakDependencyIsInjected(t *testing.T) {
 	b := newBuilder(t)
 	b.component(weaklyDependsOn(simple("erp/backend", "1.0.0", 8080), "infra/redis-event-bus", "1.0.0"),
 		config.Component{})
-	b.component(simple("infra/redis-event-bus", "1.0.0", 6379), config.Component{Enabled: on()})
+	b.component(simple("infra/redis-event-bus", "1.0.0", 6379), config.Component{Mode: config.ModeEnabled})
 
 	env := envOf(t, b.build(), "erp/backend")
 
@@ -275,7 +272,7 @@ func TestRunningWeakDependencyIsInjected(t *testing.T) {
 // 级联跳过的组件本身不产出环境变量表：它这次根本不启动。
 func TestSkippedComponentProducesNoEnv(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("erp/backend", "1.0.0", 8080), config.Component{Enabled: off()})
+	b.component(simple("erp/backend", "1.0.0", 8080), config.Component{Mode: config.ModeDisable})
 
 	result := b.build()
 

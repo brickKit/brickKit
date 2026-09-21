@@ -36,7 +36,7 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 	}
 
 	// shell.Resolve 只看 states.Running()：一个 servedBy 成员如果自己被
-	// enabled: false 关掉，它压根不出现在 states.Running() 里，于是
+	// mode: disable 关掉，它压根不出现在 states.Running() 里，于是
 	// shell.Resolve 不会为它的外壳产出任何 Group。但外壳本身如果还在跑，
 	// BRICKKIT_SERVED_MEMBERS 依旧必须显式写成空字符串，不能让整个变量
 	// 消失——"空字符串"（零个成员激活）与"变量不存在"（不受平台管辖）

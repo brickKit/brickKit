@@ -285,7 +285,7 @@ type Component struct {
 	// Replicas 是副本数（005 §5.8，**仅 K8s**）。nil 表示不写，按 1 处理。
 	//
 	// 用指针是为了区分"没写"与"写了 0"：后者必须报错而不是当成关闭组件——
-	// 关组件已经有 `enabled: false`，它会走级联计算、会提醒依赖方；
+	// 关组件已经有 `mode: disable`，它会走级联计算、会提醒依赖方；
 	// 而 replicas: 0 绕过这一切，依赖方照常启动、照常拿到地址，然后连一个
 	// 不存在的后端，表现是 503 而状态表里那个组件显示"正常"。
 	Replicas *int `yaml:"replicas,omitempty"`

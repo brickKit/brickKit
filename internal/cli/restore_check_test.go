@@ -234,7 +234,7 @@ func TestCheckPassesWhenYAMLGoesInWithTheStructure(t *testing.T) {
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	assert.Equal(t, clierr.ExitOK, r.code,
-		"enabled: false 一起提交了就是他要这个结构：%s%s", r.stdout, r.stderr)
+		"mode: disable 一起提交了就是他要这个结构：%s%s", r.stdout, r.stderr)
 }
 
 func TestCheckBlocksSourceInBothPlaces(t *testing.T) {
@@ -262,7 +262,7 @@ func TestCheckBlocksSourceInBothPlaces(t *testing.T) {
 //
 //	git add brickkit.yaml   yaml 本来就已经暂存了，再 add 一次什么都不变
 //	brickkit restore        它比的是**工作区 yaml 与 HEAD**。这份历史里 HEAD 是
-//	                        那次 archive 提交（enabled: false），所以它会算出差异，
+//	                        那次 archive 提交（mode: disable），所以它会算出差异，
 //	                        把使用者刚做的重新启用**回退掉**、再把源码重新归档——
 //	                        不是空转，是把人往反方向拽（旧值动手前会打印，找得回来）
 //
@@ -277,7 +277,7 @@ func TestCheckArchivedInIndexActiveOnDiskNamesGitAddDashA(t *testing.T) {
 	gitDo(t, f.Dir, "add", "-A")
 	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
 
-	// 归档 hello（caller 级联跟着走），把这份归档结构连同 enabled: false
+	// 归档 hello（caller 级联跟着走），把这份归档结构连同 mode: disable
 	// 一起提交下来——这是「归档在 git 里」的合法起点（004 §3.9.3）。
 	f.writeConfig(t, helloDisabled)
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
@@ -434,7 +434,7 @@ func TestCheckWarnsWhenConfigNotTracked(t *testing.T) {
 const helloDisabledWithUnresolvable = `components:
   - id: demo/hello
     version: 1.0.0
-    enabled: false
+    mode: disable
   - id: demo/caller
     version: 1.0.0
   - id: solo/thing

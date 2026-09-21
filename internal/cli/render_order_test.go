@@ -104,7 +104,7 @@ func TestDryRunOrderListsOptionalDependencies(t *testing.T) {
 	assert.Contains(t, startupSection(r.stdout), "infra-redis-event-bus-1-0-0",
 		"弱依赖也要启动")
 	assert.Contains(t, r.stdout, "Only referenced by optional dependencies")
-	assert.Contains(t, r.stdout, "enabled: false", "要给出关掉它的办法")
+	assert.Contains(t, r.stdout, "mode: disable", "要给出关掉它的办法")
 	assert.Contains(t, r.stdout, "(optional)", "依赖图里要标出弱依赖")
 }
 
@@ -252,7 +252,7 @@ func TestDryRunOrderShowsMissingOptionalDependency(t *testing.T) {
 	assert.NotContains(t, r.stdout, "Only referenced by optional dependencies", "没装进图里的弱依赖不该出现在这一行")
 }
 
-// ⚠️ 现状锁定：order 目前**不做级联计算**，enabled: false 的组件也会出现在顺序里。
+// ⚠️ 现状锁定：order 目前**不做级联计算**，mode: disable 的组件也会出现在顺序里。
 //
 // 级联启停是 Step 11 的职责（延后清单 P17）。Step 11 实现后，本用例应改为
 // 断言被禁用的组件不出现在启动顺序中——它失败正是提醒回来改这里。
@@ -269,7 +269,7 @@ func TestDryRunOrderExcludesDisabledComponent(t *testing.T) {
     version: 1.0.0
   - id: department/tree
     version: 1.0.0
-    enabled: false
+    mode: disable
 `)
 
 	r := runIn(t, f.Dir, "up", "--dry-run")
@@ -295,7 +295,7 @@ func TestDryRunOrderExcludesComponentsWhoseParentsAreOff(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: erp/backend
     version: 1.0.0
-    enabled: false
+    mode: disable
   - id: people/basic
     version: 1.0.0
 `)
@@ -315,7 +315,7 @@ func TestDryRunOrderWithNothingRunning(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: people/basic
     version: 1.0.0
-    enabled: false
+    mode: disable
 `)
 
 	r := runIn(t, f.Dir, "up", "--dry-run")
@@ -333,10 +333,10 @@ func TestDryRunOrderReportsDisabledStrongDependency(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: erp/backend
     version: 1.0.0
-    enabled: true
+    mode: enabled
   - id: authorization/rbac
     version: 1.0.0
-    enabled: false
+    mode: disable
 `)
 
 	r := runIn(t, f.Dir, "up", "--dry-run")

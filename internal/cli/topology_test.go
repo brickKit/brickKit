@@ -51,7 +51,7 @@ func TestResolveTopologyHonoursDisabledTopLevel(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: demo/caller
     version: 1.0.0
-    enabled: false
+    mode: disable
 resources: []
 `)
 
@@ -93,10 +93,10 @@ func TestResolveTopologyFailsWhenCascadeCannotBeComputed(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: demo/caller
     version: 1.0.0
-    enabled: true
+    mode: enabled
   - id: demo/hello
     version: 1.0.0
-    enabled: false
+    mode: disable
 resources: []
 `)
 

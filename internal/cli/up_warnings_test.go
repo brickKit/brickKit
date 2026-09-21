@@ -5,7 +5,7 @@
 // 15.7 与 P22 曾经由 `--check-resources` 承担，那个参数已经删掉
 // （理由见 TestUpNeverProbesResources）。
 // 15.8–15.11 曾经由 `--only` 承担，那个参数也已删掉
-// （003 §4.3：要收窄这次启动的范围就改 enabled，不再多一套语义）。
+// （003 §4.3：要收窄这次启动的范围就改 mode，不再多一套语义）。
 package cli
 
 import (
@@ -82,7 +82,7 @@ func prodConfig(f *projectFixture) string {
 //	            说明不了组件也能连成功。而 host: localhost 时它给的是**反的**
 //	            答案：宿主机上通，容器里连的却是它自己。
 //	宿主机端口  docker 会为它发布的每个端口报出清楚的 `port is already
-//	            allocated`；它唯一多覆盖的是 local 组件自己监听的端口，
+//	            allocated`；它唯一多覆盖的是 debug 组件自己监听的端口，
 //	            而那一类的典型命中恰恰是**开发者自己刚启动的进程**——
 //	            一个典型命中就是假警报的检查，只会训练人忽略警告。
 func TestUpNeverProbesResources(t *testing.T) {
@@ -273,7 +273,7 @@ func TestWeakDependencyNotRunningIsReported(t *testing.T) {
     version: 1.0.0
   - id: demo/hello
     version: 1.0.0
-    enabled: false
+    mode: disable
 `)
 
 	r := runIn(t, f.Dir, "up", "--dry-run")
@@ -300,7 +300,7 @@ func TestWeakDependencyNotRunningIsNotAWarning(t *testing.T) {
     version: 1.0.0
   - id: demo/hello
     version: 1.0.0
-    enabled: false
+    mode: disable
 `)
 
 	r := runIn(t, f.Dir, "up", "--dry-run")

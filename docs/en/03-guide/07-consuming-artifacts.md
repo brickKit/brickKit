@@ -101,7 +101,7 @@ BrickKit only ever deals with the stub; the mock is an ordinary process you star
 
 The upside: you can build and run `demo/caller` today against the agreed shape, and on the day the real component arrives nothing in `demo/caller` changes. The cost: the mock knows only what the contract says, so anything the real component does differently — or beyond it — you find out late; and the stub is fake, so it has to be taken out again (the last part shows how). It is a development-time expedient, not a replacement for verifying against the real component once that exists: [the testing patterns](../07-patterns/01-testing.md) explain why a cross-component test should hit the real dependency rather than a stand-in.
 
-There is no dedicated command for any of this, on purpose (the reasons are near the end). The recipe chains three features you have already met: `brickkit new --contract` makes the stub, `brickkit add --local` registers it, and `local: true` ([Article 3](03-local-debugging.md)) tells BrickKit "I run this one myself".
+There is no dedicated command for any of this, on purpose (the reasons are near the end). The recipe chains three features you have already met: `brickkit new --contract` makes the stub, `brickkit add --local` registers it, and `mode: debug` ([Article 3](03-local-debugging.md)) tells BrickKit "I run this one myself".
 
 ### Starting point: a consumer whose dependency doesn't exist yet
 
@@ -222,13 +222,13 @@ The stub is found in the local source like any other component, and `demo/caller
 
 ### Step 3: tell BrickKit you'll run the stub yourself
 
-Left alone, BrickKit would try to start a container from the stub's `image:` line — a placeholder that points at nothing. `local: true` ([Article 3](03-local-debugging.md)) says otherwise: "this component runs on my machine; generate no container for it, but keep it in the dependency graph". `localPort` picks the port on your machine:
+Left alone, BrickKit would try to start a container from the stub's `image:` line — a placeholder that points at nothing. `mode: debug` ([Article 3](03-local-debugging.md)) says otherwise: "this component runs on my machine; generate no container for it, but keep it in the dependency graph". `localPort` picks the port on your machine:
 
 ```yaml
 components:
   - id: demo/hello
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 18081
   - id: demo/caller
     version: 1.0.0
@@ -244,10 +244,10 @@ An excerpt — `...` marks lines left out:
 🚀 Starting project hello-world (deploy.target: docker)
 ...
 📋 Component state calculation:
-   ✅ demo/hello@1.0.0   starting (demo/caller needs it)
+   ✅ demo/hello@1.0.0   starting (mode: debug)
    ✅ demo/caller@1.0.0  starting (top-level)
 ...
-🔧 Local debugging (local: true):
+🔧 Local debugging (mode: debug):
    demo/hello@1.0.0
       No container is generated; start it in your IDE, listening on localhost:18081
       Environment variables: .brickkit/generated/local-debug.demo-hello-1-0-0.env
@@ -256,7 +256,7 @@ An excerpt — `...` marks lines left out:
 ...
 ```
 
-The stub still takes part in the status calculation and the dependency graph. What changed is "No container is generated" and where it is expected: `localhost:18081`. That is `localPort`, not the `8080` written in the stub's own Manifest — a `local: true` component's `image` and `port` are never used, which is why the skeleton's `TODO`s can stay. (A real `brickkit up` doesn't check the stub's image either: with a throwaway PostgreSQL bound as in [Article 6](06-assemble-and-break.md), the image check passed even though nothing had ever built the placeholder image.) The message talks about "your IDE" because `local: true` was made for debugging; for a mock it just means "any program you start on your own machine".
+The stub still takes part in the status calculation and the dependency graph. What changed is "No container is generated" and where it is expected: `localhost:18081`. That is `localPort`, not the `8080` written in the stub's own Manifest — a `mode: debug` component's `image` and `port` are never used, which is why the skeleton's `TODO`s can stay. (A real `brickkit up` doesn't check the stub's image either: with a throwaway PostgreSQL bound as in [Article 6](06-assemble-and-break.md), the image check passed even though nothing had ever built the placeholder image.) The message talks about "your IDE" because `mode: debug` was made for debugging; for a mock it just means "any program you start on your own machine".
 
 The `...` lines also hide one more warning, `⚠️ Warning: resource dependencies are not satisfied (--dry-run doesn't block)`: `demo/caller` declares that it needs a database, and this project hasn't bound one. It has nothing to do with the stub, and the end-to-end section below comes back to it.
 
@@ -353,7 +353,7 @@ Clean up with `docker rm -f stub-demo-caller`, and stop the mock with Ctrl-C.
 You might expect a `mock` command that builds a fake server from the contract, or a switch on `up` that swaps a stand-in in for any required dependency that is missing. Neither exists, for three reasons:
 
 - **The platform never reads a contract's content.** `artifacts.format` is a free-form string that BrickKit carries along and never interprets (AGENTS.md §6). Generating mocks would mean understanding OpenAPI, protobuf, gRPC and whatever format comes next — a job that is never finished, and one that dedicated tools already do. BrickKit's part stays small: getting the address to whatever you run.
-- **Swapping in a stand-in automatically contradicts two of its principles.** A missing required dependency is supposed to stop `up`, not be papered over (AGENTS.md §5.3), and explicit beats implicit (§4): one misuse and a component that answers everything with made-up data gets deployed for real. The recipe above is explicit instead. The substitution is written into `brickkit.yaml`, where a reviewer sees it; it generates no container; and pointing the project at Kubernetes is refused while `local: true` is still there. (A Pod is the unit Kubernetes runs your containers in; one running on a cluster's servers can't reach a process on your machine, and the CLI says so and stops.)
+- **Swapping in a stand-in automatically contradicts two of its principles.** A missing required dependency is supposed to stop `up`, not be papered over (AGENTS.md §5.3), and explicit beats implicit (§4): one misuse and a component that answers everything with made-up data gets deployed for real. The recipe above is explicit instead. The substitution is written into `brickkit.yaml`, where a reviewer sees it; it generates no container; and pointing the project at Kubernetes is refused while `mode: debug` is still there. (A Pod is the unit Kubernetes runs your containers in; one running on a cluster's servers can't reach a process on your machine, and the CLI says so and stops.)
 - **A mock under its own name would never receive traffic.** The address `demo/caller` is given is built from the real component's versioned service name, `demo-hello-1-0-0` (AGENTS.md §5.1). The stub keeps that name, and `extra_hosts` points that very name at your machine. A mock that answered to some other name would sit there unused.
 
 ### When the real component arrives
@@ -361,7 +361,7 @@ You might expect a `mock` command that builds a fake server from the contract, o
 Taking the stub out again is a few edits and one command — and the command is the one people skip:
 
 1. Delete the stub's source, `components/demo/hello/`.
-2. Delete `local: true` and `localPort` from `demo/hello`'s entry in `brickkit.yaml`.
+2. Delete `mode: debug` and `localPort` from `demo/hello`'s entry in `brickkit.yaml`.
 3. Delete `.brickkit/artifacts/demo-hello-1-0-0/`, the copy of the stub's contract that `add` made.
 4. Make sure a source that carries the real `demo/hello@1.0.0` is listed under `sources:`, then run `brickkit add demo/hello@1.0.0 --yes`.
 

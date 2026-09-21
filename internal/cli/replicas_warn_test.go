@@ -106,7 +106,7 @@ func TestAllK8sOnlyFieldsWarnOnDocker(t *testing.T) {
 
 // 反方向：K8s 目标下 exposePort 不生效，同样要出声（003 §3.2）。
 //
-// 从前这个方向一个字都不查：`local` / `localPort` 有专门的报错挡着，
+// 从前这个方向一个字都不查：`mode: debug` / `localPort` 有专门的报错挡着，
 // 而 exposePort 静默失效。
 func TestExposePortOnK8sWarns(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")

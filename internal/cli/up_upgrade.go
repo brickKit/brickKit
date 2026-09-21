@@ -108,7 +108,7 @@ func detectUpgrades(layout config.Layout, cfg *config.Config) []upgradeInfo {
 // 而且复制得不完整，于是升级路径上多出两个只有升级才会撞的 bug：
 //
 //	--dry-run 被阻断      常规路径把资源检查降级成警告（004 §4.4），这份拷贝没有
-//	enabled: false 被阻断  常规路径只查会启动的组件（006 §4.4），这份拷贝无条件查
+//	mode: disable 被阻断   常规路径只查会启动的组件（006 §4.4），这份拷贝无条件查
 //
 // 删掉之后两个 bug 一起消失，002 §7.7 那五项一项没少——只是由常规路径统一执行。
 //

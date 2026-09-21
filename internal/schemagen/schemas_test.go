@@ -603,6 +603,12 @@ type constraintCase struct {
 	// 少一个是 schema 比校验器更严，多一个是 schema 比校验器更松）。取值尽量取自校验器自己导出的
 	// 常量 / 列表，这样改了常量而没改 tag，这里会红。
 	valid, invalid []any
+	// baseline 非空时替换所在文档的基准：这一行的取值依赖别的字段时用
+	// （例如 mode: debug 只在 deploy.target 是 docker 时合法，而 project 基准写的是 k8s）。
+	baseline string
+	// validatorOnly 是校验器接受、但 schema 的 enum 故意不列出的取值——一处刻意的"schema 比校验器严"，
+	// 必须在这里点名，并且会被拿去验证校验器确实还接受它：哪天校验器不再接受了，这一项就该删。
+	validatorOnly []any
 }
 
 func constraintCases() []constraintCase {
@@ -647,6 +653,20 @@ func constraintCases() []constraintCase {
 			dataPath: []any{"components", 0, "version"}, errField: "components[0].version",
 			valid:   []any{"1.0.0", "10.20.30", "0.0.0"},
 			invalid: []any{"^1.0.0", "~1.0.0", "1.0", "latest", "1.0.0-beta", ""},
+		},
+		{
+			// mode 不必填，schema 的 enum 因此带着 null（显式写 null 等于没写）。
+			// "" 在 yaml 里与没写无法区分，校验器放行它，而 schema 不该把 "" 当成一个可选的取值
+			// 推荐给人——所以点名成 validatorOnly。
+			// debug 只在 docker 下合法，基准里的 k8s 要换掉，component 上也得有一行 mode 才有落脚点。
+			// "local" 是留给以后的保留值：现在写它必须被拒绝，而不是悄悄当成别的意思。
+			name: "components[0].mode", doc: "project", schemaPath: "components[]/mode",
+			baseline: strings.Replace(strings.Replace(baselineProject, "target: k8s", "target: docker", 1),
+				"    version: 1.0.0\n", "    version: 1.0.0\n    mode: enabled\n", 1),
+			dataPath: []any{"components", 0, "mode"}, errField: "components[0].mode",
+			valid:         []any{config.ModeEnabled, config.ModeDisable, config.ModeDebug, nil},
+			validatorOnly: []any{""},
+			invalid:       []any{"local", "Enabled", "disabled", "debugging", "docker"},
 		},
 		{
 			name: "deployment.type", doc: "component", schemaPath: "deployment/type",
@@ -731,6 +751,10 @@ func TestConstraintsAgreeWithValidators(t *testing.T) {
 	for _, c := range constraintCases() {
 		t.Run(c.doc+"/"+c.name, func(t *testing.T) {
 			d := documents[c.doc]
+			base := d.baseline
+			if c.baseline != "" {
+				base = c.baseline
+			}
 			node, found := indexSchema(t, c.doc)[c.schemaPath]
 			require.True(t, found, "schema 里没有 %s", c.schemaPath)
 
@@ -774,7 +798,7 @@ func TestConstraintsAgreeWithValidators(t *testing.T) {
 
 			// 基准里现在的取值本身也要满足这条约束，否则上面的"合法"没有落脚点
 			var root any
-			require.NoError(t, yaml.Unmarshal([]byte(d.baseline), &root))
+			require.NoError(t, yaml.Unmarshal([]byte(base), &root))
 			current, found := valueAt(root, c.dataPath)
 			require.True(t, found, "基准里没有 %s", c.errField)
 			switch {
@@ -791,14 +815,20 @@ func TestConstraintsAgreeWithValidators(t *testing.T) {
 			// 二、合法的取值不被校验器拒绝：别的字段因为这次改动而报错（如 sources[0].type 改成 market
 			// 之后缺 url）不算，只看以 errField 为键的明细。
 			for _, good := range c.valid {
-				err := d.parse(mutate(t, d.baseline, c.dataPath, good, false))
+				err := d.parse(mutate(t, base, c.dataPath, good, false))
 				assert.NotContains(t, problemFields(err), c.errField,
 					"校验器拒绝了 %v，而 schema 放行它——这不是 schema 更松，是取值表写错了", good)
+			}
+			for _, only := range c.validatorOnly {
+				assert.NotContains(t, enum, only, "%v 不该在 schema 的 enum 里：它是 validatorOnly 点名的例外", only)
+				err := d.parse(mutate(t, base, c.dataPath, only, false))
+				assert.NotContains(t, problemFields(err), c.errField,
+					"校验器不再接受 %v 了：validatorOnly 里的这一项该删掉", only)
 			}
 
 			// 三、非法的取值被校验器拒绝。
 			for _, bad := range c.invalid {
-				err := d.parse(mutate(t, d.baseline, c.dataPath, bad, false))
+				err := d.parse(mutate(t, base, c.dataPath, bad, false))
 				assert.Contains(t, problemFields(err), c.errField,
 					"校验器放行了 %v：tag 比校验器更严，或者这个取值不该放进 invalid", bad)
 			}
@@ -1099,7 +1129,7 @@ func TestExplicitNullIsAcceptedForOptionalPropertiesByTheRealParsers(t *testing.
 		"project": {
 			"sources", "components", "resources", "installer", "deploy.networkPolicy",
 			"deploy.networkPolicy.egress", "deploy.networkPolicy.enabled", "deploy.serviceAccount",
-			"components[0].config", "components[0].local", "resources[0].bindings", "resources[0].password",
+			"components[0].config", "components[0].mode", "resources[0].bindings", "resources[0].password",
 		},
 	}
 

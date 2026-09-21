@@ -1,6 +1,6 @@
 package cli
 
-// 本文件测 brickkit restore：yaml 的 enabled 逐条还原 + 结构跟着走。
+// 本文件测 brickkit restore：yaml 的 mode 逐条还原 + 结构跟着走。
 //
 // 最要紧的两条断言是"它不该做什么"：不吃掉未提交的 add，判定失败时不留下
 // "yaml 改了、结构没动"的半成品。
@@ -17,34 +17,31 @@ import (
 	"github.com/brickkit/brickkit/internal/config"
 )
 
-func boolp(b bool) *bool { return &b }
-
 func TestRestorePlanOnlyTouchesEntriesPresentInBothVersions(t *testing.T) {
 	head := &config.Config{Components: []config.Component{
-		{ID: "demo/hello", Version: "1.0.0"}, // 提交里没写 enabled
-		{ID: "demo/caller", Version: "1.0.0", Enabled: boolp(true)},
+		{ID: "demo/hello", Version: "1.0.0"}, // 提交里没写 mode
+		{ID: "demo/caller", Version: "1.0.0", Mode: config.ModeEnabled},
 		{ID: "gone/thing", Version: "1.0.0"}, // 本地已 remove
 	}}
 	work := &config.Config{Components: []config.Component{
-		{ID: "demo/hello", Version: "1.0.0", Enabled: boolp(false)},  // 本地关掉了
-		{ID: "demo/caller", Version: "1.0.0", Enabled: boolp(true)},  // 没变
-		{ID: "brand/new", Version: "0.1.0", Enabled: boolp(false)},   // 本地新 add 的
-		{ID: "demo/bumped", Version: "2.0.0", Enabled: boolp(false)}, // 本地改了版本号
+		{ID: "demo/hello", Version: "1.0.0", Mode: config.ModeDisable},  // 本地关掉了
+		{ID: "demo/caller", Version: "1.0.0", Mode: config.ModeEnabled}, // 没变
+		{ID: "brand/new", Version: "0.1.0", Mode: config.ModeDisable},   // 本地新 add 的
+		{ID: "demo/bumped", Version: "2.0.0", Mode: config.ModeDisable}, // 本地改了版本号
 	}}
 
 	changes, untouched := restorePlan(work, head)
 
 	require.Len(t, changes, 1, "只有 hello 需要还原")
 	assert.Equal(t, "demo/hello", changes[0].id)
-	assert.Nil(t, changes[0].to, "提交里没写 enabled → 删掉这个字段，不是写 false")
-	require.NotNil(t, changes[0].from)
-	assert.False(t, *changes[0].from)
+	assert.Equal(t, "", changes[0].to, "提交里没写 mode → 删掉这个字段，不是写成别的值")
+	assert.Equal(t, config.ModeDisable, changes[0].from)
 
 	assert.ElementsMatch(t, []string{"brand/new@0.1.0", "demo/bumped@2.0.0"}, untouched,
 		"提交里没有的条目一个字不动——这是不吃掉未提交 add 的解药")
 }
 
-func TestRestoreRestoresEnabledAndMovesSourceBack(t *testing.T) {
+func TestRestoreRestoresModeAndMovesSourceBack(t *testing.T) {
 	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
 	gitProject(t, f.Dir)
 	gitDo(t, f.Dir, "add", "-A")
@@ -56,14 +53,14 @@ func TestRestoreRestoresEnabledAndMovesSourceBack(t *testing.T) {
 
 	r := runIn(t, f.Dir, "restore")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "enabled: false")
+	assert.Contains(t, r.stdout, "mode: disable")
 	assert.Contains(t, r.stdout, "remove the field")
 
 	f.assertActive(t, "demo/hello")
 	f.assertActive(t, "demo/caller")
 
 	cfg := f.parsed(t)
-	assert.Nil(t, cfg.Components[0].Enabled, "enabled 回到「不写」")
+	assert.Empty(t, cfg.Components[0].Mode, "mode 回到「不写」")
 }
 
 func TestRestoreKeepsUncommittedAddInTheConfig(t *testing.T) {
@@ -91,7 +88,7 @@ func TestRestoreKeepsUncommittedAddInTheConfig(t *testing.T) {
 		ids = append(ids, c.ID)
 	}
 	assert.Contains(t, ids, "solo/thing",
-		"restore 只动 enabled，绝不像 git checkout 那样把未提交的 add 一起吃掉")
+		"restore 只动 mode，绝不像 git checkout 那样把未提交的 add 一起吃掉")
 }
 
 func TestRestoreRejectsStagedComponentChanges(t *testing.T) {
@@ -162,13 +159,13 @@ func TestRestoreIsIdempotent(t *testing.T) {
 	f.assertActive(t, "demo/hello")
 }
 
-// helloEnabledWithUnresolvable 与提交进 HEAD 的 helloDisabled 在 demo/hello 上
-// **刻意不同**：这里不写 enabled，而 HEAD 里写着 enabled: false。于是 restorePlan
-// 会算出一处真实的改动（把 enabled: false 写回来）——这正是顺序测试必须有的前提：
-// changes 非空，writeEnabled 才不会走 len(changes)==0 的提前返回，
+// helloModeWithUnresolvable 与提交进 HEAD 的 helloDisabled 在 demo/hello 上
+// **刻意不同**：这里不写 mode，而 HEAD 里写着 mode: disable。于是 restorePlan
+// 会算出一处真实的改动（把 mode: disable 写回来）——这正是顺序测试必须有的前提：
+// changes 非空，writeMode 才不会走 len(changes)==0 的提前返回，
 // "判定失败时不落盘"这条性质才真的被测到。
 // solo/thing@9.9.9 照旧负责让 syncFocus 失败。
-const helloEnabledWithUnresolvable = `components:
+const helloModeWithUnresolvable = `components:
   - id: demo/hello
     version: 1.0.0
   - id: demo/caller
@@ -182,8 +179,8 @@ resources: []
 // 先算判定（syncFocus），算成功了才落盘 yaml。反过来会在判定失败时留下
 // "yaml 改了、结构没动"的半成品——那正是提交前最不该撞上的状态。
 //
-// 工作区与 HEAD 在 demo/hello 的 enabled 上刻意不同（见 helloEnabledWithUnresolvable
-// 的注释），否则 changes 为空、这个测试什么都证明不了——writeEnabled 遇到空
+// 工作区与 HEAD 在 demo/hello 的 mode 上刻意不同（见 helloModeWithUnresolvable
+// 的注释），否则 changes 为空、这个测试什么都证明不了——writeMode 遇到空
 // changes 会直接提前返回、不做任何 I/O，这时不管它排在 syncFocus 前面还是
 // 后面，测试都会通过，测不出真正的顺序约束。
 //
@@ -201,9 +198,9 @@ func TestRestoreLeavesConfigUntouchedWhenFocusFails(t *testing.T) {
 	gitDo(t, f.Dir, "add", "-A")
 	gitDo(t, f.Dir, "commit", "--quiet", "-m", "archive hello")
 
-	// 工作区换成：demo/hello 的 enabled 字段与 HEAD 不同（有真实改动要还原），
+	// 工作区换成：demo/hello 的 mode 字段与 HEAD 不同（有真实改动要还原），
 	// 且引用不存在的版本让 syncFocus 解不出来。
-	f.writeConfig(t, helloEnabledWithUnresolvable)
+	f.writeConfig(t, helloModeWithUnresolvable)
 	before := f.config(t)
 
 	r := runIn(t, f.Dir, "restore")

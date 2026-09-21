@@ -283,7 +283,7 @@ func (c *Config) validateComponentPorts(
 }
 
 // validateServedBy 静态校验 servedBy 字段本身：格式对不对、有没有自引用、
-// 有没有链式嵌套、有没有跟 local: true 打架——这些都不需要依赖图，在解析
+// 有没有链式嵌套、有没有跟 mode: debug 打架——这些都不需要依赖图，在解析
 // 阶段就能查完。存在性、运行态、端口冲突、合并后的环境变量/标签冲突需要
 // 依赖图 + cascade 结果，在 internal/shell.Resolve 里查
 // （servedBy 设计书 §5-§6）。
@@ -295,7 +295,7 @@ func (c *Config) validateServedBy(p *clierr.ProblemSet) {
 		}
 	}
 
-	// 谁被谁 servedBy 指向：下面第二轮要反过来查目标是不是 local: true
+	// 谁被谁 servedBy 指向：下面第二轮要反过来查目标是不是 mode: debug
 	servedByTarget := make(map[string]bool, len(c.Components))
 
 	for i, item := range c.Components {

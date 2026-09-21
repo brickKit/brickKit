@@ -134,7 +134,7 @@ func TestUpDryRunWarnsButDoesNotBlockOnUnboundResource(t *testing.T) {
 
 // 不启动的组件不参与这条检查。
 //
-// 试用指南 02 §2.5 教的正是"用 enabled: false 把暂时不用的关掉，而不是删掉"，
+// 试用指南 02 §2.5 教的正是"用 mode: disable 把暂时不用的关掉，而不是删掉"，
 // 那些组件的资源当然还没绑。拿它们去卡住 up，等于逼使用者要么删组件、
 // 要么为一个根本不跑的容器编一份数据库配置。
 func TestUpSkipsBindingCheckForComponentsThatDoNotStart(t *testing.T) {
@@ -147,7 +147,7 @@ func TestUpSkipsBindingCheckForComponentsThatDoNotStart(t *testing.T) {
     version: 1.0.0
   - id: people/basic
     version: 1.0.0
-    enabled: false
+    mode: disable
 `)
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")

@@ -53,7 +53,7 @@ func TestReplicasIsParsed(t *testing.T) {
 
 // 0 副本要报错，而不是当成"关闭"。
 //
-// 关闭组件已经有 `enabled: false`，而且它会走级联计算、会提醒依赖方。
+// 关闭组件已经有 `mode: disable`，而且它会走级联计算、会提醒依赖方。
 // 用 replicas: 0 关组件则绕过了这一切：依赖它的组件照常启动、照常拿到地址，
 // 然后连一个不存在的后端——表现是 503，且状态表里那个组件显示"正常"。
 func TestZeroReplicasIsAnError(t *testing.T) {
@@ -66,8 +66,8 @@ func TestZeroReplicasIsAnError(t *testing.T) {
 	require.Error(t, err)
 	text := err.Error()
 	assert.Contains(t, text, "replicas")
-	assert.Contains(t, text, "enabled",
-		"P35：要指向 enabled: false 这条正路——它会走级联、会提醒依赖方，而 replicas: 0 不会")
+	assert.Contains(t, text, "mode: disable",
+		"P35：要指向 mode: disable 这条正路——它会走级联、会提醒依赖方，而 replicas: 0 不会")
 }
 
 // 负数同样报错。

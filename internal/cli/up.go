@@ -274,11 +274,11 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 // renderNothingRunning 解释"一个组件都不启动"，并说清楚该去改哪一行。
 //
 // 把顶层逐个列出来，而不是替使用者总结成一句话。顶层有两种死法：自己被
-// enabled: false 关掉，或者它的强依赖被关掉、它跟着倒下——两者指向配置里
+// mode: disable 关掉，或者它的强依赖被关掉、它跟着倒下——两者指向配置里
 // **不同的**行。每个顶层自己的理由已经写明是哪一种，照抄比概括可靠。
 //
 // 从前这里只要看到**任何**组件是 StateDisabled 就断言"顶层都被关掉了"。
-// 关掉一个底层组件时那句话是错的：顶层根本没写过 enabled: false，
+// 关掉一个底层组件时那句话是错的：顶层根本没写过 mode: disable，
 // 照着去找只会扑空，还把人从上面那张表已经写对的答案上引开
 // （表里写的是"不启动（强依赖 X 不启动）"）。
 //
@@ -306,7 +306,7 @@ func renderNothingRunning(opts *Options, states *cascade.Result) {
 //
 // 只要有一个顶层是被显式关掉的，那就是最省事的一行——删掉它，它下面整条链
 // 跟着回来。一个都没有时，顶层全是被强依赖拖下水的：那时配置里压根没有
-// 可删的 enabled: false，得顺着上面每行的理由往下找真正被关掉的那个。
+// 可删的 mode: disable，得顺着上面每行的理由往下找真正被关掉的那个。
 func nothingRunningHint(tops []cascade.Component) string {
 	for _, c := range tops {
 		if c.State == cascade.StateDisabled {
@@ -458,18 +458,18 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 
 // collectTargets 按启动顺序列出要交给引擎的 service、要检查的镜像、会跑的迁移。
 //
-// local: true 与 servedBy 的组件全部跳过：两者都没有自己的容器（一个在
+// mode: debug 与 servedBy 的组件全部跳过：两者都没有自己的容器（一个在
 // 宿主机上跑，一个代码打进了外壳镜像），镜像也不必检查。跟 compose 渲染器
 // 判断"该不该生成 workload"用的是同一条件（internal/compose/compose.go
-// 的 entry.Local / entry.ServedBy != ""）——漏了 servedBy 这一半的话，
-// 它的版本化服务名会混进传给 `docker compose up` 的目标列表，而生成的
-// compose 文件里根本没有这个 service，真机执行直接报 no such service，
-// 整个命令失败、一个容器都起不来（brickKit 反馈：真机 brickkit up 对
-// servedBy 成员报 no_such_service）。
+// 的 entry.Mode == config.ModeDebug / entry.ServedBy != ""）——漏了 servedBy
+// 这一半的话，它的版本化服务名会混进传给 `docker compose up` 的目标列表，
+// 而生成的 compose 文件里根本没有这个 service，真机执行直接报
+// no such service，整个命令失败、一个容器都起不来（brickKit 反馈：真机
+// brickkit up 对 servedBy 成员报 no_such_service）。
 func (p *upPlan) collectTargets(order *resolver.Plan) {
 	noWorkload := map[resolver.Ref]bool{}
 	for _, c := range p.cfg.Components {
-		if c.Local || c.ServedBy != "" {
+		if c.Mode == config.ModeDebug || c.ServedBy != "" {
 			noWorkload[resolver.Ref{ID: c.ID, Version: c.Version}] = true
 		}
 	}
@@ -773,7 +773,7 @@ func writeGenerated(layout config.Layout, content []byte) (string, error) {
 	return path, nil
 }
 
-// writeLocalEnvFiles 写出 local: true 组件的调试环境变量文件（005 §4.9）。
+// writeLocalEnvFiles 写出 mode: debug 组件的调试环境变量文件（005 §4.9）。
 func writeLocalEnvFiles(opts *Options, layout config.Layout, files []compose.LocalEnvFile) error {
 	if len(files) == 0 {
 		return nil

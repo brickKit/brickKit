@@ -67,7 +67,7 @@ func TestAddWritesComponentToConfig(t *testing.T) {
 	assert.Contains(t, r.stdout, "✅ Written to brickkit.yaml (1 component)")
 }
 
-// 9.20 add 自动添加的组件不写 enabled 字段（004 §3.3 关键规则）。
+// 9.20 add 自动添加的组件不写 mode 字段（004 §3.3 关键规则）。
 func TestAddDoesNotWriteEnabledField(t *testing.T) {
 	dir := t.TempDir()
 	sources := localSource(t, dir, comp{ID: "people/basic", Version: "1.0.0"})
@@ -509,7 +509,7 @@ func TestAddRepoExistingDirectoryFails(t *testing.T) {
 
 // 源码被 sync 归档着时，--repo 不该在活跃目录再 clone 一份（B4）。
 //
-// 真跑过的完整路径：add --repo → enabled: false + sync → 再 add --repo。
+// 真跑过的完整路径：add --repo → mode: disable + sync → 再 add --repo。
 // 从前第三步会报"✅ 已 clone"，于是活跃目录与归档目录各有一份，
 // 而下一次 sync 卡死在"目标目录已存在，无法移动组件源码"上，只剩手工 rm。
 func TestAddRepoRefusesWhenSourceIsArchived(t *testing.T) {

@@ -13,12 +13,6 @@
               "null"
             ]
           },
-          "enabled": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
           "expose": {
             "type": [
               "boolean",
@@ -49,15 +43,21 @@
               "null"
             ]
           },
-          "local": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
           "localPort": {
             "type": [
               "integer",
+              "null"
+            ]
+          },
+          "mode": {
+            "enum": [
+              "enabled",
+              "disable",
+              "debug",
+              null
+            ],
+            "type": [
+              "string",
               "null"
             ]
           },

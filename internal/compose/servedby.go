@@ -2,8 +2,8 @@ package compose
 
 // 本文件实现 servedBy（外壳合并部署，servedBy 设计书）。
 //
-// local: true 与 servedBy 结构相似（都是"在依赖图里存在但不生成工作
-// 负载"），但语义完全独立，实现也刻意不共享代码路径——local: true 是
+// mode: debug 与 servedBy 结构相似（都是"在依赖图里存在但不生成工作
+// 负载"），但语义完全独立，实现也刻意不共享代码路径——mode: debug 是
 // 本机调试，servedBy 是代码已经打进另一个外壳镜像，混在一起维护迟早
 // 出现"改 local 的逻辑却影响了 servedBy"这种事故。
 
@@ -39,7 +39,7 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 	}
 
 	// shell.Resolve 只看 states.Running()：一个 servedBy 成员如果自己被
-	// enabled: false 关掉，它压根不出现在 states.Running() 里，于是
+	// mode: disable 关掉，它压根不出现在 states.Running() 里，于是
 	// shell.Resolve 不会为它的外壳产出任何 Group。但外壳本身如果还在跑，
 	// BRICKKIT_SERVED_MEMBERS 依旧必须显式写成空字符串，不能让整个变量
 	// 消失——"空字符串"（零个成员激活）与"变量不存在"（不受平台管辖）
@@ -87,7 +87,7 @@ func (p *plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
 }
 
 // servedMigrationWarnings 提醒"servedBy 组件的迁移由外壳自己负责编排"
-// ——责任主体与 local: true 的对应警告（localMigrationWarnings）不同：
+// ——责任主体与 mode: debug 的对应警告（localMigrationWarnings）不同：
 // 那边是调试者本人要手动执行，这边是外壳作者的编排责任。
 func (p *plan) servedMigrationWarnings() []*clierr.Error {
 	var out []*clierr.Error

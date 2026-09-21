@@ -51,7 +51,7 @@ type DatabaseRequirement struct {
 
 // Requirements 汇总本次启动的组件需要哪些基础资源先跑起来（006 §9.1、§9.5）。
 //
-// componentIDs 是本次会跑起来的组件 ID。`local: true` 的组件同样算数：
+// componentIDs 是本次会跑起来的组件 ID。`mode: debug` 的组件同样算数：
 // 它不生成容器，但它照样要连自己的库——漏掉它，使用者就会在 IDE 里
 // 对着 `connection refused` 发懵。
 //
@@ -167,7 +167,7 @@ var loopbackHosts = map[string]bool{
 //
 // # 为什么是警告而不是错误
 //
-// `localhost` 并非永远错。绑定它的组件**全是 `local: true`** 时它恰恰是对的：
+// `localhost` 并非永远错。绑定它的组件**全是 `mode: debug`** 时它恰恰是对的：
 // 那些进程就跑在宿主机上，平台也只会把这个地址写进 `local-debug.*.env`，
 // 一个容器都碰不到。所以调用方传进来的 componentIDs 只含**会生成容器**的组件；
 // 纯本地调试的项目不会看到这条警告。

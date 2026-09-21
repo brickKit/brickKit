@@ -109,7 +109,7 @@ func TestGraphDisabledComponentsAreGreyedOut(t *testing.T) {
 	f := graphProject(t, `components:
   - id: demo/caller
     version: 1.0.0
-    enabled: false
+    mode: disable
   - id: demo/hello
     version: 1.0.0
   - id: demo/solo
@@ -137,7 +137,7 @@ func TestGraphMarksLocalDebugComponent(t *testing.T) {
 	f := graphProject(t, `components:
   - id: demo/hello
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 8081
 resources: []
 `, comp{ID: "demo/hello", Version: "1.0.0"})
@@ -156,7 +156,7 @@ func TestGraphLocalDebugWithoutLocalPortShowsNoPort(t *testing.T) {
 	f := graphProject(t, `components:
   - id: demo/hello
     version: 1.0.0
-    local: true
+    mode: debug
 resources: []
 `, comp{ID: "demo/hello", Version: "1.0.0"})
 
@@ -167,23 +167,23 @@ resources: []
 	assert.Contains(t, r.stdout, "    class demo_hello_1_0_0 local\n")
 }
 
-// cascade 从不读 local：local: true 的组件与别的组件一样跟着上层走，也可能被跳过。
-// 被跳过的只套 disabled——"置灰 = 这次不会启动"是唯一的信号；标签里的"本地调试"
-// 仍在，因为那是声明的结构。在跑的 local 组件照旧套 local。
-func TestGraphLocalClassOnlyAppliesToRunningComponents(t *testing.T) {
+// mode: debug 与 mode: enabled 一样是"钉住"：上层全被关掉，它照样在跑，所以永远
+// 不会被置灰——local 样式因此只会落在真的在跑的组件上。被跳过的（web 被关、api
+// 没人需要）套 disabled，"置灰 = 这次不会启动"是唯一的信号。
+func TestGraphDebugComponentIsPinnedAndNeverGreyedOut(t *testing.T) {
 	f := graphProject(t, `components:
   - id: demo/web
     version: 1.0.0
-    enabled: false
+    mode: disable
   - id: demo/api
     version: 1.0.0
   - id: demo/db
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 9001
   - id: demo/solo
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 9002
 resources: []
 `,
@@ -198,15 +198,17 @@ resources: []
 
 	requirePureMermaid(t, r.stdout)
 
-	// 被跳过的 local 组件：标签保留，样式只有 disabled
+	// 上层全被关掉，但 db 是 debug（钉住）：它照跑，不在 disabled 里
 	assert.Contains(t, r.stdout, `demo_db_1_0_0["demo/db@1.0.0<br/>local debug :9001"]`)
 	disabled := classLineOf(r.stdout, "disabled")
 	require.NotEmpty(t, disabled, r.stdout)
-	assert.Contains(t, disabled, "demo_db_1_0_0")
+	assert.Contains(t, disabled, "demo_web_1_0_0", "web 自己被关")
+	assert.Contains(t, disabled, "demo_api_1_0_0", "api 上面没人需要它")
+	assert.NotContains(t, disabled, "demo_db_1_0_0", "debug 被钉住，不会被级联跳过")
 	assert.NotContains(t, disabled, "demo_solo_1_0_0")
 
-	// 在跑的 local 组件：只有它套 local
-	assert.Equal(t, "    class demo_solo_1_0_0 local", classLineOf(r.stdout, "local"), r.stdout)
+	// 两个 debug 组件都在跑，都套 local
+	assert.Equal(t, "    class demo_db_1_0_0,demo_solo_1_0_0 local", classLineOf(r.stdout, "local"), r.stdout)
 }
 
 const graphServedByBody = `components:
@@ -350,7 +352,7 @@ resources: []
 }
 
 // brickkit.yaml 里没列出来的传递依赖照样画：resolver 会把它拉进图（up 也是），
-// 它没有自己的条目，也就没有 local / servedBy 可读。
+// 它没有自己的条目，也就没有 mode / servedBy 可读。
 func TestGraphDrawsTransitiveDependencyNotListedInConfig(t *testing.T) {
 	f := graphProject(t, `components:
   - id: demo/caller

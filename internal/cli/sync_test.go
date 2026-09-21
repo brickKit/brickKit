@@ -101,7 +101,7 @@ resources: []
 const helloDisabled = `components:
   - id: demo/hello
     version: 1.0.0
-    enabled: false
+    mode: disable
   - id: demo/caller
     version: 1.0.0
 resources: []
@@ -130,7 +130,7 @@ func TestSyncArchivesDisabledComponent(t *testing.T) {
 	f.assertArchived(t, "demo/hello") // 17.2
 }
 
-// 17.3：caller 自己没写 enabled，但它强依赖的 hello 被关了，于是一起归档。
+// 17.3：caller 自己没写 mode，但它强依赖的 hello 被关了，于是一起归档。
 func TestSyncArchivesCascadeSkippedComponent(t *testing.T) {
 	f := newSyncFixture(t, helloDisabled, "demo/hello", "demo/caller")
 
@@ -224,24 +224,47 @@ func TestSyncLeavesUnmanagedSourceAlone(t *testing.T) {
 }
 
 // ============================================================
-// 17.8 local: true 一视同仁
+// 17.8 mode: debug 与 mode: enabled 一样钉在运行状态
 // ============================================================
 
-func TestSyncTreatsLocalComponentsTheSame(t *testing.T) {
+// debug 的组件是使用者此刻正在 IDE 里改的，sync 绝不能把它的源码收进归档目录——
+// 哪怕上面已经没有任何东西需要它（caller 被关了，hello 本来会被级联跳过）。
+func TestSyncKeepsDebugComponentActiveEvenWhenNothingNeedsIt(t *testing.T) {
 	f := newSyncFixture(t, `components:
   - id: demo/hello
     version: 1.0.0
-    enabled: false
+    mode: debug
   - id: demo/caller
     version: 1.0.0
-    local: true
+    mode: disable
 resources: []
 `, "demo/hello", "demo/caller")
 
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 
-	// caller 是 local，但它强依赖的 hello 被关了 —— 照样归档
+	f.assertActive(t, "demo/hello")
 	f.assertArchived(t, "demo/caller")
+}
+
+// debug 与 enabled 一样，强依赖被关掉就是两条互相矛盾的意图——报错，
+// 而不是悄悄把其中一个归档。报错时两个目录一个都不该动。
+func TestSyncRejectsDebugComponentWhoseRequiredDependencyIsDisabled(t *testing.T) {
+	f := newSyncFixture(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: disable
+  - id: demo/caller
+    version: 1.0.0
+    mode: debug
+resources: []
+`, "demo/hello", "demo/caller")
+
+	r := runIn(t, f.Dir, "sync")
+
+	require.Equal(t, clierr.ExitError, r.code, "%s%s", r.stdout, r.stderr)
+	assert.Contains(t, r.stderr, "mode: debug")
+	f.assertActive(t, "demo/hello")
+	f.assertActive(t, "demo/caller")
 }
 
 // ============================================================
@@ -362,7 +385,7 @@ func TestSyncKeepsSourceWhenAnyVersionRuns(t *testing.T) {
 	f := newSyncFixture(t, `components:
   - id: demo/hello
     version: 1.0.0
-    enabled: false
+    mode: disable
   - id: demo/hello
     version: 2.0.0
 resources: []

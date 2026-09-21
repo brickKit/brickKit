@@ -150,7 +150,7 @@ CASES = [
                    "en": "❌ Error: required dependency demo/hello is disabled"}, 0),
     },
     {
-        "what": "03 local: true 的 dry-run 画面",
+        "what": "03 mode: debug 的 dry-run 画面",
         "reset": True,
         "run": ["init hello-world --no-skills",
                 "!copy-into components/demo/hello demo-hello",
@@ -203,7 +203,7 @@ CASES = [
                   {"zh": "📦 已下载 demo/hello@1.0.0 的产物（未写入 brickkit.yaml）",
                    "en": "📦 Downloaded the artifacts of demo/hello@1.0.0 (not written to brickkit.yaml)"}, 0),
     },
-    # 07 的"上游还没好"一节：桩（new --contract）→ add --local → 桩标 local: true。
+    # 07 的"上游还没好"一节：桩（new --contract）→ add --local → 桩标 mode: debug。
     # 只用现有命令，不需要 Docker；桩之后在主机上起什么 mock 工具不归平台管，
     # 也就没有可比对的 brickkit 输出。
     {
@@ -235,7 +235,7 @@ CASES = [
                    "en": "🔍 Found 2 components in local install source: local-dev"}, 0),
     },
     {
-        "what": "07 桩接成 local 之后的 dry-run",
+        "what": "07 桩接成 debug 之后的 dry-run",
         "run": ["!local-debug demo/hello 18081"],
         "file": "07-consuming-artifacts.md",
         "check": ("up --dry-run",
@@ -318,8 +318,8 @@ CASES = [
                    "en": "📂 Workspace tidying:"}, 1),
     },
     {
-        "what": "08 删掉 enabled，sync 把 caller 也搬回来",
-        "run": ["!clear-enabled"],
+        "what": "08 删掉 mode，sync 把 caller 也搬回来",
+        "run": ["!clear-mode"],
         "file": "08-component-source.md",
         "check": ("sync",
                   {"zh": "📂 工作区整理：",
@@ -391,12 +391,12 @@ CASES = [
                    "en": "❌ Commit blocked: component source is committed under the archive directory, but brickkit.yaml says it should start"}, 0),
     },
     {
-        "what": "08 restore 还原 enabled，源码结构跟着走",
+        "what": "08 restore 还原 mode，源码结构跟着走",
         "run": ["!git . reset -q components/"],
         "file": "08-component-source.md",
         "check": ("restore",
-                  {"zh": "📄 brickkit.yaml：按最后一次提交还原 enabled（其余改动未动）",
-                   "en": "📄 brickkit.yaml: enabled restored from the last commit (other changes untouched)"}, 0),
+                  {"zh": "📄 brickkit.yaml：按最后一次提交还原 mode（其余改动未动）",
+                   "en": "📄 brickkit.yaml: mode restored from the last commit (other changes untouched)"}, 0),
     },
     {
         "what": "08 submodule 挡住 remove（--force 也不放行的那一道）",
@@ -516,33 +516,33 @@ def set_version(proj, dir_rel, version):
 
 
 def disable(proj, component_id):
-    """给某个组件加一行 enabled: false。"""
+    """给某个组件加一行 mode: disable。"""
     path = os.path.join(proj, "brickkit.yaml")
     s = open(path, encoding="utf-8").read()
     old = f"  - id: {component_id}\n    version: 1.0.0\n"
     if old not in s:
-        sys.exit(f"❌ 配置里找不到 {component_id}，无法加 enabled: false")
-    open(path, "w", encoding="utf-8").write(s.replace(old, old + "    enabled: false\n", 1))
+        sys.exit(f"❌ 配置里找不到 {component_id}，无法加 mode: disable")
+    open(path, "w", encoding="utf-8").write(s.replace(old, old + "    mode: disable\n", 1))
 
 
 def pin(proj, component_id):
-    """给某个组件加一行 enabled: true。"""
+    """给某个组件加一行 mode: enabled。"""
     path = os.path.join(proj, "brickkit.yaml")
     s = open(path, encoding="utf-8").read()
     old = f"  - id: {component_id}\n    version: 1.0.0\n"
     if old not in s:
-        sys.exit(f"❌ 配置里找不到 {component_id}，无法加 enabled: true")
-    open(path, "w", encoding="utf-8").write(s.replace(old, old + "    enabled: true\n", 1))
+        sys.exit(f"❌ 配置里找不到 {component_id}，无法加 mode: enabled")
+    open(path, "w", encoding="utf-8").write(s.replace(old, old + "    mode: enabled\n", 1))
 
 
 def local_debug(proj, component_id, port):
-    """把某个组件改成 local: true（03 的场景：只调试，不 expose）。"""
+    """把某个组件改成 mode: debug（03 的场景：只调试，不 expose）。"""
     path = os.path.join(proj, "brickkit.yaml")
     s = open(path, encoding="utf-8").read()
     old = f"  - id: {component_id}\n    version: 1.0.0\n"
     if old not in s:
-        sys.exit(f"❌ 配置里找不到 {component_id}，无法改成 local: true")
-    extra = f"    local: true\n    localPort: {port}\n"
+        sys.exit(f"❌ 配置里找不到 {component_id}，无法改成 mode: debug")
+    extra = f"    mode: debug\n    localPort: {port}\n"
     open(path, "w", encoding="utf-8").write(s.replace(old, old + extra, 1))
 
 
@@ -649,11 +649,11 @@ def git_sources(proj):
     open(cfg, "w", encoding="utf-8").write(s[:local_dev.end()] + add + s[local_dev.end():])
 
 
-def clear_enabled(proj):
-    """删掉 brickkit.yaml 里所有 enabled: 行——回到"不写"，也就是跟着上层走。"""
+def clear_mode(proj):
+    """删掉 brickkit.yaml 里所有 mode: 行——回到"不写"，也就是跟着上层走。"""
     cfg = os.path.join(proj, "brickkit.yaml")
     lines = open(cfg, encoding="utf-8").read().split("\n")
-    kept = [l for l in lines if not l.strip().startswith("enabled:")]
+    kept = [l for l in lines if not l.strip().startswith("mode:")]
     open(cfg, "w", encoding="utf-8").write("\n".join(kept))
 
 
@@ -770,8 +770,8 @@ def run_cases(lang, work):
                 make_remotes(work)
             elif step == "!git-sources":
                 git_sources(proj)
-            elif step == "!clear-enabled":
-                clear_enabled(proj)
+            elif step == "!clear-mode":
+                clear_mode(proj)
             elif step == "!git-init":
                 git_must(proj, ["init", "-q", "-b", "main"])
             elif step == "!drop-components-ignore":

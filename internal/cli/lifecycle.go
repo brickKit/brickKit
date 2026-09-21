@@ -139,24 +139,24 @@ func (p *project) entry(ref resolver.Ref) config.Component {
 
 // containerRefs 返回本次**由本项目**生成容器的组件，按启动顺序。
 //
-// `local: true` 要排除掉：它在依赖图里、也"在跑"，但跑在开发者的 IDE 里，
+// `mode: debug` 要排除掉：它在依赖图里、也"在跑"，但跑在开发者的 IDE 里，
 // 本项目不为它生成任何东西（003 §4.4）。`status` 把它们单列一节汇报，
 // 不混在"未在运行"里——那会让人以为它们出问题了。
 func (p *project) containerRefs() []resolver.Ref {
 	var out []resolver.Ref
 	for _, ref := range p.componentRefs() {
-		if !p.entry(ref).Local {
+		if p.entry(ref).Mode != config.ModeDebug {
 			out = append(out, ref)
 		}
 	}
 	return out
 }
 
-// localRefs 返回 local: true 且本次会启动的组件。
+// localRefs 返回 mode: debug 且本次会启动的组件。
 func (p *project) localRefs() []resolver.Ref {
 	var out []resolver.Ref
 	for _, ref := range p.componentRefs() {
-		if p.entry(ref).Local {
+		if p.entry(ref).Mode == config.ModeDebug {
 			out = append(out, ref)
 		}
 	}

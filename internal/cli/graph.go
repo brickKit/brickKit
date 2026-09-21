@@ -152,17 +152,17 @@ func renderMermaid(
 	declare := func(indent string, ref resolver.Ref) {
 		running := states.IsRunning(ref)
 		label := ref.String()
-		if entry := entries[ref]; entry.Local {
+		if entry := entries[ref]; entry.Mode == config.ModeDebug {
 			label += i18n.T(msgid.CliGraphBrLocalDebug)
 			// localPort 不是必填：没写时由 up 在生成阶段分配（默认取组件自己声明的
 			// 主端口，被占了才另选），这里算不出来。只写使用者写下的，不编一个端口
 			if entry.LocalPort > 0 {
 				label += fmt.Sprintf(" :%d", entry.LocalPort)
 			}
-			// local 样式只套给在跑的：cascade 从不读 local，local: true 的组件与别的
-			// 组件一样跟着上层走，也可能被跳过。不在跑的只套 disabled——"置灰 = 这次
-			// 不会启动"是唯一的信号，不靠各家渲染器怎么合并同一个节点上的两个 class。
-			// 标签里的"本地调试"照留：那是声明的结构，不是运行状态
+			// local 样式只套给在跑的：cascade 从不读 mode 是不是 debug，mode: debug
+			// 的组件与别的组件一样跟着上层走，也可能被跳过。不在跑的只套 disabled——
+			// "置灰 = 这次不会启动"是唯一的信号，不靠各家渲染器怎么合并同一个节点上
+			// 的两个 class。标签里的"本地调试"照留：那是声明的结构，不是运行状态
 			if running {
 				tag(classLocal, ref)
 			}

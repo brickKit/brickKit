@@ -186,7 +186,7 @@ func TestUpCascadeSkipsUnneededComponent(t *testing.T) {
     version: 1.0.0
   - id: erp/backend
     version: 1.0.0
-    enabled: false
+    mode: disable
 `)
 	eng := newFakeEngine()
 
@@ -199,12 +199,12 @@ func TestUpCascadeSkipsUnneededComponent(t *testing.T) {
 
 // 一个都不跑时，得告诉使用者去改**哪一行**。
 //
-// 顶层有两种死法，指向配置里不同的行：自己被 enabled: false 关掉，
+// 顶层有两种死法，指向配置里不同的行：自己被 mode: disable 关掉，
 // 或者强依赖被关掉后跟着倒下。这里关的是 **people/basic**（不是顶层），
-// erp/backend 那两行里根本没有 enabled 字段。
+// erp/backend 那两行里根本没有 mode 字段。
 //
 // 从前这里只要看到**任何**组件被关就断言"顶层都被关掉了，移除它们的
-// enabled: false"——照着去找只会扑空，还把人从上面那张表已经写对的
+// mode: disable"——照着去找只会扑空，还把人从上面那张表已经写对的
 // 答案（"强依赖 people/basic 不启动"）上引开。
 func TestNothingRunningDoesNotBlameTheTopLevel(t *testing.T) {
 	comps := []comp{
@@ -215,7 +215,7 @@ func TestNothingRunningDoesNotBlameTheTopLevel(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: people/basic
     version: 1.0.0
-    enabled: false
+    mode: disable
   - id: erp/backend
     version: 1.0.0
 `)
@@ -225,8 +225,8 @@ func TestNothingRunningDoesNotBlameTheTopLevel(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "No component will start this run")
 	assert.Contains(t, r.stdout, "erp/backend@1.0.0", "要把顶层点名列出来")
-	assert.NotContains(t, r.stdout, "Remove enabled: false from one of them",
-		"erp/backend 没写过 enabled: false，叫人去删它只会扑空")
+	assert.NotContains(t, r.stdout, "Remove mode: disable from one of them",
+		"erp/backend 没写过 mode: disable，叫人去删它只会扑空")
 	assert.Contains(t, r.stdout, "The top level itself isn't turned off")
 }
 
@@ -240,10 +240,10 @@ func TestUpPinnedComponentStartsAnyway(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: people/basic
     version: 1.0.0
-    enabled: true
+    mode: enabled
   - id: erp/backend
     version: 1.0.0
-    enabled: false
+    mode: disable
 `)
 	eng := newFakeEngine()
 
@@ -263,10 +263,10 @@ func TestUpDisabledStrongDependencyIsAnError(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: people/basic
     version: 1.0.0
-    enabled: false
+    mode: disable
   - id: erp/backend
     version: 1.0.0
-    enabled: true
+    mode: enabled
 `)
 	eng := newFakeEngine()
 
@@ -339,7 +339,7 @@ func TestUpTellsWhatToDoNext(t *testing.T) {
 	assert.Contains(t, r.stdout, "logs")
 }
 
-// local: true 的组件不由引擎启动，但要提示使用者去 IDE 里跑。
+// mode: debug 的组件不由引擎启动，但要提示使用者去 IDE 里跑。
 func TestUpWithLocalComponentTellsHowToDebug(t *testing.T) {
 	f := localDebugProject(t)
 	eng := newFakeEngine()

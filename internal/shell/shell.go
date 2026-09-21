@@ -1,11 +1,11 @@
 // Package shell 计算外壳合并部署（servedBy）分组。
 //
 // 这是 Docker（internal/compose）与 K8s（internal/k8s）两个渲染器共用的
-// 唯一一份校验与合并逻辑——两者过去对结构相似的问题（local: true）各自
+// 唯一一份校验与合并逻辑——两者过去对结构相似的问题（mode: debug）各自
 // 独立实现分支，而 servedBy 明确要求"两边逻辑一致"，同一份逻辑写两遍
 // 只会悄悄跑偏，所以单独收进这个包，两边渲染器只消费它的结果。
 //
-// servedBy 字段本身的语法、自引用、链式嵌套、跟 local: true 互斥已经在
+// servedBy 字段本身的语法、自引用、链式嵌套、跟 mode: debug 互斥已经在
 // config.Validate 里静态查过（不需要依赖图就能查），这里只做需要依赖图 +
 // cascade 结果才能查出来的部分：目标存不存在、有没有在跑、端口撞不撞车、
 // 合并后的环境变量撞不撞值（servedBy 设计书 §5-§7）。labels 不参与合并，

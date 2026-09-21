@@ -1,6 +1,6 @@
 # 3. 本地调试一个组件
 
-给一个进程挂断点，这个进程就得跑在你自己的机器上，不能在容器里——但它调用的一切都该照常运行，跟正常部署时一模一样，依赖它的一切也该照常工作，感觉不到任何变化。`local: true` 正是让这件事成立的字段（AGENTS.zh.md §5.6）。这一篇把整个链路真实走一遍：`demo/hello` 作为一个普通的操作系统进程跑在主机上，而 `demo/caller`——按照它原本要跑在容器里那样配置——照样能解析并连到它。
+给一个进程挂断点，这个进程就得跑在你自己的机器上，不能在容器里——但它调用的一切都该照常运行，跟正常部署时一模一样，依赖它的一切也该照常工作，感觉不到任何变化。`mode: debug` 正是让这件事成立的字段（AGENTS.zh.md §5.6）。这一篇把整个链路真实走一遍：`demo/hello` 作为一个普通的操作系统进程跑在主机上，而 `demo/caller`——按照它原本要跑在容器里那样配置——照样能解析并连到它。
 
 ## 设置，跟第 2 篇比只差一个字段
 
@@ -10,7 +10,7 @@
 components:
   - id: demo/hello
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 8080
   - id: demo/caller
     version: 1.0.0
@@ -22,10 +22,10 @@ brickkit up --dry-run
 
 ```
 📋 组件状态计算：
-   ✅ demo/hello@1.0.0   启动（demo/caller 需要）
+   ✅ demo/hello@1.0.0   启动（mode: debug）
    ✅ demo/caller@1.0.0  启动（顶层）
 ...
-🔧 本地调试（local: true）：
+🔧 本地调试（mode: debug）：
    demo/hello@1.0.0
       不生成容器；请在 IDE 里启动它，监听 localhost:8080
       环境变量：.brickkit/generated/local-debug.demo-hello-1-0-0.env
@@ -33,6 +33,8 @@ brickkit up --dry-run
 ```
 
 `demo/hello` 照样出现在组件状态计算里，照样出现在依赖图里，照样算出了一个真实的地址——它在这个项目里参与的方式什么都没变。变的是**它的代码到底跑在哪儿**。
+
+这段输出里有一行跟第 2 篇不一样：`demo/hello` 旁边的理由现在写的是 `mode: debug`，而不是 `demo/caller 需要`。`mode: debug` 的组件是"钉住"的，跟[第 2 篇](02-what-runs.md)里的 `mode: enabled` 一样——不管上面有没有人需要它，它都要跑，因为你写下 `mode: debug` 就是在告诉 BrickKit：这个组件你此刻正在改。同样地，它的强依赖如果被关掉，会报错：两条互相矛盾的意图会被指出来，而不是被悄悄化解。
 
 ## 真正生成出了什么
 
@@ -42,7 +44,7 @@ graph LR
         Caller["demo/caller<br/>容器"]
     end
     subgraph 你的机器
-        Hello["demo/hello<br/>普通进程<br/>（local: true）"]
+        Hello["demo/hello<br/>普通进程<br/>（mode: debug）"]
     end
     Caller -->|"demo-hello-1-0-0<br/>走 extra_hosts: host-gateway"| Hello
 ```
@@ -114,7 +116,7 @@ docker network rm brickkit-hello-world-net
 
 ## 这件事不会改变什么
 
-可以同时把多个组件标成 `local: true`，各自有自己的 `localPort`——这个机制完全不限于一次只调试一个。而且 `demo/caller` 什么都不需要改就能让这一切成立：它照常从环境变量里读 `DEMO_HELLO_ENDPOINT`，压根不知道对面是一个容器还是一台笔记本（AGENTS.zh.md §5.6"零组件代码改动"这条承诺，这里是真验证过的，不只是说说）。
+可以同时把多个组件标成 `mode: debug`，各自有自己的 `localPort`——这个机制完全不限于一次只调试一个。而且 `demo/caller` 什么都不需要改就能让这一切成立：它照常从环境变量里读 `DEMO_HELLO_ENDPOINT`，压根不知道对面是一个容器还是一台笔记本（AGENTS.zh.md §5.6"零组件代码改动"这条承诺，这里是真验证过的，不只是说说）。
 
 ---
 

@@ -57,7 +57,7 @@ func TestUpK8sSaysNothingWhenNothingPruned(t *testing.T) {
 
 // Docker 目标用**同一个判据**决定要不要清理孤儿。
 //
-// 生成物永远是完整的一份（`--only` 已删，003 §4.3：要收窄范围就改 enabled），
+// 生成物永远是完整的一份（`--only` 已删，003 §4.3：要收窄范围就改 mode），
 // 所以清理是无条件的——配置里关掉的组件，它的容器也要跟着消失。
 // `down` 的帮助文本把这条路写成了"只停其中几个"的正解，它必须真的通
 // （down_test.go 的 TestDisablingAComponentRemovesItsContainerOnNextUp）。

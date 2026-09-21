@@ -148,7 +148,7 @@ func localDebugProject(t *testing.T) *projectFixture {
 	f.writeConfig(t, `components:
   - id: people/basic
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 8081
   - id: department/tree
     version: 1.0.0
@@ -229,7 +229,7 @@ func TestUpDryRunLocalDebugEnvResolvesMultilineDotEnvValue(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: infra/iam-casdoor
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 8081
     config:
       appTokenSigningKeyPem: "${APP_TOKEN_SIGNING_KEY_PEM}"
@@ -261,7 +261,7 @@ func TestUpDryRunTellsHowToDebugLocally(t *testing.T) {
 	assert.Contains(t, r.stdout, "envFile", "给出 IDE 里怎么用")
 }
 
-// 没有 local 组件时不该冒出本地调试的输出，也不该留下 env 文件。
+// 没有 debug 组件时不该冒出本地调试的输出，也不该留下 env 文件。
 func TestUpDryRunWithoutLocalComponentWritesNoEnvFile(t *testing.T) {
 	f := composeProject(t)
 
@@ -313,7 +313,7 @@ func TestUpDryRunWithNothingRunning(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: people/basic
     version: 1.0.0
-    enabled: false
+    mode: disable
 `)
 
 	r := runIn(t, f.Dir, "up", "--dry-run")

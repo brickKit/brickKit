@@ -110,9 +110,8 @@ func TestResolveErrorsWhenShellDoesNotExist(t *testing.T) {
 }
 
 func TestResolveErrorsWhenShellIsDisabled(t *testing.T) {
-	disabled := false
 	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
-		{ID: "infra/shell-go-core", Version: "1.0.0", Enabled: &disabled},
+		{ID: "infra/shell-go-core", Version: "1.0.0", Mode: config.ModeDisable},
 		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
 	}}
 	_, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
