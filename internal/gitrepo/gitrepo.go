@@ -253,8 +253,9 @@ func query(dir string, args ...string) ([]byte, error) {
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("git %s：%w（%s）",
-			strings.Join(args, " "), err, strings.TrimSpace(errBuf.String()))
+		return nil, fmt.Errorf("%s%w%s",
+			i18n.T(msgid.GitrepoQueryFailedPrefix, strings.Join(args, " ")), err,
+			i18n.T(msgid.GitrepoQueryFailedSuffix, strings.TrimSpace(errBuf.String())))
 	}
 	return out.Bytes(), nil
 }

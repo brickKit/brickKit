@@ -704,7 +704,7 @@ func checkRef(id, version string) error {
 
 // describe 生成该 Manifest 的来源描述，用于解析错误提示。
 func describe(f fetcher, id, version string) string {
-	return f.id() + "（" + f.kind() + "）：" + id + "@" + version
+	return i18n.T(msgid.SourceDescribe, f.id(), f.kind(), id, version)
 }
 
 // readCachedManifest 读取并校验缓存的 Manifest。缓存缺失或损坏时返回 ok=false，

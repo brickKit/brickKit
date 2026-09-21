@@ -95,3 +95,8 @@ const (
 	SourceUnknownSignerWarning         = "source.unknown_signer_warning"
 	SourceHintConfirmPublisherKey      = "source.hint.confirm_publisher_key"
 )
+
+// 手工补充
+const (
+	SourceDescribe = "source.describe"
+)

@@ -50,7 +50,7 @@ func TestLocalSourceInvalidManifest(t *testing.T) {
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeManifestInvalid, e.Code)
 	out := e.Format()
-	assert.Contains(t, out, "local-dev（local）：people/basic@1.0.0", "错误应指出是哪个安装源的哪个组件")
+	assert.Contains(t, out, "local-dev (local): people/basic@1.0.0", "错误应指出是哪个安装源的哪个组件")
 	assert.Contains(t, out, "people/basic@1.0.0")
 }
 
