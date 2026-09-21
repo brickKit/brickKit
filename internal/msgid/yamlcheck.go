@@ -9,3 +9,12 @@ const (
 	YamlcheckValueMustNotBeEmpty = "yamlcheck.value_must_not_be_empty"
 	YamlcheckValueQuoteIt        = "yamlcheck.value_quote_it"
 )
+
+// internal/yamlcheck/kind.go
+const (
+	YamlcheckKindScalar  = "yamlcheck.kind.scalar"
+	YamlcheckKindMapping = "yamlcheck.kind.mapping"
+	YamlcheckKindArray   = "yamlcheck.kind.array"
+	YamlcheckKindAlias   = "yamlcheck.kind.alias"
+	YamlcheckKindUnknown = "yamlcheck.kind.unknown"
+)

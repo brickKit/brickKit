@@ -34,7 +34,7 @@ func ParseFile(path string) (*Manifest, error) {
 		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.ManifestReadFailed, FileName)).
 			WithDetail(i18n.T(msgid.LabelPath), path).
 			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
-			WithHint(i18n.T(msgid.ManifestHintCheckPermissions)).
+			WithHint(i18n.T(msgid.ProblemHintCheckPermissions)).
 			WithCause(err)
 	}
 	return Parse(data, path)
@@ -106,7 +106,7 @@ func syntaxError(source string, cause error) error {
 	return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.ManifestNotValidYAML, FileName)).
 		WithDetail(i18n.T(msgid.LabelFile), source).
 		WithDetail(i18n.T(msgid.LabelReason), cleanYAMLError(cause)).
-		WithHint(i18n.T(msgid.ManifestHintCheckSyntax)).
+		WithHint(i18n.T(msgid.ProblemHintCheckSyntax)).
 		WithCause(cause)
 }
 
@@ -115,10 +115,10 @@ func decodeError(source string, cause error) error {
 	var typeErr *yaml.TypeError
 	if ok := asTypeError(cause, &typeErr); ok {
 		for _, msg := range typeErr.Errors {
-			p.Add(i18n.T(msgid.ManifestLabelTypeMismatch), msg)
+			p.Add(i18n.T(msgid.ProblemLabelTypeMismatch), msg)
 		}
 	} else {
-		p.Add(i18n.T(msgid.ManifestLabelParseFailed), cleanYAMLError(cause))
+		p.Add(i18n.T(msgid.ProblemLabelParseFailed), cleanYAMLError(cause))
 	}
 	return p.Err()
 }
@@ -158,7 +158,7 @@ var sequenceFields = [][]string{
 // 而不是把 yaml 库的 "cannot unmarshal !!str into []string" 抛给用户。
 func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 	if doc.Kind != yaml.MappingNode {
-		p.Add(FileName, i18n.T(msgid.ManifestTopLevelMustBeMapping))
+		p.Add(FileName, i18n.T(msgid.ProblemTopLevelMustBeMapping))
 		return
 	}
 
@@ -168,7 +168,7 @@ func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 			continue
 		}
 		if node.Kind != yaml.SequenceNode {
-			p.Add(strings.Join(path, "."), i18n.T(msgid.ManifestMustBeArray, nodeKindName(node)))
+			p.Add(strings.Join(path, "."), i18n.T(msgid.ProblemMustBeArray, yamlcheck.KindName(node)))
 		}
 	}
 
@@ -181,7 +181,7 @@ func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 			}
 			files := lookup(item, "files")
 			if files != nil && !isNull(files) && files.Kind != yaml.SequenceNode {
-				p.Add(fmt.Sprintf("artifacts[%d].files", i), i18n.T(msgid.ManifestMustBeArray, nodeKindName(files)))
+				p.Add(fmt.Sprintf("artifacts[%d].files", i), i18n.T(msgid.ProblemMustBeArray, yamlcheck.KindName(files)))
 			}
 		}
 	}
@@ -190,7 +190,7 @@ func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 	// ——`traefik.enable: true` 少的那对引号在这里报（002 §4.7）。
 	if labels := lookup(doc, "deployment", "labels"); labels != nil && !isNull(labels) {
 		if labels.Kind != yaml.MappingNode {
-			p.Add("deployment.labels", i18n.T(msgid.ManifestMustBeMapping, nodeKindName(labels)))
+			p.Add("deployment.labels", i18n.T(msgid.ProblemMustBeMapping, yamlcheck.KindName(labels)))
 		} else {
 			yamlcheck.CheckStringValues(labels, "deployment.labels", p.Add)
 		}
@@ -221,21 +221,6 @@ func lookup(node *yaml.Node, path ...string) *yaml.Node {
 
 func isNull(node *yaml.Node) bool {
 	return node.Tag == "!!null"
-}
-
-func nodeKindName(node *yaml.Node) string {
-	switch node.Kind {
-	case yaml.ScalarNode:
-		return i18n.T(msgid.ManifestKindScalar)
-	case yaml.MappingNode:
-		return i18n.T(msgid.ManifestKindMapping)
-	case yaml.SequenceNode:
-		return i18n.T(msgid.ManifestKindArray)
-	case yaml.AliasNode:
-		return i18n.T(msgid.ManifestKindAlias)
-	default:
-		return i18n.T(msgid.ManifestKindUnknown)
-	}
 }
 
 // ============================================================

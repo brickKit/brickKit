@@ -7,6 +7,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/yamlcomment"
 )
 
 // 契约占位格式。跟 Artifact.Format 一样是自由字符串，这里只收窄到
@@ -90,7 +91,7 @@ service Service {
 			WithExit(clierr.ExitUsage)
 	}
 
-	manifestContent := commentBlock("", i18n.T(msgid.ManifestScaffoldHeader, id)) + fmt.Sprintf(`apiVersion: brickkit/v1
+	manifestContent := yamlcomment.Block("", i18n.T(msgid.ManifestScaffoldHeader, id)) + fmt.Sprintf(`apiVersion: brickkit/v1
 kind: Component
 
 metadata:
@@ -109,7 +110,7 @@ healthCheck:
   path: /healthz
 %s`, id, name, i18n.T(msgid.ManifestScaffoldNameTodo), i18n.T(msgid.ManifestScaffoldDescriptionTodo), artifactsBlock,
 		id, i18n.T(msgid.ManifestScaffoldImageTodo), i18n.T(msgid.ManifestScaffoldPortTodo),
-		commentBlock("  ", i18n.T(msgid.ManifestScaffoldStartPeriodComment)))
+		yamlcomment.Block("  ", i18n.T(msgid.ManifestScaffoldStartPeriodComment)))
 
 	files := []ScaffoldFile{{Path: FileName, Content: []byte(manifestContent)}}
 	if contractFile != "" {
@@ -127,14 +128,4 @@ healthCheck:
 		})
 	}
 	return files, nil
-}
-
-// commentBlock 把多行文字变成 YAML 注释：每行前面加 indent 和 "# "，末尾换行。
-// 骨架里的说明文字随语言变，各语言要几行由目录自己决定，所以按行拆而不是写死行数。
-func commentBlock(indent, text string) string {
-	var b strings.Builder
-	for _, line := range strings.Split(text, "\n") {
-		b.WriteString(indent + "# " + line + "\n")
-	}
-	return b.String()
 }

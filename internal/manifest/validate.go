@@ -46,7 +46,7 @@ func newProblems(source string) *clierr.ProblemSet {
 	if source == "" {
 		source = FileName
 	}
-	return clierr.NewProblemSet(clierr.CodeManifestInvalid, i18n.T(msgid.ManifestValidationFailed, FileName)).
+	return clierr.NewProblemSet(clierr.CodeManifestInvalid, i18n.T(msgid.ProblemValidationFailed, FileName)).
 		WithSource(i18n.T(msgid.LabelFile), source).
 		WithHint(
 			i18n.T(msgid.ManifestHintFieldReference),
@@ -280,7 +280,7 @@ func (m *Manifest) validateDependencies(p *clierr.ProblemSet) {
 		case !IsKnownResourceKind(res.Kind):
 			// 与 brickkit.yaml 侧同一条规则：kind 是按字符串比对的，
 			// 组件写了平台不认识的类型，使用者照着绑也换不来任何连接变量
-			p.Add(prefix+".kind", i18n.T(msgid.ManifestResourceKindUnknown, res.Kind, ResourceKindsText()))
+			p.Add(prefix+".kind", i18n.T(msgid.ProblemResourceKindUnknown, res.Kind, ResourceKindsText()))
 		}
 		if res.Engine == "" {
 			p.Missing(prefix + ".engine")
@@ -331,7 +331,7 @@ func (m *Manifest) validateDeployment(p *clierr.ProblemSet) {
 	case d.Port == 0:
 		p.Missing("deployment.port")
 	case d.Port < MinPort || d.Port > MaxPort:
-		p.Add("deployment.port", i18n.T(msgid.ManifestPortOutOfRange, MinPort, MaxPort, d.Port))
+		p.Add("deployment.port", i18n.T(msgid.ProblemPortOutOfRange, MinPort, MaxPort, d.Port))
 	}
 
 	names := make(map[string]int)
@@ -353,7 +353,7 @@ func (m *Manifest) validateDeployment(p *clierr.ProblemSet) {
 		case ep.Port == 0:
 			p.Missing(prefix + ".port")
 		case ep.Port < MinPort || ep.Port > MaxPort:
-			p.Add(prefix+".port", i18n.T(msgid.ManifestPortOutOfRange, MinPort, MaxPort, ep.Port))
+			p.Add(prefix+".port", i18n.T(msgid.ProblemPortOutOfRange, MinPort, MaxPort, ep.Port))
 		case ep.Port == d.Port:
 			p.Add(prefix+".port", i18n.T(msgid.ManifestPortSameAsMain, d.Port))
 		}
@@ -412,7 +412,7 @@ func (m *Manifest) validateHealthCheck(p *clierr.ProblemSet) {
 	case HealthCheckTCP, HealthCheckNone:
 		// tcp / none 不需要 path
 	default:
-		p.Add("healthCheck.type", i18n.T(msgid.ManifestHealthTypeMustBeOneOf, HealthCheckHTTP, HealthCheckTCP, HealthCheckNone, h.Type))
+		p.Add("healthCheck.type", i18n.T(msgid.ProblemMustBeOneOfThree, HealthCheckHTTP, HealthCheckTCP, HealthCheckNone, h.Type))
 	}
 
 	validateStartPeriod(p, h)

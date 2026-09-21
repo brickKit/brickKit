@@ -30,6 +30,7 @@ import (
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/yamlcomment"
 )
 
 // EngineDocker 是目前唯一支持的容器引擎（005 §7 说明了为什么没有 Podman）。
@@ -616,7 +617,7 @@ func renderEnvFile(
 	l localComponent, vars []inject.Var, now time.Time, lookup func(string) (string, bool),
 ) []byte {
 	var b bytes.Buffer
-	b.Write(deploy.CommentBanner(i18n.T(msgid.ComposeEnvHeader,
+	b.Write(yamlcomment.Banner(i18n.T(msgid.ComposeEnvHeader,
 		l.Ref.ID, l.Ref.Version, l.Port, now.UTC().Format(time.RFC3339))))
 
 	for _, v := range vars {

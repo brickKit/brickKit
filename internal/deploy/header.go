@@ -1,29 +1,13 @@
 package deploy
 
 import (
-	"bytes"
 	"strings"
 	"time"
 
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/yamlcomment"
 )
-
-const bannerRule = "# ============================================================\n"
-
-// CommentBanner 把 text（可以多行）包成注释块：上下各一条分隔线，每行以 "# " 开头，
-// 末尾留一个空行。生成的 YAML / .env 文件开头全用它——排版只在这一处定，
-// 文案（含要几行）由各语言的目录自己决定。
-func CommentBanner(text string) []byte {
-	var b bytes.Buffer
-	b.WriteString(bannerRule)
-	for _, line := range strings.Split(text, "\n") {
-		b.WriteString("# " + line + "\n")
-	}
-	b.WriteString(bannerRule)
-	b.WriteString("\n")
-	return b.Bytes()
-}
 
 // FileHeader 是 docker-compose.yaml 和 K8s 清单共用的头注释。
 //
@@ -37,5 +21,5 @@ func FileHeader(project string, now time.Time, extra ...string) []byte {
 		i18n.T(msgid.HeaderGeneratedAt, now.UTC().Format(time.RFC3339)),
 		i18n.T(msgid.HeaderProject, project),
 	}
-	return CommentBanner(strings.Join(append(lines, extra...), "\n"))
+	return yamlcomment.Banner(strings.Join(append(lines, extra...), "\n"))
 }

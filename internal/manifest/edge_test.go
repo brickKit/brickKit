@@ -495,21 +495,6 @@ dependencies:
 	assert.Contains(t, clierr.As(err).Format(), "dependencies.components[0]")
 }
 
-// nodeKindName 是错误文案的一部分，直接对每种节点类型断言一次。
-func TestNodeKindName(t *testing.T) {
-	cases := map[yaml.Kind]string{
-		yaml.ScalarNode:   "scalar",
-		yaml.MappingNode:  "mapping",
-		yaml.SequenceNode: "array",
-		yaml.AliasNode:    "alias",
-		yaml.DocumentNode: "unknown type",
-	}
-	for kind, want := range cases {
-		assert.Equal(t, want, nodeKindName(&yaml.Node{Kind: kind}))
-	}
-	assert.Equal(t, "unknown type", nodeKindName(&yaml.Node{}))
-}
-
 // 导出给 config 包复用的两个规则函数（Step 5 的 brickkit.yaml 校验依赖它们）。
 func TestExportedRuleHelpers(t *testing.T) {
 	assert.Empty(t, ComponentIDProblem("people/basic"))
