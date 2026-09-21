@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // checkImageReference 校验镜像引用（开发计划 19.13、010 §5）。
@@ -17,10 +19,10 @@ import (
 func checkImageReference(image string) error {
 	image = strings.TrimSpace(image)
 	if image == "" {
-		return imageError(image, "镜像地址不能为空", "在 component.yaml 的 deployment.image 中填写完整镜像地址")
+		return imageError(image, i18n.T(msgid.CliImagerefTheImageAddressMustNot), i18n.T(msgid.CliImagerefFillInTheFullImage))
 	}
 	if strings.ContainsAny(image, " \t\n") {
-		return imageError(image, "镜像地址不合法：不能包含空白字符", "检查 component.yaml 中 deployment.image 的写法")
+		return imageError(image, i18n.T(msgid.CliImagerefInvalidImageAddressItMust), i18n.T(msgid.CliImagerefCheckHowDeploymentImageIs))
 	}
 
 	// digest 形式要真的是个 digest。`@` 后面原本什么都能写——
@@ -29,31 +31,31 @@ func checkImageReference(image string) error {
 	if repo, digest, ok := strings.Cut(image, "@"); ok {
 		switch {
 		case repo == "":
-			return imageError(image, "镜像地址不合法：digest 前面缺少镜像名",
-				"正确写法形如 registry.example.com/app@sha256:<64 位十六进制>")
+			return imageError(image, i18n.T(msgid.CliImagerefInvalidImageAddressTheImage),
+				i18n.T(msgid.CliImagerefTheCorrectFormLooksLike))
 		case !digestPattern.MatchString(digest):
-			return imageError(image, "镜像 digest 格式不合法",
-				"必须是 sha256: 加 64 位小写十六进制字符",
-				"当前是："+digest,
-				"用 docker buildx imagetools inspect <镜像> --format '{{.Manifest.Digest}}' 取正确的值")
+			return imageError(image, i18n.T(msgid.CliImagerefInvalidImageDigestFormat),
+				i18n.T(msgid.CliImagerefItMustBeSha256Followed),
+				i18n.T(msgid.CliImagerefCurrently, digest),
+				i18n.T(msgid.CliImagerefGetTheCorrectValueWith))
 		}
 	}
 
 	name, tag := splitImageTag(image)
 	if name == "" {
-		return imageError(image, "镜像地址不合法：缺少镜像名", "正确写法形如 registry.example.com/people-basic:1.2.0")
+		return imageError(image, i18n.T(msgid.CliImagerefInvalidImageAddressTheImage2), i18n.T(msgid.CliImagerefTheCorrectFormLooksLike2))
 	}
 	if strings.ToLower(name) != name {
-		return imageError(image, "镜像地址不合法：镜像名必须全小写", "把镜像名改成全小写后重新构建并推送")
+		return imageError(image, i18n.T(msgid.CliImagerefInvalidImageAddressTheImage3), i18n.T(msgid.CliImagerefChangeTheImageNameTo))
 	}
 	if tag == "" {
-		return imageError(image, "镜像地址缺少标签",
-			"必须使用明确版本的标签，例如 "+name+":1.2.0（生产环境不使用 latest）")
+		return imageError(image, i18n.T(msgid.CliImagerefTheImageAddressHasNo),
+			i18n.T(msgid.CliImagerefUseATagWithAn, name))
 	}
 	if tag == "latest" {
-		return imageError(image, "镜像标签不能是 latest",
-			"改用与组件版本一致的标签，例如 "+name+":1.2.0",
-			"latest 会让同一个引用在不同时间指向不同镜像，安装结果不可复现")
+		return imageError(image, i18n.T(msgid.CliImagerefTheImageTagMustNot),
+			i18n.T(msgid.CliImagerefUseATagThatMatches, name),
+			i18n.T(msgid.CliImagerefLatestLetsTheSameReference))
 	}
 	return nil
 }
@@ -77,7 +79,7 @@ func splitImageTag(image string) (name, tag string) {
 }
 
 func imageError(image, reason string, hints ...string) error {
-	return clierr.New(clierr.CodeManifestInvalid, "错误："+reason).
+	return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliRestoreError, reason)).
 		WithDetail("deployment.image", image).
 		WithHint(hints...)
 }

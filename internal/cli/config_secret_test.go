@@ -183,7 +183,7 @@ components:
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "明文密钥")
+	assert.NotContains(t, r.stdout+r.stderr, "plaintext secrets")
 }
 
 // existingSecret 形状是"做对了"，不该被明文密钥警告误伤——它不是字面密钥，是一个引用。
@@ -199,5 +199,5 @@ func TestExistingSecretShapeDoesNotTriggerPlaintextWarning(t *testing.T) {
 	r := runWithEngine(t, newK8sEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "明文密钥")
+	assert.NotContains(t, r.stdout+r.stderr, "plaintext secrets")
 }

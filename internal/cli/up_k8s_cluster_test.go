@@ -187,7 +187,7 @@ func TestDockerTargetWarnsAboutK8sOnlyFields(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
 	assert.Contains(t, r.stdout+r.stderr, "deploy.context")
-	assert.Contains(t, r.stdout+r.stderr, "只在 deploy.target: k8s 下生效")
+	assert.Contains(t, r.stdout+r.stderr, "only take effect with deploy.target: k8s")
 }
 
 // ============================================================

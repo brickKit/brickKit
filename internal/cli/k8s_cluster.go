@@ -9,12 +9,13 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // requireContext 校验"现在连着的集群"就是配置里钉住的那个。
@@ -35,17 +36,17 @@ func requireContext(
 	if current == "" || current == want {
 		// 取不到就不拦：kubeconfig 的形态千奇百怪（比如 in-cluster），
 		// 因为读不到 context 就拒绝部署，只会让人绕开 CLI
-		opts.Printf("☸️  目标集群：%s\n", want)
+		opts.Printf("%s\n", i18n.T(msgid.CliK8sClusterTargetCluster, want))
 		return nil
 	}
 
-	return clierr.New(clierr.CodeConfigInvalid, "错误：当前连着的不是配置里指定的集群").
-		WithDetail("配置要求（deploy.context）", want).
-		WithDetail("当前 context", current).
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliK8sClusterErrorTheClusterCurrentlyConnected)).
+		WithDetail(i18n.T(msgid.CliK8sClusterRequiredByTheConfigurationDeploy), want).
+		WithDetail(i18n.T(msgid.CliK8sClusterCurrentContext), current).
 		WithHint(
-			"切过去：kubectl config use-context "+want,
-			"或本次显式指定：brickkit up --context "+current,
-			"确认无误前不要继续——部到错误的集群是不可逆的",
+			i18n.T(msgid.CliK8sClusterSwitchToItKubectlConfig, want),
+			i18n.T(msgid.CliK8sClusterOrSpecifyItExplicitlyFor, current),
+			i18n.T(msgid.CliK8sClusterDonTContinueUntilYou),
 		)
 }
 
@@ -72,13 +73,13 @@ func contextOf(cfg *config.Config, flag string) string {
 func warnTargetOnlyFields(opts *Options, cfg *config.Config) {
 	if cfg.Deploy.Target == config.TargetK8s {
 		warnFields(opts, cfg, "Docker", dockerOnlyFields(cfg),
-			"K8s 通过 Ingress + 域名路由对外暴露，不映射宿主机端口",
-			"对外暴露请给组件填 hostname")
+			i18n.T(msgid.CliK8sClusterK8sExposesServicesExternallyThrough),
+			i18n.T(msgid.CliK8sClusterToExposeAComponentExternally))
 		return
 	}
 	warnFields(opts, cfg, "K8s", k8sOnlyFields(cfg),
-		"这些字段只在 deploy.target: k8s 下生效，本次被忽略",
-		"要部署到 K8s 请把 deploy.target 改成 k8s")
+		i18n.T(msgid.CliK8sClusterTheseFieldsOnlyTakeEffect),
+		i18n.T(msgid.CliK8sClusterToDeployToK8sChange))
 }
 
 // fieldUse 是"某个字段被哪些组件写了"。
@@ -183,7 +184,7 @@ func resourceFields(cfg *config.Config, fields []resourceField) []fieldUse {
 			}
 		}
 		if len(users) > 0 {
-			out = append(out, fieldUse{name: "resources[]." + f.name, components: users, noun: "资源"})
+			out = append(out, fieldUse{name: "resources[]." + f.name, components: users, noun: i18n.T(msgid.CliK8sClusterResources)})
 		}
 	}
 	return out
@@ -200,28 +201,27 @@ func warnFields(opts *Options, cfg *config.Config, target string, fields []field
 		return
 	}
 
-	err := clierr.Warn(clierr.CodeConfigInvalid, "配置里有只对 "+target+" 生效的字段")
+	err := clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliK8sClusterTheConfigurationHasFieldsThat, target))
 	for _, f := range fields {
 		if len(f.components) == 0 {
-			err = err.WithDetail("字段", f.name)
+			err = err.WithDetail(i18n.T(msgid.CliK8sClusterField), f.name)
 			continue
 		}
-		err = err.WithDetailf("字段", "%s（%s）", f.name, describeUsers(f.components, f.noun))
+		err = err.WithDetail(i18n.T(msgid.CliK8sClusterField), i18n.T(msgid.ConfigProjectNameProblemWithRule, f.name, describeUsers(f.components, f.noun)))
 	}
 	renderWarnings(opts, []*clierr.Error{err.
-		WithDetail("当前目标", "deploy.target: "+cfg.Deploy.Target).
-		WithDetail("说明", note).
+		WithDetail(i18n.T(msgid.CliK8sClusterCurrentTarget), "deploy.target: "+cfg.Deploy.Target).
+		WithDetail(i18n.T(msgid.SourceLabelNote), note).
 		WithHint(hint)})
 }
 
 // describeUsers 说清是哪几个组件/资源写了它。
 func describeUsers(components []string, noun string) string {
 	if noun == "" {
-		noun = "组件"
+		noun = i18n.T(msgid.CliK8sClusterComponents)
 	}
 	if len(components) <= maxListedComponents {
-		return fmt.Sprintf("%d 个%s：%s", len(components), noun, strings.Join(components, "、"))
+		return i18n.T(msgid.CliK8sClusterMsg, len(components), noun, strings.Join(components, i18n.T(msgid.ListSeparator)))
 	}
-	return fmt.Sprintf("%d 个%s：%s 等",
-		len(components), noun, strings.Join(components[:maxListedComponents], "、"))
+	return i18n.T(msgid.CliK8sClusterAndMore, len(components), noun, strings.Join(components[:maxListedComponents], i18n.T(msgid.ListSeparator)))
 }

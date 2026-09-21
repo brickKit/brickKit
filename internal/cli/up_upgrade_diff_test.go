@@ -241,7 +241,7 @@ func TestSummaryReportsDependencyChange(t *testing.T) {
 		comp{ID: "people/basic", Version: "1.0.0"},
 		comp{ID: "people/basic", Version: "1.1.0", Requires: []string{"department/tree@1.0.0"}})
 
-	assert.Contains(t, out, "依赖变更", "38.18：%s", out)
+	assert.Contains(t, out, "Dependency changes", "38.18：%s", out)
 	assert.Contains(t, out, "department/tree",
 		"38.18：要点名多出来的是谁，只说'有变化'等于没说：%s", out)
 }
@@ -254,7 +254,7 @@ func TestSummaryReportsNoDependencyChange(t *testing.T) {
 		comp{ID: "people/basic", Version: "1.0.0"},
 		comp{ID: "people/basic", Version: "1.1.0"})
 
-	assert.Contains(t, out, "依赖变更：无", "38.18：%s", out)
+	assert.Contains(t, out, "Dependency changes: none", "38.18：%s", out)
 }
 
 // 38.19 新增配置项要报出来，并带上默认值。
@@ -267,7 +267,7 @@ func TestSummaryReportsAddedConfigKey(t *testing.T) {
 		comp{ID: "people/basic", Version: "1.1.0",
 			ConfigSchema: []string{"greeting:你好", "enableNotification:true"}})
 
-	assert.Contains(t, out, "新增配置项", "38.19：%s", out)
+	assert.Contains(t, out, "Added config items", "38.19：%s", out)
 	assert.Contains(t, out, "enableNotification", "38.19：%s", out)
 	assert.Contains(t, out, "true",
 		"38.19：要带上默认值——新增项走的就是它，使用者要判断这个值对不对：%s", out)
@@ -284,7 +284,7 @@ func TestSummaryReportsRemovedConfigKey(t *testing.T) {
 			ConfigSchema: []string{"greeting:你好", "legacyMode:off"}},
 		comp{ID: "people/basic", Version: "1.1.0", ConfigSchema: []string{"greeting:你好"}})
 
-	assert.Contains(t, out, "删除配置项", "38.19：%s", out)
+	assert.Contains(t, out, "Removed config items", "38.19：%s", out)
 	assert.Contains(t, out, "legacyMode", "38.19：%s", out)
 }
 
@@ -295,7 +295,7 @@ func TestSummaryReportsArtifactChange(t *testing.T) {
 		comp{ID: "people/basic", Version: "1.1.0",
 			Artifacts: []string{"api-docs:openapi.json", "sdk:client.ts"}})
 
-	assert.Contains(t, out, "artifacts 变更", "38.21：%s", out)
+	assert.Contains(t, out, "Artifacts changes", "38.21：%s", out)
 	assert.Contains(t, out, "client.ts", "38.21：要点名新增的产物：%s", out)
 }
 
@@ -308,7 +308,7 @@ func TestSummaryReportsResourceQuotaChange(t *testing.T) {
 		comp{ID: "people/basic", Version: "1.0.0", CPU: "500m", Memory: "256Mi"},
 		comp{ID: "people/basic", Version: "1.1.0", CPU: "2", Memory: "1Gi"})
 
-	assert.Contains(t, out, "资源配额变更", "38.22：%s", out)
+	assert.Contains(t, out, "Resource quota changes", "38.22：%s", out)
 	assert.Contains(t, out, "1Gi",
 		"38.22：要给出新配额——只说'变了'的话使用者还得自己去翻 Manifest：%s", out)
 }
@@ -323,7 +323,7 @@ func TestSummaryHasEverySection(t *testing.T) {
 		comp{ID: "people/basic", Version: "1.1.0"})
 
 	for _, section := range []string{
-		"依赖变更", "新增配置项", "删除配置项", "数据库迁移", "artifacts 变更", "资源配额变更",
+		"Dependency changes", "Added config items", "Removed config items", "Database migration", "Artifacts changes", "Resource quota changes",
 	} {
 		assert.Contains(t, out, section,
 			"38.17：设计书 004 §3.5.1 规定的六项里缺了「%s」——"+
@@ -349,9 +349,9 @@ func TestSummarySaysUnknownWhenOldManifestIsUnreadable(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "未知",
+	assert.Contains(t, r.stdout, "unknown",
 		"38.18：旧 Manifest 读不到时必须说'未知'：%s", r.stdout)
-	assert.NotContains(t, r.stdout, "依赖变更：无",
+	assert.NotContains(t, r.stdout, "Dependency changes: none",
 		"38.18：**绝不能报'无'**——那是一句看起来正常的假话，"+
 			"使用者会据此认为可以放心升级：%s", r.stdout)
 }

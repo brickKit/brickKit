@@ -33,9 +33,8 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 		return err
 	}
 
-	opts.Printf("📄 已生成 %d 份清单：%s/\n",
-		len(plan.k8s.Files), displayPath(opts.WorkDir, dir))
-	opts.Printf("   命名空间：%s\n", plan.k8s.Namespace)
+	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sGeneratedManifests, len(plan.k8s.Files), displayPath(opts.WorkDir, dir)))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sNamespace, plan.k8s.Namespace))
 	renderResourceRequirements(opts, plan.k8s.Resources)
 	renderNetworkPolicyNotice(opts, plan.k8s)
 	// 与 Docker 侧同一条：在 --dry-run 的分岔之前说清会不会动数据库
@@ -43,8 +42,8 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 
 	if flags.dryRun {
 		renderUpgradeSummary(opts, plan)
-		opts.Printf("\n💡 --dry-run 只生成清单，未部署任何东西\n")
-		opts.Printf("   查看：ls -R %s\n", displayPath(opts.WorkDir, dir))
+		opts.Printf("\n%s\n", i18n.T(msgid.CliUpK8sDryRunOnlyGeneratesManifests))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpK8sViewThemLsR, displayPath(opts.WorkDir, dir)))
 		logging.Info(i18n.T(msgid.LogK8sManifestsGenerated), "dir", dir, "files", len(plan.k8s.Files))
 		return nil
 	}
@@ -90,12 +89,12 @@ func renderNetworkPolicyNotice(opts *Options, result *k8s.Result) {
 		return
 	}
 
-	opts.Printf("\n🔒 已生成 %d 份 NetworkPolicy（deploy.networkPolicy.enabled: true）\n", n)
-	opts.Printf("   ⚠️ 它们只在集群的 CNI 支持执行时才有效。不支持时：apply 会成功、\n")
-	opts.Printf("      kubectl get networkpolicy 看得见、而流量完全不受限制——没有任何报错。\n")
-	opts.Printf("      minikube / kind 的**默认** CNI 就属于这一类。\n")
-	opts.Printf("   平台测不出来（K8s 没有这个 API），只能你自己验一次：\n")
-	opts.Printf("      详见 docs/zh/03-guide/12-network-policy.md（英文版把 zh 换 en）\n")
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpK8sGeneratedNetworkpolicyManifestsDeployNetworkpolicy, n))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sTheyOnlyTakeEffectWhen))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sKubectlGetNetworkpolicyShowsThem))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sTheDefaultCniOfMinikube))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sThePlatformCanTDetect))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sSeeDocsEnGuideNetwork))
 }
 
 // projectSelector 是本项目全部生成物共有的标签选择器。
@@ -124,10 +123,10 @@ func projectSelector(cfg *config.Config) string {
 func applyK8s(
 	ctx context.Context, opts *Options, eng engine.Engine, plan *upPlan, dir, pruneSelector string,
 ) error {
-	opts.Printf("\n☸️  正在部署到 Kubernetes（命名空间 %s）...\n", plan.k8s.Namespace)
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpK8sDeployingToKubernetesNamespace, plan.k8s.Namespace))
 	if len(plan.k8s.MigrationGroups) > 0 {
 		// 16.14：先清旧 Job 再 apply，然后等它跑完
-		opts.Printf("   先执行数据库迁移，完成后才启动主服务\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliUpK8sDatabaseMigrationsRunFirstThe))
 	}
 
 	var pruned []string
@@ -141,15 +140,15 @@ func applyK8s(
 		PruneSelector:   pruneSelector,
 		OnPrune:         func(resource string) { pruned = append(pruned, resource) },
 	}); err != nil {
-		return engineFailure("部署", err)
+		return engineFailure(i18n.T(msgid.CliUpK8sDeploy), err)
 	}
 	renderPruned(opts, pruned)
 
 	statuses, err := eng.Status(ctx, plan.k8s.Namespace)
 	if err != nil {
 		// 部署是部署了，只是问不到状态：不该因此判定失败
-		opts.Printf("⚠️ 无法读取集群状态：%s\n", clierr.As(err).Message)
-		opts.Printf("   用 brickkit status 再看一次\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliUpK8sTheClusterStateCouldNot, clierr.As(err).Message))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpK8sCheckAgainWithBrickkitStatus))
 		return nil
 	}
 	return reportStarted(opts, plan, statuses)
@@ -181,11 +180,11 @@ func renderPruned(opts *Options, pruned []string) {
 		return
 	}
 
-	opts.Printf("\n🧹 已清理旧版本残留（%d 项）：\n", len(pruned))
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpK8sCleanedUpLeftoversFromAn, len(pruned)))
 	for _, resource := range pruned {
 		opts.Printf("   - %s\n", resource)
 	}
-	opts.Printf("   它们带着本项目的标签，但不在本次部署范围内\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sTheyCarryThisProjectS))
 	logging.Info(i18n.T(msgid.LogOrphansPruned), "count", len(pruned))
 }
 

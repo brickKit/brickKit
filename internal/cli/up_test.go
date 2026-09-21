@@ -286,9 +286,9 @@ func TestUpOutputShowsStatesAndOrder(t *testing.T) {
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
 
-	assert.Contains(t, r.stdout, "📋 组件状态计算：", "15.22")
+	assert.Contains(t, r.stdout, "📋 Component state calculation:", "15.22")
 	assert.Contains(t, r.stdout, "✅", "15.22")
-	assert.Contains(t, r.stdout, "📋 启动顺序", "15.23")
+	assert.Contains(t, r.stdout, "📋 Start order", "15.23")
 	assert.Contains(t, r.stdout, "1. people-basic-1-0-0", "15.23")
 }
 

@@ -167,7 +167,7 @@ func TestPublishBlocksWhenDigestUnresolvable(t *testing.T) {
 	r := publishWith(t, f, failing, "publish", "--path", root)
 
 	require.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "推送", "要提到镜像可能没推上去：%s", r.stderr)
+	assert.Contains(t, r.stderr, "pushed", "要提到镜像可能没推上去：%s", r.stderr)
 	assert.Contains(t, r.stderr, "--no-pin-digest", "要给出跳过的办法：%s", r.stderr)
 	for _, req := range m.requests() {
 		assert.NotContains(t, req, "/components/",

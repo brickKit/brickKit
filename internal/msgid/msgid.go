@@ -44,6 +44,11 @@ const (
 	// 随语言变化，不是随便哪句话里的字面量，所以放进共享 key 里。
 	ListSeparator = "list.separator"
 
+	// ClauseSeparator / SemicolonSeparator 是拼接"分句"用的逗号与分号：中文用全角，
+	// 英文用半角加空格，同样是标点随语言变。
+	ClauseSeparator    = "clause.separator"
+	SemicolonSeparator = "semicolon.separator"
+
 	// internal/cli/version.go
 	VersionManifestLine  = "version.manifest_line"
 	VersionTargetsLine   = "version.targets_line"

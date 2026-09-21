@@ -348,7 +348,7 @@ func TestNetworkPolicyNoticeIsPrinted(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, out)
 	assert.Contains(t, out, "NetworkPolicy", out)
 	assert.Contains(t, out, "CNI", "要点名是 CNI 决定的")
-	assert.Contains(t, out, "没有任何报错", "要说清失败是无声的")
+	assert.Contains(t, out, "no error whatsoever", "要说清失败是无声的")
 }
 
 // 没打开 networkPolicy 时不该有这条——每次 up 都多几行与自己无关的话，

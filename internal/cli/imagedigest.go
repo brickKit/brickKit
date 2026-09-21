@@ -19,6 +19,8 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // digestPattern 是 OCI 的 digest 写法：sha256: 加 64 个十六进制字符。
@@ -68,10 +70,10 @@ func digestResolverWith(run commandRunner) func(context.Context, string) (string
 		if !digestPattern.MatchString(digest) {
 			// 拿到一串不是 digest 的东西时不能当成成功：buildx 失败时
 			// 也可能以 0 退出并把错误打在输出里
-			return "", clierr.Newf(clierr.CodeEngineFailed,
-				"错误：没能从 registry 取到镜像 digest").
-				WithDetail("镜像", image).
-				WithDetail("实际输出", tailLine(digest))
+			return "", clierr.New(clierr.CodeEngineFailed,
+				i18n.T(msgid.CliImagedigestErrorCouldNotGetThe)).
+				WithDetail(i18n.T(msgid.LabelImage), image).
+				WithDetail(i18n.T(msgid.CliImagedigestActualOutput), tailLine(digest))
 		}
 		return digest, nil
 	}
@@ -85,7 +87,7 @@ func tailLine(text string) string {
 			return line
 		}
 	}
-	return "(空)"
+	return i18n.T(msgid.CliImagedigestEmpty)
 }
 
 // digestUnresolvable 把解析失败翻译成一条能指出下一步的错误。
@@ -93,17 +95,14 @@ func tailLine(text string) string {
 // 两种原因要都说出来——它们该做的下一步完全不同：
 // 镜像没推上去，得先 push；registry 连不上，得查网络或凭据。
 func digestUnresolvable(image string, cause error) error {
-	return clierr.New(clierr.CodeEngineFailed, "错误：无法确定镜像的 digest，发布已中止").
-		WithDetail("镜像", image).
-		WithDetail("原因", clierr.As(cause).Message).
-		WithDetail("为什么要拦住", "发布出去的版本号不可回收。"+
-			"取不到 digest 通常意味着这个镜像消费方也拉不到——"+
-			"与其在市场里留下一个装不上的版本，不如现在停下").
+	return clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.CliImagedigestErrorTheImageDigestCould)).
+		WithDetail(i18n.T(msgid.LabelImage), image).
+		WithDetail(i18n.T(msgid.LabelReason), clierr.As(cause).Message).
+		WithDetail(i18n.T(msgid.CliImagedigestWhyItIsBlocked), i18n.T(msgid.CliImagedigestAPublishedVersionNumberCan)).
 		WithHint(
-			"确认镜像已经**推送**到 registry：docker push "+image,
-			"确认本机能访问该 registry（私有仓库先 docker login）",
-			"确实无法解析时用 --no-pin-digest 跳过——但那样签名就只锁住 tag，"+
-				"registry 上换掉同名 tag 的话签名照样有效",
+			i18n.T(msgid.CliImagedigestMakeSureTheImageHas, image),
+			i18n.T(msgid.CliImagedigestMakeSureThisMachineCan),
+			i18n.T(msgid.CliImagedigestIfItReallyCanT),
 		).
 		WithCause(cause)
 }

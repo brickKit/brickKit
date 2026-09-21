@@ -39,7 +39,7 @@ func TestUpK8sReportsPruned(t *testing.T) {
 	require.Equal(t, 0, r.code, r.stderr)
 
 	assert.Contains(t, r.stdout, "people-basic-0-9-0", "P38：删了什么要说出来：%s", r.stdout)
-	assert.Contains(t, r.stdout, "清理", "P38：要说清这是清理动作：%s", r.stdout)
+	assert.Contains(t, r.stdout, "Cleaned up", "P38：要说清这是清理动作：%s", r.stdout)
 }
 
 // 没清理任何东西时不要输出噪音。
@@ -52,7 +52,7 @@ func TestUpK8sSaysNothingWhenNothingPruned(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "up")
 	require.Equal(t, 0, r.code, r.stderr)
 
-	assert.NotContains(t, r.stdout, "清理旧版本", "P38：没清理就别提这件事：%s", r.stdout)
+	assert.NotContains(t, r.stdout, "Cleaned up leftovers", "P38：没清理就别提这件事：%s", r.stdout)
 }
 
 // Docker 目标用**同一个判据**决定要不要清理孤儿。

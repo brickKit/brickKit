@@ -17,17 +17,20 @@ package cli
 // 至少让他知道这一项没算出来。
 
 import (
-	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // unknownDiff 是算不出差异时的说法。
-const unknownDiff = "未知（旧版本 Manifest 读不到）"
+//
+// 是函数而不是常量：文案要跟着语言变，包初始化时语言还没确定。
+func unknownDiff() string { return i18n.T(msgid.CliUpUpgradeDiffUnknownDiff) }
 
 // cachedManifest 读缓存里某个版本的 Manifest；读不到返回 nil。
 func cachedManifest(layout config.Layout, id, version string) *manifest.Manifest {
@@ -42,8 +45,8 @@ func cachedManifest(layout config.Layout, id, version string) *manifest.Manifest
 // describeUpgradeDiff 把新旧 Manifest 的差异填进 upgradeInfo。
 func describeUpgradeDiff(u *upgradeInfo, oldM, newM *manifest.Manifest) {
 	if oldM == nil || newM == nil {
-		u.Deps, u.AddedConfig, u.RemovedConfig = unknownDiff, unknownDiff, unknownDiff
-		u.Artifacts, u.Quota = unknownDiff, unknownDiff
+		u.Deps, u.AddedConfig, u.RemovedConfig = unknownDiff(), unknownDiff(), unknownDiff()
+		u.Artifacts, u.Quota = unknownDiff(), unknownDiff()
 		return
 	}
 
@@ -71,7 +74,7 @@ func dependencyNames(m *manifest.Manifest) []string {
 		out = append(out, c.ID+"@"+c.Version)
 	}
 	for _, r := range m.Dependencies.Resources {
-		out = append(out, r.Kind+"（"+r.Engine+"）")
+		out = append(out, i18n.T(msgid.ConfigProjectNameProblemWithRule, r.Kind, r.Engine))
 	}
 	return out
 }
@@ -106,12 +109,12 @@ func addedConfigText(oldM, newM *manifest.Manifest) string {
 	for _, name := range added {
 		prop := newM.ConfigSchema.Properties[name]
 		if prop.Default == nil {
-			items = append(items, name+"（无默认值）")
+			items = append(items, i18n.T(msgid.CliUpUpgradeDiffNoDefault, name))
 			continue
 		}
-		items = append(items, fmt.Sprintf("%s（默认 %v）", name, prop.Default))
+		items = append(items, i18n.T(msgid.CliUpUpgradeDiffDefault, name, prop.Default))
 	}
-	return strings.Join(items, "、")
+	return strings.Join(items, i18n.T(msgid.ListSeparator))
 }
 
 // ============================================================
@@ -165,13 +168,13 @@ func quotaSpec(m *manifest.Manifest) string {
 			fields = append(fields, "cpu "+s.spec.CPU)
 		}
 		if s.spec.Memory != "" {
-			fields = append(fields, "内存 "+s.spec.Memory)
+			fields = append(fields, i18n.T(msgid.CliUpUpgradeDiffMemory, s.spec.Memory))
 		}
 		if len(fields) > 0 {
 			parts = append(parts, s.label+" "+strings.Join(fields, "/"))
 		}
 	}
-	return strings.Join(parts, "，")
+	return strings.Join(parts, i18n.T(msgid.ClauseSeparator))
 }
 
 // ============================================================
@@ -184,12 +187,12 @@ func diffList(before, after []string) string {
 
 	var parts []string
 	if len(added) > 0 {
-		parts = append(parts, "新增 "+strings.Join(added, "、"))
+		parts = append(parts, i18n.T(msgid.CliUpUpgradeDiffAdded, strings.Join(added, i18n.T(msgid.ListSeparator))))
 	}
 	if len(gone) > 0 {
-		parts = append(parts, "移除 "+strings.Join(gone, "、"))
+		parts = append(parts, i18n.T(msgid.CliUpUpgradeDiffRemoved, strings.Join(gone, i18n.T(msgid.ListSeparator))))
 	}
-	return strings.Join(parts, "；")
+	return strings.Join(parts, i18n.T(msgid.SemicolonSeparator))
 }
 
 // removed 返回在 a 里、不在 b 里的元素（顺序保持 a 的顺序）。
@@ -207,4 +210,4 @@ func removed(a, b []string) []string {
 	return out
 }
 
-func joinOrEmpty(items []string) string { return strings.Join(items, "、") }
+func joinOrEmpty(items []string) string { return strings.Join(items, i18n.T(msgid.ListSeparator)) }

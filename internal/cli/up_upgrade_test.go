@@ -84,7 +84,7 @@ func TestUpgradeIsReported(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "检测到版本变更")
+	assert.Contains(t, r.stdout, "Version change detected")
 	assert.Contains(t, r.stdout, "1.0.0")
 	assert.Contains(t, r.stdout, "1.1.0")
 }
@@ -197,9 +197,9 @@ func TestDryRunShowsUpgradeSummary(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "版本变更摘要")
+	assert.Contains(t, r.stdout, "Version change summary")
 	assert.Contains(t, r.stdout, "people/basic: 1.0.0 → 1.1.0")
-	assert.Contains(t, r.stdout, "数据库迁移", "新版本声明了迁移，要提醒")
+	assert.Contains(t, r.stdout, "Database migration", "新版本声明了迁移，要提醒")
 	assert.Contains(t, r.stdout, "python manage.py migrate")
 }
 
@@ -238,7 +238,7 @@ func TestUpgradeSummaryWithoutMigration(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "数据库迁移：无")
+	assert.Contains(t, r.stdout, "Database migration: none")
 }
 
 // 改回一个已经装过的版本：该拉的都在本地了，不再重复走升级流程，
@@ -327,7 +327,7 @@ func TestAddingACoexistingVersionIsNotAnUpgrade(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.NotContains(t, r.stdout, "检测到版本变更",
+	assert.NotContains(t, r.stdout, "Version change detected",
 		"两个版本都在配置里，谁都没被换掉：%s", r.stdout)
 }
 

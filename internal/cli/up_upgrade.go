@@ -17,7 +17,9 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -135,7 +137,7 @@ func describeUpgrades(
 			renderWarnings(opts, result.Warnings)
 		} else {
 			// 产物是开发时的辅助，取不到不该拦住启动（004 §10.1）
-			opts.Printf("⚠️ %s 的产物下载失败：%s\n", refText(target), clierr.As(err).Message)
+			opts.Printf("%s\n", i18n.T(msgid.CliUpUpgradeArtifactDownloadForFailed, refText(target), clierr.As(err).Message))
 		}
 	}
 }
@@ -145,7 +147,7 @@ func renderUpgradeBanner(opts *Options, upgrades []upgradeInfo) {
 	if len(upgrades) == 0 {
 		return
 	}
-	opts.Printf("⬆️ 检测到版本变更：\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliUpUpgradeVersionChangeDetected))
 	for _, u := range upgrades {
 		opts.Printf("   %s: %s → %s\n", u.ID, u.From, u.To)
 	}
@@ -212,29 +214,29 @@ func renderUpgradeSummary(opts *Options, plan *upPlan) {
 		return
 	}
 
-	opts.Printf("\n📋 版本变更摘要：\n")
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpUpgradeVersionChangeSummary))
 	for _, u := range plan.upgrades {
 		opts.Printf("   %s: %s → %s\n", u.ID, u.From, u.To)
 
 		// 六项固定都出（004 §3.5.1）。没变化的写"无"而不是隐藏——
 		// 藏起来会让人分不清"没有变化"和"平台没检查这一方面"。
 		for _, row := range []struct{ label, value string }{
-			{"依赖变更", u.Deps},
-			{"新增配置项", u.AddedConfig},
-			{"删除配置项", u.RemovedConfig},
-			{"数据库迁移", u.Migration},
-			{"artifacts 变更", u.Artifacts},
-			{"资源配额变更", u.Quota},
+			{i18n.T(msgid.CliUpUpgradeDependencyChanges), u.Deps},
+			{i18n.T(msgid.CliUpUpgradeAddedConfigItems), u.AddedConfig},
+			{i18n.T(msgid.CliUpUpgradeRemovedConfigItems), u.RemovedConfig},
+			{i18n.T(msgid.CliUpUpgradeDatabaseMigration), u.Migration},
+			{i18n.T(msgid.CliUpUpgradeArtifactsChanges), u.Artifacts},
+			{i18n.T(msgid.CliUpUpgradeResourceQuotaChanges), u.Quota},
 		} {
-			opts.Printf("   ├── %s：%s\n", row.label, valueOrNone(row.value))
+			opts.Printf("%s\n", i18n.T(msgid.CliUpUpgradeMsg, row.label, valueOrNone(row.value)))
 		}
-		opts.Printf("   └── 旧版本产物：保留（调用方可能仍指向旧版本）\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliUpUpgradeOldVersionArtifactsKeptCallers))
 	}
 }
 
 func valueOrNone(value string) string {
 	if strings.TrimSpace(value) == "" {
-		return "无"
+		return i18n.T(msgid.CliUpUpgradeNone)
 	}
 	return value
 }

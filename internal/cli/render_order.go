@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/cascade"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -17,7 +19,7 @@ import (
 // 关一个顶层，它下面那一串跟着走；关一个中间层，只有它自己那条支线受影响。
 // 不标的话他得先把依赖图在脑子里过一遍才知道该动哪个。
 func renderStates(opts *Options, states *cascade.Result) {
-	opts.Printf("📋 组件状态计算：\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliRenderOrderComponentStateCalculation))
 
 	width := 0
 	for _, c := range states.Components {
@@ -37,7 +39,7 @@ func renderStates(opts *Options, states *cascade.Result) {
 
 // renderOrder 输出启动顺序、要点与依赖图（004 §3.8 输出样例）。
 func renderOrder(opts *Options, plan *resolver.Plan, graph *resolver.Graph) {
-	opts.Printf("📋 启动顺序（拓扑排序）：\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliRenderOrderStartOrderTopologicalSort))
 
 	width := 0
 	for _, s := range plan.Steps {
@@ -56,7 +58,7 @@ func renderOrder(opts *Options, plan *resolver.Plan, graph *resolver.Graph) {
 		for _, s := range independent {
 			names = append(names, s.Service)
 		}
-		opts.Printf("可独立启动：%s（无依赖）\n", strings.Join(names, "、"))
+		opts.Printf("%s\n", i18n.T(msgid.CliRenderOrderCanStartOnTheirOwn, strings.Join(names, i18n.T(msgid.ListSeparator))))
 	}
 	if len(plan.Optional) > 0 {
 		ids := make([]string, 0, len(plan.Optional))
@@ -68,8 +70,7 @@ func renderOrder(opts *Options, plan *resolver.Plan, graph *resolver.Graph) {
 		// 只被弱依赖引用的组件照常启动（003 §4.3：它跟着上层走），
 		// 但关掉它们不会连累任何人——调用方拿不到 *_ENDPOINT，自己降级。
 		// 嫌容器太多时，这里就是那份可以下手的名单。
-		opts.Printf("只被弱依赖引用（关掉不影响别人：enabled: false）：%s\n",
-			strings.Join(ids, "、"))
+		opts.Printf("%s\n", i18n.T(msgid.CliRenderOrderOnlyReferencedByOptionalDependencies, strings.Join(ids, i18n.T(msgid.ListSeparator))))
 	}
 	renderLongestChain(opts, plan)
 
@@ -110,22 +111,22 @@ func renderLongestChain(opts *Options, plan *resolver.Plan) {
 	for _, ref := range plan.Chain {
 		names = append(names, manifest.ServiceName(ref.ID, ref.Version))
 	}
-	opts.Printf("最长依赖链（%d 层）：%s\n", len(names), strings.Join(names, " → "))
+	opts.Printf("%s\n", i18n.T(msgid.CliRenderOrderLongestDependencyChainLevels, len(names), strings.Join(names, " → ")))
 	if len(names) < len(plan.Steps) {
-		opts.Printf("   不在这条链上的组件与它并行启动\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliRenderOrderComponentsNotOnThisChain))
 	}
 }
 
 // dependencyNote 生成 "无依赖" 或 "← 依赖 1, 2"。
 func dependencyNote(s resolver.PlanStep) string {
 	if len(s.RequirePositions) == 0 {
-		return "无依赖"
+		return i18n.T(msgid.CliRenderOrderNoDependencies)
 	}
 	nums := make([]string, 0, len(s.RequirePositions))
 	for _, p := range s.RequirePositions {
 		nums = append(nums, strconv.Itoa(p))
 	}
-	return "← 依赖 " + strings.Join(nums, ", ")
+	return i18n.T(msgid.CliRenderOrderDependsOn, strings.Join(nums, ", "))
 }
 
 // renderDependencyGraph 自上而下打印依赖关系：依赖方在前，被依赖的在后。
@@ -147,10 +148,10 @@ func renderDependencyGraph(opts *Options, plan *resolver.Plan, graph *resolver.G
 			deps = append(deps, dep.String())
 		}
 		for _, dep := range node.Optional {
-			deps = append(deps, dep.String()+"（弱）")
+			deps = append(deps, i18n.T(msgid.CliRenderOrderOptional, dep.String()))
 		}
 		for _, dep := range node.MissingOptional {
-			deps = append(deps, dep.String()+"（弱，未安装）")
+			deps = append(deps, i18n.T(msgid.CliRenderOrderOptionalNotInstalled, dep.String()))
 		}
 		if len(deps) > 0 {
 			lines = append(lines, line{from: ref.String(), deps: deps})
@@ -160,7 +161,7 @@ func renderDependencyGraph(opts *Options, plan *resolver.Plan, graph *resolver.G
 		return
 	}
 
-	opts.Printf("\n依赖图：\n")
+	opts.Printf("\n%s\n", i18n.T(msgid.CliRenderOrderDependencyGraph))
 	for _, l := range lines {
 		opts.Printf("   %s → %s\n", l.from, l.deps[0])
 		for _, dep := range l.deps[1:] {

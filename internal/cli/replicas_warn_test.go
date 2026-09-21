@@ -54,7 +54,7 @@ func TestReplicasOnK8sDoesNotWarn(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "只对 K8s 生效",
+	assert.NotContains(t, r.stdout+r.stderr, "only take effect on K8s",
 		"P35：K8s 下它是生效的，再提醒就是噪音")
 }
 
@@ -125,7 +125,7 @@ func TestExposePortOnK8sWarns(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, "是提醒不是错误：%s", r.stderr)
 	out := r.stdout + r.stderr
-	assert.Contains(t, out, "只对 Docker 生效")
+	assert.Contains(t, out, "only take effect on Docker")
 	assert.Contains(t, out, "exposePort")
 	// 只查字段行：hostname 出现在**建议**里是对的（"对外暴露请填 hostname"），
 	// 不该出现的是"它被忽略了"那份名单
@@ -163,6 +163,6 @@ func TestTargetOnlyFieldsGroupedByField(t *testing.T) {
 	out := r.stdout + r.stderr
 	assert.Equal(t, 1, strings.Count(out, "components[].replicas"),
 		"三个组件写了同一个字段，只该出现一行：%s", out)
-	assert.Contains(t, out, "3 个组件：demo/a、demo/b、demo/c",
+	assert.Contains(t, out, "3 components: demo/a, demo/b, demo/c",
 		"一行里点清是哪几个：%s", out)
 }

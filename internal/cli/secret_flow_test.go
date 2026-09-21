@@ -156,7 +156,7 @@ resources:
 
 	require.Equal(t, clierr.ExitOK, r.code, "是警告不是错误：%s", r.stderr)
 	out := r.stdout + r.stderr
-	assert.Contains(t, out, "只对 K8s 生效")
+	assert.Contains(t, out, "only take effect on K8s")
 	assert.Contains(t, out, "existingSecret")
 	assert.Contains(t, out, "main-db", "要点名是哪个资源，不能只说组件")
 }

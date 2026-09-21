@@ -95,8 +95,8 @@ func TestUpDryRunShowsStatesAndOrder(t *testing.T) {
 
 	r := runIn(t, f.Dir, "up", "--dry-run")
 
-	assert.Contains(t, r.stdout, "📋 组件状态计算：")
-	assert.Contains(t, r.stdout, "📋 启动顺序")
+	assert.Contains(t, r.stdout, "📋 Component state calculation:")
+	assert.Contains(t, r.stdout, "📋 Start order")
 	assert.Contains(t, r.stdout, "1. people-basic-1-0-0")
 }
 

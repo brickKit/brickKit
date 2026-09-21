@@ -349,9 +349,9 @@ func TestPublishRejectsInvalidImageReference(t *testing.T) {
 		image  string
 		reason string
 	}{
-		{"没有标签", "registry.example.com/people-basic", "标签"},
+		{"没有标签", "registry.example.com/people-basic", "no tag"},
 		{"用了 latest", "registry.example.com/people-basic:latest", "latest"},
-		{"带空格", "registry.example.com/people basic:1.2.0", "不合法"},
+		{"带空格", "registry.example.com/people basic:1.2.0", "Invalid"},
 	}
 
 	for _, c := range cases {
@@ -368,7 +368,7 @@ func TestPublishRejectsInvalidImageReference(t *testing.T) {
 			r := runIn(t, f.Dir, "publish", "--path", root)
 
 			assert.Equal(t, clierr.ExitError, r.code, r.stdout)
-			assert.Contains(t, r.stderr, "镜像")
+			assert.Contains(t, r.stderr, "image")
 			assert.Contains(t, r.stderr, c.reason)
 			assert.NotContains(t, strings.Join(m.requests(), " "), "POST /components")
 		})

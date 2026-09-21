@@ -217,7 +217,7 @@ func TestUpDoesNotWarnAboutEnvVarPassword(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "up")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "明文密码")
+	assert.NotContains(t, r.stdout+r.stderr, "plaintext passwords")
 }
 
 // 变量**真的配了**的时候更不该报警——这正是使用者做对了的情形。
@@ -233,7 +233,7 @@ func TestUpDoesNotWarnWhenEnvVarIsSet(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "明文密码")
+	assert.NotContains(t, r.stdout+r.stderr, "plaintext passwords")
 	assert.NotContains(t, r.stdout+r.stderr, "a-real-password", "密码本身不该出现在输出里")
 }
 

@@ -14,6 +14,8 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -32,12 +34,12 @@ func warnHardcodedPasswords(opts *Options, cfg *config.Config) {
 		return
 	}
 
-	err := clierr.Warn(clierr.CodeConfigInvalid, "brickkit.yaml 中存在明文密码").
-		WithDetail("资源", strings.Join(offenders, "、")).
-		WithDetail("要求", "密码必须用 ${ENV_VAR} 引用").
+	err := clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpSecretsBrickkitYamlContainsPlaintextPasswords)).
+		WithDetail(i18n.T(msgid.LabelResource), strings.Join(offenders, i18n.T(msgid.ListSeparator))).
+		WithDetail(i18n.T(msgid.CliUpSecretsRequirement), i18n.T(msgid.CliUpSecretsPasswordsMustBeReferencedWith)).
 		WithHint(
-			"改成 password: ${POSTGRES_PASSWORD}，并把真实值放进 .env",
-			".env 必须在 .gitignore 中",
+			i18n.T(msgid.CliUpSecretsChangeItToPasswordPostgres),
+			i18n.T(msgid.CliUpSecretsEnvMustBeListedIn),
 		)
 	renderWarnings(opts, []*clierr.Error{err})
 }
@@ -139,15 +141,13 @@ func warnConfigSecrets(opts *Options, cfg *config.Config, graph *resolver.Graph)
 	sort.Strings(offenders)
 
 	renderWarnings(opts, []*clierr.Error{
-		clierr.Warn(clierr.CodeConfigInvalid, "brickkit.yaml 的 config 里可能写了明文密钥").
-			WithDetail("配置项", strings.Join(offenders, "、")).
-			WithDetail("为什么要紧", "brickkit.yaml 是建议提交进 Git 的，"+
-				"写在这里的密钥会跟着进版本库，而且历史里删不掉").
+		clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpSecretsTheConfigInBrickkitYaml)).
+			WithDetail(i18n.T(msgid.CliUpSecretsConfigItems), strings.Join(offenders, i18n.T(msgid.ListSeparator))).
+			WithDetail(i18n.T(msgid.CliUpSecretsWhyItMatters), i18n.T(msgid.CliUpSecretsBrickkitYamlIsMeantTo)).
 			WithHint(
-				"改成 ${MY_TOKEN} 这样的引用，把真实值放进 .env",
-				".env 必须在 .gitignore 中",
-				"声明了 secret: true 的项，是组件作者认定它是凭据；"+
-					"只是名字像的，判据只看名字、不看值，确实不是的话可以忽略",
+				i18n.T(msgid.CliUpSecretsChangeItToAReference),
+				i18n.T(msgid.CliUpSecretsEnvMustBeListedIn),
+				i18n.T(msgid.CliUpSecretsItemsThatDeclareSecretTrue),
 			),
 	})
 }
@@ -182,17 +182,17 @@ func warnExistingSecretConfigIssues(opts *Options, cfg *config.Config, graph *re
 	if len(notDeclaredSecret) > 0 {
 		sort.Strings(notDeclaredSecret)
 		renderWarnings(opts, []*clierr.Error{
-			clierr.Warn(clierr.CodeConfigInvalid, "existingSecret 写法不会生效：配置项没有声明 secret: true").
-				WithDetail("配置项", strings.Join(notDeclaredSecret, "、")).
-				WithHint("给对应的 configSchema.properties.<key> 加一行 secret: true，或者把这个值改回普通写法"),
+			clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpSecretsTheExistingsecretFormHasNo)).
+				WithDetail(i18n.T(msgid.CliUpSecretsConfigItems), strings.Join(notDeclaredSecret, i18n.T(msgid.ListSeparator))).
+				WithHint(i18n.T(msgid.CliUpSecretsAddSecretTrueToThe)),
 		})
 	}
 	if len(dockerOnly) > 0 {
 		sort.Strings(dockerOnly)
 		renderWarnings(opts, []*clierr.Error{
-			clierr.Warn(clierr.CodeConfigInvalid, "existingSecret 只在 K8s 生效，当前是 docker 目标").
-				WithDetail("配置项", strings.Join(dockerOnly, "、")).
-				WithHint("Docker 下没有\"引用外部已建好的 Secret\"这个概念，请直接给这个配置项写字面值或 ${VAR} 引用"),
+			clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpSecretsExistingsecretOnlyWorksOnK8s)).
+				WithDetail(i18n.T(msgid.CliUpSecretsConfigItems), strings.Join(dockerOnly, i18n.T(msgid.ListSeparator))).
+				WithHint(i18n.T(msgid.CliUpSecretsDockerHasNoConceptOf)),
 		})
 	}
 }

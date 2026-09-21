@@ -53,15 +53,15 @@ func TestDryRunOrderOutputFormat(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	out := r.stdout
-	assert.Contains(t, out, "📋 启动顺序（拓扑排序）：")
+	assert.Contains(t, out, "📋 Start order (topological sort):")
 	// 编号 + 版本化服务名
 	assert.Contains(t, out, "1. department-tree-1-0-0")
-	assert.Contains(t, out, "无依赖")
+	assert.Contains(t, out, "no dependencies")
 	// 箭头 + 依赖编号
-	assert.Regexp(t, `\d+\. people-basic-1-0-0\s+← 依赖 1`, out)
+	assert.Regexp(t, `\d+\. people-basic-1-0-0\s+← depends on 1`, out)
 	assert.Contains(t, out, "portal-user-frontend-1-0-0")
 
-	assert.Contains(t, out, "可独立启动：")
+	assert.Contains(t, out, "Can start on their own: ")
 	// 报的是最长的那条**强依赖链**，用版本化服务名（多版本时不带版本会歧义）。
 	//
 	// 这个夹具正好说明旧那句话错在哪：六个组件，旧输出会说
@@ -69,10 +69,10 @@ func TestDryRunOrderOutputFormat(t *testing.T) {
 	// 而真实的关键路径只有 4 层——infra/redis-event-bus 是弱依赖，
 	// 根本不在链上，它与整条链并行启动。
 	assert.Contains(t, out,
-		"最长依赖链（4 层）：department-tree-1-0-0 → people-basic-1-0-0 → "+
+		"Longest dependency chain (4 levels): department-tree-1-0-0 → people-basic-1-0-0 → "+
 			"erp-backend-1-0-0 → portal-user-frontend-1-0-0")
-	assert.Contains(t, out, "不在这条链上的组件与它并行启动")
-	assert.Contains(t, out, "依赖图：")
+	assert.Contains(t, out, "Components not on this chain start in parallel with it")
+	assert.Contains(t, out, "Dependency graph:")
 	assert.Contains(t, out, "→")
 }
 
@@ -103,9 +103,9 @@ func TestDryRunOrderListsOptionalDependencies(t *testing.T) {
 	assert.Contains(t, r.stdout, "infra/redis-event-bus@1.0.0")
 	assert.Contains(t, startupSection(r.stdout), "infra-redis-event-bus-1-0-0",
 		"弱依赖也要启动")
-	assert.Contains(t, r.stdout, "只被弱依赖引用")
+	assert.Contains(t, r.stdout, "Only referenced by optional dependencies")
 	assert.Contains(t, r.stdout, "enabled: false", "要给出关掉它的办法")
-	assert.Contains(t, r.stdout, "（弱）", "依赖图里要标出弱依赖")
+	assert.Contains(t, r.stdout, "(optional)", "依赖图里要标出弱依赖")
 }
 
 // 10.6 多版本各自独立出现在顺序里。
@@ -137,7 +137,7 @@ func TestDryRunOrderOnEmptyProject(t *testing.T) {
 	assert.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "当前项目没有组件")
 	assert.Contains(t, r.stdout, "brickkit add")
-	assert.NotContains(t, r.stdout, "启动顺序")
+	assert.NotContains(t, r.stdout, "Start order")
 }
 
 // ============================================================
@@ -188,9 +188,9 @@ func TestDryRunOrderWithUnavailableManifest(t *testing.T) {
 // ============================================================
 
 func TestDependencyNote(t *testing.T) {
-	assert.Equal(t, "无依赖", dependencyNote(resolver.PlanStep{}))
-	assert.Equal(t, "← 依赖 1", dependencyNote(resolver.PlanStep{RequirePositions: []int{1}}))
-	assert.Equal(t, "← 依赖 1, 2, 3",
+	assert.Equal(t, "no dependencies", dependencyNote(resolver.PlanStep{}))
+	assert.Equal(t, "← depends on 1", dependencyNote(resolver.PlanStep{RequirePositions: []int{1}}))
+	assert.Equal(t, "← depends on 1, 2, 3",
 		dependencyNote(resolver.PlanStep{RequirePositions: []int{1, 2, 3}}))
 }
 
@@ -233,9 +233,9 @@ func TestDryRunOrderSingleComponentOutput(t *testing.T) {
 	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "1. people-basic-1-0-0")
-	assert.Contains(t, r.stdout, "可独立启动：people-basic-1-0-0（无依赖）")
-	assert.NotContains(t, r.stdout, "最长依赖链")
-	assert.NotContains(t, r.stdout, "依赖图：")
+	assert.Contains(t, r.stdout, "Can start on their own: people-basic-1-0-0 (no dependencies)")
+	assert.NotContains(t, r.stdout, "Longest dependency chain")
+	assert.NotContains(t, r.stdout, "Dependency graph:")
 }
 
 // 弱依赖缺失时，order 也要把警告打出来，并在依赖图里标注"未安装"。
@@ -248,8 +248,8 @@ func TestDryRunOrderShowsMissingOptionalDependency(t *testing.T) {
 	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "⚠️")
-	assert.Contains(t, r.stdout, "（弱，未安装）")
-	assert.NotContains(t, r.stdout, "只被弱依赖引用", "没装进图里的弱依赖不该出现在这一行")
+	assert.Contains(t, r.stdout, "(optional, not installed)")
+	assert.NotContains(t, r.stdout, "Only referenced by optional dependencies", "没装进图里的弱依赖不该出现在这一行")
 }
 
 // ⚠️ 现状锁定：order 目前**不做级联计算**，enabled: false 的组件也会出现在顺序里。
@@ -280,7 +280,7 @@ func TestDryRunOrderExcludesDisabledComponent(t *testing.T) {
 	assert.Contains(t, startup, "people-basic-1-0-0")
 
 	// 但要在状态一览里说清它为什么不跑
-	assert.Contains(t, r.stdout, "📋 组件状态计算：")
+	assert.Contains(t, r.stdout, "📋 Component state calculation:")
 	assert.Contains(t, r.stdout, "department/tree@1.0.0")
 	assert.Contains(t, r.stdout, "disabled explicitly")
 }
@@ -348,7 +348,7 @@ func TestDryRunOrderReportsDisabledStrongDependency(t *testing.T) {
 
 // startupSection 截取"启动顺序"那一段，避免与状态一览里的名字混淆。
 func startupSection(out string) string {
-	start := strings.Index(out, "📋 启动顺序")
+	start := strings.Index(out, "📋 Start order")
 	if start < 0 {
 		return ""
 	}
