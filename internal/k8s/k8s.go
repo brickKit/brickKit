@@ -345,17 +345,15 @@ func newPlan(
 		envByRef[c.Ref] = c
 	}
 
-	var locals []resolver.Ref
 	for _, ref := range states.Running() {
 		node := graph.Node(ref)
 		if node == nil {
 			continue
 		}
 		entry := entries[ref]
-		if entry.Local {
-			locals = append(locals, ref)
-			continue
-		}
+		// mode: debug（裸进程）在 K8s 下不合法——这条拒绝已经挪到
+		// internal/config/validate.go 的解析阶段（validateComponentMode），
+		// 走到这里的 cfg 保证不会再有 mode: debug 的组件，不需要在这里再判一遍。
 		if entry.ServedBy != "" {
 			shellRef, ok := shell.ParseRef(entry.ServedBy)
 			if !ok {
@@ -374,9 +372,6 @@ func newPlan(
 			Entry:    entry,
 			Env:      envByRef[ref],
 		})
-	}
-	if len(locals) > 0 {
-		return nil, localNotSupported(locals)
 	}
 
 	sort.Slice(p.components, func(i, j int) bool { return p.components[i].Service < p.components[j].Service })
@@ -401,7 +396,8 @@ func newPlan(
 	p.warnings = append(p.warnings, p.servedMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.servedHealthCheckWarnings()...)
 	p.warnings = append(p.warnings, p.servedUnsupportedFieldWarnings()...)
-	// K8s 下没有 local: true（上面已经拦下），所以全部组件都是容器组件
+	// K8s 下没有 mode: debug（internal/config/validate.go 的解析阶段已经拦下），
+	// 所以全部组件都是容器组件
 	p.warnings = append(p.warnings, deploy.LocalhostResourceWarnings(
 		cfg, p.componentIDs(), config.TargetK8s)...)
 	return p, nil
@@ -449,24 +445,6 @@ func (p *plan) privilegedPortWarnings() []*clierr.Error {
 		check(s.Manifest, i18n.T(msgid.K8sRefServedBy, s.Ref.ID+"@"+s.Ref.Version, s.Shell.String()))
 	}
 	return out
-}
-
-// localNotSupported 拒绝 local: true + deploy.target: k8s。
-//
-// local 的语义是"这个组件跑在你的 IDE 里，其他组件通过宿主机地址访问它"——
-// 集群里的 Pod 连不到开发者的笔记本。悄悄跳过的后果是依赖方拿到一个指向
-// 不存在 Service 的地址，表现成随机的连接超时，很难查。
-func localNotSupported(refs []resolver.Ref) error {
-	err := clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.K8sLocalNotSupported))
-	for _, ref := range refs {
-		err = err.WithDetail(i18n.T(msgid.LabelComponent), i18n.T(msgid.K8sRefLocal, ref.ID+"@"+ref.Version))
-	}
-	return err.
-		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sLocalReasonDetail)).
-		WithHint(
-			i18n.T(msgid.K8sHintLocalUseDocker),
-			i18n.T(msgid.K8sHintDropLocal),
-		)
 }
 
 // componentIDs 是本次会跑起来的组件 ID（含 servedBy：它没有自己的

@@ -196,9 +196,9 @@ $ PG_PASSWORD=pw-from-real-env THIRD_PARTY_KEY=key-from-real-env docker compose 
 
 CLI 写出来的文件里从来没有真值，对着它跑一遍 `docker compose config` 就有了。别把这条命令的输出贴进工单、聊天记录或 CI 日志——那等于把"占位符留在文件里"的意义整个抹掉。
 
-### `local: true`：明文，给 IDE 用
+### `mode: debug`：明文，给 IDE 用
 
-`local: true` 只存在于 Docker 目标下。这样的组件没有容器，CLI 会为它写一份 `local-debug.<版本化服务名>.env`，由 IDE 加载后把进程跑起来。这份文件里的值是 CLI 求好的**明文**，这是刻意的——IDE 或 shell 加载这份文件时，是按 `KEY=value` 逐行读取（`envFile` 配置或者 `source` 命令），并不会再去解析值里面的 `${VAR}` 占位符；真写一个 `${PG_PASSWORD}` 进去，加载出来的就是这段原文字符串，而不是它指向的真实密码。所以 CLI 必须在写这份文件**之前**先把值求好，而不是留给加载它的那一步去做。它和其它生成物一样放在 `.brickkit/generated/` 下（已被 `.gitignore` 忽略），文件权限 `0600`。
+`mode: debug` 只存在于 Docker 目标下。这样的组件没有容器，CLI 会为它写一份 `local-debug.<版本化服务名>.env`，由 IDE 加载后把进程跑起来。这份文件里的值是 CLI 求好的**明文**，这是刻意的——IDE 或 shell 加载这份文件时，是按 `KEY=value` 逐行读取（`envFile` 配置或者 `source` 命令），并不会再去解析值里面的 `${VAR}` 占位符；真写一个 `${PG_PASSWORD}` 进去，加载出来的就是这段原文字符串，而不是它指向的真实密码。所以 CLI 必须在写这份文件**之前**先把值求好，而不是留给加载它的那一步去做。它和其它生成物一样放在 `.brickkit/generated/` 下（已被 `.gitignore` 忽略），文件权限 `0600`。
 
 ### 小结
 
@@ -206,7 +206,7 @@ CLI 写出来的文件里从来没有真值，对着它跑一遍 `docker compose
 | --- | --- | --- |
 | K8s | `.brickkit/generated/k8s/secrets/` 下的 Secret 文件（`0600`）；Deployment 里只有 `secretKeyRef` | CLI，生成时 |
 | Docker | 不落在 CLI 写的任何文件里；compose 文件保留 `${VAR}` | `docker compose`，容器启动时 |
-| `local: true` | `local-debug.<版本化服务名>.env`（`0600`），明文 | CLI，生成时 |
+| `mode: debug` | `local-debug.<版本化服务名>.env`（`0600`），明文 | CLI，生成时 |
 
 ## 两种接密钥管理器的方式
 

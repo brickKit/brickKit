@@ -193,7 +193,7 @@ brickkit lang                       # 现在生效的是哪种语言，为什么
 
 **这些 schema 不覆盖什么。** 它们描述的是一份文件自己的字段：名字、类型、哪些必填、封闭取值、格式、范围。另外两类规则刻意不在里面：
 
-- **需要逻辑判断的规则**——大多数不能同时写的组合（比如 `local` 与 `servedBy`）、`configSchema` 的键撞上平台保留的环境变量、组件目录名必须和 `metadata.id` 对得上——归 `brickkit lint`。少数组合规则要到生成部署文件时才检查，比如 `local: true` 配 `deploy.target: k8s`：`lint` 会放过这样的文件，要到 `brickkit up --dry-run` 才被拒绝。
+- **需要逻辑判断的规则**——大多数不能同时写的组合（比如 `mode: debug` 与 `servedBy`）、`configSchema` 的键撞上平台保留的环境变量、组件目录名必须和 `metadata.id` 对得上——归 `brickkit lint`。少数检查需要解析出来的依赖图，而 `lint` 故意不建这张图（对市场/Git 组件来说这意味着联网，`lint` 存在的整个意义就是离线）——这些检查要等 `up`/`up --dry-run` 真的去解析依赖图时才会被抓到，比如 `servedBy` 指向一个不存在的目标。
 - **需要别的文件、或者联网的规则**——依赖图能不能解析、`servedBy` 指向的组件在不在——归 `brickkit up --dry-run`。`brickkit lint` 同样不做这些：它从不解析依赖。
 
 **编辑器比 CLI 更严的地方。** 一共三处，都是有意的：宁可给几乎肯定是笔误的写法画上红线，也不保持沉默，哪怕 CLI 本来是接受的。

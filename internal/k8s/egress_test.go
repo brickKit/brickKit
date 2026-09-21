@@ -160,7 +160,7 @@ func TestEgressAllowsDependencies(t *testing.T) {
 func TestEgressAllowsOptionalDependencies(t *testing.T) {
 	b := withEgress(newBuilder(t))
 	b.component(simple("infra/redis-event-bus", "1.0.0", 8080),
-		config.Component{Enabled: pinned()})
+		config.Component{Mode: config.ModeEnabled})
 	b.component(
 		dependsOnOptional(simple("erp/backend", "1.0.0", 8080), "infra/redis-event-bus", "1.0.0"),
 		config.Component{})

@@ -51,7 +51,6 @@ func withNetworkPolicy(b *builder) *builder {
 }
 
 // pinned 是 enabled: true（显式钉住，不被级联跳过）。
-func pinned() *bool { yes := true; return &yes }
 
 // npPath 是某个组件的 NetworkPolicy 文件路径。
 func npPath(service string) string { return "networkpolicies/" + service + ".yaml" }
@@ -199,9 +198,9 @@ func TestNetworkPolicyDeniesNonDependents(t *testing.T) {
 // 只是那条"可选"的链路永远超时，看起来就像对方本来就没装。
 func TestNetworkPolicyAllowsOptionalDependents(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	// enabled: true 是必需的：只被弱依赖引用的组件会被级联跳过（004 §4.5），
+	// mode: enabled 是必需的：只被弱依赖引用的组件会被级联跳过（004 §4.5），
 	// 要它真的跑起来就得钉住
-	b.component(simple("infra/redis-event-bus", "1.0.0", 8080), config.Component{Enabled: pinned()})
+	b.component(simple("infra/redis-event-bus", "1.0.0", 8080), config.Component{Mode: config.ModeEnabled})
 	b.component(
 		dependsOnOptional(simple("erp/backend", "1.0.0", 8080), "infra/redis-event-bus", "1.0.0"),
 		config.Component{})

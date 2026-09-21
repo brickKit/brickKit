@@ -1,6 +1,6 @@
 // 本文件测试 servedBy（外壳合并部署）在 K8s 目标下的渲染，覆盖 servedBy
-// 设计书 §6-§9。local: true 在 K8s 下依旧照常拒绝，回归覆盖见
-// TestLocalStillRejectedAlongsideServedBy。
+// 设计书 §6-§9。mode: debug 在 K8s 下依旧照常拒绝，但那条检查已经不在
+// k8s.Generate 这一层了，见下面 servedUnsupportedFieldWarnings 之前那段说明。
 package k8s_test
 
 import (
@@ -76,9 +76,8 @@ func TestShellDeploymentGetsMergedEndpointsAndServedMembers(t *testing.T) {
 func TestShellServedMembersIsEmptyStringWhenMemberNotRunning(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
-	disabled := false
 	b.component(simple("mdm/customer", "1.0.7", 8080),
-		config.Component{ServedBy: "infra/shell-go-core@1.0.0", Enabled: &disabled})
+		config.Component{ServedBy: "infra/shell-go-core@1.0.0", Mode: config.ModeDisable})
 
 	env := envOf(t, b.container("infra-shell-go-core-1-0-0"))
 	value, ok := env[shell.EnvVarServedMembers]
@@ -162,18 +161,14 @@ func TestServedByLabelsWarnInK8s(t *testing.T) {
 	assert.True(t, found, "应该有一条关于 labels 不生效的警告：%+v", result.Warnings)
 }
 
-// ---- local: true 回归：K8s 下依旧照常拒绝 ----
-
-func TestLocalStillRejectedAlongsideServedBy(t *testing.T) {
-	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
-	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
-	b.component(simple("erp/backend", "1.0.0", 8080), config.Component{Local: true})
-
-	_, err := b.build()
-	require.Error(t, err, "local: true 在 K8s 下必须依旧被拒绝，不受 servedBy 存在与否影响")
-	assert.Contains(t, err.Error(), "local: true can only be used with deploy.target: docker")
-}
+// 这里原来有一条回归测试（TestLocalStillRejectedAlongsideServedBy）：验证
+// "servedBy 存在时，local: true 在 K8s 下依旧照常被拒绝"，防的是"servedBy
+// 那条处理路径不小心绕过了 local 拒绝检查"这一类历史 bug。mode 字段迁移把
+// local/debug + k8s 的拒绝从 k8s.Generate 挪到了 internal/config/validate.go
+// 的 validateComponentMode——那是对每个组件独立、无条件跑的校验，不经过
+// servedBy 相关的任何代码路径，这一类"被 servedBy 绕过"的 bug 在新架构下
+// 已经没有存在的空间，不需要专门测。见 TestModeDebugWithK8sTargetRejectedAtParseNotGeneration
+// （k8s_test.go）与 internal/config 的 TestValidateComponentMode。
 
 // ---- servedBy + NetworkPolicy：外壳要为被收编成员的依赖方放行入站 ----
 

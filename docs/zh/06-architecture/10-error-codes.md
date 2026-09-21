@@ -152,7 +152,6 @@ CLI 的报错文案跟着语言走——默认英文，`brickkit lang set zh` �
 | `错误：项目名称不合法` | 名称必须是小写字母、数字、中划线，且以字母或数字开头结尾——它会变成 K8s 的 namespace 和 Docker 的网络名 | 换一个符合这个形状的名字 |
 | `错误：必填的组件配置没有值` | 组件 `configSchema.required` 里的某个键没有 `default`，项目里也没给值——`up` 会被拦下，因为否则这个变量会悄悄地不存在 | 在 `brickkit.yaml` 里那个组件的 `config` 下补上 |
 | `错误：brickkit.yaml 里引用的环境变量没有定义` | 某个 `${VAR}` 求不出值（K8s 清单没法把替换推迟到运行时，所以在生成时求值） | 在项目根的 `.env` 里定义、`export` 出来，或写默认值：`${VAR:-dev}` |
-| `错误：local: true 只能在 deploy.target: docker 下使用` | 集群里的 Pod 连不到你笔记本上的进程 | 去掉 `local: true`，或把 target 改回 `docker` |
 | `错误：deploy.target: k8s 下 expose: true 的组件必须写 hostname` | 没有 host 的 Ingress 会匹配所有域名 | 补上 `hostname:` |
 | `错误：域名 <hostname> 被多个组件占用` | 两个组件写了同一个 `hostname` | 各写各的 |
 | `错误：当前连着的不是配置里指定的集群` | 当前的 `kubectl` context 与 `deploy.context` 不一致 | `kubectl config use-context <名字>`，或 `brickkit up --context <名字>` |

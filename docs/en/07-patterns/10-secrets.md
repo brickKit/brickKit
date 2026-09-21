@@ -33,7 +33,7 @@ $ grep -B1 -E '^(\.brickkit/generated/|\.env)$' .gitignore
 | --- | --- | --- |
 | Docker (`deploy.target: docker`) | Never in a file the CLI writes. `docker-compose.yaml` keeps the `${VAR}` placeholder exactly as written | `docker compose` itself, when a container actually starts (process environment first, `.env` second) |
 | K8s (`deploy.target: k8s`) | A generated `Secret` under `.brickkit/generated/k8s/secrets/` (file mode `0600`) — the Deployment's `env` entry holds only a `secretKeyRef` pointing at it | The CLI, at generation time — same order, process environment first, `.env` second |
-| `local: true` (Docker only) | `local-debug.<versioned-service-name>.env` (also `0600`, also under `.brickkit/generated/`) — deliberately plaintext, because it's what the IDE actually loads to run the process | The CLI, at generation time |
+| `mode: debug` (Docker only) | `local-debug.<versioned-service-name>.env` (also `0600`, also under `.brickkit/generated/`) — deliberately plaintext, because it's what the IDE actually loads to run the process | The CLI, at generation time |
 
 Every command below was actually run for this page, against one small demo component, `acme/hello`, and each output block is exactly what its command printed. (`2>/dev/null` hides the JSON log lines the CLI writes to stderr; `grep 'Generated'` keeps the one line that says what was generated.) The component declares a `database` resource and one `secret: true` config property, `apiKey`:
 

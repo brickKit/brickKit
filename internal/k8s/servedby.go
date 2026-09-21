@@ -2,8 +2,8 @@ package k8s
 
 // 本文件实现 servedBy（外壳合并部署）在 K8s 下的渲染。
 //
-// local: true 在 K8s 下完全不支持（localNotSupported，本文件不改动这条
-// 校验），servedBy 是完全独立的新代码路径。
+// mode: debug 在 K8s 下完全不支持——这条拒绝在 internal/config/validate.go
+// 的解析阶段就挡住了，本文件不需要管，servedBy 是完全独立的代码路径。
 
 import (
 	"sort"
