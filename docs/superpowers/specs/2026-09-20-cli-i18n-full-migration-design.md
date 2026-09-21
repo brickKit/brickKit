@@ -142,3 +142,44 @@ key 的字符串值延续子项目 1 的点分写法，按"来源包.具体内�
 - `go build ./...`、`go vet ./...`、`go test ./...`、完整 `make lint` 全部通过。
 - 默认（英文）与 `BRICKKIT_LANG=zh` 两条路径，用真实二进制各跑一遍受影响的命令，确认输出
   完整、没有中英夹杂。
+
+## 6. 完成情况（2026-09-21）
+
+**子项目 2 已完成。** 消息目录现有 1394 条（中英对等，`TestCatalogParity` 守着），
+`internal/msgid` 按来源包拆成 53 个文件；`internal/`、`cmd/` 里用户可见的中文字面量已经清零
+（唯一保留的是 §4.2 说的开发者工具，以及 `root.go` 里仅 zh 时才套用的 cobra 中文模板）。
+
+实际做下来和 §3.3 的分批计划有出入，记在这里：
+
+- 前三批按 `clierr` 调用点计数，漏掉了**不经过 clierr、直接当数据显示的中文**（§4.1），
+  盘点后补了一批；`internal/yamlcheck`、`internal/clierr`、`internal/gitrepo`、
+  `internal/skills` 也要迁，最初的包清单里没有它们。
+- `internal/cli` 约 970 行，手工逐条改写太慢也太容易出错，改成**一次性 AST 工具**
+  （`go/parser` 抽取字符串字面量、按调用点上下文改写成 `i18n.T(...)`，不进仓库）：
+  机械部分自动化，人工只写英文措辞。工具处理 `Printf` 的前后换行、`Errorf` 的 `%w`、
+  参数里嵌套另一处中文、复用已有的同中文同英文 key。做不了的（包级常量、比较用的字面量）
+  仍手工处理。
+- manifest / config / compose / k8s / source 之间措辞一致的文案（校验问题、IO 错误、
+  servedBy 警告标题、生成文件头注释……）抽成共享 key，并消除了两处重复实现
+  （`yamlcheck.KindName`、`internal/yamlcomment`）。
+- 生成的文件（compose / K8s 清单头注释、`brickkit.yaml` 与 `component.yaml` 骨架、
+  `.gitignore` 注释、pre-commit hook 的说明注释）跟着语言走；`.gitignore` 是否已含某段
+  只看规则行，换语言重跑不会重复追加。
+
+验收（§5）的落实：
+
+- 用户可见中文字面量清零 → `tests/i18nguard` 的 `TestNoHardcodedChineseInProductionCode`
+  用 AST 守着，白名单每项写了理由；
+- 否定断言清扫（§4.4）→ 同一个包的 `TestNoChineseNegativeAssertionsInTests`。迁移过程中共
+  抓到并修掉三十多处空转或改错的否定断言；
+- 默认（英文）与 `BRICKKIT_LANG=zh` 两条路径都用真实二进制跑过 init / new / add --local /
+  lint / graph / up --dry-run / status / sync / skills / restore --check / remove / lang，
+  以及未知命令、非法项目名、未登录等错误路径：英文输出零中文，中文输出与迁移前一致；
+- `go build ./...`、`go vet ./...`、`go test ./...`、完整 `make lint` 全部通过，
+  `internal` 覆盖率 93.3%（门槛 92%）。
+
+**留给子项目 3 的**：`docs/{en,zh}` 里的真实输出快照要各配自己语言的版本
+（`check-guide-output.py` 现在钉着 `BRICKKIT_LANG=zh`，让 en 与 zh 抄同一份中文快照，
+`docs/en/03-guide/03-local-debugging.md` 里还夹着一句中文）；`brickkit lang` 还没写进任何文档；
+AGENTS.md 的命令数与语言相关描述；错误码文档里 JSON 日志样例的 `message`。
+
