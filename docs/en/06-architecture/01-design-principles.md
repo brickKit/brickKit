@@ -10,7 +10,7 @@ You write two kinds of declaration. Each component's `component.yaml` says what 
 
 | Derived | From | Rule |
 | --- | --- | --- |
-| Which components run | `enabled` plus the dependency graph | Top-level components run by default; a lower one runs while anything above it needs it; an explicit `enabled` overrides. Computed as a least fixed point, so a cycle needs no special case |
+| Which components run | `mode` plus the dependency graph | Top-level components run by default; a lower one runs while anything above it needs it; an explicit `mode` overrides. Computed as a least fixed point, so a cycle needs no special case |
 | Start order | The dependency graph | Topological sort. A missing required dependency is an error at resolve time, not a surprise at runtime |
 | Service name and address | Component ID + exact version | `/` and `.` become `-`, lowercase, then `http://<name>:<port>` — the same string on Docker and on Kubernetes |
 | `*_ENDPOINT` variable names | Component ID | `/` and `-` become `_`, uppercase, `_ENDPOINT` appended |
@@ -184,7 +184,7 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
   - You write two kinds of declaration: each component's `component.yaml` says what it is and what it depends on; the project's `brickkit.yaml` says which versions you want, what is enabled and what is exposed. Together they form a graph, and everything else is *derived* from it by the CLI (see [the one idea underneath](#the-one-idea-underneath-declare-a-graph-derive-the-rest) at the top of this page): which components run, start order, service addresses, environment variables, `docker-compose.yaml` or Kubernetes manifests, network policies.
   - Each environment gets its own complete, self-contained file, chosen with `brickkit up --config brickkit.prod.yaml`.
   - `brickkit up --dry-run` starts nothing and prints the plan first, so you (and an AI) look before acting.
-  - The only way to narrow what starts is to change `enabled`; there is no `--only`-style flag.
+  - The only way to narrow what starts is to change `mode`; there is no `--only`-style flag.
 - **What BrickKit doesn't do:**
   - **Continuous correction:** `brickkit up` is a one-shot apply and the CLI exits; nothing keeps watching. If someone hand-edits a running container, no program changes it back, and it lines up again at the next `up`. Continuous correction needs a resident program that somebody has to operate. Build a daemon to fix "nobody remembers to run `up`" and you have re-created the single point of failure and attack surface BrickKit deliberately avoids (see the principle "[Platform minimalism](#1-platform-minimalism)").
   - **Multi-environment overlays (a base layer plus override layers):** an overlay makes you assemble "base, override, merge rules" in your head to understand the final config, and a Git diff can't tell you whether a change to the base ripples into another environment. BrickKit chooses one complete file per environment: what you see is what you get, and the cost is some repetition between the files.
@@ -230,7 +230,7 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
   | A component's own config | A `configSchema` camelCase key becomes upper snake case | `defaultPageSize` → `DEFAULT_PAGE_SIZE` |
   | Resource connection variables | The resource's `kind` is the prefix | `DATABASE_*`, `REDIS_*` … |
 
-  The rule runs **both ways**: from `people/basic` you can compute the variable name, and from `PEOPLE_BASIC_ENDPOINT` you know exactly which component it points at. Defaults are conventions too: no `expose` means not reachable from outside, and no `enabled` means follow whatever is above.
+  The rule runs **both ways**: from `people/basic` you can compute the variable name, and from `PEOPLE_BASIC_ENDPOINT` you know exactly which component it points at. Defaults are conventions too: no `expose` means not reachable from outside, and no `mode` means follow whatever is above.
 - **What BrickKit doesn't do:**
   - **Decide for you:** which version, which port to expose, whether to enable a component — the platform never guesses these, and you have to write them down (see the principle "[Explicit over implicit](#5-explicit-over-implicit)"). That is why BrickKit's own phrase is "derivation over configuration": what can be *computed* from what you wrote is derived; what can't, you write.
   - **Dependency aliases:** someone proposed letting a dependency have an alias (`as: iam`). An alias keeps only half of that two-way relationship — `IAM_ENDPOINT` can't be traced back to the component it points at, and that is exactly where an investigation into "why is this address wrong" starts.
@@ -595,7 +595,7 @@ charge(qty) // won't compile: a Quantity can't be used as Cents
   - It fits poorly with code that leans heavily on external systems.
 - **The AI-development pain:** AI-generated tests often cover only the normal cases it thought of.
 - **What BrickKit does:** The platform uses it on itself. The three densest rule sets in the CLI each have tests driven by random input:
-  - **Start decisions (`cascade`):** thousands of random small graphs (up to 6 components, covering the three states of `enabled`, strong and weak dependencies, weak cycles, and several upstream components sharing one) are checked against an independently written brute-force reference. The reference doesn't copy the platform's propagation algorithm; it enumerates every candidate set and takes the largest one that satisfies the documented rules one by one — the two sides share the rules, not the algorithm.
+  - **Start decisions (`cascade`):** thousands of random small graphs (up to 6 components, covering every value of `mode`, strong and weak dependencies, weak cycles, and several upstream components sharing one) are checked against an independently written brute-force reference. The reference doesn't copy the platform's propagation algorithm; it enumerates every candidate set and takes the largest one that satisfies the documented rules one by one — the two sides share the rules, not the algorithm.
   - **Start order (`resolver`):** checks properties such as "a dependency comes before what depends on it", "each component exactly once", "removing every weak-dependency edge leaves the order unchanged", and "shuffling the input gives the same result".
   - **Resource-quota merging (`inject`):** checks field-by-field precedence, that `limits` has no default layer, and that merging the result in again changes nothing.
   - Everything uses a fixed random seed, and failure messages carry the seed so a failure reproduces exactly; no new dependency. To check that the tests really bite, two bugs were planted in each of the three implementations, and all six were caught; all three implementations also matched the documented rules.
@@ -639,7 +639,7 @@ Language, framework, API style, transactions and log format belong to the compon
 
 You never have to design the whole system first. Add one component and run it; add another and run that; stop and resume at any point.
 
-**Why.** `brickkit add` pulls a component's whole dependency subtree in one command; `enabled` follows the top, so what nobody needs isn't running; `brickkit sync` keeps the source directory down to what you're actually looking at. This is also why fifty components doesn't mean fifty things to hold in your head: you only need the contract of your direct dependencies (usually one to three), a fifty-component project may run four containers locally, and the transitive dependencies are the CLI's problem (AGENTS.md §9.15).
+**Why.** `brickkit add` pulls a component's whole dependency subtree in one command; `mode` follows the top, so what nobody needs isn't running; `brickkit sync` keeps the source directory down to what you're actually looking at. This is also why fifty components doesn't mean fifty things to hold in your head: you only need the contract of your direct dependencies (usually one to three), a fifty-component project may run four containers locally, and the transitive dependencies are the CLI's problem (AGENTS.md §9.15).
 
 **Cost.** The platform bounds what you must know *per component*, not how large the whole gets. Nothing stops you from growing something you can't picture in one sitting.
 
@@ -665,7 +665,7 @@ Exact versions, explicit exposure, explicit enabling. Anything the platform woul
 
 **Why.** Version ranges are the classic cause of "works on my machine, breaks in production" (AGENTS.md §9.2). Pinning still happens once, at `add`, the way a lockfile does it: leave the version off and the CLI asks the source for the latest installable one and writes the exact result to disk. Exposure is opt-in because a guess about it would be a security decision made silently.
 
-**Cost.** More to write down. Even an unwritten `enabled` is deliberate: it means "follow the top", not "unset".
+**Cost.** More to write down. Even an unwritten `mode` is deliberate: it means "follow the top", not "unset".
 
 **Refused.** Version ranges (an error, not a warning), implicit exposure, dependency aliases, anything auto-detected.
 
@@ -753,7 +753,7 @@ Config is intent. Write it and it executes; the CLI never asks "are you sure?".
 
 **Why.** Desired state lives in that file and actual state lives in Docker or Kubernetes; the CLI holds nothing between them. Each environment gets its own complete, self-contained file (`brickkit.prod.yaml`, selected with `--config`), with no overlay, inheritance or merge rules. Open one file and you see the whole picture, a Git diff is legible, and a change to a base layer can never silently affect production (AGENTS.md §9.9).
 
-**Cost.** A few repeated lines across environment files. And what you wrote is what runs: narrowing the scope with `enabled: false` takes effect on the next `up`, and `git checkout brickkit.yaml` is how you widen it again.
+**Cost.** A few repeated lines across environment files. And what you wrote is what runs: narrowing the scope with `mode: disable` takes effect on the next `up`, and `git checkout brickkit.yaml` is how you widen it again.
 
 **Refused.** Overlays and inheritance; confirmation prompts.
 

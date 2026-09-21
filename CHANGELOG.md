@@ -32,13 +32,29 @@ add up to, rather than listing every commit individually.
   `--strict` makes warnings fail too, for a CI gate. Error code
   `LINT_FAILED`. It does not resolve dependencies, check that a `servedBy`
   target exists, or run the few combination rules that are only checked when
-  deployment files are generated (`local: true` under `deploy.target: k8s`) —
-  those stay with `brickkit up --dry-run`
+  deployment files are generated (a running `expose: true` component needing
+  `ingressController` under a network policy, for one) — those stay with
+  `brickkit up --dry-run`
 - `schemas/component.schema.json` and `schemas/brickkit.schema.json`: JSON
   Schemas for `component.yaml` and `brickkit.yaml`, generated from the CLI's
   own Go structs (`make generate-schemas`). An editor with YAML-schema support
   can offer field completion and mark unknown fields, wrong types and
   malformed versions as you type; the Quick Start shows how to wire them up
+
+### Changed
+
+- **Breaking:** `components[].enabled` and `components[].local` are replaced
+  by one field, `components[].mode`, with the values `enabled`, `disable` and
+  `debug`; leaving it out still means "follow the top". Rename `enabled: true`
+  to `mode: enabled`, `enabled: false` to `mode: disable` and `local: true` to
+  `mode: debug` (`localPort` is unchanged). There is no compatibility shim —
+  the old keys are rejected as unknown fields. Two behaviours change with it:
+  `mode: debug` is now pinned exactly like `mode: enabled` (it keeps running
+  whatever is above it, and turning off one of its required dependencies is an
+  error, where `local: true` used to be skipped like any other component), and
+  `mode: debug` together with `deploy.target: k8s` is rejected when
+  `brickkit.yaml` is parsed — so `brickkit lint` catches it — instead of only
+  when the deployment files are generated
 
 ## [0.4.6] - 2026-09-17
 

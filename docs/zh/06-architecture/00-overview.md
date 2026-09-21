@@ -35,14 +35,14 @@ sequenceDiagram
 
 用一个仓库里真实存在的例子把这六步具体化。`erp/backend` 实际有三个强依赖（`people/basic`、`auth/password-login`、`authorization/rbac`）外加一个弱依赖，执行 `brickkit add erp/backend@1.0.0` 会把它们全部递归拉下来；为了让示例聚焦，这里只顺着其中一条依赖链往下看：[`tests/components/people-basic/`](../../../tests/components/people-basic/) 是直接依赖，[`tests/components/department-tree/`](../../../tests/components/department-tree/) 是 `people/basic` 自己的强依赖，随之一并被拉入项目（这也是——在其它依赖之外——[`tests/components/erp-backend/`](../../../tests/components/erp-backend/)、`department-tree`、`people-basic` 会一起出现在同一个 `brickkit.yaml` 里的原因）。接下来跑 `brickkit up`：
 
-- **① cascade** 判定这三个组件都没写 `enabled`，且都处于依赖链顶端或被顶端组件需要，三个都启动；
+- **① cascade** 判定这三个组件都没写 `mode`，且都处于依赖链顶端或被顶端组件需要，三个都启动；
 - **② resolve** 展开依赖树、拓扑排序，得出启动顺序必须是 `department-tree` → `people-basic` → `erp-backend`（被依赖的先起）；
 - **③ inject** 给 `people/basic` 写入 `DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080`，给 `erp/backend` 写入指向 `people-basic` 的地址；
 - **④ generate** 把这几个组件各自的 `component.yaml` 翻译成 `docker-compose.yaml` 里各自的 service——这只是 `erp/backend` 完整依赖树对应的那批 service 里的一部分（这一步到底翻译出了什么、两个部署目标逐字节对照，见[部署文件是怎么生成出来的](03-deployment-generation.md)）；
 - **⑤ run migrations** 先跑 `department-tree` 和 `people-basic` 各自声明的迁移命令（`erp/backend` 没有 `migration` 字段，跳过）——`auth/password-login` 与 `authorization/rbac` 也各自声明了迁移，同样会被执行；
 - **⑥** 最后 `docker compose up -d` 把这几个容器拉起来（`erp/backend` 剩下的依赖也一并起来）。
 
-**为什么三个都启动这件事值得展开讲——背后这条规则其实有三种状态,不是一种。** 一个组件完全不写 `enabled`,意味着它"跟着上层走"：没人依赖的顶层组件默认启动,更下层的组件只要它上面有任何一个正在跑的组件需要它,就跟着启动——这正是 `department-tree` 在这里会启动的原因,哪怕这份 `brickkit.yaml` 里没有任何一行字直接提到它:只是因为 `people-basic` 需要它,而 `people-basic` 本身又被顶层的 `erp-backend` 需要。另外两种状态是显式的,会整个盖过这条"跟着走"的默认规则：`enabled: true` 把一个组件钉死成"始终启动",不管它上面发生了什么(如果它自己需要的某个强依赖被关掉了,会直接报错——两个互相矛盾的意图不可能同时成立);`enabled: false` 把它钉死成"永不启动",连带把所有依赖它的组件也一起停掉。如果这份 `brickkit.yaml` 把 `department-tree` 显式写成 `enabled: false`,而不是什么都不写,那么依赖它的 `people-basic` 在解析阶段就会直接失败——CLI 会点名报错,不会生成一份看似正常、实际会在容器启动那一刻才失败的部署清单。真实的 CLI 输出里,每一行启动决定都会带上这三种理由中的哪一种(`starting (top-level)` / `starting (enabled: true)` / `starting (X needs it)`)，因为"这行到底是哪种情况"从来不该是读者要自己从配置反推出来的东西。
+**为什么三个都启动这件事值得展开讲——背后这条规则其实不止一种状态。** 一个组件完全不写 `mode`,意味着它"跟着上层走"：没人依赖的顶层组件默认启动,更下层的组件只要它上面有任何一个正在跑的组件需要它,就跟着启动——这正是 `department-tree` 在这里会启动的原因,哪怕这份 `brickkit.yaml` 里没有任何一行字直接提到它:只是因为 `people-basic` 需要它,而 `people-basic` 本身又被顶层的 `erp-backend` 需要。其余的取值是显式的,会整个盖过这条"跟着走"的默认规则：`mode: enabled` 把一个组件钉死成"始终启动",不管它上面发生了什么(如果它自己需要的某个强依赖被关掉了,会直接报错——两个互相矛盾的意图不可能同时成立);`mode: disable` 把它钉死成"永不启动",连带把所有依赖它的组件也一起停掉;`mode: debug` 则跟 `mode: enabled` 一样钉死成"始终启动",只是它不在容器里跑,而是由你在 IDE 里自己启动那个进程。如果这份 `brickkit.yaml` 把 `department-tree` 显式写成 `mode: disable`,而不是什么都不写,那么依赖它的 `people-basic` 在解析阶段就会直接失败——CLI 会点名报错,不会生成一份看似正常、实际会在容器启动那一刻才失败的部署清单。真实的 CLI 输出里,每一行启动决定都会带上其中哪一种理由(`starting (top-level)` / `starting (mode: enabled)` / `starting (mode: debug)` / `starting (X needs it)`)，因为"这行到底是哪种情况"从来不该是读者要自己从配置反推出来的东西。
 
 其中的服务名包括 `erp-backend-1-0-0`、`department-tree-1-0-0`、`people-basic-1-0-0`——下一节说明这个名字是怎么算出来的。想看①②两个阶段更难的版本——一个真实的菱形依赖、一个真实的循环依赖、关掉一个组件会发生什么——见[依赖解析与启动顺序](02-dependency-resolution.md)。
 
@@ -67,7 +67,7 @@ my-shop/                          ← 项目根目录
 ```
 
 - **`manifests/` 与 `artifacts/` 是缓存，默认提交、团队共享同一份。** `up` 读的是 `manifests/` 里的 Manifest，从不需要组件的代码；缺失或损坏时会从安装源重新拉取。例外是由本地安装源提供的组件（包括你用 `--repo` 克隆进 `components/` 的）：它的 `component.yaml` 每次运行都直接从那个目录重读，不走缓存。产物由 `add` / `fetch` 下载。`init` 追加的 `.gitignore` 里对应的两行默认是注释掉的，想忽略它们就取消注释。
-- **`generated/` 每次 `up` 都会重写，别手改。** 里面是 `docker-compose.yaml`（`deploy.target: k8s` 时是 `k8s/` 目录），以及 `local: true` 组件的 `local-debug.<版本化服务名>.env`。默认被 `.gitignore` 忽略——后一种文件里可能带着解析后的配置值。
+- **`generated/` 每次 `up` 都会重写，别手改。** 里面是 `docker-compose.yaml`（`deploy.target: k8s` 时是 `k8s/` 目录），以及 `mode: debug` 组件的 `local-debug.<版本化服务名>.env`。默认被 `.gitignore` 忽略——后一种文件里可能带着解析后的配置值。
 - **`credentials` 只有 `brickkit login` 之后才存在**，默认被 `.gitignore` 忽略。
 - **`skills.lock` 要提交**：它让别人的 CLI 分得清"你手改过这个技能文件"和"CLI 升级让它过期了"。
 
@@ -165,7 +165,7 @@ dependencies:
 | [17. 低代码、BI 与 DevOps 流水线](#17-低代码bi-与-devops-流水线) | 不在平台的范围内 | —— |
 | [19. 引擎插件与第三方部署目标](#19-引擎插件与第三方部署目标)<br>一个可插拔接口，让第三方把部署交给平台不认识的地方 | 插件要自己担保拆卸和状态查询，而 CLI 会替它报"成功"——Podman 的教训 | 新目标在仓库内实现，带全套测试守卫 |
 | [20. 增量生成缓存](#20-增量生成缓存)<br>记住哈希，让 `up` 只重新生成变化的部分 | 50 个组件走完整条链路才约 2 ms，没有什么好加速的 | 什么都不做——真有项目实测超过约 100 ms 再重新考虑 |
-| [21. 生成 mock 与自动替换缺失依赖](#21-生成-mock-与自动替换缺失依赖)<br>按契约生成一个假服务器，并在强依赖缺失时自动换上它 | 平台从不解析契约；悄悄换上替身违反"强依赖缺失就阻断启动" | 用 `brickkit new --contract` 立一个桩，配 `local: true` 加任意 mock 工具 |
+| [21. 生成 mock 与自动替换缺失依赖](#21-生成-mock-与自动替换缺失依赖)<br>按契约生成一个假服务器，并在强依赖缺失时自动换上它 | 平台从不解析契约；悄悄换上替身违反"强依赖缺失就阻断启动" | 用 `brickkit new --contract` 立一个桩，配 `mode: debug` 加任意 mock 工具 |
 | [22. 给依赖图内置渲染器](#22-给依赖图内置渲染器)<br>HTML / SVG 输出、内置查看器，或者替你写文件的参数 | Mermaid 文本本来就有人免费渲染，CLI 里再内置一个渲染器只是一份永久的维护成本 | `brickkit graph > graph.mmd`——GitHub 直接渲染那个文件，或 Markdown 里标了 `mermaid` 的代码块 |
 | [23. 在 lint 里做依赖与跨文件检查](#23-在-lint-里做依赖与跨文件检查)<br>让 `brickkit lint` 去解析依赖图，或检查 `servedBy` 指向的组件存不存在 | 解析依赖图要联网；只要联一次网，"离线、秒回"就没了 | `brickkit up --dry-run`，它无论如何都要解析依赖图 |
 
@@ -299,7 +299,7 @@ dependencies:
 - **它是什么：** 为了省内存，把很多组件合并进同一个进程（同一个容器）里运行，并由平台整套管起来。
 - **为什么不做：** 平台不会、也不打算自己提供外壳脚手架或进程管理器。那意味着平台得开始理解"外壳"里面有什么、哪些东西能合并、用什么监管进程、某个框架怎么起多个监听——正是这个平台一直在避免的事。
 - **替代做法：** 一小块**结构性支撑**已经落地：`servedBy` 让一个组件声明"我的工作负载由另一个组件提供"，平台在 Docker 和 Kubernetes 下都会把 `*_ENDPOINT` 地址正确接到它身上，全程不需要理解外壳里面是什么。其余的——避免端口冲突、接管健康检查和迁移、隔离各模块的配置——都是外壳作者自己的代码。见[声明 servedBy 的部署检查清单](../07-patterns/06-servedby-deployment-checklist.md)和[合格外壳该满足什么](../07-patterns/07-shell-implementers-guide.md)。
-- **先想想是不是真需要：** 内存压力主要由语言决定：Go 的组件 8–20MB，JVM 的 200–450MB。别为了省内存就合并，那多半是在解决错误的问题：换运行时，或用 `enabled: false` 少跑几个。
+- **先想想是不是真需要：** 内存压力主要由语言决定：Go 的组件 8–20MB，JVM 的 200–450MB。别为了省内存就合并，那多半是在解决错误的问题：换运行时，或用 `mode: disable` 少跑几个。
 
 ---
 
@@ -346,7 +346,7 @@ dependencies:
 
 - **它是什么：** 一个类似 `mock` 的命令按契约生成一个假服务器，再用类似 `up` 上 `--with-mocks` 的参数把它换上，顶替一个不存在的强依赖。
 - **为什么不做：** 平台从不解析契约；悄悄换上一个替身，直接违反"强依赖缺失就阻断启动"；而且换成另一个名字的 mock 根本接不到流量，因为注入的地址指向的是真实组件的版本化服务名。
-- **替代做法：** 用 `brickkit new <id> --contract openapi` 生成一个桩，配上 `local: true` + `localPort`，再用任意 mock 工具监听那个端口——[实操](../03-guide/07-consuming-artifacts.md)。
+- **替代做法：** 用 `brickkit new <id> --contract openapi` 生成一个桩，配上 `mode: debug` + `localPort`，再用任意 mock 工具监听那个端口——[实操](../03-guide/07-consuming-artifacts.md)。
 
 ---
 

@@ -1,7 +1,7 @@
-// 本文件是 Step 13「本地调试（local: true）与 local-debug.env」的业务行为测试，
+// 本文件是 Step 13「本地调试（mode: debug）与 local-debug.env」的业务行为测试，
 // 覆盖开发计划 13.1–13.14，以及延后项 P3（localPort 自动分配）。
 //
-// local: true 有两个方向要打通，测试也按这两个方向组织：
+// mode: debug 有两个方向要打通，测试也按这两个方向组织：
 //
 //	容器 → 宿主机：依赖方容器用 extra_hosts 把 local 组件的服务名指到宿主机，
 //	               端口换成 localPort；
@@ -171,7 +171,7 @@ func stringsOf(t *testing.T, raw any) []string {
 
 // localProject 是贯穿本文件的场景：
 //
-//	people/basic  local: true，在 IDE 里跑，强依赖 department/tree
+//	people/basic  mode: debug，在 IDE 里跑，强依赖 department/tree
 //	department/tree  在容器里跑
 //	erp/backend      在容器里跑，强依赖 people/basic
 //
@@ -1020,7 +1020,7 @@ func hostMachineDatabase(componentID string) config.Resource {
 // local 组件上写了 expose：说清楚它不生效、以及东西真正在哪
 // ============================================================
 
-// local: true 的组件不生成容器，所以 expose / exposePort 没有任何东西可映射。
+// mode: debug 的组件不生成容器，所以 expose / exposePort 没有任何东西可映射。
 //
 // 003 §3.2 立的规矩是"写了不生效就得出声"。这一条从前完全没守：配了
 // exposePort: 8888 的人打开浏览器访问 8888 什么都没有，而 up 全程一个字不说。

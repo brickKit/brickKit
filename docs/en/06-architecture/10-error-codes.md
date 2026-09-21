@@ -156,7 +156,7 @@ The widest code. Either `brickkit.yaml` (or something it points at) is invalid, 
 | `Error: domain <hostname> is claimed by more than one component` | Two components declare the same `hostname` | Give each its own |
 | `Error: the cluster currently connected is not the one the configuration specifies` | The current `kubectl` context differs from `deploy.context` | `kubectl config use-context <name>`, or `brickkit up --context <name>` |
 | `Error: the component servedBy points to does not exist` | The `servedBy` value names a component that isn't in the project | Check the shell's ID and version |
-| `Error: the shell servedBy points to is not currently running` | The shell is turned off (`enabled: false`) | Turn it back on, or drop `servedBy` so the component deploys on its own |
+| `Error: the shell servedBy points to is not currently running` | The shell is turned off (`mode: disable`) | Turn it back on, or drop `servedBy` so the component deploys on its own |
 | `Error: two members of shell <shell> produced different values for the same environment variable` | Two members of one shell depend on different versions of the same component | Align them on one exact version, or don't put them in the same shell |
 | `Error: no install source is available` | `sources` is empty or every source is disabled | Add at least one source; for local development, a `type: local` source at `./components` |
 | `Error: the local install source path does not exist` | A `local` source's `path` is wrong (it's relative to `brickkit.yaml`) | Correct the path, or set that source to `enabled: false` |
@@ -166,7 +166,7 @@ The widest code. Either `brickkit.yaml` (or something it points at) is invalid, 
 | `Error: this is not a git repository` | `brickkit init --hooks` outside a Git repository | `git init` first |
 | `Error: this repository has no commits yet` | `brickkit restore` restores to the last commit, and there isn't one | Commit once first |
 | `Error: <path> is not tracked by git` | `brickkit restore` was pointed at something Git doesn't track | `git add` and commit it once so there is a baseline |
-| `Error: the source can't be recovered once it is deleted` | `brickkit remove` refuses to delete component source with changes that exist nowhere else | Commit and push it, or copy the directory away; `--force` if you're sure. To just stop using a component, `enabled: false` then `brickkit sync` archives it instead of deleting it |
+| `Error: the source can't be recovered once it is deleted` | `brickkit remove` refuses to delete component source with changes that exist nowhere else | Commit and push it, or copy the directory away; `--force` if you're sure. To just stop using a component, `mode: disable` then `brickkit sync` archives it instead of deleting it |
 
 ### CONFIG_CONFLICT
 
@@ -180,7 +180,7 @@ Two things that can't both hold: what you asked for collides with what already e
 | `Error: a conflict is being resolved; finish resolving it first` | `brickkit restore` during a merge in progress | Resolve the merge first |
 | `Error: the source of some components exists in two places` | The same component's source exists both active and archived | Keep one copy; the block names both paths |
 | `Commit blocked: the same component's source appears in two places in the commit` | The pre-commit hook: a commit would contain the same component's source in two places | Unstage one of them |
-| `Commit blocked: component source is committed under the archive directory, but <path> says it should start` | The pre-commit hook: the source was archived but `enabled` in `brickkit.yaml` didn't come along with it | Commit the matching `brickkit.yaml` change too — or run `brickkit restore` |
+| `Commit blocked: component source is committed under the archive directory, but <path> says it should start` | The pre-commit hook: the source was archived but `mode` in `brickkit.yaml` didn't come along with it | Commit the matching `brickkit.yaml` change too — or run `brickkit restore` |
 
 The Market can also answer a publish with a version conflict; that surfaces under this code as well.
 
@@ -247,7 +247,7 @@ Weak (optional) dependencies missing is a warning, not this error — see [Warni
 
 | You'll see | Cause | What to do |
 | --- | --- | --- |
-| `Error: required dependency <component> is disabled` | Something that runs requires it, but it is `enabled: false` — or you pinned `enabled: true` on a component whose required dependency is off: two conflicting intents | Remove `enabled: false` from the dependency, or remove `enabled: true` from the dependent so it follows the top |
+| `Error: required dependency <component> is disabled` | Something that runs requires it, but it is `mode: disable` — or you pinned `mode: enabled` (or `mode: debug`) on a component whose required dependency is off: two conflicting intents | Remove `mode: disable` from the dependency, or remove `mode` from the dependent so it follows the top |
 
 ### COMPONENT_NOT_FOUND
 
@@ -270,7 +270,7 @@ The Market has delisted that version (`blocked`) — the last line of defense th
 
 | You'll see | Cause | What to do |
 | --- | --- | --- |
-| `Error: resource dependencies not satisfied` | A component declares a resource dependency (`dependencies.resources`: a `kind` and an `engine`) that `brickkit.yaml` doesn't satisfy — no matching `resources` entry, or no `bindings` entry for that component. Every unmet resource is listed at once. A real `up` is blocked; `up --dry-run` only warns, so you can still see what would be generated | Add the resource with a binding for that component — see [Resource binding mechanics](05-resource-binding.md) — or, to keep the component off for now, `enabled: false` |
+| `Error: resource dependencies not satisfied` | A component declares a resource dependency (`dependencies.resources`: a `kind` and an `engine`) that `brickkit.yaml` doesn't satisfy — no matching `resources` entry, or no `bindings` entry for that component. Every unmet resource is listed at once. A real `up` is blocked; `up --dry-run` only warns, so you can still see what would be generated | Add the resource with a binding for that component — see [Resource binding mechanics](05-resource-binding.md) — or, to keep the component off for now, `mode: disable` |
 
 ### PORT_CONFLICT
 

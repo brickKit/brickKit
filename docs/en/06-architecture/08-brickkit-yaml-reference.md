@@ -2,7 +2,7 @@
 
 AGENTS.md §7 is the skeleton. This document is the dictionary behind it — every field's type, whether it's required, its default, and the exact constraint the validator applies, verified line by line against `internal/config/config.go` and `internal/config/validate.go`. Unlike `component.yaml`, `brickkit.yaml` genuinely is project-specific free-form state in places (`config` overrides, resource credentials), so not every field below has a fixed enum of legal values — where that's true, this document says so explicitly rather than implying a constraint that doesn't exist.
 
-This document owns the *fields*. What a field actually does once it's set correctly — how `enabled` cascades, how a resource binding turns into environment variables, how `servedBy` merges a member's config onto its shell — is covered by [04-environment-variables.md](04-environment-variables.md), [05-resource-binding.md](05-resource-binding.md), [02-dependency-resolution.md](02-dependency-resolution.md), and AGENTS.md §5; this document cross-references them rather than repeating them.
+This document owns the *fields*. What a field actually does once it's set correctly — how `mode` cascades, how a resource binding turns into environment variables, how `servedBy` merges a member's config onto its shell — is covered by [04-environment-variables.md](04-environment-variables.md), [05-resource-binding.md](05-resource-binding.md), [02-dependency-resolution.md](02-dependency-resolution.md), and AGENTS.md §5; this document cross-references them rather than repeating them.
 
 The fields on this page also exist as a JSON Schema, [`schemas/brickkit.schema.json`](../../../schemas/brickkit.schema.json), generated from the same Go structs. An editor can use it to complete field names and underline unknown keys as you type; [Wire up your editor](../00-quick-start.md#wire-up-your-editor) shows how to attach it, and what it deliberately doesn't cover.
 
@@ -85,7 +85,7 @@ Writing neither `namespace` nor `cidr` is rejected; writing both is also rejecte
 | `components[].servedBy` | string (`id@version`) | no | see the mutual-exclusion notes below |
 | `components[].expose` | bool | no (default `false`) | |
 | `components[].hostname` | string | required when `expose: true` **and** `deploy.target: k8s` | not required under `docker` — Compose exposure is a host port, not a domain |
-| `components[].exposePort` | int | only legal when `expose: true` | `1`–`65535`, unique across every component's `exposePort`. Meaningful only under `deploy.target: docker` (it becomes the host port mapping); **the validator does not check `deploy.target` here** — writing it alongside `deploy.target: k8s` is accepted at parse time and then silently unused, since the K8s path exposes through `hostname` and a generated Ingress instead. This is the one exception to this document's "written but inert is always rejected" pattern; nothing currently catches it. |
+| `components[].exposePort` | int | only legal when `expose: true` | `1`–`65535`, unique across every component's `exposePort`. Meaningful only under `deploy.target: docker` (it becomes the host port mapping). **The validator does not reject it under `deploy.target: k8s`** — the K8s path exposes through `hostname` and a generated Ingress instead — but it isn't silently ignored either: `brickkit up` (`--dry-run` included) warns that the field has no effect under this target. That is deliberate: a field that only one deploy target uses is warned about rather than rejected, so one `brickkit.yaml` can be switched between `docker` and `k8s` by changing `deploy.target` alone. |
 | `components[].tlsSecret` | string | only legal when `expose: true` | **K8s only**, names a pre-existing Secret holding the Ingress TLS cert |
 | `components[].serviceAccountName` | string | no | **K8s only**; references an SA the operator already created — the platform never generates one for a component that sets this |
 | `components[].config` | `map[string]any` | no | keys checked against the component's `configSchema.properties` (warns, doesn't block, if a key doesn't match — [04-environment-variables.md](04-environment-variables.md) §5.2); values never type-checked |
@@ -141,9 +141,9 @@ These describe three different, incompatible ideas about where a component's pro
 ## Read further
 
 - AGENTS.md §7 — the copy-pasteable skeleton this document expands
-- AGENTS.md §5.4 — the full `enabled` cascade rule this document only states the field's shape for
+- AGENTS.md §5.4 — the full `mode` cascade rule this document only states the field's shape for
 - [04-environment-variables.md](04-environment-variables.md) — exactly what `config`, resource bindings, and `servedBy` turn into inside a container's environment
 - [05-resource-binding.md](05-resource-binding.md) — binding-slot and same-kind-collision errors in full, plus the quota merge chain
-- [02-dependency-resolution.md](02-dependency-resolution.md) — what the cascade and resolve stages actually do with `enabled`, required/optional dependencies, and diamond deduplication
+- [02-dependency-resolution.md](02-dependency-resolution.md) — what the cascade and resolve stages actually do with `mode`, required/optional dependencies, and diamond deduplication
 - [07-component-yaml-reference.md](07-component-yaml-reference.md) — the component-side counterpart this file's `components[]`/`resources[]` entries bind against
 - [06-signing-and-trust.md](06-signing-and-trust.md) — what `installer.publicKeys` actually gates and why

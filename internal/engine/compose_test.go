@@ -126,7 +126,7 @@ func TestDownNeverRemovesVolumes(t *testing.T) {
 // service"而不是"这个项目实际跑着的那些"。两者会分叉，因为
 // `up --dry-run` 也会重写那份文件——它本该只回答"这次打算跑什么"。
 //
-// 真跑出来过：up 起两个组件 → 给其中一个写 enabled: false → up --dry-run
+// 真跑出来过：up 起两个组件 → 给其中一个写 mode: disable → up --dry-run
 // 看一眼 → down，另一个容器继续 Up (healthy)，而 CLI 打印"已停止全部组件"。
 func TestDownIdentifiesTheProjectByNameNotByFile(t *testing.T) {
 	rec := newRecorder()

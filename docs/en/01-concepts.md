@@ -42,7 +42,7 @@ The diagram deliberately draws the CLI with a dashed line, boxed off in its own 
 | Required Dependency | The component can't work without it; missing → the CLI **errors and blocks startup** |
 | Optional Dependency | Nice to have, but the component can get by without it (`optional: true`); missing → only a warning, and **the env var is not injected at all** (not injected as an empty string) |
 | Versioned Service Name | A service name carrying an exact version, e.g. `people-basic-1-0-0`: two versions are two different names and can run side by side |
-| Local Debug Mode | `local: true`: one component runs on your own machine (in an IDE with breakpoints, say) while the other components in containers can still find it |
+| Local Debug Mode | `mode: debug`: one component runs on your own machine (in an IDE with breakpoints, say) while the other components in containers can still find it |
 | Source | Where a component comes from: the marketplace (HTTP) / a Git repo / a local directory |
 | Resource | External systems a component depends on (databases, Redis, etc.): deployed by ops, declared and bound in `brickkit.yaml` |
 | Env Injection | When generating deployment files, the CLI writes dependency addresses, resource connections and the component's own config into environment variables and hands them to the component |
@@ -77,15 +77,16 @@ The address format is **exactly the same** locally (Docker) and in production (K
 
 And the variable *name* carrying no version is exactly what that right-hand derivation path in the diagram gives you — `DEPARTMENT_TREE_ENDPOINT` is derived purely from `department/tree`, independent of which version it happens to be pointing at. This is also why a single component ID can only appear once within one `component.yaml`'s `dependencies` — two versions would collide on the same variable name, with the latter silently overwriting the former, so the CLI rejects this outright while parsing the Manifest. Version coexistence is therefore a **project-level** capability (`brickkit.yaml` can list two version entries side by side for different callers), not a component-level one.
 
-## `enabled`: top-down inheritance
+## `mode`: top-down inheritance
 
 | Value | Meaning | Behavior |
 | --- | --- | --- |
 | **not written** | Follows the top | A top-level component (nothing depends on it) runs by default; a lower one follows whatever's above it |
-| `enabled: true` | Always runs | Ignores what's above it. If its required dependencies are turned off, it errors (two conflicting intents) |
-| `enabled: false` | Never runs | Whatever depends on it stops too |
+| `mode: enabled` | Always runs | Ignores what's above it. If its required dependencies are turned off, it errors (two conflicting intents) |
+| `mode: disable` | Never runs | Whatever depends on it stops too |
+| `mode: debug` | Always runs, as a process you start yourself | Pinned exactly like `mode: enabled`, but no container is generated: you run it on your own machine, in an IDE (Docker only — [Article 3](03-guide/03-local-debugging.md)) |
 
-A lower-level component shared by multiple upstream components keeps running as long as at least one of them still needs it — it's never accidentally taken down. This is also why `brickkit add` never writes an `enabled` field on its own: leaving it unwritten already means "follow the top."
+A lower-level component shared by multiple upstream components keeps running as long as at least one of them still needs it — it's never accidentally taken down. This is also why `brickkit add` never writes a `mode` field on its own: leaving it unwritten already means "follow the top."
 
 ## Read further
 

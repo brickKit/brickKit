@@ -76,7 +76,7 @@ func TestParseConfigFileFullProject(t *testing.T) {
 	assert.Equal(t, map[string]any{"sessionTtlSeconds": 7200}, erp.Config, "5.20 config 正确解析")
 
 	bus := c.Components[4]
-	assert.True(t, bus.IsDisabled(), "5.6 enabled: false → 一定不跑")
+	assert.True(t, bus.IsDisabled(), "5.6 mode: disable → 一定不跑")
 
 	portal := c.Components[5]
 	assert.True(t, portal.Expose, "5.21 expose 正确解析")

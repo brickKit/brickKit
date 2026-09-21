@@ -254,7 +254,7 @@ type Component struct {
 	Version string `yaml:"version" jsonschema:"pattern=^[0-9]+[.][0-9]+[.][0-9]+$"`
 	// Mode 取代了 Enabled/Local 两个字段（mode 字段迁移设计）：
 	// ""（未写）= 跟随上层，走容器；"enabled" = 钉住，走容器；
-	// "disable" = 钉住不跑；"debug" = 裸进程，用户自己启动（原 local: true）。
+	// "disable" = 钉住不跑；"debug" = 裸进程，用户自己启动。
 	// 校验器负责按 deploy.target 决定这四个取值里哪些合法（k8s 下只认前三个）。
 	Mode      string `yaml:"mode,omitempty" jsonschema:"enum=enabled|disable|debug"`
 	LocalPort int    `yaml:"localPort,omitempty"`

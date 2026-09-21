@@ -230,7 +230,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	//
 	// `--dry-run` 时降级成警告：那条命令的语义是"告诉我会发生什么"，
 	// 拿它阻断的话，一个还没配资源的项目连"看看会生成什么"都做不到
-	// （试用指南 04 讲 enabled 三态时用的正是这条命令，那时资源还没登场）。
+	// （试用指南 04 讲 mode 时用的正是这条命令，那时资源还没登场）。
 	if problem := resolver.CheckRunningResourceBindings(
 		cfg, plan.graph, plan.states.Running()); problem != nil {
 		if !flags.dryRun {

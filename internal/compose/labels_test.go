@@ -117,7 +117,7 @@ func TestLabelsRenderDeterministically(t *testing.T) {
 	assert.Less(t, strings.Index(first, "middle.key"), strings.Index(first, "zeta.key"))
 }
 
-// local: true 的组件上写了 labels → 警告（写了、没生效、而且没有任何征兆）。
+// mode: debug 的组件上写了 labels → 警告（写了、没生效、而且没有任何征兆）。
 func TestLocalComponentLabelsWarn(t *testing.T) {
 	result := newBuilder(t).
 		component(simple("erp/sales", "1.0.0", 8080), config.Component{

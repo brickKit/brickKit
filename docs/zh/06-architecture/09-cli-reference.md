@@ -32,7 +32,7 @@ AGENTS.zh.md §8 给每个命令一句话概括，加一小撮精选的参数示
 | | [`brickkit down`](#brickkit-down) | 停止全部组件（不删卷，数据保留） | 收工 |
 | | [`brickkit status`](#brickkit-status) | 显示运行状态表 | 看现在跑着什么 |
 | 源码工作区 | [`brickkit sync`](#brickkit-sync) | 按"谁该跑"的结果，把不启动的组件源码归档、要跑的还原 | 想让 `components/` 里只留当前关心的 |
-| | [`brickkit restore`](#brickkit-restore) | 把 `enabled` 和源码布局恢复到上一次提交 | `sync` 之后想撤回 |
+| | [`brickkit restore`](#brickkit-restore) | 把 `mode` 和源码布局恢复到上一次提交 | `sync` 之后想撤回 |
 | 市场 | [`brickkit login`](#brickkit-login) | 交互式登录市场 | 发布或安装私有组件之前 |
 | | [`brickkit logout`](#brickkit-logout) | 撤销令牌并删除本地凭据 | 退出登录 |
 | | [`brickkit publish`](#brickkit-publish) | 把 Manifest、镜像引用和产物上传到市场 | 发布自己的组件 |
@@ -61,7 +61,7 @@ AGENTS.zh.md §8 给每个命令一句话概括，加一小撮精选的参数示
 
 如果项目还把组件源码一起纳入版本控制（把 `components/` 从 `.gitignore`
 里去掉），`init` 会额外装一个 pre-commit hook，拦住"归档状态变了、
-`enabled` 却没跟着改"这个失误——但只有当项目根目录**就是**
+`mode` 却没跟着改"这个失误——但只有当项目根目录**就是**
 Git 仓库根目录时才会自动装；嵌套在别人仓库里的项目，需要用 `--hooks` 显
 式补装。
 
@@ -150,11 +150,11 @@ brickkit skills update    # 刷新到当前 CLI 版本
 
 | 图上的东西 | 意思 |
 | --- | --- |
-| 标着 `id@版本` 的方框 | 一个组件。如果它是 `local: true`，标签会多一行 `本地调试`；`brickkit.yaml` 里写了 `localPort` 的话，后面再带 `:<端口>`。没写 `localPort` 时端口要等 `up` 才会选定，图上就不画端口，不编一个 |
+| 标着 `id@版本` 的方框 | 一个组件。如果它是 `mode: debug`，标签会多一行 `本地调试`；`brickkit.yaml` 里写了 `localPort` 的话，后面再带 `:<端口>`。没写 `localPort` 时端口要等 `up` 才会选定，图上就不画端口，不编一个 |
 | 实线箭头 `A --> B` | A **强依赖** B |
 | 虚线箭头 `A -.-> B` | A **弱依赖** B。如果所有安装源里都没有 B，它照样会被画出来：一个橙色虚线框，标签是 `id@版本` 加 `未安装`——这正是 `up --dry-run` 里写作 `（弱，未安装）` 的那件事，也是"为什么这个地址没被注入"的答案 |
-| 灰色方框 | 这次不会启动的组件：被 `enabled: false` 关掉了，或者上面没有任何在跑的组件需要它（AGENTS.zh.md §5.4） |
-| 浅蓝色方框 | 会启动的 `local: true` 组件 |
+| 灰色方框 | 这次不会启动的组件：被 `mode: disable` 关掉了，或者上面没有任何在跑的组件需要它（AGENTS.zh.md §5.4） |
+| 浅蓝色方框 | `mode: debug` 组件。它一定在跑——`debug` 跟 `mode: enabled` 一样是钉住的（AGENTS.zh.md §5.4）——所以永远不会是灰色 |
 | 带标题 `外壳：id@版本` 的大框，框住一些组件 | 这些组件用 `servedBy` 并进了另一个组件的进程里（AGENTS.zh.md §5.7），标题写的就是那个外壳。外壳自己是框外一个普通方框。`servedBy` 指向的外壳不在项目里时，这个分组照样画出来——目标不存在由 `up` 去报 |
 
 箭头总是画出来，不管另一头这次有没有启动：图展示的是你**声明**的结构，"启动与否"用颜色表达，两件事不混在一起。
@@ -195,13 +195,13 @@ graph TD
     class infra_redis_event_bus_1_0_0 missing
 ```
 
-实线是强依赖；虚线、指向橙色框的那条，是没有任何东西提供的弱依赖。现在在 `brickkit.yaml` 里给 `department/tree` 写上 `local: true` 和 `localPort: 8081`：
+实线是强依赖；虚线、指向橙色框的那条，是没有任何东西提供的弱依赖。现在在 `brickkit.yaml` 里给 `department/tree` 写上 `mode: debug` 和 `localPort: 8081`：
 
 ```yaml
 components:
   - id: department/tree
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 8081
   - id: people/basic
     version: 1.0.0
@@ -248,7 +248,7 @@ brickkit graph --config brickkit.prod.yaml   # 对非默认环境的配置文件
 **不查什么，以及为什么**
 
 - 依赖能不能在某个安装源里找到，`servedBy` 指向的组件在不在。这两样都要用到项目里其余组件的 Manifest——市场和 Git 组件还得联网——就不是"离线、一秒回"了。它们归 `brickkit up --dry-run`，反正它本来就要解析依赖图。
-- 少数要到生成部署文件时才检查的组合规则——比如 `local: true` 配 `deploy.target: k8s`。`lint` 会放过这样的文件，`brickkit up --dry-run` 才拒绝；其余大多数组合（比如 `local` 与 `servedBy`）都在 `lint` 查的范围里。
+- 少数要知道最终有哪些组件会跑起来才查得出的组合规则，所以要到生成部署文件时才检查——比如一个会跑起来的 `expose: true` 组件，在 `deploy.networkPolicy` 下需要 `ingressController`。`lint` 会放过这样的文件，`brickkit up --dry-run` 才拒绝；其余大多数组合（比如 `mode: debug` 与 `servedBy`、或与 `deploy.target: k8s`）都在 `lint` 查的范围里。
 - `configSchema` 里的**值**——`enum`、`minimum` 之类。平台把它们写出来是给读的人看的，从不强制执行（AGENTS.zh.md §9.12：那是说明书，不是安全闸）。
 - 市场或 Git 组件的 Manifest。它们在你 `add` 的时候已经校验过一次；`lint` 只看你自己能编辑的文件，也就是本地安装源。
 
@@ -450,7 +450,7 @@ brickkit new demo/widget --path ../widget-repo     # 写到别的目录——那
 的安装源取 Manifest，递归进 `dependencies.components`，强依赖取不到就报
 错终止（弱依赖取不到只警告并继续），把 `artifacts` 下载到
 `.brickkit/artifacts/<版本化服务名>/`，把结果写进 `brickkit.yaml`——**不
-写** `enabled` 字段，所以这个组件默认按"跟着上层走"（AGENTS.zh.md §5.4）
+写** `mode` 字段，所以这个组件默认按"跟着上层走"（AGENTS.zh.md §5.4）
 的规则决定启停。
 
 不写版本号时 CLI 会替你解析出一个：`local`/`git` 安装源目录里只有一份
@@ -568,11 +568,11 @@ brickkit fetch infra/notifier         # 取最新版本的产物
 **用法：** `brickkit up [flags]`
 
 一次性把声明变成运行中的容器：读取 `brickkit.yaml` 和每个组件的
-Manifest → 启停判定（跟着上层走：顶层组件没写 `enabled` 就默认跑，下层
+Manifest → 启停判定（跟着上层走：顶层组件没写 `mode` 就默认跑，下层
 跟着上层里需要它的那个走，AGENTS.zh.md §5.4）→ 检查强依赖（缺失报错）和
 弱依赖（缺失警告，且完全不注入那个依赖的 `*_ENDPOINT`）→ 拓扑排序得出启
 动顺序 → 生成 `docker-compose.yaml`（或 K8s 清单），注入环境变量、合并
-资源配额 → 给任何 `local: true` 组件生成
+资源配额 → 给任何 `mode: debug` 组件生成
 `local-debug.<版本化服务名>.env` → 检测镜像拉取权限（未授权时提示
 `docker login`）→ 调用底层引擎，先跑一次性容器执行声明的迁移，失败则阻
 断主服务。
@@ -648,7 +648,7 @@ brickkit up --ignore-served-by --dry-run  # 验证：去掉 servedBy 之后这�
 
 停止所有组件。停止顺序与启动顺序相反（依赖方先停，被依赖方后停），交给
 底层引擎处理，CLI 自己不管这件事。只想停其中几个：在 `brickkit.yaml`
-里给它们写 `enabled: false`，再跑一次 `brickkit up`——它们会从生成的部
+里给它们写 `mode: disable`，再跑一次 `brickkit up`——它们会从生成的部
 署文件里消失，引擎会把对应容器一并移除，效果跟"只停这几个"一样，而且意
 图被记录进了 `brickkit.yaml`，下次 `up` 不会意外把它们又拉起来。
 
@@ -676,7 +676,7 @@ brickkit down --context prod-cluster   # 针对指定集群关停
 
 查看每个组件的运行状态。CLI 自己不存运行状态——每次都直接问底层引擎
 （Docker 下是 `docker compose ps --format json`）。输出覆盖运行中的组
-件、未启动的组件（附带原因）、`local: true` 的组件、基础资源可达性。
+件、未启动的组件（附带原因）、`mode: debug` 的组件、基础资源可达性。
 
 **示例**
 
@@ -706,13 +706,13 @@ $ brickkit status
 在 `components/` 和 `components/.archived/` 之间双向搬运组件源码，判据
 **跟 `up` 完全一样**：这次会启动的留在（或搬回）活跃目录，不会启动的搬
 进归档。它从不碰运行中的容器，也从不改变 `up` 会启动谁——只搬目录。想
-收窄范围就在 `brickkit.yaml` 里改 `enabled`（跟着上层走，AGENTS.zh.md
+收窄范围就在 `brickkit.yaml` 里改 `mode`（跟着上层走，AGENTS.zh.md
 §5.4），`sync` 会跟着走。搬的时候整个目录一起走，连 `.git` 都不例外，
 所以归档后的组件照样能正常用 Git 命令。只处理已经写进
 `brickkit.yaml`、且已有源码的组件。没有 `--dry-run`——搞错了再跑一次就
 换回来了。
 
-带真实输出、一步一步走的上手教程：[管理组件源码](../03-guide/08-component-source.md)——归档、激活、和它与 `enabled` 的配合都在里面。
+带真实输出、一步一步走的上手教程：[管理组件源码](../03-guide/08-component-source.md)——归档、激活、和它与 `mode` 的配合都在里面。
 
 **示例**
 
@@ -728,14 +728,14 @@ $ brickkit sync
 
 **用法：** `brickkit restore [flags]`
 
-把 `brickkit.yaml` 里每个组件的 `enabled` 字段还原到最后一次提交时的值
+把 `brickkit.yaml` 里每个组件的 `mode` 字段还原到最后一次提交时的值
 （提交里没写就把这个字段整个删掉），再让源码目录结构跟着这次还原走，走
 的是跟 `sync` 一样的判据。这是为那些把组件源码跟项目一起提交的项目准备
 的（`components/` 从 `.gitignore` 里去掉）：这类项目里 `sync` 的目录搬
 运会进 diff，"本地关掉几个顶层组件、跑了 sync、干完活忘了改回来就提交"
 是个反复出现的失误，这条命令专门堵住它。
 
-它只动 `enabled` 这一个字段，逐条处理：
+它只动 `mode` 这一个字段，逐条处理：
 
 - 工作区和最后一次提交都有的条目 → 还原成提交里的值
 - 工作区新增的条目（刚 `add` 的，或改了版本号的）→ 一个字不动
@@ -754,7 +754,7 @@ $ brickkit sync
 **示例**
 
 ```bash
-brickkit restore           # 把 enabled 和源码结构还原到最后一次提交
+brickkit restore           # 把 mode 和源码结构还原到最后一次提交
 brickkit restore --check   # 只检查；非零退出码表示这次提交不自洽
 ```
 

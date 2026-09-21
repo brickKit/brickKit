@@ -64,7 +64,7 @@ graph TD
 | Multi-environment config | One Chart, several `values-<env>.yaml` files — the differences are yours to maintain | One declaration; switching platforms is changing the single `deploy.target` field |
 | Dependency resolution | Chart dependencies pull in sub-charts together — coarser-grained | Component-level dependencies, required vs. optional, automatic topological sort |
 | Service naming | K8s Services already get DNS, but there's no built-in convention for encoding a version into the name — coexisting versions means each chart author inventing their own scheme | Service name = component ID + exact version, a fixed platform-wide rule, not something each chart reinvents |
-| Local debugging | Typically `kubectl port-forward` or a separate tool (e.g. Telepresence) | `local: true` + `extra_hosts` (Docker target only — under K8s there's no equivalent need for this, see the deployment-selection guide) |
+| Local debugging | Typically `kubectl port-forward` or a separate tool (e.g. Telepresence) | `mode: debug` + `extra_hosts` (Docker target only — under K8s there's no equivalent need for this, see the deployment-selection guide) |
 
 - **Use Helm when:** you're already on K8s, need to template a genuinely complex app, or the Helm chart ecosystem already has what you need.
 - **Use BrickKit when:** components need to evolve independently, local and production need the same declaration, or multi-version coexistence shouldn't depend on a hand-rolled naming convention.

@@ -722,10 +722,10 @@ func TestConflictingDefaultExposePortsIsAnError(t *testing.T) {
 }
 
 // ============================================================
-// 12.7 local: true
+// 12.7 mode: debug
 // ============================================================
 
-// local: true 的组件在宿主机（IDE）里跑，不生成容器。
+// mode: debug 的组件在宿主机（IDE）里跑，不生成容器。
 func TestLocalComponentGeneratesNoService(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
@@ -854,7 +854,7 @@ func TestLocalhostHostWarns(t *testing.T) {
 	assert.Contains(t, text, "host.docker.internal", "要给出该怎么改")
 }
 
-// **接线的关键一半**：绑它的组件全是 local: true 时不该警告。
+// **接线的关键一半**：绑它的组件全是 mode: debug 时不该警告。
 //
 // 那些进程就跑在宿主机上，localhost 恰恰是对的，平台也只把这个地址写进
 // local-debug.*.env——一个容器都碰不到。判定要看"有没有容器组件绑它"，
@@ -870,7 +870,7 @@ func TestLocalhostDoesNotWarnForLocalOnlyComponents(t *testing.T) {
 
 	for _, w := range b.generate().Warnings {
 		assert.NotContains(t, w.Format(), "the container can't reach",
-			"local: true 的组件用 localhost 是对的")
+			"mode: debug 的组件用 localhost 是对的")
 	}
 }
 

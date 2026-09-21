@@ -1,7 +1,7 @@
 // 本文件测试 servedBy（外壳合并部署）在 Docker 目标下的渲染，覆盖
-// servedBy 设计书 §6-§8。local: true 的既有行为不受影响，回归覆盖见
+// servedBy 设计书 §6-§8。mode: debug 的既有行为不受影响，回归覆盖见
 // TestLocalStillWorksAlongsideServedBy；local 组件依赖 servedBy 成员时的
-// 宿主机端口映射，见文件末尾 "local: true 依赖 servedBy 成员" 一节。
+// 宿主机端口映射，见文件末尾 "mode: debug 依赖 servedBy 成员" 一节。
 package compose_test
 
 import (
@@ -206,7 +206,7 @@ func TestServedByUnsupportedFieldsWarn(t *testing.T) {
 	assert.True(t, found, "应该警告 expose 不生效：%+v", result.Warnings)
 }
 
-// ---- local: true 回归：完全不受影响 ----
+// ---- mode: debug 回归：完全不受影响 ----
 
 func TestLocalStillWorksAlongsideServedBy(t *testing.T) {
 	b := newBuilder(t)
@@ -216,7 +216,7 @@ func TestLocalStillWorksAlongsideServedBy(t *testing.T) {
 
 	doc := b.parsed()
 	services := servicesOf(t, doc)
-	assert.NotContains(t, services, "erp-backend-1-0-0", "local: true 组件依旧不生成容器")
+	assert.NotContains(t, services, "erp-backend-1-0-0", "mode: debug 组件依旧不生成容器")
 	assert.NotContains(t, services, "mdm-customer-1-0-7")
 }
 
@@ -265,7 +265,7 @@ func TestServedByMemberDependencyGetsDependsOn(t *testing.T) {
 	assert.Equal(t, "service_healthy", dep["condition"], "等外壳健康，因为外壳有健康检查")
 }
 
-// ---- local: true 依赖 servedBy 成员：映射到外壳身上的宿主机端口 ----
+// ---- mode: debug 依赖 servedBy 成员：映射到外壳身上的宿主机端口 ----
 //
 // brickKit 反馈：local 组件依赖 servedBy 成员时本地调试地址错误。
 // mapDependencyToHost 对 servedBy 成员整个 return（它没有自己的 compose

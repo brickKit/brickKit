@@ -88,7 +88,7 @@
 
 ```
 brickkit.yaml（声明）
-   ↓ ① 启停判定：算出这次实际该启动哪些组件（enabled + 依赖图，跟着上层走）
+   ↓ ① 启停判定：算出这次实际该启动哪些组件（`mode` + 依赖图，跟着上层走）
    ↓ ② 依赖解析：递归展开依赖树，强依赖缺失报错，拓扑排序得出启动顺序
    ↓ ③ 环境变量注入：依赖地址、资源连接、自身配置 → 环境变量
    ↓ ④ 生成部署文件：docker-compose.yaml 或 K8s Deployment/Service/Ingress
@@ -119,7 +119,7 @@ brickkit.yaml（声明）
 | 强依赖 | Required Dependency | 缺失时 CLI **报错并阻断启动** |
 | 弱依赖 | Optional Dependency | `optional: true`；缺失时警告但继续，且**完全不注入该环境变量** |
 | 版本化服务名 | Versioned Service Name | 带精确版本号的服务名，如 `people-basic-1-0-0` |
-| 本地调试模式 | Local Debug Mode | `local: true`；组件跑在宿主机 IDE 中，用 `extra_hosts` 映射进容器网络 |
+| 本地调试模式 | Local Debug Mode | `mode: debug`；组件跑在宿主机 IDE 中，用 `extra_hosts` 映射进容器网络 |
 | 安装源 | Source | 组件来源：市场（http）/ Git 仓库 / 本地目录 |
 | 基础资源 | Resource | 组件依赖的外部系统（数据库、Redis 等），运维部署，`brickkit.yaml` 绑定 |
 | 环境变量注入 | Env Injection | CLI 生成部署文件时写入依赖地址、资源连接、自身配置 |
@@ -129,7 +129,7 @@ brickkit.yaml（声明）
 | 连接组件 | Connector Component | 协调多个单一组件的编排组件 |
 | 单一组件 | Standalone Component | 独立完成一个功能、内部事务自洽的组件 |
 | 精确版本 | Exact Version | `major.minor.patch`，依赖声明**不接受** `^` / `~` 范围约束 |
-| 跟着上层走 | Top-down Inheritance | 顶层默认跑；下层只要还有一个上层在跑就跑。写了 `enabled` 就按写的来（5.4） |
+| 跟着上层走 | Top-down Inheritance | 顶层默认跑；下层只要还有一个上层在跑就跑。写了 `mode` 就按写的来（5.4） |
 
 ---
 
@@ -183,7 +183,7 @@ brickkit.yaml（声明）
 | 平台代为从外部密钥存储（Vault / AWS Secrets Manager 的 SDK）取值 | `${VAR}` 先查进程环境、再查 `.env`——任何能把值放进环境的工具今天就能接入，平台零代码。内置的话，每接一种存储就多一个 SDK，每次 `up`（含 `--dry-run`）都要带存储凭据并联网，还是被否决的"配置中心"的邻居。**已经支持的：** `resources[].existingSecret` 与 `secret: true` 配置项写成 `{ existingSecret, key }`，引用外部系统（Vault Secrets Operator、External Secrets Operator、Sealed Secrets……）已经放进集群的 Secret——两种写法平台都不读写值本身，仅 K8s（§5.2） |
 | 引擎插件 / 第三方部署目标（`up` 上一个假想的 `--engine nomad` 风格参数） | 一个目标的 `Down` / `Status` / 孤儿清理保证，才让"一个能拆干净的项目"成立；插件要自己担保它们，而 CLI 会替它报"成功"——撤掉 Podman 的同一个理由。`deploy.target` 是 `brickkit.yaml` 里的声明，绝不变成命令行参数。新目标在仓库内实现，带全套测试守卫。（`engine.Engine` 本来就是接口；这里说的是谁来担保它的语义，不是代码怎么分层） |
 | 增量生成缓存（`.brickkit/` 里存哈希状态） | 没有可加速的东西：50 个组件走完整条链路约 2 ms（`tests/perf`），使用者真正在等的是 `docker compose up` / `kubectl apply`，而它们本来就只动有变化的。缓存要维护状态，过期时静默产出错误的部署文件 |
-| 按契约生成 mock（一个完整的 `mock` 命令）、自动替换缺失的强依赖（`up --with-mocks` 风格的参数） | 平台从不解析契约（`artifacts.format` 只是个字符串）；给缺失的强依赖换上替身，违反"强依赖缺失就阻断启动"，还可能被误部署；mock 起在另一个名字下接不到流量，因为注入的地址指向真实组件的版本化服务名。现在就能用的：`brickkit new <id> --contract openapi` + `local: true` + 任意 mock 工具（`docs/zh/03-guide/07-consuming-artifacts.md`） |
+| 按契约生成 mock（一个完整的 `mock` 命令）、自动替换缺失的强依赖（`up --with-mocks` 风格的参数） | 平台从不解析契约（`artifacts.format` 只是个字符串）；给缺失的强依赖换上替身，违反"强依赖缺失就阻断启动"，还可能被误部署；mock 起在另一个名字下接不到流量，因为注入的地址指向真实组件的版本化服务名。现在就能用的：`brickkit new <id> --contract openapi` + `mode: debug` + 任意 mock 工具（`docs/zh/03-guide/07-consuming-artifacts.md`） |
 | 给 `brickkit graph` 自己造渲染器——HTML / SVG 输出、内置查看器、替你写文件的参数 | Mermaid 文本本来就有人免费渲染：GitHub 直接渲染 `.mmd` / `.mermaid` 文件，以及 Markdown 里标了 `mermaid` 的代码块，什么都不用装。CLI 里再内置一个渲染器，是给一件今天不花钱的事添一份永久的维护成本（排版、多一种要保证正确的输出格式）。而 stdout 里只有 Mermaid，正是 shell 重定向 `brickkit graph > graph.mmd` 得到合法文件的前提——所以连"替你写文件"的参数也不需要 |
 | 在 `brickkit lint` 里做依赖解析与跨文件引用检查（`servedBy` 指向的组件存不存在？那条依赖找不找得到？） | `lint` 是一个承诺——离线、只读、秒回、不需要 Docker / K8s——而且它不新增任何规则：只是把 `up` / `add` / `publish` 本来就对每个文件跑的解析加校验单独拿出来跑。解析依赖图要读每个组件的 Manifest，对市场 / Git 组件就意味着联网；只要联一次网，这个承诺就没了。**`brickkit up --dry-run` 本来就在做这件事**——它无论如何都要解析依赖图，`servedBy` 目标不存在、或者有解析不出来的强依赖时，会报错并点出是哪一个。想看声明出来的结构，用 `brickkit graph` |
 
@@ -271,15 +271,16 @@ External Secrets Operator、Sealed Secrets……）已经在集群里建好的 S
 
 降级逻辑（Redis 挂了是查数据库、返空列表还是写本地文件）是组件自己的业务代码，平台不管。
 
-### 5.4 `enabled`：跟着上层走
+### 5.4 `mode`：跟着上层走
 
-> **顶层组件默认跑；下层组件只要还有一个上层在跑，它就跑；写了 `enabled` 就按写的来。**
+> **顶层组件默认跑；下层组件只要还有一个上层在跑，它就跑；写了 `mode` 就按写的来。**
 
 | 写法 | 含义 | 行为 |
 | --- | --- | --- |
-| **不写** `enabled` 字段 | **跟着上层走** | 顶层（没有任何组件依赖它）默认跑；下层看上层 |
-| `enabled: true` | **一定跑** | 不看上层。它的**强**依赖被关掉时**报错**（两个意图冲突） |
-| `enabled: false` | **一定不跑** | 依赖它的组件跟着不跑（钉住的则报错） |
+| **不写** `mode` 字段 | **跟着上层走** | 顶层（没有任何组件依赖它）默认跑；下层看上层 |
+| `mode: enabled` | **一定跑** | 不看上层。它的**强**依赖被关掉时**报错**（两个意图冲突） |
+| `mode: disable` | **一定不跑** | 依赖它的组件跟着不跑（钉住的——`mode: enabled` 或 `mode: debug`——则报错） |
+| `mode: debug` | **一定跑，进程由你自己启动** | 跟 `mode: enabled` 一样钉住（不看上层；强依赖被关掉时报错），但不生成容器——你在宿主机上、IDE 里自己跑（5.6）。仅限 Docker |
 
 **强依赖和弱依赖一视同仁**：上层弱依赖它，它照样跟着跑。`optional: true` 只管两件事——
 解析期取不到只警告不阻断、它没在跑时不注入 `*_ENDPOINT`。
@@ -289,13 +290,13 @@ External Secrets Operator、Sealed Secrets……）已经在集群里建好的 S
 - 被多个上层共用时，只要还有一个上层在跑，它就跑——共享的底层组件不会被误伤
 - 两个组件互相依赖（只可能是弱依赖成环）时，环上没有更上层的东西，两个都是顶层，都跑
 - 实现算的是"**谁不跑**"（最小不动点），环因此不需要任何特例
-- CLI 输出里每一行都带着理由：`启动（顶层）` / `启动（enabled: true）` / `启动（X 需要）`
+- CLI 输出里每一行都带着理由：`启动（顶层）` / `启动（mode: enabled）` / `启动（mode: debug）` / `启动（X 需要）`
 
-**收窄启动范围只有一条路：改 `enabled`。** 没有 `--only` 之类的命令行参数——
-把不搞的**顶层**写上 `enabled: false`，`up` 与 `sync` 跟着走；
+**收窄启动范围只有一条路：改 `mode`。** 没有 `--only` 之类的命令行参数——
+把不搞的**顶层**写上 `mode: disable`，`up` 与 `sync` 跟着走；
 恢复全量就 `git checkout brickkit.yaml`。
 
-`brickkit add` 自动添加的组件**不写** `enabled` 字段。
+`brickkit add` 自动添加的组件**不写** `mode` 字段。
 
 ### 5.5 部署文件生成与数据库迁移
 
@@ -316,15 +317,19 @@ K8s 下 CLI 会先 `kubectl delete job --ignore-not-found` 清理残留旧 Job�
 **暴露：** 默认不暴露。`expose: true` 时，K8s 生成 Ingress（需填 `hostname`），
 Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突时 CLI 报错）。
 
-### 5.6 本地调试（`local: true`）
+### 5.6 本地调试（`mode: debug`）
 
 要在 IDE 里断点调试某个组件，同时它还要被 Docker 网络里的其他组件访问：
 
-- `brickkit.yaml` 中标记 `local: true` 的组件**不生成容器**
+- `brickkit.yaml` 中标记 `mode: debug` 的组件**不生成容器**
 - 其他容器通过 `extra_hosts` 把该组件的版本化服务名解析到 `host-gateway`
 - 多个组件可同时本地调试，用不同 `localPort`，CLI 自动注入对应端口
 - CLI 生成 `local-debug.env` 供 IDE 加载
 - **组件代码零修改**（照常读环境变量）
+- 它跟 `mode: enabled` 一样是**钉住**的（5.4）：不管上层怎么样它都在跑，它的**强**依赖被关掉时是
+  报错，不是悄悄让步
+- **仅限 Docker**：`mode: debug` 与 `deploy.target: k8s` 同时出现，在解析 `brickkit.yaml` 时就会被
+  拒绝（所以 `brickkit lint` 也拦得住）——集群里的 Pod 没有路径能连到你自己机器上的进程
 - 写进这份文件的值，只要含有会被 shell 误解析的字符（空白、`|`、`$`、值内部的
   真实换行……）就会按 POSIX shell 规则加上引号——多行的 PEM 值或竖线分隔的列表
   经过 `set -a && source … && set +a` 之后完整保留，不会在第一个换行处截断，
@@ -341,7 +346,7 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
 - 它**不会**改写的东西：一个指向 brickKit 依赖图之外某个东西（比如一个带外容器
   的地址）的 config 字面量——这类值本来就是按"另一端也在容器网络里"写的
   （比如 `http://host.docker.internal:8000`）。brickKit 不解析 config 字符串的
-  内容，所以把该组件改成 `local: true` 并不会把这个字面量换算成宿主机视角能
+  内容，所以把该组件改成 `mode: debug` 并不会把这个字面量换算成宿主机视角能
   访问到的地址，需要开发者自己手工改（通常改成 `localhost`）
 - 依赖如果是一个 `servedBy` 成员（§5.7），它没有自己的 compose service——它的
   宿主机端口映射改开在它的**外壳**身上，用的是这个成员自己声明的端口（正是
@@ -398,7 +403,7 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
   斜杠或换行符，就会被 docker compose 自己那套无结构感知的变量替换撑
   坏这段 JSON。零个成员时是 `[]`，不是变量缺失。
 
-`local: true` 不受影响——字段、含义、代码路径都和以前一样；`servedBy`
+`mode: debug` 不受影响——含义、代码路径都和以前一样；`servedBy`
 是一套完全独立的机制，只是碰巧和它共享"在依赖图里、但不生成工作负载"
 这个形状。
 
@@ -420,7 +425,7 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
 要不要在自己项目里声明 `servedBy`、怎么声明：
 [怎么声明 servedBy：部署方检查清单](docs/zh/07-patterns/06-servedby-deployment-checklist.md)。
 再往上一层，整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）×
-`docker`/`k8s`、`local: true` 调试开关、手动裸跑组件放在哪个位置：
+`docker`/`k8s`、`mode: debug` 调试开关、手动裸跑组件放在哪个位置：
 [怎么选部署形态](docs/zh/07-patterns/05-deployment-selection-guide.md)。
 
 ### 5.8 组件源码工作区
@@ -438,7 +443,7 @@ CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 
 **把 `components/` 从 `.gitignore` 去掉的项目**（组件源码要跟项目一起进版本库），
 `sync` 的整目录移动会进项目的 diff——`brickkit restore` 与 `brickkit init --hooks`
-装的 pre-commit hook 就是为了拦住「归档结构进了提交、`enabled` 却没跟着提交」
+装的 pre-commit hook 就是为了拦住「归档结构进了提交、`mode` 却没跟着提交」
 这个反复出现的失误。
 
 这一整块——克隆、改了推回去、归档、`remove` 的几道保护、`restore` 与钩子——带真实输出
@@ -574,7 +579,7 @@ healthCheck:                     # 必须
 `limits` 之和可以远超容量（超卖是正常用法）。20 个组件按默认 requests 合计仅 2 核 / 2.5G。
 真正的成本是**每个进程的内存地板**，几乎完全由语言决定：Go 8–20MB、Python/Node 40–90MB、
 JVM 200–450MB——20 个 Spring Boot 光空转就 4–9G。**别为省内存去合并组件**，
-那是解错了题（该换运行时或用 `enabled: false` 少跑几个）。
+那是解错了题（该换运行时或用 `mode: disable` 少跑几个）。
 
 **⚠️ 健康检查禁令：** `/healthz` 只检查本进程存活。在健康检查里查数据库或依赖组件
 会导致生产环境雪崩——一个下游抖动会让所有上游同时被判不健康并重启。
@@ -691,8 +696,8 @@ installer:
 **多环境：** 每个环境一份**完整自包含**的 `brickkit.yaml`（如 `brickkit.prod.yaml`），
 用 `brickkit up --config brickkit.prod.yaml` 指定。**没有 overlay / 继承 / 合并机制**（理由见 9.9）。
 
-以上是骨架——每个字段精确的类型、是否必填、默认值、校验约束（`local`/`servedBy`/`replicas`
-之间的每一种互斥、绑定槽位规则、那个在 `k8s` 下悄悄不生效却没人拦住的字段）见
+以上是骨架——每个字段精确的类型、是否必填、默认值、校验约束（`mode`/`servedBy`/`replicas`
+之间的每一种互斥、绑定槽位规则、哪些字段只在某一种部署目标下生效而写在另一种下 `up` 会警告）见
 [08-brickkit-yaml-reference.md](docs/zh/06-architecture/08-brickkit-yaml-reference.md)。
 
 ---
@@ -706,14 +711,14 @@ installer:
 | `brickkit graph` | 把项目的依赖拓扑画成 Mermaid 文本，打印到 stdout：实线是强依赖，虚线是弱依赖（取不到的弱依赖画成"未安装"节点），置灰的节点是这次不会启动的组件，`servedBy` 收编的成员画在各自的外壳里。**stdout 里只有 Mermaid**，所以 `brickkit graph > graph.mmd` 存下来的文件 GitHub 能直接渲染。它读的是与 `up --dry-run` 同一份解析出来的依赖图（所以还没缓存的市场 / Git 组件的 Manifest 要联网取），不生成部署文件、不碰引擎。`--ignore-served-by` 把每个组件都画成独立部署 |
 | `brickkit lint` | **离线、只读**地检查当前目录里 YAML 的结构——不联网，不需要 Docker / K8s。在项目里：先查 `brickkit.yaml`，再查 `local` 安装源目录下的每一份 `component.yaml`（不管有没有 add 过；`.archived/` 不查）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）：只查那一份。报告必填字段、类型、未知键（拼写笔误）、版本号格式、端口范围，另有两类警告——`configSchema` 属性声明里拼错的键（不会生效）、配置项名字撞上保留变量。不新增任何规则；有错误时退出码 `1`（`LINT_FAILED`），只有警告时退出码 `0`，加 `--strict` 则警告也算失败（给 CI 门禁用）。**不做**依赖解析、也不查 `servedBy` 目标在不在——两者都要解析出依赖图才知道，而 `lint` 故意不建这张图（对市场或 Git 来源的组件来说这可能意味着联网）——那是 `up --dry-run` 的事 |
 | `brickkit new <scope>/<name>` | 生成一个组件的最小骨架——一份已经能通过校验的 `component.yaml`，带 `--contract openapi\|proto` 时还生成一份契约占位文件并登记进 `artifacts`。默认写到 `components/<scope>/<name>/`（`local` 安装源本来就扫描这个布局）；`--path` 写到别的地方、不再套一层，给独立组件仓库用。不生成 Dockerfile，不生成源码——平台不替你选语言，也不会替你执行 `add` |
-| `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `enabled` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘 |
+| `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `mode` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘 |
 | `brickkit remove <id>` | 检查强依赖方后移除，自动删除源码目录（含归档的那份）。多版本共存时必须指定版本 |
 | `brickkit fetch <id>[@版本]` | 只下载组件的产物到 `.brickkit/artifacts/<版本化服务名>/`，**不写入 brickkit.yaml、不部署**。跨项目调用别人的服务时用 |
 | `brickkit up` | 启停判定 → 生成部署文件 → 生成 `local-debug.env` → 检测镜像权限 → 执行迁移 → 调用引擎 |
 | `brickkit down` | 停止所有组件。**不删除 volume，保留数据** |
 | `brickkit status` | 读底层引擎，展示运行表格（含多版本检测、不启动的组件也列出来） |
 | `brickkit sync` | 按启停判定结果双向归档 / 激活组件源码。无参数 |
-| `brickkit restore` | 把 `enabled` 与组件源码结构还原到最后一次提交。`--check` 供 pre-commit hook 判断这次提交自洽不自洽 |
+| `brickkit restore` | 把 `mode` 与组件源码结构还原到最后一次提交。`--check` 供 pre-commit hook 判断这次提交自洽不自洽 |
 | `brickkit login` | 终端交互登录市场，Token 存 `.brickkit/credentials` |
 | `brickkit logout` | 先调市场作废 Token，再删本地的 `.brickkit/credentials`。**本地那份一定会删**，即使市场连不上——否则一次网络抖动就让人以为自己已经退出、凭据却还躺在盘上。没登录时什么都不做，也不算失败 |
 | `brickkit publish` | 上传 Manifest + 镜像引用 + 产物到市场（需先 login） |
@@ -839,10 +844,14 @@ JSON Schema 能力极其丰富，CLI 会越来越臃肿。而且组件自治—�
 开发者于是误以为弱依赖是健康的。这种 bug 极难排查。
 **宁可让组件在启动时"响亮地崩溃"，也不要让它在运行时"安静地出错"。**
 
-**9.14 为什么 `enabled` 有三种状态，规则却写成"跟着上层走"？**
-状态还是三种（不写 / `true` / `false`），判定结论一个字没变，但表述从**实现视角**的倒推
-（"没有启用中的组件需要它就跳过"）改成了**使用者视角**的继承。两者逐种情况一一对应，
-但只有后者读得懂：使用者要做的决定就是"这个顶层我要不要"，下面那一串跟着走，不用他算。
+**9.14 为什么 `mode` 是一个字段，规则又写成"跟着上层走"？**
+`mode` 从前是两个开关——`enabled`（不写 / `true` / `false`）和 `local: true`——而且没有任何东西
+拦着它们互相矛盾：`enabled: false` 旁边再写 `local: true`，等于同时说"绝不跑它"和"我自己在跑它"。
+一个字段、用取值说明**这个组件这一次扮演什么角色**，这种组合就根本写不出来：不写就跟着上层走，
+`enabled` 与 `debug` 把它钉在"要跑"上（一个在容器里，一个是你自己启动的进程），`disable` 把它钉在
+"不跑"上。规则本身的表述，则从**实现视角**的倒推（"没有启用中的组件需要它就跳过"）改成了
+**使用者视角**的继承。两者逐种情况一一对应，但只有前者读得懂：使用者要做的决定就是
+"这个顶层我要不要"，下面那一串跟着走，不用他算。
 这不是措辞洁癖——原来那句话真的把人读岔过，照着它认真读完会得出"这条规则错了"的结论。
 配套改了一处实质规则：判定里的"依赖"从只算强依赖改成强弱一视同仁，
 否则 `add` 写进配置的弱依赖默认不启动，装了组件却发现一半功能是哑的。
@@ -883,7 +892,7 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 需求是真的：JVM 组件的内存地板 200–450MB，20 个就是 4–9G，私有化交付时会真的装不下。
 平台**已经免费把最难的一半做完了**——调用方只读 `*_ENDPOINT`，对端是 10 个容器、
 1 个容器还是 1 个 JVM 里的 10 个模块，它无从知道。`servedBy`（5.7）补上了那个真正
-属于平台自己的缺口——不用借用 `local: true`、也不用在 K8s 侧留一个完全没有对应
+属于平台自己的缺口——不用借用 `mode: debug`、也不用在 K8s 侧留一个完全没有对应
 方案的空档，就能把地址正确路由到合并后的整体。再往后的活（合并进程内部端口别撞、
 接手健康检查与迁移、把各模块的配置互相隔离开）还是全在外壳作者自己的代码里，
 一行平台代码也用不上——平台依然不需要理解哪些东西*能*合、由什么进程管理器
@@ -940,17 +949,17 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 | 两个组件共用一个数据库 | 迁移状态表的主键**必须含组件标识**，否则迁移会互相顶掉 |
 | 用 `docker compose logs` 看不到东西 | 漏了 `-p brickkit-<项目名>`，compose 找的是另一个项目 |
 | 改了本地源的 `component.yaml` 但 `up` 没反应 | 本地源不吃缓存；确认组件确实来自本地源 |
-| `local: true` 后调用方持续 503 | 进程实际监听的端口与 `localPort` 不一致 |
-| `local: true` 的组件报 `relation does not exist` | local 组件不生成迁移容器，迁移要自己手动跑一次 |
-| `local: true` 组件自己的 config 里，某个带外依赖的地址还是 `host.docker.internal` | 那是使用者自己写的字面量，brickKit 不解析 config 值，改成 `local: true` 不会帮你换算。自己把这个字面量改掉（通常改成 `localhost`） |
-| `local: true` 组件依赖了一个 `servedBy` 成员 | 能连上：它的 `*_ENDPOINT` 会解析成一个真正的 `localhost:<端口>`——这个成员没有自己的容器，CLI 把映射开在它的外壳身上（§5.6） |
+| `mode: debug` 后调用方持续 503 | 进程实际监听的端口与 `localPort` 不一致 |
+| `mode: debug` 的组件报 `relation does not exist` | debug 组件不生成迁移容器，迁移要自己手动跑一次 |
+| `mode: debug` 组件自己的 config 里，某个带外依赖的地址还是 `host.docker.internal` | 那是使用者自己写的字面量，brickKit 不解析 config 值，改成 `mode: debug` 不会帮你换算。自己把这个字面量改掉（通常改成 `localhost`） |
+| `mode: debug` 组件依赖了一个 `servedBy` 成员 | 能连上：它的 `*_ENDPOINT` 会解析成一个真正的 `localhost:<端口>`——这个成员没有自己的容器，CLI 把映射开在它的外壳身上（§5.6） |
 | 讨论签名 | 发布方需要装 **cosign**；**安装方不需要**（验签用 Go 标准库） |
 | 用户想让平台帮忙做安全审查 | 安装即信任。平台只在事后 `blocked` |
-| 用户问「能不能把多个组件合并成一个实例省内存」 | 先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用。还要合并的话：**`servedBy`（5.7）是平台支持的路径**——它在 Docker 和 K8s 下都能正确处理地址路由；其余的事（模块隔离、配置、外壳内部的迁移顺序）还是他们自己的代码，参见外壳实现者指南。`enabled: false` 和这个无关——它照样不能拿来当「我自己接管」的开关 |
+| 用户问「能不能把多个组件合并成一个实例省内存」 | 先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用。还要合并的话：**`servedBy`（5.7）是平台支持的路径**——它在 Docker 和 K8s 下都能正确处理地址路由；其余的事（模块隔离、配置、外壳内部的迁移顺序）还是他们自己的代码，参见外壳实现者指南。`mode: disable` 和这个无关——它照样不能拿来当「我自己接管」的开关 |
 | 用户的 `brickkit` 输出不是他预期的那种语言（或者某个 grep 输出的脚本坏了） | 语言是每次运行时决定的：`BRICKKIT_LANG` 优先于 `brickkit lang set` 存下的值，后者优先于默认的英文——`brickkit lang` 会打印当前生效的是哪一个、为什么。脚本别去 grep 给人看的文字：认退出码和 stderr JSON 日志行里稳定的 `error_code`，或者把 `BRICKKIT_LANG=en` 钉死 |
 | 用户问「纯独立/纯外壳/混搭，docker 还是 k8s，到底该选哪个」 | 这正是 `docs/zh/07-patterns/05-deployment-selection-guide.md` 那份矩阵存在的目的——照着它的矩阵走，不要临场现编答案。里面唯一一条值得直接记住的硬规则：`mode: debug`（调试开关）只在 `deploy.target: docker` 下存在，`k8s` 下会在解析阶段直接拒绝 |
-| 用户的上游组件还没做好/没发布，问能不能给个 mock、或让 CLI 自动替换一个 | 不是平台功能——平台从不解析契约，也从不给缺失的强依赖换上替身（§4.1）。现成能走通的路：`brickkit new <id> --contract openapi` 立一个带约定契约的桩、`add --local`、给桩加 `local: true` + `localPort`、主机上任意 mock 工具监听那个端口。带真实输出的演示：`docs/zh/03-guide/07-consuming-artifacts.md` |
-| 用户问「完全不经过 Docker/K8s，怎么把整套东西跑在本地」 | 这是平台唯一完全不管理、不注入任何东西的一档——见 `deployment-selection-guide.md` 的"手动跑起来"那节。值得告诉他们的一个技巧：把那个组件临时改成 `local: true` 之后跑一次 `brickkit up --dry-run`，能拿到一份真实部署会注入的环境变量清单当参考——抄完就还原这次改动，不要真的照这个方式部署 |
+| 用户的上游组件还没做好/没发布，问能不能给个 mock、或让 CLI 自动替换一个 | 不是平台功能——平台从不解析契约，也从不给缺失的强依赖换上替身（§4.1）。现成能走通的路：`brickkit new <id> --contract openapi` 立一个带约定契约的桩、`add --local`、给桩加 `mode: debug` + `localPort`、主机上任意 mock 工具监听那个端口。带真实输出的演示：`docs/zh/03-guide/07-consuming-artifacts.md` |
+| 用户问「完全不经过 Docker/K8s，怎么把整套东西跑在本地」 | 这是平台唯一完全不管理、不注入任何东西的一档——见 `deployment-selection-guide.md` 的"手动跑起来"那节。值得告诉他们的一个技巧：把那个组件临时改成 `mode: debug` 之后跑一次 `brickkit up --dry-run`，能拿到一份真实部署会注入的环境变量清单当参考——抄完就还原这次改动，不要真的照这个方式部署 |
 | 用户贴了一段 `brickkit` 的报错，或问怎么在脚本里应对失败（重试还是报警） | 每条终止命令的错误，在 `❌` 块后面紧跟的那行 stderr JSON 日志里都带一个稳定的 `error_code`。去 `docs/zh/06-architecture/10-error-codes.md`（英文版把 `zh` 换 `en`）查——它按 CLI 打印的确切标题列出每个码底下的各种情形、原因与解法。只有 `NETWORK_UNREACHABLE` 值得原样重试；码稳定，只增不改 |
 
 ---
@@ -1012,7 +1021,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 克隆、归档、移除、还原组件源码（`add --repo` / `sync` / `remove` / `restore`、pre-commit 钩子），带真实输出的上手教程 | `docs/zh/03-guide/08-component-source.md`（英文版同上） |
 | 一个带数据库和迁移的 Go 组件，深入真实走一遍 | `docs/zh/04-go-component-template.md`（英文版把 `zh` 换 `en`） |
 | 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/07-patterns/`（英文版同上） |
-| 整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）× `docker`/`k8s`，外加 `local: true` 调试开关、手动裸跑组件放在哪个位置 | `docs/zh/07-patterns/05-deployment-selection-guide.md`（英文版把 `zh` 换 `en`） |
+| 整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）× `docker`/`k8s`，外加 `mode: debug` 调试开关、手动裸跑组件放在哪个位置 | `docs/zh/07-patterns/05-deployment-selection-guide.md`（英文版把 `zh` 换 `en`） |
 | 怎么造一个能接 `servedBy` 的合格外壳 | `docs/zh/07-patterns/07-shell-implementers-guide.md`（英文版把 `zh` 换 `en`） |
 | 要不要在自己项目里声明 `servedBy`、怎么声明 | `docs/zh/07-patterns/06-servedby-deployment-checklist.md`（英文版把 `zh` 换 `en`） |
 | 怎么自己搭一套组件市场 | `docs/zh/07-patterns/09-deployment/self-hosted-market.md`（英文版把 `zh` 换 `en`） |
@@ -1024,7 +1033,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 资源绑定撞车时到底会发生什么、配额链到底怎么逐字段合并 | `docs/zh/06-architecture/05-resource-binding.md`（英文版把 `zh` 换 `en`） |
 | 平台可能注入的每一个环境变量——每种资源 `kind` 精确的变量名、保留变量冲突警告与唯一一种阻断错误、`servedBy` 怎么把成员的配置合并到外壳身上 | `docs/zh/06-architecture/04-environment-variables.md`（英文版把 `zh` 换 `en`） |
 | `component.yaml` 每个字段的类型、是否必填、默认值、校验器真正套用的约束——包括 `enum`、`items` 这两个会被解析但代码库里从没有任何地方真正读过的字段 | `docs/zh/06-architecture/07-component-yaml-reference.md`（英文版把 `zh` 换 `en`） |
-| `brickkit.yaml` 每个字段的类型、是否必填、默认值、约束——包括 `local`/`servedBy`/`replicas` 之间的每一种互斥，以及唯一一个"写了不生效、但目前没有任何东西拦住"的字段 | `docs/zh/06-architecture/08-brickkit-yaml-reference.md`（英文版把 `zh` 换 `en`） |
+| `brickkit.yaml` 每个字段的类型、是否必填、默认值、约束——包括 `mode`/`servedBy`/`replicas` 之间的每一种互斥，以及哪些字段只在某一种部署目标下生效（写在另一种下 `up` 会警告） | `docs/zh/06-architecture/08-brickkit-yaml-reference.md`（英文版把 `zh` 换 `en`） |
 | 真正被签名的是什么、验签为什么不需要 cosign 依赖、公钥为什么不能来自市场 | `docs/zh/06-architecture/06-signing-and-trust.md`（英文版把 `zh` 换 `en`） |
 | 每个命令完整的参数参考，带真实生成的输出——上面 §8 的详细版 | `docs/zh/06-architecture/09-cli-reference.md`（英文版把 `zh` 换 `en`） |
 | 给 `component.yaml` / `brickkit.yaml` 接上编辑器的字段补全与拼写红线——`schemas/` 里的 JSON Schema、怎么接、以及它们刻意不覆盖什么 | `docs/zh/00-quick-start.md`（英文版把 `zh` 换 `en`） |

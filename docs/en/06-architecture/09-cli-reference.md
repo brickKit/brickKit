@@ -35,7 +35,7 @@ Click a command name to jump to its full description.
 | | [`brickkit down`](#brickkit-down) | Stop every component (volumes are kept, so data survives) | Done for now |
 | | [`brickkit status`](#brickkit-status) | Show a table of what's running | Checking what's up right now |
 | Source workspace | [`brickkit sync`](#brickkit-sync) | Archive the source of components that aren't starting and restore those that are, following the "who runs" decision | You want `components/` to hold only what you're working on |
-| | [`brickkit restore`](#brickkit-restore) | Put `enabled` and the source layout back to the last commit | You want to undo a `sync` |
+| | [`brickkit restore`](#brickkit-restore) | Put `mode` and the source layout back to the last commit | You want to undo a `sync` |
 | Marketplace | [`brickkit login`](#brickkit-login) | Log in to the marketplace interactively | Before publishing, or installing private components |
 | | [`brickkit logout`](#brickkit-logout) | Revoke the token and delete the local credentials | Logging out |
 | | [`brickkit publish`](#brickkit-publish) | Upload the Manifest, image reference and artifacts to the marketplace | Publishing your own component |
@@ -59,7 +59,7 @@ letters/digits/hyphens, starting and ending with a letter or digit (it feeds
 both the Docker network name and the K8s namespace).
 
 The installed skills only cover the things common sense gets wrong —
-reserved variables, the health-check prohibition, top-down `enabled` — and
+reserved variables, the health-check prohibition, top-down `mode` — and
 never restate a flag's exact syntax; they point at `--help` for that
 instead. They travel with the project in Git and are shared by the whole
 team; `brickkit skills update` refreshes them after a CLI upgrade. `init`
@@ -67,7 +67,7 @@ never touches your own `CLAUDE.md` — that file is yours.
 
 If the project also puts component source under version control (removing
 `components/` from `.gitignore`), `init` additionally installs a pre-commit
-hook that catches "the archive state changed but `enabled` didn't come with
+hook that catches "the archive state changed but `mode` didn't come with
 it" — but only when the project root **is** the Git repo
 root; a project nested inside someone else's repo needs `--hooks` to install
 it explicitly.
@@ -160,11 +160,11 @@ It reads what `up --dry-run` reads — `brickkit.yaml` and every component's Man
 
 | On the picture | It means |
 | --- | --- |
-| A box labelled `id@version` | One component. If it's `local: true`, a second line reads `local debug`, followed by `:<port>` when `localPort` is written in `brickkit.yaml`. With no `localPort` the port is only chosen later, by `up`, so the picture shows none rather than invent one |
+| A box labelled `id@version` | One component. If it's `mode: debug`, a second line reads `local debug`, followed by `:<port>` when `localPort` is written in `brickkit.yaml`. With no `localPort` the port is only chosen later, by `up`, so the picture shows none rather than invent one |
 | Solid arrow `A --> B` | A has a **required** dependency on B |
 | Dashed arrow `A -.-> B` | A has an **optional** dependency on B. If no source has B it's still drawn, as an orange dashed box labelled `id@version` and `not installed` — the same fact `up --dry-run` prints as `(optional, not installed)`, and the answer to "why isn't this address injected?" |
-| Grey box | A component that won't start this time: turned off with `enabled: false`, or no running component above it needs it (AGENTS.md §5.4) |
-| Light-blue box | A `local: true` component that would start |
+| Grey box | A component that won't start this time: turned off with `mode: disable`, or no running component above it needs it (AGENTS.md §5.4) |
+| Light-blue box | A `mode: debug` component. It always runs — `debug` is pinned like `mode: enabled` (AGENTS.md §5.4) — so it is never grey |
 | A titled box, `Shell: id@version`, around some components | Those components are folded into another component's process with `servedBy` (AGENTS.md §5.7), and the title names that shell. The shell itself is an ordinary box outside it. If the shell isn't in the project the group is drawn anyway — reporting a missing target is `up`'s job |
 
 Arrows are drawn whether or not the component at the other end starts: the picture shows the structure you *declared*, and colour shows whether each part starts, so the two never get mixed up.
@@ -205,13 +205,13 @@ graph TD
     class infra_redis_event_bus_1_0_0 missing
 ```
 
-The solid arrow is the required dependency; the dashed one, ending in the orange box, is the optional dependency nothing provides. Now write `local: true` and `localPort: 8081` on `department/tree` in `brickkit.yaml`:
+The solid arrow is the required dependency; the dashed one, ending in the orange box, is the optional dependency nothing provides. Now write `mode: debug` and `localPort: 8081` on `department/tree` in `brickkit.yaml`:
 
 ```yaml
 components:
   - id: department/tree
     version: 1.0.0
-    local: true
+    mode: debug
     localPort: 8081
   - id: people/basic
     version: 1.0.0
@@ -258,7 +258,7 @@ It adds no rules of its own: every check is one the platform already makes somew
 **What it doesn't check, and why**
 
 - Whether a dependency can be found in some source, or a `servedBy` target exists. Both need the rest of the project's Manifests — over the network, for market and Git components — and that isn't "offline, in a second". They're what `brickkit up --dry-run` is for, since it resolves the graph anyway.
-- A few combination rules that are only checked when the deployment files are generated — `local: true` under `deploy.target: k8s`, for one. `lint` passes that file and `brickkit up --dry-run` rejects it; most other combinations (`local` with `servedBy`, say) are part of what `lint` checks.
+- A few combination rules that need to know which components end up running, so they're only checked when the deployment files are generated — a running `expose: true` component under `deploy.networkPolicy` needing `ingressController`, for one. `lint` passes that file and `brickkit up --dry-run` rejects it; most other combinations (`mode: debug` with `servedBy`, or with `deploy.target: k8s`, say) are part of what `lint` checks.
 - The *values* in a `configSchema` — an `enum`, a `minimum`. The platform declares them for the reader and never enforces them (AGENTS.md §9.12: it's a spec sheet, not a gate).
 - A market or Git component's Manifest. It was validated when you added it; `lint` only looks at files you can edit yourself, the local sources.
 
@@ -467,7 +467,7 @@ order `sources:` lists them), recurses into `dependencies.components`, errors
 on an unreachable required dependency (warns and continues on an
 unreachable optional one), downloads `artifacts` into
 `.brickkit/artifacts/<versioned-service-name>/`, and writes the result into
-`brickkit.yaml` — **without** writing an `enabled` field, so the component
+`brickkit.yaml` — **without** writing a `mode` field, so the component
 follows top-down inheritance by default (AGENTS.md §5.4).
 
 Omit the version and the CLI resolves one for you: a `local`/`git` source's
@@ -596,13 +596,13 @@ brickkit fetch infra/notifier         # fetch the latest version's artifacts
 
 Turns the declaration into running containers, in one pass: reads
 `brickkit.yaml` and every component's Manifest → cascade decision (top-down:
-a top-level component with no `enabled` written runs by default, everything
+a top-level component with no `mode` written runs by default, everything
 below follows whoever above it needs it, AGENTS.md §5.4) → checks required
 dependencies (errors if missing) and optional ones (warns, and skips
 injecting that dependency's `*_ENDPOINT` entirely) → topological sort for
 start order → generates `docker-compose.yaml` (or the K8s manifests),
 injecting environment variables and merging resource quotas → generates
-`local-debug.<versioned-service-name>.env` for any `local: true` component →
+`local-debug.<versioned-service-name>.env` for any `mode: debug` component →
 checks image-pull permissions (prompts `docker login` if unauthorized) →
 invokes the underlying engine, running any declared migration in a one-shot
 container first and blocking the main service on its failure.
@@ -680,7 +680,7 @@ brickkit up --ignore-served-by --dry-run  # verify: can these components still g
 
 Stops every component. Stop order is the reverse of start order (dependents
 before dependencies) — the underlying engine handles this, not the CLI. To
-stop only some components, write `enabled: false` on the ones you want
+stop only some components, write `mode: disable` on the ones you want
 down and run `brickkit up` again: they drop out of the generated deployment
 file and the engine removes their containers as a side effect of the
 regenerated file no longer declaring them — same end state as "stop just
@@ -713,7 +713,7 @@ brickkit down --context prod-cluster   # tear down against a specific cluster
 Shows every component's running state. The CLI keeps no state of its own —
 this always queries the underlying engine live (`docker compose ps
 --format json` under Docker). Output covers running components, components
-not running (with why), `local: true` components, and base-resource
+not running (with why), `mode: debug` components, and base-resource
 reachability.
 
 **Example**
@@ -746,14 +746,14 @@ Bidirectionally moves component source between `components/` and
 what would start this run stays (or moves back) in the active directory,
 what wouldn't start moves into the archive. It never touches a running
 container and never changes what `up` would start — it only moves
-directories. Narrow the scope with `enabled: false` in `brickkit.yaml`
+directories. Narrow the scope with `mode: disable` in `brickkit.yaml`
 (top-down, AGENTS.md §5.4) and `sync` follows along. Each directory it
 touches moves whole, `.git` included, so ordinary Git commands keep working
 on an archived component. Only components already declared in
 `brickkit.yaml`, with source already present, are ever touched. There's no
 `--dry-run` — the move is fully reversible by running it again.
 
-A hands-on walkthrough with real output: [Manage component source](../03-guide/08-component-source.md) — archiving, activating, and how it works with `enabled`.
+A hands-on walkthrough with real output: [Manage component source](../03-guide/08-component-source.md) — archiving, activating, and how it works with `mode`.
 
 **Example**
 
@@ -769,7 +769,7 @@ $ brickkit sync
 
 **Syntax:** `brickkit restore [flags]`
 
-Resets each component's `enabled` field in `brickkit.yaml` back to its
+Resets each component's `mode` field in `brickkit.yaml` back to its
 value at the last commit (dropping the field entirely if the commit didn't
 have it), then lets the source-directory layout follow that reset the same
 way `sync` would. This exists for projects that commit component source
@@ -778,7 +778,7 @@ projects, `sync`'s directory moves land in the diff, and "flipped a few
 top-level components off locally, ran `sync`, forgot to flip them back
 before committing" is a recurring mistake this closes.
 
-It only ever touches `enabled`, one entry at a time:
+It only ever touches `mode`, one entry at a time:
 
 - present in both the working tree and the last commit → reset to the
   committed value
@@ -800,7 +800,7 @@ A hands-on walkthrough with real output: the last section of [Manage component s
 **Example**
 
 ```bash
-brickkit restore           # reset enabled and the source layout to the last commit
+brickkit restore           # reset mode and the source layout to the last commit
 brickkit restore --check   # check only; non-zero exit means this commit would be inconsistent
 ```
 

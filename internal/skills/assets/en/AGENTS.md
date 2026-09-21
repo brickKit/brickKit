@@ -37,7 +37,7 @@ more accurate than any summary.
    health check — that turns one component's hiccup into a cascading outage. A component whose
    cold start exceeds the default 60 seconds needs a larger `startPeriodSeconds`.
 4. **Start/stop follows the layer above it.** Turn off a top-level component and everything below
-   it stops too. To narrow the scope, edit `enabled` in `brickkit.yaml` — don't turn things off one
+   it stops too. To narrow the scope, edit `mode` in `brickkit.yaml` — don't turn things off one
    by one.
 
 ## Don't memorize flags

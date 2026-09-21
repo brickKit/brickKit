@@ -50,8 +50,6 @@ func withNetworkPolicy(b *builder) *builder {
 	return b
 }
 
-// pinned 是 enabled: true（显式钉住，不被级联跳过）。
-
 // npPath 是某个组件的 NetworkPolicy 文件路径。
 func npPath(service string) string { return "networkpolicies/" + service + ".yaml" }
 

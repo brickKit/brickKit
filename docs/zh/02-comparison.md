@@ -64,7 +64,7 @@ graph TD
 | 多环境配置 | 一份 Chart + 多份 `values-<env>.yaml`，差异要自己维护 | 一份声明，改 `deploy.target` 这一个字段就切换目标平台 |
 | 依赖解析 | Chart 依赖是"把子 Chart 一起装进来"，比较粗粒度 | 组件级依赖，区分强弱依赖，自动拓扑排序 |
 | 服务命名 | K8s Service 本身就有 DNS，但没有内置的"版本进服务名"约定——多版本共存要 Chart 作者自己设计命名规则 | 服务名 = 组件 ID + 精确版本号，是平台的固定规则，不用每个 Chart 各自发明一套 |
-| 本地调试 | 典型做法是 `kubectl port-forward` 或额外工具（如 Telepresence） | `local: true` + `extra_hosts`（仅 Docker 目标；K8s 下这条路径本来就不存在断点调试的需要，见部署选型指南） |
+| 本地调试 | 典型做法是 `kubectl port-forward` 或额外工具（如 Telepresence） | `mode: debug` + `extra_hosts`（仅 Docker 目标；K8s 下这条路径本来就不存在断点调试的需要，见部署选型指南） |
 
 - **什么时候用 Helm：** 已经在用 K8s、需要模板化部署复杂应用、Chart 生态本身就有你要的东西。
 - **什么时候用 BrickKit：** 组件需要独立演进、需要本地和生产用同一份声明、需要多版本共存不是靠手工命名约定撑着。

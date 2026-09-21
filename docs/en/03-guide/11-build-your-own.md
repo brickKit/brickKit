@@ -167,7 +167,7 @@ curl http://localhost:8085/api/v1/count
 
 This component didn't need anything special to plug into the rest of what this series covers, because none of it was ever specific to `demo/hello` or `demo/caller` in the first place:
 
-- [Debug a component locally](03-local-debugging.md) works the same way — `local: true`, run the binary on your own machine, breakpoints and all.
+- [Debug a component locally](03-local-debugging.md) works the same way — `mode: debug`, run the binary on your own machine, breakpoints and all.
 - [Publish and install from a marketplace](09-marketplace.md) and [Sign and verify components](10-signing.md) work the same way — `brickkit publish --path ./components/tutorial/counter`, sign it, install it somewhere else.
 
 Nothing in this article introduced a new mechanism — the point was confirming that writing a component from nothing really does land you in the exact same platform every other article in this series already walked through.

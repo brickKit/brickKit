@@ -67,9 +67,9 @@ func contextOf(cfg *config.Config, flag string) string {
 //	              serviceAccountName
 //	K8s 目标      组件的 exposePort
 //
-// `local` / `localPort` 不在此列：K8s 下它们是**报错**，不是警告
-// （k8s.localNotSupported）。跳过的后果是依赖方拿到一个指向不存在 Service
-// 的地址，表现成随机的连接超时（005 §5.3.1），性质与"这一行没生效"不同。
+// `mode: debug` / `localPort` 不在此列：它们在解析 brickkit.yaml 时就是**报错**
+// （config.validateComponentMode 等），不是警告。跳过的后果是依赖方拿到一个指向
+// 不存在 Service 的地址，表现成随机的连接超时（005 §5.3.1），性质与"这一行没生效"不同。
 func warnTargetOnlyFields(opts *Options, cfg *config.Config) {
 	if cfg.Deploy.Target == config.TargetK8s {
 		warnFields(opts, cfg, "Docker", dockerOnlyFields(cfg),

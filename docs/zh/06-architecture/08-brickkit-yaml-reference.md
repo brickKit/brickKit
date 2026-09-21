@@ -2,7 +2,7 @@
 
 AGENTS.zh.md §7 是那份骨架。这篇文档是骨架背后的字典——每个字段的类型、是不是必填、默认值，以及校验器真正会套用的那条约束，逐行核对过 `internal/config/config.go` 与 `internal/config/validate.go`。跟 `component.yaml` 不一样的是，`brickkit.yaml` 在有些地方真的是项目自己的自由状态（`config` 覆盖、资源凭证），并不是每个字段下面都有一份固定的合法值枚举——凡是这样的字段，这篇文档会明说，不会暗示一条根本不存在的约束。
 
-这篇文档负责的是**字段本身**。一个字段配对了之后实际起什么作用——`enabled` 怎么级联、一条资源绑定怎么变成环境变量、`servedBy` 怎么把成员的配置合并到外壳身上——分别是 [04-environment-variables.md](04-environment-variables.md)、[05-resource-binding.md](05-resource-binding.md)、[02-dependency-resolution.md](02-dependency-resolution.md) 和 AGENTS.zh.md §5 的主题，这篇文档只做交叉引用，不重复讲。
+这篇文档负责的是**字段本身**。一个字段配对了之后实际起什么作用——`mode` 怎么级联、一条资源绑定怎么变成环境变量、`servedBy` 怎么把成员的配置合并到外壳身上——分别是 [04-environment-variables.md](04-environment-variables.md)、[05-resource-binding.md](05-resource-binding.md)、[02-dependency-resolution.md](02-dependency-resolution.md) 和 AGENTS.zh.md §5 的主题，这篇文档只做交叉引用，不重复讲。
 
 本页的字段还有一份对应的 JSON Schema，[`schemas/brickkit.schema.json`](../../../schemas/brickkit.schema.json)，由同一批 Go 结构体生成。编辑器可以拿它在你敲字的时候补全字段名、把不认识的键标红；怎么接上、它刻意不覆盖什么，见[给编辑器接上自动补全](../00-quick-start.md#给编辑器接上自动补全)。
 
@@ -85,7 +85,7 @@ AGENTS.zh.md §7 是那份骨架。这篇文档是骨架背后的字典——每
 | `components[].servedBy` | string（`id@version`） | 否 | 见下方互斥说明 |
 | `components[].expose` | bool | 否（默认 `false`） | |
 | `components[].hostname` | string | `expose: true` 且 `deploy.target: k8s` 时必填 | `docker` 下不需要——Compose 的暴露是一个宿主机端口，不是一个域名 |
-| `components[].exposePort` | int | 只有 `expose: true` 时才合法 | `1`–`65535`，在全部组件的 `exposePort` 之间必须唯一。只在 `deploy.target: docker` 下才有意义（会变成宿主机端口映射）；**校验器在这里完全不检查 `deploy.target`**——跟 `deploy.target: k8s` 一起写，解析阶段照样接受，之后就悄悄没人用了，因为 K8s 那条路走的是 `hostname` + 生成的 Ingress。这是本文档"写了不生效就该被拒绝"这条规律唯一的例外，目前没有任何东西拦住它。 |
+| `components[].exposePort` | int | 只有 `expose: true` 时才合法 | `1`–`65535`，在全部组件的 `exposePort` 之间必须唯一。只在 `deploy.target: docker` 下才有意义（会变成宿主机端口映射）。**校验器不会因为 `deploy.target: k8s` 就拒绝它**——K8s 那条路走的是 `hostname` + 生成的 Ingress——但它也不是被静默忽略：`brickkit up`（含 `--dry-run`）会警告这个字段在当前部署目标下不生效。这是有意为之：只有某一种部署目标才用的字段，只警告、不拒绝，这样同一份 `brickkit.yaml` 只改 `deploy.target` 就能在 `docker` 与 `k8s` 之间切换。 |
 | `components[].tlsSecret` | string | 只有 `expose: true` 时才合法 | **仅 K8s**，指向一个已经存在的、装着 Ingress TLS 证书的 Secret 名 |
 | `components[].serviceAccountName` | string | 否 | **仅 K8s**；引用一个运维已经建好的 SA——写了它，平台只引用、绝不为这个组件生成一个新的 |
 | `components[].config` | `map[string]any` | 否 | key 会拿去跟组件自己的 `configSchema.properties` 核对（对不上只警告、不阻断，见 [04-environment-variables.md](04-environment-variables.md) 第五节第二条）；值从不做类型校验 |
@@ -141,9 +141,9 @@ AGENTS.zh.md §7 是那份骨架。这篇文档是骨架背后的字典——每
 ## 延伸阅读
 
 - AGENTS.zh.md §7——这篇文档展开的那份可以直接复制粘贴的骨架
-- AGENTS.zh.md §5.4——`enabled` 完整的级联规则，这篇文档只说了这个字段的形状
+- AGENTS.zh.md §5.4——`mode` 完整的级联规则，这篇文档只说了这个字段的形状
 - [04-environment-variables.md](04-environment-variables.md)——`config`、资源绑定、`servedBy` 到了容器的运行环境里具体变成了什么
 - [05-resource-binding.md](05-resource-binding.md)——绑定槽位错误与同类资源撞车的完整报错，以及配额合并链
-- [02-dependency-resolution.md](02-dependency-resolution.md)——级联与解析两个阶段拿 `enabled`、强/弱依赖、菱形依赖去重到底做了什么
+- [02-dependency-resolution.md](02-dependency-resolution.md)——级联与解析两个阶段拿 `mode`、强/弱依赖、菱形依赖去重到底做了什么
 - [07-component-yaml-reference.md](07-component-yaml-reference.md)——组件那一侧的对应文档，本文件的 `components[]`/`resources[]` 条目正是绑定到那里描述的组件上
 - [06-signing-and-trust.md](06-signing-and-trust.md)——`installer.publicKeys` 到底把住了什么、为什么

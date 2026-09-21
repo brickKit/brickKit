@@ -68,7 +68,7 @@ func TestShellDeploymentGetsMergedEndpointsAndServedMembers(t *testing.T) {
 	assert.Equal(t, "mdm-customer-1-0-7", env[shell.EnvVarServedMembers])
 }
 
-// 一个组件声明了 servedBy，但它自己当前被 enabled: false 关掉——它压根
+// 一个组件声明了 servedBy，但它自己当前被 mode: disable 关掉——它压根
 // 不出现在 states.Running() 里，shell.Resolve 因此不会为这个外壳产出任何
 // Group。但外壳本身还在跑，BRICKKIT_SERVED_MEMBERS 依旧必须显式写成空
 // 字符串，不能让整个变量消失：“空字符串”（零个成员激活）与“变量不存在”
@@ -162,7 +162,7 @@ func TestServedByLabelsWarnInK8s(t *testing.T) {
 }
 
 // 这里原来有一条回归测试（TestLocalStillRejectedAlongsideServedBy）：验证
-// "servedBy 存在时，local: true 在 K8s 下依旧照常被拒绝"，防的是"servedBy
+// "servedBy 存在时，mode: debug 在 K8s 下依旧照常被拒绝"，防的是"servedBy
 // 那条处理路径不小心绕过了 local 拒绝检查"这一类历史 bug。mode 字段迁移把
 // local/debug + k8s 的拒绝从 k8s.Generate 挪到了 internal/config/validate.go
 // 的 validateComponentMode——那是对每个组件独立、无条件跑的校验，不经过

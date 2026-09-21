@@ -34,7 +34,7 @@ else published — then check the options below, roughly in this order:
 
 ```mermaid
 graph LR
-    A["1. Lighter runtime<br/>try this first"] --> B["2. On-demand activation<br/>enabled: false"] --> C["3. servedBy<br/>last resort"]
+    A["1. Lighter runtime<br/>try this first"] --> B["2. On-demand activation<br/>mode: disable"] --> C["3. servedBy<br/>last resort"]
 ```
 
 (Scale-to-zero and memory overselling aren't on this ladder at all — they're
@@ -43,7 +43,7 @@ ruled out below, not skipped steps.)
 | Option | Verdict |
 | --- | --- |
 | **A lighter runtime** (a JVM component rebuilt as a GraalVM native image, a smaller heap) | **Try this first.** The memory floor drops from 200–450MB to tens of MB, and the deployment shape doesn't change at all — still one component, one container, one process; signing, health checks, migrations, and independent scaling all keep working exactly as before. This is the component author's problem to solve, not something `servedBy` or this checklist has anything to do with. If the motivation is "the JVM is expensive," this option's cost-to-benefit ratio beats merging by an order of magnitude. |
-| **On-demand activation** (`enabled: false` for whatever this deployment doesn't need) | A 50-component project might only run 4 containers locally — check whether the components driving the memory number are even needed in this deployment before assuming they all have to run. |
+| **On-demand activation** (`mode: disable` for whatever this deployment doesn't need) | A 50-component project might only run 4 containers locally — check whether the components driving the memory number are even needed in this deployment before assuming they all have to run. |
 | **Scale-to-zero** (KEDA, Knative scaling to 0 replicas) | **Doesn't work on this platform.** Components call each other over direct DNS — nothing on that call path can wake a scaled-to-zero component back up, so the request just fails. Making it work needs an activator or proxy inserted into the call path, which is exactly the API-gateway/service-mesh shape the platform deliberately doesn't build (AGENTS.md §4.1) — and once something sits between a caller and its `*_ENDPOINT`, the very property that makes `servedBy` safe to build on (a caller never needs to know what's on the other end) stops holding. |
 | **Memory overselling** (`requests` set low, `limits` set high) | **Actively harmful, not just unhelpful.** Memory isn't compressible: `requests` far below `limits` produces Burstable QoS, and when a node runs short, eviction is ordered by how far a Pod's real usage exceeds its own `requests` — which puts your heaviest, most important component first in line to be killed. AGENTS.md §6 already recommends the opposite: `requests == limits` for memory (Guaranteed QoS, evicted last), CPU `requests` with no `limits` at all. |
 
@@ -92,7 +92,7 @@ Four things need to already be true:
    hold — but deciding it up front avoids a failed `up` you have to
    untangle after the fact.
 4. **The shell is actually going to be running in this deployment** — not
-   `enabled: false`, and not `local: true`. A `servedBy` component whose
+   `mode: disable`, and not `mode: debug`. A `servedBy` component whose
    shell isn't running has no container anywhere for its code to execute
    in, which the platform treats as an error, not a warning.
 
@@ -118,12 +118,12 @@ dependency graph first:
 - **Chaining.** If the shell you name has itself declared a `servedBy` (it
   is, in turn, absorbed into some other shell), the platform rejects this
   — a shell can't be nested inside another shell.
-- **Combining with `local: true`.** These express contradictory intents on
-  the same entry: `local: true` means "this code runs on my machine for
+- **Combining with `mode: debug`.** These express contradictory intents on
+  the same entry: `mode: debug` means "this code runs on my machine for
   debugging," `servedBy` means "this code is already compiled into that
   other image." The platform rejects declaring both on the same
   component — and, in the other direction, rejects marking a component
-  `local: true` if some other component already names it as a
+  `mode: debug` if some other component already names it as a
   `servedBy` target, for the same reason: a shell has to be reachable on
   the cluster or container network, and a developer's own machine isn't.
 
@@ -133,7 +133,7 @@ generation time (`brickkit up`) rather than parse time:
 - **The named shell doesn't exist** in this project's `components:` list —
   usually a typo in the component ID or version.
 - **The named shell exists but isn't running** — most often because it's
-  been turned off with `enabled: false`. There's genuinely no container
+  been turned off with `mode: disable`. There's genuinely no container
   anywhere for this component's code to run in until that's fixed.
 
 ## What moves to the shell's own entry instead
@@ -194,8 +194,8 @@ a special case that opts out of it:
   componentId just to satisfy `brickkit up`'s check. The real connection env
   vars only ever land in the shell's container regardless of which
   componentId the binding names.
-- **A `local: true` component's outbound reach to this member**: if a
-  component running in `local: true` debug mode depends on a `servedBy`
+- **A `mode: debug` component's outbound reach to this member**: if a
+  component running in `mode: debug` depends on a `servedBy`
   member, its `*_ENDPOINT` variables in `local-debug.<service>.env` resolve
   to a real, host-reachable `localhost:<port>` — the CLI opens the mapping
   on the **shell's** own compose service (the member has none of its own),

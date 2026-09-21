@@ -38,13 +38,13 @@
 | [11. Volume 还在](#11-volume-还在) | `down` 从不主动删卷，为了保护数据 | 要清理就手动 `docker volume rm` |
 | [12. K8s namespace 还在](#12-k8s-namespace-还在) | `createNamespace: false`：不是 BrickKit 建的，就不会去删 | 想让它管，改回 `true`；否则自己 `kubectl delete` |
 
-### E. 本地调试模式（`local: true`）
+### E. 本地调试模式（`mode: debug`）
 
 | 症状 | 一句话原因 | 怎么解 |
 | --- | --- | --- |
 | [13. `extra_hosts` 不生效](#13-extra_hosts-不生效) | Docker 太旧，不支持 `host-gateway` | 升级到 20.10 以上 |
 | [14. 端口对不上](#14-端口对不上) | 本地进程实际监听的端口和 `localPort` 不一致 | 让两者一致 |
-| [15. 迁移没跑](#15-迁移没跑)<br>`relation does not exist` | `local: true` 的组件不生成迁移容器 | 第一次跑之前自己手动跑一次迁移 |
+| [15. 迁移没跑](#15-迁移没跑)<br>`relation does not exist` | `mode: debug` 的组件不生成迁移容器 | 第一次跑之前自己手动跑一次迁移 |
 
 ### F. 签名验证失败
 
@@ -260,8 +260,8 @@
 
 ### 15. 迁移没跑
 
-- **症状：** `local: true` 的组件报 `relation does not exist` 之类的错误。
-- **原因：** `local: true` 的组件不会生成迁移容器 / Job——它跑在你自己的 IDE 里，CLI 管不到。
+- **症状：** `mode: debug` 的组件报 `relation does not exist` 之类的错误。
+- **原因：** `mode: debug` 的组件不会生成迁移容器 / Job——它跑在你自己的 IDE 里，CLI 管不到。
 - **解决：** 第一次跑之前，自己手动执行一次迁移脚本。
 
 ---

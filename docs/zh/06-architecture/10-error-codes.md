@@ -156,7 +156,7 @@ CLI 的报错文案跟着语言走——默认英文，`brickkit lang set zh` �
 | `错误：域名 <hostname> 被多个组件占用` | 两个组件写了同一个 `hostname` | 各写各的 |
 | `错误：当前连着的不是配置里指定的集群` | 当前的 `kubectl` context 与 `deploy.context` 不一致 | `kubectl config use-context <名字>`，或 `brickkit up --context <名字>` |
 | `错误：servedBy 指向的组件不存在` | `servedBy` 的值指向的组件不在项目里 | 检查外壳的 ID 和版本号有没有写错 |
-| `错误：servedBy 指向的外壳当前没有在运行` | 外壳被关掉了（`enabled: false`） | 把它打开，或去掉 `servedBy` 让组件独立部署 |
+| `错误：servedBy 指向的外壳当前没有在运行` | 外壳被关掉了（`mode: disable`） | 把它打开，或去掉 `servedBy` 让组件独立部署 |
 | `错误：外壳 <shell> 下两个成员对同一个环境变量给出了不同的值` | 同一个外壳下的两个成员依赖了同一个组件的不同版本 | 让它们依赖同一个精确版本，或者不要放进同一个外壳 |
 | `错误：没有可用的安装源` | `sources` 是空的，或者每个源都被关掉了 | 至少配一个安装源；本地开发可以配一个指向 `./components` 的 `type: local` |
 | `错误：本地安装源路径不存在` | `local` 安装源的 `path` 写错了（它相对 `brickkit.yaml`） | 改对路径，或把这个源设为 `enabled: false` |
@@ -166,7 +166,7 @@ CLI 的报错文案跟着语言走——默认英文，`brickkit lang set zh` �
 | `错误：这里不是一个 git 仓库` | 在 Git 仓库之外执行了 `brickkit init --hooks` | 先 `git init` |
 | `错误：这个仓库还没有任何提交` | `brickkit restore` 还原到最后一次提交，而一次都没有 | 先提交一次 |
 | `错误：<path> 没有被 git 跟踪` | `brickkit restore` 指向了 Git 没有跟踪的东西 | 先 `git add` 并提交一次，它才有可还原的基准 |
-| `错误：源码删掉就找不回来了` | `brickkit remove` 拒绝删掉带有"别处都没有的改动"的组件源码 | 先提交并推到远端，或把目录拷走；确认不要了就加 `--force`。只是暂时不用的话，写 `enabled: false` 再 `brickkit sync`，那会把源码归档而不是删掉 |
+| `错误：源码删掉就找不回来了` | `brickkit remove` 拒绝删掉带有"别处都没有的改动"的组件源码 | 先提交并推到远端，或把目录拷走；确认不要了就加 `--force`。只是暂时不用的话，写 `mode: disable` 再 `brickkit sync`，那会把源码归档而不是删掉 |
 
 ### CONFIG_CONFLICT
 
@@ -180,7 +180,7 @@ CLI 的报错文案跟着语言走——默认英文，`brickkit lang set zh` �
 | `错误：正在解决冲突，先把冲突处理完` | 在合并进行中执行了 `brickkit restore` | 先把合并处理完 |
 | `错误：有组件的源码在两处都存在` | 同一个组件的源码既在活动目录、又在归档目录 | 留一份；错误块里写明了两个路径 |
 | `提交被拦下：同一个组件的源码在提交里出现了两处` | pre-commit hook：这次提交会把同一个组件的源码放在两个位置 | 把其中一处从暂存区拿掉 |
-| `提交被拦下：组件源码提交在归档目录里，但 <path> 说它该启动` | pre-commit hook：源码被归档了，而 `brickkit.yaml` 里的 `enabled` 没有跟着改 | 把对应的 `brickkit.yaml` 改动一起提交——或执行 `brickkit restore` |
+| `提交被拦下：组件源码提交在归档目录里，但 <path> 说它该启动` | pre-commit hook：源码被归档了，而 `brickkit.yaml` 里的 `mode` 没有跟着改 | 把对应的 `brickkit.yaml` 改动一起提交——或执行 `brickkit restore` |
 
 市场也可能对一次发布回复版本冲突；它同样归在这个码下。
 
@@ -247,7 +247,7 @@ CLI 的报错文案跟着语言走——默认英文，`brickkit lang set zh` �
 
 | 你会看到 | 原因 | 怎么办 |
 | --- | --- | --- |
-| `错误：强依赖 <component> 被禁用` | 一个要运行的组件强依赖它，而它是 `enabled: false`——或者你给一个组件钉了 `enabled: true`，它的强依赖却被关掉了：两个互相冲突的意图 | 去掉依赖那一方的 `enabled: false`，或去掉依赖方的 `enabled: true`，让它跟着上层走 |
+| `错误：强依赖 <component> 被禁用` | 一个要运行的组件强依赖它，而它是 `mode: disable`——或者你给一个组件钉了 `mode: enabled`（或 `mode: debug`），它的强依赖却被关掉了：两个互相冲突的意图 | 去掉依赖那一方的 `mode: disable`，或去掉依赖方的 `mode`，让它跟着上层走 |
 
 ### COMPONENT_NOT_FOUND
 
@@ -270,7 +270,7 @@ CLI 的报错文案跟着语言走——默认英文，`brickkit lang set zh` �
 
 | 你会看到 | 原因 | 怎么办 |
 | --- | --- | --- |
-| `错误：资源依赖未满足` | 某个组件声明了资源依赖（`dependencies.resources`：一个 `kind` 加一个 `engine`），而 `brickkit.yaml` 没有满足它——没有对应的 `resources` 条目，或者没有给这个组件的 `bindings`。所有未满足的资源会一次列出。真正的 `up` 会被拦下；`up --dry-run` 只警告，所以你仍能看到会生成什么 | 补上这个资源，并给该组件加一条绑定——见[资源绑定的实际机制](05-resource-binding.md)——或者暂时不想跑它，就写 `enabled: false` |
+| `错误：资源依赖未满足` | 某个组件声明了资源依赖（`dependencies.resources`：一个 `kind` 加一个 `engine`），而 `brickkit.yaml` 没有满足它——没有对应的 `resources` 条目，或者没有给这个组件的 `bindings`。所有未满足的资源会一次列出。真正的 `up` 会被拦下；`up --dry-run` 只警告，所以你仍能看到会生成什么 | 补上这个资源，并给该组件加一条绑定——见[资源绑定的实际机制](05-resource-binding.md)——或者暂时不想跑它，就写 `mode: disable` |
 
 ### PORT_CONFLICT
 

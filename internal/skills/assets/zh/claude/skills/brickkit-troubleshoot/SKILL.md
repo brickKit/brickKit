@@ -40,7 +40,7 @@ healthcheck + 重启策略。别建议加上，那是被论证过后拒绝的。
 **4. 某个组件「莫名其妙」跟着起来了。**
 
 启停是「跟着上层走」：只要还有一个上层在跑，它就跑，强弱依赖一视同仁。
-读 CLI 输出里每行后面的理由——`启动（顶层）` / `启动（enabled: true）` /
+读 CLI 输出里每行后面的理由——`启动（顶层）` / `启动（mode: enabled）` /
 `启动（X 需要）`——它直接说明判定来源。
 
 **5. `configSchema` 里的某个配置项静默失效了。**
@@ -57,8 +57,8 @@ CLI 的报错带错误码。按码定位比按文案快。
 | 错误码 | 含义与第一步 |
 | --- | --- |
 | `DEPENDENCY_MISSING` | 强依赖在所有安装源里都没找到。查安装源配置、组件是否存在、版本是否为 stable |
-| `RESOURCE_UNBOUND` | 组件要的资源没在 `brickkit.yaml` 的 `resources` 里声明或绑定。`kind` + `engine` 必须与组件声明**完全一致**。暂时不想跑它就给 `enabled: false`——不启动的组件不参与这条检查 |
-| `COMPONENT_DISABLED` | 钉住的组件（`enabled: true`）撞上被关掉的强依赖，两个意图冲突。要么放开那个 `enabled: false`，要么别钉住它 |
+| `RESOURCE_UNBOUND` | 组件要的资源没在 `brickkit.yaml` 的 `resources` 里声明或绑定。`kind` + `engine` 必须与组件声明**完全一致**。暂时不想跑它就给 `mode: disable`——不启动的组件不参与这条检查 |
+| `COMPONENT_DISABLED` | 钉住的组件（`mode: enabled` 或 `mode: debug`）撞上被关掉的强依赖，两个意图冲突。要么放开那个 `mode: disable`，要么别钉住它 |
 | `VERSION_AMBIGUOUS` | 多版本共存时没指定版本。补上精确版本 |
 | `DEPENDENCY_CYCLE` | 强依赖成环。环只在弱依赖里是合法的 |
 | `MANIFEST_INVALID` | `component.yaml` 有问题。注意它**没有扩展字段机制**，不认识的键会被当场拒绝 |
@@ -80,7 +80,7 @@ CLI 的报错带错误码。按码定位比按文案快。
 **组件起不来**，按这个顺序看，越靠前的越常见：
 
 1. `brickkit status` —— 它到底有没有被判定为「启动」？不启动的组件也会列出来
-2. 看 CLI 输出里那一行的**理由**（顶层 / enabled / X 需要）
+2. 看 CLI 输出里那一行的**理由**（顶层 / mode / X 需要）
 3. 组件日志 —— 进程本身有没有起来
 4. 启动是不是超过了默认的 60 秒宽限期（见上面第 2 条）
 5. 环境变量 —— 依赖真在跑吗？弱依赖没在跑时**不会注入**那个 `*_ENDPOINT`

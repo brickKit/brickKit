@@ -79,7 +79,7 @@ password: ${DB_PASSWORD}
 硬约束只有「一个节点上所有 Pod 的 `requests` 之和 ≤ 节点 allocatable」，`limits` 之和
 可以远超容量，超卖是正常用法。真正的成本是每个进程的内存地板，几乎完全由语言决定：
 Go 8–20MB、Python/Node 40–90MB、JVM 200–450MB。20 个 Spring Boot 光空转就 4–9G。
-那时该换运行时或用 `enabled: false` 少跑几个，合并组件是解错了题。
+那时该换运行时或用 `mode: disable` 少跑几个，合并组件是解错了题。
 
 **10. 平台不做网关，但 `labels` 是给网关准备的透传口。**
 
@@ -97,7 +97,7 @@ K8s 的 Deployment 与 Pod `annotations`，网关带外部署、自己接进
 ```
 
 三个坑：**值必须加引号**（`traefik.enable: true` 当场报错）；**平台自己的键会被拒**
-（`app`、`brickkit.io/*`、`com.docker.compose.*`）；**`local: true` 的组件上写了会警告**
+（`app`、`brickkit.io/*`、`com.docker.compose.*`）；**`mode: debug` 的组件上写了会警告**
 ——它不生成容器，没有挂标签的对象。
 
 别退回去手写 file-provider 配置：那份文件里必须写满**版本化服务名**
@@ -115,9 +115,10 @@ K8s 的 Deployment 与 Pod `annotations`，网关带外部署、自己接进
 **`up` 做的事按顺序是**：启停判定 → 生成部署文件 → 生成 `local-debug.env` →
 检测镜像权限 → 执行迁移 → 调用引擎。想只看生成结果不真起，用 `--dry-run`。
 
-**本地调试**是给组件写 `local: true`：该组件**不生成容器**，而是跑在你宿主机的 IDE 里，
+**本地调试**是给组件写 `mode: debug`：该组件**不生成容器**，而是跑在你宿主机的 IDE 里，
 用 `extra_hosts` 把它的版本化服务名映射进容器网络。多个组件可以同时本地调试，
-各给一个 `localPort`。CLI 生成 `local-debug.env` 供 IDE 加载。
+各给一个 `localPort`。CLI 生成 `local-debug.env` 供 IDE 加载。仅限 Docker：
+`mode: debug` 与 `deploy.target: k8s` 同时出现，解析 `brickkit.yaml` 时就会被拒绝。
 
 **K8s 特有的那些**（`context`、`namespace`、`podSecurity`、`ingressClass`、
 `serviceAccount`、`networkPolicy`、`replicas`）都在 `deploy` 段或组件条目里，

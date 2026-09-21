@@ -136,7 +136,7 @@ NOTIFIER_BASE_URL=http://host.docker.internal:18080
 
 ## 为什么平台没有一个自动做这件事的功能
 
-这个平台早先真有过一个：一个 `external: {project: X}` 字段，写上它平台就替你推导出跨项目地址——钻进对方的 Docker 网络，或者把对方的 Kubernetes 命名空间拼进地址里。它被删掉了，因为它悄悄编码了错误的关系——不是"调别人的 API"，而是"共享别人的内部网络"。这意味着调用方项目得能从自己的安装源里解析出对方的 Manifest，得等对方真的先跑起来自己才能启动，而且——一声不响、哪里都不报错——只要任何一边打开 `local: true` 或者 `networkPolicy.egress`，它就直接坏掉。去掉它付出的代价只有一件事：对方组件的产物（`.proto`、`openapi.json`）不再自动下载，需要手动要一次——第 7 篇的 [`brickkit fetch`](07-consuming-artifacts.md) 正是干这件事的工具，这段关系的哪一边都能用它。
+这个平台早先真有过一个：一个 `external: {project: X}` 字段，写上它平台就替你推导出跨项目地址——钻进对方的 Docker 网络，或者把对方的 Kubernetes 命名空间拼进地址里。它被删掉了，因为它悄悄编码了错误的关系——不是"调别人的 API"，而是"共享别人的内部网络"。这意味着调用方项目得能从自己的安装源里解析出对方的 Manifest，得等对方真的先跑起来自己才能启动，而且——一声不响、哪里都不报错——只要任何一边打开 `mode: debug` 或者 `networkPolicy.egress`，它就直接坏掉。去掉它付出的代价只有一件事：对方组件的产物（`.proto`、`openapi.json`）不再自动下载，需要手动要一次——第 7 篇的 [`brickkit fetch`](07-consuming-artifacts.md) 正是干这件事的工具，这段关系的哪一边都能用它。
 
 ---
 

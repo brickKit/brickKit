@@ -7,12 +7,12 @@
 | 编号 | 教程 | 你会学到 | 另外需要 |
 | --- | --- | --- | --- |
 | 01 | [把一个项目跑起来](01-first-project.md) | `init`、`add`、`up`，用 HTTP 跟它说上话，改配置，`down` | —— |
-| 02 | [平台是怎么决定谁跑起来的](02-what-runs.md) | 依赖、`enabled` 级联、`--dry-run` | —— |
-| 03 | [本地调试一个组件](03-local-debugging.md) | `local: true`：让一个组件跑在你的 IDE 里，其余照常在容器里 | —— |
+| 02 | [平台是怎么决定谁跑起来的](02-what-runs.md) | 依赖、`mode` 级联、`--dry-run` | —— |
+| 03 | [本地调试一个组件](03-local-debugging.md) | `mode: debug`：让一个组件跑在你的 IDE 里，其余照常在容器里 | —— |
 | 04 | [部署到 Kubernetes](04-kubernetes.md) | 同一份声明，只改 `deploy.target`；外加一个 `brickkit down` 和共用命名空间之间的真实的坑 | minikube 和 `kubectl` |
 | 05 | [升级，以及让多个版本并存](05-upgrades-and-versions.md) | 改版本号就是升级；两个版本故意一起跑 | —— |
 | 06 | [拼装一个真实的系统，然后故意把它弄坏](06-assemble-and-break.md) | 绑定一个真实数据库，见两种不同的真实失败 | 一个 PostgreSQL（教程里用 `docker run` 起） |
-| 07 | [消费别人的组件](07-consuming-artifacts.md) | 产物与 API 文档；不安装就拿到它们（`fetch`）；上游还没做好时先立个桩顶上（`brickkit new --contract` 加 `local: true`） | python3（只有桩那一节里的 mock 用得到） |
+| 07 | [消费别人的组件](07-consuming-artifacts.md) | 产物与 API 文档；不安装就拿到它们（`fetch`）；上游还没做好时先立个桩顶上（`brickkit new --contract` 加 `mode: debug`） | python3（只有桩那一节里的 mock 用得到） |
 | 08 | [管理组件源码](08-component-source.md) | `add --repo` 克隆源码；`sync` 只留手边要动的；`remove` 的几道保护；源码跟着项目提交时的 `restore` 与提交钩子 | `git`（不需要 Docker） |
 | 09 | [从市场发布与安装](09-marketplace.md) | 发布、安装、退出登录；版本不可变；私有可见性 | 一个市场（教程里用 `docker compose up` 起） |
 | 10 | [给组件签名与验签](10-signing.md) | 生成密钥对、签名、验签，以及验签失败长什么样 | cosign（只有发布方需要） |

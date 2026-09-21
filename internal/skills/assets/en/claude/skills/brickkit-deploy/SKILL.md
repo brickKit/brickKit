@@ -86,7 +86,7 @@ The only hard constraint is "the sum of every Pod's `requests` on a node ≤ tha
 capacity" — the sum of `limits` can far exceed capacity, and overcommitting is normal usage. The
 real cost is each process's memory floor, almost entirely decided by language: Go 8–20MB,
 Python/Node 40–90MB, JVM 200–450MB. 20 idle Spring Boot instances alone eat 4–9G. At that point,
-switch runtime or use `enabled: false` to run fewer of them — merging components is solving the
+switch runtime or use `mode: disable` to run fewer of them — merging components is solving the
 wrong problem.
 
 **10. The platform doesn't do gateways, but `labels` is the passthrough a gateway needs.**
@@ -107,7 +107,7 @@ gateway is deployed out of band and discovers them once it's attached to the
 
 Three pitfalls: **values must be quoted** (`traefik.enable: true` fails validation on the spot);
 **a platform-reserved key is rejected** (`app`, `brickkit.io/*`, `com.docker.compose.*`); **writing
-one on a `local: true` component warns** — it generates no container, so there's nothing to attach
+one on a `mode: debug` component warns** — it generates no container, so there's nothing to attach
 labels to.
 
 Don't fall back to hand-writing a file-provider config: that file has to be full of **versioned
@@ -128,10 +128,11 @@ non-conflicting DNS names.
 `local-debug.env` → check image pull permissions → run migrations → invoke the engine. To see the
 generated result without actually starting anything, use `--dry-run`.
 
-**Local debugging** means marking a component `local: true`: it **generates no container**, and
+**Local debugging** means marking a component `mode: debug`: it **generates no container**, and
 instead runs in an IDE on your own machine, with `extra_hosts` mapping its versioned service name
 into the container network. Multiple components can be debugged locally at once, each with its own
-`localPort`. The CLI generates `local-debug.env` for the IDE to load.
+`localPort`. The CLI generates `local-debug.env` for the IDE to load. It's Docker only:
+`mode: debug` together with `deploy.target: k8s` is rejected when `brickkit.yaml` is parsed.
 
 **K8s-specific settings** (`context`, `namespace`, `podSecurity`, `ingressClass`,
 `serviceAccount`, `networkPolicy`, `replicas`) all live under `deploy` or on a component entry, and

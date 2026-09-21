@@ -38,13 +38,13 @@ If you're looking at a `❌` block rather than a symptom, the `error_code` in th
 | [11. Volumes are still there](#11-volumes-are-still-there) | `down` never deletes volumes, to protect your data | `docker volume rm` when you actually want them gone |
 | [12. K8s namespace is still there](#12-k8s-namespace-is-still-there) | `createNamespace: false`: BrickKit didn't create it, so it won't delete it | Set it back to `true`, or `kubectl delete` it yourself |
 
-### E. Local debug mode (`local: true`)
+### E. Local debug mode (`mode: debug`)
 
 | Symptom | Cause in one line | The fix |
 | --- | --- | --- |
 | [13. `extra_hosts` doesn't resolve](#13-extra_hosts-doesnt-resolve) | Docker is too old to support `host-gateway` | Upgrade to 20.10+ |
 | [14. Port mismatch](#14-port-mismatch) | The local process listens on a different port than `localPort` | Make the two agree |
-| [15. Migrations never ran](#15-migrations-never-ran)<br>`relation does not exist` | A `local: true` component gets no migration container | Run the migration yourself once, before the first run |
+| [15. Migrations never ran](#15-migrations-never-ran)<br>`relation does not exist` | A `mode: debug` component gets no migration container | Run the migration yourself once, before the first run |
 
 ### F. Signature verification fails
 
@@ -260,8 +260,8 @@ The warning `brickkit up` prints:
 
 ### 15. Migrations never ran
 
-- **Symptom:** a `local: true` component errors with something like `relation does not exist`.
-- **Cause:** `local: true` components don't get a migration container/Job at all — it runs in your own IDE, outside anything the CLI manages.
+- **Symptom:** a `mode: debug` component errors with something like `relation does not exist`.
+- **Cause:** `mode: debug` components don't get a migration container/Job at all — it runs in your own IDE, outside anything the CLI manages.
 - **Fix:** run the migration script yourself once, before the first run.
 
 ---

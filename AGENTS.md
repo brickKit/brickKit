@@ -103,7 +103,7 @@ These five are the key to understanding BrickKit. All of them are **deliberate t
 
 ```
 brickkit.yaml (declaration)
-   ↓ ① Cascade decision: figure out which components should actually start this time (enabled + dependency graph, top-down inheritance)
+   ↓ ① Cascade decision: figure out which components should actually start this time (`mode` + dependency graph, top-down inheritance)
    ↓ ② Dependency resolution: recursively expand the dependency tree, error on missing required deps, topological sort gives the start order
    ↓ ③ Env-var injection: dependency addresses, resource connections, own config → environment variables
    ↓ ④ Deployment-file generation: docker-compose.yaml or K8s Deployment/Service/Ingress
@@ -136,7 +136,7 @@ only serves development (IDE, debugging).
 | 强依赖 | Required Dependency | Missing → the CLI **errors and blocks startup** |
 | 弱依赖 | Optional Dependency | `optional: true`; missing → warns but continues, and **the env var is not injected at all** |
 | 版本化服务名 | Versioned Service Name | A service name carrying an exact version, e.g. `people-basic-1-0-0` |
-| 本地调试模式 | Local Debug Mode | `local: true`; the component runs on the host inside an IDE, mapped into the container network via `extra_hosts` |
+| 本地调试模式 | Local Debug Mode | `mode: debug`; the component runs on the host inside an IDE, mapped into the container network via `extra_hosts` |
 | 安装源 | Source | Where a component comes from: the marketplace (HTTP) / a Git repo / a local directory |
 | 基础资源 | Resource | External systems a component depends on (databases, Redis, etc.), deployed by ops, bound in `brickkit.yaml` |
 | 环境变量注入 | Env Injection | The CLI writes dependency addresses, resource connections, and own config into env vars when generating deployment files |
@@ -146,7 +146,7 @@ only serves development (IDE, debugging).
 | 连接组件 | Connector Component | An orchestrating component that coordinates several standalone components |
 | 单一组件 | Standalone Component | A component that completes one function on its own, internally transactionally self-consistent |
 | 精确版本 | Exact Version | `major.minor.patch`; dependency declarations **do not accept** `^` / `~` range constraints |
-| 跟着上层走 | Top-down Inheritance | Top-level components run by default; a lower one runs as long as any upstream component that needs it is running. Writing `enabled` explicitly takes precedence (§5.4) |
+| 跟着上层走 | Top-down Inheritance | Top-level components run by default; a lower one runs as long as any upstream component that needs it is running. Writing `mode` explicitly takes precedence (§5.4) |
 
 ---
 
@@ -203,7 +203,7 @@ argued through and rejected (reasoning in §9):
 | Fetching secrets from an external store (Vault / AWS Secrets Manager SDKs) on the platform's behalf | `${VAR}` is looked up in the process environment first, `.env` second — anything that can put the value in the environment works today with zero platform code. Built in, it would mean an SDK per store, store credentials and network access on every `up` (`--dry-run` included), and a neighbour of the rejected "config center". **What is supported:** `resources[].existingSecret` and a `secret: true` config value written as `{ existingSecret, key }` reference a Secret an external system (Vault Secrets Operator, External Secrets Operator, Sealed Secrets, …) already put in the cluster — the platform never reads or writes the value either way, K8s only (§5.2) |
 | Engine plugins / third-party deploy targets (an `--engine nomad`-style flag on `up`) | A target's `Down`/`Status`/orphan-pruning guarantees are what make "a project that can be torn down" true; a plugin would own them while the CLI reported success on its behalf — the same reason Podman was pulled. `deploy.target` in `brickkit.yaml` stays the declaration, never a CLI flag. New targets are built in-tree, with the full test guard set. (`engine.Engine` is already an interface; this is about who guarantees its semantics, not about code layout) |
 | Incremental generation cache (`.brickkit/` hash state) | Nothing to speed up: generating 50 components through the whole pipeline takes about 2 ms (`tests/perf`), and the time users wait on is `docker compose up` / `kubectl apply`, which already touch only what changed. A cache adds state whose staleness silently produces wrong deployment files |
-| Mock generation from contracts (a full `mock` command) and auto-substituting a missing required dependency (an `--with-mocks`-style flag on `up`) | The platform never parses contracts (`artifacts.format` is a free string); a stand-in swapped in for a missing required dependency contradicts "missing required dependency blocks startup" and could be deployed by mistake; a mock under another name receives no traffic because injected addresses point at the real component's versioned service name. What works today: `brickkit new <id> --contract openapi` + `local: true` + any mock tool (`docs/en/03-guide/07-consuming-artifacts.md`) |
+| Mock generation from contracts (a full `mock` command) and auto-substituting a missing required dependency (an `--with-mocks`-style flag on `up`) | The platform never parses contracts (`artifacts.format` is a free string); a stand-in swapped in for a missing required dependency contradicts "missing required dependency blocks startup" and could be deployed by mistake; a mock under another name receives no traffic because injected addresses point at the real component's versioned service name. What works today: `brickkit new <id> --contract openapi` + `mode: debug` + any mock tool (`docs/en/03-guide/07-consuming-artifacts.md`) |
 | A renderer of its own for `brickkit graph` — HTML / SVG output, a built-in viewer, a flag that writes the file for you | Mermaid text is already rendered for free: GitHub renders a `.mmd` / `.mermaid` file, or a Markdown code fence tagged `mermaid`, with nothing installed. A renderer inside the CLI would be a permanent maintenance cost (layout, one more output format to keep correct) for something that costs nothing today. And stdout carrying nothing but Mermaid is what makes the shell redirect `brickkit graph > graph.mmd` produce a valid file — so no file-writing flag is needed either |
 | Dependency resolution and cross-file reference checks in `brickkit lint` (does the `servedBy` target exist? can that dependency be found?) | `lint` is a promise — offline, read-only, instant, no Docker or K8s — and it adds no rule of its own: it re-runs the parse-and-validate that `up` / `add` / `publish` already apply to each file. Resolving the dependency graph needs every component's Manifest, which for a market or Git component means the network; one network call and the promise is gone. **`brickkit up --dry-run` already does this** — it has to resolve the graph anyway, and it errors, naming the culprit, on a missing `servedBy` target or a required dependency it can't find. `brickkit graph` shows the declared structure |
 
@@ -304,16 +304,17 @@ Degradation logic (does the component query the database, return an empty list, 
 local file for later retry when Redis is down) is the component's own business code; the platform
 doesn't manage it.
 
-### 5.4 `enabled`: top-down inheritance
+### 5.4 `mode`: top-down inheritance
 
 > **Top-level components run by default; a lower-level component runs as long as any upstream
-> component that's running still needs it; writing `enabled` explicitly overrides all of that.**
+> component that's running still needs it; writing `mode` explicitly overrides all of that.**
 
 | Value | Meaning | Behavior |
 | --- | --- | --- |
-| **not written** (no `enabled` field) | **Follows the top** | A top-level component (nothing depends on it) runs by default; a lower one follows whatever's above it |
-| `enabled: true` | **Always runs** | Ignores what's above it. If its **required** dependencies are turned off, it **errors** (two conflicting intents) |
-| `enabled: false` | **Never runs** | Whatever depends on it stops too (unless something has it pinned `enabled: true`, which then errors) |
+| **not written** (no `mode` field) | **Follows the top** | A top-level component (nothing depends on it) runs by default; a lower one follows whatever's above it |
+| `mode: enabled` | **Always runs** | Ignores what's above it. If its **required** dependencies are turned off, it **errors** (two conflicting intents) |
+| `mode: disable` | **Never runs** | Whatever depends on it stops too (unless something has it pinned — `mode: enabled` or `mode: debug` — which then errors) |
+| `mode: debug` | **Always runs, as a process you start yourself** | Pinned exactly like `mode: enabled` (ignores what's above it; errors if a required dependency is turned off), but generates no container — you run it on the host, in your IDE (§5.6). Docker only |
 
 **Required and optional dependencies are treated the same way here:** if something upstream weakly
 depends on it, it still follows along and runs. `optional: true` only controls two things — a
@@ -328,14 +329,14 @@ A few points:
   nothing above the cycle, so both are top-level and both run
 - The implementation computes "**who doesn't run**" (a least fixed point), so cycles need no
   special-casing at all
-- Every line of CLI output carries its reason: `starting (top-level)` / `starting (enabled: true)`
-  / `starting (X needs it)`
+- Every line of CLI output carries its reason: `starting (top-level)` / `starting (mode: enabled)`
+  / `starting (mode: debug)` / `starting (X needs it)`
 
-**The only way to narrow the startup scope is to change `enabled`.** There's no `--only`-style
-flag — set the top-level things you don't want on `enabled: false`, and both `up` and `sync` follow
+**The only way to narrow the startup scope is to change `mode`.** There's no `--only`-style
+flag — set the top-level things you don't want on `mode: disable`, and both `up` and `sync` follow
 suit; to restore full scope, `git checkout brickkit.yaml`.
 
-Components added automatically by `brickkit add` **do not get** an `enabled` field written.
+Components added automatically by `brickkit add` **do not get** a `mode` field written.
 
 ### 5.5 Deployment-file generation and database migrations
 
@@ -359,18 +360,23 @@ leftover old Job, guaranteeing idempotency.
 required); Docker maps the port to the host (customizable via `exposePort`; the CLI errors on port
 conflicts).
 
-### 5.6 Local debugging (`local: true`)
+### 5.6 Local debugging (`mode: debug`)
 
 To debug a component with breakpoints in an IDE, while it's still reachable by other components on
 the Docker network:
 
-- A component marked `local: true` in `brickkit.yaml` **doesn't generate a container**
+- A component marked `mode: debug` in `brickkit.yaml` **doesn't generate a container**
 - Other containers resolve that component's versioned service name to `host-gateway` via
   `extra_hosts`
 - Multiple components can be debugged locally at once, each with its own `localPort`; the CLI
   injects the matching port automatically
 - The CLI generates `local-debug.env` for the IDE to load
 - **Zero component-code changes** (it reads env vars exactly as it normally would)
+- It is **pinned** like `mode: enabled` (§5.4): it keeps running whatever is above it, and turning
+  off one of its **required** dependencies is an error rather than a silent choice
+- **Docker only**: `mode: debug` together with `deploy.target: k8s` is rejected when `brickkit.yaml`
+  is parsed (so `brickkit lint` catches it too) — a cluster Pod has no route to a process on your
+  own machine
 - Values written into that file are POSIX-shell-quoted whenever they contain a character a shell
   would otherwise misparse (whitespace, `|`, `$`, an embedded literal newline, …) — a multi-line
   PEM value or a `|`-delimited list survives `set -a && source … && set +a` intact instead of
@@ -389,7 +395,7 @@ the Docker network:
 - What it does **not** rewrite: a config value that's an opaque string literal pointing at
   something outside brickKit's own dependency graph (an out-of-band container's address, say,
   written assuming a container network — `http://host.docker.internal:8000`). brickKit doesn't
-  parse config string contents, so switching that component to `local: true` doesn't retarget the
+  parse config string contents, so switching that component to `mode: debug` doesn't retarget the
   literal to a host-reachable address — the developer has to edit it themselves (typically to
   `localhost`)
 - A dependency that's a `servedBy` member (§5.7) has no compose service of its own — its host-port
@@ -461,8 +467,8 @@ ordinary component, with its own image, port, and health check. The platform:
   quote, backslash, or newline. Empty deployments still get `[]`, not a
   missing variable.
 
-`local: true` is untouched by this — same field, same meaning, same code
-paths as always; `servedBy` is a wholly separate, independent mechanism that
+`mode: debug` is untouched by this — same meaning, same code
+paths as ever; `servedBy` is a wholly separate, independent mechanism that
 happens to share the same "in the dependency graph but generates no workload"
 shape.
 
@@ -487,7 +493,7 @@ itself must get right: [Building a qualified shell](docs/en/07-patterns/07-shell
 For whoever is deciding whether and how to declare `servedBy` on their own project:
 [Declaring servedBy: a deployment checklist](docs/en/07-patterns/06-servedby-deployment-checklist.md).
 For deciding a whole project's deployment shape in the first place — topology
-(independent / shell-merged / mixed) × `docker`/`k8s`, the `local: true` debug
+(independent / shell-merged / mixed) × `docker`/`k8s`, the `mode: debug`
 toggle, and where running components by hand fits in — start one level up:
 [Choosing a deployment shape](docs/en/07-patterns/05-deployment-selection-guide.md).
 
@@ -508,7 +514,7 @@ business.
 **For projects that remove `components/` from `.gitignore`** (so component source travels with the
 project in version control), `sync`'s whole-directory moves land in the project's diff — the
 pre-commit hook installed by `brickkit restore` and `brickkit init --hooks` exists specifically to
-catch the recurring mistake of "an archive-state change got committed but `enabled` didn't come
+catch the recurring mistake of "an archive-state change got committed but `mode` didn't come
 along with it".
 
 A hands-on walkthrough of all of this with real output — cloning, pushing changes back, archiving,
@@ -663,7 +669,7 @@ node ≤ that node's allocatable capacity" — the sum of `limits` can far excee
 The real cost is each process's **memory floor**, which is almost entirely decided by language: Go
 8–20MB, Python/Node 40–90MB, JVM 200–450MB — 20 idle Spring Boot instances alone eat 4–9G. **Don't
 merge components just to save memory** — that's solving the wrong problem (switch runtime instead,
-or use `enabled: false` to run fewer of them).
+or use `mode: disable` to run fewer of them).
 
 **⚠️ Health-check prohibition:** `/healthz` only checks that this process itself is alive. Checking a
 database or a dependency component inside a health check causes production cascading failures — one
@@ -793,8 +799,8 @@ installer:
 overlay / inheritance / merge mechanism** (see §9.9 for why).
 
 This is the skeleton — every field's exact type, required-ness, default, and validation constraint
-(every `local`/`servedBy`/`replicas` mutual exclusion, the binding-slot rules, the one field that's
-silently unused under `k8s` with nothing catching it) is
+(every `mode`/`servedBy`/`replicas` mutual exclusion, the binding-slot rules, which fields only take
+effect under one deploy target and warn when written under the other) is
 [08-brickkit-yaml-reference.md](docs/en/06-architecture/08-brickkit-yaml-reference.md).
 
 ---
@@ -808,14 +814,14 @@ silently unused under `k8s` with nothing catching it) is
 | `brickkit graph` | Prints the project's dependency topology as Mermaid text on stdout: solid edges for required dependencies, dashed for optional (an optional one that can't be found is drawn as a "not installed" node), greyed-out nodes for components that won't start this run, `servedBy` members grouped inside their shell. **Nothing but Mermaid on stdout**, so `brickkit graph > graph.mmd` writes a file GitHub renders. It reads the same resolved graph as `brickkit up --dry-run` (so it needs the network for market/Git Manifests not yet cached), and generates no deployment files and touches no engine. `--ignore-served-by` draws every component standalone |
 | `brickkit lint` | **Offline, read-only** structure check of the YAML in the current directory — no network, no Docker/K8s. In a project: `brickkit.yaml`, then every `component.yaml` under the `local` install sources (whether or not they've been added; `.archived/` is skipped). In a standalone component repo (a `component.yaml`, no `brickkit.yaml`): just that file. Reports required fields, types, unknown keys (typos), version format, port ranges, plus two kinds of warning — a misspelled key inside a `configSchema` property (it won't take effect) and a config key that collides with a reserved variable. Adds no rule of its own; exit `1` on errors (`LINT_FAILED`), warnings alone exit `0`, `--strict` makes them fail too (a CI gate). **Does not** resolve dependencies or check `servedBy` targets exist — both need the resolved dependency graph, which `lint` deliberately never builds (that can mean a network call for a market or Git-sourced component) — that's `up --dry-run` |
 | `brickkit new <scope>/<name>` | Generates a component's minimal skeleton — a `component.yaml` that already passes validation, plus (with `--contract openapi\|proto`) a placeholder contract file registered under `artifacts`. Writes to `components/<scope>/<name>/` by default (the same layout a `local` source scans); `--path` writes elsewhere with no nesting, for a standalone component repository. No Dockerfile, no source code — the platform doesn't pick a language for you, and it never runs `add` on your behalf |
-| `brickkit add <id>[@ver]` | Recursively pulls dependencies, downloads artifacts, writes them into the config (**doesn't write an `enabled` field**). If no version is given, takes the latest installable version from the source and pins it to disk as an **exact version** |
+| `brickkit add <id>[@ver]` | Recursively pulls dependencies, downloads artifacts, writes them into the config (**doesn't write a `mode` field**). If no version is given, takes the latest installable version from the source and pins it to disk as an **exact version** |
 | `brickkit remove <id>` | Checks for required-dependency callers before removing, automatically deletes the source directory (including an archived copy). Must specify a version when multiple versions coexist |
 | `brickkit fetch <id>[@version]` | Only downloads the component's artifacts into `.brickkit/artifacts/<versioned-service-name>/`, **doesn't write to `brickkit.yaml`, doesn't deploy**. Used when calling another project's service across project boundaries |
 | `brickkit up` | Cascade decision → generate deployment files → generate `local-debug.env` → check image permissions → run migrations → invoke the engine |
 | `brickkit down` | Stops all components. **Doesn't delete volumes, data is preserved** |
 | `brickkit status` | Reads the underlying engine, shows a running-state table (including multi-version detection; components not running are listed too) |
 | `brickkit sync` | Bidirectionally archives / activates component source based on the cascade decision. Takes no arguments |
-| `brickkit restore` | Restores `enabled` and the component-source layout to the last commit. `--check` is for the pre-commit hook to judge whether this commit is self-consistent |
+| `brickkit restore` | Restores `mode` and the component-source layout to the last commit. `--check` is for the pre-commit hook to judge whether this commit is self-consistent |
 | `brickkit login` | Interactive terminal login to the marketplace, token stored in `.brickkit/credentials` |
 | `brickkit logout` | Revokes the marketplace token server-side, then deletes `.brickkit/credentials` locally. The local deletion always happens, even if the marketplace is unreachable — otherwise a network blip leaves someone believing they've logged out while the credential still sits on disk. Doing nothing when already logged out is not a failure |
 | `brickkit publish` | Uploads the Manifest + image reference + artifacts to the marketplace (requires login first) |
@@ -966,13 +972,16 @@ for empty, writes `requests.get(f"{ENDPOINT}/healthz")`, and the empty string ju
 extremely hard to track down. **Better to let the component "crash loudly" at startup than "fail
 quietly" at runtime.**
 
-**9.14 Why does `enabled` have three states, but the rule is phrased as "follows the top"?**
-There are still three states (unwritten / `true` / `false`), and the resulting decision hasn't
-changed a single bit — but the phrasing flipped from an **implementation-first** derivation ("skip
-it if nothing enabled needs it") to a **user-first** inheritance model. The two map one-to-one onto
-each other case by case, but only the latter is actually readable: the decision a user has to make is
-just "do I want this top-level thing" — everything below it follows along, no need to compute it
-yourself. This wasn't wordsmithing for its own sake — the original phrasing genuinely misled people,
+**9.14 Why is `mode` one field, and why is its rule phrased as "follows the top"?**
+`mode` used to be two switches — `enabled` (unwritten / `true` / `false`) and `local: true` — and
+nothing stopped them from disagreeing: `enabled: false` next to `local: true` says "never run this"
+and "I'm running this myself" at once. One field whose value names the **role a component plays this
+run** makes that combination impossible to write: unwritten follows the top, `enabled` and `debug` pin
+it running (one in a container, one as a process you start yourself), `disable` pins it off. The rule
+itself is phrased as a **user-first** inheritance model rather than the **implementation-first**
+derivation it once was ("skip it if nothing enabled needs it"). The two map one-to-one onto each other
+case by case, but only the former is actually readable: the decision a user has to make is just "do I
+want this top-level thing" — everything below it follows along, no need to compute it yourself. This wasn't wordsmithing for its own sake — the original phrasing genuinely misled people,
 and reading it carefully would lead you to the wrong conclusion that "this rule must be broken." One
 substantive rule changed alongside it: what counts as a "dependency" in the decision switched from
 "required dependencies only" to "required and optional treated the same" — otherwise a weak
@@ -1027,7 +1036,7 @@ genuinely might not fit during a private on-prem delivery. The platform has **al
 hardest half of this for free** — a caller only reads `*_ENDPOINT`; whether the other end is 10
 containers, 1 container, or 10 modules inside one JVM is something it has no way to know. `servedBy`
 (§5.7) closes the one gap that was actually the platform's own — correctly routing addresses to a
-merged unit without borrowing `local: true` and without the K8s-side gap that had no equivalent at
+merged unit without borrowing `mode: debug` and without the K8s-side gap that had no equivalent at
 all. Everything past that (avoid port collisions inside the merged process, take over health checks
 and migrations, isolate each module's config) still lives entirely in the shell author's own code —
 not one more line of platform code is needed there, and the platform still never has to understand
@@ -1096,17 +1105,17 @@ hit:
 | Two components share one database | The migration state table's primary key **must include a component identifier**, or migrations will clobber each other |
 | `docker compose logs` shows nothing | Missing `-p brickkit-<project-name>` — compose is looking at a different project |
 | Edited a local source's `component.yaml` but `up` doesn't react | Local sources don't get cached; confirm the component actually comes from that local source |
-| `local: true` and the caller keeps getting 503 | The process's actual listening port doesn't match `localPort` |
-| A `local: true` component reports `relation does not exist` | Local components don't generate a migration container; you have to run the migration by hand once |
-| A `local: true` component's own config still points at `host.docker.internal` for some out-of-band dependency | That's a string literal the user wrote; brickKit doesn't parse config values, so it doesn't get rewritten when the component becomes `local: true`. Edit that literal yourself (usually to `localhost`) |
-| A `local: true` component depends on a `servedBy` member | Works: its `*_ENDPOINT` resolves to a real `localhost:<port>` — the CLI opens the mapping on the shell's compose service, since the member has none of its own (§5.6) |
+| `mode: debug` and the caller keeps getting 503 | The process's actual listening port doesn't match `localPort` |
+| A `mode: debug` component reports `relation does not exist` | Debug components don't generate a migration container; you have to run the migration by hand once |
+| A `mode: debug` component's own config still points at `host.docker.internal` for some out-of-band dependency | That's a string literal the user wrote; brickKit doesn't parse config values, so it doesn't get rewritten when the component becomes `mode: debug`. Edit that literal yourself (usually to `localhost`) |
+| A `mode: debug` component depends on a `servedBy` member | Works: its `*_ENDPOINT` resolves to a real `localhost:<port>` — the CLI opens the mapping on the shell's compose service, since the member has none of its own (§5.6) |
 | Discussing signing | The publisher needs **cosign** installed; **the installer doesn't** (verification uses the Go standard library) |
 | The user wants the platform to help with security review | Install implies trust. The platform only steps in after the fact with `blocked` |
-| A user asks "can I merge multiple components into one instance to save memory" | First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation. If they still want to merge: **`servedBy` (§5.7) is the supported path** — it handles address routing correctly on both Docker and K8s; everything else (module isolation, config, migrations ordering inside the shell) is still their own code, see the shell implementer's guide. `enabled: false` is unrelated to this — it still can't be used as a "I'm taking this over myself" switch |
+| A user asks "can I merge multiple components into one instance to save memory" | First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation. If they still want to merge: **`servedBy` (§5.7) is the supported path** — it handles address routing correctly on both Docker and K8s; everything else (module isolation, config, migrations ordering inside the shell) is still their own code, see the shell implementer's guide. `mode: disable` is unrelated to this — it still can't be used as a "I'm taking this over myself" switch |
 | A user's `brickkit` output is in a language they didn't expect (or a script that greps the output broke) | The language is chosen per run: `BRICKKIT_LANG` beats the saved `brickkit lang set` value beats the English default — `brickkit lang` prints which one is in effect and why. For scripts, don't grep the human text; key off the exit status and the stable `error_code` in the JSON log line on stderr, or pin `BRICKKIT_LANG=en` |
 | A user asks "which of independent/shell-merged/mixed, or docker/k8s, should I actually use" | This is the topology × deploy-target decision `docs/en/07-patterns/05-deployment-selection-guide.md` exists to answer — walk through its matrix rather than improvising an answer inline. Its one hard rule worth remembering directly: `mode: debug` (the debug toggle) only exists under `deploy.target: docker`; it's rejected outright, at parse time, under `k8s` |
-| A user's upstream component isn't built or published yet and they ask for a mock, or for the CLI to substitute one | Not a platform feature — the platform never parses contracts and never swaps in a stand-in for a missing required dependency (§4.1). The path that already works: `brickkit new <id> --contract openapi` for a stub carrying the agreed contract, `brickkit add --local`, `local: true` + `localPort` on the stub, and any mock tool listening on that port. Walkthrough with real output: `docs/en/03-guide/07-consuming-artifacts.md` |
-| A user asks "how do I run everything locally without Docker/K8s at all" | That's the one shape the platform doesn't manage or inject anything for — see `deployment-selection-guide.md`'s "Running components by hand" section. The one thing worth telling them: `brickkit up --dry-run` after a temporary `local: true` on the component in question dumps the exact env vars a real deployment would inject, as a cheat sheet — then revert the edit, don't actually deploy that way |
+| A user's upstream component isn't built or published yet and they ask for a mock, or for the CLI to substitute one | Not a platform feature — the platform never parses contracts and never swaps in a stand-in for a missing required dependency (§4.1). The path that already works: `brickkit new <id> --contract openapi` for a stub carrying the agreed contract, `brickkit add --local`, `mode: debug` + `localPort` on the stub, and any mock tool listening on that port. Walkthrough with real output: `docs/en/03-guide/07-consuming-artifacts.md` |
+| A user asks "how do I run everything locally without Docker/K8s at all" | That's the one shape the platform doesn't manage or inject anything for — see `deployment-selection-guide.md`'s "Running components by hand" section. The one thing worth telling them: `brickkit up --dry-run` after a temporary `mode: debug` on the component in question dumps the exact env vars a real deployment would inject, as a cheat sheet — then revert the edit, don't actually deploy that way |
 | A user pastes a `brickkit` error, or asks how to script around failures (retry vs. alert) | Every command-ending error carries a stable `error_code` in the JSON log line on stderr, right after the `❌` block. Look it up in `docs/en/06-architecture/10-error-codes.md` (swap `en` for `zh`) — it lists each code's situations by the exact title the CLI prints, with cause and fix. Only `NETWORK_UNREACHABLE` is worth retrying unchanged; codes are stable and only ever added |
 
 ---
@@ -1170,7 +1179,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | Cloning, archiving, removing and restoring component source (`add --repo` / `sync` / `remove` / `restore`, the pre-commit hook), hands-on with real output | `docs/en/03-guide/08-component-source.md` (swap `en` for `zh`) |
 | A deep, real walkthrough of a Go component with a database and migrations | `docs/en/04-go-component-template.md` (swap `en` for `zh`) |
 | How to layer tests, plan seed/test data, design components well, tune deployment | `docs/en/07-patterns/` (same swap) |
-| Which deployment shape to pick for a whole project — topology (independent / shell-merged / mixed) × `docker`/`k8s`, plus the `local: true` debug toggle and where running components by hand fits in | `docs/en/07-patterns/05-deployment-selection-guide.md` (swap `en` for `zh`) |
+| Which deployment shape to pick for a whole project — topology (independent / shell-merged / mixed) × `docker`/`k8s`, plus the `mode: debug` toggle and where running components by hand fits in | `docs/en/07-patterns/05-deployment-selection-guide.md` (swap `en` for `zh`) |
 | How to build a shell that qualifies for `servedBy` | `docs/en/07-patterns/07-shell-implementers-guide.md` (swap `en` for `zh`) |
 | Whether and how to declare `servedBy` on your own project | `docs/en/07-patterns/06-servedby-deployment-checklist.md` (swap `en` for `zh`) |
 | How to self-host the component marketplace | `docs/en/07-patterns/09-deployment/self-hosted-market.md` (swap `en` for `zh`) |
@@ -1182,7 +1191,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | What actually happens when a resource binding collides, and how the quota chain really merges field by field | `docs/en/06-architecture/05-resource-binding.md` (swap `en` for `zh`) |
 | The full dictionary of every environment variable the platform can inject — every resource `kind`'s exact variable names, the reserved-variable warnings and the one case that's a hard error, and how `servedBy` merges a member's config onto the shell | `docs/en/06-architecture/04-environment-variables.md` (swap `en` for `zh`) |
 | Every `component.yaml` field's type, required-ness, default, and the exact constraint the validator applies — including the two fields (`enum`, `items`) that parse but are never actually read anywhere | `docs/en/06-architecture/07-component-yaml-reference.md` (swap `en` for `zh`) |
-| Every `brickkit.yaml` field's type, required-ness, default, and constraint — including every `local`/`servedBy`/`replicas` mutual exclusion and the one "written but silently unused" field nothing currently catches | `docs/en/06-architecture/08-brickkit-yaml-reference.md` (swap `en` for `zh`) |
+| Every `brickkit.yaml` field's type, required-ness, default, and constraint — including every `mode`/`servedBy`/`replicas` mutual exclusion and which fields only take effect under one deploy target (written under the other, `up` warns) | `docs/en/06-architecture/08-brickkit-yaml-reference.md` (swap `en` for `zh`) |
 | What actually gets signed, why verification needs no cosign dependency, and why the public key can't come from the marketplace | `docs/en/06-architecture/06-signing-and-trust.md` (swap `en` for `zh`) |
 | Every command's full flag reference, with real generated output — the detailed complement to §8 above | `docs/en/06-architecture/09-cli-reference.md` (swap `en` for `zh`) |
 | Editor completion and red-squiggle typo detection for `component.yaml` / `brickkit.yaml` — the JSON Schemas in `schemas/`, how to wire them up, and what they deliberately don't cover | `docs/en/00-quick-start.md` (swap `en` for `zh`) |

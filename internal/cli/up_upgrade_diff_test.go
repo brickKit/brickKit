@@ -114,7 +114,7 @@ func TestUpWithUnboundResourceIsBlocked(t *testing.T) {
 // `--dry-run` 只警告，不阻断。
 //
 // 那条命令的语义是"告诉我会发生什么"。拿它阻断的话，一个还没配资源的项目
-// 连"看看会生成什么"都做不到——而试用指南 04 讲 enabled 三态时用的正是
+// 连"看看会生成什么"都做不到——而试用指南 04 讲 mode 时用的正是
 // `up --only ... --dry-run`，那时资源还没登场。
 func TestUpDryRunWarnsButDoesNotBlockOnUnboundResource(t *testing.T) {
 	f := addedProject(t, []comp{{

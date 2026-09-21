@@ -800,7 +800,7 @@ func TestSkippedComponentsAreNotGenerated(t *testing.T) {
 
 	assert.True(t, hasFile(result, "deployments/people-basic-1-0-0.yaml"))
 	assert.False(t, hasFile(result, "deployments/legacy-thing-1-0-0.yaml"),
-		"enabled: false 的组件不该出现在清单里")
+		"mode: disable 的组件不该出现在清单里")
 }
 
 // mode: debug 在 K8s 下必须报错——但这条检查现在整个不在 k8s.Generate 这一层了。

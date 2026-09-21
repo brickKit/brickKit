@@ -1,6 +1,6 @@
 ---
 name: brickkit-assemble
-description: 在 BrickKit 项目里增删组件、调整启停、启动或停止整套服务、查看运行状态时使用。覆盖 add / remove / fetch / sync / up / down / status 的适用场景，依赖解析与启动顺序怎么算，以及「启停跟着上层走」的判定规则。当用户提到 brickkit.yaml 的 components / enabled 字段，或者问「怎么把某个组件加进来 / 关掉 / 为什么它没起来」时，这个技能适用。
+description: 在 BrickKit 项目里增删组件、调整启停、启动或停止整套服务、查看运行状态时使用。覆盖 add / remove / fetch / sync / up / down / status 的适用场景，依赖解析与启动顺序怎么算，以及「启停跟着上层走」的判定规则。当用户提到 brickkit.yaml 的 components / mode 字段，或者问「怎么把某个组件加进来 / 关掉 / 为什么它没起来」时，这个技能适用。
 ---
 
 # 拼装 BrickKit 项目
@@ -20,20 +20,21 @@ description: 在 BrickKit 项目里增删组件、调整启停、启动或停止
 `1.2.0` 可以。`^1.2`、`~1.2`、`1.2.x`、`latest` 全都不行——这不是还没做，是论证过之后
 拒绝的。`brickkit add` 不写版本时会取安装源上最新可安装版本，然后**以精确版本落盘**。
 
-**2. `brickkit add` 不写 `enabled` 字段。**
+**2. `brickkit add` 不写 `mode` 字段。**
 
-加进来的组件在配置里不会带 `enabled`。这不是漏了——不写就是「跟着上层走」，
-那是默认且推荐的状态。别为了「显式一点」去补 `enabled: true`：那含义完全不同（见下一条）。
+加进来的组件在配置里不会带 `mode`。这不是漏了——不写就是「跟着上层走」，
+那是默认且推荐的状态。别为了「显式一点」去补 `mode: enabled`：那含义完全不同（见下一条）。
 
-**3. `enabled` 的三种状态，两种是钉死的。**
+**3. `mode` 有四种取值，三种是钉死的。**
 
 | 写法 | 含义 |
 | --- | --- |
 | **不写** | 跟着上层走。顶层（没有任何组件依赖它）默认跑；下层看上层 |
-| `enabled: true` | **一定跑**，不看上层。它的强依赖被关掉时**报错**——两个意图冲突了 |
-| `enabled: false` | **一定不跑**。依赖它的组件跟着不跑；钉住的那些则报错 |
+| `mode: enabled` | **一定跑**，不看上层。它的强依赖被关掉时**报错**——两个意图冲突了 |
+| `mode: disable` | **一定不跑**。依赖它的组件跟着不跑；钉住的那些（`mode: enabled` 或 `mode: debug`）则报错 |
+| `mode: debug` | **一定跑，进程由你自己启动**（在 IDE 里，仅限 Docker）——跟 `mode: enabled` 一样钉住，只是不生成容器 |
 
-想收窄这次跑哪些，改顶层的 `enabled: false` 就够了，下面一串会跟着不启动。
+想收窄这次跑哪些，给顶层写 `mode: disable` 就够了，下面一串会跟着不启动。
 **别去逐个关。**
 
 **4. 强依赖和弱依赖在启停上一视同仁。**
@@ -61,7 +62,7 @@ description: 在 BrickKit 项目里增删组件、调整启停、启动或停止
 
 ## 机制是怎么运作的
 
-**启停判定算的是「谁不跑」。** 从 `enabled: false` 出发向上传播，得到一个最小不动点，
+**启停判定算的是「谁不跑」。** 从 `mode: disable` 出发向上传播，得到一个最小不动点，
 剩下的都跑。所以两个组件互相弱依赖成环时不需要任何特例——环上没有更上层的东西，
 两个都算顶层，都跑。
 
@@ -69,7 +70,7 @@ description: 在 BrickKit 项目里增删组件、调整启停、启动或停止
 只生成部署文件供审查，不真起。想直接看依赖关系图（谁依赖谁、弱依赖、置灰的是这次不启动的），
 用 `brickkit graph`——它输出 Mermaid 文本，存成 `.mmd` 文件后 GitHub 能直接渲染。
 
-**CLI 输出里每一行都带理由**：`启动（顶层）` / `启动（enabled: true）` / `启动（X 需要）`。
+**CLI 输出里每一行都带理由**：`启动（顶层）` / `启动（mode: enabled）` / `启动（mode: debug）` / `启动（X 需要）`。
 组件没起来时先读这个理由，它直接说明了判定结果的来源。
 
 **多版本共存是项目级能力。** `brickkit.yaml` 里可以并列 `people/basic@1.0.0` 与
@@ -86,7 +87,7 @@ description: 在 BrickKit 项目里增删组件、调整启停、启动或停止
 
 - 参数：`brickkit <命令> --help`。这份技能刻意不复刻参数清单
 - 命令的完整行为：`docs/zh/06-architecture/09-cli-reference.md`
-- `enabled` 与启停的完整规则：`docs/zh/06-architecture/08-brickkit-yaml-reference.md`（`enabled` 字段）、
+- `mode` 与启停的完整规则：`docs/zh/06-architecture/08-brickkit-yaml-reference.md`（`mode` 字段）、
   根目录 `AGENTS.zh.md` §5.4
 - 安装、拼装、更新、依赖解析细节：`docs/zh/06-architecture/02-dependency-resolution.md`、
   `docs/zh/03-guide/06-assemble-and-break.md`、`docs/zh/03-guide/05-upgrades-and-versions.md`

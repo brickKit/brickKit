@@ -167,7 +167,7 @@ curl http://localhost:8085/api/v1/count
 
 这个组件不需要任何特殊操作就能接上这个系列讲过的其它内容，因为那些内容从来就不是专属于 `demo/hello` 或 `demo/caller` 的：
 
-- [本地调试一个组件](03-local-debugging.md)用的是同一套方式——`local: true`，在自己机器上跑那个二进制，断点照挂不误。
+- [本地调试一个组件](03-local-debugging.md)用的是同一套方式——`mode: debug`，在自己机器上跑那个二进制，断点照挂不误。
 - [从市场发布与安装](09-marketplace.md)和[给组件签名与验签](10-signing.md)也是同一套方式——`brickkit publish --path ./components/tutorial/counter`，签名，装到别的地方去。
 
 这一篇没有引入任何新机制——重点是确认了"从零开发一个组件"真的会把你带到这个系列前面每一篇早就走过的那同一个平台上，不多不少。

@@ -47,7 +47,7 @@ that was argued through and rejected.
 
 Start/stop "follows the layer above it": as long as one thing above it is still running, it runs,
 required and optional dependencies treated the same. Read the reason on each line of CLI output —
-`starting (top-level)` / `starting (enabled: true)` / `starting (X needs it)` — it states exactly
+`starting (top-level)` / `starting (mode: enabled)` / `starting (X needs it)` — it states exactly
 where the decision came from.
 
 **5. A `configSchema` item silently has no effect.**
@@ -64,8 +64,8 @@ The CLI's errors carry an error code. Look it up by code, it's faster than by wo
 | Error code | Meaning and first step |
 | --- | --- |
 | `DEPENDENCY_MISSING` | A required dependency wasn't found in any install source. Check the install source config, whether the component exists, and whether the version is stable |
-| `RESOURCE_UNBOUND` | A component's required resource isn't declared or bound in `brickkit.yaml`'s `resources`. `kind` + `engine` must match the component's declaration **exactly**. To skip it for now, set `enabled: false` — a component that isn't starting doesn't go through this check |
-| `COMPONENT_DISABLED` | A pinned component (`enabled: true`) hit a required dependency that's turned off — two conflicting intents. Either remove that `enabled: false`, or don't pin the dependent |
+| `RESOURCE_UNBOUND` | A component's required resource isn't declared or bound in `brickkit.yaml`'s `resources`. `kind` + `engine` must match the component's declaration **exactly**. To skip it for now, set `mode: disable` — a component that isn't starting doesn't go through this check |
+| `COMPONENT_DISABLED` | A pinned component (`mode: enabled` or `mode: debug`) hit a required dependency that's turned off — two conflicting intents. Either remove that `mode: disable`, or don't pin the dependent |
 | `VERSION_AMBIGUOUS` | Multiple versions coexist and none was specified. Add the exact version |
 | `DEPENDENCY_CYCLE` | A cycle made entirely of required dependencies. A cycle is only valid when at least one edge in it is optional |
 | `MANIFEST_INVALID` | Something's wrong with `component.yaml`. Note it has **no extension-field mechanism** — an unrecognized key is rejected on the spot |
@@ -88,7 +88,7 @@ The CLI's errors carry an error code. Look it up by code, it's faster than by wo
 
 1. `brickkit status` — was it even judged as "starting"? Components that aren't starting are
    listed too
-2. The **reason** on that line of CLI output (top-level / enabled / X needs it)
+2. The **reason** on that line of CLI output (top-level / mode / X needs it)
 3. The component's own log — did the process itself come up
 4. Whether startup exceeded the default 60-second grace period (see point 2 above)
 5. Environment variables — is the dependency actually running? A missing optional dependency

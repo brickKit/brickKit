@@ -63,7 +63,7 @@ func TestLocalhostSilentForRealAddresses(t *testing.T) {
 	}
 }
 
-// **关键的例外**：绑它的组件全是 local: true 时，localhost 恰恰是对的。
+// **关键的例外**：绑它的组件全是 mode: debug 时，localhost 恰恰是对的。
 //
 // 那些进程就跑在宿主机上，平台也只把这个地址写进 local-debug.*.env，
 // 一个容器都碰不到。调用方因此只传"会生成容器"的组件——这里模拟的正是
