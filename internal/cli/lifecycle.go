@@ -16,7 +16,9 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/k8s"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -183,8 +185,8 @@ func (p *project) localRefs() []resolver.Ref {
 func logsCommand(engineName, project, service string) string {
 	if engineName == engine.K8s {
 		target := "deployment/" + service
-		if service == "" || service == "<服务名>" {
-			target = "deployment/<服务名>"
+		if service == "" || service == i18n.T(msgid.ServiceNamePlaceholder) {
+			target = i18n.T(msgid.CliLifecycleDeploymentServiceName)
 		}
 		return fmt.Sprintf("kubectl logs %s -n %s", target, project)
 	}

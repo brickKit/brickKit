@@ -118,7 +118,7 @@ func runSkillsStatus(opts *Options) error {
 	t := newTable(i18n.T(msgid.LabelFile), i18n.T(msgid.CliSkillsStatus))
 	stale := 0
 	for _, s := range list {
-		state := string(s.State)
+		state := s.State.Label()
 		switch s.State {
 		case skills.StateOutdated:
 			state = i18n.T(msgid.CliSkillsMsg, state, s.FromVersion, version.Version)
@@ -163,7 +163,7 @@ func runSkillsUpdate(opts *Options) error {
 	if len(res.Skipped) > 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliSkillsSkipped, len(res.Skipped)))
 		for _, s := range res.Skipped {
-			opts.Printf("%s\n", i18n.T(msgid.CliSkillsMsg2, s.Target, s.State))
+			opts.Printf("%s\n", i18n.T(msgid.CliSkillsMsg2, s.Target, s.State.Label()))
 		}
 		opts.Printf("\n%s\n", i18n.T(msgid.CliSkillsNoteToDiscardLocalEdits))
 	}

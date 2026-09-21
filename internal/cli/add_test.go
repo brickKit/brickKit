@@ -321,7 +321,7 @@ func TestAddStillRejectsRangeVersion(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "people/basic@^1.0.0")
 	assert.Equal(t, clierr.ExitUsage, r.code)
-	assert.Contains(t, r.stderr, "精确版本")
+	assert.Contains(t, r.stderr, "exact version")
 }
 
 // 所有源都没有这个组件：报错要点名组件，并给出"指定精确版本重试"的出路。
@@ -425,7 +425,7 @@ func TestAddInvalidVersion(t *testing.T) {
 
 	r := runIn(t, f.Dir, "add", "people/basic@abc")
 	assert.Equal(t, clierr.ExitUsage, r.code, "参数值写错属于用法错误")
-	assert.Contains(t, r.stderr, "精确版本")
+	assert.Contains(t, r.stderr, "exact version")
 }
 
 // 不带版本号时要去安装源查最新版——一个安装源都没配的项目，

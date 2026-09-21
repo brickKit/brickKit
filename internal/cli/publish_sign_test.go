@@ -159,7 +159,7 @@ func TestPublishSignTellsUsersWhatToConfigure(t *testing.T) {
 	r := runIn(t, f.Dir, "publish", "--path", root, "--sign", "--key", keyPath)
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
-	assert.Contains(t, r.stdout, "已签名")
+	assert.Contains(t, r.stdout, "Signed")
 	assert.Contains(t, r.stdout, "installer.publicKeys",
 		"要告诉发布者：使用者得配这个才能验签")
 	assert.Contains(t, r.stdout, "keys/people-basic-release.pub")

@@ -49,6 +49,9 @@ const (
 	ClauseSeparator    = "clause.separator"
 	SemicolonSeparator = "semicolon.separator"
 
+	// ServiceNamePlaceholder 是命令示例里"这里换成服务名"的占位符（logs 命令用）。
+	ServiceNamePlaceholder = "placeholder.service_name"
+
 	// internal/cli/version.go
 	VersionManifestLine  = "version.manifest_line"
 	VersionTargetsLine   = "version.targets_line"

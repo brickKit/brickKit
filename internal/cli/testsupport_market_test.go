@@ -193,7 +193,7 @@ func (m *fakeMarket) handleLogin(w http.ResponseWriter, body []byte) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = io.WriteString(w,
-			`{"success":false,"error":{"code":"UNAUTHORIZED","message":"用户名或密码错误"}}`)
+			`{"success":false,"error":{"code":"UNAUTHORIZED","message":"wrong user name or password错误"}}`)
 		return
 	}
 

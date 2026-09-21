@@ -24,7 +24,7 @@ func newVersionCommand(opts *Options) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "查看 CLI 版本、支持的 Manifest 版本与部署目标",
+		Short: i18n.T(msgid.CliVersionShort),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.Printf("BrickKit CLI %s\n", version.Display())
@@ -38,6 +38,6 @@ func newVersionCommand(opts *Options) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "额外输出 Git commit 与构建时间")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, i18n.T(msgid.CliVersionAlsoPrintTheGitCommit))
 	return cmd
 }

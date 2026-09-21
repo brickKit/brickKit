@@ -12,7 +12,9 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/market"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
@@ -29,20 +31,9 @@ func newLoginCommand(opts *Options) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "login",
-		Short:   "登录组件市场，Token 存入 .brickkit/credentials",
+		Short:   i18n.T(msgid.CliLoginShort),
 		GroupID: groupMarket,
-		Long: `登录 BrickKit 市场。
-
-行为：
-  1. 终端输入用户名
-  2. 终端输入密码（隐藏输入）
-  3. 调用市场 API 验证凭据
-  4. 成功则把 Token 写入 .brickkit/credentials（权限 0600）
-
-市场地址取自 brickkit.yaml 中类型为 market 的安装源；配了多个时用 --market 指定。
-
-Token 优先级：.brickkit/credentials > brickkit.yaml 中的 sources.authToken。
-CLI 每次使用 Token 前检查 expiresAt，过期则提示重新登录（不做自动刷新）。`,
+		Long:    i18n.T(msgid.CliLoginLong),
 		Example: `  brickkit login
   brickkit login --market https://market.brickkit.io/api/v1
   echo "$PASSWORD" | brickkit login --username ci-bot --password-stdin`,
@@ -52,9 +43,9 @@ CLI 每次使用 Token 前检查 expiresAt，过期则提示重新登录（不�
 		},
 	}
 
-	cmd.Flags().StringVar(&f.market, "market", "", "市场地址（默认取 brickkit.yaml 中的 market 安装源）")
-	cmd.Flags().StringVar(&f.username, "username", "", "用户名（不指定则交互式输入）")
-	cmd.Flags().BoolVar(&f.passwordStdin, "password-stdin", false, "从标准输入读密码（CI 用，不回显也不进历史）")
+	cmd.Flags().StringVar(&f.market, "market", "", i18n.T(msgid.CliLoginMarketAddressDefaultsToThe))
+	cmd.Flags().StringVar(&f.username, "username", "", i18n.T(msgid.CliLoginUserNameAskedInteractivelyIf))
+	cmd.Flags().BoolVar(&f.passwordStdin, "password-stdin", false, i18n.T(msgid.CliLoginReadThePasswordFromStandard))
 	return cmd
 }
 
@@ -69,8 +60,8 @@ func runLogin(ctx context.Context, opts *Options, f loginFlags) error {
 		return err
 	}
 
-	opts.Printf("🔐 登录 BrickKit Market\n")
-	opts.Printf("   市场地址：%s\n", marketURL)
+	opts.Printf("%s\n", i18n.T(msgid.CliLoginLoggingInToTheBrickkit))
+	opts.Printf("%s\n", i18n.T(msgid.CliLoginMarketAddress, marketURL))
 
 	// 用户名与密码共用同一个带缓冲的读取器：每次新建会把上一行之后
 	// 已经读进缓冲区的内容丢掉，密码就再也读不到了。
@@ -105,11 +96,11 @@ func runLogin(ctx context.Context, opts *Options, f loginFlags) error {
 		return err
 	}
 
-	opts.Printf("✅ 登录成功\n")
-	opts.Printf("   用户：%s\n", creds.Username)
-	opts.Printf("   Token 已存储到 %s\n", config.DirBrickkit+"/"+config.FileCredentials)
+	opts.Printf("%s\n", i18n.T(msgid.CliLoginLoggedIn))
+	opts.Printf("%s\n", i18n.T(msgid.CliLogoutUser, creds.Username))
+	opts.Printf("%s\n", i18n.T(msgid.CliLoginTokenStoredAt, config.DirBrickkit+"/"+config.FileCredentials))
 	if !creds.ExpiresAt.IsZero() {
-		opts.Printf("   有效期至：%s\n", creds.ExpiresAt.Format(time.RFC3339))
+		opts.Printf("%s\n", i18n.T(msgid.CliLoginValidUntil, creds.ExpiresAt.Format(time.RFC3339)))
 	}
 	return nil
 }
@@ -123,8 +114,8 @@ func loginError(err error) error {
 	if cliErr == nil || cliErr.Code != clierr.CodeAuthRequired {
 		return err
 	}
-	return clierr.New(clierr.CodeAuthFailed, "错误：登录失败：用户名或密码错误").
-		WithHint("确认用户名与密码后重试", "忘记密码请联系市场管理员")
+	return clierr.New(clierr.CodeAuthFailed, i18n.T(msgid.CliLoginErrorLoginFailedWrongUser)).
+		WithHint(i18n.T(msgid.CliLoginCheckTheUserNameAnd), i18n.T(msgid.CliLoginIfYouForgotThePassword))
 }
 
 // resolveMarketURL 决定要登录哪个市场。
@@ -138,9 +129,9 @@ func resolveMarketURL(layout config.Layout, explicit string) (string, error) {
 
 	cfg, err := config.ParseConfigFile(layout.ConfigPath())
 	if err != nil {
-		return "", clierr.New(clierr.CodeAuthRequired, "错误：无法确定要登录的市场地址").
-			WithDetail("原因", "当前目录不是 BrickKit 项目，也没有指定 --market").
-			WithHint("用 --market 指定市场地址，例如 brickkit login --market https://market.example.com/api/v1")
+		return "", clierr.New(clierr.CodeAuthRequired, i18n.T(msgid.CliLoginErrorCannotDetermineWhichMarket)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliLoginTheCurrentDirectoryIsNot)).
+			WithHint(i18n.T(msgid.CliLoginSpecifyTheMarketAddressWith))
 	}
 
 	var candidates []config.Source
@@ -154,14 +145,14 @@ func resolveMarketURL(layout config.Layout, explicit string) (string, error) {
 	case 1:
 		return candidates[0].URL, nil
 	case 0:
-		return "", clierr.New(clierr.CodeAuthRequired, "错误：brickkit.yaml 中没有可用的市场安装源").
+		return "", clierr.New(clierr.CodeAuthRequired, i18n.T(msgid.CliLoginErrorBrickkitYamlHasNo)).
 			WithHint(
-				"在 brickkit.yaml → sources 中添加 type: market 的安装源",
-				"或用 --market 直接指定市场地址",
+				i18n.T(msgid.CliLoginAddAnInstallSourceOf),
+				i18n.T(msgid.CliLoginOrSpecifyTheMarketAddress),
 			)
 	default:
-		err := clierr.New(clierr.CodeAuthRequired, "错误：配置了多个市场安装源，无法确定登录哪一个").
-			WithHint("用 --market 指定其中一个市场地址")
+		err := clierr.New(clierr.CodeAuthRequired, i18n.T(msgid.CliLoginErrorSeveralMarketInstallSources)).
+			WithHint(i18n.T(msgid.CliLoginSpecifyOneOfTheMarket))
 		for _, s := range candidates {
 			err = err.WithDetailf(s.ID, "%s", s.URL)
 		}
@@ -186,19 +177,19 @@ func newPrompter(opts *Options) *prompter {
 // username 取用户名：优先参数，其次交互输入。
 func (p *prompter) username(explicit string) (string, error) {
 	if explicit = strings.TrimSpace(explicit); explicit != "" {
-		p.opts.Printf("   用户名：%s\n", explicit)
+		p.opts.Printf("%s\n", i18n.T(msgid.CliLoginUserName2, explicit))
 		return explicit, nil
 	}
 
-	p.opts.Printf("   用户名：")
+	p.opts.Printf("%s", i18n.T(msgid.CliLoginUserName))
 	line, err := p.line()
 	if err != nil {
 		return "", err
 	}
 	p.opts.Printf("%s\n", line)
 	if line == "" {
-		return "", clierr.New(clierr.CodeInvalidArgument, "错误：用户名不能为空").
-			WithHint("重新执行 brickkit login 并输入用户名")
+		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginErrorTheUserNameMust)).
+			WithHint(i18n.T(msgid.CliLoginRunBrickkitLoginAgainAnd2))
 	}
 	return line, nil
 }
@@ -209,7 +200,7 @@ func (p *prompter) username(explicit string) (string, error) {
 // 管道里回显会被写进 CI 日志。
 func (p *prompter) password(fromStdin bool) (string, error) {
 	if !fromStdin {
-		p.opts.Printf("   密码：")
+		p.opts.Printf("%s", i18n.T(msgid.CliLoginPassword))
 	}
 
 	value, err := p.readSecret()
@@ -220,8 +211,8 @@ func (p *prompter) password(fromStdin bool) (string, error) {
 		p.opts.Printf("\n")
 	}
 	if value == "" {
-		return "", clierr.New(clierr.CodeInvalidArgument, "错误：密码不能为空").
-			WithHint("重新执行 brickkit login 并输入密码")
+		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginErrorThePasswordMustNot)).
+			WithHint(i18n.T(msgid.CliLoginRunBrickkitLoginAgainAnd))
 	}
 	return value, nil
 }
@@ -235,8 +226,8 @@ func (p *prompter) readSecret() (string, error) {
 
 	raw, err := term.ReadPassword(int(file.Fd()))
 	if err != nil {
-		return "", clierr.New(clierr.CodeInvalidArgument, "错误：读取密码失败").
-			WithDetail("原因", err.Error()).WithCause(err)
+		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginErrorFailedToReadThe)).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err)
 	}
 	return strings.TrimSpace(string(raw)), nil
 }
@@ -244,14 +235,14 @@ func (p *prompter) readSecret() (string, error) {
 // line 从标准输入读一行。
 func (p *prompter) line() (string, error) {
 	if p.reader == nil {
-		return "", clierr.New(clierr.CodeInvalidArgument, "错误：没有可读的标准输入").
-			WithHint("在终端中执行 brickkit login，或用 --username 与 --password-stdin 提供凭据")
+		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginErrorNoReadableStandardInput)).
+			WithHint(i18n.T(msgid.CliLoginRunBrickkitLoginInA))
 	}
 
 	line, err := p.reader.ReadString('\n')
 	if err != nil && line == "" {
-		return "", clierr.New(clierr.CodeInvalidArgument, "错误：读取输入失败").
-			WithDetail("原因", err.Error()).WithCause(err)
+		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginErrorFailedToReadThe2)).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err)
 	}
 	return strings.TrimSpace(line), nil
 }

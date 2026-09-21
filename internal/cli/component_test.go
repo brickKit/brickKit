@@ -56,10 +56,10 @@ func TestParseComponentRefErrors(t *testing.T) {
 		contains string
 	}{
 		{"组件 ID 非法", "PeopleBasic@1.0.0", "<scope>/<name>"},
-		{"组件 ID 含大写", "People/Basic@1.0.0", "组件 ID 不合法"},
-		{"版本非法", "people/basic@abc", "版本号不合法"},
-		{"版本非精确", "people/basic@^1.0.0", "精确版本"},
-		{"remove 的 ID 也要合法", "Nope", "组件 ID 不合法"},
+		{"组件 ID 含大写", "People/Basic@1.0.0", "invalid component ID"},
+		{"版本非法", "people/basic@abc", "invalid version"},
+		{"版本非精确", "people/basic@^1.0.0", "exact version"},
+		{"remove 的 ID 也要合法", "Nope", "invalid component ID"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

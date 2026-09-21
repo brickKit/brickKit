@@ -139,7 +139,7 @@ func TestErrorOutputFormat(t *testing.T) {
 			name:     "init 缺少项目名称",
 			args:     []string{"init"},
 			wantCode: clierr.ExitUsage,
-			contains: []string{"❌ 请指定项目名称：brickkit init <项目名称>"},
+			contains: []string{"❌ Please specify a project name: brickkit init <project-name>"},
 		},
 		{
 			name:     "add 缺少组件",

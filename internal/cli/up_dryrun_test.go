@@ -268,7 +268,7 @@ func TestUpDryRunWithoutLocalComponentWritesNoEnvFile(t *testing.T) {
 	r := runIn(t, f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout, "本地调试")
+	assert.NotContains(t, r.stdout, "Local debugging")
 
 	entries, err := os.ReadDir(filepath.Join(f.Dir, ".brickkit", "generated"))
 	require.NoError(t, err)

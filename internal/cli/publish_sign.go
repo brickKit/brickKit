@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/security"
 )
 
@@ -51,11 +53,11 @@ func signPackage(ctx context.Context, opts *Options, pkg *publishPackage, f publ
 	}
 	pkg.signature = sig
 
-	opts.Printf("   ✅ 已签名（cosign，公钥 ref：%s）\n", ref)
+	opts.Printf("%s\n", i18n.T(msgid.CliPublishSignSignedCosignPublicKeyRef, ref))
 	// 签名的另一半在使用者手里：不把这句话说出来，发布者不知道要转告什么，
 	// 使用者也就永远配不上 publicKeys，签名等于白签
-	opts.Printf("   💡 使用者需要在 brickkit.yaml 的 installer.publicKeys 下声明：\n")
-	opts.Printf("        %s: <公钥文件路径>\n", ref)
+	opts.Printf("%s\n", i18n.T(msgid.CliPublishSignUsersNeedToDeclareIt))
+	opts.Printf("%s\n", i18n.T(msgid.CliPublishSignPublicKeyFilePath, ref))
 	return nil
 }
 
@@ -80,12 +82,11 @@ func publicKeyRefFor(explicit, flagKey, resolvedKey string) (string, error) {
 
 	ext := filepath.Ext(base)
 	if ext != ".key" {
-		return "", clierr.New(clierr.CodeConfigInvalid, "错误：无法推导 publicKeyRef").
-			WithDetail("私钥", resolvedKey).
-			WithHint("私钥文件名不是 .key 结尾时，请用 --public-key-ref 显式指定",
-				"例如 --public-key-ref keys/people-basic-release.pub").
-			WithTip("这个 ref 是使用者查找公钥的名字，必须与他们配在 " +
-				"installer.publicKeys 下的键完全一致。")
+		return "", clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliPublishSignErrorCannotDerivePublickeyref)).
+			WithDetail(i18n.T(msgid.CliPublishSignPrivateKey), resolvedKey).
+			WithHint(i18n.T(msgid.CliPublishSignWhenThePrivateKeyFile),
+				i18n.T(msgid.CliPublishSignForExamplePublicKeyRef)).
+			WithTip(i18n.T(msgid.CliPublishSignThisRefIsTheName))
 	}
 	return strings.TrimSuffix(base, ext) + ".pub", nil
 }

@@ -68,7 +68,7 @@ func TestInitWithoutProjectNameFails(t *testing.T) {
 	r := runIn(t, dir, "init")
 
 	assert.NotEqual(t, clierr.ExitOK, r.code)
-	assert.Contains(t, r.stderr, "❌ 请指定项目名称：brickkit init <项目名称>")
+	assert.Contains(t, r.stderr, "❌ Please specify a project name: brickkit init <project-name>")
 
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
@@ -245,18 +245,18 @@ func TestInitOutputMatchesDesignDocs(t *testing.T) {
 	r := runIn(t, dir, "init", "my-project")
 	require.Equal(t, clierr.ExitOK, r.code, "stderr=%s", r.stderr)
 
-	want := "✅ 项目已初始化：my-project\n" +
-		"   📁 brickkit.yaml        项目配置\n" +
-		"   📁 components/          组件源码（已配为本地安装源 local-dev）\n" +
-		"   📁 .brickkit/           CLI 工作目录\n" +
-		"   📁 .claude/skills/      AI 助手技能（4 个）\n" +
-		"   📁 AGENTS.md            AI 助手项目导读\n" +
-		"   💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查\n" +
+	want := "✅ Project initialized: my-project\n" +
+		"   📁 brickkit.yaml        Project config\n" +
+		"   📁 components/          Component source (configured as the local install source local-dev)\n" +
+		"   📁 .brickkit/           CLI working directory\n" +
+		"   📁 .claude/skills/      AI assistant skills (4)\n" +
+		"   📁 AGENTS.md            AI assistant project guide\n" +
+		"   💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check\n" +
 		"\n" +
-		"下一步：\n" +
-		"  brickkit add --local               把 components/ 下的组件全加进来\n" +
-		"  brickkit add people/basic@1.0.0    从安装源添加组件\n" +
-		"  brickkit up                        一键启动\n"
+		"Next steps:\n" +
+		"  brickkit add --local               add every component under components/\n" +
+		"  brickkit add people/basic@1.0.0    add a component from an install source\n" +
+		"  brickkit up                        start everything in one go\n"
 	assert.Equal(t, want, r.stdout)
 }
 
@@ -365,7 +365,7 @@ func TestInitInstallsHookWhenProjectIsRepoRoot(t *testing.T) {
 	assert.Contains(t, r.stdout, "pre-commit")
 	// `.git/hooks/pre-commit` 正好 21 列，占满了对齐用的 %-21s——说明文字曾经
 	// 直接粘在路径后面（"…pre-commit提交前检查组件结构"）。
-	assert.Contains(t, r.stdout, ".git/hooks/pre-commit 提交前检查组件结构",
+	assert.Contains(t, r.stdout, ".git/hooks/pre-commit Check the component layout before committing",
 		"路径与说明之间至少要有一个空格")
 
 	script, err := os.ReadFile(hook)
@@ -423,14 +423,14 @@ func TestInitHooksOnlyReportsRefreshOnReinstall(t *testing.T) {
 
 	r := runIn(t, dir, "init", "--hooks")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "已刷新到当前版本")
+	assert.Contains(t, r.stdout, "was refreshed to the current version")
 	assert.NotContains(t, r.stdout, "已经装过了")
 }
 
 func TestInitHooksOnlyRejectsProjectName(t *testing.T) {
 	r := runIn(t, newTestRepo(t), "init", "--hooks", "my-erp")
 	assert.Equal(t, clierr.ExitUsage, r.code)
-	assert.Contains(t, r.stderr, "不需要项目名称")
+	assert.Contains(t, r.stderr, "needs no project name")
 }
 
 // brickkit init --hooks 在没有 brickkit.yaml 的目录里必须报错，不能一声不响装上。
@@ -443,7 +443,7 @@ func TestInitHooksOnlyRequiresAProject(t *testing.T) {
 
 	r := runIn(t, dir, "init", "--hooks")
 	assert.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stderr, "不是一个 BrickKit 项目")
+	assert.Contains(t, r.stderr, "so this is not a BrickKit project")
 	assert.NoFileExists(t, filepath.Join(dir, ".git", "hooks", "pre-commit"),
 		"报错了就不该留下一个永远不会响的 hook")
 }

@@ -292,7 +292,7 @@ func TestStatusK8s(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
 	assert.Contains(t, r.stdout, "people/basic")
-	assert.Contains(t, r.stdout, "运行中")
+	assert.Contains(t, r.stdout, "Running")
 }
 
 // 排障命令必须是 kubectl 的，不能给一条 docker compose。
@@ -323,8 +323,8 @@ func TestStatusK8sDoesNotProbeResourcesFromHost(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
 	assert.Contains(t, r.stdout, "postgres.infra.svc:5432", "地址照常列出来")
-	assert.NotContains(t, r.stdout, "不可达", "本机解析不了集群内地址，不能据此判不可达")
-	assert.Contains(t, r.stdout, "集群内", "要说清为什么不下结论")
+	assert.NotContains(t, r.stdout, "unreachable", "本机解析不了集群内地址，不能据此判不可达")
+	assert.Contains(t, r.stdout, "inside the cluster", "要说清为什么不下结论")
 }
 
 // 生成了 NetworkPolicy 就必须提醒"生不生效取决于集群的 CNI"（O1）。

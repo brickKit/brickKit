@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // pinImageDigest 把 deployment.image 的 tag 换成 registry 里的 digest。
@@ -23,13 +25,13 @@ func pinImageDigest(ctx context.Context, opts *Options, pkg *publishPackage, f p
 	image := pkg.manifest.Deployment.Image
 
 	if isDigestRef(image) {
-		opts.Printf("   ✅ 镜像已钉 digest，跳过解析\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliPublishDigestTheImageAlreadyPinsA))
 		return nil
 	}
 	if f.noPinDigest {
-		opts.Printf("   ⚠️ 跳过 digest 钉住（--no-pin-digest）\n")
-		opts.Printf("      签名只锁住了镜像**字符串**：registry 上换掉同名 tag 的话，\n")
-		opts.Printf("      签名照样有效，而跑起来的是另一个镜像\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliPublishDigestDigestPinningSkippedNoPin))
+		opts.Printf("%s\n", i18n.T(msgid.CliPublishDigestTheSignatureOnlyLocksThe))
+		opts.Printf("%s\n", i18n.T(msgid.CliPublishDigestTheSignatureStaysValidWhile))
 		return nil
 	}
 
@@ -46,7 +48,7 @@ func pinImageDigest(ctx context.Context, opts *Options, pkg *publishPackage, f p
 	if err := rewriteImage(pkg, pinned); err != nil {
 		return err
 	}
-	opts.Printf("   ✅ 镜像已钉 digest：%s\n", digest)
+	opts.Printf("%s\n", i18n.T(msgid.CliPublishDigestImageDigestPinned, digest))
 	return nil
 }
 
@@ -69,20 +71,20 @@ func repoOf(image string) string {
 func rewriteImage(pkg *publishPackage, pinned string) error {
 	var doc map[string]any
 	if err := json.Unmarshal(pkg.document, &doc); err != nil {
-		return clierr.New(clierr.CodeManifestInvalid, "错误：无法改写 component.yaml 中的镜像地址").
+		return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishDigestErrorCouldNotRewriteThe)).
 			WithCause(err)
 	}
 
 	deployment, ok := doc["deployment"].(map[string]any)
 	if !ok {
 		return clierr.New(clierr.CodeManifestInvalid,
-			"错误：component.yaml 里没有 deployment 段，无法钉住 digest")
+			i18n.T(msgid.CliPublishDigestErrorComponentYamlHasNo))
 	}
 	deployment["image"] = pinned
 
 	updated, err := json.Marshal(doc)
 	if err != nil {
-		return clierr.New(clierr.CodeInternal, "错误：改写镜像地址后无法序列化 Manifest").
+		return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliPublishDigestErrorCouldNotSerializeThe)).
 			WithCause(err)
 	}
 

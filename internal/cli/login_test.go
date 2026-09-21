@@ -53,7 +53,7 @@ func TestLoginWritesCredentials(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.FileExists(t, credentialsPath(f.Dir), "19.3：Token 必须存到 .brickkit/credentials")
-	assert.Contains(t, r.stdout, "✅ 登录成功")
+	assert.Contains(t, r.stdout, "✅ Logged in")
 	assert.Contains(t, r.stdout, "zhangsan")
 	assert.Contains(t, r.stdout, ".brickkit/credentials")
 }
@@ -116,9 +116,9 @@ func TestLoginWithWrongPasswordFails(t *testing.T) {
 	r := runStdin(t, f.Dir, "zhangsan\nwrong-password\n", "login")
 
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "登录失败")
-	assert.Contains(t, r.stderr, "用户名或密码")
-	assert.NoFileExists(t, credentialsPath(f.Dir), "登录失败不该留下凭据文件")
+	assert.Contains(t, r.stderr, "login failed")
+	assert.Contains(t, r.stderr, "wrong user name or password")
+	assert.NoFileExists(t, credentialsPath(f.Dir), "login failed不该留下凭据文件")
 }
 
 // 登录失败不能把已有的有效凭据毁掉。

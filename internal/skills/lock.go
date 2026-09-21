@@ -3,6 +3,8 @@ package skills
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,11 +36,11 @@ func LoadLock(path string) (*Lock, error) {
 		return &Lock{}, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("读取 skills.lock 失败：%w", err)
+		return nil, fmt.Errorf("%s%w", i18n.T(msgid.SkillsLockFailedToReadSkillsLock), err)
 	}
 	var l Lock
 	if err := json.Unmarshal(b, &l); err != nil {
-		return nil, fmt.Errorf("skills.lock 解析失败：%w", err)
+		return nil, fmt.Errorf("%s%w", i18n.T(msgid.SkillsLockFailedToParseSkillsLock), err)
 	}
 	return &l, nil
 }
@@ -72,10 +74,10 @@ func (l *Lock) Save(path string) error {
 	})
 	b, err := json.MarshalIndent(l, "", "  ")
 	if err != nil {
-		return fmt.Errorf("序列化 skills.lock 失败：%w", err)
+		return fmt.Errorf("%s%w", i18n.T(msgid.SkillsLockFailedToSerializeSkillsLock), err)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
-		return fmt.Errorf("创建 skills.lock 所在目录失败：%w", err)
+		return fmt.Errorf("%s%w", i18n.T(msgid.SkillsLockFailedToCreateTheDirectory), err)
 	}
 	return os.WriteFile(path, append(b, '\n'), filePerm)
 }

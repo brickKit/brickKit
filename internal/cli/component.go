@@ -6,7 +6,9 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -18,9 +20,9 @@ func parseComponentRef(arg string) (id, version string, err error) {
 	id, version, hasVersion := strings.Cut(strings.TrimSpace(arg), "@")
 
 	if problem := manifest.ComponentIDProblem(id); problem != "" {
-		return "", "", clierr.Newf(clierr.CodeInvalidArgument, "错误：组件 ID 不合法：%s", id).
-			WithDetail("原因", problem).
-			WithHint("组件 ID 格式为 <scope>/<name>，如 people/basic").
+		return "", "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.InvalidComponentID, id)).
+			WithDetail(i18n.T(msgid.LabelReason), problem).
+			WithHint(i18n.T(msgid.HintComponentIDFormat)).
 			WithExit(clierr.ExitUsage)
 	}
 
@@ -29,9 +31,9 @@ func parseComponentRef(arg string) (id, version string, err error) {
 	}
 
 	if !manifest.IsExactVersion(version) {
-		return "", "", clierr.Newf(clierr.CodeInvalidArgument, "错误：版本号不合法：%s", version).
-			WithDetail("组件", id).
-			WithHint("必须是精确版本 major.minor.patch，如 1.0.0；不接受 ^ 或 ~ 等范围约束").
+		return "", "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.SourceInvalidVersion, version)).
+			WithDetail(i18n.T(msgid.LabelComponent), id).
+			WithHint(i18n.T(msgid.SourceHintExactVersionOnly)).
 			WithExit(clierr.ExitUsage)
 	}
 	return id, version, nil

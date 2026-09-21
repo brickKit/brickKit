@@ -38,11 +38,11 @@ func TestStatusShowsRunningComponents(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "项目状态", "15.15")
+	assert.Contains(t, r.stdout, "Project status", "15.15")
 	assert.Contains(t, r.stdout, "my-erp")
 	assert.Contains(t, r.stdout, "people/basic")
 	assert.Contains(t, r.stdout, "1.0.0")
-	assert.Contains(t, r.stdout, "运行中")
+	assert.Contains(t, r.stdout, "Running")
 	assert.Contains(t, r.stdout, "18080->8080", "端口映射要看得见")
 }
 
@@ -58,7 +58,7 @@ func TestStatusSeparatesUnhealthyComponent(t *testing.T) {
 
 	assert.Contains(t, r.stdout, "erp/backend")
 	assert.Contains(t, r.stdout, "exited")
-	assert.Contains(t, r.stdout, "退出码 1", "退出码是排障的第一手信息")
+	assert.Contains(t, r.stdout, "exit code 1", "退出码是排障的第一手信息")
 }
 
 // 迁移容器不该出现在组件列表里：它是平台的实现细节，不是使用者装的组件。
@@ -88,9 +88,9 @@ func TestStatusBeforeFirstUp(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	assert.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "没有正在运行的组件")
+	assert.Contains(t, r.stdout, "No components are running")
 	assert.Contains(t, r.stdout, "brickkit up")
-	assert.Contains(t, r.stdout, "未创建", "组件逐个列出来，而不是一张空表")
+	assert.Contains(t, r.stdout, "not created", "组件逐个列出来，而不是一张空表")
 }
 
 // 部署文件在、但引擎里一个容器都没有：说明被 down 掉了。
@@ -101,7 +101,7 @@ func TestStatusWhenNothingIsRunning(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "没有正在运行的组件")
+	assert.Contains(t, r.stdout, "No components are running")
 }
 
 // ============================================================
@@ -145,7 +145,7 @@ func TestStatusShowsLocalComponents(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "本地调试", "15.17")
+	assert.Contains(t, r.stdout, "Local debugging", "15.17")
 	assert.Contains(t, r.stdout, "people/basic")
 	assert.Contains(t, r.stdout, "localhost:8081")
 }
@@ -161,7 +161,7 @@ func TestStatusDoesNotReportLocalComponentAsDown(t *testing.T) {
 
 	r := statusOf(t, eng, f.Dir)
 
-	assert.NotContains(t, r.stdout, "未创建")
+	assert.NotContains(t, r.stdout, "not created")
 }
 
 // ============================================================
@@ -181,9 +181,9 @@ func TestStatusReportsManagedResourceFromContainerState(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "资源状态", "15.18")
+	assert.Contains(t, r.stdout, "Resource status", "15.18")
 	assert.Contains(t, r.stdout, "postgres-main")
-	assert.Contains(t, r.stdout, "可达")
+	assert.Contains(t, r.stdout, "reachable")
 }
 
 func TestStatusReportsManagedResourceDown(t *testing.T) {
@@ -197,7 +197,7 @@ func TestStatusReportsManagedResourceDown(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	assert.Contains(t, r.stdout, "postgres-main")
-	assert.Contains(t, r.stdout, "不可达")
+	assert.Contains(t, r.stdout, "unreachable")
 }
 
 // 外部资源（运维已部署）不在容器里，只能真的拨一下号。
@@ -235,7 +235,7 @@ resources:
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Equal(t, []string{"db.internal.example.com:5432"}, probed, "15.18")
 	assert.Contains(t, r.stdout, "postgres-external")
-	assert.Contains(t, r.stdout, "可达")
+	assert.Contains(t, r.stdout, "reachable")
 }
 
 func TestStatusReportsUnreachableExternalResource(t *testing.T) {
@@ -267,7 +267,7 @@ resources:
 	// 资源连不上不该让 status 失败：status 的职责是**报告**现状
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "redis-external")
-	assert.Contains(t, r.stdout, "不可达")
+	assert.Contains(t, r.stdout, "unreachable")
 	assert.Contains(t, r.stdout, "connection refused", "说清连不上的原因")
 }
 
@@ -280,7 +280,7 @@ func TestStatusWithoutResources(t *testing.T) {
 
 	r := statusOf(t, eng, f.Dir)
 
-	assert.NotContains(t, r.stdout, "资源状态")
+	assert.NotContains(t, r.stdout, "Resource status")
 }
 
 // 引擎问不到状态时如实报错——比给出一张"全都没在跑"的假表好。
@@ -327,9 +327,9 @@ func TestStatusReportsRunningWhenGraphUnavailable(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "运行中")
+	assert.Contains(t, r.stdout, "Running")
 	assert.Contains(t, r.stdout, "people/basic")
-	assert.Contains(t, r.stdout, "未能解析依赖图", "信息不全就得说清楚为什么")
+	assert.Contains(t, r.stdout, "The dependency graph could not be resolved", "信息不全就得说清楚为什么")
 	assert.Contains(t, r.stdout, "prot", "把解析失败的原因原样带出来，他才知道去改哪一行")
 }
 
@@ -349,8 +349,8 @@ func TestStatusListsEveryDeclaredComponentWhenGraphUnavailable(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "erp/backend", "声明过的组件不能凭空消失")
-	assert.Contains(t, r.stdout, "原因未知")
-	assert.NotContains(t, r.stdout, "未在运行", "引擎里查不到 ≠ 它没起来")
+	assert.Contains(t, r.stdout, "reason unknown")
+	assert.NotContains(t, r.stdout, "Not running", "引擎里查不到 ≠ 它没起来")
 }
 
 // 引擎里有记录、只是没在跑，那就是实打实的"未在运行"——降级也照报。
@@ -365,8 +365,8 @@ func TestStatusKeepsFailedComponentWhenGraphUnavailable(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "未在运行")
-	assert.Contains(t, r.stdout, "退出码 1")
+	assert.Contains(t, r.stdout, "Not running")
+	assert.Contains(t, r.stdout, "exit code 1")
 }
 
 // enabled: false 是 brickkit.yaml 里就写着的，不该跟着退化成"原因未知"。
@@ -388,7 +388,7 @@ func TestStatusKeepsDisabledReasonWhenGraphUnavailable(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "disabled explicitly")
-	assert.NotContains(t, r.stdout, "原因未知", "配置里写着的原因就该照实说")
+	assert.NotContains(t, r.stdout, "reason unknown", "配置里写着的原因就该照实说")
 }
 
 // 资源可达性只问 brickkit.yaml 与 TCP，依赖图取不到不该连它一起丢掉。
@@ -403,5 +403,5 @@ func TestStatusStillProbesResourcesWhenGraphUnavailable(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "postgres-main")
-	assert.Contains(t, r.stdout, "可达")
+	assert.Contains(t, r.stdout, "reachable")
 }

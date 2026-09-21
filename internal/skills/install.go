@@ -2,6 +2,8 @@ package skills
 
 import (
 	"fmt"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"os"
 	"path/filepath"
 )
@@ -9,18 +11,36 @@ import (
 // State 是一份托管文件的当前状态。
 type State string
 
+// 取值是语言中立的标识（比较、分流用），从不直接显示；要给人看走 Label()。
 const (
 	// StateMissing 文件不存在。
-	StateMissing State = "缺失"
+	StateMissing State = "missing"
 	// StateCurrent 内容已与当前版本的资产一致。
-	StateCurrent State = "最新"
+	StateCurrent State = "current"
 	// StateOutdated 内容是我们上次写的，但资产已经变了。
-	StateOutdated State = "待更新"
+	StateOutdated State = "outdated"
 	// StateModified 内容与我们上次写的不一致——用户改过。
-	StateModified State = "已手改"
+	StateModified State = "modified"
 	// StateUntracked 文件存在但 lock 里没有记录。
-	StateUntracked State = "未托管"
+	StateUntracked State = "untracked"
 )
+
+// Label 是给人看的状态名，跟着当前语言走。
+func (s State) Label() string {
+	switch s {
+	case StateMissing:
+		return i18n.T(msgid.SkillsStateMissing)
+	case StateCurrent:
+		return i18n.T(msgid.SkillsStateCurrent)
+	case StateOutdated:
+		return i18n.T(msgid.SkillsStateOutdated)
+	case StateModified:
+		return i18n.T(msgid.SkillsStateModified)
+	case StateUntracked:
+		return i18n.T(msgid.SkillsStateUntracked)
+	}
+	return string(s)
+}
 
 // writable 判断这个状态下是否允许写入。
 // 只有这两种状态可写，其余一律不动——尤其是「已手改」与「未托管」。
@@ -84,7 +104,7 @@ func (in Installer) stateOf(a Asset, lock *Lock) (FileStatus, error) {
 
 	want, err := a.Content()
 	if err != nil {
-		return st, fmt.Errorf("读取内嵌资产 %s 失败：%w", a.Source, err)
+		return st, fmt.Errorf("%s%w", i18n.T(msgid.SkillsInstallFailedToReadTheEmbedded, a.Source), err)
 	}
 	disk, err := os.ReadFile(filepath.Join(in.Root, a.Target))
 	if os.IsNotExist(err) {
@@ -92,7 +112,7 @@ func (in Installer) stateOf(a Asset, lock *Lock) (FileStatus, error) {
 		return st, nil
 	}
 	if err != nil {
-		return st, fmt.Errorf("读取 %s 失败：%w", a.Target, err)
+		return st, fmt.Errorf("%s%w", i18n.T(msgid.SkillsInstallFailedToRead, a.Target), err)
 	}
 
 	if Sum(disk) == Sum(want) {
@@ -142,7 +162,7 @@ func (in Installer) Apply() (*ApplyResult, error) {
 		}
 		content, err := a.Content()
 		if err != nil {
-			return nil, fmt.Errorf("读取内嵌资产 %s 失败：%w", a.Source, err)
+			return nil, fmt.Errorf("%s%w", i18n.T(msgid.SkillsInstallFailedToReadTheEmbedded, a.Source), err)
 		}
 		if st.State.writable() {
 			if err := in.write(a.Target, content); err != nil {
@@ -163,10 +183,10 @@ func (in Installer) Apply() (*ApplyResult, error) {
 func (in Installer) write(target string, content []byte) error {
 	path := filepath.Join(in.Root, target)
 	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
-		return fmt.Errorf("创建目录 %s 失败：%w", filepath.Dir(target), err)
+		return fmt.Errorf("%s%w", i18n.T(msgid.SkillsInstallFailedToCreateTheDirectory, filepath.Dir(target)), err)
 	}
 	if err := os.WriteFile(path, content, filePerm); err != nil {
-		return fmt.Errorf("写入 %s 失败：%w", target, err)
+		return fmt.Errorf("%s%w", i18n.T(msgid.SkillsInstallFailedToWrite, target), err)
 	}
 	return nil
 }

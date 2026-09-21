@@ -18,7 +18,7 @@ func TestSkillsStatusOnFreshProject(t *testing.T) {
 
 	r := runIn(t, dir, "skills", "status")
 	require.Equal(t, 0, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "缺失")
+	assert.Contains(t, r.stdout, "missing")
 	assert.Contains(t, r.stdout, "AGENTS.md")
 }
 
@@ -29,7 +29,7 @@ func TestSkillsBareIsStatus(t *testing.T) {
 
 	r := runIn(t, dir, "skills")
 	require.Equal(t, 0, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "缺失")
+	assert.Contains(t, r.stdout, "missing")
 
 	_, err := os.Stat(filepath.Join(dir, "AGENTS.md"))
 	assert.True(t, os.IsNotExist(err), "光看状态不该写文件")
@@ -59,7 +59,7 @@ func TestSkillsUpdateSkipsModifiedAndSaysHow(t *testing.T) {
 
 	r := runIn(t, dir, "skills", "update")
 	require.Equal(t, 0, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "已手改")
+	assert.Contains(t, r.stdout, "hand-edited")
 	assert.Contains(t, r.stdout, "delete", "要告诉人怎么放弃本地修改")
 
 	after, err := os.ReadFile(p)
@@ -82,7 +82,7 @@ func TestSkillsStatusShowsOutdatedWithVersions(t *testing.T) {
 
 	r := runIn(t, dir, "skills", "status")
 	require.Equal(t, 0, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "待更新")
+	assert.Contains(t, r.stdout, "outdated")
 	assert.Contains(t, r.stdout, "0.0.1")
 	assert.Contains(t, r.stdout, "need refreshing")
 }
@@ -108,7 +108,7 @@ func TestSkillsInComponentRepoManagesOnlyTheComponentSkill(t *testing.T) {
 	st := runIn(t, dir, "skills", "status")
 	require.Equal(t, 0, st.code, st.stderr)
 	assert.Contains(t, st.stdout, ".claude/skills/brickkit-component/SKILL.md")
-	assert.Contains(t, st.stdout, "缺失")
+	assert.Contains(t, st.stdout, "missing")
 	assert.Contains(t, st.stdout, "Component repository", "要说明这是组件仓库模式，不然人会奇怪怎么只有一个文件")
 	assert.NotContains(t, st.stdout, "brickkit-deploy")
 	assert.NotContains(t, st.stdout, "AGENTS.md")

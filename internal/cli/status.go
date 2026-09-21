@@ -21,15 +21,9 @@ import (
 func newStatusCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "status",
-		Short:   "查看组件运行状态（读取底层引擎）",
+		Short:   i18n.T(msgid.CliStatusShort),
 		GroupID: groupLifecycle,
-		Long: `查看当前项目所有组件的运行状态。
-
-CLI 本身不存储运行状态，查询时直接调用底层引擎：
-  Docker  docker compose ps --format json
-
-输出包含：运行中的组件、未启动的组件及原因、
-本地调试组件（local: true）、基础资源可达性。`,
+		Long:    i18n.T(msgid.CliStatusLong),
 		Example: "  brickkit status",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -50,13 +44,13 @@ func runStatus(ctx context.Context, opts *Options) error {
 		return err
 	}
 
-	opts.Printf("📊 项目状态：%s（deploy.target: %s）\n\n", p.cfg.Project, p.cfg.Deploy.Target)
+	opts.Printf("%s\n\n", i18n.T(msgid.CliStatusProjectStatusDeployTarget, p.cfg.Project, p.cfg.Deploy.Target))
 	if len(p.cfg.Components) == 0 {
-		opts.Printf("📋 当前项目没有组件\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusTheCurrentProjectHasNo))
 		// init 的骨架已经把 ./components 配成了本地安装源，所以 --local 是最短的一条路。
 		// 两条都给：有的人手上已经有组件源码，有的人要从市场装。
-		opts.Printf("   用 brickkit add --local 把 %s/ 下的组件全加进来\n", config.DirComponents)
-		opts.Printf("   或 brickkit add <组件ID> 从安装源添加\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusAddAllTheComponentsUnder, config.DirComponents))
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusOrAddOneFromAn))
 		return nil
 	}
 	// 直接问引擎。
@@ -77,7 +71,7 @@ func runStatus(ctx context.Context, opts *Options) error {
 	}
 	statuses, err := eng.Status(ctx, p.engineProject())
 	if err != nil {
-		return engineFailure("查询状态", err)
+		return engineFailure(i18n.T(msgid.CliStatusQueryTheStatus), err)
 	}
 
 	byService := map[string]engine.Status{}
@@ -102,7 +96,9 @@ func runStatus(ctx context.Context, opts *Options) error {
 //
 // 写"未知"而不是编一个：使用者据此去改配置，一句猜出来的原因会把他引向
 // 一个根本没问题的地方。上面那条 renderDegradedNotice 已经说清楚为什么未知。
-const reasonUnknown = "原因未知（依赖图取不到）"
+//
+// 是函数而不是常量：文案要跟着语言变，包初始化时语言还没确定。
+func reasonUnknown() string { return i18n.T(msgid.CliStatusReasonUnknown) }
 
 // statusRow 是表格里的一行：一个组件 + 一句话。
 type statusRow struct {
@@ -186,7 +182,7 @@ func degradedView(p *project, byService map[string]engine.Status) componentView 
 			// local 组件本来就不会出现在引擎里，"查不到"是它的正常状态
 			v.local = append(v.local, ref)
 		default:
-			v.skipped = append(v.skipped, statusRow{ref: ref, text: reasonUnknown})
+			v.skipped = append(v.skipped, statusRow{ref: ref, text: reasonUnknown()})
 		}
 	}
 	return v
@@ -202,12 +198,12 @@ func renderDegradedNotice(opts *Options, p *project) {
 		return
 	}
 
-	opts.Printf("\u26a0\ufe0f 未能解析依赖图，「未启动」那一节只能给出部分原因\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliStatusTheDependencyGraphCouldNot))
 	opts.Printf("   %s\n", strings.TrimPrefix(p.degraded.Message, i18n.T(msgid.ErrorPrefix)))
 	for _, d := range p.degraded.Details {
-		opts.Printf("   %s：%s\n", d.Key, d.Value)
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusMsg, d.Key, d.Value))
 	}
-	opts.Printf("   「运行中」与「资源状态」不受影响——它们只问引擎和 brickkit.yaml\n\n")
+	opts.Printf("%s\n\n", i18n.T(msgid.CliStatusRunningAndResourceStatusAre))
 }
 
 // renderComponentStatus 输出"该跑的组件现在怎么样了"。
@@ -216,31 +212,30 @@ func renderDegradedNotice(opts *Options, p *project) {
 // 使用者装的是组件，看到的也该是组件（资源单独一节汇报）。
 func renderComponentStatus(opts *Options, p *project, v componentView) {
 	if len(v.running) == 0 && len(v.failed) == 0 && len(v.skipped) == 0 && len(v.local) == 0 {
-		opts.Printf("⬜ 本次没有需要容器化启动的组件\n\n")
+		opts.Printf("%s\n\n", i18n.T(msgid.CliStatusNoComponentsNeedToBe))
 		return
 	}
 
 	if len(v.running) > 0 {
-		t := newTable("组件", "版本", "状态", "端口")
+		t := newTable(i18n.T(msgid.LabelComponent), i18n.T(msgid.CliStatusVersion), i18n.T(msgid.CliSkillsStatus), i18n.T(msgid.K8sLabelPort))
 		for _, row := range v.running {
 			t.add(row.ref.ID, row.ref.Version, row.text, row.ports)
 		}
-		opts.Printf("✅ 运行中（%d 个组件）\n", len(v.running))
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusRunningComponents, len(v.running)))
 		opts.Printf("%s\n", t.render(" "))
 	}
 	if len(v.failed) > 0 {
-		t := newTable("组件", "版本", "状态")
+		t := newTable(i18n.T(msgid.LabelComponent), i18n.T(msgid.CliStatusVersion), i18n.T(msgid.CliSkillsStatus))
 		for _, row := range v.failed {
 			t.add(row.ref.ID, row.ref.Version, row.text)
 		}
-		opts.Printf("❌ 未在运行（%d 个组件）\n", len(v.failed))
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusNotRunningComponents, len(v.failed)))
 		opts.Printf("%s", t.render(" "))
-		opts.Printf("   看日志定位：%s\n\n",
-			logsCommand(engineName(opts), p.engineProject(), "<服务名>"))
+		opts.Printf("%s\n\n", i18n.T(msgid.CliStatusViewTheLogsToFind, logsCommand(engineName(opts), p.engineProject(), i18n.T(msgid.ServiceNamePlaceholder))))
 	}
 	if len(v.running) == 0 && len(v.failed) > 0 {
-		opts.Printf("📋 没有正在运行的组件（可能已经 brickkit down 过）\n")
-		opts.Printf("   重新启动：brickkit up\n\n")
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusNoComponentsAreRunningPerhaps))
+		opts.Printf("%s\n\n", i18n.T(msgid.CliDownStartAgainWithBrickkitUp))
 	}
 }
 
@@ -252,19 +247,19 @@ func renderComponentStatus(opts *Options, p *project, v componentView) {
 func statusText(s engine.Status, found bool) string {
 	if !found {
 		// 部署文件里有、引擎里没有：多半是被 down 掉了
-		return "未创建"
+		return i18n.T(msgid.CliStatusNotCreated)
 	}
 	switch {
 	case s.Running():
 		if s.Health != "" {
-			return "运行中（" + s.Health + "）"
+			return i18n.T(msgid.CliStatusRunning2, s.Health)
 		}
-		return "运行中"
+		return i18n.T(msgid.CliStatusRunning)
 	case s.State == "exited":
-		return fmt.Sprintf("exited（退出码 %d）", s.ExitCode)
+		return i18n.T(msgid.CliStatusExitedExitCode, s.ExitCode)
 	case s.State == "running":
 		// running 但健康检查没过：对使用者来说它并不能用
-		return "运行中但不健康（" + s.Health + "）"
+		return i18n.T(msgid.CliStatusRunningButUnhealthy, s.Health)
 	default:
 		return s.State
 	}
@@ -276,11 +271,11 @@ func renderSkipped(opts *Options, v componentView) {
 		return
 	}
 
-	t := newTable("组件", "版本", "原因")
+	t := newTable(i18n.T(msgid.LabelComponent), i18n.T(msgid.CliStatusVersion), i18n.T(msgid.LabelReason))
 	for _, row := range v.skipped {
 		t.add(row.ref.ID, row.ref.Version, row.text)
 	}
-	opts.Printf("⬜ 未启动（%d 个组件）\n", len(v.skipped))
+	opts.Printf("%s\n", i18n.T(msgid.CliStatusNotStartedComponents, len(v.skipped)))
 	opts.Printf("%s\n", t.render(" "))
 }
 
@@ -293,12 +288,12 @@ func renderLocalDebug(opts *Options, p *project, v componentView) {
 		return
 	}
 
-	t := newTable("组件", "版本", "本地地址")
+	t := newTable(i18n.T(msgid.LabelComponent), i18n.T(msgid.CliStatusVersion), i18n.T(msgid.CliStatusLocalAddress))
 	for _, ref := range v.local {
 		t.add(ref.ID, ref.Version, localAddress(p, ref))
 	}
 
-	opts.Printf("🔧 本地调试（local: true，不由平台启动）\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliStatusLocalDebuggingLocalTrueNot))
 	opts.Printf("%s\n", t.render(" "))
 }
 
@@ -308,14 +303,14 @@ func renderLocalDebug(opts *Options, p *project, v componentView) {
 // 降级时读不到，就老实说读不到：编一个端口号出来，使用者会照着它去连一个没人监听的口。
 func localAddress(p *project, ref resolver.Ref) string {
 	if port := p.entry(ref).LocalPort; port > 0 {
-		return fmt.Sprintf("localhost:%d（IDE 调试模式）", port)
+		return i18n.T(msgid.CliStatusLocalhostIdeDebugMode, port)
 	}
 	if p.graph != nil {
 		if node := p.graph.Node(ref); node != nil && node.Manifest != nil {
-			return fmt.Sprintf("localhost:%d（IDE 调试模式）", node.Manifest.Deployment.Port)
+			return i18n.T(msgid.CliStatusLocalhostIdeDebugMode, node.Manifest.Deployment.Port)
 		}
 	}
-	return "端口未知（没写 localPort，而组件声明的端口取不到）"
+	return i18n.T(msgid.CliStatusPortUnknownNoLocalportIs)
 }
 
 // renderResourceStatus 输出基础资源的可达性（15.18）。
@@ -333,17 +328,16 @@ func renderResourceStatus(ctx context.Context, opts *Options, p *project) {
 
 	k8sTarget := p.cfg.Deploy.Target == config.TargetK8s
 
-	t := newTable("资源", "类型", "状态")
+	t := newTable(i18n.T(msgid.LabelResource), i18n.T(msgid.CliStatusKind), i18n.T(msgid.CliSkillsStatus))
 	for _, r := range resources {
 		t.add(r.ID, r.Kind, resourceState(ctx, opts, r, k8sTarget))
 	}
 
-	opts.Printf("📦 资源状态\n")
+	opts.Printf("%s\n", i18n.T(msgid.CliStatusResourceStatus))
 	opts.Printf("%s\n", t.render(" "))
 	if k8sTarget {
-		opts.Printf("   资源在集群内访问，本机不做探测；组件跑起来了就说明它连得上\n")
-		opts.Printf("   想从集群内验证：kubectl run -n %s --rm -it netcheck --image=busybox -- nc -zv <主机> <端口>\n\n",
-			p.engineProject())
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusResourcesAreReachedInsideThe))
+		opts.Printf("%s\n\n", i18n.T(msgid.CliStatusToVerifyFromInsideThe, p.engineProject()))
 	}
 }
 
@@ -374,7 +368,7 @@ func resourceState(
 		// K8s 下的资源地址是**集群内**的 DNS 名（postgres.infra），
 		// 开发者本机根本解析不了。照 Docker 那套拨一次号，会对一个完全健康的
 		// 部署报"不可达"——而组件正连着这个库跑得好好的。接上真集群第一次就撞到了
-		return fmt.Sprintf("%s:%d（集群内地址，本机不探测）", r.Host, r.Port)
+		return i18n.T(msgid.CliStatusInClusterAddressNotProbed, r.Host, r.Port)
 	}
 	// Docker 目标下一律拨号。
 	//
@@ -383,9 +377,9 @@ func resourceState(
 	// （006 §9.1），所有资源都在容器网络之外，拨号是唯一说得通的判据。
 	address := fmt.Sprintf("%s:%d", deploy.DialHost(r.Host), r.Port)
 	if err := opts.probe(ctx, address); err != nil {
-		return "不可达（" + address + "：" + reasonText(err) + "）"
+		return i18n.T(msgid.CliStatusUnreachable, address, reasonText(err))
 	}
-	return "可达（" + address + "）"
+	return i18n.T(msgid.CliStatusReachable, address)
 }
 
 // reasonText 从拨号错误里取出人能看懂的那一句。
