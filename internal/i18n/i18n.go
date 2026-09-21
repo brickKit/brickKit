@@ -3,7 +3,11 @@
 // （那是 internal/clierr 的事），也不掺和 cobra（那是 internal/cli 的事）。
 package i18n
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/brickkit/brickkit/internal/msgid"
+)
 
 // Lang 是已支持的语言。
 type Lang string
@@ -51,6 +55,29 @@ func T(id string, args ...any) string {
 		return text
 	}
 	return fmt.Sprintf(text, args...)
+}
+
+// TN 是 T 的单复数版本：n 决定用哪一种形式，args 照旧是位置参数——
+// n 不会自动进 args，模板里要显示这个数就要把它也放进 args（跟 gettext 的
+// ngettext 一样，明说比"第一个参数悄悄是 n"少一层要记的约定）。
+//
+// 目录里 id 本身是"其他"形式（英文的复数，也是没有单复数之分的语言的唯一形式）；
+// n == 1 且当前语言的目录里有 id+msgid.PluralOneSuffix 这一条，就用它，否则
+// 回落到 id 本身。中文不写单数条目，所以永远走 id——不用为中文再开一份重复文案。
+func TN(id string, n int, args ...any) string {
+	if n == 1 {
+		if _, ok := catalogFor(current)[id+msgid.PluralOneSuffix]; ok {
+			return T(id+msgid.PluralOneSuffix, args...)
+		}
+	}
+	return T(id, args...)
+}
+
+// Count 返回"数字 + 名词"的短语（"3 files" / "1 file"），id 是 msgid 里
+// Count* 那一族的 key，模板里 %[1]d 就是 n。要在句子里数一样东西时用它，
+// 句子本身只留一个 %s 接这个短语，这样单复数的事全在这一族 key 里解决。
+func Count(id string, n int) string {
+	return TN(id, n, n)
 }
 
 // CatalogFor 返回给定语言目录的只读快照，供工具类代码使用

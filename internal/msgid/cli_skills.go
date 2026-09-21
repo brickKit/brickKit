@@ -16,7 +16,7 @@ const (
 	CliSkillsStatus                        = "cli.skills.status"
 	CliSkillsMsg                           = "cli.skills.msg"
 	CliSkillsUpdateWillSkipIt              = "cli.skills.update_will_skip_it"
-	CliSkillsFileSNeedRefreshingBrickkit   = "cli.skills.file_s_need_refreshing_brickkit"
+	CliSkillsFilesNeedRefreshing           = "cli.skills.files_need_refreshing"
 	CliSkillsAiAssistantSkillsAreUp        = "cli.skills.ai_assistant_skills_are_up"
 	CliSkillsAiAssistantSkillsUpdated      = "cli.skills.ai_assistant_skills_updated"
 	CliSkillsWrote                         = "cli.skills.wrote"

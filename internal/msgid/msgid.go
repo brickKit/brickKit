@@ -49,6 +49,22 @@ const (
 	ClauseSeparator    = "clause.separator"
 	SemicolonSeparator = "semicolon.separator"
 
+	// PluralOneSuffix 拼在一个 key 后面，就是它的"单数形式"的 key。key 本身是
+	// "其他"形式（英文里的复数，也是没有单复数之分的语言——中文——的唯一形式）；
+	// 只有 i18n.TN / i18n.Count 会用到这个后缀，普通的 i18n.T 永远只查 key 本身。
+	// 目录里写不写单数形式由语言自己决定：英文写，中文不写。
+	PluralOneSuffix = ".one"
+
+	// 带数字的名词短语：数字和名词一起进目录（"3 files" / "1 file"、"3 个文件"），
+	// 句子里用 %s 接 i18n.Count 的返回值。放在共享 key 里是因为同一个名词几乎
+	// 到处都要数（文件、组件、清单……），各写各的会让"1 files"这种毛病每处都要修一遍。
+	CountComponents = "count.components"
+	CountResources  = "count.resources"
+	CountFiles      = "count.files"
+	CountItems      = "count.items"
+	CountWarnings   = "count.warnings"
+	CountManifests  = "count.manifests"
+
 	// ServiceNamePlaceholder 是命令示例里"这里换成服务名"的占位符（logs 命令用）。
 	ServiceNamePlaceholder = "placeholder.service_name"
 

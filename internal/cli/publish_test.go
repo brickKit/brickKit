@@ -85,7 +85,7 @@ func TestPublishOutputReportsEachCheck(t *testing.T) {
 	assert.Contains(t, r.stdout, "📤 Publishing people/basic@1.2.0")
 	assert.Contains(t, r.stdout, "✅ Manifest validation passed")
 	assert.Contains(t, r.stdout, "✅ Image reference is valid")
-	assert.Contains(t, r.stdout, "✅ artifacts uploaded (1 files)")
+	assert.Contains(t, r.stdout, "✅ artifacts uploaded (1 file)")
 	assert.Contains(t, r.stdout, "🎉 Published")
 	assert.Contains(t, r.stdout, "Component: people/basic@1.2.0")
 }

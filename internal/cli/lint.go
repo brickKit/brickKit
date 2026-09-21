@@ -191,15 +191,15 @@ func reportLint(opts *Options, files []lintFile, notes []string, strict bool) er
 	for _, n := range notes {
 		opts.Printf("ℹ️ %s\n", n)
 	}
-	opts.Printf("\n%s\n", i18n.T(msgid.CliLintCheckedFilesWithErrorsWarnings, len(files), failed, warned))
+	opts.Printf("\n%s\n", i18n.T(msgid.CliLintCheckedFilesWithErrorsWarnings, i18n.Count(msgid.CountFiles, len(files)), failed, i18n.Count(msgid.CountWarnings, warned)))
 
 	if failed == 0 && (!strict || warned == 0) {
 		return nil
 	}
 	e := clierr.New(clierr.CodeLintFailed, i18n.T(msgid.CliLintErrorTheStructureCheckDid)).
-		WithDetail(i18n.T(msgid.CliLintChecked), i18n.T(msgid.CliLintFiles, len(files)))
+		WithDetail(i18n.T(msgid.CliLintChecked), i18n.Count(msgid.CountFiles, len(files)))
 	if failed > 0 {
-		e = e.WithDetail(i18n.T(msgid.CliLintWithErrors), i18n.T(msgid.CliLintFiles, failed))
+		e = e.WithDetail(i18n.T(msgid.CliLintWithErrors), i18n.Count(msgid.CountFiles, failed))
 	}
 	if strict && warned > 0 {
 		e = e.WithDetail(i18n.T(msgid.CliLintWarnings), i18n.T(msgid.CliLintStrictWarningsCountAsFailures, warned))

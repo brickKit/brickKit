@@ -14,7 +14,6 @@ const (
 	CliLintCheckedFilesWithErrorsWarnings = "cli.lint.checked_files_with_errors_warnings"
 	CliLintErrorTheStructureCheckDid      = "cli.lint.error_the_structure_check_did"
 	CliLintChecked                        = "cli.lint.checked"
-	CliLintFiles                          = "cli.lint.files"
 	CliLintWithErrors                     = "cli.lint.with_errors"
 	CliLintWarnings                       = "cli.lint.warnings"
 	CliLintStrictWarningsCountAsFailures  = "cli.lint.strict_warnings_count_as_failures"

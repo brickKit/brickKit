@@ -132,7 +132,7 @@ func runSkillsStatus(opts *Options) error {
 	}
 	opts.Printf("%s", t.render("   "))
 	if stale > 0 {
-		opts.Printf("\n%s\n", i18n.T(msgid.CliSkillsFileSNeedRefreshingBrickkit, stale))
+		opts.Printf("\n%s\n", i18n.TN(msgid.CliSkillsFilesNeedRefreshing, stale, stale))
 	}
 	return nil
 }

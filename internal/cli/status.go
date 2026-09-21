@@ -221,7 +221,7 @@ func renderComponentStatus(opts *Options, p *project, v componentView) {
 		for _, row := range v.running {
 			t.add(row.ref.ID, row.ref.Version, row.text, row.ports)
 		}
-		opts.Printf("%s\n", i18n.T(msgid.CliStatusRunningComponents, len(v.running)))
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusRunningComponents, i18n.Count(msgid.CountComponents, len(v.running))))
 		opts.Printf("%s\n", t.render(" "))
 	}
 	if len(v.failed) > 0 {
@@ -229,7 +229,7 @@ func renderComponentStatus(opts *Options, p *project, v componentView) {
 		for _, row := range v.failed {
 			t.add(row.ref.ID, row.ref.Version, row.text)
 		}
-		opts.Printf("%s\n", i18n.T(msgid.CliStatusNotRunningComponents, len(v.failed)))
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusNotRunningComponents, i18n.Count(msgid.CountComponents, len(v.failed))))
 		opts.Printf("%s", t.render(" "))
 		opts.Printf("%s\n\n", i18n.T(msgid.CliStatusViewTheLogsToFind, logsCommand(engineName(opts), p.engineProject(), i18n.T(msgid.ServiceNamePlaceholder))))
 	}
@@ -275,7 +275,7 @@ func renderSkipped(opts *Options, v componentView) {
 	for _, row := range v.skipped {
 		t.add(row.ref.ID, row.ref.Version, row.text)
 	}
-	opts.Printf("%s\n", i18n.T(msgid.CliStatusNotStartedComponents, len(v.skipped)))
+	opts.Printf("%s\n", i18n.T(msgid.CliStatusNotStartedComponents, i18n.Count(msgid.CountComponents, len(v.skipped))))
 	opts.Printf("%s\n", t.render(" "))
 }
 

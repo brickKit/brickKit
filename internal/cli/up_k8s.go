@@ -33,7 +33,7 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 		return err
 	}
 
-	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sGeneratedManifests, len(plan.k8s.Files), displayPath(opts.WorkDir, dir)))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sGeneratedManifests, i18n.Count(msgid.CountManifests, len(plan.k8s.Files)), displayPath(opts.WorkDir, dir)))
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sNamespace, plan.k8s.Namespace))
 	renderResourceRequirements(opts, plan.k8s.Resources)
 	renderNetworkPolicyNotice(opts, plan.k8s)
@@ -89,7 +89,7 @@ func renderNetworkPolicyNotice(opts *Options, result *k8s.Result) {
 		return
 	}
 
-	opts.Printf("\n%s\n", i18n.T(msgid.CliUpK8sGeneratedNetworkpolicyManifestsDeployNetworkpolicy, n))
+	opts.Printf("\n%s\n", i18n.TN(msgid.CliUpK8sGeneratedNetworkpolicyManifestsDeployNetworkpolicy, n, n))
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sTheyOnlyTakeEffectWhen))
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sKubectlGetNetworkpolicyShowsThem))
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sTheDefaultCniOfMinikube))
@@ -180,7 +180,7 @@ func renderPruned(opts *Options, pruned []string) {
 		return
 	}
 
-	opts.Printf("\n%s\n", i18n.T(msgid.CliUpK8sCleanedUpLeftoversFromAn, len(pruned)))
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpK8sCleanedUpLeftoversFromAn, i18n.Count(msgid.CountItems, len(pruned))))
 	for _, resource := range pruned {
 		opts.Printf("   - %s\n", resource)
 	}

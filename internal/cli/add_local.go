@@ -102,7 +102,7 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 	if len(added) == 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalBrickkitYamlIsUnchangedThe))
 	} else {
-		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalWrittenToBrickkitYamlComponents, len(added)))
+		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalWrittenToBrickkitYamlComponents, i18n.Count(msgid.CountComponents, len(added))))
 	}
 	logging.Info(i18n.T(msgid.LogLocalComponentsAdded),
 		"scanned", len(scan.Components), "problems", len(scan.Problems), "added", len(added))
@@ -277,7 +277,7 @@ func renderLocalScan(opts *Options, found []source.LocalComponent) {
 		}
 		parts = append(parts, i18n.T(msgid.CliAddLocalMsg, id, itoa(bySource[id])))
 	}
-	opts.Printf("%s\n", i18n.T(msgid.CliAddLocalFoundComponentsInLocalInstall, strings.Join(parts, i18n.T(msgid.ListSeparator)), len(found)))
+	opts.Printf("%s\n", i18n.TN(msgid.CliAddLocalFoundComponentsInLocalInstall, len(order), strings.Join(parts, i18n.T(msgid.ListSeparator)), i18n.Count(msgid.CountComponents, len(found))))
 }
 
 func renderLocalSkips(opts *Options, plan localPlan) {

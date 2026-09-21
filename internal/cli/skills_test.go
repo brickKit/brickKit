@@ -84,7 +84,7 @@ func TestSkillsStatusShowsOutdatedWithVersions(t *testing.T) {
 	require.Equal(t, 0, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "outdated")
 	assert.Contains(t, r.stdout, "0.0.1")
-	assert.Contains(t, r.stdout, "need refreshing")
+	assert.Contains(t, r.stdout, "1 file needs refreshing")
 }
 
 // 未初始化的目录里跑 skills 要说清楚，而不是默默在别人家里建 .claude/。

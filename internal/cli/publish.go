@@ -276,7 +276,7 @@ func uploadRelease(
 		if err := uploadArtifacts(ctx, client, pkg); err != nil {
 			return err
 		}
-		opts.Printf("%s\n", i18n.T(msgid.CliPublishArtifactsUploadedFiles, len(pkg.fileOrder)))
+		opts.Printf("%s\n", i18n.T(msgid.CliPublishArtifactsUploadedFiles, i18n.Count(msgid.CountFiles, len(pkg.fileOrder))))
 	}
 
 	// 转 stable 时市场会校验文件是否与 artifacts 声明一致，这一步过了才算真发布

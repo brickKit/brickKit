@@ -13,11 +13,9 @@ const (
 	CliK8sClusterToExposeAComponentExternally        = "cli.k8s.cluster.to_expose_a_component_externally"
 	CliK8sClusterTheseFieldsOnlyTakeEffect           = "cli.k8s.cluster.these_fields_only_take_effect"
 	CliK8sClusterToDeployToK8sChange                 = "cli.k8s.cluster.to_deploy_to_k8s_change"
-	CliK8sClusterResources                           = "cli.k8s.cluster.resources"
 	CliK8sClusterTheConfigurationHasFieldsThat       = "cli.k8s.cluster.the_configuration_has_fields_that"
 	CliK8sClusterField                               = "cli.k8s.cluster.field"
 	CliK8sClusterCurrentTarget                       = "cli.k8s.cluster.current_target"
-	CliK8sClusterComponents                          = "cli.k8s.cluster.components"
 	CliK8sClusterMsg                                 = "cli.k8s.cluster.msg"
 	CliK8sClusterAndMore                             = "cli.k8s.cluster.and_more"
 )

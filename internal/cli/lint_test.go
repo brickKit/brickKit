@@ -138,7 +138,7 @@ func TestLintBrokenLocalSourceSaysTheOthersWereSkipped(t *testing.T) {
 			assert.Contains(t, r.stdout, "the local install source path does not exist")
 			assert.Contains(t, r.stdout, "ℹ️ The local install sources could not be enumerated; skipped the local components' component.yaml")
 			assert.NotContains(t, r.stdout, "dependancies", "好源里的组件没被检查")
-			assert.Contains(t, r.stdout, "Checked 1 files: 1 with errors, 0 warnings")
+			assert.Contains(t, r.stdout, "Checked 1 file: 1 with errors, 0 warnings")
 
 			// 修好 path（这里是让那个目录存在）：好源里的组件被检查到了，那行说明也随之消失
 			require.NoError(t, os.MkdirAll(filepath.Join(dir, "nowhere"), 0o755))
@@ -209,7 +209,7 @@ func TestLintSeveralPropertyTyposInOneFileIsOneWarning(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "defualt")
 	assert.Contains(t, r.stdout, "descripton")
-	assert.Contains(t, r.stdout, "1 warnings")
+	assert.Contains(t, r.stdout, "0 with errors, 1 warning\n")
 }
 
 const misspelledPropertyKey = `configSchema:
@@ -228,7 +228,7 @@ func TestLintWarningsDoNotFailWithoutStrict(t *testing.T) {
 	r := runIn(t, f.Dir, "lint")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "defualt")
-	assert.Contains(t, r.stdout, "1 warnings")
+	assert.Contains(t, r.stdout, "0 with errors, 1 warning\n")
 }
 
 func TestLintStrictTurnsWarningsIntoFailure(t *testing.T) {
@@ -258,7 +258,7 @@ func TestLintFileWithBothAnErrorAndAWarningReportsBoth(t *testing.T) {
 	assert.Less(t, errorBlock, warningBlock, "同一个文件里，错误在前、警告在后")
 	assert.Contains(t, r.stdout, "dependancies: unknown field")
 	assert.Contains(t, r.stdout, "defualt: unknown field")
-	assert.Contains(t, r.stdout, "Checked 2 files: 1 with errors, 1 warnings")
+	assert.Contains(t, r.stdout, "Checked 2 files: 1 with errors, 1 warning")
 	assert.Contains(t, r.stderr, "LINT_FAILED")
 }
 
@@ -287,7 +287,7 @@ func TestLintStandaloneComponentRepository(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "Component repository")
 	assert.Contains(t, r.stdout, "✅ component.yaml")
-	assert.Contains(t, r.stdout, "Checked 1 files")
+	assert.Contains(t, r.stdout, "Checked 1 file")
 
 	appendTo(t, filepath.Join(dir, "component.yaml"), "dependancies: []\n")
 	bad := runIn(t, dir, "lint")

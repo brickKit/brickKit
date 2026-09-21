@@ -91,8 +91,8 @@ type fieldUse struct {
 	name string
 	// components 为空表示它是项目级字段（deploy.* 那些）。
 	components []string
-	// noun 是 describeUsers 该怎么称呼 components 里的这些名字："组件"还是"资源"；
-	// 空值按"组件"处理（历史上所有调用方都是组件级字段）。
+	// noun 是 describeUsers 数 components 里这些名字时用的 msgid.Count* key：
+	// 数的是"组件"还是"资源"；空值按"组件"处理（历史上所有调用方都是组件级字段）。
 	noun string
 }
 
@@ -184,7 +184,7 @@ func resourceFields(cfg *config.Config, fields []resourceField) []fieldUse {
 			}
 		}
 		if len(users) > 0 {
-			out = append(out, fieldUse{name: "resources[]." + f.name, components: users, noun: i18n.T(msgid.CliK8sClusterResources)})
+			out = append(out, fieldUse{name: "resources[]." + f.name, components: users, noun: msgid.CountResources})
 		}
 	}
 	return out
@@ -218,10 +218,11 @@ func warnFields(opts *Options, cfg *config.Config, target string, fields []field
 // describeUsers 说清是哪几个组件/资源写了它。
 func describeUsers(components []string, noun string) string {
 	if noun == "" {
-		noun = i18n.T(msgid.CliK8sClusterComponents)
+		noun = msgid.CountComponents
 	}
+	count := i18n.Count(noun, len(components))
 	if len(components) <= maxListedComponents {
-		return i18n.T(msgid.CliK8sClusterMsg, len(components), noun, strings.Join(components, i18n.T(msgid.ListSeparator)))
+		return i18n.T(msgid.CliK8sClusterMsg, count, strings.Join(components, i18n.T(msgid.ListSeparator)))
 	}
-	return i18n.T(msgid.CliK8sClusterAndMore, len(components), noun, strings.Join(components[:maxListedComponents], i18n.T(msgid.ListSeparator)))
+	return i18n.T(msgid.CliK8sClusterAndMore, count, strings.Join(components[:maxListedComponents], i18n.T(msgid.ListSeparator)))
 }

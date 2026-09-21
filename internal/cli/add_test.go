@@ -64,7 +64,7 @@ func TestAddWritesComponentToConfig(t *testing.T) {
 
 	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
 	assert.Contains(t, r.stdout, "📦 Adding people/basic@1.0.0")
-	assert.Contains(t, r.stdout, "✅ Written to brickkit.yaml (1 components)")
+	assert.Contains(t, r.stdout, "✅ Written to brickkit.yaml (1 component)")
 }
 
 // 9.20 add 自动添加的组件不写 enabled 字段（004 §3.3 关键规则）。

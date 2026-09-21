@@ -384,7 +384,7 @@ func renderSyncHint(opts *Options, layout config.Layout, states *cascade.Result)
 	if n == 0 {
 		return
 	}
-	opts.Printf("%s\n", i18n.T(msgid.CliUpComponentsArenTStartingThis, n, workspace.DisplayArchivedRoot()))
+	opts.Printf("%s\n", i18n.TN(msgid.CliUpComponentsArenTStartingThis, n, n, workspace.DisplayArchivedRoot()))
 }
 
 // dryRunResourceWarning 把"资源未绑定"降级成 --dry-run 下的警告。
@@ -726,7 +726,7 @@ func checkImages(ctx context.Context, opts *Options, eng engine.Engine, images [
 	err := clierr.As(failures[first])
 	if total > 1 {
 		err = err.WithDetail(i18n.T(msgid.CliUpAlso),
-			i18n.T(msgid.CliUpTheImagesOfMoreComponents, total-1))
+			i18n.TN(msgid.CliUpTheImagesOfMoreComponents, total-1, total-1))
 	}
 	return err
 }

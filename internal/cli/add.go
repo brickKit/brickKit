@@ -213,16 +213,16 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 
 	switch {
 	case len(added) > 0:
-		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalWrittenToBrickkitYamlComponents, len(added)))
+		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalWrittenToBrickkitYamlComponents, i18n.Count(msgid.CountComponents, len(added))))
 	case existing:
 		opts.Printf("%s\n", i18n.T(msgid.CliAddRefreshedTheManifestAndArtifacts, target))
 	default:
 		opts.Printf("%s\n", i18n.T(msgid.CliAddLocalBrickkitYamlIsUnchangedThe))
 	}
 	if artifacts.downloaded > 0 {
-		opts.Printf("%s\n", i18n.T(msgid.CliAddDownloadedArtifactsIntoBrickkitArtifacts, artifacts.downloaded))
+		opts.Printf("%s\n", i18n.T(msgid.CliAddDownloadedArtifactsIntoBrickkitArtifacts, i18n.Count(msgid.CountFiles, artifacts.downloaded)))
 	} else if artifacts.cached > 0 {
-		opts.Printf("%s\n", i18n.T(msgid.CliAddArtifactsAreUpToDate, artifacts.cached))
+		opts.Printf("%s\n", i18n.T(msgid.CliAddArtifactsAreUpToDate, i18n.Count(msgid.CountFiles, artifacts.cached)))
 	}
 	renderCoexistence(opts, layout, id)
 
@@ -296,12 +296,12 @@ func renderAddTree(opts *Options, graph *resolver.Graph, target resolver.Ref, ar
 		}
 		line := i18n.T(msgid.CliAddPulled, label, node.Ref.String())
 		if n := artifacts.perNode[node.Ref]; n > 0 {
-			line += i18n.T(msgid.CliAddArtifactsFiles2, itoa(n))
+			line += i18n.T(msgid.CliAddArtifactsFiles2, i18n.Count(msgid.CountFiles, n))
 		}
 		lines = append(lines, line)
 	}
 	if n := artifacts.perNode[target]; n > 0 {
-		lines = append(lines, i18n.T(msgid.CliAddArtifactsFiles, itoa(n)))
+		lines = append(lines, i18n.T(msgid.CliAddArtifactsFiles, i18n.Count(msgid.CountFiles, n)))
 	}
 
 	for i, line := range lines {
@@ -534,7 +534,7 @@ func runClones(ctx context.Context, opts *Options, layout config.Layout, plans [
 		// 不能笼统说"跳过 N 个闭源组件"：跳过的理由有三种（闭源、本地源没有
 		// 仓库地址、源码已经在盘上），而上面每一行 ⏭️ 已经逐个说清了是哪一种。
 		// 汇总行再断言一个具体理由，只会与它上面那几行自相矛盾
-		opts.Printf("%s\n", i18n.T(msgid.CliAddClonedOpenSourceComponentRepositories, cloned, skipped))
+		opts.Printf("%s\n", i18n.TN(msgid.CliAddClonedOpenSourceComponentRepositories, cloned, cloned, skipped))
 	case cloned > 0:
 		opts.Printf("%s\n", i18n.T(msgid.CliAddClonedTheSourceInto, workspace.DisplayDir(plans[0].ref.ID)))
 		opts.Printf("%s\n", i18n.T(msgid.CliAddForHowToPushSource))
