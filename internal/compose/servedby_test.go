@@ -79,9 +79,8 @@ func TestShellEnvGetsMergedEndpointsAndServedMembers(t *testing.T) {
 func TestShellServedMembersIsEmptyStringWhenMemberNotRunning(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
-	disabled := false
 	b.component(simple("mdm/customer", "1.0.7", 8080),
-		config.Component{ServedBy: "infra/shell-go-core@1.0.0", Enabled: &disabled})
+		config.Component{ServedBy: "infra/shell-go-core@1.0.0", Mode: config.ModeDisable})
 
 	env := envOf(t, serviceOf(t, b.parsed(), "infra-shell-go-core-1-0-0"))
 	value, ok := env[shell.EnvVarServedMembers]
@@ -213,7 +212,7 @@ func TestLocalStillWorksAlongsideServedBy(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
-	b.component(simple("erp/backend", "1.0.0", 8080), config.Component{Local: true, LocalPort: 8888})
+	b.component(simple("erp/backend", "1.0.0", 8080), config.Component{Mode: config.ModeDebug, LocalPort: 8888})
 
 	doc := b.parsed()
 	services := servicesOf(t, doc)
@@ -284,7 +283,7 @@ func TestLocalDependencyOnServedByMemberGetsHostPortOnShell(t *testing.T) {
 	b.component(withExtraPort(simple("mdm/customer", "1.0.9", 8080), "grpc", 9090),
 		servedByEntry("infra/shell-go-core", "1.0.0"))
 	b.component(dependsOn(simple("infra/bff-mobile", "1.0.19", 8080), "mdm/customer", "1.0.9"),
-		config.Component{Local: true, LocalPort: 8081})
+		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
 
 	result := b.generate()
 	doc := docOf(t, result)
@@ -307,9 +306,9 @@ func TestLocalDependencyOnServedByMemberIsMappedOnceForMultipleLocalCallers(t *t
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
 	b.component(simple("mdm/customer", "1.0.9", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 	b.component(dependsOn(simple("infra/bff-mobile", "1.0.19", 8080), "mdm/customer", "1.0.9"),
-		config.Component{Local: true, LocalPort: 8081})
+		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
 	b.component(dependsOn(simple("infra/bff-web", "1.0.0", 8080), "mdm/customer", "1.0.9"),
-		config.Component{Local: true, LocalPort: 8082})
+		config.Component{Mode: config.ModeDebug, LocalPort: 8082})
 
 	result := b.generate()
 	doc := docOf(t, result)
@@ -331,9 +330,9 @@ func TestLocalDependenciesOnDifferentServedByMembersOfSameShellGetDistinctPorts(
 	b.component(simple("mdm/customer", "1.0.9", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 	b.component(simple("erp/sales", "2.0.0", 8081), servedByEntry("infra/shell-go-core", "1.0.0"))
 	b.component(dependsOn(simple("infra/bff-mobile", "1.0.19", 8080), "mdm/customer", "1.0.9"),
-		config.Component{Local: true, LocalPort: 8082})
+		config.Component{Mode: config.ModeDebug, LocalPort: 8082})
 	b.component(dependsOn(simple("erp/legacy-caller", "1.0.0", 8080), "erp/sales", "2.0.0"),
-		config.Component{Local: true, LocalPort: 8083})
+		config.Component{Mode: config.ModeDebug, LocalPort: 8083})
 
 	result := b.generate()
 	doc := docOf(t, result)

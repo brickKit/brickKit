@@ -41,7 +41,7 @@ type Options struct {
 	// Now 用于文件头的生成时间，测试可注入。
 	Now func() time.Time
 	// Engine 是容器引擎（目前只有 EngineDocker）。
-	// 只影响 local: true 时 extra_hosts 的宿主机别名（005 §7.5）；空值按 Docker 处理。
+	// 只影响 mode: debug 时 extra_hosts 的宿主机别名（005 §7.5）；空值按 Docker 处理。
 	Engine string
 	// Lookup 解析 ${VAR}，**只用于 local-debug 环境变量文件**。
 	//
@@ -64,7 +64,7 @@ type Result struct {
 	YAML []byte
 	// Resources 是必须先跑起来的基础资源（平台不部署它们，006 §9.1）。
 	Resources []ResourceRequirement
-	// LocalEnvFiles 是 local: true 组件的调试环境变量文件（005 §4.9）。
+	// LocalEnvFiles 是 mode: debug 组件的调试环境变量文件（005 §4.9）。
 	LocalEnvFiles []LocalEnvFile
 	// Warnings 是不阻断的问题。
 	Warnings []*clierr.Error
@@ -157,9 +157,9 @@ type plan struct {
 	states *cascade.Result
 	engine string
 
-	// components 是本次要渲染的组件（已排除 local: true），按服务名排序。
+	// components 是本次要渲染的组件（已排除 mode: debug），按服务名排序。
 	components []componentPlan
-	// locals 是 local: true 的组件：不生成容器，但要参与端口分配与 env 文件生成。
+	// locals 是 mode: debug 的组件：不生成容器，但要参与端口分配与 env 文件生成。
 	locals []localComponent
 	// served 是 servedBy 的组件：不生成自己的容器/迁移，但要走它专属的
 	// 几条提醒（见 servedby.go）。
@@ -235,8 +235,8 @@ func newPlan(
 		}
 		service := manifest.ServiceName(ref.ID, ref.Version)
 
-		if entry.Local {
-			// 12.7 / 13.1：local: true 的组件在宿主机（IDE）里跑，不生成容器，
+		if entry.Mode == config.ModeDebug {
+			// 12.7 / 13.1：mode: debug 的组件在宿主机（IDE）里跑，不生成容器，
 			// 但它仍然是"启动中"的组件——依赖方要能找到它
 			p.locals = append(p.locals, localComponent{
 				Ref: ref, Service: service, Manifest: node.Manifest,
@@ -294,7 +294,7 @@ func newPlan(
 	p.warnings = append(p.warnings, p.servedHealthCheckWarnings()...)
 	p.warnings = append(p.warnings, p.servedUnsupportedFieldWarnings()...)
 	p.warnings = append(p.warnings, p.serviceNameResourceWarnings()...)
-	// 只传**会生成容器**的组件：绑定它的全是 local: true 时，
+	// 只传**会生成容器**的组件：绑定它的全是 mode: debug 时，
 	// localhost 恰恰是对的（那些进程就在宿主机上）
 	p.warnings = append(p.warnings, deploy.LocalhostResourceWarnings(
 		p.cfg, p.containerIDs(), config.TargetDocker)...)
@@ -414,7 +414,7 @@ func (p *plan) requirements() []ResourceRequirement {
 
 // containerIDs 是本次**会生成容器**的组件 ID（含 servedBy：它们的代码
 // 跑在外壳容器里，用的是容器网络寻址，不是本地调试的宿主机寻址；
-// 不含 local: true）。
+// 不含 mode: debug）。
 func (p *plan) containerIDs() []string {
 	out := make([]string, 0, len(p.components)+len(p.served))
 	for _, c := range p.components {

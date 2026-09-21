@@ -121,7 +121,7 @@ func TestLabelsRenderDeterministically(t *testing.T) {
 func TestLocalComponentLabelsWarn(t *testing.T) {
 	result := newBuilder(t).
 		component(simple("erp/sales", "1.0.0", 8080), config.Component{
-			Local: true, LocalPort: 8080,
+			Mode: config.ModeDebug, LocalPort: 8080,
 			Labels: map[string]string{"traefik.enable": "true"},
 		}).
 		generate()

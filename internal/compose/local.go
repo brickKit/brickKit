@@ -1,6 +1,6 @@
 package compose
 
-// 本文件实现 local: true（005 §4）。
+// 本文件实现 mode: debug（005 §4）。
 //
 // 一个组件被标成 local 时，它从容器里搬到了宿主机的 IDE 里，于是**两个方向**
 // 都断了，必须由 CLI 各补一条路：
@@ -65,7 +65,7 @@ type LocalEnvFile struct {
 // 保留这段说明是因为设计书原来写错过："Podman 用 host.containers.internal 替代"。那是把两件事
 // 搞混了：`host.containers.internal` 是 Podman 自动注入到容器 /etc/hosts 的
 // 一个**主机名**，不是 `--add-host` 能接受的**值**——真 Podman 上会直接报
-// `invalid IP address in add-host`，容器根本创建不出来，local: true 整条路是断的。
+// `invalid IP address in add-host`，容器根本创建不出来，mode: debug 整条路是断的。
 // 而 `host-gateway` 是 Docker 20.10+ 的内置魔法值（Podman 也认，实测 169.254.1.2，
 // 正是 host.containers.internal 的那个地址）。
 //
@@ -138,7 +138,7 @@ func (t *portTable) allocate(preferred, base int, owner string) int {
 
 // localExposeWarnings 提醒"local 组件上的 expose / exposePort 本次不生效"。
 //
-// local: true 的组件不生成容器，平台因此没有任何东西可以映射到宿主机——
+// mode: debug 的组件不生成容器，平台因此没有任何东西可以映射到宿主机——
 // 那两个字段就是写了不算数。003 §3.2 立的规矩是**写了不生效就得出声**，
 // 而这一条从前完全没守：配了 exposePort: 8888 的人打开浏览器访问 8888
 // 什么都没有，而 up 全程一个字不说。
@@ -151,7 +151,7 @@ func (t *portTable) allocate(preferred, base int, owner string) int {
 // 而 `expose: true` 与 local 并不矛盾：那个进程**确实**在宿主机上、**确实**
 // 对外可达，只是这件事不再由平台来做。真正错的只有"在哪个端口"。所以这里
 // 要说的不是"你写错了"，而是"它不归平台管了，而且地址是这个"——报错反而会
-// 打断一个很正常的流程：给一个长期 expose 的前端组件临时加上 local: true 去调试。
+// 打断一个很正常的流程：给一个长期 expose 的前端组件临时加上 mode: debug 去调试。
 func (p *plan) localExposeWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, l := range p.locals {
@@ -190,7 +190,7 @@ func (p *plan) localExposeWarnings() []*clierr.Error {
 // 用途恰恰是"让外面的工具找到它"，静默失效的表现是"Traefik 里查不到这条路由"，
 // 那时人会去翻 Traefik 的日志，翻不出任何东西。
 //
-// 也和 expose 一样只警告不报错：合并部署交付现场满是 local: true
+// 也和 expose 一样只警告不报错：合并部署交付现场满是 mode: debug
 // （《组件合并部署》§4.3），而那份 brickkit.yaml 常常是从一份完整配置改出来的
 // ——labels 留在那里是正常的，只是这一次挂不上。真正要挂 labels 的是使用者
 // 自己写的那个外壳，不是这个不生成容器的条目。
@@ -437,7 +437,7 @@ const hostMachineAlias = deploy.HostMachineAlias
 //
 // 两个来源：
 //
-//	local: true 的依赖组件  服务名 → 宿主机网关（005 §4.2）
+//	mode: debug 的依赖组件  服务名 → 宿主机网关（005 §4.2）
 //	host.docker.internal    资源在宿主机上时，这个名字得能解析（P34）
 //
 // 后者是真实装配时踩出来的：把资源 host 写成 host.docker.internal 之后，

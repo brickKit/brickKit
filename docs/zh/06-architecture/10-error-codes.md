@@ -72,7 +72,7 @@ CLI 的报错文案跟着语言走——默认英文，`brickkit lang set zh` �
 | 错误码 | 一句话 |
 | --- | --- |
 | [`MIGRATION_FAILED`](#migration_failed) | K8s 上的迁移 Job 失败，主服务被刻意拦住不启动 |
-| [`MIGRATION_SKIPPED`](#migration_skipped) | 只会作为警告出现：`local: true` 或 `servedBy` 的组件不跑迁移 |
+| [`MIGRATION_SKIPPED`](#migration_skipped) | 只会作为警告出现：`mode: debug` 或 `servedBy` 的组件不跑迁移 |
 | [`ENGINE_FAILED`](#engine_failed) | Docker Compose 或 `kubectl` 跑了，但失败了 |
 | [`ENGINE_MISSING`](#engine_missing) | 找不到容器引擎的可执行文件 |
 
@@ -292,7 +292,7 @@ CLI 的报错文案跟着语言走——默认英文，`brickkit lang set zh` �
 
 ### MIGRATION_SKIPPED
 
-只会以警告出现，从不作为错误——见[警告](#警告)。它的意思是：平台不为 `local: true` 或 `servedBy` 的组件跑迁移，迁移得你自己来。
+只会以警告出现，从不作为错误——见[警告](#警告)。它的意思是：平台不为 `mode: debug` 或 `servedBy` 的组件跑迁移，迁移得你自己来。
 
 ### ENGINE_FAILED
 
@@ -440,8 +440,8 @@ stdout 上的那些问题保留它们在别处本来的标题：`component.yaml`
 | `配置冲突：组件 <component> 的配置项已被忽略` | `CONFIG_CONFLICT` | 一个 `configSchema` 键转成大写后与保留变量（`*_ENDPOINT`、`DATABASE_*` ……）冲突；平台注入的值优先，这个键被跳过。把键改名——见[环境变量注入契约](04-environment-variables.md)。`brickkit lint` 能在你执行 `up` 之前离线报出它，而且 `configSchema` 里声明的每个键都会查——`up` 只对有默认值或写了 `config` 值的键才会碰到它 |
 | `基础资源的 host 看起来是个服务名，容器里可能解析不了` | `CONFIG_INVALID` | 资源的 `host` 像是一个 Compose 服务名，但资源并不属于本项目。资源在你本机时写 `host.docker.internal`，否则写它的真实地址 |
 | `配置里有只对 <target> 生效的字段` | `CONFIG_INVALID` | 有个字段只对另一种 `deploy.target` 生效——比如 `k8s` 下的 `exposePort`——现在它什么也没做 |
-| `local: true 的组件上，labels 本次不生效` | `CONFIG_INVALID` | `local: true` 的组件没有容器可以挂标签。想让平台管标签，就去掉 `local: true` |
-| `提示：local 组件的数据库迁移不会自动执行` | `MIGRATION_SKIPPED` | `local: true` 的组件跑在你本机，CLI 不为它跑迁移。自己执行一次迁移命令，环境变量用它的 `local-debug.<service>.env` |
+| `mode: debug 的组件上，labels 本次不生效` | `CONFIG_INVALID` | `mode: debug` 的组件没有容器可以挂标签。想让平台管标签，就去掉 `mode: debug` |
+| `提示：mode: debug 组件的数据库迁移不会自动执行` | `MIGRATION_SKIPPED` | `mode: debug` 的组件跑在你本机，CLI 不为它跑迁移。自己执行一次迁移命令，环境变量用它的 `local-debug.<service>.env` |
 | `提示：servedBy 组件的数据库迁移不会自动执行` | `MIGRATION_SKIPPED` | `servedBy` 成员没有自己的容器，也就没有迁移容器。得由外壳来覆盖它 |
 | `提示：servedBy 组件自己的健康检查不会独立生效` | `CONFIG_INVALID` | 算数的是外壳的健康检查 |
 | `提示：servedBy 组件上，<field> 本次不生效` | `CONFIG_INVALID` | `expose`、`exposePort`、`hostname`、`replicas`、`resources`、`serviceAccountName`、`labels` 描述的是一个组件自己的容器怎么部署，而 `servedBy` 成员没有自己的容器。想单独部署这个组件，就去掉它的 `servedBy` |

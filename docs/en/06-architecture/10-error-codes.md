@@ -72,7 +72,7 @@ Click a code to jump to its section; the table in each section lists the specifi
 | Code | In one line |
 | --- | --- |
 | [`MIGRATION_FAILED`](#migration_failed) | The migration Job failed on Kubernetes; the main service is deliberately not started |
-| [`MIGRATION_SKIPPED`](#migration_skipped) | Only ever a warning: `local: true` and `servedBy` components don't get migrations |
+| [`MIGRATION_SKIPPED`](#migration_skipped) | Only ever a warning: `mode: debug` and `servedBy` components don't get migrations |
 | [`ENGINE_FAILED`](#engine_failed) | Docker Compose or `kubectl` ran, and failed |
 | [`ENGINE_MISSING`](#engine_missing) | The container engine's executable can't be found |
 
@@ -292,7 +292,7 @@ On Docker the migration is a one-shot Compose service, and its failure surfaces 
 
 ### MIGRATION_SKIPPED
 
-Only ever a warning, never an error — see [Warnings](#warnings). It says the platform isn't running a migration for a `local: true` or `servedBy` component, so the migration is yours to run.
+Only ever a warning, never an error — see [Warnings](#warnings). It says the platform isn't running a migration for a `mode: debug` or `servedBy` component, so the migration is yours to run.
 
 ### ENGINE_FAILED
 
@@ -440,8 +440,8 @@ A ⚠️ block never fails a command by itself (exit status `0`; `brickkit lint 
 | `Config conflict: the config item of component <component> was ignored` | `CONFIG_CONFLICT` | A `configSchema` key, uppercased, collides with a reserved variable (`*_ENDPOINT`, `DATABASE_*`, …); the platform's value wins and the key is skipped. Rename the key — see the [Environment variable contract](04-environment-variables.md). `brickkit lint` reports it offline, before you run `up`, and for every key `configSchema` declares — `up` only meets it for a key that has a default or a `config` value |
 | `A resource's host looks like a service name, which may not resolve inside the container` | `CONFIG_INVALID` | A resource `host` looks like a Compose service name, but resources aren't part of the project. Use `host.docker.internal` for one on your machine, or its real address |
 | `The configuration has fields that only take effect on <target>` | `CONFIG_INVALID` | A field that only applies to the other `deploy.target` — for example `exposePort` under `k8s` — is doing nothing |
-| `On a local: true component, labels has no effect this run` | `CONFIG_INVALID` | A `local: true` component has no container to label. Remove `local: true` to get platform-managed labels back |
-| `Note: a local component's database migration won't run automatically` | `MIGRATION_SKIPPED` | A `local: true` component runs on your machine, so the CLI runs no migration for it. Run the migration command yourself once, with the variables from its `local-debug.<service>.env` |
+| `On a mode: debug component, labels has no effect this run` | `CONFIG_INVALID` | A `mode: debug` component has no container to label. Remove `mode: debug` to get platform-managed labels back |
+| `Note: a mode: debug component's database migration won't run automatically` | `MIGRATION_SKIPPED` | A `mode: debug` component runs on your machine, so the CLI runs no migration for it. Run the migration command yourself once, with the variables from its `local-debug.<service>.env` |
 | `Note: a servedBy component's database migration won't run automatically` | `MIGRATION_SKIPPED` | A `servedBy` member has no container of its own, so it has no migration container. The shell has to cover it |
 | `Note: a servedBy component's own health check does not take effect independently` | `CONFIG_INVALID` | The shell's health check is the one that counts |
 | `Note: on a servedBy component, <field> has no effect this run` | `CONFIG_INVALID` | `expose`, `exposePort`, `hostname`, `replicas`, `resources`, `serviceAccountName`, and `labels` describe how a component's own container is deployed, and a `servedBy` member has none. To deploy the component on its own, drop `servedBy` |

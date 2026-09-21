@@ -391,7 +391,7 @@ func TestMigrationServiceInheritsRewrittenEnvironment(t *testing.T) {
 			"people/basic", "1.0.0"))),
 		config.Component{})
 	b.component(simple("people/basic", "1.0.0", 8080),
-		config.Component{Local: true, LocalPort: 8081})
+		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
 	b.resource(pgResource(config.Binding{ComponentID: "erp/backend", Database: "erp"}))
 
 	doc := b.parsed()
@@ -411,7 +411,7 @@ func TestMigrationServiceGetsTheSameExtraHosts(t *testing.T) {
 			"people/basic", "1.0.0"))),
 		config.Component{})
 	b.component(simple("people/basic", "1.0.0", 8080),
-		config.Component{Local: true, LocalPort: 8081})
+		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
 	b.resource(pgResource(config.Binding{ComponentID: "erp/backend", Database: "erp"}))
 
 	doc := b.parsed()
@@ -730,7 +730,7 @@ func TestLocalComponentGeneratesNoService(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
 		config.Component{})
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Local: true})
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeDebug})
 
 	services := servicesOf(t, b.parsed())
 
@@ -744,7 +744,7 @@ func TestDependencyOnLocalComponentIsNotInDependsOn(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
 		config.Component{})
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Local: true})
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeDebug})
 
 	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
 	if dependsOn, ok := svc["depends_on"].(map[string]any); ok {
@@ -863,7 +863,7 @@ func TestLocalhostHostWarns(t *testing.T) {
 func TestLocalhostDoesNotWarnForLocalOnlyComponents(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
-		config.Component{Local: true})
+		config.Component{Mode: config.ModeDebug})
 	r := pgResource(config.Binding{ComponentID: "people/basic", Database: "people"})
 	r.Host = "localhost"
 	b.resource(r)
@@ -946,9 +946,8 @@ func TestMultipleVersionsGenerateSeparateServices(t *testing.T) {
 
 // 级联跳过的组件不生成 service。
 func TestSkippedComponentGeneratesNoService(t *testing.T) {
-	off := false
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Enabled: &off})
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeDisable})
 
 	assert.NotContains(t, servicesOf(t, b.parsed()), "people-basic-1-0-0")
 }
