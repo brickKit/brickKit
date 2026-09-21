@@ -110,8 +110,8 @@ func TestRenderWritesAndReturnsExitCode(t *testing.T) {
 func TestNotImplementedCarriesStep(t *testing.T) {
 	e := NotImplemented("brickkit up", 15)
 	assert.Equal(t, CodeNotImplemented, e.Code)
-	assert.Contains(t, e.Format(), "brickkit up 尚未实现")
-	assert.Contains(t, e.Format(), "开发计划 Step 15")
+	assert.Contains(t, e.Format(), "brickkit up is not implemented yet")
+	assert.Contains(t, e.Format(), "Development plan, Step 15")
 	assert.Equal(t, ExitError, e.ExitCode())
 }
 

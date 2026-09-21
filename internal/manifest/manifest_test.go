@@ -181,21 +181,21 @@ func TestValidationErrors(t *testing.T) {
 		contains []string // 错误输出必须包含的片段（字段名 + 原因）
 	}{
 		{"4.2", "缺少 metadata.id", strings.Replace(minimalYAML, "  id: infra/tool\n", "", 1),
-			[]string{"metadata.id", "缺失"}},
+			[]string{"metadata.id", "missing"}},
 		{"4.3", "缺少 metadata.version", strings.Replace(minimalYAML, "  version: 1.0.0\n", "", 1),
-			[]string{"metadata.version", "缺失"}},
+			[]string{"metadata.version", "missing"}},
 		{"—", "缺少 metadata.name", strings.Replace(minimalYAML, "  name: 工具组件\n", "", 1),
-			[]string{"metadata.name", "缺失"}},
+			[]string{"metadata.name", "missing"}},
 		{"—", "缺少 metadata.description", strings.Replace(minimalYAML, "  description: 最小组件\n", "", 1),
-			[]string{"metadata.description", "缺失"}},
+			[]string{"metadata.description", "missing"}},
 		{"4.4", "缺少 deployment.image",
 			strings.Replace(minimalYAML, "  image: registry.brickkit.io/tool:1.0.0\n", "", 1),
-			[]string{"deployment.image", "缺失"}},
+			[]string{"deployment.image", "missing"}},
 		{"4.5", "缺少 deployment.port", strings.Replace(minimalYAML, "  port: 8080\n", "", 1),
-			[]string{"deployment.port", "缺失"}},
+			[]string{"deployment.port", "missing"}},
 		{"4.6", "缺少 healthCheck",
 			strings.Replace(minimalYAML, "healthCheck:\n  type: http\n  path: /healthz\n", "", 1),
-			[]string{"healthCheck", "缺失"}},
+			[]string{"healthCheck", "missing"}},
 		{"4.7", "版本号格式错误", mutate(t, "version: 1.0.0", `version: "abc"`),
 			[]string{"metadata.version", "major.minor.patch"}},
 		{"4.8", "版本号缺少 patch", mutate(t, "version: 1.0.0", `version: "1.0"`),
@@ -209,7 +209,7 @@ func TestValidationErrors(t *testing.T) {
 		{"4.28", "组件 ID 含非法字符", mutate(t, "id: infra/tool", `id: "people basic"`),
 			[]string{"metadata.id", "scope/name"}},
 		{"4.29", "组件 ID 含大写", mutate(t, "id: infra/tool", "id: People/Basic"),
-			[]string{"metadata.id", "小写"}},
+			[]string{"metadata.id", "lowercase"}},
 		{"32.2", "组件 ID 含 @", mutate(t, "id: infra/tool", `id: "a@b/c"`),
 			[]string{"metadata.id"}},
 		{"32.12", "组件 ID 只有 scope", mutate(t, "id: infra/tool", `id: "people/"`),
@@ -218,28 +218,28 @@ func TestValidationErrors(t *testing.T) {
 			[]string{"metadata.id", "scope/name"}},
 		{"32.1", "组件 ID 超长",
 			mutate(t, "id: infra/tool", "id: a/"+strings.Repeat("b", 256)),
-			[]string{"metadata.id", "长度"}},
+			[]string{"metadata.id", "characters long"}},
 		{"32.14", "port 为 0", mutate(t, "port: 8080", "port: 0"),
 			[]string{"deployment.port"}},
 		{"32.15", "port 为负数", mutate(t, "port: 8080", "port: -1"),
-			[]string{"deployment.port", "1~65535"}},
+			[]string{"deployment.port", "between 1 and 65535"}},
 		{"32.16", "port 超过 65535", mutate(t, "port: 8080", "port: 99999"),
-			[]string{"deployment.port", "1~65535"}},
+			[]string{"deployment.port", "between 1 and 65535"}},
 		{"4.9", "依赖非精确版本（^）", minimalYAML + `
 dependencies:
   components:
     - department/tree@^1.0.0
-`, []string{"dependencies.components[0]", "精确版本"}},
+`, []string{"dependencies.components[0]", "exact version"}},
 		{"4.10", "依赖使用 ~", minimalYAML + `
 dependencies:
   components:
     - department/tree@~1.0.0
-`, []string{"dependencies.components[0]", "精确版本"}},
+`, []string{"dependencies.components[0]", "exact version"}},
 		{"—", "依赖缺少 @版本", minimalYAML + `
 dependencies:
   components:
     - department/tree
-`, []string{"dependencies.components[0]", "<组件ID>@<精确版本>"}},
+`, []string{"dependencies.components[0]", "<component-id>@<exact-version>"}},
 		{"—", "依赖 ID 非法", minimalYAML + `
 dependencies:
   components:
@@ -249,52 +249,52 @@ dependencies:
 dependencies:
   components:
     - infra/tool@1.0.0
-`, []string{"dependencies.components[0]", "自己"}},
+`, []string{"dependencies.components[0]", "itself"}},
 		{"—", "资源依赖缺少 kind", minimalYAML + `
 dependencies:
   resources:
     - engine: postgresql
-`, []string{"dependencies.resources[0].kind", "缺失"}},
+`, []string{"dependencies.resources[0].kind", "missing"}},
 		{"—", "资源依赖缺少 engine", minimalYAML + `
 dependencies:
   resources:
     - kind: database
-`, []string{"dependencies.resources[0].engine", "缺失"}},
+`, []string{"dependencies.resources[0].engine", "missing"}},
 		{"4.11", "artifact 缺少 type", minimalYAML + `
 artifacts:
   - files: [openapi.json]
-`, []string{"artifacts[0].type", "缺失"}},
+`, []string{"artifacts[0].type", "missing"}},
 		{"4.12", "artifact 缺少 files", minimalYAML + `
 artifacts:
   - type: api-docs
-`, []string{"artifacts[0].files", "缺失"}},
+`, []string{"artifacts[0].files", "missing"}},
 		{"32.23", "artifact files 为空列表", minimalYAML + `
 artifacts:
   - type: api-docs
     files: []
-`, []string{"artifacts[0].files", "缺失"}},
+`, []string{"artifacts[0].files", "missing"}},
 		{"—", "artifact 文件路径为绝对路径", minimalYAML + `
 artifacts:
   - type: api-docs
     files: ["/etc/passwd"]
-`, []string{"artifacts[0].files[0]", "相对路径"}},
+`, []string{"artifacts[0].files[0]", "relative path"}},
 		{"—", "artifact 文件路径越界", minimalYAML + `
 artifacts:
   - type: api-docs
     files: ["../../etc/passwd"]
-`, []string{"artifacts[0].files[0]", "仓库根目录"}},
+`, []string{"artifacts[0].files[0]", "repository root"}},
 		{"4.13", "extraPorts name 重复", minimalYAML + `
 `, nil}, // 占位，见下方独立用例
 		{"4.14", "extraPorts 缺少 name", mutate(t, "  port: 8080", `  port: 8080
   extraPorts:
-    - port: 9090`), []string{"deployment.extraPorts[0].name", "缺失"}},
+    - port: 9090`), []string{"deployment.extraPorts[0].name", "missing"}},
 		{"4.15", "extraPorts 缺少 port", mutate(t, "  port: 8080", `  port: 8080
   extraPorts:
-    - name: grpc`), []string{"deployment.extraPorts[0].port", "缺失"}},
+    - name: grpc`), []string{"deployment.extraPorts[0].port", "missing"}},
 		{"32.17", "extraPort 与主端口相同", mutate(t, "  port: 8080", `  port: 8080
   extraPorts:
     - name: grpc
-      port: 8080`), []string{"deployment.extraPorts[0].port", "主端口"}},
+      port: 8080`), []string{"deployment.extraPorts[0].port", "main port"}},
 		{"—", "extraPort name 非法（K8s 端口名规则）", mutate(t, "  port: 8080", `  port: 8080
   extraPorts:
     - name: GRPC_PORT
@@ -302,11 +302,11 @@ artifacts:
 		{"4.17", "migration.command 非数组", minimalYAML + `
 migration:
   command: "python manage.py migrate"
-`, []string{"migration.command", "数组"}},
+`, []string{"migration.command", "array"}},
 		{"—", "migration.command 为空数组", minimalYAML + `
 migration:
   command: []
-`, []string{"migration.command", "缺失"}},
+`, []string{"migration.command", "missing"}},
 		{"4.18", "configSchema type 非 object", minimalYAML + `
 configSchema:
   type: array
@@ -339,7 +339,7 @@ dependencies:
   components:
     - department/tree@1.0.0
     - department/tree@2.0.0
-`, []string{"dependencies.components[1]", "两个版本", "DEPARTMENT_TREE_ENDPOINT"}},
+`, []string{"dependencies.components[1]", "two versions", "DEPARTMENT_TREE_ENDPOINT"}},
 		// 强弱混写撞的是同一个变量名，一视同仁
 		{"—", "同一依赖一强一弱两个版本", minimalYAML + `
 dependencies:
@@ -347,11 +347,11 @@ dependencies:
     - department/tree@1.0.0
     - id: department/tree@2.0.0
       optional: true
-`, []string{"dependencies.components[1]", "两个版本"}},
+`, []string{"dependencies.components[1]", "two versions"}},
 		{"—", "healthCheck.type 非法", mutate(t, "  type: http\n  path: /healthz", "  type: grpc"),
 			[]string{"healthCheck.type", "http"}},
 		{"—", "healthCheck http 缺少 path", mutate(t, "  type: http\n  path: /healthz", "  type: http"),
-			[]string{"healthCheck.path", "缺失"}},
+			[]string{"healthCheck.path", "missing"}},
 		{"—", "healthCheck path 不以 / 开头",
 			mutate(t, "  path: /healthz", "  path: healthz"),
 			[]string{"healthCheck.path", "/"}},
@@ -364,10 +364,10 @@ dependencies:
 		// 单位是秒不是毫秒。写成 60000 的组件会长时间挂在 starting 上而不报错
 		{"—", "startPeriodSeconds 超上限（多半是写成了毫秒）",
 			mutate(t, "  path: /healthz", "  path: /healthz\n  startPeriodSeconds: 60000"),
-			[]string{"healthCheck.startPeriodSeconds", "秒"}},
+			[]string{"healthCheck.startPeriodSeconds", "seconds"}},
 		{"—", "startPeriodSeconds 为负",
 			mutate(t, "  path: /healthz", "  path: /healthz\n  startPeriodSeconds: -1"),
-			[]string{"healthCheck.startPeriodSeconds", "正整数"}},
+			[]string{"healthCheck.startPeriodSeconds", "positive integer"}},
 	}
 
 	for _, c := range cases {
@@ -401,7 +401,7 @@ func TestExtraPortsDuplicateName(t *testing.T) {
 	_, err := Parse([]byte(y), "component.yaml")
 	require.Error(t, err)
 	assert.Contains(t, clierr.As(err).Format(), "deployment.extraPorts[1].name")
-	assert.Contains(t, clierr.As(err).Format(), "重复")
+	assert.Contains(t, clierr.As(err).Format(), "duplicates")
 }
 
 // 一次报出全部问题，而不是每次只报一个。
@@ -448,7 +448,7 @@ func TestParseEmptyFile(t *testing.T) {
 	for _, in := range []string{"", "   \n\n", "# 只有注释\n"} {
 		_, err := Parse([]byte(in), "component.yaml")
 		require.Error(t, err, "输入 %q 应报错", in)
-		assert.Contains(t, clierr.As(err).Format(), "为空")
+		assert.Contains(t, clierr.As(err).Format(), "is empty")
 	}
 }
 
@@ -458,7 +458,7 @@ func TestParseFileNotExist(t *testing.T) {
 
 	e := clierr.As(err)
 	assert.Contains(t, e.Format(), "component.yaml")
-	assert.Contains(t, e.Format(), "不存在")
+	assert.Contains(t, e.Format(), "does not exist")
 }
 
 // 错误必须是 CLI 统一错误：非 0 退出码 + 建议。

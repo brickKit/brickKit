@@ -37,7 +37,7 @@ func TestScaffoldProducesValidManifest(t *testing.T) {
 func TestScaffoldRejectsBadID(t *testing.T) {
 	_, err := manifest.Scaffold("NotValid", manifest.ScaffoldOptions{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "组件 ID 不合法")
+	assert.Contains(t, err.Error(), "invalid component ID")
 }
 
 func TestScaffoldWithOpenAPIContract(t *testing.T) {
@@ -79,5 +79,5 @@ func TestScaffoldWithProtoContract(t *testing.T) {
 func TestScaffoldRejectsUnknownContract(t *testing.T) {
 	_, err := manifest.Scaffold("demo/widget", manifest.ScaffoldOptions{Contract: "grpc-web"})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--contract 取值不合法")
+	assert.Contains(t, err.Error(), "invalid --contract value")
 }

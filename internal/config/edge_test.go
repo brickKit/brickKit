@@ -432,7 +432,7 @@ sources:
     url: https://x
 `), "brickkit.yaml")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "sources[0].type: 缺失")
+	assert.Contains(t, clierr.As(err).Format(), "sources[0].type: missing")
 }
 
 // localPort 写了但没写 local: true（常见误配）。
@@ -460,7 +460,7 @@ resources:
     port: 5432
 `), "brickkit.yaml")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "resources[0].kind: 缺失")
+	assert.Contains(t, clierr.As(err).Format(), "resources[0].kind: missing")
 }
 
 // 写了引用的密码与写死的密码，解析后仍然分得出来：引用保留原文，写死的就是写死的。
@@ -524,7 +524,7 @@ func TestUnknownFieldIsRejected(t *testing.T) {
 	require.Error(t, err, "拼错的字段必须报错，不能静默忽略")
 	rendered := clierr.As(err).Format()
 	assert.Contains(t, rendered, "user", "要指出是哪个字段")
-	assert.Contains(t, rendered, "是不是想写 username", "要猜出使用者想写的字段")
+	assert.Contains(t, rendered, "did you mean username", "要猜出使用者想写的字段")
 }
 
 // TestUnknownFieldReportsLine：错误里要有行号。
@@ -541,7 +541,7 @@ func TestUnknownFieldReportsLine(t *testing.T) {
 `), "brickkit.yaml")
 
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "第 ", "错误里应当带行号")
+	assert.Contains(t, clierr.As(err).Format(), "line ", "错误里应当带行号")
 }
 
 // TestUnknownFieldWithoutGuessListsOptions：猜不出来时列出可选字段。
@@ -560,7 +560,7 @@ func TestUnknownFieldWithoutGuessListsOptions(t *testing.T) {
 
 	require.Error(t, err)
 	rendered := clierr.As(err).Format()
-	assert.Contains(t, rendered, "可用的字段")
+	assert.Contains(t, rendered, "Fields available at this level")
 	assert.Contains(t, rendered, "username", "列表里要有真实存在的字段")
 }
 

@@ -237,7 +237,7 @@ func TestDependencyMappingRejectsStrayVersionKey(t *testing.T) {
 
 			text := clierr.As(err).Format()
 			assert.Contains(t, text, "dependencies.components[0].version")
-			assert.Contains(t, text, "id: <组件ID>@<精确版本>", "要告诉作者版本该写在哪")
+			assert.Contains(t, text, "id: <component-id>@<exact-version>", "要告诉作者版本该写在哪")
 		})
 	}
 }

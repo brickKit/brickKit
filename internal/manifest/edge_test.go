@@ -28,23 +28,23 @@ func TestShapeErrors(t *testing.T) {
 		yaml     string
 		contains []string
 	}{
-		{"顶层是数组", "- a\n- b\n", []string{"component.yaml", "顶层必须是一个 YAML 映射"}},
-		{"顶层是标量", "just-a-string\n", []string{"顶层必须是一个 YAML 映射"}},
-		{"tags 非数组", minimalYAML + "tags: people\n", []string{"tags", "必须是数组格式", "标量"}},
-		{"artifacts 非数组", minimalYAML + "artifacts: openapi.json\n", []string{"artifacts", "必须是数组格式"}},
+		{"顶层是数组", "- a\n- b\n", []string{"component.yaml", "the top level must be a YAML mapping"}},
+		{"顶层是标量", "just-a-string\n", []string{"the top level must be a YAML mapping"}},
+		{"tags 非数组", minimalYAML + "tags: people\n", []string{"tags", "must be an array", "scalar"}},
+		{"artifacts 非数组", minimalYAML + "artifacts: openapi.json\n", []string{"artifacts", "must be an array"}},
 		{"artifacts 元素非映射", minimalYAML + "artifacts:\n  - just-a-string\n",
-			[]string{"artifacts[0]", "必须是映射"}},
+			[]string{"artifacts[0]", "must be a mapping"}},
 		{"artifacts[].files 非数组", minimalYAML + "artifacts:\n  - type: api-docs\n    files: openapi.json\n",
-			[]string{"artifacts[0].files", "必须是数组格式"}},
+			[]string{"artifacts[0].files", "must be an array"}},
 		{"dependencies.components 非数组", minimalYAML + "dependencies:\n  components: department/tree@1.0.0\n",
-			[]string{"dependencies.components", "必须是数组格式"}},
+			[]string{"dependencies.components", "must be an array"}},
 		{"dependencies.resources 非数组", minimalYAML + "dependencies:\n  resources: database\n",
-			[]string{"dependencies.resources", "必须是数组格式"}},
+			[]string{"dependencies.resources", "must be an array"}},
 		{"extraPorts 非数组", minimalYAML + "  extraPortsX: x\n", nil}, // 占位：字段名不同，不触发
 		{"configSchema.required 非数组", minimalYAML + "configSchema:\n  type: object\n  required: pageSize\n",
-			[]string{"configSchema.required", "必须是数组格式"}},
+			[]string{"configSchema.required", "must be an array"}},
 		{"migration.command 是映射", minimalYAML + "migration:\n  command:\n    cmd: migrate\n",
-			[]string{"migration.command", "必须是数组格式", "映射"}},
+			[]string{"migration.command", "must be an array", "mapping"}},
 	}
 	for _, c := range cases {
 		if c.contains == nil {
@@ -61,7 +61,7 @@ func TestShapeErrors(t *testing.T) {
 	}
 }
 
-// YAML 锚点/别名指向标量时，仍应报出"必须是数组格式"。
+// YAML 锚点/别名指向标量时，仍应报出"must be an array"。
 func TestShapeErrorWithYAMLAlias(t *testing.T) {
 	_, err := Parse([]byte(minimalYAML+`
 anchors: &tag people
@@ -71,7 +71,7 @@ tags: *tag
 
 	out := clierr.As(err).Format()
 	assert.Contains(t, out, "tags")
-	assert.Contains(t, out, "别名")
+	assert.Contains(t, out, "alias")
 }
 
 // apiVersion / kind 整体缺失时按"必填字段缺失"报错。
@@ -93,8 +93,8 @@ healthCheck:
 	require.Error(t, err)
 
 	out := clierr.As(err).Format()
-	assert.Contains(t, out, "apiVersion: 缺失")
-	assert.Contains(t, out, "kind: 缺失")
+	assert.Contains(t, out, "apiVersion: missing")
+	assert.Contains(t, out, "kind: missing")
 }
 
 // artifacts 文件路径为空字符串。
@@ -105,7 +105,7 @@ artifacts:
     files: ["", "openapi.json"]
 `), "component.yaml")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "artifacts[0].files[0]: 缺失")
+	assert.Contains(t, clierr.As(err).Format(), "artifacts[0].files[0]: missing")
 }
 
 // 依赖映射中字段类型写错（optional 不是布尔值）。
@@ -214,7 +214,7 @@ func TestComponentDepUnmarshalRejectsSequence(t *testing.T) {
 	var dep ComponentDep
 	err := yaml.Unmarshal([]byte("[a, b]"), &dep)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "<组件ID>@<版本>")
+	assert.Contains(t, err.Error(), "<component-id>@<version>")
 }
 
 // ============================================================
@@ -234,14 +234,14 @@ func TestParseFileUnreadable(t *testing.T) {
 
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeManifestInvalid, e.Code)
-	assert.Contains(t, e.Format(), "读取 component.yaml 失败")
+	assert.Contains(t, e.Format(), "failed to read component.yaml")
 }
 
 // source 为空时错误信息回落到默认文件名。
 func TestParseWithoutSourceName(t *testing.T) {
 	_, err := Parse([]byte("apiVersion: brickkit/v1\nkind: Component\n"), "")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "文件: component.yaml")
+	assert.Contains(t, clierr.As(err).Format(), "File: component.yaml")
 }
 
 // Source 字段记录来源，供后续 Step 的错误提示使用。
@@ -267,7 +267,7 @@ func TestValidateOnConstructedManifest(t *testing.T) {
 	m.Metadata.Version = "1.0"
 	err := m.Validate()
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "文件: component.yaml")
+	assert.Contains(t, clierr.As(err).Format(), "File: component.yaml")
 }
 
 // ============================================================
@@ -281,7 +281,7 @@ func TestComponentIDProblem(t *testing.T) {
 	}
 
 	invalid := map[string]string{
-		"People/Basic":  "小写",
+		"People/Basic":  "lowercase",
 		"people basic":  "scope/name",
 		"basic":         "scope/name",
 		"people/":       "scope/name",
@@ -296,7 +296,7 @@ func TestComponentIDProblem(t *testing.T) {
 	}
 
 	long := "a/" + string(make([]byte, MaxComponentIDLen))
-	assert.Contains(t, componentIDProblem(long), "长度")
+	assert.Contains(t, componentIDProblem(long), "characters long")
 }
 
 func TestExactVersionRule(t *testing.T) {
@@ -455,7 +455,7 @@ configSchema:
       minimum: lots
 `), "component.yaml")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "类型不匹配")
+	assert.Contains(t, clierr.As(err).Format(), "Type mismatch")
 	assert.Contains(t, clierr.As(err).Format(), "lots", "报错要带上出错的那个值")
 }
 
@@ -468,7 +468,7 @@ dependencies:
     - department/tree@1.0.0
 `), "component.yaml")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "重复声明")
+	assert.Contains(t, clierr.As(err).Format(), "again")
 }
 
 // 菱形依赖不受影响：两个组件各依赖 X 的不同版本是**健康**的形状，
@@ -498,22 +498,22 @@ dependencies:
 // nodeKindName 是错误文案的一部分，直接对每种节点类型断言一次。
 func TestNodeKindName(t *testing.T) {
 	cases := map[yaml.Kind]string{
-		yaml.ScalarNode:   "标量",
-		yaml.MappingNode:  "映射",
-		yaml.SequenceNode: "数组",
-		yaml.AliasNode:    "别名",
-		yaml.DocumentNode: "未知类型",
+		yaml.ScalarNode:   "scalar",
+		yaml.MappingNode:  "mapping",
+		yaml.SequenceNode: "array",
+		yaml.AliasNode:    "alias",
+		yaml.DocumentNode: "unknown type",
 	}
 	for kind, want := range cases {
 		assert.Equal(t, want, nodeKindName(&yaml.Node{Kind: kind}))
 	}
-	assert.Equal(t, "未知类型", nodeKindName(&yaml.Node{}))
+	assert.Equal(t, "unknown type", nodeKindName(&yaml.Node{}))
 }
 
 // 导出给 config 包复用的两个规则函数（Step 5 的 brickkit.yaml 校验依赖它们）。
 func TestExportedRuleHelpers(t *testing.T) {
 	assert.Empty(t, ComponentIDProblem("people/basic"))
-	assert.Contains(t, ComponentIDProblem("People/Basic"), "小写")
+	assert.Contains(t, ComponentIDProblem("People/Basic"), "lowercase")
 
 	assert.True(t, IsExactVersion("1.2.3"))
 	assert.False(t, IsExactVersion("^1.2.3"))

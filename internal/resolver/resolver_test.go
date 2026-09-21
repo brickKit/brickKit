@@ -229,7 +229,7 @@ func TestDependingOnOwnOtherVersionIsRejectedByManifest(t *testing.T) {
 	require.Error(t, err)
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeManifestInvalid, e.Code)
-	assert.Contains(t, e.Format(), "组件不能依赖自己")
+	assert.Contains(t, e.Format(), "a component cannot depend on itself")
 }
 
 // 解析器本身按 ID + 版本去重：同一 ID 的不同版本是两个独立节点，不构成环。

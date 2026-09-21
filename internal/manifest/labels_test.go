@@ -38,9 +38,9 @@ func TestReservedLabelKeysRejected(t *testing.T) {
 		expect string
 	}{
 		{"app", "NetworkPolicy"},
-		{"brickkit.io/component", "平台自己的命名空间"},
-		{"brickkit.io/project", "平台自己的命名空间"},
-		{"brickkit.io/anything-at-all", "平台自己的命名空间"},
+		{"brickkit.io/component", "the platform's own namespace"},
+		{"brickkit.io/project", "the platform's own namespace"},
+		{"brickkit.io/anything-at-all", "the platform's own namespace"},
 		{"com.docker.compose.project", "docker compose"},
 	}
 	for _, tc := range cases {
@@ -71,7 +71,7 @@ func TestUnquotedLabelValueRejectedWithHint(t *testing.T) {
 	for _, raw := range []string{"true", "8080", "1.5"} {
 		_, err := manifest.Parse([]byte(labelsManifest("    traefik.enable: "+raw)), "t.yaml")
 		require.Error(t, err, "%s 少了引号，必须拦", raw)
-		assert.Contains(t, err.Error(), `加上引号写成 "`+raw+`"`)
+		assert.Contains(t, err.Error(), `quote it, written as "`+raw+`"`)
 		assert.NotContains(t, err.Error(), "unmarshal", "不能把 yaml 库的 Go 类型错误抛给用户")
 	}
 }
@@ -80,7 +80,7 @@ func TestUnquotedLabelValueRejectedWithHint(t *testing.T) {
 func TestNullLabelValueRejected(t *testing.T) {
 	_, err := manifest.Parse([]byte(labelsManifest("    traefik.enable:")), "t.yaml")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "值不能为空")
+	assert.Contains(t, err.Error(), "value must not be empty")
 }
 
 // labels 写成数组这类形状错误，要给出精确字段名而不是 yaml 库的原话。
@@ -88,7 +88,7 @@ func TestLabelsMustBeMapping(t *testing.T) {
 	_, err := manifest.Parse([]byte(labelsManifest(`    - traefik.enable`)), "t.yaml")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "deployment.labels")
-	assert.Contains(t, err.Error(), "必须是映射")
+	assert.Contains(t, err.Error(), "must be a mapping")
 }
 
 // MergeLabels 逐键合并，全空返回 nil（渲染器据此决定"这一段要不要生成"）。

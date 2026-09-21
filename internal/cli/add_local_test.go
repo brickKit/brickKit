@@ -234,6 +234,6 @@ func TestAddLocalWarnsOnMisspelledPropertyKey(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "configSchema.properties.greeting.defualt")
-	assert.Contains(t, r.stdout, "是不是想写 default")
+	assert.Contains(t, r.stdout, "did you mean default")
 	assert.Equal(t, []string{"demo/hello@1.0.0"}, f.refs(t), "警告不影响装配")
 }

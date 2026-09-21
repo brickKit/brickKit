@@ -106,7 +106,7 @@ func TestPublishWarnsOnMisspelledPropertyKey(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, "只是警告，不能阻断发布："+r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "configSchema.properties.greeting.defualt")
-	assert.Contains(t, r.stdout, "是不是想写 default")
+	assert.Contains(t, r.stdout, "did you mean default")
 	assert.Contains(t, r.stdout, "🎉 发布完成")
 }
 
@@ -122,7 +122,7 @@ func TestPublishIsQuietAboutWellFormedConfigSchema(t *testing.T) {
 	r := runIn(t, f.Dir, "publish", "--path", root)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.NotContains(t, r.stdout, "不会生效")
+	assert.NotContains(t, r.stdout, "won't take effect")
 }
 
 // 发布请求体必须带上完整 Manifest 与来源类型（007 §3.7）。

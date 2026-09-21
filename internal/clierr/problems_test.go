@@ -33,7 +33,7 @@ func TestProblemSetRendersAllProblems(t *testing.T) {
 
 	want := "❌ 错误：component.yaml 校验失败\n" +
 		"   文件: components/people/basic/component.yaml\n" +
-		"   metadata.id: 缺失（必填字段）\n" +
+		"   metadata.id: missing (required field)\n" +
 		"   deployment.type: 必须是 container\n" +
 		"   deployment.port: 必须在 1~65535 之间（当前是 0）\n" +
 		"   Suggestions:\n" +

@@ -1,6 +1,11 @@
 package clierr
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
+)
 
 // Problem 是一条校验问题：哪个字段、为什么不合法。
 type Problem struct {
@@ -59,7 +64,7 @@ func (s *ProblemSet) Addf(field, format string, args ...any) {
 
 // Missing 追加一条"必填字段缺失"，统一措辞。
 func (s *ProblemSet) Missing(field string) {
-	s.Add(field, "缺失（必填字段）")
+	s.Add(field, i18n.T(msgid.ClierrProblemMissing))
 }
 
 // Len 返回已收集的问题数量。

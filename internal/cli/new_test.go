@@ -91,12 +91,12 @@ func TestNewRefusesExistingDir(t *testing.T) {
 func TestNewRejectsInvalidID(t *testing.T) {
 	r := run(t, "new", "NotValid")
 	assert.Equal(t, clierr.ExitUsage, r.code)
-	assert.Contains(t, r.stderr, "组件 ID 不合法")
+	assert.Contains(t, r.stderr, "invalid component ID")
 }
 
 // 非法 --contract 取值直接拒绝。
 func TestNewRejectsInvalidContract(t *testing.T) {
 	r := run(t, "new", "demo/widget", "--contract", "grpc-web")
 	assert.Equal(t, clierr.ExitUsage, r.code)
-	assert.Contains(t, r.stderr, "--contract 取值不合法")
+	assert.Contains(t, r.stderr, "invalid --contract value")
 }

@@ -6,6 +6,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
 
@@ -37,7 +39,8 @@ func PropertyKeyWarnings(raw []byte, source string) []*clierr.Error {
 	for i := 0; i+1 < len(properties.Content); i += 2 {
 		name := properties.Content[i].Value
 
-		scoped := clierr.NewProblemSet(clierr.CodeManifestInvalid, "未知字段")
+		// 标题不会渲染（这里只取 Items），所以不进目录
+		scoped := clierr.NewProblemSet(clierr.CodeManifestInvalid, "unknown fields")
 		yamlcheck.Walk(properties.Content[i+1], reflect.TypeOf(ConfigProperty{}), scoped)
 		for _, problem := range scoped.Items() {
 			found = append(found, clierr.Problem{
@@ -50,12 +53,12 @@ func PropertyKeyWarnings(raw []byte, source string) []*clierr.Error {
 		return nil
 	}
 
-	warning := clierr.Warn(clierr.CodeManifestInvalid, "警告：configSchema 里有配置项声明的键不会生效").
-		WithDetail("来源", source)
+	warning := clierr.Warn(clierr.CodeManifestInvalid, i18n.T(msgid.ManifestConfigKeysIgnored)).
+		WithDetail(i18n.T(msgid.ManifestLabelOrigin), source)
 	for _, problem := range found {
 		warning = warning.WithDetail(problem.Field, problem.Reason)
 	}
 	return []*clierr.Error{warning.
-		WithDetail("影响", "这些键会被解析器静默丢弃——比如 default 拼错，组件就拿不到默认值").
-		WithTip("configSchema 是说明书，每个配置项只认固定的几个键（清单见 component.yaml 字段参考）；JSON Schema 里别的关键字（format、examples……）写了也没有任何效果")}
+		WithDetail(i18n.T(msgid.LabelImpact), i18n.T(msgid.ManifestConfigKeysIgnoredImpact)).
+		WithTip(i18n.T(msgid.ManifestConfigKeysIgnoredTip))}
 }

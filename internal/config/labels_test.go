@@ -53,7 +53,7 @@ components:
 `), "brickkit.yaml")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "components[0].labels.traefik.enable")
-	assert.Contains(t, err.Error(), `加上引号写成 "true"`)
+	assert.Contains(t, err.Error(), `quote it, written as "true"`)
 }
 
 func TestComponentLabelsMustBeMapping(t *testing.T) {

@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // 契约占位格式。跟 Artifact.Format 一样是自由字符串，这里只收窄到
@@ -39,9 +41,9 @@ type ScaffoldFile struct {
 // 的文档承担，不是这里的事。
 func Scaffold(id string, opts ScaffoldOptions) ([]ScaffoldFile, error) {
 	if problem := ComponentIDProblem(id); problem != "" {
-		return nil, clierr.Newf(clierr.CodeInvalidArgument, "错误：组件 ID 不合法：%s", id).
-			WithDetail("原因", problem).
-			WithHint("组件 ID 格式为 <scope>/<name>，如 people/basic").
+		return nil, clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.ManifestScaffoldBadID, id)).
+			WithDetail(i18n.T(msgid.LabelReason), problem).
+			WithHint(i18n.T(msgid.ManifestScaffoldHintIDFormat)).
 			WithExit(clierr.ExitUsage)
 	}
 
@@ -63,9 +65,9 @@ artifacts:
 info:
   title: %s
   version: 0.1.0
-  description: TODO：这个组件对外提供的 API
+  description: %s
 paths: {}
-`, id)
+`, id, i18n.T(msgid.ManifestScaffoldOpenAPIDescription))
 	case ContractProto:
 		artifactsBlock = `
 artifacts:
@@ -78,38 +80,36 @@ artifacts:
 
 package %s.%s.v1;
 
-// TODO：定义这个组件对外提供的 RPC
+// %s
 service Service {
 }
-`, scope, name)
+`, scope, name, i18n.T(msgid.ManifestScaffoldProtoTodo))
 	default:
-		return nil, clierr.Newf(clierr.CodeInvalidArgument, "错误：--contract 取值不合法：%s", opts.Contract).
-			WithHint(fmt.Sprintf("必须是 %s 或 %s 之一", ContractOpenAPI, ContractProto)).
+		return nil, clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.ManifestScaffoldBadContract, opts.Contract)).
+			WithHint(i18n.T(msgid.ManifestScaffoldHintContractValues, ContractOpenAPI, ContractProto)).
 			WithExit(clierr.ExitUsage)
 	}
 
-	manifestContent := fmt.Sprintf(`# %s —— 由 brickkit new 生成的骨架
-# 下面每一处 TODO 都要改成真的；结构本身已经能通过 brickkit up --dry-run 的校验
-apiVersion: brickkit/v1
+	manifestContent := commentBlock("", i18n.T(msgid.ManifestScaffoldHeader, id)) + fmt.Sprintf(`apiVersion: brickkit/v1
 kind: Component
 
 metadata:
   id: %s
-  name: %s # TODO：改成人看的展示名
+  name: %s # %s
   version: 0.1.0
-  description: TODO：一句话说清楚这个组件做什么
+  description: %s
 %s
 deployment:
   type: container
-  image: %s:0.1.0 # TODO：换成真实构建出来的镜像（本地开发前先 docker build）
-  port: 8080 # TODO：换成组件实际监听的端口
+  image: %s:0.1.0 # %s
+  port: 8080 # %s
 
 healthCheck:
   type: http
   path: /healthz
-  # 冷启动超过默认的 60 秒（很重的 Spring Boot / Django 预加载 / .NET 首次 JIT 等）
-  # 要写 startPeriodSeconds，否则 K8s 下会永久 CrashLoopBackOff
-`, id, id, name, artifactsBlock, id)
+%s`, id, name, i18n.T(msgid.ManifestScaffoldNameTodo), i18n.T(msgid.ManifestScaffoldDescriptionTodo), artifactsBlock,
+		id, i18n.T(msgid.ManifestScaffoldImageTodo), i18n.T(msgid.ManifestScaffoldPortTodo),
+		commentBlock("  ", i18n.T(msgid.ManifestScaffoldStartPeriodComment)))
 
 	files := []ScaffoldFile{{Path: FileName, Content: []byte(manifestContent)}}
 	if contractFile != "" {
@@ -127,4 +127,14 @@ healthCheck:
 		})
 	}
 	return files, nil
+}
+
+// commentBlock 把多行文字变成 YAML 注释：每行前面加 indent 和 "# "，末尾换行。
+// 骨架里的说明文字随语言变，各语言要几行由目录自己决定，所以按行拆而不是写死行数。
+func commentBlock(indent, text string) string {
+	var b strings.Builder
+	for _, line := range strings.Split(text, "\n") {
+		b.WriteString(indent + "# " + line + "\n")
+	}
+	return b.String()
 }

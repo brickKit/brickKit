@@ -9,6 +9,8 @@ import (
 	"unicode"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // 组件 ID 规则（002 §10.1、§10.3）：格式 <scope>/<name>，
@@ -44,10 +46,10 @@ func newProblems(source string) *clierr.ProblemSet {
 	if source == "" {
 		source = FileName
 	}
-	return clierr.NewProblemSet(clierr.CodeManifestInvalid, "错误："+FileName+" 校验失败").
-		WithSource("文件", source).
+	return clierr.NewProblemSet(clierr.CodeManifestInvalid, i18n.T(msgid.ManifestValidationFailed, FileName)).
+		WithSource(i18n.T(msgid.LabelFile), source).
 		WithHint(
-			"完整字段参考见 docs/zh/06-architecture/07-component-yaml-reference.md（英文版把 zh 换 en）",
+			i18n.T(msgid.ManifestHintFieldReference),
 		)
 }
 
@@ -58,12 +60,12 @@ func (m *Manifest) Validate() error {
 	if m.APIVersion == "" {
 		p.Missing("apiVersion")
 	} else if m.APIVersion != APIVersion {
-		p.Addf("apiVersion", "必须是 %s（当前是 %s）", APIVersion, m.APIVersion)
+		p.Add("apiVersion", i18n.T(msgid.ManifestMustBe, APIVersion, m.APIVersion))
 	}
 	if m.Kind == "" {
 		p.Missing("kind")
 	} else if m.Kind != Kind {
-		p.Addf("kind", "必须是 %s（当前是 %s）", Kind, m.Kind)
+		p.Add("kind", i18n.T(msgid.ManifestMustBe, Kind, m.Kind))
 	}
 
 	m.validateMetadata(p)
@@ -126,21 +128,20 @@ func (m *Manifest) validateMetadata(p *clierr.ProblemSet) {
 	if m.Metadata.Version == "" {
 		p.Missing("metadata.version")
 	} else if !exactVersionRe.MatchString(m.Metadata.Version) {
-		p.Addf("metadata.version", "必须是精确版本 major.minor.patch（当前是 %s）", m.Metadata.Version)
+		p.Add("metadata.version", i18n.T(msgid.ManifestVersionNotExact, m.Metadata.Version))
 	}
 }
 
 // componentIDProblem 返回组件 ID 的不合法原因；合法时返回空字符串。
 func componentIDProblem(id string) string {
 	if len(id) > MaxComponentIDLen {
-		return fmt.Sprintf("长度 %d 超过上限 %d（转换后的版本化服务名需符合 DNS 标签规则）",
-			len(id), MaxComponentIDLen)
+		return i18n.T(msgid.ManifestIDTooLong, len(id), MaxComponentIDLen)
 	}
 	if hasUpper(id) {
-		return "必须全部小写，格式为 scope/name"
+		return i18n.T(msgid.ManifestIDMustBeLowercase)
 	}
 	if !componentIDRe.MatchString(id) {
-		return "格式必须为 scope/name，只能包含小写字母、数字与中划线"
+		return i18n.T(msgid.ManifestIDBadFormat)
 	}
 	return ""
 }
@@ -161,7 +162,7 @@ func (m *Manifest) validateArtifacts(p *clierr.ProblemSet) {
 			p.Missing(prefix + ".type")
 		}
 		if len(a.Files) == 0 {
-			p.Add(prefix+".files", "缺失（必填字段，至少声明一个文件路径）")
+			p.Add(prefix+".files", i18n.T(msgid.ManifestArtifactFilesMissing))
 			continue
 		}
 		for j, file := range a.Files {
@@ -170,9 +171,9 @@ func (m *Manifest) validateArtifacts(p *clierr.ProblemSet) {
 			case strings.TrimSpace(file) == "":
 				p.Missing(field)
 			case filepath.IsAbs(file):
-				p.Add(field, "必须是相对路径（相对于组件仓库根目录）")
+				p.Add(field, i18n.T(msgid.ManifestArtifactFileMustBeRelative))
 			case escapesRepoRoot(file):
-				p.Add(field, "不能超出组件仓库根目录")
+				p.Add(field, i18n.T(msgid.ManifestArtifactFileEscapes))
 			}
 		}
 	}
@@ -232,22 +233,13 @@ func checkDuplicateDependency(
 
 	// 完全相同的一条写了两遍：单纯的手误，照原来的说法报
 	if prev.version == dep.Version {
-		p.Addf(field, "与 dependencies.components[%d] 重复声明了 %s", prev.index, dep.Ref)
+		p.Add(field, i18n.T(msgid.ManifestDependencyDuplicate, prev.index, dep.Ref))
 		return
 	}
 
 	// 分行写：挤成一整行的话，终端里这段话会绕三四圈，
 	// 而真正要看的"是哪两个版本"埋在中间
-	p.Addf(field,
-		"同一个组件声明了两个版本\n"+
-			"     %s@%s（dependencies.components[%d]）与 %s\n"+
-			"     两者都注入 %s —— 依赖地址的环境变量名基于组件 ID、不带版本号，\n"+
-			"     后者覆盖前者，而组件不会察觉自己只连上了其中一个\n"+
-			"     出路 1：只依赖其中一个版本。多版本共存是**项目级**的——\n"+
-			"             brickkit.yaml 里可以同时跑两个版本，供不同调用方各用各的\n"+
-			"     出路 2：确实要同时调两个，把第二个声明成 configSchema 里的一个配置项，\n"+
-			"             由项目填地址",
-		dep.ID, prev.version, prev.index, dep.Ref, EndpointEnvVar(dep.ID))
+	p.Add(field, i18n.T(msgid.ManifestDependencyTwoVersions, dep.ID, prev.version, prev.index, dep.Ref, EndpointEnvVar(dep.ID)))
 }
 
 func (m *Manifest) validateDependencies(p *clierr.ProblemSet) {
@@ -261,21 +253,21 @@ func (m *Manifest) validateDependencies(p *clierr.ProblemSet) {
 		field := fmt.Sprintf("dependencies.components[%d]", i)
 		switch {
 		case strings.TrimSpace(dep.Ref) == "":
-			p.Add(field, "缺失（必填字段，格式为 <组件ID>@<精确版本>）")
+			p.Add(field, i18n.T(msgid.ManifestDependencyMissing))
 			continue
 		case dep.Version == "":
-			p.Addf(field, "必须声明精确版本，格式为 <组件ID>@<精确版本>（当前是 %s）", dep.Ref)
+			p.Add(field, i18n.T(msgid.ManifestDependencyNoVersion, dep.Ref))
 			continue
 		}
 
 		if reason := componentIDProblem(dep.ID); reason != "" {
-			p.Addf(field, "组件 ID %s %s", dep.ID, reason)
+			p.Add(field, i18n.T(msgid.ManifestDependencyIDInvalid, dep.ID, reason))
 		}
 		if !exactVersionRe.MatchString(dep.Version) {
-			p.Addf(field, "版本 %s 必须是精确版本 major.minor.patch，不接受 ^ 或 ~ 等范围约束", dep.Version)
+			p.Add(field, i18n.T(msgid.ManifestDependencyVersionNotExact, dep.Version))
 		}
 		if dep.ID != "" && dep.ID == m.Metadata.ID {
-			p.Add(field, "组件不能依赖自己")
+			p.Add(field, i18n.T(msgid.ManifestDependencyOnSelf))
 		}
 		checkDuplicateDependency(p, field, i, dep, seen)
 	}
@@ -288,8 +280,7 @@ func (m *Manifest) validateDependencies(p *clierr.ProblemSet) {
 		case !IsKnownResourceKind(res.Kind):
 			// 与 brickkit.yaml 侧同一条规则：kind 是按字符串比对的，
 			// 组件写了平台不认识的类型，使用者照着绑也换不来任何连接变量
-			p.Addf(prefix+".kind", "不是平台认识的资源类型（当前是 %s）；可选：%s",
-				res.Kind, ResourceKindsText())
+			p.Add(prefix+".kind", i18n.T(msgid.ManifestResourceKindUnknown, res.Kind, ResourceKindsText()))
 		}
 		if res.Engine == "" {
 			p.Missing(prefix + ".engine")
@@ -303,7 +294,7 @@ func (m *Manifest) validateConfigSchema(p *clierr.ProblemSet) {
 	}
 
 	if m.ConfigSchema.Type != "" && m.ConfigSchema.Type != "object" {
-		p.Addf("configSchema.type", "必须是 object（当前是 %s）", m.ConfigSchema.Type)
+		p.Add("configSchema.type", i18n.T(msgid.ManifestMustBe, "object", m.ConfigSchema.Type))
 	}
 
 	for name, prop := range m.ConfigSchema.Properties {
@@ -312,13 +303,13 @@ func (m *Manifest) validateConfigSchema(p *clierr.ProblemSet) {
 		case prop.Type == "":
 			p.Missing(field + ".type")
 		case !configSchemaTypes[prop.Type]:
-			p.Addf(field+".type", "不是合法的 JSON Schema 类型（允许：string / integer / number / boolean / array / object）")
+			p.Add(field+".type", i18n.T(msgid.ManifestConfigTypeInvalid))
 		}
 	}
 
 	for _, name := range m.ConfigSchema.Required {
 		if _, ok := m.ConfigSchema.Properties[name]; !ok {
-			p.Addf("configSchema.required", "配置项 %s 未在 properties 中声明", name)
+			p.Add("configSchema.required", i18n.T(msgid.ManifestConfigRequiredNotDeclared, name))
 		}
 	}
 }
@@ -329,7 +320,7 @@ func (m *Manifest) validateDeployment(p *clierr.ProblemSet) {
 	if d.Type == "" {
 		p.Missing("deployment.type")
 	} else if d.Type != DeploymentTypeContainer {
-		p.Addf("deployment.type", "必须是 %s（所有组件都是 container，包括前端组件）", DeploymentTypeContainer)
+		p.Add("deployment.type", i18n.T(msgid.ManifestDeploymentTypeMustBe, DeploymentTypeContainer))
 	}
 
 	if d.Image == "" {
@@ -340,7 +331,7 @@ func (m *Manifest) validateDeployment(p *clierr.ProblemSet) {
 	case d.Port == 0:
 		p.Missing("deployment.port")
 	case d.Port < MinPort || d.Port > MaxPort:
-		p.Addf("deployment.port", "必须在 %d~%d 之间（当前是 %d）", MinPort, MaxPort, d.Port)
+		p.Add("deployment.port", i18n.T(msgid.ManifestPortOutOfRange, MinPort, MaxPort, d.Port))
 	}
 
 	names := make(map[string]int)
@@ -350,10 +341,10 @@ func (m *Manifest) validateDeployment(p *clierr.ProblemSet) {
 		case ep.Name == "":
 			p.Missing(prefix + ".name")
 		case len(ep.Name) > MaxPortNameLen || !portNameRe.MatchString(ep.Name):
-			p.Addf(prefix+".name", "必须是 %d 字符以内的小写字母、数字与中划线（K8s Service 端口名规则）", MaxPortNameLen)
+			p.Add(prefix+".name", i18n.T(msgid.ManifestPortNameInvalid, MaxPortNameLen))
 		}
 		if prev, ok := names[ep.Name]; ok && ep.Name != "" {
-			p.Addf(prefix+".name", "与 deployment.extraPorts[%d].name 重复", prev)
+			p.Add(prefix+".name", i18n.T(msgid.ManifestPortNameDuplicate, prev))
 		} else if ep.Name != "" {
 			names[ep.Name] = i
 		}
@@ -362,9 +353,9 @@ func (m *Manifest) validateDeployment(p *clierr.ProblemSet) {
 		case ep.Port == 0:
 			p.Missing(prefix + ".port")
 		case ep.Port < MinPort || ep.Port > MaxPort:
-			p.Addf(prefix+".port", "必须在 %d~%d 之间（当前是 %d）", MinPort, MaxPort, ep.Port)
+			p.Add(prefix+".port", i18n.T(msgid.ManifestPortOutOfRange, MinPort, MaxPort, ep.Port))
 		case ep.Port == d.Port:
-			p.Addf(prefix+".port", "不能与主端口 deployment.port(%d) 相同", d.Port)
+			p.Add(prefix+".port", i18n.T(msgid.ManifestPortSameAsMain, d.Port))
 		}
 	}
 
@@ -378,14 +369,14 @@ func (m *Manifest) validateResources(p *clierr.ProblemSet) {
 		return
 	}
 	if r.Requests == nil && r.Limits == nil {
-		p.Add("deployment.resources", "至少要声明 requests 或 limits 之一")
+		p.Add("deployment.resources", i18n.T(msgid.ManifestResourcesNeedOne))
 		return
 	}
 	if r.Requests != nil && r.Requests.CPU == "" && r.Requests.Memory == "" {
-		p.Add("deployment.resources.requests", "至少要声明 cpu 或 memory 之一")
+		p.Add("deployment.resources.requests", i18n.T(msgid.ManifestResourcesNeedCPUOrMemory))
 	}
 	if r.Limits != nil && r.Limits.CPU == "" && r.Limits.Memory == "" {
-		p.Add("deployment.resources.limits", "至少要声明 cpu 或 memory 之一")
+		p.Add("deployment.resources.limits", i18n.T(msgid.ManifestResourcesNeedCPUOrMemory))
 	}
 }
 
@@ -394,7 +385,7 @@ func (m *Manifest) validateMigration(p *clierr.ProblemSet) {
 		return
 	}
 	if len(m.Migration.Command) == 0 {
-		p.Add("migration.command", "缺失（必填字段，数组格式，如 [\"python\", \"manage.py\", \"migrate\"]）")
+		p.Add("migration.command", i18n.T(msgid.ManifestMigrationCommandMissing))
 		return
 	}
 	for i, arg := range m.Migration.Command {
@@ -416,13 +407,12 @@ func (m *Manifest) validateHealthCheck(p *clierr.ProblemSet) {
 		case h.Path == "":
 			p.Missing("healthCheck.path")
 		case !strings.HasPrefix(h.Path, "/"):
-			p.Addf("healthCheck.path", "必须以 / 开头（当前是 %s）", h.Path)
+			p.Add("healthCheck.path", i18n.T(msgid.ManifestHealthPathMustStartWithSlash, h.Path))
 		}
 	case HealthCheckTCP, HealthCheckNone:
 		// tcp / none 不需要 path
 	default:
-		p.Addf("healthCheck.type", "必须是 %s / %s / %s 之一（当前是 %s）",
-			HealthCheckHTTP, HealthCheckTCP, HealthCheckNone, h.Type)
+		p.Add("healthCheck.type", i18n.T(msgid.ManifestHealthTypeMustBeOneOf, HealthCheckHTTP, HealthCheckTCP, HealthCheckNone, h.Type))
 	}
 
 	validateStartPeriod(p, h)
@@ -445,15 +435,11 @@ func validateStartPeriod(p *clierr.ProblemSet, h HealthCheck) {
 	case h.Type == HealthCheckNone:
 		// 与 brickkit.yaml 侧 localPort / exposePort 同一条规矩：
 		// 写了不生效的字段必须出声，否则使用者以为自己调过了
-		p.Add("healthCheck.startPeriodSeconds",
-			"在 type: none 下不生效（不生成任何探测，也就无所谓宽限期）；"+
-				"请删除该字段，或把 type 改成 http / tcp")
+		p.Add("healthCheck.startPeriodSeconds", i18n.T(msgid.ManifestStartPeriodIgnoredForNone))
 	case h.StartPeriodSeconds < 0:
-		p.Addf("healthCheck.startPeriodSeconds", "必须是正整数（当前是 %d）", h.StartPeriodSeconds)
+		p.Add("healthCheck.startPeriodSeconds", i18n.T(msgid.ManifestStartPeriodMustBePositive, h.StartPeriodSeconds))
 	case h.StartPeriodSeconds > maxStartPeriodSeconds:
-		p.Addf("healthCheck.startPeriodSeconds",
-			"最大 %d 秒（当前是 %d）。单位是**秒**不是毫秒——"+
-				"写成毫秒的话组件会长时间挂在 starting 上而不报错",
-			maxStartPeriodSeconds, h.StartPeriodSeconds)
+		p.Add("healthCheck.startPeriodSeconds",
+			i18n.T(msgid.ManifestStartPeriodTooLarge, maxStartPeriodSeconds, h.StartPeriodSeconds))
 	}
 }

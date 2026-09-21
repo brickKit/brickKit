@@ -257,7 +257,7 @@ func As(err error) *Error {
 	if errors.As(err, &e) {
 		return e
 	}
-	return New(CodeInternal, "错误："+err.Error()).WithCause(err)
+	return New(CodeInternal, i18n.T(msgid.ErrorPrefix)+err.Error()).WithCause(err)
 }
 
 // Render 把错误渲染到 w（通常是 stderr），返回建议的退出码。
@@ -273,7 +273,7 @@ func Render(w io.Writer, err error) int {
 // NotImplemented 生成"该命令尚未实现"错误，用于骨架阶段的命令占位。
 // step 是开发计划中实现该命令的 Step 编号。
 func NotImplemented(command string, step int) *Error {
-	return Newf(CodeNotImplemented, "错误：%s 尚未实现", command).
-		WithDetail("实现计划", fmt.Sprintf("开发计划 Step %d", step)).
-		WithHint("当前版本为开发中的骨架，可执行 brickkit version 查看版本信息")
+	return New(CodeNotImplemented, i18n.T(msgid.ClierrNotImplemented, command)).
+		WithDetail(i18n.T(msgid.ClierrLabelPlan), i18n.T(msgid.ClierrPlanStepDetail, step)).
+		WithHint(i18n.T(msgid.ClierrHintSkeleton))
 }

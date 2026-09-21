@@ -9,7 +9,11 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlcheck"
+
+	"errors"
 )
 
 // FileName 是 Manifest 的固定文件名（002 §2.1）。
@@ -20,17 +24,17 @@ func ParseFile(path string) (*Manifest, error) {
 	data, err := os.ReadFile(path)
 	switch {
 	case os.IsNotExist(err):
-		return nil, clierr.New(clierr.CodeManifestInvalid, "错误："+FileName+" 不存在").
-			WithDetail("路径", path).
+		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.ManifestFileMissing, FileName)).
+			WithDetail(i18n.T(msgid.LabelPath), path).
 			WithHint(
-				"确认组件目录中包含 component.yaml",
-				"确认 --path / 安装源指向的目录正确",
+				i18n.T(msgid.ManifestHintCheckDirHasFile),
+				i18n.T(msgid.ManifestHintCheckPathFlag),
 			).WithCause(err)
 	case err != nil:
-		return nil, clierr.New(clierr.CodeManifestInvalid, "错误：读取 "+FileName+" 失败").
-			WithDetail("路径", path).
-			WithDetail("原因", err.Error()).
-			WithHint("检查文件权限").
+		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.ManifestReadFailed, FileName)).
+			WithDetail(i18n.T(msgid.LabelPath), path).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.ManifestHintCheckPermissions)).
 			WithCause(err)
 	}
 	return Parse(data, path)
@@ -53,9 +57,9 @@ func Parse(data []byte, source string) (*Manifest, error) {
 		return nil, syntaxError(source, err)
 	}
 	if root.Kind == 0 || len(root.Content) == 0 {
-		return nil, clierr.New(clierr.CodeManifestInvalid, "错误："+FileName+" 内容为空").
-			WithDetail("文件", source).
-			WithHint("完整字段参考见 docs/zh/06-architecture/07-component-yaml-reference.md（英文版把 zh 换 en）")
+		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.ManifestEmpty, FileName)).
+			WithDetail(i18n.T(msgid.LabelFile), source).
+			WithHint(i18n.T(msgid.ManifestHintFieldReference))
 	}
 
 	doc := root.Content[0]
@@ -85,23 +89,24 @@ func Parse(data []byte, source string) (*Manifest, error) {
 // 这是最自然的写错法（别的生态里版本几乎都是独立的键），而通用的"这一层可用的
 // 字段：id、optional"只告诉作者它不认识，没告诉作者版本去了哪儿。
 func walkUnknownFields(doc *yaml.Node, shape *clierr.ProblemSet) {
-	found := clierr.NewProblemSet(clierr.CodeManifestInvalid, "未知字段")
+	// 标题不会渲染（这里只取 Items），所以不进目录
+	found := clierr.NewProblemSet(clierr.CodeManifestInvalid, "unknown fields")
 	yamlcheck.Walk(doc, reflect.TypeOf(Manifest{}), found)
 	for _, problem := range found.Items() {
 		reason := problem.Reason
 		if strings.HasPrefix(problem.Field, "dependencies.components[") &&
 			strings.HasSuffix(problem.Field, "].version") {
-			reason += "——版本不是独立的键，写在 id 里：id: <组件ID>@<精确版本>"
+			reason += i18n.T(msgid.ManifestUnknownVersionKeySuffix)
 		}
 		shape.Add(problem.Field, reason)
 	}
 }
 
 func syntaxError(source string, cause error) error {
-	return clierr.New(clierr.CodeManifestInvalid, "错误："+FileName+" 不是合法的 YAML").
-		WithDetail("文件", source).
-		WithDetail("原因", cleanYAMLError(cause)).
-		WithHint("按报错行号检查缩进与语法").
+	return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.ManifestNotValidYAML, FileName)).
+		WithDetail(i18n.T(msgid.LabelFile), source).
+		WithDetail(i18n.T(msgid.LabelReason), cleanYAMLError(cause)).
+		WithHint(i18n.T(msgid.ManifestHintCheckSyntax)).
 		WithCause(cause)
 }
 
@@ -110,10 +115,10 @@ func decodeError(source string, cause error) error {
 	var typeErr *yaml.TypeError
 	if ok := asTypeError(cause, &typeErr); ok {
 		for _, msg := range typeErr.Errors {
-			p.Add("类型不匹配", msg)
+			p.Add(i18n.T(msgid.ManifestLabelTypeMismatch), msg)
 		}
 	} else {
-		p.Add("解析失败", cleanYAMLError(cause))
+		p.Add(i18n.T(msgid.ManifestLabelParseFailed), cleanYAMLError(cause))
 	}
 	return p.Err()
 }
@@ -153,7 +158,7 @@ var sequenceFields = [][]string{
 // 而不是把 yaml 库的 "cannot unmarshal !!str into []string" 抛给用户。
 func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 	if doc.Kind != yaml.MappingNode {
-		p.Add(FileName, "顶层必须是一个 YAML 映射（key: value 结构）")
+		p.Add(FileName, i18n.T(msgid.ManifestTopLevelMustBeMapping))
 		return
 	}
 
@@ -163,7 +168,7 @@ func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 			continue
 		}
 		if node.Kind != yaml.SequenceNode {
-			p.Addf(strings.Join(path, "."), "必须是数组格式（当前是 %s）", nodeKindName(node))
+			p.Add(strings.Join(path, "."), i18n.T(msgid.ManifestMustBeArray, nodeKindName(node)))
 		}
 	}
 
@@ -171,12 +176,12 @@ func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 	if artifacts := lookup(doc, "artifacts"); artifacts != nil && artifacts.Kind == yaml.SequenceNode {
 		for i, item := range artifacts.Content {
 			if item.Kind != yaml.MappingNode {
-				p.Addf(fmt.Sprintf("artifacts[%d]", i), "必须是映射（包含 type 与 files）")
+				p.Add(fmt.Sprintf("artifacts[%d]", i), i18n.T(msgid.ManifestArtifactMustBeMapping))
 				continue
 			}
 			files := lookup(item, "files")
 			if files != nil && !isNull(files) && files.Kind != yaml.SequenceNode {
-				p.Addf(fmt.Sprintf("artifacts[%d].files", i), "必须是数组格式（当前是 %s）", nodeKindName(files))
+				p.Add(fmt.Sprintf("artifacts[%d].files", i), i18n.T(msgid.ManifestMustBeArray, nodeKindName(files)))
 			}
 		}
 	}
@@ -185,7 +190,7 @@ func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 	// ——`traefik.enable: true` 少的那对引号在这里报（002 §4.7）。
 	if labels := lookup(doc, "deployment", "labels"); labels != nil && !isNull(labels) {
 		if labels.Kind != yaml.MappingNode {
-			p.Addf("deployment.labels", "必须是映射（当前是 %s）", nodeKindName(labels))
+			p.Add("deployment.labels", i18n.T(msgid.ManifestMustBeMapping, nodeKindName(labels)))
 		} else {
 			yamlcheck.CheckStringValues(labels, "deployment.labels", p.Add)
 		}
@@ -221,15 +226,15 @@ func isNull(node *yaml.Node) bool {
 func nodeKindName(node *yaml.Node) string {
 	switch node.Kind {
 	case yaml.ScalarNode:
-		return "标量"
+		return i18n.T(msgid.ManifestKindScalar)
 	case yaml.MappingNode:
-		return "映射"
+		return i18n.T(msgid.ManifestKindMapping)
 	case yaml.SequenceNode:
-		return "数组"
+		return i18n.T(msgid.ManifestKindArray)
 	case yaml.AliasNode:
-		return "别名"
+		return i18n.T(msgid.ManifestKindAlias)
 	default:
-		return "未知类型"
+		return i18n.T(msgid.ManifestKindUnknown)
 	}
 }
 
@@ -257,7 +262,7 @@ func (d *ComponentDep) UnmarshalYAML(value *yaml.Node) error {
 		d.Ref = raw.ID
 		d.Optional = raw.Optional
 	default:
-		return fmt.Errorf("依赖项必须是 <组件ID>@<版本> 字符串或含 id 字段的映射")
+		return errors.New(i18n.T(msgid.ManifestDependencyBadShape))
 	}
 
 	if id, version, found := strings.Cut(d.Ref, "@"); found {

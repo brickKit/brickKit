@@ -23,6 +23,9 @@ package manifest
 import (
 	"sort"
 	"strings"
+
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // 平台自己拥有的 labels / annotations 键。
@@ -51,11 +54,11 @@ const (
 func ReservedLabelKey(key string) string {
 	switch {
 	case strings.HasPrefix(key, reservedLabelPrefix):
-		return "`" + reservedLabelPrefix + "` 是平台自己的命名空间（组件 ID、版本、项目名都记在这里），不能透传"
+		return i18n.T(msgid.ManifestLabelPlatformNamespace, reservedLabelPrefix)
 	case strings.HasPrefix(key, reservedComposePrefix):
-		return "`" + reservedComposePrefix + "` 是 docker compose 自己写的标签，覆盖后 compose 认不出自己生成的容器"
+		return i18n.T(msgid.ManifestLabelComposeOwned, reservedComposePrefix)
 	case key == reservedAppLabel:
-		return "`" + reservedAppLabel + "` 是 K8s 下 Deployment 找到自己 Pod 的唯一依据，也是 NetworkPolicy 的匹配依据"
+		return i18n.T(msgid.ManifestLabelAppSelector, reservedAppLabel)
 	}
 	return ""
 }
@@ -67,11 +70,11 @@ func ValidateLabels(labels map[string]string, path string, add func(field, messa
 	for _, key := range sortedKeys(labels) {
 		field := path + "." + key
 		if strings.TrimSpace(key) == "" {
-			add(path, "标签的键不能为空")
+			add(path, i18n.T(msgid.ManifestLabelKeyEmpty))
 			continue
 		}
 		if reason := ReservedLabelKey(key); reason != "" {
-			add(field, "这个键归平台所有，不能透传："+reason)
+			add(field, i18n.T(msgid.ManifestLabelKeyReserved, reason))
 		}
 	}
 }

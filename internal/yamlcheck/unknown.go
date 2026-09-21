@@ -14,6 +14,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // Walk 沿着 YAML 文档与目标结构体同时下行，把不认识的键记进 p。
@@ -106,9 +108,9 @@ func walkStruct(node *yaml.Node, typ reflect.Type, path string, p *clierr.Proble
 // 关键是那句"是不是想写 X"：user → username 这类笔误，只要把正确的字段名
 // 摆在眼前，就不必再去翻设计书。
 func unknownFieldMessage(keyNode *yaml.Node, known map[string]reflect.StructField) string {
-	msg := "未知字段（第 " + strconv.Itoa(keyNode.Line) + " 行）"
+	msg := i18n.T(msgid.YamlcheckUnknownField, keyNode.Line)
 	if guess := closestField(keyNode.Value, known); guess != "" {
-		return msg + "，是不是想写 " + guess + "？"
+		return msg + i18n.T(msgid.YamlcheckDidYouMean, guess)
 	}
 
 	names := make([]string, 0, len(known))
@@ -116,7 +118,7 @@ func unknownFieldMessage(keyNode *yaml.Node, known map[string]reflect.StructFiel
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	return msg + "。这一层可用的字段：" + strings.Join(names, "、")
+	return msg + i18n.T(msgid.YamlcheckAvailableFields, strings.Join(names, i18n.T(msgid.ListSeparator)))
 }
 
 // closestField 猜使用者想写的是哪个结构体字段。

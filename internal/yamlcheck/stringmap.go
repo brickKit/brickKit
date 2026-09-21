@@ -20,9 +20,10 @@ package yamlcheck
 // 能做的是**把话说对**。
 
 import (
-	"strconv"
-
 	"gopkg.in/yaml.v3"
+
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // CheckStringValues 检查一个映射节点的每个值都是字符串写法。
@@ -37,18 +38,17 @@ func CheckStringValues(node *yaml.Node, path string, add func(field, message str
 	for i := 0; i+1 < len(node.Content); i += 2 {
 		key, value := node.Content[i], node.Content[i+1]
 		if value.Kind != yaml.ScalarNode {
-			add(path+"."+key.Value, "值必须是字符串（第 "+strconv.Itoa(value.Line)+" 行）")
+			add(path+"."+key.Value, i18n.T(msgid.YamlcheckValueMustBeString, value.Line))
 			continue
 		}
 		if value.Tag == "!!null" {
-			add(path+"."+key.Value, "值不能为空（第 "+strconv.Itoa(value.Line)+" 行）")
+			add(path+"."+key.Value, i18n.T(msgid.YamlcheckValueMustNotBeEmpty, value.Line))
 			continue
 		}
 		// !!str 之外的标量（!!bool / !!int / !!float）都是"少了引号"
 		if value.Tag != "" && value.Tag != "!!str" {
 			add(path+"."+key.Value,
-				"值必须是字符串，加上引号写成 \""+value.Value+"\"（第 "+
-					strconv.Itoa(value.Line)+" 行）")
+				i18n.T(msgid.YamlcheckValueQuoteIt, value.Value, value.Line))
 		}
 	}
 }

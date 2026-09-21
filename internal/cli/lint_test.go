@@ -64,7 +64,7 @@ func TestLintCatchesTypoInAlreadyAddedLocalComponent(t *testing.T) {
 	r := runWithLogs(t, f.Dir, "lint")
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stdout, "dependancies")
-	assert.Contains(t, r.stdout, "未知字段")
+	assert.Contains(t, r.stdout, "unknown field")
 	assert.Contains(t, r.stdout, "1 个有错误")
 	assert.Contains(t, r.stderr, "LINT_FAILED")
 }
@@ -251,13 +251,13 @@ func TestLintFileWithBothAnErrorAndAWarningReportsBoth(t *testing.T) {
 
 	r := runWithLogs(t, f.Dir, "lint")
 	assert.Equal(t, clierr.ExitError, r.code)
-	errorBlock := strings.Index(r.stdout, "❌ 错误：component.yaml 校验失败")
-	warningBlock := strings.Index(r.stdout, "⚠️ 警告：configSchema 里有配置项声明的键不会生效")
+	errorBlock := strings.Index(r.stdout, "❌ Error: component.yaml failed validation")
+	warningBlock := strings.Index(r.stdout, "⚠️ Warning: some keys declared on configSchema items won't take effect")
 	require.GreaterOrEqual(t, errorBlock, 0, "错误块要打印：%s", r.stdout)
 	require.GreaterOrEqual(t, warningBlock, 0, "警告块也要打印：%s", r.stdout)
 	assert.Less(t, errorBlock, warningBlock, "同一个文件里，错误在前、警告在后")
-	assert.Contains(t, r.stdout, "dependancies: 未知字段")
-	assert.Contains(t, r.stdout, "defualt: 未知字段")
+	assert.Contains(t, r.stdout, "dependancies: unknown field")
+	assert.Contains(t, r.stdout, "defualt: unknown field")
 	assert.Contains(t, r.stdout, "检查了 2 个文件：1 个有错误，1 条警告")
 	assert.Contains(t, r.stderr, "LINT_FAILED")
 }

@@ -298,21 +298,21 @@ func TestConfigValidationErrors(t *testing.T) {
 		contains []string
 	}{
 		{"5.8", "缺少 project", "deploy:\n  target: docker\ncomponents: []\n",
-			[]string{"project", "缺失"}},
+			[]string{"project", "missing"}},
 		{"—", "project 名称不合法", "project: My Project\ndeploy:\n  target: docker\n",
 			[]string{"project", "小写"}},
 		{"5.9", "缺少 deploy.target", "project: p\ncomponents: []\n",
-			[]string{"deploy.target", "缺失"}},
+			[]string{"deploy.target", "missing"}},
 		{"5.10", "deploy.target 非法值", "project: p\ndeploy:\n  target: ecs\n",
 			[]string{"deploy.target", "docker", "k8s"}},
 		{"5.11", "组件缺少 id", baseConfig + `
 components:
   - version: 1.0.0
-`, []string{"components[0].id", "缺失"}},
+`, []string{"components[0].id", "missing"}},
 		{"5.12", "组件缺少 version", baseConfig + `
 components:
   - id: people/basic
-`, []string{"components[0].version", "缺失"}},
+`, []string{"components[0].version", "missing"}},
 		{"5.13", "组件版本非精确版本", baseConfig + `
 components:
   - id: people/basic
@@ -327,7 +327,7 @@ components:
 components:
   - id: People/Basic
     version: 1.0.0
-`, []string{"components[0].id", "小写"}},
+`, []string{"components[0].id", "lowercase"}},
 		{"—", "组件 ID 缺少 scope", baseConfig + `
 components:
   - id: basic
@@ -388,7 +388,7 @@ components:
 sources:
   - type: market
     url: https://x
-`, []string{"sources[0].id", "缺失"}},
+`, []string{"sources[0].id", "missing"}},
 		{"—", "安装源类型非法", baseConfig + `
 sources:
   - id: s
@@ -453,7 +453,7 @@ resources:
     port: 5432
     bindings:
       - database: people
-`, []string{"resources[0].bindings[0].componentId", "缺失"}},
+`, []string{"resources[0].bindings[0].componentId", "missing"}},
 		{"—", "envPrefix 格式非法", `
 project: p
 deploy:
