@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/brickkit/brickkit/internal/i18n"
 )
 
 func newInstaller(t *testing.T) Installer {
@@ -40,7 +42,7 @@ func stateOf(t *testing.T, in Installer, target string) FileStatus {
 
 func assetNamed(t *testing.T, target string) Asset {
 	t.Helper()
-	for _, a := range Assets() {
+	for _, a := range Assets(i18n.EN) {
 		if a.Target == target {
 			return a
 		}
@@ -57,10 +59,10 @@ func TestFreshProjectIsAllMissingThenWritten(t *testing.T) {
 
 	res, err := in.Apply()
 	require.NoError(t, err)
-	assert.Len(t, res.Written, len(Assets()))
+	assert.Len(t, res.Written, len(Assets(i18n.EN)))
 	assert.Empty(t, res.Skipped)
 
-	for _, a := range Assets() {
+	for _, a := range Assets(i18n.EN) {
 		_, err := os.Stat(filepath.Join(in.Root, a.Target))
 		assert.NoError(t, err, "没写出来：%s", a.Target)
 	}
@@ -333,15 +335,15 @@ func TestComponentScopeManagesOnlyTheComponentSkill(t *testing.T) {
 // 不指定范围时行为不变：完整的一套（brickkit init 装进项目的那些）。
 func TestDefaultScopeStaysTheFullProjectSet(t *testing.T) {
 	in := newInstaller(t)
-	assert.Len(t, mustStatus(t, in), len(Assets()))
-	assert.Greater(t, len(Assets()), 1)
+	assert.Len(t, mustStatus(t, in), len(Assets(i18n.EN)))
+	assert.Greater(t, len(Assets(i18n.EN)), 1)
 }
 
 // 组件范围的清单是一份按落点写死的名单——改名或删掉那份资产时，这里要立刻红，
 // 而不是让组件仓库里静默少装一份。
 func TestComponentScopeTargetsAllExistAmongAssets(t *testing.T) {
 	all := map[string]bool{}
-	for _, a := range Assets() {
+	for _, a := range Assets(i18n.EN) {
 		all[a.Target] = true
 	}
 	require.NotEmpty(t, componentTargets)

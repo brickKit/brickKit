@@ -24,4 +24,6 @@ const (
 	CliSkillsMsg2                          = "cli.skills.msg_2"
 	CliSkillsNoteToDiscardLocalEdits       = "cli.skills.note_to_discard_local_edits"
 	CliSkillsErrorFailedToReadOr           = "cli.skills.error_failed_to_read_or"
+	CliSkillsLanguageLine                  = "cli.skills.language_line"
+	CliSkillsLangFlag                      = "cli.skills.lang_flag"
 )

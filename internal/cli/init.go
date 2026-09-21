@@ -99,6 +99,10 @@ func installSkills(opts *Options, layout config.Layout) error {
 		Root:     layout.Root,
 		LockPath: layout.SkillsLockPath(),
 		Version:  version.Version,
+		// 显式钉住这次调用当下的 CLI 语言：init 是"就当现在装一份"，
+		// 不该被这个目录里可能残留的旧 skills.lock（比如清空 brickkit.yaml
+		// 后重新 init）悄悄带偏语言。
+		Lang: i18n.Current(),
 	}
 	res, err := in.Apply()
 	if err != nil {

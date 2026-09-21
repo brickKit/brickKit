@@ -964,6 +964,8 @@ var en = map[string]string{
 	msgid.CliSkillsMsg2:                                                    "     %[1]s (%[2]s)",
 	msgid.CliSkillsNoteToDiscardLocalEdits:                                 "Note: to discard local edits, delete that file and run brickkit skills update again",
 	msgid.CliSkillsErrorFailedToReadOr:                                     "Error: failed to read or write the AI assistant skills",
+	msgid.CliSkillsLanguageLine:                                            "Skill language: %[1]s (recorded in skills.lock; brickkit skills update --lang to change it)",
+	msgid.CliSkillsLangFlag:                                                "Reinstall using this language (en|zh), and remember it for this project from now on",
 	msgid.CliLintLocalEnumerationFailed:                                    "The local install sources could not be enumerated; skipped the local components' %[1]s (fix the error above first)",
 	msgid.ClauseSeparator:                                                  ", ",
 	msgid.SemicolonSeparator:                                               "; ",

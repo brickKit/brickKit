@@ -956,6 +956,8 @@ var zh = map[string]string{
 	msgid.CliSkillsMsg2:                                              "     %[1]s（%[2]s）",
 	msgid.CliSkillsNoteToDiscardLocalEdits:                           "提示：想放弃本地修改，删掉那个文件后重新执行 brickkit skills update",
 	msgid.CliSkillsErrorFailedToReadOr:                               "错误：读写 AI 助手技能失败",
+	msgid.CliSkillsLanguageLine:                                      "技能语言：%[1]s（记在 skills.lock 里；brickkit skills update --lang 可以改）",
+	msgid.CliSkillsLangFlag:                                          "用这种语言重装（en|zh），并从此记住这个项目该用哪种语言",
 	msgid.CliLintLocalEnumerationFailed:                              "本地安装源枚举失败，已跳过本地组件的 %[1]s（先修好上面那条）",
 	msgid.ClauseSeparator:                                            "，",
 	msgid.SemicolonSeparator:                                         "；",

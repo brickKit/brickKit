@@ -26,6 +26,14 @@ type LockEntry struct {
 // 有了它才能区分「用户手改过」和「CLI 升级导致过期」——前者绝不能覆盖。
 type Lock struct {
 	Entries []LockEntry `json:"entries"`
+	// Lang 记录这个项目的技能资产上次是用哪种语言装的（"en" / "zh"）。
+	// 语言是项目级的、稳定的选择，不跟着运行 CLI 那台机器当下的语言走——
+	// 否则两个语言不同的队友会把提交进仓库的技能文件改来改去。
+	//
+	// omitempty：这个字段是后加的，早期项目的 skills.lock 里没有它；
+	// 读到空值时 Installer 按"这批资产历史上只有中文"回退到 zh，
+	// 而不是当成一个新项目去问当前 CLI 语言（见 install.go 的 resolveLang）。
+	Lang string `json:"lang,omitempty"`
 }
 
 // LoadLock 读取 lock。文件不存在时返回空 Lock 且不报错：

@@ -34,6 +34,18 @@ func newSkillsCommand(opts *Options) *cobra.Command {
 			return runSkillsStatus(opts)
 		},
 	}
+	var lang string
+	updateCmd := &cobra.Command{
+		Use:     "update",
+		Short:   i18n.T(msgid.CliSkillsShort3),
+		Args:    cobra.NoArgs,
+		Example: "  brickkit skills update\n  brickkit skills update --lang zh",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runSkillsUpdate(opts, lang)
+		},
+	}
+	updateCmd.Flags().StringVar(&lang, "lang", "", i18n.T(msgid.CliSkillsLangFlag))
+
 	cmd.AddCommand(
 		&cobra.Command{
 			Use:     "status",
@@ -44,15 +56,7 @@ func newSkillsCommand(opts *Options) *cobra.Command {
 				return runSkillsStatus(opts)
 			},
 		},
-		&cobra.Command{
-			Use:     "update",
-			Short:   i18n.T(msgid.CliSkillsShort3),
-			Args:    cobra.NoArgs,
-			Example: `  brickkit skills update`,
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return runSkillsUpdate(opts)
-			},
-		},
+		updateCmd,
 	)
 	return cmd
 }
@@ -84,17 +88,29 @@ func detectScope(opts *Options) (skills.Scope, config.Layout, error) {
 //
 // 不确认的话，在随便一个目录里敲 skills update 会默默建出 .claude/ 与
 // AGENTS.md——在别人家里留下文件，比报个错糟糕得多。
-func skillsInstaller(opts *Options) (skills.Installer, error) {
+// langOverride 为空字符串时不指定语言（Installer 沿用项目已记录的语言）；
+// 否则必须是受支持的语言，供 `skills update --lang` 用。
+func skillsInstaller(opts *Options, langOverride string) (skills.Installer, error) {
 	scope, layout, err := detectScope(opts)
 	if err != nil {
 		return skills.Installer{}, err
 	}
-	return skills.Installer{
+	in := skills.Installer{
 		Root:     layout.Root,
 		LockPath: layout.SkillsLockPath(),
 		Version:  version.Version,
 		Scope:    scope,
-	}, nil
+	}
+	if langOverride != "" {
+		lang, ok := i18n.ParseLang(langOverride)
+		if !ok {
+			return skills.Installer{}, clierr.Newf(clierr.CodeInvalidArgument,
+				i18n.T(msgid.LangInvalidValue, langOverride, langNamesJoined())).
+				WithExit(clierr.ExitUsage)
+		}
+		in.Lang = lang
+	}
+	return in, nil
 }
 
 // renderSkillsScope 在组件仓库模式下说一句"为什么只有一个文件"。
@@ -105,7 +121,7 @@ func renderSkillsScope(opts *Options, in skills.Installer) {
 }
 
 func runSkillsStatus(opts *Options) error {
-	in, err := skillsInstaller(opts)
+	in, err := skillsInstaller(opts, "")
 	if err != nil {
 		return err
 	}
@@ -113,8 +129,13 @@ func runSkillsStatus(opts *Options) error {
 	if err != nil {
 		return wrapSkillsError(err)
 	}
+	lang, err := in.ResolvedLang()
+	if err != nil {
+		return wrapSkillsError(err)
+	}
 
 	renderSkillsScope(opts, in)
+	opts.Printf("%s\n", i18n.T(msgid.CliSkillsLanguageLine, string(lang)))
 	t := newTable(i18n.T(msgid.LabelFile), i18n.T(msgid.CliSkillsStatus))
 	stale := 0
 	for _, s := range list {
@@ -137,8 +158,8 @@ func runSkillsStatus(opts *Options) error {
 	return nil
 }
 
-func runSkillsUpdate(opts *Options) error {
-	in, err := skillsInstaller(opts)
+func runSkillsUpdate(opts *Options, lang string) error {
+	in, err := skillsInstaller(opts, lang)
 	if err != nil {
 		return err
 	}
@@ -148,6 +169,11 @@ func runSkillsUpdate(opts *Options) error {
 	}
 
 	renderSkillsScope(opts, in)
+	if lang != "" {
+		// 只在显式 --lang 时才提；裸的 update 每次都印会很吵，且不带信息量——
+		// 项目的语言本来就没变。
+		opts.Printf("%s\n", i18n.T(msgid.CliSkillsLanguageLine, string(in.Lang)))
+	}
 	if len(res.Written) == 0 && len(res.Skipped) == 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliSkillsAiAssistantSkillsAreUp, version.Display()))
 		return nil
