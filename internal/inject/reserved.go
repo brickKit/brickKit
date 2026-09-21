@@ -5,7 +5,9 @@ import (
 	"unicode"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // 平台保留变量（004 §5.6.1）。
@@ -103,15 +105,15 @@ func reservedConflictWarning(componentID, configKey, envVar, pattern string, ext
 		suggestion = "custom" + strings.ToUpper(suggestion[:1]) + suggestion[1:]
 	}
 	return clierr.Warn(clierr.CodeConfigConflict,
-		"配置冲突：组件 "+componentID+" 的配置项已被忽略").
-		WithDetail("组件", componentID).
-		WithDetail("配置项", configKey).
-		WithDetail("环境变量名", envVar).
-		WithDetail("冲突的保留模式", pattern).
-		WithDetail("处理", "该配置项已被忽略，平台注入的值优先").
+		i18n.T(msgid.InjectReservedConflict, componentID)).
+		WithDetail(i18n.T(msgid.LabelComponent), componentID).
+		WithDetail(i18n.T(msgid.LabelConfigKey), configKey).
+		WithDetail(i18n.T(msgid.InjectLabelEnvVarName), envVar).
+		WithDetail(i18n.T(msgid.InjectLabelReservedPattern), pattern).
+		WithDetail(i18n.T(msgid.InjectLabelHandling), i18n.T(msgid.InjectReservedHandlingDetail)).
 		WithHint(
-			"修改 configSchema 中的配置项名称，避开平台保留变量",
-			"例如改为 "+suggestion,
+			i18n.T(msgid.InjectHintRenameConfigKey),
+			i18n.T(msgid.InjectHintRenameExample, suggestion),
 		)
 }
 

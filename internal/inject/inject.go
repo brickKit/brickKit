@@ -18,7 +18,9 @@ import (
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
@@ -176,26 +178,22 @@ func missingRequiredError(missing map[string][]string) *clierr.Error {
 	}
 	sort.Strings(refs)
 
-	err := clierr.New(clierr.CodeConfigInvalid, "错误：必填的组件配置没有值")
+	err := clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.InjectRequiredConfigMissing))
 	for _, ref := range refs {
 		keys := missing[ref]
 		sort.Strings(keys)
 		for _, key := range keys {
-			err = err.WithDetailf("缺少配置", "%s → %s（注入为 %s）", ref, key, EnvVarName(key))
+			err = err.WithDetail(i18n.T(msgid.InjectLabelMissingConfig),
+				i18n.T(msgid.InjectMissingConfigDetail, ref, key, EnvVarName(key)))
 		}
 	}
 	first := refs[0]
 	firstKey := missing[first][0]
 	return err.
-		WithDetail("原因", "组件在 configSchema.required 里声明了它，又没有给默认值——"+
-			"这一项平台推导不出来，只能由项目提供").
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.InjectRequiredReasonDetail)).
 		WithHint(
-			"在 brickkit.yaml 里给它一个值：\n"+
-				"    components:\n"+
-				"      - id: "+strings.SplitN(first, "@", 2)[0]+"\n"+
-				"        config:\n"+
-				"          "+firstKey+": <值>",
-			"值里可以写 ${ENV_VAR}，真值放 .env",
+			i18n.T(msgid.InjectHintSetValue, strings.SplitN(first, "@", 2)[0], firstKey),
+			i18n.T(msgid.InjectHintEnvVarValue),
 		)
 }
 
@@ -443,35 +441,34 @@ func sortedOverrideKeys(overrides map[string]any) []string {
 // 与未知字段提示同一段代码——两处不可能给出不同的答案。
 func unknownConfigWarning(componentID, key string, known []string) *clierr.Error {
 	w := clierr.Warn(clierr.CodeConfigInvalid,
-		"config 里有配置项不会生效：组件 "+componentID+" 的 "+key).
-		WithDetail("组件", componentID).
-		WithDetail("配置项", key)
+		i18n.T(msgid.InjectUnknownConfigKey, componentID, key)).
+		WithDetail(i18n.T(msgid.LabelComponent), componentID).
+		WithDetail(i18n.T(msgid.LabelConfigKey), key)
 
-	reason := "组件的 configSchema 里没有这一项"
+	reason := i18n.T(msgid.InjectUnknownKeyReason)
 	if guess := yamlcheck.Closest(key, known); guess != "" {
-		reason += "，是不是想写 " + guess + "？"
+		reason += i18n.T(msgid.InjectDidYouMean, guess)
 	}
-	w = w.WithDetail("原因", reason).
-		WithDetail("影响", "这一项不会被注入任何环境变量；组件会使用它自己的默认值")
+	w = w.WithDetail(i18n.T(msgid.LabelReason), reason).
+		WithDetail(i18n.T(msgid.LabelImpact), i18n.T(msgid.InjectUnknownKeyImpact))
 
 	if len(known) > 0 {
-		w = w.WithDetail("组件声明的配置项", strings.Join(known, "、"))
+		w = w.WithDetail(i18n.T(msgid.InjectLabelDeclaredConfig), strings.Join(known, i18n.T(msgid.ListSeparator)))
 	}
-	return w.WithTip("组件升级后删掉了这一项时也会看到这条——" +
-		"那说明这行覆盖从此不起作用了，可以清掉")
+	return w.WithTip(i18n.T(msgid.InjectUnknownKeyTip))
 }
 
 // noConfigSchemaWarning 提醒"这个组件压根没有可配置项"。
 func noConfigSchemaWarning(componentID string, overrides map[string]any) *clierr.Error {
 	keys := sortedOverrideKeys(overrides)
 	return clierr.Warn(clierr.CodeConfigInvalid,
-		"config 整块不会生效：组件 "+componentID+" 没有声明 configSchema").
-		WithDetail("组件", componentID).
-		WithDetailf("被忽略的配置项", "%s（共 %d 项）", strings.Join(keys, "、"), len(keys)).
-		WithDetail("影响", "一项都不会被注入任何环境变量").
-		WithHint("要让它可配置，先在组件的 component.yaml 里加 configSchema").
-		WithTip("平台只注入 configSchema 里声明过的配置项——" +
-			"没有声明，就没有对应的环境变量")
+		i18n.T(msgid.InjectNoConfigSchema, componentID)).
+		WithDetail(i18n.T(msgid.LabelComponent), componentID).
+		WithDetail(i18n.T(msgid.InjectLabelIgnoredKeys),
+			i18n.T(msgid.InjectIgnoredKeysDetail, strings.Join(keys, i18n.T(msgid.ListSeparator)), len(keys))).
+		WithDetail(i18n.T(msgid.LabelImpact), i18n.T(msgid.InjectNoSchemaImpact)).
+		WithHint(i18n.T(msgid.InjectHintAddConfigSchema)).
+		WithTip(i18n.T(msgid.InjectNoSchemaTip))
 }
 
 // sorted 返回按变量名排序的环境变量表。

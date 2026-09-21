@@ -546,7 +546,7 @@ func TestRequiredConfigWithoutValueBlocks(t *testing.T) {
 	b.component(m, config.Component{})
 
 	out := clierr.As(b.buildErr()).Format()
-	assert.Contains(t, out, "必填的组件配置没有值")
+	assert.Contains(t, out, "a required component config item has no value")
 	assert.Contains(t, out, "shop/order@1.0.0 → notifierBaseUrl")
 	assert.Contains(t, out, "NOTIFIER_BASE_URL", "要说清楚它会变成哪个环境变量")
 }
@@ -641,7 +641,7 @@ func TestUpgradeRemovedConfigKeyWarnsButDoesNotBlock(t *testing.T) {
 	require.Len(t, result.Warnings, 1, "该出一条警告：%v", result.Warnings)
 	text := result.Warnings[0].Format()
 	assert.Contains(t, text, "removedInV2", "要点名是哪一项")
-	assert.Contains(t, text, "不会生效")
+	assert.Contains(t, text, "won't take effect")
 }
 
 // ============================================================
@@ -669,7 +669,7 @@ func TestUnknownConfigKeyWarnsWithSuggestion(t *testing.T) {
 	require.Len(t, result.Warnings, 1, "%v", result.Warnings)
 	text := result.Warnings[0].Format()
 	assert.Contains(t, text, "greetting", "要点名是哪一项")
-	assert.Contains(t, text, "是不是想写 greeting？", "猜拼写用的是 yamlcheck 那一份实现")
+	assert.Contains(t, text, "did you mean greeting?", "猜拼写用的是 yamlcheck 那一份实现")
 }
 
 // 猜不出来时不硬猜，改成把可用的配置项列出来。
@@ -683,7 +683,7 @@ func TestUnknownConfigKeyWithoutSuggestionListsKnownKeys(t *testing.T) {
 	b.component(m, config.Component{Config: map[string]any{"totallyUnrelated": 1}})
 
 	text := b.build().Warnings[0].Format()
-	assert.NotContains(t, text, "是不是想写", "八竿子打不着就别硬猜")
+	assert.NotContains(t, text, "did you mean", "八竿子打不着就别硬猜")
 	assert.Contains(t, text, "greeting", "至少告诉他有哪些可用")
 }
 
@@ -705,7 +705,7 @@ func TestConfigOnComponentWithoutSchemaWarns(t *testing.T) {
 
 	require.Len(t, result.Warnings, 1, "整块只说一次，不是每项一条：%v", result.Warnings)
 	text := result.Warnings[0].Format()
-	assert.Contains(t, text, "没有声明 configSchema")
+	assert.Contains(t, text, "declares no configSchema")
 	assert.Contains(t, text, "anything")
 	assert.Contains(t, text, "logLevel")
 }
@@ -912,7 +912,7 @@ func TestSuggestionAvoidsUserDefinedEnvPrefixToo(t *testing.T) {
 // extractSuggestion 从警告文案里把"例如改为 X"的 X 抠出来。
 func extractSuggestion(t *testing.T, warningText string) string {
 	t.Helper()
-	const marker = "例如改为 "
+	const marker = "For example, rename it to "
 	idx := strings.Index(warningText, marker)
 	require.NotEqual(t, -1, idx, "警告文案里应该有改名建议：%s", warningText)
 	rest := warningText[idx+len(marker):]

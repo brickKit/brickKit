@@ -81,7 +81,7 @@ func TestReservedKeyWarningsFlagsEveryReservedShape(t *testing.T) {
 	var keys []string
 	for _, w := range warnings {
 		for _, d := range w.Details {
-			if d.Key == "配置项" {
+			if d.Key == "Config item" {
 				keys = append(keys, d.Value)
 			}
 		}

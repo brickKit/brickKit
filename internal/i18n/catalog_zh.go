@@ -230,4 +230,33 @@ var zh = map[string]string{
 	msgid.EngineHintMigrationBlocksMain:  "迁移失败时主服务不会启动（backoffLimit: 0，不会自动重试）",
 	msgid.EngineHintFixAndRerun:          "修好迁移脚本后重新 brickkit up：CLI 会自动清理这个 Job 再跑一次",
 	msgid.EngineKubectlOutputUnparseable: "错误：无法解析 kubectl 的输出",
+
+	msgid.InjectReservedConflict:       "配置冲突：组件 %[1]s 的配置项已被忽略",
+	msgid.InjectLabelEnvVarName:        "环境变量名",
+	msgid.InjectLabelReservedPattern:   "冲突的保留模式",
+	msgid.InjectLabelHandling:          "处理",
+	msgid.InjectReservedHandlingDetail: "该配置项已被忽略，平台注入的值优先",
+	msgid.InjectHintRenameConfigKey:    "修改 configSchema 中的配置项名称，避开平台保留变量",
+	msgid.InjectHintRenameExample:      "例如改为 %[1]s",
+
+	msgid.InjectRequiredConfigMissing: "错误：必填的组件配置没有值",
+	msgid.InjectLabelMissingConfig:    "缺少配置",
+	msgid.InjectMissingConfigDetail:   "%[1]s → %[2]s（注入为 %[3]s）",
+	msgid.InjectRequiredReasonDetail:  "组件在 configSchema.required 里声明了它，又没有给默认值——这一项平台推导不出来，只能由项目提供",
+	msgid.InjectHintSetValue:          "在 brickkit.yaml 里给它一个值：\n    components:\n      - id: %[1]s\n        config:\n          %[2]s: <值>",
+	msgid.InjectHintEnvVarValue:       "值里可以写 ${ENV_VAR}，真值放 .env",
+
+	msgid.InjectUnknownConfigKey:    "config 里有配置项不会生效：组件 %[1]s 的 %[2]s",
+	msgid.InjectUnknownKeyReason:    "组件的 configSchema 里没有这一项",
+	msgid.InjectDidYouMean:          "，是不是想写 %[1]s？",
+	msgid.InjectUnknownKeyImpact:    "这一项不会被注入任何环境变量；组件会使用它自己的默认值",
+	msgid.InjectLabelDeclaredConfig: "组件声明的配置项",
+	msgid.InjectUnknownKeyTip:       "组件升级后删掉了这一项时也会看到这条——那说明这行覆盖从此不起作用了，可以清掉",
+
+	msgid.InjectNoConfigSchema:      "config 整块不会生效：组件 %[1]s 没有声明 configSchema",
+	msgid.InjectLabelIgnoredKeys:    "被忽略的配置项",
+	msgid.InjectIgnoredKeysDetail:   "%[1]s（共 %[2]d 项）",
+	msgid.InjectNoSchemaImpact:      "一项都不会被注入任何环境变量",
+	msgid.InjectHintAddConfigSchema: "要让它可配置，先在组件的 component.yaml 里加 configSchema",
+	msgid.InjectNoSchemaTip:         "平台只注入 configSchema 里声明过的配置项——没有声明，就没有对应的环境变量",
 }

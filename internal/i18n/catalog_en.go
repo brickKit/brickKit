@@ -230,4 +230,33 @@ var en = map[string]string{
 	msgid.EngineHintMigrationBlocksMain:  "If the migration fails the main service won't start (backoffLimit: 0, no automatic retry)",
 	msgid.EngineHintFixAndRerun:          "Fix the migration script and rerun brickkit up: the CLI will clean up this Job and run it again",
 	msgid.EngineKubectlOutputUnparseable: "Error: could not parse kubectl's output",
+
+	msgid.InjectReservedConflict:       "Config conflict: the config item of component %[1]s was ignored",
+	msgid.InjectLabelEnvVarName:        "Environment variable name",
+	msgid.InjectLabelReservedPattern:   "Conflicting reserved pattern",
+	msgid.InjectLabelHandling:          "Handling",
+	msgid.InjectReservedHandlingDetail: "This config item is ignored; the platform-injected value takes precedence",
+	msgid.InjectHintRenameConfigKey:    "Rename the config item in configSchema to avoid the platform's reserved variables",
+	msgid.InjectHintRenameExample:      "For example, rename it to %[1]s",
+
+	msgid.InjectRequiredConfigMissing: "Error: a required component config item has no value",
+	msgid.InjectLabelMissingConfig:    "Missing config",
+	msgid.InjectMissingConfigDetail:   "%[1]s → %[2]s (injected as %[3]s)",
+	msgid.InjectRequiredReasonDetail:  "The component declares it in configSchema.required without a default — the platform can't derive this one, so the project has to supply it",
+	msgid.InjectHintSetValue:          "Give it a value in brickkit.yaml:\n    components:\n      - id: %[1]s\n        config:\n          %[2]s: <value>",
+	msgid.InjectHintEnvVarValue:       "The value may be ${ENV_VAR}; keep the real value in .env",
+
+	msgid.InjectUnknownConfigKey:    "A config item won't take effect: %[2]s on component %[1]s",
+	msgid.InjectUnknownKeyReason:    "The component's configSchema has no such item",
+	msgid.InjectDidYouMean:          "; did you mean %[1]s?",
+	msgid.InjectUnknownKeyImpact:    "This item is not injected as any environment variable; the component uses its own default",
+	msgid.InjectLabelDeclaredConfig: "Config items the component declares",
+	msgid.InjectUnknownKeyTip:       "You'll also see this after a component upgrade drops the item — it means this override no longer does anything and can be removed",
+
+	msgid.InjectNoConfigSchema:      "The whole config block won't take effect: component %[1]s declares no configSchema",
+	msgid.InjectLabelIgnoredKeys:    "Ignored config items",
+	msgid.InjectIgnoredKeysDetail:   "%[1]s (%[2]d in total)",
+	msgid.InjectNoSchemaImpact:      "None of them are injected as environment variables",
+	msgid.InjectHintAddConfigSchema: "To make it configurable, first add configSchema to the component's component.yaml",
+	msgid.InjectNoSchemaTip:         "The platform only injects config items that configSchema declares — with no declaration there is no matching environment variable",
 }
