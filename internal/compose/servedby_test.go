@@ -105,7 +105,7 @@ func TestServedByMigrationWarns(t *testing.T) {
 	for _, w := range result.Warnings {
 		if w.Code == clierr.CodeMigrationSkipped {
 			found = true
-			assert.Contains(t, w.Format(), "外壳")
+			assert.Contains(t, w.Format(), "Shell")
 		}
 	}
 	assert.True(t, found, "应该有一条关于迁移不会自动执行的警告：%+v", result.Warnings)
@@ -120,7 +120,7 @@ func TestServedByHealthCheckWarns(t *testing.T) {
 	require.NoError(t, err)
 	found := false
 	for _, w := range result.Warnings {
-		if w.Code == clierr.CodeConfigInvalid && strings.Contains(w.Format(), "健康检查") {
+		if w.Code == clierr.CodeConfigInvalid && strings.Contains(w.Format(), "health check") {
 			found = true
 		}
 	}

@@ -26,6 +26,13 @@ const (
 	LabelCommand   = "label.command"
 	LabelRepo      = "label.repo"
 	LabelResource  = "label.resource"
+	LabelShell     = "label.shell"
+
+	// 生成文件（docker-compose.yaml、K8s 清单）头注释的公共部分。
+	HeaderDoNotEdit   = "header.do_not_edit"
+	HeaderOverwritten = "header.overwritten"
+	HeaderGeneratedAt = "header.generated_at"
+	HeaderProject     = "header.project"
 
 	// ErrorPrefix 是"错误："/"Error: "这个前缀本身，只给"错误标题里要拼进一段
 	// 运行时才知道的原文"的场景用（比如把市场服务端返回的 message 接在它后面）。

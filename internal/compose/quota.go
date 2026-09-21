@@ -1,9 +1,13 @@
 package compose
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // Manifest 里的资源配额用 K8s 的写法（`100m` / `128Mi`），
@@ -24,14 +28,14 @@ func cpuToCompose(value string) (string, error) {
 	if millis, ok := strings.CutSuffix(value, "m"); ok {
 		parsed, err := strconv.ParseFloat(millis, 64)
 		if err != nil {
-			return "", fmt.Errorf("CPU 配额 %q 不合法（形如 100m 或 1）", value)
+			return "", errors.New(i18n.T(msgid.ComposeCPUQuotaInvalid, value))
 		}
 		return fmt.Sprintf("%.2f", parsed/1000), nil
 	}
 
 	parsed, err := strconv.ParseFloat(value, 64)
 	if err != nil {
-		return "", fmt.Errorf("CPU 配额 %q 不合法（形如 100m 或 1）", value)
+		return "", errors.New(i18n.T(msgid.ComposeCPUQuotaInvalid, value))
 	}
 	return fmt.Sprintf("%.2f", parsed), nil
 }
@@ -52,7 +56,7 @@ func memoryToCompose(value string) (string, error) {
 	} {
 		if number, ok := strings.CutSuffix(value, suffix.k8s); ok {
 			if _, err := strconv.ParseFloat(number, 64); err != nil {
-				return "", fmt.Errorf("内存配额 %q 不合法（形如 128Mi 或 1Gi）", value)
+				return "", errors.New(i18n.T(msgid.ComposeMemoryQuotaInvalid, value))
 			}
 			return number + suffix.compose, nil
 		}

@@ -329,7 +329,7 @@ func TestErrorTitleMatcher(t *testing.T) {
 	patterns := compileTitlePatterns([]string{
 		"错误：强依赖 <…> 被禁用",
 		"错误：<…> 校验失败",
-		"错误：<…>",     // 全是变量：不能进匹配池
+		"错误：<…>",   // 全是变量：不能进匹配池
 		"错误：<…>失败", // 固定文字不足三个字：不能进匹配池
 	})
 	require.Len(t, patterns, 2, "几乎全是变量的标题不该进匹配池")

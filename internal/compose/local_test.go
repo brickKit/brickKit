@@ -218,7 +218,7 @@ func TestLocalComponentWithMigrationWarns(t *testing.T) {
 	result := b.generate()
 
 	require.NotEmpty(t, result.Warnings, "local 组件带迁移时应给出提示")
-	assert.Contains(t, joinWarnings(result.Warnings), "迁移")
+	assert.Contains(t, joinWarnings(result.Warnings), "migration")
 	assert.Contains(t, joinWarnings(result.Warnings), "people/basic")
 }
 
@@ -511,7 +511,7 @@ func TestLocalDebugEnvFileHasHeader(t *testing.T) {
 	require.Len(t, result.LocalEnvFiles, 1)
 	text := string(result.LocalEnvFiles[0].Content)
 
-	assert.Contains(t, text, "由 BrickKit CLI 自动生成")
+	assert.Contains(t, text, "Generated automatically by the BrickKit CLI")
 	assert.Contains(t, text, "people/basic@1.0.0")
 	assert.Contains(t, text, "8081", "要写清这个进程该监听哪个端口")
 }
@@ -1037,7 +1037,7 @@ func TestLocalComponentWithExposeIsWarned(t *testing.T) {
 	assert.Contains(t, text, "exposePort")
 	// 光说"不生效"没用——必须告诉他东西到底在哪，否则他还得自己去翻另一段输出
 	assert.Contains(t, text, "9999", "要给出真实地址（localPort）")
-	assert.NotContains(t, text, "8888（", "别把那个不生效的端口说得像是真的")
+	assert.NotContains(t, text, "localhost:8888", "别把那个不生效的端口说得像是真的")
 }
 
 // 只写 expose、没写 exposePort 时同样要出声：平台一样什么都不做。
@@ -1076,5 +1076,5 @@ func TestContainerComponentWithExposeIsQuiet(t *testing.T) {
 	result, err := b.build(compose.Options{})
 	require.NoError(t, err)
 
-	assert.NotContains(t, joinWarnings(result.Warnings), "不生效")
+	assert.NotContains(t, joinWarnings(result.Warnings), "has no effect")
 }

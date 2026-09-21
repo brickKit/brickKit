@@ -199,8 +199,8 @@ func TestGeneratedFileHasHeaderComment(t *testing.T) {
 
 	text := string(b.generate().YAML)
 
-	assert.Contains(t, text, "由 BrickKit CLI 自动生成", "12.16")
-	assert.Contains(t, text, "请勿手动编辑")
+	assert.Contains(t, text, "Generated automatically by the BrickKit CLI", "12.16")
+	assert.Contains(t, text, "do not edit by hand")
 	assert.Contains(t, text, "2026-08-14T10:00:00Z", "生成时间要写进头部")
 	assert.Contains(t, text, "my-erp", "项目名要写进头部")
 }
@@ -869,7 +869,7 @@ func TestLocalhostDoesNotWarnForLocalOnlyComponents(t *testing.T) {
 	b.resource(r)
 
 	for _, w := range b.generate().Warnings {
-		assert.NotContains(t, w.Format(), "容器里连不上",
+		assert.NotContains(t, w.Format(), "the container can't reach",
 			"local: true 的组件用 localhost 是对的")
 	}
 }

@@ -25,8 +25,10 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/deploy"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -98,14 +100,14 @@ func newPortTable() *portTable { return &portTable{owner: map[int]string{}} }
 // 会让 IDE 里配好的调试端口莫名其妙地失效。
 func (t *portTable) claim(port int, owner string) error {
 	if previous, taken := t.owner[port]; taken && previous != owner {
-		return clierr.Newf(clierr.CodePortConflict,
-			"错误：宿主机端口 %d 被多个组件占用", port).
-			WithDetail("占用方", previous).
-			WithDetail("占用方", owner).
-			WithDetailf("宿主机端口", "%d", port).
+		return clierr.New(clierr.CodePortConflict,
+			i18n.T(msgid.ComposeHostPortConflict, port)).
+			WithDetail(i18n.T(msgid.ComposeLabelClaimant), previous).
+			WithDetail(i18n.T(msgid.ComposeLabelClaimant), owner).
+			WithDetailf(i18n.T(msgid.ComposeLabelHostPort), "%d", port).
 			WithHint(
-				"给其中一方改 localPort 或 exposePort",
-				"或者一次只本地调试其中一个组件",
+				i18n.T(msgid.ComposeHintChangePort),
+				i18n.T(msgid.ComposeHintDebugOneAtATime),
 			)
 	}
 	t.owner[port] = owner
@@ -161,19 +163,20 @@ func (p *plan) localExposeWarnings() []*clierr.Error {
 			fields = "expose / exposePort"
 		}
 		w := clierr.Warn(clierr.CodeConfigInvalid,
-			"local: true 的组件上，"+fields+" 本次不生效").
-			WithDetail("组件", refText(l.Ref)).
-			WithDetail("原因", "它不生成容器（跑在你的 IDE 里），平台没有端口可以映射到宿主机")
+			i18n.T(msgid.ComposeLocalFieldsIgnored, fields)).
+			WithDetail(i18n.T(msgid.LabelComponent), refText(l.Ref)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeLocalNoPortToMapDetail))
 		if l.Entry.ExposePort > 0 {
 			// 点名那个数字：使用者正是照着它去开浏览器的
-			w = w.WithDetailf("写着的 exposePort", "%d —— 没有容器会去 bind 它", l.Entry.ExposePort)
+			w = w.WithDetail(i18n.T(msgid.ComposeLabelExposePortWritten),
+				i18n.T(msgid.ComposeExposePortWrittenDetail, l.Entry.ExposePort))
 		}
 		// 光说"不生效"不够，得说清楚东西到底在哪，否则他还要自己去翻另一段输出
 		out = append(out, w.
-			WithDetailf("实际地址", "localhost:%d（由 localPort 决定）", l.Port).
+			WithDetail(i18n.T(msgid.ComposeLabelActualAddress), i18n.T(msgid.ComposeActualAddressDetail, l.Port)).
 			WithHint(
-				"让你的进程监听这个端口，浏览器直接访问它",
-				"要回到平台映射端口的模式，去掉这个组件的 local: true",
+				i18n.T(msgid.ComposeHintListenOnPort),
+				i18n.T(msgid.ComposeHintDropLocalForPorts),
 			))
 	}
 	return out
@@ -197,13 +200,14 @@ func (p *plan) localLabelWarnings() []*clierr.Error {
 			continue
 		}
 		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-			"local: true 的组件上，labels 本次不生效").
-			WithDetail("组件", refText(l.Ref)).
-			WithDetail("原因", "它不生成容器（跑在你的 IDE 里），没有可以挂标签的对象").
-			WithDetailf("写着的键", "%s", strings.Join(sortedLabelKeys(l.Entry.Labels), "、")).
+			i18n.T(msgid.ComposeLocalLabelsIgnored)).
+			WithDetail(i18n.T(msgid.LabelComponent), refText(l.Ref)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeLocalNoLabelTargetDetail)).
+			WithDetail(i18n.T(msgid.ComposeLabelKeysWritten),
+				strings.Join(sortedLabelKeys(l.Entry.Labels), i18n.T(msgid.ListSeparator))).
 			WithHint(
-				"要给自己写的外壳挂标签，写在你那份 compose 文件里",
-				"要回到平台挂标签的模式，去掉这个组件的 local: true",
+				i18n.T(msgid.ComposeHintLabelsOnShell),
+				i18n.T(msgid.ComposeHintDropLocalForLabels),
 			))
 	}
 	return out
@@ -237,7 +241,7 @@ func (p *plan) assignHostPorts() error {
 			continue
 		}
 		hostPort := exposeHostPort(c)
-		if err := ports.claim(hostPort, "组件 "+refText(c.Ref)+"（expose）"); err != nil {
+		if err := ports.claim(hostPort, i18n.T(msgid.ComposeOwnerExpose, refText(c.Ref))); err != nil {
 			return err
 		}
 		p.exposedPort[c.Service] = hostPort
@@ -248,7 +252,7 @@ func (p *plan) assignHostPorts() error {
 		if l.Entry.LocalPort == 0 {
 			continue
 		}
-		if err := ports.claim(l.Entry.LocalPort, "组件 "+refText(l.Ref)+"（localPort）"); err != nil {
+		if err := ports.claim(l.Entry.LocalPort, i18n.T(msgid.ComposeOwnerLocalPort, refText(l.Ref))); err != nil {
 			return err
 		}
 		p.localPort[l.Service] = l.Entry.LocalPort
@@ -258,7 +262,7 @@ func (p *plan) assignHostPorts() error {
 	//    （容器里互不干扰的 9090，搬到宿主机上就只有一个）
 	for _, l := range p.locals {
 		for _, extra := range l.Manifest.Deployment.ExtraPorts {
-			owner := fmt.Sprintf("组件 %s 的额外端口 %s", refText(l.Ref), extra.Name)
+			owner := i18n.T(msgid.ComposeOwnerExtraPort, refText(l.Ref), extra.Name)
 			if err := ports.claim(extra.Port, owner); err != nil {
 				return err
 			}
@@ -278,7 +282,7 @@ func (p *plan) assignHostPorts() error {
 			continue
 		}
 		port := ports.allocate(
-			l.Manifest.Deployment.Port, localPortBase, "组件 "+refText(l.Ref)+"（自动分配）")
+			l.Manifest.Deployment.Port, localPortBase, i18n.T(msgid.ComposeOwnerAutoAssigned, refText(l.Ref)))
 		p.localPort[l.Service] = port
 		p.locals[i].Port = port
 	}
@@ -320,7 +324,7 @@ func (p *plan) mapDependencyToHost(ports *portTable, dep resolver.Ref) {
 	// 端口要发布在这个外壳的 service 上"；为空表示依赖自己就有 compose
 	// service，走原来的路径。
 	shellHostService := ""
-	owner := "组件 " + refText(dep) + "（供本地调试访问）"
+	owner := i18n.T(msgid.ComposeOwnerDebugAccess, refText(dep))
 	if !p.rendered[service] {
 		shellRef, isServedByMember := p.shellOf(dep)
 		if !isServedByMember {
@@ -333,7 +337,7 @@ func (p *plan) mapDependencyToHost(ports *portTable, dep resolver.Ref) {
 			return
 		}
 		shellHostService = shellService
-		owner = "组件 " + refText(dep) + "（供本地调试访问，经外壳 " + refText(shellRef) + "）"
+		owner = i18n.T(msgid.ComposeOwnerDebugAccessViaShell, refText(dep), refText(shellRef))
 	}
 
 	node := p.graph.Node(dep)
@@ -612,18 +616,8 @@ func renderEnvFile(
 	l localComponent, vars []inject.Var, now time.Time, lookup func(string) (string, bool),
 ) []byte {
 	var b bytes.Buffer
-	b.WriteString("# ============================================================\n")
-	b.WriteString("# 由 BrickKit CLI 自动生成，供 IDE 加载，请勿手动编辑\n")
-	b.WriteString("# 每次 brickkit up 都会重新生成；改动请落到 brickkit.yaml\n")
-	fmt.Fprintf(&b, "# 组件：%s@%s（local: true）\n", l.Ref.ID, l.Ref.Version)
-	fmt.Fprintf(&b, "# 本地监听端口：%d —— 请让 IDE 里启动的进程监听这个端口\n", l.Port)
-	fmt.Fprintf(&b, "# 生成时间：%s\n", now.UTC().Format(time.RFC3339))
-	b.WriteString("# 用法：VS Code 在 launch.json 里配 envFile；\n")
-	b.WriteString("#       命令行 `set -a && source 本文件 && set +a` 之后再启动进程\n")
-	b.WriteString("# 值按 POSIX shell 规则加了引号，多行值（PEM 私钥等）与含 |、空格等\n")
-	b.WriteString("# 特殊字符的值都能被正确 source（brickKit 反馈：local-debug.*.env 序列化\n")
-	b.WriteString("# 多行值和特殊字符会截断或解析错误）\n")
-	b.WriteString("# ============================================================\n\n")
+	b.Write(deploy.CommentBanner(i18n.T(msgid.ComposeEnvHeader,
+		l.Ref.ID, l.Ref.Version, l.Port, now.UTC().Format(time.RFC3339))))
 
 	for _, v := range vars {
 		if v.ExistingSecretRef != "" {
@@ -720,13 +714,12 @@ func (p *plan) localMigrationWarnings() []*clierr.Error {
 			continue
 		}
 		out = append(out, clierr.Warn(clierr.CodeMigrationSkipped,
-			"提示：local 组件的数据库迁移不会自动执行").
-			WithDetail("组件", refText(l.Ref)).
-			WithDetail("原因", "local: true 的组件不生成容器，它的迁移容器也一并跳过").
+			i18n.T(msgid.ComposeLocalMigrationSkipped)).
+			WithDetail(i18n.T(msgid.LabelComponent), refText(l.Ref)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeLocalMigrationReasonDetail)).
 			WithHint(
-				"在本机手动执行该组件的迁移命令："+
-					strings.Join(l.Manifest.Migration.Command, " "),
-				"环境变量用 local-debug."+l.Service+".env 里的那一份",
+				i18n.T(msgid.ComposeHintRunMigrationByHand, strings.Join(l.Manifest.Migration.Command, " ")),
+				i18n.T(msgid.ComposeHintUseLocalDebugEnv, l.Service),
 			))
 	}
 	return out

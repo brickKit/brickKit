@@ -18,8 +18,10 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/deploy"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
 )
@@ -116,16 +118,9 @@ func networkName(project string) string { return deploy.NetworkName(project) }
 //
 // 生成的文件会被人打开看、被 git 记录，所以要写清楚"这是谁生成的、别手改"。
 func header(cfg *config.Config, plan *plan, now time.Time) []byte {
-	var b bytes.Buffer
-	b.WriteString("# ============================================================\n")
-	b.WriteString("# 由 BrickKit CLI 自动生成，请勿手动编辑\n")
-	b.WriteString("# 手工改动会在下次 brickkit up 时被覆盖；请改 brickkit.yaml\n")
-	fmt.Fprintf(&b, "# 生成时间：%s\n", now.UTC().Format(time.RFC3339))
-	fmt.Fprintf(&b, "# 项目：%s\n", cfg.Project)
-	fmt.Fprintf(&b, "# deploy.target: %s\n", cfg.Deploy.Target)
-	fmt.Fprintf(&b, "# 组件数：%d\n", len(plan.components))
-	b.WriteString("# ============================================================\n\n")
-	return b.Bytes()
+	return deploy.FileHeader(cfg.Project, now,
+		"deploy.target: "+cfg.Deploy.Target,
+		i18n.T(msgid.ComposeHeaderComponents, len(plan.components)))
 }
 
 // marshal 渲染 YAML。缩进 2 空格，与设计书样例一致。
@@ -134,7 +129,7 @@ func marshal(doc map[string]any) ([]byte, error) {
 	encoder := yaml.NewEncoder(&b)
 	encoder.SetIndent(2)
 	if err := encoder.Encode(doc); err != nil {
-		return nil, fmt.Errorf("渲染 docker-compose.yaml 失败：%w", err)
+		return nil, fmt.Errorf("%s%w", i18n.T(msgid.ComposeRenderFailed), err)
 	}
 	if err := encoder.Close(); err != nil {
 		return nil, err
@@ -376,14 +371,14 @@ func (p *plan) checkExposePorts() error {
 		}
 		hostPort := exposeHostPort(c)
 		if previous, taken := claimed[hostPort]; taken {
-			return clierr.Newf(clierr.CodePortConflict,
-				"错误：宿主机端口 %d 被多个组件占用", hostPort).
-				WithDetail("组件", previous).
-				WithDetail("组件", c.Ref.ID+"@"+c.Ref.Version).
-				WithDetailf("宿主机端口", "%d", hostPort).
+			return clierr.New(clierr.CodePortConflict,
+				i18n.T(msgid.ComposeHostPortConflict, hostPort)).
+				WithDetail(i18n.T(msgid.LabelComponent), previous).
+				WithDetail(i18n.T(msgid.LabelComponent), c.Ref.ID+"@"+c.Ref.Version).
+				WithDetailf(i18n.T(msgid.ComposeLabelHostPort), "%d", hostPort).
 				WithHint(
-					"在 brickkit.yaml 中给其中一个组件设置不同的 exposePort",
-					"或去掉其中一个组件的 expose: true（组件之间在容器网络内互访不需要 expose）",
+					i18n.T(msgid.ComposeHintChangeExposePort),
+					i18n.T(msgid.ComposeHintDropExpose),
 				)
 		}
 		claimed[hostPort] = c.Ref.ID + "@" + c.Ref.Version
@@ -744,14 +739,14 @@ func (p *plan) serviceNameResourceWarnings() []*clierr.Error {
 		seen[r.ID] = true
 
 		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-			"基础资源的 host 看起来是个服务名，容器里可能解析不了").
-			WithDetail("资源", r.ID).
+			i18n.T(msgid.ComposeHostLooksLikeService)).
+			WithDetail(i18n.T(msgid.LabelResource), r.ID).
 			WithDetail("host", r.Host).
-			WithDetail("原因", "平台不部署基础资源，compose 里不会有叫这个名字的 service").
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeHostReasonDetail)).
 			WithHint(
-				"资源跑在本机时写 host: "+hostMachineAlias+"（平台会自动补 extra_hosts）",
-				"资源跑在别处时写它的 IP 或域名",
-				"确实已经手工把该容器接进了本项目网络的话，这条提醒可以忽略",
+				i18n.T(msgid.ComposeHintHostOnThisMachine, hostMachineAlias),
+				i18n.T(msgid.ComposeHintHostElsewhere),
+				i18n.T(msgid.ComposeHintHostAlreadyAttached),
 			))
 	}
 	return out

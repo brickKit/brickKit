@@ -70,7 +70,7 @@ func TestUpDryRunGeneratesComposeFile(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	text := generatedCompose(t, f.Dir)
 
-	assert.Contains(t, text, "由 BrickKit CLI 自动生成")
+	assert.Contains(t, text, "Generated automatically by the BrickKit CLI")
 	assert.Contains(t, text, "people-basic-1-0-0:")
 	assert.Contains(t, text, "erp-backend-1-0-0:")
 	assert.Contains(t, text, "PEOPLE_BASIC_ENDPOINT=http://people-basic-1-0-0:8080")

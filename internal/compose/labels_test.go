@@ -128,7 +128,7 @@ func TestLocalComponentLabelsWarn(t *testing.T) {
 
 	var found string
 	for _, w := range result.Warnings {
-		if strings.Contains(w.Format(), "labels 本次不生效") {
+		if strings.Contains(w.Format(), "labels has no effect this run") {
 			found = w.Format()
 		}
 	}
