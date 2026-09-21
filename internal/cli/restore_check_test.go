@@ -370,7 +370,7 @@ func TestCheckArchivedInIndexMissingOnDiskNamesGitAddDashA(t *testing.T) {
 
 	assert.Contains(t, r.stderr, "git add -A components/",
 		"磁盘上源码已经没了，restore 无从下手——出路是把这次删除暂存进来")
-	assert.NotContains(t, r.stderr, "不想 → brickkit restore",
+	assert.NotContains(t, r.stderr, "Don't want that → brickkit restore",
 		"这里绝不能推荐 restore：它会回退掉使用者未提交的重新启用，而闸门照样拦")
 }
 

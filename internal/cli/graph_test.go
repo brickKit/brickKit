@@ -163,7 +163,7 @@ resources: []
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, `demo_hello_1_0_0["demo/hello@1.0.0<br/>local debug"]`)
-	assert.NotContains(t, r.stdout, "本地调试 :")
+	assert.NotContains(t, r.stdout, "local debug :")
 	assert.Contains(t, r.stdout, "    class demo_hello_1_0_0 local\n")
 }
 

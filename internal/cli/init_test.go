@@ -424,7 +424,7 @@ func TestInitHooksOnlyReportsRefreshOnReinstall(t *testing.T) {
 	r := runIn(t, dir, "init", "--hooks")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "was refreshed to the current version")
-	assert.NotContains(t, r.stdout, "已经装过了")
+	assert.NotContains(t, r.stdout, "already installed")
 }
 
 func TestInitHooksOnlyRejectsProjectName(t *testing.T) {

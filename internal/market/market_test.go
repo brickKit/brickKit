@@ -298,7 +298,7 @@ func TestUnreachableMarket(t *testing.T) {
 	require.NotNil(t, e)
 	assert.Equal(t, clierr.CodeNetworkUnreachable, e.Code)
 	assert.Contains(t, e.Format(), "Market unreachable")
-	assert.NotContains(t, e.Format(), "原因：Post \"http", "错误里不该重复整条 URL")
+	assert.NotContains(t, e.Format(), "Reason: Post \"http", "错误里不该重复整条 URL")
 }
 
 func TestInvalidMarketURL(t *testing.T) {

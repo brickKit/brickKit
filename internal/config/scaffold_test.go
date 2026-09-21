@@ -207,8 +207,8 @@ func TestEnsureGitignoreAppendsOnlyMissing(t *testing.T) {
 	assert.Contains(t, content, ".brickkit/credentials", "缺失条目被追加")
 	assert.Equal(t, 1, countLines(content, "components/"))
 	assert.Equal(t, 1, countLines(content, ".env"))
-	assert.NotContains(t, content, "# 组件源码目录", "整段已存在时不应留下孤立注释")
-	assert.NotContains(t, content, "# 环境变量文件")
+	assert.NotContains(t, content, "# Component source directory", "整段已存在时不应留下孤立注释")
+	assert.NotContains(t, content, "# Environment variable file")
 }
 
 // 已有文件没有结尾换行时，追加的内容不能和最后一行粘在一起。

@@ -146,7 +146,7 @@ func TestAddDoesNotClaimWeakDependencyWillNotStart(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "infra/bus", "它仍然要出现在依赖树里")
-	assert.NotContains(t, r.stdout, "默认不会启动")
+	assert.NotContains(t, r.stdout, "won't start by default")
 }
 
 // ============================================================

@@ -112,7 +112,7 @@ func TestStatusStillReadsEngineAfterGeneratedDirWiped(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "Running", "引擎说在跑，就得说在跑")
-	assert.NotContains(t, r.stdout, "尚未启动")
+	assert.NotContains(t, r.stdout, "not started yet")
 }
 
 func TestDownReportsEngineFailure(t *testing.T) {
