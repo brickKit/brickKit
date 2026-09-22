@@ -52,12 +52,14 @@ for i in hello caller; do
 	docker image inspect "brickkit-demo/$i:1.0.0" >/dev/null 2>&1 || have_images=0
 done
 have_k8s=0; command -v minikube >/dev/null 2>&1 && minikube status >/dev/null 2>&1 && have_k8s=1
+have_go=0; command -v go >/dev/null 2>&1 && have_go=1
 
 tier_ok() {
 	case "$1" in
 		core) return 0 ;;
 		docker) [[ $have_docker -eq 1 && $have_images -eq 1 ]] ;;
 		k8s) [[ $have_k8s -eq 1 ]] ;;
+		local) [[ $have_go -eq 1 ]] ;;
 		*) return 1 ;;
 	esac
 }
@@ -106,10 +108,26 @@ bind_pg() {
 	PYEOF
 }
 
+# local_mode 把 demo/hello 改成 mode: local——04 层要用它去触发真实的启动
+# 命令探测。跟 bind_pg 一样，这不是要验证的 brickkit 命令，是把项目推到
+# 某个状态的夹具步骤。
+local_mode() {
+	python3 - "$PROJ/brickkit.yaml" <<-'PYEOF'
+		import sys
+		path = sys.argv[1]
+		body = open(path, encoding="utf-8").read()
+		old = "  - id: demo/hello\n    version: 1.0.0\n"
+		if old not in body:
+		    sys.exit(1)
+		open(path, "w", encoding="utf-8").write(body.replace(old, old + "    mode: local\n", 1))
+	PYEOF
+}
+
 tier_why() {
 	case "$1" in
 		docker) [[ $have_docker -eq 0 ]] && echo "没有可用的 Docker" || echo "缺组件镜像（brickkit-demo/hello:1.0.0 等，见 docs/archive/guide/00-准备.md）" ;;
 		k8s) echo "minikube 没在跑" ;;
+		local) echo "没有可用的 go 工具链" ;;
 	esac
 }
 
@@ -136,6 +154,12 @@ while IFS=$'\t' read -r tier what _env cmd expect; do
 	# `up` 会正确地报"资源依赖未满足"——那不是指南坏了，是夹具不真实。
 	if [[ "$cmd" == "!bind-pg" ]]; then
 		bind_pg && printf "  ✅ [%s] %s\n" "$tier" "$what" && pass=$((pass + 1)) \
+			|| { printf "  ❌ [%s] %s\n" "$tier" "$what"; fail=$((fail + 1)); }
+		continue
+	fi
+
+	if [[ "$cmd" == "!local-mode" ]]; then
+		local_mode && printf "  ✅ [%s] %s\n" "$tier" "$what" && pass=$((pass + 1)) \
 			|| { printf "  ❌ [%s] %s\n" "$tier" "$what"; fail=$((fail + 1)); }
 		continue
 	fi

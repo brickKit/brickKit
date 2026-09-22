@@ -163,7 +163,19 @@ CASES = [
                    "en": "📋 Component state calculation:"}, 0),
     },
     {
-        "what": "05 存在多个版本时 remove 报歧义",
+        "what": "04 mode: local 的 dry-run 画面",
+        "reset": True,
+        "run": ["init hello-world --no-skills",
+                "!copy-into components/demo/hello demo-hello",
+                "add --local",
+                "!local-mode demo/hello"],
+        "file": "04-local-execution.md",
+        "check": ("up --dry-run",
+                  {"zh": "📋 组件状态计算：",
+                   "en": "📋 Component state calculation:"}, 0),
+    },
+    {
+        "what": "06 存在多个版本时 remove 报歧义",
         "reset": True,
         "run": ["init hello-world --no-skills",
                 "!copy-into components/demo/hello demo-hello",
@@ -174,7 +186,7 @@ CASES = [
                    "en": "❌ demo/hello has several versions (2.0.0, 1.0.0); please specify one:"}, 0),
     },
     {
-        "what": "05 指定版本后 remove 成功",
+        "what": "06 指定版本后 remove 成功",
         "run": [],
         "file": "06-upgrades-and-versions.md",
         "check": ("remove demo/hello@1.0.0",
@@ -182,7 +194,7 @@ CASES = [
                    "en": "✅ Removed demo/hello@1.0.0"}, 0),
     },
     {
-        "what": "06 资源 host 看起来像服务名的警告",
+        "what": "07 资源 host 看起来像服务名的警告",
         "reset": True,
         "run": ["init hello-world --no-skills",
                 "!copy-into components/demo/hello demo-hello",
@@ -195,7 +207,7 @@ CASES = [
                    "en": "⚠️ A resource's host looks like a service name, which may not resolve inside the container"}, 0),
     },
     {
-        "what": "07 fetch 只下产物、不动配置",
+        "what": "08 fetch 只下产物、不动配置",
         "reset": True,
         "run": ["init hello-world --no-skills", "!copy-into components/demo/hello demo-hello"],
         "file": "08-consuming-artifacts.md",
@@ -207,7 +219,7 @@ CASES = [
     # 只用现有命令，不需要 Docker；桩之后在主机上起什么 mock 工具不归平台管，
     # 也就没有可比对的 brickkit 输出。
     {
-        "what": "07 上游还没好：new 出桩",
+        "what": "08 上游还没好：new 出桩",
         "reset": True,
         "run": ["init hello-world --no-skills", "!copy-into components/demo/caller demo-caller"],
         "file": "08-consuming-artifacts.md",
@@ -219,7 +231,7 @@ CASES = [
     # brickkit.yaml 不动，所以不影响下一个场景的起点。这是这条配方里最容易踩的坑，
     # 教程里贴了这段报错，就得有人守着它。
     {
-        "what": "07 忘了改桩的版本号：add --local 被挡住",
+        "what": "08 忘了改桩的版本号：add --local 被挡住",
         "run": [],
         "file": "08-consuming-artifacts.md",
         "check": ("add --local",
@@ -227,7 +239,7 @@ CASES = [
                    "en": "❌ Error: required dependency missing"}, 0),
     },
     {
-        "what": "07 桩与消费方一起 add --local",
+        "what": "08 桩与消费方一起 add --local",
         "run": ["!set-version components/demo/hello 1.0.0"],
         "file": "08-consuming-artifacts.md",
         "check": ("add --local",
@@ -235,7 +247,7 @@ CASES = [
                    "en": "🔍 Found 2 components in local install source: local-dev"}, 0),
     },
     {
-        "what": "07 桩接成 debug 之后的 dry-run",
+        "what": "08 桩接成 debug 之后的 dry-run",
         "run": ["!local-debug demo/hello 18081"],
         "file": "08-consuming-artifacts.md",
         "check": ("up --dry-run",
@@ -246,7 +258,7 @@ CASES = [
     # 这一组按教程的行文顺序连着跑（同一个项目里一路推进），中间夹着的 !git / !append
     # 步骤对应教程里那些不是 brickkit 输出的命令（改源码、提交、推送）。
     {
-        "what": "08 add 默认不克隆源码",
+        "what": "09 add 默认不克隆源码",
         "reset": True,
         "run": ["!make-remotes", "init workspace-demo --no-skills", "!git-sources"],
         "file": "09-component-source.md",
@@ -255,7 +267,7 @@ CASES = [
                    "en": "📦 Adding demo/caller@1.0.0"}, 0),
     },
     {
-        "what": "08 --repo 克隆一个已在配置里的组件",
+        "what": "09 --repo 克隆一个已在配置里的组件",
         "run": [],
         "file": "09-component-source.md",
         "check": ("add demo/hello@1.0.0 --repo --yes",
@@ -263,7 +275,7 @@ CASES = [
                    "en": "ℹ️ demo/hello@1.0.0 already exists in brickkit.yaml, and --yes was given: refreshing the cache directly"}, 0),
     },
     {
-        "what": "08 克隆过再 --repo：说源码已经在了，而不是没有 Git 地址",
+        "what": "09 克隆过再 --repo：说源码已经在了，而不是没有 Git 地址",
         "run": [],
         "file": "09-component-source.md",
         "check": ("add demo/hello@1.0.0 --repo --yes",
@@ -271,7 +283,7 @@ CASES = [
                    "en": "ℹ️ demo/hello@1.0.0 already exists in brickkit.yaml, and --yes was given: refreshing the cache directly"}, 1),
     },
     {
-        "what": "08 --repo-all：已有源码的跳过并说理由",
+        "what": "09 --repo-all：已有源码的跳过并说理由",
         "run": [],
         "file": "09-component-source.md",
         "check": ("add demo/caller@1.0.0 --repo-all --yes",
@@ -279,7 +291,7 @@ CASES = [
                    "en": "ℹ️ demo/caller@1.0.0 already exists in brickkit.yaml, and --yes was given: refreshing the cache directly"}, 0),
     },
     {
-        "what": "08 关掉 caller，hello 也跟着不启动",
+        "what": "09 关掉 caller，hello 也跟着不启动",
         # 教程「改了源码，怎么推回去」那一节的两条路，顺手走完，让后面的状态与教程一致
         "run": ["!git components/demo/hello checkout -q -b feature/greeting",
                 "!append components/demo/hello/main.go // 换一句问候",
@@ -294,7 +306,7 @@ CASES = [
                    "en": "📋 Component state calculation:"}, 0),
     },
     {
-        "what": "08 sync 把两个的源码都收进归档",
+        "what": "09 sync 把两个的源码都收进归档",
         "run": [],
         "file": "09-component-source.md",
         "check": ("sync",
@@ -302,7 +314,7 @@ CASES = [
                    "en": "📂 Workspace tidying:"}, 0),
     },
     {
-        "what": "08 钉住 hello 之后的判定",
+        "what": "09 钉住 hello 之后的判定",
         "run": ["!pin demo/hello"],
         "file": "09-component-source.md",
         "check": ("up --dry-run",
@@ -310,7 +322,7 @@ CASES = [
                    "en": "📋 Component state calculation:"}, 1),
     },
     {
-        "what": "08 sync 把 hello 搬回来",
+        "what": "09 sync 把 hello 搬回来",
         "run": [],
         "file": "09-component-source.md",
         "check": ("sync",
@@ -318,7 +330,7 @@ CASES = [
                    "en": "📂 Workspace tidying:"}, 1),
     },
     {
-        "what": "08 删掉 mode，sync 把 caller 也搬回来",
+        "what": "09 删掉 mode，sync 把 caller 也搬回来",
         "run": ["!clear-mode"],
         "file": "09-component-source.md",
         "check": ("sync",
@@ -326,7 +338,7 @@ CASES = [
                    "en": "📂 Workspace tidying:"}, 2),
     },
     {
-        "what": "08 remove 被依赖方挡住",
+        "what": "09 remove 被依赖方挡住",
         "run": [],
         "file": "09-component-source.md",
         "check": ("remove demo/hello",
@@ -334,7 +346,7 @@ CASES = [
                    "en": "❌ Cannot remove demo/hello"}, 0),
     },
     {
-        "what": "08 remove 拦下未提交的改动",
+        "what": "09 remove 拦下未提交的改动",
         "run": ["!append components/demo/caller/main.go // 我正在改这里"],
         "file": "09-component-source.md",
         "check": ("remove demo/caller",
@@ -342,7 +354,7 @@ CASES = [
                    "en": "❌ Error: the source can't be recovered once it is deleted"}, 0),
     },
     {
-        "what": "08 remove 拦下没推的提交",
+        "what": "09 remove 拦下没推的提交",
         "run": ['!git components/demo/caller commit -q -am "wip: 调整 caller"'],
         "file": "09-component-source.md",
         "check": ("remove demo/caller",
@@ -350,7 +362,7 @@ CASES = [
                    "en": "❌ Error: the source can't be recovered once it is deleted"}, 1),
     },
     {
-        "what": "08 推上去之后 remove 放行",
+        "what": "09 推上去之后 remove 放行",
         "run": ["!git components/demo/caller push -q origin main"],
         "file": "09-component-source.md",
         "check": ("remove demo/caller",
@@ -358,7 +370,7 @@ CASES = [
                    "en": "✅ Removed demo/caller@1.0.0"}, 0),
     },
     {
-        "what": "08 remove 连归档里的那份源码一起删",
+        "what": "09 remove 连归档里的那份源码一起删",
         "run": ["!disable demo/hello", "sync"],
         "file": "09-component-source.md",
         "check": ("remove demo/hello",
@@ -366,7 +378,7 @@ CASES = [
                    "en": "✅ Removed demo/hello@1.0.0"}, 0),
     },
     {
-        "what": "08 项目根就是仓库根：init 顺手装上钩子",
+        "what": "09 项目根就是仓库根：init 顺手装上钩子",
         "reset": True,
         "run": ["!git-init"],
         "file": "09-component-source.md",
@@ -375,7 +387,7 @@ CASES = [
                    "en": "✅ Project initialized: shared-src"}, 0),
     },
     {
-        "what": "08 只提交归档的源码：钩子拦下",
+        "what": "09 只提交归档的源码：钩子拦下",
         "run": ["!drop-components-ignore",
                 "!copy-into components/demo/hello demo-hello",
                 "!copy-into components/demo/caller demo-caller",
@@ -391,7 +403,7 @@ CASES = [
                    "en": "❌ Commit blocked: component source is committed under the archive directory, but brickkit.yaml says it should start"}, 0),
     },
     {
-        "what": "08 restore 还原 mode，源码结构跟着走",
+        "what": "09 restore 还原 mode，源码结构跟着走",
         "run": ["!git . reset -q components/"],
         "file": "09-component-source.md",
         "check": ("restore",
@@ -399,7 +411,7 @@ CASES = [
                    "en": "📄 brickkit.yaml: mode restored from the last commit (other changes untouched)"}, 0),
     },
     {
-        "what": "08 submodule 挡住 remove（--force 也不放行的那一道）",
+        "what": "09 submodule 挡住 remove（--force 也不放行的那一道）",
         "reset": True,
         "run": ["!make-remotes", "!git-init", "init sub-demo --no-skills", "!drop-components-ignore",
                 "!git . -c protocol.file.allow=always submodule add -q ../remotes/hello.git components/demo/hello",
@@ -533,6 +545,16 @@ def pin(proj, component_id):
     if old not in s:
         sys.exit(f"❌ 配置里找不到 {component_id}，无法加 mode: enabled")
     open(path, "w", encoding="utf-8").write(s.replace(old, old + "    mode: enabled\n", 1))
+
+
+def local_mode(proj, component_id):
+    """把某个组件改成 mode: local（04 的场景：brickkit 自己探测、自己启动）。"""
+    path = os.path.join(proj, "brickkit.yaml")
+    s = open(path, encoding="utf-8").read()
+    old = f"  - id: {component_id}\n    version: 1.0.0\n"
+    if old not in s:
+        sys.exit(f"❌ 配置里找不到 {component_id}，无法改成 mode: local")
+    open(path, "w", encoding="utf-8").write(s.replace(old, old + "    mode: local\n", 1))
 
 
 def local_debug(proj, component_id, port):
@@ -757,6 +779,8 @@ def run_cases(lang, work):
                 disable(proj, step.split(None, 1)[1])
             elif step.startswith("!pin "):
                 pin(proj, step.split(None, 1)[1])
+            elif step.startswith("!local-mode "):
+                local_mode(proj, step.split(None, 1)[1])
             elif step.startswith("!local-debug "):
                 _, component_id, port = step.split(None, 2)
                 local_debug(proj, component_id, port)

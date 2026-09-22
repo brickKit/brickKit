@@ -31,3 +31,5 @@ docker	绑定资源（夹具，不比对输出）	-	!bind-pg	-
 docker	up 能起真容器	-	up	All components started
 docker	status 显示运行中	-	status	Running
 docker	dry-run 生成 compose	-	up --dry-run	Generated
+local	把 demo/hello 改成 mode: local（夹具，不比对输出）	-	!local-mode	-
+local	dry-run 探测出真实启动命令	-	up --dry-run	go run .
