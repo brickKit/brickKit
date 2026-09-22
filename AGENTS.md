@@ -564,6 +564,11 @@ The marketplace is an independent public platform — **it is not a component an
 installed**. It only answers two questions: **what's available to install? who's allowed to install
 it?** It doesn't install components, run components, or manage running state.
 
+**There is no BrickKit-operated public instance today.** `sources[].type: market`, `brickkit login`,
+`add`, `publish` and `fetch` all need a market URL because none is built into the CLI — point them
+at an instance you or your organization self-hosts (below), or one a team/vendor already runs for
+you.
+
 | Capability | Description |
 | --- | --- |
 | Publish / discover | Upload the Manifest + image reference (+ signature); search, tags, namespace filtering |

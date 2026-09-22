@@ -13,6 +13,8 @@ BrickKit is a **declarative component management and assembly platform**: build 
 
 Of these four, only the CLI is not long-running — it exits as soon as a command finishes. The desired state lives in `brickkit.yaml`, the actual state lives in Docker/Kubernetes, and the CLI itself holds no state in between.
 
+The Market row describes a role, not a live address: BrickKit doesn't operate a public instance today. A project gets one by self-hosting it, or by pointing at one someone else already runs (AGENTS.md §5.9).
+
 ## What happens when you run `brickkit up`
 
 ```mermaid

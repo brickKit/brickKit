@@ -32,6 +32,8 @@ graph TB
 
 The diagram deliberately draws the CLI with a dashed line, boxed off in its own "runs and exits" corner — there's no fifth part, no resident "main system." `brickkit up` runs and exits; what's actually running afterward is just your component containers and infrastructure.
 
+"You can host your own" in the Market row is the operative part: BrickKit doesn't operate a public instance today. A project reaches one by self-hosting it, or by pointing at one someone else already runs (AGENTS.md §5.9).
+
 ## Key terms
 
 | Term | Definition |
