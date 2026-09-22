@@ -257,3 +257,38 @@ func TestSeveralRecognisedButUnrunnableLanguagesAreAllReported(t *testing.T) {
 		{Language: "node", Reason: ReasonNoStartScript, Detail: "package.json"},
 	}, problems)
 }
+
+func TestLanguagesAreCompleteAndInAFixedOrder(t *testing.T) {
+	assert.Equal(t, []string{"go", "rust", "dotnet", "node", "java", "python", "ruby"}, Languages())
+}
+
+func TestALanguageGivenWithARunCommandStillContributesItsEnvironment(t *testing.T) {
+	dir := t.TempDir()
+
+	python := mustDetect(t, dir, Hints{Language: LangPython, RunCommand: []string{"uvicorn", "app:app"}})
+	assert.Equal(t, LangPython, python.Language)
+	assert.Equal(t, []string{"PYTHONUNBUFFERED=1"}, python.Env)
+
+	java := mustDetect(t, dir, Hints{Language: LangJava, RunCommand: []string{"java", "-jar", "app.jar"}})
+	assert.Equal(t, []string{"SERVER_PORT=18080"}, java.Env)
+
+	goCmd := mustDetect(t, dir, Hints{Language: LangGo, RunCommand: []string{"air"}})
+	assert.Equal(t, LangGo, goCmd.Language)
+	assert.Empty(t, goCmd.Env, "Go 没有额外的环境变量")
+}
+
+// ---- 语言与参数的校验 ----
+
+func TestAnUnknownLanguageIsRejected(t *testing.T) {
+	dir := t.TempDir()
+
+	_, err := detectAs(dir, "linux", Hints{Language: "cobol"})
+	var unknown *UnknownLanguageError
+	require.ErrorAs(t, err, &unknown)
+	assert.Equal(t, "cobol", unknown.Language)
+	assert.Contains(t, err.Error(), "cobol")
+	assert.Contains(t, err.Error(), "ruby", "报错里列出所有支持的语言")
+
+	_, err = detectAs(dir, "linux", Hints{Language: "cobol", RunCommand: []string{"x"}})
+	assert.ErrorAs(t, err, &unknown, "手写了 runCommand 也要校验 language，别让拼错的值悄悄溜过去")
+}
