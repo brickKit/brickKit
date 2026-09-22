@@ -76,6 +76,8 @@ type adapter struct {
 // 顺序固定：它既是 Languages() 的顺序，也是歧义报错里候选的顺序。
 var adapters = []adapter{
 	{LangGo, "go.mod", probeGo, nil},
+	{LangRust, "Cargo.toml", probeRust, nil},
+	{LangDotnet, "*.csproj", probeDotnet, nil},
 }
 
 // Languages 返回全部支持的语言标识（固定顺序）。
