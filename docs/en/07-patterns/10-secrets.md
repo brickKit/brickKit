@@ -1,22 +1,36 @@
 # Secrets: where they live, where they end up, and how a secret manager plugs in
 
+Here's a very common way this goes wrong. Someone takes a shortcut and writes a database password straight into `brickkit.yaml`, then commits it. Two days later they notice and delete that line in a new commit, assuming the problem is handled. It isn't: the password is still sitting, intact, in the earlier commit — in the `.git` history of everyone who ever pulled it, in every fork, in every CI cache and backup. Actually cleaning it up means rotating the credential at the source first, then rewriting history everywhere a copy might have spread.
+
+This page covers two things: how BrickKit makes that mistake hard to make in the first place, and — for a real secret — exactly where it goes, start to finish, inside BrickKit.
+
 ## What a secret is, and why it's kept apart
 
 A **secret** is a value that lets whoever holds it act as you: a database password, an API key, a login token. It's the platform's equivalent of a house key — copy it, and the copy opens the same door, no more questions asked, until someone changes the lock. An **address** — a component's `PEOPLE_BASIC_ENDPOINT`, a database's `host`, a public API's URL — is the equivalent of the building's street number: painted on the wall, printed on a business card, safe for a stranger to see. Knowing the address gets you to the door. It doesn't get you through it.
 
-That distinction is the whole reason BrickKit treats the two kinds of value so differently. `brickkit.yaml` is a file the platform explicitly wants committed to Git and reviewed like code — addresses, component IDs, resource `host`/`port` fields, all sit in it in plain sight, and that's fine, because none of them are keys. A real secret value sitting in that same file is a different kind of mistake, and a much more expensive one to undo: deleting the line in the next commit does not delete the secret. Every clone that ever fetched the earlier commit still has it in `.git` history, and so does every fork, every CI runner's cache, every backup — until someone notices, rotates the credential at the source, and only then (separately, and far more painfully) rewrites history everywhere it might have spread. A leaked door number costs nothing to "fix," because it was never a secret. A leaked key means changing the lock.
+| Safe to write into `brickkit.yaml` — like a street number | Never — like a house key |
+| --- | --- |
+| Component IDs, version numbers, a resource's `host`/`port`, `*_ENDPOINT`-style addresses | Database passwords, third-party API keys, tokens, private keys |
 
-**Keeping secrets apart** is BrickKit's answer to that asymmetry: a secret's real value is allowed to exist in exactly one place at a time — the environment of whatever process is actually running it — and everywhere else a project would normally write a value (the file you commit, `brickkit.yaml`; the deployment file the CLI generates; the terminal output a warning prints) holds only a *reference* to where the value lives, never the value itself.
+The first column sits in a file the platform explicitly wants committed to Git and reviewed like code, and that's fine, because none of them are keys. The second column sitting in that same file is a different kind of mistake, and a much more expensive one to undo — that's exactly the story at the top of this page. A leaked door number costs nothing to "fix," because it was never a secret. A leaked key means changing the lock.
+
+**Keeping secrets apart** is BrickKit's answer to that asymmetry, and it comes down to three commitments:
+
+1. `brickkit.yaml` only ever holds a **reference** — `${VAR}`, or on K8s optionally `existingSecret` — never the value itself;
+2. the real value exists in exactly one place at a time: the environment of whatever process is actually running it, or a Secret inside the cluster;
+3. when the CLI prints a warning, it names the config key, never the value.
 
 ## Where a secret lives in BrickKit
 
+The three places a secret can show up, ordered from farthest from the deployment file to nearest:
+
 | Declared where | Always a secret? | Ends up in a generated deployment file? |
 | --- | --- | --- |
-| `resources[].password` | Yes, unconditionally — a resource password is always treated as a credential, no matter the resource `kind` | Yes (see below) |
-| A `configSchema` property with `secret: true` | Only if the component author declared it — the platform never guesses from a key's name (a config item that is merely *called* `apiKey` is delivered as an ordinary plain value) | Yes (see below) |
 | `sources[].authToken` | Yes — it's the CLI's own credential for a Market or a private Git source | No. It's used by the CLI process itself when it talks to that source, and never becomes an environment variable inside any component's container |
+| A `configSchema` property with `secret: true` | Only if the component author declared it — the platform never guesses from a key's name (a config item that is merely *called* `apiKey` is delivered as an ordinary plain value) | Yes (see below) |
+| `resources[].password` | Yes, unconditionally — a resource password is always treated as a credential, no matter the resource `kind` | Yes (see below) |
 
-`brickkit.yaml` never holds the real value for either of the first two rows — only a `${VAR}` reference (or, on K8s, optionally an `existingSecret` reference instead — see "`existingSecret`" below). The CLI looks for the real value in two places, in this order: the environment of the process the CLI itself is running in, then the project root's `.env` file. `brickkit init` writes both `.env` and `.brickkit/generated/` (where every deployment file the CLI writes ends up) into `.gitignore` when it creates the project. These are the relevant lines of that file, as `brickkit init` wrote it (the comments are Chinese — "files generated by the BrickKit CLI (not committed to Git)" and "environment variable file (contains passwords)"):
+`brickkit.yaml` never holds the real value for either of the last two rows — only a `${VAR}` reference (or, on K8s, optionally an `existingSecret` reference instead — see "`existingSecret`" below). The CLI looks for the real value in two places, in this order: the environment of the process the CLI itself is running in, then the project root's `.env` file. `brickkit init` writes both `.env` and `.brickkit/generated/` (where every deployment file the CLI writes ends up) into `.gitignore` when it creates the project. These are the relevant lines of that file, as `brickkit init` wrote it (the comments are Chinese — "files generated by the BrickKit CLI (not committed to Git)" and "environment variable file (contains passwords)"):
 
 ```
 $ grep -B1 -E '^(\.brickkit/generated/|\.env)$' .gitignore
@@ -29,14 +43,9 @@ $ grep -B1 -E '^(\.brickkit/generated/|\.env)$' .gitignore
 
 ## Where it ends up
 
-| Target | Where the real value lands | Who resolves the reference, and when |
-| --- | --- | --- |
-| Docker (`deploy.target: docker`) | Never in a file the CLI writes. `docker-compose.yaml` keeps the `${VAR}` placeholder exactly as written | `docker compose` itself, when a container actually starts (process environment first, `.env` second) |
-| K8s (`deploy.target: k8s`) | A generated `Secret` under `.brickkit/generated/k8s/secrets/` (file mode `0600`) — the Deployment's `env` entry holds only a `secretKeyRef` pointing at it | The CLI, at generation time — same order, process environment first, `.env` second |
-| `mode: debug` (Docker only) | `local-debug.<versioned-service-name>.env` (also `0600`, also under `.brickkit/generated/`) — deliberately plaintext, because it's what the IDE actually loads to run the process | The CLI, at generation time |
-| `mode: local` (Docker only) | Never in a file at all — the CLI builds the process's environment in memory and hands it directly to the process it launches. Nothing is ever written to disk, so there's no plaintext env file to leave behind, unlike `mode: debug` | The CLI, at `up` time, right before launching the process |
+Same `brickkit.yaml`, but a different `deploy.target`, sends the real value somewhere completely different. Every command below was actually run for this page, against one small demo component, `acme/hello`, and each output block is exactly what its command printed. (`2>/dev/null` hides the JSON log lines the CLI writes to stderr; `grep 'Generated'` keeps the one line that says what was generated.)
 
-Every command below was actually run for this page, against one small demo component, `acme/hello`, and each output block is exactly what its command printed. (`2>/dev/null` hides the JSON log lines the CLI writes to stderr; `grep 'Generated'` keeps the one line that says what was generated.) The component declares a `database` resource and one `secret: true` config property, `apiKey`:
+The component declares a `database` resource and one `secret: true` config property, `apiKey`:
 
 ```yaml
 dependencies:
@@ -52,7 +61,7 @@ configSchema:
       secret: true
 ```
 
-The project's `brickkit.yaml` — apart from `deploy.target`, which is `docker` or `k8s` depending on the run — binds that database and supplies the config value as references, and the project's `.env` file holds `PG_PASSWORD=pw-from-dotenv` and `THIRD_PARTY_KEY=key-from-dotenv`:
+The project's `brickkit.yaml` — `deploy.target` is `docker` or `k8s` depending on the run — binds that database and supplies the config value as references (only the relevant parts of `components` and `resources` are shown here; `project`, `sources` and the rest of the file aren't, but the `brickkit.io/project: demo` and `namespace: brickkit-demo` that show up in the command output below come from those other fields in the real file). The project's `.env` file holds `PG_PASSWORD=pw-from-dotenv` and `THIRD_PARTY_KEY=key-from-dotenv`:
 
 ```yaml
 components:
@@ -74,20 +83,9 @@ resources:
         database: hello
 ```
 
-**Docker, values set in the process environment:**
+### K8s: the CLI resolves it itself, into a Secret
 
-```
-$ PG_PASSWORD=pw-from-env THIRD_PARTY_KEY=key-from-env brickkit up --dry-run 2>/dev/null | grep 'Generated'
-📄 Generated: .brickkit/generated/docker-compose.yaml
-
-$ grep -n "PASSWORD\|API_KEY" .brickkit/generated/docker-compose.yaml
-22:      - API_KEY=${THIRD_PARTY_KEY}
-27:      - DATABASE_PASSWORD=${PG_PASSWORD}
-```
-
-The two lines that carry these variables hold the placeholders exactly as written in `brickkit.yaml`. Neither `pw-from-env` (which really was in the environment `up` ran in) nor `pw-from-dotenv` appears anywhere in the file. This is the behavior AGENTS.md §5.2 describes: the CLI's own parsing step never resolves a `${VAR}` in `config` or `resources[].password` (internally, `internal/config`'s `deferredRefs` marks exactly these fields), on purpose, so the file it writes stays safe to open and diff.
-
-**K8s, same component, nothing in the process environment (so the values come from `.env`):**
+K8s is the most involved of the four: the CLI resolves the real value itself and writes it into a dedicated Secret file. This run has nothing in the process environment, so the values come from `.env`:
 
 ```
 $ env -u PG_PASSWORD -u THIRD_PARTY_KEY brickkit up --dry-run 2>/dev/null | grep 'Generated'
@@ -103,6 +101,8 @@ $ stat -c '%A %s %n' .brickkit/generated/k8s/secrets/*
 -rw------- 548 .brickkit/generated/k8s/secrets/config-secrets.yaml
 -rw------- 534 .brickkit/generated/k8s/secrets/resource-secrets.yaml
 ```
+
+Both Secret files come out `-rw-------` (that's `0600`). The resource password and the `secret: true` config value each get their *own* file — never mixed into one:
 
 ```
 $ sed -n '/^apiVersion/,$p' .brickkit/generated/k8s/secrets/resource-secrets.yaml
@@ -132,6 +132,8 @@ stringData:
 type: Opaque
 ```
 
+The Deployment itself holds no value at all — only a `secretKeyRef` pointing at one of those two Secrets:
+
 ```
 $ grep -A4 "name: API_KEY" .brickkit/generated/k8s/deployments/acme-hello-0-1-0.yaml
             - name: API_KEY
@@ -148,7 +150,7 @@ $ grep -A4 "name: DATABASE_PASSWORD" .brickkit/generated/k8s/deployments/acme-he
                   name: main-db-secret
 ```
 
-Two things worth noticing. The resource password and the `secret: true` config value each get their *own* generated Secret file (`resource-secrets.yaml` and `config-secrets.yaml`) — never mixed into one, and a file is only written when there is something to put in it, so a project with only resource passwords never sees a `config-secrets.yaml`. And the Deployment holds no value at all, only a `secretKeyRef` naming one of those two Secrets.
+A file is only written when there's something to put in it, too — a project with only resource passwords never sees a `config-secrets.yaml` at all.
 
 The lookup order really is process environment first, `.env` second. Run it again with values in the environment as well — the `.env` file is still there, and loses:
 
@@ -161,7 +163,22 @@ $ grep -h '^  password:\|^  API_KEY:' .brickkit/generated/k8s/secrets/*.yaml
   password: pw-from-env
 ```
 
-**A caveat worth knowing before it costs you a debugging session:** `docker compose config` — the standard way to sanity-check a generated compose file — *does* expand `${VAR}` placeholders, in that same process-environment-then-`.env` order, and prints the real value. Against the Docker-target file from above, with only `.env` available, and then with the environment set as well:
+### Docker: the CLI never resolves it at all
+
+Docker takes a completely different path: the CLI never resolves `${VAR}` itself — it writes the placeholder verbatim into `docker-compose.yaml`, and `docker compose` resolves it the moment a container actually starts. This run has the values in the process environment:
+
+```
+$ PG_PASSWORD=pw-from-env THIRD_PARTY_KEY=key-from-env brickkit up --dry-run 2>/dev/null | grep 'Generated'
+📄 Generated: .brickkit/generated/docker-compose.yaml
+
+$ grep -n "PASSWORD\|API_KEY" .brickkit/generated/docker-compose.yaml
+22:      - API_KEY=${THIRD_PARTY_KEY}
+27:      - DATABASE_PASSWORD=${PG_PASSWORD}
+```
+
+The two lines that carry these variables hold the placeholders exactly as written in `brickkit.yaml`. Neither `pw-from-env` (which really was in the environment `up` ran in) nor `pw-from-dotenv` appears anywhere in the file. This is the behavior AGENTS.md §5.2 describes: the CLI's own parsing step never resolves a `${VAR}` in `config` or `resources[].password` (internally, `internal/config`'s `deferredRefs` marks exactly these fields), on purpose, so the file it writes stays safe to open and diff.
+
+**A caveat worth knowing before it costs you a debugging session.** The standard way to sanity-check a generated compose file is `docker compose config` — but it *does* expand `${VAR}` placeholders, in that same process-environment-then-`.env` order, and prints the real value. Against the file above, first with only `.env` available, then with the environment set as well:
 
 ```
 $ docker compose -f .brickkit/generated/docker-compose.yaml --project-directory . config | grep -n "API_KEY\|PASSWORD"
@@ -177,7 +194,33 @@ $ PG_PASSWORD=pw-from-real-env THIRD_PARTY_KEY=key-from-real-env docker compose 
 
 The file the CLI wrote never had the real value in it. Running `docker compose config` against it does. Don't paste that command's output into a ticket, a chat message, or a CI log — it defeats the entire point of keeping the placeholder in the file in the first place.
 
+### `mode: debug`: plaintext, for the IDE to load
+
+`mode: debug` only exists under the Docker target. A component in this mode has no container, so the CLI writes it a `local-debug.<versioned-service-name>.env` instead, which the IDE loads to run the process. The values in that file are already resolved to **plaintext**, deliberately: the IDE or shell loading it reads it line by line as `KEY=value` (an `envFile` setting, or a `source` command) and never parses a `${VAR}` placeholder inside a value — write a literal `${PG_PASSWORD}` into it, and what gets loaded is that literal string, not the real password it would otherwise point at. So the CLI has to resolve the value *before* writing this file, rather than leaving that step to whatever loads it. It lands alongside every other generated file under `.brickkit/generated/` (gitignored by default), file mode `0600`.
+
+### `mode: local`: never touches disk at all
+
+`mode: local` also only exists under the Docker target, and also has no container, but takes a more direct route still: the CLI assembles this process's environment in memory and hands it straight to the process it launches — no file in between, at any point. It doesn't write a Secret the way K8s does, and it doesn't write a plaintext `.env` for an IDE to load the way `mode: debug` does — because no IDE is involved in this step at all. The CLI itself is what launches the process, so once the value is resolved it's simply handed over, with no "write a file, have some other program read it back" step in the middle. The result: a `mode: local` component's secrets never land, even momentarily, in plaintext in any file on disk.
+
+### Summary
+
+| Deploy target | Where the real value lands | Who resolves it, and when |
+| --- | --- | --- |
+| K8s | A generated `Secret` under `.brickkit/generated/k8s/secrets/` (file mode `0600`) — the Deployment's `env` entry holds only a `secretKeyRef` pointing at it | The CLI, at generation time |
+| Docker | Never in a file the CLI writes — `docker-compose.yaml` keeps the `${VAR}` placeholder exactly as written | `docker compose` itself, when a container actually starts |
+| `mode: debug` | `local-debug.<versioned-service-name>.env` (also `0600`, also under `.brickkit/generated/`), deliberately plaintext | The CLI, at generation time |
+| `mode: local` | Never in a file at all — the CLI builds the process's environment in memory and hands it directly to the process it launches | The CLI, right before launching the process |
+
 ## Two ways to plug in a secret manager
+
+The two mechanisms side by side, before the details:
+
+| | ① Put the value in the process environment | ② `existingSecret` |
+| --- | --- | --- |
+| What you hand BrickKit | The **value** itself | The **name** of a Secret that already exists in the cluster |
+| Does the value pass through the CLI | Yes — the CLI reads it on K8s, `docker compose` reads it on Docker | No — the CLI never sees the value, at either end |
+| Deploy targets it works on | Docker and K8s | K8s only |
+| Do you supply the value again on every `up` | Yes | No |
 
 ### Put the value in the process environment, then `brickkit up`
 
@@ -193,10 +236,12 @@ That line reads a value from wherever it's mounted (a Docker/Swarm secret file, 
 
 The first mechanism still asks *you* to hand `brickkit up` the value, on every run. Sometimes that's not what you want: the value already lives in a Kubernetes `Secret` that something else created and keeps up to date, and you'd rather point at it than feed it through the CLI at all. The simplest case is ops having run `kubectl create secret` by hand. The other common cases are tools built for exactly this, and it helps to know what kind of tool each one is, because they don't all end up in the same place:
 
-- **External Secrets Operator** is a program that runs inside the cluster, watches an outside secret store (HashiCorp Vault, AWS Secrets Manager, and similar), and keeps ordinary Kubernetes `Secret`s in step with what's stored there.
-- **Vault Secrets Operator** is HashiCorp's own program for the case where the store is Vault: it runs inside the cluster and copies the values held in Vault into ordinary Kubernetes `Secret`s.
-- **Sealed Secrets** lets you commit an *encrypted* Secret to Git; only a controller inside the cluster holds the key that turns it back into a real `Secret`.
-- **Vault Agent Injector** looks similar but delivers differently: it adds a helper container to your Pods that logs into Vault and writes the values into files inside the Pod. It never produces a Kubernetes `Secret` object, so it is the one of the four that `existingSecret` cannot point at. If Vault is your store and you want to use `existingSecret`, put the Vault Secrets Operator or the External Secrets Operator in between — either one turns Vault's values into real `Secret`s.
+| Tool | Roughly what it is | Does it end up with a real K8s Secret | Can `existingSecret` point at it |
+| --- | --- | --- | --- |
+| External Secrets Operator | Runs inside the cluster, watches an outside secret store (HashiCorp Vault, AWS Secrets Manager, and similar), and keeps ordinary Kubernetes `Secret`s in step with what's stored there | Yes | Yes |
+| Vault Secrets Operator | HashiCorp's own program for the case where the store is Vault: runs inside the cluster and copies the values held in Vault into ordinary Kubernetes `Secret`s | Yes | Yes |
+| Sealed Secrets | Lets you commit an *encrypted* Secret to Git; only a controller inside the cluster holds the key that turns it back into a real `Secret` | Yes | Yes |
+| Vault Agent Injector | Adds a helper container to your Pods that logs into Vault and writes the values into files inside the Pod | No — the value only ever exists as a file inside the Pod | No. If Vault is your store and you want to use `existingSecret`, put the Vault Secrets Operator or the External Secrets Operator in between — either one turns Vault's values into real `Secret`s |
 
 You don't need to know how to run any of them. All `existingSecret` needs is that, by the time your Pod starts, an ordinary Secret with the name you wrote exists in the namespace.
 
@@ -252,12 +297,29 @@ Compare with the K8s run above: five manifests there because two Secret files ex
 
 The difference between the two mechanisms is exactly this: the first hands **the value** to `brickkit up`, on every run; the second hands **the whole Secret object** to Kubernetes, and the CLI never touches the value at either end — not at generation time, not ever. Neither one asks BrickKit to know what Vault, AWS Secrets Manager, or any other product even is.
 
-That's deliberate, and it's why BrickKit doesn't call a secret-manager SDK directly on your behalf, either — it's [entry 18 of the rejection list](../06-architecture/00-overview.md#18-fetching-secrets-from-an-external-store) (AGENTS.md §4.1), and a close neighbour of the rejected config center for almost the same reasons. A real secret manager SDK integration would mean one client library per backend — Vault, AWS, GCP, Azure all have different APIs, and a project only ever needs one of them, so the other three would be dead weight the CLI still has to maintain. It would mean every `brickkit up` — `--dry-run` included, a command whose entire point is "only generate files, touch nothing real" — needing network access to the store just to print a file that won't be used. And it would mean the CLI, and every CI job that runs it, holding the store's own credentials, which usually open far more than the handful of values one project needs; today the CLI only ever handles the specific values you put in the environment. Handing the CLI a value it can put straight into a generated file, or a name it can put straight into a `secretKeyRef`, needs none of that.
+### Why BrickKit doesn't call a secret-manager SDK itself
+
+The obvious next idea is to have BrickKit reach into Vault or AWS Secrets Manager directly, on your behalf. That's [entry 18 of the rejection list](../06-architecture/00-overview.md#18-fetching-secrets-from-an-external-store) (AGENTS.md §4.1), and a close neighbour of the rejected config center, for almost the same reasons. Doing it for real would cost three things, worst first:
+
+- **The CLI would have to hold the store's own credentials.** Reaching into Vault or AWS means the CLI — and every CI job that runs it — needs a credential that can log into that store, and that credential usually opens far more than the handful of values one project needs. Today, with either mechanism, the only values the CLI ever handles are the ones the project itself put in the environment.
+- **`--dry-run` would stop meaning "touches nothing real."** The entire point of that flag is generating files without touching any real system. Fetching a value means it now needs network access and a login to the store, just to print a file that won't even be used.
+- **One SDK per store.** Vault, AWS, GCP, and Azure all have different APIs, and a project only ever needs one of them — the other three become dead weight the CLI still has to maintain.
+
+Handing the CLI a value it can put straight into a generated file, or a name it can put straight into a `secretKeyRef`, needs none of that.
 
 ## Honest boundaries
 
+### What the CLI itself produces
+
 - **The K8s Secret files the CLI generates are plaintext on disk** — `0600`, yes, and gitignored by default, but plaintext, and regenerated by every `up`. Don't upload `.brickkit/generated/` as a CI artifact, and don't assume file permissions alone are a substitute for the access control a real secret store gives you.
-- **`existingSecret` doesn't check that the Secret it names actually exists in the cluster, or that it actually has the key you named.** That's genuinely Kubernetes' job, not the CLI's — it happens the moment the Pod tries to start, and a missing Secret or key surfaces there, as a Pod stuck unable to start, not as anything `brickkit up` could have caught at generation time (the CLI never talks to a live cluster during generation).
-- **A literal value gets a warning, and `secret: true` makes that unconditional.** Write a plain string where a `secret: true` property should hold a `${VAR}` reference (or an `existingSecret` reference) and `brickkit up` warns, whatever the key is called. A key that was *not* declared `secret: true` only draws that warning when its name looks like a secret (`password`, `token`, `apiKey`, …) — the check goes on the name alone. The warning lists key names and never the value.
-- **Under Docker, `secret: true` changes no behavior, and `existingSecret` is ignored.** The generated compose file only ever contains the `${VAR}` placeholder text, never a resolved value, and it comes out identical with or without `secret: true` — the flag exists to decide where a *resolved* value goes, and on Docker the CLI never resolves one. `existingSecret` has no Docker equivalent: `brickkit up` warns, and the variable is simply not injected, as if that setting had not been written.
 - **There's no "load this whole `config` block from one Secret" shortcut** (the `envFrom`-style bulk import Kubernetes itself supports). Every reference is written one property at a time, on purpose: it's the same design choice AGENTS.md §9.23 makes for dependency names — a variable name that's computed from something (here, the config key) stays traceable back to it; a bulk import would trade that traceability for a few lines of typing.
+
+### What the CLI can't reach
+
+- **`existingSecret` doesn't check that the Secret it names actually exists in the cluster, or that it actually has the key you named.** That's genuinely Kubernetes' job, not the CLI's — it happens the moment the Pod tries to start, and a missing Secret or key surfaces there, as a Pod stuck unable to start, not as anything `brickkit up` could have caught at generation time (the CLI never talks to a live cluster during generation).
+
+### What warnings say, and what doesn't work under Docker
+
+- **A literal value gets a warning, and `secret: true` makes that unconditional.** Write a plain string where a `secret: true` property should hold a `${VAR}` reference (or an `existingSecret` reference) and `brickkit up` warns, whatever the key is called. A key that was *not* declared `secret: true` only draws that warning when its name looks like a secret (`password`, `token`, `apiKey`, …) — the check goes on the name alone. The warning lists key names and never the value.
+- **Under Docker, `secret: true` changes no behavior.** The generated compose file only ever contains the `${VAR}` placeholder text, never a resolved value, and it comes out identical with or without `secret: true` — the flag exists to decide where a *resolved* value goes, and on Docker the CLI never resolves one.
+- **Under Docker, `existingSecret` is ignored.** Docker has no equivalent concept: `brickkit up` warns, and the variable is simply not injected, as if that setting had not been written.
