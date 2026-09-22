@@ -34,6 +34,7 @@ const (
 	CliStatusViewTheLogsToFind             = "cli.status.view_the_logs_to_find"
 	CliStatusRunningAndResourceStatusAre   = "cli.status.running_and_resource_status_are"
 	CliStatusToVerifyFromInsideThe         = "cli.status.to_verify_from_inside_the"
+	CliStatusLocalSessionRunning           = "cli.status.local_session_running"
 	CliStatusLong                          = "cli.status.long"
 )
 

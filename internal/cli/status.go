@@ -15,6 +15,7 @@ import (
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/sessionlock"
 )
 
 // newStatusCommand 实现 brickkit status（004 §3.7）。
@@ -85,6 +86,7 @@ func runStatus(ctx context.Context, opts *Options) error {
 	renderSkipped(opts, view)
 	renderLocalDebug(opts, p, view)
 	renderResourceStatus(ctx, opts, p)
+	renderLocalModeSessionHint(opts, p.layout, p.cfg)
 	return nil
 }
 
@@ -181,6 +183,11 @@ func degradedView(p *project, byService map[string]engine.Status) componentView 
 		case c.Mode == config.ModeDebug:
 			// mode: debug 组件本来就不会出现在引擎里，"查不到"是它的正常状态
 			v.local = append(v.local, ref)
+		case c.Mode == config.ModeLocal:
+			// mode: local 组件同样不会出现在引擎里，但它不走"本地调试"表（那是
+			// mode: debug 专属的话术），也不走 skipped（降级路径判不出它这次
+			// 该不该跑）——干脆不进任何一张表，跟 mode: local 唯一的展示手段
+			// （会话锁提示）保持一致，见 renderLocalModeSessionHint
 		default:
 			v.skipped = append(v.skipped, statusRow{ref: ref, text: reasonUnknown()})
 		}
@@ -295,6 +302,25 @@ func renderLocalDebug(opts *Options, p *project, v componentView) {
 
 	opts.Printf("%s\n", i18n.T(msgid.CliStatusLocalDebuggingLocalTrueNot))
 	opts.Printf("%s\n", t.render(" "))
+}
+
+// renderLocalModeSessionHint 在项目有 mode: local 组件、且会话锁被持有时，
+// 打一行指向信息——这是使用者从**别的终端**唯一能知道"那边有个 local 会话
+// 在跑"的办法（spec §3：status/down 跨终端可见性，复用同一把锁文件）。
+//
+// 项目里没有 mode: local 组件时，压根不去碰锁文件：没有意义，也避免每次
+// status 都多一次无谓的文件系统访问。
+func renderLocalModeSessionHint(opts *Options, layout config.Layout, cfg *config.Config) {
+	if !anyModeLocal(cfg.Components) {
+		return
+	}
+	info, held, err := sessionlock.Inspect(layout.SessionLockPath())
+	if err != nil || !held {
+		// 读不出来（罕见的 I/O 错误）跟"没有会话"一视同仁：这条提示本来就是
+		// 锦上添花，不该因为一次读锁文件失败就让 status 的其余输出也报错
+		return
+	}
+	opts.Printf("\n%s\n", i18n.T(msgid.CliStatusLocalSessionRunning, info.PID))
 }
 
 // localAddress 是 local 组件在宿主机上的地址。

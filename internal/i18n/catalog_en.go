@@ -1190,6 +1190,7 @@ var en = map[string]string{
 	msgid.CliStatusViewTheLogsToFind:                                                         "   View the logs to find out why: %[1]s",
 	msgid.CliStatusRunningAndResourceStatusAre:                                               "   \"Running\" and \"Resource status\" are not affected — they only ask the engine and brickkit.yaml",
 	msgid.CliStatusToVerifyFromInsideThe:                                                     "   To verify from inside the cluster: kubectl run -n %[1]s --rm -it netcheck --image=busybox -- nc -zv \u003chost\u003e \u003cport\u003e",
+	msgid.CliStatusLocalSessionRunning:                                                       "💡 This project has a local session running (PID %[1]d) — go to that terminal, or Ctrl+C it there",
 	msgid.CliStatusLong:                                                                      "Show the running state of every component in the current project.\n\nThe CLI stores no running state itself; it queries the underlying engine directly:\n  Docker  docker compose ps --format json\n\nThe output covers: running components, components that aren't started and why,\nlocally debugged components (mode: debug), and whether base resources are reachable.",
 	msgid.CliVersionAlsoPrintTheGitCommit:                                                    "Also print the Git commit and build time",
 	msgid.CliVersionShort:                                                                    "Show the CLI version, the supported Manifest version and the deploy targets",

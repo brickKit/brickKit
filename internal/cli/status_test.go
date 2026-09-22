@@ -8,13 +8,17 @@ package cli
 import (
 	"context"
 	"errors"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/sessionlock"
 )
 
 // statusOf 用假引擎执行 status。
@@ -183,6 +187,61 @@ func TestStatusDoesNotReportModeLocalComponentAsNotRunning(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.NotContains(t, r.stdout, "not created", "mode: local 组件不该被当成缺容器报出来")
+}
+
+// ============================================================
+// mode: local 的会话锁提示
+// ============================================================
+
+// 会话锁被持有时（模拟"另一个终端正在跑 brickkit up"），status 要打一行
+// 指向信息，点名 PID——这是使用者唯一能从这个终端知道"那边有 local 会话
+// 在跑"的办法。
+func TestStatusShowsHintWhenLocalSessionIsRunning(t *testing.T) {
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+	layout := config.NewLayout(f.Dir, "")
+	held, err := sessionlock.Acquire(layout.SessionLockPath())
+	require.NoError(t, err)
+	defer func() { _ = held.Release() }()
+	eng := newFakeEngine()
+
+	r := statusOf(t, eng, f.Dir)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.Contains(t, r.stdout, strconv.Itoa(os.Getpid()), "要点名持有者的 PID")
+}
+
+// 没有会话在跑时，不该冒出这条提示——沉默才是"没有事发生"的正确信号。
+func TestStatusShowsNoHintWhenNoLocalSessionIsRunning(t *testing.T) {
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+	eng := newFakeEngine()
+
+	r := statusOf(t, eng, f.Dir)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.NotContains(t, r.stdout, "session")
+}
+
+// 项目里压根没有 mode: local 组件时，不该去碰会话锁文件——没有意义，
+// 也避免每次 status 都多一次无谓的文件系统访问。
+func TestStatusSkipsSessionCheckWhenNoModeLocalComponent(t *testing.T) {
+	f, eng := startedProject(t)
+
+	r := statusOf(t, eng, f.Dir)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.NotContains(t, r.stdout, "session")
 }
 
 // ============================================================

@@ -1181,6 +1181,7 @@ var zh = map[string]string{
 	msgid.CliStatusViewTheLogsToFind:                                 "   看日志定位：%[1]s",
 	msgid.CliStatusRunningAndResourceStatusAre:                       "   「运行中」与「资源状态」不受影响——它们只问引擎和 brickkit.yaml",
 	msgid.CliStatusToVerifyFromInsideThe:                             "   想从集群内验证：kubectl run -n %[1]s --rm -it netcheck --image=busybox -- nc -zv \u003c主机\u003e \u003c端口\u003e",
+	msgid.CliStatusLocalSessionRunning:                               "💡 这个项目有一个本地会话在跑（PID %[1]d）——去那个终端看，或者在那边 Ctrl+C",
 	msgid.CliStatusLong:                                              "查看当前项目所有组件的运行状态。\n\nCLI 本身不存储运行状态，查询时直接调用底层引擎：\n  Docker  docker compose ps --format json\n\n输出包含：运行中的组件、未启动的组件及原因、\n本地调试组件（mode: debug）、基础资源可达性。",
 	msgid.CliVersionAlsoPrintTheGitCommit:                            "额外输出 Git commit 与构建时间",
 	msgid.CliVersionShort:                                            "查看 CLI 版本、支持的 Manifest 版本与部署目标",
