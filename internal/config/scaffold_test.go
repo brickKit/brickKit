@@ -170,7 +170,7 @@ func TestEnsureGitignoreCreatesFile(t *testing.T) {
 	content := readTestFile(t, path)
 	// 003 §11 的全部条目
 	for _, want := range []string{
-		".brickkit/generated/", ".brickkit/credentials",
+		".brickkit/generated/", ".brickkit/credentials", ".brickkit/session.lock",
 		".env", "components/",
 		"# .brickkit/artifacts/", "# .brickkit/manifests/",
 	} {

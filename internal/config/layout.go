@@ -30,6 +30,8 @@ const (
 	FileGitignore = ".gitignore"
 	// FileSkillsLock 是 AI 助手技能的托管清单（brickkit skills 管理）。
 	FileSkillsLock = "skills.lock"
+	// FileSessionLock 是本地进程前台监管的会话锁（005 §3）。
+	FileSessionLock = "session.lock"
 )
 
 // Layout 描述一个 BrickKit 项目的目录布局。
@@ -94,6 +96,9 @@ func (l Layout) ArchivedDir() string { return l.path(DirComponents, DirArchived)
 
 // SkillsLockPath 返回 AI 助手技能托管清单的路径。
 func (l Layout) SkillsLockPath() string { return l.path(DirBrickkit, FileSkillsLock) }
+
+// SessionLockPath 返回本地进程前台监管会话锁的路径。
+func (l Layout) SessionLockPath() string { return l.path(DirBrickkit, FileSessionLock) }
 
 // GitignorePath 返回项目 .gitignore 路径。
 func (l Layout) GitignorePath() string { return l.path(FileGitignore) }

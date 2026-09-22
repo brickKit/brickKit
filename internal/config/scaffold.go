@@ -124,6 +124,7 @@ func gitignoreSections() []gitignoreSection {
 	return []gitignoreSection{
 		{"# " + i18n.T(msgid.ConfigGitignoreGenerated), []string{".brickkit/generated/"}},
 		{"# " + i18n.T(msgid.ConfigGitignoreCredentials), []string{".brickkit/credentials"}},
+		{"# " + i18n.T(msgid.ConfigGitignoreSessionLock), []string{".brickkit/session.lock"}},
 		{"# " + i18n.T(msgid.ConfigGitignoreEnvFile), []string{".env"}},
 		{"# " + i18n.T(msgid.ConfigGitignoreComponents), []string{"components/"}},
 		// 这两条**默认是注释掉的**：契约与 Manifest 缓存默认跟着项目一起提交，

@@ -40,6 +40,7 @@ const (
 	ConfigHintReinit                 = "config.hint.reinit"
 	ConfigGitignoreGenerated         = "config.gitignore.generated"
 	ConfigGitignoreCredentials       = "config.gitignore.credentials"
+	ConfigGitignoreSessionLock       = "config.gitignore.session_lock"
 	ConfigGitignoreEnvFile           = "config.gitignore.env_file"
 	ConfigGitignoreComponents        = "config.gitignore.components"
 	ConfigGitignoreCaches            = "config.gitignore.caches"

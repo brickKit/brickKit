@@ -54,7 +54,12 @@ type LocalEnvFile struct {
 	// 用版本化服务名，同一组件的两个版本同时调试时才不会互相覆盖。
 	Name string
 	// Port 是该进程应当在宿主机上监听的端口。
-	Port    int
+	Port int
+	// Vars 是渲染 Content 用的那份变量列表：依赖地址、资源地址都已经改写成
+	// localhost，但 ${VAR} 引用还没展开（Content 用宽松的展开策略，允许
+	// 展开不了时留着占位符；mode: local 真正启动进程时用的是严格展开，
+	// 见 internal/cli/up_local.go——两条路径共用这份原始列表，不会漂移）。
+	Vars    []inject.Var
 	Content []byte
 }
 
@@ -550,6 +555,7 @@ func (p *plan) localEnvFile(l localComponent, now time.Time, lookup func(string)
 		Ref:     l.Ref,
 		Name:    "local-debug." + l.Service + ".env",
 		Port:    l.Port,
+		Vars:    vars,
 		Content: renderEnvFile(l, vars, now, lookup),
 	}
 }

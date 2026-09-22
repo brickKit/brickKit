@@ -22,6 +22,7 @@ import (
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/procsup"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/workspace"
@@ -36,6 +37,7 @@ func newUpCommand(opts *Options) *cobra.Command {
 		dryRun         bool
 		kubeContext    string
 		ignoreServedBy bool
+		crashLines     int
 	)
 
 	cmd := &cobra.Command{
@@ -48,6 +50,7 @@ func newUpCommand(opts *Options) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUp(cmd.Context(), opts, upOptions{
 				dryRun: dryRun, kubeContext: kubeContext, ignoreServedBy: ignoreServedBy,
+				crashLines: crashLines, crashLinesSet: cmd.Flags().Changed("crash-lines"),
 			})
 		},
 	}
@@ -56,6 +59,8 @@ func newUpCommand(opts *Options) *cobra.Command {
 	cmd.Flags().StringVar(&kubeContext, "context", "", i18n.T(msgid.CliDownKubeconfigContextOverridesDeployContext))
 	cmd.Flags().BoolVar(&ignoreServedBy, "ignore-served-by", false,
 		i18n.T(msgid.CliUpClearEveryServedbyDeclarationIn))
+	cmd.Flags().IntVar(&crashLines, "crash-lines", procsup.DefaultTailLines,
+		i18n.T(msgid.CliUpCrashLinesHowManyLinesOfOutput))
 	return cmd
 }
 
@@ -105,6 +110,11 @@ type upOptions struct {
 	// 原则，从不写回 brickkit.yaml（brickKit 反馈：两个降低 servedBy
 	// 运维摩擦的架构提案，提案二）。
 	ignoreServedBy bool
+	// crashLines 是 --crash-lines 的值；crashLinesSet 为 true 才说明用户真的
+	// 传了这个旗位（不能靠"值等不等于默认值"判断——用户完全可能手写
+	// --crash-lines 20，跟不传时拿到的默认值撞在一起）。
+	crashLines    int
+	crashLinesSet bool
 }
 
 // runUp 执行 brickkit up。
@@ -179,6 +189,10 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 
 	opts.Printf("%s\n", i18n.T(msgid.CliUpStartingProjectDeployTarget, cfg.Project, cfg.Deploy.Target))
 	warnTargetOnlyFields(opts, cfg)
+	if flags.crashLinesSet && !anyModeLocal(cfg.Components) {
+		renderWarnings(opts, []*clierr.Error{clierr.Warn(clierr.CodeConfigInvalid,
+			i18n.T(msgid.CliUpCrashLinesHasNoEffect))})
+	}
 
 	// 先确认"要部到哪"，再做任何生成与拉取：部错集群是不可逆的，
 	// 而且这时连一份生成物都还没落盘

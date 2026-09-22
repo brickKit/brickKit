@@ -484,3 +484,23 @@ func TestFailureHintPrintsUsableLogsCommand(t *testing.T) {
 
 	assert.Contains(t, r.stderr, "-p brickkit-my-erp")
 }
+
+// ============================================================
+// Plan 4b：--crash-lines
+// ============================================================
+
+func TestUpWarnsWhenCrashLinesIsSetWithoutAnyModeLocalComponent(t *testing.T) {
+	f := composeProject(t) // 现成的 fixture：erp/backend 依赖 people/basic，都不是 mode: local
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run", "--crash-lines", "5")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout+r.stderr, "crash-lines")
+}
+
+func TestUpDoesNotWarnAboutCrashLinesWhenNotPassed(t *testing.T) {
+	f := composeProject(t)
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout+r.stderr, "crash-lines")
+}

@@ -808,6 +808,25 @@ func TestModeLocalDoesNotGenerateAMigrationService(t *testing.T) {
 	assert.NotContains(t, servicesOf(t, b.parsed()), "people-basic-1-0-0-migration")
 }
 
+// Plan 4b：LocalEnvFile.Vars 与 Content 必须描述同一份数据——真正启动本地进程
+// 用的是 Vars（严格展开），显示文件用的是 Content（宽松展开），两条路径不能漂移。
+func TestLocalEnvFileVarsMatchTheRenderedContent(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeLocal})
+
+	result := b.generate()
+
+	require.Len(t, result.LocalEnvFiles, 1)
+	file := result.LocalEnvFiles[0]
+	require.NotEmpty(t, file.Vars)
+	for _, v := range file.Vars {
+		if v.ExistingSecretRef != "" {
+			continue
+		}
+		assert.Contains(t, string(file.Content), v.Name+"=", "Vars 里的每一条都该出现在渲染出的文件里")
+	}
+}
+
 // ============================================================
 // 12.13 / 12.14 / 12.9 基础资源
 // ============================================================

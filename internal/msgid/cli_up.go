@@ -62,6 +62,8 @@ const (
 	CliUpNeedsDatabaseUsedBy               = "cli.up.needs_database_used_by"
 	CliUpAllServedbyDeclarationsAreIgnored = "cli.up.all_servedby_declarations_are_ignored"
 	CliUpClearEveryServedbyDeclarationIn   = "cli.up.clear_every_servedby_declaration_in"
+	CliUpCrashLinesHowManyLinesOfOutput    = "cli.up.crash_lines_how_many_lines_of_output"
+	CliUpCrashLinesHasNoEffect             = "cli.up.crash_lines_has_no_effect"
 	CliUpLocalDebuggingLoadInThe           = "cli.up.local_debugging_load_in_the"
 	CliUpComponentsArenTStartingThis       = "cli.up.components_aren_t_starting_this"
 	CliUpExample                           = "cli.up.example"

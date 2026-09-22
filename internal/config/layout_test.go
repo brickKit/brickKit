@@ -61,3 +61,9 @@ func TestSkillsLockPath(t *testing.T) {
 	assert.Equal(t, filepath.Join("/proj", DirBrickkit, FileSkillsLock),
 		l.SkillsLockPath())
 }
+
+func TestSessionLockPath(t *testing.T) {
+	l := NewLayout("/proj", DefaultConfigFile)
+	assert.Equal(t, filepath.Join("/proj", DirBrickkit, FileSessionLock),
+		l.SessionLockPath())
+}
