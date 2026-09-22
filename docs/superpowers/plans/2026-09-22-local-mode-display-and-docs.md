@@ -1505,3 +1505,67 @@ Plan complete and saved to `docs/superpowers/plans/2026-09-22-local-mode-display
 2. **Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
 
 选哪种？
+
+---
+
+## 执行结果与遗留（2026-09-22）
+
+十个任务全部完成，Inline Execution 跑完。提交哈希（时间顺序）：
+
+| 任务 | 提交 | 一句话 |
+| --- | --- | --- |
+| 计划本身 | `9e85437` | Plan 4d 十个任务，写作时自查改过 3 处真实错误 |
+| Task 1 | `d33ef04` | `expose`/`labels` 警告不再硬编码 `mode: debug`——四处硬编码，不是两处 |
+| Task 2 | `7b62435` | `containerRefs` 排除 `mode: local`，`localRefs` 改名 `debugRefs` |
+| Task 3 | `0826d84` | `status` 排除 `mode: local` 出容器表、会话锁存在时加提示 |
+| Task 4 | `997b61a` | `down` 同一种会话锁提示 |
+| Task 5 | `5d1eca6` | `graph` 给 `mode: local` 独立标签与样式 |
+| Task 6 | `f470eb8` | `08-brickkit-yaml-reference.md` 补齐 `mode: local` 字段行与互斥规则 |
+| Task 7 | `dc13c36` | 教程序列改号（04-13 → 05-14），为新教程腾出第 4 篇 |
+| Task 8 | `254f48f` | 新教程第一版（后被 Task 9 发现固件不对，整篇重写） |
+| Task 9 | `f5f0acc` | `check-guides` 加 `local` 层；新教程改用真实共享固件重写 |
+| Task 10 | 本提交 | 全量验证、手动真机复核、回写本节 |
+
+### Task 10 六步验证结果
+
+1. **`go test ./...`**：`brickkit` 与 `market-server` 两个 module 全绿。
+2. **`go test -race ./internal/cli/ ./internal/compose/ -count=1`**：干净，20.7s + 1.8s。
+3. **`make check-cross-build`**：`exit=0`，linux/darwin/windows 三个目标都编得过。
+4. **完整 `make lint`**：`exit=0`。唯一的 `❌` 是已知、不计入退出码的一条——`up --crash-lines` 没写进任何文档，这是等用户确认要不要写进 CLI 参考文档的既有待办（不属于 Plan 4d 范围），不是本计划引入的新问题。
+5. **手动真机复核第 4 篇教程**：在仓库根目录直接建了 `hello-local/`（不是另起固件——照教程原文一字不差地敲：`mkdir hello-local && cd hello-local`、`brickkit init hello-local`（没加 `--no-skills`，教程原文就没加）、`mkdir -p components/demo`、`cp -r ../tests/components/demo-hello components/demo/hello`、`brickkit add --local`、手改 `mode: local`、`up --dry-run`、`up`、另一个终端 `status`/`graph`/`down`、回第一个终端 `Ctrl+C`）。**每一步的真实输出跟教程里写的逐字一致**（`PID`、JSON 日志里的 `time`/`elapsed_ms` 这类天然易变的字段除外——教程里这些字段要么用真实抓下来的例子，要么按既有惯例写 `"..."`，都不要求逐字复现）。复核完 `rm -rf hello-local`，`git status --porcelain` 确认干净。
+6. 本节。
+
+### 偏离计划之处
+
+- **Task 1 比计划预期多改了两处**：计划草稿只预料到 `ComposeLocalFieldsIgnored`/`ComposeLocalLabelsIgnored` 两条消息体硬编码了 "mode: debug"，实际测试跑起来才发现对应的两条 Hint（`ComposeHintDropLocalForPorts`/`ComposeHintDropLocalForLabels`）也独立硬编码了同一个词——四处，不是两处。
+- **Task 5 的 `TestGraphModeLocalComponentIsPinnedAndNeverGreyedOut` 改写**：计划草稿里的版本用两个互不相关的组件，测不出级联钉住；执行时改成 `demo/web`（disabled）→`demo/hello`（`mode: local`）的真实依赖链才真正验证到这条断言。
+- **Task 6 修了一个真实 panic**：`tests/docfields/reference_test.go` 的 `documentedPaths` 解析器在" 裸 `` `local` `` 紧跟在 `` `.servedBy` `` 这类点前缀续接词前面"时会 panic（`previous[:strings.LastIndex(previous, ".")]` 假设前一个 token 一定带点）。绕开写法是把 "Mutual exclusions" 一节里的 `` `local` `` 展开成完整的 `` `components[].mode: local` ``——检查器本身这处脆弱没有修，判定不在这次任务范围内。
+- **Task 7 范围比计划文档描述的更大**：
+  - 除了文件名字符串替换（脚本自动做的）之外，正文里"Article N"/"第 N 篇"/"guide N"这类指位置的措辞、每篇文章自己的 H1 编号、`llms.txt`/`llms.zh.txt` 的 "Guide article N" 标签、两份 README 表格的编号列，全部逐处人工核对并改正——这部分工作量比计划草稿预估的大，因为"文件名"和"指位置的措辞"是两类完全独立的引用，前者能脚本化，后者不能。
+  - `fix_refs.py` 脚本第一次跑漏了一个排除项：它的排除列表只有 `docs/superpowers/plans/` 和 `docs/archive/`，没有 `docs/superpowers/specs/`，误改了一份 2026-09-19 的历史 spec 文档，`git checkout` 撤回，脚本本身这处排除列表没有回头补（脚本是一次性用完即弃的工具，不会再跑第二遍）。
+  - 装上 `golangci-lint`（这台机器原来没装，此前 `make lint` 一直在悄悄退化成 `go vet`）后跑出两处真实问题，一并修了：`internal/procsup/supervisor.go` 里本会话早前为 Plan 4c 调查加的 `Printf` 方法没检查 `fmt.Fprintf` 的返回值（errcheck）；`internal/procsup/prefix_test.go` 三处 `Write(fmt.Sprintf(...))` 换成更地道的 `fmt.Fprintf`（staticcheck QF1012）。**这两处修改让 Self-Review Checklist 里"`internal/procsup`/`internal/sessionlock`/`internal/runcmd` 三个包本身没有被本计划修改一行"这条没有严格成立**——但这不是本计划自己的设计改动，是跑 `make lint` 时才第一次暴露出来的、与 Plan 4d 无关的历史 lint 债务，行为不变，只是让返回值检查过关。
+- **Task 8 的第一版教程后来被 Task 9 整篇重写**：Task 8 Step 1 按计划原文的指示，手写了一份最小固件（`go.mod` + 读 `PORT` 的 `main.go`，`version: 0.1.0`）来走查真实输出。给 Task 9 的 `check-guide-output.py` 写确定性场景时才发现：这个系列所有其它场景统一复用 `tests/components/demo-hello`（这份真实夹具版本是 `1.0.0`，`main.go` 用 `slog` 打 JSON 结构化日志，不是一行 `fmt.Printf`）——教程手写的那份固件跟被验证的东西根本不是同一个组件。照"guide 教程用最简单的模拟组件"的既有约定（复用现成夹具，不另起一个），改用 `tests/components/demo-hello`，中英文各重新真跑一遍完整流程，用真实捕获的输出（`demo-hello-1-0-0`、真实 JSON 日志行）整篇重写。这也带出一处顺手的真实发现：`main.go` 在收到 `SIGINT`/`SIGTERM` 后会打一行 `component exited` 的日志再退出——比手写固件的"静默退出"更能说明"BrickKit 是在体面地要求它停下"这件事，写进了"停掉它"一节。
+- **Task 9 发现并修了两处真实 bug/遗留**：
+  - `check-guides.sh` 的 `local_mode()` 函数：Python heredoc 用 `<<-'PYEOF'`，`if`/`sys.exit(1)` 两行全用 tab 缩进——`<<-` 会剥掉每行开头的所有 tab，Python 那层相对缩进跟着被剥没，报 `IndentationError`。`bind_pg` 之前没撞上是因为它的 Python 代码没有任何需要相对缩进的语句。改成 `sys.exit(1)` 那行用空格撑住相对缩进（`<<-` 只剥 tab，不剥空格），`make check-guides` 真的跑通验证过。
+  - `check-guide-output.py` 里 `"05"`–`"08"` 开头的十几条场景 `what` 标签，对应的是 Task 7 改号前的教程编号——Task 7 的 grep 只扫了正文措辞和文件名引用，没扫到这批脚本内部纯数字前缀的标识字符串。按各自的 `file` 字段核实后统一改成 `06`/`07`/`08`/`09`。
+
+### Self-Review Checklist 逐条核对
+
+- [x] `go test ./...` 全绿；`go test -race` 对 `internal/cli`/`internal/compose` 干净
+- [x] `make check-cross-build`、完整 `make lint` 都是 `exit=0`
+- [x] `status`/`down` 对 `mode: local` 组件既不报"未在运行"，也不彻底沉默——会话锁存在时有提示，不存在时安静
+- [x] `graph` 给 `mode: local` 一个独立于 `mode: debug` 的标签与样式
+- [x] `internal/compose/local.go` 的两条警告不再硬编码"mode: debug"（实际是四处硬编码，见上）
+- [x] `08-brickkit-yaml-reference.md` 中英文都覆盖了 `mode: local` 的字段行与互斥规则
+- [x] 教程序列改号后，`git grep` 旧编号引用为空；`check-guide-output.py` 全部场景（含新加的）通过，且真的做过变异测试
+- [x] 新教程的每一行输出都取自真实 CLI，不是编出来的（Task 8 第一版不是，Task 9 发现后整篇重写过）
+- [x] `check-guides` 的 `local` 层能被正确识别、跑通或响亮跳过
+- [x] 至少手动走完一遍新教程的真机流程（Task 10 Step 5），不是只看单元测试绿灯
+- [ ] `internal/procsup`/`internal/sessionlock`/`internal/runcmd` 三个包本身没有被本计划修改一行——**未严格成立**：`internal/procsup/supervisor.go`、`internal/procsup/prefix_test.go` 各改了几行，理由见上（golangci-lint 装上后才暴露的历史 lint 债务，非本计划设计改动，行为不变）
+- [x] `docs/{en,zh}/07-patterns/05-deployment-selection-guide.md` 没有任何改动
+
+### 遗留
+
+无遗留任务。`--crash-lines` 的文档化（是否要写进 `docs/en/06-architecture/09-cli-reference.md` 之类的参考文档）仍然是此前就有的、等用户确认的待办，跟 Plan 4d 无关，不在这次的范围内。
+
+分支 `worktree-mode-field-migration` 仍未合并、未推送——是否合并、何时合并是用户的决定，不在本计划范围内。
