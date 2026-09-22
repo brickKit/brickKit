@@ -1366,7 +1366,7 @@ Expected: `exit=0`。
 
 这一步没有对应的自动化测试断言，是给执行者的一条明确指令：**在把这次改动标记为完成之前，亲眼看它跑起来一次**，不能只靠单元测试的绿灯。
 
-- [ ] **Step 6: 回写执行结果，提交**
+- [x] **Step 6: 回写执行结果，提交**
 
 在本文件末尾追加"执行结果与遗留"一节，记录：六个任务的提交哈希、真实场景手动验证的结果、任何偏离计划之处、留给 Plan 4c/4d 的清单。
 
@@ -1388,21 +1388,21 @@ EOF
 
 ## Self-Review Checklist（执行完 6 个任务后逐条核对）
 
-- [ ] `go test ./...` 全绿；`go test -race` 对 `compose`/`config`/`cli` 干净
-- [ ] `make check-cross-build`、完整 `make lint` 都是 `exit=0`
-- [ ] `mode: local` 组件没有本地源码目录时，`up --dry-run` 就能报错（不用等真启动）
-- [ ] `LocalEnvFile.Vars` 与 `LocalEnvFile.Content` 用的是同一份 `[]inject.Var`，没有漂移
-- [ ] 本地进程的环境变量展开是严格的（展开不了直接报错），`local-debug.*.env` 文件的展开策略没有被改动（仍然宽松）
-- [ ] `PORT` 被正确注入每个本地进程（值等于该组件在宿主机上分配到的端口，跟依赖方看到的 `*_ENDPOINT` 端口一致）
-- [ ] 容器先起、本地进程后起；本地进程之间按拓扑序
-- [ ] 一个本地进程崩了，整个会话收尾，其余本地进程被体面停掉，容器不受影响；最后一屏只打印崩溃的那几个，且只打一次
-- [ ] `--crash-lines` 只在真的传了（`Flags().Changed`）且项目没有 `mode: local` 组件时警告；`0` 值只打印崩溃信息不带输出行
-- [ ] Ctrl+C 能让整个会话体面收尾并正常退出
-- [ ] 会话锁：同一个项目不能有两个前台会话同时跑，第二个会话报错点名第一个的 PID
-- [ ] `.gitignore` 模板新增了 `.brickkit/session.lock`
-- [ ] 至少手动跑通一次真实场景（Task 6 Step 5），不是只看单元测试绿灯
-- [ ] `internal/procsup`/`internal/sessionlock`/`internal/runcmd` 三个库本身没有被本计划修改一行——它们已经独立验证过，本计划只是第一次真正调用它们
-- [ ] `AGENTS.md`、`docs/en/`、`docs/zh/` 没有任何改动（Plan 4d 的事）
+- [x] `go test ./...` 全绿；`go test -race` 对 `compose`/`config`/`cli` 干净
+- [x] `make check-cross-build`、完整 `make lint` 都是 `exit=0`
+- [x] `mode: local` 组件没有本地源码目录时，`up --dry-run` 就能报错（不用等真启动）
+- [x] `LocalEnvFile.Vars` 与 `LocalEnvFile.Content` 用的是同一份 `[]inject.Var`，没有漂移
+- [x] 本地进程的环境变量展开是严格的（展开不了直接报错），`local-debug.*.env` 文件的展开策略没有被改动（仍然宽松）
+- [x] `PORT` 被正确注入每个本地进程（值等于该组件在宿主机上分配到的端口，跟依赖方看到的 `*_ENDPOINT` 端口一致）
+- [x] 容器先起、本地进程后起；本地进程之间按拓扑序
+- [x] 一个本地进程崩了，整个会话收尾，其余本地进程被体面停掉，容器不受影响；最后一屏只打印崩溃的那几个，且只打一次
+- [x] `--crash-lines` 只在真的传了（`Flags().Changed`）且项目没有 `mode: local` 组件时警告；`0` 值只打印崩溃信息不带输出行
+- [x] Ctrl+C 能让整个会话体面收尾并正常退出
+- [x] 会话锁：同一个项目不能有两个前台会话同时跑，第二个会话报错点名第一个的 PID
+- [x] `.gitignore` 模板新增了 `.brickkit/session.lock`
+- [x] 至少手动跑通一次真实场景（Task 6 Step 5），不是只看单元测试绿灯
+- [x] `internal/procsup`/`internal/sessionlock`/`internal/runcmd` 三个库本身没有被本计划修改一行——它们已经独立验证过，本计划只是第一次真正调用它们
+- [x] `AGENTS.md`、`docs/en/`、`docs/zh/` 没有任何改动（Plan 4d 的事）
 
 ## Execution Handoff
 
@@ -1412,3 +1412,67 @@ Plan complete and saved to `docs/superpowers/plans/2026-09-22-up-local-supervisi
 2. **Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
 
 选哪种？
+
+---
+
+## 执行结果与遗留（2026-09-22，Inline 执行）
+
+六个任务全部完成，`mode: local` 组件现在真的会被 `brickkit up` 拉起来、
+监管、崩溃时正确收尾。提交哈希（按顺序）：
+
+| Task | 内容 | 提交 |
+| --- | --- | --- |
+| 1 | `LocalEnvFile.Vars`、会话锁路径、`--crash-lines` 旗位骨架 | `05f8356` |
+| 2 | 本地源码校验与命令探测 | `843a9e2` |
+| 3 | 严格展开环境变量 + `PORT` 注入 | `012609b` |
+| 4 | 前台监管循环（session 锁 + 崩溃汇总） | `427b89e` |
+| 5 | 接进 `runUp` | `a9f5d0e` |
+| 6（bugfix 1） | `LocalEnvFile.Mode`：mode: local 不再冒出 mode: debug 的话术 | `14788ca` |
+| 6（bugfix 2，同一提交） | 全是 local 组件时跳过引擎，不再报 `no service selected` | `14788ca` |
+| 6（bugfix 3） | `--crash-lines 0` 两层语义对不上的修复 | `6149762` |
+| 6（测试补漏 1） | 两个 local 组件之间的拓扑启动顺序 | `3b22a28` |
+| 6（测试补漏 2） | 会话锁冲突报错点名 PID | `3cebe3d` |
+
+### 自动化验证
+
+- `go test ./...`（`brickkit` 与 `market-server` 两个 Go module）全绿。
+- `go test -race ./internal/compose/ ./internal/config/ ./internal/cli/` 干净。
+- `make check-cross-build`：linux/darwin/windows 都编得过。
+- 完整 `make lint`（这台机器没装 golangci-lint，回退到 `go vet`，**合并前要在装了它的环境再跑一次**）：`exit=0`，`internal` 覆盖率 93.3%（门槛 92%）。唯一的非阻断提示是"`up --crash-lines` 没有任何文档提到它"——符合预期，文档是 Plan 4d 的事。
+
+### Task 6 Step 5：真机手动验证（不是单元测试，是眼见为实）
+
+用真实 Docker + 真实 Go 工具链，在 `/tmp` 下手搭了一个独立项目（不是仓库固件），依次验证：
+
+1. **单组件、`mode: local`，`--dry-run`**：探测出 `go run .`，且（修复前）曾冒出自相矛盾的"🔧 Local debugging (mode: debug)"段落——第一个真实 bug 由此发现。
+2. **同一项目，真启动**：真进程起来、终端能看到带前缀的实时输出、`WaitListening` 探测到端口——过程中发现第二个真实 bug：`docker compose up` 对着一份 `services: {}` 的空文件报 `no service selected`，因为这个项目一个容器都不需要，`start()` 却无条件调了引擎。
+3. **Ctrl+C（`SIGINT`）**：会话体面收尾，退出码 0（`timeout -s INT 5` 之所以自己报 124，只是因为它介入了计时——真正说明问题的是 brickkit 自己的结构化日志行 `"exit_code":0`）。
+4. **单组件故意崩溃**（`os.Exit(1)`）：最后一屏只打印这一个组件的崩溃现场（退出码、耗时、尾部输出），且只打一次。
+5. **两组件（一个崩溃、一个存活）**：崩溃的那个被打进最后一屏，存活的那个收到停止信号后打印"friend shutting down cleanly"、干净退出，**没有**被算进崩溃汇总——验证了 Plan 2 的"一个崩，其余体面收尾，只打崩溃的那几个"这条设计承诺在真实多进程场景下成立。
+6. **`--crash-lines 0`**：这一步复现出了第三个真实 bug——最后一屏应该只打崩溃信息不带输出行，实际却打出了默认的 20 行，因为 `procsup.Options.TailLines <= 0` 在 procsup 自己的约定里是"取默认值"，跟 CLI 帮助文本"0 = 不带输出行"的承诺正好相反。修复后重新手动验证，最后一屏确实只剩崩溃信息那一行。
+
+### 三个真实 bug 的共同点
+
+三个都不是"漏写了一行代码"，而是**两个本来各自独立、各自合理的假设撞在了一起**，只有真实运行时才会现形：
+
+1. `LocalEnvFile` 被两种 mode（debug/local）共用，但渲染层一直假设"能拿到 `LocalEnvFile` 就是 debug"——这个假设在 Plan 4a 把 `mode: local` 路由进同一个桶之前一直成立，Plan 4a 让它不再成立，但没人回头检查这几处显示逻辑。
+2. `plan.services` 为空这件事此前只在"level 组件都是 mode: debug"时理论上可能发生（`mode: debug` 从设计上就没打算被大规模拿来单独 up 一个纯调试项目），`mode: local` 让"整个项目一个容器都不需要"变成了一个真实、常见的场景，而 `start()` 从来没为这个场景准备过。
+3. `procsup.Options.TailLines` 的"`<=0` 取默认值"是它作为通用监管库对自己调用方的合理默认，但 `--crash-lines` 后来被赋予了一个更具体的、面向最终用户的承诺（"0 就是 0"），两层语义在同一个整数上打了架。
+
+三处都按 CLAUDE.md 的原则修在了产生不一致的那一层，而不是在调用点绕过去：第 1、2 处修在 CLI 层自己的判断逻辑里（`compose.LocalEnvFile.Mode` 字段、`runUp` 的 `len(plan.services) == 0` 分支），第 3 处也刻意没有去改 `internal/procsup`（它是独立验证过的通用库，"0/未设置给个默认值"对它的其他潜在调用方仍然是合理惯例）——CLI 自己在 `renderCrashSummary` 里兑现只属于它自己的那条承诺。三处都补了回归测试，并用"临时还原成 bug → 确认测试变红 → 复原"的方式逐条验证过测试真的能守住修复。
+
+### 偏离计划之处
+
+- Task 4 的 Step 3 测试从计划草稿设想的"跑完整 `up` 命令"改成了直接调 `runLocalComponents`（`runLocalComponents` 要到 Task 5 才接进 `runUp`，这是执行时自己发现、写进 Task 4 提交说明的计划时序问题）。
+- Task 5 的 `buildUpPlan` 调用点加了 `plan.generated != nil` 判空——计划原草稿会在 k8s 目标下对 nil 指针取字段直接 panic（Go 的参数在调用前就会被求值，`collectLocalComponents` 函数内部"没有 local 组件就提前返回"的判断根本来不及生效）。
+- Task 6 新增了三处计划里没有预见到的真实 bug 修复（见上）+ 两条查漏的测试（本地组件间拓扑序、会话锁冲突报错），都在最后一步"全量验证"的精神范围内——Step 5 明确要求真机跑一遍，这些正是那一步应该发现的问题。
+
+### 留给 Plan 4c/4d 的清单
+
+- **Plan 4c（调试挂载）**：待写，Plan 3 的实验已经推翻了原 spec"环境变量注入就够"的假设，需要单独设计（Maven 用 `-Dspring-boot.run.jvmArguments=...`、Gradle 用 `--debug-jvm`、Node 目前没有不改探测策略就能做到的安全办法）。
+- **Plan 4d（展示层 + 文档）**：
+  - `internal/cli/lifecycle.go`/`graph.go`/`status.go` 三处纯展示的 `ModeDebug` 判断仍未加 `ModeLocal`（Plan 4a 留下的遗留，已确认不影响真机命令执行，只是展示不准确）。
+  - `--crash-lines` 目前没有任何文档提到它（`make lint` 的非阻断提示）；`mode: local` 整体的用户向文档（`docs/{en,zh}`、AGENTS.md 相关小节）也还没写。
+  - `component.yaml` 参考文档的 `local` 字段一节 Plan 4a 已经提前写好，Plan 4d 不用重写。
+
+用户已确认继续在这个分支（`worktree-mode-field-migration`）上写，不合并、不推送——是否收尾这个分支交由下一步的 `finishing-a-development-branch` 环节向用户确认。
