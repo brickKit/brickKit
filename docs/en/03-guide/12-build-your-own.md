@@ -1,4 +1,4 @@
-# 11. Build Your First Component From Scratch
+# 12. Build Your First Component From Scratch
 
 Every earlier article installed something that already existed. This one writes a genuinely new component — a minimal HTTP counter, deliberately small enough to type out in full — and gets it running the exact same way as everything else in this series: no special onboarding path, just a `component.yaml` and an image. Typing the Manifest out by hand here is deliberate, to show there's no hidden magic in it; for real use, `brickkit new my-scope/counter` generates the same shape of file, already valid, with the fields you'd otherwise be typing left as TODOs.
 
@@ -168,10 +168,10 @@ curl http://localhost:8085/api/v1/count
 This component didn't need anything special to plug into the rest of what this series covers, because none of it was ever specific to `demo/hello` or `demo/caller` in the first place:
 
 - [Debug a component locally](03-local-debugging.md) works the same way — `mode: debug`, run the binary on your own machine, breakpoints and all.
-- [Publish and install from a marketplace](09-marketplace.md) and [Sign and verify components](10-signing.md) work the same way — `brickkit publish --path ./components/tutorial/counter`, sign it, install it somewhere else.
+- [Publish and install from a marketplace](10-marketplace.md) and [Sign and verify components](11-signing.md) work the same way — `brickkit publish --path ./components/tutorial/counter`, sign it, install it somewhere else.
 
 Nothing in this article introduced a new mechanism — the point was confirming that writing a component from nothing really does land you in the exact same platform every other article in this series already walked through.
 
 ---
 
-Next: [Network policy and least privilege](12-network-policy.md) — locking down which components can actually talk to which, on Kubernetes.
+Next: [Network policy and least privilege](13-network-policy.md) — locking down which components can actually talk to which, on Kubernetes.

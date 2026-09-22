@@ -31,7 +31,7 @@ reading order — [`en/README.md`](en/README.md) lays it out.
 - **How BrickKit compares to Compose/Helm/Kustomize/etc.** → [Comparison](en/02-comparison.md)
 
 ### 🛠️ I want to develop a new component
-- **Build your first component from scratch** → [Guide: Build your first component](en/03-guide/11-build-your-own.md)
+- **Build your first component from scratch** → [Guide: Build your first component](en/03-guide/12-build-your-own.md)
   *(a minimal, complete walkthrough: Manifest, `os.environ.get()`, `/healthz`)*
 - **A deep Go component template with a database** → [Go component template](en/04-go-component-template.md)
   *(a real, tested component — migrations, a multi-stage Dockerfile, the works)*
@@ -44,13 +44,13 @@ reading order — [`en/README.md`](en/README.md) lays it out.
 - **Which AI-development pain each engineering idea maps to, and how an AI copes** → [Meet the ideas](en/06-architecture/01-design-principles.md#meet-the-ideas)
 
 ### 🛡️ I want production-grade, advanced patterns
-- **Upgrades and running multiple versions side by side** → [Guide: Upgrades and versions](en/03-guide/05-upgrades-and-versions.md)
+- **Upgrades and running multiple versions side by side** → [Guide: Upgrades and versions](en/03-guide/06-upgrades-and-versions.md)
   *(a real v1/v2 coexistence, and the `remove` error when an ID is ambiguous)*
 - **Common failures and weak-dependency degradation** → [Troubleshooting](en/08-troubleshooting.md)
   *(symptom → real cause → fix, plus the missing-optional-dependency warning from [Guide 2](en/03-guide/02-what-runs.md))*
 
 ### 📖 The full walkthrough
-- **12-part tutorial series, in order** → [Tutorial series](en/03-guide/README.md)
+- **14-part tutorial series, in order** → [Tutorial series](en/03-guide/README.md)
 
 ## 中文
 
@@ -68,7 +68,7 @@ reading order — [`en/README.md`](en/README.md) lays it out.
 - **对比 BrickKit 和 Compose/Helm/Kustomize 等** → [对比](zh/02-comparison.md)
 
 ### 🛠️ 我想开发新组件
-- **从零开发第一个组件** → [指南：从零开发第一个组件](zh/03-guide/11-build-your-own.md)
+- **从零开发第一个组件** → [指南：从零开发第一个组件](zh/03-guide/12-build-your-own.md)
   *(一个极简但完整的例子：Manifest、`os.environ.get()`、`/healthz`)*
 - **带数据库的 Go 组件深度模板** → [Go 组件模板](zh/04-go-component-template.md)
   *(一个真实的、有测试覆盖的组件——数据库迁移、多阶段 Dockerfile，一应俱全)*
@@ -81,13 +81,13 @@ reading order — [`en/README.md`](en/README.md) lays it out.
 - **每个工程想法对应 AI 开发的什么痛点，AI 该怎么应对** → [认识这些想法](zh/06-architecture/01-design-principles.md#认识这些想法)
 
 ### 🛡️ 我想了解生产级的进阶用法
-- **升级与多版本共存** → [指南：升级与多版本共存](zh/03-guide/05-upgrades-and-versions.md)
+- **升级与多版本共存** → [指南：升级与多版本共存](zh/03-guide/06-upgrades-and-versions.md)
   *(真实的 v1/v2 并存，以及 ID 跨版本有歧义时 `remove` 的真实报错)*
 - **常见故障与弱依赖降级** → [故障排除](zh/08-troubleshooting.md)
   *(症状 → 真实原因 → 解决，弱依赖缺失的真实警告见[教程第 2 篇](zh/03-guide/02-what-runs.md))*
 
 ### 📖 完整教程
-- **13 篇系列教程，按顺序读** → [教程系列](zh/03-guide/README.md)
+- **14 篇系列教程，按顺序读** → [教程系列](zh/03-guide/README.md)
 
 ---
 

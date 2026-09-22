@@ -502,7 +502,7 @@ under `docs/en/` and `docs/zh/`.
 | | |
 | --- | --- |
 | Tests | 2,000+ test functions, race-clean |
-| Hands-on guides (current) | 13 articles, every one run for real; see `docs/en/03-guide/` |
+| Hands-on guides (current) | 14 articles, every one run for real; see `docs/en/03-guide/` |
 | Hands-on guides (archived) | 23 articles, every one run against real Docker / Kubernetes / a live marketplace |
 | Design books (archived) | 14 volumes, cross-checked against the implementation twice |
 | Decision record (archived) | 566 entries, each carrying the reasoning behind it at the time |

@@ -1,4 +1,4 @@
-# 8. 管理组件源码
+# 9. 管理组件源码
 
 前面的教程里，`components/` 要么是空的，要么是从 `tests/components/` 拷进来的一份 Manifest。有一个很自然的问题一直没回答：**别人写的组件，我想看看它的源码、甚至改一改，怎么办？** 这一篇讲组件源码的整套生命周期：把它克隆下来、只留手边要动的那几个、改完推回去、用完删干净，以及源码跟着项目一起提交时怎么不出岔子。全部对着真实的 CLI 跑过，用的还是那两个最小夹具（[`demo/hello`](../../../tests/components/demo-hello/) 和 [`demo/caller`](../../../tests/components/demo-caller/)），只是这次把它们做成了两个 Git 仓库。
 
@@ -106,7 +106,7 @@ brickkit add demo/hello@1.0.0 --repo --yes
 ✅ 已刷新 demo/hello@1.0.0 的 Manifest 与 artifacts 缓存
 📁 已下载 artifacts 到 .brickkit/artifacts/（1 个文件）
 📁 已 clone 源码到 components/demo/hello/
-💡 改了源码怎么推回去、以及之后怎么管这份源码，见 docs/zh/03-guide/08-component-source.md（英文版把 zh 换 en）
+💡 改了源码怎么推回去、以及之后怎么管这份源码，见 docs/zh/03-guide/09-component-source.md（英文版把 zh 换 en）
 ```
 
 这里的 `--yes` 是因为 `demo/hello` 已经在 `brickkit.yaml` 里了：`add` 遇到已经加过的组件，会先问一句"是否刷新 Manifest 与 artifacts 缓存？[y/N]"，`--yes` 等于替你答了 y。在没有终端可以回答的地方（脚本、CI）不加 `--yes`，它会当作你答了 N——什么都不做，也不会克隆。**组件还没写进 `brickkit.yaml` 时没有这一问**，直接 `brickkit add demo/hello@1.0.0 --repo` 就行。
@@ -212,7 +212,7 @@ git -C components/demo/hello push myfork feature/greeting
 
 （只想彻底转到自己的 fork、不再关心上游，就把 `origin` 换掉：`git remote set-url origin <你的 fork 地址>`。）
 
-改完想让别人（或者你自己的别的项目）用上这个改动，就是发布一个新版本的事了：改 `component.yaml` 里的版本号、构建新镜像、`brickkit publish`（[第 9 篇](09-marketplace.md)）；已经在用旧版本的项目怎么升级，是[第 5 篇](05-upgrades-and-versions.md)讲的。
+改完想让别人（或者你自己的别的项目）用上这个改动，就是发布一个新版本的事了：改 `component.yaml` 里的版本号、构建新镜像、`brickkit publish`（[第 10 篇](10-marketplace.md)）；已经在用旧版本的项目怎么升级，是[第 6 篇](06-upgrades-and-versions.md)讲的。
 
 ## 只留手边要动的：`mode` 和 `sync`
 
@@ -562,4 +562,4 @@ git commit -m "调整 hello 的问候"
 
 ---
 
-下一篇：[从市场发布与安装](09-marketplace.md)——把一个组件发布到市场，再从市场上装它，而不是用本地源。
+下一篇：[从市场发布与安装](10-marketplace.md)——把一个组件发布到市场，再从市场上装它，而不是用本地源。

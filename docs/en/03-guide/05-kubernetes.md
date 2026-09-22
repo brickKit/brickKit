@@ -1,4 +1,4 @@
-# 4. Deploy to Kubernetes
+# 5. Deploy to Kubernetes
 
 Same Manifest, same `brickkit.yaml` structure, same dependency graph — the only thing that changes is `deploy.target: k8s` (AGENTS.md §5.5). This article deploys the `demo/hello` + `demo/caller` pair from [Article 2](02-what-runs.md) to a real cluster (minikube), start to finish, including finally binding the real database `demo/caller` has been asking for since that article — and a real, load-bearing gotcha discovered by actually running `brickkit down` afterward, not by reading the source.
 
@@ -165,4 +165,4 @@ minikube image rm brickkit-demo/hello:1.0.0 brickkit-demo/caller:1.0.0
 
 ---
 
-Next: [Upgrade and run multiple versions side by side](05-upgrades-and-versions.md) — upgrading a running component to a new version, and running two versions side by side on purpose.
+Next: [Upgrade and run multiple versions side by side](06-upgrades-and-versions.md) — upgrading a running component to a new version, and running two versions side by side on purpose.

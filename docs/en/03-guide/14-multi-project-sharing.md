@@ -1,4 +1,4 @@
-# 13. Multi-Project Sharing
+# 14. Multi-Project Sharing
 
 Two teams, two separate BrickKit projects, and a real question: do they need to share anything at all? This article works through the one question that actually matters — where does the state live — and the three shapes that fall out of it, verified against two genuinely independent projects and a shared Redis, not a single project pretending to be two.
 
@@ -136,7 +136,7 @@ One naming rule matters here: don't call this field anything ending in `Endpoint
 
 ## Why there's no platform feature that does this automatically
 
-An earlier version of this platform had exactly that: an `external: {project: X}` field that would derive a cross-project address for you — reach into the other project's Docker network, or append its Kubernetes namespace to the address. It was removed, because it quietly encoded the wrong relationship: not "call someone else's API," but "share someone else's internal network." That meant the calling project needed the other component's Manifest resolvable from its own sources at all, needed the other project actually running before it could start, and — silently, no error anywhere — broke the instant either side turned on `mode: debug` or `networkPolicy.egress`. Losing it cost exactly one thing: the other component's artifacts (`.proto`, `openapi.json`) stop downloading automatically, and have to be requested once, by hand — [`brickkit fetch`](07-consuming-artifacts.md) from Article 7 is the tool for exactly that, on either side of this relationship.
+An earlier version of this platform had exactly that: an `external: {project: X}` field that would derive a cross-project address for you — reach into the other project's Docker network, or append its Kubernetes namespace to the address. It was removed, because it quietly encoded the wrong relationship: not "call someone else's API," but "share someone else's internal network." That meant the calling project needed the other component's Manifest resolvable from its own sources at all, needed the other project actually running before it could start, and — silently, no error anywhere — broke the instant either side turned on `mode: debug` or `networkPolicy.egress`. Losing it cost exactly one thing: the other component's artifacts (`.proto`, `openapi.json`) stop downloading automatically, and have to be requested once, by hand — [`brickkit fetch`](08-consuming-artifacts.md) from Article 8 is the tool for exactly that, on either side of this relationship.
 
 ---
 

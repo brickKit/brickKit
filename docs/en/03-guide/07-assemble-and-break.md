@@ -1,4 +1,4 @@
-# 6. Assemble a Real System, Then Break It on Purpose
+# 7. Assemble a Real System, Then Break It on Purpose
 
 Every article so far has stopped short of a real database — `demo/caller`'s resource dependency has been a warning to read, not something actually bound. This one closes that loop: `demo/hello` and `demo/caller` running against a real PostgreSQL, fully wired, then broken two different ways on purpose to see exactly what each failure actually looks like — not predicted from the source, observed.
 
@@ -123,4 +123,4 @@ docker rm -f guide-pg
 
 ---
 
-Next: [Consume someone else's component](07-consuming-artifacts.md) — what a component publishes for others to discover and use, artifacts and API docs, from the consuming side.
+Next: [Consume someone else's component](08-consuming-artifacts.md) — what a component publishes for others to discover and use, artifacts and API docs, from the consuming side.

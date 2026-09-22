@@ -283,7 +283,7 @@ wait:
 func (s *Supervisor) Printf(format string, args ...any) {
 	s.sink.mu.Lock()
 	defer s.sink.mu.Unlock()
-	fmt.Fprintf(s.sink.out, format, args...)
+	_, _ = fmt.Fprintf(s.sink.out, format, args...)
 }
 
 // Exits 返回已经退出的进程的退出情况，按启动顺序。

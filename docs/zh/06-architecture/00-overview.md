@@ -346,7 +346,7 @@ dependencies:
 
 - **它是什么：** 一个类似 `mock` 的命令按契约生成一个假服务器，再用类似 `up` 上 `--with-mocks` 的参数把它换上，顶替一个不存在的强依赖。
 - **为什么不做：** 平台从不解析契约；悄悄换上一个替身，直接违反"强依赖缺失就阻断启动"；而且换成另一个名字的 mock 根本接不到流量，因为注入的地址指向的是真实组件的版本化服务名。
-- **替代做法：** 用 `brickkit new <id> --contract openapi` 生成一个桩，配上 `mode: debug` + `localPort`，再用任意 mock 工具监听那个端口——[实操](../03-guide/07-consuming-artifacts.md)。
+- **替代做法：** 用 `brickkit new <id> --contract openapi` 生成一个桩，配上 `mode: debug` + `localPort`，再用任意 mock 工具监听那个端口——[实操](../03-guide/08-consuming-artifacts.md)。
 
 ---
 

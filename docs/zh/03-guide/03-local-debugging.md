@@ -94,7 +94,7 @@ curl http://localhost:8080/api/v1/hello
 
 ## 证明一个容器真的能连到它
 
-`demo/caller` 自己的镜像要完全启动起来需要一个真实数据库（第 6 篇会讲怎么绑），但它依赖的那个网络技巧，用一个带着上面 BrickKit 生成出的同一条 `extra_hosts` 的一次性容器就能独立验证：
+`demo/caller` 自己的镜像要完全启动起来需要一个真实数据库（第 7 篇会讲怎么绑），但它依赖的那个网络技巧，用一个带着上面 BrickKit 生成出的同一条 `extra_hosts` 的一次性容器就能独立验证：
 
 ```bash
 docker network create brickkit-hello-world-net
@@ -120,4 +120,4 @@ docker network rm brickkit-hello-world-net
 
 ---
 
-下一篇：[部署到 Kubernetes](04-kubernetes.md)——同样形状的项目，改部署到 Kubernetes 而不是 Docker——同一份 Manifest、同一张依赖图，生成出来的是完全不同的一套文件。
+下一篇：[部署到 Kubernetes](05-kubernetes.md)——同样形状的项目，改部署到 Kubernetes 而不是 Docker——同一份 Manifest、同一张依赖图，生成出来的是完全不同的一套文件。

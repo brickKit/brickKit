@@ -1,4 +1,4 @@
-# 11. 从零开发自己的第一个组件
+# 12. 从零开发自己的第一个组件
 
 前面每一篇装的都是本来就已经存在的东西。这一篇真写一个全新的组件——一个最小的 HTTP 计数器，故意小到能完整抄下来——然后用这个系列里其它每一篇一模一样的方式把它跑起来：没有专门的上手路径，就是一份 `component.yaml` 加一个镜像。这里手打 Manifest 是故意的，为了说明它没有任何藏起来的魔法；真要用的话，`brickkit new my-scope/counter` 生成的是同一个形状的文件，已经合法，本该你手打的那些字段留着 TODO 等你填。
 
@@ -168,10 +168,10 @@ curl http://localhost:8085/api/v1/count
 这个组件不需要任何特殊操作就能接上这个系列讲过的其它内容，因为那些内容从来就不是专属于 `demo/hello` 或 `demo/caller` 的：
 
 - [本地调试一个组件](03-local-debugging.md)用的是同一套方式——`mode: debug`，在自己机器上跑那个二进制，断点照挂不误。
-- [从市场发布与安装](09-marketplace.md)和[给组件签名与验签](10-signing.md)也是同一套方式——`brickkit publish --path ./components/tutorial/counter`，签名，装到别的地方去。
+- [从市场发布与安装](10-marketplace.md)和[给组件签名与验签](11-signing.md)也是同一套方式——`brickkit publish --path ./components/tutorial/counter`，签名，装到别的地方去。
 
 这一篇没有引入任何新机制——重点是确认了"从零开发一个组件"真的会把你带到这个系列前面每一篇早就走过的那同一个平台上，不多不少。
 
 ---
 
-下一篇：[网络策略与最小权限](12-network-policy.md)——在 Kubernetes 上锁定哪些组件真的能跟哪些说上话。
+下一篇：[网络策略与最小权限](13-network-policy.md)——在 Kubernetes 上锁定哪些组件真的能跟哪些说上话。

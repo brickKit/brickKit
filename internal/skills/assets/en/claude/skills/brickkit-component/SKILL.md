@@ -169,5 +169,5 @@ version, content-equivalent.)
 
 - Every `component.yaml` field's rules and the full reference: `docs/en/06-architecture/07-component-yaml-reference.md`
 - The complete dictionary of environment-variable naming and reserved variables: `docs/en/06-architecture/04-environment-variables.md`
-- A hands-on tutorial (writing a component from scratch): `docs/en/03-guide/11-build-your-own.md`;
+- A hands-on tutorial (writing a component from scratch): `docs/en/03-guide/12-build-your-own.md`;
   a complete Go component example (database, migrations included): `docs/en/04-go-component-template.md`

@@ -211,7 +211,7 @@ The CLI's real warning when `greeting` is written `greetting`:
 - **Symptom:** after `deploy.networkPolicy.enabled: true`, `brickkit up` reports "generated N NetworkPolicy" with a warning, and `kubectl get networkpolicy` shows them — yet an unauthorized connection still gets through, with no error.
 - **Cause:** the cluster's network plugin (CNI) doesn't enforce NetworkPolicy. Many clusters accept the objects and enforce none of them; the **default** CNI of minikube and kind is one of these. Kubernetes has no API to ask, so the platform can't tell, and `up` warns you every time to check it yourself once.
 - **Fix:**
-  - Switch to a CNI that enforces NetworkPolicy ([guide 12](03-guide/12-network-policy.md) uses `minikube start --cni=calico`).
+  - Switch to a CNI that enforces NetworkPolicy ([guide 13](03-guide/13-network-policy.md) uses `minikube start --cni=calico`).
   - Then verify as the guide does: an authorized path still works, and an unauthorized one really is blocked.
 
 The warning `brickkit up` prints:

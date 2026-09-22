@@ -341,7 +341,7 @@ brickkit lint --config brickkit.prod.yaml    # 对非默认环境的配置文件
 `artifacts`。仅此而已——不生成 Dockerfile，不生成任何语言的源码。平台
 语言无关，不替你选语言；想看一个真实的完整例子，看
 [用 Go 写一个 BrickKit 组件](../04-go-component-template.md) 或
-[从零开发自己的第一个组件](../03-guide/11-build-your-own.md)。
+[从零开发自己的第一个组件](../03-guide/12-build-your-own.md)。
 
 默认写到 `components/<scope>/<name>/`——这正是 `local` 类型安装源本来就
 扫描的布局（`<scope>/<name>/component.yaml`），`brickkit add --repo`
@@ -464,7 +464,7 @@ brickkit new demo/widget --path ../widget-repo     # 写到别的目录——那
 给一个已装组件添加第二个版本时，会先弹出确认再让两者共存（非交互模式用
 `--yes` 跳过）。
 
-克隆组件源码（`--repo` / `--repo-all`）怎么用、克隆之后怎么管，见上手教程：[管理组件源码](../03-guide/08-component-source.md)。
+克隆组件源码（`--repo` / `--repo-all`）怎么用、克隆之后怎么管，见上手教程：[管理组件源码](../03-guide/09-component-source.md)。
 
 **参数**
 
@@ -515,7 +515,7 @@ brickkit add --local                        # 把本地安装源声明的组件�
 `components/.archived/<scope>/<name>/`——除非同 ID 还有其他已装版本仍然
 需要那份源码。多个版本共存时必须显式指定版本。
 
-带真实输出的上手教程：[管理组件源码](../03-guide/08-component-source.md)——被依赖挡住、源码删了找不回来、git submodule 这几道拦截，每一种都真的触发了一遍。
+带真实输出的上手教程：[管理组件源码](../03-guide/09-component-source.md)——被依赖挡住、源码删了找不回来、git submodule 这几道拦截，每一种都真的触发了一遍。
 
 **参数**
 
@@ -712,7 +712,7 @@ $ brickkit status
 `brickkit.yaml`、且已有源码的组件。没有 `--dry-run`——搞错了再跑一次就
 换回来了。
 
-带真实输出、一步一步走的上手教程：[管理组件源码](../03-guide/08-component-source.md)——归档、激活、和它与 `mode` 的配合都在里面。
+带真实输出、一步一步走的上手教程：[管理组件源码](../03-guide/09-component-source.md)——归档、激活、和它与 `mode` 的配合都在里面。
 
 **示例**
 
@@ -743,7 +743,7 @@ $ brickkit sync
 
 要覆盖的旧值会在真正改动之前先打印出来。
 
-带真实输出的上手教程：[管理组件源码](../03-guide/08-component-source.md)最后一节，从制造那个失误、被钩子拦下，一直走到 `restore` 把它修好。
+带真实输出的上手教程：[管理组件源码](../03-guide/09-component-source.md)最后一节，从制造那个失误、被钩子拦下，一直走到 `restore` 把它修好。
 
 **参数**
 

@@ -63,7 +63,7 @@ L2 和 L3 最容易混淆——两者看起来都在测"这个功能对不对"�
 | --- | --- | --- |
 | 配置说明书 | `configSchema` | 组件会从环境变量里读哪些键、默认值是什么、哪些必填 |
 | 依赖声明 | `dependencies` | 组件会收到哪些 `*_ENDPOINT`（弱依赖没在跑时**不会**注入，见[环境变量注入契约](../06-architecture/04-environment-variables.md)） |
-| 接口契约 | `artifacts` 里的契约文件（OpenAPI、protobuf 等，见[消费别人的组件](../03-guide/07-consuming-artifacts.md)） | 组件对外说了什么 |
+| 接口契约 | `artifacts` 里的契约文件（OpenAPI、protobuf 等，见[消费别人的组件](../03-guide/08-consuming-artifacts.md)） | 组件对外说了什么 |
 
 推荐的顺序：
 

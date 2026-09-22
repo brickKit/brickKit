@@ -20,7 +20,7 @@ The **numbers in front of the folder and file names are the suggested reading or
 ## Three routes
 
 - **Your first time:** 00 → 01 → 03 (the first few tutorials)
-- **Developing components:** tutorial 11 in 03 → 04 → 05 → 00–04 in 07
+- **Developing components:** tutorial 12 in 03 → 04 → 05 → 00–04 in 07
 - **Just looking up a command:** the [command overview](06-architecture/09-cli-reference.md#all-the-commands-at-a-glance) — one line and "when to use it" per command, and each links to its full flags and real output
 
 Rather find things by "what I want to do" than in order? See the [overall navigation](../README.md).

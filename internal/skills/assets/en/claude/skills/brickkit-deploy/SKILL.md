@@ -146,6 +146,6 @@ version, content-equivalent.)
 
 - Flags: `brickkit up --help`, `brickkit down --help`
 - Generation detail for both deploy paths, Ingress, migration Jobs: `docs/en/06-architecture/03-deployment-generation.md`
-- Network policy: `docs/en/03-guide/12-network-policy.md`
+- Network policy: `docs/en/03-guide/13-network-policy.md`
 - How the six resource kinds are declared, bound, and injected, and secret handling: `docs/en/06-architecture/05-resource-binding.md`
 - The full field reference for `brickkit.yaml`: `docs/en/06-architecture/08-brickkit-yaml-reference.md`

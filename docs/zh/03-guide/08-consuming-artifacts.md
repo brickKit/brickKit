@@ -1,4 +1,4 @@
-# 7. 消费别人的组件
+# 8. 消费别人的组件
 
 一个组件的 `component.yaml` 可以声明 `artifacts`——调用方要真正对接它需要的文件（一份 OpenAPI 规范、一份 protobuf 契约、一份 SDK），跟 Manifest 本身是分开的（AGENTS.zh.md §6）。这一篇讲这些文件最终落在哪、怎么在完全不安装这个组件的情况下拿到它们，讲一个已经写好的真实组件——它整个存在的意义就是把这类东西展示给别人看；最后一节换个处境：你依赖的组件根本还没做好，怎么先立个桩，带着两边谈定的契约把自己的组件跑起来。
 
@@ -260,7 +260,7 @@ brickkit up --dry-run
 ...
 ```
 
-`image` 和 `port` 真的没被用到，有两处证据。其一，🔧 那一段要你在 `localhost:18081` 提供服务：这是 `localPort` 的值，Manifest 里写的 8080 没起作用。其二更硬：把完整的 `brickkit up` 真跑一遍（临时起个 PostgreSQL、照第 6 篇的办法绑上），检测镜像拉取权限那一步照样 `✅ 全部通过`，而这个占位镜像从来没人构建过——如果 BrickKit 真要去拉取或校验这个镜像本身，这一步该报错才对。
+`image` 和 `port` 真的没被用到，有两处证据。其一，🔧 那一段要你在 `localhost:18081` 提供服务：这是 `localPort` 的值，Manifest 里写的 8080 没起作用。其二更硬：把完整的 `brickkit up` 真跑一遍（临时起个 PostgreSQL、照第 7 篇的办法绑上），检测镜像拉取权限那一步照样 `✅ 全部通过`，而这个占位镜像从来没人构建过——如果 BrickKit 真要去拉取或校验这个镜像本身，这一步该报错才对。
 
 如果你对那句 `请在 IDE 里启动它` 心存疑惑：它沿用的是 `mode: debug` 最初的用途——在 IDE 里下断点调试。对 mock 来说，谁来监听 18081 无所谓，IDE 里的程序也好，终端里的脚本也好，只要那个端口上有东西在应答就行。
 
@@ -299,7 +299,7 @@ python3 -m http.server 18081 --directory mock
 
 服务器会一直占着这个终端，另开一个终端继续。
 
-接下来让消费方容器去调它。这里不走 `brickkit up`：`demo/caller` 声明了要数据库，`up` 在没绑资源时不放行（第 3 步那条被 `...` 省掉的"资源依赖未满足"说的就是它，第 6 篇会真绑一个）。好在它的镜像手动起来时并不碰数据库，所以直接跑镜像，带上上一步 `grep` 里的那两样东西：
+接下来让消费方容器去调它。这里不走 `brickkit up`：`demo/caller` 声明了要数据库，`up` 在没绑资源时不放行（第 3 步那条被 `...` 省掉的"资源依赖未满足"说的就是它，第 7 篇会真绑一个）。好在它的镜像手动起来时并不碰数据库，所以直接跑镜像，带上上一步 `grep` 里的那两样东西：
 
 ```bash
 docker build -t brickkit-demo/caller:1.0.0 ../tests/components/demo-caller
@@ -312,7 +312,7 @@ docker run -d --name contract-first-caller \
 docker exec contract-first-caller wget -qO- http://localhost:8080/api/v1/call
 ```
 
-这两个参数其实是上面 `grep` 结果的"手工版"：`--add-host` 对应 `extra_hosts` 那一行，`-e` 对应 `DEMO_HELLO_ENDPOINT` 那一行，只是 BrickKit 生成 compose 时替你写，这里改成命令行自己写。最后一条请求打的是 `demo/caller` 自己的 `/api/v1/call`：它收到后会转头去调依赖，也就是我们的 mock，再把拿到的东西放进 `upstream` 字段返回——第 6 篇验证依赖链时也用过它：
+这两个参数其实是上面 `grep` 结果的"手工版"：`--add-host` 对应 `extra_hosts` 那一行，`-e` 对应 `DEMO_HELLO_ENDPOINT` 那一行，只是 BrickKit 生成 compose 时替你写，这里改成命令行自己写。最后一条请求打的是 `demo/caller` 自己的 `/api/v1/call`：它收到后会转头去调依赖，也就是我们的 mock，再把拿到的东西放进 `upstream` 字段返回——第 7 篇验证依赖链时也用过它：
 
 ```
 {"component":"demo/caller","endpoint":"http://demo-hello-1-0-0:18081","upstream":{"from":"mock","greeting":"你好，我是桩"},"version":"1.0.0"}
@@ -330,7 +330,7 @@ docker exec contract-first-caller wget -qO- http://localhost:8080/api/v1/call
 
 别忘了这次"通过"的含义：它只证明消费方与契约里约定的样子对得上。真组件在契约之外、或与契约有出入的地方，要等它真做好了才看得见。
 
-更完整的一次验证：临时起个 PostgreSQL，照第 6 篇的写法绑给 `demo/caller`，再给 `demo/caller` 加上 `expose: true`，然后真的执行 `brickkit up`。结果只有 `demo/caller` 一个容器被起来，桩不在其列；从主机 `curl` 它的 `/api/v1/call`，`upstream` 与上面一致。
+更完整的一次验证：临时起个 PostgreSQL，照第 7 篇的写法绑给 `demo/caller`，再给 `demo/caller` 加上 `expose: true`，然后真的执行 `brickkit up`。结果只有 `demo/caller` 一个容器被起来，桩不在其列；从主机 `curl` 它的 `/api/v1/call`，`upstream` 与上面一致。
 
 如果接口有几十个，手写回应就不现实了，这时该让工具去读契约，由它按契约生成回应。Prism 就是这类工具之一：第三方软件，与 BrickKit 无关；下面这条命令在写作时用 `5.16.0` 版本验证过，它把契约里的 `example` 当作回答（其余参数以它自己的文档为准）。另外留意，`npx --yes` 会不经确认就下载并运行第三方代码：
 
@@ -373,4 +373,4 @@ brickkit add demo/hello@1.0.0 --yes           # 前提：sources 里有个带着
 
 ---
 
-下一篇：[管理组件源码](08-component-source.md)——把别人的组件源码克隆下来、只留手边要动的那几个、改完推回去、用完删干净，以及源码跟着项目一起提交时的提交钩子。
+下一篇：[管理组件源码](09-component-source.md)——把别人的组件源码克隆下来、只留手边要动的那几个、改完推回去、用完删干净，以及源码跟着项目一起提交时的提交钩子。

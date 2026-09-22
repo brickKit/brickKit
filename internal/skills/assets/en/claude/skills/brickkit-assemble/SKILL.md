@@ -104,4 +104,4 @@ version, content-equivalent.)
 - The complete rules for `mode` and start/stop: `docs/en/06-architecture/08-brickkit-yaml-reference.md`
   (the `mode` field), root `AGENTS.md` §5.4
 - Install, assemble, upgrade, and dependency-resolution detail: `docs/en/06-architecture/02-dependency-resolution.md`,
-  `docs/en/03-guide/06-assemble-and-break.md`, `docs/en/03-guide/05-upgrades-and-versions.md`
+  `docs/en/03-guide/07-assemble-and-break.md`, `docs/en/03-guide/06-upgrades-and-versions.md`

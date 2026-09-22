@@ -82,7 +82,7 @@ func TestPrefixWriterSplitsOverlongLines(t *testing.T) {
 func TestPrefixWriterKeepsTheMostRecentLinesForTroubleshooting(t *testing.T) {
 	w, _ := newPrefixWriter("x | ")
 	for i := 0; i < tailForTest+5; i++ {
-		_, _ = w.Write([]byte(fmt.Sprintf("line-%d\n", i)))
+		_, _ = fmt.Fprintf(w, "line-%d\n", i)
 	}
 	_, _ = w.Write([]byte("unfinished"))
 	w.Flush()
@@ -113,7 +113,7 @@ func TestPrefixWriterTailHonoursItsCapacityAcrossWrapArounds(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			w := &prefixWriter{sink: &lineSink{out: io.Discard}, prefix: "x | ", tailCap: c.cap}
 			for i := 0; i < c.lines; i++ {
-				_, _ = w.Write([]byte(fmt.Sprintf("l%d\n", i)))
+				_, _ = fmt.Fprintf(w, "l%d\n", i)
 			}
 
 			assert.Equal(t, c.want, w.Tail())
@@ -157,8 +157,8 @@ func TestPrefixWritersSharingASinkNeverInterleaveWithinALine(t *testing.T) {
 			defer wg.Done()
 			for i := 0; i < 200; i++ {
 				// 故意把一行切成两次写，逼出"写到一半被别人插队"的可能
-				_, _ = w.Write([]byte(fmt.Sprintf("%s-", name)))
-				_, _ = w.Write([]byte(fmt.Sprintf("%d\n", i)))
+				_, _ = fmt.Fprintf(w, "%s-", name)
+				_, _ = fmt.Fprintf(w, "%d\n", i)
 			}
 		}()
 	}

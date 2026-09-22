@@ -33,12 +33,12 @@ CLI 的输出语言由 `BRICKKIT_LANG` 决定（默认英文，`brickkit lang se
 # 只挑不需要 Docker / minikube / 市场 / cosign 的场景
 
 13 篇里能在任何机器上确定性构造的，只是其中一部分：01（部分）、02、03
-（部分）、05（部分）、06（部分）、07（部分，含契约先行一节）、08（几乎全部）——04 要 minikube、
-09 要市场、10 要 cosign、12 要支持执行策略的 CNI，11/13 的核心内容也要 Docker
+（部分）、06（部分）、07（部分）、08（部分，含契约先行一节）、09（几乎全部）——05 要 minikube、
+10 要市场、11 要 cosign、13 要支持执行策略的 CNI，12/14 的核心内容也要 Docker
 真的把容器跑起来。这跟旧版本的分层哲学一致：能确定性构造的进 `make lint`
 天天跑，要真实环境的留给人工（或者以后配一个 docker 层的 CI job，见文末的账目）。
 
-第 8 篇（组件源码）是个例外的"几乎全部"：它讲的 add --repo / sync / remove /
+第 9 篇（组件源码）是个例外的"几乎全部"：它讲的 add --repo / sync / remove /
 restore / 提交钩子都不启动容器，只需要 git。所以它的场景用本地裸仓库当"远端"
 （!make-remotes），用真实的 git 命令（!git）造出未提交、未推送、归档、
 submodule 这些状态，再拿真实 CLI 的输出与教程逐行比对。
@@ -168,7 +168,7 @@ CASES = [
         "run": ["init hello-world --no-skills",
                 "!copy-into components/demo/hello demo-hello",
                 "!add-second-version demo/hello demo-hello"],
-        "file": "05-upgrades-and-versions.md",
+        "file": "06-upgrades-and-versions.md",
         "check": ("remove demo/hello",
                   {"zh": "❌ demo/hello 存在多个版本（2.0.0, 1.0.0），请指定版本：",
                    "en": "❌ demo/hello has several versions (2.0.0, 1.0.0); please specify one:"}, 0),
@@ -176,7 +176,7 @@ CASES = [
     {
         "what": "05 指定版本后 remove 成功",
         "run": [],
-        "file": "05-upgrades-and-versions.md",
+        "file": "06-upgrades-and-versions.md",
         "check": ("remove demo/hello@1.0.0",
                   {"zh": "✅ 已移除 demo/hello@1.0.0",
                    "en": "✅ Removed demo/hello@1.0.0"}, 0),
@@ -189,7 +189,7 @@ CASES = [
                 "!copy-into components/demo/caller demo-caller",
                 "add --local",
                 "!bind-resource caller-db guide-pg"],
-        "file": "06-assemble-and-break.md",
+        "file": "07-assemble-and-break.md",
         "check": ("up --dry-run",
                   {"zh": "⚠️ 基础资源的 host 看起来是个服务名，容器里可能解析不了",
                    "en": "⚠️ A resource's host looks like a service name, which may not resolve inside the container"}, 0),
@@ -198,7 +198,7 @@ CASES = [
         "what": "07 fetch 只下产物、不动配置",
         "reset": True,
         "run": ["init hello-world --no-skills", "!copy-into components/demo/hello demo-hello"],
-        "file": "07-consuming-artifacts.md",
+        "file": "08-consuming-artifacts.md",
         "check": ("fetch demo/hello@1.0.0",
                   {"zh": "📦 已下载 demo/hello@1.0.0 的产物（未写入 brickkit.yaml）",
                    "en": "📦 Downloaded the artifacts of demo/hello@1.0.0 (not written to brickkit.yaml)"}, 0),
@@ -210,7 +210,7 @@ CASES = [
         "what": "07 上游还没好：new 出桩",
         "reset": True,
         "run": ["init hello-world --no-skills", "!copy-into components/demo/caller demo-caller"],
-        "file": "07-consuming-artifacts.md",
+        "file": "08-consuming-artifacts.md",
         "check": ("new demo/hello --contract openapi",
                   {"zh": "✅ 已生成组件骨架：demo/hello",
                    "en": "✅ Component skeleton generated: demo/hello"}, 0),
@@ -221,7 +221,7 @@ CASES = [
     {
         "what": "07 忘了改桩的版本号：add --local 被挡住",
         "run": [],
-        "file": "07-consuming-artifacts.md",
+        "file": "08-consuming-artifacts.md",
         "check": ("add --local",
                   {"zh": "❌ 错误：强依赖缺失",
                    "en": "❌ Error: required dependency missing"}, 0),
@@ -229,7 +229,7 @@ CASES = [
     {
         "what": "07 桩与消费方一起 add --local",
         "run": ["!set-version components/demo/hello 1.0.0"],
-        "file": "07-consuming-artifacts.md",
+        "file": "08-consuming-artifacts.md",
         "check": ("add --local",
                   {"zh": "🔍 从本地安装源 local-dev 扫到 2 个组件",
                    "en": "🔍 Found 2 components in local install source: local-dev"}, 0),
@@ -237,7 +237,7 @@ CASES = [
     {
         "what": "07 桩接成 debug 之后的 dry-run",
         "run": ["!local-debug demo/hello 18081"],
-        "file": "07-consuming-artifacts.md",
+        "file": "08-consuming-artifacts.md",
         "check": ("up --dry-run",
                   {"zh": "🚀 启动项目 hello-world（deploy.target: docker）",
                    "en": "🚀 Starting project hello-world (deploy.target: docker)"}, 0),
@@ -249,7 +249,7 @@ CASES = [
         "what": "08 add 默认不克隆源码",
         "reset": True,
         "run": ["!make-remotes", "init workspace-demo --no-skills", "!git-sources"],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("add demo/caller@1.0.0",
                   {"zh": "📦 添加 demo/caller@1.0.0",
                    "en": "📦 Adding demo/caller@1.0.0"}, 0),
@@ -257,7 +257,7 @@ CASES = [
     {
         "what": "08 --repo 克隆一个已在配置里的组件",
         "run": [],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("add demo/hello@1.0.0 --repo --yes",
                   {"zh": "ℹ️ demo/hello@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存",
                    "en": "ℹ️ demo/hello@1.0.0 already exists in brickkit.yaml, and --yes was given: refreshing the cache directly"}, 0),
@@ -265,7 +265,7 @@ CASES = [
     {
         "what": "08 克隆过再 --repo：说源码已经在了，而不是没有 Git 地址",
         "run": [],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("add demo/hello@1.0.0 --repo --yes",
                   {"zh": "ℹ️ demo/hello@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存",
                    "en": "ℹ️ demo/hello@1.0.0 already exists in brickkit.yaml, and --yes was given: refreshing the cache directly"}, 1),
@@ -273,7 +273,7 @@ CASES = [
     {
         "what": "08 --repo-all：已有源码的跳过并说理由",
         "run": [],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("add demo/caller@1.0.0 --repo-all --yes",
                   {"zh": "ℹ️ demo/caller@1.0.0 已存在于 brickkit.yaml，--yes 已指定：直接刷新缓存",
                    "en": "ℹ️ demo/caller@1.0.0 already exists in brickkit.yaml, and --yes was given: refreshing the cache directly"}, 0),
@@ -288,7 +288,7 @@ CASES = [
                 "!git components/demo/hello remote add myfork {work}/remotes/hello-fork.git",
                 "!git components/demo/hello push -q myfork feature/greeting",
                 "!disable demo/caller"],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("up --dry-run",
                   {"zh": "📋 组件状态计算：",
                    "en": "📋 Component state calculation:"}, 0),
@@ -296,7 +296,7 @@ CASES = [
     {
         "what": "08 sync 把两个的源码都收进归档",
         "run": [],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("sync",
                   {"zh": "📂 工作区整理：",
                    "en": "📂 Workspace tidying:"}, 0),
@@ -304,7 +304,7 @@ CASES = [
     {
         "what": "08 钉住 hello 之后的判定",
         "run": ["!pin demo/hello"],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("up --dry-run",
                   {"zh": "📋 组件状态计算：",
                    "en": "📋 Component state calculation:"}, 1),
@@ -312,7 +312,7 @@ CASES = [
     {
         "what": "08 sync 把 hello 搬回来",
         "run": [],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("sync",
                   {"zh": "📂 工作区整理：",
                    "en": "📂 Workspace tidying:"}, 1),
@@ -320,7 +320,7 @@ CASES = [
     {
         "what": "08 删掉 mode，sync 把 caller 也搬回来",
         "run": ["!clear-mode"],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("sync",
                   {"zh": "📂 工作区整理：",
                    "en": "📂 Workspace tidying:"}, 2),
@@ -328,7 +328,7 @@ CASES = [
     {
         "what": "08 remove 被依赖方挡住",
         "run": [],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("remove demo/hello",
                   {"zh": "❌ 无法移除 demo/hello",
                    "en": "❌ Cannot remove demo/hello"}, 0),
@@ -336,7 +336,7 @@ CASES = [
     {
         "what": "08 remove 拦下未提交的改动",
         "run": ["!append components/demo/caller/main.go // 我正在改这里"],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("remove demo/caller",
                   {"zh": "❌ 错误：源码删掉就找不回来了",
                    "en": "❌ Error: the source can't be recovered once it is deleted"}, 0),
@@ -344,7 +344,7 @@ CASES = [
     {
         "what": "08 remove 拦下没推的提交",
         "run": ['!git components/demo/caller commit -q -am "wip: 调整 caller"'],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("remove demo/caller",
                   {"zh": "❌ 错误：源码删掉就找不回来了",
                    "en": "❌ Error: the source can't be recovered once it is deleted"}, 1),
@@ -352,7 +352,7 @@ CASES = [
     {
         "what": "08 推上去之后 remove 放行",
         "run": ["!git components/demo/caller push -q origin main"],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("remove demo/caller",
                   {"zh": "✅ 已移除 demo/caller@1.0.0",
                    "en": "✅ Removed demo/caller@1.0.0"}, 0),
@@ -360,7 +360,7 @@ CASES = [
     {
         "what": "08 remove 连归档里的那份源码一起删",
         "run": ["!disable demo/hello", "sync"],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("remove demo/hello",
                   {"zh": "✅ 已移除 demo/hello@1.0.0",
                    "en": "✅ Removed demo/hello@1.0.0"}, 0),
@@ -369,7 +369,7 @@ CASES = [
         "what": "08 项目根就是仓库根：init 顺手装上钩子",
         "reset": True,
         "run": ["!git-init"],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("init shared-src",
                   {"zh": "✅ 项目已初始化：shared-src",
                    "en": "✅ Project initialized: shared-src"}, 0),
@@ -385,7 +385,7 @@ CASES = [
                 "!pin demo/hello", "!disable demo/caller", "sync",
                 "!append components/demo/hello/main.go // 调整 hello 的问候",
                 "!git . add components/"],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("!git . commit -m \"调整 hello 的问候\"",
                   {"zh": "❌ 提交被拦下：组件源码提交在归档目录里，但 brickkit.yaml 说它该启动",
                    "en": "❌ Commit blocked: component source is committed under the archive directory, but brickkit.yaml says it should start"}, 0),
@@ -393,7 +393,7 @@ CASES = [
     {
         "what": "08 restore 还原 mode，源码结构跟着走",
         "run": ["!git . reset -q components/"],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("restore",
                   {"zh": "📄 brickkit.yaml：按最后一次提交还原 mode（其余改动未动）",
                    "en": "📄 brickkit.yaml: mode restored from the last commit (other changes untouched)"}, 0),
@@ -404,7 +404,7 @@ CASES = [
         "run": ["!make-remotes", "!git-init", "init sub-demo --no-skills", "!drop-components-ignore",
                 "!git . -c protocol.file.allow=always submodule add -q ../remotes/hello.git components/demo/hello",
                 "add --local", "!git . add -A", "!git . commit -q -m 挂上子模块"],
-        "file": "08-component-source.md",
+        "file": "09-component-source.md",
         "check": ("remove demo/hello",
                   {"zh": "❌ 错误：无法删除组件源码——它是一个已登记的 git submodule",
                    "en": "❌ Error: can't remove this component's source — it's a registered git submodule"}, 0),

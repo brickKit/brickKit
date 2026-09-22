@@ -1,4 +1,4 @@
-# 4. 部署到 Kubernetes
+# 5. 部署到 Kubernetes
 
 同一份 Manifest、同一套 `brickkit.yaml` 结构、同一张依赖图——唯一变的是 `deploy.target: k8s`（AGENTS.zh.md §5.5）。这一篇把[第 2 篇](02-what-runs.md)里的 `demo/hello` + `demo/caller` 组合真实部署到一个真集群（minikube）上，从头走到尾，顺便把 `demo/caller` 从那篇开始就一直缺的那个真实数据库补上——以及一个真跑 `brickkit down` 之后才发现的、真实且有代价的坑，不是读代码读出来的。
 
@@ -165,4 +165,4 @@ minikube image rm brickkit-demo/hello:1.0.0 brickkit-demo/caller:1.0.0
 
 ---
 
-下一篇：[升级，以及让多个版本并存](05-upgrades-and-versions.md)——把一个跑着的组件升级到新版本，以及故意让两个版本并存。
+下一篇：[升级，以及让多个版本并存](06-upgrades-and-versions.md)——把一个跑着的组件升级到新版本，以及故意让两个版本并存。

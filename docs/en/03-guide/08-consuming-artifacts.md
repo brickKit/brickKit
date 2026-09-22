@@ -1,4 +1,4 @@
-# 7. Consume Someone Else's Component
+# 8. Consume Someone Else's Component
 
 A component's `component.yaml` can declare `artifacts` — files a caller needs to actually integrate with it (an OpenAPI spec, a protobuf contract, an SDK), separate from the Manifest itself (AGENTS.md §6). This article covers where those files actually end up, how to grab them without installing the component at all, a real, already-built component whose entire job is displaying exactly this kind of thing for others, and what to do when the component you depend on isn't built yet: stand in a stub that carries the contract you've agreed on.
 
@@ -256,7 +256,7 @@ An excerpt — `...` marks lines left out:
 ...
 ```
 
-The stub still takes part in the status calculation and the dependency graph. What changed is "No container is generated" and where it is expected: `localhost:18081`. That is `localPort`, not the `8080` written in the stub's own Manifest — a `mode: debug` component's `image` and `port` are never used, which is why the skeleton's `TODO`s can stay. (A real `brickkit up` doesn't check the stub's image either: with a throwaway PostgreSQL bound as in [Article 6](06-assemble-and-break.md), the image check passed even though nothing had ever built the placeholder image.) The message talks about "your IDE" because `mode: debug` was made for debugging; for a mock it just means "any program you start on your own machine".
+The stub still takes part in the status calculation and the dependency graph. What changed is "No container is generated" and where it is expected: `localhost:18081`. That is `localPort`, not the `8080` written in the stub's own Manifest — a `mode: debug` component's `image` and `port` are never used, which is why the skeleton's `TODO`s can stay. (A real `brickkit up` doesn't check the stub's image either: with a throwaway PostgreSQL bound as in [Article 7](07-assemble-and-break.md), the image check passed even though nothing had ever built the placeholder image.) The message talks about "your IDE" because `mode: debug` was made for debugging; for a mock it just means "any program you start on your own machine".
 
 The `...` lines also hide one more warning, `⚠️ Warning: resource dependencies are not satisfied (--dry-run doesn't block)`: `demo/caller` declares that it needs a database, and this project hasn't bound one. It has nothing to do with the stub, and the end-to-end section below comes back to it.
 
@@ -319,7 +319,7 @@ Two settings matter, and each appears twice: once for `demo/caller`'s own contai
 
 ### Prove it end to end (needs Docker and Python 3)
 
-The steps above needed neither. To watch a real container hit the mock, there is a catch: `demo/caller`'s image needs a real database to come up under `brickkit up` (that is the warning the `...` above left out; [Article 6](06-assemble-and-break.md) binds one), yet started by hand it answers without one. So skip `brickkit up` for this check and run the image directly, carrying exactly the two settings from the `grep` above:
+The steps above needed neither. To watch a real container hit the mock, there is a catch: `demo/caller`'s image needs a real database to come up under `brickkit up` (that is the warning the `...` above left out; [Article 7](07-assemble-and-break.md) binds one), yet started by hand it answers without one. So skip `brickkit up` for this check and run the image directly, carrying exactly the two settings from the `grep` above:
 
 ```bash
 docker build -t brickkit-demo/caller:1.0.0 ../tests/components/demo-caller
@@ -332,7 +332,7 @@ docker run -d --name stub-demo-caller \
 docker exec stub-demo-caller wget -qO- http://localhost:8080/api/v1/call
 ```
 
-`--add-host` is `docker run`'s spelling of `extra_hosts`, and `-e` is the injected variable. `/api/v1/call` is the endpoint that makes `demo/caller` call its dependency and show what came back (Article 6 used it too):
+`--add-host` is `docker run`'s spelling of `extra_hosts`, and `-e` is the injected variable. `/api/v1/call` is the endpoint that makes `demo/caller` call its dependency and show what came back (Article 7 used it too):
 
 ```
 {"component":"demo/caller","endpoint":"http://demo-hello-1-0-0:18081","upstream":{"message":"hello from the stub"},"version":"1.0.0"}
@@ -344,7 +344,7 @@ docker exec stub-demo-caller wget -qO- http://localhost:8080/api/v1/call
 172.17.0.2 - - [19/Sep/2026 18:12:21] "GET /api/v1/hello HTTP/1.1" 200 -
 ```
 
-The same check was also run through a full `brickkit up`, with a throwaway PostgreSQL bound as in Article 6: only `demo/caller` started (there is nothing to start for the stub), and `curl` against it — exposed with `expose: true`, as in the earlier articles — returned the same `upstream`.
+The same check was also run through a full `brickkit up`, with a throwaway PostgreSQL bound as in Article 7: only `demo/caller` started (there is nothing to start for the stub), and `curl` against it — exposed with `expose: true`, as in the earlier articles — returned the same `upstream`.
 
 Clean up with `docker rm -f stub-demo-caller`, and stop the mock with Ctrl-C.
 
@@ -369,4 +369,4 @@ Don't skip that last command. A component that comes from a marketplace or a Git
 
 ---
 
-Next: [Manage component source](08-component-source.md) — cloning another team's component source, keeping only what you're working on, pushing changes back, deleting it cleanly, and the commit hook that guards source committed along with the project.
+Next: [Manage component source](09-component-source.md) — cloning another team's component source, keeping only what you're working on, pushing changes back, deleting it cleanly, and the commit hook that guards source committed along with the project.

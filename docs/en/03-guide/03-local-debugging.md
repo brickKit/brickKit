@@ -94,7 +94,7 @@ This is the same process a debugger would attach to, breakpoints and all — a p
 
 ## Proving a container actually reaches it
 
-`demo/caller`'s own image needs a real database to fully start (Article 6 covers binding one), but the networking trick it relies on is independently verifiable with a throwaway container carrying the exact same `extra_hosts` entry BrickKit generated above:
+`demo/caller`'s own image needs a real database to fully start (Article 7 covers binding one), but the networking trick it relies on is independently verifiable with a throwaway container carrying the exact same `extra_hosts` entry BrickKit generated above:
 
 ```bash
 docker network create brickkit-hello-world-net
@@ -120,4 +120,4 @@ Multiple components can be `mode: debug` at once, each with its own `localPort` 
 
 ---
 
-Next: [Deploy to Kubernetes](04-kubernetes.md) — the same shape of project, deployed to Kubernetes instead of Docker — same Manifest, same dependency graph, a different set of generated files entirely.
+Next: [Deploy to Kubernetes](05-kubernetes.md) — the same shape of project, deployed to Kubernetes instead of Docker — same Manifest, same dependency graph, a different set of generated files entirely.

@@ -336,7 +336,7 @@ This list matters as much as the platform's abilities: none of the items below i
 
 - **What it is:** a `mock`-style command building a fake server from a component's contract, and a `--with-mocks`-style flag on `up` swapping it in for a required dependency that isn't there.
 - **Why it doesn't:** the platform never parses contracts; a stand-in swapped in silently contradicts "a missing required dependency blocks startup"; and a mock under its own name gets no traffic because injected addresses point at the real component's versioned service name.
-- **What to do instead:** `brickkit new <id> --contract openapi` for a stub, `mode: debug` + `localPort`, and any mock tool listening on that port — [walkthrough](../03-guide/07-consuming-artifacts.md).
+- **What to do instead:** `brickkit new <id> --contract openapi` for a stub, `mode: debug` + `localPort`, and any mock tool listening on that port — [walkthrough](../03-guide/08-consuming-artifacts.md).
 
 ---
 

@@ -63,7 +63,7 @@ This section is different from the ones above: every section above is distilled 
 | --- | --- | --- |
 | Config spec sheet | `configSchema` | which keys the component reads from its environment, their defaults, which are required |
 | Dependency declaration | `dependencies` | which `*_ENDPOINT` variables the component will receive (an optional dependency that isn't running is **not** injected — see [Environment Variable Contract](../06-architecture/04-environment-variables.md)) |
-| Interface contract | the contract files under `artifacts` (OpenAPI, protobuf, …; see [Consuming other components](../03-guide/07-consuming-artifacts.md)) | what the component says to the outside |
+| Interface contract | the contract files under `artifacts` (OpenAPI, protobuf, …; see [Consuming other components](../03-guide/08-consuming-artifacts.md)) | what the component says to the outside |
 
 The recommended order:
 

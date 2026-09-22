@@ -90,4 +90,4 @@ description: 在 BrickKit 项目里增删组件、调整启停、启动或停止
 - `mode` 与启停的完整规则：`docs/zh/06-architecture/08-brickkit-yaml-reference.md`（`mode` 字段）、
   根目录 `AGENTS.zh.md` §5.4
 - 安装、拼装、更新、依赖解析细节：`docs/zh/06-architecture/02-dependency-resolution.md`、
-  `docs/zh/03-guide/06-assemble-and-break.md`、`docs/zh/03-guide/05-upgrades-and-versions.md`
+  `docs/zh/03-guide/07-assemble-and-break.md`、`docs/zh/03-guide/06-upgrades-and-versions.md`

@@ -130,6 +130,6 @@ Docker 下写了不生效。`replicas > 1` 时自动生成 PDB。
 
 - 参数：`brickkit up --help`、`brickkit down --help`
 - 两条部署路径的生成细节、Ingress、迁移 Job：`docs/zh/06-architecture/03-deployment-generation.md`
-- 网络策略：`docs/zh/03-guide/12-network-policy.md`
+- 网络策略：`docs/zh/03-guide/13-network-policy.md`
 - 六类资源怎么声明、绑定、注入，密钥管理：`docs/zh/06-architecture/05-resource-binding.md`
 - `brickkit.yaml` 每个字段的完整参考：`docs/zh/06-architecture/08-brickkit-yaml-reference.md`

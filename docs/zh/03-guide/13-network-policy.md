@@ -1,4 +1,4 @@
-# 12. 网络策略与最小权限
+# 13. 网络策略与最小权限
 
 `deploy.networkPolicy.enabled: true` 会打开 Kubernetes `NetworkPolicy` 生成，直接从依赖图算出来（AGENTS.zh.md §7）——不需要另外手工维护一份访问控制列表。这一篇给 `demo/hello` + `demo/caller` 打开它，并且真正证明它挡住了什么，不只是生成了一份看起来说得通的 YAML。
 
@@ -82,4 +82,4 @@ command terminated with exit code 1
 
 ---
 
-下一篇：[多项目共享](13-multi-project-sharing.md)，这个系列的最后一篇——故意跨项目共享组件，真跑一遍第 7 篇用过的 `brickkit fetch`，这次是在两个真正独立的项目之间。
+下一篇：[多项目共享](14-multi-project-sharing.md)，这个系列的最后一篇——故意跨项目共享组件，真跑一遍第 8 篇用过的 `brickkit fetch`，这次是在两个真正独立的项目之间。

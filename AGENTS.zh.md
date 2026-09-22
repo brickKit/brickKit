@@ -183,7 +183,7 @@ brickkit.yaml（声明）
 | 平台代为从外部密钥存储（Vault / AWS Secrets Manager 的 SDK）取值 | `${VAR}` 先查进程环境、再查 `.env`——任何能把值放进环境的工具今天就能接入，平台零代码。内置的话，每接一种存储就多一个 SDK，每次 `up`（含 `--dry-run`）都要带存储凭据并联网，还是被否决的"配置中心"的邻居。**已经支持的：** `resources[].existingSecret` 与 `secret: true` 配置项写成 `{ existingSecret, key }`，引用外部系统（Vault Secrets Operator、External Secrets Operator、Sealed Secrets……）已经放进集群的 Secret——两种写法平台都不读写值本身，仅 K8s（§5.2） |
 | 引擎插件 / 第三方部署目标（`up` 上一个假想的 `--engine nomad` 风格参数） | 一个目标的 `Down` / `Status` / 孤儿清理保证，才让"一个能拆干净的项目"成立；插件要自己担保它们，而 CLI 会替它报"成功"——撤掉 Podman 的同一个理由。`deploy.target` 是 `brickkit.yaml` 里的声明，绝不变成命令行参数。新目标在仓库内实现，带全套测试守卫。（`engine.Engine` 本来就是接口；这里说的是谁来担保它的语义，不是代码怎么分层） |
 | 增量生成缓存（`.brickkit/` 里存哈希状态） | 没有可加速的东西：50 个组件走完整条链路约 2 ms（`tests/perf`），使用者真正在等的是 `docker compose up` / `kubectl apply`，而它们本来就只动有变化的。缓存要维护状态，过期时静默产出错误的部署文件 |
-| 按契约生成 mock（一个完整的 `mock` 命令）、自动替换缺失的强依赖（`up --with-mocks` 风格的参数） | 平台从不解析契约（`artifacts.format` 只是个字符串）；给缺失的强依赖换上替身，违反"强依赖缺失就阻断启动"，还可能被误部署；mock 起在另一个名字下接不到流量，因为注入的地址指向真实组件的版本化服务名。现在就能用的：`brickkit new <id> --contract openapi` + `mode: debug` + 任意 mock 工具（`docs/zh/03-guide/07-consuming-artifacts.md`） |
+| 按契约生成 mock（一个完整的 `mock` 命令）、自动替换缺失的强依赖（`up --with-mocks` 风格的参数） | 平台从不解析契约（`artifacts.format` 只是个字符串）；给缺失的强依赖换上替身，违反"强依赖缺失就阻断启动"，还可能被误部署；mock 起在另一个名字下接不到流量，因为注入的地址指向真实组件的版本化服务名。现在就能用的：`brickkit new <id> --contract openapi` + `mode: debug` + 任意 mock 工具（`docs/zh/03-guide/08-consuming-artifacts.md`） |
 | 给 `brickkit graph` 自己造渲染器——HTML / SVG 输出、内置查看器、替你写文件的参数 | Mermaid 文本本来就有人免费渲染：GitHub 直接渲染 `.mmd` / `.mermaid` 文件，以及 Markdown 里标了 `mermaid` 的代码块，什么都不用装。CLI 里再内置一个渲染器，是给一件今天不花钱的事添一份永久的维护成本（排版、多一种要保证正确的输出格式）。而 stdout 里只有 Mermaid，正是 shell 重定向 `brickkit graph > graph.mmd` 得到合法文件的前提——所以连"替你写文件"的参数也不需要 |
 | 在 `brickkit lint` 里做依赖解析与跨文件引用检查（`servedBy` 指向的组件存不存在？那条依赖找不找得到？） | `lint` 是一个承诺——离线、只读、秒回、不需要 Docker / K8s——而且它不新增任何规则：只是把 `up` / `add` / `publish` 本来就对每个文件跑的解析加校验单独拿出来跑。解析依赖图要读每个组件的 Manifest，对市场 / Git 组件就意味着联网；只要联一次网，这个承诺就没了。**`brickkit up --dry-run` 本来就在做这件事**——它无论如何都要解析依赖图，`servedBy` 目标不存在、或者有解析不出来的强依赖时，会报错并点出是哪一个。想看声明出来的结构，用 `brickkit graph` |
 
@@ -447,7 +447,7 @@ CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 这个反复出现的失误。
 
 这一整块——克隆、改了推回去、归档、`remove` 的几道保护、`restore` 与钩子——带真实输出
-一步一步走一遍，见 [管理组件源码](docs/zh/03-guide/08-component-source.md)。
+一步一步走一遍，见 [管理组件源码](docs/zh/03-guide/09-component-source.md)。
 
 ### 5.9 市场、签名与信任模型
 
@@ -958,7 +958,7 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 | 用户问「能不能把多个组件合并成一个实例省内存」 | 先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用。还要合并的话：**`servedBy`（5.7）是平台支持的路径**——它在 Docker 和 K8s 下都能正确处理地址路由；其余的事（模块隔离、配置、外壳内部的迁移顺序）还是他们自己的代码，参见外壳实现者指南。`mode: disable` 和这个无关——它照样不能拿来当「我自己接管」的开关 |
 | 用户的 `brickkit` 输出不是他预期的那种语言（或者某个 grep 输出的脚本坏了） | 语言是每次运行时决定的：`BRICKKIT_LANG` 优先于 `brickkit lang set` 存下的值，后者优先于默认的英文——`brickkit lang` 会打印当前生效的是哪一个、为什么。脚本别去 grep 给人看的文字：认退出码和 stderr JSON 日志行里稳定的 `error_code`，或者把 `BRICKKIT_LANG=en` 钉死 |
 | 用户问「纯独立/纯外壳/混搭，docker 还是 k8s，到底该选哪个」 | 这正是 `docs/zh/07-patterns/05-deployment-selection-guide.md` 那份矩阵存在的目的——照着它的矩阵走，不要临场现编答案。里面唯一一条值得直接记住的硬规则：`mode: debug`（调试开关）只在 `deploy.target: docker` 下存在，`k8s` 下会在解析阶段直接拒绝 |
-| 用户的上游组件还没做好/没发布，问能不能给个 mock、或让 CLI 自动替换一个 | 不是平台功能——平台从不解析契约，也从不给缺失的强依赖换上替身（§4.1）。现成能走通的路：`brickkit new <id> --contract openapi` 立一个带约定契约的桩、`add --local`、给桩加 `mode: debug` + `localPort`、主机上任意 mock 工具监听那个端口。带真实输出的演示：`docs/zh/03-guide/07-consuming-artifacts.md` |
+| 用户的上游组件还没做好/没发布，问能不能给个 mock、或让 CLI 自动替换一个 | 不是平台功能——平台从不解析契约，也从不给缺失的强依赖换上替身（§4.1）。现成能走通的路：`brickkit new <id> --contract openapi` 立一个带约定契约的桩、`add --local`、给桩加 `mode: debug` + `localPort`、主机上任意 mock 工具监听那个端口。带真实输出的演示：`docs/zh/03-guide/08-consuming-artifacts.md` |
 | 用户问「完全不经过 Docker/K8s，怎么把整套东西跑在本地」 | 这是平台唯一完全不管理、不注入任何东西的一档——见 `deployment-selection-guide.md` 的"手动跑起来"那节。值得告诉他们的一个技巧：把那个组件临时改成 `mode: debug` 之后跑一次 `brickkit up --dry-run`，能拿到一份真实部署会注入的环境变量清单当参考——抄完就还原这次改动，不要真的照这个方式部署 |
 | 用户贴了一段 `brickkit` 的报错，或问怎么在脚本里应对失败（重试还是报警） | 每条终止命令的错误，在 `❌` 块后面紧跟的那行 stderr JSON 日志里都带一个稳定的 `error_code`。去 `docs/zh/06-architecture/10-error-codes.md`（英文版把 `zh` 换 `en`）查——它按 CLI 打印的确切标题列出每个码底下的各种情形、原因与解法。只有 `NETWORK_UNREACHABLE` 值得原样重试；码稳定，只增不改 |
 
@@ -1018,7 +1018,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 每个错误码、每个码底下的各种情形（按 CLI 打印的确切标题）、原因与解法；哪个码值得重试；退出码；⚠️ 警告 | `docs/zh/06-architecture/10-error-codes.md`（英文版把 `zh` 换 `en`） |
 | 平台为什么长成这样：贯穿一切的那个想法（声明一张图，其余派生）；它用到或刻意没用的每个工程想法（DDD、GitOps、十二要素、契约先行、六边形架构、TDD……），逐个编号介绍：从"它是什么"讲起，说清好处、代价、对应 AI 开发的什么痛点、BrickKit 怎么做、BrickKit 不做什么、AI 怎么应对；十二条原则各自的论证 | `docs/zh/06-architecture/01-design-principles.md`（英文版把 `zh` 换 `en`） |
 | 动手教程 | `docs/zh/03-guide/`（英文版同上） |
-| 克隆、归档、移除、还原组件源码（`add --repo` / `sync` / `remove` / `restore`、pre-commit 钩子），带真实输出的上手教程 | `docs/zh/03-guide/08-component-source.md`（英文版同上） |
+| 克隆、归档、移除、还原组件源码（`add --repo` / `sync` / `remove` / `restore`、pre-commit 钩子），带真实输出的上手教程 | `docs/zh/03-guide/09-component-source.md`（英文版同上） |
 | 一个带数据库和迁移的 Go 组件，深入真实走一遍 | `docs/zh/04-go-component-template.md`（英文版把 `zh` 换 `en`） |
 | 测试怎么分层、种子/测试数据怎么规划、组件怎么设计、部署怎么优化 | `docs/zh/07-patterns/`（英文版同上） |
 | 整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）× `docker`/`k8s`，外加 `mode: debug` 调试开关、手动裸跑组件放在哪个位置 | `docs/zh/07-patterns/05-deployment-selection-guide.md`（英文版把 `zh` 换 `en`） |
@@ -1052,7 +1052,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | --- | --- |
 | 开发进度 | 计划内的每一步都已完成，延后项也已全部结清 |
 | 测试 | 2000+ 个测试函数，race-clean |
-| 动手教程（现行） | 13 篇，每一篇都真跑过；见 `docs/zh/03-guide/` |
+| 动手教程（现行） | 14 篇，每一篇都真跑过；见 `docs/zh/03-guide/` |
 | 试用指南（归档） | 23 篇，全部对着真实 Docker / Kubernetes / 活的市场跑过 |
 | 设计书 | 14 本，与实现交叉复核过两轮 |
 | 决策记录 | 566 条，每条都带当初的推理 |

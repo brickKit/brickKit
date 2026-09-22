@@ -1,4 +1,4 @@
-# 5. Upgrade and Run Multiple Versions Side by Side
+# 6. Upgrade and Run Multiple Versions Side by Side
 
 An "upgrade" on this platform is nothing more than changing the version string in one place — there's no separate upgrade command, and no migration tool that needs to know about a previous state. This article does that twice: once as a normal in-place bump, and once deliberately keeping the old version running alongside the new one — both are the exact same mechanism, exact-version pinning (AGENTS.md §5.1), used two different ways.
 
@@ -147,4 +147,4 @@ brickkit remove demo/hello@1.0.0
 
 ---
 
-Next: [Assemble a real system, then break it on purpose](06-assemble-and-break.md) — a real database this time, and deliberately breaking the connections between components to see exactly how each failure mode actually looks.
+Next: [Assemble a real system, then break it on purpose](07-assemble-and-break.md) — a real database this time, and deliberately breaking the connections between components to see exactly how each failure mode actually looks.
