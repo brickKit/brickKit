@@ -66,3 +66,45 @@ func TestCollectLocalComponentsDetectsARealGoFixture(t *testing.T) {
 	require.Len(t, plans, 1)
 	assert.Equal(t, []string{"go", "run", "."}, plans[0].Command.Argv)
 }
+
+// ============================================================
+// Plan 4b：本地进程环境变量的严格展开
+// ============================================================
+
+func TestBuildLocalEnvExpandsResolvableVars(t *testing.T) {
+	ref := resolver.Ref{ID: "people/basic", Version: "1.0.0"}
+	vars := []inject.Var{{Name: "DATABASE_PASSWORD", Value: "${DB_PASSWORD}"}}
+	lookup := func(name string) (string, bool) {
+		if name == "DB_PASSWORD" {
+			return "secret123", true
+		}
+		return "", false
+	}
+
+	env, err := buildLocalEnv(ref, vars, 9000, []string{"PYTHONUNBUFFERED=1"}, lookup)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"DATABASE_PASSWORD=secret123", "PYTHONUNBUFFERED=1", "PORT=9000"}, env)
+}
+
+func TestBuildLocalEnvErrorsOnUnresolvableVar(t *testing.T) {
+	ref := resolver.Ref{ID: "people/basic", Version: "1.0.0"}
+	vars := []inject.Var{{Name: "DATABASE_PASSWORD", Value: "${DB_PASSWORD}"}}
+	lookup := func(string) (string, bool) { return "", false }
+
+	_, err := buildLocalEnv(ref, vars, 9000, nil, lookup)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DB_PASSWORD")
+	assert.Contains(t, err.Error(), "people/basic")
+}
+
+func TestBuildLocalEnvSkipsExistingSecretRef(t *testing.T) {
+	ref := resolver.Ref{ID: "people/basic", Version: "1.0.0"}
+	vars := []inject.Var{{Name: "API_KEY", ExistingSecretRef: "some-k8s-secret"}}
+
+	env, err := buildLocalEnv(ref, vars, 9000, nil, func(string) (string, bool) { return "", false })
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"PORT=9000"}, env, "existingSecret 在 docker-only 的 local 模式下没有对应的值")
+}

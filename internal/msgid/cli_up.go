@@ -69,6 +69,7 @@ const (
 	CliUpCouldNotDetermineHowToStart       = "cli.up.could_not_determine_how_to_start"
 	CliUpWriteLocalRunCommandInThe         = "cli.up.write_local_run_command_in_the"
 	CliUpTheDetectedProgramIsNotInstalled  = "cli.up.the_detected_program_is_not_installed"
+	CliUpMissingEnvVarFor                  = "cli.up.missing_env_var_for"
 	CliUpLocalDebuggingLoadInThe           = "cli.up.local_debugging_load_in_the"
 	CliUpComponentsArenTStartingThis       = "cli.up.components_aren_t_starting_this"
 	CliUpExample                           = "cli.up.example"

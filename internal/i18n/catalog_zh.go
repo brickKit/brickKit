@@ -1435,6 +1435,7 @@ var zh = map[string]string{
 	msgid.CliUpCouldNotDetermineHowToStart:                           "探测不出 %[1]s 该怎么启动",
 	msgid.CliUpWriteLocalRunCommandInThe:                             "在 %[1]s 的 component.yaml 里写 local.runCommand",
 	msgid.CliUpTheDetectedProgramIsNotInstalled:                      "%[1]s 探测出的命令需要一个这台机器上没装的程序",
+	msgid.CliUpMissingEnvVarFor:                                      "%[1]s 需要 %[2]s（在 %[3]s 里写成 ${%[2]s}），但当前环境变量与 .env 里都没有它",
 	msgid.CliUpLocalDebuggingLoadInThe:                               "   本地调试：在 IDE 中加载 %[1]s 启动 %[2]s",
 	msgid.CliUpComponentsArenTStartingThis:                           "💡 有 %[1]d 个组件本次不启动，brickkit sync 可以把它们的源码收进 %[2]s/",
 	msgid.CliUpExample:                                               "  brickkit up\n  brickkit up --dry-run                    只生成文件，不启动\n  brickkit up --config brickkit.prod.yaml  使用指定配置文件",

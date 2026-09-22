@@ -2,11 +2,14 @@ package cli
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
@@ -80,8 +83,10 @@ func collectLocalComponents(
 	}
 
 	portOf := make(map[resolver.Ref]int, len(localEnvFiles))
+	varsOf := make(map[resolver.Ref][]inject.Var, len(localEnvFiles))
 	for _, f := range localEnvFiles {
 		portOf[f.Ref] = f.Port
+		varsOf[f.Ref] = f.Vars
 	}
 
 	var out []localComponentPlan
@@ -109,8 +114,12 @@ func collectLocalComponents(
 			return nil, programMissingError(ref, err)
 		}
 
+		env, err := buildLocalEnv(ref, varsOf[ref], port, cmd.Env, lookup)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, localComponentPlan{
-			Ref: ref, Service: step.Service, Dir: dir, Command: cmd, Port: port,
+			Ref: ref, Service: step.Service, Dir: dir, Command: cmd, Env: env, Port: port,
 		})
 	}
 	return out, nil
@@ -140,4 +149,58 @@ func detectionError(ref resolver.Ref, err error) error {
 func programMissingError(ref resolver.Ref, err error) error {
 	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpTheDetectedProgramIsNotInstalled, ref.String())).
 		WithDetail(i18n.T(msgid.LabelReason), err.Error())
+}
+
+// localEnvVarRe 跟 internal/compose/local.go 里的那条是同一份规则（003 §5.4）——
+// 不导出，各自维护一份是现有仓库惯例，internal/config 与 internal/compose 也
+// 各自有一份同规则的正则，不是本计划引入的新重复。
+var localEnvVarRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+
+// buildLocalEnv 把 vars 严格展开成 "KEY=VALUE" 列表，叠上语言适配器自己的
+// 环境变量与 PORT。展开不了任何一个 ${VAR} 都直接报错、点名是哪个变量——
+// 跟 local-debug.*.env 文件"展开不了就留着占位符"的宽松策略不同：这是真的
+// 要喂给进程的环境，不是给人看的排障文件。
+func buildLocalEnv(
+	ref resolver.Ref, vars []inject.Var, port int, cmdEnv []string, lookup func(string) (string, bool),
+) ([]string, error) {
+	out := make([]string, 0, len(vars)+len(cmdEnv)+1)
+	for _, v := range vars {
+		if v.ExistingSecretRef != "" {
+			// existingSecret 引用的是 K8s Secret；mode: local 跟 mode: debug 一样
+			// docker-only，这条引用在这两种模式下都没有对应的值（005 §5.6）。
+			continue
+		}
+		value, missing := expandStrict(v.Value, lookup)
+		if missing != "" {
+			return nil, missingEnvVarError(ref, v.Name, missing)
+		}
+		out = append(out, v.Name+"="+value)
+	}
+	out = append(out, cmdEnv...)
+	out = append(out, fmt.Sprintf("PORT=%d", port))
+	return out, nil
+}
+
+// expandStrict 展开 raw 里的 ${VAR}；第一个展开不了的变量名通过 missing 返回。
+func expandStrict(raw string, lookup func(string) (string, bool)) (value, missing string) {
+	if lookup == nil || !strings.Contains(raw, "${") {
+		return raw, ""
+	}
+	var firstMissing string
+	expanded := localEnvVarRe.ReplaceAllStringFunc(raw, func(match string) string {
+		name := match[2 : len(match)-1]
+		if v, ok := lookup(name); ok {
+			return v
+		}
+		if firstMissing == "" {
+			firstMissing = name
+		}
+		return match
+	})
+	return expanded, firstMissing
+}
+
+func missingEnvVarError(ref resolver.Ref, envVarName, missingVarName string) error {
+	return clierr.New(clierr.CodeConfigInvalid,
+		i18n.T(msgid.CliUpMissingEnvVarFor, ref.String(), missingVarName, envVarName))
 }

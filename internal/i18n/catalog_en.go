@@ -1446,6 +1446,7 @@ var en = map[string]string{
 	msgid.CliUpCouldNotDetermineHowToStart:                                                   "couldn't determine how to start %[1]s",
 	msgid.CliUpWriteLocalRunCommandInThe:                                                     "write local.runCommand in %[1]s's component.yaml",
 	msgid.CliUpTheDetectedProgramIsNotInstalled:                                              "the detected command for %[1]s needs a program that isn't installed on this machine",
+	msgid.CliUpMissingEnvVarFor:                                                              "%[1]s needs %[2]s (referenced as ${%[2]s} in %[3]s), but it's not set in the environment or .env",
 	msgid.CliUpLocalDebuggingLoadInThe:                                                       "   Local debugging: load %[1]s in the IDE and start %[2]s",
 	msgid.CliUpComponentsArenTStartingThis:                                                   "💡 %[1]d components aren't starting this run; brickkit sync can move their source into %[2]s/",
 	msgid.CliUpComponentsArenTStartingThis + msgid.PluralOneSuffix:                           "💡 %[1]d component isn't starting this run; brickkit sync can move its source into %[2]s/",
