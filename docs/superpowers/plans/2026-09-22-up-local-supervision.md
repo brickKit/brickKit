@@ -1002,53 +1002,83 @@ import "os"
 func main() { os.Exit(1) }
 `
 
-func TestUpStartsARealModeLocalComponentAndItListens(t *testing.T) {
-	if _, err := exec.LookPath("go"); err != nil {
-		t.Skip("这台机器没有 go 工具链")
-	}
-	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
-	f := addedProject(t, comps, "demo/hello@1.0.0")
+// localComponentPlansFor 搭一个真实项目、真的跑一遍解析+生成，返回
+// collectLocalComponents 的结果——这是 Task 5 把 runLocalComponents 接进
+// runUp 之前，Task 4 独立验证它的路子：**不能**像下面两条测试最初设想的
+// 那样直接调 `runWithEngine(t, eng, f.Dir, "up")`——那要等 Task 5 把
+// runLocalComponents 接进 runUp 之后才走得通，Task 4 自己的产出是
+// runLocalComponents 这个函数本身，直接调它，不通过整条命令。
+func localComponentPlansFor(t *testing.T, f *projectFixture, mainGo string) (*Options, []localComponentPlan) {
+	t.Helper()
 	writeTree(t, workspace.SourceDir(f.Layout, "demo/hello"), map[string]string{
 		"go.mod":  "module example.com/hello\n",
-		"main.go": listenThenExitCleanly,
+		"main.go": mainGo,
 	})
-	f.writeConfig(t, `components:
-  - id: demo/hello
-    version: 1.0.0
-    mode: local
-`)
 
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
+	cfg := f.parsed(t)
+	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, cfg), cfg)
+	require.NoError(t, err)
+	order, err := resolver.Order(graph.Subgraph(states.Running()))
+	require.NoError(t, err)
+	env, err := inject.Build(cfg, graph, states)
+	require.NoError(t, err)
+	genResult, err := compose.Generate(cfg, graph, states, env, compose.Options{Engine: compose.EngineDocker})
+	require.NoError(t, err)
 
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "demo-hello-1-0-0")
+	plans, err := collectLocalComponents(f.Layout, cfg, graph, order, genResult.LocalEnvFiles, envLookup(f.Dir))
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+
+	opts := &Options{WorkDir: f.Dir, Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
+	return opts, plans
 }
 
-func TestUpReportsACrashedLocalComponent(t *testing.T) {
+func TestRunLocalComponentsStartsARealComponentAndItListens(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
 		t.Skip("这台机器没有 go 工具链")
 	}
 	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
 	f := addedProject(t, comps, "demo/hello@1.0.0")
-	writeTree(t, workspace.SourceDir(f.Layout, "demo/hello"), map[string]string{
-		"go.mod":  "module example.com/hello\n",
-		"main.go": exitImmediately,
-	})
 	f.writeConfig(t, `components:
   - id: demo/hello
     version: 1.0.0
     mode: local
 `)
+	opts, plans := localComponentPlansFor(t, f, listenThenExitCleanly)
 
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
+	err := runLocalComponents(context.Background(), opts, f.Layout, plans, 20)
 
-	assert.NotEqual(t, clierr.ExitOK, r.code)
-	assert.Contains(t, r.stdout+r.stderr, "demo-hello-1-0-0")
-	assert.Contains(t, r.stdout+r.stderr, "1") // 退出码
+	out := opts.Stdout.(*bytes.Buffer).String()
+	require.NoError(t, err, out)
+	assert.Contains(t, out, "demo-hello-1-0-0")
+	assert.Contains(t, out, "listening on port")
+}
+
+func TestRunLocalComponentsReportsACrash(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("这台机器没有 go 工具链")
+	}
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+	opts, plans := localComponentPlansFor(t, f, exitImmediately)
+
+	err := runLocalComponents(context.Background(), opts, f.Layout, plans, 20)
+
+	out := opts.Stdout.(*bytes.Buffer).String()
+	require.Error(t, err)
+	assert.Contains(t, out, "demo-hello-1-0-0")
+	assert.Contains(t, out, "exit code 1")
 }
 ```
 
-`TestUpStartsARealModeLocalComponentAndItListens` 顺带验证了一件 Task 4 Step 1 代码里容易出岔子的事：干净退出（code 0）不该被 `renderCrashSummary` 当成崩溃，`up` 的最终退出码必须是 `ExitOK`。
+写出来才发现的第二处细节：`runLocalComponents` 自己打印的状态行（"正在启动"、"已监听端口"、崩溃汇总）最初写的是 `p.Ref.String()`（"demo/hello@1.0.0"），但 `procsup.Spec.Name` 传的是 `p.Service`（"demo-hello-1-0-0"，版本化服务名）——同一个组件在自己的输出前缀里叫一个名字、在状态行里又叫另一个名字，两者对不上。统一改成 `p.Service`：跟 `procsup` 给进程输出加的前缀、容器组件在 `reportStarted` 里的汇报，用的是同一个身份标识。`detectionError`/`programMissingError`/`checkLocalSources` 这几处指向 `component.yaml` 该改哪一行的提示不受影响，那些地方用 `ref.String()`/组件 ID 是因为它们说的是配置文件里的那一行，不是运行中的这个进程。
+
+`TestRunLocalComponentsStartsARealComponentAndItListens` 顺带验证了一件 Task 4 Step 1 代码里容易出岔子的事：干净退出（code 0）不该被 `renderCrashSummary` 当成崩溃，`runLocalComponents` 必须返回 `nil`。两条测试都额外用 `go test -race -count=3` 单独跑过，确认干净——这是全计划里 goroutine/信号处理最密集的一段代码。
 
 - [ ] **Step 4: 跑测试 + gofmt + 提交**
 

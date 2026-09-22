@@ -1,9 +1,13 @@
 package cli
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"os/signal"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
@@ -12,8 +16,10 @@ import (
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/procsup"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/runcmd"
+	"github.com/brickkit/brickkit/internal/sessionlock"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
 
@@ -203,4 +209,108 @@ func expandStrict(raw string, lookup func(string) (string, bool)) (value, missin
 func missingEnvVarError(ref resolver.Ref, envVarName, missingVarName string) error {
 	return clierr.New(clierr.CodeConfigInvalid,
 		i18n.T(msgid.CliUpMissingEnvVarFor, ref.String(), missingVarName, envVarName))
+}
+
+// startupProbeTimeout 是等一个本地组件监听期望端口的上限——不是健康检查，
+// 只是"命令跑起来了没有"的一次性检测（procsup 包文档）。
+const startupProbeTimeout = 30 * time.Second
+
+// runLocalComponents 拿会话锁，按拓扑序拉起每个本地组件，阻塞到全部退出、
+// 某个进程崩溃触发整个会话收尾、或者用户按了 Ctrl+C。
+//
+// 顺序上，这一步永远在 eng.Up() 之后调用（设计决定第 5 条）：容器已经在跑，
+// 本地进程依赖的容器地址已经可用，不需要把容器和本地进程交织进同一个
+// 拓扑序循环里。
+func runLocalComponents(
+	ctx context.Context, opts *Options, layout config.Layout,
+	plans []localComponentPlan, crashLines int,
+) error {
+	if len(plans) == 0 {
+		return nil
+	}
+
+	lock, err := sessionlock.Acquire(layout.SessionLockPath())
+	if err != nil {
+		var held *sessionlock.HeldError
+		if errors.As(err, &held) {
+			return clierr.New(clierr.CodeConfigInvalid,
+				i18n.T(msgid.CliUpSessionAlreadyRunning, held.Info.PID))
+		}
+		return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpFailedToAcquireTheSession)).WithCause(err)
+	}
+	defer func() { _ = lock.Release() }()
+
+	ctx, stop := signal.NotifyContext(ctx, procsup.StopSignals...)
+	defer stop()
+
+	widest := 0
+	for _, p := range plans {
+		if len(p.Service) > widest {
+			widest = len(p.Service)
+		}
+	}
+	sup, err := procsup.New(procsup.Options{Out: opts.Stdout, NameWidth: widest, TailLines: crashLines})
+	if err != nil {
+		return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpFailedToStartTheLocal)).WithCause(err)
+	}
+	defer sup.Shutdown()
+
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpStartingLocalComponents, len(plans)))
+
+	for _, p := range plans {
+		proc, err := sup.Start(procsup.Spec{Name: p.Service, Argv: p.Command.Argv, Dir: p.Dir, Env: p.Env})
+		if errors.Is(err, procsup.ErrStopped) {
+			break // 已经有别的进程崩了，会话在收尾：别再启动新的
+		}
+		if err != nil {
+			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpFailedToStartTheLocal)).
+				WithDetail(i18n.T(msgid.LabelComponent), p.Service).WithCause(err)
+		}
+
+		// 组件的身份统一用 p.Service（版本化服务名）——procsup 给这个进程自己
+		// 输出加的行前缀（Spec.Name 就是它）、容器组件在 reportStarted 里的
+		// 汇报，用的都是这同一个名字，这里的状态行不该另起一套 ID@version。
+		switch procsup.WaitListening(ctx, p.Port, proc.Done(), startupProbeTimeout) {
+		case procsup.ProbeExited:
+			// 进程自己没起来，是硬失败；也可能是别的进程崩了、这个是被叫停的——
+			// 到 Run 返回之后统一从 Exits() 里看谁 Crashed()，这里不重复判断
+		case procsup.ProbeTimedOut:
+			opts.Printf("%s\n", i18n.T(msgid.CliUpWarningStillNotListeningOn, p.Service, p.Port))
+		case procsup.ProbeCanceled:
+			return renderCrashSummary(opts, sup.Exits())
+		case procsup.ProbeListening:
+			opts.Printf("%s\n", i18n.T(msgid.CliUpListeningOnPort, p.Service, p.Port))
+		}
+	}
+
+	sup.Run(ctx)
+
+	return renderCrashSummary(opts, sup.Exits())
+}
+
+// renderCrashSummary 在最后一屏只打印崩溃的那几个进程，不被收尾时其余进程
+// 的输出冲走（Plan 2 的设计决定 1）。被叫停的、干净退出的都不打印。
+func renderCrashSummary(opts *Options, exits []procsup.Exit) error {
+	var crashed []procsup.Exit
+	for _, e := range exits {
+		if e.Crashed() {
+			crashed = append(crashed, e)
+		}
+	}
+	if len(crashed) == 0 {
+		return nil
+	}
+
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpTheFollowingLocalComponentsCrashed))
+	for _, e := range crashed {
+		how := i18n.T(msgid.CliUpExitCode, e.Code)
+		if e.Signal != "" {
+			how = i18n.T(msgid.CliUpKilledBySignal, e.Signal)
+		}
+		opts.Printf("   %s  %s  %s\n", e.Name, how, e.Duration.Round(time.Second))
+		for _, line := range e.Tail {
+			opts.Printf("      %s\n", line)
+		}
+	}
+	return clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.CliUpLocalComponentsCrashed, len(crashed)))
 }
