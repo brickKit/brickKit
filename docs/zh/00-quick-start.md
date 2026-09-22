@@ -160,7 +160,9 @@ brickkit lang                       # 现在生效的是哪种语言，为什么
 
 这两份文件是 [`schemas/component.schema.json`](../../schemas/component.schema.json) 和 [`schemas/brickkit.schema.json`](../../schemas/brickkit.schema.json)，由 CLI 解析这两种文件时用的同一批 Go 结构体生成，仓库里有一条测试让它们始终同步。`brickkit lint` 是它的离线搭档：在终端里报同一批结构上的问题。
 
-有一个理由让你别跳过这一步。没有接上 BrickKit 的 schema 时，YAML language server 会退回去用 SchemaStore（一个公开的 schema 目录）。截至 yaml-language-server 1.24.0 和写这篇时的 SchemaStore 目录，那份目录把 `component.yaml` 这个文件名对应到了 Kubeflow Pipelines 的 schema——两者都是第三方的东西，会变，以后你的编辑器里看到的可能不一样。我们实测时，一份完全合法的 BrickKit `component.yaml` 几乎处处被画红线（`Property apiVersion is not allowed.`、`Missing property "implementation".`）。用下面任何一种方式接上 BrickKit 的 schema，就会换掉它猜的那份。
+对 `component.yaml` 来说，还是有一个理由让你别跳过这一步：这个文件名太常见，公共目录没法把它整个划给 BrickKit，所以没接上 BrickKit 的 schema 时，YAML language server 会退回去用 SchemaStore（一个公开的 schema 目录）里认领了这个名字的别家 schema。截至 yaml-language-server 1.24.0 和写这篇时的 SchemaStore 目录，那是 Kubeflow Pipelines 的 schema——两者都是第三方的东西，会变，以后你的编辑器里看到的可能不一样。我们实测时，一份完全合法的 BrickKit `component.yaml` 几乎处处被画红线（`Property apiVersion is not allowed.`、`Missing property "implementation".`）。用下面任何一种方式接上 BrickKit 的 schema，就会换掉它猜的那份。
+
+`brickkit.yaml` 不受这个问题困扰：SchemaStore 目录里已经有一条 `brickkit.yaml` / `brickkit.*.yaml` 条目，直接指向 BrickKit 自己的 schema（2026 年 9 月并入目录），所以只要编辑器本地的目录缓存刷新过，这份文件不用任何配置就能拿到正确的校验。手动接上 schema（下面两种写法）仍然有效，而且立刻生效、不用等目录缓存刷新——对 `component.yaml` 来说这是唯一的办法。
 
 **两种接法。** 读 schema 的是 YAML language server（`yaml-language-server`）；VS Code 的 Red Hat "YAML" 扩展自带它，别的编辑器只要跑的是同一个 server，用法也一样。
 
