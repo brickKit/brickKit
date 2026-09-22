@@ -136,3 +136,24 @@ func TestLocalComponentLabelsWarn(t *testing.T) {
 	assert.Contains(t, found, "erp/sales")
 	assert.Contains(t, found, "traefik.enable", "得点名那几个键，否则人不知道说的是哪一行")
 }
+
+// 同一处 bug，labels 那条警告版本——mode: local 组件写了 labels 时，
+// 警告不该说成 mode: debug。
+func TestLocalModeComponentLabelsWarningNamesLocalNotDebug(t *testing.T) {
+	result := newBuilder(t).
+		component(simple("erp/sales", "1.0.0", 8080), config.Component{
+			Mode:   config.ModeLocal,
+			Labels: map[string]string{"traefik.enable": "true"},
+		}).
+		generate()
+
+	var found string
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Format(), "labels has no effect this run") {
+			found = w.Format()
+		}
+	}
+	require.NotEmpty(t, found, "%v", result.Warnings)
+	assert.Contains(t, found, "mode: local")
+	assert.NotContains(t, found, "mode: debug")
+}

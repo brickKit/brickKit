@@ -177,7 +177,7 @@ func (p *plan) localExposeWarnings() []*clierr.Error {
 			fields = "expose / exposePort"
 		}
 		w := clierr.Warn(clierr.CodeConfigInvalid,
-			i18n.T(msgid.ComposeLocalFieldsIgnored, fields)).
+			i18n.T(msgid.ComposeLocalFieldsIgnored, l.Entry.Mode, fields)).
 			WithDetail(i18n.T(msgid.LabelComponent), refText(l.Ref)).
 			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeLocalNoPortToMapDetail))
 		if l.Entry.ExposePort > 0 {
@@ -190,7 +190,7 @@ func (p *plan) localExposeWarnings() []*clierr.Error {
 			WithDetail(i18n.T(msgid.ComposeLabelActualAddress), i18n.T(msgid.ComposeActualAddressDetail, l.Port)).
 			WithHint(
 				i18n.T(msgid.ComposeHintListenOnPort),
-				i18n.T(msgid.ComposeHintDropLocalForPorts),
+				i18n.T(msgid.ComposeHintDropLocalForPorts, l.Entry.Mode),
 			))
 	}
 	return out
@@ -214,14 +214,14 @@ func (p *plan) localLabelWarnings() []*clierr.Error {
 			continue
 		}
 		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-			i18n.T(msgid.ComposeLocalLabelsIgnored)).
+			i18n.T(msgid.ComposeLocalLabelsIgnored, l.Entry.Mode)).
 			WithDetail(i18n.T(msgid.LabelComponent), refText(l.Ref)).
 			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeLocalNoLabelTargetDetail)).
 			WithDetail(i18n.T(msgid.ComposeLabelKeysWritten),
 				strings.Join(sortedLabelKeys(l.Entry.Labels), i18n.T(msgid.ListSeparator))).
 			WithHint(
 				i18n.T(msgid.ComposeHintLabelsOnShell),
-				i18n.T(msgid.ComposeHintDropLocalForLabels),
+				i18n.T(msgid.ComposeHintDropLocalForLabels, l.Entry.Mode),
 			))
 	}
 	return out

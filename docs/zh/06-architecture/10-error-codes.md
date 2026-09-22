@@ -439,7 +439,7 @@ stdout 上的那些问题保留它们在别处本来的标题：`component.yaml`
 | `配置冲突：组件 <component> 的配置项已被忽略` | `CONFIG_CONFLICT` | 一个 `configSchema` 键转成大写后与保留变量（`*_ENDPOINT`、`DATABASE_*` ……）冲突；平台注入的值优先，这个键被跳过。把键改名——见[环境变量注入契约](04-environment-variables.md)。`brickkit lint` 能在你执行 `up` 之前离线报出它，而且 `configSchema` 里声明的每个键都会查——`up` 只对有默认值或写了 `config` 值的键才会碰到它 |
 | `基础资源的 host 看起来是个服务名，容器里可能解析不了` | `CONFIG_INVALID` | 资源的 `host` 像是一个 Compose 服务名，但资源并不属于本项目。资源在你本机时写 `host.docker.internal`，否则写它的真实地址 |
 | `配置里有只对 <target> 生效的字段` | `CONFIG_INVALID` | 有个字段只对另一种 `deploy.target` 生效——比如 `k8s` 下的 `exposePort`——现在它什么也没做 |
-| `mode: debug 的组件上，labels 本次不生效` | `CONFIG_INVALID` | `mode: debug` 的组件没有容器可以挂标签。想让平台管标签，就去掉 `mode: debug` |
+| `mode: <mode> 的组件上，labels 本次不生效` | `CONFIG_INVALID` | `mode: debug` 或 `mode: local` 的组件没有容器可以挂标签。去掉 `mode`（或换成会生成容器的取值）即可恢复由平台管理标签 |
 | `提示：mode: debug 组件的数据库迁移不会自动执行` | `MIGRATION_SKIPPED` | `mode: debug` 的组件跑在你本机，CLI 不为它跑迁移。自己执行一次迁移命令，环境变量用它的 `local-debug.<service>.env` |
 | `提示：servedBy 组件的数据库迁移不会自动执行` | `MIGRATION_SKIPPED` | `servedBy` 成员没有自己的容器，也就没有迁移容器。得由外壳来覆盖它 |
 | `提示：servedBy 组件自己的健康检查不会独立生效` | `CONFIG_INVALID` | 算数的是外壳的健康检查 |

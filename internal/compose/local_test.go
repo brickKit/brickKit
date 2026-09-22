@@ -1040,6 +1040,36 @@ func TestLocalComponentWithExposeIsWarned(t *testing.T) {
 	assert.NotContains(t, text, "localhost:8888", "别把那个不生效的端口说得像是真的")
 }
 
+// mode: local 组件写了 expose 时，警告必须说 "mode: local"，不能沿用
+// mode: debug 的硬编码文案——两种模式共用同一段判断逻辑（p.locals），
+// 文案却从没跟着 Entry.Mode 走，是一处真实 bug（brickKit 反馈：Plan 4d
+// 探索阶段用真实 mode: local 配置跑出来的）。
+func TestLocalModeComponentWithExposeWarningNamesLocalNotDebug(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("portal/user-frontend", "1.0.0", 80),
+		config.Component{Mode: config.ModeLocal, Expose: true, ExposePort: 8888})
+
+	result, err := b.build(compose.Options{})
+	require.NoError(t, err)
+
+	text := joinWarnings(result.Warnings)
+	assert.Contains(t, text, "mode: local", "警告要说清楚是哪种模式")
+	assert.NotContains(t, text, "mode: debug", "不能把 local 组件的警告说成 debug")
+}
+
+// 反过来，mode: debug 组件的警告仍然要说 "mode: debug"，不能被这次的参数化改坏。
+func TestLocalDebugComponentWithExposeWarningStillNamesDebug(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("portal/user-frontend", "1.0.0", 80),
+		config.Component{Mode: config.ModeDebug, Expose: true, ExposePort: 8888})
+
+	result, err := b.build(compose.Options{})
+	require.NoError(t, err)
+
+	text := joinWarnings(result.Warnings)
+	assert.Contains(t, text, "mode: debug")
+}
+
 // 只写 expose、没写 exposePort 时同样要出声：平台一样什么都不做。
 func TestLocalComponentWithExposeOnlyIsWarned(t *testing.T) {
 	b := newBuilder(t)
