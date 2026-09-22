@@ -269,6 +269,10 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	}
 	renderOrder(opts, order, plan.graph)
 
+	if err := checkLocalSources(layout, cfg, plan.states.Running()); err != nil {
+		return nil, err
+	}
+
 	env, err := inject.Build(cfg, plan.graph, plan.states)
 	if err != nil {
 		return nil, err
