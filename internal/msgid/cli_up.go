@@ -80,6 +80,7 @@ const (
 	CliUpExitCode                           = "cli.up.exit_code"
 	CliUpKilledBySignal                     = "cli.up.killed_by_signal"
 	CliUpLocalComponentsCrashed             = "cli.up.local_components_crashed"
+	CliUpLocalComponentsWouldStart          = "cli.up.local_components_would_start"
 	CliUpLocalDebuggingLoadInThe            = "cli.up.local_debugging_load_in_the"
 	CliUpComponentsArenTStartingThis        = "cli.up.components_aren_t_starting_this"
 	CliUpExample                            = "cli.up.example"

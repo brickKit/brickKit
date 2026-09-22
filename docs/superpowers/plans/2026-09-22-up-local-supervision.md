@@ -1111,9 +1111,10 @@ EOF
 
 **Files:**
 - Modify: `internal/cli/up.go`
+- Modify: `internal/cli/up_local.go`（`renderLocalComponentCommands`）
 - Modify: `internal/cli/up_test.go`
 - Modify: `internal/cli/up_dryrun_test.go`
-- Modify: `internal/msgid/cli.go`
+- Modify: `internal/msgid/cli_up.go`（实际文件名，`cli.go` 是本计划早前草稿的笔误，Task 1 执行时已发现并沿用至今）
 - Modify: `internal/i18n/catalog_en.go`、`internal/i18n/catalog_zh.go`
 
 **Interfaces:**
@@ -1138,18 +1139,24 @@ EOF
 	plan := &upPlan{layout: layout, cfg: cfg, kubeContext: contextOf(cfg, flags.kubeContext), crashLines: flags.crashLines}
 ```
 
-`buildUpPlan`（`plan.collectTargets(order)` 之后，第 267 行附近）：
+`buildUpPlan`（`plan.collectTargets(order)` 之后）：
 
 ```go
 	plan.collectTargets(order)
-	plan.localComponents, err = collectLocalComponents(
-		layout, cfg, plan.graph, order, plan.generated.LocalEnvFiles, envLookup(opts.WorkDir))
-	if err != nil {
-		return nil, err
+	// plan.generated 只在 docker 目标下才有值（k8s 目标 generate() 只填 plan.k8s，
+	// 见上面 generate 的实现）；k8s 目标下 mode: local 已经在配置解析阶段被拒绝
+	// （005 §5.6：docker only），所以这里判空跳过既不会漏掉真实的 local 组件，
+	// 也避免对 nil 的 plan.generated 取字段直接 panic。
+	if plan.generated != nil {
+		plan.localComponents, err = collectLocalComponents(
+			layout, cfg, plan.graph, order, plan.generated.LocalEnvFiles, envLookup(opts.WorkDir))
+		if err != nil {
+			return nil, err
+		}
 	}
 ```
 
-（`plan.generated` 只在 `plan.generate` 之后才有值——确认这一行确实排在 `plan.generate(opts, env)`、也就是第 264-266 行之后；`k8s` 目标下 `mode: local` 已经在解析阶段被拒绝，`plan.k8s != nil` 时 `plan.generated` 为 nil，但 `collectLocalComponents` 内部一开始就用 `localMode` 判断"这个项目有没有 local 组件"提前返回 `nil, nil`，不会碰 `plan.generated`——不过要在这一步确认 `collectLocalComponents` 真的在触达 `localEnvFiles` 之前就已经拿到"有没有 local 组件"这个判断，必要时调整函数内部顺序，不要假设它天然安全。)
+**执行时发现原草稿有一处真的会 panic 的 bug**：草稿原本直接写 `collectLocalComponents(..., plan.generated.LocalEnvFiles, ...)`，没有判空。Go 的参数求值顺序是"调用前先求出全部实参"——`plan.generated.LocalEnvFiles` 这个表达式本身就要先对 `plan.generated` 解引用取字段，`k8s` 目标下 `plan.generated` 是 nil，这一步在**进函数之前**就已经空指针 panic 了，`collectLocalComponents` 内部"用 `localMode` 提前 `return nil, nil`"的判断根本救不到——那时候已经晚了，实参已经崩在求值阶段。原草稿那句"不要假设它天然安全"猜对了方向，但猜错了修法：不是调整函数内部顺序，是调用点要判空。改成 `if plan.generated != nil` 包住整段调用，k8s 目标（`mode: local` 在这条路径下必然不存在）直接跳过，`plan.localComponents` 保持 nil，后续 `renderLocalComponentCommands`/`runLocalComponents` 对 nil/空切片各自都已经是"直接返回"的第一行，不需要再处理。
 
 - [ ] **Step 2: `--dry-run` 下打印探测出的命令**
 
@@ -1211,16 +1218,87 @@ func start(
 
 - [ ] **Step 4: 测试**
 
-在 `up_dryrun_test.go` 加一条，确认 `--dry-run` 打印探测出的命令：
+在 `up_dryrun_test.go` 加一条，确认 `--dry-run` 打印探测出的命令（放在
+`TestUpDryRunWithoutLocalComponentWritesNoEnvFile` 之后，"错误路径"分隔线
+之前；`workspace` 需要新增 import）：
 
 ```go
+// "看看会发生什么"这条命令的整个意义所在：mode: local 组件不该是唯一
+// 说不清楚会发生什么的部分——它不生成容器，dry-run 原本对它完全沉默。
 func TestUpDryRunShowsTheDetectedLocalCommand(t *testing.T) {
-	// 搭一个 mode: local 的 demo/hello 项目，跑 up --dry-run，
-	// 断言输出里出现 "go run ." 这类探测结果。
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	writeTree(t, workspace.SourceDir(f.Layout, "demo/hello"), map[string]string{
+		"go.mod":  "module example.com/hello\n",
+		"main.go": "package main\n\nfunc main() {}\n",
+	})
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "demo/hello")
+	assert.Contains(t, r.stdout, "go run .")
 }
 ```
 
-在 `up_test.go` 补一条端到端（复用 Task 4 Step 3 已经写好的固件搭建逻辑）：容器组件 + `mode: local` 组件混在同一个项目里，`up`（真启动，非 dry-run）既能看到容器启动成功的汇报，又能看到本地组件"正在监听端口"的输出——顺序上容器的汇报必须先出现。
+在 `up_test.go` 补一条端到端（复用 Task 4 Step 3 已经写好的 `listenThenExitCleanly`
+固件——同一个包内，不需要重新定义）：容器组件 + `mode: local` 组件混在同一个
+项目里，`up`（真启动，非 dry-run）既能看到容器启动成功的汇报，又能看到本地
+组件"已监听端口"的输出——顺序上容器的汇报必须先出现（放在
+`TestUpModeLocalComponentIsNotAWorkloadTarget` 之后；`up_test.go` 需要新增
+`os/exec` import）：
+
+```go
+// Task 5：容器与本地进程混部同一个项目——容器由引擎负责，mode: local 组件由
+// runLocalComponents 负责，start() 里先 reportStarted 后 runLocalComponents，
+// 输出顺序必须体现这一点：容器的汇报先出现，本地组件的"已监听端口"后出现。
+func TestUpMixesContainerAndLocalComponents(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("这台机器没有 go 工具链")
+	}
+	comps := []comp{
+		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
+		{ID: "people/basic", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "erp/backend@1.0.0")
+	writeTree(t, workspace.SourceDir(f.Layout, "people/basic"), map[string]string{
+		"go.mod":  "module example.com/basic\n",
+		"main.go": listenThenExitCleanly,
+	})
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+    mode: local
+  - id: erp/backend
+    version: 1.0.0
+`)
+	eng := newFakeEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	containerIdx := strings.Index(r.stdout, "erp-backend-1-0-0")
+	localIdx := strings.Index(r.stdout, "listening on port")
+	require.NotEqual(t, -1, containerIdx, r.stdout)
+	require.NotEqual(t, -1, localIdx, r.stdout)
+	assert.Less(t, containerIdx, localIdx, "容器汇报必须先于本地组件的输出出现")
+}
+```
+
+**执行时顺带验证的一件事**：`TestUpModeLocalComponentIsNotAWorkloadTarget`
+（Task 2 写的、这次没有改动它本身）用的 `people/basic` 固件是空 `main()`、
+立刻以退出码 0 结束、不监听任何端口。Task 5 接线之后，这条测试原本只验证
+"mode: local 不混进引擎目标列表"的老断言，现在会**顺带真的**通过
+`runLocalComponents` 启动一次这个组件——进程秒退、`WaitListening` 走到
+`ProbeExited` 分支、`sup.Run` 因为没有更多进程要等而立刻返回、退出码 0 不算
+`Crashed()`，`runLocalComponents` 返回 `nil`。重跑这条测试确认仍然
+`PASS`，证明"干净退出的本地组件不会让 `up` 本身失败或挂起"这条行为对已有
+测试也成立，不是只在 Task 4 新写的固件上才对。
 
 - [ ] **Step 5: 跑测试 + gofmt + 提交**
 
@@ -1230,7 +1308,7 @@ Run: `go test -race ./internal/cli/`
 Expected: 全部 `PASS`。
 
 ```bash
-git add internal/cli/up.go internal/cli/up_test.go internal/cli/up_dryrun_test.go internal/msgid/cli.go internal/i18n/catalog_en.go internal/i18n/catalog_zh.go
+git add internal/cli/up.go internal/cli/up_local.go internal/cli/up_test.go internal/cli/up_dryrun_test.go internal/msgid/cli_up.go internal/i18n/catalog_en.go internal/i18n/catalog_zh.go docs/superpowers/plans/2026-09-22-up-local-supervision.md
 git commit -m "$(cat <<'EOF'
 新增：接进 runUp——容器起来之后再启动本地进程
 
@@ -1238,6 +1316,11 @@ git commit -m "$(cat <<'EOF'
 命令的整个意义所在，本地组件不该是唯一说不清楚的部分）；真启动时
 eng.Up() 成功、状态汇报完之后才调 runLocalComponents——容器已经在跑，
 本地进程依赖的容器地址已经可用。
+
+buildUpPlan 里调 collectLocalComponents 时判空 plan.generated（本计划
+Step 1 已同步改写并解释原因）：k8s 目标下 plan.generated 是 nil，原草稿
+直接取 plan.generated.LocalEnvFiles 会在实参求值阶段就 panic，跟
+collectLocalComponents 内部的判断顺序无关。
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/workspace"
 )
 
 // generatedCompose 读出生成的 docker-compose.yaml。
@@ -275,6 +276,28 @@ func TestUpDryRunWithoutLocalComponentWritesNoEnvFile(t *testing.T) {
 	for _, entry := range entries {
 		assert.NotContains(t, entry.Name(), "local-debug")
 	}
+}
+
+// "看看会发生什么"这条命令的整个意义所在：mode: local 组件不该是唯一
+// 说不清楚会发生什么的部分——它不生成容器，dry-run 原本对它完全沉默。
+func TestUpDryRunShowsTheDetectedLocalCommand(t *testing.T) {
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	writeTree(t, workspace.SourceDir(f.Layout, "demo/hello"), map[string]string{
+		"go.mod":  "module example.com/hello\n",
+		"main.go": "package main\n\nfunc main() {}\n",
+	})
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "demo/hello")
+	assert.Contains(t, r.stdout, "go run .")
 }
 
 // ============================================================

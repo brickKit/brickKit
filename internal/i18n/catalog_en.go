@@ -1457,6 +1457,7 @@ var en = map[string]string{
 	msgid.CliUpExitCode:                                                                      "exit code %[1]d",
 	msgid.CliUpKilledBySignal:                                                                "killed by %[1]s",
 	msgid.CliUpLocalComponentsCrashed:                                                        "%[1]d local component(s) crashed",
+	msgid.CliUpLocalComponentsWouldStart:                                                     "The following mode: local component(s) would start:",
 	msgid.CliUpLocalDebuggingLoadInThe:                                                       "   Local debugging: load %[1]s in the IDE and start %[2]s",
 	msgid.CliUpComponentsArenTStartingThis:                                                   "💡 %[1]d components aren't starting this run; brickkit sync can move their source into %[2]s/",
 	msgid.CliUpComponentsArenTStartingThis + msgid.PluralOneSuffix:                           "💡 %[1]d component isn't starting this run; brickkit sync can move its source into %[2]s/",

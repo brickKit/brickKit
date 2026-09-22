@@ -211,6 +211,19 @@ func missingEnvVarError(ref resolver.Ref, envVarName, missingVarName string) err
 		i18n.T(msgid.CliUpMissingEnvVarFor, ref.String(), missingVarName, envVarName))
 }
 
+// renderLocalComponentCommands 在 --dry-run 下告诉使用者每个 mode: local
+// 组件探测出的启动命令是什么——"看看会发生什么"这条命令的整个意义所在，
+// 本地组件不该是唯一说不清楚的部分。
+func renderLocalComponentCommands(opts *Options, plans []localComponentPlan) {
+	if len(plans) == 0 {
+		return
+	}
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpLocalComponentsWouldStart))
+	for _, p := range plans {
+		opts.Printf("   %s  %s\n", p.Ref, strings.Join(p.Command.Argv, " "))
+	}
+}
+
 // startupProbeTimeout 是等一个本地组件监听期望端口的上限——不是健康检查，
 // 只是"命令跑起来了没有"的一次性检测（procsup 包文档）。
 const startupProbeTimeout = 30 * time.Second

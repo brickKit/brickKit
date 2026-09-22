@@ -86,6 +86,11 @@ type upPlan struct {
 	images []imageInfo
 	// upgrades 是本次检测到的版本变更（004 §3.5.1）。
 	upgrades []upgradeInfo
+	// localComponents 是本次要真正拉起的 mode: local 组件（按拓扑序）。
+	localComponents []localComponentPlan
+	// crashLines 是 --crash-lines 的值，从 upOptions 原样抄过来——upPlan 本来
+	// 就是"这次 up 要做什么的全部结论"，start 不接收 upOptions，靠这里传下去。
+	crashLines int
 	// done 为 true 表示"没什么可启动的"，已经把话说清楚了。
 	done bool
 }
@@ -147,6 +152,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 
 	if flags.dryRun {
 		renderUpgradeSummary(opts, plan)
+		renderLocalComponentCommands(opts, plan.localComponents)
 		opts.Printf("\n%s\n", i18n.T(msgid.CliUpDryRunOnlyGeneratesThe))
 		opts.Printf("%s\n", i18n.T(msgid.CliUpViewItCat, displayPath(opts.WorkDir, path)))
 		logging.Info(i18n.T(msgid.LogDeployFilesGenerated), "path", path)
@@ -176,7 +182,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		opts.Printf("%s\n", i18n.T(msgid.CliUpAllServedbyDeclarationsAreIgnored))
 	}
 
-	plan := &upPlan{layout: layout, cfg: cfg, kubeContext: contextOf(cfg, flags.kubeContext)}
+	plan := &upPlan{layout: layout, cfg: cfg, kubeContext: contextOf(cfg, flags.kubeContext), crashLines: flags.crashLines}
 	if len(cfg.Components) == 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliStatusTheCurrentProjectHasNo))
 		// init 的骨架已经把 ./components 配成了本地安装源，所以 --local 是最短的一条路。
@@ -283,6 +289,17 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		return nil, err
 	}
 	plan.collectTargets(order)
+	// plan.generated 只在 docker 目标下才有值（k8s 目标 generate() 只填 plan.k8s，
+	// 见上面 generate 的实现）；k8s 目标下 mode: local 已经在配置解析阶段被拒绝
+	// （005 §5.6：docker only），所以这里判空跳过既不会漏掉真实的 local 组件，
+	// 也避免对 nil 的 plan.generated 取字段直接 panic。
+	if plan.generated != nil {
+		plan.localComponents, err = collectLocalComponents(
+			layout, cfg, plan.graph, order, plan.generated.LocalEnvFiles, envLookup(opts.WorkDir))
+		if err != nil {
+			return nil, err
+		}
+	}
 	// 放在生成之后：这一步只补摘要用的差异描述与新版本产物，
 	// 它取不到东西也不该拦住已经算好的这份计划（004 §10.1）
 	describeUpgrades(ctx, opts, layout, client, plan.graph, plan.upgrades)
@@ -541,7 +558,11 @@ func start(
 		opts.Printf("%s\n", i18n.T(msgid.CliUpK8sCheckAgainWithBrickkitStatus))
 		return nil
 	}
-	return reportStarted(opts, plan, statuses)
+	if err := reportStarted(opts, plan, statuses); err != nil {
+		return err
+	}
+
+	return runLocalComponents(ctx, opts, plan.layout, plan.localComponents, plan.crashLines)
 }
 
 // reportStarted 汇报启动结果，并在有组件没起来时给出非零退出码。

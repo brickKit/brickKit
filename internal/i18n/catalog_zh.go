@@ -1446,6 +1446,7 @@ var zh = map[string]string{
 	msgid.CliUpExitCode:                                              "退出码 %[1]d",
 	msgid.CliUpKilledBySignal:                                        "被 %[1]s 杀死",
 	msgid.CliUpLocalComponentsCrashed:                                "%[1]d 个本地组件崩溃了",
+	msgid.CliUpLocalComponentsWouldStart:                             "以下 mode: local 组件本次会启动：",
 	msgid.CliUpLocalDebuggingLoadInThe:                               "   本地调试：在 IDE 中加载 %[1]s 启动 %[2]s",
 	msgid.CliUpComponentsArenTStartingThis:                           "💡 有 %[1]d 个组件本次不启动，brickkit sync 可以把它们的源码收进 %[2]s/",
 	msgid.CliUpExample:                                               "  brickkit up\n  brickkit up --dry-run                    只生成文件，不启动\n  brickkit up --config brickkit.prod.yaml  使用指定配置文件",

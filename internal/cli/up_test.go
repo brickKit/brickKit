@@ -8,6 +8,7 @@ package cli
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -285,6 +286,41 @@ func TestUpModeLocalComponentIsNotAWorkloadTarget(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, []string{"erp-backend-1-0-0"}, eng.lastUp(t).Services,
 		"mode: local 的组件不该混进传给引擎的目标列表")
+}
+
+// Task 5：容器与本地进程混部同一个项目——容器由引擎负责，mode: local 组件由
+// runLocalComponents 负责，start() 里先 reportStarted 后 runLocalComponents，
+// 输出顺序必须体现这一点：容器的汇报先出现，本地组件的"已监听端口"后出现。
+func TestUpMixesContainerAndLocalComponents(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("这台机器没有 go 工具链")
+	}
+	comps := []comp{
+		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
+		{ID: "people/basic", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "erp/backend@1.0.0")
+	writeTree(t, workspace.SourceDir(f.Layout, "people/basic"), map[string]string{
+		"go.mod":  "module example.com/basic\n",
+		"main.go": listenThenExitCleanly,
+	})
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+    mode: local
+  - id: erp/backend
+    version: 1.0.0
+`)
+	eng := newFakeEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	containerIdx := strings.Index(r.stdout, "erp-backend-1-0-0")
+	localIdx := strings.Index(r.stdout, "listening on port")
+	require.NotEqual(t, -1, containerIdx, r.stdout)
+	require.NotEqual(t, -1, localIdx, r.stdout)
+	assert.Less(t, containerIdx, localIdx, "容器汇报必须先于本地组件的输出出现")
 }
 
 // 15.5：钉住的组件强依赖了一个被显式关掉的组件——两个意图直接冲突，必须报错。
