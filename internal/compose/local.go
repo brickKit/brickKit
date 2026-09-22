@@ -50,6 +50,14 @@ const (
 // LocalEnvFile 是一个 local 组件的调试环境变量文件（005 §4.9）。
 type LocalEnvFile struct {
 	Ref resolver.Ref
+	// Mode 是这个组件写的 mode（config.ModeDebug 或 config.ModeLocal）。
+	// 两者共用同一套"算出本地化环境"的逻辑（005 §5.6：mode: local 复用了
+	// mode: debug 已经算好的宿主机地址），但调用方要拿它们做完全不同的事——
+	// debug 组件由使用者自己在 IDE 里启动，这份文件与"在 IDE 里怎么用"的
+	// 提示只对它有意义；local 组件由 brickkit 自己拉起（internal/cli/up_local.go
+	// 的 buildLocalEnv 直接用 Vars 严格展开，不落盘），"去 IDE 里加载这份文件"
+	// 对它是一句误导。
+	Mode string
 	// Name 是文件名：local-debug.<版本化服务名>.env。
 	// 用版本化服务名，同一组件的两个版本同时调试时才不会互相覆盖。
 	Name string
@@ -553,6 +561,7 @@ func (p *plan) localEnvFile(l localComponent, now time.Time, lookup func(string)
 
 	return LocalEnvFile{
 		Ref:     l.Ref,
+		Mode:    l.Entry.Mode,
 		Name:    "local-debug." + l.Service + ".env",
 		Port:    l.Port,
 		Vars:    vars,

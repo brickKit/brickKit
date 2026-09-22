@@ -321,6 +321,40 @@ func TestUpMixesContainerAndLocalComponents(t *testing.T) {
 	require.NotEqual(t, -1, containerIdx, r.stdout)
 	require.NotEqual(t, -1, localIdx, r.stdout)
 	assert.Less(t, containerIdx, localIdx, "容器汇报必须先于本地组件的输出出现")
+	// mode: local 组件已经被 runLocalComponents 真的拉起来了，"下一步"
+	// 提示不该再让使用者去 IDE 里手动加载它（那是 mode: debug 的话术）。
+	assert.NotContains(t, r.stdout, "Local debugging")
+}
+
+// Task 6 手动验证时用真实 Docker 发现的真实 bug：一个项目里全部组件都是
+// mode: local（没有任何容器要起），plan.services 因此是空切片，而
+// start() 原来无条件调 eng.Up()——真 docker compose 对着一份 services: {}
+// 的空文件跑 up 会报 "no service selected"，命令直接以 ENGINE_FAILED 收场，
+// 而这个项目其实一个容器都不需要，不该被要求装 Docker。假引擎测不出这个
+// bug（它对任何请求都来者不拒），这里只锁住"引擎压根不该被调用"这一半——
+// 真 docker 会不会报错，由 Task 6 的手动验证覆盖。
+func TestUpWithOnlyLocalComponentsNeverCallsTheEngine(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("这台机器没有 go 工具链")
+	}
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	writeTree(t, workspace.SourceDir(f.Layout, "demo/hello"), map[string]string{
+		"go.mod":  "module example.com/hello\n",
+		"main.go": listenThenExitCleanly,
+	})
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+	eng := newFakeEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Empty(t, eng.ups, "这个项目没有容器要起，引擎压根不该被调用")
+	assert.Contains(t, r.stdout, "listening on port")
 }
 
 // 15.5：钉住的组件强依赖了一个被显式关掉的组件——两个意图直接冲突，必须报错。

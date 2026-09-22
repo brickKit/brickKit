@@ -159,6 +159,16 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		return nil
 	}
 
+	if len(plan.services) == 0 {
+		// 这次没有任何组件需要容器（可能全是 mode: local / mode: debug，
+		// 或者全被 servedBy 吸收进了外壳）——不该去起一个引擎：`docker compose
+		// up` 对着一份 `services: {}` 的空文件会报 "no service selected"，
+		// 而且一个纯 mode: local 的项目本不该被要求装 Docker（手动验证 Task 6
+		// Step 5 时用真实 docker 跑出来的：demo/hello 单组件、mode: local，
+		// 之前这里会直接报 ENGINE_FAILED，明明这个项目一个容器都不需要）。
+		return runLocalComponents(ctx, opts, plan.layout, plan.localComponents, plan.crashLines)
+	}
+
 	eng, err := resolveEngine(opts)
 	if err != nil {
 		return err
@@ -651,6 +661,11 @@ func renderNextSteps(opts *Options, plan *upPlan) {
 
 	opts.Printf("%s\n", i18n.T(msgid.CliUpViewTheLogsF, logsCommand(engineName(opts), engine.ProjectName(plan.cfg.Project), "")))
 	for _, env := range plan.generated.LocalEnvFiles {
+		// mode: local 不提示"去 IDE 里加载"：它已经被 runLocalComponents 启动了，
+		// 提示 mode: debug 那句话对它是假的（见 writeLocalEnvFiles 的同一处说明）。
+		if env.Mode != config.ModeDebug {
+			continue
+		}
 		opts.Printf("%s\n", i18n.T(msgid.CliUpLocalDebuggingLoadInThe, filepath.Join(".brickkit", "generated", env.Name), env.Ref.ID))
 	}
 }
@@ -814,13 +829,26 @@ func writeGenerated(layout config.Layout, content []byte) (string, error) {
 }
 
 // writeLocalEnvFiles 写出 mode: debug 组件的调试环境变量文件（005 §4.9）。
+//
+// mode: local 的组件也会出现在 files 里（两者共用同一套"算出本地化环境"的
+// 生成逻辑，见 compose.LocalEnvFile.Mode 的文档），但这里要跳过：它由
+// brickkit 自己拉起（internal/cli/up_local.go 的 buildLocalEnv 直接用
+// LocalEnvFile.Vars 严格展开，不落盘），"No container is generated; start
+// it in your IDE" 这句对它是一句假话，会跟紧随其后 mode: local 自己那段
+// "会启动"的输出自相矛盾（手动验证 Task 6 Step 5 时发现）。
 func writeLocalEnvFiles(opts *Options, layout config.Layout, files []compose.LocalEnvFile) error {
-	if len(files) == 0 {
+	debugFiles := make([]compose.LocalEnvFile, 0, len(files))
+	for _, file := range files {
+		if file.Mode == config.ModeDebug {
+			debugFiles = append(debugFiles, file)
+		}
+	}
+	if len(debugFiles) == 0 {
 		return nil
 	}
 
 	opts.Printf("\n%s\n", i18n.T(msgid.CliUpLocalDebuggingLocalTrue))
-	for _, file := range files {
+	for _, file := range debugFiles {
 		path := filepath.Join(layout.GeneratedDir(), file.Name)
 		if err := os.WriteFile(path, file.Content, 0o600); err != nil {
 			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToWriteThe2)).
