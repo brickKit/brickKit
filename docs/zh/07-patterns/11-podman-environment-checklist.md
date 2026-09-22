@@ -1,0 +1,94 @@
+# Podman 在 Linux 上：一份环境检查清单
+
+> **这篇不是在说 BrickKit 支持选择哪个容器引擎。** 目前 `internal/engine` 只实现了 Docker，
+> `deploy.target` 也只接受 `docker` 和 `k8s`——没有任何方式能让 BrickKit 改用 Podman 来跑 compose。
+> 这篇是给任何想在 Ubuntu/Debian 上独立跑通 rootless Podman 本身的人准备的前置检查清单
+> （跟 BrickKit 无关，如果将来真的要接入 Podman 支持，这也是有用的前期准备）——不是这个 CLI
+> 现在就有的功能。
+
+## 问题
+
+rootless Podman（不用 root 权限运行）依赖一个叫 `pasta` 的用户态辅助进程，来让容器能访问网络。
+停止或删除容器时，Podman 需要给 `pasta` 发一个 `SIGTERM`，才能把这次部署的网桥、IP 分配、
+nftables 规则干净地拆掉。
+
+在 Ubuntu 上（至少到 26.04 为止实测确认），AppArmor 默认的安全策略会拦截 `pasta` 接收这个信号：
+
+```
+$ podman rm -f some-container
+Error: removing container ...: 1 error occurred:
+	* rootless netns: kill network process: permission denied
+```
+
+**这在受影响的机器上是每次都会复现的，不是偶发的。** `up`、`status`、正常的业务请求都完全
+正常——只有停止/删除这一步会失败。这个失败模式比听起来更麻烦：容器本身通常已经没了（Podman
+会退回用 `SIGKILL`），但网络资源未必真的释放掉了，而命令自己的退出码却是失败的——很容易被
+误认成"这次部署根本没停下来"。
+
+这是发行版打包 AppArmor 策略时的缺口，不是 Podman 自己的 bug，也不是某台机器独有的巧合——
+Podman 上游有完全相同的报告（[containers/podman#27372](https://github.com/containers/podman/issues/27372)），
+维护者自己的结论是"看起来不是我们的问题，是发行版的安全策略没配对"。
+
+## 检查自己是否受影响
+
+```bash
+scripts/podman/check-environment.sh
+```
+
+这个脚本基本是只读的，唯一的例外是：为了拿到一个真实的答案，它会起一个用完即删的测试容器
+（自动清理）。光看配置文件判断不出 AppArmor 的拦截到底会不会真的触发——这取决于内核里当前
+加载的策略，不是磁盘上写了什么。
+
+## 修复方法
+
+```bash
+scripts/podman/fix-apparmor.sh
+```
+
+**跑之前先读一遍脚本——它是破坏性的。** 它会把 Podman 重置成一个干净的状态：删除你已有的
+Podman 容器/镜像/卷，重装 `podman` 和 `apparmor-utils` 这两个包，重新生成基础配置。只在
+Ubuntu/Debian（apt 系）上验证过。不会碰 Docker，也不会碰 `/etc/cni`。
+
+把其它清理/重装步骤都做完之后，真正的修复其实就一行：
+
+```bash
+sudo aa-complain /usr/bin/pasta
+```
+
+`aa-complain` 是 Ubuntu/Debian 官方提供的标准工具，专门用来把某一个 AppArmor profile 切换成
+**complain 模式**（只记录违规、不强制拦截），不需要手动编辑 profile 文件（这条路很容易出错：
+`passt` 和 `pasta` 是同一个包里两个名字极像、完全独立的二进制，各自有自己的 profile 文件）。
+
+**这个取舍需要说清楚：** complain 模式意味着 AppArmor 不再对 `pasta` 这一个进程做任何强制
+限制，只是记录它做了什么。系统其它部分不受影响，但这一个进程从此只被监控、不再被限制。这是
+"精确诊断出到底缺哪条信号权限、只放行那一条"和"用标准工具、接受这一个进程不再被强制限制"
+之间的取舍。
+
+脚本里还顺手修了两个跟上面这个信号问题**完全无关**、但对 `brickkit up` 这种非交互场景同样
+致命的坑：
+
+- **`registries.conf`**：没有配置 `unqualified-search-registries`，拉一个没写仓库前缀的镜像
+  （`alpine:latest`——BrickKit 生成的 compose 文件里就是这种写法）要么直接失败，要么弹出一个
+  交互式的"你想从哪个仓库拉"的选择——这会让非交互式的 `brickkit up` 卡住不动。
+- **`policy.json`**：没有签名校验策略，Podman 会直接拒绝拉取任何镜像。脚本设成了
+  `insecureAcceptAnything`，关闭签名校验——这是把 Podman 的默认行为拉平到 Docker 现在的默认
+  水平（Docker Content Trust 默认也是关闭的），不是让它比 Docker 更不安全。
+
+## 这份脚本不覆盖的一个坑
+
+如果你是从一个 snap 打包的应用启动的终端里测试（VS Code 用 snap 安装是最常见的情况），可能
+会先遇到一个完全无关的报错：
+
+```
+Error: database static dir "…/snap/code/254/…/containers/storage/libpod" does not match
+our static dir "…/snap/code/264/…/containers/storage/libpod": database configuration mismatch
+```
+
+snap 会把 `$XDG_DATA_HOME` 重定向到一个跟版本号绑定的路径（`~/snap/<应用>/<revision>/…`）；
+Podman 把存储路径记进了数据库，revision 号一变就对不上，直接拒绝启动。`check-environment.sh`
+会帮你标出这个问题。修法是改 shell 的启动文件，脚本本身不处理这个：
+
+```bash
+export XDG_DATA_HOME="$HOME/.local/share"
+export XDG_CONFIG_HOME="$HOME/.config"
+```
