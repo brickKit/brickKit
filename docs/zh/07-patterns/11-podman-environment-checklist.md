@@ -49,7 +49,23 @@ scripts/podman/fix-apparmor.sh
 Podman 容器/镜像/卷，重装 `podman` 和 `apparmor-utils` 这两个包，重新生成基础配置。只在
 Ubuntu/Debian（apt 系）上验证过。不会碰 Docker，也不会碰 `/etc/cni`。
 
-把其它清理/重装步骤都做完之后，真正的修复其实就一行：
+脚本里其实用了两条独立的技术路径，从两个不同的角度打向同一个问题。脚本两条都用了，所以下面
+说的是"这个组合我们验证过能用"，不是"随便哪一条单独用就够"——我们从没把两条分开单独测过。
+
+**1. 删掉那份过期的 `podman` profile——这是 Debian 官方的诊断结论。** Debian 追查过一模一样的
+报错签名（[Debian #1100135](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1100135)），查到
+一个更深一层的原因：Ubuntu/Debian 给 `podman` 二进制挂了一个摆设性质的占位 AppArmor profile
+（`/etc/apparmor.d/podman`，`flags=(unconfined)`——本身什么都不限制，唯一作用是给这个进程挂个
+名字，不让它显示成"unconfined"）。但正是这个挂名触发了 AppArmor 的跨 profile 信号仲裁——
+`pasta` 的 profile 里从没写过"允许来自一个叫 podman 的东西发来的信号"，于是 `podman` 一旦带上
+这个标签，信号就被拒绝了。Debian 自己的修法是直接把这份占位 profile 删掉——反正它本来就什么
+都没限制，删了也不损失什么。脚本做的是同一件事，但有一个细节很关键：`apparmor_parser -R <路径>`
+必须先**读到**这个文件，才知道要从内核卸载哪个 profile。如果先删文件、再执行 `-R`，这条命令
+读到的是一个不存在的文件，内核里那份旧 profile 其实还留着——这个坑很容易踩，而且踩中之后这条
+修法会悄悄不生效，不会有任何醒目的提示。脚本的做法是先写一份内容极简、能被正常解析的新文件，
+卸载**这一份**，卸载成功之后才删掉文件。
+
+**2. 把 `pasta` 本身切成 complain 模式。** 把其它清理/重装步骤都做完之后，这一步才是那一行：
 
 ```bash
 sudo aa-complain /usr/bin/pasta

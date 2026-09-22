@@ -55,7 +55,28 @@ it deletes your existing Podman containers/images/volumes, purges and reinstalls
 `apparmor-utils` packages, and regenerates baseline config. Verified on Ubuntu/Debian (apt-based
 systems) only. It does not touch Docker or `/etc/cni`.
 
-The fix itself is one line, once everything else is reset:
+There are two independent techniques inside it, aimed at the same problem from two different
+angles. The script applies both, so treat what follows as "this combination is what we verified
+works," not a claim that either one alone is sufficient — we never isolated them.
+
+**1. Removing the stale `podman` profile — Debian's own diagnosis.** Debian tracked this exact
+signature ([Debian #1100135](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1100135)) to a
+subtler cause: Ubuntu/Debian ship a placeholder AppArmor profile for the `podman` binary itself
+(`/etc/apparmor.d/podman`, `flags=(unconfined)` — it restricts nothing, it exists only to give the
+process a name instead of showing up as "unconfined"). But that name is exactly what triggers
+AppArmor's cross-profile signal mediation in the first place: `pasta`'s profile never got a rule
+saying "allow a signal from something named podman," so once `podman` carries that label, the
+signal is denied. Debian's own fix was to delete that placeholder profile outright — nothing of
+value is lost, since it never restricted anything to begin with. The script does the same thing,
+but with one detail that matters: `apparmor_parser -R <path>` has to **read** the file to know
+which profile to unload from the kernel. Deleting the file first and only then calling `-R` on it
+leaves the kernel's copy of the old profile loaded even though the file is gone — an easy mistake
+to make, and one that makes this fix silently not take effect. The script avoids it by writing a
+fresh, minimal, parseable copy of the profile first, unloading *that*, and only then deleting the
+file.
+
+**2. Switching `pasta` itself to complain mode.** This is the one-line fix, once everything else is
+reset:
 
 ```bash
 sudo aa-complain /usr/bin/pasta
