@@ -799,6 +799,7 @@ var en = map[string]string{
 	msgid.CliGraphLlServedbyDeclarationsAreIgnored:                         "    %% All servedBy declarations are ignored (--ignore-served-by: only for verifying that components can start on their own)",
 	msgid.CliGraphHeCurrentProjectHasNo:                                    "    %% The current project has no components",
 	msgid.CliGraphBrLocalDebug:                                             "\u003cbr/\u003elocal debug",
+	msgid.CliGraphBrManagedLocally:                                         "<br/>managed locally",
 	msgid.CliGraphSubgraphMembersShell:                                     "    subgraph %[1]s_members[\"Shell: %[2]s\"]",
 	msgid.CliGraphBrNotInstalled:                                           "    %[1]s[\"%[2]s\u003cbr/\u003enot installed\"]",
 	msgid.CliHooksErrorFailedToLocateThe:                                   "Error: failed to locate the hooks directory",

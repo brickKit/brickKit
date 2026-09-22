@@ -167,6 +167,55 @@ resources: []
 	assert.Contains(t, r.stdout, "    class demo_hello_1_0_0 local\n")
 }
 
+// mode: local 节点要有自己的标签和样式，不能跟 mode: debug 的
+// "local debug"标签混在一起——那句话意味着"你自己在 IDE 里启动"，
+// 对 mode: local 是假的（brickkit 自己拉起它）。
+func TestGraphMarksModeLocalComponent(t *testing.T) {
+	f := graphProject(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+resources: []
+`, comp{ID: "demo/hello", Version: "1.0.0"})
+
+	r := runIn(t, f.Dir, "graph")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	requirePureMermaid(t, r.stdout)
+	assert.NotContains(t, r.stdout, "local debug", "不能沿用 mode: debug 的标签措辞")
+	assert.Contains(t, r.stdout, "    classDef managed ", "要有一个新样式，不是复用 classLocal")
+	assert.Contains(t, r.stdout, "    class demo_hello_1_0_0 managed\n")
+}
+
+// mode: local 跟 mode: debug 一样是"钉住"的——上层全被关掉，跟着上层走的
+// 组件本该跟着被级联跳过，但 mode: local 不跟着上层走，永远不会被置灰。
+// 只搭一条两跳的依赖链（demo/web 关掉 → demo/hello 是它唯一的依赖）：
+// 没有 mode: local 这个钉子的话，demo/hello 上面没人需要它，会被跟着关掉，
+// 跟下面断言它不在 disabled 里的结果矛盾——这条测试的意义正在于验证
+// "钉住"确实推翻了这条默认的级联规则。
+func TestGraphModeLocalComponentIsPinnedAndNeverGreyedOut(t *testing.T) {
+	f := graphProject(t, `components:
+  - id: demo/web
+    version: 1.0.0
+    mode: disable
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+resources: []
+`,
+		comp{ID: "demo/hello", Version: "1.0.0"},
+		comp{ID: "demo/web", Version: "1.0.0", Requires: []string{"demo/hello@1.0.0"}},
+	)
+
+	r := runIn(t, f.Dir, "graph")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	disabled := classLineOf(r.stdout, "disabled")
+	require.NotEmpty(t, disabled, r.stdout)
+	assert.Contains(t, disabled, "demo_web_1_0_0", "web 自己被关")
+	assert.NotContains(t, disabled, "demo_hello_1_0_0", "mode: local 被钉住，不会被级联跳过")
+	assert.Contains(t, r.stdout, "    class demo_hello_1_0_0 managed\n")
+}
+
 // mode: debug 与 mode: enabled 一样是"钉住"：上层全被关掉，它照样在跑，所以永远
 // 不会被置灰——local 样式因此只会落在真的在跑的组件上。被跳过的（web 被关、api
 // 没人需要）套 disabled，"置灰 = 这次不会启动"是唯一的信号。

@@ -793,6 +793,7 @@ var zh = map[string]string{
 	msgid.CliGraphLlServedbyDeclarationsAreIgnored:                   "    %% 已忽略全部 servedBy 声明（--ignore-served-by：仅用于验证组件独立启动能力）",
 	msgid.CliGraphHeCurrentProjectHasNo:                              "    %% 当前项目没有组件",
 	msgid.CliGraphBrLocalDebug:                                       "\u003cbr/\u003e本地调试",
+	msgid.CliGraphBrManagedLocally:                                   "<br/>托管本地",
 	msgid.CliGraphSubgraphMembersShell:                               "    subgraph %[1]s_members[\"外壳：%[2]s\"]",
 	msgid.CliGraphBrNotInstalled:                                     "    %[1]s[\"%[2]s\u003cbr/\u003e未安装\"]",
 	msgid.CliHooksErrorFailedToLocateThe:                             "错误：定位 hooks 目录失败",

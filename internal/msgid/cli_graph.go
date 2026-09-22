@@ -9,6 +9,7 @@ const (
 	CliGraphLlServedbyDeclarationsAreIgnored = "cli.graph.ll_servedby_declarations_are_ignored"
 	CliGraphHeCurrentProjectHasNo            = "cli.graph.he_current_project_has_no"
 	CliGraphBrLocalDebug                     = "cli.graph.br_local_debug"
+	CliGraphBrManagedLocally                 = "cli.graph.br_managed_locally"
 	CliGraphSubgraphMembersShell             = "cli.graph.subgraph_members_shell"
 	CliGraphBrNotInstalled                   = "cli.graph.br_not_installed"
 )
