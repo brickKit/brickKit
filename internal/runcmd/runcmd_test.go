@@ -202,3 +202,58 @@ func TestCheckProgramRejectsAnEmptyCommand(t *testing.T) {
 	var missing *ProgramMissingError
 	assert.ErrorAs(t, Command{}.CheckProgram(), &missing)
 }
+
+func TestTwoLanguagesThatCanBothRunAreAmbiguous(t *testing.T) {
+	dir := write(t, map[string]string{
+		"go.mod": "module x\n", "main.go": mainGo,
+		"package.json": `{"scripts":{"start":"node server.js"}}`,
+	})
+
+	_, err := detectAs(dir, "linux", Hints{})
+
+	var amb *AmbiguousError
+	require.ErrorAs(t, err, &amb)
+	assert.Equal(t, []Candidate{
+		{Language: "go", Argv: []string{"go", "run", "."}},
+		{Language: "node", Argv: []string{"npm", "run", "start"}},
+	}, amb.Candidates)
+	assert.Contains(t, err.Error(), "go (go run .), node (npm run start)")
+}
+
+func TestAnExplicitLanguageResolvesTheAmbiguity(t *testing.T) {
+	dir := write(t, map[string]string{
+		"go.mod": "module x\n", "main.go": mainGo,
+		"package.json": `{"scripts":{"start":"node server.js"}}`,
+	})
+
+	cmd := mustDetect(t, dir, Hints{Language: LangNode})
+
+	assert.Equal(t, LangNode, cmd.Language)
+	assert.Equal(t, []string{"npm", "run", "start"}, cmd.Argv)
+}
+
+func TestALanguageThatCannotRunDoesNotBlockOneThatCan(t *testing.T) {
+	// 很常见的形状：Go 仓库里放了一个只有 lint 脚本的 package.json。
+	dir := write(t, map[string]string{
+		"go.mod": "module x\n", "main.go": mainGo,
+		"package.json": `{"scripts":{"lint":"eslint ."}}`,
+	})
+
+	cmd := mustDetect(t, dir, Hints{})
+
+	assert.Equal(t, LangGo, cmd.Language)
+}
+
+func TestSeveralRecognisedButUnrunnableLanguagesAreAllReported(t *testing.T) {
+	dir := write(t, map[string]string{
+		"go.mod":       "module x\n",
+		"package.json": `{"scripts":{"lint":"eslint ."}}`,
+	})
+
+	problems := problemsOf(t, dir, Hints{})
+
+	assert.Equal(t, []Problem{
+		{Language: "go", Reason: ReasonNoEntryPoint, Detail: "go.mod"},
+		{Language: "node", Reason: ReasonNoStartScript, Detail: "package.json"},
+	}, problems)
+}

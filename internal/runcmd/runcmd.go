@@ -78,6 +78,7 @@ var adapters = []adapter{
 	{LangGo, "go.mod", probeGo, nil},
 	{LangRust, "Cargo.toml", probeRust, nil},
 	{LangDotnet, "*.csproj", probeDotnet, nil},
+	{LangNode, "package.json", probeNode, nil},
 }
 
 // Languages 返回全部支持的语言标识（固定顺序）。
