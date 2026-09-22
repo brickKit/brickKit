@@ -120,4 +120,4 @@ docker network rm brickkit-hello-world-net
 
 ---
 
-下一篇：[部署到 Kubernetes](05-kubernetes.md)——同样形状的项目，改部署到 Kubernetes 而不是 Docker——同一份 Manifest、同一张依赖图，生成出来的是完全不同的一套文件。
+下一篇：[让一个组件在本地跑起来，不用你操心](04-local-execution.md)——同一个"裸进程、不生成容器"想法的另外半边：BrickKit 自己探测启动命令、自己拉起进程、自己盯着它，不用你在 IDE 里手动启动。

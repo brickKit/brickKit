@@ -9,7 +9,7 @@
 | 01 | [把一个项目跑起来](01-first-project.md) | `init`、`add`、`up`，用 HTTP 跟它说上话，改配置，`down` | —— |
 | 02 | [平台是怎么决定谁跑起来的](02-what-runs.md) | 依赖、`mode` 级联、`--dry-run` | —— |
 | 03 | [本地调试一个组件](03-local-debugging.md) | `mode: debug`：让一个组件跑在你的 IDE 里，其余照常在容器里 | —— |
-| 04 | TBD——Task 8 完成后回填 | TBD | TBD |
+| 04 | [让一个组件在本地跑起来，不用你操心](04-local-execution.md) | `mode: local`：BrickKit 自己探测启动命令、自己拉起进程、自己盯着它——`status`/`graph`/`down` 都认得出它 | —— |
 | 05 | [部署到 Kubernetes](05-kubernetes.md) | 同一份声明，只改 `deploy.target`；外加一个 `brickkit down` 和共用命名空间之间的真实的坑 | minikube 和 `kubectl` |
 | 06 | [升级，以及让多个版本并存](06-upgrades-and-versions.md) | 改版本号就是升级；两个版本故意一起跑 | —— |
 | 07 | [拼装一个真实的系统，然后故意把它弄坏](07-assemble-and-break.md) | 绑定一个真实数据库，见两种不同的真实失败 | 一个 PostgreSQL（教程里用 `docker run` 起） |

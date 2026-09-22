@@ -9,7 +9,7 @@ A sequence of tutorials, each one run for real against the actual CLI — not a 
 | 01 | [Get a project running](01-first-project.md) | `init`, `add`, `up`, talk to it over HTTP, change config, `down` | — |
 | 02 | [How the platform decides what runs](02-what-runs.md) | Dependencies, the `mode` cascade, `--dry-run` | — |
 | 03 | [Debug a component locally](03-local-debugging.md) | `mode: debug`: one component runs in your IDE while the rest stay in containers | — |
-| 04 | TBD — backfilled once Task 8 completes | TBD | TBD |
+| 04 | [Run a component locally, hands-off](04-local-execution.md) | `mode: local`: BrickKit detects the start command, launches the process, and supervises it itself — `status`/`graph`/`down` all learn to recognize it | — |
 | 05 | [Deploy to Kubernetes](05-kubernetes.md) | The same declaration, only `deploy.target` changes; plus a real gotcha with `brickkit down` and shared namespaces | minikube and `kubectl` |
 | 06 | [Upgrade and run multiple versions side by side](06-upgrades-and-versions.md) | Changing the version number is the upgrade; two versions running together on purpose | — |
 | 07 | [Assemble a real system, then break it on purpose](07-assemble-and-break.md) | Binding a real database, and meeting two different real failure modes | A PostgreSQL (the tutorial starts one with `docker run`) |

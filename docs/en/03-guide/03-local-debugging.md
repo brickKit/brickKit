@@ -120,4 +120,4 @@ Multiple components can be `mode: debug` at once, each with its own `localPort` 
 
 ---
 
-Next: [Deploy to Kubernetes](05-kubernetes.md) — the same shape of project, deployed to Kubernetes instead of Docker — same Manifest, same dependency graph, a different set of generated files entirely.
+Next: [Run a component locally, hands-off](04-local-execution.md) — the other half of the "bare process, no container" idea: BrickKit detects the start command, launches the process itself, and supervises it, instead of you starting it in an IDE.
