@@ -131,9 +131,8 @@ AGENTS.zh.md §6 是那份可以直接复制粘贴的骨架。这篇文档是骨
 | --- | --- | --- | --- |
 | `local.language` | string | 否 | 必须是本地启动探测器认得的语言之一：`go` / `rust` / `dotnet` / `node` / `java` / `python` / `ruby` |
 | `local.runCommand` | `[]string` | 否 | 写了就至少一个元素；每个元素去掉首尾空白后都不能是空字符串 |
-| `local.debugCommand` | `[]string` | 否 | 同上 |
 
-`local` 这一整块本身是可选的，里面每个字段也都是可选的——整段不写、或者写一个空的 `local: {}`，都意味着完全依赖自动探测（读 `go.mod`、`package.json` 这类组件自己源码目录里的标记文件）。三个字段存在的意义是：语言探测不出来或有歧义时手动指定、启动命令探测失败时手动覆盖——它们今天已经能解析、能校验，但 CLI 还没有任何地方去读它们，要等 `mode: local` 自己的部署支持落地才会用上。
+`local` 这一整块本身是可选的，里面每个字段也都是可选的——整段不写、或者写一个空的 `local: {}`，都意味着完全依赖自动探测（读 `go.mod`、`package.json` 这类组件自己源码目录里的标记文件）。两个字段存在的意义是：语言探测不出来或有歧义时手动指定、启动命令探测失败时手动覆盖——`mode: local` 的启动路径会读它们（`internal/cli/up_local.go` 的 `hintsFromManifest`）。
 
 ## `healthCheck`
 

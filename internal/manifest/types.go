@@ -260,19 +260,20 @@ type Migration struct {
 }
 
 // Local 是组件在本机（mode: local/debug）的启动方式声明，跟 migration/healthCheck/
-// deployment 平级（005 §2）。三个字段全部可选——不写时完全依赖自动探测；写了才是
+// deployment 平级（005 §2）。两个字段全部可选——不写时完全依赖自动探测；写了才是
 // "探测失败/歧义时的手动覆盖出口"，不是必须完整声明的配置块。
+//
+// 没有 DebugCommand 字段：spec 原本设想 mode: local 默认产出"可调试挂载"的启动方式
+// （005 §4），但这个前提本身站不住——2026-09-22 brainstorming 澄清时查了原始记录，
+// "local 模式的动机就是要盯着它调试"这句话是早期对话里单方面断言的，用户从没这样说过、
+// 也从没确认过。真实意图是 mode: local 单纯托管启动（不涉及断点），真要调试用
+// mode: debug（用户自己在 IDE 里启动，原生调试体验）。字段与校验已随之删除。
 type Local struct {
 	// Language 是 internal/runcmd.Languages() 里的一个；多数情况能自动识别，
 	// 只在探测出歧义（比如同一目录里 go.mod 和 package.json 都在）时才需要手写。
 	Language string `yaml:"language,omitempty"`
 	// RunCommand 是探测失败时的手动覆盖：Argv[0] 含路径分隔符时相对组件目录。
 	RunCommand []string `yaml:"runCommand,omitempty"`
-	// DebugCommand 是调试挂载探测失败时的手动覆盖（005 §4，调试挂载具体怎么接由
-	// 后续计划设计——Plan 3 期间用真实进程做实验，推翻了 spec 原本"环境变量注入
-	// 就够"的假设，见 docs/superpowers/plans/2026-09-22-run-command-detection.md
-	// 的"设计决定"第 1 条）。
-	DebugCommand []string `yaml:"debugCommand,omitempty"`
 }
 
 // DefaultStartPeriodSeconds 是启动宽限期的默认值（002 §9.3）。

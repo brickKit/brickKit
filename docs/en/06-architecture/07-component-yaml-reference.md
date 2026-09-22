@@ -131,9 +131,8 @@ This block is optional self-documentation, not a functional requirement — noth
 | --- | --- | --- | --- |
 | `local.language` | string | no | one of the languages the local-process launcher recognizes: `go` / `rust` / `dotnet` / `node` / `java` / `python` / `ruby` |
 | `local.runCommand` | `[]string` | no | if present, at least one element; every element must be non-empty after trimming whitespace |
-| `local.debugCommand` | `[]string` | no | same |
 
-`local` itself is optional, and so is every field inside it — omitting the whole block, or writing an empty `local: {}`, means the component relies entirely on automatic detection from its own source tree (reading `go.mod`, `package.json`, and the like). All three fields exist for a component whose language can't be auto-detected unambiguously, or whose start command needs to be overridden by hand — they parse and validate today, but nothing in the CLI reads them yet; that lands together with `mode: local`'s own deployment support.
+`local` itself is optional, and so is every field inside it — omitting the whole block, or writing an empty `local: {}`, means the component relies entirely on automatic detection from its own source tree (reading `go.mod`, `package.json`, and the like). Both fields exist for a component whose language can't be auto-detected unambiguously, or whose start command needs to be overridden by hand; `mode: local`'s launch path reads them (`internal/cli/up_local.go`'s `hintsFromManifest`).
 
 ## `healthCheck`
 

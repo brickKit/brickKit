@@ -411,11 +411,6 @@ func (m *Manifest) validateLocal(p *clierr.ProblemSet) {
 			p.Missing(fmt.Sprintf("local.runCommand[%d]", i))
 		}
 	}
-	for i, arg := range m.Local.DebugCommand {
-		if strings.TrimSpace(arg) == "" {
-			p.Missing(fmt.Sprintf("local.debugCommand[%d]", i))
-		}
-	}
 }
 
 func (m *Manifest) validateHealthCheck(p *clierr.ProblemSet) {

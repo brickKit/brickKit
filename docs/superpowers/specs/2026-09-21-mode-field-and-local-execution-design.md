@@ -5,6 +5,21 @@
 > 本文档覆盖字段模型、校验规则、进程监管、启动命令探测、端口覆盖、配套机制六个方面的设计决策与理由。实现拆成四份独立计划（见各计划文件的 Spec 引用），本文档是四份计划共同的设计依据。
 >
 > **范围排除**：`docs/{en,zh}/07-patterns/05-deployment-selection-guide.md` 本次不改——另一个项目会先做一遍完整实操测试，根据反馈再更新这份文档，避免先写后被推翻。
+>
+> **⚠️ 2026-09-22 纠正：§4"调试挂载"整节、§2 里的 `debugCommand` 字段已收回，不再是设计的一部分。**
+> 这两处建立在一个从未被用户确认过的前提上——"`local` 模式的动机就是'要盯着它调试'"这句话是
+> 早期 brainstorming 对话里 AI 自己单方面断言的，不是用户说的；查了这次会话最早的原始记录才
+> 发现（用户在整个讨论里唯一一次提到"断点"，只是顺着 AI 抛出的话题问"这个技术问题有没有解
+> 法"，不是在提需求）。真实意图确认为：`mode: local` 单纯是"brickkit 帮我托管启动这个进程"，
+> 不涉及断点/调试器；真要调试用 `mode: debug`（用户自己在 IDE 里启动，原生调试体验，从设计上
+> 就没有这个问题）。`component.yaml` 的 `local.debugCommand` 字段（连同它的解析、校验、JSON
+> Schema）已随这次纠正删除——下文 §2、§4 保留原文只为存档，实现不要再参照。
+>
+> 这次纠正顺带牵出一个真实需要处理的问题：`mode: local` 的子进程会继承启动 `brickkit up`
+> 那个 shell 的完整环境（`internal/procsup` 是 `append(os.Environ(), spec.Env...)`）——如果
+> 这个 shell 曾经为了别的原因全局设过 `NODE_OPTIONS`/`JAVA_TOOL_OPTIONS`，Node/Java 组件会在
+> 没人主动要求调试的情况下卡住等调试器连接。这个问题已经修：`internal/cli/up_local.go` 的
+> `buildLocalEnv` 按探测出的语言，无条件清空这几个变量。详见 Plan 4b 的对应提交。
 
 ## 1. 字段模型
 
@@ -43,12 +58,13 @@ components:
 
 ## 2. 字段归属
 
-- **`runCommand`/`debugCommand`/`language`**：落在 `component.yaml`，新增顶层块 `local:`，跟 `migration`/`healthCheck`/`deployment` 平级：
+> **`debugCommand` 已收回，见文首 2026-09-22 纠正。** 实际落地是 `language`/`runCommand` 两个字段。
+
+- **`runCommand`/~~`debugCommand`~~/`language`**：落在 `component.yaml`，新增顶层块 `local:`，跟 `migration`/`healthCheck`/`deployment` 平级：
   ```yaml
   local:
     language: go                          # 可选，多数情况能自动探测
     runCommand: ["go", "run", "."]        # 可选，探测失败/歧义时的手动覆盖
-    debugCommand: ["dlv", "exec", "..."]  # 可选，仅在适配器默认产出的调试方式不适用时才需要
   ```
   理由：这些是组件自身工具链的事实，不随装它的项目变化，跟 `migration.command` 是同一类东西。
 - **`mode`**：落在 `brickkit.yaml`，是项目对组件的部署意图，跟今天 `local: true`/`enabled` 位置一致。
@@ -78,7 +94,10 @@ components:
 
 ## 4. 启动命令怎么来（`mode: local` 专属）
 
-- **`runCommand`/`debugCommand` 不是并列的两套机制**：`local` 模式的动机就是"要盯着它调试"，每个语言适配器默认直接产出"可调试挂载"的启动方式，不需要额外开关。两个字段都只作为自动探测失败/歧义时的手动覆盖出口。
+> **下面"调试挂载"这一条已收回，见文首 2026-09-22 纠正。** `mode: local` 不内置任何调试器
+> 挂载能力，探测出的命令就是平时怎么跑就怎么跑，不叠加任何调试专属的 Argv/Env。真要调试用
+> `mode: debug`。其余条目（机制、可靠性分级、健康检查、迁移）不受影响，仍然成立。
+
 - **机制**：读取各语言生态自己的标准约定文件（`package.json`/`go.mod`/`Cargo.toml`/`*.csproj`/`pom.xml`+`build.gradle`/`manage.py` 等），是 Nixpacks/Cloud Native Buildpacks 同类技术，不是猜测。
 - **可靠性分级**：
   - 高（接近确定性）：Go（`go run .`）、Rust（`cargo run`）、.NET（`dotnet run`）。
@@ -86,13 +105,19 @@ components:
   - 较高但多一步：Java（区分 Maven/Gradle，扫依赖是否有 `spring-boot-starter`，优先用 wrapper 脚本）。
   - 低，刻意收窄：Python/Ruby，只吃 `manage.py`/`bin/rails` 这类强信号，其余情况直接走兜底——猜错了还能跑起来比直接报错更难排查。
 - **语言字段基本免填**：标记文件本身能自动识别语言，`language` 只是少数歧义场景的可选手动覆盖。
-- **调试挂载**：只跟语言/运行时相关，跟框架无关。
-  - Java/Node：环境变量注入（`JAVA_TOOL_OPTIONS`/`NODE_OPTIONS`），不改用户命令本身。
-  - Go：不改启动方式，正常跑起来后 `dlv attach <pid>`。
-  - Python：需要包一层命令（`python -m debugpy --listen ...`）。
-  - 启动期断点不会丢：`debugpy --wait-for-client`、JDWP `suspend=y`、dlv 默认等客户端连上再继续。
+- ~~**调试挂载**：只跟语言/运行时相关，跟框架无关。~~
+  - ~~Java/Node：环境变量注入（`JAVA_TOOL_OPTIONS`/`NODE_OPTIONS`），不改用户命令本身。~~
+  - ~~Go：不改启动方式，正常跑起来后 `dlv attach <pid>`。~~
+  - ~~Python：需要包一层命令（`python -m debugpy --listen ...`）。~~
+  - ~~启动期断点不会丢：`debugpy --wait-for-client`、JDWP `suspend=y`、dlv 默认等客户端连上再继续。~~
 - **健康检查：不上完整 healthCheck 机制**（不需要启动顺序保证）。只保留一个轻量的一次性端口监听检测，复用 `deployment.port`，专门发现"命令跑起来了但没监听正确端口"这一种风险。**检测失败是终端里的醒目警告，不是自动杀掉进程**——慢启动是正常情况，不该被误判。
 - **迁移**：`local`/`debug` 都不生成迁移容器，用户自己手动跑一次迁移。
+- **环境变量清理（2026-09-22 补充，取代上面已收回的"调试挂载"）**：`mode: local` 的子进程继承
+  启动 `brickkit up` 那个 shell 的完整环境（`internal/procsup` 是 `append(os.Environ(),
+  spec.Env...)`）——按探测出的语言，无条件清空 `NODE_OPTIONS`（Node）、`JAVA_TOOL_OPTIONS`/
+  `JDK_JAVA_OPTIONS`（Java），防止这个 shell 里曾经为了别的原因全局设过的调试参数，在没人
+  主动要求调试的情况下让进程卡住等调试器连接。Go/Rust/.NET/Python/Ruby 不需要这条：它们的
+  启动方式不会被任何环境变量意外触发调试等待。
 
 ## 5. 端口覆盖机制
 
