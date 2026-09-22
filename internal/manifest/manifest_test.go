@@ -404,6 +404,61 @@ func TestExtraPortsDuplicateName(t *testing.T) {
 	assert.Contains(t, clierr.As(err).Format(), "duplicates")
 }
 
+// ============================================================
+// local: 块（005 §2、§4）
+// ============================================================
+
+func TestParseWithoutLocalBlock(t *testing.T) {
+	m, err := Parse([]byte(minimalYAML), "component.yaml")
+	require.NoError(t, err)
+	assert.Nil(t, m.Local, "不写 local: 块是合法的——完全依赖自动探测")
+}
+
+func TestParseEmptyLocalBlock(t *testing.T) {
+	m, err := Parse([]byte(minimalYAML+"local: {}\n"), "component.yaml")
+	require.NoError(t, err)
+	require.NotNil(t, m.Local)
+	assert.Empty(t, m.Local.Language)
+	assert.Empty(t, m.Local.RunCommand)
+	assert.Empty(t, m.Local.DebugCommand)
+}
+
+func TestParseLocalBlockWithSupportedLanguage(t *testing.T) {
+	m, err := Parse([]byte(minimalYAML+"local:\n  language: python\n"), "component.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, "python", m.Local.Language)
+}
+
+func TestLocalLanguageNotSupportedIsRejected(t *testing.T) {
+	_, err := Parse([]byte(minimalYAML+"local:\n  language: cobol\n"), "component.yaml")
+	require.Error(t, err)
+	out := clierr.As(err).Format()
+	assert.Contains(t, out, "local.language")
+	assert.Contains(t, out, "cobol")
+}
+
+func TestLocalRunCommandWithBlankArgIsRejected(t *testing.T) {
+	_, err := Parse([]byte(minimalYAML+"local:\n  runCommand: [\"go\", \"\", \"run\"]\n"), "component.yaml")
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Format(), "local.runCommand[1]")
+}
+
+func TestLocalDebugCommandWithBlankArgIsRejected(t *testing.T) {
+	_, err := Parse([]byte(minimalYAML+"local:\n  debugCommand: [\"\"]\n"), "component.yaml")
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Format(), "local.debugCommand[0]")
+}
+
+func TestLocalBlockWithLanguageAndBothCommands(t *testing.T) {
+	m, err := Parse([]byte(minimalYAML+
+		"local:\n  language: go\n  runCommand: [\"go\", \"run\", \".\"]\n  debugCommand: [\"dlv\", \"debug\", \".\"]\n"),
+		"component.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, "go", m.Local.Language)
+	assert.Equal(t, []string{"go", "run", "."}, m.Local.RunCommand)
+	assert.Equal(t, []string{"dlv", "debug", "."}, m.Local.DebugCommand)
+}
+
 // 一次报出全部问题，而不是每次只报一个。
 func TestMultipleProblemsReportedTogether(t *testing.T) {
 	y := `

@@ -364,6 +364,39 @@
       ],
       "type": "string"
     },
+    "local": {
+      "additionalProperties": false,
+      "properties": {
+        "debugCommand": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runCommand": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
     "metadata": {
       "additionalProperties": false,
       "properties": {

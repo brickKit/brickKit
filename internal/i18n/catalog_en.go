@@ -485,6 +485,7 @@ var en = map[string]string{
 	msgid.ManifestResourcesNeedOne:                                         "declare at least one of requests or limits",
 	msgid.ManifestResourcesNeedCPUOrMemory:                                 "declare at least one of cpu or memory",
 	msgid.ManifestMigrationCommandMissing:                                  "missing (required field; an array, for example [\"python\", \"manage.py\", \"migrate\"])",
+	msgid.ManifestLocalLanguageInvalid:                                     "not a supported language (supported: %[2]s), got %[1]q",
 	msgid.ManifestHealthPathMustStartWithSlash:                             "must start with / (currently %[1]s)",
 	msgid.ProblemMustBeOneOfThree:                                          "must be one of %[1]s / %[2]s / %[3]s (currently %[4]s)",
 	msgid.ManifestStartPeriodIgnoredForNone:                                "has no effect under type: none (no probe is generated, so there is no grace period); remove this field, or change type to http / tcp",

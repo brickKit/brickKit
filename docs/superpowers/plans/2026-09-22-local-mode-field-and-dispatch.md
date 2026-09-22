@@ -31,7 +31,7 @@
 - 提交命令直接从 `git` 开始，别加 `cd` 前缀。
 - **每一处 `Mode == ModeDebug` 的精确匹配都要考虑要不要并列加 `Mode == ModeLocal`**——这是本计划的核心工作模式，任务列表按"文件/子系统"分组，但检查方式统一：改之前先 `grep -rn "ModeDebug" internal/ market-server/` 确认没有漏改的第七处（本计划写作时已经调研过全部六处功能性判断点 + 三处纯展示判断点，见下面"设计决定"第 1 条，但代码可能在执行期间已经变化，改之前重新 grep 一遍成本很低）。
 - **`internal/config` 与 `internal/manifest` 里任何 `jsonschema` tag 的取值列表，必须跟对应 `Validate`/校验函数里的 switch/case 取值保持同一份**——`schemas_test.go` 会核对，改一处要改另一处，这是仓库既有纪律（`config.go`/`types.go` 顶部注释里反复写明）。
-- **文档范围**：本计划**不改** `AGENTS.md`、`docs/{en,zh}/`——`mode: local` 现在还不能真正运行任何东西，文档里不能先出现一个"看起来能用但试了没反应"的模式。文档在 Plan 4d 落地（Plan 4b/4c 把它做成真的能用之后）。
+- **文档范围**：本计划**不改** `AGENTS.md`、任何叙述"`mode: local` 怎么用"的指南/概念文档——`mode: local` 现在还不能真正运行任何东西，这类文档里不能先出现一个"看起来能用但试了没反应"的模式，留给 Plan 4d。**例外（Task 1 执行期间发现）**：`tests/docfields`（`make lint` 的一部分）强制要求 `docs/{en,zh}/06-architecture/07-component-yaml-reference.md` 的字段骨架表覆盖 `Manifest` 结构体的每一个字段——这是纯机械性的"这个字段存在、类型是什么"的事实陈述，跟 `migration.command` 这类字段一样，不涉及"怎么用 mode: local"，所以 `local.language`/`local.runCommand`/`local.debugCommand` 三行必须补进这张表（两种语言都要），否则 `make lint` 过不了。这条例外只覆盖这一张字段骨架表，不代表整个文档范围排除被推翻。
 - `docs/{en,zh}/07-patterns/05-deployment-selection-guide.md` 依旧不改（另一个项目的实操反馈还没回来）。
 
 ---
@@ -80,6 +80,7 @@
 - Modify: `internal/i18n/catalog_en.go`、`internal/i18n/catalog_zh.go`
 - Modify: `internal/manifest` 下合适的 `*_test.go`
 - Modify: `schemas/component.schema.json`（`make generate-schemas` 生成）
+- Modify: `docs/en/06-architecture/07-component-yaml-reference.md`、`docs/zh/06-architecture/07-component-yaml-reference.md`——`tests/docfields` 强制要求字段骨架表覆盖每个 Manifest 字段（见上面"文档范围"的例外说明）
 
 **Interfaces:**
 - Consumes：`internal/runcmd.Languages() []string`（Plan 3 已交付，零依赖）。

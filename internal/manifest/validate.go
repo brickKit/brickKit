@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -11,6 +12,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/runcmd"
 )
 
 // 组件 ID 规则（002 §10.1、§10.3）：格式 <scope>/<name>，
@@ -75,6 +77,7 @@ func (m *Manifest) Validate() error {
 	m.validateDeployment(p)
 	m.validateMigration(p)
 	m.validateHealthCheck(p)
+	m.validateLocal(p)
 
 	return p.Err()
 }
@@ -391,6 +394,26 @@ func (m *Manifest) validateMigration(p *clierr.ProblemSet) {
 	for i, arg := range m.Migration.Command {
 		if strings.TrimSpace(arg) == "" {
 			p.Missing(fmt.Sprintf("migration.command[%d]", i))
+		}
+	}
+}
+
+func (m *Manifest) validateLocal(p *clierr.ProblemSet) {
+	if m.Local == nil {
+		return
+	}
+	if m.Local.Language != "" && !slices.Contains(runcmd.Languages(), m.Local.Language) {
+		p.Add("local.language", i18n.T(msgid.ManifestLocalLanguageInvalid,
+			m.Local.Language, strings.Join(runcmd.Languages(), "/")))
+	}
+	for i, arg := range m.Local.RunCommand {
+		if strings.TrimSpace(arg) == "" {
+			p.Missing(fmt.Sprintf("local.runCommand[%d]", i))
+		}
+	}
+	for i, arg := range m.Local.DebugCommand {
+		if strings.TrimSpace(arg) == "" {
+			p.Missing(fmt.Sprintf("local.debugCommand[%d]", i))
 		}
 	}
 }

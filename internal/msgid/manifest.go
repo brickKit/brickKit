@@ -36,6 +36,7 @@ const (
 	ManifestResourcesNeedOne             = "manifest.resources_need_one"
 	ManifestResourcesNeedCPUOrMemory     = "manifest.resources_need_cpu_or_memory"
 	ManifestMigrationCommandMissing      = "manifest.migration_command_missing"
+	ManifestLocalLanguageInvalid         = "manifest.local_language_invalid"
 	ManifestHealthPathMustStartWithSlash = "manifest.health_path_must_start_with_slash"
 	ManifestStartPeriodIgnoredForNone    = "manifest.start_period_ignored_for_none"
 	ManifestStartPeriodMustBePositive    = "manifest.start_period_must_be_positive"

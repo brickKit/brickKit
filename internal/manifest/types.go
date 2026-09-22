@@ -106,6 +106,7 @@ type Manifest struct {
 	Deployment   Deployment    `yaml:"deployment"`
 	Migration    *Migration    `yaml:"migration,omitempty"`
 	HealthCheck  HealthCheck   `yaml:"healthCheck"`
+	Local        *Local        `yaml:"local,omitempty"`
 
 	// Source 是该 Manifest 的来源（文件路径或安装源描述），只用于错误提示。
 	Source string `yaml:"-"`
@@ -256,6 +257,22 @@ type ResourceSpec struct {
 // Migration 是数据库迁移声明（002 §8.2）。command 必须是数组格式。
 type Migration struct {
 	Command []string `yaml:"command"`
+}
+
+// Local 是组件在本机（mode: local/debug）的启动方式声明，跟 migration/healthCheck/
+// deployment 平级（005 §2）。三个字段全部可选——不写时完全依赖自动探测；写了才是
+// "探测失败/歧义时的手动覆盖出口"，不是必须完整声明的配置块。
+type Local struct {
+	// Language 是 internal/runcmd.Languages() 里的一个；多数情况能自动识别，
+	// 只在探测出歧义（比如同一目录里 go.mod 和 package.json 都在）时才需要手写。
+	Language string `yaml:"language,omitempty"`
+	// RunCommand 是探测失败时的手动覆盖：Argv[0] 含路径分隔符时相对组件目录。
+	RunCommand []string `yaml:"runCommand,omitempty"`
+	// DebugCommand 是调试挂载探测失败时的手动覆盖（005 §4，调试挂载具体怎么接由
+	// 后续计划设计——Plan 3 期间用真实进程做实验，推翻了 spec 原本"环境变量注入
+	// 就够"的假设，见 docs/superpowers/plans/2026-09-22-run-command-detection.md
+	// 的"设计决定"第 1 条）。
+	DebugCommand []string `yaml:"debugCommand,omitempty"`
 }
 
 // DefaultStartPeriodSeconds 是启动宽限期的默认值（002 §9.3）。

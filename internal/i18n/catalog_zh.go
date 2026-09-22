@@ -479,6 +479,7 @@ var zh = map[string]string{
 	msgid.ManifestResourcesNeedOne:                                   "至少要声明 requests 或 limits 之一",
 	msgid.ManifestResourcesNeedCPUOrMemory:                           "至少要声明 cpu 或 memory 之一",
 	msgid.ManifestMigrationCommandMissing:                            "缺失（必填字段，数组格式，如 [\"python\", \"manage.py\", \"migrate\"]）",
+	msgid.ManifestLocalLanguageInvalid:                               "不是受支持的语言（支持：%[2]s），实际是 %[1]q",
 	msgid.ManifestHealthPathMustStartWithSlash:                       "必须以 / 开头（当前是 %[1]s）",
 	msgid.ProblemMustBeOneOfThree:                                    "必须是 %[1]s / %[2]s / %[3]s 之一（当前是 %[4]s）",
 	msgid.ManifestStartPeriodIgnoredForNone:                          "在 type: none 下不生效（不生成任何探测，也就无所谓宽限期）；请删除该字段，或把 type 改成 http / tcp",
