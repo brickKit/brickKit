@@ -69,10 +69,11 @@ func TestReservedKeyWarningsFlagsEveryReservedShape(t *testing.T) {
 		"databaseHost",     // DATABASE_HOST：资源前缀
 		"notifierEndpoint", // NOTIFIER_ENDPOINT：*_ENDPOINT 后缀
 		"componentId",      // COMPONENT_ID：精确匹配
+		"port",             // PORT：精确匹配（Plan 4a）
 		"pageSize",         // 不冲突
 	)
 	warnings := ReservedKeyWarnings(m)
-	require.Len(t, warnings, 3)
+	require.Len(t, warnings, 4)
 	for _, w := range warnings {
 		assert.True(t, w.Warning, "是警告不是错误：写错一个配置项名不该让整个项目起不来")
 		assert.Equal(t, clierr.CodeConfigConflict, w.Code)
@@ -86,7 +87,7 @@ func TestReservedKeyWarningsFlagsEveryReservedShape(t *testing.T) {
 			}
 		}
 	}
-	assert.Equal(t, []string{"componentId", "databaseHost", "notifierEndpoint"}, keys, "按配置项名字排序，输出稳定")
+	assert.Equal(t, []string{"componentId", "databaseHost", "notifierEndpoint", "port"}, keys, "按配置项名字排序，输出稳定")
 }
 
 func TestReservedKeyWarningsNamesTheComponent(t *testing.T) {
@@ -107,7 +108,7 @@ func TestStaticReservedMatchesEnvBuilderWithoutPrefixes(t *testing.T) {
 	b := &envBuilder{}
 	for _, name := range []string{
 		"DATABASE_HOST", "REDIS_URL", "MQ_VHOST", "STORAGE_BUCKET", "SEARCH_INDEX", "SMTP_HOST",
-		"COMPONENT_ID", "COMPONENT_VERSION", "BRICKKIT_SERVED_MEMBERS", "BRICKKIT_SERVED_MEMBERS_CONFIG",
+		"COMPONENT_ID", "COMPONENT_VERSION", "BRICKKIT_SERVED_MEMBERS", "BRICKKIT_SERVED_MEMBERS_CONFIG", "PORT",
 		"X_ENDPOINT", "PAGE_SIZE", "DATABASE", "ENDPOINT", "",
 	} {
 		wantPattern, wantHit := staticReserved(name)

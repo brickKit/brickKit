@@ -16,7 +16,7 @@ import (
 // `{envPrefix}_*`——envPrefix 是使用者在 brickkit.yaml 里定的。
 // 所以注入时必须再防一次：这是最后一道闸。
 var (
-	reservedExact  = []string{"COMPONENT_ID", "COMPONENT_VERSION", "BRICKKIT_SERVED_MEMBERS", "BRICKKIT_SERVED_MEMBERS_CONFIG"}
+	reservedExact  = []string{"COMPONENT_ID", "COMPONENT_VERSION", "BRICKKIT_SERVED_MEMBERS", "BRICKKIT_SERVED_MEMBERS_CONFIG", "PORT"}
 	reservedSuffix = []string{"_ENDPOINT"}
 	reservedPrefix = []string{"DATABASE_", "REDIS_", "MQ_", "STORAGE_", "SEARCH_", "SMTP_"}
 )
