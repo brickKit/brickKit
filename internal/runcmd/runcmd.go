@@ -79,6 +79,7 @@ var adapters = []adapter{
 	{LangRust, "Cargo.toml", probeRust, nil},
 	{LangDotnet, "*.csproj", probeDotnet, nil},
 	{LangNode, "package.json", probeNode, nil},
+	{LangJava, "pom.xml / build.gradle", probeJava, javaEnv},
 }
 
 // Languages 返回全部支持的语言标识（固定顺序）。

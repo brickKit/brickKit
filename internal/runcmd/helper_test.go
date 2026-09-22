@@ -28,6 +28,11 @@ func write(t *testing.T, files map[string]string) string {
 	return dir
 }
 
+func makeExecutable(t *testing.T, dir, name string) {
+	t.Helper()
+	require.NoError(t, os.Chmod(filepath.Join(dir, filepath.FromSlash(name)), 0o755))
+}
+
 // detectAs 在指定的目标操作系统下探测（生产代码里 goos 来自 runtime.GOOS）。
 func detectAs(dir, goos string, hints Hints) (Command, error) {
 	return detect(dir, hints, Params{Port: testPort}, goos)
