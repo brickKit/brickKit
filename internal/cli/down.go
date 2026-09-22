@@ -81,6 +81,7 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 	}
 
 	renderDownResult(opts, p.cfg.Deploy.Target == config.TargetK8s, running, probed)
+	renderLocalModeSessionHint(opts, p.layout, p.cfg)
 	logging.Info(i18n.T(msgid.LogProjectStopped), "project", p.cfg.Project, "stopped", running)
 	return nil
 }

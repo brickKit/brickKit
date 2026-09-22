@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/sessionlock"
 )
 
 // startedProject 是一个已经 up 过、容器正在跑的项目。
@@ -65,6 +68,38 @@ func TestDownTellsThatDataIsKept(t *testing.T) {
 
 	assert.Contains(t, r.stdout, "data", "15.13：要让使用者知道数据没被删")
 	assert.Contains(t, r.stdout, "docker volume rm", "并告诉他真想删该怎么做")
+}
+
+// down 停的是容器，停不掉另一个终端里的 mode: local 裸进程——不说清楚，
+// 使用者会以为 down 之后"一切都停了"。
+func TestDownShowsHintWhenLocalSessionIsRunning(t *testing.T) {
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+	layout := config.NewLayout(f.Dir, "")
+	held, err := sessionlock.Acquire(layout.SessionLockPath())
+	require.NoError(t, err)
+	defer func() { _ = held.Release() }()
+	eng := newFakeEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "down")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.Contains(t, r.stdout, strconv.Itoa(os.Getpid()))
+}
+
+// 没有会话在跑时，down 照常，不冒出这条提示。
+func TestDownShowsNoHintWhenNoLocalSessionIsRunning(t *testing.T) {
+	f, eng := startedProject(t)
+
+	r := runWithEngine(t, eng, f.Dir, "down")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.NotContains(t, r.stdout, "session")
 }
 
 // 从没 up 过就 down：照样问引擎，然后如实说"没有容器在跑"。
