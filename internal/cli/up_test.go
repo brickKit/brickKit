@@ -253,6 +253,32 @@ func TestUpPinnedComponentStartsAnyway(t *testing.T) {
 	assert.Equal(t, []string{"people-basic-1-0-0"}, eng.lastUp(t).Services, "15.3")
 }
 
+// Plan 4a：mode: local 的组件不生成容器（跟 mode: debug 一样），它的服务名
+// 不该出现在传给引擎的目标列表里——历史上漏掉这一半判断（当时漏的是
+// servedBy）导致真机 `docker compose up` 报 no such service，collectTargets
+// 的注释记着这次教训，这条测试直接守住它不再复发。
+func TestUpModeLocalComponentIsNotAWorkloadTarget(t *testing.T) {
+	comps := []comp{
+		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
+		{ID: "people/basic", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "erp/backend@1.0.0")
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+    mode: local
+  - id: erp/backend
+    version: 1.0.0
+`)
+	eng := newFakeEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, []string{"erp-backend-1-0-0"}, eng.lastUp(t).Services,
+		"mode: local 的组件不该混进传给引擎的目标列表")
+}
+
 // 15.5：钉住的组件强依赖了一个被显式关掉的组件——两个意图直接冲突，必须报错。
 func TestUpDisabledStrongDependencyIsAnError(t *testing.T) {
 	comps := []comp{

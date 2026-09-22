@@ -665,20 +665,35 @@ EOF
 
 第 461-468 行的函数注释一并更新（把"两者都没有自己的容器"改成"三者都没有自己的容器"，把判断条件的引用也加上 `|| entry.Mode == config.ModeLocal`）。
 
-- [ ] **Step 2: 补一条 `collectTargets` 的单元测试**
+- [ ] **Step 2: 补一条 `collectTargets` 的测试**
 
-先 `grep -n "func TestCollectTargets\|func (p \*upPlan) collectTargets" internal/cli/up.go internal/cli/*_test.go`，确认 `upPlan`/`collectTargets` 需要哪些字段才能在测试里独立构造（不依赖真实 Docker/K8s——这个函数只读 `p.cfg.Components` 和 `order.Steps`，理论上可以脱离引擎纯构造）。写一条测试，断言一个 `mode: local` 组件不出现在最终传给引擎的 service 列表里：
+`resolver.Graph.Node()` 查的是一个私有的 `index` map，只有真正走一遍 `resolver.Resolve`/`ResolveConfig` 才会被填上——手工拼 `&resolver.Graph{Nodes: [...]}` 拿不到能用的 `.Node()`，`internal/cli` 自己的既有测试（`graph_test.go`、`up_test.go` 等）也一律不这么做。`internal/cli/up_test.go` 已经有现成的、更好的路径：`newFakeEngine()` + `runWithEngine(t, eng, dir, "up")`——真实跑一遍 `up` 命令（真实解析、真实生成、真实调用 `collectTargets`），只是把最终的 `docker compose`/`kubectl` 调用换成一个记录了调用参数的假引擎，`eng.lastUp(t).Services` 就是 `collectTargets`算出来的那份列表本身，不用另外构造。照抄 `TestUpPinnedComponentStartsAnyway`（同文件，用 `comp{Requires: ...}` + `addedProject` + `f.writeConfig` 构造两个组件）的结构：
 
 ```go
-func TestCollectTargetsExcludesModeLocal(t *testing.T) {
-	// 构造一个含 mode: local 组件的最小 upPlan，调 collectTargets，
-	// 断言结果里的 service 列表（或者 noWorkload 集合）排除了这个组件——
-	// 具体断言哪个字段，取决于 collectTargets 把结果存在 upPlan 的哪个成员上，
-	// 执行时读一遍 up.go 里 collectTargets 前后的代码确认。
+func TestUpModeLocalComponentIsNotAWorkloadTarget(t *testing.T) {
+	comps := []comp{
+		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
+		{ID: "people/basic", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "erp/backend@1.0.0")
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+    mode: local
+  - id: erp/backend
+    version: 1.0.0
+`)
+	eng := newFakeEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, []string{"erp-backend-1-0-0"}, eng.lastUp(t).Services,
+		"mode: local 的组件不该混进传给引擎的目标列表")
 }
 ```
 
-（这条测试的具体构造方式要看 `upPlan` 的完整定义——它大概率需要一个 `resolver.Plan`/`resolver.Graph` 才能跑，执行时先读 `internal/cli/up.go` 里 `upPlan` 结构体定义和 `collectTargets` 的完整调用上下文，找到一种不依赖真实文件系统/Docker 的最小构造方式；如果确实构造不出脱离引擎的最小实例，退而求其次在 `up_dryrun_test.go` 现有的 dry-run 集成测试框架里加一条用例，断言 `--dry-run` 的输出或者生成的 compose 文件里，一个 `mode: local` 组件既不出现在 compose 文件的 services 里，`up --dry-run` 本身也不报错——用 `internal/cli/up_dryrun_test.go` 里已有的测试作为写法参照。）
+写完用一次性变异验证这条测试真的守住了它该守的东西：临时把 `up.go` 里刚加的 `|| c.Mode == config.ModeLocal` 去掉，跑一遍这条测试确认它会红（应该会看到 `Services` 里多出 `"people-basic-1-0-0"`），然后把 `up.go` 改回来。
 
 - [ ] **Step 3: 跑测试**
 

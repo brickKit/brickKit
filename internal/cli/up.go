@@ -458,18 +458,19 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 
 // collectTargets 按启动顺序列出要交给引擎的 service、要检查的镜像、会跑的迁移。
 //
-// mode: debug 与 servedBy 的组件全部跳过：两者都没有自己的容器（一个在
-// 宿主机上跑，一个代码打进了外壳镜像），镜像也不必检查。跟 compose 渲染器
-// 判断"该不该生成 workload"用的是同一条件（internal/compose/compose.go
-// 的 entry.Mode == config.ModeDebug / entry.ServedBy != ""）——漏了 servedBy
-// 这一半的话，它的版本化服务名会混进传给 `docker compose up` 的目标列表，
-// 而生成的 compose 文件里根本没有这个 service，真机执行直接报
+// mode: debug、mode: local 与 servedBy 的组件全部跳过：三者都没有自己的容器
+// （前两个是裸进程——一个在宿主机上跑，一个由 brickkit 自己拉起；第三个代码
+// 打进了外壳镜像），镜像也不必检查。跟 compose 渲染器判断"该不该生成
+// workload"用的是同一条件（internal/compose/compose.go 的
+// entry.Mode == config.ModeDebug / config.ModeLocal / entry.ServedBy != ""）——
+// 漏了任何一半的话，它的版本化服务名会混进传给 `docker compose up` 的目标
+// 列表，而生成的 compose 文件里根本没有这个 service，真机执行直接报
 // no such service，整个命令失败、一个容器都起不来（brickKit 反馈：真机
 // brickkit up 对 servedBy 成员报 no_such_service）。
 func (p *upPlan) collectTargets(order *resolver.Plan) {
 	noWorkload := map[resolver.Ref]bool{}
 	for _, c := range p.cfg.Components {
-		if c.Mode == config.ModeDebug || c.ServedBy != "" {
+		if c.Mode == config.ModeDebug || c.Mode == config.ModeLocal || c.ServedBy != "" {
 			noWorkload[resolver.Ref{ID: c.ID, Version: c.Version}] = true
 		}
 	}
