@@ -753,6 +753,62 @@ func TestDependencyOnLocalComponentIsNotInDependsOn(t *testing.T) {
 }
 
 // ============================================================
+// Plan 4a：mode: local
+// ============================================================
+
+// mode: local 的组件跟 mode: debug 一样不生成容器——newPlan 里同一个分类分支，
+// 分流进同一个 p.locals 桶。
+func TestModeLocalDoesNotGenerateAService(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeLocal})
+
+	assert.NotContains(t, servicesOf(t, b.parsed()), "people-basic-1-0-0")
+}
+
+// 没写 localPort：依赖方应该拿到自动分配的端口（默认就是组件自己声明的主端口，
+// internal/compose/local.go 的 assignHostPorts 第 4 步），以及正确的 extra_hosts。
+// 这条测试直接验证"改一行分类判断，下游全自动正确"这个断言，不只是信任代码
+// 读起来像会这样。
+func TestModeLocalDependentsGetAnAutoAssignedPortAndExtraHosts(t *testing.T) {
+	b := newBuilder(t)
+	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
+		config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeLocal})
+
+	doc := b.parsed()
+	env := envOf(t, serviceOf(t, doc, "erp-backend-1-0-0"))
+
+	assert.Equal(t, "http://people-basic-1-0-0:8080", env["PEOPLE_BASIC_ENDPOINT"],
+		"没写 localPort，自动分配的端口应该就是组件自己声明的主端口")
+	assert.Contains(t, extraHostsOf(t, serviceOf(t, doc, "erp-backend-1-0-0")),
+		"people-basic-1-0-0:host-gateway")
+}
+
+// 写了 localPort：跟 mode: debug 共用同一套"使用者钦定的端口先占位"逻辑，
+// 不该被自动分配覆盖。
+func TestModeLocalRespectsAnExplicitLocalPortOverride(t *testing.T) {
+	b := newBuilder(t)
+	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
+		config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080),
+		config.Component{Mode: config.ModeLocal, LocalPort: 9000})
+
+	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
+
+	assert.Equal(t, "http://people-basic-1-0-0:9000", env["PEOPLE_BASIC_ENDPOINT"],
+		"写了 localPort 就该用它，不该被自动分配覆盖")
+}
+
+// mode: local 组件不生成迁移容器——不是靠额外判断挡住的，是因为它根本没进
+// p.components，services() 只遍历 p.components。
+func TestModeLocalDoesNotGenerateAMigrationService(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withMigration(simple("people/basic", "1.0.0", 8080)), config.Component{Mode: config.ModeLocal})
+
+	assert.NotContains(t, servicesOf(t, b.parsed()), "people-basic-1-0-0-migration")
+}
+
+// ============================================================
 // 12.13 / 12.14 / 12.9 基础资源
 // ============================================================
 

@@ -235,9 +235,10 @@ func newPlan(
 		}
 		service := manifest.ServiceName(ref.ID, ref.Version)
 
-		if entry.Mode == config.ModeDebug {
-			// 12.7 / 13.1：mode: debug 的组件在宿主机（IDE）里跑，不生成容器，
-			// 但它仍然是"启动中"的组件——依赖方要能找到它
+		if entry.Mode == config.ModeDebug || entry.Mode == config.ModeLocal {
+			// 12.7 / 13.1 / Plan 4a：mode: debug 与 mode: local 的组件都不生成容器——
+			// 前者在宿主机 IDE 里跑，后者由 brickkit 自己拉起裸进程（Plan 4b 起才
+			// 真正启动），但两者都仍然是"启动中"的组件，依赖方要能找到它。
 			p.locals = append(p.locals, localComponent{
 				Ref: ref, Service: service, Manifest: node.Manifest,
 				Entry: entry, Env: envByRef[ref],
