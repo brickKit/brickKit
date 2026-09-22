@@ -149,7 +149,7 @@ func resolvedView(p *project, byService map[string]engine.Status) componentView 
 			}
 		}
 	}
-	v.local = p.localRefs()
+	v.local = p.debugRefs()
 	return v
 }
 

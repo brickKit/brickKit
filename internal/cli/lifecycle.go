@@ -139,21 +139,28 @@ func (p *project) entry(ref resolver.Ref) config.Component {
 
 // containerRefs 返回本次**由本项目**生成容器的组件，按启动顺序。
 //
-// `mode: debug` 要排除掉：它在依赖图里、也"在跑"，但跑在开发者的 IDE 里，
-// 本项目不为它生成任何东西（003 §4.4）。`status` 把它们单列一节汇报，
-// 不混在"未在运行"里——那会让人以为它们出问题了。
+// `mode: debug`/`mode: local` 都要排除掉：debug 在依赖图里、也"在跑"，但跑在
+// 开发者的 IDE 里；local 也在依赖图里、也"在跑"，但跑在 brickkit 自己前台监管
+// 的裸进程里——本项目对这两者都不生成任何容器（003 §4.4、005 §3）。`status`
+// 把它们各自单列一节汇报（debug 走"本地调试"表；local 走会话锁提示，见
+// status.go 的 renderLocalModeSessionHint），不混在"未在运行"里——那会让人
+// 以为它们出问题了。
 func (p *project) containerRefs() []resolver.Ref {
 	var out []resolver.Ref
 	for _, ref := range p.componentRefs() {
-		if p.entry(ref).Mode != config.ModeDebug {
+		mode := p.entry(ref).Mode
+		if mode != config.ModeDebug && mode != config.ModeLocal {
 			out = append(out, ref)
 		}
 	}
 	return out
 }
 
-// localRefs 返回 mode: debug 且本次会启动的组件。
-func (p *project) localRefs() []resolver.Ref {
+// debugRefs 返回 mode: debug 且本次会启动的组件（原名 localRefs——改名是因为
+// "local"这个词现在同时可能指 mode: debug 的展示与 mode: local 的展示，两者
+// 走的是完全不同的表：debugRefs 只喂给"本地调试"表，mode: local 组件永远不会
+// 出现在这个函数的返回值里）。
+func (p *project) debugRefs() []resolver.Ref {
 	var out []resolver.Ref
 	for _, ref := range p.componentRefs() {
 		if p.entry(ref).Mode == config.ModeDebug {

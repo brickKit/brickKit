@@ -164,6 +164,27 @@ func TestStatusDoesNotReportLocalComponentAsDown(t *testing.T) {
 	assert.NotContains(t, r.stdout, "not created")
 }
 
+// containerRefs 不该把 mode: local 组件算进"要生成容器的组件"——跟
+// mode: debug 一样，它没有容器，塞进这份列表只会让 status 把它错当成
+// "该有容器却没查到"报出来。不直接调用私有方法——这个包里没有任何既有测试
+// 直接构造 *project 调用 loadProject，一律走标准的 runIn/runWithEngine 命令
+// 管线断言渲染出的文本，这条测试延续同一个惯例。
+func TestStatusDoesNotReportModeLocalComponentAsNotRunning(t *testing.T) {
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+	eng := newFakeEngine()
+
+	r := statusOf(t, eng, f.Dir)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.NotContains(t, r.stdout, "not created", "mode: local 组件不该被当成缺容器报出来")
+}
+
 // ============================================================
 // 15.18 资源状态
 // ============================================================
