@@ -112,6 +112,51 @@ func TestBuildLocalEnvSkipsExistingSecretRef(t *testing.T) {
 	assert.Equal(t, []string{"PORT=9000"}, env, "existingSecret 在 docker-only 的 local 模式下没有对应的值")
 }
 
+// 两个 mode: local 组件之间也有依赖时，启动顺序必须跟着拓扑序走，不能因为
+// 都不生成容器就各起各的。collectLocalComponents 直接复用 up.go 其余地方
+// 已经在用的 order.Steps（resolver.Order 的结果），只是按 localMode 过滤，
+// 相对顺序原样保留——这条测试锁住这一点，而不是只信"代码看起来对"。
+func TestCollectLocalComponentsPreservesTopologicalOrderBetweenTwoLocalComponents(t *testing.T) {
+	comps := []comp{
+		{ID: "demo/hello", Version: "1.0.0", Requires: []string{"demo/friend@1.0.0"}},
+		{ID: "demo/friend", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	writeTree(t, workspace.SourceDir(f.Layout, "demo/hello"), map[string]string{
+		"go.mod":  "module example.com/hello\n",
+		"main.go": "package main\n\nfunc main() {}\n",
+	})
+	writeTree(t, workspace.SourceDir(f.Layout, "demo/friend"), map[string]string{
+		"go.mod":  "module example.com/friend\n",
+		"main.go": "package main\n\nfunc main() {}\n",
+	})
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+  - id: demo/friend
+    version: 1.0.0
+    mode: local
+`)
+
+	cfg := f.parsed(t)
+	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, cfg), cfg)
+	require.NoError(t, err)
+	order, err := resolver.Order(graph.Subgraph(states.Running()))
+	require.NoError(t, err)
+	env, err := inject.Build(cfg, graph, states)
+	require.NoError(t, err)
+	genResult, err := compose.Generate(cfg, graph, states, env, compose.Options{Engine: compose.EngineDocker})
+	require.NoError(t, err)
+
+	plans, err := collectLocalComponents(f.Layout, cfg, graph, order, genResult.LocalEnvFiles, envLookup(f.Dir))
+
+	require.NoError(t, err)
+	require.Len(t, plans, 2)
+	assert.Equal(t, "demo-friend-1-0-0", plans[0].Service, "被依赖的 demo/friend 必须排在前面")
+	assert.Equal(t, "demo-hello-1-0-0", plans[1].Service, "依赖方 demo/hello 必须排在后面")
+}
+
 // ============================================================
 // Plan 4b：真实进程的前台监管
 // ============================================================
