@@ -1,6 +1,7 @@
 package procsup
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/fs"
@@ -9,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -255,6 +257,34 @@ func TestOutputOfConcurrentProcessesStaysLineIntact(t *testing.T) {
 		assert.Equal(t, next[m[1]], n, "同一个进程的输出顺序不能乱：%q", line)
 		next[m[1]]++
 	}
+}
+
+// brickKit 反馈：调用方（CLI 层的 runLocalComponents）在别的进程还在跑、还在
+// 并发往 Out 写东西的时候，直接绕开 Supervisor 写 Out，跟 lineSink 的写入产生
+// 了真实的数据竞争——一条用真实 Node/npm 的端到端测试跑 -race 才抓到，因为
+// procsup 自己的测试从来都用 syncBuffer（自带锁），测不出这类问题。这里故意
+// 用裸 bytes.Buffer（没有自己的锁）当 Out，让子进程持续产出输出的同时并发调
+// Printf——如果 Printf 没有复用 lineSink 同一把锁，-race 会在这里报出来。
+func TestPrintfSharesTheSameLockAsProcessOutput(t *testing.T) {
+	out := &bytes.Buffer{}
+	sup, err := New(Options{Out: out})
+	require.NoError(t, err)
+	t.Cleanup(sup.Shutdown)
+
+	_, err = sup.Start(helperSpec("p0", "lines", "500", "p0"))
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			sup.Printf("status %d\n", i)
+		}(i)
+	}
+	wg.Wait()
+
+	sup.Run(context.Background())
 }
 
 func TestStopSignalsAreDefinedEverywhere(t *testing.T) {

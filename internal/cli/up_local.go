@@ -120,7 +120,7 @@ func collectLocalComponents(
 			return nil, programMissingError(ref, err)
 		}
 
-		env, err := buildLocalEnv(ref, varsOf[ref], port, cmd.Env, lookup)
+		env, err := buildLocalEnv(ref, cmd.Language, varsOf[ref], port, cmd.Env, lookup)
 		if err != nil {
 			return nil, err
 		}
@@ -162,14 +162,35 @@ func programMissingError(ref resolver.Ref, err error) error {
 // 各自有一份同规则的正则，不是本计划引入的新重复。
 var localEnvVarRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
+// localDebugEnvVarsToStrip 是每种语言里，一旦从启动 brickkit up 的那个 shell
+// 继承到就会让进程在没人要求调试的情况下卡住等调试器连接的环境变量。
+//
+// procsup 启动子进程时是 append(os.Environ(), spec.Env...)（internal/procsup/
+// supervisor.go）——mode: local 的子进程会带着这个终端会话的完整环境。如果这个
+// shell 里曾经为了别的原因全局设过 NODE_OPTIONS=--inspect-brk 之类的值（哪怕
+// 早忘了、这次运行根本没打算调试这个组件），子进程会原样继承、悄悄卡住。
+//
+// Go/Rust/.NET 不受影响（启动方式不会被任何环境变量触发调试等待）；Python 也
+// 不受影响（debugpy 要显式包一层命令才生效，没有"环境变量意外触发"这回事）。
+var localDebugEnvVarsToStrip = map[string][]string{
+	runcmd.LangNode: {"NODE_OPTIONS"},
+	runcmd.LangJava: {"JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS"},
+}
+
 // buildLocalEnv 把 vars 严格展开成 "KEY=VALUE" 列表，叠上语言适配器自己的
 // 环境变量与 PORT。展开不了任何一个 ${VAR} 都直接报错、点名是哪个变量——
 // 跟 local-debug.*.env 文件"展开不了就留着占位符"的宽松策略不同：这是真的
 // 要喂给进程的环境，不是给人看的排障文件。
+//
+// language 是探测出的语言（手写 runCommand 又没标 language 时为空）——按它
+// 无条件追加 localDebugEnvVarsToStrip 里对应变量的空值覆盖：不管调用方这次
+// 有没有继承到这些变量，覆盖成空值都是无害的；Go 的 exec.Cmd.Env 对同名 key
+// 取最后一个，这里追加在最后，天然盖掉 os.Environ() 里继承来的任何值，不需要
+// procsup 知道这件事。
 func buildLocalEnv(
-	ref resolver.Ref, vars []inject.Var, port int, cmdEnv []string, lookup func(string) (string, bool),
+	ref resolver.Ref, language string, vars []inject.Var, port int, cmdEnv []string, lookup func(string) (string, bool),
 ) ([]string, error) {
-	out := make([]string, 0, len(vars)+len(cmdEnv)+1)
+	out := make([]string, 0, len(vars)+len(cmdEnv)+2)
 	for _, v := range vars {
 		if v.ExistingSecretRef != "" {
 			// existingSecret 引用的是 K8s Secret；mode: local 跟 mode: debug 一样
@@ -184,6 +205,9 @@ func buildLocalEnv(
 	}
 	out = append(out, cmdEnv...)
 	out = append(out, fmt.Sprintf("PORT=%d", port))
+	for _, name := range localDebugEnvVarsToStrip[language] {
+		out = append(out, name+"=")
+	}
 	return out, nil
 }
 
@@ -268,7 +292,10 @@ func runLocalComponents(
 	}
 	defer sup.Shutdown()
 
-	opts.Printf("\n%s\n", i18n.T(msgid.CliUpStartingLocalComponents, len(plans)))
+	// 从这里往下，状态行一律走 sup.Printf，不直接用 opts.Printf：一旦有进程
+	// 启动，procsup 自己的输出转发协程就在并发写 opts.Stdout 了，sup.Printf
+	// 复用的是它内部同一把锁，直接写会跟它产生真实的数据竞争（下面的说明）。
+	sup.Printf("\n%s\n", i18n.T(msgid.CliUpStartingLocalComponents, len(plans)))
 
 	for _, p := range plans {
 		proc, err := sup.Start(procsup.Spec{Name: p.Service, Argv: p.Command.Argv, Dir: p.Dir, Env: p.Env})
@@ -288,17 +315,17 @@ func runLocalComponents(
 			// 进程自己没起来，是硬失败；也可能是别的进程崩了、这个是被叫停的——
 			// 到 Run 返回之后统一从 Exits() 里看谁 Crashed()，这里不重复判断
 		case procsup.ProbeTimedOut:
-			opts.Printf("%s\n", i18n.T(msgid.CliUpWarningStillNotListeningOn, p.Service, p.Port))
+			sup.Printf("%s\n", i18n.T(msgid.CliUpWarningStillNotListeningOn, p.Service, p.Port))
 		case procsup.ProbeCanceled:
-			return renderCrashSummary(opts, sup.Exits(), crashLines)
+			return renderCrashSummary(sup, sup.Exits(), crashLines)
 		case procsup.ProbeListening:
-			opts.Printf("%s\n", i18n.T(msgid.CliUpListeningOnPort, p.Service, p.Port))
+			sup.Printf("%s\n", i18n.T(msgid.CliUpListeningOnPort, p.Service, p.Port))
 		}
 	}
 
 	sup.Run(ctx)
 
-	return renderCrashSummary(opts, sup.Exits(), crashLines)
+	return renderCrashSummary(sup, sup.Exits(), crashLines)
 }
 
 // renderCrashSummary 在最后一屏只打印崩溃的那几个进程，不被收尾时其余进程
@@ -313,7 +340,10 @@ func runLocalComponents(
 // 这层兑现：crashLines <= 0 时，不管 procsup 内部实际捕获、塞进 Exit.Tail
 // 的是默认的 20 行还是别的，这里都不打印任何一行（手动验证 Task 6 Step 5
 // 时用真实进程试 --crash-lines 0 才发现两层语义对不上）。
-func renderCrashSummary(opts *Options, exits []procsup.Exit, crashLines int) error {
+//
+// 用 sup.Printf 而不是 opts.Printf 是同一个理由：这个函数从 runLocalComponents
+// 里调用时，procsup 的收尾（体面停掉其余进程）可能还在并发写 opts.Stdout。
+func renderCrashSummary(sup *procsup.Supervisor, exits []procsup.Exit, crashLines int) error {
 	var crashed []procsup.Exit
 	for _, e := range exits {
 		if e.Crashed() {
@@ -324,18 +354,18 @@ func renderCrashSummary(opts *Options, exits []procsup.Exit, crashLines int) err
 		return nil
 	}
 
-	opts.Printf("\n%s\n", i18n.T(msgid.CliUpTheFollowingLocalComponentsCrashed))
+	sup.Printf("\n%s\n", i18n.T(msgid.CliUpTheFollowingLocalComponentsCrashed))
 	for _, e := range crashed {
 		how := i18n.T(msgid.CliUpExitCode, e.Code)
 		if e.Signal != "" {
 			how = i18n.T(msgid.CliUpKilledBySignal, e.Signal)
 		}
-		opts.Printf("   %s  %s  %s\n", e.Name, how, e.Duration.Round(time.Second))
+		sup.Printf("   %s  %s  %s\n", e.Name, how, e.Duration.Round(time.Second))
 		if crashLines <= 0 {
 			continue
 		}
 		for _, line := range e.Tail {
-			opts.Printf("      %s\n", line)
+			sup.Printf("      %s\n", line)
 		}
 	}
 	return clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.CliUpLocalComponentsCrashed, len(crashed)))

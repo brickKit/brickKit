@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,6 +17,7 @@ import (
 	"github.com/brickkit/brickkit/internal/compose"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/runcmd"
 	"github.com/brickkit/brickkit/internal/sessionlock"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
@@ -87,7 +89,7 @@ func TestBuildLocalEnvExpandsResolvableVars(t *testing.T) {
 		return "", false
 	}
 
-	env, err := buildLocalEnv(ref, vars, 9000, []string{"PYTHONUNBUFFERED=1"}, lookup)
+	env, err := buildLocalEnv(ref, "", vars, 9000, []string{"PYTHONUNBUFFERED=1"}, lookup)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"DATABASE_PASSWORD=secret123", "PYTHONUNBUFFERED=1", "PORT=9000"}, env)
@@ -98,7 +100,7 @@ func TestBuildLocalEnvErrorsOnUnresolvableVar(t *testing.T) {
 	vars := []inject.Var{{Name: "DATABASE_PASSWORD", Value: "${DB_PASSWORD}"}}
 	lookup := func(string) (string, bool) { return "", false }
 
-	_, err := buildLocalEnv(ref, vars, 9000, nil, lookup)
+	_, err := buildLocalEnv(ref, "", vars, 9000, nil, lookup)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "DB_PASSWORD")
@@ -109,10 +111,44 @@ func TestBuildLocalEnvSkipsExistingSecretRef(t *testing.T) {
 	ref := resolver.Ref{ID: "people/basic", Version: "1.0.0"}
 	vars := []inject.Var{{Name: "API_KEY", ExistingSecretRef: "some-k8s-secret"}}
 
-	env, err := buildLocalEnv(ref, vars, 9000, nil, func(string) (string, bool) { return "", false })
+	env, err := buildLocalEnv(ref, "", vars, 9000, nil, func(string) (string, bool) { return "", false })
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"PORT=9000"}, env, "existingSecret 在 docker-only 的 local 模式下没有对应的值")
+}
+
+// brickKit 反馈：shell 里曾经全局设过 NODE_OPTIONS/JAVA_TOOL_OPTIONS（哪怕是为了
+// 别的原因、这次运行根本没打算调试这个组件），mode: local 的子进程会原样继承
+// procsup 追加的 os.Environ()、悄悄卡在等调试器连接——buildLocalEnv 必须按语言
+// 主动清空这几个变量，保证没人主动要求调试时启动总是干净的。
+func TestBuildLocalEnvStripsNodeDebugEnvVar(t *testing.T) {
+	ref := resolver.Ref{ID: "demo/hello", Version: "1.0.0"}
+
+	env, err := buildLocalEnv(ref, runcmd.LangNode, nil, 9000, nil, nil)
+
+	require.NoError(t, err)
+	assert.Contains(t, env, "NODE_OPTIONS=")
+}
+
+func TestBuildLocalEnvStripsJavaDebugEnvVars(t *testing.T) {
+	ref := resolver.Ref{ID: "demo/hello", Version: "1.0.0"}
+
+	env, err := buildLocalEnv(ref, runcmd.LangJava, nil, 9000, nil, nil)
+
+	require.NoError(t, err)
+	assert.Contains(t, env, "JAVA_TOOL_OPTIONS=")
+	assert.Contains(t, env, "JDK_JAVA_OPTIONS=")
+}
+
+// Go/Python 的启动方式不会被任何环境变量意外触发调试等待，不需要清空任何东西——
+// 这条测试锁住"只按语言表清空"，不是无条件地给所有语言塞两条空值。
+func TestBuildLocalEnvDoesNotStripUnaffectedLanguages(t *testing.T) {
+	ref := resolver.Ref{ID: "demo/hello", Version: "1.0.0"}
+
+	env, err := buildLocalEnv(ref, runcmd.LangGo, nil, 9000, nil, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"PORT=9000"}, env)
 }
 
 // 两个 mode: local 组件之间也有依赖时，启动顺序必须跟着拓扑序走，不能因为
@@ -288,6 +324,66 @@ func TestRunLocalComponentsStartsARealComponentAndItListens(t *testing.T) {
 	require.NoError(t, err, out)
 	assert.Contains(t, out, "demo-hello-1-0-0")
 	assert.Contains(t, out, "listening on port")
+}
+
+// brickKit 反馈：本地进程会继承启动 brickkit up 那个 shell 的完整环境
+// （procsup 是 append(os.Environ(), spec.Env...)）——如果这个 shell 里曾经
+// 为了别的原因全局设过 NODE_OPTIONS，mode: local 启动的 Node 组件会在没人
+// 主动要求调试的情况下卡住等调试器连接。这条测试用真实 node/npm 端到端验证
+// buildLocalEnv 的清空确实生效：t.Setenv 模拟"shell 里全局设过"，若清空没
+// 生效，npm 自己（它也是个 Node 进程）会先被 --inspect-brk 卡住、永远不会
+// 把 server.js 拉起来，10 秒的 ctx 超时会让测试明确失败，而不是真的卡住
+// 整个测试进程。
+func TestRunLocalComponentsStripsInheritedNodeDebugEnvVar(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("这台机器没有 node")
+	}
+	if _, err := exec.LookPath("npm"); err != nil {
+		t.Skip("这台机器没有 npm")
+	}
+	t.Setenv("NODE_OPTIONS", "--inspect-brk=0")
+
+	comps := []comp{{ID: "demo/webapp", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/webapp@1.0.0")
+	writeTree(t, workspace.SourceDir(f.Layout, "demo/webapp"), map[string]string{
+		"package.json": `{"scripts": {"start": "node server.js"}}`,
+		"server.js": `const http = require("http");
+const port = process.env.PORT;
+const server = http.createServer((req, res) => res.end("ok"));
+server.listen(port, () => {
+	setTimeout(() => process.exit(0), 500);
+});
+`,
+	})
+	f.writeConfig(t, `components:
+  - id: demo/webapp
+    version: 1.0.0
+    mode: local
+`)
+
+	cfg := f.parsed(t)
+	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, cfg), cfg)
+	require.NoError(t, err)
+	order, err := resolver.Order(graph.Subgraph(states.Running()))
+	require.NoError(t, err)
+	env, err := inject.Build(cfg, graph, states)
+	require.NoError(t, err)
+	genResult, err := compose.Generate(cfg, graph, states, env, compose.Options{Engine: compose.EngineDocker})
+	require.NoError(t, err)
+	plans, err := collectLocalComponents(f.Layout, cfg, graph, order, genResult.LocalEnvFiles, envLookup(f.Dir))
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+
+	opts := &Options{WorkDir: f.Dir, Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = runLocalComponents(ctx, opts, f.Layout, plans, 20)
+
+	out := opts.Stdout.(*bytes.Buffer).String()
+	require.NoError(t, err, out)
+	assert.Contains(t, out, "listening on port",
+		"NODE_OPTIONS 被继承的话，node/npm 会卡在等调试器连接，探测不到监听端口")
 }
 
 func TestRunLocalComponentsReportsACrash(t *testing.T) {

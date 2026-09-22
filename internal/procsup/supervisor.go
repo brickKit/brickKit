@@ -272,6 +272,20 @@ wait:
 	s.sys.close()
 }
 
+// Printf 把一行格式化文本写进 Options.Out，跟任何一个子进程的输出行共用同一把锁——
+// 调用方（比如前台监管循环里要插的"正在监听端口"这类状态行）需要在别的进程还在跑、
+// 还在往同一个 Out 写东西的时候插自己的行时用这个，不要绕开 Supervisor 直接写 Options.Out。
+//
+// 直接写的问题：Options.Out 常常是测试里的 *bytes.Buffer 这类非并发安全的 io.Writer，
+// prefixWriter 的输出拷贝协程和调用方各自的 Write 调用之间没有任何同步，是一处真实的
+// 数据竞争（brickKit 反馈：跑一条用真实 Node/npm 的端到端测试时 -race 抓到）。生产环境下
+// Out 通常是 os.Stdout，竞争不会导致崩溃，但同样会把两行输出交叉打乱。
+func (s *Supervisor) Printf(format string, args ...any) {
+	s.sink.mu.Lock()
+	defer s.sink.mu.Unlock()
+	fmt.Fprintf(s.sink.out, format, args...)
+}
+
 // Exits 返回已经退出的进程的退出情况，按启动顺序。
 func (s *Supervisor) Exits() []Exit {
 	s.mu.Lock()
