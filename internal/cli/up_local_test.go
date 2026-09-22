@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -151,6 +152,19 @@ import "os"
 func main() { os.Exit(1) }
 `
 
+// crashAfterPrinting 先打一行能认出来的标记，再以非零码崩溃——用来验证
+// --crash-lines 0 时这一行不该出现在最后一屏（TailLines 本身是否捕获到它
+// 是 procsup 自己的事，CLI 层要在渲染时把它压下去）。
+const crashAfterPrinting = `package main
+
+import "os"
+
+func main() {
+	println("distinctive-crash-output-marker")
+	os.Exit(1)
+}
+`
+
 // localComponentPlansFor 搭一个真实项目、真的跑一遍解析+生成，返回
 // collectLocalComponents 的结果——这是 Task 5 把 runLocalComponents 接进
 // runUp 之前，Task 4 独立验证它的路子：不依赖还不存在的那条接线。
@@ -219,4 +233,38 @@ func TestRunLocalComponentsReportsACrash(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, out, "demo-hello-1-0-0")
 	assert.Contains(t, out, "exit code 1")
+}
+
+// --crash-lines 的帮助文本承诺"0 = 只打印崩溃信息，不带输出行"——但
+// procsup.Options.TailLines 自己的约定是 "<= 0 时用默认行数"（它自己的
+// TestTailKeepsOnlyTheConfiguredNumberOfLines 锁死的），同一个 0 在两层
+// 意思正好相反。这条测试锁住 CLI 这一层必须自己兑现"0 就是 0 行"的承诺，
+// 不能假设 procsup 内部会照办（手动验证 Task 6 Step 5 用真实进程 + 真实
+// --crash-lines 0 才发现这个两层语义对不上的真实 bug）。
+func TestRunLocalComponentsCrashLinesZeroPrintsNoOutputLines(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("这台机器没有 go 工具链")
+	}
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+	opts, plans := localComponentPlansFor(t, f, crashAfterPrinting)
+
+	err := runLocalComponents(context.Background(), opts, f.Layout, plans, 0)
+
+	out := opts.Stdout.(*bytes.Buffer).String()
+	require.Error(t, err)
+	assert.Contains(t, out, "demo-hello-1-0-0")
+	assert.Contains(t, out, "exit code 1", "崩溃信息本身还在")
+	// 标记行会在进程运行期间被实时流式打印一次（procsup 正常的输出转发，
+	// 不受 --crash-lines 影响，也不该受影响——那是"正在发生的事"，跟最后一屏
+	// 复述的 tail 是两回事）。只断言最后一屏"崩溃了"那段之后不再重复它，
+	// 而不是断言它从没出现过。
+	crashSection := out[strings.Index(out, "The following local component(s) crashed:"):]
+	assert.NotContains(t, crashSection, "distinctive-crash-output-marker",
+		"0 = 最后一屏不带任何输出行；实时流式输出不算")
 }

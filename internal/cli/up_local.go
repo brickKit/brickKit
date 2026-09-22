@@ -290,7 +290,7 @@ func runLocalComponents(
 		case procsup.ProbeTimedOut:
 			opts.Printf("%s\n", i18n.T(msgid.CliUpWarningStillNotListeningOn, p.Service, p.Port))
 		case procsup.ProbeCanceled:
-			return renderCrashSummary(opts, sup.Exits())
+			return renderCrashSummary(opts, sup.Exits(), crashLines)
 		case procsup.ProbeListening:
 			opts.Printf("%s\n", i18n.T(msgid.CliUpListeningOnPort, p.Service, p.Port))
 		}
@@ -298,12 +298,22 @@ func runLocalComponents(
 
 	sup.Run(ctx)
 
-	return renderCrashSummary(opts, sup.Exits())
+	return renderCrashSummary(opts, sup.Exits(), crashLines)
 }
 
 // renderCrashSummary 在最后一屏只打印崩溃的那几个进程，不被收尾时其余进程
 // 的输出冲走（Plan 2 的设计决定 1）。被叫停的、干净退出的都不打印。
-func renderCrashSummary(opts *Options, exits []procsup.Exit) error {
+//
+// crashLines 是使用者原始传的 --crash-lines 值，跟 procsup.Exit.Tail 里
+// 实际捕获了多少行是两回事：procsup.Options.TailLines 把 <= 0 当成"调用方
+// 没配，给个够用的默认值"（它自己的 TestTailKeepsOnlyTheConfiguredNumberOfLines
+// 已经锁死了这条约定，是它作为通用监管库的合理默认，不该为了这一个调用方改）；
+// 而 --crash-lines 的帮助文本对使用者的承诺是"0 = 只打印崩溃信息，不带
+// 输出行"——同一个 0，两层意思完全相反。这条 CLI 专属的承诺只能在 CLI 自己
+// 这层兑现：crashLines <= 0 时，不管 procsup 内部实际捕获、塞进 Exit.Tail
+// 的是默认的 20 行还是别的，这里都不打印任何一行（手动验证 Task 6 Step 5
+// 时用真实进程试 --crash-lines 0 才发现两层语义对不上）。
+func renderCrashSummary(opts *Options, exits []procsup.Exit, crashLines int) error {
 	var crashed []procsup.Exit
 	for _, e := range exits {
 		if e.Crashed() {
@@ -321,6 +331,9 @@ func renderCrashSummary(opts *Options, exits []procsup.Exit) error {
 			how = i18n.T(msgid.CliUpKilledBySignal, e.Signal)
 		}
 		opts.Printf("   %s  %s  %s\n", e.Name, how, e.Duration.Round(time.Second))
+		if crashLines <= 0 {
+			continue
+		}
 		for _, line := range e.Tail {
 			opts.Printf("      %s\n", line)
 		}
