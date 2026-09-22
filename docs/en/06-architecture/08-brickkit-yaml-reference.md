@@ -80,8 +80,8 @@ Writing neither `namespace` nor `cidr` is rejected; writing both is also rejecte
 | --- | --- | --- | --- |
 | `components[].id` | string | yes | same `scope/name` rule as a Manifest's `metadata.id` |
 | `components[].version` | string | yes | exact version, same rule as a Manifest's `metadata.version` |
-| `components[].mode` | string | no | one of `enabled` / `disable` / `debug`, or omitted — omitted follows the top (AGENTS.md §5.4), `enabled` pins it on, `disable` pins it off, `debug` pins it on *and* runs it as a bare process on your machine (see the mutual-exclusion notes below) — only `docker` targets accept `debug`, rejected at parse time under `k8s` |
-| `components[].localPort` | int | required *if* `mode: debug` and you want a fixed host port; otherwise omit | only legal when `mode: debug` is also set — present without it is rejected, not ignored; `1`–`65535`; must be unique across every component's `localPort` in the project |
+| `components[].mode` | string | no | one of `enabled` / `disable` / `debug` / `local`, or omitted — omitted follows the top (AGENTS.md §5.4), `enabled` pins it on, `disable` pins it off, `debug` pins it on *and* runs it as a bare process **you** start yourself, `local` pins it on *and* runs it as a bare process **BrickKit** starts and supervises itself (see the mutual-exclusion notes below) — only `docker` targets accept `debug`/`local`, both rejected at parse time under `k8s` |
+| `components[].localPort` | int | no | only legal when `mode: debug` or `mode: local` is also set — present without either is rejected, not ignored; `1`–`65535`; must be unique across every component's `localPort` in the project. Under `mode: debug` it's pure routing information (your own process decides what port it listens on; this only tells BrickKit where to route to). Under `mode: local`, BrickKit assigns a free port automatically by default — this field pins a specific one, the one case `mode: debug` can't offer since BrickKit doesn't control that process's startup |
 | `components[].servedBy` | string (`id@version`) | no | see the mutual-exclusion notes below |
 | `components[].expose` | bool | no (default `false`) | |
 | `components[].hostname` | string | required when `expose: true` **and** `deploy.target: k8s` | not required under `docker` — Compose exposure is a host port, not a domain |
@@ -94,16 +94,16 @@ Writing neither `namespace` nor `cidr` is rejected; writing both is also rejecte
 | `components[].replicas` | `*int` | no (default `1`, **K8s only**) | must be `≥ 1` if set — `0` is rejected rather than treated as "off"; use `mode: disable` to actually stop a component, since that goes through the cascade and warns dependents, while `replicas: 0` would leave dependents starting normally and connecting to nothing |
 | `components[].labels` | `map[string]string` | no | same reserved-key rule as a Manifest's `deployment.labels` (can't start with `brickkit.io/` or `com.docker.compose.`, can't be exactly `app`); merges key-by-key over the Manifest's own `deployment.labels`, this side winning on conflicts |
 
-### Mutual exclusions among `components[].mode: debug` / `.servedBy` / `.replicas`
+### Mutual exclusions among `components[].mode: debug` / `components[].mode: local` / `.servedBy` / `.replicas`
 
-These describe three different, incompatible ideas about where a component's process actually runs, and the validator rejects every pairwise combination:
+These describe different, incompatible ideas about where a component's process actually runs, and the validator rejects every pairwise combination:
 
-- **`mode: debug` + `servedBy`** — rejected outright: `debug` means "this component runs on your machine, outside any container, for IDE debugging"; `servedBy` means "this component's code is already compiled into another component's image." A component can't simultaneously not be containerized and be merged into someone else's container.
-- **`servedBy` chains** — a component can't declare `servedBy` pointing at a target that *itself* declares `servedBy` ("a shell can't be served by another shell"), and a component can't be the target of a `servedBy` from someone else while also being `mode: debug` itself — a shell has to be reachable from the container/cluster network, which a process running on a developer's own machine structurally can't provide.
+- **`mode: debug`/`local` + `servedBy`** — rejected outright, for either mode: `debug`/`local` both mean "this component runs on your machine, outside any container"; `servedBy` means "this component's code is already compiled into another component's image." A component can't simultaneously not be containerized and be merged into someone else's container.
+- **`servedBy` chains** — a component can't declare `servedBy` pointing at a target that *itself* declares `servedBy` ("a shell can't be served by another shell"), and a component can't be the target of a `servedBy` from someone else while also being `mode: debug` or `mode: local` itself — a shell has to be reachable from the container/cluster network, which a process running on a developer's own machine structurally can't provide, regardless of who started that process.
 - **`servedBy` self-reference** — `components[].servedBy` can't equal that same entry's own `id@version`.
-- **`replicas` + `mode: debug`** — rejected: `mode: debug` means the component runs as a single process in your IDE; a replica count describes multiple Pods, which has no meaning for a process that isn't a Pod at all.
+- **`replicas` + `mode: debug`/`local`** — rejected for either mode: both mean the component runs as a single process on your machine; a replica count describes multiple Pods, which has no meaning for a process that isn't a Pod at all.
 
-`localPort` without `mode: debug`, and `exposePort`/`tlsSecret` without `expose: true`, follow the same "written but inert" philosophy as `healthCheck.startPeriodSeconds` under `type: none` on the component side ([07-component-yaml-reference.md](07-component-yaml-reference.md)) — rejected at parse time rather than silently doing nothing, because a config value that's simply ignored is exactly the failure mode this whole platform tries hardest to avoid.
+`localPort` without `mode: debug` or `mode: local`, and `exposePort`/`tlsSecret` without `expose: true`, follow the same "written but inert" philosophy as `healthCheck.startPeriodSeconds` under `type: none` on the component side ([07-component-yaml-reference.md](07-component-yaml-reference.md)) — rejected at parse time rather than silently doing nothing, because a config value that's simply ignored is exactly the failure mode this whole platform tries hardest to avoid.
 
 ## `resources[]`
 

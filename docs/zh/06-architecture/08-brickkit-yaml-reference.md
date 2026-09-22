@@ -80,8 +80,8 @@ AGENTS.zh.md §7 是那份骨架。这篇文档是骨架背后的字典——每
 | --- | --- | --- | --- |
 | `components[].id` | string | 是 | 跟 Manifest 的 `metadata.id` 同一条 `scope/name` 规则 |
 | `components[].version` | string | 是 | 精确版本，跟 Manifest 的 `metadata.version` 同一条规则 |
-| `components[].mode` | string | 否 | `enabled`/`disable`/`debug` 三选一，或不写——不写＝跟着上层走（AGENTS.zh.md §5.4），`enabled`＝钉住一定跑，`disable`＝钉住一定不跑，`debug`＝钉住一定跑，**并且**在你自己机器上跑成裸进程（见下方互斥说明）——只有 `docker` 目标接受 `debug`，`k8s` 下在解析阶段就拒绝 |
-| `components[].localPort` | int | 只有想要固定宿主机端口时才需要写，前提是 `mode: debug` | 只有在同时写了 `mode: debug` 时才合法——单独写会被拒绝，不是悄悄忽略；`1`–`65535`；在项目里全部组件的 `localPort` 之间必须唯一 |
+| `components[].mode` | string | 否 | `enabled`/`disable`/`debug`/`local` 四选一，或不写——不写＝跟着上层走（AGENTS.zh.md §5.4），`enabled`＝钉住一定跑，`disable`＝钉住一定不跑，`debug`＝钉住一定跑、**并且**在你自己机器上跑成**你自己启动**的裸进程，`local`＝钉住一定跑、并且在你自己机器上跑成**brickkit 自己启动并监管**的裸进程（见下方互斥说明）——只有 `docker` 目标接受 `debug`/`local`，`k8s` 下两者都在解析阶段就拒绝 |
+| `components[].localPort` | int | 否 | 只有在同时写了 `mode: debug` 或 `mode: local` 时才合法——单独写会被拒绝，不是悄悄忽略；`1`–`65535`；在项目里全部组件的 `localPort` 之间必须唯一。在 `mode: debug` 下它纯粹是路由信息（进程听哪个端口是你自己的进程自己决定的，这里只是告诉 brickkit 该往哪路由）；在 `mode: local` 下 brickkit 默认自动分配一个空闲端口，这个字段是"固定某个端口"的手动覆盖——这是 `mode: debug` 做不到的，因为 brickkit 根本不掌控那个进程的启动 |
 | `components[].servedBy` | string（`id@version`） | 否 | 见下方互斥说明 |
 | `components[].expose` | bool | 否（默认 `false`） | |
 | `components[].hostname` | string | `expose: true` 且 `deploy.target: k8s` 时必填 | `docker` 下不需要——Compose 的暴露是一个宿主机端口，不是一个域名 |
@@ -94,16 +94,16 @@ AGENTS.zh.md §7 是那份骨架。这篇文档是骨架背后的字典——每
 | `components[].replicas` | `*int` | 否（默认 `1`，**仅 K8s**） | 写了就必须 `≥1`——`0` 会被拒绝，不会被当成"关掉"处理；真要停掉一个组件请用 `mode: disable`，它会走级联计算、提醒依赖方，而 `replicas: 0` 会让依赖方照常启动、照常拿到地址，然后连到一个根本不存在的后端 |
 | `components[].labels` | `map[string]string` | 否 | 跟 Manifest 的 `deployment.labels` 同一条保留键规则（不能以 `brickkit.io/` 或 `com.docker.compose.` 开头，不能精确等于 `app`）；逐键合并覆盖 Manifest 自己的 `deployment.labels`，冲突时这一侧赢 |
 
-### `components[].mode: debug` / `.servedBy` / `.replicas` 之间的互斥
+### `components[].mode: debug` / `components[].mode: local` / `.servedBy` / `.replicas` 之间的互斥
 
 这几个字段描述的是几种不同、互不相容的"这个组件的进程到底跑在哪"的设想，校验器把每一对组合都拦了下来：
 
-- **`mode: debug` + `servedBy`**——直接拒绝：`debug` 的意思是"这个组件跑在你自己机器上，脱离任何容器，给 IDE 调试用"；`servedBy` 的意思是"这个组件的代码已经编进了另一个组件的镜像里"。一个组件不可能同时"没有被容器化"又"被合并进了别人的容器"。
-- **`servedBy` 链式嵌套**——一个组件的 `servedBy` 不能指向一个自己也声明了 `servedBy` 的目标（"外壳不能被另一个外壳收编"），一个组件也不能一边是别的组件 `servedBy` 的目标、一边自己又是 `mode: debug`——外壳必须能从容器/集群网络里被访问到，而一个跑在开发者自己机器上的进程在结构上做不到这一点。
+- **`mode: debug`/`local` + `servedBy`**——两种 mode 都直接拒绝：`debug`/`local` 的意思都是"这个组件跑在你自己机器上，脱离任何容器"；`servedBy` 的意思是"这个组件的代码已经编进了另一个组件的镜像里"。一个组件不可能同时"没有被容器化"又"被合并进了别人的容器"。
+- **`servedBy` 链式嵌套**——一个组件的 `servedBy` 不能指向一个自己也声明了 `servedBy` 的目标（"外壳不能被另一个外壳收编"），一个组件也不能一边是别的组件 `servedBy` 的目标、一边自己又是 `mode: debug` 或 `mode: local`——外壳必须能从容器/集群网络里被访问到，而一个跑在开发者自己机器上的进程在结构上做不到这一点，不管这个进程是谁启动的。
 - **`servedBy` 自引用**——`components[].servedBy` 不能等于这一条自己的 `id@version`。
-- **`replicas` + `mode: debug`**——拒绝：`mode: debug` 意味着这个组件在你的 IDE 里是单个进程；副本数描述的是多个 Pod，对一个根本不是 Pod 的进程毫无意义。
+- **`replicas` + `mode: debug`/`local`**——两种 mode 都拒绝：都意味着这个组件在你自己机器上是单个进程；副本数描述的是多个 Pod，对一个根本不是 Pod 的进程毫无意义。
 
-`localPort` 不带 `mode: debug`、`exposePort`/`tlsSecret` 不带 `expose: true`，跟组件那侧 `healthCheck.startPeriodSeconds` 在 `type: none` 下的处理是同一种哲学（[07-component-yaml-reference.md](07-component-yaml-reference.md)）——在解析阶段就拒绝，不是悄悄什么都不做，因为"写了配置却被悄悄忽略"正是这整个平台最想避免的那类失败。
+`localPort` 不带 `mode: debug` 或 `mode: local`、`exposePort`/`tlsSecret` 不带 `expose: true`，跟组件那侧 `healthCheck.startPeriodSeconds` 在 `type: none` 下的处理是同一种哲学（[07-component-yaml-reference.md](07-component-yaml-reference.md)）——在解析阶段就拒绝，不是悄悄什么都不做，因为"写了配置却被悄悄忽略"正是这整个平台最想避免的那类失败。
 
 ## `resources[]`
 
