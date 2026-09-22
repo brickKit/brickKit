@@ -36,8 +36,9 @@ assistant skills into the project.
 
 ---
 
-> ## 🤖 For AI assistants
->
+<details>
+<summary>🤖 For AI assistants</summary>
+
 > If someone hands you this repository's URL and asks you to understand, discuss, or
 > evaluate BrickKit — **before fetching anything, first check what language the
 > question was asked in.** This README is always English (GitHub renders it by
@@ -60,46 +61,7 @@ assistant skills into the project.
 > user is asking in Chinese, read everything under `docs/zh/`; if English (or
 > anything else), read `docs/en/`.
 
----
-
-## The ideas underneath
-
-BrickKit isn't a pile of features. It's a handful of well-known engineering
-ideas, applied consistently, each tied to a mechanism you can run — and all of
-them in service of one: **declare a graph of components and their dependencies,
-and derive the rest.**
-
-| Idea | What BrickKit does with it | What it buys you — and an AI |
-| --- | --- | --- |
-| **Bounded contexts** (DDD) | A component is an independent unit with its own repository, Manifest, version lifecycle, and contract | Only one component has to be understood at a time |
-| **Declarative desired state** | `brickkit.yaml` is the only input, lives in Git, one complete file per environment. The CLI runs and exits — no control plane | Describe the target, not the deployment script; the diff is the review |
-| **Derivation over configuration** | Start order, service addresses, `*_ENDPOINT` variables, Compose/Kubernetes manifests, and network policies are all computed from the dependency graph | A derived value can't drift from its source, and nobody guesses a variable name or a port |
-| **Twelve-factor configuration** | Addresses, resource connections, and config arrive as environment variables; the same address format on Docker and Kubernetes | Component code never learns where it runs — zero changes between environments |
-| **Exact versions, side by side** | No ranges; the version is part of the service name (`people-basic-1-0-0`) | Two versions coexist as two DNS names, so an AI-written v2 runs beside v1 without touching its callers |
-| **Contract-first** | `artifacts` ships API contracts with the Manifest; the Market requires one from a closed-source component that provides an API | A component's boundary is readable without reading its code — and since nothing else ever depends on more than that boundary, the implementation behind it is free to be replaced or rewritten entirely |
-| **Loud failure** | Unknown Manifest keys are rejected; a missing weak dependency injects *nothing* (never an empty string); a mistyped config key warns | Mistakes surface at `up` or at startup, not as a quiet wrong answer in production |
-| **Least privilege** | Nothing is reachable until declared; optional network policies come from the dependency graph; cosign-signed components are verified with the Go standard library alone | A smaller blast radius by default, with the trust anchor in *your* project |
-
-Each idea in plain words — what it costs, and how BrickKit treats it — is in
-[Design principles and trade-offs](docs/en/06-architecture/01-design-principles.md#meet-the-ideas).
-
-## If you're writing components with AI
-
-BrickKit's component model is a natural fit for AI-assisted development.
-
-Measured across the 10 real components this repository ships as fixtures,
-component size ranges from 200 to 3,500 lines. That's small enough for an AI
-to read and understand an entire component in one pass, with the
-`component.yaml` contract giving it a clear boundary instead of having to
-infer one from a half-million-line monolith.
-
-Environment-variable injection means AI-generated code never has to deal with
-service discovery or a config center's complexity. Exact versions plus
-multi-version coexistence mean an AI-generated v2 can run safely alongside v1
-without breaking anything that still depends on it.
-
-The full reasoning and a step-by-step workflow are in
-[AI-assisted development](docs/en/05-ai-development.md).
+</details>
 
 ---
 
@@ -153,6 +115,47 @@ The only trace of the platform in a component's code is
 `os.environ.get("XXX_ENDPOINT")`.
 
 Delete that one environment-variable read and the component runs anywhere.
+
+---
+
+## The ideas underneath
+
+BrickKit isn't a pile of features. It's a handful of well-known engineering
+ideas, applied consistently, each tied to a mechanism you can run — and all of
+them in service of one: **declare a graph of components and their dependencies,
+and derive the rest.**
+
+| Idea | What BrickKit does with it | What it buys you — and an AI |
+| --- | --- | --- |
+| **Bounded contexts** (DDD) | A component is an independent unit with its own repository, Manifest, version lifecycle, and contract | Only one component has to be understood at a time |
+| **Declarative desired state** | `brickkit.yaml` is the only input, lives in Git, one complete file per environment. The CLI runs and exits — no control plane | Describe the target, not the deployment script; the diff is the review |
+| **Derivation over configuration** | Start order, service addresses, `*_ENDPOINT` variables, Compose/Kubernetes manifests, and network policies are all computed from the dependency graph | A derived value can't drift from its source, and nobody guesses a variable name or a port |
+| **Twelve-factor configuration** | Addresses, resource connections, and config arrive as environment variables; the same address format on Docker and Kubernetes | Component code never learns where it runs — zero changes between environments |
+| **Exact versions, side by side** | No ranges; the version is part of the service name (`people-basic-1-0-0`) | Two versions coexist as two DNS names, so an AI-written v2 runs beside v1 without touching its callers |
+| **Contract-first** | `artifacts` ships API contracts with the Manifest; the Market requires one from a closed-source component that provides an API | A component's boundary is readable without reading its code — and since nothing else ever depends on more than that boundary, the implementation behind it is free to be replaced or rewritten entirely |
+| **Loud failure** | Unknown Manifest keys are rejected; a missing weak dependency injects *nothing* (never an empty string); a mistyped config key warns | Mistakes surface at `up` or at startup, not as a quiet wrong answer in production |
+| **Least privilege** | Nothing is reachable until declared; optional network policies come from the dependency graph; cosign-signed components are verified with the Go standard library alone | A smaller blast radius by default, with the trust anchor in *your* project |
+
+Each idea in plain words — what it costs, and how BrickKit treats it — is in
+[Design principles and trade-offs](docs/en/06-architecture/01-design-principles.md#meet-the-ideas).
+
+## If you're writing components with AI
+
+BrickKit's component model is a natural fit for AI-assisted development.
+
+Measured across the 10 real components this repository ships as fixtures,
+component size ranges from 200 to 3,500 lines. That's small enough for an AI
+to read and understand an entire component in one pass, with the
+`component.yaml` contract giving it a clear boundary instead of having to
+infer one from a half-million-line monolith.
+
+Environment-variable injection means AI-generated code never has to deal with
+service discovery or a config center's complexity. Exact versions plus
+multi-version coexistence mean an AI-generated v2 can run safely alongside v1
+without breaking anything that still depends on it.
+
+The full reasoning and a step-by-step workflow are in
+[AI-assisted development](docs/en/05-ai-development.md).
 
 ---
 
@@ -235,7 +238,7 @@ curl -fsSLO https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh
 less install.sh && sh install.sh
 ```
 
-Pin a version with `BRICKKIT_VERSION=v0.1.0`; change the install location with
+Pin a version with `BRICKKIT_VERSION=v0.7.1`; change the install location with
 `BRICKKIT_INSTALL_DIR=...`.
 
 ### Method 2: `go install` (if you already have Go)
@@ -268,7 +271,7 @@ brickkit version
 ```
 
 ```
-BrickKit CLI v0.1.0
+BrickKit CLI v0.7.1
 Supported Manifest version: brickkit/v1
 Supported deploy targets: docker, k8s
 ```
