@@ -120,6 +120,7 @@ brickkit.yaml（声明）
 | 弱依赖 | Optional Dependency | `optional: true`；缺失时警告但继续，且**完全不注入该环境变量** |
 | 版本化服务名 | Versioned Service Name | 带精确版本号的服务名，如 `people-basic-1-0-0` |
 | 本地调试模式 | Local Debug Mode | `mode: debug`；组件跑在宿主机 IDE 中，用 `extra_hosts` 映射进容器网络 |
+| 本地托管模式 | Local Managed Mode | `mode: local`；BrickKit 自己探测启动命令，把组件跑成一个裸进程并监管它——不生成容器，也不需要 IDE |
 | 安装源 | Source | 组件来源：市场（http）/ Git 仓库 / 本地目录 |
 | 基础资源 | Resource | 组件依赖的外部系统（数据库、Redis 等），运维部署，`brickkit.yaml` 绑定 |
 | 环境变量注入 | Env Injection | CLI 生成部署文件时写入依赖地址、资源连接、自身配置 |
@@ -279,8 +280,9 @@ External Secrets Operator、Sealed Secrets……）已经在集群里建好的 S
 | --- | --- | --- |
 | **不写** `mode` 字段 | **跟着上层走** | 顶层（没有任何组件依赖它）默认跑；下层看上层 |
 | `mode: enabled` | **一定跑** | 不看上层。它的**强**依赖被关掉时**报错**（两个意图冲突） |
-| `mode: disable` | **一定不跑** | 依赖它的组件跟着不跑（钉住的——`mode: enabled` 或 `mode: debug`——则报错） |
+| `mode: disable` | **一定不跑** | 依赖它的组件跟着不跑（钉住的——`mode: enabled`、`mode: debug` 或 `mode: local`——则报错） |
 | `mode: debug` | **一定跑，进程由你自己启动** | 跟 `mode: enabled` 一样钉住（不看上层；强依赖被关掉时报错），但不生成容器——你在宿主机上、IDE 里自己跑（5.6）。仅限 Docker |
+| `mode: local` | **一定跑，进程由 BrickKit 自己启动并监管** | 跟 `mode: enabled` 一样钉住（不看上层；强依赖被关掉时报错），但不生成容器——BrickKit 从组件自己的源码里探测启动命令、拉起它、盯着它（5.6）。仅限 Docker |
 
 **强依赖和弱依赖一视同仁**：上层弱依赖它，它照样跟着跑。`optional: true` 只管两件事——
 解析期取不到只警告不阻断、它没在跑时不注入 `*_ENDPOINT`。
@@ -290,7 +292,7 @@ External Secrets Operator、Sealed Secrets……）已经在集群里建好的 S
 - 被多个上层共用时，只要还有一个上层在跑，它就跑——共享的底层组件不会被误伤
 - 两个组件互相依赖（只可能是弱依赖成环）时，环上没有更上层的东西，两个都是顶层，都跑
 - 实现算的是"**谁不跑**"（最小不动点），环因此不需要任何特例
-- CLI 输出里每一行都带着理由：`启动（顶层）` / `启动（mode: enabled）` / `启动（mode: debug）` / `启动（X 需要）`
+- CLI 输出里每一行都带着理由：`启动（顶层）` / `启动（mode: enabled）` / `启动（mode: debug）` / `启动（X 需要）`（`mode: local` 跟 `mode: debug` 共用一模一样的措辞——理由讲的是**为什么**被钉住，不区分是哪一种裸进程模式）
 
 **收窄启动范围只有一条路：改 `mode`。** 没有 `--only` 之类的命令行参数——
 把不搞的**顶层**写上 `mode: disable`，`up` 与 `sync` 跟着走；
@@ -317,9 +319,11 @@ K8s 下 CLI 会先 `kubectl delete job --ignore-not-found` 清理残留旧 Job�
 **暴露：** 默认不暴露。`expose: true` 时，K8s 生成 Ingress（需填 `hostname`），
 Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突时 CLI 报错）。
 
-### 5.6 本地调试（`mode: debug`）
+### 5.6 裸进程两种：本地调试（`mode: debug`）与本地托管（`mode: local`）
 
-要在 IDE 里断点调试某个组件，同时它还要被 Docker 网络里的其他组件访问：
+两个值说的是同一件事："这个组件跑成你自己机器上的一个普通操作系统进程，不在容器里，其他一切照样能正确连到它。" 区别在于**谁负责启动它**：`mode: debug` 是**你自己**启动——在 IDE 里，带着断点——BrickKit 只负责把地址指过去；`mode: local` 是你只想让它跑起来、不用你操心——BrickKit 自己探测启动命令、自己拉起进程、自己盯着它。同一个形状，启动这一步的责任方相反。
+
+**`mode: debug`：** 要在 IDE 里断点调试某个组件，同时它还要被 Docker 网络里的其他组件访问：
 
 - `brickkit.yaml` 中标记 `mode: debug` 的组件**不生成容器**
 - 其他容器通过 `extra_hosts` 把该组件的版本化服务名解析到 `host-gateway`
@@ -358,6 +362,30 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
   之前，额外端口那个变量甚至不是"诚实地连不上"：它会静默猜出一个看起来完全
   合理的 `localhost:<端口>`，实际上背后没有任何进程监听（brickKit 反馈：
   local 组件依赖 servedBy 成员时本地调试地址错误）
+
+**`mode: local`：** 同一个想法的"帮我跑起来就行"那半边——
+
+- 标记 `mode: local` 的组件**不生成容器**，跟 `mode: debug` 一样
+- BrickKit 读这个组件自己的源码目录（`go.mod`、`package.json`、`pom.xml`……）自己判断怎么
+  启动它——`component.yaml` 里没有任何地方声明这条命令，每个语言生态各自有 BrickKit
+  认得的标记文件
+- BrickKit 自己拉起这个进程、自己盯着它，贯穿这次 `brickkit up` 的整个生命周期：`up` 会
+  一直待在前台，把进程自己的输出实时打出来、每行带服务名前缀——跟不加 `-d` 的
+  `docker compose up` 一样
+- **`localPort` 是可选的**——默认 BrickKit 自动挑一个空闲端口（优先用组件自己声明的
+  `deployment.port`）；只有想固定某个端口时才需要手动写 `localPort`
+- `.brickkit/` 下一份小小的会话锁文件是唯一能让**第二个**终端知道本地会话存在的东西：
+  `status` 把 `mode: local` 组件排除在容器表之外，但也不会把它报成"没跑"；`graph` 给它
+  自己的标签和颜色，钉住、永远不会被置灰；`down` 没法伸进另一个终端的进程树，会打印
+  同样的会话提示，而不是悄悄什么都不做
+- 停掉它就是在跑 `up` 的那个终端按 `Ctrl+C`——体面停下不打印任何额外内容（一个照要求
+  停下的组件不需要崩溃摘要）；意料之外的崩溃会打一份，带退出原因和进程自己最近的输出，
+  用 `--crash-lines` 控制（默认 20 行，`0` = 只留退出原因）
+- 进程树是故意只属于这一个终端会话的——它从不试图活得比启动它的那次 `up` 更久，不像
+  容器，CLI 退出后容器照样接着跑
+- **仅限 Docker**，跟 `mode: enabled` 一样钉住（§5.4）——规则跟 `mode: debug` 一样，同样
+  的理由：集群里的 Pod 没有路径能连到你自己机器上的进程
+- 带真实输出的上手教程：[让一个组件在本地跑起来，不用你操心](docs/zh/03-guide/04-local-execution.md)
 
 ### 5.7 合并部署（`servedBy`）
 
@@ -633,8 +661,8 @@ sources:                         # 安装源
 components:
   - id: people/basic
     version: 1.0.0               # 必须，精确版本
-    mode: debug                  # 可选：enabled | disable | debug，写法见 5.4
-    localPort: 8081              # mode: debug 时的宿主机端口
+    mode: debug                  # 可选：enabled | disable | debug | local，写法见 5.4
+    localPort: 8081              # mode: debug 或 mode: local 时的宿主机端口（local 下可选——默认自动分配）
     servedBy: <id>@<版本>         # 可选，这个组件的工作负载由另一个组件提供
     expose: false                # 可选，默认 false
     hostname: <域名>              # expose + k8s 时必填
@@ -708,15 +736,15 @@ installer:
 | --- | --- |
 | `brickkit init <name>` | 生成 `brickkit.yaml` 骨架和 `.brickkit/` 目录，并装入 AI 助手技能（`--no-skills` 跳过） |
 | `brickkit skills` | 查看/刷新装进项目的 AI 助手技能（`status` / `update`）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）只管理 `brickkit-component` 这一个技能。手改过的绝不覆盖；不碰使用者的 `CLAUDE.md` |
-| `brickkit graph` | 把项目的依赖拓扑画成 Mermaid 文本，打印到 stdout：实线是强依赖，虚线是弱依赖（取不到的弱依赖画成"未安装"节点），置灰的节点是这次不会启动的组件，`servedBy` 收编的成员画在各自的外壳里。**stdout 里只有 Mermaid**，所以 `brickkit graph > graph.mmd` 存下来的文件 GitHub 能直接渲染。它读的是与 `up --dry-run` 同一份解析出来的依赖图（所以还没缓存的市场 / Git 组件的 Manifest 要联网取），不生成部署文件、不碰引擎。`--ignore-served-by` 把每个组件都画成独立部署 |
+| `brickkit graph` | 把项目的依赖拓扑画成 Mermaid 文本，打印到 stdout：实线是强依赖，虚线是弱依赖（取不到的弱依赖画成"未安装"节点），置灰的节点是这次不会启动的组件，`mode: local` 组件带着自己的"托管本地"标签与颜色，`servedBy` 收编的成员画在各自的外壳里。**stdout 里只有 Mermaid**，所以 `brickkit graph > graph.mmd` 存下来的文件 GitHub 能直接渲染。它读的是与 `up --dry-run` 同一份解析出来的依赖图（所以还没缓存的市场 / Git 组件的 Manifest 要联网取），不生成部署文件、不碰引擎。`--ignore-served-by` 把每个组件都画成独立部署 |
 | `brickkit lint` | **离线、只读**地检查当前目录里 YAML 的结构——不联网，不需要 Docker / K8s。在项目里：先查 `brickkit.yaml`，再查 `local` 安装源目录下的每一份 `component.yaml`（不管有没有 add 过；`.archived/` 不查）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）：只查那一份。报告必填字段、类型、未知键（拼写笔误）、版本号格式、端口范围，另有两类警告——`configSchema` 属性声明里拼错的键（不会生效）、配置项名字撞上保留变量。不新增任何规则；有错误时退出码 `1`（`LINT_FAILED`），只有警告时退出码 `0`，加 `--strict` 则警告也算失败（给 CI 门禁用）。**不做**依赖解析、也不查 `servedBy` 目标在不在——两者都要解析出依赖图才知道，而 `lint` 故意不建这张图（对市场或 Git 来源的组件来说这可能意味着联网）——那是 `up --dry-run` 的事 |
 | `brickkit new <scope>/<name>` | 生成一个组件的最小骨架——一份已经能通过校验的 `component.yaml`，带 `--contract openapi\|proto` 时还生成一份契约占位文件并登记进 `artifacts`。默认写到 `components/<scope>/<name>/`（`local` 安装源本来就扫描这个布局）；`--path` 写到别的地方、不再套一层，给独立组件仓库用。不生成 Dockerfile，不生成源码——平台不替你选语言，也不会替你执行 `add` |
 | `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `mode` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘 |
 | `brickkit remove <id>` | 检查强依赖方后移除，自动删除源码目录（含归档的那份）。多版本共存时必须指定版本 |
 | `brickkit fetch <id>[@版本]` | 只下载组件的产物到 `.brickkit/artifacts/<版本化服务名>/`，**不写入 brickkit.yaml、不部署**。跨项目调用别人的服务时用 |
-| `brickkit up` | 启停判定 → 生成部署文件 → 生成 `local-debug.env` → 检测镜像权限 → 执行迁移 → 调用引擎 |
-| `brickkit down` | 停止所有组件。**不删除 volume，保留数据** |
-| `brickkit status` | 读底层引擎，展示运行表格（含多版本检测、不启动的组件也列出来） |
+| `brickkit up` | 启停判定 → 生成部署文件 → 生成 `local-debug.env` → 检测镜像权限 → 执行迁移 → 调用引擎 → 在前台拉起并监管所有 `mode: local` 组件（§5.6） |
+| `brickkit down` | 停止所有容器。**不删除 volume，保留数据。** 够不到跑在另一个终端里的 `mode: local` 进程——会改打印一句提示，点名那个会话的 PID |
+| `brickkit status` | 读底层引擎，展示运行表格（含多版本检测、不启动的组件也列出来）。`mode: local` 组件不进这张表（它们不是容器），但有一个在别处跑着时会打印提示 |
 | `brickkit sync` | 按启停判定结果双向归档 / 激活组件源码。无参数 |
 | `brickkit restore` | 把 `mode` 与组件源码结构还原到最后一次提交。`--check` 供 pre-commit hook 判断这次提交自洽不自洽 |
 | `brickkit login` | 终端交互登录市场，Token 存 `.brickkit/credentials` |
@@ -732,6 +760,7 @@ brickkit up --config brickkit.prod.yaml           # 多环境
 brickkit up --dry-run                             # 只生成部署文件，供审查
 brickkit up --context prod-cluster                # 本次运行覆盖 deploy.context（仅 k8s）
 brickkit up --ignore-served-by --dry-run          # 验证：去掉 servedBy 之后每个组件还能不能独立起来
+brickkit up --crash-lines 0                       # mode: local 崩溃摘要只打退出原因，不带输出行（默认 20 行）
 brickkit graph > graph.mmd                        # 依赖拓扑存成 Mermaid 文本（GitHub 直接渲染 .mmd 文件）
 brickkit graph --ignore-served-by                 # 把每个组件都画成独立部署，当作没声明过 servedBy
 brickkit lint                                     # 离线检查 brickkit.yaml 与本地安装源里 component.yaml 的结构
@@ -953,6 +982,9 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 | `mode: debug` 的组件报 `relation does not exist` | debug 组件不生成迁移容器，迁移要自己手动跑一次 |
 | `mode: debug` 组件自己的 config 里，某个带外依赖的地址还是 `host.docker.internal` | 那是使用者自己写的字面量，brickKit 不解析 config 值，改成 `mode: debug` 不会帮你换算。自己把这个字面量改掉（通常改成 `localhost`） |
 | `mode: debug` 组件依赖了一个 `servedBy` 成员 | 能连上：它的 `*_ENDPOINT` 会解析成一个真正的 `localhost:<端口>`——这个成员没有自己的容器，CLI 把映射开在它的外壳身上（§5.6） |
+| 用户问「该用 `mode: debug` 还是 `mode: local`」 | 要打断点调试 → `mode: debug`（你自己在 IDE 里启动）。只是想让它跑起来、不生容器、也不想自己守着一个终端命令 → `mode: local`（BrickKit 自己探测启动命令、拉起、盯着）。两个都仅限 Docker，都跟 `mode: enabled` 一样钉住 |
+| 用户问「为什么 `brickkit down` 停不掉我的 `mode: local` 组件」 | 这是设计如此——`down` 只碰容器；`mode: local` 进程只属于跑 `up` 的那个终端，也只能从那里够到。`status`/`down`/`graph` 有一个在跑时都会打印一句点名那个会话 PID 的提示，但谁都伸不进去 |
+| `mode: local` 组件崩了，摘要太吵（或者不够详细） | `brickkit up` 的 `--crash-lines N` 控制崩溃摘要留多少行进程自己最近的输出（默认 20 行，`0` = 只留退出原因） |
 | 讨论签名 | 发布方需要装 **cosign**；**安装方不需要**（验签用 Go 标准库） |
 | 用户想让平台帮忙做安全审查 | 安装即信任。平台只在事后 `blocked` |
 | 用户问「能不能把多个组件合并成一个实例省内存」 | 先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用。还要合并的话：**`servedBy`（5.7）是平台支持的路径**——它在 Docker 和 K8s 下都能正确处理地址路由；其余的事（模块隔离、配置、外壳内部的迁移顺序）还是他们自己的代码，参见外壳实现者指南。`mode: disable` 和这个无关——它照样不能拿来当「我自己接管」的开关 |

@@ -92,9 +92,10 @@ Four things need to already be true:
    hold — but deciding it up front avoids a failed `up` you have to
    untangle after the fact.
 4. **The shell is actually going to be running in this deployment** — not
-   `mode: disable`, and not `mode: debug`. A `servedBy` component whose
-   shell isn't running has no container anywhere for its code to execute
-   in, which the platform treats as an error, not a warning.
+   `mode: disable`, and not `mode: debug` or `mode: local` (both mean the
+   shell would be a bare process, not a container). A `servedBy` component
+   whose shell isn't running has no container anywhere for its code to
+   execute in, which the platform treats as an error, not a warning.
 
 ## Writing the field, and what gets rejected
 
@@ -118,14 +119,17 @@ dependency graph first:
 - **Chaining.** If the shell you name has itself declared a `servedBy` (it
   is, in turn, absorbed into some other shell), the platform rejects this
   — a shell can't be nested inside another shell.
-- **Combining with `mode: debug`.** These express contradictory intents on
-  the same entry: `mode: debug` means "this code runs on my machine for
-  debugging," `servedBy` means "this code is already compiled into that
-  other image." The platform rejects declaring both on the same
-  component — and, in the other direction, rejects marking a component
-  `mode: debug` if some other component already names it as a
-  `servedBy` target, for the same reason: a shell has to be reachable on
-  the cluster or container network, and a developer's own machine isn't.
+- **Combining with `mode: debug` or `mode: local`.** These express
+  contradictory intents on the same entry: `mode: debug` means "this code
+  runs on my machine for debugging," `mode: local` means "this code runs as
+  a bare process BrickKit itself launches and supervises," `servedBy` means
+  "this code is already compiled into that other image." The platform
+  rejects declaring either bare-process mode together with `servedBy` on
+  the same component — and, in the other direction, rejects marking a
+  component `mode: debug` or `mode: local` if some other component already
+  names it as a `servedBy` target, for the same reason: a shell has to be
+  reachable on the cluster or container network, and a developer's own
+  machine isn't.
 
 Two more checks need the full dependency graph, so they surface at
 generation time (`brickkit up`) rather than parse time:
@@ -194,15 +198,19 @@ a special case that opts out of it:
   componentId just to satisfy `brickkit up`'s check. The real connection env
   vars only ever land in the shell's container regardless of which
   componentId the binding names.
-- **A `mode: debug` component's outbound reach to this member**: if a
-  component running in `mode: debug` depends on a `servedBy`
-  member, its `*_ENDPOINT` variables in `local-debug.<service>.env` resolve
-  to a real, host-reachable `localhost:<port>` — the CLI opens the mapping
-  on the **shell's** own compose service (the member has none of its own),
-  using the member's own declared port, exactly the port the shell is
-  already required to listen on (`checkPortConflicts` validates this at
-  generation time; it's the same assumption the K8s addressing above
-  already depends on, just reused here rather than something new).
+- **A `mode: debug` or `mode: local` component's outbound reach to this
+  member**: both bare-process modes share the exact same address-computation
+  path, so this applies identically to either one. If a component running
+  in `mode: debug` or `mode: local` depends on a `servedBy` member, its
+  `*_ENDPOINT` variables (written to `local-debug.<service>.env` for
+  `mode: debug`, injected directly into the process environment for
+  `mode: local`) resolve to a real, host-reachable `localhost:<port>` — the
+  CLI opens the mapping on the **shell's** own compose service (the member
+  has none of its own), using the member's own declared port, exactly the
+  port the shell is already required to listen on (`checkPortConflicts`
+  validates this at generation time; it's the same assumption the K8s
+  addressing above already depends on, just reused here rather than
+  something new).
 
 ## What does not happen automatically
 

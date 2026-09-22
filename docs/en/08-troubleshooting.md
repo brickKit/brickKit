@@ -60,6 +60,13 @@ If you're looking at a `❌` block rather than a symptom, the `error_code` in th
 | [18. The editor underlines almost every field of a valid `component.yaml`](#18-the-editor-underlines-almost-every-field-of-a-valid-componentyaml)<br>`Property apiVersion is not allowed.` | No BrickKit schema is attached, so the editor applies another tool's schema to that file name | Attach the schema with a `$schema` comment or the `yaml.schemas` setting |
 | [19. The editor underlines something the CLI accepts](#19-the-editor-underlines-something-the-cli-accepts) | The schemas are stricter than the CLI in three deliberate places | Write the literal value, quote the number, or fix the key |
 
+### H. Local execution mode (`mode: local`)
+
+| Symptom | Cause in one line | The fix |
+| --- | --- | --- |
+| [20. `up` warns a `mode: local` component still isn't listening, even though it printed something that looks like a ready message](#20-up-warns-a-mode-local-component-still-isnt-listening-even-though-it-printed-something-that-looks-like-a-ready-message) | The component doesn't read the injected `PORT` variable, so it's listening somewhere other than the port BrickKit is probing | Read `PORT` from the environment in the component's own startup code, or pin `localPort` to the port it actually hardcodes |
+| [21. `brickkit down` or a second terminal's `Ctrl+C` doesn't stop it](#21-brickkit-down-or-a-second-terminals-ctrlc-doesnt-stop-it) | A `mode: local` process belongs to the one terminal that ran `up` — nothing else can reach it | Go to that terminal and press `Ctrl+C` there; `status`/`down`/`graph` all name the session's PID as a pointer |
+
 ---
 
 ### 1. Image not found
@@ -322,6 +329,22 @@ $ brickkit up --dry-run
   - YAML the CLI reads loosely — an unquoted number in a string field (`project: 2024`), `yes` or `on` for a boolean, a `null` list item or map value, a fraction in an integer field (`port: 5432.5`);
   - an extra key inside a `configSchema` property (`defualt` for `default`) — the CLI ignores it, and `brickkit lint` warns that it won't take effect.
 - **Fix:** treat the red line as a hint, not a bug: write the literal value, quote the number, use `true` / `false`, or correct the key. Each case is explained, with its reason, in the last list of [Wire up your editor](00-quick-start.md#wire-up-your-editor).
+
+---
+
+### 20. `up` warns a `mode: local` component still isn't listening, even though it printed something that looks like a ready message
+
+- **Symptom:** `<service> still isn't listening on port <N> — it may just be slow to start`, printed right after the component's own output shows up — output that looks like a normal startup log, not an error.
+- **Cause:** BrickKit injects `PORT` into the process's environment (auto-assigned by default, or pinned with `localPort`) and probes exactly that port for up to 30 seconds. If the component's own code doesn't read `PORT` — a hardcoded `:8080`, say — it starts and listens just fine, just not on the port BrickKit is watching. The warning is genuinely non-fatal: `up` doesn't kill the process or stop, and the component is reachable on whatever port it actually bound.
+- **Fix:** have the component read `PORT` from its environment at startup, the same way it would under `mode: debug` or in a container. If changing the code isn't an option right now, write `localPort` to match whatever port it actually hardcodes, so BrickKit probes the right one.
+
+---
+
+### 21. `brickkit down` or a second terminal's `Ctrl+C` doesn't stop it
+
+- **Symptom:** a `mode: local` component keeps running after `brickkit down`, or after pressing `Ctrl+C` in a *different* terminal than the one that ran `up`.
+- **Cause:** this is the designed behavior, not a bug. A `mode: local` process is supervised by the specific terminal session that ran `brickkit up` — there is no container, so there's no engine for `down` (or any other command) to ask to stop it, the way there is for everything else this project might be running.
+- **Fix:** go to the terminal actually running `up` and press `Ctrl+C` there. `status`, `down`, and `graph`, run from anywhere else, all print a hint naming that session's PID (`This project has a local session running (PID <n>) — go to that terminal, or Ctrl+C it there`) — that's the one place the process can be stopped from.
 
 ---
 

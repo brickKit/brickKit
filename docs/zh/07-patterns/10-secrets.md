@@ -200,6 +200,10 @@ CLI 写出来的文件里从来没有真值，对着它跑一遍 `docker compose
 
 `mode: debug` 只存在于 Docker 目标下。这样的组件没有容器，CLI 会为它写一份 `local-debug.<版本化服务名>.env`，由 IDE 加载后把进程跑起来。这份文件里的值是 CLI 求好的**明文**，这是刻意的——IDE 或 shell 加载这份文件时，是按 `KEY=value` 逐行读取（`envFile` 配置或者 `source` 命令），并不会再去解析值里面的 `${VAR}` 占位符；真写一个 `${PG_PASSWORD}` 进去，加载出来的就是这段原文字符串，而不是它指向的真实密码。所以 CLI 必须在写这份文件**之前**先把值求好，而不是留给加载它的那一步去做。它和其它生成物一样放在 `.brickkit/generated/` 下（已被 `.gitignore` 忽略），文件权限 `0600`。
 
+### `mode: local`：从不落盘
+
+`mode: local` 同样只存在于 Docker 目标下，同样没有容器，但走的是一条更直接的路：CLI 在内存里把这个进程要用的环境变量拼好，直接交给它启动的那个子进程，中间不经过任何文件。既不像 K8s 那样写一份 Secret，也不像 `mode: debug` 那样写一份明文 `.env` 给 IDE 加载——因为根本没有 IDE 参与这一步，启动这个进程的就是 CLI 自己，值求好了直接喂给它就行，没有"写文件、再被另一个程序读回去"这一段。结果是：`mode: local` 组件的密钥永远不会以明文形式落在磁盘上的任何文件里，哪怕只是短暂地。
+
 ### 小结
 
 | 部署目标 | 真值落在哪 | 谁来求值 |
@@ -207,6 +211,7 @@ CLI 写出来的文件里从来没有真值，对着它跑一遍 `docker compose
 | K8s | `.brickkit/generated/k8s/secrets/` 下的 Secret 文件（`0600`）；Deployment 里只有 `secretKeyRef` | CLI，生成时 |
 | Docker | 不落在 CLI 写的任何文件里；compose 文件保留 `${VAR}` | `docker compose`，容器启动时 |
 | `mode: debug` | `local-debug.<版本化服务名>.env`（`0600`），明文 | CLI，生成时 |
+| `mode: local` | 完全不落文件——CLI 在内存里拼好环境变量，直接交给它启动的进程 | CLI，`up` 启动进程前 |
 
 ## 两种接密钥管理器的方式
 

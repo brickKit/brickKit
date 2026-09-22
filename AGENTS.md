@@ -137,6 +137,7 @@ only serves development (IDE, debugging).
 | 弱依赖 | Optional Dependency | `optional: true`; missing → warns but continues, and **the env var is not injected at all** |
 | 版本化服务名 | Versioned Service Name | A service name carrying an exact version, e.g. `people-basic-1-0-0` |
 | 本地调试模式 | Local Debug Mode | `mode: debug`; the component runs on the host inside an IDE, mapped into the container network via `extra_hosts` |
+| 本地托管模式 | Local Managed Mode | `mode: local`; BrickKit itself detects the start command, launches the component as a bare process, and supervises it — no container, no IDE required |
 | 安装源 | Source | Where a component comes from: the marketplace (HTTP) / a Git repo / a local directory |
 | 基础资源 | Resource | External systems a component depends on (databases, Redis, etc.), deployed by ops, bound in `brickkit.yaml` |
 | 环境变量注入 | Env Injection | The CLI writes dependency addresses, resource connections, and own config into env vars when generating deployment files |
@@ -313,8 +314,9 @@ doesn't manage it.
 | --- | --- | --- |
 | **not written** (no `mode` field) | **Follows the top** | A top-level component (nothing depends on it) runs by default; a lower one follows whatever's above it |
 | `mode: enabled` | **Always runs** | Ignores what's above it. If its **required** dependencies are turned off, it **errors** (two conflicting intents) |
-| `mode: disable` | **Never runs** | Whatever depends on it stops too (unless something has it pinned — `mode: enabled` or `mode: debug` — which then errors) |
+| `mode: disable` | **Never runs** | Whatever depends on it stops too (unless something has it pinned — `mode: enabled`, `mode: debug`, or `mode: local` — which then errors) |
 | `mode: debug` | **Always runs, as a process you start yourself** | Pinned exactly like `mode: enabled` (ignores what's above it; errors if a required dependency is turned off), but generates no container — you run it on the host, in your IDE (§5.6). Docker only |
+| `mode: local` | **Always runs, as a process BrickKit starts and supervises itself** | Pinned exactly like `mode: enabled` (ignores what's above it; errors if a required dependency is turned off), but generates no container — BrickKit detects the start command from the component's own source, launches it, and supervises it (§5.6). Docker only |
 
 **Required and optional dependencies are treated the same way here:** if something upstream weakly
 depends on it, it still follows along and runs. `optional: true` only controls two things — a
@@ -330,7 +332,8 @@ A few points:
 - The implementation computes "**who doesn't run**" (a least fixed point), so cycles need no
   special-casing at all
 - Every line of CLI output carries its reason: `starting (top-level)` / `starting (mode: enabled)`
-  / `starting (mode: debug)` / `starting (X needs it)`
+  / `starting (mode: debug)` / `starting (X needs it)` (`mode: local` shares `mode: debug`'s exact
+  wording — the reason names *why* it's pinned, not which of the two bare-process modes it is)
 
 **The only way to narrow the startup scope is to change `mode`.** There's no `--only`-style
 flag — set the top-level things you don't want on `mode: disable`, and both `up` and `sync` follow
@@ -360,10 +363,17 @@ leftover old Job, guaranteeing idempotency.
 required); Docker maps the port to the host (customizable via `exposePort`; the CLI errors on port
 conflicts).
 
-### 5.6 Local debugging (`mode: debug`)
+### 5.6 Bare processes: local debugging (`mode: debug`) and local execution (`mode: local`)
 
-To debug a component with breakpoints in an IDE, while it's still reachable by other components on
-the Docker network:
+Both values mean "this component runs as a plain OS process on your own machine, not in a
+container, and everything else still reaches it correctly." They split on *who starts it*:
+`mode: debug` is for when **you** start it yourself — in an IDE, breakpoints and all — and
+BrickKit only routes to it; `mode: local` is for when you just want it running, hands-off —
+BrickKit detects the start command, launches the process, and supervises it. Same shape, opposite
+ownership of the startup step.
+
+**`mode: debug`:** to debug a component with breakpoints in an IDE, while it's still reachable by
+other components on the Docker network:
 
 - A component marked `mode: debug` in `brickkit.yaml` **doesn't generate a container**
 - Other containers resolve that component's versioned service name to `host-gateway` via
@@ -409,6 +419,33 @@ the Docker network:
   silently guessed a `localhost:<port>` value that looked entirely plausible and had nothing
   listening behind it (brickKit feedback: local component addresses go wrong when depending on a
   servedBy member)
+
+**`mode: local`:** the "just run it for me" half of the same idea —
+
+- A component marked `mode: local` **doesn't generate a container**, same as `mode: debug`
+- BrickKit reads the component's own source directory (`go.mod`, `package.json`, `pom.xml`, …) and
+  works out how to start it on its own — nothing in `component.yaml` declares this command; each
+  language ecosystem has its own marker file BrickKit recognizes
+- BrickKit launches the process itself and supervises it for the lifetime of that `brickkit up`
+  run: `brickkit up` stays in the foreground, streaming the process's own output with its service
+  name prefixed on every line, exactly like `docker compose up` without `-d`
+- **`localPort` is optional** — by default BrickKit picks a free port for it (preferring the
+  component's own declared `deployment.port`); write `localPort` only to pin a specific one
+- A small session-lock file under `.brickkit/` is the only thing that lets a *second* terminal
+  recognize a local session is running: `status` excludes `mode: local` components from its
+  container table but doesn't report them as down either; `graph` marks them with their own label
+  and color, pinned and never greyed out; `down` cannot reach across into another terminal's
+  process tree, so it prints the same session hint instead of silently doing nothing
+- Stopping it is `Ctrl+C` in the terminal running `up` — a clean stop prints nothing extra (no
+  crash summary for an exit that was asked for); an unexpected crash prints one, with the exit
+  reason and the process's own recent output, controlled by `--crash-lines` (default 20 lines,
+  `0` = the exit reason alone)
+- The process tree is scoped to that one terminal session on purpose — it never tries to outlive
+  the `up` that started it, unlike a container
+- **Docker only**, pinned like `mode: enabled` (§5.4) — same rules, same rejection under
+  `deploy.target: k8s`, for the same reason: a cluster Pod has no route to a process on your own
+  machine
+- Hands-on walkthrough with real output: [Run a component locally, hands-off](docs/en/03-guide/04-local-execution.md)
 
 ### 5.7 Consolidated deployment (`servedBy`)
 
@@ -729,8 +766,8 @@ sources:                         # install sources
 components:
   - id: people/basic
     version: 1.0.0               # required, exact version
-    mode: debug                  # optional: enabled | disable | debug, see §5.4 for how to write it
-    localPort: 8081              # host port when mode: debug
+    mode: debug                  # optional: enabled | disable | debug | local, see §5.4 for how to write it
+    localPort: 8081              # host port when mode: debug or mode: local (optional under local — auto-assigned by default)
     servedBy: <id>@<version>     # optional, this component's workload is provided by that other component
     expose: false                # optional, default false
     hostname: <domain>           # required when expose + k8s
@@ -811,15 +848,15 @@ effect under one deploy target and warn when written under the other) is
 | --- | --- |
 | `brickkit init <name>` | Generates a `brickkit.yaml` skeleton and a `.brickkit/` directory, and installs the AI assistant skills (`--no-skills` to skip) |
 | `brickkit skills` | View/refresh the AI assistant skills installed in the project (`status` / `update`). In a standalone component repo (a `component.yaml`, no `brickkit.yaml`) it manages just the `brickkit-component` skill. Never overwrites something hand-edited; never touches the user's own `CLAUDE.md` |
-| `brickkit graph` | Prints the project's dependency topology as Mermaid text on stdout: solid edges for required dependencies, dashed for optional (an optional one that can't be found is drawn as a "not installed" node), greyed-out nodes for components that won't start this run, `servedBy` members grouped inside their shell. **Nothing but Mermaid on stdout**, so `brickkit graph > graph.mmd` writes a file GitHub renders. It reads the same resolved graph as `brickkit up --dry-run` (so it needs the network for market/Git Manifests not yet cached), and generates no deployment files and touches no engine. `--ignore-served-by` draws every component standalone |
+| `brickkit graph` | Prints the project's dependency topology as Mermaid text on stdout: solid edges for required dependencies, dashed for optional (an optional one that can't be found is drawn as a "not installed" node), greyed-out nodes for components that won't start this run, `mode: local` components marked with their own "managed locally" label and color, `servedBy` members grouped inside their shell. **Nothing but Mermaid on stdout**, so `brickkit graph > graph.mmd` writes a file GitHub renders. It reads the same resolved graph as `brickkit up --dry-run` (so it needs the network for market/Git Manifests not yet cached), and generates no deployment files and touches no engine. `--ignore-served-by` draws every component standalone |
 | `brickkit lint` | **Offline, read-only** structure check of the YAML in the current directory — no network, no Docker/K8s. In a project: `brickkit.yaml`, then every `component.yaml` under the `local` install sources (whether or not they've been added; `.archived/` is skipped). In a standalone component repo (a `component.yaml`, no `brickkit.yaml`): just that file. Reports required fields, types, unknown keys (typos), version format, port ranges, plus two kinds of warning — a misspelled key inside a `configSchema` property (it won't take effect) and a config key that collides with a reserved variable. Adds no rule of its own; exit `1` on errors (`LINT_FAILED`), warnings alone exit `0`, `--strict` makes them fail too (a CI gate). **Does not** resolve dependencies or check `servedBy` targets exist — both need the resolved dependency graph, which `lint` deliberately never builds (that can mean a network call for a market or Git-sourced component) — that's `up --dry-run` |
 | `brickkit new <scope>/<name>` | Generates a component's minimal skeleton — a `component.yaml` that already passes validation, plus (with `--contract openapi\|proto`) a placeholder contract file registered under `artifacts`. Writes to `components/<scope>/<name>/` by default (the same layout a `local` source scans); `--path` writes elsewhere with no nesting, for a standalone component repository. No Dockerfile, no source code — the platform doesn't pick a language for you, and it never runs `add` on your behalf |
 | `brickkit add <id>[@ver]` | Recursively pulls dependencies, downloads artifacts, writes them into the config (**doesn't write a `mode` field**). If no version is given, takes the latest installable version from the source and pins it to disk as an **exact version** |
 | `brickkit remove <id>` | Checks for required-dependency callers before removing, automatically deletes the source directory (including an archived copy). Must specify a version when multiple versions coexist |
 | `brickkit fetch <id>[@version]` | Only downloads the component's artifacts into `.brickkit/artifacts/<versioned-service-name>/`, **doesn't write to `brickkit.yaml`, doesn't deploy**. Used when calling another project's service across project boundaries |
-| `brickkit up` | Cascade decision → generate deployment files → generate `local-debug.env` → check image permissions → run migrations → invoke the engine |
-| `brickkit down` | Stops all components. **Doesn't delete volumes, data is preserved** |
-| `brickkit status` | Reads the underlying engine, shows a running-state table (including multi-version detection; components not running are listed too) |
+| `brickkit up` | Cascade decision → generate deployment files → generate `local-debug.env` → check image permissions → run migrations → invoke the engine → launch and supervise any `mode: local` components in the foreground (§5.6) |
+| `brickkit down` | Stops all containers. **Doesn't delete volumes, data is preserved.** Cannot reach a `mode: local` process running in another terminal — prints a hint naming that session's PID instead |
+| `brickkit status` | Reads the underlying engine, shows a running-state table (including multi-version detection; components not running are listed too). Excludes `mode: local` components from that table (they're not containers) but prints a hint when one is running elsewhere |
 | `brickkit sync` | Bidirectionally archives / activates component source based on the cascade decision. Takes no arguments |
 | `brickkit restore` | Restores `mode` and the component-source layout to the last commit. `--check` is for the pre-commit hook to judge whether this commit is self-consistent |
 | `brickkit login` | Interactive terminal login to the marketplace, token stored in `.brickkit/credentials` |
@@ -835,6 +872,7 @@ brickkit up --config brickkit.prod.yaml           # multi-environment
 brickkit up --dry-run                             # only generate deployment files, for review
 brickkit up --context prod-cluster                # override deploy.context for this one run (k8s only)
 brickkit up --ignore-served-by --dry-run          # verify every component can still stand alone without servedBy
+brickkit up --crash-lines 0                       # mode: local crash summary prints the exit reason only, no output lines (default: 20 lines)
 brickkit graph > graph.mmd                        # dependency topology as Mermaid text (GitHub renders a .mmd file)
 brickkit graph --ignore-served-by                 # draw every component standalone, as if no servedBy were declared
 brickkit lint                                     # offline structure check of brickkit.yaml + the local sources' component.yaml files
@@ -1109,6 +1147,9 @@ hit:
 | A `mode: debug` component reports `relation does not exist` | Debug components don't generate a migration container; you have to run the migration by hand once |
 | A `mode: debug` component's own config still points at `host.docker.internal` for some out-of-band dependency | That's a string literal the user wrote; brickKit doesn't parse config values, so it doesn't get rewritten when the component becomes `mode: debug`. Edit that literal yourself (usually to `localhost`) |
 | A `mode: debug` component depends on a `servedBy` member | Works: its `*_ENDPOINT` resolves to a real `localhost:<port>` — the CLI opens the mapping on the shell's compose service, since the member has none of its own (§5.6) |
+| A user asks "should I use `mode: debug` or `mode: local`" | Debugging with breakpoints → `mode: debug` (you start it, in an IDE). Just want it running without a container and without babysitting a terminal command yourself → `mode: local` (BrickKit detects the start command, launches it, supervises it). Both are Docker-only, both pinned like `mode: enabled` |
+| A user asks "why can't `brickkit down` stop my `mode: local` component" | By design — `down` only ever touches containers; a `mode: local` process belongs to whichever terminal ran `up` and is only ever reachable from there. `status`/`down`/`graph` all print a hint naming that session's PID when one is running, but none of them can reach across into it |
+| A `mode: local` component crashes and the summary is too noisy (or not noisy enough) | `--crash-lines N` on `brickkit up` controls how many of the process's own recent output lines the crash summary keeps (default 20, `0` = exit reason only) |
 | Discussing signing | The publisher needs **cosign** installed; **the installer doesn't** (verification uses the Go standard library) |
 | The user wants the platform to help with security review | Install implies trust. The platform only steps in after the fact with `blocked` |
 | A user asks "can I merge multiple components into one instance to save memory" | First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation. If they still want to merge: **`servedBy` (§5.7) is the supported path** — it handles address routing correctly on both Docker and K8s; everything else (module isolation, config, migrations ordering inside the shell) is still their own code, see the shell implementer's guide. `mode: disable` is unrelated to this — it still can't be used as a "I'm taking this over myself" switch |

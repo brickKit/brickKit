@@ -165,6 +165,7 @@ It reads what `up --dry-run` reads — `brickkit.yaml` and every component's Man
 | Dashed arrow `A -.-> B` | A has an **optional** dependency on B. If no source has B it's still drawn, as an orange dashed box labelled `id@version` and `not installed` — the same fact `up --dry-run` prints as `(optional, not installed)`, and the answer to "why isn't this address injected?" |
 | Grey box | A component that won't start this time: turned off with `mode: disable`, or no running component above it needs it (AGENTS.md §5.4) |
 | Light-blue box | A `mode: debug` component. It always runs — `debug` is pinned like `mode: enabled` (AGENTS.md §5.4) — so it is never grey |
+| Green box | A `mode: local` component: the other bare-process mode, where BrickKit itself detects the start command and launches and supervises the process instead of you starting it. A second line reads `managed locally`, followed by `:<port>` when `localPort` is written; with no `localPort` the port is only chosen later, by `up`, same as `mode: debug`. It always runs — pinned like `mode: enabled` — so it is never grey |
 | A titled box, `Shell: id@version`, around some components | Those components are folded into another component's process with `servedBy` (AGENTS.md §5.7), and the title names that shell. The shell itself is an ordinary box outside it. If the shell isn't in the project the group is drawn anyway — reporting a missing target is `up`'s job |
 
 Arrows are drawn whether or not the component at the other end starts: the picture shows the structure you *declared*, and colour shows whether each part starts, so the two never get mixed up.
@@ -228,6 +229,31 @@ graph TD
     people_basic_1_0_0 -.-> infra_redis_event_bus_1_0_0
     classDef local fill:#e6f2ff,stroke:#3673a8;
     class department_tree_1_0_0 local
+    classDef missing fill:#fff4e5,stroke:#c77700,stroke-dasharray:4 3;
+    class infra_redis_event_bus_1_0_0 missing
+```
+
+`mode: local` gets the same treatment, in green, with its own wording — write `mode: local` in place of `mode: debug`:
+
+```yaml
+components:
+  - id: department/tree
+    version: 1.0.0
+    mode: local
+    localPort: 8081
+  - id: people/basic
+    version: 1.0.0
+```
+
+```mermaid
+graph TD
+    department_tree_1_0_0["department/tree@1.0.0<br/>managed locally :8081"]
+    people_basic_1_0_0["people/basic@1.0.0"]
+    infra_redis_event_bus_1_0_0["infra/redis-event-bus@1.0.0<br/>not installed"]
+    people_basic_1_0_0 --> department_tree_1_0_0
+    people_basic_1_0_0 -.-> infra_redis_event_bus_1_0_0
+    classDef managed fill:#e6ffe6,stroke:#2e8b57;
+    class department_tree_1_0_0 managed
     classDef missing fill:#fff4e5,stroke:#c77700,stroke-dasharray:4 3;
     class infra_redis_event_bus_1_0_0 missing
 ```
@@ -605,7 +631,11 @@ injecting environment variables and merging resource quotas → generates
 `local-debug.<versioned-service-name>.env` for any `mode: debug` component →
 checks image-pull permissions (prompts `docker login` if unauthorized) →
 invokes the underlying engine, running any declared migration in a one-shot
-container first and blocking the main service on its failure.
+container first and blocking the main service on its failure → if the
+project has any `mode: local` components, detects each one's start command
+and launches and supervises them in the foreground (AGENTS.md §5.6) — with
+no containers at all to start, this last step runs on its own, skipping the
+engine call entirely.
 
 Changing a component's version in `brickkit.yaml` **is** an upgrade — `up`
 pulls the new Manifest and artifacts and runs the same compatibility checks
@@ -618,6 +648,7 @@ as a fresh install.
 | `--dry-run` | off | Generate the deployment files and print the plan (cascade decision, start order, resource-binding warnings, dependency graph) without starting anything. On an upgrade, also prints a summary of what changed |
 | `--context` | (from `deploy.context`) | Override which kubeconfig context to deploy to for this one run. K8s only — meaningless (and rejected) under `deploy.target: docker` |
 | `--ignore-served-by` | off | Clear every `servedBy` declaration in memory and run again — a formerly-absorbed member gets generated and started as a standalone component this time, for machine-checking the design principle that every component must be able to `brickkit up` on its own. Never writes back to `brickkit.yaml`; stack it with `--dry-run` to only inspect the generated output, or run it alone for a real standalone start |
+| `--crash-lines` | `20` | How many lines of a crashed `mode: local` component's own recent output to keep in the crash summary printed when `up` finishes. `0` prints the exit reason (component, exit code or signal, how long it ran) with no output lines at all. Passing it explicitly on a project with no `mode: local` components at all warns `--crash-lines has no effect: this project has no mode: local components` — the default value never triggers this, only an explicit flag does. And regardless of the value, a clean exit (`Ctrl+C`, or the process stopping on its own with code `0`) prints nothing extra — there is no "crash" to summarize |
 
 **Example** (real project: `people/basic` depending on `department/tree`, a
 missing optional dependency, and no `resources:` bound yet)
@@ -670,7 +701,14 @@ telling you).
 brickkit up --config brickkit.prod.yaml   # act on a non-default environment file
 brickkit up --context prod-cluster        # target a specific kubeconfig context for this run (k8s only)
 brickkit up --ignore-served-by --dry-run  # verify: can these components still generate standalone without servedBy?
+brickkit up --crash-lines 0               # a mode: local crash summary prints only the exit reason, no output lines
 ```
+
+**A `mode: local` component prints no summary until `up` itself finishes** — because it can only
+know whether that component crashed once its process has actually exited, and `up` stays in the
+foreground supervising it for as long as it runs. A hands-on walkthrough with real output — the
+detected start command, the live streaming output, another terminal's `status`/`graph`/`down`, and
+a clean `Ctrl+C` — is [Run a component locally, hands-off](../03-guide/04-local-execution.md).
 
 ---
 
@@ -690,6 +728,16 @@ these," except the intent is now recorded in `brickkit.yaml`, so the next
 **`down` never deletes volumes — database data always survives it.** Wipe
 it deliberately with `docker volume rm` or `docker compose down -v` if you
 actually want to.
+
+**It cannot reach a `mode: local` component.** That process belongs to whichever terminal ran
+`brickkit up` and started supervising it — there is no engine `down` can ask to stop it, the way
+there is for a container. When a local session is running, `down` still stops every container the
+project has, but adds a line naming that session instead of silently leaving the process running
+unexplained:
+
+```
+💡 This project has a local session running (PID 12345) — go to that terminal, or Ctrl+C it there
+```
 
 **Flags**
 
@@ -734,6 +782,20 @@ $ brickkit status
 📋 No components are running (perhaps brickkit down was already run)
    Start again with: brickkit up
 ```
+
+**`mode: local` components never appear in that table** — they aren't containers, so there's no
+engine state to query for them — but `status` doesn't stay silent about one either. If a `mode: local`
+session is running (in another terminal, from an earlier `brickkit up`), it appends one line naming
+the PID, the same hint `down` prints:
+
+```
+💡 This project has a local session running (PID 12345) — go to that terminal, or Ctrl+C it there
+```
+
+That hint is the only thing that lets a *second* terminal know a local session exists at all — a
+small session-lock file under `.brickkit/`, created the moment `up` starts supervising a
+`mode: local` component and released when it stops, is what `status` checks. A project with no
+`mode: local` components in `brickkit.yaml` never even looks for that lock file.
 
 ---
 

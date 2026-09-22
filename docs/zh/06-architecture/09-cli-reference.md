@@ -155,6 +155,7 @@ brickkit skills update    # 刷新到当前 CLI 版本
 | 虚线箭头 `A -.-> B` | A **弱依赖** B。如果所有安装源里都没有 B，它照样会被画出来：一个橙色虚线框，标签是 `id@版本` 加 `未安装`——这正是 `up --dry-run` 里写作 `（弱，未安装）` 的那件事，也是"为什么这个地址没被注入"的答案 |
 | 灰色方框 | 这次不会启动的组件：被 `mode: disable` 关掉了，或者上面没有任何在跑的组件需要它（AGENTS.zh.md §5.4） |
 | 浅蓝色方框 | `mode: debug` 组件。它一定在跑——`debug` 跟 `mode: enabled` 一样是钉住的（AGENTS.zh.md §5.4）——所以永远不会是灰色 |
+| 绿色方框 | `mode: local` 组件：同一个裸进程大类下的另一种模式，由 BrickKit 自己探测启动命令、拉起并监管这个进程，不用你自己启动。标签会多一行 `托管本地`；写了 `localPort` 的话后面再带 `:<端口>`，没写就跟 `mode: debug` 一样，端口留给 `up` 以后再选。它一定在跑——跟 `mode: enabled` 一样是钉住的——所以永远不会是灰色 |
 | 带标题 `外壳：id@版本` 的大框，框住一些组件 | 这些组件用 `servedBy` 并进了另一个组件的进程里（AGENTS.zh.md §5.7），标题写的就是那个外壳。外壳自己是框外一个普通方框。`servedBy` 指向的外壳不在项目里时，这个分组照样画出来——目标不存在由 `up` 去报 |
 
 箭头总是画出来，不管另一头这次有没有启动：图展示的是你**声明**的结构，"启动与否"用颜色表达，两件事不混在一起。
@@ -218,6 +219,31 @@ graph TD
     people_basic_1_0_0 -.-> infra_redis_event_bus_1_0_0
     classDef local fill:#e6f2ff,stroke:#3673a8;
     class department_tree_1_0_0 local
+    classDef missing fill:#fff4e5,stroke:#c77700,stroke-dasharray:4 3;
+    class infra_redis_event_bus_1_0_0 missing
+```
+
+`mode: local` 待遇一样，只是换成绿色，措辞也不同——把 `mode: debug` 换成 `mode: local`：
+
+```yaml
+components:
+  - id: department/tree
+    version: 1.0.0
+    mode: local
+    localPort: 8081
+  - id: people/basic
+    version: 1.0.0
+```
+
+```mermaid
+graph TD
+    department_tree_1_0_0["department/tree@1.0.0<br/>托管本地 :8081"]
+    people_basic_1_0_0["people/basic@1.0.0"]
+    infra_redis_event_bus_1_0_0["infra/redis-event-bus@1.0.0<br/>未安装"]
+    people_basic_1_0_0 --> department_tree_1_0_0
+    people_basic_1_0_0 -.-> infra_redis_event_bus_1_0_0
+    classDef managed fill:#e6ffe6,stroke:#2e8b57;
+    class department_tree_1_0_0 managed
     classDef missing fill:#fff4e5,stroke:#c77700,stroke-dasharray:4 3;
     class infra_redis_event_bus_1_0_0 missing
 ```
@@ -575,7 +601,9 @@ Manifest → 启停判定（跟着上层走：顶层组件没写 `mode` 就默�
 资源配额 → 给任何 `mode: debug` 组件生成
 `local-debug.<版本化服务名>.env` → 检测镜像拉取权限（未授权时提示
 `docker login`）→ 调用底层引擎，先跑一次性容器执行声明的迁移，失败则阻
-断主服务。
+断主服务 → 如果项目里有 `mode: local` 组件，探测每一个的启动命令、
+在前台拉起并监管它们（AGENTS.zh.md §5.6）——一个容器都不用起时，这最
+后一步会跳过引擎，自己单独跑。
 
 改 `brickkit.yaml` 里某个组件的版本号**就是**升级——`up` 会拉新的
 Manifest 和产物，跑一遍跟全新安装一样的兼容性检查。
@@ -587,6 +615,7 @@ Manifest 和产物，跑一遍跟全新安装一样的兼容性检查。
 | `--dry-run` | 关闭 | 只生成部署文件并打印计划（启停判定、启动顺序、资源绑定警告、依赖图），不启动任何东西。升级场景下还会额外打印一份变更摘要 |
 | `--context` | （取 `deploy.context`） | 本次运行覆盖要部署到哪个 kubeconfig 上下文。仅 k8s 有意义——`deploy.target: docker` 下写这个参数会被拒绝 |
 | `--ignore-served-by` | 关闭 | 内存里清空全部 `servedBy` 声明再跑一次，原本被收编的成员这次当独立组件生成、启动——用来机器化验证"每个组件必须能独立 `brickkit up` 起来"这条设计原则。从不写回 `brickkit.yaml`，可以跟 `--dry-run` 叠加（只看生成结果）也可以单独用（真实启动一遍）|
+| `--crash-lines` | `20` | 一个崩溃的 `mode: local` 组件，它自己最近的输出在崩溃摘要里留多少行——摘要在 `up` 结束时打印。`0` 只打印退出原因（组件、退出码或信号、跑了多久），一行输出都不留。项目里根本没有 `mode: local` 组件时显式传这个参数会警告 `--crash-lines 不起作用：这个项目没有 mode: local 组件`——用默认值不会触发这条警告，只有显式传参才会。而且不管这个值是多少，体面退出（`Ctrl+C`，或者进程自己以 `0` 退出）都不会多打印任何东西——没有"崩溃"可总结 |
 
 **示例**（真实项目：`people/basic` 依赖 `department/tree`，有一个缺失的
 弱依赖，还没绑定任何 `resources:`）
@@ -638,7 +667,13 @@ AGENTS.zh.md §5.4 说的"每一条启停决定都带着理由"这条性质。�
 brickkit up --config brickkit.prod.yaml   # 对非默认环境的配置文件生效
 brickkit up --context prod-cluster        # 本次运行指定某个 kubeconfig 上下文（仅 k8s）
 brickkit up --ignore-served-by --dry-run  # 验证：去掉 servedBy 之后这些组件还能不能各自独立生成部署文件
+brickkit up --crash-lines 0               # mode: local 的崩溃摘要只打退出原因，不带输出行
 ```
+
+**`mode: local` 组件的摘要要等 `up` 自己结束才会打印**——因为只有进程真的退出了，才知道它到底
+是不是崩了，而 `up` 会在前台一直盯着它跑，跑多久就等多久。带真实输出的上手教程——探测出的
+启动命令、实时的输出流、另一个终端的 `status`/`graph`/`down`、体面的 `Ctrl+C`——是
+[让一个组件在本地跑起来，不用你操心](../03-guide/04-local-execution.md)。
 
 ---
 
@@ -654,6 +689,14 @@ brickkit up --ignore-served-by --dry-run  # 验证：去掉 servedBy 之后这�
 
 **`down` 从不删除 volume——数据库数据永远保留。** 真想清掉，手动
 `docker volume rm` 或 `docker compose down -v`。
+
+**它够不到一个 `mode: local` 组件。** 那个进程属于跑 `brickkit up` 并开始监管它的那个终端——
+不像容器，没有引擎可以让 `down` 去请求停止它。本地会话在跑时，`down` 照样会停掉这个项目
+的每一个容器，但会多打一行点名那个会话，而不是悄悄留下一个解释不清的进程：
+
+```
+💡 这个项目有一个本地会话在跑（PID 12345）——去那个终端看，或者在那边 Ctrl+C
+```
 
 **参数**
 
@@ -696,6 +739,18 @@ $ brickkit status
 📋 没有正在运行的组件（可能已经 brickkit down 过）
    重新启动：brickkit up
 ```
+
+**`mode: local` 组件从不出现在这张表里**——它们不是容器，没有引擎状态可查——但 `status`
+也不会对它彻底沉默。如果有一个 `mode: local` 会话在跑（在另一个终端里，来自更早的一次
+`brickkit up`），会多打一行点名那个 PID，跟 `down` 打的是同一句提示：
+
+```
+💡 这个项目有一个本地会话在跑（PID 12345）——去那个终端看，或者在那边 Ctrl+C
+```
+
+这句提示是唯一能让**第二个**终端知道本地会话存在的东西——`.brickkit/` 下一份小小的会话锁
+文件，`up` 一开始监管 `mode: local` 组件就创建，它停下来就释放，`status` 查的就是这个文件。
+`brickkit.yaml` 里没有任何 `mode: local` 组件的项目，压根不会去找这份锁文件。
 
 ---
 

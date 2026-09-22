@@ -43,6 +43,7 @@ The diagram deliberately draws the CLI with a dashed line, boxed off in its own 
 | Optional Dependency | Nice to have, but the component can get by without it (`optional: true`); missing → only a warning, and **the env var is not injected at all** (not injected as an empty string) |
 | Versioned Service Name | A service name carrying an exact version, e.g. `people-basic-1-0-0`: two versions are two different names and can run side by side |
 | Local Debug Mode | `mode: debug`: one component runs on your own machine (in an IDE with breakpoints, say) while the other components in containers can still find it |
+| Local Managed Mode | `mode: local`: BrickKit itself detects how to start the component, runs it as a bare process on your own machine, and supervises it — hands-off, no IDE needed |
 | Source | Where a component comes from: the marketplace (HTTP) / a Git repo / a local directory |
 | Resource | External systems a component depends on (databases, Redis, etc.): deployed by ops, declared and bound in `brickkit.yaml` |
 | Env Injection | When generating deployment files, the CLI writes dependency addresses, resource connections and the component's own config into environment variables and hands them to the component |
@@ -85,6 +86,7 @@ And the variable *name* carrying no version is exactly what that right-hand deri
 | `mode: enabled` | Always runs | Ignores what's above it. If its required dependencies are turned off, it errors (two conflicting intents) |
 | `mode: disable` | Never runs | Whatever depends on it stops too |
 | `mode: debug` | Always runs, as a process you start yourself | Pinned exactly like `mode: enabled`, but no container is generated: you run it on your own machine, in an IDE (Docker only — [Article 3](03-guide/03-local-debugging.md)) |
+| `mode: local` | Always runs, as a process BrickKit starts and supervises itself | Pinned exactly like `mode: enabled`, but no container is generated: BrickKit detects the start command, launches it, and supervises it — no IDE needed (Docker only — [Article 4](03-guide/04-local-execution.md)) |
 
 A lower-level component shared by multiple upstream components keeps running as long as at least one of them still needs it — it's never accidentally taken down. This is also why `brickkit add` never writes a `mode` field on its own: leaving it unwritten already means "follow the top."
 
