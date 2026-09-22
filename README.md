@@ -14,23 +14,22 @@
 
 BrickKit is a **declarative component assembly platform**: you say which
 components exist and what they depend on, and the CLI derives everything else —
-startup order, service addresses, environment variables, Docker Compose or
-Kubernetes manifests, network policies — then hands off to Docker or Kubernetes
-and exits. No registry, no config center, no gateway, no resident process.
+startup order, service addresses, environment variables, deployment manifests,
+network policies — then hands off to Docker or Kubernetes and exits. No
+registry, no config center, no gateway, no resident process.
 
-Each component is an independent domain unit, developed, tested, deployed, and
-called on its own. Because nothing outside a component ever depends on more
-than its Manifest and its published contract — never its internals — the
-implementation behind that contract can be replaced or rewritten at any time,
-in any language, and nothing else in the system has to change. The design
-leans on ideas engineers already trust.
+Each component is an independent domain unit — developed, tested, deployed, and
+called on its own. A component only depends on another's Manifest and published
+contract, never its internals, so the implementation behind that contract can be
+replaced or rewritten at any time, in any language, and nothing else in the
+system has to change.
 
 **AI-friendly, and a natural fit for AI-assisted development.** A component is
 small enough for an AI to read whole, its boundary is a contract file rather than
 a guess, and everything an AI would otherwise have to invent — service addresses,
 variable names, deployment files — is derived. Wiring mistakes surface at
-`brickkit up --dry-run`, before anything starts, and `brickkit init` installs AI
-assistant skills into the project.
+`brickkit up --dry-run`, and `brickkit init` installs AI assistant skills into
+the project.
 
 </div>
 
