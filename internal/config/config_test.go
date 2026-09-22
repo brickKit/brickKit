@@ -203,7 +203,7 @@ resources: []
 // 5.4 / 5.5 / 5.6 mode 四种写法
 // ============================================================
 
-func TestModeFourStates(t *testing.T) {
+func TestModeFiveStates(t *testing.T) {
 	c, err := ParseConfig([]byte(`
 project: my-project
 deploy:
@@ -220,13 +220,17 @@ components:
   - id: d/debug
     version: 1.0.0
     mode: debug
+  - id: e/local
+    version: 1.0.0
+    mode: local
 resources: []
 `), "brickkit.yaml")
 	require.NoError(t, err)
 
-	pinned, dflt, disabled, debug := c.Components[0], c.Components[1], c.Components[2], c.Components[3]
+	pinned, dflt, disabled, debug, local :=
+		c.Components[0], c.Components[1], c.Components[2], c.Components[3], c.Components[4]
 
-	// 四种写法直接由字符串表达，解析器要把"没写"（空字符串）与显式值分开——
+	// 五种写法直接由字符串表达，解析器要把"没写"（空字符串）与显式值分开——
 	// 混成同一个零值的话，跟着上层走的组件会全部变成一定不跑
 	assert.Equal(t, ModeEnabled, pinned.Mode)
 	assert.True(t, pinned.IsPinned(), "mode: enabled → 一定跑")
@@ -242,6 +246,10 @@ resources: []
 	assert.Equal(t, ModeDebug, debug.Mode)
 	assert.True(t, debug.IsPinned(), "mode: debug → 一定跑（要盯着它调试）")
 	assert.False(t, debug.IsDisabled())
+
+	assert.Equal(t, ModeLocal, local.Mode)
+	assert.True(t, local.IsPinned(), "mode: local → 一定跑（brickkit 自己拉起）")
+	assert.False(t, local.IsDisabled())
 }
 
 // ============================================================
@@ -958,7 +966,7 @@ func TestValidateComponentMode(t *testing.T) {
 		{
 			name:    "mode 非法取值报错",
 			yaml:    "project: p\ndeploy:\n  target: docker\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: bogus\n",
-			wantErr: []string{"mode", "enabled", "disable", "debug"},
+			wantErr: []string{"mode", "enabled", "disable", "debug", "local"},
 		},
 		{
 			name:    "mode: debug 配 docker 合法",
@@ -974,6 +982,16 @@ func TestValidateComponentMode(t *testing.T) {
 			name:    "mode: enabled 配 k8s 合法",
 			yaml:    "project: p\ndeploy:\n  target: k8s\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: enabled\n",
 			wantErr: nil,
+		},
+		{
+			name:    "mode: local 配 docker 合法",
+			yaml:    "project: p\ndeploy:\n  target: docker\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: local\n",
+			wantErr: nil,
+		},
+		{
+			name:    "mode: local 配 k8s 报错",
+			yaml:    "project: p\ndeploy:\n  target: k8s\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: local\n",
+			wantErr: []string{"mode", "k8s"},
 		},
 	}
 	for _, tc := range cases {
@@ -1003,6 +1021,7 @@ func TestComponentModeHelpers(t *testing.T) {
 		{"enabled 钉住", ModeEnabled, false, true},
 		{"disable 关闭", ModeDisable, true, false},
 		{"debug 钉住", ModeDebug, false, true},
+		{"local 钉住", ModeLocal, false, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

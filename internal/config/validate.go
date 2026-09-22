@@ -226,13 +226,13 @@ func (c *Config) validateComponents(p *clierr.ProblemSet) {
 // 拿到这个错误，不用等真正生成部署文件。
 func (c *Config) validateComponentMode(p *clierr.ProblemSet, field string, item Component) {
 	switch item.Mode {
-	case "", ModeEnabled, ModeDisable, ModeDebug:
+	case "", ModeEnabled, ModeDisable, ModeDebug, ModeLocal:
 		// 合法取值
 	default:
 		p.Add(field+".mode", i18n.T(msgid.ConfigModeInvalid, item.Mode))
 		return
 	}
-	if item.Mode == ModeDebug && c.Deploy.Target == TargetK8s {
+	if (item.Mode == ModeDebug || item.Mode == ModeLocal) && c.Deploy.Target == TargetK8s {
 		p.Add(field+".mode", i18n.T(msgid.ConfigModeK8sUnsupported, item.Mode))
 	}
 }
@@ -244,7 +244,7 @@ func (c *Config) validateComponentPorts(
 	// ---- 本地调试（003 §4.4）----
 	if item.LocalPort != 0 {
 		switch {
-		case item.Mode != ModeDebug:
+		case item.Mode != ModeDebug && item.Mode != ModeLocal:
 			p.Add(field+".localPort", i18n.T(msgid.ConfigLocalPortNeedsLocal))
 		case item.LocalPort < MinPort || item.LocalPort > MaxPort:
 			p.Add(field+".localPort", i18n.T(msgid.ProblemPortOutOfRange, MinPort, MaxPort, item.LocalPort))
@@ -304,7 +304,7 @@ func (c *Config) validateServedBy(p *clierr.ProblemSet) {
 		}
 		field := indexed("components", i) + ".servedBy"
 
-		if item.Mode == ModeDebug {
+		if item.Mode == ModeDebug || item.Mode == ModeLocal {
 			p.Add(field, i18n.T(msgid.ConfigServedByWithLocal))
 			continue
 		}
@@ -332,7 +332,7 @@ func (c *Config) validateServedBy(p *clierr.ProblemSet) {
 	}
 
 	for i, item := range c.Components {
-		if item.Mode == ModeDebug && servedByTarget[item.Ref()] {
+		if (item.Mode == ModeDebug || item.Mode == ModeLocal) && servedByTarget[item.Ref()] {
 			p.Add(indexed("components", i)+".mode", i18n.T(msgid.ConfigServedByTargetLocal, item.Ref()))
 		}
 	}
@@ -597,7 +597,7 @@ func validateReplicas(p *clierr.ProblemSet, field string, item Component) {
 		return
 	}
 	// 下面这条只在 >= 1 时才有意义：0 已经报过一次，再报只是噪音
-	if item.Mode == ModeDebug {
+	if item.Mode == ModeDebug || item.Mode == ModeLocal {
 		p.Add(name, i18n.T(msgid.ConfigReplicasWithLocal))
 	}
 }

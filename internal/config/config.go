@@ -243,6 +243,7 @@ const (
 	ModeEnabled = "enabled"
 	ModeDisable = "disable"
 	ModeDebug   = "debug"
+	ModeLocal   = "local"
 )
 
 // Component 是 components 列表中的一个条目（003 §4.1）。
@@ -254,9 +255,11 @@ type Component struct {
 	Version string `yaml:"version" jsonschema:"pattern=^[0-9]+[.][0-9]+[.][0-9]+$"`
 	// Mode 取代了 Enabled/Local 两个字段（mode 字段迁移设计）：
 	// ""（未写）= 跟随上层，走容器；"enabled" = 钉住，走容器；
-	// "disable" = 钉住不跑；"debug" = 裸进程，用户自己启动。
-	// 校验器负责按 deploy.target 决定这四个取值里哪些合法（k8s 下只认前三个）。
-	Mode      string `yaml:"mode,omitempty" jsonschema:"enum=enabled|disable|debug"`
+	// "disable" = 钉住不跑；"debug" = 裸进程，用户自己启动；
+	// "local" = 裸进程，brickkit 自己拉起（Plan 4b 起才真正启动，Plan 4a 只保证
+	// 这个取值本身合法、生成阶段安全跳过）。
+	// 校验器负责按 deploy.target 决定这五个取值里哪些合法（k8s 下只认前三个）。
+	Mode      string `yaml:"mode,omitempty" jsonschema:"enum=enabled|disable|debug|local"`
 	LocalPort int    `yaml:"localPort,omitempty"`
 	// ServedBy 表示这个组件的工作负载由另一个组件条目提供（外壳合并部署，
 	// servedBy 设计书）。声明了它的组件不生成自己的容器/迁移 Job，但平台
@@ -320,9 +323,12 @@ func (c Component) ReplicaCount() int {
 // 配置里没有的组件，查法不一样。
 func (c Component) IsDisabled() bool { return c.Mode == ModeDisable }
 
-// IsPinned 表示这个组件被钉死一定要跑：mode: enabled 或 mode: debug 都算——
-// 写 debug 就是要盯着它调试，跟 enabled 一样不能被 cascade 判定为"没人需要就不跑"。
-func (c Component) IsPinned() bool { return c.Mode == ModeEnabled || c.Mode == ModeDebug }
+// IsPinned 表示这个组件被钉死一定要跑：mode: enabled、mode: debug、mode: local
+// 都算——不管有没有别的组件依赖它，这三种写法都是"我就是要它跑"的明确意图，
+// 不能被 cascade 判定为"没人需要就不跑"。
+func (c Component) IsPinned() bool {
+	return c.Mode == ModeEnabled || c.Mode == ModeDebug || c.Mode == ModeLocal
+}
 
 // Ref 返回 <组件ID>@<版本> 形式，用于日志与错误提示。
 func (c Component) Ref() string { return c.ID + "@" + c.Version }

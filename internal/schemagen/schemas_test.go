@@ -658,15 +658,14 @@ func constraintCases() []constraintCase {
 			// mode 不必填，schema 的 enum 因此带着 null（显式写 null 等于没写）。
 			// "" 在 yaml 里与没写无法区分，校验器放行它，而 schema 不该把 "" 当成一个可选的取值
 			// 推荐给人——所以点名成 validatorOnly。
-			// debug 只在 docker 下合法，基准里的 k8s 要换掉，component 上也得有一行 mode 才有落脚点。
-			// "local" 是留给以后的保留值：现在写它必须被拒绝，而不是悄悄当成别的意思。
+			// debug/local 只在 docker 下合法，基准里的 k8s 要换掉，component 上也得有一行 mode 才有落脚点。
 			name: "components[0].mode", doc: "project", schemaPath: "components[]/mode",
 			baseline: strings.Replace(strings.Replace(baselineProject, "target: k8s", "target: docker", 1),
 				"    version: 1.0.0\n", "    version: 1.0.0\n    mode: enabled\n", 1),
 			dataPath: []any{"components", 0, "mode"}, errField: "components[0].mode",
-			valid:         []any{config.ModeEnabled, config.ModeDisable, config.ModeDebug, nil},
+			valid:         []any{config.ModeEnabled, config.ModeDisable, config.ModeDebug, config.ModeLocal, nil},
 			validatorOnly: []any{""},
-			invalid:       []any{"local", "Enabled", "disabled", "debugging", "docker"},
+			invalid:       []any{"Enabled", "disabled", "debugging", "docker"},
 		},
 		{
 			name: "deployment.type", doc: "component", schemaPath: "deployment/type",

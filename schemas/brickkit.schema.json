@@ -54,6 +54,7 @@
               "enabled",
               "disable",
               "debug",
+              "local",
               null
             ],
             "type": [
