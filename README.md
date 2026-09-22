@@ -65,6 +65,25 @@ assistant skills into the project.
 
 ---
 
+## In terms you already know
+
+| BrickKit | Roughly equivalent to |
+| --- | --- |
+| BrickKit CLI | `npm` + `helm` + `docker compose` + `git clone`, but for **business components** |
+| BrickKit Market | npmjs.com / Docker Hub / an app store |
+| Component | an npm package / a Docker image |
+| `component.yaml` | `package.json` |
+| `brickkit.yaml` | the declarative input, the role `docker-compose.yaml` plays for Compose |
+| `brickkit add` | `npm install` |
+| `brickkit up` | `docker compose up -d` / `kubectl apply` |
+
+The essential difference: npm installs a code library; BrickKit installs a
+**business service that can run on its own**. So it also has to handle
+dependency resolution, deployment-file generation, address injection, database
+migration, and startup ordering.
+
+---
+
 ## Core capabilities
 
 ### Incremental construction
@@ -115,6 +134,64 @@ The only trace of the platform in a component's code is
 `os.environ.get("XXX_ENDPOINT")`.
 
 Delete that one environment-variable read and the component runs anywhere.
+
+---
+
+## One-minute tour
+
+```bash
+brickkit init my-shop                 # create a project
+brickkit add erp/backend@1.0.0        # pull the entire dependency tree in one shot
+brickkit up --dry-run                 # preview the startup order (topological sort)
+brickkit up                           # generate deployment files → run migrations → start containers
+```
+
+One `add` pulls every dependency. One `up` turns the declaration into running
+containers — or into Kubernetes manifests, by changing a single field:
+
+```yaml
+deploy:
+  target: k8s        # was: docker
+```
+
+Not a single line of component code changes: addressing is identical in both
+environments, always `http://<versioned-service-name>:<port>` (for example
+`http://people-basic-1-0-0:8080`).
+
+**16 commands, plus `version` and `lang`:** `init` `skills` `graph` `lint` `new` `add` `remove`
+`fetch` `up` `down` `status` `sync` `restore` `login` `logout` `publish`
+
+Want to actually run it? The [5-minute Quick Start](docs/en/00-quick-start.md)
+walks this exact path with the repository's own test fixture — every command
+and every output block is real.
+
+---
+
+## What it deliberately doesn't do
+
+This list matters as much as the capabilities above — these aren't things
+that are "not built yet," they are things that were **argued through and
+rejected**:
+
+| Doesn't do | Which means you... |
+| --- | --- |
+| Service registry / address book | Don't need to learn Eureka/Consul/Nacos — DNS is the service discovery |
+| A long-running daemon / control plane | No background process to operate, no port to open, no single point of failure |
+| Health-check polling | Don't have to tune polling intervals or failure thresholds yourself — Kubernetes probes / Compose healthchecks already do this natively |
+| API gateway / service mesh | Don't need to maintain a platform-level Kong/Traefik config — components talk to each other directly over DNS |
+| Config center / dynamic hot-reload | Don't need to run Apollo/Nacos Config — change `brickkit.yaml`, then `brickkit up` |
+| Circuit breaking / rate limiting / degradation | Aren't constrained by a platform-wide default policy — that complexity is your component's own business logic |
+| Version ranges (`^1.0.0`) | Never deal with the production incidents implicit upgrades cause — exact versions are the contract |
+| Multi-environment overlay inheritance | Don't need to reason about "base layer / override layer / merge rules" — each environment is one complete, self-contained config, and a Git diff shows you everything |
+| Multi-tenancy | Aren't boxed in by a platform-imposed isolation model — each component decides its own isolation strategy |
+| Security review of third-party components | Don't wait on a platform review process — install implies trust, the same model npm and the VS Code marketplace use |
+
+> **The platform only does two jobs — connector and translator — and
+> deliberately stays out of both business logic and anything infrastructure
+> already does well.**
+
+The full reasoning behind every row lives under
+[`docs/en/06-architecture/`](https://github.com/brickKit/brickKit/tree/main/docs/en/06-architecture).
 
 ---
 
@@ -191,25 +268,6 @@ graph LR
         K --> M[(Redis)]
     end
 ```
-
----
-
-## In terms you already know
-
-| BrickKit | Roughly equivalent to |
-| --- | --- |
-| BrickKit CLI | `npm` + `helm` + `docker compose` + `git clone`, but for **business components** |
-| BrickKit Market | npmjs.com / Docker Hub / an app store |
-| Component | an npm package / a Docker image |
-| `component.yaml` | `package.json` |
-| `brickkit.yaml` | the declarative input, the role `docker-compose.yaml` plays for Compose |
-| `brickkit add` | `npm install` |
-| `brickkit up` | `docker compose up -d` / `kubectl apply` |
-
-The essential difference: npm installs a code library; BrickKit installs a
-**business service that can run on its own**. So it also has to handle
-dependency resolution, deployment-file generation, address injection, database
-migration, and startup ordering.
 
 ---
 
@@ -321,64 +379,6 @@ rm "$(command -v brickkit)"
 
 There is no global config to clean up — deleting your project directory
 removes everything else.
-
----
-
-## One-minute tour
-
-```bash
-brickkit init my-shop                 # create a project
-brickkit add erp/backend@1.0.0        # pull the entire dependency tree in one shot
-brickkit up --dry-run                 # preview the startup order (topological sort)
-brickkit up                           # generate deployment files → run migrations → start containers
-```
-
-One `add` pulls every dependency. One `up` turns the declaration into running
-containers — or into Kubernetes manifests, by changing a single field:
-
-```yaml
-deploy:
-  target: k8s        # was: docker
-```
-
-Not a single line of component code changes: addressing is identical in both
-environments, always `http://<versioned-service-name>:<port>` (for example
-`http://people-basic-1-0-0:8080`).
-
-**16 commands, plus `version` and `lang`:** `init` `skills` `graph` `lint` `new` `add` `remove`
-`fetch` `up` `down` `status` `sync` `restore` `login` `logout` `publish`
-
-Want to actually run it? The [5-minute Quick Start](docs/en/00-quick-start.md)
-walks this exact path with the repository's own test fixture — every command
-and every output block is real.
-
----
-
-## What it deliberately doesn't do
-
-This list matters as much as the capabilities above — these aren't things
-that are "not built yet," they are things that were **argued through and
-rejected**:
-
-| Doesn't do | Which means you... |
-| --- | --- |
-| Service registry / address book | Don't need to learn Eureka/Consul/Nacos — DNS is the service discovery |
-| A long-running daemon / control plane | No background process to operate, no port to open, no single point of failure |
-| Health-check polling | Don't have to tune polling intervals or failure thresholds yourself — Kubernetes probes / Compose healthchecks already do this natively |
-| API gateway / service mesh | Don't need to maintain a platform-level Kong/Traefik config — components talk to each other directly over DNS |
-| Config center / dynamic hot-reload | Don't need to run Apollo/Nacos Config — change `brickkit.yaml`, then `brickkit up` |
-| Circuit breaking / rate limiting / degradation | Aren't constrained by a platform-wide default policy — that complexity is your component's own business logic |
-| Version ranges (`^1.0.0`) | Never deal with the production incidents implicit upgrades cause — exact versions are the contract |
-| Multi-environment overlay inheritance | Don't need to reason about "base layer / override layer / merge rules" — each environment is one complete, self-contained config, and a Git diff shows you everything |
-| Multi-tenancy | Aren't boxed in by a platform-imposed isolation model — each component decides its own isolation strategy |
-| Security review of third-party components | Don't wait on a platform review process — install implies trust, the same model npm and the VS Code marketplace use |
-
-> **The platform only does two jobs — connector and translator — and
-> deliberately stays out of both business logic and anything infrastructure
-> already does well.**
-
-The full reasoning behind every row lives under
-[`docs/en/06-architecture/`](https://github.com/brickKit/brickKit/tree/main/docs/en/06-architecture).
 
 ---
 

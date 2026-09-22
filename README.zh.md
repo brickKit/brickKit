@@ -55,6 +55,26 @@ BrickKit 是一个**声明式的组件拼装平台**：你声明有哪些组件�
 
 ---
 
+## 用你已经会的工具类比一下
+
+| BrickKit | 大致相当于 |
+| --- | --- |
+| BrickKit CLI | `npm` + `helm` + `docker compose` + `git clone`，但面向**业务组件** |
+| BrickKit Market（组件市场） | npmjs.com / Docker Hub / App Store |
+| Component（组件） | npm package / Docker image |
+| `component.yaml` | `package.json` |
+| `brickkit.yaml` | `docker-compose.yaml` 的「声明式输入」 |
+| `brickkit add` | `npm install` |
+| `brickkit up` | `docker compose up -d` / `kubectl apply` |
+
+区别在于：npm 装的是代码库，BrickKit 装的是**能独立跑起来的业务服务**。所以
+它同时要管依赖解析、部署文件生成、地址注入、数据库迁移和启动顺序。
+
+更熟悉 Java 生态的话，也可以把它理解成面向业务组件的 Maven/Gradle——只是它拉下来、
+管理依赖版本的不是 jar 包，而是一个个可以独立启动的完整服务。
+
+---
+
 ## 核心能力
 
 ### 渐进式构建
@@ -104,6 +124,59 @@ DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
 组件代码里唯一的平台痕迹是 `os.environ.get("XXX_ENDPOINT")`。
 
 把这个环境变量去掉，组件在任何地方都能跑。
+
+---
+
+## 一分钟看完
+
+```bash
+brickkit init my-shop                 # 创建项目
+brickkit add erp/backend@1.0.0        # 一条命令拉下整棵依赖树
+brickkit up --dry-run                 # 看启动顺序（拓扑排序）
+brickkit up                           # 生成部署文件 → 跑迁移 → 起容器
+```
+
+一次 `add` 拉下全部依赖。一次 `up` 把声明变成运行中的容器 —— 或者变成
+Kubernetes 清单，只改一个字段：
+
+```yaml
+deploy:
+  target: k8s        # 原本是 docker
+```
+
+组件代码一个字都不用改：两个环境下的地址格式完全一样，都是
+`http://<版本化服务名>:<端口>`（例如 `http://people-basic-1-0-0:8080`）。
+
+**16 条命令，外加 `version` 与 `lang`：** `init` `skills` `graph` `lint` `new` `add` `remove`
+`fetch` `up` `down` `status` `sync` `restore` `login` `logout` `publish`
+
+想动手照着跑一遍？[5 分钟 Quick Start](docs/zh/00-quick-start.md) 用仓库自带的
+测试夹具走完这整条路径，每一步都是真实命令和真实输出。
+
+---
+
+## 设计哲学：为什么这么少
+
+这份清单和上面的能力同样重要 —— 它们不是「还没做」，而是**被论证过并拒绝**的：
+
+| 不做 | 这意味着你…… |
+| --- | --- |
+| 注册中心 / 地址簿 | 不需要学 Eureka/Consul/Nacos，DNS 就是服务发现 |
+| 常驻服务 / 控制面 | 没有后台进程要运维、没有端口要开、没有单点故障 |
+| 健康检查轮询 | 不用为轮询频率、超时阈值这些运维细节操心，K8s Probe / Compose healthcheck 原生就有 |
+| API 网关 / 服务网格 | 不需要维护 Kong/Traefik 的平台级配置，组件间 DNS 直连 |
+| 配置中心 / 动态热更新 | 不需要部署 Apollo/Nacos Config，改 `brickkit.yaml` 然后 `brickkit up` |
+| 通信治理（熔断 / 限流 / 降级） | 不需要被平台的默认策略限制，业务复杂度由业务代码自己处理 |
+| 版本范围解析（`^1.0.0`） | 不需要处理「隐式升级」带来的生产事故，精确版本就是契约 |
+| 多环境 overlay / 继承合并 | 不需要理解「基础层 / 覆盖层 / 合并规则」，每个环境一份完整配置，Git diff 一目了然 |
+| 多租户 | 不需要被平台的数据隔离模型束缚，每个组件自己决定隔离策略 |
+| 第三方组件安全审查 | 不需要等平台的审核流程，安装即信任（和 npm、VS Code 插件市场同一套模型） |
+
+> **平台只做「连接器」和「翻译官」，绝不越界去做「业务逻辑」和「基础设施」已经
+> 做好的事情。**
+
+每一条的完整论证见
+[`docs/zh/06-architecture/`](https://github.com/brickKit/brickKit/tree/main/docs/zh/06-architecture)。
 
 ---
 
@@ -174,26 +247,6 @@ graph LR
         K --> M[(Redis)]
     end
 ```
-
----
-
-## 用你已经会的工具类比一下
-
-| BrickKit | 大致相当于 |
-| --- | --- |
-| BrickKit CLI | `npm` + `helm` + `docker compose` + `git clone`，但面向**业务组件** |
-| BrickKit Market（组件市场） | npmjs.com / Docker Hub / App Store |
-| Component（组件） | npm package / Docker image |
-| `component.yaml` | `package.json` |
-| `brickkit.yaml` | `docker-compose.yaml` 的「声明式输入」 |
-| `brickkit add` | `npm install` |
-| `brickkit up` | `docker compose up -d` / `kubectl apply` |
-
-区别在于：npm 装的是代码库，BrickKit 装的是**能独立跑起来的业务服务**。所以
-它同时要管依赖解析、部署文件生成、地址注入、数据库迁移和启动顺序。
-
-更熟悉 Java 生态的话，也可以把它理解成面向业务组件的 Maven/Gradle——只是它拉下来、
-管理依赖版本的不是 jar 包，而是一个个可以独立启动的完整服务。
 
 ---
 
@@ -295,59 +348,6 @@ rm "$(command -v brickkit)"
 ```
 
 没有全局配置要清 —— 删掉项目目录就等于删干净了。
-
----
-
-## 一分钟看完
-
-```bash
-brickkit init my-shop                 # 创建项目
-brickkit add erp/backend@1.0.0        # 一条命令拉下整棵依赖树
-brickkit up --dry-run                 # 看启动顺序（拓扑排序）
-brickkit up                           # 生成部署文件 → 跑迁移 → 起容器
-```
-
-一次 `add` 拉下全部依赖。一次 `up` 把声明变成运行中的容器 —— 或者变成
-Kubernetes 清单，只改一个字段：
-
-```yaml
-deploy:
-  target: k8s        # 原本是 docker
-```
-
-组件代码一个字都不用改：两个环境下的地址格式完全一样，都是
-`http://<版本化服务名>:<端口>`（例如 `http://people-basic-1-0-0:8080`）。
-
-**16 条命令，外加 `version` 与 `lang`：** `init` `skills` `graph` `lint` `new` `add` `remove`
-`fetch` `up` `down` `status` `sync` `restore` `login` `logout` `publish`
-
-想动手照着跑一遍？[5 分钟 Quick Start](docs/zh/00-quick-start.md) 用仓库自带的
-测试夹具走完这整条路径，每一步都是真实命令和真实输出。
-
----
-
-## 设计哲学：为什么这么少
-
-这份清单和上面的能力同样重要 —— 它们不是「还没做」，而是**被论证过并拒绝**的：
-
-| 不做 | 这意味着你…… |
-| --- | --- |
-| 注册中心 / 地址簿 | 不需要学 Eureka/Consul/Nacos，DNS 就是服务发现 |
-| 常驻服务 / 控制面 | 没有后台进程要运维、没有端口要开、没有单点故障 |
-| 健康检查轮询 | 不用为轮询频率、超时阈值这些运维细节操心，K8s Probe / Compose healthcheck 原生就有 |
-| API 网关 / 服务网格 | 不需要维护 Kong/Traefik 的平台级配置，组件间 DNS 直连 |
-| 配置中心 / 动态热更新 | 不需要部署 Apollo/Nacos Config，改 `brickkit.yaml` 然后 `brickkit up` |
-| 通信治理（熔断 / 限流 / 降级） | 不需要被平台的默认策略限制，业务复杂度由业务代码自己处理 |
-| 版本范围解析（`^1.0.0`） | 不需要处理「隐式升级」带来的生产事故，精确版本就是契约 |
-| 多环境 overlay / 继承合并 | 不需要理解「基础层 / 覆盖层 / 合并规则」，每个环境一份完整配置，Git diff 一目了然 |
-| 多租户 | 不需要被平台的数据隔离模型束缚，每个组件自己决定隔离策略 |
-| 第三方组件安全审查 | 不需要等平台的审核流程，安装即信任（和 npm、VS Code 插件市场同一套模型） |
-
-> **平台只做「连接器」和「翻译官」，绝不越界去做「业务逻辑」和「基础设施」已经
-> 做好的事情。**
-
-每一条的完整论证见
-[`docs/zh/06-architecture/`](https://github.com/brickKit/brickKit/tree/main/docs/zh/06-architecture)。
 
 ---
 
