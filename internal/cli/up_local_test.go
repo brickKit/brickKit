@@ -3,7 +3,9 @@ package cli
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/brickkit/brickkit/internal/compose"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/sessionlock"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
 
@@ -236,6 +239,34 @@ func localComponentPlansFor(t *testing.T, f *projectFixture, mainGo string) (*Op
 
 	opts := &Options{WorkDir: f.Dir, Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
 	return opts, plans
+}
+
+// 同一个项目不能有两个前台会话同时跑——第二个会话拿不到锁，要报错点名
+// 第一个会话的 PID，而不是安静地跟第一个会话抢同一批端口、同一份输出。
+// 用测试进程自己先拿一次锁模拟"已经有一个会话在跑"：flock 锁的是文件
+// 描述符对应的那次 open，不是进程本身，同一个进程里两次 Acquire 打开的是
+// 两个独立的文件描述符，第二次一样会被第一次挡住。
+func TestRunLocalComponentsRefusesASecondConcurrentSession(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("这台机器没有 go 工具链")
+	}
+	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
+	f := addedProject(t, comps, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    mode: local
+`)
+	opts, plans := localComponentPlansFor(t, f, "package main\n\nfunc main() {}\n")
+
+	held, err := sessionlock.Acquire(f.Layout.SessionLockPath())
+	require.NoError(t, err)
+	defer func() { _ = held.Release() }()
+
+	err = runLocalComponents(context.Background(), opts, f.Layout, plans, 20)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), strconv.Itoa(os.Getpid()), "要点名持有者的 PID")
 }
 
 func TestRunLocalComponentsStartsARealComponentAndItListens(t *testing.T) {
