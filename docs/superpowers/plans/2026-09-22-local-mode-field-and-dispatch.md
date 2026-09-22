@@ -838,26 +838,46 @@ EOF
 
 ## Self-Review Checklist（执行完 6 个任务后逐条核对）
 
-- [ ] `go test ./...` 全绿（含 `market-server/...`）
-- [ ] `go test -race` 对本计划触碰的五个包干净
-- [ ] `make check-cross-build` 退出码 0
-- [ ] `make lint` 完整跑一遍，退出码 0
-- [ ] `local:` 块三个字段全部可选，空 `local: {}` 与完全不写都合法
-- [ ] `mode: local` 通过 docker 下的校验，k8s 下被拒绝（复用 `mode: debug` 的同一条规则，`internal/k8s` 零改动）
-- [ ] `IsPinned()`、`validateComponentPorts`、`validateServedBy`（两处）、`validateReplicas` 全部把 `ModeLocal` 并列进 `ModeDebug` 的判断
-- [ ] 五条现有错误文案（`ConfigModeInvalid`/`ConfigLocalPortNeedsLocal`/`ConfigServedByWithLocal`/`ConfigServedByTargetLocal`/`ConfigReplicasWithLocal`）文字本身提到了 `mode: local`，不再只提 `mode: debug`
-- [ ] `schemagen/schemas_test.go` 里 `mode` 字段那条用例：`"local"` 在 `valid` 数组里，不在 `invalid` 数组里，注释不再自相矛盾
-- [ ] `internal/compose` 里一个 `mode: local` 组件不生成容器、不生成迁移容器，依赖方拿到正确的 `extra_hosts` 与自动分配的端口（有测试证明，不是凭读代码相信）
-- [ ] `internal/cli/up.go` 的 `collectTargets` 排除了 `mode: local`，有独立于真实引擎的测试覆盖
-- [ ] `PORT` 在 CLI 侧与市场侧的 `reservedExact` 里都出现
-- [ ] `AGENTS.md`、`docs/en/`、`docs/zh/` 没有任何改动（Plan 4d 的事）
-- [ ] `internal/k8s` 目录下没有任何改动
+- [x] `go test ./...` 全绿（含 `market-server/...`）
+- [x] `go test -race` 对本计划触碰的五个包干净
+- [x] `make check-cross-build` 退出码 0
+- [x] `make lint` 完整跑一遍，退出码 0
+- [x] `local:` 块三个字段全部可选，空 `local: {}` 与完全不写都合法
+- [x] `mode: local` 通过 docker 下的校验，k8s 下被拒绝（复用 `mode: debug` 的同一条规则，`internal/k8s` 零改动）
+- [x] `IsPinned()`、`validateComponentPorts`、`validateServedBy`（两处）、`validateReplicas` 全部把 `ModeLocal` 并列进 `ModeDebug` 的判断
+- [x] 五条现有错误文案（`ConfigModeInvalid`/`ConfigLocalPortNeedsLocal`/`ConfigServedByWithLocal`/`ConfigServedByTargetLocal`/`ConfigReplicasWithLocal`）文字本身提到了 `mode: local`，不再只提 `mode: debug`
+- [x] `schemagen/schemas_test.go` 里 `mode` 字段那条用例：`"local"` 在 `valid` 数组里，不在 `invalid` 数组里，注释不再自相矛盾
+- [x] `internal/compose` 里一个 `mode: local` 组件不生成容器、不生成迁移容器，依赖方拿到正确的 `extra_hosts` 与自动分配的端口（有测试证明，不是凭读代码相信）
+- [x] `internal/cli/up.go` 的 `collectTargets` 排除了 `mode: local`，有测试覆盖（`newFakeEngine`/`runWithEngine`），并用变异验证确认测试真的会因为漏改而变红
+- [x] `PORT` 在 CLI 侧与市场侧的 `reservedExact` 里都出现
+- [x] `AGENTS.md`、`go.mod`、`go.sum` 没有任何改动；`docs/en/`、`docs/zh/` 只改了 Task 1 那条例外（`06-architecture/07-component-yaml-reference.md` 的字段骨架表，`tests/docfields` 强制要求），没有别的改动
+- [x] `internal/k8s` 目录下没有任何改动
 
 ## Execution Handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-09-22-local-mode-field-and-dispatch.md`. Two execution options:
+已选择 Inline Execution，六个任务全部完成，见下面的执行结果。
 
-1. **Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
-2. **Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
+## 执行结果与遗留（供 Plan 4b/4c/4d 参考）
 
-选哪种？
+六个任务的提交依次是 `774cc97`（Task 1，`local:` 块）→ `5d75097`（Task 2，五态校验）→
+`f9491e0`（Task 3，compose 安全跳过）→ `effcd44`（Task 4，up.go 安全跳过）→
+`f689216`（Task 5，`PORT` 保留变量）→ 本次提交（Task 6，全量验证与收尾）。
+
+- `go test ./...` 全绿（含 `market-server/...` 单独 `go test ./...`，两个模块都跑过）。
+- `go test -race` 对本计划触碰的五个包（`manifest`/`config`/`compose`/`cli`/`inject`）干净。
+- `make check-cross-build` 通过（三平台）；`make lint` 完整跑一遍 `exit=0`，`internal` 整体覆盖率 93.4%（门槛 92%）；这台机器仍未装 golangci-lint，回退到 `go vet`。
+- Step 5 交叉核对 `grep -rn "ModeDebug" internal/ market-server/"` 的全部命中：`internal/config/validate.go`（6 处）、`internal/config/config.go`（2 处）、`internal/compose/compose.go`（1 处）、`internal/cli/up.go`（2 处，含注释）已经在 Task 1–5 里都加了 `ModeLocal`；`internal/cli/lifecycle.go`（2 处，`containerRefs`/`localRefs`）、`internal/cli/graph.go`（1 处，`brickkit graph` 的节点标签）、`internal/cli/status.go`（1 处，`degradedView` 的展示分类）三处**故意没动**——已经用一轮独立的 Explore 调研确认过：这三处只影响 `status`/`graph`/日志展示的文字，不会被拿去拼 `docker compose`/`kubectl` 的命令行参数，不存在真机命令执行失败的风险，留给 Plan 4d 一并做（`mode: local` 组件在这几个命令的输出里暂时会被当成普通容器/未分类，只是展示不准确，不是功能性缺陷）。`internal/k8s` 目录确认零命中，符合设计决定第 2 条。
+- 偏离计划的地方：
+  1. **Task 1 执行期间发现 `tests/docfields` 强制要求字段骨架表覆盖每个 Manifest 字段**——`docs/{en,zh}/06-architecture/07-component-yaml-reference.md` 补了 `local` 这一节（三行字段表 + 一段说明），否则 `make lint` 过不了。这是纯机械性的事实陈述（跟 `migration.command` 同类），不违反"不讲 `mode: local` 怎么用"这条大方向；已经在 Global Constraints 里记录成一条明确的例外，不代表文档范围排除被推翻。
+  2. **Task 3 多写了一条测试**（`TestModeLocalRespectsAnExplicitLocalPortOverride`，计划原文只提到自动分配那一条）——因为 Task 2 顺手把 `validateComponentPorts` 也放开了 `localPort` 对 `mode: local` 生效，多测一条覆盖了这条路径，不测的话这半条能力就是"改了但没验证过"。
+  3. **Task 4 的实现方式比计划草稿更好**：计划原文对"要不要能脱离真实引擎独立测试 `collectTargets`"留了一个开放判断，执行时发现 `resolver.Graph.Node()` 依赖一个只能通过真正走一遍解析才会填上的私有 `index`，手工拼 `&resolver.Graph{}` 拿不到能用的查询结果——`internal/cli` 自己的既有测试全都不这样做。改用已经在 `up_test.go` 里成熟存在的 `newFakeEngine()` + `runWithEngine()` 模式（真实解析、真实生成，只有最终的引擎调用被换成假实现），直接断言 `eng.lastUp(t).Services`，比计划草稿设想的任何一条路径都更贴近这个函数真正的历史事故（`servedBy` 那次真机 `no such service`）。写完用变异验证（临时去掉新加的判断跑一遍）确认了这条测试真的会红。
+  4. 其余四个任务（Task 2、3、5、6）按计划原文逐字执行，没有偏离。
+
+遗留，留给 Plan 4b/4c/4d：
+
+- `mode: local` 现在是语义完整但还没有人真正启动进程的合法值——写了它，`up`/`lint`/`graph`/`status`/`down` 都不会报错或生成错误产物，但这个组件暂时不会真的运行。Plan 4b 要把 `runcmd`（Plan 3）+ `procsup`/`sessionlock`（Plan 2）接进 `up` 的前台监管模式，才会真的启动它。
+- **调试挂载怎么接**：完全留给 Plan 4c，`local.debugCommand` 字段已经存在（Task 1），但没有任何代码读它。
+- `internal/cli/lifecycle.go`/`graph.go`/`status.go` 三处展示层的 `ModeDebug` 判断没有加 `ModeLocal`，Plan 4d 落地时要记得一并改，否则 `mode: local` 组件在这几个命令的输出里会被误判成普通容器或"未分类"。
+- `brickkit up --crash-lines N` 的名字/位置已在这次会话里获用户确认（只要 flag，不加环境变量），Plan 4b 写的时候直接按这个落地。
+- 仓库 `go.mod`/`go.sum` 本次没有任何改动（也没有新增依赖）。
+- 整条分支（Plan 1 + Plan 2 + Plan 3 + Plan 4a）还没合并、没推送。
