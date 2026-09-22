@@ -30,7 +30,7 @@
 | --- | --- | --- |
 | Plan 1 | `enabled` + `local` 合并成 `mode` 字段（`mode: debug` 取代 `local: true`） | 已完成，提交在 `worktree-mode-field-migration` 分支 |
 | Plan 2 | 本地进程监管：`procsup`、`sessionlock`、交叉编译守卫 | 已完成，提交在 `worktree-mode-field-migration` 分支 |
-| **Plan 3（本计划）** | 语言/启动命令自动识别：`internal/runcmd`，七个语言适配器 | 待执行 |
+| **Plan 3（本计划）** | 语言/启动命令自动识别：`internal/runcmd`，七个语言适配器 | 已完成，提交在 `worktree-mode-field-migration` 分支 |
 | Plan 4 | `mode: local` 整合：`component.yaml` 的 `local:` 块（字段、解析、校验、Schema）、调试挂载怎么接、`up` 前台监管模式、端口分配与覆盖、`PORT` 保留变量、`graph`/`status`/`down` 展示、`check-guides` 的 `local` 层、文档 | 待写 |
 
 本计划交付的是"Plan 4 可以直接调用的一个库"。`component.yaml` 的 `local:` 块解析**不在这里做**——那需要同时定下 `language`/`runCommand`/`debugCommand` 在 Manifest 里的确切字段名、JSON Schema、`brickkit lint` 校验规则，跟"`mode: local` 怎么用这些信息"是同一个决定，揉在 Plan 4 里更连贯（本计划的 `Hints` 类型就是这条边界：Plan 4 从 `local:` 块转译出 `Hints`，本包不关心那个块长什么样）。
@@ -2423,19 +2423,19 @@ EOF
 
 ## Self-Review Checklist（执行完 6 个任务后逐条核对）
 
-- [ ] `go test ./internal/runcmd/ -v` 全绿，没有任何 `SKIP`（除了这台机器本来就缺的工具链，如果有的话）
-- [ ] `go test -race -count=3 ./internal/runcmd/` 干净
-- [ ] 覆盖率 99% 以上，唯一的缺口（`filepath.Abs` 错误分支）有说明，不是漏测
-- [ ] 五个平台的 `go vet` 全部退出码 0
-- [ ] `make check-cross-build` 退出码 0
-- [ ] `make lint` 完整跑一遍，退出码 0
-- [ ] `Languages()` 返回全部七种语言，顺序固定：`go, rust, dotnet, node, java, python, ruby`
-- [ ] 手写 `RunCommand` 时完全不读文件系统（不探测），但显式声明的 `Language` 仍然带出对应的 `Env`
-- [ ] `Detect` 对不存在的目录、不是目录的路径、读不了的目录，三种情形分别返回三种不同的普通 `error`（不是本包的结构化类型），跟"认得出语言但给不出命令"（`*NoCommandError`）、"两种语言都能跑"（`*AmbiguousError`）、"language 拼错了"（`*UnknownLanguageError`）区分开
-- [ ] `internal/runcmd` 没有被 `internal/` 下任何其他包引用（`grep -rn '"github.com/brickkit/brickkit/internal/runcmd"' internal/ cmd/` 除了本包自己的测试文件之外没有命中）——这是本计划"不接线"的验收标准，跟 Plan 2 的 `procsup`/`sessionlock` 一样
-- [ ] `AGENTS.md`、`docs/en/`、`docs/zh/` 没有任何改动
-- [ ] `go.mod`、`go.sum` 没有任何改动
-- [ ] 没有写死带中文的字符串字面量在生产代码里（`go test ./tests/i18nguard/` 通过）
+- [x] `go test ./internal/runcmd/ -v` 全绿，没有任何 `SKIP`（除了这台机器本来就缺的工具链，如果有的话）
+- [x] `go test -race -count=3 ./internal/runcmd/` 干净
+- [x] 覆盖率 99% 以上，唯一的缺口（`filepath.Abs` 错误分支）有说明，不是漏测
+- [x] 五个平台的 `go vet` 全部退出码 0
+- [x] `make check-cross-build` 退出码 0
+- [x] `make lint` 完整跑一遍，退出码 0
+- [x] `Languages()` 返回全部七种语言，顺序固定：`go, rust, dotnet, node, java, python, ruby`
+- [x] 手写 `RunCommand` 时完全不读文件系统（不探测），但显式声明的 `Language` 仍然带出对应的 `Env`
+- [x] `Detect` 对不存在的目录、不是目录的路径、读不了的目录，三种情形分别返回三种不同的普通 `error`（不是本包的结构化类型），跟"认得出语言但给不出命令"（`*NoCommandError`）、"两种语言都能跑"（`*AmbiguousError`）、"language 拼错了"（`*UnknownLanguageError`）区分开
+- [x] `internal/runcmd` 没有被 `internal/` 下任何其他包引用（`grep -rn '"github.com/brickkit/brickkit/internal/runcmd"' internal/ cmd/` 除了本包自己的测试文件之外没有命中）——这是本计划"不接线"的验收标准，跟 Plan 2 的 `procsup`/`sessionlock` 一样
+- [x] `AGENTS.md`、`docs/en/`、`docs/zh/` 没有任何改动
+- [x] `go.mod`、`go.sum` 没有任何改动
+- [x] 没有写死带中文的字符串字面量在生产代码里（`go test ./tests/i18nguard/` 通过）
 
 ## Execution Handoff
 
@@ -2444,4 +2444,40 @@ Plan complete and saved to `docs/superpowers/plans/2026-09-22-run-command-detect
 1. **Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
 2. **Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
 
-选哪种？
+已选择 Inline Execution，六个任务全部完成，见下面的执行结果。
+
+## 执行结果与遗留（供 Plan 4 参考）
+
+六个任务的提交依次是 `f7d3ac8`（Task 1，驱动骨架 + Go 适配器）→ `3017c7b`（Task 2，Rust/.NET）→
+`2edc459`（Task 3，Node）→ `9d91139`（Task 4，Java）→ `b98f820`（Task 5，Python/Ruby，七个语言全部到位）→
+`f85b362`（Task 6，集成测试）。
+
+- `go test ./internal/runcmd/ -v` 全绿；`go test -race -count=3` 干净（2.3 秒）；覆盖率 99.6%
+  （唯一缺口是 `filepath.Abs` 的错误分支，计划里已说明为什么不补）。
+- 五个平台（`linux/amd64`、`linux/arm64`、`darwin/arm64`、`darwin/amd64`、`windows/amd64`）`go vet`
+  全部退出码 0；`make check-cross-build` 通过。
+- `make lint` 完整跑一遍，`exit=0`；`internal` 整体覆盖率 93.4%（门槛 92%）；这台机器仍未装
+  golangci-lint，回退到 `go vet`（跟 Plan 2 一样的已知限制，合并前要在装了它的环境再跑一次）。
+- 集成测试真的执行了（不是被跳过）：`TestADetectedGoCommandReallyRuns` 0.15s、
+  `TestADetectedNodeCommandReallyRuns` 0.20s——这台机器同时装了 `go` 和 `npm`。
+- `grep -rn '"github.com/brickkit/brickkit/internal/runcmd"' internal/ cmd/` 除本包自己之外没有
+  命中；`AGENTS.md`/`AGENTS.zh.md`/`docs/en/`/`docs/zh/`/`go.mod`/`go.sum` 在整个 Plan 3 的提交范围内
+  没有任何改动——"不接线"的验收标准全部满足。
+- 偏离计划的地方：没有。写计划时就已经拿原型代码做过一次"回放验证"（按六个 Task 的字面描述在
+  全新目录里逐步重建文件、每步都真的编译+测试），执行阶段只是把那次验证过的构造过程原样对着
+  真实仓库又走了一遍，过程中没有再发现新的问题。
+
+遗留，留给 Plan 4：
+
+- **调试挂载怎么接、`component.yaml` 的 `local:` 块怎么解析**：本计划刻意没做（"设计决定"第 1 条），
+  因为写计划期间的实验（Node 经 `npm run` 时调试端口被 npm 自己抢走、Java 经 Maven/Gradle wrapper 时
+  应用 JVM 因端口冲突直接崩溃）推翻了 spec §4 "环境变量注入就够了"这条假设，真正安全的修法要么是
+  Maven/Gradle 各自的插件专属参数、要么目前没有安全办法（Node）——这是运行时/启动器层面的问题，
+  不属于"读标记文件、产出一条命令"这个包的定位，需要 Plan 4 通盘设计。
+- `Hints{Language, RunCommand}` 是 Plan 4 从 `local:` 块转译出来的目标类型；`local:` 块本身的字段名、
+  JSON Schema、`brickkit lint` 校验规则都还没定。
+- `brickkit up --crash-lines N` 的名字/位置仍未获用户确认（Plan 2 遗留，Plan 4 写之前要先问）。
+- 仓库 `go.mod` 本身不 tidy（`golang.org/x/term`、`gopkg.in/yaml.v3` 被直接 import 却仍标 `// indirect`），
+  本计划特意没碰。
+- 这台机器没装 golangci-lint，`make lint` 回退到 `go vet`；合并前在装了它的环境再跑一次全量。
+- 整条分支（Plan 1 + Plan 2 + Plan 3）还没合并、没推送。
