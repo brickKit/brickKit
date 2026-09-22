@@ -1038,4 +1038,4 @@ brickkit completion fish > ~/.config/fish/completions/brickkit.fish
 | 参数 | 默认值 | 作用 |
 | --- | --- | --- |
 | `-c`, `--config` | `brickkit.yaml` | 对哪份项目配置文件生效——这是多环境机制（`brickkit up --config brickkit.prod.yaml`），不是合并或覆盖层（AGENTS.zh.md §9.9） |
-| `--log-level` | `info` | CLI 写到 stderr 的结构化 JSON 日志级别（`debug`/`info`/`warn`/`error`/`off`）。这些是诊断信息，不是命令的实际结果——正常输出不受这个参数影响，`off` 只是让 JSON 日志行完全消失，不会改变命令报告的内容 |
+| `--log-level` | `warn` | CLI 写到 stderr 的结构化 JSON 日志级别（`debug`/`info`/`warn`/`error`/`off`）。这些是诊断信息，不是命令的实际结果——正常输出不受这个参数影响。默认 `warn` 下,常规的单命令生命周期日志(`Command started`、`Command finished` 之类——纯粹是 stdout 已经用人类可读形式展示过的内容,在 stderr 上又一份 JSON 复制品)默认不打印;命令失败时那行带 `error_code` 的日志是 `error` 级别(警告类结果则是 `warn`),默认依然会打印。想看回生命周期日志用 `--log-level info`(或 `BRICKKIT_LOG_LEVEL=info`);`off` 才会连 `error_code` 那行也一并关掉 |

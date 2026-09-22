@@ -121,7 +121,6 @@ Back in the first terminal, `Ctrl+C`:
 
 ```
 demo-hello-1-0-0 | {"time":"...","level":"INFO","msg":"component exited"}
-{"time":"...","level":"INFO","message":"Command finished","command":"brickkit up","elapsed_ms":24857,"exit_code":0}
 ```
 
 `demo/hello`'s own last line comes from its signal handling (`main.go` catches `SIGINT`/`SIGTERM` and shuts its HTTP server down cleanly, logging `component exited` once it has) — BrickKit asked it to stop the same way `docker stop` would ask a container, and it did. No extra "shutting down" banner from BrickKit itself, no crash report — because nothing crashed, and `up` exited `0`. That silence is deliberate: a crash summary exists specifically to surface *unexpected* exits (the next section), and printing one here, for a component that did exactly what it was asked, would just be noise. A `mode: local` component's process tree is also scoped to that one terminal session on purpose — it never tries to outlive the `up` that started it (unlike a container, which keeps running after the CLI that started it exits), so there's nothing left to clean up afterward, and no equivalent of `docker ps -a` showing a stopped-but-still-there entry.

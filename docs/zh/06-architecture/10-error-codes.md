@@ -17,7 +17,7 @@ CLI 的报错文案跟着语言走——默认英文，`brickkit lang set zh` �
 {"time":"2026-09-19T00:56:05+02:00","level":"ERROR","message":"命令执行失败","command":"brickkit up","elapsed_ms":0,"error_code":"PROJECT_MISSING","error":"PROJECT_MISSING: 错误：项目配置文件不存在; 路径=brickkit.yaml","exit_code":1}
 ```
 
-那行日志里的 `error_code`，就是这一篇的索引。错误块的第一行——标题——说明你落在这个码底下的哪一种具体情形。这行日志在默认日志级别（`info`）下就会打印；`--log-level off`，或 `BRICKKIT_LOG_LEVEL=off`，可以关掉它。
+那行日志里的 `error_code`，就是这一篇的索引。错误块的第一行——标题——说明你落在这个码底下的哪一种具体情形。这行日志本身是 `error` 级别（警告类结果则是 `warn`），跟以前一样，在 CLI 默认的日志级别（`warn`）下照样会打印；只有 `--log-level off`，或 `BRICKKIT_LOG_LEVEL=off`，才会把它也关掉。
 
 ## 错误码承诺什么
 

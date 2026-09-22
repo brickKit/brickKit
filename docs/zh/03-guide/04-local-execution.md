@@ -121,7 +121,6 @@ brickkit down
 
 ```
 demo-hello-1-0-0 | {"time":"...","level":"INFO","msg":"component exited"}
-{"time":"...","level":"INFO","message":"命令执行完成","command":"brickkit up","elapsed_ms":22830,"exit_code":0}
 ```
 
 `demo/hello` 自己最后那一行来自它的信号处理（`main.go` 捕获 `SIGINT`/`SIGTERM`，体面关掉自己的 HTTP 服务器，关完才打一行 `component exited`）——BrickKit 要求它停下的方式，跟 `docker stop` 要求一个容器停下没有区别，它也照做了。BrickKit 自己没打额外的"正在关闭"提示，也没有崩溃报告——因为什么都没崩，`up` 以 `0` 退出。这份安静是故意的：崩溃摘要专门用来暴露**意料之外**的退出（下一节），一个完全照要求停下的组件如果也打一份出来，就只是噪音。`mode: local` 组件的进程树也是故意只属于这一个终端会话的——它从不试图活得比启动它的那次 `up` 更久（不像容器，CLI 退出后容器照样接着跑），所以事后没有任何要清理的东西，也没有类似 `docker ps -a` 那种"已停止但还留着"的条目。

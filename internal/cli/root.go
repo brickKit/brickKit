@@ -96,7 +96,7 @@ func NewOptions() *Options {
 	return &Options{
 		WorkDir:    ".",
 		ConfigPath: DefaultConfigFile,
-		LogLevel:   envOr(logging.EnvLogLevel, logging.LevelInfo),
+		LogLevel:   envOr(logging.EnvLogLevel, logging.LevelWarn),
 		Stdin:      os.Stdin,
 		Stdout:     os.Stdout,
 		Stderr:     os.Stderr,

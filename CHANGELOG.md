@@ -43,6 +43,16 @@ add up to, rather than listing every commit individually.
 
 ### Changed
 
+- The default `--log-level` is now `warn`, was `info`. The routine
+  per-command lifecycle lines (`Command started`, `Command finished`, and
+  the handful of other `logging.Info` calls like "component added" or
+  "workspace tidied") are pure JSON echoes of what stdout already shows in
+  human-readable form, and are quiet by default now. A failing command's
+  `error_code` line is unaffected — it's `error`-level (`warn` for a
+  warning-class result), so it still prints by default; scripts keying off
+  it need no change. Anything that was relying on the old default to see
+  the lifecycle lines should pass `--log-level info` explicitly, or set
+  `BRICKKIT_LOG_LEVEL=info`
 - **Breaking:** `components[].enabled` and `components[].local` are replaced
   by one field, `components[].mode`, with the values `enabled`, `disable` and
   `debug`; leaving it out still means "follow the top". Rename `enabled: true`

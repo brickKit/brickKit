@@ -15,7 +15,7 @@ func TestNewOptionsDefaults(t *testing.T) {
 	opts := NewOptions()
 	require.NotNil(t, opts)
 	assert.Equal(t, DefaultConfigFile, opts.ConfigPath)
-	assert.Equal(t, logging.LevelInfo, opts.LogLevel)
+	assert.Equal(t, logging.LevelWarn, opts.LogLevel)
 	assert.Equal(t, os.Stdout, opts.Stdout)
 	assert.Equal(t, os.Stderr, opts.Stderr)
 }
@@ -29,7 +29,7 @@ func TestNewOptionsRespectsEnvLogLevel(t *testing.T) {
 // 环境变量为空白字符串时应回落到默认级别，而不是把空串当成级别。
 func TestNewOptionsFallsBackOnBlankEnv(t *testing.T) {
 	t.Setenv(logging.EnvLogLevel, "   ")
-	assert.Equal(t, logging.LevelInfo, NewOptions().LogLevel)
+	assert.Equal(t, logging.LevelWarn, NewOptions().LogLevel)
 }
 
 func TestOptionsPrintfAndPrintln(t *testing.T) {

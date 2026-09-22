@@ -17,7 +17,7 @@ A failing command prints a human-readable block and, directly after it, one JSON
 {"time":"2026-09-19T00:56:05+02:00","level":"ERROR","message":"Command failed","command":"brickkit up","elapsed_ms":0,"error_code":"PROJECT_MISSING","error":"PROJECT_MISSING: Error: project config file not found; Path=brickkit.yaml","exit_code":1}
 ```
 
-The `error_code` in that log line is what this page is organized by. The first line of the block — the title — says which situation within that code you are in. The log line is on at the default log level (`info`); `--log-level off`, or `BRICKKIT_LOG_LEVEL=off`, silences it.
+The `error_code` in that log line is what this page is organized by. The first line of the block — the title — says which situation within that code you are in. That log line is itself `error`-level (or `warn` for a warning-class result), so it prints at the CLI's default log level (`warn`) same as it always did; only `--log-level off`, or `BRICKKIT_LOG_LEVEL=off`, silences it.
 
 ## What the codes promise
 

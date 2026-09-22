@@ -783,8 +783,8 @@ brickkit publish --path ./components/people/basic --market https://market.exampl
 brickkit publish --path ./components/people/basic --git-url https://github.com/org/people-basic --sign --key cosign.key --signed-by release-bot@example.com --public-key-ref keys/vendor.pub
 brickkit version --verbose                        # 额外输出 Git commit 与构建时间
 brickkit lang set zh                              # 从此 CLI 说中文（用 BRICKKIT_LANG=en 可对单条命令覆盖）
-brickkit up --log-level off                       # 每条命令都有这个 flag：关掉 stderr 上的 JSON 诊断日志，命令本身的结果不受影响
-BRICKKIT_LOG_LEVEL=debug brickkit up              # 用环境变量给整个终端会话定一个默认级别，不用每条命令都加 flag
+brickkit up --log-level info                      # 每条命令都有这个 flag：默认是 warn（安静），info 会把常规的单命令生命周期日志找回来
+BRICKKIT_LOG_LEVEL=debug brickkit up              # 用环境变量给整个终端会话定一个更详细的默认级别，不用每条命令都加 flag
 ```
 
 ### 8.1 一分钟示例
@@ -995,7 +995,7 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 | 用户想让平台帮忙做安全审查 | 安装即信任。平台只在事后 `blocked` |
 | 用户问「能不能把多个组件合并成一个实例省内存」 | 先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用。还要合并的话：**`servedBy`（5.7）是平台支持的路径**——它在 Docker 和 K8s 下都能正确处理地址路由；其余的事（模块隔离、配置、外壳内部的迁移顺序）还是他们自己的代码，参见外壳实现者指南。`mode: disable` 和这个无关——它照样不能拿来当「我自己接管」的开关 |
 | 用户的 `brickkit` 输出不是他预期的那种语言（或者某个 grep 输出的脚本坏了） | 语言是每次运行时决定的：`BRICKKIT_LANG` 优先于 `brickkit lang set` 存下的值，后者优先于默认的英文——`brickkit lang` 会打印当前生效的是哪一个、为什么。脚本别去 grep 给人看的文字：认退出码和 stderr JSON 日志行里稳定的 `error_code`，或者把 `BRICKKIT_LANG=en` 钉死 |
-| 用户说每条命令都会冒出一堆 `{"time":...,"level":"INFO",...}` 这种 JSON，很吵，不想看到 | 那是 CLI 一直往 stderr 写的结构化诊断日志（`--log-level`，默认 `info`）——命令真正的结果（人类可读的 stdout、✅/❌ 那段）走的是完全不同的通道，不受这个 flag 影响。单次运行想清净就 `--log-level warn` 或 `--log-level off`；想整个终端会话都这样，设 `BRICKKIT_LOG_LEVEL=warn`（或 `off`）就不用每条命令都加 flag 了；反过来排查问题时用 `debug` |
+| 用户说命令会冒出一堆 `{"time":...,"level":"INFO",...}` 这种 JSON，很吵，不想看到 | CLI 默认就是 `--log-level warn`——常规的单命令生命周期日志（`Command started`、`Command finished` 之类）出厂就是安静的，所以这个情况只会出在有什么东西覆盖了默认值的时候：命令上显式加了 `--log-level info`/`debug`，或者 shell/CI 环境里某处设了 `BRICKKIT_LOG_LEVEL` 为其中之一。先找到那个覆盖，去掉它（或者显式传 `--log-level warn`）就是解法。`--log-level off` 更进一步，连失败时那行 `error_code` 也一起关掉——只有在人只想看 ❌ 那句话、没有脚本要解析 `error_code` 的场景（比如 pre-commit hook）才用它 |
 | 用户问「纯独立/纯外壳/混搭，docker 还是 k8s，到底该选哪个」 | 这正是 `docs/zh/07-patterns/05-deployment-selection-guide.md` 那份矩阵存在的目的——照着它的矩阵走，不要临场现编答案。里面唯一一条值得直接记住的硬规则：`mode: debug`（调试开关）只在 `deploy.target: docker` 下存在，`k8s` 下会在解析阶段直接拒绝 |
 | 用户的上游组件还没做好/没发布，问能不能给个 mock、或让 CLI 自动替换一个 | 不是平台功能——平台从不解析契约，也从不给缺失的强依赖换上替身（§4.1）。现成能走通的路：`brickkit new <id> --contract openapi` 立一个带约定契约的桩、`add --local`、给桩加 `mode: debug` + `localPort`、主机上任意 mock 工具监听那个端口。带真实输出的演示：`docs/zh/03-guide/08-consuming-artifacts.md` |
 | 用户问「完全不经过 Docker/K8s，怎么把整套东西跑在本地」 | 这是平台唯一完全不管理、不注入任何东西的一档——见 `deployment-selection-guide.md` 的"手动跑起来"那节。值得告诉他们的一个技巧：把那个组件临时改成 `mode: debug` 之后跑一次 `brickkit up --dry-run`，能拿到一份真实部署会注入的环境变量清单当参考——抄完就还原这次改动，不要真的照这个方式部署 |
