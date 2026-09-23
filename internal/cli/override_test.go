@@ -41,6 +41,23 @@ func TestOverrideCreatesFileOnFirstRun(t *testing.T) {
 // opts.ConfigPath != DefaultConfigFile，"./brickkit.yaml" != "brickkit.yaml" 按
 // 字面值确实不相等，于是这种写法被误判成"指到了别处"而被拒绝，即便它其实就是
 // 默认那份文件。
+// brickkit override 拒绝 --config 指到非默认文件时，拒绝理由那句话里该嵌着
+// 真实传入的路径，而不是没替换上的格式占位符字面量——i18n.T 调用漏传了
+// %[1]s 要的那个参数（评审 Minor #7）。
+func TestOverrideRefusalMessageNamesTheActualConfigPath(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+`)
+
+	r := runIn(t, f.Dir, "override", "--config", "brickkit.prod.yaml")
+
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "brickkit.prod.yaml")
+	assert.NotContains(t, r.stderr, "%[1]s", "格式占位符不该原样漏在提示里")
+}
+
 func TestOverrideAcceptsConfigFlagAsDotSlashDefault(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
 	f.writeConfig(t, `components:

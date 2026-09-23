@@ -532,3 +532,18 @@ resources: []
     end
 `, r.stdout)
 }
+
+// brickkit graph --help 描述的节点样式要跟 graph.go 实际画的一致——它曾经说
+// "mode: debug 的节点标'local debug'"，但 mode: debug 现在只能写在
+// override.yaml 里，graph 又明确不读 override.yaml（只读 brickkit.yaml，设计书
+// §9），"local debug"这个样式已经彻底画不出来了，帮助文本却还在讲一个不存在
+// 的行为（评审 Minor #8）。
+func TestGraphHelpDoesNotMentionUnreachableLocalDebugStyle(t *testing.T) {
+	r := run(t, "graph", "--help")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "local debug", "graph 不读 override.yaml，mode: debug 节点样式已经画不出来")
+	assert.NotContains(t, r.stdout, `mode: debug ones are marked`,
+		"不能再说 mode: debug 会被标出来——它现在只能写在 override.yaml 里，graph 根本不读那份文件")
+	assert.Contains(t, r.stdout, "managed locally", "该讲 graph 实际会画的 mode: local 样式")
+	assert.Contains(t, r.stdout, "override.yaml", "该说清 graph 不读 override.yaml，所以 mode: debug 不会出现在图上")
+}
