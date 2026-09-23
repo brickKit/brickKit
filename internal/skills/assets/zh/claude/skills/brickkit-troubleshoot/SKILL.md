@@ -50,6 +50,19 @@ healthcheck + 重启策略。别建议加上，那是被论证过后拒绝的。
 `SMTP_*` / `*_ENDPOINT` / `COMPONENT_ID` / `COMPONENT_VERSION`。
 比如 `databaseTimeout` → `DATABASE_TIMEOUT`，撞了。
 
+**6. `brickkit.yaml` 拒绝 `mode: debug`——这不是一个要绕过去的 bug。**
+
+它在解析阶段就直接拒绝，无条件。`mode: debug` **只能**写在 `override.yaml` 里（可选、进
+`.gitignore`、按开发者各自一份——跑 `brickkit override` 创建/刷新它）。`mode: local`
+没有这条限制，照旧留在 `brickkit.yaml` 里。别建议改 `brickkit.yaml` 去加 `mode: debug`，
+也别把这个拒绝当成需要绕过的障碍——把使用者引到 `override.yaml` 去。
+
+**7. `override.yaml` 悄悄不生效——先查 `--config`。**
+
+`override.yaml` 只对针对**默认** `brickkit.yaml` 的这次运行生效。`--config
+brickkit.prod.yaml` 的运行会忽略当前存在的任何 `override.yaml`，并打印一句说明——
+这是设计如此（一份个人本地覆盖绝不能泄漏进某个具名环境的运行里），不是 bug。
+
 ## 错误码 → 该干什么
 
 CLI 的报错带错误码。按码定位比按文案快。
@@ -105,3 +118,5 @@ CLI 的报错带错误码。按码定位比按文案快。
 - 错误码的权威定义（常量名、文案）：`internal/clierr/clierr.go`
 - 「为什么这样设计」的完整论证（用户问「为什么不……」时）：
   根目录 `AGENTS.zh.md` §9（二十三个「为什么」）
+- `override.yaml` 本身（schema、降级专用的 target 规则、多环境 `--config` 护栏、
+  `brickkit override` 命令）：根目录 `AGENTS.zh.md` §7.1

@@ -157,8 +157,8 @@ Not a single line of component code changes: addressing is identical in both
 environments, always `http://<versioned-service-name>:<port>` (for example
 `http://people-basic-1-0-0:8080`).
 
-**16 commands, plus `version` and `lang`:** `init` `skills` `graph` `lint` `new` `add` `remove`
-`fetch` `up` `down` `status` `sync` `restore` `login` `logout` `publish`
+**17 commands, plus `version` and `lang`:** `init` `skills` `graph` `lint` `new` `add` `remove`
+`fetch` `up` `down` `status` `sync` `override` `restore` `login` `logout` `publish`
 
 Want to actually run it? The [5-minute Quick Start](docs/en/00-quick-start.md)
 walks this exact path with the repository's own test fixture — every command

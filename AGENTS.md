@@ -102,7 +102,7 @@ These five are the key to understanding BrickKit. All of them are **deliberate t
 ### 2.3 Data flow (what happens during one `brickkit up`)
 
 ```
-brickkit.yaml (declaration)
+brickkit.yaml (declaration) + override.yaml (optional, local — merged in first, §7.1)
    ↓ ① Cascade decision: figure out which components should actually start this time (`mode` + dependency graph, top-down inheritance)
    ↓ ② Dependency resolution: recursively expand the dependency tree, error on missing required deps, topological sort gives the start order
    ↓ ③ Env-var injection: dependency addresses, resource connections, own config → environment variables
@@ -132,16 +132,17 @@ only serves development (IDE, debugging).
 | 组件市场 | BrickKit Market | The public component publishing and discovery platform |
 | 组件 | Component | The most basic install-and-run unit, **always a container** |
 | Manifest | component.yaml | A component's self-description file |
-| 项目配置 | brickkit.yaml | Project-level declaration: component list, enabled state, local debug, exposure, config overrides, resources, deploy target |
+| 项目配置 | brickkit.yaml | Project-level declaration: component list, enabled state, exposure, config overrides, resources, deploy target. Shared, reviewed, checked into Git |
+| 本地覆盖配置 | override.yaml | Optional, gitignored, per-developer file that overrides `brickkit.yaml`'s `deploy.target` (downgrade-only) and a component's `mode`/`localPort`. `mode: debug` can **only** be set here — `brickkit.yaml` itself rejects it outright (§5.4, §5.6) |
 | 强依赖 | Required Dependency | Missing → the CLI **errors and blocks startup** |
 | 弱依赖 | Optional Dependency | `optional: true`; missing → warns but continues, and **the env var is not injected at all** |
 | 版本化服务名 | Versioned Service Name | A service name carrying an exact version, e.g. `people-basic-1-0-0` |
-| 本地调试模式 | Local Debug Mode | `mode: debug`; the component runs on the host inside an IDE, mapped into the container network via `extra_hosts` |
-| 本地托管模式 | Local Managed Mode | `mode: local`; BrickKit itself detects the start command, launches the component as a bare process, and supervises it — no container, no IDE required |
+| 本地调试模式 | Local Debug Mode | `mode: debug`, written in `override.yaml`; the component runs on the host inside an IDE, mapped into the container network via `extra_hosts` |
+| 本地托管模式 | Local Managed Mode | `mode: local`, written in `brickkit.yaml`; BrickKit itself detects the start command, launches the component as a bare process, and supervises it — no container, no IDE required |
 | 安装源 | Source | Where a component comes from: the marketplace (HTTP) / a Git repo / a local directory |
 | 基础资源 | Resource | External systems a component depends on (databases, Redis, etc.), deployed by ops, bound in `brickkit.yaml` |
 | 环境变量注入 | Env Injection | The CLI writes dependency addresses, resource connections, and own config into env vars when generating deployment files |
-| 部署目标 | Deploy Target | `docker` or `k8s`, decides which kind of deployment file the CLI generates |
+| 部署目标 | Deploy Target | `docker` or `k8s` in `brickkit.yaml`, decides which kind of deployment file the CLI generates. `override.yaml` may locally downgrade it (k8s → docker/podman; docker ↔ podman unrestricted; never upgrade back to k8s) — `podman` itself is an `override.yaml`-only value, `brickkit.yaml`'s own `deploy.target` never accepts it |
 | 数据库迁移 | Migration | A component declares `migration.command`; the CLI runs it before deployment |
 | 配置覆盖 | Config Override | `brickkit.yaml`'s `config` overrides the configSchema defaults. **Value types aren't validated, but key existence is** |
 | 连接组件 | Connector Component | An orchestrating component that coordinates several standalone components |
@@ -200,11 +201,11 @@ argued through and rejected (reasoning in §9):
 | Consolidated deployment / monolithic shell — the platform does not, and will not, ship its own shell scaffolding or process supervisor | But a small, structural piece **is** built in: `servedBy` lets a component declare "my workload is provided by another component," and the platform correctly wires `*_ENDPOINT` addresses to it on both Docker and K8s — without ever needing to understand what's inside the shell. See §5.7 below for the full boundary |
 | Dependency aliases (`dependencies.components[].as`) | Variable names derived from component ID are bidirectionally computable; an alias only preserves half of that. "One capability, multiple implementations" should go through a `kind` resource or a `configSchema` address field instead |
 | Low-code / BI / DevOps pipelines | Out of scope |
-| Podman as a deploy target | Support was built and ran — `up`, `status`, real requests, idempotent reruns all passed — but `down` fails on rootless Podman with `rootless netns: kill network process: permission denied`, reproducible even with plain `podman rm -f`, outside BrickKit's own code entirely. A project that can't be torn down is worse than one that never came up — containers keep holding ports and volumes while the CLI would have reported success — so support was pulled rather than shipped half-working. `up`/`status` on a machine with only Podman installed name this exact failure and point at Docker instead of a generic "no engine found." Reversing this needs a real machine where `podman compose down` itself works cleanly, a full lifecycle verified on it, and a repeatable check added so it can't silently regress again |
+| Podman as a real, running deploy target | Support was built and ran — `up`, `status`, real requests, idempotent reruns all passed — but `down` fails on rootless Podman with `rootless netns: kill network process: permission denied`, reproducible even with plain `podman rm -f`, outside BrickKit's own code entirely. A project that can't be torn down is worse than one that never came up — containers keep holding ports and volumes while the CLI would have reported success — so the actual `engine.Engine` implementation was pulled rather than shipped half-working. **What does exist**: `override.yaml`'s `target` field legally accepts `podman` as a downgrade target (§7.1) — `up --dry-run` fully generates its compose file — but a real (non-dry-run) `up` against it errors clearly (`ENGINE_MISSING`, pointing back at `--dry-run`) instead of either silently misbehaving or fully working, since no `engine.Engine` backs it yet. Reversing the rest of this needs a real machine where `podman compose down` itself works cleanly, a full lifecycle verified on it, and a repeatable check added so it can't silently regress again |
 | Fetching secrets from an external store (Vault / AWS Secrets Manager SDKs) on the platform's behalf | `${VAR}` is looked up in the process environment first, `.env` second — anything that can put the value in the environment works today with zero platform code. Built in, it would mean an SDK per store, store credentials and network access on every `up` (`--dry-run` included), and a neighbour of the rejected "config center". **What is supported:** `resources[].existingSecret` and a `secret: true` config value written as `{ existingSecret, key }` reference a Secret an external system (Vault Secrets Operator, External Secrets Operator, Sealed Secrets, …) already put in the cluster — the platform never reads or writes the value either way, K8s only (§5.2) |
 | Engine plugins / third-party deploy targets (an `--engine nomad`-style flag on `up`) | A target's `Down`/`Status`/orphan-pruning guarantees are what make "a project that can be torn down" true; a plugin would own them while the CLI reported success on its behalf — the same reason Podman was pulled. `deploy.target` in `brickkit.yaml` stays the declaration, never a CLI flag. New targets are built in-tree, with the full test guard set. (`engine.Engine` is already an interface; this is about who guarantees its semantics, not about code layout) |
 | Incremental generation cache (`.brickkit/` hash state) | Nothing to speed up: generating 50 components through the whole pipeline takes about 2 ms (`tests/perf`), and the time users wait on is `docker compose up` / `kubectl apply`, which already touch only what changed. A cache adds state whose staleness silently produces wrong deployment files |
-| Mock generation from contracts (a full `mock` command) and auto-substituting a missing required dependency (an `--with-mocks`-style flag on `up`) | The platform never parses contracts (`artifacts.format` is a free string); a stand-in swapped in for a missing required dependency contradicts "missing required dependency blocks startup" and could be deployed by mistake; a mock under another name receives no traffic because injected addresses point at the real component's versioned service name. What works today: `brickkit new <id> --contract openapi` + `mode: debug` + any mock tool (`docs/en/03-guide/08-consuming-artifacts.md`) |
+| Mock generation from contracts (a full `mock` command) and auto-substituting a missing required dependency (an `--with-mocks`-style flag on `up`) | The platform never parses contracts (`artifacts.format` is a free string); a stand-in swapped in for a missing required dependency contradicts "missing required dependency blocks startup" and could be deployed by mistake; a mock under another name receives no traffic because injected addresses point at the real component's versioned service name. What works today: `brickkit new <id> --contract openapi` + `mode: debug` in `override.yaml` + any mock tool (`docs/en/03-guide/08-consuming-artifacts.md`) |
 | A renderer of its own for `brickkit graph` — HTML / SVG output, a built-in viewer, a flag that writes the file for you | Mermaid text is already rendered for free: GitHub renders a `.mmd` / `.mermaid` file, or a Markdown code fence tagged `mermaid`, with nothing installed. A renderer inside the CLI would be a permanent maintenance cost (layout, one more output format to keep correct) for something that costs nothing today. And stdout carrying nothing but Mermaid is what makes the shell redirect `brickkit graph > graph.mmd` produce a valid file — so no file-writing flag is needed either |
 | Dependency resolution and cross-file reference checks in `brickkit lint` (does the `servedBy` target exist? can that dependency be found?) | `lint` is a promise — offline, read-only, instant, no Docker or K8s — and it adds no rule of its own: it re-runs the parse-and-validate that `up` / `add` / `publish` already apply to each file. Resolving the dependency graph needs every component's Manifest, which for a market or Git component means the network; one network call and the promise is gone. **`brickkit up --dry-run` already does this** — it has to resolve the graph anyway, and it errors, naming the culprit, on a missing `servedBy` target or a required dependency it can't find. `brickkit graph` shows the declared structure |
 
@@ -318,6 +319,15 @@ doesn't manage it.
 | `mode: debug` | **Always runs, as a process you start yourself** | Pinned exactly like `mode: enabled` (ignores what's above it; errors if a required dependency is turned off), but generates no container — you run it on the host, in your IDE (§5.6). Docker only |
 | `mode: local` | **Always runs, as a process BrickKit starts and supervises itself** | Pinned exactly like `mode: enabled` (ignores what's above it; errors if a required dependency is turned off), but generates no container — BrickKit detects the start command from the component's own source, launches it, and supervises it (§5.6). Docker only |
 
+⚠️ **`mode: debug` can only be written in `override.yaml` — `brickkit.yaml` itself rejects it
+outright, at parse time.** Every other value in this table (not written / `enabled` / `disable` /
+`local`) is written directly in `brickkit.yaml` as always. The reason is what `mode: debug` *is*: a
+personal "I'm running this one on my own machine right now" fact, never something a teammate
+reviewing `brickkit.yaml` should have to see or be affected by — exactly the kind of thing
+`override.yaml` exists for (optional, gitignored, per-developer; §5.6). `mode: local` stays in
+`brickkit.yaml` because it isn't personal — the process still runs and is still reachable the same
+way for anyone who runs `up`.
+
 **Required and optional dependencies are treated the same way here:** if something upstream weakly
 depends on it, it still follows along and runs. `optional: true` only controls two things — a
 missing optional dependency only warns (doesn't block) at resolution time, and its `*_ENDPOINT` is
@@ -337,7 +347,9 @@ A few points:
 
 **The only way to narrow the startup scope is to change `mode`.** There's no `--only`-style
 flag — set the top-level things you don't want on `mode: disable`, and both `up` and `sync` follow
-suit; to restore full scope, `git checkout brickkit.yaml`.
+suit; to restore full scope, `git checkout brickkit.yaml` (or, if the `mode: disable` was written in
+`override.yaml` instead, just delete that line — `override.yaml` isn't in Git, so there's nothing to
+check out).
 
 Components added automatically by `brickkit add` **do not get** a `mode` field written.
 
@@ -372,10 +384,21 @@ BrickKit only routes to it; `mode: local` is for when you just want it running, 
 BrickKit detects the start command, launches the process, and supervises it. Same shape, opposite
 ownership of the startup step.
 
+**They also split on which file declares them.** `mode: local` is written directly in
+`brickkit.yaml`, like any other field. `mode: debug` can **only** ever be written in
+`override.yaml` (§3) — `brickkit.yaml` rejects it outright, at parse time, unconditionally,
+regardless of `deploy.target`. The reason is what the value itself represents: "I'm debugging this
+one on my own machine right now" is a fact about *this developer, this moment* — the opposite of
+something a teammate reviewing a `brickkit.yaml` diff should ever have to see, be blocked by, or
+accidentally inherit from a `git pull`. `override.yaml` is optional, gitignored, and per-developer
+for exactly this reason. `brickkit override` generates/refreshes it from `brickkit.yaml`'s current
+component list — every component gets a bare `- id: <id>` line, and `mode: debug` (plus
+`localPort`) is added by hand on top of that.
+
 **`mode: debug`:** to debug a component with breakpoints in an IDE, while it's still reachable by
 other components on the Docker network:
 
-- A component marked `mode: debug` in `brickkit.yaml` **doesn't generate a container**
+- A component marked `mode: debug` in `override.yaml` **doesn't generate a container**
 - Other containers resolve that component's versioned service name to `host-gateway` via
   `extra_hosts`
 - Multiple components can be debugged locally at once, each with its own `localPort`; the CLI
@@ -384,9 +407,12 @@ other components on the Docker network:
 - **Zero component-code changes** (it reads env vars exactly as it normally would)
 - It is **pinned** like `mode: enabled` (§5.4): it keeps running whatever is above it, and turning
   off one of its **required** dependencies is an error rather than a silent choice
-- **Docker only**: `mode: debug` together with `deploy.target: k8s` is rejected when `brickkit.yaml`
-  is parsed (so `brickkit lint` catches it too) — a cluster Pod has no route to a process on your
-  own machine
+- **Docker only**: `mode: debug` together with an *effective* `deploy.target: k8s` is rejected when
+  `override.yaml` is checked against `brickkit.yaml` (so `brickkit lint` catches it too) — a cluster
+  Pod has no route to a process on your own machine. Since `override.yaml` can only ever *downgrade*
+  `deploy.target` (k8s → docker/podman, never the reverse — §3's glossary entry), the effective
+  target can only be k8s when `brickkit.yaml` itself already says k8s and `override.yaml` doesn't
+  touch `target` at all
 - Values written into that file are POSIX-shell-quoted whenever they contain a character a shell
   would otherwise misparse (whitespace, `|`, `$`, an embedded literal newline, …) — a multi-line
   PEM value or a `|`-delimited list survives `set -a && source … && set +a` intact instead of
@@ -771,8 +797,10 @@ sources:                         # install sources
 components:
   - id: people/basic
     version: 1.0.0               # required, exact version
-    mode: debug                  # optional: enabled | disable | debug | local, see §5.4 for how to write it
-    localPort: 8081              # host port when mode: debug or mode: local (optional under local — auto-assigned by default)
+    mode: local                  # optional here: enabled | disable | local (§5.4). mode: debug is
+                                  #   NOT legal in this file — it can only be set in override.yaml (§7.1)
+    localPort: 8081              # host port when mode: local (optional — auto-assigned by default).
+                                  #   mode: debug's localPort lives in override.yaml too, next to its mode
     servedBy: <id>@<version>     # optional, this component's workload is provided by that other component
     expose: false                # optional, default false
     hostname: <domain>           # required when expose + k8s
@@ -845,9 +873,71 @@ This is the skeleton — every field's exact type, required-ness, default, and v
 effect under one deploy target and warn when written under the other) is
 [08-brickkit-yaml-reference.md](docs/en/06-architecture/08-brickkit-yaml-reference.md).
 
+### 7.1 `override.yaml` field skeleton
+
+An optional, **gitignored**, per-developer file that sits alongside `brickkit.yaml` and locally
+overrides two things: `deploy.target` (downgrade-only) and a component's `mode`/`localPort`. Never
+merged or overlaid field-by-field with `brickkit.yaml` — a topic is either untouched here (defer
+entirely to `brickkit.yaml`) or written here (fully replaces `brickkit.yaml`'s value for that one
+topic). `brickkit override` creates it on first run and refreshes it on every later run — that's
+also its reset/repair operation, there's no separate second command.
+
+```yaml
+target: podman                # optional: docker | podman | k8s — must be a DOWNGRADE from
+                               # brickkit.yaml's own deploy.target: k8s → docker/podman is allowed,
+                               # the reverse is always rejected, docker ↔ podman is unrestricted.
+                               # Omit it to just follow brickkit.yaml's own deploy.target
+targetBaseline: docker        # deploy.target's value when this override was last confirmed —
+                               # feeds the non-blocking drift note below, never itself enforced
+
+components:                   # brickkit override writes one line per component ID in
+                               # brickkit.yaml — coexisting versions of the same ID share one line,
+                               # since there are NO version numbers anywhere in this file (an
+                               # override applies to every version of that ID uniformly)
+  - id: department/tree       # standalone component, no override — bare line
+
+  - id: erp/backend           # a shell — itself a plain component, no override here either
+    members:                  # servedBy members nested under their shell, one level only
+      - id: people/basic         # servedBy member, no override — bare line
+      - id: auth/rbac
+        mode: disable            # excluded from this run's BRICKKIT_SERVED_MEMBERS while the
+                                  # shell keeps running — not guaranteed (AGENTS.md §5.7)
+
+  - id: infra/redis-event-bus
+    mode: local
+    localPort: 8082            # this machine's port 8080 (brickkit.yaml's suggested default)
+                                # was already taken — overridden here instead
+
+  - id: payment/gateway
+    mode: debug                 # the ONLY file mode: debug can ever be written in (§5.4, §5.6)
+    localPort: 9091
+    baseline: local              # brickkit.yaml's own mode for this component when this override
+                                   # was last confirmed — feeds the drift note, never enforced
+```
+
+- `mode: debug` together with an effective `deploy.target: k8s` is rejected (only reachable when
+  `brickkit.yaml` itself is already k8s and `target` is left unset here — a downgrade-only override
+  can never produce k8s any other way)
+- A `localPort` with no `mode` at all, or an out-of-range one, is rejected the same as it would be
+  in `brickkit.yaml`
+- An entry naming a component ID that doesn't exist in `brickkit.yaml` (a dangling reference — the
+  component was removed, or the ID was mistyped) is rejected
+- Drift is content-based, never timestamp-based — `baseline`/`targetBaseline` are compared against
+  `brickkit.yaml`'s *current* values every run, and a mismatch prints a note (never blocks): the
+  override might still be exactly what's wanted, or it might be stale and worth a second look
+- `brickkit up` (and `sync`/`status`/`down`) apply it automatically when present; **only for a run
+  against the default `brickkit.yaml`** — `--config brickkit.prod.yaml` ignores any `override.yaml`
+  present, with a printed note, so a personal local override can never leak into a named-environment
+  run
+- `brickkit graph` deliberately never reads it — its output is a shareable, committed artifact
+  (`brickkit graph > graph.mmd`) that must not vary by who generated it locally
+
+This is the skeleton — the full field-by-field shape lives in `schemas/override.schema.json`
+(generated, checked in, same mechanism as `brickkit.yaml`'s own schema).
+
 ---
 
-## 8. The CLI command set (16 commands + `version` + `lang`)
+## 8. The CLI command set (17 commands + `version` + `lang`)
 
 | Command | Core behavior |
 | --- | --- |
@@ -859,16 +949,17 @@ effect under one deploy target and warn when written under the other) is
 | `brickkit add <id>[@ver]` | Recursively pulls dependencies, downloads artifacts, writes them into the config (**doesn't write a `mode` field**). If no version is given, takes the latest installable version from the source and pins it to disk as an **exact version** |
 | `brickkit remove <id>` | Checks for required-dependency callers before removing, automatically deletes the source directory (including an archived copy). Must specify a version when multiple versions coexist |
 | `brickkit fetch <id>[@version]` | Only downloads the component's artifacts into `.brickkit/artifacts/<versioned-service-name>/`, **doesn't write to `brickkit.yaml`, doesn't deploy**. Used when calling another project's service across project boundaries |
-| `brickkit up` | Cascade decision → generate deployment files → generate `local-debug.env` → check image permissions → run migrations → invoke the engine → launch and supervise any `mode: local` components in the foreground (§5.6) |
-| `brickkit down` | Stops all containers. **Doesn't delete volumes, data is preserved.** Cannot reach a `mode: local` process running in another terminal — prints a hint naming that session's PID instead |
-| `brickkit status` | Reads the underlying engine, shows a running-state table (including multi-version detection; components not running are listed too). Excludes `mode: local` components from that table (they're not containers) but prints a hint when one is running elsewhere |
-| `brickkit sync` | Bidirectionally archives / activates component source based on the cascade decision. Takes no arguments |
+| `brickkit up` | Apply `override.yaml` (if present, and only for the default `brickkit.yaml` — §7.1) → cascade decision → generate deployment files → generate `local-debug.env` → check image permissions → run migrations → invoke the engine → launch and supervise any `mode: local` components in the foreground (§5.6) |
+| `brickkit down` | Applies `override.yaml`'s `deploy.target` downgrade first (§7.1), then stops all containers under the effective target. **Doesn't delete volumes, data is preserved.** Cannot reach a `mode: local` process running in another terminal — prints a hint naming that session's PID instead |
+| `brickkit status` | Applies `override.yaml` (§7.1), reads the underlying engine, shows a running-state table (including multi-version detection; components not running are listed too). Excludes `mode: local` components from that table (they're not containers) but prints a hint when one is running elsewhere |
+| `brickkit sync` | Applies `override.yaml` (§7.1), then bidirectionally archives / activates component source based on the cascade decision. Takes no arguments |
+| `brickkit override` | Creates `override.yaml` on first run, refreshes it on every later run (also its own reset/repair operation — §7.1). Every component in `brickkit.yaml` gets a line; existing customizations (`mode`/`localPort`/`baseline`) are preserved, a component removed from `brickkit.yaml` loses its line, a new one gets a bare `- id:`. Refuses to run against a non-default `--config`. Prints any drift notes (§7.1) after writing |
 | `brickkit restore` | Restores `mode` and the component-source layout to the last commit. `--check` is for the pre-commit hook to judge whether this commit is self-consistent |
 | `brickkit login` | Interactive terminal login to the marketplace, token stored in `.brickkit/credentials` |
 | `brickkit logout` | Revokes the marketplace token server-side, then deletes `.brickkit/credentials` locally. The local deletion always happens, even if the marketplace is unreachable — otherwise a network blip leaves someone believing they've logged out while the credential still sits on disk. Doing nothing when already logged out is not a failure |
 | `brickkit publish` | Uploads the Manifest + image reference + artifacts to the marketplace (requires login first) |
 
-Two more commands sit outside those 16 because they are about the CLI itself, not your project: `brickkit version`, and `brickkit lang` — which shows or changes the language the CLI speaks. **The CLI is English by default.** The language is `BRICKKIT_LANG` (env var) if set, else what `brickkit lang set en|zh` saved in the per-user config file, else English; there is deliberately no `--lang` flag (the language must be known before the command tree — `--help` included — is built). Everything a person reads follows it, including the `message` of the JSON log lines and the comments in generated files; the `error_code`, command and flag names never do.
+Two more commands sit outside those 17 because they are about the CLI itself, not your project: `brickkit version`, and `brickkit lang` — which shows or changes the language the CLI speaks. **The CLI is English by default.** The language is `BRICKKIT_LANG` (env var) if set, else what `brickkit lang set en|zh` saved in the per-user config file, else English; there is deliberately no `--lang` flag (the language must be known before the command tree — `--help` included — is built). Everything a person reads follows it, including the `message` of the JSON log lines and the comments in generated files; the `error_code`, command and flag names never do.
 
 **Common flags:**
 
@@ -882,6 +973,7 @@ brickkit graph > graph.mmd                        # dependency topology as Merma
 brickkit graph --ignore-served-by                 # draw every component standalone, as if no servedBy were declared
 brickkit lint                                     # offline structure check of brickkit.yaml + the local sources' component.yaml files
 brickkit lint --strict                            # warnings fail too (exit 1) — for a CI gate
+brickkit override                                 # create/refresh override.yaml from brickkit.yaml's current component list
 brickkit down --context prod-cluster              # same override, for tearing down a specific cluster
 brickkit add people/basic@1.1.0 --yes             # non-interactive (CI/CD)
 brickkit add --local                              # add every component in a local source at once
@@ -1154,7 +1246,10 @@ hit:
 | A `mode: debug` component reports `relation does not exist` | Debug components don't generate a migration container; you have to run the migration by hand once |
 | A `mode: debug` component's own config still points at `host.docker.internal` for some out-of-band dependency | That's a string literal the user wrote; brickKit doesn't parse config values, so it doesn't get rewritten when the component becomes `mode: debug`. Edit that literal yourself (usually to `localhost`) |
 | A `mode: debug` component depends on a `servedBy` member | Works: its `*_ENDPOINT` resolves to a real `localhost:<port>` — the CLI opens the mapping on the shell's compose service, since the member has none of its own (§5.6) |
-| A user asks "should I use `mode: debug` or `mode: local`" | Debugging with breakpoints → `mode: debug` (you start it, in an IDE). Just want it running without a container and without babysitting a terminal command yourself → `mode: local` (BrickKit detects the start command, launches it, supervises it). Both are Docker-only, both pinned like `mode: enabled` |
+| A user asks "should I use `mode: debug` or `mode: local`" | Debugging with breakpoints → `mode: debug`, written in `override.yaml` only (you start it, in an IDE). Just want it running without a container and without babysitting a terminal command yourself → `mode: local`, written in `brickkit.yaml` (BrickKit detects the start command, launches it, supervises it). Both are Docker-only, both pinned like `mode: enabled` |
+| A user asks "why won't `brickkit.yaml` accept `mode: debug`" | By design (§5.4, §5.6) — `mode: debug` is a personal, per-developer fact ("I'm debugging this on my machine right now"), never something a teammate reviewing `brickkit.yaml` should see. It can only be written in `override.yaml` (optional, gitignored). Run `brickkit override` to generate/refresh that file, then add `mode: debug` + `localPort` under the component's entry |
+| `brickkit override` refuses to write, saying a target upgrade is rejected | `override.yaml`'s `target` can only ever downgrade `brickkit.yaml`'s own `deploy.target` (k8s → docker/podman; docker ↔ podman is fine either way; never back to k8s). Fix the `target` value in `override.yaml`, or remove it to just follow `brickkit.yaml` |
+| A user edited `override.yaml` but nothing changed | Check `--config` first — `override.yaml` only ever applies to a run against the **default** `brickkit.yaml`; `--config brickkit.prod.yaml` ignores it and prints a note saying so |
 | A user asks "why can't `brickkit down` stop my `mode: local` component" | By design — `down` only ever touches containers; a `mode: local` process belongs to whichever terminal ran `up` and is only ever reachable from there. `status`/`down`/`graph` all print a hint naming that session's PID when one is running, but none of them can reach across into it |
 | A `mode: local` component crashes and the summary is too noisy (or not noisy enough) | `--crash-lines N` on `brickkit up` controls how many of the process's own recent output lines the crash summary keeps (default 20, `0` = exit reason only) |
 | Discussing signing | The publisher needs **cosign** installed; **the installer doesn't** (verification uses the Go standard library) |
@@ -1162,9 +1257,9 @@ hit:
 | A user asks "can I merge multiple components into one instance to save memory" | First ask if it's JVM (20 Go/Rust components are only 0.4G, not worth it); then suggest GraalVM native images and on-demand activation. If they still want to merge: **`servedBy` (§5.7) is the supported path** — it handles address routing correctly on both Docker and K8s; everything else (module isolation, config, migrations ordering inside the shell) is still their own code, see the shell implementer's guide. `mode: disable` is unrelated to this — it still can't be used as a "I'm taking this over myself" switch |
 | A user's `brickkit` output is in a language they didn't expect (or a script that greps the output broke) | The language is chosen per run: `BRICKKIT_LANG` beats the saved `brickkit lang set` value beats the English default — `brickkit lang` prints which one is in effect and why. For scripts, don't grep the human text; key off the exit status and the stable `error_code` in the JSON log line on stderr, or pin `BRICKKIT_LANG=en` |
 | A user says commands print noisy `{"time":...,"level":"INFO",...}` lines they don't want to see | The CLI already defaults to `--log-level warn` — the routine per-command lifecycle lines (`Command started`, `Command finished`, and similar) are quiet out of the box, so this only happens when something overrides the default: an explicit `--log-level info`/`debug` on the command, or `BRICKKIT_LOG_LEVEL` set to one of those somewhere in the shell/CI environment. Find that override first; removing it (or passing `--log-level warn` explicitly) is the fix. `--log-level off` goes further and also silences the `error_code` line on an actual failure — reach for that only in a context (a pre-commit hook, say) where a human just wants the ❌ message and nothing is parsing `error_code` |
-| A user asks "which of independent/shell-merged/mixed, or docker/k8s, should I actually use" | This is the topology × deploy-target decision `docs/en/07-patterns/05-deployment-selection-guide.md` exists to answer — walk through its matrix rather than improvising an answer inline. Its one hard rule worth remembering directly: `mode: debug` (the debug toggle) only exists under `deploy.target: docker`; it's rejected outright, at parse time, under `k8s` |
-| A user's upstream component isn't built or published yet and they ask for a mock, or for the CLI to substitute one | Not a platform feature — the platform never parses contracts and never swaps in a stand-in for a missing required dependency (§4.1). The path that already works: `brickkit new <id> --contract openapi` for a stub carrying the agreed contract, `brickkit add --local`, `mode: debug` + `localPort` on the stub, and any mock tool listening on that port. Walkthrough with real output: `docs/en/03-guide/08-consuming-artifacts.md` |
-| A user asks "how do I run everything locally without Docker/K8s at all" | That's the one shape the platform doesn't manage or inject anything for — see `deployment-selection-guide.md`'s "Running components by hand" section. The one thing worth telling them: `brickkit up --dry-run` after a temporary `mode: debug` on the component in question dumps the exact env vars a real deployment would inject, as a cheat sheet — then revert the edit, don't actually deploy that way |
+| A user asks "which of independent/shell-merged/mixed, or docker/k8s, should I actually use" | This is the topology × deploy-target decision `docs/en/07-patterns/05-deployment-selection-guide.md` exists to answer — walk through its matrix rather than improvising an answer inline. Its one hard rule worth remembering directly: `mode: debug` (the debug toggle, written in `override.yaml`) only exists under an *effective* `deploy.target: docker`; it's rejected outright under `k8s` |
+| A user's upstream component isn't built or published yet and they ask for a mock, or for the CLI to substitute one | Not a platform feature — the platform never parses contracts and never swaps in a stand-in for a missing required dependency (§4.1). The path that already works: `brickkit new <id> --contract openapi` for a stub carrying the agreed contract, `brickkit add --local`, `mode: debug` + `localPort` on the stub in `override.yaml`, and any mock tool listening on that port. Walkthrough with real output: `docs/en/03-guide/08-consuming-artifacts.md` |
+| A user asks "how do I run everything locally without Docker/K8s at all" | That's the one shape the platform doesn't manage or inject anything for — see `deployment-selection-guide.md`'s "Running components by hand" section. The one thing worth telling them: `brickkit up --dry-run` after a temporary `mode: debug` entry in `override.yaml` for the component in question dumps the exact env vars a real deployment would inject, as a cheat sheet — then revert the edit, don't actually deploy that way |
 | A user pastes a `brickkit` error, or asks how to script around failures (retry vs. alert) | Every command-ending error carries a stable `error_code` in the JSON log line on stderr, right after the `❌` block. Look it up in `docs/en/06-architecture/10-error-codes.md` (swap `en` for `zh`) — it lists each code's situations by the exact title the CLI prints, with cause and fix. Only `NETWORK_UNREACHABLE` is worth retrying unchanged; codes are stable and only ever added |
 
 ---
@@ -1179,8 +1274,11 @@ cmd/gen-schemas/       regenerates schemas/*.json (make generate-schemas); a dev
 tools/i18n/            CLI i18n migration toolkit (AST-based extraction/rewrite of user-visible strings, test-expectation helpers); a dev tool, not built into the CLI
 internal/               CLI implementation
   ├── config/            brickkit.yaml parsing and validation
+  ├── override/           override.yaml parsing, single-file validation, cross-file checks against
+  │                        brickkit.yaml (target downgrade, k8s+debug/local, dangling entries), drift
   ├── manifest/           component.yaml parsing and validation
-  ├── schemagen/          generates the JSON Schemas from the config / manifest Go structs by reflection
+  ├── schemagen/          generates the JSON Schemas from the config / manifest / override Go structs
+  │                        by reflection
   ├── resolver/           dependency resolution, topological sort
   ├── shell/              servedBy grouping/merging, shared by compose and k8s renderers
   ├── cascade/            cascade decision: figures out who actually starts this time (follows the top)
@@ -1194,7 +1292,8 @@ internal/               CLI implementation
   ├── workspace/          component source workspace (--repo / sync)
   └── market/             marketplace client
 market-server/          the component marketplace backend (an independent Go module)
-schemas/                JSON Schema for component.yaml and brickkit.yaml — generated, checked in; editors use it for completion and typo detection
+schemas/                JSON Schema for component.yaml, brickkit.yaml, and override.yaml — generated,
+                         checked in; editors use it for completion and typo detection
 docs/en/, docs/zh/      current documentation (architecture / guide / patterns, bilingual mirror)
 docs/archive/           historical record, not part of current docs
 tests/components/       10 real components used to test the platform itself

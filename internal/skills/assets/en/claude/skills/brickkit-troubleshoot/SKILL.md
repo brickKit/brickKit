@@ -57,6 +57,21 @@ platform-injected value wins. Check whether the item's name, uppercased, hits `D
 `REDIS_*` / `MQ_*` / `STORAGE_*` / `SEARCH_*` / `SMTP_*` / `*_ENDPOINT` / `COMPONENT_ID` /
 `COMPONENT_VERSION`. `databaseTimeout` → `DATABASE_TIMEOUT`, for instance, collides.
 
+**6. `brickkit.yaml` refuses `mode: debug` — this isn't a bug to route around.**
+
+It's rejected outright, at parse time, unconditionally. `mode: debug` can **only** be written in
+`override.yaml` (optional, gitignored, per-developer — run `brickkit override` to create/refresh
+it). `mode: local` has no such restriction and stays in `brickkit.yaml` as always. Don't suggest
+editing `brickkit.yaml` to add `mode: debug`, and don't treat the rejection as something to work
+around — direct the user to `override.yaml` instead.
+
+**7. `override.yaml` silently does nothing — check `--config` first.**
+
+`override.yaml` only ever applies to a run against the **default** `brickkit.yaml`. A run with
+`--config brickkit.prod.yaml` ignores any `override.yaml` present and prints a note saying so —
+that's by design (a personal local override must never leak into a named-environment run), not a
+bug.
+
 ## Error code → what to do
 
 The CLI's errors carry an error code. Look it up by code, it's faster than by wording.
@@ -119,3 +134,5 @@ version, content-equivalent.)
 - The authoritative definition of error codes (constant names, wording): `internal/clierr/clierr.go`
 - The full argument for "why is it designed this way" (for when the user asks "why doesn't it..."):
   root `AGENTS.md` §9 (the twenty-three "whys")
+- `override.yaml` itself (schema, downgrade-only target rule, the multi-environment `--config`
+  guard, the `brickkit override` command): root `AGENTS.md` §7.1

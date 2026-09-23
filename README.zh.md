@@ -146,8 +146,8 @@ deploy:
 组件代码一个字都不用改：两个环境下的地址格式完全一样，都是
 `http://<版本化服务名>:<端口>`（例如 `http://people-basic-1-0-0:8080`）。
 
-**16 条命令，外加 `version` 与 `lang`：** `init` `skills` `graph` `lint` `new` `add` `remove`
-`fetch` `up` `down` `status` `sync` `restore` `login` `logout` `publish`
+**17 条命令，外加 `version` 与 `lang`：** `init` `skills` `graph` `lint` `new` `add` `remove`
+`fetch` `up` `down` `status` `sync` `override` `restore` `login` `logout` `publish`
 
 想动手照着跑一遍？[5 分钟 Quick Start](docs/zh/00-quick-start.md) 用仓库自带的
 测试夹具走完这整条路径，每一步都是真实命令和真实输出。

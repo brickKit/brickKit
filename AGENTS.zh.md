@@ -87,7 +87,7 @@
 ### 2.3 数据流（一次 `brickkit up` 发生了什么）
 
 ```
-brickkit.yaml（声明）
+brickkit.yaml（声明）+ override.yaml（可选，本地专属——最先合并进来，§7.1）
    ↓ ① 启停判定：算出这次实际该启动哪些组件（`mode` + 依赖图，跟着上层走）
    ↓ ② 依赖解析：递归展开依赖树，强依赖缺失报错，拓扑排序得出启动顺序
    ↓ ③ 环境变量注入：依赖地址、资源连接、自身配置 → 环境变量
@@ -115,16 +115,17 @@ brickkit.yaml（声明）
 | 组件市场 | BrickKit Market | 公开的组件发布和发现平台 |
 | 组件 | Component | 最基本的安装和运行单元，**全部是 container** |
 | Manifest | component.yaml | 组件的自我描述文件 |
-| 项目配置 | brickkit.yaml | 项目级声明：组件列表、启停、本地调试、暴露、配置覆盖、资源、部署目标 |
+| 项目配置 | brickkit.yaml | 项目级声明：组件列表、启停、暴露、配置覆盖、资源、部署目标。共享、要评审、进 Git |
+| 本地覆盖配置 | override.yaml | 可选、进 `.gitignore`、按开发者各自本地一份的文件，覆盖 `brickkit.yaml` 的 `deploy.target`（只许降级）和某个组件的 `mode`/`localPort`。`mode: debug` **只能**写在这里——`brickkit.yaml` 自身直接拒绝它（§5.4、§5.6） |
 | 强依赖 | Required Dependency | 缺失时 CLI **报错并阻断启动** |
 | 弱依赖 | Optional Dependency | `optional: true`；缺失时警告但继续，且**完全不注入该环境变量** |
 | 版本化服务名 | Versioned Service Name | 带精确版本号的服务名，如 `people-basic-1-0-0` |
-| 本地调试模式 | Local Debug Mode | `mode: debug`；组件跑在宿主机 IDE 中，用 `extra_hosts` 映射进容器网络 |
-| 本地托管模式 | Local Managed Mode | `mode: local`；BrickKit 自己探测启动命令，把组件跑成一个裸进程并监管它——不生成容器，也不需要 IDE |
+| 本地调试模式 | Local Debug Mode | `mode: debug`，写在 `override.yaml` 里；组件跑在宿主机 IDE 中，用 `extra_hosts` 映射进容器网络 |
+| 本地托管模式 | Local Managed Mode | `mode: local`，写在 `brickkit.yaml` 里；BrickKit 自己探测启动命令，把组件跑成一个裸进程并监管它——不生成容器，也不需要 IDE |
 | 安装源 | Source | 组件来源：市场（http）/ Git 仓库 / 本地目录 |
 | 基础资源 | Resource | 组件依赖的外部系统（数据库、Redis 等），运维部署，`brickkit.yaml` 绑定 |
 | 环境变量注入 | Env Injection | CLI 生成部署文件时写入依赖地址、资源连接、自身配置 |
-| 部署目标 | Deploy Target | `docker` 或 `k8s`，决定 CLI 生成哪种部署文件 |
+| 部署目标 | Deploy Target | `brickkit.yaml` 里是 `docker` 或 `k8s`，决定 CLI 生成哪种部署文件。`override.yaml` 可以在本地把它往下降（k8s → docker/podman；docker ↔ podman 不受限；绝不会升回 k8s）——`podman` 本身是 `override.yaml` 独有的取值，`brickkit.yaml` 自己的 `deploy.target` 从不接受它 |
 | 数据库迁移 | Migration | 组件声明 `migration.command`，CLI 在部署前执行 |
 | 配置覆盖 | Config Override | `brickkit.yaml` 的 `config` 覆盖 configSchema 默认值。**不校验值的类型，但校验键名存不存在** |
 | 连接组件 | Connector Component | 协调多个单一组件的编排组件 |
@@ -180,11 +181,11 @@ brickkit.yaml（声明）
 | 合并部署 / 单体外壳——平台不会、也不打算自己提供外壳脚手架或进程管理器 | 但一小块**结构性支撑已经落地**：`servedBy` 让一个组件声明"我的工作负载由另一个组件提供"，平台在 Docker 和 K8s 下都会把 `*_ENDPOINT` 地址正确接到它身上——全程不需要理解外壳里面是什么。见下文 5.7 |
 | 依赖别名（`dependencies.components[].as`） | 变量名基于组件 ID 是双向可推算的，别名只保住一半；"一个能力多个实现"该走 `kind` 资源或 `configSchema` 里的地址项 |
 | 低代码 / BI / DevOps 流水线 | 不在范围内 |
-| Podman 作为部署目标 | 支持写过、也跑通过——`up`、`status`、真实请求、幂等重跑全部正常——但 `down` 在 rootless Podman 上失败，报 `rootless netns: kill network process: permission denied`，纯 `podman rm -f` 都能复现，完全在 BrickKit 自己的代码之外。一个停不掉的项目比根本不支持更糟——容器会一直占着端口和卷，而 CLI 却报告成功——所以选择整个撤回，不留一个跑到一半的支持。只装了 Podman、没装 Docker 的机器上，`up`/`status` 会明确点出这个具体原因、并指向装 Docker，而不是笼统报"找不到引擎"。要恢复支持，需要先有一台 `podman compose down` 本身就能干净跑通的机器，在那台机器上验证完整生命周期，再加一条可重复的检查防止它悄悄再次坏掉 |
+| Podman 作为真正能跑起来的部署目标 | 支持写过、也跑通过——`up`、`status`、真实请求、幂等重跑全部正常——但 `down` 在 rootless Podman 上失败，报 `rootless netns: kill network process: permission denied`，纯 `podman rm -f` 都能复现，完全在 BrickKit 自己的代码之外。一个停不掉的项目比根本不支持更糟——容器会一直占着端口和卷，而 CLI 却报告成功——所以真正的 `engine.Engine` 实现选择整个撤回，不留一个跑到一半的支持。**现在实际有的**：`override.yaml` 的 `target` 字段已经合法接受 `podman` 作为降级取值（§7.1）——`up --dry-run` 能完整生成它的 compose 文件——但真的（非 dry-run）对 podman target 跑 `up` 会明确报错（`ENGINE_MISSING`，并指回 `--dry-run`），而不是悄悄跑歪或者真的能用，因为背后还没有 `engine.Engine` 实现。要恢复剩下这部分，需要先有一台 `podman compose down` 本身就能干净跑通的机器，在那台机器上验证完整生命周期，再加一条可重复的检查防止它悄悄再次坏掉 |
 | 平台代为从外部密钥存储（Vault / AWS Secrets Manager 的 SDK）取值 | `${VAR}` 先查进程环境、再查 `.env`——任何能把值放进环境的工具今天就能接入，平台零代码。内置的话，每接一种存储就多一个 SDK，每次 `up`（含 `--dry-run`）都要带存储凭据并联网，还是被否决的"配置中心"的邻居。**已经支持的：** `resources[].existingSecret` 与 `secret: true` 配置项写成 `{ existingSecret, key }`，引用外部系统（Vault Secrets Operator、External Secrets Operator、Sealed Secrets……）已经放进集群的 Secret——两种写法平台都不读写值本身，仅 K8s（§5.2） |
 | 引擎插件 / 第三方部署目标（`up` 上一个假想的 `--engine nomad` 风格参数） | 一个目标的 `Down` / `Status` / 孤儿清理保证，才让"一个能拆干净的项目"成立；插件要自己担保它们，而 CLI 会替它报"成功"——撤掉 Podman 的同一个理由。`deploy.target` 是 `brickkit.yaml` 里的声明，绝不变成命令行参数。新目标在仓库内实现，带全套测试守卫。（`engine.Engine` 本来就是接口；这里说的是谁来担保它的语义，不是代码怎么分层） |
 | 增量生成缓存（`.brickkit/` 里存哈希状态） | 没有可加速的东西：50 个组件走完整条链路约 2 ms（`tests/perf`），使用者真正在等的是 `docker compose up` / `kubectl apply`，而它们本来就只动有变化的。缓存要维护状态，过期时静默产出错误的部署文件 |
-| 按契约生成 mock（一个完整的 `mock` 命令）、自动替换缺失的强依赖（`up --with-mocks` 风格的参数） | 平台从不解析契约（`artifacts.format` 只是个字符串）；给缺失的强依赖换上替身，违反"强依赖缺失就阻断启动"，还可能被误部署；mock 起在另一个名字下接不到流量，因为注入的地址指向真实组件的版本化服务名。现在就能用的：`brickkit new <id> --contract openapi` + `mode: debug` + 任意 mock 工具（`docs/zh/03-guide/08-consuming-artifacts.md`） |
+| 按契约生成 mock（一个完整的 `mock` 命令）、自动替换缺失的强依赖（`up --with-mocks` 风格的参数） | 平台从不解析契约（`artifacts.format` 只是个字符串）；给缺失的强依赖换上替身，违反"强依赖缺失就阻断启动"，还可能被误部署；mock 起在另一个名字下接不到流量，因为注入的地址指向真实组件的版本化服务名。现在就能用的：`brickkit new <id> --contract openapi` + `override.yaml` 里的 `mode: debug` + 任意 mock 工具（`docs/zh/03-guide/08-consuming-artifacts.md`） |
 | 给 `brickkit graph` 自己造渲染器——HTML / SVG 输出、内置查看器、替你写文件的参数 | Mermaid 文本本来就有人免费渲染：GitHub 直接渲染 `.mmd` / `.mermaid` 文件，以及 Markdown 里标了 `mermaid` 的代码块，什么都不用装。CLI 里再内置一个渲染器，是给一件今天不花钱的事添一份永久的维护成本（排版、多一种要保证正确的输出格式）。而 stdout 里只有 Mermaid，正是 shell 重定向 `brickkit graph > graph.mmd` 得到合法文件的前提——所以连"替你写文件"的参数也不需要 |
 | 在 `brickkit lint` 里做依赖解析与跨文件引用检查（`servedBy` 指向的组件存不存在？那条依赖找不找得到？） | `lint` 是一个承诺——离线、只读、秒回、不需要 Docker / K8s——而且它不新增任何规则：只是把 `up` / `add` / `publish` 本来就对每个文件跑的解析加校验单独拿出来跑。解析依赖图要读每个组件的 Manifest，对市场 / Git 组件就意味着联网；只要联一次网，这个承诺就没了。**`brickkit up --dry-run` 本来就在做这件事**——它无论如何都要解析依赖图，`servedBy` 目标不存在、或者有解析不出来的强依赖时，会报错并点出是哪一个。想看声明出来的结构，用 `brickkit graph` |
 
@@ -284,6 +285,14 @@ External Secrets Operator、Sealed Secrets……）已经在集群里建好的 S
 | `mode: debug` | **一定跑，进程由你自己启动** | 跟 `mode: enabled` 一样钉住（不看上层；强依赖被关掉时报错），但不生成容器——你在宿主机上、IDE 里自己跑（5.6）。仅限 Docker |
 | `mode: local` | **一定跑，进程由 BrickKit 自己启动并监管** | 跟 `mode: enabled` 一样钉住（不看上层；强依赖被关掉时报错），但不生成容器——BrickKit 从组件自己的源码里探测启动命令、拉起它、盯着它（5.6）。仅限 Docker |
 
+⚠️ **`mode: debug` 只能写在 `override.yaml` 里——`brickkit.yaml` 自身在解析阶段就直接拒绝它。**
+这张表里其余每一个取值（不写 / `enabled` / `disable` / `local`）都照旧直接写在 `brickkit.yaml`
+里。原因在于 `mode: debug` **本身是什么**：一个"我现在正在自己机器上调试这个组件"的个人事实，
+从来都不该是一个评审 `brickkit.yaml` 的同事需要看到、被它影响、或者从 `git pull` 里意外继承到的
+东西——这正是 `override.yaml`（可选、进 `.gitignore`、按开发者各自一份；§5.6）存在的理由。
+`mode: local` 留在 `brickkit.yaml` 里，是因为它不是个人的——谁跑 `up`，这个进程都照样跑起来、
+照样能被同样的方式连到。
+
 **强依赖和弱依赖一视同仁**：上层弱依赖它，它照样跟着跑。`optional: true` 只管两件事——
 解析期取不到只警告不阻断、它没在跑时不注入 `*_ENDPOINT`。
 
@@ -296,7 +305,8 @@ External Secrets Operator、Sealed Secrets……）已经在集群里建好的 S
 
 **收窄启动范围只有一条路：改 `mode`。** 没有 `--only` 之类的命令行参数——
 把不搞的**顶层**写上 `mode: disable`，`up` 与 `sync` 跟着走；
-恢复全量就 `git checkout brickkit.yaml`。
+恢复全量就 `git checkout brickkit.yaml`（如果那条 `mode: disable` 写在 `override.yaml` 里，
+直接删掉那一行就行——`override.yaml` 不进 Git，没什么可 checkout 的）。
 
 `brickkit add` 自动添加的组件**不写** `mode` 字段。
 
@@ -323,17 +333,29 @@ Docker 映射端口到宿主机（可用 `exposePort` 自定义，端口冲突�
 
 两个值说的是同一件事："这个组件跑成你自己机器上的一个普通操作系统进程，不在容器里，其他一切照样能正确连到它。" 区别在于**谁负责启动它**：`mode: debug` 是**你自己**启动——在 IDE 里，带着断点——BrickKit 只负责把地址指过去；`mode: local` 是你只想让它跑起来、不用你操心——BrickKit 自己探测启动命令、自己拉起进程、自己盯着它。同一个形状，启动这一步的责任方相反。
 
+**两者也在"写在哪个文件里"这件事上分道扬镳。** `mode: local` 跟其他字段一样，直接写在
+`brickkit.yaml` 里。`mode: debug` **只能**写在 `override.yaml`（§3）里——`brickkit.yaml`
+在解析阶段就直接拒绝它，无条件，跟 `deploy.target` 是什么完全无关。原因在于这个取值本身
+代表什么："我现在正在自己机器上调试这个组件"是一个**这个开发者、这一刻**的个人事实——
+恰恰是一个评审 `brickkit.yaml` diff 的同事永远不该看到、被它挡住、或者从一次 `git pull`
+里意外继承到的东西。`override.yaml` 可选、进 `.gitignore`、按开发者各自一份，正是为此存在的。
+`brickkit override` 会根据 `brickkit.yaml` 当前的组件列表生成/刷新它——每个组件都会有一行
+裸 `- id: <id>`，`mode: debug`（连同 `localPort`）由使用者自己手工加在上面。
+
 **`mode: debug`：** 要在 IDE 里断点调试某个组件，同时它还要被 Docker 网络里的其他组件访问：
 
-- `brickkit.yaml` 中标记 `mode: debug` 的组件**不生成容器**
+- `override.yaml` 中标记 `mode: debug` 的组件**不生成容器**
 - 其他容器通过 `extra_hosts` 把该组件的版本化服务名解析到 `host-gateway`
 - 多个组件可同时本地调试，用不同 `localPort`，CLI 自动注入对应端口
 - CLI 生成 `local-debug.env` 供 IDE 加载
 - **组件代码零修改**（照常读环境变量）
 - 它跟 `mode: enabled` 一样是**钉住**的（5.4）：不管上层怎么样它都在跑，它的**强**依赖被关掉时是
   报错，不是悄悄让步
-- **仅限 Docker**：`mode: debug` 与 `deploy.target: k8s` 同时出现，在解析 `brickkit.yaml` 时就会被
-  拒绝（所以 `brickkit lint` 也拦得住）——集群里的 Pod 没有路径能连到你自己机器上的进程
+- **仅限 Docker**：`mode: debug` 与**生效**的 `deploy.target: k8s` 同时出现，会在拿 `override.yaml`
+  跟 `brickkit.yaml` 做交叉校验时被拒绝（所以 `brickkit lint` 也拦得住）——集群里的 Pod 没有路径
+  能连到你自己机器上的进程。由于 `override.yaml` 只能把 `deploy.target` 往下降（k8s → docker/
+  podman，绝不会反过来——§3 术语表那一条），生效目标能是 k8s 的唯一情形，就是 `brickkit.yaml`
+  自己本来就是 k8s、而 `override.yaml` 又完全没碰 `target`
 - 写进这份文件的值，只要含有会被 shell 误解析的字符（空白、`|`、`$`、值内部的
   真实换行……）就会按 POSIX shell 规则加上引号——多行的 PEM 值或竖线分隔的列表
   经过 `set -a && source … && set +a` 之后完整保留，不会在第一个换行处截断，
@@ -665,8 +687,10 @@ sources:                         # 安装源
 components:
   - id: people/basic
     version: 1.0.0               # 必须，精确版本
-    mode: debug                  # 可选：enabled | disable | debug | local，写法见 5.4
-    localPort: 8081              # mode: debug 或 mode: local 时的宿主机端口（local 下可选——默认自动分配）
+    mode: local                  # 这份文件里可选：enabled | disable | local（5.4）。mode: debug
+                                  #   在这份文件里不合法——只能写在 override.yaml（7.1）
+    localPort: 8081              # mode: local 时的宿主机端口（可选——默认自动分配）。
+                                  #   mode: debug 的 localPort 也写在 override.yaml 里，跟它的 mode 挨着
     servedBy: <id>@<版本>         # 可选，这个组件的工作负载由另一个组件提供
     expose: false                # 可选，默认 false
     hostname: <域名>              # expose + k8s 时必填
@@ -732,9 +756,67 @@ installer:
 之间的每一种互斥、绑定槽位规则、哪些字段只在某一种部署目标下生效而写在另一种下 `up` 会警告）见
 [08-brickkit-yaml-reference.md](docs/zh/06-architecture/08-brickkit-yaml-reference.md)。
 
+### 7.1 `override.yaml` 字段骨架
+
+一份可选、**进 `.gitignore`**、按开发者各自本地一份的文件，跟 `brickkit.yaml` 放在一起，
+本地覆盖两件事：`deploy.target`（只许降级）和某个组件的 `mode`/`localPort`。从不跟
+`brickkit.yaml` 按字段合并/叠加——一个话题要么这里完全不提（那就完全跟着 `brickkit.yaml`），
+要么这里写了（那就整个替掉 `brickkit.yaml` 在这个话题上的值）。`brickkit override` 首次运行时
+创建它，之后每次运行都是刷新——这同时也是它的重置/修复操作，没有单独的第二个命令。
+
+```yaml
+target: podman                 # 可选：docker | podman | k8s——必须是对 brickkit.yaml 自己
+                                # deploy.target 的一次降级：k8s → docker/podman 允许，反过来
+                                # 永远拒绝，docker ↔ podman 不受限。不写就跟着 brickkit.yaml
+                                # 自己的 deploy.target 走
+targetBaseline: docker         # 这份覆盖上一次被确认时，deploy.target 的取值——喂给下面的
+                                # 漂移提示，从不被强制校验
+
+components:                    # brickkit override 给 brickkit.yaml 里每一个组件 ID 写一行——
+                                # 同一个 ID 共存的多个版本共用一行，因为这份文件里根本没有
+                                # 版本号（一份覆盖对那个 ID 的所有版本一视同仁）
+  - id: department/tree        # 独立组件，没有覆盖——裸的一行
+
+  - id: erp/backend            # 一个外壳——它自己也是个普通组件，这里同样没有覆盖
+    members:                   # servedBy 成员嵌在它们的外壳下面，只有一层
+      - id: people/basic          # servedBy 成员，没有覆盖——裸的一行
+      - id: auth/rbac
+        mode: disable             # 这次外壳照常跑的同时，把它排除在 BRICKKIT_SERVED_MEMBERS
+                                   # 之外——不保证一定生效（AGENTS.md §5.7）
+
+  - id: infra/redis-event-bus
+    mode: local
+    localPort: 8082             # 这台机器上端口 8080（brickkit.yaml 建议的默认值）已经被占了——
+                                 # 在这里覆盖成另一个
+
+  - id: payment/gateway
+    mode: debug                  # 唯一能写 mode: debug 的地方（§5.4、§5.6）
+    localPort: 9091
+    baseline: local               # 这份覆盖上一次被确认时，brickkit.yaml 自己给这个组件写的
+                                    # mode——喂给漂移提示，从不被强制校验
+```
+
+- `mode: debug` 配上一个生效的 `deploy.target: k8s` 会被拒绝（唯一能达成这个组合的情形是
+  `brickkit.yaml` 自己本来就是 k8s、而这里的 `target` 没碰）
+- 只写了 `localPort` 却没写 `mode`，或者 `localPort` 超出合法范围，跟写在 `brickkit.yaml` 里
+  一样会被拒绝
+- 一条条目指向的组件 ID 在 `brickkit.yaml` 里根本不存在（悬空引用——组件被删了，或者 ID 打错了）
+  会被拒绝
+- 漂移检测是按内容比对，从不按时间戳——`baseline`/`targetBaseline` 每次都跟 `brickkit.yaml`
+  **当前**的值比对，对不上就打印一条提示（从不阻断）：这份覆盖可能依然是使用者想要的，
+  也可能已经过时、值得回头看看
+- `brickkit up`（以及 `sync`/`status`/`down`）在它存在时会自动应用它，**但只对针对默认
+  `brickkit.yaml` 的这次运行生效**——`--config brickkit.prod.yaml` 会忽略当前存在的
+  `override.yaml` 并打印一句说明，这样一份个人本地覆盖就永远不会泄漏进某个具名环境的运行里
+- `brickkit graph` 刻意从不读它——它的输出是一份要分享、要提交的产物
+  （`brickkit graph > graph.mmd`），不能因为是谁在本地生成的就长得不一样
+
+以上是骨架——完整的逐字段结构在 `schemas/override.schema.json`（生成、已提交，跟
+`brickkit.yaml` 自己的 schema 用的是同一套机制）。
+
 ---
 
-## 8. CLI 命令集（16 个命令 + `version` + `lang`）
+## 8. CLI 命令集（17 个命令 + `version` + `lang`）
 
 | 命令 | 核心行为 |
 | --- | --- |
@@ -746,16 +828,17 @@ installer:
 | `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `mode` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘 |
 | `brickkit remove <id>` | 检查强依赖方后移除，自动删除源码目录（含归档的那份）。多版本共存时必须指定版本 |
 | `brickkit fetch <id>[@版本]` | 只下载组件的产物到 `.brickkit/artifacts/<版本化服务名>/`，**不写入 brickkit.yaml、不部署**。跨项目调用别人的服务时用 |
-| `brickkit up` | 启停判定 → 生成部署文件 → 生成 `local-debug.env` → 检测镜像权限 → 执行迁移 → 调用引擎 → 在前台拉起并监管所有 `mode: local` 组件（§5.6） |
-| `brickkit down` | 停止所有容器。**不删除 volume，保留数据。** 够不到跑在另一个终端里的 `mode: local` 进程——会改打印一句提示，点名那个会话的 PID |
-| `brickkit status` | 读底层引擎，展示运行表格（含多版本检测、不启动的组件也列出来）。`mode: local` 组件不进这张表（它们不是容器），但有一个在别处跑着时会打印提示 |
-| `brickkit sync` | 按启停判定结果双向归档 / 激活组件源码。无参数 |
+| `brickkit up` | 先应用 `override.yaml`（如果存在，且只对针对默认 `brickkit.yaml` 的这次运行——§7.1）→ 启停判定 → 生成部署文件 → 生成 `local-debug.env` → 检测镜像权限 → 执行迁移 → 调用引擎 → 在前台拉起并监管所有 `mode: local` 组件（§5.6） |
+| `brickkit down` | 先应用 `override.yaml` 对 `deploy.target` 的降级（§7.1），再按生效目标停止所有容器。**不删除 volume，保留数据。** 够不到跑在另一个终端里的 `mode: local` 进程——会改打印一句提示，点名那个会话的 PID |
+| `brickkit status` | 应用 `override.yaml`（§7.1），读底层引擎，展示运行表格（含多版本检测、不启动的组件也列出来）。`mode: local` 组件不进这张表（它们不是容器），但有一个在别处跑着时会打印提示 |
+| `brickkit sync` | 应用 `override.yaml`（§7.1），再按启停判定结果双向归档 / 激活组件源码。无参数 |
+| `brickkit override` | 首次运行创建 `override.yaml`，之后每次运行都是刷新（同时也是它自己的重置/修复操作——§7.1）。`brickkit.yaml` 里每个组件都会有一行；已有的自定义值（`mode`/`localPort`/`baseline`）原样保留，从 `brickkit.yaml` 移除的组件那一行也跟着消失，新组件补一条裸 `- id:`。对着非默认的 `--config` 会拒绝运行。写完之后打印漂移提示（§7.1） |
 | `brickkit restore` | 把 `mode` 与组件源码结构还原到最后一次提交。`--check` 供 pre-commit hook 判断这次提交自洽不自洽 |
 | `brickkit login` | 终端交互登录市场，Token 存 `.brickkit/credentials` |
 | `brickkit logout` | 先调市场作废 Token，再删本地的 `.brickkit/credentials`。**本地那份一定会删**，即使市场连不上——否则一次网络抖动就让人以为自己已经退出、凭据却还躺在盘上。没登录时什么都不做，也不算失败 |
 | `brickkit publish` | 上传 Manifest + 镜像引用 + 产物到市场（需先 login） |
 
-另有两个命令不在这 16 个之内，因为它们管的是 CLI 自己、不是你的项目：`brickkit version`，以及 `brickkit lang`——查看或切换 CLI 说哪种语言。**CLI 默认说英文。** 语言取值：先看环境变量 `BRICKKIT_LANG`，其次是 `brickkit lang set en|zh` 存进用户级配置文件的值，最后才是英文；**刻意没有** `--lang` 参数（语言必须在命令树——包括 `--help`——搭起来之前就确定）。人读的一切都跟着语言走，包括 JSON 日志行里的 `message` 和生成文件里的注释；`error_code`、命令名与参数名永远不随语言变。
+另有两个命令不在这 17 个之内，因为它们管的是 CLI 自己、不是你的项目：`brickkit version`，以及 `brickkit lang`——查看或切换 CLI 说哪种语言。**CLI 默认说英文。** 语言取值：先看环境变量 `BRICKKIT_LANG`，其次是 `brickkit lang set en|zh` 存进用户级配置文件的值，最后才是英文；**刻意没有** `--lang` 参数（语言必须在命令树——包括 `--help`——搭起来之前就确定）。人读的一切都跟着语言走，包括 JSON 日志行里的 `message` 和生成文件里的注释；`error_code`、命令名与参数名永远不随语言变。
 
 **常用参数：**
 
@@ -769,6 +852,7 @@ brickkit graph > graph.mmd                        # 依赖拓扑存成 Mermaid �
 brickkit graph --ignore-served-by                 # 把每个组件都画成独立部署，当作没声明过 servedBy
 brickkit lint                                     # 离线检查 brickkit.yaml 与本地安装源里 component.yaml 的结构
 brickkit lint --strict                            # 警告也算失败（退出码 1）——给 CI 门禁用
+brickkit override                                 # 根据 brickkit.yaml 当前的组件列表创建/刷新 override.yaml
 brickkit down --context prod-cluster              # 同样的覆盖，用来关停指定集群
 brickkit add people/basic@1.1.0 --yes             # 非交互（CI/CD）
 brickkit add --local                              # 把本地安装源里的组件一次全部添加
@@ -988,7 +1072,10 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 | `mode: debug` 的组件报 `relation does not exist` | debug 组件不生成迁移容器，迁移要自己手动跑一次 |
 | `mode: debug` 组件自己的 config 里，某个带外依赖的地址还是 `host.docker.internal` | 那是使用者自己写的字面量，brickKit 不解析 config 值，改成 `mode: debug` 不会帮你换算。自己把这个字面量改掉（通常改成 `localhost`） |
 | `mode: debug` 组件依赖了一个 `servedBy` 成员 | 能连上：它的 `*_ENDPOINT` 会解析成一个真正的 `localhost:<端口>`——这个成员没有自己的容器，CLI 把映射开在它的外壳身上（§5.6） |
-| 用户问「该用 `mode: debug` 还是 `mode: local`」 | 要打断点调试 → `mode: debug`（你自己在 IDE 里启动）。只是想让它跑起来、不生容器、也不想自己守着一个终端命令 → `mode: local`（BrickKit 自己探测启动命令、拉起、盯着）。两个都仅限 Docker，都跟 `mode: enabled` 一样钉住 |
+| 用户问「该用 `mode: debug` 还是 `mode: local`」 | 要打断点调试 → `mode: debug`，只能写在 `override.yaml` 里（你自己在 IDE 里启动）。只是想让它跑起来、不生容器、也不想自己守着一个终端命令 → `mode: local`，写在 `brickkit.yaml` 里（BrickKit 自己探测启动命令、拉起、盯着）。两个都仅限 Docker，都跟 `mode: enabled` 一样钉住 |
+| 用户问「为什么 `brickkit.yaml` 不让我写 `mode: debug`」 | 设计如此（§5.4、§5.6）——`mode: debug` 是一个"我现在正在自己机器上调试这个组件"的个人事实，从来都不该是一个评审 `brickkit.yaml` 的同事需要看到的东西。它只能写在 `override.yaml`（可选、进 `.gitignore`）里。跑一次 `brickkit override` 生成/刷新那份文件，再在对应组件条目下手动加 `mode: debug` + `localPort` |
+| `brickkit override` 拒绝写入，报 target 升级被拒 | `override.yaml` 的 `target` 只能降级 `brickkit.yaml` 自己的 `deploy.target`（k8s → docker/podman；docker ↔ podman 随便切；绝不能升回 k8s）。改一下 `override.yaml` 里的 `target`，或者干脆删掉那一行、跟着 `brickkit.yaml` 走 |
+| 用户改了 `override.yaml` 但什么都没变 | 先查 `--config`——`override.yaml` 只对针对**默认** `brickkit.yaml` 的这次运行生效；`--config brickkit.prod.yaml` 会忽略它，并打印一句说明 |
 | 用户问「为什么 `brickkit down` 停不掉我的 `mode: local` 组件」 | 这是设计如此——`down` 只碰容器；`mode: local` 进程只属于跑 `up` 的那个终端，也只能从那里够到。`status`/`down`/`graph` 有一个在跑时都会打印一句点名那个会话 PID 的提示，但谁都伸不进去 |
 | `mode: local` 组件崩了，摘要太吵（或者不够详细） | `brickkit up` 的 `--crash-lines N` 控制崩溃摘要留多少行进程自己最近的输出（默认 20 行，`0` = 只留退出原因） |
 | 讨论签名 | 发布方需要装 **cosign**；**安装方不需要**（验签用 Go 标准库） |
@@ -996,9 +1083,9 @@ fork、remote、分支策略、PR 流程都是 Git 工作流的一部分，与 B
 | 用户问「能不能把多个组件合并成一个实例省内存」 | 先问是不是 JVM（Go/Rust 20 个才 0.4G，不值得）；再推 GraalVM native image 与按需启用。还要合并的话：**`servedBy`（5.7）是平台支持的路径**——它在 Docker 和 K8s 下都能正确处理地址路由；其余的事（模块隔离、配置、外壳内部的迁移顺序）还是他们自己的代码，参见外壳实现者指南。`mode: disable` 和这个无关——它照样不能拿来当「我自己接管」的开关 |
 | 用户的 `brickkit` 输出不是他预期的那种语言（或者某个 grep 输出的脚本坏了） | 语言是每次运行时决定的：`BRICKKIT_LANG` 优先于 `brickkit lang set` 存下的值，后者优先于默认的英文——`brickkit lang` 会打印当前生效的是哪一个、为什么。脚本别去 grep 给人看的文字：认退出码和 stderr JSON 日志行里稳定的 `error_code`，或者把 `BRICKKIT_LANG=en` 钉死 |
 | 用户说命令会冒出一堆 `{"time":...,"level":"INFO",...}` 这种 JSON，很吵，不想看到 | CLI 默认就是 `--log-level warn`——常规的单命令生命周期日志（`Command started`、`Command finished` 之类）出厂就是安静的，所以这个情况只会出在有什么东西覆盖了默认值的时候：命令上显式加了 `--log-level info`/`debug`，或者 shell/CI 环境里某处设了 `BRICKKIT_LOG_LEVEL` 为其中之一。先找到那个覆盖，去掉它（或者显式传 `--log-level warn`）就是解法。`--log-level off` 更进一步，连失败时那行 `error_code` 也一起关掉——只有在人只想看 ❌ 那句话、没有脚本要解析 `error_code` 的场景（比如 pre-commit hook）才用它 |
-| 用户问「纯独立/纯外壳/混搭，docker 还是 k8s，到底该选哪个」 | 这正是 `docs/zh/07-patterns/05-deployment-selection-guide.md` 那份矩阵存在的目的——照着它的矩阵走，不要临场现编答案。里面唯一一条值得直接记住的硬规则：`mode: debug`（调试开关）只在 `deploy.target: docker` 下存在，`k8s` 下会在解析阶段直接拒绝 |
-| 用户的上游组件还没做好/没发布，问能不能给个 mock、或让 CLI 自动替换一个 | 不是平台功能——平台从不解析契约，也从不给缺失的强依赖换上替身（§4.1）。现成能走通的路：`brickkit new <id> --contract openapi` 立一个带约定契约的桩、`add --local`、给桩加 `mode: debug` + `localPort`、主机上任意 mock 工具监听那个端口。带真实输出的演示：`docs/zh/03-guide/08-consuming-artifacts.md` |
-| 用户问「完全不经过 Docker/K8s，怎么把整套东西跑在本地」 | 这是平台唯一完全不管理、不注入任何东西的一档——见 `deployment-selection-guide.md` 的"手动跑起来"那节。值得告诉他们的一个技巧：把那个组件临时改成 `mode: debug` 之后跑一次 `brickkit up --dry-run`，能拿到一份真实部署会注入的环境变量清单当参考——抄完就还原这次改动，不要真的照这个方式部署 |
+| 用户问「纯独立/纯外壳/混搭，docker 还是 k8s，到底该选哪个」 | 这正是 `docs/zh/07-patterns/05-deployment-selection-guide.md` 那份矩阵存在的目的——照着它的矩阵走，不要临场现编答案。里面唯一一条值得直接记住的硬规则：`mode: debug`（调试开关，写在 `override.yaml` 里）只在**生效**的 `deploy.target: docker` 下存在，`k8s` 下会被拒绝 |
+| 用户的上游组件还没做好/没发布，问能不能给个 mock、或让 CLI 自动替换一个 | 不是平台功能——平台从不解析契约，也从不给缺失的强依赖换上替身（§4.1）。现成能走通的路：`brickkit new <id> --contract openapi` 立一个带约定契约的桩、`add --local`、给桩在 `override.yaml` 里加 `mode: debug` + `localPort`、主机上任意 mock 工具监听那个端口。带真实输出的演示：`docs/zh/03-guide/08-consuming-artifacts.md` |
+| 用户问「完全不经过 Docker/K8s，怎么把整套东西跑在本地」 | 这是平台唯一完全不管理、不注入任何东西的一档——见 `deployment-selection-guide.md` 的"手动跑起来"那节。值得告诉他们的一个技巧：在 `override.yaml` 里给那个组件临时加一条 `mode: debug` 之后跑一次 `brickkit up --dry-run`，能拿到一份真实部署会注入的环境变量清单当参考——抄完就还原这次改动，不要真的照这个方式部署 |
 | 用户贴了一段 `brickkit` 的报错，或问怎么在脚本里应对失败（重试还是报警） | 每条终止命令的错误，在 `❌` 块后面紧跟的那行 stderr JSON 日志里都带一个稳定的 `error_code`。去 `docs/zh/06-architecture/10-error-codes.md`（英文版把 `zh` 换 `en`）查——它按 CLI 打印的确切标题列出每个码底下的各种情形、原因与解法。只有 `NETWORK_UNREACHABLE` 值得原样重试；码稳定，只增不改 |
 
 ---
@@ -1013,8 +1100,10 @@ cmd/gen-schemas/       重新生成 schemas/*.json（make generate-schemas）；
 tools/i18n/            CLI 多语言迁移工具集（AST 抽取改写用户可见文案、测试期望值批量改写）；开发用的小工具，不编进 CLI
 internal/              CLI 实现
   ├── config/            brickkit.yaml 解析与校验
+  ├── override/           override.yaml 解析、单文件校验、跟 brickkit.yaml 的交叉校验
+  │                        （target 降级方向、k8s+debug/local、悬空条目）、漂移检测
   ├── manifest/          component.yaml 解析与校验
-  ├── schemagen/         从 config / manifest 的 Go 结构体反射生成 JSON Schema
+  ├── schemagen/         从 config / manifest / override 的 Go 结构体反射生成 JSON Schema
   ├── resolver/          依赖解析、拓扑排序
   ├── shell/             servedBy 分组/合并，compose 与 k8s 两边渲染器共用
   ├── cascade/           启停判定：算出这次实际启动谁（跟着上层走）
@@ -1028,7 +1117,7 @@ internal/              CLI 实现
   ├── workspace/         组件源码工作区（--repo / sync）
   └── market/            市场客户端
 market-server/         组件市场后端（独立 Go module）
-schemas/               component.yaml 与 brickkit.yaml 的 JSON Schema——生成出来并签入仓库，编辑器用它做字段补全和拼写笔误检测
+schemas/               component.yaml、brickkit.yaml 与 override.yaml 的 JSON Schema——生成出来并签入仓库，编辑器用它做字段补全和拼写笔误检测
 docs/zh/、docs/en/     现行文档（architecture / guide / patterns，双语镜像）
 docs/archive/          历史记录，不属于现行文档
 tests/components/      10 个真实组件，用来测试平台本身

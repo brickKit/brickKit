@@ -16,9 +16,13 @@ description: Use when deploying a BrickKit project to Docker or Kubernetes, bind
 
 ## Where you'll guess wrong
 
-**1. There are exactly two deploy targets: `docker` and `k8s`.**
+**1. `brickkit.yaml`'s own `deploy.target` accepts exactly two values: `docker` and `k8s`.**
 
-`deploy.target` is required. There's no Podman (it was supported once, and has been removed).
+`deploy.target` is required. `override.yaml` can locally add a third option: its own `target` field
+accepts `docker` / `podman` / `k8s`, but only as a **downgrade** from `brickkit.yaml`'s value (k8s →
+docker/podman is allowed, the reverse never is). There's no real, working Podman engine yet — `up
+--dry-run` against a podman target generates the compose file, but a real `up` errors clearly
+(`ENGINE_MISSING`) instead of doing anything.
 
 **2. Resources are deployed by ops; the platform never installs a database.**
 
@@ -107,8 +111,8 @@ gateway is deployed out of band and discovers them once it's attached to the
 
 Three pitfalls: **values must be quoted** (`traefik.enable: true` fails validation on the spot);
 **a platform-reserved key is rejected** (`app`, `brickkit.io/*`, `com.docker.compose.*`); **writing
-one on a `mode: debug` component warns** — it generates no container, so there's nothing to attach
-labels to.
+one on a component pinned to `mode: debug` (in `override.yaml`) or `mode: local` warns** — either
+generates no container, so there's nothing to attach labels to.
 
 Don't fall back to hand-writing a file-provider config: that file has to be full of **versioned
 service names** (`erp-sales-1-0-0`), and it silently goes stale every time the component bumps a
@@ -128,11 +132,15 @@ non-conflicting DNS names.
 `local-debug.env` → check image pull permissions → run migrations → invoke the engine. To see the
 generated result without actually starting anything, use `--dry-run`.
 
-**Local debugging** means marking a component `mode: debug`: it **generates no container**, and
-instead runs in an IDE on your own machine, with `extra_hosts` mapping its versioned service name
-into the container network. Multiple components can be debugged locally at once, each with its own
-`localPort`. The CLI generates `local-debug.env` for the IDE to load. It's Docker only:
-`mode: debug` together with `deploy.target: k8s` is rejected when `brickkit.yaml` is parsed.
+**Local debugging** means marking a component `mode: debug` **in `override.yaml`** — it can never be
+set in `brickkit.yaml` itself (rejected outright, at parse time). Run `brickkit override` to
+create/refresh that file, then add `mode: debug` (and `localPort`) under the component's entry. It
+**generates no container**, and instead runs in an IDE on your own machine, with `extra_hosts`
+mapping its versioned service name into the container network. Multiple components can be debugged
+locally at once, each with its own `localPort`. The CLI generates `local-debug.env` for the IDE to
+load. It's Docker only: `mode: debug` together with an *effective* `deploy.target: k8s` is rejected
+when `override.yaml` is checked against `brickkit.yaml` — reachable only when `brickkit.yaml` itself
+is already k8s, since `override.yaml` can only ever downgrade the target, never upgrade it.
 
 **K8s-specific settings** (`context`, `namespace`, `podSecurity`, `ingressClass`,
 `serviceAccount`, `networkPolicy`, `replicas`) all live under `deploy` or on a component entry, and
@@ -149,3 +157,5 @@ version, content-equivalent.)
 - Network policy: `docs/en/03-guide/13-network-policy.md`
 - How the six resource kinds are declared, bound, and injected, and secret handling: `docs/en/06-architecture/05-resource-binding.md`
 - The full field reference for `brickkit.yaml`: `docs/en/06-architecture/08-brickkit-yaml-reference.md`
+- `override.yaml` itself (schema, downgrade-only target rule, the `brickkit override` command):
+  root `AGENTS.md` §7.1

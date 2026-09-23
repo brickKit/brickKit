@@ -27,17 +27,29 @@ A component that gets added has no `mode` in the config. That's not an oversight
 it means "follow the layer above it," which is the default and recommended state. Don't add
 `mode: enabled` just to "be explicit" — it means something entirely different (see the next point).
 
-**3. `mode` has four values, and three of them are pinned.**
+**3. `mode` has five values, and three of them are pinned.**
 
 | Written as | Meaning |
 | --- | --- |
 | **not written** | Follows the layer above it. Top-level (nothing depends on it) runs by default; a lower one follows whatever's above it |
 | `mode: enabled` | **Always runs**, ignoring what's above it. If its required dependency is turned off, it **errors** — two conflicting intents |
-| `mode: disable` | **Never runs**. Whatever depends on it stops too; anything pinned (`mode: enabled` or `mode: debug`) on top of it errors |
-| `mode: debug` | **Always runs, as a process you start yourself** in your IDE (Docker only) — pinned exactly like `mode: enabled`, but no container is generated |
+| `mode: disable` | **Never runs**. Whatever depends on it stops too; anything pinned (`mode: enabled`, `mode: debug`, or `mode: local`) on top of it errors |
+| `mode: debug` | **Always runs, as a process you start yourself** in your IDE (Docker only) — pinned exactly like `mode: enabled`, but no container is generated. **Can only be written in `override.yaml`, never `brickkit.yaml`** (see point 3a below) |
+| `mode: local` | **Always runs, as a process BrickKit starts and supervises itself** (Docker only) — pinned exactly like `mode: enabled`, but no container is generated. Written directly in `brickkit.yaml`, like any other field |
 
 To narrow what runs this time, writing `mode: disable` on the top-level thing is enough —
 everything below it stops too. **Don't turn things off one by one.**
+
+**3a. `mode: debug` lives in `override.yaml`, not `brickkit.yaml`.**
+
+`brickkit.yaml` rejects `mode: debug` outright, at parse time, unconditionally. It can only be set
+in `override.yaml` — an optional, gitignored, per-developer file that locally overrides a
+component's `mode`/`localPort` and `deploy.target` (downgrade-only: k8s → docker/podman, never the
+reverse). The reason: "I'm debugging this on my own machine right now" is a personal fact that has
+no business showing up in a file a teammate reviews. Run `brickkit override` to create/refresh that
+file from the current `brickkit.yaml`, then add `mode: debug` (and `localPort`) under the
+component's entry by hand. `mode: local` has no such restriction — it stays in `brickkit.yaml`
+because it isn't personal.
 
 **4. Required and optional dependencies are treated the same for start/stop.**
 
@@ -103,5 +115,7 @@ version, content-equivalent.)
 - Every command's full behavior: `docs/en/06-architecture/09-cli-reference.md`
 - The complete rules for `mode` and start/stop: `docs/en/06-architecture/08-brickkit-yaml-reference.md`
   (the `mode` field), root `AGENTS.md` §5.4
+- `override.yaml` itself (schema, the `brickkit override` command, drift detection): root
+  `AGENTS.md` §7.1; local debugging with `mode: debug` specifically: the `brickkit-deploy` skill
 - Install, assemble, upgrade, and dependency-resolution detail: `docs/en/06-architecture/02-dependency-resolution.md`,
   `docs/en/03-guide/07-assemble-and-break.md`, `docs/en/03-guide/06-upgrades-and-versions.md`
