@@ -268,8 +268,74 @@ print a hint afterward suggesting the user re-run `brickkit override`** to refre
 — a courtesy nudge, not a forced auto-run (keeps `restore`'s existing scope untouched, doesn't
 silently rewrite a second file on the user's behalf).
 
-## Open / explicitly deferred
+## Resolved — final schema
 
-- **Exact YAML schema.** Shape is much clearer now (bare-id lines for defaults, nested
-  `members:` under a shell entry, per-member version pinning likely needed) but not yet written as
-  a real schema.
+All open points converged this round. Three decisions, then the schema itself:
+
+- **`baseline` — "interpretation B," chosen deliberately.** A `baseline` field is written *only*
+  when `brickkit.yaml` already has an explicit, specific value for that thing at the moment the
+  override is set (`deploy.target` for `engine` — always present, since it's a required field with
+  no "unset" state; a component's own `mode` for a component override — often absent, since most
+  components have no `mode` at all). **Consequence, chosen knowingly, not an oversight**: this
+  deliberately gives up detecting the specific case worked through earlier in this brainstorm —
+  `brickkit.yaml` going from "no `mode`" to an explicit `mode: local` for a component that has an
+  *unrelated* override sitting on it in `override.yaml` won't be flagged, because no baseline was
+  ever recorded for the "absent" state in the first place. Traded for a cleaner file (no `baseline:
+  <absent-sentinel>` noise on the common case).
+- **`localPort` stays wherever the `mode` that needs it is declared.** `mode: local` +
+  its `localPort` can keep living in `brickkit.yaml` as the project's suggested default (unchanged
+  from today) — most developers' machines don't collide with it. `override.yaml` only carries
+  `localPort` when a specific machine needs a different one, or when the override itself
+  (`mode: debug`, which can only ever exist in `override.yaml`) needs its own port. No disruption
+  to `brickkit.yaml`'s existing `local`/`localPort` schema.
+- **No version number in `override.yaml` at all.** The "a specific version-pinned instance must
+  run standalone because something else needs exactly that version" case (from the earlier
+  shell/member discussion) is fully automatic, computed from `brickkit.yaml`'s own dependency
+  declarations — never something `override.yaml` represents or lets a user toggle. `override.yaml`
+  only speaks for the project's own on/off switches, not for instances a required dependency edge
+  forces to run regardless. Component entries just use bare `id`.
+
+```yaml
+# override.yaml — local deployment overrides on top of brickkit.yaml.
+# Generated/refreshed by `brickkit override`. Not authoritative — brickkit.yaml
+# stays the source of truth for everything not listed here.
+
+engine: podman              # docker | podman — only meaningful when brickkit.yaml's
+                             # deploy.target is docker; omit to just follow deploy.target
+engineBaseline: docker       # deploy.target's value when this override was last confirmed
+                             # (always present once `engine` is set — deploy.target is a
+                             # required field in brickkit.yaml, never "unset")
+
+components:
+  - id: department/tree      # standalone component, no override — bare line
+
+  - id: erp/backend           # shell — itself a plain component, no override here either
+    members:
+      - id: people/basic         # servedBy member, no override — bare line
+      - id: auth/rbac
+        mode: disable             # excluded from this run's BRICKKIT_SERVED_MEMBERS while
+                                    # the shell keeps running — not guaranteed, depends on
+                                    # the shell honoring it. No `baseline`: brickkit.yaml
+                                    # never had a `mode` for auth/rbac.
+
+  - id: infra/redis-event-bus
+    mode: local
+    localPort: 8082              # this machine's port 8080 (brickkit.yaml's suggested
+                                   # default) was already taken — overridden here instead
+
+  - id: payment/gateway
+    mode: debug
+    localPort: 9091
+    baseline: local                # brickkit.yaml already declares `mode: local` for this
+                                     # component — this override upgrades it to `debug` for
+                                     # active debugging. `baseline` records what
+                                     # brickkit.yaml said (`local`) so drift detection can
+                                     # flag it if that project-level declaration changes.
+```
+
+This closes out `override.yaml`'s design — every open point from this brainstorm (identity/naming,
+mode placement, engine selection, entry shape, staleness, shell/member semantics, `servedBy`
+direction, `restore`'s relationship, and now the schema itself) is resolved. Next step: consolidate
+this whole working-notes file into a properly-structured design doc (architecture, components, data
+flow, error handling, testing — the brainstorming skill's usual shape) for review, then
+`writing-plans`.
