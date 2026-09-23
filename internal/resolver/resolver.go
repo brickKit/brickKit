@@ -434,13 +434,18 @@ func CheckRunningResourceBindings(cfg *config.Config, graph *Graph, running []Re
 	if cfg == nil || graph == nil {
 		return nil
 	}
+	runningSet := make(map[Ref]bool, len(running))
+	for _, ref := range running {
+		runningSet[ref] = true
+	}
+
 	var details []clierr.Detail
 	for _, ref := range running {
 		node := graph.Node(ref)
 		if node == nil {
 			continue
 		}
-		details = append(details, unboundResourceDetails(cfg, node.Manifest)...)
+		details = append(details, unboundResourceDetails(cfg, node.Manifest, runningSet)...)
 	}
 	if len(details) == 0 {
 		return nil
@@ -460,7 +465,7 @@ func CheckResourceBindings(cfg *config.Config, m *manifest.Manifest) error {
 	if m == nil || m.Dependencies == nil || len(m.Dependencies.Resources) == 0 {
 		return nil
 	}
-	problems := unboundResourceDetails(cfg, m)
+	problems := unboundResourceDetails(cfg, m, nil)
 	if len(problems) == 0 {
 		return nil
 	}
@@ -473,12 +478,12 @@ func CheckResourceBindings(cfg *config.Config, m *manifest.Manifest) error {
 // unboundResourceDetails 列出一个组件没被满足的资源依赖。
 //
 // 每条都带上组件引用：一次报多个组件时，光说"缺 database"没法定位是谁缺。
-func unboundResourceDetails(cfg *config.Config, m *manifest.Manifest) []clierr.Detail {
+func unboundResourceDetails(cfg *config.Config, m *manifest.Manifest, running map[Ref]bool) []clierr.Detail {
 	if m == nil || m.Dependencies == nil || len(m.Dependencies.Resources) == 0 {
 		return nil
 	}
 	ref := Ref{ID: m.Metadata.ID, Version: m.Metadata.Version}
-	shellID := servingShellID(cfg, ref)
+	shellID := servingShellID(cfg, ref, running)
 
 	out := make([]clierr.Detail, 0, len(m.Dependencies.Resources))
 	for _, dep := range m.Dependencies.Resources {
@@ -501,7 +506,15 @@ func unboundResourceDetails(cfg *config.Config, m *manifest.Manifest) []clierr.D
 // 时，外壳自己是否已经绑了同一份资源，跟这个成员自己是否绑了，是等价的
 // 两条路（brickKit 反馈：servedBy 成员的资源绑定校验没有跟上 servedBy
 // 语义）。
-func servingShellID(cfg *config.Config, ref Ref) string {
+//
+// running 为 nil 时不按运行态过滤（CheckResourceBindings 的静态检查场景：
+// 这时还没算出谁真的在跑，任何合法的 servedBy 目标都当成满足）。running
+// 非 nil 时（CheckRunningResourceBindings，真实 up 用这条路），只有外壳
+// 这次真的在跑，它的绑定才算数——外壳没跑时，成员按 006 §6.1 的回落规则
+// 独立部署，此时它没有自己的绑定就该照普通组件一样报错，不能因为它
+// "曾经"归属某个外壳就被放过，那会变成一个看上去健康、实际连不上库的
+// 容器（外壳独立部署回落设计书 §6.2）。
+func servingShellID(cfg *config.Config, ref Ref, running map[Ref]bool) string {
 	if cfg == nil {
 		return ""
 	}
@@ -509,7 +522,10 @@ func servingShellID(cfg *config.Config, ref Ref) string {
 		if c.ID != ref.ID || c.Version != ref.Version || c.ServedBy == "" {
 			continue
 		}
-		shellID, _, _ := strings.Cut(c.ServedBy, "@")
+		shellID, shellVersion, _ := strings.Cut(c.ServedBy, "@")
+		if running != nil && !running[Ref{ID: shellID, Version: shellVersion}] {
+			return ""
+		}
 		return shellID
 	}
 	return ""

@@ -638,3 +638,39 @@ func TestUpStartsFallbackMemberForReal(t *testing.T) {
 	assert.Contains(t, req.Services, "mdm-customer-1-0-7",
 		"外壳没跑，这个成员该被真的交给引擎启动，不是只出现在生成的文件里")
 }
+
+// 外壳没跑时，资源绑定校验不该再把外壳的绑定当成这个成员自己的绑定——
+// 不然它会以"一切正常"的样子启动，实际上一个 DATABASE_* 都没有。
+func TestUpBlocksFallbackMemberMissingItsOwnResourceBinding(t *testing.T) {
+	comps := []comp{
+		{ID: "infra/shell-go-core", Version: "1.0.0"},
+		{ID: "mdm/customer", Version: "1.0.7", ResourceDeps: []string{"database:postgresql"}},
+	}
+	f := addedProject(t, comps, "infra/shell-go-core@1.0.0", "mdm/customer@1.0.7")
+	f.writeConfig(t, `components:
+  - id: infra/shell-go-core
+    version: 1.0.0
+    mode: disable
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: infra/shell-go-core@1.0.0
+
+resources:
+  - kind: database
+    engine: postgresql
+    id: main-db
+    host: postgres
+    port: 5432
+    username: brickkit
+    password: ${DB_PASSWORD}
+    bindings:
+      - componentId: infra/shell-go-core
+        database: shared
+`)
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
+
+	assert.Equal(t, clierr.ExitError, r.code, "外壳没跑，绑给外壳的资源不该再替成员挡住这条校验")
+	assert.Contains(t, r.stderr, "mdm/customer",
+		"报错要点名是哪个组件缺资源绑定")
+}

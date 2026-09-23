@@ -262,8 +262,8 @@ func TestCheckResourceBindingsMultipleInstances(t *testing.T) {
 
 func TestServingShellIDReturnsEmptyWithoutServedBy(t *testing.T) {
 	cfg := &config.Config{Components: []config.Component{{ID: "mdm/customer", Version: "1.0.7"}}}
-	assert.Empty(t, servingShellID(cfg, Ref{"mdm/customer", "1.0.7"}))
-	assert.Empty(t, servingShellID(nil, Ref{"mdm/customer", "1.0.7"}))
+	assert.Empty(t, servingShellID(cfg, Ref{"mdm/customer", "1.0.7"}, nil))
+	assert.Empty(t, servingShellID(nil, Ref{"mdm/customer", "1.0.7"}, nil))
 }
 
 func TestServingShellIDMatchesExactVersionOnly(t *testing.T) {
@@ -271,9 +271,22 @@ func TestServingShellIDMatchesExactVersionOnly(t *testing.T) {
 		{ID: "mdm/customer", Version: "1.0.7", ServedBy: "infra/shell-go-core@1.0.0"},
 		{ID: "mdm/customer", Version: "2.0.0"}, // 另一个版本独立部署，没有 servedBy
 	}}
-	assert.Equal(t, "infra/shell-go-core", servingShellID(cfg, Ref{"mdm/customer", "1.0.7"}))
-	assert.Empty(t, servingShellID(cfg, Ref{"mdm/customer", "2.0.0"}),
+	// running == nil：不按运行态过滤（静态检查场景，CheckResourceBindings 用这条路）。
+	assert.Equal(t, "infra/shell-go-core", servingShellID(cfg, Ref{"mdm/customer", "1.0.7"}, nil))
+	assert.Empty(t, servingShellID(cfg, Ref{"mdm/customer", "2.0.0"}, nil),
 		"同一个组件的另一个版本独立部署，不该被当成也收编进外壳")
+}
+
+// 外壳这次没跑：它的资源绑定不该再替成员挡住"没绑定"这条校验——外壳没跑，
+// 成员本来就要按普通组件独立部署（Task 1-4 的回落规则），它自己没有资源
+// 绑定就该照普通组件一样报错，不能因为它"曾经"是某个外壳的成员就被放过。
+func TestServingShellIDIgnoresShellWhenNotRunning(t *testing.T) {
+	cfg := &config.Config{Components: []config.Component{
+		{ID: "mdm/customer", Version: "1.0.7", ServedBy: "infra/shell-go-core@1.0.0"},
+	}}
+	running := map[Ref]bool{{"mdm/customer", "1.0.7"}: true} // 外壳不在这份名单里
+	assert.Empty(t, servingShellID(cfg, Ref{"mdm/customer", "1.0.7"}, running),
+		"外壳没跑，不该再把它的绑定当成这个成员的绑定")
 }
 
 func TestMatchResourceWithNilConfig(t *testing.T) {
