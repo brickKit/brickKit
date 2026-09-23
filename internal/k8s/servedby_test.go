@@ -20,6 +20,21 @@ func servedByEntry(shellID, shellVersion string) config.Component {
 	return config.Component{ServedBy: shellID + "@" + shellVersion}
 }
 
+// ---- 外壳没跑时，成员回落到独立 Deployment ----
+
+func TestServedByMemberFallsBackToStandaloneDeploymentWhenShellIsDisabled(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000),
+		config.Component{ID: "infra/shell-go-core", Version: "1.0.0", Mode: config.ModeDisable})
+	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
+
+	result := b.generate()
+	assert.True(t, hasFile(result, "deployments/mdm-customer-1-0-7.yaml"),
+		"外壳没跑，这个成员该有自己的 Deployment")
+	assert.False(t, hasFile(result, "deployments/infra-shell-go-core-1-0-0.yaml"),
+		"关掉的外壳自己不该生成 Deployment")
+}
+
 // ---- 不生成 Deployment/Job，只生成一个指向外壳 Pod 的 Service ----
 
 func TestServedByComponentGeneratesOnlyAService(t *testing.T) {

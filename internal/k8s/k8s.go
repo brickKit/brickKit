@@ -359,11 +359,15 @@ func newPlan(
 			if !ok {
 				continue // config.Validate 已经挡过格式问题
 			}
-			p.served = append(p.served, servedPlan{
-				Ref: ref, Service: manifest.ServiceName(ref.ID, ref.Version),
-				Manifest: node.Manifest, Entry: entry, Shell: shellRef,
-			})
-			continue
+			if states.IsRunning(shellRef) {
+				p.served = append(p.served, servedPlan{
+					Ref: ref, Service: manifest.ServiceName(ref.ID, ref.Version),
+					Manifest: node.Manifest, Entry: entry, Shell: shellRef,
+				})
+				continue
+			}
+			// 外壳这次没跑：退回普通组件生成路径，判据必须跟
+			// internal/shell.Resolve、internal/compose 保持一致。
 		}
 		p.components = append(p.components, componentPlan{
 			Ref:      ref,
