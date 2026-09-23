@@ -582,3 +582,32 @@ func TestUpDoesNotWarnAboutCrashLinesWhenNotPassed(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.NotContains(t, r.stdout+r.stderr, "crash-lines")
 }
+
+// ============================================================
+// 外壳独立部署回落：外壳没跑时，servedBy 成员按普通组件独立部署
+// ============================================================
+
+func TestUpDryRunFallsBackServedByMemberWhenShellDisabled(t *testing.T) {
+	comps := []comp{
+		{ID: "infra/shell-go-core", Version: "1.0.0"},
+		{ID: "mdm/customer", Version: "1.0.7"},
+	}
+	f := addedProject(t, comps, "infra/shell-go-core@1.0.0", "mdm/customer@1.0.7")
+	f.writeConfig(t, `components:
+  - id: infra/shell-go-core
+    version: 1.0.0
+    mode: disable
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: infra/shell-go-core@1.0.0
+`)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	composeContent := generatedCompose(t, f.Dir)
+	assert.Contains(t, composeContent, "mdm-customer-1-0-7",
+		"外壳没跑，这个成员该有自己生成的 service")
+	assert.NotContains(t, composeContent, "infra-shell-go-core-1-0-0",
+		"关掉的外壳自己不该出现")
+}
