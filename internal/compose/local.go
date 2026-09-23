@@ -33,8 +33,14 @@ import (
 	"github.com/brickkit/brickkit/internal/yamlcomment"
 )
 
-// EngineDocker 是目前唯一支持的容器引擎（005 §7 说明了为什么没有 Podman）。
-const EngineDocker = "docker"
+// EngineDocker 与 EnginePodman 是 compose.Options.Engine 目前能取的两个值。
+// 只影响生成文件里记录的引擎名（见 hostGateway 已经预留的、但目前对两者
+// 一视同仁的引擎参数）——podman 自己真正的 engine.Engine 实现不在这里
+// （override.yaml 设计书 §11，另一份计划的事）。
+const (
+	EngineDocker = "docker"
+	EnginePodman = "podman"
+)
 
 // 宿主机端口分配的基准（005 §4.6、§4.8）。
 const (

@@ -238,7 +238,7 @@ func renderComponentStatus(opts *Options, p *project, v componentView) {
 		}
 		opts.Printf("%s\n", i18n.T(msgid.CliStatusNotRunningComponents, i18n.Count(msgid.CountComponents, len(v.failed))))
 		opts.Printf("%s", t.render(" "))
-		opts.Printf("%s\n\n", i18n.T(msgid.CliStatusViewTheLogsToFind, logsCommand(engineName(opts), p.engineProject(), i18n.T(msgid.ServiceNamePlaceholder))))
+		opts.Printf("%s\n\n", i18n.T(msgid.CliStatusViewTheLogsToFind, logsCommand(engineName(opts, p.cfg), p.engineProject(), i18n.T(msgid.ServiceNamePlaceholder))))
 	}
 	if len(v.running) == 0 && len(v.failed) > 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliStatusNoComponentsAreRunningPerhaps))

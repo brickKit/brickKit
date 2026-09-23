@@ -160,6 +160,13 @@ func applyK8s(
 // 前者把清单交给集群，后者在本机起容器。选错的后果在 Step 16 之前撞到过一次——
 // 一个 target: k8s 的项目被按 Docker 处理，文件生成了、命令也成功了，
 // 只是整个项目跑在了错误的编排器上。
+//
+// podman 单列一支：它跟 k8s 一样不能直接走 resolveEngine 的 Docker 探测逻辑，
+// 但原因不同——不是"选错了编排器"，是"这个引擎的 engine.Engine 实现还没有
+// 落地"（005 §7、override.yaml 设计书 §11）。混进 resolveEngine 的话，一台
+// 只装了 Podman 的机器上，target: podman 会先撞上 engine.Detect() 自己那句
+// "检测到 Podman，暂不支持"，措辞对，但来源是"猜出来的"，不是"配置里选出来的"——
+// 使用者分不清这次到底是环境问题还是他自己配错了。
 func resolveEngineFor(opts *Options, cfg *config.Config) (engine.Engine, error) {
 	if cfg != nil && cfg.Deploy.Target == config.TargetK8s {
 		if opts.Engine != nil {
@@ -167,7 +174,21 @@ func resolveEngineFor(opts *Options, cfg *config.Config) (engine.Engine, error) 
 		}
 		return engine.NewKubectl(), nil
 	}
+	if cfg != nil && cfg.Deploy.Target == config.TargetPodman {
+		if opts.Engine != nil {
+			return opts.Engine, nil
+		}
+		return nil, podmanTargetNotImplemented()
+	}
 	return resolveEngine(opts)
+}
+
+// podmanTargetNotImplemented 说清楚"选了 podman"和"这个引擎能不能真的启动"
+// 是两回事——override.yaml 已经接受并校验了这个取值（跟 docker/k8s 同等对待，
+// 见 internal/override.CheckAgainst），缺的只是 engine.Engine 的真实实现。
+func podmanTargetNotImplemented() error {
+	return clierr.New(clierr.CodeEngineMissing, i18n.T(msgid.CliUpPodmanTargetNotImplemented)).
+		WithHint(i18n.T(msgid.CliUpPodmanTargetDryRunStillWorks))
 }
 
 // renderPruned 如实汇报清理掉了哪些孤儿资源（P38）。

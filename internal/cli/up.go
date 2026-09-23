@@ -170,7 +170,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		return runLocalComponents(ctx, opts, plan.layout, plan.localComponents, plan.crashLines)
 	}
 
-	eng, err := resolveEngine(opts)
+	eng, err := resolveEngineFor(opts, plan.cfg)
 	if err != nil {
 		return err
 	}
@@ -495,7 +495,7 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 
 	result, err := compose.Generate(p.cfg, p.graph, p.states, env, compose.Options{
 		Now:    opts.Now,
-		Engine: engineName(opts),
+		Engine: engineName(opts, p.cfg),
 		// 只作用于 local-debug 文件：IDE 不做变量替换（见 compose.Options.Lookup）
 		Lookup: envLookup(opts.WorkDir),
 	})
@@ -625,7 +625,7 @@ func reportStarted(
 			)
 		}
 		return err.WithHint(
-			i18n.T(msgid.CliUpViewTheLogsToFind, logsCommand(engineName(opts),
+			i18n.T(msgid.CliUpViewTheLogsToFind, logsCommand(engineName(opts, plan.cfg),
 				engine.ProjectName(plan.cfg.Project), i18n.T(msgid.ServiceNamePlaceholder))),
 			i18n.T(msgid.CliUpAFailedMigrationLeavesThe),
 		)
@@ -675,7 +675,7 @@ func renderNextSteps(opts *Options, plan *upPlan) {
 		return
 	}
 
-	opts.Printf("%s\n", i18n.T(msgid.CliUpViewTheLogsF, logsCommand(engineName(opts), engine.ProjectName(plan.cfg.Project), "")))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpViewTheLogsF, logsCommand(engineName(opts, plan.cfg), engine.ProjectName(plan.cfg.Project), "")))
 	for _, env := range plan.generated.LocalEnvFiles {
 		// mode: local 不提示"去 IDE 里加载"：它已经被 runLocalComponents 启动了，
 		// 提示 mode: debug 那句话对它是假的（见 writeLocalEnvFiles 的同一处说明）。
@@ -815,13 +815,16 @@ func resolveEngine(opts *Options) (engine.Engine, error) {
 	return engine.Detect()
 }
 
-// engineName 是生成部署文件时记录的引擎名。
-//
-// 目前只有 Docker 一种（Podman 见 005 §7）。保留这个函数是因为
-// 生成文件与"引擎可不可用"是两回事：--dry-run 在没装 Docker 的机器上也该能跑。
-func engineName(opts *Options) string {
+// engineName 是生成部署文件时记录的引擎名——注入的引擎优先，否则按生效的
+// deploy.target 推断（override.yaml 能把它改成 podman，见 up_k8s.go 的
+// resolveEngineFor）。生成文件与"引擎可不可用"是两回事：--dry-run 在没装
+// Docker/Podman 的机器上也该能跑。
+func engineName(opts *Options, cfg *config.Config) string {
 	if opts.Engine != nil {
 		return opts.Engine.Name()
+	}
+	if cfg != nil && cfg.Deploy.Target == config.TargetPodman {
+		return compose.EnginePodman
 	}
 	return compose.EngineDocker
 }
