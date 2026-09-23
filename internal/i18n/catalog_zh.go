@@ -1193,6 +1193,7 @@ var zh = map[string]string{
 	msgid.CliVersionAlsoPrintTheGitCommit:                            "额外输出 Git commit 与构建时间",
 	msgid.CliVersionShort:                                            "查看 CLI 版本、支持的 Manifest 版本与部署目标",
 	msgid.CliStatusReasonUnknown:                                     "原因未知（依赖图取不到）",
+	msgid.CliStatusViaOverrideYaml:                                   "（override.yaml）",
 	msgid.SkillsInstallFailedToWrite:                                 "写入 %[1]s 失败：",
 	msgid.SkillsInstallFailedToRead:                                  "读取 %[1]s 失败：",
 	msgid.SkillsInstallFailedToReadTheEmbedded:                       "读取内嵌资产 %[1]s 失败：",

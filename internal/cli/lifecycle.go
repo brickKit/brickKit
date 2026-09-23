@@ -19,6 +19,7 @@ import (
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/override"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -49,6 +50,11 @@ type project struct {
 	// "现在什么在跑"——那个答案只来自引擎。谁需要依赖图、需要它回答哪一句，
 	// 由各个渲染函数自己决定（见 status.go 的 buildView）。
 	degraded *clierr.Error
+	// overriddenMode 是 override.yaml 明确写了 mode 的组件 ID 集合——在 applyOverride
+	// 把值合并进 cfg、抹掉"这个 mode 来自哪个文件"这个信息**之前**捕获（见
+	// loadProject）。status 用它把"因为本地 override.yaml 而没跑"和"brickkit.yaml
+	// 自己写的"分开说清楚（override.yaml 设计书 §9）。
+	overriddenMode map[string]bool
 }
 
 // loadConfig 只读 brickkit.yaml，**不碰安装源**。
@@ -86,6 +92,7 @@ func loadProject(ctx context.Context, opts *Options) (*project, error) {
 	if err != nil {
 		return nil, err
 	}
+	p.overriddenMode = overriddenModeIDs(ov)
 	if err := applyOverride(p.cfg, ov); err != nil {
 		return nil, err
 	}
@@ -97,6 +104,22 @@ func loadProject(ctx context.Context, opts *Options) (*project, error) {
 		p.degraded = clierr.As(err)
 	}
 	return p, nil
+}
+
+// overriddenModeIDs 返回 override.yaml 里明确写了 mode 的组件 ID 集合——只看 Mode
+// 是否非空，不管具体取值：不只是 disable 需要说明来源，debug/local 同样是本地
+// override.yaml 造成的、brickkit.yaml 里看不出来的事实。
+func overriddenModeIDs(ov *override.Override) map[string]bool {
+	if ov == nil {
+		return nil
+	}
+	ids := map[string]bool{}
+	for id, v := range flattenOverrideValues(ov.Components) {
+		if v.Mode != "" {
+			ids[id] = true
+		}
+	}
+	return ids
 }
 
 // resolve 解析依赖图并算出级联与启动顺序。

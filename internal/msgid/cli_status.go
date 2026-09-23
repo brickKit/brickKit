@@ -40,5 +40,6 @@ const (
 
 // 手工处理的条目
 const (
-	CliStatusReasonUnknown = "cli.status.reason_unknown"
+	CliStatusReasonUnknown   = "cli.status.reason_unknown"
+	CliStatusViaOverrideYaml = "cli.status.via_override_yaml"
 )

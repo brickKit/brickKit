@@ -137,6 +137,60 @@ func TestStatusShowsSkippedComponentsWithReason(t *testing.T) {
 	assert.Contains(t, r.stdout, "nothing above it is starting", "15.16：跟着上层不跑的也要给出原因")
 }
 
+// override.yaml 里的 mode: disable 让这个组件这次不跑——status 得说清楚这是本地
+// override.yaml 造成的，不是 brickkit.yaml 自己写的，否则使用者会去改 brickkit.yaml
+// 却怎么也改不动结果（设计书 §9："a component that isn't running because of a
+// local disable is labeled as such, not left unexplained"）。
+func TestStatusLabelsComponentDisabledByOverride(t *testing.T) {
+	comps := []comp{
+		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
+		{ID: "people/basic", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "erp/backend@1.0.0")
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+  - id: erp/backend
+    version: 1.0.0
+`)
+	f.writeOverride(t, `components:
+  - id: erp/backend
+    mode: disable
+`)
+	eng := newFakeEngine()
+	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+
+	r := statusOf(t, eng, f.Dir)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.Contains(t, r.stdout, "erp/backend")
+	assert.Contains(t, r.stdout, "override.yaml")
+}
+
+// mode: disable 是 brickkit.yaml 自己写的（没有 override.yaml 介入）：不该出现
+// override.yaml 这个词——那会让使用者去一份完全无关的文件里找一个根本不存在的设置。
+func TestStatusDoesNotLabelComponentDisabledInBrickkitYamlItself(t *testing.T) {
+	comps := []comp{
+		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
+		{ID: "people/basic", Version: "1.0.0"},
+	}
+	f := addedProject(t, comps, "erp/backend@1.0.0")
+	f.writeConfig(t, `components:
+  - id: people/basic
+    version: 1.0.0
+  - id: erp/backend
+    version: 1.0.0
+    mode: disable
+`)
+	eng := newFakeEngine()
+
+	r := statusOf(t, eng, f.Dir)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.Contains(t, r.stdout, "erp/backend")
+	assert.NotContains(t, r.stdout, "override.yaml")
+}
+
 // ============================================================
 // 15.17 本地调试组件
 // ============================================================

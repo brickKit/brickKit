@@ -110,6 +110,16 @@ type statusRow struct {
 	ports string
 }
 
+// labelIfOverridden 给"没跑"的原因文案加一个 override.yaml 出处标记——不然使用者
+// 会去改 brickkit.yaml 却怎么也改不动结果，因为真正生效的 mode 来自本地的
+// override.yaml，从来不在 brickkit.yaml 里（override.yaml 设计书 §9）。
+func (p *project) labelIfOverridden(id, text string) string {
+	if p.overriddenMode[id] {
+		return text + i18n.T(msgid.CliStatusViaOverrideYaml)
+	}
+	return text
+}
+
 // componentView 是"每个组件这次归到哪一节"的**唯一**判定。
 //
 // 正常与降级两条路的差别全部收在 buildView 里：渲染只认这份结果，
@@ -147,7 +157,7 @@ func resolvedView(p *project, byService map[string]engine.Status) componentView 
 	if p.states != nil {
 		for _, c := range p.states.Components {
 			if c.State != cascade.StateRunning {
-				v.skipped = append(v.skipped, statusRow{ref: c.Ref, text: c.Reason})
+				v.skipped = append(v.skipped, statusRow{ref: c.Ref, text: p.labelIfOverridden(c.Ref.ID, c.Reason)})
 			}
 		}
 	}
@@ -179,7 +189,7 @@ func degradedView(p *project, byService map[string]engine.Status) componentView 
 		case ok:
 			v.failed = append(v.failed, statusRow{ref: ref, text: statusText(status, ok)})
 		case c.IsDisabled():
-			v.skipped = append(v.skipped, statusRow{ref: ref, text: reasonDisabled()})
+			v.skipped = append(v.skipped, statusRow{ref: ref, text: p.labelIfOverridden(ref.ID, reasonDisabled())})
 		case c.Mode == config.ModeDebug:
 			// mode: debug 组件本来就不会出现在引擎里，"查不到"是它的正常状态
 			v.local = append(v.local, ref)

@@ -1202,6 +1202,7 @@ var en = map[string]string{
 	msgid.CliVersionAlsoPrintTheGitCommit:                                                    "Also print the Git commit and build time",
 	msgid.CliVersionShort:                                                                    "Show the CLI version, the supported Manifest version and the deploy targets",
 	msgid.CliStatusReasonUnknown:                                                             "reason unknown (the dependency graph could not be obtained)",
+	msgid.CliStatusViaOverrideYaml:                                                           " (override.yaml)",
 	msgid.SkillsInstallFailedToWrite:                                                         "Failed to write %[1]s: ",
 	msgid.SkillsInstallFailedToRead:                                                          "Failed to read %[1]s: ",
 	msgid.SkillsInstallFailedToReadTheEmbedded:                                               "Failed to read the embedded asset %[1]s: ",
