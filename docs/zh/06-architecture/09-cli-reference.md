@@ -262,7 +262,7 @@ brickkit graph --config brickkit.prod.yaml   # 对非默认环境的配置文件
 
 检查你写的 YAML 文件"形状"对不对——必填字段在不在、值的类型对不对、有没有拼错的键、版本是不是 `major.minor.patch`、端口在不在范围内——而且什么都不启动：不联网，不需要 Docker 或 Kubernetes，也不写任何文件。它大约一秒就回答"这份文件我写对了吗"，不用等到 `add` 或 `up` 才发现。
 
-它没有任何自己的新规则：每一条检查都是平台读这些文件时本来就会在别处做的——在 `add`、`up`、`publish` 或者市场里。以前缺的是一个能单独跑它们的入口，尤其是有两样东西没有任何命令能单独检查：组件仓库（有 `component.yaml`、没有 `brickkit.yaml`），以及你已经加进项目的本地组件——`add --local` 对已经写在 `brickkit.yaml` 里的同版本组件是直接跳过的，所以之后手改引入的笔误，要等你跑 `up`（或 `up --dry-run`）、它读到这份文件时才会暴露。
+几乎没有任何自己的新规则：绝大部分检查都是平台读这些文件时本来就会在别处做的——在 `add`、`up`、`publish` 或者市场里。以前缺的是一个能单独跑它们的入口，尤其是有两样东西没有任何命令能单独检查：组件仓库（有 `component.yaml`、没有 `brickkit.yaml`），以及你已经加进项目的本地组件——`add --local` 对已经写在 `brickkit.yaml` 里的同版本组件是直接跳过的，所以之后手改引入的笔误，要等你跑 `up`（或 `up --dry-run`）、它读到这份文件时才会暴露。唯一真正新增的规则是 `override.yaml` 的两类过期性检查（见下），离线、不需要依赖图，天然适合 `lint` 这个模型。
 
 **两种模式**，看当前目录里有什么来定（与 `brickkit skills` 是同一条规则；两个文件都有时按项目算）：
 
@@ -270,6 +270,8 @@ brickkit graph --config brickkit.prod.yaml   # 对非默认环境的配置文件
 - **独立的组件仓库**——有 `component.yaml`、没有 `brickkit.yaml`。只检查这一份文件。
 
 **查什么。** 上面那些命令本来就会套用的结构规则：必填字段、类型、未知字段（拼错的键会被直接拒绝，提示里还会猜你想写哪个）、版本格式、端口范围。另外有两类**警告**：`configSchema` 的某个配置项声明里拼错了键（比如把 `default` 写成 `defualt`），它永远不会生效；以及某个 `configSchema` 的键变成环境变量之后撞上了平台保留变量（AGENTS.zh.md §5.2）。后一类比 `up` 查得更全：`up` 只在这个键有默认值、或被 `config` 覆盖时才会碰到它，`lint` 则把 schema 里声明的每个键都查一遍——与市场发布时是同一个范围。`envPrefix` 它看不到（那是项目在 `brickkit.yaml` 里定的，组件仓库里没有这份文件），所以取决于 `envPrefix` 的撞名仍然留给 `up`。
+
+**`override.yaml` 存在时也会检查**（只在项目模式下——独立组件仓库没有 `override.yaml`）：悬空条目——它指着一个 `brickkit.yaml` 里已经不再声明的组件 ID——是**错误**，跟 `up`/`sync`/`status`/`down`/`brickkit override` 早就给它的同一个待遇；`baseline` 过期（自这份覆盖上次确认以来 `brickkit.yaml` 变了）是**警告**，只有 `--strict` 才会让它算失败，跟上面那条拼错 `configSchema` 键的警告同一个待遇。`--config` 指到默认 `brickkit.yaml` 以外的文件时整个跳过（打印一句说明）——`override.yaml` 只对针对默认文件的运行生效（AGENTS.zh.md §7.1）。
 
 **不查什么，以及为什么**
 
@@ -479,6 +481,13 @@ brickkit new demo/widget --path ../widget-repo     # 写到别的目录——那
 写** `mode` 字段，所以这个组件默认按"跟着上层走"（AGENTS.zh.md §5.4）
 的规则决定启停。
 
+`override.yaml`（§7.1）如果存在、且除了裸 id 默认行之外没有任何真实覆盖，
+`add` 会刷新它、把新组件补进去——安全，没有真实覆盖可丢，重新生成天然会让
+`servedBy` 嵌套跟着对上。如果已经有真实覆盖，`add` 一个字节都不碰，只打印
+一句提醒：先备份一份，再手动跑 `brickkit override` 刷新。不管哪种情况，
+`--config` 指到默认 `brickkit.yaml` 以外的文件时，`add` 都完全不理会
+`override.yaml`（文件存在的话打印一句说明）。
+
 不写版本号时 CLI 会替你解析出一个：`local`/`git` 安装源目录里只有一份
 `component.yaml`，那份定义上就是"这个源上的最新版"；`market` 安装源会
 先排除不可安装的状态（`draft`、`blocked`），再取剩下里版本号最大的。安
@@ -540,6 +549,13 @@ brickkit add --local                        # 把本地安装源声明的组件�
 录——`components/<scope>/<name>/` 以及归档中的
 `components/.archived/<scope>/<name>/`——除非同 ID 还有其他已装版本仍然
 需要那份源码。多个版本共存时必须显式指定版本。
+
+被删的是这个组件的**最后一个版本**时，`remove` 还会删掉它在 `override.yaml`
+（§7.1）里的那一行，如果这份文件存在的话。如果被删的组件是一个带嵌套成员的
+`servedBy` 外壳，那些成员不会被一并删掉——它们会被提升成顶层条目，各自的
+`mode`/`localPort`/`baseline` 原样保留。跟 `add` 一样，`--config` 指到默认
+`brickkit.yaml` 以外的文件时，`remove` 完全不理会 `override.yaml`（打印一句
+说明）。
 
 带真实输出的上手教程：[管理组件源码](../03-guide/09-component-source.md)——被依赖挡住、源码删了找不回来、git submodule 这几道拦截，每一种都真的触发了一遍。
 

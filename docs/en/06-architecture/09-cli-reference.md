@@ -272,7 +272,7 @@ brickkit graph --config brickkit.prod.yaml   # a non-default environment file
 
 Checks that the YAML files you write are shaped correctly — required fields present, values of the right type, no misspelled key, versions written `major.minor.patch`, ports in range — without starting anything: no network, no Docker or Kubernetes, and it writes no file. It answers "did I write this file right?" in about a second, instead of you finding out through `add` or `up`.
 
-It adds no rules of its own: every check is one the platform already makes somewhere when it reads these files — in `add`, `up`, `publish` or the marketplace. What was missing was a way to run them on their own, and on two things nothing could check by itself: a component repository (a `component.yaml`, no `brickkit.yaml`), and a local component you already added — `add --local` skips a version that's already in `brickkit.yaml`, so a typo introduced by a later edit doesn't show up until you run `up` (or `up --dry-run`) and it reads that file.
+Almost none of it is a new rule: most checks are ones the platform already makes somewhere when it reads these files — in `add`, `up`, `publish` or the marketplace. What was missing was a way to run them on their own, and on two things nothing could check by itself: a component repository (a `component.yaml`, no `brickkit.yaml`), and a local component you already added — `add --local` skips a version that's already in `brickkit.yaml`, so a typo introduced by a later edit doesn't show up until you run `up` (or `up --dry-run`) and it reads that file. The one genuinely new rule is `override.yaml`'s two staleness checks (below) — offline and dependency-graph-free, so it fits `lint`'s model naturally.
 
 **Two modes**, picked by what's in the current directory (the same rule `brickkit skills` uses; when both files are there it counts as a project):
 
@@ -280,6 +280,8 @@ It adds no rules of its own: every check is one the platform already makes somew
 - **A standalone component repository** — a `component.yaml` and no `brickkit.yaml`. It checks that one file.
 
 **What it checks.** The structural rules those commands already apply: required fields, types, unknown fields (a misspelled key is rejected outright, and the message guesses which one you meant), version format, port ranges. Plus two kinds of **warning**: a key misspelled *inside* a `configSchema` property (`defualt` for `default`), which would never take effect; and a `configSchema` key that, turned into an environment variable, collides with a reserved one (AGENTS.md §5.2). The second is a superset of what `up` warns about: `up` only meets it for a key that has a default or is overridden in `config`, while `lint` checks every key the schema declares — the same range the marketplace applies at publish time. It can't see `envPrefix` (the project chooses that in `brickkit.yaml`, which a component repository doesn't have), so a collision that depends on it stays with `up`.
+
+**`override.yaml`, when present, also gets checked** (a project only — a standalone component repository has no `override.yaml`): a dangling entry — a component ID it references that `brickkit.yaml` no longer declares — is an **error**, the same severity `up`/`sync`/`status`/`down`/`override` already give it; a stale `baseline` (`brickkit.yaml` changed since the override was last confirmed) is a **warning**, only escalated to failure by `--strict`, same treatment as the misspelled-`configSchema`-key warning above. Skipped entirely (with a note) when `--config` points at anything other than the default `brickkit.yaml` — `override.yaml` only ever applies to a run against the default file (AGENTS.md §7.1).
 
 **What it doesn't check, and why**
 
@@ -496,6 +498,15 @@ unreachable optional one), downloads `artifacts` into
 `brickkit.yaml` — **without** writing a `mode` field, so the component
 follows top-down inheritance by default (AGENTS.md §5.4).
 
+If `override.yaml` exists (§7.1) and has no overrides beyond its bare-id
+defaults, `add` refreshes it to include the new component — safe, since
+there's nothing to lose and regeneration naturally gets `servedBy` nesting
+right. If it already has real overrides, `add` leaves the file completely
+untouched and prints a reminder to back it up, then run `brickkit override`
+to refresh it by hand. Either way, `add` ignores `override.yaml` entirely
+(with a note, if the file exists) when `--config` points at anything other
+than the default `brickkit.yaml`.
+
 Omit the version and the CLI resolves one for you: a `local`/`git` source's
 single `component.yaml` is definitionally "the latest" from that source; a
 `market` source excludes non-installable states (`draft`, `blocked`) and
@@ -564,6 +575,15 @@ clears its Manifest/artifact cache, and deletes its source directory —
 `components/.archived/<scope>/<name>/` — unless another installed version
 of the same ID still needs that source. A version must be given explicitly
 when more than one version of the same component is installed.
+
+When the removed version is the component's *last* one, `remove` also
+deletes that component's line from `override.yaml` (§7.1), if the file
+exists. If the removed component was a `servedBy` shell with nested
+members in `override.yaml`, those members aren't deleted — they're
+promoted to top-level entries, keeping their own `mode`/`localPort`/
+`baseline`. Like `add`, `remove` ignores `override.yaml` entirely (with a
+note) when `--config` points at anything other than the default
+`brickkit.yaml`.
 
 A hands-on walkthrough with real output: [Manage component source](../03-guide/09-component-source.md) — being blocked by a dependent, source that couldn't be found again, and git submodules, each one actually triggered.
 

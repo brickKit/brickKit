@@ -810,6 +810,8 @@ components:                    # brickkit override 给 brickkit.yaml 里每一�
   `override.yaml` 并打印一句说明，这样一份个人本地覆盖就永远不会泄漏进某个具名环境的运行里
 - `brickkit graph` 刻意从不读它——它的输出是一份要分享、要提交的产物
   （`brickkit graph > graph.mmd`），不能因为是谁在本地生成的就长得不一样
+- `brickkit add`/`remove`/`lint`/`restore` 同样接入了它（§8 命令表里各自的确切行为）——
+  跟 `up` 一样，`--config` 指到默认 `brickkit.yaml` 以外的文件时，这四个也完全不理会它
 
 以上是骨架——完整的逐字段结构在 `schemas/override.schema.json`（生成、已提交，跟
 `brickkit.yaml` 自己的 schema 用的是同一套机制）。
@@ -823,17 +825,17 @@ components:                    # brickkit override 给 brickkit.yaml 里每一�
 | `brickkit init <name>` | 生成 `brickkit.yaml` 骨架和 `.brickkit/` 目录，并装入 AI 助手技能（`--no-skills` 跳过） |
 | `brickkit skills` | 查看/刷新装进项目的 AI 助手技能（`status` / `update`）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）只管理 `brickkit-component` 这一个技能。手改过的绝不覆盖；不碰使用者的 `CLAUDE.md` |
 | `brickkit graph` | 把项目的依赖拓扑画成 Mermaid 文本，打印到 stdout：实线是强依赖，虚线是弱依赖（取不到的弱依赖画成"未安装"节点），置灰的节点是这次不会启动的组件，`mode: local` 组件带着自己的"托管本地"标签与颜色，`servedBy` 收编的成员画在各自的外壳里。**stdout 里只有 Mermaid**，所以 `brickkit graph > graph.mmd` 存下来的文件 GitHub 能直接渲染。它读的是与 `up --dry-run` 同一份解析出来的依赖图（所以还没缓存的市场 / Git 组件的 Manifest 要联网取），不生成部署文件、不碰引擎。`--ignore-served-by` 把每个组件都画成独立部署 |
-| `brickkit lint` | **离线、只读**地检查当前目录里 YAML 的结构——不联网，不需要 Docker / K8s。在项目里：先查 `brickkit.yaml`，再查 `local` 安装源目录下的每一份 `component.yaml`（不管有没有 add 过；`.archived/` 不查）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）：只查那一份。报告必填字段、类型、未知键（拼写笔误）、版本号格式、端口范围，另有两类警告——`configSchema` 属性声明里拼错的键（不会生效）、配置项名字撞上保留变量。不新增任何规则；有错误时退出码 `1`（`LINT_FAILED`），只有警告时退出码 `0`，加 `--strict` 则警告也算失败（给 CI 门禁用）。**不做**依赖解析、也不查 `servedBy` 目标在不在——两者都要解析出依赖图才知道，而 `lint` 故意不建这张图（对市场或 Git 来源的组件来说这可能意味着联网）——那是 `up --dry-run` 的事 |
+| `brickkit lint` | **离线、只读**地检查当前目录里 YAML 的结构——不联网，不需要 Docker / K8s。在项目里：先查 `brickkit.yaml`，再查 `override.yaml`（如果存在，§7.1——悬空条目报错，baseline 过期报警告，`--strict` 才让警告算失败；`--config` 指到别处时跳过并打印说明），再查 `local` 安装源目录下的每一份 `component.yaml`（不管有没有 add 过；`.archived/` 不查）。在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）：只查那一份。报告必填字段、类型、未知键（拼写笔误）、版本号格式、端口范围，另有两类警告——`configSchema` 属性声明里拼错的键（不会生效）、配置项名字撞上保留变量。几乎不新增任何规则（override.yaml 过期性检查是唯一的例外）；有错误时退出码 `1`（`LINT_FAILED`），只有警告时退出码 `0`，加 `--strict` 则警告也算失败（给 CI 门禁用）。**不做**依赖解析、也不查 `servedBy` 目标在不在——两者都要解析出依赖图才知道，而 `lint` 故意不建这张图（对市场或 Git 来源的组件来说这可能意味着联网）——那是 `up --dry-run` 的事 |
 | `brickkit new <scope>/<name>` | 生成一个组件的最小骨架——一份已经能通过校验的 `component.yaml`，带 `--contract openapi\|proto` 时还生成一份契约占位文件并登记进 `artifacts`。默认写到 `components/<scope>/<name>/`（`local` 安装源本来就扫描这个布局）；`--path` 写到别的地方、不再套一层，给独立组件仓库用。不生成 Dockerfile，不生成源码——平台不替你选语言，也不会替你执行 `add` |
-| `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `mode` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘 |
-| `brickkit remove <id>` | 检查强依赖方后移除，自动删除源码目录（含归档的那份）。多版本共存时必须指定版本 |
+| `brickkit add <id>[@ver]` | 递归拉取依赖，下载 artifacts，写入配置（**不写 `mode` 字段**）。不写版本时取安装源上最新可安装版本，并以**精确版本**落盘。`override.yaml`（§7.1）如果存在、且只有裸 id 默认行，刷新它补上新组件；已经有真实覆盖时原样不动，只打印提醒。`--config` 指到别处时完全不理会 `override.yaml` |
+| `brickkit remove <id>` | 检查强依赖方后移除，自动删除源码目录（含归档的那份）。多版本共存时必须指定版本。被删的是最后一个版本、且 `override.yaml`（§7.1）存在时，也删掉它在那份文件里的条目——被删外壳嵌套的成员会提升成顶层条目，不会被一并删掉。`--config` 指到别处时完全不理会 `override.yaml` |
 | `brickkit fetch <id>[@版本]` | 只下载组件的产物到 `.brickkit/artifacts/<版本化服务名>/`，**不写入 brickkit.yaml、不部署**。跨项目调用别人的服务时用 |
-| `brickkit up` | 先应用 `override.yaml`（如果存在，且只对针对默认 `brickkit.yaml` 的这次运行——§7.1）→ 启停判定 → 生成部署文件 → 生成 `local-debug.env` → 检测镜像权限 → 执行迁移 → 调用引擎 → 在前台拉起并监管所有 `mode: local` 组件（§5.6） |
+| `brickkit up` | 先应用 `override.yaml`（如果存在，且只对针对默认 `brickkit.yaml` 的这次运行——§7.1，过程中打印漂移提示）→ 启停判定 → 生成部署文件 → 生成 `local-debug.env` → 检测镜像权限 → 执行迁移 → 调用引擎 → 在前台拉起并监管所有 `mode: local` 组件（§5.6） |
 | `brickkit down` | 先应用 `override.yaml` 对 `deploy.target` 的降级（§7.1），再按生效目标停止所有容器。**不删除 volume，保留数据。** 够不到跑在另一个终端里的 `mode: local` 进程——会改打印一句提示，点名那个会话的 PID |
-| `brickkit status` | 应用 `override.yaml`（§7.1），读底层引擎，展示运行表格（含多版本检测、不启动的组件也列出来）。`mode: local` 组件不进这张表（它们不是容器），但有一个在别处跑着时会打印提示 |
+| `brickkit status` | 应用 `override.yaml`（§7.1），读底层引擎，展示运行表格（含多版本检测、不启动的组件也列出来）。因为 `override.yaml` 里的 `mode: disable` 而没跑的组件会标上 `(override.yaml)`，跟 `brickkit.yaml` 自己写的 disable 分开。`mode: local` 组件不进这张表（它们不是容器），但有一个在别处跑着时会打印提示 |
 | `brickkit sync` | 应用 `override.yaml`（§7.1），再按启停判定结果双向归档 / 激活组件源码。无参数 |
 | `brickkit override` | 首次运行创建 `override.yaml`，之后每次运行都是刷新（同时也是它自己的重置/修复操作——§7.1）。`brickkit.yaml` 里每个组件都会有一行；已有的自定义值（`mode`/`localPort`/`baseline`）原样保留，从 `brickkit.yaml` 移除的组件那一行也跟着消失，新组件补一条裸 `- id:`。对着非默认的 `--config` 会拒绝运行。写完之后打印漂移提示（§7.1） |
-| `brickkit restore` | 把 `mode` 与组件源码结构还原到最后一次提交。`--check` 供 pre-commit hook 判断这次提交自洽不自洽 |
+| `brickkit restore` | 把 `mode` 与组件源码结构还原到最后一次提交。`--check` 供 pre-commit hook 判断这次提交自洽不自洽。`override.yaml`（§7.1）存在、且真的有 `mode` 变动时，打印因此产生的漂移提示——跟 `up`/`lint` 同一套非阻断检查，不是一句笼统的"可能过期了" |
 | `brickkit login` | 终端交互登录市场，Token 存 `.brickkit/credentials` |
 | `brickkit logout` | 先调市场作废 Token，再删本地的 `.brickkit/credentials`。**本地那份一定会删**，即使市场连不上——否则一次网络抖动就让人以为自己已经退出、凭据却还躺在盘上。没登录时什么都不做，也不算失败 |
 | `brickkit publish` | 上传 Manifest + 镜像引用 + 产物到市场（需先 login） |

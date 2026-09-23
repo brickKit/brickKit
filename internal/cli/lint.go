@@ -2,12 +2,15 @@ package cli
 
 // 本文件实现 brickkit lint：离线的结构校验。
 //
-// 它没有新增任何规则——只是把散在 up / add / publish 里、早就存在的结构检查，
+// 绝大部分规则都不是新的——只是把散在 up / add / publish 里、早就存在的结构检查，
 // 收拢到一个不联网、不需要引擎、不写任何文件的入口。今天没有任何一个命令能对着
 // 这两种东西单独跑一遍校验：
 //   - 独立的组件仓库（只有 component.yaml、没有 brickkit.yaml）；
 //   - 已经 add --local 过的本地组件——add --local 对已在配置里的同版本组件是静默跳过，
 //     编辑之后引入的拼写错误，要到跑 up（或 up --dry-run）读到那份文件时才会暴露。
+// 唯一真正新增的规则是 override.yaml 的两类过期性检查（悬空条目、baseline 漂移，
+// override.yaml 设计书 §7 自己点名要求：这条离线、不联网，天然适合收进 lint，见
+// lintOverride）。
 //
 // 不做的事（都有明确的理由，见设计书 §3.4）：不解析依赖图、不检查 servedBy 指向的组件
 // 是否存在（那要联网，留给 up / add）、不校验 configSchema 里 enum / minimum 对应的值
