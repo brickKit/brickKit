@@ -194,7 +194,12 @@ func renderMermaid(
 	}
 
 	// servedBy 分组：只看各条目自己写的 servedBy，不跑环境变量注入。
-	// 外壳不在图里（目标不存在）时照样成组——目标在不在是 up 在生成阶段报的事。
+	// 外壳不在图里（目标不存在）时不成组——目标在不在是 up 在生成阶段报的事，
+	// 但"在不在图里"跟"在不在跑"是两回事：外壳存在、只是这次没跑，成员
+	// 这时会按普通组件独立部署（外壳独立部署回落设计书 §6.1），图必须
+	// 跟着画成普通节点，不能再套进一个灰掉的外壳子图——那会画反：暗示
+	// "这段代码活在一个没在跑的外壳容器里"，而 up 真实生成的是它自己的
+	// 独立容器（006 §8："graph 读的是跟 up --dry-run 同一份解析结果"）。
 	members := map[resolver.Ref][]resolver.Ref{}
 	var shells []resolver.Ref
 	inShell := map[resolver.Ref]bool{}
@@ -205,6 +210,9 @@ func renderMermaid(
 		}
 		target, ok := shell.ParseRef(entry.ServedBy)
 		if !ok {
+			continue
+		}
+		if graph.Node(target) != nil && !states.IsRunning(target) {
 			continue
 		}
 		if _, seen := members[target]; !seen {

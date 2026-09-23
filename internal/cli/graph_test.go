@@ -299,6 +299,31 @@ func TestGraphGroupsServedByMembersUnderTheirShell(t *testing.T) {
 	assert.Contains(t, r.stdout, "\n    demo_free_1_0_0[\"demo/free@1.0.0\"]\n")
 }
 
+// 外壳被关掉了：成员这次会按普通组件独立部署（Task 1-4 的回落规则），
+// 图不该再把它画在一个灰掉的外壳子图里面——那等于说"这段代码活在一个
+// 没在跑的外壳容器里"，跟 up 真实生成的东西正好相反（006 §8："graph
+// 读的是跟 up --dry-run 同一份解析结果"）。
+func TestGraphDoesNotGroupMemberUnderADisabledShell(t *testing.T) {
+	f := graphProject(t, `components:
+  - id: demo/shell
+    version: 1.0.0
+    mode: disable
+  - id: demo/a
+    version: 1.0.0
+    servedBy: demo/shell@1.0.0
+resources: []
+`, comp{ID: "demo/shell", Version: "1.0.0", Port: 8080}, comp{ID: "demo/a", Version: "1.0.0", Port: 8081})
+
+	r := runIn(t, f.Dir, "graph")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	requirePureMermaid(t, r.stdout)
+	assert.NotContains(t, r.stdout, "subgraph demo_shell_1_0_0_members",
+		"外壳没跑，不该再形成分组子图")
+	assert.Contains(t, r.stdout, "\n    demo_a_1_0_0[\"demo/a@1.0.0\"]\n",
+		"成员该跟普通组件一样画在子图外面")
+}
+
 func TestGraphIgnoreServedByDropsGroupingAndSaysSo(t *testing.T) {
 	f := graphProject(t, graphServedByBody, servedByComps()...)
 
