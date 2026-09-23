@@ -103,6 +103,10 @@ is the explicit, visible, file-based alternative that respects that constraint.
   necessary fields as part of that same edit) — there is no local shortcut around it.
 - `brickkit up` (and `brickkit override` itself, when writing/validating `target`) must reject an
   attempted upgrade with a clear error naming the direction that's disallowed and why.
+- **`docker` ↔ `podman` is unrestricted in either direction** — the asymmetric downgrade-only rule
+  applies specifically to the k8s boundary (structurally different generated files, §5.1's
+  reasoning). Swapping between the two compose-generating targets never risks a
+  missing-configuration case, since neither needs anything the other doesn't already have.
 
 Real, motivating use case for the allowed direction: a project defaults to k8s (CI/staging), but a
 developer wants `mode: debug` on one component — unavailable under k8s — so they downgrade to
@@ -217,6 +221,11 @@ Two structural checks:
 
 - **Dangling entries**: an `override.yaml` entry referencing a component ID no longer declared in
   `brickkit.yaml` — always an error.
+- **Shell-membership drift** (found during spec self-review, not covered by the other two checks):
+  a component nested under a shell's `members:` in `override.yaml`, whose `servedBy` in
+  `brickkit.yaml` no longer points at that same shell (moved to a different shell, or `servedBy`
+  removed entirely) — an error, distinct from a dangling entry (the component itself still exists,
+  it's the *nesting* that's stale).
 - **`baseline` mismatch** (the field is `targetBaseline` for the target override, `baseline` for a
   component-level override): each override records what `brickkit.yaml` declared for that same
   thing at the moment the override was last confirmed. The check compares that recorded value
@@ -292,8 +301,8 @@ No version numbers anywhere in this file — see §6.1's last bullet.
 | Command | Change |
 |---|---|
 | `brickkit override` | New. Creates on first run, refreshes on later runs (also the reset/repair operation — see §3) |
-| `brickkit add` | Appends a bare-id line to `override.yaml` if it exists |
-| `brickkit remove` | Deletes the corresponding line from `override.yaml` if it exists |
+| `brickkit add` | Appends a bare-id line to `override.yaml` if it exists. If the new component declares `servedBy` pointing at a shell that already has an entry there, the line nests under that shell's `members:` instead of appearing top-level (found during spec self-review — not stated in the original brainstorm) |
+| `brickkit remove` | Deletes the corresponding line from `override.yaml` if it exists. **If the removed component is a shell with nested members**, those members aren't deleted (they still exist) — they're promoted back to top-level entries, un-nested (found during spec self-review) |
 | `brickkit sync` | Conditional source: `override.yaml` absent → cascade reads `brickkit.yaml` alone, unchanged; present → cascade also reads its overrides |
 | `brickkit up` | Reads `override.yaml` when present and applies target/mode overrides. **Must ignore `override.yaml` (with a warning) when `--config` points at a non-default file** — prevents a personal local override accidentally applying to a `brickkit.prod.yaml`-style run (§10) |
 | `brickkit status` | Reads `override.yaml` so a component that isn't running because of a local `disable` is labeled as such, not left unexplained |
@@ -312,6 +321,11 @@ Whenever `--config` points elsewhere and an `override.yaml` happens to exist in 
 must **warn explicitly that it's being ignored** — neither silently applying it (risk: an
 accidental personal override reaching a prod-style deployment) nor silently ignoring it without
 saying so (risk: a developer assumes their override is in effect when it isn't).
+
+**Same guard applies to `brickkit override` itself** (found during spec self-review): running it
+with `--config brickkit.prod.yaml` shouldn't generate/refresh an `override.yaml` keyed off the
+wrong project file — it should refuse with the same explanation, not silently produce a file
+scoped to the wrong `brickkit.yaml`.
 
 ## 11. Explicitly out of scope for this design
 
@@ -340,3 +354,8 @@ saying so (risk: a developer assumes their override is in effect when it isn't).
 - The target downgrade-only rule (§5.2) needs a test asserting the upgrade direction is rejected
   with a clear error, and the downgrade direction succeeds without requiring k8s-specific fields to
   be present.
+- The shell-membership drift check (§7) needs a test: a member moved to a different shell (or its
+  `servedBy` removed) in `brickkit.yaml`, `override.yaml` still nests it under the old shell —
+  assert this is flagged distinctly from a dangling entry. `remove`'s shell-removal promotion
+  behavior (§9) needs its own test too: removing a shell with nested members leaves those members
+  present as top-level entries, not deleted.
