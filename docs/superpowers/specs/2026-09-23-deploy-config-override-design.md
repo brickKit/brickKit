@@ -221,11 +221,6 @@ Two structural checks:
 
 - **Dangling entries**: an `override.yaml` entry referencing a component ID no longer declared in
   `brickkit.yaml` — always an error.
-- **Shell-membership drift** (found during spec self-review, not covered by the other two checks):
-  a component nested under a shell's `members:` in `override.yaml`, whose `servedBy` in
-  `brickkit.yaml` no longer points at that same shell (moved to a different shell, or `servedBy`
-  removed entirely) — an error, distinct from a dangling entry (the component itself still exists,
-  it's the *nesting* that's stale).
 - **`baseline` mismatch** (the field is `targetBaseline` for the target override, `baseline` for a
   component-level override): each override records what `brickkit.yaml` declared for that same
   thing at the moment the override was last confirmed. The check compares that recorded value
@@ -244,6 +239,15 @@ Two structural checks:
 
 Both checks are deterministic, offline, content-only — fit naturally as a new `brickkit lint` rule
 (and a non-blocking note from `up` when `override.yaml` is in use), not a new kind of mechanism.
+
+**Not a dedicated check: a component nested under the wrong shell because `servedBy` changed in
+`brickkit.yaml`.** Raised and then deliberately dropped during spec self-review — first added as a
+third staleness check, then reconsidered: the platform doesn't actually track "which components
+belong to which shells" as a thing it watches; that structure only exists because someone declared
+it, and the same "hand-edited `brickkit.yaml` doesn't trigger automatic re-sync" boundary that
+already applies elsewhere (§9) applies here too — this is on the same side of that boundary as the
+`baseline`-absent trade-off above, not a new category. What actually handles the common trigger for
+this (a new `servedBy` relationship arriving via `brickkit add`) is `add`'s own behavior — see §9.
 
 ## 8. `override.yaml` schema
 
@@ -301,8 +305,8 @@ No version numbers anywhere in this file — see §6.1's last bullet.
 | Command | Change |
 |---|---|
 | `brickkit override` | New. Creates on first run, refreshes on later runs (also the reset/repair operation — see §3) |
-| `brickkit add` | Appends a bare-id line to `override.yaml` if it exists. If the new component declares `servedBy` pointing at a shell that already has an entry there, the line nests under that shell's `members:` instead of appearing top-level (found during spec self-review — not stated in the original brainstorm) |
-| `brickkit remove` | Deletes the corresponding line from `override.yaml` if it exists. **If the removed component is a shell with nested members**, those members aren't deleted (they still exist) — they're promoted back to top-level entries, un-nested (found during spec self-review) |
+| `brickkit add` | If `override.yaml` exists **and has no overrides beyond bare-id defaults**, `add` just regenerates it fresh from `brickkit.yaml`'s current state (safe — there's nothing to lose, and regeneration naturally gets shell nesting right by construction rather than needing surgical patching logic). If the user **has** real overrides in it, `add` doesn't touch the file — it prints a reminder that `override.yaml` needs updating for the new component, suggests backing it up first, then regenerating with `brickkit override` (revised during spec self-review — the original "just append a line" design couldn't safely handle the new component being a shell member without risking clobbering the user's own customizations) |
+| `brickkit remove` | Deletes the corresponding line from `override.yaml` if it exists. **If the removed component is a shell with nested members**, those members aren't deleted (they still exist) — they're promoted back to top-level entries, un-nested. This one stays a narrow, targeted edit regardless of what else in the file is customized — it only touches what `remove` itself just changed, unlike `add`'s wholesale-regeneration question above (found during spec self-review) |
 | `brickkit sync` | Conditional source: `override.yaml` absent → cascade reads `brickkit.yaml` alone, unchanged; present → cascade also reads its overrides |
 | `brickkit up` | Reads `override.yaml` when present and applies target/mode overrides. **Must ignore `override.yaml` (with a warning) when `--config` points at a non-default file** — prevents a personal local override accidentally applying to a `brickkit.prod.yaml`-style run (§10) |
 | `brickkit status` | Reads `override.yaml` so a component that isn't running because of a local `disable` is labeled as such, not left unexplained |
@@ -354,8 +358,8 @@ scoped to the wrong `brickkit.yaml`.
 - The target downgrade-only rule (§5.2) needs a test asserting the upgrade direction is rejected
   with a clear error, and the downgrade direction succeeds without requiring k8s-specific fields to
   be present.
-- The shell-membership drift check (§7) needs a test: a member moved to a different shell (or its
-  `servedBy` removed) in `brickkit.yaml`, `override.yaml` still nests it under the old shell —
-  assert this is flagged distinctly from a dangling entry. `remove`'s shell-removal promotion
-  behavior (§9) needs its own test too: removing a shell with nested members leaves those members
-  present as top-level entries, not deleted.
+- `add`'s two paths (§9) both need tests: an unmodified `override.yaml` (bare-id defaults only) gets
+  silently regenerated; an `override.yaml` with real overrides is left untouched and the
+  backup-then-regenerate reminder fires instead. `remove`'s shell-removal promotion behavior needs
+  its own test too: removing a shell with nested members leaves those members present as top-level
+  entries, not deleted.
