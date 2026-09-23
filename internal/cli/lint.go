@@ -25,6 +25,7 @@ import (
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/override"
 	"github.com/brickkit/brickkit/internal/skills"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -95,6 +96,11 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 		}
 	}
 
+	files := []lintFile{head}
+	if ovFile := lintOverride(opts, layout, cfg); ovFile != nil {
+		files = append(files, *ovFile)
+	}
+
 	// 直接 source.New，不走 newSourceClient：后者会先去读 installer.publicKeys 指向的公钥文件，
 	// 而公钥缺失是 up / add 该报的事，不该让一条"离线校验 YAML"的命令因此失败。
 	// source.New 本身不联网——三种安装源都是惰性的，只有真去取 Manifest 才会碰网络，lint 从不取。
@@ -105,8 +111,11 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 	// "纯只读、不联网"的承诺当场破功。
 	client, err := source.New(layout, cfg, source.Options{})
 	if err != nil {
-		head.errors = append(head.errors, clierr.As(err))
-		return []lintFile{head}, []string{localSkippedNote()}
+		// files[0] 是 head——它已经被值拷贝进这个切片，再改本地的 head 变量不会
+		// 反过来影响切片里那一份，必须直接改 files[0]（下面 LocalManifestFiles
+		// 的错误分支同理）。
+		files[0].errors = append(files[0].errors, clierr.As(err))
+		return files, []string{localSkippedNote()}
 	}
 	defer func() { _ = client.Close() }()
 
@@ -115,15 +124,46 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 		// 本地源的根目录不存在之类：那是 brickkit.yaml 里 sources[].path 配错了。
 		// 枚举遇到第一个出错的源就整体失败，别的本地源里的组件因此一份也没查——汇总里的
 		// 文件数会被低估，必须说出来，否则使用者改好 path 之前不知道还有文件没被检查
-		head.errors = append(head.errors, clierr.As(err))
-		return []lintFile{head}, []string{localSkippedNote()}
+		files[0].errors = append(files[0].errors, clierr.As(err))
+		return files, []string{localSkippedNote()}
 	}
 
-	files := []lintFile{head}
 	for _, f := range found {
 		files = append(files, lintManifest(opts, f.Path, f.ID))
 	}
 	return files, nil
+}
+
+// lintOverride 检查 override.yaml——文件不存在时完全合法，什么也不查（override.yaml
+// 是可选机制）。检查设计书 §7 的两类过期性：悬空引用（错误，跟 up/sync/status/down/
+// brickkit override 用的是同一个 CheckAgainst）与 baseline 漂移（警告，不阻断，
+// --strict 才会让它计入失败——待遇跟 lintManifest 里 configSchema 拼写警告完全一样，
+// 见 reportLint 里 warned 的计数方式）。
+func lintOverride(opts *Options, layout config.Layout, cfg *config.Config) *lintFile {
+	if _, err := os.Stat(layout.OverridePath()); err != nil {
+		return nil
+	}
+
+	f := &lintFile{path: displayPath(opts.WorkDir, layout.OverridePath())}
+
+	ov, err := override.ParseOverrideFile(layout.OverridePath())
+	if err != nil {
+		f.errors = append(f.errors, clierr.As(err))
+		return f
+	}
+	if ov == nil {
+		return f
+	}
+
+	if err := override.CheckAgainst(cfg, ov); err != nil {
+		f.errors = append(f.errors, clierr.As(err))
+	}
+	for _, note := range override.Drift(cfg, ov) {
+		f.warnings = append(f.warnings, clierr.New(clierr.CodeConfigInvalid,
+			i18n.T(msgid.CliOverrideDriftNote, note.Field, note.Message)).
+			WithDetail(i18n.T(msgid.LabelFile), f.path))
+	}
+	return f
 }
 
 // lintManifest 检查一份 component.yaml。dirID 非空时（项目模式）还要核对目录名与 metadata.id 一致。
