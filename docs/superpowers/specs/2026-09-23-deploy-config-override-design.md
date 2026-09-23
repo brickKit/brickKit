@@ -1,310 +1,259 @@
-# Deploy config override file — working notes (in progress)
+# Deploy config override file (`override.yaml`) — design
 
-**Status: in-progress brainstorm, not a finished spec.** Running capture of what's settled,
-updated as the conversation moves — not a final design doc yet. "Confirmed" = decided.
-"Corrected" = an earlier "confirmed" entry that turned out wrong and was fixed — kept visible
-instead of silently deleted, so the reasoning for the fix isn't lost. "Open" = genuinely
-undecided. [Podman engine support](2026-09-23-podman-engine-support-notes.md) is the companion
-doc that depends on this one landing first.
+**Status: brainstorm complete, this is the design spec.** Companion doc:
+[Podman engine support](2026-09-23-podman-engine-support-notes.md) (depends on this design landing
+first — the `target`/engine selection mechanism below is what lets a user actually choose Podman
+locally). This spec is the input to `writing-plans`, not itself an implementation plan.
 
-## The problem this solves
+## 1. Problem
 
-Two things converged into one design:
+Two needs converged into one design:
 
-1. **Engine selection (docker/podman/k8s) needs a home that isn't `brickkit.yaml` itself as a
-   single shared value** — a project-wide value forces the whole team and CI onto whatever one
-   engine the file declares.
-2. **A real, independent ergonomics problem**: at 70+ components, finding one component in
+1. **Engine/target selection needs a home that isn't a single shared `brickkit.yaml` value.**
+   `deploy.target` today is one project-wide field — if choosing Podman meant writing
+   `deploy.target: podman` directly into `brickkit.yaml`, that forces the whole team and CI onto
+   whatever one engine the file declares, breaking the moment one teammate's machine doesn't (or
+   can't) run it.
+2. **A real, independent ergonomics problem.** At 70+ components, finding one component in
    `brickkit.yaml` to flip its mode is already painful, and `mode: debug` — inherently personal,
-   machine-specific — currently has to live in the same shared, git-reviewed file as everything
-   else.
+   machine-specific (an IDE, a debugger, a `localPort` free on *this* machine) — currently has to
+   live in the same shared, git-reviewed file as everything else. Committing `mode: debug` was
+   never actually safe: whoever pulls that commit suddenly has that component trying to run as a
+   bare process on *their* machine.
 
-## Confirmed — identity and positioning
+## 2. Architecture
 
-**File name: `override.yaml`. Command: `brickkit override`.** Originally named `deploy.yaml` /
-`brickkit deploy` — renamed because "deploy" reads as "actually deploy now" (like `up` does), not
-"generate a config file." `override.yaml` says precisely what it contains: a set of local
-overrides on top of `brickkit.yaml`, nothing more. `brickkit override` creates it the first time,
-and refreshes it on later runs (adds lines for new components, drops lines for removed ones, flags
-`baseline` drift — see below). Whether "refresh" merges into the deferred `restore` command is
-still open, parked for last.
+**Two files, not a merge/overlay of many.** This is a deliberate divergence from an overlay/base
+pattern (which 005 §9.9 already argued against for multi-environment config, for good reason — a
+reader shouldn't need to hold a merge algorithm in their head to know what's actually running).
+Here there's no merging: `override.yaml`, when present, is either silent on a topic (defer
+entirely to `brickkit.yaml`) or explicit about it (fully replaces `brickkit.yaml`'s value for that
+one thing). No partial-field overlay, no inheritance chain.
 
-**Two-file model.** `brickkit.yaml` stays the single project-level declaration — identity,
-dependencies, resources, config, structural facts. Those are "80% of the file, written once,
-basically never touched again" — closer to constraints than operational toggles. `override.yaml`
-holds current, local, frequently-changed operational state: engine choice and per-component mode.
-Mental model, in the words it was given: *"brickkit 管理项目级别的配置，新配置文件管理用户当下的
-配置"* — `brickkit.yaml` manages project-level config, `override.yaml` manages the user's current
-config.
+| | `brickkit.yaml` | `override.yaml` |
+|---|---|---|
+| Contains | Identity, dependencies, resources, config, structural facts (`servedBy` grouping, `deploy.target`) | Current, local, frequently-changed operational state: target/engine choice, per-component mode |
+| Changes | Rarely — "80% of the file, written once" | Often — toggled per session, per developer |
+| Git | Committed, reviewed | Gitignored by default |
+| Required | Yes — a complete project on its own | No — optional, opt-in |
+| Who edits it | Whoever owns the project | Whoever's running it right now, locally |
 
-**Opt-in, not auto-generated on every `up`.** `brickkit.yaml` alone is a complete, runnable
-project. Whoever wants local control turns `override.yaml` on themselves via `brickkit override`.
+Mental model: *`brickkit.yaml` manages project-level config; `override.yaml` manages the user's
+current config.*
 
-**Gitignored by default.** Local machine state, not a team decision by default — removable from
-`.gitignore` by whoever wants to share it anyway.
+## 3. `override.yaml`: identity
 
-## Confirmed — mode placement rules
+- **File name: `override.yaml`.** (Not `deploy.yaml` — renamed because "deploy" reads as "actually
+  deploy now," like `up` does, not "a config file." `override.yaml` says precisely what it holds.)
+- **Command: `brickkit override`.** Creates the file on first run; on later runs, refreshes it —
+  adds a bare line for any new component, drops the line for any removed component, and reports
+  `baseline` drift (§7). Re-running `brickkit override` *is* the reset/repair operation — there is
+  no separate command for it, and it is deliberately **not** merged into `brickkit restore` (§9).
+- **Opt-in, not auto-generated on every `up`.** `brickkit.yaml` alone is a complete, runnable
+  project. Whoever wants local control turns `override.yaml` on themselves.
+- **Gitignored by default.** Local machine state, not a team decision by default.
 
-**`mode: debug` is removed from `brickkit.yaml` entirely — it can only exist in `override.yaml`.**
-`brickkit.yaml` may only contain (for a component's own deployment approach): nothing (follow
-`deploy.target`/engine), `local`, or `disable`. `debug` needs an IDE, a debugger, a
-machine-specific `localPort` — never legitimately committable to a shared file. This closes a real
-latent bug in the current model, not a new restriction invented for this design.
+## 4. Mode placement rules
 
-**k8s doesn't allow `local`/`debug`/engine-choice at all** — matches the existing Docker-only rule
-`mode: debug` already follows today. This is the *same* rule everywhere `servedBy` is used too
-(see below) — it's not specific to Docker/Podman, since `servedBy`'s "does this component generate
-its own workload" question is target-agnostic.
+`brickkit.yaml` may declare, for a component's own deployment approach, only: nothing (follow
+`target`/engine), `local`, or `disable`. **`debug` cannot appear in `brickkit.yaml` at all —
+it can only be set in `override.yaml`.** This closes a real latent bug in the current model (see
+§1), not a new restriction invented for this design.
 
-## Confirmed — engine selection
+`k8s` doesn't allow `local`/`debug`/target-override at all — the existing Docker-only rule
+`mode: debug` already follows, now extended uniformly (target-agnostically) to `servedBy` too,
+since "does this component generate its own workload" is a target-agnostic question (§6).
 
-**Engine is a single global value, never per-component.** One `docker compose`/`podman compose`
-invocation runs everything in that file under one engine — mixing engines within one deployment
-isn't possible, because containers under different engines don't share a network namespace and the
-service-name DNS resolution the whole addressing model depends on (§5.1) doesn't cross that
-boundary. Worked example: `erp/backend` on Podman calling its dependency `department/tree` on
-Docker via `http://department-tree-1-0-0:8080` would never resolve — separate
-rootless-netns/bridge networks. Rejected alternatives for *where* engine choice lives: an
-environment variable (not explicit/visible enough), and a CLI flag like `--engine` (already
-explicitly rejected in AGENTS.md §4.1's rejection list, same "who guarantees teardown" reasoning
-that originally killed Podman support).
+## 5. Target/engine selection
 
-**`deploy.target: docker | k8s` in `brickkit.yaml` is unchanged** — still governs which deployment
-*file format* gets generated. Docker and Podman consume the identical generated
-`docker-compose.yaml` (confirmed directly — `podman compose` shells out to the same
-`docker-compose` binary Docker uses), so engine choice doesn't change what gets generated, only
-which binary executes it.
+**Field: `target` (not `engine`) + `targetBaseline`.** Renamed mid-design once it became clear
+this field can express more than "docker vs. podman" (§5.2) — `target` matches `brickkit.yaml`'s
+own `deploy.target` field name, which is what it's actually overriding.
 
-## Corrected — entries are exhaustive-with-minimal-default-lines, not sparse
+### 5.1 Why a single value, never per-component
 
-**Earlier claim (now wrong): "only overridden components get a line, unoverridden ones are absent
-entirely."** This was walked back. The actual model: `override.yaml`, once it exists, lists every
-component the project currently has — but a component with no override is just a bare `- id: X`
-line, no other fields. Only actually-overridden components (`mode: local`/`disable`) carry extra
-fields. This still keeps the file light at 70-component scale (most lines are one bare id), while
-also making the file itself usable as a direct, complete preview — no separate merge/preview
-command needed after all (an earlier "proposed" idea in this doc, now superseded and dropped).
-**Consequence:** `brickkit add`/`remove` *do* need to keep `override.yaml` in sync after all — `add`
-appends a bare-id line, `remove` deletes the corresponding line, whether or not it carried an
-override. (The earlier "add mostly doesn't matter under the sparse model" note is dropped along
-with the sparse claim it depended on.)
+One `docker compose`/`podman compose` invocation runs everything in that file under one engine —
+containers under different engines don't share a network namespace, and the service-name DNS
+resolution the whole addressing model depends on (§5.1 of the platform's own address spec) doesn't
+cross that boundary. Worked example: `erp/backend` on Podman calling its dependency
+`department/tree` on Docker via `http://department-tree-1-0-0:8080` would never resolve — separate
+rootless-netns/bridge networks. `target` is necessarily one project-wide (locally-overridable)
+value.
 
-## Confirmed — shell/member semantics
+Rejected alternatives for *where* this choice lives: an environment variable (not
+explicit/visible enough), and a CLI flag like `--engine`/`--target` (AGENTS.md §4.1 already
+rejects this shape of flag — "`deploy.target` stays the declaration, never a CLI flag" — for the
+same "who guarantees teardown" reasoning that originally killed Podman support). `override.yaml`
+is the explicit, visible, file-based alternative that respects that constraint.
 
-This took several corrections to get right; the final shape:
+### 5.2 Downgrade-only: the resolution to the k8s risk
 
-**A shell is an interface BrickKit provides, not a special built-in type.** Any component that
-satisfies the shell-implementer rules (§5.7 / `07-shell-implementers-guide.md`) can be one —
-user-implemented, auto-deployable once it follows the rules.
+`target` may take `docker`, `podman`, or `k8s` — but **only in the downgrade direction**:
 
-**Shell and its members are bundled at the image level under Docker/Podman.** They start or don't
-start as one unit — there's no "half the shell's modules are compiled in, half aren't" at runtime.
+- `brickkit.yaml`'s `deploy.target: k8s` → `override.yaml` may set `target: docker` or
+  `target: podman`. **Always safe**: if the project's default is k8s, every k8s-specific field
+  (`namespace`, `ingressClass`, `podSecurity`, …) is already populated by construction — the
+  project couldn't run in its own declared default otherwise. Compose generation needs none of
+  those fields, so downgrading never hits a missing-configuration case.
+- `brickkit.yaml`'s `deploy.target: docker` or `podman` → `override.yaml` **may not** set
+  `target: k8s`. If a project's default is docker/podman, its k8s-specific fields are typically
+  unpopulated (nothing requires them). Allowing a local upgrade to k8s would risk generating
+  incomplete manifests against fields that were never required to exist. **To use k8s, the project
+  itself must declare `deploy.target: k8s` in `brickkit.yaml`** (which forces populating the
+  necessary fields as part of that same edit) — there is no local shortcut around it.
+- `brickkit up` (and `brickkit override` itself, when writing/validating `target`) must reject an
+  attempted upgrade with a clear error naming the direction that's disallowed and why.
 
-**Shell off → each member deploys per its own independent declaration.** This was initially
-(wrongly) ruled out on the assumption that a `servedBy` member's own `deployment.image` isn't a
-real, standalone-capable artifact — **that assumption was wrong and got corrected**: every
-component's Manifest, `servedBy` or not, requires a complete `deployment.image`/`port`/
-`healthCheck` — no exception for members. The compose/K8s generators already know how to build a
-workload from that declaration; it's the *default* path used for every ordinary component.
-`servedBy` currently just skips it unconditionally. `--ignore-served-by --dry-run`'s existing,
-documented purpose ("verify every component can still stand alone without servedBy") only makes
-sense if standalone operation is a real, expected capability for a properly-built member — further
-evidence the original objection was overstated. **What actually needs building**: today,
-`internal/shell.Resolve` hard-errors when a member wants to run but its shell isn't
-(`shellNotRunningError`, confirmed via code investigation — see below) instead of falling back to
-the ordinary per-component generation path. Making that fallback happen is real, but narrower work
-than "invent standalone capability from scratch" — it's conditionally skipping the current
-skip-generation behavior, not building new generation logic.
-**One known remaining gap, not yet resolved:** resource bindings. §5.7 today treats a member's own
-`resources[].bindings` entry as unnecessary — the shell's binding covers it. A member running
-standalone needs its own binding, which typically won't be present in `brickkit.yaml` today (it
-was considered redundant when `servedBy` is in effect). This isn't a blocker to the design, but it
-is a real detail — the CLI would need to error clearly on "this component needs its own binding to
-run standalone" rather than silently starting with no connection.
+Real, motivating use case for the allowed direction: a project defaults to k8s (CI/staging), but a
+developer wants `mode: debug` on one component — unavailable under k8s — so they downgrade to
+`docker` locally, which is both simpler (no local cluster needed) and unlocks debug in the same
+move.
 
-**Shell on → members merge in, *except* a member pinned to a specific version the shell doesn't
-provide.** New, sharp point from this round: BrickKit already supports multiple versions of the
-same component coexisting project-wide (§5.1) — if the shell bundles version 1.0.0 of some
-component but another caller elsewhere in the project needs 2.0.0 specifically, that 2.0.0 instance
-can't be satisfied by the shell (which only has 1.0.0 baked in) — it deploys standalone regardless
-of whether the shell itself is running. **Schema consequence, not yet worked out in detail:**
-`override.yaml`'s shell `members:` list likely needs to pin the version per member, not just the
-bare component ID, since "is this member satisfied by the shell" is a version-sensitive question.
+### 5.3 `targetBaseline`, only when `target` is set
 
-**`override.yaml` structure reflects this**: a shell's entry lists its members nested underneath
-it (avoids repeating "I belong to shell X" on every member line, and doubles as the visual grouping
-that makes the file previewable at a glance):
+Records what `brickkit.yaml`'s `deploy.target` was when this override was last confirmed. Always
+present once `target` is set (`deploy.target` is a required field in `brickkit.yaml`, never
+"unset," unlike a component's `mode`). Drift check: current `deploy.target` vs. recorded
+`targetBaseline` — mismatch means the project's own declared target changed since this override
+was last reviewed, independent of whether `target`'s current value still makes sense given that
+change (§7 covers the general mechanism).
 
-```
-(illustrative, not a finalized schema — field names/nesting still open)
-- id: department/tree        # standalone component, no override
+## 6. Shell/member semantics
 
-- id: erp/backend            # shell
-  members:
-    - id: people/basic
-    - id: auth/rbac
-      mode: disable            # exclude this one module from the shell's active member set
-                                # while the shell keeps running (BRICKKIT_SERVED_MEMBERS mechanism,
-                                # already exists today — not new)
-```
+This is the part of the design that took the most correction; stated as final rules, with the
+reasoning kept because it's what makes the rules non-obvious but correct.
 
-A member's own `mode: disable` *while its shell is running* means something different from the
-shell itself being off: it excludes that one module from `BRICKKIT_SERVED_MEMBERS` (an existing
-mechanism — the shell, if compliant, skips initializing it), with no container generated for it at
-all. The shell being off is the other, separate case described above (member deploys standalone
-per its own declaration).
+### 6.1 The platform's control boundary
 
-## Confirmed — the platform's control boundary, stated as one rule
+**BrickKit's control over a running workload stops at "start it or don't." What runs inside is
+never something the platform can reach into — container or bare process, no exception.**
 
-Took several rounds (and a couple of dead-end proposals) to converge on this; worth stating
-precisely since it now governs several other decisions:
+- **`servedBy` stays as-is: a member declares `servedBy: <shell-id>@<version>`, not the reverse.**
+  Considered flipping it (a shell declaring its own `members: [...]`) since a shell is "in some
+  sense also a component." Rejected: member-declares-shell gives "a component belongs to at most
+  one shell" as a **syntactic** guarantee (one field, one value — literally not expressible
+  otherwise); the flipped direction would make it a **semantic** rule requiring active
+  cross-shell-list validation to catch a component appearing under two different shells — violable
+  until something checks for it, not violable by construction. `override.yaml`'s nested
+  `members:` display (§8) already provides the readability a flip would have bought, so there's no
+  remaining reason to also change `brickkit.yaml`'s direction.
+- **Shell and its members are bundled at the image level under Docker/Podman** — they start or
+  don't start as one unit; there's no "half compiled in" at runtime.
+- **Shell running → each member's own `mode: disable` (if set) excludes it from
+  `BRICKKIT_SERVED_MEMBERS`, an existing, already-shipped mechanism — but it is a *hint*, never
+  enforced.** AGENTS.md §5.7 already says this plainly: "A compliant shell **may** read it to skip
+  initializing... this is **optional**; the platform **never checks** whether a shell actually
+  honors it." Two mechanisms were explored and rejected as ways to get real enforcement — kept for
+  the record since the *reasoning* is the reusable part:
+  - *"`sync` archives the disabled member's local checkout, so the shell's build can't find it."*
+    Rejected: `sync` only moves the developer-facing checkout under `components/<scope>/<name>/` —
+    a workspace §9.17 already establishes no build or deploy step reads. A shell importing a
+    member's code does so through the language's own package manager (a Go module fetched from the
+    member's own published repository, an npm dependency, a Maven artifact) — entirely independent
+    of BrickKit's local checkout. Proof by construction: a machine that never ran `brickkit sync`,
+    or never installed BrickKit at all, builds the shell identically.
+  - *A dedicated compile-command field for `mode: local`, so BrickKit orchestrates build-then-run.*
+    Rejected: puts BrickKit back in the business of deciding *when* to recompile — exactly the kind
+    of per-language build-lifecycle judgment §4.1 already argues the platform shouldn't make. The
+    single start command (auto-detected or user-supplied) is responsible for guaranteeing it
+    reflects current code on every invocation (`go run .`, `mvn spring-boot:run`, `npm run dev`, or
+    a watch-mode tool are all already self-contained single commands).
+- **Shell not running → each member deploys per its own independent Manifest declaration, treated
+  exactly like an ordinary standalone component.** Initially (wrongly) ruled out on the assumption
+  that a member's `deployment.image` isn't a real, standalone-capable artifact. **Corrected**:
+  every component's Manifest, `servedBy` or not, requires a complete
+  `deployment.image`/`port`/`healthCheck` — no exception for members. The compose/K8s generators
+  already know how to build a workload from that declaration; it's the *default* path used for
+  every ordinary component. `servedBy` currently just skips it unconditionally.
+  `--ignore-served-by --dry-run`'s existing, documented purpose ("verify every component can still
+  stand alone without servedBy") only makes sense if standalone operation is a real, expected
+  capability for a properly-built member.
+  **What actually needs building**: `internal/shell.Resolve` today hard-errors
+  (`shellNotRunningError`, confirmed via code) when a member wants to run but its shell doesn't.
+  Making that a fallback to the ordinary per-component generation path is real work, but narrower
+  than "invent standalone capability from scratch" — it's conditionally skipping the current
+  skip-generation behavior.
+- **Shell running → members merge in, *except* a member pinned to a version the shell doesn't
+  provide** — BrickKit already supports multiple versions of the same component coexisting
+  project-wide; a version instance the shell doesn't bundle deploys standalone regardless of the
+  shell's own state. **This is fully automatic, computed from `brickkit.yaml`'s own dependency
+  declarations — `override.yaml` never represents or lets a user toggle it.** `override.yaml` only
+  speaks for the project's own on/off switches, not for instances a required-dependency edge
+  forces to run. (This is why component entries in `override.yaml` use bare `id`, never
+  `id@version` — see §8.)
 
-**BrickKit's control over a running workload stops at "start it or don't." What runs inside —
-which modules are actually active — is never something the platform can reach into, regardless of
-whether that workload is a container or a bare `mode: local`/`debug` process.** Two dead ends
-explored and rejected on the way here, kept for the record since the reasoning matters more than
-the conclusion:
+### 6.2 Known remaining gap: resource bindings
 
-- **"Disable a member, `sync` archives its local checkout, so the shell's build can't find it and
-  skips it" — rejected.** `sync` only moves the per-machine, developer-facing checkout under
-  `components/<scope>/<name>/` — a workspace §9.17 already establishes no build or deploy step
-  ever reads (`up` needs a component's Manifest, never its code). A shell importing a member's code
-  does so through the *language's own package manager* (a Go module fetched via its module proxy
-  from the member's own published repository, an npm dependency, a Maven artifact) — a completely
-  separate resolution path that never touches BrickKit's local `components/` tree. Proof by
-  construction: a brand-new machine that has never run `brickkit sync`, or even installed BrickKit,
-  builds the shell identically — the dependency still resolves, straight from the member's real,
-  published repository. Archiving the local checkout doesn't touch that repository at all.
-- **"Give `mode: local` a separate compile-command field, so BrickKit orchestrates build-then-run"
-  — rejected.** This would put BrickKit back in the business of deciding *when* to recompile —
-  exactly the kind of per-language build-lifecycle judgment call §4.1 already argues the platform
-  shouldn't make. Resolution: no second field. The single start command (auto-detected or
-  user-supplied) is responsible for guaranteeing it reflects current code on every invocation —
-  `go run .`, `mvn spring-boot:run`, `npm run dev`, or a watch-mode tool are all already
-  self-contained single commands from BrickKit's point of view; it just runs one process and
-  supervises it, the same as it always has.
+§5.7 today treats a member's own `resources[].bindings` entry as unnecessary — the shell's binding
+covers it. A member falling back to standalone needs its own binding, typically absent in
+`brickkit.yaml` today (considered redundant under `servedBy`). **Not a blocker, but a real detail
+not yet fully designed**: the CLI needs to error clearly ("this component needs its own resource
+binding to run standalone") rather than silently starting with no connection. Exact error timing
+(generation-time vs. a `lint` check) is left for the implementation plan.
 
-**Consequence for the shell/member design**: since the platform can't enforce module-level control
-either way, a member's `mode: disable` while its shell is running has *the same* not-guaranteed,
-hint-only nature (via `BRICKKIT_SERVED_MEMBERS`) whether the shell itself is deployed as a
-container or running under `mode: local`/`debug` — no shape-specific handling needed in
-`override.yaml`'s schema for this.
-
-## Resolved this round — `mode: local` start command for a shell needs nothing new
+### 6.3 `mode: local` for a shell needs no new mechanism
 
 Verified against the actual code (`internal/runcmd`, `internal/manifest/types.go`), not
-speculation this time:
+speculation. Detection is architecturally blind to `servedBy`/shell status — zero references to
+`ServedBy` anywhere in the detection path; a shell and an ordinary component are probed
+identically. Detection failures happen for structural reasons unrelated to being a shell (multiple
+`cmd/*` entrypoints in Go, Maven/Gradle multi-module layouts) — a shell is *plausibly more likely*
+to hit these given its aggregating nature, but that's a consequence of its own complexity, not a
+shell-specific code path. An explicit override already exists and needs no new design:
+`component.yaml`'s `local:` block already has `runCommand` (bypasses detection) and `language`
+(disambiguates the adapter) — usable today by any component, shell or not. If a shell's structure
+defeats auto-detection, its author sets `local.runCommand` in the shell's *own* `component.yaml` —
+a structural, rarely-changed fact (same bucket as `resources`), not something that belongs in
+`override.yaml`. (One real, separate gap: no existing doc discusses `mode: local` × `servedBy`
+interaction — a documentation task for whenever this ships, not a design question.)
 
-- **Detection is architecturally blind to `servedBy`/shell status** — zero references to
-  `ServedBy` anywhere in `internal/runcmd` or the code that feeds it. A shell and an ordinary
-  component go through the identical marker-file detection path (`go.mod` → `go run .`,
-  `package.json` → its `start`/`dev` script, `pom.xml`/`build.gradle` → Spring Boot's run plugin,
-  …). The earlier guess ("shells probably need a user-supplied command") was unfounded — nothing
-  in the code supports it.
-- **Detection *can* fail, but for structural reasons unrelated to being a shell**: multiple `cmd/*`
-  entrypoints in Go, a Maven/Gradle multi-module layout, conflicting Node package managers — any
-  component with that structure hits the same ambiguity error, shell or not. A shell, being an
-  aggregation of several modules by nature, is *plausibly more likely* to have this kind of
-  structure in practice — but that's a consequence of its own complexity, not a shell-specific code
-  path.
-- **An explicit override already exists and needs no new design**: `component.yaml`'s `local:`
-  block already has `runCommand` (bypasses detection entirely) and `language` (disambiguates which
-  adapter to use) — usable by any component today, shell or not. So the answer to "can BrickKit
-  judge for itself, or does the user have to provide it" is: both paths already work, exactly like
-  for any other component. If a shell's own structure defeats auto-detection, its author sets
-  `local.runCommand` in the shell's *own* `component.yaml` — a structural, rarely-changed fact
-  about that component (same bucket as `resources`), not something that belongs in `override.yaml`
-  at all.
-- **One real but separate gap**: no existing doc (`04-local-execution.md`,
-  `07-shell-implementers-guide.md`) discusses `mode: local` × `servedBy` interaction in either
-  direction — worth a cross-reference whenever this actually ships, but a documentation task, not
-  a design question.
+## 7. Staleness / drift detection
 
-## Resolved — `servedBy`'s direction stays as-is, not flipped
+**Content-based, never timestamp-based.** File mtimes don't survive `git checkout`/`pull`/`clone`
+reliably (they reset to "now" regardless of actual edit history), so time-based drift detection
+would misfire constantly across a team.
 
-The last open question from the shell/member thread. Decision: **keep the current mechanism** — a
-member declares `servedBy: <shell-id>@<version>` pointing at its shell; the shell itself stays a
-plain, ordinary component with no `members:` list of its own. Reasoning:
+Two structural checks:
 
-- **A syntactic guarantee, not just a convention.** Because each component's `servedBy` lives on
-  that component's own single entry (one field, one value), "a component can belong to at most one
-  shell" is enforced by the schema shape itself — it's not expressible to write otherwise. Flipping
-  it (a shell declaring `members: [...]`) would make the same invariant a *semantic* rule requiring
-  active validation across every shell's member list (catching the same component ID listed under
-  two different shells) — structurally possible to violate until something checks for it, not
-  structurally impossible to write in the first place.
-- **`override.yaml` already provides the readability flipping would have bought.** The original
-  appeal of "shell declares its members" was seeing a shell's membership at a glance — already
-  solved by `override.yaml`'s nested `members:` grouping under a shell's entry (see above). No
-  remaining reason to duplicate that in `brickkit.yaml` too.
-- **Lower touch cost.** Today, adding a member only touches that member's own line; flipping would
-  mean editing the shell's own (growing) entry on every member added or removed.
-- **Worth noting, doesn't change the outcome**: `brickkit.yaml` isn't perfectly consistent either
-  way already — `resources[].bindings` already uses the "declare who's attached to me" shape (a
-  resource lists which components bind to it, not the reverse). So this isn't a case of preserving
-  a universal rule; the syntactic-guarantee argument above is what actually carries the decision.
+- **Dangling entries**: an `override.yaml` entry referencing a component ID no longer declared in
+  `brickkit.yaml` — always an error.
+- **`baseline` mismatch** (the field is `targetBaseline` for the target override, `baseline` for a
+  component-level override): each override records what `brickkit.yaml` declared for that same
+  thing at the moment the override was last confirmed. The check compares that recorded value
+  against `brickkit.yaml`'s *current* value — a mismatch means `brickkit.yaml` changed since the
+  override was last reviewed, independent of whether the override's own current value happens to
+  differ from (expected, fine) or coincidentally match the old default.
+  - **`baseline` is written only when `brickkit.yaml` already has an explicit, specific value for
+    that thing at override-set time** (a deliberate choice, made knowingly): `targetBaseline` is
+    always present once `target` is set (`deploy.target` is required, never unset); a
+    component-level `baseline` is often absent, since most components have no `mode` in
+    `brickkit.yaml` at all. **Consequence, accepted deliberately**: this gives up detecting the one
+    case worked through earlier in this brainstorm — `brickkit.yaml` going from "no `mode`" to an
+    explicit `mode: local` for a component that has an unrelated override sitting on it in
+    `override.yaml` won't be flagged, because no baseline was ever recorded for the "absent" state.
+    Traded for a cleaner file (no absent-state placeholder noise on the common case).
 
-With this resolved, the shell/member/servedBy thread from this whole conversation is closed. What's
-left for `override.yaml` is `restore` semantics and writing the actual schema.
+Both checks are deterministic, offline, content-only — fit naturally as a new `brickkit lint` rule
+(and a non-blocking note from `up` when `override.yaml` is in use), not a new kind of mechanism.
 
-## Resolved — `restore` stays untouched; `override.yaml`'s reset is just re-running `brickkit override`
+## 8. `override.yaml` schema
 
-`brickkit restore` today resets exactly two things — `mode` in `brickkit.yaml` and the
-component-source archive layout — to their state at the **last git commit** (plus a `--check` mode
-for the pre-commit hook, verifying those two stay consistent with each other). Its reference point
-is git history.
-
-`override.yaml`'s reset need has a different reference point entirely: not "last commit," but
-"`brickkit.yaml`'s current on-disk content, committed or not" — and `override.yaml` isn't even
-git-tracked by default, so "last commit" isn't a meaningful concept for it in the first place.
-**Decision: don't merge these, don't extend `restore` to cover `override.yaml`.** Re-running
-`brickkit override` — already designed to create on first run and refresh on later runs — already
-*is* the reset operation for `override.yaml`: no new command, no change to `restore`'s existing
-scope.
-
-One loose end, resolved: since `restore` rewrites `brickkit.yaml`'s `mode` values, any `baseline`
-snapshots recorded in `override.yaml` become stale the moment `restore` runs. **`restore` should
-print a hint afterward suggesting the user re-run `brickkit override`** to refresh those baselines
-— a courtesy nudge, not a forced auto-run (keeps `restore`'s existing scope untouched, doesn't
-silently rewrite a second file on the user's behalf).
-
-## Resolved — final schema
-
-All open points converged this round. Three decisions, then the schema itself:
-
-- **`baseline` — "interpretation B," chosen deliberately.** A `baseline` field is written *only*
-  when `brickkit.yaml` already has an explicit, specific value for that thing at the moment the
-  override is set (`deploy.target` for `engine` — always present, since it's a required field with
-  no "unset" state; a component's own `mode` for a component override — often absent, since most
-  components have no `mode` at all). **Consequence, chosen knowingly, not an oversight**: this
-  deliberately gives up detecting the specific case worked through earlier in this brainstorm —
-  `brickkit.yaml` going from "no `mode`" to an explicit `mode: local` for a component that has an
-  *unrelated* override sitting on it in `override.yaml` won't be flagged, because no baseline was
-  ever recorded for the "absent" state in the first place. Traded for a cleaner file (no `baseline:
-  <absent-sentinel>` noise on the common case).
-- **`localPort` stays wherever the `mode` that needs it is declared.** `mode: local` +
-  its `localPort` can keep living in `brickkit.yaml` as the project's suggested default (unchanged
-  from today) — most developers' machines don't collide with it. `override.yaml` only carries
-  `localPort` when a specific machine needs a different one, or when the override itself
-  (`mode: debug`, which can only ever exist in `override.yaml`) needs its own port. No disruption
-  to `brickkit.yaml`'s existing `local`/`localPort` schema.
-- **No version number in `override.yaml` at all.** The "a specific version-pinned instance must
-  run standalone because something else needs exactly that version" case (from the earlier
-  shell/member discussion) is fully automatic, computed from `brickkit.yaml`'s own dependency
-  declarations — never something `override.yaml` represents or lets a user toggle. `override.yaml`
-  only speaks for the project's own on/off switches, not for instances a required dependency edge
-  forces to run regardless. Component entries just use bare `id`.
+Entries are **exhaustive with minimal default lines**, not sparse. Every component the project
+currently has gets a line; an unoverridden component is a bare `- id: X`. Only actually-overridden
+components carry extra fields. This keeps the file light at 70-component scale (most lines are one
+bare id) while making the file itself directly usable as a preview — no separate merge/preview
+command needed. A shell's members are nested under its own entry (avoids repeating "I belong to
+shell X" on every member line, and doubles as the grouping that makes the file scannable).
 
 ```yaml
 # override.yaml — local deployment overrides on top of brickkit.yaml.
 # Generated/refreshed by `brickkit override`. Not authoritative — brickkit.yaml
 # stays the source of truth for everything not listed here.
 
-engine: podman              # docker | podman — only meaningful when brickkit.yaml's
-                             # deploy.target is docker; omit to just follow deploy.target
-engineBaseline: docker       # deploy.target's value when this override was last confirmed
-                             # (always present once `engine` is set — deploy.target is a
-                             # required field in brickkit.yaml, never "unset")
+target: podman               # docker | podman | k8s — downgrade-only from brickkit.yaml's
+                              # own deploy.target (§5.2); omit to just follow deploy.target
+targetBaseline: docker        # deploy.target's value when this override was last confirmed
+                              # (always present once `target` is set)
 
 components:
   - id: department/tree      # standalone component, no override — bare line
@@ -314,9 +263,8 @@ components:
       - id: people/basic         # servedBy member, no override — bare line
       - id: auth/rbac
         mode: disable             # excluded from this run's BRICKKIT_SERVED_MEMBERS while
-                                    # the shell keeps running — not guaranteed, depends on
-                                    # the shell honoring it. No `baseline`: brickkit.yaml
-                                    # never had a `mode` for auth/rbac.
+                                    # the shell keeps running — not guaranteed (§6.1). No
+                                    # `baseline`: brickkit.yaml never had a `mode` for it.
 
   - id: infra/redis-event-bus
     mode: local
@@ -328,14 +276,67 @@ components:
     localPort: 9091
     baseline: local                # brickkit.yaml already declares `mode: local` for this
                                      # component — this override upgrades it to `debug` for
-                                     # active debugging. `baseline` records what
-                                     # brickkit.yaml said (`local`) so drift detection can
-                                     # flag it if that project-level declaration changes.
+                                     # active debugging; `baseline` lets drift detection
+                                     # notice if that project-level declaration changes
 ```
 
-This closes out `override.yaml`'s design — every open point from this brainstorm (identity/naming,
-mode placement, engine selection, entry shape, staleness, shell/member semantics, `servedBy`
-direction, `restore`'s relationship, and now the schema itself) is resolved. Next step: consolidate
-this whole working-notes file into a properly-structured design doc (architecture, components, data
-flow, error handling, testing — the brainstorming skill's usual shape) for review, then
-`writing-plans`.
+`localPort` for `mode: local` can still live in `brickkit.yaml` as the project's suggested default
+(unchanged from today — most developers' machines don't collide with it); `override.yaml` only
+carries `localPort` when overriding it, or when the override itself is `mode: debug` (which can
+only ever exist in `override.yaml`, so its `localPort` has nowhere else to live).
+
+No version numbers anywhere in this file — see §6.1's last bullet.
+
+## 9. Command integration
+
+| Command | Change |
+|---|---|
+| `brickkit override` | New. Creates on first run, refreshes on later runs (also the reset/repair operation — see §3) |
+| `brickkit add` | Appends a bare-id line to `override.yaml` if it exists |
+| `brickkit remove` | Deletes the corresponding line from `override.yaml` if it exists |
+| `brickkit sync` | Conditional source: `override.yaml` absent → cascade reads `brickkit.yaml` alone, unchanged; present → cascade also reads its overrides |
+| `brickkit up` | Reads `override.yaml` when present and applies target/mode overrides. **Must ignore `override.yaml` (with a warning) when `--config` points at a non-default file** — prevents a personal local override accidentally applying to a `brickkit.prod.yaml`-style run (§10) |
+| `brickkit status` | Reads `override.yaml` so a component that isn't running because of a local `disable` is labeled as such, not left unexplained |
+| `brickkit graph` | **Does not** read `override.yaml` — stays scoped to `brickkit.yaml` alone. `brickkit graph > graph.mmd` is a shareable, committed artifact; its output must not vary by who generated it locally |
+| `brickkit lint` | New rule: the two staleness checks from §7 |
+| `brickkit restore` | Scope unchanged (still resets `mode` + component-source layout to last git commit). New: prints a hint afterward suggesting `brickkit override` be re-run, since `restore` just rewrote the values `override.yaml`'s baselines were tracking |
+| `brickkit up --ignore-served-by` | **Kept, not removed.** Serves a different purpose than `override.yaml`'s per-component `disable`: bulk, one-shot verification ("does every member work standalone") typically run in CI with `--dry-run`. Replicating that via `override.yaml` would mean manually disabling every shell in the project, one at a time, easy to under-cover by omission — not a real substitute |
+
+## 10. Multi-environment safety
+
+`override.yaml` is scoped to local/dev usage against the *default* `brickkit.yaml` only. A
+`brickkit.prod.yaml`-style environment file should deploy exactly as written, never modified by a
+developer's personal local overrides. **Rule: `override.yaml` only applies when `up` is run
+against the default `brickkit.yaml`** (no `--config`, or `--config` explicitly pointing at it).
+Whenever `--config` points elsewhere and an `override.yaml` happens to exist in the directory, `up`
+must **warn explicitly that it's being ignored** — neither silently applying it (risk: an
+accidental personal override reaching a prod-style deployment) nor silently ignoring it without
+saying so (risk: a developer assumes their override is in effect when it isn't).
+
+## 11. Explicitly out of scope for this design
+
+- **The actual Podman `engine.Engine` implementation.** Covered by the companion doc.
+- **CI regression guard for Podman.** Companion doc.
+- **Backward compatibility / migration for existing `mode: debug` usage in `brickkit.yaml`.**
+  Explicitly not needed right now — there is currently exactly one user of this codebase. Revisit
+  if/when this ships to others.
+- **Redesigning `brickkit.yaml`'s broader structure for ergonomics beyond what's described here.**
+  An earlier, much larger version of this brainstorm considered splitting far more of
+  `brickkit.yaml` into a second file; that was narrowed down to exactly what's in this doc. Nothing
+  else about `brickkit.yaml`'s shape is in scope.
+- **Resource-binding error UX for standalone-fallback members** (§6.2) — flagged as real, not
+  designed in detail; leave for the implementation plan.
+
+## 12. Testing considerations for the eventual plan
+
+- `internal/shell.Resolve`'s new standalone-fallback path (§6.1) needs the same rigor as any other
+  generation-path change — unit tests plus a real end-to-end run (a shell disabled, its member
+  actually starting standalone and answering a real request), mirroring how the Podman
+  investigation validated real lifecycle behavior rather than trusting the design on paper.
+- `brickkit override`/`add`/`remove`/`sync`/`lint`/`status`/`up`/`restore` each get new test
+  coverage for their `override.yaml` interactions described in §9.
+- The multi-environment safety guard (§10) needs an explicit test: `override.yaml` present,
+  `--config brickkit.prod.yaml` used, assert the warning fires and the override doesn't apply.
+- The target downgrade-only rule (§5.2) needs a test asserting the upgrade direction is rejected
+  with a clear error, and the downgrade direction succeeds without requiring k8s-specific fields to
+  be present.
