@@ -827,6 +827,58 @@ $ brickkit sync
 
 ---
 
+## brickkit override
+
+**Syntax:** `brickkit override`
+
+Creates `override.yaml` on first run, refreshes it on every later run — refreshing *is* the reset/repair
+operation, there is no separate second command. Every component currently in `brickkit.yaml` gets a
+line: an unoverridden one gets a bare `- id: <id>`, a `servedBy` member gets nested under its shell's own
+entry. Existing customizations (`mode`, `localPort`, `baseline`, `target`, `targetBaseline`) are
+preserved across a refresh; a component removed from `brickkit.yaml` loses its line; a new one gets a
+fresh bare entry. Prints any drift notes (AGENTS.md §7.1) after writing, the same non-blocking check
+`brickkit up` and `brickkit lint` also run.
+
+Refuses to run when `--config` points at anything other than the default `brickkit.yaml` — `override.yaml`
+only ever applies to a run against the default file, so generating one keyed off a different project file
+would be scoped to the wrong `brickkit.yaml` from the start (AGENTS.md §7.1's multi-environment guard).
+
+`override.yaml` is gitignored by default; `brickkit init` already seeds `.gitignore` with an entry for
+it, and this command also calls the same `EnsureGitignore` check `init` does, in case the line was
+removed by hand.
+
+A hands-on walkthrough of the full mechanism — the schema, `mode: debug`'s override.yaml-only rule, the
+downgrade-only `target` field: root `AGENTS.md` §7.1.
+
+**Example**
+
+```
+$ brickkit override
+Wrote override.yaml
+```
+
+```
+$ cat override.yaml
+# override.yaml — local deployment overrides on top of brickkit.yaml.
+# Generated/refreshed by `brickkit override`. Not authoritative — brickkit.yaml
+# stays the source of truth for everything not listed here.
+
+components:
+    - id: demo/hello
+    - id: demo/caller
+```
+
+Refreshing after hand-editing in a `mode: debug` override, with `brickkit.yaml` having since changed
+that component's own `mode` since the override's `baseline` was last confirmed:
+
+```
+$ brickkit override
+Wrote override.yaml
+Drift: demo/hello — "demo/hello"'s mode in brickkit.yaml changed from "enabled" to "" since this override was last confirmed
+```
+
+---
+
 ## brickkit restore
 
 **Syntax:** `brickkit restore [flags]`

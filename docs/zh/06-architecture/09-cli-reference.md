@@ -779,6 +779,58 @@ $ brickkit sync
 
 ---
 
+## brickkit override
+
+**用法：** `brickkit override`
+
+首次运行时创建 `override.yaml`，之后每次运行都是刷新——刷新**就是**它的重置/修复
+操作，没有单独的第二个命令。`brickkit.yaml` 里当前的每个组件都会有一行：没有覆盖
+的组件是裸的 `- id: <id>`，`servedBy` 成员嵌在它所属外壳的条目下面。刷新时已有的
+自定义值（`mode`、`localPort`、`baseline`、`target`、`targetBaseline`）原样保留；
+从 `brickkit.yaml` 里删掉的组件那一行也跟着消失；新组件补一条裸条目。写完之后打印
+漂移提示（AGENTS.zh.md §7.1）——跟 `brickkit up`、`brickkit lint` 用的是同一套
+非阻断检查。
+
+`--config` 指到默认 `brickkit.yaml` 以外的文件时拒绝运行——`override.yaml` 只对
+针对默认文件的运行生效，生成一份挂在别的项目文件上的覆盖从一开始就是范围错了
+（AGENTS.zh.md §7.1 的多环境护栏）。
+
+`override.yaml` 默认进 `.gitignore`；`brickkit init` 已经在 `.gitignore` 里写好了
+这一行，这条命令自己也会跑一遍 `init` 用的同一个 `EnsureGitignore` 检查，防止那一行
+被手动删掉。
+
+完整机制的上手细节——schema、`mode: debug` 只能写在这里这条规则、只许降级的
+`target` 字段：见根目录 `AGENTS.zh.md` §7.1。
+
+**示例**
+
+```
+$ brickkit override
+已写入 override.yaml
+```
+
+```
+$ cat override.yaml
+# override.yaml — local deployment overrides on top of brickkit.yaml.
+# Generated/refreshed by `brickkit override`. Not authoritative — brickkit.yaml
+# stays the source of truth for everything not listed here.
+
+components:
+    - id: demo/hello
+    - id: demo/caller
+```
+
+手改过一条 `mode: debug` 覆盖之后再刷新，而 `brickkit.yaml` 自己这个组件的 mode
+在这份覆盖的 `baseline` 上次确认之后已经变了：
+
+```
+$ brickkit override
+已写入 override.yaml
+漂移：demo/hello —— "demo/hello" 在 brickkit.yaml 里的 mode 从 "enabled" 变成了 ""（相对这份覆盖上次确认时）
+```
+
+---
+
 ## brickkit restore
 
 **用法：** `brickkit restore [flags]`
