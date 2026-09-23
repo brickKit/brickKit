@@ -247,10 +247,29 @@ plain, ordinary component with no `members:` list of its own. Reasoning:
 With this resolved, the shell/member/servedBy thread from this whole conversation is closed. What's
 left for `override.yaml` is `restore` semantics and writing the actual schema.
 
+## Resolved — `restore` stays untouched; `override.yaml`'s reset is just re-running `brickkit override`
+
+`brickkit restore` today resets exactly two things — `mode` in `brickkit.yaml` and the
+component-source archive layout — to their state at the **last git commit** (plus a `--check` mode
+for the pre-commit hook, verifying those two stay consistent with each other). Its reference point
+is git history.
+
+`override.yaml`'s reset need has a different reference point entirely: not "last commit," but
+"`brickkit.yaml`'s current on-disk content, committed or not" — and `override.yaml` isn't even
+git-tracked by default, so "last commit" isn't a meaningful concept for it in the first place.
+**Decision: don't merge these, don't extend `restore` to cover `override.yaml`.** Re-running
+`brickkit override` — already designed to create on first run and refresh on later runs — already
+*is* the reset operation for `override.yaml`: no new command, no change to `restore`'s existing
+scope.
+
+One loose end, resolved: since `restore` rewrites `brickkit.yaml`'s `mode` values, any `baseline`
+snapshots recorded in `override.yaml` become stale the moment `restore` runs. **`restore` should
+print a hint afterward suggesting the user re-run `brickkit override`** to refresh those baselines
+— a courtesy nudge, not a forced auto-run (keeps `restore`'s existing scope untouched, doesn't
+silently rewrite a second file on the user's behalf).
+
 ## Open / explicitly deferred
 
-- **`restore` semantics.** How "reset `override.yaml` to defaults" relates to the existing
-  `brickkit restore` command. Explicitly parked — "we'll talk about this last."
 - **Exact YAML schema.** Shape is much clearer now (bare-id lines for defaults, nested
   `members:` under a shell entry, per-member version pinning likely needed) but not yet written as
   a real schema.
