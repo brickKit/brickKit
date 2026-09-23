@@ -397,6 +397,7 @@ func newPlan(
 		return nil, err
 	}
 	p.warnings = append(p.warnings, p.privilegedPortWarnings()...)
+	p.warnings = append(p.warnings, p.fallbackStandaloneWarnings()...)
 	p.warnings = append(p.warnings, p.servedMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.servedHealthCheckWarnings()...)
 	p.warnings = append(p.warnings, p.servedUnsupportedFieldWarnings()...)

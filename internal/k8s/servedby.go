@@ -114,6 +114,31 @@ func (p *plan) servedMigrationWarnings() []*clierr.Error {
 	return out
 }
 
+// fallbackStandaloneWarnings 跟 compose 侧同名函数职责相同——见那边的注释。
+func (p *plan) fallbackStandaloneWarnings() []*clierr.Error {
+	var out []*clierr.Error
+	for _, c := range p.components {
+		if c.Entry.ServedBy == "" {
+			continue
+		}
+		shellRef, ok := shell.ParseRef(c.Entry.ServedBy)
+		if !ok {
+			continue
+		}
+		hints := []string{i18n.T(msgid.HintFallbackEnableShellToMergeAgain)}
+		if c.Manifest != nil && c.Manifest.Migration != nil {
+			hints = append(hints, i18n.T(msgid.HintFallbackMigrationNowRuns))
+		}
+		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
+			i18n.T(msgid.ServedByFallbackStandalone)).
+			WithDetail(i18n.T(msgid.LabelComponent), c.Ref.String()).
+			WithDetail(i18n.T(msgid.LabelShell), shellRef.String()).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ServedByFallbackReasonDetail)).
+			WithHint(hints...))
+	}
+	return out
+}
+
 func (p *plan) servedHealthCheckWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, s := range p.served {

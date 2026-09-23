@@ -297,6 +297,7 @@ func newPlan(
 	p.warnings = append(p.warnings, p.localMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.localExposeWarnings()...)
 	p.warnings = append(p.warnings, p.localLabelWarnings()...)
+	p.warnings = append(p.warnings, p.fallbackStandaloneWarnings()...)
 	p.warnings = append(p.warnings, p.servedMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.servedHealthCheckWarnings()...)
 	p.warnings = append(p.warnings, p.servedUnsupportedFieldWarnings()...)

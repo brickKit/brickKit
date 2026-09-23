@@ -108,6 +108,34 @@ func (p *plan) servedMigrationWarnings() []*clierr.Error {
 	return out
 }
 
+// fallbackStandaloneWarnings 提醒"这个组件本来声明了 servedBy，但这次它
+// 指向的外壳没跑，所以按自己的镜像独立部署了"——不说清楚的话，使用者
+// 会以为代码照常跑在外壳里，实际上跑的是它自己的镜像，而且它自己的迁移
+// 这次是真的会执行（外壳独立部署回落设计书 §6.1/§7）。
+func (p *plan) fallbackStandaloneWarnings() []*clierr.Error {
+	var out []*clierr.Error
+	for _, c := range p.components {
+		if c.Entry.ServedBy == "" {
+			continue
+		}
+		shellRef, ok := shell.ParseRef(c.Entry.ServedBy)
+		if !ok {
+			continue
+		}
+		hints := []string{i18n.T(msgid.HintFallbackEnableShellToMergeAgain)}
+		if c.Manifest != nil && c.Manifest.Migration != nil {
+			hints = append(hints, i18n.T(msgid.HintFallbackMigrationNowRuns))
+		}
+		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
+			i18n.T(msgid.ServedByFallbackStandalone)).
+			WithDetail(i18n.T(msgid.LabelComponent), refText(c.Ref)).
+			WithDetail(i18n.T(msgid.LabelShell), refText(shellRef)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ServedByFallbackReasonDetail)).
+			WithHint(hints...))
+	}
+	return out
+}
+
 // servedHealthCheckWarnings 提醒"servedBy 组件自己的健康检查不会独立
 // 生效"——它没有自己的容器，健康检查完全是外壳实现者自己的责任，平台
 // 不做任何聚合、也不替外壳生成任何健康检查逻辑。

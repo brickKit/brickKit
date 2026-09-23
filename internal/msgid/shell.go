@@ -36,4 +36,10 @@ const (
 	HintShellCoversMigration        = "shell.served.hint.shell_covers_migration"
 	HintMigrationCommand            = "shell.served.hint.migration_command"
 	HintDropServedBy                = "shell.served.hint.drop_served_by"
+	// ServedByFallbackStandalone：外壳没跑，成员这次按自己的镜像独立部署
+	// （不是外壳那份代码），外壳独立部署回落设计书 §6.1/§7。
+	ServedByFallbackStandalone          = "shell.served.fallback_standalone"
+	ServedByFallbackReasonDetail        = "shell.served.fallback_reason_detail"
+	HintFallbackMigrationNowRuns        = "shell.served.hint.fallback_migration_now_runs"
+	HintFallbackEnableShellToMergeAgain = "shell.served.hint.fallback_enable_shell_to_merge_again"
 )

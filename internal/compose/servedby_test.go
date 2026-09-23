@@ -55,6 +55,27 @@ func TestServedByComponentGeneratesNoContainer(t *testing.T) {
 	assert.Contains(t, services, "infra-shell-go-core-1-0-0", "外壳自己照常生成")
 }
 
+// ---- 外壳没跑、成员回落时要警告 ----
+
+func TestServedByFallbackWarns(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000),
+		config.Component{ID: "infra/shell-go-core", Version: "1.0.0", Mode: config.ModeDisable})
+	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
+
+	result, err := b.build(compose.Options{})
+	require.NoError(t, err)
+	found := false
+	for _, w := range result.Warnings {
+		if w.Code == clierr.CodeConfigInvalid &&
+			strings.Contains(w.Format(), "mdm/customer") &&
+			strings.Contains(w.Format(), "infra/shell-go-core") {
+			found = true
+		}
+	}
+	assert.True(t, found, "外壳没跑、成员回落独立部署，该有一句警告点名是哪个组件、哪个外壳：%+v", result.Warnings)
+}
+
 // ---- 网络别名 ----
 
 func TestShellGetsNetworkAliasForEachMember(t *testing.T) {

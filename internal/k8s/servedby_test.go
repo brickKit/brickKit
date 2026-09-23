@@ -134,6 +134,25 @@ func TestServedByMigrationWarnsInK8s(t *testing.T) {
 	assert.True(t, found, "应该有一条关于迁移不会自动执行的警告：%+v", result.Warnings)
 }
 
+func TestServedByFallbackWarnsInK8s(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000),
+		config.Component{ID: "infra/shell-go-core", Version: "1.0.0", Mode: config.ModeDisable})
+	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
+
+	result, err := b.build()
+	require.NoError(t, err)
+	found := false
+	for _, w := range result.Warnings {
+		if w.Code == clierr.CodeConfigInvalid &&
+			strings.Contains(w.Format(), "mdm/customer") &&
+			strings.Contains(w.Format(), "infra/shell-go-core") {
+			found = true
+		}
+	}
+	assert.True(t, found, "外壳没跑、成员回落独立部署，该有一句警告点名是哪个组件、哪个外壳：%+v", result.Warnings)
+}
+
 // ---- labels：成员自己的不参与合并，只有外壳自己的算数 ----
 
 // 两个成员各自声明了同名不同值的标签（典型例子：prometheus.io/port，
