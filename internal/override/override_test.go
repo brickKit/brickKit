@@ -140,3 +140,22 @@ components:
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "components[0].mode")
 }
+
+// mode: debug 不写 localPort 是合法的——跟 mode: local 一样，没写就由平台自动分配
+// 一个空闲端口（internal/compose 的 TestAutoAssignedLocalPortDefaultsToDeclaredPort
+// 已经验过这条自动分配机制本身；这里验的是 override.yaml 这一层的解析/校验不会
+// 对这个组合有意见）。validateEntry 只看 id/mode 两个字段，从不管 LocalPort，
+// 所以这条本来就该过，只是原先没有一条测试把它钉住（config.edge_test.go 里
+// mode: debug 从 brickkit.yaml 挪到 override.yaml 之后，TestDebugWithoutPortIsValid
+// 被删了，却没有人在 override 这一层补回等价覆盖）。
+func TestParseOverrideAcceptsDebugModeWithoutLocalPort(t *testing.T) {
+	o, err := ParseOverride([]byte(`
+components:
+  - id: demo/hello
+    mode: debug
+`), "override.yaml")
+	require.NoError(t, err)
+	require.Len(t, o.Components, 1)
+	assert.Equal(t, "debug", o.Components[0].Mode)
+	assert.Zero(t, o.Components[0].LocalPort)
+}
