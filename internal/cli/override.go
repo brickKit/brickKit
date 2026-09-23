@@ -126,12 +126,22 @@ func generateOverride(cfg *config.Config, existing *override.Override) *override
 		flattenExisting(existing.Components, saved)
 	}
 
+	ids := uniqueComponentIDs(cfg.Components)
+	knownIDs := map[string]bool{}
+	for _, id := range ids {
+		knownIDs[id] = true
+	}
+
 	shellFor := placementShellFor(cfg.Components)
 
+	// 外壳本身没在 brickkit.yaml 里出现（被删掉了，或者从没添加过——悬空的
+	// servedBy 引用）时，嵌在它下面的成员没有地方可嵌：按 standalone 处理，
+	// 而不是连同不存在的外壳一起从生成结果里消失。这与 Plan 1 的"外壳没跑，
+	// 成员按普通组件独立部署"是同一个道理，只是这里连"外壳是否存在"都不成立。
 	membersByShell := map[string][]string{}
 	var standalone []string
-	for _, id := range uniqueComponentIDs(cfg.Components) {
-		if shellID, ok := shellFor[id]; ok {
+	for _, id := range ids {
+		if shellID, ok := shellFor[id]; ok && knownIDs[shellID] {
 			membersByShell[shellID] = append(membersByShell[shellID], id)
 			continue
 		}

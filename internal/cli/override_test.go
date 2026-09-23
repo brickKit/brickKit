@@ -225,6 +225,29 @@ func TestOverrideRefusesTargetUpgrade(t *testing.T) {
 	assert.Contains(t, r.stderr, "target")
 }
 
+// 悬空外壳：成员声明了 servedBy，但那个外壳本身没有在 brickkit.yaml 的
+// components 里出现（被删掉了，或者从没添加过）。这种成员不该从生成的
+// override.yaml 里悄悄消失——它原先的分类逻辑只按"外壳的 ID 是不是也在
+// standalone 列表里"来决定要不要把嵌套的 members 写出来，外壳不存在时，
+// 那些本该嵌在它下面的成员就连同它一起被丢弃，使用者看着生成的文件，
+// 完全不知道这个组件的覆盖去哪了。
+func TestOverrideIncludesMemberOfDanglingShell(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "mdm/customer", Version: "1.0.0"}}, "mdm/customer@1.0.0")
+	f.writeConfig(t, `components:
+  - id: mdm/customer
+    version: 1.0.0
+    servedBy: infra/shell-go-core@1.0.0
+`)
+
+	r := runIn(t, f.Dir, "override")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	data, err := os.ReadFile(filepath.Join(f.Dir, "override.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "- id: mdm/customer",
+		"悬空 servedBy 的成员不该从生成的 override.yaml 里悄悄消失")
+}
+
 func TestOverridePrintsDriftNote(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
 	f.writeConfig(t, `components:
