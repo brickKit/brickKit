@@ -188,6 +188,11 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	if err != nil {
 		return nil, err
 	}
+	ov, err := loadOverride(opts, layout, cfg)
+	if err != nil {
+		return nil, err
+	}
+	applyOverride(cfg, ov)
 	if flags.ignoreServedBy {
 		clearServedBy(cfg)
 		opts.Printf("%s\n", i18n.T(msgid.CliUpAllServedbyDeclarationsAreIgnored))

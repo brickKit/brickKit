@@ -210,6 +210,14 @@ func (f *projectFixture) writeConfig(t *testing.T, body string) {
 	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
 }
 
+// writeOverride 把 override.yaml 写进项目目录——跟 writeConfig 同一个手法，
+// 但 override.yaml 没有 writeConfig 那份固定的 header/sources 前缀要重现
+// （override.yaml 设计书 §8 的示例本身就是完整文件，没有任何隐藏结构）。
+func (f *projectFixture) writeOverride(t *testing.T, body string) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(filepath.Join(f.Dir, "override.yaml"), []byte(body), 0o644))
+}
+
 func (f *projectFixture) config(t *testing.T) string {
 	t.Helper()
 	return readFile(t, f.Layout.ConfigPath())

@@ -8,9 +8,13 @@ package cli
 
 import (
 	"context"
+	"os"
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/override"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -46,4 +50,79 @@ func clearServedBy(cfg *config.Config) {
 	for i := range cfg.Components {
 		cfg.Components[i].ServedBy = ""
 	}
+}
+
+// loadOverride 按 override.yaml 设计书 §10 的多环境护栏读取并校验 override.yaml：
+// 只有针对**默认** brickkit.yaml 的这次运行才应用它——--config 指到别处时，
+// 存在的 override.yaml 会被忽略，并且必须明说一声（既不能悄悄生效，也不能悄悄
+// 不提，两种沉默都会让使用者对"这次到底生效了什么"产生错误的预期）。
+//
+// 文件不存在时返回 (nil, nil)：没有覆盖是完全合法、最常见的状态。
+func loadOverride(opts *Options, layout config.Layout, cfg *config.Config) (*override.Override, error) {
+	if opts.ConfigPath != "" && opts.ConfigPath != DefaultConfigFile {
+		if _, err := os.Stat(layout.OverridePath()); err == nil {
+			opts.Printf("%s\n", i18n.T(msgid.OverrideIgnoredNonDefaultConfig, opts.ConfigPath))
+		}
+		return nil, nil
+	}
+
+	ov, err := override.ParseOverrideFile(layout.OverridePath())
+	if err != nil || ov == nil {
+		return ov, err
+	}
+	if err := override.CheckAgainst(cfg, ov); err != nil {
+		return nil, err
+	}
+	return ov, nil
+}
+
+// overrideValues 是 applyOverride 从 override.yaml 的一个条目里只取出、apply 真正
+// 关心的两个字段——ComponentOverride 与 MemberOverride 是两个不同的 Go 类型
+// （internal/override 的类型定义：schemagen 的反射生成器不支持自引用递归类型），
+// 展平成一份索引表时只需要两者共有的这两个值，不需要保留整个结构体。
+type overrideValues struct {
+	Mode      string
+	LocalPort int
+}
+
+// applyOverride 把 override.yaml 的取值写进内存里的 cfg，从不写回磁盘——
+// 跟 clearServedBy 同一个手法：一次性改完，下游 resolver / cascade / compose /
+// k8s 全部只读 cfg 本身的字段，不需要单独知道"这个值是不是被覆盖过"。
+//
+// ov 为 nil 时什么都不做（调用方在没有 override.yaml 时无条件调用它也是安全的）。
+func applyOverride(cfg *config.Config, ov *override.Override) {
+	if ov == nil {
+		return
+	}
+	if ov.Target != "" {
+		cfg.Deploy.Target = ov.Target
+	}
+
+	overrides := flattenOverrideValues(ov.Components)
+	for i := range cfg.Components {
+		o, ok := overrides[cfg.Components[i].ID]
+		if !ok {
+			continue
+		}
+		if o.Mode != "" {
+			cfg.Components[i].Mode = o.Mode
+		}
+		if o.LocalPort != 0 {
+			cfg.Components[i].LocalPort = o.LocalPort
+		}
+	}
+}
+
+// flattenOverrideValues 把顶层组件与它们嵌套的 members 展平成一份按组件 ID 索引的表——
+// apply 只关心"这个 ID 有没有被覆盖"，不关心它在 override.yaml 里嵌在哪个外壳下面
+// （那层嵌套纯粹是给人看的分组，设计书 §8）。
+func flattenOverrideValues(entries []override.ComponentOverride) map[string]overrideValues {
+	out := map[string]overrideValues{}
+	for _, c := range entries {
+		out[c.ID] = overrideValues{Mode: c.Mode, LocalPort: c.LocalPort}
+		for _, m := range c.Members {
+			out[m.ID] = overrideValues{Mode: m.Mode, LocalPort: m.LocalPort}
+		}
+	}
+	return out
 }
