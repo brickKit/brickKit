@@ -43,6 +43,7 @@ const (
 	ConfigGitignoreSessionLock       = "config.gitignore.session_lock"
 	ConfigGitignoreEnvFile           = "config.gitignore.env_file"
 	ConfigGitignoreComponents        = "config.gitignore.components"
+	ConfigGitignoreOverride          = "config.gitignore.override"
 	ConfigGitignoreCaches            = "config.gitignore.caches"
 	ConfigMustBeOneOfTwo             = "config.must_be_one_of_two"
 	ConfigPodSecurityOnly            = "config.pod_security_only"

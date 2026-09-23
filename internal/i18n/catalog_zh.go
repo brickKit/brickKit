@@ -573,6 +573,7 @@ var zh = map[string]string{
 	msgid.ConfigGitignoreSessionLock:                                 "本地进程会话锁（这台机器自己的前台会话）",
 	msgid.ConfigGitignoreEnvFile:                                     "环境变量文件（包含密码）",
 	msgid.ConfigGitignoreComponents:                                  "组件源码目录（每个组件是独立的 Git 仓库，不提交到项目仓库）",
+	msgid.ConfigGitignoreOverride:                                    "本地部署覆盖（这台机器自己的 target/mode 选择）",
 	msgid.ConfigGitignoreCaches:                                      "API 契约与 Manifest 缓存：默认提交、团队共享。不想提交就取消下面两行的注释",
 	msgid.ConfigMustBeOneOfTwo:                                       "必须是 %[1]s 或 %[2]s（当前是 %[3]s）",
 	msgid.ConfigPodSecurityOnly:                                      "目前只支持 %[1]s（当前是 %[2]s）",
@@ -1460,4 +1461,11 @@ var zh = map[string]string{
 	msgid.GitrepoQueryFailedPrefix:                                   "git %[1]s：",
 	msgid.GitrepoQueryFailedSuffix:                                   "（%[1]s）",
 	msgid.SourceDescribe:                                             "%[1]s（%[2]s）：%[3]s@%[4]s",
+
+	msgid.OverrideReadFailed:             "override.yaml 读取失败",
+	msgid.OverrideNotValidYAML:           "override.yaml 不是合法的 YAML",
+	msgid.OverrideValidationFailed:       "override.yaml 校验失败",
+	msgid.OverrideComponentMustBeMapping: "必须是映射格式（当前是 %s）",
+	msgid.OverrideTargetInvalid:          "只能是 docker/podman/k8s 之一（或不写），实际是 %[1]q",
+	msgid.OverrideDuplicateComponent:     "组件 %[1]q 在 override.yaml 里出现了不止一次",
 }

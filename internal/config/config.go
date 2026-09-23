@@ -8,6 +8,11 @@ import (
 const (
 	TargetDocker = "docker"
 	TargetK8s    = "k8s"
+	// TargetPodman 是 override.yaml 才能选的取值（override.yaml 设计书 §5）——
+	// brickkit.yaml 自身的 deploy.target 校验（validateDeploy）从不接受它；这个
+	// 常量存在只是为了给 internal/override 与后续读取"已被覆盖过的 cfg.Deploy.Target"
+	// 的代码一个共享的取值名字，避免到处写裸字符串 "podman"。
+	TargetPodman = "podman"
 	// PodSecurityRestricted 对应 K8s 官方 Pod Security Standards 的 restricted 级别。
 	PodSecurityRestricted = "restricted"
 )

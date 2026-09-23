@@ -28,6 +28,10 @@ const (
 	FileCredentials = "credentials"
 	// FileGitignore 是项目的 .gitignore。
 	FileGitignore = ".gitignore"
+	// FileOverride 是本地部署覆盖文件（override.yaml 设计书 §3）。
+	// 固定名字、固定在项目根——跟 --config 指向哪份 brickkit.yaml 无关
+	// （设计书 §10：这份机制只对默认 brickkit.yaml 生效，但文件本身的路径不随之改变）。
+	FileOverride = "override.yaml"
 	// FileSkillsLock 是 AI 助手技能的托管清单（brickkit skills 管理）。
 	FileSkillsLock = "skills.lock"
 	// FileSessionLock 是本地进程前台监管的会话锁（005 §3）。
@@ -102,6 +106,10 @@ func (l Layout) SessionLockPath() string { return l.path(DirBrickkit, FileSessio
 
 // GitignorePath 返回项目 .gitignore 路径。
 func (l Layout) GitignorePath() string { return l.path(FileGitignore) }
+
+// OverridePath 返回本地部署覆盖文件的路径。固定在项目根、固定叫 override.yaml，
+// 不随 ConfigFile（--config）变化。
+func (l Layout) OverridePath() string { return l.path(FileOverride) }
 
 // ManagedDirs 返回 brickkit init 需要创建的全部目录（按创建顺序）。
 func (l Layout) ManagedDirs() []string {

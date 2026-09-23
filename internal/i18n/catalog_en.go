@@ -579,6 +579,7 @@ var en = map[string]string{
 	msgid.ConfigGitignoreSessionLock:                                       "Local process session lock (this machine's own foreground session)",
 	msgid.ConfigGitignoreEnvFile:                                           "Environment variable file (contains passwords)",
 	msgid.ConfigGitignoreComponents:                                        "Component source directory (each component is its own Git repository, not committed to the project repository)",
+	msgid.ConfigGitignoreOverride:                                          "Local deployment overrides (this machine's own target/mode choices)",
 	msgid.ConfigGitignoreCaches:                                            "API contract and Manifest caches: committed by default and shared by the team. Uncomment the two lines below to ignore them",
 	msgid.ConfigMustBeOneOfTwo:                                             "must be %[1]s or %[2]s (currently %[3]s)",
 	msgid.ConfigPodSecurityOnly:                                            "currently only %[1]s is supported (currently %[2]s)",
@@ -1472,4 +1473,11 @@ var en = map[string]string{
 	msgid.GitrepoQueryFailedPrefix:                                                           "git %[1]s: ",
 	msgid.GitrepoQueryFailedSuffix:                                                           " (%[1]s)",
 	msgid.SourceDescribe:                                                                     "%[1]s (%[2]s): %[3]s@%[4]s",
+
+	msgid.OverrideReadFailed:             "failed to read override.yaml",
+	msgid.OverrideNotValidYAML:           "override.yaml is not valid YAML",
+	msgid.OverrideValidationFailed:       "override.yaml validation failed",
+	msgid.OverrideComponentMustBeMapping: "must be a mapping (got %s)",
+	msgid.OverrideTargetInvalid:          "must be one of docker/podman/k8s (or omitted), got %[1]q",
+	msgid.OverrideDuplicateComponent:     "component %[1]q appears more than once in override.yaml",
 }
