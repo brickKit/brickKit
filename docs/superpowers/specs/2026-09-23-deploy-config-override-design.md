@@ -74,8 +74,9 @@ own `deploy.target` field name, which is what it's actually overriding.
 
 One `docker compose`/`podman compose` invocation runs everything in that file under one engine —
 containers under different engines don't share a network namespace, and the service-name DNS
-resolution the whole addressing model depends on (§5.1 of the platform's own address spec) doesn't
-cross that boundary. Worked example: `erp/backend` on Podman calling its dependency
+resolution the whole addressing model depends on (AGENTS.md §5.1 — a different §5.1 than this
+document's own, disambiguated with the "AGENTS.md" prefix from here on for every reference into
+that file) doesn't cross that boundary. Worked example: `erp/backend` on Podman calling its dependency
 `department/tree` on Docker via `http://department-tree-1-0-0:8080` would never resolve — separate
 rootless-netns/bridge networks. `target` is necessarily one project-wide (locally-overridable)
 value.
@@ -151,14 +152,15 @@ never something the platform can reach into — container or bare process, no ex
   the record since the *reasoning* is the reusable part:
   - *"`sync` archives the disabled member's local checkout, so the shell's build can't find it."*
     Rejected: `sync` only moves the developer-facing checkout under `components/<scope>/<name>/` —
-    a workspace §9.17 already establishes no build or deploy step reads. A shell importing a
+    a workspace AGENTS.md §9.17 already establishes no build or deploy step reads. A shell importing a
     member's code does so through the language's own package manager (a Go module fetched from the
     member's own published repository, an npm dependency, a Maven artifact) — entirely independent
     of BrickKit's local checkout. Proof by construction: a machine that never ran `brickkit sync`,
     or never installed BrickKit at all, builds the shell identically.
   - *A dedicated compile-command field for `mode: local`, so BrickKit orchestrates build-then-run.*
     Rejected: puts BrickKit back in the business of deciding *when* to recompile — exactly the kind
-    of per-language build-lifecycle judgment §4.1 already argues the platform shouldn't make. The
+    of per-language build-lifecycle judgment AGENTS.md §4.1 already argues the platform shouldn't
+    make. The
     single start command (auto-detected or user-supplied) is responsible for guaranteeing it
     reflects current code on every invocation (`go run .`, `mvn spring-boot:run`, `npm run dev`, or
     a watch-mode tool are all already self-contained single commands).
@@ -188,8 +190,8 @@ never something the platform can reach into — container or bare process, no ex
 
 ### 6.2 Known remaining gap: resource bindings
 
-§5.7 today treats a member's own `resources[].bindings` entry as unnecessary — the shell's binding
-covers it. A member falling back to standalone needs its own binding, typically absent in
+AGENTS.md §5.7 today treats a member's own `resources[].bindings` entry as unnecessary — the
+shell's binding covers it. A member falling back to standalone needs its own binding, typically absent in
 `brickkit.yaml` today (considered redundant under `servedBy`). **Not a blocker, but a real detail
 not yet fully designed**: the CLI needs to error clearly ("this component needs its own resource
 binding to run standalone") rather than silently starting with no connection. Exact error timing
@@ -221,8 +223,11 @@ Two structural checks:
 
 - **Dangling entries**: an `override.yaml` entry referencing a component ID no longer declared in
   `brickkit.yaml` — always an error.
-- **`baseline` mismatch** (the field is `targetBaseline` for the target override, `baseline` for a
-  component-level override): each override records what `brickkit.yaml` declared for that same
+- **`baseline` mismatch — a warning, not an error** (found during this pass: severity was never
+  stated explicitly; matches the existing pattern for "worth reviewing, not broken" states like a
+  misspelled `configSchema` key — `--strict` turns it into a `lint` failure, same as those, but it
+  never blocks `up` on its own). The field is `targetBaseline` for the target override, `baseline`
+  for a component-level override — each override records what `brickkit.yaml` declared for that same
   thing at the moment the override was last confirmed. The check compares that recorded value
   against `brickkit.yaml`'s *current* value — a mismatch means `brickkit.yaml` changed since the
   override was last reviewed, independent of whether the override's own current value happens to
