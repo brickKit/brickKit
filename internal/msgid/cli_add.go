@@ -59,4 +59,6 @@ const (
 	CliAddThatComponentIsCurrentlyProvided         = "cli.add.that_component_is_currently_provided"
 	CliAddExample                                  = "cli.add.example"
 	CliAddLong                                     = "cli.add.long"
+	CliAddOverrideYamlNeedsUpdating                = "cli.add.override_yaml_needs_updating"
+	CliAddOverrideYamlRefreshed                    = "cli.add.override_yaml_refreshed"
 )

@@ -205,6 +205,11 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 	if err != nil {
 		return err
 	}
+	if len(added) > 0 {
+		if err := syncOverrideAfterAdd(opts, layout); err != nil {
+			return err
+		}
+	}
 
 	renderAddTree(opts, graph, target, artifacts)
 	renderSignatures(opts, client.SignatureStatuses())

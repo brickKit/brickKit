@@ -91,6 +91,11 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 	if err != nil {
 		return err
 	}
+	if len(added) > 0 {
+		if err := syncOverrideAfterAdd(opts, layout); err != nil {
+			return err
+		}
+	}
 
 	for i, g := range graphs {
 		renderAddTree(opts, g, targetRef(plan.targets[i]), artifacts[i])
