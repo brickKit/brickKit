@@ -250,11 +250,17 @@ func newPlan(
 			if !ok {
 				continue // config.Validate 已经挡过格式问题
 			}
-			p.served = append(p.served, servedComponent{
-				Ref: ref, Service: service, Manifest: node.Manifest,
-				Entry: entry, Shell: shellRef,
-			})
-			continue
+			if states.IsRunning(shellRef) {
+				p.served = append(p.served, servedComponent{
+					Ref: ref, Service: service, Manifest: node.Manifest,
+					Entry: entry, Shell: shellRef,
+				})
+				continue
+			}
+			// 外壳这次没跑：退回普通组件生成路径，走下面这段——判据必须跟
+			// internal/shell.Resolve 保持一致（states.IsRunning(shellRef)），
+			// 两处不一致会出现"这里生成了容器，shell.Resolve 又把它当成员处理"
+			// 的双重归类。
 		}
 		p.components = append(p.components, componentPlan{
 			Ref:      ref,

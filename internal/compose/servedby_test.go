@@ -22,6 +22,25 @@ func servedByEntry(shellID, shellVersion string) config.Component {
 	return config.Component{ServedBy: shellID + "@" + shellVersion}
 }
 
+// ---- 外壳没跑时，成员回落到独立部署 ----
+
+func TestServedByMemberFallsBackToStandaloneWhenShellIsDisabled(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000),
+		config.Component{ID: "infra/shell-go-core", Version: "1.0.0", Mode: config.ModeDisable})
+	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
+	// 同一个失效外壳的第二个成员：两者都必须各自独立回落，不能只有第一个生效。
+	b.component(simple("mdm/orders", "2.0.0", 8081), servedByEntry("infra/shell-go-core", "1.0.0"))
+
+	services := servicesOf(t, b.parsed())
+	assert.Contains(t, services, "mdm-customer-1-0-7",
+		"外壳没跑，这个成员该生成自己的 service")
+	assert.Contains(t, services, "mdm-orders-2-0-0",
+		"同一个失效外壳的第二个成员也该生成自己的 service")
+	assert.NotContains(t, services, "infra-shell-go-core-1-0-0",
+		"关掉的外壳自己不该被生成")
+}
+
 // ---- 不生成自己的容器/迁移 ----
 
 func TestServedByComponentGeneratesNoContainer(t *testing.T) {
