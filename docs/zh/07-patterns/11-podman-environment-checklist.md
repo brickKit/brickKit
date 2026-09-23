@@ -90,6 +90,16 @@ sudo aa-complain /usr/bin/pasta
   `insecureAcceptAnything`，关闭签名校验——这是把 Podman 的默认行为拉平到 Docker 现在的默认
   水平（Docker Content Trust 默认也是关闭的），不是让它比 Docker 更不安全。
 
+脚本里还会启用 `podman.socket`。这条跟 AppArmor 完全无关，而且卡得更早：`podman compose` 走的
+是跟 Docker 共用的同一个 `docker-compose` 二进制，这个二进制要通过一个 Docker-API 兼容的 socket
+跟 Podman 通信。这个 socket 默认不启动——没有它，`podman compose up`/`down` 会直接报
+"failed to connect to the docker API … no such file or directory"，连上面那个 AppArmor 的坑
+都还没轮到它发作。
+
+```bash
+systemctl --user enable --now podman.socket
+```
+
 ## 这份脚本不覆盖的一个坑
 
 如果你是从一个 snap 打包的应用启动的终端里测试（VS Code 用 snap 安装是最常见的情况），可能

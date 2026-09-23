@@ -105,6 +105,17 @@ fatal for a non-interactive tool like `brickkit up`:
   brings Podman's default in line with Docker's own default (Docker Content Trust is off unless
   you turn it on), not a step down in security.
 
+The script also enables `podman.socket`. This one is unrelated to AppArmor entirely, and blocks
+things even earlier: `podman compose` shells out to the same `docker-compose` binary Docker
+itself uses, and that binary talks to Podman over a Docker-API-compatible socket. It isn't running
+by default — without it, `podman compose up`/`down` fail immediately with "failed to connect to
+the docker API … no such file or directory," before the AppArmor issue above even gets a chance to
+matter:
+
+```bash
+systemctl --user enable --now podman.socket
+```
+
 ## Known gap this doesn't cover
 
 If you're testing from a terminal launched by a snap-packaged app (VS Code installed via snap is

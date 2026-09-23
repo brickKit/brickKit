@@ -51,6 +51,18 @@ if ! podman info >/dev/null 2>&1; then
 fi
 pass "'podman info' runs cleanly."
 
+# --- podman.socket check -----------------------------------------------
+# `podman compose` shells out to the same docker-compose binary Docker
+# uses, which talks to Podman over a Docker-API-compatible socket. It's
+# not on by default — without it, `podman compose up`/`down` fail before
+# anything else (AppArmor included) gets a chance to matter.
+if systemctl --user is-active --quiet podman.socket 2>/dev/null; then
+  pass "podman.socket is active (needed for 'podman compose')."
+else
+  warn "podman.socket is not active — 'podman compose' will fail to connect."
+  warn "Fix: systemctl --user enable --now podman.socket"
+fi
+
 # --- The actual reproduction test -------------------------------------------
 # Reading config files can't tell you whether the AppArmor denial actually
 # fires — it depends on the loaded kernel policy, not just what's on disk.

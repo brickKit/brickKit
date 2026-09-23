@@ -70,7 +70,15 @@ echo 'unqualified-search-registries = ["docker.io", "quay.io"]' | sudo tee /etc/
 # down in security, just parity with what Docker already does by default.
 echo '{"default": [{"type": "insecureAcceptAnything"}]}' | sudo tee /etc/containers/policy.json > /dev/null
 
-echo "🛡️ Step 4: Fixing AppArmor's signal block on pasta (complain mode)..."
+echo "🔌 Step 4: Enabling the Podman API socket..."
+# `podman compose` shells out to the same docker-compose binary Docker uses,
+# and that binary talks to Podman over a Docker-API-compatible socket. It
+# isn't running by default — without it, `podman compose up`/`down` fail
+# immediately with "failed to connect to the docker API ... no such file or
+# directory", before anything AppArmor-related even comes into play.
+systemctl --user enable --now podman.socket
+
+echo "🛡️ Step 5: Fixing AppArmor's signal block on pasta (complain mode)..."
 
 # aa-complain is the standard Ubuntu/Debian tool for switching one profile
 # into complain mode (log violations, don't enforce them) — safer and less
