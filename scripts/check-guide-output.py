@@ -558,14 +558,17 @@ def local_mode(proj, component_id):
 
 
 def local_debug(proj, component_id, port):
-    """把某个组件改成 mode: debug（03 的场景：只调试，不 expose）。"""
-    path = os.path.join(proj, "brickkit.yaml")
-    s = open(path, encoding="utf-8").read()
-    old = f"  - id: {component_id}\n    version: 1.0.0\n"
-    if old not in s:
-        sys.exit(f"❌ 配置里找不到 {component_id}，无法改成 mode: debug")
-    extra = f"    mode: debug\n    localPort: {port}\n"
-    open(path, "w", encoding="utf-8").write(s.replace(old, old + extra, 1))
+    """把某个组件设成 mode: debug（03 的场景：只调试，不 expose）——
+
+    mode: debug 从 override.yaml 设计书 §4 起只能写在 override.yaml 里，
+    brickkit.yaml 自身无条件拒绝它，所以这里写的是 override.yaml，不再是
+    brickkit.yaml。override.yaml 不要求穷举每个组件（那只是 `brickkit
+    override` 自己生成时的约定），只写这一个被覆盖的组件就够了——其余组件
+    没提到，就照 brickkit.yaml 原样跑。
+    """
+    path = os.path.join(proj, "override.yaml")
+    entry = f"components:\n  - id: {component_id}\n    mode: debug\n    localPort: {port}\n"
+    open(path, "w", encoding="utf-8").write(entry)
 
 
 def add_second_version(proj, component_id, slug):

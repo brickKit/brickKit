@@ -222,16 +222,14 @@ The stub is found in the local source like any other component, and `demo/caller
 
 ### Step 3: tell BrickKit you'll run the stub yourself
 
-Left alone, BrickKit would try to start a container from the stub's `image:` line — a placeholder that points at nothing. `mode: debug` ([Article 3](03-local-debugging.md)) says otherwise: "this component runs on my machine; generate no container for it, but keep it in the dependency graph". `localPort` picks the port on your machine:
+Left alone, BrickKit would try to start a container from the stub's `image:` line — a placeholder that points at nothing. `mode: debug` ([Article 3](03-local-debugging.md)) says otherwise: "this component runs on my machine; generate no container for it, but keep it in the dependency graph". It goes in `override.yaml`, not `brickkit.yaml` — `mode: debug` is local, machine-specific state, and `brickkit.yaml` rejects it outright. `brickkit.yaml` stays exactly what `add --local` just wrote (both components, no `mode`); `localPort` (which picks the port on your machine) goes alongside `mode: debug`:
 
 ```yaml
+# override.yaml
 components:
   - id: demo/hello
-    version: 1.0.0
     mode: debug
     localPort: 18081
-  - id: demo/caller
-    version: 1.0.0
 ```
 
 ```bash
@@ -353,7 +351,7 @@ Clean up with `docker rm -f stub-demo-caller`, and stop the mock with Ctrl-C.
 You might expect a `mock` command that builds a fake server from the contract, or a switch on `up` that swaps a stand-in in for any required dependency that is missing. Neither exists, for three reasons:
 
 - **The platform never reads a contract's content.** `artifacts.format` is a free-form string that BrickKit carries along and never interprets (AGENTS.md §6). Generating mocks would mean understanding OpenAPI, protobuf, gRPC and whatever format comes next — a job that is never finished, and one that dedicated tools already do. BrickKit's part stays small: getting the address to whatever you run.
-- **Swapping in a stand-in automatically contradicts two of its principles.** A missing required dependency is supposed to stop `up`, not be papered over (AGENTS.md §5.3), and explicit beats implicit (§4): one misuse and a component that answers everything with made-up data gets deployed for real. The recipe above is explicit instead. The substitution is written into `brickkit.yaml`, where a reviewer sees it; it generates no container; and pointing the project at Kubernetes is refused while `mode: debug` is still there. (A Pod is the unit Kubernetes runs your containers in; one running on a cluster's servers can't reach a process on your machine, and the CLI says so and stops.)
+- **Swapping in a stand-in automatically contradicts two of its principles.** A missing required dependency is supposed to stop `up`, not be papered over (AGENTS.md §5.3), and explicit beats implicit (§4): one misuse and a component that answers everything with made-up data gets deployed for real. The recipe above is explicit instead: the stub is registered as a real, reviewed dependency in `brickkit.yaml`, where a reviewer sees it — only the fact that you're personally running it as a bare process right now lives in `override.yaml`, local state nobody expects to find in a review in the first place. It still generates no container, and pointing the project at Kubernetes is still refused while `mode: debug` is set for it. (A Pod is the unit Kubernetes runs your containers in; one running on a cluster's servers can't reach a process on your machine, and the CLI says so and stops.)
 - **A mock under its own name would never receive traffic.** The address `demo/caller` is given is built from the real component's versioned service name, `demo-hello-1-0-0` (AGENTS.md §5.1). The stub keeps that name, and `extra_hosts` points that very name at your machine. A mock that answered to some other name would sit there unused.
 
 ### When the real component arrives
@@ -361,7 +359,7 @@ You might expect a `mock` command that builds a fake server from the contract, o
 Taking the stub out again is a few edits and one command — and the command is the one people skip:
 
 1. Delete the stub's source, `components/demo/hello/`.
-2. Delete `mode: debug` and `localPort` from `demo/hello`'s entry in `brickkit.yaml`.
+2. Delete `demo/hello`'s entry from `override.yaml` (or the whole file, if it holds nothing else).
 3. Delete `.brickkit/artifacts/demo-hello-1-0-0/`, the copy of the stub's contract that `add` made.
 4. Make sure a source that carries the real `demo/hello@1.0.0` is listed under `sources:`, then run `brickkit add demo/hello@1.0.0 --yes`.
 

@@ -224,16 +224,14 @@ brickkit add --local
 
 ### 第 3 步：声明"桩不用起容器"
 
-桩不会真的跑，可骨架里还留着 `image: demo/hello:0.1.0`、`port: 8080` 这些 `TODO`——要不要认真填？不用。CLI 仍然会校验它们（比如 `port` 得是 1~65535 之间的数字，`image` 不能留空），但只要给桩加两行声明，BrickKit 就不会为它生成容器，这两个字段也就永远用不上：
+桩不会真的跑，可骨架里还留着 `image: demo/hello:0.1.0`、`port: 8080` 这些 `TODO`——要不要认真填？不用。CLI 仍然会校验它们（比如 `port` 得是 1~65535 之间的数字，`image` 不能留空），但只要给桩加两行声明，BrickKit 就不会为它生成容器，这两个字段也就永远用不上。这两行要写进 `override.yaml`，不是 `brickkit.yaml`——`mode: debug` 是本机、此刻的状态，`brickkit.yaml` 直接拒绝它。`brickkit.yaml` 保持 `add --local` 刚写完的样子（两个组件，都没有 `mode`）；`localPort`（你本机上用哪个端口）跟 `mode: debug` 写在一起：
 
 ```yaml
+# override.yaml
 components:
   - id: demo/hello
-    version: 1.0.0
     mode: debug
     localPort: 18081
-  - id: demo/caller
-    version: 1.0.0
 ```
 
 `mode: debug` 是[第 3 篇](03-local-debugging.md)讲过的开关，意思是"这个组件我在自己机器上跑"：BrickKit 不为它生成容器，但它仍留在依赖图里。`localPort` 指定你本机上用哪个端口；18081 只是随手挑的，别撞上已经被占用的端口就行。
@@ -344,7 +342,7 @@ npx --yes @stoplight/prism-cli@5.16.0 mock -p 18081 -h 0.0.0.0 components/demo/h
 
 最自然的想法是：契约都在手上了，BrickKit 能不能直接生成 mock？或者给 `up` 加个 `--with-mocks`，缺哪个强依赖就自动补个替身？都没有做，三条理由，按分量从重到轻：
 
-**一，自动补替身，太容易补到线上去。** 强依赖缺失时，BrickKit 的既定做法是停下来报错，逼你看见这个缺口（AGENTS.zh.md §5.3）。要是有个开关能悄悄补上替身，一次误操作，线上就多出一个对所有请求都回编造数据、还照样回 200 的"下游"，不会有任何报警。本文这条路有几道保险：桩标着 `mode: debug`，`deploy.target` 一旦改成 `k8s`，`up` 就直接拒绝并停下——集群里的 Pod（Kubernetes 里承载容器的最小单位，可以粗略当成"集群里的一个容器实例"）够不着你个人机器上的进程；留在 Docker 上，桩也不生成容器，不会有假服务被拉起来；而且替身明明白白写在 `brickkit.yaml` 里，评审时看得到。
+**一，自动补替身，太容易补到线上去。** 强依赖缺失时，BrickKit 的既定做法是停下来报错，逼你看见这个缺口（AGENTS.zh.md §5.3）。要是有个开关能悄悄补上替身，一次误操作，线上就多出一个对所有请求都回编造数据、还照样回 200 的"下游"，不会有任何报警。本文这条路有几道保险：桩本身是真实、经过评审的依赖，明明白白写在 `brickkit.yaml` 里，评审时看得到——只有"这一刻你在自己机器上跑它"这件事（`mode: debug`）写在 `override.yaml` 里，那本来就是本机状态，不该也不需要进评审。`deploy.target` 一旦改成 `k8s`，`up` 照样直接拒绝并停下——集群里的 Pod（Kubernetes 里承载容器的最小单位，可以粗略当成"集群里的一个容器实例"）够不着你个人机器上的进程；留在 Docker 上，桩也不生成容器，不会有假服务被拉起来。
 
 **二，mock 换个名字，没人会去找它。** `demo/caller` 手里的地址是真组件的 ID 加精确版本，也就是 `demo-hello-1-0-0`（AGENTS.zh.md §5.1）。桩保住了这个名字，`extra_hosts` 再把它指到你的机器上。回到通讯录的比方：存的是"demo-hello 1.0.0"的号码，接电话的人就不能自称别的名字，否则没人会拨给他。
 
@@ -360,7 +358,7 @@ npx --yes @stoplight/prism-cli@5.16.0 mock -p 18081 -h 0.0.0.0 components/demo/h
 
 ```bash
 rm -rf components/demo/hello                  # 桩的源码
-# 手工编辑 brickkit.yaml：删掉 demo/hello 那一项下的 mode: debug 和 localPort
+# 从 override.yaml 里删掉 demo/hello 那一条（或者整份文件没别的内容就删掉它）
 rm -rf .brickkit/artifacts/demo-hello-1-0-0   # add 当初拷下来的桩契约
 brickkit add demo/hello@1.0.0 --yes           # 前提：sources 里有个带着真 demo/hello@1.0.0 的安装源
 ```

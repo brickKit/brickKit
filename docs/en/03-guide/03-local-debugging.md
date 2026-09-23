@@ -2,18 +2,26 @@
 
 Set a breakpoint in a debugger, and the process it's attached to has to run on your own machine, not inside a container — but everything that component talks to should keep running exactly as it would in a normal deployment, and everything that depends on it should keep working without knowing anything changed. `mode: debug` is the field that makes this possible (AGENTS.md §5.6). This article proves the whole loop for real: `demo/hello` runs as a plain OS process on the host while `demo/caller` — configured as if it were going to run in a container — resolves and reaches it anyway.
 
-## The setup, one field different from Article 2
+## The setup: one local, gitignored file, not a change to `brickkit.yaml`
 
-Same two components as [Article 2](02-what-runs.md), with one addition to `demo/hello`'s entry in `brickkit.yaml`:
+Same two components as [Article 2](02-what-runs.md), `brickkit.yaml` completely unchanged:
 
 ```yaml
 components:
   - id: demo/hello
     version: 1.0.0
-    mode: debug
-    localPort: 8080
   - id: demo/caller
     version: 1.0.0
+```
+
+`mode: debug` — this machine, this IDE, this port, right now — goes in a second file instead: `override.yaml`, local and gitignored by default, never shared or reviewed alongside `brickkit.yaml`. `brickkit.yaml` itself rejects `mode: debug` outright; `override.yaml` is the only place it can go. Create it next to `brickkit.yaml`:
+
+```yaml
+# override.yaml
+components:
+  - id: demo/hello
+    mode: debug
+    localPort: 8080
 ```
 
 ```bash

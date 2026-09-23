@@ -2,18 +2,26 @@
 
 给一个进程挂断点，这个进程就得跑在你自己的机器上，不能在容器里——但它调用的一切都该照常运行，跟正常部署时一模一样，依赖它的一切也该照常工作，感觉不到任何变化。`mode: debug` 正是让这件事成立的字段（AGENTS.zh.md §5.6）。这一篇把整个链路真实走一遍：`demo/hello` 作为一个普通的操作系统进程跑在主机上，而 `demo/caller`——按照它原本要跑在容器里那样配置——照样能解析并连到它。
 
-## 设置，跟第 2 篇比只差一个字段
+## 设置：一份本地、gitignore 的文件，不是改 `brickkit.yaml`
 
-跟[第 2 篇](02-what-runs.md)一样的两个组件，只给 `brickkit.yaml` 里 `demo/hello` 那条加一样东西：
+跟[第 2 篇](02-what-runs.md)一样的两个组件，`brickkit.yaml` 原封不动：
 
 ```yaml
 components:
   - id: demo/hello
     version: 1.0.0
-    mode: debug
-    localPort: 8080
   - id: demo/caller
     version: 1.0.0
+```
+
+`mode: debug`——这台机器、这个 IDE、这个端口、此时此刻——写进另一份文件：`override.yaml`，默认本地、gitignore，从不跟 `brickkit.yaml` 一起共享或走 code review。`brickkit.yaml` 自身直接拒绝 `mode: debug`；`override.yaml` 是它唯一能出现的地方。在 `brickkit.yaml` 旁边建这份文件：
+
+```yaml
+# override.yaml
+components:
+  - id: demo/hello
+    mode: debug
+    localPort: 8080
 ```
 
 ```bash
