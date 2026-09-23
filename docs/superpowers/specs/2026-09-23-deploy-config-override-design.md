@@ -154,6 +154,42 @@ mechanism — the shell, if compliant, skips initializing it), with no container
 all. The shell being off is the other, separate case described above (member deploys standalone
 per its own declaration).
 
+## Confirmed — the platform's control boundary, stated as one rule
+
+Took several rounds (and a couple of dead-end proposals) to converge on this; worth stating
+precisely since it now governs several other decisions:
+
+**BrickKit's control over a running workload stops at "start it or don't." What runs inside —
+which modules are actually active — is never something the platform can reach into, regardless of
+whether that workload is a container or a bare `mode: local`/`debug` process.** Two dead ends
+explored and rejected on the way here, kept for the record since the reasoning matters more than
+the conclusion:
+
+- **"Disable a member, `sync` archives its local checkout, so the shell's build can't find it and
+  skips it" — rejected.** `sync` only moves the per-machine, developer-facing checkout under
+  `components/<scope>/<name>/` — a workspace §9.17 already establishes no build or deploy step
+  ever reads (`up` needs a component's Manifest, never its code). A shell importing a member's code
+  does so through the *language's own package manager* (a Go module fetched via its module proxy
+  from the member's own published repository, an npm dependency, a Maven artifact) — a completely
+  separate resolution path that never touches BrickKit's local `components/` tree. Proof by
+  construction: a brand-new machine that has never run `brickkit sync`, or even installed BrickKit,
+  builds the shell identically — the dependency still resolves, straight from the member's real,
+  published repository. Archiving the local checkout doesn't touch that repository at all.
+- **"Give `mode: local` a separate compile-command field, so BrickKit orchestrates build-then-run"
+  — rejected.** This would put BrickKit back in the business of deciding *when* to recompile —
+  exactly the kind of per-language build-lifecycle judgment call §4.1 already argues the platform
+  shouldn't make. Resolution: no second field. The single start command (auto-detected or
+  user-supplied) is responsible for guaranteeing it reflects current code on every invocation —
+  `go run .`, `mvn spring-boot:run`, `npm run dev`, or a watch-mode tool are all already
+  self-contained single commands from BrickKit's point of view; it just runs one process and
+  supervises it, the same as it always has.
+
+**Consequence for the shell/member design**: since the platform can't enforce module-level control
+either way, a member's `mode: disable` while its shell is running has *the same* not-guaranteed,
+hint-only nature (via `BRICKKIT_SERVED_MEMBERS`) whether the shell itself is deployed as a
+container or running under `mode: local`/`debug` — no shape-specific handling needed in
+`override.yaml`'s schema for this.
+
 ## Open — two points raised this round, not yet resolved
 
 - **Does `servedBy`'s direction need to flip?** Current mechanism: a member declares
