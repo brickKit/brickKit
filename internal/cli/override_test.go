@@ -206,6 +206,25 @@ func TestOverridePlacesStandaloneWhenAnyVersionIsStandalone(t *testing.T) {
 	require.NotNil(t, customer, "mdm/customer 该是顶层条目")
 }
 
+// brickkit override 刷新一份已经写着非法升级（target: k8s 而 brickkit.yaml
+// 自己是 docker）的 override.yaml 时，不该悄悄原样写回、报成功——它跟 up/sync/
+// status/down 走的是同一条 override.CheckAgainst 校验（设计书 §5.2 降级方向
+// 规则），refresh 场景没有理由是唯一的例外，不然这个非法值会一直躺在文件里，
+// 直到下一次 up 才被发现，而那时使用者早就忘了自己刚刚"刷新成功"过。
+func TestOverrideRefusesTargetUpgrade(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+`)
+	f.writeOverride(t, "target: k8s\n")
+
+	r := runIn(t, f.Dir, "override")
+
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "target")
+}
+
 func TestOverridePrintsDriftNote(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
 	f.writeConfig(t, `components:

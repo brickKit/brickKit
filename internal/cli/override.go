@@ -53,6 +53,16 @@ func runOverride(opts *Options) error {
 
 	fresh := generateOverride(cfg, existing)
 
+	// 刷新场景没有理由是唯一绕过 override.CheckAgainst 的地方：既有
+	// override.yaml 里若带着非法升级（target: k8s 而 brickkit.yaml 自己是
+	// docker/podman），generateOverride 会原样保留（它只管 Mode/LocalPort/
+	// Baseline，不管 target 合不合法），写回去、报成功，直到下一次 up/sync/
+	// status/down 才会被发现——那时使用者早忘了自己刚"刷新成功"过。跟
+	// up/sync/status/down 走同一条校验，在这里就把它挡住。
+	if err := override.CheckAgainst(cfg, fresh); err != nil {
+		return err
+	}
+
 	data, err := renderOverride(fresh)
 	if err != nil {
 		return err
