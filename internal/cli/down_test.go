@@ -16,6 +16,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/sessionlock"
 )
 
@@ -68,6 +69,30 @@ func TestDownTellsThatDataIsKept(t *testing.T) {
 
 	assert.Contains(t, r.stdout, "data", "15.13：要让使用者知道数据没被删")
 	assert.Contains(t, r.stdout, "docker volume rm", "并告诉他真想删该怎么做")
+}
+
+// override.yaml 能把生效目标从 k8s 降到 docker（override.yaml 设计书 §5.2），
+// down 必须读到这个降级后的值，而不是 brickkit.yaml 自己声明的 k8s——否则
+// 会去连一个从没配置过的集群，跟 up/sync/status 这次实际用的引擎对不上。
+// 这里不直接断言"选中了哪个引擎"：fakeEngine 一旦被注入，resolveEngineFor
+// 的 k8s 与非 k8s 两支都会原样返回它，引擎本身分辨不出调用方以为自己在
+// 连哪一种目标。真正能看见这个 bug 的，是 renderDownResult 按
+// cfg.Deploy.Target == k8s 挑的两种不同措辞——生效目标已经被覆盖成
+// docker，就该说"数据卷没删"，不该说"基础资源由运维部署"。
+func TestDownRespectsOverrideTargetDowngrade(t *testing.T) {
+	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0"}, "", "")
+	f.writeOverride(t, "target: docker\n")
+	eng := newFakeEngine()
+	// renderDownResult 只有在探测到有东西在跑时才会走到 k8s/docker 两种
+	// 不同措辞那一支；不编排的话 runningCount 会报"引擎里一个都没有"，
+	// 直接走另一条分支，看不出这条 bug。
+	eng.statuses = []engine.Status{{Service: "people-basic-1-0-0", State: "running", Health: "healthy"}}
+
+	r := runWithEngine(t, eng, f.Dir, "down")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "docker volume rm", "生效目标是 docker，该给 docker 的清理提示")
+	assert.NotContains(t, r.stdout, "deployed by ops", "不该再说成 k8s 的基础资源由运维部署")
 }
 
 // down 停的是容器，停不掉另一个终端里的 mode: local 裸进程——不说清楚，

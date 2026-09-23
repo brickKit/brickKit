@@ -89,10 +89,17 @@ type overrideValues struct {
 // 跟 clearServedBy 同一个手法：一次性改完，下游 resolver / cascade / compose /
 // k8s 全部只读 cfg 本身的字段，不需要单独知道"这个值是不是被覆盖过"。
 //
+// 改完之后重新跑一遍 config.ValidateAfterOverride：override.yaml 能写的
+// Mode/LocalPort 两个字段，必须仍然满足 brickkit.yaml 自己对它们的规则
+// （端口范围、端口冲突、mode 跟 replicas/servedBy 的组合）——不然 override.yaml
+// 就成了绕开这些规则的后门（brickKit 反馈：一个 servedBy 成员能被 override.yaml
+// 标成 mode: debug 而不报错）。返回的错误归因到 ov.Source（override.yaml
+// 自己的路径），不是 brickkit.yaml。
+//
 // ov 为 nil 时什么都不做（调用方在没有 override.yaml 时无条件调用它也是安全的）。
-func applyOverride(cfg *config.Config, ov *override.Override) {
+func applyOverride(cfg *config.Config, ov *override.Override) error {
 	if ov == nil {
-		return
+		return nil
 	}
 	if ov.Target != "" {
 		cfg.Deploy.Target = ov.Target
@@ -111,6 +118,8 @@ func applyOverride(cfg *config.Config, ov *override.Override) {
 			cfg.Components[i].LocalPort = o.LocalPort
 		}
 	}
+
+	return cfg.ValidateAfterOverride(ov.Source)
 }
 
 // flattenOverrideValues 把顶层组件与它们嵌套的 members 展平成一份按组件 ID 索引的表——

@@ -152,3 +152,86 @@ func TestStatusReflectsModeOverrideFromOverrideYAML(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "demo/hello")
 }
+
+// applyOverride 改完 cfg 之后必须重新过一遍 brickkit.yaml 自己对 Mode/LocalPort
+// 的规则——不然 override.yaml 就成了绕开这些规则的后门。下面四个场景直接照抄
+// 最终审查里复现过的四个真实反例。
+
+func TestUpRejectsOutOfRangeLocalPortFromOverride(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+`)
+	f.writeOverride(t, `components:
+  - id: demo/hello
+    mode: debug
+    localPort: 99999
+`)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "localPort")
+}
+
+func TestUpRejectsBareLocalPortWithNoModeFromOverride(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+`)
+	f.writeOverride(t, `components:
+  - id: demo/hello
+    localPort: 9001
+`)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "localPort")
+}
+
+func TestUpRejectsDebugModeOnAServedByMemberFromOverride(t *testing.T) {
+	f := addedProject(t, []comp{
+		{ID: "infra/shell-go-core", Version: "1.0.0"},
+		{ID: "mdm/customer", Version: "1.0.0", Port: 8081},
+	}, "infra/shell-go-core@1.0.0", "mdm/customer@1.0.0")
+	f.writeConfig(t, `components:
+  - id: infra/shell-go-core
+    version: 1.0.0
+  - id: mdm/customer
+    version: 1.0.0
+    servedBy: infra/shell-go-core@1.0.0
+`)
+	f.writeOverride(t, `components:
+  - id: infra/shell-go-core
+  - id: mdm/customer
+    mode: debug
+    localPort: 9100
+`)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "servedBy")
+}
+
+func TestUpRejectsDebugWithReplicasFromOverride(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+    replicas: 3
+`)
+	f.writeOverride(t, `components:
+  - id: demo/hello
+    mode: debug
+    localPort: 9001
+`)
+
+	r := runIn(t, f.Dir, "up", "--dry-run")
+
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "replicas")
+}

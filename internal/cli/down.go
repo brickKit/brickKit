@@ -39,9 +39,20 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 	}
 
 	// 只读 brickkit.yaml，不碰安装源：down 交给引擎的只有项目名，
-	// 依赖图里的东西它一个都用不上（见 loadConfig 的说明）。
+	// 依赖图里的东西它一个都用不上（见 loadConfig 的说明）。但 override.yaml
+	// 能把生效目标从 k8s 降到 docker/podman（override.yaml 设计书 §5.2），
+	// down 选引擎、决定要不要删命名空间、挑哪种收尾措辞，都得看这个生效值，
+	// 不能只看 brickkit.yaml 自己声明的——那条"down 不需要依赖图"的道理，
+	// 从没说过"down 不需要 override.yaml"。
 	p, err := loadConfig(opts)
 	if err != nil {
+		return err
+	}
+	ov, err := loadOverride(opts, p.layout, p.cfg)
+	if err != nil {
+		return err
+	}
+	if err := applyOverride(p.cfg, ov); err != nil {
 		return err
 	}
 

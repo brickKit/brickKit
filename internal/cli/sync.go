@@ -73,7 +73,9 @@ func runSync(ctx context.Context, opts *Options) error {
 	if err != nil {
 		return err
 	}
-	applyOverride(cfg, ov)
+	if err := applyOverride(cfg, ov); err != nil {
+		return err
+	}
 
 	keep, err := syncFocus(ctx, opts, layout, cfg)
 	if err != nil {

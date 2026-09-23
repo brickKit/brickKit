@@ -36,6 +36,40 @@ func (c *Config) Validate() error {
 	return p.Err()
 }
 
+// ValidateAfterOverride 校验 override.yaml 应用到内存里的 cfg 之后的合并状态
+// （override.yaml 设计书 §2：override.yaml 能改 Mode/LocalPort）——改完的结果
+// 必须仍然满足 brickkit.yaml 自身对这两个字段的全部规则：端口范围、端口冲突、
+// mode 跟 replicas/servedBy 的组合，不能因为来源换成了另一份文件就绕过去
+// （brickKit 反馈：applyOverride 在 config.Validate() 之后才跑，override.yaml
+// 写的 mode/localPort 因此从没被这些规则查过——一个 servedBy 成员能被同时标成
+// mode: debug，一个 localPort: 99999 能通过校验）。
+//
+// 故意不重跑 validateComponentMode：那个函数专门拒绝"debug 写在 brickkit.yaml
+// 里"，而这里的 Mode 很可能就是从 override.yaml 合法进来的 debug，不该被当成
+// brickkit.yaml 自己写的、原样拒绝。mode: local 配 deploy.target: k8s 的组合
+// 也不重查：override.yaml 只能把 target 往下降级、不能升到 k8s，能让生效目标
+// 变成 k8s 的唯一途径是 brickkit.yaml 自己就是 k8s，那时 override.yaml 声明的
+// debug/local 已经由 internal/override.CheckAgainst 判过（它同时看得到两份
+// 文件，比这里能看到的更完整）。
+//
+// source 是要归因给使用者去改的文件路径——调用方永远传 override.yaml 自己的
+// 路径，不是 brickkit.yaml：这些问题的根源是覆盖之后的值，使用者该去编辑的
+// 是那份文件。
+func (c *Config) ValidateAfterOverride(source string) error {
+	p := newConfigProblems(source)
+
+	localPorts := map[int]int{}
+	exposePorts := map[int]int{}
+	for i, item := range c.Components {
+		field := indexed("components", i)
+		c.validateComponentPorts(p, field, i, item, localPorts, exposePorts)
+		validateReplicas(p, field, item)
+	}
+	c.validateServedBy(p)
+
+	return p.Err()
+}
+
 func (c *Config) validateProject(p *clierr.ProblemSet) {
 	if c.Project == "" {
 		p.Missing("project")

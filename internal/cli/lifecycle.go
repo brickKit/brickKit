@@ -86,7 +86,9 @@ func loadProject(ctx context.Context, opts *Options) (*project, error) {
 	if err != nil {
 		return nil, err
 	}
-	applyOverride(p.cfg, ov)
+	if err := applyOverride(p.cfg, ov); err != nil {
+		return nil, err
+	}
 	if len(p.cfg.Components) == 0 {
 		return p, nil
 	}
