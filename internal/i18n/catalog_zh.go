@@ -1468,4 +1468,10 @@ var zh = map[string]string{
 	msgid.OverrideComponentMustBeMapping: "必须是映射格式（当前是 %s）",
 	msgid.OverrideTargetInvalid:          "只能是 docker/podman/k8s 之一（或不写），实际是 %[1]q",
 	msgid.OverrideDuplicateComponent:     "组件 %[1]q 在 override.yaml 里出现了不止一次",
+	msgid.OverrideCheckFailed:            "override.yaml 与 brickkit.yaml 对不上",
+	msgid.OverrideTargetUpgradeRejected:  "brickkit.yaml 自己的 deploy.target 是 %[1]q——override.yaml 只能从它往下降级，不能升级到 %[2]q。要用 %[2]q，得直接在 deploy.target 里声明它",
+	msgid.OverrideDanglingComponent:      "%[1]q 不是 brickkit.yaml 里声明过的组件——删掉这一条，或者重新跑一遍 brickkit override 刷新这份文件",
+	msgid.OverrideModeK8sForbidden:       "生效目标是 k8s 时不许写 mode: %[1]q——集群里的 Pod 没法跑一个裸进程（组件：%[2]q）",
+	msgid.OverrideTargetDrift:            "brickkit.yaml 的 deploy.target 从 %[1]q 变成了 %[2]q（相对这份覆盖上次确认时），值得回头看看 override.yaml 里的 target 还合不合适",
+	msgid.OverrideComponentDrift:         "%[1]q 在 brickkit.yaml 里的 mode 从 %[2]q 变成了 %[3]q（相对这份覆盖上次确认时）",
 }
