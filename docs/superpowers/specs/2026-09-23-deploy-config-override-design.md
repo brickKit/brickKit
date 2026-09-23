@@ -190,22 +190,44 @@ hint-only nature (via `BRICKKIT_SERVED_MEMBERS`) whether the shell itself is dep
 container or running under `mode: local`/`debug` — no shape-specific handling needed in
 `override.yaml`'s schema for this.
 
-## Open — two points raised this round, not yet resolved
+## Resolved this round — `mode: local` start command for a shell needs nothing new
 
-- **Does `servedBy`'s direction need to flip?** Current mechanism: a member declares
-  `servedBy: <shell-id>@<version>` pointing at its shell. Raised this round: since a shell is "in
-  some sense also a component, just typed as shell," should the shell instead declare its own
-  `members: [...]` list? These carry the same information but very different maintenance
-  properties — today, adding a member only touches that member's own file; inverted, the shell's
-  file would need editing on every member added/removed. Explicitly parked as "maybe a better way
-  exists" — not decided either way.
-- **Does `mode: local` for a shell-type component need a different start-command mechanism?**
-  Ordinary components auto-detect their start command from language marker files (`go.mod`,
-  `package.json`, `pom.xml`). Raised this round: a shell is a custom, multi-module program that
-  marker-file detection may not cleanly identify the right entrypoint for — the guess is the user
-  will likely need to supply an explicit start command instead of relying on auto-detection. Not
-  verified against the actual `mode: local` detection code yet — needs a real look before treating
-  it as fact.
+Verified against the actual code (`internal/runcmd`, `internal/manifest/types.go`), not
+speculation this time:
+
+- **Detection is architecturally blind to `servedBy`/shell status** — zero references to
+  `ServedBy` anywhere in `internal/runcmd` or the code that feeds it. A shell and an ordinary
+  component go through the identical marker-file detection path (`go.mod` → `go run .`,
+  `package.json` → its `start`/`dev` script, `pom.xml`/`build.gradle` → Spring Boot's run plugin,
+  …). The earlier guess ("shells probably need a user-supplied command") was unfounded — nothing
+  in the code supports it.
+- **Detection *can* fail, but for structural reasons unrelated to being a shell**: multiple `cmd/*`
+  entrypoints in Go, a Maven/Gradle multi-module layout, conflicting Node package managers — any
+  component with that structure hits the same ambiguity error, shell or not. A shell, being an
+  aggregation of several modules by nature, is *plausibly more likely* to have this kind of
+  structure in practice — but that's a consequence of its own complexity, not a shell-specific code
+  path.
+- **An explicit override already exists and needs no new design**: `component.yaml`'s `local:`
+  block already has `runCommand` (bypasses detection entirely) and `language` (disambiguates which
+  adapter to use) — usable by any component today, shell or not. So the answer to "can BrickKit
+  judge for itself, or does the user have to provide it" is: both paths already work, exactly like
+  for any other component. If a shell's own structure defeats auto-detection, its author sets
+  `local.runCommand` in the shell's *own* `component.yaml` — a structural, rarely-changed fact
+  about that component (same bucket as `resources`), not something that belongs in `override.yaml`
+  at all.
+- **One real but separate gap**: no existing doc (`04-local-execution.md`,
+  `07-shell-implementers-guide.md`) discusses `mode: local` × `servedBy` interaction in either
+  direction — worth a cross-reference whenever this actually ships, but a documentation task, not
+  a design question.
+
+## Open / explicitly deferred
+
+- **`servedBy`'s direction** — explicitly saved for last, per the person driving this design.
+  Current mechanism: a member declares `servedBy: <shell-id>@<version>` pointing at its shell.
+  Raised earlier: since a shell is "in some sense also a component, just typed as shell," should
+  the shell instead declare its own `members: [...]` list? Same information, very different
+  maintenance properties — today, adding a member only touches that member's own file; inverted,
+  the shell's file needs editing on every member added/removed. Not decided either way yet.
 
 ## Open / explicitly deferred
 
