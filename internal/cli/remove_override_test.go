@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -161,4 +162,64 @@ func TestRemoveSkipsOverrideCleanupWhenFileAbsent(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.NotContains(t, r.stdout, "override.yaml")
 	assert.NoFileExists(t, filepath.Join(f.Dir, "override.yaml"))
+}
+
+// --config 指到非默认文件时，remove 不该动默认的 override.yaml——评审真机复现过：
+// 对着 brickkit.other.yaml 跑 remove 删掉了默认 override.yaml 里这个组件的
+// mode: disable，而组件其实还在默认 brickkit.yaml 里，下一次针对默认文件的
+// up 就会把它悄悄启动起来（override.yaml 设计书 §10 的多环境护栏）。
+func TestRemoveIgnoresOverrideWhenConfigPointsElsewhere(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+`)
+	f.writeOverride(t, `components:
+  - id: demo/hello
+    mode: disable
+`)
+	var other strings.Builder
+	other.WriteString(configHeader)
+	if len(f.Sources) > 0 {
+		other.WriteString("\nsources:\n")
+		for _, s := range f.Sources {
+			other.WriteString(s)
+		}
+	}
+	other.WriteString("\ncomponents:\n  - id: demo/hello\n    version: 1.0.0\n")
+	require.NoError(t, os.WriteFile(
+		filepath.Join(f.Dir, "brickkit.other.yaml"), []byte(other.String()), 0o644))
+
+	r := runIn(t, f.Dir, "remove", "demo/hello", "--force", "--config", "brickkit.other.yaml")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	data, err := os.ReadFile(filepath.Join(f.Dir, "override.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "mode: disable",
+		"针对别的配置文件跑的 remove，不该动默认 override.yaml 里这个组件的本地覆盖")
+}
+
+// override.yaml 解析不出来时，remove 必须在动 brickkit.yaml 之前就发现——
+// 评审真机复现过：旧实现先 Save() brickkit.yaml、才去解析 override.yaml，
+// 解析失败时命令报错退出，但 brickkit.yaml 已经少了这一条、源码目录还在，
+// 组件"半删"在那儿，重跑 remove 只会得到"不在配置里"，用户没有退路。
+// checkSourceDeletable 那几行注释早就讲过同一个道理："拦下时不该留下配置改了
+// 一半、源码还在的现场"——override.yaml 这一步得遵守同一条纪律。
+func TestRemoveAbortsBeforeSavingWhenOverrideYamlIsMalformed(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+`)
+	f.writeOverride(t, `components:
+  - id: demo/hello
+    mode: bogus
+`)
+
+	r := runIn(t, f.Dir, "remove", "demo/hello")
+
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	cfg := f.parsed(t)
+	require.Len(t, cfg.Components, 1, "override.yaml 解析不出来时，brickkit.yaml 不该被动过")
+	assert.Equal(t, "demo/hello", cfg.Components[0].ID)
 }

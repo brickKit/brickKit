@@ -140,6 +140,9 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 // --strict 才会让它计入失败——待遇跟 lintManifest 里 configSchema 拼写警告完全一样，
 // 见 reportLint 里 warned 的计数方式）。
 func lintOverride(opts *Options, layout config.Layout, cfg *config.Config) *lintFile {
+	if isNonDefaultConfigRun(opts, layout) {
+		return nil
+	}
 	if _, err := os.Stat(layout.OverridePath()); err != nil {
 		return nil
 	}

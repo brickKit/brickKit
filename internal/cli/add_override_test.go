@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -126,4 +127,47 @@ func TestAddDoesNotCreateOverrideWhenNoneExists(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.NoFileExists(t, filepath.Join(f.Dir, "override.yaml"))
+}
+
+// --config 指到非默认文件时，override.yaml 必须被完全忽略——不读也不写。评审
+// 真机复现过这个缺口：add 会把 override.yaml 按 brickkit.other.yaml 的组件列表
+// 整个重写，删掉默认 brickkit.yaml 那份的自定义值，下一次针对默认文件的
+// up/status/lint 就全部跟着崩（override.yaml 设计书 §10 的多环境护栏，本该
+// 覆盖这三个新接入点，原来的实现漏了）。
+func TestAddIgnoresOverrideWhenConfigPointsElsewhere(t *testing.T) {
+	f := addedProject(t, []comp{
+		{ID: "demo/hello", Version: "1.0.0"},
+		{ID: "demo/prodonly", Version: "1.0.0"},
+	}, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+`)
+	// 裸 id 默认行——刻意不带任何真实覆盖：没有 --config 护栏时，add 会走
+	// "只有默认行，安全，直接重新生成"这条路，用 brickkit.other.yaml 的组件列表
+	// 把默认 override.yaml 整个重写掉。带真实覆盖的版本不足以复现这个缺口，
+	// 因为"有真实覆盖就不碰文件"那条分支会意外把问题盖住。
+	f.writeOverride(t, `components:
+  - id: demo/hello
+`)
+	var other strings.Builder
+	other.WriteString(configHeader)
+	if len(f.Sources) > 0 {
+		other.WriteString("\nsources:\n")
+		for _, s := range f.Sources {
+			other.WriteString(s)
+		}
+	}
+	other.WriteString("\ncomponents: []\n")
+	require.NoError(t, os.WriteFile(
+		filepath.Join(f.Dir, "brickkit.other.yaml"), []byte(other.String()), 0o644))
+
+	r := runIn(t, f.Dir, "add", "demo/prodonly@1.0.0", "--yes", "--config", "brickkit.other.yaml")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	data, err := os.ReadFile(filepath.Join(f.Dir, "override.yaml"))
+	require.NoError(t, err)
+	text := string(data)
+	assert.Contains(t, text, "demo/hello", "针对别的配置文件跑的 add，不该动默认 override.yaml 的内容")
+	assert.NotContains(t, text, "demo/prodonly", "非默认配置里新加的组件不该混进默认的 override.yaml")
 }

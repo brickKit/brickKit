@@ -28,6 +28,10 @@ import (
 // component being a shell member without risking clobbering the user's own
 // customizations"）。
 func syncOverrideAfterAdd(opts *Options, layout config.Layout) error {
+	if isNonDefaultConfigRun(opts, layout) {
+		return nil
+	}
+
 	existing, err := override.ParseOverrideFile(layout.OverridePath())
 	if err != nil {
 		return err

@@ -14,6 +14,7 @@ import (
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/override"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/workspace"
@@ -110,16 +111,30 @@ func runRemove(ctx context.Context, opts *Options, arg string, force bool) error
 	if lastVersion {
 		unbound = edit.RemoveBindings(target.ID)
 	}
+
+	// override.yaml 唯一可能失败的一步（解析）必须在 edit.Save() 之前做完——
+	// 跟上面 checkSourceDeletable 同一条纪律，拦下时不该留下"配置改了一半"的
+	// 现场（planOverrideRemoval 自己的说明有完整论证）。--config 指到非默认文件
+	// 时完全跳过：不读也不写默认的 override.yaml。
+	var overridePlan *override.Override
+	var overrideChanged bool
+	if lastVersion && !isNonDefaultConfigRun(opts, layout) {
+		overridePlan, overrideChanged, err = planOverrideRemoval(layout, target.ID)
+		if err != nil {
+			return err
+		}
+	}
+
 	if err := edit.Save(); err != nil {
 		return err
 	}
 
 	var overrideUpdated bool
-	if lastVersion {
-		overrideUpdated, err = removeFromOverride(layout, target.ID)
-		if err != nil {
+	if overrideChanged {
+		if err := writeOverrideRemoval(layout, overridePlan); err != nil {
 			return err
 		}
+		overrideUpdated = true
 	}
 
 	cleanup, err := cleanupComponent(layout, client, cfg, target, repo)

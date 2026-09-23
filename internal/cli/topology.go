@@ -62,17 +62,31 @@ func isDefaultConfigFile(path string) bool {
 	return path == "" || filepath.Clean(path) == DefaultConfigFile
 }
 
-// loadOverride 按 override.yaml 设计书 §10 的多环境护栏读取并校验 override.yaml：
-// 只有针对**默认** brickkit.yaml 的这次运行才应用它——--config 指到别处时，
-// 存在的 override.yaml 会被忽略，并且必须明说一声（既不能悄悄生效，也不能悄悄
-// 不提，两种沉默都会让使用者对"这次到底生效了什么"产生错误的预期）。
+// isNonDefaultConfigRun 是 override.yaml 设计书 §10 多环境护栏的**唯一**判定入口：
+// 只有针对**默认** brickkit.yaml 的这次运行才应用 override.yaml——--config 指到
+// 别处时，存在的 override.yaml 必须被完全忽略（既不读也不写），并且要明说一声
+// （既不能悄悄生效，也不能悄悄不提，两种沉默都会让使用者对"这次到底生效了什么"
+// 产生错误的预期）。
+//
+// **每一个读或写 override.yaml 的入口都必须先过这一关**——不只是 up/sync/status/
+// down 共用的 loadOverride，brickkit add/remove/lint 各自新增的 override.yaml
+// 读写点同样要过（真机复现过一次：add/remove 漏了这道检查，对着 --config
+// brickkit.prod.yaml 跑，会把默认 override.yaml 的内容整个改掉或删掉，评审 Important #1）。
+func isNonDefaultConfigRun(opts *Options, layout config.Layout) bool {
+	if isDefaultConfigFile(opts.ConfigPath) {
+		return false
+	}
+	if _, err := os.Stat(layout.OverridePath()); err == nil {
+		opts.Printf("%s\n", i18n.T(msgid.OverrideIgnoredNonDefaultConfig, opts.ConfigPath))
+	}
+	return true
+}
+
+// loadOverride 读取并校验 override.yaml（先过 isNonDefaultConfigRun 那道多环境护栏）。
 //
 // 文件不存在时返回 (nil, nil)：没有覆盖是完全合法、最常见的状态。
 func loadOverride(opts *Options, layout config.Layout, cfg *config.Config) (*override.Override, error) {
-	if !isDefaultConfigFile(opts.ConfigPath) {
-		if _, err := os.Stat(layout.OverridePath()); err == nil {
-			opts.Printf("%s\n", i18n.T(msgid.OverrideIgnoredNonDefaultConfig, opts.ConfigPath))
-		}
+	if isNonDefaultConfigRun(opts, layout) {
 		return nil, nil
 	}
 
