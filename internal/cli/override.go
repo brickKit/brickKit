@@ -102,31 +102,40 @@ func flattenExisting(entries []override.ComponentOverride, out map[string]savedO
 // 匹配）原样保留它的 Mode/LocalPort/Baseline，新组件补一条裸 id，不在
 // brickkit.yaml 里的旧条目被丢弃。外壳分组每次都重新计算，而不是从旧文件
 // 继承——servedBy 关系随时可能变，旧的嵌套结构不该假设还对。
+//
+// **一个组件 ID 只生成一条覆盖条目，与版本无关**：override.yaml 按 ID 索引，
+// 没有版本号（设计书 §8"没有版本号，见 §6.1"），applyOverride 本身也是按 ID
+// 匹配、对同 ID 的每个版本一视同仁。多版本共存时 cfg.Components 里同一个 ID
+// 会出现好几次——原先这里照原样各生成一条，写出的文件带着重复 ID，
+// 下一次任何命令读它都会被 Validate() 的"重复组件 ID"规则拒绝，等于生成
+// 命令把自己刚写的文件写坏了（brickKit 反馈：多版本项目 brickkit override
+// 生成的文件读不回去）。
 func generateOverride(cfg *config.Config, existing *override.Override) *override.Override {
 	saved := map[string]savedOverride{}
 	if existing != nil {
 		flattenExisting(existing.Components, saved)
 	}
 
-	members := map[string][]config.Component{}
-	var standalone []config.Component
-	for _, c := range cfg.Components {
-		if c.ServedBy != "" {
-			if ref, ok := shell.ParseRef(c.ServedBy); ok {
-				members[ref.ID] = append(members[ref.ID], c)
-				continue
-			}
+	shellFor := placementShellFor(cfg.Components)
+
+	membersByShell := map[string][]string{}
+	var standalone []string
+	for _, id := range uniqueComponentIDs(cfg.Components) {
+		if shellID, ok := shellFor[id]; ok {
+			membersByShell[shellID] = append(membersByShell[shellID], id)
+			continue
 		}
-		standalone = append(standalone, c)
+		standalone = append(standalone, id)
 	}
 
 	var out []override.ComponentOverride
-	for _, c := range standalone {
-		entry := componentEntryFor(c.ID, saved)
-		if group, ok := members[c.ID]; ok {
-			sort.Slice(group, func(i, j int) bool { return group[i].ID < group[j].ID })
-			for _, m := range group {
-				entry.Members = append(entry.Members, memberEntryFor(m.ID, saved))
+	for _, id := range standalone {
+		entry := componentEntryFor(id, saved)
+		if group := membersByShell[id]; len(group) > 0 {
+			sorted := append([]string(nil), group...)
+			sort.Strings(sorted)
+			for _, m := range sorted {
+				entry.Members = append(entry.Members, memberEntryFor(m, saved))
 			}
 		}
 		out = append(out, entry)
@@ -138,6 +147,51 @@ func generateOverride(cfg *config.Config, existing *override.Override) *override
 		fresh.TargetBaseline = existing.TargetBaseline
 	}
 	return fresh
+}
+
+// uniqueComponentIDs 返回 cfg.Components 里出现过的组件 ID，按第一次出现的顺序去重。
+func uniqueComponentIDs(components []config.Component) []string {
+	seen := map[string]bool{}
+	var ids []string
+	for _, c := range components {
+		if !seen[c.ID] {
+			seen[c.ID] = true
+			ids = append(ids, c.ID)
+		}
+	}
+	return ids
+}
+
+// placementShellFor 决定每个组件 ID 该嵌进哪个外壳的 members 下面（不嵌的 ID
+// 不出现在返回值里，按 standalone 处理）。
+//
+// 只要这个 ID 有任何一个版本是 standalone（没有 servedBy，或 servedBy 写的
+// 形状解析不出来），整个 ID 就按 standalone 处理，不嵌进任何外壳——嵌进去会
+// 造成"这个组件只属于这个外壳"的错误印象，而它明明还有版本是独立部署的。
+// 真实场景：同一个 mdm/customer，1.0.7 被 infra/shell-go-core 收编，2.0.0
+// 独立部署（resolver 的版本级 servedBy 回落规则，AGENTS.md §5.1 /
+// resolver_edge_test.go 的 TestServingShellIDMatchesExactVersionOnly）。
+func placementShellFor(components []config.Component) map[string]string {
+	standaloneIDs := map[string]bool{}
+	shellFor := map[string]string{}
+	for _, c := range components {
+		if c.ServedBy == "" {
+			standaloneIDs[c.ID] = true
+			continue
+		}
+		ref, ok := shell.ParseRef(c.ServedBy)
+		if !ok {
+			standaloneIDs[c.ID] = true
+			continue
+		}
+		if _, has := shellFor[c.ID]; !has {
+			shellFor[c.ID] = ref.ID
+		}
+	}
+	for id := range standaloneIDs {
+		delete(shellFor, id)
+	}
+	return shellFor
 }
 
 func componentEntryFor(id string, saved map[string]savedOverride) override.ComponentOverride {
