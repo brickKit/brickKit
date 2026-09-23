@@ -7,4 +7,13 @@ const (
 	OverrideIgnoredNonDefaultConfig   = "cli.override.ignored_non_default_config"
 	CliUpPodmanTargetNotImplemented   = "cli.up.podman_target_not_implemented"
 	CliUpPodmanTargetDryRunStillWorks = "cli.up.podman_target_dry_run_still_works"
+
+	CliOverrideShort                   = "cli.override.short"
+	CliOverrideLong                    = "cli.override.long"
+	CliOverrideExample                 = "cli.override.example"
+	CliOverrideRefusesNonDefaultConfig = "cli.override.refuses_non_default_config"
+	CliOverrideWriteFailed             = "cli.override.write_failed"
+	CliOverrideGitignoreUpdated        = "cli.override.gitignore_updated"
+	CliOverrideWritten                 = "cli.override.written"
+	CliOverrideDriftNote               = "cli.override.drift_note"
 )

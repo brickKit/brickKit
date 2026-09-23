@@ -1477,4 +1477,16 @@ var zh = map[string]string{
 	msgid.OverrideIgnoredNonDefaultConfig:   "提示：override.yaml 存在，但这次没有生效——这次用的是 --config %[1]s，override.yaml 只对默认的 brickkit.yaml 生效",
 	msgid.CliUpPodmanTargetNotImplemented:   "target: podman 已经被接受并校验通过，但真正启动它的引擎实现还没有落地",
 	msgid.CliUpPodmanTargetDryRunStillWorks: "brickkit up --dry-run 仍然能用——它生成的是一份普通的 compose 文件，正是 podman compose 会读的那一份",
+
+	msgid.CliOverrideShort: "创建或刷新 override.yaml（本地部署覆盖）",
+	msgid.CliOverrideLong: "首次运行时创建 override.yaml，之后每次运行都是刷新：给新组件补一条裸\n" +
+		"条目，把被删掉的组件那一行去掉，并且报出 brickkit.yaml 当前值与这份覆盖\n" +
+		"上次确认时的记录之间的漂移。重新跑这条命令本身就是重置/修复操作——没有\n" +
+		"另一个单独的命令做这件事。",
+	msgid.CliOverrideExample:                 "  brickkit override",
+	msgid.CliOverrideRefusesNonDefaultConfig: "override.yaml 只对默认的 brickkit.yaml 生效——拒绝生成一份挂在 %[1]s 上的",
+	msgid.CliOverrideWriteFailed:             "override.yaml 写入失败",
+	msgid.CliOverrideGitignoreUpdated:        "已把 override.yaml 加进 .gitignore",
+	msgid.CliOverrideWritten:                 "已写入 %[1]s",
+	msgid.CliOverrideDriftNote:               "漂移：%[1]s —— %[2]s",
 }

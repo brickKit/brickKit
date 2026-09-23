@@ -1489,4 +1489,17 @@ var en = map[string]string{
 	msgid.OverrideIgnoredNonDefaultConfig:   "Note: override.yaml exists but is ignored — this run uses --config %[1]s, and override.yaml only ever applies to the default brickkit.yaml",
 	msgid.CliUpPodmanTargetNotImplemented:   "target: podman is accepted and validated, but there is no Podman engine implementation to actually run it yet",
 	msgid.CliUpPodmanTargetDryRunStillWorks: "brickkit up --dry-run still works — it generates an ordinary compose file, which is exactly what podman compose consumes",
+
+	msgid.CliOverrideShort: "Create or refresh override.yaml (local deployment overrides)",
+	msgid.CliOverrideLong: "Creates override.yaml on first run and refreshes it on later runs: adds a bare\n" +
+		"line for any new component, drops the line for any removed component, and\n" +
+		"reports drift between brickkit.yaml's current values and what this override\n" +
+		"was last confirmed against. Re-running this command is the reset/repair\n" +
+		"operation — there is no separate command for it.",
+	msgid.CliOverrideExample:                 "  brickkit override",
+	msgid.CliOverrideRefusesNonDefaultConfig: "override.yaml only ever applies to the default brickkit.yaml — refusing to generate one keyed off %[1]s",
+	msgid.CliOverrideWriteFailed:             "failed to write override.yaml",
+	msgid.CliOverrideGitignoreUpdated:        "Added override.yaml to .gitignore",
+	msgid.CliOverrideWritten:                 "Wrote %[1]s",
+	msgid.CliOverrideDriftNote:               "Drift: %[1]s — %[2]s",
 }

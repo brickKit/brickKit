@@ -200,6 +200,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		newFetchCommand(opts),
 		newSyncCommand(opts),
 		newRestoreCommand(opts),
+		newOverrideCommand(opts),
 		newUpCommand(opts),
 		newDownCommand(opts),
 		newStatusCommand(opts),
