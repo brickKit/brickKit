@@ -398,19 +398,6 @@ resources:
 	assert.Equal(t, "ARCHIVE_DB2", c.Resources[1].Bindings[0].EnvPrefix)
 }
 
-// mode: debug 但不写 localPort 是合法的（CLI 在 Step 13 自动分配）。
-func TestDebugWithoutPortIsValid(t *testing.T) {
-	c, err := ParseConfig([]byte(baseConfig+`
-components:
-  - id: people/basic
-    version: 1.0.0
-    mode: debug
-`), "brickkit.yaml")
-	require.NoError(t, err)
-	assert.Equal(t, ModeDebug, c.Components[0].Mode)
-	assert.Zero(t, c.Components[0].LocalPort)
-}
-
 // 安装源缺少 type。
 func TestSourceMissingType(t *testing.T) {
 	_, err := ParseConfig([]byte(baseConfig+`

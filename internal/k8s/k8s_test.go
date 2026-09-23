@@ -803,21 +803,16 @@ func TestSkippedComponentsAreNotGenerated(t *testing.T) {
 		"mode: disable 的组件不该出现在清单里")
 }
 
-// mode: debug 在 K8s 下必须报错——但这条检查现在整个不在 k8s.Generate 这一层了。
-//
-// 它的语义是"这个组件跑在你的 IDE 里，其他组件通过宿主机地址访问它"——
-// 集群里的 Pod 根本连不到开发者的笔记本。悄悄跳过会让依赖方拿到一个
-// 指向不存在 Service 的地址，表现成随机的连接超时。
-//
-// 这条检查以前在这里（k8s.go 的 localNotSupported，生成阶段），mode 字段
-// 迁移时挪到了 internal/config/validate.go 的解析阶段（TestValidateComponentMode
-// 覆盖着"mode: debug 配 k8s 报错"这条用例）——k8s.Generate 不再需要、也不该
-// 自己再判一遍：这个包里唯一在测的建图方式（newBuilder/build）直接手写
-// config.Component 结构体、跳过了 config.ParseConfig 那一层校验，所以这里
-// 已经没有能覆盖到"解析阶段报错"这件事的测试位置了；下面这条测试改成直接
-// 证明"真正的 CLI 路径走的是 ParseConfig，不是这个跳过校验的测试建图器"，
-// 免得以后有人在这里重新加一遍已经在别处做过的校验。
-func TestModeDebugWithK8sTargetRejectedAtParseNotGeneration(t *testing.T) {
+// mode: debug 在 brickkit.yaml 里要报错——解析阶段就拦下，指到出问题的那一行，
+// 而不是等到生成部署文件时才发现。这条检查不再是 k8s 专属的（override.yaml
+// 设计书 §4：debug 无论配哪个 target 都非法），这条测试留着是为了继续证明
+// k8s.Generate 自己不需要重新实现这个检查——它完全在解析阶段就已经被挡住了：
+// 这个包里唯一在测的建图方式（newBuilder/build）直接手写 config.Component
+// 结构体、跳过了 config.ParseConfig 那一层校验，所以这里已经没有能覆盖到
+// "解析阶段报错"这件事的测试位置了；下面这条测试直接证明"真正的 CLI 路径
+// 走的是 ParseConfig，不是这个跳过校验的测试建图器"，免得以后有人在这里
+// 重新加一遍已经在别处做过的校验。
+func TestModeDebugRejectedAtParseNotGeneration(t *testing.T) {
 	yaml := "project: p\ndeploy:\n  target: k8s\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: debug\n"
 	_, err := config.ParseConfig([]byte(yaml), "brickkit.yaml")
 	require.Error(t, err)

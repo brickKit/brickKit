@@ -149,10 +149,14 @@ func localDebugProject(t *testing.T) *projectFixture {
 	f.writeConfig(t, `components:
   - id: people/basic
     version: 1.0.0
+  - id: department/tree
+    version: 1.0.0
+`)
+	f.writeOverride(t, `components:
+  - id: people/basic
     mode: debug
     localPort: 8081
   - id: department/tree
-    version: 1.0.0
 `)
 	return f
 }
@@ -230,10 +234,13 @@ func TestUpDryRunLocalDebugEnvResolvesMultilineDotEnvValue(t *testing.T) {
 	f.writeConfig(t, `components:
   - id: infra/iam-casdoor
     version: 1.0.0
-    mode: debug
-    localPort: 8081
     config:
       appTokenSigningKeyPem: "${APP_TOKEN_SIGNING_KEY_PEM}"
+`)
+	f.writeOverride(t, `components:
+  - id: infra/iam-casdoor
+    mode: debug
+    localPort: 8081
 `)
 	pem := "-----BEGIN PRIVATE KEY-----\n" +
 		"MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEA\n" +

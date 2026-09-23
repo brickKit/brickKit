@@ -133,40 +133,6 @@ resources: []
 	assert.NotContains(t, classLine, "demo_solo_1_0_0")
 }
 
-func TestGraphMarksLocalDebugComponent(t *testing.T) {
-	f := graphProject(t, `components:
-  - id: demo/hello
-    version: 1.0.0
-    mode: debug
-    localPort: 8081
-resources: []
-`, comp{ID: "demo/hello", Version: "1.0.0"})
-
-	r := runIn(t, f.Dir, "graph")
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	requirePureMermaid(t, r.stdout)
-	assert.Contains(t, r.stdout, `demo_hello_1_0_0["demo/hello@1.0.0<br/>local debug :8081"]`)
-	assert.Contains(t, r.stdout, "    classDef local fill:#e6f2ff,stroke:#3673a8;\n")
-	assert.Contains(t, r.stdout, "    class demo_hello_1_0_0 local\n")
-	assert.NotContains(t, r.stdout, "classDef disabled", "没有被关掉的组件就不输出 disabled 样式")
-}
-
-// localPort 不是必填：没写时由 up 在生成阶段分配，图上算不出来，也不能编一个端口出来。
-func TestGraphLocalDebugWithoutLocalPortShowsNoPort(t *testing.T) {
-	f := graphProject(t, `components:
-  - id: demo/hello
-    version: 1.0.0
-    mode: debug
-resources: []
-`, comp{ID: "demo/hello", Version: "1.0.0"})
-
-	r := runIn(t, f.Dir, "graph")
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, `demo_hello_1_0_0["demo/hello@1.0.0<br/>local debug"]`)
-	assert.NotContains(t, r.stdout, "local debug :")
-	assert.Contains(t, r.stdout, "    class demo_hello_1_0_0 local\n")
-}
-
 // mode: local 节点要有自己的标签和样式，不能跟 mode: debug 的
 // "local debug"标签混在一起——那句话意味着"你自己在 IDE 里启动"，
 // 对 mode: local 是假的（brickkit 自己拉起它）。
@@ -214,50 +180,6 @@ resources: []
 	assert.Contains(t, disabled, "demo_web_1_0_0", "web 自己被关")
 	assert.NotContains(t, disabled, "demo_hello_1_0_0", "mode: local 被钉住，不会被级联跳过")
 	assert.Contains(t, r.stdout, "    class demo_hello_1_0_0 managed\n")
-}
-
-// mode: debug 与 mode: enabled 一样是"钉住"：上层全被关掉，它照样在跑，所以永远
-// 不会被置灰——local 样式因此只会落在真的在跑的组件上。被跳过的（web 被关、api
-// 没人需要）套 disabled，"置灰 = 这次不会启动"是唯一的信号。
-func TestGraphDebugComponentIsPinnedAndNeverGreyedOut(t *testing.T) {
-	f := graphProject(t, `components:
-  - id: demo/web
-    version: 1.0.0
-    mode: disable
-  - id: demo/api
-    version: 1.0.0
-  - id: demo/db
-    version: 1.0.0
-    mode: debug
-    localPort: 9001
-  - id: demo/solo
-    version: 1.0.0
-    mode: debug
-    localPort: 9002
-resources: []
-`,
-		comp{ID: "demo/db", Version: "1.0.0"},
-		comp{ID: "demo/api", Version: "1.0.0", Requires: []string{"demo/db@1.0.0"}},
-		comp{ID: "demo/web", Version: "1.0.0", Requires: []string{"demo/api@1.0.0"}},
-		comp{ID: "demo/solo", Version: "1.0.0"},
-	)
-
-	r := runIn(t, f.Dir, "graph")
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-
-	requirePureMermaid(t, r.stdout)
-
-	// 上层全被关掉，但 db 是 debug（钉住）：它照跑，不在 disabled 里
-	assert.Contains(t, r.stdout, `demo_db_1_0_0["demo/db@1.0.0<br/>local debug :9001"]`)
-	disabled := classLineOf(r.stdout, "disabled")
-	require.NotEmpty(t, disabled, r.stdout)
-	assert.Contains(t, disabled, "demo_web_1_0_0", "web 自己被关")
-	assert.Contains(t, disabled, "demo_api_1_0_0", "api 上面没人需要它")
-	assert.NotContains(t, disabled, "demo_db_1_0_0", "debug 被钉住，不会被级联跳过")
-	assert.NotContains(t, disabled, "demo_solo_1_0_0")
-
-	// 两个 debug 组件都在跑，都套 local
-	assert.Equal(t, "    class demo_db_1_0_0,demo_solo_1_0_0 local", classLineOf(r.stdout, "local"), r.stdout)
 }
 
 const graphServedByBody = `components:

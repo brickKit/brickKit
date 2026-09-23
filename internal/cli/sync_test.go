@@ -233,12 +233,16 @@ func TestSyncKeepsDebugComponentActiveEvenWhenNothingNeedsIt(t *testing.T) {
 	f := newSyncFixture(t, `components:
   - id: demo/hello
     version: 1.0.0
-    mode: debug
   - id: demo/caller
     version: 1.0.0
     mode: disable
 resources: []
 `, "demo/hello", "demo/caller")
+	f.writeOverride(t, `components:
+  - id: demo/hello
+    mode: debug
+  - id: demo/caller
+`)
 
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 
@@ -255,9 +259,13 @@ func TestSyncRejectsDebugComponentWhoseRequiredDependencyIsDisabled(t *testing.T
     mode: disable
   - id: demo/caller
     version: 1.0.0
-    mode: debug
 resources: []
 `, "demo/hello", "demo/caller")
+	f.writeOverride(t, `components:
+  - id: demo/hello
+  - id: demo/caller
+    mode: debug
+`)
 
 	r := runIn(t, f.Dir, "sync")
 

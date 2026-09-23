@@ -235,20 +235,6 @@ func TestUpK8sBlocksOnUnresolvedEnvVar(t *testing.T) {
 	assert.Empty(t, eng.ups)
 }
 
-// mode: debug 在 K8s 下要报错——解析 brickkit.yaml 时就拦下，指到出问题的那一行，
-// 而不是等到生成部署文件时才发现。
-func TestUpK8sRejectsDebugComponent(t *testing.T) {
-	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0"}, "    mode: debug\n", "")
-	eng := newK8sEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up")
-
-	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "components[0].mode")
-	assert.Contains(t, r.stderr, "deploy.target: docker")
-	assert.Empty(t, eng.ups)
-}
-
 // ============================================================
 // down / status
 // ============================================================

@@ -260,11 +260,11 @@ type Component struct {
 	Version string `yaml:"version" jsonschema:"pattern=^[0-9]+[.][0-9]+[.][0-9]+$"`
 	// Mode 取代了 Enabled/Local 两个字段（mode 字段迁移设计）：
 	// ""（未写）= 跟随上层，走容器；"enabled" = 钉住，走容器；
-	// "disable" = 钉住不跑；"debug" = 裸进程，用户自己启动；
-	// "local" = 裸进程，brickkit 自己拉起（Plan 4b 起才真正启动，Plan 4a 只保证
-	// 这个取值本身合法、生成阶段安全跳过）。
-	// 校验器负责按 deploy.target 决定这五个取值里哪些合法（k8s 下只认前三个）。
-	Mode      string `yaml:"mode,omitempty" jsonschema:"enum=enabled|disable|debug|local"`
+	// "disable" = 钉住不跑；"local" = 裸进程，brickkit 自己拉起。
+	// "debug"（裸进程，用户自己启动）只能写进 override.yaml，brickkit.yaml
+	// 自身从这里就无条件拒绝它（override.yaml 设计书 §4）。
+	// 校验器负责按 deploy.target 决定这四个取值里哪些合法（k8s 下只认前三个）。
+	Mode      string `yaml:"mode,omitempty" jsonschema:"enum=enabled|disable|local"`
 	LocalPort int    `yaml:"localPort,omitempty"`
 	// ServedBy 表示这个组件的工作负载由另一个组件条目提供（外壳合并部署，
 	// servedBy 设计书）。声明了它的组件不生成自己的容器/迁移 Job，但平台

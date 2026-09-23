@@ -201,7 +201,7 @@ func TestServedByLabelsWarnInK8s(t *testing.T) {
 // local/debug + k8s 的拒绝从 k8s.Generate 挪到了 internal/config/validate.go
 // 的 validateComponentMode——那是对每个组件独立、无条件跑的校验，不经过
 // servedBy 相关的任何代码路径，这一类"被 servedBy 绕过"的 bug 在新架构下
-// 已经没有存在的空间，不需要专门测。见 TestModeDebugWithK8sTargetRejectedAtParseNotGeneration
+// 已经没有存在的空间，不需要专门测。见 TestModeDebugRejectedAtParseNotGeneration
 // （k8s_test.go）与 internal/config 的 TestValidateComponentMode。
 
 // ---- servedBy + NetworkPolicy：外壳要为被收编成员的依赖方放行入站 ----

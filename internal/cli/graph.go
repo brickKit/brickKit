@@ -92,16 +92,8 @@ func runGraph(ctx context.Context, opts *Options, ignoreServedBy bool) error {
 }
 
 // 节点样式类。
-//
-// classLocal 这个名字历史上就是给 mode: debug 用的——local: true 是
-// mode: debug 改名前的旧字段名，这个常量名字从那时候留到现在，没有跟着
-// 改名。mode: local 用 classManaged，不复用 classLocal：改 classLocal
-// 的名字会牵动它在 Mermaid 输出里的实际取值（"local"这个字符串本身，
-// 不只是 Go 里的标识符），对已经生成过 .mmd 文件、拿它们做 git diff 的人
-// 是一次没有功能收益的纯 churn，不做。
 const (
 	classDisabled = "disabled"
-	classLocal    = "local"
 	classManaged  = "managed"
 	classMissing  = "missing"
 )
@@ -110,7 +102,6 @@ const (
 // 一处改样式，全图跟着变。
 var mermaidClassDefs = []struct{ name, style string }{
 	{classDisabled, "fill:#eee,stroke:#999,color:#999"},
-	{classLocal, "fill:#e6f2ff,stroke:#3673a8"},
 	{classManaged, "fill:#e6ffe6,stroke:#2e8b57"},
 	{classMissing, "fill:#fff4e5,stroke:#c77700,stroke-dasharray:4 3"},
 }
@@ -161,21 +152,6 @@ func renderMermaid(
 	declare := func(indent string, ref resolver.Ref) {
 		running := states.IsRunning(ref)
 		label := ref.String()
-		if entry := entries[ref]; entry.Mode == config.ModeDebug {
-			label += i18n.T(msgid.CliGraphBrLocalDebug)
-			// localPort 不是必填：没写时由 up 在生成阶段分配（默认取组件自己声明的
-			// 主端口，被占了才另选），这里算不出来。只写使用者写下的，不编一个端口
-			if entry.LocalPort > 0 {
-				label += fmt.Sprintf(" :%d", entry.LocalPort)
-			}
-			// local 样式只套给在跑的：cascade 从不读 mode 是不是 debug，mode: debug
-			// 的组件与别的组件一样跟着上层走，也可能被跳过。不在跑的只套 disabled——
-			// "置灰 = 这次不会启动"是唯一的信号，不靠各家渲染器怎么合并同一个节点上
-			// 的两个 class。标签里的"本地调试"照留：那是声明的结构，不是运行状态
-			if running {
-				tag(classLocal, ref)
-			}
-		}
 		if entry := entries[ref]; entry.Mode == config.ModeLocal {
 			label += i18n.T(msgid.CliGraphBrManagedLocally)
 			if entry.LocalPort > 0 {

@@ -83,5 +83,6 @@ const (
 	ConfigReplicasTooSmall           = "config.replicas_too_small"
 	ConfigReplicasWithLocal          = "config.replicas_with_local"
 	ConfigModeInvalid                = "config.mode_invalid"
+	ConfigModeDebugNotInBrickkitYaml = "config.mode_debug_not_in_brickkit_yaml"
 	ConfigModeK8sUnsupported         = "config.mode_k8s_unsupported"
 )

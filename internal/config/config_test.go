@@ -61,8 +61,6 @@ func TestParseConfigFileFullProject(t *testing.T) {
 	assert.Equal(t, "", dept.Mode, "5.5 不写 mode → 空字符串（跟着上层走）")
 
 	people := c.Components[1]
-	assert.Equal(t, ModeDebug, people.Mode, "5.22 mode: debug 正确解析")
-	assert.Equal(t, 8081, people.LocalPort, "5.22 localPort 正确解析")
 	require.NotNil(t, people.Resources, "5.7 components[].resources 正确解析")
 	require.NotNil(t, people.Resources.Limits)
 	assert.Equal(t, "1Gi", people.Resources.Limits.Memory)
@@ -200,10 +198,11 @@ resources: []
 }
 
 // ============================================================
-// 5.4 / 5.5 / 5.6 mode 四种写法
+// 5.4 / 5.5 / 5.6 mode 在 brickkit.yaml 里的四种写法（debug 只能来自
+// override.yaml，见下面 TestModeDebugIsPinnedRegardlessOfSource）
 // ============================================================
 
-func TestModeFiveStates(t *testing.T) {
+func TestModeFourStatesInBrickkitYaml(t *testing.T) {
 	c, err := ParseConfig([]byte(`
 project: my-project
 deploy:
@@ -217,9 +216,6 @@ components:
   - id: c/disabled
     version: 1.0.0
     mode: disable
-  - id: d/debug
-    version: 1.0.0
-    mode: debug
   - id: e/local
     version: 1.0.0
     mode: local
@@ -227,11 +223,9 @@ resources: []
 `), "brickkit.yaml")
 	require.NoError(t, err)
 
-	pinned, dflt, disabled, debug, local :=
-		c.Components[0], c.Components[1], c.Components[2], c.Components[3], c.Components[4]
+	pinned, dflt, disabled, local :=
+		c.Components[0], c.Components[1], c.Components[2], c.Components[3]
 
-	// 五种写法直接由字符串表达，解析器要把"没写"（空字符串）与显式值分开——
-	// 混成同一个零值的话，跟着上层走的组件会全部变成一定不跑
 	assert.Equal(t, ModeEnabled, pinned.Mode)
 	assert.True(t, pinned.IsPinned(), "mode: enabled → 一定跑")
 	assert.False(t, pinned.IsDisabled())
@@ -243,13 +237,19 @@ resources: []
 	assert.Equal(t, ModeDisable, disabled.Mode)
 	assert.True(t, disabled.IsDisabled(), "mode: disable → 一定不跑")
 
-	assert.Equal(t, ModeDebug, debug.Mode)
-	assert.True(t, debug.IsPinned(), "mode: debug → 一定跑（要盯着它调试）")
-	assert.False(t, debug.IsDisabled())
-
 	assert.Equal(t, ModeLocal, local.Mode)
 	assert.True(t, local.IsPinned(), "mode: local → 一定跑（brickkit 自己拉起）")
 	assert.False(t, local.IsDisabled())
+}
+
+// mode: debug 只能来自 override.yaml，在内存里由 apply 直接写进 Component.Mode
+// （从不经过 ParseConfig/Validate，见 internal/cli/topology.go 的 applyOverride）——
+// IsPinned/IsDisabled 这两个方法本身不关心 Mode 的取值是从哪份文件来的，这里
+// 直接构造 Go 结构体验证它们对 debug 仍然正确，不必（也不能）经过 YAML 解析。
+func TestModeDebugIsPinnedRegardlessOfSource(t *testing.T) {
+	debug := Component{Mode: ModeDebug}
+	assert.True(t, debug.IsPinned(), "mode: debug → 一定跑（要盯着它调试）")
+	assert.False(t, debug.IsDisabled())
 }
 
 // ============================================================
@@ -966,17 +966,17 @@ func TestValidateComponentMode(t *testing.T) {
 		{
 			name:    "mode 非法取值报错",
 			yaml:    "project: p\ndeploy:\n  target: docker\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: bogus\n",
-			wantErr: []string{"mode", "enabled", "disable", "debug", "local"},
+			wantErr: []string{"mode", "enabled", "disable", "local"},
 		},
 		{
-			name:    "mode: debug 配 docker 合法",
+			name:    "mode: debug 在 brickkit.yaml 里报错（配 docker）——只能写进 override.yaml",
 			yaml:    "project: p\ndeploy:\n  target: docker\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: debug\n",
-			wantErr: nil,
+			wantErr: []string{"mode", "override.yaml"},
 		},
 		{
-			name:    "mode: debug 配 k8s 报错",
+			name:    "mode: debug 在 brickkit.yaml 里报错（配 k8s）——同一条规则，不是 k8s 专属的",
 			yaml:    "project: p\ndeploy:\n  target: k8s\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: debug\n",
-			wantErr: []string{"mode", "k8s"},
+			wantErr: []string{"mode", "override.yaml"},
 		},
 		{
 			name:    "mode: enabled 配 k8s 合法",

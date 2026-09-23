@@ -30,9 +30,6 @@ components:
 
   - id: people/basic
     version: 1.0.0
-    # 没写 mode → 默认开启，但可被级联关闭
-    mode: debug
-    localPort: 8081
     resources:                  # 可选，覆盖组件 Manifest 中的推荐资源配额
       limits:
         memory: "1Gi"           # 生产环境调大内存

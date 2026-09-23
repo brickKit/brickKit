@@ -219,20 +219,24 @@ func (c *Config) validateComponents(p *clierr.ProblemSet) {
 	}
 }
 
-// validateComponentMode 校验 mode 的取值合法性，以及 mode: debug 与
-// deploy.target: k8s 的组合——这条检查以前在 K8s 生成阶段才报（internal/k8s/k8s.go
-// 的 localNotSupported），这次挪到解析阶段：不需要依赖图，跟 validateComponentPorts
-// 已经在做的 deploy.target 组合校验是同一类检查，挪过来后 `brickkit lint` 就能
-// 拿到这个错误，不用等真正生成部署文件。
+// validateComponentMode 校验 mode 的取值合法性。debug 从今往后在 brickkit.yaml
+// 里无条件非法——它只能写进 override.yaml（override.yaml 设计书 §4）：这个组件
+// 此刻"钉在谁的 IDE 里跑"是本机、此刻的状态，不该出现在跟团队共享、进 code
+// review 的 brickkit.yaml 里。mode: local 配 deploy.target: k8s 的组合检查不变
+// （以前这条检查在 K8s 生成阶段才报，internal/k8s/k8s.go 的 localNotSupported，
+// 挪到解析阶段是为了让 brickkit lint 也能拿到这个错误，不用等生成部署文件）。
 func (c *Config) validateComponentMode(p *clierr.ProblemSet, field string, item Component) {
 	switch item.Mode {
-	case "", ModeEnabled, ModeDisable, ModeDebug, ModeLocal:
+	case "", ModeEnabled, ModeDisable, ModeLocal:
 		// 合法取值
+	case ModeDebug:
+		p.Add(field+".mode", i18n.T(msgid.ConfigModeDebugNotInBrickkitYaml))
+		return
 	default:
 		p.Add(field+".mode", i18n.T(msgid.ConfigModeInvalid, item.Mode))
 		return
 	}
-	if (item.Mode == ModeDebug || item.Mode == ModeLocal) && c.Deploy.Target == TargetK8s {
+	if item.Mode == ModeLocal && c.Deploy.Target == TargetK8s {
 		p.Add(field+".mode", i18n.T(msgid.ConfigModeK8sUnsupported, item.Mode))
 	}
 }

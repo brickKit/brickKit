@@ -100,19 +100,3 @@ func TestExternalWithReplicasIsAnError(t *testing.T) {
 	assert.Contains(t, text, "replicas")
 	assert.Contains(t, text, "external")
 }
-
-// debug 组件不能写 replicas。
-//
-// mode: debug 是"这个组件在我的 IDE 里跑"——IDE 里只有一个进程。
-// 写 replicas: 3 表达不了任何东西，只能说明使用者没想清楚。
-func TestDebugWithReplicasIsAnError(t *testing.T) {
-	_, err := parseReplicas(t, `components:
-  - id: demo/hello
-    version: 1.0.0
-    mode: debug
-    replicas: 3
-`)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "debug")
-}
