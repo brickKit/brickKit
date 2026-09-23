@@ -91,11 +91,18 @@ Four things need to already be true:
    at generation time (see below) and refuses to generate if it doesn't
    hold — but deciding it up front avoids a failed `up` you have to
    untangle after the fact.
-4. **The shell is actually going to be running in this deployment** — not
-   `mode: disable`, and not `mode: debug` or `mode: local` (both mean the
-   shell would be a bare process, not a container). A `servedBy` component
-   whose shell isn't running has no container anywhere for its code to
-   execute in, which the platform treats as an error, not a warning.
+4. **You know what happens if the shell isn't running.** The platform
+   doesn't require the shell to be running — if it's `mode: disable`, or
+   `mode: debug`/`mode: local` (a bare process, not a container), this
+   component falls back to deploying **standalone from its own image**
+   instead of merging into the shell. That means its own image needs to be
+   a real, independently-runnable artifact (not just a formality — see the
+   implementers guide), and any resource dependency it declares needs its
+   *own* binding to fall back on, not just the shell's (§5.7's "the
+   member's own binding is redundant while merged" stops being true the
+   moment the shell isn't). `up` warns when this happens, naming the
+   component and the shell — it doesn't fail silently, but it's worth
+   knowing about before you rely on the merged behavior always holding.
 
 ## Writing the field, and what gets rejected
 
@@ -131,14 +138,20 @@ dependency graph first:
   reachable on the cluster or container network, and a developer's own
   machine isn't.
 
-Two more checks need the full dependency graph, so they surface at
+One more check needs the full dependency graph, so it surfaces at
 generation time (`brickkit up`) rather than parse time:
 
 - **The named shell doesn't exist** in this project's `components:` list —
-  usually a typo in the component ID or version.
-- **The named shell exists but isn't running** — most often because it's
-  been turned off with `mode: disable`. There's genuinely no container
-  anywhere for this component's code to run in until that's fixed.
+  usually a typo in the component ID or version. This one still rejects:
+  a made-up `servedBy` target is a real mistake to catch, not something
+  to paper over.
+
+A related, but *not* rejected, case: **the named shell exists but isn't
+running** (`mode: disable`, most often). This doesn't fail `up` — the
+component falls back to standalone deployment as described above, and
+`up` warns rather than errors. The distinction is deliberate: a typo'd
+shell reference can never be satisfied no matter what runs; a real shell
+that simply isn't running this cycle has a well-defined fallback.
 
 ## What moves to the shell's own entry instead
 

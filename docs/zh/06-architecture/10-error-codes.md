@@ -156,7 +156,6 @@ CLI 的报错文案跟着语言走——默认英文，`brickkit lang set zh` �
 | `错误：域名 <hostname> 被多个组件占用` | 两个组件写了同一个 `hostname` | 各写各的 |
 | `错误：当前连着的不是配置里指定的集群` | 当前的 `kubectl` context 与 `deploy.context` 不一致 | `kubectl config use-context <名字>`，或 `brickkit up --context <名字>` |
 | `错误：servedBy 指向的组件不存在` | `servedBy` 的值指向的组件不在项目里 | 检查外壳的 ID 和版本号有没有写错 |
-| `错误：servedBy 指向的外壳当前没有在运行` | 外壳被关掉了（`mode: disable`） | 把它打开，或去掉 `servedBy` 让组件独立部署 |
 | `错误：外壳 <shell> 下两个成员对同一个环境变量给出了不同的值` | 同一个外壳下的两个成员依赖了同一个组件的不同版本 | 让它们依赖同一个精确版本，或者不要放进同一个外壳 |
 | `错误：没有可用的安装源` | `sources` 是空的，或者每个源都被关掉了 | 至少配一个安装源；本地开发可以配一个指向 `./components` 的 `type: local` |
 | `错误：本地安装源路径不存在` | `local` 安装源的 `path` 写错了（它相对 `brickkit.yaml`） | 改对路径，或把这个源设为 `enabled: false` |
@@ -444,6 +443,7 @@ stdout 上的那些问题保留它们在别处本来的标题：`component.yaml`
 | `提示：servedBy 组件的数据库迁移不会自动执行` | `MIGRATION_SKIPPED` | `servedBy` 成员没有自己的容器，也就没有迁移容器。得由外壳来覆盖它 |
 | `提示：servedBy 组件自己的健康检查不会独立生效` | `CONFIG_INVALID` | 算数的是外壳的健康检查 |
 | `提示：servedBy 组件上，<field> 本次不生效` | `CONFIG_INVALID` | `expose`、`exposePort`、`hostname`、`replicas`、`resources`、`serviceAccountName`、`labels` 描述的是一个组件自己的容器怎么部署，而 `servedBy` 成员没有自己的容器。想单独部署这个组件，就去掉它的 `servedBy` |
+| `提示：这个组件的外壳这次没跑，改成用自己的镜像独立部署，不再合并进外壳` | `CONFIG_INVALID` | 指向的外壳这次被关掉了（多数是 `mode: disable`）。这个成员改为独立部署，不再合并进外壳——它自己的镜像现在得真能独立跑起来，它声明的任何资源依赖也得有自己的绑定可以退回去用。如果这个组件声明了迁移，这条警告还会点出迁移这次会真的执行（合并时不会） |
 | `警告：requireSignature 为 true，但项目没有声明任何可信公钥，签名校验实际未生效` | `SIGNATURE_INVALID` | 一个 `installer.publicKeys` 都没有时，验证整体关闭——光有 `requireSignature: true` 什么也验证不了。声明发布者的公钥，或显式设 `requireSignature: false` 让这条提醒消失 |
 | `警告：签名来自未声明的发布者，未做校验` | `SIGNATURE_INVALID` | 签名指向一个你没声明公钥的发布者，所以没有校验 |
 | `警告：产物下载失败，已跳过` | `NETWORK_UNREACHABLE` | 某个产物没能下载；安装在没有它的情况下继续了 |

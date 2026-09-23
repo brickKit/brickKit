@@ -65,6 +65,19 @@ add up to, rather than listing every commit individually.
   `mode: debug` together with `deploy.target: k8s` is rejected when
   `brickkit.yaml` is parsed — so `brickkit lint` catches it — instead of only
   when the deployment files are generated
+- **Breaking:** a `servedBy` member whose named shell isn't running this
+  cycle (most often `mode: disable`) no longer blocks `up`/`graph` with
+  `Error: the shell servedBy points to is not currently running`. It now
+  falls back to deploying standalone from its own image instead of merging
+  into the shell, and `up` prints a warning naming the component and the
+  shell instead. This means a `servedBy` member's own image now has to be a
+  real, independently-runnable artifact — not just a formality — and any
+  resource dependency it declares needs its *own* binding to fall back on,
+  since the shell's binding no longer counts once the shell isn't running
+  (`up` still blocks the run if that binding is missing, just with a
+  different error). `brickkit graph` stops grouping the member under the
+  shell in this case too. The "named shell doesn't exist at all" case is
+  unchanged and still rejects
 
 ## [0.4.6] - 2026-09-17
 
