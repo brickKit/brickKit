@@ -63,12 +63,12 @@ func TestRestoreRestoresModeAndMovesSourceBack(t *testing.T) {
 	assert.Empty(t, cfg.Components[0].Mode, "mode 回到「不写」")
 }
 
-// restore 刚把 mode 还原到 HEAD 那份状态——override.yaml 记的 baseline 多半是刷新时
-// brickkit.yaml 的旧状态，restore 一还原，那些 baseline 多半就过期了。不主动说，
-// 使用者要等到下一次 brickkit override 或 lint 才会看到一堆漂移提示，却不知道
-// 是这次 restore 造成的（设计书 §9："prints a hint afterward suggesting `brickkit
-// override` be re-run"）。
-func TestRestoreSuggestsRerunningOverrideWhenModeChanged(t *testing.T) {
+// restore 刚把 mode 还原到 HEAD 那份状态——override.yaml 记的 baseline 是刷新时
+// brickkit.yaml 的旧状态，restore 一还原，跟当前值就对不上了。不是泛泛一句
+// "可能过期了"（brickkit override 其实并不会刷新 baseline，那样承诺是在撒谎），
+// 而是复用 up/lint 同一条 override.Drift，照实打印出哪个组件、从什么变成了什么
+// ——评审指出旧版本的泛泛提示既不准确、也在没有真实漂移时依然出现（Important #3）。
+func TestRestorePrintsRealDriftNoteWhenModeChanged(t *testing.T) {
 	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
 	gitProject(t, f.Dir)
 	gitDo(t, f.Dir, "add", "-A")
@@ -78,16 +78,18 @@ func TestRestoreSuggestsRerunningOverrideWhenModeChanged(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 	f.writeOverride(t, `components:
   - id: demo/hello
+    mode: debug
+    baseline: enabled
 `)
 
 	r := runIn(t, f.Dir, "restore")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "brickkit override")
+	assert.Contains(t, r.stdout, "Drift: demo/hello")
 }
 
-// 没有 override.yaml：这条提示压根没意义，不该出现——override.yaml 是可选机制，
-// 没用上它的项目不该被一句跟自己无关的提示打扰。
+// 没有 override.yaml：没什么好比对的，不该出现任何漂移提示——override.yaml 是
+// 可选机制，没用上它的项目不该被一句跟自己无关的提示打扰。
 func TestRestoreSkipsOverrideHintWhenFileAbsent(t *testing.T) {
 	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
 	gitProject(t, f.Dir)
@@ -100,7 +102,7 @@ func TestRestoreSkipsOverrideHintWhenFileAbsent(t *testing.T) {
 	r := runIn(t, f.Dir, "restore")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.NotContains(t, r.stdout, "brickkit override")
+	assert.NotContains(t, r.stdout, "Drift:")
 }
 
 // mode 一个都没变（工作区已经跟 HEAD 一致）：没有什么"过期"可言，同样不该提示。
@@ -111,12 +113,35 @@ func TestRestoreSkipsOverrideHintWhenNothingChanged(t *testing.T) {
 	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
 	f.writeOverride(t, `components:
   - id: demo/hello
+    mode: debug
+    baseline: enabled
 `)
 
 	r := runIn(t, f.Dir, "restore")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.NotContains(t, r.stdout, "brickkit override")
+	assert.NotContains(t, r.stdout, "Drift:")
+}
+
+// override.yaml 只有裸 id、没有记录任何 baseline：restore 之后没有基准可比对，
+// 不该凭空打出一句"可能过期了"——评审指出旧版本的泛泛提示在这种最常见的场景下
+// 反而是纯噪音。
+func TestRestoreSkipsOverrideHintWhenNoBaselineRecorded(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	f.writeOverride(t, `components:
+  - id: demo/hello
+`)
+
+	r := runIn(t, f.Dir, "restore")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "Drift:")
 }
 
 func TestRestoreKeepsUncommittedAddInTheConfig(t *testing.T) {

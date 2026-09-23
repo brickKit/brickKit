@@ -5,7 +5,6 @@ package cli
 
 import (
 	"context"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/brickkit/brickkit/internal/gitrepo"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/override"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
 
@@ -160,22 +160,28 @@ func runRestore(ctx context.Context, opts *Options) error {
 	if err := applyWorkspacePlan(opts, layout, planSync(layout, work, f)); err != nil {
 		return err
 	}
-	suggestOverrideRefresh(opts, layout, changes)
+	suggestOverrideRefresh(opts, layout, work, changes)
 	return nil
 }
 
-// suggestOverrideRefresh 在 restore 真的动过 mode 之后提醒一句：override.yaml 里的
-// baseline 记的是 restore 之前那个 brickkit.yaml 状态，restore 一还原，那些 baseline
-// 多半就过期了——不主动说，使用者要等到下一次 brickkit override 或 lint 才会看到
-// 一堆"漂移"提示，却不知道是这次 restore 造成的。
-func suggestOverrideRefresh(opts *Options, layout config.Layout, changes []modeChange) {
+// suggestOverrideRefresh 在 restore 真的动过 mode 之后，把因此产生的 override.yaml
+// 漂移直接打印出来——不是泛泛一句"可能过期了"，而是复用 up/lint 同一条
+// override.Drift，点名哪个组件、从什么变成了什么。brickkit override 本身并不会在
+// 刷新时更新 baseline（那是一个现存的、这份计划之外的缺口），所以这里能做到的
+// 最准确的事就是照实说出当前差异，而不是承诺一个 brickkit override 做不到的
+// "刷新"（评审：旧版本的泛泛提示既不准，在没有真实漂移——比如 override.yaml 只有
+// 裸 id——时也照样出现，纯属噪音）。
+func suggestOverrideRefresh(opts *Options, layout config.Layout, cfg *config.Config, changes []modeChange) {
 	if len(changes) == 0 {
 		return
 	}
-	if _, err := os.Stat(layout.OverridePath()); err != nil {
+	ov, err := override.ParseOverrideFile(layout.OverridePath())
+	if err != nil || ov == nil {
 		return
 	}
-	opts.Printf("%s\n", i18n.T(msgid.CliRestoreSuggestRerunningOverride))
+	for _, note := range override.Drift(cfg, ov) {
+		opts.Printf("%s\n", i18n.T(msgid.CliOverrideDriftNote, note.Field, note.Message))
+	}
 }
 
 // restoreBaseline 找出"最后一次提交"这个基准，没有基准就说清楚。

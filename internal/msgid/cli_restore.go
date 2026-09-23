@@ -36,5 +36,4 @@ const (
 	CliRestoreNotSet                           = "cli.restore.not_set"
 	CliRestoreRemoveTheFieldTheCommit          = "cli.restore.remove_the_field_the_commit"
 	CliRestoreError                            = "cli.restore.error"
-	CliRestoreSuggestRerunningOverride         = "cli.restore.suggest_rerunning_override"
 )
