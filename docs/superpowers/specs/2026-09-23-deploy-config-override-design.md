@@ -220,14 +220,32 @@ speculation this time:
   direction — worth a cross-reference whenever this actually ships, but a documentation task, not
   a design question.
 
-## Open / explicitly deferred
+## Resolved — `servedBy`'s direction stays as-is, not flipped
 
-- **`servedBy`'s direction** — explicitly saved for last, per the person driving this design.
-  Current mechanism: a member declares `servedBy: <shell-id>@<version>` pointing at its shell.
-  Raised earlier: since a shell is "in some sense also a component, just typed as shell," should
-  the shell instead declare its own `members: [...]` list? Same information, very different
-  maintenance properties — today, adding a member only touches that member's own file; inverted,
-  the shell's file needs editing on every member added/removed. Not decided either way yet.
+The last open question from the shell/member thread. Decision: **keep the current mechanism** — a
+member declares `servedBy: <shell-id>@<version>` pointing at its shell; the shell itself stays a
+plain, ordinary component with no `members:` list of its own. Reasoning:
+
+- **A syntactic guarantee, not just a convention.** Because each component's `servedBy` lives on
+  that component's own single entry (one field, one value), "a component can belong to at most one
+  shell" is enforced by the schema shape itself — it's not expressible to write otherwise. Flipping
+  it (a shell declaring `members: [...]`) would make the same invariant a *semantic* rule requiring
+  active validation across every shell's member list (catching the same component ID listed under
+  two different shells) — structurally possible to violate until something checks for it, not
+  structurally impossible to write in the first place.
+- **`override.yaml` already provides the readability flipping would have bought.** The original
+  appeal of "shell declares its members" was seeing a shell's membership at a glance — already
+  solved by `override.yaml`'s nested `members:` grouping under a shell's entry (see above). No
+  remaining reason to duplicate that in `brickkit.yaml` too.
+- **Lower touch cost.** Today, adding a member only touches that member's own line; flipping would
+  mean editing the shell's own (growing) entry on every member added or removed.
+- **Worth noting, doesn't change the outcome**: `brickkit.yaml` isn't perfectly consistent either
+  way already — `resources[].bindings` already uses the "declare who's attached to me" shape (a
+  resource lists which components bind to it, not the reverse). So this isn't a case of preserving
+  a universal rule; the syntactic-guarantee argument above is what actually carries the decision.
+
+With this resolved, the shell/member/servedBy thread from this whole conversation is closed. What's
+left for `override.yaml` is `restore` semantics and writing the actual schema.
 
 ## Open / explicitly deferred
 
