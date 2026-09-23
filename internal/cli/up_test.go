@@ -611,3 +611,30 @@ func TestUpDryRunFallsBackServedByMemberWhenShellDisabled(t *testing.T) {
 	assert.NotContains(t, composeContent, "infra-shell-go-core-1-0-0",
 		"关掉的外壳自己不该出现")
 }
+
+// 只测 --dry-run 生成的文件不够：真正 up 的时候交给引擎的 service 列表是
+// 单独一份判断算出来的（collectTargets），必须跟生成器用同一个判据，
+// 否则文件里有这个 service、但没人真的把它启动起来，命令却报成功。
+func TestUpStartsFallbackMemberForReal(t *testing.T) {
+	comps := []comp{
+		{ID: "infra/shell-go-core", Version: "1.0.0"},
+		{ID: "mdm/customer", Version: "1.0.7"},
+	}
+	f := addedProject(t, comps, "infra/shell-go-core@1.0.0", "mdm/customer@1.0.7")
+	f.writeConfig(t, `components:
+  - id: infra/shell-go-core
+    version: 1.0.0
+    mode: disable
+  - id: mdm/customer
+    version: 1.0.7
+    servedBy: infra/shell-go-core@1.0.0
+`)
+	eng := newFakeEngine()
+
+	r := runWithEngine(t, eng, f.Dir, "up")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	req := eng.lastUp(t)
+	assert.Contains(t, req.Services, "mdm-customer-1-0-7",
+		"外壳没跑，这个成员该被真的交给引擎启动，不是只出现在生成的文件里")
+}

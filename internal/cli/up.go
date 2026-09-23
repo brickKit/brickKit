@@ -24,6 +24,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/procsup"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/shell"
 	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
@@ -515,8 +516,18 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 func (p *upPlan) collectTargets(order *resolver.Plan) {
 	noWorkload := map[resolver.Ref]bool{}
 	for _, c := range p.cfg.Components {
-		if c.Mode == config.ModeDebug || c.Mode == config.ModeLocal || c.ServedBy != "" {
+		if c.Mode == config.ModeDebug || c.Mode == config.ModeLocal {
 			noWorkload[resolver.Ref{ID: c.ID, Version: c.Version}] = true
+			continue
+		}
+		if c.ServedBy != "" {
+			shellRef, ok := shell.ParseRef(c.ServedBy)
+			if ok && p.states.IsRunning(shellRef) {
+				noWorkload[resolver.Ref{ID: c.ID, Version: c.Version}] = true
+			}
+			// 外壳没跑（或者 servedBy 格式不对，config.Validate 会挡）：这个
+			// 组件按普通组件对待，交给引擎启动——判据必须跟 internal/shell、
+			// internal/compose、internal/k8s 保持一致。
 		}
 	}
 

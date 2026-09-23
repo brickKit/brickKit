@@ -428,6 +428,11 @@ func shellNotFoundError(member, target resolver.Ref) *clierr.Error {
 		WithHint(i18n.T(msgid.ShellHintCheckServedByValue))
 }
 
+// shellNotRunningError 目前没有调用方了（外壳没跑时 Resolve 改成跳过而不是
+// 报错，见 Task 1）——留着不删，是因为将来一个显式的
+// `--ignore-served-by`-style 场景可能还需要它，删了又要重新补一份一样的。
+//
+//nolint:unused
 func shellNotRunningError(member, target resolver.Ref) *clierr.Error {
 	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellServedByTargetNotRunning)).
 		WithDetail(i18n.T(msgid.LabelComponent), member.String()).
