@@ -41,4 +41,5 @@ const (
 	CliRemoveAfterRemovalTheEnvironmentVariable     = "cli.remove.after_removal_the_environment_variable"
 	CliRemoveIfYouOnlyDonT                          = "cli.remove.if_you_only_don_t"
 	CliRemoveLong                                   = "cli.remove.long"
+	CliRemoveOverrideYamlUpdated                    = "cli.remove.override_yaml_updated"
 )

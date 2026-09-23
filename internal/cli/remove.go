@@ -101,14 +101,25 @@ func runRemove(ctx context.Context, opts *Options, arg string, force bool) error
 	if !edit.RemoveComponent(target.ID, target.Version) {
 		return notInConfigError(cfg, target.ID)
 	}
-	// 组件的最后一个版本也走了，指着它的资源绑定就是一条谁也用不上的配置。
-	// 多版本共存时不动：绑定按组件 ID 记（003 §5.3），剩下的版本还要用它。
+	// 组件的最后一个版本也走了，指着它的资源绑定就是一条谁也用不上的配置，
+	// override.yaml 里指着它的条目也是——两者共用同一个判据：多版本共存时不动
+	// （绑定按组件 ID 记，003 §5.3；override.yaml 条目同样按 ID 不按版本，
+	// AGENTS.md §7.1），剩下的版本还要用它们。
+	lastVersion := !edit.HasComponentID(target.ID)
 	var unbound []string
-	if !edit.HasComponentID(target.ID) {
+	if lastVersion {
 		unbound = edit.RemoveBindings(target.ID)
 	}
 	if err := edit.Save(); err != nil {
 		return err
+	}
+
+	var overrideUpdated bool
+	if lastVersion {
+		overrideUpdated, err = removeFromOverride(layout, target.ID)
+		if err != nil {
+			return err
+		}
 	}
 
 	cleanup, err := cleanupComponent(layout, client, cfg, target, repo)
@@ -122,6 +133,9 @@ func runRemove(ctx context.Context, opts *Options, arg string, force bool) error
 	opts.Printf("%s\n", i18n.T(msgid.CliRemoveRemoved, target))
 	if len(unbound) > 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliRemoveResourceBindingsDropped, strings.Join(unbound, i18n.T(msgid.ListSeparator))))
+	}
+	if overrideUpdated {
+		opts.Printf("%s\n", i18n.T(msgid.CliRemoveOverrideYamlUpdated))
 	}
 	if cleanup.sourceRemoved {
 		opts.Printf("%s\n", i18n.T(msgid.CliRemoveDeletedSourceDirectory, workspace.DisplayDir(target.ID)))
