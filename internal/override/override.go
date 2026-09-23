@@ -22,7 +22,7 @@ type Override struct {
 	Source string `yaml:"-"`
 }
 
-// ComponentOverride 是 override.yaml 里一个组件的条目。
+// ComponentOverride 是 override.yaml 里一个顶层组件的条目。
 //
 // 没有 Version 字段——精确到版本的实例是级联自动算出来的：外壳没提供的版本
 // 实例强制独立部署，override.yaml 从不代表这件事（设计书 §6.1 最后一条）。
@@ -41,8 +41,19 @@ type ComponentOverride struct {
 	// 多数组件在 brickkit.yaml 里没有 mode，这个字段因此常常留空，这是刻意的
 	// 取舍（设计书 §7 的"Consequence, accepted deliberately"）。
 	Baseline string `yaml:"baseline,omitempty"`
-	// Members 是被这个组件（作为外壳）合并部署的成员，同一种形状递归嵌套——
-	// 嵌套纯粹是给人看的分组，apply 时会整个展平（设计书 §8："避免重复声明
-	// 我属于外壳 X"）。
-	Members []ComponentOverride `yaml:"members,omitempty"`
+	// Members 是被这个组件（作为外壳）合并部署的成员——嵌套纯粹是给人看的
+	// 分组，apply 时会整个展平（设计书 §8："避免重复声明我属于外壳 X"）。
+	Members []MemberOverride `yaml:"members,omitempty"`
+}
+
+// MemberOverride 是嵌套在某个外壳条目下的一个成员，字段跟 ComponentOverride
+// 完全一样，只是没有自己的 Members：servedBy 只有"成员声明属于哪个外壳"这一层
+// 关系（设计书 §6.1："a member declares servedBy... not the reverse"），平台里
+// 不存在"外壳的外壳"，override.yaml 的嵌套因此天然只有一层——这不是绕开限制的
+// 权宜写法，是这份文件真实要表达的关系形状本身就是两层，不是无限递归的一层。
+type MemberOverride struct {
+	ID        string `yaml:"id"`
+	Mode      string `yaml:"mode,omitempty" jsonschema:"enum=enabled|disable|debug|local"`
+	LocalPort int    `yaml:"localPort,omitempty"`
+	Baseline  string `yaml:"baseline,omitempty"`
 }

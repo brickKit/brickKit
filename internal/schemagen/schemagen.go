@@ -5,15 +5,17 @@ import (
 
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/override"
 )
 
 // 落盘的文件名（在仓库根目录的 schemas/ 下）。
 //
-// 这两个名字是使用者编辑器里 $schema 注释指向的公开地址的一部分，改名会让所有已经配好的
+// 这三个名字是使用者编辑器里 $schema 注释指向的公开地址的一部分，改名会让所有已经配好的
 // 编辑器悄悄失效。
 const (
 	ComponentFile = "component.schema.json"
 	ProjectFile   = "brickkit.schema.json"
+	OverrideFile  = "override.schema.json"
 )
 
 // overrides 是"类型 → 手写 schema"的覆盖表：yaml.v3 不按字段反射来解码的类型。
@@ -69,6 +71,11 @@ func Project() ([]byte, error) {
 	return newGenerator(overrides()).document(reflect.TypeOf(config.Config{}), "BrickKit brickkit.yaml")
 }
 
+// Override 返回 override.yaml 的 JSON Schema。
+func Override() ([]byte, error) {
+	return newGenerator(overrides()).document(reflect.TypeOf(override.Override{}), "BrickKit override.yaml")
+}
+
 // Files 返回要落盘的全部 schema：文件名 → 内容。落盘工具（cmd/gen-schemas）与防漂移测试共用它，
 // 以后多一份 schema 只改这一处。
 func Files() (map[string][]byte, error) {
@@ -80,5 +87,9 @@ func Files() (map[string][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string][]byte{ComponentFile: component, ProjectFile: project}, nil
+	overrideSchema, err := Override()
+	if err != nil {
+		return nil, err
+	}
+	return map[string][]byte{ComponentFile: component, ProjectFile: project, OverrideFile: overrideSchema}, nil
 }

@@ -48,6 +48,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/override"
 	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
 
@@ -130,6 +131,27 @@ resources:
         database: hello
 `
 
+// override.yaml 的合法基准：涵盖裸 id、嵌套 members、target/mode/localPort/baseline
+// 每个字段至少出现一次。
+const baselineOverride = `
+target: docker
+targetBaseline: docker
+components:
+  - id: demo/hello
+  - id: erp/backend
+    members:
+      - id: people/basic
+      - id: auth/rbac
+        mode: disable
+  - id: infra/redis-event-bus
+    mode: local
+    localPort: 8082
+  - id: payment/gateway
+    mode: debug
+    localPort: 9091
+    baseline: local
+`
+
 // document 是一份要检查的 YAML 文档：它的基准、生成函数与真实的解析入口。
 type document struct {
 	baseline string
@@ -147,6 +169,11 @@ var documents = map[string]document{
 		baseline: baselineProject,
 		generate: Project,
 		parse:    func(data []byte) error { _, err := config.ParseConfig(data, "brickkit.yaml"); return err },
+	},
+	"override": {
+		baseline: baselineOverride,
+		generate: Override,
+		parse:    func(data []byte) error { _, err := override.ParseOverride(data, "override.yaml"); return err },
 	},
 }
 
@@ -411,10 +438,10 @@ func TestCheckedInSchemasAreUpToDate(t *testing.T) {
 
 // 文件名是使用者编辑器里 $schema 注释指向的公开地址（.../schemas/component.schema.json），
 // 改名等于让所有已经配好的编辑器悄悄失效，所以这里写死字面值而不是引用常量。
-func TestFilesNamesBothSchemas(t *testing.T) {
+func TestFilesNamesAllSchemas(t *testing.T) {
 	files, err := Files()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"brickkit.schema.json", "component.schema.json"}, sortedKeys(files))
+	assert.Equal(t, []string{"brickkit.schema.json", "component.schema.json", "override.schema.json"}, sortedKeys(files))
 }
 
 // ---- 块二：必填集合（钉规则 + 校验器核对）----
@@ -452,6 +479,9 @@ var requiredGolden = []requiredCase{
 	{"project", "components[]", []string{"id", "version"}, []any{"components", 0}},
 	{"project", "resources[]", []string{"engine", "host", "id", "kind", "port"}, []any{"resources", 0}},
 	{"project", "resources[]/bindings[]", []string{"componentId"}, []any{"resources", 0, "bindings", 0}},
+
+	{"override", "components[]", []string{"id"}, []any{"components", 0}},
+	{"override", "components[]/members[]", []string{"id"}, []any{"components", 1, "members", 0}},
 }
 
 // 生成结果里的每个必填集合都在黄金表里，黄金表里的每一行也都对得上生成结果。
@@ -591,7 +621,7 @@ func TestConfigItemsTypeIsOptional(t *testing.T) {
 
 type constraintCase struct {
 	name string
-	doc  string // "component" | "project"
+	doc  string // "component" | "project" | "override"
 	// schemaPath 指向 schema 里该字段的节点（用来读出 tag 生成的 enum / pattern / 范围）。
 	schemaPath string
 	// dataPath 是该字段在基准 YAML 里的位置；errField 是校验器报错时用的字段名。
@@ -730,6 +760,32 @@ func constraintCases() []constraintCase {
 			dataPath: []any{"dependencies", "components", 1, "id"}, errField: "dependencies.components[1]",
 			valid:   []any{"demo/weak@1.0.0", "demo/weak@10.2.3"},
 			invalid: []any{"demo/weak@^1.0.0", "demo/weak@latest", "demo/weak@1.0", "demo/weak@", "demo/weak", ""},
+		},
+		{
+			// target 不必填（不像 project 的 deploy.target），空字符串跟没写是同一回事、
+			// 校验器放行——跟 "swarm"/"Docker" 这类真正非法的取值不是一类，不放进 invalid。
+			name: "target", doc: "override", schemaPath: "target",
+			dataPath: []any{"target"}, errField: "target",
+			valid:   []any{config.TargetDocker, config.TargetPodman, config.TargetK8s, nil},
+			invalid: []any{"swarm", "Docker"},
+		},
+		{
+			// components[3] 是基准里的 payment/gateway，唯一在顶层就写了 mode 的条目。
+			name: "components[3].mode", doc: "override", schemaPath: "components[]/mode",
+			dataPath: []any{"components", 3, "mode"}, errField: "components[3].mode",
+			valid:   []any{config.ModeEnabled, config.ModeDisable, config.ModeDebug, config.ModeLocal, nil},
+			invalid: []any{"Enabled", "disabled", "debugging", "docker"},
+		},
+		{
+			// ComponentOverride.Mode 与 MemberOverride.Mode 是两个不同 Go 类型上的字段
+			// （schemagen 的反射生成器不支持自引用递归类型，override.yaml 设计书 §8 的嵌套
+			// 因此拆成了两层不同的类型），它们在生成的 schema 里是两个独立节点，即使约束
+			// 完全一样也需要各自一行——components[1].members[1] 是基准里的 auth/rbac，
+			// 已经写了 mode: disable。
+			name: "components[1].members[1].mode", doc: "override", schemaPath: "components[]/members[]/mode",
+			dataPath: []any{"components", 1, "members", 1, "mode"}, errField: "components[1].members[1].mode",
+			valid:   []any{config.ModeEnabled, config.ModeDisable, config.ModeDebug, config.ModeLocal, nil},
+			invalid: []any{"Enabled", "disabled", "debugging", "docker"},
 		},
 	}
 }
