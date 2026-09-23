@@ -22,6 +22,7 @@ import (
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/override"
 	"github.com/brickkit/brickkit/internal/procsup"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
@@ -191,6 +192,9 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	ov, err := loadOverride(opts, layout, cfg)
 	if err != nil {
 		return nil, err
+	}
+	for _, note := range override.Drift(cfg, ov) {
+		opts.Printf("%s\n", i18n.T(msgid.CliOverrideDriftNote, note.Field, note.Message))
 	}
 	if err := applyOverride(cfg, ov); err != nil {
 		return nil, err
