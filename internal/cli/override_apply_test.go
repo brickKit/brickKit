@@ -112,6 +112,27 @@ func TestUpWarnsAndIgnoresOverrideWhenConfigPointsElsewhere(t *testing.T) {
 	assert.Contains(t, r.stdout, "demo-hello-1-0-0")
 }
 
+// --config ./brickkit.yaml 跟不写 --config 是同一份文件，只是多了一个 `./` 前缀——
+// 这依然是"针对默认 brickkit.yaml 的这次运行"，override.yaml 该照常生效，不该被
+// 误判成"指到了别处"而被忽略（那条判断原先是裸字符串比较 opts.ConfigPath !=
+// DefaultConfigFile，"./brickkit.yaml" != "brickkit.yaml" 按字面值确实不相等）。
+func TestUpAppliesOverrideWhenConfigFlagIsDotSlashDefault(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+`)
+	f.writeOverride(t, `components:
+  - id: demo/hello
+    mode: disable
+`)
+
+	r := runIn(t, f.Dir, "up", "--dry-run", "--config", "./brickkit.yaml")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "demo-hello-1-0-0", "override.yaml 的 mode: disable 该照常生效")
+}
+
 // newSyncFixture 内置的组件集合是 demo/hello、demo/caller（强依赖 demo/hello）、
 // solo/thing——跟 addedProject 不是同一批，这里沿用它而不是 addedProject，因为
 // f.assertActive/f.assertArchived 是 *syncFixture 的方法，addedProject 只返回

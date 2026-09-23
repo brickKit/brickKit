@@ -36,6 +36,24 @@ func TestOverrideCreatesFileOnFirstRun(t *testing.T) {
 	assert.Contains(t, string(data), "- id: demo/caller")
 }
 
+// --config ./brickkit.yaml 跟不写 --config 是同一份文件，只是多了一个 `./` 前缀——
+// runOverride 自己那道"只准对默认 brickkit.yaml 生效"的护栏原先是裸字符串比较
+// opts.ConfigPath != DefaultConfigFile，"./brickkit.yaml" != "brickkit.yaml" 按
+// 字面值确实不相等，于是这种写法被误判成"指到了别处"而被拒绝，即便它其实就是
+// 默认那份文件。
+func TestOverrideAcceptsConfigFlagAsDotSlashDefault(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+`)
+
+	r := runIn(t, f.Dir, "override", "--config", "./brickkit.yaml")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	require.FileExists(t, filepath.Join(f.Dir, "override.yaml"))
+}
+
 func TestOverrideAddsFileToGitignore(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
 	f.writeConfig(t, `components:

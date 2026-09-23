@@ -35,7 +35,7 @@ func newOverrideCommand(opts *Options) *cobra.Command {
 // 同时把漂移提示（Task 3 的 Drift）打印出来。这就是重置/修复操作本身，没有
 // 单独的第二个命令（设计书 §3）。
 func runOverride(opts *Options) error {
-	if opts.ConfigPath != "" && opts.ConfigPath != DefaultConfigFile {
+	if !isDefaultConfigFile(opts.ConfigPath) {
 		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliOverrideRefusesNonDefaultConfig)).
 			WithDetail(i18n.T(msgid.LabelPath), opts.ConfigPath)
 	}

@@ -9,6 +9,7 @@ package cli
 import (
 	"context"
 	"os"
+	"path/filepath"
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/config"
@@ -52,6 +53,15 @@ func clearServedBy(cfg *config.Config) {
 	}
 }
 
+// isDefaultConfigFile 判断 --config 传入的路径，规整后是不是就是默认的
+// brickkit.yaml。`--config ./brickkit.yaml`、`--config brickkit.yaml` 是同一份
+// 文件的两种写法，不能被 filepath.Clean 之外的差异（多余的 `./` 前缀等）误判成
+// "指到了别处"，从而错误地拒绝/忽略 override.yaml——设计书 §10 的多环境护栏只该
+// 拦真正的 --config brickkit.prod.yaml，不该拦同一个文件的另一种写法。
+func isDefaultConfigFile(path string) bool {
+	return path == "" || filepath.Clean(path) == DefaultConfigFile
+}
+
 // loadOverride 按 override.yaml 设计书 §10 的多环境护栏读取并校验 override.yaml：
 // 只有针对**默认** brickkit.yaml 的这次运行才应用它——--config 指到别处时，
 // 存在的 override.yaml 会被忽略，并且必须明说一声（既不能悄悄生效，也不能悄悄
@@ -59,7 +69,7 @@ func clearServedBy(cfg *config.Config) {
 //
 // 文件不存在时返回 (nil, nil)：没有覆盖是完全合法、最常见的状态。
 func loadOverride(opts *Options, layout config.Layout, cfg *config.Config) (*override.Override, error) {
-	if opts.ConfigPath != "" && opts.ConfigPath != DefaultConfigFile {
+	if !isDefaultConfigFile(opts.ConfigPath) {
 		if _, err := os.Stat(layout.OverridePath()); err == nil {
 			opts.Printf("%s\n", i18n.T(msgid.OverrideIgnoredNonDefaultConfig, opts.ConfigPath))
 		}
