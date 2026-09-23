@@ -5,6 +5,7 @@ package cli
 
 import (
 	"context"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -156,7 +157,25 @@ func runRestore(ctx context.Context, opts *Options) error {
 		return err
 	}
 
-	return applyWorkspacePlan(opts, layout, planSync(layout, work, f))
+	if err := applyWorkspacePlan(opts, layout, planSync(layout, work, f)); err != nil {
+		return err
+	}
+	suggestOverrideRefresh(opts, layout, changes)
+	return nil
+}
+
+// suggestOverrideRefresh 在 restore 真的动过 mode 之后提醒一句：override.yaml 里的
+// baseline 记的是 restore 之前那个 brickkit.yaml 状态，restore 一还原，那些 baseline
+// 多半就过期了——不主动说，使用者要等到下一次 brickkit override 或 lint 才会看到
+// 一堆"漂移"提示，却不知道是这次 restore 造成的。
+func suggestOverrideRefresh(opts *Options, layout config.Layout, changes []modeChange) {
+	if len(changes) == 0 {
+		return
+	}
+	if _, err := os.Stat(layout.OverridePath()); err != nil {
+		return
+	}
+	opts.Printf("%s\n", i18n.T(msgid.CliRestoreSuggestRerunningOverride))
 }
 
 // restoreBaseline 找出"最后一次提交"这个基准，没有基准就说清楚。

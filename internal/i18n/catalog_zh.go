@@ -911,6 +911,7 @@ var zh = map[string]string{
 	msgid.CliRestoreNotSet:                                           "（没写）",
 	msgid.CliRestoreRemoveTheFieldTheCommit:                          "删除该字段（提交里没写）",
 	msgid.CliRestoreError:                                            "错误：%[1]s",
+	msgid.CliRestoreSuggestRerunningOverride:                         "💡 mode 变了——override.yaml 记的 baseline 可能已经过期，跑一次 `brickkit override` 刷新一下",
 	msgid.CliRestoreCheckCannotReadTheComponentDirectory:             "读不到即将提交的组件目录结构",
 	msgid.CliRestoreCheckAConflictIsBeingResolved:                    "⚠️  正在解决冲突，跳过组件结构检查",
 	msgid.CliRestoreCheckIsNotTrackedByGit:                           "%[1]s 未被 git 跟踪，没有可比对的意图声明",

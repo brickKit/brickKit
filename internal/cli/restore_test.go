@@ -63,6 +63,62 @@ func TestRestoreRestoresModeAndMovesSourceBack(t *testing.T) {
 	assert.Empty(t, cfg.Components[0].Mode, "mode 回到「不写」")
 }
 
+// restore 刚把 mode 还原到 HEAD 那份状态——override.yaml 记的 baseline 多半是刷新时
+// brickkit.yaml 的旧状态，restore 一还原，那些 baseline 多半就过期了。不主动说，
+// 使用者要等到下一次 brickkit override 或 lint 才会看到一堆漂移提示，却不知道
+// 是这次 restore 造成的（设计书 §9："prints a hint afterward suggesting `brickkit
+// override` be re-run"）。
+func TestRestoreSuggestsRerunningOverrideWhenModeChanged(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	f.writeOverride(t, `components:
+  - id: demo/hello
+`)
+
+	r := runIn(t, f.Dir, "restore")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "brickkit override")
+}
+
+// 没有 override.yaml：这条提示压根没意义，不该出现——override.yaml 是可选机制，
+// 没用上它的项目不该被一句跟自己无关的提示打扰。
+func TestRestoreSkipsOverrideHintWhenFileAbsent(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+
+	r := runIn(t, f.Dir, "restore")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "brickkit override")
+}
+
+// mode 一个都没变（工作区已经跟 HEAD 一致）：没有什么"过期"可言，同样不该提示。
+func TestRestoreSkipsOverrideHintWhenNothingChanged(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+	f.writeOverride(t, `components:
+  - id: demo/hello
+`)
+
+	r := runIn(t, f.Dir, "restore")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "brickkit override")
+}
+
 func TestRestoreKeepsUncommittedAddInTheConfig(t *testing.T) {
 	comps := []comp{
 		{ID: "demo/hello", Version: "1.0.0"},
