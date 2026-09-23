@@ -109,17 +109,17 @@ func TestResolveErrorsWhenShellDoesNotExist(t *testing.T) {
 	assert.Contains(t, err.Error(), "does not exist")
 }
 
-func TestResolveErrorsWhenShellIsDisabled(t *testing.T) {
+func TestResolveSkipsMemberWhenShellIsDisabled(t *testing.T) {
 	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
 		{ID: "infra/shell-go-core", Version: "1.0.0", Mode: config.ModeDisable},
 		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
 	}}
-	_, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
+	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
 		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
 		"mdm/customer@1.0.7":        simple("mdm/customer", "1.0.7", 8080),
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "is not currently running")
+	require.NoError(t, err)
+	assert.Empty(t, groups, "the shell isn't running, so no group should form for it at all")
 }
 
 // ---- 端口冲突 ----

@@ -244,11 +244,13 @@ func Resolve(
 		}
 
 		targetNode := graph.Node(target)
-		switch {
-		case targetNode == nil:
+		if targetNode == nil {
 			return nil, shellNotFoundError(ref, target)
-		case !states.IsRunning(target):
-			return nil, shellNotRunningError(ref, target)
+		}
+		if !states.IsRunning(target) {
+			// 外壳这次没跑：这个成员不属于任何 Group，交给调用方（compose/k8s）
+			// 按普通组件生成——不是这个函数的错误分支。
+			continue
 		}
 
 		node := graph.Node(ref)
