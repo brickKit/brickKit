@@ -484,9 +484,10 @@ brickkit new demo/widget --path ../widget-repo     # 写到别的目录——那
 `override.yaml`（§7.1）如果存在、且除了裸 id 默认行之外没有任何真实覆盖，
 `add` 会刷新它、把新组件补进去——安全，没有真实覆盖可丢，重新生成天然会让
 `servedBy` 嵌套跟着对上。如果已经有真实覆盖，`add` 一个字节都不碰，只打印
-一句提醒：先备份一份，再手动跑 `brickkit override` 刷新。不管哪种情况，
-`--config` 指到默认 `brickkit.yaml` 以外的文件时，`add` 都完全不理会
-`override.yaml`（文件存在的话打印一句说明）。
+一句提醒：准备好了就手动跑 `brickkit override` 刷新——重新生成会带走每一个
+`mode`/`localPort`/`baseline` 的值，但整份文件是重写的，手写的注释或排版不
+会跟着过去。不管哪种情况，`--config` 指到默认 `brickkit.yaml` 以外的文件时，
+`add` 都完全不理会 `override.yaml`（文件存在的话打印一句说明）。
 
 不写版本号时 CLI 会替你解析出一个：`local`/`git` 安装源目录里只有一份
 `component.yaml`，那份定义上就是"这个源上的最新版"；`market` 安装源会

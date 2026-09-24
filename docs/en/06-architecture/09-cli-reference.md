@@ -502,10 +502,12 @@ If `override.yaml` exists (§7.1) and has no overrides beyond its bare-id
 defaults, `add` refreshes it to include the new component — safe, since
 there's nothing to lose and regeneration naturally gets `servedBy` nesting
 right. If it already has real overrides, `add` leaves the file completely
-untouched and prints a reminder to back it up, then run `brickkit override`
-to refresh it by hand. Either way, `add` ignores `override.yaml` entirely
-(with a note, if the file exists) when `--config` points at anything other
-than the default `brickkit.yaml`.
+untouched and prints a reminder to run `brickkit override` by hand when
+ready — regeneration carries every `mode`/`localPort`/`baseline` value
+over, but rewrites the whole file, so any comment or custom formatting
+added by hand doesn't survive it. Either way, `add` ignores `override.yaml`
+entirely (with a note, if the file exists) when `--config` points at
+anything other than the default `brickkit.yaml`.
 
 Omit the version and the CLI resolves one for you: a `local`/`git` source's
 single `component.yaml` is definitionally "the latest" from that source; a
