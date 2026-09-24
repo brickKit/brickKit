@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/engine"
 )
 
 // --dry-run 只需要生成一份 compose 文件——engine-agnostic，podman 消费的是
@@ -24,64 +26,66 @@ func TestUpDryRunSucceedsWithPodmanTarget(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 }
 
-// podmanClearErrorAssertions 断的不只是"提到 podman"这个弱断言：真正要紧的是
-// 这条报错确实来自 podmanTargetNotImplemented（精确文案，不是随便一句提到
-// podman 的报错），以及提示确实指回了 --dry-run 这条真能走通的路。
-//
-// 不测 error_code JSON 那一行——runIn 用的是 logging.LevelOff（测试默认，图安静），
-// AGENTS.md §10 自己也说了 --log-level off 连失败时的 error_code 行都会一起关掉，
-// 这是这批测试全文件的既定写法，不是这条测试该单独打破的东西；文案本身已经
-// 唯一到能证明走的是这条路径。
-func podmanClearErrorAssertions(t *testing.T, stderr string) {
-	t.Helper()
-	assert.Contains(t, stderr, "there is no Podman engine implementation to actually run it yet",
-		"要断在 podmanTargetNotImplemented 的精确文案上，不能只对上 \"podman\" 这几个字母")
-	assert.Contains(t, stderr, "--dry-run", "提示得指回一条真能走通的路")
-}
-
-// 真跑（非 --dry-run）时，target: podman 必须清楚地报错，而不是悄悄退回 docker、
-// 也不是对着 nil 的 engine.Engine panic——005 §7 挪掉的那份 Podman engine.Engine
-// 实现还没有回来（override.yaml 设计书 §11 明确排除在这份计划之外）。
-func TestUpRealRunFailsClearlyWithPodmanTarget(t *testing.T) {
+// 真跑（非 --dry-run）时，target: podman 现在必须真的把工作交给 Podman
+// 引擎——005 §7 挪掉的那个 engine.Engine 实现已经回来了。这里注入假引擎，
+// 验证的是"分发对了"，不实际调用真 podman 二进制。
+func TestUpRealRunSucceedsWithPodmanTarget(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
 	f.writeConfig(t, `components:
   - id: demo/hello
     version: 1.0.0
 `)
 	f.writeOverride(t, `target: podman`)
+	eng := newFakeEngine()
+	eng.name = engine.Podman
 
-	r := runIn(t, f.Dir, "up")
+	r := runWithEngine(t, eng, f.Dir, "up")
 
-	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
-	podmanClearErrorAssertions(t, r.stderr)
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotEmpty(t, eng.ups, "target: podman 时 up 必须真的调用引擎，不能再报'还没实现'")
 }
 
-// down 与 status 走的是同一个 resolveEngineFor，同样的"选了 podman，但还没有真实
-// engine.Engine"缺口对它们也成立——只测 up 会漏掉这两条同源但独立的调用路径。
-func TestDownFailsClearlyWithPodmanTarget(t *testing.T) {
+// down 与 status 走的是同一个 resolveEngineFor，同源但独立的调用路径。
+func TestDownSucceedsWithPodmanTarget(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
 	f.writeConfig(t, `components:
   - id: demo/hello
     version: 1.0.0
 `)
 	f.writeOverride(t, `target: podman`)
+	eng := newFakeEngine()
+	eng.name = engine.Podman
 
-	r := runIn(t, f.Dir, "down")
+	r := runWithEngine(t, eng, f.Dir, "down")
 
-	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
-	podmanClearErrorAssertions(t, r.stderr)
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotEmpty(t, eng.downs)
 }
 
-func TestStatusFailsClearlyWithPodmanTarget(t *testing.T) {
+func TestStatusSucceedsWithPodmanTarget(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
 	f.writeConfig(t, `components:
   - id: demo/hello
     version: 1.0.0
 `)
 	f.writeOverride(t, `target: podman`)
+	eng := newFakeEngine()
+	eng.name = engine.Podman
 
-	r := runIn(t, f.Dir, "status")
+	r := runWithEngine(t, eng, f.Dir, "status")
 
-	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
-	podmanClearErrorAssertions(t, r.stderr)
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+}
+
+// 没有注入假引擎时，target: podman 必须真的分发到 Podman 引擎（Name() 是
+// "podman"），而不是当年那个"还没实现"的错误——这是唯一断言"真调用路径
+// 选对了引擎"的用例，只检查 resolveEngineFor 的返回值，不调用它的任何方法，
+// 所以永远不会真的去 exec 一个 podman 二进制。
+func TestResolveEngineForPodmanTargetDispatchesRealEngine(t *testing.T) {
+	cfg := &config.Config{Deploy: config.Deploy{Target: config.TargetPodman}}
+
+	eng, err := resolveEngineFor(&Options{}, cfg)
+
+	require.NoError(t, err)
+	assert.Equal(t, engine.Podman, eng.Name())
 }
