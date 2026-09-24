@@ -76,6 +76,15 @@ compat	34.10	日志提示里的命令可直接执行	test	.	./internal/cli	TestU
 compat	34.11	CLI 自动检测引擎	test	.	./internal/engine	TestDetectPrefersDocker
 compat	34.11	只有 Podman 时报专门的错	test	.	./internal/engine	TestDetectReportsPodmanSpecifically
 compat	34.12	引擎不存在时报错	test	.	./internal/engine	TestDetectWithoutAnyEngine
+compat	34.13	NewPodman 调用的是 podman 二进制，不是 docker	test	.	./internal/engine	TestPodmanUsesPodmanBinary
+compat	34.14	引擎二进制缺失时的安装建议按引擎名走，不永远建议装 Docker	test	.	./internal/engine	TestPodmanMissingBinaryGivesInstallHint
+compat	34.15	down 已知的 AppArmor 失败信号带上环境检查清单的提示	test	.	./internal/engine	TestPodmanDownTranslatesKnownApparmorFailure
+compat	34.16	无关的 permission denied 不套用 AppArmor 提示	test	.	./internal/engine	TestGenericPermissionDeniedGetsNoApparmorHint
+compat	34.17	只装 Podman、未显式启用时提示怎么启用	test	.	./internal/engine	TestPodmanOnlyMachineGetsEnableHint
+compat	34.18	resolveEngineFor 对 target: podman 真实分发到 Podman 引擎	test	.	./internal/cli	TestResolveEngineForPodmanTargetDispatchesRealEngine
+compat	34.19	brickkit up 对 target: podman 真的调用引擎，不再报未实现	test	.	./internal/cli	TestUpRealRunSucceedsWithPodmanTarget
+compat	34.20	brickkit down 对 target: podman 真的调用引擎	test	.	./internal/cli	TestDownSucceedsWithPodmanTarget
+compat	34.21	brickkit status 对 target: podman 真的调用引擎	test	.	./internal/cli	TestStatusSucceedsWithPodmanTarget
 security	35.1	保留变量保护（市场发布时校验）	test	market-server	./internal/validator	TestReservedVariableConflictIsRejected
 security	35.2	保留变量保护（CLI 注入时检测）	test	.	./internal/inject	TestReservedVariableConflictWarnsAndSkips
 security	35.3	所有保留模式覆盖	test	.	./internal/inject	TestReservedPatternsCoverPlatformAndResourceVariables
