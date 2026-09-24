@@ -299,7 +299,7 @@ Docker Compose 或 `kubectl` 跑了，但失败了。引擎自己的原始输出
 | 你会看到 | 原因 | 怎么办 |
 | --- | --- | --- |
 | `错误：部分组件没有正常启动` | `up` 走完了，但有些容器不健康 | 先 `brickkit status`，再看容器日志。冷启动超过默认 60 秒宽限期的组件，要把 `healthCheck.startPeriodSeconds` 调大 |
-| `错误：<command> 执行失败` | 引擎命令本身以非零状态退出 | 看错误块上方的原始输出 |
+| `错误：<command> 执行失败` | 引擎命令本身以非零状态退出。在 Podman 上，输出里带"kill network process: permission denied"是 rootless Podman 的 `down` 被宿主机的 AppArmor 策略拦住——是发行版打包的缺口，不是 BrickKit 或 Podman 的 bug | 看错误块上方的原始输出。AppArmor 这种情形按提示去看 `docs/zh/07-patterns/11-podman-environment-checklist.md` |
 | `错误：kubectl 执行失败` | 某次 `kubectl` 调用失败 | 同上 |
 | `错误：无法解析容器引擎的状态输出` | 装的 Docker Compose 比 V2 旧 | 升级 Compose——`brickkit version` 会打印检测到的引擎 |
 | `错误：无法解析 kubectl 的输出` | `kubectl` 打印了 CLI 读不懂的东西 | 检查 `kubectl` 的版本 |
@@ -310,9 +310,9 @@ Docker Compose 或 `kubectl` 跑了，但失败了。引擎自己的原始输出
 
 | 你会看到 | 原因 | 怎么办 |
 | --- | --- | --- |
-| `错误：找不到容器引擎 <engine>` | 没装这个引擎的可执行文件 | 安装 Docker 20.10+ |
+| `错误：找不到容器引擎 <engine>` | 没装这个引擎的可执行文件 | 安装 Docker 20.10+；如果 target 是 podman，装 Podman |
 | `错误：没有找到可用的容器引擎` | 一个引擎都没找到 | 安装 Docker 20.10+——或用 `brickkit up --dry-run`，不需要引擎就能生成文件 |
-| `错误：暂不支持 Podman，请使用 Docker` | 只装了 Podman。Podman 支持写过、后来撤回了：rootless Podman 上 `down` 会失败，而一个停不掉的项目比根本起不来的更糟 | 安装 Docker |
+| `错误：检测到 Podman，但尚未启用` | Podman 在 PATH 里，但配置里没有谁要求用它——平台不会替你选一个没被显式要求的引擎 | 运行 `brickkit override`，在 override.yaml 里把 target 设成 podman；或者安装 Docker |
 | `错误：找不到 kubectl` | `deploy.target: k8s` 需要 `kubectl` | 装上它，或本地开发时把 `deploy.target` 改成 `docker` |
 
 ## 网络、认证与镜像

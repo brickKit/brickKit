@@ -1,10 +1,12 @@
 # Podman on Linux: an environment checklist
 
-> **This is not about BrickKit choosing an engine.** As of today, `internal/engine` only
-> implements Docker, and `deploy.target` only accepts `docker` and `k8s` — there is no way to
-> tell BrickKit to run compose through Podman instead. This page is a prerequisite checklist for
-> anyone who wants to run rootless Podman itself on Ubuntu/Debian (independent of BrickKit, and
-> useful groundwork if Podman support is ever added) — not a feature this CLI has today.
+> **This is now a real BrickKit deploy option, with one prerequisite.** `override.yaml`'s
+> `target: podman` runs a real `engine.Engine` implementation — `up`, `down`, and `status` all
+> work through it. What this page still describes is the one environment prerequisite that has to
+> be true first: rootless Podman's `down` needs AppArmor to allow its `pasta` helper to receive
+> the signal that tears its network down cleanly, which most Ubuntu/Debian installs block by
+> default. Run this page's checklist before setting `target: podman`; if `brickkit down` still
+> fails with the exact error this page describes, the fix below is what to apply.
 
 ## The problem
 

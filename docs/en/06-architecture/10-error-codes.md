@@ -299,7 +299,7 @@ Docker Compose or `kubectl` ran and failed. The engine's own raw output is print
 | You'll see | Cause | What to do |
 | --- | --- | --- |
 | `Error: some components did not start properly` | `up` finished but some containers aren't healthy | `brickkit status`, then the container's logs. A component that takes longer than the default 60-second grace period to start needs a larger `healthCheck.startPeriodSeconds` |
-| `Error: <command> failed to run` | The engine command itself exited non-zero | Read the raw output above the block |
+| `Error: <command> failed to run` | The engine command itself exited non-zero. On Podman, an output mentioning "kill network process: permission denied" is rootless Podman's `down` blocked by a host AppArmor policy — a distro packaging gap, not a BrickKit or Podman bug | Read the raw output above the block. For the AppArmor case, follow the hint to `docs/en/07-patterns/11-podman-environment-checklist.md` |
 | `Error: kubectl failed to run` | A `kubectl` call failed | Same |
 | `Error: could not parse the container engine's status output` | The Docker Compose installed is older than V2 | Upgrade Compose — `brickkit version` prints the detected engine |
 | `Error: could not parse kubectl's output` | `kubectl` printed something the CLI couldn't read | Check the `kubectl` version |
@@ -310,9 +310,9 @@ Docker Compose or `kubectl` ran and failed. The engine's own raw output is print
 
 | You'll see | Cause | What to do |
 | --- | --- | --- |
-| `Error: container engine <engine> not found` | The engine binary isn't installed | Install Docker 20.10+ |
+| `Error: container engine <engine> not found` | The engine binary isn't installed | Install Docker 20.10+, or Podman if `target: podman` |
 | `Error: no usable container engine found` | No engine found at all | Install Docker 20.10+ — or use `brickkit up --dry-run` to generate the files without one |
-| `Error: Podman isn't supported yet — please use Docker` | Only Podman is installed. Podman support was built and then withdrawn: `down` fails on rootless Podman, and a project that can't be torn down is worse than one that never came up | Install Docker |
+| `Error: Podman is installed, but not enabled` | Podman is on `PATH` but nothing in config asked for it — the platform won't pick an engine it wasn't explicitly told to use | Run `brickkit override` and set `target: podman` in `override.yaml`, or install Docker |
 | `Error: kubectl not found` | `deploy.target: k8s` needs `kubectl` | Install it, or switch `deploy.target` to `docker` for local work |
 
 ## Network, authentication, and images

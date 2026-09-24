@@ -153,7 +153,7 @@ This list matters as much as the platform's abilities: none of the items below i
 | Doesn't do | Why | What to do instead |
 | --- | --- | --- |
 | [15. A full consolidated-deployment command](#15-a-full-consolidated-deployment-command)<br>Merging many components into one process to save memory, with the platform managing all of it | It would mean the platform starting to understand what's inside the "shell" | One small structural piece only: `servedBy` |
-| [16. Podman as a deploy target](#16-podman-as-a-deploy-target)<br>Deploying with Podman instead of Docker | It worked, but `down` fails on rootless Podman, and a project that can't be torn down is worse than one that isn't supported | Use Docker |
+| [16. Podman as a deploy target](#16-podman-as-a-deploy-target)<br>Deploying with Podman instead of Docker | `override.yaml`'s `target: podman` runs a real engine now — the platform still doesn't auto-detect environment fitness, guarantee portability beyond one verified machine, or run automated real-lifecycle CI for it | Set `target: podman` in `override.yaml` once the [environment checklist](../07-patterns/11-podman-environment-checklist.md) prerequisite is met |
 | [17. Low-code, BI and DevOps pipelines](#17-low-code-bi-and-devops-pipelines) | Out of the platform's scope | — |
 | [19. Engine plugins and third-party deploy targets](#19-engine-plugins-and-third-party-deploy-targets)<br>A pluggable interface for deploying somewhere the platform doesn't know | A plugin would own tear-down and status guarantees while the CLI reported success on its behalf — the Podman lesson | Build a new target in-tree, with the full test guard set |
 | [20. An incremental generation cache](#20-an-incremental-generation-cache)<br>Remembering hashes so `up` regenerates only what changed | Generating 50 components already takes about 2 ms; there's nothing to speed up | Nothing — measure first if a real project ever shows otherwise |
@@ -298,9 +298,22 @@ This list matters as much as the platform's abilities: none of the items below i
 ### 16. Podman as a deploy target
 
 - **What it is:** deploying with Podman, another container engine, instead of Docker.
-- **Why it doesn't:** support was built and ran — `up`, `status`, real requests and idempotent reruns all passed — but `down` fails on rootless Podman with `rootless netns: kill network process: permission denied`, reproducible even with plain `podman rm -f`, outside BrickKit's own code entirely. A project that can't be torn down is worse than one that never came up: containers keep holding ports and volumes while the CLI would have reported success. So support was pulled rather than shipped half-working.
-- **What to do instead:** use Docker. On a machine with only Podman installed, `up` and `status` name this exact failure and point at Docker instead of a generic "no engine found".
-- **When it could come back:** it needs a real machine where `podman compose down` itself works cleanly, a full lifecycle verified on it, and a repeatable check added so it can't silently regress again.
+- **Why it doesn't, unconditionally:** the platform does no OS-level detection of whether a given
+  machine's Podman rootless networking can actually tear down cleanly, gives no portability
+  guarantee beyond the one environment this was verified on, and has no automated
+  real-container-lifecycle CI check for it — building any of those would mean the platform
+  guessing at environment fitness instead of the project explicitly declaring it, the same
+  "auto-guessed and uncontrollable" shape rejected elsewhere.
+- **What actually works:** `override.yaml`'s `target: podman` runs a real `engine.Engine`
+  implementation — `up`, `down` and `status` all work, once the host prerequisite is met. The
+  blocker this entry used to describe (rootless Podman's `down` failing because its
+  network-teardown helper, `pasta`, can't receive the signal that tears it down cleanly — a distro
+  AppArmor packaging gap, not a BrickKit or Podman bug) is resolved on a verified environment; see
+  the [Podman environment checklist](../07-patterns/11-podman-environment-checklist.md) for the
+  prerequisite and how to check for it. A known failure matching that exact signature still gets a
+  translated hint pointing back at that checklist, rather than a bare `permission denied`.
+- **What to do instead, on an unverified machine:** use Docker, or run
+  `scripts/podman/check-environment.sh` first to find out where you stand.
 
 ---
 

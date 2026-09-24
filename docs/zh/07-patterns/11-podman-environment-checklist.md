@@ -1,10 +1,11 @@
 # Podman 在 Linux 上：一份环境检查清单
 
-> **这篇不是在说 BrickKit 支持选择哪个容器引擎。** 目前 `internal/engine` 只实现了 Docker，
-> `deploy.target` 也只接受 `docker` 和 `k8s`——没有任何方式能让 BrickKit 改用 Podman 来跑 compose。
-> 这篇是给任何想在 Ubuntu/Debian 上独立跑通 rootless Podman 本身的人准备的前置检查清单
-> （跟 BrickKit 无关，如果将来真的要接入 Podman 支持，这也是有用的前期准备）——不是这个 CLI
-> 现在就有的功能。
+> **这现在是一个真实的 BrickKit 部署选项，只有一个前提条件。** `override.yaml` 的
+> `target: podman` 跑的是一个真正的 `engine.Engine` 实现——`up`、`down`、`status` 全都能用。
+> 这篇文档现在讲的是那唯一的环境前提：rootless Podman 的 `down` 需要 AppArmor 允许它的
+> `pasta` 辅助进程收到能干净拆掉网络的信号，而大多数 Ubuntu/Debian 默认会拦下这个信号。
+> 设 `target: podman` 之前先跑一遍这篇的检查清单；如果 `brickkit down` 依然报出这篇描述的
+> 那个具体错误，下面的修法就是该用的那个。
 
 ## 问题
 

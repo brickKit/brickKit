@@ -181,7 +181,7 @@ brickkit.yaml（声明）+ override.yaml（可选，本地专属——最先合�
 | 合并部署 / 单体外壳——平台不会、也不打算自己提供外壳脚手架或进程管理器 | 但一小块**结构性支撑已经落地**：`servedBy` 让一个组件声明"我的工作负载由另一个组件提供"，平台在 Docker 和 K8s 下都会把 `*_ENDPOINT` 地址正确接到它身上——全程不需要理解外壳里面是什么。见下文 5.7 |
 | 依赖别名（`dependencies.components[].as`） | 变量名基于组件 ID 是双向可推算的，别名只保住一半；"一个能力多个实现"该走 `kind` 资源或 `configSchema` 里的地址项 |
 | 低代码 / BI / DevOps 流水线 | 不在范围内 |
-| Podman 作为真正能跑起来的部署目标 | 支持写过、也跑通过——`up`、`status`、真实请求、幂等重跑全部正常——但 `down` 在 rootless Podman 上失败，报 `rootless netns: kill network process: permission denied`，纯 `podman rm -f` 都能复现，完全在 BrickKit 自己的代码之外。一个停不掉的项目比根本不支持更糟——容器会一直占着端口和卷，而 CLI 却报告成功——所以真正的 `engine.Engine` 实现选择整个撤回，不留一个跑到一半的支持。**现在实际有的**：`override.yaml` 的 `target` 字段已经合法接受 `podman` 作为降级取值（§7.1）——`up --dry-run` 能完整生成它的 compose 文件——但真的（非 dry-run）对 podman target 跑 `up` 会明确报错（`ENGINE_MISSING`，并指回 `--dry-run`），而不是悄悄跑歪或者真的能用，因为背后还没有 `engine.Engine` 实现。要恢复剩下这部分，需要先有一台 `podman compose down` 本身就能干净跑通的机器，在那台机器上验证完整生命周期，再加一条可重复的检查防止它悄悄再次坏掉 |
+| 自动验证某台机器的 Podman 环境是否真的能干净拆卸，或者把这份验证接进 CI | `override.yaml` 的 `target` 字段（§7.1）现在跑的是一个真正的 Podman `engine.Engine` 实现——满足宿主前提后，`up`、`down`、`status` 全部生效。平台自己从不去探测这个前提是否满足（用 `scripts/podman/check-environment.sh` 自己验证）；真的撞上那个已知的失败信号时，`down` 报错里的建议仍会指回[环境检查清单](docs/zh/07-patterns/11-podman-environment-checklist.md)，而不是留一句裸的 `permission denied`。完整情况见下面的 §5.10，包括明确还没做的部分（这台机器之外的可移植性、自动化的真实生命周期 CI） |
 | 平台代为从外部密钥存储（Vault / AWS Secrets Manager 的 SDK）取值 | `${VAR}` 先查进程环境、再查 `.env`——任何能把值放进环境的工具今天就能接入，平台零代码。内置的话，每接一种存储就多一个 SDK，每次 `up`（含 `--dry-run`）都要带存储凭据并联网，还是被否决的"配置中心"的邻居。**已经支持的：** `resources[].existingSecret` 与 `secret: true` 配置项写成 `{ existingSecret, key }`，引用外部系统（Vault Secrets Operator、External Secrets Operator、Sealed Secrets……）已经放进集群的 Secret——两种写法平台都不读写值本身，仅 K8s（§5.2） |
 | 引擎插件 / 第三方部署目标（`up` 上一个假想的 `--engine nomad` 风格参数） | 一个目标的 `Down` / `Status` / 孤儿清理保证，才让"一个能拆干净的项目"成立；插件要自己担保它们，而 CLI 会替它报"成功"——撤掉 Podman 的同一个理由。`deploy.target` 是 `brickkit.yaml` 里的声明，绝不变成命令行参数。新目标在仓库内实现，带全套测试守卫。（`engine.Engine` 本来就是接口；这里说的是谁来担保它的语义，不是代码怎么分层） |
 | 增量生成缓存（`.brickkit/` 里存哈希状态） | 没有可加速的东西：50 个组件走完整条链路约 2 ms（`tests/perf`），使用者真正在等的是 `docker compose up` / `kubectl apply`，而它们本来就只动有变化的。缓存要维护状态，过期时静默产出错误的部署文件 |
@@ -524,6 +524,30 @@ CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 
 跑市场本身（而不是用别人跑好的市场）是另一件独立的部署工作，见
 [自己搭一套 BrickKit Market](docs/zh/07-patterns/09-deployment/self-hosted-market.md)。
+
+---
+
+### 5.10 把 Podman 当部署引擎用
+
+`override.yaml` 的 `target: podman`（§7.1）是一个真正能跑的部署引擎——不是"校验通过但什么都不做"
+的配置项。设了它之后，`up`、`status`、`down` 都会真的对 Podman 生效，用的是与 Docker
+完全同一份生成出来的 `docker-compose.yaml`——`podman compose` 消费它的方式和 Docker 一模一样。
+
+**唯一的前提条件：** rootless Podman 的网络拆卸辅助进程 `pasta`，需要收到 `podman` 发来的
+`SIGTERM` 才能在 `down` 时把这次部署的网络干净拆掉。大多数 Ubuntu/Debian 默认的 AppArmor
+策略会拦下这个信号——这是一个已确认的发行版打包缺口
+（[containers/podman#27372](https://github.com/containers/podman/issues/27372)），不是 BrickKit
+或 Podman 自己的 bug。[环境检查清单](docs/zh/07-patterns/11-podman-environment-checklist.md)
+给了诊断脚本（`scripts/podman/check-environment.sh`）和修法（`scripts/podman/fix-apparmor.sh`）。
+
+**CLI 对这件事做了什么、没做什么：** 它自己从不去探测这个前提条件是否满足——那样做等于让平台
+去猜环境是否合适，而不是由项目显式声明（§4"显式优于隐式"）。它确实做的是：如果一次真实的
+`down`/`up` 撞上这个已知的、特征明确的失败信号，报错里的建议会指回这份检查清单，而不是留一句
+裸的 `permission denied` 让用户自己去猜。
+
+**明确还没做的：** 这台机器之外的可移植性保证（其它发行版、其它 AppArmor 配置），以及任何
+自动化的"真实容器生命周期" CI 检查——这个仓库验证 Podman 引擎的方式和验证 Docker 引擎完全一样：
+对着假 runner 的单元测试，不是真容器。
 
 ---
 
@@ -1154,6 +1178,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | 整个项目该选哪种部署形态——拓扑（纯独立/纯外壳/混搭）× `docker`/`k8s`，外加 `mode: debug` 调试开关、手动裸跑组件放在哪个位置 | `docs/zh/07-patterns/05-deployment-selection-guide.md`（英文版把 `zh` 换 `en`） |
 | 怎么造一个能接 `servedBy` 的合格外壳 | `docs/zh/07-patterns/07-shell-implementers-guide.md`（英文版把 `zh` 换 `en`） |
 | 要不要在自己项目里声明 `servedBy`、怎么声明 | `docs/zh/07-patterns/06-servedby-deployment-checklist.md`（英文版把 `zh` 换 `en`） |
+| Podman 怎么当部署引擎用，以及它唯一的环境前提 | `docs/zh/07-patterns/11-podman-environment-checklist.md`（英文版把 `zh` 换 `en`） |
 | 怎么自己搭一套组件市场 | `docs/zh/07-patterns/09-deployment/self-hosted-market.md`（英文版把 `zh` 换 `en`） |
 | 合并进壳里的组件怎么共用一个数据库连接池 | `docs/zh/07-patterns/08-shared-connection-pools.md`（英文版把 `zh` 换 `en`） |
 | 密钥在每种部署目标上住哪、落在哪，两种接密钥管理器的方式（进程环境 vs. `existingSecret`），以及如实交代的边界 | `docs/zh/07-patterns/10-secrets.md`（英文版把 `zh` 换 `en`） |

@@ -163,7 +163,7 @@ dependencies:
 | 不做什么 | 为什么 | 替代做法 |
 | --- | --- | --- |
 | [15. 合并部署的整套命令](#15-合并部署的整套命令)<br>为省内存，把很多组件合并进一个进程，并由平台整套管起来 | 那意味着平台要开始理解"外壳"里面有什么 | 只提供一小块结构性支撑：`servedBy` |
-| [16. Podman 作为部署目标](#16-podman-作为部署目标)<br>用 Podman 代替 Docker 部署 | 跑通过，但 `down` 在 rootless Podman 上会失败，一个停不掉的项目比不支持更糟 | 用 Docker |
+| [16. Podman 作为部署目标](#16-podman-作为部署目标)<br>用 Podman 代替 Docker 部署 | `override.yaml` 的 `target: podman` 现在跑的是真引擎——平台仍然不会自动探测环境是否合适、不保证这台机器之外的可移植性、也没有自动化的真实生命周期 CI | 满足[环境检查清单](../07-patterns/11-podman-environment-checklist.md)的前提后，在 override.yaml 里设 target: podman |
 | [17. 低代码、BI 与 DevOps 流水线](#17-低代码bi-与-devops-流水线) | 不在平台的范围内 | —— |
 | [19. 引擎插件与第三方部署目标](#19-引擎插件与第三方部署目标)<br>一个可插拔接口，让第三方把部署交给平台不认识的地方 | 插件要自己担保拆卸和状态查询，而 CLI 会替它报"成功"——Podman 的教训 | 新目标在仓库内实现，带全套测试守卫 |
 | [20. 增量生成缓存](#20-增量生成缓存)<br>记住哈希，让 `up` 只重新生成变化的部分 | 50 个组件走完整条链路才约 2 ms，没有什么好加速的 | 什么都不做——真有项目实测超过约 100 ms 再重新考虑 |
@@ -308,9 +308,18 @@ dependencies:
 ### 16. Podman 作为部署目标
 
 - **它是什么：** 用 Podman（另一种容器引擎）代替 Docker 来部署。
-- **为什么不做：** 支持写过，也跑通过——`up`、`status`、真实请求、幂等重跑全部正常——但 `down` 在 rootless Podman 上失败，报 `rootless netns: kill network process: permission denied`，纯 `podman rm -f` 都能复现，问题完全在 BrickKit 自己的代码之外。一个停不掉的项目比根本不支持更糟：容器会一直占着端口和卷，而 CLI 却报告成功。所以整个撤回，不留一个跑到一半的支持。
-- **替代做法：** 用 Docker。只装了 Podman、没装 Docker 的机器上，`up` / `status` 会明确点出这个具体原因，并指向装 Docker，而不是笼统地报"找不到引擎"。
-- **什么时候会恢复：** 要先有一台 `podman compose down` 本身就能干净跑通的机器，在那台机器上验证完整的生命周期，再加一条可重复的检查，防止它悄悄再次坏掉。
+- **不做到什么程度：** 平台自己从不去探测某台机器的 Podman rootless 网络是否真的能干净拆卸，
+  不保证除了这一台已验证的机器之外的可移植性，也没有自动化的"真实容器生命周期" CI 检查——
+  做这几件事里的任何一件，都等于让平台去猜环境是否合适，而不是由项目显式声明，跟别处已经拒绝的
+  "猜出来、不可控"是同一类问题。
+- **现在真能用的部分：** `override.yaml` 的 `target: podman` 跑的是一个真正的 `engine.Engine`
+  实现——满足宿主前提后，`up`、`down`、`status` 全部生效。这一条从前描述的那个卡点（rootless
+  Podman 的 `down` 会失败，因为它的网络拆卸辅助进程 `pasta` 收不到能让它干净拆卸的信号——这是
+  发行版打包的缺口，不是 BrickKit 或 Podman 的 bug）在已验证的环境上已经解决；前提条件和自查
+  方法见[Podman 环境检查清单](../07-patterns/11-podman-environment-checklist.md)。真的撞上这个
+  具体特征串的失败时，报错仍会带上指回那份清单的提示，而不是留一句裸的 `permission denied`。
+- **在没验证过的机器上该怎么办：** 用 Docker，或者先跑一遍
+  `scripts/podman/check-environment.sh` 看看自己这台机器到底是什么情况。
 
 ---
 

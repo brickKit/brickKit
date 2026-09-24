@@ -201,7 +201,7 @@ argued through and rejected (reasoning in §9):
 | Consolidated deployment / monolithic shell — the platform does not, and will not, ship its own shell scaffolding or process supervisor | But a small, structural piece **is** built in: `servedBy` lets a component declare "my workload is provided by another component," and the platform correctly wires `*_ENDPOINT` addresses to it on both Docker and K8s — without ever needing to understand what's inside the shell. See §5.7 below for the full boundary |
 | Dependency aliases (`dependencies.components[].as`) | Variable names derived from component ID are bidirectionally computable; an alias only preserves half of that. "One capability, multiple implementations" should go through a `kind` resource or a `configSchema` address field instead |
 | Low-code / BI / DevOps pipelines | Out of scope |
-| Podman as a real, running deploy target | Support was built and ran — `up`, `status`, real requests, idempotent reruns all passed — but `down` fails on rootless Podman with `rootless netns: kill network process: permission denied`, reproducible even with plain `podman rm -f`, outside BrickKit's own code entirely. A project that can't be torn down is worse than one that never came up — containers keep holding ports and volumes while the CLI would have reported success — so the actual `engine.Engine` implementation was pulled rather than shipped half-working. **What does exist**: `override.yaml`'s `target` field legally accepts `podman` as a downgrade target (§7.1) — `up --dry-run` fully generates its compose file — but a real (non-dry-run) `up` against it errors clearly (`ENGINE_MISSING`, pointing back at `--dry-run`) instead of either silently misbehaving or fully working, since no `engine.Engine` backs it yet. Reversing the rest of this needs a real machine where `podman compose down` itself works cleanly, a full lifecycle verified on it, and a repeatable check added so it can't silently regress again |
+| Automatically verifying a machine's Podman environment can tear down cleanly, or running that verification in CI | `override.yaml`'s `target` field (§7.1) runs a real `engine.Engine` implementation for Podman — `up`, `down`, and `status` all work once the host prerequisite is met. The platform never probes for that prerequisite itself (verify it yourself with `scripts/podman/check-environment.sh`); a `down` that hits the one known failure signature still gets a translated hint pointing back at the [environment checklist](docs/en/07-patterns/11-podman-environment-checklist.md) instead of a bare `permission denied`. See §5.10 below for the full picture, including what's still explicitly not done (portability beyond the one verified environment, automated real-lifecycle CI) |
 | Fetching secrets from an external store (Vault / AWS Secrets Manager SDKs) on the platform's behalf | `${VAR}` is looked up in the process environment first, `.env` second — anything that can put the value in the environment works today with zero platform code. Built in, it would mean an SDK per store, store credentials and network access on every `up` (`--dry-run` included), and a neighbour of the rejected "config center". **What is supported:** `resources[].existingSecret` and a `secret: true` config value written as `{ existingSecret, key }` reference a Secret an external system (Vault Secrets Operator, External Secrets Operator, Sealed Secrets, …) already put in the cluster — the platform never reads or writes the value either way, K8s only (§5.2) |
 | Engine plugins / third-party deploy targets (an `--engine nomad`-style flag on `up`) | A target's `Down`/`Status`/orphan-pruning guarantees are what make "a project that can be torn down" true; a plugin would own them while the CLI reported success on its behalf — the same reason Podman was pulled. `deploy.target` in `brickkit.yaml` stays the declaration, never a CLI flag. New targets are built in-tree, with the full test guard set. (`engine.Engine` is already an interface; this is about who guarantees its semantics, not about code layout) |
 | Incremental generation cache (`.brickkit/` hash state) | Nothing to speed up: generating 50 components through the whole pipeline takes about 2 ms (`tests/perf`), and the time users wait on is `docker compose up` / `kubectl apply`, which already touch only what changed. A cache adds state whose staleness silently produces wrong deployment files |
@@ -613,6 +613,34 @@ stored in `.brickkit/credentials`.
 
 Running the marketplace itself (as opposed to using one someone else runs) is a separate deployment
 of its own, covered in [Self-hosting the BrickKit Market](docs/en/07-patterns/09-deployment/self-hosted-market.md).
+
+---
+
+### 5.10 Podman as a deploy engine
+
+`override.yaml`'s `target: podman` (§7.1) is a real, working deploy engine — not just a
+validated-but-inert config value. Once set, `up`, `down`, and `status` all run against Podman
+instead of Docker, using the exact same generated `docker-compose.yaml` `podman compose` already
+consumes identically to Docker.
+
+**The one prerequisite:** rootless Podman's network-teardown helper, `pasta`, needs a `SIGTERM`
+from `podman` to tear a deployment's network down cleanly on `down`. Most Ubuntu/Debian installs'
+default AppArmor policy blocks that signal — a confirmed distro packaging gap
+([containers/podman#27372](https://github.com/containers/podman/issues/27372)), not a BrickKit or
+Podman bug. [The environment checklist](docs/en/07-patterns/11-podman-environment-checklist.md)
+has the diagnostic (`scripts/podman/check-environment.sh`) and the fix
+(`scripts/podman/fix-apparmor.sh`).
+
+**What the CLI does and doesn't do about this:** it never probes for that prerequisite itself —
+doing so would mean guessing at environment fitness instead of the project explicitly declaring
+it (§4's "explicit over implicit"). What it does do: if a real `down`/`up` hits that exact known
+failure signature, the error's hint points back at the checklist instead of leaving a bare
+`permission denied` for the user to puzzle over.
+
+**What's still explicitly out of scope:** any portability guarantee beyond the one environment
+this was verified on (other distributions, other AppArmor configurations), and any automated
+real-container-lifecycle CI check — this repository's test suite verifies the Podman engine the
+same way it verifies Docker's: unit tests against a fake runner, not a real container.
 
 ---
 
@@ -1333,6 +1361,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | Which deployment shape to pick for a whole project — topology (independent / shell-merged / mixed) × `docker`/`k8s`, plus the `mode: debug` toggle and where running components by hand fits in | `docs/en/07-patterns/05-deployment-selection-guide.md` (swap `en` for `zh`) |
 | How to build a shell that qualifies for `servedBy` | `docs/en/07-patterns/07-shell-implementers-guide.md` (swap `en` for `zh`) |
 | Whether and how to declare `servedBy` on your own project | `docs/en/07-patterns/06-servedby-deployment-checklist.md` (swap `en` for `zh`) |
+| How Podman works as a deploy engine, and the one environment prerequisite it needs | `docs/en/07-patterns/11-podman-environment-checklist.md` (swap `en` for `zh`) |
 | How to self-host the component marketplace | `docs/en/07-patterns/09-deployment/self-hosted-market.md` (swap `en` for `zh`) |
 | How to share one database connection pool across components merged into a shell | `docs/en/07-patterns/08-shared-connection-pools.md` (swap `en` for `zh`) |
 | Where secrets live and end up on each deploy target, the two ways a secret manager plugs in (process environment vs. `existingSecret`), and the honest limits | `docs/en/07-patterns/10-secrets.md` (swap `en` for `zh`) |
