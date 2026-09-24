@@ -1247,7 +1247,7 @@ var zh = map[string]string{
 	msgid.CliRemoveHasSeveralVersionsPleaseSpecify:                   "%[1]s 存在多个版本（%[2]s），请指定版本：",
 	msgid.CliRemoveAfterRemovalTheEnvironmentVariable:                "移除后 %[1]s 的环境变量 %[2]s 不会再被注入",
 	msgid.CliRemoveIfYouOnlyDonT:                                     "只是暂时不用的话，给它写 mode: disable 再 brickkit sync——那会把源码收进归档目录，而不是删掉",
-	msgid.CliRemoveOverrideYamlUpdated:                                "📝 override.yaml 已更新（删掉了这个组件的条目）",
+	msgid.CliRemoveOverrideYamlUpdated:                               "📝 override.yaml 已更新（删掉了这个组件的条目）",
 	msgid.CliRemoveLong:                                              "从项目中移除组件。\n\n行为：\n  1. 检查是否有其他组件强依赖它 → 有则阻止移除\n  2. 从 brickkit.yaml 中移除条目\n  3. 解除 resources[].bindings 中指向它的绑定（同 ID 还有其他版本时保留）\n  4. 清理 Manifest 缓存与 artifacts 缓存\n  5. 自动删除源码目录：components/\u003cscope\u003e/\u003cname\u003e/ 与归档中的\n     components/.archived/\u003cscope\u003e/\u003cname\u003e/（同 ID 还有其他版本时保留）\n  6. 最后一个版本也被删掉、且 override.yaml 存在时，删掉它在 override.yaml 里的那一行；被删外壳嵌套的成员会提升成顶层条目，不会被一并删掉\n\n\n多版本共存时必须指定版本，否则报错。",
 	msgid.LabelUsage:                                                 "用法",
 	msgid.CliRootValueGiven:                                          "传入值",

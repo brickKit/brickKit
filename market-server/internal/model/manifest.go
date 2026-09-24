@@ -6,16 +6,16 @@ package model
 // 市场是源头防御的一环，两侧各自成立才叫双保险（007 §18）。
 // 未知字段一律忽略，保证老市场也能收下新版本组件的 Manifest。
 type Manifest struct {
-	APIVersion    string         `json:"apiVersion"`
-	Kind          string         `json:"kind"`
-	Metadata      Metadata       `json:"metadata"`
-	Tags          []string       `json:"tags,omitempty"`
-	Artifacts     []Artifact     `json:"artifacts,omitempty"`
-	Dependencies  *Dependencies  `json:"dependencies,omitempty"`
-	ConfigSchema  *ConfigSchema  `json:"configSchema,omitempty"`
-	Deployment    Deployment     `json:"deployment"`
-	Migration     *Migration     `json:"migration,omitempty"`
-	HealthCheck   HealthCheck    `json:"healthCheck"`
+	APIVersion   string        `json:"apiVersion"`
+	Kind         string        `json:"kind"`
+	Metadata     Metadata      `json:"metadata"`
+	Tags         []string      `json:"tags,omitempty"`
+	Artifacts    []Artifact    `json:"artifacts,omitempty"`
+	Dependencies *Dependencies `json:"dependencies,omitempty"`
+	ConfigSchema *ConfigSchema `json:"configSchema,omitempty"`
+	Deployment   Deployment    `json:"deployment"`
+	Migration    *Migration    `json:"migration,omitempty"`
+	HealthCheck  HealthCheck   `json:"healthCheck"`
 }
 
 // Metadata 是组件元信息（002 §2.3）。
