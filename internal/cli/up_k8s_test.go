@@ -128,6 +128,7 @@ func deploymentEnvValue(t *testing.T, path, varName string) string {
 // 共用同一个 envLookup/readDotEnv，只是落点从 env 文件换成了 Deployment
 // 的 env 数组，值本身该不该完整跟"往哪写"无关。
 func TestUpK8sDeploymentEnvResolvesMultilineDotEnvValue(t *testing.T) {
+	clearAmbientEnvForTest(t, "APP_TOKEN_SIGNING_KEY_PEM")
 	spec := comp{
 		ID: "infra/iam-casdoor", Version: "1.0.0",
 		ConfigSchema: []string{"appTokenSigningKeyPem:"},

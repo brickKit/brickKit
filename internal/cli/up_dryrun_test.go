@@ -202,6 +202,26 @@ func TestUpDryRunWritesLocalDebugEnvFile(t *testing.T) {
 
 // sourceLocalDebugEnvVar 用真实 bash `source` 这份文件，取出某个变量的值。
 //
+// envLookup（up_k8s.go）先查进程环境，查不到才落到 .env 文件——下面两条测试
+// （这条和 up_k8s_test.go 里的 K8s 版本）专门验证的正是"落到 .env 文件"这条
+// 兜底路径。运行 go test 的这个进程如果本身也导出过同名变量（比如开发者在
+// 同一个 shell 里为了手动跑一遍真实的 infra/iam-casdoor 组件而 export 过
+// APP_TOKEN_SIGNING_KEY_PEM），envLookup 会先命中那个真实值，测试自己写的
+// .env fixture 根本没被读到——失败信息看起来像"多行值被截断"，实际是环境
+// 变量鸠占鹊巢，跟 readDotEnv 有没有 bug 无关（这条路径本身没问题，只是
+// 测试没保证自己在一个干净的进程环境里跑）。真实复现过一次：机器上恰好
+// export 了这个变量，make release 的 cover-check 就报了这个假阳性。
+func clearAmbientEnvForTest(t *testing.T, name string) {
+	t.Helper()
+	old, existed := os.LookupEnv(name)
+	require.NoError(t, os.Unsetenv(name))
+	t.Cleanup(func() {
+		if existed {
+			require.NoError(t, os.Setenv(name, old))
+		}
+	})
+}
+
 // brickKit 反馈：local-debug.*.env 序列化多行值和特殊字符会截断或解析错误——
 // v0.4.4 复核指出，`readDotEnv` 从前按物理行 `Cut("=")`，一个跨多行的
 // 双引号 `.env` 值会在第一行就被切断，而这条 bug 只有真的走"读 .env 文件"
@@ -227,6 +247,7 @@ func sourceLocalDebugEnvVar(t *testing.T, path, name string) string {
 // `shellQuote`，而不是绕过第一步——正是这条链路里 `readDotEnv` 按物理行
 // `Cut("=")` 截断多行值的地方，之前的回归测试没测到。
 func TestUpDryRunLocalDebugEnvResolvesMultilineDotEnvValue(t *testing.T) {
+	clearAmbientEnvForTest(t, "APP_TOKEN_SIGNING_KEY_PEM")
 	comps := []comp{
 		{ID: "infra/iam-casdoor", Version: "1.0.0", ConfigSchema: []string{"appTokenSigningKeyPem:"}},
 	}
