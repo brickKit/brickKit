@@ -113,11 +113,44 @@ type statusRow struct {
 // labelIfOverridden 给"没跑"的原因文案加一个 override.yaml 出处标记——不然使用者
 // 会去改 brickkit.yaml 却怎么也改不动结果，因为真正生效的 mode 来自本地的
 // override.yaml，从来不在 brickkit.yaml 里（override.yaml 设计书 §9）。
+//
+// 到这里的每一句 text 目前都已经自带一层括注收尾（"disabled explicitly
+// (mode: disable)"、"not starting (nothing above it is starting)"……都是
+// cascade 包自己拼好的），再无脑追加一层独立括号会变成
+// "(mode: disable) (override.yaml)"——两层括号挤在一起，读着别扭。
+// 因此优先把来源并进那层已有括注（改成 "(mode: disable, via override.yaml)"）；
+// 万一将来某句 text 不是这个形状，退回旧的"整句后面再套一层括号"，不会丢信息。
 func (p *project) labelIfOverridden(id, text string) string {
-	if p.overriddenMode[id] {
-		return text + i18n.T(msgid.CliStatusViaOverrideYaml)
+	if !p.overriddenMode[id] {
+		return text
 	}
-	return text
+	if merged, ok := insertBeforeTrailingParen(text, i18n.T(msgid.CliStatusViaOverrideYamlSuffix)); ok {
+		return merged
+	}
+	return text + i18n.T(msgid.CliStatusViaOverrideYaml)
+}
+
+// asciiRightParen、fullWidthRightParen 是 insertBeforeTrailingParen 认的两种
+// 右括号收尾字符（半角 ')' 与中文目录用的全角 '）'）。写成 rune 字面量而不是
+// 字符串——i18nguard 的"生产代码不许写死中文字符串"只扫 token.STRING，这俩是
+// 标点定界符，不是用户读的文字，本就不该算进那条守卫。
+const (
+	asciiRightParen     = ')'
+	fullWidthRightParen = '）'
+)
+
+// insertBeforeTrailingParen 把 suffix 插到 text 末尾那个右括号前面。text 不是
+// 以右括号收尾时返回 false，调用方自行退回整句追加的旧行为。
+func insertBeforeTrailingParen(text, suffix string) (string, bool) {
+	if text == "" {
+		return "", false
+	}
+	runes := []rune(text)
+	last := runes[len(runes)-1]
+	if last != asciiRightParen && last != fullWidthRightParen {
+		return "", false
+	}
+	return string(runes[:len(runes)-1]) + suffix + string(last), true
 }
 
 // componentView 是"每个组件这次归到哪一节"的**唯一**判定。

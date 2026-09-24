@@ -168,7 +168,9 @@ func TestStatusLabelsComponentDisabledByOverride(t *testing.T) {
 	// 从没被 override.yaml 提过，这一行不该被误贴上 override.yaml 的标记——
 	// 只断言"override.yaml"出现在 stdout 某处，测不出标记贴错行这种问题。
 	erpLine := lineContaining(t, r.stdout, "erp/backend")
-	assert.Contains(t, erpLine, "override.yaml")
+	assert.Contains(t, erpLine, "mode: disable, via override.yaml)",
+		"要并进已有的括注里，而不是再叠一层独立括号")
+	assert.NotContains(t, erpLine, ") (override.yaml)", "不该出现双重括号")
 	peopleLine := lineContaining(t, r.stdout, "people/basic")
 	assert.NotContains(t, peopleLine, "override.yaml")
 }
