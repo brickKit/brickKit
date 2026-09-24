@@ -163,8 +163,14 @@ func TestStatusLabelsComponentDisabledByOverride(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "erp/backend")
-	assert.Contains(t, r.stdout, "override.yaml")
+	// erp/backend 是 override.yaml 亲自点名 disable 的那个，它这一行要带出处；
+	// people/basic 只是跟着上层没跑（"nothing above it is starting"），它自己
+	// 从没被 override.yaml 提过，这一行不该被误贴上 override.yaml 的标记——
+	// 只断言"override.yaml"出现在 stdout 某处，测不出标记贴错行这种问题。
+	erpLine := lineContaining(t, r.stdout, "erp/backend")
+	assert.Contains(t, erpLine, "override.yaml")
+	peopleLine := lineContaining(t, r.stdout, "people/basic")
+	assert.NotContains(t, peopleLine, "override.yaml")
 }
 
 // mode: disable 是 brickkit.yaml 自己写的（没有 override.yaml 介入）：不该出现
