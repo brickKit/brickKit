@@ -99,10 +99,7 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 		}
 	}
 
-	files := []lintFile{head}
-	if ovFile := lintOverride(opts, layout, cfg); ovFile != nil {
-		files = append(files, *ovFile)
-	}
+	overrideFile := lintOverride(opts, layout, cfg)
 
 	// 直接 source.New，不走 newSourceClient：后者会先去读 installer.publicKeys 指向的公钥文件，
 	// 而公钥缺失是 up / add 该报的事，不该让一条"离线校验 YAML"的命令因此失败。
@@ -114,11 +111,8 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 	// "纯只读、不联网"的承诺当场破功。
 	client, err := source.New(layout, cfg, source.Options{})
 	if err != nil {
-		// files[0] 是 head——它已经被值拷贝进这个切片，再改本地的 head 变量不会
-		// 反过来影响切片里那一份，必须直接改 files[0]（下面 LocalManifestFiles
-		// 的错误分支同理）。
-		files[0].errors = append(files[0].errors, clierr.As(err))
-		return files, []string{localSkippedNote()}
+		head.errors = append(head.errors, clierr.As(err))
+		return assembleLintFiles(head, overrideFile, nil), []string{localSkippedNote()}
 	}
 	defer func() { _ = client.Close() }()
 
@@ -127,14 +121,31 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 		// 本地源的根目录不存在之类：那是 brickkit.yaml 里 sources[].path 配错了。
 		// 枚举遇到第一个出错的源就整体失败，别的本地源里的组件因此一份也没查——汇总里的
 		// 文件数会被低估，必须说出来，否则使用者改好 path 之前不知道还有文件没被检查
-		files[0].errors = append(files[0].errors, clierr.As(err))
-		return files, []string{localSkippedNote()}
+		head.errors = append(head.errors, clierr.As(err))
+		return assembleLintFiles(head, overrideFile, nil), []string{localSkippedNote()}
 	}
 
+	manifests := make([]lintFile, 0, len(found))
 	for _, f := range found {
-		files = append(files, lintManifest(opts, f.Path, f.ID))
+		manifests = append(manifests, lintManifest(opts, f.Path, f.ID))
 	}
-	return files, nil
+	return assembleLintFiles(head, overrideFile, manifests), nil
+}
+
+// assembleLintFiles 把 head（brickkit.yaml）、override.yaml（可能没有）、逐份
+// component.yaml 的检查结果拼成最终顺序——只在这一处组装。上面的每条分支只管
+// 往本地的 head 变量累积错误，不用再记着"head 是不是已经被值拷贝进某个切片、
+// 这时候改本地变量还有没有用"——那正是从前的写法出过问题的地方：先
+// `files := []lintFile{head}` 把 head 复制进切片，后面分支再改本地 head 变量
+// 就不会反过来影响切片里那一份，得改 files[0] 才行，一处忘了改就悄悄丢错误。
+func assembleLintFiles(head lintFile, overrideFile *lintFile, manifests []lintFile) []lintFile {
+	files := make([]lintFile, 0, 2+len(manifests))
+	files = append(files, head)
+	if overrideFile != nil {
+		files = append(files, *overrideFile)
+	}
+	files = append(files, manifests...)
+	return files
 }
 
 // lintOverride 检查 override.yaml——文件不存在时完全合法，什么也不查（override.yaml
