@@ -341,6 +341,20 @@ func TestMissingBinaryGivesInstallHint(t *testing.T) {
 	assert.Contains(t, clierr.As(err).Format(), "Docker", "要说清装什么")
 }
 
+// Podman 引擎缺二进制时不能还建议装 Docker——那是完全不同的两条路。
+func TestPodmanMissingBinaryGivesInstallHint(t *testing.T) {
+	rec := newRecorder()
+	rec.fail["up"] = errors.New(`exec: "podman": executable file not found in $PATH`)
+
+	err := podmanWith(rec).Up(context.Background(), UpRequest{File: "f.yaml", Project: "p"})
+
+	require.Error(t, err)
+	assert.Equal(t, clierr.CodeEngineMissing, clierr.As(err).Code)
+	text := clierr.As(err).Format()
+	assert.Contains(t, text, "Podman", "要说清装什么")
+	assert.NotContains(t, text, "Install Docker", "podman 引擎缺二进制时不该建议装 Docker")
+}
+
 // 引擎失败时把它的输出带上——那才是真正有用的信息。
 func TestEngineFailureKeepsOutput(t *testing.T) {
 	rec := newRecorder()
@@ -351,6 +365,33 @@ func TestEngineFailureKeepsOutput(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, clierr.As(err).Format(), "port is already allocated")
+}
+
+// 已知的 AppArmor 失败信号要指回环境检查清单，而不是留一句裸的
+// permission denied 让人自己去猜。
+func TestPodmanDownTranslatesKnownApparmorFailure(t *testing.T) {
+	rec := newRecorder()
+	rec.fail["down"] = errors.New("exit 1")
+	rec.output["down"] = "Error: removing container ...: 1 error occurred:\n" +
+		"\t* rootless netns: kill network process: permission denied\n"
+
+	err := podmanWith(rec).Down(context.Background(), DownRequest{Project: "brickkit-demo"})
+
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Format(), "11-podman-environment-checklist.md")
+}
+
+// 无关的 permission denied 不该套用这条提示——过度匹配会把人引向错误的修法。
+func TestGenericPermissionDeniedGetsNoApparmorHint(t *testing.T) {
+	rec := newRecorder()
+	rec.fail["down"] = errors.New("exit 1")
+	rec.output["down"] = "Error: removing container: permission denied\n"
+
+	err := podmanWith(rec).Down(context.Background(), DownRequest{Project: "brickkit-demo"})
+
+	require.Error(t, err)
+	assert.NotContains(t, clierr.As(err).Format(), "11-podman-environment-checklist.md",
+		"这条提示只匹配那一句具体的 kill network process 特征串，不是任何 permission denied")
 }
 
 // compose 的输出是一长串进度行，**真正的原因在最后**。

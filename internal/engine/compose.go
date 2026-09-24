@@ -202,13 +202,27 @@ func (c *Compose) exec(ctx context.Context, args ...string) ([]byte, error) {
 	}
 	if isMissingBinary(err) {
 		return out, clierr.New(clierr.CodeEngineMissing, i18n.T(msgid.EngineBinaryMissing, c.bin)).
-			WithHint(i18n.T(msgid.EngineHintInstallDocker)).
+			WithHint(installHint(c.bin)).
 			WithCause(err)
 	}
-	return out, clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.EngineExecFailed, c.bin)).
+
+	failure := clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.EngineExecFailed, c.bin)).
 		WithDetail(i18n.T(msgid.LabelCommand), c.bin+" "+strings.Join(args, " ")).
 		WithDetail(i18n.T(msgid.LabelOutput), tail(string(out), 3)).
 		WithCause(err)
+	if strings.Contains(string(out), "kill network process: permission denied") {
+		failure = failure.WithHint(i18n.T(msgid.EnginePodmanDownBlockedByAppArmor))
+	}
+	return out, failure
+}
+
+// installHint 按缺失的二进制给出对应的安装建议——Podman 引擎缺 podman 时
+// 不能还建议装 Docker，那是完全不同的两条路。
+func installHint(bin string) string {
+	if bin == "podman" {
+		return i18n.T(msgid.EngineHintInstallPodman)
+	}
+	return i18n.T(msgid.EngineHintInstallDocker)
 }
 
 // run 执行一条命令：**成功时只返回 stdout，失败时把 stderr 也带上**。
