@@ -473,18 +473,15 @@ func TestProjectDirectoryOmittedWhenUnknown(t *testing.T) {
 	assert.NotContains(t, rec.lastCall(t), "--project-directory")
 }
 
-// 只装了 Podman、没装 Docker 时，报的必须是"暂不支持 Podman"，
-// 而不是笼统的"找不到容器引擎"。
-//
-// 两者该做的下一步完全不同：后者装个 Docker 就好；前者说明问题不在他的机器上。
-// 而且措辞要具体到**卡在哪**——只说"不支持"会让人以为是没做，
-// 真实情况是做过、跑到一半、卡在 `down` 上（005 §7）。
-func TestPodmanOnlyMachineGetsSpecificError(t *testing.T) {
-	err := podmanNotSupported()
+// 只装了 Podman、没装 Docker、也没有显式配置时，报的必须是"检测到但没启用"，
+// 而不是笼统的"找不到容器引擎"，也不能悄悄把 Podman 当默认引擎用——
+// 选中哪个引擎必须来自配置，不能来自"猜"。
+func TestPodmanOnlyMachineGetsEnableHint(t *testing.T) {
+	err := podmanNotEnabled()
 
 	text := clierr.As(err).Format()
-	assert.Contains(t, text, "Podman isn't supported yet")
-	assert.Contains(t, text, "Docker", "要说清该装什么")
-	assert.Contains(t, text, "down", "要说清卡在哪一步")
+	assert.Contains(t, text, "Podman is installed, but not enabled")
+	assert.Contains(t, text, "override")
+	assert.Contains(t, text, "target: podman")
 	assert.Contains(t, text, "--dry-run", "生成文件不需要引擎，这条出路要给出来")
 }

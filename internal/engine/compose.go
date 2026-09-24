@@ -391,13 +391,18 @@ func statusParseError(err error) error {
 
 // Detect 挑选可用的容器引擎（005 §7.4）。
 //
-// 目前只有 Docker 一种。只有真正要启动时才该调用它；只生成文件不需要引擎。
+// 没有显式配置时只在 Docker/Podman 之间按 PATH 挑：Docker 优先，只有 Podman
+// 也不会把它悄悄当默认——选中哪个引擎必须来自配置，不能来自"猜"（这条线
+// resolveEngineFor 的 target: podman 分支也在守）。只有 Podman 时如实提示
+// 怎么显式启用它，而不是把它当"找不到引擎"那样笼统报错。
+//
+// 只有真正要启动时才该调用它；只生成文件不需要引擎。
 func Detect() (Engine, error) {
 	if _, err := exec.LookPath("docker"); err == nil {
 		return NewDocker(), nil
 	}
 	if _, err := exec.LookPath("podman"); err == nil {
-		return nil, podmanNotSupported()
+		return nil, podmanNotEnabled()
 	}
 	return nil, clierr.New(clierr.CodeEngineMissing, i18n.T(msgid.EngineNoneFound)).
 		WithDetail(i18n.T(msgid.EngineLabelTried), "docker compose").
@@ -407,21 +412,17 @@ func Detect() (Engine, error) {
 		)
 }
 
-// podmanNotSupported 在只装了 Podman 的机器上如实说明现状（005 §7）。
+// podmanNotEnabled 在没有显式选择 podman、但机器上只装了 podman 时如实说明现状。
 //
-// 与"没找到引擎"分开报，是因为这两件事该做的下一步完全不同：
-// 前者装个 Docker 就好，后者装了也没用——问题不在使用者的机器上。
-//
-// 措辞刻意具体：只说"不支持"会让人以为是没做，而真实情况是**做过、
-// 跑到了一半、卡在一处我们绕不过去的地方**。把那一处说出来，
-// 使用者才能自己判断他的环境会不会一样卡住。
-func podmanNotSupported() error {
-	return clierr.New(clierr.CodeEngineMissing, i18n.T(msgid.EnginePodmanUnsupported)).
+// 与"没找到引擎"分开报，是因为下一步不同：前者装个 Docker（或者显式选
+// podman）就好；这里则是"你其实可以用它，只是还没告诉配置去用"。也不能因为
+// 只有 Podman 就悄悄拿它当默认引擎——那等于让平台替使用者做了一次没人
+// 要求过的选择。
+func podmanNotEnabled() error {
+	return clierr.New(clierr.CodeEngineMissing, i18n.T(msgid.EnginePodmanNotEnabled)).
 		WithDetail(i18n.T(msgid.EngineLabelDetected), i18n.T(msgid.EnginePodmanDetectedDetail)).
-		WithDetail(i18n.T(msgid.EngineLabelStuckAt), i18n.T(msgid.EnginePodmanStuckDetail)).
-		WithDetail(i18n.T(msgid.EngineLabelWhyNotHalf), i18n.T(msgid.EnginePodmanWhyDetail)).
 		WithHint(
-			i18n.T(msgid.EngineHintInstallDocker),
+			i18n.T(msgid.EngineHintEnablePodman),
 			i18n.T(msgid.EngineHintDryRunNoEngine),
 		)
 }

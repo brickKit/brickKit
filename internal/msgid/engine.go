@@ -20,14 +20,11 @@ const (
 	EngineNoneFound                   = "engine.none_found"
 	EngineLabelTried                  = "engine.label.tried"
 	EngineHintDryRunOnly              = "engine.hint.dry_run_only"
-	EnginePodmanUnsupported           = "engine.podman_unsupported"
 	EngineLabelDetected               = "engine.label.detected"
 	EnginePodmanDetectedDetail        = "engine.podman_detected_detail"
-	EngineLabelStuckAt                = "engine.label.stuck_at"
-	EnginePodmanStuckDetail           = "engine.podman_stuck_detail"
-	EngineLabelWhyNotHalf             = "engine.label.why_not_half"
-	EnginePodmanWhyDetail             = "engine.podman_why_detail"
 	EngineHintDryRunNoEngine          = "engine.hint.dry_run_no_engine"
+	EnginePodmanNotEnabled            = "engine.podman_not_enabled"
+	EngineHintEnablePodman            = "engine.hint.enable_podman"
 )
 
 // internal/engine/kubectl.go

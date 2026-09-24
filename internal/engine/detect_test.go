@@ -34,7 +34,7 @@ func pathWith(t *testing.T, names ...string) {
 	t.Setenv("PATH", dir)
 }
 
-// 有 Docker 就用 Docker。
+// 有 Docker 就用 Docker——没有显式配置时不会自动选 Podman。
 func TestDetectPrefersDocker(t *testing.T) {
 	pathWith(t, "docker", "podman")
 
@@ -45,10 +45,8 @@ func TestDetectPrefersDocker(t *testing.T) {
 		"34.11：两个都在时用 Docker——Podman 那条路已经移除（005 §7）")
 }
 
-// 只有 Podman 时**不是**"找不到引擎"，而是"暂不支持 Podman"。
-//
-// 这两件事该做的下一步完全不同：后者装个 Docker 就好；
-// 前者说明问题不在他的机器上，装了也未必有用。
+// 只有 Podman 时不是"找不到引擎"，而是"检测到了但没启用"——两者该做的下一步
+// 完全不同：后者只需要显式配置去用它，前者才是真的什么都没装。
 func TestDetectReportsPodmanSpecifically(t *testing.T) {
 	pathWith(t, "podman")
 
@@ -56,9 +54,10 @@ func TestDetectReportsPodmanSpecifically(t *testing.T) {
 
 	require.Error(t, err)
 	text := clierr.As(err).Format()
-	assert.Contains(t, text, "Podman isn't supported yet", "34.11：%s", text)
+	assert.Contains(t, text, "Podman is installed, but not enabled", "34.11：%s", text)
+	assert.Contains(t, text, "target: podman", "34.11：要指出怎么显式启用它")
 	assert.NotContains(t, text, "no usable container engine found",
-		"34.11：不能report成笼统的'找不到引擎'——那会让人白装一遍 Docker 之外的东西")
+		"34.11：不能报成笼统的'找不到引擎'——那会让人以为装了也没用，其实装了就能用")
 }
 
 // 两个都没有时报"没有找到可用的容器引擎"，并给出不需要引擎的那条出路。
