@@ -1,7 +1,11 @@
 # `components/` 登记为真正的 git submodule 时，`sync`/`restore --check`/`remove` 的行为缺口
 
 - 日期：2026-09-06
-- 状态：**问题已确认（代码级证据 + 最小复现），修复方向待评估**——不是已批准的设计，写法与决策由你定
+- 状态：**已修复**（commit `9e4a2c9`，同日修复）——按第 5 节方向 1/2/4 的完整形式 + 方向 3 的较窄子选项
+  （`sync`/`remove` 检测到已登记的 submodule 时**报错阻断并给出等价手工步骤**，不是自动执行
+  `git submodule deinit` 那一套 git 操作）；`design/004-CLI 设计.md` §8.2 与
+  `2026-09-02-commit-gate-restore-design.md` 也同步补了"已登记 submodule 是第三种明确支持的
+  形态"这一段
 - 发现于：`be-assembly-standard` 项目（brickKit 的真实使用方）在阶段一给第一个组件 `mdm/customer` 接子模块时
 - 影响面（如果决定修）：`internal/gitrepo`（新增 `.gitmodules` 读取能力）、`internal/workspace`（`Archive`/`Activate`/`RemoveSource`/`RemoveArchived`）、`internal/cli/restore_check.go` 的 `warnGitlinks`、design/004 §3.9 / §8.2
 
