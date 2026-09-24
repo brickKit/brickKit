@@ -461,6 +461,18 @@ test-all: test-unit test-race test-market test-components test-boundary test-err
 COVER_MIN ?= 92
 COVERPKG := -coverpkg=./internal/... -count=1
 
+# cover-check 与 cover-html 都要重新跑一遍 go test 才能拿到 coverage.out；
+# 平时安安静静（test-unit 已经把每个包的 "ok" 刷过一遍，这里没必要重刷），
+# 但测试真失败时不能什么都不吐——否则触发它的人只看得到一句 Error 1。
+define run_cover_tests
+	@log=$$(mktemp) && \
+	if ! $(GO) test $(COVERPKG) -coverprofile=coverage.out ./internal/... >"$$log" 2>&1; then \
+		cat "$$log"; rm -f "$$log"; \
+		exit 1; \
+	fi; \
+	rm -f "$$log"
+endef
+
 .PHONY: cover
 cover: ## 单元测试覆盖率（按函数展开 + 总计）
 	$(GO) test $(COVERPKG) -coverprofile=coverage.out ./internal/... 2>/dev/null || true
@@ -468,13 +480,17 @@ cover: ## 单元测试覆盖率（按函数展开 + 总计）
 
 .PHONY: cover-html
 cover-html: ## 生成 coverage.html 便于本地查看
-	$(GO) test $(COVERPKG) -coverprofile=coverage.out ./internal/... >/dev/null
-	$(GO) tool cover -html=coverage.out -o coverage.html
+	$(call run_cover_tests)
+	@$(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "✅ coverage.html"
 
+# cover-check 挂在 lint 里，是 release.sh 口中"上面有具体是哪一条"的一部分——
+# 一旦这条本身把 go test 的输出吞掉，测试真失败时就只剩一句 Error 1，
+# 上面什么都没有，这个承诺就是假的。所以失败时要把吞掉的输出吐出来再退出；
+# 成功时才维持原来的安静（这条每次 lint 都跑，不该比别的检查吵）。
 .PHONY: cover-check
 cover-check: ## 覆盖率门槛检查（低于 COVER_MIN 则失败）
-	@$(GO) test $(COVERPKG) -coverprofile=coverage.out ./internal/... >/dev/null
+	$(call run_cover_tests)
 	@total=$$($(GO) tool cover -func=coverage.out | awk '/^total:/{gsub("%","",$$3); print $$3}'); \
 	echo "internal 覆盖率：$$total%（门槛 $(COVER_MIN)%）"; \
 	awk -v t="$$total" -v m="$(COVER_MIN)" 'BEGIN{ if (t+0 < m+0) { print "❌ 覆盖率低于门槛"; exit 1 } print "✅ 覆盖率达标" }'
