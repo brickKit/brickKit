@@ -175,8 +175,17 @@ func suggestOverrideRefresh(opts *Options, layout config.Layout, cfg *config.Con
 	if len(changes) == 0 {
 		return
 	}
+	// err != nil 和 ov == nil 是两回事，不能并成同一个"直接放弃"分支：前者是
+	// override.yaml 存在但读不动（权限、符号链接死循环、语法错误……），那是一个
+	// 真错误，该让使用者知道漂移没查成；后者才是"没有这份文件"，无声跳过才对
+	// （ParseOverrideFile 自己的约定，见它的文档注释）。restore 该做的还原早已
+	// 完成，这里只是个附加提醒，所以只警告、不让整条命令失败。
 	ov, err := override.ParseOverrideFile(layout.OverridePath())
-	if err != nil || ov == nil {
+	if err != nil {
+		opts.Printf("%s\n", i18n.T(msgid.CliRestoreOverrideDriftCheckFailed, clierr.As(err).Message))
+		return
+	}
+	if ov == nil {
 		return
 	}
 	for _, note := range override.Drift(cfg, ov) {

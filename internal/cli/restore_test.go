@@ -144,6 +144,30 @@ func TestRestoreSkipsOverrideHintWhenNoBaselineRecorded(t *testing.T) {
 	assert.NotContains(t, r.stdout, "Drift:")
 }
 
+// override.yaml 存在但读不动（这里用自引用符号链接制造 ELOOP，不是文件缺失）
+// ——suggestOverrideRefresh 从前把 ParseOverrideFile 的两种失败当同一回事：
+// `if err != nil || ov == nil { return }`，读不动跟"没有这份文件"一样静默放过，
+// 使用者会以为"没有漂移"，其实是压根没检查成功。真错误要报出来，哪怕只是一句
+// 警告——restore 本身该照样成功（mode 已经真的还原了，漂移检查只是附加的
+// 提醒），不该因为这个附加检查失败就让整条命令报错。
+func TestRestoreWarnsWhenOverrideCanNotBeReadForDriftCheck(t *testing.T) {
+	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
+	gitProject(t, f.Dir)
+	gitDo(t, f.Dir, "add", "-A")
+	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
+
+	f.writeConfig(t, helloDisabled)
+	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
+	path := filepath.Join(f.Dir, "override.yaml")
+	require.NoError(t, os.Symlink(path, path))
+
+	r := runIn(t, f.Dir, "restore")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "override.yaml")
+	assert.Contains(t, r.stdout, "could not be read")
+}
+
 func TestRestoreKeepsUncommittedAddInTheConfig(t *testing.T) {
 	comps := []comp{
 		{ID: "demo/hello", Version: "1.0.0"},

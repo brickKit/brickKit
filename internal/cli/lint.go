@@ -146,21 +146,23 @@ func lintOverride(opts *Options, layout config.Layout, cfg *config.Config) *lint
 	if isNonDefaultConfigRun(opts, layout) {
 		return nil
 	}
-	if _, err := os.Stat(layout.OverridePath()); err != nil {
-		return nil
-	}
 
-	f := &lintFile{path: displayPath(opts.WorkDir, layout.OverridePath())}
-
+	// 不再自己先 os.Stat 探路：那一步只看错误是不是 nil，分不清"文件真的不存在"
+	// 和"存在但读不动"（权限、符号链接死循环……），两种一律当成前者放行——一份
+	// 读不动的 override.yaml 会被悄悄当成没有这份文件，一个字都不提。
+	// ParseOverrideFile 自己已经把这两种情况分开了（文件不存在返回 nil, nil；
+	// 别的错误返回一个真错误），信它的区分就够，不用在它前面再插一层。
 	ov, err := override.ParseOverrideFile(layout.OverridePath())
 	if err != nil {
+		f := &lintFile{path: displayPath(opts.WorkDir, layout.OverridePath())}
 		f.errors = append(f.errors, clierr.As(err))
 		return f
 	}
 	if ov == nil {
-		return f
+		return nil
 	}
 
+	f := &lintFile{path: displayPath(opts.WorkDir, layout.OverridePath())}
 	if err := override.CheckAgainst(cfg, ov); err != nil {
 		f.errors = append(f.errors, clierr.As(err))
 	}

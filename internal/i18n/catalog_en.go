@@ -918,6 +918,7 @@ var en = map[string]string{
 	msgid.CliRestoreNotSet:                                                 "(not set)",
 	msgid.CliRestoreRemoveTheFieldTheCommit:                                "remove the field (the commit doesn't set it)",
 	msgid.CliRestoreError:                                                  "Error: %[1]s",
+	msgid.CliRestoreOverrideDriftCheckFailed:                               "⚠️ override.yaml could not be read, so it wasn't checked for drift: %[1]s",
 	msgid.CliRestoreCheckCannotReadTheComponentDirectory:                   "cannot read the component directory layout about to be committed",
 	msgid.CliRestoreCheckAConflictIsBeingResolved:                          "⚠️  A conflict is being resolved; skipping the component layout check",
 	msgid.CliRestoreCheckIsNotTrackedByGit:                                 "%[1]s is not tracked by git, so there is no declared intent to compare against",
