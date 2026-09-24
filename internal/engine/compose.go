@@ -28,6 +28,15 @@ func NewDocker() *Compose {
 	return &Compose{name: Docker, bin: "docker", base: []string{"compose"}, runner: run}
 }
 
+// NewPodman 返回 podman compose 引擎。
+//
+// podman compose 在已验证的机器上直接调用与 Docker 相同的 docker-compose
+// 二进制，因此 Compose 结构体的其余行为（命令拼装、ps 输出解析、P27 的
+// stdout/stderr 处理）全部原样适用，只有 bin 不同。
+func NewPodman() *Compose {
+	return &Compose{name: Podman, bin: "podman", base: []string{"compose"}, runner: run}
+}
+
 func (c *Compose) Name() string { return c.name }
 
 // Up 启动（compose up -d --wait）。

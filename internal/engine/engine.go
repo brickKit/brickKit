@@ -1,18 +1,21 @@
-// Package engine 抽象底层容器引擎（Docker）与部署目标（Kubernetes）。
+// Package engine 抽象底层容器引擎（Docker、Podman）与部署目标（Kubernetes）。
 //
 // CLI 自己不懂容器，它只做三件事：把 brickkit.yaml 翻译成部署文件、
 // 决定谁该启动、然后把文件交给引擎。这一层的存在是为了让"决定"与"执行"
-// 分开——命令层的逻辑因此可以在没有 Docker 的机器上被完整测试。
+// 分开——命令层的逻辑因此可以在没有 Docker/Podman 的机器上被完整测试。
 //
-// 目前只有 Docker 一种容器引擎。Podman 写过、跑过，因 `down` 无法可靠工作
-// 而移除（005 §7）；`Detect` 在只装了 Podman 的机器上会如实说明这件事。
+// Podman 只能通过 override.yaml 的 target: podman 显式选用——brickkit.yaml
+// 自身的 deploy.target 不接受这个取值，`Detect` 在没有显式配置、且只装了
+// Podman 时也不会把它当默认引擎（选中哪个引擎必须来自配置，不能来自"猜"），
+// 而是提示如何显式启用它（见 podmanNotEnabled）。
 package engine
 
 import "context"
 
-// 引擎名。与 compose 包的 EngineDocker 取值一致。
+// 引擎名。与 compose 包的 EngineDocker/EnginePodman 取值一致。
 const (
 	Docker = "docker"
+	Podman = "podman"
 	// K8s 是 kubectl 引擎。它不是"另一种容器引擎"，而是另一种**部署目标**
 	// （005 §5）：清单交给集群，跑不跑得起来是集群的事。
 	K8s = "k8s"

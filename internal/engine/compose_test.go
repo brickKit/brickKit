@@ -55,6 +55,27 @@ func dockerWith(rec *recorder) *Compose {
 	return c
 }
 
+func podmanWith(rec *recorder) *Compose {
+	c := NewPodman()
+	c.runner = rec.run
+	return c
+}
+
+// bin 换成 podman 之后，实际调用的必须是 podman 二进制，不是 docker——
+// Compose 结构体是共用的，唯一该变的只有 bin。
+func TestPodmanUsesPodmanBinary(t *testing.T) {
+	rec := newRecorder()
+
+	require.NoError(t, podmanWith(rec).Up(context.Background(), UpRequest{
+		File: "f.yaml", Project: "brickkit-my-erp",
+	}))
+
+	call := rec.lastCall(t)
+	assert.Contains(t, call, "podman compose")
+	assert.NotContains(t, call, "docker compose")
+	assert.Equal(t, Podman, podmanWith(rec).Name())
+}
+
 // ============================================================
 // 命令拼装
 // ============================================================
