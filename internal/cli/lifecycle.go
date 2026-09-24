@@ -107,8 +107,16 @@ func loadProject(ctx context.Context, opts *Options) (*project, error) {
 }
 
 // overriddenModeIDs 返回 override.yaml 里明确写了 mode 的组件 ID 集合——只看 Mode
-// 是否非空，不管具体取值：不只是 disable 需要说明来源，debug/local 同样是本地
-// override.yaml 造成的、brickkit.yaml 里看不出来的事实。
+// 是否非空，不管具体取值。
+//
+// 眼下真正用到这份集合的只有 labelIfOverridden，而它只在"没跑"的那一行上加
+// 标记：mode: debug 走本地调试表（renderLocalDebug），mode: local 干脆不进任何
+// 表格（degradedView 的 case c.Mode == config.ModeLocal 那条注释），两者的
+// cascade 状态都是 StateRunning（跟 mode: enabled 一样被钉住），压根不会落进
+// resolvedView 的"没跑"skip 循环——所以目前只有 disable 真正触发过这个标记。
+// 这里仍然按"任意非空 Mode"收集，而不是只收 disable：collect 和 use 分成两处，
+// 是不想让这份集合的语义绑死在 labelIfOverridden 今天唯一的用法上——将来渲染
+// 逻辑一变，不用回来改这里。
 func overriddenModeIDs(ov *override.Override) map[string]bool {
 	if ov == nil {
 		return nil
