@@ -139,6 +139,31 @@ func outputMarks(catalog map[string]string) map[string]bool {
 	return marks
 }
 
+// promptOutputBlocks 认的是围栏块自己的第一行——一句 shell 提示符
+// "$ brickkit <command>"——不是块里输出内容本身的文字。命中之后，提示符
+// 之后、到围栏结束的每一非空行都当成待核对的候选行，即便它不带任何输出符号。
+//
+// 目前只有 brickkit override 的两个例子在里面（CliOverrideWritten、
+// CliOverrideDriftNote 这两条目录文案本身就没有符号前缀，fencedOutputLines
+// 光靠 leadingMark 永远选不到它们，这两行例子因此从来没被这条守卫查过——评审
+// Minor #3）。
+//
+// 关键之处：选中的判据是提示符那一行的字面文字，不是输出内容本身的文字。
+// 早先的写法反过来——从 CliOverrideWritten/CliOverrideDriftNote 的目录文案里
+// 现取"第一个动词之前的固定前缀"当选中条件——看着更"自动跟随目录"，实际是
+// 自我拆台：目录文案的用词一变，那个现取的前缀跟着变，doc 里那行原来的旧文字
+// 立刻不再匹配新前缀，直接从候选集里消失，测试照样全绿——真正需要拦下的那种
+// 漂移反而被静默放过，等于没查。提示符文字（"$ brickkit override"）是一句
+// shell 命令，不随目录文案变，选中条件因此不会因为正是这次漂移而跟着失效。
+//
+// 不是把"任意一行文字都拿去跟目录比"整个打开——那会在全篇文档的大量普通说明
+// 文字、以及本节自己的 `$ cat override.yaml` 文件内容块里制造海量假阳性。
+// 只按这份显式名单认提示符，选中之后走的还是原来那套 conformsToCatalog，
+// 不需要另外的判定逻辑。
+var promptOutputBlocks = map[string]bool{
+	"$ brickkit override": true,
+}
+
 // stripTree 去掉行首的缩进与树形符号（├── └── │）。
 func stripTree(s string) string {
 	s = strings.TrimLeft(s, " ")
@@ -235,7 +260,9 @@ type docOutputLine struct {
 	text string
 }
 
-// fencedOutputLines 返回文件里所有围栏块内、以输出符号开头的行。
+// fencedOutputLines 返回文件里所有围栏块内、以输出符号开头的行；再加上
+// promptOutputBlocks 认下的那些块——首行是认得的 "$ brickkit ..." 提示符——
+// 里提示符之后的每一非空行，即便它不带符号。
 func fencedOutputLines(t *testing.T, rel string, marks map[string]bool) []docOutputLine {
 	t.Helper()
 	body, err := os.ReadFile(filepath.Join(repoRoot, rel))
@@ -243,16 +270,31 @@ func fencedOutputLines(t *testing.T, rel string, marks map[string]bool) []docOut
 
 	var out []docOutputLine
 	inside := false
+	firstLineOfBlock := false
+	promptOutput := false
 	for i, line := range strings.Split(string(body), "\n") {
 		if strings.HasPrefix(line, "```") {
 			inside = !inside
+			firstLineOfBlock = inside
+			promptOutput = false
 			continue
 		}
 		if !inside {
 			continue
 		}
+		if firstLineOfBlock {
+			firstLineOfBlock = false
+			if promptOutputBlocks[strings.TrimSpace(line)] {
+				promptOutput = true
+				continue // 提示符本身是命令，不是输出，不进候选
+			}
+		}
 		rest := stripTree(line)
 		if m := leadingMark(rest); m != "" && marks[m] {
+			out = append(out, docOutputLine{path: rel, n: i + 1, text: line})
+			continue
+		}
+		if promptOutput && strings.TrimSpace(line) != "" {
 			out = append(out, docOutputLine{path: rel, n: i + 1, text: line})
 		}
 	}
@@ -313,6 +355,38 @@ func TestDocOutputLinesConformToCatalog(t *testing.T) {
 			"docs/%s 里这些输出行在 %s 消息目录里找不到对应文案。CLI 改了措辞而文档没跟上，"+
 				"还是文档里抄错了？以真实输出为准改文档；确有理由（比如刻意缩写）再加进 outputLineAllow 并写清理由。\n%s",
 			lang, lang, strings.Join(offenders, "\n"))
+	}
+}
+
+// brickkit override 的两个例子块——"Wrote override.yaml"、"Drift: ..."——不带
+// 任何输出符号（CliOverrideWritten、CliOverrideDriftNote 两条目录文案本身就没有
+// 符号前缀）。fencedOutputLines 只认符号开头的行，这两行因此从没被这条守卫看过：
+// 目录文案哪天改了措辞，这两块例子会悄悄过期而没有任何东西发现（评审 Minor #3）。
+// 这条测试直接读真实文档，钉住这两行确实被选中、也确实与目录一致。
+func TestOverrideCliReferenceExamplesAreChecked(t *testing.T) {
+	cases := []struct {
+		lang i18n.Lang
+		path string
+		want string
+	}{
+		{i18n.EN, "docs/en/06-architecture/09-cli-reference.md", "Wrote override.yaml"},
+		{i18n.EN, "docs/en/06-architecture/09-cli-reference.md",
+			`Drift: demo/hello — "demo/hello"'s mode in brickkit.yaml changed from "enabled" to "" since this override was last confirmed`},
+		{i18n.ZH, "docs/zh/06-architecture/09-cli-reference.md", "已写入 override.yaml"},
+		{i18n.ZH, "docs/zh/06-architecture/09-cli-reference.md",
+			`漂移：demo/hello —— "demo/hello" 在 brickkit.yaml 里的 mode 从 "enabled" 变成了 ""（相对这份覆盖上次确认时）`},
+	}
+	for _, c := range cases {
+		catalog := i18n.CatalogFor(c.lang)
+		marks := outputMarks(catalog)
+		lines := fencedOutputLines(t, c.path, marks)
+		var found bool
+		for _, ln := range lines {
+			if strings.TrimSpace(ln.text) == c.want {
+				found = true
+			}
+		}
+		assert.True(t, found, "%s 里这一行该被这条守卫选中并核对：%q", c.path, c.want)
 	}
 }
 
