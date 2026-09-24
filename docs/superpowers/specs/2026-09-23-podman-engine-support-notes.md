@@ -1,11 +1,11 @@
-# Podman engine support — working notes (paused)
+# Podman engine support — working notes (resolved)
 
-**Status: paused, not a finished spec.** Split off from a combined brainstorm on 2026-09-23. The
-design questions below that are marked "depends on" need the companion spec —
-[deploy-config-override-design](2026-09-23-deploy-config-override-design.md) (or whatever its
-final filename is) — settled first, since engine selection's final shape leans on it. This
-document exists so the decisions and open threads from that brainstorm aren't lost, not to
-pre-empt the still-open items.
+**Status: resolved.** Superseded by
+[2026-09-24-podman-engine-implementation-design.md](2026-09-24-podman-engine-implementation-design.md)
+and its implementation plan. The "still open" items below were answered there: the field shape
+question by the already-shipped `override.yaml` `target` field, the CI guard question by choosing
+unit tests over new CI automation, and the `internal/engine` implementation by `NewPodman()`. This
+file is kept as historical record of the investigation that led there, not as an open task list.
 
 ## Why this is even on the table
 
