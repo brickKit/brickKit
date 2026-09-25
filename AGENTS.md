@@ -621,10 +621,11 @@ of its own, covered in [Self-hosting the BrickKit Market](docs/en/07-patterns/09
 `override.yaml`'s `target: podman` (§7.1) is a real, working deploy engine — not just a
 validated-but-inert config value. Once set, `up`, `down`, and `status` all run against Podman
 instead of Docker, using the exact same generated `docker-compose.yaml` `podman compose` already
-consumes identically to Docker — **as long as `podman compose` resolves to the `docker-compose`
-binary as its external provider**, which is what this was verified against; the environment
-checklist below has the one-line check and what a different provider (`podman-compose`, the
-separate Python implementation) means for BrickKit.
+consumes identically to Docker — assuming Docker is installed alongside Podman, so `podman compose`
+(itself just a dispatcher, with no compose implementation of its own) finds Docker's own Compose V2
+plugin rather than the unrelated, separately-maintained `podman-compose` project. [The environment
+checklist](docs/en/07-patterns/11-podman-environment-checklist.md) has the one-line check and what
+the other path would mean.
 
 **The main prerequisite:** rootless Podman's network-teardown helper, `pasta`, needs a `SIGTERM`
 from `podman` to tear a deployment's network down cleanly on `down`. Most Ubuntu/Debian installs'

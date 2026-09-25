@@ -531,9 +531,11 @@ CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 
 `override.yaml` 的 `target: podman`（§7.1）是一个真正能跑的部署引擎——不是"校验通过但什么都不做"
 的配置项。设了它之后，`up`、`status`、`down` 都会真的对 Podman 生效，用的是与 Docker
-完全同一份生成出来的 `docker-compose.yaml`——**前提是 `podman compose` 背后调用的外部 provider
-是 `docker-compose` 这个二进制**，已验证的正是这一种情况；下面的环境检查清单给了一行就能验证的
-方法，以及换成另一个 provider（`podman-compose`，独立的 Python 实现）对 BrickKit 意味着什么。
+完全同一份生成出来的 `docker-compose.yaml`——前提是 Podman 跟 Docker 装在同一台机器上，这样
+`podman compose`（它自己没有任何 compose 实现，只是个转发器）找到的才是 Docker 自带的
+Compose V2 插件，而不是那个不相关、独立维护的 `podman-compose` 项目。[环境检查清单]
+(docs/zh/07-patterns/11-podman-environment-checklist.md) 给了一行就能验证的方法，以及走另一条路
+意味着什么。
 
 **主要的前提条件：** rootless Podman 的网络拆卸辅助进程 `pasta`，需要收到 `podman` 发来的
 `SIGTERM` 才能在 `down` 时把这次部署的网络干净拆掉。大多数 Ubuntu/Debian 默认的 AppArmor

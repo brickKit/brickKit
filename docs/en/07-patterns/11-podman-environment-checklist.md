@@ -139,18 +139,28 @@ export XDG_CONFIG_HOME="$HOME/.config"
 
 ## One more prerequisite: which compose provider `podman compose` uses
 
-`target: podman` (AGENTS.md §5.10) assumes `podman compose` resolves to the `docker-compose`
-binary as its external provider — that's what was verified, and it's why the same command
-construction and `ps --format json` parsing that already work for Docker need no changes for
-Podman. Confirm this on your machine:
+`podman compose` has no compose implementation of its own — it's a dispatcher. `containers.conf`'s
+`compose_providers` list decides which external program it hands the file to; that list is empty
+by default, which makes Podman fall back to its own built-in search of known locations. On a
+machine that also has Docker installed, that search finds Docker's own Compose V2 plugin binary
+(installed at a path like `/usr/libexec/docker/cli-plugins/docker-compose`) — a completely
+different thing from the separate `podman-compose` project
+(https://github.com/containers/podman-compose, an independently-maintained Python tool that also
+reads Compose files, but talks to Podman directly instead of going through this dispatch at all).
+
+**`target: podman` assumes the first shape: Docker installed alongside Podman, so its Compose V2
+plugin is what `podman compose` finds and uses.** That's what was verified, and it's why the same
+command construction and `ps --format json` parsing that already work for Docker need no changes
+for Podman. BrickKit does not use or configure the standalone `podman-compose` package. Confirm
+which provider your machine resolves to:
 
 ```bash
 podman compose version
 ```
 
 A line like `Executing external compose provider "/usr/libexec/docker/cli-plugins/docker-compose"`
-means you're covered. If `podman-compose` (the separate Python implementation, common via
-`apt install podman-compose` on Debian/Fedora) is installed instead, behavior with BrickKit is
-unverified — at best an engine error, at worst a `status` that silently misreads a running
-component as not running, since `podman-compose`'s own JSON output shape hasn't been checked
-against what `parsePS` expects.
+means you're on the verified path. If it names `podman-compose` instead — which happens on a
+machine with Podman installed but not Docker, once `podman-compose` is installed separately to make
+`podman compose` work at all — behavior with BrickKit is unverified: at best an engine error, at
+worst a `status` that silently misreads a running component as not running, since
+`podman-compose`'s own JSON output shape hasn't been checked against what `parsePS` expects.

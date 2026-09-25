@@ -122,16 +122,25 @@ export XDG_CONFIG_HOME="$HOME/.config"
 
 ## 还有一个前提：`podman compose` 用的是哪个 compose 实现
 
-`target: podman`（AGENTS.md §5.10）的前提是 `podman compose` 背后调用的外部 provider 是
-`docker-compose` 这个二进制——已验证的正是这一种情况，也正因为如此，Docker 那边已经写好的
-命令拼装和 `ps --format json` 解析逻辑，Podman 才不需要任何改动就能直接用。自己的机器上确认一下：
+`podman compose` 自己没有任何 compose 实现——它只是个转发器。`containers.conf` 的
+`compose_providers` 列表决定它把文件交给哪个外部程序；这个列表默认是空的，找不到显式配置就退回
+Podman 自己内置的默认搜索。这台机器如果同时装了 Docker，那次搜索会找到 Docker 自带的 Compose V2
+插件二进制（装在类似 `/usr/libexec/docker/cli-plugins/docker-compose` 这样的路径下）——这跟
+另一个独立的 `podman-compose` 项目（https://github.com/containers/podman-compose，一个独立维护
+的 Python 工具，同样读 Compose 文件，但直接跟 Podman 打交道，完全不走这套转发逻辑）是两回事。
+
+**`target: podman` 的前提就是第一种情况：Docker 跟 Podman 装在同一台机器上，`podman compose`
+找到并用的是它自带的 Compose V2 插件。** 已验证的正是这一种情况，也正因为如此，Docker 那边已经
+写好的命令拼装和 `ps --format json` 解析逻辑，Podman 才不需要任何改动就能直接用。BrickKit
+不使用也不配置那个独立的 `podman-compose` 包。自己的机器上确认一下走的是哪个 provider：
 
 ```bash
 podman compose version
 ```
 
 看到类似 `Executing external compose provider "/usr/libexec/docker/cli-plugins/docker-compose"`
-这样一行，就说明没问题。如果装的是 `podman-compose`（另一个独立的 Python 实现，Debian/Fedora 上
-`apt install podman-compose` 很常见），跟 BrickKit 配合的行为就没有验证过——往好里说是引擎报错，
-往坏里说是 `status` 悄悄把一个正在跑的组件读成没在跑，因为 `podman-compose` 自己的 JSON 输出
-形状有没有对上 `parsePS` 期望的样子，从没检查过。
+这样一行，就说明走的是已验证的路径。如果这里显示的是 `podman-compose`——这种情况出现在机器上
+只装了 Podman、没装 Docker，为了让 `podman compose` 能用而单独装了 `podman-compose` 的场景——
+跟 BrickKit 配合的行为就没有验证过：往好里说是引擎报错，往坏里说是 `status` 悄悄把一个正在跑的
+组件读成没在跑，因为 `podman-compose` 自己的 JSON 输出形状有没有对上 `parsePS` 期望的样子，
+从没检查过。
