@@ -531,14 +531,17 @@ CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 
 `override.yaml` 的 `target: podman`（§7.1）是一个真正能跑的部署引擎——不是"校验通过但什么都不做"
 的配置项。设了它之后，`up`、`status`、`down` 都会真的对 Podman 生效，用的是与 Docker
-完全同一份生成出来的 `docker-compose.yaml`——`podman compose` 消费它的方式和 Docker 一模一样。
+完全同一份生成出来的 `docker-compose.yaml`——**前提是 `podman compose` 背后调用的外部 provider
+是 `docker-compose` 这个二进制**，已验证的正是这一种情况；下面的环境检查清单给了一行就能验证的
+方法，以及换成另一个 provider（`podman-compose`，独立的 Python 实现）对 BrickKit 意味着什么。
 
-**唯一的前提条件：** rootless Podman 的网络拆卸辅助进程 `pasta`，需要收到 `podman` 发来的
+**主要的前提条件：** rootless Podman 的网络拆卸辅助进程 `pasta`，需要收到 `podman` 发来的
 `SIGTERM` 才能在 `down` 时把这次部署的网络干净拆掉。大多数 Ubuntu/Debian 默认的 AppArmor
 策略会拦下这个信号——这是一个已确认的发行版打包缺口
 （[containers/podman#27372](https://github.com/containers/podman/issues/27372)），不是 BrickKit
 或 Podman 自己的 bug。[环境检查清单](docs/zh/07-patterns/11-podman-environment-checklist.md)
-给了诊断脚本（`scripts/podman/check-environment.sh`）和修法（`scripts/podman/fix-apparmor.sh`）。
+给了诊断脚本（`scripts/podman/check-environment.sh`）、修法（`scripts/podman/fix-apparmor.sh`），
+以及上面那条 compose provider 的检查方法。
 
 **CLI 对这件事做了什么、没做什么：** 它自己从不去探测这个前提条件是否满足——那样做等于让平台
 去猜环境是否合适，而不是由项目显式声明（§4"显式优于隐式"）。它确实做的是：如果一次真实的

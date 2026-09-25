@@ -236,7 +236,7 @@ func logsCommand(engineName, project, service string) string {
 		return fmt.Sprintf("kubectl logs %s -n %s", target, project)
 	}
 
-	command := fmt.Sprintf("docker compose -p %s logs", project)
+	command := fmt.Sprintf("%s compose -p %s logs", engineName, project)
 	if service != "" {
 		command += " " + service
 	}

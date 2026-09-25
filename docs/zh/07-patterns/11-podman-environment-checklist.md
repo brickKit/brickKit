@@ -119,3 +119,19 @@ Podman 把存储路径记进了数据库，revision 号一变就对不上，直�
 export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_CONFIG_HOME="$HOME/.config"
 ```
+
+## 还有一个前提：`podman compose` 用的是哪个 compose 实现
+
+`target: podman`（AGENTS.md §5.10）的前提是 `podman compose` 背后调用的外部 provider 是
+`docker-compose` 这个二进制——已验证的正是这一种情况，也正因为如此，Docker 那边已经写好的
+命令拼装和 `ps --format json` 解析逻辑，Podman 才不需要任何改动就能直接用。自己的机器上确认一下：
+
+```bash
+podman compose version
+```
+
+看到类似 `Executing external compose provider "/usr/libexec/docker/cli-plugins/docker-compose"`
+这样一行，就说明没问题。如果装的是 `podman-compose`（另一个独立的 Python 实现，Debian/Fedora 上
+`apt install podman-compose` 很常见），跟 BrickKit 配合的行为就没有验证过——往好里说是引擎报错，
+往坏里说是 `status` 悄悄把一个正在跑的组件读成没在跑，因为 `podman-compose` 自己的 JSON 输出
+形状有没有对上 `parsePS` 期望的样子，从没检查过。

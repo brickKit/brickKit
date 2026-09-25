@@ -136,3 +136,21 @@ flags this for you. The fix is a shell-profile change, not something the fix scr
 export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_CONFIG_HOME="$HOME/.config"
 ```
+
+## One more prerequisite: which compose provider `podman compose` uses
+
+`target: podman` (AGENTS.md §5.10) assumes `podman compose` resolves to the `docker-compose`
+binary as its external provider — that's what was verified, and it's why the same command
+construction and `ps --format json` parsing that already work for Docker need no changes for
+Podman. Confirm this on your machine:
+
+```bash
+podman compose version
+```
+
+A line like `Executing external compose provider "/usr/libexec/docker/cli-plugins/docker-compose"`
+means you're covered. If `podman-compose` (the separate Python implementation, common via
+`apt install podman-compose` on Debian/Fedora) is installed instead, behavior with BrickKit is
+unverified — at best an engine error, at worst a `status` that silently misreads a running
+component as not running, since `podman-compose`'s own JSON output shape hasn't been checked
+against what `parsePS` expects.

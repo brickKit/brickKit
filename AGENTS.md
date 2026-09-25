@@ -621,15 +621,18 @@ of its own, covered in [Self-hosting the BrickKit Market](docs/en/07-patterns/09
 `override.yaml`'s `target: podman` (§7.1) is a real, working deploy engine — not just a
 validated-but-inert config value. Once set, `up`, `down`, and `status` all run against Podman
 instead of Docker, using the exact same generated `docker-compose.yaml` `podman compose` already
-consumes identically to Docker.
+consumes identically to Docker — **as long as `podman compose` resolves to the `docker-compose`
+binary as its external provider**, which is what this was verified against; the environment
+checklist below has the one-line check and what a different provider (`podman-compose`, the
+separate Python implementation) means for BrickKit.
 
-**The one prerequisite:** rootless Podman's network-teardown helper, `pasta`, needs a `SIGTERM`
+**The main prerequisite:** rootless Podman's network-teardown helper, `pasta`, needs a `SIGTERM`
 from `podman` to tear a deployment's network down cleanly on `down`. Most Ubuntu/Debian installs'
 default AppArmor policy blocks that signal — a confirmed distro packaging gap
 ([containers/podman#27372](https://github.com/containers/podman/issues/27372)), not a BrickKit or
 Podman bug. [The environment checklist](docs/en/07-patterns/11-podman-environment-checklist.md)
-has the diagnostic (`scripts/podman/check-environment.sh`) and the fix
-(`scripts/podman/fix-apparmor.sh`).
+has the diagnostic (`scripts/podman/check-environment.sh`), the fix
+(`scripts/podman/fix-apparmor.sh`), and the compose-provider check above.
 
 **What the CLI does and doesn't do about this:** it never probes for that prerequisite itself —
 doing so would mean guessing at environment fitness instead of the project explicitly declaring

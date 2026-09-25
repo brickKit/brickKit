@@ -95,6 +95,26 @@ func TestDownRespectsOverrideTargetDowngrade(t *testing.T) {
 	assert.NotContains(t, r.stdout, "deployed by ops", "不该再说成 k8s 的基础资源由运维部署")
 }
 
+// target: podman 时清理提示要说 podman volume rm，不能还是 docker volume rm——
+// 两个引擎的卷各自存在自己的存储里，docker 的清理命令对 podman 的卷不起作用。
+func TestDownShowsPodmanCleanupHintWithPodmanTarget(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
+	f.writeConfig(t, `components:
+  - id: demo/hello
+    version: 1.0.0
+`)
+	f.writeOverride(t, `target: podman`)
+	eng := newFakeEngine()
+	eng.name = engine.Podman
+	eng.statuses = []engine.Status{{Service: "demo-hello-1-0-0", State: "running", Health: "healthy"}}
+
+	r := runWithEngine(t, eng, f.Dir, "down")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "podman volume rm")
+	assert.NotContains(t, r.stdout, "docker volume rm")
+}
+
 // down 停的是容器，停不掉另一个终端里的 mode: local 裸进程——不说清楚，
 // 使用者会以为 down 之后"一切都停了"。
 func TestDownShowsHintWhenLocalSessionIsRunning(t *testing.T) {

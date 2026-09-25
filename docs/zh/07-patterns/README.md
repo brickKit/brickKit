@@ -38,7 +38,7 @@
 - **07** [合格外壳该满足什么](07-shell-implementers-guide.md) — 写给要自己造"外壳"组件的人
 - **08** [在外壳里合并数据库连接池](08-shared-connection-pools.md) — 合并进同一个外壳的组件怎么共用连接池
 - **10** [密钥](10-secrets.md) — 密钥在每种部署目标上住哪、落在哪，以及两种接密钥管理器的方式
-- **11** [Podman 在 Linux 上：一份环境检查清单](11-podman-environment-checklist.md) — 不是 BrickKit 支持选引擎，是独立跑通 rootless Podman 本身的环境前提
+- **11** [Podman 在 Linux 上：一份环境检查清单](11-podman-environment-checklist.md) — `target: podman` 唯一需要的环境前提；引擎本身怎么工作见 AGENTS.md §5.10
 
 ### 运维
 

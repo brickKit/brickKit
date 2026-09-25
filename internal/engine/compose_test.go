@@ -191,6 +191,24 @@ func TestCheckImageFallsBackToRegistry(t *testing.T) {
 	assert.Contains(t, rec.lastCall(t), "manifest inspect")
 }
 
+// Podman 拉不到镜像时报的也是 "unauthorized"（实测 Podman 5.7），走的是同一条
+// 分支——但建议必须是 podman login，不能是 docker login，podman 引擎的机器上
+// 未必装了 docker，装了也认证不到同一个凭据存储。
+func TestPodmanCheckImageUnauthorized(t *testing.T) {
+	rec := newRecorder()
+	rec.fail["image inspect"] = errors.New("exit 1")
+	rec.fail["manifest inspect"] = errors.New("exit 1")
+	rec.output["manifest inspect"] = "requested access to the resource is denied"
+
+	err := podmanWith(rec).CheckImage(context.Background(), "registry.io/a:1")
+
+	require.Error(t, err)
+	assert.Equal(t, clierr.CodeImageUnauthorized, clierr.As(err).Code)
+	text := clierr.As(err).Format()
+	assert.Contains(t, text, "podman login")
+	assert.NotContains(t, text, "docker login")
+}
+
 func TestCheckImageUnauthorized(t *testing.T) {
 	rec := newRecorder()
 	rec.fail["image inspect"] = errors.New("exit 1")

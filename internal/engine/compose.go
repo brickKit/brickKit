@@ -122,13 +122,14 @@ func (c *Compose) CheckImage(ctx context.Context, image string) error {
 	if err == nil {
 		return nil
 	}
-	return imageError(image, string(out), err)
+	return imageError(c.bin, image, string(out), err)
 }
 
 // imageError 把引擎的输出翻译成一条能指出下一步的错误。
 //
-// 不一律建议 docker login：网络不通时那条建议只会把人引向错误的方向。
-func imageError(image, output string, cause error) error {
+// 不一律建议 docker login：网络不通时那条建议只会把人引向错误的方向；
+// 建议的登录命令也要按 bin 走——podman 引擎的机器上未必装了 docker。
+func imageError(bin, image, output string, cause error) error {
 	text := strings.ToLower(output)
 	switch {
 	// 网络类要先判：`no such host` 是 DNS 查不到，与"镜像不存在"完全是两回事，
@@ -145,7 +146,7 @@ func imageError(image, output string, cause error) error {
 		return clierr.New(clierr.CodeImageUnauthorized, i18n.T(msgid.EngineImageUnauthorized)).
 			WithDetail(i18n.T(msgid.LabelImage), image).
 			WithHint(
-				i18n.T(msgid.EngineHintDockerLogin),
+				i18n.T(msgid.EngineHintDockerLogin, bin),
 				i18n.T(msgid.EngineHintCheckPullPermission),
 			).
 			WithCause(cause)

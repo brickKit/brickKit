@@ -293,6 +293,16 @@ func TestK8sLogsCommandIsKubectl(t *testing.T) {
 	assert.NotContains(t, command, "docker")
 }
 
+// target: podman 时排障命令必须是 podman compose，不能是 docker compose——
+// 两个引擎的容器分别托管在各自的存储里，docker compose 找不到 podman 起的
+// 项目，会安静地打印空输出而不是报错，AGENTS.md §10 已经把这个坑记在案。
+func TestPodmanLogsCommandUsesPodmanBinary(t *testing.T) {
+	command := logsCommand(engine.Podman, "brickkit-my-erp", "people-basic-1-0-0")
+
+	assert.Contains(t, command, "podman compose -p brickkit-my-erp logs")
+	assert.NotContains(t, command, "docker")
+}
+
 // ============================================================
 // 资源可达性：K8s 下不能从本机拨号
 // ============================================================

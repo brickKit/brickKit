@@ -38,7 +38,7 @@ These are **recommended practices**, not hard requirements the platform enforces
 - **07** [Building a Qualified Shell](07-shell-implementers-guide.md) — for whoever is building the shell component itself
 - **08** [Sharing a Database Connection Pool Inside a Shell](08-shared-connection-pools.md) — how components merged into the same shell share a pool
 - **10** [Secrets](10-secrets.md) — where a secret lives and ends up on each deploy target, and the two ways a secret manager plugs in
-- **11** [Podman on Linux: an environment checklist](11-podman-environment-checklist.md) — not a BrickKit engine choice; an environment prerequisite for running rootless Podman itself
+- **11** [Podman on Linux: an environment checklist](11-podman-environment-checklist.md) — the one environment prerequisite `target: podman` needs; see AGENTS.md §5.10 for how the engine itself works
 
 ### Operations
 

@@ -91,7 +91,7 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 		return engineFailure(i18n.T(msgid.CliDownStop), err)
 	}
 
-	renderDownResult(opts, p.cfg.Deploy.Target == config.TargetK8s, running, probed)
+	renderDownResult(opts, p.cfg.Deploy.Target == config.TargetK8s, eng.Name(), running, probed)
 	renderLocalModeSessionHint(opts, p.layout, p.cfg)
 	logging.Info(i18n.T(msgid.LogProjectStopped), "project", p.cfg.Project, "stopped", running)
 	return nil
@@ -114,7 +114,7 @@ func runningCount(ctx context.Context, eng engine.Engine, project string) (n int
 // 引擎里本来就一个都没有时说实话，而不是照例打印"已停止全部组件"——
 // 那句话在一个从没 up 过的项目上是句空话，而使用者真正想知道的是
 // "所以我现在该干什么"。
-func renderDownResult(opts *Options, k8sTarget bool, running int, probed bool) {
+func renderDownResult(opts *Options, k8sTarget bool, engineName string, running int, probed bool) {
 	if probed && running == 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliDownThisProjectHasNoContainers))
 		opts.Printf("%s\n", i18n.T(msgid.CliDownStartItWithBrickkitUp))
@@ -129,7 +129,9 @@ func renderDownResult(opts *Options, k8sTarget bool, running int, probed bool) {
 		opts.Printf("\n%s\n", i18n.T(msgid.CliDownBaseResourcesDatabasesAndSo))
 	} else {
 		opts.Printf("\n%s\n", i18n.T(msgid.CliDownDataVolumesWereNotDeleted))
-		opts.Printf("%s\n", i18n.T(msgid.CliDownForAFullCleanupRun))
+		// engineName 得跟 up 起这批容器用的引擎一致——docker volume rm
+		// 找不到 podman 建的卷，反过来也一样，两个引擎的卷各自存在自己的存储里。
+		opts.Printf("%s\n", i18n.T(msgid.CliDownForAFullCleanupRun, engineName))
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliDownStartAgainWithBrickkitUp))
 }
