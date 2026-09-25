@@ -851,7 +851,7 @@ func TestLocalModeFileIsValidForDockerCompose(t *testing.T) {
 	yamlBytes := b.generate().YAML
 
 	dir := t.TempDir()
-	path := dir + "/docker-compose.yaml"
+	path := dir + "/compose.yaml"
 	require.NoError(t, writeFile(path, yamlBytes))
 
 	output, err := exec.Command("docker", "compose", "-f", path, "config", "--quiet").

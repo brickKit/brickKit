@@ -299,7 +299,7 @@ func TestSyncDoesNotTouchConfigOrGenerated(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 
 	assert.Equal(t, before, f.config(t), "17.10 sync 不写配置")
-	assert.NoFileExists(t, filepath.Join(f.Dir, ".brickkit", "generated", "docker-compose.yaml"))
+	assert.NoFileExists(t, filepath.Join(f.Dir, ".brickkit", "generated", "compose.yaml"))
 }
 
 // ============================================================

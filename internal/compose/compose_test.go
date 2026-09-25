@@ -1,4 +1,4 @@
-// 本文件是 Step 12「docker-compose.yaml 生成」的业务行为测试，
+// 本文件是 Step 12「compose.yaml 生成」的业务行为测试，
 // 覆盖开发计划 12.1–12.16，以及延后项 P2（配额写进部署文件）、P4（expose 端口冲突）、
 // P20（注入引擎接线）、P21（extraPorts 变量出现在 compose 里）。
 //
@@ -1183,7 +1183,7 @@ func TestGeneratedFileIsValidForDockerCompose(t *testing.T) {
 	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
 
 	dir := t.TempDir()
-	path := dir + "/docker-compose.yaml"
+	path := dir + "/compose.yaml"
 	require.NoError(t, writeFile(path, b.generate().YAML))
 
 	cmd := exec.Command("docker", "compose", "-f", path, "config", "--quiet")

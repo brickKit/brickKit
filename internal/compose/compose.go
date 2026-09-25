@@ -1,4 +1,4 @@
-// Package compose 把解析、级联、注入的结果渲染成 docker-compose.yaml
+// Package compose 把解析、级联、注入的结果渲染成 compose.yaml
 // （004 §5.3、005 §5）。
 //
 // 它是纯函数：进去的是配置与三份计算结果，出来的是文件内容与一份
@@ -60,7 +60,7 @@ type ResourceRequirement = deploy.ResourceRequirement
 
 // Result 是一次生成的产物。
 type Result struct {
-	// YAML 是 docker-compose.yaml 的内容。
+	// YAML 是 compose.yaml 的内容。
 	YAML []byte
 	// Resources 是必须先跑起来的基础资源（平台不部署它们，006 §9.1）。
 	Resources []ResourceRequirement
@@ -70,7 +70,7 @@ type Result struct {
 	Warnings []*clierr.Error
 }
 
-// Generate 渲染 docker-compose.yaml。
+// Generate 渲染 compose.yaml。
 //
 // 只渲染**本次实际启动**的组件（级联结果），以及它们用到的、由 CLI 托管的基础资源。
 func Generate(

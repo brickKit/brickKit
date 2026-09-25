@@ -5,7 +5,7 @@ package cli
 // 与 Docker 那条路共用前半段：读配置 → 升级检查 → 解析依赖 → 级联 → 注入。
 // 从"生成什么文件"开始分岔，因为两边确实是两回事：
 //
-//	Docker  一份 docker-compose.yaml，交给 docker compose
+//	Docker  一份 compose.yaml，交给 docker compose
 //	K8s     一整个目录的清单，按顺序 kubectl apply，迁移还要 CLI 自己串行等待
 
 import (

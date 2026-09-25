@@ -28,7 +28,7 @@ const (
 	LabelResource  = "label.resource"
 	LabelShell     = "label.shell"
 
-	// 生成文件（docker-compose.yaml、K8s 清单）头注释的公共部分。
+	// 生成文件（compose.yaml、K8s 清单）头注释的公共部分。
 	HeaderDoNotEdit   = "header.do_not_edit"
 	HeaderOverwritten = "header.overwritten"
 	HeaderGeneratedAt = "header.generated_at"

@@ -141,7 +141,7 @@ func cleanYAMLError(err error) string {
 //	K8s             生成时求值，密钥进 Secret（0600），绝不进 Deployment
 //	local-debug     生成时求值，IDE 不做变量替换
 //
-// 在这里提前展开，变量在进程环境里（CI 里最常见）时明文就会被写进 docker-compose.yaml，
+// 在这里提前展开，变量在进程环境里（CI 里最常见）时明文就会被写进 compose.yaml，
 // 变量在 .env 里时却不会——同一份配置、两种结果，取决于变量放在哪。
 //
 // 其余字段（sources[].url / authToken、deploy.*、资源的 host 等）是 CLI 自己要用的值，仍在解析时展开。

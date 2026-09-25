@@ -84,7 +84,7 @@ func TestUpCommand(t *testing.T) {
 	rec := newRecorder()
 
 	require.NoError(t, dockerWith(rec).Up(context.Background(), UpRequest{
-		File:     "/p/.brickkit/generated/docker-compose.yaml",
+		File:     "/p/.brickkit/generated/compose.yaml",
 		Project:  "brickkit-my-erp",
 		Services: []string{"people-basic-1-0-0"},
 	}))
@@ -92,7 +92,7 @@ func TestUpCommand(t *testing.T) {
 	call := rec.lastCall(t)
 	assert.Contains(t, call, "docker compose")
 	assert.Contains(t, call, "-p brickkit-my-erp", "项目名必须显式传，否则所有项目都叫 generated")
-	assert.Contains(t, call, "-f /p/.brickkit/generated/docker-compose.yaml")
+	assert.Contains(t, call, "-f /p/.brickkit/generated/compose.yaml")
 	assert.Contains(t, call, "up -d --wait")
 	assert.Contains(t, call, "people-basic-1-0-0")
 }
@@ -457,7 +457,7 @@ func TestUpReadsDotEnvFromProjectDirectory(t *testing.T) {
 	rec := newRecorder()
 
 	require.NoError(t, dockerWith(rec).Up(context.Background(), UpRequest{
-		File: "/p/.brickkit/generated/docker-compose.yaml", Project: "brickkit-demo",
+		File: "/p/.brickkit/generated/compose.yaml", Project: "brickkit-demo",
 		ProjectDir: "/p",
 	}))
 
@@ -485,7 +485,7 @@ func TestProjectDirectoryOmittedWhenUnknown(t *testing.T) {
 	rec := newRecorder()
 
 	require.NoError(t, dockerWith(rec).Up(context.Background(), UpRequest{
-		File: "/p/.brickkit/generated/docker-compose.yaml", Project: "brickkit-demo",
+		File: "/p/.brickkit/generated/compose.yaml", Project: "brickkit-demo",
 	}))
 
 	assert.NotContains(t, rec.lastCall(t), "--project-directory")

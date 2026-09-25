@@ -1,6 +1,6 @@
 // Package yamlcomment 生成 YAML / .env / .gitignore 这类文件里的多行注释块。
 //
-// 平台写出的文件（brickkit.yaml 骨架、component.yaml 骨架、docker-compose.yaml、
+// 平台写出的文件（brickkit.yaml 骨架、component.yaml 骨架、compose.yaml、
 // local-debug.*.env）开头都带说明注释，而说明文字要跟着语言变——各语言要几行由
 // 消息目录自己决定，所以这里按行拆开加前缀，而不是让调用方写死行数。排版只在这一处定义。
 package yamlcomment

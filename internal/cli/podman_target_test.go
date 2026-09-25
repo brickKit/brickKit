@@ -12,7 +12,7 @@ import (
 )
 
 // --dry-run 只需要生成一份 compose 文件——engine-agnostic，podman 消费的是
-// 同一份 docker-compose.yaml。target: podman 不该拦住它。
+// 同一份 compose.yaml。target: podman 不该拦住它。
 func TestUpDryRunSucceedsWithPodmanTarget(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
 	f.writeConfig(t, `components:

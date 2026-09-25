@@ -57,7 +57,7 @@ func TestUpWithAlternateConfig(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, []string{"people-basic-1-0-0"}, eng.lastUp(t).Services, "15.12")
 	// 004 §3.5：生成的部署文件仍写进默认的 .brickkit/ 目录
-	assert.FileExists(t, filepath.Join(f.Dir, ".brickkit", "generated", "docker-compose.yaml"))
+	assert.FileExists(t, filepath.Join(f.Dir, ".brickkit", "generated", "compose.yaml"))
 }
 
 // prodConfig 造一份"只装一个组件"的备用配置。

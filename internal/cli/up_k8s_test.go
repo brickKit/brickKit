@@ -90,7 +90,7 @@ func TestUpK8sGeneratesManifests(t *testing.T) {
 	assert.FileExists(t, filepath.Join(k8sDir(f), "deployments", "people-basic-1-0-0.yaml"))
 	assert.FileExists(t, filepath.Join(k8sDir(f), "services", "people-basic-1-0-0.yaml"))
 	assert.NoFileExists(t,
-		filepath.Join(f.Dir, ".brickkit", "generated", "docker-compose.yaml"),
+		filepath.Join(f.Dir, ".brickkit", "generated", "compose.yaml"),
 		"K8s 项目不该留下一份毫无意义的 compose 文件")
 }
 

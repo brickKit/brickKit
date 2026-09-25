@@ -123,9 +123,9 @@ func TestParseDotEnvMatchesDockerCompose(t *testing.T) {
 	for _, name := range names {
 		compose.WriteString("      - " + name + "=${" + name + "}\n")
 	}
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "docker-compose.yaml"), []byte(compose.String()), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "compose.yaml"), []byte(compose.String()), 0o600))
 
-	cmd := exec.Command("docker", "compose", "-f", filepath.Join(dir, "docker-compose.yaml"), "config")
+	cmd := exec.Command("docker", "compose", "-f", filepath.Join(dir, "compose.yaml"), "config")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "docker compose config 失败：\n%s", out)

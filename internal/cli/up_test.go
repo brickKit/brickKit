@@ -45,7 +45,7 @@ func TestUpHandsGeneratedFileToEngine(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
 
-	expected := filepath.Join(f.Dir, ".brickkit", "generated", "docker-compose.yaml")
+	expected := filepath.Join(f.Dir, ".brickkit", "generated", "compose.yaml")
 	assert.Equal(t, expected, eng.lastUp(t).File)
 	assert.FileExists(t, expected)
 }

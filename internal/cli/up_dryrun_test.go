@@ -19,11 +19,11 @@ import (
 	"github.com/brickkit/brickkit/internal/workspace"
 )
 
-// generatedCompose 读出生成的 docker-compose.yaml。
+// generatedCompose 读出生成的 compose.yaml。
 func generatedCompose(t *testing.T, dir string) string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(dir, ".brickkit", "generated", "docker-compose.yaml"))
-	require.NoError(t, err, "应生成 .brickkit/generated/docker-compose.yaml")
+	data, err := os.ReadFile(filepath.Join(dir, ".brickkit", "generated", "compose.yaml"))
+	require.NoError(t, err, "应生成 .brickkit/generated/compose.yaml")
 	return string(data)
 }
 
@@ -76,7 +76,7 @@ func TestUpDryRunGeneratesComposeFile(t *testing.T) {
 	assert.Contains(t, text, "erp-backend-1-0-0:")
 	assert.Contains(t, text, "PEOPLE_BASIC_ENDPOINT=http://people-basic-1-0-0:8080")
 	assert.Contains(t, r.stdout, "📄 Generated")
-	assert.Contains(t, r.stdout, ".brickkit/generated/docker-compose.yaml")
+	assert.Contains(t, r.stdout, ".brickkit/generated/compose.yaml")
 }
 
 // --dry-run 不能启动任何东西：它的全部意义就是"先看看会生成什么"。
@@ -376,7 +376,7 @@ func TestUpDryRunWithNothingRunning(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "No component will start this run")
-	assert.NoFileExists(t, filepath.Join(f.Dir, ".brickkit", "generated", "docker-compose.yaml"))
+	assert.NoFileExists(t, filepath.Join(f.Dir, ".brickkit", "generated", "compose.yaml"))
 }
 
 // 空项目给出引导，而不是报错。

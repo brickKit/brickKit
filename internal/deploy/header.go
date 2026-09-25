@@ -9,7 +9,7 @@ import (
 	"github.com/brickkit/brickkit/internal/yamlcomment"
 )
 
-// FileHeader 是 docker-compose.yaml 和 K8s 清单共用的头注释。
+// FileHeader 是 compose.yaml 和 K8s 清单共用的头注释。
 //
 // 这些文件会被人打开看、被 git 记录，所以要写清楚"这是谁生成的、别手改"。
 // 前两行、生成时间、项目名两种目标完全一样，各自特有的行（deploy.target、

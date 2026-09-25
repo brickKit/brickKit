@@ -188,7 +188,7 @@ func BenchmarkParseConfig100(b *testing.B) {
 	}
 }
 
-// 36.6 docker-compose.yaml 生成（50 个组件）。
+// 36.6 compose.yaml 生成（50 个组件）。
 //
 // 这条走的是完整链路：解析 → 级联 → 注入 → 生成，
 // 因为使用者感知到的"生成有多慢"就是这一整条。

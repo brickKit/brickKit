@@ -31,7 +31,12 @@ import (
 )
 
 // composeFileName 是生成的部署文件名（004 §3.5 输出样例）。
-const composeFileName = "docker-compose.yaml"
+//
+// 叫 compose.yaml 而不是 docker-compose.yaml：这份文件遵循的是 Compose
+// 规范（compose-spec.io），Docker、Podman 都能消费同一份——带上 docker
+// 前缀会让人误以为它是 Docker 专属的，而 target: podman（§5.10）读的正是
+// 同一份文件。
+const composeFileName = "compose.yaml"
 
 // newUpCommand 实现 brickkit up（004 §3.5）。
 func newUpCommand(opts *Options) *cobra.Command {

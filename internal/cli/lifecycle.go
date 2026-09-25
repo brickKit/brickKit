@@ -218,7 +218,7 @@ func (p *project) debugRefs() []resolver.Ref {
 //
 // 这条命令从前长这样：
 //
-//	docker compose --project-directory . -p brickkit-x -f .brickkit/generated/docker-compose.yaml logs -f <服务名>
+//	docker compose --project-directory . -p brickkit-x -f .brickkit/generated/compose.yaml logs -f <服务名>
 //
 // 两个多出来的参数是互为因果的：带了 `-f`，compose 就要插值那份文件，
 // 于是要 `--project-directory` 指路去找项目根的 `.env`，否则每次看日志
