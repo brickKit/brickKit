@@ -35,7 +35,7 @@ graph TD
 
 ### 1. vs. Docker Compose
 
-**What it is:** Docker Compose is Docker's own orchestration tool: in one `docker-compose.yaml` you write down which containers you want, which images they use and what ports and environment variables they get, and `docker compose up` starts them all together.
+**What it is:** Docker Compose is Docker's own orchestration tool: in one `compose.yaml` you write down which containers you want, which images they use and what ports and environment variables they get, and `docker compose up` starts them all together.
 
 | Dimension | Docker Compose | BrickKit |
 | --- | --- | --- |

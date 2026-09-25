@@ -48,13 +48,13 @@ brickkit up --dry-run
    1. demo-hello-1-0-0  no dependencies
 
 Can start on their own: demo-hello-1-0-0 (no dependencies)
-📄 Generated: .brickkit/generated/docker-compose.yaml
+📄 Generated: .brickkit/generated/compose.yaml
 
 The following mode: local component(s) would start:
    demo/hello@1.0.0  go run .
 
 💡 --dry-run only generates the files and starts no component
-   View it: cat .brickkit/generated/docker-compose.yaml
+   View it: cat .brickkit/generated/compose.yaml
 ```
 
 `--dry-run` still means "show what would happen, start nothing" — for a `mode: local` component that includes the one thing there's no deployment file to inspect: the command it detected. Nothing in `component.yaml` said `go run .` anywhere. BrickKit found `go.mod` and a root-level `package main` in the component's source directory and worked the rest out on its own (AGENTS.md §5.6 covers the full detection table — Node, Java, Python, and a handful of others each have their own marker file). A compose file still gets generated — a project can mix `mode: local` components with ordinary containers, and this one just happens to have zero of the latter.

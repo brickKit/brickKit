@@ -42,7 +42,7 @@
 | BrickKit Market（组件市场） | npmjs.com / Docker Hub / App Store |
 | Component（组件） | npm package / Docker image |
 | `component.yaml`（Manifest） | `package.json` |
-| `brickkit.yaml`（项目配置） | `docker-compose.yaml` 的"声明式输入" |
+| `brickkit.yaml`（项目配置） | `compose.yaml` 的"声明式输入" |
 | `brickkit add` | `npm install` |
 | `brickkit up` | `docker compose up -d` / `kubectl apply` |
 
@@ -91,7 +91,7 @@ brickkit.yaml（声明）+ override.yaml（可选，本地专属——最先合�
    ↓ ① 启停判定：算出这次实际该启动哪些组件（`mode` + 依赖图，跟着上层走）
    ↓ ② 依赖解析：递归展开依赖树，强依赖缺失报错，拓扑排序得出启动顺序
    ↓ ③ 环境变量注入：依赖地址、资源连接、自身配置 → 环境变量
-   ↓ ④ 生成部署文件：docker-compose.yaml 或 K8s Deployment/Service/Ingress
+   ↓ ④ 生成部署文件：compose.yaml 或 K8s Deployment/Service/Ingress
    ↓ ⑤ 执行迁移：K8s Job / Docker 一次性 service，失败则阻断主服务
    ↓ ⑥ 调用底层引擎：docker compose up -d / kubectl apply
 运行中的容器
@@ -249,7 +249,7 @@ configSchema 里的配置项名转大写后不得与之冲突——**市场在�
 **密钥与普通值走不同的路。** 资源密码（`DATABASE_PASSWORD` 等）一律是密钥；组件自己的配置项只有在
 `configSchema` 里写了 `secret: true` 才算（平台从不按名字猜）。`deploy.target: k8s` 下，密钥进平台生成的
 `Secret`（文件权限 0600），Deployment 里只有 `secretKeyRef`；其余都是明文 `env`。Docker 下，`config` 与
-`resources[].password` 里的 `${VAR}` 在 CLI 写 `docker-compose.yaml` 时**从不**求值——由 `docker compose`
+`resources[].password` 里的 `${VAR}` 在 CLI 写 `compose.yaml` 时**从不**求值——由 `docker compose`
 启动时求值（先进程环境、后 `.env`）。`brickkit.yaml` 里永远只有引用。平台没有内置"去 Vault 取值"，
 以后也不会有（§4.1）：任何能把值放进进程环境的工具都行——而对于外部系统（Vault Secrets Operator、
 External Secrets Operator、Sealed Secrets……）已经在集群里建好的 Secret，`resources[].existingSecret`
@@ -313,7 +313,7 @@ External Secrets Operator、Sealed Secrets……）已经在集群里建好的 S
 ### 5.5 部署文件生成与数据库迁移
 
 组件仓库里**绝不自带**任何环境相关的部署文件。CLI 读统一的 `component.yaml`，
-按 `deploy.target` 动态生成 `docker-compose.yaml` 或 K8s `Deployment/Service/Ingress`。
+按 `deploy.target` 动态生成 `compose.yaml` 或 K8s `Deployment/Service/Ingress`。
 切换环境只改一个字段：
 
 ```yaml
@@ -531,7 +531,7 @@ CLI **不管 Git 权限**：fork、remote、push 全是用户自己的事。
 
 `override.yaml` 的 `target: podman`（§7.1）是一个真正能跑的部署引擎——不是"校验通过但什么都不做"
 的配置项。设了它之后，`up`、`status`、`down` 都会真的对 Podman 生效，用的是与 Docker
-完全同一份生成出来的 `docker-compose.yaml`——前提是 Podman 跟 Docker 装在同一台机器上，这样
+完全同一份生成出来的 `compose.yaml`——前提是 Podman 跟 Docker 装在同一台机器上，这样
 `podman compose`（它自己没有任何 compose 实现，只是个转发器）找到的才是 Docker 自带的
 Compose V2 插件，而不是那个不相关、独立维护的 `podman-compose` 项目。[环境检查清单]
 (docs/zh/07-patterns/11-podman-environment-checklist.md) 给了一行就能验证的方法，以及走另一条路
@@ -935,7 +935,7 @@ brickkit up                           # 生成部署文件 → 跑迁移 → 起
 多版本共存只是物理缓冲，数据层兼容由使用者保证。
 
 **9.4 为什么组件不自带部署文件？**
-一套 Manifest、两种环境。组件开发者不必同时维护 `docker-compose.yaml` 和 K8s 三件套。
+一套 Manifest、两种环境。组件开发者不必同时维护 `compose.yaml` 和 K8s 三件套。
 组件只描述"我是什么、我需要什么"，不关心"我跑在哪里"。
 
 **9.5 为什么 CLI 是用完即走的本地工具，不是常驻 Server？**
@@ -1140,7 +1140,7 @@ internal/              CLI 实现
   ├── cascade/           启停判定：算出这次实际启动谁（跟着上层走）
   ├── skills/           内嵌的 AI 助手技能资产 + 五态判定（brickkit skills）
   ├── inject/            环境变量注入与资源配额合并
-  ├── compose/           docker-compose.yaml 生成
+  ├── compose/           compose.yaml 生成
   ├── k8s/               Kubernetes 清单生成
   ├── engine/            docker compose / kubectl 驱动
   ├── source/            安装源：market / git / local

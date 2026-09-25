@@ -614,7 +614,7 @@ brickkit fetch infra/notifier         # 取最新版本的产物
 Manifest → 启停判定（跟着上层走：顶层组件没写 `mode` 就默认跑，下层
 跟着上层里需要它的那个走，AGENTS.zh.md §5.4）→ 检查强依赖（缺失报错）和
 弱依赖（缺失警告，且完全不注入那个依赖的 `*_ENDPOINT`）→ 拓扑排序得出启
-动顺序 → 生成 `docker-compose.yaml`（或 K8s 清单），注入环境变量、合并
+动顺序 → 生成 `compose.yaml`（或 K8s 清单），注入环境变量、合并
 资源配额 → 给任何 `mode: debug` 组件生成
 `local-debug.<版本化服务名>.env` → 检测镜像拉取权限（未授权时提示
 `docker login`）→ 调用底层引擎，先跑一次性容器执行声明的迁移，失败则阻
@@ -665,7 +665,7 @@ $ brickkit up --dry-run
 依赖图：
    people/basic@1.0.0 → department/tree@1.0.0
                       → infra/redis-event-bus@1.0.0（弱，未安装）
-📄 已生成：.brickkit/generated/docker-compose.yaml
+📄 已生成：.brickkit/generated/compose.yaml
 
 🔧 启动前会执行的数据库迁移（失败则该组件不会启动）：
    department/tree@1.0.0  /app/department-tree migrate
@@ -1022,7 +1022,7 @@ CLI 默认说英文。`brickkit lang` 告诉你它现在说的是哪种语言，
 
 不是受支持语言的值（`en` 或 `zh`，大小写不敏感）当作没设，接着看下一层——它永远不会变成一个报错，所以 shell 配置里残留一句 `BRICKKIT_LANG=fr`，你得到的是下一层的语言，而不是一个坏掉的 CLI。**刻意没有** `--lang` 参数：语言必须在命令树搭起来**之前**就确定（`--help` 的文字也是翻译过的），而命令行参数要等命令树搭好、cobra 解析完才拿得到。
 
-**跟着语言走的：** CLI 打印给人看的一切——命令输出、报错和建议、警告、`--help`；stderr 上 JSON 日志的 `message` 与 `error` 字段；以及 CLI 写进它生成的文件里的注释（`brickkit init` 生成的 `brickkit.yaml` 骨架、`docker-compose.yaml` 的文件头、`local-debug.env`、`brickkit new` 的骨架）。
+**跟着语言走的：** CLI 打印给人看的一切——命令输出、报错和建议、警告、`--help`；stderr 上 JSON 日志的 `message` 与 `error` 字段；以及 CLI 写进它生成的文件里的注释（`brickkit init` 生成的 `brickkit.yaml` 骨架、`compose.yaml` 的文件头、`local-debug.env`、`brickkit new` 的骨架）。
 
 **永远不变的：** JSON 日志行里的 `error_code`（不管什么语言，脚本都可以放心依赖它）、命令名与参数名、YAML 的键、你自己写的任何东西，以及不是 CLI 自己说的话——组件自己的日志，或者市场服务端拒绝某个请求时回传的原因（服务端目前只说中文）。
 

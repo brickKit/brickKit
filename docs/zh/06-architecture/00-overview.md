@@ -29,7 +29,7 @@ sequenceDiagram
     CLI->>CLI: ① cascade — decide which components actually start this time (top-down inheritance)
     CLI->>CLI: ② resolve — expand the dependency tree, topological sort
     CLI->>CLI: ③ inject — dependency addresses, resource connections, own config → env vars
-    CLI->>CLI: ④ generate — docker-compose.yaml or K8s Deployment/Service/Ingress
+    CLI->>CLI: ④ generate — compose.yaml or K8s Deployment/Service/Ingress
     CLI->>Docker: ⑤ run migrations (blocks main service on failure)
     CLI->>Docker: ⑥ docker compose up -d / kubectl apply
     Docker-->>U: running containers
@@ -40,7 +40,7 @@ sequenceDiagram
 - **① cascade** 判定这三个组件都没写 `mode`，且都处于依赖链顶端或被顶端组件需要，三个都启动；
 - **② resolve** 展开依赖树、拓扑排序，得出启动顺序必须是 `department-tree` → `people-basic` → `erp-backend`（被依赖的先起）；
 - **③ inject** 给 `people/basic` 写入 `DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080`，给 `erp/backend` 写入指向 `people-basic` 的地址；
-- **④ generate** 把这几个组件各自的 `component.yaml` 翻译成 `docker-compose.yaml` 里各自的 service——这只是 `erp/backend` 完整依赖树对应的那批 service 里的一部分（这一步到底翻译出了什么、两个部署目标逐字节对照，见[部署文件是怎么生成出来的](03-deployment-generation.md)）；
+- **④ generate** 把这几个组件各自的 `component.yaml` 翻译成 `compose.yaml` 里各自的 service——这只是 `erp/backend` 完整依赖树对应的那批 service 里的一部分（这一步到底翻译出了什么、两个部署目标逐字节对照，见[部署文件是怎么生成出来的](03-deployment-generation.md)）；
 - **⑤ run migrations** 先跑 `department-tree` 和 `people-basic` 各自声明的迁移命令（`erp/backend` 没有 `migration` 字段，跳过）——`auth/password-login` 与 `authorization/rbac` 也各自声明了迁移，同样会被执行；
 - **⑥** 最后 `docker compose up -d` 把这几个容器拉起来（`erp/backend` 剩下的依赖也一并起来）。
 
@@ -69,7 +69,7 @@ my-shop/                          ← 项目根目录
 ```
 
 - **`manifests/` 与 `artifacts/` 是缓存，默认提交、团队共享同一份。** `up` 读的是 `manifests/` 里的 Manifest，从不需要组件的代码；缺失或损坏时会从安装源重新拉取。例外是由本地安装源提供的组件（包括你用 `--repo` 克隆进 `components/` 的）：它的 `component.yaml` 每次运行都直接从那个目录重读，不走缓存。产物由 `add` / `fetch` 下载。`init` 追加的 `.gitignore` 里对应的两行默认是注释掉的，想忽略它们就取消注释。
-- **`generated/` 每次 `up` 都会重写，别手改。** 里面是 `docker-compose.yaml`（`deploy.target: k8s` 时是 `k8s/` 目录），以及 `mode: debug` 组件的 `local-debug.<版本化服务名>.env`。默认被 `.gitignore` 忽略——后一种文件里可能带着解析后的配置值。
+- **`generated/` 每次 `up` 都会重写，别手改。** 里面是 `compose.yaml`（`deploy.target: k8s` 时是 `k8s/` 目录），以及 `mode: debug` 组件的 `local-debug.<版本化服务名>.env`。默认被 `.gitignore` 忽略——后一种文件里可能带着解析后的配置值。
 - **`credentials` 只有 `brickkit login` 之后才存在**，默认被 `.gitignore` 忽略。
 - **`skills.lock` 要提交**：它让别人的 CLI 分得清"你手改过这个技能文件"和"CLI 升级让它过期了"。
 

@@ -68,7 +68,7 @@ brickkit up --dry-run
    1. demo-hello-1-0-0  无依赖
 
 可独立启动：demo-hello-1-0-0（无依赖）
-📄 已生成：.brickkit/generated/docker-compose.yaml
+📄 已生成：.brickkit/generated/compose.yaml
 ```
 
 `--dry-run` 把该算的都算了、部署文件也写出来了，但什么都不启动——你还在检查的时候，想跑多少次都安全。给 `brickkit.yaml` 里那个组件条目加上 `expose: true` 和 `exposePort: 8080`，这样它才能真的从你自己的机器上访问到（默认不暴露是一个刻意的默认值——AGENTS.zh.md §4——不是漏掉了什么）：

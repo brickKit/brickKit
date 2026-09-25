@@ -35,7 +35,7 @@ graph TD
 
 ### 1. vs Docker Compose
 
-**它是什么：** Docker Compose 是 Docker 自带的编排工具：你用一份 `docker-compose.yaml` 写下"要哪几个容器、各自用什么镜像、端口和环境变量是什么"，`docker compose up` 就把它们一起启动。
+**它是什么：** Docker Compose 是 Docker 自带的编排工具：你用一份 `compose.yaml` 写下"要哪几个容器、各自用什么镜像、端口和环境变量是什么"，`docker compose up` 就把它们一起启动。
 
 | 维度 | Docker Compose | BrickKit |
 | --- | --- | --- |

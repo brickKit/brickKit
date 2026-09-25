@@ -29,7 +29,7 @@ sequenceDiagram
     CLI->>CLI: ① cascade — decide which components actually start this time (top-down inheritance)
     CLI->>CLI: ② resolve — expand the dependency tree, topological sort
     CLI->>CLI: ③ inject — dependency addresses, resource connections, own config → env vars
-    CLI->>CLI: ④ generate — docker-compose.yaml or K8s Deployment/Service/Ingress
+    CLI->>CLI: ④ generate — compose.yaml or K8s Deployment/Service/Ingress
     CLI->>Docker: ⑤ run migrations (blocks main service on failure)
     CLI->>Docker: ⑥ docker compose up -d / kubectl apply
     Docker-->>U: running containers
@@ -40,7 +40,7 @@ Here is that same pipeline made concrete with components that actually exist in 
 - **① cascade** finds none of the three declare `mode`, and each is either at the top of the dependency chain or required by something that is, so all three start;
 - **② resolve** expands the dependency tree and topologically sorts it, which forces the start order `department-tree` → `people-basic` → `erp-backend` (dependencies before dependents);
 - **③ inject** writes `DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080` for `people/basic`, and a similar address pointing at `people-basic` for `erp/backend`;
-- **④ generate** translates each of these components' `component.yaml` into its own service in `docker-compose.yaml` — one part of the full service set generated for `erp/backend`'s complete dependency tree (see [Deployment file generation](03-deployment-generation.md) for what that translation actually produces, on both targets, down to the byte);
+- **④ generate** translates each of these components' `component.yaml` into its own service in `compose.yaml` — one part of the full service set generated for `erp/backend`'s complete dependency tree (see [Deployment file generation](03-deployment-generation.md) for what that translation actually produces, on both targets, down to the byte);
 - **⑤ run migrations** runs the migration commands `department-tree` and `people-basic` each declare (`erp/backend` itself has no `migration` field, so it's skipped) — `auth/password-login` and `authorization/rbac` each declare their own migration too, run the same way;
 - **⑥** finally, `docker compose up -d` brings these containers up (along with the rest of `erp/backend`'s dependency set).
 
@@ -69,7 +69,7 @@ my-shop/                          ← project root
 ```
 
 - **`manifests/` and `artifacts/` are caches, committed by default so the team shares one copy.** `up` reads the Manifests in `manifests/` and never needs a component's code; a missing or corrupt one is fetched again from its source. The exception is a component a local source provides (including any you `--repo`-cloned into `components/`): its `component.yaml` is re-read from that directory on every run and never cached. Artifacts are downloaded by `add` / `fetch`. The two matching lines in the `.gitignore` that `init` appends are commented out by default; uncomment them to ignore these.
-- **`generated/` is rewritten by every `up` — don't hand-edit it.** It holds `docker-compose.yaml` (a `k8s/` directory when `deploy.target: k8s`), plus `local-debug.<versioned-service-name>.env` for `mode: debug` components. It's ignored by `.gitignore` by default — the latter can carry resolved config values.
+- **`generated/` is rewritten by every `up` — don't hand-edit it.** It holds `compose.yaml` (a `k8s/` directory when `deploy.target: k8s`), plus `local-debug.<versioned-service-name>.env` for `mode: debug` components. It's ignored by `.gitignore` by default — the latter can carry resolved config values.
 - **`credentials` only exists after `brickkit login`**, and is ignored by `.gitignore` by default.
 - **`skills.lock` should be committed**: it lets someone else's CLI tell "you hand-edited this skill file" apart from "a CLI upgrade made it stale".
 

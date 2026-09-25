@@ -792,10 +792,10 @@ $ diff <(brickkit up --dry-run --config brickkit.dev.yaml 2>&1 | grep -v '^{') \
 <
 < Dependency graph:
 <    acme/web@0.1.0 → erp/backend@0.1.0
-< 📄 Generated: .brickkit/generated/docker-compose.yaml
+< 📄 Generated: .brickkit/generated/compose.yaml
 <
 < 💡 --dry-run only generates the files and starts no component
-<    View it: cat .brickkit/generated/docker-compose.yaml
+<    View it: cat .brickkit/generated/compose.yaml
 ---
 > 📋 No component will start this run
 >    None of the top-level components (the ones no other component depends on) run this time:
@@ -814,7 +814,7 @@ Two things worth knowing, both found by actually running this:
 
 - Any `up --dry-run` that has at least one component to start fully
   regenerates that target's output from scratch: Docker's
-  `docker-compose.yaml` gets overwritten whole, and Kubernetes'
+  `compose.yaml` gets overwritten whole, and Kubernetes'
   `.brickkit/generated/k8s/` subdirectory gets removed and rewritten. So
   narrowing the config and re-running the *same* target correctly cleans up
   a disabled component's old files too — no leftover `deployments/`,
@@ -833,7 +833,7 @@ Two things worth knowing, both found by actually running this:
 One honest limitation: this only compares the *startup decision* — which
 components would run, and why — as text. It doesn't compare the rendered
 deployment files themselves; when dev is `docker` and prod is `k8s`, those
-two outputs (a `docker-compose.yaml` versus a set of Kubernetes manifests)
+two outputs (a `compose.yaml` versus a set of Kubernetes manifests)
 aren't comparable to begin with. There's no dedicated command here for
 diffing the generated deployment files — that's a deliberate deferral, not
 an oversight.

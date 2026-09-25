@@ -254,7 +254,7 @@ brickkit up --dry-run
       不生成容器；请在 IDE 里启动它，监听 localhost:18081
       环境变量：.brickkit/generated/local-debug.demo-hello-1-0-0.env
       VS Code：launch.json 里配 "envFile": "${workspaceFolder}/.brickkit/generated/local-debug.demo-hello-1-0-0.env"
-📄 已生成：.brickkit/generated/docker-compose.yaml
+📄 已生成：.brickkit/generated/compose.yaml
 ...
 ```
 
@@ -264,10 +264,10 @@ brickkit up --dry-run
 
 ### 第 4 步：确认消费方拿到的地址指向哪里
 
-桩是空的，`demo/caller` 拿到的地址到底指向哪？`up --dry-run` 顺手生成了 `.brickkit/generated/docker-compose.yaml`，从里面把桩的名字捞出来看看（这几行是在本机上真跑 `grep` 得到的，不出自 BrickKit 自己的输出，所以不在脚本的自动核对范围内）：
+桩是空的，`demo/caller` 拿到的地址到底指向哪？`up --dry-run` 顺手生成了 `.brickkit/generated/compose.yaml`，从里面把桩的名字捞出来看看（这几行是在本机上真跑 `grep` 得到的，不出自 BrickKit 自己的输出，所以不在脚本的自动核对范围内）：
 
 ```bash
-grep -n "DEMO_HELLO_ENDPOINT\|extra_hosts\|demo-hello-1-0-0" .brickkit/generated/docker-compose.yaml
+grep -n "DEMO_HELLO_ENDPOINT\|extra_hosts\|demo-hello-1-0-0" .brickkit/generated/compose.yaml
 ```
 
 ```

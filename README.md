@@ -72,7 +72,7 @@ the project.
 | BrickKit Market | npmjs.com / Docker Hub / an app store |
 | Component | an npm package / a Docker image |
 | `component.yaml` | `package.json` |
-| `brickkit.yaml` | the declarative input, the role `docker-compose.yaml` plays for Compose |
+| `brickkit.yaml` | the declarative input, the role `compose.yaml` plays for Compose |
 | `brickkit add` | `npm install` |
 | `brickkit up` | `docker compose up -d` / `kubectl apply` |
 
@@ -439,7 +439,7 @@ internal/              CLI implementation
   ├── shell/              servedBy grouping/merging, shared by the compose and k8s renderers
   ├── cascade/           start/stop decisions: what actually needs to start this run ("follow the parent")
   ├── inject/             environment-variable injection & resource-quota merging
-  ├── compose/            docker-compose.yaml generation
+  ├── compose/            compose.yaml generation
   ├── k8s/                Kubernetes manifest generation
   ├── engine/             docker compose / kubectl drivers
   ├── source/             install sources: market / git / local

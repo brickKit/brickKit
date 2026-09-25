@@ -98,7 +98,7 @@ brickkit up
    1. demo-hello-1-0-0  无依赖
 
 可独立启动：demo-hello-1-0-0（无依赖）
-📄 已生成：.brickkit/generated/docker-compose.yaml
+📄 已生成：.brickkit/generated/compose.yaml
 
 🔍 检测镜像拉取权限... ✅ 全部通过
 

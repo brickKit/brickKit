@@ -15,7 +15,7 @@ You write two kinds of declaration. Each component's `component.yaml` says what 
 | Service name and address | Component ID + exact version | `/` and `.` become `-`, lowercase, then `http://<name>:<port>` — the same string on Docker and on Kubernetes |
 | `*_ENDPOINT` variable names | Component ID | `/` and `-` become `_`, uppercase, `_ENDPOINT` appended |
 | Resource connection variables | A resource's `kind` and its binding | The `kind` name is the prefix: `DATABASE_*`, `REDIS_*`, … |
-| `docker-compose.yaml` or Kubernetes manifests | The Manifest and `deploy.target` | Regenerated on every run; a component never ships one |
+| `compose.yaml` or Kubernetes manifests | The Manifest and `deploy.target` | Regenerated on every run; a component never ships one |
 | Network policies | The dependency graph | Opt-in (`deploy.networkPolicy`): traffic is allowed along the dependency edges you declared |
 | Which source directories are active | The cascade result | `brickkit sync` archives what isn't starting and restores what is |
 
@@ -181,7 +181,7 @@ Everything BrickKit uses — and everything it deliberately doesn't — is an id
   - The "keep pulling it back" half needs a resident program watching all the time.
 - **The AI-development pain:** Having an AI write deployment scripts means many steps, an order that matters, a copy per environment, and changes that are hard to review.
 - **What BrickKit does:**
-  - You write two kinds of declaration: each component's `component.yaml` says what it is and what it depends on; the project's `brickkit.yaml` says which versions you want, what is enabled and what is exposed. Together they form a graph, and everything else is *derived* from it by the CLI (see [the one idea underneath](#the-one-idea-underneath-declare-a-graph-derive-the-rest) at the top of this page): which components run, start order, service addresses, environment variables, `docker-compose.yaml` or Kubernetes manifests, network policies.
+  - You write two kinds of declaration: each component's `component.yaml` says what it is and what it depends on; the project's `brickkit.yaml` says which versions you want, what is enabled and what is exposed. Together they form a graph, and everything else is *derived* from it by the CLI (see [the one idea underneath](#the-one-idea-underneath-declare-a-graph-derive-the-rest) at the top of this page): which components run, start order, service addresses, environment variables, `compose.yaml` or Kubernetes manifests, network policies.
   - Each environment gets its own complete, self-contained file, chosen with `brickkit up --config brickkit.prod.yaml`.
   - `brickkit up --dry-run` starts nothing and prints the plan first, so you (and an AI) look before acting.
   - The only way to narrow what starts is to change `mode`; there is no `--only`-style flag.
@@ -651,7 +651,7 @@ You never have to design the whole system first. Add one component and run it; a
 
 Component code never learns whether it runs under Docker or Kubernetes. The address it reads is `http://<versioned-service-name>:<port>` in both, byte for byte.
 
-**Why.** One Manifest, two environments. A component describes what it is and what it needs, never where it runs, so it ships no `docker-compose.yaml` and no Kubernetes manifests (AGENTS.md §9.4). Switching environments is one field, `deploy.target`.
+**Why.** One Manifest, two environments. A component describes what it is and what it needs, never where it runs, so it ships no `compose.yaml` and no Kubernetes manifests (AGENTS.md §9.4). Switching environments is one field, `deploy.target`.
 
 **Cost.** The platform has to generate correct files for both engines, and anything only one engine can do isn't expressible from the component side. Engine-specific hints go through the `labels` passthrough, uninterpreted.
 

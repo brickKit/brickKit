@@ -167,13 +167,13 @@ $ grep -h '^  password:\|^  API_KEY:' .brickkit/generated/k8s/secrets/*.yaml
 
 ### Docker：CLI 从不求值
 
-Docker 下走的是另一条路：CLI 根本不去求 `${VAR}` 的值，原样写进 `docker-compose.yaml`，等 `docker compose` 启动容器的那一刻再由它去求。这次值放在进程环境里：
+Docker 下走的是另一条路：CLI 根本不去求 `${VAR}` 的值，原样写进 `compose.yaml`，等 `docker compose` 启动容器的那一刻再由它去求。这次值放在进程环境里：
 
 ```
 $ PG_PASSWORD=pw-from-env THIRD_PARTY_KEY=key-from-env brickkit up --dry-run 2>/dev/null | grep '已生成'
-📄 已生成：.brickkit/generated/docker-compose.yaml
+📄 已生成：.brickkit/generated/compose.yaml
 
-$ grep -n "PASSWORD\|API_KEY" .brickkit/generated/docker-compose.yaml
+$ grep -n "PASSWORD\|API_KEY" .brickkit/generated/compose.yaml
 22:      - API_KEY=${THIRD_PARTY_KEY}
 27:      - DATABASE_PASSWORD=${PG_PASSWORD}
 ```
@@ -183,13 +183,13 @@ $ grep -n "PASSWORD\|API_KEY" .brickkit/generated/docker-compose.yaml
 **排障时有个坑，先知道比日后踩到强。** 检查生成的 compose 文件，最顺手的命令是 `docker compose config`。可它**会**把 `${VAR}` 展开成真值再打印出来，顺序同样是进程环境优先、`.env` 其次。对着上面那份 Docker 目标的文件，先只靠 `.env`，再连进程环境也设上：
 
 ```
-$ docker compose -f .brickkit/generated/docker-compose.yaml --project-directory . config | grep -n "API_KEY\|PASSWORD"
+$ docker compose -f .brickkit/generated/compose.yaml --project-directory . config | grep -n "API_KEY\|PASSWORD"
 10:      API_KEY: key-from-dotenv
 15:      DATABASE_PASSWORD: pw-from-dotenv
 ```
 
 ```
-$ PG_PASSWORD=pw-from-real-env THIRD_PARTY_KEY=key-from-real-env docker compose -f .brickkit/generated/docker-compose.yaml --project-directory . config | grep -n "API_KEY\|PASSWORD"
+$ PG_PASSWORD=pw-from-real-env THIRD_PARTY_KEY=key-from-real-env docker compose -f .brickkit/generated/compose.yaml --project-directory . config | grep -n "API_KEY\|PASSWORD"
 10:      API_KEY: key-from-real-env
 15:      DATABASE_PASSWORD: pw-from-real-env
 ```

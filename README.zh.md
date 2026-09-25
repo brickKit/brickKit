@@ -62,7 +62,7 @@ init` 还会把 AI 助手技能装进项目里。
 | BrickKit Market（组件市场） | npmjs.com / Docker Hub / App Store |
 | Component（组件） | npm package / Docker image |
 | `component.yaml` | `package.json` |
-| `brickkit.yaml` | `docker-compose.yaml` 的「声明式输入」 |
+| `brickkit.yaml` | `compose.yaml` 的「声明式输入」 |
 | `brickkit add` | `npm install` |
 | `brickkit up` | `docker compose up -d` / `kubectl apply` |
 
@@ -403,7 +403,7 @@ internal/              CLI 实现
   ├── shell/             servedBy 分组与合并，compose 和 k8s 渲染器共用
   ├── cascade/           启停判定：算出这次实际启动谁（跟着上层走）
   ├── inject/            环境变量注入与资源配额合并
-  ├── compose/           docker-compose.yaml 生成
+  ├── compose/           compose.yaml 生成
   ├── k8s/               Kubernetes 清单生成
   ├── engine/            docker compose / kubectl 驱动
   ├── source/            安装源：market / git / local

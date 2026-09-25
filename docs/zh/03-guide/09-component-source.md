@@ -153,7 +153,7 @@ brickkit add demo/hello@1.0.0 --repo --yes
 
 ```bash
 brickkit up --dry-run > /dev/null
-grep -m1 DEMO_HELLO_ENDPOINT .brickkit/generated/docker-compose.yaml
+grep -m1 DEMO_HELLO_ENDPOINT .brickkit/generated/compose.yaml
 ```
 
 ```

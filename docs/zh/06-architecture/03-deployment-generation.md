@@ -1,6 +1,6 @@
 # 部署文件是怎么生成出来的
 
-组件的仓库从来不会自带任何部署文件——CLI 读一份 `component.yaml`，根据 `deploy.target` 这一个字段，生成 `docker-compose.yaml` 或者一整套 Kubernetes 清单（AGENTS.zh.md §5.5）。这篇文档把生成这一步另一头到底吐出了什么，逐行摊开给两个目标各看一遍——同一份 Manifest 生成出不同部署文件，不该只是一句抽象的说法，而是能一行一行对着看的东西。
+组件的仓库从来不会自带任何部署文件——CLI 读一份 `component.yaml`，根据 `deploy.target` 这一个字段，生成 `compose.yaml` 或者一整套 Kubernetes 清单（AGENTS.zh.md §5.5）。这篇文档把生成这一步另一头到底吐出了什么，逐行摊开给两个目标各看一遍——同一份 Manifest 生成出不同部署文件，不该只是一句抽象的说法，而是能一行一行对着看的东西。
 
 下面引用的每一份文件都是对着 [`tests/components/department-tree/`](../../../tests/components/department-tree/) 和 [`tests/components/people-basic/`](../../../tests/components/people-basic/) 真跑 `brickkit up --dry-run` 得到的原始输出，只删掉了重复的样板内容（标签、生成时间戳这类）。`department/tree` 声明了一个 `database` 资源、一条 `migration.command`、一个 `logLevel` 配置项，而且只写了 `requests` 没写 `limits`——特意选它是因为它一次性把资源绑定、迁移、配置覆盖、配额换算全都用上了。项目配置只覆盖了 `department/tree` 的 `logLevel` 为 `debug`，`people/basic` 的配置完全没动——这一点下面会看到它的意义。
 

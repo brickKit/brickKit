@@ -98,7 +98,7 @@ brickkit up
    1. demo-hello-1-0-0  no dependencies
 
 Can start on their own: demo-hello-1-0-0 (no dependencies)
-📄 Generated: .brickkit/generated/docker-compose.yaml
+📄 Generated: .brickkit/generated/compose.yaml
 
 🔍 Checking image pull permissions... ✅ All passed
 

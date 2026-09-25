@@ -173,11 +173,11 @@ docker build -t brickkit-demo/department-tree:1.0.0 tests/components/department-
 **2. Start a local PostgreSQL** (the repository already ships this stack — no need to write your own compose file):
 
 ```bash
-PG_PORT=55432 PG_USER=demo docker compose -f deploy/dev-resources/docker-compose.yaml up -d postgres
+PG_PORT=55432 PG_USER=demo docker compose -f deploy/dev-resources/compose.yaml up -d postgres
 docker exec brickkit-dev-resources-postgres-1 psql -U demo -c "CREATE DATABASE brickkit_department"
 ```
 
-**3. Configure `brickkit.yaml`** — with the dev-resources stack, the resource address is `host.docker.internal`, not a container name (same reason the comment at the top of `deploy/dev-resources/docker-compose.yaml` gives: that stack and your BrickKit project don't share a Docker network):
+**3. Configure `brickkit.yaml`** — with the dev-resources stack, the resource address is `host.docker.internal`, not a container name (same reason the comment at the top of `deploy/dev-resources/compose.yaml` gives: that stack and your BrickKit project don't share a Docker network):
 
 ```yaml
 components:
@@ -273,7 +273,7 @@ curl -s http://localhost:8080/api/v1/departments
 
 ```bash
 brickkit down
-docker compose -f deploy/dev-resources/docker-compose.yaml down -v
+docker compose -f deploy/dev-resources/compose.yaml down -v
 ```
 
 ## Adapting this into your own component

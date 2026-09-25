@@ -332,10 +332,10 @@ $ diff <(brickkit up --dry-run --config brickkit.dev.yaml 2>&1 | grep -v '^{') \
 <
 < 依赖图：
 <    acme/web@0.1.0 → erp/backend@0.1.0
-< 📄 已生成：.brickkit/generated/docker-compose.yaml
+< 📄 已生成：.brickkit/generated/compose.yaml
 <
 < 💡 --dry-run 只生成文件，未启动任何组件
-<    查看：cat .brickkit/generated/docker-compose.yaml
+<    查看：cat .brickkit/generated/compose.yaml
 ---
 > 📋 本次没有组件会启动
 >    顶层组件（没有别的组件依赖它们）这次都不跑：
@@ -348,7 +348,7 @@ $ diff <(brickkit up --dry-run --config brickkit.dev.yaml 2>&1 | grep -v '^{') \
 
 两点提醒，都是实测出来的：
 
-- 只要这次算下来还有组件会启动，`up --dry-run` 就会把当前 target 的整份生成结果重新写一遍：Docker 是把 `docker-compose.yaml` 整个覆盖掉，K8s 是把 `.brickkit/generated/k8s/` 子目录整个删掉再重建。所以收窄配置后再对同一个 target 重新跑一遍，被关掉的组件遗留在 K8s 下的 `deployments/`、`services/` 等文件会被正确清理掉，不会留下垃圾。"想同时留住两次生成物"这个顾虑，只有在两份配置对着**同一个** target（都是 docker，或都是 k8s）时才成立；这里的例子是 dev 用 docker、prod 用 k8s，两者写的是完全不重叠的路径（一个是单个文件，一个是子目录），先后跑哪个都不会碰到另一个的产物。真正的边界情况是：如果某次配置改动导致这次算下来没有任何组件会启动（`📋 本次没有组件会启动`），CLI 会在调用生成器之前就直接返回——生成这一步根本没跑，上一次成功生成的文件会原样留在原地，不是被清空。
+- 只要这次算下来还有组件会启动，`up --dry-run` 就会把当前 target 的整份生成结果重新写一遍：Docker 是把 `compose.yaml` 整个覆盖掉，K8s 是把 `.brickkit/generated/k8s/` 子目录整个删掉再重建。所以收窄配置后再对同一个 target 重新跑一遍，被关掉的组件遗留在 K8s 下的 `deployments/`、`services/` 等文件会被正确清理掉，不会留下垃圾。"想同时留住两次生成物"这个顾虑，只有在两份配置对着**同一个** target（都是 docker，或都是 k8s）时才成立；这里的例子是 dev 用 docker、prod 用 k8s，两者写的是完全不重叠的路径（一个是单个文件，一个是子目录），先后跑哪个都不会碰到另一个的产物。真正的边界情况是：如果某次配置改动导致这次算下来没有任何组件会启动（`📋 本次没有组件会启动`），CLI 会在调用生成器之前就直接返回——生成这一步根本没跑，上一次成功生成的文件会原样留在原地，不是被清空。
 - `grep -v '^{'` 是为了滤掉 CLI 写在 stderr 上的 JSON 日志行——不滤掉的话，它们会跟上面人读的输出混在一起，`diff` 出来一堆噪音。
 
-一句诚实的话：这里比的只是**启动决策**——哪些组件会跑、为什么——比的是文本，不是渲染出来的部署文件本身；dev 是 `docker`、prod 是 `k8s` 时，两边本来就不是同一种东西（一份 `docker-compose.yaml` 对一组 Kubernetes 清单），没法比。这里没有一个专门对比生成的部署文件的命令，这是有意的暂缓，不是遗漏。
+一句诚实的话：这里比的只是**启动决策**——哪些组件会跑、为什么——比的是文本，不是渲染出来的部署文件本身；dev 是 `docker`、prod 是 `k8s` 时，两边本来就不是同一种东西（一份 `compose.yaml` 对一组 Kubernetes 清单），没法比。这里没有一个专门对比生成的部署文件的命令，这是有意的暂缓，不是遗漏。

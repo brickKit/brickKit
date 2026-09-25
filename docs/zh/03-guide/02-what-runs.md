@@ -61,7 +61,7 @@ brickkit up --dry-run
 依赖图：
    demo/caller@1.0.0 → demo/hello@1.0.0
                      → demo/bus@1.0.0（弱，未安装）
-📄 已生成：.brickkit/generated/docker-compose.yaml
+📄 已生成：.brickkit/generated/compose.yaml
 
 🔧 启动前会执行的数据库迁移（失败则该组件不会启动）：
    demo/caller@1.0.0  /app/caller migrate

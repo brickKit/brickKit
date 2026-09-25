@@ -61,7 +61,7 @@ Longest dependency chain (2 levels): demo-hello-1-0-0 → demo-caller-1-0-0
 Dependency graph:
    demo/caller@1.0.0 → demo/hello@1.0.0
                      → demo/bus@1.0.0 (optional, not installed)
-📄 Generated: .brickkit/generated/docker-compose.yaml
+📄 Generated: .brickkit/generated/compose.yaml
 
 🔧 Database migrations that run before startup (on failure that component won't start):
    demo/caller@1.0.0  /app/caller migrate

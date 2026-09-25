@@ -68,7 +68,7 @@ brickkit up --dry-run
    1. demo-hello-1-0-0  no dependencies
 
 Can start on their own: demo-hello-1-0-0 (no dependencies)
-📄 Generated: .brickkit/generated/docker-compose.yaml
+📄 Generated: .brickkit/generated/compose.yaml
 ```
 
 `--dry-run` computes everything and writes the deployment file, but starts nothing — safe to run as often as you like while you're still checking things over. Add `expose: true` and `exposePort: 8080` to the component's entry in `brickkit.yaml` so it's actually reachable from your machine (not exposed by default is a deliberate default — AGENTS.md §4 — not an oversight):

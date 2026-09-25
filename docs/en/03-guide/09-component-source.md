@@ -153,7 +153,7 @@ One more thing worth knowing: once cloned, the component is claimed by `local-de
 
 ```bash
 brickkit up --dry-run > /dev/null
-grep -m1 DEMO_HELLO_ENDPOINT .brickkit/generated/docker-compose.yaml
+grep -m1 DEMO_HELLO_ENDPOINT .brickkit/generated/compose.yaml
 ```
 
 ```

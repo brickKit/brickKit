@@ -50,7 +50,7 @@ together — and eventually assemble any system you need.
 | BrickKit Market (component marketplace) | npmjs.com / Docker Hub / App Store |
 | Component | npm package / Docker image |
 | `component.yaml` (Manifest) | `package.json` |
-| `brickkit.yaml` (project config) | the "declarative input" side of `docker-compose.yaml` |
+| `brickkit.yaml` (project config) | the "declarative input" side of `compose.yaml` |
 | `brickkit add` | `npm install` |
 | `brickkit up` | `docker compose up -d` / `kubectl apply` |
 
@@ -106,7 +106,7 @@ brickkit.yaml (declaration) + override.yaml (optional, local — merged in first
    ↓ ① Cascade decision: figure out which components should actually start this time (`mode` + dependency graph, top-down inheritance)
    ↓ ② Dependency resolution: recursively expand the dependency tree, error on missing required deps, topological sort gives the start order
    ↓ ③ Env-var injection: dependency addresses, resource connections, own config → environment variables
-   ↓ ④ Deployment-file generation: docker-compose.yaml or K8s Deployment/Service/Ingress
+   ↓ ④ Deployment-file generation: compose.yaml or K8s Deployment/Service/Ingress
    ↓ ⑤ Run migrations: a K8s Job or a one-shot Docker service; failure blocks the main service
    ↓ ⑥ Invoke the underlying engine: docker compose up -d / kubectl apply
 Running containers
@@ -277,7 +277,7 @@ are always secrets; a component's own config item is a secret only if its `confi
 `secret: true` (the platform never guesses from the name). On `deploy.target: k8s` a secret goes into
 a generated `Secret` (file mode 0600) and the Deployment holds a `secretKeyRef`; everything else is a
 plain `env` value. On Docker, `${VAR}` in `config` and `resources[].password` is **never** resolved by
-the CLI when it writes `docker-compose.yaml` — `docker compose` resolves it at start (process
+the CLI when it writes `compose.yaml` — `docker compose` resolves it at start (process
 environment first, `.env` second). `brickkit.yaml` only ever holds the reference. There is no
 "fetch from Vault" built in and there won't be (§4.1): anything that can put the value in the process
 environment works — and for a Secret an external system (Vault Secrets Operator, External Secrets
@@ -356,7 +356,7 @@ Components added automatically by `brickkit add` **do not get** a `mode` field w
 ### 5.5 Deployment-file generation and database migrations
 
 A component's repository **never ships** any environment-specific deployment file. The CLI reads
-the unified `component.yaml` and dynamically generates `docker-compose.yaml` or K8s
+the unified `component.yaml` and dynamically generates `compose.yaml` or K8s
 `Deployment/Service/Ingress` according to `deploy.target`. Switching environments only means
 changing one field:
 
@@ -620,7 +620,7 @@ of its own, covered in [Self-hosting the BrickKit Market](docs/en/07-patterns/09
 
 `override.yaml`'s `target: podman` (§7.1) is a real, working deploy engine — not just a
 validated-but-inert config value. Once set, `up`, `down`, and `status` all run against Podman
-instead of Docker, using the exact same generated `docker-compose.yaml` `podman compose` already
+instead of Docker, using the exact same generated `compose.yaml` `podman compose` already
 consumes identically to Docker — assuming Docker is installed alongside Podman, so `podman compose`
 (itself just a dispatcher, with no compose implementation of its own) finds Docker's own Compose V2
 plugin rather than the unrelated, separately-maintained `podman-compose` project. [The environment
@@ -1068,7 +1068,7 @@ a physical buffer, and data-layer compatibility is the user's own responsibility
 
 **9.4 Why don't components ship their own deployment files?**
 One Manifest, two environments. A component developer doesn't have to maintain both a
-`docker-compose.yaml` and a full set of K8s manifests. A component only describes "what I am, what
+`compose.yaml` and a full set of K8s manifests. A component only describes "what I am, what
 I need" — it doesn't care "where I run."
 
 **9.5 Why is the CLI a run-and-exit local tool, not a long-running server?**
@@ -1319,7 +1319,7 @@ internal/               CLI implementation
   ├── cascade/            cascade decision: figures out who actually starts this time (follows the top)
   ├── skills/            embedded AI-assistant skill assets + the five-state check (brickkit skills)
   ├── inject/             env-var injection and resource-quota merging
-  ├── compose/            docker-compose.yaml generation
+  ├── compose/            compose.yaml generation
   ├── k8s/                Kubernetes manifest generation
   ├── engine/             docker compose / kubectl driver
   ├── source/             install sources: market / git / local

@@ -48,13 +48,13 @@ brickkit up --dry-run
    1. demo-hello-1-0-0  无依赖
 
 可独立启动：demo-hello-1-0-0（无依赖）
-📄 已生成：.brickkit/generated/docker-compose.yaml
+📄 已生成：.brickkit/generated/compose.yaml
 
 以下 mode: local 组件本次会启动：
    demo/hello@1.0.0  go run .
 
 💡 --dry-run 只生成文件，未启动任何组件
-   查看：cat .brickkit/generated/docker-compose.yaml
+   查看：cat .brickkit/generated/compose.yaml
 ```
 
 `--dry-run` 依然是"看看会发生什么，什么都不启动"——对 `mode: local` 组件来说，多出来的这一样东西没有部署文件可看：它探测出来的启动命令。`component.yaml` 里没有任何一处写着 `go run .`。BrickKit 在这个组件的源码目录里看到了 `go.mod`，以及根目录下的 `package main`，剩下的自己判断出来了（AGENTS.zh.md §5.6 有完整的探测表——Node、Java、Python 等语言各自认自己的标记文件）。编排文件照样会生成——一个项目完全可以让 `mode: local` 组件跟普通容器混着用，这里只是恰好一个容器都没有。

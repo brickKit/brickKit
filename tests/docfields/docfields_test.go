@@ -115,7 +115,7 @@ func yamlBlocksOf(d docFile) []yamlBlock {
 // 片段（"给这个组件加一行 expose: true"）不检查——它们没有上下文，
 // 拿全结构体去比会把一堆正常写法判成错的。
 //
-// 生成物（docker-compose.yaml、K8s 清单）因此天然被排除：
+// 生成物（compose.yaml、K8s 清单）因此天然被排除：
 // 它们既没有 kind: Component，也没有顶层 project:。
 func classify(body string) reflect.Type {
 	// K8s 清单长得很像 component.yaml（apiVersion / kind / metadata 三个键都一样），

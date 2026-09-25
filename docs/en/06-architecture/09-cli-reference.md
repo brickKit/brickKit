@@ -648,7 +648,7 @@ a top-level component with no `mode` written runs by default, everything
 below follows whoever above it needs it, AGENTS.md §5.4) → checks required
 dependencies (errors if missing) and optional ones (warns, and skips
 injecting that dependency's `*_ENDPOINT` entirely) → topological sort for
-start order → generates `docker-compose.yaml` (or the K8s manifests),
+start order → generates `compose.yaml` (or the K8s manifests),
 injecting environment variables and merging resource quotas → generates
 `local-debug.<versioned-service-name>.env` for any `mode: debug` component →
 checks image-pull permissions (prompts `docker login` if unauthorized) →
@@ -703,7 +703,7 @@ Longest dependency chain (2 levels): department-tree-1-0-0 → people-basic-1-0-
 Dependency graph:
    people/basic@1.0.0 → department/tree@1.0.0
                       → infra/redis-event-bus@1.0.0 (optional, not installed)
-📄 Generated: .brickkit/generated/docker-compose.yaml
+📄 Generated: .brickkit/generated/compose.yaml
 
 🔧 Database migrations that run before startup (on failure that component won't start):
    department/tree@1.0.0  /app/department-tree migrate
@@ -1088,7 +1088,7 @@ The CLI speaks English by default. `brickkit lang` says which language it is spe
 
 A value that isn't a supported language (`en` or `zh`, case doesn't matter) is treated as not set and the next layer is tried — it never turns into an error, so a stray `BRICKKIT_LANG=fr` in a shell profile leaves you with the language below it, not a broken CLI. There is deliberately no `--lang` flag: the language has to be known *before* the command tree is built (the `--help` text is translated too), and a flag can only be read after that.
 
-**What follows the language:** everything the CLI prints for a person — command output, errors and their suggestions, warnings, `--help`; the `message` and `error` fields of the JSON log lines on stderr; and the comments the CLI writes into files it generates (the `brickkit.yaml` skeleton from `brickkit init`, the `docker-compose.yaml` header, `local-debug.env`, the `brickkit new` skeleton).
+**What follows the language:** everything the CLI prints for a person — command output, errors and their suggestions, warnings, `--help`; the `message` and `error` fields of the JSON log lines on stderr; and the comments the CLI writes into files it generates (the `brickkit.yaml` skeleton from `brickkit init`, the `compose.yaml` header, `local-debug.env`, the `brickkit new` skeleton).
 
 **What never changes:** the `error_code` in the JSON log line (scripts can rely on it whatever the language), command and flag names, YAML keys, anything you wrote yourself, and text that isn't the CLI's own — a component's log lines, or the reason the Market server sends back when it refuses something (the server currently answers in Chinese only).
 

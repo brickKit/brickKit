@@ -165,13 +165,13 @@ $ grep -h '^  password:\|^  API_KEY:' .brickkit/generated/k8s/secrets/*.yaml
 
 ### Docker: the CLI never resolves it at all
 
-Docker takes a completely different path: the CLI never resolves `${VAR}` itself — it writes the placeholder verbatim into `docker-compose.yaml`, and `docker compose` resolves it the moment a container actually starts. This run has the values in the process environment:
+Docker takes a completely different path: the CLI never resolves `${VAR}` itself — it writes the placeholder verbatim into `compose.yaml`, and `docker compose` resolves it the moment a container actually starts. This run has the values in the process environment:
 
 ```
 $ PG_PASSWORD=pw-from-env THIRD_PARTY_KEY=key-from-env brickkit up --dry-run 2>/dev/null | grep 'Generated'
-📄 Generated: .brickkit/generated/docker-compose.yaml
+📄 Generated: .brickkit/generated/compose.yaml
 
-$ grep -n "PASSWORD\|API_KEY" .brickkit/generated/docker-compose.yaml
+$ grep -n "PASSWORD\|API_KEY" .brickkit/generated/compose.yaml
 22:      - API_KEY=${THIRD_PARTY_KEY}
 27:      - DATABASE_PASSWORD=${PG_PASSWORD}
 ```
@@ -181,13 +181,13 @@ The two lines that carry these variables hold the placeholders exactly as writte
 **A caveat worth knowing before it costs you a debugging session.** The standard way to sanity-check a generated compose file is `docker compose config` — but it *does* expand `${VAR}` placeholders, in that same process-environment-then-`.env` order, and prints the real value. Against the file above, first with only `.env` available, then with the environment set as well:
 
 ```
-$ docker compose -f .brickkit/generated/docker-compose.yaml --project-directory . config | grep -n "API_KEY\|PASSWORD"
+$ docker compose -f .brickkit/generated/compose.yaml --project-directory . config | grep -n "API_KEY\|PASSWORD"
 10:      API_KEY: key-from-dotenv
 15:      DATABASE_PASSWORD: pw-from-dotenv
 ```
 
 ```
-$ PG_PASSWORD=pw-from-real-env THIRD_PARTY_KEY=key-from-real-env docker compose -f .brickkit/generated/docker-compose.yaml --project-directory . config | grep -n "API_KEY\|PASSWORD"
+$ PG_PASSWORD=pw-from-real-env THIRD_PARTY_KEY=key-from-real-env docker compose -f .brickkit/generated/compose.yaml --project-directory . config | grep -n "API_KEY\|PASSWORD"
 10:      API_KEY: key-from-real-env
 15:      DATABASE_PASSWORD: pw-from-real-env
 ```
@@ -207,7 +207,7 @@ The file the CLI wrote never had the real value in it. Running `docker compose c
 | Deploy target | Where the real value lands | Who resolves it, and when |
 | --- | --- | --- |
 | K8s | A generated `Secret` under `.brickkit/generated/k8s/secrets/` (file mode `0600`) — the Deployment's `env` entry holds only a `secretKeyRef` pointing at it | The CLI, at generation time |
-| Docker | Never in a file the CLI writes — `docker-compose.yaml` keeps the `${VAR}` placeholder exactly as written | `docker compose` itself, when a container actually starts |
+| Docker | Never in a file the CLI writes — `compose.yaml` keeps the `${VAR}` placeholder exactly as written | `docker compose` itself, when a container actually starts |
 | `mode: debug` | `local-debug.<versioned-service-name>.env` (also `0600`, also under `.brickkit/generated/`), deliberately plaintext | The CLI, at generation time |
 | `mode: local` | Never in a file at all — the CLI builds the process's environment in memory and hands it directly to the process it launches | The CLI, right before launching the process |
 

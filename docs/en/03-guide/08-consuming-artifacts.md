@@ -250,7 +250,7 @@ An excerpt — `...` marks lines left out:
       No container is generated; start it in your IDE, listening on localhost:18081
       Environment variables: .brickkit/generated/local-debug.demo-hello-1-0-0.env
       VS Code: set "envFile": "${workspaceFolder}/.brickkit/generated/local-debug.demo-hello-1-0-0.env" in launch.json
-📄 Generated: .brickkit/generated/docker-compose.yaml
+📄 Generated: .brickkit/generated/compose.yaml
 ...
 ```
 
@@ -298,10 +298,10 @@ npx --yes @stoplight/prism-cli@5.16.0 mock -p 18081 -h 0.0.0.0 components/demo/h
 
 ### What `demo/caller` is told
 
-`brickkit up --dry-run` also wrote `.brickkit/generated/docker-compose.yaml`. Looking for the stub's name in it (this is `grep` output from a real run, not something BrickKit prints — so unlike the blocks above, nothing checks it automatically):
+`brickkit up --dry-run` also wrote `.brickkit/generated/compose.yaml`. Looking for the stub's name in it (this is `grep` output from a real run, not something BrickKit prints — so unlike the blocks above, nothing checks it automatically):
 
 ```bash
-grep -n "DEMO_HELLO_ENDPOINT\|extra_hosts\|demo-hello-1-0-0" .brickkit/generated/docker-compose.yaml
+grep -n "DEMO_HELLO_ENDPOINT\|extra_hosts\|demo-hello-1-0-0" .brickkit/generated/compose.yaml
 ```
 
 ```
