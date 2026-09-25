@@ -211,6 +211,9 @@ func (c *Compose) exec(ctx context.Context, args ...string) ([]byte, error) {
 		WithDetail(i18n.T(msgid.LabelCommand), c.bin+" "+strings.Join(args, " ")).
 		WithDetail(i18n.T(msgid.LabelOutput), tail(string(out), 3)).
 		WithCause(err)
+	// 特征串本身只可能来自 Podman 的 rootless 网络拆卸失败，所以不必按 c.bin
+	// 或子命令收窄——down 之外，up 的 --remove-orphans 清理孤儿容器时也会撞
+	// 上同一个失败，同样该给这条提示。
 	if strings.Contains(string(out), "kill network process: permission denied") {
 		failure = failure.WithHint(i18n.T(msgid.EnginePodmanDownBlockedByAppArmor))
 	}
