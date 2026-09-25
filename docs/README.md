@@ -50,7 +50,7 @@ reading order — [`en/README.md`](en/README.md) lays it out.
   *(symptom → real cause → fix, plus the missing-optional-dependency warning from [Guide 2](en/03-guide/02-what-runs.md))*
 
 ### 📖 The full walkthrough
-- **14-part tutorial series, in order** → [Tutorial series](en/03-guide/README.md)
+- **15-part tutorial series, in order** → [Tutorial series](en/03-guide/README.md)
 
 ## 中文
 
@@ -87,7 +87,7 @@ reading order — [`en/README.md`](en/README.md) lays it out.
   *(症状 → 真实原因 → 解决，弱依赖缺失的真实警告见[教程第 2 篇](zh/03-guide/02-what-runs.md))*
 
 ### 📖 完整教程
-- **14 篇系列教程，按顺序读** → [教程系列](zh/03-guide/README.md)
+- **15 篇系列教程，按顺序读** → [教程系列](zh/03-guide/README.md)
 
 ---
 

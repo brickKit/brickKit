@@ -20,6 +20,7 @@ A sequence of tutorials, each one run for real against the actual CLI — not a 
 | 12 | [Build your first component from scratch](12-build-your-own.md) | Four files, from an empty directory to running | — |
 | 13 | [Network policy and least privilege](13-network-policy.md) | Generating a NetworkPolicy from the dependency graph and proving what it really blocks | A minikube that enforces NetworkPolicy (`--cni=calico`) |
 | 14 | [Multi-project sharing](14-multi-project-sharing.md) | Shared resources and isolated resources; treating another project's component as someone else's API | A Redis (the tutorial starts one with `docker run`) |
+| 15 | [Deploy with Podman instead of Docker](15-podman.md) | `target: podman` in `override.yaml`; the same generated `compose.yaml` runs unchanged; the one real gotcha that used to block `down` | Podman (see the [environment checklist](../07-patterns/11-podman-environment-checklist.md) first) |
 
 **Why every tutorial uses such small components:** after the first, every tutorial reuses the same two or three minimal fixture components (`demo/hello`, `demo/caller`, `infra/redis-event-bus`) rather than building out a larger, more realistic one. The point of each tutorial is a platform mechanism, not a business scenario, so the fixtures stay deliberately small.
 

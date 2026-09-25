@@ -414,7 +414,7 @@ Prefer navigating by topic instead of scrolling this page? [`docs/README.md`](ht
 | 00 | [Quick Start](https://github.com/brickKit/brickKit/blob/main/docs/en/00-quick-start.md) | Empty directory to a curl-able container in five minutes, every step run for real |
 | 01 | [Core concepts](https://github.com/brickKit/brickKit/blob/main/docs/en/01-concepts.md) | A one-page glossary plus the one naming rule that runs through everything |
 | 02 | [Comparison](https://github.com/brickKit/brickKit/blob/main/docs/en/02-comparison.md) | Where BrickKit overlaps with Compose, Helm, Kustomize and others — and where it doesn't |
-| 03 | [Hands-on guide](https://github.com/brickKit/brickKit/blob/main/docs/en/03-guide/README.md) | Twelve tutorials, each one run for real against the CLI |
+| 03 | [Hands-on guide](https://github.com/brickKit/brickKit/blob/main/docs/en/03-guide/README.md) | 15 tutorials, each one run for real against the CLI |
 | 04 | [Writing a Go component](https://github.com/brickKit/brickKit/blob/main/docs/en/04-go-component-template.md) | A guided read through a real, tested component with a database |
 | 05 | [AI-assisted development](https://github.com/brickKit/brickKit/blob/main/docs/en/05-ai-development.md) | Why the component model fits AI-written code, and a workflow for it |
 | 06 | [Architecture](https://github.com/brickKit/brickKit/blob/main/docs/en/06-architecture/README.md) | How it works and why — plus the field, command and error-code references |
@@ -504,7 +504,7 @@ under `docs/en/` and `docs/zh/`.
 | | |
 | --- | --- |
 | Tests | 2,000+ test functions, race-clean |
-| Hands-on guides (current) | 14 articles, every one run for real; see `docs/en/03-guide/` |
+| Hands-on guides (current) | 15 articles, every one run for real; see `docs/en/03-guide/` |
 | Hands-on guides (archived) | 23 articles, every one run against real Docker / Kubernetes / a live marketplace |
 | Design books (archived) | 14 volumes, cross-checked against the implementation twice |
 | Decision record (archived) | 566 entries, each carrying the reasoning behind it at the time |

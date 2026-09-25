@@ -20,6 +20,7 @@
 | 12 | [从零开发自己的第一个组件](12-build-your-own.md) | 四个文件，从空目录到跑起来 | —— |
 | 13 | [网络策略与最小权限](13-network-policy.md) | 从依赖图生成 NetworkPolicy，并证明它真的挡住了什么 | 会执行 NetworkPolicy 的 minikube（`--cni=calico`） |
 | 14 | [多项目共享](14-multi-project-sharing.md) | 共享资源与隔离资源；把别的项目的组件当成别人的 API | 一个 Redis（教程里用 `docker run` 起） |
+| 15 | [用 Podman 代替 Docker 部署](15-podman.md) | `override.yaml` 里的 `target: podman`；同一份生成出来的 `compose.yaml` 原样能跑；曾经拦住 `down` 的那个真实的坑 | Podman（先看一眼[环境检查清单](../07-patterns/11-podman-environment-checklist.md)） |
 
 **为什么每一篇都用这么小的组件：**第一篇之后的每一篇，用的都是同样这两三个最小夹具组件（`demo/hello`、`demo/caller`、`infra/redis-event-bus`），而不是搭一个更接近真实业务的大组件。每一篇要讲的是一个平台机制，不是一个业务场景，夹具就该刻意保持很小。
 

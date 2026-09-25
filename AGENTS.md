@@ -646,6 +646,8 @@ this was verified on (other distributions, other AppArmor configurations), and a
 real-container-lifecycle CI check — this repository's test suite verifies the Podman engine the
 same way it verifies Docker's: unit tests against a fake runner, not a real container.
 
+Hands-on walkthrough with real output: [Deploy with Podman instead of Docker](docs/en/03-guide/15-podman.md)
+
 ---
 
 ## 6. `component.yaml` (Manifest) field skeleton
@@ -1394,7 +1396,7 @@ The complete machine-readable index for this (English) tree is at the repo root,
 | --- | --- |
 | Development progress | Every planned step is done, deferred items have all been closed out |
 | Tests | 2,000+ test functions, race-clean |
-| Hands-on guides (current) | 14 articles, every one run for real; see `docs/en/03-guide/` |
+| Hands-on guides (current) | 15 articles, every one run for real; see `docs/en/03-guide/` |
 | Hands-on guides (archived) | 23 articles, every one run against real Docker / Kubernetes / a live marketplace |
 | Design books (archived) | 14 volumes, cross-checked against the implementation twice |
 | Decision record | 566 entries, each carrying the reasoning behind it at the time |

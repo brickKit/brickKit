@@ -554,6 +554,8 @@ Compose V2 插件，而不是那个不相关、独立维护的 `podman-compose` 
 自动化的"真实容器生命周期" CI 检查——这个仓库验证 Podman 引擎的方式和验证 Docker 引擎完全一样：
 对着假 runner 的单元测试，不是真容器。
 
+带真实输出的上手教程：[用 Podman 代替 Docker 部署](docs/zh/03-guide/15-podman.md)
+
 ---
 
 ## 6. `component.yaml`（Manifest）字段骨架
@@ -1212,7 +1214,7 @@ deploy/market/         市场的 compose / kustomize / Helm
 | --- | --- |
 | 开发进度 | 计划内的每一步都已完成，延后项也已全部结清 |
 | 测试 | 2000+ 个测试函数，race-clean |
-| 动手教程（现行） | 14 篇，每一篇都真跑过；见 `docs/zh/03-guide/` |
+| 动手教程（现行） | 15 篇，每一篇都真跑过；见 `docs/zh/03-guide/` |
 | 试用指南（归档） | 23 篇，全部对着真实 Docker / Kubernetes / 活的市场跑过 |
 | 设计书 | 14 本，与实现交叉复核过两轮 |
 | 决策记录 | 566 条，每条都带当初的推理 |
