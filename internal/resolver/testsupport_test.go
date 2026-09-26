@@ -13,8 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
@@ -83,8 +84,8 @@ func (c comp) yamlText() string {
 type fixture struct {
 	Resolver *Resolver
 	Provider *countingProvider
-	Layout   config.Layout
-	Config   *config.Config
+	Layout   project.Layout
+	Decl     *projfile.File
 }
 
 // newFixture 把每个组件写进**独立的本地安装源目录**，再用真实的 source.Client 提供 Manifest。
@@ -94,16 +95,13 @@ type fixture struct {
 func newFixture(t *testing.T, comps ...comp) *fixture {
 	t.Helper()
 
-	layout := config.NewLayout(t.TempDir(), "")
-	cfg := &config.Config{
-		Project: "test-project",
-		Deploy:  config.Deploy{Target: config.TargetDocker},
-	}
+	layout := project.NewLayout(t.TempDir())
+	cfg := &projfile.File{Project: "test-project"}
 	// 始终配置一个空的本地安装源：即使一个组件都没写，也要区分
 	// "安装源里没有这个组件"与"根本没配安装源"两种情形。
 	require.NoError(t, os.MkdirAll(filepath.Join(layout.Root, "src"), 0o755))
-	cfg.Sources = append(cfg.Sources, config.Source{
-		ID: "local-empty", Type: config.SourceTypeLocal, Path: "./src",
+	cfg.Sources = append(cfg.Sources, projfile.Source{
+		Name: "local-empty", Type: projfile.SourceTypeLocal, Path: "./src",
 	})
 
 	for i, c := range comps {
@@ -111,9 +109,9 @@ func newFixture(t *testing.T, comps ...comp) *fixture {
 		path := filepath.Join(dir, filepath.FromSlash(c.ID), manifest.FileName)
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 		require.NoError(t, os.WriteFile(path, []byte(c.yamlText()), 0o644))
-		cfg.Sources = append(cfg.Sources, config.Source{
-			ID:   "local-" + strconv.Itoa(i),
-			Type: config.SourceTypeLocal,
+		cfg.Sources = append(cfg.Sources, projfile.Source{
+			Name: "local-" + strconv.Itoa(i),
+			Type: projfile.SourceTypeLocal,
 			Path: "./src" + strconv.Itoa(i),
 		})
 	}
@@ -127,7 +125,7 @@ func newFixture(t *testing.T, comps ...comp) *fixture {
 		Resolver: New(provider),
 		Provider: provider,
 		Layout:   layout,
-		Config:   cfg,
+		Decl:     cfg,
 	}
 }
 

@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"regexp"
 	"strings"
@@ -23,11 +22,24 @@ import (
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/version"
 )
 
-// DefaultConfigFile 是默认的项目配置文件名（003）。
-const DefaultConfigFile = "brickkit.yaml"
+// DefaultConfigFile 是项目声明文件名。
+const DefaultConfigFile = project.FileDecl
+
+// addDeployFileFlags 给读取部署文件的命令（up / down / status / sync / lint / graph）
+// 加上 -f / --file 与 --no-local（提案 §11.6）。
+func addDeployFileFlags(cmd *cobra.Command, opts *Options) {
+	cmd.Flags().StringVarP(&opts.DeployFile, "file", "f", opts.DeployFile, i18n.T(msgid.CliRootFlagDeployFile))
+	cmd.Flags().BoolVar(&opts.NoLocal, "no-local", opts.NoLocal, i18n.T(msgid.CliRootFlagNoLocal))
+}
+
+// loadOptions 把命令行选择翻译成装载选项。
+func (o *Options) loadOptions() project.LoadOptions {
+	return project.LoadOptions{DeployFile: o.DeployFile, NoLocal: o.NoLocal}
+}
 
 // 命令分组 ID，用于 --help 中的归类展示。
 const (
@@ -42,8 +54,11 @@ type Options struct {
 	// WorkDir 是项目根目录。默认是进程当前目录；显式传入可让命令
 	// 不依赖进程级 cwd（测试与将来的嵌套调用都需要这个注入点）。
 	WorkDir string
-	// ConfigPath 是 --config 指定的项目配置文件路径（004 §3.5）。
-	ConfigPath string
+	// DeployFile 是 -f / --file 指定的部署文件（deploy.prod.yaml 之类）：指定了就只读它，
+	// 本地模式被忽略（提案 §11.6）。空表示按默认规则选择。
+	DeployFile string
+	// NoLocal 是 --no-local：本次忽略 deploy.local.yaml，不改变本地模式的开关。
+	NoLocal bool
 	// LogLevel 是 --log-level 指定的日志级别。
 	LogLevel string
 	// Stdin 承载交互式确认的输入（add 的"是否刷新缓存"等）。为空时不读输入，
@@ -63,24 +78,6 @@ type Options struct {
 	// 命令层的职责是"决定谁该启动、先检查什么"，不是"怎么调 docker"；
 	// 把它做成注入点之后，这些决定可以在没有 Docker 的机器上被完整测试。
 	Engine engine.Engine
-	// Probe 检查一个 host:port 是否可达（status 的资源探测）。
-	// 为空时用真实 TCP 拨号。
-	Probe func(ctx context.Context, address string) error
-}
-
-// probe 拨号检查可达性，未注入时用真实 TCP。
-func (o *Options) probe(ctx context.Context, address string) error {
-	if o.Probe != nil {
-		return o.Probe(ctx, address)
-	}
-
-	// 超时要短：这是一次"看一眼"的体检，不是等它恢复
-	dialer := net.Dialer{Timeout: 2 * time.Second}
-	conn, err := dialer.DialContext(ctx, "tcp", address)
-	if err != nil {
-		return err
-	}
-	return conn.Close()
 }
 
 // now 返回当前时间，未注入时钟时回落到 time.Now。
@@ -94,13 +91,12 @@ func (o *Options) now() time.Time {
 // NewOptions 返回默认全局选项（输出到真实 stdout/stderr）。
 func NewOptions() *Options {
 	return &Options{
-		WorkDir:    ".",
-		ConfigPath: DefaultConfigFile,
-		LogLevel:   envOr(logging.EnvLogLevel, logging.LevelWarn),
-		Stdin:      os.Stdin,
-		Stdout:     os.Stdout,
-		Stderr:     os.Stderr,
-		Now:        time.Now,
+		WorkDir:  ".",
+		LogLevel: envOr(logging.EnvLogLevel, logging.LevelWarn),
+		Stdin:    os.Stdin,
+		Stdout:   os.Stdout,
+		Stderr:   os.Stderr,
+		Now:      time.Now,
 	}
 }
 
@@ -150,8 +146,6 @@ func NewRootCommand(opts *Options) *cobra.Command {
 	root.SetOut(opts.Stdout)
 	root.SetErr(opts.Stderr)
 
-	root.PersistentFlags().StringVarP(&opts.ConfigPath, "config", "c", opts.ConfigPath,
-		i18n.T(msgid.CliRootPathOfTheProjectConfig))
 	root.PersistentFlags().StringVar(&opts.LogLevel, "log-level", opts.LogLevel,
 		i18n.T(msgid.CliRootLevelOfTheJsonLogs, strings.Join(logging.LevelNames(), " | ")))
 
@@ -176,7 +170,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		logging.Info(i18n.T(msgid.LogCommandStarted),
 			"command", cmd.CommandPath(),
 			"args", args,
-			"config", opts.ConfigPath,
+			"deployFile", opts.DeployFile,
 			"version", version.Version,
 		)
 		return nil
@@ -200,7 +194,6 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		newFetchCommand(opts),
 		newSyncCommand(opts),
 		newRestoreCommand(opts),
-		newOverrideCommand(opts),
 		newUpCommand(opts),
 		newDownCommand(opts),
 		newStatusCommand(opts),

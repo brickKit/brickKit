@@ -26,10 +26,7 @@ func upgradableProject(t *testing.T, newVersion comp) *projectFixture {
 	}
 	// add 会把 1.0.0 的 Manifest 与产物落进缓存——这正是升级前的状态
 	f := addedProject(t, comps, "people/basic@1.0.0")
-	f.writeConfig(t, `components:
-  - id: people/basic
-    version: 1.0.0
-`)
+	f.seedInstalled(t, comps[0])
 	return f
 }
 
@@ -351,46 +348,6 @@ func TestRollbackIsReported(t *testing.T) {
 // ============================================================
 // 升级路径不该有第二套判据
 // ============================================================
-
-// `--dry-run` 在升级时同样不阻断。
-//
-// 升级路径从前自己跑一遍 CheckUpgrade，里面的资源绑定检查是**无条件阻断**的，
-// 而常规路径在 --dry-run 下降级成警告（004 §4.4）。同一份配置、同一个缺失，
-// 只因为版本号变了就从"警告"变成"退出码 1"——而升级恰恰是最想先预览一下的时候。
-func TestDryRunDoesNotBlockOnUnboundResourceDuringUpgrade(t *testing.T) {
-	f := upgradableProject(t, comp{
-		ID: "people/basic", Version: "1.1.0",
-		ResourceDeps: []string{"database:postgres"},
-	})
-	bumpTo(t, f, "1.1.0")
-
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
-
-	require.Equal(t, clierr.ExitOK, r.code,
-		"--dry-run 不该因为资源没绑就失败，升级时也一样：%s", r.stdout+r.stderr)
-	assert.Contains(t, r.stdout+r.stderr, "resource dependencies are not satisfied", "但必须说出来")
-}
-
-// 升级一个 mode: disable 的组件不该被资源检查拦下。
-//
-// 006 §4.4 明写"只查本次会启动的组件"。升级路径从前无条件查目标组件，
-// 于是它在让使用者给一个刚刚关掉的组件去配数据库。
-func TestUpgradingADisabledComponentSkipsBindingCheck(t *testing.T) {
-	f := upgradableProject(t, comp{
-		ID: "people/basic", Version: "1.1.0",
-		ResourceDeps: []string{"database:postgres"},
-	})
-	f.writeConfig(t, `components:
-  - id: people/basic
-    version: 1.1.0
-    mode: disable
-`)
-
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
-
-	require.Equal(t, clierr.ExitOK, r.code,
-		"它这次根本不跑，不该逼人为它配资源：%s", r.stdout+r.stderr)
-}
 
 // ============================================================
 // --dry-run 要说清"会不会动数据库"

@@ -12,11 +12,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/skills"
 	"github.com/brickkit/brickkit/internal/version"
 )
@@ -67,10 +67,10 @@ func newSkillsCommand(opts *Options) *cobra.Command {
 // 两者都有时按项目算：那是 brickkit skills 一直以来的行为，lint 沿用同一条规则，
 // 不新发明一条。返回的 Layout 无论成败都有效——调用方走哪一支都要用它定位文件。
 // 出错时返回的 Scope 只是占位，没有含义：调用方必须先检查 err。
-func detectScope(opts *Options) (skills.Scope, config.Layout, error) {
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
+func detectScope(opts *Options) (skills.Scope, project.Layout, error) {
+	layout := project.NewLayout(opts.WorkDir)
 
-	if _, err := os.Stat(layout.ConfigPath()); err == nil {
+	if _, err := os.Stat(layout.DeclPath()); err == nil {
 		return skills.ScopeProject, layout, nil
 	}
 	if _, err := os.Stat(filepath.Join(layout.Root, manifest.FileName)); err == nil {
@@ -78,7 +78,7 @@ func detectScope(opts *Options) (skills.Scope, config.Layout, error) {
 	}
 	return skills.ScopeProject, layout, clierr.New(clierr.CodeProjectMissing,
 		i18n.T(msgid.CliSkillsErrorTheCurrentDirectoryIs)).
-		WithDetail(i18n.T(msgid.CliSkillsNotFound), i18n.T(msgid.CliSkillsAndNoEither, layout.ConfigName(), manifest.FileName)).
+		WithDetail(i18n.T(msgid.CliSkillsNotFound), i18n.T(msgid.CliSkillsAndNoEither, project.FileDecl, manifest.FileName)).
 		WithHint(i18n.T(msgid.CliSkillsProjectRunBrickkitInitProject),
 			i18n.T(msgid.CliSkillsComponentRepositoryRunItIn, manifest.FileName))
 }
@@ -116,7 +116,7 @@ func skillsInstaller(opts *Options, langOverride string) (skills.Installer, erro
 // renderSkillsScope 在组件仓库模式下说一句"为什么只有一个文件"。
 func renderSkillsScope(opts *Options, in skills.Installer) {
 	if in.Scope == skills.ScopeComponent {
-		opts.Printf("%s\n", i18n.T(msgid.CliSkillsComponentRepositoryHasNoOnly, manifest.FileName, config.NewLayout(opts.WorkDir, opts.ConfigPath).ConfigName()))
+		opts.Printf("%s\n", i18n.T(msgid.CliSkillsComponentRepositoryHasNoOnly, manifest.FileName, project.FileDecl))
 	}
 }
 

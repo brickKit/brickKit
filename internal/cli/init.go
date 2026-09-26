@@ -8,11 +8,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/skills"
 	"github.com/brickkit/brickkit/internal/version"
 )
@@ -35,7 +35,7 @@ func newInitCommand(opts *Options) *cobra.Command {
 						i18n.T(msgid.CliInitBrickkitInitHooksOnlyInstalls)).
 						WithExit(clierr.ExitUsage)
 				}
-				return installCommitHook(opts, config.NewLayout(opts.WorkDir, opts.ConfigPath), true)
+				return installCommitHook(opts, project.NewLayout(opts.WorkDir), true)
 			}
 			if len(args) == 0 {
 				return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.ConfigProjectNameMissing)).
@@ -51,26 +51,27 @@ func newInitCommand(opts *Options) *cobra.Command {
 	return cmd
 }
 
-func runInit(opts *Options, project string, noSkills bool) error {
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
+func runInit(opts *Options, name string, noSkills bool) error {
+	layout := project.NewLayout(opts.WorkDir)
 
-	result, err := config.InitProject(layout, project)
+	result, err := project.Init(layout, name)
 	if err != nil {
 		return err
 	}
 
 	logging.Info(i18n.T(msgid.LogProjectInitialized),
 		"project", result.ProjectName,
-		"config", layout.ConfigPath(),
+		"config", layout.DeclPath(),
 		"gitignore_updated", result.GitignoreUpdated,
 	)
 
-	// 输出格式与 004 §3.2 / 009 / 011 中的样例逐字一致。
 	opts.Printf("%s\n", i18n.T(msgid.CliInitProjectInitialized, result.ProjectName))
-	opts.Printf("   📁 %-21s%s\n", result.ConfigName, i18n.T(msgid.CliInitProjectConfig))
-	// components/ 一直都在建，只是从前没说过；现在它还是默认安装源，更该点出来
-	opts.Printf("   📁 %-21s%s\n", config.DirComponents+"/", i18n.T(msgid.CliInitComponentSourceConfiguredAsThe))
-	opts.Printf("   📁 %-21s%s\n", config.DirBrickkit+"/", i18n.T(msgid.CliInitCliWorkingDirectory))
+	opts.Printf("   📄 %-21s%s\n", project.FileDecl, i18n.T(msgid.CliInitProjectConfig))
+	opts.Printf("   📄 %-21s%s\n", project.FileDeploy, i18n.T(msgid.CliInitDeployFile))
+	opts.Printf("   📁 %-21s%s\n", project.DirConfig+"/", i18n.T(msgid.CliInitConfigDir))
+	// components/ 是默认本地安装源，点出来
+	opts.Printf("   📁 %-21s%s\n", project.DirComponents+"/", i18n.T(msgid.CliInitComponentSourceConfiguredAsThe))
+	opts.Printf("   📁 %-21s%s\n", project.DirBrickkit+"/", i18n.T(msgid.CliInitCliWorkingDirectory))
 
 	if !noSkills {
 		if err := installSkills(opts, layout); err != nil {
@@ -94,7 +95,7 @@ func runInit(opts *Options, project string, noSkills bool) error {
 //
 // 装不上是**错误**而不是静默跳过：init 说了它会装，那就得装上或者说明为什么没装。
 // 但错误里要讲明项目本身已经建好了——否则人会以为整个 init 都白跑了。
-func installSkills(opts *Options, layout config.Layout) error {
+func installSkills(opts *Options, layout project.Layout) error {
 	in := skills.Installer{
 		Root:     layout.Root,
 		LockPath: layout.SkillsLockPath(),
@@ -139,7 +140,7 @@ func installSkills(opts *Options, layout config.Layout) error {
 //
 // 所以顺带装只服务最常见的那一种：项目根就是仓库根。嵌套的项目要装，
 // 就自己显式说一句 brickkit init --hooks——那时 explicit 为真，装不上是错误。
-func installCommitHook(opts *Options, layout config.Layout, explicit bool) error {
+func installCommitHook(opts *Options, layout project.Layout, explicit bool) error {
 	// 显式请求时先确认这儿真有个项目。
 	//
 	// 没有 brickkit.yaml 却把 hook 装上去，是这套设计一直在防的那种**静默误判**：
@@ -149,12 +150,12 @@ func installCommitHook(opts *Options, layout config.Layout, explicit bool) error
 	//
 	// 只在 explicit 时查：runInit 顺带装的那一次，配置是它自己刚生成的。
 	if explicit {
-		if _, err := os.Stat(layout.ConfigPath()); err != nil {
+		if _, err := os.Stat(layout.DeployPath()); err != nil {
 			return clierr.New(clierr.CodeProjectMissing,
-				i18n.T(msgid.CliInitErrorThereIsNoHere, layout.ConfigName())).
-				WithDetail(i18n.T(msgid.CliInitLocationsSearched), layout.ConfigPath()).
+				i18n.T(msgid.CliInitErrorThereIsNoHere, project.FileDeploy)).
+				WithDetail(i18n.T(msgid.CliInitLocationsSearched), layout.DeployPath()).
 				WithHint(
-					i18n.T(msgid.CliInitThePreCommitHookHas, layout.ConfigName()),
+					i18n.T(msgid.CliInitThePreCommitHookHas, project.FileDeploy),
 					i18n.T(msgid.CliInitFirstRunBrickkitInitProject),
 					i18n.T(msgid.CliInitWhenOneRepositoryHoldsSeveral),
 				).WithCause(err)
@@ -191,7 +192,7 @@ func installCommitHook(opts *Options, layout config.Layout, explicit bool) error
 	}
 
 	path, added, err := installHook(repo,
-		hookProject{Dir: rel, Config: layout.ConfigName()}, brickkitBinPath(), version.Version)
+		hookProject{Dir: rel}, brickkitBinPath(), version.Version)
 	if err != nil {
 		return err
 	}

@@ -55,25 +55,8 @@ func k8sProjectWith(t *testing.T, spec comp, entryLines, extra string) *projectF
 	fmt.Fprintf(&b, "\ncomponents:\n  - id: %s\n    version: %s\n", spec.ID, spec.Version)
 	b.WriteString(entryLines)
 	b.WriteString(extra)
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
+	f.rewrite(t, b.String())
 	return f
-}
-
-// pgResourceYAML 是一段绑定到 people/basic 的外部 PostgreSQL 声明。
-func pgResourceYAML(password string) string {
-	return `
-resources:
-  - kind: database
-    engine: postgresql
-    id: people-db
-    host: postgres.infra.svc
-    port: 5432
-    username: people_user
-    password: ` + password + `
-    bindings:
-      - componentId: people/basic
-        database: people
-`
 }
 
 // ============================================================
@@ -211,22 +194,10 @@ func TestUpK8sOutputMentionsNamespaceAndPath(t *testing.T) {
 	assert.Contains(t, r.stdout, "brickkit-my-erp")
 }
 
-// 建库提示两种目标都要有：K8s 下资源由运维部署，但库照样得先建出来。
-func TestUpK8sReportsDatabaseRequirements(t *testing.T) {
-	t.Setenv("PEOPLE_DB_PASSWORD", "s3cr3t")
-	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0"}, "",
-		pgResourceYAML("${PEOPLE_DB_PASSWORD}"))
-
-	r := runWithEngine(t, newK8sEngine(), f.Dir, "up")
-
-	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
-	assert.Contains(t, r.stdout, `CREATE DATABASE "people"`)
-}
-
 // ${VAR} 没定义时必须阻断，且不能留下半份清单。
 func TestUpK8sBlocksOnUnresolvedEnvVar(t *testing.T) {
-	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0"}, "",
-		pgResourceYAML("${PEOPLE_DB_PASSWORD_NOT_SET}"))
+	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0", ConfigSchema: []string{"DB_PASSWORD:"}},
+		"    config:\n      DB_PASSWORD: ${PEOPLE_DB_PASSWORD_NOT_SET}\n", "")
 	eng := newK8sEngine()
 
 	r := runWithEngine(t, eng, f.Dir, "up")
@@ -307,24 +278,6 @@ func TestPodmanLogsCommandUsesPodmanBinary(t *testing.T) {
 // 资源可达性：K8s 下不能从本机拨号
 // ============================================================
 
-// K8s 下的资源地址是**集群内**的 DNS 名（postgres.infra），
-// 开发者本机根本解析不了它。照 Docker 那套拨一次号，
-// 会对一个完全健康的部署报"不可达"——组件正连着这个库跑得好好的。
-// 这是接上真集群（minikube）之后第一时间撞到的。
-func TestStatusK8sDoesNotProbeResourcesFromHost(t *testing.T) {
-	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0"}, "",
-		pgResourceYAML("plain-password"))
-	eng := newK8sEngine()
-	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
-
-	r := runWithEngine(t, eng, f.Dir, "status")
-
-	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
-	assert.Contains(t, r.stdout, "postgres.infra.svc:5432", "地址照常列出来")
-	assert.NotContains(t, r.stdout, "unreachable", "本机解析不了集群内地址，不能据此判不可达")
-	assert.Contains(t, r.stdout, "inside the cluster", "要说清为什么不下结论")
-}
-
 // 生成了 NetworkPolicy 就必须提醒"生不生效取决于集群的 CNI"（O1）。
 //
 // 不支持执行 NetworkPolicy 的集群上，apply 会成功、get networkpolicy 看得见、
@@ -335,10 +288,10 @@ func TestNetworkPolicyNoticeIsPrinted(t *testing.T) {
 	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0"}, "", "")
 
 	// networkPolicy 挂在 deploy 下，而 extra 是追加到文件末尾的，所以在这里插
-	body := strings.Replace(readFile(t, f.Layout.ConfigPath()), "  target: k8s\n",
+	body := strings.Replace(f.legacy, "  target: k8s\n",
 		"  target: k8s\n  networkPolicy:\n    enabled: true\n"+
 			"    ingressController:\n      namespace: ingress-nginx\n", 1)
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(body), 0o644))
+	f.rewrite(t, body)
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 	out := r.stdout + r.stderr

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
@@ -56,16 +55,6 @@ func confirm(opts *Options, prompt string) bool {
 	default:
 		return false
 	}
-}
-
-// hasComponent 判断 brickkit.yaml 中是否已有该组件版本。
-func hasComponent(cfg *config.Config, id, version string) bool {
-	for _, c := range cfg.Components {
-		if c.ID == id && c.Version == version {
-			return true
-		}
-	}
-	return false
 }
 
 // dependencyKinds 把依赖图中的节点分成"强依赖可达"与"仅弱依赖可达"两类，

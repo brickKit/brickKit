@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,7 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/logging"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 )
 
 // ============================================================
@@ -41,10 +44,10 @@ type comp struct {
 	// CPU / Memory 是 deployment.resources.limits（38.22 的配额变更要用）。
 	CPU    string
 	Memory string
-	// ResourceDeps 是 "kind:engine" 的列表，如 "database:postgres"（38.7 要用）。
-	ResourceDeps []string
 	// SecretConfig 是 ConfigSchema 里声明了 secret: true 的键名。
 	SecretConfig []string
+	// ShellMembers 是 shell.members：这个组件能当哪些组件的外壳。
+	ShellMembers []string
 	// Port 覆盖默认的 deployment.port（8080）——同一个外壳下的 servedBy
 	// 成员测试要用不同端口，否则端口冲突校验会先一步报错。
 	Port int
@@ -74,23 +77,19 @@ func (c comp) yamlText() string {
 			fmt.Fprintf(&b, "  - type: %s\n    files:\n      - %s\n", typ, file)
 		}
 	}
-	if len(c.Requires) > 0 || len(c.Optional) > 0 || len(c.ResourceDeps) > 0 {
-		b.WriteString("dependencies:\n")
-		if len(c.Requires) > 0 || len(c.Optional) > 0 {
-			b.WriteString("  components:\n")
-			for _, r := range c.Requires {
-				fmt.Fprintf(&b, "    - %s\n", r)
-			}
-			for _, o := range c.Optional {
-				fmt.Fprintf(&b, "    - id: %s\n      optional: true\n", o)
-			}
+	if len(c.Requires) > 0 || len(c.Optional) > 0 {
+		b.WriteString("dependencies:\n  components:\n")
+		for _, r := range c.Requires {
+			fmt.Fprintf(&b, "    - %s\n", r)
 		}
-		if len(c.ResourceDeps) > 0 {
-			b.WriteString("  resources:\n")
-			for _, r := range c.ResourceDeps {
-				kind, engine, _ := strings.Cut(r, ":")
-				fmt.Fprintf(&b, "    - kind: %s\n      engine: %s\n", kind, engine)
-			}
+		for _, o := range c.Optional {
+			fmt.Fprintf(&b, "    - id: %s\n      optional: true\n", o)
+		}
+	}
+	if len(c.ShellMembers) > 0 {
+		b.WriteString("shell:\n  members:\n")
+		for _, m := range c.ShellMembers {
+			fmt.Fprintf(&b, "    - %s\n", m)
 		}
 	}
 	if len(c.Migration) > 0 {
@@ -100,7 +99,8 @@ func (c comp) yamlText() string {
 		b.WriteString("configSchema:\n  type: object\n  properties:\n")
 		for _, item := range c.ConfigSchema {
 			name, def, _ := strings.Cut(item, ":")
-			fmt.Fprintf(&b, "    %s:\n      type: string\n      default: \"%s\"\n", name, def)
+			// 旧测试写的是 camelCase 键：统一转成环境变量名（附录 A10）
+			fmt.Fprintf(&b, "    %s:\n      type: string\n      default: \"%s\"\n", legacyEnvKey(name), def)
 			if slices.Contains(c.SecretConfig, name) {
 				b.WriteString("      secret: true\n")
 			}
@@ -162,9 +162,11 @@ func writeTree(t *testing.T, dir string, files map[string]string) {
 // projectFixture 是一个已初始化、且配置好安装源的测试项目。
 type projectFixture struct {
 	Dir    string
-	Layout config.Layout
+	Layout project.Layout
 	// Sources 是写入 brickkit.yaml 的安装源片段。
 	Sources []string
+	// legacy 是最近一次写入的旧式单文件配置原文（见 testsupport_threelayer_test.go）。
+	legacy string
 }
 
 // configWithComment 是带注释与 ${ENV_VAR} 的配置，用于验证 add / remove 不破坏用户内容。
@@ -189,8 +191,49 @@ func newProjectFixtureAt(t *testing.T, dir string, sources ...string) *projectFi
 	r := runIn(t, dir, "init", "my-erp")
 	require.Equal(t, 0, r.code, "init 应成功：%s%s", r.stdout, r.stderr)
 
-	f := &projectFixture{Dir: dir, Layout: config.NewLayout(dir, ""), Sources: sources}
-	f.writeConfig(t, "components: []\nresources: []\n")
+	f := &projectFixture{Dir: dir, Layout: project.NewLayout(dir), Sources: sources}
+	f.writeConfig(t, "components: []\n")
+	return f
+}
+
+// addedProject 建一个"已经装好"若干组件的项目：组件各自放进一个本地安装源，
+// refs 及其在 comps 里能找到的依赖闭包写进三层文件（add 在 P4 重建，这里不经过它）。
+func addedProject(t *testing.T, comps []comp, refs ...string) *projectFixture {
+	t.Helper()
+	dir := t.TempDir()
+	sources := localSource(t, dir, comps...)
+	f := newProjectFixtureAt(t, dir, sources...)
+	if len(refs) == 0 {
+		return f
+	}
+	byRef := map[string]comp{}
+	for _, c := range comps {
+		byRef[c.ref()] = c
+	}
+	var order []string
+	seen := map[string]bool{}
+	var visit func(string)
+	visit = func(ref string) {
+		c, ok := byRef[ref]
+		if !ok || seen[ref] {
+			return
+		}
+		seen[ref] = true
+		order = append(order, ref)
+		for _, dep := range append(append([]string(nil), c.Requires...), c.Optional...) {
+			visit(dep)
+		}
+	}
+	for _, ref := range refs {
+		visit(ref)
+	}
+	var body strings.Builder
+	body.WriteString("components:\n")
+	for _, ref := range order {
+		c := byRef[ref]
+		fmt.Fprintf(&body, "  - id: %s\n    version: %s\n", c.ID, c.Version)
+	}
+	f.writeConfig(t, body.String())
 	return f
 }
 
@@ -207,35 +250,29 @@ func (f *projectFixture) writeConfig(t *testing.T, body string) {
 	}
 	b.WriteString("\n")
 	b.WriteString(body)
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
+	f.rewrite(t, b.String())
 }
 
-// writeOverride 把 override.yaml 写进项目目录——跟 writeConfig 同一个手法，
-// 但 override.yaml 没有 writeConfig 那份固定的 header/sources 前缀要重现
-// （override.yaml 设计书 §8 的示例本身就是完整文件，没有任何隐藏结构）。
-func (f *projectFixture) writeOverride(t *testing.T, body string) {
+// rewrite 用一份完整的旧式单文件配置重写三层文件。
+//
+// 旧测试常常只写 components、不写 sources：那时 add 已经把 Manifest 缓存好了，
+// up 不需要安装源也能解析。这里不经过 add，所以没写 sources 时补上夹具自己的安装源。
+func (f *projectFixture) rewrite(t *testing.T, text string) {
 	t.Helper()
-	require.NoError(t, os.WriteFile(filepath.Join(f.Dir, "override.yaml"), []byte(body), 0o644))
+	if !strings.Contains("\n"+text, "\nsources:") && len(f.Sources) > 0 {
+		text += "\nsources:\n" + strings.Join(f.Sources, "")
+	}
+	f.legacy = text
+	writeLegacy(t, f.Dir, text)
 }
 
-func (f *projectFixture) config(t *testing.T) string {
-	t.Helper()
-	return readFile(t, f.Layout.ConfigPath())
-}
-
-// parsed 解析当前 brickkit.yaml。
-func (f *projectFixture) parsed(t *testing.T) *config.Config {
-	t.Helper()
-	c, err := config.ParseConfigFile(f.Layout.ConfigPath())
-	require.NoError(t, err, "brickkit.yaml 应始终是合法配置")
-	return c
-}
-
-// refs 返回配置中全部组件的 id@version。
+// refs 返回 brickkit.yaml 里全部组件的 id@version。
 func (f *projectFixture) refs(t *testing.T) []string {
 	t.Helper()
+	decl, err := projfile.ParseFile(f.Layout.DeclPath())
+	require.NoError(t, err, "brickkit.yaml 应始终合法")
 	var out []string
-	for _, c := range f.parsed(t).Components {
+	for _, c := range decl.Components {
 		out = append(out, c.Ref())
 	}
 	return out
@@ -269,20 +306,6 @@ func oneLocalSource(t *testing.T, root string, comps ...comp) []string {
 // ============================================================
 // git 仓库
 // ============================================================
-
-// newComponentRepo 建一个包含该组件源码的 git 仓库，返回仓库路径（可作为 clone URL）。
-func newComponentRepo(t *testing.T, c comp) string {
-	t.Helper()
-	dir := t.TempDir()
-	writeTree(t, dir, c.files())
-	writeTree(t, dir, map[string]string{"README.md": "# " + c.ID + "\n"})
-
-	gitCmd(t, dir, "init", "-q", "-b", "main")
-	gitCmd(t, dir, "add", "-A")
-	gitCmd(t, dir, "-c", "user.email=test@example.com", "-c", "user.name=BrickKit Test",
-		"commit", "-q", "-m", "init")
-	return dir
-}
 
 func gitCmd(t *testing.T, dir string, args ...string) {
 	t.Helper()
@@ -431,4 +454,25 @@ func breakLocalManifest(t *testing.T, f *projectFixture, componentID string) {
 		broken := strings.Replace(readFile(t, path), "  port: 8080", "  prot: 8080", 1)
 		require.NoError(t, os.WriteFile(path, []byte(broken), 0o644))
 	}
+}
+
+// runStdin 在指定目录执行 CLI，并喂入标准输入（用于确认提示、登录输入）。
+func runStdin(t *testing.T, dir, input string, args ...string) result {
+	t.Helper()
+	var out, errBuf bytes.Buffer
+	opts := &Options{
+		WorkDir:  dir,
+		LogLevel: logging.LevelOff,
+		Stdin:    strings.NewReader(input),
+		Stdout:   &out,
+		Stderr:   &errBuf,
+	}
+	code := Run(NewRootCommand(opts), opts, args)
+	return result{stdout: out.String(), stderr: errBuf.String(), code: code}
+}
+
+// config 返回 brickkit.yaml 的原文。
+func (f *projectFixture) config(t *testing.T) string {
+	t.Helper()
+	return readFile(t, f.Layout.DeclPath())
 }

@@ -2,18 +2,17 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/cascade"
-	"github.com/brickkit/brickkit/internal/config"
-	"github.com/brickkit/brickkit/internal/deploy"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/sessionlock"
 )
@@ -31,6 +30,7 @@ func newStatusCommand(opts *Options) *cobra.Command {
 			return runStatus(cmd.Context(), opts)
 		},
 	}
+	addDeployFileFlags(cmd, opts)
 	return cmd
 }
 
@@ -45,12 +45,12 @@ func runStatus(ctx context.Context, opts *Options) error {
 		return err
 	}
 
-	opts.Printf("%s\n\n", i18n.T(msgid.CliStatusProjectStatusDeployTarget, p.cfg.Project, p.cfg.Deploy.Target))
-	if len(p.cfg.Components) == 0 {
+	opts.Printf("%s\n\n", i18n.T(msgid.CliStatusProjectStatusDeployTarget, p.proj.Decl.Project, p.proj.Deploy.Target))
+	if len(p.proj.Decl.Components) == 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliStatusTheCurrentProjectHasNo))
 		// init 的骨架已经把 ./components 配成了本地安装源，所以 --local 是最短的一条路。
 		// 两条都给：有的人手上已经有组件源码，有的人要从市场装。
-		opts.Printf("%s\n", i18n.T(msgid.CliStatusAddAllTheComponentsUnder, config.DirComponents))
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusAddAllTheComponentsUnder, project.DirComponents))
 		opts.Printf("%s\n", i18n.T(msgid.CliStatusOrAddOneFromAn))
 		return nil
 	}
@@ -63,11 +63,11 @@ func runStatus(ctx context.Context, opts *Options) error {
 	//
 	// 容器跑没跑只有引擎知道，所以只问它一处。"还没起过"与"已经 down 过"
 	// 引擎本来就分不出，从前那句"尚未启动过"也只是拿一个文件在猜。
-	eng, err := resolveEngineFor(opts, p.cfg)
+	eng, err := resolveEngineFor(opts, p.proj)
 	if err != nil {
 		return err
 	}
-	if err := requireContext(ctx, opts, p.cfg, eng, p.cfg.Deploy.Context); err != nil {
+	if err := requireContext(ctx, opts, p.proj, eng, p.proj.Deploy.Settings().Context); err != nil {
 		return err
 	}
 	statuses, err := eng.Status(ctx, p.engineProject())
@@ -85,8 +85,7 @@ func runStatus(ctx context.Context, opts *Options) error {
 	renderComponentStatus(opts, p, view)
 	renderSkipped(opts, view)
 	renderLocalDebug(opts, p, view)
-	renderResourceStatus(ctx, opts, p)
-	renderLocalModeSessionHint(opts, p.layout, p.cfg)
+	renderLocalModeSessionHint(opts, p.proj)
 	return nil
 }
 
@@ -120,8 +119,8 @@ type statusRow struct {
 // "(mode: disable) (override.yaml)"——两层括号挤在一起，读着别扭。
 // 因此优先把来源并进那层已有括注（改成 "(mode: disable, via override.yaml)"）；
 // 万一将来某句 text 不是这个形状，退回旧的"整句后面再套一层括号"，不会丢信息。
-func (p *project) labelIfOverridden(id, text string) string {
-	if !p.overriddenMode[id] {
+func (p *liveProject) labelIfOverridden(id, text string) string {
+	if !p.localModeDiffers(id) {
 		return text
 	}
 	if merged, ok := insertBeforeTrailingParen(text, i18n.T(msgid.CliStatusViaOverrideYamlSuffix)); ok {
@@ -168,7 +167,7 @@ type componentView struct {
 	local []resolver.Ref
 }
 
-func buildView(p *project, byService map[string]engine.Status) componentView {
+func buildView(p *liveProject, byService map[string]engine.Status) componentView {
 	if p.degraded != nil {
 		return degradedView(p, byService)
 	}
@@ -176,7 +175,7 @@ func buildView(p *project, byService map[string]engine.Status) componentView {
 }
 
 // resolvedView 是依赖图解析成功时的归属：判定说了算。
-func resolvedView(p *project, byService map[string]engine.Status) componentView {
+func resolvedView(p *liveProject, byService map[string]engine.Status) componentView {
 	var v componentView
 	for _, ref := range p.containerRefs() {
 		status, ok := byService[manifest.ServiceName(ref.ID, ref.Version)]
@@ -203,17 +202,18 @@ func resolvedView(p *project, byService map[string]engine.Status) componentView 
 //	在跑        ✅ 运行中
 //	有记录没跑  ❌ 未在运行 —— 引擎里有它，说明它确实被部署过
 //	查不到      判不出它该不该跑，一律进"未启动"，原因写实话：
-//	            mode: disable 是 brickkit.yaml 里就写着的，其余写"原因未知"
+//	            mode: disable 是部署文件里就写着的，其余写"原因未知"
 //
 // **绝不把"查不到"算成"未在运行"**：那一节的意思是"该跑却没跑"，
 // 而这时恰恰不知道它该不该跑——说成没起来，是在冤枉一个本来就该停着的组件，
 // 而使用者会照着这句话去查一个根本不存在的故障。
 //
 // 同样绝不把它整个略去：配置里声明过的组件凭空消失，使用者只会以为组件没了。
-func degradedView(p *project, byService map[string]engine.Status) componentView {
+func degradedView(p *liveProject, byService map[string]engine.Status) componentView {
 	var v componentView
-	for _, c := range p.cfg.Components {
-		ref := resolver.Ref{ID: c.ID, Version: c.Version}
+	for _, decl := range p.proj.Decl.Components {
+		ref := resolver.Ref{ID: decl.ID, Version: decl.Version}
+		c := p.entry(ref)
 		status, ok := byService[manifest.ServiceName(ref.ID, ref.Version)]
 		switch {
 		case ok && status.Running():
@@ -223,10 +223,10 @@ func degradedView(p *project, byService map[string]engine.Status) componentView 
 			v.failed = append(v.failed, statusRow{ref: ref, text: statusText(status, ok)})
 		case c.IsDisabled():
 			v.skipped = append(v.skipped, statusRow{ref: ref, text: p.labelIfOverridden(ref.ID, reasonDisabled())})
-		case c.Mode == config.ModeDebug:
+		case c.Mode == deployfile.ModeDebug:
 			// mode: debug 组件本来就不会出现在引擎里，"查不到"是它的正常状态
 			v.local = append(v.local, ref)
-		case c.Mode == config.ModeLocal:
+		case c.Mode == deployfile.ModeLocal:
 			// mode: local 组件同样不会出现在引擎里，但它不走"本地调试"表（那是
 			// mode: debug 专属的话术），也不走 skipped（降级路径判不出它这次
 			// 该不该跑）——干脆不进任何一张表，跟 mode: local 唯一的展示手段
@@ -243,7 +243,7 @@ func degradedView(p *project, byService map[string]engine.Status) componentView 
 // 放在最前面：使用者要先知道这份报告哪里打了折扣，再去读它。
 // 解析失败的原因原样带出来（哪个文件、第几行、哪个字段）——那正是他要改的地方，
 // 只说一句"解析失败"等于让他自己再跑一次别的命令去问。
-func renderDegradedNotice(opts *Options, p *project) {
+func renderDegradedNotice(opts *Options, p *liveProject) {
 	if p.degraded == nil {
 		return
 	}
@@ -260,7 +260,7 @@ func renderDegradedNotice(opts *Options, p *project) {
 //
 // 只列 brickkit.yaml 里的组件：迁移容器与基础资源是平台的实现细节，
 // 使用者装的是组件，看到的也该是组件（资源单独一节汇报）。
-func renderComponentStatus(opts *Options, p *project, v componentView) {
+func renderComponentStatus(opts *Options, p *liveProject, v componentView) {
 	if len(v.running) == 0 && len(v.failed) == 0 && len(v.skipped) == 0 && len(v.local) == 0 {
 		opts.Printf("%s\n\n", i18n.T(msgid.CliStatusNoComponentsNeedToBe))
 		return
@@ -281,7 +281,7 @@ func renderComponentStatus(opts *Options, p *project, v componentView) {
 		}
 		opts.Printf("%s\n", i18n.T(msgid.CliStatusNotRunningComponents, i18n.Count(msgid.CountComponents, len(v.failed))))
 		opts.Printf("%s", t.render(" "))
-		opts.Printf("%s\n\n", i18n.T(msgid.CliStatusViewTheLogsToFind, logsCommand(engineName(opts, p.cfg), p.engineProject(), i18n.T(msgid.ServiceNamePlaceholder))))
+		opts.Printf("%s\n\n", i18n.T(msgid.CliStatusViewTheLogsToFind, logsCommand(engineName(opts, p.proj), p.engineProject(), i18n.T(msgid.ServiceNamePlaceholder))))
 	}
 	if len(v.running) == 0 && len(v.failed) > 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliStatusNoComponentsAreRunningPerhaps))
@@ -333,7 +333,7 @@ func renderSkipped(opts *Options, v componentView) {
 //
 // 它们没有容器，引擎里查不到——不单独说一句的话，
 // 使用者会以为这些组件"消失了"。
-func renderLocalDebug(opts *Options, p *project, v componentView) {
+func renderLocalDebug(opts *Options, p *liveProject, v componentView) {
 	if len(v.local) == 0 {
 		return
 	}
@@ -353,11 +353,11 @@ func renderLocalDebug(opts *Options, p *project, v componentView) {
 //
 // 项目里没有 mode: local 组件时，压根不去碰锁文件：没有意义，也避免每次
 // status 都多一次无谓的文件系统访问。
-func renderLocalModeSessionHint(opts *Options, layout config.Layout, cfg *config.Config) {
-	if !anyModeLocal(cfg.Components) {
+func renderLocalModeSessionHint(opts *Options, proj *project.Project) {
+	if !anyModeLocal(proj) {
 		return
 	}
-	info, held, err := sessionlock.Inspect(layout.SessionLockPath())
+	info, held, err := sessionlock.Inspect(proj.Layout.SessionLockPath())
 	if err != nil || !held {
 		// 读不出来（罕见的 I/O 错误）跟"没有会话"一视同仁：这条提示本来就是
 		// 锦上添花，不该因为一次读锁文件失败就让 status 的其余输出也报错
@@ -370,7 +370,7 @@ func renderLocalModeSessionHint(opts *Options, layout config.Layout, cfg *config
 //
 // 没写 localPort 时默认取组件自己声明的主端口（005 §4.6）——那要读 Manifest。
 // 降级时读不到，就老实说读不到：编一个端口号出来，使用者会照着它去连一个没人监听的口。
-func localAddress(p *project, ref resolver.Ref) string {
+func localAddress(p *liveProject, ref resolver.Ref) string {
 	if port := p.entry(ref).LocalPort; port > 0 {
 		return i18n.T(msgid.CliStatusLocalhostIdeDebugMode, port)
 	}
@@ -382,83 +382,29 @@ func localAddress(p *project, ref resolver.Ref) string {
 	return i18n.T(msgid.CliStatusPortUnknownNoLocalportIs)
 }
 
-// renderResourceStatus 输出基础资源的可达性（15.18）。
-//
-// 平台不部署基础资源（006 §9.1），所以判据只有一条：Docker 目标下真的拨一次号，
-// K8s 目标下只把地址列出来（集群内的 DNS 名，本机解析不了）。
-//
-// 从前这里按"host 含不含点"分成两类，托管的看容器状态、外部的才拨号。
-// 那条分叉随托管资源一起取消了。
-func renderResourceStatus(ctx context.Context, opts *Options, p *project) {
-	resources := usedResources(p)
-	if len(resources) == 0 {
-		return
+// localModeDiffers 报告这个组件在 deploy.local.yaml 里的 mode 与团队 deploy.yaml 不同——
+// status 据此把"因为你本地的文件才没跑"与"团队本来就关着"分开说。
+// 只在本地模式下成立；读团队文件出错就当不知道（这只是一句提示）。
+func (p *liveProject) localModeDiffers(id string) bool {
+	if p.proj.DeploySource != project.DeployLocal {
+		return false
 	}
-
-	k8sTarget := p.cfg.Deploy.Target == config.TargetK8s
-
-	t := newTable(i18n.T(msgid.LabelResource), i18n.T(msgid.CliStatusKind), i18n.T(msgid.CliSkillsStatus))
-	for _, r := range resources {
-		t.add(r.ID, r.Kind, resourceState(ctx, opts, r, k8sTarget))
-	}
-
-	opts.Printf("%s\n", i18n.T(msgid.CliStatusResourceStatus))
-	opts.Printf("%s\n", t.render(" "))
-	if k8sTarget {
-		opts.Printf("%s\n", i18n.T(msgid.CliStatusResourcesAreReachedInsideThe))
-		opts.Printf("%s\n\n", i18n.T(msgid.CliStatusToVerifyFromInsideThe, p.engineProject()))
-	}
-}
-
-// usedResources 返回被本次启动的组件用到的资源。
-func usedResources(p *project) []config.Resource {
-	used := map[string]bool{}
-	for _, ref := range p.componentRefs() {
-		used[ref.ID] = true
-	}
-
-	var out []config.Resource
-	for _, r := range p.cfg.Resources {
-		for _, binding := range r.Bindings {
-			if used[binding.ComponentID] {
-				out = append(out, r)
-				break
+	if p.teamModes == nil {
+		p.teamModes = map[string]string{}
+		team, _, err := deployfile.ParseFile(p.proj.Layout.DeployPath(), deployfile.RoleTeam)
+		if err != nil {
+			return false
+		}
+		for _, c := range p.proj.Decl.Components {
+			if entry, ok := team.Entry(c.ID, c.Version); ok {
+				p.teamModes[c.ID] = entry.Mode
 			}
 		}
 	}
-	return out
-}
-
-// resourceState 判定一个资源现在通不通。
-func resourceState(
-	ctx context.Context, opts *Options, r config.Resource, k8sTarget bool,
-) string {
-	if k8sTarget {
-		// K8s 下的资源地址是**集群内**的 DNS 名（postgres.infra），
-		// 开发者本机根本解析不了。照 Docker 那套拨一次号，会对一个完全健康的
-		// 部署报"不可达"——而组件正连着这个库跑得好好的。接上真集群第一次就撞到了
-		return i18n.T(msgid.CliStatusInClusterAddressNotProbed, r.Host, r.Port)
+	for _, c := range p.proj.Decl.Components {
+		if c.ID == id {
+			return p.proj.DeployEntry(c.ID, c.Version).Mode != p.teamModes[id]
+		}
 	}
-	// Docker 目标下一律拨号。
-	//
-	// 从前这里还有一条分支：`host` 不含点时被判为"由 CLI 托管的资源容器"，
-	// 于是改看容器状态而不是拨号。那条路已经取消——平台不再部署基础资源
-	// （006 §9.1），所有资源都在容器网络之外，拨号是唯一说得通的判据。
-	address := fmt.Sprintf("%s:%d", deploy.DialHost(r.Host), r.Port)
-	if err := opts.probe(ctx, address); err != nil {
-		return i18n.T(msgid.CliStatusUnreachable, address, reasonText(err))
-	}
-	return i18n.T(msgid.CliStatusReachable, address)
-}
-
-// reasonText 从拨号错误里取出人能看懂的那一句。
-//
-// net 包的错误长这样：`dial tcp 10.0.0.9:6379: connect: connection refused`，
-// 前半截对使用者没有意义。
-func reasonText(err error) string {
-	text := err.Error()
-	if idx := strings.LastIndex(text, ": "); idx >= 0 && idx+2 < len(text) {
-		return text[idx+2:]
-	}
-	return text
+	return false
 }

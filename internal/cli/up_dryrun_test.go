@@ -101,18 +101,6 @@ func TestUpDryRunShowsStatesAndOrder(t *testing.T) {
 	assert.Contains(t, r.stdout, "1. people-basic-1-0-0")
 }
 
-// 006 §9.5：CLI 不建库，但必须告诉使用者要建哪些库、怎么建。
-func TestUpDryRunReportsRequiredDatabases(t *testing.T) {
-	f := composeProject(t)
-
-	r := runIn(t, f.Dir, "up", "--dry-run")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "brickkit_people")
-	assert.Contains(t, r.stdout, "CREATE DATABASE")
-	assert.Contains(t, r.stdout, "people/basic", "要说清是哪个组件用这个库")
-}
-
 // 重复执行覆盖同一个文件，且内容一致（生成是确定性的）。
 //
 // 文件头的生成时间戳精确到秒，两次真跑 time.Now() 之间如果恰好跨过秒的

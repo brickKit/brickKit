@@ -14,89 +14,61 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/msgid"
-	"github.com/brickkit/brickkit/internal/override"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
-// project 是"这个项目现在的样子"：配置 + 级联结论。
+// liveProject 是"这个项目现在的样子"：装载好的三层文件 + 级联结论。
 //
 // **刻意没有部署文件的位置，也没有"部署过没有"这个字段。**
 // 从前两者都有：`deployed` 取自 `.brickkit/generated/` 下那份生成物在不在，
-// `down` 与 `status` 据此提前返回"项目尚未启动过"，引擎一次都不调。
-//
-// 那是个会消失的判据——生成目录在 `.gitignore` 里，003 §7.1 还明说它
-// "整个都是可再生的，删掉重新 up 就会重建"。于是一次 `git clean -xdf`
-// 之后，两条命令双双谎报"尚未启动过"，而容器好好地跑着。
-// 这与 `DownRequest` 拿掉 `File` 是同一件事，当时只修了引擎那一层，
-// 闸门留在了这里。
-//
-// 现在两条命令都直接问引擎：容器跑没跑，只有引擎知道。
-type project struct {
-	layout config.Layout
-	cfg    *config.Config
+// 而那个目录整个都是可再生的，一次 `git clean -xdf` 之后 down 与 status 双双谎报
+// "尚未启动过"，而容器好好地跑着。现在两条命令都直接问引擎：容器跑没跑，只有引擎知道。
+type liveProject struct {
+	proj   *project.Project
 	graph  *resolver.Graph
 	states *cascade.Result
 	// order 是启动顺序（停止时倒着来）。
 	order []resolver.Ref
 	// degraded 非 nil 表示**依赖图没解析出来**，本次只能给出部分结论。
 	//
-	// 它是一个结论，不是一个错误：读不到 Manifest 并不妨碍回答
-	// "现在什么在跑"——那个答案只来自引擎。谁需要依赖图、需要它回答哪一句，
-	// 由各个渲染函数自己决定（见 status.go 的 buildView）。
+	// 它是一个结论，不是一个错误：读不到 Manifest 并不妨碍回答"现在什么在跑"——
+	// 那个答案只来自引擎。谁需要依赖图、需要它回答哪一句，由各个渲染函数自己决定。
 	degraded *clierr.Error
-	// overriddenMode 是 override.yaml 明确写了 mode 的组件 ID 集合——在 applyOverride
-	// 把值合并进 cfg、抹掉"这个 mode 来自哪个文件"这个信息**之前**捕获（见
-	// loadProject）。status 用它把"因为本地 override.yaml 而没跑"和"brickkit.yaml
-	// 自己写的"分开说清楚（override.yaml 设计书 §9）。
-	overriddenMode map[string]bool
+	// teamModes 是团队 deploy.yaml 里各组件的 mode（本地模式下 status 比对用，懒加载）。
+	teamModes map[string]string
 }
 
-// loadConfig 只读 brickkit.yaml，**不碰安装源**。
+// loadConfig 只装载三层文件，**不碰安装源**。
 //
-// down 走这条：它交给引擎的只有项目名（"停掉 brickkit-<项目名> 名下的一切"，
-// 005 §5.9.3），依赖图里的任何东西它都用不上。
-//
-// 从前它和 status 共用下面那个 loadProject，于是解析依赖图成了停容器的前置条件——
-// component.yaml 里一处笔误、本地源目录被删（`components/` 本来就在 .gitignore 里）、
-// 市场连不上，任何一种都让 down 直接失败，而容器好好跑着。
-// 一条停不掉项目的 down 比没有 down 更糟：使用者以为自己有退路。
-func loadConfig(opts *Options) (*project, error) {
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
-	cfg, err := config.ParseConfigFile(layout.ConfigPath())
+// down 走这条：它交给引擎的只有项目名与目标，依赖图里的任何东西它都用不上。
+// 一条因为 component.yaml 笔误、安装源连不上就停不掉项目的 down，比没有 down 更糟。
+func loadConfig(opts *Options) (*liveProject, error) {
+	proj, err := project.Load(opts.WorkDir, opts.loadOptions())
 	if err != nil {
 		return nil, err
 	}
-	return &project{layout: layout, cfg: cfg}, nil
+	renderWarnings(opts, proj.Warnings)
+	return &liveProject{proj: proj}, nil
 }
 
-// loadProject 读配置，并**尽力**解析依赖图。
+// loadProject 装载三层文件，并**尽力**解析依赖图。
 //
 // 不重新生成部署文件：down / status 面对的是**已经跑起来的东西**，
-// 重新生成只会掩盖"配置改了但还没 up"这个事实。
-//
-// 解析失败不算命令失败，只记进 degraded：status 的五节里只有"未启动"
-// 那一列**原因**真的需要依赖图，为它把整条命令拖死，换来的是
-// 使用者连"容器还在不在"都问不到。
-func loadProject(ctx context.Context, opts *Options) (*project, error) {
+// 重新生成只会掩盖"配置改了但还没 up"这个事实。解析失败不算命令失败，只记进 degraded。
+func loadProject(ctx context.Context, opts *Options) (*liveProject, error) {
 	p, err := loadConfig(opts)
 	if err != nil {
 		return nil, err
 	}
-	ov, err := loadOverride(opts, p.layout, p.cfg)
-	if err != nil {
-		return nil, err
-	}
-	p.overriddenMode = overriddenModeIDs(ov)
-	if err := applyOverride(p.cfg, ov); err != nil {
-		return nil, err
-	}
-	if len(p.cfg.Components) == 0 {
+	if len(p.proj.Decl.Components) == 0 {
 		return p, nil
 	}
 	if err := p.resolve(ctx, opts); err != nil {
@@ -106,39 +78,15 @@ func loadProject(ctx context.Context, opts *Options) (*project, error) {
 	return p, nil
 }
 
-// overriddenModeIDs 返回 override.yaml 里明确写了 mode 的组件 ID 集合——只看 Mode
-// 是否非空，不管具体取值。
-//
-// 眼下真正用到这份集合的只有 labelIfOverridden，而它只在"没跑"的那一行上加
-// 标记：mode: debug 走本地调试表（renderLocalDebug），mode: local 干脆不进任何
-// 表格（degradedView 的 case c.Mode == config.ModeLocal 那条注释），两者的
-// cascade 状态都是 StateRunning（跟 mode: enabled 一样被钉住），压根不会落进
-// resolvedView 的"没跑"skip 循环——所以目前只有 disable 真正触发过这个标记。
-// 这里仍然按"任意非空 Mode"收集，而不是只收 disable：collect 和 use 分成两处，
-// 是不想让这份集合的语义绑死在 labelIfOverridden 今天唯一的用法上——将来渲染
-// 逻辑一变，不用回来改这里。
-func overriddenModeIDs(ov *override.Override) map[string]bool {
-	if ov == nil {
-		return nil
-	}
-	ids := map[string]bool{}
-	for id, v := range flattenOverrideValues(ov.Components) {
-		if v.Mode != "" {
-			ids[id] = true
-		}
-	}
-	return ids
-}
-
 // resolve 解析依赖图并算出级联与启动顺序。
-func (p *project) resolve(ctx context.Context, opts *Options) error {
-	client, err := newSourceClient(opts, p.layout, p.cfg, source.Options{})
+func (p *liveProject) resolve(ctx context.Context, opts *Options) error {
+	client, err := newSourceClient(opts, p.proj.Layout, p.proj.Decl, source.Options{})
 	if err != nil {
 		return err
 	}
 	defer func() { _ = client.Close() }()
 
-	if p.graph, p.states, err = resolveTopology(ctx, client, p.cfg); err != nil {
+	if p.graph, p.states, err = resolveTopology(ctx, client, p.proj); err != nil {
 		return err
 	}
 	if plan, err := resolver.Order(p.graph.Subgraph(p.states.Running())); err == nil {
@@ -154,54 +102,41 @@ func (p *project) resolve(ctx context.Context, opts *Options) error {
 //	正常   级联判定为"会启动"的那些，按启动顺序
 //	降级   brickkit.yaml 里声明的全部，按声明顺序——判不出谁该跑，
 //	       那就一个都不漏地列出来，由调用方去说明各自的处境
-func (p *project) componentRefs() []resolver.Ref {
+func (p *liveProject) componentRefs() []resolver.Ref {
 	if p.degraded == nil {
 		return p.order
 	}
-	out := make([]resolver.Ref, 0, len(p.cfg.Components))
-	for _, c := range p.cfg.Components {
+	out := make([]resolver.Ref, 0, len(p.proj.Decl.Components))
+	for _, c := range p.proj.Decl.Components {
 		out = append(out, resolver.Ref{ID: c.ID, Version: c.Version})
 	}
 	return out
 }
 
-// entry 返回 brickkit.yaml 中该组件的条目。
-func (p *project) entry(ref resolver.Ref) config.Component {
-	for _, c := range p.cfg.Components {
-		if c.ID == ref.ID && c.Version == ref.Version {
-			return c
-		}
-	}
-	return config.Component{}
+// entry 返回该组件版本的部署条目。
+func (p *liveProject) entry(ref resolver.Ref) deployfile.Component {
+	return p.proj.DeployEntry(ref.ID, ref.Version)
 }
 
 // containerRefs 返回本次**由本项目**生成容器的组件，按启动顺序。
 //
-// `mode: debug`/`mode: local` 都要排除掉：debug 在依赖图里、也"在跑"，但跑在
-// 开发者的 IDE 里；local 也在依赖图里、也"在跑"，但跑在 brickkit 自己前台监管
-// 的裸进程里——本项目对这两者都不生成任何容器（003 §4.4、005 §3）。`status`
-// 把它们各自单列一节汇报（debug 走"本地调试"表；local 走会话锁提示，见
-// status.go 的 renderLocalModeSessionHint），不混在"未在运行"里——那会让人
-// 以为它们出问题了。
-func (p *project) containerRefs() []resolver.Ref {
+// mode: debug / local 都要排除：它们在依赖图里、也"在跑"，但跑在开发者的 IDE 里或
+// brickkit 前台监管的裸进程里，本项目对它们不生成任何容器。
+func (p *liveProject) containerRefs() []resolver.Ref {
 	var out []resolver.Ref
 	for _, ref := range p.componentRefs() {
-		mode := p.entry(ref).Mode
-		if mode != config.ModeDebug && mode != config.ModeLocal {
+		if !p.entry(ref).IsBareProcess() {
 			out = append(out, ref)
 		}
 	}
 	return out
 }
 
-// debugRefs 返回 mode: debug 且本次会启动的组件（原名 localRefs——改名是因为
-// "local"这个词现在同时可能指 mode: debug 的展示与 mode: local 的展示，两者
-// 走的是完全不同的表：debugRefs 只喂给"本地调试"表，mode: local 组件永远不会
-// 出现在这个函数的返回值里）。
-func (p *project) debugRefs() []resolver.Ref {
+// debugRefs 返回 mode: debug 且本次会启动的组件（mode: local 走会话锁提示，不在这里）。
+func (p *liveProject) debugRefs() []resolver.Ref {
 	var out []resolver.Ref
 	for _, ref := range p.componentRefs() {
-		if p.entry(ref).Mode == config.ModeDebug {
+		if p.entry(ref).Mode == deployfile.ModeDebug {
 			out = append(out, ref)
 		}
 	}
@@ -246,11 +181,21 @@ func logsCommand(engineName, project, service string) string {
 // engineProject 是引擎侧的项目名：Docker 下是 compose 项目名，K8s 下是命名空间。
 //
 // 两者取值相同（brickkit-<项目名>），但来源不该混——各自的命名规则由各自那一侧定义。
-func (p *project) engineProject() string {
-	if p.cfg.Deploy.Target == config.TargetK8s {
-		return k8s.NamespaceOf(p.cfg)
+func (p *liveProject) engineProject() string {
+	if p.proj.Deploy.Target == deployfile.TargetK8s {
+		return k8s.NamespaceOf(p.proj)
 	}
-	return engine.ProjectName(p.cfg.Project)
+	return engine.ProjectName(p.proj.Decl.Project)
 }
 
 func refText(ref resolver.Ref) string { return ref.ID + "@" + ref.Version }
+
+// loadDecl 只读 brickkit.yaml。
+//
+// fetch / login / publish 只关心"有哪些安装源"：部署文件与 config/ 缺了、写错了，
+// 都不该挡住它们——取个契约、登个录，不需要项目可部署。
+func loadDecl(opts *Options) (project.Layout, *projfile.File, error) {
+	layout := project.NewLayout(opts.WorkDir)
+	decl, err := projfile.ParseFile(layout.DeclPath())
+	return layout, decl, err
+}

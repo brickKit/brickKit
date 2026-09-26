@@ -31,11 +31,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
@@ -65,13 +65,12 @@ func runFetch(ctx context.Context, opts *Options, arg string) error {
 		return err
 	}
 
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
-	cfg, err := config.ParseConfigFile(layout.ConfigPath())
+	layout, decl, err := loadDecl(opts)
 	if err != nil {
 		return err
 	}
 
-	client, err := newSourceClient(opts, layout, cfg, source.Options{})
+	client, err := newSourceClient(opts, layout, decl, source.Options{})
 	if err != nil {
 		return err
 	}
@@ -117,7 +116,7 @@ func runFetch(ctx context.Context, opts *Options, arg string) error {
 	// 在每一行里重复一遍。
 	service := manifest.ServiceName(id, version)
 	dir := displayPath(opts.WorkDir, client.ArtifactDir(id, version))
-	opts.Printf("%s\n", i18n.T(msgid.CliFetchDownloadedTheArtifactsOfNot, ref, layout.ConfigName()))
+	opts.Printf("%s\n", i18n.T(msgid.CliFetchDownloadedTheArtifactsOfNot, ref, project.FileDecl))
 	opts.Printf("   %s/\n", dir)
 	for _, file := range res.Downloaded {
 		opts.Printf("     %s\n", strings.TrimPrefix(file, service+"/"))

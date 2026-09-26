@@ -8,36 +8,38 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 )
 
 func TestRestorePlanOnlyTouchesEntriesPresentInBothVersions(t *testing.T) {
-	head := &config.Config{Components: []config.Component{
-		{ID: "demo/hello", Version: "1.0.0"}, // 提交里没写 mode
-		{ID: "demo/caller", Version: "1.0.0", Mode: config.ModeEnabled},
-		{ID: "gone/thing", Version: "1.0.0"}, // 本地已 remove
+	head := &deployfile.File{Components: []deployfile.Component{
+		{ID: "demo/hello"}, // 提交里没写 mode
+		{ID: "demo/caller", Mode: deployfile.ModeEnabled},
+		{ID: "gone/thing"}, // 本地已 remove
+		{ID: "demo/bumped"},
 	}}
-	work := &config.Config{Components: []config.Component{
-		{ID: "demo/hello", Version: "1.0.0", Mode: config.ModeDisable},  // 本地关掉了
-		{ID: "demo/caller", Version: "1.0.0", Mode: config.ModeEnabled}, // 没变
-		{ID: "brand/new", Version: "0.1.0", Mode: config.ModeDisable},   // 本地新 add 的
-		{ID: "demo/bumped", Version: "2.0.0", Mode: config.ModeDisable}, // 本地改了版本号
+	work := &deployfile.File{Components: []deployfile.Component{
+		{ID: "demo/hello", Mode: deployfile.ModeDisable},        // 本地关掉了
+		{ID: "demo/caller", Mode: deployfile.ModeEnabled},       // 没变
+		{ID: "brand/new", Mode: deployfile.ModeDisable},         // 本地新 add 的
+		{ID: "demo/bumped@2.0.0", Mode: deployfile.ModeDisable}, // 本地把裸 id 改成了带版本的
 	}}
 
 	changes, untouched := restorePlan(work, head)
 
 	require.Len(t, changes, 1, "只有 hello 需要还原")
-	assert.Equal(t, "demo/hello", changes[0].id)
+	assert.Equal(t, "demo/hello", changes[0].entry)
 	assert.Equal(t, "", changes[0].to, "提交里没写 mode → 删掉这个字段，不是写成别的值")
-	assert.Equal(t, config.ModeDisable, changes[0].from)
+	assert.Equal(t, deployfile.ModeDisable, changes[0].from)
 
-	assert.ElementsMatch(t, []string{"brand/new@0.1.0", "demo/bumped@2.0.0"}, untouched,
+	assert.ElementsMatch(t, []string{"brand/new", "demo/bumped@2.0.0"}, untouched,
 		"提交里没有的条目一个字不动——这是不吃掉未提交 add 的解药")
 }
 
@@ -59,113 +61,26 @@ func TestRestoreRestoresModeAndMovesSourceBack(t *testing.T) {
 	f.assertActive(t, "demo/hello")
 	f.assertActive(t, "demo/caller")
 
-	cfg := f.parsed(t)
-	assert.Empty(t, cfg.Components[0].Mode, "mode 回到「不写」")
+	assert.Empty(t, f.deployEntry(t, "demo/hello").Mode, "mode 回到「不写」")
 }
 
-// restore 刚把 mode 还原到 HEAD 那份状态——override.yaml 记的 baseline 是刷新时
-// brickkit.yaml 的旧状态，restore 一还原，跟当前值就对不上了。不是泛泛一句
-// "可能过期了"（brickkit override 其实并不会刷新 baseline，那样承诺是在撒谎），
-// 而是复用 up/lint 同一条 override.Drift，照实打印出哪个组件、从什么变成了什么
-// ——评审指出旧版本的泛泛提示既不准确、也在没有真实漂移时依然出现（Important #3）。
-func TestRestorePrintsRealDriftNoteWhenModeChanged(t *testing.T) {
+// 本地模式开着时，restore 只还原团队文件 deploy.yaml，个人的 deploy.local.yaml
+// 一个字不动，并且要说出来——否则使用者会以为本地那份也被还原了。
+func TestRestoreLeavesLocalFileAloneAndSaysSo(t *testing.T) {
 	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
 	gitProject(t, f.Dir)
 	gitDo(t, f.Dir, "add", "-A")
 	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
-
 	f.writeConfig(t, helloDisabled)
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
-	f.writeOverride(t, `components:
-  - id: demo/hello
-    mode: debug
-    baseline: enabled
-`)
+	f.writeOverride(t, "components:\n  - id: demo/caller\n    mode: local\n")
+	local := readFile(t, f.Layout.DeployLocalPath())
 
 	r := runIn(t, f.Dir, "restore")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "Drift: demo/hello")
-}
-
-// 没有 override.yaml：没什么好比对的，不该出现任何漂移提示——override.yaml 是
-// 可选机制，没用上它的项目不该被一句跟自己无关的提示打扰。
-func TestRestoreSkipsOverrideHintWhenFileAbsent(t *testing.T) {
-	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
-	gitProject(t, f.Dir)
-	gitDo(t, f.Dir, "add", "-A")
-	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
-
-	f.writeConfig(t, helloDisabled)
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
-
-	r := runIn(t, f.Dir, "restore")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.NotContains(t, r.stdout, "Drift:")
-}
-
-// mode 一个都没变（工作区已经跟 HEAD 一致）：没有什么"过期"可言，同样不该提示。
-func TestRestoreSkipsOverrideHintWhenNothingChanged(t *testing.T) {
-	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
-	gitProject(t, f.Dir)
-	gitDo(t, f.Dir, "add", "-A")
-	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
-	f.writeOverride(t, `components:
-  - id: demo/hello
-    mode: debug
-    baseline: enabled
-`)
-
-	r := runIn(t, f.Dir, "restore")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.NotContains(t, r.stdout, "Drift:")
-}
-
-// override.yaml 只有裸 id、没有记录任何 baseline：restore 之后没有基准可比对，
-// 不该凭空打出一句"可能过期了"——评审指出旧版本的泛泛提示在这种最常见的场景下
-// 反而是纯噪音。
-func TestRestoreSkipsOverrideHintWhenNoBaselineRecorded(t *testing.T) {
-	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
-	gitProject(t, f.Dir)
-	gitDo(t, f.Dir, "add", "-A")
-	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
-
-	f.writeConfig(t, helloDisabled)
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
-	f.writeOverride(t, `components:
-  - id: demo/hello
-`)
-
-	r := runIn(t, f.Dir, "restore")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.NotContains(t, r.stdout, "Drift:")
-}
-
-// override.yaml 存在但读不动（这里用自引用符号链接制造 ELOOP，不是文件缺失）
-// ——suggestOverrideRefresh 从前把 ParseOverrideFile 的两种失败当同一回事：
-// `if err != nil || ov == nil { return }`，读不动跟"没有这份文件"一样静默放过，
-// 使用者会以为"没有漂移"，其实是压根没检查成功。真错误要报出来，哪怕只是一句
-// 警告——restore 本身该照样成功（mode 已经真的还原了，漂移检查只是附加的
-// 提醒），不该因为这个附加检查失败就让整条命令报错。
-func TestRestoreWarnsWhenOverrideCanNotBeReadForDriftCheck(t *testing.T) {
-	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
-	gitProject(t, f.Dir)
-	gitDo(t, f.Dir, "add", "-A")
-	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
-
-	f.writeConfig(t, helloDisabled)
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
-	path := filepath.Join(f.Dir, "override.yaml")
-	require.NoError(t, os.Symlink(path, path))
-
-	r := runIn(t, f.Dir, "restore")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "override.yaml")
-	assert.Contains(t, r.stdout, "could not be read")
+	assert.Equal(t, local, readFile(t, f.Layout.DeployLocalPath()))
+	assert.Contains(t, r.stdout, "deploy.local.yaml")
+	assert.Empty(t, f.deployEntry(t, "demo/hello").Mode, "团队文件照常还原")
 }
 
 func TestRestoreKeepsUncommittedAddInTheConfig(t *testing.T) {
@@ -182,17 +97,13 @@ func TestRestoreKeepsUncommittedAddInTheConfig(t *testing.T) {
 	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
 
 	// 提交之后才 add 的组件
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "add", "solo/thing@1.0.0", "--yes").code)
+	f.writeConfig(t, strings.Replace(allEnabled, "resources: []\n", "  - id: solo/thing\n    version: 1.0.0\n", 1))
 
 	r := runIn(t, f.Dir, "restore")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
-	cfg := f.parsed(t)
-	var ids []string
-	for _, c := range cfg.Components {
-		ids = append(ids, c.ID)
-	}
-	assert.Contains(t, ids, "solo/thing",
+	assert.Contains(t, f.refs(t), "solo/thing@1.0.0")
+	assert.Equal(t, "solo/thing@1.0.0", f.deployEntry(t, "solo/thing").ID,
 		"restore 只动 mode，绝不像 git checkout 那样把未提交的 add 一起吃掉")
 }
 
@@ -256,11 +167,11 @@ func TestRestoreIsIdempotent(t *testing.T) {
 
 	first := runIn(t, f.Dir, "restore")
 	require.Equal(t, clierr.ExitOK, first.code, first.stdout+first.stderr)
-	after := f.config(t)
+	after := f.deployText(t)
 
 	second := runIn(t, f.Dir, "restore")
 	require.Equal(t, clierr.ExitOK, second.code, second.stdout+second.stderr)
-	assert.Equal(t, after, f.config(t), "连跑两次的结果必须一样")
+	assert.Equal(t, after, f.deployText(t), "连跑两次的结果必须一样")
 	f.assertActive(t, "demo/hello")
 }
 
@@ -306,10 +217,10 @@ func TestRestoreLeavesConfigUntouchedWhenFocusFails(t *testing.T) {
 	// 工作区换成：demo/hello 的 mode 字段与 HEAD 不同（有真实改动要还原），
 	// 且引用不存在的版本让 syncFocus 解不出来。
 	f.writeConfig(t, helloModeWithUnresolvable)
-	before := f.config(t)
+	before := f.deployText(t)
 
 	r := runIn(t, f.Dir, "restore")
 
 	assert.Equal(t, clierr.ExitError, r.code, "判定失败必须非零退出：%s%s", r.stdout, r.stderr)
-	assert.Equal(t, before, f.config(t), "判定失败时 yaml 必须一个字节都没被改动")
+	assert.Equal(t, before, f.deployText(t), "判定失败时 yaml 必须一个字节都没被改动")
 }

@@ -288,7 +288,7 @@ func k8sProjectWithNamespace(t *testing.T, namespace string) *projectFixture {
 		b.WriteString(s)
 	}
 	b.WriteString("\ncomponents:\n  - id: people/basic\n    version: 1.0.0\n")
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
+	f.rewrite(t, b.String())
 	return f
 }
 

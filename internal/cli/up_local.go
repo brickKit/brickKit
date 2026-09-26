@@ -5,28 +5,27 @@ import (
 	"errors"
 	"fmt"
 	"os/signal"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
-	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/procsup"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/runcmd"
 	"github.com/brickkit/brickkit/internal/sessionlock"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
 
-// anyModeLocal 判断项目里有没有 mode: local 组件。
-func anyModeLocal(components []config.Component) bool {
-	for _, c := range components {
-		if c.Mode == config.ModeLocal {
+// anyModeLocal 判断项目里有没有 mode: local 组件（看生效的那份部署文件）。
+func anyModeLocal(proj *project.Project) bool {
+	for _, c := range proj.Decl.Components {
+		if proj.DeployEntry(c.ID, c.Version).Mode == deployfile.ModeLocal {
 			return true
 		}
 	}
@@ -39,21 +38,20 @@ func anyModeLocal(components []config.Component) bool {
 // 上的任何地方，平台不关心；local 的进程由平台自己拉起，得知道去哪个目录、
 // cd 进去执行探测出的命令——没有源码目录，这件事根本无从谈起。
 //
-// 放在生成阶段查（buildUpPlan 里，--dry-run 也会走到）：跟资源绑定检查
-// （resolver.CheckRunningResourceBindings）同一类"生成阶段就该知道、
-// 不该等运行时才炸"的检查。
-func checkLocalSources(layout config.Layout, cfg *config.Config, running []resolver.Ref) error {
+// 放在生成阶段查（buildUpPlan 里，--dry-run 也会走到）："生成阶段就该知道、
+// 不该等运行时才炸"。
+func checkLocalSources(proj *project.Project, running []resolver.Ref) error {
 	runningSet := make(map[string]bool, len(running))
 	for _, ref := range running {
 		runningSet[ref.ID] = true
 	}
 
 	p := clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpLocalComponentsMissingSource))
-	for i, c := range cfg.Components {
-		if c.Mode != config.ModeLocal || !runningSet[c.ID] {
+	for i, c := range proj.Decl.Components {
+		if proj.DeployEntry(c.ID, c.Version).Mode != deployfile.ModeLocal || !runningSet[c.ID] {
 			continue
 		}
-		if !workspace.Exists(layout, c.ID) {
+		if !workspace.Exists(proj.Layout, c.ID) {
 			p.Add(fmt.Sprintf("components[%d]", i), i18n.T(msgid.CliUpNoLocalSourceFor, c.ID))
 		}
 	}
@@ -71,17 +69,14 @@ type localComponentPlan struct {
 }
 
 // collectLocalComponents 按拓扑序收集全部 mode: local 组件，探测出各自的启动命令。
-//
-// lookup 这一步还用不上（Task 3 才会把它接进 buildLocalEnv）——现在就放进签名，
-// 是不想等 Task 3 再回头改一次签名、连带改掉这一步已经写好的调用点与测试。
 func collectLocalComponents(
-	layout config.Layout, cfg *config.Config, graph *resolver.Graph,
-	order *resolver.Plan, localEnvFiles []compose.LocalEnvFile, lookup func(string) (string, bool),
+	proj *project.Project, graph *resolver.Graph,
+	order *resolver.Plan, localEnvFiles []compose.LocalEnvFile,
 ) ([]localComponentPlan, error) {
-	localMode := make(map[string]bool, len(cfg.Components))
-	for _, c := range cfg.Components {
-		if c.Mode == config.ModeLocal {
-			localMode[c.ID] = true
+	localMode := make(map[resolver.Ref]bool, len(proj.Decl.Components))
+	for _, c := range proj.Decl.Components {
+		if proj.DeployEntry(c.ID, c.Version).Mode == deployfile.ModeLocal {
+			localMode[resolver.Ref{ID: c.ID, Version: c.Version}] = true
 		}
 	}
 	if len(localMode) == 0 {
@@ -89,16 +84,16 @@ func collectLocalComponents(
 	}
 
 	portOf := make(map[resolver.Ref]int, len(localEnvFiles))
-	varsOf := make(map[resolver.Ref][]inject.Var, len(localEnvFiles))
+	fileOf := make(map[resolver.Ref]compose.LocalEnvFile, len(localEnvFiles))
 	for _, f := range localEnvFiles {
 		portOf[f.Ref] = f.Port
-		varsOf[f.Ref] = f.Vars
+		fileOf[f.Ref] = f
 	}
 
 	var out []localComponentPlan
 	for _, step := range order.Steps {
 		ref := step.Ref
-		if !localMode[ref.ID] {
+		if !localMode[ref] {
 			continue
 		}
 		node := graph.Node(ref)
@@ -110,7 +105,7 @@ func collectLocalComponents(
 			continue // localEnvFiles 只含"这次真的在跑"的组件；跟 collectTargets 同一份 running 集合
 		}
 
-		dir := workspace.SourceDir(layout, ref.ID)
+		dir := workspace.SourceDir(proj.Layout, ref.ID)
 		hints := hintsFromManifest(node.Manifest.Local)
 		cmd, err := runcmd.Detect(dir, hints, runcmd.Params{Port: port})
 		if err != nil {
@@ -120,7 +115,7 @@ func collectLocalComponents(
 			return nil, programMissingError(ref, err)
 		}
 
-		env, err := buildLocalEnv(ref, cmd.Language, varsOf[ref], port, cmd.Env, lookup)
+		env, err := buildLocalEnv(ref, cmd.Language, fileOf[ref], port, cmd.Env)
 		if err != nil {
 			return nil, err
 		}
@@ -157,11 +152,6 @@ func programMissingError(ref resolver.Ref, err error) error {
 		WithDetail(i18n.T(msgid.LabelReason), err.Error())
 }
 
-// localEnvVarRe 跟 internal/compose/local.go 里的那条是同一份规则（003 §5.4）——
-// 不导出，各自维护一份是现有仓库惯例，internal/config 与 internal/compose 也
-// 各自有一份同规则的正则，不是本计划引入的新重复。
-var localEnvVarRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
-
 // localDebugEnvVarsToStrip 是每种语言里，一旦从启动 brickkit up 的那个 shell
 // 继承到就会让进程在没人要求调试的情况下卡住等调试器连接的环境变量。
 //
@@ -188,20 +178,16 @@ var localDebugEnvVarsToStrip = map[string][]string{
 // 取最后一个，这里追加在最后，天然盖掉 os.Environ() 里继承来的任何值，不需要
 // procsup 知道这件事。
 func buildLocalEnv(
-	ref resolver.Ref, language string, vars []inject.Var, port int, cmdEnv []string, lookup func(string) (string, bool),
+	ref resolver.Ref, language string, file compose.LocalEnvFile, port int, cmdEnv []string,
 ) ([]string, error) {
-	out := make([]string, 0, len(vars)+len(cmdEnv)+2)
-	for _, v := range vars {
-		if v.ExistingSecretRef != "" {
-			// existingSecret 引用的是 K8s Secret；mode: local 跟 mode: debug 一样
-			// docker-only，这条引用在这两种模式下都没有对应的值（005 §5.6）。
-			continue
-		}
-		value, missing := expandStrict(v.Value, lookup)
-		if missing != "" {
+	out := make([]string, 0, len(file.Vars)+len(cmdEnv)+2)
+	for _, v := range file.Vars {
+		// brickkit 自己拉起的进程对缺失的 ${VAR} 是严格的：带着字面量占位符启动，
+		// 只会得到一个莫名其妙的运行时错误（IDE 读的那份文件对它宽松，那是给人看的）
+		if missing, ok := file.Unresolved[v.Name]; ok {
 			return nil, missingEnvVarError(ref, v.Name, missing)
 		}
-		out = append(out, v.Name+"="+value)
+		out = append(out, v.Name+"="+v.Value.Text)
 	}
 	out = append(out, cmdEnv...)
 	out = append(out, fmt.Sprintf("PORT=%d", port))
@@ -209,25 +195,6 @@ func buildLocalEnv(
 		out = append(out, name+"=")
 	}
 	return out, nil
-}
-
-// expandStrict 展开 raw 里的 ${VAR}；第一个展开不了的变量名通过 missing 返回。
-func expandStrict(raw string, lookup func(string) (string, bool)) (value, missing string) {
-	if lookup == nil || !strings.Contains(raw, "${") {
-		return raw, ""
-	}
-	var firstMissing string
-	expanded := localEnvVarRe.ReplaceAllStringFunc(raw, func(match string) string {
-		name := match[2 : len(match)-1]
-		if v, ok := lookup(name); ok {
-			return v
-		}
-		if firstMissing == "" {
-			firstMissing = name
-		}
-		return match
-	})
-	return expanded, firstMissing
 }
 
 func missingEnvVarError(ref resolver.Ref, envVarName, missingVarName string) error {
@@ -259,7 +226,7 @@ const startupProbeTimeout = 30 * time.Second
 // 本地进程依赖的容器地址已经可用，不需要把容器和本地进程交织进同一个
 // 拓扑序循环里。
 func runLocalComponents(
-	ctx context.Context, opts *Options, layout config.Layout,
+	ctx context.Context, opts *Options, layout project.Layout,
 	plans []localComponentPlan, crashLines int,
 ) error {
 	if len(plans) == 0 {

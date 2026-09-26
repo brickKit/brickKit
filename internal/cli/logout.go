@@ -16,11 +16,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/market"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
@@ -51,7 +51,7 @@ func runLogout(ctx context.Context, opts *Options, keepRemote bool) error {
 		ctx = context.Background()
 	}
 
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
+	layout := project.NewLayout(opts.WorkDir)
 	path := layout.CredentialsPath()
 
 	creds, err := source.LoadCredentials(path)

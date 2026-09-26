@@ -25,7 +25,6 @@ const (
 	LabelOutput    = "label.output"
 	LabelCommand   = "label.command"
 	LabelRepo      = "label.repo"
-	LabelResource  = "label.resource"
 	LabelShell     = "label.shell"
 
 	// 生成文件（compose.yaml、K8s 清单）头注释的公共部分。
@@ -59,7 +58,6 @@ const (
 	// 句子里用 %s 接 i18n.Count 的返回值。放在共享 key 里是因为同一个名词几乎
 	// 到处都要数（文件、组件、清单……），各写各的会让"1 files"这种毛病每处都要修一遍。
 	CountComponents = "count.components"
-	CountResources  = "count.resources"
 	CountFiles      = "count.files"
 	CountItems      = "count.items"
 	CountWarnings   = "count.warnings"
@@ -107,6 +105,6 @@ const (
 
 // 跨包共享（改名自各包私有的同文案 key）
 const (
-	LabelUsage   = "label.usage"
-	LabelExample = "label.example"
+	LabelUsage      = "label.usage"
+	LabelComponents = "label.components"
 )

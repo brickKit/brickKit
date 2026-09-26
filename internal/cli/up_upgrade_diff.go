@@ -21,10 +21,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 )
 
 // unknownDiff 是算不出差异时的说法。
@@ -33,7 +33,7 @@ import (
 func unknownDiff() string { return i18n.T(msgid.CliUpUpgradeDiffUnknownDiff) }
 
 // cachedManifest 读缓存里某个版本的 Manifest；读不到返回 nil。
-func cachedManifest(layout config.Layout, id, version string) *manifest.Manifest {
+func cachedManifest(layout project.Layout, id, version string) *manifest.Manifest {
 	name := strings.ReplaceAll(id, "/", "-") + "-" + version + ".yaml"
 	m, err := manifest.ParseFile(filepath.Join(layout.ManifestsDir(), name))
 	if err != nil {
@@ -61,10 +61,7 @@ func describeUpgradeDiff(u *upgradeInfo, oldM, newM *manifest.Manifest) {
 // 依赖（38.18）
 // ============================================================
 
-// dependencyNames 收集组件依赖与资源依赖的名字。
-//
-// 资源依赖也算进来：新版本开始要一个数据库，对使用者的影响
-// 不比多依赖一个组件小——他得去 brickkit.yaml 里绑定它。
+// dependencyNames 收集组件依赖的名字。
 func dependencyNames(m *manifest.Manifest) []string {
 	if m.Dependencies == nil {
 		return nil
@@ -72,9 +69,6 @@ func dependencyNames(m *manifest.Manifest) []string {
 	var out []string
 	for _, c := range m.Dependencies.Components {
 		out = append(out, c.ID+"@"+c.Version)
-	}
-	for _, r := range m.Dependencies.Resources {
-		out = append(out, i18n.T(msgid.ConfigProjectNameProblemWithRule, r.Kind, r.Engine))
 	}
 	return out
 }

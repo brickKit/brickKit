@@ -15,6 +15,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
+	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/runcmd"
@@ -58,17 +59,7 @@ func TestCollectLocalComponentsDetectsARealGoFixture(t *testing.T) {
     mode: local
 `)
 
-	cfg := f.parsed(t)
-	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, cfg), cfg)
-	require.NoError(t, err)
-	order, err := resolver.Order(graph.Subgraph(states.Running()))
-	require.NoError(t, err)
-	env, err := inject.Build(cfg, graph, states)
-	require.NoError(t, err)
-	genResult, err := compose.Generate(cfg, graph, states, env, compose.Options{Engine: compose.EngineDocker})
-	require.NoError(t, err)
-
-	plans, err := collectLocalComponents(f.Layout, cfg, graph, order, genResult.LocalEnvFiles, envLookup(f.Dir))
+	plans, err := localPlans(t, f)
 
 	require.NoError(t, err)
 	require.Len(t, plans, 1)
@@ -79,42 +70,30 @@ func TestCollectLocalComponentsDetectsARealGoFixture(t *testing.T) {
 // Plan 4b：本地进程环境变量的严格展开
 // ============================================================
 
-func TestBuildLocalEnvExpandsResolvableVars(t *testing.T) {
+func TestBuildLocalEnvUsesEvaluatedValues(t *testing.T) {
 	ref := resolver.Ref{ID: "people/basic", Version: "1.0.0"}
-	vars := []inject.Var{{Name: "DATABASE_PASSWORD", Value: "${DB_PASSWORD}"}}
-	lookup := func(name string) (string, bool) {
-		if name == "DB_PASSWORD" {
-			return "secret123", true
-		}
-		return "", false
-	}
+	file := compose.LocalEnvFile{Vars: []inject.Var{{Name: "DB_PASSWORD", Value: inject.Literal("secret123")}}}
 
-	env, err := buildLocalEnv(ref, "", vars, 9000, []string{"PYTHONUNBUFFERED=1"}, lookup)
+	env, err := buildLocalEnv(ref, "", file, 9000, []string{"PYTHONUNBUFFERED=1"})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"DATABASE_PASSWORD=secret123", "PYTHONUNBUFFERED=1", "PORT=9000"}, env)
+	assert.Equal(t, []string{"DB_PASSWORD=secret123", "PYTHONUNBUFFERED=1", "PORT=9000"}, env)
 }
 
+// brickkit 自己拉起的进程对缺失的 ${VAR} 是严格的：带着字面占位符启动只会换来
+// 一个莫名其妙的运行时错误。报错要点名组件、缺的环境变量与它要填的配置项。
 func TestBuildLocalEnvErrorsOnUnresolvableVar(t *testing.T) {
 	ref := resolver.Ref{ID: "people/basic", Version: "1.0.0"}
-	vars := []inject.Var{{Name: "DATABASE_PASSWORD", Value: "${DB_PASSWORD}"}}
-	lookup := func(string) (string, bool) { return "", false }
+	file := compose.LocalEnvFile{
+		Vars:       []inject.Var{{Name: "DB_PASSWORD", Value: inject.Literal("${PEOPLE_DB_PW}")}},
+		Unresolved: map[string]string{"DB_PASSWORD": "PEOPLE_DB_PW"},
+	}
 
-	_, err := buildLocalEnv(ref, "", vars, 9000, nil, lookup)
+	_, err := buildLocalEnv(ref, "", file, 9000, nil)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "DB_PASSWORD")
+	assert.Contains(t, err.Error(), "PEOPLE_DB_PW")
 	assert.Contains(t, err.Error(), "people/basic")
-}
-
-func TestBuildLocalEnvSkipsExistingSecretRef(t *testing.T) {
-	ref := resolver.Ref{ID: "people/basic", Version: "1.0.0"}
-	vars := []inject.Var{{Name: "API_KEY", ExistingSecretRef: "some-k8s-secret"}}
-
-	env, err := buildLocalEnv(ref, "", vars, 9000, nil, func(string) (string, bool) { return "", false })
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{"PORT=9000"}, env, "existingSecret 在 docker-only 的 local 模式下没有对应的值")
 }
 
 // brickKit 反馈：shell 里曾经全局设过 NODE_OPTIONS/JAVA_TOOL_OPTIONS（哪怕是为了
@@ -124,7 +103,7 @@ func TestBuildLocalEnvSkipsExistingSecretRef(t *testing.T) {
 func TestBuildLocalEnvStripsNodeDebugEnvVar(t *testing.T) {
 	ref := resolver.Ref{ID: "demo/hello", Version: "1.0.0"}
 
-	env, err := buildLocalEnv(ref, runcmd.LangNode, nil, 9000, nil, nil)
+	env, err := buildLocalEnv(ref, runcmd.LangNode, compose.LocalEnvFile{}, 9000, nil)
 
 	require.NoError(t, err)
 	assert.Contains(t, env, "NODE_OPTIONS=")
@@ -133,7 +112,7 @@ func TestBuildLocalEnvStripsNodeDebugEnvVar(t *testing.T) {
 func TestBuildLocalEnvStripsJavaDebugEnvVars(t *testing.T) {
 	ref := resolver.Ref{ID: "demo/hello", Version: "1.0.0"}
 
-	env, err := buildLocalEnv(ref, runcmd.LangJava, nil, 9000, nil, nil)
+	env, err := buildLocalEnv(ref, runcmd.LangJava, compose.LocalEnvFile{}, 9000, nil)
 
 	require.NoError(t, err)
 	assert.Contains(t, env, "JAVA_TOOL_OPTIONS=")
@@ -145,7 +124,7 @@ func TestBuildLocalEnvStripsJavaDebugEnvVars(t *testing.T) {
 func TestBuildLocalEnvDoesNotStripUnaffectedLanguages(t *testing.T) {
 	ref := resolver.Ref{ID: "demo/hello", Version: "1.0.0"}
 
-	env, err := buildLocalEnv(ref, runcmd.LangGo, nil, 9000, nil, nil)
+	env, err := buildLocalEnv(ref, runcmd.LangGo, compose.LocalEnvFile{}, 9000, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"PORT=9000"}, env)
@@ -178,17 +157,7 @@ func TestCollectLocalComponentsPreservesTopologicalOrderBetweenTwoLocalComponent
     mode: local
 `)
 
-	cfg := f.parsed(t)
-	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, cfg), cfg)
-	require.NoError(t, err)
-	order, err := resolver.Order(graph.Subgraph(states.Running()))
-	require.NoError(t, err)
-	env, err := inject.Build(cfg, graph, states)
-	require.NoError(t, err)
-	genResult, err := compose.Generate(cfg, graph, states, env, compose.Options{Engine: compose.EngineDocker})
-	require.NoError(t, err)
-
-	plans, err := collectLocalComponents(f.Layout, cfg, graph, order, genResult.LocalEnvFiles, envLookup(f.Dir))
+	plans, err := localPlans(t, f)
 
 	require.NoError(t, err)
 	require.Len(t, plans, 2)
@@ -259,17 +228,7 @@ func localComponentPlansFor(t *testing.T, f *projectFixture, mainGo string) (*Op
 		"main.go": mainGo,
 	})
 
-	cfg := f.parsed(t)
-	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, cfg), cfg)
-	require.NoError(t, err)
-	order, err := resolver.Order(graph.Subgraph(states.Running()))
-	require.NoError(t, err)
-	env, err := inject.Build(cfg, graph, states)
-	require.NoError(t, err)
-	genResult, err := compose.Generate(cfg, graph, states, env, compose.Options{Engine: compose.EngineDocker})
-	require.NoError(t, err)
-
-	plans, err := collectLocalComponents(f.Layout, cfg, graph, order, genResult.LocalEnvFiles, envLookup(f.Dir))
+	plans, err := localPlans(t, f)
 	require.NoError(t, err)
 	require.Len(t, plans, 1)
 
@@ -361,16 +320,7 @@ server.listen(port, () => {
     mode: local
 `)
 
-	cfg := f.parsed(t)
-	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, cfg), cfg)
-	require.NoError(t, err)
-	order, err := resolver.Order(graph.Subgraph(states.Running()))
-	require.NoError(t, err)
-	env, err := inject.Build(cfg, graph, states)
-	require.NoError(t, err)
-	genResult, err := compose.Generate(cfg, graph, states, env, compose.Options{Engine: compose.EngineDocker})
-	require.NoError(t, err)
-	plans, err := collectLocalComponents(f.Layout, cfg, graph, order, genResult.LocalEnvFiles, envLookup(f.Dir))
+	plans, err := localPlans(t, f)
 	require.NoError(t, err)
 	require.Len(t, plans, 1)
 
@@ -439,4 +389,21 @@ func TestRunLocalComponentsCrashLinesZeroPrintsNoOutputLines(t *testing.T) {
 	crashSection := out[strings.Index(out, "The following local component(s) crashed:"):]
 	assert.NotContains(t, crashSection, "distinctive-crash-output-marker",
 		"0 = 最后一屏不带任何输出行；实时流式输出不算")
+}
+
+// localPlans 走一遍与 up 相同的流水线，拿到 collectLocalComponents 的结果。
+func localPlans(t *testing.T, f *projectFixture) ([]localComponentPlan, error) {
+	t.Helper()
+	proj := f.project(t)
+	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, proj), proj)
+	require.NoError(t, err)
+	order, err := resolver.Order(graph.Subgraph(states.Running()))
+	require.NoError(t, err)
+	env, err := inject.Build(proj, graph, states)
+	require.NoError(t, err)
+	genResult, err := compose.Generate(proj, graph, states, env, compose.Options{
+		Engine: compose.EngineDocker, Root: f.Dir, Lookup: envref.Lookup(f.Dir),
+	})
+	require.NoError(t, err)
+	return collectLocalComponents(proj, graph, order, genResult.LocalEnvFiles)
 }

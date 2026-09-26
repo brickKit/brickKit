@@ -1,79 +1,23 @@
 package cli
 
-// 本文件是 `brickkit up` 的明文密钥告警（P5、35.17；006 §3.3、008）。
-//
-// 泄漏路径不是生成物，而是 **brickkit.yaml 本身**——那个文件是明确建议
-// 提交进 Git 的（003 §1.2）。
-//
-// 一律是警告不是错误：本地开发写个 dev 密码很常见，阻断只会让人绕开 CLI。
-// 并且**绝不打印值本身**，那等于把密钥又抄了一遍到终端和 CI 日志里。
-
 import (
 	"sort"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/configdir"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
-
-// warnHardcodedPasswords 提醒 brickkit.yaml 里写了明文密码。
-//
-// 是警告不是错误：本地开发写个 dev 密码很常见，阻断只会让人绕开 CLI。
-// 警告里**不打印密码本身**——那等于把它又抄了一遍到终端和 CI 日志里。
-func warnHardcodedPasswords(opts *Options, cfg *config.Config) {
-	var offenders []string
-	for _, r := range cfg.Resources {
-		if isHardcodedSecret(r) {
-			offenders = append(offenders, r.ID)
-		}
-	}
-	if len(offenders) == 0 {
-		return
-	}
-
-	err := clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpSecretsBrickkitYamlContainsPlaintextPasswords)).
-		WithDetail(i18n.T(msgid.LabelResource), strings.Join(offenders, i18n.T(msgid.ListSeparator))).
-		WithDetail(i18n.T(msgid.CliUpSecretsRequirement), i18n.T(msgid.CliUpSecretsPasswordsMustBeReferencedWith)).
-		WithHint(
-			i18n.T(msgid.CliUpSecretsChangeItToPasswordPostgres),
-			i18n.T(msgid.CliUpSecretsEnvMustBeListedIn),
-		)
-	renderWarnings(opts, []*clierr.Error{err})
-}
-
-// isHardcodedSecret 判断这条资源的密码是不是写死在 brickkit.yaml 里的。
-//
-// 判据是**原文**写没写 ${ENV_VAR}：config.deferredRefs 让 password 解析时不展开，
-// 值本身就是原文，不需要再额外记一份"展开前的样子"。空值表示没配密码
-// （比如不需要密码的资源），不算问题。
-func isHardcodedSecret(r config.Resource) bool {
-	if isEnvRef(r.Password) || strings.TrimSpace(r.Password) == "" {
-		return false
-	}
-	return true
-}
-
-// isEnvRef 判断一个配置值写的是不是 ${ENV_VAR} 引用。
-//
-// config.deferredRefs 让这两处字段解析时不展开，所以值本身就是原文——
-// 不再需要"展开前先记下"的补丁字段。
-func isEnvRef(v any) bool {
-	s, ok := v.(string)
-	return ok && strings.Contains(s, "${")
-}
-
-// ============================================================
-// 35.17 config 里的明文密钥告警
-// ============================================================
 
 // secretishKey 判断一个配置项名字看不看得出是密钥。
 //
 // **判据刻意收窄，宁可漏报也不误报。** 一个见谁都喊的告警，两天之内就会被
-// 所有人无视，那时它连真的密钥也保护不了——所以只认那些几乎不可能有别的
-// 含义的词，而不是"包含 key 就算"（apiKey 是密钥，但 sortKey、cacheKey 不是）。
+// 所有人无视——所以只认那些几乎不可能有别的含义的词，而不是"包含 key 就算"
+// （API_KEY 是密钥，但 SORT_KEY、CACHE_KEY 不是）。
 func secretishKey(name string) bool {
 	lower := strings.ToLower(name)
 	for _, word := range []string{
@@ -88,15 +32,12 @@ func secretishKey(name string) bool {
 }
 
 // declaredSecretKeys 返回组件在 configSchema 里声明了 secret: true 的配置项。
-//
-// 名字启发式（secretishKey）宁可漏报也不误报，只配拿来发警告；
-// 组件作者亲口声明的事实比它准得多，所以两者取并集。
-// graph 里没有这个组件（还没 add、Manifest 读不到）时返回 nil，退回按名字判断。
-func declaredSecretKeys(graph *resolver.Graph, c config.Component) map[string]bool {
+// graph 里没有这个组件时返回 nil，退回按名字判断。
+func declaredSecretKeys(graph *resolver.Graph, ref resolver.Ref) map[string]bool {
 	if graph == nil {
 		return nil
 	}
-	node := graph.Node(resolver.Ref{ID: c.ID, Version: c.Version})
+	node := graph.Node(ref)
 	if node == nil || node.Manifest == nil || node.Manifest.ConfigSchema == nil {
 		return nil
 	}
@@ -109,30 +50,35 @@ func declaredSecretKeys(graph *resolver.Graph, c config.Component) map[string]bo
 	return out
 }
 
-// warnConfigSecrets 提醒 component.config 里写了明文密钥（35.17）。
+// warnConfigSecrets 提醒 config/ 里写了明文密钥。
 //
-// 泄漏路径不是生成物，而是 **brickkit.yaml 本身**：那个文件是明确建议
-// 提交进 Git 的（003 §1.2）。写在 resources[].password 里的密码有 P5 告警
-// 兜着，写在 config 里的此前一声不吭。
-//
-// 与 P5 一样是警告不是错误：config 里放什么由使用者决定，
-// 平台不该替他判断哪个值算密钥；但看着像密钥的东西必须说一声。
-//
-// 判据是：组件声明了 secret: true，或名字长得像密钥（只看名字，不看值）。
-//
-// **绝不打印值本身**——那等于把密钥又抄了一遍到终端和 CI 日志里。
-func warnConfigSecrets(opts *Options, cfg *config.Config, graph *resolver.Graph) {
+// 泄漏路径是 config/*.yaml 与 config/vars.yaml 本身：它们是要提交进 Git 的。
+// 判据是：组件声明了 secret: true，或名字长得像密钥（只看名字，不看值）；
+// 写成 ${ENV_VAR}、file://、existingSecret 的都是做对了。经 $var: 引到 vars.yaml
+// 里的明文，点名的是那个公共变量。**绝不打印值本身。**
+func warnConfigSecrets(opts *Options, p *project.Project, graph *resolver.Graph) {
 	var offenders []string
-	for _, c := range cfg.Components {
-		declared := declaredSecretKeys(graph, c)
-		for name, value := range c.Config {
-			// 写成 ${ENV_VAR} 就是做对了，existingSecret 引用也是——解析时这两处
-			// 都不展开/不改写（config.deferredRefs），所以值本身就是原文/原形状
-			_, _, isExistingSecretRef := config.ExistingSecretRef(value)
-			if isEnvRef(value) || isExistingSecretRef || (!declared[name] && !secretishKey(name)) {
+	for _, c := range p.Decl.Components {
+		f := p.Config(c.ID, c.Version)
+		if f == nil {
+			continue
+		}
+		declared := declaredSecretKeys(graph, resolver.Ref{ID: c.ID, Version: c.Version})
+		for _, e := range f.Entries {
+			if !declared[e.Key] && !secretishKey(e.Key) {
 				continue
 			}
-			offenders = append(offenders, c.Ref()+" → "+name)
+			value, where := e.Value, c.Ref()+" → "+e.Key
+			if value.Kind == configdir.KindVarRef {
+				target, ok := configdir.LookupVar(value.Name, p.DeployVars, p.Vars)
+				if !ok {
+					continue
+				}
+				value, where = target, where+" ($var:"+value.Name+")"
+			}
+			if value.Kind == configdir.KindLiteral && !value.IsUnset() && !value.IsEmpty() {
+				offenders = append(offenders, where)
+			}
 		}
 	}
 	if len(offenders) == 0 {
@@ -152,47 +98,36 @@ func warnConfigSecrets(opts *Options, cfg *config.Config, graph *resolver.Graph)
 	})
 }
 
-// warnExistingSecretConfigIssues 检查 component.config 里写了 existingSecret 形状的两类问题：
-//
-//	① 配置项没有声明 secret: true——这个形状不会生效（见 inject.addConfig），
-//	   使用者会以为自己配好了，实际这条变量根本不会被注入；
-//	② deploy.target 是 docker——existingSecret 是 K8s 专属概念，Docker 没有
-//	   "引用外部已建好的 Secret"这回事，同样不会生效。
-//
-// 与 declaredSecretKeys 用同一份"这个组件的 configSchema 怎么说"的读取方式：graph 里
-// 没有这个组件（还没 add、Manifest 读不到）时什么都不查，等 add 完、下一次 up 自然查得到。
-func warnExistingSecretConfigIssues(opts *Options, cfg *config.Config, graph *resolver.Graph) {
-	var notDeclaredSecret, dockerOnly []string
-	for _, c := range cfg.Components {
-		declared := declaredSecretKeys(graph, c)
-		for name, value := range c.Config {
-			if _, _, ok := config.ExistingSecretRef(value); !ok {
-				continue
-			}
-			ref := c.Ref() + " → " + name
-			if !declared[name] {
-				notDeclaredSecret = append(notDeclaredSecret, ref)
-			}
-			if cfg.Deploy.Target != config.TargetK8s {
-				dockerOnly = append(dockerOnly, ref)
+// warnExistingSecretOnDocker 提醒 existingSecret 写法在 Docker 下不生效：
+// Docker 没有"引用外部已建好的 Secret"这回事，这一项在容器里表现成"没配"。
+// （没声明 secret: true 的那一种由 configdir.Resolve 报，这里不重复。）
+func warnExistingSecretOnDocker(opts *Options, p *project.Project) {
+	if p.Deploy.Target == deployfile.TargetK8s {
+		return
+	}
+	var refs []string
+	for _, c := range p.Decl.Components {
+		f := p.Config(c.ID, c.Version)
+		for _, e := range entriesOf(f) {
+			if e.Value.Kind == configdir.KindSecretRef {
+				refs = append(refs, c.Ref()+" → "+e.Key)
 			}
 		}
 	}
+	if len(refs) == 0 {
+		return
+	}
+	sort.Strings(refs)
+	renderWarnings(opts, []*clierr.Error{
+		clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpSecretsExistingsecretOnlyWorksOnK8s)).
+			WithDetail(i18n.T(msgid.CliUpSecretsConfigItems), strings.Join(refs, i18n.T(msgid.ListSeparator))).
+			WithHint(i18n.T(msgid.CliUpSecretsDockerHasNoConceptOf)),
+	})
+}
 
-	if len(notDeclaredSecret) > 0 {
-		sort.Strings(notDeclaredSecret)
-		renderWarnings(opts, []*clierr.Error{
-			clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpSecretsTheExistingsecretFormHasNo)).
-				WithDetail(i18n.T(msgid.CliUpSecretsConfigItems), strings.Join(notDeclaredSecret, i18n.T(msgid.ListSeparator))).
-				WithHint(i18n.T(msgid.CliUpSecretsAddSecretTrueToThe)),
-		})
+func entriesOf(f *configdir.File) []configdir.Entry {
+	if f == nil {
+		return nil
 	}
-	if len(dockerOnly) > 0 {
-		sort.Strings(dockerOnly)
-		renderWarnings(opts, []*clierr.Error{
-			clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpSecretsExistingsecretOnlyWorksOnK8s)).
-				WithDetail(i18n.T(msgid.CliUpSecretsConfigItems), strings.Join(dockerOnly, i18n.T(msgid.ListSeparator))).
-				WithHint(i18n.T(msgid.CliUpSecretsDockerHasNoConceptOf)),
-		})
-	}
+	return f.Entries
 }

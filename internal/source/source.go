@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
@@ -186,7 +187,7 @@ func (c *Client) newFetcher(s projfile.Source) (fetcher, error) {
 		return &marketSource{
 			sourceID:        s.Name,
 			baseURL:         s.URL,
-			authToken:       s.AuthToken,
+			authToken:       AuthToken(s, c.layout.Root),
 			credentialsPath: c.layout.CredentialsPath(),
 			client:          c.opts.HTTPClient,
 			now:             c.opts.Now,
@@ -769,4 +770,23 @@ func writeFileAll(path string, data []byte) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
+}
+
+// AuthToken 返回 market 安装源配置的 Token：展开其中的 ${VAR}
+// （进程环境优先，其次 root 下的 .env）。拉组件与 publish 共用这一处。
+func AuthToken(s projfile.Source, root string) string {
+	return expandToken(s.AuthToken, envref.Lookup(root))
+}
+
+// expandToken 展开 token 里的 ${VAR}。
+//
+// 有任何一个引用取不到就当没配 Token：把字面的 "${VAR}" 当 Bearer 发出去，
+// 市场只会回一个看不出原因的 401；没有 Token 时走的是"请先 login"那条说得清的路。
+func expandToken(token string, lookup func(string) (string, bool)) string {
+	for _, name := range envref.Names(token) {
+		if _, ok := lookup(name); !ok {
+			return ""
+		}
+	}
+	return envref.Expand(token, lookup)
 }

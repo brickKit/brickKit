@@ -25,6 +25,7 @@ import (
 	"github.com/brickkit/brickkit/internal/configdir"
 	"github.com/brickkit/brickkit/internal/deploy"
 	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -69,12 +70,15 @@ type LocalEnvFile struct {
 	Name string
 	// Port 是该进程应当在宿主机上监听的端口。
 	Port int
-	// Vars 是渲染 Content 用的那份变量列表：依赖地址、资源地址都已经改写成
-	// localhost，但 ${VAR} 引用还没展开（Content 用宽松的展开策略，允许
-	// 展开不了时留着占位符；mode: local 真正启动进程时用的是严格展开，
-	// 见 internal/cli/up_local.go——两条路径共用这份原始列表，不会漂移）。
+	// Vars 是已经求过值的变量列表（依赖地址改写成 localhost，${VAR} 与 file:// 都已求值），
+	// Content 就是它渲染出来的——两条路径（IDE 读文件、brickkit 拉起 mode: local 进程）
+	// 共用这一份，不会漂移。
 	Vars    []inject.Var
 	Content []byte
+	// Unresolved 是 变量名 → 它的 ${...} 模板里第一个找不到的环境变量名。
+	// Content 对它宽松（留着占位符，看得出漏了哪个）；mode: local 真正启动进程时
+	// 对它严格（见 internal/cli/up_local.go 的 buildLocalEnv）。
+	Unresolved map[string]string
 }
 
 // hostGateway 返回 extra_hosts 里指向宿主机的魔法值（005 §7.5）。
@@ -582,7 +586,16 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 	p.pointDependenciesAtLocalhost(l, vars)
 
 	evaluated := make([]inject.Var, 0, len(vars))
+	unresolved := map[string]string{}
 	for _, v := range vars {
+		if v.Value.Kind == configdir.KindEnvTemplate {
+			for _, name := range envref.Names(v.Value.Text) {
+				if _, ok := lookupOrNil(p.lookup, name); !ok {
+					unresolved[v.Name] = name
+					break
+				}
+			}
+		}
 		value, ok, err := localValue(v, p.root, p.lookup)
 		if err != nil {
 			return LocalEnvFile{}, withVariable(err, l.Ref, v.Name)
@@ -595,13 +608,21 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 	}
 
 	return LocalEnvFile{
-		Ref:     l.Ref,
-		Mode:    l.Entry.Mode,
-		Name:    "local-debug." + l.Service + ".env",
-		Port:    l.Port,
-		Vars:    evaluated,
-		Content: renderEnvFile(l, evaluated, now),
+		Ref:        l.Ref,
+		Mode:       l.Entry.Mode,
+		Name:       "local-debug." + l.Service + ".env",
+		Port:       l.Port,
+		Vars:       evaluated,
+		Content:    renderEnvFile(l, evaluated, now),
+		Unresolved: unresolved,
 	}, nil
+}
+
+func lookupOrNil(lookup func(string) (string, bool), name string) (string, bool) {
+	if lookup == nil {
+		return "", false
+	}
+	return lookup(name)
 }
 
 // pointDependenciesAtLocalhost 把依赖地址改成宿主机上的映射端口（13.5）。

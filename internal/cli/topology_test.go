@@ -8,15 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
 // newTopologyClient 为一个测试项目构造安装源客户端。
-func newTopologyClient(t *testing.T, f *projectFixture, cfg *config.Config) *source.Client {
+func newTopologyClient(t *testing.T, f *projectFixture, proj *project.Project) *source.Client {
 	t.Helper()
-	client, err := source.New(f.Layout, cfg, source.Options{})
+	client, err := source.New(f.Layout, proj.Decl, source.Options{})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 	return client
@@ -29,10 +29,10 @@ func TestResolveTopologyReturnsGraphAndCascade(t *testing.T) {
 		comp{ID: "demo/hello", Version: "1.0.0"},
 	)
 	f := newProjectFixtureAt(t, dir, sources...)
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "add", "--local").code)
+	f.writeConfig(t, "components:\n  - id: demo/caller\n    version: 1.0.0\n  - id: demo/hello\n    version: 1.0.0\n")
 
-	cfg := f.parsed(t)
-	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, cfg), cfg)
+	proj := f.project(t)
+	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, proj), proj)
 	require.NoError(t, err)
 
 	assert.Len(t, graph.Nodes, 2)
@@ -55,8 +55,8 @@ func TestResolveTopologyHonoursDisabledTopLevel(t *testing.T) {
 resources: []
 `)
 
-	cfg := f.parsed(t)
-	_, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, cfg), cfg)
+	proj := f.project(t)
+	_, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, proj), proj)
 	require.NoError(t, err)
 	assert.True(t, states.Empty(), "顶层被关掉，它带来的依赖也不跑")
 }
@@ -71,8 +71,8 @@ func TestResolveTopologyFailsWhenComponentMissing(t *testing.T) {
 resources: []
 `)
 
-	cfg := f.parsed(t)
-	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, cfg), cfg)
+	proj := f.project(t)
+	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, proj), proj)
 	require.Error(t, err)
 	assert.Nil(t, graph)
 	assert.Nil(t, states)
@@ -100,23 +100,10 @@ func TestResolveTopologyFailsWhenCascadeCannotBeComputed(t *testing.T) {
 resources: []
 `)
 
-	cfg := f.parsed(t)
-	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, cfg), cfg)
+	proj := f.project(t)
+	graph, states, err := resolveTopology(context.Background(), newTopologyClient(t, f, proj), proj)
 	require.Error(t, err)
 	assert.Nil(t, graph, "依赖图是解析成功了的，但出错时不交出半成品")
 	assert.Nil(t, states)
 	assert.Equal(t, clierr.CodeComponentDisabled, clierr.As(err).Code, "是级联报的错，不是依赖解析报的")
-}
-
-func TestClearServedBy(t *testing.T) {
-	cfg := &config.Config{Components: []config.Component{
-		{ID: "demo/a", Version: "1.0.0", ServedBy: "demo/shell@1.0.0"},
-		{ID: "demo/shell", Version: "1.0.0"},
-		{ID: "demo/b", Version: "1.0.0", ServedBy: "demo/shell@1.0.0"},
-	}}
-	clearServedBy(cfg)
-	for _, c := range cfg.Components {
-		assert.Empty(t, c.ServedBy, c.ID)
-	}
-	assert.Len(t, cfg.Components, 3, "只清 servedBy，条目本身不动")
 }

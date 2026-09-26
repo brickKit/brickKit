@@ -105,7 +105,7 @@ func TestPublishWarnsOnMisspelledPropertyKey(t *testing.T) {
 	r := runIn(t, f.Dir, "publish", "--path", root)
 
 	require.Equal(t, clierr.ExitOK, r.code, "只是警告，不能阻断发布："+r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "configSchema.properties.greeting.defualt")
+	assert.Contains(t, r.stdout, "configSchema.properties.GREETING.defualt")
 	assert.Contains(t, r.stdout, "did you mean default")
 	assert.Contains(t, r.stdout, "🎉 Published")
 }

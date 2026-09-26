@@ -158,7 +158,7 @@ func TestCheckPassesWhenComponentsNotTracked(t *testing.T) {
 	f := newSyncFixture(t, helloDisabled, "demo/hello", "demo/caller")
 	gitProject(t, f.Dir)
 	// 只提交配置，components/ 不进仓库（默认情形）
-	gitDo(t, f.Dir, "add", "brickkit.yaml", ".gitignore")
+	gitDo(t, f.Dir, "add", "brickkit.yaml", "deploy.yaml", ".gitignore")
 	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
 
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
@@ -185,7 +185,7 @@ func TestCheckBlocksArchivedStructureWithoutTheYAML(t *testing.T) {
 	assert.Contains(t, r.stderr, "Commit blocked")
 	assert.Contains(t, r.stderr, "demo/hello")
 	assert.Contains(t, r.stderr, "brickkit restore")
-	assert.Contains(t, r.stderr, "git add brickkit.yaml")
+	assert.Contains(t, r.stderr, "git add deploy.yaml")
 }
 
 // 主场景里「不想保留 → restore」这条出路必须把 git reset 一起说出来。
@@ -214,7 +214,7 @@ func TestCheckNamesResetWhenComponentsAreStaged(t *testing.T) {
 	gitDo(t, f.Dir, "add", "-A", "components")
 	gitDo(t, f.Dir, "commit", "--quiet", "-m", "archive")
 	f.writeConfig(t, allEnabled)
-	gitDo(t, f.Dir, "add", "brickkit.yaml")
+	gitDo(t, f.Dir, "add", "brickkit.yaml", "deploy.yaml")
 
 	r2 := runIn(t, f.Dir, "restore", "--check")
 	require.Equal(t, clierr.ExitError, r2.code, r2.stdout+r2.stderr)
@@ -291,7 +291,7 @@ func TestCheckArchivedInIndexActiveOnDiskNamesGitAddDashA(t *testing.T) {
 	f.assertActive(t, "demo/caller")
 
 	// ……但只暂存了 yaml，没暂存这次目录移动：index 里源码仍是归档的。
-	gitDo(t, f.Dir, "add", "brickkit.yaml")
+	gitDo(t, f.Dir, "add", "brickkit.yaml", "deploy.yaml")
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	assert.Equal(t, clierr.ExitError, r.code)
@@ -326,7 +326,7 @@ func TestCheckMixedGroupsScopeEveryHint(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(f.archived("demo/caller")), 0o755))
 	require.NoError(t, os.Rename(f.active("demo/caller"), f.archived("demo/caller")))
 
-	gitDo(t, f.Dir, "add", "brickkit.yaml")
+	gitDo(t, f.Dir, "add", "brickkit.yaml", "deploy.yaml")
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
@@ -363,7 +363,7 @@ func TestCheckArchivedInIndexMissingOnDiskNamesGitAddDashA(t *testing.T) {
 	// 重新启用，但把磁盘上那两份归档源码手工删了、删除没进 index
 	f.writeConfig(t, allEnabled)
 	require.NoError(t, os.RemoveAll(filepath.Join(f.Dir, "components", config.DirArchived)))
-	gitDo(t, f.Dir, "add", "brickkit.yaml")
+	gitDo(t, f.Dir, "add", "brickkit.yaml", "deploy.yaml")
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
@@ -459,7 +459,7 @@ func TestCheckWarnsWhenGraphResolutionFails(t *testing.T) {
 	// 再把暂存的 yaml 换成引用不存在版本的配置：语法仍合法，但 resolver
 	// 解不出图。
 	f.writeConfig(t, helloDisabledWithUnresolvable)
-	gitDo(t, f.Dir, "add", "brickkit.yaml")
+	gitDo(t, f.Dir, "add", "brickkit.yaml", "deploy.yaml")
 
 	r := runIn(t, f.Dir, "restore", "--check")
 	assert.Equal(t, clierr.ExitOK, r.code, "算不出来 ≠ 判据不通过，必须放行：%s%s", r.stdout, r.stderr)

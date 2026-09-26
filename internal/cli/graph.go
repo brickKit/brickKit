@@ -21,10 +21,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/cascade"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
 	"github.com/brickkit/brickkit/internal/source"
@@ -48,6 +49,8 @@ func newGraphCommand(opts *Options) *cobra.Command {
 
 	cmd.Flags().BoolVar(&ignoreServedBy, "ignore-served-by", false,
 		i18n.T(msgid.CliGraphClearEveryServedbyDeclarationIn))
+	// 只给 -f，不给 --no-local：graph 本来就不看本地模式（见 runGraph）
+	cmd.Flags().StringVarP(&opts.DeployFile, "file", "f", opts.DeployFile, i18n.T(msgid.CliRootFlagDeployFile))
 	return cmd
 }
 
@@ -57,28 +60,34 @@ func runGraph(ctx context.Context, opts *Options, ignoreServedBy bool) error {
 		ctx = context.Background()
 	}
 
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
-	cfg, err := config.ParseConfigFile(layout.ConfigPath())
+	// 从不读本地模式：graph 的输出是要提交、要分享的产物（graph > graph.mmd），
+	// 不能因为谁在本机开了 local 就画出不一样的图。要画别的部署文件，显式 -f。
+	load := opts.loadOptions()
+	load.NoLocal = true
+	proj, err := project.Load(opts.WorkDir, load)
 	if err != nil {
 		return err
 	}
+	for _, w := range proj.Warnings {
+		_, _ = fmt.Fprint(opts.Stderr, w.Format())
+	}
 	if ignoreServedBy {
-		clearServedBy(cfg)
+		proj.IgnoreShells()
 	}
 
 	// 没有组件就不必去碰安装源：那一步会读公钥文件，而这里根本用不上
-	if len(cfg.Components) == 0 {
-		opts.Printf("%s", renderMermaid(cfg, &resolver.Graph{}, &cascade.Result{}, ignoreServedBy))
+	if len(proj.Decl.Components) == 0 {
+		opts.Printf("%s", renderMermaid(proj, &resolver.Graph{}, &cascade.Result{}, ignoreServedBy))
 		return nil
 	}
 
-	client, err := newSourceClient(opts, layout, cfg, source.Options{})
+	client, err := newSourceClient(opts, proj.Layout, proj.Decl, source.Options{})
 	if err != nil {
 		return err
 	}
 	defer func() { _ = client.Close() }()
 
-	graph, states, err := resolveTopology(ctx, client, cfg)
+	graph, states, err := resolveTopology(ctx, client, proj)
 	if err != nil {
 		return err
 	}
@@ -87,7 +96,7 @@ func runGraph(ctx context.Context, opts *Options, ignoreServedBy bool) error {
 	for _, w := range graph.Warnings {
 		_, _ = fmt.Fprint(opts.Stderr, w.Format())
 	}
-	opts.Printf("%s", renderMermaid(cfg, graph, states, ignoreServedBy))
+	opts.Printf("%s", renderMermaid(proj, graph, states, ignoreServedBy))
 	return nil
 }
 
@@ -127,12 +136,8 @@ func mermaidID(ref resolver.Ref) string {
 // servedBy 分组整段写在其余节点之前，"未安装"占位节点整段写在所有节点之后——
 // 所以文档里别把它说成"整份输出依赖在前"。
 func renderMermaid(
-	cfg *config.Config, graph *resolver.Graph, states *cascade.Result, ignoredServedBy bool,
+	proj *project.Project, graph *resolver.Graph, states *cascade.Result, ignoredServedBy bool,
 ) string {
-	entries := make(map[resolver.Ref]config.Component, len(cfg.Components))
-	for _, c := range cfg.Components {
-		entries[resolver.Ref{ID: c.ID, Version: c.Version}] = c
-	}
 
 	var b strings.Builder
 	b.WriteString("graph TD\n")
@@ -152,7 +157,7 @@ func renderMermaid(
 	declare := func(indent string, ref resolver.Ref) {
 		running := states.IsRunning(ref)
 		label := ref.String()
-		if entry := entries[ref]; entry.Mode == config.ModeLocal {
+		if entry := proj.DeployEntry(ref.ID, ref.Version); entry.Mode == deployfile.ModeLocal {
 			label += i18n.T(msgid.CliGraphBrManagedLocally)
 			if entry.LocalPort > 0 {
 				// mode: local 也接受 localPort 作为"固定端口"的手动覆盖
@@ -180,11 +185,7 @@ func renderMermaid(
 	var shells []resolver.Ref
 	inShell := map[resolver.Ref]bool{}
 	for _, node := range graph.Nodes {
-		entry, ok := entries[node.Ref]
-		if !ok || entry.ServedBy == "" {
-			continue
-		}
-		target, ok := shell.ParseRef(entry.ServedBy)
+		target, ok := shell.ShellRef(proj, node.Ref)
 		if !ok {
 			continue
 		}

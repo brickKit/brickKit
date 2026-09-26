@@ -12,11 +12,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/cascade"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/gitrepo"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
@@ -34,6 +35,7 @@ func newSyncCommand(opts *Options) *cobra.Command {
 			return runSync(cmd.Context(), opts)
 		},
 	}
+	addDeployFileFlags(cmd, opts)
 	return cmd
 }
 
@@ -64,35 +66,28 @@ func runSync(ctx context.Context, opts *Options) error {
 		ctx = context.Background()
 	}
 
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
-	cfg, err := config.ParseConfigFile(layout.ConfigPath())
+	proj, err := project.Load(opts.WorkDir, opts.loadOptions())
 	if err != nil {
 		return err
 	}
-	ov, err := loadOverride(opts, layout, cfg)
-	if err != nil {
-		return err
-	}
-	if err := applyOverride(cfg, ov); err != nil {
-		return err
-	}
+	renderWarnings(opts, proj.Warnings)
 
-	keep, err := syncFocus(ctx, opts, layout, cfg)
+	keep, err := syncFocus(ctx, opts, proj)
 	if err != nil {
 		return err
 	}
 
-	return applyWorkspacePlan(opts, layout, planSync(layout, cfg, keep))
+	return applyWorkspacePlan(opts, proj.Layout, planSync(proj.Layout, proj.Decl.IDs(), keep))
 }
 
 // applyWorkspacePlan 执行工作区整理计划，并如实汇报。
 //
 // sync 与 restore 共用它：同一件事只有一处渲染代码，两个命令的输出也就不可能
 // 各说一套。
-func applyWorkspacePlan(opts *Options, layout config.Layout, actions []syncAction) error {
+func applyWorkspacePlan(opts *Options, layout project.Layout, actions []syncAction) error {
 	if len(actions) == 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliSyncTheWorkspaceNeedsNoTidying))
-		opts.Printf("%s\n", i18n.T(msgid.CliSyncThereIsNoComponentSource, config.DirComponents))
+		opts.Printf("%s\n", i18n.T(msgid.CliSyncThereIsNoComponentSource, project.DirComponents))
 		return nil
 	}
 	return applySync(opts, layout, actions)
@@ -118,62 +113,45 @@ func newFocus(restored string) *focus {
 
 // syncFocus 算出这次要留下哪些组件：与 brickkit up 同一套启停判定。
 func syncFocus(
-	ctx context.Context, opts *Options, layout config.Layout, cfg *config.Config,
+	ctx context.Context, opts *Options, proj *project.Project,
 ) (*focus, error) {
-	if len(cfg.Components) == 0 {
+	if len(proj.Decl.Components) == 0 {
 		return newFocus(reasonRestored()), nil
 	}
 
-	client, err := newSourceClient(opts, layout, cfg, source.Options{})
+	client, err := newSourceClient(opts, proj.Layout, proj.Decl, source.Options{})
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = client.Close() }()
 
-	_, states, err := resolveTopology(ctx, client, cfg)
+	_, states, err := resolveTopology(ctx, client, proj)
 	if err != nil {
 		return nil, err
 	}
-	return focusFrom(cfg, states), nil
+	return focusFrom(proj, states), nil
 }
 
 // focusFrom 把启停判定结果折成"哪些源码留在活跃目录"。
 //
 // 与 up 完全同一套判定（003 §4.3）：两处各判一次，迟早会出现
 // "up 会启动它、sync 却把它源码归档了"这种自相矛盾的局面。
-func focusFrom(cfg *config.Config, states *cascade.Result) *focus {
+func focusFrom(proj *project.Project, states *cascade.Result) *focus {
 	f := newFocus(reasonRestored())
 	for _, ref := range states.Running() {
 		f.keep[ref.ID] = true
 	}
-	for _, c := range cfg.Components {
+	for _, c := range proj.Decl.Components {
 		if f.keep[c.ID] {
 			// 同 ID 的另一个版本会启动 → 这份源码要留着
 			delete(f.reason, c.ID)
 			continue
 		}
 		if _, done := f.reason[c.ID]; !done {
-			f.reason[c.ID] = skipReason(c, states)
+			f.reason[c.ID] = skipReason(c.ID, proj.DeployEntry(c.ID, c.Version), states)
 		}
 	}
 	return f
-}
-
-// declaredIDs 返回配置里声明过的组件 ID，排序去重。
-//
-// 一个组件 ID 只有一份源码目录（004 §8.1），与版本无关，所以按 ID 去重。
-// 排序是为了输出与判据结果稳定——错误信息每次顺序不同会让人以为在变。
-func declaredIDs(cfg *config.Config) []string {
-	var ids []string
-	seen := map[string]bool{}
-	for _, c := range cfg.Components {
-		if !seen[c.ID] {
-			seen[c.ID] = true
-			ids = append(ids, c.ID)
-		}
-	}
-	sort.Strings(ids)
-	return ids
 }
 
 // planSync 决定每个**有源码**的组件该去哪。
@@ -181,8 +159,12 @@ func declaredIDs(cfg *config.Config) []string {
 // 只看 brickkit.yaml 里声明过的组件：`components/` 下还可能有使用者正在开发、
 // 尚未 add 进来的组件源码——判定结果里没有它，不代表"它该被归档"，
 // 只代表"这不归我们管"。
-func planSync(layout config.Layout, cfg *config.Config, f *focus) []syncAction {
-	ids := declaredIDs(cfg)
+//
+// ids 是 brickkit.yaml 声明过的组件 ID（projfile.File.IDs）：一个组件 ID 只有一份源码目录，
+// 与版本无关。按 ID 排序，输出与判据结果才稳定。
+func planSync(layout project.Layout, ids []string, f *focus) []syncAction {
+	ids = append([]string(nil), ids...)
+	sort.Strings(ids)
 
 	var actions []syncAction
 	for _, id := range ids {
@@ -203,13 +185,13 @@ func planSync(layout config.Layout, cfg *config.Config, f *focus) []syncAction {
 }
 
 // skipReason 说明这个组件为什么不启动（17.12）。
-func skipReason(c config.Component, states *cascade.Result) string {
-	if c.IsDisabled() {
+func skipReason(id string, entry deployfile.Component, states *cascade.Result) string {
+	if entry.IsDisabled() {
 		return reasonDisabled()
 	}
 	// 判定结果里带着更具体的原因（"上层都不启动"等），优先用它
 	for _, state := range states.Components {
-		if state.Ref.ID == c.ID && state.Reason != "" {
+		if state.Ref.ID == id && state.Reason != "" {
 			return state.Reason
 		}
 	}
@@ -217,7 +199,7 @@ func skipReason(c config.Component, states *cascade.Result) string {
 }
 
 // applySync 真的去移动目录，并如实汇报（17.11 / 17.12）。
-func applySync(opts *Options, layout config.Layout, actions []syncAction) error {
+func applySync(opts *Options, layout project.Layout, actions []syncAction) error {
 	opts.Printf("%s\n", i18n.T(msgid.CliSyncWorkspaceTidying))
 
 	// 不在 git 仓库里时 repo 为 nil：Archive/Activate 自己会跳过 submodule 阻断，

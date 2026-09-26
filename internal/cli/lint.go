@@ -23,12 +23,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
-	"github.com/brickkit/brickkit/internal/override"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/skills"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -48,6 +49,7 @@ func newLintCommand(opts *Options) *cobra.Command {
 			return runLint(opts, strict)
 		},
 	}
+	addDeployFileFlags(cmd, opts)
 
 	cmd.Flags().BoolVar(&strict, "strict", false, i18n.T(msgid.CliLintWarningsCountAsFailuresToo))
 	return cmd
@@ -70,7 +72,7 @@ func runLint(opts *Options, strict bool) error {
 	var files []lintFile
 	var notes []string
 	if scope == skills.ScopeComponent {
-		opts.Printf("%s\n", i18n.T(msgid.CliLintComponentRepositoryHasNoOnly, manifest.FileName, layout.ConfigName(), manifest.FileName))
+		opts.Printf("%s\n", i18n.T(msgid.CliLintComponentRepositoryHasNoOnly, manifest.FileName, project.FileDecl, manifest.FileName))
 		files = append(files, lintManifest(opts, filepath.Join(layout.Root, manifest.FileName), ""))
 	} else {
 		files, notes = lintProject(opts, layout)
@@ -87,11 +89,14 @@ func localSkippedNote() string {
 	return i18n.T(msgid.CliLintLocalEnumerationFailed, manifest.FileName)
 }
 
-// lintProject 检查 brickkit.yaml，再检查本地安装源里的每一份 component.yaml。
-func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
-	head := lintFile{path: displayPath(opts.WorkDir, layout.ConfigPath())}
-
-	cfg, err := config.ParseConfigFile(layout.ConfigPath())
+// lintProject 逐个检查三层文件，再做一遍跨文件校验，最后检查本地安装源里的每一份 component.yaml。
+//
+// 先逐个文件查、再跨文件查：单个文件的错误要落在它自己的文件名下，人才知道去改哪一份；
+// 跨文件的问题（部署文件漏了组件、$var: 没定义、config 文件对不上组件）只有各文件都
+// 能读时才问得出来，单独列一行。
+func lintProject(opts *Options, layout project.Layout) ([]lintFile, []string) {
+	head := lintFile{path: displayPath(opts.WorkDir, layout.DeclPath())}
+	decl, err := projfile.ParseFile(layout.DeclPath())
 	if err != nil {
 		head.errors = append(head.errors, clierr.As(err))
 		return []lintFile{head}, []string{
@@ -99,7 +104,21 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 		}
 	}
 
-	overrideFile := lintOverride(opts, layout, cfg)
+	files := []lintFile{head}
+	parsed := true
+	for _, d := range lintDeployFiles(opts, layout) {
+		f := lintFile{path: displayPath(opts.WorkDir, d.path)}
+		_, warnings, err := deployfile.ParseFile(d.path, d.role)
+		if err != nil {
+			f.errors = append(f.errors, clierr.As(err))
+			parsed = false
+		}
+		f.warnings = append(f.warnings, warnings...)
+		files = append(files, f)
+	}
+	if parsed {
+		files = append(files, lintCrossFile(opts))
+	}
 
 	// 直接 source.New，不走 newSourceClient：后者会先去读 installer.publicKeys 指向的公钥文件，
 	// 而公钥缺失是 up / add 该报的事，不该让一条"离线校验 YAML"的命令因此失败。
@@ -109,80 +128,65 @@ func lintProject(opts *Options, layout config.Layout) ([]lintFile, []string) {
 	// **只安全在** lint 只调 LocalManifestFiles、从不取 Manifest：将来谁在这里加一次
 	// client.Manifest，就等于悄悄绕过验签，还会写 .brickkit/manifests/ 缓存、可能联网，
 	// "纯只读、不联网"的承诺当场破功。
-	client, err := source.New(layout, cfg, source.Options{})
+	client, err := source.New(layout, decl, source.Options{})
 	if err != nil {
-		head.errors = append(head.errors, clierr.As(err))
-		return assembleLintFiles(head, overrideFile, nil), []string{localSkippedNote()}
+		files[0].errors = append(files[0].errors, clierr.As(err))
+		return files, []string{localSkippedNote()}
 	}
 	defer func() { _ = client.Close() }()
 
 	found, err := client.LocalManifestFiles()
 	if err != nil {
-		// 本地源的根目录不存在之类：那是 brickkit.yaml 里 sources[].path 配错了。
-		// 枚举遇到第一个出错的源就整体失败，别的本地源里的组件因此一份也没查——汇总里的
-		// 文件数会被低估，必须说出来，否则使用者改好 path 之前不知道还有文件没被检查
-		head.errors = append(head.errors, clierr.As(err))
-		return assembleLintFiles(head, overrideFile, nil), []string{localSkippedNote()}
+		files[0].errors = append(files[0].errors, clierr.As(err))
+		return files, []string{localSkippedNote()}
 	}
-
-	manifests := make([]lintFile, 0, len(found))
 	for _, f := range found {
-		manifests = append(manifests, lintManifest(opts, f.Path, f.ID))
+		files = append(files, lintManifest(opts, f.Path, f.ID))
 	}
-	return assembleLintFiles(head, overrideFile, manifests), nil
+	return files, nil
 }
 
-// assembleLintFiles 把 head（brickkit.yaml）、override.yaml（可能没有）、逐份
-// component.yaml 的检查结果拼成最终顺序——只在这一处组装。上面的每条分支只管
-// 往本地的 head 变量累积错误，不用再记着"head 是不是已经被值拷贝进某个切片、
-// 这时候改本地变量还有没有用"——那正是从前的写法出过问题的地方：先
-// `files := []lintFile{head}` 把 head 复制进切片，后面分支再改本地 head 变量
-// 就不会反过来影响切片里那一份，得改 files[0] 才行，一处忘了改就悄悄丢错误。
-func assembleLintFiles(head lintFile, overrideFile *lintFile, manifests []lintFile) []lintFile {
-	files := make([]lintFile, 0, 2+len(manifests))
-	files = append(files, head)
-	if overrideFile != nil {
-		files = append(files, *overrideFile)
-	}
-	files = append(files, manifests...)
-	return files
+// deployToLint 是一份要单独检查的部署文件。
+type deployToLint struct {
+	path string
+	role deployfile.Role
 }
 
-// lintOverride 检查 override.yaml——文件不存在时完全合法，什么也不查（override.yaml
-// 是可选机制）。检查设计书 §7 的两类过期性：悬空引用（错误，跟 up/sync/status/down/
-// brickkit override 用的是同一个 CheckAgainst）与 baseline 漂移（警告，不阻断，
-// --strict 才会让它计入失败——待遇跟 lintManifest 里 configSchema 拼写警告完全一样，
-// 见 reportLint 里 warned 的计数方式）。
-func lintOverride(opts *Options, layout config.Layout, cfg *config.Config) *lintFile {
-	if isNonDefaultConfigRun(opts, layout) {
-		return nil
+// lintDeployFiles 列出要检查的部署文件：-f 给了就只查那一份；否则查 deploy.yaml，
+// 以及存在时的 deploy.local.yaml（不管本地模式开没开——它迟早会被用上）。
+func lintDeployFiles(opts *Options, layout project.Layout) []deployToLint {
+	if opts.DeployFile != "" {
+		return []deployToLint{{layout.Resolve(opts.DeployFile), deployfile.RoleTeam}}
 	}
+	out := []deployToLint{{layout.DeployPath(), deployfile.RoleTeam}}
+	if _, err := os.Stat(layout.DeployLocalPath()); err == nil {
+		out = append(out, deployToLint{layout.DeployLocalPath(), deployfile.RoleLocal})
+	}
+	return out
+}
 
-	// 不再自己先 os.Stat 探路：那一步只看错误是不是 nil，分不清"文件真的不存在"
-	// 和"存在但读不动"（权限、符号链接死循环……），两种一律当成前者放行——一份
-	// 读不动的 override.yaml 会被悄悄当成没有这份文件，一个字都不提。
-	// ParseOverrideFile 自己已经把这两种情况分开了（文件不存在返回 nil, nil；
-	// 别的错误返回一个真错误），信它的区分就够，不用在它前面再插一层。
-	ov, err := override.ParseOverrideFile(layout.OverridePath())
+// lintCrossFile 用 up 同一条装载路径做跨文件校验：up 会拦的，lint 一样拦。
+func lintCrossFile(opts *Options) lintFile {
+	proj, err := project.Load(opts.WorkDir, opts.loadOptions())
+	f := lintFile{path: i18n.T(msgid.CliLintCrossFile, project.FileDecl, lintedDeployName(opts, proj), project.DirConfig+"/")}
 	if err != nil {
-		f := &lintFile{path: displayPath(opts.WorkDir, layout.OverridePath())}
 		f.errors = append(f.errors, clierr.As(err))
 		return f
 	}
-	if ov == nil {
-		return nil
-	}
-
-	f := &lintFile{path: displayPath(opts.WorkDir, layout.OverridePath())}
-	if err := override.CheckAgainst(cfg, ov); err != nil {
-		f.errors = append(f.errors, clierr.As(err))
-	}
-	for _, note := range override.Drift(cfg, ov) {
-		f.warnings = append(f.warnings, clierr.New(clierr.CodeConfigInvalid,
-			i18n.T(msgid.CliOverrideDriftNote, note.Field, note.Message)).
-			WithDetail(i18n.T(msgid.LabelFile), f.path))
-	}
+	f.warnings = append(f.warnings, proj.Warnings...)
 	return f
+}
+
+// lintedDeployName 是跨文件校验实际用的那份部署文件名（装载失败时按选择规则推断）。
+func lintedDeployName(opts *Options, proj *project.Project) string {
+	switch {
+	case proj != nil:
+		return displayPath(opts.WorkDir, proj.DeployPath)
+	case opts.DeployFile != "":
+		return opts.DeployFile
+	default:
+		return project.FileDeploy
+	}
 }
 
 // lintManifest 检查一份 component.yaml。dirID 非空时（项目模式）还要核对目录名与 metadata.id 一致。

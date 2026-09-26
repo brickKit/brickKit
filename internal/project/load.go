@@ -79,12 +79,37 @@ func Load(root string, opts LoadOptions) (*Project, error) {
 		Layout: l, Decl: decl, Deploy: deploy,
 		DeploySource: source, DeployPath: path, Warnings: warnings,
 	}
-	for _, step := range []func() error{p.checkCoverage, p.checkHostPorts, p.checkMembers, p.loadConfig} {
-		if err := step(); err != nil {
-			return nil, err
-		}
+	if err := p.checkTopology(); err != nil {
+		return nil, err
+	}
+	if err := p.loadConfig(); err != nil {
+		return nil, err
 	}
 	return p, nil
+}
+
+// Assemble 用已经解析好的声明与部署文件组装项目，只做拓扑相关的跨文件校验，
+// 不读 config/。
+//
+// 给"文件不在工作区"的场合用：预提交钩子判断的是 git 索引里即将提交的那两份文件，
+// 而 config/ 在索引里是什么样无从谈起——拿工作区的 config/ 去配索引里的声明，
+// 只会报出一堆与这次提交无关的错。拿到的项目回答得了"谁会启动"，给不出配置值。
+func Assemble(l Layout, decl *projfile.File, deploy *deployfile.File) (*Project, error) {
+	p := &Project{Layout: l, Decl: decl, Deploy: deploy, DeploySource: DeployTeam, DeployPath: deploy.Source}
+	if err := p.checkTopology(); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// checkTopology 是与 config/ 无关的那部分跨文件校验。
+func (p *Project) checkTopology() error {
+	for _, step := range []func() error{p.checkCoverage, p.checkHostPorts, p.checkMembers} {
+		if err := step(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // selectDeploy 决定读哪一份部署文件：-f > 本地模式 > deploy.yaml（提案 §6.2、§11.6）。

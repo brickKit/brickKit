@@ -111,3 +111,12 @@ func downloadArtifactsWith(
 	}
 	return sum
 }
+
+// artifactSummary 汇总一次并发下载的结果。
+type artifactSummary struct {
+	downloaded int
+	cached     int
+	// perNode 是每个组件下载/命中的文件数，用于渲染树状输出。
+	perNode  map[resolver.Ref]int
+	warnings []*clierr.Error
+}

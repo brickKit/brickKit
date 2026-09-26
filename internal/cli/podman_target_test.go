@@ -7,8 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/project"
 )
 
 // --dry-run 只需要生成一份 compose 文件——engine-agnostic，podman 消费的是
@@ -82,9 +83,9 @@ func TestStatusSucceedsWithPodmanTarget(t *testing.T) {
 // 选对了引擎"的用例，只检查 resolveEngineFor 的返回值，不调用它的任何方法，
 // 所以永远不会真的去 exec 一个 podman 二进制。
 func TestResolveEngineForPodmanTargetDispatchesRealEngine(t *testing.T) {
-	cfg := &config.Config{Deploy: config.Deploy{Target: config.TargetPodman}}
+	proj := &project.Project{Deploy: &deployfile.File{Target: deployfile.TargetPodman}}
 
-	eng, err := resolveEngineFor(&Options{}, cfg)
+	eng, err := resolveEngineFor(&Options{}, proj)
 
 	require.NoError(t, err)
 	assert.Equal(t, engine.Podman, eng.Name())

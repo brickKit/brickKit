@@ -164,14 +164,12 @@ func TestDetectScope(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("x: 1\n"), 0o644))
 		}
 	}
-	optsFor := func(dir, configPath string) *Options {
-		return &Options{WorkDir: dir, ConfigPath: configPath}
-	}
+	optsFor := func(dir string) *Options { return &Options{WorkDir: dir} }
 
 	t.Run("只有 brickkit.yaml 是项目", func(t *testing.T) {
 		dir := t.TempDir()
 		touch(t, dir, "brickkit.yaml")
-		scope, layout, err := detectScope(optsFor(dir, DefaultConfigFile))
+		scope, layout, err := detectScope(optsFor(dir))
 		require.NoError(t, err)
 		assert.Equal(t, skills.ScopeProject, scope)
 		assert.Equal(t, dir, layout.Root)
@@ -180,7 +178,7 @@ func TestDetectScope(t *testing.T) {
 	t.Run("只有 component.yaml 是组件仓库", func(t *testing.T) {
 		dir := t.TempDir()
 		touch(t, dir, "component.yaml")
-		scope, _, err := detectScope(optsFor(dir, DefaultConfigFile))
+		scope, _, err := detectScope(optsFor(dir))
 		require.NoError(t, err)
 		assert.Equal(t, skills.ScopeComponent, scope)
 	})
@@ -188,22 +186,14 @@ func TestDetectScope(t *testing.T) {
 	t.Run("两者都有时按项目算", func(t *testing.T) {
 		dir := t.TempDir()
 		touch(t, dir, "brickkit.yaml", "component.yaml")
-		scope, _, err := detectScope(optsFor(dir, DefaultConfigFile))
-		require.NoError(t, err)
-		assert.Equal(t, skills.ScopeProject, scope)
-	})
-
-	t.Run("--config 指向别的文件名", func(t *testing.T) {
-		dir := t.TempDir()
-		touch(t, dir, "brickkit.prod.yaml")
-		scope, _, err := detectScope(optsFor(dir, "brickkit.prod.yaml"))
+		scope, _, err := detectScope(optsFor(dir))
 		require.NoError(t, err)
 		assert.Equal(t, skills.ScopeProject, scope)
 	})
 
 	t.Run("两者都没有报 PROJECT_MISSING", func(t *testing.T) {
 		dir := t.TempDir()
-		_, layout, err := detectScope(optsFor(dir, DefaultConfigFile))
+		_, layout, err := detectScope(optsFor(dir))
 		require.Error(t, err)
 		e := clierr.As(err)
 		assert.Equal(t, clierr.CodeProjectMissing, e.Code)

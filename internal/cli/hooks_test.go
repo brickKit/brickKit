@@ -21,15 +21,16 @@ import (
 
 func TestRenderHookIsPosixShAndListsProjects(t *testing.T) {
 	script := renderHook("/opt/bin/brickkit", "v1.2.3", []hookProject{
-		{Dir: ".", Config: "brickkit.yaml"},
-		{Dir: "apps/erp", Config: "brickkit.prod.yaml"},
+		{Dir: "."},
+		{Dir: "apps/erp"},
 	})
 
 	assert.True(t, strings.HasPrefix(script, "#!/bin/sh\n"), "必须是 sh，Windows 上 git 用自带 sh 跑 hook")
 	assert.Contains(t, script, hookMarker+" v1.2.3")
 	assert.Contains(t, script, "/opt/bin/brickkit")
-	assert.Contains(t, script, ".|brickkit.yaml")
-	assert.Contains(t, script, "apps/erp|brickkit.prod.yaml")
+	assert.Contains(t, script, "\n.\n")
+	assert.Contains(t, script, "\napps/erp\n")
+	assert.NotContains(t, script, "--config", "--config 已删除，脚本不能再传它")
 	assert.NotContains(t, script, "[[", "不用任何 bash 特性")
 	assert.NotContains(t, script, "function ")
 }
@@ -42,7 +43,7 @@ func TestRenderedHookRunsAndBlocks(t *testing.T) {
 
 	script := filepath.Join(dir, "pre-commit")
 	require.NoError(t, os.WriteFile(script,
-		[]byte(renderHook(fake, "v0", []hookProject{{Dir: ".", Config: "brickkit.yaml"}})), 0o755))
+		[]byte(renderHook(fake, "v0", []hookProject{{Dir: "."}})), 0o755))
 
 	cmd := exec.Command("/bin/sh", script)
 	cmd.Dir = dir
@@ -63,7 +64,7 @@ func TestRenderedHookSilencesLogs(t *testing.T) {
 
 	script := filepath.Join(dir, "pre-commit")
 	require.NoError(t, os.WriteFile(script,
-		[]byte(renderHook(fake, "v0", []hookProject{{Dir: ".", Config: "brickkit.yaml"}})), 0o755))
+		[]byte(renderHook(fake, "v0", []hookProject{{Dir: "."}})), 0o755))
 
 	cmd := exec.Command("/bin/sh", script)
 	cmd.Dir = dir
@@ -79,7 +80,7 @@ func TestRenderedHookPassesWhenBinaryMissing(t *testing.T) {
 	script := filepath.Join(dir, "pre-commit")
 	require.NoError(t, os.WriteFile(script,
 		[]byte(renderHook(filepath.Join(dir, "does-not-exist"), "v0",
-			[]hookProject{{Dir: ".", Config: "brickkit.yaml"}})), 0o755))
+			[]hookProject{{Dir: "."}})), 0o755))
 
 	cmd := exec.Command("/bin/sh", script)
 	cmd.Dir = dir
@@ -96,7 +97,7 @@ func TestRenderedHookSkipsMissingProjectDir(t *testing.T) {
 
 	script := filepath.Join(dir, "pre-commit")
 	require.NoError(t, os.WriteFile(script,
-		[]byte(renderHook(fake, "v0", []hookProject{{Dir: "gone", Config: "brickkit.yaml"}})), 0o755))
+		[]byte(renderHook(fake, "v0", []hookProject{{Dir: "gone"}})), 0o755))
 
 	cmd := exec.Command("/bin/sh", script)
 	cmd.Dir = dir
@@ -105,11 +106,17 @@ func TestRenderedHookSkipsMissingProjectDir(t *testing.T) {
 }
 
 func TestParseHookProjectsRoundTrips(t *testing.T) {
-	want := []hookProject{
-		{Dir: ".", Config: "brickkit.yaml"},
-		{Dir: "apps/erp", Config: "brickkit.prod.yaml"},
-	}
+	want := []hookProject{{Dir: "."}, {Dir: "apps/erp"}}
 	assert.Equal(t, want, parseHookProjects(renderHook("/x/brickkit", "v1", want)))
+}
+
+// 旧版脚本的清单是 `目录|配置文件名`（那时有 --config）：读回来只留目录，
+// 重装一次就把旧脚本升级成新格式——否则旧 hook 会一直带着已删除的 --config 调用 CLI，
+// 每次提交都因"未知参数"被拦。
+func TestParseHookProjectsReadsLegacyList(t *testing.T) {
+	legacy := "#!/bin/sh\n" + hookMarker + " v0\nwhile IFS='|' read -r dir cfg; do :; done <<'" + hookListStart + "'\n" +
+		".|brickkit.yaml\napps/erp|brickkit.prod.yaml\n" + hookListEnd + "\n"
+	assert.Equal(t, []hookProject{{Dir: "."}, {Dir: "apps/erp"}}, parseHookProjects(legacy))
 }
 
 func TestInstallHookWritesExecutableAndIsIdempotent(t *testing.T) {
@@ -117,18 +124,18 @@ func TestInstallHookWritesExecutableAndIsIdempotent(t *testing.T) {
 	repo, err := gitrepo.Open(dir)
 	require.NoError(t, err)
 
-	path, added, err := installHook(repo, hookProject{".", "brickkit.yaml"}, "/x/brickkit", "v1")
+	path, added, err := installHook(repo, hookProject{"."}, "/x/brickkit", "v1")
 	require.NoError(t, err)
 	assert.True(t, added)
 	info, err := os.Stat(path)
 	require.NoError(t, err)
 	assert.NotZero(t, info.Mode()&0o100, "hook 必须可执行")
 
-	_, added, err = installHook(repo, hookProject{".", "brickkit.yaml"}, "/x/brickkit", "v1")
+	_, added, err = installHook(repo, hookProject{"."}, "/x/brickkit", "v1")
 	require.NoError(t, err)
 	assert.False(t, added, "同一个项目重复安装不该重复加")
 
-	_, added, err = installHook(repo, hookProject{"apps/erp", "brickkit.yaml"}, "/x/brickkit", "v1")
+	_, added, err = installHook(repo, hookProject{"apps/erp"}, "/x/brickkit", "v1")
 	require.NoError(t, err)
 	assert.True(t, added)
 
@@ -136,18 +143,6 @@ func TestInstallHookWritesExecutableAndIsIdempotent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, parseHookProjects(string(script)), 2, "第二个项目要追加，不是覆盖")
 
-	_, _, err = installHook(repo, hookProject{".", "brickkit.prod.yaml"}, "/x/brickkit", "v1")
-	require.NoError(t, err)
-
-	script, err = os.ReadFile(path)
-	require.NoError(t, err)
-	updated := parseHookProjects(string(script))
-	assert.Len(t, updated, 2, "同一目录换配置文件名是就地更新，不是新增一条")
-	for _, p := range updated {
-		if p.Dir == "." {
-			assert.Equal(t, "brickkit.prod.yaml", p.Config, "换了名字的那一条要跟着改")
-		}
-	}
 }
 
 func TestInstallHookNeverOverwritesForeignHook(t *testing.T) {
@@ -160,7 +155,7 @@ func TestInstallHookNeverOverwritesForeignHook(t *testing.T) {
 	foreign := filepath.Join(hooks, "pre-commit")
 	require.NoError(t, os.WriteFile(foreign, []byte("#!/bin/sh\n# husky\nexit 0\n"), 0o755))
 
-	_, _, err = installHook(repo, hookProject{".", "brickkit.yaml"}, "/x/brickkit", "v1")
+	_, _, err = installHook(repo, hookProject{"."}, "/x/brickkit", "v1")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 	assert.Contains(t, err.Error(), "restore --check", "要把该插进去的那一行告诉他")
@@ -184,7 +179,7 @@ func TestInstallHookRejectsHookThatOnlyMentionsMarkerInAComment(t *testing.T) {
 	content := "#!/bin/sh\n# see also: " + hookMarker + " for context, not actually managed\necho hi\n"
 	require.NoError(t, os.WriteFile(foreign, []byte(content), 0o755))
 
-	_, _, err = installHook(repo, hookProject{".", "brickkit.yaml"}, "/x/brickkit", "v1")
+	_, _, err = installHook(repo, hookProject{"."}, "/x/brickkit", "v1")
 	require.Error(t, err, "第二行不是标记本身，不该被认成自己人")
 	assert.Contains(t, err.Error(), "already exists")
 
@@ -195,7 +190,7 @@ func TestInstallHookRejectsHookThatOnlyMentionsMarkerInAComment(t *testing.T) {
 
 func TestHookSnippetPassesWhenBinaryMissing(t *testing.T) {
 	dir := t.TempDir()
-	snippet := hookSnippet(hookProject{Dir: ".", Config: "brickkit.yaml"},
+	snippet := hookSnippet(hookProject{Dir: "."},
 		filepath.Join(dir, "does-not-exist"))
 	script := filepath.Join(dir, "pre-commit")
 	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\n"+snippet+"\n"), 0o755))

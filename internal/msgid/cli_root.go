@@ -17,9 +17,11 @@ const (
 	CliRootErrorInvalidLogLevel       = "cli.root.error_invalid_log_level"
 	CliRootErrorUnknownCommand        = "cli.root.error_unknown_command"
 	CliRootShort                      = "cli.root.short"
-	CliRootPathOfTheProjectConfig     = "cli.root.path_of_the_project_config"
 	CliRootRunHelpToSeeThe            = "cli.root.run_help_to_see_the"
 	CliRootLevelOfTheJsonLogs         = "cli.root.level_of_the_json_logs"
 	CliRootExample                    = "cli.root.example"
 	CliRootLong                       = "cli.root.long"
+	CliCommandRebuilding              = "cli.command_rebuilding"
+	CliRootFlagDeployFile             = "cli.root.flag_deploy_file"
+	CliRootFlagNoLocal                = "cli.root.flag_no_local"
 )

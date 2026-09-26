@@ -69,148 +69,6 @@ func TestUpgradeActuallyStartsNewVersion(t *testing.T) {
 // 38.7 升级引入未绑定的资源 → 报错阻断
 // ============================================================
 
-// 新版本新增了一个资源依赖，而 brickkit.yaml 里没有绑定它。
-//
-// 38.6（强依赖不可满足）与 38.8（弱依赖缺失）都有升级路径上的用例，
-// 唯独资源这条只有 resolver 层的通用测试。而它恰恰是升级时最容易撞上的：
-// 新版本开始用数据库了，使用者只改了版本号。
-func TestUpgradeWithUnboundResourceIsBlocked(t *testing.T) {
-	f := upgradableProject(t, comp{
-		ID: "people/basic", Version: "1.1.0",
-		ResourceDeps: []string{"database:postgres"},
-	})
-	bumpTo(t, f, "1.1.0")
-
-	eng := newFakeEngine()
-	r := runWithEngine(t, eng, f.Dir, "up")
-
-	require.NotEqual(t, clierr.ExitOK, r.code,
-		"38.7：新版本要数据库而没人绑，必须在启动前拦下：%s", r.stdout)
-	assert.Empty(t, eng.ups, "38.7：拦下了就不该启动任何东西")
-}
-
-// 同一条检查在**普通 up**上也必须成立（006 §4.4、011 §5.3）。
-//
-// CheckResourceBindings 长期只挂在升级路径上，于是"从来没升级过"的项目
-// 一次也没被检查过：组件声明了 database 却没人绑，`up` 一路绿灯，
-// 生成的 service 里一个 DATABASE_* 都没有，要到运行时才炸成"连不上库"。
-// 这正是平台最反对的静默失败。
-func TestUpWithUnboundResourceIsBlocked(t *testing.T) {
-	f := addedProject(t, []comp{{
-		ID: "people/basic", Version: "1.0.0",
-		ResourceDeps: []string{"database:postgres"},
-	}}, "people/basic@1.0.0")
-	f.writeConfig(t, "components:\n  - id: people/basic\n    version: 1.0.0\n")
-
-	eng := newFakeEngine()
-	r := runWithEngine(t, eng, f.Dir, "up")
-
-	require.NotEqual(t, clierr.ExitOK, r.code,
-		"组件要数据库而没人绑，必须在启动前拦下：%s", r.stdout)
-	assert.Contains(t, r.stderr+r.stdout, "people/basic", "要说清是哪个组件")
-	assert.Empty(t, eng.ups, "拦下了就不该启动任何东西")
-}
-
-// `--dry-run` 只警告，不阻断。
-//
-// 那条命令的语义是"告诉我会发生什么"。拿它阻断的话，一个还没配资源的项目
-// 连"看看会生成什么"都做不到——而试用指南 04 讲 mode 时用的正是
-// `up --only ... --dry-run`，那时资源还没登场。
-func TestUpDryRunWarnsButDoesNotBlockOnUnboundResource(t *testing.T) {
-	f := addedProject(t, []comp{{
-		ID: "people/basic", Version: "1.0.0",
-		ResourceDeps: []string{"database:postgres"},
-	}}, "people/basic@1.0.0")
-	f.writeConfig(t, "components:\n  - id: people/basic\n    version: 1.0.0\n")
-
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
-
-	require.Equal(t, clierr.ExitOK, r.code,
-		"--dry-run 不该因为资源没绑就失败：%s", r.stdout+r.stderr)
-	out := r.stdout + r.stderr
-	assert.Contains(t, out, "resource dependencies are not satisfied", "但必须说出来：%s", out)
-	assert.Contains(t, out, "people/basic", "要说清是哪个组件：%s", out)
-}
-
-// 不启动的组件不参与这条检查。
-//
-// 试用指南 02 §2.5 教的正是"用 mode: disable 把暂时不用的关掉，而不是删掉"，
-// 那些组件的资源当然还没绑。拿它们去卡住 up，等于逼使用者要么删组件、
-// 要么为一个根本不跑的容器编一份数据库配置。
-func TestUpSkipsBindingCheckForComponentsThatDoNotStart(t *testing.T) {
-	f := addedProject(t, []comp{
-		{ID: "demo/hello", Version: "1.0.0"},
-		{ID: "people/basic", Version: "1.0.0", ResourceDeps: []string{"database:postgres"}},
-	}, "demo/hello@1.0.0", "people/basic@1.0.0")
-	f.writeConfig(t, `components:
-  - id: demo/hello
-    version: 1.0.0
-  - id: people/basic
-    version: 1.0.0
-    mode: disable
-`)
-
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
-
-	require.Equal(t, clierr.ExitOK, r.code,
-		"被显式关掉的组件不该因为没绑资源而卡住整个项目：%s", r.stdout+r.stderr)
-}
-
-// servedBy 成员声明的资源依赖，只要外壳自己已经绑了同一份，就该算满足
-// ——不该逼使用者在 bindings 里为一个不会生成任何真实容器/环境变量的
-// 成员重复写一份绑定（brickKit 反馈：servedBy 成员的资源绑定校验没有
-// 跟上 servedBy 语义）。
-func TestUpServedByMemberSatisfiedByShellBinding(t *testing.T) {
-	f := addedProject(t, []comp{
-		{ID: "infra/shell-go-core", Version: "1.0.0"},
-		{ID: "mdm/customer", Version: "1.0.7", Port: 8081, ResourceDeps: []string{"database:postgresql"}},
-	}, "infra/shell-go-core@1.0.0", "mdm/customer@1.0.7")
-	f.writeConfig(t, `components:
-  - id: infra/shell-go-core
-    version: 1.0.0
-  - id: mdm/customer
-    version: 1.0.7
-    servedBy: infra/shell-go-core@1.0.0
-
-resources:
-  - kind: database
-    engine: postgresql
-    id: postgres-main
-    host: postgres
-    port: 5432
-    username: brickkit
-    password: ${POSTGRES_PASSWORD}
-    bindings:
-      - componentId: infra/shell-go-core
-`)
-
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
-
-	require.Equal(t, clierr.ExitOK, r.code,
-		"外壳已经绑了同一份资源，servedBy 成员不该被要求重复绑定：%s", r.stdout+r.stderr)
-}
-
-// 外壳自己也没绑的话，该拦还是要拦——servedBy 感知不能变成绕过校验的口子。
-func TestUpServedByMemberStillBlockedWhenNeitherBound(t *testing.T) {
-	f := addedProject(t, []comp{
-		{ID: "infra/shell-go-core", Version: "1.0.0"},
-		{ID: "mdm/customer", Version: "1.0.7", Port: 8081, ResourceDeps: []string{"database:postgresql"}},
-	}, "infra/shell-go-core@1.0.0", "mdm/customer@1.0.7")
-	f.writeConfig(t, `components:
-  - id: infra/shell-go-core
-    version: 1.0.0
-  - id: mdm/customer
-    version: 1.0.7
-    servedBy: infra/shell-go-core@1.0.0
-`)
-
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
-
-	require.NotEqual(t, clierr.ExitOK, r.code,
-		"外壳和成员都没绑，该拦的还是要拦：%s", r.stdout)
-	assert.Contains(t, r.stderr+r.stdout, "mdm/customer")
-}
-
 // ============================================================
 // 38.18 / 38.19 / 38.21 / 38.22 升级摘要要说清"改了什么"
 // ============================================================
@@ -225,6 +83,7 @@ func upgradeSummary(t *testing.T, old, updated comp) string {
 	// add old 会把它的 Manifest 落进缓存——这正是"升级前"的状态
 	f := addedProject(t,
 		[]comp{old, updated, {ID: "department/tree", Version: "1.0.0"}}, old.ref())
+	f.seedInstalled(t, old)
 	f.writeConfig(t, "components:\n  - id: "+updated.ID+"\n    version: "+updated.Version+"\n")
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
@@ -268,7 +127,7 @@ func TestSummaryReportsAddedConfigKey(t *testing.T) {
 			ConfigSchema: []string{"greeting:你好", "enableNotification:true"}})
 
 	assert.Contains(t, out, "Added config items", "38.19：%s", out)
-	assert.Contains(t, out, "enableNotification", "38.19：%s", out)
+	assert.Contains(t, out, "ENABLE_NOTIFICATION", "38.19：%s", out)
 	assert.Contains(t, out, "true",
 		"38.19：要带上默认值——新增项走的就是它，使用者要判断这个值对不对：%s", out)
 }
@@ -285,7 +144,7 @@ func TestSummaryReportsRemovedConfigKey(t *testing.T) {
 		comp{ID: "people/basic", Version: "1.1.0", ConfigSchema: []string{"greeting:你好"}})
 
 	assert.Contains(t, out, "Removed config items", "38.19：%s", out)
-	assert.Contains(t, out, "legacyMode", "38.19：%s", out)
+	assert.Contains(t, out, "LEGACY_MODE", "38.19：%s", out)
 }
 
 // 38.21 artifacts 变更要报出来。

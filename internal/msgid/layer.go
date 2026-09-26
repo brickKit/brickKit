@@ -6,4 +6,6 @@ const (
 	LayerNotValidYAML      = "layer.not_valid_yaml"
 	LayerEmpty             = "layer.empty"
 	LayerMultipleDocuments = "layer.multiple_documents"
+	LayerWriteFailed       = "layer.write_failed"
+	LayerEncodeFailed      = "layer.encode_failed"
 )

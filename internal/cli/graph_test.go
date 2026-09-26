@@ -9,9 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
@@ -255,8 +253,8 @@ func TestGraphIgnoreServedByDropsGroupingAndSaysSo(t *testing.T) {
 	assert.NotContains(t, r.stdout, "subgraph")
 	assert.Contains(t, r.stdout, "    %% All servedBy declarations are ignored")
 
-	// 只在内存里清：brickkit.yaml 一个字节没动
-	assert.Contains(t, f.config(t), "servedBy: demo/shell@1.0.0")
+	// 只在内存里清：部署文件里的 members 一个字没动
+	assert.Equal(t, []string{"demo/a", "demo/b"}, f.deployEntry(t, "demo/shell").Members)
 }
 
 // 取不到的弱依赖也要画：up 的"依赖图"一节把它们写成"（弱，未安装）"。
@@ -417,26 +415,12 @@ resources: []
 
 	var out, errBuf bytes.Buffer
 	opts := &Options{
-		WorkDir: f.Dir, ConfigPath: DefaultConfigFile, LogLevel: logging.LevelOff,
+		WorkDir: f.Dir, LogLevel: logging.LevelOff,
 		Stdout: &out, Stderr: &errBuf,
 	}
 	//nolint:staticcheck // 显式传 nil 是本用例的目的
 	require.NoError(t, runGraph(nil, opts, false))
 	assert.Contains(t, out.String(), `demo_hello_1_0_0["demo/hello@1.0.0"]`)
-}
-
-// config 校验保证 servedBy 是合法的 id@version，但渲染这一层不依赖这个保证
-// （shell.ParseRef 本身也不做这个假设）：格式不对的当作没写，节点照常画。
-func TestRenderMermaidIgnoresMalformedServedBy(t *testing.T) {
-	ref := resolver.Ref{ID: "demo/a", Version: "1.0.0"}
-	cfg := &config.Config{Components: []config.Component{
-		{ID: ref.ID, Version: ref.Version, ServedBy: "not-a-ref"},
-	}}
-	graph := &resolver.Graph{Nodes: []*resolver.Node{{Ref: ref}}}
-
-	out := renderMermaid(cfg, graph, &cascade.Result{}, false)
-	assert.NotContains(t, out, "subgraph")
-	assert.Contains(t, out, `    demo_a_1_0_0["demo/a@1.0.0"]`+"\n")
 }
 
 // 版本化服务名不总是合法的 Mermaid 标识符：组件 ID 的规则允许连续的 `--`（my--scope/a）
@@ -504,33 +488,6 @@ func TestMermaidIDReplacesEveryHyphen(t *testing.T) {
 		}
 		seen[got] = c.id
 	}
-}
-
-// servedBy 指向的外壳不在项目里：配置校验不管这件事，up 才在生成阶段报。graph 画的是
-// 声明的结构，照样把成员归在那个外壳名下，只是外壳自己没有节点。
-func TestGraphGroupsMembersEvenWhenTheShellIsNotInTheProject(t *testing.T) {
-	f := graphProject(t, `components:
-  - id: demo/a
-    version: 1.0.0
-    servedBy: demo/absentshell@1.0.0
-  - id: demo/b
-    version: 1.0.0
-    servedBy: demo/absentshell@1.0.0
-resources: []
-`,
-		comp{ID: "demo/a", Version: "1.0.0", Port: 8081},
-		comp{ID: "demo/b", Version: "1.0.0", Port: 8082},
-	)
-
-	r := runIn(t, f.Dir, "graph")
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	requirePureMermaid(t, r.stdout)
-	assert.Equal(t, `graph TD
-    subgraph demo_absentshell_1_0_0_members["Shell: demo/absentshell@1.0.0"]
-        demo_a_1_0_0["demo/a@1.0.0"]
-        demo_b_1_0_0["demo/b@1.0.0"]
-    end
-`, r.stdout)
 }
 
 // brickkit graph --help 描述的节点样式要跟 graph.go 实际画的一致——它曾经说

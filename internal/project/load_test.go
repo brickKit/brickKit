@@ -11,10 +11,12 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/configdir"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 )
 
 const baseDecl = `project: shop
@@ -381,4 +383,27 @@ func TestLoadLocalPortVsExposePort(t *testing.T) {
 		"  - id: people/basic\n", "  - id: people/basic\n    exposePort: 8080\n    expose: true\n    hostname: p.example.com\n", 1)})
 	_, err = project.Load(root, project.LoadOptions{})
 	require.NoError(t, err)
+}
+
+// 预提交钩子从 git 索引里读出两份文件来判断，config/ 在索引里是什么样无从谈起：
+// Assemble 只做拓扑相关的跨文件校验，不碰 config/。
+func TestAssembleChecksTopologyWithoutConfig(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, map[string]string{"config/orphan@9.9.9.yaml": "X: 1\n"})
+	decl, err := projfile.Parse([]byte(baseDecl), "index:brickkit.yaml")
+	require.NoError(t, err)
+	deploy, _, err := deployfile.Parse([]byte(baseDeploy), "index:deploy.yaml", deployfile.RoleTeam)
+	require.NoError(t, err)
+
+	p, err := project.Assemble(project.NewLayout(root), decl, deploy)
+	require.NoError(t, err)
+	shell, ok := p.ShellOf("erp/backend")
+	assert.True(t, ok)
+	assert.Equal(t, "erp/shell", shell)
+
+	missing, _, err := deployfile.Parse([]byte("target: docker\ncomponents:\n  - id: erp/shell\n"),
+		"index:deploy.yaml", deployfile.RoleTeam)
+	require.NoError(t, err)
+	_, err = project.Assemble(project.NewLayout(root), decl, missing)
+	require.Error(t, err, "部署文件没覆盖到的组件照样要报")
 }

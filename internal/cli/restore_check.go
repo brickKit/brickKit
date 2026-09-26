@@ -11,14 +11,17 @@ package cli
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/gitrepo"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
 
@@ -41,7 +44,7 @@ type commitLayout struct {
 // 那是使用者自己在开发、还没 add 的源码（与 planSync 同一个边界）。
 func layoutFromIndex(entries []gitrepo.IndexEntry, componentsRel string, ids []string) commitLayout {
 	l := commitLayout{active: map[string]bool{}, archived: map[string]bool{}}
-	archivedRoot := componentsRel + "/" + config.DirArchived
+	archivedRoot := componentsRel + "/" + project.DirArchived
 	for _, e := range entries {
 		if e.IsGitlink() {
 			l.gitlinks = append(l.gitlinks, e.Path)
@@ -140,7 +143,7 @@ func runRestoreCheck(ctx context.Context, opts *Options) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
+	layout := project.NewLayout(opts.WorkDir)
 
 	repo, err := gitrepo.Open(layout.Root)
 	if err != nil {
@@ -172,29 +175,27 @@ func runRestoreCheck(ctx context.Context, opts *Options) error {
 		opts.Printf("%s\n", i18n.T(msgid.CliRestoreCheckAConflictIsBeingResolved))
 		return nil
 	}
-	cfgRel, ok := repo.Rel(layout.ConfigPath())
-	if !ok || !repo.Tracked(cfgRel) {
-		// 静默 return nil 会让"yaml 还没 git add"的人以为闸门跑过了、其实
-		// 根本没跑——他手上没有可比对的意图声明。这里必须出声。
-		return skipCheck(opts, i18n.T(msgid.CliRestoreCheckIsNotTrackedByGit, layout.ConfigName()),
-			errors.New(i18n.T(msgid.CliRestoreCheckTheIndexHasNoEntry, layout.ConfigName())))
+	decl, skip := indexFile(repo, layout.DeclPath(), projfile.Parse)
+	if skip != nil {
+		return skipCheck(opts, skip.reason, skip.cause)
 	}
-
-	data, err := repo.IndexBlob(cfgRel)
-	if err != nil {
-		return skipCheck(opts, i18n.T(msgid.CliRestoreCheckCannotReadTheAboutTo, layout.ConfigName()), err)
+	deploy, skip := indexFile(repo, layout.DeployPath(), func(data []byte, source string) (*deployfile.File, error) {
+		f, _, err := deployfile.Parse(data, source, deployfile.RoleTeam)
+		return f, err
+	})
+	if skip != nil {
+		return skipCheck(opts, skip.reason, skip.cause)
 	}
-	cfg, err := config.ParseConfig(data, "index:"+cfgRel)
+	proj, err := project.Assemble(layout, decl, deploy)
 	if err != nil {
-		return skipCheck(opts, i18n.T(msgid.CliRestoreCheckTheAboutToBeCommitted, layout.ConfigName()), err)
+		return skipCheck(opts, i18n.T(msgid.CliRestoreCheckTheAboutToBeCommitted, project.FileDeploy), err)
 	}
-	f, err := syncFocus(ctx, opts, layout, cfg)
+	f, err := syncFocus(ctx, opts, proj)
 	if err != nil {
-		// 算不出来 ≠ 判据不通过。Manifest 缺失或要联网时会走到这里。
 		return skipCheck(opts, i18n.T(msgid.CliRestoreCheckCannotWorkOutWhichComponents), err)
 	}
 
-	ids := declaredIDs(cfg)
+	ids := decl.IDs()
 	l := layoutFromIndex(entries, compRel, ids)
 	warnGitlinks(opts, l.gitlinks, repo.Submodules())
 
@@ -208,9 +209,38 @@ func runRestoreCheck(ctx context.Context, opts *Options) error {
 	return violationError(vs, layout, compRel, repo.StagedUnder(compRel))
 }
 
+// indexSkip 是"读不到即将提交的那份文件"的原因，交给 skipCheck 汇报。
+type indexSkip struct {
+	reason string
+	cause  error
+}
+
+// indexFile 从 git 索引里读出 path 即将提交的内容并解析。
+//
+// 判断的是**即将提交的**两份文件，不是工作区：钩子问的是"这一次提交自不自洽"，
+// 工作区里还没 add 的改动与这次提交无关。
+func indexFile[T any](repo *gitrepo.Repo, path string, parse func([]byte, string) (T, error)) (T, *indexSkip) {
+	var zero T
+	name := filepath.Base(path)
+	rel, ok := repo.Rel(path)
+	if !ok || !repo.Tracked(rel) {
+		return zero, &indexSkip{i18n.T(msgid.CliRestoreCheckIsNotTrackedByGit, name),
+			errors.New(i18n.T(msgid.CliRestoreCheckTheIndexHasNoEntry, name))}
+	}
+	data, err := repo.IndexBlob(rel)
+	if err != nil {
+		return zero, &indexSkip{i18n.T(msgid.CliRestoreCheckCannotReadTheAboutTo, name), err}
+	}
+	f, err := parse(data, "index:"+rel)
+	if err != nil {
+		return zero, &indexSkip{i18n.T(msgid.CliRestoreCheckTheAboutToBeCommitted, name), err}
+	}
+	return f, nil
+}
+
 // hasArchivedEntry 报告即将提交的东西里有没有归档目录下的路径。
 func hasArchivedEntry(entries []gitrepo.IndexEntry, componentsRel string) bool {
-	root := componentsRel + "/" + config.DirArchived
+	root := componentsRel + "/" + project.DirArchived
 	for _, e := range entries {
 		if under(e.Path, root) {
 			return true
@@ -291,10 +321,10 @@ func warnGitlinks(opts *Options, paths []string, registered map[string]gitrepo.S
 // 会直接拒绝跑（它移动目录会让那些已暂存的路径悬空）。两个守卫各自都对，
 // 但如果这里不把 reset 说出来，使用者就得连撞两次墙才知道完整的次序。
 func violationError(
-	vs []violation, layout config.Layout, componentsRel string, stagedComponents bool,
+	vs []violation, layout project.Layout, componentsRel string, stagedComponents bool,
 ) error {
-	configName := layout.ConfigName()
-	archivedRoot := componentsRel + "/" + config.DirArchived
+	configName := project.FileDeploy
+	archivedRoot := componentsRel + "/" + project.DirArchived
 
 	// 按「磁盘上那份源码到底还在归档目录里吗」分组，而**不是**按「它是不是活跃」。
 	//

@@ -19,7 +19,6 @@ const (
 	CliRestoreErrorThisRepositoryHasNo         = "cli.restore.error_this_repository_has_no"
 	CliRestoreTheBaselineForRestoringIs2       = "cli.restore.the_baseline_for_restoring_is_2"
 	CliRestoreErrorIsNotInsideThis             = "cli.restore.error_is_not_inside_this"
-	CliRestoreConfig                           = "cli.restore.config"
 	CliRestoreErrorIsNotTrackedBy              = "cli.restore.error_is_not_tracked_by"
 	CliRestoreFirstRunGitAddAnd                = "cli.restore.first_run_git_add_and"
 	CliRestoreErrorThereAreStagedChanges       = "cli.restore.error_there_are_staged_changes"
@@ -36,5 +35,5 @@ const (
 	CliRestoreNotSet                           = "cli.restore.not_set"
 	CliRestoreRemoveTheFieldTheCommit          = "cli.restore.remove_the_field_the_commit"
 	CliRestoreError                            = "cli.restore.error"
-	CliRestoreOverrideDriftCheckFailed         = "cli.restore.override_drift_check_failed"
+	CliRestoreLocalModeUntouched               = "cli.restore.local_mode_untouched"
 )

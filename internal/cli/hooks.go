@@ -35,8 +35,6 @@ const (
 type hookProject struct {
 	// Dir 是项目根相对仓库根的路径（以 / 分隔；仓库根本身是 "."）。
 	Dir string
-	// Config 是该项目的配置文件名（--config 可以改名）。
-	Config string
 }
 
 // renderHook 生成 pre-commit 脚本。
@@ -50,7 +48,7 @@ type hookProject struct {
 func renderHook(binPath, ver string, projects []hookProject) string {
 	var list strings.Builder
 	for _, p := range projects {
-		list.WriteString(p.Dir + "|" + p.Config + "\n")
+		list.WriteString(p.Dir + "\n")
 	}
 	// 脚本骨架留在代码里，只有说明注释和那句 echo 是给人看的、要跟着语言变。
 	// 识别"这是 brickkit 写的"靠语言中立的 hookMarker，不看这些文字。
@@ -63,10 +61,10 @@ if [ -z "$BRICKKIT_BIN" ]; then
 	exit 0
 fi
 rc=0
-while IFS='|' read -r dir cfg; do
+while IFS= read -r dir; do
 	[ -n "$dir" ] || continue
 	[ -d "$dir" ] || continue
-	( cd "$dir" && "$BRICKKIT_BIN" --log-level off restore --check --config "$cfg" ) || rc=1
+	( cd "$dir" && "$BRICKKIT_BIN" --log-level off restore --check ) || rc=1
 done <<'` + hookListStart + `'
 ` + list.String() + hookListEnd + `
 exit $rc
@@ -74,6 +72,9 @@ exit $rc
 }
 
 // parseHookProjects 从脚本里把项目清单读回来（升级时要保住别的项目）。
+//
+// 旧版脚本每行是 `目录|配置文件名`（那时有 --config）：只取 | 之前的目录，
+// 重装时就把旧脚本平滑升级成新格式，不丢项目。
 func parseHookProjects(script string) []hookProject {
 	_, rest, ok := strings.Cut(script, "<<'"+hookListStart+"'\n")
 	if !ok {
@@ -85,11 +86,11 @@ func parseHookProjects(script string) []hookProject {
 	}
 	var projects []hookProject
 	for _, line := range strings.Split(body, "\n") {
-		dir, cfg, ok := strings.Cut(line, "|")
-		if !ok || dir == "" {
+		dir, _, _ := strings.Cut(line, "|")
+		if dir == "" {
 			continue
 		}
-		projects = append(projects, hookProject{Dir: dir, Config: cfg})
+		projects = append(projects, hookProject{Dir: dir})
 	}
 	return projects
 }
@@ -154,7 +155,6 @@ func parseHookProjectsFile(path string) []hookProject {
 func mergeHookProjects(existing []hookProject, p hookProject) []hookProject {
 	for i, e := range existing {
 		if e.Dir == p.Dir {
-			// 同一个项目重装：配置文件名可能变了，跟最新的走
 			existing[i] = p
 			return existing
 		}
@@ -170,7 +170,7 @@ func mergeHookProjects(existing []hookProject, p hookProject) []hookProject {
 // 用 if 而不是 `[ -n "$BK" ] && ... || exit 1`：后者在 BK 为空时会落到
 // `|| exit 1`，把"找不到就放行"拧成"找不到就拦死"。
 func hookSnippet(p hookProject, binPath string) string {
-	run := `"$BK" --log-level off restore --check --config ` + shellQuote(p.Config)
+	run := `"$BK" --log-level off restore --check`
 	if p.Dir != "." {
 		run = `( cd ` + shellQuote(p.Dir) + ` && ` + run + ` )`
 	}

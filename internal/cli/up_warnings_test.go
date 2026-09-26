@@ -9,7 +9,6 @@
 package cli
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,216 +42,103 @@ func threeTierProject(t *testing.T) *projectFixture {
 }
 
 // ============================================================
-// 15.12 --config
+// 选哪份部署文件：-f > 本地模式 > deploy.yaml（提案 §6.2、§11.6）
 // ============================================================
 
-func TestUpWithAlternateConfig(t *testing.T) {
+// writeDeployFile 在项目根写一份部署文件（相对路径），三个组件都要覆盖到。
+func writeDeployFile(t *testing.T, f *projectFixture, name, target, portalMode, erpMode, peopleMode string) {
+	t.Helper()
+	entry := func(id, mode string) string {
+		out := "  - id: " + id + "\n"
+		if mode != "" {
+			out += "    mode: " + mode + "\n"
+		}
+		return out
+	}
+	body := "target: " + target + "\ncomponents:\n" +
+		entry("portal/user-frontend", portalMode) + entry("erp/backend", erpMode) + entry("people/basic", peopleMode)
+	require.NoError(t, os.WriteFile(filepath.Join(f.Dir, name), []byte(body), 0o644))
+}
+
+// -f 指定的部署文件决定这次起什么；生成物仍写进默认的 .brickkit/ 目录。
+func TestUpFileFlagSelectsDeployFile(t *testing.T) {
 	f := threeTierProject(t)
-	require.NoError(t, os.WriteFile(filepath.Join(f.Dir, "brickkit.prod.yaml"),
-		[]byte(prodConfig(f)), 0o644))
+	writeDeployFile(t, f, "deploy.prod.yaml", "docker", "disable", "disable", "enabled")
 	eng := newFakeEngine()
 
-	r := runWithEngine(t, eng, f.Dir, "up", "--config", "brickkit.prod.yaml")
+	r := runWithEngine(t, eng, f.Dir, "up", "-f", "deploy.prod.yaml")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Equal(t, []string{"people-basic-1-0-0"}, eng.lastUp(t).Services, "15.12")
-	// 004 §3.5：生成的部署文件仍写进默认的 .brickkit/ 目录
+	assert.Equal(t, []string{"people-basic-1-0-0"}, eng.lastUp(t).Services)
+	assert.Contains(t, r.stdout, "deploy.prod.yaml", "要说出这次用的是哪份部署文件")
 	assert.FileExists(t, filepath.Join(f.Dir, ".brickkit", "generated", "compose.yaml"))
 }
 
-// prodConfig 造一份"只装一个组件"的备用配置。
-func prodConfig(f *projectFixture) string {
-	head := "project: my-erp-prod\n\ndeploy:\n  target: docker\n\nsources:\n"
-	for _, s := range f.Sources {
-		head += s
-	}
-	return head + "\ncomponents:\n  - id: people/basic\n    version: 1.0.0\n"
+// -f 比本地模式优先：本地模式开着、deploy.local.yaml 写着 podman，
+// -f 指向一份 k8s 的部署文件，这次就按 k8s 生成。
+func TestUpFileFlagIgnoresLocalMode(t *testing.T) {
+	f := threeTierProject(t)
+	f.writeOverride(t, "target: podman\n")
+	writeDeployFile(t, f, "deploy.prod.yaml", "k8s", "", "", "")
+
+	r := runWithEngine(t, newK8sEngine(), f.Dir, "up", "--dry-run", "-f", "deploy.prod.yaml")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.DirExists(t, filepath.Join(f.Dir, ".brickkit", "generated", "k8s"))
+	assert.Contains(t, r.stdout, "deploy.target: k8s")
+}
+
+// --no-local 让这一次忽略本地模式，读团队的 deploy.yaml。
+func TestUpNoLocal(t *testing.T) {
+	f := threeTierProject(t)
+	f.writeOverride(t, "components:\n  - id: portal/user-frontend\n    mode: disable\n")
+
+	local := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, local.code, local.stdout+local.stderr)
+	assert.Contains(t, local.stdout, "deploy.local.yaml", "本地模式生效时要说出来")
+	assert.Contains(t, local.stdout, "portal/user-frontend@1.0.0  disabled explicitly")
+
+	team := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run", "--no-local")
+	require.Equal(t, clierr.ExitOK, team.code, team.stdout+team.stderr)
+	assert.NotContains(t, team.stdout, "deploy.local.yaml")
+	assert.Contains(t, lineContaining(t, team.stdout, "portal/user-frontend@1.0.0"), "starting (top-level)")
+}
+
+// 密钥值与 file:// 读出的内容在 Docker 下写进 0600 的 env 文件（附录 A7），
+// compose.yaml 里只剩 env_file 引用；不再生成的服务，它的旧 env 文件要清掉。
+func TestUpDryRunWritesEnvFiles0600(t *testing.T) {
+	spec := comp{ID: "demo/hello", Version: "1.0.0", ConfigSchema: []string{"API_TOKEN:"}, SecretConfig: []string{"API_TOKEN"}}
+	f := addedProject(t, []comp{spec}, spec.ref())
+	f.writeConfig(t, "components:\n  - id: demo/hello\n    version: 1.0.0\n    config:\n      API_TOKEN: sk-live-LITERAL\n")
+	envDir := filepath.Join(f.Layout.GeneratedDir(), "env")
+	require.NoError(t, os.MkdirAll(envDir, 0o700))
+	stale := filepath.Join(envDir, "gone-away-1-0-0.env")
+	require.NoError(t, os.WriteFile(stale, []byte("X=1\n"), 0o600))
+
+	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	path := filepath.Join(envDir, "demo-hello-1-0-0.env")
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	assert.Contains(t, readFile(t, path), "sk-live-LITERAL")
+	compose := readFile(t, filepath.Join(f.Layout.GeneratedDir(), composeFileName))
+	assert.NotContains(t, compose, "sk-live-LITERAL", "密钥不进 compose.yaml")
+	assert.NoFileExists(t, stale, "不再生成的服务，旧 env 文件要清掉")
 }
 
 // ============================================================
 // 启动前不做资源体检
 // ============================================================
 
-// `up` 从不拨号探测基础资源。
-//
-// 曾经有个 `--check-resources` 干这件事，两半都删掉了：
-//
-//	资源可达性  006 §8.3 自己就论证过它证明不了什么——组件用的是**自己那套
-//	            凭据**、从**容器网络里**连，CLI 从宿主机用另一套凭据连成功
-//	            说明不了组件也能连成功。而 host: localhost 时它给的是**反的**
-//	            答案：宿主机上通，容器里连的却是它自己。
-//	宿主机端口  docker 会为它发布的每个端口报出清楚的 `port is already
-//	            allocated`；它唯一多覆盖的是 debug 组件自己监听的端口，
-//	            而那一类的典型命中恰恰是**开发者自己刚启动的进程**——
-//	            一个典型命中就是假警报的检查，只会训练人忽略警告。
-func TestUpNeverProbesResources(t *testing.T) {
-	f := externalResourceProject(t)
-	eng := newFakeEngine()
-
-	probed := false
-	r := runWith(t, func(o *Options) {
-		o.Engine = eng
-		o.Probe = func(context.Context, string) error { probed = true; return nil }
-	}, f.Dir, "up")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.False(t, probed, "up 不该拨号——那个结论不如组件自己的失败准确")
-	assert.NotEmpty(t, eng.ups, "照常启动")
-}
-
-// externalResourceProject：一个绑定了外部数据库的项目。
-func externalResourceProject(t *testing.T) *projectFixture {
-	t.Helper()
-
-	comps := []comp{{ID: "people/basic", Version: "1.0.0"}}
-	f := addedProject(t, comps, "people/basic@1.0.0")
-	f.writeConfig(t, `components:
-  - id: people/basic
-    version: 1.0.0
-
-resources:
-  - kind: database
-    engine: postgresql
-    id: postgres-external
-    host: db.internal.example.com
-    port: 5432
-    username: brickkit
-    password: ${POSTGRES_PASSWORD}
-    bindings:
-      - componentId: people/basic
-        database: brickkit_people
-`)
-	return f
-}
-
 // ============================================================
 // P5 资源密码硬编码告警
 // ============================================================
 
-// 006 §3.3 / 008：brickkit.yaml 里不该出现明文密码。
-//
-// 这是警告不是错误：本地开发时写个 dev 密码很常见，
-// 阻断只会让人把 CLI 绕开。
-func TestUpWarnsAboutHardcodedResourcePassword(t *testing.T) {
-	comps := []comp{{ID: "people/basic", Version: "1.0.0"}}
-	f := addedProject(t, comps, "people/basic@1.0.0")
-	f.writeConfig(t, `components:
-  - id: people/basic
-    version: 1.0.0
-
-resources:
-  - kind: database
-    engine: postgresql
-    id: postgres-main
-    host: postgres
-    port: 5432
-    username: brickkit
-    password: my-secret-password-123
-    bindings:
-      - componentId: people/basic
-        database: brickkit_people
-`)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up")
-
-	require.Equal(t, clierr.ExitOK, r.code, "P5：警告不阻断")
-	assert.Contains(t, r.stdout+r.stderr, "postgres-main")
-	assert.Contains(t, r.stdout+r.stderr, "${")
-	assert.NotContains(t, r.stdout+r.stderr, "my-secret-password-123",
-		"警告里不能把密码本身打出来")
-}
-
 // ============================================================
 // 悬空资源绑定：警告，不阻断
 // ============================================================
-
-// 绑定指向一个 components 里没有的组件 → 警告，但项目照常起来。
-//
-// 它曾经是校验硬错误，代价完全不成比例：那条绑定的唯一后果是自己不生效
-// （没有组件会读它），而阻断的后果是整个项目跑不了。
-func TestUpWarnsAboutDanglingBinding(t *testing.T) {
-	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
-	f.writeConfig(t, `components:
-  - id: people/basic
-    version: 1.0.0
-
-resources:
-  - kind: database
-    engine: postgresql
-    id: postgres-main
-    host: host.docker.internal
-    port: 5432
-    bindings:
-      - componentId: people/basic
-        database: people
-      - componentId: ghost/none
-        database: ghost
-`)
-
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
-
-	require.Equal(t, clierr.ExitOK, r.code, "警告不阻断：%s%s", r.stdout, r.stderr)
-	out := r.stdout + r.stderr
-	assert.Contains(t, out, "ghost/none")
-	assert.Contains(t, out, "postgres-main")
-	assert.Contains(t, out, "no effect")
-}
-
-// 绑定都指向已声明的组件时，不该有这条警告。
-func TestUpDoesNotWarnWhenAllBindingsDeclared(t *testing.T) {
-	f := externalResourceProject(t)
-
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "components that don't exist under components")
-}
-
-// 用了 ${ENV_VAR} 就不该有这条警告。
-func TestUpDoesNotWarnAboutEnvVarPassword(t *testing.T) {
-	f := externalResourceProject(t)
-	eng := newFakeEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "plaintext passwords")
-}
-
-// 变量**真的配了**的时候更不该报警——这正是使用者做对了的情形。
-//
-// resources[].password 是 deferredRefs 之一，解析阶段从不展开 ${VAR}
-// （003 §5.4）：这条检查看到的始终是 brickkit.yaml 里的原文。isEnvRef
-// 只需要看到字面包含 `${` 就认定这是引用，跟对应环境变量有没有真的
-// 设置无关——设了值只是让 up 本身能跑到底，不影响这条警告的判断。
-func TestUpDoesNotWarnWhenEnvVarIsSet(t *testing.T) {
-	t.Setenv("POSTGRES_PASSWORD", "a-real-password")
-	f := externalResourceProject(t)
-
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "plaintext passwords")
-	assert.NotContains(t, r.stdout+r.stderr, "a-real-password", "密码本身不该出现在输出里")
-}
-
-// --dry-run 不需要引擎，也不拨号。
-//
-// 这条从前是 "--check-resources 与 --dry-run 一起用时照样体检"；
-// 那个参数删掉之后，要守的就只剩"这台机器上没装 docker 也该能跑"。
-func TestDryRunNeedsNoEngineAndNeverProbes(t *testing.T) {
-	f := externalResourceProject(t)
-
-	probed := false
-	r := runWith(t, func(o *Options) {
-		o.Probe = func(context.Context, string) error { probed = true; return nil }
-	}, f.Dir, "up", "--dry-run")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.False(t, probed)
-	assert.Contains(t, r.stdout, "only generates the files")
-}
 
 // ============================================================
 // 弱依赖这次不跑：说清楚谁失去了什么
@@ -348,82 +234,3 @@ func lineContaining(t *testing.T, out, fragment string) string {
 // ============================================================
 // egress 覆盖不全：真 up 阻断，--dry-run 只警告
 // ============================================================
-
-// egressProject 打开出站策略，但故意漏声明那个绑着的资源。
-//
-// 不能用 f.writeConfig：它的头部写死了 deploy.target: docker，而 egress 只在
-// K8s 下生成（见 k8sProjectWith 的同一条说明）。
-func egressProject(t *testing.T) *projectFixture {
-	t.Helper()
-	f := addedProject(t, []comp{{
-		ID: "demo/hello", Version: "1.0.0", ResourceDeps: []string{"database:postgresql"},
-	}}, "demo/hello@1.0.0")
-
-	var b strings.Builder
-	b.WriteString(`project: my-erp
-
-deploy:
-  target: k8s
-  networkPolicy:
-    enabled: true
-    egress:
-      enabled: true
-      allowTo: []
-
-sources:
-`)
-	for _, src := range f.Sources {
-		b.WriteString(src)
-	}
-	b.WriteString(`
-components:
-  - id: demo/hello
-    version: 1.0.0
-
-resources:
-  - kind: database
-    engine: postgresql
-    id: pg-main
-    host: postgres.infra
-    port: 5432
-    username: app
-    password: pw
-    bindings:
-      - componentId: demo/hello
-        database: hello
-`)
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
-	return f
-}
-
-// 真 up 照旧阻断：漏一个资源，出站策略就会把数据库挡在外面。
-func TestEgressCoverageBlocksRealUp(t *testing.T) {
-	f := egressProject(t)
-	eng := newK8sEngine()
-
-	r := runWithEngine(t, eng, f.Dir, "up")
-
-	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
-	assert.Contains(t, r.stderr, "pg-main")
-	assert.Empty(t, eng.ups, "拦下了就不该部署")
-}
-
-// `--dry-run` 只警告，不阻断，而且清单要真的生成出来。
-//
-// 004 §4.4 立的规矩：那条命令的语义是"告诉我会发生什么"。资源绑定检查早就按这条
-// 降级了（dryRunResourceWarning），egress 覆盖是同一类——运行期会出事，不是生成
-// 不出来。硬拦的后果是：一个正在配 egress 的人连"看看会生成什么策略"都做不到，
-// 而那恰恰是他最需要看的东西。
-func TestEgressCoverageOnlyWarnsInDryRun(t *testing.T) {
-	f := egressProject(t)
-
-	r := runWithEngine(t, newK8sEngine(), f.Dir, "up", "--dry-run")
-
-	require.Equal(t, clierr.ExitOK, r.code,
-		"--dry-run 不该因为 egress 没配全就失败：%s", r.stdout+r.stderr)
-	out := r.stdout + r.stderr
-	assert.Contains(t, out, "pg-main", "但必须说出来")
-	assert.Contains(t, out, "--dry-run doesn't block")
-	assert.DirExists(t, filepath.Join(f.Layout.GeneratedDir(), "k8s"),
-		"清单要真的生成出来——那正是他想看的")
-}

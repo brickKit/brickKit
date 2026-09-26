@@ -1,0 +1,253 @@
+package yamlfile
+
+// 本文件是三层文件共用的"原地编辑器"：restore 改 deploy.yaml 的 mode，
+// add / remove 往 brickkit.yaml 与部署文件里增删条目，都走这里。
+//
+// 在节点层改，不经过结构体重新序列化，所以注释、字段顺序、`${VAR}` / `$var:`
+// 全部原样——这些文件是人要读、要 review 的，编辑一次不该让它面目全非。
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+
+	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
+)
+
+// keyID 是列表条目用来互相区分的键：brickkit.yaml 与部署文件的组件条目都是 `- id: …`。
+const keyID = "id"
+
+// editFilePerm 是编辑后写回的权限：与这些文件 init 时的权限一致。
+const editFilePerm = 0o644
+
+// Edit 是一份 YAML 文件的原地编辑器。
+type Edit struct {
+	path     string
+	doc      *yaml.Node // 文档节点（承载文件头部注释）
+	root     *yaml.Node // 顶层映射
+	original []byte     // 读入时的原文，用于还原空行排版
+}
+
+// OpenEdit 打开 path 准备编辑。文件不存在时返回满足 fs.ErrNotExist 的错误。
+func OpenEdit(path string) (*Edit, error) {
+	data, err := Read(path)
+	if err != nil {
+		return nil, err
+	}
+	// 先走一遍与解析相同的检查：不是合法 YAML、多文档、顶层不是映射，报错口径一致
+	if _, err := Document(data, path, false); err != nil {
+		return nil, err
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, err // Document 已经放行，这里不会走到
+	}
+	return &Edit{path: path, doc: &doc, root: doc.Content[0], original: data}, nil
+}
+
+// SetField 把序列 seqKey 里 `id: <id>` 那一条的 field 设成 value。条目不存在时返回 false。
+func (e *Edit) SetField(seqKey, id, field, value string) bool {
+	item := e.entry(seqKey, id)
+	if item == nil {
+		return false
+	}
+	if node := mappingValue(item, field); node != nil {
+		// 就地改标量：挂在值上的行尾注释因此留得住
+		*node = yaml.Node{
+			Kind: yaml.ScalarNode, Tag: "!!str", Value: value,
+			HeadComment: node.HeadComment, LineComment: node.LineComment, FootComment: node.FootComment,
+			Line: node.Line, Column: node.Column,
+		}
+		return true
+	}
+	item.Content = append(item.Content, scalar(field), scalar(value))
+	return true
+}
+
+// DeleteField 删掉 `id: <id>` 那一条的 field。条目或字段不存在时返回 false。
+//
+// 删字段与写成别的值不是一回事：mode 不写才是"跟着上层走"。
+func (e *Edit) DeleteField(seqKey, id, field string) bool {
+	item := e.entry(seqKey, id)
+	if item == nil {
+		return false
+	}
+	for i := 0; i+1 < len(item.Content); i += 2 {
+		if item.Content[i].Value == field {
+			item.Content = append(item.Content[:i], item.Content[i+2:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// AppendEntry 在序列 seqKey 末尾追加 `- id: <id>`。已存在时返回 false，不重复写入。
+func (e *Edit) AppendEntry(seqKey, id string) bool {
+	if e.entry(seqKey, id) != nil {
+		return false
+	}
+	seq := e.sequence(seqKey, true)
+	// `components: []` 是流式空序列，加入条目后要切回块式，否则会写成一行
+	seq.Style = 0
+	seq.Content = append(seq.Content, &yaml.Node{
+		Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{scalar(keyID), scalar(id)},
+	})
+	return true
+}
+
+// RemoveEntry 删除序列 seqKey 里 `id: <id>` 那一条。不存在时返回 false。
+func (e *Edit) RemoveEntry(seqKey, id string) bool {
+	seq := e.sequence(seqKey, false)
+	if seq == nil {
+		return false
+	}
+	for i, item := range seq.Content {
+		if isEntry(item, id) {
+			seq.Content = append(seq.Content[:i], seq.Content[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// Save 把修改写回文件。
+func (e *Edit) Save() error {
+	name := filepath.Base(e.path)
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	err := enc.Encode(e.doc)
+	if err == nil {
+		err = enc.Close()
+	}
+	if err != nil {
+		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.LayerEncodeFailed, name)).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithCause(err)
+	}
+	if err := os.WriteFile(e.path, restoreBlankLines(e.original, buf.Bytes()), editFilePerm); err != nil {
+		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.LayerWriteFailed, name)).
+			WithDetail(i18n.T(msgid.LabelPath), e.path).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithHint(i18n.T(msgid.ProblemHintCheckPermissions)).
+			WithCause(err)
+	}
+	return nil
+}
+
+// entry 找到序列 seqKey 里 `id: <id>` 的映射节点，不存在时返回 nil。
+func (e *Edit) entry(seqKey, id string) *yaml.Node {
+	seq := e.sequence(seqKey, false)
+	if seq == nil {
+		return nil
+	}
+	for _, item := range seq.Content {
+		if isEntry(item, id) {
+			return item
+		}
+	}
+	return nil
+}
+
+// sequence 返回顶层键 seqKey 的序列节点。create 为 true 时在缺失（或写成 null）时创建。
+func (e *Edit) sequence(seqKey string, create bool) *yaml.Node {
+	for i := 0; i+1 < len(e.root.Content); i += 2 {
+		if e.root.Content[i].Value != seqKey {
+			continue
+		}
+		value := e.root.Content[i+1]
+		if value.Kind != yaml.SequenceNode {
+			if !create {
+				return nil
+			}
+			*value = yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+		}
+		return value
+	}
+	if !create {
+		return nil
+	}
+	seq := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+	e.root.Content = append(e.root.Content, scalar(seqKey), seq)
+	return seq
+}
+
+func isEntry(item *yaml.Node, id string) bool {
+	if item.Kind != yaml.MappingNode {
+		return false
+	}
+	v := mappingValue(item, keyID)
+	return v != nil && v.Value == id
+}
+
+func scalar(v string) *yaml.Node { return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: v} }
+
+// mappingValue 取映射节点中某个键的值节点，不存在时返回 nil。
+func mappingValue(node *yaml.Node, key string) *yaml.Node {
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			return node.Content[i+1]
+		}
+	}
+	return nil
+}
+
+// topLevelKeyRe 匹配顶层键（顶格、无缩进）。
+var topLevelKeyRe = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_.-]*):`)
+
+// restoreBlankLines 按原文把顶层块之间的空行补回编码结果。
+//
+// yaml.v3 的节点模型里没有空行，往返一次就会把顶层块之间的留白全部压掉。
+// 这里只做一件事：原文中某个顶层键前面有空行，编码结果里也补上一行空行
+// （有头部注释时补在注释块之前）。
+func restoreBlankLines(original, encoded []byte) []byte {
+	spaced := keysPrecededByBlankLine(original)
+	if len(spaced) == 0 {
+		return encoded
+	}
+
+	lines := strings.Split(string(encoded), "\n")
+	out := make([]string, 0, len(lines)+len(spaced))
+	for _, line := range lines {
+		m := topLevelKeyRe.FindStringSubmatch(line)
+		if m != nil && spaced[m[1]] {
+			insert := len(out)
+			for insert > 0 && strings.HasPrefix(strings.TrimSpace(out[insert-1]), "#") {
+				insert--
+			}
+			if insert > 0 && strings.TrimSpace(out[insert-1]) != "" {
+				out = append(out, "")
+				copy(out[insert+1:], out[insert:])
+				out[insert] = ""
+			}
+		}
+		out = append(out, line)
+	}
+	return []byte(strings.Join(out, "\n"))
+}
+
+// keysPrecededByBlankLine 找出原文中前面隔了空行的顶层键。
+func keysPrecededByBlankLine(original []byte) map[string]bool {
+	lines := strings.Split(string(original), "\n")
+	spaced := map[string]bool{}
+	for i, line := range lines {
+		m := topLevelKeyRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		j := i - 1
+		for j >= 0 && strings.HasPrefix(strings.TrimSpace(lines[j]), "#") {
+			j--
+		}
+		if j >= 0 && strings.TrimSpace(lines[j]) == "" {
+			spaced[m[1]] = true
+		}
+	}
+	return spaced
+}

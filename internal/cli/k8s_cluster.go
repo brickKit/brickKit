@@ -3,29 +3,29 @@ package cli
 // 本文件负责"别部错地方"（005 §5.11）。
 //
 // kubectl 的默认行为是部到 `kubectl config current-context` 指的集群。
-// 一份写着生产的 brickkit.yaml，在一个 context 停在预发的终端里执行，
+// 一份写着生产的部署文件，在一个 context 停在预发的终端里执行，
 // **会成功**——没有任何一处提示你部错了。这一类错误在真集群上最贵，
 // 而在本地（minikube 只有一个集群）永远试不出来。
 
 import (
 	"context"
-	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 )
 
 // requireContext 校验"现在连着的集群"就是配置里钉住的那个。
 //
-// 没钉住（deploy.context 为空、也没给 --context）就不校验：
+// 没钉住（部署文件的 k8s.context 为空）就不校验：
 // 不是所有人都需要钉住，本地开发钉住反而碍事。
 func requireContext(
-	ctx context.Context, opts *Options, cfg *config.Config, eng engine.Engine, want string,
+	ctx context.Context, opts *Options, proj *project.Project, eng engine.Engine, want string,
 ) error {
-	if want == "" || cfg.Deploy.Target != config.TargetK8s {
+	if want == "" || proj.Deploy.Target != deployfile.TargetK8s {
 		return nil
 	}
 
@@ -48,181 +48,4 @@ func requireContext(
 			i18n.T(msgid.CliK8sClusterOrSpecifyItExplicitlyFor, current),
 			i18n.T(msgid.CliK8sClusterDonTContinueUntilYou),
 		)
-}
-
-// contextOf 返回本次要用的 kubeconfig 上下文：命令行参数优先。
-func contextOf(cfg *config.Config, flag string) string {
-	if flag != "" {
-		return flag
-	}
-	return cfg.Deploy.Context
-}
-
-// warnTargetOnlyFields 提醒"写了、但在当前部署目标下不生效"的字段。
-//
-// 003 §3.2 立的规矩：**写了不生效就得出声**——不提醒的话，使用者会以为
-// 配置生效了而行为没变。这里守两个方向：
-//
-//	Docker 目标   deploy.* 全部（除 target）+ 组件的 replicas / hostname / tlsSecret /
-//	              serviceAccountName
-//	K8s 目标      组件的 exposePort
-//
-// `mode: debug` / `localPort` 不在此列：它们在解析 brickkit.yaml 时就是**报错**
-// （config.validateComponentMode 等），不是警告。跳过的后果是依赖方拿到一个指向
-// 不存在 Service 的地址，表现成随机的连接超时（005 §5.3.1），性质与"这一行没生效"不同。
-func warnTargetOnlyFields(opts *Options, cfg *config.Config) {
-	if cfg.Deploy.Target == config.TargetK8s {
-		warnFields(opts, cfg, "Docker", dockerOnlyFields(cfg),
-			i18n.T(msgid.CliK8sClusterK8sExposesServicesExternallyThrough),
-			i18n.T(msgid.CliK8sClusterToExposeAComponentExternally))
-		return
-	}
-	warnFields(opts, cfg, "K8s", k8sOnlyFields(cfg),
-		i18n.T(msgid.CliK8sClusterTheseFieldsOnlyTakeEffect),
-		i18n.T(msgid.CliK8sClusterToDeployToK8sChange))
-}
-
-// fieldUse 是"某个字段被哪些组件写了"。
-//
-// 按**字段**归集而不是按组件：同一件事说 N 遍会把警告区刷满，
-// 而使用者一旦开始整块跳过警告，真正要紧的那几条也一起被跳过。
-// 真跑过：4 个组件各写 replicas + tlsSecret，就是 8 行；20 个组件就是 40 行。
-type fieldUse struct {
-	name string
-	// components 为空表示它是项目级字段（deploy.* 那些）。
-	components []string
-	// noun 是 describeUsers 数 components 里这些名字时用的 msgid.Count* key：
-	// 数的是"组件"还是"资源"；空值按"组件"处理（历史上所有调用方都是组件级字段）。
-	noun string
-}
-
-// k8sOnlyFields 收集只在 K8s 下生效、而当前是 Docker 目标的字段。
-func k8sOnlyFields(cfg *config.Config) []fieldUse {
-	// 003 §3.2：`deploy` 下除 target 外**全部**只对 K8s 生效
-	project := []struct {
-		name string
-		set  bool
-	}{
-		{"deploy.context", cfg.Deploy.Context != ""},
-		{"deploy.namespace", cfg.Deploy.Namespace != ""},
-		{"deploy.createNamespace", cfg.Deploy.CreateNamespace != nil},
-		{"deploy.podSecurity", cfg.Deploy.PodSecurity != ""},
-		{"deploy.imagePullSecrets", len(cfg.Deploy.ImagePullSecrets) > 0},
-		{"deploy.ingressClass", cfg.Deploy.IngressClass != ""},
-		{"deploy.ingressAnnotations", len(cfg.Deploy.IngressAnnotations) > 0},
-		{"deploy.serviceAccount", cfg.Deploy.ServiceAccount != nil},
-		// networkPolicy 最要紧：写了它的人以为自己收紧了网络，
-		// 而 Docker 下一条策略都不会生成，网络照旧全通
-		{"deploy.networkPolicy", cfg.Deploy.NetworkPolicy != nil},
-	}
-
-	var out []fieldUse
-	for _, f := range project {
-		if f.set {
-			out = append(out, fieldUse{name: f.name})
-		}
-	}
-
-	// 组件级的四个（003 §4.1）。replicas 尤其容易被当成自己写错了字段名——
-	// `up` 一切正常，而 `docker ps` 里只有一个容器，字段名却是对的。
-	//
-	// hostname 与 tlsSecret 是一对，都只服务于 Ingress。从前只报后者，
-	// 没有理由——那是同一个函数里的自相矛盾。
-	out = append(out, componentFields(cfg, []componentField{
-		{"replicas", func(c config.Component) bool { return c.Replicas != nil }},
-		{"hostname", func(c config.Component) bool { return c.Hostname != "" }},
-		{"tlsSecret", func(c config.Component) bool { return c.TLSSecret != "" }},
-		{"serviceAccountName", func(c config.Component) bool { return c.ServiceAccountName != "" }},
-	})...)
-	return append(out, resourceFields(cfg, []resourceField{
-		{"existingSecret", func(r config.Resource) bool { return r.ExistingSecret != "" }},
-	})...)
-}
-
-// dockerOnlyFields 收集只在 Docker 下生效、而当前是 K8s 目标的字段。
-func dockerOnlyFields(cfg *config.Config) []fieldUse {
-	return componentFields(cfg, []componentField{
-		{"exposePort", func(c config.Component) bool { return c.ExposePort != 0 }},
-	})
-}
-
-// componentField 是一个组件级字段与"它写了没有"的判断。
-type componentField struct {
-	name string
-	set  func(config.Component) bool
-}
-
-func componentFields(cfg *config.Config, fields []componentField) []fieldUse {
-	var out []fieldUse
-	for _, f := range fields {
-		var users []string
-		for _, c := range cfg.Components {
-			if f.set(c) {
-				users = append(users, c.ID)
-			}
-		}
-		if len(users) > 0 {
-			out = append(out, fieldUse{name: "components[]." + f.name, components: users})
-		}
-	}
-	return out
-}
-
-// resourceField 是一个资源级字段与"它写了没有"的判断，与 componentField 同构。
-type resourceField struct {
-	name string
-	set  func(config.Resource) bool
-}
-
-func resourceFields(cfg *config.Config, fields []resourceField) []fieldUse {
-	var out []fieldUse
-	for _, f := range fields {
-		var users []string
-		for _, r := range cfg.Resources {
-			if f.set(r) {
-				users = append(users, r.ID)
-			}
-		}
-		if len(users) > 0 {
-			out = append(out, fieldUse{name: "resources[]." + f.name, components: users, noun: msgid.CountResources})
-		}
-	}
-	return out
-}
-
-// maxListedComponents 是每个字段最多点名几个组件。
-//
-// 有上限是因为组件多起来之后，一行会长到换行三四次，而"是哪几个"
-// 到那时已经不重要了——使用者要的是"哪个字段没生效"。
-const maxListedComponents = 5
-
-func warnFields(opts *Options, cfg *config.Config, target string, fields []fieldUse, note, hint string) {
-	if len(fields) == 0 {
-		return
-	}
-
-	err := clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliK8sClusterTheConfigurationHasFieldsThat, target))
-	for _, f := range fields {
-		if len(f.components) == 0 {
-			err = err.WithDetail(i18n.T(msgid.CliK8sClusterField), f.name)
-			continue
-		}
-		err = err.WithDetail(i18n.T(msgid.CliK8sClusterField), i18n.T(msgid.ConfigProjectNameProblemWithRule, f.name, describeUsers(f.components, f.noun)))
-	}
-	renderWarnings(opts, []*clierr.Error{err.
-		WithDetail(i18n.T(msgid.CliK8sClusterCurrentTarget), "deploy.target: "+cfg.Deploy.Target).
-		WithDetail(i18n.T(msgid.SourceLabelNote), note).
-		WithHint(hint)})
-}
-
-// describeUsers 说清是哪几个组件/资源写了它。
-func describeUsers(components []string, noun string) string {
-	if noun == "" {
-		noun = msgid.CountComponents
-	}
-	count := i18n.Count(noun, len(components))
-	if len(components) <= maxListedComponents {
-		return i18n.T(msgid.CliK8sClusterMsg, count, strings.Join(components, i18n.T(msgid.ListSeparator)))
-	}
-	return i18n.T(msgid.CliK8sClusterAndMore, count, strings.Join(components[:maxListedComponents], i18n.T(msgid.ListSeparator)))
 }

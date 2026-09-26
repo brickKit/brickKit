@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/configdir"
 	"github.com/brickkit/brickkit/internal/i18n"
@@ -241,38 +243,66 @@ func validateMembers(p *clierr.ProblemSet, field, ownID string, members []string
 }
 
 // targetWarnings 提醒"这个字段在当前 target 下不起作用"：不阻断，但绝不静默忽略。
+//
+// 按字段归并：同一个字段被好几个组件写了只报一行，并点名是哪些组件（用条目的 id，
+// 不用下标——人要拿它去文件里找）。k8s: 块点名写了的那几个键。
 func (f *File) targetWarnings() []*clierr.Error {
 	var out []*clierr.Error
-	warn := func(field string) {
-		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-			i18n.T(msgid.DeployfileFieldIgnoredForTarget, field, f.Target)).
-			WithDetail(i18n.T(msgid.LabelFile), f.Source))
+	warn := func(field string, components []string) {
+		w := clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.DeployfileFieldIgnoredForTarget, field, f.Target)).
+			WithDetail(i18n.T(msgid.LabelFile), f.Source)
+		if len(components) > 0 {
+			w = w.WithDetail(i18n.T(msgid.LabelComponents), strings.Join(components, ", "))
+		}
+		out = append(out, w)
 	}
+	type fieldCheck struct {
+		name string
+		set  func(Component) bool
+	}
+	var checks []fieldCheck
 	if f.Target == TargetK8s {
-		for i, c := range f.Components {
-			if c.ExposePort != 0 {
-				warn(yamlfile.Indexed("components", i) + ".exposePort")
+		checks = []fieldCheck{{"exposePort", func(c Component) bool { return c.ExposePort != 0 }}}
+	} else {
+		if keys := setKeys(f.K8s); len(keys) > 0 {
+			warn(strings.Join(keys, ", "), nil)
+		}
+		checks = []fieldCheck{
+			{"replicas", func(c Component) bool { return c.Replicas != nil }},
+			{"serviceAccountName", func(c Component) bool { return c.ServiceAccountName != "" }},
+			{"tlsSecret", func(c Component) bool { return c.TLSSecret != "" }},
+			{"hostname", func(c Component) bool { return c.Hostname != "" }},
+		}
+	}
+	for _, check := range checks {
+		var ids []string
+		for _, c := range f.Components {
+			if check.set(c) {
+				ids = append(ids, c.ID)
 			}
 		}
-		return out
-	}
-	if f.K8s != nil {
-		warn("k8s")
-	}
-	for i, c := range f.Components {
-		field := yamlfile.Indexed("components", i)
-		if c.Replicas != nil {
-			warn(field + ".replicas")
-		}
-		if c.ServiceAccountName != "" {
-			warn(field + ".serviceAccountName")
-		}
-		if c.TLSSecret != "" {
-			warn(field + ".tlsSecret")
-		}
-		if c.Hostname != "" {
-			warn(field + ".hostname")
+		if len(ids) > 0 {
+			warn(check.name, ids)
 		}
 	}
 	return out
+}
+
+// setKeys 列出 k8s: 块里写了的键，形如 k8s.context。
+func setKeys(settings *K8s) []string {
+	if settings == nil {
+		return nil
+	}
+	var doc yaml.Node
+	if err := doc.Encode(settings); err != nil || doc.Kind != yaml.MappingNode {
+		return []string{"k8s"}
+	}
+	var keys []string
+	for i := 0; i < len(doc.Content); i += 2 {
+		keys = append(keys, "k8s."+doc.Content[i].Value)
+	}
+	if len(keys) == 0 {
+		return []string{"k8s"}
+	}
+	return keys
 }

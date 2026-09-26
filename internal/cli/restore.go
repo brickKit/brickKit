@@ -9,12 +9,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/gitrepo"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
-	"github.com/brickkit/brickkit/internal/override"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/workspace"
+	"github.com/brickkit/brickkit/internal/yamlfile"
 )
 
 // newRestoreCommand 实现 brickkit restore（004 §3.14）。
@@ -41,58 +43,54 @@ func newRestoreCommand(opts *Options) *cobra.Command {
 
 // modeChange 是一处 mode 还原。
 type modeChange struct {
-	id, version string
+	// entry 是部署文件里那一条的 id 原文（`people/basic` 或 `people/basic@1.0.0`）。
+	entry string
 	// from 是工作区当前的值（"" = 没写），只用于如实汇报被覆盖的旧值。
 	from string
 	// to 是要设成的值；"" 表示**删掉这个字段**（最后一次提交里没写）——
-	// mode 本身的零值就是"没写"，不需要再用指针区分"没写"与"写了空值"
-	// （这跟 Component.Mode 自己的语义完全一致，不是又发明了一套表达方式）。
+	// mode 本身的零值就是"没写"，不需要再用指针区分"没写"与"写了空值"。
 	to string
 }
 
-// ref 返回 id@version，用于输出。
-func (c modeChange) ref() string { return c.id + "@" + c.version }
-
-// restorePlan 算出要改哪些 mode。纯函数。
+// restorePlan 算出 deploy.yaml 里要改哪些 mode。纯函数。
 //
-// 只动"工作区与 HEAD 都有的同一个 (id, version) 条目"，另外两种刻意不动：
+// 按条目的 id 原文配对（裸 id 与 id@version 是两条不同的条目），只动
+// "工作区与 HEAD 都有的同一条"，另外两种刻意不动：
 //
-//	工作区新增的条目     本地刚 add 的、或本地改了版本号。一个字不动——
-//	                    这是"不吃掉未提交的 add"的解药。004 §3.10 批评
-//	                    brickkit reset 的正是"救配置的命令自己救不回来"
+//	工作区新增的条目     本地刚 add 的、或本地把裸 id 改成了带版本的。一个字不动——
+//	                    这是"不吃掉未提交的 add"的解药
 //	HEAD 有而工作区没有   本地 remove 掉的。绝不加回来——restore 不是 revert
 //
-// 返回的 untouched 是那些"工作区有、提交里没有"的条目引用，要在输出里点名说
+// 返回的 untouched 是那些"工作区有、提交里没有"的条目，要在输出里点名说
 // "未动"：使用者得知道为什么它没变，否则会以为命令漏了它。
-func restorePlan(work, head *config.Config) ([]modeChange, []string) {
+func restorePlan(work, head *deployfile.File) ([]modeChange, []string) {
 	headMode := make(map[string]string, len(head.Components))
 	for _, c := range head.Components {
-		headMode[c.Ref()] = c.Mode
+		headMode[c.ID] = c.Mode
 	}
 
 	var changes []modeChange
 	var untouched []string
 	for _, c := range work.Components {
-		want, ok := headMode[c.Ref()]
+		want, ok := headMode[c.ID]
 		if !ok {
-			untouched = append(untouched, c.Ref())
+			untouched = append(untouched, c.ID)
 			continue
 		}
 		if c.Mode == want {
 			continue
 		}
-		changes = append(changes,
-			modeChange{id: c.ID, version: c.Version, from: c.Mode, to: want})
+		changes = append(changes, modeChange{entry: c.ID, from: c.Mode, to: want})
 	}
 	return changes, untouched
 }
 
-// applyMode 把还原结果写进**内存里**的配置。
-func applyMode(cfg *config.Config, changes []modeChange) {
+// applyMode 把还原结果写进**内存里**的部署文件。
+func applyMode(f *deployfile.File, changes []modeChange) {
 	for _, ch := range changes {
-		for i := range cfg.Components {
-			if cfg.Components[i].ID == ch.id && cfg.Components[i].Version == ch.version {
-				cfg.Components[i].Mode = ch.to
+		for i := range f.Components {
+			if f.Components[i].ID == ch.entry {
+				f.Components[i].Mode = ch.to
 			}
 		}
 	}
@@ -100,9 +98,13 @@ func applyMode(cfg *config.Config, changes []modeChange) {
 
 // runRestore 执行 brickkit restore。
 //
+// 还原的是团队文件 deploy.yaml——它才进版本库、才是提交里的那份 mode。
+// deploy.local.yaml 是个人文件，不进 git，没有"最后一次提交"可言；
+// 本地模式开着时点一句，免得使用者以为本地那份也被还原了。
+//
 // # 顺序是硬约束
 //
-//	解析工作区 yaml → 内存里还原 mode → 算判定 → 落盘 yaml → 移动目录
+//	解析工作区文件 → 内存里还原 mode → 算判定 → 落盘 deploy.yaml → 移动目录
 //
 // 反过来（先落盘再算判定）就会在 Manifest 缺失或需要联网时留下一个
 // "yaml 改了、结构没动"的半成品——而那正是使用者最不希望在提交前撞上的状态。
@@ -111,29 +113,33 @@ func runRestore(ctx context.Context, opts *Options) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
+	layout := project.NewLayout(opts.WorkDir)
 
-	repo, cfgRel, err := restoreBaseline(layout)
+	repo, deployRel, err := restoreBaseline(layout)
 	if err != nil {
 		return err
 	}
 
-	work, err := config.ParseConfigFile(layout.ConfigPath())
+	decl, err := projfile.ParseFile(layout.DeclPath())
 	if err != nil {
 		return err
 	}
-	if err := restorePreflight(repo, layout, work); err != nil {
+	work, _, err := deployfile.ParseFile(layout.DeployPath(), deployfile.RoleTeam)
+	if err != nil {
+		return err
+	}
+	if err := restorePreflight(repo, layout, decl.IDs()); err != nil {
 		return err
 	}
 
-	headData, err := repo.HeadBlob(cfgRel)
+	headData, err := repo.HeadBlob(deployRel)
 	if err != nil {
-		return restoreErr(i18n.T(msgid.CliRestoreCannotReadFromTheLast, layout.ConfigName()), err).
-			WithHint(i18n.T(msgid.CliRestoreMakeSureItExistsIn, cfgRel))
+		return restoreErr(i18n.T(msgid.CliRestoreCannotReadFromTheLast, project.FileDeploy), err).
+			WithHint(i18n.T(msgid.CliRestoreMakeSureItExistsIn, deployRel))
 	}
-	head, err := config.ParseConfig(headData, "HEAD:"+cfgRel)
+	head, _, err := deployfile.Parse(headData, "HEAD:"+deployRel, deployfile.RoleTeam)
 	if err != nil {
-		return restoreErr(i18n.T(msgid.CliRestoreInTheLastCommitIs, layout.ConfigName()), err).
+		return restoreErr(i18n.T(msgid.CliRestoreInTheLastCommitIs, project.FileDeploy), err).
 			WithHint(
 				i18n.T(msgid.CliRestoreTheBaselineForRestoringIs),
 				i18n.T(msgid.CliRestoreFirstCommitAVersionThat),
@@ -142,59 +148,36 @@ func runRestore(ctx context.Context, opts *Options) error {
 
 	changes, untouched := restorePlan(work, head)
 
-	// 先算判定，算成功了才落盘（见上面那段"顺序是硬约束"）
 	applyMode(work, changes)
-	f, err := syncFocus(ctx, opts, layout, work)
+	proj, err := project.Assemble(layout, decl, work)
+	if err != nil {
+		return err
+	}
+	f, err := syncFocus(ctx, opts, proj)
 	if err != nil {
 		return err
 	}
 
-	// 被覆盖的旧值必须在落盘之前印出来：restore 不可逆，旧的 mode 没有
-	// 第二份副本，如实汇报是唯一的缓解措施。这两句之间如果被杀掉进程
-	// （OOM、SIGKILL、断电），旧值不能既从磁盘上没了、又从未被报告过。
-	printModeChanges(opts, layout, changes, untouched)
+	printModeChanges(opts, changes, untouched)
 	if err := writeMode(layout, changes); err != nil {
 		return err
 	}
-
-	if err := applyWorkspacePlan(opts, layout, planSync(layout, work, f)); err != nil {
+	if err := applyWorkspacePlan(opts, layout, planSync(layout, decl.IDs(), f)); err != nil {
 		return err
 	}
-	suggestOverrideRefresh(opts, layout, work, changes)
+	noteLocalMode(opts, layout)
 	return nil
 }
 
-// suggestOverrideRefresh 在 restore 真的动过 mode 之后，把因此产生的 override.yaml
-// 漂移直接打印出来——不是泛泛一句"可能过期了"，而是复用 up/lint 同一条
-// override.Drift，点名哪个组件、从什么变成了什么。brickkit override 本身并不会在
-// 刷新时更新 baseline（那是一个现存的、这份计划之外的缺口），所以这里能做到的
-// 最准确的事就是照实说出当前差异，而不是承诺一个 brickkit override 做不到的
-// "刷新"（评审：旧版本的泛泛提示既不准，在没有真实漂移——比如 override.yaml 只有
-// 裸 id——时也照样出现，纯属噪音）。
-func suggestOverrideRefresh(opts *Options, layout config.Layout, cfg *config.Config, changes []modeChange) {
-	if len(changes) == 0 {
-		return
-	}
-	// err != nil 和 ov == nil 是两回事，不能并成同一个"直接放弃"分支：前者是
-	// override.yaml 存在但读不动（权限、符号链接死循环、语法错误……），那是一个
-	// 真错误，该让使用者知道漂移没查成；后者才是"没有这份文件"，无声跳过才对
-	// （ParseOverrideFile 自己的约定，见它的文档注释）。restore 该做的还原早已
-	// 完成，这里只是个附加提醒，所以只警告、不让整条命令失败。
-	ov, err := override.ParseOverrideFile(layout.OverridePath())
-	if err != nil {
-		opts.Printf("%s\n", i18n.T(msgid.CliRestoreOverrideDriftCheckFailed, clierr.As(err).Message))
-		return
-	}
-	if ov == nil {
-		return
-	}
-	for _, note := range override.Drift(cfg, ov) {
-		opts.Printf("%s\n", i18n.T(msgid.CliOverrideDriftNote, note.Field, note.Message))
+// noteLocalMode 在本地模式开着时提醒：deploy.local.yaml 没被还原。
+func noteLocalMode(opts *Options, layout project.Layout) {
+	if on, err := project.LocalModeOn(layout); err == nil && on {
+		opts.Printf("%s\n", i18n.T(msgid.CliRestoreLocalModeUntouched, project.FileDeployLocal))
 	}
 }
 
 // restoreBaseline 找出"最后一次提交"这个基准，没有基准就说清楚。
-func restoreBaseline(layout config.Layout) (*gitrepo.Repo, string, error) {
+func restoreBaseline(layout project.Layout) (*gitrepo.Repo, string, error) {
 	repo, err := gitrepo.Open(layout.Root)
 	if err != nil {
 		return nil, "", restoreErr(i18n.T(msgid.CliRestoreThisIsNotAGit), err).
@@ -211,23 +194,23 @@ func restoreBaseline(layout config.Layout) (*gitrepo.Repo, string, error) {
 		return nil, "", clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliRestoreErrorThisRepositoryHasNo)).
 			WithHint(i18n.T(msgid.CliRestoreTheBaselineForRestoringIs2))
 	}
-	cfgRel, ok := repo.Rel(layout.ConfigPath())
+	deployRel, ok := repo.Rel(layout.DeployPath())
 	if !ok {
 		return nil, "", clierr.New(clierr.CodeConfigInvalid,
-			i18n.T(msgid.CliRestoreErrorIsNotInsideThis, layout.ConfigName())).
-			WithDetail(i18n.T(msgid.CliRestoreConfig), layout.ConfigPath()).
+			i18n.T(msgid.CliRestoreErrorIsNotInsideThis, project.FileDeploy)).
+			WithDetail(i18n.T(msgid.LabelPath), layout.DeployPath()).
 			WithDetail(i18n.T(msgid.LabelRepo), repo.Root())
 	}
-	if !repo.Tracked(cfgRel) {
+	if !repo.Tracked(deployRel) {
 		return nil, "", clierr.New(clierr.CodeConfigInvalid,
-			i18n.T(msgid.CliRestoreErrorIsNotTrackedBy, layout.ConfigName())).
-			WithHint(i18n.T(msgid.CliRestoreFirstRunGitAddAnd, cfgRel))
+			i18n.T(msgid.CliRestoreErrorIsNotTrackedBy, project.FileDeploy)).
+			WithHint(i18n.T(msgid.CliRestoreFirstRunGitAddAnd, deployRel))
 	}
-	return repo, cfgRel, nil
+	return repo, deployRel, nil
 }
 
 // restorePreflight 拦下两种"动手就会出事"的现场。
-func restorePreflight(repo *gitrepo.Repo, layout config.Layout, cfg *config.Config) error {
+func restorePreflight(repo *gitrepo.Repo, layout project.Layout, ids []string) error {
 	// ① components/ 下有已暂存的改动
 	//
 	// 004 §3.9.3 明说允许直接在 components/.archived/<id>/ 下改代码。如果那些改动
@@ -247,7 +230,7 @@ func restorePreflight(repo *gitrepo.Repo, layout config.Layout, cfg *config.Conf
 	// planSync 会判它"已经在该在的位置"、什么都不做。不报出来就会与提交前的闸门
 	// 形成死循环：闸门拦下提交、restore 说没事可做，人却没有任何出路。
 	var both []string
-	for _, id := range declaredIDs(cfg) {
+	for _, id := range ids {
 		if workspace.InBothPlaces(layout, id) {
 			both = append(both, id)
 		}
@@ -268,40 +251,39 @@ func restorePreflight(repo *gitrepo.Repo, layout config.Layout, cfg *config.Conf
 }
 
 // writeMode 把还原结果落盘。走节点级编辑器：注释与排版原样。
-func writeMode(layout config.Layout, changes []modeChange) error {
+func writeMode(layout project.Layout, changes []modeChange) error {
 	if len(changes) == 0 {
 		return nil
 	}
-	edit, err := config.OpenEdit(layout.ConfigPath())
+	edit, err := yamlfile.OpenEdit(layout.DeployPath())
 	if err != nil {
 		return err
 	}
 	for _, ch := range changes {
 		if ch.to == "" {
-			edit.ClearComponentMode(ch.id, ch.version)
+			edit.DeleteField(keyComponents, ch.entry, keyMode)
 			continue
 		}
-		edit.SetComponentMode(ch.id, ch.version, ch.to)
+		edit.SetField(keyComponents, ch.entry, keyMode, ch.to)
 	}
 	return edit.Save()
 }
 
-// printModeChanges 汇报 yaml 那一半改了什么。
-//
-// **被覆盖的旧值必须印出来。** restore 不可逆：被覆盖的 mode 没有第二份副本，
-// sync 那句"搞错了再执行一次就回来了"在这里不成立。处理办法不是加 --yes 确认
-// （那两三行本来就是 004 §3.9.2 教人 git checkout 掉的东西），而是如实汇报——
-// 使用者从终端 scrollback 里就能读回来。
-func printModeChanges(
-	opts *Options, layout config.Layout, changes []modeChange, untouched []string,
-) {
+// 部署文件里组件列表与 mode 字段的键名。
+const (
+	keyComponents = "components"
+	keyMode       = "mode"
+)
+
+// printModeChanges 在动手之前如实汇报要改什么、哪些没动。
+func printModeChanges(opts *Options, changes []modeChange, untouched []string) {
 	if len(changes) == 0 && len(untouched) == 0 {
-		opts.Printf("%s\n", i18n.T(msgid.CliRestoreMatchesTheLastCommit, layout.ConfigName()))
+		opts.Printf("%s\n", i18n.T(msgid.CliRestoreMatchesTheLastCommit, project.FileDeploy))
 		return
 	}
-	opts.Printf("%s\n", i18n.T(msgid.CliRestoreEnabledRestoredFromTheLast, layout.ConfigName()))
+	opts.Printf("%s\n", i18n.T(msgid.CliRestoreEnabledRestoredFromTheLast, project.FileDeploy))
 	for _, ch := range changes {
-		opts.Printf("   %-26s mode: %s → %s\n", ch.ref(), showMode(ch.from), toMode(ch.to))
+		opts.Printf("   %-26s mode: %s → %s\n", ch.entry, showMode(ch.from), toMode(ch.to))
 	}
 	for _, ref := range untouched {
 		opts.Printf("%s\n", i18n.T(msgid.CliRestoreSLeftAsIsThis, ref))

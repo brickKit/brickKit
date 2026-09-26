@@ -11,10 +11,11 @@ import (
 	"golang.org/x/term"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/market"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
@@ -54,7 +55,7 @@ func runLogin(ctx context.Context, opts *Options, f loginFlags) error {
 		ctx = context.Background()
 	}
 
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
+	layout := project.NewLayout(opts.WorkDir)
 	marketURL, err := resolveMarketURL(layout, f.market)
 	if err != nil {
 		return err
@@ -98,7 +99,7 @@ func runLogin(ctx context.Context, opts *Options, f loginFlags) error {
 
 	opts.Printf("%s\n", i18n.T(msgid.CliLoginLoggedIn))
 	opts.Printf("%s\n", i18n.T(msgid.CliLogoutUser, creds.Username))
-	opts.Printf("%s\n", i18n.T(msgid.CliLoginTokenStoredAt, config.DirBrickkit+"/"+config.FileCredentials))
+	opts.Printf("%s\n", i18n.T(msgid.CliLoginTokenStoredAt, project.DirBrickkit+"/"+project.FileCredentials))
 	if !creds.ExpiresAt.IsZero() {
 		opts.Printf("%s\n", i18n.T(msgid.CliLoginValidUntil, creds.ExpiresAt.Format(time.RFC3339)))
 	}
@@ -122,21 +123,21 @@ func loginError(err error) error {
 //
 // 优先 --market；否则取 brickkit.yaml 中启用的 market 安装源。
 // 有多个时不猜——猜错就把 Token 发给了另一个市场。
-func resolveMarketURL(layout config.Layout, explicit string) (string, error) {
+func resolveMarketURL(layout project.Layout, explicit string) (string, error) {
 	if explicit = strings.TrimSpace(explicit); explicit != "" {
 		return explicit, nil
 	}
 
-	cfg, err := config.ParseConfigFile(layout.ConfigPath())
+	decl, err := projfile.ParseFile(layout.DeclPath())
 	if err != nil {
 		return "", clierr.New(clierr.CodeAuthRequired, i18n.T(msgid.CliLoginErrorCannotDetermineWhichMarket)).
 			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliLoginTheCurrentDirectoryIsNot)).
 			WithHint(i18n.T(msgid.CliLoginSpecifyTheMarketAddressWith))
 	}
 
-	var candidates []config.Source
-	for _, s := range cfg.Sources {
-		if s.Type == config.SourceTypeMarket && s.IsEnabled() {
+	var candidates []projfile.Source
+	for _, s := range decl.Sources {
+		if s.Type == projfile.SourceTypeMarket && s.IsEnabled() {
 			candidates = append(candidates, s)
 		}
 	}
@@ -154,7 +155,7 @@ func resolveMarketURL(layout config.Layout, explicit string) (string, error) {
 		err := clierr.New(clierr.CodeAuthRequired, i18n.T(msgid.CliLoginErrorSeveralMarketInstallSources)).
 			WithHint(i18n.T(msgid.CliLoginSpecifyOneOfTheMarket))
 		for _, s := range candidates {
-			err = err.WithDetailf(s.ID, "%s", s.URL)
+			err = err.WithDetailf(s.Name, "%s", s.URL)
 		}
 		return "", err
 	}

@@ -6,7 +6,6 @@ package cli
 // minikube 上试不出来（只有一个集群、权限也全开），真集群上是最贵的一类事故。
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -78,19 +77,6 @@ func TestUpK8sPassesContextToEngine(t *testing.T) {
 	runWithEngine(t, eng, f.Dir, "up")
 
 	assert.Equal(t, "prod-cluster", eng.lastUp(t).Context)
-}
-
-// --context 参数可以临时覆盖配置（一次性部到别的集群）。
-func TestUpK8sContextFlagOverridesConfig(t *testing.T) {
-	f := k8sProject(t)
-	setDeployField(t, f, "context", "prod-cluster")
-	eng := newK8sEngine()
-	eng.currentContext = "dev-cluster"
-
-	r := runWithEngine(t, eng, f.Dir, "up", "--context", "dev-cluster")
-
-	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
-	assert.Equal(t, "dev-cluster", eng.lastUp(t).Context)
 }
 
 // down / status 同样要守住这条线：停错集群和部错集群一样糟。
@@ -180,14 +166,12 @@ func TestDockerTargetWarnsAboutK8sOnlyFields(t *testing.T) {
 	f := k8sProject(t)
 	setDeployField(t, f, "context", "prod-cluster")
 	// 把目标改回 docker，但 K8s 专用字段留着
-	text := readFile(t, f.Layout.ConfigPath())
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(),
-		[]byte(replaceOnce(text, "target: k8s", "target: docker")), 0o644))
+	text := f.legacy
+	f.rewrite(t, replaceOnce(text, "target: k8s", "target: docker"))
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
-	assert.Contains(t, r.stdout+r.stderr, "deploy.context")
-	assert.Contains(t, r.stdout+r.stderr, "only take effect with deploy.target: k8s")
+	assert.Contains(t, r.stdout+r.stderr, "k8s.context has no effect with target: docker")
 }
 
 // ============================================================
@@ -198,11 +182,11 @@ func TestDockerTargetWarnsAboutK8sOnlyFields(t *testing.T) {
 func setDeployField(t *testing.T, f *projectFixture, key, value string) {
 	t.Helper()
 
-	text := readFile(t, f.Layout.ConfigPath())
+	text := f.legacy
 	replaced := replaceOnce(text, "deploy:\n  target: k8s\n",
 		"deploy:\n  target: k8s\n  "+key+": "+value+"\n")
 	require.NotEqual(t, text, replaced, "夹具里应有 deploy.target: k8s")
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(replaced), 0o644))
+	f.rewrite(t, replaced)
 }
 
 func replaceOnce(text, old, new string) string {

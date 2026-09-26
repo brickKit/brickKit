@@ -13,17 +13,17 @@ import (
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
-	"github.com/brickkit/brickkit/internal/config"
-	"github.com/brickkit/brickkit/internal/deploy"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
-	"github.com/brickkit/brickkit/internal/override"
 	"github.com/brickkit/brickkit/internal/procsup"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
 	"github.com/brickkit/brickkit/internal/source"
@@ -42,7 +42,6 @@ const composeFileName = "compose.yaml"
 func newUpCommand(opts *Options) *cobra.Command {
 	var (
 		dryRun         bool
-		kubeContext    string
 		ignoreServedBy bool
 		crashLines     int
 	)
@@ -56,14 +55,14 @@ func newUpCommand(opts *Options) *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUp(cmd.Context(), opts, upOptions{
-				dryRun: dryRun, kubeContext: kubeContext, ignoreServedBy: ignoreServedBy,
+				dryRun: dryRun, ignoreServedBy: ignoreServedBy,
 				crashLines: crashLines, crashLinesSet: cmd.Flags().Changed("crash-lines"),
 			})
 		},
 	}
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, i18n.T(msgid.CliUpOnlyGenerateTheDeploymentFiles))
-	cmd.Flags().StringVar(&kubeContext, "context", "", i18n.T(msgid.CliDownKubeconfigContextOverridesDeployContext))
+	addDeployFileFlags(cmd, opts)
 	cmd.Flags().BoolVar(&ignoreServedBy, "ignore-served-by", false,
 		i18n.T(msgid.CliUpClearEveryServedbyDeclarationIn))
 	cmd.Flags().IntVar(&crashLines, "crash-lines", procsup.DefaultTailLines,
@@ -76,14 +75,13 @@ func newUpCommand(opts *Options) *cobra.Command {
 // 生成与启动共用同一份计划：--dry-run 与真启动之间唯一的差别应当是
 // "有没有真的调引擎"，而不是两条各自算一遍、可能算出不同结果的路径。
 type upPlan struct {
-	layout    config.Layout
-	cfg       *config.Config
+	proj      *project.Project
 	graph     *resolver.Graph
 	states    *cascade.Result
 	generated *compose.Result
 	// k8s 是 deploy.target: k8s 时的生成结果（与 generated 互斥）。
 	k8s *k8s.Result
-	// kubeContext 是本次钉住的 kubeconfig 上下文（可能来自 --context）。
+	// kubeContext 是本次钉住的 kubeconfig 上下文（部署文件的 k8s.context）。
 	kubeContext string
 	// services 是本次要交给引擎启动的 service（不含 local 组件与迁移容器）。
 	services []string
@@ -115,8 +113,6 @@ type imageInfo struct {
 // upOptions 是 up 的命令行选项。
 type upOptions struct {
 	dryRun bool
-	// kubeContext 是 --context 的值，覆盖 deploy.context。
-	kubeContext string
 	// ignoreServedBy 是 --ignore-served-by 的值：内存里清空全部 servedBy
 	// 声明再跑一次，验证"每个组件必须能独立 brickkit up 起来"这条设计
 	// 原则，从不写回 brickkit.yaml（brickKit 反馈：两个降低 servedBy
@@ -143,15 +139,17 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		return upK8s(ctx, opts, flags, plan)
 	}
 
-	path, err := writeGenerated(plan.layout, plan.generated.YAML)
+	path, err := writeGenerated(plan.proj.Layout, plan.generated.YAML)
 	if err != nil {
 		return err
 	}
-	if err := writeLocalEnvFiles(opts, plan.layout, plan.generated.LocalEnvFiles); err != nil {
+	if err := writeEnvFiles(plan.proj.Layout, plan.generated.EnvFiles); err != nil {
+		return err
+	}
+	if err := writeLocalEnvFiles(opts, plan.proj.Layout, plan.generated.LocalEnvFiles); err != nil {
 		return err
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliUpGenerated, displayPath(opts.WorkDir, path)))
-	renderResourceRequirements(opts, plan.generated.Resources)
 	// 在 --dry-run 的分岔**之前**："这次会动哪些库"正是 dry-run 最该回答的问题
 	// 之一，而它与升不升级无关。从前它在分岔之后，于是 dry-run 里一个字都没有，
 	// 唯一提到迁移的地方是升级摘要里那一行——还得先检测到升级才会出现
@@ -173,10 +171,10 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		// 而且一个纯 mode: local 的项目本不该被要求装 Docker（手动验证 Task 6
 		// Step 5 时用真实 docker 跑出来的：demo/hello 单组件、mode: local，
 		// 之前这里会直接报 ENGINE_FAILED，明明这个项目一个容器都不需要）。
-		return runLocalComponents(ctx, opts, plan.layout, plan.localComponents, plan.crashLines)
+		return runLocalComponents(ctx, opts, plan.proj.Layout, plan.localComponents, plan.crashLines)
 	}
 
-	eng, err := resolveEngineFor(opts, plan.cfg)
+	eng, err := resolveEngineFor(opts, plan.proj)
 	if err != nil {
 		return err
 	}
@@ -184,117 +182,75 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		return err
 	}
 
-	return start(ctx, opts, eng, plan, path, projectSelector(plan.cfg))
+	return start(ctx, opts, eng, plan, path, projectSelector(plan.proj))
 }
 
-// buildUpPlan 从配置一路算到"要启动哪些 service"。
+// buildUpPlan 从三层文件一路算到"要启动哪些 service"。
 func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, error) {
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
-	cfg, err := config.ParseConfigFile(layout.ConfigPath())
+	proj, err := project.Load(opts.WorkDir, opts.loadOptions())
 	if err != nil {
 		return nil, err
 	}
-	ov, err := loadOverride(opts, layout, cfg)
-	if err != nil {
-		return nil, err
-	}
-	for _, note := range override.Drift(cfg, ov) {
-		opts.Printf("%s\n", i18n.T(msgid.CliOverrideDriftNote, note.Field, note.Message))
-	}
-	if err := applyOverride(cfg, ov); err != nil {
-		return nil, err
-	}
+	renderDeploySource(opts, proj)
+	renderWarnings(opts, proj.Warnings)
 	if flags.ignoreServedBy {
-		clearServedBy(cfg)
+		proj.IgnoreShells()
 		opts.Printf("%s\n", i18n.T(msgid.CliUpAllServedbyDeclarationsAreIgnored))
 	}
 
-	plan := &upPlan{layout: layout, cfg: cfg, kubeContext: contextOf(cfg, flags.kubeContext), crashLines: flags.crashLines}
-	if len(cfg.Components) == 0 {
+	plan := &upPlan{proj: proj, kubeContext: proj.Deploy.Settings().Context, crashLines: flags.crashLines}
+	if len(proj.Decl.Components) == 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliStatusTheCurrentProjectHasNo))
-		// init 的骨架已经把 ./components 配成了本地安装源，所以 --local 是最短的一条路。
-		// 两条都给：有的人手上已经有组件源码，有的人要从市场装。
-		opts.Printf("%s\n", i18n.T(msgid.CliStatusAddAllTheComponentsUnder, config.DirComponents))
+		opts.Printf("%s\n", i18n.T(msgid.CliStatusAddAllTheComponentsUnder, project.DirComponents))
 		opts.Printf("%s\n", i18n.T(msgid.CliStatusOrAddOneFromAn))
 		plan.done = true
 		return plan, nil
 	}
 
-	opts.Printf("%s\n", i18n.T(msgid.CliUpStartingProjectDeployTarget, cfg.Project, cfg.Deploy.Target))
-	warnTargetOnlyFields(opts, cfg)
-	if flags.crashLinesSet && !anyModeLocal(cfg.Components) {
+	opts.Printf("%s\n", i18n.T(msgid.CliUpStartingProjectDeployTarget, proj.Decl.Project, proj.Deploy.Target))
+	if flags.crashLinesSet && !anyModeLocal(proj) {
 		renderWarnings(opts, []*clierr.Error{clierr.Warn(clierr.CodeConfigInvalid,
 			i18n.T(msgid.CliUpCrashLinesHasNoEffect))})
 	}
 
 	// 先确认"要部到哪"，再做任何生成与拉取：部错集群是不可逆的，
 	// 而且这时连一份生成物都还没落盘
-	if cfg.Deploy.Target == config.TargetK8s && !flags.dryRun {
-		eng, err := resolveEngineFor(opts, cfg)
+	if proj.Deploy.Target == deployfile.TargetK8s && !flags.dryRun {
+		eng, err := resolveEngineFor(opts, proj)
 		if err != nil {
 			return nil, err
 		}
-		if err := requireContext(ctx, opts, cfg, eng, contextOf(cfg, flags.kubeContext)); err != nil {
+		if err := requireContext(ctx, opts, proj, eng, plan.kubeContext); err != nil {
 			return nil, err
 		}
 	}
 
-	client, err := newSourceClient(opts, layout, cfg, source.Options{})
+	client, err := newSourceClient(opts, proj.Layout, proj.Decl, source.Options{})
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = client.Close() }()
 
-	// 版本号变了就报一句（004 §3.5.1）。检测只读配置与本地缓存，不碰网络；
-	// 差异描述与产物下载要等依赖图建好，见 describeUpgrades
-	plan.upgrades = detectUpgrades(layout, cfg)
+	// 版本号变了就报一句（004 §3.5.1）。检测只读配置与本地缓存，不碰网络
+	plan.upgrades = detectUpgrades(proj)
 	renderUpgradeBanner(opts, plan.upgrades)
 
-	plan.graph, plan.states, err = resolveTopology(ctx, client, cfg)
+	plan.graph, plan.states, err = resolveTopology(ctx, client, proj)
 	if err != nil {
 		return nil, err
 	}
 	renderWarnings(opts, plan.graph.Warnings)
 	renderStates(opts, plan.states)
-	// "一个都不启动"紧跟在状态表后面：它解释的就是那张全 ⬜ 的表，
-	// 中间隔着几条资源警告的话，使用者读到的顺序就成了"先看一堆无关的警告"
 	if plan.states.Empty() {
 		renderNothingRunning(opts, plan.states)
-		renderSyncHint(opts, layout, plan.states)
+		renderSyncHint(opts, proj.Layout, plan.states)
 		plan.done = true
 		return plan, nil
 	}
 	renderDegradedWeakDeps(opts, plan.graph, plan.states)
-	renderSyncHint(opts, layout, plan.states)
-	warnDanglingBindings(opts, cfg)
-	warnHardcodedPasswords(opts, cfg)
-	warnConfigSecrets(opts, cfg, plan.graph)
-	warnExistingSecretConfigIssues(opts, cfg, plan.graph)
-
-	// 资源绑定必须在生成之前查（006 §4.4、011 §5.3）：没绑定就一个
-	// DATABASE_* 都注不进去，而那份 compose 看上去完全正常——
-	// 组件要到运行时才炸成"连不上库"，一句把配置遗漏指向别处的错误。
-	//
-	// `--dry-run` 时降级成警告：那条命令的语义是"告诉我会发生什么"，
-	// 拿它阻断的话，一个还没配资源的项目连"看看会生成什么"都做不到
-	// （试用指南 04 讲 mode 时用的正是这条命令，那时资源还没登场）。
-	if problem := resolver.CheckRunningResourceBindings(
-		cfg, plan.graph, plan.states.Running()); problem != nil {
-		if !flags.dryRun {
-			return nil, problem
-		}
-		renderWarnings(opts, []*clierr.Error{dryRunResourceWarning(problem)})
-	}
-
-	// egress 覆盖不全是同一类问题：运行期会出事，不是生成不出来。
-	// 所以它也归命令层决定阻不阻断——从前它在生成器内部硬拦，于是一个正在配
-	// egress 的人连"看看会生成什么策略"都做不到（k8s.CheckEgressCoverage）
-	if problem := k8s.CheckEgressCoverage(cfg, runningIDs(plan.states)); problem != nil {
-		if !flags.dryRun {
-			return nil, problem
-		}
-		renderWarnings(opts, []*clierr.Error{dryRunEgressWarning(problem)})
-	}
+	renderSyncHint(opts, proj.Layout, plan.states)
+	warnConfigSecrets(opts, proj, plan.graph)
+	warnExistingSecretOnDocker(opts, proj)
 
 	order, err := resolver.Order(plan.graph.Subgraph(plan.states.Running()))
 	if err != nil {
@@ -302,11 +258,11 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	}
 	renderOrder(opts, order, plan.graph)
 
-	if err := checkLocalSources(layout, cfg, plan.states.Running()); err != nil {
+	if err := checkLocalSources(proj, plan.states.Running()); err != nil {
 		return nil, err
 	}
 
-	env, err := inject.Build(cfg, plan.graph, plan.states)
+	env, err := inject.Build(proj, plan.graph, plan.states)
 	if err != nil {
 		return nil, err
 	}
@@ -316,21 +272,31 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		return nil, err
 	}
 	plan.collectTargets(order)
-	// plan.generated 只在 docker 目标下才有值（k8s 目标 generate() 只填 plan.k8s，
-	// 见上面 generate 的实现）；k8s 目标下 mode: local 已经在配置解析阶段被拒绝
-	// （005 §5.6：docker only），所以这里判空跳过既不会漏掉真实的 local 组件，
-	// 也避免对 nil 的 plan.generated 取字段直接 panic。
+	// plan.generated 只在 docker / podman 目标下才有值；k8s 目标下 mode: local 在部署文件
+	// 解析阶段就被拒绝了，所以这里判空既不会漏掉真实的 local 组件，也不会对 nil 取字段
 	if plan.generated != nil {
 		plan.localComponents, err = collectLocalComponents(
-			layout, cfg, plan.graph, order, plan.generated.LocalEnvFiles, envLookup(opts.WorkDir))
+			proj, plan.graph, order, plan.generated.LocalEnvFiles)
 		if err != nil {
 			return nil, err
 		}
 	}
 	// 放在生成之后：这一步只补摘要用的差异描述与新版本产物，
 	// 它取不到东西也不该拦住已经算好的这份计划（004 §10.1）
-	describeUpgrades(ctx, opts, layout, client, plan.graph, plan.upgrades)
+	describeUpgrades(ctx, opts, proj.Layout, client, plan.graph, plan.upgrades)
 	return plan, nil
+}
+
+// renderDeploySource 说一句这次读的是哪份部署文件：本地模式与 -f 都会改变答案，
+// 不说的话使用者很容易以为自己跑的是团队的 deploy.yaml。
+func renderDeploySource(opts *Options, proj *project.Project) {
+	name := filepath.Base(proj.DeployPath)
+	switch proj.DeploySource {
+	case project.DeployLocal:
+		opts.Printf("%s\n", i18n.T(msgid.CliUpUsingLocalDeployFile, name))
+	case project.DeployExplicit:
+		opts.Printf("%s\n", i18n.T(msgid.CliUpUsingExplicitDeployFile, name))
+	}
 }
 
 // renderNothingRunning 解释"一个组件都不启动"，并说清楚该去改哪一行。
@@ -436,7 +402,7 @@ func renderDegradedWeakDeps(opts *Options, graph *resolver.Graph, states *cascad
 // sync 不由 up 自动执行（012 §2.17：up 管运行时，sync 管源码目录），
 // 但"忘了 sync"是最常见的落差——改完 enabled 跑了 up，源码目录还是老样子。
 // 只在真有源码可收时才提，否则每次 up 都多一行噪音。
-func renderSyncHint(opts *Options, layout config.Layout, states *cascade.Result) {
+func renderSyncHint(opts *Options, layout project.Layout, states *cascade.Result) {
 	n := 0
 	for _, c := range states.Components {
 		if c.State != cascade.StateRunning && workspace.Exists(layout, c.Ref.ID) {
@@ -449,52 +415,17 @@ func renderSyncHint(opts *Options, layout config.Layout, states *cascade.Result)
 	opts.Printf("%s\n", i18n.TN(msgid.CliUpComponentsArenTStartingThis, n, n, workspace.DisplayArchivedRoot()))
 }
 
-// dryRunResourceWarning 把"资源未绑定"降级成 --dry-run 下的警告。
-//
-// 换掉标题与建议里"已阻断"那层意思，其余明细原样保留——
-// 使用者要看的是"哪个组件缺哪个资源"，那部分两种模式下完全一样。
-func dryRunResourceWarning(problem *clierr.Error) *clierr.Error {
-	w := clierr.Warn(problem.Code, i18n.T(msgid.CliUpWarningResourceDependenciesAreNot))
-	w.Details = problem.Details
-	return w.WithHint(
-		i18n.T(msgid.CliUpTheGeneratedDeploymentFilesWill),
-		i18n.T(msgid.CliUpDeclareAndBindThemUnder),
-	)
-}
-
-// runningIDs 是本次会启动的组件 ID（去重）。
-func runningIDs(states *cascade.Result) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, ref := range states.Running() {
-		if !seen[ref.ID] {
-			seen[ref.ID] = true
-			out = append(out, ref.ID)
-		}
-	}
-	return out
-}
-
-// dryRunEgressWarning 把"egress 没配全"降级成 --dry-run 下的警告。
-//
-// 与 dryRunResourceWarning 同一个手法：换掉标题与建议里"已阻断"那层意思，
-// 其余明细原样保留——使用者要看的是"哪个资源没声明"，那部分两种模式下完全一样。
-func dryRunEgressWarning(problem *clierr.Error) *clierr.Error {
-	w := clierr.Warn(problem.Code, i18n.T(msgid.CliUpWarningTheEgressPolicyDoesn))
-	w.Details = problem.Details
-	return w.WithHint(append(problem.Hints,
-		i18n.T(msgid.CliUpWithoutDryRunThisBlocks))...)
-}
-
 // generate 按部署目标渲染部署文件（005 §5）。
 //
 // 两种目标共用到这一步为止的**全部**结论（依赖图、级联、注入），
 // 只有渲染方式不同——规则写在渲染器里迟早会分叉（D138）。
 func (p *upPlan) generate(opts *Options, env *inject.Result) error {
-	if p.cfg.Deploy.Target == config.TargetK8s {
-		result, err := k8s.Generate(p.cfg, p.graph, p.states, env, k8s.Options{
+	root := p.proj.Layout.Root
+	if p.proj.Deploy.Target == deployfile.TargetK8s {
+		result, err := k8s.Generate(p.proj, p.graph, p.states, env, k8s.Options{
 			Now:    opts.Now,
-			Lookup: envLookup(opts.WorkDir),
+			Lookup: envref.Lookup(root),
+			Root:   root,
 		})
 		if err != nil {
 			return err
@@ -504,11 +435,11 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 		return nil
 	}
 
-	result, err := compose.Generate(p.cfg, p.graph, p.states, env, compose.Options{
+	result, err := compose.Generate(p.proj, p.graph, p.states, env, compose.Options{
 		Now:    opts.Now,
-		Engine: engineName(opts, p.cfg),
-		// 只作用于 local-debug 文件：IDE 不做变量替换（见 compose.Options.Lookup）
-		Lookup: envLookup(opts.WorkDir),
+		Engine: engineName(opts, p.proj),
+		Root:   root,
+		Lookup: envref.Lookup(root),
 	})
 	if err != nil {
 		return err
@@ -524,26 +455,23 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 // （前两个是裸进程——一个在宿主机上跑，一个由 brickkit 自己拉起；第三个代码
 // 打进了外壳镜像），镜像也不必检查。跟 compose 渲染器判断"该不该生成
 // workload"用的是同一条件（internal/compose/compose.go 的
-// entry.Mode == config.ModeDebug / config.ModeLocal / entry.ServedBy != ""）——
+// IsBareProcess / shell.ShellRef）——
 // 漏了任何一半的话，它的版本化服务名会混进传给 `docker compose up` 的目标
 // 列表，而生成的 compose 文件里根本没有这个 service，真机执行直接报
 // no such service，整个命令失败、一个容器都起不来（brickKit 反馈：真机
 // brickkit up 对 servedBy 成员报 no_such_service）。
 func (p *upPlan) collectTargets(order *resolver.Plan) {
 	noWorkload := map[resolver.Ref]bool{}
-	for _, c := range p.cfg.Components {
-		if c.Mode == config.ModeDebug || c.Mode == config.ModeLocal {
-			noWorkload[resolver.Ref{ID: c.ID, Version: c.Version}] = true
+	for _, c := range p.proj.Decl.Components {
+		ref := resolver.Ref{ID: c.ID, Version: c.Version}
+		if p.proj.DeployEntry(c.ID, c.Version).IsBareProcess() {
+			noWorkload[ref] = true
 			continue
 		}
-		if c.ServedBy != "" {
-			shellRef, ok := shell.ParseRef(c.ServedBy)
-			if ok && p.states.IsRunning(shellRef) {
-				noWorkload[resolver.Ref{ID: c.ID, Version: c.Version}] = true
-			}
-			// 外壳没跑（或者 servedBy 格式不对，config.Validate 会挡）：这个
-			// 组件按普通组件对待，交给引擎启动——判据必须跟 internal/shell、
-			// internal/compose、internal/k8s 保持一致。
+		// 外壳没跑时成员按普通组件对待，交给引擎启动——判据必须跟 internal/shell、
+		// internal/compose、internal/k8s 保持一致（shell.ShellRef + 外壳在跑）
+		if shellRef, ok := shell.ShellRef(p.proj, ref); ok && p.states.IsRunning(shellRef) {
+			noWorkload[ref] = true
 		}
 	}
 
@@ -578,7 +506,7 @@ func start(
 	ctx context.Context, opts *Options, eng engine.Engine, plan *upPlan,
 	file, pruneSelector string,
 ) error {
-	project := engine.ProjectName(plan.cfg.Project)
+	project := engine.ProjectName(plan.proj.Decl.Project)
 
 	opts.Printf("\n%s\n", i18n.T(msgid.CliUpStarting, eng.Name()))
 	if err := eng.Up(ctx, engine.UpRequest{
@@ -599,7 +527,7 @@ func start(
 		return err
 	}
 
-	return runLocalComponents(ctx, opts, plan.layout, plan.localComponents, plan.crashLines)
+	return runLocalComponents(ctx, opts, plan.proj.Layout, plan.localComponents, plan.crashLines)
 }
 
 // reportStarted 汇报启动结果，并在有组件没起来时给出非零退出码。
@@ -636,15 +564,15 @@ func reportStarted(
 			)
 		}
 		return err.WithHint(
-			i18n.T(msgid.CliUpViewTheLogsToFind, logsCommand(engineName(opts, plan.cfg),
-				engine.ProjectName(plan.cfg.Project), i18n.T(msgid.ServiceNamePlaceholder))),
+			i18n.T(msgid.CliUpViewTheLogsToFind, logsCommand(engineName(opts, plan.proj),
+				engine.ProjectName(plan.proj.Decl.Project), i18n.T(msgid.ServiceNamePlaceholder))),
 			i18n.T(msgid.CliUpAFailedMigrationLeavesThe),
 		)
 	}
 
 	opts.Printf("%s\n", i18n.T(msgid.CliUpAllComponentsStarted, len(plan.services)))
 	renderNextSteps(opts, plan)
-	logging.Info(i18n.T(msgid.LogProjectStarted), "project", plan.cfg.Project, "services", len(plan.services))
+	logging.Info(i18n.T(msgid.LogProjectStarted), "project", plan.proj.Decl.Project, "services", len(plan.services))
 	return nil
 }
 
@@ -686,11 +614,11 @@ func renderNextSteps(opts *Options, plan *upPlan) {
 		return
 	}
 
-	opts.Printf("%s\n", i18n.T(msgid.CliUpViewTheLogsF, logsCommand(engineName(opts, plan.cfg), engine.ProjectName(plan.cfg.Project), "")))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpViewTheLogsF, logsCommand(engineName(opts, plan.proj), engine.ProjectName(plan.proj.Decl.Project), "")))
 	for _, env := range plan.generated.LocalEnvFiles {
 		// mode: local 不提示"去 IDE 里加载"：它已经被 runLocalComponents 启动了，
 		// 提示 mode: debug 那句话对它是假的（见 writeLocalEnvFiles 的同一处说明）。
-		if env.Mode != config.ModeDebug {
+		if env.Mode != deployfile.ModeDebug {
 			continue
 		}
 		opts.Printf("%s\n", i18n.T(msgid.CliUpLocalDebuggingLoadInThe, filepath.Join(".brickkit", "generated", env.Name), env.Ref.ID))
@@ -709,29 +637,6 @@ func renderMigrations(opts *Options, migrations []migrationInfo) {
 	for _, m := range migrations {
 		opts.Printf("   %s  %s\n", m.component, m.command)
 	}
-}
-
-// warnDanglingBindings 提醒"这条资源绑定指向一个配置里没有的组件"。
-//
-// 只警告不阻断（理由见 config.Config.DanglingBindings）：它的唯一后果是
-// 那条绑定不生效。但必须说一句——最常见的成因是使用者手工删掉了组件条目、
-// 却漏了绑定，而他多半以为那个组件"还配着库"。
-func warnDanglingBindings(opts *Options, cfg *config.Config) {
-	dangling := cfg.DanglingBindings()
-	if len(dangling) == 0 {
-		return
-	}
-
-	err := clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpSomeResourceBindingsPointAt))
-	for _, d := range dangling {
-		err = err.WithDetail(i18n.T(msgid.CliUpResource, d.ResourceID), i18n.T(msgid.CliUpBoundThatComponentIsNot, d.ComponentID))
-	}
-	renderWarnings(opts, []*clierr.Error{err.
-		WithDetail(i18n.T(msgid.LabelImpact), i18n.T(msgid.CliUpThisBindingHasNoEffect)).
-		WithHint(
-			i18n.T(msgid.CliUpIfYouNoLongerNeed),
-			i18n.T(msgid.CliUpIfTheComponentWasDeleted, dangling[0].ComponentID),
-		)})
 }
 
 // checkImageConcurrency 是同时进行的镜像检查数上限。
@@ -827,21 +732,21 @@ func resolveEngine(opts *Options) (engine.Engine, error) {
 }
 
 // engineName 是生成部署文件时记录的引擎名——注入的引擎优先，否则按生效的
-// deploy.target 推断（override.yaml 能把它改成 podman，见 up_k8s.go 的
+// 部署文件的 target 推断（podman 也写在那里，见 up_k8s.go 的
 // resolveEngineFor）。生成文件与"引擎可不可用"是两回事：--dry-run 在没装
 // Docker/Podman 的机器上也该能跑。
-func engineName(opts *Options, cfg *config.Config) string {
+func engineName(opts *Options, proj *project.Project) string {
 	if opts.Engine != nil {
 		return opts.Engine.Name()
 	}
-	if cfg != nil && cfg.Deploy.Target == config.TargetPodman {
+	if proj != nil && proj.Deploy.Target == deployfile.TargetPodman {
 		return compose.EnginePodman
 	}
 	return compose.EngineDocker
 }
 
 // writeGenerated 把部署文件写进 .brickkit/generated/。
-func writeGenerated(layout config.Layout, content []byte) (string, error) {
+func writeGenerated(layout project.Layout, content []byte) (string, error) {
 	dir := layout.GeneratedDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToCreateThe)).
@@ -866,10 +771,10 @@ func writeGenerated(layout config.Layout, content []byte) (string, error) {
 // LocalEnvFile.Vars 严格展开，不落盘），"No container is generated; start
 // it in your IDE" 这句对它是一句假话，会跟紧随其后 mode: local 自己那段
 // "会启动"的输出自相矛盾（手动验证 Task 6 Step 5 时发现）。
-func writeLocalEnvFiles(opts *Options, layout config.Layout, files []compose.LocalEnvFile) error {
+func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.LocalEnvFile) error {
 	debugFiles := make([]compose.LocalEnvFile, 0, len(files))
 	for _, file := range files {
-		if file.Mode == config.ModeDebug {
+		if file.Mode == deployfile.ModeDebug {
 			debugFiles = append(debugFiles, file)
 		}
 	}
@@ -895,43 +800,37 @@ func writeLocalEnvFiles(opts *Options, layout config.Layout, files []compose.Loc
 	return nil
 }
 
-// devResourcesCompose 是仓库里那份开箱即用的开发资源栈（postgres + redis）。
-//
-// 它是一份**手写**的 compose 文件，不是生成的——与 deploy/market/ 同一个做法。
-// 平台不部署基础资源，但"本地想快速起一套"是真实需求，给一条能直接粘的命令
-// 比让每个人自己去查 postgres 镜像怎么配要便宜得多。
-const devResourcesCompose = "deploy/dev-resources/docker-compose.yaml"
-
-// renderResourceRequirements 告诉使用者哪些基础资源必须先跑起来。
-//
-// 006 §9.1：平台不部署基础资源，也不建库。但"不代为部署"不等于"不说清楚"——
-// 不列出来的话，组件会在启动或迁移时抛出 `connection refused` 或
-// `database "xxx" does not exist`，一句把**环境没准备好**指向**平台或组件**的错误。
-//
-// 每次 up 都打印，不是只在出错时：建库是一次性动作，而"资源得先跑着"
-// 是每次启动都要满足的前提。
-func renderResourceRequirements(opts *Options, requirements []deploy.ResourceRequirement) {
-	if len(requirements) == 0 {
-		return
+// writeEnvFiles 以 0600 写出密钥与 file:// 内容的 env 文件（附录 A7），并删掉这次
+// 没再生成的旧文件——留着的话，一个不再是密钥的值会在磁盘上多躺一份。
+func writeEnvFiles(layout project.Layout, files []compose.EnvFile) error {
+	dir := filepath.Join(layout.Root, filepath.FromSlash(compose.EnvFileDir))
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToCreateThe)).
+			WithDetail(i18n.T(msgid.LabelPath), dir).WithCause(err)
 	}
-
-	opts.Printf("\n%s\n", i18n.T(msgid.CliUpTheseBaseResourcesHaveTo))
-	needDatabase := false
-	for _, r := range requirements {
-		opts.Printf("%s\n", i18n.T(msgid.CliUpSSUsedBy, r.ID, r.Engine, r.Host, r.Port, joinComponents(r.Components)))
-		for _, db := range r.Databases {
-			needDatabase = true
-			opts.Printf("%s\n", i18n.T(msgid.CliUpNeedsDatabaseUsedBy, db.Name, joinComponents(db.Components), db.CreateSQL))
+	keep := map[string]bool{}
+	for _, file := range files {
+		path := filepath.Join(layout.Root, filepath.FromSlash(file.Path))
+		keep[filepath.Base(path)] = true
+		if err := os.WriteFile(path, file.Content, 0o600); err != nil {
+			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToWriteThe2)).
+				WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err)
+		}
+		// WriteFile 不改已存在文件的权限：旧文件是 0644 时照样得收紧
+		if err := os.Chmod(path, 0o600); err != nil {
+			return err
 		}
 	}
-	if needDatabase {
-		opts.Printf("%s\n", i18n.T(msgid.CliUpTheDatabasesAlsoHaveTo))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
 	}
-	opts.Printf("%s\n", i18n.T(msgid.CliUpToBringOneUpQuickly, devResourcesCompose))
-}
-
-func joinComponents(items []string) string {
-	return strings.Join(items, i18n.T(msgid.ListSeparator))
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".env") && !keep[e.Name()] {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
+	return nil
 }
 
 // displayPath 把绝对路径显示成相对项目根目录的形式。

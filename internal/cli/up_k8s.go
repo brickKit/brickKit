@@ -10,17 +10,17 @@ package cli
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 )
 
 // k8sDirName 是 K8s 清单在 .brickkit/generated/ 下的子目录名。
@@ -28,14 +28,13 @@ const k8sDirName = "k8s"
 
 // upK8s 生成 K8s 清单并交给集群。
 func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) error {
-	dir := filepath.Join(plan.layout.GeneratedDir(), k8sDirName)
+	dir := filepath.Join(plan.proj.Layout.GeneratedDir(), k8sDirName)
 	if err := k8s.WriteFiles(dir, plan.k8s.Files); err != nil {
 		return err
 	}
 
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sGeneratedManifests, i18n.Count(msgid.CountManifests, len(plan.k8s.Files)), displayPath(opts.WorkDir, dir)))
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sNamespace, plan.k8s.Namespace))
-	renderResourceRequirements(opts, plan.k8s.Resources)
 	renderNetworkPolicyNotice(opts, plan.k8s)
 	// 与 Docker 侧同一条：在 --dry-run 的分岔之前说清会不会动数据库
 	renderMigrations(opts, plan.migrations)
@@ -48,11 +47,11 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 		return nil
 	}
 
-	eng, err := resolveEngineFor(opts, plan.cfg)
+	eng, err := resolveEngineFor(opts, plan.proj)
 	if err != nil {
 		return err
 	}
-	return applyK8s(ctx, opts, eng, plan, dir, projectSelector(plan.cfg))
+	return applyK8s(ctx, opts, eng, plan, dir, projectSelector(plan.proj))
 }
 
 // renderNetworkPolicyNotice 提醒"策略生成了，但生不生效取决于集群的 CNI"。
@@ -76,7 +75,7 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 // **一个"打开了也可能完全没生效、而工具一个字不说"的安全功能，价值是负的**：
 // 不做的时候大家知道自己没做。
 //
-// 与 renderResourceRequirements 同一个道理：每次都打印，不是只在出错时——
+// 每次都打印，不是只在出错时——
 // 换个集群部署就换了一次前提，而这件事没有别的地方会提醒他。
 func renderNetworkPolicyNotice(opts *Options, result *k8s.Result) {
 	n := 0
@@ -115,8 +114,8 @@ func renderNetworkPolicyNotice(opts *Options, result *k8s.Result) {
 // 被点名的子集，其余组件全部落进清理的射程，一条 `up --only` 就会把正在服务的
 // 组件下线。`--only` 已删（003 §4.3：要收窄范围就改 enabled），
 // 生成物永远是完整的一份，这个分支也就没有了。
-func projectSelector(cfg *config.Config) string {
-	return k8s.LabelProject + "=" + cfg.Project
+func projectSelector(proj *project.Project) string {
+	return k8s.LabelProject + "=" + proj.Decl.Project
 }
 
 // applyK8s 把清单交给集群，然后如实汇报。
@@ -166,14 +165,14 @@ func applyK8s(
 // 只装了 Podman"（engine.Detect 的 podmanNotEnabled 分支）是两回事，两者
 // 不能混在一起判：前者是使用者自己选的，后者是平台替他猜的，猜出来的选择
 // 不该被当成配置里选出来的。
-func resolveEngineFor(opts *Options, cfg *config.Config) (engine.Engine, error) {
-	if cfg != nil && cfg.Deploy.Target == config.TargetK8s {
+func resolveEngineFor(opts *Options, proj *project.Project) (engine.Engine, error) {
+	if proj != nil && proj.Deploy.Target == deployfile.TargetK8s {
 		if opts.Engine != nil {
 			return opts.Engine, nil
 		}
 		return engine.NewKubectl(), nil
 	}
-	if cfg != nil && cfg.Deploy.Target == config.TargetPodman {
+	if proj != nil && proj.Deploy.Target == deployfile.TargetPodman {
 		if opts.Engine != nil {
 			return opts.Engine, nil
 		}

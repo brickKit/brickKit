@@ -6,7 +6,6 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"os"
 	"strconv"
@@ -137,11 +136,10 @@ func TestStatusShowsSkippedComponentsWithReason(t *testing.T) {
 	assert.Contains(t, r.stdout, "nothing above it is starting", "15.16：跟着上层不跑的也要给出原因")
 }
 
-// override.yaml 里的 mode: disable 让这个组件这次不跑——status 得说清楚这是本地
-// override.yaml 造成的，不是 brickkit.yaml 自己写的，否则使用者会去改 brickkit.yaml
-// 却怎么也改不动结果（设计书 §9："a component that isn't running because of a
-// local disable is labeled as such, not left unexplained"）。
-func TestStatusLabelsComponentDisabledByOverride(t *testing.T) {
+// 本地模式下 deploy.local.yaml 里的 mode: disable 让这个组件这次不跑——status 得说清楚
+// 这是个人文件造成的，不是团队的 deploy.yaml 写的，否则使用者会去改 deploy.yaml
+// 却怎么也改不动结果。
+func TestStatusLabelsComponentDisabledInLocalFile(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
 		{ID: "people/basic", Version: "1.0.0"},
@@ -163,16 +161,16 @@ func TestStatusLabelsComponentDisabledByOverride(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	// erp/backend 是 override.yaml 亲自点名 disable 的那个，它这一行要带出处；
-	// people/basic 只是跟着上层没跑（"nothing above it is starting"），它自己
-	// 从没被 override.yaml 提过，这一行不该被误贴上 override.yaml 的标记——
-	// 只断言"override.yaml"出现在 stdout 某处，测不出标记贴错行这种问题。
+	// erp/backend 是本地文件亲自改成 disable 的那个，它这一行要带出处；
+	// people/basic 只是跟着上层没跑（"nothing above it is starting"），这一行
+	// 不该被误贴上 deploy.local.yaml 的标记——只断言它出现在 stdout 某处，
+	// 测不出标记贴错行这种问题。
 	erpLine := lineContaining(t, r.stdout, "erp/backend")
-	assert.Contains(t, erpLine, "mode: disable, via override.yaml)",
+	assert.Contains(t, erpLine, "mode: disable, via deploy.local.yaml)",
 		"要并进已有的括注里，而不是再叠一层独立括号")
 	assert.NotContains(t, erpLine, ") (override.yaml)", "不该出现双重括号")
 	peopleLine := lineContaining(t, r.stdout, "people/basic")
-	assert.NotContains(t, peopleLine, "override.yaml")
+	assert.NotContains(t, peopleLine, "deploy.local.yaml")
 }
 
 // mode: disable 是 brickkit.yaml 自己写的（没有 override.yaml 介入）：不该出现
@@ -233,7 +231,7 @@ func TestStatusDoesNotReportLocalComponentAsDown(t *testing.T) {
 // containerRefs 不该把 mode: local 组件算进"要生成容器的组件"——跟
 // mode: debug 一样，它没有容器，塞进这份列表只会让 status 把它错当成
 // "该有容器却没查到"报出来。不直接调用私有方法——这个包里没有任何既有测试
-// 直接构造 *project 调用 loadProject，一律走标准的 runIn/runWithEngine 命令
+// 直接构造 *liveProject 调用 loadProject，一律走标准的 runIn/runWithEngine 命令
 // 管线断言渲染出的文本，这条测试延续同一个惯例。
 func TestStatusDoesNotReportModeLocalComponentAsNotRunning(t *testing.T) {
 	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
@@ -309,109 +307,6 @@ func TestStatusSkipsSessionCheckWhenNoModeLocalComponent(t *testing.T) {
 // ============================================================
 // 15.18 资源状态
 // ============================================================
-
-// CLI 托管的资源（host 是服务名）在容器网络里，宿主机拨号根本连不上——
-// 它的可达性要看容器状态，而不是去 dial 一个解析不了的主机名。
-func TestStatusReportsManagedResourceFromContainerState(t *testing.T) {
-	f, eng := startedProject(t)
-	eng.statuses = []engine.Status{
-		{Service: "people-basic-1-0-0", State: "running", Health: "healthy"},
-		{Service: "erp-backend-1-0-0", State: "running", Health: "healthy"},
-		{Service: "postgres", State: "running", Health: "healthy"},
-	}
-
-	r := statusOf(t, eng, f.Dir)
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "Resource status", "15.18")
-	assert.Contains(t, r.stdout, "postgres-main")
-	assert.Contains(t, r.stdout, "reachable")
-}
-
-func TestStatusReportsManagedResourceDown(t *testing.T) {
-	f, eng := startedProject(t)
-	eng.statuses = []engine.Status{
-		{Service: "people-basic-1-0-0", State: "running", Health: "healthy"},
-		{Service: "erp-backend-1-0-0", State: "running", Health: "healthy"},
-		{Service: "postgres", State: "exited", ExitCode: 1},
-	}
-
-	r := statusOf(t, eng, f.Dir)
-
-	assert.Contains(t, r.stdout, "postgres-main")
-	assert.Contains(t, r.stdout, "unreachable")
-}
-
-// 外部资源（运维已部署）不在容器里，只能真的拨一下号。
-func TestStatusProbesExternalResource(t *testing.T) {
-	comps := []comp{{ID: "people/basic", Version: "1.0.0"}}
-	f := addedProject(t, comps, "people/basic@1.0.0")
-	f.writeConfig(t, `components:
-  - id: people/basic
-    version: 1.0.0
-
-resources:
-  - kind: database
-    engine: postgresql
-    id: postgres-external
-    host: db.internal.example.com
-    port: 5432
-    username: brickkit
-    password: ${POSTGRES_PASSWORD}
-    bindings:
-      - componentId: people/basic
-        database: brickkit_people
-`)
-	eng := newFakeEngine()
-	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
-
-	var probed []string
-	r := runWith(t, func(o *Options) {
-		o.Engine = eng
-		o.Probe = func(_ context.Context, address string) error {
-			probed = append(probed, address)
-			return nil
-		}
-	}, f.Dir, "status")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Equal(t, []string{"db.internal.example.com:5432"}, probed, "15.18")
-	assert.Contains(t, r.stdout, "postgres-external")
-	assert.Contains(t, r.stdout, "reachable")
-}
-
-func TestStatusReportsUnreachableExternalResource(t *testing.T) {
-	comps := []comp{{ID: "people/basic", Version: "1.0.0"}}
-	f := addedProject(t, comps, "people/basic@1.0.0")
-	f.writeConfig(t, `components:
-  - id: people/basic
-    version: 1.0.0
-
-resources:
-  - kind: cache
-    engine: redis
-    id: redis-external
-    host: 10.0.0.9
-    port: 6379
-    bindings:
-      - componentId: people/basic
-`)
-	eng := newFakeEngine()
-	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
-
-	r := runWith(t, func(o *Options) {
-		o.Engine = eng
-		o.Probe = func(context.Context, string) error {
-			return errors.New("connection refused")
-		}
-	}, f.Dir, "status")
-
-	// 资源连不上不该让 status 失败：status 的职责是**报告**现状
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "redis-external")
-	assert.Contains(t, r.stdout, "unreachable")
-	assert.Contains(t, r.stdout, "connection refused", "说清连不上的原因")
-}
 
 // 没有声明资源的项目不该冒出一个空的"资源状态"小节。
 func TestStatusWithoutResources(t *testing.T) {
@@ -531,19 +426,4 @@ func TestStatusKeepsDisabledReasonWhenGraphUnavailable(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "disabled explicitly")
 	assert.NotContains(t, r.stdout, "reason unknown", "配置里写着的原因就该照实说")
-}
-
-// 资源可达性只问 brickkit.yaml 与 TCP，依赖图取不到不该连它一起丢掉。
-func TestStatusStillProbesResourcesWhenGraphUnavailable(t *testing.T) {
-	f, eng := startedProject(t)
-	breakLocalManifest(t, f, "erp/backend")
-
-	r := runWith(t, func(o *Options) {
-		o.Engine = eng
-		o.Probe = func(context.Context, string) error { return nil }
-	}, f.Dir, "status")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "postgres-main")
-	assert.Contains(t, r.stdout, "reachable")
 }

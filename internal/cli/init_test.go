@@ -30,11 +30,10 @@ func runWith(t *testing.T, tweak func(*Options), dir string, args ...string) res
 	t.Helper()
 	var out, errBuf bytes.Buffer
 	opts := &Options{
-		WorkDir:    dir,
-		ConfigPath: DefaultConfigFile,
-		LogLevel:   logging.LevelOff,
-		Stdout:     &out,
-		Stderr:     &errBuf,
+		WorkDir:  dir,
+		LogLevel: logging.LevelOff,
+		Stdout:   &out,
+		Stderr:   &errBuf,
 		// 默认假装 registry 里已经有这个镜像——那是发布时的常态
 		// （build → push → publish）。测试要验解析失败时自己覆盖它（P29）。
 		ResolveDigest: func(context.Context, string) (string, error) {
@@ -75,59 +74,56 @@ func TestInitWithoutProjectNameFails(t *testing.T) {
 	assert.Empty(t, entries, "报错时不应创建任何文件")
 }
 
-// 3.2 / 3.5 / 3.10 成功创建完整目录结构。
-func TestInitCreatesProjectStructure(t *testing.T) {
+// init 写出三层文件：声明 brickkit.yaml、部署 deploy.yaml、配置 config/。
+// 不生成 deploy.local.yaml——那是 brickkit local on 按需复制出来的个人文件。
+func TestInitCreatesThreeLayers(t *testing.T) {
 	dir := t.TempDir()
 	r := runIn(t, dir, "init", "my-project")
 	require.Equal(t, clierr.ExitOK, r.code, "stderr=%s", r.stderr)
 
-	assert.FileExists(t, filepath.Join(dir, "brickkit.yaml"))
-	for _, sub := range []string{
-		".brickkit",
-		".brickkit/manifests",
-		".brickkit/artifacts",
-		".brickkit/generated",
-		"components",
-		"components/.archived",
-	} {
+	for _, file := range []string{"brickkit.yaml", "deploy.yaml", "config/vars.yaml", "config/.gitkeep"} {
+		assert.FileExists(t, filepath.Join(dir, file))
+	}
+	assert.NoFileExists(t, filepath.Join(dir, "deploy.local.yaml"))
+	for _, sub := range []string{".brickkit", ".brickkit/manifests", ".brickkit/artifacts", ".brickkit/generated", "components"} {
 		requireDir(t, filepath.Join(dir, sub))
 	}
+
+	// 刚 init 完的项目就是一个合法、可 up 的项目
+	lint := runIn(t, dir, "lint")
+	assert.Equal(t, clierr.ExitOK, lint.code, lint.stdout+lint.stderr)
 }
 
-// 3.3 brickkit.yaml 骨架内容正确。
+// 骨架内容：声明里只有项目名与默认本地源，部署文件默认 docker、组件列表为空。
 func TestInitConfigSkeletonContent(t *testing.T) {
 	dir := t.TempDir()
 	require.Equal(t, clierr.ExitOK, runIn(t, dir, "init", "my-project").code)
 
 	raw := readFile(t, filepath.Join(dir, "brickkit.yaml"))
+	var decl map[string]any
+	require.NoError(t, yaml.Unmarshal([]byte(raw), &decl), "骨架必须是合法 YAML")
+	assert.Equal(t, "my-project", decl["project"])
+	assert.Empty(t, decl["components"], "components 初始为空列表")
+	assert.NotContains(t, decl, "deploy", "部署信息不在声明文件里")
+	assert.NotContains(t, decl, "resources", "基础资源已从平台移除")
+	assert.Contains(t, raw, "# brickkit.yaml", "骨架应带注释，说明文件用途")
 
-	var doc map[string]any
-	require.NoError(t, yaml.Unmarshal([]byte(raw), &doc), "骨架必须是合法 YAML")
-
-	assert.Equal(t, "my-project", doc["project"])
-	assert.Equal(t, map[string]any{"target": "docker"}, doc["deploy"])
-	require.Contains(t, doc, "components")
-	require.Contains(t, doc, "resources")
-	assert.Empty(t, doc["components"], "components 初始为空列表")
-	assert.Empty(t, doc["resources"], "resources 初始为空列表")
-
-	// 骨架应带注释，说明文件用途（003 §2）。
-	assert.Contains(t, raw, "# brickkit.yaml")
+	var deploy map[string]any
+	require.NoError(t, yaml.Unmarshal([]byte(readFile(t, filepath.Join(dir, "deploy.yaml"))), &deploy))
+	assert.Equal(t, "docker", deploy["target"])
+	assert.Empty(t, deploy["components"])
 }
 
-// 3.6 .gitignore 包含 components/ 等必要条目。
+// .gitignore 必须挡住个人文件与密钥（提案 §11.5）。
 func TestInitCreatesGitignore(t *testing.T) {
 	dir := t.TempDir()
 	require.Equal(t, clierr.ExitOK, runIn(t, dir, "init", "my-project").code)
 
-	content := readFile(t, filepath.Join(dir, ".gitignore"))
+	lines := strings.Split(readFile(t, filepath.Join(dir, ".gitignore")), "\n")
 	for _, entry := range []string{
-		"components/",
-		".brickkit/generated/",
-		".brickkit/credentials",
-		".env",
+		"deploy.local.yaml", "deploy.local.yaml.bak", ".secrets/", ".brickkit/", "config/.archive/", ".env", "components/",
 	} {
-		assert.Contains(t, content, entry, ".gitignore 应包含 %s", entry)
+		assert.Contains(t, lines, entry, ".gitignore 应包含 %s", entry)
 	}
 }
 
@@ -142,7 +138,7 @@ func TestInitAppendsToExistingGitignore(t *testing.T) {
 	content := readFile(t, filepath.Join(dir, ".gitignore"))
 	assert.Contains(t, content, "*.log", "原有内容必须保留")
 	assert.Contains(t, content, "# 我自己的规则")
-	assert.Contains(t, content, ".brickkit/credentials")
+	assert.Contains(t, content, "deploy.local.yaml")
 
 	var occurrences int
 	for _, line := range strings.Split(content, "\n") {
@@ -246,7 +242,9 @@ func TestInitOutputMatchesDesignDocs(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, "stderr=%s", r.stderr)
 
 	want := "✅ Project initialized: my-project\n" +
-		"   📁 brickkit.yaml        Project config\n" +
+		"   📄 brickkit.yaml        Project config\n" +
+		"   📄 deploy.yaml          How it is deployed (team file, committed)\n" +
+		"   📁 config/              Component configuration and shared vars\n" +
 		"   📁 components/          Component source (configured as the local install source local-dev)\n" +
 		"   📁 .brickkit/           CLI working directory\n" +
 		"   📁 .claude/skills/      AI assistant skills (4)\n" +
@@ -258,28 +256,6 @@ func TestInitOutputMatchesDesignDocs(t *testing.T) {
 		"  brickkit add people/basic@1.0.0    add a component from an install source\n" +
 		"  brickkit up                        start everything in one go\n"
 	assert.Equal(t, want, r.stdout)
-}
-
-// init 之后不用改一行配置就能跑 add --local：默认本地源指向的正是它建的目录。
-func TestInitLeavesProjectReadyForLocalAdd(t *testing.T) {
-	dir := t.TempDir()
-	require.Equal(t, clierr.ExitOK, runIn(t, dir, "init", "my-project").code)
-
-	r := runIn(t, dir, "add", "--local")
-	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "No usable components were found", "空目录，但安装源本身是通的")
-	assert.NotContains(t, r.stderr, "no local install source is available")
-}
-
-// --config 指定的配置文件名应被 init 采用（多环境初始化，004 §3.5）。
-func TestInitHonorsConfigFlag(t *testing.T) {
-	dir := t.TempDir()
-	r := runIn(t, dir, "init", "my-project", "--config", "brickkit.prod.yaml")
-	require.Equal(t, clierr.ExitOK, r.code, "stderr=%s", r.stderr)
-
-	assert.FileExists(t, filepath.Join(dir, "brickkit.prod.yaml"))
-	assert.NoFileExists(t, filepath.Join(dir, "brickkit.yaml"))
-	assert.Contains(t, r.stdout, "brickkit.prod.yaml")
 }
 
 // init 只接受一个参数（多余参数走 translate 兜底）。
@@ -410,7 +386,7 @@ func TestInitHooksOnlyInstallsIntoExistingProject(t *testing.T) {
 	require.FileExists(t, hook)
 	script, err := os.ReadFile(hook)
 	require.NoError(t, err)
-	assert.Contains(t, string(script), "sub/project|brickkit.yaml",
+	assert.Contains(t, string(script), "\nsub/project\n",
 		"清单里记的是项目根相对仓库根的路径")
 }
 

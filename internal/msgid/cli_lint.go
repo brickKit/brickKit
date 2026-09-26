@@ -23,4 +23,5 @@ const (
 // 手工处理的条目
 const (
 	CliLintLocalEnumerationFailed = "cli.lint.local_enumeration_failed"
+	CliLintCrossFile              = "cli.lint.cross_file"
 )

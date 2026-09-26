@@ -2,17 +2,12 @@ package msgid
 
 // internal/compose/compose.go
 const (
-	ComposeHeaderComponents        = "compose.header.components"
-	ComposeRenderFailed            = "compose.render_failed"
-	ComposeHostPortConflict        = "compose.host_port_conflict"
-	ComposeLabelHostPort           = "compose.label.host_port"
-	ComposeHintChangeExposePort    = "compose.hint.change_expose_port"
-	ComposeHintDropExpose          = "compose.hint.drop_expose"
-	ComposeHostLooksLikeService    = "compose.host_looks_like_service"
-	ComposeHostReasonDetail        = "compose.host_reason_detail"
-	ComposeHintHostOnThisMachine   = "compose.hint.host_on_this_machine"
-	ComposeHintHostElsewhere       = "compose.hint.host_elsewhere"
-	ComposeHintHostAlreadyAttached = "compose.hint.host_already_attached"
+	ComposeHeaderComponents     = "compose.header.components"
+	ComposeRenderFailed         = "compose.render_failed"
+	ComposeHostPortConflict     = "compose.host_port_conflict"
+	ComposeLabelHostPort        = "compose.label.host_port"
+	ComposeHintChangeExposePort = "compose.hint.change_expose_port"
+	ComposeHintDropExpose       = "compose.hint.drop_expose"
 )
 
 // internal/compose/local.go

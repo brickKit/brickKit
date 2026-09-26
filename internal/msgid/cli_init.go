@@ -36,4 +36,6 @@ const (
 	CliInitFirstRunBrickkitInitProject    = "cli.init.first_run_brickkit_init_project"
 	CliInitExample                        = "cli.init.example"
 	CliInitLong                           = "cli.init.long"
+	CliInitDeployFile                     = "cli.init.deploy_file"
+	CliInitConfigDir                      = "cli.init.config_dir"
 )

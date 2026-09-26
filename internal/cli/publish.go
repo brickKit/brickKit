@@ -13,11 +13,12 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/market"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/security"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -79,7 +80,7 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 	if err := validateVisibility(f.visibility); err != nil {
 		return err
 	}
-	layout := config.NewLayout(opts.WorkDir, opts.ConfigPath)
+	layout := project.NewLayout(opts.WorkDir)
 	marketURL, err := resolveMarketURL(layout, f.market)
 	if err != nil {
 		return publishAuthHint(err)
@@ -393,7 +394,7 @@ func uploadArtifacts(ctx context.Context, client *market.Client, pkg *publishPac
 
 // resolvePublishToken 按 004 §5.3 的优先级取 Token：
 // .brickkit/credentials（登录态）> brickkit.yaml 的 sources.authToken。
-func resolvePublishToken(opts *Options, layout config.Layout, marketURL string) (string, error) {
+func resolvePublishToken(opts *Options, layout project.Layout, marketURL string) (string, error) {
 	creds, err := source.LoadCredentials(layout.CredentialsPath())
 	if err != nil {
 		return "", err
@@ -421,17 +422,17 @@ func resolvePublishToken(opts *Options, layout config.Layout, marketURL string) 
 }
 
 // configAuthToken 取该市场在 brickkit.yaml 中配置的 authToken。
-func configAuthToken(layout config.Layout, marketURL string) string {
-	cfg, err := config.ParseConfigFile(layout.ConfigPath())
+func configAuthToken(layout project.Layout, marketURL string) string {
+	decl, err := projfile.ParseFile(layout.DeclPath())
 	if err != nil {
 		return ""
 	}
-	for _, s := range cfg.Sources {
-		if s.Type != config.SourceTypeMarket || !s.IsEnabled() {
+	for _, s := range decl.Sources {
+		if s.Type != projfile.SourceTypeMarket || !s.IsEnabled() {
 			continue
 		}
 		if sameMarket(s.URL, marketURL) {
-			return s.AuthToken
+			return source.AuthToken(s, layout.Root)
 		}
 	}
 	return ""

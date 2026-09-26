@@ -12,7 +12,6 @@ package cli
 //	hostname  与 tlsSecret 是一对（都只服务于 Ingress），从前只报后者
 
 import (
-	"os"
 	"strings"
 	"testing"
 
@@ -29,9 +28,9 @@ func replicasProject(t *testing.T, target string) *projectFixture {
 	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")
 	f.writeConfig(t, "components:\n  - id: demo/hello\n    version: 1.0.0\n    replicas: 3\n")
 
-	body := strings.Replace(readFile(t, f.Layout.ConfigPath()),
+	body := strings.Replace(f.legacy,
 		"target: docker", "target: "+target, 1)
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(body), 0o644))
+	f.rewrite(t, body)
 	return f
 }
 
@@ -74,7 +73,7 @@ func TestAllK8sOnlyFieldsWarnOnDocker(t *testing.T) {
     expose: true
     hostname: demo.example.com
 `)
-	body := strings.Replace(readFile(t, f.Layout.ConfigPath()), "  target: docker", `  target: docker
+	body := strings.Replace(f.legacy, "  target: docker", `  target: docker
   context: prod-cluster
   namespace: team-a
   createNamespace: false
@@ -87,16 +86,16 @@ func TestAllK8sOnlyFieldsWarnOnDocker(t *testing.T) {
     enabled: true
   networkPolicy:
     enabled: true`, 1)
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(body), 0o644))
+	f.rewrite(t, body)
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, "是提醒不是错误：%s", r.stderr)
 
 	out := r.stdout + r.stderr
 	for _, field := range []string{
-		"deploy.context", "deploy.namespace", "deploy.createNamespace",
-		"deploy.podSecurity", "deploy.imagePullSecrets", "deploy.ingressClass",
-		"deploy.ingressAnnotations", "deploy.serviceAccount", "deploy.networkPolicy",
+		"k8s.context", "k8s.namespace", "k8s.createNamespace",
+		"k8s.podSecurity", "k8s.imagePullSecrets", "k8s.ingressClass",
+		"k8s.ingressAnnotations", "k8s.networkPolicy", "k8s.serviceAccount",
 		"replicas", "hostname", "tlsSecret", "serviceAccountName",
 	} {
 		assert.Contains(t, out, field,
@@ -117,19 +116,16 @@ func TestExposePortOnK8sWarns(t *testing.T) {
     hostname: demo.example.com
     exposePort: 8080
 `)
-	body := strings.Replace(readFile(t, f.Layout.ConfigPath()),
+	body := strings.Replace(f.legacy,
 		"target: docker", "target: k8s", 1)
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(body), 0o644))
+	f.rewrite(t, body)
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, "是提醒不是错误：%s", r.stderr)
 	out := r.stdout + r.stderr
-	assert.Contains(t, out, "only take effect on Docker")
-	assert.Contains(t, out, "exposePort")
-	// 只查字段行：hostname 出现在**建议**里是对的（"对外暴露请填 hostname"），
-	// 不该出现的是"它被忽略了"那份名单
-	assert.NotContains(t, out, "components[].hostname",
+	assert.Contains(t, out, "exposePort has no effect with target: k8s")
+	assert.NotContains(t, out, "hostname has no effect",
 		"hostname 在 K8s 下是生效的，不该出现在被忽略的名单里")
 }
 
@@ -161,8 +157,8 @@ func TestTargetOnlyFieldsGroupedByField(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
 	out := r.stdout + r.stderr
-	assert.Equal(t, 1, strings.Count(out, "components[].replicas"),
+	assert.Equal(t, 1, strings.Count(out, "replicas has no effect"),
 		"三个组件写了同一个字段，只该出现一行：%s", out)
-	assert.Contains(t, out, "3 components: demo/a, demo/b, demo/c",
+	assert.Contains(t, out, "demo/a@1.0.0, demo/b@1.0.0, demo/c@1.0.0",
 		"一行里点清是哪几个：%s", out)
 }

@@ -22,29 +22,14 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 )
 
-// secretFlowComp 是带一个配置项、一个数据库依赖的组件。
+// secretFlowComp 是带一个配置项的组件。
 var secretFlowComp = comp{
 	ID: "demo/hello", Version: "1.0.0",
 	ConfigSchema: []string{"apiToken:"},
-	ResourceDeps: []string{"database:postgresql"},
 }
 
 const secretFlowEntry = `    config:
       apiToken: ${HELLO_TOKEN}
-`
-
-const secretFlowResources = `
-resources:
-  - kind: database
-    engine: postgresql
-    id: main-db
-    host: db.example.internal
-    port: 5432
-    username: app
-    password: ${HELLO_DB_PASSWORD}
-    bindings:
-      - componentId: demo/hello
-        database: hello
 `
 
 // dockerSecretFlowProject 造一个 deploy.target: docker 的项目（写法照 k8sProjectWith）。
@@ -61,15 +46,13 @@ func dockerSecretFlowProject(t *testing.T) *projectFixture {
 	}
 	b.WriteString("\ncomponents:\n  - id: demo/hello\n    version: 1.0.0\n")
 	b.WriteString(secretFlowEntry)
-	b.WriteString(secretFlowResources)
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
+	f.rewrite(t, b.String())
 	return f
 }
 
 // 变量在进程环境里时，compose 文件里也不能出现明文。
 func TestComposeNeverHoldsSecretValuesEvenWhenProcessEnvHasThem(t *testing.T) {
 	t.Setenv("HELLO_TOKEN", "sk-live-TOKEN-VALUE")
-	t.Setenv("HELLO_DB_PASSWORD", "pw-DB-VALUE")
 	f := dockerSecretFlowProject(t)
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
@@ -80,36 +63,15 @@ func TestComposeNeverHoldsSecretValuesEvenWhenProcessEnvHasThem(t *testing.T) {
 	text := string(raw)
 
 	assert.NotContains(t, text, "sk-live-TOKEN-VALUE", "compose 文件会被人打开看、进 CI 产物，明文进去就是泄露")
-	assert.NotContains(t, text, "pw-DB-VALUE")
 	assert.Contains(t, text, "${HELLO_TOKEN}", "占位符留给 docker compose 启动时求值")
-	assert.Contains(t, text, "${HELLO_DB_PASSWORD}")
 }
 
-// K8s 目标：变量在进程环境里，生成时求值——资源密码进 Secret，Deployment 里没有它。
-func TestK8sResourcePasswordStaysInSecretNotDeployment(t *testing.T) {
-	t.Setenv("HELLO_TOKEN", "sk-live-TOKEN-VALUE")
-	t.Setenv("HELLO_DB_PASSWORD", "pw-DB-VALUE")
-	f := k8sProjectWith(t, secretFlowComp, secretFlowEntry, secretFlowResources)
-
-	r := runWithEngine(t, newK8sEngine(), f.Dir, "up", "--dry-run")
-	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
-
-	secrets, err := os.ReadFile(filepath.Join(k8sDir(f), "secrets", "resource-secrets.yaml"))
-	require.NoError(t, err)
-	deployment, err := os.ReadFile(filepath.Join(k8sDir(f), "deployments", "demo-hello-1-0-0.yaml"))
-	require.NoError(t, err)
-
-	assert.Contains(t, string(secrets), "pw-DB-VALUE", "K8s 没有变量替换，Secret 必须在生成时求值")
-	assert.NotContains(t, string(deployment), "pw-DB-VALUE")
-}
-
-// 组件声明了 secret: true：K8s 下配置密钥与资源密码一样进 Secret，Deployment 里两者都没有。
+// 组件声明了 secret: true：K8s 下配置密钥进 Secret，Deployment 里没有明文。
 func TestK8sConfigSecretGoesToSecretNotDeployment(t *testing.T) {
 	t.Setenv("HELLO_TOKEN", "sk-live-TOKEN-VALUE")
-	t.Setenv("HELLO_DB_PASSWORD", "pw-DB-VALUE")
 	declared := secretFlowComp
 	declared.SecretConfig = []string{"apiToken"}
-	f := k8sProjectWith(t, declared, secretFlowEntry, secretFlowResources)
+	f := k8sProjectWith(t, declared, secretFlowEntry, "")
 
 	r := runWithEngine(t, newK8sEngine(), f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
@@ -121,44 +83,6 @@ func TestK8sConfigSecretGoesToSecretNotDeployment(t *testing.T) {
 
 	assert.Contains(t, string(secrets), "sk-live-TOKEN-VALUE")
 	assert.NotContains(t, string(deployment), "sk-live-TOKEN-VALUE", "配置密钥不再明文进 Deployment")
-	assert.NotContains(t, string(deployment), "pw-DB-VALUE")
-}
-
-// resources[].existingSecret 只在 K8s 生效；Docker 下要警告，不是错误——existingSecret
-// 对 Docker 没有意义，跟 replicas/tlsSecret 那批"只在 K8s 生效"的字段同一条路。
-func TestExistingSecretWarnsUnderDocker(t *testing.T) {
-	f := addedProject(t, []comp{secretFlowComp}, secretFlowComp.ref())
-
-	var b strings.Builder
-	b.WriteString(configHeader)
-	b.WriteString("\nsources:\n")
-	for _, s := range f.Sources {
-		b.WriteString(s)
-	}
-	b.WriteString(`
-components:
-  - id: demo/hello
-    version: 1.0.0
-resources:
-  - kind: database
-    engine: postgresql
-    id: main-db
-    host: db.example.com
-    port: 5432
-    existingSecret: acme-db-vault-synced
-    bindings:
-      - componentId: demo/hello
-        database: hello
-`)
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
-
-	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
-
-	require.Equal(t, clierr.ExitOK, r.code, "是警告不是错误：%s", r.stderr)
-	out := r.stdout + r.stderr
-	assert.Contains(t, out, "only take effect on K8s")
-	assert.Contains(t, out, "existingSecret")
-	assert.Contains(t, out, "main-db", "要点名是哪个资源，不能只说组件")
 }
 
 // existingSecret 形状但配置项没有声明 secret: true：警告，且不能把值糊成
@@ -176,7 +100,7 @@ func TestConfigExistingSecretWithoutDeclaredSecretWarns(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, "是警告不是错误：%s%s", r.stdout, r.stderr)
 	out := r.stdout + r.stderr
-	assert.Contains(t, out, "apiToken")
+	assert.Contains(t, out, "API_TOKEN")
 	assert.Contains(t, out, "existingSecret")
 	assert.Contains(t, out, "secret: true")
 }
@@ -195,7 +119,7 @@ func TestConfigExistingSecretUnderDockerWarns(t *testing.T) {
 	}
 	b.WriteString("\ncomponents:\n  - id: demo/hello\n    version: 1.0.0\n    config:\n" +
 		"      apiToken:\n        existingSecret: acme-hello-vault-synced\n        key: api-key\n")
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(b.String()), 0o644))
+	f.rewrite(t, b.String())
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 

@@ -471,20 +471,3 @@ func TestSyncCanRestoreWhatItArchivedWithoutCache(t *testing.T) {
 	f.assertActive(t, "demo/hello")
 	f.assertActive(t, "demo/caller")
 }
-
-// 归档不影响 add --local 的既有行为：它照旧只扫活跃目录。
-//
-// 与上面两条是同一条分工线的两半——**扫描时看不见，按 ID 找时找得到**。
-// 少了这一条，"让本地源认归档目录"很容易被顺手改成"扫描也认"，
-// 那样 sync 刚归档完，一条 add --local 就把它们全拽回配置里。
-func TestAddLocalStillIgnoresArchived(t *testing.T) {
-	f := newWorkspaceFixture(t, helloDisabled)
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
-	f.assertArchived(t, "demo/hello")
-
-	f.writeConfig(t, "components: []\nresources: []\n")
-	r := runIn(t, f.Dir, "add", "--local", "--yes")
-
-	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
-	assert.NotContains(t, f.refs(t), "demo/hello@1.0.0", "归档的组件不该被 add --local 拽回来")
-}

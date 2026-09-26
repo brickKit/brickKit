@@ -14,7 +14,8 @@ import (
 func TestNewOptionsDefaults(t *testing.T) {
 	opts := NewOptions()
 	require.NotNil(t, opts)
-	assert.Equal(t, DefaultConfigFile, opts.ConfigPath)
+	assert.Empty(t, opts.DeployFile)
+	assert.False(t, opts.NoLocal)
 	assert.Equal(t, logging.LevelWarn, opts.LogLevel)
 	assert.Equal(t, os.Stdout, opts.Stdout)
 	assert.Equal(t, os.Stderr, opts.Stderr)
@@ -51,7 +52,7 @@ func TestNewRootCommandNilOptionsUsesDefaults(t *testing.T) {
 	assert.Equal(t, "brickkit", root.Name())
 	assert.NotEmpty(t, root.Commands())
 
-	f := root.PersistentFlags().Lookup("config")
+	f := root.PersistentFlags().Lookup("log-level")
 	require.NotNil(t, f)
-	assert.Equal(t, DefaultConfigFile, f.DefValue)
+	assert.Equal(t, logging.LevelWarn, f.DefValue)
 }

@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
@@ -14,8 +14,6 @@ import (
 
 // newDownCommand 实现 brickkit down（004 §3.6）。
 func newDownCommand(opts *Options) *cobra.Command {
-	var kubeContext string
-
 	cmd := &cobra.Command{
 		Use:     "down",
 		Short:   i18n.T(msgid.CliDownStopEveryComponentInOne),
@@ -24,47 +22,39 @@ func newDownCommand(opts *Options) *cobra.Command {
 		Example: "  brickkit down",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDown(cmd.Context(), opts, kubeContext)
+			return runDown(cmd.Context(), opts)
 		},
 	}
 
-	cmd.Flags().StringVar(&kubeContext, "context", "", i18n.T(msgid.CliDownKubeconfigContextOverridesDeployContext))
+	addDeployFileFlags(cmd, opts)
 	return cmd
 }
 
 // runDown 停止整个项目。
-func runDown(ctx context.Context, opts *Options, kubeContext string) error {
+func runDown(ctx context.Context, opts *Options) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	// 只读 brickkit.yaml，不碰安装源：down 交给引擎的只有项目名，
-	// 依赖图里的东西它一个都用不上（见 loadConfig 的说明）。但 override.yaml
-	// 能把生效目标从 k8s 降到 docker/podman（override.yaml 设计书 §5.2），
-	// down 选引擎、决定要不要删命名空间、挑哪种收尾措辞，都得看这个生效值，
-	// 不能只看 brickkit.yaml 自己声明的——那条"down 不需要依赖图"的道理，
-	// 从没说过"down 不需要 override.yaml"。
+	// 只装载三层文件，不碰安装源：down 交给引擎的只有项目名与目标，
+	// 依赖图里的东西它一个都用不上（见 loadConfig 的说明）。目标、要不要删命名空间
+	// 都看生效的那份部署文件（本地模式、-f 都会改变它）。
 	p, err := loadConfig(opts)
 	if err != nil {
 		return err
 	}
-	ov, err := loadOverride(opts, p.layout, p.cfg)
+	proj := p.proj
+
+	eng, err := resolveEngineFor(opts, proj)
 	if err != nil {
 		return err
 	}
-	if err := applyOverride(p.cfg, ov); err != nil {
+	kubeContext := proj.Deploy.Settings().Context
+	if err := requireContext(ctx, opts, proj, eng, kubeContext); err != nil {
 		return err
 	}
 
-	eng, err := resolveEngineFor(opts, p.cfg)
-	if err != nil {
-		return err
-	}
-	if err := requireContext(ctx, opts, p.cfg, eng, contextOf(p.cfg, kubeContext)); err != nil {
-		return err
-	}
-
-	opts.Printf("%s\n", i18n.T(msgid.CliDownStoppingProject, p.cfg.Project))
+	opts.Printf("%s\n", i18n.T(msgid.CliDownStoppingProject, proj.Decl.Project))
 
 	// 先问一句"现在有没有东西在跑"，只为决定最后那句话怎么说。
 	//
@@ -83,17 +73,17 @@ func runDown(ctx context.Context, opts *Options, kubeContext string) error {
 		// 标签值是项目名，与 Project（K8s 下是命名空间）不是一回事——
 		// 引擎从前拿 Project 拼这个选择器，于是 createNamespace: false 那条路上
 		// 一个资源都匹配不到，而命令照样报成功。与 up 的孤儿清理同源。
-		Selector: projectSelector(p.cfg),
-		Context:  contextOf(p.cfg, kubeContext),
+		Selector: projectSelector(proj),
+		Context:  kubeContext,
 		// 命名空间不是我们建的就不能由我们删
-		DeleteNamespace: p.cfg.Deploy.ShouldCreateNamespace(),
+		DeleteNamespace: proj.Deploy.ShouldCreateNamespace(),
 	}); err != nil {
 		return engineFailure(i18n.T(msgid.CliDownStop), err)
 	}
 
-	renderDownResult(opts, p.cfg.Deploy.Target == config.TargetK8s, eng.Name(), running, probed)
-	renderLocalModeSessionHint(opts, p.layout, p.cfg)
-	logging.Info(i18n.T(msgid.LogProjectStopped), "project", p.cfg.Project, "stopped", running)
+	renderDownResult(opts, proj.Deploy.Target == deployfile.TargetK8s, eng.Name(), running, probed)
+	renderLocalModeSessionHint(opts, proj)
+	logging.Info(i18n.T(msgid.LogProjectStopped), "project", proj.Decl.Project, "stopped", running)
 	return nil
 }
 

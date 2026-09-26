@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -13,9 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
-	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -111,194 +109,30 @@ func TestItoa(t *testing.T) {
 
 // 同时被强依赖和弱依赖引用的组件按"强"算：它无论如何都要装。
 func TestDependencyKinds(t *testing.T) {
-	dir := t.TempDir()
-	sources := localSource(t, dir,
-		comp{ID: "erp/a", Version: "1.0.0", Requires: []string{"x/shared@1.0.0"}},
-		comp{ID: "erp/b", Version: "1.0.0", Optional: []string{"x/shared@1.0.0"}},
-		comp{ID: "x/shared", Version: "1.0.0"},
-	)
-	f := newProjectFixtureAt(t, dir, sources...)
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "add", "erp/a@1.0.0").code)
+	shared := resolver.Ref{ID: "x/shared", Version: "1.0.0"}
+	weak := resolver.Ref{ID: "x/weak", Version: "1.0.0"}
+	graph := &resolver.Graph{Nodes: []*resolver.Node{
+		{Ref: resolver.Ref{ID: "erp/a", Version: "1.0.0"}, Requires: []resolver.Ref{shared}},
+		{Ref: resolver.Ref{ID: "erp/b", Version: "1.0.0"}, Optional: []resolver.Ref{shared, weak}},
+	}}
 
-	r := runIn(t, f.Dir, "add", "erp/b@1.0.0")
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "optional dependency x/shared@1.0.0", "对 erp/b 而言它是弱依赖")
+	kinds := dependencyKinds(graph)
+
+	assert.False(t, kinds[shared], "有人强依赖它，就不算仅弱依赖可达")
+	assert.True(t, kinds[weak])
 }
 
 // ============================================================
 // 弱依赖装完就会跑（003 §4.3）
 // ============================================================
 
-// 从前这里有一整组"装完要提示它默认不会启动"的用例。那条规则已经删掉：
-// 弱依赖写进 brickkit.yaml 之后跟着上层一起跑，与强依赖一视同仁。
-//
-// 留下这条反向用例，是为了让那句提示不会被谁"顺手加回来"——
-// 它现在是错的，而一句反过来的提示比没有提示更糟：使用者会去 docker ps 里找它。
-func TestAddDoesNotClaimWeakDependencyWillNotStart(t *testing.T) {
-	dir := t.TempDir()
-	sources := localSource(t, dir,
-		comp{ID: "erp/backend", Version: "1.0.0", Optional: []string{"infra/bus@1.0.0"}},
-		comp{ID: "infra/bus", Version: "1.0.0"},
-	)
-	f := newProjectFixtureAt(t, dir, sources...)
-
-	r := runIn(t, f.Dir, "add", "erp/backend@1.0.0")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "infra/bus", "它仍然要出现在依赖树里")
-	assert.NotContains(t, r.stdout, "won't start by default")
-}
-
 // ============================================================
 // 失败路径
 // ============================================================
 
-// 配置文件不可写时，add 报错而不是假装成功。
-func TestAddConfigWriteFailure(t *testing.T) {
-	dir := t.TempDir()
-	sources := localSource(t, dir, comp{ID: "people/basic", Version: "1.0.0"})
-	f := newProjectFixtureAt(t, dir, sources...)
-
-	// 配置文件设为只读，使写回失败
-	skipIfRoot(t)
-	require.NoError(t, os.Chmod(f.Layout.ConfigPath(), 0o444))
-
-	r := runIn(t, f.Dir, "add", "people/basic@1.0.0")
-	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "failed to write the config file")
-	assert.NotContains(t, r.stderr, "incorrect command usage",
-		"磁盘写不进去不是用法错误，不能让人去查 brickkit --help")
-	assert.Empty(t, f.refs(t), "写回失败时不得留下半改的配置")
-}
-
-// artifacts 缓存目录不可删除时，remove 报错并说明原因。
-func TestRemoveArtifactCleanupFailure(t *testing.T) {
-	skipIfRoot(t)
-
-	spec := comp{ID: "people/basic", Version: "1.0.0", Artifacts: []string{"api-docs:openapi.json"}}
-	f := addedProject(t, []comp{spec}, "people/basic@1.0.0")
-
-	artifactsRoot := f.Layout.ArtifactsDir()
-	require.NoError(t, os.Chmod(artifactsRoot, 0o500)) // 只读：无法删除子目录
-	t.Cleanup(func() { _ = os.Chmod(artifactsRoot, 0o755) })
-
-	r := runIn(t, f.Dir, "remove", "people/basic")
-	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "failed to clean the artifacts cache")
-}
-
-// Manifest 缓存文件不可删除时同样报错。
-func TestRemoveManifestCleanupFailure(t *testing.T) {
-	skipIfRoot(t)
-
-	f := addedProject(t, []comp{{ID: "people/basic", Version: "1.0.0"}}, "people/basic@1.0.0")
-
-	manifestsDir := f.Layout.ManifestsDir()
-	require.NoError(t, os.Chmod(manifestsDir, 0o500))
-	t.Cleanup(func() { _ = os.Chmod(manifestsDir, 0o755) })
-
-	r := runIn(t, f.Dir, "remove", "people/basic")
-	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "failed to clean the Manifest cache")
-}
-
-// --repo 时仓库地址不可达：报错，且不留下半个源码目录。
-func TestAddRepoCloneFailure(t *testing.T) {
-	spec := comp{ID: "people/basic", Version: "1.0.0"}
-	market := newMockMarket(t, &mockComponent{
-		Spec: spec, SourceType: "git",
-		GitURL: filepath.Join(t.TempDir(), "no-such-repo.git"),
-	})
-	f := newProjectFixture(t, market.source())
-
-	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo")
-	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "clone failed")
-	assert.NoDirExists(t, filepath.Join(f.Layout.ComponentsDir(), "people", "basic"))
-}
-
-// --repo-all 遇到已有源码目录时跳过（批量操作不该因为一个目录已存在就整体失败）。
-func TestAddRepoAllSkipsExistingDirectory(t *testing.T) {
-	spec := comp{ID: "people/basic", Version: "1.0.0"}
-	repo := newComponentRepo(t, spec)
-	market := newMockMarket(t, &mockComponent{Spec: spec, SourceType: "git", GitURL: repo})
-	f := newProjectFixture(t, market.source())
-
-	existing := filepath.Join(f.Layout.ComponentsDir(), "people", "basic")
-	require.NoError(t, os.MkdirAll(existing, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(existing, "mine.txt"), []byte("我的源码"), 0o644))
-
-	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo-all")
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "the source directory already exists; skipping clone")
-	assert.Equal(t, "我的源码", readFile(t, filepath.Join(existing, "mine.txt")))
-}
-
-// --repo-all 遇到本地安装源的组件：跳过而不是报错。
-func TestAddRepoAllSkipsLocalSourceComponent(t *testing.T) {
-	dir := t.TempDir()
-	sources := localSource(t, dir, comp{ID: "people/basic", Version: "1.0.0"})
-	f := newProjectFixtureAt(t, dir, sources...)
-
-	r := runIn(t, f.Dir, "add", "people/basic@1.0.0", "--repo-all")
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "no Git repository address; skipping clone")
-	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
-}
-
-// 本地源的产物每次都以硬盘上那份为准，不吃缓存。
-//
-// 本地源的 .proto / openapi.json 跟着代码一起改；缓存住会让调用方
-// 按旧契约生成客户端，而且没有任何提示。"已是最新（缓存中 N 个文件）"
-// 这条提示只对远程源成立（缓存命中的行为见 internal/source 的用例）。
-func TestAddRereadsLocalSourceArtifacts(t *testing.T) {
-	dir := t.TempDir()
-	sources := localSource(t, dir,
-		comp{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
-		comp{ID: "people/basic", Version: "1.0.0", Artifacts: []string{"api-docs:openapi.json"}},
-	)
-	f := newProjectFixtureAt(t, dir, sources...)
-	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "add", "people/basic@1.0.0").code)
-
-	r := runIn(t, f.Dir, "add", "erp/backend@1.0.0")
-
-	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "Downloaded artifacts")
-	assert.NotContains(t, r.stdout, "artifacts are up to date")
-}
-
-// runAdd / runRemove 允许 ctx 为 nil（cobra 在某些路径下不注入 context）。
-func TestRunAddAndRemoveWithNilContext(t *testing.T) {
-	dir := t.TempDir()
-	sources := localSource(t, dir, comp{ID: "people/basic", Version: "1.0.0"})
-	f := newProjectFixtureAt(t, dir, sources...)
-
-	var out, errBuf bytes.Buffer
-	opts := &Options{
-		WorkDir: f.Dir, ConfigPath: DefaultConfigFile, LogLevel: logging.LevelOff,
-		Stdout: &out, Stderr: &errBuf,
-	}
-	//nolint:staticcheck // 显式传 nil 是本用例的目的
-	require.NoError(t, runAdd(nil, opts, "people/basic@1.0.0", addFlags{}))
-	assert.Equal(t, []string{"people/basic@1.0.0"}, f.refs(t))
-
-	//nolint:staticcheck // 同上
-	require.NoError(t, runRemove(nil, opts, "people/basic", false))
-	assert.Empty(t, f.refs(t))
-}
-
-// 配置读不出来时静默跳过多版本提示（防御性分支）。
-func TestRenderCoexistenceWithUnreadableConfig(t *testing.T) {
-	var out bytes.Buffer
-	opts := &Options{Stdout: &out}
-
-	renderCoexistence(opts, config.NewLayout(t.TempDir(), ""), "people/basic")
-	assert.Empty(t, out.String())
-}
-
 // 某个组件的产物下载整体失败时记为警告，不中断其他组件。
 func TestDownloadArtifactsWarnsInsteadOfFailing(t *testing.T) {
-	layout := config.NewLayout(t.TempDir(), "")
+	layout := project.NewLayout(t.TempDir())
 	client, err := source.New(layout, nil, source.Options{})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })

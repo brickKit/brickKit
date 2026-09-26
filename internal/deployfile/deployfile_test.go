@@ -1,6 +1,7 @@
 package deployfile_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -114,6 +115,33 @@ func TestWarningsForTarget(t *testing.T) {
 	_, warnings, err = parse(t, "target: k8s\ncomponents:\n  - {id: a/b, expose: true, hostname: a.example.com, exposePort: 8080}\n", deployfile.RoleTeam)
 	require.NoError(t, err)
 	assert.Len(t, warnings, 1)
+}
+
+// 同一个字段被好几个组件写了：一行说清，并点名是哪些组件（用 id，不用下标——
+// 人要拿它去文件里找）。k8s: 块里写了什么就点名什么，而不是笼统一句"k8s 被忽略"。
+func TestWarningsForTargetGroupedByFieldAndNamed(t *testing.T) {
+	_, warnings, err := parse(t, `target: docker
+k8s:
+  context: prod
+  namespace: shop
+components:
+  - {id: demo/a, replicas: 2}
+  - {id: demo/b@1.0.0, replicas: 3, hostname: b.example.com}
+  - {id: demo/c}
+`, deployfile.RoleTeam)
+	require.NoError(t, err)
+
+	var text []string
+	for _, w := range warnings {
+		text = append(text, w.Format())
+	}
+	all := strings.Join(text, "")
+	require.Len(t, warnings, 3, all)
+	assert.Contains(t, all, "k8s.context, k8s.namespace")
+	assert.Contains(t, all, "replicas has no effect with target: docker")
+	assert.Contains(t, all, "demo/a, demo/b@1.0.0")
+	assert.Contains(t, all, "hostname has no effect")
+	assert.NotContains(t, all, "components[", "点名组件用 id，不用下标")
 }
 
 func TestSettingsDefaults(t *testing.T) {

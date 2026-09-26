@@ -28,6 +28,7 @@ package cli
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,7 +58,7 @@ components:
   - id: demo/hello
     version: 1.0.0
 ` + configLines
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(body), 0o644))
+	f.rewrite(t, body)
 	return f
 }
 
@@ -71,7 +72,7 @@ func TestConfigWithSecretWarns(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, "35.17：是警告不是错误：%s", r.stderr)
 	out := r.stdout + r.stderr
-	assert.Contains(t, out, "apiToken", "35.17：要点名是哪个配置项：%s", out)
+	assert.Contains(t, out, "API_TOKEN", "35.17：要点名是哪个配置项：%s", out)
 	assert.NotContains(t, out, "sk-live-REALSECRET123456",
 		"35.17：**绝不能把密钥本身打出来**——那等于又抄了一遍到终端和 CI 日志里")
 }
@@ -100,7 +101,7 @@ func TestConfigWithEnvVarDoesNotWarn(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.NotContains(t, r.stdout+r.stderr, "apiToken",
+	assert.NotContains(t, r.stdout+r.stderr, "API_TOKEN",
 		"35.17：用了环境变量引用就是做对了，不该再骂人")
 }
 
@@ -126,7 +127,7 @@ func TestOrdinaryConfigDoesNotWarn(t *testing.T) {
 	}
 }
 
-// 密钥确实躺在 brickkit.yaml 里——而那个文件是建议提交进 Git 的。
+// 密钥确实躺在 config/ 的组件配置文件里——而那个目录是要提交进 Git 的。
 //
 // 这条是整个告警存在的理由：不是"值会泄漏到某个生成物"，
 // 而是**它就在那份大家都会提交的配置里**。
@@ -135,10 +136,10 @@ func TestConfigSecretSitsInCommittedConfig(t *testing.T) {
       apiToken: "sk-live-REALSECRET123456"
 `, "apiToken")
 
-	body, err := os.ReadFile(f.Layout.ConfigPath())
+	body, err := os.ReadFile(filepath.Join(f.Layout.ConfigDir(), "demo-hello@1.0.0.yaml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "sk-live-REALSECRET123456",
-		"35.17：密钥就在 brickkit.yaml 里，而 003 §1.2 建议把它提交进 Git")
+		"35.17：密钥就在 config/ 里，而 config/ 是要提交进 Git 的")
 }
 
 // 组件亲口声明了 secret: true 的配置项，不必名字长得像密钥也要警告：
@@ -155,13 +156,13 @@ components:
     config:
       webhookUrl: "https://hooks.example.com/services/T000/B000/XXXX"
 `
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(body), 0o644))
+	f.rewrite(t, body)
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, "是警告不是错误：%s", r.stderr)
 	out := r.stdout + r.stderr
-	assert.Contains(t, out, "webhookUrl", "要点名是哪个配置项：%s", out)
+	assert.Contains(t, out, "WEBHOOK_URL", "要点名是哪个配置项：%s", out)
 	assert.NotContains(t, out, "hooks.example.com", "绝不能把值本身打出来")
 }
 
@@ -178,7 +179,7 @@ components:
     config:
       webhookUrl: ${HELLO_WEBHOOK}
 `
-	require.NoError(t, os.WriteFile(f.Layout.ConfigPath(), []byte(body), 0o644))
+	f.rewrite(t, body)
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 

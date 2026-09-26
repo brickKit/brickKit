@@ -45,11 +45,10 @@ func run(t *testing.T, args ...string) result {
 	}
 	var out, errBuf bytes.Buffer
 	opts := &Options{
-		WorkDir:    t.TempDir(),
-		ConfigPath: DefaultConfigFile,
-		LogLevel:   logging.LevelInfo,
-		Stdout:     &out,
-		Stderr:     &errBuf,
+		WorkDir:  t.TempDir(),
+		LogLevel: logging.LevelInfo,
+		Stdout:   &out,
+		Stderr:   &errBuf,
 	}
 	code := Run(NewRootCommand(opts), opts, args)
 	return result{stdout: out.String(), stderr: errBuf.String(), code: code}
@@ -142,18 +141,6 @@ func TestErrorOutputFormat(t *testing.T) {
 			contains: []string{"❌ Please specify a project name: brickkit init <project-name>"},
 		},
 		{
-			name:     "add 缺少组件",
-			args:     []string{"add"},
-			wantCode: clierr.ExitUsage,
-			contains: []string{"❌ Please specify the component to add", "brickkit add <component-id>[@exact-version]"},
-		},
-		{
-			name:     "remove 缺少组件",
-			args:     []string{"remove"},
-			wantCode: clierr.ExitUsage,
-			contains: []string{"❌ Please specify the component to remove"},
-		},
-		{
 			name:     "日志级别非法",
 			args:     []string{"version", "--log-level", "verbose"},
 			wantCode: clierr.ExitUsage,
@@ -171,17 +158,14 @@ func TestErrorOutputFormat(t *testing.T) {
 	}
 }
 
-// 骨架阶段：未实现的命令给出明确的 NOT_IMPLEMENTED 错误与 Step 编号。
-//
-// 现在这张表是**空的**——命令树上已经没有未实现的入口了：
-// init（Step 3）、add / remove（Step 9）、
-// up / down / status（Step 15）、sync（Step 17）、login / publish（Step 19）、
-// publish --sign（Step 20）。
-//
-// 表空了也保留这个用例：将来再往命令树上加占位命令时，把它填回来即可，
-// 那条"占位必须明确报错、不能假装成功"的约束就还在。
+// 正在重建的命令给出明确的 NOT_IMPLEMENTED 错误与阶段编号：占位必须明确报错、
+// 不能假装成功。表空了也保留这个用例，将来再有占位命令时把它填回来。
 func TestNotImplementedCommands(t *testing.T) {
-	cases := map[string][]string{}
+	// add / remove 按三层文件模型在 P4 重建：帮助照常，执行时明确说"正在重建"
+	cases := map[string][]string{
+		"add":    {"add", "people/basic@1.0.0", "--yes"},
+		"remove": {"remove", "people/basic"},
+	}
 
 	// 显式 skip 而不是静默通过：一张空表跑出来的"PASS"与一个坏掉的用例
 	// 长得一模一样。写成 skip 之后，测试输出里就看得见"这条现在没在测什么"。
@@ -193,8 +177,8 @@ func TestNotImplementedCommands(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := run(t, args...)
 			assert.Equal(t, clierr.ExitError, r.code)
-			assert.Contains(t, r.stderr, "尚未实现")
-			assert.Contains(t, r.stderr, "开发计划 Step ")
+			assert.Contains(t, r.stderr, "being rebuilt for the three-layer project model")
+			assert.Contains(t, r.stderr, "phase P4")
 			assert.Contains(t, r.stderr, "\"error_code\":\"NOT_IMPLEMENTED\"")
 		})
 	}
@@ -213,7 +197,7 @@ func TestTooManyArgsUsesFallbackTranslation(t *testing.T) {
 // 这条契约由 Step 11 的保留变量冲突检测使用（004 §5.6.1、开发计划 33.15）。
 func TestRunRendersWarningWithZeroExit(t *testing.T) {
 	var out, errBuf bytes.Buffer
-	opts := &Options{ConfigPath: DefaultConfigFile, LogLevel: logging.LevelInfo, Stdout: &out, Stderr: &errBuf}
+	opts := &Options{LogLevel: logging.LevelInfo, Stdout: &out, Stderr: &errBuf}
 
 	root := &cobra.Command{
 		Use:           "warn-only",
@@ -270,21 +254,36 @@ func TestLogLevelOffSilencesLogs(t *testing.T) {
 	assert.Contains(t, r.stdout, "BrickKit CLI v")
 }
 
-// 全局 flag --config 在所有子命令上都可用（004 §3.5）。
-func TestGlobalConfigFlag(t *testing.T) {
-	var out, errBuf bytes.Buffer
-	opts := &Options{ConfigPath: DefaultConfigFile, LogLevel: logging.LevelInfo, Stdout: &out, Stderr: &errBuf}
+// --config 与 up/down --context 随三层文件重构删除：部署文件用 -f 选，
+// 集群用部署文件里的 k8s.context 选（提案 §11.0）。写了就是未知参数，不能静默忽略。
+func TestRemovedFlagsRejected(t *testing.T) {
+	for _, args := range [][]string{
+		{"version", "--config", "brickkit.prod.yaml"},
+		{"up", "--context", "prod"},
+		{"down", "--context", "prod"},
+	} {
+		r := run(t, args...)
+		assert.Equal(t, clierr.ExitUsage, r.code, "%v 应被拒绝：%s", args, r.stderr)
+		assert.Contains(t, r.stderr, "unknown flag", "%v", args)
+	}
+}
+
+// -f / --no-local 只挂在读部署文件的命令上；--log-level 所有命令都继承。
+func TestDeployFileFlags(t *testing.T) {
+	opts := &Options{LogLevel: logging.LevelInfo, Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
 	root := NewRootCommand(opts)
-	code := Run(root, opts, []string{"version", "--config", "brickkit.prod.yaml"})
-
-	assert.Equal(t, clierr.ExitOK, code)
-	assert.Equal(t, "brickkit.prod.yaml", opts.ConfigPath)
-	assert.Contains(t, errBuf.String(), "\"config\":\"brickkit.prod.yaml\"")
-
+	for _, name := range []string{"up", "down", "status", "sync", "lint"} {
+		sub := findCommand(root, name)
+		require.NotNil(t, sub, name)
+		assert.NotNil(t, sub.Flags().ShorthandLookup("f"), "%s 应有 -f", name)
+		assert.NotNil(t, sub.Flags().Lookup("no-local"), "%s 应有 --no-local", name)
+	}
+	graph := findCommand(root, "graph")
+	assert.NotNil(t, graph.Flags().ShorthandLookup("f"), "graph 应有 -f")
+	assert.Nil(t, graph.Flags().Lookup("no-local"), "graph 从不读本地模式，--no-local 没有意义")
 	for _, name := range allCommands {
 		sub := findCommand(root, name)
 		require.NotNil(t, sub, "命令树中应存在 %s", name)
-		assert.NotNil(t, sub.InheritedFlags().Lookup("config"), "%s 应继承全局 --config", name)
 		assert.NotNil(t, sub.InheritedFlags().Lookup("log-level"), "%s 应继承全局 --log-level", name)
 	}
 }
@@ -293,9 +292,8 @@ func TestGlobalConfigFlag(t *testing.T) {
 func TestSubcommandFlags(t *testing.T) {
 	root := NewRootCommand(&Options{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
 	want := map[string][]string{
-		"add":     {"yes", "repo", "repo-all"},
-		"up":      {"dry-run", "context"},
-		"down":    {"context"},
+		"up":      {"dry-run", "file", "no-local"},
+		"down":    {"file", "no-local"},
 		"restore": {"check"},
 		"publish": {"path", "visibility"},
 		"version": {"verbose"},

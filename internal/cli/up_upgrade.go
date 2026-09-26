@@ -16,10 +16,10 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/source"
 )
@@ -65,11 +65,11 @@ type upgradeInfo struct {
 //
 // 否则每次 `rm -rf .brickkit` 都会被当成一次全量升级。代价也小——跳过的只有
 // 那份信息性的摘要，检查一项都不会漏（它们本来就在常规 up 路径上）。
-func detectUpgrades(layout config.Layout, cfg *config.Config) []upgradeInfo {
-	cached := cachedVersions(layout)
+func detectUpgrades(proj *project.Project) []upgradeInfo {
+	cached := cachedVersions(proj.Layout)
 
 	configured := map[string]map[string]bool{}
-	for _, c := range cfg.Components {
+	for _, c := range proj.Decl.Components {
 		if configured[c.ID] == nil {
 			configured[c.ID] = map[string]bool{}
 		}
@@ -77,7 +77,7 @@ func detectUpgrades(layout config.Layout, cfg *config.Config) []upgradeInfo {
 	}
 
 	var out []upgradeInfo
-	for _, c := range cfg.Components {
+	for _, c := range proj.Decl.Components {
 		// 该组件曾经在这个项目里出现过、如今配置里已经没有的版本
 		var replaced []string
 		for _, v := range cached[c.ID] {
@@ -114,7 +114,7 @@ func detectUpgrades(layout config.Layout, cfg *config.Config) []upgradeInfo {
 //
 // 放在依赖图解析**之后**：新版本的 Manifest 已经在图里，不必再取一次。
 func describeUpgrades(
-	ctx context.Context, opts *Options, layout config.Layout,
+	ctx context.Context, opts *Options, layout project.Layout,
 	client *source.Client, graph *resolver.Graph, upgrades []upgradeInfo,
 ) {
 	for i, u := range upgrades {
@@ -158,7 +158,7 @@ func renderUpgradeBanner(opts *Options, upgrades []upgradeInfo) {
 //
 // 文件名形如 people-basic-1.0.0.yaml：组件 ID 里的 `/` 在文件名里是 `-`，
 // 因此不能直接按 `-` 切——用配置里的组件 ID 反过来匹配前缀才可靠。
-func cachedVersions(layout config.Layout) map[string][]string {
+func cachedVersions(layout project.Layout) map[string][]string {
 	entries, err := os.ReadDir(layout.ManifestsDir())
 	if err != nil {
 		return nil

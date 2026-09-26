@@ -136,6 +136,38 @@ func TestMarketSourceFetchesManifest(t *testing.T) {
 	assert.Equal(t, "Bearer tok-abc", reqs[0].Auth, "authToken 应作为 Bearer Token 发送")
 }
 
+// authToken 按规定只能写成 ${VAR} 引用：取值先看进程环境、再看项目根的 .env。
+// 取不到时不发请求头——把字面的 "${VAR}" 当 Token 发出去只会换来一个看不懂的 401。
+func TestMarketSourceExpandsAuthToken(t *testing.T) {
+	for _, tc := range []struct {
+		name, env, dotenv, want string
+	}{
+		{"process env", "tok-env", "", "Bearer tok-env"},
+		{".env", "", "BK_MARKET_TOKEN=tok-dotenv\n", "Bearer tok-dotenv"},
+		{"unset", "", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := newMarketMock(t, protoSpec("people/basic", "1.2.0"))
+			if tc.env != "" {
+				t.Setenv("BK_MARKET_TOKEN", tc.env)
+			}
+			layout := newProject(t)
+			if tc.dotenv != "" {
+				require.NoError(t, os.WriteFile(filepath.Join(layout.Root, ".env"), []byte(tc.dotenv), 0o600))
+			}
+			c := newClient(t, layout, cfgWithSources(projfile.Source{
+				Name: "m", Type: projfile.SourceTypeMarket,
+				URL: mock.URL(), AuthToken: "${BK_MARKET_TOKEN}",
+			}), Options{})
+
+			_, _ = c.Manifest(context.Background(), "people/basic", "1.2.0")
+			reqs := mock.recorded()
+			require.NotEmpty(t, reqs)
+			assert.Equal(t, tc.want, reqs[0].Auth)
+		})
+	}
+}
+
 // 市场直接返回 YAML 正文（不带 JSON 信封）时同样可解析。
 func TestMarketSourceAcceptsRawYAMLBody(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
