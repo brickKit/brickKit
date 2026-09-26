@@ -14,7 +14,6 @@ import (
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/configdir"
-	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
@@ -54,20 +53,6 @@ type Member struct {
 	// Config 是该成员独立运行时会拿到的那份环境（配置项与依赖地址，不含 COMPONENT_ID /
 	// COMPONENT_VERSION——那两项是 JSON 的 componentId / version），值已经求好。
 	Config map[string]string
-}
-
-// MemberLabels 返回一个 servedBy 成员自己声明的 labels（component.yaml 的
-// deployment.labels 与 brickkit.yaml 覆盖合并后的结果），全空时返回 nil。
-//
-// 两个渲染器（compose / k8s）在判断"该不该警告 labels 本次不生效"时都调
-// 这一个函数，不各写一份——判据必须与"这些 labels 不参与合并"（mergeGroup
-// 的注释）是同一件事的两面。
-func MemberLabels(m *manifest.Manifest, entry deployfile.Entry) map[string]string {
-	var manifestLabels map[string]string
-	if m != nil {
-		manifestLabels = m.Deployment.Labels
-	}
-	return manifest.MergeLabels(manifestLabels, entry.Labels)
 }
 
 // ServedMembers 返回这个外壳该写进 BRICKKIT_SERVED_MEMBERS 的值：当前

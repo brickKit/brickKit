@@ -41,9 +41,6 @@ const (
 	ComposeHintUseLocalDebugEnv       = "compose.hint.use_local_debug_env"
 )
 
-// internal/compose/servedby.go
-const ()
-
 // internal/compose/quota.go
 const (
 	ComposeCPUQuotaInvalid      = "compose.cpu_quota_invalid"

@@ -15,7 +15,7 @@ import (
 	"github.com/brickkit/brickkit/internal/shell"
 )
 
-// servedPlan 是一个 servedBy 组件：只生成一个指向外壳 Pod 的 Service，
+// servedPlan 是一个 外壳成员：只生成一个指向外壳 Pod 的 Service，
 // 不生成 Deployment/Job——它没有自己的工作负载。
 type servedPlan struct {
 	Ref      resolver.Ref
@@ -55,10 +55,10 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 	}
 }
 
-// servedServiceDoc 渲染一个 servedBy 组件的 Service：selector 指向外壳
+// servedServiceDoc 渲染一个 外壳成员的 Service：selector 指向外壳
 // 的 Pod（labelApp: 外壳的服务名），而不是它自己——它没有自己的
 // Deployment，这个 Service 存在的唯一目的是让它自己的版本化服务名解析
-// 到外壳的 Pod（servedBy 设计书 §9）。
+// 到外壳的 Pod（提案 §8）。
 func (p *plan) servedServiceDoc(m servedPlan) map[string]any {
 	shellService := manifest.ServiceName(m.Shell.ID, m.Shell.Version)
 	return map[string]any{
@@ -101,10 +101,10 @@ func (p *plan) fallbackStandaloneWarnings() []*clierr.Error {
 	return out
 }
 
-// shellOf 判断 ref 是不是某个 servedBy 成员，是则返回它指向的外壳 ref。
+// shellOf 判断 ref 是不是某个 外壳成员，是则返回它指向的外壳 ref。
 //
 // 供 hardening.go/egress.go 在依赖图上走边时用：一条边的另一端如果是
-// servedBy 成员，它没有自己的 Pod，真正的流量目的地是它的外壳。
+// 外壳成员，它没有自己的 Pod，真正的流量目的地是它的外壳。
 func (p *plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
 	for _, s := range p.served {
 		if s.Ref == ref {

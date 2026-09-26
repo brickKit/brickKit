@@ -37,8 +37,7 @@ import (
 
 // EngineDocker 与 EnginePodman 是 compose.Options.Engine 目前能取的两个值。
 // 只影响生成文件里记录的引擎名（见 hostGateway 已经预留的、但目前对两者
-// 一视同仁的引擎参数）——podman 自己真正的 engine.Engine 实现不在这里
-// （override.yaml 设计书 §11，另一份计划的事）。
+// 一视同仁的引擎参数）——podman 真正的执行在 engine.NewPodman。
 const (
 	EngineDocker = "docker"
 	EnginePodman = "podman"
@@ -352,16 +351,16 @@ func (p *plan) assignHostPorts() error {
 
 // mapDependencyToHost 让宿主机上的 local 组件够得着容器里的这个依赖。
 //
-// 依赖如果是一个 servedBy 成员，它没有自己的 compose service——映射出来的
+// 依赖如果是一个 外壳成员，它没有自己的 compose service——映射出来的
 // 宿主机端口最终要发布在它的**外壳**身上（shellHostService 非空的分支）。
 // 这站得住脚是因为一个既有不变量：`internal/shell/shell.go` 的
 // checkPortConflicts 已经把"外壳自己的端口 + 每个成员自己声明的端口互不
 // 冲突、都在同一个容器上监听"当成生成期硬校验（同一个不变量也是 K8s 渲染器
-// 能把 servedBy 成员的 *_ENDPOINT 正确指到外壳地址的前提，见 §5.7）——
+// 能把 外壳成员的 *_ENDPOINT 正确指到外壳地址的前提，见 §5.7）——
 // 这里不是在教 local.go 一件关于外壳内部结构的新事情，只是复用了一个平台
 // 已经在别处依赖的假设。
 //
-// brickKit 反馈：local 组件依赖 servedBy 成员时本地调试地址错误——最初的
+// brickKit 反馈：local 组件依赖 外壳成员时本地调试地址错误——最初的
 // 修复只是让这种情况"诚实地连不上并发出警告"，这里补的是让它真正连得上。
 func (p *plan) mapDependencyToHost(ports *portTable, dep resolver.Ref) {
 	service := manifest.ServiceName(dep.ID, dep.Version)
@@ -375,7 +374,7 @@ func (p *plan) mapDependencyToHost(ports *portTable, dep resolver.Ref) {
 		return
 	}
 
-	// shellHostService 非空表示"这个依赖是 servedBy 成员，映射出来的宿主机
+	// shellHostService 非空表示"这个依赖是 外壳成员，映射出来的宿主机
 	// 端口要发布在这个外壳的 service 上"；为空表示依赖自己就有 compose
 	// service，走原来的路径。
 	shellHostService := ""
@@ -403,7 +402,7 @@ func (p *plan) mapDependencyToHost(ports *portTable, dep resolver.Ref) {
 	// 主端口：expose 已经把它映射到宿主机了，用现成的那个，不重复占一个（13.13）
 	//
 	// exposedPort/debugPort 判重仍然按依赖**自己**的服务名记账，即使映射
-	// 最终发布在外壳身上——两个不同的 local 组件依赖同一个 servedBy 成员时，
+	// 最终发布在外壳身上——两个不同的 local 组件依赖同一个 外壳成员时，
 	// 第二次调用到这里得知道"已经映射过了"，不能在外壳的 ports 列表里
 	// 重复发布同一条。
 	_, exposed := p.exposedPort[service]
@@ -436,7 +435,7 @@ func (p *plan) mapDependencyToHost(ports *portTable, dep resolver.Ref) {
 }
 
 // addShellMemberHostPort 记一条"外壳还要额外发布这个端口"——仅当依赖是
-// servedBy 成员（shellHostService 非空）时才记；依赖自己有 compose service
+// 外壳成员（shellHostService 非空）时才记；依赖自己有 compose service
 // 的普通情况下，hostPortsOf 已经直接从 debugPort/debugExtraPort 里读，这里
 // 记了反而会在 ports: 列表里重复一遍同一条。
 func (p *plan) addShellMemberHostPort(shellHostService string, hostPort, containerPort int) {
@@ -583,7 +582,7 @@ func (p *plan) hostPortsOf(c componentPlan) []string {
 		}
 	}
 
-	// 这个组件如果是某些 servedBy 成员的外壳，它们自己没有 compose service，
+	// 这个组件如果是某些 外壳成员的外壳，它们自己没有 compose service，
 	// 供本地调试用的端口映射只能落在外壳身上（mapDependencyToHost）。
 	// 按容器端口排序只是为了生成物稳定、便于 git diff 阅读，不影响正确性。
 	members := append([]hostPortMapping{}, p.shellMemberHostPorts[c.Service]...)
@@ -722,16 +721,16 @@ func (p *plan) pointDependenciesAtLocalhost(ref resolver.Ref, vars []inject.Var)
 			port, ok := p.debugExtraPort[service][extra.Port]
 			if !ok {
 				// mapDependencyToHost 会为"依赖自己有 compose service"和
-				// "依赖是 servedBy 成员"这两种情况都写好 debugExtraPort，
+				// "依赖是 外壳成员"这两种情况都写好 debugExtraPort，
 				// 所以查不到就只剩一种可能：依赖自己也是 local。它的进程
 				// 就在宿主机上，监听的还是 Manifest 里声明的那个额外端口
 				// （local 组件的额外端口不重新分配，见 assignHostPorts 第 3 步）。
 				//
 				// ⚠️ 这条兜底只对"依赖真的是 local"成立——不能对任何查不到的
 				// 情况都直接拿 extra.Port 拼 localhost。从前这里没有这层
-				// 判断，会把"依赖是 servedBy 成员但它的外壳这次没渲染"这种
+				// 判断，会把"依赖是 外壳成员但它的外壳这次没渲染"这种
 				// 边缘情况也当成局部 local 处理，凭空拼出一个宿主机上没人
-				// 监听的假地址（brickKit 反馈：local 组件依赖 servedBy 成员
+				// 监听的假地址（brickKit 反馈：local 组件依赖 外壳成员
 				// 时本地调试地址错误）。跟主端口（hostAccessPort 查不到时
 				// setVar 不会被调用）保持一致：查不到就不改，而不是瞎猜一个。
 				_, isLocal := p.localPort[service]

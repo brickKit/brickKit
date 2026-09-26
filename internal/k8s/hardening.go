@@ -101,7 +101,7 @@ func (p *plan) dependentSources(c componentPlan) []any {
 	return p.dependentsOf(node)
 }
 
-// dependentsOf 是"谁可以连这个依赖图节点"，抽出来是因为 servedBy 的外壳
+// dependentsOf 是"谁可以连这个依赖图节点"，抽出来是因为外壳
 // 除了自己的直接依赖方，还要为它收编的每个成员单独放行各自的依赖方
 // （见 servedMemberIngressRules）——两处需要同一段"依赖方 → podSelector"
 // 的转换逻辑，不能各写一份。

@@ -8,12 +8,10 @@ package cli
 //   - 独立的组件仓库（只有 component.yaml、没有 brickkit.yaml）；
 //   - 已经 add --local 过的本地组件——add --local 对已在配置里的同版本组件是静默跳过，
 //     编辑之后引入的拼写错误，要到跑 up（或 up --dry-run）读到那份文件时才会暴露。
-// 唯一真正新增的规则是 override.yaml 的两类过期性检查（悬空条目、baseline 漂移，
-// override.yaml 设计书 §7 自己点名要求：这条离线、不联网，天然适合收进 lint，见
-// lintOverride）。
+// 跨文件的检查走 up 同一条装载路径（lintCrossFile）：up 会拦的，lint 一样拦。
 //
-// 不做的事（都有明确的理由，见设计书 §3.4）：不解析依赖图、不检查 servedBy 指向的组件
-// 是否存在（那要联网，留给 up / add）、不校验 configSchema 里 enum / minimum 对应的值
+// 不做的事：不解析依赖图、不核对外壳与成员跟它们的 component.yaml 是否一致（那要取
+// Manifest，可能联网，留给 up / graph）、不校验 configSchema 里 enum / minimum 对应的值
 // （AGENTS.md §9.12：configSchema 是说明书，不是安全闸）。
 
 import (

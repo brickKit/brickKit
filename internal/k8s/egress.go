@@ -92,7 +92,7 @@ func (p *plan) dependencyTargets(c componentPlan) []any {
 			deps = append(deps, depTarget{service: dep.Service, mf: dep.Manifest})
 			continue
 		}
-		// 依赖的这个组件是 servedBy 成员：它没有自己的 Pod，真正的连接
+		// 依赖的这个组件是 外壳成员：它没有自己的 Pod，真正的连接
 		// 目的地是它的外壳，端口用它自己声明的那个（不是外壳的端口）。
 		if shellRef, ok := p.shellOf(ref); ok {
 			memberNode := p.graph.Node(ref)

@@ -128,3 +128,24 @@ func TestTNPicksSingularOnlyForOneAndOnlyWhereTheCatalogHasIt(t *testing.T) {
 	assert.Equal(t, "1 个文件", Count(msgid.CountFiles, 1))
 	assert.Equal(t, "3 个文件", Count(msgid.CountFiles, 3))
 }
+
+// 三层文件里每个字段都有固定的家：mode / expose / hostname 这些部署字段在部署文件里，
+// 不在 brickkit.yaml 里；override.yaml 与 servedBy 已经废除。一条提示把人指到错的文件，
+// 比不给提示更糟——使用者会在那里找半天找不到这个字段。
+func TestMessagesNameTheFileThatHoldsTheField(t *testing.T) {
+	deployField := regexp.MustCompile(`\b(mode: ?\w|exposePort|hostname|localPort|expose: |replicas)`)
+	legacy := regexp.MustCompile(`override\.yaml|servedBy|brickkit override`)
+	for _, lang := range []Lang{EN, ZH} {
+		for id, text := range CatalogFor(lang) {
+			// 逐行看：同一句话里既说 brickkit.yaml 又说部署字段，才是把字段指错了文件
+			for _, line := range strings.Split(text, "\n") {
+				if strings.Contains(line, "brickkit.yaml") && deployField.MatchString(line) {
+					t.Errorf("%s %s：把部署字段说成在 brickkit.yaml 里：%q", lang, id, line)
+				}
+			}
+			if legacy.MatchString(text) {
+				t.Errorf("%s %s：提到已废除的概念：%q", lang, id, text)
+			}
+		}
+	}
+}

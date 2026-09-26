@@ -3,8 +3,8 @@ package cli
 // 本文件实现 brickkit graph：把项目的依赖拓扑输出成 Mermaid。
 //
 // 它不生成部署文件、不碰引擎、不启动任何东西，但**不是**只读、也不保证离线：数据来源与
-// up --dry-run 相同（依赖图 + 级联结果），再加 brickkit.yaml 里各组件条目自己写的
-// local / servedBy，而解析依赖图取 Manifest 是 resolver 的既有行为——与 up --dry-run、
+// up --dry-run 相同（依赖图 + 级联结果），再加部署文件里各条目的 mode 与外壳下面的
+// 成员，而解析依赖图取 Manifest 是 resolver 的既有行为——与 up --dry-run、
 // status 一样，会把取到的 Manifest 写进 .brickkit/manifests/ 缓存，还没缓存的市场 / Git
 // 组件还要联网去取。真正只读、不联网、不写任何文件的是 lint。
 // 跳过 up 才需要的一切——镜像权限检查、迁移展示、引擎解析、环境变量注入、生成部署文件。
@@ -137,7 +137,7 @@ func mermaidID(ref resolver.Ref) string {
 //
 // 输出全由输入决定：节点、边、样式都按 graph.Nodes 的解析顺序（依赖先于依赖方）逐段写出，
 // 同一份配置每次画出的图逐字节相同，才能放进版本控制里看 diff。这个顺序只在每一段之内成立——
-// servedBy 分组整段写在其余节点之前，"未安装"占位节点整段写在所有节点之后——
+// 外壳分组整段写在其余节点之前，"未安装"占位节点整段写在所有节点之后——
 // 所以文档里别把它说成"整份输出依赖在前"。
 func renderMermaid(
 	proj *project.Project, graph *resolver.Graph, states *cascade.Result, ignoredServedBy bool,
@@ -178,7 +178,7 @@ func renderMermaid(
 		fmt.Fprintf(&b, "%s%s[\"%s\"]\n", indent, mermaidID(ref), label)
 	}
 
-	// servedBy 分组：只看各条目自己写的 servedBy，不跑环境变量注入。
+	// 外壳分组：只看部署文件里外壳条目下面的成员（cascade.ShellOf），不跑环境变量注入。
 	// 外壳不在图里（目标不存在）时不成组——目标在不在是 up 在生成阶段报的事，
 	// 但"在不在图里"跟"在不在跑"是两回事：外壳存在、只是这次没跑，成员
 	// 这时会按普通组件独立部署（外壳独立部署回落设计书 §6.1），图必须

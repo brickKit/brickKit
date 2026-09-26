@@ -185,7 +185,7 @@ type plan struct {
 	components []componentPlan
 	// locals 是 mode: debug 的组件：不生成容器，但要参与端口分配与 env 文件生成。
 	locals []localComponent
-	// served 是 servedBy 的组件：不生成自己的容器/迁移，但要走它专属的
+	// served 是 外壳成员：不生成自己的容器/迁移，但要走它专属的
 	// 几条提醒（见 servedby.go）。
 	served []servedComponent
 	// memberMigrations 是被外壳承载、又声明了 migration 的成员：它们没有主容器，
@@ -213,7 +213,7 @@ type plan struct {
 	debugExtraPort map[string]map[int]int
 
 	// shellMemberHostPorts 是"外壳自己的 service 名 → 还要额外发布哪些端口"。
-	// 这些映射不是外壳自己的端口，而是它某个 servedBy 成员的端口——成员
+	// 这些映射不是外壳自己的端口，而是它某个 外壳成员的端口——成员
 	// 没有自己的 compose service，映射只能落在外壳身上（详见 local.go
 	// mapDependencyToHost）。
 	shellMemberHostPorts map[string][]hostPortMapping

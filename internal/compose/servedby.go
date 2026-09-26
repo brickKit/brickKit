@@ -18,7 +18,7 @@ import (
 	"github.com/brickkit/brickkit/internal/shell"
 )
 
-// servedComponent 是一个 servedBy 组件：不生成自己的容器/迁移，代码跑
+// servedComponent 是一个 外壳成员：不生成自己的容器/迁移，代码跑
 // 在 Shell 那个组件的容器里。
 type servedComponent struct {
 	Ref      resolver.Ref
@@ -80,7 +80,7 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 	}
 }
 
-// shellOf 判断 ref 是不是某个 servedBy 成员，是则返回它指向的外壳 ref。
+// shellOf 判断 ref 是不是某个 外壳成员，是则返回它指向的外壳 ref。
 func (p *plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
 	for _, s := range p.served {
 		if s.Ref == ref {
@@ -90,7 +90,7 @@ func (p *plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
 	return resolver.Ref{}, false
 }
 
-// fallbackStandaloneWarnings 提醒"这个组件本来声明了 servedBy，但这次它
+// fallbackStandaloneWarnings 提醒"这个组件本来写在外壳下面，但这次它
 // 指向的外壳没跑，所以按自己的镜像独立部署了"——不说清楚的话，使用者
 // 会以为代码照常跑在外壳里，实际上跑的是它自己的镜像，而且它自己的迁移
 // 这次是真的会执行（外壳独立部署回落设计书 §6.1/§7）。

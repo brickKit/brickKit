@@ -113,10 +113,9 @@ type imageInfo struct {
 // upOptions 是 up 的命令行选项。
 type upOptions struct {
 	dryRun bool
-	// ignoreServedBy 是 --ignore-served-by 的值：内存里清空全部 servedBy
-	// 声明再跑一次，验证"每个组件必须能独立 brickkit up 起来"这条设计
-	// 原则，从不写回 brickkit.yaml（brickKit 反馈：两个降低 servedBy
-	// 运维摩擦的架构提案，提案二）。
+	// ignoreServedBy 是 --ignore-served-by 的值：内存里当作没有任何外壳成员关系
+	// 再跑一次，验证"每个组件必须能独立 brickkit up 起来"这条设计原则，
+	// 从不写回部署文件（project.IgnoreShells）。
 	ignoreServedBy bool
 	// crashLines 是 --crash-lines 的值；crashLinesSet 为 true 才说明用户真的
 	// 传了这个旗位（不能靠"值等不等于默认值"判断——用户完全可能手写
@@ -169,7 +168,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 
 	if len(plan.services) == 0 && len(plan.runAfter()) == 0 {
 		// 这次没有任何组件需要容器（可能全是 mode: local / mode: debug，
-		// 或者全被 servedBy 吸收进了外壳）——不该去起一个引擎：`docker compose
+		// 或者全被外壳承载）——不该去起一个引擎：`docker compose
 		// up` 对着一份 `services: {}` 的空文件会报 "no service selected"，
 		// 而且一个纯 mode: local 的项目本不该被要求装 Docker（手动验证 Task 6
 		// Step 5 时用真实 docker 跑出来的：demo/hello 单组件、mode: local，
@@ -460,7 +459,7 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 
 // collectTargets 按启动顺序列出要交给引擎的 service、要检查的镜像、会跑的迁移。
 //
-// mode: debug、mode: local 与 servedBy 的组件全部跳过：三者都没有自己的容器
+// mode: debug、mode: local 与 外壳成员全部跳过：三者都没有自己的容器
 // （前两个是裸进程——一个在宿主机上跑，一个由 brickkit 自己拉起；第三个代码
 // 打进了外壳镜像），镜像也不必检查。跟 compose 渲染器判断"该不该生成
 // workload"用的是同一条件（internal/compose/compose.go 的
@@ -468,7 +467,7 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 // 漏了任何一半的话，它的版本化服务名会混进传给 `docker compose up` 的目标
 // 列表，而生成的 compose 文件里根本没有这个 service，真机执行直接报
 // no such service，整个命令失败、一个容器都起不来（brickKit 反馈：真机
-// brickkit up 对 servedBy 成员报 no_such_service）。
+// brickkit up 对 外壳成员报 no_such_service）。
 func (p *upPlan) collectTargets(order *resolver.Plan) {
 	noWorkload := map[resolver.Ref]bool{}
 	for _, c := range p.proj.Decl.Components {

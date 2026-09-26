@@ -4,8 +4,8 @@
 // 决定谁该启动、然后把文件交给引擎。这一层的存在是为了让"决定"与"执行"
 // 分开——命令层的逻辑因此可以在没有 Docker/Podman 的机器上被完整测试。
 //
-// Podman 只能通过 override.yaml 的 target: podman 显式选用——brickkit.yaml
-// 自身的 deploy.target 不接受这个取值，`Detect` 在没有显式配置、且只装了
+// Podman 只能通过部署文件的 target: podman 显式选用（deploy.yaml 或 deploy.local.yaml，
+// 附录 A15）——`Detect` 在没有显式配置、且只装了
 // Podman 时也不会把它当默认引擎（选中哪个引擎必须来自配置，不能来自"猜"），
 // 而是提示如何显式启用它（见 podmanNotEnabled）。
 package engine
