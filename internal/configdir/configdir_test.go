@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/configdir"
@@ -110,11 +111,18 @@ func TestParseVarsRejectsChain(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, configdir.KindEnvTemplate, f.Map()["A"].Kind)
 
-	_, err = configdir.ParseVarsMap(map[string]any{"A": "$var:B"}, "deploy.yaml")
+	_, err = configdir.ParseVarsMap(nodes(t, "A: $var:B\n"), "deploy.yaml")
 	require.Error(t, err)
-	m, err := configdir.ParseVarsMap(map[string]any{"A": "x", "N": 3}, "deploy.yaml")
+	m, err := configdir.ParseVarsMap(nodes(t, "A: x\nN: 3\n"), "deploy.yaml")
 	require.NoError(t, err)
 	assert.Equal(t, "3", m["N"].Text)
+}
+
+func nodes(t *testing.T, data string) map[string]yaml.Node {
+	t.Helper()
+	var out map[string]yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(data), &out))
+	return out
 }
 
 func TestParseComponentFileUnmarkedDuplicate(t *testing.T) {

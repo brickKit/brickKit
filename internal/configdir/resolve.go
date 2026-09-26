@@ -101,6 +101,8 @@ func Resolve(in Input) (*Result, error) {
 		r := Resolved{Key: key, Secret: prop.Secret}
 		v, isWritten := written[key]
 
+		// 先看使用者给没给值；$var: 指向空值与 KEY: "" 一样算"没给"，都回落到默认值
+		given := false
 		switch {
 		case isWritten && v.Kind == KindVarRef:
 			target, found := LookupVar(v.Name, in.DeployVars, in.Vars)
@@ -108,22 +110,20 @@ func Resolve(in Input) (*Result, error) {
 				undefined = append(undefined, key+" → "+v.String())
 				continue
 			}
-			if target.IsUnset() {
+			if !target.IsUnset() {
+				r.Value, r.Origin, r.VarName, given = target, OriginVar, v.Name, true
+			}
+		case isWritten && !v.IsUnset():
+			r.Value, r.Origin, given = v, OriginFile, true
+		}
+		if !given {
+			if prop.Default == nil {
 				if required[key] {
 					res.Missing = append(res.Missing, key)
 				}
 				continue
 			}
-			r.Value, r.Origin, r.VarName = target, OriginVar, v.Name
-		case isWritten && !v.IsUnset():
-			r.Value, r.Origin = v, OriginFile
-		case prop.Default != nil:
 			r.Value, r.Origin = defaultValue(prop.Default), OriginDefault
-		default:
-			if required[key] {
-				res.Missing = append(res.Missing, key)
-			}
-			continue
 		}
 
 		if r.Value.Kind == KindSecretRef && !prop.Secret {
@@ -141,7 +141,7 @@ func Resolve(in Input) (*Result, error) {
 }
 
 func defaultValue(d any) Value {
-	v, err := ParseValue(d)
+	v, err := Literal(d)
 	if err != nil {
 		return literal(fmt.Sprint(d))
 	}

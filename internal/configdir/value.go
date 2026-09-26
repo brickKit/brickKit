@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
@@ -77,10 +79,43 @@ func IsValidName(s string) bool { return nameRe.MatchString(s) }
 // ParseValue 把 YAML 解码出来的原始值归类成 Value。
 func ParseValue(raw any) (Value, error) {
 	switch v := raw.(type) {
+	case string:
+		return parseString(v)
+	case map[string]any:
+		if _, isRef := v["existingSecret"]; isRef {
+			name, key, ok := secretRef(v)
+			if !ok {
+				// 写错了形状（大小写、多一个键、空值）的密钥引用绝不能退化成明文注入
+				return Value{}, errors.New(i18n.T(msgid.ConfigdirSecretRefMalformed))
+			}
+			return Value{Kind: KindSecretRef, SecretName: name, SecretKey: key}, nil
+		}
+	}
+	return Literal(raw)
+}
+
+// ParseNode 与 ParseValue 相同，但数字按使用者写下的原文取值：VER: 1.10 注入 "1.10"，
+// 不是解码成 float 之后的 "1.1"；0x1F 也不会变成 31。环境变量本来就是字符串。
+func ParseNode(node *yaml.Node) (Value, error) {
+	if node.Kind == yaml.ScalarNode && (node.Tag == "!!int" || node.Tag == "!!float") {
+		return literal(node.Value), nil
+	}
+	var raw any
+	if err := node.Decode(&raw); err != nil {
+		return Value{}, err
+	}
+	return ParseValue(raw)
+}
+
+// Literal 把任意值当字面量：标量转成字符串，列表 / 映射编码成一行 JSON。
+// 组件作者写的 default 只走这里——它看不到项目的 vars，也不该去读部署者机器上的文件，
+// 所以 "$var:"、"file://"、"${X}" 在 default 里都只是普通文字。
+func Literal(raw any) (Value, error) {
+	switch v := raw.(type) {
 	case nil:
 		return literal(""), nil
 	case string:
-		return parseString(v)
+		return literal(v), nil
 	case bool:
 		return literal(strconv.FormatBool(v)), nil
 	case int:
@@ -91,11 +126,6 @@ func ParseValue(raw any) (Value, error) {
 		return literal(strconv.FormatUint(v, 10)), nil
 	case float64:
 		return literal(formatFloat(v)), nil
-	case map[string]any:
-		if name, key, ok := secretRef(v); ok {
-			return Value{Kind: KindSecretRef, SecretName: name, SecretKey: key}, nil
-		}
-		return jsonLiteral(v)
 	default:
 		return jsonLiteral(v)
 	}

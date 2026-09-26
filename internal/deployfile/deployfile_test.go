@@ -49,7 +49,7 @@ func TestParseTeamFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, warnings)
 	// vars 的值留给渲染器求值，解析时绝不展开
-	assert.Equal(t, "${PROD_DB_PASSWORD}", f.Vars["DB_PASSWORD"])
+	assert.Equal(t, "${PROD_DB_PASSWORD}", f.Vars["DB_PASSWORD"].Value)
 
 	e, ok := f.Entry("people/basic", "1.0.0")
 	require.True(t, ok)

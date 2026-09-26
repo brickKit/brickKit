@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"sort"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
@@ -71,7 +73,7 @@ func ParseVarsFile(data []byte, source string) (*File, error) {
 }
 
 // ParseVarsMap 按 vars.yaml 的同一套规则检查部署文件里的 vars:。
-func ParseVarsMap(raw map[string]any, source string) (map[string]Value, error) {
+func ParseVarsMap(raw map[string]yaml.Node, source string) (map[string]Value, error) {
 	keys := make([]string, 0, len(raw))
 	for key := range raw {
 		keys = append(keys, key)
@@ -82,7 +84,8 @@ func ParseVarsMap(raw map[string]any, source string) (map[string]Value, error) {
 	out := make(map[string]Value, len(raw))
 	for _, key := range keys {
 		field := "vars." + key
-		v, err := ParseValue(raw[key])
+		node := raw[key]
+		v, err := ParseNode(&node)
 		if err != nil {
 			p.Add(field, err.Error())
 			continue
@@ -121,12 +124,7 @@ func parseFlat(data []byte, source string, isVars bool) (*File, error) {
 			p.Add(key, i18n.T(msgid.ConfigdirKeyInvalid))
 			continue
 		}
-		var raw any
-		if err := valueNode.Decode(&raw); err != nil {
-			p.Add(key, yamlfile.CleanError(err))
-			continue
-		}
-		v, err := ParseValue(raw)
+		v, err := ParseNode(valueNode)
 		if err != nil {
 			p.Add(key, err.Error())
 			continue

@@ -28,4 +28,5 @@ const (
 	ConfigdirSkeletonRequired     = "configdir.skeleton_required"
 	ConfigdirSkeletonOptional     = "configdir.skeleton_optional"
 	ConfigdirSkeletonDefault      = "configdir.skeleton_default"
+	ConfigdirSecretRefMalformed   = "configdir.secret_ref_malformed"
 )

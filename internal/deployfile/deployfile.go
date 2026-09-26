@@ -6,6 +6,8 @@ package deployfile
 import (
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
@@ -45,8 +47,9 @@ type File struct {
 	K8s *K8s `yaml:"k8s,omitempty"`
 	// Vars 覆盖 config/vars.yaml 里的同名公共变量，只作用于 $var: 查找（附录 A、提案 §6.1）。
 	// 值里的 ${VAR} 解析时不展开——它们多半是密钥，何时求值由渲染器决定。
-	Vars       map[string]any `yaml:"vars,omitempty"`
-	Components []Component    `yaml:"components,omitempty"`
+	// 保留成 YAML 节点：数字要按原文取值（VER: 1.10 是 "1.10"），由 configdir.ParseVarsMap 解释。
+	Vars       map[string]yaml.Node `yaml:"vars,omitempty"`
+	Components []Component          `yaml:"components,omitempty"`
 
 	// Source 是文件路径，只用于报错。
 	Source string `yaml:"-"`
