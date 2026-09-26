@@ -1315,4 +1315,5 @@ var zh = map[string]string{
 	msgid.DeployfileMemberBadVersion:       "成员 %[1]s：@ 后面必须是精确版本，例如 1.0.0",
 	msgid.ComposeOwnerHostMember:           "%[1]s（由裸进程外壳 %[2]s 承载）",
 	msgid.ComposeOwnerHostMemberExtra:      "%[1]s 的额外端口 %[3]s（由裸进程外壳 %[2]s 承载）",
+	msgid.CliStatusInShell:                 "%s（在外壳 %s 里）",
 }

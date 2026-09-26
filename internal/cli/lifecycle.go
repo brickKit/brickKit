@@ -123,18 +123,31 @@ func (p *liveProject) entry(ref resolver.Ref) deployfile.Component {
 	return p.proj.DeployEntry(ref.ID, ref.Version)
 }
 
-// containerRefs 返回本次**由本项目**生成容器的组件，按启动顺序。
+// containerRefs 返回本次**在容器里**跑的组件，按启动顺序——包括外壳承载的成员
+// （它们在外壳的容器里，见 hostOf）。
 //
 // mode: debug / local 都要排除：它们在依赖图里、也"在跑"，但跑在开发者的 IDE 里或
-// brickkit 前台监管的裸进程里，本项目对它们不生成任何容器。
+// brickkit 前台监管的裸进程里，本项目对它们不生成任何容器。裸进程外壳承载的成员同理。
 func (p *liveProject) containerRefs() []resolver.Ref {
 	var out []resolver.Ref
 	for _, ref := range p.componentRefs() {
-		if !p.entry(ref).IsBareProcess() {
-			out = append(out, ref)
+		if p.entry(ref).IsBareProcess() {
+			continue
 		}
+		if shellRef, ok := p.hostOf(ref); ok && p.entry(shellRef).IsBareProcess() {
+			continue
+		}
+		out = append(out, ref)
 	}
 	return out
+}
+
+// hostOf 返回这次承载 ref 的外壳（cascade.Result.HostOf）；依赖图取不到时判不出，一律 false。
+func (p *liveProject) hostOf(ref resolver.Ref) (resolver.Ref, bool) {
+	if p.states == nil {
+		return resolver.Ref{}, false
+	}
+	return p.states.HostOf(p.proj, ref)
 }
 
 // debugRefs 返回 mode: debug 且本次会启动的组件（mode: local 走会话锁提示，不在这里）。

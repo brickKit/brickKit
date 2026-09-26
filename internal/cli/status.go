@@ -178,8 +178,17 @@ func buildView(p *liveProject, byService map[string]engine.Status) componentView
 func resolvedView(p *liveProject, byService map[string]engine.Status) componentView {
 	var v componentView
 	for _, ref := range p.containerRefs() {
-		status, ok := byService[manifest.ServiceName(ref.ID, ref.Version)]
+		// 外壳承载的成员没有自己的容器：它跑没跑就是外壳的容器跑没跑
+		shellRef, hosted := p.hostOf(ref)
+		container := ref
+		if hosted {
+			container = shellRef
+		}
+		status, ok := byService[manifest.ServiceName(container.ID, container.Version)]
 		row := statusRow{ref: ref, text: statusText(status, ok), ports: status.Ports}
+		if hosted {
+			row = statusRow{ref: ref, text: i18n.T(msgid.CliStatusInShell, statusText(status, ok), shellRef.String())}
+		}
 		if ok && status.Running() {
 			v.running = append(v.running, row)
 			continue

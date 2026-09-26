@@ -20,6 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/envref"
 )
 
@@ -167,4 +168,34 @@ func TestBareShellEndToEnd(t *testing.T) {
 	assert.Contains(t, portal.Environment, "ERP_API_ENDPOINT=http://erp-shell-1-0-0:8081")
 	assert.Contains(t, portal.ExtraHosts, "erp-shell-1-0-0:host-gateway")
 	assert.NotContains(t, compose, "BEGIN KEY")
+}
+
+// status：外壳承载的成员没有自己的容器，它跑没跑就是外壳容器跑没跑——不能报成"未创建"，
+// 那会让使用者去查一个不存在的故障。外壳是裸进程时，成员跟外壳一样不进容器表。
+func TestStatusReportsHostedMembersThroughTheirShell(t *testing.T) {
+	dir := copyFixture(t, "three-layer-shell")
+	eng := newFakeEngine()
+	eng.statuses = []engine.Status{
+		{Service: "erp-shell-1-0-0", State: "running", Health: "healthy"},
+		{Service: "erp-portal-1-0-0", State: "running", Health: "healthy"},
+	}
+	r := runWithEngine(t, eng, dir, "status")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "not created")
+	for _, line := range strings.Split(r.stdout, "\n") {
+		if strings.Contains(line, "erp/api") {
+			assert.Contains(t, line, "erp/shell@1.0.0", "成员那一行点名承载它的外壳")
+			assert.Contains(t, line, "healthy")
+		}
+	}
+
+	local := strings.Replace(readFile(t, filepath.Join(dir, "deploy.yaml")),
+		"  - id: erp/shell\n", "  - id: erp/shell\n    mode: debug\n    localPort: 18000\n", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.local.yaml"), []byte(local), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".brickkit"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".brickkit", "local-mode"), []byte("on\n"), 0o644))
+	eng.statuses = []engine.Status{{Service: "erp-portal-1-0-0", State: "running", Health: "healthy"}}
+	r = runWithEngine(t, eng, dir, "status")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "not created", "裸进程外壳的成员同样没有容器")
 }

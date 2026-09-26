@@ -36,4 +36,5 @@ const (
 	CliStatusReasonUnknown         = "cli.status.reason_unknown"
 	CliStatusViaOverrideYaml       = "cli.status.via_override_yaml"
 	CliStatusViaOverrideYamlSuffix = "cli.status.via_override_yaml_suffix"
+	CliStatusInShell               = "cli.status.in_shell"
 )

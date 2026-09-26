@@ -1324,4 +1324,5 @@ var en = map[string]string{
 	msgid.DeployfileMemberBadVersion:       "member %[1]s: the version after @ must be an exact version like 1.0.0",
 	msgid.ComposeOwnerHostMember:           "%[1]s, served by the bare-process shell %[2]s",
 	msgid.ComposeOwnerHostMemberExtra:      "%[1]s extra port %[3]s, served by the bare-process shell %[2]s",
+	msgid.CliStatusInShell:                 "%s (in shell %s)",
 }
