@@ -201,7 +201,7 @@ func (p *Project) ShellOf(memberID, version string) (string, bool) {
 	return shell, ok
 }
 
-// IgnoreShells 让本次运行把每个组件都当独立部署（--ignore-served-by）：只改内存，
+// IgnoreShells 让本次运行把每个组件都当独立部署（--ignore-shells）：只改内存，
 // 不动任何文件；下游只通过 ShellOf 认成员关系，关掉这一处就够。
 func (p *Project) IgnoreShells() { p.ignoreShells = true }
 

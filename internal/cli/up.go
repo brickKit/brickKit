@@ -41,9 +41,9 @@ const composeFileName = "compose.yaml"
 // newUpCommand 实现 brickkit up（004 §3.5）。
 func newUpCommand(opts *Options) *cobra.Command {
 	var (
-		dryRun         bool
-		ignoreServedBy bool
-		crashLines     int
+		dryRun       bool
+		ignoreShells bool
+		crashLines   int
 	)
 
 	cmd := &cobra.Command{
@@ -55,7 +55,7 @@ func newUpCommand(opts *Options) *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUp(cmd.Context(), opts, upOptions{
-				dryRun: dryRun, ignoreServedBy: ignoreServedBy,
+				dryRun: dryRun, ignoreShells: ignoreShells,
 				crashLines: crashLines, crashLinesSet: cmd.Flags().Changed("crash-lines"),
 			})
 		},
@@ -63,8 +63,8 @@ func newUpCommand(opts *Options) *cobra.Command {
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, i18n.T(msgid.CliUpOnlyGenerateTheDeploymentFiles))
 	addDeployFileFlags(cmd, opts)
-	cmd.Flags().BoolVar(&ignoreServedBy, "ignore-served-by", false,
-		i18n.T(msgid.CliUpClearEveryServedbyDeclarationIn))
+	cmd.Flags().BoolVar(&ignoreShells, "ignore-shells", false,
+		i18n.T(msgid.CliUpIgnoreShellsFlag))
 	cmd.Flags().IntVar(&crashLines, "crash-lines", procsup.DefaultTailLines,
 		i18n.T(msgid.CliUpCrashLinesHowManyLinesOfOutput))
 	return cmd
@@ -113,10 +113,10 @@ type imageInfo struct {
 // upOptions 是 up 的命令行选项。
 type upOptions struct {
 	dryRun bool
-	// ignoreServedBy 是 --ignore-served-by 的值：内存里当作没有任何外壳成员关系
+	// ignoreShells 是 --ignore-shells 的值：内存里当作没有任何外壳成员关系
 	// 再跑一次，验证"每个组件必须能独立 brickkit up 起来"这条设计原则，
 	// 从不写回部署文件（project.IgnoreShells）。
-	ignoreServedBy bool
+	ignoreShells bool
 	// crashLines 是 --crash-lines 的值；crashLinesSet 为 true 才说明用户真的
 	// 传了这个旗位（不能靠"值等不等于默认值"判断——用户完全可能手写
 	// --crash-lines 20，跟不传时拿到的默认值撞在一起）。
@@ -196,9 +196,9 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	}
 	renderDeploySource(opts, proj)
 	renderWarnings(opts, proj.Warnings)
-	if flags.ignoreServedBy {
+	if flags.ignoreShells {
 		proj.IgnoreShells()
-		opts.Printf("%s\n", i18n.T(msgid.CliUpAllServedbyDeclarationsAreIgnored))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpShellsIgnoredBanner))
 	}
 
 	plan := &upPlan{proj: proj, kubeContext: proj.Deploy.Settings().Context, crashLines: flags.crashLines}

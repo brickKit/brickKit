@@ -245,10 +245,10 @@ resources: []
 		"成员该跟普通组件一样画在子图外面")
 }
 
-func TestGraphIgnoreServedByDropsGroupingAndSaysSo(t *testing.T) {
+func TestGraphIgnoreShellsDropsGroupingAndSaysSo(t *testing.T) {
 	f := graphProject(t, graphServedByBody, servedByComps()...)
 
-	r := runIn(t, f.Dir, "graph", "--ignore-served-by")
+	r := runIn(t, f.Dir, "graph", "--ignore-shells")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	requirePureMermaid(t, r.stdout)
 	assert.NotContains(t, r.stdout, "subgraph")

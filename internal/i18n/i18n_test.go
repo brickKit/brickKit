@@ -137,7 +137,7 @@ func TestMessagesNameTheFileThatHoldsTheField(t *testing.T) {
 	// members 这样的词不算——"brickkit.yaml 里有 kind: shell、部署文件里有 members"是对的。
 	// 查不到的：跨行的一句话、经 %s 填进去的文件名，这两种只能靠写文案的人自己留意。
 	deployField := regexp.MustCompile(`\b(mode: ?\w|mode to \w|exposePort|hostname|localPort|expose: |replicas)`)
-	legacy := regexp.MustCompile(`override\.yaml|servedBy|brickkit override`)
+	legacy := regexp.MustCompile(`override\.yaml|servedBy|served-by|brickkit override`)
 	for _, lang := range []Lang{EN, ZH} {
 		for id, text := range CatalogFor(lang) {
 			// 逐行看：同一句话里既说 brickkit.yaml 又说部署字段，才是把字段指错了文件

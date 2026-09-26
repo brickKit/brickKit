@@ -33,7 +33,7 @@ import (
 
 // newGraphCommand 实现 brickkit graph。
 func newGraphCommand(opts *Options) *cobra.Command {
-	var ignoreServedBy bool
+	var ignoreShells bool
 
 	cmd := &cobra.Command{
 		Use:     "graph",
@@ -43,19 +43,19 @@ func newGraphCommand(opts *Options) *cobra.Command {
 		Example: i18n.T(msgid.CliGraphExample),
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGraph(cmd.Context(), opts, ignoreServedBy)
+			return runGraph(cmd.Context(), opts, ignoreShells)
 		},
 	}
 
-	cmd.Flags().BoolVar(&ignoreServedBy, "ignore-served-by", false,
-		i18n.T(msgid.CliGraphClearEveryServedbyDeclarationIn))
+	cmd.Flags().BoolVar(&ignoreShells, "ignore-shells", false,
+		i18n.T(msgid.CliGraphIgnoreShellsFlag))
 	// 只给 -f，不给 --no-local：graph 本来就不看本地模式（见 runGraph）
 	cmd.Flags().StringVarP(&opts.DeployFile, "file", "f", opts.DeployFile, i18n.T(msgid.CliRootFlagDeployFile))
 	return cmd
 }
 
 // runGraph 执行 brickkit graph。
-func runGraph(ctx context.Context, opts *Options, ignoreServedBy bool) error {
+func runGraph(ctx context.Context, opts *Options, ignoreShells bool) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -71,13 +71,13 @@ func runGraph(ctx context.Context, opts *Options, ignoreServedBy bool) error {
 	for _, w := range proj.Warnings {
 		_, _ = fmt.Fprint(opts.Stderr, w.Format())
 	}
-	if ignoreServedBy {
+	if ignoreShells {
 		proj.IgnoreShells()
 	}
 
 	// 没有组件就不必去碰安装源：那一步会读公钥文件，而这里根本用不上
 	if len(proj.Decl.Components) == 0 {
-		opts.Printf("%s", renderMermaid(proj, &resolver.Graph{}, &cascade.Result{}, ignoreServedBy))
+		opts.Printf("%s", renderMermaid(proj, &resolver.Graph{}, &cascade.Result{}, ignoreShells))
 		return nil
 	}
 
@@ -100,7 +100,7 @@ func runGraph(ctx context.Context, opts *Options, ignoreServedBy bool) error {
 	for _, w := range graph.Warnings {
 		_, _ = fmt.Fprint(opts.Stderr, w.Format())
 	}
-	opts.Printf("%s", renderMermaid(proj, graph, states, ignoreServedBy))
+	opts.Printf("%s", renderMermaid(proj, graph, states, ignoreShells))
 	return nil
 }
 
@@ -140,13 +140,13 @@ func mermaidID(ref resolver.Ref) string {
 // 外壳分组整段写在其余节点之前，"未安装"占位节点整段写在所有节点之后——
 // 所以文档里别把它说成"整份输出依赖在前"。
 func renderMermaid(
-	proj *project.Project, graph *resolver.Graph, states *cascade.Result, ignoredServedBy bool,
+	proj *project.Project, graph *resolver.Graph, states *cascade.Result, ignoredShells bool,
 ) string {
 
 	var b strings.Builder
 	b.WriteString("graph TD\n")
-	if ignoredServedBy {
-		b.WriteString(i18n.T(msgid.CliGraphLlServedbyDeclarationsAreIgnored) + "\n")
+	if ignoredShells {
+		b.WriteString(i18n.T(msgid.CliGraphShellsIgnoredNote) + "\n")
 	}
 	if len(graph.Nodes) == 0 {
 		b.WriteString(i18n.T(msgid.CliGraphHeCurrentProjectHasNo) + "\n")

@@ -297,7 +297,7 @@ func TestSubcommandFlags(t *testing.T) {
 		"restore": {"check"},
 		"publish": {"path", "visibility"},
 		"version": {"verbose"},
-		"graph":   {"ignore-served-by"},
+		"graph":   {"ignore-shells"},
 		"lint":    {"strict"},
 	}
 	for name, flags := range want {
