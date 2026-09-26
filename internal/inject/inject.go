@@ -1,13 +1,14 @@
-// Package inject 计算每个组件的环境变量与资源配额（004 §5.6、006 §5）。
+// Package inject 计算每个组件的环境变量与资源配额（004 §5.6）。
 //
-// 它只产出"注入什么"，不负责"写到哪里"——Docker compose 与 K8s 清单
-// 各自渲染（Step 12 / 13）。这样同一套注入规则不会在两种目标里分叉。
+// 它只产出"注入什么"，不负责"写到哪里、什么时候求值"——Docker、K8s、本地进程
+// 各有一处唯一的判定（compose.envPlacement、k8s.envPlacement、compose.localValue），
+// 这样同一套注入规则不会在不同目标里分叉。
 //
 // 三条贯穿全篇的规则：
 //
 //   - 变量名基于组件 ID（不带版本），变量值指向版本化服务名；
 //   - 弱依赖没启动时**完全不注入**，绝不注入空值；
-//   - 使用者的 config 与平台保留变量冲突时，警告并跳过，平台的值优先。
+//   - 配置项与平台保留变量冲突时，警告并跳过，平台的值优先。
 package inject
 
 import (
@@ -17,12 +18,12 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/configdir"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
-	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
 
 // CLI 默认资源配额（004 §5.6.2）。
@@ -50,53 +51,33 @@ const (
 )
 
 // Var 是一条环境变量。
+//
+// Value 保留 configdir 的引用种类（字面量 / ${VAR} / file:// / existingSecret）：
+// 何时求值、写到哪里由渲染器决定（附录 A6/A7）。
 type Var struct {
 	Name  string
-	Value string
-	// Source 说明这条变量从哪来，供 --verbose 输出与排障使用。
+	Value configdir.Value
+	// Source 说明这条变量从哪来（SourcePlatform / SourceEndpoint / SourceConfig）。
 	Source string
-	// ResourceID 是它来自哪个基础资源；只有 SourceResource 的变量有值。
-	ResourceID string
-	// SecretKey 非空表示这是一条敏感变量（密码 / 密钥），
-	// 值就是它在 K8s Secret 里的 key（005 §5.6）。
-	//
-	// 由注入引擎标记而不是让渲染器按变量名猜：谁生成的谁最清楚哪一条是密码，
-	// 靠 `strings.HasSuffix(name, "_PASSWORD")` 去猜，早晚会漏掉一种资源。
-	// 声明了 secret: true 的配置项也带（值是它自己的变量名），此时 Owner 指明 Secret 归哪个组件。
-	SecretKey string
-	// Key 是这条变量对应的原始 configSchema key（驼峰形式），只有
-	// Source 为 SourceConfig/SourceOverride 时才有值。Name 是转换后的
-	// 环境变量名，这条转换是单向的（无法从 DEFAULT_PAGE_SIZE 反推出
-	// defaultPageSize 还是 default_page_size）；servedBy 的
-	// BRICKKIT_SERVED_MEMBERS_CONFIG 需要把合并后的 config 原样交给
-	// 外壳作者，用的是原始 key，所以在算这条变量的地方顺手记一份，
-	// 而不是事后去猜。
+	// Secret 来自 configSchema 的 secret: true：平台从不按名字猜哪一条是密码。
+	Secret bool
+	// Key 是原始 configSchema 键。附录 A10 之后它与 Name 相同，保留给外壳 JSON 使用。
 	Key string
-	// Owner 是配置类变量（SourceConfig / SourceOverride）来自哪个组件，写成它的版本化服务名。
-	// K8s 据此给声明了 secret: true 的配置项起 Secret 名。servedBy 合并把成员变量改名
-	// （加组件 ID 前缀）时，Owner 原样带着——所以 Secret 仍归成员，外壳的 Deployment 只是引用它。
+	// Owner 是配置类变量所属组件的版本化服务名（K8s 据此给生成的 Secret 命名）。
 	Owner string
-	// ExistingSecretRef 非空表示这条敏感变量不该由平台生成 Secret，而是引用外部系统
-	// （Vault Secrets Operator / External Secrets Operator / Sealed Secrets……）已经建好的
-	// 这个名字的 K8s Secret；值是那个 Secret 的名字。只在 IsSecret() 为 true 时有意义。
-	// K8s 渲染器（secretRef）优先看它；Docker 没有对应概念，这类变量的 Value 始终是空串，
-	// 由 compose 的 environmentOf 跳过（表现成"没配"）。
-	ExistingSecretRef string
 }
 
-// IsSecret 表示这条变量是密码或密钥，不能明文写进部署清单。
-func (v Var) IsSecret() bool { return v.SecretKey != "" }
+// IsSecretRef 表示值是对外部已有 K8s Secret 的引用（{ existingSecret, key }）。
+func (v Var) IsSecretRef() bool { return v.Value.Kind == configdir.KindSecretRef }
 
-// 变量来源。
-//
-// 这些只是代码里用来区分变量种类的标识（比较、分流），从不显示给使用者，
-// 所以取语言中立的英文值，不进消息目录。
+// Literal 把一个字符串包成字面量值。
+func Literal(s string) configdir.Value { return configdir.Value{Kind: configdir.KindLiteral, Text: s} }
+
+// 变量来源。只是代码里区分变量种类的标识，从不显示给使用者。
 const (
 	SourcePlatform = "platform"
 	SourceEndpoint = "endpoint"
-	SourceResource = "resource"
 	SourceConfig   = "config"
-	SourceOverride = "override"
 )
 
 // Component 是一个组件的注入结果。
@@ -108,17 +89,15 @@ type Component struct {
 	Env []Var
 	// Resources 是合并后的资源配额（004 §5.6.2）。
 	Resources manifest.Resources
-	// Labels 是合并后的透传部署元数据（004 §5.6.2）。
-	//
-	// 一个键都没有时是 nil，渲染器据此判断"这一段要不要生成"。
+	// Labels 是合并后的透传部署元数据；一个键都没有时是 nil。
 	Labels map[string]string
 }
 
-// EnvMap 把环境变量表转成 map，便于查询。
+// EnvMap 把环境变量表转成 名字 → 使用者写下的样子（字面量就是值本身），便于查询与测试。
 func (c Component) EnvMap() map[string]string {
 	out := make(map[string]string, len(c.Env))
 	for _, v := range c.Env {
-		out[v.Name] = v.Value
+		out[v.Name] = v.Value.String()
 	}
 	return out
 }
@@ -127,35 +106,33 @@ func (c Component) EnvMap() map[string]string {
 type Result struct {
 	// Components 只包含本次实际启动的组件。
 	Components []Component
-	// Warnings 是保留变量冲突等不阻断的问题（⚠️，退出码 0）。
+	// Warnings 是保留变量冲突、未声明的配置键等不阻断的问题。
 	Warnings []*clierr.Error
 }
 
 // Build 为本次启动的每个组件计算环境变量与资源配额。
-func Build(cfg *config.Config, graph *resolver.Graph, states *cascade.Result) (*Result, error) {
-	if graph == nil || states == nil {
+func Build(p *project.Project, graph *resolver.Graph, states *cascade.Result) (*Result, error) {
+	if p == nil || graph == nil || states == nil {
 		return &Result{}, nil
 	}
 
-	entries := configEntries(cfg)
-	bindings := resourceBindings(cfg)
 	result := &Result{}
-	missing := map[string][]string{}
-
+	missing := map[resolver.Ref][]string{}
 	for _, node := range graph.Nodes {
 		if !states.IsRunning(node.Ref) {
 			continue
 		}
-
-		component, warnings, lacks := buildComponent(
-			node, graph, states, entries[node.Ref], bindings[node.Ref.ID])
+		component, warnings, lacks, err := buildComponent(p, node, graph, states)
+		if err != nil {
+			return nil, err
+		}
 		result.Components = append(result.Components, component)
 		result.Warnings = append(result.Warnings, warnings...)
 		if len(lacks) > 0 {
-			missing[node.Ref.String()] = lacks
+			missing[node.Ref] = lacks
 		}
 	}
-	if err := missingRequiredError(missing); err != nil {
+	if err := missingRequiredError(p, missing); err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -163,23 +140,18 @@ func Build(cfg *config.Config, graph *resolver.Graph, states *cascade.Result) (*
 
 // missingRequiredError 把"必填配置项没人给值"变成一条阻断错误。
 //
-// # 为什么是阻断，不是警告
-//
-// 组件作者写下 required 又不给默认值，说的正是"这一项我猜不出来"。
-// 最典型的就是**跨项目服务的地址**（003 §4.9）：那台服务归别的项目管，
-// 平台推导不出它在哪，只能由项目填。
-//
-// 放行的后果是变量根本不出现，组件看到的是"未配置"——而使用者以为配好了。
-// 这与漏绑数据库是同一类失败：不崩、不报警，只是那一路调用永远走不通。
-func missingRequiredError(missing map[string][]string) *clierr.Error {
+// 组件作者写下 required 又不给默认值，说的正是"这一项我猜不出来"——跨项目服务的
+// 地址就是典型。放行的后果是变量根本不出现，组件走进"未配置"分支，而使用者以为
+// 配好了：不崩、不报警，只是那一路调用永远走不通。
+func missingRequiredError(p *project.Project, missing map[resolver.Ref][]string) *clierr.Error {
 	if len(missing) == 0 {
 		return nil
 	}
-	refs := make([]string, 0, len(missing))
+	refs := make([]resolver.Ref, 0, len(missing))
 	for ref := range missing {
 		refs = append(refs, ref)
 	}
-	sort.Strings(refs)
+	sort.Slice(refs, func(i, j int) bool { return refs[i].String() < refs[j].String() })
 
 	err := clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.InjectRequiredConfigMissing))
 	for _, ref := range refs {
@@ -187,67 +159,82 @@ func missingRequiredError(missing map[string][]string) *clierr.Error {
 		sort.Strings(keys)
 		for _, key := range keys {
 			err = err.WithDetail(i18n.T(msgid.InjectLabelMissingConfig),
-				i18n.T(msgid.InjectMissingConfigDetail, ref, key, EnvVarName(key)))
+				i18n.T(msgid.InjectMissingConfigDetail, ref.String(), key))
 		}
 	}
 	first := refs[0]
-	firstKey := missing[first][0]
 	return err.
 		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.InjectRequiredReasonDetail)).
 		WithHint(
-			i18n.T(msgid.InjectHintSetValue, strings.SplitN(first, "@", 2)[0], firstKey),
+			i18n.T(msgid.InjectHintSetValue, configFileFor(p, first), missing[first][0]),
 			i18n.T(msgid.InjectHintEnvVarValue),
 		)
 }
 
+// configFileFor 是提示里让使用者去写值的那份文件：已有就指它，没有就指该建的那份。
+func configFileFor(p *project.Project, ref resolver.Ref) string {
+	if f := p.Config(ref.ID, ref.Version); f != nil {
+		return f.Path
+	}
+	version := ""
+	if len(p.Decl.Versions(ref.ID)) > 1 {
+		version = ref.Version
+	}
+	return project.DirConfig + "/" + configdir.FileName(ref.ID, version)
+}
+
 // buildComponent 计算单个组件的注入结果。
 func buildComponent(
-	node *resolver.Node, graph *resolver.Graph, states *cascade.Result,
-	entry config.Component, bindings []boundResource,
-) (Component, []*clierr.Error, []string) {
+	p *project.Project, node *resolver.Node, graph *resolver.Graph, states *cascade.Result,
+) (Component, []*clierr.Error, []string, error) {
 	m := node.Manifest
-	builder := &envBuilder{
-		componentID: node.Ref.ID,
-		vars:        map[string]Var{},
-		// 使用者定的资源前缀也是保留的：市场发布时看不到它们，
-		// 只有读完 brickkit.yaml 才知道（004 §5.6.1）
-		reservedPrefixes: envPrefixesOf(bindings),
-		service:          manifest.ServiceName(node.Ref.ID, node.Ref.Version),
-	}
+	service := manifest.ServiceName(node.Ref.ID, node.Ref.Version)
+	builder := &envBuilder{componentID: node.Ref.ID, vars: map[string]Var{}}
 
 	// 1. 平台通用变量
-	builder.set(Var{Name: "COMPONENT_ID", Value: node.Ref.ID, Source: SourcePlatform})
-	builder.set(Var{Name: "COMPONENT_VERSION", Value: node.Ref.Version, Source: SourcePlatform})
+	builder.set(Var{Name: "COMPONENT_ID", Value: Literal(node.Ref.ID), Source: SourcePlatform})
+	builder.set(Var{Name: "COMPONENT_VERSION", Value: Literal(node.Ref.Version), Source: SourcePlatform})
 
 	// 2. 依赖地址（强依赖 + 正在启动的弱依赖）
 	for _, dep := range append(append([]resolver.Ref{}, node.Requires...), node.Optional...) {
 		if !states.IsRunning(dep) {
-			// 弱依赖没启动 → 完全不注入（002 §3.4）；
-			// 强依赖没启动的情况下这个组件自己也不会启动，走不到这里
+			// 弱依赖没启动 → 完全不注入（002 §3.4）；强依赖没启动时这个组件自己也不会启动
 			continue
 		}
 		builder.addEndpoints(dep, graph.Node(dep))
 	}
 
-	// 3. 资源连接
-	for _, bound := range bindings {
-		for _, v := range resourceVars(bound) {
-			builder.set(v)
+	// 3. 组件自身配置：config/ 目录 + vars + schema 默认值（提案 §7.5）
+	var schema *manifest.ConfigSchema
+	if m != nil {
+		schema = m.ConfigSchema
+	}
+	resolved, err := configdir.Resolve(p.ConfigInput(node.Ref.ID, node.Ref.Version, schema))
+	if err != nil {
+		return Component{}, nil, nil, err
+	}
+	warnings := append([]*clierr.Error{}, resolved.Warnings...)
+	for _, r := range resolved.Values {
+		if pattern, hit := staticReserved(r.Key); hit {
+			warnings = append(warnings, reservedConflictWarning(node.Ref.ID, r.Key, pattern))
+			continue
 		}
+		builder.set(Var{
+			Name: r.Key, Value: r.Value, Source: SourceConfig,
+			Secret: r.Secret, Key: r.Key, Owner: service,
+		})
 	}
 
-	// 4. 组件自身配置（configSchema 默认值 + brickkit.yaml 覆盖）
-	warnings, missing := builder.addConfig(m, entry)
-
+	entry := p.DeployEntry(node.Ref.ID, node.Ref.Version)
 	component := Component{
 		Ref:       node.Ref,
-		Service:   manifest.ServiceName(node.Ref.ID, node.Ref.Version),
+		Service:   service,
 		Env:       builder.sorted(),
 		Resources: mergeResources(manifestResources(m), entry.Resources),
-		// brickkit.yaml 逐键覆盖 component.yaml（004 §5.6.2）
+		// 部署文件逐键覆盖 component.yaml（004 §5.6.2）
 		Labels: manifest.MergeLabels(manifestLabels(m), entry.Labels),
 	}
-	return component, warnings, missing
+	return component, warnings, resolved.Missing, nil
 }
 
 // ============================================================
@@ -257,11 +244,6 @@ func buildComponent(
 type envBuilder struct {
 	componentID string
 	vars        map[string]Var
-	// reservedPrefixes 是使用者定义的资源前缀（PRIMARY_ / ARCHIVE_ …）。
-	// 它们只有在读完 brickkit.yaml 之后才知道，市场发布时无从校验。
-	reservedPrefixes []string
-	// service 是这个组件自己的版本化服务名，写进配置类变量的 Owner。
-	service string
 }
 
 func (b *envBuilder) set(v Var) { b.vars[v.Name] = v }
@@ -276,13 +258,13 @@ func (b *envBuilder) addEndpoints(ref resolver.Ref, node *resolver.Node) {
 
 	b.set(Var{
 		Name:   manifest.EndpointEnvVar(ref.ID),
-		Value:  endpoint(service, node.Manifest.Deployment.Port),
+		Value:  Literal(endpoint(service, node.Manifest.Deployment.Port)),
 		Source: SourceEndpoint,
 	})
 	for _, extra := range node.Manifest.Deployment.ExtraPorts {
 		b.set(Var{
 			Name:   prefix + "_" + strings.ToUpper(extra.Name) + "_ENDPOINT",
-			Value:  endpoint(service, extra.Port),
+			Value:  Literal(endpoint(service, extra.Port)),
 			Source: SourceEndpoint,
 		})
 	}
@@ -292,192 +274,8 @@ func endpoint(service string, port int) string {
 	return fmt.Sprintf("http://%s:%d", service, port)
 }
 
-// addConfig 注入组件自身配置，返回保留变量冲突的警告。
-//
-// 默认值来自**本次要装的这个版本**的 configSchema，因此升级时：
-// 新增的配置项自动用新默认值；被删掉的配置项即使 brickkit.yaml 里还留着覆盖
-// 也不会注入（静默忽略，不打扰使用者）。
-func (b *envBuilder) addConfig(m *manifest.Manifest, entry config.Component) ([]*clierr.Error, []string) {
-	if m == nil {
-		return nil, nil
-	}
-	if m.ConfigSchema == nil {
-		// 组件根本没声明 configSchema，而项目写了 config —— 整块蒸发。
-		// 这是最常撞的一种：先写个最小组件跑通，再想让它可配置，
-		// 直觉是去 brickkit.yaml 加 config，而正确做法是先回 component.yaml
-		// 加 configSchema。不说一句的话，没有任何一处会告诉他
-		if len(entry.Config) > 0 {
-			return []*clierr.Error{noConfigSchemaWarning(b.componentID, entry.Config)}, nil
-		}
-		return nil, nil
-	}
-
-	required := map[string]bool{}
-	for _, name := range m.ConfigSchema.Required {
-		required[name] = true
-	}
-
-	var warnings []*clierr.Error
-	var missing []string
-	for _, key := range sortedConfigKeys(m.ConfigSchema.Properties) {
-		property := m.ConfigSchema.Properties[key]
-
-		value, source := property.Default, SourceConfig
-		if override, ok := entry.Config[key]; ok {
-			value, source = override, SourceOverride
-		}
-		if secretName, secretKeyInRef, ok := config.ExistingSecretRef(value); ok {
-			if !property.Secret {
-				// 没有声明 secret: true，existingSecret 写法不会生效——
-				// 不能把这个对象糊成 Go 的 map[...] 字符串塞给组件，交给 cli 层的
-				// 警告说清楚原因（up_secrets.go 的 warnExistingSecretConfigIssues）
-				continue
-			}
-			name := EnvVarName(key)
-			if pattern, hit := b.matchReserved(name); hit {
-				warnings = append(warnings, reservedConflictWarning(b.componentID, key, name, pattern, b.reservedPrefixes))
-				continue
-			}
-			b.set(Var{
-				Name: name, Source: source, Key: key, Owner: b.service,
-				SecretKey: secretKeyInRef, ExistingSecretRef: secretName,
-			})
-			continue
-		}
-		if value == nil {
-			// 既没有默认值也没有覆盖。
-			//
-			// 声明了 required 的：这是**必须拦下来**的一种。组件作者写 required
-			// 又不给默认值，说的正是"这一项我猜不出来，必须由项目告诉我"——
-			// 跨项目服务的地址就是典型（003 §4.9）。不拦的话变量根本不会出现，
-			// 组件看到的是"未配置"，而使用者以为自己已经配好了。
-			if required[key] {
-				missing = append(missing, key)
-			}
-			// 没声明 required 的：不注入空值，让组件自己走"未配置"分支
-			continue
-		}
-
-		name := EnvVarName(key)
-		if pattern, hit := b.matchReserved(name); hit {
-			warnings = append(warnings, reservedConflictWarning(b.componentID, key, name, pattern, b.reservedPrefixes))
-			continue
-		}
-		v := Var{Name: name, Value: formatValue(value), Source: source, Key: key, Owner: b.service}
-		if property.Secret {
-			// 值是凭据：变量名本身就是它在 Secret 里的 key（K8s 渲染器据此引用）
-			v.SecretKey = name
-		}
-		b.set(v)
-	}
-
-	warnings = append(warnings, b.unknownConfigWarnings(m.ConfigSchema, entry.Config)...)
-	return warnings, missing
-}
-
-// unknownConfigWarnings 提醒"你写的这个配置项，组件的 configSchema 里没有"。
-//
-// # 为什么这不违反"configSchema 是说明书，不是安检机"
-//
-// 012 §2.12 拒绝的是**校验值**（类型、枚举、范围），理由的地基是那一句
-// "两种方式都能让用户发现错误"——类型填错了，组件拿到 "abc" 去 int()
-// 会崩，用户一定会发现。
-//
-// 对**键名**填错，这句话整个不成立：没有任何运行时失败可以兜底。
-// 变量根本不出现，组件走进 os.environ.get(k, 默认值) 的默认分支，
-// 一切正常运行——只是不按你配的运行。用户永远不会"在运行时发现问题"，
-// 他只会某天疑惑为什么改了配置没效果。
-//
-// §2.12 担心的滑坡（type → enum → minimum → pattern）也不适用：
-// 那些都是 JSON Schema 的**约束**，开一个口子就得追下去；
-// 而"这个键在 properties 里有没有"不是约束，是 yamlcheck.Walk 对结构体
-// 字段做的同一件事，一次检查，没有下一步。
-//
-// # 为什么不在解析 brickkit.yaml 时查
-//
-// 那时候 CLI 手上根本没有 Manifest（brickkit.yaml 可以在 add 之前就写好），
-// 任何检查都只能瞎猜。003 §10.1 规则 10 把 `components[].config` 列为
-// 未知字段检查的例外，正是这个原因——那条例外是对的，不用动。
-// 检查放在这里：up 的时候 Manifest 已经读进来了。
-//
-// # 为什么是警告不是错误
-//
-// 与保留变量冲突（004 §5.6.1）同一条线：一个配置项名字写错就整个项目
-// 起不来，代价不成比例。而且它还覆盖第三种情形——升级后新版本删掉了
-// 某个配置项，而 brickkit.yaml 里还留着覆盖（002 §7.9）。那也是
-// "你写的这行不起作用"，同样值得说一句，但绝不该阻断升级。
-func (b *envBuilder) unknownConfigWarnings(
-	schema *manifest.ConfigSchema, overrides map[string]any,
-) []*clierr.Error {
-	if len(overrides) == 0 {
-		return nil
-	}
-
-	known := make([]string, 0, len(schema.Properties))
-	for name := range schema.Properties {
-		known = append(known, name)
-	}
-	sort.Strings(known)
-
-	var out []*clierr.Error
-	for _, key := range sortedOverrideKeys(overrides) {
-		if _, declared := schema.Properties[key]; declared {
-			continue
-		}
-		out = append(out, unknownConfigWarning(b.componentID, key, known))
-	}
-	return out
-}
-
-func sortedOverrideKeys(overrides map[string]any) []string {
-	keys := make([]string, 0, len(overrides))
-	for key := range overrides {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-// unknownConfigWarning 是"这一项不会生效"的提醒。
-//
-// "是不是想写 X"用的是 yamlcheck 里那一份实现（前缀 + 编辑距离），
-// 与未知字段提示同一段代码——两处不可能给出不同的答案。
-func unknownConfigWarning(componentID, key string, known []string) *clierr.Error {
-	w := clierr.Warn(clierr.CodeConfigInvalid,
-		i18n.T(msgid.InjectUnknownConfigKey, componentID, key)).
-		WithDetail(i18n.T(msgid.LabelComponent), componentID).
-		WithDetail(i18n.T(msgid.LabelConfigKey), key)
-
-	reason := i18n.T(msgid.InjectUnknownKeyReason)
-	if guess := yamlcheck.Closest(key, known); guess != "" {
-		reason += i18n.T(msgid.InjectDidYouMean, guess)
-	}
-	w = w.WithDetail(i18n.T(msgid.LabelReason), reason).
-		WithDetail(i18n.T(msgid.LabelImpact), i18n.T(msgid.InjectUnknownKeyImpact))
-
-	if len(known) > 0 {
-		w = w.WithDetail(i18n.T(msgid.InjectLabelDeclaredConfig), strings.Join(known, i18n.T(msgid.ListSeparator)))
-	}
-	return w.WithTip(i18n.T(msgid.InjectUnknownKeyTip))
-}
-
-// noConfigSchemaWarning 提醒"这个组件压根没有可配置项"。
-func noConfigSchemaWarning(componentID string, overrides map[string]any) *clierr.Error {
-	keys := sortedOverrideKeys(overrides)
-	return clierr.Warn(clierr.CodeConfigInvalid,
-		i18n.T(msgid.InjectNoConfigSchema, componentID)).
-		WithDetail(i18n.T(msgid.LabelComponent), componentID).
-		WithDetail(i18n.T(msgid.InjectLabelIgnoredKeys),
-			i18n.T(msgid.InjectIgnoredKeysDetail, strings.Join(keys, i18n.T(msgid.ListSeparator)), len(keys))).
-		WithDetail(i18n.T(msgid.LabelImpact), i18n.T(msgid.InjectNoSchemaImpact)).
-		WithHint(i18n.T(msgid.InjectHintAddConfigSchema)).
-		WithTip(i18n.T(msgid.InjectNoSchemaTip))
-}
-
-// sorted 返回按变量名排序的环境变量表。
-//
-// map 的遍历顺序是随机的，直接输出会让生成的部署文件每次都不一样：
-// git diff 全是噪音，也没法判断"这次到底改了什么"。
+// sorted 返回按变量名排序的环境变量表：map 的遍历顺序是随机的，
+// 直接输出会让生成的部署文件每次都不一样。
 func (b *envBuilder) sorted() []Var {
 	out := make([]Var, 0, len(b.vars))
 	for _, v := range b.vars {
@@ -485,173 +283,6 @@ func (b *envBuilder) sorted() []Var {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
-}
-
-// formatValue 把配置值转成字符串。
-//
-// CLI **不校验类型**（004 §5.6 关键规则 4）：configSchema 是配置说明书，
-// 不是安检机。使用者把 integer 填成字符串，就原样注入。
-func formatValue(value any) string {
-	switch v := value.(type) {
-	case string:
-		return v
-	case bool:
-		if v {
-			return "true"
-		}
-		return "false"
-	case float64:
-		// YAML/JSON 里的整数常常被解析成 float64，别输出 20.000000
-		if v == float64(int64(v)) {
-			return fmt.Sprintf("%d", int64(v))
-		}
-		return fmt.Sprintf("%g", v)
-	default:
-		return fmt.Sprint(value)
-	}
-}
-
-func sortedConfigKeys(properties map[string]manifest.ConfigProperty) []string {
-	keys := make([]string, 0, len(properties))
-	for key := range properties {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-// ============================================================
-// 资源连接（006 §5）
-// ============================================================
-
-// boundResource 是"某个资源绑定到了某个组件"这件事。
-type boundResource struct {
-	resource config.Resource
-	binding  config.Binding
-}
-
-// resourceBindings 按组件 ID 归集资源绑定。
-func resourceBindings(cfg *config.Config) map[string][]boundResource {
-	out := map[string][]boundResource{}
-	if cfg == nil {
-		return out
-	}
-	for _, resource := range cfg.Resources {
-		for _, binding := range resource.Bindings {
-			out[binding.ComponentID] = append(out[binding.ComponentID],
-				boundResource{resource: resource, binding: binding})
-		}
-	}
-	return out
-}
-
-// resourceVars 生成一个资源的连接变量（006 §5.2）。
-func resourceVars(bound boundResource) []Var {
-	prefix := ""
-	if bound.binding.EnvPrefix != "" {
-		prefix = strings.ToUpper(bound.binding.EnvPrefix) + "_"
-	}
-
-	r := bound.resource
-	var pairs []resourceVar
-	switch r.Kind {
-	case config.ResourceKindDatabase:
-		pairs = []resourceVar{
-			{name: "DATABASE_HOST", value: r.Host}, {name: "DATABASE_PORT", value: portOf(r)},
-			{name: "DATABASE_NAME", value: bound.binding.Slot()},
-			{name: "DATABASE_USER", value: r.Username},
-			{name: "DATABASE_PASSWORD", value: r.Password, secretKey: secretKeyPassword},
-		}
-	case config.ResourceKindCache:
-		pairs = []resourceVar{
-			{name: "REDIS_HOST", value: r.Host}, {name: "REDIS_PORT", value: portOf(r)},
-			{name: "REDIS_PASSWORD", value: r.Password, secretKey: secretKeyPassword},
-		}
-	case config.ResourceKindMQ:
-		pairs = []resourceVar{
-			{name: "MQ_HOST", value: r.Host}, {name: "MQ_PORT", value: portOf(r)},
-			{name: "MQ_USER", value: r.Username},
-			{name: "MQ_PASSWORD", value: r.Password, secretKey: secretKeyPassword},
-			{name: "MQ_VHOST", value: bound.binding.Slot()},
-		}
-	case config.ResourceKindStorage:
-		pairs = []resourceVar{
-			// 叫 ENDPOINT 就得是完整的 endpoint。
-			//
-			// 从前这里只有 r.Host：而 port 在配置校验里是**必填的**
-			// （validateResources），于是使用者被要求填 9000、被校验通过，
-			// 然后那个端口原地蒸发——组件拿到 "host.docker.internal" 去连 MinIO，
-			// 连不上，而配置看上去完全正确。006 §2.1 把 minio / s3 列为常见引擎，
-			// 而 MinIO 就跑在 9000 上。
-			{name: "STORAGE_ENDPOINT", value: hostPort(r)},
-			{name: "STORAGE_BUCKET", value: bound.binding.Slot()},
-			{name: "STORAGE_ACCESS_KEY", value: r.Username},
-			{name: "STORAGE_SECRET_KEY", value: r.Password, secretKey: secretKeySecretKey},
-		}
-	case config.ResourceKindSearch:
-		pairs = []resourceVar{
-			{name: "SEARCH_HOST", value: r.Host}, {name: "SEARCH_PORT", value: portOf(r)},
-			{name: "SEARCH_INDEX", value: bound.binding.Slot()},
-		}
-	case config.ResourceKindSMTP:
-		pairs = []resourceVar{
-			{name: "SMTP_HOST", value: r.Host}, {name: "SMTP_PORT", value: portOf(r)},
-			{name: "SMTP_USER", value: r.Username},
-			{name: "SMTP_PASSWORD", value: r.Password, secretKey: secretKeyPassword},
-		}
-	}
-
-	out := make([]Var, 0, len(pairs))
-	for _, pair := range pairs {
-		usesExistingSecret := pair.secretKey != "" && r.ExistingSecret != ""
-		if pair.value == "" && !usesExistingSecret {
-			// 没配的字段不注入空值：组件据此判断"这项没提供"。
-			//
-			// 例外：existingSecret 场景下密钥字段压根没有值可言（值在外部已经建好的
-			// Secret 里），但这条变量仍然要存在——K8s 才有东西可以挂 secretKeyRef；
-			// Docker 没有"引用外部 Secret"这个概念，由 compose 的 environmentOf
-			// 在写文件那一步跳过空值变量，表现成"没配"，与其它未配置字段一致。
-			continue
-		}
-		v := Var{
-			Name: prefix + pair.name, Value: pair.value, Source: SourceResource,
-			ResourceID: r.ID, SecretKey: pair.secretKey,
-		}
-		if usesExistingSecret {
-			v.ExistingSecretRef = r.ExistingSecret
-		}
-		out = append(out, v)
-	}
-	return out
-}
-
-// resourceVar 是资源连接变量的一条声明。
-type resourceVar struct {
-	name  string
-	value string
-	// secretKey 非空表示这是敏感字段，值是它在 K8s Secret 里的 key。
-	secretKey string
-}
-
-// K8s Secret 中的 key（005 §5.6）。
-const (
-	secretKeyPassword  = "password"
-	secretKeySecretKey = "secret-key"
-)
-
-// hostPort 把 host 与 port 拼成 "host:port"；没配端口时只给 host。
-func hostPort(r config.Resource) string {
-	if r.Host == "" || r.Port == 0 {
-		return r.Host
-	}
-	return fmt.Sprintf("%s:%d", r.Host, r.Port)
-}
-
-func portOf(r config.Resource) string {
-	if r.Port == 0 {
-		return ""
-	}
-	return fmt.Sprint(r.Port)
 }
 
 // ============================================================
@@ -720,27 +351,4 @@ func manifestLabels(m *manifest.Manifest) map[string]string {
 		return nil
 	}
 	return m.Deployment.Labels
-}
-
-// configEntries 按组件引用归集 brickkit.yaml 中的条目。
-func configEntries(cfg *config.Config) map[resolver.Ref]config.Component {
-	out := map[resolver.Ref]config.Component{}
-	if cfg == nil {
-		return out
-	}
-	for _, c := range cfg.Components {
-		out[resolver.Ref{ID: c.ID, Version: c.Version}] = c
-	}
-	return out
-}
-
-// envPrefixesOf 收集该组件绑定的资源前缀（PRIMARY_ / ARCHIVE_ …）。
-func envPrefixesOf(bindings []boundResource) []string {
-	var out []string
-	for _, bound := range bindings {
-		if bound.binding.EnvPrefix != "" {
-			out = append(out, strings.ToUpper(bound.binding.EnvPrefix)+"_")
-		}
-	}
-	return out
 }

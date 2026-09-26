@@ -253,10 +253,10 @@ var en = map[string]string{
 
 	msgid.InjectRequiredConfigMissing: "Error: a required component config item has no value",
 	msgid.InjectLabelMissingConfig:    "Missing config",
-	msgid.InjectMissingConfigDetail:   "%[1]s → %[2]s (injected as %[3]s)",
+	msgid.InjectMissingConfigDetail:   "%[1]s → %[2]s",
 	msgid.InjectRequiredReasonDetail:  "The component declares it in configSchema.required without a default — the platform can't derive this one, so the project has to supply it",
-	msgid.InjectHintSetValue:          "Give it a value in brickkit.yaml:\n    components:\n      - id: %[1]s\n        config:\n          %[2]s: <value>",
-	msgid.InjectHintEnvVarValue:       "The value may be ${ENV_VAR}; keep the real value in .env",
+	msgid.InjectHintSetValue:          "Give it a value in %[1]s:\n    %[2]s: <value>",
+	msgid.InjectHintEnvVarValue:       "The value may be ${ENV_VAR} (real value in .env), $var:NAME (shared, from config/vars.yaml) or file://path",
 
 	msgid.InjectUnknownConfigKey:    "A config item won't take effect: %[2]s on component %[1]s",
 	msgid.InjectUnknownKeyReason:    "The component's configSchema has no such item",

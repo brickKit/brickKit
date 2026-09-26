@@ -5,7 +5,6 @@ package inject_test
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,10 +12,15 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/configdir"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"gopkg.in/yaml.v3"
 )
 
 // ============================================================
@@ -42,20 +46,29 @@ type missingError struct{ id, version string }
 
 func (e *missingError) Error() string { return "夹具里没有 " + e.id + "@" + e.version }
 
-// builder 用链式写法搭出一套组件 + 配置。
+// entry 是测试里对一个组件的全部项目侧声明：部署条目 + 它的 config/ 文件内容。
+type entry struct {
+	Mode      string
+	Config    map[string]any
+	Resources *manifest.Resources
+	Labels    map[string]string
+}
+
+// builder 用链式写法搭出一套组件 + 三层文件。
 type builder struct {
 	t        *testing.T
 	provider stubProvider
 	roots    []resolver.Ref
-	cfg      *config.Config
+	entries  []entry
+	vars     map[string]any
 }
 
 func newBuilder(t *testing.T) *builder {
-	return &builder{t: t, provider: stubProvider{}, cfg: &config.Config{Project: "my-erp"}}
+	return &builder{t: t, provider: stubProvider{}}
 }
 
-// component 登记一个组件的 Manifest，并写入 brickkit.yaml。
-func (b *builder) component(m *manifest.Manifest, entry config.Component) *builder {
+// component 登记一个组件的 Manifest 与它在项目里的声明。
+func (b *builder) component(m *manifest.Manifest, e entry) *builder {
 	b.t.Helper()
 	if m.Deployment.Type == "" {
 		m.Deployment.Type = "container"
@@ -64,29 +77,59 @@ func (b *builder) component(m *manifest.Manifest, entry config.Component) *build
 		m.Deployment.Image = "registry.example.com/" + m.Metadata.Version
 	}
 	b.provider[m.Metadata.ID+"@"+m.Metadata.Version] = m
-
-	entry.ID, entry.Version = m.Metadata.ID, m.Metadata.Version
-	b.cfg.Components = append(b.cfg.Components, entry)
-	b.roots = append(b.roots, resolver.Ref{ID: entry.ID, Version: entry.Version})
+	b.roots = append(b.roots, resolver.Ref{ID: m.Metadata.ID, Version: m.Metadata.Version})
+	b.entries = append(b.entries, e)
 	return b
 }
 
-func (b *builder) resource(r config.Resource) *builder {
-	b.cfg.Resources = append(b.cfg.Resources, r)
+// sharedVars 写 config/vars.yaml。
+func (b *builder) sharedVars(vars map[string]any) *builder {
+	b.vars = vars
 	return b
+}
+
+// project 把登记过的组件写成三层文件并装载。
+func (b *builder) project() *project.Project {
+	b.t.Helper()
+	root := b.t.TempDir()
+	decl := &projfile.File{Project: "my-erp"}
+	deploy := struct {
+		Target     string                 `yaml:"target"`
+		Components []deployfile.Component `yaml:"components"`
+	}{Target: deployfile.TargetDocker}
+	files := projecttest.Files{}
+	for i, ref := range b.roots {
+		e := b.entries[i]
+		decl.Components = append(decl.Components, projfile.Component{ID: ref.ID, Version: ref.Version})
+		deploy.Components = append(deploy.Components, deployfile.Component{
+			ID: ref.String(), Mode: e.Mode, Resources: e.Resources, Labels: e.Labels,
+		})
+		if len(e.Config) > 0 {
+			files["config/"+configdir.FileName(ref.ID, ref.Version)] = mustYAML(b.t, e.Config)
+		}
+	}
+	files["brickkit.yaml"] = mustYAML(b.t, decl)
+	files["deploy.yaml"] = mustYAML(b.t, deploy)
+	if b.vars != nil {
+		files["config/vars.yaml"] = mustYAML(b.t, b.vars)
+	}
+	projecttest.Write(b.t, root, files)
+	p, err := project.Load(root, project.LoadOptions{})
+	require.NoError(b.t, err)
+	return p
+}
+
+func mustYAML(t *testing.T, v any) string {
+	t.Helper()
+	data, err := yaml.Marshal(v)
+	require.NoError(t, err)
+	return string(data)
 }
 
 // build 解析依赖、算级联、跑注入。
 func (b *builder) build() *inject.Result {
 	b.t.Helper()
-
-	graph, err := resolver.New(b.provider).Resolve(context.Background(), b.roots...)
-	require.NoError(b.t, err)
-
-	states, err := cascade.Compute(b.cfg, graph)
-	require.NoError(b.t, err)
-
-	result, err := inject.Build(b.cfg, graph, states)
+	result, err := b.run()
 	require.NoError(b.t, err)
 	return result
 }
@@ -94,16 +137,19 @@ func (b *builder) build() *inject.Result {
 // buildErr 跑注入并要求它失败，返回错误。
 func (b *builder) buildErr() error {
 	b.t.Helper()
-
-	graph, err := resolver.New(b.provider).Resolve(context.Background(), b.roots...)
-	require.NoError(b.t, err)
-
-	states, err := cascade.Compute(b.cfg, graph)
-	require.NoError(b.t, err)
-
-	_, err = inject.Build(b.cfg, graph, states)
+	_, err := b.run()
 	require.Error(b.t, err, "本用例期待注入失败")
 	return err
+}
+
+func (b *builder) run() (*inject.Result, error) {
+	b.t.Helper()
+	p := b.project()
+	graph, err := resolver.New(b.provider).Resolve(context.Background(), b.roots...)
+	require.NoError(b.t, err)
+	states, err := cascade.Compute(p, graph)
+	require.NoError(b.t, err)
+	return inject.Build(p, graph, states)
 }
 
 // envOf 取某个组件的环境变量表。
@@ -163,24 +209,13 @@ func weaklyDependsOn(m *manifest.Manifest, id, version string) *manifest.Manifes
 	return m
 }
 
-// withDatabase 给 Manifest 加一条 database 资源依赖，与
-// internal/k8s、internal/compose 两处测试夹具同名同构。
-func withDatabase(m *manifest.Manifest) *manifest.Manifest {
-	if m.Dependencies == nil {
-		m.Dependencies = &manifest.Dependencies{}
-	}
-	m.Dependencies.Resources = append(m.Dependencies.Resources,
-		manifest.ResourceDep{Kind: "database", Engine: "postgresql"})
-	return m
-}
-
 // ============================================================
 // 11.9 / 11.10 平台通用变量
 // ============================================================
 
 func TestComponentIdentityVariables(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.2.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.2.0", 8080), entry{})
 
 	env := envOf(t, b.build(), "people/basic")
 
@@ -196,8 +231,8 @@ func TestComponentIdentityVariables(t *testing.T) {
 func TestDependencyEndpointInjection(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "department/tree", "1.0.0"),
-		config.Component{})
-	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
+		entry{})
+	b.component(simple("department/tree", "1.0.0", 8080), entry{})
 
 	env := envOf(t, b.build(), "erp/backend")
 
@@ -211,8 +246,8 @@ func TestExtraPortEndpointInjection(t *testing.T) {
 
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
-	b.component(dep, config.Component{})
+		entry{})
+	b.component(dep, entry{})
 
 	env := envOf(t, b.build(), "erp/backend")
 
@@ -224,8 +259,8 @@ func TestExtraPortEndpointInjection(t *testing.T) {
 func TestEnvVarNameForHyphenatedComponentID(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "infra/redis-event-bus", "1.0.0"),
-		config.Component{})
-	b.component(simple("infra/redis-event-bus", "1.0.0", 6379), config.Component{})
+		entry{})
+	b.component(simple("infra/redis-event-bus", "1.0.0", 6379), entry{})
 
 	env := envOf(t, b.build(), "erp/backend")
 
@@ -245,8 +280,8 @@ func TestWeakDependencyNotRunningIsNotInjected(t *testing.T) {
 
 	b := newBuilder(t)
 	b.component(weaklyDependsOn(simple("erp/backend", "1.0.0", 8080), "infra/redis-event-bus", "1.0.0"),
-		config.Component{})
-	b.component(weak, config.Component{Mode: config.ModeDisable})
+		entry{})
+	b.component(weak, entry{Mode: deployfile.ModeDisable})
 
 	env := envOf(t, b.build(), "erp/backend")
 
@@ -261,8 +296,8 @@ func TestWeakDependencyNotRunningIsNotInjected(t *testing.T) {
 func TestRunningWeakDependencyIsInjected(t *testing.T) {
 	b := newBuilder(t)
 	b.component(weaklyDependsOn(simple("erp/backend", "1.0.0", 8080), "infra/redis-event-bus", "1.0.0"),
-		config.Component{})
-	b.component(simple("infra/redis-event-bus", "1.0.0", 6379), config.Component{Mode: config.ModeEnabled})
+		entry{})
+	b.component(simple("infra/redis-event-bus", "1.0.0", 6379), entry{Mode: deployfile.ModeEnabled})
 
 	env := envOf(t, b.build(), "erp/backend")
 
@@ -272,7 +307,7 @@ func TestRunningWeakDependencyIsInjected(t *testing.T) {
 // 级联跳过的组件本身不产出环境变量表：它这次根本不启动。
 func TestSkippedComponentProducesNoEnv(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("erp/backend", "1.0.0", 8080), config.Component{Mode: config.ModeDisable})
+	b.component(simple("erp/backend", "1.0.0", 8080), entry{Mode: deployfile.ModeDisable})
 
 	result := b.build()
 
@@ -287,15 +322,15 @@ func TestSkippedComponentProducesNoEnv(t *testing.T) {
 func TestConfigDefaultsAndOverrides(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"defaultPageSize": {Type: "integer", Default: 20},
-		"enableAudit":     {Type: "boolean", Default: true},
-		"cacheTtlSeconds": {Type: "integer", Default: 300},
+		"DEFAULT_PAGE_SIZE": {Type: "integer", Default: 20},
+		"ENABLE_AUDIT":     {Type: "boolean", Default: true},
+		"CACHE_TTL_SECONDS": {Type: "integer", Default: 300},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{
-		"defaultPageSize": 50,
-		"enableAudit":     false,
+	b.component(m, entry{Config: map[string]any{
+		"DEFAULT_PAGE_SIZE": 50,
+		"ENABLE_AUDIT":     false,
 	}})
 
 	env := envOf(t, b.build(), "people/basic")
@@ -311,28 +346,28 @@ func TestConfigDefaultsAndOverrides(t *testing.T) {
 func TestConfigVarRecordsOriginalKeyForOverride(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"defaultPageSize": {Type: "integer", Default: 20},
+		"DEFAULT_PAGE_SIZE": {Type: "integer", Default: 20},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{"defaultPageSize": 50}})
+	b.component(m, entry{Config: map[string]any{"DEFAULT_PAGE_SIZE": 50}})
 
 	v := varOf(t, b.build(), "people/basic", "DEFAULT_PAGE_SIZE")
-	assert.Equal(t, "defaultPageSize", v.Key)
-	assert.Equal(t, inject.SourceOverride, v.Source)
+	assert.Equal(t, "DEFAULT_PAGE_SIZE", v.Key)
+	assert.Equal(t, inject.SourceConfig, v.Source)
 }
 
 func TestConfigVarRecordsOriginalKeyForDefault(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"cacheTtlSeconds": {Type: "integer", Default: 300},
+		"CACHE_TTL_SECONDS": {Type: "integer", Default: 300},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, entry{})
 
 	v := varOf(t, b.build(), "people/basic", "CACHE_TTL_SECONDS")
-	assert.Equal(t, "cacheTtlSeconds", v.Key, "默认值（SourceConfig）同样要记原始 key，不只是覆盖值")
+	assert.Equal(t, "CACHE_TTL_SECONDS", v.Key, "默认值（SourceConfig）同样要记原始 key，不只是覆盖值")
 }
 
 // configSchema 里声明了 secret: true 的配置项，注入结果里要标成敏感变量，
@@ -340,104 +375,31 @@ func TestConfigVarRecordsOriginalKeyForDefault(t *testing.T) {
 func TestSecretConfigVarIsMarkedSensitive(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"apiKey": {Type: "string", Secret: true},
-		"region": {Type: "string", Default: "eu-west-1"},
+		"API_KEY": {Type: "string", Secret: true},
+		"REGION": {Type: "string", Default: "eu-west-1"},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{"apiKey": "${THIRD_PARTY_KEY}"}})
+	b.component(m, entry{Config: map[string]any{"API_KEY": "${THIRD_PARTY_KEY}"}})
 	result := b.build()
 
 	key := varOf(t, result, "people/basic", "API_KEY")
-	assert.True(t, key.IsSecret(), "声明了 secret: true")
-	assert.Equal(t, "API_KEY", key.SecretKey, "变量名就是它在 Secret 里的 key")
+	assert.True(t, key.Secret, "声明了 secret: true")
 	assert.Equal(t, "people-basic-1-0-0", key.Owner)
-	assert.Equal(t, "${THIRD_PARTY_KEY}", key.Value, "值原样保留，求值是渲染器的事")
+	assert.Equal(t, configdir.KindEnvTemplate, key.Value.Kind, "值保留引用种类，求值是渲染器的事")
+	assert.Equal(t, "${THIRD_PARTY_KEY}", key.Value.Text)
 
 	region := varOf(t, result, "people/basic", "REGION")
-	assert.False(t, region.IsSecret(), "没声明 secret 的照常明文")
+	assert.False(t, region.Secret, "没声明 secret 的照常明文")
 	assert.Equal(t, "people-basic-1-0-0", region.Owner, "所有配置类变量都带 Owner")
 }
 
 // 非配置来源的变量没有 Owner——它们不属于任何"某个组件的配置项"。
 func TestNonConfigVarsHaveNoOwner(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), entry{})
 
 	assert.Empty(t, varOf(t, b.build(), "people/basic", "COMPONENT_ID").Owner)
-}
-
-// 资源声明了 existingSecret 而不是 password：密钥变量仍要产出（K8s 才有东西可以挂
-// secretKeyRef），但值留空——existingSecret 场景下压根没有值可言。
-func TestResourceExistingSecretProducesVarWithoutValue(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(config.Resource{
-		Kind: config.ResourceKindDatabase, Engine: "postgresql", ID: "main-db",
-		Host: "pg.infra.svc", Port: 5432, Username: "app",
-		ExistingSecret: "acme-db-vault-synced",
-		Bindings:       []config.Binding{{ComponentID: "people/basic", Database: "people"}},
-	})
-
-	pw := varOf(t, b.build(), "people/basic", "DATABASE_PASSWORD")
-	assert.True(t, pw.IsSecret())
-	assert.Empty(t, pw.Value, "existingSecret 场景下没有值可言")
-	assert.Equal(t, "acme-db-vault-synced", pw.ExistingSecretRef)
-	assert.Equal(t, "main-db", pw.ResourceID)
-}
-
-// 既没写 password 也没写 existingSecret：跟今天一样，字段没配就不注入（不是本次改动的范围，
-// 只是确认没有被新代码影响）。
-func TestResourceWithNeitherPasswordNorExistingSecretStillSkipped(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(config.Resource{
-		Kind: config.ResourceKindDatabase, Engine: "postgresql", ID: "main-db",
-		Host: "pg.infra.svc", Port: 5432, Username: "app",
-		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people"}},
-	})
-
-	env := envOf(t, b.build(), "people/basic")
-	_, exists := env["DATABASE_PASSWORD"]
-	assert.False(t, exists)
-}
-
-// 声明了 secret: true 的配置项写成 existingSecret 形状：产出的变量没有值，
-// ExistingSecretRef/SecretKey 分别是 Secret 名与 Secret 里的 key（不是环境变量名）。
-func TestConfigExistingSecretShapeProducesVarWithoutValue(t *testing.T) {
-	m := simple("acme/hello", "0.1.0", 8080)
-	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"apiKey": {Type: "string", Secret: true},
-	}}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{
-		"apiKey": map[string]any{"existingSecret": "acme-hello-vault-synced", "key": "api-key"},
-	}})
-
-	v := varOf(t, b.build(), "acme/hello", "API_KEY")
-	assert.True(t, v.IsSecret())
-	assert.Empty(t, v.Value)
-	assert.Equal(t, "acme-hello-vault-synced", v.ExistingSecretRef)
-	assert.Equal(t, "api-key", v.SecretKey, "Secret 里的 key 是使用者自己写的，不是转换后的环境变量名")
-}
-
-// 写了 existingSecret 形状，但这个配置项没有声明 secret: true：不注入（不能把这个对象
-// 糊成 Go 的 map[...] 字符串塞给组件），交给 cli 层的警告说清楚原因（Task 4 Step 7）。
-func TestConfigExistingSecretShapeWithoutDeclaredSecretIsNotInjected(t *testing.T) {
-	m := simple("acme/hello", "0.1.0", 8080)
-	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"apiKey": {Type: "string"}, // 没有 Secret: true
-	}}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{
-		"apiKey": map[string]any{"existingSecret": "acme-hello-vault-synced", "key": "api-key"},
-	}})
-
-	env := envOf(t, b.build(), "acme/hello")
-	_, exists := env["API_KEY"]
-	assert.False(t, exists)
 }
 
 // 非 config 来源的变量（依赖地址、资源连接、平台变量）不是靠某个 configSchema
@@ -446,44 +408,21 @@ func TestNonConfigVarsHaveNoKey(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, entry{})
 
 	v := varOf(t, b.build(), "people/basic", "COMPONENT_ID")
 	assert.Empty(t, v.Key)
-}
-
-// 11.17 驼峰转大写下划线。
-func TestConfigKeyToEnvVarName(t *testing.T) {
-	m := simple("people/basic", "1.0.0", 8080)
-	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"defaultPageSize": {Default: 20},
-		"httpTimeoutMs":   {Default: 3000},
-		"enableV2Api":     {Default: false},
-		"snake_case_key":  {Default: "x"},
-		"kebab-case-key":  {Default: "y"},
-	}}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{})
-	env := envOf(t, b.build(), "people/basic")
-
-	for _, name := range []string{
-		"DEFAULT_PAGE_SIZE", "HTTP_TIMEOUT_MS", "ENABLE_V2_API",
-		"SNAKE_CASE_KEY", "KEBAB_CASE_KEY",
-	} {
-		assert.Contains(t, env, name)
-	}
 }
 
 // CLI 不校验 config 的值类型（004 §5.6 关键规则 4）：原样转成字符串注入。
 func TestConfigValuesAreInjectedVerbatim(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"defaultPageSize": {Type: "integer", Default: 20},
+		"DEFAULT_PAGE_SIZE": {Type: "integer", Default: 20},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{"defaultPageSize": "五十"}})
+	b.component(m, entry{Config: map[string]any{"DEFAULT_PAGE_SIZE": "五十"}})
 
 	env := envOf(t, b.build(), "people/basic")
 
@@ -497,14 +436,14 @@ func TestConfigValuesOutsideDeclaredBoundsAreInjectedVerbatim(t *testing.T) {
 	lo, hi := 1.0, 100.0
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"defaultPageSize": {Type: "integer", Default: 20, Minimum: &lo, Maximum: &hi},
-		"tenantSlug":      {Type: "string", Pattern: "^[a-z]+$"},
+		"DEFAULT_PAGE_SIZE": {Type: "integer", Default: 20, Minimum: &lo, Maximum: &hi},
+		"TENANT_SLUG":      {Type: "string", Pattern: "^[a-z]+$"},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{
-		"defaultPageSize": 100000,
-		"tenantSlug":      "NOT-A-SLUG",
+	b.component(m, entry{Config: map[string]any{
+		"DEFAULT_PAGE_SIZE": 100000,
+		"TENANT_SLUG":      "NOT-A-SLUG",
 	}})
 
 	env := envOf(t, b.build(), "people/basic")
@@ -518,11 +457,11 @@ func TestConfigValuesOutsideDeclaredBoundsAreInjectedVerbatim(t *testing.T) {
 func TestConfigWithoutDefaultOrOverrideIsNotInjected(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"apiKey": {Type: "string"},
+		"API_KEY": {Type: "string"},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, entry{})
 
 	assert.NotContains(t, envOf(t, b.build(), "people/basic"), "API_KEY")
 }
@@ -535,16 +474,16 @@ func TestConfigWithoutDefaultOrOverrideIsNotInjected(t *testing.T) {
 func TestRequiredConfigWithoutValueBlocks(t *testing.T) {
 	m := simple("shop/order", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{
-		Properties: map[string]manifest.ConfigProperty{"notifierBaseUrl": {Type: "string"}},
-		Required:   []string{"notifierBaseUrl"},
+		Properties: map[string]manifest.ConfigProperty{"NOTIFIER_BASE_URL": {Type: "string"}},
+		Required:   []string{"NOTIFIER_BASE_URL"},
 	}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, entry{})
 
 	out := clierr.As(b.buildErr()).Format()
 	assert.Contains(t, out, "a required component config item has no value")
-	assert.Contains(t, out, "shop/order@1.0.0 → notifierBaseUrl")
+	assert.Contains(t, out, "shop/order@1.0.0 → NOTIFIER_BASE_URL")
 	assert.Contains(t, out, "NOTIFIER_BASE_URL", "要说清楚它会变成哪个环境变量")
 }
 
@@ -552,12 +491,12 @@ func TestRequiredConfigWithoutValueBlocks(t *testing.T) {
 func TestRequiredConfigWithDefaultPasses(t *testing.T) {
 	m := simple("shop/order", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{
-		Properties: map[string]manifest.ConfigProperty{"pageSize": {Type: "integer", Default: 20}},
-		Required:   []string{"pageSize"},
+		Properties: map[string]manifest.ConfigProperty{"PAGE_SIZE": {Type: "integer", Default: 20}},
+		Required:   []string{"PAGE_SIZE"},
 	}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, entry{})
 
 	assert.Equal(t, "20", envOf(t, b.build(), "shop/order")["PAGE_SIZE"])
 }
@@ -566,13 +505,13 @@ func TestRequiredConfigWithDefaultPasses(t *testing.T) {
 func TestRequiredConfigWithOverridePasses(t *testing.T) {
 	m := simple("shop/order", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{
-		Properties: map[string]manifest.ConfigProperty{"notifierBaseUrl": {Type: "string"}},
-		Required:   []string{"notifierBaseUrl"},
+		Properties: map[string]manifest.ConfigProperty{"NOTIFIER_BASE_URL": {Type: "string"}},
+		Required:   []string{"NOTIFIER_BASE_URL"},
 	}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{
-		Config: map[string]any{"notifierBaseUrl": "http://notify.internal.corp"}})
+	b.component(m, entry{
+		Config: map[string]any{"NOTIFIER_BASE_URL": "http://notify.internal.corp"}})
 
 	assert.Equal(t, "http://notify.internal.corp",
 		envOf(t, b.build(), "shop/order")["NOTIFIER_BASE_URL"])
@@ -582,11 +521,11 @@ func TestRequiredConfigWithOverridePasses(t *testing.T) {
 func TestOptionalConfigWithoutValueStillSilent(t *testing.T) {
 	m := simple("shop/order", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{
-		Properties: map[string]manifest.ConfigProperty{"apiKey": {Type: "string"}},
+		Properties: map[string]manifest.ConfigProperty{"API_KEY": {Type: "string"}},
 	}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, entry{})
 
 	assert.NotContains(t, envOf(t, b.build(), "shop/order"), "API_KEY")
 }
@@ -599,12 +538,12 @@ func TestOptionalConfigWithoutValueStillSilent(t *testing.T) {
 func TestUpgradeAddedConfigKeyUsesDefault(t *testing.T) {
 	m := simple("people/basic", "2.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"defaultPageSize":  {Default: 20},
-		"newInThisVersion": {Default: "hello"},
+		"DEFAULT_PAGE_SIZE":  {Default: 20},
+		"NEW_IN_THIS_VERSION": {Default: "hello"},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{"defaultPageSize": 50}})
+	b.component(m, entry{Config: map[string]any{"DEFAULT_PAGE_SIZE": 50}})
 
 	env := envOf(t, b.build(), "people/basic")
 	assert.Equal(t, "hello", env["NEW_IN_THIS_VERSION"], "11.13")
@@ -620,13 +559,13 @@ func TestUpgradeAddedConfigKeyUsesDefault(t *testing.T) {
 func TestUpgradeRemovedConfigKeyWarnsButDoesNotBlock(t *testing.T) {
 	m := simple("people/basic", "2.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"defaultPageSize": {Default: 20},
+		"DEFAULT_PAGE_SIZE": {Default: 20},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{
-		"defaultPageSize": 50,
-		"removedInV2":     "旧配置",
+	b.component(m, entry{Config: map[string]any{
+		"DEFAULT_PAGE_SIZE": 50,
+		"REMOVED_IN_V2":     "旧配置",
 	}})
 
 	result := b.build()
@@ -637,8 +576,8 @@ func TestUpgradeRemovedConfigKeyWarnsButDoesNotBlock(t *testing.T) {
 
 	require.Len(t, result.Warnings, 1, "该出一条警告：%v", result.Warnings)
 	text := result.Warnings[0].Format()
-	assert.Contains(t, text, "removedInV2", "要点名是哪一项")
-	assert.Contains(t, text, "won't take effect")
+	assert.Contains(t, text, "REMOVED_IN_V2", "要点名是哪一项")
+	assert.Contains(t, text, "has no effect")
 }
 
 // ============================================================
@@ -652,11 +591,11 @@ func TestUpgradeRemovedConfigKeyWarnsButDoesNotBlock(t *testing.T) {
 func TestUnknownConfigKeyWarnsWithSuggestion(t *testing.T) {
 	m := simple("demo/hello", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"greeting": {Default: "你好"},
+		"GREETING": {Default: "你好"},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{"greetting": "哈罗"}})
+	b.component(m, entry{Config: map[string]any{"GREETTING": "哈罗"}})
 
 	result := b.build()
 	env := envOf(t, result, "demo/hello")
@@ -665,23 +604,23 @@ func TestUnknownConfigKeyWarnsWithSuggestion(t *testing.T) {
 
 	require.Len(t, result.Warnings, 1, "%v", result.Warnings)
 	text := result.Warnings[0].Format()
-	assert.Contains(t, text, "greetting", "要点名是哪一项")
-	assert.Contains(t, text, "did you mean greeting?", "猜拼写用的是 yamlcheck 那一份实现")
+	assert.Contains(t, text, "GREETTING", "要点名是哪一项")
+	assert.Contains(t, text, "Did you mean GREETING?", "猜拼写用的是 yamlcheck 那一份实现")
 }
 
 // 猜不出来时不硬猜，改成把可用的配置项列出来。
 func TestUnknownConfigKeyWithoutSuggestionListsKnownKeys(t *testing.T) {
 	m := simple("demo/hello", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"greeting": {Default: "你好"},
+		"GREETING": {Default: "你好"},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{"totallyUnrelated": 1}})
+	b.component(m, entry{Config: map[string]any{"TOTALLY_UNRELATED": 1}})
 
 	text := b.build().Warnings[0].Format()
-	assert.NotContains(t, text, "did you mean", "八竿子打不着就别硬猜")
-	assert.Contains(t, text, "greeting", "至少告诉他有哪些可用")
+	assert.NotContains(t, text, "Did you mean", "八竿子打不着就别硬猜")
+	assert.Contains(t, text, "GREETING", "至少告诉他有哪些可用")
 }
 
 // 组件根本没声明 configSchema，而项目写了 config → 整块蒸发，必须出声。
@@ -691,8 +630,8 @@ func TestUnknownConfigKeyWithoutSuggestionListsKnownKeys(t *testing.T) {
 // 加 configSchema。
 func TestConfigOnComponentWithoutSchemaWarns(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("demo/nocfg", "1.0.0", 8080), config.Component{
-		Config: map[string]any{"anything": "随便写", "logLevel": "debug"},
+	b.component(simple("demo/nocfg", "1.0.0", 8080), entry{
+		Config: map[string]any{"anything": "随便写", "LOG_LEVEL": "debug"},
 	})
 
 	result := b.build()
@@ -704,13 +643,13 @@ func TestConfigOnComponentWithoutSchemaWarns(t *testing.T) {
 	text := result.Warnings[0].Format()
 	assert.Contains(t, text, "declares no configSchema")
 	assert.Contains(t, text, "anything")
-	assert.Contains(t, text, "logLevel")
+	assert.Contains(t, text, "LOG_LEVEL")
 }
 
 // 没写 config 的组件不该被打扰——哪怕它也没有 configSchema。
 func TestNoConfigNoWarning(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("demo/nocfg", "1.0.0", 8080), config.Component{})
+	b.component(simple("demo/nocfg", "1.0.0", 8080), entry{})
 
 	assert.Empty(t, b.build().Warnings)
 }
@@ -721,15 +660,15 @@ func TestNoConfigNoWarning(t *testing.T) {
 func TestCorrectConfigKeysProduceNoWarning(t *testing.T) {
 	m := simple("demo/hello", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"greeting":  {Default: "你好"},
-		"logLevel":  {Default: "info"},
-		"pageSize":  {Default: 20},
-		"enableFoo": {Default: true},
+		"GREETING":  {Default: "你好"},
+		"LOG_LEVEL":  {Default: "info"},
+		"PAGE_SIZE":  {Default: 20},
+		"ENABLE_FOO": {Default: true},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{
-		"greeting": "哈罗", "logLevel": "debug", "pageSize": 50, "enableFoo": false,
+	b.component(m, entry{Config: map[string]any{
+		"GREETING": "哈罗", "LOG_LEVEL": "debug", "PAGE_SIZE": 50, "ENABLE_FOO": false,
 	}})
 
 	assert.Empty(t, b.build().Warnings)
@@ -739,11 +678,11 @@ func TestCorrectConfigKeysProduceNoWarning(t *testing.T) {
 func TestUpgradeChangedDefaultTakesEffect(t *testing.T) {
 	m := simple("people/basic", "2.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"defaultPageSize": {Default: 100},
+		"DEFAULT_PAGE_SIZE": {Default: 100},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, entry{})
 
 	assert.Equal(t, "100", envOf(t, b.build(), "people/basic")["DEFAULT_PAGE_SIZE"])
 }
@@ -752,11 +691,11 @@ func TestUpgradeChangedDefaultTakesEffect(t *testing.T) {
 func TestUpgradeOverrideBeatsNewDefault(t *testing.T) {
 	m := simple("people/basic", "2.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"defaultPageSize": {Default: 100},
+		"DEFAULT_PAGE_SIZE": {Default: 100},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{"defaultPageSize": 50}})
+	b.component(m, entry{Config: map[string]any{"DEFAULT_PAGE_SIZE": 50}})
 
 	assert.Equal(t, "50", envOf(t, b.build(), "people/basic")["DEFAULT_PAGE_SIZE"])
 }
@@ -770,12 +709,12 @@ func TestUpgradeOverrideBeatsNewDefault(t *testing.T) {
 func TestReservedVariableConflictWarnsAndSkips(t *testing.T) {
 	m := dependsOn(simple("people/basic", "1.0.0", 8080), "department/tree", "1.0.0")
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"departmentTreeEndpoint": {Type: "string", Default: "http://用户写死的地址"},
+		"DEPARTMENT_TREE_ENDPOINT": {Type: "string", Default: "http://用户写死的地址"},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
+	b.component(m, entry{})
+	b.component(simple("department/tree", "1.0.0", 8080), entry{})
 
 	result := b.build()
 	env := envOf(t, result, "people/basic")
@@ -785,7 +724,7 @@ func TestReservedVariableConflictWarnsAndSkips(t *testing.T) {
 	require.Len(t, result.Warnings, 1)
 
 	warning := result.Warnings[0].Format()
-	assert.Contains(t, warning, "departmentTreeEndpoint")
+	assert.Contains(t, warning, "DEPARTMENT_TREE_ENDPOINT")
 	assert.Contains(t, warning, "DEPARTMENT_TREE_ENDPOINT")
 	assert.Contains(t, warning, "people/basic")
 	assert.Contains(t, warning, "⚠️", "是警告不是错误")
@@ -799,278 +738,17 @@ func TestReservedVariableConflictWarnsAndSkips(t *testing.T) {
 func TestReservedConflictSuggestionActuallyAvoidsThePattern(t *testing.T) {
 	m := dependsOn(simple("people/basic", "1.0.0", 8080), "department/tree", "1.0.0")
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"departmentTreeEndpoint": {Type: "string", Default: "http://写死的地址"},
+		"DEPARTMENT_TREE_ENDPOINT": {Type: "string", Default: "http://写死的地址"},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
+	b.component(m, entry{})
+	b.component(simple("department/tree", "1.0.0", 8080), entry{})
 
 	warning := b.build().Warnings[0].Format()
-	assert.Contains(t, warning, "departmentTreeBaseUrl")
-	assert.NotContains(t, warning, "customDepartmentTreeEndpoint",
+	assert.Contains(t, warning, "DEPARTMENT_TREE_BASE_URL")
+	assert.NotContains(t, warning, "CUSTOM_DEPARTMENT_TREE_ENDPOINT",
 		"这个建议改完还是以 _ENDPOINT 结尾，等于没改")
-}
-
-// 平台通用变量与资源前缀同样受保护。
-func TestReservedPatternsCoverPlatformAndResourceVariables(t *testing.T) {
-	m := simple("people/basic", "1.0.0", 8080)
-	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"componentId":                 {Default: "冒充组件 ID"},
-		"databaseHost":                {Default: "冒充数据库地址"},
-		"redisPort":                   {Default: 1234},
-		"smtpUser":                    {Default: "x"},
-		"brickkitServedMembers":       {Default: "冒充外壳收编列表"},
-		"brickkitServedMembersConfig": {Default: "冒充外壳收编成员配置"},
-	}}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{})
-
-	result := b.build()
-	env := envOf(t, result, "people/basic")
-
-	assert.Equal(t, "people/basic", env["COMPONENT_ID"], "平台值优先")
-	assert.NotContains(t, env, "DATABASE_HOST", "没绑数据库就不该凭空出现这个变量")
-	assert.NotContains(t, env, "REDIS_PORT")
-	assert.NotContains(t, env, "SMTP_USER")
-	assert.NotContains(t, env, "BRICKKIT_SERVED_MEMBERS", "组件自己的配置不能冒充这个平台保留变量")
-	assert.NotContains(t, env, "BRICKKIT_SERVED_MEMBERS_CONFIG", "同上，这条也是精确匹配的保留变量")
-	assert.Len(t, result.Warnings, 6, "六个冲突各有一条警告")
-}
-
-// envPrefix 是使用者在 brickkit.yaml 里定的，市场发布时无从校验，
-// 只能在注入时防御（004 §5.6.1 的 {envPrefix}_* 那一行）。
-func TestConflictWithUserDefinedEnvPrefix(t *testing.T) {
-	m := simple("people/basic", "1.0.0", 8080)
-	m.Dependencies = &manifest.Dependencies{}
-	m.Dependencies.Resources = []manifest.ResourceDep{{Kind: "database", Engine: "postgresql"}}
-	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"primaryDatabaseName": {Default: "冒充主库名"},
-	}}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.resource(config.Resource{
-		Kind: "database", Engine: "postgresql", ID: "pg-primary",
-		Host: "primary-db", Port: 5432,
-		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people", EnvPrefix: "PRIMARY"}},
-	})
-
-	result := b.build()
-	env := envOf(t, result, "people/basic")
-
-	assert.Equal(t, "people", env["PRIMARY_DATABASE_NAME"], "资源注入的值优先")
-	require.Len(t, result.Warnings, 1)
-	assert.Contains(t, result.Warnings[0].Format(), "PRIMARY_")
-}
-
-// 改名建议本身也可能撞上使用者定义的 envPrefix——不是"两条保留规则都在
-// renameSuggestion 视野里的静态前缀"（那一类已经在 reserved_test.go 里钉过），
-// 而是配置项名字先撞上了 *_ENDPOINT 后缀（换成 BaseUrl 之后），换完的词根
-// 又恰好撞上了这个项目自己定的 envPrefix。renameSuggestion 是纯函数、要跟
-// 市场发布时给出同一个答案，看不到 envPrefix 是它的固有边界（§007 18.1）；
-// 但 up 注入现场——也就是这里——本来就拿得到 b.reservedPrefixes，
-// reservedConflictWarning 必须替它把这最后一道关也核对一遍，否则使用者
-// 照着建议改完名字、重新 up，会撞上一模一样的警告（brickKit 反馈：
-// renameSuggestion 对 <资源类型>Endpoint 形的 key 仍会撞资源前缀，
-// 同一类问题在 envPrefix 这个动态前缀上也存在）。
-func TestSuggestionAvoidsUserDefinedEnvPrefixToo(t *testing.T) {
-	m := simple("people/basic", "1.0.0", 8080)
-	m.Dependencies = &manifest.Dependencies{}
-	m.Dependencies.Resources = []manifest.ResourceDep{{Kind: "database", Engine: "postgresql"}}
-	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		// primaryEndpoint 先撞的是 *_ENDPOINT 这条静态后缀规则，
-		// 不是 PRIMARY_* 这条项目自定义前缀——两条规则各撞各的，顺序很重要
-		"primaryEndpoint": {Default: "http://example.com"},
-	}}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.resource(config.Resource{
-		Kind: "database", Engine: "postgresql", ID: "pg-primary",
-		Host: "primary-db", Port: 5432,
-		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people", EnvPrefix: "PRIMARY"}},
-	})
-
-	result := b.build()
-	require.Len(t, result.Warnings, 1)
-	warning := result.Warnings[0].Format()
-	assert.Contains(t, warning, "*_ENDPOINT", "原始冲突确实是后缀模式，不是前缀模式")
-
-	suggestion := extractSuggestion(t, warning)
-	// 判据是"以 PRIMARY_ 开头"，不是"包含 PRIMARY_"——CUSTOM_PRIMARY_BASE_URL
-	// 合法地在中间带着 PRIMARY_，但开头是 CUSTOM_，并不会被 b.matchReserved 判定撞车
-	assert.False(t, strings.HasPrefix(envName(suggestion), "PRIMARY_"),
-		"照着建议 %q 改名之后，不能又落进这个项目自己定的 PRIMARY_* 前缀——"+
-			"那样重新 up 还是同一条警告", suggestion)
-}
-
-// extractSuggestion 从警告文案里把"例如改为 X"的 X 抠出来。
-func extractSuggestion(t *testing.T, warningText string) string {
-	t.Helper()
-	const marker = "For example, rename it to "
-	idx := strings.Index(warningText, marker)
-	require.NotEqual(t, -1, idx, "警告文案里应该有改名建议：%s", warningText)
-	rest := warningText[idx+len(marker):]
-	return strings.TrimSpace(strings.SplitN(rest, "\n", 2)[0])
-}
-
-func envName(configKey string) string { return inject.EnvVarName(configKey) }
-
-// ============================================================
-// 11.11 / 11.12 资源连接变量（006 §5）
-// ============================================================
-
-func TestResourceConnectionVariables(t *testing.T) {
-	m := simple("people/basic", "1.0.0", 8080)
-	m.Dependencies = &manifest.Dependencies{}
-	m.Dependencies.Resources = []manifest.ResourceDep{{Kind: "database", Engine: "postgresql"}}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.resource(config.Resource{
-		Kind: "database", Engine: "postgresql", ID: "postgres-main",
-		Host: "localhost", Port: 5432, Username: "dev", Password: "secret",
-		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people"}},
-	})
-
-	env := envOf(t, b.build(), "people/basic")
-
-	assert.Equal(t, "localhost", env["DATABASE_HOST"])
-	assert.Equal(t, "5432", env["DATABASE_PORT"])
-	assert.Equal(t, "people", env["DATABASE_NAME"])
-	assert.Equal(t, "dev", env["DATABASE_USER"])
-	assert.Equal(t, "secret", env["DATABASE_PASSWORD"])
-}
-
-// 每类资源有各自的变量名（006 §5.2）。
-func TestResourceVariableNamesPerKind(t *testing.T) {
-	m := simple("erp/backend", "1.0.0", 8080)
-	m.Dependencies = &manifest.Dependencies{}
-	m.Dependencies.Resources = []manifest.ResourceDep{
-		{Kind: "cache", Engine: "redis"},
-		{Kind: "storage", Engine: "s3"},
-	}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.resource(config.Resource{
-		Kind: "cache", Engine: "redis", ID: "redis-main", Host: "redis", Port: 6379, Password: "pw",
-		Bindings: []config.Binding{{ComponentID: "erp/backend"}},
-	})
-	b.resource(config.Resource{
-		Kind: "storage", Engine: "s3", ID: "rustfs", Host: "http://rustfs:9000",
-		Username: "ak", Password: "sk",
-		Bindings: []config.Binding{{ComponentID: "erp/backend", Bucket: "brickkit-artifacts"}},
-	})
-
-	env := envOf(t, b.build(), "erp/backend")
-
-	assert.Equal(t, "redis", env["REDIS_HOST"])
-	assert.Equal(t, "6379", env["REDIS_PORT"])
-	assert.Equal(t, "pw", env["REDIS_PASSWORD"])
-	assert.Equal(t, "http://rustfs:9000", env["STORAGE_ENDPOINT"])
-	assert.Equal(t, "brickkit-artifacts", env["STORAGE_BUCKET"])
-	assert.Equal(t, "ak", env["STORAGE_ACCESS_KEY"])
-	assert.Equal(t, "sk", env["STORAGE_SECRET_KEY"])
-}
-
-// STORAGE_ENDPOINT 必须带端口（006 §5.2）。
-//
-// 从前它只取 host：而 port 在 brickkit.yaml 的校验里是**必填的**，
-// 于是使用者被要求填 9000、被校验通过，然后那个端口原地蒸发——
-// 组件拿着 "minio.internal" 去连 MinIO，连不上，而配置看上去完全正确。
-func TestStorageEndpointIncludesPort(t *testing.T) {
-	m := simple("media/store", "1.0.0", 8080)
-	m.Dependencies = &manifest.Dependencies{
-		Resources: []manifest.ResourceDep{{Kind: "storage", Engine: "minio"}},
-	}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.resource(config.Resource{
-		Kind: "storage", Engine: "minio", ID: "minio", Host: "minio.internal", Port: 9000,
-		Username: "ak", Password: "sk",
-		Bindings: []config.Binding{{ComponentID: "media/store", Bucket: "media-prod"}},
-	})
-
-	env := envOf(t, b.build(), "media/store")
-	assert.Equal(t, "minio.internal:9000", env["STORAGE_ENDPOINT"])
-	assert.Equal(t, "media-prod", env["STORAGE_BUCKET"])
-}
-
-// mq 的 vhost / search 的 index 与 database 填的是同一格（config.Binding.Slot）。
-func TestBindingSlotFeedsEachKindsOwnVariable(t *testing.T) {
-	m := simple("shop/order", "1.0.0", 8080)
-	m.Dependencies = &manifest.Dependencies{
-		Resources: []manifest.ResourceDep{
-			{Kind: "mq", Engine: "rabbitmq"},
-			{Kind: "search", Engine: "elasticsearch"},
-		},
-	}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.resource(config.Resource{
-		Kind: "mq", Engine: "rabbitmq", ID: "rabbit", Host: "rabbit", Port: 5672,
-		Username: "dev", Password: "pw",
-		Bindings: []config.Binding{{ComponentID: "shop/order", Vhost: "orders"}},
-	})
-	b.resource(config.Resource{
-		Kind: "search", Engine: "elasticsearch", ID: "es", Host: "es", Port: 9200,
-		Bindings: []config.Binding{{ComponentID: "shop/order", Index: "orders-v2"}},
-	})
-
-	env := envOf(t, b.build(), "shop/order")
-	assert.Equal(t, "orders", env["MQ_VHOST"])
-	assert.Equal(t, "orders-v2", env["SEARCH_INDEX"])
-	assert.Equal(t, "rabbit", env["MQ_HOST"])
-	assert.Equal(t, "9200", env["SEARCH_PORT"])
-}
-
-// 11.12 一个组件绑多个同类资源时用 envPrefix 区分（006 §5.7）。
-func TestMultipleResourcesUseEnvPrefix(t *testing.T) {
-	m := simple("people/basic", "1.0.0", 8080)
-	m.Dependencies = &manifest.Dependencies{}
-	m.Dependencies.Resources = []manifest.ResourceDep{{Kind: "database", Engine: "postgresql"}}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.resource(config.Resource{
-		Kind: "database", Engine: "postgresql", ID: "postgres-primary",
-		Host: "primary-db", Port: 5432,
-		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people", EnvPrefix: "PRIMARY"}},
-	})
-	b.resource(config.Resource{
-		Kind: "database", Engine: "postgresql", ID: "postgres-archive",
-		Host: "archive-db", Port: 5432,
-		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people_archive", EnvPrefix: "ARCHIVE"}},
-	})
-
-	env := envOf(t, b.build(), "people/basic")
-
-	assert.Equal(t, "primary-db", env["PRIMARY_DATABASE_HOST"])
-	assert.Equal(t, "people", env["PRIMARY_DATABASE_NAME"])
-	assert.Equal(t, "archive-db", env["ARCHIVE_DATABASE_HOST"])
-	assert.Equal(t, "people_archive", env["ARCHIVE_DATABASE_NAME"])
-	assert.NotContains(t, env, "DATABASE_HOST", "都带前缀时不该再出现无前缀的变量")
-}
-
-// 资源只注入给绑定了它的组件。
-func TestResourceIsInjectedOnlyToBoundComponents(t *testing.T) {
-	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
-	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
-	b.resource(config.Resource{
-		Kind: "database", Engine: "postgresql", ID: "postgres-main", Host: "localhost", Port: 5432,
-		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people"}},
-	})
-
-	result := b.build()
-
-	assert.Contains(t, envOf(t, result, "people/basic"), "DATABASE_HOST")
-	assert.NotContains(t, envOf(t, result, "department/tree"), "DATABASE_HOST")
 }
 
 // ============================================================
@@ -1090,7 +768,7 @@ func TestResourceQuotaMergePriority(t *testing.T) {
 	}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Resources: &manifest.Resources{
+	b.component(m, entry{Resources: &manifest.Resources{
 		Limits: spec2("", "2Gi"),
 	}})
 
@@ -1109,7 +787,7 @@ func TestResourceQuotaMergePriority(t *testing.T) {
 // 而 512Mi 是平台编的，配置里一个字都没写过。
 func TestResourceQuotaFallsBackToCLIDefaults(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), entry{})
 
 	quota := quotaOf(t, b.build(), "people/basic")
 
@@ -1124,7 +802,7 @@ func TestResourceQuotaUsesManifestWhenNotOverridden(t *testing.T) {
 	m.Deployment.Resources = &manifest.Resources{Requests: spec2("300m", "384Mi")}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, entry{})
 
 	quota := quotaOf(t, b.build(), "people/basic")
 
@@ -1140,7 +818,7 @@ func TestResourceQuotaUsesManifestWhenNotOverridden(t *testing.T) {
 // 100ms 周期里限流，表现成毫无来由的 p99 毛刺。
 func TestMemoryLimitOnlyDoesNotInventCPULimit(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{
+	b.component(simple("people/basic", "1.0.0", 8080), entry{
 		Resources: &manifest.Resources{Limits: &manifest.ResourceSpec{Memory: "1Gi"}},
 	})
 
@@ -1172,11 +850,11 @@ func quotaOf(t *testing.T, r *inject.Result, id string) manifest.Resources {
 func TestEnvVarsAreSortedForStableOutput(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"zebra": {Default: 1}, "alpha": {Default: 2}, "middle": {Default: 3},
+		"ZEBRA": {Default: 1}, "ALPHA": {Default: 2}, "MIDDLE": {Default: 3},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, entry{})
 	result := b.build()
 
 	var names []string
@@ -1196,76 +874,69 @@ func TestBuildIsDeterministic(t *testing.T) {
 			"a": {Default: 1}, "b": {Default: 2}, "c": {Default: 3}, "d": {Default: 4},
 		}}
 		b := newBuilder(t)
-		b.component(m, config.Component{})
+		b.component(m, entry{})
 		return b.build().Components[0].Env
 	}
 
 	assert.Equal(t, build(), build())
 }
 
-// manifest 里那张 kind → 变量前缀表，必须与本包真生成的变量对得上。
-//
-// 那张表是给**错误提示**用的（config 侧要说清"两条绑定抢的是 DATABASE_HOST /
-// DATABASE_PORT / …"），而变量本身在这里生成。两份真相一旦分叉，
-// 报错就会点名一批根本不存在的变量——比不给变量名更糟。
-//
-// 每种 kind 都要覆盖到：漏掉一种的表现正是"那种资源的提示是错的"，
-// 而那种资源恰恰是最少被用到、也最没人复核的那种。
-func TestResourceVarsMatchDeclaredPrefix(t *testing.T) {
-	for _, kind := range manifest.ResourceKinds {
-		prefix := manifest.ResourceEnvPrefix(kind)
-		require.NotEmpty(t, prefix, "%s 没有登记变量前缀", kind)
+// ============================================================
+// 三层文件（P2）：值保留引用种类、资源前缀不再保留
+// ============================================================
 
-		cfg := &config.Config{
-			Project: "p", Deploy: config.Deploy{Target: config.TargetDocker},
-			Components: []config.Component{{ID: "demo/x", Version: "1.0.0"}},
-			Resources: []config.Resource{{
-				Kind: kind, Engine: "e", ID: "r", Host: "h", Port: 1234,
-				Username: "u", Password: "pw",
-				Bindings: []config.Binding{{ComponentID: "demo/x", Database: "d"}},
-			}},
-		}
-		vars := resourceVarsOf(t, cfg)
-		require.NotEmpty(t, vars, "%s 一个连接变量都没生成", kind)
+func TestBuildKeepsValueKinds(t *testing.T) {
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"DSN":    {Type: "string"},
+		"CERT":   {Type: "string"},
+		"TOKEN":  {Type: "string", Secret: true},
+		"DB_PWD": {Type: "string", Secret: true},
+		"HOST":   {Type: "string"},
+	}}
+	b := newBuilder(t).sharedVars(map[string]any{"PG_HOST": "pg.internal"})
+	b.component(m, entry{Config: map[string]any{
+		"DSN":    "pg://${PG_USER}@db",
+		"CERT":   "file://secrets/ca.pem",
+		"TOKEN":  "plain-token",
+		"DB_PWD": map[string]any{"existingSecret": "db", "key": "password"},
+		"HOST":   "$var:PG_HOST",
+	}})
+	result := b.build()
 
-		for _, name := range vars {
-			assert.True(t, strings.HasPrefix(name, prefix+"_"),
-				"%s 生成了 %s，但登记的前缀是 %s_——两份真相分叉了", kind, name, prefix)
-		}
-	}
+	assert.Equal(t, configdir.KindEnvTemplate, varOf(t, result, "people/basic", "DSN").Value.Kind)
+	assert.Equal(t, configdir.KindFileRef, varOf(t, result, "people/basic", "CERT").Value.Kind)
+	token := varOf(t, result, "people/basic", "TOKEN")
+	assert.True(t, token.Secret)
+	assert.Equal(t, configdir.KindLiteral, token.Value.Kind)
+	assert.True(t, varOf(t, result, "people/basic", "DB_PWD").IsSecretRef())
+	host := varOf(t, result, "people/basic", "HOST")
+	assert.Equal(t, "pg.internal", host.Value.Text, "$var: 在注入前就已解析成目标值")
 }
 
-// resourceVarsOf 跑一遍注入，取出该组件全部"资源连接"类的变量名。
-func resourceVarsOf(t *testing.T, cfg *config.Config) []string {
-	t.Helper()
-
-	m := &manifest.Manifest{
-		APIVersion: manifest.APIVersion, Kind: manifest.Kind,
-		Metadata:    manifest.Metadata{ID: "demo/x", Name: "x", Version: "1.0.0"},
-		Deployment:  manifest.Deployment{Type: manifest.DeploymentTypeContainer, Image: "i:1", Port: 8080},
-		HealthCheck: manifest.HealthCheck{Type: manifest.HealthCheckHTTP, Path: "/healthz"},
-	}
-	graph, err := resolver.New(fixedProvider{m}).Resolve(
-		context.Background(), resolver.Ref{ID: "demo/x", Version: "1.0.0"})
-	require.NoError(t, err)
-
-	states, err := cascade.Compute(cfg, graph)
-	require.NoError(t, err)
-	result, err := inject.Build(cfg, graph, states)
-	require.NoError(t, err)
-	require.Len(t, result.Components, 1)
-
-	var out []string
-	for _, v := range result.Components[0].Env {
-		if v.Source == inject.SourceResource {
-			out = append(out, v.Name)
-		}
-	}
-	return out
+func TestBuildDatabasePrefixNoLongerReserved(t *testing.T) {
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"DATABASE_URL": {Type: "string", Default: "pg://x"},
+		"REDIS_HOST":   {Type: "string", Default: "cache"},
+	}}
+	b := newBuilder(t)
+	b.component(m, entry{})
+	result := b.build()
+	assert.Empty(t, result.Warnings)
+	env := envOf(t, result, "people/basic")
+	assert.Equal(t, "pg://x", env["DATABASE_URL"])
+	assert.Equal(t, "cache", env["REDIS_HOST"])
 }
 
-type fixedProvider struct{ m *manifest.Manifest }
-
-func (p fixedProvider) Manifest(_ context.Context, _, _ string) (*manifest.Manifest, error) {
-	return p.m, nil
+func TestBuildReservedEndpointSuffixStillBlocked(t *testing.T) {
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"NOTIFIER_ENDPOINT": {Type: "string", Default: "http://x"},
+	}}
+	b := newBuilder(t)
+	b.component(m, entry{})
+	result := b.build()
+	require.Len(t, result.Warnings, 1)
+	assert.NotContains(t, envOf(t, result, "people/basic"), "NOTIFIER_ENDPOINT")
 }

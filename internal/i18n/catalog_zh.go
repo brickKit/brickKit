@@ -247,10 +247,10 @@ var zh = map[string]string{
 
 	msgid.InjectRequiredConfigMissing: "错误：必填的组件配置没有值",
 	msgid.InjectLabelMissingConfig:    "缺少配置",
-	msgid.InjectMissingConfigDetail:   "%[1]s → %[2]s（注入为 %[3]s）",
+	msgid.InjectMissingConfigDetail:   "%[1]s → %[2]s",
 	msgid.InjectRequiredReasonDetail:  "组件在 configSchema.required 里声明了它，又没有给默认值——这一项平台推导不出来，只能由项目提供",
-	msgid.InjectHintSetValue:          "在 brickkit.yaml 里给它一个值：\n    components:\n      - id: %[1]s\n        config:\n          %[2]s: <值>",
-	msgid.InjectHintEnvVarValue:       "值里可以写 ${ENV_VAR}，真值放 .env",
+	msgid.InjectHintSetValue:          "在 %[1]s 里给它一个值：\n    %[2]s: <值>",
+	msgid.InjectHintEnvVarValue:       "值可以写 ${ENV_VAR}（真值放 .env）、$var:NAME（公共变量，来自 config/vars.yaml）或 file://路径",
 
 	msgid.InjectUnknownConfigKey:    "config 里有配置项不会生效：组件 %[1]s 的 %[2]s",
 	msgid.InjectUnknownKeyReason:    "组件的 configSchema 里没有这一项",
