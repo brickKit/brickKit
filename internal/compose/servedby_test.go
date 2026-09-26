@@ -421,3 +421,38 @@ func TestShellJSONGoesToEnvFile(t *testing.T) {
 	assert.Contains(t, shellFile, shell.EnvVarServedMembersConfig+`="[{\"componentId\":\"mdm/customer\"`)
 	assert.Contains(t, shellFile, `\"TOKEN\":\"t$$k\"`)
 }
+
+// 附录 A18：成员设成 mode: debug——这一次它在宿主机上自己跑：不在外壳的 BRICKKIT_SERVED_MEMBERS
+// 与 JSON 里，外壳带着剩下的成员照常运行；依赖它的组件拿到的是它自己的地址（经宿主机路由），
+// 不是外壳的地址；它自己的本地 env 文件是它独立运行时的那份环境。
+func TestDebugMemberLeavesTheShell(t *testing.T) {
+	a := simple("erp/a", "1.0.0", 8081)
+	a.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"MODE": {Type: "string", Default: "strict"},
+	}}
+	b := newBuilder(t)
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})
+	b.component(a, projecttest.Entry{ServedBy: "erp/shell@1.0.0", Mode: deployfile.ModeDebug, LocalPort: 18081})
+	b.component(simple("erp/b", "1.0.0", 8082), servedByEntry("erp/shell", "1.0.0"))
+	b.component(dependsOn(simple("erp/caller", "1.0.0", 8090), "erp/a", "1.0.0"), projecttest.Entry{})
+
+	result := b.generate()
+	doc := docOf(t, result)
+	shellEnv := envOf(t, serviceOf(t, doc, "erp-shell-1-0-0"))
+	assert.Equal(t, "erp-b-1-0-0", shellEnv[shell.EnvVarServedMembers])
+	var shellFile string
+	for _, f := range result.EnvFiles {
+		if f.Service == "erp-shell-1-0-0" {
+			shellFile = string(f.Content)
+		}
+	}
+	assert.Contains(t, shellFile, `erp/b`)
+	assert.NotContains(t, shellFile, `erp/a`, "裸进程成员不在外壳的 JSON 里")
+
+	caller := serviceOf(t, doc, "erp-caller-1-0-0")
+	assert.Equal(t, "http://erp-a-1-0-0:18081", envOf(t, caller)["ERP_A_ENDPOINT"])
+	assert.Contains(t, caller["extra_hosts"], "erp-a-1-0-0:host-gateway")
+
+	assert.Equal(t, "strict", localEnv(t, result, "erp-a-1-0-0")["MODE"])
+	assert.NotContains(t, servicesOf(t, doc), "erp-a-1-0-0", "裸进程成员没有容器")
+}
