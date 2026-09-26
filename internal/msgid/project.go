@@ -1,0 +1,30 @@
+package msgid
+
+// internal/project（三层文件装载与跨文件一致性）的文案。
+const (
+	ProjectDeployMissing       = "project.deploy_missing"
+	ProjectDeployMissingHint   = "project.deploy_missing_hint"
+	ProjectLocalFileMissing    = "project.local_file_missing"
+	ProjectDeployFileNotFound  = "project.deploy_file_not_found"
+	ProjectLocalStale          = "project.local_stale"
+	ProjectLocalStaleReason    = "project.local_stale_reason"
+	ProjectHintLocalRefresh    = "project.hint_local_refresh"
+	ProjectHintLocalEdit       = "project.hint_local_edit"
+	ProjectHintLocalOff        = "project.hint_local_off"
+	ProjectDeployInconsistent  = "project.deploy_inconsistent"
+	ProjectHintDeploySync      = "project.hint_deploy_sync"
+	ProjectHintDeployEdit      = "project.hint_deploy_edit"
+	ProjectLabelMissingEntry   = "project.label_missing_entry"
+	ProjectLabelExtraEntry     = "project.label_extra_entry"
+	ProjectMembersOnNonShell   = "project.members_on_non_shell"
+	ProjectMemberUndeclared    = "project.member_undeclared"
+	ProjectMemberIsShell       = "project.member_is_shell"
+	ProjectMemberMultiVersion  = "project.member_multi_version"
+	ProjectMemberTwoShells     = "project.member_two_shells"
+	ProjectConfigNameCollision = "project.config_name_collision"
+	ProjectHintConfigCollision = "project.hint_config_collision"
+	ProjectConfigAmbiguous     = "project.config_ambiguous"
+	ProjectHintConfigAmbiguous = "project.hint_config_ambiguous"
+	ProjectConfigOrphan        = "project.config_orphan"
+	ProjectVarUndefined        = "project.var_undefined"
+)
