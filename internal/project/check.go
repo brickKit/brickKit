@@ -136,8 +136,9 @@ func (p *Project) checkMembers() error {
 
 // checkHostPorts 拦下宿主机端口被两个组件版本同时占用（docker / podman 才有宿主机端口）。
 //
-// 单文件校验只看得到"两个条目写了同一个端口"；看不到的是一个裸 ID 条目带着 exposePort
-// 覆盖了两个版本——那是两个容器抢同一个端口，docker 要到起第二个容器时才报 bind 失败。
+// 单文件校验按端口种类各查各的（localPort 与 localPort、exposePort 与 exposePort）；
+// 一个条目的 localPort 撞上另一个条目的 exposePort 要到这里才看得到——那是两个进程抢同一个
+// 端口，docker 要到起第二个容器时才报 bind 失败。
 func (p *Project) checkHostPorts() error {
 	if p.Deploy.Target == deployfile.TargetK8s {
 		return nil

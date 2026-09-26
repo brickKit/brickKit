@@ -360,6 +360,8 @@ func TestLoadRequiredByVersionNeedsOwnEntry(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, clierr.CodeDeployInconsistent, clierr.As(err).Code)
 	assert.Contains(t, detailValues(err), "people/basic@1.0.0")
+	require.NotEmpty(t, clierr.As(err).Hints)
+	assert.Contains(t, clierr.As(err).Hints[0], "requiredBy", "提示要说清裸 ID 只覆盖默认版本，不能再说它覆盖所有版本")
 }
 
 func TestLoadLocalPortVsExposePort(t *testing.T) {
@@ -370,6 +372,7 @@ func TestLoadLocalPortVsExposePort(t *testing.T) {
 	_, err := project.Load(root, project.LoadOptions{})
 	require.Error(t, err)
 	assert.Equal(t, clierr.CodePortConflict, clierr.As(err).Code)
+	assert.NotContains(t, clierr.As(err).Hints[0], "every version", "裸 ID 条目只覆盖默认版本（附录 A20）")
 
 	// k8s 下没有宿主机端口，不查
 	write(t, root, map[string]string{"deploy.yaml": strings.Replace(strings.Replace(baseDeploy, "target: docker", "target: k8s", 1),
