@@ -163,7 +163,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		return nil
 	}
 
-	if len(plan.services) == 0 {
+	if len(plan.services) == 0 && len(plan.runFirst()) == 0 {
 		// 这次没有任何组件需要容器（可能全是 mode: local / mode: debug，
 		// 或者全被 servedBy 吸收进了外壳）——不该去起一个引擎：`docker compose
 		// up` 对着一份 `services: {}` 的空文件会报 "no service selected"，
@@ -477,6 +477,16 @@ func (p *upPlan) collectTargets(order *resolver.Plan) {
 	for _, step := range order.Steps {
 		ref := step.Ref
 		if noWorkload[ref] {
+			// 被外壳承载的成员没有主容器，但它的迁移照样用它自己的镜像跑（提案 §8.9.4）
+			if _, hosted := p.states.HostOf(p.proj, ref); hosted {
+				if node := p.graph.Node(ref); node != nil && node.Manifest != nil && node.Manifest.Migration != nil {
+					p.images = append(p.images, imageInfo{component: ref.ID + "@" + ref.Version, image: node.Manifest.Deployment.Image})
+					p.migrations = append(p.migrations, migrationInfo{
+						component: ref.ID + "@" + ref.Version,
+						command:   strings.Join(node.Manifest.Migration.Command, " "),
+					})
+				}
+			}
 			continue
 		}
 		node := p.graph.Node(ref)
@@ -510,6 +520,7 @@ func start(
 	opts.Printf("\n%s\n", i18n.T(msgid.CliUpStarting, eng.Name()))
 	if err := eng.Up(ctx, engine.UpRequest{
 		File: file, Project: project, ProjectDir: opts.WorkDir, Services: plan.services,
+		RunFirst:      plan.runFirst(),
 		PruneSelector: pruneSelector,
 	}); err != nil {
 		return engineFailure(i18n.T(msgid.CliUpStart), err)
@@ -838,4 +849,12 @@ func displayPath(workDir, path string) string {
 		return rel
 	}
 	return path
+}
+
+// runFirst 是引擎要在启动前单独跑完的一次性 service（compose.Result.RunFirst）。
+func (p *upPlan) runFirst() []string {
+	if p.generated == nil {
+		return nil
+	}
+	return p.generated.RunFirst
 }

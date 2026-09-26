@@ -5,6 +5,7 @@
 package compose_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -524,7 +525,6 @@ func TestShellWithoutMembersStillGetsReservedVariables(t *testing.T) {
 	assert.Contains(t, shellEnvFile(t, result, "erp-shell-1-0-0"), shell.EnvVarServedMembersConfig+`="[]"`)
 }
 
-
 // 多版本兼容：外壳承载 erp/a@1.0.0，另一个组件依赖的 erp/a@2.0.0 以普通组件独立部署。
 // 依赖 1.0.0 的拿到外壳地址，依赖 2.0.0 的拿到 2.0.0 自己的地址；外壳的 JSON 里只有 1.0.0；
 // 两个版本的迁移按版本号串行（同一个库，不能并发迁移）。
@@ -551,4 +551,93 @@ func TestComposeHostsOneVersionAndRunsTheOtherStandalone(t *testing.T) {
 	migration := serviceOf(t, doc, "erp-a-2-0-0-migration")
 	dependsOn, _ := migration["depends_on"].(map[string]any)
 	assert.Contains(t, dependsOn, "erp-a-1-0-0-migration", "2.0.0 的迁移等 1.0.0 的迁移先跑完")
+}
+
+// ---- 外壳以裸进程运行（mode: debug / local）：成员跟着一起成为宿主机上的进程 ----
+
+// bareShellBuilder：外壳 debug（localPort 18000）承载 erp/a（依赖容器 erp/db、带迁移）与 erp/b。
+func bareShellBuilder(t *testing.T) *builder {
+	t.Helper()
+	a := withMigration(dependsOn(simple("erp/a", "1.0.0", 8081), "erp/db", "1.0.0"))
+	a.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"MODE": {Type: "string", Default: "strict"},
+	}}
+	b := newBuilder(t)
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 18000})
+	b.component(a, servedByEntry("erp/shell", "1.0.0"))
+	b.component(simple("erp/b", "1.0.0", 8082), servedByEntry("erp/shell", "1.0.0"))
+	b.component(simple("erp/db", "1.0.0", 5432), projecttest.Entry{})
+	return b
+}
+
+// servedJSON 从本地 env 文件取出外壳的 JSON。
+func servedJSON(t *testing.T, env map[string]string) []map[string]any {
+	t.Helper()
+	var entries []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(env[shell.EnvVarServedMembersConfig]), &entries))
+	return entries
+}
+
+// 裸进程外壳的两个保留变量写进它的本地 env 文件（IDE 加载它，mode: local 时 brickkit 带上它）。
+// 成员在宿主机上跑：它依赖的容器要映射到宿主机端口，JSON 里的地址是 localhost:<宿主机端口>。
+func TestBareShellLocalEnvCarriesJSONWithHostAddresses(t *testing.T) {
+	result := bareShellBuilder(t).generate()
+	env := localEnv(t, result, "erp-shell-1-0-0")
+	assert.Equal(t, "erp-a-1-0-0,erp-b-1-0-0", env[shell.EnvVarServedMembers])
+
+	entries := servedJSON(t, env)
+	require.Len(t, entries, 2)
+	config, _ := entries[0]["config"].(map[string]any)
+	assert.Equal(t, "strict", config["MODE"])
+	assert.Equal(t, "http://localhost:15432", config["ERP_DB_ENDPOINT"])
+	assert.Contains(t, portsOf(t, serviceOf(t, docOf(t, result), "erp-db-1-0-0")), "15432:5432",
+		"成员要连的容器发布到宿主机")
+}
+
+// 成员的迁移仍然是容器：它拿到的是容器里的地址，不是 localhost（localhost 在容器里是它自己）。
+func TestBareShellMemberMigrationKeepsContainerAddresses(t *testing.T) {
+	doc := docOf(t, bareShellBuilder(t).generate())
+	migration := serviceOf(t, doc, "erp-a-1-0-0-migration")
+	assert.Equal(t, "http://erp-db-1-0-0:5432", envOf(t, migration)["ERP_DB_ENDPOINT"])
+	assert.NotContains(t, servicesOf(t, doc), "erp-shell-1-0-0", "裸进程外壳没有容器")
+}
+
+// 容器调用裸进程外壳里的成员：地址是 外壳服务名:成员端口，外壳服务名经 extra_hosts 解析到宿主机。
+func TestContainerCallsMemberOfBareShell(t *testing.T) {
+	b := bareShellBuilder(t)
+	b.component(dependsOn(simple("erp/caller", "1.0.0", 8090), "erp/a", "1.0.0"), projecttest.Entry{})
+
+	caller := serviceOf(t, docOf(t, b.generate()), "erp-caller-1-0-0")
+	assert.Equal(t, "http://erp-shell-1-0-0:8081", envOf(t, caller)["ERP_A_ENDPOINT"])
+	assert.Contains(t, extraHostsOf(t, caller), "erp-shell-1-0-0:host-gateway")
+}
+
+// 另一个裸进程调用裸进程外壳里的成员：直接 localhost:成员端口。
+func TestLocalCallsMemberOfBareShell(t *testing.T) {
+	b := bareShellBuilder(t)
+	b.component(dependsOn(simple("erp/tool", "1.0.0", 8095), "erp/b", "1.0.0"),
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 19000})
+
+	assert.Equal(t, "http://localhost:8082", localEnv(t, b.generate(), "erp-tool-1-0-0")["ERP_B_ENDPOINT"])
+}
+
+// 成员的端口在宿主机上由外壳进程监听：跟别的宿主机端口撞了，生成时就报错，不等进程绑定失败。
+func TestBareShellMemberPortCollision(t *testing.T) {
+	b := bareShellBuilder(t)
+	b.component(simple("erp/tool", "1.0.0", 8095), projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
+
+	_, err := b.build(compose.Options{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "8081")
+}
+
+// 裸进程外壳承载的成员的迁移没有服务等着它（外壳不在 compose 里）：交给引擎先跑（RunFirst）。
+// 外壳在容器里时它由外壳的 depends_on 带起来，不进 RunFirst。
+func TestBareShellMemberMigrationRunsFirst(t *testing.T) {
+	assert.Equal(t, []string{"erp-a-1-0-0-migration"}, bareShellBuilder(t).generate().RunFirst)
+
+	b := newBuilder(t)
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})
+	b.component(withMigration(simple("erp/a", "1.0.0", 8081)), servedByEntry("erp/shell", "1.0.0"))
+	assert.Empty(t, b.generate().RunFirst)
 }

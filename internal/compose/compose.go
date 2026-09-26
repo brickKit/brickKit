@@ -75,6 +75,9 @@ type Result struct {
 	EnvFiles []EnvFile
 	// LocalEnvFiles 是 mode: debug 组件的调试环境变量文件（005 §4.9）。
 	LocalEnvFiles []LocalEnvFile
+	// RunFirst 是要在启动前单独跑完的一次性 service：裸进程外壳承载的成员的迁移——
+	// 外壳不在 compose 文件里，没有 service 通过 depends_on 等着它们（engine.UpRequest.RunFirst）。
+	RunFirst []string
 	// Warnings 是不阻断的问题。
 	Warnings []*clierr.Error
 }
@@ -120,6 +123,7 @@ func Generate(
 		YAML:          append(header(proj, plan, now), body...),
 		EnvFiles:      plan.envFileList(),
 		LocalEnvFiles: locals,
+		RunFirst:      plan.runFirst(),
 		Warnings:      plan.warnings,
 	}, nil
 }
@@ -269,7 +273,7 @@ func newPlan(
 		if shellRef, hosted := states.HostOf(proj, ref); hosted {
 			p.served = append(p.served, servedComponent{
 				Ref: ref, Service: service, Manifest: node.Manifest,
-				Entry: entry, Shell: shellRef, Env: envByRef[ref],
+				Entry: entry, Shell: shellRef, Env: copyComponent(envByRef[ref]),
 			})
 			if node.Manifest != nil && node.Manifest.Migration != nil {
 				p.memberMigrations = append(p.memberMigrations, componentPlan{
@@ -305,7 +309,8 @@ func newPlan(
 	}
 	p.rewriteEndpointsForLocalDependencies()
 
-	groups, err := shell.Resolve(proj, graph, states, env, opts.Lookup)
+	// 成员交给外壳的环境用计划里改写过的那一份（本地调试地址、裸进程外壳的 localhost 地址）
+	groups, err := shell.Resolve(proj, graph, states, p.envForShells(env), opts.Lookup)
 	if err != nil {
 		return nil, err
 	}

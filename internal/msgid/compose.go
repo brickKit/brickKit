@@ -49,6 +49,8 @@ const (
 
 // internal/compose/quota.go
 const (
-	ComposeCPUQuotaInvalid    = "compose.cpu_quota_invalid"
-	ComposeMemoryQuotaInvalid = "compose.memory_quota_invalid"
+	ComposeCPUQuotaInvalid      = "compose.cpu_quota_invalid"
+	ComposeMemoryQuotaInvalid   = "compose.memory_quota_invalid"
+	ComposeOwnerHostMember      = "compose.owner_host_member"
+	ComposeOwnerHostMemberExtra = "compose.owner_host_member_extra"
 )

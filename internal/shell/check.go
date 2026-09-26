@@ -26,7 +26,7 @@ import (
 //
 // "成员必须有独立镜像"（提案 §8.1 规则 1）这里不查：Manifest 校验已经要求每个组件
 // 写 deployment.image 或 deployment.build，这条规则因此对任何组件都自然成立。
-func Check(p *project.Project, graph *resolver.Graph, states *cascade.Result) error {
+func Check(p *project.Project, graph *resolver.Graph, _ *cascade.Result) error {
 	for _, c := range p.Decl.Components {
 		ref := resolver.Ref{ID: c.ID, Version: c.Version}
 		node := graph.Node(ref)
@@ -50,14 +50,6 @@ func Check(p *project.Project, graph *resolver.Graph, states *cascade.Result) er
 					WithHint(i18n.T(msgid.ShellHintMemberNotHostable))
 			}
 		}
-		if entry.IsBareProcess() && states.IsRunning(ref) {
-			if hosted := hostedMembers(p, states, ref); len(hosted) > 0 {
-				return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellBareWithMembers, ref.String(), entry.Mode)).
-					WithDetail(i18n.T(msgid.LabelMembers), strings.Join(hosted, ", ")).
-					WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellBareWithMembersReason)).
-					WithHint(i18n.T(msgid.ShellHintBareWithMembers))
-			}
-		}
 	}
 	return nil
 }
@@ -74,16 +66,4 @@ func checkKind(ref resolver.Ref, declared bool, m *manifest.Manifest) *clierr.Er
 			WithHint(i18n.T(msgid.ShellHintAddKind))
 	}
 	return nil
-}
-
-// hostedMembers 是声明在这个外壳里、这次在跑、自己又不是裸进程的成员。
-// 外壳本身是裸进程时 HostOf 仍然为真（外壳在跑），这正是要拦的组合。
-func hostedMembers(p *project.Project, states *cascade.Result, shell resolver.Ref) []string {
-	var out []string
-	for _, ref := range states.Running() {
-		if host, ok := states.HostOf(p, ref); ok && host == shell {
-			out = append(out, ref.String())
-		}
-	}
-	return out
 }

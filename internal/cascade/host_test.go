@@ -63,7 +63,6 @@ func TestHostOf(t *testing.T) {
 	assert.False(t, ok)
 }
 
-
 // 成员有两个版本、外壳承载其中一个：只有那个版本被承载，另一个版本独立部署。
 func TestHostOfIsVersionAware(t *testing.T) {
 	decl := &projfile.File{Project: "p", Components: []projfile.Component{

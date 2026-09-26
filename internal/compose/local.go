@@ -294,6 +294,24 @@ func (p *plan) assignHostPorts() error {
 		}
 	}
 
+	// 3.5) 裸进程外壳承载的成员：外壳进程在宿主机上替它们监听各自声明的端口（不重新分配——
+	//      外壳代码按成员声明的端口起监听）。撞了就是生成期错误，不等进程绑定失败
+	for _, s := range p.served {
+		if !p.bareShell(s.Shell) || s.Manifest == nil {
+			continue
+		}
+		if err := ports.claim(s.Manifest.Deployment.Port,
+			i18n.T(msgid.ComposeOwnerHostMember, refText(s.Ref), refText(s.Shell))); err != nil {
+			return err
+		}
+		for _, extra := range s.Manifest.Deployment.ExtraPorts {
+			owner := i18n.T(msgid.ComposeOwnerHostMemberExtra, refText(s.Ref), refText(s.Shell), extra.Name)
+			if err := ports.claim(extra.Port, owner); err != nil {
+				return err
+			}
+		}
+	}
+
 	// 4) 没写 localPort 的自动分配（005 §4.6，延后项 P3）
 	//
 	//    默认就用组件**自己声明的主端口**：进程在容器里监听的是它，
@@ -312,9 +330,17 @@ func (p *plan) assignHostPorts() error {
 		p.locals[i].Port = port
 	}
 
-	// 5) local 组件要访问的容器依赖 → 映射到宿主机（005 §4.8）
+	// 5) local 组件（以及裸进程外壳承载的成员）要访问的容器依赖 → 映射到宿主机（005 §4.8）
 	for _, l := range p.locals {
 		for _, dep := range p.runningDependencies(l.Ref) {
+			p.mapDependencyToHost(ports, dep)
+		}
+	}
+	for _, s := range p.served {
+		if !p.bareShell(s.Shell) {
+			continue
+		}
+		for _, dep := range p.runningDependencies(s.Ref) {
 			p.mapDependencyToHost(ports, dep)
 		}
 	}
@@ -342,6 +368,10 @@ func (p *plan) mapDependencyToHost(ports *portTable, dep resolver.Ref) {
 
 	// 依赖本身也是 local：两个进程都在宿主机上，直接走它的 localPort
 	if _, isLocal := p.localPort[service]; isLocal {
+		return
+	}
+	// 依赖在裸进程外壳里：外壳进程已经在宿主机上替它监听，没什么可映射的
+	if _, onHost := p.hostMember(dep); onHost {
 		return
 	}
 
@@ -437,6 +467,10 @@ func (p *plan) runningDependencies(ref resolver.Ref) []resolver.Ref {
 
 // hostAccessPort 返回"从宿主机访问这个依赖的主端口"该用哪个端口。
 func (p *plan) hostAccessPort(dep resolver.Ref) (int, bool) {
+	// 裸进程外壳里的成员：外壳进程在宿主机上按成员声明的端口监听
+	if s, onHost := p.hostMember(dep); onHost && s.Manifest != nil {
+		return s.Manifest.Deployment.Port, true
+	}
 	service := manifest.ServiceName(dep.ID, dep.Version)
 	for _, table := range []map[string]int{p.localPort, p.exposedPort, p.debugPort} {
 		if port, ok := table[service]; ok {
@@ -479,7 +513,12 @@ func (p *plan) extraHostsOf(c componentPlan) []string {
 	}
 
 	for _, dep := range p.workloadDependencies(c.Ref) {
-		service := manifest.ServiceName(dep.ID, dep.Version)
+		// 依赖被外壳承载时，地址里的主机名是外壳的服务名（inject 改写过）；外壳是裸进程时要解析到宿主机
+		host := dep
+		if s, onHost := p.hostMember(dep); onHost {
+			host = s.Shell
+		}
+		service := manifest.ServiceName(host.ID, host.Version)
 		if _, isLocal := p.localPort[service]; isLocal {
 			add(service + ":" + hostGateway(p.engine))
 		}
@@ -578,6 +617,11 @@ func (p *plan) rewriteEndpointsForLocalDependencies() {
 		rewrite(c.Ref, c.Env.Env)
 	}
 	for _, s := range p.served {
+		if p.bareShell(s.Shell) {
+			// 外壳是裸进程：成员跟着在宿主机上，按本地组件的规则指向 localhost
+			p.pointDependenciesAtLocalhost(s.Ref, s.Env.Env)
+			continue
+		}
 		rewrite(s.Ref, s.Env.Env)
 	}
 	for _, m := range p.memberMigrations {
@@ -619,7 +663,7 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 	vars := make([]inject.Var, len(l.Env.Env))
 	copy(vars, l.Env.Env)
 
-	p.pointDependenciesAtLocalhost(l, vars)
+	p.pointDependenciesAtLocalhost(l.Ref, vars)
 
 	evaluated := make([]inject.Var, 0, len(vars))
 	unresolved := map[string]string{}
@@ -662,8 +706,8 @@ func lookupOrNil(lookup func(string) (string, bool), name string) (string, bool)
 }
 
 // pointDependenciesAtLocalhost 把依赖地址改成宿主机上的映射端口（13.5）。
-func (p *plan) pointDependenciesAtLocalhost(l localComponent, vars []inject.Var) {
-	for _, dep := range p.runningDependencies(l.Ref) {
+func (p *plan) pointDependenciesAtLocalhost(ref resolver.Ref, vars []inject.Var) {
+	for _, dep := range p.runningDependencies(ref) {
 		node := p.graph.Node(dep)
 		if node == nil || node.Manifest == nil {
 			continue
@@ -690,7 +734,9 @@ func (p *plan) pointDependenciesAtLocalhost(l localComponent, vars []inject.Var)
 				// 监听的假地址（brickKit 反馈：local 组件依赖 servedBy 成员
 				// 时本地调试地址错误）。跟主端口（hostAccessPort 查不到时
 				// setVar 不会被调用）保持一致：查不到就不改，而不是瞎猜一个。
-				if _, isLocal := p.localPort[service]; !isLocal {
+				_, isLocal := p.localPort[service]
+				_, onHost := p.hostMember(dep)
+				if !isLocal && !onHost {
 					continue
 				}
 				port = extra.Port

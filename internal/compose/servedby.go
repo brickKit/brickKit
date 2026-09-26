@@ -67,6 +67,18 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 		sort.Strings(aliases)
 		p.shellAliases[p.components[i].Service] = aliases
 	}
+	// 裸进程外壳：两个保留变量进它的本地 env 文件（IDE 加载它；mode: local 时 brickkit 启动进程时带上）
+	for i := range p.locals {
+		ref := p.locals[i].Ref
+		g, ok := byShell[ref]
+		if !ok {
+			if !referencedShells[ref] {
+				continue
+			}
+			g = shell.Group{Shell: ref}
+		}
+		p.locals[i].Env.Env = shell.Apply(p.locals[i].Env.Env, g)
+	}
 }
 
 // shellOf 判断 ref 是不是某个 servedBy 成员，是则返回它指向的外壳 ref。
@@ -161,6 +173,56 @@ func (p *plan) servedUnsupportedFieldWarnings() []*clierr.Error {
 			WithDetail(i18n.T(msgid.LabelComponent), refText(s.Ref)).
 			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeServedFieldsReasonDetail, s.Shell.ID)).
 			WithHint(i18n.T(msgid.HintDropServedBy)))
+	}
+	return out
+}
+
+// copyComponent 复制一份注入结果：成员交给外壳的那份环境会按外壳所在的位置改写地址
+// （外壳是裸进程时改成 localhost），而成员的迁移容器必须保留容器里的地址——两份不能共用底层数组。
+func copyComponent(c inject.Component) inject.Component {
+	c.Env = append([]inject.Var(nil), c.Env...)
+	return c
+}
+
+// envForShells 返回交给 shell.Resolve 的注入结果：被承载成员的环境换成计划里改写过的那一份。
+func (p *plan) envForShells(env *inject.Result) *inject.Result {
+	byRef := map[resolver.Ref]inject.Component{}
+	for _, s := range p.served {
+		byRef[s.Ref] = s.Env
+	}
+	out := &inject.Result{Warnings: env.Warnings}
+	for _, c := range env.Components {
+		if served, ok := byRef[c.Ref]; ok {
+			c = served
+		}
+		out.Components = append(out.Components, c)
+	}
+	return out
+}
+
+// bareShell 报告这个外壳这次是不是裸进程（mode: debug / local）：它承载的成员也就是宿主机上的进程。
+func (p *plan) bareShell(shellRef resolver.Ref) bool {
+	return p.proj.DeployEntry(shellRef.ID, shellRef.Version).IsBareProcess()
+}
+
+// hostMember 报告 ref 是不是被一个裸进程外壳承载的成员（这次在宿主机上，由外壳进程替它监听端口）。
+func (p *plan) hostMember(ref resolver.Ref) (servedComponent, bool) {
+	for _, s := range p.served {
+		if s.Ref == ref && p.bareShell(s.Shell) {
+			return s, true
+		}
+	}
+	return servedComponent{}, false
+}
+
+// runFirst 是裸进程外壳承载的成员的迁移 service：外壳没有容器，没有 service 等着它们，
+// 由引擎在启动前单独跑完（按服务名排序；同一组件多个版本之间的先后由 depends_on 链保证）。
+func (p *plan) runFirst() []string {
+	var out []string
+	for _, m := range p.memberMigrations {
+		if shellRef, ok := p.shellOf(m.Ref); ok && p.bareShell(shellRef) {
+			out = append(out, migrationService(m.Service))
+		}
 	}
 	return out
 }

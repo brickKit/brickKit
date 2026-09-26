@@ -50,6 +50,15 @@ func (c *Compose) Name() string { return c.name }
 // 引擎不该假设调用方永远想清理——那是命令层的判断，K8s 侧同一个字段
 // 也是这么用的（005 §5.9.1）。
 func (c *Compose) Up(ctx context.Context, req UpRequest) error {
+	for _, service := range req.RunFirst {
+		run := append(c.projectArgs(req.File, req.Project, req.ProjectDir), "run", "--rm", service)
+		if _, err := c.exec(ctx, run...); err != nil {
+			return err
+		}
+	}
+	if len(req.Services) == 0 && len(req.RunFirst) > 0 {
+		return nil // 这次只有一次性 service 要跑（例如全部组件都在宿主机上）；空 Services 在 up 里意味着"全部"
+	}
 	args := append(c.projectArgs(req.File, req.Project, req.ProjectDir), "up", "-d", "--wait")
 	if req.PruneSelector != "" {
 		args = append(args, "--remove-orphans")

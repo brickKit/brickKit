@@ -1301,10 +1301,6 @@ var zh = map[string]string{
 	msgid.ShellMemberNotHostable:           "错误：%[1]s 写在了 %[2]s 的 members 里，但这个外壳没有声明能承载它",
 	msgid.ShellLabelCanHost:                "shell.members 里声明的",
 	msgid.ShellHintMemberNotHostable:       "把它从 members 里去掉、让它独立运行，或者换一个在 shell.members 里列了它的外壳版本",
-	msgid.ShellBareWithMembers:             "错误：外壳 %[1]s 以裸进程运行（mode: %[2]s），同时又承载着成员",
-	msgid.ShellBareWithMembersReason:       "成员跑在外壳的进程里；没有容器的外壳目前还不能承载它们",
-	msgid.ShellHintBareWithMembers:         "让外壳在容器里跑（去掉它的 mode），或者把成员移出它的 members",
-	msgid.LabelMembers:                     "成员",
 	msgid.ShellMemberValueUnresolved:       "错误：外壳成员 %[1]s 的配置项 %[2]s 引用了 ${%[3]s}，但这个环境变量没有设置",
 	msgid.ShellMemberValueUnresolvedReason: "成员配置装在 BRICKKIT_SERVED_MEMBERS_CONFIG 里交给外壳，CLI 写出之前就要求好值；字面的 ${...} 留在里面只会让成员拿到错的值",
 	msgid.ShellHintSetVariable:             "在进程环境或项目根的 .env 里设置 %[1]s",
@@ -1317,4 +1313,6 @@ var zh = map[string]string{
 	msgid.ProjectMemberWhichVersion:        "成员 %[1]s 在 brickkit.yaml 里有多个版本（%[2]s）；写明外壳里承载的是哪一个，例如 %[1]s@%[3]s",
 	msgid.ProjectMemberVersionUndeclared:   "成员 %[1]s@%[2]s：brickkit.yaml 里没有声明这个版本",
 	msgid.DeployfileMemberBadVersion:       "成员 %[1]s：@ 后面必须是精确版本，例如 1.0.0",
+	msgid.ComposeOwnerHostMember:           "%[1]s（由裸进程外壳 %[2]s 承载）",
+	msgid.ComposeOwnerHostMemberExtra:      "%[1]s 的额外端口 %[3]s（由裸进程外壳 %[2]s 承载）",
 }

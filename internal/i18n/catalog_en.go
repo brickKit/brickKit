@@ -1310,10 +1310,6 @@ var en = map[string]string{
 	msgid.ShellMemberNotHostable:           "Error: %[1]s is listed in the members of %[2]s, but that shell does not declare it can host it",
 	msgid.ShellLabelCanHost:                "Declared in shell.members",
 	msgid.ShellHintMemberNotHostable:       "Remove it from members so it runs on its own, or use a shell version whose component.yaml lists it under shell.members",
-	msgid.ShellBareWithMembers:             "Error: shell %[1]s runs as a bare process (mode: %[2]s) while it hosts members",
-	msgid.ShellBareWithMembersReason:       "Members run inside the shell process; a shell without a container cannot host them yet",
-	msgid.ShellHintBareWithMembers:         "Run the shell in a container (drop its mode), or move the members out of its members list",
-	msgid.LabelMembers:                     "Members",
 	msgid.ShellMemberValueUnresolved:       "Error: config item %[2]s of shell member %[1]s references ${%[3]s}, which is not set",
 	msgid.ShellMemberValueUnresolvedReason: "A member config reaches the shell inside BRICKKIT_SERVED_MEMBERS_CONFIG, which the CLI evaluates before writing it; a literal ${...} there would break the member",
 	msgid.ShellHintSetVariable:             "Set %[1]s in the environment or in the project .env file",
@@ -1326,4 +1322,6 @@ var en = map[string]string{
 	msgid.ProjectMemberWhichVersion:        "member %[1]s has several versions in brickkit.yaml (%[2]s); write which one the shell hosts, e.g. %[1]s@%[3]s",
 	msgid.ProjectMemberVersionUndeclared:   "member %[1]s@%[2]s: that version is not declared in brickkit.yaml",
 	msgid.DeployfileMemberBadVersion:       "member %[1]s: the version after @ must be an exact version like 1.0.0",
+	msgid.ComposeOwnerHostMember:           "%[1]s, served by the bare-process shell %[2]s",
+	msgid.ComposeOwnerHostMemberExtra:      "%[1]s extra port %[3]s, served by the bare-process shell %[2]s",
 }

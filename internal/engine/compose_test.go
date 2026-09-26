@@ -505,3 +505,39 @@ func TestPodmanOnlyMachineGetsEnableHint(t *testing.T) {
 	assert.NotContains(t, text, "docs/", "文档还在重写，不指向已归档的页面")
 	assert.Contains(t, text, "--dry-run", "生成文件不需要引擎，这条出路要给出来")
 }
+
+// 没有任何服务等着它的一次性迁移（裸进程外壳承载的成员的迁移）：在 up 之前用 run --rm 跑完。
+// 直接交给 `up -d --wait` 不行——实测 v5.3.1：一次性容器退出 0 也会被 --wait 当成失败。
+func TestUpRunsOneShotsFirst(t *testing.T) {
+	rec := newRecorder()
+	require.NoError(t, dockerWith(rec).Up(context.Background(), UpRequest{
+		File: "f.yaml", Project: "brickkit-my-erp", ProjectDir: "/p",
+		Services: []string{"erp-db-1-0-0"}, RunFirst: []string{"erp-a-1-0-0-migration"},
+	}))
+	require.Len(t, rec.calls, 2)
+	first := strings.Join(rec.calls[0], " ")
+	assert.Contains(t, first, "run --rm erp-a-1-0-0-migration")
+	assert.Contains(t, first, "--project-directory /p", ".env 同样要从项目根读")
+	assert.Contains(t, strings.Join(rec.calls[1], " "), "up -d --wait")
+}
+
+// 一次性迁移失败：不再往下 up——迁移没跑成，外壳里的成员就会对着旧库结构启动。
+func TestUpStopsWhenOneShotFails(t *testing.T) {
+	rec := newRecorder()
+	rec.fail["run --rm"] = errors.New("exit status 3")
+	err := dockerWith(rec).Up(context.Background(), UpRequest{
+		File: "f.yaml", Project: "brickkit-my-erp", RunFirst: []string{"erp-a-1-0-0-migration"},
+	})
+	require.Error(t, err)
+	assert.Len(t, rec.calls, 1, "失败后不再执行 up")
+}
+
+// 只有一次性 service、没有要启动的容器：跑完就结束，不执行 up（空 Services 在 up 里意味着"全部"）。
+func TestUpWithOnlyOneShotsSkipsUp(t *testing.T) {
+	rec := newRecorder()
+	require.NoError(t, dockerWith(rec).Up(context.Background(), UpRequest{
+		File: "f.yaml", Project: "brickkit-my-erp", RunFirst: []string{"erp-a-1-0-0-migration"},
+	}))
+	require.Len(t, rec.calls, 1)
+	assert.Contains(t, strings.Join(rec.calls[0], " "), "run --rm")
+}

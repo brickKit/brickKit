@@ -58,17 +58,18 @@ func TestCheckMemberNotHostable(t *testing.T) {
 	assert.Contains(t, err.Error(), "erp/a", "要列出外壳能承载哪些组件")
 }
 
-// 外壳自己以裸进程运行、又承载着成员：成员活在外壳的进程里，这种组合 P3 不支持。
-func TestCheckBareShellWithMembersRejected(t *testing.T) {
-	_, err := resolveRaw(t, &testCfg{Components: []testComp{
+// 外壳自己以裸进程运行、承载着成员：允许——本地开发一开始就是这样（成员跟着外壳在宿主机上跑）。
+func TestCheckBareShellWithMembersAllowed(t *testing.T) {
+	groups, err := resolveRaw(t, &testCfg{Components: []testComp{
 		{ID: "erp/shell", Version: "1.0.0", Mode: deployfile.ModeLocal},
 		comp("erp/a", "1.0.0", "erp/shell@1.0.0"),
 	}}, map[string]*manifest.Manifest{
 		"erp/shell@1.0.0": shellManifest("erp/shell", "1.0.0", 8080, "erp/a"),
 		"erp/a@1.0.0":     simple("erp/a", "1.0.0", 8081),
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "mode: local")
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+	assert.Len(t, groups[0].Members, 1)
 }
 
 func TestCheckConsistentProject(t *testing.T) {
