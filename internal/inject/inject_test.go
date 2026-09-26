@@ -947,7 +947,6 @@ func TestBuildReservedEndpointSuffixStillBlocked(t *testing.T) {
 	assert.NotContains(t, envOf(t, result, "people/basic"), "NOTIFIER_ENDPOINT")
 }
 
-
 // 依赖一个被外壳承载的成员：地址指向外壳（提案 §8.8，网络拓扑层由 CLI 重写），
 // 端口仍是成员自己的端口——外壳进程在那个端口上替它监听。
 func TestEndpointOfHostedMemberPointsAtShell(t *testing.T) {

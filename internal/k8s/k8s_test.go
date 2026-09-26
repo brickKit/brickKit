@@ -79,6 +79,7 @@ func (b *builder) build() (*k8s.Result, error) {
 	b.t.Helper()
 
 	b.proj = projecttest.Build(b.t, b.spec)
+	projecttest.FillShellCapability(b.spec, b.provider)
 	graph, err := resolver.New(b.provider).Resolve(context.Background(), b.roots...)
 	require.NoError(b.t, err)
 

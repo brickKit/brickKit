@@ -109,7 +109,27 @@ func projectFrom(t *testing.T, cfg *testCfg) *project.Project {
 
 // resolveFixture 跑完整条链路（解析依赖图 → 级联 → 注入 → shell.Resolve），
 // 供每个用例只关心自己要断言的那一小段。
+//
+// 外壳的 Manifest 没写 shell 块时，按 cfg 里声明的成员补上能力声明——三处声明
+// 一致是 shell.Check 的前提，大多数用例关心的不是它；专门测不一致的用例用 resolveRaw。
 func resolveFixture(t *testing.T, cfg *testCfg, manifests map[string]*manifest.Manifest) ([]shell.Group, error) {
+	t.Helper()
+	for _, c := range cfg.Components {
+		if c.ServedBy == "" {
+			continue
+		}
+		if m := manifests[c.ServedBy]; m != nil && m.Shell == nil {
+			m.Shell = &manifest.Shell{}
+		}
+		if m := manifests[c.ServedBy]; m != nil && !m.CanHost(c.ID) {
+			m.Shell.Members = append(m.Shell.Members, c.ID)
+		}
+	}
+	return resolveRaw(t, cfg, manifests)
+}
+
+// resolveRaw 与 resolveFixture 相同，但不补外壳的能力声明。
+func resolveRaw(t *testing.T, cfg *testCfg, manifests map[string]*manifest.Manifest) ([]shell.Group, error) {
 	t.Helper()
 
 	p := projectFrom(t, cfg)

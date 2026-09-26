@@ -196,7 +196,7 @@ resources: []
 
 func servedByComps() []comp {
 	return []comp{
-		{ID: "demo/shell", Version: "1.0.0", Port: 8080},
+		{ID: "demo/shell", Version: "1.0.0", Port: 8080, ShellMembers: []string{"demo/a", "demo/b"}},
 		{ID: "demo/a", Version: "1.0.0", Port: 8081},
 		{ID: "demo/b", Version: "1.0.0", Port: 8082},
 		{ID: "demo/free", Version: "1.0.0", Port: 8083},
@@ -232,7 +232,7 @@ func TestGraphDoesNotGroupMemberUnderADisabledShell(t *testing.T) {
     version: 1.0.0
     servedBy: demo/shell@1.0.0
 resources: []
-`, comp{ID: "demo/shell", Version: "1.0.0", Port: 8080}, comp{ID: "demo/a", Version: "1.0.0", Port: 8081})
+`, comp{ID: "demo/shell", Version: "1.0.0", Port: 8080, ShellMembers: []string{"demo/a", "demo/b"}}, comp{ID: "demo/a", Version: "1.0.0", Port: 8081})
 
 	r := runIn(t, f.Dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)

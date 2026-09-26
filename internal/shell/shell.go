@@ -210,6 +210,9 @@ func Resolve(
 	if p == nil || graph == nil || states == nil || env == nil {
 		return nil, nil
 	}
+	if err := Check(p, graph, states); err != nil {
+		return nil, err
+	}
 	envByRef := make(map[resolver.Ref]inject.Component, len(env.Components))
 	for _, c := range env.Components {
 		envByRef[c.Ref] = c
