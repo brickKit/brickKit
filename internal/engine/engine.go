@@ -69,11 +69,13 @@ type UpRequest struct {
 	// 现在它总是本次会启动的完整一批（`--only` 已删，003 §4.3：要收窄范围就改
 	// enabled）。留着这个字段是因为引擎不该假设调用方永远想全起。
 	Services []string
-	// RunFirst 是要在启动前跑完的一次性 service（compose 目标）：没有任何 service 通过
-	// depends_on 等着它们——裸进程外壳承载的成员的迁移就是这样。逐个 `run --rm`，
-	// 任何一个失败就不再往下启动。不能直接放进 Services：`up -d --wait` 把退出 0 的
-	// 一次性容器也当成失败（实测 v5.3.1）。
-	RunFirst []string
+	// RunAfter 是 up 之后要单独跑完的一次性 service（compose 目标）：没有任何 service 通过
+	// depends_on 等着它们——裸进程外壳承载的成员的迁移就是这样。放在 up 之后，是因为它们要连的
+	// 容器（数据库组件之类）这时才在跑；逐个 `run --rm --no-deps`：它们在同一组件迁移链上的前一版
+	// 已经由 up 经 depends_on 跑过，不带 --no-deps 会再跑一遍。任何一个失败就报错，调用方据此
+	// 不再启动裸进程外壳。不能直接放进 Services：`up -d --wait` 把退出 0 的一次性容器也当成失败
+	// （实测 v5.3.1）。
+	RunAfter []string
 	// Context 是 kubeconfig 上下文，只对 K8s 目标有意义；为空表示用当前 context。
 	Context string
 	// MigrationGroups 是本次要执行的迁移 Job，**按组件 ID 分组**，只对 K8s 目标有意义。

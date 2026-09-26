@@ -123,7 +123,7 @@ func TestShellDryRunDockerAndK8s(t *testing.T) {
 }
 
 // 外壳以 mode: debug 跑在宿主机上（本地开发一开始就是这样）：成员跟着在宿主机上，
-// 外壳的本地 env 文件里有 JSON（PEM 逐字节不变），成员的迁移在启动前单独跑完，
+// 外壳的本地 env 文件里有 JSON（PEM 逐字节不变），成员的迁移在容器起来之后单独跑完，
 // 外壳外面的容器经 extra_hosts 连到宿主机上的外壳。
 func TestBareShellEndToEnd(t *testing.T) {
 	dir := copyFixture(t, "three-layer-shell")
@@ -139,7 +139,7 @@ func TestBareShellEndToEnd(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
 	require.Len(t, eng.ups, 1)
-	assert.Equal(t, []string{"erp-api-1-0-0-migration"}, eng.ups[0].RunFirst, "成员迁移在启动前单独跑")
+	assert.Equal(t, []string{"erp-api-1-0-0-migration"}, eng.ups[0].RunAfter, "成员迁移在容器起来之后单独跑")
 	assert.NotContains(t, eng.ups[0].Services, "erp-shell-1-0-0", "裸进程外壳没有容器")
 
 	generated := filepath.Join(dir, ".brickkit", "generated")

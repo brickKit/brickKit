@@ -215,13 +215,22 @@ func (p *plan) hostMember(ref resolver.Ref) (servedComponent, bool) {
 	return servedComponent{}, false
 }
 
-// runFirst 是裸进程外壳承载的成员的迁移 service：外壳没有容器，没有 service 等着它们，
-// 由引擎在启动前单独跑完（按服务名排序；同一组件多个版本之间的先后由 depends_on 链保证）。
-func (p *plan) runFirst() []string {
+// runAfter 是裸进程外壳承载的成员的迁移 service：外壳没有容器，没有 service 等着它们，
+// 由引擎在 up 之后单独跑（按服务名排序）。
+//
+// 例外是迁移链上排在前面的那个：同一组件的另一个版本独立部署、迁移排在它后面时，up 会经
+// 后一版迁移的 depends_on 把它带起来——再列进来就会在一次 up 里跑两遍。排在后面的那个 up
+// 带不到，列进来；引擎以 --no-deps 跑它，前一版此时已经由 up 跑完。
+func (p *plan) runAfter() []string {
+	predecessors := map[string]bool{}
+	for _, previous := range p.migrationAfter {
+		predecessors[previous] = true
+	}
 	var out []string
 	for _, m := range p.memberMigrations {
-		if shellRef, ok := p.shellOf(m.Ref); ok && p.bareShell(shellRef) {
-			out = append(out, migrationService(m.Service))
+		service := migrationService(m.Service)
+		if shellRef, ok := p.shellOf(m.Ref); ok && p.bareShell(shellRef) && !predecessors[service] {
+			out = append(out, service)
 		}
 	}
 	return out

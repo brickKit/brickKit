@@ -75,9 +75,9 @@ type Result struct {
 	EnvFiles []EnvFile
 	// LocalEnvFiles 是 mode: debug 组件的调试环境变量文件（005 §4.9）。
 	LocalEnvFiles []LocalEnvFile
-	// RunFirst 是要在启动前单独跑完的一次性 service：裸进程外壳承载的成员的迁移——
-	// 外壳不在 compose 文件里，没有 service 通过 depends_on 等着它们（engine.UpRequest.RunFirst）。
-	RunFirst []string
+	// RunAfter 是 up 之后要单独跑完的一次性 service：裸进程外壳承载的成员的迁移——
+	// 外壳不在 compose 文件里，没有 service 通过 depends_on 等着它们（engine.UpRequest.RunAfter）。
+	RunAfter []string
 	// Warnings 是不阻断的问题。
 	Warnings []*clierr.Error
 }
@@ -123,7 +123,7 @@ func Generate(
 		YAML:          append(header(proj, plan, now), body...),
 		EnvFiles:      plan.envFileList(),
 		LocalEnvFiles: locals,
-		RunFirst:      plan.runFirst(),
+		RunAfter:      plan.runAfter(),
 		Warnings:      plan.warnings,
 	}, nil
 }

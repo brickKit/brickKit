@@ -631,13 +631,30 @@ func TestBareShellMemberPortCollision(t *testing.T) {
 	assert.Contains(t, err.Error(), "8081")
 }
 
-// 裸进程外壳承载的成员的迁移没有服务等着它（外壳不在 compose 里）：交给引擎先跑（RunFirst）。
-// 外壳在容器里时它由外壳的 depends_on 带起来，不进 RunFirst。
-func TestBareShellMemberMigrationRunsFirst(t *testing.T) {
-	assert.Equal(t, []string{"erp-a-1-0-0-migration"}, bareShellBuilder(t).generate().RunFirst)
+// 裸进程外壳承载的成员的迁移没有服务等着它（外壳不在 compose 里）：交给引擎在 up 之后跑（RunAfter）——
+// 那时它要连的容器（这里是 erp/db）已经起来了。外壳在容器里时它由外壳的 depends_on 带起来，不进 RunAfter。
+func TestBareShellMemberMigrationRunsAfterUp(t *testing.T) {
+	assert.Equal(t, []string{"erp-a-1-0-0-migration"}, bareShellBuilder(t).generate().RunAfter)
 
 	b := newBuilder(t)
 	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})
 	b.component(withMigration(simple("erp/a", "1.0.0", 8081)), servedByEntry("erp/shell", "1.0.0"))
-	assert.Empty(t, b.generate().RunFirst)
+	assert.Empty(t, b.generate().RunAfter)
+}
+
+// 裸进程外壳承载 erp/a 的一个版本、另一个版本独立部署：两个迁移按版本号串成一条链。
+// 链上排在前面的那个会被 up 经 depends_on 带起来——再交给 RunAfter 就会在一次 up 里跑两遍；
+// 排在后面的那个 up 带不到，交给 RunAfter（引擎以 --no-deps 跑它，前一版此时已跑完）。
+func TestBareShellHostedMigrationInVersionChain(t *testing.T) {
+	build := func(hosted, standalone string) *compose.Result {
+		b := newBuilder(t)
+		b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 18000})
+		b.component(withMigration(simple("erp/a", hosted, 8081)), servedByEntry("erp/shell", "1.0.0"))
+		b.component(withMigration(simple("erp/a", standalone, 8081)), projecttest.Entry{})
+		b.component(dependsOn(simple("erp/new", "1.0.0", 8091), "erp/a", standalone), projecttest.Entry{})
+		return b.generate()
+	}
+	assert.Empty(t, build("1.0.0", "2.0.0").RunAfter, "1.0.0 的迁移由 2.0.0 的迁移链带起来，不再单独跑")
+	assert.Equal(t, []string{"erp-a-2-0-0-migration"}, build("2.0.0", "1.0.0").RunAfter,
+		"2.0.0 的迁移 up 带不到，up 之后单独跑")
 }

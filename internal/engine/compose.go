@@ -49,24 +49,25 @@ func (c *Compose) Name() string { return c.name }
 // 命令层其实总会给出选择器（每次 up 都按完整配置生成），但这个条件留着：
 // 引擎不该假设调用方永远想清理——那是命令层的判断，K8s 侧同一个字段
 // 也是这么用的（005 §5.9.1）。
+//
+// RunAfter 里的一次性 service 在 up 之后逐个跑，见 UpRequest.RunAfter。
 func (c *Compose) Up(ctx context.Context, req UpRequest) error {
-	for _, service := range req.RunFirst {
-		run := append(c.projectArgs(req.File, req.Project, req.ProjectDir), "run", "--rm", service)
-		if _, err := c.exec(ctx, run...); err != nil {
+	// 空 Services 在 up 里意味着"全部"：这次只有一次性 service 要跑（例如全部组件都在宿主机上）时不 up
+	if len(req.Services) > 0 || len(req.RunAfter) == 0 {
+		args := append(c.projectArgs(req.File, req.Project, req.ProjectDir), "up", "-d", "--wait")
+		if req.PruneSelector != "" {
+			args = append(args, "--remove-orphans")
+		}
+		args = append(args, req.Services...)
+		if _, err := c.exec(ctx, args...); err != nil {
 			return err
 		}
 	}
-	if len(req.Services) == 0 && len(req.RunFirst) > 0 {
-		return nil // 这次只有一次性 service 要跑（例如全部组件都在宿主机上）；空 Services 在 up 里意味着"全部"
-	}
-	args := append(c.projectArgs(req.File, req.Project, req.ProjectDir), "up", "-d", "--wait")
-	if req.PruneSelector != "" {
-		args = append(args, "--remove-orphans")
-	}
-	args = append(args, req.Services...)
-
-	if _, err := c.exec(ctx, args...); err != nil {
-		return err
+	for _, service := range req.RunAfter {
+		run := append(c.projectArgs(req.File, req.Project, req.ProjectDir), "run", "--rm", "--no-deps", service)
+		if _, err := c.exec(ctx, run...); err != nil {
+			return err
+		}
 	}
 	return nil
 }

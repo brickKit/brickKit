@@ -163,7 +163,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		return nil
 	}
 
-	if len(plan.services) == 0 && len(plan.runFirst()) == 0 {
+	if len(plan.services) == 0 && len(plan.runAfter()) == 0 {
 		// 这次没有任何组件需要容器（可能全是 mode: local / mode: debug，
 		// 或者全被 servedBy 吸收进了外壳）——不该去起一个引擎：`docker compose
 		// up` 对着一份 `services: {}` 的空文件会报 "no service selected"，
@@ -520,7 +520,7 @@ func start(
 	opts.Printf("\n%s\n", i18n.T(msgid.CliUpStarting, eng.Name()))
 	if err := eng.Up(ctx, engine.UpRequest{
 		File: file, Project: project, ProjectDir: opts.WorkDir, Services: plan.services,
-		RunFirst:      plan.runFirst(),
+		RunAfter:      plan.runAfter(),
 		PruneSelector: pruneSelector,
 	}); err != nil {
 		return engineFailure(i18n.T(msgid.CliUpStart), err)
@@ -851,10 +851,10 @@ func displayPath(workDir, path string) string {
 	return path
 }
 
-// runFirst 是引擎要在启动前单独跑完的一次性 service（compose.Result.RunFirst）。
-func (p *upPlan) runFirst() []string {
+// runAfter 是引擎要在 up 之后单独跑完的一次性 service（compose.Result.RunAfter）。
+func (p *upPlan) runAfter() []string {
 	if p.generated == nil {
 		return nil
 	}
-	return p.generated.RunFirst
+	return p.generated.RunAfter
 }
