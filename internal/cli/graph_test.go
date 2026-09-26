@@ -251,7 +251,7 @@ func TestGraphIgnoreServedByDropsGroupingAndSaysSo(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	requirePureMermaid(t, r.stdout)
 	assert.NotContains(t, r.stdout, "subgraph")
-	assert.Contains(t, r.stdout, "    %% All servedBy declarations are ignored")
+	assert.Contains(t, r.stdout, "    %% Every shell's members are ignored")
 
 	// 只在内存里清：部署文件里的 members 一个字没动
 	assert.Equal(t, []string{"demo/a", "demo/b"}, f.deployEntry(t, "demo/shell").Members)
@@ -498,9 +498,10 @@ func TestMermaidIDReplacesEveryHyphen(t *testing.T) {
 func TestGraphHelpDoesNotMentionUnreachableLocalDebugStyle(t *testing.T) {
 	r := run(t, "graph", "--help")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.NotContains(t, r.stdout, "local debug", "graph 不读 override.yaml，mode: debug 节点样式已经画不出来")
+	assert.NotContains(t, r.stdout, "local debug", "graph 不读本地模式，mode: debug 节点样式画不出来")
 	assert.NotContains(t, r.stdout, `mode: debug ones are marked`,
-		"不能再说 mode: debug 会被标出来——它现在只能写在 override.yaml 里，graph 根本不读那份文件")
+		"不能说 mode: debug 会被标出来——它只写在 deploy.local.yaml 里，graph 不读那份文件")
 	assert.Contains(t, r.stdout, "managed locally", "该讲 graph 实际会画的 mode: local 样式")
-	assert.Contains(t, r.stdout, "override.yaml", "该说清 graph 不读 override.yaml，所以 mode: debug 不会出现在图上")
+	assert.Contains(t, r.stdout, "deploy.local.yaml", "该说清 graph 不读本地模式，所以 mode: debug 不会出现在图上")
+	assert.NotContains(t, r.stdout, "override.yaml", "override.yaml 已经不存在")
 }

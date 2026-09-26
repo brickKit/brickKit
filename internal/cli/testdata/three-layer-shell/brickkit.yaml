@@ -1,0 +1,21 @@
+# brickkit.yaml —— 外壳端到端夹具
+project: shop
+
+sources:
+  - name: components
+    type: local
+    path: ./components
+  - name: shells
+    type: local
+    path: ./shell
+
+components:
+  - id: erp/shell
+    version: 1.0.0
+    kind: shell
+  - id: erp/api
+    version: 1.0.0
+  - id: erp/worker
+    version: 1.0.0
+  - id: erp/portal
+    version: 1.0.0

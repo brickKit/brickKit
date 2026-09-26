@@ -500,7 +500,7 @@ func TestUpIgnoreServedByPrintsBanner(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "up", "--ignore-served-by")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "All servedBy declarations are ignored")
+	assert.Contains(t, r.stdout, "Every shell's members are ignored")
 }
 
 // 这是一次内存里的验证运行，不是持久化配置的方式——brickkit.yaml 本身

@@ -1,11 +1,8 @@
 package compose
 
-// 本文件实现 servedBy（外壳合并部署，servedBy 设计书）。
-//
-// mode: debug 与 servedBy 结构相似（都是"在依赖图里存在但不生成工作
-// 负载"），但语义完全独立，实现也刻意不共享代码路径——mode: debug 是
-// 本机调试，servedBy 是代码已经打进另一个外壳镜像，混在一起维护迟早
-// 出现"改 local 的逻辑却影响了 servedBy"这种事故。
+// 本文件是外壳（提案 §8）在 Docker 下的渲染：被承载的成员不生成主容器，外壳挂上成员的
+// 网络别名，外壳的环境里多出 BRICKKIT_SERVED_MEMBERS 与（放进 env 文件的）
+// BRICKKIT_SERVED_MEMBERS_CONFIG。谁被承载由 cascade.Result.HostOf 决定，与 K8s 渲染器同一个判据。
 
 import (
 	"sort"
@@ -96,9 +93,6 @@ func (p *plan) fallbackStandaloneWarnings() []*clierr.Error {
 			continue
 		}
 		hints := []string{i18n.T(msgid.HintFallbackEnableShellToMergeAgain)}
-		if c.Manifest != nil && c.Manifest.Migration != nil {
-			hints = append(hints, i18n.T(msgid.HintFallbackMigrationNowRuns))
-		}
 		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
 			i18n.T(msgid.ServedByFallbackStandalone)).
 			WithDetail(i18n.T(msgid.LabelComponent), refText(c.Ref)).

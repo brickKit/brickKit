@@ -1,0 +1,24 @@
+apiVersion: brickkit/v1
+kind: Component
+metadata:
+  id: erp/api
+  name: ERP API
+  version: 1.0.0
+  description: 成员：带迁移与 PEM 密钥
+configSchema:
+  type: object
+  properties:
+    TLS_KEY:
+      type: string
+      secret: true
+    DB_HOST:
+      type: string
+deployment:
+  type: container
+  image: registry.example.com/erp-api:1.0.0
+  port: 8081
+migration:
+  command: ["/app/api", "migrate"]
+healthCheck:
+  type: http
+  path: /healthz

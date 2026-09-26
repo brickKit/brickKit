@@ -1,0 +1,17 @@
+apiVersion: brickkit/v1
+kind: Component
+metadata:
+  id: erp/portal
+  name: ERP Portal
+  version: 1.0.0
+  description: 外壳外面的普通组件，依赖 erp/api
+dependencies:
+  components:
+    - erp/api@1.0.0
+deployment:
+  type: container
+  image: registry.example.com/erp-portal:1.0.0
+  port: 8090
+healthCheck:
+  type: http
+  path: /healthz

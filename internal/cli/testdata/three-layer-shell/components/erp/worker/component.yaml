@@ -1,0 +1,16 @@
+apiVersion: brickkit/v1
+kind: Component
+metadata:
+  id: erp/worker
+  name: ERP Worker
+  version: 1.0.0
+  description: 成员：依赖 erp/api
+dependencies:
+  components:
+    - erp/api@1.0.0
+deployment:
+  type: container
+  image: registry.example.com/erp-worker:1.0.0
+  port: 8082
+healthCheck:
+  type: tcp

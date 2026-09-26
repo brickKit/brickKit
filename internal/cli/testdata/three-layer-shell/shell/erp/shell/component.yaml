@@ -1,0 +1,16 @@
+apiVersion: brickkit/v1
+kind: Component
+metadata:
+  id: erp/shell
+  name: ERP Shell
+  version: 1.0.0
+  description: 外壳：一个进程里承载 erp/api 与 erp/worker
+shell:
+  members: [erp/api, erp/worker]
+deployment:
+  type: container
+  image: registry.example.com/erp-shell:1.0.0
+  port: 8080
+healthCheck:
+  type: http
+  path: /healthz

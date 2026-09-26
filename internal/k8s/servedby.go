@@ -1,9 +1,8 @@
 package k8s
 
-// 本文件实现 servedBy（外壳合并部署）在 K8s 下的渲染。
-//
-// mode: debug 在 K8s 下完全不支持——这条拒绝在 internal/config/validate.go
-// 的解析阶段就挡住了，本文件不需要管，servedBy 是完全独立的代码路径。
+// 本文件是外壳（提案 §8）在 K8s 下的渲染：被承载的成员不生成 Deployment，只生成一个选中
+// 外壳 Pod 的 Service（成员自己的服务名照样能解析）；外壳的 JSON 进外壳的 Secret。
+// mode: debug / local 在 K8s 下不合法，部署文件解析阶段就拦下了。
 
 import (
 	"strings"
@@ -99,9 +98,6 @@ func (p *plan) fallbackStandaloneWarnings() []*clierr.Error {
 			continue
 		}
 		hints := []string{i18n.T(msgid.HintFallbackEnableShellToMergeAgain)}
-		if c.Manifest != nil && c.Manifest.Migration != nil {
-			hints = append(hints, i18n.T(msgid.HintFallbackMigrationNowRuns))
-		}
 		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
 			i18n.T(msgid.ServedByFallbackStandalone)).
 			WithDetail(i18n.T(msgid.LabelComponent), c.Ref.String()).

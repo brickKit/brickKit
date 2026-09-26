@@ -27,7 +27,6 @@ const (
 	// （不是外壳那份代码），外壳独立部署回落设计书 §6.1/§7。
 	ServedByFallbackStandalone          = "shell.served.fallback_standalone"
 	ServedByFallbackReasonDetail        = "shell.served.fallback_reason_detail"
-	HintFallbackMigrationNowRuns        = "shell.served.hint.fallback_migration_now_runs"
 	HintFallbackEnableShellToMergeAgain = "shell.served.hint.fallback_enable_shell_to_merge_again"
 	ShellKindWithoutBlock               = "shell.kind_without_block"
 	ShellBlockWithoutKind               = "shell.block_without_kind"

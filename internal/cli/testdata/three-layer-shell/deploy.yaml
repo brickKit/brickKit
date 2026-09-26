@@ -1,0 +1,7 @@
+target: docker
+components:
+  - id: erp/shell
+    members: [erp/api, erp/worker]
+  - id: erp/api
+  - id: erp/worker
+  - id: erp/portal
