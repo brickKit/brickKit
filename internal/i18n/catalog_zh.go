@@ -1496,4 +1496,11 @@ var zh = map[string]string{
 	msgid.LayerReadFailed:   "错误：读取 %[1]s 失败",
 	msgid.LayerNotValidYAML: "错误：%[1]s 不是合法的 YAML",
 	msgid.LayerEmpty:        "错误：%[1]s 是空文件",
+
+	msgid.ProjfileSourceNameDuplicate:        "与 %[1]s.name 重复（安装源名称必须唯一）",
+	msgid.ProjfileFieldRequiredFor:           "缺失（type 为 %[2]s 的安装源必须声明 %[1]s）",
+	msgid.ProjfileKindInvalid:                "只能是 shell 或不写（当前是 %[1]q）",
+	msgid.ProjfileShellSingleVersion:         "外壳 %[1]s 在一个项目里只能有一个版本，%[2]s 已经声明了另一个版本",
+	msgid.ProjfileKindInconsistent:           "%[1]s 在 %[2]s 里声明的 kind 与这里不同；同一个组件 ID 的所有版本 kind 必须一致",
+	msgid.ProjfileComponentSourceTypeInvalid: "只能是 git 或 local（当前是 %[1]q）",
 }

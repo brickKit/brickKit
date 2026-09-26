@@ -1509,4 +1509,11 @@ var en = map[string]string{
 	msgid.LayerReadFailed:   "Error: failed to read %[1]s",
 	msgid.LayerNotValidYAML: "Error: %[1]s is not valid YAML",
 	msgid.LayerEmpty:        "Error: %[1]s is empty",
+
+	msgid.ProjfileSourceNameDuplicate:        "duplicates %[1]s.name (install source names must be unique)",
+	msgid.ProjfileFieldRequiredFor:           "missing (an install source of type %[2]s must declare %[1]s)",
+	msgid.ProjfileKindInvalid:                "must be shell or omitted (currently %[1]q)",
+	msgid.ProjfileShellSingleVersion:         "shell %[1]s may only have one version in a project, and %[2]s already declares a different one",
+	msgid.ProjfileKindInconsistent:           "%[1]s is declared with a different kind in %[2]s; every version of one component ID must have the same kind",
+	msgid.ProjfileComponentSourceTypeInvalid: "must be git or local (currently %[1]q)",
 }
