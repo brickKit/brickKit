@@ -1528,4 +1528,14 @@ var zh = map[string]string{
 	msgid.ConfigdirConflictHintNoFormat: "不要对这个文件用 yq 或编辑器的\"格式化文档\"：它们会悄悄丢掉其中一个重复键，冲突没解决就消失了",
 	msgid.ConfigdirConflictTipEditor:    "编辑器可能把这个文件标成非法 YAML——这是正常的：BrickKit 故意写了重复键，让冲突不可能被忽略",
 	msgid.ConfigdirConflictBlockNote:    "⚠️ 配置冲突：升级到 %[1]s 时这个键的建议值变了。\n保留一行、删掉另一行和本注释；在那之前 brickkit 拒绝启动。",
+
+	msgid.ConfigdirUnknownKey:         "%[1]s：%[2]s 不在组件的 configSchema 里，不会生效",
+	msgid.ConfigdirUnknownKeyGuess:    "是不是想写 %[1]s？",
+	msgid.ConfigdirLabelDeclared:      "已声明的配置项",
+	msgid.ConfigdirNoSchema:           "%[1]s 没有声明 configSchema，它的配置文件里的内容全部不会生效",
+	msgid.ConfigdirLabelIgnoredKeys:   "被忽略的键",
+	msgid.ConfigdirSecretRefNotSecret: "%[1]s：%[2]s 用了 { existingSecret, key } 写法，但组件没有把它声明为 secret: true，已跳过",
+	msgid.ConfigdirUndefinedVar:       "错误：%[1]s 引用了哪里都没有定义的公共变量",
+	msgid.ConfigdirLabelUndefinedRef:  "未定义的引用",
+	msgid.ConfigdirHintDefineVar:      "在 config/vars.yaml（或部署文件的 vars:）里定义这个变量",
 }

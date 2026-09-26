@@ -1541,4 +1541,14 @@ var en = map[string]string{
 	msgid.ConfigdirConflictHintNoFormat: "Do not run yq or your editor's Format Document on this file: they silently drop one of the duplicate keys, and the conflict disappears without being resolved",
 	msgid.ConfigdirConflictTipEditor:    "Your editor may mark this file as invalid YAML. That is expected: BrickKit wrote the duplicate key on purpose so the conflict cannot be missed",
 	msgid.ConfigdirConflictBlockNote:    "⚠️ Config conflict: upgrading to %[1]s changed the suggested value of this key.\nKeep one line, delete the other and this comment; until then brickkit refuses to start.",
+
+	msgid.ConfigdirUnknownKey:         "%[1]s: %[2]s is not declared in the component's configSchema, so it has no effect",
+	msgid.ConfigdirUnknownKeyGuess:    "Did you mean %[1]s?",
+	msgid.ConfigdirLabelDeclared:      "Declared keys",
+	msgid.ConfigdirNoSchema:           "%[1]s declares no configSchema, so everything in its config file is ignored",
+	msgid.ConfigdirLabelIgnoredKeys:   "Ignored keys",
+	msgid.ConfigdirSecretRefNotSecret: "%[1]s: %[2]s uses the { existingSecret, key } form, but the component does not declare it secret: true, so it is skipped",
+	msgid.ConfigdirUndefinedVar:       "Error: %[1]s references shared variables that are defined nowhere",
+	msgid.ConfigdirLabelUndefinedRef:  "Undefined reference",
+	msgid.ConfigdirHintDefineVar:      "Define the variable in config/vars.yaml, or in the deploy file's vars:",
 }

@@ -15,4 +15,13 @@ const (
 	ConfigdirConflictHintNoFormat = "configdir.conflict_hint_no_format"
 	ConfigdirConflictTipEditor    = "configdir.conflict_tip_editor"
 	ConfigdirConflictBlockNote    = "configdir.conflict_block_note"
+	ConfigdirUnknownKey           = "configdir.unknown_key"
+	ConfigdirUnknownKeyGuess      = "configdir.unknown_key_guess"
+	ConfigdirLabelDeclared        = "configdir.label_declared"
+	ConfigdirNoSchema             = "configdir.no_schema"
+	ConfigdirLabelIgnoredKeys     = "configdir.label_ignored_keys"
+	ConfigdirSecretRefNotSecret   = "configdir.secret_ref_not_secret"
+	ConfigdirUndefinedVar         = "configdir.undefined_var"
+	ConfigdirLabelUndefinedRef    = "configdir.label_undefined_ref"
+	ConfigdirHintDefineVar        = "configdir.hint_define_var"
 )
