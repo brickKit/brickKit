@@ -221,7 +221,7 @@ func validateReplicas(p *clierr.ProblemSet, field string, c Component) {
 }
 
 func validateMembers(p *clierr.ProblemSet, field, ownID string, members []string) {
-	// 成员写组件 ID；成员在 brickkit.yaml 里有多个版本时写 id@精确版本，说明外壳里是哪一个
+	// 成员写组件 ID（外壳承载 brickkit.yaml 里的最高版本）；要承载别的版本时写 id@精确版本
 	seen := map[string]bool{}
 	for i, member := range members {
 		memberField := yamlfile.Indexed(field+".members", i)

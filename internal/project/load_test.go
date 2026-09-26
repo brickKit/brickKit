@@ -224,12 +224,6 @@ components:
   - id: erp/backend
   - id: people/basic
 `},
-		"multi-version member written as a bare id": {baseDecl, `target: docker
-components:
-  - {id: erp/shell, members: [people/basic]}
-  - id: erp/backend
-  - id: people/basic
-`},
 		"member version not declared": {baseDecl, `target: docker
 components:
   - {id: erp/shell, members: [people/basic@9.9.9]}
@@ -434,8 +428,9 @@ components:
 	assert.True(t, ok, "只有一个版本的成员写裸 id 即可")
 }
 
-// 多个版本却写了裸 id：报错要提示写明版本。
-func TestLoadMemberBareWithMultipleVersionsSaysWhichToWrite(t *testing.T) {
+// 多个版本却只写了裸 id：外壳承载 brickkit.yaml 里声明的最高版本，其余版本照常独立部署——
+// 版本只跟着 brickkit.yaml 走，升级时部署文件不用改。
+func TestLoadMemberBareIDHostsHighestVersion(t *testing.T) {
 	root := baseProject(t)
 	write(t, root, map[string]string{"deploy.yaml": `target: docker
 components:
@@ -443,7 +438,11 @@ components:
   - id: erp/backend
   - id: people/basic
 `})
-	_, err := project.Load(root, project.LoadOptions{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "people/basic@")
+	p, err := project.Load(root, project.LoadOptions{})
+	require.NoError(t, err)
+	shell, ok := p.ShellOf("people/basic", "2.0.0")
+	assert.True(t, ok, "最高版本进外壳")
+	assert.Equal(t, "erp/shell", shell)
+	_, ok = p.ShellOf("people/basic", "1.0.0")
+	assert.False(t, ok, "其余版本独立部署")
 }

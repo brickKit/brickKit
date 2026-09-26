@@ -1310,7 +1310,6 @@ var zh = map[string]string{
 	msgid.ShellMemberInvalidUTF8:           "错误：外壳成员 %[1]s 的配置项 %[2]s 不是合法的 UTF-8 文本",
 	msgid.ShellMemberInvalidUTF8Reason:     "JSON 只能装文本；二进制字节会被悄悄替换掉",
 	msgid.ShellHintInvalidUTF8:             "二进制内容请先 base64 编码，由组件自己解码",
-	msgid.ProjectMemberWhichVersion:        "成员 %[1]s 在 brickkit.yaml 里有多个版本（%[2]s）；写明外壳里承载的是哪一个，例如 %[1]s@%[3]s",
 	msgid.ProjectMemberVersionUndeclared:   "成员 %[1]s@%[2]s：brickkit.yaml 里没有声明这个版本",
 	msgid.DeployfileMemberBadVersion:       "成员 %[1]s：@ 后面必须是精确版本，例如 1.0.0",
 	msgid.ComposeOwnerHostMember:           "%[1]s（由裸进程外壳 %[2]s 承载）",

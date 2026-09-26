@@ -45,6 +45,5 @@ const (
 	ProjectGitignoreSecrets        = "project.gitignore.secrets"
 	ProjectGitignoreConfigArchive  = "project.gitignore.config_archive"
 	ProjectGitignoreComponents     = "project.gitignore.components"
-	ProjectMemberWhichVersion      = "project.member_which_version"
 	ProjectMemberVersionUndeclared = "project.member_version_undeclared"
 )

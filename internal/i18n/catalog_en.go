@@ -1319,7 +1319,6 @@ var en = map[string]string{
 	msgid.ShellMemberInvalidUTF8:           "Error: config item %[2]s of shell member %[1]s is not valid UTF-8 text",
 	msgid.ShellMemberInvalidUTF8Reason:     "JSON can only carry text; binary bytes would be replaced silently",
 	msgid.ShellHintInvalidUTF8:             "Store binary content base64-encoded and decode it in the component",
-	msgid.ProjectMemberWhichVersion:        "member %[1]s has several versions in brickkit.yaml (%[2]s); write which one the shell hosts, e.g. %[1]s@%[3]s",
 	msgid.ProjectMemberVersionUndeclared:   "member %[1]s@%[2]s: that version is not declared in brickkit.yaml",
 	msgid.DeployfileMemberBadVersion:       "member %[1]s: the version after @ must be an exact version like 1.0.0",
 	msgid.ComposeOwnerHostMember:           "%[1]s, served by the bare-process shell %[2]s",

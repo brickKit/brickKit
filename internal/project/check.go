@@ -9,6 +9,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlfile"
 )
@@ -129,14 +130,11 @@ func (p *Project) checkMembers() error {
 			case pinned && !slices.Contains(versions, version):
 				problems.Add(memberField, i18n.T(msgid.ProjectMemberVersionUndeclared, member, version))
 				continue
-			case !pinned && len(versions) > 1:
-				// 外壳里只能编进一个版本；平台不猜是哪一个
-				problems.Add(memberField, i18n.T(msgid.ProjectMemberWhichVersion,
-					member, strings.Join(versions, i18n.T(msgid.ListSeparator)), versions[len(versions)-1]))
-				continue
 			}
 			if !pinned {
-				version = versions[0]
+				// 只写 ID：外壳承载 brickkit.yaml 里声明的最高版本，其余版本独立部署。版本只跟着
+				// brickkit.yaml 走，升级时部署文件不用改；外壳要承载较低的版本时才写 id@version
+				version = highestVersion(versions)
 			}
 			if prev, ok := p.shellOf[member]; ok && prev != shellID {
 				problems.Add(memberField, i18n.T(msgid.ProjectMemberTwoShells, member, prev))
@@ -186,4 +184,15 @@ func (p *Project) checkHostPorts() error {
 		}
 	}
 	return nil
+}
+
+// highestVersion 按版本号（不是字典序：10.0.0 高于 2.0.0）取最高的那个。
+func highestVersion(versions []string) string {
+	highest := versions[0]
+	for _, v := range versions[1:] {
+		if manifest.CompareVersions(v, highest) > 0 {
+			highest = v
+		}
+	}
+	return highest
 }

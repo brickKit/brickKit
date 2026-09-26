@@ -74,7 +74,7 @@ func Render(t testing.TB, spec Spec) Files {
 	if spec.Target == "" {
 		spec.Target = deployfile.TargetDocker
 	}
-	// 成员在项目里有多个版本时写 id@version（外壳承载的是哪一个），否则写裸 id
+	// 成员在项目里有多个版本时写 id@version（明确外壳承载的是哪一个，低版本也行），否则写裸 id
 	versionsOf := map[string]int{}
 	for _, e := range spec.Entries {
 		versionsOf[e.ID]++
