@@ -1,6 +1,6 @@
 // 本文件守着 docs/{en,zh}/06-architecture/ 下两份字段参考文档的**完整性**：
 // 07-component-yaml-reference.md 对着 manifest.Manifest，08-brickkit-yaml-reference.md
-// 对着 config.Config。结构体里每一个 YAML 字段，参考文档里都得有一行讲它；
+// 对着 projfile.File。结构体里每一个 YAML 字段，参考文档里都得有一行讲它；
 // 文档里讲的每一个字段，结构体里都得真的存在。
 //
 // # 为什么要有它
@@ -27,8 +27,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/projfile"
 )
 
 // fieldPaths 是从结构体反射出来的字段路径。
@@ -183,7 +183,7 @@ var referenceDocs = []struct {
 	typ  reflect.Type
 }{
 	{"07-component-yaml-reference.md", reflect.TypeOf(manifest.Manifest{})},
-	{"08-brickkit-yaml-reference.md", reflect.TypeOf(config.Config{})},
+	{"08-brickkit-yaml-reference.md", reflect.TypeOf(projfile.File{})},
 }
 
 // 字段参考文档必须覆盖结构体里的每一个字段，且不多讲结构体没有的。

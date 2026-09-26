@@ -36,8 +36,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
 
@@ -144,7 +144,7 @@ func classify(body string) reflect.Type {
 	//
 	// 片段本身就是合法的部分文档：`resources:` 开头的那段就是一份只写了
 	// resources 的 brickkit.yaml，直接拿去 Walk 即可。
-	cfg, man := reflect.TypeOf(config.Config{}), reflect.TypeOf(manifest.Manifest{})
+	cfg, man := reflect.TypeOf(projfile.File{}), reflect.TypeOf(manifest.Manifest{})
 	inCfg, inMan := true, true
 	for _, k := range keys {
 		if !hasYAMLField(cfg, k) {

@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
+	"github.com/brickkit/brickkit/internal/project"
 )
 
 // idxFile 造一条普通文件的 index 记录。
@@ -362,7 +362,7 @@ func TestCheckArchivedInIndexMissingOnDiskNamesGitAddDashA(t *testing.T) {
 
 	// 重新启用，但把磁盘上那两份归档源码手工删了、删除没进 index
 	f.writeConfig(t, allEnabled)
-	require.NoError(t, os.RemoveAll(filepath.Join(f.Dir, "components", config.DirArchived)))
+	require.NoError(t, os.RemoveAll(filepath.Join(f.Dir, "components", project.DirArchived)))
 	gitDo(t, f.Dir, "add", "brickkit.yaml", "deploy.yaml")
 
 	r := runIn(t, f.Dir, "restore", "--check")
@@ -428,7 +428,7 @@ func TestCheckWarnsWhenConfigNotTracked(t *testing.T) {
 	assert.Contains(t, r.stdout, "is not tracked by git", "必须是走到了配置未跟踪这一支，不是撞在别的放行分支上")
 }
 
-// helloDisabledWithUnresolvable 语法上是合法配置（能过 config.ParseConfig），
+// helloDisabledWithUnresolvable 语法上是合法配置（能过 projfile.Parse），
 // 但 solo/thing@9.9.9 在本地安装源里根本不存在——用来在不碰网络的前提下，
 // 制造一次"全图解不出来"的失败（对应真实场景里的网络错误 / Manifest 缺失）。
 const helloDisabledWithUnresolvable = `components:

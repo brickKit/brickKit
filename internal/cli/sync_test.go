@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 )
 
 // ============================================================
@@ -406,8 +405,6 @@ resources: []
 	}
 	f.assertActive(t, "demo/hello")
 }
-
-var _ = config.DirArchived
 
 // ============================================================
 // 归档之后平台自己还得读得到（回归：sync 曾经把项目锁死）

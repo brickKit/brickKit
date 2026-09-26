@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/sessionlock"
 )
 
@@ -168,14 +168,14 @@ func TestStatusLabelsComponentDisabledInLocalFile(t *testing.T) {
 	erpLine := lineContaining(t, r.stdout, "erp/backend")
 	assert.Contains(t, erpLine, "mode: disable, via deploy.local.yaml)",
 		"要并进已有的括注里，而不是再叠一层独立括号")
-	assert.NotContains(t, erpLine, ") (override.yaml)", "不该出现双重括号")
+	assert.NotContains(t, erpLine, ") (deploy.local.yaml)", "不该出现双重括号")
 	peopleLine := lineContaining(t, r.stdout, "people/basic")
 	assert.NotContains(t, peopleLine, "deploy.local.yaml")
 }
 
-// mode: disable 是 brickkit.yaml 自己写的（没有 override.yaml 介入）：不该出现
-// override.yaml 这个词——那会让使用者去一份完全无关的文件里找一个根本不存在的设置。
-func TestStatusDoesNotLabelComponentDisabledInBrickkitYamlItself(t *testing.T) {
+// mode: disable 是团队的 deploy.yaml 自己写的（本地模式没开）：不该出现
+// deploy.local.yaml 这个词——那会让使用者去一份完全无关的文件里找一个根本不存在的设置。
+func TestStatusDoesNotLabelComponentDisabledInTeamFile(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
 		{ID: "people/basic", Version: "1.0.0"},
@@ -194,7 +194,7 @@ func TestStatusDoesNotLabelComponentDisabledInBrickkitYamlItself(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "erp/backend")
-	assert.NotContains(t, r.stdout, "override.yaml")
+	assert.NotContains(t, r.stdout, "deploy.local.yaml")
 }
 
 // ============================================================
@@ -264,7 +264,7 @@ func TestStatusShowsHintWhenLocalSessionIsRunning(t *testing.T) {
     version: 1.0.0
     mode: local
 `)
-	layout := config.NewLayout(f.Dir, "")
+	layout := project.NewLayout(f.Dir)
 	held, err := sessionlock.Acquire(layout.SessionLockPath())
 	require.NoError(t, err)
 	defer func() { _ = held.Release() }()

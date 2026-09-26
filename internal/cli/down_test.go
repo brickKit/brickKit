@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/engine"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/sessionlock"
 )
 
@@ -125,7 +125,7 @@ func TestDownShowsHintWhenLocalSessionIsRunning(t *testing.T) {
     version: 1.0.0
     mode: local
 `)
-	layout := config.NewLayout(f.Dir, "")
+	layout := project.NewLayout(f.Dir)
 	held, err := sessionlock.Acquire(layout.SessionLockPath())
 	require.NoError(t, err)
 	defer func() { _ = held.Release() }()

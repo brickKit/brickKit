@@ -8,7 +8,6 @@ const (
 	ProblemMustBeArray           = "problem.must_be_array"
 	ProblemMustBeMapping         = "problem.must_be_mapping"
 	ProblemPortOutOfRange        = "problem.port_out_of_range"
-	ProblemResourceKindUnknown   = "problem.resource_kind_unknown"
 	ProblemValidationFailed      = "problem.validation_failed"
 	ProblemHintCheckPermissions  = "problem.hint.check_permissions"
 	ProblemHintCheckSyntax       = "problem.hint.check_syntax"

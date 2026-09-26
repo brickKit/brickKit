@@ -73,9 +73,8 @@ const (
 	VersionBuildDateLine = "version.build_date_line"
 
 	// internal/config/parse.go：PROJECT_MISSING
-	ProjectMissing           = "project.missing"
-	ProjectMissingHintInit   = "project.missing.hint.init"
-	ProjectMissingHintConfig = "project.missing.hint.config"
+	ProjectMissing         = "project.missing"
+	ProjectMissingHintInit = "project.missing.hint.init"
 
 	// internal/cli/lang.go
 	LangCmdShort       = "lang.cmd.short"

@@ -1,30 +1,30 @@
 package schemagen
 
-// 本文件把两份真实的 schema（component.yaml 与 brickkit.yaml）钉在三样东西上：
+// 本文件把三份真实的 schema（component.yaml、brickkit.yaml、部署文件）钉在三样东西上：
 //
 //   - 签入仓库的 schemas/*.json——防漂移；
-//   - 真实的校验器（manifest.Parse / config.ParseConfig）——schema 不能比校验器更严：
+//   - 真实的校验器（manifest.Parse / projfile.Parse / deployfile.Parse）——schema 不能比校验器更严：
 //     编辑器里为一份 CLI 接受的文件画红线，比没有 schema 更糟；
 //   - 结构体本身（yamlcheck.KnownFields、覆盖表）——schema 认识的键与 CLI 认识的键是同一份。
 //
 // 约束测试里的取值都是先拿真实校验器验过的：表里写的"合法/非法"不是凭印象，是校验器的实际反应。
 // 某个 tag 与校验器对不上时，改 tag，不要放宽这里的测试。
 //
-// 已知的"schema 比 CLI 更严"共三类，每一类都是有意保留的，不是疏忽。下面的
+// 已知的"schema 比 CLI 更严"共两类，每一类都是有意保留的，不是疏忽。下面的
 // TestKnownStricterThanTheCLICasesAreReal 与 TestUnknownKeysInConfigSchemaPropertiesAreWarnedNotRejected
 // 用真实的解析器把它们各钉了一遍：CLI 哪天改了行为，那里会红，说明这份清单过期了。
 //
-//  1. `${VAR}` 写进有封闭取值或 pattern 的字段（brickkit.yaml 的 deploy.target、sources[].type、
-//     resources[].kind、components[].version）：ParseConfig 先展开环境变量再校验，schema 检查的是字面文本。
-//     文档里没有这种写法；多环境的做法是每个环境一份自足的 brickkit.yaml。
-//  2. yaml.v3 的宽容解码，schema 不跟着放宽：不加引号的非字符串标量写进字符串字段（`password: 123456`、
+// （从前还有第三类：`${VAR}` 写进有封闭取值的字段，旧的 brickkit.yaml 解析器先展开再校验。
+// 三层文件的解析器不展开环境变量——${VAR} 只在配置值里有意义——所以两边一致地拒绝它，这一类不复存在。）
+//
+//  1. yaml.v3 的宽容解码，schema 不跟着放宽：不加引号的非字符串标量写进字符串字段（`hostname: 123`、
 //     `project: 2024`）被 yaml.v3 照字面转成字符串，schema 的 type: string 标红——加引号才是对的 YAML 写法，
 //     放宽会把类型提示的价值整个抹掉；列表里的 null 元素（一行没写完的 `-`）在有的位置被悄悄丢掉
 //     （dependencies.components、tags），schema 同样指出来——那几乎总是笔误；map 里的 null 值
-//     （`deploy.ingressAnnotations: {k: null}`、`installer.publicKeys`、`allowFrom[].podSelector`）CLI 接受，
+//     （`k8s.ingressAnnotations: {k: null}`、`installer.publicKeys`、`allowFrom[].podSelector`）CLI 接受，
 //     schema 要求值是字符串；bool 字段写 `yes` / `on` 被读成 true，schema 只认 true / false；
-//     整数字段写小数（`resources[].port: 5432.5`）被悄悄截断成 5432，schema 的 integer 不认小数。
-//  3. configSchema 里属性声明的多余键（`format: uri`、拼错的 `defualt`）：yamlcheck.Walk 不往 map 的值里下钻，
+//     整数字段写小数（`replicas: 2.5`）被悄悄截断成 2，schema 的 integer 不认小数。
+//  2. configSchema 里属性声明的多余键（`format: uri`、拼错的 `defualt`）：yamlcheck.Walk 不往 map 的值里下钻，
 //     manifest.Parse 不拒绝，CLI 只在 PropertyKeyWarnings（lint / publish / add --local）里警告。这些键不会生效，
 //     所以 schema 在这里保持封闭：编辑器标红与 CLI 的警告说的是同一件事。
 
@@ -46,13 +46,13 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
-	"github.com/brickkit/brickkit/internal/override"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
 
-// 两份合法基准：字段尽量铺满，好让"删掉某个必填字段 / 改成某个值"都有落脚点。
+// 三份合法基准：字段尽量铺满，好让"删掉某个必填字段 / 改成某个值"都有落脚点。
 // 先跑 TestBaselinesAreValid——基准自己不合法，后面所有断言都没有意义。
 const baselineComponent = `apiVersion: brickkit/v1
 kind: Component
@@ -69,9 +69,8 @@ dependencies:
     - demo/other@1.0.0
     - id: demo/weak@1.0.0
       optional: true
-  resources:
-    - kind: database
-      engine: postgresql
+shell:
+  members: [demo/member]
 configSchema:
   type: object
   properties:
@@ -95,11 +94,42 @@ healthCheck:
   path: /healthz
 `
 
-// allowTo 的目标位置必须写 namespace 或 cidr 二选一——即使已经写了 resource：
-// validateEgress 不因为有 resource 就放过"缺少目标位置"。
 const baselineProject = `project: demo
-deploy:
-  target: k8s
+sources:
+  - name: local-dev
+    type: local
+    path: ./components
+  - name: company
+    type: git
+    baseUrl: https://git.example.com/components
+  - name: market
+    type: market
+    url: https://market.example.com/api/v1
+components:
+  - id: demo/hello
+    version: 1.0.0
+  - id: demo/shell
+    version: 1.0.0
+    kind: shell
+    source:
+      type: local
+      path: ./shell/demo-shell
+installer:
+  requireSignature: true
+  publicKeys:
+    keys/vendor.pub: keys/vendor.pub
+`
+
+// 部署文件的合法基准。allowTo 的目标位置必须写 namespace 或 cidr 二选一。
+// 用本地角色解析（mode: debug 只在本地文件里合法，schema 按更宽的本地角色写）。
+const baselineDeploy = `target: k8s
+k8s:
+  context: prod
+  namespace: shop
+  podSecurity: restricted
+  ingressClass: nginx
+  ingressAnnotations:
+    cert-manager.io/cluster-issuer: letsencrypt
   networkPolicy:
     enabled: true
     ingressController:
@@ -107,49 +137,27 @@ deploy:
     allowFrom:
       - name: prometheus
         namespace: monitoring
+        podSelector:
+          app: prometheus
     egress:
       enabled: true
       allowTo:
         - name: db
-          resource: main-db
           namespace: databases
-sources:
-  - id: local-dev
-    type: local
-    path: ./components
+          ports: [5432]
+  serviceAccount:
+    enabled: true
+vars:
+  DB_HOST: db.example.com
 components:
   - id: demo/hello
-    version: 1.0.0
-resources:
-  - kind: database
-    engine: postgresql
-    id: main-db
-    host: db.example.com
-    port: 5432
-    bindings:
-      - componentId: demo/hello
-        database: hello
-`
-
-// override.yaml 的合法基准：涵盖裸 id、嵌套 members、target/mode/localPort/baseline
-// 每个字段至少出现一次。
-const baselineOverride = `
-target: docker
-targetBaseline: docker
-components:
-  - id: demo/hello
-  - id: erp/backend
-    members:
-      - id: people/basic
-      - id: auth/rbac
-        mode: disable
-  - id: infra/redis-event-bus
-    mode: local
-    localPort: 8082
-  - id: payment/gateway
-    mode: debug
-    localPort: 9091
-    baseline: local
+    replicas: 2
+    expose: true
+    hostname: hello.example.com
+    labels:
+      team: core
+  - id: demo/shell@1.0.0
+    members: [demo/member]
 `
 
 // document 是一份要检查的 YAML 文档：它的基准、生成函数与真实的解析入口。
@@ -168,13 +176,17 @@ var documents = map[string]document{
 	"project": {
 		baseline: baselineProject,
 		generate: Project,
-		parse:    func(data []byte) error { _, err := config.ParseConfig(data, "brickkit.yaml"); return err },
+		parse:    func(data []byte) error { _, err := projfile.Parse(data, "brickkit.yaml"); return err },
 	},
-	"override": {
-		baseline: baselineOverride,
-		generate: Override,
-		parse:    func(data []byte) error { _, err := override.ParseOverride(data, "override.yaml"); return err },
+	"deploy": {
+		baseline: baselineDeploy,
+		generate: Deploy,
+		parse: func(data []byte) error {
+			_, _, err := deployfile.Parse(data, "deploy.local.yaml", deployfile.RoleLocal)
+			return err
+		},
 	},
+
 }
 
 // ---- 辅助：改写 YAML、读校验错误 ----
@@ -395,14 +407,6 @@ func requiredOf(node map[string]any) []string {
 	return out
 }
 
-func anySlice[T any](items []T) []any {
-	out := make([]any, len(items))
-	for i, item := range items {
-		out[i] = item
-	}
-	return out
-}
-
 // ---- 基准自检 ----
 
 func TestBaselinesAreValid(t *testing.T) {
@@ -441,7 +445,7 @@ func TestCheckedInSchemasAreUpToDate(t *testing.T) {
 func TestFilesNamesAllSchemas(t *testing.T) {
 	files, err := Files()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"brickkit.schema.json", "component.schema.json", "override.schema.json"}, sortedKeys(files))
+	assert.Equal(t, []string{"brickkit.schema.json", "component.schema.json", "deploy.schema.json"}, sortedKeys(files))
 }
 
 // ---- 块二：必填集合（钉规则 + 校验器核对）----
@@ -454,7 +458,7 @@ type requiredCase struct {
 }
 
 // requiredGolden 是手写的"schema 路径 → 必填字段"黄金表，每一项都逐条对照
-// manifest.Validate / config.Validate 核实过，并且下面会从合法基准里把每个字段真删一遍，
+// manifest.Validate / projfile.Validate / deployfile 的校验核实过，并且下面会从合法基准里把每个字段真删一遍，
 // 看真实的解析是不是真的失败。
 //
 // 生成结果里出现表里没有的必填集合也会失败：新增类型的作者得回来这里核对它的必填规则。
@@ -462,26 +466,25 @@ var requiredGolden = []requiredCase{
 	{"component", schemaRoot, []string{"apiVersion", "deployment", "healthCheck", "kind", "metadata"}, nil},
 	{"component", "metadata", []string{"description", "id", "name", "version"}, []any{"metadata"}},
 	{"component", "artifacts[]", []string{"files", "type"}, []any{"artifacts", 0}},
-	{"component", "dependencies/resources[]", []string{"engine", "kind"}, []any{"dependencies", "resources", 0}},
 	{"component", "dependencies/components[]#oneOf[1]", []string{"id"}, []any{"dependencies", "components", 1}}, // 映射写法
 	{"component", "configSchema/properties{}", []string{"type"}, []any{"configSchema", "properties", "pageSize"}},
-	{"component", "deployment", []string{"image", "port", "type"}, []any{"deployment"}},
+	// image 不再必填：image 与 build 二选一（附录 A3），校验器按"至少一个"报，schema 表达不了
+	{"component", "deployment", []string{"port", "type"}, []any{"deployment"}},
 	{"component", "deployment/extraPorts[]", []string{"name", "port"}, []any{"deployment", "extraPorts", 0}},
 	{"component", "healthCheck", []string{"type"}, []any{"healthCheck"}},
 	{"component", "migration", []string{"command"}, []any{"migration"}},
+	{"component", "shell", []string{"members"}, []any{"shell"}},
 
-	{"project", schemaRoot, []string{"deploy", "project"}, nil},
-	{"project", "deploy", []string{"target"}, []any{"deploy"}},
-	{"project", "deploy/networkPolicy/ingressController", []string{"namespace"}, []any{"deploy", "networkPolicy", "ingressController"}},
-	{"project", "deploy/networkPolicy/allowFrom[]", []string{"name", "namespace"}, []any{"deploy", "networkPolicy", "allowFrom", 0}},
-	{"project", "deploy/networkPolicy/egress/allowTo[]", []string{"name"}, []any{"deploy", "networkPolicy", "egress", "allowTo", 0}},
-	{"project", "sources[]", []string{"id", "type"}, []any{"sources", 0}},
+	{"project", schemaRoot, []string{"project"}, nil},
+	{"project", "sources[]", []string{"name", "type"}, []any{"sources", 0}},
 	{"project", "components[]", []string{"id", "version"}, []any{"components", 0}},
-	{"project", "resources[]", []string{"engine", "host", "id", "kind", "port"}, []any{"resources", 0}},
-	{"project", "resources[]/bindings[]", []string{"componentId"}, []any{"resources", 0, "bindings", 0}},
+	{"project", "components[]/source", []string{"type"}, []any{"components", 1, "source"}},
 
-	{"override", "components[]", []string{"id"}, []any{"components", 0}},
-	{"override", "components[]/members[]", []string{"id"}, []any{"components", 1, "members", 0}},
+	{"deploy", schemaRoot, []string{"target"}, nil},
+	{"deploy", "components[]", []string{"id"}, []any{"components", 0}},
+	{"deploy", "k8s/networkPolicy/ingressController", []string{"namespace"}, []any{"k8s", "networkPolicy", "ingressController"}},
+	{"deploy", "k8s/networkPolicy/allowFrom[]", []string{"name", "namespace"}, []any{"k8s", "networkPolicy", "allowFrom", 0}},
+	{"deploy", "k8s/networkPolicy/egress/allowTo[]", []string{"name"}, []any{"k8s", "networkPolicy", "egress", "allowTo", 0}},
 }
 
 // 生成结果里的每个必填集合都在黄金表里，黄金表里的每一行也都对得上生成结果。
@@ -572,9 +575,9 @@ func TestBoolFieldsAreDeclaredButNotRequired(t *testing.T) {
 		field      string         // 它的 bool 字段
 		setup      map[string]any // 基准里没有这个对象时，先按这个内容造一个
 	}{
-		{"project", "deploy/networkPolicy", []any{"deploy", "networkPolicy"}, "enabled", nil},
-		{"project", "deploy/networkPolicy/egress", []any{"deploy", "networkPolicy", "egress"}, "enabled", nil},
-		{"project", "deploy/serviceAccount", []any{"deploy", "serviceAccount"}, "enabled", map[string]any{"enabled": true}},
+		{"deploy", "k8s/networkPolicy", []any{"k8s", "networkPolicy"}, "enabled", nil},
+		{"deploy", "k8s/networkPolicy/egress", []any{"k8s", "networkPolicy", "egress"}, "enabled", nil},
+		{"deploy", "k8s/serviceAccount", []any{"k8s", "serviceAccount"}, "enabled", nil},
 		{"component", "dependencies/components[]#oneOf[1]", []any{"dependencies", "components", 1}, "optional", nil},
 	}
 	for _, c := range cases {
@@ -621,7 +624,7 @@ func TestConfigItemsTypeIsOptional(t *testing.T) {
 
 type constraintCase struct {
 	name string
-	doc  string // "component" | "project" | "override"
+	doc  string // "component" | "project" | "deploy"
 	// schemaPath 指向 schema 里该字段的节点（用来读出 tag 生成的 enum / pattern / 范围）。
 	schemaPath string
 	// dataPath 是该字段在基准 YAML 里的位置；errField 是校验器报错时用的字段名。
@@ -634,7 +637,7 @@ type constraintCase struct {
 	// 常量 / 列表，这样改了常量而没改 tag，这里会红。
 	valid, invalid []any
 	// baseline 非空时替换所在文档的基准：这一行的取值依赖别的字段时用
-	// （例如 mode: debug 只在 deploy.target 是 docker 时合法，而 project 基准写的是 k8s）。
+	// （例如 mode: local 只在 target 是 docker 时合法，而 deploy 基准写的是 k8s）。
 	baseline string
 	// validatorOnly 是校验器接受、但 schema 的 enum 故意不列出的取值——一处刻意的"schema 比校验器严"，
 	// 必须在这里点名，并且会被拿去验证校验器确实还接受它：哪天校验器不再接受了，这一项就该删。
@@ -643,21 +646,53 @@ type constraintCase struct {
 
 func constraintCases() []constraintCase {
 	ports := []any{0, -1, 65536}
-	kinds := anySlice(manifest.ResourceKinds)
-	badKinds := []any{"redis", "Database", ""}
+	dockerDeploy := strings.Replace(baselineDeploy, "target: k8s", "target: docker", 1)
 
 	return []constraintCase{
 		{
-			name: "deploy.target", doc: "project", schemaPath: "deploy/target",
-			dataPath: []any{"deploy", "target"}, errField: "deploy.target",
-			valid:   []any{config.TargetDocker, config.TargetK8s},
+			name: "target", doc: "deploy", schemaPath: "target",
+			dataPath: []any{"target"}, errField: "target",
+			valid:   []any{deployfile.TargetDocker, deployfile.TargetPodman, deployfile.TargetK8s},
 			invalid: []any{"swarm", "Docker", ""},
+		},
+		{
+			name: "k8s.podSecurity", doc: "deploy", schemaPath: "k8s/podSecurity",
+			dataPath: []any{"k8s", "podSecurity"}, errField: "k8s.podSecurity",
+			valid:         []any{deployfile.PodSecurityRestricted, nil},
+			validatorOnly: []any{""},
+			invalid:       []any{"baseline", "Restricted", "privileged"},
+		},
+		{
+			// local / debug 只在 docker / podman 下合法（集群里的 Pod 连不到本机进程），基准换成 docker。
+			// debug 只在本地角色的文件里合法，这里用本地角色解析（documents["deploy"]）。
+			// "" 在 yaml 里与没写无法区分，校验器放行它，而 schema 不该把 "" 当成一个可选的取值
+			// 推荐给人——所以点名成 validatorOnly。
+			name: "components[0].mode", doc: "deploy", schemaPath: "components[]/mode",
+			baseline: strings.Replace(dockerDeploy, "  - id: demo/hello\n", "  - id: demo/hello\n    mode: enabled\n", 1),
+			dataPath: []any{"components", 0, "mode"}, errField: "components[0].mode",
+			valid:         []any{deployfile.ModeEnabled, deployfile.ModeDisable, deployfile.ModeLocal, deployfile.ModeDebug, nil},
+			validatorOnly: []any{""},
+			invalid:       []any{"Enabled", "disabled", "docker"},
 		},
 		{
 			name: "sources[0].type", doc: "project", schemaPath: "sources[]/type",
 			dataPath: []any{"sources", 0, "type"}, errField: "sources[0].type",
-			valid:   []any{config.SourceTypeMarket, config.SourceTypeGit, config.SourceTypeLocal},
+			valid:   []any{projfile.SourceTypeMarket, projfile.SourceTypeGit, projfile.SourceTypeLocal},
 			invalid: []any{"svn", "LOCAL", ""},
+		},
+		{
+			// 外壳标记只有一个取值（附录 A11）；不写就是普通组件。
+			name: "components[1].kind", doc: "project", schemaPath: "components[]/kind",
+			dataPath: []any{"components", 1, "kind"}, errField: "components[1].kind",
+			valid:         []any{projfile.KindShell, nil},
+			validatorOnly: []any{""},
+			invalid:       []any{"Shell", "library"},
+		},
+		{
+			name: "components[1].source.type", doc: "project", schemaPath: "components[]/source/type",
+			dataPath: []any{"components", 1, "source", "type"}, errField: "components[1].source.type",
+			valid:   []any{projfile.SourceTypeGit, projfile.SourceTypeLocal},
+			invalid: []any{projfile.SourceTypeMarket, "svn", ""},
 		},
 		{
 			name: "apiVersion", doc: "component", schemaPath: "apiVersion",
@@ -683,22 +718,6 @@ func constraintCases() []constraintCase {
 			dataPath: []any{"components", 0, "version"}, errField: "components[0].version",
 			valid:   []any{"1.0.0", "10.20.30", "0.0.0"},
 			invalid: []any{"^1.0.0", "~1.0.0", "1.0", "latest", "1.0.0-beta", ""},
-		},
-		{
-			// mode 不必填，schema 的 enum 因此带着 null（显式写 null 等于没写）。
-			// "" 在 yaml 里与没写无法区分，校验器放行它，而 schema 不该把 "" 当成一个可选的取值
-			// 推荐给人——所以点名成 validatorOnly。
-			// local 只在 docker 下合法，基准里的 k8s 要换掉，component 上也得有一行
-			// mode 才有落脚点。debug 从今往后在 brickkit.yaml 里无条件非法（override.yaml
-			// 设计书 §4），因此不在 schema 的 enum 里，也不在校验器接受的取值里——
-			// 点名进 invalid，证明两边确实一致地拒绝它。
-			name: "components[0].mode", doc: "project", schemaPath: "components[]/mode",
-			baseline: strings.Replace(strings.Replace(baselineProject, "target: k8s", "target: docker", 1),
-				"    version: 1.0.0\n", "    version: 1.0.0\n    mode: enabled\n", 1),
-			dataPath: []any{"components", 0, "mode"}, errField: "components[0].mode",
-			valid:         []any{config.ModeEnabled, config.ModeDisable, config.ModeLocal, nil},
-			validatorOnly: []any{""},
-			invalid:       []any{"Enabled", "disabled", "docker", config.ModeDebug},
 		},
 		{
 			name: "deployment.type", doc: "component", schemaPath: "deployment/type",
@@ -727,18 +746,6 @@ func constraintCases() []constraintCase {
 			invalid: []any{"ftp", "HTTP", ""},
 		},
 		{
-			name: "dependencies.resources[0].kind", doc: "component", schemaPath: "dependencies/resources[]/kind",
-			dataPath: []any{"dependencies", "resources", 0, "kind"}, errField: "dependencies.resources[0].kind",
-			valid: kinds, invalid: badKinds,
-		},
-		{
-			// 改 kind 之后 bindings[0].database 会因为"这种 kind 没有 database 这一格"而报错——
-			// 那是别的字段的问题，只看 errField。
-			name: "resources[0].kind", doc: "project", schemaPath: "resources[]/kind",
-			dataPath: []any{"resources", 0, "kind"}, errField: "resources[0].kind",
-			valid: kinds, invalid: badKinds,
-		},
-		{
 			name: "configSchema.properties.pageSize.type", doc: "component", schemaPath: "configSchema/properties{}/type",
 			dataPath: []any{"configSchema", "properties", "pageSize", "type"}, errField: "configSchema.properties.pageSize.type",
 			valid:   []any{"string", "integer", "number", "boolean", "array", "object"},
@@ -763,32 +770,6 @@ func constraintCases() []constraintCase {
 			dataPath: []any{"dependencies", "components", 1, "id"}, errField: "dependencies.components[1]",
 			valid:   []any{"demo/weak@1.0.0", "demo/weak@10.2.3"},
 			invalid: []any{"demo/weak@^1.0.0", "demo/weak@latest", "demo/weak@1.0", "demo/weak@", "demo/weak", ""},
-		},
-		{
-			// target 不必填（不像 project 的 deploy.target），空字符串跟没写是同一回事、
-			// 校验器放行——跟 "swarm"/"Docker" 这类真正非法的取值不是一类，不放进 invalid。
-			name: "target", doc: "override", schemaPath: "target",
-			dataPath: []any{"target"}, errField: "target",
-			valid:   []any{config.TargetDocker, config.TargetPodman, config.TargetK8s, nil},
-			invalid: []any{"swarm", "Docker"},
-		},
-		{
-			// components[3] 是基准里的 payment/gateway，唯一在顶层就写了 mode 的条目。
-			name: "components[3].mode", doc: "override", schemaPath: "components[]/mode",
-			dataPath: []any{"components", 3, "mode"}, errField: "components[3].mode",
-			valid:   []any{config.ModeEnabled, config.ModeDisable, config.ModeDebug, config.ModeLocal, nil},
-			invalid: []any{"Enabled", "disabled", "debugging", "docker"},
-		},
-		{
-			// ComponentOverride.Mode 与 MemberOverride.Mode 是两个不同 Go 类型上的字段
-			// （schemagen 的反射生成器不支持自引用递归类型，override.yaml 设计书 §8 的嵌套
-			// 因此拆成了两层不同的类型），它们在生成的 schema 里是两个独立节点，即使约束
-			// 完全一样也需要各自一行——components[1].members[1] 是基准里的 auth/rbac，
-			// 已经写了 mode: disable。
-			name: "components[1].members[1].mode", doc: "override", schemaPath: "components[]/members[]/mode",
-			dataPath: []any{"components", 1, "members", 1, "mode"}, errField: "components[1].members[1].mode",
-			valid:   []any{config.ModeEnabled, config.ModeDisable, config.ModeDebug, config.ModeLocal, nil},
-			invalid: []any{"Enabled", "disabled", "debugging", "docker"},
 		},
 	}
 }
@@ -937,7 +918,10 @@ func TestEveryUnmarshalerTypeIsCoveredByAnOverride(t *testing.T) {
 		}
 		seen[typ] = true
 
-		if pt := reflect.PointerTo(typ); pt.Implements(yamlUnmarshaler) || pt.Implements(textUnmarshaler) {
+		// yaml.Node 没有实现解码接口，但 yaml.v3 把它当作"原样保存这一段"特殊对待：
+		// 反射看到的是节点自己的字段（Kind、Style…），不是使用者写的东西，同样得手写
+		if pt := reflect.PointerTo(typ); pt.Implements(yamlUnmarshaler) || pt.Implements(textUnmarshaler) ||
+			typ == reflect.TypeOf(yaml.Node{}) {
 			found[typ] = true
 			return // 自定义解码的类型不往下展开：它的内部结构不是 yaml.v3 看到的形状
 		}
@@ -951,7 +935,8 @@ func TestEveryUnmarshalerTypeIsCoveredByAnOverride(t *testing.T) {
 		}
 	}
 	visit(reflect.TypeOf(manifest.Manifest{}))
-	visit(reflect.TypeOf(config.Config{}))
+	visit(reflect.TypeOf(projfile.File{}))
+	visit(reflect.TypeOf(deployfile.File{}))
 
 	require.NotEmpty(t, found, "manifest.ComponentDep 就是这样的类型；一个都找不到说明这个遍历坏了")
 
@@ -988,7 +973,8 @@ var mapValueStructs = map[reflect.Type]bool{
 func TestPropertyNamesMatchWhatTheCLIAccepts(t *testing.T) {
 	roots := map[string]reflect.Type{
 		"component": reflect.TypeOf(manifest.Manifest{}),
-		"project":   reflect.TypeOf(config.Config{}),
+		"project":   reflect.TypeOf(projfile.File{}),
+		"deploy":    reflect.TypeOf(deployfile.File{}),
 	}
 	reached := map[reflect.Type]bool{}
 	for _, doc := range sortedKeys(roots) {
@@ -1168,9 +1154,14 @@ func optionalPropertyPaths(node map[string]any, data any, path []any, visit func
 // 校验器拒绝。这是"校验器比 schema 更严"，是允许的方向；登记在这里，并且要求它们真的被拒绝，名单才不会过期。
 var conditionallyRequired = map[string]string{
 	"component:healthCheck.path": "healthCheck.type 是 http 时必填（validateHealthCheck）",
-	"project:sources[0].path":    "sources[].type 是 local 时必填（validateSources）",
-	"project:deploy.networkPolicy.egress.allowTo[0].namespace": "allowTo 的 namespace 与 cidr 必须写一个，" +
-		"基准里写的是 namespace（validateEgress）",
+	"component:deployment.image": "deployment.image 与 deployment.build 至少写一个，基准里只写了 image（附录 A3）",
+	"project:sources[0].path":    "sources[].type 是 local 时必填",
+	"project:sources[1].baseUrl": "sources[].type 是 git 时必填",
+	"project:sources[2].url":     "sources[].type 是 market 时必填",
+	"project:components[1].source.path": "components[].source.type 是 local 时必填",
+	"deploy:components[0].hostname":     "expose: true 且 target 是 k8s 时必填",
+	"deploy:k8s.networkPolicy.egress.allowTo[0].namespace": "allowTo 的 namespace 与 cidr 必须写一个，" +
+		"基准里写的是 namespace",
 }
 
 // 不必填的属性写成显式的 null，真实的解析器放行：这是 schema 允许 null 的依据。
@@ -1179,15 +1170,19 @@ var conditionallyRequired = map[string]string{
 func TestExplicitNullIsAcceptedForOptionalPropertiesByTheRealParsers(t *testing.T) {
 	representatives := map[string][]string{
 		"component": {
-			"tags", "dependencies", "dependencies.components", "dependencies.resources", "configSchema",
+			"tags", "dependencies", "dependencies.components", "shell", "configSchema",
 			"configSchema.properties", "configSchema.required", "migration", "metadata.vendor",
 			"deployment.labels", "deployment.resources", "healthCheck.startPeriodSeconds",
 			"configSchema.properties.pageSize.default", "configSchema.properties.tags.items.type",
 		},
 		"project": {
-			"sources", "components", "resources", "installer", "deploy.networkPolicy",
-			"deploy.networkPolicy.egress", "deploy.networkPolicy.enabled", "deploy.serviceAccount",
-			"components[0].config", "components[0].mode", "resources[0].bindings", "resources[0].password",
+			"sources", "components", "installer", "components[1].kind", "components[1].source",
+			"sources[0].enabled", "sources[2].authToken", "installer.publicKeys",
+		},
+		"deploy": {
+			"k8s", "vars", "components", "k8s.networkPolicy", "k8s.networkPolicy.egress",
+			"k8s.networkPolicy.enabled", "k8s.serviceAccount", "components[0].replicas",
+			"components[0].labels", "components[1].members",
 		},
 	}
 
@@ -1275,54 +1270,19 @@ func TestUnknownKeysInConfigSchemaPropertiesAreWarnedNotRejected(t *testing.T) {
 // ---- 已知例外一、二：同样拿真实的解析器钉住 ----
 
 func TestKnownStricterThanTheCLICasesAreReal(t *testing.T) {
-	// 一、${VAR} 写进有封闭取值或 pattern 的字段：ParseConfig 先展开再校验，schema 检查字面文本
-	t.Run("${VAR}", func(t *testing.T) {
-		t.Setenv("BRICKKIT_SCHEMATEST_TARGET", "docker")
-		t.Setenv("BRICKKIT_SCHEMATEST_VERSION", "1.0.0")
-		t.Setenv("BRICKKIT_SCHEMATEST_SOURCE_TYPE", "local")
-		t.Setenv("BRICKKIT_SCHEMATEST_KIND", "database")
-		index := indexSchema(t, "project")
-		d := documents["project"]
-
-		for _, c := range []struct {
-			path       []any
-			schemaPath string
-			reference  string
-		}{
-			{[]any{"deploy", "target"}, "deploy/target", "${BRICKKIT_SCHEMATEST_TARGET}"},
-			{[]any{"components", 0, "version"}, "components[]/version", "${BRICKKIT_SCHEMATEST_VERSION}"},
-			{[]any{"sources", 0, "type"}, "sources[]/type", "${BRICKKIT_SCHEMATEST_SOURCE_TYPE}"},
-			{[]any{"resources", 0, "kind"}, "resources[]/kind", "${BRICKKIT_SCHEMATEST_KIND}"},
-		} {
-			require.NoError(t, d.parse(mutate(t, d.baseline, c.path, c.reference, false)),
-				"ParseConfig 展开 %s 之后校验，放行", c.reference)
-
-			node := index[c.schemaPath]
-			require.NotNil(t, node, "schema 里没有 %s", c.schemaPath)
-			enum, hasEnum := node["enum"].([]any)
-			pattern, hasPattern := node["pattern"].(string)
-			require.True(t, hasEnum || hasPattern, "%s 既没有 enum 也没有 pattern，这一行什么都证明不了", c.schemaPath)
-			if hasEnum {
-				assert.NotContains(t, enum, c.reference, "schema 的 enum 检查字面文本")
-			}
-			if hasPattern {
-				assert.NotRegexp(t, pattern, c.reference, "schema 的 pattern 检查字面文本")
-			}
-		}
-	})
-
-	// 二、yaml.v3 的宽容解码：schema 不跟着放宽
+	// 一、yaml.v3 的宽容解码：schema 不跟着放宽
 	t.Run("不加引号的非字符串标量写进字符串字段", func(t *testing.T) {
-		index := indexSchema(t, "project")
-		d := documents["project"]
 		for _, c := range []struct {
+			doc        string
 			path       []any
 			schemaPath string
 			value      any
 		}{
-			{[]any{"resources", 0, "password"}, "resources[]/password", 123456},
-			{[]any{"project"}, "project", 2024},
+			{"deploy", []any{"components", 0, "hostname"}, "components[]/hostname", 123456},
+			{"project", []any{"project"}, "project", 2024},
 		} {
+			index := indexSchema(t, c.doc)
+			d := documents[c.doc]
 			require.NoError(t, d.parse(mutate(t, d.baseline, c.path, c.value, false)),
 				"yaml.v3 把 %v 照字面转成字符串", c.value)
 
@@ -1350,22 +1310,22 @@ func TestKnownStricterThanTheCLICasesAreReal(t *testing.T) {
 	// map 的键是使用者自己定的，值却必须是字符串：值写成 null（`key:` 后面什么都没写），
 	// CLI 照样收下，schema 的 additionalProperties 是 type: string，标红。
 	t.Run("map 里的 null 值", func(t *testing.T) {
-		d := documents["project"]
-		index := indexSchema(t, "project")
-
 		for _, c := range []struct {
+			doc        string
 			field      string
 			path       []any
 			value      any
 			schemaPath string // map 的值在 schema 里的位置
 		}{
-			{"deploy.ingressAnnotations", []any{"deploy", "ingressAnnotations"},
-				map[string]any{"k": nil}, "deploy/ingressAnnotations{}"},
-			{"installer.publicKeys", []any{"installer"},
+			{"deploy", "k8s.ingressAnnotations", []any{"k8s", "ingressAnnotations"},
+				map[string]any{"k": nil}, "k8s/ingressAnnotations{}"},
+			{"project", "installer.publicKeys", []any{"installer"},
 				map[string]any{"publicKeys": map[string]any{"k": nil}}, "installer/publicKeys{}"},
-			{"deploy.networkPolicy.allowFrom[0].podSelector", []any{"deploy", "networkPolicy", "allowFrom", 0, "podSelector"},
-				map[string]any{"k": nil}, "deploy/networkPolicy/allowFrom[]/podSelector{}"},
+			{"deploy", "k8s.networkPolicy.allowFrom[0].podSelector", []any{"k8s", "networkPolicy", "allowFrom", 0, "podSelector"},
+				map[string]any{"k": nil}, "k8s/networkPolicy/allowFrom[]/podSelector{}"},
 		} {
+			d := documents[c.doc]
+			index := indexSchema(t, c.doc)
 			require.NoError(t, d.parse(mutate(t, d.baseline, c.path, c.value, false)),
 				"%s 里有一个值是 null 的键：CLI 收下", c.field)
 
@@ -1379,11 +1339,11 @@ func TestKnownStricterThanTheCLICasesAreReal(t *testing.T) {
 	// yaml.v3 对 bool 目标有 YAML 1.1 的兼容：yes / on 读成 true。schema 只认 true / false。
 	// mutate 会把字符串 "yes" 加上引号写出来（那就成了字符串，CLI 也拒绝），所以这里直接改文本。
 	t.Run("bool 字段写 yes / on", func(t *testing.T) {
-		projectEnabled := func(read func(*config.Config) bool) func([]byte) bool {
+		deployEnabled := func(read func(*deployfile.File) bool) func([]byte) bool {
 			return func(data []byte) bool {
-				cfg, err := config.ParseConfig(data, "brickkit.yaml")
+				f, _, err := deployfile.Parse(data, "deploy.local.yaml", deployfile.RoleLocal)
 				require.NoError(t, err)
-				return read(cfg)
+				return read(f)
 			}
 		}
 		for _, c := range []struct {
@@ -1391,12 +1351,12 @@ func TestKnownStricterThanTheCLICasesAreReal(t *testing.T) {
 			old, new               string
 			readTrue               func(data []byte) bool // 真实的解析器把它读成了什么
 		}{
-			{"project", "deploy.networkPolicy.enabled", "deploy/networkPolicy/enabled",
+			{"deploy", "k8s.networkPolicy.enabled", "k8s/networkPolicy/enabled",
 				"  networkPolicy:\n    enabled: true\n", "  networkPolicy:\n    enabled: yes\n",
-				projectEnabled(func(cfg *config.Config) bool { return cfg.Deploy.NetworkPolicy.Enabled })},
-			{"project", "deploy.networkPolicy.egress.enabled", "deploy/networkPolicy/egress/enabled",
+				deployEnabled(func(f *deployfile.File) bool { return f.K8s.NetworkPolicy.Enabled })},
+			{"deploy", "k8s.networkPolicy.egress.enabled", "k8s/networkPolicy/egress/enabled",
 				"    egress:\n      enabled: true\n", "    egress:\n      enabled: on\n",
-				projectEnabled(func(cfg *config.Config) bool { return cfg.Deploy.NetworkPolicy.Egress.Enabled })},
+				deployEnabled(func(f *deployfile.File) bool { return f.K8s.NetworkPolicy.Egress.Enabled })},
 			{"component", "dependencies.components[1].optional", "dependencies/components[]#oneOf[1]/optional",
 				"      optional: true\n", "      optional: yes\n",
 				func(data []byte) bool {
@@ -1425,7 +1385,7 @@ func TestKnownStricterThanTheCLICasesAreReal(t *testing.T) {
 			doc, field, schemaPath string
 			old, new               string
 		}{
-			{"project", "resources[0].port", "resources[]/port", "    port: 5432\n", "    port: 5432.5\n"},
+			{"deploy", "components[0].replicas", "components[]/replicas", "    replicas: 2\n", "    replicas: 2.5\n"},
 			{"component", "deployment.port", "deployment/port", "  port: 8080\n", "  port: 8080.5\n"},
 		} {
 			d := documents[c.doc]
@@ -1440,10 +1400,11 @@ func TestKnownStricterThanTheCLICasesAreReal(t *testing.T) {
 			assert.NotContains(t, names, "number", "%s 是整数字段：5432.5 不是整数，这是 schema 更严的地方", c.schemaPath)
 		}
 
-		// 截断是真的：值落到了 5432，不是被拒绝
-		cfg, err := config.ParseConfig([]byte(strings.Replace(baselineProject, "    port: 5432\n", "    port: 5432.5\n", 1)), "brickkit.yaml")
+		// 截断是真的：值落到了 2，不是被拒绝
+		f, _, err := deployfile.Parse([]byte(strings.Replace(baselineDeploy, "    replicas: 2\n", "    replicas: 2.5\n", 1)),
+			"deploy.yaml", deployfile.RoleTeam)
 		require.NoError(t, err)
-		assert.Equal(t, 5432, cfg.Resources[0].Port)
+		assert.Equal(t, 2, f.Components[0].ReplicaCount())
 	})
 }
 

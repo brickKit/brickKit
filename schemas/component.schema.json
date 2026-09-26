@@ -183,36 +183,6 @@
             "array",
             "null"
           ]
-        },
-        "resources": {
-          "items": {
-            "additionalProperties": false,
-            "properties": {
-              "engine": {
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "database",
-                  "cache",
-                  "mq",
-                  "storage",
-                  "search",
-                  "smtp"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "engine",
-              "kind"
-            ],
-            "type": "object"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
         }
       },
       "type": [
@@ -223,6 +193,27 @@
     "deployment": {
       "additionalProperties": false,
       "properties": {
+        "build": {
+          "additionalProperties": false,
+          "properties": {
+            "context": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "dockerfile": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "extraPorts": {
           "items": {
             "additionalProperties": false,
@@ -248,7 +239,10 @@
           ]
         },
         "image": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "labels": {
           "additionalProperties": {
@@ -323,7 +317,6 @@
         }
       },
       "required": [
-        "image",
         "port",
         "type"
       ],
@@ -443,6 +436,24 @@
       },
       "required": [
         "command"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "shell": {
+      "additionalProperties": false,
+      "properties": {
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "members"
       ],
       "type": [
         "object",

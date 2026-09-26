@@ -3,19 +3,22 @@ package schemagen
 import (
 	"reflect"
 
-	"github.com/brickkit/brickkit/internal/config"
+	"gopkg.in/yaml.v3"
+
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
-	"github.com/brickkit/brickkit/internal/override"
+	"github.com/brickkit/brickkit/internal/projfile"
 )
 
 // 落盘的文件名（在仓库根目录的 schemas/ 下）。
 //
-// 这三个名字是使用者编辑器里 $schema 注释指向的公开地址的一部分，改名会让所有已经配好的
-// 编辑器悄悄失效。
+// 这些名字是使用者编辑器里 $schema 注释指向的公开地址的一部分，改名会让所有已经配好的
+// 编辑器悄悄失效。deploy.schema.json 同时服务 deploy.yaml、deploy.local.yaml 与 -f 指定的
+// 任何部署文件——它们是同一种文件，只是角色不同。
 const (
 	ComponentFile = "component.schema.json"
 	ProjectFile   = "brickkit.schema.json"
-	OverrideFile  = "override.schema.json"
+	DeployFile    = "deploy.schema.json"
 )
 
 // overrides 是"类型 → 手写 schema"的覆盖表：yaml.v3 不按字段反射来解码的类型。
@@ -26,7 +29,15 @@ const (
 func overrides() map[reflect.Type]func() schema {
 	return map[reflect.Type]func() schema{
 		reflect.TypeOf(manifest.ComponentDep{}): componentDepSchema,
+		reflect.TypeOf(yaml.Node{}):             varValueSchema,
 	}
+}
+
+// varValueSchema：部署文件 vars: 的值按原样保存成 yaml.Node，到装载时才按配置值的
+// 规则（字面量、$var:、${VAR}、file://、{existingSecret, key}）解释。schema 在这里只钉
+// "一个标量或一个映射"，不重复那套规则——schema 宁可松也不能比校验器更严。
+func varValueSchema() schema {
+	return schema{"type": []string{"string", "number", "boolean", "object", "null"}}
 }
 
 // componentDepSchema：依赖项有两种写法（见 manifest.ComponentDep.UnmarshalYAML）——
@@ -68,12 +79,16 @@ func Component() ([]byte, error) {
 
 // Project 返回 brickkit.yaml 的 JSON Schema。
 func Project() ([]byte, error) {
-	return newGenerator(overrides()).document(reflect.TypeOf(config.Config{}), "BrickKit brickkit.yaml")
+	return newGenerator(overrides()).document(reflect.TypeOf(projfile.File{}), "BrickKit brickkit.yaml")
 }
 
-// Override 返回 override.yaml 的 JSON Schema。
-func Override() ([]byte, error) {
-	return newGenerator(overrides()).document(reflect.TypeOf(override.Override{}), "BrickKit override.yaml")
+// Deploy 返回部署文件（deploy.yaml / deploy.local.yaml / -f 指定的文件）的 JSON Schema。
+//
+// 同一份 schema 服务两种角色：mode: debug 只允许出现在本地文件里，这条角色规则 schema
+// 表达不了（它不知道文件是哪种角色），所以 schema 按更宽的本地角色写，团队文件里的
+// debug 由 CLI 报错。
+func Deploy() ([]byte, error) {
+	return newGenerator(overrides()).document(reflect.TypeOf(deployfile.File{}), "BrickKit deploy file")
 }
 
 // Files 返回要落盘的全部 schema：文件名 → 内容。落盘工具（cmd/gen-schemas）与防漂移测试共用它，
@@ -87,9 +102,9 @@ func Files() (map[string][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	overrideSchema, err := Override()
+	deploy, err := Deploy()
 	if err != nil {
 		return nil, err
 	}
-	return map[string][]byte{ComponentFile: component, ProjectFile: project, OverrideFile: overrideSchema}, nil
+	return map[string][]byte{ComponentFile: component, ProjectFile: project, DeployFile: deploy}, nil
 }

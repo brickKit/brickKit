@@ -7,10 +7,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 )
 
 // newNewCommand 实现 brickkit new：生成一个新组件的最小骨架。
@@ -48,7 +48,7 @@ func runNew(opts *Options, id, path, contract string) error {
 
 	rel := path
 	if rel == "" {
-		rel = filepath.Join(config.DirComponents, id)
+		rel = filepath.Join(project.DirComponents, id)
 	}
 	// 绝对路径就是它自己：filepath.Join 会把它当成相对路径接在 WorkDir 后面，
 	// 写出去的位置和屏幕上打印的对不上。

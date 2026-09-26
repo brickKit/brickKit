@@ -38,9 +38,11 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/compose"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -109,28 +111,36 @@ func wideGraph(width int) (provider, resolver.Ref) {
 	return p, resolver.Ref{ID: "app/root", Version: "1.0.0"}
 }
 
-// flatProject 造一份含 n 个互不依赖组件的项目（配置 + provider）。
-func flatProject(n int) (*config.Config, provider, []resolver.Ref) {
-	cfg := &config.Config{Project: "perf", Deploy: config.Deploy{Target: config.TargetDocker}}
+// flatProject 造一份含 n 个互不依赖组件的项目（声明 + 部署文件 + provider），全在内存里。
+func flatProject(n int) (*project.Project, provider, []resolver.Ref) {
+	decl := &projfile.File{Project: "perf"}
+	deploy := &deployfile.File{Target: deployfile.TargetDocker}
 	p := provider{}
 	refs := make([]resolver.Ref, 0, n)
 	for i := 0; i < n; i++ {
 		id := fmt.Sprintf("svc/s%03d", i)
 		p[id+"@1.0.0"] = componentManifest(id)
-		cfg.Components = append(cfg.Components, config.Component{ID: id, Version: "1.0.0"})
+		decl.Components = append(decl.Components, projfile.Component{ID: id, Version: "1.0.0"})
+		deploy.Components = append(deploy.Components, deployfile.Component{ID: id})
 		refs = append(refs, resolver.Ref{ID: id, Version: "1.0.0"})
 	}
-	return cfg, p, refs
+	proj, err := project.Assemble(project.NewLayout(""), decl, deploy)
+	if err != nil {
+		panic(err)
+	}
+	return proj, p, refs
 }
 
-// configYAML 造一份含 n 个组件条目的 brickkit.yaml。
-func configYAML(n int) []byte {
-	var b strings.Builder
-	b.WriteString("project: perf\ndeploy:\n  target: docker\ncomponents:\n")
+// projectYAML 造一份含 n 个组件的 brickkit.yaml 与对应的 deploy.yaml。
+func projectYAML(n int) (decl, deploy []byte) {
+	var d, y strings.Builder
+	d.WriteString("project: perf\ncomponents:\n")
+	y.WriteString("target: docker\ncomponents:\n")
 	for i := 0; i < n; i++ {
-		fmt.Fprintf(&b, "  - id: svc/s%03d\n    version: 1.0.0\n", i)
+		fmt.Fprintf(&d, "  - id: svc/s%03d\n    version: 1.0.0\n", i)
+		fmt.Fprintf(&y, "  - id: svc/s%03d\n", i)
 	}
-	return []byte(b.String())
+	return []byte(d.String()), []byte(y.String())
 }
 
 // ============================================================
@@ -176,13 +186,16 @@ func BenchmarkResolveWide100(b *testing.B) {
 	}
 }
 
-// 36.5 brickkit.yaml 解析（100 个组件条目）。
+// 36.5 brickkit.yaml + deploy.yaml 解析（100 个组件条目）。
 func BenchmarkParseConfig100(b *testing.B) {
-	raw := configYAML(100)
+	decl, deploy := projectYAML(100)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := config.ParseConfig(raw, "brickkit.yaml"); err != nil {
+		if _, err := projfile.Parse(decl, "brickkit.yaml"); err != nil {
+			b.Fatal(err)
+		}
+		if _, _, err := deployfile.Parse(deploy, "deploy.yaml", deployfile.RoleTeam); err != nil {
 			b.Fatal(err)
 		}
 	}
