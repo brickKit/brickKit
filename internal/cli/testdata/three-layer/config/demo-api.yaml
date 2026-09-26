@@ -1,0 +1,4 @@
+API_KEY: sk-live-e2e$x
+TLS_KEY: file://.secrets/tls.pem
+GREETING: "price: $5"
+WEBHOOK: ${E2E_WEBHOOK}

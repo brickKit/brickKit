@@ -1,0 +1,4 @@
+target: docker
+components:
+  - id: demo/api
+  - id: demo/worker

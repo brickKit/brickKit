@@ -1,0 +1,21 @@
+apiVersion: brickkit/v1
+kind: Component
+metadata:
+  id: demo/worker
+  name: Demo Worker
+  version: 1.0.0
+  description: 端到端夹具：依赖 demo/api，配置来自公共变量
+dependencies:
+  components:
+    - demo/api@1.0.0
+configSchema:
+  type: object
+  properties:
+    DB_HOST:
+      type: string
+deployment:
+  type: container
+  image: registry.example.com/demo-worker:1.0.0
+  port: 8081
+healthCheck:
+  type: tcp

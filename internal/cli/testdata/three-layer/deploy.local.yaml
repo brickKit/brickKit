@@ -1,0 +1,6 @@
+# 本地模式没开（.brickkit/local-mode 不存在），这份文件不该被读到
+target: podman
+components:
+  - id: demo/api
+    mode: disable
+  - id: demo/worker

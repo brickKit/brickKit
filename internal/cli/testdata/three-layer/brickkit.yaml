@@ -1,0 +1,13 @@
+# brickkit.yaml —— 端到端夹具：两个本地源组件
+project: e2e
+
+sources:
+  - name: local-dev
+    type: local
+    path: ./components
+
+components:
+  - id: demo/api
+    version: 1.0.0
+  - id: demo/worker
+    version: 1.0.0

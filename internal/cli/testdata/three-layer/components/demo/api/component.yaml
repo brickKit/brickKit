@@ -1,0 +1,29 @@
+apiVersion: brickkit/v1
+kind: Component
+metadata:
+  id: demo/api
+  name: Demo API
+  version: 1.0.0
+  description: 端到端夹具：带迁移与密钥的组件
+configSchema:
+  type: object
+  properties:
+    API_KEY:
+      type: string
+      secret: true
+    TLS_KEY:
+      type: string
+      secret: true
+    GREETING:
+      type: string
+    WEBHOOK:
+      type: string
+deployment:
+  type: container
+  image: registry.example.com/demo-api:1.0.0
+  port: 8080
+migration:
+  command: ["/app/api", "migrate"]
+healthCheck:
+  type: http
+  path: /healthz

@@ -1,0 +1,4 @@
+target: k8s
+components:
+  - id: demo/api
+  - id: demo/worker
