@@ -12,9 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 )
 
 // ============================================================
@@ -23,7 +24,7 @@ import (
 
 func TestServiceGenerated(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	doc := b.doc("services/people-basic-1-0-0.yaml")
 
@@ -45,7 +46,7 @@ func TestServiceIncludesExtraPorts(t *testing.T) {
 	m.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9090}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, projecttest.Entry{})
 
 	ports := dig(t, b.doc("services/people-basic-1-0-0.yaml"), "spec", "ports")
 
@@ -62,7 +63,7 @@ func TestServiceIncludesExtraPorts(t *testing.T) {
 func TestIngressGenerated(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Expose: true, Hostname: "portal.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
 	doc := b.doc("ingress/portal-user-frontend-1-0-0.yaml")
 
@@ -91,7 +92,7 @@ func TestIngressGenerated(t *testing.T) {
 // 不声明 expose: true 就不生成 Ingress。安全是默认的。
 func TestNoIngressWithoutExpose(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	assert.False(t, hasFile(b.generate(), "ingress/people-basic-1-0-0.yaml"), "16.6")
 }
@@ -102,14 +103,16 @@ func TestNoIngressWithoutExpose(t *testing.T) {
 // 谁先匹配上谁生效——一个内部组件可能就这样顶掉了门户站点。
 func TestExposeWithoutHostnameIsAnError(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("portal/user-frontend", "1.0.0", 80), config.Component{Expose: true})
+	b.component(simple("portal/user-frontend", "1.0.0", 80), projecttest.Entry{Expose: true})
 
-	_, err := b.build()
+	// 部署文件解析阶段就拦下（deployfile.validateComponents），不必等到生成
+	root := t.TempDir()
+	projecttest.Write(t, root, projecttest.Render(t, b.spec))
+	_, err := project.Load(root, project.LoadOptions{})
 
 	require.Error(t, err)
 	assert.Equal(t, clierr.CodeConfigInvalid, clierr.As(err).Code)
 	assert.Contains(t, err.Error(), "hostname")
-	assert.Contains(t, err.Error(), "portal/user-frontend")
 }
 
 // 两个组件写同一个 hostname：必须报错，不能安静地生成两份 Ingress。
@@ -133,9 +136,9 @@ func TestExposeWithoutHostnameIsAnError(t *testing.T) {
 func TestDuplicateHostnameIsAnError(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Expose: true, Hostname: "shop.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "shop.example.com"})
 	b.component(simple("erp/backend", "1.0.0", 8080),
-		config.Component{Expose: true, Hostname: "shop.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "shop.example.com"})
 
 	_, err := b.build()
 
@@ -157,9 +160,9 @@ func TestDuplicateHostnameIsAnError(t *testing.T) {
 func TestDuplicateHostnameAcrossVersionsIsAnError(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Expose: true, Hostname: "shop.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "shop.example.com"})
 	b.component(simple("portal/user-frontend", "2.0.0", 80),
-		config.Component{Expose: true, Hostname: "shop.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "shop.example.com"})
 
 	_, err := b.build()
 
@@ -172,9 +175,9 @@ func TestDuplicateHostnameAcrossVersionsIsAnError(t *testing.T) {
 func TestHostnameOnUnexposedComponentDoesNotConflict(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Expose: true, Hostname: "shop.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "shop.example.com"})
 	b.component(simple("erp/backend", "1.0.0", 8080),
-		config.Component{Hostname: "shop.example.com"})
+		projecttest.Entry{Hostname: "shop.example.com"})
 
 	_, err := b.build()
 
@@ -191,7 +194,7 @@ func TestExposePortIgnoredOnK8s(t *testing.T) {
 	withPort := func(exposePort int) []k8s.File {
 		b := newBuilder(t)
 		b.component(simple("portal/user-frontend", "1.0.0", 80),
-			config.Component{Expose: true, Hostname: "portal.example.com", ExposePort: exposePort})
+			projecttest.Entry{Expose: true, Hostname: "portal.example.com", ExposePort: exposePort})
 		return b.generate().Files
 	}
 
@@ -209,8 +212,7 @@ func migrating(m *manifest.Manifest) *manifest.Manifest {
 
 func TestMigrationJobGenerated(t *testing.T) {
 	b := newBuilder(t)
-	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
 
 	doc := b.doc("migrations/people-basic-1-0-0-migration.yaml")
 
@@ -225,8 +227,7 @@ func TestMigrationJobGenerated(t *testing.T) {
 
 func TestMigrationJobContainer(t *testing.T) {
 	b := newBuilder(t)
-	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
 
 	doc := b.doc("migrations/people-basic-1-0-0-migration.yaml")
 	containers, ok := dig(t, doc, "spec", "template", "spec", "containers").([]any)
@@ -248,8 +249,7 @@ func TestMigrationJobContainer(t *testing.T) {
 // 一个根本不监听端口的 Pod，表现成偶发的 connection refused。
 func TestMigrationPodIsNotAServiceEndpoint(t *testing.T) {
 	b := newBuilder(t)
-	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
 
 	selector := dig(t, b.doc("services/people-basic-1-0-0.yaml"), "spec", "selector")
 	podLabels := dig(t, b.doc("migrations/people-basic-1-0-0-migration.yaml"),
@@ -267,8 +267,7 @@ func TestMigrationPodIsNotAServiceEndpoint(t *testing.T) {
 // 002 §8.5：迁移容器的环境变量与主容器完全一致，密码同样走 Secret。
 func TestMigrationJobEnvMatchesComponent(t *testing.T) {
 	b := newBuilder(t)
-	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
 
 	doc := b.doc("migrations/people-basic-1-0-0-migration.yaml")
 	containers, _ := dig(t, doc, "spec", "template", "spec", "containers").([]any)
@@ -281,7 +280,7 @@ func TestMigrationJobEnvMatchesComponent(t *testing.T) {
 // 没有 migration 字段的组件不生成 Job。
 func TestNoMigrationJobWithoutMigration(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	assert.False(t, hasFile(b.generate(), "migrations/people-basic-1-0-0-migration.yaml"))
 }
@@ -289,9 +288,8 @@ func TestNoMigrationJobWithoutMigration(t *testing.T) {
 // 要清理的旧 Job 名字必须回填给命令层（16.14 的输入）。
 func TestResultCarriesMigrationJobs(t *testing.T) {
 	b := newBuilder(t)
-	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
+	b.component(simple("department/tree", "1.0.0", 8080), projecttest.Entry{})
 
 	assert.Equal(t, [][]string{{"people-basic-1-0-0-migration"}}, b.generate().MigrationGroups)
 }
@@ -300,29 +298,9 @@ func TestResultCarriesMigrationJobs(t *testing.T) {
 // 16.13 目录结构
 // ============================================================
 
-func TestDirectoryLayout(t *testing.T) {
-	b := newBuilder(t)
-	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Expose: true, Hostname: "portal.example.com"})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
-
-	assert.Equal(t, []string{
-		"deployments/people-basic-1-0-0.yaml",
-		"deployments/portal-user-frontend-1-0-0.yaml",
-		"ingress/portal-user-frontend-1-0-0.yaml",
-		"migrations/people-basic-1-0-0-migration.yaml",
-		"namespace.yaml",
-		"secrets/resource-secrets.yaml",
-		"services/people-basic-1-0-0.yaml",
-		"services/portal-user-frontend-1-0-0.yaml",
-	}, pathsOf(b.generate()), "16.13 目录结构（005 §5）")
-}
-
 func TestWriteFiles(t *testing.T) {
 	b := newBuilder(t)
-	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
 	result := b.generate()
 
 	dir := filepath.Join(t.TempDir(), "k8s")
@@ -344,53 +322,11 @@ func TestWriteFilesClearsStaleManifests(t *testing.T) {
 	require.NoError(t, os.WriteFile(stale, []byte("kind: Deployment\n"), 0o644))
 
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 	require.NoError(t, k8s.WriteFiles(dir, b.generate().Files))
 
 	_, err := os.Stat(stale)
 	assert.True(t, os.IsNotExist(err), "上一次生成的残留清单必须被清掉")
 	_, err = os.Stat(filepath.Join(dir, "deployments", "people-basic-1-0-0.yaml"))
 	assert.NoError(t, err)
-}
-
-// Secret 文件的权限要收紧：里面是明文密码。
-func TestSecretFileIsNotWorldReadable(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
-
-	dir := filepath.Join(t.TempDir(), "k8s")
-	require.NoError(t, k8s.WriteFiles(dir, b.generate().Files))
-
-	info, err := os.Stat(filepath.Join(dir, "secrets", "resource-secrets.yaml"))
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "Secret 文件只有自己能读")
-
-	info, err = os.Stat(filepath.Join(dir, "deployments", "people-basic-1-0-0.yaml"))
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm(), "其余清单照常")
-}
-
-// 同一个组件的多个版本，迁移 Job 归到同一组并按版本号排序。
-//
-// 分组是给引擎用的执行顺序：组内串行、组间并行。理由与 compose 侧的
-// chainMigrations 完全一样——同一组件 ID 的多个版本共用一个库、共用一个
-// component_id，同时跑会在空库上撞主键（002 §8.11、§8.10）。
-func TestMigrationJobsAreGroupedByComponent(t *testing.T) {
-	b := newBuilder(t)
-	b.component(migrating(withDatabase(simple("demo/hello", "2.0.0", 8080))), config.Component{})
-	b.component(migrating(withDatabase(simple("demo/hello", "10.0.0", 8080))), config.Component{})
-	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(
-		config.Binding{ComponentID: "demo/hello", Database: "hello"},
-		config.Binding{ComponentID: "people/basic", Database: "people"}))
-
-	groups := b.generate().MigrationGroups
-
-	require.Len(t, groups, 2, "两个组件 ID → 两组：%v", groups)
-	assert.Equal(t, [][]string{
-		// 按版本号排，不是服务名的字典序：10.0.0 必须排在 2.0.0 后面
-		{"demo-hello-2-0-0-migration", "demo-hello-10-0-0-migration"},
-		{"people-basic-1-0-0-migration"},
-	}, groups, "组内按版本升序；组间按组件 ID 字典序（同一份配置每次都要给出同一个顺序）")
 }

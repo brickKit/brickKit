@@ -4,6 +4,8 @@
 package k8s_test
 
 import (
+	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 	"strings"
 	"testing"
 
@@ -11,13 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/shell"
 )
 
-func servedByEntry(shellID, shellVersion string) config.Component {
-	return config.Component{ServedBy: shellID + "@" + shellVersion}
+func servedByEntry(shellID, shellVersion string) projecttest.Entry {
+	return projecttest.Entry{ServedBy: shellID + "@" + shellVersion}
 }
 
 // ---- 外壳没跑时，成员回落到独立 Deployment ----
@@ -25,7 +26,7 @@ func servedByEntry(shellID, shellVersion string) config.Component {
 func TestServedByMemberFallsBackToStandaloneDeploymentWhenShellIsDisabled(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000),
-		config.Component{ID: "infra/shell-go-core", Version: "1.0.0", Mode: config.ModeDisable})
+		projecttest.Entry{ID: "infra/shell-go-core", Version: "1.0.0", Mode: deployfile.ModeDisable})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 
 	result := b.generate()
@@ -39,7 +40,7 @@ func TestServedByMemberFallsBackToStandaloneDeploymentWhenShellIsDisabled(t *tes
 
 func TestServedByComponentGeneratesOnlyAService(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(migrating(simple("mdm/customer", "1.0.7", 8080)),
 		servedByEntry("infra/shell-go-core", "1.0.0"))
 
@@ -56,7 +57,7 @@ func TestServedByComponentGeneratesOnlyAService(t *testing.T) {
 
 func TestServedByServiceSelectsShellPod(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 
 	doc := b.doc("services/mdm-customer-1-0-7.yaml")
@@ -73,10 +74,10 @@ func TestServedByServiceSelectsShellPod(t *testing.T) {
 
 func TestShellDeploymentGetsMergedEndpointsAndServedMembers(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(dependsOn(simple("mdm/customer", "1.0.7", 8080), "infra/database", "1.0.0"),
 		servedByEntry("infra/shell-go-core", "1.0.0"))
-	b.component(simple("infra/database", "1.0.0", 5432), config.Component{})
+	b.component(simple("infra/database", "1.0.0", 5432), projecttest.Entry{})
 
 	env := envOf(t, b.container("infra-shell-go-core-1-0-0"))
 	assert.Equal(t, "http://infra-database-1-0-0:5432", env["INFRA_DATABASE_ENDPOINT"])
@@ -90,9 +91,9 @@ func TestShellDeploymentGetsMergedEndpointsAndServedMembers(t *testing.T) {
 // （不受平台管辖）语义相反，不能合并处理（servedBy 设计书 §7）。
 func TestShellServedMembersIsEmptyStringWhenMemberNotRunning(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.7", 8080),
-		config.Component{ServedBy: "infra/shell-go-core@1.0.0", Mode: config.ModeDisable})
+		projecttest.Entry{ServedBy: "infra/shell-go-core@1.0.0", Mode: deployfile.ModeDisable})
 
 	env := envOf(t, b.container("infra-shell-go-core-1-0-0"))
 	value, ok := env[shell.EnvVarServedMembers]
@@ -104,7 +105,7 @@ func TestShellServedMembersIsEmptyStringWhenMemberNotRunning(t *testing.T) {
 
 func TestServedByServiceIsInDesired(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 
 	result := b.generate()
@@ -116,7 +117,7 @@ func TestServedByServiceIsInDesired(t *testing.T) {
 
 func TestServedByMigrationWarnsInK8s(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(migrating(simple("mdm/customer", "1.0.7", 8080)), servedByEntry("infra/shell-go-core", "1.0.0"))
 
 	result, err := b.build()
@@ -137,7 +138,7 @@ func TestServedByMigrationWarnsInK8s(t *testing.T) {
 func TestServedByFallbackWarnsInK8s(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000),
-		config.Component{ID: "infra/shell-go-core", Version: "1.0.0", Mode: config.ModeDisable})
+		projecttest.Entry{ID: "infra/shell-go-core", Version: "1.0.0", Mode: deployfile.ModeDisable})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 
 	result, err := b.build()
@@ -166,7 +167,7 @@ func TestServedByMemberLabelsDoNotLeakIntoShellAnnotations(t *testing.T) {
 	c.Deployment.Labels = map[string]string{"prometheus.io/port": "8082"}
 
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(a, servedByEntry("infra/shell-go-core", "1.0.0"))
 	b.component(c, servedByEntry("infra/shell-go-core", "1.0.0"))
 
@@ -179,7 +180,7 @@ func TestServedByMemberLabelsDoNotLeakIntoShellAnnotations(t *testing.T) {
 // 成员声明了 labels 就该警告——它没有自己的 Pod，这些 labels 落不到任何地方。
 func TestServedByLabelsWarnInK8s(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	member := simple("mdm/customer", "1.0.7", 8080)
 	member.Deployment.Labels = map[string]string{"prometheus.io/port": "8080"}
 	b.component(member, servedByEntry("infra/shell-go-core", "1.0.0"))
@@ -208,9 +209,9 @@ func TestServedByLabelsWarnInK8s(t *testing.T) {
 
 func TestServedByMemberDependentsGetIngressRule(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
-	b.component(dependsOn(simple("erp/caller", "1.0.0", 8080), "mdm/customer", "1.0.7"), config.Component{})
+	b.component(dependsOn(simple("erp/caller", "1.0.0", 8080), "mdm/customer", "1.0.7"), projecttest.Entry{})
 
 	doc := b.doc(npPath("infra-shell-go-core-1-0-0"))
 	allowed := allowedFrom(t, doc)
@@ -235,9 +236,9 @@ func TestServedByMemberDependentsGetIngressRule(t *testing.T) {
 
 func TestServedByMemberDependencyGetsEgressRule(t *testing.T) {
 	b := withEgress(newBuilder(t))
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
-	b.component(dependsOn(simple("erp/caller", "1.0.0", 8080), "mdm/customer", "1.0.7"), config.Component{})
+	b.component(dependsOn(simple("erp/caller", "1.0.0", 8080), "mdm/customer", "1.0.7"), projecttest.Entry{})
 
 	rule := ruleWithPort(t, b.doc(npPath("erp-caller-1-0-0")), 8080)
 
@@ -251,13 +252,13 @@ func TestServedByMemberDependencyGetsEgressRule(t *testing.T) {
 func TestServedByMemberSecretConfigStaysWithMemberSecret(t *testing.T) {
 	member := simple("mdm/customer", "1.0.7", 8080)
 	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"apiKey": {Type: "string", Secret: true},
+		"API_KEY": {Type: "string", Secret: true},
 	}}
 	entry := servedByEntry("infra/shell-go-core", "1.0.0")
-	entry.Config = map[string]any{"apiKey": "${CUSTOMER_KEY}"}
+	entry.Config = map[string]any{"API_KEY": "${CUSTOMER_KEY}"}
 
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(member, entry)
 	b.env["CUSTOMER_KEY"] = "sk-customer"
 

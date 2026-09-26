@@ -21,18 +21,15 @@ package k8s
 //
 //	DNS       平台自动放行（谁都要，漏了必挂）
 //	组件依赖  从依赖图推导（平台已经知道，让人再写一遍必然过期）
-//	资源      平台知道谁要用哪个，只是不知道它在集群哪儿——声明不全就阻断
+//	外部目标  数据库等外部服务现在只是某个组件 config 里的一串地址，平台不认识它们，
+//	          由使用者在 k8s.networkPolicy.egress.allowTo 里直接写位置与端口（附录 A15）
 
 import (
 	"sort"
 
-	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
-	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
-	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
-	"strings"
 )
 
 // dnsPort 是 DNS 端口。UDP 与 TCP 都要放：大响应会退回 TCP，
@@ -127,149 +124,19 @@ func (p *plan) dependencyTargets(c componentPlan) []any {
 // declaredTargets 渲染使用者声明的出站目标。
 func (p *plan) declaredTargets(c componentPlan) []any {
 	var out []any
-	for _, target := range p.cfg.Deploy.NetworkPolicy.Egress.AllowTo {
-		// 资源类目标只加给**真的绑了它**的组件：
-		// 给用不到那个库的组件开口子，等于白白放宽了范围
-		if target.Resource != "" && !p.usesResource(c, target.Resource) {
-			continue
-		}
+	for _, target := range p.proj.Deploy.K8s.NetworkPolicy.Egress.AllowTo {
 		out = append(out, map[string]any{
 			"to":    []any{targetLocation(target)},
-			"ports": policyPorts(p.portsFor(target)),
+			"ports": policyPorts(target.Ports),
 		})
 	}
 	return out
 }
 
 // targetLocation 渲染目标位置：集群内是命名空间 + 标签，集群外是 CIDR。
-func targetLocation(target config.AllowToTarget) map[string]any {
+func targetLocation(target deployfile.AllowToTarget) map[string]any {
 	if target.CIDR != "" {
 		return map[string]any{"ipBlock": map[string]any{"cidr": target.CIDR}}
 	}
 	return namespacedSource(target.Namespace, target.PodSelector)
-}
-
-// portsFor 决定放行哪些端口。
-//
-// 写了 resource 就从 `resources[].port` 取——那个值配置里已经有了，
-// 让人再抄一遍只会出现两处不一致，而不一致的表现是"策略看着对，组件连不上库"。
-func (p *plan) portsFor(target config.AllowToTarget) []int {
-	if target.Resource != "" {
-		for _, r := range p.cfg.Resources {
-			if r.ID == target.Resource && r.Port != 0 {
-				return []int{r.Port}
-			}
-		}
-	}
-	return target.Ports
-}
-
-// usesResource 判断某个组件有没有绑定某个资源。
-func (p *plan) usesResource(c componentPlan, resourceID string) bool {
-	for _, r := range p.cfg.Resources {
-		if r.ID != resourceID {
-			continue
-		}
-		for _, b := range r.Bindings {
-			if b.ComponentID == c.Ref.ID {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// checkEgressCoverage 拦下"打开了出站策略，却有资源没说在哪儿"。
-//
-// 这是整块出站设计的核心。不拦的话生成的策略会把数据库挡在外面，
-// 而后果取决于组件什么时候建连：启动时建连的会起不来（rollout 失败），
-// 首次请求才建连的则健康检查照过、业务请求失败。两种都没有任何一处提示
-// 这是刚打开的那个开关干的。
-//
-// 最阴险的是改策略**不会杀掉已建立的连接**：正在跑的组件照常工作，
-// 问题要等到下一次重启才暴露——那时离改配置可能已经过去几周。
-//
-// 平台有能力拦住它：谁绑了哪个资源，`resources[].bindings` 里写着。
-//
-// # 为什么它返回 *clierr.Error，而不是自己决定阻断
-//
-// "该不该阻断"是命令层的决定，与资源绑定检查（resolver.CheckRunningResourceBindings）
-// 完全同一条规则：真的 `up` 必须拦下，而 `--dry-run` 的语义是"告诉我会发生什么"，
-// 那时它该以警告出现。硬拦的后果是：一个正在配 egress 的人连"看看会生成什么策略"
-// 都做不到——而那恰恰是他最需要看的东西。
-//
-// 导出是因为命令层要在**生成之前**问这一句（与那条资源绑定检查并排），
-// 而不是等生成器自己抛出来。
-func CheckEgressCoverage(cfg *config.Config, runningIDs []string) *clierr.Error {
-	if cfg == nil || !cfg.Deploy.EgressEnabled() {
-		return nil
-	}
-
-	declared := map[string]bool{}
-	for _, target := range cfg.Deploy.NetworkPolicy.Egress.AllowTo {
-		if target.Resource != "" {
-			declared[target.Resource] = true
-		}
-	}
-
-	// 资源 ID → 用到它的组件，按资源 ID 排序保证报错顺序稳定
-	users := map[string][]string{}
-	for _, id := range runningIDs {
-		for _, r := range cfg.Resources {
-			if declared[r.ID] {
-				continue
-			}
-			for _, b := range r.Bindings {
-				if b.ComponentID == id {
-					users[r.ID] = append(users[r.ID], id)
-				}
-			}
-		}
-	}
-	if len(users) == 0 {
-		return nil
-	}
-
-	missing := make([]string, 0, len(users))
-	for id := range users {
-		missing = append(missing, id)
-	}
-	sort.Strings(missing)
-
-	err := clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.K8sEgressMissingLocation))
-	for _, id := range missing {
-		err = err.WithDetail(i18n.T(msgid.K8sLabelResourceUndeclared),
-			i18n.T(msgid.K8sEgressResourceUsers, id, joinUnique(users[id])))
-	}
-	return err.
-		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sEgressReasonDetail)).
-		WithHint(
-			// 示例本身是 YAML，不随语言变；只有引导句和行内注释翻译
-			i18n.T(msgid.K8sHintEgressAddLocation)+"\n"+
-				"    deploy:\n"+
-				"      networkPolicy:\n"+
-				"        egress:\n"+
-				"          allowTo:\n"+
-				"            - name: "+missing[0]+"\n"+
-				"              resource: "+missing[0]+"\n"+
-				"              namespace: infra          # "+i18n.T(msgid.K8sEgressExampleInCluster)+"\n"+
-				"              podSelector: {app: postgres}",
-			i18n.T(msgid.K8sHintEgressOutsideCluster),
-			i18n.T(msgid.K8sHintDropEgress),
-		)
-}
-
-// joinUnique 把组件 ID 去重后拼成一行。
-func joinUnique(ids []string) string {
-	seen := map[string]bool{}
-	var out []string
-	for _, id := range ids {
-		if !seen[id] {
-			seen[id] = true
-			out = append(out, id)
-		}
-	}
-	sort.Strings(out)
-
-	return strings.Join(out, i18n.T(msgid.ListSeparator))
 }

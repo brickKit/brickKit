@@ -56,7 +56,7 @@ func (p *plan) ingressDoc(c componentPlan) map[string]any {
 	// 集群侧的注解（cert-manager 签证书、nginx 调参数……）原样透传：
 	// 平台不认识它们，也不该认识。平台自己的注解放在后面，不会被挤掉
 	annotations := map[string]any{}
-	for key, value := range p.cfg.Deploy.IngressAnnotations {
+	for key, value := range p.proj.Deploy.Settings().IngressAnnotations {
 		annotations[key] = value
 	}
 	for key, value := range p.annotationsOf(c) {
@@ -83,7 +83,7 @@ func (p *plan) ingressDoc(c componentPlan) map[string]any {
 
 	// 不写 ingressClassName 时，只有集群配了"默认 class"才会有人认领这条
 	// Ingress——没有默认 class 的集群上 apply 成功、域名却打不开
-	if class := p.cfg.Deploy.IngressClass; class != "" {
+	if class := p.proj.Deploy.Settings().IngressClass; class != "" {
 		spec["ingressClassName"] = class
 	}
 	if secret := c.Entry.TLSSecret; secret != "" {

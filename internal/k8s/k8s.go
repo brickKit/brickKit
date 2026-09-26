@@ -22,12 +22,13 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/deploy"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
 )
@@ -82,6 +83,8 @@ type Options struct {
 	//
 	// 由调用方提供是因为 .env 文件的位置是项目的事，不是渲染器的事。
 	Lookup func(name string) (string, bool)
+	// Root 是项目根：file:// 相对它解析。
+	Root string
 }
 
 // File 是一份生成出来的清单。
@@ -97,10 +100,6 @@ type Result struct {
 	Namespace string
 	// Files 按路径排序，保证同一份配置每次生成的顺序一致。
 	Files []File
-	// Resources 是必须先跑起来的基础资源（006 §9.1、§9.5）。
-	//
-	// 两种目标下平台都不部署它们，但"要先准备什么"照样得说清楚。
-	Resources []deploy.ResourceRequirement
 	// MigrationGroups 是本次会执行的迁移 Job，**按组件 ID 分组**。
 	//
 	// 组内按版本号升序、必须串行；组间彼此独立、可以并行（005 §6.3）。
@@ -147,88 +146,79 @@ type Result struct {
 
 // Generate 渲染本次要部署的全部 K8s 清单。
 func Generate(
-	cfg *config.Config, graph *resolver.Graph, states *cascade.Result,
+	proj *project.Project, graph *resolver.Graph, states *cascade.Result,
 	env *inject.Result, opts Options,
 ) (*Result, error) {
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
 
-	p, err := newPlan(cfg, graph, states, env, opts)
+	p, err := newPlan(proj, graph, states, env, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	result := &Result{
 		Namespace: p.namespace,
-		Resources: deploy.Requirements(cfg, p.componentIDs()),
 		Warnings:  p.warnings,
 	}
 	now := opts.Now()
 
-	if cfg.Deploy.ShouldCreateNamespace() {
-		if err := p.emit(result, cfg, now, "namespace.yaml", p.namespaceDoc()); err != nil {
+	if proj.Deploy.ShouldCreateNamespace() {
+		if err := p.emit(result, proj, now, "namespace.yaml", p.namespaceDoc()); err != nil {
 			return nil, err
 		}
 	}
-	for _, group := range []struct {
-		file   string
-		config bool
-	}{
-		{"resource-secrets.yaml", false},
-		{"config-secrets.yaml", true},
-	} {
-		if docs := p.secretDocs(group.config); len(docs) > 0 {
-			if err := p.emitAll(result, cfg, now, dirSecrets+"/"+group.file, docs); err != nil {
-				return nil, err
-			}
+	if docs := p.secretDocs(); len(docs) > 0 {
+		if err := p.emitAll(result, proj, now, dirSecrets+"/config-secrets.yaml", docs); err != nil {
+			return nil, err
 		}
 	}
 	for _, c := range p.components {
 		if p.generatesServiceAccount(c) {
-			if err := p.emit(result, cfg, now,
+			if err := p.emit(result, proj, now,
 				dirServiceAccounts+"/"+c.Service+".yaml", p.serviceAccountDoc(c)); err != nil {
 				return nil, err
 			}
 		}
-		if cfg.Deploy.NetworkPolicyEnabled() {
-			if err := p.emit(result, cfg, now,
+		if proj.Deploy.NetworkPolicyEnabled() {
+			if err := p.emit(result, proj, now,
 				dirNetworkPolicies+"/"+c.Service+".yaml", p.networkPolicyDoc(c)); err != nil {
 				return nil, err
 			}
 		}
-		if err := p.emit(result, cfg, now,
+		if err := p.emit(result, proj, now,
 			dirDeployments+"/"+c.Service+".yaml", p.deploymentDoc(c)); err != nil {
 			return nil, err
 		}
-		if err := p.emit(result, cfg, now,
+		if err := p.emit(result, proj, now,
 			dirServices+"/"+c.Service+".yaml", p.serviceDoc(c)); err != nil {
 			return nil, err
 		}
 		// P35：只有多副本才生成。单副本下 PDB 必然让节点排不空，
 		// 而那个报错要几个月后运维执行 drain 时才出现
 		if needsPDB(c.Entry) {
-			if err := p.emit(result, cfg, now,
+			if err := p.emit(result, proj, now,
 				dirPDBs+"/"+c.Service+".yaml", p.pdbDoc(c)); err != nil {
 				return nil, err
 			}
 		}
 		if c.Entry.Expose {
-			if err := p.emit(result, cfg, now,
+			if err := p.emit(result, proj, now,
 				dirIngress+"/"+c.Service+".yaml", p.ingressDoc(c)); err != nil {
 				return nil, err
 			}
 		}
 		if c.Manifest.Migration != nil {
 			job := MigrationJobName(c.Service)
-			if err := p.emit(result, cfg, now,
+			if err := p.emit(result, proj, now,
 				dirMigrations+"/"+job+".yaml", p.migrationJobDoc(c)); err != nil {
 				return nil, err
 			}
 		}
 	}
 	for _, m := range p.served {
-		if err := p.emit(result, cfg, now,
+		if err := p.emit(result, proj, now,
 			dirServices+"/"+m.Service+".yaml", p.servedServiceDoc(m)); err != nil {
 			return nil, err
 		}
@@ -277,16 +267,16 @@ func (p *plan) migrationGroups() [][]string {
 
 // NamespaceOf 返回本项目实际使用的命名空间。
 //
-// deploy.namespace 优先：组织的命名空间名往往是他们定的，
+// 部署文件的 k8s.namespace 优先：组织的命名空间名往往是他们定的，
 // 而且只给你这一个命名空间的权限。
-func NamespaceOf(cfg *config.Config) string {
-	if cfg != nil && cfg.Deploy.Namespace != "" {
-		return cfg.Deploy.Namespace
-	}
-	if cfg == nil {
+func NamespaceOf(proj *project.Project) string {
+	if proj == nil {
 		return Namespace("")
 	}
-	return Namespace(cfg.Project)
+	if ns := proj.Deploy.Settings().Namespace; ns != "" {
+		return ns
+	}
+	return Namespace(proj.Decl.Project)
 }
 
 // Namespace 是项目的默认命名空间：brickkit-<项目名>（005 §5.2）。
@@ -304,13 +294,14 @@ type componentPlan struct {
 	Ref      resolver.Ref
 	Service  string
 	Manifest *manifest.Manifest
-	Entry    config.Component
+	Entry    deployfile.Component
 	Env      inject.Component
 }
 
 // plan 是整次生成的计划。
 type plan struct {
-	cfg       *config.Config
+	proj      *project.Project
+	root      string
 	graph     *resolver.Graph
 	namespace string
 
@@ -326,19 +317,15 @@ type plan struct {
 }
 
 func newPlan(
-	cfg *config.Config, graph *resolver.Graph, states *cascade.Result,
+	proj *project.Project, graph *resolver.Graph, states *cascade.Result,
 	env *inject.Result, opts Options,
 ) (*plan, error) {
 	p := &plan{
-		cfg:       cfg,
+		proj:      proj,
+		root:      opts.Root,
 		graph:     graph,
-		namespace: NamespaceOf(cfg),
+		namespace: NamespaceOf(proj),
 		expand:    newExpander(opts.Lookup),
-	}
-
-	entries := map[resolver.Ref]config.Component{}
-	for _, c := range cfg.Components {
-		entries[resolver.Ref{ID: c.ID, Version: c.Version}] = c
 	}
 	envByRef := map[resolver.Ref]inject.Component{}
 	for _, c := range env.Components {
@@ -350,15 +337,10 @@ func newPlan(
 		if node == nil {
 			continue
 		}
-		entry := entries[ref]
-		// mode: debug（裸进程）在 K8s 下不合法——这条拒绝已经挪到
-		// internal/config/validate.go 的解析阶段（validateComponentMode），
-		// 走到这里的 cfg 保证不会再有 mode: debug 的组件，不需要在这里再判一遍。
-		if entry.ServedBy != "" {
-			shellRef, ok := shell.ParseRef(entry.ServedBy)
-			if !ok {
-				continue // config.Validate 已经挡过格式问题
-			}
+		entry := proj.DeployEntry(ref.ID, ref.Version)
+		// mode: debug / local 在 K8s 下不合法——部署文件解析阶段就拦下了
+		// （deployfile.validateMode），走到这里的组件全是容器组件。
+		if shellRef, ok := shell.ShellRef(proj, ref); ok {
 			if states.IsRunning(shellRef) {
 				p.served = append(p.served, servedPlan{
 					Ref: ref, Service: manifest.ServiceName(ref.ID, ref.Version),
@@ -381,7 +363,7 @@ func newPlan(
 	sort.Slice(p.components, func(i, j int) bool { return p.components[i].Service < p.components[j].Service })
 	sort.Slice(p.served, func(i, j int) bool { return p.served[i].Service < p.served[j].Service })
 
-	groups, err := shell.Resolve(cfg, graph, states, env)
+	groups, err := shell.Resolve(proj, graph, states, env)
 	if err != nil {
 		return nil, err
 	}
@@ -401,10 +383,6 @@ func newPlan(
 	p.warnings = append(p.warnings, p.servedMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.servedHealthCheckWarnings()...)
 	p.warnings = append(p.warnings, p.servedUnsupportedFieldWarnings()...)
-	// K8s 下没有 mode: debug（internal/config/validate.go 的解析阶段已经拦下），
-	// 所以全部组件都是容器组件
-	p.warnings = append(p.warnings, deploy.LocalhostResourceWarnings(
-		cfg, p.componentIDs(), config.TargetK8s)...)
 	return p, nil
 }
 
@@ -414,7 +392,7 @@ func newPlan(
 // 组件绑不了 1024 以下的端口。Pod 会**建出来**然后一直崩溃重启，
 // 而错误信息在容器日志最深处（permission denied），非常难查。
 func (p *plan) privilegedPortWarnings() []*clierr.Error {
-	if p.cfg.Deploy.PodSecurity != config.PodSecurityRestricted {
+	if p.proj.Deploy.Settings().PodSecurity != deployfile.PodSecurityRestricted {
 		return nil
 	}
 
@@ -452,24 +430,13 @@ func (p *plan) privilegedPortWarnings() []*clierr.Error {
 	return out
 }
 
-// componentIDs 是本次会跑起来的组件 ID（含 servedBy：它没有自己的
-// Pod，但照样要连自己的资源）。
-func (p *plan) componentIDs() []string {
-	out := make([]string, 0, len(p.components)+len(p.served))
-	for _, c := range p.components {
-		out = append(out, c.Ref.ID)
-	}
-	out = append(out, servedComponentIDs(p.served)...)
-	return out
-}
-
 // ============================================================
 // 落盘内容
 // ============================================================
 
 // emit 把一份文档渲染成文件并追加到结果里。
-func (p *plan) emit(result *Result, cfg *config.Config, now time.Time, path string, doc map[string]any) error {
-	return p.emitAll(result, cfg, now, path, []map[string]any{doc})
+func (p *plan) emit(result *Result, proj *project.Project, now time.Time, path string, doc map[string]any) error {
+	return p.emitAll(result, proj, now, path, []map[string]any{doc})
 }
 
 // emitAll 把多份文档渲染进同一个文件（用 --- 分隔，K8s 的惯例写法）。
@@ -478,10 +445,10 @@ func (p *plan) emit(result *Result, cfg *config.Config, now time.Time, path stri
 // 不能让各个 emit 调用点自己再报一次"我生成了什么"——那就又是两份真相，
 // 而 Result.Desired 那段注释里说的正是两份真相带来的后果。
 func (p *plan) emitAll(
-	result *Result, cfg *config.Config, now time.Time, path string, docs []map[string]any,
+	result *Result, proj *project.Project, now time.Time, path string, docs []map[string]any,
 ) error {
 	var b bytes.Buffer
-	b.Write(header(cfg, path, now))
+	b.Write(header(proj, path, now))
 
 	for i, doc := range docs {
 		if i > 0 {
@@ -516,8 +483,8 @@ func desiredRef(doc map[string]any) string {
 //
 // 这些文件会被人打开看、被 kubectl 读、被 git 记录，所以要写清楚
 // "这是谁生成的、别手改"。
-func header(cfg *config.Config, path string, now time.Time) []byte {
-	return deploy.FileHeader(cfg.Project, now, i18n.T(msgid.K8sHeaderFile, path))
+func header(proj *project.Project, path string, now time.Time) []byte {
+	return deploy.FileHeader(proj.Decl.Project, now, i18n.T(msgid.K8sHeaderFile, path))
 }
 
 // marshal 渲染 YAML。缩进 2 空格，与设计书样例一致。
@@ -541,7 +508,7 @@ func (p *plan) namespaceDoc() map[string]any {
 		"kind":       "Namespace",
 		"metadata": map[string]any{
 			"name":   p.namespace,
-			"labels": map[string]any{labelProject: p.cfg.Project},
+			"labels": map[string]any{labelProject: p.proj.Decl.Project},
 		},
 	}
 }

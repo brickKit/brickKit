@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 )
 
 // 平台自己用的每一个键，ReservedLabelKey 都必须认得。
@@ -25,7 +25,7 @@ import (
 // 覆盖成功之后 Deployment 选择器选空，而 apply 一路绿灯。
 func TestPlatformOwnedKeysAreReserved(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	doc := b.doc("deployments/people-basic-1-0-0.yaml")
 	owned := map[string]bool{}
@@ -53,7 +53,7 @@ func TestLabelsRenderedAsAnnotations(t *testing.T) {
 	m.Deployment.Labels = map[string]string{"prometheus.io/port": "9090"}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Labels: map[string]string{
+	b.component(m, projecttest.Entry{Labels: map[string]string{
 		"prometheus.io/scrape":                "true",
 		"traefik.http.routers.erp-sales.rule": "PathPrefix(`/erp/sales`)",
 	}})
@@ -84,7 +84,7 @@ func TestLabelsRenderedAsAnnotations(t *testing.T) {
 // 透传键**不进** labels：那里的每一个键平台都在用，而且值的字符集受限。
 func TestLabelsNotRenderedAsK8sLabels(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("erp/sales", "1.0.0", 8080), config.Component{
+	b.component(simple("erp/sales", "1.0.0", 8080), projecttest.Entry{
 		Labels: map[string]string{"prometheus.io/scrape": "true"},
 	})
 
@@ -100,41 +100,10 @@ func TestLabelsNotRenderedAsK8sLabels(t *testing.T) {
 	}
 }
 
-// Service / Ingress / 迁移 Job 都不带透传键。
-//
-// Ingress 已经有自己的注解口（deploy.ingressAnnotations，003 §3），两个口子
-// 写同一处会互相覆盖而且没人说得清谁赢；迁移 Job 跑完就退出，被 Traefik
-// 当成路由目标、被 Prometheus 当成抓取目标都是 bug。
-func TestLabelsNotOnServiceIngressOrJob(t *testing.T) {
-	m := withDatabase(simple("erp/sales", "1.0.0", 8080))
-	m.Migration = &manifest.Migration{Command: []string{"./migrate"}}
-
-	b := newBuilder(t)
-	b.resource(config.Resource{
-		Kind: "database", Engine: "postgresql", ID: "pg",
-		Host: "pg.internal", Port: 5432, Username: "dev", Password: "x",
-		Bindings: []config.Binding{{ComponentID: "erp/sales", Database: "sales"}},
-	})
-	b.component(m, config.Component{
-		Expose: true, Hostname: "sales.example.com",
-		Labels: map[string]string{"prometheus.io/scrape": "true"},
-	})
-
-	for _, path := range []string{
-		"services/erp-sales-1-0-0.yaml",
-		"ingress/erp-sales-1-0-0.yaml",
-		"migrations/erp-sales-1-0-0-migration.yaml",
-	} {
-		annotations, ok := dig(t, b.doc(path), "metadata", "annotations").(map[string]any)
-		require.True(t, ok, "%s 的 annotations 段读不出来", path)
-		assert.NotContains(t, annotations, "prometheus.io/scrape", path)
-	}
-}
-
 // 没写 labels 时，annotations 段只有平台自己那一条——不该多出空键。
 func TestAnnotationsUnchangedWhenNoLabels(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("erp/sales", "1.0.0", 8080), config.Component{})
+	b.component(simple("erp/sales", "1.0.0", 8080), projecttest.Entry{})
 
 	doc := b.doc("deployments/erp-sales-1-0-0.yaml")
 	assert.Equal(t, map[string]any{"brickkit.io/component-id": "erp/sales"},

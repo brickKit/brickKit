@@ -11,75 +11,13 @@
 package k8s_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
-	"github.com/brickkit/brickkit/internal/config"
-	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 )
-
-// refsInFiles 把生成的每一份清单解析出来，取出各自的 `<小写类型>/<名字>`。
-//
-// 一个文件里可能有多份文档（secrets/resource-secrets.yaml 就是），全都要算上。
-func refsInFiles(t *testing.T, result *k8s.Result) []string {
-	t.Helper()
-
-	var out []string
-	for _, file := range result.Files {
-		decoder := yaml.NewDecoder(strings.NewReader(string(file.YAML)))
-		for {
-			var doc map[string]any
-			err := decoder.Decode(&doc)
-			if err != nil {
-				break
-			}
-			if doc == nil {
-				continue
-			}
-			kind, _ := doc["kind"].(string)
-			metadata, _ := doc["metadata"].(map[string]any)
-			name, _ := metadata["name"].(string)
-			require.NotEmpty(t, kind, "每份清单都必须有 kind：%s", file.Path)
-			require.NotEmpty(t, name, "每份清单都必须有 metadata.name：%s", file.Path)
-			out = append(out, strings.ToLower(kind)+"/"+name)
-		}
-	}
-	return out
-}
-
-// fullFeatured 造一个把**所有**条件生成的资源都打开的项目：
-// 对外暴露、多副本、网络策略、独立 SA、数据库密码、数据库迁移。
-func fullFeatured(t *testing.T) *k8s.Result {
-	t.Helper()
-
-	three := 3
-	portal := withDatabase(simple("portal/web", "1.0.0", 8080))
-	portal.Migration = &manifest.Migration{Command: []string{"/app/portal", "migrate"}}
-
-	b := newBuilder(t)
-	b.cfg.Deploy.NetworkPolicy = &config.NetworkPolicy{
-		Enabled:           true,
-		IngressController: &config.IngressControllerSource{Namespace: "ingress-nginx"},
-	}
-	b.cfg.Deploy.ServiceAccount = &config.ServiceAccount{Enabled: true}
-
-	return b.
-		component(portal, config.Component{
-			Expose: true, Hostname: "portal.example.com", Replicas: &three,
-		}).
-		resource(config.Resource{
-			Kind: "database", Engine: "postgresql", ID: "pg-main",
-			Host: "postgres.infra", Port: 5432, Username: "portal",
-			Password: "${POSTGRES_PASSWORD}",
-			Bindings: []config.Binding{{ComponentID: "portal/web", Database: "portal"}},
-		}).
-		generate()
-}
 
 // 生成了什么，Desired 里就有什么——一字不差，不多不少。
 //
@@ -104,7 +42,7 @@ func TestDesiredCoversEveryConditionalKind(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{
 		"namespace/brickkit-my-erp",
-		"secret/pg-main-secret",
+		"secret/portal-web-1-0-0-config-secret",
 		"serviceaccount/portal-web-1-0-0",
 		"networkpolicy/portal-web-1-0-0",
 		"deployment/portal-web-1-0-0",
@@ -122,7 +60,7 @@ func TestDesiredCoversEveryConditionalKind(t *testing.T) {
 func TestDesiredDropsConditionalKindsWhenTurnedOff(t *testing.T) {
 	// 同一个组件，什么开关都不开
 	result := newBuilder(t).
-		component(simple("portal/web", "1.0.0", 8080), config.Component{}).
+		component(simple("portal/web", "1.0.0", 8080), projecttest.Entry{}).
 		generate()
 
 	assert.ElementsMatch(t, []string{
@@ -137,11 +75,11 @@ func TestDesiredDropsConditionalKindsWhenTurnedOff(t *testing.T) {
 func TestDesiredCoversConfigSecret(t *testing.T) {
 	m := simple("acme/hello", "0.1.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"apiKey": {Type: "string", Secret: true},
+		"API_KEY": {Type: "string", Secret: true},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{"apiKey": "${THIRD_PARTY_KEY}"}})
+	b.component(m, projecttest.Entry{Config: map[string]any{"API_KEY": "${THIRD_PARTY_KEY}"}})
 	b.env["THIRD_PARTY_KEY"] = "sk-live-SECRET123"
 
 	assert.Contains(t, b.generate().Desired, "secret/acme-hello-0-1-0-config-secret")

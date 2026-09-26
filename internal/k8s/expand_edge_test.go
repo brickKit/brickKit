@@ -130,8 +130,7 @@ func TestSanitizeName(t *testing.T) {
 }
 
 func TestSecretName(t *testing.T) {
-	assert.Equal(t, "people-db-secret", secretName("people-db"))
-	assert.Equal(t, "postgres-main-secret", secretName("postgres_main"))
+	assert.Equal(t, "people-basic-1-0-0-config-secret", configSecretName("people-basic-1-0-0"))
 }
 
 func TestContainerName(t *testing.T) {

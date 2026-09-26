@@ -20,10 +20,12 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -49,29 +51,26 @@ type builder struct {
 	t        *testing.T
 	provider stubProvider
 	roots    []resolver.Ref
-	cfg      *config.Config
+	spec     projecttest.Spec
 	env      map[string]string
+	proj     *project.Project
 }
 
 func newBuilder(t *testing.T) *builder {
 	return &builder{
 		t:        t,
 		provider: stubProvider{},
-		cfg:      &config.Config{Project: "my-erp", Deploy: config.Deploy{Target: config.TargetK8s}},
-		env:      map[string]string{"POSTGRES_PASSWORD": "s3cr3t"},
+		spec: projecttest.Spec{Project: "my-erp", Target: deployfile.TargetK8s,
+			K8s: &deployfile.K8s{}, Files: projecttest.Files{}},
+		env: map[string]string{"POSTGRES_PASSWORD": "s3cr3t"},
 	}
 }
 
-func (b *builder) component(m *manifest.Manifest, entry config.Component) *builder {
+func (b *builder) component(m *manifest.Manifest, entry projecttest.Entry) *builder {
 	b.provider[m.Metadata.ID+"@"+m.Metadata.Version] = m
 	entry.ID, entry.Version = m.Metadata.ID, m.Metadata.Version
-	b.cfg.Components = append(b.cfg.Components, entry)
+	b.spec.Entries = append(b.spec.Entries, entry)
 	b.roots = append(b.roots, resolver.Ref{ID: entry.ID, Version: entry.Version})
-	return b
-}
-
-func (b *builder) resource(r config.Resource) *builder {
-	b.cfg.Resources = append(b.cfg.Resources, r)
 	return b
 }
 
@@ -79,17 +78,19 @@ func (b *builder) resource(r config.Resource) *builder {
 func (b *builder) build() (*k8s.Result, error) {
 	b.t.Helper()
 
+	b.proj = projecttest.Build(b.t, b.spec)
 	graph, err := resolver.New(b.provider).Resolve(context.Background(), b.roots...)
 	require.NoError(b.t, err)
 
-	states, err := cascade.Compute(b.cfg, graph)
+	states, err := cascade.Compute(b.proj, graph)
 	require.NoError(b.t, err)
 
-	env, err := inject.Build(b.cfg, graph, states)
+	env, err := inject.Build(b.proj, graph, states)
 	require.NoError(b.t, err)
 
-	return k8s.Generate(b.cfg, graph, states, env, k8s.Options{
-		Now: func() time.Time { return time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC) },
+	return k8s.Generate(b.proj, graph, states, env, k8s.Options{
+		Root: b.proj.Layout.Root,
+		Now:  func() time.Time { return time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC) },
 		Lookup: func(name string) (string, bool) {
 			value, ok := b.env[name]
 			return value, ok
@@ -213,12 +214,15 @@ func simple(id, version string, port int) *manifest.Manifest {
 	}
 }
 
+// withDatabase 给组件加一个密钥配置项 DB_PASSWORD（默认值 s3cr3t）——
+// 资源废除之后，"连库要一个密码"就是组件自己 configSchema 里的一项。
 func withDatabase(m *manifest.Manifest) *manifest.Manifest {
-	if m.Dependencies == nil {
-		m.Dependencies = &manifest.Dependencies{}
+	if m.ConfigSchema == nil {
+		m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{}}
 	}
-	m.Dependencies.Resources = append(m.Dependencies.Resources,
-		manifest.ResourceDep{Kind: "database", Engine: "postgresql"})
+	m.ConfigSchema.Properties["DB_PASSWORD"] = manifest.ConfigProperty{
+		Type: "string", Secret: true, Default: "s3cr3t",
+	}
 	return m
 }
 
@@ -231,22 +235,13 @@ func dependsOn(m *manifest.Manifest, id, version string) *manifest.Manifest {
 	return m
 }
 
-// pgResource 是一个 PostgreSQL 资源（K8s 环境下由运维部署，CLI 只注入连接信息）。
-func pgResource(bindings ...config.Binding) config.Resource {
-	return config.Resource{
-		Kind: config.ResourceKindDatabase, Engine: "postgresql", ID: "people-db",
-		Host: "postgres.infra.svc", Port: 5432, Username: "people_user",
-		Password: "${POSTGRES_PASSWORD}", Bindings: bindings,
-	}
-}
-
 // ============================================================
 // 16.1 Namespace
 // ============================================================
 
 func TestNamespaceGenerated(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	doc := b.doc("namespace.yaml")
 
@@ -259,7 +254,7 @@ func TestNamespaceGenerated(t *testing.T) {
 // 命名空间名要能回填到 Result 里：后续 kubectl 的每条命令都要 -n 它。
 func TestResultCarriesNamespace(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	assert.Equal(t, "brickkit-my-erp", b.generate().Namespace)
 }
@@ -270,7 +265,7 @@ func TestResultCarriesNamespace(t *testing.T) {
 
 func TestDeploymentBasics(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	doc := b.doc("deployments/people-basic-1-0-0.yaml")
 
@@ -287,7 +282,7 @@ func TestDeploymentBasics(t *testing.T) {
 
 func TestDeploymentLabels(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	doc := b.doc("deployments/people-basic-1-0-0.yaml")
 
@@ -310,7 +305,7 @@ func TestDeploymentLabels(t *testing.T) {
 // 完全看不出是组件 ID 的锅。
 func TestLabelValuesAreValid(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	valid := regexp.MustCompile(`^[a-zA-Z0-9]([-_.a-zA-Z0-9]*[a-zA-Z0-9])?$`)
 	for _, f := range b.generate().Files {
@@ -348,7 +343,7 @@ func labelSetsOf(node any) []map[string]any {
 
 func TestDeploymentContainer(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	c := b.container("people-basic-1-0-0")
 
@@ -361,9 +356,9 @@ func TestDeploymentContainer(t *testing.T) {
 // 环境变量与 compose 那边同源（inject），K8s 只是换个写法。
 func TestDeploymentEnv(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
+	b.component(simple("department/tree", "1.0.0", 8080), projecttest.Entry{})
 	b.component(dependsOn(simple("people/basic", "1.0.0", 8080), "department/tree", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 
 	env := envOf(t, b.container("people-basic-1-0-0"))
 
@@ -377,12 +372,15 @@ func TestDeploymentEnv(t *testing.T) {
 // 写成数字会被 API Server 直接拒绝（`cannot unmarshal number into field value`）。
 func TestEnvValuesAreStrings(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"DB_PORT": {Type: "integer", Default: 5432},
+	}}
+	b.component(m, projecttest.Entry{})
 
 	env := envOf(t, b.container("people-basic-1-0-0"))
 
-	assert.Equal(t, "5432", env["DATABASE_PORT"], "端口是数字，但在 env 里必须写成字符串")
+	assert.Equal(t, "5432", env["DB_PORT"], "端口是数字，但在 env 里必须写成字符串")
 }
 
 // ============================================================
@@ -391,7 +389,7 @@ func TestEnvValuesAreStrings(t *testing.T) {
 
 func TestLivenessProbe(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	probe := b.container("people-basic-1-0-0")["livenessProbe"]
 
@@ -405,7 +403,7 @@ func TestLivenessProbe(t *testing.T) {
 
 func TestReadinessProbe(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	probe := b.container("people-basic-1-0-0")["readinessProbe"]
 
@@ -422,7 +420,7 @@ func TestReadinessProbe(t *testing.T) {
 // 再走一遍同样的 30 秒 → 永久 CrashLoopBackOff。
 func TestStartupProbe(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	probe := b.container("people-basic-1-0-0")["startupProbe"]
 
@@ -451,7 +449,7 @@ func TestStartupProbeFailureThresholdFollowsManifest(t *testing.T) {
 		m.HealthCheck.StartPeriodSeconds = tc.seconds
 
 		b := newBuilder(t)
-		b.component(m, config.Component{})
+		b.component(m, projecttest.Entry{})
 
 		probe := b.container("java-monolith-1-0-0")["startupProbe"]
 		assert.Equal(t, tc.threshold, dig(t, probe, "failureThreshold"),
@@ -465,7 +463,7 @@ func TestTCPProbe(t *testing.T) {
 	m.HealthCheck = manifest.HealthCheck{Type: manifest.HealthCheckTCP}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, projecttest.Entry{})
 
 	c := b.container("infra-queue-1-0-0")
 
@@ -482,7 +480,7 @@ func TestNoProbeWhenHealthCheckNone(t *testing.T) {
 	m.HealthCheck = manifest.HealthCheck{Type: manifest.HealthCheckNone}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, projecttest.Entry{})
 
 	c := b.container("infra-job-1-0-0")
 
@@ -497,7 +495,7 @@ func TestNoProbeWhenHealthCheckNone(t *testing.T) {
 
 func TestResourcesUseCLIDefaults(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	resources := b.container("people-basic-1-0-0")["resources"]
 
@@ -517,7 +515,7 @@ func TestResourcesMergedFromConfig(t *testing.T) {
 	}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{
+	b.component(m, projecttest.Entry{
 		// 使用者只想调大内存上限，其余保持组件的推荐值
 		Resources: &manifest.Resources{Limits: &manifest.ResourceSpec{Memory: "2Gi"}},
 	})
@@ -534,107 +532,26 @@ func TestResourcesMergedFromConfig(t *testing.T) {
 // 16.8 / 16.15 Secret
 // ============================================================
 
-func TestSecretGenerated(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
-
-	doc := b.doc("secrets/resource-secrets.yaml")
-
-	assert.Equal(t, "v1", doc["apiVersion"], "16.8")
-	assert.Equal(t, "Secret", doc["kind"], "16.8")
-	assert.Equal(t, "people-db-secret", dig(t, doc, "metadata", "name"), "16.8 <资源ID>-secret")
-	assert.Equal(t, "brickkit-my-erp", dig(t, doc, "metadata", "namespace"))
-	assert.Equal(t, "Opaque", doc["type"], "16.8")
-	assert.Equal(t, "s3cr3t", dig(t, doc, "stringData", "password"),
-		"16.8 ${POSTGRES_PASSWORD} 必须在生成时求值——kubectl 不做变量替换")
-}
-
 func TestSecretReferencedFromEnv(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), projecttest.Entry{})
 
 	env := envOf(t, b.container("people-basic-1-0-0"))
 
 	assert.Equal(t, map[string]any{"secretKeyRef": map[string]any{
-		"name": "people-db-secret", "key": "password",
-	}}, env["DATABASE_PASSWORD"], "16.15 密码只能通过 secretKeyRef 引用")
-	assert.Equal(t, "people_user", env["DATABASE_USER"], "非敏感的连接信息照常明文")
+		"name": "people-basic-1-0-0-config-secret", "key": "DB_PASSWORD",
+	}}, env["DB_PASSWORD"], "16.15 密码只能通过 secretKeyRef 引用")
 }
 
 // 密码在 Deployment 里绝不能出现明文——那份 YAML 会进 git、进 CI 日志。
 func TestPasswordNeverAppearsInDeployment(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), projecttest.Entry{})
 
 	text := string(b.file("deployments/people-basic-1-0-0.yaml").YAML)
 
 	assert.NotContains(t, text, "s3cr3t", "16.15 明文密码不能出现在 Deployment 里")
 	assert.NotContains(t, text, "${POSTGRES_PASSWORD}", "占位符同样不该出现")
-}
-
-// 一个组件绑定两个同类资源（envPrefix 区分）时，每个资源一份 Secret。
-func TestSecretPerResource(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(config.Resource{
-		Kind: config.ResourceKindDatabase, Engine: "postgresql", ID: "primary-db",
-		Host: "pg-primary.infra.svc", Port: 5432, Username: "u", Password: "${PRIMARY_PASSWORD}",
-		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people", EnvPrefix: "primary"}},
-	})
-	b.resource(config.Resource{
-		Kind: config.ResourceKindDatabase, Engine: "postgresql", ID: "archive-db",
-		Host: "pg-archive.infra.svc", Port: 5432, Username: "u", Password: "${ARCHIVE_PASSWORD}",
-		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people", EnvPrefix: "archive"}},
-	})
-	b.env["PRIMARY_PASSWORD"] = "p1"
-	b.env["ARCHIVE_PASSWORD"] = "p2"
-
-	text := string(b.file("secrets/resource-secrets.yaml").YAML)
-	env := envOf(t, b.container("people-basic-1-0-0"))
-
-	assert.Contains(t, text, "primary-db-secret", "16.8 每个资源一份 Secret")
-	assert.Contains(t, text, "archive-db-secret")
-	assert.Equal(t, map[string]any{"secretKeyRef": map[string]any{
-		"name": "primary-db-secret", "key": "password",
-	}}, env["PRIMARY_DATABASE_PASSWORD"], "16.15 envPrefix 变量指向对应资源的 Secret")
-	assert.Equal(t, map[string]any{"secretKeyRef": map[string]any{
-		"name": "archive-db-secret", "key": "password",
-	}}, env["ARCHIVE_DATABASE_PASSWORD"])
-}
-
-// 对象存储的密钥叫 secret-key，不叫 password。
-func TestStorageSecretKeyName(t *testing.T) {
-	m := simple("media/store", "1.0.0", 8080)
-	m.Dependencies = &manifest.Dependencies{
-		Resources: []manifest.ResourceDep{{Kind: "storage", Engine: "s3"}},
-	}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.resource(config.Resource{
-		Kind: config.ResourceKindStorage, Engine: "s3", ID: "assets",
-		Host: "rustfs.infra.svc", Port: 9000, Username: "ak", Password: "${STORAGE_SECRET}",
-		Bindings: []config.Binding{{ComponentID: "media/store", Database: "assets"}},
-	})
-	b.env["STORAGE_SECRET"] = "sk"
-
-	env := envOf(t, b.container("media-store-1-0-0"))
-
-	assert.Equal(t, map[string]any{"secretKeyRef": map[string]any{
-		"name": "assets-secret", "key": "secret-key",
-	}}, env["STORAGE_SECRET_KEY"], "16.15")
-	assert.Equal(t, "ak", env["STORAGE_ACCESS_KEY"], "access key 不是密钥，照常明文")
-}
-
-// 没有任何敏感变量时不生成 Secret 文件（空 Secret 只会让人以为漏了什么）。
-func TestNoSecretFileWithoutSensitiveVars(t *testing.T) {
-	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
-
-	assert.False(t, hasFile(b.generate(), "secrets/resource-secrets.yaml"))
 }
 
 // ============================================================
@@ -644,8 +561,8 @@ func TestNoSecretFileWithoutSensitiveVars(t *testing.T) {
 func secretConfigManifest() *manifest.Manifest {
 	m := simple("acme/hello", "0.1.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"apiKey": {Type: "string", Secret: true},
-		"region": {Type: "string"},
+		"API_KEY": {Type: "string", Secret: true},
+		"REGION":  {Type: "string"},
 	}}
 	return m
 }
@@ -654,8 +571,8 @@ func secretConfigManifest() *manifest.Manifest {
 // 密钥明文写进 Deployment，能读 Deployment 的人就都读得到。
 func TestSecretConfigGoesThroughSecret(t *testing.T) {
 	b := newBuilder(t)
-	b.component(secretConfigManifest(), config.Component{Config: map[string]any{
-		"apiKey": "${THIRD_PARTY_KEY}", "region": "eu-west-1",
+	b.component(secretConfigManifest(), projecttest.Entry{Config: map[string]any{
+		"API_KEY": "${THIRD_PARTY_KEY}", "REGION": "eu-west-1",
 	}})
 	b.env["THIRD_PARTY_KEY"] = "sk-live-SECRET123"
 
@@ -679,9 +596,9 @@ func TestNoConfigSecretFileWithoutDeclaredSecrets(t *testing.T) {
 	b := newBuilder(t)
 	m := simple("acme/hello", "0.1.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"region": {Type: "string"},
+		"REGION": {Type: "string"},
 	}}
-	b.component(m, config.Component{Config: map[string]any{"region": "eu-west-1"}})
+	b.component(m, projecttest.Entry{Config: map[string]any{"REGION": "eu-west-1"}})
 
 	assert.False(t, hasFile(b.generate(), "secrets/config-secrets.yaml"))
 }
@@ -689,7 +606,7 @@ func TestNoConfigSecretFileWithoutDeclaredSecrets(t *testing.T) {
 // 值文件权限同样是 0600：Secret 目录整个是。
 func TestConfigSecretFileIsNotWorldReadable(t *testing.T) {
 	b := newBuilder(t)
-	b.component(secretConfigManifest(), config.Component{Config: map[string]any{"apiKey": "${THIRD_PARTY_KEY}"}})
+	b.component(secretConfigManifest(), projecttest.Entry{Config: map[string]any{"API_KEY": "${THIRD_PARTY_KEY}"}})
 	b.env["THIRD_PARTY_KEY"] = "sk-live-SECRET123"
 
 	dir := t.TempDir()
@@ -703,7 +620,7 @@ func TestConfigSecretFileIsNotWorldReadable(t *testing.T) {
 // 变量没定义要报错，与资源密码同一条规则：放过去就是把字面量 "${THIRD_PARTY_KEY}" 当密钥部署上去。
 func TestUnresolvedSecretConfigIsAnError(t *testing.T) {
 	b := newBuilder(t)
-	b.component(secretConfigManifest(), config.Component{Config: map[string]any{"apiKey": "${THIRD_PARTY_KEY}"}})
+	b.component(secretConfigManifest(), projecttest.Entry{Config: map[string]any{"API_KEY": "${THIRD_PARTY_KEY}"}})
 
 	_, err := b.build()
 
@@ -716,34 +633,13 @@ func TestUnresolvedSecretConfigIsAnError(t *testing.T) {
 // existingSecret：引用外部已建好的 Secret（Spec 2026-09-19 §3.2）
 // ============================================================
 
-// 资源声明了 existingSecret：Deployment 里的 secretKeyRef 直接指向那个名字，
-// 平台不生成任何 Secret 条目——resource-secrets.yaml 里完全找不到这个资源的痕迹。
-func TestResourceExistingSecretReferencesGivenName(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(config.Resource{
-		Kind: config.ResourceKindDatabase, Engine: "postgresql", ID: "main-db",
-		Host: "pg.infra.svc", Port: 5432, Username: "app",
-		ExistingSecret: "acme-db-vault-synced",
-		Bindings:       []config.Binding{{ComponentID: "people/basic", Database: "people"}},
-	})
-
-	env := envOf(t, b.container("people-basic-1-0-0"))
-
-	assert.Equal(t, map[string]any{"secretKeyRef": map[string]any{
-		"name": "acme-db-vault-synced", "key": "password",
-	}}, env["DATABASE_PASSWORD"])
-	assert.False(t, hasFile(b.generate(), "secrets/resource-secrets.yaml"),
-		"这个资源的值不该由平台知道，也就没有 Secret 可生成")
-}
-
 // 组件声明的配置密钥写成 existingSecret 形状：secretKeyRef 指向使用者给的名字与 key，
 // 不是平台按 <服务名>-config-secret 算出来的那个。
 func TestConfigExistingSecretReferencesGivenNameAndKey(t *testing.T) {
 	m := secretConfigManifest() // Task 2 加的：apiKey 声明了 secret: true
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{
-		"apiKey": map[string]any{"existingSecret": "acme-hello-vault-synced", "key": "api-key"},
+	b.component(m, projecttest.Entry{Config: map[string]any{
+		"API_KEY": map[string]any{"existingSecret": "acme-hello-vault-synced", "key": "api-key"},
 	}})
 
 	env := envOf(t, b.container("acme-hello-0-1-0"))
@@ -761,8 +657,11 @@ func TestConfigExistingSecretReferencesGivenNameAndKey(t *testing.T) {
 // kubectl 不做变量替换，Pod 会以认证失败反复重启，而 YAML 看上去完全正常。
 func TestUnresolvedEnvVarIsAnError(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"DB_PASSWORD": {Type: "string", Secret: true},
+	}}
+	b.component(m, projecttest.Entry{Config: map[string]any{"DB_PASSWORD": "${POSTGRES_PASSWORD}"}})
 	delete(b.env, "POSTGRES_PASSWORD")
 
 	_, err := b.build()
@@ -772,29 +671,14 @@ func TestUnresolvedEnvVarIsAnError(t *testing.T) {
 	assert.Contains(t, err.Error(), "POSTGRES_PASSWORD", "要说清楚是哪个变量没定义")
 }
 
-// 非敏感字段里的 ${VAR} 同样要求值。
-func TestPlainValuesAreExpandedToo(t *testing.T) {
-	r := pgResource(config.Binding{ComponentID: "people/basic", Database: "people"})
-	r.Host = "${PG_HOST}"
-
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(r)
-	b.env["PG_HOST"] = "pg.prod.svc"
-
-	env := envOf(t, b.container("people-basic-1-0-0"))
-
-	assert.Equal(t, "pg.prod.svc", env["DATABASE_HOST"])
-}
-
 // ============================================================
 // 只生成本次真的会跑的东西
 // ============================================================
 
 func TestSkippedComponentsAreNotGenerated(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
-	b.component(simple("legacy/thing", "1.0.0", 8080), config.Component{Mode: config.ModeDisable})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
+	b.component(simple("legacy/thing", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeDisable})
 
 	result := b.generate()
 
@@ -803,29 +687,12 @@ func TestSkippedComponentsAreNotGenerated(t *testing.T) {
 		"mode: disable 的组件不该出现在清单里")
 }
 
-// mode: debug 在 brickkit.yaml 里要报错——解析阶段就拦下，指到出问题的那一行，
-// 而不是等到生成部署文件时才发现。这条检查不再是 k8s 专属的（override.yaml
-// 设计书 §4：debug 无论配哪个 target 都非法），这条测试留着是为了继续证明
-// k8s.Generate 自己不需要重新实现这个检查——它完全在解析阶段就已经被挡住了：
-// 这个包里唯一在测的建图方式（newBuilder/build）直接手写 config.Component
-// 结构体、跳过了 config.ParseConfig 那一层校验，所以这里已经没有能覆盖到
-// "解析阶段报错"这件事的测试位置了；下面这条测试直接证明"真正的 CLI 路径
-// 走的是 ParseConfig，不是这个跳过校验的测试建图器"，免得以后有人在这里
-// 重新加一遍已经在别处做过的校验。
-func TestModeDebugRejectedAtParseNotGeneration(t *testing.T) {
-	yaml := "project: p\ndeploy:\n  target: k8s\ncomponents:\n  - id: a/b\n    version: 1.0.0\n    mode: debug\n"
-	_, err := config.ParseConfig([]byte(yaml), "brickkit.yaml")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "mode")
-}
-
 // 同一份配置生成两次，内容必须逐字节相同（否则 git diff 全是噪音）。
 func TestGenerationIsDeterministic(t *testing.T) {
 	build := func() []k8s.File {
 		b := newBuilder(t)
-		b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-		b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
-		b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+		b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), projecttest.Entry{})
+		b.component(simple("department/tree", "1.0.0", 8080), projecttest.Entry{})
 		return b.generate().Files
 	}
 
@@ -835,7 +702,7 @@ func TestGenerationIsDeterministic(t *testing.T) {
 // 生成的文件要写清楚"谁生成的、别手改"。
 func TestFilesHaveHeaderComment(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	text := string(b.file("deployments/people-basic-1-0-0.yaml").YAML)
 

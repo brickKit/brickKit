@@ -11,25 +11,26 @@ package k8s_test
 // 推导不出的由使用者声明**意图**（`allowFrom`），而不是让他贴一段 NetworkPolicy。
 
 import (
+	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
 // withAllowFrom 在已开启网络策略的基础上追加图外来源。
-func withAllowFrom(b *builder, sources ...config.AllowFromSource) *builder {
+func withAllowFrom(b *builder, sources ...deployfile.AllowFromSource) *builder {
 	withNetworkPolicy(b)
-	b.cfg.Deploy.NetworkPolicy.AllowFrom = sources
+	b.spec.K8s.NetworkPolicy.AllowFrom = sources
 	return b
 }
 
 // prometheusSource 是最典型的那一个：监控抓 /metrics。
-func prometheusSource() config.AllowFromSource {
-	return config.AllowFromSource{
+func prometheusSource() deployfile.AllowFromSource {
+	return deployfile.AllowFromSource{
 		Name:        "prometheus",
 		Namespace:   "monitoring",
 		PodSelector: map[string]string{"app.kubernetes.io/name": "prometheus"},
@@ -64,7 +65,7 @@ func namespaceSourcesOf(t *testing.T, doc map[string]any) []map[string]any {
 // 这条是回归保护：P36 是给已有能力打补丁，不能顺手改了别人的行为。
 func TestNoAllowFromKeepsPolicyUnchanged(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	doc := b.doc(npPath("people-basic-1-0-0"))
 
@@ -82,8 +83,8 @@ func TestNoAllowFromKeepsPolicyUnchanged(t *testing.T) {
 // "那个组件的指标没了"，而它本身好好的。
 func TestAllowFromAppliesToEveryComponent(t *testing.T) {
 	b := withAllowFrom(newBuilder(t), prometheusSource())
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
-	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
+	b.component(simple("department/tree", "1.0.0", 8080), projecttest.Entry{})
 
 	for _, service := range []string{"people-basic-1-0-0", "department-tree-1-0-0"} {
 		sources := namespaceSourcesOf(t, b.doc(npPath(service)))
@@ -101,7 +102,7 @@ func TestAllowFromAppliesToEveryComponent(t *testing.T) {
 // 写错了照样 apply 成功、照样通，只是放行范围大得多，且没有任何迹象。
 func TestAllowFromCombinesSelectorsWithAnd(t *testing.T) {
 	b := withAllowFrom(newBuilder(t), prometheusSource())
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	sources := namespaceSourcesOf(t, b.doc(npPath("people-basic-1-0-0")))
 	require.Len(t, sources, 1)
@@ -119,8 +120,8 @@ func TestAllowFromCombinesSelectorsWithAnd(t *testing.T) {
 // 不写 podSelector 就只按命名空间放行。
 func TestAllowFromWithoutPodSelector(t *testing.T) {
 	b := withAllowFrom(newBuilder(t),
-		config.AllowFromSource{Name: "backup", Namespace: "ops"})
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+		deployfile.AllowFromSource{Name: "backup", Namespace: "ops"})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	sources := namespaceSourcesOf(t, b.doc(npPath("people-basic-1-0-0")))
 	require.Len(t, sources, 1)
@@ -138,7 +139,7 @@ func TestAllowFromDefaultsToAllDeclaredPorts(t *testing.T) {
 	people.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9090}}
 
 	b := withAllowFrom(newBuilder(t), prometheusSource())
-	b.component(people, config.Component{})
+	b.component(people, projecttest.Entry{})
 
 	rules := ingressRules(t, b.doc(npPath("people-basic-1-0-0")))
 	require.Len(t, rules, 1)
@@ -158,7 +159,7 @@ func TestAllowFromRestrictsToDeclaredPorts(t *testing.T) {
 	source.Ports = []int{8080}
 
 	b := withAllowFrom(newBuilder(t), source)
-	b.component(people, config.Component{})
+	b.component(people, projecttest.Entry{})
 
 	rules := ingressRules(t, b.doc(npPath("people-basic-1-0-0")))
 	require.Len(t, rules, 1)
@@ -178,10 +179,10 @@ func TestAllowFromRestrictsToDeclaredPorts(t *testing.T) {
 func TestAllowFromCoexistsWithOtherRules(t *testing.T) {
 	b := withAllowFrom(newBuilder(t), prometheusSource())
 	b.component(simple("portal/user-frontend", "1.0.0", 8080),
-		config.Component{Expose: true, Hostname: "portal.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 	b.component(
 		dependsOn(simple("erp/backend", "1.0.0", 8080), "portal/user-frontend", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 
 	doc := b.doc(npPath("portal-user-frontend-1-0-0"))
 
@@ -197,8 +198,8 @@ func TestAllowFromCoexistsWithOtherRules(t *testing.T) {
 // 命名空间的规则，得能立刻知道它是干什么的——否则只能在"不敢删"里躺着。
 func TestAllowFromIsAnnotated(t *testing.T) {
 	b := withAllowFrom(newBuilder(t), prometheusSource(),
-		config.AllowFromSource{Name: "backup", Namespace: "ops"})
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+		deployfile.AllowFromSource{Name: "backup", Namespace: "ops"})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	annotations := dig(t, b.doc(npPath("people-basic-1-0-0")), "metadata", "annotations")
 
@@ -209,44 +210,3 @@ func TestAllowFromIsAnnotated(t *testing.T) {
 // ============================================================
 // 校验
 // ============================================================
-
-// 缺 namespace → 阻断，且点名是哪一条。
-//
-// 空命名空间会生成 `kubernetes.io/metadata.name: ""`——一条谁也匹配不上的规则。
-// 策略照样 apply 成功，而监控照样抓不到，等于什么都没做。
-func TestAllowFromRequiresNamespace(t *testing.T) {
-	_, err := config.ParseConfig([]byte(`
-project: my-erp
-deploy:
-  target: k8s
-  networkPolicy:
-    enabled: true
-    allowFrom:
-      - name: prometheus
-        podSelector:
-          app.kubernetes.io/name: prometheus
-`), "brickkit.yaml")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "namespace", "%v", err)
-	assert.Contains(t, err.Error(), "prometheus", "要点名是哪一条：%v", err)
-}
-
-// 缺 name → 阻断。
-//
-// name 不是装饰：它会写进生成策略的注解，是半年后那个人判断
-// "这条口子还要不要留"的唯一线索。
-func TestAllowFromRequiresName(t *testing.T) {
-	_, err := config.ParseConfig([]byte(`
-project: my-erp
-deploy:
-  target: k8s
-  networkPolicy:
-    enabled: true
-    allowFrom:
-      - namespace: monitoring
-`), "brickkit.yaml")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "name", "%v", err)
-}

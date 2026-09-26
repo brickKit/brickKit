@@ -20,7 +20,7 @@ package k8s
 // drain 的终端，根因却是当初 brickkit.yaml 里的一个开关，
 // 两者之间没有任何线索相连。
 
-import "github.com/brickkit/brickkit/internal/config"
+import "github.com/brickkit/brickkit/internal/deployfile"
 
 // pdbDoc 渲染一个组件的 PodDisruptionBudget。
 //
@@ -57,6 +57,6 @@ func (p *plan) pdbDoc(c componentPlan) map[string]any {
 //
 // 判据是**实际副本数**，不是"有没有写 replicas"：显式写 replicas: 1
 // 与不写完全等价，都不该生成。
-func needsPDB(entry config.Component) bool {
+func needsPDB(entry deployfile.Component) bool {
 	return entry.ReplicaCount() > 1
 }

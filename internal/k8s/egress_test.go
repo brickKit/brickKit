@@ -20,8 +20,8 @@ package k8s_test
 //
 // 所以出站这一块的设计重点不是"能不能生成"，而是**不让人漏**：
 // DNS 由平台自动放行（谁都需要，且漏了必挂）；组件依赖从依赖图推导；
-// 而资源（数据库 / 缓存）平台知道**谁要用哪个**，只是不知道它在集群哪儿——
-// 声明不全就在生成阶段阻断，绝不生成一份会让组件连不上库的策略。
+// 而外部服务（数据库 / 缓存）现在只是组件 config 里的一串地址，平台不认识它们——
+// 由使用者在 k8s.networkPolicy.egress.allowTo 里直接写位置与端口（附录 A15）。
 
 import (
 	"testing"
@@ -29,24 +29,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/brickkit/internal/config"
-	"github.com/brickkit/brickkit/internal/k8s"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 )
 
 // withEgress 打开出站策略并给定放行目标。
-func withEgress(b *builder, targets ...config.AllowToTarget) *builder {
+func withEgress(b *builder, targets ...deployfile.AllowToTarget) *builder {
 	withNetworkPolicy(b)
-	b.cfg.Deploy.NetworkPolicy.Egress = &config.Egress{Enabled: true, AllowTo: targets}
+	b.spec.K8s.NetworkPolicy.Egress = &deployfile.Egress{Enabled: true, AllowTo: targets}
 	return b
 }
 
 // pgTarget 是"postgres 在 infra 命名空间"这条声明。
-func pgTarget() config.AllowToTarget {
-	return config.AllowToTarget{
+func pgTarget() deployfile.AllowToTarget {
+	return deployfile.AllowToTarget{
 		Name:        "pg",
-		Resource:    "people-db",
 		Namespace:   "infra",
+		Ports:       []int{5432},
 		PodSelector: map[string]string{"app": "postgres"},
 	}
 }
@@ -88,7 +88,7 @@ func ruleWithPort(t *testing.T, doc map[string]any, port int) map[string]any {
 // 就在使用者不知情的情况下变成了默认拒绝。
 func TestEgressNotGeneratedByDefault(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	doc := b.doc(npPath("people-basic-1-0-0"))
 
@@ -103,7 +103,7 @@ func TestEgressNotGeneratedByDefault(t *testing.T) {
 
 func TestEgressAddsEgressPolicyType(t *testing.T) {
 	b := withEgress(newBuilder(t))
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	assert.Equal(t, []any{"Ingress", "Egress"},
 		dig(t, b.doc(npPath("people-basic-1-0-0")), "spec", "policyTypes"), "P37")
@@ -120,7 +120,7 @@ func TestEgressAddsEgressPolicyType(t *testing.T) {
 // namespaceSelector: {} 只匹配集群内的 Pod，出不了集群。
 func TestEgressAlwaysAllowsDNS(t *testing.T) {
 	b := withEgress(newBuilder(t))
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	rule := ruleWithPort(t, b.doc(npPath("people-basic-1-0-0")), 53)
 
@@ -141,9 +141,9 @@ func TestEgressAllowsDependencies(t *testing.T) {
 	people.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9090}}
 
 	b := withEgress(newBuilder(t))
-	b.component(people, config.Component{})
+	b.component(people, projecttest.Entry{})
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 
 	rule := ruleWithPort(t, b.doc(npPath("erp-backend-1-0-0")), 8080)
 
@@ -160,10 +160,10 @@ func TestEgressAllowsDependencies(t *testing.T) {
 func TestEgressAllowsOptionalDependencies(t *testing.T) {
 	b := withEgress(newBuilder(t))
 	b.component(simple("infra/redis-event-bus", "1.0.0", 8080),
-		config.Component{Mode: config.ModeEnabled})
+		projecttest.Entry{Mode: deployfile.ModeEnabled})
 	b.component(
 		dependsOnOptional(simple("erp/backend", "1.0.0", 8080), "infra/redis-event-bus", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 
 	doc := b.doc(npPath("erp-backend-1-0-0"))
 
@@ -195,8 +195,7 @@ func TestEgressAllowsOptionalDependencies(t *testing.T) {
 // 而不一致的表现是"策略看着对，组件连不上库"。
 func TestEgressAllowsDeclaredResource(t *testing.T) {
 	b := withEgress(newBuilder(t), pgTarget())
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), projecttest.Entry{})
 
 	rule := ruleWithPort(t, b.doc(npPath("people-basic-1-0-0")), 5432)
 
@@ -208,53 +207,12 @@ func TestEgressAllowsDeclaredResource(t *testing.T) {
 	}}, rule["to"], "P37：命名空间与标签同样是 AND")
 }
 
-// **漏声明资源就阻断**——这是整块设计的核心。
-//
-// 不阻断的话，生成的策略会把数据库挡在外面。后果取决于组件什么时候建连：
-// 启动时建连的起不来，首次请求才建连的则健康检查照过、业务请求失败。
-// 两种都没有任何一处提示你是刚打开的那个开关干的。
-//
-// 平台有能力拦住它：谁绑了哪个资源，`resources[].bindings` 里写着。
-//
-// **这一句由 k8s.CheckEgressCoverage 给出，生成器自己不再拦。** "该不该阻断"是
-// 命令层的决定：真 up 拦下，--dry-run 降级成警告（004 §4.4，与资源绑定检查同一条
-// 规则）。生成器内部硬拦的后果是，一个正在配 egress 的人连"看看会生成什么策略"
-// 都做不到——而那恰恰是他最需要看的东西。
-func TestEgressCoverageReportsUndeclaredResource(t *testing.T) {
-	b := withEgress(newBuilder(t)) // ← 没给任何 allowTo
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
-
-	// 生成本身不再失败——策略会照常生成出来（只是那份策略会把库挡在外面）
-	_, err := b.build()
-	require.NoError(t, err, "拦不拦由命令层决定，生成器只负责生成")
-
-	problem := k8s.CheckEgressCoverage(b.cfg, []string{"people/basic"})
-
-	require.NotNil(t, problem, "P37：这个组合必须被报出来")
-	out := problem.Format()
-	assert.Contains(t, out, "people-db", "要点名缺的是哪个资源：%s", out)
-	assert.Contains(t, out, "people/basic", "以及谁要用它：%s", out)
-	assert.Contains(t, out, "allowTo", "以及该往哪儿补：%s", out)
-}
-
-// 组件没绑任何资源时，不该逼人去声明什么。
-func TestEgressWithoutResourcesNeedsNoDeclaration(t *testing.T) {
-	b := withEgress(newBuilder(t))
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
-
-	_, err := b.build()
-	assert.NoError(t, err)
-	assert.Nil(t, k8s.CheckEgressCoverage(b.cfg, []string{"people/basic"}),
-		"P37：没有资源就没什么要声明的")
-}
-
 // 集群外的目标用 CIDR。
 func TestEgressAllowsCIDR(t *testing.T) {
-	b := withEgress(newBuilder(t), config.AllowToTarget{
+	b := withEgress(newBuilder(t), deployfile.AllowToTarget{
 		Name: "stripe", CIDR: "34.0.0.0/8", Ports: []int{443},
 	})
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	rule := ruleWithPort(t, b.doc(npPath("people-basic-1-0-0")), 443)
 
@@ -265,57 +223,3 @@ func TestEgressAllowsCIDR(t *testing.T) {
 // ============================================================
 // 配置校验
 // ============================================================
-
-func TestEgressTargetRequiresExactlyOneLocation(t *testing.T) {
-	cases := []struct {
-		name string
-		yaml string
-		want string
-	}{
-		{"两个都写", `
-        - name: pg
-          namespace: infra
-          cidr: 10.0.0.0/8`, "write only one"},
-		{"两个都不写", `
-        - name: pg`, "namespace"},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			_, err := config.ParseConfig([]byte(`
-project: my-erp
-deploy:
-  target: k8s
-  networkPolicy:
-    enabled: true
-    egress:
-      enabled: true
-      allowTo:`+c.yaml+"\n"), "brickkit.yaml")
-
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), c.want, "%v", err)
-		})
-	}
-}
-
-// 写了 resource 就不该再写 ports：端口从 resources[].port 来，
-// 两处各写一份，早晚不一致，而不一致的表现是组件连不上库。
-func TestEgressResourceTargetRejectsExplicitPorts(t *testing.T) {
-	_, err := config.ParseConfig([]byte(`
-project: my-erp
-deploy:
-  target: k8s
-  networkPolicy:
-    enabled: true
-    egress:
-      enabled: true
-      allowTo:
-        - name: pg
-          resource: people-db
-          namespace: infra
-          ports: [5432]
-`), "brickkit.yaml")
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "ports", "%v", err)
-}

@@ -5,7 +5,7 @@ package k8s
 import (
 	"strings"
 
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -61,7 +61,7 @@ func (p *plan) labelsOf(c componentPlan) map[string]any {
 		labelApp:              c.Service,
 		labelComponent:        containerName(c.Ref.ID),
 		labelComponentVersion: c.Ref.Version,
-		labelProject:          p.cfg.Project,
+		labelProject:          p.proj.Decl.Project,
 	}
 }
 
@@ -140,7 +140,7 @@ func (p *plan) podSpec(c componentPlan, container map[string]any) map[string]any
 
 	p.applyServiceAccount(spec, c)
 
-	if secrets := p.cfg.Deploy.ImagePullSecrets; len(secrets) > 0 {
+	if secrets := p.proj.Deploy.Settings().ImagePullSecrets; len(secrets) > 0 {
 		refs := make([]any, 0, len(secrets))
 		for _, name := range secrets {
 			refs = append(refs, map[string]any{"name": name})
@@ -158,7 +158,7 @@ func (p *plan) podSpec(c componentPlan, container map[string]any) map[string]any
 // 刻意**不**生成 readOnlyRootFilesystem：restricted 并不要求它，
 // 而它会让任何往 /tmp 写东西的组件直接挂掉。
 func (p *plan) securityContext() map[string]any {
-	if p.cfg.Deploy.PodSecurity != config.PodSecurityRestricted {
+	if p.proj.Deploy.Settings().PodSecurity != deployfile.PodSecurityRestricted {
 		return nil
 	}
 	return map[string]any{
@@ -220,7 +220,7 @@ func containerPorts(m *manifest.Manifest) []any {
 func (p *plan) envDoc(c componentPlan) []any {
 	out := make([]any, 0, len(c.Env.Env))
 	for _, v := range c.Env.Env {
-		if v.IsSecret() {
+		if envPlacement(v) != placePlain {
 			name, key := secretRef(v)
 			out = append(out, map[string]any{
 				"name": v.Name,
@@ -231,8 +231,9 @@ func (p *plan) envDoc(c componentPlan) []any {
 			continue
 		}
 		// value 必须是字符串：K8s 的 env.value 是 string 类型，
-		// 写成数字会被 API Server 直接拒绝
-		out = append(out, map[string]any{"name": v.Name, "value": p.expand.value(v.Value)})
+		// 写成数字会被 API Server 直接拒绝。求值错误已经在 collectSecrets 里报过
+		value, _ := p.valueOf(v)
+		out = append(out, map[string]any{"name": v.Name, "value": value})
 	}
 	return out
 }

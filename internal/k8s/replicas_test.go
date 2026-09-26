@@ -3,18 +3,17 @@ package k8s_test
 // 本文件测 `replicas` 写进 Deployment（005 §5.8，P35 的前置）。
 
 import (
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/brickkit/brickkit/internal/config"
 )
 
 func replicasOf(t *testing.T, count *int) any {
 	t.Helper()
 
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Replicas: count})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{Replicas: count})
 	return dig(t, b.doc("deployments/people-basic-1-0-0.yaml"), "spec", "replicas")
 }
 

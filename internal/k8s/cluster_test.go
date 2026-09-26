@@ -6,12 +6,13 @@
 package k8s_test
 
 import (
+	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
@@ -23,7 +24,7 @@ import (
 // （镜像以 root 运行、要绑 1024 以下的端口……），不能默默替使用者决定。
 func TestNoSecurityContextByDefault(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	assert.NotContains(t, b.container("people-basic-1-0-0"), "securityContext")
 }
@@ -34,8 +35,8 @@ func TestNoSecurityContextByDefault(t *testing.T) {
 // 少任何一项，Pod 会被 API Server **直接拒收**，`kubectl apply` 那一刻就失败。
 func TestRestrictedPodSecurity(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.PodSecurity = config.PodSecurityRestricted
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.spec.K8s.PodSecurity = deployfile.PodSecurityRestricted
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	c := b.container("people-basic-1-0-0")
 	sc := c["securityContext"]
@@ -50,8 +51,8 @@ func TestRestrictedPodSecurity(t *testing.T) {
 // 而它会让任何往 /tmp 写东西的组件直接挂掉。
 func TestRestrictedDoesNotForceReadOnlyRoot(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.PodSecurity = config.PodSecurityRestricted
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.spec.K8s.PodSecurity = deployfile.PodSecurityRestricted
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	assert.NotContains(t, b.container("people-basic-1-0-0")["securityContext"],
 		"readOnlyRootFilesystem")
@@ -60,9 +61,8 @@ func TestRestrictedDoesNotForceReadOnlyRoot(t *testing.T) {
 // 迁移 Job 的容器同样要满足——它跑在同一个命名空间里。
 func TestRestrictedAppliesToMigrationJob(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.PodSecurity = config.PodSecurityRestricted
-	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.spec.K8s.PodSecurity = deployfile.PodSecurityRestricted
+	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
 
 	doc := b.doc("migrations/people-basic-1-0-0-migration.yaml")
 	containers, _ := dig(t, doc, "spec", "template", "spec", "containers").([]any)
@@ -77,9 +77,8 @@ func TestRestrictedAppliesToMigrationJob(t *testing.T) {
 
 func TestImagePullSecrets(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.ImagePullSecrets = []string{"regcred", "backup-regcred"}
-	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.spec.K8s.ImagePullSecrets = []string{"regcred", "backup-regcred"}
+	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
 
 	want := []any{
 		map[string]any{"name": "regcred"},
@@ -95,7 +94,7 @@ func TestImagePullSecrets(t *testing.T) {
 
 func TestNoImagePullSecretsByDefault(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	spec := dig(t, b.doc("deployments/people-basic-1-0-0.yaml"), "spec", "template", "spec")
 
@@ -110,9 +109,9 @@ func TestNoImagePullSecretsByDefault(t *testing.T) {
 // 没有默认 class 的集群上，`kubectl apply` 成功，域名却打不开——最难查的那种。
 func TestIngressClassName(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.IngressClass = "nginx"
+	b.spec.K8s.IngressClass = "nginx"
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Expose: true, Hostname: "portal.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
 	assert.Equal(t, "nginx",
 		dig(t, b.doc("ingress/portal-user-frontend-1-0-0.yaml"), "spec", "ingressClassName"))
@@ -122,12 +121,12 @@ func TestIngressClassName(t *testing.T) {
 // 平台不认识它们，原样透传即可。
 func TestIngressAnnotations(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.IngressAnnotations = map[string]string{
+	b.spec.K8s.IngressAnnotations = map[string]string{
 		"cert-manager.io/cluster-issuer":              "letsencrypt-prod",
 		"nginx.ingress.kubernetes.io/proxy-body-size": "50m",
 	}
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Expose: true, Hostname: "portal.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
 	annotations := dig(t, b.doc("ingress/portal-user-frontend-1-0-0.yaml"), "metadata", "annotations")
 
@@ -140,7 +139,7 @@ func TestIngressAnnotations(t *testing.T) {
 func TestIngressTLS(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Expose: true, Hostname: "portal.example.com", TLSSecret: "portal-tls"})
+		projecttest.Entry{Expose: true, Hostname: "portal.example.com", TLSSecret: "portal-tls"})
 
 	tls := dig(t, b.doc("ingress/portal-user-frontend-1-0-0.yaml"), "spec", "tls")
 
@@ -153,7 +152,7 @@ func TestIngressTLS(t *testing.T) {
 func TestNoTLSByDefault(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Expose: true, Hostname: "portal.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
 	assert.NotContains(t, dig(t, b.doc("ingress/portal-user-frontend-1-0-0.yaml"), "spec"), "tls")
 }
@@ -161,9 +160,9 @@ func TestNoTLSByDefault(t *testing.T) {
 // 这些字段都只对 Ingress 有意义，不该漏进别的清单。
 func TestClusterFieldsDoNotLeakIntoOtherManifests(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.IngressClass = "nginx"
-	b.cfg.Deploy.IngressAnnotations = map[string]string{"cert-manager.io/cluster-issuer": "x"}
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.spec.K8s.IngressClass = "nginx"
+	b.spec.K8s.IngressAnnotations = map[string]string{"cert-manager.io/cluster-issuer": "x"}
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	for _, name := range []string{"deployments/people-basic-1-0-0.yaml", "services/people-basic-1-0-0.yaml"} {
 		text := string(b.file(name).YAML)
@@ -175,9 +174,9 @@ func TestClusterFieldsDoNotLeakIntoOtherManifests(t *testing.T) {
 // 端口小于 1024 时提醒：restricted 下 drop 掉了 NET_BIND_SERVICE，绑不了特权端口。
 func TestRestrictedWarnsAboutPrivilegedPort(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.PodSecurity = config.PodSecurityRestricted
+	b.spec.K8s.PodSecurity = deployfile.PodSecurityRestricted
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Expose: true, Hostname: "portal.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
 	result := b.generate()
 
@@ -193,8 +192,8 @@ func TestRestrictedChecksExtraPorts(t *testing.T) {
 	m.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "dns", Port: 53}}
 
 	b := newBuilder(t)
-	b.cfg.Deploy.PodSecurity = config.PodSecurityRestricted
-	b.component(m, config.Component{})
+	b.spec.K8s.PodSecurity = deployfile.PodSecurityRestricted
+	b.component(m, projecttest.Entry{})
 
 	require.NotEmpty(t, b.generate().Warnings)
 	assert.Contains(t, b.generate().Warnings[0].Error(), "53")

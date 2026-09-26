@@ -67,7 +67,7 @@ func (p *plan) networkPolicyDoc(c componentPlan) map[string]any {
 		"policyTypes": []any{"Ingress"},
 		"ingress":     rules,
 	}
-	if p.cfg.Deploy.EgressEnabled() {
+	if p.proj.Deploy.EgressEnabled() {
 		spec["policyTypes"] = []any{"Ingress", "Egress"}
 		spec["egress"] = p.egressRules(c)
 	}
@@ -143,7 +143,7 @@ func (p *plan) dependentsOf(node *resolver.Node) []any {
 // 并起来会让"只依赖 A"的调用方顺带拿到连 B 端口的权限——与
 // dependentSources 自身那条规则同一个最小权限原则。
 func (p *plan) servedMemberIngressRules(c componentPlan) []any {
-	if !p.cfg.Deploy.NetworkPolicyEnabled() {
+	if !p.proj.Deploy.NetworkPolicyEnabled() {
 		return nil
 	}
 
@@ -175,7 +175,7 @@ func (p *plan) servedMemberIngressRules(c componentPlan) []any {
 
 // ingressControllerSource 是 ingress controller 那条来源。
 func (p *plan) ingressControllerSource() map[string]any {
-	controller := p.cfg.Deploy.NetworkPolicy.IngressController
+	controller := p.proj.Deploy.K8s.NetworkPolicy.IngressController
 	return namespacedSource(controller.Namespace, controller.PodSelector)
 }
 
@@ -220,11 +220,11 @@ const annotationAllowFrom = "brickkit.io/allow-from"
 // 每条来源都加到**每一个**组件上：监控要抓的是全部组件，
 // 漏掉任何一个的表现都是"那个组件的指标没了"，而它本身好好的。
 func (p *plan) allowFromRules(c componentPlan) []any {
-	if !p.cfg.Deploy.NetworkPolicyEnabled() {
+	if !p.proj.Deploy.NetworkPolicyEnabled() {
 		return nil
 	}
 
-	sources := p.cfg.Deploy.NetworkPolicy.AllowFrom
+	sources := p.proj.Deploy.K8s.NetworkPolicy.AllowFrom
 	out := make([]any, 0, len(sources))
 	for _, source := range sources {
 		ports := source.Ports
@@ -243,12 +243,12 @@ func (p *plan) allowFromRules(c componentPlan) []any {
 // policyAnnotations 是 NetworkPolicy 的注解：组件 ID + 额外放行了谁。
 func (p *plan) policyAnnotations(c componentPlan) map[string]any {
 	annotations := p.annotationsOf(c)
-	if !p.cfg.Deploy.NetworkPolicyEnabled() {
+	if !p.proj.Deploy.NetworkPolicyEnabled() {
 		return annotations
 	}
 
-	names := make([]string, 0, len(p.cfg.Deploy.NetworkPolicy.AllowFrom))
-	for _, source := range p.cfg.Deploy.NetworkPolicy.AllowFrom {
+	names := make([]string, 0, len(p.proj.Deploy.K8s.NetworkPolicy.AllowFrom))
+	for _, source := range p.proj.Deploy.K8s.NetworkPolicy.AllowFrom {
 		names = append(names, source.Name)
 	}
 	if len(names) > 0 {
@@ -284,10 +284,10 @@ func policyPorts(ports []int) []any {
 // **部署全部成功、网站直接打不开**，现象是超时或 504——
 // 一眼看去像组件本身的问题，最不容易联想到是刚打开的这个开关。
 func (p *plan) checkIngressController() error {
-	if !p.cfg.Deploy.NetworkPolicyEnabled() {
+	if !p.proj.Deploy.NetworkPolicyEnabled() {
 		return nil
 	}
-	if c := p.cfg.Deploy.NetworkPolicy.IngressController; c != nil && c.Namespace != "" {
+	if c := p.proj.Deploy.K8s.NetworkPolicy.IngressController; c != nil && c.Namespace != "" {
 		return nil
 	}
 
@@ -348,7 +348,7 @@ func (p *plan) serviceAccountDoc(c componentPlan) map[string]any {
 //
 // 写了 serviceAccountName 就是用运维建好的那个：只引用，不生成。
 func (p *plan) generatesServiceAccount(c componentPlan) bool {
-	return p.cfg.Deploy.ServiceAccountEnabled() && c.Entry.ServiceAccountName == ""
+	return p.proj.Deploy.ServiceAccountEnabled() && c.Entry.ServiceAccountName == ""
 }
 
 // defaultServiceAccount 是每个命名空间自带的那个 SA。
@@ -362,7 +362,7 @@ func (p *plan) serviceAccountNameOf(c componentPlan) string {
 	if c.Entry.ServiceAccountName != "" {
 		return c.Entry.ServiceAccountName
 	}
-	if p.cfg.Deploy.ServiceAccountEnabled() {
+	if p.proj.Deploy.ServiceAccountEnabled() {
 		return c.Service
 	}
 	return defaultServiceAccount

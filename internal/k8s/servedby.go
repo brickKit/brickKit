@@ -6,11 +6,10 @@ package k8s
 // 的解析阶段就挡住了，本文件不需要管，servedBy 是完全独立的代码路径。
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
@@ -24,7 +23,7 @@ type servedPlan struct {
 	Ref      resolver.Ref
 	Service  string
 	Manifest *manifest.Manifest
-	Entry    config.Component
+	Entry    deployfile.Component
 	Shell    resolver.Ref
 }
 
@@ -44,11 +43,8 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 	// 兜底一个空 Group，不改 shell.Resolve 的行为——那是与 Docker 渲染器
 	// 共用的逻辑，不属于这个包的职责范围。
 	referencedShells := map[resolver.Ref]bool{}
-	for _, c := range p.cfg.Components {
-		if c.ServedBy == "" {
-			continue
-		}
-		if ref, ok := shell.ParseRef(c.ServedBy); ok {
+	for _, c := range p.proj.Decl.Components {
+		if ref, ok := shell.ShellRef(p.proj, resolver.Ref{ID: c.ID, Version: c.Version}); ok {
 			referencedShells[ref] = true
 		}
 	}
@@ -81,7 +77,7 @@ func (p *plan) servedServiceDoc(m servedPlan) map[string]any {
 			"labels": map[string]any{
 				labelComponent:        containerName(m.Ref.ID),
 				labelComponentVersion: m.Ref.Version,
-				labelProject:          p.cfg.Project,
+				labelProject:          p.proj.Decl.Project,
 			},
 			"annotations": map[string]any{annotationComponentID: m.Ref.ID},
 		},
@@ -118,10 +114,7 @@ func (p *plan) servedMigrationWarnings() []*clierr.Error {
 func (p *plan) fallbackStandaloneWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, c := range p.components {
-		if c.Entry.ServedBy == "" {
-			continue
-		}
-		shellRef, ok := shell.ParseRef(c.Entry.ServedBy)
+		shellRef, ok := shell.ShellRef(p.proj, c.Ref)
 		if !ok {
 			continue
 		}
@@ -205,12 +198,3 @@ func (p *plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
 	return resolver.Ref{}, false
 }
 
-// servedComponentIDs 是 servedBy 组件的组件 ID，供 componentIDs 复用。
-func servedComponentIDs(served []servedPlan) []string {
-	out := make([]string, 0, len(served))
-	for _, s := range served {
-		out = append(out, s.Ref.ID)
-	}
-	sort.Strings(out)
-	return out
-}

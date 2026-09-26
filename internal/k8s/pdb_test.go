@@ -19,12 +19,11 @@ package k8s_test
 // 这就是"单副本时坚决不生成"这条规则值得用测试钉死的原因。
 
 import (
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/brickkit/brickkit/internal/config"
 )
 
 const pdbPath = "poddisruptionbudgets/people-basic-1-0-0.yaml"
@@ -34,7 +33,7 @@ func pdbBuilder(t *testing.T, replicas *int) *builder {
 	t.Helper()
 
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Replicas: replicas})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{Replicas: replicas})
 	return b
 }
 

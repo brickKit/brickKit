@@ -19,9 +19,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 )
 
 // ============================================================
@@ -40,9 +41,9 @@ func dependsOnOptional(m *manifest.Manifest, id, version string) *manifest.Manif
 
 // withNetworkPolicy 打开 NetworkPolicy 生成，并告诉它 ingress controller 在哪。
 func withNetworkPolicy(b *builder) *builder {
-	b.cfg.Deploy.NetworkPolicy = &config.NetworkPolicy{
+	b.spec.K8s.NetworkPolicy = &deployfile.NetworkPolicy{
 		Enabled: true,
-		IngressController: &config.IngressControllerSource{
+		IngressController: &deployfile.IngressControllerSource{
 			Namespace:   "ingress-nginx",
 			PodSelector: map[string]string{"app.kubernetes.io/name": "ingress-nginx"},
 		},
@@ -103,7 +104,7 @@ func allowedFrom(t *testing.T, doc map[string]any) map[string]bool {
 // 默认拒绝，最好的情况是没人执行、白写；最坏的情况是把本来通的流量掐断。
 func TestNetworkPolicyNotGeneratedByDefault(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	result := b.generate()
 
@@ -117,7 +118,7 @@ func TestNetworkPolicyNotGeneratedByDefault(t *testing.T) {
 
 func TestNetworkPolicyBasics(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	doc := b.doc(npPath("people-basic-1-0-0"))
 
@@ -144,8 +145,7 @@ func TestNetworkPolicyBasics(t *testing.T) {
 // 比不生成更糟：它会让人以为出站已经管住了。
 func TestNetworkPolicyIsIngressOnly(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), projecttest.Entry{})
 
 	doc := b.doc(npPath("people-basic-1-0-0"))
 
@@ -162,9 +162,9 @@ func TestNetworkPolicyIsIngressOnly(t *testing.T) {
 // 依赖方能进：erp/backend 依赖 people/basic，那 people/basic 就得放行它。
 func TestNetworkPolicyAllowsDependents(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 
 	allowed := allowedFrom(t, b.doc(npPath("people-basic-1-0-0")))
 
@@ -177,11 +177,11 @@ func TestNetworkPolicyAllowsDependents(t *testing.T) {
 // 这是整件事的意义所在：没有它，NetworkPolicy 只是一份写着"全部放行"的文件。
 func TestNetworkPolicyDeniesNonDependents(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 	// 谁也不依赖 people/basic 的第三方组件
-	b.component(simple("infra/redis-event-bus", "1.0.0", 8080), config.Component{})
+	b.component(simple("infra/redis-event-bus", "1.0.0", 8080), projecttest.Entry{})
 
 	allowed := allowedFrom(t, b.doc(npPath("people-basic-1-0-0")))
 
@@ -198,10 +198,10 @@ func TestNetworkPolicyAllowsOptionalDependents(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
 	// mode: enabled 是必需的：只被弱依赖引用的组件会被级联跳过（004 §4.5），
 	// 要它真的跑起来就得钉住
-	b.component(simple("infra/redis-event-bus", "1.0.0", 8080), config.Component{Mode: config.ModeEnabled})
+	b.component(simple("infra/redis-event-bus", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeEnabled})
 	b.component(
 		dependsOnOptional(simple("erp/backend", "1.0.0", 8080), "infra/redis-event-bus", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 
 	allowed := allowedFrom(t, b.doc(npPath("infra-redis-event-bus-1-0-0")))
 
@@ -215,7 +215,7 @@ func TestNetworkPolicyAllowsOptionalDependents(t *testing.T) {
 // 这个区别在 NetworkPolicy 里很关键：一个 Pod 只要没被任何策略选中就是全放行。
 func TestNetworkPolicyWithoutDependentsDeniesAll(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	doc := b.doc(npPath("people-basic-1-0-0"))
 
@@ -233,9 +233,9 @@ func TestNetworkPolicyAllowsDeclaredPortsOnly(t *testing.T) {
 	people.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9090}}
 
 	b := withNetworkPolicy(newBuilder(t))
-	b.component(people, config.Component{})
+	b.component(people, projecttest.Entry{})
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 
 	rules := ingressRules(t, b.doc(npPath("people-basic-1-0-0")))
 	require.Len(t, rules, 1, "只有依赖方一条来源，就该只有一条规则")
@@ -261,7 +261,7 @@ func TestNetworkPolicyAllowsDeclaredPortsOnly(t *testing.T) {
 func TestNetworkPolicyAllowsIngressController(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
 	b.component(simple("portal/user-frontend", "1.0.0", 8080),
-		config.Component{Expose: true, Hostname: "portal.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
 	rules := ingressRules(t, b.doc(npPath("portal-user-frontend-1-0-0")))
 	require.Len(t, rules, 1, "没人依赖它，只该有 ingress controller 这一条")
@@ -290,12 +290,12 @@ func TestNetworkPolicyAllowsIngressController(t *testing.T) {
 // 不该逼使用者非得写对；命名空间这一级已经收得够紧了。
 func TestNetworkPolicyIngressControllerNamespaceOnly(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.NetworkPolicy = &config.NetworkPolicy{
+	b.spec.K8s.NetworkPolicy = &deployfile.NetworkPolicy{
 		Enabled:           true,
-		IngressController: &config.IngressControllerSource{Namespace: "ingress-nginx"},
+		IngressController: &deployfile.IngressControllerSource{Namespace: "ingress-nginx"},
 	}
 	b.component(simple("portal/user-frontend", "1.0.0", 8080),
-		config.Component{Expose: true, Hostname: "portal.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
 	rules := ingressRules(t, b.doc(npPath("portal-user-frontend-1-0-0")))
 	froms, _ := dig(t, rules[0], "from").([]any)
@@ -315,9 +315,9 @@ func TestNetworkPolicyIngressControllerNamespaceOnly(t *testing.T) {
 // 一眼看去像是组件本身的问题，最不容易联想到是自己刚打开的那个开关。
 func TestNetworkPolicyRequiresIngressControllerWhenExposed(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.NetworkPolicy = &config.NetworkPolicy{Enabled: true}
+	b.spec.K8s.NetworkPolicy = &deployfile.NetworkPolicy{Enabled: true}
 	b.component(simple("portal/user-frontend", "1.0.0", 8080),
-		config.Component{Expose: true, Hostname: "portal.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
 	_, err := b.build()
 
@@ -331,8 +331,8 @@ func TestNetworkPolicyRequiresIngressControllerWhenExposed(t *testing.T) {
 // 没有任何 expose: true 的组件时，不配 ingressController 是合法的。
 func TestNetworkPolicyWithoutExposedComponentsNeedsNoController(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.NetworkPolicy = &config.NetworkPolicy{Enabled: true}
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.spec.K8s.NetworkPolicy = &deployfile.NetworkPolicy{Enabled: true}
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	_, err := b.build()
 
@@ -357,7 +357,7 @@ func TestNetworkPolicyWithoutExposedComponentsNeedsNoController(t *testing.T) {
 // minikube 上真跑到过——见 applyServiceAccount 的注释。
 func TestServiceAccountFallsBackToDefaultWhenDisabled(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	result := b.generate()
 	assert.False(t, hasFile(result, saPath("people-basic-1-0-0")),
@@ -376,13 +376,13 @@ func TestServiceAccountFallsBackToDefaultWhenDisabled(t *testing.T) {
 // "不写这个字段"也能通过，而那正是 minikube 上让部署失败的那个行为。
 func TestServiceAccountReferenceIsRewrittenWhenTurnedOff(t *testing.T) {
 	on := newBuilder(t)
-	on.cfg.Deploy.ServiceAccount = &config.ServiceAccount{Enabled: true}
-	on.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	on.spec.K8s.ServiceAccount = &deployfile.ServiceAccount{Enabled: true}
+	on.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 	before := dig(t, on.doc("deployments/people-basic-1-0-0.yaml"), "spec", "template", "spec")
 	require.Equal(t, "people-basic-1-0-0", before.(map[string]any)["serviceAccountName"])
 
 	off := newBuilder(t)
-	off.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	off.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 	after := dig(t, off.doc("deployments/people-basic-1-0-0.yaml"), "spec", "template", "spec")
 
 	assert.Equal(t, "default", after.(map[string]any)["serviceAccountName"],
@@ -399,8 +399,8 @@ func TestServiceAccountReferenceIsRewrittenWhenTurnedOff(t *testing.T) {
 // 攻击者也拿不到一张能问集群要东西的票。
 func TestServiceAccountGenerated(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.ServiceAccount = &config.ServiceAccount{Enabled: true}
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.spec.K8s.ServiceAccount = &deployfile.ServiceAccount{Enabled: true}
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	doc := b.doc(saPath("people-basic-1-0-0"))
 
@@ -419,8 +419,8 @@ func TestServiceAccountGenerated(t *testing.T) {
 // 开关打开，这些 Pod 也还是不挂载。
 func TestDeploymentUsesServiceAccount(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.ServiceAccount = &config.ServiceAccount{Enabled: true}
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.spec.K8s.ServiceAccount = &deployfile.ServiceAccount{Enabled: true}
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	spec := dig(t, b.doc("deployments/people-basic-1-0-0.yaml"), "spec", "template", "spec")
 
@@ -434,9 +434,8 @@ func TestMigrationJobUsesServiceAccount(t *testing.T) {
 	m.Migration = &manifest.Migration{Command: []string{"/app/migrate", "up"}}
 
 	b := newBuilder(t)
-	b.cfg.Deploy.ServiceAccount = &config.ServiceAccount{Enabled: true}
-	b.component(m, config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.spec.K8s.ServiceAccount = &deployfile.ServiceAccount{Enabled: true}
+	b.component(m, projecttest.Entry{})
 
 	spec := dig(t, b.doc("migrations/people-basic-1-0-0-migration.yaml"),
 		"spec", "template", "spec")
@@ -452,9 +451,9 @@ func TestMigrationJobUsesServiceAccount(t *testing.T) {
 // 就等于把那份授权抹掉，而且是安静地抹掉（apply 会成功）。
 func TestExistingServiceAccountIsReferencedNotGenerated(t *testing.T) {
 	b := newBuilder(t)
-	b.cfg.Deploy.ServiceAccount = &config.ServiceAccount{Enabled: true}
+	b.spec.K8s.ServiceAccount = &deployfile.ServiceAccount{Enabled: true}
 	b.component(simple("people/basic", "1.0.0", 8080),
-		config.Component{ServiceAccountName: "people-s3-reader"})
+		projecttest.Entry{ServiceAccountName: "people-s3-reader"})
 
 	result := b.generate()
 	assert.False(t, hasFile(result, saPath("people-basic-1-0-0")),
@@ -472,7 +471,7 @@ func TestExistingServiceAccountIsReferencedNotGenerated(t *testing.T) {
 func TestServiceAccountNameWorksWithoutGlobalSwitch(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080),
-		config.Component{ServiceAccountName: "people-s3-reader"})
+		projecttest.Entry{ServiceAccountName: "people-s3-reader"})
 
 	spec := dig(t, b.doc("deployments/people-basic-1-0-0.yaml"), "spec", "template", "spec")
 
@@ -504,8 +503,8 @@ func TestServiceAccountNameWorksWithoutGlobalSwitch(t *testing.T) {
 // **副本数是 1 时坚决不生成**，那才是上面那段实测结论真正要钉住的东西。
 func TestNoPodDisruptionBudgetGenerated(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	b.cfg.Deploy.ServiceAccount = &config.ServiceAccount{Enabled: true}
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.spec.K8s.ServiceAccount = &deployfile.ServiceAccount{Enabled: true}
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	result := b.generate()
 
@@ -528,9 +527,9 @@ func TestNoPodDisruptionBudgetGenerated(t *testing.T) {
 // 漏生成不会报错，只会在集群里少一样东西——所以这里正面点名。
 func TestHardenedProjectGeneratesFullSet(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	b.cfg.Deploy.ServiceAccount = &config.ServiceAccount{Enabled: true}
+	b.spec.K8s.ServiceAccount = &deployfile.ServiceAccount{Enabled: true}
 	b.component(simple("portal/user-frontend", "1.0.0", 8080),
-		config.Component{Expose: true, Hostname: "portal.example.com"})
+		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
 
 	result := b.generate()
 
@@ -553,11 +552,10 @@ func TestHardenedProjectGeneratesFullSet(t *testing.T) {
 // 删不干净，下次 up 撞上残留。
 func TestAllGeneratedDirsAreKnownToEngine(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	b.cfg.Deploy.ServiceAccount = &config.ServiceAccount{Enabled: true}
+	b.spec.K8s.ServiceAccount = &deployfile.ServiceAccount{Enabled: true}
 	m := withDatabase(simple("people/basic", "1.0.0", 8080))
 	m.Migration = &manifest.Migration{Command: []string{"/app/migrate", "up"}}
-	b.component(m, config.Component{Expose: true, Hostname: "people.example.com"})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(m, projecttest.Entry{Expose: true, Hostname: "people.example.com"})
 
 	known := map[string]bool{}
 	for _, dir := range k8s.ManifestDirs() {
