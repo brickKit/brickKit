@@ -31,6 +31,7 @@ import (
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/shell"
 	"github.com/brickkit/brickkit/internal/yamlcomment"
 )
 
@@ -477,7 +478,7 @@ func (p *plan) extraHostsOf(c componentPlan) []string {
 		}
 	}
 
-	for _, dep := range p.runningDependencies(c.Ref) {
+	for _, dep := range p.workloadDependencies(c.Ref) {
 		service := manifest.ServiceName(dep.ID, dep.Version)
 		if _, isLocal := p.localPort[service]; isLocal {
 			add(service + ":" + hostGateway(p.engine))
@@ -496,13 +497,37 @@ func (p *plan) extraHostsOf(c componentPlan) []string {
 // 资源废除之后平台不再知道"数据库在宿主机上"，但写 host.docker.internal 指向
 // 本机服务仍是最常见的做法：这个名字在 Docker Desktop 上自带，在 Linux 上要靠
 // extra_hosts 才解析得了。只在配置里真的用到时才加，加了也无害。
+//
+// 外壳还要看它承载的成员：成员的配置经由 JSON 在外壳进程里用。
 func (p *plan) usesHostMachineResource(c componentPlan) bool {
-	for _, v := range c.Env.Env {
-		if v.Source == inject.SourceConfig && strings.Contains(v.Value.Text, hostMachineAlias) {
-			return true
+	envs := [][]inject.Var{c.Env.Env}
+	for _, s := range p.served {
+		if s.Shell == c.Ref {
+			envs = append(envs, s.Env.Env)
+		}
+	}
+	for _, env := range envs {
+		for _, v := range env {
+			if v.Source == inject.SourceConfig && strings.Contains(v.Value.Text, hostMachineAlias) {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// workloadDependencies 是这个容器这次真正要连、又真的在跑的依赖：外壳还包括它承载的成员的依赖
+// （shell.Dependencies）。启动顺序与寻址都按它算。
+func (p *plan) workloadDependencies(ref resolver.Ref) []resolver.Ref {
+	requires, optional := shell.Dependencies(p.proj, p.graph, p.states, ref)
+	var out []resolver.Ref
+	for _, dep := range append(requires, optional...) {
+		if p.states.IsRunning(dep) {
+			out = append(out, dep)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return refText(out[i]) < refText(out[j]) })
+	return out
 }
 
 // hostPortsOf 返回该容器要开到宿主机的端口映射。
@@ -534,18 +559,29 @@ func (p *plan) hostPortsOf(c componentPlan) []string {
 //
 // 服务名保持不变——靠 extra_hosts 把它解析到宿主机，容器里的代码
 // 依旧访问 `http://people-basic-1-0-0:8081`，一行都不用改（005 §4.5）。
+//
+// 被外壳承载的成员同样要改：它的环境经由外壳的 JSON 在外壳进程里用，
+// 依赖一个本地调试中的组件时，拿到的也得是宿主机上那个进程的端口。
 func (p *plan) rewriteEndpointsForLocalDependencies() {
-	for i := range p.components {
-		c := &p.components[i]
-		for _, dep := range p.runningDependencies(c.Ref) {
+	rewrite := func(ref resolver.Ref, env []inject.Var) {
+		for _, dep := range p.runningDependencies(ref) {
 			service := manifest.ServiceName(dep.ID, dep.Version)
 			port, isLocal := p.localPort[service]
 			if !isLocal {
 				continue
 			}
-			setVar(c.Env.Env, manifest.EndpointEnvVar(dep.ID), serviceEndpoint(service, port))
+			setVar(env, manifest.EndpointEnvVar(dep.ID), serviceEndpoint(service, port))
 			// 额外端口不改：宿主机上的进程仍然监听 Manifest 里声明的那些端口
 		}
+	}
+	for _, c := range p.components {
+		rewrite(c.Ref, c.Env.Env)
+	}
+	for _, s := range p.served {
+		rewrite(s.Ref, s.Env.Env)
+	}
+	for _, m := range p.memberMigrations {
+		rewrite(m.Ref, m.Env.Env)
 	}
 }
 

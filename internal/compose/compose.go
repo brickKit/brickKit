@@ -269,7 +269,7 @@ func newPlan(
 		if shellRef, hosted := states.HostOf(proj, ref); hosted {
 			p.served = append(p.served, servedComponent{
 				Ref: ref, Service: service, Manifest: node.Manifest,
-				Entry: entry, Shell: shellRef,
+				Entry: entry, Shell: shellRef, Env: envByRef[ref],
 			})
 			if node.Manifest != nil && node.Manifest.Migration != nil {
 				p.memberMigrations = append(p.memberMigrations, componentPlan{
@@ -503,23 +503,21 @@ func (p *plan) componentDependsOn(c componentPlan) map[string]any {
 		}
 	}
 
-	node := p.graph.Node(c.Ref)
-	if node != nil {
-		for _, dep := range node.Requires {
-			service := manifest.ServiceName(dep.ID, dep.Version)
-			if p.rendered[service] {
-				dependsOn[service] = condition(p.readyCondition(dep))
-				continue
-			}
-			// 依赖的这个组件是 servedBy 成员：它没有自己的 service，
-			// 真正要等的是它的外壳启动/健康
-			if shellRef, ok := p.shellOf(dep); ok {
-				shellService := manifest.ServiceName(shellRef.ID, shellRef.Version)
-				if p.rendered[shellService] {
-					// 多个成员可能指向同一个外壳，只写一次
-					if _, exists := dependsOn[shellService]; !exists {
-						dependsOn[shellService] = condition(p.readyCondition(shellRef))
-					}
+	// 外壳要等的还包括它承载的成员的强依赖：成员的代码就在外壳进程里（shell.Dependencies）
+	requires, _ := shell.Dependencies(p.proj, p.graph, p.states, c.Ref)
+	for _, dep := range requires {
+		service := manifest.ServiceName(dep.ID, dep.Version)
+		if p.rendered[service] {
+			dependsOn[service] = condition(p.readyCondition(dep))
+			continue
+		}
+		// 依赖的这个组件被另一个外壳承载：它没有自己的 service，真正要等的是那个外壳
+		if shellRef, ok := p.shellOf(dep); ok {
+			shellService := manifest.ServiceName(shellRef.ID, shellRef.Version)
+			if p.rendered[shellService] {
+				// 多个成员可能指向同一个外壳，只写一次
+				if _, exists := dependsOn[shellService]; !exists {
+					dependsOn[shellService] = condition(p.readyCondition(shellRef))
 				}
 			}
 		}

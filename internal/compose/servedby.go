@@ -12,6 +12,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/resolver"
@@ -26,6 +27,8 @@ type servedComponent struct {
 	Manifest *manifest.Manifest
 	Entry    deployfile.Component
 	Shell    resolver.Ref
+	// Env 是它独立运行时的那份环境：经由外壳的 JSON 交给外壳进程，本地调试的地址改写同样作用于它。
+	Env inject.Component
 }
 
 // applyShellGroups 把每个外壳分组合并进外壳自己的环境变量/labels，并
@@ -36,18 +39,13 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 		byShell[g.Shell] = g
 	}
 
-	// shell.Resolve 只看 states.Running()：一个 servedBy 成员如果自己被
-	// mode: disable 关掉，它压根不出现在 states.Running() 里，于是
-	// shell.Resolve 不会为它的外壳产出任何 Group。但外壳本身如果还在跑，
-	// BRICKKIT_SERVED_MEMBERS 依旧必须显式写成空字符串，不能让整个变量
-	// 消失——"空字符串"（零个成员激活）与"变量不存在"（不受平台管辖）
-	// 语义相反，不能合并处理（servedBy 设计书 §7）。这里只在本渲染器内部
-	// 兜底一个空 Group，不改 shell.Resolve 的行为——那是与 K8s 渲染器
-	// 共用的逻辑，不属于这个包的职责范围。
+	// 每个声明成外壳（kind: shell）、这次在跑的组件都要拿到两个保留变量，哪怕一个成员都没有：
+	// 空值说的是"零个成员"，变量不存在说的是"不受平台管辖"——外壳读到后者可能回落成
+	// 启动全部模块，与那些组件自己的容器重复运行。
 	referencedShells := map[resolver.Ref]bool{}
 	for _, c := range p.proj.Decl.Components {
-		if ref, ok := cascade.ShellOf(p.proj, resolver.Ref{ID: c.ID, Version: c.Version}); ok {
-			referencedShells[ref] = true
+		if c.IsShell() {
+			referencedShells[resolver.Ref{ID: c.ID, Version: c.Version}] = true
 		}
 	}
 

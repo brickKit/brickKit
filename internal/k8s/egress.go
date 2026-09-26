@@ -30,6 +30,7 @@ import (
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/shell"
 )
 
 // dnsPort 是 DNS 端口。UDP 与 TCP 都要放：大响应会退回 TCP，
@@ -69,11 +70,11 @@ func dnsRule() map[string]any {
 //
 // 与入站方向是同一张图的两面（dependentSources 问的是"谁能连我"）。
 // 强弱依赖都算，理由与 D381 相同：弱依赖在对方存在时是真会去连的。
+//
+// 外壳还包括它承载的成员的依赖（shell.Dependencies）：成员的代码跑在外壳 Pod 里，
+// 流量是从外壳 Pod 发出去的。
 func (p *plan) dependencyTargets(c componentPlan) []any {
-	node := p.graph.Node(c.Ref)
-	if node == nil {
-		return nil
-	}
+	requires, optional := shell.Dependencies(p.proj, p.graph, p.states, c.Ref)
 
 	running := map[resolver.Ref]componentPlan{}
 	for _, other := range p.components {
@@ -86,7 +87,7 @@ func (p *plan) dependencyTargets(c componentPlan) []any {
 	}
 	var deps []depTarget
 	// 强依赖与弱依赖都算：弱依赖在对方存在时是真会去连的（D381）
-	for _, ref := range append(append([]resolver.Ref{}, node.Requires...), node.Optional...) {
+	for _, ref := range append(requires, optional...) {
 		if dep, ok := running[ref]; ok {
 			deps = append(deps, depTarget{service: dep.Service, mf: dep.Manifest})
 			continue

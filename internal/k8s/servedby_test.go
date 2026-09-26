@@ -321,3 +321,48 @@ func TestK8sMigrationUsesImageRef(t *testing.T) {
 	container, _ := containers[0].(map[string]any)
 	assert.Equal(t, "registry.example.com/people-basic:1.0.0", container["image"])
 }
+
+// ---- 外壳 Pod 是成员的物理宿主：成员的依赖，外壳 Pod 都得能连、对方都得放行 ----
+
+// 成员依赖外壳外面的 erp/ext：流量是从外壳 Pod 发出的，外壳的出站要放行到 ext，
+// ext 的入站要放行外壳。
+func TestShellPodReachesMemberDependencies(t *testing.T) {
+	b := withEgress(newBuilder(t))
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})
+	b.component(dependsOn(simple("erp/a", "1.0.0", 8081), "erp/ext", "1.0.0"), servedByEntry("erp/shell", "1.0.0"))
+	b.component(simple("erp/ext", "1.0.0", 8090), projecttest.Entry{})
+
+	rule := ruleWithPort(t, b.doc(npPath("erp-shell-1-0-0")), 8090)
+	assert.Equal(t, []any{map[string]any{
+		"podSelector": map[string]any{"matchLabels": map[string]any{"app": "erp-ext-1-0-0"}},
+	}}, rule["to"])
+	assert.True(t, allowedFrom(t, b.doc(npPath("erp-ext-1-0-0")))["erp-shell-1-0-0"],
+		"ext 要放行外壳 Pod——依赖它的成员就跑在那里面")
+}
+
+// 打开 serviceAccount 时，成员的迁移 Job 引用的 SA 必须真的生成出来，否则 Job 建不出 Pod。
+func TestMemberMigrationJobServiceAccountIsGenerated(t *testing.T) {
+	b := newBuilder(t)
+	b.spec.K8s.ServiceAccount = &deployfile.ServiceAccount{Enabled: true}
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})
+	b.component(migrating(simple("erp/a", "1.0.0", 8081)), servedByEntry("erp/shell", "1.0.0"))
+
+	result := b.generate()
+	job := string(b.file("migrations/erp-a-1-0-0-migration.yaml").YAML)
+	require.Contains(t, job, "serviceAccountName: erp-a-1-0-0")
+	assert.True(t, hasFile(result, saPath("erp-a-1-0-0")), "Job 引用的 SA 要生成")
+}
+
+// 声明成外壳、这次一个成员都没有：两个保留变量照样写。
+func TestK8sShellWithoutMembersStillGetsReservedVariables(t *testing.T) {
+	shellM := simple("erp/shell", "1.0.0", 8080)
+	shellM.Shell = &manifest.Shell{Members: []string{"erp/a"}}
+	b := newBuilder(t)
+	b.component(shellM, projecttest.Entry{Shell: true})
+
+	env := envOf(t, b.container("erp-shell-1-0-0"))
+	value, ok := env[shell.EnvVarServedMembers]
+	require.True(t, ok)
+	assert.Equal(t, "", value)
+	assert.Contains(t, env, shell.EnvVarServedMembersConfig)
+}

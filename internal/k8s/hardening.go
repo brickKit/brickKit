@@ -111,9 +111,20 @@ func (p *plan) dependentsOf(node *resolver.Node) []any {
 		running[other.Ref] = other.Service
 	}
 
+	seen := map[string]bool{}
 	services := make([]string, 0, len(node.Dependents))
 	for _, dep := range node.Dependents {
-		if service, ok := running[dep]; ok {
+		service, ok := running[dep]
+		if !ok {
+			// 依赖方被外壳承载：它的流量从外壳 Pod 发出
+			shellRef, hosted := p.shellOf(dep)
+			if !hosted {
+				continue
+			}
+			service = manifest.ServiceName(shellRef.ID, shellRef.Version)
+		}
+		if !seen[service] {
+			seen[service] = true
 			services = append(services, service)
 		}
 	}

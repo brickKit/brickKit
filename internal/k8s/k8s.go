@@ -229,6 +229,13 @@ func Generate(
 			dirMigrations+"/"+job+".yaml", p.migrationJobDoc(c)); err != nil {
 			return nil, err
 		}
+		// 迁移 Job 引用成员自己的 SA（serviceAccountNameOf）：成员没有 Deployment，SA 在这里生成
+		if p.generatesServiceAccount(c) {
+			if err := p.emit(result, proj, now,
+				dirServiceAccounts+"/"+c.Service+".yaml", p.serviceAccountDoc(c)); err != nil {
+				return nil, err
+			}
+		}
 	}
 	result.MigrationGroups = p.migrationGroups()
 
@@ -310,6 +317,7 @@ type plan struct {
 	proj      *project.Project
 	root      string
 	graph     *resolver.Graph
+	states    *cascade.Result
 	namespace string
 
 	// components 按服务名排序。
@@ -334,6 +342,7 @@ func newPlan(
 		proj:      proj,
 		root:      opts.Root,
 		graph:     graph,
+		states:    states,
 		namespace: NamespaceOf(proj),
 		expand:    newExpander(opts.Lookup),
 	}

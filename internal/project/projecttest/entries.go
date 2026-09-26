@@ -31,6 +31,8 @@ type Entry struct {
 	Labels             map[string]string
 	Config             map[string]any
 	ServedBy           string
+	// Shell 让这个组件即使一个成员都没有也标成 kind: shell。
+	Shell bool
 }
 
 // Spec 是一个测试项目。
@@ -86,7 +88,7 @@ func Render(t testing.TB, spec Spec) Files {
 	hasDebug := false
 	for _, e := range spec.Entries {
 		c := projfile.Component{ID: e.ID, Version: e.Version}
-		if _, isShell := members[e.ID]; isShell {
+		if _, isShell := members[e.ID]; isShell || e.Shell {
 			c.Kind = projfile.KindShell
 		}
 		decl.Components = append(decl.Components, c)

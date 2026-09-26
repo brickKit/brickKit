@@ -456,3 +456,70 @@ func TestDebugMemberLeavesTheShell(t *testing.T) {
 	assert.Equal(t, "strict", localEnv(t, result, "erp-a-1-0-0")["MODE"])
 	assert.NotContains(t, servicesOf(t, doc), "erp-a-1-0-0", "裸进程成员没有容器")
 }
+
+// ---- 外壳进程是成员的物理宿主：成员需要的寻址、启动顺序，外壳容器都得具备 ----
+
+// shellEnvFile 取外壳 env 文件里的内容。
+func shellEnvFile(t *testing.T, result *compose.Result, service string) string {
+	t.Helper()
+	for _, f := range result.EnvFiles {
+		if f.Service == service {
+			return string(f.Content)
+		}
+	}
+	require.Failf(t, "没有外壳的 env 文件", "%s", service)
+	return ""
+}
+
+// 同一个外壳里的成员 b 依赖设成 mode: debug 的成员 a：b 在外壳进程里拿到的地址要指向
+// 宿主机上的 a（端口是 localPort），外壳容器也要能把 a 的服务名解析到宿主机——
+// 调试外壳里的一个模块、其余模块照常调用它，正是附录 A18 的主要用法。
+func TestSiblingMemberReachesDebugMember(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})
+	b.component(simple("erp/a", "1.0.0", 8081), projecttest.Entry{ServedBy: "erp/shell@1.0.0", Mode: deployfile.ModeDebug, LocalPort: 19081})
+	b.component(dependsOn(simple("erp/b", "1.0.0", 8082), "erp/a", "1.0.0"), servedByEntry("erp/shell", "1.0.0"))
+
+	result := b.generate()
+	assert.Contains(t, shellEnvFile(t, result, "erp-shell-1-0-0"), `\"ERP_A_ENDPOINT\":\"http://erp-a-1-0-0:19081\"`)
+	assert.Contains(t, extraHostsOf(t, serviceOf(t, docOf(t, result), "erp-shell-1-0-0")), "erp-a-1-0-0:host-gateway")
+}
+
+// 成员配置里写了 host.docker.internal：这个值经由 JSON 在外壳进程里用，外壳容器就得能解析它。
+func TestShellResolvesHostMachineForMemberConfig(t *testing.T) {
+	member := simple("erp/a", "1.0.0", 8081)
+	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"DB_HOST": {Type: "string"}}}
+	entry := servedByEntry("erp/shell", "1.0.0")
+	entry.Config = map[string]any{"DB_HOST": "host.docker.internal"}
+	b := newBuilder(t)
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})
+	b.component(member, entry)
+
+	assert.Contains(t, extraHostsOf(t, serviceOf(t, b.parsed(), "erp-shell-1-0-0")), "host.docker.internal:host-gateway")
+}
+
+// 成员强依赖外壳外面的组件：外壳要等它健康再启动——成员的代码就在外壳进程里。
+func TestShellWaitsForMemberDependencies(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})
+	b.component(dependsOn(simple("erp/a", "1.0.0", 8081), "erp/ext", "1.0.0"), servedByEntry("erp/shell", "1.0.0"))
+	b.component(simple("erp/ext", "1.0.0", 8090), projecttest.Entry{})
+
+	dependsOn, _ := serviceOf(t, b.parsed(), "erp-shell-1-0-0")["depends_on"].(map[string]any)
+	assert.Equal(t, map[string]any{"condition": "service_healthy"}, dependsOn["erp-ext-1-0-0"])
+}
+
+// 声明成外壳、这次一个成员都没有：两个保留变量照样写（空值），"零个成员"与"不受平台管辖"不能混为一谈。
+func TestShellWithoutMembersStillGetsReservedVariables(t *testing.T) {
+	shellM := simple("erp/shell", "1.0.0", 8080)
+	shellM.Shell = &manifest.Shell{Members: []string{"erp/a"}}
+	b := newBuilder(t)
+	b.component(shellM, projecttest.Entry{Shell: true})
+
+	result := b.generate()
+	env := envOf(t, serviceOf(t, docOf(t, result), "erp-shell-1-0-0"))
+	value, ok := env[shell.EnvVarServedMembers]
+	require.True(t, ok)
+	assert.Equal(t, "", value)
+	assert.Contains(t, shellEnvFile(t, result, "erp-shell-1-0-0"), shell.EnvVarServedMembersConfig+`="[]"`)
+}
