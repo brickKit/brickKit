@@ -98,5 +98,6 @@ const (
 
 // 手工补充
 const (
-	SourceDescribe = "source.describe"
+	SourceDescribe           = "source.describe"
+	SourceGitNotYetSupported = "source.git_not_yet_supported"
 )

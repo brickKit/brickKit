@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -16,7 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/security"
 )
 
@@ -136,13 +136,13 @@ func protoSpec(id, version string) componentSpec {
 // ============================================================
 
 // newProject 建一个空项目根目录并返回布局。
-func newProject(t *testing.T) config.Layout {
+func newProject(t *testing.T) project.Layout {
 	t.Helper()
-	return config.NewLayout(t.TempDir(), "")
+	return project.NewLayout(t.TempDir())
 }
 
 // newClient 构造被测客户端，并保证测试结束时释放临时 clone。
-func newClient(t *testing.T, layout config.Layout, cfg *config.Config, opts Options) *Client {
+func newClient(t *testing.T, layout project.Layout, cfg *projfile.File, opts Options) *Client {
 	t.Helper()
 	c, err := New(layout, cfg, opts)
 	require.NoError(t, err)
@@ -151,10 +151,9 @@ func newClient(t *testing.T, layout config.Layout, cfg *config.Config, opts Opti
 }
 
 // cfgWithSources 构造只含安装源的最小项目配置。
-func cfgWithSources(sources ...config.Source) *config.Config {
-	return &config.Config{
+func cfgWithSources(sources ...projfile.Source) *projfile.File {
+	return &projfile.File{
 		Project: "test-project",
-		Deploy:  config.Deploy{Target: config.TargetDocker},
 		Sources: sources,
 	}
 }
@@ -173,28 +172,6 @@ func at(ts string) func() time.Time {
 // ============================================================
 // git 辅助
 // ============================================================
-
-// newGitRepo 在 dir 中初始化一个 git 仓库并提交当前内容，返回可用于 clone 的 URL。
-func newGitRepo(t *testing.T, dir string) string {
-	t.Helper()
-	git(t, dir, "init", "-q", "-b", "main")
-	git(t, dir, "add", "-A")
-	git(t, dir,
-		"-c", "user.email=test@example.com",
-		"-c", "user.name=BrickKit Test",
-		"commit", "-q", "-m", "init",
-	)
-	return dir
-}
-
-func git(t *testing.T, dir string, args ...string) {
-	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null")
-	out, err := cmd.CombinedOutput()
-	require.NoErrorf(t, err, "git %s: %s", strings.Join(args, " "), out)
-}
 
 // ============================================================
 // 市场 API Mock（007 §9.1 端点表）

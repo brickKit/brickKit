@@ -10,10 +10,10 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 )
 
 // localSource 是本地目录安装源（003 §6.4）。
@@ -207,7 +207,7 @@ func (s *localSource) componentDir(componentID string) string {
 	if hasManifest(active) {
 		return active
 	}
-	if archived := filepath.Join(s.root, config.DirArchived, filepath.FromSlash(componentID)); hasManifest(archived) {
+	if archived := filepath.Join(s.root, project.DirArchived, filepath.FromSlash(componentID)); hasManifest(archived) {
 		return archived
 	}
 	// 两处都没有：返回活跃目录，让"找不到"的报错指向使用者预期的位置

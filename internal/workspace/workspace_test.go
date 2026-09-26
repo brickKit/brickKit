@@ -13,13 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
+	"github.com/brickkit/brickkit/internal/project"
 )
 
-func newLayout(t *testing.T) config.Layout {
+func newLayout(t *testing.T) project.Layout {
 	t.Helper()
-	layout := config.NewLayout(t.TempDir(), "")
+	layout := project.NewLayout(t.TempDir())
 	require.NoError(t, os.MkdirAll(layout.ComponentsDir(), 0o755))
 	return layout
 }
@@ -53,7 +53,7 @@ func git(t *testing.T, dir string, args ...string) {
 // ============================================================
 
 func TestSourceDirAndDisplayDir(t *testing.T) {
-	layout := config.NewLayout("/projects/erp", "")
+	layout := project.NewLayout("/projects/erp")
 
 	assert.Equal(t, filepath.FromSlash("/projects/erp/components/people/basic"),
 		SourceDir(layout, "people/basic"))
@@ -175,7 +175,7 @@ func TestCloneUnreachableRepository(t *testing.T) {
 
 // components/ 的父目录被文件占住时报错。
 func TestCloneCannotCreateParent(t *testing.T) {
-	layout := config.NewLayout(t.TempDir(), "")
+	layout := project.NewLayout(t.TempDir())
 	require.NoError(t, os.WriteFile(layout.ComponentsDir(), []byte("占位"), 0o644))
 
 	_, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", "irrelevant")
@@ -296,7 +296,7 @@ func TestFirstLine(t *testing.T) {
 
 func TestInBothPlacesAnswersWhatLocateCannot(t *testing.T) {
 	dir := t.TempDir()
-	l := config.NewLayout(dir, "")
+	l := project.NewLayout(dir)
 	const id = "demo/hello"
 
 	require.NoError(t, os.MkdirAll(SourceDir(l, id), 0o755))
@@ -318,11 +318,11 @@ func TestInBothPlacesAnswersWhatLocateCannot(t *testing.T) {
 
 // newGitLayout 造一个本身是 git 仓库的项目布局：submodule 阻断要靠
 // gitrepo.Open 才能生效，plain newLayout(t) 不是 git 仓库。
-func newGitLayout(t *testing.T) config.Layout {
+func newGitLayout(t *testing.T) project.Layout {
 	t.Helper()
 	dir := t.TempDir()
 	git(t, dir, "init", "-q", "-b", "main")
-	layout := config.NewLayout(dir, "")
+	layout := project.NewLayout(dir)
 	require.NoError(t, os.MkdirAll(layout.ComponentsDir(), 0o755))
 	return layout
 }
@@ -330,7 +330,7 @@ func newGitLayout(t *testing.T) config.Layout {
 // registerSubmodule 手写一条 .gitmodules 登记记录。不需要真的跑
 // git submodule add——阻断逻辑只看"这个路径有没有登记"，不看子模块内部
 // 结构是否完整（那部分已经由 internal/gitrepo 自己的测试覆盖）。
-func registerSubmodule(t *testing.T, layout config.Layout, name, rel string) *gitrepo.Repo {
+func registerSubmodule(t *testing.T, layout project.Layout, name, rel string) *gitrepo.Repo {
 	t.Helper()
 	git(t, layout.Root, "config", "-f", ".gitmodules", "submodule."+name+".path", rel)
 	git(t, layout.Root, "config", "-f", ".gitmodules", "submodule."+name+".url", "git@example.com:x.git")

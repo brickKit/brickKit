@@ -1585,4 +1585,5 @@ var zh = map[string]string{
 	msgid.ConfigdirFileRefMissing:         "错误：%[1]s 指向的文件读不到",
 	msgid.ConfigdirHintFileRef:            "file:// 的路径相对项目根；这类文件不要进 Git（比如放在 .secrets/ 下）",
 	msgid.ConfigdirCannotEvaluate:         "内部错误：%[1]s 在这里不能被求值",
+	msgid.SourceGitNotYetSupported:        "git 安装源正按\"每个组件一个仓库\"（baseUrl）重建中；目前请先用 local 或 market 安装源",
 }

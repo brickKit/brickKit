@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/security"
 )
 
@@ -97,12 +98,12 @@ func signedMarket(t *testing.T, spec componentSpec, sig *security.Signature) *ma
 }
 
 // clientFor 构造一个只有该市场作安装源、并带上签名策略的客户端。
-func clientFor(t *testing.T, m *marketMock, policy SignaturePolicy) (*Client, config.Layout) {
+func clientFor(t *testing.T, m *marketMock, policy SignaturePolicy) (*Client, project.Layout) {
 	t.Helper()
 
 	layout := newProject(t)
-	cfg := cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: m.URL(),
+	cfg := cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: m.URL(),
 	})
 	return newClient(t, layout, cfg, Options{Signature: policy}), layout
 }
@@ -339,8 +340,8 @@ func TestCachedManifestIsVerifiedToo(t *testing.T) {
 	require.FileExists(t, c1.ManifestCachePath("people/basic", "1.2.0"))
 
 	// 第二次：同一个项目目录，打开强制校验
-	cfg := cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: m.URL(),
+	cfg := cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: m.URL(),
 	})
 	c2 := newClient(t, layout, cfg, Options{
 		Signature: SignaturePolicy{Require: true, Ring: key.ring(t)},
@@ -363,8 +364,8 @@ func TestCachedManifestWithoutSignatureIsRefetched(t *testing.T) {
 
 	// 市场后来补上了签名；打开强制校验后应当重新去取，而不是用旧缓存
 	m.signature = key.signSpec(t, spec)
-	cfg := cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: m.URL(),
+	cfg := cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: m.URL(),
 	})
 	c2 := newClient(t, layout, cfg, Options{
 		Signature: SignaturePolicy{Require: true, Ring: key.ring(t)},
@@ -418,8 +419,8 @@ func TestCacheWithoutSignatureEnvelope(t *testing.T) {
 	require.NoError(t, os.Remove(c1.SignatureCachePath("people/basic", "1.2.0")))
 	require.FileExists(t, c1.ManifestCachePath("people/basic", "1.2.0"))
 
-	cfg := cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: m.URL(),
+	cfg := cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: m.URL(),
 	})
 
 	// 策略生效 → 不敢用这份缓存，重新拉
@@ -455,8 +456,8 @@ func TestLocalSourceIsNotSubjectToSignature(t *testing.T) {
 	writeComponent(t, dir, spec)
 
 	layout := newProject(t)
-	cfg := cfgWithSources(config.Source{
-		ID: "local", Type: config.SourceTypeLocal, Path: dir,
+	cfg := cfgWithSources(projfile.Source{
+		Name: "local", Type: projfile.SourceTypeLocal, Path: dir,
 	})
 	c := newClient(t, layout, cfg, Options{
 		Signature: SignaturePolicy{Require: true, Ring: newSigningKey(t).ring(t)},

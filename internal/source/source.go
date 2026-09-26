@@ -26,10 +26,11 @@ import (
 	"time"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/security"
 )
 
@@ -88,7 +89,7 @@ type ArtifactResult struct {
 //
 // 使用完毕必须调用 Close 释放 git 安装源的临时 clone。
 type Client struct {
-	layout   config.Layout
+	layout   project.Layout
 	opts     Options
 	fetchers []fetcher
 
@@ -147,7 +148,7 @@ func (c *Client) recordSignature(id, version string, sig *security.Signature, re
 }
 
 // New 由项目布局与配置构造安装源客户端。enabled: false 的安装源不会被构造。
-func New(layout config.Layout, cfg *config.Config, opts Options) (*Client, error) {
+func New(layout project.Layout, decl *projfile.File, opts Options) (*Client, error) {
 	if opts.HTTPClient == nil {
 		opts.HTTPClient = &http.Client{Timeout: marketTimeout}
 	}
@@ -156,10 +157,10 @@ func New(layout config.Layout, cfg *config.Config, opts Options) (*Client, error
 	}
 
 	c := &Client{layout: layout, opts: opts}
-	if cfg == nil {
+	if decl == nil {
 		return c, nil
 	}
-	for _, s := range cfg.EnabledSources() {
+	for _, s := range decl.EnabledSources() {
 		f, err := c.newFetcher(s)
 		if err != nil {
 			return nil, err
@@ -169,19 +170,21 @@ func New(layout config.Layout, cfg *config.Config, opts Options) (*Client, error
 	return c, nil
 }
 
-func (c *Client) newFetcher(s config.Source) (fetcher, error) {
+func (c *Client) newFetcher(s projfile.Source) (fetcher, error) {
 	switch s.Type {
-	case config.SourceTypeLocal:
+	case projfile.SourceTypeLocal:
 		return &localSource{
-			sourceID:   s.ID,
+			sourceID:   s.Name,
 			configured: s.Path,
 			root:       c.resolvePath(s.Path),
 		}, nil
-	case config.SourceTypeGit:
-		return &gitSource{sourceID: s.ID, url: s.URL, ref: s.Ref}, nil
-	case config.SourceTypeMarket:
+	case projfile.SourceTypeGit:
+		// git 源按"每个组件一个仓库"（baseUrl）重建中（三层文件重构 P4）
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SourceGitNotYetSupported)).
+			WithDetail(i18n.T(msgid.LabelSource), s.Name)
+	case projfile.SourceTypeMarket:
 		return &marketSource{
-			sourceID:        s.ID,
+			sourceID:        s.Name,
 			baseURL:         s.URL,
 			authToken:       s.AuthToken,
 			credentialsPath: c.layout.CredentialsPath(),
@@ -190,7 +193,7 @@ func (c *Client) newFetcher(s config.Source) (fetcher, error) {
 		}, nil
 	default:
 		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SourceTypeInvalid, s.Type)).
-			WithDetail(i18n.T(msgid.LabelSource), s.ID).
+			WithDetail(i18n.T(msgid.LabelSource), s.Name).
 			WithHint(i18n.T(msgid.SourceHintTypeOneOf))
 	}
 }
@@ -271,7 +274,7 @@ func (c *Client) Manifest(ctx context.Context, id, version string) (*Fetched, er
 func (c *Client) verifyFrom(
 	kind string, raw []byte, sig *security.Signature, id, version string,
 ) (verifyResult, error) {
-	if kind != config.SourceTypeMarket {
+	if kind != projfile.SourceTypeMarket {
 		return verifyResult{}, nil
 	}
 	return c.opts.Signature.verify(raw, sig, id, version)
@@ -393,7 +396,7 @@ func (c *Client) writeCachedSignature(id, version, kind string, sig *security.Si
 // 所以只在 id 也匹配、单纯版本不同时才继续往下走、允许缓存生效。
 func (c *Client) servedByLocalSource(ctx context.Context, id, version string) bool {
 	for _, f := range c.fetchers {
-		if f.kind() != config.SourceTypeLocal {
+		if f.kind() != projfile.SourceTypeLocal {
 			return false
 		}
 		raw, err := f.manifestBytes(ctx, id, version)

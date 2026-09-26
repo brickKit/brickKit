@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/projfile"
 )
 
 // ============================================================
@@ -153,8 +153,8 @@ func TestMarketArtifactFileNotListed(t *testing.T) {
 	mock := newMarketMock(t, spec)
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	got, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -180,8 +180,8 @@ func TestMarketUnexpectedStatus(t *testing.T) {
 	mock.failManifest = true
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -194,8 +194,8 @@ func TestMarketUnexpectedStatus(t *testing.T) {
 // url 非法时给出配置错误，而不是把 net/url 的报错直接抛给用户。
 func TestMarketInvalidURL(t *testing.T) {
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: "://not a url",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: "://not a url",
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -214,8 +214,8 @@ func TestMarketIgnoresCredentialsOfOtherMarket(t *testing.T) {
 	writeFile(t, layout.CredentialsPath(),
 		`{"marketUrl":"https://another-market.example.com/api/v1","token":"tok-other","expiresAt":"2099-01-01T00:00:00Z"}`)
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket,
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket,
 		URL: mock.URL(), AuthToken: "tok-from-yaml",
 	}), Options{})
 
@@ -231,8 +231,8 @@ func TestMarketBrokenCredentials(t *testing.T) {
 	layout := newProject(t)
 	writeFile(t, layout.CredentialsPath(), "{{{")
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -246,8 +246,8 @@ func TestMarketAnonymousRequest(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -263,8 +263,8 @@ func TestMarketTokenExpiryUsesInjectedClock(t *testing.T) {
 	writeFile(t, layout.CredentialsPath(),
 		`{"marketUrl":"`+mock.URL()+`","token":"tok","expiresAt":"2026-09-08T10:00:00Z"}`)
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{Now: at("2026-09-08T10:00:01Z")})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -296,8 +296,8 @@ func TestMarketBlockedVersionIsNotReportedAsAuthFailure(t *testing.T) {
 	mock.blocked = true
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -318,8 +318,8 @@ func TestMarketUnauthorizedStillAsksToLogin(t *testing.T) {
 	mock.token = "the-right-token"
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")

@@ -14,8 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 )
 
 // ============================================================
@@ -33,8 +34,8 @@ func TestLocalSourceReadsComponentYAML(t *testing.T) {
 		Image:       "registry.brickkit.io/department-tree:1.0.0",
 	})
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	got, err := c.Manifest(context.Background(), "department/tree", "1.0.0")
@@ -51,8 +52,8 @@ func TestLocalSourceReadsComponentYAML(t *testing.T) {
 // 6.2 local 安装源路径不存在时报错。
 func TestLocalSourcePathMissing(t *testing.T) {
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./not-exist",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./not-exist",
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "department/tree", "1.0.0")
@@ -69,8 +70,8 @@ func TestComponentNotFoundInAnySource(t *testing.T) {
 	layout := newProject(t)
 	require.NoError(t, os.MkdirAll(filepath.Join(layout.Root, "components"), 0o755))
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -91,8 +92,8 @@ func TestLocalSourceVersionMismatchIsNotFound(t *testing.T) {
 		ID: "people/basic", Version: "1.0.0",
 	})
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "2.0.0")
@@ -103,62 +104,6 @@ func TestLocalSourceVersionMismatchIsNotFound(t *testing.T) {
 // ============================================================
 // 6.3 / 6.4 git 安装源
 // ============================================================
-
-// 6.3 git 安装源 clone 仓库并读取 Manifest。
-func TestGitSourceClonesRepoAndReadsManifest(t *testing.T) {
-	repo := t.TempDir()
-	writeComponent(t, repo, componentSpec{
-		ID: "people/basic", Version: "1.0.0", Description: "来自 git 仓库",
-	})
-	url := newGitRepo(t, repo)
-
-	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "my-git", Type: config.SourceTypeGit, URL: url,
-	}), Options{})
-
-	got, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
-	require.NoError(t, err)
-	assert.Equal(t, "people/basic", got.Manifest.Metadata.ID)
-	assert.Equal(t, "来自 git 仓库", got.Manifest.Metadata.Description)
-	assert.Equal(t, "my-git", got.SourceID)
-}
-
-// 单组件仓库（仓库根目录直接是 component.yaml）也应被识别。
-func TestGitSourceSingleComponentRepo(t *testing.T) {
-	repo := t.TempDir()
-	spec := componentSpec{ID: "people/basic", Version: "1.0.0"}
-	writeFile(t, filepath.Join(repo, "component.yaml"), spec.yamlText())
-	url := newGitRepo(t, repo)
-
-	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "my-git", Type: config.SourceTypeGit, URL: url,
-	}), Options{})
-
-	got, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
-	require.NoError(t, err)
-	assert.Equal(t, "people/basic", got.Manifest.Metadata.ID)
-}
-
-// 6.4 git 安装源 URL 不可达时报错。
-func TestGitSourceUnreachableURL(t *testing.T) {
-	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "my-git", Type: config.SourceTypeGit,
-		URL: filepath.Join(t.TempDir(), "no-such-repo.git"),
-	}), Options{})
-
-	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
-	require.Error(t, err)
-
-	e := clierr.As(err)
-	assert.Equal(t, clierr.CodeCloneFailed, e.Code)
-	out := e.Format()
-	assert.Contains(t, out, "my-git")
-	assert.Contains(t, out, "no-such-repo.git")
-	assert.Contains(t, out, "Suggestions", "004 §10.1：网络错误应建议检查网络")
-}
 
 // ============================================================
 // 6.5 / 6.6 market 安装源
@@ -172,8 +117,8 @@ func TestMarketSourceFetchesManifest(t *testing.T) {
 	mock.token = "tok-abc"
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket,
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket,
 		URL: mock.URL(), AuthToken: "tok-abc",
 	}), Options{})
 
@@ -197,8 +142,8 @@ func TestMarketSourceAcceptsRawYAMLBody(t *testing.T) {
 	mock.rawYAML = true
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	got, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -211,8 +156,8 @@ func TestMarketSourceVersionNotFound(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "9.9.9")
@@ -227,8 +172,8 @@ func TestMarketSourceUnreachable(t *testing.T) {
 	mock.server.Close() // 关掉服务：端口不再监听
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: url,
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: url,
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -247,8 +192,8 @@ func TestMarketSourceUnauthorized(t *testing.T) {
 	mock.token = "tok-abc" // 客户端不带 token
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -273,8 +218,8 @@ func TestMarketSourcePrefersCredentialsOverAuthToken(t *testing.T) {
   "expiresAt": "2099-01-01T00:00:00Z"
 }`)
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket,
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket,
 		URL: mock.URL(), AuthToken: "tok-from-yaml",
 	}), Options{})
 
@@ -295,8 +240,8 @@ func TestMarketSourceExpiredCredentials(t *testing.T) {
   "expiresAt": "2020-01-01T00:00:00Z"
 }`)
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -317,8 +262,8 @@ func TestManifestCachedToDisk(t *testing.T) {
 	writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{
 		ID: "people/basic", Version: "1.0.0",
 	})
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -340,8 +285,8 @@ func TestManifestServedFromCache(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	first, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -367,8 +312,8 @@ func TestLocalSourceManifestIsNeverStale(t *testing.T) {
 		ID: "department/tree", Version: "1.0.0", Description: "改之前",
 	})
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	first, err := c.Manifest(context.Background(), "department/tree", "1.0.0")
@@ -405,8 +350,8 @@ func TestLocalSourceBrokenManifestErrorsInsteadOfUsingCache(t *testing.T) {
 		ID: "department/tree", Version: "1.0.0", Description: "好的那一份",
 	})
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	// 先取一次，把缓存写出来
@@ -437,8 +382,8 @@ func TestLocalSourceIDRenamedErrorsInsteadOfUsingCache(t *testing.T) {
 		ID: "foo/bar", Version: "1.0.0", Description: "改名前",
 	})
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	first, err := c.Manifest(context.Background(), "foo/bar", "1.0.0")
@@ -465,8 +410,8 @@ func TestLocalSourceUpgradedStillServesOldVersionFromCache(t *testing.T) {
 		ID: "foo/bar", Version: "1.0.0", Description: "旧版本",
 	})
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "foo/bar", "1.0.0")
@@ -495,8 +440,8 @@ func TestMarketSourceStillUsesCache(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -517,8 +462,8 @@ func TestCacheStillUsedWhenLocalSourceLacksTheComponent(t *testing.T) {
 		componentSpec{ID: "department/tree", Version: "1.0.0"})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
-		config.Source{ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL()},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL()},
 	), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -540,8 +485,8 @@ func TestArtifactsCachedByServiceName(t *testing.T) {
 	spec := protoSpec("department/tree", "1.0.0")
 	writeComponent(t, filepath.Join(layout.Root, "components"), spec)
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	got, err := c.Manifest(context.Background(), "department/tree", "1.0.0")
@@ -569,8 +514,8 @@ func TestArtifactsDownloadedFromMarket(t *testing.T) {
 	mock := newMarketMock(t, spec)
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	got, err := c.Manifest(context.Background(), "department/tree", "1.0.0")
@@ -600,8 +545,8 @@ func TestArtifactDownloadFailureIsWarningOnly(t *testing.T) {
 	mock.failDownload = true
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	got, err := c.Manifest(context.Background(), "department/tree", "1.0.0")
@@ -627,8 +572,8 @@ func TestArtifactsOfMultipleVersionsAreIndependent(t *testing.T) {
 	writeComponent(t, filepath.Join(layout.Root, "components-v2"), v2)
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-v1", Type: config.SourceTypeLocal, Path: "./components"},
-		config.Source{ID: "local-v2", Type: config.SourceTypeLocal, Path: "./components-v2"},
+		projfile.Source{Name: "local-v1", Type: projfile.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-v2", Type: projfile.SourceTypeLocal, Path: "./components-v2"},
 	), Options{})
 
 	ctx := context.Background()
@@ -657,8 +602,8 @@ func TestArtifactsSkippedWhenCached(t *testing.T) {
 	mock := newMarketMock(t, spec)
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	ctx := context.Background()
@@ -686,8 +631,8 @@ func TestRefreshForcesRefetch(t *testing.T) {
 	spec.Description = "安装源中的版本"
 	writeComponent(t, filepath.Join(layout.Root, "components"), spec)
 
-	cfg := cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	cfg := cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	})
 	ctx := context.Background()
 
@@ -749,8 +694,8 @@ func TestSourcePriorityFirstWins(t *testing.T) {
 	})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
-		config.Source{ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL()},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL()},
 	), Options{})
 
 	got, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -769,8 +714,8 @@ func TestSourceFallsBackToNextSource(t *testing.T) {
 	})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
-		config.Source{ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL()},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL()},
 	), Options{})
 
 	got, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -791,11 +736,11 @@ func TestDisabledSourceIsSkipped(t *testing.T) {
 
 	c := newClient(t, layout, cfgWithSources(
 		// 被禁用的本地源：即便有该组件也不使用
-		config.Source{
-			ID: "local-dev", Type: config.SourceTypeLocal,
+		projfile.Source{
+			Name: "local-dev", Type: projfile.SourceTypeLocal,
 			Path: "./components", Enabled: boolPtr(false),
 		},
-		config.Source{ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL()},
+		projfile.Source{Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL()},
 	), Options{})
 
 	got, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -812,11 +757,11 @@ func TestDisabledBrokenSourceDoesNotFail(t *testing.T) {
 	})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{
-			ID: "broken", Type: config.SourceTypeLocal,
+		projfile.Source{
+			Name: "broken", Type: projfile.SourceTypeLocal,
 			Path: "./nope", Enabled: boolPtr(false),
 		},
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	got, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -855,8 +800,8 @@ func TestSourceWithDifferentVersionSaysWhichVersionItHas(t *testing.T) {
 		ID: "department/tree", Version: "2.0.0",
 	})
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "department/tree", "1.0.0")
@@ -875,12 +820,21 @@ func TestSourceWithoutComponentStillSaysNotFound(t *testing.T) {
 		ID: "department/tree", Version: "1.0.0",
 	})
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
 
 	require.Error(t, err)
 	assert.Contains(t, clierr.As(err).Format(), "The component was not found in any install source")
+}
+
+// git 源按"每个组件一个仓库"重建之前（P4），配置了就要说清楚，不能静默跳过。
+func TestGitSourceNotYetSupported(t *testing.T) {
+	_, err := New(project.NewLayout(t.TempDir()), &projfile.File{Project: "p", Sources: []projfile.Source{
+		{Name: "org", Type: projfile.SourceTypeGit, BaseURL: "https://github.com/org/"},
+	}}, Options{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "org")
 }

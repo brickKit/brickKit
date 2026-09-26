@@ -10,8 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 )
 
 // ============================================================
@@ -27,7 +28,7 @@ func TestNewWithNilConfig(t *testing.T) {
 }
 
 func TestNewRejectsUnknownSourceType(t *testing.T) {
-	_, err := New(newProject(t), cfgWithSources(config.Source{ID: "x", Type: "ftp"}), Options{})
+	_, err := New(newProject(t), cfgWithSources(projfile.Source{Name: "x", Type: "ftp"}), Options{})
 	require.Error(t, err)
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeConfigInvalid, e.Code)
@@ -35,7 +36,7 @@ func TestNewRejectsUnknownSourceType(t *testing.T) {
 }
 
 func TestResolvePath(t *testing.T) {
-	layout := config.NewLayout("/projects/erp", "")
+	layout := project.NewLayout("/projects/erp")
 	c := &Client{layout: layout}
 
 	assert.Equal(t, filepath.Join("/projects/erp", "components"), c.resolvePath("./components"))
@@ -45,7 +46,7 @@ func TestResolvePath(t *testing.T) {
 }
 
 func TestCachePaths(t *testing.T) {
-	layout := config.NewLayout("/projects/erp", "")
+	layout := project.NewLayout("/projects/erp")
 	c := &Client{layout: layout}
 
 	assert.Equal(t, filepath.FromSlash("/projects/erp/.brickkit/manifests/people-basic-1.0.0.yaml"),
@@ -59,8 +60,8 @@ func TestCachePaths(t *testing.T) {
 // ============================================================
 
 func TestManifestRejectsInvalidRef(t *testing.T) {
-	c := newClient(t, newProject(t), cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, newProject(t), cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 	ctx := context.Background()
 
@@ -89,8 +90,8 @@ func TestCorruptedManifestCacheIsRefetched(t *testing.T) {
 	writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{
 		ID: "people/basic", Version: "1.0.0", Description: "安装源中的版本",
 	})
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	writeFile(t, c.ManifestCachePath("people/basic", "1.0.0"), "： 这不是合法 YAML ：")
@@ -108,8 +109,8 @@ func TestCacheOfWrongComponentIsRefetched(t *testing.T) {
 	writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{
 		ID: "people/basic", Version: "1.0.0",
 	})
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	writeFile(t, c.ManifestCachePath("people/basic", "1.0.0"),
@@ -130,8 +131,8 @@ func TestManifestCacheWriteFailure(t *testing.T) {
 	// 用文件占住 .brickkit/manifests 的位置，使 MkdirAll 失败
 	writeFile(t, layout.ManifestsDir(), "占位")
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
@@ -147,8 +148,8 @@ func TestArtifactWriteFailureIsWarningOnly(t *testing.T) {
 	spec := protoSpec("department/tree", "1.0.0")
 	writeComponent(t, filepath.Join(layout.Root, "components"), spec)
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	ctx := context.Background()
@@ -183,8 +184,8 @@ func TestDownloadArtifactsWithoutArtifacts(t *testing.T) {
 	writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{
 		ID: "people/basic", Version: "1.0.0",
 	})
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	ctx := context.Background()
@@ -226,8 +227,8 @@ func TestDownloadArtifactsWithoutSources(t *testing.T) {
 // 纵深防御：产物路径越出组件目录时拒绝写入（008）。
 func TestArtifactPathTraversalIsRefused(t *testing.T) {
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	// 绕开 Manifest 校验直接构造（正常路径下 002 §2.3 的校验已拦住）

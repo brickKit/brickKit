@@ -15,20 +15,20 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/gitrepo"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 )
 
 // SourceDir 返回组件源码目录的完整路径。
-func SourceDir(l config.Layout, componentID string) string {
+func SourceDir(l project.Layout, componentID string) string {
 	return filepath.Join(l.ComponentsDir(), filepath.FromSlash(componentID))
 }
 
 // DisplayDir 返回用于输出的相对路径，如 components/people/basic/。
 func DisplayDir(componentID string) string {
-	return config.DirComponents + "/" + componentID + "/"
+	return project.DirComponents + "/" + componentID + "/"
 }
 
 // State 是一个组件的源码目录当前在哪。
@@ -59,7 +59,7 @@ const (
 // 同一个概念，两条路各理解了一半。
 //
 // 收成一个函数之后，那条不变量有了唯一的落点。
-func Locate(l config.Layout, componentID string) State {
+func Locate(l project.Layout, componentID string) State {
 	switch {
 	case isDir(SourceDir(l, componentID)):
 		return StateActive
@@ -71,7 +71,7 @@ func Locate(l config.Layout, componentID string) State {
 }
 
 // Exists 判断组件源码是否在**活跃**目录里。
-func Exists(l config.Layout, componentID string) bool {
+func Exists(l project.Layout, componentID string) bool {
 	return Locate(l, componentID) == StateActive
 }
 
@@ -94,7 +94,7 @@ func isDir(path string) bool {
 //
 // 从前只查活跃目录，于是第二种一路绿灯：归档之后再 add --repo 会在活跃目录
 // 再 clone 一份，报"✅ 已 clone"，而下一次 sync 卡死在"目标目录已存在"上。
-func ExistingSourceError(l config.Layout, componentID, ref string) error {
+func ExistingSourceError(l project.Layout, componentID, ref string) error {
 	switch Locate(l, componentID) {
 	case StateActive:
 		return clierr.New(clierr.CodeCloneFailed, i18n.T(msgid.WorkspaceCloneFailedDirExists)).
@@ -124,7 +124,7 @@ func ExistingSourceError(l config.Layout, componentID, ref string) error {
 // 源码**两处任一处**已存在时报错阻断：活跃目录里可能是使用者正在开发的源码，
 // 归档目录里那份也是他自己的（只是被 sync 收起来了）。绝不覆盖，也绝不
 // 在活跃目录再造一份——那会打破"一个组件 ID 只有一个源码目录"（004 §8.1）。
-func Clone(ctx context.Context, l config.Layout, componentID, ref, gitURL string) (string, error) {
+func Clone(ctx context.Context, l project.Layout, componentID, ref, gitURL string) (string, error) {
 	target := SourceDir(l, componentID)
 	if err := ExistingSourceError(l, componentID, ref); err != nil {
 		return "", err
@@ -222,7 +222,7 @@ func gitOK(dir string, args ...string) bool {
 //
 // repo 为 nil（不在 git 仓库里、或调用方查不清楚）时完全不受影响；repo 非
 // nil 时，若这份源码已经是登记过的 git submodule，直接阻断（见 removeDir）。
-func RemoveSource(l config.Layout, componentID string, repo *gitrepo.Repo) (bool, error) {
+func RemoveSource(l project.Layout, componentID string, repo *gitrepo.Repo) (bool, error) {
 	return removeDir(repo, activeLoc(l, componentID), componentID)
 }
 
@@ -231,7 +231,7 @@ func RemoveSource(l config.Layout, componentID string, repo *gitrepo.Repo) (bool
 // remove 必须连归档目录一起清：sync 把源码搬进 .archived/ 之后，组件又从
 // brickkit.yaml 里被移除，sync 就再也不认识它了（planSync 只看配置里声明过的
 // 组件）——不在这里删掉，那份源码就是永远没人回收的孤儿。
-func RemoveArchived(l config.Layout, componentID string, repo *gitrepo.Repo) (bool, error) {
+func RemoveArchived(l project.Layout, componentID string, repo *gitrepo.Repo) (bool, error) {
 	return removeDir(repo, archivedLoc(l, componentID), componentID)
 }
 
@@ -321,22 +321,22 @@ func firstLine(out string, err error) string {
 // ============================================================
 
 // ArchivedDir 返回组件在归档目录中的路径。
-func ArchivedDir(l config.Layout, componentID string) string {
+func ArchivedDir(l project.Layout, componentID string) string {
 	return filepath.Join(l.ArchivedDir(), filepath.FromSlash(componentID))
 }
 
 // DisplayArchivedRoot 返回用于输出的归档根目录相对路径。
 func DisplayArchivedRoot() string {
-	return config.DirComponents + "/" + config.DirArchived
+	return project.DirComponents + "/" + project.DirArchived
 }
 
 // DisplayArchivedDir 返回用于输出的归档相对路径。
 func DisplayArchivedDir(componentID string) string {
-	return config.DirComponents + "/" + config.DirArchived + "/" + componentID
+	return project.DirComponents + "/" + project.DirArchived + "/" + componentID
 }
 
 // IsArchived 判断组件源码是否在归档目录里。
-func IsArchived(l config.Layout, componentID string) bool {
+func IsArchived(l project.Layout, componentID string) bool {
 	return Locate(l, componentID) == StateArchived
 }
 
@@ -350,7 +350,7 @@ func IsArchived(l config.Layout, componentID string) bool {
 //
 // 不单独回答这一问，它就会和提交前的闸门形成死循环：闸门拦下提交、
 // restore 说没事可做，两边都没错，人却没有任何出路。
-func InBothPlaces(l config.Layout, componentID string) bool {
+func InBothPlaces(l project.Layout, componentID string) bool {
 	return isDir(SourceDir(l, componentID)) && isDir(ArchivedDir(l, componentID))
 }
 
@@ -358,12 +358,12 @@ func InBothPlaces(l config.Layout, componentID string) bool {
 //
 // repo 为 nil 时完全不受影响；非 nil 时，若源码是登记过的 git submodule，
 // 阻断而不搬（见 move）。
-func Archive(l config.Layout, componentID string, repo *gitrepo.Repo) error {
+func Archive(l project.Layout, componentID string, repo *gitrepo.Repo) error {
 	return move(repo, activeLoc(l, componentID), archivedLoc(l, componentID), componentID)
 }
 
 // Activate 把组件源码从归档目录移回 components/。
-func Activate(l config.Layout, componentID string, repo *gitrepo.Repo) error {
+func Activate(l project.Layout, componentID string, repo *gitrepo.Repo) error {
 	return move(repo, archivedLoc(l, componentID), activeLoc(l, componentID), componentID)
 }
 
@@ -377,11 +377,11 @@ type srcLoc struct {
 	display string
 }
 
-func activeLoc(l config.Layout, componentID string) srcLoc {
+func activeLoc(l project.Layout, componentID string) srcLoc {
 	return srcLoc{l.ComponentsDir(), SourceDir(l, componentID), DisplayDir(componentID)}
 }
 
-func archivedLoc(l config.Layout, componentID string) srcLoc {
+func archivedLoc(l project.Layout, componentID string) srcLoc {
 	return srcLoc{l.ArchivedDir(), ArchivedDir(l, componentID), DisplayArchivedDir(componentID)}
 }
 

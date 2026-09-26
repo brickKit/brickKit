@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/projfile"
 )
 
 // mkdirs 在本地源根目录下建一批目录（用于造"不是组件"的干扰项）。
@@ -30,7 +30,7 @@ func TestLocalComponentsListsAllInSource(t *testing.T) {
 	writeComponent(t, root, componentSpec{ID: "department/tree", Version: "2.1.0"})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	got, err := c.LocalComponents(context.Background())
@@ -55,7 +55,7 @@ func TestLocalComponentsSkipsDotDirectories(t *testing.T) {
 	writeComponent(t, filepath.Join(root, ".git"), componentSpec{ID: "demo/caller", Version: "1.0.0"})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	got, err := c.LocalComponents(context.Background())
@@ -75,7 +75,7 @@ func TestLocalComponentsSkipsInvalidComponentIDs(t *testing.T) {
 		componentSpec{ID: "people/basic", Version: "9.9.9"}.yamlText())
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	got, err := c.LocalComponents(context.Background())
@@ -92,7 +92,7 @@ func TestLocalComponentsIgnoresDirsWithoutManifest(t *testing.T) {
 	mkdirs(t, root, "empty-scope", "demo/no-manifest", "demo/no-manifest/src")
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	got, err := c.LocalComponents(context.Background())
@@ -111,7 +111,7 @@ func TestLocalComponentsSkipsMismatchedManifest(t *testing.T) {
 		componentSpec{ID: "demo/goodbye", Version: "1.0.0"}.yamlText())
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	got, err := c.LocalComponents(context.Background())
@@ -128,8 +128,8 @@ func TestLocalComponentsFirstSourceWinsOnDuplicateID(t *testing.T) {
 	writeComponent(t, filepath.Join(layout.Root, "b"), componentSpec{ID: "demo/hello", Version: "1.0.0"})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-a", Type: config.SourceTypeLocal, Path: "./a"},
-		config.Source{ID: "local-b", Type: config.SourceTypeLocal, Path: "./b"},
+		projfile.Source{Name: "local-a", Type: projfile.SourceTypeLocal, Path: "./a"},
+		projfile.Source{Name: "local-b", Type: projfile.SourceTypeLocal, Path: "./b"},
 	), Options{})
 
 	got, err := c.LocalComponents(context.Background())
@@ -150,7 +150,7 @@ func TestLocalComponentsIgnoresNonLocalSources(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
 
 	c := newClient(t, newProject(t), cfgWithSources(
-		config.Source{ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL()},
+		projfile.Source{Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL()},
 	), Options{})
 
 	got, err := c.LocalComponents(context.Background())
@@ -165,7 +165,7 @@ func TestLocalComponentsEmptyDirectory(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(layout.Root, "components"), 0o755))
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	got, err := c.LocalComponents(context.Background())
@@ -190,7 +190,7 @@ func TestLocalComponentsReportsBrokenComponents(t *testing.T) {
 	writeFile(t, filepath.Join(root, "demo", "garbage", "component.yaml"), "：: 这不是 YAML ：:")
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	got, err := c.LocalComponents(context.Background())
@@ -220,7 +220,7 @@ func TestLatestVersionReportsBrokenManifest(t *testing.T) {
 			"version: 1.0.0", "version: latest", 1))
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	_, err := c.LatestVersion(context.Background(), "demo/broken")
@@ -240,8 +240,8 @@ func TestLatestVersionFallsThroughBrokenSource(t *testing.T) {
 	writeComponent(t, filepath.Join(layout.Root, "b"), componentSpec{ID: "people/basic", Version: "2.0.0"})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-a", Type: config.SourceTypeLocal, Path: "./a"},
-		config.Source{ID: "local-b", Type: config.SourceTypeLocal, Path: "./b"},
+		projfile.Source{Name: "local-a", Type: projfile.SourceTypeLocal, Path: "./a"},
+		projfile.Source{Name: "local-b", Type: projfile.SourceTypeLocal, Path: "./b"},
 	), Options{})
 
 	got, err := c.LatestVersion(context.Background(), "people/basic")
@@ -253,7 +253,7 @@ func TestLatestVersionFallsThroughBrokenSource(t *testing.T) {
 // 路径根本不存在是**配置错误**，必须报出来，而不是当成"这里没有组件"。
 func TestLocalComponentsReportsMissingRoot(t *testing.T) {
 	c := newClient(t, newProject(t), cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./nope"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./nope"},
 	), Options{})
 
 	_, err := c.LocalComponents(context.Background())
@@ -274,7 +274,7 @@ func TestLocalComponentsWarnsOnMisspelledPropertyKey(t *testing.T) {
 		"configSchema:\n  type: object\n  properties:\n    pageSize:\n      type: integer\n      defualt: 20\n")
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	got, err := c.LocalComponents(context.Background())
@@ -291,7 +291,7 @@ func TestLocalComponentsNoWarningsForWellFormedComponents(t *testing.T) {
 	writeComponent(t, root, componentSpec{ID: "people/basic", Version: "1.0.0"})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	got, err := c.LocalComponents(context.Background())
@@ -301,8 +301,8 @@ func TestLocalComponentsNoWarningsForWellFormedComponents(t *testing.T) {
 
 const localDev = "local-dev"
 
-func localDevConfig() *config.Config {
-	return cfgWithSources(config.Source{ID: localDev, Type: config.SourceTypeLocal, Path: "./components"})
+func localDevConfig() *projfile.File {
+	return cfgWithSources(projfile.Source{Name: localDev, Type: projfile.SourceTypeLocal, Path: "./components"})
 }
 
 // 内容坏掉的文件也要列出来：那正是 lint 要报告的，不能在枚举这一步就丢掉。
@@ -342,36 +342,13 @@ func TestLocalManifestFilesSkipsArchivedAndNonComponents(t *testing.T) {
 	assert.Equal(t, "demo/ok", got[0].ID)
 }
 
-func TestLocalManifestFilesSkipsDisabledAndNonLocalSources(t *testing.T) {
-	layout := newProject(t)
-	shared := filepath.Join(layout.Root, "components")
-	off := filepath.Join(layout.Root, "off")
-	writeComponent(t, shared, componentSpec{ID: "demo/ok", Version: "1.0.0"})
-	writeComponent(t, off, componentSpec{ID: "demo/hidden", Version: "1.0.0"})
-
-	disabled := false
-	cfg := cfgWithSources(
-		config.Source{ID: localDev, Type: config.SourceTypeLocal, Path: "./components"},
-		config.Source{ID: "off", Type: config.SourceTypeLocal, Path: "./off", Enabled: &disabled},
-		// 这两个地址连不上：如果这个方法碰了它们，调用会失败或卡住
-		config.Source{ID: "git", Type: config.SourceTypeGit, URL: "http://127.0.0.1:1/x.git"},
-		config.Source{ID: "market", Type: config.SourceTypeMarket, URL: "http://127.0.0.1:1/api/v1"},
-	)
-	c := newClient(t, layout, cfg, Options{})
-
-	got, err := c.LocalManifestFiles()
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.Equal(t, "demo/ok", got[0].ID)
-}
-
 func TestLocalManifestFilesListsEverySourceInOrder(t *testing.T) {
 	layout := newProject(t)
 	writeComponent(t, filepath.Join(layout.Root, "a"), componentSpec{ID: "demo/one", Version: "1.0.0"})
 	writeComponent(t, filepath.Join(layout.Root, "b"), componentSpec{ID: "demo/two", Version: "1.0.0"})
 	cfg := cfgWithSources(
-		config.Source{ID: "first", Type: config.SourceTypeLocal, Path: "./a"},
-		config.Source{ID: "second", Type: config.SourceTypeLocal, Path: "./b"},
+		projfile.Source{Name: "first", Type: projfile.SourceTypeLocal, Path: "./a"},
+		projfile.Source{Name: "second", Type: projfile.SourceTypeLocal, Path: "./b"},
 	)
 
 	got, err := newClient(t, layout, cfg, Options{}).LocalManifestFiles()
@@ -385,7 +362,7 @@ func TestLocalManifestFilesListsEverySourceInOrder(t *testing.T) {
 
 func TestLocalManifestFilesReportsMissingRoot(t *testing.T) {
 	layout := newProject(t)
-	cfg := cfgWithSources(config.Source{ID: "gone", Type: config.SourceTypeLocal, Path: "./nowhere"})
+	cfg := cfgWithSources(projfile.Source{Name: "gone", Type: projfile.SourceTypeLocal, Path: "./nowhere"})
 
 	_, err := newClient(t, layout, cfg, Options{}).LocalManifestFiles()
 	require.Error(t, err)

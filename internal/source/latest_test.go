@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/projfile"
 )
 
 // 本地源按 <scope>/<name> 定位，目录里就一份 component.yaml——
@@ -22,7 +22,7 @@ func TestLatestVersionFromLocalSource(t *testing.T) {
 	})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	got, err := c.LatestVersion(context.Background(), "people/basic")
@@ -30,22 +30,6 @@ func TestLatestVersionFromLocalSource(t *testing.T) {
 	assert.Equal(t, "2.3.1", got.Version)
 	assert.Equal(t, "local-dev", got.SourceID)
 	assert.Equal(t, "local", got.SourceKind)
-}
-
-func TestLatestVersionFromGitSource(t *testing.T) {
-	layout := newProject(t)
-	repoDir := t.TempDir()
-	writeComponent(t, repoDir, componentSpec{ID: "people/basic", Version: "1.4.0"})
-	url := newGitRepo(t, repoDir)
-
-	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "team-git", Type: config.SourceTypeGit, URL: url},
-	), Options{})
-
-	got, err := c.LatestVersion(context.Background(), "people/basic")
-	require.NoError(t, err)
-	assert.Equal(t, "1.4.0", got.Version)
-	assert.Equal(t, "team-git", got.SourceID)
 }
 
 // 市场有真正的版本列表，取最大的那个——而且按**数字**比，
@@ -58,7 +42,7 @@ func TestLatestVersionFromMarketPicksHighest(t *testing.T) {
 	)
 
 	c := newClient(t, newProject(t), cfgWithSources(
-		config.Source{ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL()},
+		projfile.Source{Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL()},
 	), Options{})
 
 	got, err := c.LatestVersion(context.Background(), "people/basic")
@@ -81,7 +65,7 @@ func TestLatestVersionSkipsNonInstallableVersions(t *testing.T) {
 	}
 
 	c := newClient(t, newProject(t), cfgWithSources(
-		config.Source{ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL()},
+		projfile.Source{Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL()},
 	), Options{})
 
 	got, err := c.LatestVersion(context.Background(), "people/basic")
@@ -98,7 +82,7 @@ func TestLatestVersionAcceptsDeprecated(t *testing.T) {
 	mock.versionStatus = map[string]string{"people/basic@2.0.0": "deprecated"}
 
 	c := newClient(t, newProject(t), cfgWithSources(
-		config.Source{ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL()},
+		projfile.Source{Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL()},
 	), Options{})
 
 	got, err := c.LatestVersion(context.Background(), "people/basic")
@@ -116,8 +100,8 @@ func TestLatestVersionFirstSourceWithComponentWins(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "9.9.9"})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
-		config.Source{ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL()},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL()},
 	), Options{})
 
 	got, err := c.LatestVersion(context.Background(), "people/basic")
@@ -135,8 +119,8 @@ func TestLatestVersionFallsThroughToNextSource(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "2.0.0"})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
-		config.Source{ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL()},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL()},
 	), Options{})
 
 	got, err := c.LatestVersion(context.Background(), "people/basic")
@@ -153,7 +137,7 @@ func TestLatestVersionNotFoundInAnySource(t *testing.T) {
 	})
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
 	), Options{})
 
 	_, err := c.LatestVersion(context.Background(), "people/basic")

@@ -1598,4 +1598,5 @@ var en = map[string]string{
 	msgid.ConfigdirFileRefMissing:         "Error: %[1]s points at a file that cannot be read",
 	msgid.ConfigdirHintFileRef:            "file:// paths are relative to the project root; keep such files out of Git (e.g. under .secrets/)",
 	msgid.ConfigdirCannotEvaluate:         "internal error: %[1]s cannot be evaluated to a value here",
+	msgid.SourceGitNotYetSupported:        "git install sources are being rebuilt for one-repository-per-component distribution (baseUrl); use a local or market source for now",
 }

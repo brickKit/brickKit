@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/projfile"
 )
 
 // 市场返回 sourceType: git + gitUrl → 开源组件，可 clone。
@@ -20,8 +20,8 @@ func TestOriginFromMarketOpenSource(t *testing.T) {
 	mock.gitURL = "https://github.com/brickkit/people-basic.git"
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	origin, err := c.Origin(context.Background(), "people/basic", "1.0.0")
@@ -39,8 +39,8 @@ func TestOriginFromMarketClosedSource(t *testing.T) {
 	mock.sourceType = OriginRegistry
 
 	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL(),
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
 	}), Options{})
 
 	origin, err := c.Origin(context.Background(), "authorization/rbac", "1.0.0")
@@ -56,8 +56,8 @@ func TestOriginFromLocalSource(t *testing.T) {
 	writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{
 		ID: "people/basic", Version: "1.0.0",
 	})
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	origin, err := c.Origin(context.Background(), "people/basic", "1.0.0")
@@ -72,27 +72,6 @@ func TestOriginFromLocalSource(t *testing.T) {
 	assert.Equal(t, clierr.CodeComponentNotFound, clierr.As(err).Code)
 }
 
-// git 安装源：安装源本身的仓库地址就是组件的仓库地址。
-func TestOriginFromGitSource(t *testing.T) {
-	repo := t.TempDir()
-	writeComponent(t, repo, componentSpec{ID: "people/basic", Version: "1.0.0"})
-	url := newGitRepo(t, repo)
-
-	layout := newProject(t)
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "my-git", Type: config.SourceTypeGit, URL: url,
-	}), Options{})
-
-	origin, err := c.Origin(context.Background(), "people/basic", "1.0.0")
-	require.NoError(t, err)
-	assert.Equal(t, OriginGit, origin.Type)
-	assert.Equal(t, url, origin.GitURL)
-	assert.True(t, origin.IsOpenSource())
-
-	_, err = c.Origin(context.Background(), "people/basic", "2.0.0")
-	require.Error(t, err)
-}
-
 // 组件在所有源里都没有 / 没有安装源 / 引用非法。
 func TestOriginErrorPaths(t *testing.T) {
 	layout := newProject(t)
@@ -103,8 +82,8 @@ func TestOriginErrorPaths(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, clierr.CodeConfigInvalid, clierr.As(err).Code)
 
-	c := newClient(t, layout, cfgWithSources(config.Source{
-		ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components",
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
 	_, err = c.Origin(ctx, "people/basic", "not-a-version")
@@ -126,8 +105,8 @@ func TestOriginFollowsSourcePriority(t *testing.T) {
 	mock.gitURL = "https://example.com/people-basic.git"
 
 	c := newClient(t, layout, cfgWithSources(
-		config.Source{ID: "local-dev", Type: config.SourceTypeLocal, Path: "./components"},
-		config.Source{ID: "brickkit-market", Type: config.SourceTypeMarket, URL: mock.URL()},
+		projfile.Source{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components"},
+		projfile.Source{Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL()},
 	), Options{})
 
 	origin, err := c.Origin(context.Background(), "people/basic", "1.0.0")
