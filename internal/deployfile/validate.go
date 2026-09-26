@@ -1,19 +1,17 @@
 package deployfile
 
 import (
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/configdir"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/yamlfile"
 )
-
-var varNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Validate 校验整份部署文件；返回的切片是不阻断的警告（某字段在当前 target 下不起作用）。
 func (f *File) Validate(role Role) ([]*clierr.Error, error) {
@@ -115,7 +113,7 @@ func (f *File) validateVarNames(p *clierr.ProblemSet) {
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		if !varNameRe.MatchString(name) {
+		if !configdir.IsValidName(name) {
 			p.Add("vars."+name, i18n.T(msgid.DeployfileVarNameInvalid))
 		}
 	}

@@ -3,7 +3,9 @@
 package yamlfile
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"fmt"
 	"io/fs"
 	"os"
@@ -42,7 +44,20 @@ func Read(path string) ([]byte, error) {
 func Document(data []byte, source string, allowEmpty bool) (*yaml.Node, error) {
 	name := filepath.Base(source)
 	var root yaml.Node
-	if err := yaml.Unmarshal(data, &root); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	err := decoder.Decode(&root)
+	if errors.Is(err, io.EOF) {
+		err = nil // 空文件：下面按空文档处理
+	}
+	if err == nil {
+		// 一行多余的 --- 会让后面的内容整段被悄悄丢掉：宁可直接报错
+		var extra yaml.Node
+		if next := decoder.Decode(&extra); !errors.Is(next, io.EOF) {
+			return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.LayerMultipleDocuments, name)).
+				WithDetail(i18n.T(msgid.LabelFile), source)
+		}
+	}
+	if err != nil {
 		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.LayerNotValidYAML, name)).
 			WithDetail(i18n.T(msgid.LabelFile), source).
 			WithDetail(i18n.T(msgid.LabelReason), CleanError(err)).

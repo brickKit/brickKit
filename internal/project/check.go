@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlfile"
@@ -132,4 +133,43 @@ func (p *Project) checkMembers() error {
 		}
 	}
 	return problems.Err()
+}
+
+// checkHostPorts 拦下宿主机端口被两个组件版本同时占用（docker / podman 才有宿主机端口）。
+//
+// 单文件校验只看得到"两个条目写了同一个端口"；看不到的是一个裸 ID 条目带着 exposePort
+// 覆盖了两个版本——那是两个容器抢同一个端口，docker 要到起第二个容器时才报 bind 失败。
+func (p *Project) checkHostPorts() error {
+	if p.Deploy.Target == deployfile.TargetK8s {
+		return nil
+	}
+	type claim struct{ ref, field string }
+	claims := map[int]claim{}
+	for _, c := range p.Decl.Components {
+		entry, ok := p.Deploy.Entry(c.ID, c.Version)
+		if !ok {
+			continue
+		}
+		var ports []claim
+		var numbers []int
+		if entry.Expose && entry.ExposePort != 0 {
+			ports, numbers = append(ports, claim{c.Ref(), "exposePort"}), append(numbers, entry.ExposePort)
+		}
+		if entry.IsBareProcess() && entry.LocalPort != 0 {
+			ports, numbers = append(ports, claim{c.Ref(), "localPort"}), append(numbers, entry.LocalPort)
+		}
+		for i, port := range numbers {
+			prev, taken := claims[port]
+			if !taken {
+				claims[port] = ports[i]
+				continue
+			}
+			return clierr.New(clierr.CodePortConflict, i18n.T(msgid.ProjectHostPortCollision, port)).
+				WithDetail(i18n.T(msgid.LabelFile), p.DeployPath).
+				WithDetail(i18n.T(msgid.ProjectLabelPortClaim), prev.ref+" ("+prev.field+")").
+				WithDetail(i18n.T(msgid.ProjectLabelPortClaim), ports[i].ref+" ("+ports[i].field+")").
+				WithHint(i18n.T(msgid.ProjectHintHostPortPerVersion))
+		}
+	}
+	return nil
 }

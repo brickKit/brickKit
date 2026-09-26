@@ -78,7 +78,7 @@ func Load(root string, opts LoadOptions) (*Project, error) {
 		Layout: l, Decl: decl, Deploy: deploy,
 		DeploySource: source, DeployPath: path, Warnings: warnings,
 	}
-	for _, step := range []func() error{p.checkCoverage, p.checkMembers, p.loadConfig} {
+	for _, step := range []func() error{p.checkCoverage, p.checkHostPorts, p.checkMembers, p.loadConfig} {
 		if err := step(); err != nil {
 			return nil, err
 		}

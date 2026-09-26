@@ -274,6 +274,13 @@ func TestLoadConfigOrphansWarn(t *testing.T) {
 	p, err := project.Load(root, project.LoadOptions{})
 	require.NoError(t, err)
 	assert.Len(t, p.Warnings, 3)
+	unused := 0
+	for _, w := range p.Warnings {
+		if w.Message == i18n.T(msgid.ProjectConfigUnversionedUnused, "config/people-basic.yaml", "people/basic", "people-basic") {
+			unused++
+		}
+	}
+	assert.Equal(t, 1, unused)
 }
 
 func TestLoadUndefinedVarRef(t *testing.T) {
@@ -304,10 +311,74 @@ func TestLoadConflictsAcrossFilesReportedTogether(t *testing.T) {
 func TestLoadConfigNameCollision(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, map[string]string{
-		"brickkit.yaml": "project: p\ncomponents:\n  - {id: a-b/c, version: 1.0.0}\n  - {id: a/b-c, version: 1.0.0}\n",
-		"deploy.yaml":   "target: docker\ncomponents:\n  - id: a-b/c\n  - id: a/b-c\n",
+		"brickkit.yaml": "project: p\ncomponents:\n  - {id: a-b/c, version: 1.0.0}\n  - {id: a/b-c, version: 1.0.0}\n" +
+			"  - {id: x-y/z, version: 1.0.0}\n  - {id: x/y-z, version: 1.0.0}\n",
+		"deploy.yaml": "target: docker\ncomponents:\n  - id: a-b/c\n  - id: a/b-c\n  - id: x-y/z\n  - id: x/y-z\n",
 	})
 	_, err := project.Load(root, project.LoadOptions{})
 	require.Error(t, err)
-	assert.Equal(t, i18n.T(msgid.ProjectConfigNameCollision, "a-b/c", "a/b-c", "a-b-c.yaml"), clierr.As(err).Message)
+	assert.Equal(t, i18n.T(msgid.ProjectConfigNameCollisions), clierr.As(err).Message)
+	joined := strings.Join(detailValues(err), "\n")
+	assert.Contains(t, joined, "a-b-c.yaml")
+	assert.Contains(t, joined, "x-y-z.yaml", "every collision is reported, not only the first")
+}
+
+func TestLoadUndefinedVarLocalModeHint(t *testing.T) {
+	root := baseProject(t)
+	team := strings.Replace(baseDeploy, "vars:\n", "vars:\n  NEWVAR: x\n", 1)
+	write(t, root, map[string]string{
+		"deploy.yaml":             team,
+		"deploy.local.yaml":       baseDeploy,
+		"config/erp-backend.yaml": "DB_HOST: $var:NEWVAR\n",
+	})
+	require.NoError(t, project.SetLocalMode(project.NewLayout(root), true))
+	_, err := project.Load(root, project.LoadOptions{})
+	require.Error(t, err)
+	e := clierr.As(err)
+	assert.Equal(t, i18n.T(msgid.ProjectVarUndefined), e.Message)
+	assert.Contains(t, e.Hints, i18n.T(msgid.ProjectHintVarOnlyInTeamDeploy, "NEWVAR"))
+}
+
+func TestLoadVarsAndComponentConflictsTogether(t *testing.T) {
+	root := baseProject(t)
+	write(t, root, map[string]string{
+		"config/vars.yaml":               "A: 1\nA: 2\n",
+		"config/people-basic@1.0.0.yaml": "B: 1\nB: 2\n",
+	})
+	_, err := project.Load(root, project.LoadOptions{})
+	require.Error(t, err)
+	assert.Equal(t, clierr.CodeConfigConflict, clierr.As(err).Code)
+	joined := strings.Join(detailValues(err), "\n")
+	assert.Contains(t, joined, "vars.yaml")
+	assert.Contains(t, joined, "people-basic@1.0.0.yaml")
+}
+
+func TestLoadCrossVersionHostPortCollision(t *testing.T) {
+	root := baseProject(t)
+	write(t, root, map[string]string{"deploy.yaml": strings.Replace(baseDeploy,
+		"  - id: people/basic\n", "  - id: people/basic\n    expose: true\n    exposePort: 8080\n", 1)})
+	_, err := project.Load(root, project.LoadOptions{})
+	require.Error(t, err)
+	e := clierr.As(err)
+	assert.Equal(t, clierr.CodePortConflict, e.Code)
+	assert.Equal(t, i18n.T(msgid.ProjectHostPortCollision, 8080), e.Message)
+	joined := strings.Join(detailValues(err), "\n")
+	assert.Contains(t, joined, "people/basic@1.0.0")
+	assert.Contains(t, joined, "people/basic@2.0.0")
+}
+
+func TestLoadLocalPortVsExposePort(t *testing.T) {
+	root := baseProject(t)
+	write(t, root, map[string]string{"deploy.yaml": strings.Replace(strings.Replace(baseDeploy,
+		"  - id: erp/backend\n", "  - id: erp/backend\n    mode: local\n    localPort: 9000\n", 1),
+		"  - id: people/basic\n", "  - id: people/basic@1.0.0\n    expose: true\n    exposePort: 9000\n  - id: people/basic@2.0.0\n", 1)})
+	_, err := project.Load(root, project.LoadOptions{})
+	require.Error(t, err)
+	assert.Equal(t, clierr.CodePortConflict, clierr.As(err).Code)
+
+	// k8s 下没有宿主机端口，不查
+	write(t, root, map[string]string{"deploy.yaml": strings.Replace(strings.Replace(baseDeploy, "target: docker", "target: k8s", 1),
+		"  - id: people/basic\n", "  - id: people/basic\n    exposePort: 8080\n    expose: true\n    hostname: p.example.com\n", 1)})
+	_, err = project.Load(root, project.LoadOptions{})
+	require.NoError(t, err)
 }

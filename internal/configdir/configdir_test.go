@@ -10,6 +10,8 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/configdir"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 func TestFileNaming(t *testing.T) {
@@ -159,4 +161,17 @@ func TestScalarYAML(t *testing.T) {
 	assert.Equal(t, `"5"`, configdir.ScalarYAML("5"))
 	assert.Equal(t, "5", configdir.ScalarYAML(5))
 	assert.Equal(t, `"a\nb"`, configdir.ScalarYAML("a\nb"))
+}
+
+func TestConflictHintMatchesMarker(t *testing.T) {
+	_, err := configdir.ParseComponentFile([]byte("A: 1\nA: 2\n"), "config/a-b.yaml")
+	var plain *configdir.ConflictError
+	require.True(t, errors.As(err, &plain))
+	assert.Equal(t, i18n.T(msgid.ConfigdirConflictHintEditPlain), plain.Render().Hints[0])
+
+	block := configdir.ConflictBlock("A", "1", "1.0.0", "2", "2.0.0")
+	_, err = configdir.ParseComponentFile([]byte(block), "config/a-b.yaml")
+	var marked *configdir.ConflictError
+	require.True(t, errors.As(err, &marked))
+	assert.Equal(t, i18n.T(msgid.ConfigdirConflictHintEditMarked), marked.Render().Hints[0])
 }

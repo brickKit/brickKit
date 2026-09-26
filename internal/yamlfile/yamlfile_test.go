@@ -54,3 +54,12 @@ func TestRequireSequenceAndMapping(t *testing.T) {
 	assert.Equal(t, "components", p.Items()[0].Field)
 	assert.Equal(t, "vars", p.Items()[1].Field)
 }
+
+func TestDocumentRejectsSecondDocument(t *testing.T) {
+	_, err := yamlfile.Document([]byte("a: 1\n---\nb: 2\n"), "deploy.yaml", false)
+	require.Error(t, err)
+	assert.Equal(t, i18n.T(msgid.LayerMultipleDocuments, "deploy.yaml"), clierr.As(err).Message)
+
+	_, err = yamlfile.Document([]byte("---\na: 1\n"), "deploy.yaml", false)
+	require.NoError(t, err, "a leading --- is one document")
+}

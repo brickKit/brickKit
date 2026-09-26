@@ -68,9 +68,27 @@ func (e *ConflictError) Render() *clierr.Error {
 			}
 		}
 	}
+	edit := i18n.T(msgid.ConfigdirConflictHintEditPlain)
+	if e.hasMarker() {
+		edit = i18n.T(msgid.ConfigdirConflictHintEditMarked)
+	}
 	return err.
-		WithHint(i18n.T(msgid.ConfigdirConflictHintEdit), i18n.T(msgid.ConfigdirConflictHintNoFormat)).
+		WithHint(edit, i18n.T(msgid.ConfigdirConflictHintNoFormat)).
 		WithTip(i18n.T(msgid.ConfigdirConflictTipEditor))
+}
+
+// hasMarker 报告是否有 brickkit 写的冲突标记（带说明注释）；手滑重复的键没有那段注释可删。
+func (e *ConflictError) hasMarker() bool {
+	for _, file := range e.Files {
+		for _, key := range file.Keys {
+			for _, line := range key.Lines {
+				if line.Side != "" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func lineText(l ConflictLine) string {

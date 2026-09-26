@@ -2,19 +2,25 @@
 // 一个 Project：之后所有命令只认这一个对象，谁也不再自己去读分层文件。
 package project
 
-import "path/filepath"
+import (
+	"path/filepath"
+
+	"github.com/brickkit/brickkit/internal/configdir"
+	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/projfile"
+)
 
 // 项目目录里的固定名字（提案 §4.1）。
 const (
-	FileDecl              = "brickkit.yaml"
-	FileDeploy            = "deploy.yaml"
-	FileDeployLocal       = "deploy.local.yaml"
-	FileDeployLocalBackup = "deploy.local.yaml.bak"
+	FileDecl              = projfile.FileName
+	FileDeploy            = deployfile.FileTeam
+	FileDeployLocal       = deployfile.FileLocal
+	FileDeployLocalBackup = deployfile.FileLocal + ".bak"
 	FileGitignore         = ".gitignore"
 	FileProjectDoc        = "BRICKKIT.md"
 	DirConfig             = "config"
-	FileVars              = "vars.yaml"
-	DirConfigArchive      = ".archive"
+	FileVars              = configdir.VarsFile
+	DirConfigArchive      = configdir.ArchiveDir
 	DirBrickkit           = ".brickkit"
 	DirManifests          = "manifests"
 	DirArtifacts          = "artifacts"
