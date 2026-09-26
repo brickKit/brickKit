@@ -6,8 +6,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // shellManifest 造一个声明了 shell.members 的外壳。
@@ -110,4 +113,19 @@ func TestSkipWaitForMustNameARequiredDependency(t *testing.T) {
 		assert.Contains(t, err.Error(), "components[0].skipWaitFor[0]")
 		assert.Contains(t, err.Error(), "erp/db", "列出它真正的强依赖")
 	}
+}
+
+// 外壳条目上的 skipWaitFor 只管外壳自己的依赖：写了一个成员的依赖，报错要提示写到成员的条目上去。
+func TestShellSkipWaitForNamingAMemberDependency(t *testing.T) {
+	sh := comp("erp/shell", "1.0.0", "")
+	sh.SkipWaitFor = []string{"erp/x"}
+	_, err := resolveFixture(t, &testCfg{Components: []testComp{
+		sh, comp("erp/a", "1.0.0", "erp/shell@1.0.0"), comp("erp/x", "1.0.0", ""),
+	}}, map[string]*manifest.Manifest{
+		"erp/shell@1.0.0": simple("erp/shell", "1.0.0", 8080),
+		"erp/a@1.0.0":     dependsOn(simple("erp/a", "1.0.0", 8081), "erp/x", "1.0.0"),
+		"erp/x@1.0.0":     simple("erp/x", "1.0.0", 8090),
+	})
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Hints, i18n.T(msgid.ShellHintSkipWaitForOnMember))
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
@@ -53,9 +54,21 @@ func SkippedWaits(p *project.Project, graph *resolver.Graph, states *cascade.Res
 	return out
 }
 
+// skipApplies 报告 ref 这个工作负载采不采纳 skipWaitFor：只有 docker / podman 上的容器才有
+// depends_on 可去。K8s 的 Pod 之间没有启动顺序，裸进程（含裸进程外壳里的成员）不在 compose
+// 文件里——这两种情况下它不起作用（附录 A23），启动顺序也就不能照它排。
+func skipApplies(p *project.Project, states *cascade.Result, ref resolver.Ref) bool {
+	if p.Deploy.Target == deployfile.TargetK8s || p.DeployEntry(ref.ID, ref.Version).IsBareProcess() {
+		return false
+	}
+	host, hosted := states.HostOf(p, ref)
+	return !hosted || !p.DeployEntry(host.ID, host.Version).IsBareProcess()
+}
+
 func dependencies(
 	p *project.Project, graph *resolver.Graph, states *cascade.Result, ref resolver.Ref, honorSkip bool,
 ) (requires, optional []resolver.Ref) {
+	honorSkip = honorSkip && skipApplies(p, states, ref)
 	sources := []resolver.Ref{ref}
 	inside := map[resolver.Ref]bool{ref: true}
 	for _, running := range states.Running() {
@@ -137,7 +150,10 @@ func Workloads(p *project.Project, graph *resolver.Graph, states *cascade.Result
 		}
 		// 普通组件保留 Manifest 里的声明顺序（启动顺序与最长链的并列项按它排），只滤掉 skipWaitFor；
 		// 外壳的依赖是合并出来的，用 WaitFor
-		requires, optional := withoutSkipped(node.Requires, p.DeployEntry(ref.ID, ref.Version).SkipWaitFor), node.Optional
+		requires, optional := node.Requires, node.Optional
+		if skipApplies(p, states, ref) {
+			requires = withoutSkipped(requires, p.DeployEntry(ref.ID, ref.Version).SkipWaitFor)
+		}
 		if p.Decl.IsShellID(ref.ID) {
 			requires = WaitFor(p, graph, states, ref)
 			_, optional = Dependencies(p, graph, states, ref)
@@ -192,8 +208,7 @@ func MergeCycleError(p *project.Project, graph *resolver.Graph, states *cascade.
 		return false
 	}
 	var shells, edges []string
-	var skipFrom, skipTo resolver.Ref
-	skipHosted := false
+	var cycleEdges [][2]resolver.Ref
 	seenShell := map[resolver.Ref]bool{}
 	for i, from := range cycle {
 		to := cycle[(i+1)%len(cycle)]
@@ -209,10 +224,7 @@ func MergeCycleError(p *project.Project, graph *resolver.Graph, states *cascade.
 			for _, y := range inside(to) {
 				if containsRef(node.Requires, y) && !skips(x, y) {
 					edges = append(edges, describe(x)+" → "+describe(y))
-					// 给一条能直接照抄的 skipWaitFor：优先让外壳里的成员不等外面的组件
-					if _, hosted := states.HostOf(p, x); skipFrom.ID == "" || (hosted && !skipHosted) {
-						skipFrom, skipTo, skipHosted = x, y, hosted
-					}
+					cycleEdges = append(cycleEdges, [2]resolver.Ref{x, y})
 				}
 			}
 		}
@@ -222,10 +234,34 @@ func MergeCycleError(p *project.Project, graph *resolver.Graph, states *cascade.
 		err = err.WithDetail(i18n.T(msgid.ShellLabelMergeCycleEdge), edge)
 	}
 	hints := []string{i18n.T(msgid.ShellHintMergeCycleHostBoth), i18n.T(msgid.ShellHintMergeCycleOptional)}
-	if skipFrom.ID != "" {
-		hints = append(hints, i18n.T(msgid.ShellHintMergeCycleSkipWait, skipTo.ID, skipFrom.String()))
+	if target, from := skipSuggestion(p, states, cycleEdges); len(from) > 0 {
+		hints = append(hints, i18n.T(msgid.ShellHintMergeCycleSkipWait, target.ID, strings.Join(from, i18n.T(msgid.ListSeparator))))
 	}
 	return err.WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellMergeCycleReason)).WithHint(hints...)
+}
+
+// skipSuggestion 挑一条能直接照抄的 skipWaitFor：优先让外壳里的成员不等外面的组件，并且把
+// 环上所有指向同一个组件的成员都列出来——只写其中一个，其他成员照样让外壳等它，环还在。
+func skipSuggestion(p *project.Project, states *cascade.Result, edges [][2]resolver.Ref) (resolver.Ref, []string) {
+	if len(edges) == 0 {
+		return resolver.Ref{}, nil
+	}
+	target := edges[0][1]
+	for _, e := range edges {
+		if _, hosted := states.HostOf(p, e[0]); hosted {
+			target = e[1]
+			break
+		}
+	}
+	var from []string
+	seen := map[resolver.Ref]bool{}
+	for _, e := range edges {
+		if e[1] == target && !seen[e[0]] {
+			seen[e[0]] = true
+			from = append(from, e[0].String())
+		}
+	}
+	return target, from
 }
 
 // findCycle 在图里找一个强依赖环，按依赖方向返回环上的节点；没有环时返回 nil。

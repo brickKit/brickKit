@@ -60,6 +60,7 @@ func Check(p *project.Project, graph *resolver.Graph, _ *cascade.Result) error {
 func checkSkipWaitFor(p *project.Project, graph *resolver.Graph) error {
 	problems := clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.ShellSkipWaitForInvalid)).
 		WithSource(i18n.T(msgid.LabelFile), p.DeployPath)
+	onShell := false
 	for _, l := range p.Deploy.All() {
 		if len(l.SkipWaitFor) == 0 {
 			continue
@@ -86,8 +87,13 @@ func checkSkipWaitFor(p *project.Project, graph *resolver.Graph) error {
 			if !required[skipped] {
 				problems.Add(yamlfile.Indexed(l.Field+".skipWaitFor", i),
 					i18n.T(msgid.ShellSkipWaitForNotRequired, skipped, node.Ref.String(), list))
+				onShell = onShell || p.Decl.IsShellID(id)
 			}
 		}
+	}
+	if onShell {
+		// 外壳条目上的 skipWaitFor 只管外壳自己的依赖：多半是把成员的依赖写到了外壳上
+		problems.WithHint(i18n.T(msgid.ShellHintSkipWaitForOnMember))
 	}
 	return problems.Err()
 }

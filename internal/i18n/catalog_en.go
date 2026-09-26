@@ -1337,5 +1337,7 @@ var en = map[string]string{
 	msgid.ShellSkipWaitForNoRequired:          "none",
 	msgid.CliRenderOrderSkipsWaitFor:          "  (does not wait for %s)",
 	msgid.ComposeSkipWaitForOnBareProcess:     "%s runs as a bare process this time (or inside a bare-process shell): it has no depends_on, so its skipWaitFor has no effect",
-	msgid.ShellHintMergeCycleSkipWait:         "Or accept the cost: write skipWaitFor: [%[1]s] on the entry of %[2]s in the deploy file. It then starts without waiting for %[1]s and must retry until it is ready",
+	msgid.ShellHintMergeCycleSkipWait:         "Or accept the cost: in the deploy file, write skipWaitFor: [%[1]s] on the entry of each of %[2]s. They then start without waiting for %[1]s and must retry until it is ready",
+	msgid.ComposeSkipWaitForCoHosted:          "%[1]s skips waiting for %[2]s, but both run inside shell %[3]s: the call stays in the process, so there is no wait to skip",
+	msgid.ShellHintSkipWaitForOnMember:        "skipWaitFor on a shell entry covers only the shell's own dependencies: for a member's dependency, write it on that member's entry under members",
 }

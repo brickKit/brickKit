@@ -312,6 +312,8 @@ func TestSkipWaitForBreaksMergeCycle(t *testing.T) {
 	require.NoError(t, os.WriteFile(k8s, []byte(readFile(t, k8s)+"k8s:\n  networkPolicy:\n    enabled: true\n    egress:\n      enabled: true\n"), 0o644))
 	r = runWithEngine(t, newK8sEngine(), dir, "up", "--dry-run", "-f", "deploy.k8s.yaml")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, i18n.T(msgid.CliRenderOrderSkipsWaitFor, "erp/pay@1.0.0"),
+		"K8s 下 skipWaitFor 不起作用：启动顺序也不能说它起了作用")
 	policy := readFile(t, filepath.Join(dir, ".brickkit", "generated", "k8s", "networkpolicies", "erp-shell-1-0-0.yaml"))
 	egress := policy[strings.Index(policy, "egress:"):strings.Index(policy, "ingress:")]
 	assert.Contains(t, egress, "erp-pay-1-0-0", "外壳的出站策略照样放行 erp/pay：不等它，不等于不连它")
@@ -330,4 +332,18 @@ func TestSkipWaitForOnBareProcessWarns(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.ComposeSkipWaitForOnBareProcess, "erp/worker@1.0.0"))
+	assert.NotContains(t, r.stdout, i18n.T(msgid.CliRenderOrderSkipsWaitFor, "erp/pay@1.0.0"),
+		"说了不起作用，启动顺序就不能照它排")
+}
+
+// 跳过同一个外壳里的依赖：两边在同一个进程里，本来就没有等待——写了等于没写，说一声。
+func TestSkipWaitForOnCoHostedDependencyWarns(t *testing.T) {
+	dir := copyFixture(t, "three-layer-shell")
+	path := filepath.Join(dir, "deploy.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(readFile(t, path),
+		"      - id: erp/worker\n", "      - id: erp/worker\n        skipWaitFor: [erp/api]\n", 1)), 0o644))
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout+r.stderr,
+		i18n.T(msgid.ComposeSkipWaitForCoHosted, "erp/worker@1.0.0", "erp/api@1.0.0", "erp/shell@1.0.0"))
 }

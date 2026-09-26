@@ -48,4 +48,5 @@ const (
 	ComposeOwnerHostMember          = "compose.owner_host_member"
 	ComposeOwnerHostMemberExtra     = "compose.owner_host_member_extra"
 	ComposeSkipWaitForOnBareProcess = "compose.skip_wait_for_on_bare_process"
+	ComposeSkipWaitForCoHosted      = "compose.skip_wait_for_co_hosted"
 )

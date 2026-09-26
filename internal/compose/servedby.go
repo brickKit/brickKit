@@ -183,6 +183,28 @@ func (p *plan) bareSkipWaitForWarnings() []*clierr.Error {
 		if p.proj.DeployEntry(ref.ID, ref.Version).IsBareProcess() || hostMember {
 			out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
 				i18n.T(msgid.ComposeSkipWaitForOnBareProcess, refText(ref))))
+			continue
+		}
+		out = append(out, p.coHostedSkipWarnings(ref)...)
+	}
+	return out
+}
+
+// coHostedSkipWarnings 提醒"跳过的依赖跟它在同一个外壳里"：调用不出进程，本来就没有等待可跳过——
+// 写了等于没写，使用者却以为那条等待已经去掉了。
+func (p *plan) coHostedSkipWarnings(ref resolver.Ref) []*clierr.Error {
+	host, ok := p.states.HostOf(p.proj, ref)
+	node := p.graph.Node(ref)
+	if !ok || node == nil {
+		return nil
+	}
+	var out []*clierr.Error
+	for _, id := range p.proj.DeployEntry(ref.ID, ref.Version).SkipWaitFor {
+		for _, dep := range node.Requires {
+			if depHost, hosted := p.states.HostOf(p.proj, dep); dep.ID == id && hosted && depHost == host {
+				out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
+					i18n.T(msgid.ComposeSkipWaitForCoHosted, refText(ref), refText(dep), refText(host))))
+			}
 		}
 	}
 	return out
