@@ -1505,4 +1505,8 @@ var en = map[string]string{
 	msgid.CliOverrideGitignoreUpdated:        "Added override.yaml to .gitignore",
 	msgid.CliOverrideWritten:                 "Wrote %[1]s",
 	msgid.CliOverrideDriftNote:               "Drift: %[1]s — %[2]s",
+
+	msgid.LayerReadFailed:   "Error: failed to read %[1]s",
+	msgid.LayerNotValidYAML: "Error: %[1]s is not valid YAML",
+	msgid.LayerEmpty:        "Error: %[1]s is empty",
 }

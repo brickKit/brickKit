@@ -49,8 +49,11 @@ const (
 	// 配置错误（004 §10.1 配置错误）。
 	CodeConfigInvalid  Code = "CONFIG_INVALID"
 	CodeConfigConflict Code = "CONFIG_CONFLICT"
-	CodeProjectExists  Code = "PROJECT_EXISTS"
-	CodeProjectMissing Code = "PROJECT_MISSING"
+	// CodeDeployInconsistent 是"部署文件（deploy.yaml / deploy.local.yaml / -f 指定的文件）
+	// 与 brickkit.yaml 的组件集合对不上"：多了、少了都算。
+	CodeDeployInconsistent Code = "DEPLOY_INCONSISTENT"
+	CodeProjectExists      Code = "PROJECT_EXISTS"
+	CodeProjectMissing     Code = "PROJECT_MISSING"
 
 	// Manifest 与依赖错误。
 	CodeManifestInvalid   Code = "MANIFEST_INVALID"

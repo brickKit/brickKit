@@ -1492,4 +1492,8 @@ var zh = map[string]string{
 	msgid.CliOverrideGitignoreUpdated:        "已把 override.yaml 加进 .gitignore",
 	msgid.CliOverrideWritten:                 "已写入 %[1]s",
 	msgid.CliOverrideDriftNote:               "漂移：%[1]s —— %[2]s",
+
+	msgid.LayerReadFailed:   "错误：读取 %[1]s 失败",
+	msgid.LayerNotValidYAML: "错误：%[1]s 不是合法的 YAML",
+	msgid.LayerEmpty:        "错误：%[1]s 是空文件",
 }
