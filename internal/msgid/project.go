@@ -19,7 +19,6 @@ const (
 	ProjectMembersOnNonShell       = "project.members_on_non_shell"
 	ProjectMemberUndeclared        = "project.member_undeclared"
 	ProjectMemberIsShell           = "project.member_is_shell"
-	ProjectMemberMultiVersion      = "project.member_multi_version"
 	ProjectMemberTwoShells         = "project.member_two_shells"
 	ProjectConfigAmbiguous         = "project.config_ambiguous"
 	ProjectHintConfigAmbiguous     = "project.hint_config_ambiguous"
@@ -46,4 +45,6 @@ const (
 	ProjectGitignoreSecrets        = "project.gitignore.secrets"
 	ProjectGitignoreConfigArchive  = "project.gitignore.config_archive"
 	ProjectGitignoreComponents     = "project.gitignore.components"
+	ProjectMemberWhichVersion      = "project.member_which_version"
+	ProjectMemberVersionUndeclared = "project.member_version_undeclared"
 )

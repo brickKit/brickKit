@@ -40,7 +40,9 @@ func Check(p *project.Project, graph *resolver.Graph, states *cascade.Result) er
 			continue
 		}
 		entry := p.DeployEntry(c.ID, c.Version)
-		for _, member := range entry.Members {
+		for _, written := range entry.Members {
+			// 能力声明只列组件 ID；members 里可能写了 id@version（外壳承载的是哪个版本）
+			member, _, _ := strings.Cut(written, "@")
 			if !node.Manifest.CanHost(member) {
 				return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellMemberNotHostable, member, ref.String())).
 					WithDetail(i18n.T(msgid.LabelFile), p.DeployPath).

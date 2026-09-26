@@ -2,7 +2,9 @@ package project
 
 import (
 	"path/filepath"
+	"slices"
 	"sort"
+	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
@@ -101,6 +103,7 @@ func (p *Project) checkMembers() error {
 		i18n.T(msgid.ProblemValidationFailed, filepath.Base(p.DeployPath))).
 		WithSource(i18n.T(msgid.LabelFile), p.DeployPath)
 	p.shellOf = map[string]string{}
+	p.memberVersion = map[string]string{}
 
 	for i, entry := range p.Deploy.Components {
 		if len(entry.Members) == 0 {
@@ -112,24 +115,35 @@ func (p *Project) checkMembers() error {
 			problems.Add(field, i18n.T(msgid.ProjectMembersOnNonShell, shellID))
 			continue
 		}
-		for j, member := range entry.Members {
+		for j, written := range entry.Members {
 			memberField := yamlfile.Indexed(field, j)
-			switch versions := p.Decl.Versions(member); {
+			member, version, pinned := strings.Cut(written, "@")
+			versions := p.Decl.Versions(member)
+			switch {
 			case len(versions) == 0:
 				problems.Add(memberField, i18n.T(msgid.ProjectMemberUndeclared, member))
 				continue
 			case p.Decl.IsShellID(member):
 				problems.Add(memberField, i18n.T(msgid.ProjectMemberIsShell, member))
 				continue
-			case len(versions) > 1:
-				problems.Add(memberField, i18n.T(msgid.ProjectMemberMultiVersion, member))
+			case pinned && !slices.Contains(versions, version):
+				problems.Add(memberField, i18n.T(msgid.ProjectMemberVersionUndeclared, member, version))
 				continue
+			case !pinned && len(versions) > 1:
+				// 外壳里只能编进一个版本；平台不猜是哪一个
+				problems.Add(memberField, i18n.T(msgid.ProjectMemberWhichVersion,
+					member, strings.Join(versions, i18n.T(msgid.ListSeparator)), versions[len(versions)-1]))
+				continue
+			}
+			if !pinned {
+				version = versions[0]
 			}
 			if prev, ok := p.shellOf[member]; ok && prev != shellID {
 				problems.Add(memberField, i18n.T(msgid.ProjectMemberTwoShells, member, prev))
 				continue
 			}
 			p.shellOf[member] = shellID
+			p.memberVersion[member] = version
 		}
 	}
 	return problems.Err()

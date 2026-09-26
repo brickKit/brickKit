@@ -90,7 +90,8 @@ func TestValidateRejects(t *testing.T) {
 		"localPort conflict":     {"target: docker\ncomponents:\n  - {id: a/b, mode: local, localPort: 9000}\n  - {id: a/c, mode: local, localPort: 9000}\n", "components[1].localPort"},
 		"duplicate entry":        {"target: docker\ncomponents:\n  - {id: a/b}\n  - {id: a/b}\n", "components[1].id"},
 		"bad versioned id":       {"target: docker\ncomponents:\n  - {id: a/b@latest}\n", "components[0].id"},
-		"member with version":    {"target: docker\ncomponents:\n  - {id: a/s, members: [a/b@1.0.0]}\n", "components[0].members[0]"},
+		"member with range":      {"target: docker\ncomponents:\n  - {id: a/s, members: [a/b@^1.0.0]}\n", "components[0].members[0]"},
+		"member same id twice":   {"target: docker\ncomponents:\n  - {id: a/s, members: [a/b, a/b@1.0.0]}\n", "components[0].members[1]"},
 		"member self":            {"target: docker\ncomponents:\n  - {id: a/s, members: [a/s]}\n", "components[0].members[0]"},
 		"bad var name":           {"target: docker\nvars:\n  1BAD: x\n", "vars.1BAD"},
 		"replicas zero":          {"target: k8s\ncomponents:\n  - {id: a/b, replicas: 0}\n", "components[0].replicas"},
@@ -150,4 +151,10 @@ func TestSettingsDefaults(t *testing.T) {
 	assert.True(t, f.ShouldCreateNamespace())
 	assert.False(t, f.NetworkPolicyEnabled())
 	assert.False(t, f.ServiceAccountEnabled())
+}
+
+// 外壳承载的是成员的某一个版本：members 可以写成 id@精确版本（多版本兼容时用）。
+func TestMemberWithExactVersionAccepted(t *testing.T) {
+	_, _, err := parse(t, "target: docker\ncomponents:\n  - {id: a/s, members: [a/b@1.0.0, a/c]}\n", deployfile.RoleTeam)
+	require.NoError(t, err)
 }

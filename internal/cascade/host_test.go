@@ -10,6 +10,7 @@ import (
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/projfile"
+	"github.com/brickkit/brickkit/internal/resolver"
 )
 
 // shellProject：erp/shell 承载 erp/a 与 erp/b；modes 给出各条目的 mode。
@@ -60,4 +61,29 @@ func TestHostOf(t *testing.T) {
 	require.NoError(t, err)
 	_, ok = states.HostOf(stopped, ref("erp/a"))
 	assert.False(t, ok)
+}
+
+
+// 成员有两个版本、外壳承载其中一个：只有那个版本被承载，另一个版本独立部署。
+func TestHostOfIsVersionAware(t *testing.T) {
+	decl := &projfile.File{Project: "p", Components: []projfile.Component{
+		{ID: "erp/shell", Version: "1.0.0", Kind: projfile.KindShell},
+		{ID: "erp/a", Version: "1.0.0"},
+		{ID: "erp/a", Version: "2.0.0"},
+	}}
+	deploy := &deployfile.File{Target: deployfile.TargetDocker, Components: []deployfile.Component{
+		{ID: "erp/shell", Members: []string{"erp/a@2.0.0"}},
+		{ID: "erp/a"},
+	}}
+	p, err := project.Assemble(project.NewLayout(t.TempDir()), decl, deploy)
+	require.NoError(t, err)
+	graph := newGraph(t, spec{id: "erp/shell"}, spec{id: "erp/a"})
+	states, err := cascade.Compute(p, graph)
+	require.NoError(t, err)
+
+	_, ok := cascade.ShellOf(p, resolver.Ref{ID: "erp/a", Version: "1.0.0"})
+	assert.False(t, ok, "1.0.0 不在外壳里")
+	_, ok = cascade.ShellOf(p, resolver.Ref{ID: "erp/a", Version: "2.0.0"})
+	assert.True(t, ok)
+	_ = states
 }

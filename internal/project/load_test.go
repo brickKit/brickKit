@@ -82,10 +82,10 @@ func TestLoadHappyPath(t *testing.T) {
 	assert.Equal(t, project.DeployTeam, p.DeploySource)
 	assert.Empty(t, p.Warnings)
 
-	shell, ok := p.ShellOf("erp/backend")
+	shell, ok := p.ShellOf("erp/backend", "2.0.0")
 	require.True(t, ok)
 	assert.Equal(t, "erp/shell", shell)
-	_, ok = p.ShellOf("people/basic")
+	_, ok = p.ShellOf("people/basic", "1.0.0")
 	assert.False(t, ok)
 
 	level, _ := p.Config("people/basic", "2.0.0").Lookup("LOG_LEVEL")
@@ -224,9 +224,15 @@ components:
   - id: erp/backend
   - id: people/basic
 `},
-		"multi-version member": {baseDecl, `target: docker
+		"multi-version member written as a bare id": {baseDecl, `target: docker
 components:
   - {id: erp/shell, members: [people/basic]}
+  - id: erp/backend
+  - id: people/basic
+`},
+		"member version not declared": {baseDecl, `target: docker
+components:
+  - {id: erp/shell, members: [people/basic@9.9.9]}
   - id: erp/backend
   - id: people/basic
 `},
@@ -397,7 +403,7 @@ func TestAssembleChecksTopologyWithoutConfig(t *testing.T) {
 
 	p, err := project.Assemble(project.NewLayout(root), decl, deploy)
 	require.NoError(t, err)
-	shell, ok := p.ShellOf("erp/backend")
+	shell, ok := p.ShellOf("erp/backend", "2.0.0")
 	assert.True(t, ok)
 	assert.Equal(t, "erp/shell", shell)
 
@@ -406,4 +412,38 @@ func TestAssembleChecksTopologyWithoutConfig(t *testing.T) {
 	require.NoError(t, err)
 	_, err = project.Assemble(project.NewLayout(root), decl, missing)
 	require.Error(t, err, "部署文件没覆盖到的组件照样要报")
+}
+
+// 成员有两个版本时，members 写明外壳里的是哪一个：那个版本进外壳，另一个版本照常独立部署。
+func TestLoadMemberVersionPinned(t *testing.T) {
+	root := baseProject(t)
+	write(t, root, map[string]string{"deploy.yaml": `target: docker
+components:
+  - {id: erp/shell, members: [erp/backend, people/basic@1.0.0]}
+  - id: erp/backend
+  - id: people/basic
+`})
+	p, err := project.Load(root, project.LoadOptions{})
+	require.NoError(t, err)
+	shell, ok := p.ShellOf("people/basic", "1.0.0")
+	assert.True(t, ok)
+	assert.Equal(t, "erp/shell", shell)
+	_, ok = p.ShellOf("people/basic", "2.0.0")
+	assert.False(t, ok, "2.0.0 不在外壳里")
+	_, ok = p.ShellOf("erp/backend", "2.0.0")
+	assert.True(t, ok, "只有一个版本的成员写裸 id 即可")
+}
+
+// 多个版本却写了裸 id：报错要提示写明版本。
+func TestLoadMemberBareWithMultipleVersionsSaysWhichToWrite(t *testing.T) {
+	root := baseProject(t)
+	write(t, root, map[string]string{"deploy.yaml": `target: docker
+components:
+  - {id: erp/shell, members: [people/basic]}
+  - id: erp/backend
+  - id: people/basic
+`})
+	_, err := project.Load(root, project.LoadOptions{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "people/basic@")
 }

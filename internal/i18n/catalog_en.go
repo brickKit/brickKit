@@ -1203,7 +1203,6 @@ var en = map[string]string{
 	msgid.DeployfileDebugOnlyLocal:         "mode: debug can only be written in deploy.local.yaml: it records that you are debugging this component on your machine right now, which is not a team decision. Run brickkit local on and set it there",
 	msgid.DeployfileModeInvalid:            "must be one of enabled/disable/local/debug (or omitted), got %[1]q",
 	msgid.DeployfileLocalPortNeedsMode:     "only takes effect with mode: local or mode: debug; declare one of them, or remove this field",
-	msgid.DeployfileMemberMustBeBareID:     "list members by component ID without a version (got %[1]s): each member has exactly one version in brickkit.yaml",
 	msgid.DeployfileMemberSelf:             "a shell cannot list itself as a member",
 	msgid.DeployfileMemberDuplicate:        "%[1]s is listed twice",
 	msgid.DeployfileFieldIgnoredForTarget:  "%[1]s has no effect with target: %[2]s and is ignored",
@@ -1253,7 +1252,6 @@ var en = map[string]string{
 	msgid.ProjectMembersOnNonShell:         "%[1]s lists members but is not a shell (kind: shell in brickkit.yaml)",
 	msgid.ProjectMemberUndeclared:          "member %[1]s is not declared in brickkit.yaml",
 	msgid.ProjectMemberIsShell:             "member %[1]s is itself a shell; shells cannot be nested",
-	msgid.ProjectMemberMultiVersion:        "member %[1]s has several versions in brickkit.yaml; a shell member must have exactly one",
 	msgid.ProjectMemberTwoShells:           "%[1]s is already a member of shell %[2]s; a component belongs to at most one shell",
 	msgid.ProjectConfigAmbiguous:           "Error: config/%[1]s is ambiguous: %[2]s has several versions in brickkit.yaml (%[3]s)",
 	msgid.ProjectHintConfigAmbiguous:       "Create one file per version (%[1]s), or keep only one version in brickkit.yaml",
@@ -1325,4 +1323,7 @@ var en = map[string]string{
 	msgid.ShellMemberInvalidUTF8:           "Error: config item %[2]s of shell member %[1]s is not valid UTF-8 text",
 	msgid.ShellMemberInvalidUTF8Reason:     "JSON can only carry text; binary bytes would be replaced silently",
 	msgid.ShellHintInvalidUTF8:             "Store binary content base64-encoded and decode it in the component",
+	msgid.ProjectMemberWhichVersion:        "member %[1]s has several versions in brickkit.yaml (%[2]s); write which one the shell hosts, e.g. %[1]s@%[3]s",
+	msgid.ProjectMemberVersionUndeclared:   "member %[1]s@%[2]s: that version is not declared in brickkit.yaml",
+	msgid.DeployfileMemberBadVersion:       "member %[1]s: the version after @ must be an exact version like 1.0.0",
 }

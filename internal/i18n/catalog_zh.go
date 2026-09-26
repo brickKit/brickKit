@@ -1194,7 +1194,6 @@ var zh = map[string]string{
 	msgid.DeployfileDebugOnlyLocal:         "mode: debug 只能写在 deploy.local.yaml 里：它记录的是\"我此刻在本机调试这个组件\"，不是团队决策。先 brickkit local on，再到那里设置",
 	msgid.DeployfileModeInvalid:            "只能是 enabled/disable/local/debug 之一（或不写），当前是 %[1]q",
 	msgid.DeployfileLocalPortNeedsMode:     "只在 mode: local 或 mode: debug 下生效；声明其中之一，或删掉这个字段",
-	msgid.DeployfileMemberMustBeBareID:     "成员只写组件 ID、不带版本（当前是 %[1]s）：每个成员在 brickkit.yaml 里只有一个版本",
 	msgid.DeployfileMemberSelf:             "外壳不能把自己列为成员",
 	msgid.DeployfileMemberDuplicate:        "%[1]s 被列了两次",
 	msgid.DeployfileFieldIgnoredForTarget:  "%[1]s 在 target: %[2]s 下不起作用，已忽略",
@@ -1244,7 +1243,6 @@ var zh = map[string]string{
 	msgid.ProjectMembersOnNonShell:         "%[1]s 列了 members，但它不是外壳（brickkit.yaml 里没有 kind: shell）",
 	msgid.ProjectMemberUndeclared:          "成员 %[1]s 没有在 brickkit.yaml 里声明",
 	msgid.ProjectMemberIsShell:             "成员 %[1]s 本身就是外壳；外壳不能嵌套",
-	msgid.ProjectMemberMultiVersion:        "成员 %[1]s 在 brickkit.yaml 里有多个版本；外壳成员只能有一个版本",
 	msgid.ProjectMemberTwoShells:           "%[1]s 已经是外壳 %[2]s 的成员；一个组件最多属于一个外壳",
 	msgid.ProjectConfigAmbiguous:           "错误：config/%[1]s 有歧义：%[2]s 在 brickkit.yaml 里有多个版本（%[3]s）",
 	msgid.ProjectHintConfigAmbiguous:       "为每个版本各建一份（%[1]s），或在 brickkit.yaml 里只保留一个版本",
@@ -1316,4 +1314,7 @@ var zh = map[string]string{
 	msgid.ShellMemberInvalidUTF8:           "错误：外壳成员 %[1]s 的配置项 %[2]s 不是合法的 UTF-8 文本",
 	msgid.ShellMemberInvalidUTF8Reason:     "JSON 只能装文本；二进制字节会被悄悄替换掉",
 	msgid.ShellHintInvalidUTF8:             "二进制内容请先 base64 编码，由组件自己解码",
+	msgid.ProjectMemberWhichVersion:        "成员 %[1]s 在 brickkit.yaml 里有多个版本（%[2]s）；写明外壳里承载的是哪一个，例如 %[1]s@%[3]s",
+	msgid.ProjectMemberVersionUndeclared:   "成员 %[1]s@%[2]s：brickkit.yaml 里没有声明这个版本",
+	msgid.DeployfileMemberBadVersion:       "成员 %[1]s：@ 后面必须是精确版本，例如 1.0.0",
 }

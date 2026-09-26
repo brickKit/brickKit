@@ -523,3 +523,32 @@ func TestShellWithoutMembersStillGetsReservedVariables(t *testing.T) {
 	assert.Equal(t, "", value)
 	assert.Contains(t, shellEnvFile(t, result, "erp-shell-1-0-0"), shell.EnvVarServedMembersConfig+`="[]"`)
 }
+
+
+// 多版本兼容：外壳承载 erp/a@1.0.0，另一个组件依赖的 erp/a@2.0.0 以普通组件独立部署。
+// 依赖 1.0.0 的拿到外壳地址，依赖 2.0.0 的拿到 2.0.0 自己的地址；外壳的 JSON 里只有 1.0.0；
+// 两个版本的迁移按版本号串行（同一个库，不能并发迁移）。
+func TestComposeHostsOneVersionAndRunsTheOtherStandalone(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})
+	b.component(withMigration(simple("erp/a", "1.0.0", 8081)), servedByEntry("erp/shell", "1.0.0"))
+	b.component(withMigration(simple("erp/a", "2.0.0", 8081)), projecttest.Entry{})
+	b.component(dependsOn(simple("erp/old", "1.0.0", 8090), "erp/a", "1.0.0"), projecttest.Entry{})
+	b.component(dependsOn(simple("erp/new", "1.0.0", 8091), "erp/a", "2.0.0"), projecttest.Entry{})
+
+	result := b.generate()
+	doc := docOf(t, result)
+	services := servicesOf(t, doc)
+	assert.NotContains(t, services, "erp-a-1-0-0")
+	assert.Contains(t, services, "erp-a-2-0-0", "2.0.0 独立部署")
+	assert.Equal(t, "http://erp-shell-1-0-0:8081", envOf(t, serviceOf(t, doc, "erp-old-1-0-0"))["ERP_A_ENDPOINT"])
+	assert.Equal(t, "http://erp-a-2-0-0:8081", envOf(t, serviceOf(t, doc, "erp-new-1-0-0"))["ERP_A_ENDPOINT"])
+
+	jsonText := shellEnvFile(t, result, "erp-shell-1-0-0")
+	assert.Contains(t, jsonText, `\"version\":\"1.0.0\"`)
+	assert.NotContains(t, jsonText, `\"version\":\"2.0.0\"`)
+
+	migration := serviceOf(t, doc, "erp-a-2-0-0-migration")
+	dependsOn, _ := migration["depends_on"].(map[string]any)
+	assert.Contains(t, dependsOn, "erp-a-1-0-0-migration", "2.0.0 的迁移等 1.0.0 的迁移先跑完")
+}

@@ -74,11 +74,20 @@ func Render(t testing.TB, spec Spec) Files {
 	if spec.Target == "" {
 		spec.Target = deployfile.TargetDocker
 	}
+	// 成员在项目里有多个版本时写 id@version（外壳承载的是哪一个），否则写裸 id
+	versionsOf := map[string]int{}
+	for _, e := range spec.Entries {
+		versionsOf[e.ID]++
+	}
 	members := map[string][]string{}
 	for _, e := range spec.Entries {
 		if e.ServedBy != "" {
 			shell := strings.SplitN(e.ServedBy, "@", 2)[0]
-			members[shell] = append(members[shell], e.ID)
+			member := e.ID
+			if versionsOf[e.ID] > 1 {
+				member = e.ID + "@" + e.Version
+			}
+			members[shell] = append(members[shell], member)
 		}
 	}
 

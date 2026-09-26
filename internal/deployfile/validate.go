@@ -221,24 +221,26 @@ func validateReplicas(p *clierr.ProblemSet, field string, c Component) {
 }
 
 func validateMembers(p *clierr.ProblemSet, field, ownID string, members []string) {
+	// 成员写组件 ID；成员在 brickkit.yaml 里有多个版本时写 id@精确版本，说明外壳里是哪一个
 	seen := map[string]bool{}
 	for i, member := range members {
 		memberField := yamlfile.Indexed(field+".members", i)
+		id, version, versioned := strings.Cut(member, "@")
 		switch {
 		case member == "":
 			p.Missing(memberField)
-		case strings.Contains(member, "@"):
-			p.Add(memberField, i18n.T(msgid.DeployfileMemberMustBeBareID, member))
-		case member == ownID:
+		case versioned && !manifest.IsExactVersion(version):
+			p.Add(memberField, i18n.T(msgid.DeployfileMemberBadVersion, member))
+		case id == ownID:
 			p.Add(memberField, i18n.T(msgid.DeployfileMemberSelf))
-		case seen[member]:
-			p.Add(memberField, i18n.T(msgid.DeployfileMemberDuplicate, member))
+		case seen[id]:
+			p.Add(memberField, i18n.T(msgid.DeployfileMemberDuplicate, id))
 		default:
-			if reason := manifest.ComponentIDProblem(member); reason != "" {
+			if reason := manifest.ComponentIDProblem(id); reason != "" {
 				p.Add(memberField, reason)
 			}
 		}
-		seen[member] = true
+		seen[id] = true
 	}
 }
 

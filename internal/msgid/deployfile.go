@@ -8,8 +8,8 @@ const (
 	DeployfileDebugOnlyLocal         = "deployfile.debug_only_local"
 	DeployfileModeInvalid            = "deployfile.mode_invalid"
 	DeployfileLocalPortNeedsMode     = "deployfile.local_port_needs_mode"
-	DeployfileMemberMustBeBareID     = "deployfile.member_must_be_bare_id"
 	DeployfileMemberSelf             = "deployfile.member_self"
 	DeployfileMemberDuplicate        = "deployfile.member_duplicate"
 	DeployfileFieldIgnoredForTarget  = "deployfile.field_ignored_for_target"
+	DeployfileMemberBadVersion       = "deployfile.member_bad_version"
 )

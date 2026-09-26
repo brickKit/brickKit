@@ -46,9 +46,11 @@ type Project struct {
 	// Warnings 是装载过程中不阻断的问题，由命令决定何时打印。
 	Warnings []*clierr.Error
 
-	configs      map[string]*configdir.File
-	shellOf      map[string]string
-	ignoreShells bool
+	configs map[string]*configdir.File
+	shellOf map[string]string
+	// memberVersion 是每个成员 ID 被外壳承载的那个版本；同 ID 的其他版本独立部署。
+	memberVersion map[string]string
+	ignoreShells  bool
 }
 
 // Load 装载 root 下的项目，并执行全部跨文件校验。任何一条不满足都大声失败。
@@ -180,9 +182,10 @@ func (p *Project) DeployEntry(id, version string) deployfile.Component {
 	return c
 }
 
-// ShellOf 返回某个成员所属的外壳。IgnoreShells 之后一律返回 false。
-func (p *Project) ShellOf(memberID string) (string, bool) {
-	if p.ignoreShells {
+// ShellOf 返回某个成员版本所属的外壳：只有被外壳承载的那个版本返回 true（同 ID 的其他版本
+// 独立部署）。IgnoreShells 之后一律返回 false。
+func (p *Project) ShellOf(memberID, version string) (string, bool) {
+	if p.ignoreShells || p.memberVersion[memberID] != version {
 		return "", false
 	}
 	shell, ok := p.shellOf[memberID]

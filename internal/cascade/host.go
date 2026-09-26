@@ -14,7 +14,7 @@ import (
 // ShellOf 返回 ref 在声明上属于哪个外壳：成员关系只看部署文件的 members（提案 §8.4），
 // 外壳在 brickkit.yaml 里只有一个版本（单版本约束，提案 §8.6）。与这次跑不跑、mode 无关。
 func ShellOf(p *project.Project, ref resolver.Ref) (resolver.Ref, bool) {
-	shellID, ok := p.ShellOf(ref.ID)
+	shellID, ok := p.ShellOf(ref.ID, ref.Version)
 	if !ok {
 		return resolver.Ref{}, false
 	}
