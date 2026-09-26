@@ -356,7 +356,6 @@ var zh = map[string]string{
 	msgid.ComposeHintRunMigrationByHand:                              "在本机手动执行该组件的迁移命令：%[1]s",
 	msgid.ComposeHintUseLocalDebugEnv:                                "环境变量用 local-debug.%[1]s.env 里的那一份",
 	msgid.ServedMigrationSkipped:                                     "提示：servedBy 组件的数据库迁移不会自动执行",
-	msgid.ComposeServedMigrationReasonDetail:                         "servedBy 的组件不生成容器，它的迁移容器也一并跳过",
 	msgid.HintShellCoversMigration:                                   "确保外壳 %[1]s 自己的启动逻辑覆盖了这个组件的迁移，并按各模块真实的依赖顺序执行",
 	msgid.HintMigrationCommand:                                       "迁移命令：%[1]s",
 	msgid.ServedByFallbackStandalone:                                 "提示：这个组件的外壳这次没跑，改成用自己的镜像独立部署，不再合并进外壳",

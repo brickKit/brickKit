@@ -43,7 +43,6 @@ const (
 
 // internal/compose/servedby.go
 const (
-	ComposeServedMigrationReasonDetail   = "compose.served_migration_reason_detail"
 	ComposeServedHealthCheckReasonDetail = "compose.served_health_check_reason_detail"
 	ComposeServedFieldsReasonDetail      = "compose.served_fields_reason_detail"
 )

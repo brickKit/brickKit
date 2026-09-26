@@ -184,6 +184,9 @@ type plan struct {
 	// served 是 servedBy 的组件：不生成自己的容器/迁移，但要走它专属的
 	// 几条提醒（见 servedby.go）。
 	served []servedComponent
+	// memberMigrations 是被外壳承载、又声明了 migration 的成员：它们没有主容器，
+	// 迁移却仍然单独跑，用成员自己的镜像与配置（提案 §8.1 规则 2、§8.9.4）。
+	memberMigrations []componentPlan
 	// shellAliases 是外壳的服务名 → 它要挂的额外网络别名（收编成员的
 	// 版本化服务名），供 componentService 渲染 networks 段。
 	shellAliases map[string][]string
@@ -268,6 +271,11 @@ func newPlan(
 				Ref: ref, Service: service, Manifest: node.Manifest,
 				Entry: entry, Shell: shellRef,
 			})
+			if node.Manifest != nil && node.Manifest.Migration != nil {
+				p.memberMigrations = append(p.memberMigrations, componentPlan{
+					Ref: ref, Service: service, Manifest: node.Manifest, Entry: entry, Env: envByRef[ref],
+				})
+			}
 			continue
 		}
 		p.components = append(p.components, componentPlan{
@@ -285,6 +293,7 @@ func newPlan(
 	sort.Slice(p.components, func(i, j int) bool { return p.components[i].Service < p.components[j].Service })
 	sort.Slice(p.locals, func(i, j int) bool { return p.locals[i].Service < p.locals[j].Service })
 	sort.Slice(p.served, func(i, j int) bool { return p.served[i].Service < p.served[j].Service })
+	sort.Slice(p.memberMigrations, func(i, j int) bool { return p.memberMigrations[i].Service < p.memberMigrations[j].Service })
 
 	p.chainMigrations()
 
@@ -309,7 +318,6 @@ func newPlan(
 	p.warnings = append(p.warnings, p.localExposeWarnings()...)
 	p.warnings = append(p.warnings, p.localLabelWarnings()...)
 	p.warnings = append(p.warnings, p.fallbackStandaloneWarnings()...)
-	p.warnings = append(p.warnings, p.servedMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.servedHealthCheckWarnings()...)
 	p.warnings = append(p.warnings, p.servedUnsupportedFieldWarnings()...)
 	return p, nil
@@ -345,7 +353,7 @@ func newPlan(
 func (p *plan) chainMigrations() {
 	// 按组件 ID 归集有迁移的版本
 	byID := map[string][]componentPlan{}
-	for _, c := range p.components {
+	for _, c := range append(append([]componentPlan{}, p.components...), p.memberMigrations...) {
 		if c.Manifest.Migration == nil {
 			continue
 		}
@@ -418,6 +426,9 @@ func (p *plan) services() map[string]any {
 		}
 		services[c.Service] = p.componentService(c)
 	}
+	for _, m := range p.memberMigrations {
+		services[migrationService(m.Service)] = p.migrationDoc(m)
+	}
 	return services
 }
 
@@ -484,6 +495,12 @@ func (p *plan) componentDependsOn(c componentPlan) map[string]any {
 	if c.Manifest.Migration != nil {
 		// 12.12：等迁移成功结束，而不是等它"起来了"
 		dependsOn[migrationService(c.Service)] = condition("service_completed_successfully")
+	}
+	// 外壳：它承载的成员的迁移也必须先成功结束——成员的代码在外壳进程里加载
+	for _, m := range p.memberMigrations {
+		if shellRef, ok := p.shellOf(m.Ref); ok && shellRef == c.Ref {
+			dependsOn[migrationService(m.Service)] = condition("service_completed_successfully")
+		}
 	}
 
 	node := p.graph.Node(c.Ref)

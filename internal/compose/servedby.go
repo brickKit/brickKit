@@ -84,28 +84,6 @@ func (p *plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
 	return resolver.Ref{}, false
 }
 
-// servedMigrationWarnings 提醒"servedBy 组件的迁移由外壳自己负责编排"
-// ——责任主体与 mode: debug 的对应警告（localMigrationWarnings）不同：
-// 那边是调试者本人要手动执行，这边是外壳作者的编排责任。
-func (p *plan) servedMigrationWarnings() []*clierr.Error {
-	var out []*clierr.Error
-	for _, s := range p.served {
-		if s.Manifest == nil || s.Manifest.Migration == nil {
-			continue
-		}
-		out = append(out, clierr.Warn(clierr.CodeMigrationSkipped,
-			i18n.T(msgid.ServedMigrationSkipped)).
-			WithDetail(i18n.T(msgid.LabelComponent), refText(s.Ref)).
-			WithDetail(i18n.T(msgid.LabelShell), refText(s.Shell)).
-			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeServedMigrationReasonDetail)).
-			WithHint(
-				i18n.T(msgid.HintShellCoversMigration, s.Shell.ID),
-				i18n.T(msgid.HintMigrationCommand, strings.Join(s.Manifest.Migration.Command, " ")),
-			))
-	}
-	return out
-}
-
 // fallbackStandaloneWarnings 提醒"这个组件本来声明了 servedBy，但这次它
 // 指向的外壳没跑，所以按自己的镜像独立部署了"——不说清楚的话，使用者
 // 会以为代码照常跑在外壳里，实际上跑的是它自己的镜像，而且它自己的迁移

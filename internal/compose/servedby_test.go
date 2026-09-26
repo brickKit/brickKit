@@ -14,6 +14,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
 	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/project/projecttest"
 	"github.com/brickkit/brickkit/internal/shell"
 )
@@ -51,8 +52,8 @@ func TestServedByComponentGeneratesNoContainer(t *testing.T) {
 		servedByEntry("infra/shell-go-core", "1.0.0"))
 
 	services := servicesOf(t, b.parsed())
-	assert.NotContains(t, services, "mdm-customer-1-0-7", "servedBy 组件不该有自己的 service")
-	assert.NotContains(t, services, "mdm-customer-1-0-7-migration", "也不该有自己的迁移 service")
+	assert.NotContains(t, services, "mdm-customer-1-0-7", "被承载的成员没有自己的主容器")
+	assert.Contains(t, services, "mdm-customer-1-0-7-migration", "迁移仍然单独跑（提案 §8.9.4）")
 	assert.Contains(t, services, "infra-shell-go-core-1-0-0", "外壳自己照常生成")
 }
 
@@ -132,26 +133,6 @@ func TestShellServedMembersIsEmptyStringWhenMemberNotRunning(t *testing.T) {
 }
 
 // ---- 迁移 / 健康检查 / 不支持字段的警告 ----
-
-func TestServedByMigrationWarns(t *testing.T) {
-	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
-	b.component(withMigration(simple("mdm/customer", "1.0.7", 8080)), servedByEntry("infra/shell-go-core", "1.0.0"))
-
-	result, err := b.build(compose.Options{})
-	require.NoError(t, err)
-	// 注意：simple() 默认带一个 HTTP 健康检查，所以这个组件同时触发
-	// 迁移警告与健康检查警告（两条各自独立，见 servedHealthCheckWarnings），
-	// 这里只断言迁移那一条存在，测健康检查警告的是 TestServedByHealthCheckWarns。
-	found := false
-	for _, w := range result.Warnings {
-		if w.Code == clierr.CodeMigrationSkipped {
-			found = true
-			assert.Contains(t, w.Format(), "Shell")
-		}
-	}
-	assert.True(t, found, "应该有一条关于迁移不会自动执行的警告：%+v", result.Warnings)
-}
 
 func TestServedByHealthCheckWarns(t *testing.T) {
 	b := newBuilder(t)
@@ -371,4 +352,72 @@ func TestShellWithoutLocalDependentsPublishesNoExtraPorts(t *testing.T) {
 	svc := serviceOf(t, b.parsed(), "infra-shell-go-core-1-0-0")
 
 	assert.Empty(t, portsOf(t, svc))
+}
+
+// 成员的迁移仍然单独跑，用的是成员自己的镜像与配置（提案 §8.1 规则 2、§8.9.4）：
+// 成员的迁移脚本与运行时在成员的镜像里，外壳镜像不保证有。外壳要等它成功结束才启动——
+// 成员的代码加载之前库结构就得就位。
+func TestHostedMemberMigrationUsesMemberImage(t *testing.T) {
+	member := withMigration(simple("mdm/customer", "1.0.7", 8080))
+	member.Migration.Command = []string{"/app/customer", "migrate"}
+	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"TOKEN": {Type: "string", Secret: true},
+	}}
+	entry := servedByEntry("infra/shell-go-core", "1.0.0")
+	entry.Config = map[string]any{"TOKEN": "sk-member"}
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
+	b.component(member, entry)
+
+	result := b.generate()
+	doc := b.parsed()
+	services := servicesOf(t, doc)
+	assert.NotContains(t, services, "mdm-customer-1-0-7", "成员没有自己的主容器")
+
+	migration := serviceOf(t, doc, "mdm-customer-1-0-7-migration")
+	assert.Equal(t, manifest.ImageRef(member), migration["image"])
+	assert.Equal(t, []any{"/app/customer"}, migration["entrypoint"])
+	assert.Equal(t, []any{"migrate"}, migration["command"])
+	assert.Equal(t, []any{map[string]any{"path": ".brickkit/generated/env/mdm-customer-1-0-7.env"}},
+		migration["env_file"], "成员的密钥按普通规则放进成员自己的 env 文件")
+
+	shellSvc := serviceOf(t, doc, "infra-shell-go-core-1-0-0")
+	dependsOn, _ := shellSvc["depends_on"].(map[string]any)
+	assert.Equal(t, map[string]any{"condition": "service_completed_successfully"},
+		dependsOn["mdm-customer-1-0-7-migration"])
+
+	var memberFile string
+	for _, f := range result.EnvFiles {
+		if f.Service == "mdm-customer-1-0-7" {
+			memberFile = string(f.Content)
+		}
+	}
+	assert.Contains(t, memberFile, `TOKEN="sk-member"`)
+	assert.NotContains(t, string(result.YAML), "sk-member")
+}
+
+// 外壳的 JSON 装着成员的密钥：写进外壳的 0600 env 文件（附录 A7），compose.yaml 里一个字都没有；
+// 字面量里的 $ 写成 $$，compose 读 env 文件时才不会把它当变量。
+func TestShellJSONGoesToEnvFile(t *testing.T) {
+	member := simple("mdm/customer", "1.0.7", 8080)
+	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"TOKEN": {Type: "string"},
+	}}
+	entry := servedByEntry("infra/shell-go-core", "1.0.0")
+	entry.Config = map[string]any{"TOKEN": "t$k"}
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
+	b.component(member, entry)
+
+	result := b.generate()
+	assert.NotContains(t, string(result.YAML), shell.EnvVarServedMembersConfig+"=")
+	assert.NotContains(t, string(result.YAML), "t$k")
+	var shellFile string
+	for _, f := range result.EnvFiles {
+		if f.Service == "infra-shell-go-core-1-0-0" {
+			shellFile = string(f.Content)
+		}
+	}
+	assert.Contains(t, shellFile, shell.EnvVarServedMembersConfig+`="[{\"componentId\":\"mdm/customer\"`)
+	assert.Contains(t, shellFile, `\"TOKEN\":\"t$$k\"`)
 }

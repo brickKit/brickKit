@@ -74,7 +74,7 @@ func envFileLine(name, value string, literal bool) string {
 // placeEnvironment 为每个要生成容器的服务算好 inline 与 env 文件两份内容。
 // 必须在外壳合并（applyShellGroups）之后跑：外壳的环境变量那时才齐。
 func (p *plan) placeEnvironment() error {
-	for _, c := range p.components {
+	for _, c := range append(append([]componentPlan{}, p.components...), p.memberMigrations...) {
 		var inline []string
 		var file strings.Builder
 		for _, v := range c.Env.Env {

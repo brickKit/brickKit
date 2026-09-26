@@ -361,7 +361,6 @@ var en = map[string]string{
 	msgid.ComposeHintRunMigrationByHand:                              "Run the component's migration command by hand on this machine: %[1]s",
 	msgid.ComposeHintUseLocalDebugEnv:                                "Use the environment variables from local-debug.%[1]s.env",
 	msgid.ServedMigrationSkipped:                                     "Note: a servedBy component's database migration won't run automatically",
-	msgid.ComposeServedMigrationReasonDetail:                         "A servedBy component generates no container, so its migration container is skipped too",
 	msgid.HintShellCoversMigration:                                   "Make sure shell %[1]s's own startup logic covers this component's migration and runs the modules in their real dependency order",
 	msgid.HintMigrationCommand:                                       "Migration command: %[1]s",
 	msgid.ServedByFallbackStandalone:                                 "Note: this component's shell isn't running this cycle, so it's deploying standalone from its own image instead of merging into the shell",
