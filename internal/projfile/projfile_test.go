@@ -32,6 +32,7 @@ components:
     version: 2.0.0
   - id: erp/backend
     version: 1.0.0
+    requiredBy: [third-party/payment]
   - id: third-party/payment
     version: 1.0.0
     source:
@@ -133,4 +134,42 @@ func TestParseFileRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, path, f.Source)
 	assert.True(t, f.RequireSignature())
+}
+
+// 同一个 ID 只有一行不带 requiredBy：那就是默认版本（外壳承载它、无版本号的配置文件归它）。
+func TestDefaultVersion(t *testing.T) {
+	f, err := projfile.Parse([]byte(valid), "brickkit.yaml")
+	require.NoError(t, err)
+	version, ok := f.DefaultVersion("erp/backend")
+	require.True(t, ok)
+	assert.Equal(t, "2.0.0", version)
+	assert.True(t, f.IsDefault("erp/backend", "2.0.0"))
+	assert.False(t, f.IsDefault("erp/backend", "1.0.0"), "因依赖而存在的版本不是默认版本")
+	assert.Equal(t, []string{"third-party/payment"}, f.Components[2].RequiredBy)
+	_, ok = f.DefaultVersion("ghost/thing")
+	assert.False(t, ok)
+}
+
+func TestValidateRequiredBy(t *testing.T) {
+	cases := map[string]struct {
+		yaml  string
+		field string
+	}{
+		"two defaults": {"project: p\ncomponents:\n  - {id: a/b, version: 1.0.0}\n  - {id: a/b, version: 2.0.0}\n", "components[1]"},
+		"no default": {"project: p\ncomponents:\n  - {id: c/d, version: 1.0.0}\n" +
+			"  - {id: a/b, version: 1.0.0, requiredBy: [c/d]}\n", "components[1]"},
+		"unknown dependent": {"project: p\ncomponents:\n  - {id: a/b, version: 2.0.0}\n" +
+			"  - {id: a/b, version: 1.0.0, requiredBy: [ghost/x]}\n", "components[1].requiredBy[0]"},
+		"self": {"project: p\ncomponents:\n  - {id: a/b, version: 2.0.0}\n" +
+			"  - {id: a/b, version: 1.0.0, requiredBy: [a/b]}\n", "components[1].requiredBy[0]"},
+		"shell": {"project: p\ncomponents:\n  - {id: c/d, version: 1.0.0}\n" +
+			"  - {id: a/s, version: 1.0.0, kind: shell, requiredBy: [c/d]}\n", "components[1].requiredBy"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := projfile.Parse([]byte(tc.yaml), "brickkit.yaml")
+			require.Error(t, err)
+			assert.Contains(t, fields(err), tc.field)
+		})
+	}
 }

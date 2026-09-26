@@ -55,6 +55,9 @@ type Component struct {
 	Version string           `yaml:"version" jsonschema:"pattern=^[0-9]+[.][0-9]+[.][0-9]+$"`
 	Kind    string           `yaml:"kind,omitempty" jsonschema:"enum=shell"`
 	Source  *ComponentSource `yaml:"source,omitempty"`
+	// RequiredBy 标出"这个版本只是因为这些组件依赖它才在项目里"（多版本兼容）。
+	// 同一个 ID 恰好有一行不写它，那一行就是默认版本（DefaultVersion）。
+	RequiredBy []string `yaml:"requiredBy,omitempty"`
 }
 
 // Ref 返回 <id>@<version>。
@@ -123,6 +126,23 @@ func (f *File) Versions(id string) []string {
 		out = append(out, c.Version)
 	}
 	return out
+}
+
+// DefaultVersion 返回某个 ID 的默认版本：不带 requiredBy 的那一行（校验保证恰好一行）。
+// 部署文件的裸 ID 条目、无版本号的配置文件、外壳承载的成员，指的都是它。
+func (f *File) DefaultVersion(id string) (string, bool) {
+	for _, c := range f.ComponentsByID(id) {
+		if len(c.RequiredBy) == 0 {
+			return c.Version, true
+		}
+	}
+	return "", false
+}
+
+// IsDefault 报告该版本是不是这个 ID 的默认版本。
+func (f *File) IsDefault(id, version string) bool {
+	v, ok := f.DefaultVersion(id)
+	return ok && v == version
 }
 
 // IDs 返回去重后的组件 ID，按首次出现的顺序。

@@ -19,6 +19,15 @@
               "null"
             ]
           },
+          "requiredBy": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "source": {
             "additionalProperties": false,
             "properties": {

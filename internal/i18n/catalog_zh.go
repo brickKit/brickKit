@@ -1315,4 +1315,9 @@ var zh = map[string]string{
 	msgid.ComposeOwnerHostMember:           "%[1]s（由裸进程外壳 %[2]s 承载）",
 	msgid.ComposeOwnerHostMemberExtra:      "%[1]s 的额外端口 %[3]s（由裸进程外壳 %[2]s 承载）",
 	msgid.CliStatusInShell:                 "%s（在外壳 %s 里）",
+	msgid.ProjfileRequiredByShell:          "外壳 %s 只有一个版本，不能写 requiredBy",
+	msgid.ProjfileRequiredBySelf:           "requiredBy 写了组件自己",
+	msgid.ProjfileRequiredByUnknown:        "requiredBy 里的 %s 不在 brickkit.yaml 里",
+	msgid.ProjfileDefaultTwice:             "%s 在 %s 已经有默认版本；为依赖而保留的另一个版本要写 requiredBy: [<依赖它的组件>]",
+	msgid.ProjfileDefaultMissing:           "%s 的每个版本都写了 requiredBy；必须恰好有一个版本（默认版本）不写",
 }

@@ -8,4 +8,9 @@ const (
 	ProjfileShellSingleVersion         = "projfile.shell_single_version"
 	ProjfileKindInconsistent           = "projfile.kind_inconsistent"
 	ProjfileComponentSourceTypeInvalid = "projfile.component_source_type_invalid"
+	ProjfileRequiredByShell            = "projfile.required_by_shell"
+	ProjfileRequiredBySelf             = "projfile.required_by_self"
+	ProjfileRequiredByUnknown          = "projfile.required_by_unknown"
+	ProjfileDefaultTwice               = "projfile.default_twice"
+	ProjfileDefaultMissing             = "projfile.default_missing"
 )

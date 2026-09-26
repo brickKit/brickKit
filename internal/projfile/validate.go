@@ -109,6 +109,50 @@ func (f *File) validateComponents(p *clierr.ProblemSet) {
 
 		validateComponentSource(p, field, c.Source)
 	}
+	f.validateDefaults(p)
+}
+
+// validateDefaults 核对默认版本：同一个 ID 恰好一行不带 requiredBy；requiredBy 点名的是
+// 项目里另一个组件；外壳只有一个版本，不存在"因依赖而存在"的外壳版本。
+func (f *File) validateDefaults(p *clierr.ProblemSet) {
+	declared := map[string]bool{}
+	for _, c := range f.Components {
+		declared[c.ID] = true
+	}
+	defaultAt := map[string]int{}
+	lastAt := map[string]int{}
+	for i, c := range f.Components {
+		if c.ID == "" {
+			continue
+		}
+		field := yamlfile.Indexed("components", i)
+		lastAt[c.ID] = i
+		if c.IsShell() && len(c.RequiredBy) > 0 {
+			p.Add(field+".requiredBy", i18n.T(msgid.ProjfileRequiredByShell, c.ID))
+			continue
+		}
+		for j, dependent := range c.RequiredBy {
+			switch {
+			case dependent == c.ID:
+				p.Add(yamlfile.Indexed(field+".requiredBy", j), i18n.T(msgid.ProjfileRequiredBySelf))
+			case !declared[dependent]:
+				p.Add(yamlfile.Indexed(field+".requiredBy", j), i18n.T(msgid.ProjfileRequiredByUnknown, dependent))
+			}
+		}
+		if len(c.RequiredBy) > 0 {
+			continue
+		}
+		if prev, ok := defaultAt[c.ID]; ok {
+			p.Add(field, i18n.T(msgid.ProjfileDefaultTwice, c.ID, yamlfile.Indexed("components", prev)))
+			continue
+		}
+		defaultAt[c.ID] = i
+	}
+	for _, id := range f.IDs() {
+		if _, ok := defaultAt[id]; !ok && id != "" {
+			p.Add(yamlfile.Indexed("components", lastAt[id]), i18n.T(msgid.ProjfileDefaultMissing, id))
+		}
+	}
 }
 
 func validateComponentSource(p *clierr.ProblemSet, field string, s *ComponentSource) {

@@ -1324,4 +1324,9 @@ var en = map[string]string{
 	msgid.ComposeOwnerHostMember:           "%[1]s, served by the bare-process shell %[2]s",
 	msgid.ComposeOwnerHostMemberExtra:      "%[1]s extra port %[3]s, served by the bare-process shell %[2]s",
 	msgid.CliStatusInShell:                 "%s (in shell %s)",
+	msgid.ProjfileRequiredByShell:          "shell %s has a single version; it cannot carry requiredBy",
+	msgid.ProjfileRequiredBySelf:           "requiredBy names the component itself",
+	msgid.ProjfileRequiredByUnknown:        "requiredBy names %s, which is not in brickkit.yaml",
+	msgid.ProjfileDefaultTwice:             "%s already has a default version at %s; a second version kept for a dependent needs requiredBy: [<the component that depends on it>]",
+	msgid.ProjfileDefaultMissing:           "every version of %s carries requiredBy; exactly one version (the default) must not",
 }
