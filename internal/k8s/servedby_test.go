@@ -72,7 +72,8 @@ func TestServedByServiceSelectsShellPod(t *testing.T) {
 
 // ---- 合并环境变量 + BRICKKIT_SERVED_MEMBERS ----
 
-func TestShellDeploymentGetsMergedEndpointsAndServedMembers(t *testing.T) {
+// 成员的依赖地址只经由 BRICKKIT_SERVED_MEMBERS_CONFIG 交给外壳，不摊进外壳自己的环境。
+func TestShellDeploymentGetsServedMembersButNotMemberEndpoints(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(dependsOn(simple("mdm/customer", "1.0.7", 8080), "infra/database", "1.0.0"),
@@ -80,7 +81,7 @@ func TestShellDeploymentGetsMergedEndpointsAndServedMembers(t *testing.T) {
 	b.component(simple("infra/database", "1.0.0", 5432), projecttest.Entry{})
 
 	env := envOf(t, b.container("infra-shell-go-core-1-0-0"))
-	assert.Equal(t, "http://infra-database-1-0-0:5432", env["INFRA_DATABASE_ENDPOINT"])
+	assert.NotContains(t, env, "INFRA_DATABASE_ENDPOINT")
 	assert.Equal(t, "mdm-customer-1-0-7", env[shell.EnvVarServedMembers])
 }
 
@@ -267,9 +268,9 @@ func TestServedByMemberSecretConfigStaysWithMemberSecret(t *testing.T) {
 	deployment := string(b.file("deployments/infra-shell-go-core-1-0-0.yaml").YAML)
 
 	assert.Equal(t, map[string]any{"secretKeyRef": map[string]any{
-		"name": "mdm-customer-1-0-7-config-secret", "key": "API_KEY",
-	}}, env["MDM_CUSTOMER_API_KEY"], "外壳里带前缀的变量指向成员自己的 Secret")
-	assert.Equal(t, "mdm-customer-1-0-7-config-secret", dig(t, secret, "metadata", "name"))
-	assert.Equal(t, "sk-customer", dig(t, secret, "stringData", "API_KEY"))
+		"name": "infra-shell-go-core-1-0-0-config-secret", "key": shell.EnvVarServedMembersConfig,
+	}}, env[shell.EnvVarServedMembersConfig], "成员的密钥装在外壳的 JSON 里，JSON 整体进外壳的 Secret")
+	assert.NotContains(t, env, "MDM_CUSTOMER_API_KEY", "不再有带前缀的成员变量")
+	assert.Contains(t, dig(t, secret, "stringData", shell.EnvVarServedMembersConfig), `"API_KEY":"sk-customer"`)
 	assert.NotContains(t, deployment, "sk-customer")
 }

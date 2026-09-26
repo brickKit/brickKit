@@ -29,15 +29,12 @@ func configSecretName(service string) string { return sanitizeName(service) + "-
 
 // secretRef 返回一条走 Secret 的变量在 K8s 里的位置：Secret 名 + key。
 //
-// existingSecret 直接指向外部系统建好的 Secret；其余进平台为它所属组件生成的那一份，
-// key 是原始配置键。外壳成员的变量名被加了组件 ID 前缀，但 Owner 仍是成员：
-// Secret 归成员，外壳的 Deployment 只是引用它。
+// existingSecret 直接指向外部系统建好的 Secret；其余进平台为它所属组件（Owner）生成的那一份，
+// key 是原始配置键。外壳的 BRICKKIT_SERVED_MEMBERS_CONFIG 归外壳自己。
 func secretRef(v inject.Var) (name, key string) {
 	if v.IsSecretRef() {
 		return v.Value.SecretName, v.Value.SecretKey
 	}
-	// key 用原始配置键：外壳成员的变量名被加了组件 ID 前缀，但它在成员自己那份 Secret 里
-	// 仍叫原来的名字——同一个 Secret 被成员独立部署与外壳收编两种形态共用
 	key = v.Key
 	if key == "" {
 		key = v.Name

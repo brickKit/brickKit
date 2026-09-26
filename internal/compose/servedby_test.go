@@ -105,7 +105,9 @@ func TestShellWithoutMembersUsesPlainNetworkList(t *testing.T) {
 
 // ---- 合并环境变量 + BRICKKIT_SERVED_MEMBERS ----
 
-func TestShellEnvGetsMergedEndpointsAndServedMembers(t *testing.T) {
+// 成员的依赖地址只经由 BRICKKIT_SERVED_MEMBERS_CONFIG 交给外壳（每个成员一份，天然隔离），
+// 不再摊进外壳自己的环境；外壳的环境里只多出 BRICKKIT_SERVED_MEMBERS。
+func TestShellEnvGetsServedMembersButNotMemberEndpoints(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(dependsOn(simple("mdm/customer", "1.0.7", 8080), "infra/database", "1.0.0"),
@@ -113,7 +115,7 @@ func TestShellEnvGetsMergedEndpointsAndServedMembers(t *testing.T) {
 	b.component(simple("infra/database", "1.0.0", 5432), projecttest.Entry{})
 
 	env := envOf(t, serviceOf(t, b.parsed(), "infra-shell-go-core-1-0-0"))
-	assert.Equal(t, "http://infra-database-1-0-0:5432", env["INFRA_DATABASE_ENDPOINT"])
+	assert.NotContains(t, env, "INFRA_DATABASE_ENDPOINT")
 	assert.Equal(t, "mdm-customer-1-0-7", env[shell.EnvVarServedMembers])
 }
 

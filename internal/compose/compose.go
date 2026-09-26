@@ -296,7 +296,7 @@ func newPlan(
 	}
 	p.rewriteEndpointsForLocalDependencies()
 
-	groups, err := shell.Resolve(proj, graph, states, env)
+	groups, err := shell.Resolve(proj, graph, states, env, opts.Lookup)
 	if err != nil {
 		return nil, err
 	}

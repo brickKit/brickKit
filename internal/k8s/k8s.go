@@ -360,7 +360,7 @@ func newPlan(
 	sort.Slice(p.components, func(i, j int) bool { return p.components[i].Service < p.components[j].Service })
 	sort.Slice(p.served, func(i, j int) bool { return p.served[i].Service < p.served[j].Service })
 
-	groups, err := shell.Resolve(proj, graph, states, env)
+	groups, err := shell.Resolve(proj, graph, states, env, opts.Lookup)
 	if err != nil {
 		return nil, err
 	}

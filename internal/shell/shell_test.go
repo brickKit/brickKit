@@ -63,7 +63,12 @@ type testComp struct {
 	Config                      map[string]any
 }
 
-type testCfg struct{ Components []testComp }
+type testCfg struct {
+	Components []testComp
+	// Env 是 ${VAR} 的取值来源；Files 是额外写进项目根的文件（file:// 指向的）。
+	Env   map[string]string
+	Files projecttest.Files
+}
 
 // projectFrom 把 testCfg 写成三层文件并装载。
 func projectFrom(t *testing.T, cfg *testCfg) *project.Project {
@@ -97,6 +102,9 @@ func projectFrom(t *testing.T, cfg *testCfg) *project.Project {
 			require.NoError(t, err)
 			files["config/"+configdir.FileName(c.ID, c.Version)] = string(data)
 		}
+	}
+	for name, content := range cfg.Files {
+		files[name] = content
 	}
 	files["brickkit.yaml"] = decl.String()
 	files["deploy.yaml"] = deploy.String()
@@ -148,7 +156,10 @@ func resolveRaw(t *testing.T, cfg *testCfg, manifests map[string]*manifest.Manif
 	env, err := inject.Build(p, graph, states)
 	require.NoError(t, err)
 
-	return shell.Resolve(p, graph, states, env)
+	return shell.Resolve(p, graph, states, env, func(name string) (string, bool) {
+		value, ok := cfg.Env[name]
+		return value, ok
+	})
 }
 
 func comp(id, version, servedBy string) testComp {
@@ -208,112 +219,13 @@ func TestResolveErrorsOnPortConflictWithinGroup(t *testing.T) {
 
 // ---- 环境变量合并：范围只收 *_ENDPOINT ----
 
-func TestResolveMergesOnlyEndpointVars(t *testing.T) {
-	cfg := &testCfg{Components: []testComp{
-		comp("infra/shell-go-core", "1.0.0", ""),
-		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
-		comp("infra/database", "1.0.0", ""),
-	}}
-	member := dependsOn(simple("mdm/customer", "1.0.7", 8080), "infra/database", "1.0.0")
-	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"PG_SCHEMA": {Type: "string", Default: "mdm_customer"},
-	}}
-
-	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
-		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
-		"mdm/customer@1.0.7":        member,
-		"infra/database@1.0.0":      simple("infra/database", "1.0.0", 5432),
-	})
-	require.NoError(t, err)
-	require.Len(t, groups, 1)
-
-	env := groups[0].Env
-	names := make([]string, 0, len(env))
-	for _, v := range env {
-		names = append(names, v.Name)
-	}
-	assert.Contains(t, names, "INFRA_DATABASE_ENDPOINT", "依赖端点必须被合并")
-	assert.NotContains(t, names, "PG_SCHEMA", "组件自己的配置绝不能进合并范围")
-	assert.NotContains(t, names, "COMPONENT_ID", "身份变量绝不能进合并范围")
-	assert.NotContains(t, names, "COMPONENT_VERSION")
-}
-
 // ---- 环境变量合并：成员自己的 config 值改走带组件 ID 前缀的独立变量
 // （brickKit 反馈：servedBy 的密钥类 config 值会被 docker-compose 撑坏
 // JSON——密钥类 config 值必须继续走 "${VAR} 占位符 + docker compose
 // 自己展开" 这条已证明安全的老路，不能被塞进 BRICKKIT_SERVED_MEMBERS_CONFIG
 // 的 JSON 字符串内部，那样会被 docker compose 的全文本替换撑坏结构）----
 
-func TestResolveMergesMemberConfigAsNamespacedVars(t *testing.T) {
-	cfg := &testCfg{Components: []testComp{
-		comp("infra/shell-go-core", "1.0.0", ""),
-		{ID: "erp/sales", Version: "1.0.0", ServedBy: "infra/shell-go-core@1.0.0",
-			Config: map[string]any{"PG_SCHEMA": "sales"}},
-	}}
-	member := simple("erp/sales", "1.0.0", 8080)
-	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"PG_SCHEMA": {Type: "string", Default: "public"},
-	}}
-
-	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
-		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
-		"erp/sales@1.0.0":           member,
-	})
-	require.NoError(t, err)
-	require.Len(t, groups, 1)
-
-	byName := map[string]string{}
-	for _, v := range groups[0].Env {
-		byName[v.Name] = v.Value.String()
-	}
-	assert.Equal(t, "sales", byName["ERP_SALES_PG_SCHEMA"],
-		"成员自己的 config 值要各自生成一条带组件 ID 前缀的独立变量，进外壳共享环境——"+
-			"跟 *_ENDPOINT 用同一个前缀算法（manifest.EnvPrefix）")
-}
-
 // ---- 环境变量合并：同名同值放过，同名不同值报错 ----
-
-func TestResolveEndpointCollisionSameValueIsFine(t *testing.T) {
-	cfg := &testCfg{Components: []testComp{
-		comp("infra/shell-go-core", "1.0.0", ""),
-		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
-		comp("erp/sales", "1.0.0", "infra/shell-go-core@1.0.0"),
-		comp("infra/database", "1.0.0", ""),
-	}}
-	a := dependsOn(simple("mdm/customer", "1.0.7", 8080), "infra/database", "1.0.0")
-	b := dependsOn(simple("erp/sales", "1.0.0", 8081), "infra/database", "1.0.0")
-
-	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
-		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
-		"mdm/customer@1.0.7":        a,
-		"erp/sales@1.0.0":           b,
-		"infra/database@1.0.0":      simple("infra/database", "1.0.0", 5432),
-	})
-	require.NoError(t, err, "两个成员依赖同一个组件的同一个版本，端点值相同，不该报冲突")
-	require.Len(t, groups, 1)
-}
-
-func TestResolveEndpointCollisionDifferentVersionErrors(t *testing.T) {
-	cfg := &testCfg{Components: []testComp{
-		comp("infra/shell-go-core", "1.0.0", ""),
-		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
-		comp("erp/sales", "1.0.0", "infra/shell-go-core@1.0.0"),
-		comp("infra/database", "1.0.0", ""),
-		comp("infra/database", "2.0.0", ""),
-	}}
-	a := dependsOn(simple("mdm/customer", "1.0.7", 8080), "infra/database", "1.0.0")
-	b := dependsOn(simple("erp/sales", "1.0.0", 8081), "infra/database", "2.0.0")
-
-	_, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
-		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
-		"mdm/customer@1.0.7":        a,
-		"erp/sales@1.0.0":           b,
-		"infra/database@1.0.0":      simple("infra/database", "1.0.0", 5432),
-		"infra/database@2.0.0":      simple("infra/database", "2.0.0", 5432),
-	})
-	require.Error(t, err, "同一个变量名不可能同时指向两个不同版本的地址")
-	assert.Contains(t, err.Error(), "INFRA_DATABASE_ENDPOINT")
-}
 
 // ---- labels：成员自己的不参与合并，只有外壳自己的算数 ----
 //
@@ -382,131 +294,12 @@ func TestServedMembersEmptyWhenNoMembers(t *testing.T) {
 		"零个成员时是空字符串——这个空字符串本身就是信号，不是变量缺失")
 }
 
-func TestApplyUpsertsEndpointsAndServedMembers(t *testing.T) {
-	shellEnv := []inject.Var{
-		{Name: "COMPONENT_ID", Value: inject.Literal("infra/shell-go-core"), Source: inject.SourcePlatform},
-	}
-	g := shell.Group{
-		Members: []shell.Member{{Ref: resolver.Ref{ID: "mdm/customer", Version: "1.0.7"}}},
-		Env:     []inject.Var{{Name: "INFRA_DATABASE_ENDPOINT", Value: inject.Literal("http://infra-database-1-0-0:5432"), Source: inject.SourceEndpoint}},
-	}
-
-	out := shell.Apply(shellEnv, g)
-
-	byName := map[string]string{}
-	for _, v := range out {
-		byName[v.Name] = v.Value.String()
-	}
-	assert.Equal(t, "infra/shell-go-core", byName["COMPONENT_ID"], "外壳自己的变量不受影响")
-	assert.Equal(t, "http://infra-database-1-0-0:5432", byName["INFRA_DATABASE_ENDPOINT"])
-	assert.Equal(t, "mdm-customer-1-0-7", byName[shell.EnvVarServedMembers])
-}
-
 // ---- BRICKKIT_SERVED_MEMBERS_CONFIG（brickKit 反馈：两个降低 servedBy
 // 运维摩擦的架构提案，提案一）----
-
-// Resolve 要把每个成员的 extraPorts 与合并后的自身 config（原始 key）
-// 一并存进 Member，供 ServedMembersConfig 使用——这份数据在 inject.Build
-// 阶段已经算好，Resolve 只是把它顺路捎带上，不重新计算。
-func TestResolvePopulatesMemberExtraPortsAndConfig(t *testing.T) {
-	cfg := &testCfg{Components: []testComp{
-		comp("infra/shell-go-core", "1.0.0", ""),
-		{ID: "erp/sales", Version: "1.0.0", ServedBy: "infra/shell-go-core@1.0.0",
-			Config: map[string]any{"PG_SCHEMA": "sales"}},
-	}}
-	member := simple("erp/sales", "1.0.0", 8080)
-	member.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9090}}
-	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"PG_SCHEMA":       {Type: "string", Default: "public"},
-		"defaultPageSize": {Type: "integer", Default: 20},
-	}}
-
-	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
-		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
-		"erp/sales@1.0.0":           member,
-	})
-	require.NoError(t, err)
-	require.Len(t, groups, 1)
-	require.Len(t, groups[0].Members, 1)
-
-	m := groups[0].Members[0]
-	assert.Equal(t, []manifest.ExtraPort{{Name: "grpc", Port: 9090}}, m.ExtraPorts)
-	assert.Equal(t, map[string]string{"PG_SCHEMA": "sales", "defaultPageSize": "20"}, m.Config,
-		"覆盖值（pgSchema）与默认值（defaultPageSize）都要进来，原始 key 不是转换后的环境变量名")
-}
-
-func TestServedMembersConfigFormatting(t *testing.T) {
-	g := shell.Group{Members: []shell.Member{
-		{
-			Ref: resolver.Ref{ID: "erp/sales", Version: "1.0.0"}, Port: 8080,
-			ExtraPorts: []manifest.ExtraPort{{Name: "grpc", Port: 9090}},
-			Config:     map[string]string{"PG_SCHEMA": "sales"},
-		},
-		{
-			Ref: resolver.Ref{ID: "mdm/customer", Version: "1.0.7"}, Port: 8081,
-			Config: map[string]string{"PG_SCHEMA": "customer"},
-		},
-	}}
-
-	var entries []map[string]any
-	require.NoError(t, json.Unmarshal([]byte(g.ServedMembersConfig()), &entries))
-	require.Len(t, entries, 2, "按 componentId 字典序排列")
-
-	assert.Equal(t, "erp/sales", entries[0]["componentId"])
-	assert.Equal(t, "1.0.0", entries[0]["version"])
-	assert.Equal(t, float64(8080), entries[0]["httpPort"])
-	assert.Equal(t, []any{map[string]any{"name": "grpc", "port": float64(9090)}}, entries[0]["extraPorts"])
-	assert.Equal(t, map[string]any{"PG_SCHEMA": "ERP_SALES_PG_SCHEMA"}, entries[0]["configEnvVars"],
-		"携带的是算出来的变量名，不是原始值——外壳去读那条独立变量，不从 JSON 里抠值")
-
-	assert.Equal(t, "mdm/customer", entries[1]["componentId"])
-	assert.Equal(t, map[string]any{"PG_SCHEMA": "MDM_CUSTOMER_PG_SCHEMA"}, entries[1]["configEnvVars"])
-}
-
-// 直接的回归测试：就算某个成员的 config 值本身还是未展开的 ${VAR} 占位符
-// （brickkit up 那个进程查不到这个环境变量、只在 .env 里有时，就会是这个
-// 样子——见 config.ExpandEnv），BRICKKIT_SERVED_MEMBERS_CONFIG 的 JSON 里
-// 也不该出现这段文本——这正是撑坏 JSON 那个 bug 的根源。
-func TestServedMembersConfigNeverEmbedsRawPlaceholderText(t *testing.T) {
-	g := shell.Group{Members: []shell.Member{
-		{
-			Ref: resolver.Ref{ID: "infra/iam-casdoor", Version: "1.0.0"}, Port: 8080,
-			Config: map[string]string{"APP_TOKEN_SIGNING_KEY_PEM": "${APP_TOKEN_SIGNING_KEY_PEM}"},
-		},
-	}}
-
-	out := g.ServedMembersConfig()
-
-	assert.NotContains(t, out, "${",
-		"值本身是不是 ${VAR} 占位符不该影响 JSON 是否合法——JSON 里现在只装变量名")
-
-	var entries []map[string]any
-	require.NoError(t, json.Unmarshal([]byte(out), &entries))
-	configEnvVars, ok := entries[0]["configEnvVars"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "INFRA_IAM_CASDOOR_APP_TOKEN_SIGNING_KEY_PEM", configEnvVars["APP_TOKEN_SIGNING_KEY_PEM"])
-}
 
 func TestServedMembersConfigEmptyWhenNoMembers(t *testing.T) {
 	assert.Equal(t, "[]", shell.Group{}.ServedMembersConfig(),
 		"零个成员时是空数组，不是 null——外壳读到它必须知道'确实是零个'，跟 ServedMembers 空字符串同一个精神")
-}
-
-func TestApplyUpsertsServedMembersConfig(t *testing.T) {
-	g := shell.Group{Members: []shell.Member{
-		{Ref: resolver.Ref{ID: "mdm/customer", Version: "1.0.7"}, Port: 8080, Config: map[string]string{"PG_SCHEMA": "customer"}},
-	}}
-
-	out := shell.Apply(nil, g)
-
-	byName := map[string]string{}
-	for _, v := range out {
-		byName[v.Name] = v.Value.String()
-	}
-	var entries []map[string]any
-	require.NoError(t, json.Unmarshal([]byte(byName[shell.EnvVarServedMembersConfig]), &entries))
-	require.Len(t, entries, 1)
-	assert.Equal(t, "mdm/customer", entries[0]["componentId"])
 }
 
 // ---- 同一个外壳收编同一个组件的两个不同版本（版本迁移期间的真实用法：
@@ -529,4 +322,107 @@ func TestResolveBareProcessMemberStaysOutOfShell(t *testing.T) {
 	for _, g := range groups {
 		assert.Empty(t, g.Members, "裸进程成员这次不在外壳里")
 	}
+}
+
+// ---- BRICKKIT_SERVED_MEMBERS_CONFIG：CLI 提前求值的 JSON（提案 §8.2、§8.3 场景 A）----
+
+const memberPEM = "-----BEGIN KEY-----\nab$c\"d\\e\n-----END KEY-----\n"
+
+// 每个成员在 JSON 里拿到的，就是它独立运行时会拿到的那份环境（配置 + 依赖地址），
+// 值已经求好：file:// 读了文件、${VAR} 展开了、依赖地址是真实地址。
+// 成员的配置不再以带前缀的变量摊进外壳的环境。
+func TestServedMembersConfigCarriesEvaluatedValues(t *testing.T) {
+	cfg := &testCfg{
+		Components: []testComp{
+			comp("erp/shell", "1.0.0", ""),
+			{ID: "erp/a", Version: "1.0.0", ServedBy: "erp/shell@1.0.0", Config: map[string]any{
+				"CERT": "file://secrets/a.pem", "TOKEN": "${A_TOKEN}", "MODE": "strict",
+			}},
+			comp("erp/db", "1.0.0", ""),
+		},
+		Env:   map[string]string{"A_TOKEN": "t$k"},
+		Files: projecttest.Files{"secrets/a.pem": memberPEM},
+	}
+	a := dependsOn(simple("erp/a", "1.0.0", 8081), "erp/db", "1.0.0")
+	a.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9091}}
+	a.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"CERT": {Type: "string", Secret: true}, "TOKEN": {Type: "string"}, "MODE": {Type: "string"},
+		"PAGE": {Type: "integer", Default: 20},
+	}}
+	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
+		"erp/shell@1.0.0": simple("erp/shell", "1.0.0", 8080),
+		"erp/a@1.0.0":     a,
+		"erp/db@1.0.0":    simple("erp/db", "1.0.0", 5432),
+	})
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+
+	var entries []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(groups[0].ServedMembersConfig()), &entries))
+	require.Len(t, entries, 1)
+	assert.Equal(t, "erp/a", entries[0]["componentId"])
+	assert.Equal(t, "1.0.0", entries[0]["version"])
+	assert.Equal(t, float64(8081), entries[0]["httpPort"])
+	assert.Equal(t, []any{map[string]any{"name": "grpc", "port": float64(9091)}}, entries[0]["extraPorts"])
+	assert.Equal(t, map[string]any{
+		"CERT": memberPEM, "TOKEN": "t$k", "MODE": "strict", "PAGE": "20",
+		"ERP_DB_ENDPOINT": "http://erp-db-1-0-0:5432",
+	}, entries[0]["config"])
+
+	out := shell.Apply(nil, groups[0])
+	byName := map[string]inject.Var{}
+	for _, v := range out {
+		byName[v.Name] = v
+	}
+	json := byName[shell.EnvVarServedMembersConfig]
+	assert.True(t, json.Secret, "JSON 里装着成员的密钥：按密钥放置（Docker 进 0600 env 文件，K8s 进 Secret，附录 A7）")
+	assert.Equal(t, shell.EnvVarServedMembersConfig, json.Key)
+	assert.Equal(t, "erp-a-1-0-0", byName[shell.EnvVarServedMembers].Value.Text)
+	for name := range byName {
+		assert.NotContains(t, name, "ERP_A_", "成员配置不再以带前缀的变量摊进外壳环境")
+	}
+}
+
+// ${VAR} 取不到：大声失败，点名成员、配置项与变量——绝不能把字面的 ${VAR} 塞进 JSON。
+func TestResolveMemberTemplateUnresolved(t *testing.T) {
+	a := simple("erp/a", "1.0.0", 8081)
+	a.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"TOKEN": {Type: "string"}}}
+	_, err := resolveFixture(t, &testCfg{Components: []testComp{
+		comp("erp/shell", "1.0.0", ""),
+		{ID: "erp/a", Version: "1.0.0", ServedBy: "erp/shell@1.0.0", Config: map[string]any{"TOKEN": "${MISSING_TOKEN}"}},
+	}}, map[string]*manifest.Manifest{"erp/shell@1.0.0": simple("erp/shell", "1.0.0", 8080), "erp/a@1.0.0": a})
+	require.Error(t, err)
+	for _, want := range []string{"erp/a", "TOKEN", "MISSING_TOKEN"} {
+		assert.Contains(t, err.Error(), want)
+	}
+}
+
+// existingSecret 引用的是集群里别人建的 Secret，CLI 读不到值，而外壳的 JSON 需要值。
+func TestResolveMemberExistingSecretRejected(t *testing.T) {
+	a := simple("erp/a", "1.0.0", 8081)
+	a.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"TOKEN": {Type: "string", Secret: true}}}
+	_, err := resolveFixture(t, &testCfg{Components: []testComp{
+		comp("erp/shell", "1.0.0", ""),
+		{ID: "erp/a", Version: "1.0.0", ServedBy: "erp/shell@1.0.0",
+			Config: map[string]any{"TOKEN": map[string]any{"existingSecret": "vault", "key": "token"}}},
+	}}, map[string]*manifest.Manifest{"erp/shell@1.0.0": simple("erp/shell", "1.0.0", 8080), "erp/a@1.0.0": a})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "existingSecret")
+	assert.Contains(t, err.Error(), "erp/a")
+}
+
+// 不是合法 UTF-8 的值编不进 JSON 而不改字节：大声失败，而不是悄悄换成替换字符。
+func TestResolveMemberInvalidUTF8Rejected(t *testing.T) {
+	a := simple("erp/a", "1.0.0", 8081)
+	a.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"BLOB": {Type: "string"}}}
+	_, err := resolveFixture(t, &testCfg{
+		Components: []testComp{
+			comp("erp/shell", "1.0.0", ""),
+			{ID: "erp/a", Version: "1.0.0", ServedBy: "erp/shell@1.0.0", Config: map[string]any{"BLOB": "file://blob.bin"}},
+		},
+		Files: projecttest.Files{"blob.bin": "ok\xff\xfe"},
+	}, map[string]*manifest.Manifest{"erp/shell@1.0.0": simple("erp/shell", "1.0.0", 8080), "erp/a@1.0.0": a})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "BLOB")
+	assert.Contains(t, err.Error(), "UTF-8")
 }
