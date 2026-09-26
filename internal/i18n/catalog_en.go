@@ -1595,4 +1595,7 @@ var en = map[string]string{
 	msgid.ManifestBuildPathEscapes:        "%[1]q must be a path inside the component repository",
 	msgid.ManifestShellMembersEmpty:       "a shell must list at least one component it can host",
 	msgid.ManifestScaffoldBuildComment:    "built locally with brickkit build (up never builds); add image: <registry>/<name> once you publish a prebuilt image",
+	msgid.ConfigdirFileRefMissing:         "Error: %[1]s points at a file that cannot be read",
+	msgid.ConfigdirHintFileRef:            "file:// paths are relative to the project root; keep such files out of Git (e.g. under .secrets/)",
+	msgid.ConfigdirCannotEvaluate:         "internal error: %[1]s cannot be evaluated to a value here",
 }

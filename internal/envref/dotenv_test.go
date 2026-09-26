@@ -7,7 +7,7 @@
 // 跑出来对照过的——TestParseDotEnvMatchesDockerCompose 就是那份对照本身，
 // 没装 docker 时跳过，但下面每一条独立单测覆盖的都是被那次对照验证过的行为，
 // 平时跑 go test 不需要 docker 也能测到。
-package cli
+package envref
 
 import (
 	"os"
@@ -22,22 +22,22 @@ import (
 )
 
 func TestParseDotEnvSkipsBlankLinesAndComments(t *testing.T) {
-	got := parseDotEnv("\n# 整行注释\n   # 前面有空白的注释\nKEY=value\n")
+	got := ParseDotEnv("\n# 整行注释\n   # 前面有空白的注释\nKEY=value\n")
 	assert.Equal(t, map[string]string{"KEY": "value"}, got)
 }
 
 func TestParseDotEnvSupportsExportPrefix(t *testing.T) {
-	got := parseDotEnv("export KEY=value\n")
+	got := ParseDotEnv("export KEY=value\n")
 	assert.Equal(t, "value", got["KEY"])
 }
 
 func TestParseDotEnvTrimsSpaceAroundEquals(t *testing.T) {
-	got := parseDotEnv("SPACED_KEY = trimmed\n")
+	got := ParseDotEnv("SPACED_KEY = trimmed\n")
 	assert.Equal(t, "trimmed", got["SPACED_KEY"])
 }
 
 func TestParseDotEnvIgnoresLineWithoutEquals(t *testing.T) {
-	got := parseDotEnv("NOEQ_LINE\nKEY=value\n")
+	got := ParseDotEnv("NOEQ_LINE\nKEY=value\n")
 	_, exists := got["NOEQ_LINE"]
 	assert.False(t, exists)
 	assert.Equal(t, "value", got["KEY"])
@@ -45,18 +45,18 @@ func TestParseDotEnvIgnoresLineWithoutEquals(t *testing.T) {
 
 // 核心回归用例：多行双引号值必须完整读出来，这正是原始反馈的复现场景。
 func TestParseDotEnvDoubleQuotedValueSpansMultipleLines(t *testing.T) {
-	got := parseDotEnv("PEM=\"-----BEGIN PRIVATE KEY-----\nMIIBVQ\n-----END PRIVATE KEY-----\"\n")
+	got := ParseDotEnv("PEM=\"-----BEGIN PRIVATE KEY-----\nMIIBVQ\n-----END PRIVATE KEY-----\"\n")
 	assert.Equal(t, "-----BEGIN PRIVATE KEY-----\nMIIBVQ\n-----END PRIVATE KEY-----", got["PEM"])
 }
 
 // 单引号同样要能跨行，且不处理任何转义（原样保留）。
 func TestParseDotEnvSingleQuotedValueSpansMultipleLinesLiterally(t *testing.T) {
-	got := parseDotEnv("CATALOG='crm.opportunity.edit|编辑商机\n第二行'\n")
+	got := ParseDotEnv("CATALOG='crm.opportunity.edit|编辑商机\n第二行'\n")
 	assert.Equal(t, "crm.opportunity.edit|编辑商机\n第二行", got["CATALOG"])
 }
 
 func TestParseDotEnvDoubleQuotedEscapes(t *testing.T) {
-	got := parseDotEnv(`A="a\nb"` + "\n" +
+	got := ParseDotEnv(`A="a\nb"` + "\n" +
 		`B="a\tb"` + "\n" +
 		`C="a\\b"` + "\n" +
 		`D="has \"escaped\" quote"` + "\n")
@@ -67,30 +67,30 @@ func TestParseDotEnvDoubleQuotedEscapes(t *testing.T) {
 }
 
 func TestParseDotEnvSingleQuotedValueKeepsBackslashLiteral(t *testing.T) {
-	got := parseDotEnv(`E='single with \n literal backslash n'` + "\n")
+	got := ParseDotEnv(`E='single with \n literal backslash n'` + "\n")
 	assert.Equal(t, `single with \n literal backslash n`, got["E"])
 }
 
 // 空白紧跟 # 才算行内注释；# 前面不是空白就是值的一部分。
 func TestParseDotEnvUnquotedInlineComment(t *testing.T) {
-	got := parseDotEnv("B=plain # not a comment for unquoted? test\nC=val#hash\n")
+	got := ParseDotEnv("B=plain # not a comment for unquoted? test\nC=val#hash\n")
 	assert.Equal(t, "plain", got["B"])
 	assert.Equal(t, "val#hash", got["C"])
 }
 
 func TestParseDotEnvUnquotedValueTrimsSurroundingWhitespace(t *testing.T) {
-	got := parseDotEnv("F=   spaced   \n")
+	got := ParseDotEnv("F=   spaced   \n")
 	assert.Equal(t, "spaced", got["F"])
 }
 
 func TestParseDotEnvQuotedValueKeepsSurroundingWhitespace(t *testing.T) {
-	got := parseDotEnv(`G="  keeps spaces  "` + "\n")
+	got := ParseDotEnv(`G="  keeps spaces  "` + "\n")
 	assert.Equal(t, "  keeps spaces  ", got["G"])
 }
 
 // 闭引号之后同一行剩下的内容原样丢弃，不拼接进值里，也不报错。
 func TestParseDotEnvDiscardsTrailingJunkAfterClosingQuote(t *testing.T) {
-	got := parseDotEnv(`D="quoted"junk` + "\n")
+	got := ParseDotEnv(`D="quoted"junk` + "\n")
 	assert.Equal(t, "quoted", got["D"])
 }
 
@@ -112,7 +112,7 @@ func TestParseDotEnvMatchesDockerCompose(t *testing.T) {
 		"B=plain # not a comment for unquoted? test\n" +
 		"C=val#hash\n"
 
-	got := parseDotEnv(dotenv)
+	got := ParseDotEnv(dotenv)
 
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte(dotenv), 0o600))

@@ -30,4 +30,7 @@ const (
 	ConfigdirSecretRefMalformed     = "configdir.secret_ref_malformed"
 	ConfigdirConflictHintEditMarked = "configdir.conflict_hint_edit_marked"
 	ConfigdirConflictHintEditPlain  = "configdir.conflict_hint_edit_plain"
+	ConfigdirFileRefMissing         = "configdir.file_ref_missing"
+	ConfigdirHintFileRef            = "configdir.hint_file_ref"
+	ConfigdirCannotEvaluate         = "configdir.cannot_evaluate"
 )

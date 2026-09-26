@@ -1582,4 +1582,7 @@ var zh = map[string]string{
 	msgid.ManifestBuildPathEscapes:        "%[1]q 必须是组件仓库里的相对路径",
 	msgid.ManifestShellMembersEmpty:       "外壳至少要列出一个它能承载的组件",
 	msgid.ManifestScaffoldBuildComment:    "用 brickkit build 本地构建（up 从不自动构建）；发布了预构建镜像后再加 image: <仓库>/<名称>",
+	msgid.ConfigdirFileRefMissing:         "错误：%[1]s 指向的文件读不到",
+	msgid.ConfigdirHintFileRef:            "file:// 的路径相对项目根；这类文件不要进 Git（比如放在 .secrets/ 下）",
+	msgid.ConfigdirCannotEvaluate:         "内部错误：%[1]s 在这里不能被求值",
 }
