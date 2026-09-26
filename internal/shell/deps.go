@@ -135,8 +135,11 @@ func Workloads(p *project.Project, graph *resolver.Graph, states *cascade.Result
 		if node == nil {
 			continue
 		}
-		requires, optional := WaitFor(p, graph, states, ref), node.Optional
+		// 普通组件保留 Manifest 里的声明顺序（启动顺序与最长链的并列项按它排），只滤掉 skipWaitFor；
+		// 外壳的依赖是合并出来的，用 WaitFor
+		requires, optional := withoutSkipped(node.Requires, p.DeployEntry(ref.ID, ref.Version).SkipWaitFor), node.Optional
 		if p.Decl.IsShellID(ref.ID) {
+			requires = WaitFor(p, graph, states, ref)
 			_, optional = Dependencies(p, graph, states, ref)
 		}
 		nodes = append(nodes, &resolver.Node{
@@ -266,6 +269,24 @@ func findCycle(g *resolver.Graph) []resolver.Ref {
 		}
 	}
 	return nil
+}
+
+// withoutSkipped 去掉 skip 里点名的组件 ID，保留原有顺序。
+func withoutSkipped(refs []resolver.Ref, skip []string) []resolver.Ref {
+	if len(skip) == 0 {
+		return refs
+	}
+	skipped := map[string]bool{}
+	for _, id := range skip {
+		skipped[id] = true
+	}
+	var out []resolver.Ref
+	for _, ref := range refs {
+		if !skipped[ref.ID] {
+			out = append(out, ref)
+		}
+	}
+	return out
 }
 
 func containsRef(refs []resolver.Ref, ref resolver.Ref) bool {
