@@ -3896,6 +3896,7 @@ func TestLoadDeploySelection(t *testing.T) {
 	assert.Equal(t, project.DeployLocal, p.DeploySource)
 	assert.Equal(t, "podman", p.Deploy.Target)
 	assert.Equal(t, "debug", p.DeployEntry("erp/backend", "2.0.0").Mode)
+	// erp/backend 是 erp/shell 的成员：成员必须可以设 debug / local（附录 A18），装载不得拒绝
 
 	p, err = project.Load(root, project.LoadOptions{NoLocal: true})
 	require.NoError(t, err)
