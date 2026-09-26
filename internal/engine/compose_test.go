@@ -541,3 +541,17 @@ func TestUpWithOnlyOneShotsSkipsUp(t *testing.T) {
 	require.Len(t, rec.calls, 1)
 	assert.Contains(t, strings.Join(rec.calls[0], " "), "run --rm --no-deps")
 }
+
+// 没有要启动的容器、但要清理孤儿：上一次的容器全停掉（down 不带 -v，数据卷保留），再跑一次性 service。
+func TestUpWithOnlyOneShotsStopsOldContainers(t *testing.T) {
+	rec := newRecorder()
+	require.NoError(t, dockerWith(rec).Up(context.Background(), UpRequest{
+		File: "f.yaml", Project: "brickkit-my-erp", PruneSelector: "brickkit.io/project=my-erp",
+		RunAfter: []string{"erp-a-1-0-0-migration"},
+	}))
+	require.Len(t, rec.calls, 2)
+	first := strings.Join(rec.calls[0], " ")
+	assert.Contains(t, first, "down --remove-orphans")
+	assert.NotContains(t, first, "-v")
+	assert.Contains(t, strings.Join(rec.calls[1], " "), "run --rm --no-deps")
+}

@@ -52,7 +52,14 @@ func (c *Compose) Name() string { return c.name }
 //
 // RunAfter 里的一次性 service 在 up 之后逐个跑，见 UpRequest.RunAfter。
 func (c *Compose) Up(ctx context.Context, req UpRequest) error {
-	// 空 Services 在 up 里意味着"全部"：这次只有一次性 service 要跑（例如全部组件都在宿主机上）时不 up
+	// 空 Services 在 up 里意味着"全部"：这次只有一次性 service 要跑（例如全部组件都在宿主机上）时不 up。
+	// 这次一个容器都不起，上一次的容器就全是孤儿：要清理时整个 down 掉（不带 -v，数据卷保留）
+	if len(req.Services) == 0 && len(req.RunAfter) > 0 && req.PruneSelector != "" {
+		down := append(append([]string{}, c.base...), "-p", req.Project, "down", "--remove-orphans")
+		if _, err := c.exec(ctx, down...); err != nil {
+			return err
+		}
+	}
 	if len(req.Services) > 0 || len(req.RunAfter) == 0 {
 		args := append(c.projectArgs(req.File, req.Project, req.ProjectDir), "up", "-d", "--wait")
 		if req.PruneSelector != "" {

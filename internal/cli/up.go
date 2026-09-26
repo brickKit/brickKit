@@ -138,6 +138,9 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		return upK8s(ctx, opts, flags, plan)
 	}
 
+	if err := pruneOtherTarget(plan.proj.Layout, false); err != nil {
+		return err
+	}
 	path, err := writeGenerated(plan.proj.Layout, plan.generated.YAML)
 	if err != nil {
 		return err
@@ -170,6 +173,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		// 而且一个纯 mode: local 的项目本不该被要求装 Docker（手动验证 Task 6
 		// Step 5 时用真实 docker 跑出来的：demo/hello 单组件、mode: local，
 		// 之前这里会直接报 ENGINE_FAILED，明明这个项目一个容器都不需要）。
+		stopPreviousContainers(ctx, opts, plan)
 		return runLocalComponents(ctx, opts, plan.proj.Layout, plan.localComponents, plan.crashLines)
 	}
 
@@ -783,10 +787,16 @@ func writeGenerated(layout project.Layout, content []byte) (string, error) {
 // "会启动"的输出自相矛盾（手动验证 Task 6 Step 5 时发现）。
 func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.LocalEnvFile) error {
 	debugFiles := make([]compose.LocalEnvFile, 0, len(files))
+	keep := map[string]bool{}
 	for _, file := range files {
 		if file.Mode == deployfile.ModeDebug {
 			debugFiles = append(debugFiles, file)
+			keep[file.Name] = true
 		}
+	}
+	// 这次不再是 mode: debug 的组件：它上一次的调试文件（可能带着密钥）不能继续躺在磁盘上
+	if err := removeLocalEnvFiles(layout, keep); err != nil {
+		return err
 	}
 	if len(debugFiles) == 0 {
 		return nil
@@ -808,6 +818,54 @@ func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.Lo
 		opts.Printf("%s\n", i18n.T(msgid.CliUpVsCodeSetEnvfileWorkspacefolder, relative))
 	}
 	return nil
+}
+
+// localEnvPattern 匹配 mode: debug 组件的调试环境变量文件（compose.LocalEnvFile.Name）。
+const localEnvPattern = "local-debug.*.env"
+
+// removeLocalEnvFiles 删掉 keep 之外的调试环境变量文件。
+func removeLocalEnvFiles(layout project.Layout, keep map[string]bool) error {
+	matches, err := filepath.Glob(filepath.Join(layout.GeneratedDir(), localEnvPattern))
+	if err != nil {
+		return err
+	}
+	for _, path := range matches {
+		if !keep[filepath.Base(path)] {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// pruneOtherTarget 删掉另一种部署目标上一次留下的生成物：生成目录只属于这一次的目标。
+// 从 docker 切到 k8s 时，0600 的 env 文件与调试文件里有密钥与 file:// 的内容（附录 A7）；
+// 从 k8s 切回来时，k8s/secrets/ 里有明文的 Secret 清单。换了目标还留着它们，
+// 就是一份没人再用、也没人记得去删的密钥副本。
+func pruneOtherTarget(layout project.Layout, k8sTarget bool) error {
+	if !k8sTarget {
+		return os.RemoveAll(filepath.Join(layout.GeneratedDir(), k8sDirName))
+	}
+	if err := os.RemoveAll(filepath.Join(layout.Root, filepath.FromSlash(compose.EnvFileDir))); err != nil {
+		return err
+	}
+	return removeLocalEnvFiles(layout, nil)
+}
+
+// stopPreviousContainers 在这次一个容器都不需要时（组件全在宿主机上），停掉本项目上一次留下的
+// 容器：它们可能还占着端口，而宿主机上的进程马上要绑同样的端口。down 不删数据卷。
+//
+// 取不到引擎（没装 Docker）或者引擎报错（守护进程没起）都不拦：那样的机器上本来就不会有
+// 这个项目在跑的容器——一个纯宿主机的项目不该被要求装 Docker。
+func stopPreviousContainers(ctx context.Context, opts *Options, plan *upPlan) {
+	eng, err := resolveEngineFor(opts, plan.proj)
+	if err != nil {
+		return
+	}
+	_ = eng.Down(ctx, engine.DownRequest{
+		Project: engine.ProjectName(plan.proj.Decl.Project), Selector: projectSelector(plan.proj),
+	})
 }
 
 // writeEnvFiles 以 0600 写出密钥与 file:// 内容的 env 文件（附录 A7），并删掉这次

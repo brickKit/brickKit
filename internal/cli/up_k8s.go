@@ -28,6 +28,9 @@ const k8sDirName = "k8s"
 
 // upK8s 生成 K8s 清单并交给集群。
 func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) error {
+	if err := pruneOtherTarget(plan.proj.Layout, true); err != nil {
+		return err
+	}
 	dir := filepath.Join(plan.proj.Layout.GeneratedDir(), k8sDirName)
 	if err := k8s.WriteFiles(dir, plan.k8s.Files); err != nil {
 		return err
