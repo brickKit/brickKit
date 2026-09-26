@@ -46,8 +46,9 @@ type Project struct {
 	// Warnings 是装载过程中不阻断的问题，由命令决定何时打印。
 	Warnings []*clierr.Error
 
-	configs map[string]*configdir.File
-	shellOf map[string]string
+	configs      map[string]*configdir.File
+	shellOf      map[string]string
+	ignoreShells bool
 }
 
 // Load 装载 root 下的项目，并执行全部跨文件校验。任何一条不满足都大声失败。
@@ -131,11 +132,18 @@ func (p *Project) DeployEntry(id, version string) deployfile.Component {
 	return c
 }
 
-// ShellOf 返回某个成员所属的外壳。
+// ShellOf 返回某个成员所属的外壳。IgnoreShells 之后一律返回 false。
 func (p *Project) ShellOf(memberID string) (string, bool) {
+	if p.ignoreShells {
+		return "", false
+	}
 	shell, ok := p.shellOf[memberID]
 	return shell, ok
 }
+
+// IgnoreShells 让本次运行把每个组件都当独立部署（--ignore-served-by）：只改内存，
+// 不动任何文件；下游只通过 ShellOf 认成员关系，关掉这一处就够。
+func (p *Project) IgnoreShells() { p.ignoreShells = true }
 
 // ConfigInput 组装 configdir.Resolve 的输入；schema 来自组件 Manifest（装载器不读 Manifest）。
 func (p *Project) ConfigInput(id, version string, schema *manifest.ConfigSchema) configdir.Input {

@@ -19,11 +19,13 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/configdir"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -81,7 +83,7 @@ type Member struct {
 // 两个渲染器（compose / k8s）在判断"该不该警告 labels 本次不生效"时都调
 // 这一个函数，不各写一份——判据必须与"这些 labels 不参与合并"（mergeGroup
 // 的注释）是同一件事的两面。
-func MemberLabels(m *manifest.Manifest, entry config.Component) map[string]string {
+func MemberLabels(m *manifest.Manifest, entry deployfile.Component) map[string]string {
 	var manifestLabels map[string]string
 	if m != nil {
 		manifestLabels = m.Deployment.Labels
@@ -151,7 +153,7 @@ func (g Group) ServedMembersConfig() string {
 		prefix := manifest.EnvPrefix(m.Ref.ID)
 		configEnvVars := make(map[string]string, len(m.Config))
 		for key := range m.Config {
-			configEnvVars[key] = prefix + "_" + inject.EnvVarName(key)
+			configEnvVars[key] = prefix + "_" + key
 		}
 		entries = append(entries, servedMemberConfigEntry{
 			ComponentID: m.Ref.ID, Version: m.Ref.Version, HTTPPort: m.Port,
@@ -182,10 +184,10 @@ func Apply(shellEnv []inject.Var, g Group) []inject.Var {
 		byName[v.Name] = v
 	}
 	byName[EnvVarServedMembers] = inject.Var{
-		Name: EnvVarServedMembers, Value: g.ServedMembers(), Source: SourceServed,
+		Name: EnvVarServedMembers, Value: inject.Literal(g.ServedMembers()), Source: SourceServed,
 	}
 	byName[EnvVarServedMembersConfig] = inject.Var{
-		Name: EnvVarServedMembersConfig, Value: g.ServedMembersConfig(), Source: SourceServed,
+		Name: EnvVarServedMembersConfig, Value: inject.Literal(g.ServedMembersConfig()), Source: SourceServed,
 	}
 
 	out := make([]inject.Var, 0, len(byName))
@@ -196,18 +198,6 @@ func Apply(shellEnv []inject.Var, g Group) []inject.Var {
 	return out
 }
 
-// ParseRef 把 "id@version" 拆成 Ref。config.Validate 已经保证一个非空
-// 的 servedBy 字符串必然是合法的 id@version（internal/config/validate.go
-// 的 validateServedBy），但 ParseRef 本身不做这个假设，格式不对就返回
-// false——调用方（Resolve、两个渲染器）据此决定要不要继续处理。
-func ParseRef(raw string) (resolver.Ref, bool) {
-	id, version, found := strings.Cut(raw, "@")
-	if !found || id == "" || version == "" {
-		return resolver.Ref{}, false
-	}
-	return resolver.Ref{ID: id, Version: version}, true
-}
-
 // Resolve 计算本次生成里全部的外壳分组。
 //
 // 出错即返回（不是一次性收集全部问题）：与本包同类的其它生成期校验
@@ -215,15 +205,10 @@ func ParseRef(raw string) (resolver.Ref, bool) {
 // k8s.localNotSupported）都是这个约定——使用者改一处、重新 up、再看下
 // 一个问题，跟本项目"生成器只报第一个问题"的既有习惯保持一致。
 func Resolve(
-	cfg *config.Config, graph *resolver.Graph, states *cascade.Result, env *inject.Result,
+	p *project.Project, graph *resolver.Graph, states *cascade.Result, env *inject.Result,
 ) ([]Group, error) {
-	if cfg == nil || graph == nil || states == nil || env == nil {
+	if p == nil || graph == nil || states == nil || env == nil {
 		return nil, nil
-	}
-
-	entries := make(map[resolver.Ref]config.Component, len(cfg.Components))
-	for _, c := range cfg.Components {
-		entries[resolver.Ref{ID: c.ID, Version: c.Version}] = c
 	}
 	envByRef := make(map[resolver.Ref]inject.Component, len(env.Components))
 	for _, c := range env.Components {
@@ -234,13 +219,9 @@ func Resolve(
 	var order []resolver.Ref
 
 	for _, ref := range states.Running() {
-		entry := entries[ref]
-		if entry.ServedBy == "" {
-			continue
-		}
-		target, ok := ParseRef(entry.ServedBy)
+		target, ok := ShellRef(p, ref)
 		if !ok {
-			continue // config.Validate 已经挡过格式问题，这里只做防御
+			continue
 		}
 
 		targetNode := graph.Node(target)
@@ -286,6 +267,26 @@ func Resolve(
 	return groups, nil
 }
 
+// ShellRef 返回 ref 这次该由哪个外壳承载：成员关系只看部署文件的 members（提案 §8.4），
+// 外壳在 brickkit.yaml 里只有一个版本（单版本约束）。
+//
+// 以裸进程运行的成员（mode: debug / local，附录 A18）这次不进外壳——它自己在宿主机上跑；
+// 完整语义在 P3 设计。
+func ShellRef(p *project.Project, ref resolver.Ref) (resolver.Ref, bool) {
+	shellID, ok := p.ShellOf(ref.ID)
+	if !ok {
+		return resolver.Ref{}, false
+	}
+	if p.DeployEntry(ref.ID, ref.Version).IsBareProcess() {
+		return resolver.Ref{}, false
+	}
+	versions := p.Decl.Versions(shellID)
+	if len(versions) != 1 {
+		return resolver.Ref{}, false
+	}
+	return resolver.Ref{ID: shellID, Version: versions[0]}, true
+}
+
 // memberConfig 从一个成员已经算好的注入结果里，挑出 SourceConfig/
 // SourceOverride 这两类变量，还原成"原始 key → 值"，供
 // BRICKKIT_SERVED_MEMBERS_CONFIG 使用。不重新跑一遍 addConfig 那套合并
@@ -294,8 +295,8 @@ func Resolve(
 func memberConfig(env inject.Component) map[string]string {
 	cfg := map[string]string{}
 	for _, v := range env.Env {
-		if v.Source == inject.SourceConfig || v.Source == inject.SourceOverride {
-			cfg[v.Key] = v.Value
+		if v.Source == inject.SourceConfig {
+			cfg[v.Key] = v.Value.String()
 		}
 	}
 	return cfg
@@ -363,7 +364,7 @@ func mergeGroup(
 	shellRef resolver.Ref, shellComponent inject.Component, members []Member,
 	envByRef map[resolver.Ref]inject.Component,
 ) ([]inject.Var, *clierr.Error) {
-	envValues := map[string]string{}
+	envValues := map[string]configdir.Value{}
 	envVars := map[string]inject.Var{}
 	envOwner := map[string]resolver.Ref{}
 	for _, v := range shellComponent.Env {
@@ -385,12 +386,12 @@ func mergeGroup(
 					if existing == v.Value {
 						continue
 					}
-					return nil, endpointCollisionError(shellRef, envOwner[v.Name], m.Ref, v.Name, existing, v.Value)
+					return nil, endpointCollisionError(shellRef, envOwner[v.Name], m.Ref, v.Name, existing.String(), v.Value.String())
 				}
 				envValues[v.Name] = v.Value
 				envVars[v.Name] = v
 				envOwner[v.Name] = m.Ref
-			case inject.SourceConfig, inject.SourceOverride:
+			case inject.SourceConfig:
 				// 每个成员自己的 config 值各自生成一条带组件 ID 前缀的
 				// 独立变量（跟 *_ENDPOINT 用同一个前缀算法），${VAR} 占位符
 				// 语义完全不变，交给 docker compose 自己展开——不摊平进
@@ -403,7 +404,7 @@ func mergeGroup(
 					if existing == v.Value {
 						continue
 					}
-					return nil, configVarCollisionError(shellRef, envOwner[name], m.Ref, name, existing, v.Value)
+					return nil, configVarCollisionError(shellRef, envOwner[name], m.Ref, name, existing.String(), v.Value.String())
 				}
 				v.Name = name
 				envValues[name] = v.Value

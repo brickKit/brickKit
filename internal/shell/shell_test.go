@@ -6,15 +6,21 @@ package shell_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/cascade"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/configdir"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
 )
@@ -50,11 +56,63 @@ func dependsOn(m *manifest.Manifest, id, version string) *manifest.Manifest {
 	return m
 }
 
+// testComp / testCfg 是测试里描述项目的简写：ServedBy 写成员视角的 "外壳@版本"，
+// projectFrom 把它翻译成真实的三层文件（外壳标 kind: shell，外壳条目写 members）。
+type testComp struct {
+	ID, Version, ServedBy, Mode string
+	Config                      map[string]any
+}
+
+type testCfg struct{ Components []testComp }
+
+// projectFrom 把 testCfg 写成三层文件并装载。
+func projectFrom(t *testing.T, cfg *testCfg) *project.Project {
+	t.Helper()
+	shells := map[string][]string{}
+	for _, c := range cfg.Components {
+		if c.ServedBy != "" {
+			id := strings.SplitN(c.ServedBy, "@", 2)[0]
+			shells[id] = append(shells[id], c.ID)
+		}
+	}
+	var decl, deploy strings.Builder
+	decl.WriteString("project: p\ncomponents:\n")
+	deploy.WriteString("target: docker\ncomponents:\n")
+	files := projecttest.Files{}
+	for _, c := range cfg.Components {
+		kind := ""
+		if _, isShell := shells[c.ID]; isShell {
+			kind = ", kind: shell"
+		}
+		fmt.Fprintf(&decl, "  - {id: %s, version: %s%s}\n", c.ID, c.Version, kind)
+		fmt.Fprintf(&deploy, "  - id: %s@%s\n", c.ID, c.Version)
+		if c.Mode != "" {
+			fmt.Fprintf(&deploy, "    mode: %s\n", c.Mode)
+		}
+		if members := shells[c.ID]; len(members) > 0 {
+			fmt.Fprintf(&deploy, "    members: [%s]\n", strings.Join(members, ", "))
+		}
+		if len(c.Config) > 0 {
+			data, err := yaml.Marshal(c.Config)
+			require.NoError(t, err)
+			files["config/"+configdir.FileName(c.ID, c.Version)] = string(data)
+		}
+	}
+	files["brickkit.yaml"] = decl.String()
+	files["deploy.yaml"] = deploy.String()
+	root := t.TempDir()
+	projecttest.Write(t, root, files)
+	p, err := project.Load(root, project.LoadOptions{})
+	require.NoError(t, err)
+	return p
+}
+
 // resolveFixture 跑完整条链路（解析依赖图 → 级联 → 注入 → shell.Resolve），
 // 供每个用例只关心自己要断言的那一小段。
-func resolveFixture(t *testing.T, cfg *config.Config, manifests map[string]*manifest.Manifest) ([]shell.Group, error) {
+func resolveFixture(t *testing.T, cfg *testCfg, manifests map[string]*manifest.Manifest) ([]shell.Group, error) {
 	t.Helper()
 
+	p := projectFrom(t, cfg)
 	provider := stubProvider(manifests)
 	var roots []resolver.Ref
 	for _, c := range cfg.Components {
@@ -64,23 +122,23 @@ func resolveFixture(t *testing.T, cfg *config.Config, manifests map[string]*mani
 	graph, err := resolver.New(provider).Resolve(context.Background(), roots...)
 	require.NoError(t, err)
 
-	states, err := cascade.Compute(cfg, graph)
+	states, err := cascade.Compute(p, graph)
 	require.NoError(t, err)
 
-	env, err := inject.Build(cfg, graph, states)
+	env, err := inject.Build(p, graph, states)
 	require.NoError(t, err)
 
-	return shell.Resolve(cfg, graph, states, env)
+	return shell.Resolve(p, graph, states, env)
 }
 
-func comp(id, version, servedBy string) config.Component {
-	return config.Component{ID: id, Version: version, ServedBy: servedBy}
+func comp(id, version, servedBy string) testComp {
+	return testComp{ID: id, Version: version, ServedBy: servedBy}
 }
 
 // ---- 基本分组 ----
 
 func TestResolveGroupsMemberUnderItsShell(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+	cfg := &testCfg{Components: []testComp{
 		comp("infra/shell-go-core", "1.0.0", ""),
 		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
 	}}
@@ -98,20 +156,9 @@ func TestResolveGroupsMemberUnderItsShell(t *testing.T) {
 
 // ---- 存在性 / 运行态 ----
 
-func TestResolveErrorsWhenShellDoesNotExist(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
-		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
-	}}
-	_, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
-		"mdm/customer@1.0.7": simple("mdm/customer", "1.0.7", 8080),
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "does not exist")
-}
-
 func TestResolveSkipsMemberWhenShellIsDisabled(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
-		{ID: "infra/shell-go-core", Version: "1.0.0", Mode: config.ModeDisable},
+	cfg := &testCfg{Components: []testComp{
+		{ID: "infra/shell-go-core", Version: "1.0.0", Mode: deployfile.ModeDisable},
 		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
 	}}
 	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
@@ -125,7 +172,7 @@ func TestResolveSkipsMemberWhenShellIsDisabled(t *testing.T) {
 // ---- 端口冲突 ----
 
 func TestResolveErrorsOnPortConflictWithinGroup(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+	cfg := &testCfg{Components: []testComp{
 		comp("infra/shell-go-core", "1.0.0", ""),
 		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
 		comp("erp/sales", "1.0.0", "infra/shell-go-core@1.0.0"),
@@ -142,14 +189,14 @@ func TestResolveErrorsOnPortConflictWithinGroup(t *testing.T) {
 // ---- 环境变量合并：范围只收 *_ENDPOINT ----
 
 func TestResolveMergesOnlyEndpointVars(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+	cfg := &testCfg{Components: []testComp{
 		comp("infra/shell-go-core", "1.0.0", ""),
 		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
 		comp("infra/database", "1.0.0", ""),
 	}}
 	member := dependsOn(simple("mdm/customer", "1.0.7", 8080), "infra/database", "1.0.0")
 	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"pgSchema": {Type: "string", Default: "mdm_customer"},
+		"PG_SCHEMA": {Type: "string", Default: "mdm_customer"},
 	}}
 
 	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
@@ -178,14 +225,14 @@ func TestResolveMergesOnlyEndpointVars(t *testing.T) {
 // 的 JSON 字符串内部，那样会被 docker compose 的全文本替换撑坏结构）----
 
 func TestResolveMergesMemberConfigAsNamespacedVars(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+	cfg := &testCfg{Components: []testComp{
 		comp("infra/shell-go-core", "1.0.0", ""),
 		{ID: "erp/sales", Version: "1.0.0", ServedBy: "infra/shell-go-core@1.0.0",
-			Config: map[string]any{"pgSchema": "sales"}},
+			Config: map[string]any{"PG_SCHEMA": "sales"}},
 	}}
 	member := simple("erp/sales", "1.0.0", 8080)
 	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"pgSchema": {Type: "string", Default: "public"},
+		"PG_SCHEMA": {Type: "string", Default: "public"},
 	}}
 
 	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
@@ -197,7 +244,7 @@ func TestResolveMergesMemberConfigAsNamespacedVars(t *testing.T) {
 
 	byName := map[string]string{}
 	for _, v := range groups[0].Env {
-		byName[v.Name] = v.Value
+		byName[v.Name] = v.Value.String()
 	}
 	assert.Equal(t, "sales", byName["ERP_SALES_PG_SCHEMA"],
 		"成员自己的 config 值要各自生成一条带组件 ID 前缀的独立变量，进外壳共享环境——"+
@@ -207,7 +254,7 @@ func TestResolveMergesMemberConfigAsNamespacedVars(t *testing.T) {
 // ---- 环境变量合并：同名同值放过，同名不同值报错 ----
 
 func TestResolveEndpointCollisionSameValueIsFine(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+	cfg := &testCfg{Components: []testComp{
 		comp("infra/shell-go-core", "1.0.0", ""),
 		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
 		comp("erp/sales", "1.0.0", "infra/shell-go-core@1.0.0"),
@@ -227,7 +274,7 @@ func TestResolveEndpointCollisionSameValueIsFine(t *testing.T) {
 }
 
 func TestResolveEndpointCollisionDifferentVersionErrors(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+	cfg := &testCfg{Components: []testComp{
 		comp("infra/shell-go-core", "1.0.0", ""),
 		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
 		comp("erp/sales", "1.0.0", "infra/shell-go-core@1.0.0"),
@@ -248,56 +295,6 @@ func TestResolveEndpointCollisionDifferentVersionErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "INFRA_DATABASE_ENDPOINT")
 }
 
-// 同一个外壳收编同一组件的两个版本（TestResolveGroupsTwoVersionsOfSameComponentUnderOneShell
-// 已证明是合法用法），这一项 config 值恰好相同时不该报冲突——跟 *_ENDPOINT 的
-// "同名同值放过" 是同一条规则。
-func TestResolveConfigVarCollisionSameValueIsFine(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
-		comp("infra/shell-go-core", "1.0.0", ""),
-		{ID: "mdm/customer", Version: "1.0.7", ServedBy: "infra/shell-go-core@1.0.0",
-			Config: map[string]any{"pgSchema": "customer"}},
-		{ID: "mdm/customer", Version: "2.0.0", ServedBy: "infra/shell-go-core@1.0.0",
-			Config: map[string]any{"pgSchema": "customer"}},
-	}}
-	v1 := simple("mdm/customer", "1.0.7", 8080)
-	v1.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"pgSchema": {Type: "string"}}}
-	v2 := simple("mdm/customer", "2.0.0", 8081)
-	v2.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"pgSchema": {Type: "string"}}}
-
-	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
-		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
-		"mdm/customer@1.0.7":        v1,
-		"mdm/customer@2.0.0":        v2,
-	})
-	require.NoError(t, err, "两个版本这一项 config 值相同，不该报冲突")
-	require.Len(t, groups, 1)
-}
-
-// 同一个外壳收编同一组件的两个版本，这一项 config 值不同时必须报错并点名双方——
-// 这条变量名不含版本号（跟 *_ENDPOINT 一致），两个不同版本给出不同值时，
-// 同一个变量名不可能同时代表两个值。
-func TestResolveConfigVarCollisionDifferentValueErrors(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
-		comp("infra/shell-go-core", "1.0.0", ""),
-		{ID: "mdm/customer", Version: "1.0.7", ServedBy: "infra/shell-go-core@1.0.0",
-			Config: map[string]any{"pgSchema": "customer_v1"}},
-		{ID: "mdm/customer", Version: "2.0.0", ServedBy: "infra/shell-go-core@1.0.0",
-			Config: map[string]any{"pgSchema": "customer_v2"}},
-	}}
-	v1 := simple("mdm/customer", "1.0.7", 8080)
-	v1.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"pgSchema": {Type: "string"}}}
-	v2 := simple("mdm/customer", "2.0.0", 8081)
-	v2.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{"pgSchema": {Type: "string"}}}
-
-	_, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
-		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
-		"mdm/customer@1.0.7":        v1,
-		"mdm/customer@2.0.0":        v2,
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "MDM_CUSTOMER_PG_SCHEMA")
-}
-
 // ---- labels：成员自己的不参与合并，只有外壳自己的算数 ----
 //
 // 从前这里测的是"同名同值放过，同名不同值报错"——跟 env 变量同一套规则。
@@ -308,7 +305,7 @@ func TestResolveConfigVarCollisionDifferentValueErrors(t *testing.T) {
 // 值相同不再意味着会被合并进 Group，值不同也不再报错。
 
 func TestResolveMemberLabelsAreNotMerged(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+	cfg := &testCfg{Components: []testComp{
 		comp("infra/shell-go-core", "1.0.0", ""),
 		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
 		comp("erp/sales", "1.0.0", "infra/shell-go-core@1.0.0"),
@@ -331,7 +328,7 @@ func TestResolveMemberLabelsAreNotMerged(t *testing.T) {
 }
 
 func TestResolveMemberLabelsDifferingDoesNotError(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+	cfg := &testCfg{Components: []testComp{
 		comp("infra/shell-go-core", "1.0.0", ""),
 		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
 		comp("erp/sales", "1.0.0", "infra/shell-go-core@1.0.0"),
@@ -367,18 +364,18 @@ func TestServedMembersEmptyWhenNoMembers(t *testing.T) {
 
 func TestApplyUpsertsEndpointsAndServedMembers(t *testing.T) {
 	shellEnv := []inject.Var{
-		{Name: "COMPONENT_ID", Value: "infra/shell-go-core", Source: inject.SourcePlatform},
+		{Name: "COMPONENT_ID", Value: inject.Literal("infra/shell-go-core"), Source: inject.SourcePlatform},
 	}
 	g := shell.Group{
 		Members: []shell.Member{{Ref: resolver.Ref{ID: "mdm/customer", Version: "1.0.7"}}},
-		Env:     []inject.Var{{Name: "INFRA_DATABASE_ENDPOINT", Value: "http://infra-database-1-0-0:5432", Source: inject.SourceEndpoint}},
+		Env:     []inject.Var{{Name: "INFRA_DATABASE_ENDPOINT", Value: inject.Literal("http://infra-database-1-0-0:5432"), Source: inject.SourceEndpoint}},
 	}
 
 	out := shell.Apply(shellEnv, g)
 
 	byName := map[string]string{}
 	for _, v := range out {
-		byName[v.Name] = v.Value
+		byName[v.Name] = v.Value.String()
 	}
 	assert.Equal(t, "infra/shell-go-core", byName["COMPONENT_ID"], "外壳自己的变量不受影响")
 	assert.Equal(t, "http://infra-database-1-0-0:5432", byName["INFRA_DATABASE_ENDPOINT"])
@@ -392,15 +389,15 @@ func TestApplyUpsertsEndpointsAndServedMembers(t *testing.T) {
 // 一并存进 Member，供 ServedMembersConfig 使用——这份数据在 inject.Build
 // 阶段已经算好，Resolve 只是把它顺路捎带上，不重新计算。
 func TestResolvePopulatesMemberExtraPortsAndConfig(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
+	cfg := &testCfg{Components: []testComp{
 		comp("infra/shell-go-core", "1.0.0", ""),
 		{ID: "erp/sales", Version: "1.0.0", ServedBy: "infra/shell-go-core@1.0.0",
-			Config: map[string]any{"pgSchema": "sales"}},
+			Config: map[string]any{"PG_SCHEMA": "sales"}},
 	}}
 	member := simple("erp/sales", "1.0.0", 8080)
 	member.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9090}}
 	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"pgSchema":        {Type: "string", Default: "public"},
+		"PG_SCHEMA":       {Type: "string", Default: "public"},
 		"defaultPageSize": {Type: "integer", Default: 20},
 	}}
 
@@ -414,7 +411,7 @@ func TestResolvePopulatesMemberExtraPortsAndConfig(t *testing.T) {
 
 	m := groups[0].Members[0]
 	assert.Equal(t, []manifest.ExtraPort{{Name: "grpc", Port: 9090}}, m.ExtraPorts)
-	assert.Equal(t, map[string]string{"pgSchema": "sales", "defaultPageSize": "20"}, m.Config,
+	assert.Equal(t, map[string]string{"PG_SCHEMA": "sales", "defaultPageSize": "20"}, m.Config,
 		"覆盖值（pgSchema）与默认值（defaultPageSize）都要进来，原始 key 不是转换后的环境变量名")
 }
 
@@ -423,11 +420,11 @@ func TestServedMembersConfigFormatting(t *testing.T) {
 		{
 			Ref: resolver.Ref{ID: "erp/sales", Version: "1.0.0"}, Port: 8080,
 			ExtraPorts: []manifest.ExtraPort{{Name: "grpc", Port: 9090}},
-			Config:     map[string]string{"pgSchema": "sales"},
+			Config:     map[string]string{"PG_SCHEMA": "sales"},
 		},
 		{
 			Ref: resolver.Ref{ID: "mdm/customer", Version: "1.0.7"}, Port: 8081,
-			Config: map[string]string{"pgSchema": "customer"},
+			Config: map[string]string{"PG_SCHEMA": "customer"},
 		},
 	}}
 
@@ -439,11 +436,11 @@ func TestServedMembersConfigFormatting(t *testing.T) {
 	assert.Equal(t, "1.0.0", entries[0]["version"])
 	assert.Equal(t, float64(8080), entries[0]["httpPort"])
 	assert.Equal(t, []any{map[string]any{"name": "grpc", "port": float64(9090)}}, entries[0]["extraPorts"])
-	assert.Equal(t, map[string]any{"pgSchema": "ERP_SALES_PG_SCHEMA"}, entries[0]["configEnvVars"],
+	assert.Equal(t, map[string]any{"PG_SCHEMA": "ERP_SALES_PG_SCHEMA"}, entries[0]["configEnvVars"],
 		"携带的是算出来的变量名，不是原始值——外壳去读那条独立变量，不从 JSON 里抠值")
 
 	assert.Equal(t, "mdm/customer", entries[1]["componentId"])
-	assert.Equal(t, map[string]any{"pgSchema": "MDM_CUSTOMER_PG_SCHEMA"}, entries[1]["configEnvVars"])
+	assert.Equal(t, map[string]any{"PG_SCHEMA": "MDM_CUSTOMER_PG_SCHEMA"}, entries[1]["configEnvVars"])
 }
 
 // 直接的回归测试：就算某个成员的 config 值本身还是未展开的 ${VAR} 占位符
@@ -454,7 +451,7 @@ func TestServedMembersConfigNeverEmbedsRawPlaceholderText(t *testing.T) {
 	g := shell.Group{Members: []shell.Member{
 		{
 			Ref: resolver.Ref{ID: "infra/iam-casdoor", Version: "1.0.0"}, Port: 8080,
-			Config: map[string]string{"appTokenSigningKeyPem": "${APP_TOKEN_SIGNING_KEY_PEM}"},
+			Config: map[string]string{"APP_TOKEN_SIGNING_KEY_PEM": "${APP_TOKEN_SIGNING_KEY_PEM}"},
 		},
 	}}
 
@@ -467,7 +464,7 @@ func TestServedMembersConfigNeverEmbedsRawPlaceholderText(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(out), &entries))
 	configEnvVars, ok := entries[0]["configEnvVars"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "INFRA_IAM_CASDOOR_APP_TOKEN_SIGNING_KEY_PEM", configEnvVars["appTokenSigningKeyPem"])
+	assert.Equal(t, "INFRA_IAM_CASDOOR_APP_TOKEN_SIGNING_KEY_PEM", configEnvVars["APP_TOKEN_SIGNING_KEY_PEM"])
 }
 
 func TestServedMembersConfigEmptyWhenNoMembers(t *testing.T) {
@@ -477,14 +474,14 @@ func TestServedMembersConfigEmptyWhenNoMembers(t *testing.T) {
 
 func TestApplyUpsertsServedMembersConfig(t *testing.T) {
 	g := shell.Group{Members: []shell.Member{
-		{Ref: resolver.Ref{ID: "mdm/customer", Version: "1.0.7"}, Port: 8080, Config: map[string]string{"pgSchema": "customer"}},
+		{Ref: resolver.Ref{ID: "mdm/customer", Version: "1.0.7"}, Port: 8080, Config: map[string]string{"PG_SCHEMA": "customer"}},
 	}}
 
 	out := shell.Apply(nil, g)
 
 	byName := map[string]string{}
 	for _, v := range out {
-		byName[v.Name] = v.Value
+		byName[v.Name] = v.Value.String()
 	}
 	var entries []map[string]any
 	require.NoError(t, json.Unmarshal([]byte(byName[shell.EnvVarServedMembersConfig]), &entries))
@@ -496,51 +493,21 @@ func TestApplyUpsertsServedMembersConfig(t *testing.T) {
 // 一部分调用方还依赖旧版本，一部分已经切到新版本，两个版本同时活在
 // 同一个外壳里）----
 
-func TestResolveGroupsTwoVersionsOfSameComponentUnderOneShell(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
-		comp("infra/shell-go-core", "1.0.0", ""),
-		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
-		comp("mdm/customer", "2.0.0", "infra/shell-go-core@1.0.0"),
-	}}
-	groups, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
-		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
-		"mdm/customer@1.0.7":        simple("mdm/customer", "1.0.7", 8080),
-		"mdm/customer@2.0.0":        simple("mdm/customer", "2.0.0", 8081),
-	})
-	require.NoError(t, err, "同一个逻辑组件的两个版本，只要端口不同，同一个外壳完全装得下")
-	require.Len(t, groups, 1)
-	require.Len(t, groups[0].Members, 2)
-
-	byVersion := map[string]shell.Member{}
-	for _, m := range groups[0].Members {
-		byVersion[m.Ref.Version] = m
-	}
-	assert.Equal(t, 8080, byVersion["1.0.7"].Port)
-	assert.Equal(t, 8081, byVersion["2.0.0"].Port)
-}
-
-func TestResolveErrorsWhenTwoVersionsOfSameComponentSharePort(t *testing.T) {
-	cfg := &config.Config{Project: "p", Deploy: config.Deploy{Target: config.TargetDocker}, Components: []config.Component{
-		comp("infra/shell-go-core", "1.0.0", ""),
-		comp("mdm/customer", "1.0.7", "infra/shell-go-core@1.0.0"),
-		comp("mdm/customer", "2.0.0", "infra/shell-go-core@1.0.0"),
-	}}
-	_, err := resolveFixture(t, cfg, map[string]*manifest.Manifest{
-		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
-		"mdm/customer@1.0.7":        simple("mdm/customer", "1.0.7", 8080),
-		"mdm/customer@2.0.0":        simple("mdm/customer", "2.0.0", 8080), // 忘了改端口
-	})
-	require.Error(t, err, "两份代码要在同一个进程里各自监听，端口不能一样，哪怕是同一个逻辑组件的两个版本")
-	assert.Contains(t, err.Error(), "8080")
-}
-
 // ---- ParseRef ----
 
-func TestParseRef(t *testing.T) {
-	ref, ok := shell.ParseRef("infra/shell-go-core@1.0.0")
-	require.True(t, ok)
-	assert.Equal(t, resolver.Ref{ID: "infra/shell-go-core", Version: "1.0.0"}, ref)
 
-	_, ok = shell.ParseRef("infra/shell-go-core")
-	assert.False(t, ok, "没有 @ 就解析不出版本")
+// 附录 A18：外壳成员可以设 mode: local / debug——这一次它以裸进程在宿主机上跑，
+// 不并进外壳（完整语义 P3 设计；这里钉住"至少能设置、且不被当成成员"）。
+func TestResolveBareProcessMemberStaysOutOfShell(t *testing.T) {
+	member := testComp{ID: "erp/sales", Version: "1.0.0", ServedBy: "infra/shell-go-core@1.0.0", Mode: deployfile.ModeLocal}
+	groups, err := resolveFixture(t, &testCfg{Components: []testComp{
+		comp("infra/shell-go-core", "1.0.0", ""), member,
+	}}, map[string]*manifest.Manifest{
+		"infra/shell-go-core@1.0.0": simple("infra/shell-go-core", "1.0.0", 9000),
+		"erp/sales@1.0.0":           simple("erp/sales", "1.0.0", 8080),
+	})
+	require.NoError(t, err)
+	for _, g := range groups {
+		assert.Empty(t, g.Members, "裸进程成员这次不在外壳里")
+	}
 }
