@@ -59,8 +59,8 @@ var en = map[string]string{
 	msgid.CascadePinnedComponentDetail:    "%[1]s@%[2]s (mode: %[3]s, pinned)",
 	msgid.CascadeLabelDependencyChain:     "Dependency chain",
 	msgid.CascadeLabelDisabledComponent:   "Disabled component",
-	msgid.CascadeHintRemoveDisabledFlag:   "Remove mode: disable from %[1]s in brickkit.yaml",
-	msgid.CascadeHintRemovePinnedFlag:     "Or remove mode: %[2]s from %[1]s, letting it follow whatever is above it",
+	msgid.CascadeHintRemoveDisabledFlag:   "Remove mode: disable from %[1]s in %[2]s",
+	msgid.CascadeHintRemovePinnedFlag:     "Or remove mode: %[2]s from %[1]s in %[3]s, letting it follow whatever is above it",
 
 	msgid.DeployLoopbackHostWarning:        "Base resource host is set to %[1]s, which the container can't reach",
 	msgid.DeployLabelConsumers:             "Components that connect to it",

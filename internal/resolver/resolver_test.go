@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 )
 
 // ============================================================
@@ -418,17 +418,18 @@ func TestResolveWithoutRoots(t *testing.T) {
 	assert.Empty(t, g.Warnings)
 }
 
-// 从 brickkit.yaml 的 components 列表整体解析（up / order 的入口）。
-func TestResolveConfig(t *testing.T) {
+// 从 brickkit.yaml 声明的组件整体解析（up / order 的入口）。
+func TestResolveProject(t *testing.T) {
 	f := newFixture(t,
 		comp{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
 		comp{ID: "people/basic", Version: "1.0.0"},
 	)
-	f.Config.Components = []config.Component{
-		{ID: "erp/backend", Version: "1.0.0"},
-	}
+	p := projecttest.Load(t, projecttest.Files{
+		"brickkit.yaml": "project: p\ncomponents:\n  - {id: erp/backend, version: 1.0.0}\n",
+		"deploy.yaml":   "target: docker\ncomponents:\n  - id: erp/backend\n",
+	})
 
-	g, err := f.Resolver.ResolveConfig(context.Background(), f.Config)
+	g, err := f.Resolver.ResolveProject(context.Background(), p)
 	require.NoError(t, err)
 	assert.Len(t, g.Nodes, 2)
 	assert.Equal(t, []Ref{{"erp/backend", "1.0.0"}}, g.Roots)

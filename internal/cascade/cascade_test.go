@@ -6,6 +6,7 @@ package cascade_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,8 +14,10 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -72,13 +75,25 @@ func newGraph(t *testing.T, specs ...spec) *resolver.Graph {
 	return graph
 }
 
-// cfgOf 造一份 brickkit.yaml 配置。mode 直接用 "" / "enabled" / "disable" / "debug" 表示。
-func cfgOf(entries ...[2]string) *config.Config {
-	cfg := &config.Config{}
+// cfgOf 造一个内存里的项目：brickkit.yaml 声明组件，部署文件给出 mode。
+// mode 直接用 "" / "enabled" / "disable" / "debug" 表示（级联只读 mode，不在乎它来自哪份部署文件）。
+func cfgOf(entries ...[2]string) *project.Project {
+	return projectOf(entries, "1.0.0")
+}
+
+// projectOf 与 cfgOf 相同，但可以给每条指定版本："<id>@<version>"。
+func projectOf(entries [][2]string, defaultVersion string) *project.Project {
+	decl := &projfile.File{Project: "p"}
+	deploy := &deployfile.File{Target: deployfile.TargetDocker}
 	for _, e := range entries {
-		cfg.Components = append(cfg.Components, config.Component{ID: e[0], Version: "1.0.0", Mode: e[1]})
+		id, version := e[0], defaultVersion
+		if i := strings.LastIndex(id, "@"); i >= 0 {
+			id, version = id[:i], id[i+1:]
+		}
+		decl.Components = append(decl.Components, projfile.Component{ID: id, Version: version})
+		deploy.Components = append(deploy.Components, deployfile.Component{ID: id + "@" + version, Mode: e[1]})
 	}
-	return cfg
+	return &project.Project{Decl: decl, Deploy: deploy}
 }
 
 func entry(id, mode string) [2]string { return [2]string{id, mode} }
@@ -185,7 +200,7 @@ func TestTopLevelWithoutModeRuns(t *testing.T) {
 	assert.Len(t, result.TopLevel(), 1, "只有 erp/backend 是顶层")
 }
 
-func cfg2(t *testing.T, ids ...string) *config.Config {
+func cfg2(t *testing.T, ids ...string) *project.Project {
 	t.Helper()
 	entries := make([][2]string, 0, len(ids))
 	for _, id := range ids {
@@ -425,10 +440,10 @@ func TestVersionsAreJudgedIndependently(t *testing.T) {
 	g, err := resolver.New(provider).Resolve(context.Background(), roots...)
 	require.NoError(t, err)
 
-	cfg := &config.Config{Components: []config.Component{
-		{ID: "people/basic", Version: "1.0.0", Mode: config.ModeEnabled},
-		{ID: "people/basic", Version: "2.0.0", Mode: config.ModeDisable},
-	}}
+	cfg := projectOf([][2]string{
+		{"people/basic@1.0.0", deployfile.ModeEnabled},
+		{"people/basic@2.0.0", deployfile.ModeDisable},
+	}, "")
 
 	result, err := cascade.Compute(cfg, g)
 	require.NoError(t, err)
@@ -518,4 +533,20 @@ func TestDisablingOneSideOfAWeakCycleStopsBoth(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, runningIDs(result))
+}
+
+// mode 写在部署文件里：提示要点名实际要去改的那一份（本地模式下就是 deploy.local.yaml）。
+func TestDisabledDependencyHintNamesDeployFile(t *testing.T) {
+	graph := newGraph(t,
+		spec{id: "erp/backend", requires: []string{"authorization/rbac"}},
+		spec{id: "authorization/rbac"},
+	)
+	p := cfgOf(entry("erp/backend", "debug"), entry("authorization/rbac", "disable"))
+	p.DeployPath = "/work/shop/deploy.local.yaml"
+
+	_, err := cascade.Compute(p, graph)
+	require.Error(t, err)
+	for _, hint := range clierr.As(err).Hints {
+		assert.Contains(t, hint, "deploy.local.yaml")
+	}
 }

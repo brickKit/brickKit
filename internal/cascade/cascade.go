@@ -31,13 +31,15 @@
 package cascade
 
 import (
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -113,12 +115,12 @@ func (r *Result) TopLevel() []Component {
 //
 // 算的是"**谁不跑**"，不是"谁跑"——两者互为补集，但只有前者能把环算对。
 // 详见 computeStopped。
-func Compute(cfg *config.Config, graph *resolver.Graph) (*Result, error) {
+func Compute(p *project.Project, graph *resolver.Graph) (*Result, error) {
 	if graph == nil {
 		return &Result{running: map[resolver.Ref]bool{}}, nil
 	}
 
-	decl := declarations(cfg)
+	decl := declarations(p)
 	stopped, blocker := computeStopped(graph, decl)
 
 	// 钉住的组件撞上被关掉的强依赖 → 两个意图直接冲突，报错而不是二选一
@@ -127,7 +129,7 @@ func Compute(cfg *config.Config, graph *resolver.Graph) (*Result, error) {
 			continue
 		}
 		if dep, hit := deadRequirement(node, stopped); hit {
-			return nil, disabledDependencyError(node.Ref, decl[node.Ref].Mode, dep, blocker)
+			return nil, disabledDependencyError(node.Ref, decl[node.Ref].Mode, dep, blocker, deployFileName(p))
 		}
 	}
 
@@ -285,17 +287,26 @@ func runningReason(
 //
 // 依赖图里可能有配置里没写的组件（使用者手工编辑过配置），
 // 这类组件按"没写 mode"处理。
-type declSet map[resolver.Ref]config.Component
+type declSet map[resolver.Ref]deployfile.Component
 
-func declarations(cfg *config.Config) declSet {
+// declarations 取每个已声明组件版本的部署条目（mode 写在部署文件里，提案 §6.4）。
+func declarations(p *project.Project) declSet {
 	out := declSet{}
-	if cfg == nil {
+	if p == nil {
 		return out
 	}
-	for _, c := range cfg.Components {
-		out[resolver.Ref{ID: c.ID, Version: c.Version}] = c
+	for _, c := range p.Decl.Components {
+		out[resolver.Ref{ID: c.ID, Version: c.Version}] = p.DeployEntry(c.ID, c.Version)
 	}
 	return out
+}
+
+// deployFileName 是提示里要点名的那份部署文件（mode 写在哪就让人去哪改）。
+func deployFileName(p *project.Project) string {
+	if p == nil || p.DeployPath == "" {
+		return deployfile.FileTeam
+	}
+	return filepath.Base(p.DeployPath)
 }
 
 func (d declSet) pinned(ref resolver.Ref) bool {
@@ -324,7 +335,7 @@ func (d declSet) disabled(ref resolver.Ref) bool {
 // 原样报出来，不能笼统说"钉住"：debug 组件的读者得知道自己该去掉的是
 // mode: debug，不是 mode: enabled。
 func disabledDependencyError(
-	pinned resolver.Ref, pinnedMode string, dep resolver.Ref, blocker map[resolver.Ref]resolver.Ref,
+	pinned resolver.Ref, pinnedMode string, dep resolver.Ref, blocker map[resolver.Ref]resolver.Ref, file string,
 ) error {
 	chain := []string{pinned.ID}
 	current := dep
@@ -343,7 +354,7 @@ func disabledDependencyError(
 		WithDetail(i18n.T(msgid.CascadeLabelDependencyChain), strings.Join(chain, " → ")).
 		WithDetailf(i18n.T(msgid.CascadeLabelDisabledComponent), "%s@%s", culprit.ID, culprit.Version).
 		WithHint(
-			i18n.T(msgid.CascadeHintRemoveDisabledFlag, culprit.ID),
-			i18n.T(msgid.CascadeHintRemovePinnedFlag, pinned.ID, pinnedMode),
+			i18n.T(msgid.CascadeHintRemoveDisabledFlag, culprit.ID, file),
+			i18n.T(msgid.CascadeHintRemovePinnedFlag, pinned.ID, pinnedMode, file),
 		)
 }

@@ -53,8 +53,8 @@ var zh = map[string]string{
 	msgid.CascadePinnedComponentDetail:    "%[1]s@%[2]s（mode: %[3]s，已钉住）",
 	msgid.CascadeLabelDependencyChain:     "依赖链",
 	msgid.CascadeLabelDisabledComponent:   "被禁用的组件",
-	msgid.CascadeHintRemoveDisabledFlag:   "在 brickkit.yaml 中移除 %[1]s 的 mode: disable",
-	msgid.CascadeHintRemovePinnedFlag:     "或去掉 %[1]s 的 mode: %[2]s，让它随上层一起不启动",
+	msgid.CascadeHintRemoveDisabledFlag:   "在 %[2]s 中移除 %[1]s 的 mode: disable",
+	msgid.CascadeHintRemovePinnedFlag:     "或在 %[3]s 中去掉 %[1]s 的 mode: %[2]s，让它随上层一起不启动",
 
 	msgid.DeployLoopbackHostWarning:        "基础资源的 host 写成了 %[1]s，容器里连不上",
 	msgid.DeployLabelConsumers:             "要连它的组件",

@@ -384,10 +384,10 @@ func (c *Config) validateResources(p *clierr.ProblemSet) {
 		switch {
 		case r.Kind == "":
 			p.Missing(field + ".kind")
-		case !manifest.IsKnownResourceKind(r.Kind):
+		case !isKnownResourceKind(r.Kind):
 			// 不认识的 kind 不能放过去：注入引擎对它无事可做，组件一个
 			// 连接变量都拿不到，而 up 一路绿灯、部署文件看上去完全正常
-			p.Add(field+".kind", i18n.T(msgid.ProblemResourceKindUnknown, r.Kind, manifest.ResourceKindsText()))
+			p.Add(field+".kind", i18n.T(msgid.ProblemResourceKindUnknown, r.Kind, resourceKindsText()))
 		}
 		if r.Engine == "" {
 			p.Missing(field + ".engine")
@@ -536,7 +536,7 @@ func (c *Config) validateResourceEnvCollisions(p *clierr.ProblemSet) {
 	for i, r := range c.Resources {
 		// kind 不合法时 validateResources 已经报过；这里再报一次只是噪音，
 		// 而且那种 kind 压根没有对应的变量前缀，谈不上碰撞
-		if !manifest.IsKnownResourceKind(r.Kind) {
+		if !isKnownResourceKind(r.Kind) {
 			continue
 		}
 		for j, b := range r.Bindings {
@@ -565,11 +565,11 @@ func envCollisionMessage(first envClaim, r Resource, componentID, prefix string)
 	// 拼法必须与注入引擎一致：那边是 strings.ToUpper(envPrefix) + "_" + 变量名。
 	// 少一个下划线就会报出 MAINDATABASE_HOST 这种根本不存在的变量名——
 	// 一条照着找也找不到的提示，比不给变量名更浪费时间
-	vars := manifest.ResourceEnvPrefix(r.Kind)
+	vars := resourceEnvPrefix(r.Kind)
 	if prefix != "" {
 		vars = prefix + "_" + vars
 	}
-	return i18n.T(msgid.ConfigEnvCollision, first.field, componentID, first.resourceID, r.ID, r.Kind, envPrefixText(prefix), vars, manifest.ResourceEnvPrefix(r.Kind))
+	return i18n.T(msgid.ConfigEnvCollision, first.field, componentID, first.resourceID, r.ID, r.Kind, envPrefixText(prefix), vars, resourceEnvPrefix(r.Kind))
 }
 
 func envPrefixText(prefix string) string {

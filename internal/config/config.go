@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
@@ -24,17 +26,18 @@ const (
 	SourceTypeLocal  = "local"
 )
 
-// 基础资源类型（006 §2.1）。每类资源有各自的连接变量命名（006 §5.2）。
+// 基础资源类型（006 §2.1）。三层文件重构 P2 期间的过渡副本：manifest 已删掉资源概念，
+// 本包在 P2 Task 12 整体删除。
 //
 // 权威定义在 internal/manifest：组件 Manifest 与 brickkit.yaml 用的是同一套
 // kind，`matchResource` 直接按字符串比对它们，两处各写一份迟早会分叉。
 const (
-	ResourceKindDatabase = manifest.ResourceKindDatabase
-	ResourceKindCache    = manifest.ResourceKindCache
-	ResourceKindMQ       = manifest.ResourceKindMQ
-	ResourceKindStorage  = manifest.ResourceKindStorage
-	ResourceKindSearch   = manifest.ResourceKindSearch
-	ResourceKindSMTP     = manifest.ResourceKindSMTP
+	ResourceKindDatabase = "database"
+	ResourceKindCache    = "cache"
+	ResourceKindMQ       = "mq"
+	ResourceKindStorage  = "storage"
+	ResourceKindSearch   = "search"
+	ResourceKindSMTP     = "smtp"
 )
 
 // Config 是 brickkit.yaml 的完整结构（003、附录 D.1）。
@@ -484,3 +487,22 @@ func (c *Config) EnabledSources() []Source {
 	}
 	return out
 }
+
+var resourceKinds = []string{ResourceKindDatabase, ResourceKindCache, ResourceKindMQ,
+	ResourceKindStorage, ResourceKindSearch, ResourceKindSMTP}
+
+func isKnownResourceKind(kind string) bool {
+	for _, k := range resourceKinds {
+		if k == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func resourceKindsText() string { return strings.Join(resourceKinds, " / ") }
+
+var resourceEnvPrefixes = map[string]string{ResourceKindDatabase: "DATABASE", ResourceKindCache: "REDIS",
+	ResourceKindMQ: "MQ", ResourceKindStorage: "STORAGE", ResourceKindSearch: "SEARCH", ResourceKindSMTP: "SMTP"}
+
+func resourceEnvPrefix(kind string) string { return resourceEnvPrefixes[kind] }

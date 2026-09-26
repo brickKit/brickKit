@@ -46,12 +46,14 @@ import (
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 )
 
 // isPinnedMode 判断这个 mode 取值是否"肯定要跑"——enabled 和 debug 都算，
 // 级联判定不区分这两者，只是 debug 多了"在哪跑"这层意思。
-func isPinnedMode(mode string) bool { return mode == config.ModeEnabled || mode == config.ModeDebug }
+func isPinnedMode(mode string) bool {
+	return mode == deployfile.ModeEnabled || mode == deployfile.ModeDebug
+}
 
 const (
 	propertyCases = 3000
@@ -83,7 +85,7 @@ func generate(rng *rand.Rand) randomCase {
 			}
 		}
 		c.mode[i] = [...]string{
-			"", "", "", config.ModeEnabled, config.ModeDebug, config.ModeDisable,
+			"", "", "", deployfile.ModeEnabled, deployfile.ModeDebug, deployfile.ModeDisable,
 		}[rng.Intn(6)]
 		c.listed[i] = c.mode[i] != "" || rng.Intn(4) != 0
 	}
@@ -165,7 +167,7 @@ func (c randomCase) expected(t *testing.T) expectation {
 		in := func(i int) bool { return set&(1<<uint(i)) != 0 }
 		for i := 0; i < n; i++ {
 			switch {
-			case c.mode[i] == config.ModeDisable:
+			case c.mode[i] == deployfile.ModeDisable:
 				if in(i) {
 					return false
 				}
@@ -236,7 +238,7 @@ func TestOracleAgreesWithDocumentedRules(t *testing.T) {
 		return c
 	}
 
-	e, d, off := config.ModeEnabled, config.ModeDebug, config.ModeDisable
+	e, d, off := deployfile.ModeEnabled, deployfile.ModeDebug, deployfile.ModeDisable
 
 	tests := []struct {
 		name     string
@@ -336,7 +338,7 @@ func TestComputeMatchesBruteForceOracle(t *testing.T) {
 		for i, s := range c.specs {
 			expectedState := cascade.StateSkipped
 			switch {
-			case c.mode[i] == config.ModeDisable:
+			case c.mode[i] == deployfile.ModeDisable:
 				expectedState = cascade.StateDisabled
 			case want.running[s.id]:
 				expectedState = cascade.StateRunning

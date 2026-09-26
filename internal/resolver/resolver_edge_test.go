@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
@@ -45,26 +44,12 @@ func TestGraphVersionsSortedNumerically(t *testing.T) {
 	assert.Equal(t, []string{"2.0.0", "10.0.0"}, g.Versions("people/basic"))
 }
 
-func TestResolveConfigWithNilConfig(t *testing.T) {
+func TestResolveProjectWithNilProject(t *testing.T) {
 	f := newFixture(t)
 
-	g, err := f.Resolver.ResolveConfig(context.Background(), nil)
+	g, err := f.Resolver.ResolveProject(context.Background(), nil)
 	require.NoError(t, err)
 	assert.Empty(t, g.Nodes)
-}
-
-// brickkit.yaml 里重复写了同一个组件版本时，解析结果仍然只有一个节点。
-func TestResolveConfigDeduplicatesRoots(t *testing.T) {
-	f := newFixture(t, comp{ID: "people/basic", Version: "1.0.0"})
-	f.Config.Components = []config.Component{
-		{ID: "people/basic", Version: "1.0.0"},
-		{ID: "people/basic", Version: "1.0.0"},
-	}
-
-	g, err := f.Resolver.ResolveConfig(context.Background(), f.Config)
-	require.NoError(t, err)
-	assert.Len(t, g.Nodes, 1)
-	assert.Len(t, g.Roots, 1)
 }
 
 // 同一个弱依赖被两个组件依赖且缺失时，每个受影响的组件各得一条警告。
@@ -140,183 +125,6 @@ func TestCyclePathStartsAtRepeatedNode(t *testing.T) {
 // ============================================================
 // 资源绑定检查
 // ============================================================
-
-func TestCheckResourceBindingsNoDependencies(t *testing.T) {
-	assert.NoError(t, CheckResourceBindings(nil, nil))
-	assert.NoError(t, CheckResourceBindings(nil, &manifest.Manifest{}))
-	assert.NoError(t, CheckResourceBindings(nil, &manifest.Manifest{
-		Dependencies: &manifest.Dependencies{},
-	}))
-}
-
-// 多个资源依赖都不满足时，一次全部报出来（与 Step 4/5 的校验风格一致）。
-func TestCheckResourceBindingsReportsAllProblems(t *testing.T) {
-	m := &manifest.Manifest{
-		Metadata: manifest.Metadata{ID: "people/basic", Version: "1.0.0"},
-		Dependencies: &manifest.Dependencies{Resources: []manifest.ResourceDep{
-			{Kind: "database", Engine: "postgresql"},
-			{Kind: "cache", Engine: "redis"},
-		}},
-	}
-	cfg := &config.Config{Resources: []config.Resource{{
-		Kind: "database", Engine: "postgresql", ID: "postgres-main",
-		Bindings: []config.Binding{{ComponentID: "department/tree"}},
-	}}}
-
-	err := CheckResourceBindings(cfg, m)
-	require.Error(t, err)
-	out := clierr.As(err).Format()
-	assert.Contains(t, out, "resource postgres-main is declared but not bound to this component")
-	assert.Contains(t, out, "kind: cache, engine: redis (not declared under resources in brickkit.yaml)")
-	assert.Contains(t, out, "bindings: people/basic")
-}
-
-// engine 不同就不算满足（database:mysql 满足不了 database:postgresql），
-// 而且要点名是哪个资源对不上——它就在配置里，只是那个词不一样。
-func TestCheckResourceBindingsEngineMustMatch(t *testing.T) {
-	m := &manifest.Manifest{
-		Metadata: manifest.Metadata{ID: "people/basic", Version: "1.0.0"},
-		Dependencies: &manifest.Dependencies{Resources: []manifest.ResourceDep{
-			{Kind: "database", Engine: "postgresql"},
-		}},
-	}
-	cfg := &config.Config{Resources: []config.Resource{{
-		Kind: "database", Engine: "mysql", ID: "mysql-main",
-		Bindings: []config.Binding{{ComponentID: "people/basic"}},
-	}}}
-
-	err := CheckResourceBindings(cfg, m)
-	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "mysql-main", "要点名是哪个资源对不上")
-}
-
-// engine 只差一个拼法时，必须点名是哪个资源、它的 engine 是什么。
-//
-// # 这是这条检查最容易伤人的地方
-//
-// engine 是自由字符串（006 §2.2），却要在**两个人写的两份文件**里逐字相同：
-// 组件作者写 postgresql、管理员写 postgres，两边都觉得自己写对了。
-//
-// 从前这时报的是"brickkit.yaml 的 resources 中未声明"——一句**假话**：
-// 它明明声明了，也绑定了。使用者会去翻 sources 和 resources 找那个"没声明"的
-// 东西，而问题只是 engine 那个词。matchResource 的 declared 只在 kind + engine
-// 都对时才赋值，所以那条更准确的"已声明但未绑定"分支永远走不到。
-func TestCheckResourceBindingsSaysWhichEngineIsDeclared(t *testing.T) {
-	m := &manifest.Manifest{
-		Metadata: manifest.Metadata{ID: "people/basic", Version: "1.0.0"},
-		Dependencies: &manifest.Dependencies{Resources: []manifest.ResourceDep{
-			{Kind: "database", Engine: "postgresql"},
-		}},
-	}
-	cfg := &config.Config{Resources: []config.Resource{{
-		Kind: "database", Engine: "postgres", ID: "pg-main",
-		Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people"}},
-	}}}
-
-	err := CheckResourceBindings(cfg, m)
-	require.Error(t, err)
-
-	out := clierr.As(err).Format()
-	assert.Contains(t, out, "pg-main", "要点名是哪个资源")
-	assert.Contains(t, out, "postgres", "要说出它写的 engine")
-	assert.Contains(t, out, "postgresql", "也要说出组件要的那个")
-	assert.NotContains(t, out, "not declared",
-		"它明明声明了也绑定了，说「未声明」是句假话：%s", out)
-}
-
-// 连这一类资源都没声明时，才是真的"未声明"。
-func TestCheckResourceBindingsSaysNotDeclaredWhenKindIsAbsent(t *testing.T) {
-	m := &manifest.Manifest{
-		Metadata: manifest.Metadata{ID: "people/basic", Version: "1.0.0"},
-		Dependencies: &manifest.Dependencies{Resources: []manifest.ResourceDep{
-			{Kind: "cache", Engine: "redis"},
-		}},
-	}
-	cfg := &config.Config{Resources: []config.Resource{{
-		Kind: "database", Engine: "postgresql", ID: "pg-main",
-		Bindings: []config.Binding{{ComponentID: "people/basic"}},
-	}}}
-
-	err := CheckResourceBindings(cfg, m)
-	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "not declared")
-}
-
-// 同一类资源有多个实例时，只要有一个绑定了该组件就算满足（003 §5.6 多资源绑定）。
-func TestCheckResourceBindingsMultipleInstances(t *testing.T) {
-	m := &manifest.Manifest{
-		Metadata: manifest.Metadata{ID: "people/basic", Version: "1.0.0"},
-		Dependencies: &manifest.Dependencies{Resources: []manifest.ResourceDep{
-			{Kind: "database", Engine: "postgresql"},
-		}},
-	}
-	cfg := &config.Config{Resources: []config.Resource{
-		{Kind: "database", Engine: "postgresql", ID: "postgres-primary",
-			Bindings: []config.Binding{{ComponentID: "department/tree"}}},
-		{Kind: "database", Engine: "postgresql", ID: "postgres-archive",
-			Bindings: []config.Binding{{ComponentID: "people/basic", EnvPrefix: "ARCHIVE"}}},
-	}}
-
-	assert.NoError(t, CheckResourceBindings(cfg, m))
-}
-
-func TestServingShellIDReturnsEmptyWithoutServedBy(t *testing.T) {
-	cfg := &config.Config{Components: []config.Component{{ID: "mdm/customer", Version: "1.0.7"}}}
-	assert.Empty(t, servingShellID(cfg, Ref{"mdm/customer", "1.0.7"}, nil))
-	assert.Empty(t, servingShellID(nil, Ref{"mdm/customer", "1.0.7"}, nil))
-}
-
-func TestServingShellIDMatchesExactVersionOnly(t *testing.T) {
-	cfg := &config.Config{Components: []config.Component{
-		{ID: "mdm/customer", Version: "1.0.7", ServedBy: "infra/shell-go-core@1.0.0"},
-		{ID: "mdm/customer", Version: "2.0.0"}, // 另一个版本独立部署，没有 servedBy
-	}}
-	// running == nil：不按运行态过滤（静态检查场景，CheckResourceBindings 用这条路）。
-	assert.Equal(t, "infra/shell-go-core", servingShellID(cfg, Ref{"mdm/customer", "1.0.7"}, nil))
-	assert.Empty(t, servingShellID(cfg, Ref{"mdm/customer", "2.0.0"}, nil),
-		"同一个组件的另一个版本独立部署，不该被当成也收编进外壳")
-}
-
-// 外壳这次没跑：它的资源绑定不该再替成员挡住"没绑定"这条校验——外壳没跑，
-// 成员本来就要按普通组件独立部署（Task 1-4 的回落规则），它自己没有资源
-// 绑定就该照普通组件一样报错，不能因为它"曾经"是某个外壳的成员就被放过。
-func TestServingShellIDIgnoresShellWhenNotRunning(t *testing.T) {
-	cfg := &config.Config{Components: []config.Component{
-		{ID: "mdm/customer", Version: "1.0.7", ServedBy: "infra/shell-go-core@1.0.0"},
-	}}
-	running := map[Ref]bool{{"mdm/customer", "1.0.7"}: true} // 外壳不在这份名单里
-	assert.Empty(t, servingShellID(cfg, Ref{"mdm/customer", "1.0.7"}, running),
-		"外壳没跑，不该再把它的绑定当成这个成员的绑定")
-}
-
-func TestMatchResourceWithNilConfig(t *testing.T) {
-	problem := matchResource(nil, manifest.ResourceDep{Kind: "database", Engine: "postgresql"}, "people/basic", "")
-	assert.Contains(t, problem, "not declared", "没有配置就等于什么都没声明")
-}
-
-// servedBy 成员自己没绑，但收编它的外壳绑了同一份资源——该算满足。
-func TestMatchResourceSatisfiedByShellBinding(t *testing.T) {
-	cfg := &config.Config{Resources: []config.Resource{{
-		Kind: "database", Engine: "postgresql", ID: "postgres-main",
-		Bindings: []config.Binding{{ComponentID: "infra/shell-go-core"}},
-	}}}
-
-	problem := matchResource(cfg, manifest.ResourceDep{Kind: "database", Engine: "postgresql"},
-		"mdm/customer", "infra/shell-go-core")
-	assert.Empty(t, problem, "外壳已经绑了，成员不该被要求重复绑")
-}
-
-// 外壳也没绑的话，servedBy 感知不能变成绕过校验的口子。
-func TestMatchResourceStillFailsWhenShellAlsoUnbound(t *testing.T) {
-	cfg := &config.Config{Resources: []config.Resource{{
-		Kind: "database", Engine: "postgresql", ID: "postgres-main",
-		Bindings: []config.Binding{{ComponentID: "some/other-component"}},
-	}}}
-
-	problem := matchResource(cfg, manifest.ResourceDep{Kind: "database", Engine: "postgresql"},
-		"mdm/customer", "infra/shell-go-core")
-	assert.Contains(t, problem, "is declared but not bound to this component")
-}
 
 // ============================================================
 // 版本比较
