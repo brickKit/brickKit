@@ -121,7 +121,7 @@ func flatProject(n int) (*project.Project, provider, []resolver.Ref) {
 		id := fmt.Sprintf("svc/s%03d", i)
 		p[id+"@1.0.0"] = componentManifest(id)
 		decl.Components = append(decl.Components, projfile.Component{ID: id, Version: "1.0.0"})
-		deploy.Components = append(deploy.Components, deployfile.Component{ID: id})
+		deploy.Components = append(deploy.Components, deployfile.Component{Entry: deployfile.Entry{ID: id}})
 		refs = append(refs, resolver.Ref{ID: id, Version: "1.0.0"})
 	}
 	proj, err := project.Assemble(project.NewLayout(""), decl, deploy)

@@ -1,7 +1,7 @@
 target: k8s
 components:
   - id: erp/shell
-    members: [erp/api, erp/worker]
-  - id: erp/api
-  - id: erp/worker
+    members:            # 外壳在跑：这些组件在外壳进程里，不单独启动
+      - id: erp/api
+      - id: erp/worker
   - id: erp/portal

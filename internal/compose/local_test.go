@@ -506,6 +506,8 @@ func TestMultipleVersionsGetSeparateEnvFiles(t *testing.T) {
 		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 	b.component(simple("people/basic", "2.0.0", 8080),
 		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8082})
+	// 第二个版本只是因为它依赖才在项目里（brickkit.yaml 里带 requiredBy）
+	b.component(dependsOn(simple("legacy/caller", "1.0.0", 9100), "people/basic", "2.0.0"), projecttest.Entry{})
 
 	result := b.generate()
 

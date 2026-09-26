@@ -159,8 +159,8 @@ func TestServedByMemberLabelsDoNotLeakIntoShellAnnotations(t *testing.T) {
 	assert.False(t, present, "外壳自己没声明这个键，成员的不该被合并上来：%v", annotations)
 }
 
-// 成员声明了 labels 就该警告——它没有自己的 Pod，这些 labels 落不到任何地方。
-func TestServedByLabelsWarnInK8s(t *testing.T) {
+// 成员的 labels 是它自己跑时用的：外壳在跑时不警告（附录 A21）。
+func TestHostedMemberLabelsNotWarnedInK8s(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	member := simple("mdm/customer", "1.0.7", 8080)
@@ -169,13 +169,9 @@ func TestServedByLabelsWarnInK8s(t *testing.T) {
 
 	result, err := b.build()
 	require.NoError(t, err)
-	found := false
 	for _, w := range result.Warnings {
-		if w.Code == clierr.CodeConfigInvalid && strings.Contains(w.Format(), "labels") {
-			found = true
-		}
+		assert.NotContains(t, w.Format(), "mdm/customer")
 	}
-	assert.True(t, found, "应该有一条关于 labels 不生效的警告：%+v", result.Warnings)
 }
 
 // 这里原来有一条回归测试（TestLocalStillRejectedAlongsideServedBy）：验证

@@ -98,3 +98,25 @@ func TestKnownFieldsIsExactlyTheSetWalkAccepts(t *testing.T) {
 		assert.Equal(t, 1, problemsFor(name), "不在 KnownFields 里的键 %q 必须被 Walk 拒绝", name)
 	}
 }
+
+// ,inline 内联的 struct：yaml.v3 把它的键摊平到外层，这里也摊平——Walk 放行内层的键，
+// 拒绝把内联字段本身当成一个键写出来。
+func TestKnownFieldsFlattensInlineStruct(t *testing.T) {
+	type inner struct {
+		A string `yaml:"a"`
+	}
+	type outer struct {
+		Inner inner  `yaml:",inline"`
+		B     string `yaml:"b"`
+	}
+	known := KnownFields(reflect.TypeOf(outer{}))
+	assert.Contains(t, known, "a")
+	assert.Contains(t, known, "b")
+	assert.NotContains(t, known, "inner")
+
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: x\ninner: y\n"), &doc))
+	p := clierr.NewProblemSet(clierr.CodeConfigInvalid, "错误")
+	Walk(doc.Content[0], reflect.TypeOf(outer{}), p)
+	assert.Equal(t, 1, p.Len(), "inner 不是一个键")
+}

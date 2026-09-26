@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/configdir"
@@ -43,15 +42,21 @@ func (p *Project) loadConfig() error {
 	p.configs = map[string]*configdir.File{}
 	used := map[string]bool{}
 	for _, c := range p.Decl.Components {
-		name := configdir.FileName(c.ID, c.Version)
-		if !present[name] {
-			name = configdir.FileName(c.ID, "")
-			if !present[name] {
-				continue
-			}
-			if versions := p.Decl.Versions(c.ID); len(versions) > 1 {
-				return ambiguityError(name, c.ID, versions)
-			}
+		// 无版本号的文件归默认版本（附录 A5、A20）；其余版本只读自己的 @version 文件
+		versioned, unversioned := configdir.FileName(c.ID, c.Version), configdir.FileName(c.ID, "")
+		isDefault := p.Decl.IsDefault(c.ID, c.Version)
+		var name string
+		switch {
+		case isDefault && present[versioned] && present[unversioned]:
+			return clierr.New(clierr.CodeConfigInvalid,
+				i18n.T(msgid.ProjectConfigTwoFilesForDefault, unversioned, versioned, c.Ref())).
+				WithHint(i18n.T(msgid.ProjectHintConfigTwoFilesForDefault))
+		case present[versioned]:
+			name = versioned
+		case isDefault && present[unversioned]:
+			name = unversioned
+		default:
+			continue
 		}
 		used[name] = true
 
@@ -112,19 +117,10 @@ func (p *Project) loadVars() (*configdir.ConflictError, error) {
 	return nil, nil
 }
 
-// unusedConfigWarning 说明一个 config/ 文件为什么没被用上。
+// unusedConfigWarning 说明一个 config/ 文件没被用上：它对不上 brickkit.yaml 里任何一个组件版本
+// （无版本号文件总归默认版本，只有组件本身不在项目里时才会落空）。
 func (p *Project) unusedConfigWarning(name string) *clierr.Error {
-	rel := filepath.Join(DirConfig, name)
-	if base, version, ok := configdir.ParseFileName(name); ok && version == "" {
-		// 无版本文件没被用上，而这个 ID 在 brickkit.yaml 里：说明每个版本都有专属文件
-		for _, id := range p.Decl.IDs() {
-			if configdir.FileBase(id) == base {
-				return clierr.Warn(clierr.CodeConfigInvalid,
-					i18n.T(msgid.ProjectConfigUnversionedUnused, rel, id, base))
-			}
-		}
-	}
-	return clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.ProjectConfigOrphan, rel))
+	return clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.ProjectConfigOrphan, filepath.Join(DirConfig, name)))
 }
 
 // checkConfigNames 拦下"两个组件 ID 对应到同一个配置文件名"（a-b/c 与 a/b-c），一次报全。
@@ -169,16 +165,6 @@ func (p *Project) scanConfigDir() (map[string]bool, error) {
 		}
 	}
 	return present, nil
-}
-
-func ambiguityError(name, id string, versions []string) *clierr.Error {
-	perVersion := make([]string, 0, len(versions))
-	for _, v := range versions {
-		perVersion = append(perVersion, filepath.Join(DirConfig, configdir.FileName(id, v)))
-	}
-	return clierr.New(clierr.CodeConfigInvalid,
-		i18n.T(msgid.ProjectConfigAmbiguous, name, id, strings.Join(versions, i18n.T(msgid.ListSeparator)))).
-		WithHint(i18n.T(msgid.ProjectHintConfigAmbiguous, strings.Join(perVersion, i18n.T(msgid.ListSeparator))))
 }
 
 // checkVarRefs 在装载阶段就拦下悬空的 $var:——lint 与 up 走同一处，不必等到解析某个组件。

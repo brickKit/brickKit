@@ -33,6 +33,9 @@ type Entry struct {
 	ServedBy           string
 	// Shell 让这个组件即使一个成员都没有也标成 kind: shell。
 	Shell bool
+	// RequiredBy 写进 brickkit.yaml。同一个 ID 的第一行是默认版本；后面的版本没写时自动补上
+	// 项目里另一个组件的 ID（多版本兼容的用例大多不关心是谁依赖它）。
+	RequiredBy []string
 }
 
 // Spec 是一个测试项目。
@@ -74,43 +77,51 @@ func Render(t testing.TB, spec Spec) Files {
 	if spec.Target == "" {
 		spec.Target = deployfile.TargetDocker
 	}
-	// 成员在项目里有多个版本时写 id@version（明确外壳承载的是哪一个，低版本也行），否则写裸 id
-	versionsOf := map[string]int{}
-	for _, e := range spec.Entries {
-		versionsOf[e.ID]++
-	}
-	members := map[string][]string{}
-	for _, e := range spec.Entries {
-		if e.ServedBy != "" {
-			shell := strings.SplitN(e.ServedBy, "@", 2)[0]
-			member := e.ID
-			if versionsOf[e.ID] > 1 {
-				member = e.ID + "@" + e.Version
-			}
-			members[shell] = append(members[shell], member)
-		}
-	}
-
 	decl := projfile.File{Project: spec.Project}
 	deploy := deployfile.File{Target: spec.Target, K8s: spec.K8s}
 	files := Files{}
 	hasDebug := false
+	// 成员条目嵌在外壳条目下面（附录 A21），一律写 id@version
+	members := map[string][]deployfile.Entry{}
+	seenID := map[string]bool{}
 	for _, e := range spec.Entries {
-		c := projfile.Component{ID: e.ID, Version: e.Version}
-		if _, isShell := members[e.ID]; isShell || e.Shell {
-			c.Kind = projfile.KindShell
-		}
-		decl.Components = append(decl.Components, c)
-		deploy.Components = append(deploy.Components, deployfile.Component{
+		entry := deployfile.Entry{
 			ID: e.ID + "@" + e.Version, Mode: e.Mode, LocalPort: e.LocalPort,
 			Expose: e.Expose, ExposePort: e.ExposePort, Hostname: e.Hostname, TLSSecret: e.TLSSecret,
 			Replicas: e.Replicas, ServiceAccountName: e.ServiceAccountName,
-			Resources: e.Resources, Labels: e.Labels, Members: members[e.ID],
-		})
+			Resources: e.Resources, Labels: e.Labels,
+		}
+		if e.ServedBy != "" {
+			shell := strings.SplitN(e.ServedBy, "@", 2)[0]
+			members[shell] = append(members[shell], entry)
+		}
+		c := projfile.Component{ID: e.ID, Version: e.Version, RequiredBy: e.RequiredBy}
+		if seenID[e.ID] && len(c.RequiredBy) == 0 {
+			c.RequiredBy = []string{otherID(spec, e.ID)}
+		}
+		seenID[e.ID] = true
+		decl.Components = append(decl.Components, c)
 		if len(e.Config) > 0 {
 			files["config/"+configdir.FileName(e.ID, e.Version)] = mustYAML(t, e.Config)
 		}
 		hasDebug = hasDebug || e.Mode == deployfile.ModeDebug
+	}
+	for i := range decl.Components {
+		c := &decl.Components[i]
+		if _, isShell := members[c.ID]; isShell || spec.Entries[i].Shell {
+			c.Kind = projfile.KindShell
+		}
+	}
+	for _, e := range spec.Entries {
+		if e.ServedBy != "" {
+			continue
+		}
+		deploy.Components = append(deploy.Components, deployfile.Component{Entry: deployfile.Entry{
+			ID: e.ID + "@" + e.Version, Mode: e.Mode, LocalPort: e.LocalPort,
+			Expose: e.Expose, ExposePort: e.ExposePort, Hostname: e.Hostname, TLSSecret: e.TLSSecret,
+			Replicas: e.Replicas, ServiceAccountName: e.ServiceAccountName,
+			Resources: e.Resources, Labels: e.Labels,
+		}, Members: members[e.ID]})
 	}
 	deployDoc := mustYAML(t, deploy)
 	if len(spec.DeployVars) > 0 {
@@ -122,12 +133,7 @@ func Render(t testing.TB, spec Spec) Files {
 		files[project.FileDeployLocal] = deployDoc
 		// 团队文件里不能有 debug：写一份把 debug 换成空 mode 的
 		team := deploy
-		team.Components = append([]deployfile.Component(nil), deploy.Components...)
-		for i := range team.Components {
-			if team.Components[i].Mode == deployfile.ModeDebug {
-				team.Components[i].Mode, team.Components[i].LocalPort = "", 0
-			}
-		}
+		team.Components = withoutDebug(deploy.Components)
 		files[project.FileDeploy] = mustYAML(t, team)
 	}
 	if spec.Vars != nil {
@@ -137,6 +143,34 @@ func Render(t testing.TB, spec Spec) Files {
 		files[name] = content
 	}
 	return files
+}
+
+// withoutDebug 复制条目（连同外壳下面的成员），把 mode: debug 换成空 mode。
+func withoutDebug(components []deployfile.Component) []deployfile.Component {
+	strip := func(e deployfile.Entry) deployfile.Entry {
+		if e.Mode == deployfile.ModeDebug {
+			e.Mode, e.LocalPort = "", 0
+		}
+		return e
+	}
+	out := make([]deployfile.Component, len(components))
+	for i, c := range components {
+		out[i] = deployfile.Component{Entry: strip(c.Entry)}
+		for _, m := range c.Members {
+			out[i].Members = append(out[i].Members, strip(m))
+		}
+	}
+	return out
+}
+
+// otherID 返回 spec 里第一个不是 id 的组件 ID（给自动补的 requiredBy 用）。
+func otherID(spec Spec, id string) string {
+	for _, e := range spec.Entries {
+		if e.ID != id {
+			return e.ID
+		}
+	}
+	return id
 }
 
 func mustYAML(t testing.TB, v any) string {

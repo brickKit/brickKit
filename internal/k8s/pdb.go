@@ -57,6 +57,6 @@ func (p *plan) pdbDoc(c componentPlan) map[string]any {
 //
 // 判据是**实际副本数**，不是"有没有写 replicas"：显式写 replicas: 1
 // 与不写完全等价，都不该生成。
-func needsPDB(entry deployfile.Component) bool {
+func needsPDB(entry deployfile.Entry) bool {
 	return entry.ReplicaCount() > 1
 }

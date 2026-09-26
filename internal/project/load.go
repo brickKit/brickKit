@@ -47,10 +47,9 @@ type Project struct {
 	Warnings []*clierr.Error
 
 	configs map[string]*configdir.File
-	shellOf map[string]string
-	// memberVersion 是每个成员 ID 被外壳承载的那个版本；同 ID 的其他版本独立部署。
-	memberVersion map[string]string
-	ignoreShells  bool
+	// shellOf 以 id@version 为键：被外壳承载的成员版本 → 外壳 ID。
+	shellOf      map[string]string
+	ignoreShells bool
 }
 
 // Load 装载 root 下的项目，并执行全部跨文件校验。任何一条不满足都大声失败。
@@ -177,18 +176,28 @@ func refKey(id, version string) string { return id + "@" + version }
 func (p *Project) Config(id, version string) *configdir.File { return p.configs[refKey(id, version)] }
 
 // DeployEntry 返回覆盖该组件版本的部署条目（一致性校验保证一定存在）。
-func (p *Project) DeployEntry(id, version string) deployfile.Component {
-	c, _ := p.Deploy.Entry(id, version)
+func (p *Project) DeployEntry(id, version string) deployfile.Entry {
+	c, _ := p.Deploy.Entry(id, version, p.Decl.IsDefault(id, version))
 	return c
+}
+
+// MembersOf 返回外壳条目下面的成员条目（外壳只有一个版本，条目是裸 ID 或 id@该版本）。
+func (p *Project) MembersOf(shellID string) []deployfile.Entry {
+	for _, c := range p.Deploy.Components {
+		if id, _ := c.Key(); id == shellID {
+			return c.Members
+		}
+	}
+	return nil
 }
 
 // ShellOf 返回某个成员版本所属的外壳：只有被外壳承载的那个版本返回 true（同 ID 的其他版本
 // 独立部署）。IgnoreShells 之后一律返回 false。
 func (p *Project) ShellOf(memberID, version string) (string, bool) {
-	if p.ignoreShells || p.memberVersion[memberID] != version {
+	if p.ignoreShells {
 		return "", false
 	}
-	shell, ok := p.shellOf[memberID]
+	shell, ok := p.shellOf[refKey(memberID, version)]
 	return shell, ok
 }
 

@@ -64,14 +64,14 @@ type modeChange struct {
 // 返回的 untouched 是那些"工作区有、提交里没有"的条目，要在输出里点名说
 // "未动"：使用者得知道为什么它没变，否则会以为命令漏了它。
 func restorePlan(work, head *deployfile.File) ([]modeChange, []string) {
-	headMode := make(map[string]string, len(head.Components))
-	for _, c := range head.Components {
+	headMode := map[string]string{}
+	for _, c := range head.All() {
 		headMode[c.ID] = c.Mode
 	}
 
 	var changes []modeChange
 	var untouched []string
-	for _, c := range work.Components {
+	for _, c := range work.All() {
 		want, ok := headMode[c.ID]
 		if !ok {
 			untouched = append(untouched, c.ID)
@@ -89,8 +89,14 @@ func restorePlan(work, head *deployfile.File) ([]modeChange, []string) {
 func applyMode(f *deployfile.File, changes []modeChange) {
 	for _, ch := range changes {
 		for i := range f.Components {
-			if f.Components[i].ID == ch.entry {
-				f.Components[i].Mode = ch.to
+			c := &f.Components[i]
+			if c.ID == ch.entry {
+				c.Mode = ch.to
+			}
+			for j := range c.Members {
+				if c.Members[j].ID == ch.entry {
+					c.Members[j].Mode = ch.to
+				}
 			}
 		}
 	}

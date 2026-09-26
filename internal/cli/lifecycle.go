@@ -119,7 +119,7 @@ func (p *liveProject) componentRefs() []resolver.Ref {
 }
 
 // entry 返回该组件版本的部署条目。
-func (p *liveProject) entry(ref resolver.Ref) deployfile.Component {
+func (p *liveProject) entry(ref resolver.Ref) deployfile.Entry {
 	return p.proj.DeployEntry(ref.ID, ref.Version)
 }
 

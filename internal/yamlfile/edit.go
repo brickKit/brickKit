@@ -23,6 +23,9 @@ import (
 // keyID 是列表条目用来互相区分的键：brickkit.yaml 与部署文件的组件条目都是 `- id: …`。
 const keyID = "id"
 
+// keyMembers 是部署文件里外壳条目下嵌套成员条目的键。
+const keyMembers = "members"
+
 // editFilePerm 是编辑后写回的权限：与这些文件 init 时的权限一致。
 const editFilePerm = 0o644
 
@@ -150,6 +153,15 @@ func (e *Edit) entry(seqKey, id string) *yaml.Node {
 	for _, item := range seq.Content {
 		if isEntry(item, id) {
 			return item
+		}
+		// 部署文件里外壳的成员是嵌在外壳条目 members 下面的完整条目（只嵌一层）；
+		// id 在整个文件里唯一（部署文件校验保证），往下找一层不会找错
+		if members := mappingValue(item, keyMembers); members != nil && members.Kind == yaml.SequenceNode {
+			for _, member := range members.Content {
+				if isEntry(member, id) {
+					return member
+				}
+			}
 		}
 	}
 	return nil

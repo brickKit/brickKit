@@ -5,8 +5,6 @@ package k8s
 // mode: debug / local 在 K8s 下不合法，部署文件解析阶段就拦下了。
 
 import (
-	"strings"
-
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
@@ -23,7 +21,7 @@ type servedPlan struct {
 	Ref      resolver.Ref
 	Service  string
 	Manifest *manifest.Manifest
-	Entry    deployfile.Component
+	Entry    deployfile.Entry
 	Shell    resolver.Ref
 }
 
@@ -99,59 +97,6 @@ func (p *plan) fallbackStandaloneWarnings() []*clierr.Error {
 			WithDetail(i18n.T(msgid.LabelShell), shellRef.String()).
 			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ServedByFallbackReasonDetail)).
 			WithHint(hints...))
-	}
-	return out
-}
-
-func (p *plan) servedHealthCheckWarnings() []*clierr.Error {
-	var out []*clierr.Error
-	for _, s := range p.served {
-		if s.Manifest == nil || s.Manifest.HealthCheck.Type == manifest.HealthCheckNone {
-			continue
-		}
-		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-			i18n.T(msgid.ServedHealthCheckNotIndependent)).
-			WithDetail(i18n.T(msgid.LabelComponent), s.Ref.String()).
-			WithDetail(i18n.T(msgid.LabelShell), s.Shell.String()).
-			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sServedHealthCheckReasonDetail)))
-	}
-	return out
-}
-
-// labels 原先走的是合并路线，直到真机复现出 prometheus.io/port 这类
-// "语义上必然因组件而异"的键必然合并冲突，才改成跟这一批字段同样的
-// "警告 + 忽略"（brickKit 反馈：servedBy 的 labels 合并漏了排除规则；
-// 见 internal/shell.mergeGroup 的注释）。
-func (p *plan) servedUnsupportedFieldWarnings() []*clierr.Error {
-	var out []*clierr.Error
-	for _, s := range p.served {
-		var fields []string
-		if s.Entry.Expose {
-			fields = append(fields, "expose")
-		}
-		if s.Entry.Hostname != "" {
-			fields = append(fields, "hostname")
-		}
-		if s.Entry.Replicas != nil {
-			fields = append(fields, "replicas")
-		}
-		if s.Entry.Resources != nil {
-			fields = append(fields, "resources")
-		}
-		if s.Entry.ServiceAccountName != "" {
-			fields = append(fields, "serviceAccountName")
-		}
-		if shell.MemberLabels(s.Manifest, s.Entry) != nil {
-			fields = append(fields, "labels")
-		}
-		if len(fields) == 0 {
-			continue
-		}
-		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-			i18n.T(msgid.ServedFieldsIgnored, strings.Join(fields, "/"))).
-			WithDetail(i18n.T(msgid.LabelComponent), s.Ref.String()).
-			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sServedFieldsReasonDetail, s.Shell.ID)).
-			WithHint(i18n.T(msgid.HintDropServedBy)))
 	}
 	return out
 }

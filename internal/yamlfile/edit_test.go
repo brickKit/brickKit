@@ -101,3 +101,28 @@ func TestOpenEditRejectsInvalidYAML(t *testing.T) {
 	_, err := yamlfile.OpenEdit(path)
 	require.Error(t, err)
 }
+
+// 部署文件里外壳的成员是嵌在外壳条目 members 下面的完整条目：按 id 找条目时也要找到它们
+// （id 在整个文件里唯一，由部署文件校验保证）。
+func TestEditFindsNestedMemberEntries(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "deploy.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`target: docker
+components:
+  - id: erp/shell
+    members:
+      - id: erp/api # hosted
+        mode: disable
+`), 0o644))
+	e, err := yamlfile.OpenEdit(path)
+	require.NoError(t, err)
+
+	require.True(t, e.DeleteField("components", "erp/api", "mode"))
+	require.True(t, e.SetField("components", "erp/api", "localPort", "9000"))
+	assert.Equal(t, `target: docker
+components:
+  - id: erp/shell
+    members:
+      - id: erp/api # hosted
+        localPort: "9000"
+`, saved(t, e, path))
+}

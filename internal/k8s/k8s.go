@@ -308,7 +308,7 @@ type componentPlan struct {
 	Ref      resolver.Ref
 	Service  string
 	Manifest *manifest.Manifest
-	Entry    deployfile.Component
+	Entry    deployfile.Entry
 	Env      inject.Component
 }
 
@@ -403,8 +403,6 @@ func newPlan(
 	}
 	p.warnings = append(p.warnings, p.privilegedPortWarnings()...)
 	p.warnings = append(p.warnings, p.fallbackStandaloneWarnings()...)
-	p.warnings = append(p.warnings, p.servedHealthCheckWarnings()...)
-	p.warnings = append(p.warnings, p.servedUnsupportedFieldWarnings()...)
 	return p, nil
 }
 

@@ -29,9 +29,10 @@
 //
 // # 生成器不去猜的形状
 //
-// 另有两处，反射看到的与 yaml.v3 实际解码的对不上，同样直接报错而不是猜：yaml tag 里的
-// inline 选项（yaml.v3 把被内联字段的键摊平到外层，生成器只会生成一层嵌套对象），以及递归
-// 类型——结构体自己引用自己，或者经由具名 slice / map 绕回来，展开永远不会终止。
+// 另有两处，反射看到的与 yaml.v3 实际解码的对不上，同样直接报错而不是猜：内联一个 map 的
+// inline 选项（yaml.v3 拿它收纳所有未知键，schema 表达不了；内联一个 struct 则由
+// yamlcheck.KnownFields 摊平，与 yaml.v3 一致），以及递归类型——结构体自己引用自己，或者
+// 经由具名 slice / map 绕回来，展开永远不会终止。
 //
 // # 需要人记得的两处
 //
@@ -188,8 +189,8 @@ func (g *generator) structSchema(t reflect.Type) (schema, error) {
 	for _, name := range names {
 		field := known[name]
 		if hasYAMLOption(field, "inline") {
-			return nil, fmt.Errorf("%s.%s：yaml 的 inline 选项会把这个字段的键摊平到外层，"+
-				"生成器却会生成一层嵌套对象，两边对不上，不支持", t.Name(), field.Name)
+			return nil, fmt.Errorf("%s.%s：yaml 的 inline 选项内联一个 map，会收纳所有未知键，"+
+				"schema 表达不了，不支持", t.Name(), field.Name)
 		}
 		node, err := g.typeSchema(field.Type)
 		if err != nil {

@@ -405,7 +405,7 @@ func (p *liveProject) localModeDiffers(id string) bool {
 			return false
 		}
 		for _, c := range p.proj.Decl.Components {
-			if entry, ok := team.Entry(c.ID, c.Version); ok {
+			if entry, ok := team.Entry(c.ID, c.Version, p.proj.Decl.IsDefault(c.ID, c.Version)); ok {
 				p.teamModes[c.ID] = entry.Mode
 			}
 		}

@@ -88,36 +88,56 @@ func writeLegacy(t *testing.T, dir, text string) {
 		k8s = &settings
 	}
 
-	members := map[string][]string{}
+	shells := map[string]bool{}
 	for _, c := range doc.Components {
 		if c.ServedBy != "" {
-			shell := strings.SplitN(c.ServedBy, "@", 2)[0]
-			members[shell] = append(members[shell], c.ID)
+			shells[strings.SplitN(c.ServedBy, "@", 2)[0]] = true
 		}
 	}
+	otherID := func(id string) string {
+		for _, c := range doc.Components {
+			if c.ID != id {
+				return c.ID
+			}
+		}
+		return id
+	}
 
-	team := deployfile.File{Target: target, K8s: k8s}
-	local := deployfile.File{Target: target, K8s: k8s}
+	// 成员条目嵌在外壳条目下面（附录 A21）；同一个 ID 的第一行是默认版本，后面的版本补上 requiredBy
+	teamMembers := map[string][]deployfile.Entry{}
+	localMembers := map[string][]deployfile.Entry{}
+	var teamTop, localTop []deployfile.Component
 	hasDebug := false
+	seenID := map[string]bool{}
 	layout := project.NewLayout(dir)
 	require.NoError(t, os.MkdirAll(layout.ConfigDir(), 0o755))
 	for _, c := range doc.Components {
-		dc := decl.Components
 		entry := projfile.Component{ID: c.ID, Version: c.Version}
-		if _, ok := members[c.ID]; ok {
+		if shells[c.ID] {
 			entry.Kind = projfile.KindShell
 		}
-		decl.Components = append(dc, entry)
+		if seenID[c.ID] {
+			entry.RequiredBy = []string{otherID(c.ID)}
+		}
+		seenID[c.ID] = true
+		decl.Components = append(decl.Components, entry)
 
 		d := c.Component
 		d.ID = c.ID + "@" + c.Version
-		d.Members = members[c.ID]
-		local.Components = append(local.Components, d)
+		d.Members = nil
+		teamEntry := d.Entry
 		if d.Mode == deployfile.ModeDebug {
 			hasDebug = true
-			d.Mode, d.LocalPort = "", 0
+			teamEntry.Mode, teamEntry.LocalPort = "", 0
 		}
-		team.Components = append(team.Components, d)
+		if c.ServedBy != "" {
+			shell := strings.SplitN(c.ServedBy, "@", 2)[0]
+			localMembers[shell] = append(localMembers[shell], d.Entry)
+			teamMembers[shell] = append(teamMembers[shell], teamEntry)
+		} else {
+			localTop = append(localTop, d)
+			teamTop = append(teamTop, deployfile.Component{Entry: teamEntry})
+		}
 
 		if len(c.Config) > 0 {
 			cfg := make(map[string]any, len(c.Config))
@@ -127,6 +147,15 @@ func writeLegacy(t *testing.T, dir, text string) {
 			writeYAML(t, filepath.Join(layout.ConfigDir(), configdir.FileName(c.ID, c.Version)), cfg)
 		}
 	}
+	nest := func(top []deployfile.Component, members map[string][]deployfile.Entry) []deployfile.Component {
+		for i := range top {
+			id, _ := top[i].Key()
+			top[i].Members = members[id]
+		}
+		return top
+	}
+	team := deployfile.File{Target: target, K8s: k8s, Components: nest(teamTop, teamMembers)}
+	local := deployfile.File{Target: target, K8s: k8s, Components: nest(localTop, localMembers)}
 	if len(doc.Vars) > 0 {
 		team.Vars, local.Vars = doc.Vars, doc.Vars
 	}
@@ -197,6 +226,16 @@ func (f *projectFixture) writeOverride(t *testing.T, body string) {
 	if ov.Target != "" {
 		local.Target = ov.Target
 	}
+	setMode := func(entries []deployfile.Entry, e legacyOverrideEntry) {
+		for i := range entries {
+			if id, _ := entries[i].Key(); id == e.ID && e.Mode != "" {
+				entries[i].Mode, entries[i].LocalPort = e.Mode, e.LocalPort
+			}
+		}
+	}
+	for i := range local.Components {
+		local.Components[i].Members = append([]deployfile.Entry(nil), local.Components[i].Members...)
+	}
 	var apply func([]legacyOverrideEntry)
 	apply = func(entries []legacyOverrideEntry) {
 		for _, e := range entries {
@@ -204,6 +243,7 @@ func (f *projectFixture) writeOverride(t *testing.T, body string) {
 				if id, _ := local.Components[i].Key(); id == e.ID && e.Mode != "" {
 					local.Components[i].Mode, local.Components[i].LocalPort = e.Mode, e.LocalPort
 				}
+				setMode(local.Components[i].Members, e)
 			}
 			apply(e.Members)
 		}
@@ -228,17 +268,17 @@ func (f *projectFixture) deployText(t *testing.T) string {
 }
 
 // deployEntry 返回 deploy.yaml 里 id 对应的那一条（裸 id 或 id@version 都认）。
-func (f *projectFixture) deployEntry(t *testing.T, id string) deployfile.Component {
+func (f *projectFixture) deployEntry(t *testing.T, id string) deployfile.Entry {
 	t.Helper()
 	d, _, err := deployfile.ParseFile(f.Layout.DeployPath(), deployfile.RoleTeam)
 	require.NoError(t, err)
-	for _, c := range d.Components {
-		if entryID, _ := c.Key(); entryID == id {
-			return c
+	for _, l := range d.All() {
+		if entryID, _ := l.Key(); entryID == id {
+			return l.Entry
 		}
 	}
 	require.Failf(t, "deploy.yaml 里没有这个组件", "%s", id)
-	return deployfile.Component{}
+	return deployfile.Entry{}
 }
 
 // seedInstalled 造出"这个版本以前装过"的现场：Manifest 缓存与产物，正是旧 add 留下的那些。

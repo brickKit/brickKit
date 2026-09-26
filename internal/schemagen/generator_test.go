@@ -771,31 +771,31 @@ type inlined struct {
 	A string `yaml:"a"`
 }
 
-// ,inline：yaml.v3 把被内联的字段的键摊平到外层，生成器却会生成一层嵌套对象——两边对不上，所以报错。
-func TestInlineFieldsAreRejected(t *testing.T) {
+// ,inline 内联一个 struct：yaml.v3 把它的键摊平到外层，schema 也摊平（同一份 KnownFields，
+// CLI 的未知字段检查与编辑器看到的是同一组键）。
+func TestInlineStructFieldsAreFlattened(t *testing.T) {
 	type flattenedStruct struct {
 		Inner inlined `yaml:",inline"`
 		B     string  `yaml:"b"`
 	}
-	type flattenedNamed struct {
-		Inner inlined `yaml:"inner,inline"`
-	}
+	s := generate(t, flattenedStruct{})
+	assert.Contains(t, props(s), "a")
+	assert.Contains(t, props(s), "b")
+	assert.NotContains(t, props(s), "inner")
+}
+
+// ,inline 内联一个 map 是"收纳所有未知键"：schema 表达不了，报错而不是生成一份更严的 schema。
+func TestInlineMapIsRejected(t *testing.T) {
 	type flattenedMap struct {
 		Extra map[string]any `yaml:",inline,omitempty"`
 	}
-	for name, v := range map[string]any{
-		"内联一个 struct":     flattenedStruct{},
-		"名字之后还带 inline":   flattenedNamed{},
-		"内联一个 map（收纳未知键）": flattenedMap{},
-	} {
-		t.Run(name, func(t *testing.T) {
-			_, err := newGenerator(nil).typeSchema(reflect.TypeOf(v))
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "inline")
-			assert.Contains(t, err.Error(), reflect.TypeOf(v).Name()+".", "要点名类型与字段")
-		})
-	}
+	_, err := newGenerator(nil).typeSchema(reflect.TypeOf(flattenedMap{}))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "inline")
+	assert.Contains(t, err.Error(), "flattenedMap.", "要点名类型与字段")
+}
 
+func TestFieldsWithoutInlineOptionAreUnaffected(t *testing.T) {
 	// 只要没写 inline 选项就照常生成：名字里带 inline 字样、或者别的选项，都不受影响
 	type notInlined struct {
 		Inlined inlined  `yaml:"inlineThing,omitempty"`

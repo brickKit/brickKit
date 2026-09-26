@@ -31,6 +31,4 @@ const (
 	K8sHintFindControllerNamespace       = "k8s.hint.find_controller_namespace"
 	K8sHintThenWriteBrickkitYAML         = "k8s.hint.then_write_brickkit_yaml"
 	K8sHintDropNetworkPolicy             = "k8s.hint.drop_network_policy"
-	K8sServedHealthCheckReasonDetail     = "k8s.served_health_check_reason_detail"
-	K8sServedFieldsReasonDetail          = "k8s.served_fields_reason_detail"
 )

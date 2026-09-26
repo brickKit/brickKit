@@ -91,7 +91,7 @@ func projectOf(entries [][2]string, defaultVersion string) *project.Project {
 			id, version = id[:i], id[i+1:]
 		}
 		decl.Components = append(decl.Components, projfile.Component{ID: id, Version: version})
-		deploy.Components = append(deploy.Components, deployfile.Component{ID: id + "@" + version, Mode: e[1]})
+		deploy.Components = append(deploy.Components, deployfile.Component{Entry: deployfile.Entry{ID: id + "@" + version, Mode: e[1]}})
 	}
 	return &project.Project{Decl: decl, Deploy: deploy}
 }

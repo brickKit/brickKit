@@ -44,7 +44,131 @@
           },
           "members": {
             "items": {
-              "type": "string"
+              "additionalProperties": false,
+              "properties": {
+                "expose": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "exposePort": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "hostname": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "labels": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "localPort": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "mode": {
+                  "enum": [
+                    "enabled",
+                    "disable",
+                    "local",
+                    "debug",
+                    null
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "replicas": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "resources": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "limits": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "cpu": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "memory": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "requests": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "cpu": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "memory": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "serviceAccountName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tlsSecret": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
             },
             "type": [
               "array",

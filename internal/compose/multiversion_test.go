@@ -131,6 +131,8 @@ func TestSameComponentMigrationsAreChainedByVersion(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withMigration(withDatabase(simple("demo/hello", "1.0.0", 8080))), projecttest.Entry{})
 	b.component(withMigration(withDatabase(simple("demo/hello", "2.0.0", 8080))), projecttest.Entry{})
+	// 第二个版本只是因为它依赖才在项目里（brickkit.yaml 里带 requiredBy）
+	b.component(dependsOn(simple("legacy/caller", "1.0.0", 9100), "demo/hello", "2.0.0"), projecttest.Entry{})
 
 	doc := b.parsed()
 
@@ -156,6 +158,8 @@ func TestMigrationChainOrdersByVersionNotByName(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withMigration(withDatabase(simple("demo/hello", "2.0.0", 8080))), projecttest.Entry{})
 	b.component(withMigration(withDatabase(simple("demo/hello", "10.0.0", 8080))), projecttest.Entry{})
+	// 第二个版本只是因为它依赖才在项目里（brickkit.yaml 里带 requiredBy）
+	b.component(dependsOn(simple("legacy/caller", "1.0.0", 9100), "demo/hello", "10.0.0"), projecttest.Entry{})
 
 	doc := b.parsed()
 
@@ -172,6 +176,8 @@ func TestMigrationChainSkipsVersionsWithoutMigration(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withDatabase(simple("demo/hello", "1.0.0", 8080)), projecttest.Entry{})
 	b.component(withMigration(withDatabase(simple("demo/hello", "2.0.0", 8080))), projecttest.Entry{})
+	// 第二个版本只是因为它依赖才在项目里（brickkit.yaml 里带 requiredBy）
+	b.component(dependsOn(simple("legacy/caller", "1.0.0", 9100), "demo/hello", "2.0.0"), projecttest.Entry{})
 
 	doc := b.parsed()
 	services := doc["services"].(map[string]any)

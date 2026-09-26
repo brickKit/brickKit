@@ -176,9 +176,9 @@ func configFileFor(p *project.Project, ref resolver.Ref) string {
 	if f := p.Config(ref.ID, ref.Version); f != nil {
 		return f.Path
 	}
-	version := ""
-	if len(p.Decl.Versions(ref.ID)) > 1 {
-		version = ref.Version
+	version := ref.Version
+	if p.Decl.IsDefault(ref.ID, ref.Version) {
+		version = "" // 无版本号的文件归默认版本
 	}
 	return project.DirConfig + "/" + configdir.FileName(ref.ID, version)
 }

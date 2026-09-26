@@ -42,10 +42,7 @@ const (
 )
 
 // internal/compose/servedby.go
-const (
-	ComposeServedHealthCheckReasonDetail = "compose.served_health_check_reason_detail"
-	ComposeServedFieldsReasonDetail      = "compose.served_fields_reason_detail"
-)
+const ()
 
 // internal/compose/quota.go
 const (

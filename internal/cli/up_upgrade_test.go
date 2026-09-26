@@ -313,13 +313,21 @@ func TestSecondUpgradeReportsThePreviousVersion(t *testing.T) {
 // （灰度迁移的标准写法）会看到一句"⬆️ 检测到版本变更"——
 // 而使用者要的恰恰是两个一起跑。
 func TestAddingACoexistingVersionIsNotAnUpgrade(t *testing.T) {
-	f := versionedProject(t, "1.0.0", "2.0.0")
+	// 第二个版本因依赖而共存：得有一个依赖它的组件（brickkit.yaml 里那一行带 requiredBy）
+	f := addedProject(t, []comp{
+		{ID: "people/basic", Version: "1.0.0", ConfigSchema: []string{"logLevel:info"}},
+		{ID: "people/basic", Version: "2.0.0", ConfigSchema: []string{"logLevel:info"}},
+		{ID: "legacy/caller", Version: "1.0.0", Requires: []string{"people/basic@2.0.0"}},
+	}, "people/basic@1.0.0")
+	bumpTo(t, f, "1.0.0")
 
 	f.writeConfig(t, `components:
   - id: people/basic
     version: 1.0.0
   - id: people/basic
     version: 2.0.0
+  - id: legacy/caller
+    version: 1.0.0
 `)
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 

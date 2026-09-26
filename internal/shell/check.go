@@ -39,10 +39,9 @@ func Check(p *project.Project, graph *resolver.Graph, _ *cascade.Result) error {
 		if !c.IsShell() {
 			continue
 		}
-		entry := p.DeployEntry(c.ID, c.Version)
-		for _, written := range entry.Members {
-			// 能力声明只列组件 ID；members 里可能写了 id@version（外壳承载的是哪个版本）
-			member, _, _ := strings.Cut(written, "@")
+		for _, written := range p.MembersOf(c.ID) {
+			// 能力声明只列组件 ID；成员条目可能写了 id@version（外壳承载的是哪个版本）
+			member, _ := written.Key()
 			if !node.Manifest.CanHost(member) {
 				return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellMemberNotHostable, member, ref.String())).
 					WithDetail(i18n.T(msgid.LabelFile), p.DeployPath).

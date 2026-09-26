@@ -73,11 +73,11 @@ type testCfg struct {
 // projectFrom 把 testCfg 写成三层文件并装载。
 func projectFrom(t *testing.T, cfg *testCfg) *project.Project {
 	t.Helper()
-	shells := map[string][]string{}
+	shells := map[string][]testComp{}
 	for _, c := range cfg.Components {
 		if c.ServedBy != "" {
 			id := strings.SplitN(c.ServedBy, "@", 2)[0]
-			shells[id] = append(shells[id], c.ID)
+			shells[id] = append(shells[id], c)
 		}
 	}
 	var decl, deploy strings.Builder
@@ -90,17 +90,26 @@ func projectFrom(t *testing.T, cfg *testCfg) *project.Project {
 			kind = ", kind: shell"
 		}
 		fmt.Fprintf(&decl, "  - {id: %s, version: %s%s}\n", c.ID, c.Version, kind)
+		if len(c.Config) > 0 {
+			data, err := yaml.Marshal(c.Config)
+			require.NoError(t, err)
+			files["config/"+configdir.FileName(c.ID, c.Version)] = string(data)
+		}
+		if c.ServedBy != "" {
+			continue // 成员条目嵌在外壳条目下面
+		}
 		fmt.Fprintf(&deploy, "  - id: %s@%s\n", c.ID, c.Version)
 		if c.Mode != "" {
 			fmt.Fprintf(&deploy, "    mode: %s\n", c.Mode)
 		}
 		if members := shells[c.ID]; len(members) > 0 {
-			fmt.Fprintf(&deploy, "    members: [%s]\n", strings.Join(members, ", "))
-		}
-		if len(c.Config) > 0 {
-			data, err := yaml.Marshal(c.Config)
-			require.NoError(t, err)
-			files["config/"+configdir.FileName(c.ID, c.Version)] = string(data)
+			deploy.WriteString("    members:\n")
+			for _, m := range members {
+				fmt.Fprintf(&deploy, "      - id: %s@%s\n", m.ID, m.Version)
+				if m.Mode != "" {
+					fmt.Fprintf(&deploy, "        mode: %s\n", m.Mode)
+				}
+			}
 		}
 	}
 	for name, content := range cfg.Files {

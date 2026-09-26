@@ -185,7 +185,7 @@ func planSync(layout project.Layout, ids []string, f *focus) []syncAction {
 }
 
 // skipReason 说明这个组件为什么不启动（17.12）。
-func skipReason(id string, entry deployfile.Component, states *cascade.Result) string {
+func skipReason(id string, entry deployfile.Entry, states *cascade.Result) string {
 	if entry.IsDisabled() {
 		return reasonDisabled()
 	}

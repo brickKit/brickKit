@@ -23,7 +23,7 @@ const baseDecl = `project: shop
 components:
   - {id: erp/shell, version: 1.0.0, kind: shell}
   - {id: erp/backend, version: 2.0.0}
-  - {id: people/basic, version: 1.0.0}
+  - {id: people/basic, version: 1.0.0, requiredBy: [erp/backend]}
   - {id: people/basic, version: 2.0.0}
 `
 
@@ -32,9 +32,10 @@ vars:
   DB_PASSWORD: deploy-pwd
 components:
   - id: erp/shell
-    members: [erp/backend]
-  - id: erp/backend
+    members:
+      - id: erp/backend
   - id: people/basic
+  - id: people/basic@1.0.0
 `
 
 func write(t *testing.T, root string, files map[string]string) {
@@ -91,7 +92,8 @@ func TestLoadHappyPath(t *testing.T) {
 	level, _ := p.Config("people/basic", "2.0.0").Lookup("LOG_LEVEL")
 	assert.Equal(t, "warn", level.Text)
 	assert.Nil(t, p.Config("erp/shell", "1.0.0"))
-	assert.Equal(t, "people/basic", p.DeployEntry("people/basic", "1.0.0").ID)
+	assert.Equal(t, "people/basic@1.0.0", p.DeployEntry("people/basic", "1.0.0").ID)
+	assert.Equal(t, "people/basic", p.DeployEntry("people/basic", "2.0.0").ID, "裸 ID 条目覆盖默认版本")
 
 	schema := &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
 		"DB_HOST": {Type: "string"}, "DB_PASSWORD": {Type: "string", Secret: true},
@@ -107,10 +109,9 @@ func TestLoadHappyPath(t *testing.T) {
 func TestLoadDeploySelection(t *testing.T) {
 	root := baseProject(t)
 	write(t, root, map[string]string{
-		// 改掉原有条目而不是再加一条 erp/backend@2.0.0：那样裸 ID 条目就什么也不覆盖，会被判为多余
 		"deploy.local.yaml": strings.Replace(
 			strings.Replace(baseDeploy, "target: docker", "target: podman", 1),
-			"  - id: erp/backend\n", "  - id: erp/backend\n    mode: debug\n    localPort: 9000\n", 1),
+			"      - id: erp/backend\n", "      - {id: erp/backend, mode: debug, localPort: 9000}\n", 1),
 		"deploy.prod.yaml": strings.Replace(baseDeploy, "target: docker", "target: k8s", 1),
 	})
 	l := project.NewLayout(root)
@@ -174,8 +175,7 @@ func TestLoadDeployExtraAndMissing(t *testing.T) {
 	root := baseProject(t)
 	write(t, root, map[string]string{"deploy.yaml": `target: docker
 components:
-  - {id: erp/shell, members: [erp/backend]}
-  - id: erp/backend
+  - {id: erp/shell, members: [{id: erp/backend}, {id: ghost/member}]}
   - id: old/thing
 `})
 	_, err := project.Load(root, project.LoadOptions{})
@@ -185,14 +185,14 @@ components:
 	assert.Equal(t, i18n.T(msgid.ProjectDeployInconsistent, "deploy.yaml"), e.Message)
 	values := detailValues(err)
 	assert.Contains(t, values, "old/thing")
+	assert.Contains(t, values, "ghost/member", "外壳下面的条目同样要对得上 brickkit.yaml")
 	assert.Contains(t, values, "people/basic@1.0.0", "several versions: missing entries name the exact version")
 	assert.Contains(t, values, "people/basic@2.0.0")
 }
 
 func TestLoadBareEntryCoveringNothingIsExtra(t *testing.T) {
 	root := baseProject(t)
-	write(t, root, map[string]string{"deploy.yaml": baseDeploy +
-		"  - id: people/basic@1.0.0\n  - id: people/basic@2.0.0\n"})
+	write(t, root, map[string]string{"deploy.yaml": baseDeploy + "  - id: people/basic@2.0.0\n"})
 	_, err := project.Load(root, project.LoadOptions{})
 	require.Error(t, err)
 	assert.Contains(t, detailValues(err), "people/basic")
@@ -200,7 +200,7 @@ func TestLoadBareEntryCoveringNothingIsExtra(t *testing.T) {
 
 func TestLoadDebugRejectedOutsideLocalFile(t *testing.T) {
 	root := baseProject(t)
-	debug := baseDeploy + "  - {id: erp/backend@2.0.0, mode: debug, localPort: 9000}\n"
+	debug := strings.Replace(baseDeploy, "      - id: erp/backend\n", "      - {id: erp/backend, mode: debug, localPort: 9000}\n", 1)
 	write(t, root, map[string]string{"deploy.prod.yaml": debug})
 	_, err := project.Load(root, project.LoadOptions{DeployFile: "deploy.prod.yaml"})
 	require.Error(t, err)
@@ -215,27 +215,19 @@ func TestLoadMemberRules(t *testing.T) {
 		"members on non-shell": {baseDecl, `target: docker
 components:
   - id: erp/shell
-  - {id: erp/backend, members: [people/basic]}
-  - id: people/basic
+  - {id: erp/backend, members: [{id: people/basic}]}
+  - id: people/basic@1.0.0
 `},
-		"undeclared member": {baseDecl, `target: docker
+		"member is a shell": {baseDecl + "  - {id: erp/shell2, version: 1.0.0, kind: shell}\n", `target: docker
 components:
-  - {id: erp/shell, members: [ghost/thing]}
-  - id: erp/backend
+  - {id: erp/shell, members: [{id: erp/backend}, {id: erp/shell2}]}
   - id: people/basic
+  - id: people/basic@1.0.0
 `},
-		"member version not declared": {baseDecl, `target: docker
+		"one component in two shells": {baseDecl + "  - {id: erp/shell2, version: 1.0.0, kind: shell}\n", `target: docker
 components:
-  - {id: erp/shell, members: [people/basic@9.9.9]}
-  - id: erp/backend
-  - id: people/basic
-`},
-		"member in two shells": {baseDecl + "  - {id: erp/shell2, version: 1.0.0, kind: shell}\n", `target: docker
-components:
-  - {id: erp/shell, members: [erp/backend]}
-  - {id: erp/shell2, members: [erp/backend]}
-  - id: erp/backend
-  - id: people/basic
+  - {id: erp/shell, members: [{id: erp/backend}, {id: people/basic}]}
+  - {id: erp/shell2, members: [{id: people/basic@1.0.0}]}
 `},
 	}
 	for name, tc := range cases {
@@ -253,14 +245,24 @@ components:
 	}
 }
 
-func TestLoadConfigAmbiguousAcrossVersions(t *testing.T) {
+// 无版本号的配置文件归默认版本；因依赖而存在的版本只读自己的 @version 文件，没有就是没有配置。
+func TestLoadConfigDefaultVersion(t *testing.T) {
 	root := baseProject(t)
 	require.NoError(t, os.Remove(filepath.Join(root, "config", "people-basic@2.0.0.yaml")))
+	require.NoError(t, os.Remove(filepath.Join(root, "config", "people-basic@1.0.0.yaml")))
 	write(t, root, map[string]string{"config/people-basic.yaml": "LOG_LEVEL: info\n"})
 
-	_, err := project.Load(root, project.LoadOptions{})
+	p, err := project.Load(root, project.LoadOptions{})
+	require.NoError(t, err)
+	level, _ := p.Config("people/basic", "2.0.0").Lookup("LOG_LEVEL")
+	assert.Equal(t, "info", level.Text)
+	assert.Nil(t, p.Config("people/basic", "1.0.0"), "requiredBy 的版本不读无版本号文件")
+
+	// 默认版本同时有无版本号文件与 @version 文件：两份文件争同一个版本
+	write(t, root, map[string]string{"config/people-basic@2.0.0.yaml": "LOG_LEVEL: warn\n"})
+	_, err = project.Load(root, project.LoadOptions{})
 	require.Error(t, err)
-	assert.Equal(t, i18n.T(msgid.ProjectConfigAmbiguous, "people-basic.yaml", "people/basic", "1.0.0, 2.0.0"),
+	assert.Equal(t, i18n.T(msgid.ProjectConfigTwoFilesForDefault, "people-basic.yaml", "people-basic@2.0.0.yaml", "people/basic@2.0.0"),
 		clierr.As(err).Message)
 }
 
@@ -269,20 +271,14 @@ func TestLoadConfigOrphansWarn(t *testing.T) {
 	write(t, root, map[string]string{
 		"config/gone-thing.yaml":           "A: 1\n",
 		"config/erp-backend@9.9.9.yaml":    "A: 1\n",
-		"config/people-basic.yaml":         "A: 1\n", // 两个版本都有专属文件，无版本文件没人用
 		"config/.archive/erp-backend.yaml": "A: 1\n",
 		"config/README.md":                 "notes\n",
 	})
 	p, err := project.Load(root, project.LoadOptions{})
 	require.NoError(t, err)
-	assert.Len(t, p.Warnings, 3)
-	unused := 0
-	for _, w := range p.Warnings {
-		if w.Message == i18n.T(msgid.ProjectConfigUnversionedUnused, "config/people-basic.yaml", "people/basic", "people-basic") {
-			unused++
-		}
-	}
-	assert.Equal(t, 1, unused)
+	require.Len(t, p.Warnings, 2)
+	assert.Equal(t, i18n.T(msgid.ProjectConfigOrphan, "config/erp-backend@9.9.9.yaml"), p.Warnings[0].Message)
+	assert.Equal(t, i18n.T(msgid.ProjectConfigOrphan, "config/gone-thing.yaml"), p.Warnings[1].Message)
 }
 
 func TestLoadUndefinedVarRef(t *testing.T) {
@@ -355,25 +351,22 @@ func TestLoadVarsAndComponentConflictsTogether(t *testing.T) {
 	assert.Contains(t, joined, "people-basic@1.0.0.yaml")
 }
 
-func TestLoadCrossVersionHostPortCollision(t *testing.T) {
+// 裸 ID 条目只覆盖默认版本：因依赖而存在的版本必须有自己的条目，不会悄悄继承默认版本的
+// expose / 端口（那会让两个容器抢同一个宿主机端口）。
+func TestLoadRequiredByVersionNeedsOwnEntry(t *testing.T) {
 	root := baseProject(t)
-	write(t, root, map[string]string{"deploy.yaml": strings.Replace(baseDeploy,
-		"  - id: people/basic\n", "  - id: people/basic\n    expose: true\n    exposePort: 8080\n", 1)})
+	write(t, root, map[string]string{"deploy.yaml": strings.Replace(baseDeploy, "  - id: people/basic@1.0.0\n", "", 1)})
 	_, err := project.Load(root, project.LoadOptions{})
 	require.Error(t, err)
-	e := clierr.As(err)
-	assert.Equal(t, clierr.CodePortConflict, e.Code)
-	assert.Equal(t, i18n.T(msgid.ProjectHostPortCollision, 8080), e.Message)
-	joined := strings.Join(detailValues(err), "\n")
-	assert.Contains(t, joined, "people/basic@1.0.0")
-	assert.Contains(t, joined, "people/basic@2.0.0")
+	assert.Equal(t, clierr.CodeDeployInconsistent, clierr.As(err).Code)
+	assert.Contains(t, detailValues(err), "people/basic@1.0.0")
 }
 
 func TestLoadLocalPortVsExposePort(t *testing.T) {
 	root := baseProject(t)
 	write(t, root, map[string]string{"deploy.yaml": strings.Replace(strings.Replace(baseDeploy,
-		"  - id: erp/backend\n", "  - id: erp/backend\n    mode: local\n    localPort: 9000\n", 1),
-		"  - id: people/basic\n", "  - id: people/basic@1.0.0\n    expose: true\n    exposePort: 9000\n  - id: people/basic@2.0.0\n", 1)})
+		"      - id: erp/backend\n", "      - {id: erp/backend, mode: local, localPort: 9000}\n", 1),
+		"  - id: people/basic@1.0.0\n", "  - id: people/basic@1.0.0\n    expose: true\n    exposePort: 9000\n", 1)})
 	_, err := project.Load(root, project.LoadOptions{})
 	require.Error(t, err)
 	assert.Equal(t, clierr.CodePortConflict, clierr.As(err).Code)
@@ -408,13 +401,15 @@ func TestAssembleChecksTopologyWithoutConfig(t *testing.T) {
 	require.Error(t, err, "部署文件没覆盖到的组件照样要报")
 }
 
-// 成员有两个版本时，members 写明外壳里的是哪一个：那个版本进外壳，另一个版本照常独立部署。
-func TestLoadMemberVersionPinned(t *testing.T) {
+// 外壳下面写 id@version：外壳承载那个版本（这里是因依赖而存在的 1.0.0），默认版本在顶层独立部署。
+func TestLoadShellHostsRequiredByVersion(t *testing.T) {
 	root := baseProject(t)
 	write(t, root, map[string]string{"deploy.yaml": `target: docker
 components:
-  - {id: erp/shell, members: [erp/backend, people/basic@1.0.0]}
-  - id: erp/backend
+  - id: erp/shell
+    members:
+      - id: erp/backend
+      - id: people/basic@1.0.0
   - id: people/basic
 `})
 	p, err := project.Load(root, project.LoadOptions{})
@@ -423,26 +418,28 @@ components:
 	assert.True(t, ok)
 	assert.Equal(t, "erp/shell", shell)
 	_, ok = p.ShellOf("people/basic", "2.0.0")
-	assert.False(t, ok, "2.0.0 不在外壳里")
-	_, ok = p.ShellOf("erp/backend", "2.0.0")
-	assert.True(t, ok, "只有一个版本的成员写裸 id 即可")
+	assert.False(t, ok, "默认版本不在外壳里")
 }
 
-// 多个版本却只写了裸 id：外壳承载 brickkit.yaml 里声明的最高版本，其余版本照常独立部署——
-// 版本只跟着 brickkit.yaml 走，升级时部署文件不用改。
-func TestLoadMemberBareIDHostsHighestVersion(t *testing.T) {
+// 外壳下面写裸 ID：外壳承载 brickkit.yaml 的默认版本——跟着 brickkit.yaml 走，不管哪个版本号更高。
+func TestLoadShellHostsDefaultVersion(t *testing.T) {
 	root := baseProject(t)
-	write(t, root, map[string]string{"deploy.yaml": `target: docker
+	write(t, root, map[string]string{
+		"brickkit.yaml": strings.Replace(strings.Replace(baseDecl,
+			"version: 1.0.0, requiredBy: [erp/backend]}", "version: 1.0.0}", 1),
+			"{id: people/basic, version: 2.0.0}", "{id: people/basic, version: 2.0.0, requiredBy: [erp/backend]}", 1),
+		"deploy.yaml": `target: docker
 components:
-  - {id: erp/shell, members: [people/basic]}
-  - id: erp/backend
-  - id: people/basic
+  - id: erp/shell
+    members:
+      - id: erp/backend
+      - id: people/basic
+  - id: people/basic@2.0.0
 `})
 	p, err := project.Load(root, project.LoadOptions{})
 	require.NoError(t, err)
-	shell, ok := p.ShellOf("people/basic", "2.0.0")
-	assert.True(t, ok, "最高版本进外壳")
-	assert.Equal(t, "erp/shell", shell)
-	_, ok = p.ShellOf("people/basic", "1.0.0")
-	assert.False(t, ok, "其余版本独立部署")
+	_, ok := p.ShellOf("people/basic", "1.0.0")
+	assert.True(t, ok, "默认版本 1.0.0 进外壳")
+	_, ok = p.ShellOf("people/basic", "2.0.0")
+	assert.False(t, ok, "更高的 2.0.0 因依赖而存在，独立部署")
 }

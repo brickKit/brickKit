@@ -157,7 +157,9 @@ components:
     labels:
       team: core
   - id: demo/shell@1.0.0
-    members: [demo/member]
+    members:
+      - id: demo/member
+        mode: enabled
 `
 
 // document 是一份要检查的 YAML 文档：它的基准、生成函数与真实的解析入口。
@@ -481,6 +483,7 @@ var requiredGolden = []requiredCase{
 
 	{"deploy", schemaRoot, []string{"target"}, nil},
 	{"deploy", "components[]", []string{"id"}, []any{"components", 0}},
+	{"deploy", "components[]/members[]", []string{"id"}, []any{"components", 1, "members", 0}},
 	{"deploy", "k8s/networkPolicy/ingressController", []string{"namespace"}, []any{"k8s", "networkPolicy", "ingressController"}},
 	{"deploy", "k8s/networkPolicy/allowFrom[]", []string{"name", "namespace"}, []any{"k8s", "networkPolicy", "allowFrom", 0}},
 	{"deploy", "k8s/networkPolicy/egress/allowTo[]", []string{"name"}, []any{"k8s", "networkPolicy", "egress", "allowTo", 0}},
@@ -669,6 +672,15 @@ func constraintCases() []constraintCase {
 			name: "components[0].mode", doc: "deploy", schemaPath: "components[]/mode",
 			baseline: strings.Replace(dockerDeploy, "  - id: demo/hello\n", "  - id: demo/hello\n    mode: enabled\n", 1),
 			dataPath: []any{"components", 0, "mode"}, errField: "components[0].mode",
+			valid:         []any{deployfile.ModeEnabled, deployfile.ModeDisable, deployfile.ModeLocal, deployfile.ModeDebug, nil},
+			validatorOnly: []any{""},
+			invalid:       []any{"Enabled", "disabled", "docker"},
+		},
+		{
+			// 外壳下面的成员条目与顶层条目共用同一组字段（deployfile.Entry），取值规则一样。
+			name: "components[1].members[0].mode", doc: "deploy", schemaPath: "components[]/members[]/mode",
+			baseline: dockerDeploy,
+			dataPath: []any{"components", 1, "members", 0, "mode"}, errField: "components[1].members[0].mode",
 			valid:         []any{deployfile.ModeEnabled, deployfile.ModeDisable, deployfile.ModeLocal, deployfile.ModeDebug, nil},
 			validatorOnly: []any{""},
 			invalid:       []any{"Enabled", "disabled", "docker"},
@@ -1181,7 +1193,7 @@ func TestExplicitNullIsAcceptedForOptionalPropertiesByTheRealParsers(t *testing.
 		"deploy": {
 			"k8s", "vars", "components", "k8s.networkPolicy", "k8s.networkPolicy.egress",
 			"k8s.networkPolicy.enabled", "k8s.serviceAccount", "components[0].replicas",
-			"components[0].labels", "components[1].members",
+			"components[0].labels", "components[1].members", "components[1].members[0].mode",
 		},
 	}
 

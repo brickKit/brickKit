@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
@@ -254,7 +255,15 @@ func TestGraphIgnoreServedByDropsGroupingAndSaysSo(t *testing.T) {
 	assert.Contains(t, r.stdout, "    %% Every shell's members are ignored")
 
 	// 只在内存里清：部署文件里的 members 一个字没动
-	assert.Equal(t, []string{"demo/a", "demo/b"}, f.deployEntry(t, "demo/shell").Members)
+	d, _, err := deployfile.ParseFile(f.Layout.DeployPath(), deployfile.RoleTeam)
+	require.NoError(t, err)
+	var members []string
+	for _, l := range d.All() {
+		if l.Shell != "" {
+			members = append(members, l.ID)
+		}
+	}
+	assert.Equal(t, []string{"demo/a@1.0.0", "demo/b@1.0.0"}, members)
 }
 
 // 取不到的弱依赖也要画：up 的"依赖图"一节把它们写成"（弱，未安装）"。

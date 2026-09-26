@@ -61,18 +61,29 @@ func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 		return
 	}
 	for i, item := range components.Content {
-		field := yamlfile.Indexed("components", i)
-		if item.Kind != yaml.MappingNode {
-			p.Add(field, i18n.T(msgid.DeployfileComponentMustBeMapping))
-			continue
-		}
-		labels := yamlfile.Lookup(item, "labels")
-		yamlfile.RequireMapping(labels, field+".labels", p)
-		if labels != nil && labels.Kind == yaml.MappingNode {
-			yamlcheck.CheckStringValues(labels, field+".labels", p.Add)
-		}
-		yamlfile.RequireMapping(yamlfile.Lookup(item, "resources"), field+".resources", p)
-		yamlfile.RequireSequence(yamlfile.Lookup(item, "members"), field+".members", p)
+		checkEntryShape(item, yamlfile.Indexed("components", i), msgid.DeployfileComponentMustBeMapping, p)
+	}
+}
+
+// checkEntryShape 检查一个条目的形状；外壳条目的 members 下面同样是完整条目，递归一层。
+func checkEntryShape(item *yaml.Node, field, notMapping string, p *clierr.ProblemSet) {
+	if item.Kind != yaml.MappingNode {
+		p.Add(field, i18n.T(notMapping))
+		return
+	}
+	labels := yamlfile.Lookup(item, "labels")
+	yamlfile.RequireMapping(labels, field+".labels", p)
+	if labels != nil && labels.Kind == yaml.MappingNode {
+		yamlcheck.CheckStringValues(labels, field+".labels", p.Add)
+	}
+	yamlfile.RequireMapping(yamlfile.Lookup(item, "resources"), field+".resources", p)
+	members := yamlfile.Lookup(item, "members")
+	yamlfile.RequireSequence(members, field+".members", p)
+	if members == nil || members.Kind != yaml.SequenceNode {
+		return
+	}
+	for j, member := range members.Content {
+		checkEntryShape(member, yamlfile.Indexed(field+".members", j), msgid.DeployfileMemberMustBeMapping, p)
 	}
 }
 

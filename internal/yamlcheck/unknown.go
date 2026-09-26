@@ -7,6 +7,7 @@ package yamlcheck
 
 import (
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -245,7 +246,15 @@ func knownFieldsOf(typ reflect.Type) map[string]reflect.StructField {
 		if !field.IsExported() {
 			continue
 		}
-		name := strings.Split(field.Tag.Get("yaml"), ",")[0]
+		options := strings.Split(field.Tag.Get("yaml"), ",")
+		name := options[0]
+		if slices.Contains(options[1:], "inline") && field.Type.Kind() == reflect.Struct {
+			// yaml.v3 把内联 struct 的键摊平到外层（内联 map 收纳未知键，不摊平，由调用方自己拒绝）
+			for k, v := range knownFieldsOf(field.Type) {
+				out[k] = v
+			}
+			continue
+		}
 		switch name {
 		case "-":
 			// 显式排除的字段（如 Config.Source）不该出现在配置里

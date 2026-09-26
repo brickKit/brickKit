@@ -163,6 +163,8 @@ func TestDuplicateHostnameAcrossVersionsIsAnError(t *testing.T) {
 		projecttest.Entry{Expose: true, Hostname: "shop.example.com"})
 	b.component(simple("portal/user-frontend", "2.0.0", 80),
 		projecttest.Entry{Expose: true, Hostname: "shop.example.com"})
+	// 第二个版本只是因为它依赖才在项目里（brickkit.yaml 里带 requiredBy）
+	b.component(dependsOn(simple("legacy/caller", "1.0.0", 9100), "portal/user-frontend", "2.0.0"), projecttest.Entry{})
 
 	_, err := b.build()
 

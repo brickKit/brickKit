@@ -9,6 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/yamlfile"
 )
 
 const (
@@ -113,11 +114,11 @@ type ServiceAccount struct {
 	Enabled bool `yaml:"enabled"`
 }
 
-// Component 是一个组件的部署条目。
+// Entry 是一个组件的部署条目：顶层条目与外壳下面的成员条目共用这组字段。
 //
-// ID 是裸 ID（覆盖该 ID 所有没有专属条目的版本）或 id@version（只覆盖那一个版本）。
-// 外壳条目用 Members 列出实际收编的成员——这是成员关系的唯一来源（提案 §8.4）。
-type Component struct {
+// ID 是裸 ID（覆盖该 ID 的默认版本，即 brickkit.yaml 里不带 requiredBy 的那一行）或
+// id@version（只覆盖那一个版本）。
+type Entry struct {
 	ID                 string              `yaml:"id"`
 	Mode               string              `yaml:"mode,omitempty" jsonschema:"enum=enabled|disable|local|debug"`
 	LocalPort          int                 `yaml:"localPort,omitempty"`
@@ -129,11 +130,20 @@ type Component struct {
 	ServiceAccountName string              `yaml:"serviceAccountName,omitempty"`
 	Resources          *manifest.Resources `yaml:"resources,omitempty"`
 	Labels             map[string]string   `yaml:"labels,omitempty"`
-	Members            []string            `yaml:"members,omitempty"`
+}
+
+// Component 是 components 下面的一个顶层条目。
+//
+// 外壳条目把它实际收编的成员作为完整条目嵌在 Members 下面——这是成员关系的唯一来源
+// （提案 §8.4、附录 A21）。成员条目的字段是它"自己跑"时的部署配置：外壳这次不跑时，
+// 成员就按这些字段独立部署。成员条目是 Entry，没有 Members：只嵌一层由类型本身保证。
+type Component struct {
+	Entry   `yaml:",inline"`
+	Members []Entry `yaml:"members,omitempty"`
 }
 
 // Key 把条目 ID 拆成组件 ID 与版本（裸 ID 时版本为空）。
-func (c Component) Key() (id, version string) {
+func (c Entry) Key() (id, version string) {
 	if i := strings.LastIndex(c.ID, "@"); i >= 0 {
 		return c.ID[:i], c.ID[i+1:]
 	}
@@ -141,7 +151,7 @@ func (c Component) Key() (id, version string) {
 }
 
 // ReplicaCount 返回副本数，未写时为 1。
-func (c Component) ReplicaCount() int {
+func (c Entry) ReplicaCount() int {
 	if c.Replicas == nil {
 		return 1
 	}
@@ -149,35 +159,60 @@ func (c Component) ReplicaCount() int {
 }
 
 // IsDisabled 表示钉死不跑。
-func (c Component) IsDisabled() bool { return c.Mode == ModeDisable }
+func (c Entry) IsDisabled() bool { return c.Mode == ModeDisable }
 
 // IsPinned 表示钉死要跑（enabled / local / debug）。
-func (c Component) IsPinned() bool {
+func (c Entry) IsPinned() bool {
 	return c.Mode == ModeEnabled || c.Mode == ModeLocal || c.Mode == ModeDebug
 }
 
 // IsBareProcess 表示以裸进程运行，不生成容器（local / debug）。
-func (c Component) IsBareProcess() bool { return c.Mode == ModeLocal || c.Mode == ModeDebug }
+func (c Entry) IsBareProcess() bool { return c.Mode == ModeLocal || c.Mode == ModeDebug }
 
-// Entry 返回覆盖 id@version 的条目：专属条目优先，其次是裸 ID 条目。
-func (f *File) Entry(id, version string) (Component, bool) {
-	var bare *Component
-	for i := range f.Components {
-		entryID, entryVersion := f.Components[i].Key()
+// Located 是摊平后的一个条目：带着它在文件里的字段路径与所属外壳条目的 ID（顶层条目为空）。
+type Located struct {
+	Entry
+	// Field 是字段路径，如 components[0] 或 components[0].members[1]。
+	Field string
+	// Shell 是外壳条目的 ID（原样，可能带 @version）；顶层条目为空。
+	Shell string
+}
+
+// All 返回全部条目，外壳下面的成员条目紧跟在外壳之后。逐条目的检查与查找都走它，
+// 不必各自再记得往 Members 里看一层。
+func (f *File) All() []Located {
+	var out []Located
+	for i, c := range f.Components {
+		field := yamlfile.Indexed("components", i)
+		out = append(out, Located{Entry: c.Entry, Field: field})
+		for j, m := range c.Members {
+			out = append(out, Located{Entry: m, Field: yamlfile.Indexed(field+".members", j), Shell: c.ID})
+		}
+	}
+	return out
+}
+
+// Entry 返回覆盖 id@version 的条目（顶层或外壳下面）：专属条目优先；裸 ID 条目只在该版本是
+// 默认版本（isDefault，由 brickkit.yaml 决定）时覆盖它。
+func (f *File) Entry(id, version string, isDefault bool) (Entry, bool) {
+	var bare *Entry
+	for _, l := range f.All() {
+		entryID, entryVersion := l.Key()
 		if entryID != id {
 			continue
 		}
 		if entryVersion == version {
-			return f.Components[i], true
+			return l.Entry, true
 		}
-		if entryVersion == "" {
-			bare = &f.Components[i]
+		if entryVersion == "" && isDefault {
+			e := l.Entry
+			bare = &e
 		}
 	}
 	if bare != nil {
 		return *bare, true
 	}
-	return Component{}, false
+	return Entry{}, false
 }
 
 // Settings 返回 K8s 设置；没写 k8s: 时是零值。

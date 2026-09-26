@@ -102,7 +102,7 @@ type localComponent struct {
 	Ref      resolver.Ref
 	Service  string
 	Manifest *manifest.Manifest
-	Entry    deployfile.Component
+	Entry    deployfile.Entry
 	Env      inject.Component
 	// Port 是它在宿主机上监听的端口（localPort 或自动分配）。
 	Port int

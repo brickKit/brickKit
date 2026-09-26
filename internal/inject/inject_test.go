@@ -100,6 +100,13 @@ func (b *builder) project() *project.Project {
 		Components []deployfile.Component `yaml:"components"`
 	}{Target: deployfile.TargetDocker}
 	files := projecttest.Files{}
+	// 成员条目嵌在外壳条目下面（附录 A21）
+	shellOf := map[string]bool{}
+	for _, e := range b.entries {
+		for _, m := range e.Members {
+			shellOf[m] = true
+		}
+	}
 	for i, ref := range b.roots {
 		e := b.entries[i]
 		c := projfile.Component{ID: ref.ID, Version: ref.Version}
@@ -107,9 +114,23 @@ func (b *builder) project() *project.Project {
 			c.Kind = projfile.KindShell
 		}
 		decl.Components = append(decl.Components, c)
-		deploy.Components = append(deploy.Components, deployfile.Component{
-			ID: ref.String(), Mode: e.Mode, Resources: e.Resources, Labels: e.Labels, Members: e.Members,
-		})
+		if shellOf[ref.ID] {
+			continue
+		}
+		var members []deployfile.Entry
+		for _, id := range e.Members {
+			for j, r := range b.roots {
+				if r.ID == id {
+					m := b.entries[j]
+					members = append(members, deployfile.Entry{
+						ID: r.String(), Mode: m.Mode, Resources: m.Resources, Labels: m.Labels,
+					})
+				}
+			}
+		}
+		deploy.Components = append(deploy.Components, deployfile.Component{Entry: deployfile.Entry{
+			ID: ref.String(), Mode: e.Mode, Resources: e.Resources, Labels: e.Labels,
+		}, Members: members})
 		if len(e.Config) > 0 {
 			files["config/"+configdir.FileName(ref.ID, ref.Version)] = mustYAML(b.t, e.Config)
 		}

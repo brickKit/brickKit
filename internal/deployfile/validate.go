@@ -122,11 +122,11 @@ func (f *File) validateVarNames(p *clierr.ProblemSet) {
 }
 
 func (f *File) validateComponents(p *clierr.ProblemSet, role Role) {
-	seen := map[string]int{}
-	localPorts := map[int]int{}
-	exposePorts := map[int]int{}
-	for i, c := range f.Components {
-		field := yamlfile.Indexed("components", i)
+	seen := map[string]string{}
+	localPorts := map[int]string{}
+	exposePorts := map[int]string{}
+	for _, l := range f.All() {
+		c, field := l.Entry, l.Field
 		id, version := c.Key()
 
 		if c.ID == "" {
@@ -139,14 +139,14 @@ func (f *File) validateComponents(p *clierr.ProblemSet, role Role) {
 				p.Add(field+".id", i18n.T(msgid.ConfigVersionNotExactRange, version))
 			}
 			if prev, ok := seen[c.ID]; ok {
-				p.Add(field+".id", i18n.T(msgid.DeployfileEntryDuplicate, yamlfile.Indexed("components", prev), c.ID))
+				p.Add(field+".id", i18n.T(msgid.DeployfileEntryDuplicate, prev, c.ID))
 			} else {
-				seen[c.ID] = i
+				seen[c.ID] = field
 			}
 		}
 
 		f.validateMode(p, field, c, role)
-		validatePorts(p, field, i, c, localPorts, exposePorts)
+		validatePorts(p, field, c, localPorts, exposePorts)
 		if c.TLSSecret != "" && !c.Expose {
 			p.Add(field+".tlsSecret", i18n.T(msgid.ConfigTLSSecretNeedsExpose))
 		}
@@ -155,11 +155,14 @@ func (f *File) validateComponents(p *clierr.ProblemSet, role Role) {
 		}
 		validateReplicas(p, field, c)
 		manifest.ValidateLabels(c.Labels, field+".labels", p.Add)
-		validateMembers(p, field, id, c.Members)
+	}
+	for i, c := range f.Components {
+		id, _ := c.Key()
+		validateMembers(p, yamlfile.Indexed("components", i), id, c.Members)
 	}
 }
 
-func (f *File) validateMode(p *clierr.ProblemSet, field string, c Component, role Role) {
+func (f *File) validateMode(p *clierr.ProblemSet, field string, c Entry, role Role) {
 	switch c.Mode {
 	case "", ModeEnabled, ModeDisable, ModeLocal:
 	case ModeDebug:
@@ -176,7 +179,7 @@ func (f *File) validateMode(p *clierr.ProblemSet, field string, c Component, rol
 	}
 }
 
-func validatePorts(p *clierr.ProblemSet, field string, index int, c Component, localPorts, exposePorts map[int]int) {
+func validatePorts(p *clierr.ProblemSet, field string, c Entry, localPorts, exposePorts map[int]string) {
 	if c.LocalPort != 0 {
 		switch {
 		case !c.IsBareProcess():
@@ -185,9 +188,9 @@ func validatePorts(p *clierr.ProblemSet, field string, index int, c Component, l
 			p.Add(field+".localPort", i18n.T(msgid.ProblemPortOutOfRange, MinPort, MaxPort, c.LocalPort))
 		default:
 			if prev, ok := localPorts[c.LocalPort]; ok {
-				p.Add(field+".localPort", i18n.T(msgid.ConfigLocalPortConflict, yamlfile.Indexed("components", prev), c.LocalPort))
+				p.Add(field+".localPort", i18n.T(msgid.ConfigLocalPortConflict, prev, c.LocalPort))
 			} else {
-				localPorts[c.LocalPort] = index
+				localPorts[c.LocalPort] = field
 			}
 		}
 	}
@@ -199,15 +202,15 @@ func validatePorts(p *clierr.ProblemSet, field string, index int, c Component, l
 			p.Add(field+".exposePort", i18n.T(msgid.ProblemPortOutOfRange, MinPort, MaxPort, c.ExposePort))
 		default:
 			if prev, ok := exposePorts[c.ExposePort]; ok {
-				p.Add(field+".exposePort", i18n.T(msgid.ConfigExposePortConflict, yamlfile.Indexed("components", prev), c.ExposePort))
+				p.Add(field+".exposePort", i18n.T(msgid.ConfigExposePortConflict, prev, c.ExposePort))
 			} else {
-				exposePorts[c.ExposePort] = index
+				exposePorts[c.ExposePort] = field
 			}
 		}
 	}
 }
 
-func validateReplicas(p *clierr.ProblemSet, field string, c Component) {
+func validateReplicas(p *clierr.ProblemSet, field string, c Entry) {
 	if c.Replicas == nil {
 		return
 	}
@@ -220,25 +223,21 @@ func validateReplicas(p *clierr.ProblemSet, field string, c Component) {
 	}
 }
 
-func validateMembers(p *clierr.ProblemSet, field, ownID string, members []string) {
-	// 成员写组件 ID（外壳承载 brickkit.yaml 里的最高版本）；要承载别的版本时写 id@精确版本
+// validateMembers 做外壳条目下面成员的单文件检查：不能收编自己，一个外壳只承载一个组件 ID
+// 的一个版本（外壳进程里只编进了一份代码）。id 格式、重复条目等由 validateComponents 统一检查。
+func validateMembers(p *clierr.ProblemSet, field, ownID string, members []Entry) {
 	seen := map[string]bool{}
 	for i, member := range members {
-		memberField := yamlfile.Indexed(field+".members", i)
-		id, version, versioned := strings.Cut(member, "@")
+		if member.ID == "" {
+			continue
+		}
+		memberField := yamlfile.Indexed(field+".members", i) + ".id"
+		id, _ := member.Key()
 		switch {
-		case member == "":
-			p.Missing(memberField)
-		case versioned && !manifest.IsExactVersion(version):
-			p.Add(memberField, i18n.T(msgid.DeployfileMemberBadVersion, member))
 		case id == ownID:
 			p.Add(memberField, i18n.T(msgid.DeployfileMemberSelf))
 		case seen[id]:
 			p.Add(memberField, i18n.T(msgid.DeployfileMemberDuplicate, id))
-		default:
-			if reason := manifest.ComponentIDProblem(id); reason != "" {
-				p.Add(memberField, reason)
-			}
 		}
 		seen[id] = true
 	}
@@ -260,27 +259,27 @@ func (f *File) targetWarnings() []*clierr.Error {
 	}
 	type fieldCheck struct {
 		name string
-		set  func(Component) bool
+		set  func(Entry) bool
 	}
 	var checks []fieldCheck
 	if f.Target == TargetK8s {
-		checks = []fieldCheck{{"exposePort", func(c Component) bool { return c.ExposePort != 0 }}}
+		checks = []fieldCheck{{"exposePort", func(c Entry) bool { return c.ExposePort != 0 }}}
 	} else {
 		if keys := setKeys(f.K8s); len(keys) > 0 {
 			warn(strings.Join(keys, ", "), nil)
 		}
 		checks = []fieldCheck{
-			{"replicas", func(c Component) bool { return c.Replicas != nil }},
-			{"serviceAccountName", func(c Component) bool { return c.ServiceAccountName != "" }},
-			{"tlsSecret", func(c Component) bool { return c.TLSSecret != "" }},
-			{"hostname", func(c Component) bool { return c.Hostname != "" }},
+			{"replicas", func(c Entry) bool { return c.Replicas != nil }},
+			{"serviceAccountName", func(c Entry) bool { return c.ServiceAccountName != "" }},
+			{"tlsSecret", func(c Entry) bool { return c.TLSSecret != "" }},
+			{"hostname", func(c Entry) bool { return c.Hostname != "" }},
 		}
 	}
 	for _, check := range checks {
 		var ids []string
-		for _, c := range f.Components {
-			if check.set(c) {
-				ids = append(ids, c.ID)
+		for _, l := range f.All() {
+			if check.set(l.Entry) {
+				ids = append(ids, l.ID)
 			}
 		}
 		if len(ids) > 0 {

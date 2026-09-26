@@ -62,7 +62,7 @@ type Member struct {
 // 两个渲染器（compose / k8s）在判断"该不该警告 labels 本次不生效"时都调
 // 这一个函数，不各写一份——判据必须与"这些 labels 不参与合并"（mergeGroup
 // 的注释）是同一件事的两面。
-func MemberLabels(m *manifest.Manifest, entry deployfile.Component) map[string]string {
+func MemberLabels(m *manifest.Manifest, entry deployfile.Entry) map[string]string {
 	var manifestLabels map[string]string
 	if m != nil {
 		manifestLabels = m.Deployment.Labels

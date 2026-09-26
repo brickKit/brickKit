@@ -23,10 +23,11 @@ func shellProject(t *testing.T, modes map[string]string) *project.Project {
 		{ID: "erp/solo", Version: "1.0.0"},
 	}}
 	deploy := &deployfile.File{Target: deployfile.TargetDocker, Components: []deployfile.Component{
-		{ID: "erp/shell", Mode: modes["erp/shell"], Members: []string{"erp/a", "erp/b"}},
-		{ID: "erp/a", Mode: modes["erp/a"]},
-		{ID: "erp/b", Mode: modes["erp/b"]},
-		{ID: "erp/solo", Mode: modes["erp/solo"]},
+		{Entry: deployfile.Entry{ID: "erp/shell", Mode: modes["erp/shell"]}, Members: []deployfile.Entry{
+			{ID: "erp/a", Mode: modes["erp/a"]},
+			{ID: "erp/b", Mode: modes["erp/b"]},
+		}},
+		{Entry: deployfile.Entry{ID: "erp/solo", Mode: modes["erp/solo"]}},
 	}}
 	p, err := project.Assemble(project.NewLayout(t.TempDir()), decl, deploy)
 	require.NoError(t, err)
@@ -68,15 +69,17 @@ func TestHostOfIsVersionAware(t *testing.T) {
 	decl := &projfile.File{Project: "p", Components: []projfile.Component{
 		{ID: "erp/shell", Version: "1.0.0", Kind: projfile.KindShell},
 		{ID: "erp/a", Version: "1.0.0"},
-		{ID: "erp/a", Version: "2.0.0"},
+		{ID: "erp/a", Version: "2.0.0", RequiredBy: []string{"erp/user"}},
+		{ID: "erp/user", Version: "1.0.0"},
 	}}
 	deploy := &deployfile.File{Target: deployfile.TargetDocker, Components: []deployfile.Component{
-		{ID: "erp/shell", Members: []string{"erp/a@2.0.0"}},
-		{ID: "erp/a"},
+		{Entry: deployfile.Entry{ID: "erp/shell"}, Members: []deployfile.Entry{{ID: "erp/a@2.0.0"}}},
+		{Entry: deployfile.Entry{ID: "erp/a"}},
+		{Entry: deployfile.Entry{ID: "erp/user"}},
 	}}
 	p, err := project.Assemble(project.NewLayout(t.TempDir()), decl, deploy)
 	require.NoError(t, err)
-	graph := newGraph(t, spec{id: "erp/shell"}, spec{id: "erp/a"})
+	graph := newGraph(t, spec{id: "erp/shell"}, spec{id: "erp/a"}, spec{id: "erp/user"})
 	states, err := cascade.Compute(p, graph)
 	require.NoError(t, err)
 

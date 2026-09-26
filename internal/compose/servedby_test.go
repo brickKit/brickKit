@@ -133,24 +133,6 @@ func TestShellServedMembersIsEmptyStringWhenMemberNotRunning(t *testing.T) {
 	assert.Equal(t, "", value)
 }
 
-// ---- 迁移 / 健康检查 / 不支持字段的警告 ----
-
-func TestServedByHealthCheckWarns(t *testing.T) {
-	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
-	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
-
-	result, err := b.build(compose.Options{})
-	require.NoError(t, err)
-	found := false
-	for _, w := range result.Warnings {
-		if w.Code == clierr.CodeConfigInvalid && strings.Contains(w.Format(), "health check") {
-			found = true
-		}
-	}
-	assert.True(t, found, "应该有一条关于健康检查不生效的警告：%+v", result.Warnings)
-}
-
 // ---- labels：成员自己的不参与合并，只有外壳自己的算数 ----
 
 // 两个成员各自声明了同名不同值的标签（典型例子：prometheus.io/port，
@@ -191,44 +173,30 @@ func TestServedByShellOwnLabelsAreUnaffectedByMembers(t *testing.T) {
 		"外壳自己的 labels 原样保留，成员的一个键都不该混进来")
 }
 
-// 成员声明了 labels（不管是 component.yaml 还是 brickkit.yaml 覆盖）就该
-// 警告——它没有自己的容器，这些 labels 落不到任何地方。
-func TestServedByLabelsWarn(t *testing.T) {
-	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
+// 成员条目的 expose / labels 这类字段是它"自己跑"时的部署配置（附录 A21）：外壳在跑时暂时
+// 用不上，不该每次 up 都警告；外壳不跑、成员独立部署时，它们照常生效。
+func TestComposeHostedMemberFieldsNotWarned(t *testing.T) {
 	member := simple("mdm/customer", "1.0.7", 8080)
 	member.Deployment.Labels = map[string]string{"prometheus.io/port": "8080"}
-	b.component(member, servedByEntry("infra/shell-go-core", "1.0.0"))
+	entry := servedByEntry("infra/shell-go-core", "1.0.0")
+	entry.Expose, entry.ExposePort = true, 18080
 
-	result, err := b.build(compose.Options{})
-	require.NoError(t, err)
-	var found string
-	for _, w := range result.Warnings {
-		if strings.Contains(w.Format(), "labels") {
-			found = w.Format()
-		}
-	}
-	require.NotEmpty(t, found, "应该有一条关于 labels 不生效的警告：%+v", result.Warnings)
-	assert.Contains(t, found, "mdm/customer")
-}
-
-func TestServedByUnsupportedFieldsWarn(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
-	entry := servedByEntry("infra/shell-go-core", "1.0.0")
-	entry.Expose = true
-	entry.Hostname = "mdm.example.com"
-	b.component(simple("mdm/customer", "1.0.7", 8080), entry)
-
+	b.component(member, entry)
 	result, err := b.build(compose.Options{})
 	require.NoError(t, err)
-	found := false
 	for _, w := range result.Warnings {
-		if strings.Contains(w.Format(), "expose") {
-			found = true
-		}
+		assert.NotContains(t, w.Format(), "mdm/customer", "外壳在跑时成员自己的部署字段不警告")
 	}
-	assert.True(t, found, "应该警告 expose 不生效：%+v", result.Warnings)
+
+	b = newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{Mode: deployfile.ModeDisable})
+	enabled := entry
+	enabled.Mode = deployfile.ModeEnabled
+	b.component(member, enabled)
+	assert.Contains(t, portsOf(t, serviceOf(t, docOf(t, b.generate()), "mdm-customer-1-0-7")), "18080:8080",
+		"外壳不跑时成员按自己的条目部署")
 }
 
 // ---- mode: debug 回归：完全不受影响 ----

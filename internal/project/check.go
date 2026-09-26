@@ -2,61 +2,57 @@ package project
 
 import (
 	"path/filepath"
-	"slices"
 	"sort"
-	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
-	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlfile"
 )
 
 // checkCoverage 执行严格一致性校验（提案 §6.3）：brickkit.yaml 的每个组件版本恰好被一个
-// 部署条目覆盖，没有覆盖不到任何组件的条目。
+// 部署条目覆盖（顶层或外壳下面），没有覆盖不到任何组件的条目。
+//
+// id@version 条目覆盖那个版本；裸 ID 条目只覆盖默认版本（附录 A20）——因依赖而存在的版本
+// 必须有自己的条目，不能悄悄继承默认版本的 expose、端口。默认版本已有专属条目时，
+// 裸 ID 条目什么也没覆盖，算多余。
 func (p *Project) checkCoverage() error {
 	declared := map[string]bool{}
 	for _, c := range p.Decl.Components {
 		declared[c.Ref()] = true
 	}
 
-	explicit := map[string]bool{}
-	bare := map[string]bool{}
+	claimed := map[string]bool{}
 	var extra []string
-	for _, entry := range p.Deploy.Components {
-		id, version := entry.Key()
-		switch {
-		case version != "":
-			if declared[refKey(id, version)] {
-				explicit[refKey(id, version)] = true
-			} else {
-				extra = append(extra, entry.ID)
-			}
-		case len(p.Decl.Versions(id)) == 0:
-			extra = append(extra, entry.ID)
-		default:
-			bare[id] = true
+	entries := p.Deploy.All()
+	for _, l := range entries {
+		id, version := l.Key()
+		if version == "" {
+			continue
+		}
+		if declared[refKey(id, version)] {
+			claimed[refKey(id, version)] = true
+		} else {
+			extra = append(extra, l.ID)
 		}
 	}
-
-	// 一个裸 ID 条目，如果它的每个版本都已有专属条目，它就什么也没覆盖
-	for id := range bare {
-		coversSomething := false
-		for _, version := range p.Decl.Versions(id) {
-			if !explicit[refKey(id, version)] {
-				coversSomething = true
-			}
+	for _, l := range entries {
+		id, version := l.Key()
+		if version != "" {
+			continue
 		}
-		if !coversSomething {
-			extra = append(extra, id)
+		def, ok := p.Decl.DefaultVersion(id)
+		if !ok || claimed[refKey(id, def)] {
+			extra = append(extra, l.ID)
+			continue
 		}
+		claimed[refKey(id, def)] = true
 	}
 
 	var missing []string
 	for _, c := range p.Decl.Components {
-		if !explicit[c.Ref()] && !bare[c.ID] {
+		if !claimed[c.Ref()] {
 			missing = append(missing, p.displayRef(c.ID, c.Version))
 		}
 	}
@@ -97,14 +93,15 @@ func (p *Project) inconsistencyError(missing, extra []string) *clierr.Error {
 	return err.WithHint(i18n.T(msgid.ProjectHintDeploySync), i18n.T(msgid.ProjectHintDeployEdit))
 }
 
-// checkMembers 校验外壳成员关系（提案 §8.1、§8.4）：members 只能写在外壳条目上，
-// 成员必须已声明、不能是外壳、只能有一个版本、最多属于一个外壳。
+// checkMembers 校验外壳成员关系（提案 §8.1、§8.4、附录 A21）：成员条目只能嵌在外壳条目下面，
+// 外壳不能被收编，一个组件 ID 只进一个外壳（外壳进程里编进的是那一份代码）。
+// 成员条目是否对得上 brickkit.yaml 由 checkCoverage 负责（它先跑）。
 func (p *Project) checkMembers() error {
 	problems := clierr.NewProblemSet(clierr.CodeConfigInvalid,
 		i18n.T(msgid.ProblemValidationFailed, filepath.Base(p.DeployPath))).
 		WithSource(i18n.T(msgid.LabelFile), p.DeployPath)
 	p.shellOf = map[string]string{}
-	p.memberVersion = map[string]string{}
+	hostedBy := map[string]string{}
 
 	for i, entry := range p.Deploy.Components {
 		if len(entry.Members) == 0 {
@@ -116,32 +113,22 @@ func (p *Project) checkMembers() error {
 			problems.Add(field, i18n.T(msgid.ProjectMembersOnNonShell, shellID))
 			continue
 		}
-		for j, written := range entry.Members {
+		for j, m := range entry.Members {
 			memberField := yamlfile.Indexed(field, j)
-			member, version, pinned := strings.Cut(written, "@")
-			versions := p.Decl.Versions(member)
-			switch {
-			case len(versions) == 0:
-				problems.Add(memberField, i18n.T(msgid.ProjectMemberUndeclared, member))
-				continue
-			case p.Decl.IsShellID(member):
+			member, version := m.Key()
+			if p.Decl.IsShellID(member) {
 				problems.Add(memberField, i18n.T(msgid.ProjectMemberIsShell, member))
 				continue
-			case pinned && !slices.Contains(versions, version):
-				problems.Add(memberField, i18n.T(msgid.ProjectMemberVersionUndeclared, member, version))
-				continue
 			}
-			if !pinned {
-				// 只写 ID：外壳承载 brickkit.yaml 里声明的最高版本，其余版本独立部署。版本只跟着
-				// brickkit.yaml 走，升级时部署文件不用改；外壳要承载较低的版本时才写 id@version
-				version = highestVersion(versions)
+			if version == "" {
+				version, _ = p.Decl.DefaultVersion(member)
 			}
-			if prev, ok := p.shellOf[member]; ok && prev != shellID {
+			if prev, ok := hostedBy[member]; ok && prev != shellID {
 				problems.Add(memberField, i18n.T(msgid.ProjectMemberTwoShells, member, prev))
 				continue
 			}
-			p.shellOf[member] = shellID
-			p.memberVersion[member] = version
+			hostedBy[member] = shellID
+			p.shellOf[refKey(member, version)] = shellID
 		}
 	}
 	return problems.Err()
@@ -158,7 +145,7 @@ func (p *Project) checkHostPorts() error {
 	type claim struct{ ref, field string }
 	claims := map[int]claim{}
 	for _, c := range p.Decl.Components {
-		entry, ok := p.Deploy.Entry(c.ID, c.Version)
+		entry, ok := p.Deploy.Entry(c.ID, c.Version, p.Decl.IsDefault(c.ID, c.Version))
 		if !ok {
 			continue
 		}
@@ -184,15 +171,4 @@ func (p *Project) checkHostPorts() error {
 		}
 	}
 	return nil
-}
-
-// highestVersion 按版本号（不是字典序：10.0.0 高于 2.0.0）取最高的那个。
-func highestVersion(versions []string) string {
-	highest := versions[0]
-	for _, v := range versions[1:] {
-		if manifest.CompareVersions(v, highest) > 0 {
-			highest = v
-		}
-	}
-	return highest
 }

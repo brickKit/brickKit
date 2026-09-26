@@ -18,9 +18,9 @@ components:
   - id: erp/shell
     expose: true
     exposePort: 8080
-    members: [erp/backend]
-  - id: erp/backend
-    mode: enabled
+    members:
+      - id: erp/backend
+        mode: enabled
   - id: people/basic@1.0.0
     mode: local
     localPort: 9001
@@ -52,18 +52,21 @@ func TestParseTeamFile(t *testing.T) {
 	// vars 的值留给渲染器求值，解析时绝不展开
 	assert.Equal(t, "${PROD_DB_PASSWORD}", f.Vars["DB_PASSWORD"].Value)
 
-	e, ok := f.Entry("people/basic", "1.0.0")
+	e, ok := f.Entry("people/basic", "1.0.0", false)
 	require.True(t, ok)
 	assert.Equal(t, 9001, e.LocalPort)
-	e, ok = f.Entry("people/basic", "2.0.0")
-	require.True(t, ok)
+	e, ok = f.Entry("people/basic", "2.0.0", true)
+	require.True(t, ok, "裸 ID 条目覆盖默认版本")
 	assert.Equal(t, "people/basic", e.ID)
-	id, version := f.Components[2].Key()
+	_, ok = f.Entry("people/basic", "3.0.0", false)
+	assert.False(t, ok, "裸 ID 条目不覆盖非默认版本")
+	id, version := f.Components[1].Key()
 	assert.Equal(t, "people/basic", id)
 	assert.Equal(t, "1.0.0", version)
-	assert.Equal(t, []string{"erp/backend"}, f.Components[0].Members)
-	assert.True(t, f.Components[1].IsPinned())
-	assert.Equal(t, 1, f.Components[1].ReplicaCount())
+	e, ok = f.Entry("erp/backend", "2.0.0", true)
+	require.True(t, ok, "外壳下面的成员条目同样查得到")
+	assert.True(t, e.IsPinned())
+	assert.Equal(t, 1, e.ReplicaCount())
 }
 
 func TestDebugOnlyInLocalRole(t *testing.T) {
@@ -90,9 +93,13 @@ func TestValidateRejects(t *testing.T) {
 		"localPort conflict":     {"target: docker\ncomponents:\n  - {id: a/b, mode: local, localPort: 9000}\n  - {id: a/c, mode: local, localPort: 9000}\n", "components[1].localPort"},
 		"duplicate entry":        {"target: docker\ncomponents:\n  - {id: a/b}\n  - {id: a/b}\n", "components[1].id"},
 		"bad versioned id":       {"target: docker\ncomponents:\n  - {id: a/b@latest}\n", "components[0].id"},
-		"member with range":      {"target: docker\ncomponents:\n  - {id: a/s, members: [a/b@^1.0.0]}\n", "components[0].members[0]"},
-		"member same id twice":   {"target: docker\ncomponents:\n  - {id: a/s, members: [a/b, a/b@1.0.0]}\n", "components[0].members[1]"},
-		"member self":            {"target: docker\ncomponents:\n  - {id: a/s, members: [a/s]}\n", "components[0].members[0]"},
+		"member with range":      {"target: docker\ncomponents:\n  - {id: a/s, members: [{id: a/b@^1.0.0}]}\n", "components[0].members[0].id"},
+		"member same id twice":   {"target: docker\ncomponents:\n  - {id: a/s, members: [{id: a/b}, {id: a/b@1.0.0}]}\n", "components[0].members[1].id"},
+		"member self":            {"target: docker\ncomponents:\n  - {id: a/s, members: [{id: a/s}]}\n", "components[0].members[0].id"},
+		"member nested twice":    {"target: docker\ncomponents:\n  - {id: a/s, members: [{id: a/b, members: [{id: a/c}]}]}\n", "components[0].members[0].members"},
+		"member also top-level":  {"target: docker\ncomponents:\n  - {id: a/s, members: [{id: a/b}]}\n  - {id: a/b}\n", "components[1].id"},
+		"member port conflict":   {"target: docker\ncomponents:\n  - {id: a/s, members: [{id: a/b, mode: local, localPort: 9000}]}\n  - {id: a/c, mode: local, localPort: 9000}\n", "components[1].localPort"},
+		"member written as text": {"target: docker\ncomponents:\n  - {id: a/s, members: [a/b]}\n", "components[0].members[0]"},
 		"bad var name":           {"target: docker\nvars:\n  1BAD: x\n", "vars.1BAD"},
 		"replicas zero":          {"target: k8s\ncomponents:\n  - {id: a/b, replicas: 0}\n", "components[0].replicas"},
 		"exposePort w/o expose":  {"target: docker\ncomponents:\n  - {id: a/b, exposePort: 8080}\n", "components[0].exposePort"},
@@ -153,8 +160,25 @@ func TestSettingsDefaults(t *testing.T) {
 	assert.False(t, f.ServiceAccountEnabled())
 }
 
-// 外壳承载的是成员的某一个版本：members 可以写成 id@精确版本（多版本兼容时用）。
-func TestMemberWithExactVersionAccepted(t *testing.T) {
-	_, _, err := parse(t, "target: docker\ncomponents:\n  - {id: a/s, members: [a/b@1.0.0, a/c]}\n", deployfile.RoleTeam)
+// 外壳的成员是完整的部署条目，嵌在外壳条目下面：外壳不跑时，成员就按这些字段自己跑。
+// All() 把嵌套的条目摊平，带上字段路径与所属外壳——所有逐条目的检查都走它。
+func TestNestedMemberEntries(t *testing.T) {
+	f, _, err := parse(t, "target: docker\ncomponents:\n"+
+		"  - id: a/s\n    members:\n      - {id: a/b, expose: true, exposePort: 8081}\n      - {id: a/c@2.0.0, mode: disable}\n"+
+		"  - id: a/c\n", deployfile.RoleTeam)
 	require.NoError(t, err)
+	all := f.All()
+	require.Len(t, all, 4)
+	assert.Equal(t, "components[0]", all[0].Field)
+	assert.Equal(t, "", all[0].Shell)
+	assert.Equal(t, "components[0].members[0]", all[1].Field)
+	assert.Equal(t, "a/s", all[1].Shell)
+	assert.Equal(t, 8081, all[1].ExposePort)
+	assert.Equal(t, "a/c@2.0.0", all[2].ID)
+	assert.Equal(t, "components[1]", all[3].Field)
+
+	_, _, err = parse(t, "target: docker\ncomponents:\n  - id: a/s\n    members:\n      - {id: a/b, mode: debug, localPort: 9000}\n",
+		deployfile.RoleTeam)
+	require.Error(t, err)
+	assert.Contains(t, fields(err), "components[0].members[0].mode", "debug 只能写在本地文件里，成员也一样")
 }
