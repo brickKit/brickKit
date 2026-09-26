@@ -27,7 +27,6 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
-	"github.com/brickkit/brickkit/internal/shell"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
@@ -185,11 +184,8 @@ func renderMermaid(
 	var shells []resolver.Ref
 	inShell := map[resolver.Ref]bool{}
 	for _, node := range graph.Nodes {
-		target, ok := shell.ShellRef(proj, node.Ref)
+		target, ok := states.HostOf(proj, node.Ref)
 		if !ok {
-			continue
-		}
-		if graph.Node(target) != nil && !states.IsRunning(target) {
 			continue
 		}
 		if _, seen := members[target]; !seen {

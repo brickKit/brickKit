@@ -25,7 +25,6 @@ import (
 	"github.com/brickkit/brickkit/internal/procsup"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
-	"github.com/brickkit/brickkit/internal/shell"
 	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
@@ -455,7 +454,7 @@ func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 // （前两个是裸进程——一个在宿主机上跑，一个由 brickkit 自己拉起；第三个代码
 // 打进了外壳镜像），镜像也不必检查。跟 compose 渲染器判断"该不该生成
 // workload"用的是同一条件（internal/compose/compose.go 的
-// IsBareProcess / shell.ShellRef）——
+// IsBareProcess / cascade.Result.HostOf）——
 // 漏了任何一半的话，它的版本化服务名会混进传给 `docker compose up` 的目标
 // 列表，而生成的 compose 文件里根本没有这个 service，真机执行直接报
 // no such service，整个命令失败、一个容器都起不来（brickKit 反馈：真机
@@ -468,9 +467,9 @@ func (p *upPlan) collectTargets(order *resolver.Plan) {
 			noWorkload[ref] = true
 			continue
 		}
-		// 外壳没跑时成员按普通组件对待，交给引擎启动——判据必须跟 internal/shell、
-		// internal/compose、internal/k8s 保持一致（shell.ShellRef + 外壳在跑）
-		if shellRef, ok := shell.ShellRef(p.proj, ref); ok && p.states.IsRunning(shellRef) {
+		// 外壳没跑时成员按普通组件对待，交给引擎启动——与 internal/shell、internal/compose、
+		// internal/k8s 同一个判据（cascade.Result.HostOf）
+		if _, hosted := p.states.HostOf(p.proj, ref); hosted {
 			noWorkload[ref] = true
 		}
 	}

@@ -219,19 +219,14 @@ func Resolve(
 	var order []resolver.Ref
 
 	for _, ref := range states.Running() {
-		target, ok := ShellRef(p, ref)
+		// 外壳没跑、成员是裸进程：这个成员不属于任何 Group，交给调用方按普通组件 /
+		// 裸进程生成——不是这个函数的错误分支
+		target, ok := states.HostOf(p, ref)
 		if !ok {
 			continue
 		}
-
-		targetNode := graph.Node(target)
-		if targetNode == nil {
+		if graph.Node(target) == nil {
 			return nil, shellNotFoundError(ref, target)
-		}
-		if !states.IsRunning(target) {
-			// 外壳这次没跑：这个成员不属于任何 Group，交给调用方（compose/k8s）
-			// 按普通组件生成——不是这个函数的错误分支。
-			continue
 		}
 
 		node := graph.Node(ref)
@@ -265,26 +260,6 @@ func Resolve(
 		groups = append(groups, Group{Shell: shellRef, Members: members, Env: mergedEnv})
 	}
 	return groups, nil
-}
-
-// ShellRef 返回 ref 这次该由哪个外壳承载：成员关系只看部署文件的 members（提案 §8.4），
-// 外壳在 brickkit.yaml 里只有一个版本（单版本约束）。
-//
-// 以裸进程运行的成员（mode: debug / local，附录 A18）这次不进外壳——它自己在宿主机上跑；
-// 完整语义在 P3 设计。
-func ShellRef(p *project.Project, ref resolver.Ref) (resolver.Ref, bool) {
-	shellID, ok := p.ShellOf(ref.ID)
-	if !ok {
-		return resolver.Ref{}, false
-	}
-	if p.DeployEntry(ref.ID, ref.Version).IsBareProcess() {
-		return resolver.Ref{}, false
-	}
-	versions := p.Decl.Versions(shellID)
-	if len(versions) != 1 {
-		return resolver.Ref{}, false
-	}
-	return resolver.Ref{ID: shellID, Version: versions[0]}, true
 }
 
 // memberConfig 从一个成员已经算好的注入结果里，挑出 SourceConfig/

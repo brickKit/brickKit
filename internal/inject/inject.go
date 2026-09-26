@@ -201,7 +201,12 @@ func buildComponent(
 			// 弱依赖没启动 → 完全不注入（002 §3.4）；强依赖没启动时这个组件自己也不会启动
 			continue
 		}
-		builder.addEndpoints(dep, graph.Node(dep))
+		// 被外壳承载的成员没有自己的容器：地址指向外壳（提案 §8.8），端口仍是成员自己的
+		host := dep
+		if shell, hosted := states.HostOf(p, dep); hosted {
+			host = shell
+		}
+		builder.addEndpoints(dep, host, graph.Node(dep))
 	}
 
 	// 3. 组件自身配置：config/ 目录 + vars + schema 默认值（提案 §7.5）
@@ -248,12 +253,13 @@ type envBuilder struct {
 
 func (b *envBuilder) set(v Var) { b.vars[v.Name] = v }
 
-// addEndpoints 注入依赖组件的主端口与额外端口地址。
-func (b *envBuilder) addEndpoints(ref resolver.Ref, node *resolver.Node) {
+// addEndpoints 注入依赖组件的主端口与额外端口地址。变量名按依赖 ref 算，主机名用 host
+// （依赖本身，或承载它的外壳），端口始终是依赖自己声明的端口。
+func (b *envBuilder) addEndpoints(ref, host resolver.Ref, node *resolver.Node) {
 	if node == nil || node.Manifest == nil {
 		return
 	}
-	service := manifest.ServiceName(ref.ID, ref.Version)
+	service := manifest.ServiceName(host.ID, host.Version)
 	prefix := manifest.EnvPrefix(ref.ID)
 
 	b.set(Var{

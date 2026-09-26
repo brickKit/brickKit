@@ -340,16 +340,13 @@ func newPlan(
 		entry := proj.DeployEntry(ref.ID, ref.Version)
 		// mode: debug / local 在 K8s 下不合法——部署文件解析阶段就拦下了
 		// （deployfile.validateMode），走到这里的组件全是容器组件。
-		if shellRef, ok := shell.ShellRef(proj, ref); ok {
-			if states.IsRunning(shellRef) {
-				p.served = append(p.served, servedPlan{
-					Ref: ref, Service: manifest.ServiceName(ref.ID, ref.Version),
-					Manifest: node.Manifest, Entry: entry, Shell: shellRef,
-				})
-				continue
-			}
-			// 外壳这次没跑：退回普通组件生成路径，判据必须跟
-			// internal/shell.Resolve、internal/compose 保持一致。
+		// 被外壳承载的成员不生成自己的工作负载（外壳没跑时 HostOf 为假，成员回落成普通组件）
+		if shellRef, hosted := states.HostOf(proj, ref); hosted {
+			p.served = append(p.served, servedPlan{
+				Ref: ref, Service: manifest.ServiceName(ref.ID, ref.Version),
+				Manifest: node.Manifest, Entry: entry, Shell: shellRef,
+			})
+			continue
 		}
 		p.components = append(p.components, componentPlan{
 			Ref:      ref,

@@ -52,6 +52,8 @@ type entry struct {
 	Config    map[string]any
 	Resources *manifest.Resources
 	Labels    map[string]string
+	// Members 非空表示这个组件是外壳，承载这些组件 ID。
+	Members []string
 }
 
 // builder 用链式写法搭出一套组件 + 三层文件。
@@ -100,9 +102,13 @@ func (b *builder) project() *project.Project {
 	files := projecttest.Files{}
 	for i, ref := range b.roots {
 		e := b.entries[i]
-		decl.Components = append(decl.Components, projfile.Component{ID: ref.ID, Version: ref.Version})
+		c := projfile.Component{ID: ref.ID, Version: ref.Version}
+		if len(e.Members) > 0 {
+			c.Kind = projfile.KindShell
+		}
+		decl.Components = append(decl.Components, c)
 		deploy.Components = append(deploy.Components, deployfile.Component{
-			ID: ref.String(), Mode: e.Mode, Resources: e.Resources, Labels: e.Labels,
+			ID: ref.String(), Mode: e.Mode, Resources: e.Resources, Labels: e.Labels, Members: e.Members,
 		})
 		if len(e.Config) > 0 {
 			files["config/"+configdir.FileName(ref.ID, ref.Version)] = mustYAML(b.t, e.Config)
@@ -939,4 +945,38 @@ func TestBuildReservedEndpointSuffixStillBlocked(t *testing.T) {
 	result := b.build()
 	require.Len(t, result.Warnings, 1)
 	assert.NotContains(t, envOf(t, result, "people/basic"), "NOTIFIER_ENDPOINT")
+}
+
+
+// 依赖一个被外壳承载的成员：地址指向外壳（提案 §8.8，网络拓扑层由 CLI 重写），
+// 端口仍是成员自己的端口——外壳进程在那个端口上替它监听。
+func TestEndpointOfHostedMemberPointsAtShell(t *testing.T) {
+	a := simple("erp/a", "1.0.0", 8081)
+	a.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9091}}
+	b := newBuilder(t)
+	b.component(simple("erp/shell", "1.0.0", 8080), entry{Members: []string{"erp/a"}})
+	b.component(a, entry{})
+	b.component(dependsOn(simple("erp/caller", "1.0.0", 8090), "erp/a", "1.0.0"), entry{})
+
+	env := envOf(t, b.build(), "erp/caller")
+	assert.Equal(t, "http://erp-shell-1-0-0:8081", env["ERP_A_ENDPOINT"])
+	assert.Equal(t, "http://erp-shell-1-0-0:9091", env["ERP_A_GRPC_ENDPOINT"])
+}
+
+// 成员以裸进程运行（附录 A18）或外壳这次没跑：地址指向成员自己。
+func TestEndpointOfUnhostedMemberPointsAtMember(t *testing.T) {
+	for name, e := range map[string][2]entry{
+		"成员 mode: local": {{Members: []string{"erp/a"}}, {Mode: deployfile.ModeLocal}},
+		"外壳 disable":     {{Members: []string{"erp/a"}, Mode: deployfile.ModeDisable}, {Mode: deployfile.ModeEnabled}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b := newBuilder(t)
+			b.component(simple("erp/shell", "1.0.0", 8080), e[0])
+			b.component(simple("erp/a", "1.0.0", 8081), e[1])
+			b.component(dependsOn(simple("erp/caller", "1.0.0", 8090), "erp/a", "1.0.0"), entry{})
+
+			env := envOf(t, b.build(), "erp/caller")
+			assert.Equal(t, "http://erp-a-1-0-0:8081", env["ERP_A_ENDPOINT"])
+		})
+	}
 }

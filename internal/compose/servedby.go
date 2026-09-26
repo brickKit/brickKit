@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
@@ -48,7 +49,7 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 	// 共用的逻辑，不属于这个包的职责范围。
 	referencedShells := map[resolver.Ref]bool{}
 	for _, c := range p.proj.Decl.Components {
-		if ref, ok := shell.ShellRef(p.proj, resolver.Ref{ID: c.ID, Version: c.Version}); ok {
+		if ref, ok := cascade.ShellOf(p.proj, resolver.Ref{ID: c.ID, Version: c.Version}); ok {
 			referencedShells[ref] = true
 		}
 	}
@@ -112,7 +113,7 @@ func (p *plan) servedMigrationWarnings() []*clierr.Error {
 func (p *plan) fallbackStandaloneWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, c := range p.components {
-		shellRef, ok := shell.ShellRef(p.proj, c.Ref)
+		shellRef, ok := cascade.ShellOf(p.proj, c.Ref)
 		if !ok {
 			continue
 		}
