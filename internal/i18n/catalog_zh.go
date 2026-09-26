@@ -1320,4 +1320,10 @@ var zh = map[string]string{
 	msgid.ShellMergeCycleReason:               "组件之间并没有互相依赖成环，但外壳容器是作为一个整体启动的：它继承了每个成员的依赖，依赖成员的组件也就依赖外壳。在 Docker Compose 下这成了一个永远起不来的 depends_on 环",
 	msgid.ShellHintMergeCycleHostBoth:         "把夹在中间的那个组件也放进这个外壳（把它的条目移到外壳下面），或者把其中一个成员移出外壳（把它的条目移到顶层）",
 	msgid.ShellHintMergeCycleOptional:         "或者在 component.yaml 里把其中一条依赖改成弱依赖（optional: true）：弱依赖不约束启动顺序",
+	msgid.DeployfileSkipWaitForVersioned:      "写不带版本的组件 ID（%s）：一个组件只会依赖它的一个版本",
+	msgid.DeployfileSkipWaitForSelf:           "组件不能跳过等待自己",
+	msgid.DeployfileSkipWaitForDuplicate:      "%s 写了两次",
+	msgid.ShellSkipWaitForInvalid:             "错误：skipWaitFor 写的不是强依赖",
+	msgid.ShellSkipWaitForNotRequired:         "%[1]s 不是 %[2]s 的强依赖，本来就没有这条等待可跳过（它的强依赖：%[3]s）",
+	msgid.ShellSkipWaitForNoRequired:          "没有",
 }

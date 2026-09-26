@@ -61,6 +61,7 @@ func dependsOn(m *manifest.Manifest, id, version string) *manifest.Manifest {
 type testComp struct {
 	ID, Version, ServedBy, Mode string
 	Config                      map[string]any
+	SkipWaitFor                 []string
 }
 
 type testCfg struct {
@@ -102,12 +103,18 @@ func projectFrom(t *testing.T, cfg *testCfg) *project.Project {
 		if c.Mode != "" {
 			fmt.Fprintf(&deploy, "    mode: %s\n", c.Mode)
 		}
+		if len(c.SkipWaitFor) > 0 {
+			fmt.Fprintf(&deploy, "    skipWaitFor: [%s]\n", strings.Join(c.SkipWaitFor, ", "))
+		}
 		if members := shells[c.ID]; len(members) > 0 {
 			deploy.WriteString("    members:\n")
 			for _, m := range members {
 				fmt.Fprintf(&deploy, "      - id: %s@%s\n", m.ID, m.Version)
 				if m.Mode != "" {
 					fmt.Fprintf(&deploy, "        mode: %s\n", m.Mode)
+				}
+				if len(m.SkipWaitFor) > 0 {
+					fmt.Fprintf(&deploy, "        skipWaitFor: [%s]\n", strings.Join(m.SkipWaitFor, ", "))
 				}
 			}
 		}

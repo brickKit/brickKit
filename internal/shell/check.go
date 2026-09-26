@@ -20,6 +20,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/yamlfile"
 )
 
 // Check 核对依赖图里每个 brickkit.yaml 组件的外壳声明。只看解析到了 Manifest 的组件。
@@ -50,7 +51,45 @@ func Check(p *project.Project, graph *resolver.Graph, _ *cascade.Result) error {
 			}
 		}
 	}
-	return nil
+	return checkSkipWaitFor(p, graph)
+}
+
+// checkSkipWaitFor 核对每个 skipWaitFor 写的都是那个组件版本真实的强依赖（附录 A23）：
+// 拼错的名字、弱依赖（它本来就不等）、根本不依赖的组件，写了都等于没写——使用者却以为
+// 那条等待已经去掉了。只看解析到了 Manifest 的组件。
+func checkSkipWaitFor(p *project.Project, graph *resolver.Graph) error {
+	problems := clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.ShellSkipWaitForInvalid)).
+		WithSource(i18n.T(msgid.LabelFile), p.DeployPath)
+	for _, l := range p.Deploy.All() {
+		if len(l.SkipWaitFor) == 0 {
+			continue
+		}
+		id, version := l.Key()
+		if version == "" {
+			version, _ = p.Decl.DefaultVersion(id)
+		}
+		node := graph.Node(resolver.Ref{ID: id, Version: version})
+		if node == nil || node.Manifest == nil {
+			continue
+		}
+		required := map[string]bool{}
+		var names []string
+		for _, dep := range node.Requires {
+			required[dep.ID] = true
+			names = append(names, dep.ID)
+		}
+		list := strings.Join(names, ", ")
+		if list == "" {
+			list = i18n.T(msgid.ShellSkipWaitForNoRequired)
+		}
+		for i, skipped := range l.SkipWaitFor {
+			if !required[skipped] {
+				problems.Add(yamlfile.Indexed(l.Field+".skipWaitFor", i),
+					i18n.T(msgid.ShellSkipWaitForNotRequired, skipped, node.Ref.String(), list))
+			}
+		}
+	}
+	return problems.Err()
 }
 
 // checkKind 核对 brickkit.yaml 的 kind: shell 与 component.yaml 的 shell 块。

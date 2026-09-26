@@ -13,4 +13,7 @@ const (
 	DeployfileFieldIgnoredForTarget  = "deployfile.field_ignored_for_target"
 	DeployfileMemberMustBeMapping    = "deployfile.member_must_be_mapping"
 	DeployfileMemberNested           = "deployfile.member_nested"
+	DeployfileSkipWaitForVersioned   = "deployfile.skip_wait_for_versioned"
+	DeployfileSkipWaitForSelf        = "deployfile.skip_wait_for_self"
+	DeployfileSkipWaitForDuplicate   = "deployfile.skip_wait_for_duplicate"
 )

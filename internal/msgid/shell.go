@@ -47,4 +47,7 @@ const (
 	ShellMergeCycleReason               = "shell.merge_cycle_reason"
 	ShellHintMergeCycleHostBoth         = "shell.hint_merge_cycle_host_both"
 	ShellHintMergeCycleOptional         = "shell.hint_merge_cycle_optional"
+	ShellSkipWaitForInvalid             = "shell.skip_wait_for_invalid"
+	ShellSkipWaitForNotRequired         = "shell.skip_wait_for_not_required"
+	ShellSkipWaitForNoRequired          = "shell.skip_wait_for_no_required"
 )

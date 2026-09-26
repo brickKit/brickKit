@@ -83,3 +83,31 @@ func TestCheckConsistentProject(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, groups, 1)
 }
+
+// skipWaitFor 只能写这个组件真实的强依赖：写错名字、写了弱依赖，都是"以为生效了其实没有"，
+// 生成时大声失败，并指向那个条目。
+func TestSkipWaitForMustNameARequiredDependency(t *testing.T) {
+	a := dependsOn(simple("erp/a", "1.0.0", 8081), "erp/db", "1.0.0")
+	a.Dependencies.Components = append(a.Dependencies.Components, manifest.ComponentDep{ID: "erp/weak", Version: "1.0.0", Optional: true})
+	manifests := map[string]*manifest.Manifest{
+		"erp/a@1.0.0":    a,
+		"erp/db@1.0.0":   simple("erp/db", "1.0.0", 5432),
+		"erp/weak@1.0.0": simple("erp/weak", "1.0.0", 5433),
+	}
+	build := func(skip ...string) error {
+		a := comp("erp/a", "1.0.0", "")
+		a.SkipWaitFor = skip
+		_, err := resolveRaw(t, &testCfg{Components: []testComp{
+			a, comp("erp/db", "1.0.0", ""), comp("erp/weak", "1.0.0", ""),
+		}}, manifests)
+		return err
+	}
+	require.NoError(t, build("erp/db"))
+	for _, wrong := range []string{"erp/dbb", "erp/weak"} {
+		err := build(wrong)
+		require.Error(t, err, wrong)
+		assert.Contains(t, err.Error(), wrong)
+		assert.Contains(t, err.Error(), "components[0].skipWaitFor[0]")
+		assert.Contains(t, err.Error(), "erp/db", "列出它真正的强依赖")
+	}
+}

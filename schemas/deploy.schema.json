@@ -158,6 +158,15 @@
                     "null"
                   ]
                 },
+                "skipWaitFor": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
                 "tlsSecret": {
                   "type": [
                     "string",
@@ -248,6 +257,15 @@
           "serviceAccountName": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "skipWaitFor": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
               "null"
             ]
           },

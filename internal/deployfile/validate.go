@@ -155,6 +155,7 @@ func (f *File) validateComponents(p *clierr.ProblemSet, role Role) {
 		}
 		validateReplicas(p, field, c)
 		manifest.ValidateLabels(c.Labels, field+".labels", p.Add)
+		validateSkipWaitFor(p, field, id, c.SkipWaitFor)
 	}
 	for i, c := range f.Components {
 		id, _ := c.Key()
@@ -207,6 +208,26 @@ func validatePorts(p *clierr.ProblemSet, field string, c Entry, localPorts, expo
 				exposePorts[c.ExposePort] = field
 			}
 		}
+	}
+}
+
+// validateSkipWaitFor 做 skipWaitFor 的单文件检查：列的是组件 ID（依赖在一个组件里只出现一次，
+// 不需要版本）、不重复、不是自己。它是不是真的强依赖要看 Manifest，由 shell.Check 查。
+func validateSkipWaitFor(p *clierr.ProblemSet, field, ownID string, ids []string) {
+	seen := map[string]bool{}
+	for i, id := range ids {
+		itemField := yamlfile.Indexed(field+".skipWaitFor", i)
+		switch {
+		case strings.Contains(id, "@"):
+			p.Add(itemField, i18n.T(msgid.DeployfileSkipWaitForVersioned, id))
+		case manifest.ComponentIDProblem(id) != "":
+			p.Add(itemField, manifest.ComponentIDProblem(id))
+		case id == ownID:
+			p.Add(itemField, i18n.T(msgid.DeployfileSkipWaitForSelf))
+		case seen[id]:
+			p.Add(itemField, i18n.T(msgid.DeployfileSkipWaitForDuplicate, id))
+		}
+		seen[id] = true
 	}
 }
 
@@ -263,7 +284,10 @@ func (f *File) targetWarnings() []*clierr.Error {
 	}
 	var checks []fieldCheck
 	if f.Target == TargetK8s {
-		checks = []fieldCheck{{"exposePort", func(c Entry) bool { return c.ExposePort != 0 }}}
+		checks = []fieldCheck{
+			{"exposePort", func(c Entry) bool { return c.ExposePort != 0 }},
+			{"skipWaitFor", func(c Entry) bool { return len(c.SkipWaitFor) > 0 }},
+		}
 	} else {
 		if keys := setKeys(f.K8s); len(keys) > 0 {
 			warn(strings.Join(keys, ", "), nil)

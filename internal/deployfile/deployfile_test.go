@@ -205,3 +205,31 @@ func TestThirdLevelMembersSaysOneLevel(t *testing.T) {
 	require.Len(t, hits, 1, "同一个字段只报一次")
 	assert.Equal(t, i18n.T(msgid.DeployfileMemberNested), hits[0])
 }
+
+// skipWaitFor 列的是组件 ID：格式要对、不能带版本、不能重复、不能写自己。
+func TestSkipWaitForValidation(t *testing.T) {
+	cases := map[string]struct{ yaml, field string }{
+		"bad id":    {"target: docker\ncomponents:\n  - {id: a/b, skipWaitFor: [Not_An_ID]}\n", "components[0].skipWaitFor[0]"},
+		"versioned": {"target: docker\ncomponents:\n  - {id: a/b, skipWaitFor: [c/d@1.0.0]}\n", "components[0].skipWaitFor[0]"},
+		"duplicate": {"target: docker\ncomponents:\n  - {id: a/b, skipWaitFor: [c/d, c/d]}\n", "components[0].skipWaitFor[1]"},
+		"self":      {"target: docker\ncomponents:\n  - {id: a/b@1.0.0, skipWaitFor: [a/b]}\n", "components[0].skipWaitFor[0]"},
+		"member":    {"target: docker\ncomponents:\n  - {id: a/s, members: [{id: a/b, skipWaitFor: [a/b]}]}\n", "components[0].members[0].skipWaitFor[0]"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := parse(t, tc.yaml, deployfile.RoleTeam)
+			require.Error(t, err)
+			assert.Contains(t, fields(err), tc.field)
+		})
+	}
+	_, _, err := parse(t, "target: docker\ncomponents:\n  - {id: a/s, members: [{id: a/b, skipWaitFor: [c/d]}]}\n", deployfile.RoleTeam)
+	require.NoError(t, err)
+}
+
+// K8s 的 Pod 之间没有启动顺序：skipWaitFor 写了也不起作用，警告但不拦。
+func TestSkipWaitForIgnoredOnK8sWarns(t *testing.T) {
+	_, warnings, err := parse(t, "target: k8s\ncomponents:\n  - {id: a/b, skipWaitFor: [c/d]}\n", deployfile.RoleTeam)
+	require.NoError(t, err)
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0].Format(), "skipWaitFor")
+}

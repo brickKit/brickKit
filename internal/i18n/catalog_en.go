@@ -1329,4 +1329,10 @@ var en = map[string]string{
 	msgid.ShellMergeCycleReason:               "No component requires another in a loop, but the shell container starts as one unit: it inherits every member's dependencies, and whatever depends on a member depends on the shell. With Docker Compose this becomes a depends_on cycle that can never start",
 	msgid.ShellHintMergeCycleHostBoth:         "Put the component in the middle into the same shell too (nest its entry under the shell), or take one of these members out of the shell (move its entry to the top level)",
 	msgid.ShellHintMergeCycleOptional:         "Or make one of these dependencies optional (optional: true) in its component.yaml: an optional dependency doesn't constrain start order",
+	msgid.DeployfileSkipWaitForVersioned:      "write the component ID without a version (%s): a component depends on only one version of it",
+	msgid.DeployfileSkipWaitForSelf:           "a component cannot skip waiting for itself",
+	msgid.DeployfileSkipWaitForDuplicate:      "%s is listed twice",
+	msgid.ShellSkipWaitForInvalid:             "Error: skipWaitFor names something that is not a required dependency",
+	msgid.ShellSkipWaitForNotRequired:         "%[1]s is not a required dependency of %[2]s, so there is no wait to skip (its required dependencies: %[3]s)",
+	msgid.ShellSkipWaitForNoRequired:          "none",
 }
