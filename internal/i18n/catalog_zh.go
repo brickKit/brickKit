@@ -1503,4 +1503,15 @@ var zh = map[string]string{
 	msgid.ProjfileShellSingleVersion:         "外壳 %[1]s 在一个项目里只能有一个版本，%[2]s 已经声明了另一个版本",
 	msgid.ProjfileKindInconsistent:           "%[1]s 在 %[2]s 里声明的 kind 与这里不同；同一个组件 ID 的所有版本 kind 必须一致",
 	msgid.ProjfileComponentSourceTypeInvalid: "只能是 git 或 local（当前是 %[1]q）",
+
+	msgid.DeployfileComponentMustBeMapping: "每个条目都必须是映射（id: …、mode: …）",
+	msgid.DeployfileVarNameInvalid:         "必须是合法的环境变量名：字母、数字、下划线，不能以数字开头",
+	msgid.DeployfileEntryDuplicate:         "与 %[1]s 重复（%[2]s 有两个条目）",
+	msgid.DeployfileDebugOnlyLocal:         "mode: debug 只能写在 deploy.local.yaml 里：它记录的是\"我此刻在本机调试这个组件\"，不是团队决策。先 brickkit local on，再到那里设置",
+	msgid.DeployfileModeInvalid:            "只能是 enabled/disable/local/debug 之一（或不写），当前是 %[1]q",
+	msgid.DeployfileLocalPortNeedsMode:     "只在 mode: local 或 mode: debug 下生效；声明其中之一，或删掉这个字段",
+	msgid.DeployfileMemberMustBeBareID:     "成员只写组件 ID、不带版本（当前是 %[1]s）：每个成员在 brickkit.yaml 里只有一个版本",
+	msgid.DeployfileMemberSelf:             "外壳不能把自己列为成员",
+	msgid.DeployfileMemberDuplicate:        "%[1]s 被列了两次",
+	msgid.DeployfileFieldIgnoredForTarget:  "%[1]s 在 target: %[2]s 下不起作用，已忽略",
 }

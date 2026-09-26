@@ -1516,4 +1516,15 @@ var en = map[string]string{
 	msgid.ProjfileShellSingleVersion:         "shell %[1]s may only have one version in a project, and %[2]s already declares a different one",
 	msgid.ProjfileKindInconsistent:           "%[1]s is declared with a different kind in %[2]s; every version of one component ID must have the same kind",
 	msgid.ProjfileComponentSourceTypeInvalid: "must be git or local (currently %[1]q)",
+
+	msgid.DeployfileComponentMustBeMapping: "each entry must be a mapping (id: …, mode: …)",
+	msgid.DeployfileVarNameInvalid:         "must be a valid environment variable name: letters, digits and underscores, not starting with a digit",
+	msgid.DeployfileEntryDuplicate:         "duplicates %[1]s (%[2]s has two entries)",
+	msgid.DeployfileDebugOnlyLocal:         "mode: debug can only be written in deploy.local.yaml: it records that you are debugging this component on your machine right now, which is not a team decision. Run brickkit local on and set it there",
+	msgid.DeployfileModeInvalid:            "must be one of enabled/disable/local/debug (or omitted), got %[1]q",
+	msgid.DeployfileLocalPortNeedsMode:     "only takes effect with mode: local or mode: debug; declare one of them, or remove this field",
+	msgid.DeployfileMemberMustBeBareID:     "list members by component ID without a version (got %[1]s): each member has exactly one version in brickkit.yaml",
+	msgid.DeployfileMemberSelf:             "a shell cannot list itself as a member",
+	msgid.DeployfileMemberDuplicate:        "%[1]s is listed twice",
+	msgid.DeployfileFieldIgnoredForTarget:  "%[1]s has no effect with target: %[2]s and is ignored",
 }
