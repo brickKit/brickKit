@@ -3,5 +3,7 @@ components:
   - id: erp/shell
     members:            # 外壳在跑：这些组件在外壳进程里，不单独启动
       - id: erp/api
+        expose: true      # 外壳没跑、erp/api 自己跑时才生效
+        exposePort: 18081
       - id: erp/worker
   - id: erp/portal

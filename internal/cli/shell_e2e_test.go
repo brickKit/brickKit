@@ -199,3 +199,33 @@ func TestStatusReportsHostedMembersThroughTheirShell(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.NotContains(t, r.stdout, "not created", "裸进程外壳的成员同样没有容器")
 }
+
+// 成员条目的字段是它"自己跑"时用的（附录 A21）：外壳在跑时它们不生效、也不警告；
+// 外壳一关，成员按自己的条目独立部署（erp/api 发布自己的端口）。
+func TestShellDisabledMembersRunStandalone(t *testing.T) {
+	dir := copyFixture(t, "three-layer-shell")
+	type composeDoc struct {
+		Services map[string]struct {
+			Ports []string `yaml:"ports"`
+		} `yaml:"services"`
+	}
+	read := func() composeDoc {
+		var doc composeDoc
+		require.NoError(t, yaml.Unmarshal([]byte(readFile(t, filepath.Join(dir, ".brickkit", "generated", composeFileName))), &doc))
+		return doc
+	}
+
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, read().Services, "erp-api-1-0-0")
+	assert.NotContains(t, r.stdout+r.stderr, "no effect", "外壳在跑时成员自己的部署字段不警告")
+
+	deploy := strings.Replace(readFile(t, filepath.Join(dir, "deploy.yaml")),
+		"  - id: erp/shell\n", "  - id: erp/shell\n    mode: disable\n", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.yaml"), []byte(deploy), 0o644))
+	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	api, ok := read().Services["erp-api-1-0-0"]
+	require.True(t, ok, "外壳不跑：成员独立部署")
+	assert.Contains(t, api.Ports, "18081:8081", "用的是它自己条目里的 exposePort")
+}
