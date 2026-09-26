@@ -133,7 +133,10 @@ func TestTNPicksSingularOnlyForOneAndOnlyWhereTheCatalogHasIt(t *testing.T) {
 // 不在 brickkit.yaml 里；override.yaml 与 servedBy 已经废除。一条提示把人指到错的文件，
 // 比不给提示更糟——使用者会在那里找半天找不到这个字段。
 func TestMessagesNameTheFileThatHoldsTheField(t *testing.T) {
-	deployField := regexp.MustCompile(`\b(mode: ?\w|exposePort|hostname|localPort|expose: |replicas)`)
+	// 只认"把字段当值来写"的形状（mode: disable、mode to disable、exposePort……）：光出现 mode、
+	// members 这样的词不算——"brickkit.yaml 里有 kind: shell、部署文件里有 members"是对的。
+	// 查不到的：跨行的一句话、经 %s 填进去的文件名，这两种只能靠写文案的人自己留意。
+	deployField := regexp.MustCompile(`\b(mode: ?\w|mode to \w|exposePort|hostname|localPort|expose: |replicas)`)
 	legacy := regexp.MustCompile(`override\.yaml|servedBy|brickkit override`)
 	for _, lang := range []Lang{EN, ZH} {
 		for id, text := range CatalogFor(lang) {

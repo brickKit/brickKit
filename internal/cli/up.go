@@ -259,12 +259,26 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	if err != nil {
 		return nil, err
 	}
-	// 启动顺序按这次真正要起的工作负载排：外壳承载的成员并进外壳（与 depends_on 一致）
-	workloads, err := resolver.Order(shell.Workloads(proj, plan.graph, plan.states))
-	if err != nil {
+	// 外壳的三处声明先对上，再谈把成员并进外壳（对不上时并出来的图本身就是错的）
+	if err := shell.Check(proj, plan.graph, plan.states); err != nil {
 		return nil, err
 	}
-	renderOrder(opts, workloads, order, plan.graph, hostedMembers(proj, plan.states))
+	// 启动顺序按这次真正要起的工作负载排：外壳承载的成员并进外壳（与 depends_on 一致）
+	workGraph := shell.Workloads(proj, plan.graph, plan.states)
+	workloads, err := resolver.Order(workGraph)
+	hosted := hostedMembers(proj, plan.states)
+	if err != nil {
+		// 组件层面没有环（order 已经排出来了），环是把成员并进外壳才有的。Docker 下外壳是容器时
+		// depends_on 真的成环、起不来：点名是哪几条成员依赖造成的。K8s 的 Pod 之间没有启动顺序、
+		// 以裸进程运行的外壳不在 compose 里，这两种情况部署完全可行，启动顺序退回按组件排
+		if proj.Deploy.Target != deployfile.TargetK8s {
+			if cycle := shell.MergeCycleError(proj, plan.graph, plan.states, workGraph); cycle != nil {
+				return nil, cycle
+			}
+		}
+		workloads, hosted = order, nil
+	}
+	renderOrder(opts, workloads, order, plan.graph, hosted)
 
 	if err := checkLocalSources(proj, plan.states.Running()); err != nil {
 		return nil, err
@@ -825,8 +839,12 @@ func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.Lo
 	return nil
 }
 
-// localEnvPattern 匹配 mode: debug 组件的调试环境变量文件（compose.LocalEnvFile.Name）。
-const localEnvPattern = "local-debug.*.env"
+// localEnvPattern 匹配 mode: debug 组件的调试环境变量文件（compose.LocalEnvFile.Name）；
+// legacyLocalEnvFile 是按服务名分文件之前的单文件格式，同样可能带着密钥。
+const (
+	localEnvPattern    = "local-debug.*.env"
+	legacyLocalEnvFile = "local-debug.env"
+)
 
 // removeLocalEnvFiles 删掉 keep 之外的调试环境变量文件。
 func removeLocalEnvFiles(layout project.Layout, keep map[string]bool) error {
@@ -834,6 +852,7 @@ func removeLocalEnvFiles(layout project.Layout, keep map[string]bool) error {
 	if err != nil {
 		return err
 	}
+	matches = append(matches, filepath.Join(layout.GeneratedDir(), legacyLocalEnvFile))
 	for _, path := range matches {
 		if !keep[filepath.Base(path)] {
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
@@ -847,12 +866,16 @@ func removeLocalEnvFiles(layout project.Layout, keep map[string]bool) error {
 // pruneOtherTarget 删掉另一种部署目标上一次留下的生成物：生成目录只属于这一次的目标。
 // 从 docker 切到 k8s 时，0600 的 env 文件与调试文件里有密钥与 file:// 的内容（附录 A7）；
 // 从 k8s 切回来时，k8s/secrets/ 里有明文的 Secret 清单。换了目标还留着它们，
-// 就是一份没人再用、也没人记得去删的密钥副本。
+// 就是一份没人再用、也没人记得去删的密钥副本。compose.yaml 不含密钥，但它引用的 env 文件
+// 已经删了，一并收走，免得有人对着一份过期的文件手动 docker compose up。
 func pruneOtherTarget(layout project.Layout, k8sTarget bool) error {
 	if !k8sTarget {
 		return os.RemoveAll(filepath.Join(layout.GeneratedDir(), k8sDirName))
 	}
 	if err := os.RemoveAll(filepath.Join(layout.Root, filepath.FromSlash(compose.EnvFileDir))); err != nil {
+		return err
+	}
+	if err := os.Remove(filepath.Join(layout.GeneratedDir(), composeFileName)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return removeLocalEnvFiles(layout, nil)
@@ -861,16 +884,27 @@ func pruneOtherTarget(layout project.Layout, k8sTarget bool) error {
 // stopPreviousContainers 在这次一个容器都不需要时（组件全在宿主机上），停掉本项目上一次留下的
 // 容器：它们可能还占着端口，而宿主机上的进程马上要绑同样的端口。down 不删数据卷。
 //
-// 取不到引擎（没装 Docker）或者引擎报错（守护进程没起）都不拦：那样的机器上本来就不会有
-// 这个项目在跑的容器——一个纯宿主机的项目不该被要求装 Docker。
+// 先问引擎这个项目有没有容器：取不到引擎（没装 Docker）、问不通（守护进程没起）或者一个都没有，
+// 就什么都不做——一个纯宿主机的项目不该被要求装 Docker、也不该每次都收到一句警告。有容器却
+// 停不掉时照样继续（宿主机进程未必撞端口），但要说一声，否则接下来的"端口被占用"没人看得懂。
 func stopPreviousContainers(ctx context.Context, opts *Options, plan *upPlan) {
 	eng, err := resolveEngineFor(opts, plan.proj)
 	if err != nil {
 		return
 	}
-	_ = eng.Down(ctx, engine.DownRequest{
-		Project: engine.ProjectName(plan.proj.Decl.Project), Selector: projectSelector(plan.proj),
-	})
+	project := engine.ProjectName(plan.proj.Decl.Project)
+	statuses, err := eng.Status(ctx, project)
+	if err != nil || len(statuses) == 0 {
+		return
+	}
+	err = eng.Down(ctx, engine.DownRequest{Project: project, Selector: projectSelector(plan.proj)})
+	if err != nil {
+		renderWarnings(opts, []*clierr.Error{
+			clierr.Warn(clierr.CodeEngineFailed, i18n.T(msgid.CliUpStopPreviousFailed)).
+				WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+				WithHint(i18n.T(msgid.CliUpHintStopPreviousByHand)),
+		})
+	}
 }
 
 // writeEnvFiles 以 0600 写出密钥与 file:// 内容的 env 文件（附录 A7），并删掉这次

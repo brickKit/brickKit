@@ -195,24 +195,30 @@ func (f *File) All() []Located {
 // Entry 返回覆盖 id@version 的条目（顶层或外壳下面）：专属条目优先；裸 ID 条目只在该版本是
 // 默认版本（isDefault，由 brickkit.yaml 决定）时覆盖它。
 func (f *File) Entry(id, version string, isDefault bool) (Entry, bool) {
-	var bare *Entry
+	l, ok := f.EntryAt(id, version, isDefault)
+	return l.Entry, ok
+}
+
+// EntryAt 与 Entry 同一条规则，另外带回条目在文件里的字段路径（报错指向它）。
+func (f *File) EntryAt(id, version string, isDefault bool) (Located, bool) {
+	var bare *Located
 	for _, l := range f.All() {
 		entryID, entryVersion := l.Key()
 		if entryID != id {
 			continue
 		}
 		if entryVersion == version {
-			return l.Entry, true
+			return l, true
 		}
 		if entryVersion == "" && isDefault {
-			e := l.Entry
-			bare = &e
+			found := l
+			bare = &found
 		}
 	}
 	if bare != nil {
 		return *bare, true
 	}
-	return Entry{}, false
+	return Located{}, false
 }
 
 // Settings 返回 K8s 设置；没写 k8s: 时是零值。

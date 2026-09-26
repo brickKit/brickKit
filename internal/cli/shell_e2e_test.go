@@ -22,6 +22,8 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/engine"
 	"github.com/brickkit/brickkit/internal/envref"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // servedEntry 是 BRICKKIT_SERVED_MEMBERS_CONFIG 里的一个成员。
@@ -228,4 +230,48 @@ func TestShellDisabledMembersRunStandalone(t *testing.T) {
 	api, ok := read().Services["erp-api-1-0-0"]
 	require.True(t, ok, "外壳不跑：成员独立部署")
 	assert.Contains(t, api.Ports, "18081:8081", "用的是它自己条目里的 exposePort")
+}
+
+// 把成员并进外壳可能造出一个组件层面没有的环：erp/worker（在外壳里）依赖独立部署的 erp/pay，
+// erp/pay 又依赖 erp/api（也在外壳里）。于是外壳要等 erp/pay、erp/pay 要等外壳。
+//
+//   - Docker：compose 的 depends_on 真的成环，起不来——生成前就说清是哪几条成员依赖造成的；
+//   - K8s：Pod 之间没有 depends_on，这样部署完全可行，不能因此拦下（启动顺序退回按组件排）。
+func TestShellMergeCycle(t *testing.T) {
+	dir := copyFixture(t, "three-layer-shell")
+	writeTree(t, filepath.Join(dir, "components", "erp", "pay"), map[string]string{"component.yaml": `apiVersion: brickkit/v1
+kind: Component
+metadata: {id: erp/pay, name: Pay, version: 1.0.0, description: 独立部署，依赖外壳里的 erp/api}
+dependencies:
+  components: [erp/api@1.0.0]
+deployment: {type: container, image: registry.example.com/erp-pay:1.0.0, port: 8095}
+healthCheck: {type: tcp}
+`})
+	worker := filepath.Join(dir, "components", "erp", "worker", "component.yaml")
+	require.NoError(t, os.WriteFile(worker, []byte(strings.Replace(readFile(t, worker),
+		"    - erp/api@1.0.0\n", "    - erp/api@1.0.0\n    - erp/pay@1.0.0\n", 1)), 0o644))
+	decl := filepath.Join(dir, "brickkit.yaml")
+	require.NoError(t, os.WriteFile(decl, []byte(readFile(t, decl)+"  - id: erp/pay\n    version: 1.0.0\n"), 0o644))
+	for _, name := range []string{"deploy.yaml", "deploy.k8s.yaml"} {
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"  - id: erp/pay\n"), 0o644))
+	}
+
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, i18n.T(msgid.ShellMergeCycle, "erp/shell@1.0.0"))
+	for _, want := range []string{"erp/shell@1.0.0", "erp/worker@1.0.0", "erp/pay@1.0.0", "erp/api@1.0.0"} {
+		assert.Contains(t, r.stderr, want, "要点名造成环的成员依赖")
+	}
+
+	r = runWithEngine(t, newK8sEngine(), dir, "up", "--dry-run", "-f", "deploy.k8s.yaml")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	// 外壳以裸进程运行：compose 里没有外壳这个 service，也就没有 depends_on 环，不拦
+	local := strings.Replace(readFile(t, filepath.Join(dir, "deploy.yaml")),
+		"  - id: erp/shell\n", "  - id: erp/shell\n    mode: debug\n    localPort: 18000\n", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.local.yaml"), []byte(local), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".brickkit", "local-mode"), []byte("on\n"), 0o644))
+	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 }

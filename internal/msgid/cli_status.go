@@ -26,7 +26,7 @@ const (
 	CliStatusProjectStatusDeployTarget     = "cli.status.project_status_deploy_target"
 	CliStatusTheDependencyGraphCouldNot    = "cli.status.the_dependency_graph_could_not"
 	CliStatusViewTheLogsToFind             = "cli.status.view_the_logs_to_find"
-	CliStatusRunningAndResourceStatusAre   = "cli.status.running_and_resource_status_are"
+	CliStatusRunningSectionsUnaffected     = "cli.status.running_sections_unaffected"
 	CliStatusLocalSessionRunning           = "cli.status.local_session_running"
 	CliStatusLong                          = "cli.status.long"
 )

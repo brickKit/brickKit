@@ -63,19 +63,8 @@ func checkLocalSources(proj *project.Project, running []resolver.Ref) error {
 
 // deployEntryField 返回覆盖这个组件版本的部署条目的字段路径（如 components[0].members[1]）。
 func deployEntryField(proj *project.Project, ref resolver.Ref) string {
-	isDefault := proj.Decl.IsDefault(ref.ID, ref.Version)
-	var bare string
-	for _, l := range proj.Deploy.All() {
-		id, version := l.Key()
-		switch {
-		case id != ref.ID:
-		case version == ref.Version:
-			return l.Field
-		case version == "" && isDefault:
-			bare = l.Field
-		}
-	}
-	return bare
+	l, _ := proj.Deploy.EntryAt(ref.ID, ref.Version, proj.Decl.IsDefault(ref.ID, ref.Version))
+	return l.Field
 }
 
 // localComponentPlan 是一个 mode: local 组件要怎么启动的全部结论。

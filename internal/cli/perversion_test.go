@@ -104,3 +104,17 @@ func TestGraphRejectsInconsistentShell(t *testing.T) {
 	assert.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
 	assert.Contains(t, r.stderr, "erp/portal")
 }
+
+// 团队的 deploy.yaml 读不了（本地模式下装载只用 deploy.local.yaml，照样能跑）：不知道团队的 mode，
+// 就一个出处都不标——从前只有第一行不标，之后的每一行都拿空字符串当团队的 mode 去比。
+func TestStatusLabelsNothingWhenTeamFileUnreadable(t *testing.T) {
+	f := addedProject(t, []comp{{ID: "demo/a", Version: "1.0.0"}, {ID: "demo/b", Version: "1.0.0"}}, "demo/a@1.0.0")
+	f.writeConfig(t, "components:\n  - id: demo/a\n    version: 1.0.0\n    mode: disable\n  - id: demo/b\n    version: 1.0.0\n    mode: disable\n")
+	require.NoError(t, os.WriteFile(f.Layout.DeployLocalPath(), []byte(readFile(t, f.Layout.DeployPath())), 0o644))
+	require.NoError(t, project.SetLocalMode(f.Layout, true))
+	require.NoError(t, os.WriteFile(f.Layout.DeployPath(), []byte("target: [broken\n"), 0o644))
+
+	r := statusOf(t, newFakeEngine(), f.Dir)
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "via deploy.local.yaml", r.stdout)
+}

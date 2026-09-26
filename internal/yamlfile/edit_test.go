@@ -196,3 +196,49 @@ components:
 	require.True(t, e.RemoveEntry("components", "erp/worker"))
 	assert.Equal(t, "target: docker\ncomponents:\n  - id: erp/shell\n", saved(t, e, path))
 }
+
+// deploy.yaml 可能是指向共享配置的符号链接：Save 写到链接指向的文件，链接本身原样保留——
+// 否则改名会把链接换成一份普通文件，悄悄与共享配置分了叉。
+func TestEditSaveWritesThroughSymlink(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "shared.yaml")
+	link := filepath.Join(dir, "deploy.yaml")
+	require.NoError(t, os.WriteFile(real, []byte(editSample), 0o644))
+	require.NoError(t, os.Symlink(real, link))
+
+	e, err := yamlfile.OpenEdit(link)
+	require.NoError(t, err)
+	require.True(t, e.SetField("components", "people/basic", "mode", "enabled"))
+	require.NoError(t, e.Save())
+
+	info, err := os.Lstat(link)
+	require.NoError(t, err)
+	assert.NotZero(t, info.Mode()&os.ModeSymlink, "链接本身保留")
+	data, err := os.ReadFile(real)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "mode: enabled", "改动写进链接指向的文件")
+}
+
+// 被删的键是最后一个、前面是一个块结构的值（labels 映射）：注释留在这个条目里，
+// 下一个条目的排版不受影响。
+func TestEditDeleteLastFieldAfterBlockValue(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "deploy.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`components:
+  - id: a/b
+    labels:
+      x: "1"
+    # last one
+    mode: disable
+  - id: c/d
+`), 0o644))
+	e, err := yamlfile.OpenEdit(path)
+	require.NoError(t, err)
+	require.True(t, e.DeleteField("components", "a/b", "mode"))
+	assert.Equal(t, `components:
+  - id: a/b
+    labels:
+      x: "1"
+    # last one
+  - id: c/d
+`, saved(t, e, path))
+}

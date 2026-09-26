@@ -9,8 +9,12 @@ package shell
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/brickkit/brickkit/internal/cascade"
+	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
@@ -105,4 +109,116 @@ func Workloads(p *project.Project, graph *resolver.Graph, states *cascade.Result
 		})
 	}
 	return resolver.NewGraph(nodes)
+}
+
+// MergeCycleError 解释一个只在工作负载图里才有的环（Workloads 把成员并进外壳之后才出现）：
+// 组件层面谁也没依赖谁成环，是"外壳里的成员 A 依赖外面的 X、X 又依赖外壳里的成员 B"把外壳与 X
+// 绑成了互等。报错点名每一条造成它的组件依赖，使用者才知道该动哪一条。work 是 Workloads 的结果。
+//
+// 返回 nil 表示这个环不拦人：找不到环，或者环上有以裸进程运行的外壳——它不在 compose 文件里，
+// 没有 depends_on，也就不存在互等（启动顺序只是参考）。
+func MergeCycleError(p *project.Project, graph *resolver.Graph, states *cascade.Result, work *resolver.Graph) error {
+	cycle := findCycle(work)
+	if len(cycle) == 0 {
+		return nil
+	}
+	for _, ref := range cycle {
+		if p.Decl.IsShellID(ref.ID) && p.DeployEntry(ref.ID, ref.Version).IsBareProcess() {
+			return nil
+		}
+	}
+	inside := func(ref resolver.Ref) []resolver.Ref {
+		out := []resolver.Ref{ref}
+		for _, running := range states.Running() {
+			if host, ok := states.HostOf(p, running); ok && host == ref {
+				out = append(out, running)
+			}
+		}
+		return out
+	}
+	describe := func(ref resolver.Ref) string {
+		if host, ok := states.HostOf(p, ref); ok {
+			return i18n.T(msgid.ShellMergeCycleInShell, ref.String(), host.String())
+		}
+		return ref.String()
+	}
+
+	var shells, edges []string
+	seenShell := map[resolver.Ref]bool{}
+	for i, from := range cycle {
+		to := cycle[(i+1)%len(cycle)]
+		if p.Decl.IsShellID(from.ID) && !seenShell[from] {
+			seenShell[from] = true
+			shells = append(shells, from.String())
+		}
+		for _, x := range inside(from) {
+			node := graph.Node(x)
+			if node == nil {
+				continue
+			}
+			for _, y := range inside(to) {
+				if containsRef(node.Requires, y) {
+					edges = append(edges, describe(x)+" → "+describe(y))
+				}
+			}
+		}
+	}
+	err := clierr.New(clierr.CodeDependencyCycle, i18n.T(msgid.ShellMergeCycle, strings.Join(shells, i18n.T(msgid.ListSeparator))))
+	for _, edge := range edges {
+		err = err.WithDetail(i18n.T(msgid.ShellLabelMergeCycleEdge), edge)
+	}
+	return err.WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellMergeCycleReason)).
+		WithHint(i18n.T(msgid.ShellHintMergeCycleHostBoth), i18n.T(msgid.ShellHintMergeCycleOptional))
+}
+
+// findCycle 在图里找一个强依赖环，按依赖方向返回环上的节点；没有环时返回 nil。
+func findCycle(g *resolver.Graph) []resolver.Ref {
+	const (
+		unvisited = iota
+		onStack
+		done
+	)
+	state := map[resolver.Ref]int{}
+	var stack []resolver.Ref
+	var found []resolver.Ref
+	var visit func(ref resolver.Ref) bool
+	visit = func(ref resolver.Ref) bool {
+		state[ref] = onStack
+		stack = append(stack, ref)
+		if node := g.Node(ref); node != nil {
+			for _, dep := range node.Requires {
+				switch state[dep] {
+				case onStack:
+					for i, r := range stack {
+						if r == dep {
+							found = append([]resolver.Ref(nil), stack[i:]...)
+						}
+					}
+					return true
+				case unvisited:
+					if visit(dep) {
+						return true
+					}
+				}
+			}
+		}
+		stack = stack[:len(stack)-1]
+		state[ref] = done
+		return false
+	}
+	for _, n := range g.Nodes {
+		if state[n.Ref] == unvisited && visit(n.Ref) {
+			return found
+		}
+	}
+	return nil
+}
+
+func containsRef(refs []resolver.Ref, ref resolver.Ref) bool {
+	for _, r := range refs {
+		if r == ref {
+			return true
+		}
+	}
+	return false
 }

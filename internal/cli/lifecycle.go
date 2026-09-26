@@ -44,6 +44,8 @@ type liveProject struct {
 	degraded *clierr.Error
 	// teamModes 是团队 deploy.yaml 里各组件版本的 mode（本地模式下 status 比对用，懒加载）。
 	teamModes map[resolver.Ref]string
+	// teamUnreadable 表示团队 deploy.yaml 读不了：不知道团队的 mode，一个出处都不标。
+	teamUnreadable bool
 }
 
 // loadConfig 只解析 brickkit.yaml 与部署文件，**不碰安装源、不读 config/、不做跨文件校验**。

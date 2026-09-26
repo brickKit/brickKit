@@ -85,15 +85,16 @@ func (e *Edit) DeleteField(seqKey, id, field string) bool {
 		if item.Content[i].Value != field {
 			continue
 		}
-		// 键上方的注释常常是一段小节说明，不属于这一个键：挪给下一个键，它是最后一个键时
-		// 挪到前一个值的下方。行尾注释属于这个键本身，随它一起删
+		// 键上方的注释常常是一段小节说明，不属于这一个键：挪给下一个键；它是最后一个键时挂在
+		// 前一个键的下方（挂在前一个值上的话，值是 labels 这种块结构时 yaml.v3 会把注释甩进
+		// 下一个条目、打乱排版）。行尾注释属于这个键本身，随它一起删
 		if head := item.Content[i].HeadComment; head != "" {
 			switch {
 			case i+2 < len(item.Content):
 				next := item.Content[i+2]
 				next.HeadComment = joinComments(head, next.HeadComment)
-			case i > 0:
-				prev := item.Content[i-1]
+			case i >= 2:
+				prev := item.Content[i-2]
 				prev.FootComment = joinComments(prev.FootComment, head)
 			}
 		}
@@ -314,10 +315,17 @@ func keysPrecededByBlankLine(original []byte) map[string]bool {
 
 // writeAtomic 先写同目录下的临时文件再改名覆盖：写到一半失败（磁盘满、被打断）时，原文件
 // 一个字节都不动——brickkit.yaml 与部署文件是使用者手写的，写坏一半比写不进去糟得多。
-// 保留原文件的权限；原文件不存在时用 editFilePerm。
+//
+// path 是符号链接时写到它指向的文件（临时文件也建在那个目录里），链接本身不动——改名覆盖
+// 链接会把它换成一份普通文件，悄悄与它指向的共享配置分叉。保留原文件的权限与属主；
+// 原文件不存在时用 editFilePerm。改名前先落盘，免得断电后留下一个空文件。
 func writeAtomic(path string, data []byte) error {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
 	perm := os.FileMode(editFilePerm)
-	if info, err := os.Stat(path); err == nil {
+	info, statErr := os.Stat(path)
+	if statErr == nil {
 		perm = info.Mode().Perm()
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
@@ -330,11 +338,18 @@ func writeAtomic(path string, data []byte) error {
 		_ = tmp.Close()
 		return err
 	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}
 	if err := os.Chmod(name, perm); err != nil {
 		return err
+	}
+	if statErr == nil {
+		keepOwner(name, info)
 	}
 	return os.Rename(name, path)
 }

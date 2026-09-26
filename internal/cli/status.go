@@ -262,7 +262,7 @@ func renderDegradedNotice(opts *Options, p *liveProject) {
 	for _, d := range p.degraded.Details {
 		opts.Printf("%s\n", i18n.T(msgid.CliStatusMsg, d.Key, d.Value))
 	}
-	opts.Printf("%s\n\n", i18n.T(msgid.CliStatusRunningAndResourceStatusAre))
+	opts.Printf("%s\n\n", i18n.T(msgid.CliStatusRunningSectionsUnaffected))
 }
 
 // renderComponentStatus 输出"该跑的组件现在怎么样了"。
@@ -398,12 +398,16 @@ func (p *liveProject) localModeDiffers(ref resolver.Ref) bool {
 	if p.proj.DeploySource != project.DeployLocal {
 		return false
 	}
+	if p.teamUnreadable {
+		return false
+	}
 	if p.teamModes == nil {
-		p.teamModes = map[resolver.Ref]string{}
 		team, _, err := deployfile.ParseFile(p.proj.Layout.DeployPath(), deployfile.RoleTeam)
 		if err != nil {
+			p.teamUnreadable = true // 记住读不了：之后每一行都不标，而不是拿空 mode 去比
 			return false
 		}
+		p.teamModes = map[resolver.Ref]string{}
 		for _, c := range p.proj.Decl.Components {
 			if entry, ok := team.Entry(c.ID, c.Version, p.proj.Decl.IsDefault(c.ID, c.Version)); ok {
 				p.teamModes[resolver.Ref{ID: c.ID, Version: c.Version}] = entry.Mode

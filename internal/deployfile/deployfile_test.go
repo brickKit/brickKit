@@ -178,6 +178,12 @@ func TestNestedMemberEntries(t *testing.T) {
 	assert.Equal(t, 8081, all[1].ExposePort)
 	assert.Equal(t, "a/c@2.0.0", all[2].ID)
 	assert.Equal(t, "components[1]", all[3].Field)
+	at, ok := f.EntryAt("a/c", "2.0.0", false)
+	require.True(t, ok)
+	assert.Equal(t, "components[0].members[1]", at.Field, "查找结果带着字段路径，报错据此指向条目")
+	at, ok = f.EntryAt("a/c", "1.0.0", true)
+	require.True(t, ok)
+	assert.Equal(t, "components[1]", at.Field)
 
 	_, _, err = parse(t, "target: docker\ncomponents:\n  - id: a/s\n    members:\n      - {id: a/b, mode: debug, localPort: 9000}\n",
 		deployfile.RoleTeam)

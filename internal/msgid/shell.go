@@ -41,4 +41,10 @@ const (
 	ShellMemberInvalidUTF8              = "shell.member_invalid_utf8"
 	ShellMemberInvalidUTF8Reason        = "shell.member_invalid_utf8_reason"
 	ShellHintInvalidUTF8                = "shell.hint_invalid_utf8"
+	ShellMergeCycle                     = "shell.merge_cycle"
+	ShellMergeCycleInShell              = "shell.merge_cycle_in_shell"
+	ShellLabelMergeCycleEdge            = "shell.label_merge_cycle_edge"
+	ShellMergeCycleReason               = "shell.merge_cycle_reason"
+	ShellHintMergeCycleHostBoth         = "shell.hint_merge_cycle_host_both"
+	ShellHintMergeCycleOptional         = "shell.hint_merge_cycle_optional"
 )

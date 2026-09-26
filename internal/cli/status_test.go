@@ -352,7 +352,7 @@ func TestStatusPrintsUsableLogsCommand(t *testing.T) {
 // 依赖图取不到时，"现在什么在跑"照样要答得出来。
 //
 // status 的五节里，只有"未启动"那一列**原因**真的需要依赖图；运行中、
-// 未在运行、资源可达性问的是引擎与 brickkit.yaml。从前依赖图取不到就
+// 未在运行问的是引擎与 brickkit.yaml / 部署文件。从前依赖图取不到就
 // 整条命令报错退出，另外四节一起没了——使用者连"容器还在不在"都问不到，
 // 而那恰恰是他打开 status 想知道的第一件事。
 func TestStatusReportsRunningWhenGraphUnavailable(t *testing.T) {
@@ -369,6 +369,7 @@ func TestStatusReportsRunningWhenGraphUnavailable(t *testing.T) {
 	assert.Contains(t, r.stdout, "people/basic")
 	assert.Contains(t, r.stdout, "The dependency graph could not be resolved", "信息不全就得说清楚为什么")
 	assert.Contains(t, r.stdout, "prot", "把解析失败的原因原样带出来，他才知道去改哪一行")
+	assert.NotContains(t, r.stdout, "Resource status", "status 早就没有资源状态这一节了")
 }
 
 // 降级时，brickkit.yaml 里声明过的组件一个都不能少。
@@ -388,7 +389,7 @@ func TestStatusListsEveryDeclaredComponentWhenGraphUnavailable(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "erp/backend", "声明过的组件不能凭空消失")
 	assert.Contains(t, r.stdout, "reason unknown")
-	assert.NotContains(t, r.stdout, "Not running", "引擎里查不到 ≠ 它没起来")
+	assert.NotContains(t, r.stdout, "❌ Not running", "引擎里查不到 ≠ 它没起来")
 }
 
 // 引擎里有记录、只是没在跑，那就是实打实的"未在运行"——降级也照报。
@@ -403,7 +404,7 @@ func TestStatusKeepsFailedComponentWhenGraphUnavailable(t *testing.T) {
 	r := statusOf(t, eng, f.Dir)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stdout, "Not running")
+	assert.Contains(t, r.stdout, "❌ Not running")
 	assert.Contains(t, r.stdout, "exit code 1")
 }
 
