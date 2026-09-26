@@ -278,7 +278,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		}
 		workloads, hosted = order, nil
 	}
-	renderOrder(opts, workloads, order, plan.graph, hosted)
+	renderOrder(opts, workloads, order, plan.graph, hosted, skippedWaits(proj, plan.graph, plan.states))
 
 	if err := checkLocalSources(proj, plan.states.Running()); err != nil {
 		return nil, err
@@ -962,6 +962,17 @@ func hostedMembers(proj *project.Project, states *cascade.Result) map[resolver.R
 	for _, ref := range states.Running() {
 		if host, ok := states.HostOf(proj, ref); ok {
 			out[host] = append(out[host], ref)
+		}
+	}
+	return out
+}
+
+// skippedWaits 返回每个工作负载因 skipWaitFor 而不等的强依赖（启动顺序里照实写出来）。
+func skippedWaits(proj *project.Project, graph *resolver.Graph, states *cascade.Result) map[resolver.Ref][]resolver.Ref {
+	out := map[resolver.Ref][]resolver.Ref{}
+	for _, ref := range states.Running() {
+		if skipped := shell.SkippedWaits(proj, graph, states, ref); len(skipped) > 0 {
+			out[ref] = skipped
 		}
 	}
 	return out

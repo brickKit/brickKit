@@ -1326,4 +1326,7 @@ var zh = map[string]string{
 	msgid.ShellSkipWaitForInvalid:             "错误：skipWaitFor 写的不是强依赖",
 	msgid.ShellSkipWaitForNotRequired:         "%[1]s 不是 %[2]s 的强依赖，本来就没有这条等待可跳过（它的强依赖：%[3]s）",
 	msgid.ShellSkipWaitForNoRequired:          "没有",
+	msgid.CliRenderOrderSkipsWaitFor:          "（不等 %s）",
+	msgid.ComposeSkipWaitForOnBareProcess:     "%s 这次以裸进程运行（或在裸进程外壳里）：它没有 depends_on，skipWaitFor 不起作用",
+	msgid.ShellHintMergeCycleSkipWait:         "或者接受代价：在部署文件里 %[2]s 的条目上写 skipWaitFor: [%[1]s]。它就不等 %[1]s 直接启动，必须自己重试到对方就绪",
 }

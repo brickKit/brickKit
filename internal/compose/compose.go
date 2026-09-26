@@ -323,6 +323,7 @@ func newPlan(
 	p.warnings = append(p.warnings, p.localExposeWarnings()...)
 	p.warnings = append(p.warnings, p.localLabelWarnings()...)
 	p.warnings = append(p.warnings, p.fallbackStandaloneWarnings()...)
+	p.warnings = append(p.warnings, p.bareSkipWaitForWarnings()...)
 	return p, nil
 }
 
@@ -506,9 +507,9 @@ func (p *plan) componentDependsOn(c componentPlan) map[string]any {
 		}
 	}
 
-	// 外壳要等的还包括它承载的成员的强依赖：成员的代码就在外壳进程里（shell.Dependencies）
-	requires, _ := shell.Dependencies(p.proj, p.graph, p.states, c.Ref)
-	for _, dep := range requires {
+	// 外壳要等的还包括它承载的成员的强依赖：成员的代码就在外壳进程里（shell.WaitFor）
+	// 只等 WaitFor：skipWaitFor 写掉的强依赖不进 depends_on（附录 A23），但照样连得到
+	for _, dep := range shell.WaitFor(p.proj, p.graph, p.states, c.Ref) {
 		service := manifest.ServiceName(dep.ID, dep.Version)
 		if p.rendered[service] {
 			dependsOn[service] = condition(p.readyCondition(dep))

@@ -238,6 +238,32 @@ func TestShellDisabledMembersRunStandalone(t *testing.T) {
 //   - Docker：compose 的 depends_on 真的成环，起不来——生成前就说清是哪几条成员依赖造成的；
 //   - K8s：Pod 之间没有 depends_on，这样部署完全可行，不能因此拦下（启动顺序退回按组件排）。
 func TestShellMergeCycle(t *testing.T) {
+	dir := mergeCycleFixture(t)
+
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, i18n.T(msgid.ShellMergeCycle, "erp/shell@1.0.0"))
+	for _, want := range []string{"erp/shell@1.0.0", "erp/worker@1.0.0", "erp/pay@1.0.0", "erp/api@1.0.0"} {
+		assert.Contains(t, r.stderr, want, "要点名造成环的成员依赖")
+	}
+	assert.Contains(t, r.stderr, "skipWaitFor: [erp/pay]", "第三条出路要给出能直接照抄的那一行")
+
+	r = runWithEngine(t, newK8sEngine(), dir, "up", "--dry-run", "-f", "deploy.k8s.yaml")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	// 外壳以裸进程运行：compose 里没有外壳这个 service，也就没有 depends_on 环，不拦
+	local := strings.Replace(readFile(t, filepath.Join(dir, "deploy.yaml")),
+		"  - id: erp/shell\n", "  - id: erp/shell\n    mode: debug\n    localPort: 18000\n", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.local.yaml"), []byte(local), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".brickkit", "local-mode"), []byte("on\n"), 0o644))
+	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+}
+
+// mergeCycleFixture 在外壳夹具上造出"并进外壳才有的环"：erp/worker（外壳里）→ erp/pay（独立）
+// → erp/api（外壳里）。
+func mergeCycleFixture(t *testing.T) string {
+	t.Helper()
 	dir := copyFixture(t, "three-layer-shell")
 	writeTree(t, filepath.Join(dir, "components", "erp", "pay"), map[string]string{"component.yaml": `apiVersion: brickkit/v1
 kind: Component
@@ -257,21 +283,51 @@ healthCheck: {type: tcp}
 		require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"  - id: erp/pay\n"), 0o644))
 	}
 
-	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
-	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
-	assert.Contains(t, r.stderr, i18n.T(msgid.ShellMergeCycle, "erp/shell@1.0.0"))
-	for _, want := range []string{"erp/shell@1.0.0", "erp/worker@1.0.0", "erp/pay@1.0.0", "erp/api@1.0.0"} {
-		assert.Contains(t, r.stderr, want, "要点名造成环的成员依赖")
+	return dir
+}
+
+// skipWaitFor 写在成员条目上：外壳不再等 erp/pay（环断了，Docker 起得来），erp/pay 照样等外壳；
+// 启动顺序那一行说清外壳不等谁。等待去掉了，连接不去掉：K8s 的出站网络策略照样放行 erp/pay。
+func TestSkipWaitForBreaksMergeCycle(t *testing.T) {
+	dir := mergeCycleFixture(t)
+	for _, name := range []string{"deploy.yaml", "deploy.k8s.yaml"} {
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(path, []byte(strings.Replace(readFile(t, path),
+			"      - id: erp/worker\n", "      - id: erp/worker\n        skipWaitFor: [erp/pay]\n", 1)), 0o644))
 	}
 
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	var doc struct {
+		Services map[string]struct {
+			DependsOn map[string]any `yaml:"depends_on"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(readFile(t, filepath.Join(dir, ".brickkit", "generated", composeFileName))), &doc))
+	assert.NotContains(t, doc.Services["erp-shell-1-0-0"].DependsOn, "erp-pay-1-0-0", "外壳不等 erp/pay")
+	assert.Contains(t, doc.Services["erp-pay-1-0-0"].DependsOn, "erp-shell-1-0-0", "erp/pay 照样等外壳里的 erp/api")
+	assert.Contains(t, r.stdout, i18n.T(msgid.CliRenderOrderSkipsWaitFor, "erp/pay@1.0.0"))
+
+	k8s := filepath.Join(dir, "deploy.k8s.yaml")
+	require.NoError(t, os.WriteFile(k8s, []byte(readFile(t, k8s)+"k8s:\n  networkPolicy:\n    enabled: true\n    egress:\n      enabled: true\n"), 0o644))
 	r = runWithEngine(t, newK8sEngine(), dir, "up", "--dry-run", "-f", "deploy.k8s.yaml")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	policy := readFile(t, filepath.Join(dir, ".brickkit", "generated", "k8s", "networkpolicies", "erp-shell-1-0-0.yaml"))
+	egress := policy[strings.Index(policy, "egress:"):strings.Index(policy, "ingress:")]
+	assert.Contains(t, egress, "erp-pay-1-0-0", "外壳的出站策略照样放行 erp/pay：不等它，不等于不连它")
+}
 
-	// 外壳以裸进程运行：compose 里没有外壳这个 service，也就没有 depends_on 环，不拦
+// 裸进程没有 depends_on：skipWaitFor 写在它（或裸进程外壳的成员）上不起作用，说一声。
+func TestSkipWaitForOnBareProcessWarns(t *testing.T) {
+	dir := mergeCycleFixture(t)
 	local := strings.Replace(readFile(t, filepath.Join(dir, "deploy.yaml")),
 		"  - id: erp/shell\n", "  - id: erp/shell\n    mode: debug\n    localPort: 18000\n", 1)
+	local = strings.Replace(local, "      - id: erp/worker\n", "      - id: erp/worker\n        skipWaitFor: [erp/pay]\n", 1)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.local.yaml"), []byte(local), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".brickkit"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".brickkit", "local-mode"), []byte("on\n"), 0o644))
-	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.ComposeSkipWaitForOnBareProcess, "erp/worker@1.0.0"))
 }

@@ -170,3 +170,20 @@ func (p *plan) runAfter() []string {
 	}
 	return out
 }
+
+// bareSkipWaitForWarnings 提醒"skipWaitFor 这次不起作用"：以裸进程运行的组件、裸进程外壳里的
+// 成员都不在 compose 文件里，没有 depends_on 可去（附录 A23）。不拦——换回容器时它又会生效。
+func (p *plan) bareSkipWaitForWarnings() []*clierr.Error {
+	var out []*clierr.Error
+	for _, ref := range p.states.Running() {
+		if len(p.proj.DeployEntry(ref.ID, ref.Version).SkipWaitFor) == 0 {
+			continue
+		}
+		_, hostMember := p.hostMember(ref)
+		if p.proj.DeployEntry(ref.ID, ref.Version).IsBareProcess() || hostMember {
+			out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
+				i18n.T(msgid.ComposeSkipWaitForOnBareProcess, refText(ref))))
+		}
+	}
+	return out
+}

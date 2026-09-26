@@ -1335,4 +1335,7 @@ var en = map[string]string{
 	msgid.ShellSkipWaitForInvalid:             "Error: skipWaitFor names something that is not a required dependency",
 	msgid.ShellSkipWaitForNotRequired:         "%[1]s is not a required dependency of %[2]s, so there is no wait to skip (its required dependencies: %[3]s)",
 	msgid.ShellSkipWaitForNoRequired:          "none",
+	msgid.CliRenderOrderSkipsWaitFor:          "  (does not wait for %s)",
+	msgid.ComposeSkipWaitForOnBareProcess:     "%s runs as a bare process this time (or inside a bare-process shell): it has no depends_on, so its skipWaitFor has no effect",
+	msgid.ShellHintMergeCycleSkipWait:         "Or accept the cost: write skipWaitFor: [%[1]s] on the entry of %[2]s in the deploy file. It then starts without waiting for %[1]s and must retry until it is ready",
 }

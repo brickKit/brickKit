@@ -25,6 +25,37 @@ import (
 func Dependencies(
 	p *project.Project, graph *resolver.Graph, states *cascade.Result, ref resolver.Ref,
 ) (requires, optional []resolver.Ref) {
+	return dependencies(p, graph, states, ref, false)
+}
+
+// WaitFor 返回 ref 的工作负载启动前要等的强依赖：Dependencies 的强依赖，去掉各来源条目
+// （组件自己，外壳还有它承载的每个成员）在 skipWaitFor 里写的那些（附录 A23）。两个成员都依赖
+// erp/pay、只有一个写了 skipWaitFor 时照样要等——另一个成员没接受这个代价。
+// 只管"等"，不管"连"：网络策略、extra_hosts 仍按 Dependencies。
+func WaitFor(p *project.Project, graph *resolver.Graph, states *cascade.Result, ref resolver.Ref) []resolver.Ref {
+	requires, _ := dependencies(p, graph, states, ref, true)
+	return requires
+}
+
+// SkippedWaits 返回 ref 的工作负载因 skipWaitFor 而不等的强依赖（Dependencies 减去 WaitFor）。
+func SkippedWaits(p *project.Project, graph *resolver.Graph, states *cascade.Result, ref resolver.Ref) []resolver.Ref {
+	all, _ := Dependencies(p, graph, states, ref)
+	waited := map[resolver.Ref]bool{}
+	for _, dep := range WaitFor(p, graph, states, ref) {
+		waited[dep] = true
+	}
+	var out []resolver.Ref
+	for _, dep := range all {
+		if !waited[dep] {
+			out = append(out, dep)
+		}
+	}
+	return out
+}
+
+func dependencies(
+	p *project.Project, graph *resolver.Graph, states *cascade.Result, ref resolver.Ref, honorSkip bool,
+) (requires, optional []resolver.Ref) {
 	sources := []resolver.Ref{ref}
 	inside := map[resolver.Ref]bool{ref: true}
 	for _, running := range states.Running() {
@@ -40,8 +71,14 @@ func Dependencies(
 		if node == nil {
 			continue
 		}
+		skipped := map[string]bool{}
+		if honorSkip {
+			for _, id := range p.DeployEntry(source.ID, source.Version).SkipWaitFor {
+				skipped[id] = true
+			}
+		}
 		for _, dep := range node.Requires {
-			if !inside[dep] {
+			if !inside[dep] && !skipped[dep.ID] {
 				seenRequired[dep] = true
 			}
 		}
@@ -68,8 +105,8 @@ func sortRefs(refs []resolver.Ref) {
 }
 
 // Workloads 返回这次真正要起的工作负载组成的依赖图：只含这次在跑的组件，外壳承载的成员
-// 并进外壳——外壳的依赖是 Dependencies 的结果（它自己的加上成员的），别的组件对成员的依赖
-// 改成对外壳的依赖。启动顺序按它排，与生成文件里的 depends_on 说的是同一件事。
+// 并进外壳——强依赖是 WaitFor 的结果（外壳的是它自己的加上成员的，去掉 skipWaitFor），别的
+// 组件对成员的依赖改成对外壳的依赖。启动顺序按它排，与生成文件里的 depends_on 说的是同一件事。
 func Workloads(p *project.Project, graph *resolver.Graph, states *cascade.Result) *resolver.Graph {
 	target := func(ref resolver.Ref) resolver.Ref {
 		if host, ok := states.HostOf(p, ref); ok {
@@ -98,9 +135,9 @@ func Workloads(p *project.Project, graph *resolver.Graph, states *cascade.Result
 		if node == nil {
 			continue
 		}
-		requires, optional := node.Requires, node.Optional
+		requires, optional := WaitFor(p, graph, states, ref), node.Optional
 		if p.Decl.IsShellID(ref.ID) {
-			requires, optional = Dependencies(p, graph, states, ref)
+			_, optional = Dependencies(p, graph, states, ref)
 		}
 		nodes = append(nodes, &resolver.Node{
 			Ref: ref, Manifest: node.Manifest,
@@ -143,7 +180,17 @@ func MergeCycleError(p *project.Project, graph *resolver.Graph, states *cascade.
 		return ref.String()
 	}
 
+	skips := func(from, to resolver.Ref) bool {
+		for _, id := range p.DeployEntry(from.ID, from.Version).SkipWaitFor {
+			if id == to.ID {
+				return true
+			}
+		}
+		return false
+	}
 	var shells, edges []string
+	var skipFrom, skipTo resolver.Ref
+	skipHosted := false
 	seenShell := map[resolver.Ref]bool{}
 	for i, from := range cycle {
 		to := cycle[(i+1)%len(cycle)]
@@ -157,8 +204,12 @@ func MergeCycleError(p *project.Project, graph *resolver.Graph, states *cascade.
 				continue
 			}
 			for _, y := range inside(to) {
-				if containsRef(node.Requires, y) {
+				if containsRef(node.Requires, y) && !skips(x, y) {
 					edges = append(edges, describe(x)+" → "+describe(y))
+					// 给一条能直接照抄的 skipWaitFor：优先让外壳里的成员不等外面的组件
+					if _, hosted := states.HostOf(p, x); skipFrom.ID == "" || (hosted && !skipHosted) {
+						skipFrom, skipTo, skipHosted = x, y, hosted
+					}
 				}
 			}
 		}
@@ -167,8 +218,11 @@ func MergeCycleError(p *project.Project, graph *resolver.Graph, states *cascade.
 	for _, edge := range edges {
 		err = err.WithDetail(i18n.T(msgid.ShellLabelMergeCycleEdge), edge)
 	}
-	return err.WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellMergeCycleReason)).
-		WithHint(i18n.T(msgid.ShellHintMergeCycleHostBoth), i18n.T(msgid.ShellHintMergeCycleOptional))
+	hints := []string{i18n.T(msgid.ShellHintMergeCycleHostBoth), i18n.T(msgid.ShellHintMergeCycleOptional)}
+	if skipFrom.ID != "" {
+		hints = append(hints, i18n.T(msgid.ShellHintMergeCycleSkipWait, skipTo.ID, skipFrom.String()))
+	}
+	return err.WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellMergeCycleReason)).WithHint(hints...)
 }
 
 // findCycle 在图里找一个强依赖环，按依赖方向返回环上的节点；没有环时返回 nil。
