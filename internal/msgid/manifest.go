@@ -57,7 +57,11 @@ const (
 	ManifestScaffoldHeader               = "manifest.scaffold.header"
 	ManifestScaffoldNameTodo             = "manifest.scaffold.name_todo"
 	ManifestScaffoldDescriptionTodo      = "manifest.scaffold.description_todo"
-	ManifestScaffoldImageTodo            = "manifest.scaffold.image_todo"
 	ManifestScaffoldPortTodo             = "manifest.scaffold.port_todo"
 	ManifestScaffoldStartPeriodComment   = "manifest.scaffold.start_period_comment"
+	ManifestConfigKeyNotEnvName          = "manifest.config_key_not_env_name"
+	ManifestImageOrBuildRequired         = "manifest.image_or_build_required"
+	ManifestBuildPathEscapes             = "manifest.build_path_escapes"
+	ManifestShellMembersEmpty            = "manifest.shell_members_empty"
+	ManifestScaffoldBuildComment         = "manifest.scaffold_build_comment"
 )

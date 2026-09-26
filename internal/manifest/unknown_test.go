@@ -195,9 +195,6 @@ dependencies:
     - department/tree@1.0.0
     - id: infra/bus@1.0.0
       optional: true
-  resources:
-    - kind: database
-      engine: postgresql
 migration:
   command: ["./migrate", "up"]
 `), "component.yaml")

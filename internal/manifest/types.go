@@ -21,74 +21,6 @@ const (
 	HealthCheckNone = "none"
 )
 
-// 基础资源类型（006 §2.1）。
-//
-// **这份列表是封闭的，而且每一项都对应一组固定的连接变量**（006 §5.2）：
-// database→DATABASE_*、cache→REDIS_*、mq→MQ_*、storage→STORAGE_*、
-// search→SEARCH_*、smtp→SMTP_*。kind 名字与变量前缀同源不是巧合——
-// 平台认识一种 kind，靠的就是"知道该给它注入哪几个变量"。
-//
-// 因此不认识的 kind 必须**当场报错**，不能放过去：注入引擎对它无事可做，
-// 组件一个连接变量都拿不到，而 `up` 一路绿灯、部署文件看上去完全正常，
-// 要到运行时才炸。这正是平台最反对的静默失败。
-const (
-	ResourceKindDatabase = "database"
-	ResourceKindCache    = "cache"
-	ResourceKindMQ       = "mq"
-	ResourceKindStorage  = "storage"
-	ResourceKindSearch   = "search"
-	ResourceKindSMTP     = "smtp"
-)
-
-// ResourceKinds 是全部合法的资源类型，顺序与 006 §2.1 的表一致。
-var ResourceKinds = []string{
-	ResourceKindDatabase, ResourceKindCache, ResourceKindMQ,
-	ResourceKindStorage, ResourceKindSearch, ResourceKindSMTP,
-}
-
-// IsKnownResourceKind 判断资源类型是否是平台认识的那几种。
-func IsKnownResourceKind(kind string) bool {
-	for _, known := range ResourceKinds {
-		if kind == known {
-			return true
-		}
-	}
-	return false
-}
-
-// resourceEnvPrefixes 是每种 kind 注入的连接变量前缀（006 §5.2）。
-//
-// 只有 cache 与 kind 名不同（REDIS 而不是 CACHE）——那是 006 §5.2 定下的，
-// 因为使用者认得的是"Redis 的连接信息"，不是"缓存的连接信息"。
-//
-// 注入引擎（inject.resourceVars）按同一套前缀生成变量，
-// TestResourceVarsMatchDeclaredPrefix 盯着两边不许分叉。
-var resourceEnvPrefixes = map[string]string{
-	ResourceKindDatabase: "DATABASE",
-	ResourceKindCache:    "REDIS",
-	ResourceKindMQ:       "MQ",
-	ResourceKindStorage:  "STORAGE",
-	ResourceKindSearch:   "SEARCH",
-	ResourceKindSMTP:     "SMTP",
-}
-
-// ResourceEnvPrefix 返回该 kind 注入的连接变量前缀，如 database → DATABASE。
-//
-// 不认识的 kind 返回空串（那种 kind 在解析阶段就被拦下了，见上方注释）。
-func ResourceEnvPrefix(kind string) string { return resourceEnvPrefixes[kind] }
-
-// ResourceKindsText 把合法资源类型拼成一行，用于错误提示。
-func ResourceKindsText() string {
-	out := ""
-	for i, kind := range ResourceKinds {
-		if i > 0 {
-			out += " / "
-		}
-		out += kind
-	}
-	return out
-}
-
 // Manifest 是 component.yaml 的完整结构。
 //
 // 它连同引用到的全部类型，就是 schemas/component.schema.json 的来源（internal/schemagen 反射生成）。
@@ -107,6 +39,9 @@ type Manifest struct {
 	Migration    *Migration    `yaml:"migration,omitempty"`
 	HealthCheck  HealthCheck   `yaml:"healthCheck"`
 	Local        *Local        `yaml:"local,omitempty"`
+	// Shell 出现即表示这个组件是外壳（附录 A11），Members 是它"能承载"的组件——
+	// 能力声明；实际收编了谁只看部署文件的 members（提案 §8.4）。
+	Shell *Shell `yaml:"shell,omitempty"`
 
 	// Source 是该 Manifest 的来源（文件路径或安装源描述），只用于错误提示。
 	Source string `yaml:"-"`
@@ -136,9 +71,11 @@ type Artifact struct {
 }
 
 // Dependencies 是组件依赖声明（002 §3）。
+//
+// 旧版的 resources（基础资源依赖）随 brickkit.yaml 的 resources 一起废除：
+// 组件需要的连接信息就是它 configSchema 里的环境变量（提案 §7.1）。
 type Dependencies struct {
 	Components []ComponentDep `yaml:"components,omitempty"`
-	Resources  []ResourceDep  `yaml:"resources,omitempty"`
 }
 
 // ComponentDep 是一条组件依赖。支持两种 YAML 写法（002 §3.2）：
@@ -164,14 +101,6 @@ type ComponentDep struct {
 	Optional bool `yaml:"optional"`
 	// Ref 是 YAML 中的原始写法（如 department/tree@1.0.0），用于错误提示。
 	Ref string `yaml:"-"`
-}
-
-// ResourceDep 是一条资源依赖（002 §3.5）。
-//
-// Kind 的 jsonschema enum 就是 ResourceKinds：改一处要改另一处，schemas_test.go 会核对（见 internal/schemagen）。
-type ResourceDep struct {
-	Kind   string `yaml:"kind" jsonschema:"enum=database|cache|mq|storage|search|smtp"`
-	Engine string `yaml:"engine"`
 }
 
 // ConfigSchema 是组件的"配置说明书"（002 §6.5）。
@@ -220,8 +149,11 @@ type ItemDef struct {
 // Type 与 Port 的 jsonschema 约束（enum、范围）与 validateDeployment 里的规则是同一份取值，
 // 改一处要改另一处，schemas_test.go 会核对（见 internal/schemagen）。
 type Deployment struct {
-	Type       string      `yaml:"type" jsonschema:"enum=container"`
-	Image      string      `yaml:"image"`
+	Type string `yaml:"type" jsonschema:"enum=container"`
+	// Image 是预构建镜像地址（可选）；不带 tag 时由平台补上 metadata.version（见 ImageRef）。
+	Image string `yaml:"image,omitempty"`
+	// Build 是本地构建配置（可选）。Image 与 Build 至少要有一个（提案 §9.10.2）。
+	Build      *Build      `yaml:"build,omitempty"`
 	Port       int         `yaml:"port" jsonschema:"minimum=1,maximum=65535"`
 	ExtraPorts []ExtraPort `yaml:"extraPorts,omitempty"`
 	Resources  *Resources  `yaml:"resources,omitempty"`
@@ -231,6 +163,19 @@ type Deployment struct {
 	// K8s 写进 Deployment 与 Pod 的 annotations。与 Resources 一样，
 	// 这里是"作者的推荐值"，brickkit.yaml 的 labels 逐键覆盖它（004 §5.6.2）。
 	Labels map[string]string `yaml:"labels,omitempty"`
+}
+
+// Build 是本地构建配置：brickkit build 用它构建镜像，up 从不自动构建（提案 §9.10）。
+type Build struct {
+	// Context 是构建上下文，相对组件仓库根；不写为 "."。
+	Context string `yaml:"context,omitempty"`
+	// Dockerfile 相对组件仓库根；不写为 "Dockerfile"。
+	Dockerfile string `yaml:"dockerfile,omitempty"`
+}
+
+// Shell 是外壳的能力声明。
+type Shell struct {
+	Members []string `yaml:"members"`
 }
 
 // ExtraPort 是额外端口声明（附录 B.7）。

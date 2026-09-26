@@ -40,21 +40,18 @@ func TestParseFileDepartmentTree(t *testing.T) {
 	assert.Equal(t, "api-docs", m.Artifacts[1].Type)
 	assert.Equal(t, []string{"openapi.json"}, m.Artifacts[1].Files)
 
-	// dependencies：空组件依赖 + 一个资源依赖
+	// dependencies：空组件依赖
 	require.NotNil(t, m.Dependencies)
 	assert.Empty(t, m.Dependencies.Components)
-	require.Len(t, m.Dependencies.Resources, 1)
-	assert.Equal(t, "database", m.Dependencies.Resources[0].Kind)
-	assert.Equal(t, "postgresql", m.Dependencies.Resources[0].Engine)
 
 	// configSchema
 	require.NotNil(t, m.ConfigSchema)
 	assert.Equal(t, "object", m.ConfigSchema.Type)
-	require.Contains(t, m.ConfigSchema.Properties, "defaultPageSize")
-	assert.Equal(t, "integer", m.ConfigSchema.Properties["defaultPageSize"].Type)
-	assert.Equal(t, 20, m.ConfigSchema.Properties["defaultPageSize"].Default)
-	assert.Equal(t, "默认分页大小", m.ConfigSchema.Properties["defaultPageSize"].Description)
-	assert.Contains(t, m.ConfigSchema.Properties, "maxTreeDepth")
+	require.Contains(t, m.ConfigSchema.Properties, "DEFAULT_PAGE_SIZE")
+	assert.Equal(t, "integer", m.ConfigSchema.Properties["DEFAULT_PAGE_SIZE"].Type)
+	assert.Equal(t, 20, m.ConfigSchema.Properties["DEFAULT_PAGE_SIZE"].Default)
+	assert.Equal(t, "默认分页大小", m.ConfigSchema.Properties["DEFAULT_PAGE_SIZE"].Description)
+	assert.Contains(t, m.ConfigSchema.Properties, "MAX_TREE_DEPTH")
 
 	// deployment
 	assert.Equal(t, "container", m.Deployment.Type)
@@ -100,7 +97,7 @@ func TestParseFilePeopleBasic(t *testing.T) {
 	assert.Equal(t, "grpc", m.Deployment.ExtraPorts[0].Name)
 	assert.Equal(t, 9090, m.Deployment.ExtraPorts[0].Port)
 
-	assert.Equal(t, []string{"defaultPageSize"}, m.ConfigSchema.Required)
+	assert.Equal(t, []string{"DEFAULT_PAGE_SIZE"}, m.ConfigSchema.Required)
 	assert.Equal(t, "https://docs.brickkit.io/people-basic/api", m.Metadata.APIDocs)
 }
 
@@ -141,13 +138,11 @@ func TestParseEmptyDependencies(t *testing.T) {
 	m, err := Parse([]byte(minimalYAML+`
 dependencies:
   components: []
-  resources: []
 `), "component.yaml")
 	require.NoError(t, err)
 
 	require.NotNil(t, m.Dependencies)
 	assert.Empty(t, m.Dependencies.Components)
-	assert.Empty(t, m.Dependencies.Resources)
 }
 
 // 4.25 configSchema properties 为空（32.25）也是合法的。
@@ -188,9 +183,9 @@ func TestValidationErrors(t *testing.T) {
 			[]string{"metadata.name", "missing"}},
 		{"—", "缺少 metadata.description", strings.Replace(minimalYAML, "  description: 最小组件\n", "", 1),
 			[]string{"metadata.description", "missing"}},
-		{"4.4", "缺少 deployment.image",
+		{"4.4", "image 与 build 都没写",
 			strings.Replace(minimalYAML, "  image: registry.brickkit.io/tool:1.0.0\n", "", 1),
-			[]string{"deployment.image", "missing"}},
+			[]string{"deployment:", "deployment.build"}},
 		{"4.5", "缺少 deployment.port", strings.Replace(minimalYAML, "  port: 8080\n", "", 1),
 			[]string{"deployment.port", "missing"}},
 		{"4.6", "缺少 healthCheck",
@@ -250,16 +245,29 @@ dependencies:
   components:
     - infra/tool@1.0.0
 `, []string{"dependencies.components[0]", "itself"}},
-		{"—", "资源依赖缺少 kind", minimalYAML + `
-dependencies:
-  resources:
-    - engine: postgresql
-`, []string{"dependencies.resources[0].kind", "missing"}},
-		{"—", "资源依赖缺少 engine", minimalYAML + `
+		{"—", "resources 依赖已废除（附录：连接信息走 configSchema）", minimalYAML + `
 dependencies:
   resources:
     - kind: database
-`, []string{"dependencies.resources[0].engine", "missing"}},
+      engine: postgresql
+`, []string{"dependencies.resources", "unknown field"}},
+		{"—", "configSchema 键不是合法环境变量名", minimalYAML + `
+configSchema:
+  properties:
+    db-host:
+      type: string
+`, []string{"configSchema.properties.db-host", "environment variable"}},
+		{"—", "build 路径逃出仓库", mutate(t, "  port: 8080", `  port: 8080
+  build:
+    dockerfile: ../Dockerfile`), []string{"deployment.build.dockerfile"}},
+		{"—", "外壳 members 为空", minimalYAML + `
+shell:
+  members: []
+`, []string{"shell.members"}},
+		{"—", "外壳把自己列为成员", minimalYAML + `
+shell:
+  members: [infra/tool]
+`, []string{"shell.members[0]"}},
 		{"4.11", "artifact 缺少 type", minimalYAML + `
 artifacts:
   - files: [openapi.json]

@@ -506,7 +506,6 @@ var zh = map[string]string{
 	msgid.ManifestScaffoldHeader:                                     "%[1]s —— 由 brickkit new 生成的骨架\n下面每一处 TODO 都要改成真的；结构本身已经能通过 brickkit up --dry-run 的校验",
 	msgid.ManifestScaffoldNameTodo:                                   "TODO：改成人看的展示名",
 	msgid.ManifestScaffoldDescriptionTodo:                            "TODO：一句话说清楚这个组件做什么",
-	msgid.ManifestScaffoldImageTodo:                                  "TODO：换成真实构建出来的镜像（本地开发前先 docker build）",
 	msgid.ManifestScaffoldPortTodo:                                   "TODO：换成组件实际监听的端口",
 	msgid.ManifestScaffoldStartPeriodComment:                         "冷启动超过默认的 60 秒（很重的 Spring Boot / Django 预加载 / .NET 首次 JIT 等）\n要写 startPeriodSeconds，否则 K8s 下会永久 CrashLoopBackOff",
 	msgid.CascadeReasonDisabled:                                      "显式禁用（mode: disable）",
@@ -1578,4 +1577,9 @@ var zh = map[string]string{
 	msgid.ProjectHostPortCollision:        "错误：宿主机端口 %[1]d 被占用了两次",
 	msgid.ProjectLabelPortClaim:           "占用者",
 	msgid.ProjectHintHostPortPerVersion:   "裸 ID 条目会作用到每个版本：给每个版本各写一个 id@version 条目，并用不同的端口",
+	msgid.ManifestConfigKeyNotEnvName:     "%[1]q 不是合法的环境变量名；configSchema 的键会原样注入（例如 DB_HOST）",
+	msgid.ManifestImageOrBuildRequired:    "要声明 deployment.image（预构建镜像）或 deployment.build（用 brickkit build 本地构建），或两者都写",
+	msgid.ManifestBuildPathEscapes:        "%[1]q 必须是组件仓库里的相对路径",
+	msgid.ManifestShellMembersEmpty:       "外壳至少要列出一个它能承载的组件",
+	msgid.ManifestScaffoldBuildComment:    "用 brickkit build 本地构建（up 从不自动构建）；发布了预构建镜像后再加 image: <仓库>/<名称>",
 }

@@ -102,14 +102,16 @@ metadata:
 %s
 deployment:
   type: container
-  image: %s:0.1.0 # %s
+  build: # %s
+    context: .
+    dockerfile: Dockerfile
   port: 8080 # %s
 
 healthCheck:
   type: http
   path: /healthz
 %s`, id, name, i18n.T(msgid.ManifestScaffoldNameTodo), i18n.T(msgid.ManifestScaffoldDescriptionTodo), artifactsBlock,
-		id, i18n.T(msgid.ManifestScaffoldImageTodo), i18n.T(msgid.ManifestScaffoldPortTodo),
+		i18n.T(msgid.ManifestScaffoldBuildComment), i18n.T(msgid.ManifestScaffoldPortTodo),
 		yamlcomment.Block("  ", i18n.T(msgid.ManifestScaffoldStartPeriodComment)))
 
 	files := []ScaffoldFile{{Path: FileName, Content: []byte(manifestContent)}}

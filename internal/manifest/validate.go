@@ -78,6 +78,7 @@ func (m *Manifest) Validate() error {
 	m.validateMigration(p)
 	m.validateHealthCheck(p)
 	m.validateLocal(p)
+	m.validateShell(p)
 
 	return p.Err()
 }
@@ -275,20 +276,6 @@ func (m *Manifest) validateDependencies(p *clierr.ProblemSet) {
 		checkDuplicateDependency(p, field, i, dep, seen)
 	}
 
-	for i, res := range m.Dependencies.Resources {
-		prefix := fmt.Sprintf("dependencies.resources[%d]", i)
-		switch {
-		case res.Kind == "":
-			p.Missing(prefix + ".kind")
-		case !IsKnownResourceKind(res.Kind):
-			// 与 brickkit.yaml 侧同一条规则：kind 是按字符串比对的，
-			// 组件写了平台不认识的类型，使用者照着绑也换不来任何连接变量
-			p.Add(prefix+".kind", i18n.T(msgid.ProblemResourceKindUnknown, res.Kind, ResourceKindsText()))
-		}
-		if res.Engine == "" {
-			p.Missing(prefix + ".engine")
-		}
-	}
 }
 
 func (m *Manifest) validateConfigSchema(p *clierr.ProblemSet) {
@@ -302,6 +289,10 @@ func (m *Manifest) validateConfigSchema(p *clierr.ProblemSet) {
 
 	for name, prop := range m.ConfigSchema.Properties {
 		field := "configSchema.properties." + name
+		// 键就是注入的环境变量名（附录 A10），不再做 camelCase → SNAKE 转换
+		if !envNameRe.MatchString(name) {
+			p.Add(field, i18n.T(msgid.ManifestConfigKeyNotEnvName, name))
+		}
 		switch {
 		case prop.Type == "":
 			p.Missing(field + ".type")
@@ -326,8 +317,18 @@ func (m *Manifest) validateDeployment(p *clierr.ProblemSet) {
 		p.Add("deployment.type", i18n.T(msgid.ManifestDeploymentTypeMustBe, DeploymentTypeContainer))
 	}
 
-	if d.Image == "" {
-		p.Missing("deployment.image")
+	if d.Image == "" && d.Build == nil {
+		p.Add("deployment", i18n.T(msgid.ManifestImageOrBuildRequired))
+	}
+	if d.Build != nil {
+		for _, f := range []struct{ field, path string }{
+			{"deployment.build.context", d.Build.Context},
+			{"deployment.build.dockerfile", d.Build.Dockerfile},
+		} {
+			if f.path != "" && (filepath.IsAbs(f.path) || escapesRepoRoot(f.path)) {
+				p.Add(f.field, i18n.T(msgid.ManifestBuildPathEscapes, f.path))
+			}
+		}
 	}
 
 	switch {
@@ -459,5 +460,36 @@ func validateStartPeriod(p *clierr.ProblemSet, h HealthCheck) {
 	case h.StartPeriodSeconds > maxStartPeriodSeconds:
 		p.Add("healthCheck.startPeriodSeconds",
 			i18n.T(msgid.ManifestStartPeriodTooLarge, maxStartPeriodSeconds, h.StartPeriodSeconds))
+	}
+}
+
+// envNameRe 是合法环境变量名的规则，与 configdir.IsValidName 同一条（这里不能 import
+// configdir：它反过来依赖本包）。internal/configdir 的 TestEnvNameRuleMatchesManifest 盯着两边不许分叉。
+var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// IsEnvName 报告 name 是否是合法的环境变量名（供两边的一致性测试使用）。
+func IsEnvName(name string) bool { return envNameRe.MatchString(name) }
+
+func (m *Manifest) validateShell(p *clierr.ProblemSet) {
+	if m.Shell == nil {
+		return
+	}
+	if len(m.Shell.Members) == 0 {
+		p.Add("shell.members", i18n.T(msgid.ManifestShellMembersEmpty))
+	}
+	seen := map[string]bool{}
+	for i, member := range m.Shell.Members {
+		field := fmt.Sprintf("shell.members[%d]", i)
+		switch {
+		case member == m.Metadata.ID:
+			p.Add(field, i18n.T(msgid.DeployfileMemberSelf))
+		case seen[member]:
+			p.Add(field, i18n.T(msgid.DeployfileMemberDuplicate, member))
+		default:
+			if reason := componentIDProblem(member); reason != "" {
+				p.Add(field, reason)
+			}
+		}
+		seen[member] = true
 	}
 }

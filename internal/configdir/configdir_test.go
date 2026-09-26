@@ -11,6 +11,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/configdir"
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
@@ -174,4 +175,11 @@ func TestConflictHintMatchesMarker(t *testing.T) {
 	var marked *configdir.ConflictError
 	require.True(t, errors.As(err, &marked))
 	assert.Equal(t, i18n.T(msgid.ConfigdirConflictHintEditMarked), marked.Render().Hints[0])
+}
+
+// manifest 不能 import configdir（方向反了），只好各持一份环境变量名规则：这里盯着两边不许分叉。
+func TestEnvNameRuleMatchesManifest(t *testing.T) {
+	for _, name := range []string{"DB_HOST", "_X", "a1", "defaultPageSize", "1BAD", "db-host", "", "A B", "é"} {
+		assert.Equal(t, configdir.IsValidName(name), manifest.IsEnvName(name), name)
+	}
 }

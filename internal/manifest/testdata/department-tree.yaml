@@ -32,18 +32,15 @@ artifacts:
 
 dependencies:
   components: []
-  resources:
-    - kind: database
-      engine: postgresql
 
 configSchema:
   type: object
   properties:
-    defaultPageSize:
+    DEFAULT_PAGE_SIZE:
       type: integer
       default: 20
       description: 默认分页大小
-    maxTreeDepth:
+    MAX_TREE_DEPTH:
       type: integer
       default: 10
       description: 最大树深度

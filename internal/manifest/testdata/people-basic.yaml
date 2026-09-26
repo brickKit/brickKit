@@ -36,21 +36,18 @@ dependencies:
     # 弱依赖
     - id: infra/redis-event-bus@1.0.0
       optional: true
-  resources:
-    - kind: database
-      engine: postgresql
 
 configSchema:
   type: object
   properties:
-    defaultPageSize:
+    DEFAULT_PAGE_SIZE:
       type: integer
       default: 20
-    enableAudit:
+    ENABLE_AUDIT:
       type: boolean
       default: true
   required:
-    - defaultPageSize
+    - DEFAULT_PAGE_SIZE
 
 deployment:
   type: container
