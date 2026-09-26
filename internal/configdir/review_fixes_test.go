@@ -11,7 +11,7 @@ import (
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
-// $var: 指向空值等同于"没写"：和 KEY: "" 一样回落到 schema 默认值，而不是直接丢掉或判缺失。
+// $var: 指向 null 等同于"没写"：回落到 schema 默认值，而不是直接丢掉或判缺失。
 func TestResolveUnsetVarFallsBackToDefault(t *testing.T) {
 	schema := &manifest.ConfigSchema{
 		Properties: map[string]manifest.ConfigProperty{
@@ -23,7 +23,7 @@ func TestResolveUnsetVarFallsBackToDefault(t *testing.T) {
 	res, err := configdir.Resolve(configdir.Input{
 		ComponentID: "a/b", Version: "1.0.0", Schema: schema,
 		File: mustFile(t, "LOG: $var:EMPTY\nREQ: $var:EMPTY\n"),
-		Vars: mustVars(t, "EMPTY: \"\"\n"),
+		Vars: mustVars(t, "EMPTY:\n"),
 	})
 	require.NoError(t, err)
 	assert.Empty(t, res.Missing)
@@ -87,4 +87,41 @@ func TestDeployVarsKeepWrittenText(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "1.10", m["VER"].Text)
 	assert.Equal(t, "x", m["S"].Text)
+}
+
+// 空串与 null 的分工：null（KEY: 或 ~）= 没给；必填键写 "" = 骨架留的空位（缺失，有默认值时回落）；
+// 可选键写 "" = 明确要一个空串，照样注入（旧版 compose 的回归测试钉住过这条）。
+func TestResolveEmptyStringVsNull(t *testing.T) {
+	schema := &manifest.ConfigSchema{
+		Properties: map[string]manifest.ConfigProperty{
+			"REGION":   {Type: "string", Default: "cn-north"},
+			"NULLED":   {Type: "string", Default: "fallback"},
+			"REQ_DEF":  {Type: "string", Default: "req-default"},
+			"REQ_NONE": {Type: "string"},
+			"VIA_VAR":  {Type: "string", Default: "info"},
+		},
+		Required: []string{"REQ_DEF", "REQ_NONE"},
+	}
+	res, err := configdir.Resolve(configdir.Input{
+		ComponentID: "a/b", Version: "1.0.0", Schema: schema,
+		File: mustFile(t, "REGION: \"\"\nNULLED:\nREQ_DEF: \"\"\nREQ_NONE: \"\"\nVIA_VAR: $var:EMPTY\n"),
+		Vars: mustVars(t, "EMPTY: \"\"\n"),
+	})
+	require.NoError(t, err)
+
+	region, ok := res.Get("REGION")
+	require.True(t, ok, "可选键写空串是明确的值，要注入")
+	assert.Equal(t, "", region.Value.Text)
+	assert.Equal(t, configdir.OriginFile, region.Origin)
+
+	nulled, _ := res.Get("NULLED")
+	assert.Equal(t, "fallback", nulled.Value.Text, "null 等于没写，回落默认值")
+
+	reqDef, _ := res.Get("REQ_DEF")
+	assert.Equal(t, "req-default", reqDef.Value.Text, "必填键的空串是空位，有默认值就用默认值")
+
+	assert.Equal(t, []string{"REQ_NONE"}, res.Missing, "必填键的空串且无默认值 = 缺失")
+
+	viaVar, _ := res.Get("VIA_VAR")
+	assert.Equal(t, "", viaVar.Value.Text, "经 $var: 引到空串，与直接写空串同一条规则")
 }

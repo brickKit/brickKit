@@ -22,8 +22,10 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 )
 
 // ============================================================
@@ -177,15 +179,15 @@ func stringsOf(t *testing.T, raw any) []string {
 //
 // 两个方向同时存在：erp/backend 要访问宿主机上的 people/basic，
 // 而 people/basic 要访问容器里的 department/tree。
-func localProject(t *testing.T, local config.Component) *builder {
+func localProject(t *testing.T, local projecttest.Entry) *builder {
 	t.Helper()
 
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 	b.component(dependsOn(simple("people/basic", "1.0.0", 8080), "department/tree", "1.0.0"),
 		local)
-	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
+	b.component(simple("department/tree", "1.0.0", 8080), projecttest.Entry{})
 	return b
 }
 
@@ -198,8 +200,7 @@ func localProject(t *testing.T, local config.Component) *builder {
 func TestLocalComponentGeneratesNoMigrationService(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))),
-		config.Component{Mode: config.ModeDebug})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+		projecttest.Entry{Mode: deployfile.ModeDebug})
 
 	services := servicesOf(t, b.parsed())
 
@@ -212,8 +213,7 @@ func TestLocalComponentGeneratesNoMigrationService(t *testing.T) {
 func TestLocalComponentWithMigrationWarns(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))),
-		config.Component{Mode: config.ModeDebug})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+		projecttest.Entry{Mode: deployfile.ModeDebug})
 
 	result := b.generate()
 
@@ -236,7 +236,7 @@ func joinWarnings(warnings []*clierr.Error) string {
 // ============================================================
 
 func TestDependentGetsExtraHostsForLocalComponent(t *testing.T) {
-	b := localProject(t, config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
 
@@ -245,7 +245,7 @@ func TestDependentGetsExtraHostsForLocalComponent(t *testing.T) {
 
 // 不依赖 local 组件的容器不该平白多出 extra_hosts。
 func TestNonDependentHasNoExtraHosts(t *testing.T) {
-	b := localProject(t, config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	svc := serviceOf(t, b.parsed(), "department-tree-1-0-0")
 
@@ -256,8 +256,8 @@ func TestNonDependentHasNoExtraHosts(t *testing.T) {
 func TestNoLocalComponentMeansNoExtraHosts(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+		projecttest.Entry{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	result := b.generate()
 
@@ -271,11 +271,11 @@ func TestExtraHostsForMultipleLocalComponents(t *testing.T) {
 	b.component(
 		dependsOn(dependsOn(simple("erp/backend", "1.0.0", 8080),
 			"people/basic", "1.0.0"), "department/tree", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 	b.component(simple("people/basic", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 	b.component(simple("department/tree", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8082})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8082})
 
 	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
 	env := envOf(t, svc)
@@ -293,7 +293,7 @@ func TestExtraHostsForMultipleLocalComponents(t *testing.T) {
 
 // 13.10：用户指定了 localPort，依赖方的地址就用这个端口。
 func TestExplicitLocalPortIsUsed(t *testing.T) {
-	b := localProject(t, config.Component{Mode: config.ModeDebug, LocalPort: 9999})
+	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 9999})
 
 	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
 
@@ -306,7 +306,7 @@ func TestExplicitLocalPortIsUsed(t *testing.T) {
 // 直接分配 8081 会得到一个没人监听的端口，依赖方连过去只有 connection refused
 // ——这是真跑起来验出来的（调用方稳定 503）。
 func TestAutoAssignedLocalPortDefaultsToDeclaredPort(t *testing.T) {
-	b := localProject(t, config.Component{Mode: config.ModeDebug})
+	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug})
 
 	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
 
@@ -319,9 +319,9 @@ func TestAutoAssignedLocalPortFallsBackTo8081(t *testing.T) {
 	b.component(
 		dependsOn(dependsOn(simple("erp/backend", "1.0.0", 8080),
 			"people/basic", "1.0.0"), "department/tree", "1.0.0"),
-		config.Component{})
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeDebug})
-	b.component(simple("department/tree", "1.0.0", 8080), config.Component{Mode: config.ModeDebug})
+		projecttest.Entry{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeDebug})
+	b.component(simple("department/tree", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeDebug})
 
 	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
 
@@ -339,11 +339,11 @@ func TestAutoAssignedLocalPortSkipsExplicitOne(t *testing.T) {
 	b.component(
 		dependsOn(dependsOn(simple("erp/backend", "1.0.0", 8080),
 			"people/basic", "1.0.0"), "department/tree", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 	// department/tree 钉死 8080，people/basic 想用的也是 8080，只能让开
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeDebug})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeDebug})
 	b.component(simple("department/tree", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8080})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8080})
 
 	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
 
@@ -351,37 +351,19 @@ func TestAutoAssignedLocalPortSkipsExplicitOne(t *testing.T) {
 	assert.Equal(t, "http://people-basic-1-0-0:8081", env["PEOPLE_BASIC_ENDPOINT"], "13.11")
 }
 
-// local 组件同样要连自己的库，别把它从"需要预先创建的数据库"里漏掉。
-//
-// 漏掉的后果是使用者照着 CLI 的清单建完库，一在 IDE 里启动就撞上
-// `database "xxx" does not exist`，而 CLI 从头到尾没提过这个库。
-func TestLocalComponentDatabaseIsStillReported(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "brickkit_people"}))
-
-	requirements := b.generate().Resources
-
-	require.Len(t, requirements, 1)
-	require.Len(t, requirements[0].Databases, 1)
-	assert.Equal(t, "brickkit_people", requirements[0].Databases[0].Name)
-	assert.Equal(t, []string{"people/basic"}, requirements[0].Databases[0].Components)
-}
-
 // 13.12：两个 local 组件抢同一个 localPort 直接报错。
 func TestConflictingLocalPortsIsAnError(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 	b.component(simple("department/tree", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
-	err := b.generateErr()
+	// 两个条目显式写了同一个 localPort：部署文件的单文件校验就拦下了，走不到生成
+	err := loadErr(t, b)
 
 	require.Error(t, err, "13.12")
 	assert.Contains(t, err.Error(), "8081")
-	assert.Equal(t, clierr.CodePortConflict, clierr.As(err).Code)
 }
 
 // localPort 撞上另一个组件的 exposePort 同样是宿主机端口冲突——
@@ -389,11 +371,12 @@ func TestConflictingLocalPortsIsAnError(t *testing.T) {
 func TestLocalPortConflictingWithExposePortIsAnError(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 18080})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 18080})
 	b.component(simple("portal/user-frontend", "1.0.0", 8080),
-		config.Component{Expose: true, ExposePort: 18080})
+		projecttest.Entry{Expose: true, ExposePort: 18080})
 
-	err := b.generateErr()
+	// localPort 撞上 exposePort：装载阶段的宿主机端口检查（project.checkHostPorts）就拦下了
+	err := loadErr(t, b)
 
 	require.Error(t, err, "13.12")
 	assert.Contains(t, err.Error(), "18080")
@@ -404,9 +387,9 @@ func TestLocalPortConflictingWithExposePortIsAnError(t *testing.T) {
 func TestConflictingLocalExtraPortsIsAnError(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withExtraPort(simple("people/basic", "1.0.0", 8080), "grpc", 9090),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 	b.component(withExtraPort(simple("department/tree", "1.0.0", 8082), "grpc", 9090),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8083})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8083})
 
 	err := b.generateErr()
 
@@ -420,9 +403,9 @@ func TestConflictingLocalExtraPortsIsAnError(t *testing.T) {
 func TestExtraPortOfLocalComponentKeepsDeclaredPort(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 	b.component(withExtraPort(simple("people/basic", "1.0.0", 8080), "grpc", 9090),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
 
@@ -436,7 +419,7 @@ func TestExtraPortOfLocalComponentKeepsDeclaredPort(t *testing.T) {
 
 // 13.3：local 组件要访问的容器依赖，自动映射一个宿主机端口。
 func TestDependencyOfLocalComponentGetsHostPort(t *testing.T) {
-	b := localProject(t, config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	svc := serviceOf(t, b.parsed(), "department-tree-1-0-0")
 
@@ -445,7 +428,7 @@ func TestDependencyOfLocalComponentGetsHostPort(t *testing.T) {
 
 // 不被任何 local 组件依赖的容器不该被平白映射到宿主机。
 func TestUnrelatedComponentIsNotMappedToHost(t *testing.T) {
-	b := localProject(t, config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
 
@@ -456,9 +439,9 @@ func TestUnrelatedComponentIsNotMappedToHost(t *testing.T) {
 func TestDependencyWithExposeReusesItsHostPort(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("people/basic", "1.0.0", 8080), "department/tree", "1.0.0"),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 	b.component(simple("department/tree", "1.0.0", 8080),
-		config.Component{Expose: true, ExposePort: 9100})
+		projecttest.Entry{Expose: true, ExposePort: 9100})
 
 	result := b.generate()
 	svc := serviceOf(t, docOf(t, result), "department-tree-1-0-0")
@@ -474,9 +457,9 @@ func TestMultipleDependenciesGetDistinctHostPorts(t *testing.T) {
 	b.component(
 		dependsOn(dependsOn(simple("people/basic", "1.0.0", 8080),
 			"department/tree", "1.0.0"), "authorization/rbac", "1.0.0"),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
-	b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
-	b.component(simple("authorization/rbac", "1.0.0", 8080), config.Component{})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
+	b.component(simple("department/tree", "1.0.0", 8080), projecttest.Entry{})
+	b.component(simple("authorization/rbac", "1.0.0", 8080), projecttest.Entry{})
 
 	doc := b.parsed()
 	tree := portsOf(t, serviceOf(t, doc, "department-tree-1-0-0"))
@@ -493,7 +476,7 @@ func TestMultipleDependenciesGetDistinctHostPorts(t *testing.T) {
 
 // 13.4 / 13.7：文件按版本化服务名命名，且带上组件身份。
 func TestLocalDebugEnvFileIsGenerated(t *testing.T) {
-	b := localProject(t, config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	result := b.generate()
 	env := localEnv(t, result, "people-basic-1-0-0")
@@ -505,7 +488,7 @@ func TestLocalDebugEnvFileIsGenerated(t *testing.T) {
 
 // 文件是给人打开看的，也会被 IDE 读：头部要说明来历。
 func TestLocalDebugEnvFileHasHeader(t *testing.T) {
-	b := localProject(t, config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	result := b.generate()
 	require.Len(t, result.LocalEnvFiles, 1)
@@ -520,9 +503,9 @@ func TestLocalDebugEnvFileHasHeader(t *testing.T) {
 func TestMultipleVersionsGetSeparateEnvFiles(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 	b.component(simple("people/basic", "2.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8082})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8082})
 
 	result := b.generate()
 
@@ -539,7 +522,7 @@ func TestMultipleVersionsGetSeparateEnvFiles(t *testing.T) {
 // ============================================================
 
 func TestLocalDebugEnvPointsDependenciesAtLocalhost(t *testing.T) {
-	b := localProject(t, config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	env := localEnv(t, b.generate(), "people-basic-1-0-0")
 
@@ -550,9 +533,9 @@ func TestLocalDebugEnvPointsDependenciesAtLocalhost(t *testing.T) {
 func TestLocalDependencyOnAnotherLocalComponentUsesItsLocalPort(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("people/basic", "1.0.0", 8080), "department/tree", "1.0.0"),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 	b.component(simple("department/tree", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8082})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8082})
 
 	env := localEnv(t, b.generate(), "people-basic-1-0-0")
 
@@ -563,9 +546,9 @@ func TestLocalDependencyOnAnotherLocalComponentUsesItsLocalPort(t *testing.T) {
 func TestLocalDebugEnvMapsExtraPorts(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 	b.component(withExtraPort(simple("people/basic", "1.0.0", 8080), "grpc", 9090),
-		config.Component{})
+		projecttest.Entry{})
 
 	result := b.generate()
 	env := localEnv(t, result, "erp-backend-1-0-0")
@@ -588,9 +571,9 @@ func TestLocalDebugEnvMapsExtraPorts(t *testing.T) {
 func TestLocalDebugEnvMapsExtraPortsOfExposedDependency(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 	b.component(withExtraPort(simple("people/basic", "1.0.0", 8080), "grpc", 9090),
-		config.Component{Expose: true, ExposePort: 8090})
+		projecttest.Entry{Expose: true, ExposePort: 8090})
 
 	result := b.generate()
 	env := localEnv(t, result, "erp-backend-1-0-0")
@@ -612,17 +595,17 @@ func TestLocalDebugEnvMapsExtraPortsOfExposedDependency(t *testing.T) {
 func TestEveryLocalhostEndpointIsActuallyPublished(t *testing.T) {
 	cases := []struct {
 		name  string
-		entry config.Component
+		entry projecttest.Entry
 	}{
-		{"依赖不 expose", config.Component{}},
-		{"依赖 expose 且自定义端口", config.Component{Expose: true, ExposePort: 8090}},
-		{"依赖 expose 用默认端口", config.Component{Expose: true}},
+		{"依赖不 expose", projecttest.Entry{}},
+		{"依赖 expose 且自定义端口", projecttest.Entry{Expose: true, ExposePort: 8090}},
+		{"依赖 expose 用默认端口", projecttest.Entry{Expose: true}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			b := newBuilder(t)
 			b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-				config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+				projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 			b.component(withExtraPort(simple("people/basic", "1.0.0", 8080), "grpc", 9090),
 				tc.entry)
 
@@ -654,7 +637,7 @@ func TestLocalDebugEnvOmitsMissingWeakDependency(t *testing.T) {
 	m.Dependencies = &manifest.Dependencies{Components: []manifest.ComponentDep{
 		{ID: "infra/bus", Version: "1.0.0", Optional: true},
 	}}
-	b.component(m, config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+	b.component(m, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	text := string(b.generate().LocalEnvFiles[0].Content)
 
@@ -665,55 +648,20 @@ func TestLocalDebugEnvOmitsMissingWeakDependency(t *testing.T) {
 // 13.8 env 文件里的资源连接
 // ============================================================
 
-// 资源跑在**本机**时，容器里写的是 host.docker.internal，
-// 而这个名字在 Linux 的宿主机上解析不了——它是 Docker 注入到容器
-// /etc/hosts 里的。给 IDE 的那份必须换成 localhost。
-//
-// 不换的话，IDE 里的进程拿着一个解析不了的主机名去连库，
-// 而容器里的同一个组件跑得好好的，最难联想到是这里。
-func TestLocalDebugEnvRewritesHostMachineAliasToLocalhost(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
-	r := pgResource(config.Binding{ComponentID: "people/basic", Database: "brickkit_people"})
-	r.Host = "host.docker.internal"
-	b.resource(r)
-
-	result := b.generate()
-	env := localEnv(t, result, "people-basic-1-0-0")
-
-	assert.Equal(t, "localhost", env["DATABASE_HOST"], "13.8")
-	assert.Equal(t, "5432", env["DATABASE_PORT"], "端口不用改：资源本来就在宿主机上")
-	assert.Equal(t, "brickkit_people", env["DATABASE_NAME"], "库名不变，变的只是怎么连过去")
-}
-
-// 外部资源（运维已部署）本来就在宿主机之外，地址原样保留——
-// 改写成 localhost 只会让本地进程连到一个不存在的服务。
-func TestLocalDebugEnvKeepsExternalResourceHost(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
-	external := pgResource(config.Binding{ComponentID: "people/basic", Database: "brickkit_people"})
-	external.Host = "db.internal.example.com"
-	b.resource(external)
-
-	env := localEnv(t, b.generate(), "people-basic-1-0-0")
-
-	assert.Equal(t, "db.internal.example.com", env["DATABASE_HOST"], "13.8")
-	assert.Equal(t, "5432", env["DATABASE_PORT"])
-}
-
 // 密码是 ${VAR} 引用时保持原样：env 文件由 shell / IDE 再展开，
 // CLI 在这里替换掉反而会把密码落进磁盘。
 func TestLocalDebugEnvKeepsSecretReference(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "brickkit_people"}))
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"DB_PASSWORD": {Type: "string"},
+	}}
+	b.component(m, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081,
+		Config: map[string]any{"DB_PASSWORD": "${POSTGRES_PASSWORD}"}})
 
 	env := localEnv(t, b.generate(), "people-basic-1-0-0")
 
-	assert.Equal(t, "${POSTGRES_PASSWORD}", env["DATABASE_PASSWORD"])
+	assert.Equal(t, "${POSTGRES_PASSWORD}", env["DB_PASSWORD"], "查不到的引用原样保留：看得出漏配了哪个")
 }
 
 // ============================================================
@@ -726,13 +674,13 @@ func TestLocalDebugEnvContainsConfigValues(t *testing.T) {
 	m.ConfigSchema = &manifest.ConfigSchema{
 		Type: "object",
 		Properties: map[string]manifest.ConfigProperty{
-			"pageSize": {Type: "integer", Default: 20},
-			"logLevel": {Type: "string", Default: "info"},
+			"PAGE_SIZE": {Type: "integer", Default: 20},
+			"LOG_LEVEL": {Type: "string", Default: "info"},
 		},
 	}
-	b.component(m, config.Component{
-		Mode: config.ModeDebug, LocalPort: 8081,
-		Config: map[string]any{"logLevel": "debug"},
+	b.component(m, projecttest.Entry{
+		Mode: deployfile.ModeDebug, LocalPort: 8081,
+		Config: map[string]any{"LOG_LEVEL": "debug"},
 	})
 
 	env := localEnv(t, b.generate(), "people-basic-1-0-0")
@@ -758,15 +706,15 @@ func TestLocalDebugEnvHandlesMultilineValue(t *testing.T) {
 	m.ConfigSchema = &manifest.ConfigSchema{
 		Type: "object",
 		Properties: map[string]manifest.ConfigProperty{
-			"appTokenSigningKeyPem": {Type: "string", Default: ""},
+			"APP_TOKEN_SIGNING_KEY_PEM": {Type: "string", Default: ""},
 		},
 	}
 	pem := "-----BEGIN PRIVATE KEY-----\n" +
 		"MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEA\n" +
 		"-----END PRIVATE KEY-----"
-	b.component(m, config.Component{
-		Mode: config.ModeDebug, LocalPort: 8081,
-		Config: map[string]any{"appTokenSigningKeyPem": pem},
+	b.component(m, projecttest.Entry{
+		Mode: deployfile.ModeDebug, LocalPort: 8081,
+		Config: map[string]any{"APP_TOKEN_SIGNING_KEY_PEM": pem},
 	})
 
 	env := localEnv(t, b.generate(), "infra-iam-casdoor-1-0-0")
@@ -783,14 +731,14 @@ func TestLocalDebugEnvHandlesPipeCharacter(t *testing.T) {
 	m.ConfigSchema = &manifest.ConfigSchema{
 		Type: "object",
 		Properties: map[string]manifest.ConfigProperty{
-			"permissionCatalog": {Type: "string", Default: ""},
+			"PERMISSION_CATALOG": {Type: "string", Default: ""},
 		},
 	}
 	catalog := "crm.opportunity.edit|编辑商机|action|crm/opportunity," +
 		"crm.opportunity.view|查看|action|crm/opportunity"
-	b.component(m, config.Component{
-		Mode: config.ModeDebug, LocalPort: 8081,
-		Config: map[string]any{"permissionCatalog": catalog},
+	b.component(m, projecttest.Entry{
+		Mode: deployfile.ModeDebug, LocalPort: 8081,
+		Config: map[string]any{"PERMISSION_CATALOG": catalog},
 	})
 
 	env := localEnv(t, b.generate(), "infra-authz-1-0-0")
@@ -804,7 +752,7 @@ func TestLocalDebugEnvHandlesPipeCharacter(t *testing.T) {
 func TestLocalDebugEnvLeavesSimpleValuesUnquoted(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	content := localEnvRaw(t, b.generate(), "people-basic-1-0-0")
 
@@ -827,9 +775,9 @@ func TestLocalPortAllocationIsDeterministic(t *testing.T) {
 		b.component(
 			dependsOn(dependsOn(simple("people/basic", "1.0.0", 8080),
 				"department/tree", "1.0.0"), "authorization/rbac", "1.0.0"),
-			config.Component{Mode: config.ModeDebug})
-		b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
-		b.component(simple("authorization/rbac", "1.0.0", 8080), config.Component{})
+			projecttest.Entry{Mode: deployfile.ModeDebug})
+		b.component(simple("department/tree", "1.0.0", 8080), projecttest.Entry{})
+		b.component(simple("authorization/rbac", "1.0.0", 8080), projecttest.Entry{})
 		return b.generate()
 	}
 
@@ -847,7 +795,7 @@ func TestLocalModeFileIsValidForDockerCompose(t *testing.T) {
 		t.Skip("未安装 docker，跳过 compose 语法校验")
 	}
 
-	b := localProject(t, config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 	yamlBytes := b.generate().YAML
 
 	dir := t.TempDir()
@@ -870,9 +818,12 @@ func TestLocalModeFileIsValidForDockerCompose(t *testing.T) {
 // 从 .env 展开，所以必须留占位符，绝不能把明文密码写进去。
 func TestLocalEnvFileResolvesPlaceholders(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
-		config.Component{Mode: config.ModeDebug})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"DB_PASSWORD": {Type: "string"},
+	}}
+	b.component(m, projecttest.Entry{Mode: deployfile.ModeDebug,
+		Config: map[string]any{"DB_PASSWORD": "${POSTGRES_PASSWORD}"}})
 
 	result, err := b.build(compose.Options{
 		Lookup: func(name string) (string, bool) {
@@ -887,7 +838,7 @@ func TestLocalEnvFileResolvesPlaceholders(t *testing.T) {
 
 	text := string(result.LocalEnvFiles[0].Content)
 
-	assert.Contains(t, text, "DATABASE_PASSWORD=s3cr3t", "IDE 不做变量替换，必须给真值")
+	assert.Contains(t, text, "DB_PASSWORD=s3cr3t", "IDE 不做变量替换，必须给真值")
 	assert.NotContains(t, text, "${POSTGRES_PASSWORD}")
 }
 
@@ -895,8 +846,11 @@ func TestLocalEnvFileResolvesPlaceholders(t *testing.T) {
 // 密码进去就等于泄露；而 docker compose 会自己从 .env 展开。
 func TestComposeFileKeepsPlaceholders(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"DB_PASSWORD": {Type: "string"},
+	}}
+	b.component(m, projecttest.Entry{Config: map[string]any{"DB_PASSWORD": "${POSTGRES_PASSWORD}"}})
 
 	result, err := b.build(compose.Options{
 		Lookup: func(string) (string, bool) { return "s3cr3t", true },
@@ -918,9 +872,9 @@ func TestComposeFileKeepsPlaceholders(t *testing.T) {
 // Docker 上同样是坏的，所以断言留着。
 func TestExtraHostsUsesHostGateway(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeDebug})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeDebug})
 	b.component(dependsOn(simple("department/tree", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 
 	result, err := b.build(compose.Options{Engine: compose.EngineDocker})
 	require.NoError(t, err)
@@ -935,87 +889,6 @@ func TestExtraHostsUsesHostGateway(t *testing.T) {
 // 宿主机上的资源（P34 —— 真实装配时踩到的）
 // ============================================================
 
-// TestHostMachineResourceGetsExtraHosts 是这条修复存在的理由。
-//
-// 把资源 host 写成 host.docker.internal 是完全合理的写法——"连宿主机上那个
-// 已经跑着的库"。但它带点，不会被判成服务名，因此 CLI 不托管它；
-// 而容器里默认解析不了这个名字，迁移容器直接报：
-//
-//	dial tcp: lookup host.docker.internal ... no such host
-//
-// 症状（组件连不上库）与原因（少了一行 extra_hosts）完全不搭。
-func TestHostMachineResourceGetsExtraHosts(t *testing.T) {
-	doc := newBuilder(t).
-		component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{}).
-		resource(hostMachineDatabase("people/basic")).
-		parsed()
-
-	hosts := stringsOf(t, serviceOf(t, doc, "people-basic-1-0-0")["extra_hosts"])
-	assert.Contains(t, hosts, "host.docker.internal:host-gateway",
-		"宿主机上的资源要靠 extra_hosts 才解析得了")
-}
-
-// TestMigrationAlsoGetsExtraHosts：迁移容器同样需要。
-//
-// 迁移是**第一个**连库的东西。主容器有 extra_hosts、迁移容器没有的话，
-// 迁移会先失败，而平台会把它当成"迁移失败"阻断整个启动。
-func TestMigrationAlsoGetsExtraHosts(t *testing.T) {
-	doc := newBuilder(t).
-		component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{}).
-		resource(hostMachineDatabase("people/basic")).
-		parsed()
-
-	hosts := stringsOf(t, serviceOf(t, doc, "people-basic-1-0-0-migration")["extra_hosts"])
-	assert.Contains(t, hosts, "host.docker.internal:host-gateway",
-		"迁移是第一个连库的东西，它也得能解析这个名字")
-}
-
-// TestUnboundComponentGetsNoExtraHosts：没绑这个资源的组件不该被加上。
-//
-// 无差别地给所有容器加 extra_hosts 也能"跑通"，但那会让生成的文件
-// 说不清"这个容器到底要连宿主机上的什么"。
-func TestUnboundComponentGetsNoExtraHosts(t *testing.T) {
-	caller := dependsOn(simple("demo/caller", "1.0.0", 8080), "people/basic", "1.0.0")
-
-	doc := newBuilder(t).
-		component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{}).
-		component(caller, config.Component{}).
-		resource(hostMachineDatabase("people/basic")).
-		parsed()
-
-	assert.NotContains(t, serviceOf(t, doc, "demo-caller-1-0-0"), "extra_hosts",
-		"没绑这个资源的组件不该被加上宿主机映射")
-}
-
-// host 写成服务名时，既不生成容器也不加 extra_hosts——那个名字是使用者自己的事。
-//
-// 这条从前是反过来的（"host 是服务名时 CLI 仍然自己起容器"）。
-// 平台不再部署基础资源之后，这个写法只会换来一条警告 + 运行时的 no such host，
-// 所以它现在守的是"平台确实什么都没做"。
-func TestServiceNameResourceIsNotManaged(t *testing.T) {
-	doc := newBuilder(t).
-		component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{}).
-		resource(config.Resource{
-			ID: "pg", Kind: config.ResourceKindDatabase, Engine: "postgresql",
-			Host: "postgres", Port: 5432, Username: "postgres", Password: "q",
-			Bindings: []config.Binding{{ComponentID: "people/basic", Database: "people"}},
-		}).
-		parsed()
-
-	assert.NotContains(t, servicesOf(t, doc), "postgres")
-	assert.NotContains(t, serviceOf(t, doc, "people-basic-1-0-0"), "extra_hosts",
-		"只有 host.docker.internal 才需要 extra_hosts")
-}
-
-// hostMachineDatabase 造一个"跑在宿主机上"的数据库资源。
-func hostMachineDatabase(componentID string) config.Resource {
-	return config.Resource{
-		ID: "pg", Kind: config.ResourceKindDatabase, Engine: "postgresql",
-		Host: "host.docker.internal", Port: 5432, Username: "postgres", Password: "q",
-		Bindings: []config.Binding{{ComponentID: componentID, Database: "people"}},
-	}
-}
-
 // ============================================================
 // local 组件上写了 expose：说清楚它不生效、以及东西真正在哪
 // ============================================================
@@ -1027,7 +900,7 @@ func hostMachineDatabase(componentID string) config.Resource {
 func TestLocalComponentWithExposeIsWarned(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Mode: config.ModeDebug, LocalPort: 9999, Expose: true, ExposePort: 8888})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 9999, Expose: true, ExposePort: 8888})
 
 	result, err := b.build(compose.Options{})
 	require.NoError(t, err, "只是警告，不该阻断")
@@ -1047,7 +920,7 @@ func TestLocalComponentWithExposeIsWarned(t *testing.T) {
 func TestLocalModeComponentWithExposeWarningNamesLocalNotDebug(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Mode: config.ModeLocal, Expose: true, ExposePort: 8888})
+		projecttest.Entry{Mode: deployfile.ModeLocal, Expose: true, ExposePort: 8888})
 
 	result, err := b.build(compose.Options{})
 	require.NoError(t, err)
@@ -1061,7 +934,7 @@ func TestLocalModeComponentWithExposeWarningNamesLocalNotDebug(t *testing.T) {
 func TestLocalDebugComponentWithExposeWarningStillNamesDebug(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Mode: config.ModeDebug, Expose: true, ExposePort: 8888})
+		projecttest.Entry{Mode: deployfile.ModeDebug, Expose: true, ExposePort: 8888})
 
 	result, err := b.build(compose.Options{})
 	require.NoError(t, err)
@@ -1074,7 +947,7 @@ func TestLocalDebugComponentWithExposeWarningStillNamesDebug(t *testing.T) {
 func TestLocalComponentWithExposeOnlyIsWarned(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, Expose: true})
+		projecttest.Entry{Mode: deployfile.ModeDebug, Expose: true})
 
 	result, err := b.build(compose.Options{})
 	require.NoError(t, err)
@@ -1089,7 +962,7 @@ func TestLocalComponentWithExposeOnlyIsWarned(t *testing.T) {
 func TestLocalComponentWithoutExposeIsQuiet(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 9999})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 9999})
 
 	result, err := b.build(compose.Options{})
 	require.NoError(t, err)
@@ -1101,10 +974,25 @@ func TestLocalComponentWithoutExposeIsQuiet(t *testing.T) {
 func TestContainerComponentWithExposeIsQuiet(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 8080),
-		config.Component{Expose: true, ExposePort: 8888})
+		projecttest.Entry{Expose: true, ExposePort: 8888})
 
 	result, err := b.build(compose.Options{})
 	require.NoError(t, err)
 
 	assert.NotContains(t, joinWarnings(result.Warnings), "has no effect")
+}
+
+// loadErr 只装载项目并返回错误：有些冲突在装载阶段就拦下了，走不到生成。
+func loadErr(t *testing.T, b *builder) error {
+	t.Helper()
+	root := t.TempDir()
+	projecttest.Write(t, root, projecttest.Render(t, b.spec))
+	for _, e := range b.spec.Entries {
+		if e.Mode == deployfile.ModeDebug {
+			require.NoError(t, project.SetLocalMode(project.NewLayout(root), true))
+			break
+		}
+	}
+	_, err := project.Load(root, project.LoadOptions{})
+	return err
 }

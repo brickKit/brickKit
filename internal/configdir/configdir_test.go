@@ -79,7 +79,8 @@ func TestParseValue(t *testing.T) {
 	_, err = configdir.ParseValue("file://")
 	assert.Error(t, err)
 
-	assert.True(t, configdir.Value{}.IsUnset())
+	assert.True(t, configdir.Value{Null: true}.IsUnset())
+	assert.False(t, configdir.Value{}.IsUnset(), "空串不是 null")
 	assert.Equal(t, "$var:X", configdir.Value{Kind: configdir.KindVarRef, Name: "X"}.String())
 }
 
@@ -91,7 +92,8 @@ func TestParseComponentFile(t *testing.T) {
 	v, ok := f.Lookup("DB_PORT")
 	require.True(t, ok)
 	assert.Equal(t, "5432", v.Text)
-	assert.True(t, f.Map()["EMPTY"].IsUnset())
+	assert.True(t, f.Map()["EMPTY"].IsEmpty())
+	assert.False(t, f.Map()["EMPTY"].IsUnset())
 }
 
 func TestParseEmptyFiles(t *testing.T) {

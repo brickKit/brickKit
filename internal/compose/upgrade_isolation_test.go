@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/compose"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 )
 
 // upgradedProject 模拟"使用者升级了 people/basic，而调用方仍声明旧版本"。
@@ -34,10 +34,10 @@ func upgradedProject(t *testing.T) *builder {
 
 	b := newBuilder(t)
 	// 使用者把版本改成了 2.0.0
-	b.component(simple("people/basic", "2.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "2.0.0", 8080), projecttest.Entry{})
 	// 而调用方的 Manifest 里写着 1.0.0
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 	// 1.0.0 只出现在依赖图里，不在 brickkit.yaml 的 components 列表里——
 	// 它是被 erp/backend 的依赖关系拉进来的
 	old := simple("people/basic", "1.0.0", 8080)

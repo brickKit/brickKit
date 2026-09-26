@@ -8,20 +8,21 @@ package compose
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
 	"github.com/brickkit/brickkit/internal/deploy"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/shell"
 )
@@ -43,7 +44,9 @@ type Options struct {
 	// Engine 是容器引擎（目前只有 EngineDocker）。
 	// 只影响 mode: debug 时 extra_hosts 的宿主机别名（005 §7.5）；空值按 Docker 处理。
 	Engine string
-	// Lookup 解析 ${VAR}，**只用于 local-debug 环境变量文件**。
+	// Root 是项目根：file:// 相对它解析。
+	Root string
+	// Lookup 解析 ${VAR}，用于本地进程的环境变量文件与 0600 env 文件里 file:// 以外的求值。
 	//
 	// compose 文件本身刻意保留占位符：那份文件会被人打开看、进 git diff，
 	// 明文密码进去就等于泄露，而 docker compose 会自己从 .env 展开。
@@ -53,17 +56,23 @@ type Options struct {
 	Lookup func(name string) (string, bool)
 }
 
-// ResourceRequirement 是一个**必须先跑起来**的基础资源。
-//
-// 定义在 internal/deploy：K8s 目标要给出同样的清单，两处各算一遍迟早会分叉。
-type ResourceRequirement = deploy.ResourceRequirement
+// EnvFile 是一个服务的 0600 环境变量文件：密钥与 file:// 内容不进 compose.yaml（附录 A7）。
+type EnvFile struct {
+	Service string
+	// Path 相对项目根（compose 的 --project-directory）：.brickkit/generated/env/<service>.env
+	Path    string
+	Content []byte
+}
+
+// EnvFileDir 是 env 文件所在目录，相对项目根。
+const EnvFileDir = ".brickkit/generated/env"
 
 // Result 是一次生成的产物。
 type Result struct {
 	// YAML 是 compose.yaml 的内容。
 	YAML []byte
-	// Resources 是必须先跑起来的基础资源（平台不部署它们，006 §9.1）。
-	Resources []ResourceRequirement
+	// EnvFiles 是要以 0600 写盘的 env 文件，按服务名排序。
+	EnvFiles []EnvFile
 	// LocalEnvFiles 是 mode: debug 组件的调试环境变量文件（005 §4.9）。
 	LocalEnvFiles []LocalEnvFile
 	// Warnings 是不阻断的问题。
@@ -74,21 +83,21 @@ type Result struct {
 //
 // 只渲染**本次实际启动**的组件（级联结果），以及它们用到的、由 CLI 托管的基础资源。
 func Generate(
-	cfg *config.Config, graph *resolver.Graph, states *cascade.Result,
+	proj *project.Project, graph *resolver.Graph, states *cascade.Result,
 	env *inject.Result, opts Options,
 ) (*Result, error) {
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
 
-	plan, err := newPlan(cfg, graph, states, env, opts.Engine)
+	plan, err := newPlan(proj, graph, states, env, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	networks := map[string]any{
 		networkAlias: map[string]any{
-			"name":   networkName(cfg.Project),
+			"name":   networkName(proj.Decl.Project),
 			"driver": "bridge",
 		},
 	}
@@ -103,10 +112,14 @@ func Generate(
 	}
 
 	now := opts.Now()
+	locals, err := plan.localEnvFiles(now)
+	if err != nil {
+		return nil, err
+	}
 	return &Result{
-		YAML:          append(header(cfg, plan, now), body...),
-		Resources:     plan.requirements(),
-		LocalEnvFiles: plan.localEnvFiles(now, opts.Lookup),
+		YAML:          append(header(proj, plan, now), body...),
+		EnvFiles:      plan.envFileList(),
+		LocalEnvFiles: locals,
 		Warnings:      plan.warnings,
 	}, nil
 }
@@ -117,9 +130,9 @@ func networkName(project string) string { return deploy.NetworkName(project) }
 // header 是生成文件的头注释（12.16）。
 //
 // 生成的文件会被人打开看、被 git 记录，所以要写清楚"这是谁生成的、别手改"。
-func header(cfg *config.Config, plan *plan, now time.Time) []byte {
-	return deploy.FileHeader(cfg.Project, now,
-		"deploy.target: "+cfg.Deploy.Target,
+func header(proj *project.Project, plan *plan, now time.Time) []byte {
+	return deploy.FileHeader(proj.Decl.Project, now,
+		filepath.Base(proj.DeployPath)+" → target: "+proj.Deploy.Target,
 		i18n.T(msgid.ComposeHeaderComponents, len(plan.components)))
 }
 
@@ -146,16 +159,23 @@ type componentPlan struct {
 	Ref      resolver.Ref
 	Service  string
 	Manifest *manifest.Manifest
-	Entry    config.Component
+	Entry    deployfile.Component
 	Env      inject.Component
 }
 
 // plan 是整份文件的生成计划。
 type plan struct {
-	cfg    *config.Config
+	proj   *project.Project
 	graph  *resolver.Graph
 	states *cascade.Result
 	engine string
+	root   string
+	lookup func(string) (string, bool)
+
+	// inline / envFile 是每个服务算好的环境变量去处（envplace.go）：
+	// inline 进 compose.yaml 的 environment，envFile 进 0600 的 env 文件。
+	inline  map[string][]string
+	envFile map[string][]byte
 
 	// components 是本次要渲染的组件（已排除 mode: debug），按服务名排序。
 	components []componentPlan
@@ -201,11 +221,13 @@ type hostPortMapping struct {
 }
 
 func newPlan(
-	cfg *config.Config, graph *resolver.Graph, states *cascade.Result,
-	env *inject.Result, engine string,
+	proj *project.Project, graph *resolver.Graph, states *cascade.Result,
+	env *inject.Result, opts Options,
 ) (*plan, error) {
 	p := &plan{
-		cfg: cfg, graph: graph, states: states, engine: engine,
+		proj: proj, graph: graph, states: states, engine: opts.Engine,
+		root: opts.Root, lookup: opts.Lookup,
+		inline: map[string][]string{}, envFile: map[string][]byte{},
 		rendered:       map[string]bool{},
 		migrationAfter: map[string]string{},
 		localPort:      map[string]int{},
@@ -217,25 +239,20 @@ func newPlan(
 		shellMemberHostPorts: map[string][]hostPortMapping{},
 	}
 
-	entries := map[resolver.Ref]config.Component{}
-	for _, c := range cfg.Components {
-		entries[resolver.Ref{ID: c.ID, Version: c.Version}] = c
-	}
-
 	envByRef := map[resolver.Ref]inject.Component{}
 	for _, c := range env.Components {
 		envByRef[c.Ref] = c
 	}
 
 	for _, ref := range states.Running() {
-		entry := entries[ref]
+		entry := proj.DeployEntry(ref.ID, ref.Version)
 		node := graph.Node(ref)
 		if node == nil {
 			continue
 		}
 		service := manifest.ServiceName(ref.ID, ref.Version)
 
-		if entry.Mode == config.ModeDebug || entry.Mode == config.ModeLocal {
+		if entry.IsBareProcess() {
 			// 12.7 / 13.1 / Plan 4a：mode: debug 与 mode: local 的组件都不生成容器——
 			// 前者在宿主机 IDE 里跑，后者由 brickkit 自己拉起裸进程（Plan 4b 起才
 			// 真正启动），但两者都仍然是"启动中"的组件，依赖方要能找到它。
@@ -245,11 +262,7 @@ func newPlan(
 			})
 			continue
 		}
-		if entry.ServedBy != "" {
-			shellRef, ok := shell.ParseRef(entry.ServedBy)
-			if !ok {
-				continue // config.Validate 已经挡过格式问题
-			}
+		if shellRef, ok := shell.ShellRef(proj, ref); ok {
 			if states.IsRunning(shellRef) {
 				p.served = append(p.served, servedComponent{
 					Ref: ref, Service: service, Manifest: node.Manifest,
@@ -288,11 +301,14 @@ func newPlan(
 	}
 	p.rewriteEndpointsForLocalDependencies()
 
-	groups, err := shell.Resolve(cfg, graph, states, env)
+	groups, err := shell.Resolve(proj, graph, states, env)
 	if err != nil {
 		return nil, err
 	}
 	p.applyShellGroups(groups)
+	if err := p.placeEnvironment(); err != nil {
+		return nil, err
+	}
 
 	p.warnings = append(p.warnings, p.localMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.localExposeWarnings()...)
@@ -301,11 +317,6 @@ func newPlan(
 	p.warnings = append(p.warnings, p.servedMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.servedHealthCheckWarnings()...)
 	p.warnings = append(p.warnings, p.servedUnsupportedFieldWarnings()...)
-	p.warnings = append(p.warnings, p.serviceNameResourceWarnings()...)
-	// 只传**会生成容器**的组件：绑定它的全是 mode: debug 时，
-	// localhost 恰恰是对的（那些进程就在宿主机上）
-	p.warnings = append(p.warnings, deploy.LocalhostResourceWarnings(
-		p.cfg, p.containerIDs(), config.TargetDocker)...)
 	return p, nil
 }
 
@@ -415,50 +426,13 @@ func (p *plan) services() map[string]any {
 	return services
 }
 
-// requirements 汇总本次必须先跑起来的基础资源（006 §9.1、§9.5）。
-func (p *plan) requirements() []ResourceRequirement {
-	return deploy.Requirements(p.cfg, p.componentIDs())
-}
-
-// containerIDs 是本次**会生成容器**的组件 ID（含 servedBy：它们的代码
-// 跑在外壳容器里，用的是容器网络寻址，不是本地调试的宿主机寻址；
-// 不含 mode: debug）。
-func (p *plan) containerIDs() []string {
-	out := make([]string, 0, len(p.components)+len(p.served))
-	for _, c := range p.components {
-		out = append(out, c.Ref.ID)
-	}
-	for _, s := range p.served {
-		out = append(out, s.Ref.ID)
-	}
-	return out
-}
-
-// componentIDs 是本次会跑起来的组件 ID。
-//
-// local 与 servedBy 组件都算：它们都不生成自己的容器，但都照样要连
-// 自己的库。
-func (p *plan) componentIDs() []string {
-	out := make([]string, 0, len(p.components)+len(p.locals)+len(p.served))
-	for _, c := range p.components {
-		out = append(out, c.Ref.ID)
-	}
-	for _, l := range p.locals {
-		out = append(out, l.Ref.ID)
-	}
-	for _, s := range p.served {
-		out = append(out, s.Ref.ID)
-	}
-	return out
-}
-
 // ============================================================
 // 组件 service
 // ============================================================
 
 func (p *plan) componentService(c componentPlan) map[string]any {
 	svc := map[string]any{
-		"image":   c.Manifest.Deployment.Image,
+		"image":   manifest.ImageRef(c.Manifest),
 		"restart": "unless-stopped", // 12.10
 	}
 	if aliases := p.shellAliases[c.Service]; len(aliases) > 0 {
@@ -471,9 +445,7 @@ func (p *plan) componentService(c componentPlan) map[string]any {
 		svc["networks"] = []any{networkAlias}
 	}
 
-	if env := environmentOf(c.Env); len(env) > 0 {
-		svc["environment"] = env
-	}
+	p.applyEnvironment(svc, c.Service)
 	if ports := p.hostPortsOf(c); len(ports) > 0 {
 		svc["ports"] = ports
 	}
@@ -560,7 +532,7 @@ func condition(value string) map[string]any { return map[string]any{"condition":
 func (p *plan) migrationDoc(c componentPlan) map[string]any {
 	svc := map[string]any{
 		// 002 §8.4：用组件自己的镜像，迁移脚本与业务代码同版本
-		"image":    c.Manifest.Deployment.Image,
+		"image":    manifest.ImageRef(c.Manifest),
 		"networks": []string{networkAlias},
 		// 12.11：一次性任务，失败了要让人看见，不能自动重启
 		"restart": "no",
@@ -577,10 +549,8 @@ func (p *plan) migrationDoc(c componentPlan) map[string]any {
 	if len(command) > 1 {
 		svc["command"] = command[1:]
 	}
-	// 002 §8.5：环境变量与主容器完全一致
-	if env := environmentOf(c.Env); len(env) > 0 {
-		svc["environment"] = env
-	}
+	// 002 §8.5：环境变量与主容器完全一致（同一份 inline 与同一个 env 文件）
+	p.applyEnvironment(svc, c.Service)
 	// 环境变量一致，寻址方式也得一致：拿到一个指向宿主机的地址
 	// 却没有 extra_hosts，这个主机名在迁移容器里根本解析不了
 	if hosts := p.extraHostsOf(c); len(hosts) > 0 {
@@ -599,35 +569,6 @@ func (p *plan) migrationDoc(c componentPlan) map[string]any {
 		}
 	}
 	return svc
-}
-
-// environmentOf 把注入结果渲染成 compose 的 environment 列表。
-//
-// 用 `KEY=value` 的列表而不是 map：列表保序，生成的文件可比对
-// （map 在 YAML 里会被重排，每次 diff 都是噪音）。
-//
-// 只跳过 ExistingSecretRef 非空的变量：resources[].existingSecret / 配置密钥的
-// existingSecret 写法，值本来就不存在（值在外部已建好的 Secret 里），K8s 侧靠
-// secretKeyRef 引用它，Docker 没有对应概念，这里让它表现成"没配"，与其它未配置
-// 字段一致。
-//
-// 判据必须是"这条变量有没有被标记成引用外部 Secret"这个事实本身，不能是
-// "值是不是空字符串"——一个 configSchema 属性写 `default: ""`，或者
-// brickkit.yaml 的 config 覆盖成 `""`，都是使用者明确配出来的空字符串，
-// 和"没配"是两回事，必须照样落进 environment（K8s 的 Deployment 与
-// local-debug.<svc>.env 对同一份配置从不做这个区分，Docker 也不该是例外）。
-// 按值是否为空判断曾经错误地把这两种情况混在一起，导致一个合法的空字符串
-// 配置值在 compose 里整条消失，K8s 那边却正常生成——三个部署目标本该对
-// 同一份 brickkit.yaml 给出一致的结果。
-func environmentOf(c inject.Component) []string {
-	out := make([]string, 0, len(c.Env))
-	for _, v := range c.Env {
-		if v.ExistingSecretRef != "" {
-			continue
-		}
-		out = append(out, v.Name+"="+v.Value)
-	}
-	return out
 }
 
 // healthcheckOf 把 Manifest 的健康检查转成 compose 的 healthcheck（12.3）。
@@ -706,70 +647,4 @@ func quotaOf(spec *manifest.ResourceSpec) map[string]any {
 		out["memory"] = memory
 	}
 	return out
-}
-
-// ============================================================
-// 基础资源
-// ============================================================
-
-// serviceNameResourceWarnings 提醒"host 写成了服务名，但没人会创建这个服务"。
-//
-// 平台曾经在 host 不含点时**自己生成一个 postgres / redis 容器**（旧的 006 §10.4）。
-// 那条路已经取消：它只覆盖 6 种 kind 里的 2 种、在 K8s 目标下从来不存在、
-// 而且托管出来的实例还没法跨项目共享（各个 compose 项目各起各的）。
-//
-// 取消之后，`host: pg` 这种写法就成了一个**看不出来的空指向**：
-// 生成的 compose 完全正常，容器里却解析不了这个名字，表现是启动之后才出现的
-// `no such host`。所以在生成阶段就说一句——这正是当初那条隐式判据
-// （host 里有没有点）最该被换掉的地方。
-func (p *plan) serviceNameResourceWarnings() []*clierr.Error {
-	used := map[string]bool{}
-	for _, id := range p.componentIDs() {
-		used[id] = true
-	}
-
-	var out []*clierr.Error
-	seen := map[string]bool{}
-	for _, r := range p.cfg.Resources {
-		if !looksLikeServiceName(r.Host) || seen[r.ID] {
-			continue
-		}
-		bound := false
-		for _, b := range r.Bindings {
-			if used[b.ComponentID] {
-				bound = true
-				break
-			}
-		}
-		if !bound {
-			continue
-		}
-		seen[r.ID] = true
-
-		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-			i18n.T(msgid.ComposeHostLooksLikeService)).
-			WithDetail(i18n.T(msgid.LabelResource), r.ID).
-			WithDetail("host", r.Host).
-			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeHostReasonDetail)).
-			WithHint(
-				i18n.T(msgid.ComposeHintHostOnThisMachine, hostMachineAlias),
-				i18n.T(msgid.ComposeHintHostElsewhere),
-				i18n.T(msgid.ComposeHintHostAlreadyAttached),
-			))
-	}
-	return out
-}
-
-// looksLikeServiceName 判断 host 像不像一个容器网络内的服务名。
-//
-// 判据只用来**提醒**，不用来决定行为——行为上所有资源一视同仁，
-// 都由使用者自己准备好。这正是它与旧判据的根本差别：
-// 从前这个函数的返回值决定"平台要不要替你起一个数据库"。
-func looksLikeServiceName(host string) bool {
-	host = strings.TrimSpace(host)
-	if host == "" || host == "localhost" || strings.Contains(host, ".") {
-		return false
-	}
-	// 纯数字不像服务名，多半是写错的地址
-	return strings.IndexFunc(host, func(r rune) bool { return r < '0' || r > '9' }) >= 0
 }

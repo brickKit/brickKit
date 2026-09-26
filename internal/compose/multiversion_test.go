@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/compose"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 )
 
 // twoVersionProject 造一个"两个调用方各依赖 people/basic 的一个版本"的项目。
@@ -29,12 +29,12 @@ func twoVersionProject(t *testing.T) *builder {
 	t.Helper()
 
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
-	b.component(simple("people/basic", "2.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
+	b.component(simple("people/basic", "2.0.0", 8080), projecttest.Entry{})
 	b.component(dependsOn(simple("erp/legacy", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "2.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 	return b
 }
 
@@ -129,9 +129,8 @@ func TestMultiVersionServicesAreIndependent(t *testing.T) {
 // 间歇性 + 自愈 + 报错指向别处，是最费时间的那一类。
 func TestSameComponentMigrationsAreChainedByVersion(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withMigration(withDatabase(simple("demo/hello", "1.0.0", 8080))), config.Component{})
-	b.component(withMigration(withDatabase(simple("demo/hello", "2.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "demo/hello", Database: "hello"}))
+	b.component(withMigration(withDatabase(simple("demo/hello", "1.0.0", 8080))), projecttest.Entry{})
+	b.component(withMigration(withDatabase(simple("demo/hello", "2.0.0", 8080))), projecttest.Entry{})
 
 	doc := b.parsed()
 
@@ -155,9 +154,8 @@ func TestSameComponentMigrationsAreChainedByVersion(t *testing.T) {
 // 迁移是只增不改的，顺序反了会让旧版本的迁移在新 schema 上执行。
 func TestMigrationChainOrdersByVersionNotByName(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withMigration(withDatabase(simple("demo/hello", "2.0.0", 8080))), config.Component{})
-	b.component(withMigration(withDatabase(simple("demo/hello", "10.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "demo/hello", Database: "hello"}))
+	b.component(withMigration(withDatabase(simple("demo/hello", "2.0.0", 8080))), projecttest.Entry{})
+	b.component(withMigration(withDatabase(simple("demo/hello", "10.0.0", 8080))), projecttest.Entry{})
 
 	doc := b.parsed()
 
@@ -168,30 +166,12 @@ func TestMigrationChainOrdersByVersionNotByName(t *testing.T) {
 	assert.Contains(t, dependsOn, "demo-hello-2-0-0-migration")
 }
 
-// 不同组件之间不串：它们的 component_id 不同，迁移状态表的主键
-// (component_id, version) 已经让它们互不相干（002 §8.11 的设计目的）。
-// 串起来只会平白拖慢 up，而 up 里迁移是所有组件的前置阻塞步骤。
-func TestDifferentComponentsMigrationsStayParallel(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withMigration(withDatabase(simple("demo/hello", "1.0.0", 8080))), config.Component{})
-	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(
-		config.Binding{ComponentID: "demo/hello", Database: "shared"},
-		config.Binding{ComponentID: "people/basic", Database: "shared"}))
-
-	doc := b.parsed()
-
-	assert.NotContains(t, serviceOf(t, doc, "demo-hello-1-0-0-migration"), "depends_on")
-	assert.NotContains(t, serviceOf(t, doc, "people-basic-1-0-0-migration"), "depends_on")
-}
-
 // 只有一个版本有迁移时，不该凭空生成一条指向不存在 service 的依赖
 // （compose 遇到不存在的 depends_on 会直接报错，整个项目起不来）。
 func TestMigrationChainSkipsVersionsWithoutMigration(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withDatabase(simple("demo/hello", "1.0.0", 8080)), config.Component{})
-	b.component(withMigration(withDatabase(simple("demo/hello", "2.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "demo/hello", Database: "hello"}))
+	b.component(withDatabase(simple("demo/hello", "1.0.0", 8080)), projecttest.Entry{})
+	b.component(withMigration(withDatabase(simple("demo/hello", "2.0.0", 8080))), projecttest.Entry{})
 
 	doc := b.parsed()
 	services := doc["services"].(map[string]any)
@@ -199,4 +179,16 @@ func TestMigrationChainSkipsVersionsWithoutMigration(t *testing.T) {
 	require.NotContains(t, services, "demo-hello-1-0-0-migration", "1.0.0 没有迁移")
 	assert.NotContains(t, serviceOf(t, doc, "demo-hello-2-0-0-migration"), "depends_on",
 		"前面没有别的迁移可等，就不该有 depends_on")
+}
+
+// 不同组件的迁移互不相干（迁移状态表主键含组件 ID），不该被串成一条链。
+func TestDifferentComponentsMigrationsStayParallel(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withMigration(simple("demo/hello", "1.0.0", 8080)), projecttest.Entry{})
+	b.component(withMigration(simple("people/basic", "1.0.0", 8080)), projecttest.Entry{})
+
+	doc := b.parsed()
+
+	assert.NotContains(t, serviceOf(t, doc, "demo-hello-1-0-0-migration"), "depends_on")
+	assert.NotContains(t, serviceOf(t, doc, "people-basic-1-0-0-migration"), "depends_on")
 }

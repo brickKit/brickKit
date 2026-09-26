@@ -21,9 +21,11 @@ import (
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
@@ -49,47 +51,48 @@ type builder struct {
 	t        *testing.T
 	provider stubProvider
 	roots    []resolver.Ref
-	cfg      *config.Config
+	spec     projecttest.Spec
+	// proj 是最近一次 build 装载出来的项目（测试要看项目根时用）。
+	proj *project.Project
 }
 
 func newBuilder(t *testing.T) *builder {
 	return &builder{
 		t:        t,
 		provider: stubProvider{},
-		cfg:      &config.Config{Project: "my-erp", Deploy: config.Deploy{Target: config.TargetDocker}},
+		spec:     projecttest.Spec{Project: "my-erp", Target: deployfile.TargetDocker, Files: projecttest.Files{}},
 	}
 }
 
-func (b *builder) component(m *manifest.Manifest, entry config.Component) *builder {
+func (b *builder) component(m *manifest.Manifest, entry projecttest.Entry) *builder {
 	b.provider[m.Metadata.ID+"@"+m.Metadata.Version] = m
 	entry.ID, entry.Version = m.Metadata.ID, m.Metadata.Version
-	b.cfg.Components = append(b.cfg.Components, entry)
+	b.spec.Entries = append(b.spec.Entries, entry)
 	b.roots = append(b.roots, resolver.Ref{ID: entry.ID, Version: entry.Version})
 	return b
 }
 
-func (b *builder) resource(r config.Resource) *builder {
-	b.cfg.Resources = append(b.cfg.Resources, r)
-	return b
-}
-
-// build 跑完整条链路：解析 → 级联 → 注入 → 生成 compose，允许失败。
+// build 跑完整条链路：装载三层文件 → 解析 → 级联 → 注入 → 生成 compose，允许失败。
 func (b *builder) build(opts compose.Options) (*compose.Result, error) {
 	b.t.Helper()
 
+	b.proj = projecttest.Build(b.t, b.spec)
 	graph, err := resolver.New(b.provider).Resolve(context.Background(), b.roots...)
 	require.NoError(b.t, err)
 
-	states, err := cascade.Compute(b.cfg, graph)
+	states, err := cascade.Compute(b.proj, graph)
 	require.NoError(b.t, err)
 
-	env, err := inject.Build(b.cfg, graph, states)
+	env, err := inject.Build(b.proj, graph, states)
 	require.NoError(b.t, err)
 
 	if opts.Now == nil {
 		opts.Now = func() time.Time { return time.Date(2026, 8, 14, 10, 0, 0, 0, time.UTC) }
 	}
-	return compose.Generate(b.cfg, graph, states, env, opts)
+	if opts.Root == "" {
+		opts.Root = b.proj.Layout.Root
+	}
+	return compose.Generate(b.proj, graph, states, env, opts)
 }
 
 // generate 跑完整条链路，失败即断言失败。
@@ -162,14 +165,7 @@ func simple(id, version string, port int) *manifest.Manifest {
 	}
 }
 
-func withDatabase(m *manifest.Manifest) *manifest.Manifest {
-	if m.Dependencies == nil {
-		m.Dependencies = &manifest.Dependencies{}
-	}
-	m.Dependencies.Resources = append(m.Dependencies.Resources,
-		manifest.ResourceDep{Kind: "database", Engine: "postgresql"})
-	return m
-}
+func withDatabase(m *manifest.Manifest) *manifest.Manifest { return m }
 
 func dependsOn(m *manifest.Manifest, id, version string) *manifest.Manifest {
 	if m.Dependencies == nil {
@@ -180,22 +176,13 @@ func dependsOn(m *manifest.Manifest, id, version string) *manifest.Manifest {
 	return m
 }
 
-// pgResource 是一个由 CLI 托管的 PostgreSQL（host 是 Docker Network 内的服务名）。
-func pgResource(bindings ...config.Binding) config.Resource {
-	return config.Resource{
-		Kind: config.ResourceKindDatabase, Engine: "postgresql", ID: "postgres-main",
-		Host: "postgres", Port: 5432, Username: "brickkit", Password: "${POSTGRES_PASSWORD}",
-		Bindings: bindings,
-	}
-}
-
 // ============================================================
 // 12.16 文件头 / 12.8 网络
 // ============================================================
 
 func TestGeneratedFileHasHeaderComment(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	text := string(b.generate().YAML)
 
@@ -208,7 +195,7 @@ func TestGeneratedFileHasHeaderComment(t *testing.T) {
 // 12.8 网络名是 brickkit-<项目名>-net。
 func TestNetworkName(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	networks, ok := b.parsed()["networks"].(map[string]any)
 	require.True(t, ok, "必须有 networks 段")
@@ -223,8 +210,7 @@ func TestNetworkName(t *testing.T) {
 func TestEveryServiceJoinsTheNetwork(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
-		config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+		projecttest.Entry{})
 
 	for name, raw := range servicesOf(t, b.parsed()) {
 		svc := raw.(map[string]any)
@@ -240,8 +226,8 @@ func TestEveryServiceJoinsTheNetwork(t *testing.T) {
 func TestDependsOnUsesHealthCondition(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+		projecttest.Entry{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
 	dependsOn, ok := svc["depends_on"].(map[string]any)
@@ -261,8 +247,8 @@ func TestWeakDependencyIsNotInDependsOn(t *testing.T) {
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.component(simple("infra/redis-event-bus", "1.0.0", 6379), config.Component{})
+	b.component(m, projecttest.Entry{})
+	b.component(simple("infra/redis-event-bus", "1.0.0", 6379), projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
 	if dependsOn, ok := svc["depends_on"].(map[string]any); ok {
@@ -282,8 +268,7 @@ func withMigration(m *manifest.Manifest) *manifest.Manifest {
 // 12.6：声明了 migration 的组件生成一个一次性 service。
 func TestMigrationServiceIsGenerated(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0-migration")
 
@@ -304,22 +289,24 @@ func TestMigrationServiceIsGenerated(t *testing.T) {
 // 002 §8.5：迁移容器要拿到与主容器一样的环境变量。
 func TestMigrationServiceInheritsEnvironment(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	m := withMigration(simple("people/basic", "1.0.0", 8080))
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"DB_NAME": {Type: "string"},
+	}}
+	b.component(m, projecttest.Entry{Config: map[string]any{"DB_NAME": "people"}})
 
 	doc := b.parsed()
 	main := envOf(t, serviceOf(t, doc, "people-basic-1-0-0"))
 	migration := envOf(t, serviceOf(t, doc, "people-basic-1-0-0-migration"))
 
-	assert.Equal(t, main, migration, "迁移容器的环境变量应与主容器完全一致")
-	assert.Equal(t, "people", migration["DATABASE_NAME"])
+	assert.Equal(t, main, migration, "迁移容器的环境变量应与主容器完全一致（提案 §8.9.2：平台透传全部配置）")
+	assert.Equal(t, "people", migration["DB_NAME"])
 }
 
 // 12.12：主服务必须等迁移**成功结束**再启动。
 func TestMainServiceWaitsForMigration(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0")
 	dependsOn := svc["depends_on"].(map[string]any)
@@ -336,8 +323,7 @@ func TestMainServiceWaitsForMigration(t *testing.T) {
 // 平台自己编的说法都准确。
 func TestMigrationServiceHasNoResourceDependency(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0-migration")
 
@@ -350,8 +336,7 @@ func TestMigrationCommandWithInterpreterIsSplitCorrectly(t *testing.T) {
 	m.Migration = &manifest.Migration{Command: []string{"python", "-m", "app.main", "migrate"}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(m, projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0-migration")
 
@@ -365,8 +350,7 @@ func TestSingleWordMigrationCommand(t *testing.T) {
 	m.Migration = &manifest.Migration{Command: []string{"/app/migrate"}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(m, projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0-migration")
 
@@ -377,7 +361,7 @@ func TestSingleWordMigrationCommand(t *testing.T) {
 // 没声明 migration 的组件不生成迁移 service（002 §8.8）。
 func TestComponentWithoutMigrationHasNoMigrationService(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	assert.NotContains(t, servicesOf(t, b.parsed()), "people-basic-1-0-0-migration")
 }
@@ -389,10 +373,9 @@ func TestMigrationServiceInheritsRewrittenEnvironment(t *testing.T) {
 	b.component(
 		withMigration(withDatabase(dependsOn(simple("erp/backend", "1.0.0", 8080),
 			"people/basic", "1.0.0"))),
-		config.Component{})
+		projecttest.Entry{})
 	b.component(simple("people/basic", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
-	b.resource(pgResource(config.Binding{ComponentID: "erp/backend", Database: "erp"}))
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	doc := b.parsed()
 	main := envOf(t, serviceOf(t, doc, "erp-backend-1-0-0"))
@@ -409,10 +392,9 @@ func TestMigrationServiceGetsTheSameExtraHosts(t *testing.T) {
 	b.component(
 		withMigration(withDatabase(dependsOn(simple("erp/backend", "1.0.0", 8080),
 			"people/basic", "1.0.0"))),
-		config.Component{})
+		projecttest.Entry{})
 	b.component(simple("people/basic", "1.0.0", 8080),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
-	b.resource(pgResource(config.Binding{ComponentID: "erp/backend", Database: "erp"}))
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	doc := b.parsed()
 
@@ -430,9 +412,8 @@ func TestMigrationServiceDoesNotWaitForOtherComponents(t *testing.T) {
 	b.component(
 		withMigration(withDatabase(dependsOn(simple("erp/backend", "1.0.0", 8080),
 			"people/basic", "1.0.0"))),
-		config.Component{})
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "erp/backend", Database: "erp"}))
+		projecttest.Entry{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0-migration")
 
@@ -446,8 +427,7 @@ func TestMigrationServiceDoesNotWaitForOtherComponents(t *testing.T) {
 func TestMigrationServiceDoesNotPublishPorts(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))),
-		config.Component{Expose: true, ExposePort: 18080})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+		projecttest.Entry{Expose: true, ExposePort: 18080})
 
 	doc := b.parsed()
 
@@ -461,8 +441,7 @@ func TestMigrationServiceDoesNotPublishPorts(t *testing.T) {
 func TestMigrationServiceHasNoHealthcheck(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))),
-		config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+		projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0-migration")
 
@@ -480,7 +459,7 @@ func TestMigrationServiceHasNoHealthcheck(t *testing.T) {
 // 而容器日志里写着"组件已就绪"。至少要把 wget / curl 都试一遍。
 func TestHealthcheckTriesMoreThanOneTool(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0")
 	health := svc["healthcheck"].(map[string]any)
@@ -496,7 +475,7 @@ func TestHealthcheckTriesMoreThanOneTool(t *testing.T) {
 
 func TestHealthcheckFromManifest(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0")
 	health, ok := svc["healthcheck"].(map[string]any)
@@ -518,7 +497,7 @@ func TestHealthcheckFromManifest(t *testing.T) {
 // 冷启动超过半分钟在 Spring Boot / Django / .NET 上是常态。
 func TestHealthcheckHasStartPeriod(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	health := serviceOf(t, b.parsed(), "people-basic-1-0-0")["healthcheck"].(map[string]any)
 	assert.Equal(t, "60s", health["start_period"], "没写时用默认宽限期")
@@ -530,7 +509,7 @@ func TestHealthcheckStartPeriodFromManifest(t *testing.T) {
 	m.HealthCheck.StartPeriodSeconds = 180
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, projecttest.Entry{})
 
 	health := serviceOf(t, b.parsed(), "java-monolith-1-0-0")["healthcheck"].(map[string]any)
 	assert.Equal(t, "180s", health["start_period"])
@@ -542,7 +521,7 @@ func TestTCPHealthcheckHasStartPeriod(t *testing.T) {
 	m.HealthCheck = manifest.HealthCheck{Type: manifest.HealthCheckTCP}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, projecttest.Entry{})
 
 	health := serviceOf(t, b.parsed(), "infra-queue-1-0-0")["healthcheck"].(map[string]any)
 	assert.Equal(t, "60s", health["start_period"])
@@ -554,7 +533,7 @@ func TestHealthcheckUsesMainPortNotExtraPort(t *testing.T) {
 	m.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9090}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, projecttest.Entry{})
 
 	health := serviceOf(t, b.parsed(), "people-basic-1-0-0")["healthcheck"].(map[string]any)
 	command := strings.Join(stringsOf(t, health["test"]), " ")
@@ -569,7 +548,7 @@ func TestHealthcheckNoneGeneratesNothing(t *testing.T) {
 	m.HealthCheck = manifest.HealthCheck{Type: manifest.HealthCheckNone}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "infra-worker-1-0-0")
 	assert.NotContains(t, svc, "healthcheck")
@@ -582,8 +561,8 @@ func TestDependencyWithoutHealthcheckUsesStartedCondition(t *testing.T) {
 
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "infra/worker", "1.0.0"),
-		config.Component{})
-	b.component(dep, config.Component{})
+		projecttest.Entry{})
+	b.component(dep, projecttest.Entry{})
 
 	dependsOn := serviceOf(t, b.parsed(), "erp-backend-1-0-0")["depends_on"].(map[string]any)
 	assert.Equal(t, "service_started",
@@ -603,7 +582,7 @@ func TestResourceQuotaConversion(t *testing.T) {
 	}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, projecttest.Entry{})
 
 	deploy := serviceOf(t, b.parsed(), "people-basic-1-0-0")["deploy"].(map[string]any)
 	resources := deploy["resources"].(map[string]any)
@@ -623,7 +602,7 @@ func TestResourceQuotaConversion(t *testing.T) {
 // 而组件作者从没同意过那个数字。
 func TestResourceQuotaFallsBackToRequestsOnly(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	deploy := serviceOf(t, b.parsed(), "people-basic-1-0-0")["deploy"].(map[string]any)
 	resources := deploy["resources"].(map[string]any)
@@ -642,7 +621,7 @@ func TestResourceQuotaOverrideReachesTheFile(t *testing.T) {
 	}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Resources: &manifest.Resources{
+	b.component(m, projecttest.Entry{Resources: &manifest.Resources{
 		Limits: &manifest.ResourceSpec{Memory: "2Gi"},
 	}})
 
@@ -659,7 +638,7 @@ func TestResourceQuotaOverrideReachesTheFile(t *testing.T) {
 func TestExposeUsesComponentPortByDefault(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Expose: true})
+		projecttest.Entry{Expose: true})
 
 	svc := serviceOf(t, b.parsed(), "portal-user-frontend-1-0-0")
 	assert.Equal(t, []any{"80:80"}, svc["ports"])
@@ -669,7 +648,7 @@ func TestExposeUsesComponentPortByDefault(t *testing.T) {
 func TestExposePortMapsToCustomHostPort(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
-		config.Component{Expose: true, ExposePort: 8080})
+		projecttest.Entry{Expose: true, ExposePort: 8080})
 
 	svc := serviceOf(t, b.parsed(), "portal-user-frontend-1-0-0")
 	assert.Equal(t, []any{"8080:80"}, svc["ports"])
@@ -678,7 +657,7 @@ func TestExposePortMapsToCustomHostPort(t *testing.T) {
 // 没有 expose 的组件不映射端口：容器网络内互相访问不需要暴露到宿主机。
 func TestComponentWithoutExposeHasNoPorts(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	assert.NotContains(t, serviceOf(t, b.parsed(), "people-basic-1-0-0"), "ports")
 }
@@ -686,38 +665,29 @@ func TestComponentWithoutExposeHasNoPorts(t *testing.T) {
 // P4：两个组件抢同一个宿主机端口 → 报错并指出改哪里（004 §10.3）。
 func TestConflictingExposePortsIsAnError(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("portal/user-frontend", "1.0.0", 80), config.Component{Expose: true, ExposePort: 8080})
-	b.component(simple("admin/console", "1.0.0", 80), config.Component{Expose: true, ExposePort: 8080})
+	b.component(simple("portal/user-frontend", "1.0.0", 80), projecttest.Entry{Expose: true, ExposePort: 8080})
+	b.component(simple("admin/console", "1.0.0", 80), projecttest.Entry{Expose: true, ExposePort: 8080})
 
-	graph, err := resolver.New(b.provider).Resolve(context.Background(), b.roots...)
-	require.NoError(t, err)
-	states, err := cascade.Compute(b.cfg, graph)
-	require.NoError(t, err)
-	env, err := inject.Build(b.cfg, graph, states)
-	require.NoError(t, err)
-
-	_, err = compose.Generate(b.cfg, graph, states, env, compose.Options{})
+	// 两个显式 exposePort 撞车在装载阶段就拦下（project.checkHostPorts），不必等到生成
+	root := t.TempDir()
+	projecttest.Write(t, root, projecttest.Render(t, b.spec))
+	_, err := project.Load(root, project.LoadOptions{})
 
 	require.Error(t, err)
 	// 建议在 hints 里，要看渲染后的完整错误
+	// 两个条目显式写了同一个 exposePort：部署文件的单文件校验就拦下了
 	rendered := clierr.As(err).Format()
 	assert.Contains(t, rendered, "8080")
-	assert.Contains(t, rendered, "portal/user-frontend")
-	assert.Contains(t, rendered, "admin/console")
 	assert.Contains(t, rendered, "exposePort", "要告诉使用者改哪个字段")
 }
 
 // 默认端口相同也算冲突：两个组件都 expose 且主端口都是 80。
 func TestConflictingDefaultExposePortsIsAnError(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("portal/user-frontend", "1.0.0", 80), config.Component{Expose: true})
-	b.component(simple("admin/console", "1.0.0", 80), config.Component{Expose: true})
+	b.component(simple("portal/user-frontend", "1.0.0", 80), projecttest.Entry{Expose: true})
+	b.component(simple("admin/console", "1.0.0", 80), projecttest.Entry{Expose: true})
 
-	graph, _ := resolver.New(b.provider).Resolve(context.Background(), b.roots...)
-	states, _ := cascade.Compute(b.cfg, graph)
-	env, _ := inject.Build(b.cfg, graph, states)
-
-	_, err := compose.Generate(b.cfg, graph, states, env, compose.Options{})
+	_, err := b.build(compose.Options{})
 	assert.Error(t, err)
 }
 
@@ -729,8 +699,8 @@ func TestConflictingDefaultExposePortsIsAnError(t *testing.T) {
 func TestLocalComponentGeneratesNoService(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeDebug})
+		projecttest.Entry{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeDebug})
 
 	services := servicesOf(t, b.parsed())
 
@@ -743,8 +713,8 @@ func TestLocalComponentGeneratesNoService(t *testing.T) {
 func TestDependencyOnLocalComponentIsNotInDependsOn(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeDebug})
+		projecttest.Entry{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeDebug})
 
 	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
 	if dependsOn, ok := svc["depends_on"].(map[string]any); ok {
@@ -760,7 +730,7 @@ func TestDependencyOnLocalComponentIsNotInDependsOn(t *testing.T) {
 // 分流进同一个 p.locals 桶。
 func TestModeLocalDoesNotGenerateAService(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeLocal})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeLocal})
 
 	assert.NotContains(t, servicesOf(t, b.parsed()), "people-basic-1-0-0")
 }
@@ -772,8 +742,8 @@ func TestModeLocalDoesNotGenerateAService(t *testing.T) {
 func TestModeLocalDependentsGetAnAutoAssignedPortAndExtraHosts(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeLocal})
+		projecttest.Entry{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeLocal})
 
 	doc := b.parsed()
 	env := envOf(t, serviceOf(t, doc, "erp-backend-1-0-0"))
@@ -789,9 +759,9 @@ func TestModeLocalDependentsGetAnAutoAssignedPortAndExtraHosts(t *testing.T) {
 func TestModeLocalRespectsAnExplicitLocalPortOverride(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{})
+		projecttest.Entry{})
 	b.component(simple("people/basic", "1.0.0", 8080),
-		config.Component{Mode: config.ModeLocal, LocalPort: 9000})
+		projecttest.Entry{Mode: deployfile.ModeLocal, LocalPort: 9000})
 
 	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
 
@@ -803,7 +773,7 @@ func TestModeLocalRespectsAnExplicitLocalPortOverride(t *testing.T) {
 // p.components，services() 只遍历 p.components。
 func TestModeLocalDoesNotGenerateAMigrationService(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withMigration(simple("people/basic", "1.0.0", 8080)), config.Component{Mode: config.ModeLocal})
+	b.component(withMigration(simple("people/basic", "1.0.0", 8080)), projecttest.Entry{Mode: deployfile.ModeLocal})
 
 	assert.NotContains(t, servicesOf(t, b.parsed()), "people-basic-1-0-0-migration")
 }
@@ -812,7 +782,7 @@ func TestModeLocalDoesNotGenerateAMigrationService(t *testing.T) {
 // 用的是 Vars（严格展开），显示文件用的是 Content（宽松展开），两条路径不能漂移。
 func TestLocalEnvFileVarsMatchTheRenderedContent(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeLocal})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeLocal})
 
 	result := b.generate()
 
@@ -820,9 +790,6 @@ func TestLocalEnvFileVarsMatchTheRenderedContent(t *testing.T) {
 	file := result.LocalEnvFiles[0]
 	require.NotEmpty(t, file.Vars)
 	for _, v := range file.Vars {
-		if v.ExistingSecretRef != "" {
-			continue
-		}
 		assert.Contains(t, string(file.Content), v.Name+"=", "Vars 里的每一条都该出现在渲染出的文件里")
 	}
 }
@@ -844,8 +811,7 @@ func TestLocalEnvFileVarsMatchTheRenderedContent(t *testing.T) {
 // 触发条件还是隐式的：一个点决定平台要不要替你部署一个数据库。
 func TestNoResourceContainerIsGenerated(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), projecttest.Entry{})
 
 	doc := b.parsed()
 
@@ -853,148 +819,9 @@ func TestNoResourceContainerIsGenerated(t *testing.T) {
 	assert.NotContains(t, doc, "volumes", "没有资源容器，也就没有资源数据卷")
 }
 
-// 组件不 depends_on 资源：文件里没有那个 service，写进去 compose 会报错。
-func TestComponentHasNoResourceDependency(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
-
-	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0")
-
-	assert.NotContains(t, svc, "depends_on")
-	// 但连接变量照常注入——平台管"告诉组件去哪连"，不管"谁把它跑起来"
-	assert.Equal(t, "postgres", envOf(t, svc)["DATABASE_HOST"])
-}
-
-// 外部地址（IP / 域名）同样不生成容器，环境变量照常注入。
-func TestExternalHostIsInjectedButNotGenerated(t *testing.T) {
-	for _, host := range []string{"10.0.1.10", "mydb.rds.amazonaws.com"} {
-		b := newBuilder(t)
-		b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-		r := pgResource(config.Binding{ComponentID: "people/basic", Database: "people"})
-		r.Host = host
-		b.resource(r)
-
-		doc := b.parsed()
-		assert.NotContains(t, servicesOf(t, doc), host)
-		assert.Equal(t, host, envOf(t, serviceOf(t, doc, "people-basic-1-0-0"))["DATABASE_HOST"])
-	}
-}
-
-// host 写成服务名时给一条警告：生成的 compose 完全正常，
-// 容器里却解析不了这个名字，表现是启动之后才出现的 no such host。
-//
-// 这正是当初那条隐式判据（host 里有没有点）最该被换掉的地方——
-// 从"决定平台要不要替你起一个数据库"变成"提醒你这个地址可能连不上"。
-func TestServiceNameHostWarns(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
-
-	warnings := b.generate().Warnings
-
-	require.NotEmpty(t, warnings)
-	text := warnings[0].Format()
-	assert.Contains(t, text, "postgres")
-	assert.Contains(t, text, "host.docker.internal", "要给出该怎么改")
-}
-
-// 外部地址不该触发那条警告，否则它会变成一条永远出现的噪音。
-func TestExternalHostDoesNotWarn(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	r := pgResource(config.Binding{ComponentID: "people/basic", Database: "people"})
-	r.Host = "host.docker.internal"
-	b.resource(r)
-
-	assert.Empty(t, b.generate().Warnings)
-}
-
-// host 写成 localhost 时也给一条警告：容器里的 localhost 是容器自己。
-//
-// 这条与上面那条服务名警告是一对——都是"生成物完全正常、运行时才炸"，
-// 而且这一条更容易写出来：规范书自己的示例长期写的就是 host: localhost。
-func TestLocalhostHostWarns(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	r := pgResource(config.Binding{ComponentID: "people/basic", Database: "people"})
-	r.Host = "localhost"
-	b.resource(r)
-
-	warnings := b.generate().Warnings
-
-	require.NotEmpty(t, warnings)
-	text := warnings[0].Format()
-	assert.Contains(t, text, "localhost")
-	assert.Contains(t, text, "host.docker.internal", "要给出该怎么改")
-}
-
-// **接线的关键一半**：绑它的组件全是 mode: debug 时不该警告。
-//
-// 那些进程就跑在宿主机上，localhost 恰恰是对的，平台也只把这个地址写进
-// local-debug.*.env——一个容器都碰不到。判定要看"有没有容器组件绑它"，
-// 而这条测试盯的正是命令层传进去的是哪批组件 ID：传全部就会误报，
-// 而误报会让纯本地调试的项目每次 up 都收到一条错的警告。
-func TestLocalhostDoesNotWarnForLocalOnlyComponents(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)),
-		config.Component{Mode: config.ModeDebug})
-	r := pgResource(config.Binding{ComponentID: "people/basic", Database: "people"})
-	r.Host = "localhost"
-	b.resource(r)
-
-	for _, w := range b.generate().Warnings {
-		assert.NotContains(t, w.Format(), "the container can't reach",
-			"mode: debug 的组件用 localhost 是对的")
-	}
-}
-
 // ============================================================
 // 006 §9.5：库不存在时平台的责任是"说清楚"
 // ============================================================
-
-// 生成时把"需要哪些数据库"整理出来，供 up 前提示使用者建库。
-// 平台不建库（006 §9.1），但必须让人知道要建什么。
-func TestResultReportsRequiredDatabases(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.component(withDatabase(simple("department/tree", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(
-		config.Binding{ComponentID: "people/basic", Database: "brickkit_people"},
-		config.Binding{ComponentID: "department/tree", Database: "brickkit_department"},
-	))
-
-	result := b.generate()
-
-	require.Len(t, result.Resources, 1, "一条资源声明 → 一项要求")
-	pg := result.Resources[0]
-	assert.Equal(t, "postgres", pg.Host)
-	assert.Equal(t, 5432, pg.Port)
-	assert.ElementsMatch(t, []string{"people/basic", "department/tree"}, pg.Components)
-
-	require.Len(t, pg.Databases, 2)
-	names := []string{pg.Databases[0].Name, pg.Databases[1].Name}
-	assert.ElementsMatch(t, []string{"brickkit_people", "brickkit_department"}, names)
-	assert.NotEmpty(t, pg.Databases[0].CreateSQL, "要给出可直接执行的 SQL")
-	assert.Contains(t, pg.Databases[0].CreateSQL, "CREATE DATABASE")
-}
-
-// 没绑定 database 的资源（如 redis）不算"需要建的库"。
-func TestCacheResourceIsNotReportedAsDatabase(t *testing.T) {
-	m := simple("erp/backend", "1.0.0", 8080)
-	m.Dependencies = &manifest.Dependencies{Resources: []manifest.ResourceDep{{Kind: "cache", Engine: "redis"}}}
-
-	b := newBuilder(t)
-	b.component(m, config.Component{})
-	b.resource(config.Resource{
-		Kind: config.ResourceKindCache, Engine: "redis", ID: "redis-main", Host: "redis", Port: 6379,
-		Bindings: []config.Binding{{ComponentID: "erp/backend"}},
-	})
-
-	requirements := b.generate().Resources
-	require.Len(t, requirements, 1, "redis 本身照样要先跑起来")
-	assert.Empty(t, requirements[0].Databases, "但它没有要建的库")
-}
 
 // ============================================================
 // 12.10 / 12.15 其他
@@ -1002,7 +829,7 @@ func TestCacheResourceIsNotReportedAsDatabase(t *testing.T) {
 
 func TestRestartPolicy(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	assert.Equal(t, "unless-stopped", serviceOf(t, b.parsed(), "people-basic-1-0-0")["restart"], "12.10")
 }
@@ -1010,8 +837,8 @@ func TestRestartPolicy(t *testing.T) {
 // 12.15：多版本各自独立 service。
 func TestMultipleVersionsGenerateSeparateServices(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{})
-	b.component(simple("people/basic", "2.0.0", 8080), config.Component{})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
+	b.component(simple("people/basic", "2.0.0", 8080), projecttest.Entry{})
 
 	services := servicesOf(t, b.parsed())
 
@@ -1022,7 +849,7 @@ func TestMultipleVersionsGenerateSeparateServices(t *testing.T) {
 // 级联跳过的组件不生成 service。
 func TestSkippedComponentGeneratesNoService(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("people/basic", "1.0.0", 8080), config.Component{Mode: config.ModeDisable})
+	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeDisable})
 
 	assert.NotContains(t, servicesOf(t, b.parsed()), "people-basic-1-0-0")
 }
@@ -1037,12 +864,12 @@ func TestInjectedEnvironmentReachesTheFile(t *testing.T) {
 
 	m := dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0")
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"sessionTtlSeconds": {Type: "integer", Default: 3600},
+		"SESSION_TTL_SECONDS": {Type: "integer", Default: 3600},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{Config: map[string]any{"sessionTtlSeconds": 7200}})
-	b.component(dep, config.Component{})
+	b.component(m, projecttest.Entry{Config: map[string]any{"SESSION_TTL_SECONDS": 7200}})
+	b.component(dep, projecttest.Entry{})
 
 	env := envOf(t, serviceOf(t, b.parsed(), "erp-backend-1-0-0"))
 
@@ -1057,33 +884,15 @@ func TestInjectedEnvironmentReachesTheFile(t *testing.T) {
 // ${ENV_VAR} 必须原样保留，绝不能把展开后的密钥写进生成文件（003 §5.4）。
 func TestSecretsStayAsEnvironmentReferences(t *testing.T) {
 	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"DB_URL": {Type: "string"},
+	}}
+	b.component(m, projecttest.Entry{Config: map[string]any{"DB_URL": "pg://app:${POSTGRES_PASSWORD}@db"}})
 
 	text := string(b.generate().YAML)
 
-	assert.Contains(t, text, "${POSTGRES_PASSWORD}", "密钥引用要原样落盘")
-}
-
-// existingSecret 场景下密钥变量没有值——Docker 没有"引用外部 Secret"这个概念，
-// 这条变量必须表现成"没配"（不能写出 DATABASE_PASSWORD= 这种空字符串，那正是
-// §9.13 反对的"注入空值"）。
-func TestExistingSecretVarsAreOmittedUnderDocker(t *testing.T) {
-	b := newBuilder(t)
-	b.component(withDatabase(simple("people/basic", "1.0.0", 8080)), config.Component{})
-	b.resource(config.Resource{
-		Kind: config.ResourceKindDatabase, Engine: "postgresql", ID: "main-db",
-		Host: "pg.infra.svc", Port: 5432, Username: "app",
-		ExistingSecret: "acme-db-vault-synced",
-		Bindings:       []config.Binding{{ComponentID: "people/basic", Database: "people"}},
-	})
-
-	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0")
-	raw := svc["environment"].([]any)
-	for _, item := range raw {
-		assert.NotContains(t, item.(string), "DATABASE_PASSWORD=",
-			"existingSecret 在 Docker 下没有意义，这个变量不该出现，哪怕是空值")
-	}
+	assert.Contains(t, text, "${POSTGRES_PASSWORD}", "${VAR} 引用原样落盘，由 compose 启动时从进程环境与 .env 求值")
 }
 
 // 回归测试（最终审查 finding 1）：configSchema 属性的默认值、或 brickkit.yaml
@@ -1098,11 +907,11 @@ func TestEmptyStringConfigValueStillReachesCompose(t *testing.T) {
 	t.Run("默认值就是空字符串", func(t *testing.T) {
 		m := simple("people/basic", "1.0.0", 8080)
 		m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-			"region": {Type: "string", Default: ""},
+			"REGION": {Type: "string", Default: ""},
 		}}
 
 		b := newBuilder(t)
-		b.component(m, config.Component{})
+		b.component(m, projecttest.Entry{})
 
 		svc := serviceOf(t, b.parsed(), "people-basic-1-0-0")
 		raw := svc["environment"].([]any)
@@ -1114,11 +923,11 @@ func TestEmptyStringConfigValueStillReachesCompose(t *testing.T) {
 	t.Run("brickkit.yaml 把它覆盖成空字符串", func(t *testing.T) {
 		m := simple("erp/backend", "1.0.0", 8080)
 		m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-			"region": {Type: "string", Default: "cn-north"},
+			"REGION": {Type: "string", Default: "cn-north"},
 		}}
 
 		b := newBuilder(t)
-		b.component(m, config.Component{Config: map[string]any{"region": ""}})
+		b.component(m, projecttest.Entry{Config: map[string]any{"REGION": ""}})
 
 		svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
 		raw := svc["environment"].([]any)
@@ -1132,11 +941,11 @@ func TestEmptyStringConfigValueStillReachesCompose(t *testing.T) {
 func TestEnvironmentIsSorted(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"zebra": {Default: 1}, "alpha": {Default: 2},
+		"ZEBRA": {Default: 1}, "ALPHA": {Default: 2},
 	}}
 
 	b := newBuilder(t)
-	b.component(m, config.Component{})
+	b.component(m, projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0")
 	raw := svc["environment"].([]any)
@@ -1153,9 +962,8 @@ func TestEnvironmentIsSorted(t *testing.T) {
 func TestGenerationIsDeterministic(t *testing.T) {
 	build := func() string {
 		b := newBuilder(t)
-		b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), config.Component{})
-		b.component(simple("department/tree", "1.0.0", 8080), config.Component{})
-		b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+		b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
+		b.component(simple("department/tree", "1.0.0", 8080), projecttest.Entry{})
 		return string(b.generate().YAML)
 	}
 
@@ -1177,10 +985,9 @@ func TestGeneratedFileIsValidForDockerCompose(t *testing.T) {
 
 	b := newBuilder(t)
 	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))),
-		config.Component{Config: map[string]any{}})
+		projecttest.Entry{Config: map[string]any{}})
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
-		config.Component{Expose: true, ExposePort: 18080})
-	b.resource(pgResource(config.Binding{ComponentID: "people/basic", Database: "people"}))
+		projecttest.Entry{Expose: true, ExposePort: 18080})
 
 	dir := t.TempDir()
 	path := dir + "/compose.yaml"

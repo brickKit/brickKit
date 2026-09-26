@@ -76,11 +76,11 @@ func TestHostGateway(t *testing.T) {
 // setVar 只改已有的变量：不存在意味着注入引擎判定"这条不该注入"
 // （比如弱依赖没启动），本地调试没有理由把它凭空补回来。
 func TestSetVarDoesNotCreateMissingVariable(t *testing.T) {
-	vars := []inject.Var{{Name: "A", Value: "1"}}
+	vars := []inject.Var{{Name: "A", Value: inject.Literal("1")}}
 
 	setVar(vars, "B", "2")
 	setVar(vars, "A", "3")
 
 	require.Len(t, vars, 1)
-	assert.Equal(t, "3", vars[0].Value)
+	assert.Equal(t, "3", vars[0].Value.Text)
 }

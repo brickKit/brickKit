@@ -101,7 +101,8 @@ func Resolve(in Input) (*Result, error) {
 		r := Resolved{Key: key, Secret: prop.Secret}
 		v, isWritten := written[key]
 
-		// 先看使用者给没给值；$var: 指向空值与 KEY: "" 一样算"没给"，都回落到默认值
+		// 先看使用者给没给值：null 等于没给；必填键上的空串是骨架留的空位，也等于没给；
+		// 可选键上的空串是明确的值。$var: 引到的值按同一条规则判断。
 		given := false
 		switch {
 		case isWritten && v.Kind == KindVarRef:
@@ -110,10 +111,10 @@ func Resolve(in Input) (*Result, error) {
 				undefined = append(undefined, key+" → "+v.String())
 				continue
 			}
-			if !target.IsUnset() {
+			if counts(target, required[key]) {
 				r.Value, r.Origin, r.VarName, given = target, OriginVar, v.Name, true
 			}
-		case isWritten && !v.IsUnset():
+		case isWritten && counts(v, required[key]):
 			r.Value, r.Origin, given = v, OriginFile, true
 		}
 		if !given {
@@ -138,6 +139,14 @@ func Resolve(in Input) (*Result, error) {
 		return nil, undefinedVarError(ref, path, undefined)
 	}
 	return res, nil
+}
+
+// counts 判断一个写下的值算不算"给了值"。
+func counts(v Value, required bool) bool {
+	if v.IsUnset() {
+		return false
+	}
+	return !required || !v.IsEmpty()
 }
 
 func defaultValue(d any) Value {

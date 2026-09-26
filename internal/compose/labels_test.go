@@ -11,8 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 )
 
 // labelsOf 取一个 service 的 labels 段。
@@ -37,7 +38,7 @@ func labelsOf(t *testing.T, svc map[string]any) map[string]string {
 
 // 项目级 labels 出现在组件 service 上。
 func TestProjectLabelsRenderedOnService(t *testing.T) {
-	doc := newBuilder(t).component(simple("erp/sales", "1.0.0", 8080), config.Component{
+	doc := newBuilder(t).component(simple("erp/sales", "1.0.0", 8080), projecttest.Entry{
 		Labels: map[string]string{
 			"traefik.enable":                          "true",
 			"traefik.http.routers.erp-sales.rule":     "PathPrefix(`/erp/sales`)",
@@ -60,7 +61,7 @@ func TestComponentLabelsMergeWithProjectLabels(t *testing.T) {
 		"prometheus.io/port":   "9090",
 	}
 
-	doc := newBuilder(t).component(m, config.Component{
+	doc := newBuilder(t).component(m, projecttest.Entry{
 		Labels: map[string]string{
 			"prometheus.io/scrape": "false", // 覆盖作者的推荐值
 			"traefik.enable":       "true",  // 新增
@@ -76,35 +77,15 @@ func TestComponentLabelsMergeWithProjectLabels(t *testing.T) {
 
 // 没写 labels 时，生成物里连这一段都不该出现。
 func TestNoLabelsSectionWhenUnset(t *testing.T) {
-	doc := newBuilder(t).component(simple("erp/sales", "1.0.0", 8080), config.Component{}).parsed()
+	doc := newBuilder(t).component(simple("erp/sales", "1.0.0", 8080), projecttest.Entry{}).parsed()
 
 	_, present := serviceOf(t, doc, "erp-sales-1-0-0")["labels"]
 	assert.False(t, present, "一个 label 都没写时不该多出一个空的 labels 段")
 }
 
-// 迁移容器**不带** labels：它跑完就退出，被当成路由目标或抓取目标都是 bug。
-func TestMigrationServiceHasNoLabels(t *testing.T) {
-	m := withDatabase(simple("erp/sales", "1.0.0", 8080))
-	m.Migration = &manifest.Migration{Command: []string{"./migrate"}}
-
-	doc := newBuilder(t).
-		resource(config.Resource{
-			Kind: "database", Engine: "postgresql", ID: "pg",
-			Host: "127.0.0.1", Port: 5432, Username: "dev", Password: "x",
-			Bindings: []config.Binding{{ComponentID: "erp/sales", Database: "sales"}},
-		}).
-		component(m, config.Component{Labels: map[string]string{"traefik.enable": "true"}}).
-		parsed()
-
-	assert.NotNil(t, labelsOf(t, serviceOf(t, doc, "erp-sales-1-0-0")),
-		"主容器上必须有")
-	assert.Nil(t, labelsOf(t, serviceOf(t, doc, "erp-sales-1-0-0-migration")),
-		"迁移容器上必须没有：Traefik 会把这个跑完就退出的容器当成路由目标")
-}
-
 // labels 的渲染顺序必须稳定，否则每次 up 的 diff 里都是噪音。
 func TestLabelsRenderDeterministically(t *testing.T) {
-	entry := config.Component{Labels: map[string]string{
+	entry := projecttest.Entry{Labels: map[string]string{
 		"zeta.key": "1", "alpha.key": "2", "middle.key": "3",
 	}}
 
@@ -120,8 +101,8 @@ func TestLabelsRenderDeterministically(t *testing.T) {
 // mode: debug 的组件上写了 labels → 警告（写了、没生效、而且没有任何征兆）。
 func TestLocalComponentLabelsWarn(t *testing.T) {
 	result := newBuilder(t).
-		component(simple("erp/sales", "1.0.0", 8080), config.Component{
-			Mode: config.ModeDebug, LocalPort: 8080,
+		component(simple("erp/sales", "1.0.0", 8080), projecttest.Entry{
+			Mode: deployfile.ModeDebug, LocalPort: 8080,
 			Labels: map[string]string{"traefik.enable": "true"},
 		}).
 		generate()
@@ -141,8 +122,8 @@ func TestLocalComponentLabelsWarn(t *testing.T) {
 // 警告不该说成 mode: debug。
 func TestLocalModeComponentLabelsWarningNamesLocalNotDebug(t *testing.T) {
 	result := newBuilder(t).
-		component(simple("erp/sales", "1.0.0", 8080), config.Component{
-			Mode:   config.ModeLocal,
+		component(simple("erp/sales", "1.0.0", 8080), projecttest.Entry{
+			Mode:   deployfile.ModeLocal,
 			Labels: map[string]string{"traefik.enable": "true"},
 		}).
 		generate()
@@ -156,4 +137,17 @@ func TestLocalModeComponentLabelsWarningNamesLocalNotDebug(t *testing.T) {
 	require.NotEmpty(t, found, "%v", result.Warnings)
 	assert.Contains(t, found, "mode: local")
 	assert.NotContains(t, found, "mode: debug")
+}
+
+// labels 只写主容器，不写迁移容器：Traefik 会把跑完就退出的迁移容器当成路由目标。
+func TestMigrationServiceHasNoLabels(t *testing.T) {
+	m := simple("erp/sales", "1.0.0", 8080)
+	m.Migration = &manifest.Migration{Command: []string{"./migrate"}}
+
+	doc := newBuilder(t).
+		component(m, projecttest.Entry{Labels: map[string]string{"traefik.enable": "true"}}).
+		parsed()
+
+	assert.NotNil(t, labelsOf(t, serviceOf(t, doc, "erp-sales-1-0-0")), "主容器上必须有")
+	assert.Nil(t, labelsOf(t, serviceOf(t, doc, "erp-sales-1-0-0-migration")), "迁移容器上必须没有")
 }

@@ -51,11 +51,16 @@ type Value struct {
 	// SecretName / SecretKey：KindSecretRef 引用的 Secret 与其中的 key。
 	SecretName string
 	SecretKey  string
+	// Null 表示 YAML 里写的是 null（KEY: 或 ~）：等于没写。
+	Null bool
 }
 
-// IsUnset 表示"没给值"：YAML 的 null 或空串。没给值的键绝不注入空串；
-// 必填键没给值就是缺失（骨架里的 KEY: "" 正是这种）。
-func (v Value) IsUnset() bool { return v.Kind == KindLiteral && v.Text == "" }
+// IsUnset 表示"没给值"：YAML 的 null。没给值的键回落到默认值，绝不注入空串。
+func (v Value) IsUnset() bool { return v.Null }
+
+// IsEmpty 表示写了一个空串字面量。它在必填键上是骨架留的空位（算缺失），
+// 在可选键上是"我就要空串"（照样注入）——见 Resolve。
+func (v Value) IsEmpty() bool { return v.Kind == KindLiteral && !v.Null && v.Text == "" }
 
 // String 把值还原成使用者写的样子，用于提示。
 func (v Value) String() string {
@@ -113,7 +118,7 @@ func ParseNode(node *yaml.Node) (Value, error) {
 func Literal(raw any) (Value, error) {
 	switch v := raw.(type) {
 	case nil:
-		return literal(""), nil
+		return Value{Kind: KindLiteral, Null: true}, nil
 	case string:
 		return literal(v), nil
 	case bool:

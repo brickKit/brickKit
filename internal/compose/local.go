@@ -17,14 +17,14 @@ package compose
 import (
 	"bytes"
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/configdir"
 	"github.com/brickkit/brickkit/internal/deploy"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -56,7 +56,7 @@ const (
 // LocalEnvFile 是一个 local 组件的调试环境变量文件（005 §4.9）。
 type LocalEnvFile struct {
 	Ref resolver.Ref
-	// Mode 是这个组件写的 mode（config.ModeDebug 或 config.ModeLocal）。
+	// Mode 是这个组件写的 mode（deployfile.ModeDebug 或 deployfile.ModeLocal）。
 	// 两者共用同一套"算出本地化环境"的逻辑（005 §5.6：mode: local 复用了
 	// mode: debug 已经算好的宿主机地址），但调用方要拿它们做完全不同的事——
 	// debug 组件由使用者自己在 IDE 里启动，这份文件与"在 IDE 里怎么用"的
@@ -97,7 +97,7 @@ type localComponent struct {
 	Ref      resolver.Ref
 	Service  string
 	Manifest *manifest.Manifest
-	Entry    config.Component
+	Entry    deployfile.Component
 	Env      inject.Component
 	// Port 是它在宿主机上监听的端口（localPort 或自动分配）。
 	Port int
@@ -487,16 +487,15 @@ func (p *plan) extraHostsOf(c componentPlan) []string {
 	return out
 }
 
-// usesHostMachineResource 判断这个组件有没有绑定跑在宿主机上的资源。
+// usesHostMachineResource 判断这个组件的配置里有没有写 host.docker.internal。
+//
+// 资源废除之后平台不再知道"数据库在宿主机上"，但写 host.docker.internal 指向
+// 本机服务仍是最常见的做法：这个名字在 Docker Desktop 上自带，在 Linux 上要靠
+// extra_hosts 才解析得了。只在配置里真的用到时才加，加了也无害。
 func (p *plan) usesHostMachineResource(c componentPlan) bool {
-	for _, resource := range p.cfg.Resources {
-		if resource.Host != hostMachineAlias {
-			continue
-		}
-		for _, binding := range resource.Bindings {
-			if binding.ComponentID == c.Ref.ID {
-				return true
-			}
+	for _, v := range c.Env.Env {
+		if v.Source == inject.SourceConfig && strings.Contains(v.Value.Text, hostMachineAlias) {
+			return true
 		}
 	}
 	return false
@@ -547,15 +546,33 @@ func (p *plan) rewriteEndpointsForLocalDependencies() {
 }
 
 // localEnvFiles 生成所有 local 组件的调试 env 文件（005 §4.9）。
-func (p *plan) localEnvFiles(now time.Time, lookup func(string) (string, bool)) []LocalEnvFile {
+func (p *plan) localEnvFiles(now time.Time) ([]LocalEnvFile, error) {
 	out := make([]LocalEnvFile, 0, len(p.locals))
 	for _, l := range p.locals {
-		out = append(out, p.localEnvFile(l, now, lookup))
+		file, err := p.localEnvFile(l, now)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, file)
 	}
-	return out
+	return out, nil
 }
 
-func (p *plan) localEnvFile(l localComponent, now time.Time, lookup func(string) (string, bool)) LocalEnvFile {
+// localValue 是裸进程（mode: debug / local）"这条变量取什么值"的唯一判定处：
+// IDE 与 brickkit 自己拉起的进程都不做变量替换，所以一切引用在这里就求值；
+// existingSecret 在宿主机上没有对应物，跳过（表现成"没配"，而不是注入空串）。
+func localValue(v inject.Var, root string, lookup func(string) (string, bool)) (string, bool, error) {
+	if v.IsSecretRef() {
+		return "", false, nil
+	}
+	value, err := configdir.Evaluate(v.Value, root, lookup)
+	if err != nil {
+		return "", false, err
+	}
+	return value, true, nil
+}
+
+func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, error) {
 	// 从容器版的注入结果出发，只改"怎么连过去"，不改连什么：
 	// 库名、配置项、密码引用都应当与容器里跑的完全一致，
 	// 否则本地调试出来的行为不能说明容器里也对。
@@ -563,16 +580,28 @@ func (p *plan) localEnvFile(l localComponent, now time.Time, lookup func(string)
 	copy(vars, l.Env.Env)
 
 	p.pointDependenciesAtLocalhost(l, vars)
-	p.pointResourcesAtLocalhost(vars)
+
+	evaluated := make([]inject.Var, 0, len(vars))
+	for _, v := range vars {
+		value, ok, err := localValue(v, p.root, p.lookup)
+		if err != nil {
+			return LocalEnvFile{}, withVariable(err, l.Ref, v.Name)
+		}
+		if !ok {
+			continue
+		}
+		v.Value = inject.Literal(value)
+		evaluated = append(evaluated, v)
+	}
 
 	return LocalEnvFile{
 		Ref:     l.Ref,
 		Mode:    l.Entry.Mode,
 		Name:    "local-debug." + l.Service + ".env",
 		Port:    l.Port,
-		Vars:    vars,
-		Content: renderEnvFile(l, vars, now, lookup),
-	}
+		Vars:    evaluated,
+		Content: renderEnvFile(l, evaluated, now),
+	}, nil
 }
 
 // pointDependenciesAtLocalhost 把依赖地址改成宿主机上的映射端口（13.5）。
@@ -615,63 +644,17 @@ func (p *plan) pointDependenciesAtLocalhost(l localComponent, vars []inject.Var)
 	}
 }
 
-// pointResourcesAtLocalhost 把 `host.docker.internal` 换成 `localhost`。
-//
-// 平台不部署基础资源（006 §9.1），所以 local 组件连它们时**地址基本不用动**：
-// 资源本来就在容器网络之外，宿主机上的进程照着声明连就是了。
-//
-// 只有一种写法必须改：资源跑在**本机**时，容器里得写 `host.docker.internal`
-// （P34，平台会为容器补上 extra_hosts）。而这个名字在 **Linux 的宿主机上
-// 解析不了**——它是 Docker 注入到容器 /etc/hosts 里的，宿主机自己没有。
-// 不改的话，IDE 里的进程会拿着一个解析不了的主机名去连库，
-// 而容器里的同一个组件跑得好好的，最难联想到是这里。
-func (p *plan) pointResourcesAtLocalhost(vars []inject.Var) {
-	for i := range vars {
-		if vars[i].Source == inject.SourceResource && vars[i].Value == hostMachineAlias {
-			vars[i].Value = "localhost"
-		}
-	}
-}
-
 // renderEnvFile 渲染 .env 文件内容。
-func renderEnvFile(
-	l localComponent, vars []inject.Var, now time.Time, lookup func(string) (string, bool),
-) []byte {
+// vars 已经全部求过值（localValue）。
+func renderEnvFile(l localComponent, vars []inject.Var, now time.Time) []byte {
 	var b bytes.Buffer
 	b.Write(yamlcomment.Banner(i18n.T(msgid.ComposeEnvHeader,
 		l.Ref.ID, l.Ref.Version, l.Port, now.UTC().Format(time.RFC3339))))
 
 	for _, v := range vars {
-		if v.ExistingSecretRef != "" {
-			// existingSecret 引用外部已建好的 K8s Secret，值本来就不存在
-			// （005 §5.6：Docker 没有对应概念，这里让它表现成"没配"）——
-			// 不跳过的话会写出一个真的空字符串，组件读到的是"密码是空串"
-			// 而不是"未配置"，正是 §9.13 反对的"注入空值"
-			continue
-		}
-		fmt.Fprintf(&b, "%s=%s\n", v.Name, shellQuote(expandValue(v.Value, lookup)))
+		fmt.Fprintf(&b, "%s=%s\n", v.Name, shellQuote(v.Value.Text))
 	}
 	return b.Bytes()
-}
-
-// envVarRe 匹配 ${ENV_VAR}，与 config 侧的规则一致（003 §5.4）。
-var envVarRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
-
-// expandValue 展开 ${VAR}；展开不了就原样保留。
-//
-// 原样保留而不是报错：这个文件是"顺手生成的调试辅助"，不该因为一个变量
-// 没配就让整个 brickkit up 失败——留着占位符至少还能看出漏了哪个变量。
-// （K8s 的 Secret 不一样，那份文件会真的部署上去，所以那边是阻断的。）
-func expandValue(raw string, lookup func(string) (string, bool)) string {
-	if lookup == nil || !strings.Contains(raw, "${") {
-		return raw
-	}
-	return envVarRe.ReplaceAllStringFunc(raw, func(match string) string {
-		if value, ok := lookup(match[2 : len(match)-1]); ok {
-			return value
-		}
-		return match
-	})
 }
 
 // shellQuote 把一个值变成可以安全 source 的形式，需要时才加引号。
@@ -758,7 +741,7 @@ func (p *plan) localMigrationWarnings() []*clierr.Error {
 func setVar(vars []inject.Var, name, value string) {
 	for i := range vars {
 		if vars[i].Name == name {
-			vars[i].Value = value
+			vars[i].Value = inject.Literal(value)
 			return
 		}
 	}

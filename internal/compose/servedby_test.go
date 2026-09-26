@@ -13,13 +13,14 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
-	"github.com/brickkit/brickkit/internal/config"
+	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 	"github.com/brickkit/brickkit/internal/shell"
 )
 
 // servedByEntry 是一个 servedBy 组件的 brickkit.yaml 条目。
-func servedByEntry(shellID, shellVersion string) config.Component {
-	return config.Component{ServedBy: shellID + "@" + shellVersion}
+func servedByEntry(shellID, shellVersion string) projecttest.Entry {
+	return projecttest.Entry{ServedBy: shellID + "@" + shellVersion}
 }
 
 // ---- 外壳没跑时，成员回落到独立部署 ----
@@ -27,7 +28,7 @@ func servedByEntry(shellID, shellVersion string) config.Component {
 func TestServedByMemberFallsBackToStandaloneWhenShellIsDisabled(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000),
-		config.Component{ID: "infra/shell-go-core", Version: "1.0.0", Mode: config.ModeDisable})
+		projecttest.Entry{ID: "infra/shell-go-core", Version: "1.0.0", Mode: deployfile.ModeDisable})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 	// 同一个失效外壳的第二个成员：两者都必须各自独立回落，不能只有第一个生效。
 	b.component(simple("mdm/orders", "2.0.0", 8081), servedByEntry("infra/shell-go-core", "1.0.0"))
@@ -45,7 +46,7 @@ func TestServedByMemberFallsBackToStandaloneWhenShellIsDisabled(t *testing.T) {
 
 func TestServedByComponentGeneratesNoContainer(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(withMigration(simple("mdm/customer", "1.0.7", 8080)),
 		servedByEntry("infra/shell-go-core", "1.0.0"))
 
@@ -60,7 +61,7 @@ func TestServedByComponentGeneratesNoContainer(t *testing.T) {
 func TestServedByFallbackWarns(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000),
-		config.Component{ID: "infra/shell-go-core", Version: "1.0.0", Mode: config.ModeDisable})
+		projecttest.Entry{ID: "infra/shell-go-core", Version: "1.0.0", Mode: deployfile.ModeDisable})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 
 	result, err := b.build(compose.Options{})
@@ -80,7 +81,7 @@ func TestServedByFallbackWarns(t *testing.T) {
 
 func TestShellGetsNetworkAliasForEachMember(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 
 	svc := serviceOf(t, b.parsed(), "infra-shell-go-core-1-0-0")
@@ -95,7 +96,7 @@ func TestShellGetsNetworkAliasForEachMember(t *testing.T) {
 
 func TestShellWithoutMembersUsesPlainNetworkList(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "infra-shell-go-core-1-0-0")
 	_, isList := svc["networks"].([]any)
@@ -106,10 +107,10 @@ func TestShellWithoutMembersUsesPlainNetworkList(t *testing.T) {
 
 func TestShellEnvGetsMergedEndpointsAndServedMembers(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(dependsOn(simple("mdm/customer", "1.0.7", 8080), "infra/database", "1.0.0"),
 		servedByEntry("infra/shell-go-core", "1.0.0"))
-	b.component(simple("infra/database", "1.0.0", 5432), config.Component{})
+	b.component(simple("infra/database", "1.0.0", 5432), projecttest.Entry{})
 
 	env := envOf(t, serviceOf(t, b.parsed(), "infra-shell-go-core-1-0-0"))
 	assert.Equal(t, "http://infra-database-1-0-0:5432", env["INFRA_DATABASE_ENDPOINT"])
@@ -118,9 +119,9 @@ func TestShellEnvGetsMergedEndpointsAndServedMembers(t *testing.T) {
 
 func TestShellServedMembersIsEmptyStringWhenMemberNotRunning(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.7", 8080),
-		config.Component{ServedBy: "infra/shell-go-core@1.0.0", Mode: config.ModeDisable})
+		projecttest.Entry{ServedBy: "infra/shell-go-core@1.0.0", Mode: deployfile.ModeDisable})
 
 	env := envOf(t, serviceOf(t, b.parsed(), "infra-shell-go-core-1-0-0"))
 	value, ok := env[shell.EnvVarServedMembers]
@@ -132,7 +133,7 @@ func TestShellServedMembersIsEmptyStringWhenMemberNotRunning(t *testing.T) {
 
 func TestServedByMigrationWarns(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(withMigration(simple("mdm/customer", "1.0.7", 8080)), servedByEntry("infra/shell-go-core", "1.0.0"))
 
 	result, err := b.build(compose.Options{})
@@ -152,7 +153,7 @@ func TestServedByMigrationWarns(t *testing.T) {
 
 func TestServedByHealthCheckWarns(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 
 	result, err := b.build(compose.Options{})
@@ -181,7 +182,7 @@ func TestServedByMemberLabelsDoNotAffectShellService(t *testing.T) {
 	b.Deployment.Labels = map[string]string{"prometheus.io/port": "8082"}
 
 	b2 := newBuilder(t)
-	b2.component(shell, config.Component{})
+	b2.component(shell, projecttest.Entry{})
 	b2.component(a, servedByEntry("infra/shell-go-core", "1.0.0"))
 	b2.component(b, servedByEntry("infra/shell-go-core", "1.0.0"))
 
@@ -198,7 +199,7 @@ func TestServedByShellOwnLabelsAreUnaffectedByMembers(t *testing.T) {
 	member.Deployment.Labels = map[string]string{"team.owner": "mdm", "prometheus.io/port": "8080"}
 
 	b := newBuilder(t)
-	b.component(shell, config.Component{})
+	b.component(shell, projecttest.Entry{})
 	b.component(member, servedByEntry("infra/shell-go-core", "1.0.0"))
 
 	labels := labelsOf(t, serviceOf(t, b.parsed(), "infra-shell-go-core-1-0-0"))
@@ -210,7 +211,7 @@ func TestServedByShellOwnLabelsAreUnaffectedByMembers(t *testing.T) {
 // 警告——它没有自己的容器，这些 labels 落不到任何地方。
 func TestServedByLabelsWarn(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	member := simple("mdm/customer", "1.0.7", 8080)
 	member.Deployment.Labels = map[string]string{"prometheus.io/port": "8080"}
 	b.component(member, servedByEntry("infra/shell-go-core", "1.0.0"))
@@ -229,7 +230,7 @@ func TestServedByLabelsWarn(t *testing.T) {
 
 func TestServedByUnsupportedFieldsWarn(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	entry := servedByEntry("infra/shell-go-core", "1.0.0")
 	entry.Expose = true
 	entry.Hostname = "mdm.example.com"
@@ -250,9 +251,9 @@ func TestServedByUnsupportedFieldsWarn(t *testing.T) {
 
 func TestLocalStillWorksAlongsideServedBy(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
-	b.component(simple("erp/backend", "1.0.0", 8080), config.Component{Mode: config.ModeDebug, LocalPort: 8888})
+	b.component(simple("erp/backend", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8888})
 
 	doc := b.parsed()
 	services := servicesOf(t, doc)
@@ -263,38 +264,13 @@ func TestLocalStillWorksAlongsideServedBy(t *testing.T) {
 // ---- 版本迁移期间的混合场景：旧调用方依赖的旧版本独立部署，
 // 新调用方依赖的新版本收编进外壳，互不干扰、都不用感知对方存在 ----
 
-func TestOldCallerAndNewCallerGetDifferentAddressesForDifferentVersions(t *testing.T) {
-	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
-	b.component(simple("mdm/customer", "1.0.7", 8080), config.Component{})                            // 旧版本，独立部署
-	b.component(simple("mdm/customer", "2.0.0", 8081), servedByEntry("infra/shell-go-core", "1.0.0")) // 新版本，收编
-	b.component(dependsOn(simple("erp/legacy-caller", "1.0.0", 8080), "mdm/customer", "1.0.7"), config.Component{})
-	b.component(dependsOn(simple("erp/new-caller", "1.0.0", 8080), "mdm/customer", "2.0.0"), config.Component{})
-
-	doc := b.parsed()
-	legacyEnv := envOf(t, serviceOf(t, doc, "erp-legacy-caller-1-0-0"))
-	newEnv := envOf(t, serviceOf(t, doc, "erp-new-caller-1-0-0"))
-
-	// 两边调用方拿到的都是各自依赖版本**自己的**版本化服务名——`inject.Build`
-	// 完全不知道 servedBy 存在，从不改写地址值；地址真正指向外壳，靠的是
-	// 外壳容器挂上 mdm-customer-2-0-0 这个网络别名（TestShellGetsNetworkAliasForEachMember
-	// 已经验证过这一半），不是靠改写调用方的环境变量值。这正是"调用方永远
-	// 不需要知道对方是不是被收编"这条设计承诺的字面体现：地址字符串本身
-	// 与独立部署时一模一样，只是它现在解析到别处。
-	assert.Equal(t, "http://mdm-customer-1-0-7:8080", legacyEnv["MDM_CUSTOMER_ENDPOINT"],
-		"旧调用方依赖的旧版本自己独立部署，地址指向它自己的 service")
-	assert.Equal(t, "http://mdm-customer-2-0-0:8081", newEnv["MDM_CUSTOMER_ENDPOINT"],
-		"新调用方依赖的新版本被收编，地址值依然是它自己的版本化服务名——"+
-			"重定向发生在网络层（外壳的别名），不是在这个环境变量的值上")
-}
-
 // ---- servedBy + depends_on：依赖被收编成员时要等外壳，而不是不写 depends_on ----
 
 func TestServedByMemberDependencyGetsDependsOn(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.7", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
-	b.component(dependsOn(simple("erp/caller", "1.0.0", 8080), "mdm/customer", "1.0.7"), config.Component{})
+	b.component(dependsOn(simple("erp/caller", "1.0.0", 8080), "mdm/customer", "1.0.7"), projecttest.Entry{})
 
 	svc := serviceOf(t, b.parsed(), "erp-caller-1-0-0")
 	dependsOn, ok := svc["depends_on"].(map[string]any)
@@ -319,11 +295,11 @@ func TestServedByMemberDependencyGetsDependsOn(t *testing.T) {
 
 func TestLocalDependencyOnServedByMemberGetsHostPortOnShell(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(withExtraPort(simple("mdm/customer", "1.0.9", 8080), "grpc", 9090),
 		servedByEntry("infra/shell-go-core", "1.0.0"))
 	b.component(dependsOn(simple("infra/bff-mobile", "1.0.19", 8080), "mdm/customer", "1.0.9"),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
 	result := b.generate()
 	doc := docOf(t, result)
@@ -343,12 +319,12 @@ func TestLocalDependencyOnServedByMemberGetsHostPortOnShell(t *testing.T) {
 // 不能在外壳的 ports: 列表里重复出现同一条。
 func TestLocalDependencyOnServedByMemberIsMappedOnceForMultipleLocalCallers(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.9", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 	b.component(dependsOn(simple("infra/bff-mobile", "1.0.19", 8080), "mdm/customer", "1.0.9"),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8081})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 	b.component(dependsOn(simple("infra/bff-web", "1.0.0", 8080), "mdm/customer", "1.0.9"),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8082})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8082})
 
 	result := b.generate()
 	doc := docOf(t, result)
@@ -366,13 +342,13 @@ func TestLocalDependencyOnServedByMemberIsMappedOnceForMultipleLocalCallers(t *t
 // 声明的端口都要单独映射、单独发布，互不覆盖。
 func TestLocalDependenciesOnDifferentServedByMembersOfSameShellGetDistinctPorts(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.9", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 	b.component(simple("erp/sales", "2.0.0", 8081), servedByEntry("infra/shell-go-core", "1.0.0"))
 	b.component(dependsOn(simple("infra/bff-mobile", "1.0.19", 8080), "mdm/customer", "1.0.9"),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8082})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8082})
 	b.component(dependsOn(simple("erp/legacy-caller", "1.0.0", 8080), "erp/sales", "2.0.0"),
-		config.Component{Mode: config.ModeDebug, LocalPort: 8083})
+		projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8083})
 
 	result := b.generate()
 	doc := docOf(t, result)
@@ -387,7 +363,7 @@ func TestLocalDependenciesOnDifferentServedByMembersOfSameShellGetDistinctPorts(
 // 回归覆盖，避免以后改动误伤普通场景。
 func TestShellWithoutLocalDependentsPublishesNoExtraPorts(t *testing.T) {
 	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), config.Component{})
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
 	b.component(simple("mdm/customer", "1.0.9", 8080), servedByEntry("infra/shell-go-core", "1.0.0"))
 
 	svc := serviceOf(t, b.parsed(), "infra-shell-go-core-1-0-0")
