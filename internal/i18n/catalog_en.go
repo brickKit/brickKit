@@ -1527,4 +1527,18 @@ var en = map[string]string{
 	msgid.DeployfileMemberSelf:             "a shell cannot list itself as a member",
 	msgid.DeployfileMemberDuplicate:        "%[1]s is listed twice",
 	msgid.DeployfileFieldIgnoredForTarget:  "%[1]s has no effect with target: %[2]s and is ignored",
+
+	msgid.ConfigdirValueUnencodable:     "the value cannot be encoded: %[1]s",
+	msgid.ConfigdirVarRefBadName:        "%[1]q is not a valid $var: reference; write $var:NAME, where NAME uses letters, digits and underscores",
+	msgid.ConfigdirFileRefEmpty:         "file:// needs a path after it (relative to the project root)",
+	msgid.ConfigdirKeyInvalid:           "must be a valid environment variable name: letters, digits and underscores, not starting with a digit",
+	msgid.ConfigdirVarsNoChain:          "a shared variable cannot reference another one with $var: — only ${ENV_VAR} and file:// are allowed here",
+	msgid.ConfigdirConflictTitle:        "Error: unresolved configuration conflicts",
+	msgid.ConfigdirConflictLineLabel:    "Line %[1]d",
+	msgid.ConfigdirConflictCurrent:      "%[1]s (your previous value, %[2]s)",
+	msgid.ConfigdirConflictProposed:     "%[1]s (suggested by %[2]s)",
+	msgid.ConfigdirConflictHintEdit:     "Open the file in a plain text editor, keep the line you want, delete the other one and the comment above them, then run the command again",
+	msgid.ConfigdirConflictHintNoFormat: "Do not run yq or your editor's Format Document on this file: they silently drop one of the duplicate keys, and the conflict disappears without being resolved",
+	msgid.ConfigdirConflictTipEditor:    "Your editor may mark this file as invalid YAML. That is expected: BrickKit wrote the duplicate key on purpose so the conflict cannot be missed",
+	msgid.ConfigdirConflictBlockNote:    "⚠️ Config conflict: upgrading to %[1]s changed the suggested value of this key.\nKeep one line, delete the other and this comment; until then brickkit refuses to start.",
 }

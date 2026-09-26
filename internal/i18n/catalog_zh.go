@@ -1514,4 +1514,18 @@ var zh = map[string]string{
 	msgid.DeployfileMemberSelf:             "外壳不能把自己列为成员",
 	msgid.DeployfileMemberDuplicate:        "%[1]s 被列了两次",
 	msgid.DeployfileFieldIgnoredForTarget:  "%[1]s 在 target: %[2]s 下不起作用，已忽略",
+
+	msgid.ConfigdirValueUnencodable:     "这个值无法编码：%[1]s",
+	msgid.ConfigdirVarRefBadName:        "%[1]q 不是合法的 $var: 引用；写成 $var:NAME，NAME 由字母、数字、下划线组成",
+	msgid.ConfigdirFileRefEmpty:         "file:// 后面要跟一个路径（相对项目根）",
+	msgid.ConfigdirKeyInvalid:           "必须是合法的环境变量名：字母、数字、下划线，不能以数字开头",
+	msgid.ConfigdirVarsNoChain:          "公共变量不能再用 $var: 引用别的公共变量——这里只允许 ${ENV_VAR} 与 file://",
+	msgid.ConfigdirConflictTitle:        "错误：检测到未解决的配置冲突",
+	msgid.ConfigdirConflictLineLabel:    "第 %[1]d 行",
+	msgid.ConfigdirConflictCurrent:      "%[1]s（你之前的值，%[2]s）",
+	msgid.ConfigdirConflictProposed:     "%[1]s（%[2]s 的建议值）",
+	msgid.ConfigdirConflictHintEdit:     "用纯文本编辑器打开文件，保留你要的那一行，删掉另一行和上方的注释，然后重新执行命令",
+	msgid.ConfigdirConflictHintNoFormat: "不要对这个文件用 yq 或编辑器的\"格式化文档\"：它们会悄悄丢掉其中一个重复键，冲突没解决就消失了",
+	msgid.ConfigdirConflictTipEditor:    "编辑器可能把这个文件标成非法 YAML——这是正常的：BrickKit 故意写了重复键，让冲突不可能被忽略",
+	msgid.ConfigdirConflictBlockNote:    "⚠️ 配置冲突：升级到 %[1]s 时这个键的建议值变了。\n保留一行、删掉另一行和本注释；在那之前 brickkit 拒绝启动。",
 }
