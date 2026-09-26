@@ -24,4 +24,8 @@ const (
 	ConfigdirUndefinedVar         = "configdir.undefined_var"
 	ConfigdirLabelUndefinedRef    = "configdir.label_undefined_ref"
 	ConfigdirHintDefineVar        = "configdir.hint_define_var"
+	ConfigdirSkeletonIntro        = "configdir.skeleton_intro"
+	ConfigdirSkeletonRequired     = "configdir.skeleton_required"
+	ConfigdirSkeletonOptional     = "configdir.skeleton_optional"
+	ConfigdirSkeletonDefault      = "configdir.skeleton_default"
 )

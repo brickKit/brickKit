@@ -1,0 +1,109 @@
+package configdir
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/yamlcomment"
+)
+
+// HeaderPrefix 是骨架第一行的固定写法（不翻译）：归档恢复靠它认出旧文件属于哪个版本。
+const HeaderPrefix = "# Component: "
+
+// Skeleton 按 configSchema 生成组件配置文件骨架（提案 §7.6，经附录 A4 修正）。
+//
+// 只有"必填且没有默认值"的键写成 KEY: ""；其余一律注释掉——没被使用者碰过的键
+// 就一直跟随组件的默认值，升级时默认值变了也不会制造假冲突。
+func Skeleton(id, version string, schema *manifest.ConfigSchema, varRefs map[string]string) []byte {
+	if schema == nil || len(schema.Properties) == 0 {
+		return nil
+	}
+	required := map[string]bool{}
+	for _, key := range schema.Required {
+		required[key] = true
+	}
+	var requiredKeys, optionalKeys []string
+	for _, key := range sortedProperties(schema.Properties) {
+		if required[key] && schema.Properties[key].Default == nil {
+			requiredKeys = append(requiredKeys, key)
+		} else {
+			optionalKeys = append(optionalKeys, key)
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString(HeaderPrefix + id + "@" + version + "\n")
+	b.WriteString(yamlcomment.Block("", i18n.T(msgid.ConfigdirSkeletonIntro)))
+	section := func(title string, keys []string, isRequired bool) {
+		if len(keys) == 0 {
+			return
+		}
+		b.WriteString("\n" + yamlcomment.Block("", title))
+		for _, key := range keys {
+			b.WriteString(skeletonLine(key, schema.Properties[key], varRefs[key], isRequired))
+		}
+	}
+	section(i18n.T(msgid.ConfigdirSkeletonRequired), requiredKeys, true)
+	section(i18n.T(msgid.ConfigdirSkeletonOptional), optionalKeys, false)
+	return []byte(b.String())
+}
+
+func skeletonLine(key string, prop manifest.ConfigProperty, varRef string, required bool) string {
+	desc := describe(prop)
+	switch {
+	case varRef != "":
+		return fmt.Sprintf("%s: %s%s  # %s\n", key, VarRefPrefix, varRef, desc)
+	case required:
+		return fmt.Sprintf("%s: \"\"  # %s\n", key, desc)
+	case prop.Default != nil:
+		return fmt.Sprintf("# %s: %s  # %s (%s)\n", key, defaultText(prop.Default), desc, i18n.T(msgid.ConfigdirSkeletonDefault))
+	default:
+		return fmt.Sprintf("# %s:  # %s\n", key, desc)
+	}
+}
+
+// describe 是行尾说明：类型 | secret | 描述（多行描述压成一行）。
+func describe(prop manifest.ConfigProperty) string {
+	desc := prop.Type
+	if prop.Secret {
+		desc += " | secret"
+	}
+	if text := strings.Join(strings.Fields(prop.Description), " "); text != "" {
+		desc += " | " + text
+	}
+	return desc
+}
+
+// defaultText 把默认值写成一行：标量走 YAML，列表 / 映射写 JSON（取消注释后仍是合法 YAML）。
+func defaultText(v any) string {
+	switch v.(type) {
+	case string, bool, int, int64, uint64, float64:
+		return ScalarYAML(v)
+	default:
+		data, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprint(v)
+		}
+		return string(data)
+	}
+}
+
+// Header 从配置文件里读出 "# Component: <id>@<version>" 这一行。
+func Header(data []byte) (id, version string, ok bool) {
+	for _, line := range strings.Split(string(data), "\n") {
+		if !strings.HasPrefix(line, HeaderPrefix) {
+			continue
+		}
+		ref := strings.TrimSpace(strings.TrimPrefix(line, HeaderPrefix))
+		i := strings.LastIndex(ref, "@")
+		if i <= 0 {
+			return "", "", false
+		}
+		return ref[:i], ref[i+1:], true
+	}
+	return "", "", false
+}

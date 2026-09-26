@@ -1538,4 +1538,9 @@ var zh = map[string]string{
 	msgid.ConfigdirUndefinedVar:       "错误：%[1]s 引用了哪里都没有定义的公共变量",
 	msgid.ConfigdirLabelUndefinedRef:  "未定义的引用",
 	msgid.ConfigdirHintDefineVar:      "在 config/vars.yaml（或部署文件的 vars:）里定义这个变量",
+
+	msgid.ConfigdirSkeletonIntro:    "这个组件的环境变量，每个键原样注入。\n公共变量：$var:NAME（config/vars.yaml）· 环境变量：${NAME} · 本地文件：file://path",
+	msgid.ConfigdirSkeletonRequired: "=== 必填：没有值就无法启动 ===",
+	msgid.ConfigdirSkeletonOptional: "=== 可选：注释掉的键使用组件默认值，取消注释即可覆盖 ===",
+	msgid.ConfigdirSkeletonDefault:  "默认值",
 }

@@ -1551,4 +1551,9 @@ var en = map[string]string{
 	msgid.ConfigdirUndefinedVar:       "Error: %[1]s references shared variables that are defined nowhere",
 	msgid.ConfigdirLabelUndefinedRef:  "Undefined reference",
 	msgid.ConfigdirHintDefineVar:      "Define the variable in config/vars.yaml, or in the deploy file's vars:",
+
+	msgid.ConfigdirSkeletonIntro:    "Environment variables for this component; every key is injected as-is.\nShared variable: $var:NAME (config/vars.yaml) · environment variable: ${NAME} · local file: file://path",
+	msgid.ConfigdirSkeletonRequired: "=== Required: startup is blocked until these have a value ===",
+	msgid.ConfigdirSkeletonOptional: "=== Optional: commented keys use the component's default; uncomment to override ===",
+	msgid.ConfigdirSkeletonDefault:  "default",
 }
