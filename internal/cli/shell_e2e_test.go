@@ -121,3 +121,50 @@ func TestShellDryRunDockerAndK8s(t *testing.T) {
 		assert.Contains(t, deployment, "secretKeyRef")
 	})
 }
+
+// 外壳以 mode: debug 跑在宿主机上（本地开发一开始就是这样）：成员跟着在宿主机上，
+// 外壳的本地 env 文件里有 JSON（PEM 逐字节不变），成员的迁移在启动前单独跑完，
+// 外壳外面的容器经 extra_hosts 连到宿主机上的外壳。
+func TestBareShellEndToEnd(t *testing.T) {
+	dir := copyFixture(t, "three-layer-shell")
+	pem := readFile(t, filepath.Join(dir, ".secrets", "api.pem"))
+	local := strings.Replace(readFile(t, filepath.Join(dir, "deploy.yaml")),
+		"  - id: erp/shell\n", "  - id: erp/shell\n    mode: debug\n    localPort: 18000\n", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.local.yaml"), []byte(local), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".brickkit"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".brickkit", "local-mode"), []byte("on\n"), 0o644))
+
+	eng := newFakeEngine()
+	r := runWithEngine(t, eng, dir, "up")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	require.Len(t, eng.ups, 1)
+	assert.Equal(t, []string{"erp-api-1-0-0-migration"}, eng.ups[0].RunFirst, "成员迁移在启动前单独跑")
+	assert.NotContains(t, eng.ups[0].Services, "erp-shell-1-0-0", "裸进程外壳没有容器")
+
+	generated := filepath.Join(dir, ".brickkit", "generated")
+	envFile := readFile(t, filepath.Join(generated, "local-debug.erp-shell-1-0-0.env"))
+	env := map[string]string{}
+	for k, v := range envref.ParseDotEnv(envFile) {
+		env[k] = v
+	}
+	var entries []servedEntry
+	require.NoError(t, json.Unmarshal([]byte(env["BRICKKIT_SERVED_MEMBERS_CONFIG"]), &entries))
+	require.Len(t, entries, 2)
+	assert.Equal(t, pem, entries[0].Config["TLS_KEY"])
+	assert.Equal(t, "http://localhost:8081", entries[1].Config["ERP_API_ENDPOINT"],
+		"外壳里的成员互相调用：都在宿主机上")
+
+	compose := readFile(t, filepath.Join(generated, composeFileName))
+	var doc struct {
+		Services map[string]struct {
+			ExtraHosts  []string `yaml:"extra_hosts"`
+			Environment []string `yaml:"environment"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(compose), &doc))
+	portal := doc.Services["erp-portal-1-0-0"]
+	assert.Contains(t, portal.Environment, "ERP_API_ENDPOINT=http://erp-shell-1-0-0:8081")
+	assert.Contains(t, portal.ExtraHosts, "erp-shell-1-0-0:host-gateway")
+	assert.NotContains(t, compose, "BEGIN KEY")
+}
