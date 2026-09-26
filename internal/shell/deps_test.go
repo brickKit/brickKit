@@ -55,3 +55,46 @@ func TestDependenciesIncludeHostedMembers(t *testing.T) {
 	requires, _ = shell.Dependencies(p, graph, states, ref("erp/ext"))
 	assert.Empty(t, requires, "不是外壳：只有它自己的依赖")
 }
+
+// Workloads 是这次真正要起的工作负载组成的依赖图：外壳承载的成员并进外壳（外壳继承它们的依赖），
+// 依赖成员的组件改成依赖外壳。启动顺序按它排，才与生成文件里的 depends_on 一致。
+func TestWorkloadsMergeHostedMembersIntoTheirShell(t *testing.T) {
+	cfg := &testCfg{Components: []testComp{
+		comp("erp/shell", "1.0.0", ""),
+		comp("erp/a", "1.0.0", "erp/shell@1.0.0"),
+		comp("erp/db", "1.0.0", ""),
+		comp("erp/caller", "1.0.0", ""),
+	}}
+	manifests := map[string]*manifest.Manifest{
+		"erp/shell@1.0.0":  simple("erp/shell", "1.0.0", 8080),
+		"erp/a@1.0.0":      dependsOn(simple("erp/a", "1.0.0", 8081), "erp/db", "1.0.0"),
+		"erp/db@1.0.0":     simple("erp/db", "1.0.0", 5432),
+		"erp/caller@1.0.0": dependsOn(simple("erp/caller", "1.0.0", 8090), "erp/a", "1.0.0"),
+	}
+	_, err := resolveFixture(t, cfg, manifests)
+	require.NoError(t, err)
+	p := projectFrom(t, cfg)
+	var roots []resolver.Ref
+	for _, c := range cfg.Components {
+		roots = append(roots, resolver.Ref{ID: c.ID, Version: c.Version})
+	}
+	graph, err := resolver.New(stubProvider(manifests)).Resolve(context.Background(), roots...)
+	require.NoError(t, err)
+	states, err := cascade.Compute(p, graph)
+	require.NoError(t, err)
+
+	ref := func(id string) resolver.Ref { return resolver.Ref{ID: id, Version: "1.0.0"} }
+	work := shell.Workloads(p, graph, states)
+	assert.False(t, work.Has(ref("erp/a")), "成员并进外壳")
+	assert.Equal(t, []resolver.Ref{ref("erp/db")}, work.Node(ref("erp/shell")).Requires, "外壳继承成员的依赖")
+	assert.Equal(t, []resolver.Ref{ref("erp/shell")}, work.Node(ref("erp/caller")).Requires, "依赖成员 = 依赖外壳")
+
+	plan, err := resolver.Order(work)
+	require.NoError(t, err)
+	position := map[resolver.Ref]int{}
+	for _, s := range plan.Steps {
+		position[s.Ref] = s.Position
+	}
+	assert.Less(t, position[ref("erp/db")], position[ref("erp/shell")])
+	assert.Less(t, position[ref("erp/shell")], position[ref("erp/caller")])
+}

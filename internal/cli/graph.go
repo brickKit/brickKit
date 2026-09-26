@@ -27,6 +27,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/shell"
 	"github.com/brickkit/brickkit/internal/source"
 )
 
@@ -88,6 +89,10 @@ func runGraph(ctx context.Context, opts *Options, ignoreServedBy bool) error {
 
 	graph, states, err := resolveTopology(ctx, client, proj)
 	if err != nil {
+		return err
+	}
+	// 外壳的三处声明对不上时，画出来的分组本身就是错的：与 up 同样在这里大声失败
+	if err := shell.Check(proj, graph, states); err != nil {
 		return err
 	}
 

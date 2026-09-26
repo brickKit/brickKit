@@ -1319,4 +1319,5 @@ var en = map[string]string{
 	msgid.DeployfileMemberMustBeMapping:       "a member is a full deploy entry: write it as - id: <component> (its own mode, expose, … may follow)",
 	msgid.ProjectConfigTwoFilesForDefault:     "config/%s and config/%s both configure %s (the default version); keep one",
 	msgid.ProjectHintConfigTwoFilesForDefault: "The file without a version belongs to the default version (the brickkit.yaml line without requiredBy); a versioned file is only needed for versions kept for a dependent",
+	msgid.CliRenderOrderHosts:                 "  (hosts %s)",
 }

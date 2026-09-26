@@ -109,18 +109,18 @@ type statusRow struct {
 	ports string
 }
 
-// labelIfOverridden 给"没跑"的原因文案加一个 override.yaml 出处标记——不然使用者
-// 会去改 brickkit.yaml 却怎么也改不动结果，因为真正生效的 mode 来自本地的
-// override.yaml，从来不在 brickkit.yaml 里（override.yaml 设计书 §9）。
+// labelIfOverridden 给"没跑"的原因文案加一个 deploy.local.yaml 出处标记——不然使用者
+// 会去改团队的 deploy.yaml 却怎么也改不动结果，因为本地模式下真正生效的 mode 来自
+// deploy.local.yaml。
 //
 // 到这里的每一句 text 目前都已经自带一层括注收尾（"disabled explicitly
 // (mode: disable)"、"not starting (nothing above it is starting)"……都是
 // cascade 包自己拼好的），再无脑追加一层独立括号会变成
-// "(mode: disable) (override.yaml)"——两层括号挤在一起，读着别扭。
-// 因此优先把来源并进那层已有括注（改成 "(mode: disable, via override.yaml)"）；
+// "(mode: disable) (deploy.local.yaml)"——两层括号挤在一起，读着别扭。
+// 因此优先把来源并进那层已有括注（改成 "(mode: disable, via deploy.local.yaml)"）；
 // 万一将来某句 text 不是这个形状，退回旧的"整句后面再套一层括号"，不会丢信息。
-func (p *liveProject) labelIfOverridden(id, text string) string {
-	if !p.localModeDiffers(id) {
+func (p *liveProject) labelIfOverridden(ref resolver.Ref, text string) string {
+	if !p.localModeDiffers(ref) {
 		return text
 	}
 	if merged, ok := insertBeforeTrailingParen(text, i18n.T(msgid.CliStatusViaOverrideYamlSuffix)); ok {
@@ -198,7 +198,7 @@ func resolvedView(p *liveProject, byService map[string]engine.Status) componentV
 	if p.states != nil {
 		for _, c := range p.states.Components {
 			if c.State != cascade.StateRunning {
-				v.skipped = append(v.skipped, statusRow{ref: c.Ref, text: p.labelIfOverridden(c.Ref.ID, c.Reason)})
+				v.skipped = append(v.skipped, statusRow{ref: c.Ref, text: p.labelIfOverridden(c.Ref, c.Reason)})
 			}
 		}
 	}
@@ -231,7 +231,7 @@ func degradedView(p *liveProject, byService map[string]engine.Status) componentV
 		case ok:
 			v.failed = append(v.failed, statusRow{ref: ref, text: statusText(status, ok)})
 		case c.IsDisabled():
-			v.skipped = append(v.skipped, statusRow{ref: ref, text: p.labelIfOverridden(ref.ID, reasonDisabled())})
+			v.skipped = append(v.skipped, statusRow{ref: ref, text: p.labelIfOverridden(ref, reasonDisabled())})
 		case c.Mode == deployfile.ModeDebug:
 			// mode: debug 组件本来就不会出现在引擎里，"查不到"是它的正常状态
 			v.local = append(v.local, ref)
@@ -391,29 +391,24 @@ func localAddress(p *liveProject, ref resolver.Ref) string {
 	return i18n.T(msgid.CliStatusPortUnknownNoLocalportIs)
 }
 
-// localModeDiffers 报告这个组件在 deploy.local.yaml 里的 mode 与团队 deploy.yaml 不同——
-// status 据此把"因为你本地的文件才没跑"与"团队本来就关着"分开说。
-// 只在本地模式下成立；读团队文件出错就当不知道（这只是一句提示）。
-func (p *liveProject) localModeDiffers(id string) bool {
+// localModeDiffers 报告这个组件版本在 deploy.local.yaml 里的 mode 与团队 deploy.yaml 不同——
+// status 据此把"因为你本地的文件才没跑"与"团队本来就关着"分开说。按组件版本比：同一个 ID 的
+// 两个版本各有各的条目（附录 A20）。只在本地模式下成立；读团队文件出错就当不知道（这只是一句提示）。
+func (p *liveProject) localModeDiffers(ref resolver.Ref) bool {
 	if p.proj.DeploySource != project.DeployLocal {
 		return false
 	}
 	if p.teamModes == nil {
-		p.teamModes = map[string]string{}
+		p.teamModes = map[resolver.Ref]string{}
 		team, _, err := deployfile.ParseFile(p.proj.Layout.DeployPath(), deployfile.RoleTeam)
 		if err != nil {
 			return false
 		}
 		for _, c := range p.proj.Decl.Components {
 			if entry, ok := team.Entry(c.ID, c.Version, p.proj.Decl.IsDefault(c.ID, c.Version)); ok {
-				p.teamModes[c.ID] = entry.Mode
+				p.teamModes[resolver.Ref{ID: c.ID, Version: c.Version}] = entry.Mode
 			}
 		}
 	}
-	for _, c := range p.proj.Decl.Components {
-		if c.ID == id {
-			return p.proj.DeployEntry(c.ID, c.Version).Mode != p.teamModes[id]
-		}
-	}
-	return false
+	return p.proj.DeployEntry(ref.ID, ref.Version).Mode != p.teamModes[ref]
 }

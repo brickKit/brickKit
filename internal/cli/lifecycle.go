@@ -42,8 +42,8 @@ type liveProject struct {
 	// 它是一个结论，不是一个错误：读不到 Manifest 并不妨碍回答"现在什么在跑"——
 	// 那个答案只来自引擎。谁需要依赖图、需要它回答哪一句，由各个渲染函数自己决定。
 	degraded *clierr.Error
-	// teamModes 是团队 deploy.yaml 里各组件的 mode（本地模式下 status 比对用，懒加载）。
-	teamModes map[string]string
+	// teamModes 是团队 deploy.yaml 里各组件版本的 mode（本地模式下 status 比对用，懒加载）。
+	teamModes map[resolver.Ref]string
 }
 
 // loadConfig 只解析 brickkit.yaml 与部署文件，**不碰安装源、不读 config/、不做跨文件校验**。

@@ -41,21 +41,41 @@ func anyModeLocal(proj *project.Project) bool {
 // 放在生成阶段查（buildUpPlan 里，--dry-run 也会走到）："生成阶段就该知道、
 // 不该等运行时才炸"。
 func checkLocalSources(proj *project.Project, running []resolver.Ref) error {
-	runningSet := make(map[string]bool, len(running))
+	runningSet := make(map[resolver.Ref]bool, len(running))
 	for _, ref := range running {
-		runningSet[ref.ID] = true
+		runningSet[ref] = true
 	}
 
-	p := clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpLocalComponentsMissingSource))
-	for i, c := range proj.Decl.Components {
-		if proj.DeployEntry(c.ID, c.Version).Mode != deployfile.ModeLocal || !runningSet[c.ID] {
+	// mode 写在部署文件里：问题指向那里的条目（外壳下面的成员条目同样算）
+	p := clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpLocalComponentsMissingSource)).
+		WithSource(i18n.T(msgid.LabelFile), proj.DeployPath)
+	for _, c := range proj.Decl.Components {
+		ref := resolver.Ref{ID: c.ID, Version: c.Version}
+		if proj.DeployEntry(c.ID, c.Version).Mode != deployfile.ModeLocal || !runningSet[ref] {
 			continue
 		}
 		if !workspace.Exists(proj.Layout, c.ID) {
-			p.Add(fmt.Sprintf("components[%d]", i), i18n.T(msgid.CliUpNoLocalSourceFor, c.ID))
+			p.Add(deployEntryField(proj, ref), i18n.T(msgid.CliUpNoLocalSourceFor, c.ID))
 		}
 	}
 	return p.Err()
+}
+
+// deployEntryField 返回覆盖这个组件版本的部署条目的字段路径（如 components[0].members[1]）。
+func deployEntryField(proj *project.Project, ref resolver.Ref) string {
+	isDefault := proj.Decl.IsDefault(ref.ID, ref.Version)
+	var bare string
+	for _, l := range proj.Deploy.All() {
+		id, version := l.Key()
+		switch {
+		case id != ref.ID:
+		case version == ref.Version:
+			return l.Field
+		case version == "" && isDefault:
+			bare = l.Field
+		}
+	}
+	return bare
 }
 
 // localComponentPlan 是一个 mode: local 组件要怎么启动的全部结论。

@@ -143,6 +143,17 @@ func (g *Graph) Subgraph(refs []Ref) *Graph {
 	return out
 }
 
+// NewGraph 用给定的节点组一张图（节点按依赖先于依赖方的顺序给出）。给需要在解析结果之上
+// 重组节点的调用方用——比如把外壳承载的成员并进外壳（shell.Workloads）。
+func NewGraph(nodes []*Node) *Graph {
+	g := &Graph{index: make(map[Ref]*Node, len(nodes))}
+	for _, n := range nodes {
+		g.Nodes = append(g.Nodes, n)
+		g.index[n.Ref] = n
+	}
+	return g
+}
+
 func filterRefs(refs []Ref, keep map[Ref]bool) []Ref {
 	var out []Ref
 	for _, ref := range refs {

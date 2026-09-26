@@ -13,4 +13,5 @@ const (
 	CliRenderOrderOptional                             = "cli.render.order.optional"
 	CliRenderOrderOptionalNotInstalled                 = "cli.render.order.optional_not_installed"
 	CliRenderOrderDependencyGraph                      = "cli.render.order.dependency_graph"
+	CliRenderOrderHosts                                = "cli.render_order.hosts"
 )

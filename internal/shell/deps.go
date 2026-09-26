@@ -62,3 +62,47 @@ func Dependencies(
 func sortRefs(refs []resolver.Ref) {
 	sort.Slice(refs, func(i, j int) bool { return refs[i].String() < refs[j].String() })
 }
+
+// Workloads 返回这次真正要起的工作负载组成的依赖图：只含这次在跑的组件，外壳承载的成员
+// 并进外壳——外壳的依赖是 Dependencies 的结果（它自己的加上成员的），别的组件对成员的依赖
+// 改成对外壳的依赖。启动顺序按它排，与生成文件里的 depends_on 说的是同一件事。
+func Workloads(p *project.Project, graph *resolver.Graph, states *cascade.Result) *resolver.Graph {
+	target := func(ref resolver.Ref) resolver.Ref {
+		if host, ok := states.HostOf(p, ref); ok {
+			return host
+		}
+		return ref
+	}
+	remap := func(self resolver.Ref, refs []resolver.Ref) []resolver.Ref {
+		var out []resolver.Ref
+		seen := map[resolver.Ref]bool{self: true}
+		for _, ref := range refs {
+			if t := target(ref); !seen[t] && states.IsRunning(t) {
+				seen[t] = true
+				out = append(out, t)
+			}
+		}
+		return out
+	}
+
+	var nodes []*resolver.Node
+	for _, ref := range states.Running() {
+		if _, hosted := states.HostOf(p, ref); hosted {
+			continue
+		}
+		node := graph.Node(ref)
+		if node == nil {
+			continue
+		}
+		requires, optional := node.Requires, node.Optional
+		if p.Decl.IsShellID(ref.ID) {
+			requires, optional = Dependencies(p, graph, states, ref)
+		}
+		nodes = append(nodes, &resolver.Node{
+			Ref: ref, Manifest: node.Manifest,
+			Requires: remap(ref, requires), Optional: remap(ref, optional),
+			MissingOptional: node.MissingOptional,
+		})
+	}
+	return resolver.NewGraph(nodes)
+}

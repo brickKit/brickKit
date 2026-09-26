@@ -38,7 +38,13 @@ func renderStates(opts *Options, states *cascade.Result) {
 }
 
 // renderOrder 输出启动顺序、要点与依赖图（004 §3.8 输出样例）。
-func renderOrder(opts *Options, plan *resolver.Plan, graph *resolver.Graph) {
+//
+// plan 是工作负载的启动顺序（外壳承载的成员已并进外壳，见 shell.Workloads），hosted 是每个外壳
+// 这次承载的成员；components 是组件层面的顺序，弱依赖名单与依赖图照组件来画——依赖关系是
+// 组件声明的，与它这次跑在哪个进程里无关。
+func renderOrder(
+	opts *Options, plan, components *resolver.Plan, graph *resolver.Graph, hosted map[resolver.Ref][]resolver.Ref,
+) {
 	opts.Printf("%s\n", i18n.T(msgid.CliRenderOrderStartOrderTopologicalSort))
 
 	width := 0
@@ -48,8 +54,15 @@ func renderOrder(opts *Options, plan *resolver.Plan, graph *resolver.Graph) {
 		}
 	}
 	for _, s := range plan.Steps {
-		opts.Printf("   %d. %s  %s\n",
-			s.Position, pad(s.Service, width), dependencyNote(s))
+		note := dependencyNote(s)
+		if members := hosted[s.Ref]; len(members) > 0 {
+			names := make([]string, 0, len(members))
+			for _, m := range members {
+				names = append(names, m.String())
+			}
+			note += i18n.T(msgid.CliRenderOrderHosts, strings.Join(names, i18n.T(msgid.ListSeparator)))
+		}
+		opts.Printf("   %d. %s  %s\n", s.Position, pad(s.Service, width), note)
 	}
 	opts.Printf("\n")
 
@@ -60,9 +73,9 @@ func renderOrder(opts *Options, plan *resolver.Plan, graph *resolver.Graph) {
 		}
 		opts.Printf("%s\n", i18n.T(msgid.CliRenderOrderCanStartOnTheirOwn, strings.Join(names, i18n.T(msgid.ListSeparator))))
 	}
-	if len(plan.Optional) > 0 {
-		ids := make([]string, 0, len(plan.Optional))
-		for _, ref := range plan.Optional {
+	if len(components.Optional) > 0 {
+		ids := make([]string, 0, len(components.Optional))
+		for _, ref := range components.Optional {
 			ids = append(ids, ref.ID)
 		}
 		// 这一行回答的是"哪些是可以关掉的"。
@@ -74,7 +87,7 @@ func renderOrder(opts *Options, plan *resolver.Plan, graph *resolver.Graph) {
 	}
 	renderLongestChain(opts, plan)
 
-	renderDependencyGraph(opts, plan, graph)
+	renderDependencyGraph(opts, components, graph)
 }
 
 // renderLongestChain 报出最长的那条强依赖链（启动的关键路径）。

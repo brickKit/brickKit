@@ -25,6 +25,7 @@ import (
 	"github.com/brickkit/brickkit/internal/procsup"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/resolver"
+	"github.com/brickkit/brickkit/internal/shell"
 	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
@@ -259,7 +260,12 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	if err != nil {
 		return nil, err
 	}
-	renderOrder(opts, order, plan.graph)
+	// 启动顺序按这次真正要起的工作负载排：外壳承载的成员并进外壳（与 depends_on 一致）
+	workloads, err := resolver.Order(shell.Workloads(proj, plan.graph, plan.states))
+	if err != nil {
+		return nil, err
+	}
+	renderOrder(opts, workloads, order, plan.graph, hostedMembers(proj, plan.states))
 
 	if err := checkLocalSources(proj, plan.states.Running()); err != nil {
 		return nil, err
@@ -915,4 +921,15 @@ func (p *upPlan) runAfter() []string {
 		return nil
 	}
 	return p.generated.RunAfter
+}
+
+// hostedMembers 返回这次每个外壳承载的成员（按启动判定的顺序）。
+func hostedMembers(proj *project.Project, states *cascade.Result) map[resolver.Ref][]resolver.Ref {
+	out := map[resolver.Ref][]resolver.Ref{}
+	for _, ref := range states.Running() {
+		if host, ok := states.HostOf(proj, ref); ok {
+			out[host] = append(out[host], ref)
+		}
+	}
+	return out
 }
