@@ -90,27 +90,6 @@ func (p *plan) servedServiceDoc(m servedPlan) map[string]any {
 	}
 }
 
-// servedMigrationWarnings 与 compose 侧同名函数职责相同——责任主体是
-// 外壳作者，不是本机调试者。
-func (p *plan) servedMigrationWarnings() []*clierr.Error {
-	var out []*clierr.Error
-	for _, s := range p.served {
-		if s.Manifest == nil || s.Manifest.Migration == nil {
-			continue
-		}
-		out = append(out, clierr.Warn(clierr.CodeMigrationSkipped,
-			i18n.T(msgid.ServedMigrationSkipped)).
-			WithDetail(i18n.T(msgid.LabelComponent), s.Ref.String()).
-			WithDetail(i18n.T(msgid.LabelShell), s.Shell.String()).
-			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.K8sServedMigrationReasonDetail)).
-			WithHint(
-				i18n.T(msgid.HintShellCoversMigration, s.Shell.ID),
-				i18n.T(msgid.HintMigrationCommand, strings.Join(s.Manifest.Migration.Command, " ")),
-			))
-	}
-	return out
-}
-
 // fallbackStandaloneWarnings 跟 compose 侧同名函数职责相同——见那边的注释。
 func (p *plan) fallbackStandaloneWarnings() []*clierr.Error {
 	var out []*clierr.Error

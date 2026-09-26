@@ -223,6 +223,13 @@ func Generate(
 			return nil, err
 		}
 	}
+	for _, c := range p.memberMigrations {
+		job := MigrationJobName(c.Service)
+		if err := p.emit(result, proj, now,
+			dirMigrations+"/"+job+".yaml", p.migrationJobDoc(c)); err != nil {
+			return nil, err
+		}
+	}
 	result.MigrationGroups = p.migrationGroups()
 
 	sort.Slice(result.Files, func(i, j int) bool { return result.Files[i].Path < result.Files[j].Path })
@@ -237,7 +244,7 @@ func Generate(
 func (p *plan) migrationGroups() [][]string {
 	byID := map[string][]componentPlan{}
 	var ids []string
-	for _, c := range p.components {
+	for _, c := range append(append([]componentPlan{}, p.components...), p.memberMigrations...) {
 		if c.Manifest.Migration == nil {
 			continue
 		}
@@ -309,6 +316,9 @@ type plan struct {
 	components []componentPlan
 	// served 是 servedBy 的组件：只生成一个指向外壳 Pod 的 Service。
 	served []servedPlan
+	// memberMigrations 是被外壳承载、又声明了 migration 的成员：没有 Deployment，
+	// 迁移 Job 却照常生成，用成员自己的镜像与配置（提案 §8.1 规则 2、§8.9.4）。
+	memberMigrations []componentPlan
 	// secrets 按 Secret 名排序。
 	secrets []secretPlan
 
@@ -346,6 +356,12 @@ func newPlan(
 				Ref: ref, Service: manifest.ServiceName(ref.ID, ref.Version),
 				Manifest: node.Manifest, Entry: entry, Shell: shellRef,
 			})
+			if node.Manifest != nil && node.Manifest.Migration != nil {
+				p.memberMigrations = append(p.memberMigrations, componentPlan{
+					Ref: ref, Service: manifest.ServiceName(ref.ID, ref.Version),
+					Manifest: node.Manifest, Entry: entry, Env: envByRef[ref],
+				})
+			}
 			continue
 		}
 		p.components = append(p.components, componentPlan{
@@ -359,6 +375,7 @@ func newPlan(
 
 	sort.Slice(p.components, func(i, j int) bool { return p.components[i].Service < p.components[j].Service })
 	sort.Slice(p.served, func(i, j int) bool { return p.served[i].Service < p.served[j].Service })
+	sort.Slice(p.memberMigrations, func(i, j int) bool { return p.memberMigrations[i].Service < p.memberMigrations[j].Service })
 
 	groups, err := shell.Resolve(proj, graph, states, env, opts.Lookup)
 	if err != nil {
@@ -377,7 +394,6 @@ func newPlan(
 	}
 	p.warnings = append(p.warnings, p.privilegedPortWarnings()...)
 	p.warnings = append(p.warnings, p.fallbackStandaloneWarnings()...)
-	p.warnings = append(p.warnings, p.servedMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.servedHealthCheckWarnings()...)
 	p.warnings = append(p.warnings, p.servedUnsupportedFieldWarnings()...)
 	return p, nil

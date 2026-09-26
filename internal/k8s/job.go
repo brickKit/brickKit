@@ -2,6 +2,8 @@ package k8s
 
 // 本文件渲染数据库迁移 Job（005 §6.3）。
 
+import "github.com/brickkit/brickkit/internal/manifest"
+
 // MigrationJobName 是某个组件的迁移 Job 名。
 //
 // 命令层要用它做两件事：执行前 `kubectl delete job --ignore-not-found` 清理残留，
@@ -64,7 +66,7 @@ func (p *plan) migrationContainerDoc(c componentPlan) map[string]any {
 	container := map[string]any{
 		// 002 §8.4：用组件自己的镜像，迁移脚本与业务代码同版本
 		"name":  containerName(c.Ref.ID) + "-migration",
-		"image": c.Manifest.Deployment.Image,
+		"image": manifest.ImageRef(c.Manifest),
 		// K8s 的 command 整体替换镜像的 ENTRYPOINT，所以整条命令原样写进去即可。
 		//
 		// 这里与 compose 那边不一样：compose 的 command 只覆盖 CMD，得把命令

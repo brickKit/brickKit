@@ -4,8 +4,7 @@
 package k8s_test
 
 import (
-	"github.com/brickkit/brickkit/internal/deployfile"
-	"github.com/brickkit/brickkit/internal/project/projecttest"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -13,7 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/project/projecttest"
 	"github.com/brickkit/brickkit/internal/shell"
 )
 
@@ -49,8 +50,8 @@ func TestServedByComponentGeneratesOnlyAService(t *testing.T) {
 		"servedBy 组件不该有自己的 Deployment")
 	assert.True(t, hasFile(result, "services/mdm-customer-1-0-7.yaml"),
 		"但要有一个 Service 让它自己的服务名能被解析")
-	assert.False(t, hasFile(result, "migrations/mdm-customer-1-0-7-migration.yaml"),
-		"也不该有自己的迁移 Job")
+	assert.True(t, hasFile(result, "migrations/mdm-customer-1-0-7-migration.yaml"),
+		"迁移 Job 仍然单独跑（提案 §8.9.4）")
 	assert.True(t, hasFile(result, "deployments/infra-shell-go-core-1-0-0.yaml"),
 		"外壳自己照常生成 Deployment")
 }
@@ -115,26 +116,6 @@ func TestServedByServiceIsInDesired(t *testing.T) {
 }
 
 // ---- 迁移警告 ----
-
-func TestServedByMigrationWarnsInK8s(t *testing.T) {
-	b := newBuilder(t)
-	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
-	b.component(migrating(simple("mdm/customer", "1.0.7", 8080)), servedByEntry("infra/shell-go-core", "1.0.0"))
-
-	result, err := b.build()
-	require.NoError(t, err)
-	// 注意：simple() 默认带一个 HTTP 健康检查，所以这个组件同时触发迁移
-	// 警告与健康检查警告（两条各自独立，见 servedHealthCheckWarnings），
-	// 这里只断言迁移那一条存在，与 compose 侧的 TestServedByMigrationWarns
-	// 用的是同一个断言方式。
-	found := false
-	for _, w := range result.Warnings {
-		if w.Code == clierr.CodeMigrationSkipped {
-			found = true
-		}
-	}
-	assert.True(t, found, "应该有一条关于迁移不会自动执行的警告：%+v", result.Warnings)
-}
 
 func TestServedByFallbackWarnsInK8s(t *testing.T) {
 	b := newBuilder(t)
@@ -273,4 +254,70 @@ func TestServedByMemberSecretConfigStaysWithMemberSecret(t *testing.T) {
 	assert.NotContains(t, env, "MDM_CUSTOMER_API_KEY", "不再有带前缀的成员变量")
 	assert.Contains(t, dig(t, secret, "stringData", shell.EnvVarServedMembersConfig), `"API_KEY":"sk-customer"`)
 	assert.NotContains(t, deployment, "sk-customer")
+}
+
+// 被承载的成员仍然有自己的迁移 Job：成员自己的镜像与配置（提案 §8.1 规则 2、§8.9.4），
+// 排进 MigrationGroups——命令层在应用任何 Deployment（包括外壳）之前等它跑完。
+func TestK8sHostedMemberMigrationJob(t *testing.T) {
+	member := migrating(simple("mdm/customer", "1.0.7", 8080))
+	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"TOKEN": {Type: "string", Secret: true},
+	}}
+	entry := servedByEntry("infra/shell-go-core", "1.0.0")
+	entry.Config = map[string]any{"TOKEN": "sk-member"}
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
+	b.component(member, entry)
+
+	result := b.generate()
+	assert.Equal(t, [][]string{{"mdm-customer-1-0-7-migration"}}, result.MigrationGroups)
+	job := b.doc("migrations/mdm-customer-1-0-7-migration.yaml")
+	containers, _ := dig(t, job, "spec", "template", "spec", "containers").([]any)
+	require.Len(t, containers, 1)
+	container, _ := containers[0].(map[string]any)
+	assert.Equal(t, manifest.ImageRef(member), container["image"])
+	assert.Contains(t, string(b.file("migrations/mdm-customer-1-0-7-migration.yaml").YAML),
+		"mdm-customer-1-0-7-config-secret", "成员的密钥进成员自己的 Secret，Job 引用它")
+	for _, f := range result.Files {
+		assert.NotContains(t, f.Path, "deployments/mdm-customer", "成员没有自己的 Deployment")
+	}
+}
+
+// 外壳的 JSON 进外壳的 Secret，逐字节不变（多行 PEM 也一样）；Deployment 里只有 secretKeyRef。
+func TestK8sShellJSONInSecret(t *testing.T) {
+	member := simple("mdm/customer", "1.0.7", 8080)
+	member.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"CERT": {Type: "string", Secret: true},
+	}}
+	entry := servedByEntry("infra/shell-go-core", "1.0.0")
+	entry.Config = map[string]any{"CERT": "file://secrets/ca.pem"}
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
+	b.component(member, entry)
+	b.spec.Files["secrets/ca.pem"] = pemText
+
+	b.generate()
+	secret := b.doc("secrets/config-secrets.yaml")
+	raw, _ := dig(t, secret, "stringData", shell.EnvVarServedMembersConfig).(string)
+	var entries []struct {
+		Config map[string]string `json:"config"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(raw), &entries))
+	require.Len(t, entries, 1)
+	assert.Equal(t, pemText, entries[0].Config["CERT"])
+	assert.NotContains(t, string(b.file("deployments/infra-shell-go-core-1-0-0.yaml").YAML), "BEGIN KEY")
+}
+
+// 迁移 Job 的镜像与 Deployment 同一条规则：image 不带 tag 时补上组件版本（提案 §9.10.4）。
+func TestK8sMigrationUsesImageRef(t *testing.T) {
+	m := migrating(simple("people/basic", "1.0.0", 8080))
+	m.Deployment.Image = "registry.example.com/people-basic"
+	b := newBuilder(t)
+	b.component(m, projecttest.Entry{})
+
+	b.generate()
+	job := b.doc("migrations/people-basic-1-0-0-migration.yaml")
+	containers, _ := dig(t, job, "spec", "template", "spec", "containers").([]any)
+	container, _ := containers[0].(map[string]any)
+	assert.Equal(t, "registry.example.com/people-basic:1.0.0", container["image"])
 }

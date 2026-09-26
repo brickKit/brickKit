@@ -46,7 +46,7 @@ func secretRef(v inject.Var) (name, key string) {
 // 同时把明文变量里的 ${VAR} 先求一遍，缺失的一次性报全（expander.check）。
 func (p *plan) collectSecrets() error {
 	byName := map[string]map[string]string{}
-	for _, c := range p.components {
+	for _, c := range append(append([]componentPlan{}, p.components...), p.memberMigrations...) {
 		for _, v := range c.Env.Env {
 			switch envPlacement(v) {
 			case placeGeneratedSecret:

@@ -20,11 +20,8 @@ const (
 
 // 跨包共享（改名自各包私有的同文案 key）
 const (
-	ServedMigrationSkipped          = "shell.served.migration_skipped"
 	ServedHealthCheckNotIndependent = "shell.served.health_check_not_independent"
 	ServedFieldsIgnored             = "shell.served.fields_ignored"
-	HintShellCoversMigration        = "shell.served.hint.shell_covers_migration"
-	HintMigrationCommand            = "shell.served.hint.migration_command"
 	HintDropServedBy                = "shell.served.hint.drop_served_by"
 	// ServedByFallbackStandalone：外壳没跑，成员这次按自己的镜像独立部署
 	// （不是外壳那份代码），外壳独立部署回落设计书 §6.1/§7。
