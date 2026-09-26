@@ -205,7 +205,7 @@ var en = map[string]string{
 	msgid.EnginePodmanDetectedDetail:        "Podman is installed on this machine, but Docker is not",
 	msgid.EngineHintDryRunNoEngine:          "If you only want to generate deployment files without starting anything, use brickkit up --dry-run (no engine needed)",
 	msgid.EnginePodmanNotEnabled:            "Error: Podman is installed, but not enabled",
-	msgid.EngineHintEnablePodman:            "Run brickkit override and set target: podman in override.yaml to use it — see docs/en/07-patterns/11-podman-environment-checklist.md for the environment prerequisite",
+	msgid.EngineHintEnablePodman:            "Set target: podman in deploy.yaml (for the whole team) or in deploy.local.yaml (just this machine, with brickkit local on) to use it",
 
 	msgid.EngineMissingSelector:          "Error: project label selector missing, deletion aborted",
 	msgid.EngineLabelNamespace:           "Namespace",

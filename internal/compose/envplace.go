@@ -6,6 +6,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/configdir"
+	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/msgid"
@@ -81,14 +82,15 @@ func (p *plan) placeEnvironment() error {
 			case placeSkip:
 				continue
 			case placeInline:
-				text := v.Value.Text
-				if v.Value.Kind != configdir.KindEnvTemplate {
-					text = composeEscape(text)
+				text := composeEscape(v.Value.Text)
+				if v.Value.Kind == configdir.KindEnvTemplate {
+					// ${NAME} 留给 compose 启动时展开，其余的 $ 都是字面量
+					text = envref.EscapeLiterals(v.Value.Text)
 				}
 				inline = append(inline, v.Name+"="+text)
 			case placeEnvFile:
 				if v.Value.Kind == configdir.KindEnvTemplate {
-					file.WriteString(envFileLine(v.Name, v.Value.Text, false))
+					file.WriteString(envFileLine(v.Name, envref.EscapeLiterals(v.Value.Text), false))
 					continue
 				}
 				value, err := configdir.Evaluate(v.Value, p.root, p.lookup)

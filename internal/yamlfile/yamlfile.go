@@ -5,8 +5,8 @@ package yamlfile
 import (
 	"bytes"
 	"errors"
-	"io"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"

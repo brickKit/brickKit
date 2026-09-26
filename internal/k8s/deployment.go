@@ -233,7 +233,7 @@ func (p *plan) envDoc(c componentPlan) []any {
 		// value 必须是字符串：K8s 的 env.value 是 string 类型，
 		// 写成数字会被 API Server 直接拒绝。求值错误已经在 collectSecrets 里报过
 		value, _ := p.valueOf(v)
-		out = append(out, map[string]any{"name": v.Name, "value": value})
+		out = append(out, map[string]any{"name": v.Name, "value": kubeletEscape(value)})
 	}
 	return out
 }
@@ -371,3 +371,8 @@ func quotaDoc(spec *manifest.ResourceSpec) map[string]any {
 	}
 	return out
 }
+
+// kubeletEscape 让 env[].value 原样到达容器：K8s 会对它做自己的展开（$(VAR) 换成前面的
+// 环境变量，$$ 缩成 $），而 brickkit 从不生成 $(VAR) 引用，所以每个 $ 都写成 $$。
+// 值此时已经按 brickkit 的规则求过值（${VAR} 已展开），这里只防 K8s 再改一遍。
+func kubeletEscape(value string) string { return strings.ReplaceAll(value, "$", "$$") }

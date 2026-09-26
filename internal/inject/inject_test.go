@@ -323,14 +323,14 @@ func TestConfigDefaultsAndOverrides(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
 		"DEFAULT_PAGE_SIZE": {Type: "integer", Default: 20},
-		"ENABLE_AUDIT":     {Type: "boolean", Default: true},
+		"ENABLE_AUDIT":      {Type: "boolean", Default: true},
 		"CACHE_TTL_SECONDS": {Type: "integer", Default: 300},
 	}}
 
 	b := newBuilder(t)
 	b.component(m, entry{Config: map[string]any{
 		"DEFAULT_PAGE_SIZE": 50,
-		"ENABLE_AUDIT":     false,
+		"ENABLE_AUDIT":      false,
 	}})
 
 	env := envOf(t, b.build(), "people/basic")
@@ -376,7 +376,7 @@ func TestSecretConfigVarIsMarkedSensitive(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
 		"API_KEY": {Type: "string", Secret: true},
-		"REGION": {Type: "string", Default: "eu-west-1"},
+		"REGION":  {Type: "string", Default: "eu-west-1"},
 	}}
 
 	b := newBuilder(t)
@@ -437,13 +437,13 @@ func TestConfigValuesOutsideDeclaredBoundsAreInjectedVerbatim(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
 		"DEFAULT_PAGE_SIZE": {Type: "integer", Default: 20, Minimum: &lo, Maximum: &hi},
-		"TENANT_SLUG":      {Type: "string", Pattern: "^[a-z]+$"},
+		"TENANT_SLUG":       {Type: "string", Pattern: "^[a-z]+$"},
 	}}
 
 	b := newBuilder(t)
 	b.component(m, entry{Config: map[string]any{
 		"DEFAULT_PAGE_SIZE": 100000,
-		"TENANT_SLUG":      "NOT-A-SLUG",
+		"TENANT_SLUG":       "NOT-A-SLUG",
 	}})
 
 	env := envOf(t, b.build(), "people/basic")
@@ -538,7 +538,7 @@ func TestOptionalConfigWithoutValueStillSilent(t *testing.T) {
 func TestUpgradeAddedConfigKeyUsesDefault(t *testing.T) {
 	m := simple("people/basic", "2.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"DEFAULT_PAGE_SIZE":  {Default: 20},
+		"DEFAULT_PAGE_SIZE":   {Default: 20},
 		"NEW_IN_THIS_VERSION": {Default: "hello"},
 	}}
 
@@ -660,7 +660,7 @@ func TestNoConfigNoWarning(t *testing.T) {
 func TestCorrectConfigKeysProduceNoWarning(t *testing.T) {
 	m := simple("demo/hello", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
-		"GREETING":  {Default: "你好"},
+		"GREETING":   {Default: "你好"},
 		"LOG_LEVEL":  {Default: "info"},
 		"PAGE_SIZE":  {Default: 20},
 		"ENABLE_FOO": {Default: true},

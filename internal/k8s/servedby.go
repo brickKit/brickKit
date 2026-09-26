@@ -197,4 +197,3 @@ func (p *plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
 	}
 	return resolver.Ref{}, false
 }
-

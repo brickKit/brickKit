@@ -499,7 +499,9 @@ func TestPodmanOnlyMachineGetsEnableHint(t *testing.T) {
 
 	text := clierr.As(err).Format()
 	assert.Contains(t, text, "Podman is installed, but not enabled")
-	assert.Contains(t, text, "override")
 	assert.Contains(t, text, "target: podman")
+	assert.Contains(t, text, "deploy.local.yaml", "要指向真实存在的文件")
+	assert.NotContains(t, text, "brickkit override", "override 命令已删除，照着做只会得到 unknown command")
+	assert.NotContains(t, text, "docs/", "文档还在重写，不指向已归档的页面")
 	assert.Contains(t, text, "--dry-run", "生成文件不需要引擎，这条出路要给出来")
 }

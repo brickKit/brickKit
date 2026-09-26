@@ -200,7 +200,7 @@ var zh = map[string]string{
 	msgid.EnginePodmanDetectedDetail:        "本机装了 Podman，但没有 Docker",
 	msgid.EngineHintDryRunNoEngine:          "只想生成部署文件而不启动的话，用 brickkit up --dry-run（不需要任何引擎）",
 	msgid.EnginePodmanNotEnabled:            "错误：检测到 Podman，但尚未启用",
-	msgid.EngineHintEnablePodman:            "运行 brickkit override，在 override.yaml 里把 target 设成 podman 才会真正启用——环境前提见 docs/zh/07-patterns/11-podman-environment-checklist.md",
+	msgid.EngineHintEnablePodman:            "在 deploy.yaml（全队）或 deploy.local.yaml（只本机，配合 brickkit local on）里写 target: podman 才会真正启用",
 
 	msgid.EngineMissingSelector:          "错误：缺少项目标签选择器，已中止删除",
 	msgid.EngineLabelNamespace:           "命名空间",

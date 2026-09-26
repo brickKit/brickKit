@@ -7,6 +7,7 @@ package envref
 import (
 	"os"
 	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -81,4 +82,21 @@ func expandNode(node *yaml.Node, path []string, skip func([]string) bool) {
 
 func appendPath(path []string, segment string) []string {
 	return append(append([]string(nil), path...), segment)
+}
+
+// EscapeLiterals 把 s 里不属于 ${NAME} 引用的每个 $ 写成 $$，引用本身原样保留。
+//
+// 给"模板原样交给别的程序展开"的场合用（docker compose）：brickkit 只把 ${NAME} 当引用，
+// 那边却把 $5、$HOME、$$ 都当成自己的语法。不转义，同一个值在不同部署目标下到达容器时
+// 就不一样了。
+func EscapeLiterals(s string) string {
+	var b strings.Builder
+	last := 0
+	for _, loc := range refRe.FindAllStringIndex(s, -1) {
+		b.WriteString(strings.ReplaceAll(s[last:loc[0]], "$", "$$"))
+		b.WriteString(s[loc[0]:loc[1]])
+		last = loc[1]
+	}
+	b.WriteString(strings.ReplaceAll(s[last:], "$", "$$"))
+	return b.String()
 }

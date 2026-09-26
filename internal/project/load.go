@@ -53,6 +53,37 @@ type Project struct {
 
 // Load 装载 root 下的项目，并执行全部跨文件校验。任何一条不满足都大声失败。
 func Load(root string, opts LoadOptions) (*Project, error) {
+	p, err := LoadTopology(root, opts)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.loadConfig(); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// LoadTopology 装载两份文件并做拓扑相关的跨文件校验，不读 config/。
+//
+// 给只回答"现在什么在跑、谁属于谁"的命令用（status）：config/ 里一个未定义的
+// $var: 或一处残留的冲突标记，不该让人连项目状态都看不了。拿到的项目给不出配置值。
+func LoadTopology(root string, opts LoadOptions) (*Project, error) {
+	p, err := LoadFiles(root, opts)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.checkTopology(); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// LoadFiles 只解析 brickkit.yaml 与选中的部署文件，不做任何跨文件校验。
+//
+// 给 down 用：它交给引擎的只有项目名、部署目标与 k8s 设置。手工往 brickkit.yaml
+// 加了一行而部署文件还没跟上、config/ 里有笔误——这些都不该挡住"把项目停下来"。
+// 拿到的项目不保证两份文件一致，只能读项目级的设置。
+func LoadFiles(root string, opts LoadOptions) (*Project, error) {
 	l := NewLayout(root)
 	decl, err := projfile.ParseFile(l.DeclPath())
 	if err != nil {
@@ -74,18 +105,10 @@ func Load(root string, opts LoadOptions) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	p := &Project{
+	return &Project{
 		Layout: l, Decl: decl, Deploy: deploy,
 		DeploySource: source, DeployPath: path, Warnings: warnings,
-	}
-	if err := p.checkTopology(); err != nil {
-		return nil, err
-	}
-	if err := p.loadConfig(); err != nil {
-		return nil, err
-	}
-	return p, nil
+	}, nil
 }
 
 // Assemble 用已经解析好的声明与部署文件组装项目，只做拓扑相关的跨文件校验，

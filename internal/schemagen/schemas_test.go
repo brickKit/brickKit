@@ -186,7 +186,6 @@ var documents = map[string]document{
 			return err
 		},
 	},
-
 }
 
 // ---- 辅助：改写 YAML、读校验错误 ----
@@ -1153,11 +1152,11 @@ func optionalPropertyPaths(node map[string]any, data any, path []any, visit func
 // conditionallyRequired：yaml tag 写了 omitempty，可是校验器在基准的取值下要求它——写成 null 等于没写，
 // 校验器拒绝。这是"校验器比 schema 更严"，是允许的方向；登记在这里，并且要求它们真的被拒绝，名单才不会过期。
 var conditionallyRequired = map[string]string{
-	"component:healthCheck.path": "healthCheck.type 是 http 时必填（validateHealthCheck）",
-	"component:deployment.image": "deployment.image 与 deployment.build 至少写一个，基准里只写了 image（附录 A3）",
-	"project:sources[0].path":    "sources[].type 是 local 时必填",
-	"project:sources[1].baseUrl": "sources[].type 是 git 时必填",
-	"project:sources[2].url":     "sources[].type 是 market 时必填",
+	"component:healthCheck.path":        "healthCheck.type 是 http 时必填（validateHealthCheck）",
+	"component:deployment.image":        "deployment.image 与 deployment.build 至少写一个，基准里只写了 image（附录 A3）",
+	"project:sources[0].path":           "sources[].type 是 local 时必填",
+	"project:sources[1].baseUrl":        "sources[].type 是 git 时必填",
+	"project:sources[2].url":            "sources[].type 是 market 时必填",
 	"project:components[1].source.path": "components[].source.type 是 local 时必填",
 	"deploy:components[0].hostname":     "expose: true 且 target 是 k8s 时必填",
 	"deploy:k8s.networkPolicy.egress.allowTo[0].namespace": "allowTo 的 namespace 与 cidr 必须写一个，" +

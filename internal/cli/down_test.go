@@ -389,3 +389,21 @@ func TestDownStopsEvenWhenLocalSourceIsGone(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	require.Len(t, eng.downs, 1)
 }
+
+// down 只需要项目名、部署目标与 k8s 设置：config/ 里的问题（未定义的 $var:、残留的
+// 冲突标记）不能挡住它，手工往 brickkit.yaml 加了一行、部署文件还没跟上也不能。
+// 一条因为配置笔误就停不掉项目的 down，比没有 down 更糟。
+func TestDownIgnoresConfigAndCoverageProblems(t *testing.T) {
+	f, eng := startedProject(t)
+	require.NoError(t, os.WriteFile(filepath.Join(f.Layout.ConfigDir(), "people-basic@1.0.0.yaml"),
+		[]byte("X: $var:NOPE\n"), 0o644))
+	decl := readFile(t, f.Layout.DeclPath())
+	require.True(t, strings.HasSuffix(decl, "      version: 1.0.0\n"), "components 应是文件最后一段：\n%s", decl)
+	require.NoError(t, os.WriteFile(f.Layout.DeclPath(),
+		[]byte(decl+"    - id: late/added\n      version: 1.0.0\n"), 0o644))
+
+	r := runWithEngine(t, eng, f.Dir, "down")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	require.Len(t, eng.downs, 1)
+}

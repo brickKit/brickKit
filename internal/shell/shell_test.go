@@ -495,7 +495,6 @@ func TestApplyUpsertsServedMembersConfig(t *testing.T) {
 
 // ---- ParseRef ----
 
-
 // 附录 A18：外壳成员可以设 mode: local / debug——这一次它以裸进程在宿主机上跑，
 // 不并进外壳（完整语义 P3 设计；这里钉住"至少能设置、且不被当成成员"）。
 func TestResolveBareProcessMemberStaysOutOfShell(t *testing.T) {

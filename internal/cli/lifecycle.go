@@ -46,12 +46,13 @@ type liveProject struct {
 	teamModes map[string]string
 }
 
-// loadConfig 只装载三层文件，**不碰安装源**。
+// loadConfig 只解析 brickkit.yaml 与部署文件，**不碰安装源、不读 config/、不做跨文件校验**。
 //
-// down 走这条：它交给引擎的只有项目名与目标，依赖图里的任何东西它都用不上。
-// 一条因为 component.yaml 笔误、安装源连不上就停不掉项目的 down，比没有 down 更糟。
+// down 走这条：它交给引擎的只有项目名、目标与 k8s 设置，依赖图、配置值它都用不上。
+// 一条因为 component.yaml 笔误、config/ 里的 $var: 写错、安装源连不上就停不掉项目的 down，
+// 比没有 down 更糟。
 func loadConfig(opts *Options) (*liveProject, error) {
-	proj, err := project.Load(opts.WorkDir, opts.loadOptions())
+	proj, err := project.LoadFiles(opts.WorkDir, opts.loadOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -63,11 +64,15 @@ func loadConfig(opts *Options) (*liveProject, error) {
 //
 // 不重新生成部署文件：down / status 面对的是**已经跑起来的东西**，
 // 重新生成只会掩盖"配置改了但还没 up"这个事实。解析失败不算命令失败，只记进 degraded。
+//
+// 不读 config/（project.LoadTopology）：status 回答"现在什么在跑"，配置值一个都用不上。
 func loadProject(ctx context.Context, opts *Options) (*liveProject, error) {
-	p, err := loadConfig(opts)
+	proj, err := project.LoadTopology(opts.WorkDir, opts.loadOptions())
 	if err != nil {
 		return nil, err
 	}
+	renderWarnings(opts, proj.Warnings)
+	p := &liveProject{proj: proj}
 	if len(p.proj.Decl.Components) == 0 {
 		return p, nil
 	}

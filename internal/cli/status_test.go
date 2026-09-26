@@ -8,6 +8,7 @@ package cli
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -426,4 +427,16 @@ func TestStatusKeepsDisabledReasonWhenGraphUnavailable(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "disabled explicitly")
 	assert.NotContains(t, r.stdout, "reason unknown", "配置里写着的原因就该照实说")
+}
+
+// status 回答的是"现在什么在跑"：config/ 里的问题不该让它报错退出。
+func TestStatusIgnoresConfigProblems(t *testing.T) {
+	f, eng := startedProject(t)
+	require.NoError(t, os.WriteFile(filepath.Join(f.Layout.ConfigDir(), "people-basic@1.0.0.yaml"),
+		[]byte("X: $var:NOPE\n"), 0o644))
+
+	r := statusOf(t, eng, f.Dir)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "people/basic")
 }

@@ -61,3 +61,32 @@ func TestK8sNamespaceFromDeployFile(t *testing.T) {
 	assert.Equal(t, "shop-prod", result.Namespace)
 	assert.Equal(t, "shop-prod", k8s.NamespaceOf(b.proj))
 }
+
+// K8s 会对 env[].value 做它自己的展开：$(VAR) 取前面的环境变量，$$ 缩成 $。
+// 不处理的话，字面量 pa$$word 进容器变成 pa$word、$(HOSTNAME) 被换掉——值在路上被改了。
+// 写成 value 之前每个 $ 都要写成 $$（在 K8s 的规则下这总是安全的）；Secret 里的值不经过这层展开。
+func TestK8sPlainValuesSurviveKubeletExpansion(t *testing.T) {
+	m := simple("people/basic", "1.0.0", 8080)
+	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"PASSWORD": {Type: "string"},
+		"PATH_TPL": {Type: "string"},
+		"TEMPLATE": {Type: "string"},
+		"TOKEN":    {Type: "string", Secret: true},
+	}}
+	b := newBuilder(t)
+	b.component(m, projecttest.Entry{Config: map[string]any{
+		"PASSWORD": "pa$$word",
+		"PATH_TPL": "$(HOSTNAME)/x",
+		"TEMPLATE": "${HOOK}-$5",
+		"TOKEN":    "sk$1",
+	}})
+	b.env["HOOK"] = "a$b"
+
+	env := envOf(t, b.container("people-basic-1-0-0"))
+	secret := b.doc("secrets/config-secrets.yaml")
+
+	assert.Equal(t, "pa$$$$word", env["PASSWORD"])
+	assert.Equal(t, "$$(HOSTNAME)/x", env["PATH_TPL"])
+	assert.Equal(t, "a$$b-$$5", env["TEMPLATE"], "先按 brickkit 的规则展开 ${HOOK}，再为 K8s 转义")
+	assert.Equal(t, "sk$1", dig(t, secret, "stringData", "TOKEN"), "Secret 不经过 K8s 的展开，原样")
+}

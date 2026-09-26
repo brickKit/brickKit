@@ -30,6 +30,26 @@ func TestComposeLiteralDollarEscaped(t *testing.T) {
 	assert.Empty(t, result.EnvFiles)
 }
 
+// ${VAR} 模板原样留给 compose 启动时展开，但模板里其余的 $ 是字面量：brickkit 只把
+// ${NAME} 当引用（K8s 也只展开它），compose 却会把 $5、$HOME、$$ 都当成它自己的语法——
+// 不转义的话同一个值在 Docker 与 K8s 下到达容器时就不一样了，$weird 甚至会被悄悄吞成空串。
+// 行内与 env 文件两处都要转义。
+func TestComposeTemplateEscapesOtherDollars(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withSchema(simple("people/basic", "1.0.0", 8080), map[string]manifest.ConfigProperty{
+		"GREETING": {Type: "string"},
+		"DSN":      {Type: "string", Secret: true},
+	}), projecttest.Entry{Config: map[string]any{
+		"GREETING": "cost $5 at ${HOOK} $$HOME",
+		"DSN":      "pg://u:${DB_PASS}@h/$weird",
+	}})
+
+	result := b.generate()
+	assert.Contains(t, string(result.YAML), "GREETING=cost $$5 at ${HOOK} $$$$HOME")
+	require.Len(t, result.EnvFiles, 1)
+	assert.Equal(t, `DSN="pg://u:${DB_PASS}@h/$$weird"`+"\n", string(result.EnvFiles[0].Content))
+}
+
 const pem = "-----BEGIN KEY-----\nab$c\"d\\e\n-----END KEY-----\n"
 
 // 密钥与 file:// 内容绝不进 compose.yaml：写进 0600 的 env 文件，主容器与迁移容器都引用它。
