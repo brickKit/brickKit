@@ -9,6 +9,8 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 const team = `target: docker
@@ -181,4 +183,19 @@ func TestNestedMemberEntries(t *testing.T) {
 		deployfile.RoleTeam)
 	require.Error(t, err)
 	assert.Contains(t, fields(err), "components[0].members[0].mode", "debug 只能写在本地文件里，成员也一样")
+}
+
+// 成员下面又写了 members：明确告诉使用者"只嵌一层"，而不是一句泛泛的"未知字段"；只报一次。
+func TestThirdLevelMembersSaysOneLevel(t *testing.T) {
+	_, _, err := parse(t, "target: docker\ncomponents:\n  - id: a/s\n    members:\n      - id: a/b\n        members:\n          - id: a/c\n",
+		deployfile.RoleTeam)
+	require.Error(t, err)
+	var hits []string
+	for _, d := range clierr.As(err).Details {
+		if d.Key == "components[0].members[0].members" {
+			hits = append(hits, d.Value)
+		}
+	}
+	require.Len(t, hits, 1, "同一个字段只报一次")
+	assert.Equal(t, i18n.T(msgid.DeployfileMemberNested), hits[0])
 }

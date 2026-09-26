@@ -1311,4 +1311,5 @@ var zh = map[string]string{
 	msgid.ProjectConfigTwoFilesForDefault:     "config/%s 与 config/%s 都在配置 %s（默认版本），只留一份",
 	msgid.ProjectHintConfigTwoFilesForDefault: "无版本号的文件归默认版本（brickkit.yaml 里不带 requiredBy 的那一行）；带版本号的文件只给因依赖而保留的版本用",
 	msgid.CliRenderOrderHosts:                 "（承载 %s）",
+	msgid.DeployfileMemberNested:              "成员条目不能再有 members：成员只嵌一层，直接写在外壳条目下面",
 }

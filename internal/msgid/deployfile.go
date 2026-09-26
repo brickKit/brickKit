@@ -12,4 +12,5 @@ const (
 	DeployfileMemberDuplicate        = "deployfile.member_duplicate"
 	DeployfileFieldIgnoredForTarget  = "deployfile.field_ignored_for_target"
 	DeployfileMemberMustBeMapping    = "deployfile.member_must_be_mapping"
+	DeployfileMemberNested           = "deployfile.member_nested"
 )

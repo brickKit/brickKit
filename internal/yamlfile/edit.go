@@ -82,12 +82,36 @@ func (e *Edit) DeleteField(seqKey, id, field string) bool {
 		return false
 	}
 	for i := 0; i+1 < len(item.Content); i += 2 {
-		if item.Content[i].Value == field {
-			item.Content = append(item.Content[:i], item.Content[i+2:]...)
-			return true
+		if item.Content[i].Value != field {
+			continue
 		}
+		// 键上方的注释常常是一段小节说明，不属于这一个键：挪给下一个键，它是最后一个键时
+		// 挪到前一个值的下方。行尾注释属于这个键本身，随它一起删
+		if head := item.Content[i].HeadComment; head != "" {
+			switch {
+			case i+2 < len(item.Content):
+				next := item.Content[i+2]
+				next.HeadComment = joinComments(head, next.HeadComment)
+			case i > 0:
+				prev := item.Content[i-1]
+				prev.FootComment = joinComments(prev.FootComment, head)
+			}
+		}
+		item.Content = append(item.Content[:i], item.Content[i+2:]...)
+		return true
 	}
 	return false
+}
+
+// joinComments 把两段注释接在一起（任一为空时返回另一段）。
+func joinComments(a, b string) string {
+	switch {
+	case a == "":
+		return b
+	case b == "":
+		return a
+	}
+	return a + "\n" + b
 }
 
 // AppendEntry 在序列 seqKey 末尾追加 `- id: <id>`。已存在时返回 false，不重复写入。
@@ -104,7 +128,8 @@ func (e *Edit) AppendEntry(seqKey, id string) bool {
 	return true
 }
 
-// RemoveEntry 删除序列 seqKey 里 `id: <id>` 那一条。不存在时返回 false。
+// RemoveEntry 删除序列 seqKey 里 `id: <id>` 那一条（含嵌在外壳条目 members 下面的成员条目，
+// 与 entry 的查找范围一致）。最后一个成员删掉后 members 键一并去掉。不存在时返回 false。
 func (e *Edit) RemoveEntry(seqKey, id string) bool {
 	seq := e.sequence(seqKey, false)
 	if seq == nil {
@@ -115,8 +140,31 @@ func (e *Edit) RemoveEntry(seqKey, id string) bool {
 			seq.Content = append(seq.Content[:i], seq.Content[i+1:]...)
 			return true
 		}
+		members := mappingValue(item, keyMembers)
+		if members == nil || members.Kind != yaml.SequenceNode {
+			continue
+		}
+		for j, member := range members.Content {
+			if isEntry(member, id) {
+				members.Content = append(members.Content[:j], members.Content[j+1:]...)
+				if len(members.Content) == 0 {
+					removeKey(item, keyMembers)
+				}
+				return true
+			}
+		}
 	}
 	return false
+}
+
+// removeKey 从映射节点里删掉一个键及其值。
+func removeKey(mapping *yaml.Node, key string) {
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == key {
+			mapping.Content = append(mapping.Content[:i], mapping.Content[i+2:]...)
+			return
+		}
+	}
 }
 
 // Save 把修改写回文件。
@@ -134,7 +182,7 @@ func (e *Edit) Save() error {
 			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
 			WithCause(err)
 	}
-	if err := os.WriteFile(e.path, restoreBlankLines(e.original, buf.Bytes()), editFilePerm); err != nil {
+	if err := writeAtomic(e.path, restoreBlankLines(e.original, buf.Bytes())); err != nil {
 		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.LayerWriteFailed, name)).
 			WithDetail(i18n.T(msgid.LabelPath), e.path).
 			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
@@ -262,4 +310,31 @@ func keysPrecededByBlankLine(original []byte) map[string]bool {
 		}
 	}
 	return spaced
+}
+
+// writeAtomic 先写同目录下的临时文件再改名覆盖：写到一半失败（磁盘满、被打断）时，原文件
+// 一个字节都不动——brickkit.yaml 与部署文件是使用者手写的，写坏一半比写不进去糟得多。
+// 保留原文件的权限；原文件不存在时用 editFilePerm。
+func writeAtomic(path string, data []byte) error {
+	perm := os.FileMode(editFilePerm)
+	if info, err := os.Stat(path); err == nil {
+		perm = info.Mode().Perm()
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	name := tmp.Name()
+	defer func() { _ = os.Remove(name) }() // 改名成功后它已不存在，删除是空操作
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(name, perm); err != nil {
+		return err
+	}
+	return os.Rename(name, path)
 }

@@ -126,3 +126,73 @@ components:
         localPort: "9000"
 `, saved(t, e, path))
 }
+
+// 删掉一个键时，写在它上方的注释不跟着丢：那常常是一段小节说明，不属于这一个键。
+// 挪到下一个键上；它是最后一个键时挪到前一个值的下方。行尾注释属于这个键本身，一起删。
+func TestEditDeleteFieldKeepsNeighbourComment(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "deploy.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`target: docker
+components:
+  - id: a/b
+    # local tweaks below
+    mode: disable # off for now
+    localPort: 9000
+  - id: c/d
+    # last one
+    mode: disable
+`), 0o644))
+	e, err := yamlfile.OpenEdit(path)
+	require.NoError(t, err)
+	require.True(t, e.DeleteField("components", "a/b", "mode"))
+	require.True(t, e.DeleteField("components", "c/d", "mode"))
+	out := saved(t, e, path)
+	assert.Contains(t, out, "# local tweaks below\n    localPort: 9000")
+	assert.NotContains(t, out, "off for now", "行尾注释属于被删的键")
+	assert.Contains(t, out, "# last one")
+}
+
+// Save 先写临时文件再改名：写不进去时原文件一个字节都不动，也不留下临时文件；权限保持原样。
+func TestEditSaveIsAtomic(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root 不受目录权限限制")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "deploy.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(editSample), 0o640))
+	e, err := yamlfile.OpenEdit(path)
+	require.NoError(t, err)
+	require.True(t, e.SetField("components", "people/basic", "mode", "enabled"))
+
+	require.NoError(t, os.Chmod(dir, 0o555))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	require.Error(t, e.Save())
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, editSample, string(data), "写失败时原文件不动")
+
+	require.NoError(t, os.Chmod(dir, 0o755))
+	require.NoError(t, e.Save())
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Len(t, entries, 1, "不留临时文件")
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o640), info.Mode().Perm(), "权限保持原样")
+}
+
+// RemoveEntry 同样找得到嵌在外壳下面的成员条目；最后一个成员删掉后 members 键一并去掉。
+func TestEditRemoveNestedMember(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "deploy.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`target: docker
+components:
+  - id: erp/shell
+    members:
+      - id: erp/api
+      - id: erp/worker
+`), 0o644))
+	e, err := yamlfile.OpenEdit(path)
+	require.NoError(t, err)
+	require.True(t, e.RemoveEntry("components", "erp/api"))
+	require.True(t, e.RemoveEntry("components", "erp/worker"))
+	assert.Equal(t, "target: docker\ncomponents:\n  - id: erp/shell\n", saved(t, e, path))
+}

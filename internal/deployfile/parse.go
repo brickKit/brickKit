@@ -61,30 +61,53 @@ func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 		return
 	}
 	for i, item := range components.Content {
-		checkEntryShape(item, yamlfile.Indexed("components", i), msgid.DeployfileComponentMustBeMapping, p)
+		checkEntryShape(item, yamlfile.Indexed("components", i), p)
 	}
 }
 
-// checkEntryShape 检查一个条目的形状；外壳条目的 members 下面同样是完整条目，递归一层。
-func checkEntryShape(item *yaml.Node, field, notMapping string, p *clierr.ProblemSet) {
+// checkEntryShape 检查一个顶层条目的形状；外壳条目的 members 下面是成员条目，逐个检查。
+func checkEntryShape(item *yaml.Node, field string, p *clierr.ProblemSet) {
 	if item.Kind != yaml.MappingNode {
-		p.Add(field, i18n.T(notMapping))
+		p.Add(field, i18n.T(msgid.DeployfileComponentMustBeMapping))
 		return
 	}
-	labels := yamlfile.Lookup(item, "labels")
-	yamlfile.RequireMapping(labels, field+".labels", p)
-	if labels != nil && labels.Kind == yaml.MappingNode {
-		yamlcheck.CheckStringValues(labels, field+".labels", p.Add)
-	}
-	yamlfile.RequireMapping(yamlfile.Lookup(item, "resources"), field+".resources", p)
+	checkFieldShapes(item, field, p)
 	members := yamlfile.Lookup(item, "members")
 	yamlfile.RequireSequence(members, field+".members", p)
 	if members == nil || members.Kind != yaml.SequenceNode {
 		return
 	}
 	for j, member := range members.Content {
-		checkEntryShape(member, yamlfile.Indexed(field+".members", j), msgid.DeployfileMemberMustBeMapping, p)
+		checkMemberShape(member, yamlfile.Indexed(field+".members", j), p)
 	}
+}
+
+// checkMemberShape 检查外壳下面一个成员条目的形状：字段与顶层条目相同，只是不能再往下嵌。
+func checkMemberShape(item *yaml.Node, field string, p *clierr.ProblemSet) {
+	if item.Kind != yaml.MappingNode {
+		p.Add(field, i18n.T(msgid.DeployfileMemberMustBeMapping))
+		return
+	}
+	checkFieldShapes(item, field, p)
+	// 成员下面又写 members：说清"只嵌一层"，并把这个键摘掉，免得未知字段检查再报一遍
+	// （只动内存里的文档：出错时它不会被写回任何地方）
+	for k := 0; k+1 < len(item.Content); k += 2 {
+		if item.Content[k].Value == "members" {
+			p.Add(field+".members", i18n.T(msgid.DeployfileMemberNested))
+			item.Content = append(item.Content[:k], item.Content[k+2:]...)
+			return
+		}
+	}
+}
+
+// checkFieldShapes 检查顶层条目与成员条目共有字段的形状。
+func checkFieldShapes(item *yaml.Node, field string, p *clierr.ProblemSet) {
+	labels := yamlfile.Lookup(item, "labels")
+	yamlfile.RequireMapping(labels, field+".labels", p)
+	if labels != nil && labels.Kind == yaml.MappingNode {
+		yamlcheck.CheckStringValues(labels, field+".labels", p.Add)
+	}
+	yamlfile.RequireMapping(yamlfile.Lookup(item, "resources"), field+".resources", p)
 }
 
 func newProblems(source string) *clierr.ProblemSet {
