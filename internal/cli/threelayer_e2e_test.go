@@ -57,6 +57,10 @@ func copyFixture(t *testing.T, name string) string {
 func TestThreeLayerDryRunDockerAndK8s(t *testing.T) {
 	clearAmbientEnvForTest(t, "E2E_WEBHOOK")
 	dir := copyFixture(t, "three-layer")
+	// .env 在仓库的 .gitignore 里（它通常放真密钥），所以夹具不带它，这里现写：
+	// K8s 在生成时严格展开 ${E2E_WEBHOOK}，取不到就报错；Docker 把模板原样留给 compose
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"),
+		[]byte("E2E_WEBHOOK=https://hooks.example.com/e2e\n"), 0o600))
 	pem, err := os.ReadFile(filepath.Join(dir, ".secrets", "tls.pem"))
 	require.NoError(t, err)
 	require.Equal(t, e2ePEM, string(pem), "夹具里的 PEM 被改过了")
