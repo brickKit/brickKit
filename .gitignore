@@ -84,8 +84,8 @@ go.work.sum
 local-debug.*.env
 
 # 试用指南的试验场（每次 准备.sh --reset 都会重建）
-docs/archive/guide/playground/
-docs/archive/guide/bin/
+archive/v1/guide/playground/
+archive/v1/guide/bin/
 
 # 市场 K8s 部署的口令文件（kustomize secretGenerator 读它）
 deploy/market/k8s/**/.env

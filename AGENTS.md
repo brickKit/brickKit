@@ -1,3 +1,8 @@
+> ⚠️ **Refactor in progress (from 2026-09-26).** This file still describes the *old* architecture
+> (single `brickkit.yaml`, `resources`, `servedBy`, `override.yaml`). The target design is
+> `new_plan/提案.md` (its Appendix A overrides the body); the phase plan is
+> `docs/superpowers/plans/2026-09-26-three-layer-refactor-roadmap.md`. Where they disagree, the new design wins.
+
 # BrickKit · AI Reading Guide
 
 English | [中文](AGENTS.zh.md)

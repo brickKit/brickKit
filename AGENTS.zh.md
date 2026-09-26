@@ -1,3 +1,7 @@
+> ⚠️ **重构进行中（自 2026-09-26 起）。** 本文件描述的仍是*旧*架构（单一 `brickkit.yaml`、`resources`、
+> `servedBy`、`override.yaml`）。目标设计以 `new_plan/提案.md` 为准（其附录 A 优先于正文），分阶段计划见
+> `docs/superpowers/plans/2026-09-26-three-layer-refactor-roadmap.md`。两者冲突时以新设计为准。
+
 # BrickKit · AI 导读
 
 [English](AGENTS.md) | 中文
