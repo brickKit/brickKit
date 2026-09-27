@@ -61,7 +61,7 @@ func TestPlanUpgradeKeepsOldVersionForDependent(t *testing.T) {
 	assert.Equal(t, []install.Entry{{ID: "erp/api@1.0.0"}}, plan.AddEntries)
 	assert.Equal(t, []install.ConfigRef{{ID: "erp/api", Version: "1.0.0"}}, plan.DemoteConfigs, "无版本号文件改名成 erp-api@1.0.0.yaml")
 	require.Len(t, plan.MigrateConfigs, 1)
-	assert.Equal(t, install.ConfigRef{ID: "erp/api", Version: "1.0.0", Versioned: true}, plan.MigrateConfigs[0].Source)
+	assert.Equal(t, install.ConfigRef{ID: "erp/api", Version: "1.0.0"}, plan.MigrateConfigs[0].Source, "来源是升级之前的那份文件")
 	assert.Empty(t, plan.ArchiveConfigs)
 }
 

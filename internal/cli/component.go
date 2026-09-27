@@ -76,3 +76,18 @@ func dependencyKinds(g *resolver.Graph) map[resolver.Ref]bool {
 	}
 	return optionalOnly
 }
+
+// ask 打出提示、读一行回答（与 confirm 共用同一个缓冲读取器）。没有输入时返回空串。
+func ask(opts *Options, prompt string) string {
+	opts.Printf("%s", prompt)
+	if opts.Stdin == nil {
+		opts.Printf("\n")
+		return ""
+	}
+	if opts.stdinReader == nil {
+		opts.stdinReader = bufio.NewReader(opts.Stdin)
+	}
+	line, _ := opts.stdinReader.ReadString('\n')
+	opts.Printf("\n")
+	return line
+}

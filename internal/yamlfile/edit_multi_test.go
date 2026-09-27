@@ -199,3 +199,37 @@ func TestSetListReplacesExistingList(t *testing.T) {
     requiredBy: [erp/a, erp/b] # kept for erp/a
 `, saved(t, e, path))
 }
+
+// SetValue 按 ID + 版本选中一行、原地改一个标量（upgrade 改版本号：那一行留在原位、注释留着）。
+func TestSetValueBySelector(t *testing.T) {
+	e, path := openText(t, "brickkit.yaml", declSample)
+	require.True(t, e.SetValue("components", yamlfile.Selector{ID: "erp/api", Version: "1.1.0"}, "version", "2.0.0"))
+	assert.False(t, e.SetValue("components", yamlfile.Selector{ID: "erp/api", Version: "9.9.9"}, "version", "x"))
+	got := saved(t, e, path)
+	assert.Contains(t, got, "  # the API, two versions\n  - id: erp/api\n    version: 2.0.0\n")
+	assert.Contains(t, got, "version: 1.0.0\n    requiredBy: [erp/portal]")
+}
+
+// Lift 把嵌在外壳下面的一个条目挪到顶层、紧跟在外壳后面（字段原样）。
+func TestLiftMovesOneMemberOut(t *testing.T) {
+	e, path := openText(t, "deploy.yaml", `target: docker
+components:
+  - id: erp/shell
+    members:
+      - id: erp/a
+      - id: erp/b
+        exposePort: 9000
+  - id: erp/portal
+`)
+	require.True(t, e.Lift("components", "erp/b"))
+	assert.False(t, e.Lift("components", "erp/portal"), "已经在顶层")
+	assert.Equal(t, `target: docker
+components:
+  - id: erp/shell
+    members:
+      - id: erp/a
+  - id: erp/b
+    exposePort: 9000
+  - id: erp/portal
+`, saved(t, e, path))
+}

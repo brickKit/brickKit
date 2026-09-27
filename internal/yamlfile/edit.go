@@ -219,6 +219,43 @@ func (e *Edit) SetList(seqKey string, sel Selector, field string, values []strin
 	return true
 }
 
+// SetValue 把 sel 选中条目的 field 设成标量 value（没有这个字段就加上）。条目不存在时返回 false。
+func (e *Edit) SetValue(seqKey string, sel Selector, field, value string) bool {
+	loc := e.find(seqKey, sel)
+	if loc == nil {
+		return false
+	}
+	item := loc.item()
+	if node := mappingValue(item, field); node != nil {
+		*node = yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value,
+			HeadComment: node.HeadComment, LineComment: node.LineComment, FootComment: node.FootComment}
+		return true
+	}
+	item.Content = append(item.Content, scalar(field), scalar(value))
+	return true
+}
+
+// Lift 把嵌在外壳条目下面的 entryID 挪到顶层、紧跟在它的外壳后面（字段与注释跟着走）；
+// 最后一个成员挪走后 members 键一并去掉。条目不在任何外壳下面时返回 false。
+func (e *Edit) Lift(seqKey, entryID string) bool {
+	loc := e.find(seqKey, Selector{ID: entryID})
+	if loc == nil || loc.parent == nil {
+		return false
+	}
+	parent := loc.parent
+	item := loc.remove()
+	seq := e.sequence(seqKey, false)
+	for i, top := range seq.Content {
+		if top == parent {
+			rest := append([]*yaml.Node{}, seq.Content[i+1:]...)
+			seq.Content = append(append(seq.Content[:i+1], item), rest...)
+			return true
+		}
+	}
+	seq.Content = append(seq.Content, item)
+	return true
+}
+
 // RenameID 把 `id: <oldID>` 改成 newID（id@1.0.0 ↔ id），无论它在顶层还是嵌在外壳下面。
 // 行尾注释留着。不存在时返回 false。
 func (e *Edit) RenameID(seqKey, oldID, newID string) bool {

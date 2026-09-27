@@ -368,10 +368,10 @@ func (u *upgrader) configs() {
 func (u *upgrader) moveConfig(m Move, from resolver.Ref) {
 	to := resolver.Ref{ID: m.ID, Version: m.To}
 	kept := u.inNew(from)
+	// Source 是升级之前文件所在的位置（落盘时先读来源、再挪文件）
 	source := ConfigRef{ID: from.ID, Version: from.Version}
 	if kept {
 		u.plan.DemoteConfigs = append(u.plan.DemoteConfigs, source)
-		source.Versioned = true
 	} else {
 		u.plan.ArchiveConfigs = append(u.plan.ArchiveConfigs, source)
 	}

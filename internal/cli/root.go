@@ -203,6 +203,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		newRemoveCommand(opts),
 		newFetchCommand(opts),
 		newBuildCommand(opts),
+		newUpgradeCommand(opts),
 		newSyncCommand(opts),
 		newRestoreCommand(opts),
 		newUpCommand(opts),

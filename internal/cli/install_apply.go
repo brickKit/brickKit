@@ -49,8 +49,27 @@ type applied struct {
 	DeployFiles []string
 	// OtherDeployFiles 是没有改的其他部署文件（-f 用的环境文件）。
 	OtherDeployFiles []string
+	// Migrations 是这次迁移过的配置（相对项目根的文件 → 迁移报告，按应用顺序）。
+	Migrations []migrationResult
 	// Project 是改完之后重新装载的项目。
 	Project *project.Project
+}
+
+// migrationResult 是一份迁移过的配置文件。
+type migrationResult struct {
+	File   string
+	Report configdir.MigrateReport
+}
+
+// applyOptions 是落盘时的可选行为。
+type applyOptions struct {
+	// varRefs 是配置骨架里改成 $var: 引用的键（按组件版本）。
+	varRefs map[install.ConfigRef]map[string]string
+	// choose 决定配置迁移里每一处冲突怎么处理；为空时一律写重复键（附录 A4 的非交互兜底）。
+	choose func(install.ConfigMigration, configdir.Conflict) configdir.Choice
+	// topologyOnly：改完只核对拓扑、不读 config/——upgrade 写出的冲突块本来就会让配置装载失败，
+	// 那是给使用者的待办，不是这次改动出了错。
+	topologyOnly bool
 }
 
 // fileBackup 记下一个文件改之前的样子：existed 为 false 表示原本没有，还原时删掉。
@@ -69,16 +88,22 @@ type applier struct {
 	// createdDirs 是这次新建的目录（按创建顺序）：还原时删掉，config/ 这种空目录不留下
 	createdDirs []string
 	result      *applied
+	options     applyOptions
 }
 
 // applyPlan 把 plan 写进三份文件，varRefs 是配置骨架里改成 $var: 引用的键（按组件版本）。
 func applyPlan(opts *Options, proj *project.Project, plan *install.Plan, varRefs map[install.ConfigRef]map[string]string) (*applied, error) {
-	a := &applier{proj: proj, opts: opts, backups: map[string]*fileBackup{}, result: &applied{}}
-	if err := a.apply(plan, varRefs); err != nil {
+	return applyPlanWith(opts, proj, plan, applyOptions{varRefs: varRefs})
+}
+
+// applyPlanWith 同 applyPlan，带上可选行为。
+func applyPlanWith(opts *Options, proj *project.Project, plan *install.Plan, ao applyOptions) (*applied, error) {
+	a := &applier{proj: proj, opts: opts, backups: map[string]*fileBackup{}, result: &applied{}, options: ao}
+	if err := a.apply(plan); err != nil {
 		a.rollback()
 		return nil, err
 	}
-	reloaded, err := checkInstalled(proj.Layout)
+	reloaded, err := checkInstalled(proj.Layout, ao.topologyOnly)
 	if err != nil {
 		a.rollback()
 		return nil, wouldBreakError(err)
@@ -106,8 +131,12 @@ func loadForInstall(opts *Options) (*project.Project, error) {
 
 // checkInstalled 核对改完的项目：deploy.yaml 走一遍完整装载；deploy.local.yaml 存在时也按
 // 本地角色解析并核对拓扑——两份都改了，两份都要读得了。
-func checkInstalled(l project.Layout) (*project.Project, error) {
-	p, err := project.Load(l.Root, project.LoadOptions{NoLocal: true})
+func checkInstalled(l project.Layout, topologyOnly bool) (*project.Project, error) {
+	load := project.Load
+	if topologyOnly {
+		load = project.LoadTopology
+	}
+	p, err := load(l.Root, project.LoadOptions{NoLocal: true})
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +152,7 @@ func checkInstalled(l project.Layout) (*project.Project, error) {
 	return p, nil
 }
 
-func (a *applier) apply(plan *install.Plan, varRefs map[install.ConfigRef]map[string]string) error {
+func (a *applier) apply(plan *install.Plan) error {
 	if err := a.editDecl(plan); err != nil {
 		return err
 	}
@@ -132,7 +161,7 @@ func (a *applier) apply(plan *install.Plan, varRefs map[install.ConfigRef]map[st
 			return err
 		}
 	}
-	return a.editConfigs(plan, varRefs)
+	return a.editConfigs(plan)
 }
 
 // deployFiles 是要改的部署文件：deploy.yaml，以及存在的 deploy.local.yaml。其余的只记名字。
@@ -160,6 +189,10 @@ func (a *applier) editDecl(plan *install.Plan) error {
 	e, err := yamlfile.OpenEdit(path)
 	if err != nil {
 		return err
+	}
+	// 先原地改版本号：留下的旧版本另起一行时，按 ID + 版本找不能撞上还没改的那一行
+	for _, m := range plan.ChangeVersions {
+		e.SetValue(componentsKey, yamlfile.Selector{ID: m.ID, Version: m.From}, "version", m.To)
 	}
 	for _, l := range plan.AddLines {
 		fields := []yamlfile.Field{{Key: "id", Value: l.ID}, {Key: "version", Value: l.Version}}
@@ -193,6 +226,19 @@ func (a *applier) editDeploy(path string, plan *install.Plan) error {
 	for _, shell := range plan.UnnestShells {
 		e.Unnest(componentsKey, shell)
 	}
+	// 先删再改名：转正时被移除的默认版本条目是裸 ID，兼容版本的条目改名后也是裸 ID——
+	// 先改名的话，按 ID 找到的可能是刚改名的那一条（排在前面、或嵌在外壳下面）
+	for _, id := range plan.RemoveEntries {
+		e.RemoveEntry(componentsKey, id)
+	}
+	// 改名按计划的顺序（先降级再升级），同一时刻不会有两个裸条目
+	for _, r := range plan.RenameEntries {
+		e.RenameID(componentsKey, r.From, r.To)
+	}
+	for _, id := range plan.LiftEntries {
+		e.Lift(componentsKey, id)
+	}
+	// 新条目最后加：它可能正是刚被改名腾出来的那个裸 ID
 	for _, entry := range plan.AddEntries {
 		if entry.Under == "" {
 			e.AppendEntry(componentsKey, entry.ID)
@@ -203,14 +249,6 @@ func (a *applier) editDeploy(path string, plan *install.Plan) error {
 	for _, entry := range plan.NestEntries {
 		e.Nest(componentsKey, entry.Under, entry.ID)
 	}
-	// 先删再改名：转正时被移除的默认版本条目是裸 ID，兼容版本的条目改名后也是裸 ID——
-	// 先改名的话，按 ID 找到的可能是刚改名的那一条（排在前面、或嵌在外壳下面）
-	for _, id := range plan.RemoveEntries {
-		e.RemoveEntry(componentsKey, id)
-	}
-	for _, r := range plan.RenameEntries {
-		e.RenameID(componentsKey, r.From, r.To)
-	}
 	if err := e.Save(); err != nil {
 		return err
 	}
@@ -218,8 +256,17 @@ func (a *applier) editDeploy(path string, plan *install.Plan) error {
 	return nil
 }
 
-func (a *applier) editConfigs(plan *install.Plan, varRefs map[install.ConfigRef]map[string]string) error {
+func (a *applier) editConfigs(plan *install.Plan) error {
 	l := a.proj.Layout
+	// 迁移的来源在任何移动之前读：旧文件马上会被归档或改名
+	sources := make([][]byte, len(plan.MigrateConfigs))
+	for i, m := range plan.MigrateConfigs {
+		data, err := readOptional(filepath.Join(l.ConfigDir(), configFileName(m.Source)))
+		if err != nil {
+			return err
+		}
+		sources[i] = data
+	}
 	for _, ref := range plan.ArchiveConfigs {
 		from := filepath.Join(l.ConfigDir(), configFileName(ref))
 		if _, err := os.Stat(from); err != nil {
@@ -232,6 +279,15 @@ func (a *applier) editConfigs(plan *install.Plan, varRefs map[install.ConfigRef]
 		}
 		a.result.ConfigsArchived = append(a.result.ConfigsArchived, [2]string{a.rel(from), a.rel(to)})
 	}
+	for _, ref := range plan.DemoteConfigs {
+		from := filepath.Join(l.ConfigDir(), configdir.FileName(ref.ID, ""))
+		if _, err := os.Stat(from); err != nil {
+			continue
+		}
+		if err := a.move(from, filepath.Join(l.ConfigDir(), configdir.FileName(ref.ID, ref.Version))); err != nil {
+			return err
+		}
+	}
 	for _, ref := range plan.RenameConfigs {
 		from := filepath.Join(l.ConfigDir(), configdir.FileName(ref.ID, ref.Version))
 		if _, err := os.Stat(from); err != nil {
@@ -241,13 +297,24 @@ func (a *applier) editConfigs(plan *install.Plan, varRefs map[install.ConfigRef]
 			return err
 		}
 	}
+	for i, m := range plan.MigrateConfigs {
+		out, report, err := migrateConfig(m, sources[i], a.options.choose)
+		if err != nil {
+			return err
+		}
+		path := filepath.Join(l.ConfigDir(), configFileName(m.Target))
+		if err := a.write(path, out); err != nil {
+			return err
+		}
+		a.result.Migrations = append(a.result.Migrations, migrationResult{File: a.rel(path), Report: report})
+	}
 	for _, c := range plan.AddConfigs {
 		ref := install.ConfigRef{ID: c.ID, Version: c.Version, Versioned: c.Versioned}
 		path := filepath.Join(l.ConfigDir(), configFileName(ref))
 		if _, err := os.Stat(path); err == nil {
 			continue // 已有的配置文件是使用者的，绝不覆盖
 		}
-		if err := a.write(path, configdir.Skeleton(c.ID, c.Version, c.Schema, varRefs[ref])); err != nil {
+		if err := a.write(path, configdir.Skeleton(c.ID, c.Version, c.Schema, a.options.varRefs[ref])); err != nil {
 			return err
 		}
 		a.result.ConfigsWritten = append(a.result.ConfigsWritten, a.rel(path))
@@ -379,4 +446,30 @@ func writeError(path string, err error) error {
 		WithDetail(i18n.T(msgid.LabelReason), err.Error()).
 		WithHint(i18n.T(msgid.ProblemHintCheckPermissions)).
 		WithCause(err)
+}
+
+// migrateConfig 按 upgrade 的一处迁移生成新配置文件（upgrade 落盘与 --dry-run 的预览共用）。
+func migrateConfig(m install.ConfigMigration, source []byte, choose func(install.ConfigMigration, configdir.Conflict) configdir.Choice) ([]byte, configdir.MigrateReport, error) {
+	return configdir.Migrate(configdir.MigrateInput{
+		ID: m.ID, FromVersion: m.From, ToVersion: m.To, Old: source,
+		OldSchema: m.OldSchema, NewSchema: m.NewSchema,
+		Choose: func(c configdir.Conflict) configdir.Choice {
+			if choose == nil {
+				return configdir.ChooseDuplicate
+			}
+			return choose(m, c)
+		},
+	})
+}
+
+// readOptional 读一个可能不存在的文件（不存在时返回空）。
+func readOptional(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, writeError(path, err)
+	}
+	return data, nil
 }
