@@ -205,6 +205,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		newBuildCommand(opts),
 		newUpgradeCommand(opts),
 		newSyncCommand(opts),
+		newLocalCommand(opts),
 		newRestoreCommand(opts),
 		newUpCommand(opts),
 		newDownCommand(opts),

@@ -221,3 +221,33 @@ func TestWriteProjectDocLeavesFileWithoutMarkers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, mine, string(got))
 }
+
+// 只有开始标记、没有结束标记：不算维护区，不动；文件不存在：不凭空生成（那是 init 的事）。
+func TestWriteProjectDocNeedsBothMarkers(t *testing.T) {
+	root, p := writeDocProject(t)
+	path := filepath.Join(root, "BRICKKIT.md")
+	half := "# x\n<!-- brickkit:managed:begin -->\n"
+	require.NoError(t, os.WriteFile(path, []byte(half), 0o644))
+	written, err := project.WriteProjectDoc(p.Layout, p)
+	require.NoError(t, err)
+	assert.False(t, written)
+
+	require.NoError(t, os.Remove(path))
+	written, err = project.WriteProjectDoc(p.Layout, p)
+	require.NoError(t, err)
+	assert.False(t, written)
+	assert.NoFileExists(t, path)
+
+	plan, err := project.PlanComplete(p.Layout, "my-shop")
+	require.NoError(t, err)
+	assert.True(t, plan.ProjectDoc, "文件没了，补全式会重新生成")
+}
+
+func TestPlanCompleteReportsUnmanagedDoc(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "BRICKKIT.md"), []byte("# mine\n"), 0o644))
+	plan, err := project.PlanComplete(project.NewLayout(root), "my-shop")
+	require.NoError(t, err)
+	assert.False(t, plan.ProjectDoc)
+	assert.True(t, plan.ProjectDocUnmanaged)
+}

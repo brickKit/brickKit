@@ -488,3 +488,14 @@ func TestInitKeepsExistingAgentsMd(t *testing.T) {
 	assert.Equal(t, mine, string(after), "已有的 AGENTS.md 被覆盖了")
 	assert.Contains(t, r.stdout, "AGENTS.md", "跳过了要说出来")
 }
+
+// 已有的 BRICKKIT.md 没有维护区：不动它，说一声组件表不会自动更新。
+func TestInitCompleteNotesUnmanagedProjectDoc(t *testing.T) {
+	dir := t.TempDir()
+	mine := "# my notes\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "BRICKKIT.md"), []byte(mine), 0o644))
+	r := runIn(t, dir, "init", "--name", "shop", "--yes", "--no-skills")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, mine, readFile(t, filepath.Join(dir, "BRICKKIT.md")))
+	assert.Contains(t, r.stdout, "without the brickkit-managed block")
+}

@@ -104,11 +104,6 @@ func PlanComplete(l Layout, name string) (*CompletePlan, error) {
 	return plan, nil
 }
 
-// Empty 报告补全是否什么都不用写。
-func (p *CompletePlan) Empty() bool {
-	return len(p.Create) == 0 && !p.GitignoreCreate && !p.ProjectDoc
-}
-
 // Apply 按计划写文件，并建好 CLI 自己的工作目录（mkdir -p，已有的不动）。
 func (p *CompletePlan) Apply(l Layout) error {
 	for _, dir := range []string{
