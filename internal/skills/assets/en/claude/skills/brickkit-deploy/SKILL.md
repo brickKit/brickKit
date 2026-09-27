@@ -1,161 +1,128 @@
 ---
 name: brickkit-deploy
-description: Use when deploying a BrickKit project to Docker or Kubernetes, binding resources like a database/cache/message queue, configuring secrets, or exposing a service externally. Covers the difference between the two deploy paths, the address-injection format, how resource bindings are declared, and secret handling in production. Applies when the user mentions deploy / target / k8s / compose / ingress / resource binding, or asks "how do I go live."
+description: Use when deploying a BrickKit project to Docker, Podman or Kubernetes, editing deploy.yaml or deploy.local.yaml, turning local mode on/off/refresh, debugging a component in an IDE (mode debug) or running it as a bare process (mode local), setting up several environments with -f, filling config/ values and secrets, building images, hosting members in a shell, or exposing a service. Covers what goes in which file, targets and the k8s block, config value forms ($var, ${VAR}, file://, existingSecret), images and brickkit build, shells and skipWaitFor. Applies when the user mentions deploy / target / k8s / compose / ingress / secrets / local on / debug, or asks "how do I go live" or "how do I debug this one component".
 ---
 
-# Deployment and resource binding
+# Deployment, local mode and configuration
 
 ## When to use this skill
 
-- Running the project on Docker or Kubernetes
-- A component reports "resource dependencies not satisfied"
-- Wiring up a database, cache, message queue, object storage, search, or SMTP
-- Exposing a component outside the cluster
-- Handling secrets like passwords and tokens
-- Configuring multiple environments (dev / prod)
+- Running the project on Docker, Podman or Kubernetes, or going to production
+- Changing how one component is deployed (expose, replicas, quotas, labels, mode)
+- Debugging one component in an IDE, or running it outside a container
+- Filling in configuration and secrets under `config/`
+- Several environments (dev / staging / prod)
+- Hosting several components inside one shell
+
+## What goes where
+
+| You want to change | Write it in |
+| --- | --- |
+| which components/versions exist | `brickkit.yaml` (via `brickkit add` / `upgrade`) |
+| how the team deploys them: `target`, entries, `k8s:`, `vars:` | `deploy.yaml` |
+| something only true on your machine: `mode: debug`, a free `localPort`, your own database host, another target | `deploy.local.yaml` (after `brickkit local on`) |
+| a component's business values | `config/<scope>-<name>.yaml`, shared values in `config/vars.yaml` |
 
 ## Where you'll guess wrong
 
-**1. `brickkit.yaml`'s own `deploy.target` accepts exactly two values: `docker` and `k8s`.**
+**1. The deploy file lists every component version exactly once.**
 
-`deploy.target` is required. `override.yaml` can locally add a third option: its own `target` field
-accepts `docker` / `podman` / `k8s`, but only as a **downgrade** from `brickkit.yaml`'s value (k8s →
-docker/podman is allowed, the reverse never is). There's no real, working Podman engine yet — `up
---dry-run` against a podman target generates the compose file, but a real `up` errors clearly
-(`ENGINE_MISSING`) instead of doing anything.
+One entry per version in `brickkit.yaml`, members nested under their shell counting too. A bare
+`- id: erp/backend` is the default version; a `requiredBy` version needs its own
+`- id: erp/backend@1.0.0`. Missing or extra entries fail loudly (`DEPLOY_INCONSISTENT`).
+`add` / `remove` / `upgrade` maintain this for you — don't add components by writing entries.
 
-**2. Resources are deployed by ops; the platform never installs a database.**
+**2. `deploy.local.yaml` replaces `deploy.yaml`; it is never merged.**
 
-The `resources` block in `brickkit.yaml` is **declaration and binding**, not "have the platform
-start a postgres." What the platform manages is the connection identity (how the address, account,
-and password get injected into the component); product-specific knobs go through the component's
-own `configSchema`. The user has to create the database itself first.
+`brickkit local on` copies `deploy.yaml` byte for byte the first time (an existing file is reused)
+and from then on **every** command reads `deploy.local.yaml` instead. `local off` switches back and
+keeps the file. When the team changes `deploy.yaml`, your copy doesn't follow: `up` refuses once the
+component set differs. Run `brickkit local refresh` — it saves the old file as
+`deploy.local.yaml.bak`, writes a fresh copy and **lists your old local changes** for you to re-apply
+by hand. The CLI never merges. `--no-local` ignores the file for one run.
 
-**3. `kind` is a closed enum of six values:** `database` / `cache` / `mq` / `storage` / `search` / `smtp`.
+**3. `mode: debug` is only accepted in `deploy.local.yaml`.**
 
-The binding slot for "which spot this component occupies" is named differently per `kind`, and only
-one is allowed:
+It is a personal fact ("I'm debugging this now"), so `deploy.yaml` rejects it. With it the component
+gets no container; other containers reach your IDE process through `extra_hosts`, and a
+`local-debug.<versioned-service-name>.env` is generated for the IDE to load (dependency addresses as
+`localhost` ports). Set `localPort` to what your process listens on. No migration is run for it.
+`mode: local` is different: BrickKit detects the start command from the local repo, launches and
+supervises the process in the foreground (`Ctrl+C` stops it), and it may go in `deploy.yaml`.
+Both work on docker / podman and are rejected on `target: k8s`. Both run code from the local repo,
+whose `metadata.version` must equal the default version in `brickkit.yaml` — so only the default
+version can run this way; a `requiredBy` version with `mode: local` / `debug` is refused.
+`brickkit graph` never reads local mode, so a `mode: debug` there never shows up in the graph.
 
-| kind | The slot is called | Injected as |
-| --- | --- | --- |
-| `database` | `database` | `DATABASE_NAME` |
-| `mq` | `vhost` | `MQ_VHOST` |
-| `storage` | `bucket` | `STORAGE_BUCKET` |
-| `search` | `index` | `SEARCH_INDEX` |
-| `cache` / `smtp` | **no such slot** | writing one errors |
+**4. Environments are whole files: `brickkit up -f deploy.prod.yaml`.**
 
-The wrong name errors and names the right one.
+No overlay, no inheritance. `brickkit.yaml` and `config/` are shared; per-environment differences in
+config go through `$var:NAME` references, overridden by the deploy file's `vars:` block. `-f` ignores
+local mode entirely.
 
-**4. `kind` and `engine` must exactly match what the component declares.**
-
-A component declares `kind: database` + `engine: postgresql` in `component.yaml`; the resource the
-project supplies must match both exactly, or it reports "resource dependencies not satisfied."
-
-**5. Passwords must be referenced through an environment variable, never written in plaintext.**
-
-```yaml
-password: ${DB_PASSWORD}
-```
-
-`.env` is already in `.gitignore`.
-
-**6. `publicKeys` is the only field that actually makes signature verification take effect.**
-
-With zero public keys configured, signature verification **is disabled entirely**, and
-`requireSignature: true` does nothing either — there's no trust anchor to check against. The CLI
-warns once about this, but by then it hasn't verified anything.
-
-Public keys have to be configured in the project, not pulled alongside the signature from the
-Market — otherwise the Market would be issuing its own certificates to itself, and if it were ever
-compromised, an attacker could swap out both the component and the public key together, and
-verification would still pass.
-
-**7. There's no overlay / inheritance / merge mechanism.**
-
-Multiple environments means **each environment gets its own complete, self-contained config file**,
-e.g. `brickkit.prod.yaml`, selected with `brickkit up --config brickkit.prod.yaml`. Don't look for
-a way to "override just the differences" — that design was explicitly rejected.
-
-**8. `limits` has no default; if neither is written, none is generated at all.**
-
-Only `requests` has a default (`100m` / `128Mi`). The platform never guesses `limits` — guessing a
-number risks OOMKilling a perfectly healthy component. The recommended pattern is the **opposite**:
-set a CPU `requests` and no ceiling (a CPU limit runs through the CFS quota, which throttles into
-p99 spikes even when the node is idle); for memory, requests = limits (earns Guaranteed QoS, so
-it's the last thing evicted when memory runs short).
-
-**9. Don't merge components just to save memory.**
-
-The only hard constraint is "the sum of every Pod's `requests` on a node ≤ that node's allocatable
-capacity" — the sum of `limits` can far exceed capacity, and overcommitting is normal usage. The
-real cost is each process's memory floor, almost entirely decided by language: Go 8–20MB,
-Python/Node 40–90MB, JVM 200–450MB. 20 idle Spring Boot instances alone eat 4–9G. At that point,
-switch runtime or use `mode: disable` to run fewer of them — merging components is solving the
-wrong problem.
-
-**10. The platform doesn't do gateways, but `labels` is the passthrough a gateway needs.**
-
-When the user wants to wire up Traefik / Caddy / Prometheus, **don't talk them out of it, and don't
-suggest the platform add a gateway** — write `labels` on the component entry, and the platform
-copies them verbatim into Docker's service `labels` / K8s's Deployment and Pod `annotations`; the
-gateway is deployed out of band and discovers them once it's attached to the
-`brickkit-<project>-net` network. The platform never interprets keys or values.
+**5. Config keys are env var names; values take five forms.**
 
 ```yaml
-  - id: erp/sales
-    version: 1.0.0
-    labels:
-      traefik.enable: "true"
-      traefik.http.routers.erp-sales.rule: "PathPrefix(`/erp/sales`)"
+DB_PORT: 5432                          # literal
+DB_HOST: $var:DB_HOST                  # from config/vars.yaml, overridden by the deploy file's vars:
+DB_PASSWORD: ${DB_PASSWORD}            # process environment, then .env (never committed)
+TLS_CERT: file://.secrets/cert.pem     # file contents, path relative to the project root
+API_TOKEN: { existingSecret: api, key: token }   # K8s only, secret keys only
 ```
 
-Three pitfalls: **values must be quoted** (`traefik.enable: true` fails validation on the spot);
-**a platform-reserved key is rejected** (`app`, `brickkit.io/*`, `com.docker.compose.*`); **writing
-one on a component pinned to `mode: debug` (in `override.yaml`) or `mode: local` warns** — either
-generates no container, so there's nothing to attach labels to.
+A required key is written by `add` as `KEY: ""` — `up` refuses while it's empty and names it.
+Optional keys are commented (`# LOG_LEVEL: info`): leave them commented to follow the component's
+default, so new defaults arrive with upgrades. `$var:NAME` has **no space** after the colon — `$var: NAME` is a YAML map, not a reference. An
+undefined `$var:` is an error; there is no fallback, and values in `config/vars.yaml` can't chain
+another `$var:`.
+Plaintext in a `secret: true` key warns: config files are committed. On Docker, `${VAR}` is left for
+compose to resolve at start; on K8s the CLI resolves it and `secret: true` values go into a Secret.
 
-Don't fall back to hand-writing a file-provider config: that file has to be full of **versioned
-service names** (`erp-sales-1-0-0`), and it silently goes stale every time the component bumps a
-version, with the platform never saying a word about it.
+**6. There are no resource bindings.** A database or cache is deployed by ops, and the component
+reads it through its own config keys (`DB_HOST`, `DB_PASSWORD`, …). The database itself is created
+by you, once; tables come from the component's migration.
+
+**7. `up` never builds images.** Local-source components (and git ones with only
+`deployment.build`) need `brickkit build [<id>]` first. Tags equal `metadata.version`, and an
+existing image of that version is skipped — changed code without a version bump needs `--force`. A shell image built with stale member versions is `IMAGE_STALE`.
+
+**8. Shells are chosen in the deploy file.** Nest member entries under the shell entry and they run
+inside it (no own container; their `*_ENDPOINT` points at the shell; their own expose / labels /
+health check don't apply). The hosted version must be the one the shell's `component.yaml` compiles
+in. A member with `mode: debug` / `local` leaves the shell and runs as a bare process. Merging can
+create a Compose `depends_on` cycle; the error names the edges and offers `skipWaitFor: [<id>]` on an
+entry, which only drops the start wait — the component must retry until its dependency is up.
+`brickkit up --ignore-shells --dry-run` checks that everything can still stand alone.
+
+**9. `limits` has no default.** Only `requests` does (`100m` / `128Mi`). Recommended: CPU `requests`
+with no ceiling; memory requests = limits. Write it inline:
+`resources: { requests: { cpu: 200m, memory: 256Mi } }`. Don't merge components just to save memory.
+
+**10. A gateway hooks in through `labels`**, quoted string values, copied verbatim to Docker labels /
+K8s annotations. A gateway on Docker joins the `brickkit-<project>-net` network. Don't hand-write a
+file-provider config full of versioned service names — it goes stale on every version bump.
+
+**11. Signature verification needs `installer.publicKeys` in `brickkit.yaml`.** With none configured,
+nothing is verified, whatever `requireSignature` says.
 
 ## How the mechanism works
 
-**The address format is identical in both environments**: `http://<versioned-service-name>:<port>`.
-Locally that's `http://people-basic-1-0-0:8080`; on K8s it's the exact same string. So component
-code needs zero changes. This is also why multiple versions naturally coexist — they're two
-non-conflicting DNS names.
+**Targets**: `target: docker | podman | k8s` in the deploy file. Podman runs the same generated
+compose file through `podman compose`. K8s settings live in the `k8s:` block (`context`, `namespace`,
+`createNamespace`, `podSecurity`, `imagePullSecrets`, `ingressClass`, `ingressAnnotations`,
+`serviceAccount`, `networkPolicy`) and warn on other targets; per-entry `hostname`, `tlsSecret`,
+`replicas` (`> 1` adds a PDB) and `serviceAccountName` are K8s only; `exposePort` and `skipWaitFor`
+are docker / podman only.
 
-**Exposing outside the cluster** is `expose: true` on a component entry. K8s also requires
-`hostname`; `exposePort` only applies under Docker; `tlsSecret` only under K8s + expose.
+**Addresses** are `http://<versioned-service-name>:<port>` on every target, so code never changes.
 
-**What `up` does, in order**: decide who starts → generate the deployment files → generate
-`local-debug.env` → check image pull permissions → run migrations → invoke the engine. To see the
-generated result without actually starting anything, use `--dry-run`.
-
-**Local debugging** means marking a component `mode: debug` **in `override.yaml`** — it can never be
-set in `brickkit.yaml` itself (rejected outright, at parse time). Run `brickkit override` to
-create/refresh that file, then add `mode: debug` (and `localPort`) under the component's entry. It
-**generates no container**, and instead runs in an IDE on your own machine, with `extra_hosts`
-mapping its versioned service name into the container network. Multiple components can be debugged
-locally at once, each with its own `localPort`. The CLI generates `local-debug.env` for the IDE to
-load. It's Docker only: `mode: debug` together with an *effective* `deploy.target: k8s` is rejected
-when `override.yaml` is checked against `brickkit.yaml` — reachable only when `brickkit.yaml` itself
-is already k8s, since `override.yaml` can only ever downgrade the target, never upgrade it.
-
-**K8s-specific settings** (`context`, `namespace`, `podSecurity`, `ingressClass`,
-`serviceAccount`, `networkPolicy`, `replicas`) all live under `deploy` or on a component entry, and
-have no effect under Docker. `replicas > 1` auto-generates a PDB.
+**What `up` does**: load the three layers → decide who starts → check images (missing → build hint,
+git images pulled) → generate files (`--dry-run` stops here) → migrations (a failure blocks the main
+service) → start the engine → supervise `mode: local` processes.
 
 ## Where to dig deeper
 
-(The `docs/...` and `AGENTS.md` paths below all live in the BrickKit repository
-<https://github.com/brickKit/brickKit>; every article under `docs/` has an `en/` and a `zh/`
-version, content-equivalent.)
-
-- Flags: `brickkit up --help`, `brickkit down --help`
-- Generation detail for both deploy paths, Ingress, migration Jobs: `docs/en/06-architecture/03-deployment-generation.md`
-- Network policy: `docs/en/03-guide/13-network-policy.md`
-- How the six resource kinds are declared, bound, and injected, and secret handling: `docs/en/06-architecture/05-resource-binding.md`
-- The full field reference for `brickkit.yaml`: `docs/en/06-architecture/08-brickkit-yaml-reference.md`
-- `override.yaml` itself (schema, downgrade-only target rule, the `brickkit override` command):
-  root `AGENTS.md` §7.1
+- Flags: `brickkit up --help`, `brickkit local --help`, `brickkit build --help`, `brickkit lint --help`
+  (`lint --strict` also checks that `${VAR}` and `file://` references resolve)
+- A component's configuration guide: `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md`
+- The full specification: <https://github.com/brickKit/brickKit> and its root `AGENTS.md`

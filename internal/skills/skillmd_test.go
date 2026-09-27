@@ -89,15 +89,15 @@ func TestSkillFrontmatter(t *testing.T) {
 func requiredFacts(lang i18n.Lang) map[string][]string {
 	langNeutral := map[string][]string{
 		".claude/skills/brickkit-component/SKILL.md": {
-			"COMPONENT_ID", "_ENDPOINT", "DATABASE_", "REDIS_", "MQ_",
-			"STORAGE_", "SEARCH_", "SMTP_",
+			"COMPONENT_ID", "_ENDPOINT", "PORT", "BRICKKIT_SERVED_MEMBERS",
+			"configSchema", "shell:", "BRICKKIT.md",
 			"startPeriodSeconds", "brickkit/v1",
 		},
 		".claude/skills/brickkit-deploy/SKILL.md": {
-			"docker", "k8s",
+			"docker", "k8s", "local on", "local refresh", "mode: debug", "-f", "skipWaitFor",
 		},
 		".claude/skills/brickkit-troubleshoot/SKILL.md": {
-			"DEPENDENCY_MISSING", "RESOURCE_UNBOUND",
+			"DEPENDENCY_MISSING", "DEPLOY_INCONSISTENT", "CONFIG_CONFLICT", "IMAGE_MISSING",
 		},
 	}
 	perLang := map[i18n.Lang]map[string][]string{

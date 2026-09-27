@@ -1,121 +1,128 @@
 ---
 name: brickkit-assemble
-description: Use when adding or removing components in a BrickKit project, changing what's on or off, starting or stopping the whole stack, or checking what's running. Covers when to use add / remove / fetch / sync / up / down / status, how dependency resolution and start order are computed, and the "follows the layer above it" rule for what starts. Applies when the user mentions brickkit.yaml's components / mode fields, or asks "how do I add / turn off a component" or "why isn't it starting".
+description: Use when adding, removing or upgrading components in a BrickKit project, keeping two versions side by side, changing what's on or off, starting or stopping the stack, or checking what's running. Covers add / remove / upgrade / fetch / deps / sync / up / down / status, brickkit.yaml as a lock file, the default version and requiredBy, how add/remove/upgrade keep deploy.yaml, deploy.local.yaml and config/ in step, and the "follows the layer above" rule for what starts. Applies when the user mentions brickkit.yaml's components, requiredBy, mode, upgrade, or asks "how do I add / upgrade / turn off a component" or "why isn't it starting".
 ---
 
 # Assembling a BrickKit project
 
 ## When to use this skill
 
-- Adding a component to the project, or removing one
+- Adding a component to the project, removing one, or moving it to a newer version
+- A dependency needs a different version of something already in the project
 - Keeping some components from starting this run
 - What `brickkit up` starts doesn't match what you expected
-- Checking what's currently running
+- Checking what's running, or what depends on what
 - Tidying up the component source piling up under `components/`
 
 ## Where you'll guess wrong
 
-**1. Versions must be exact — there are no version ranges.**
+**1. Versions must be exact, and `brickkit.yaml` is a lock file.**
 
-`1.2.0` is fine. `^1.2`, `~1.2`, `1.2.x`, `latest` are all rejected — this isn't unfinished, it was
-argued through and rejected. `brickkit add` without a version takes the latest installable version
-from the install source, then **pins the exact version to disk**.
+`1.2.0` is fine; `^1.2`, `1.2.x`, `latest` are rejected by design. `brickkit add <id>` without a
+version takes the latest one from the install source and **pins it**. Resolution only ever uses
+versions declared in `brickkit.yaml`: a required dependency whose version isn't there is an error
+that tells you to `brickkit add` it — nothing is fetched behind your back. An undeclared *optional*
+dependency is simply absent.
 
-**2. `brickkit add` never writes a `mode` field.**
+**2. Don't hand-edit the three layers — let the commands do it.**
 
-A component that gets added has no `mode` in the config. That's not an oversight — not writing
-it means "follow the layer above it," which is the default and recommended state. Don't add
-`mode: enabled` just to "be explicit" — it means something entirely different (see the next point).
+`brickkit add`, `remove` and `upgrade` write `brickkit.yaml`, the entries in `deploy.yaml` (and
+`deploy.local.yaml` if it exists) and the skeleton in `config/` together, and restore everything if
+the result wouldn't load. Adding a line to `brickkit.yaml` by hand leaves the deploy file without its
+entry, and every command then refuses with `DEPLOY_INCONSISTENT`. Dependencies are never written in
+`brickkit.yaml` at all — they come from each `component.yaml`; `brickkit deps` prints the tree.
 
-**3. `mode` has five values, and three of them are pinned.**
+**3. The default version is the line without `requiredBy`.**
 
-| Written as | Meaning |
+A component can have several lines in `brickkit.yaml`. Exactly one has no `requiredBy` — that is the
+**default version**, and a bare id means it everywhere: the bare deploy entry (`- id: erp/backend`),
+the unversioned config file (`config/erp-backend.yaml`), the local repo, a bare shell member. A line
+with `requiredBy: [crm/web]` is a compatibility version kept only because `crm/web` needs it; its
+deploy entry is `- id: erp/backend@1.0.0` and its config file is `config/erp-backend@1.0.0.yaml`.
+
+**4. `add` of another version is an error — use `upgrade`.**
+
+When a *dependency* needs another version, `add` writes the `requiredBy` line itself. But
+`brickkit add erp/backend@2.0.0` when `erp/backend` is already present is refused: moving the
+default is `brickkit upgrade erp/backend@2.0.0`. `upgrade` with no argument moves every component
+that has a newer version, never downward; the old version stays (with `requiredBy`) only if
+something still depends on it, otherwise it is removed and its config archived. Try it first with
+`brickkit upgrade --dry-run` — it runs on a temporary copy and writes nothing. It is all or nothing.
+
+**5. `upgrade` migrates config key by key — and can leave a deliberate duplicate key.**
+
+Keys you wrote are copied if the new schema still has them; keys you never wrote follow the new
+defaults (that's why `add` writes optional keys as commented lines — leave them commented). If you
+changed a key whose default also changed, that's a conflict: in a terminal you choose; with `--yes`
+or no TTY a duplicate-key block with a comment is written into the config file, and `up` refuses
+until you delete one line. That failure is intentional — don't "fix" it with a YAML formatter, which
+silently drops one of the keys.
+
+**6. `mode` lives in the deploy file, and `add` never writes it.**
+
+Not writing `mode` means the component follows the layer above it: a top-level component (nothing depends on it)
+runs; a lower one runs while anything running needs it. Don't add `mode: enabled` "to be explicit" —
+it means something else:
+
+| In the deploy entry | Meaning |
 | --- | --- |
-| **not written** | Follows the layer above it. Top-level (nothing depends on it) runs by default; a lower one follows whatever's above it |
-| `mode: enabled` | **Always runs**, ignoring what's above it. If its required dependency is turned off, it **errors** — two conflicting intents |
-| `mode: disable` | **Never runs**. Whatever depends on it stops too; anything pinned (`mode: enabled`, `mode: debug`, or `mode: local`) on top of it errors |
-| `mode: debug` | **Always runs, as a process you start yourself** in your IDE (Docker only) — pinned exactly like `mode: enabled`, but no container is generated. **Can only be written in `override.yaml`, never `brickkit.yaml`** (see point 3a below) |
-| `mode: local` | **Always runs, as a process BrickKit starts and supervises itself** (Docker only) — pinned exactly like `mode: enabled`, but no container is generated. Written directly in `brickkit.yaml`, like any other field |
+| **not written** | Follows the layer above |
+| `mode: enabled` | Always runs; if a required dependency is turned off, that's an **error** (two intents conflict) |
+| `mode: disable` | Never runs; what depends on it stops too, and anything pinned on top of it errors |
+| `mode: local` | Always runs as a bare process BrickKit starts from the local repo (docker / podman; default version only) |
+| `mode: debug` | Always runs as a process you start in your IDE (docker / podman) — **only allowed in `deploy.local.yaml`** |
 
-To narrow what runs this time, writing `mode: disable` on the top-level thing is enough —
-everything below it stops too. **Don't turn things off one by one.**
+To narrow what runs, put `mode: disable` on the top-level thing. For personal changes (debugging one
+component, turning half the stack off on your laptop), use `brickkit local on` and edit
+`deploy.local.yaml`, not the team's `deploy.yaml` — see the `brickkit-deploy` skill.
 
-**3a. `mode: debug` lives in `override.yaml`, not `brickkit.yaml`.**
+**7. Required and optional dependencies count the same for start/stop.**
 
-`brickkit.yaml` rejects `mode: debug` outright, at parse time, unconditionally. It can only be set
-in `override.yaml` — an optional, gitignored, per-developer file that locally overrides a
-component's `mode`/`localPort` and `deploy.target` (downgrade-only: k8s → docker/podman, never the
-reverse). The reason: "I'm debugging this on my own machine right now" is a personal fact that has
-no business showing up in a file a teammate reviews. Run `brickkit override` to create/refresh that
-file from the current `brickkit.yaml`, then add `mode: debug` (and `localPort`) under the
-component's entry by hand. `mode: local` has no such restriction — it stays in `brickkit.yaml`
-because it isn't personal.
+`optional: true` only means a missing one warns instead of blocking, and its `*_ENDPOINT` isn't
+injected while it isn't running. A component shared by several above it runs while any of them runs.
 
-**4. Required and optional dependencies are treated the same for start/stop.**
+**8. `remove` archives config and may delete source.**
 
-If something above it only weakly depends on it, it still follows along and runs. `optional: true`
-only controls two things: a missing one only warns (doesn't block) at resolution time, and its
-`*_ENDPOINT` variable isn't injected while it isn't running. It has nothing to do with whether it
-starts.
+Its config file moves to `config/.archive/` (re-adding later migrates it back). Its deploy entries go,
+versions kept only for it go too, and a removed shell's members move back to the top level. If you
+remove the default and one version remains, that one becomes the default. The source directory is
+deleted only when the last version goes and nothing in it would be lost (`--force` overrides).
 
-**5. A component shared by several things above it is never taken down by accident.**
+**9. `fetch` writes no config and deploys nothing.**
 
-As long as at least one thing above it is still running, it runs. So turning off one of them never
-drags a shared lower-level component down with it.
+It only downloads a component's artifacts into `.brickkit/artifacts/<versioned-service-name>/` — for
+calling another project's service (generate a client from its contract). It isn't a lightweight `add`.
 
-**6. `sync` only moves directories, it never touches containers.**
+**10. `sync` only moves directories.**
 
-It moves the source of components that aren't starting this run into `components/.archived/`, using
-exactly the same decision `up` uses. No running container is affected, and it never changes who
-`up` would start. The whole directory moves, `.git` included.
-
-**7. `remove` deletes the source directory too, including an archived copy.**
-
-It doesn't just drop the entry from the config. You must specify a version when multiple versions
-coexist.
-
-**8. `fetch` writes no config and deploys nothing.**
-
-It only downloads the artifacts to `.brickkit/artifacts/<versioned-service-name>/`. Use it to call
-another project's service across project boundaries — it isn't "a lightweight `add`."
+It moves the source of components that won't start this run into `components/.archived/` (and back),
+using exactly `up`'s decision. Containers aren't touched. `brickkit restore` puts `deploy.yaml`'s
+`mode` values back to the last commit, for projects that commit `components/`.
 
 ## How the mechanism works
 
-**Start/stop is computed as "who doesn't run."** Starting from `mode: disable` and propagating
-upward gives a least fixed point; everything else runs. So two components that weakly depend on
-each other in a cycle need no special-casing — nothing sits above the cycle, so both are top-level
-and both run.
+**Start/stop is computed as "who doesn't run"** — a least fixed point propagated from
+`mode: disable`, so weak-dependency cycles need no special case. **`up`'s order is a topological
+sort**. Every line of `up` output carries its reason (`starting (top-level)`,
+`starting (mode: enabled)`, `starting (X needs it)`); read it first when something is off.
+`brickkit up --dry-run` generates the files without starting anything; `brickkit graph` prints the
+graph as Mermaid (greyed nodes won't start; shell members are drawn inside their shell).
 
-**`up`'s order is a topological sort** (dependencies start first). To see who would start this run,
-and in what order, `brickkit up --dry-run` only generates the deployment files for review — it
-starts nothing. To see the dependency graph directly (who depends on whom, which edges are
-optional, which nodes are greyed out because they won't start this run), use `brickkit graph` — it
-prints Mermaid text, and saving it as a `.mmd` file lets GitHub render it directly.
+**Coexisting versions is a project-level capability**: `erp-backend-1-0-0` and `erp-backend-2-0-0`
+are two different service names. Inside one `component.yaml`, a component id can appear only once.
 
-**Every line of CLI output carries its reason**: `starting (top-level)` / `starting (mode: enabled)` / `starting (mode: debug)` /
-`starting (X needs it)`. When a component doesn't come up, read that reason first — it
-states exactly where the decision came from.
+**Adding a shell** brings in the member versions it compiles in and nests them under the shell's
+deploy entry; **upgrading a shell** switches to the members the new shell compiles in.
 
-**Coexisting versions is a project-level capability.** `brickkit.yaml` can list `people/basic@1.0.0`
-and `@2.0.0` side by side, for different callers to each use their own — they're two
-non-conflicting service names. But **within a single `component.yaml`'s `dependencies`, one
-component ID can only appear once** (see the `brickkit-component` skill for why).
+**Environments**: one complete deploy file per environment, `brickkit up -f deploy.prod.yaml`.
+`brickkit.yaml` and `config/` are shared; no overlay, no merge. `-f` ignores local mode.
 
-**No overlay / inheritance / merge.** Multiple environments means each environment gets its own
-complete, self-contained config file, selected with `--config`, e.g.
-`brickkit up --config brickkit.prod.yaml`.
+`status` and `down` read the same deploy file as `up`. `down` never deletes volumes.
 
 ## Where to dig deeper
 
-(The `docs/...` and `AGENTS.md` paths below all live in the BrickKit repository
-<https://github.com/brickKit/brickKit>; every article under `docs/` has an `en/` and a `zh/`
-version, content-equivalent.)
-
-- Flags: `brickkit <command> --help`. This skill deliberately doesn't duplicate the flag reference
-- Every command's full behavior: `docs/en/06-architecture/09-cli-reference.md`
-- The complete rules for `mode` and start/stop: `docs/en/06-architecture/08-brickkit-yaml-reference.md`
-  (the `mode` field), root `AGENTS.md` §5.4
-- `override.yaml` itself (schema, the `brickkit override` command, drift detection): root
-  `AGENTS.md` §7.1; local debugging with `mode: debug` specifically: the `brickkit-deploy` skill
-- Install, assemble, upgrade, and dependency-resolution detail: `docs/en/06-architecture/02-dependency-resolution.md`,
-  `docs/en/03-guide/07-assemble-and-break.md`, `docs/en/03-guide/06-upgrades-and-versions.md`
+- Flags and exact behavior: `brickkit <command> --help` (`add`, `remove`, `upgrade`, `deps`, `sync`,
+  `up`, `local`). This skill deliberately doesn't duplicate the flag reference
+- A component's own guide: `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md`; the project
+  map: `BRICKKIT.md` at the project root
+- The platform's full specification: <https://github.com/brickKit/brickKit> and its root `AGENTS.md`

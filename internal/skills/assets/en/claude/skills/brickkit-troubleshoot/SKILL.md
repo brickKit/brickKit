@@ -1,6 +1,6 @@
 ---
 name: brickkit-troubleshoot
-description: Use when a BrickKit command reports an error, a component won't start, address injection isn't taking effect, dependency resolution fails, or you need to look up a problem by its error code. Covers the mapping from error code to the fix, the order to check things in for common failures, and which "bugs" are actually deliberate design. Applies when the user pastes error output from a BrickKit command, or asks "why won't it start / connect / why can't it find it."
+description: Use when a BrickKit command reports an error, a component won't start, address injection isn't taking effect, dependency resolution fails, or you need to look up a problem by its error_code. Covers symptom → cause → fix for deploy files out of step with brickkit.yaml, a stale deploy.local.yaml, empty required config, upgrade config conflicts, undefined $var references, missing or stale images, local repo version mismatches, shell member mismatches, compose start cycles, release refusals, and which "bugs" are deliberate design. Applies when the user pastes brickkit output, or asks "why won't it start / connect / release".
 ---
 
 # Troubleshooting
@@ -9,130 +9,96 @@ description: Use when a BrickKit command reports an error, a component won't sta
 
 - The user pastes a `brickkit` error
 - A component won't start, or started but can't reach a dependency
-- An environment variable wasn't injected
-- What's running after `up` doesn't match expectations
+- An environment variable wasn't injected, or a config value has no effect
+- `brickkit release` refuses
 - A Pod is stuck CrashLoopBackOff, but the container's own logs look fine
 
 ## Check this first: some "failures" are deliberate design
 
-Before digging in, confirm it isn't one of these **by-design** behaviors. Treating them as bugs and
-"fixing" them only makes things worse.
+**1. A missing optional dependency's variable doesn't exist at all** — not an empty string.
+`os.environ["X"]` crashing is intended; the fix is `os.environ.get()` in the component, never an
+injected empty value.
 
-**1. A missing optional dependency's environment variable doesn't exist at all — it's not an empty string.**
+**2. CrashLoopBackOff with healthy-looking logs** is almost always the startup grace period: 60
+seconds by default. Raise `healthCheck.startPeriodSeconds` in `component.yaml` above the real cold
+start. And a health check that pings a database is itself the bug — `/healthz` checks only the process.
 
-`os.environ["X"]` throws a `KeyError` and crashes the component — this is deliberate, so "the
-dependency isn't there" surfaces at startup instead of becoming a runtime mystery pointed at an
-empty address. The fix is in the component's own code: switch to `os.environ.get()` and write
-degradation logic — **not** having the platform inject an empty value.
+**3. No registry, config center, gateway or long-running service** exists. Not finding one isn't a
+missing install; don't suggest adding it.
 
-**2. A Pod is permanently CrashLoopBackOff while the container's own logs look completely normal.**
+**4. A component "mysteriously" started.** Start/stop follows the layer above: it runs while anything
+running needs it, required or optional. Each `up` line states the reason (`starting (X needs it)`).
 
-This is almost always a startup-budget problem. The platform fixes `interval`/`timeout`/`failureThreshold`
-at 10s/3s/3, whose product is only 30 seconds, so it gives every component a **60-second** startup
-grace period by default. A component whose cold start exceeds it (a heavy Spring Boot app, Django
-preloading a lot, .NET's first JIT pass) gets killed and restarted, and runs through the same 60
-seconds again.
+**5. `deploy.yaml` rejects `mode: debug`.** By design: it belongs in `deploy.local.yaml`
+(`brickkit local on`, then edit that file).
 
-The fix: in `component.yaml`'s `healthCheck`, set `startPeriodSeconds` larger than the real cold
-start (default 60; setting it generously costs nothing — the grace period only delays "declaring it
-dead," never "declaring it alive").
+**6. You edited `deploy.yaml` and nothing changed.** Local mode is probably on — every command then
+reads `deploy.local.yaml` instead. `brickkit local status` shows it. `-f` ignores both the switch
+and the local file.
 
-**3. There's no registry, no long-running service, no config center, no gateway.**
+**7. `up` refuses because a config file has a duplicate key.** Intended after `upgrade --yes`: keep
+one line, delete the other and the comment. Don't run a YAML formatter over it — it silently drops
+one key and hides the conflict.
 
-Not finding them isn't a missing install. Service discovery uses native Docker/K8s DNS, health
-checking uses Probes / healthchecks + restart policies. Don't suggest adding them — that's a design
-that was argued through and rejected.
+**8. A `$var:` reference is "not a string" or is ignored.** It must be written without a space:
+`DB_HOST: $var:DB_HOST`. With a space (`$var: DB_HOST`) YAML reads it as a map. Values in
+`config/vars.yaml` can't themselves be `$var:` references.
 
-**4. A component "mysteriously" started anyway.**
+## Symptom → cause → fix
 
-Start/stop "follows the layer above it": as long as one thing above it is still running, it runs,
-required and optional dependencies treated the same. Read the reason on each line of CLI output —
-`starting (top-level)` / `starting (mode: enabled)` / `starting (X needs it)` — it states exactly
-where the decision came from.
+| You see | Cause | Fix |
+| --- | --- | --- |
+| `DEPLOY_INCONSISTENT`: the deploy file doesn't match the components in `brickkit.yaml` | A component line was added/removed by hand, or a `requiredBy` version has no `id@version` entry | Add/remove the listed entries — or redo the change with `brickkit add` / `remove`, which keep all three layers in step |
+| `DEPLOY_INCONSISTENT`: `deploy.local.yaml` is out of date | Local mode is on and the team changed `brickkit.yaml` | `brickkit local refresh` (re-apply the listed old changes by hand), or edit the file, or `brickkit local off` |
+| "a required component config item has no value" (`CONFIG_INVALID`) | `add` wrote `KEY: ""` for a required key without default | Fill it in `config/<scope>-<name>.yaml` — often as `${VAR}` or `$var:NAME` |
+| "unresolved configuration conflicts" (`CONFIG_CONFLICT`) | `upgrade` with `--yes` / no TTY met a key you changed whose default also changed | Keep one of the two lines in the config file, delete the other and the comment |
+| "references shared variables that are defined nowhere" (`CONFIG_INVALID`) | A `$var:NAME` has no value in `config/vars.yaml` nor in the deploy file's `vars:` | Define it; there is no implicit fallback |
+| A config key "won't take effect" warning | The key isn't in the component's `configSchema` (typo, or dropped by an upgrade) | Use the suggested key; keys are the exact env var names |
+| `DEPENDENCY_MISSING` naming a version not declared | `brickkit.yaml` is a lock file; that version isn't in it | `brickkit add` the component at that version |
+| `add` refuses: the project already has this component | A direct `add` of another version | `brickkit upgrade <id>@<version>` |
+| `IMAGE_MISSING` | The image needs a local build; `up` never builds | `brickkit build <id>` |
+| Code changes don't show up after `brickkit build` | An image of that version already exists and is skipped | `brickkit build <id> --force` (or bump the version) |
+| `IMAGE_STALE` | A locally built shell image contains other member versions than its `component.yaml` | `brickkit build <shell> --force` |
+| `IMAGE_UNVERIFIED` (warning) | A shell image without the member-version label (not built by `brickkit build`) | Fine if you trust it; rebuild with `brickkit build` to make it checkable |
+| "Code that runs from a local repository does not match this run" (`CONFIG_INVALID`) | A `mode: local` / `debug` component (or bare-process shell member) has a repo `metadata.version` ≠ the default version, or a `requiredBy` version was given `mode: local` / `debug` (only the default runs from the repo) | `brickkit upgrade <id>@<repo version>`, or check out the tag matching the default version |
+| Shell member versions differ from the ones the shell compiles in (`CONFIG_INVALID`) | The deploy file nests a member version the shell's `component.yaml` doesn't declare | Upgrade the shell to one that compiles that version; or move the member entry out of the shell; or keep both — add a `brickkit.yaml` line for the compiled version with `requiredBy: [<shell>]`, nest `id@thatversion` under the shell, leave the other top-level |
+| `DEPENDENCY_CYCLE`: the shell waits for a component that waits for the shell | Hosting members merged their dependencies into one container, forming a Compose `depends_on` loop | Move the outside component into the shell too; or move a member out; or `skipWaitFor: [<id>]` on the entry (only drops the start wait — the component must retry) |
+| `DEPENDENCY_CYCLE` in plain resolution | A cycle made only of required dependencies | Make at least one edge optional |
+| `COMPONENT_DISABLED` | A pinned component (`enabled` / `local` / `debug`) needs a required dependency that is `disable` | Remove one of the two conflicting intents |
+| `mode` rejected on `target: k8s` | `local` / `debug` need a process on your machine | Use docker / podman, e.g. `target:` in `deploy.local.yaml` |
+| `RELEASE_BLOCKED` | Uncommitted changes, no upstream, unpushed commits, or the tag already exists / is on another commit | Commit, push, bump `metadata.version`, then `brickkit release` again |
+| `RELEASE_PUSH_FAILED` | The push was rejected or unreachable; the local tag was removed | Fix access/network and rerun unchanged |
+| `MIGRATION_FAILED` | The migration command failed (or a typo'd argument the entrypoint didn't reject) | Read the migration container's log, fix, rerun |
+| `PORT_CONFLICT` | Duplicate `localPort` / `exposePort`, or the host port is taken | Change the port — in `deploy.local.yaml` if it's only your machine |
+| `ENGINE_MISSING` | docker / podman / kubectl not on `PATH` or not running | Install/start it |
+| `PROJECT_MISSING` | Not in a project, or `deploy.yaml` missing | `brickkit init` completes a project without touching existing files |
+| `LINT_FAILED` | `brickkit lint` found problems, each printed with file and field | Fix and rerun; warnings fail only with `--strict` |
+| `AUTH_REQUIRED` / `TOKEN_EXPIRED` / `IMAGE_UNAUTHORIZED` | Market login / registry access | `brickkit login` / `docker login <registry>` |
 
-**5. A `configSchema` item silently has no effect.**
-
-It collided with a platform-reserved variable. The CLI warns and skips that config item, and the
-platform-injected value wins. Check whether the item's name, uppercased, hits `DATABASE_*` /
-`REDIS_*` / `MQ_*` / `STORAGE_*` / `SEARCH_*` / `SMTP_*` / `*_ENDPOINT` / `COMPONENT_ID` /
-`COMPONENT_VERSION`. `databaseTimeout` → `DATABASE_TIMEOUT`, for instance, collides.
-
-**6. `brickkit.yaml` refuses `mode: debug` — this isn't a bug to route around.**
-
-It's rejected outright, at parse time, unconditionally. `mode: debug` can **only** be written in
-`override.yaml` (optional, gitignored, per-developer — run `brickkit override` to create/refresh
-it). `mode: local` has no such restriction and stays in `brickkit.yaml` as always. Don't suggest
-editing `brickkit.yaml` to add `mode: debug`, and don't treat the rejection as something to work
-around — direct the user to `override.yaml` instead.
-
-**7. `override.yaml` silently does nothing — check `--config` first.**
-
-`override.yaml` only ever applies to a run against the **default** `brickkit.yaml`. A run with
-`--config brickkit.prod.yaml` ignores any `override.yaml` present and prints a note saying so —
-that's by design (a personal local override must never leak into a named-environment run), not a
-bug.
-
-## Error code → what to do
-
-The CLI's errors carry an error code. Look it up by code, it's faster than by wording.
-
-| Error code | Meaning and first step |
-| --- | --- |
-| `DEPENDENCY_MISSING` | A required dependency wasn't found in any install source. Check the install source config, whether the component exists, and whether the version is stable |
-| `RESOURCE_UNBOUND` | A component's required resource isn't declared or bound in `brickkit.yaml`'s `resources`. `kind` + `engine` must match the component's declaration **exactly**. To skip it for now, set `mode: disable` — a component that isn't starting doesn't go through this check |
-| `COMPONENT_DISABLED` | A pinned component (`mode: enabled` or `mode: debug`) hit a required dependency that's turned off — two conflicting intents. Either remove that `mode: disable`, or don't pin the dependent |
-| `VERSION_AMBIGUOUS` | Multiple versions coexist and none was specified. Add the exact version |
-| `DEPENDENCY_CYCLE` | A cycle made entirely of required dependencies. A cycle is only valid when at least one edge in it is optional |
-| `MANIFEST_INVALID` | Something's wrong with `component.yaml`. Note it has **no extension-field mechanism** — an unrecognized key is rejected on the spot |
-| `COMPONENT_NOT_FOUND` | The component isn't in any install source |
-| `CONFIG_CONFLICT` | A config item collided with a reserved variable (see point 5 above). This is a warning, not a blocker |
-| `IMAGE_UNAUTHORIZED` | The image pull wasn't authorized. `docker login <registry>` first, then rerun |
-| `MIGRATION_FAILED` | The migration script failed. Check the migration log, fix it, rerun |
-| `PORT_CONFLICT` | A port collided — usually a duplicate `localPort` or `exposePort` |
-| `SIGNATURE_INVALID` | Signature verification failed. Note: with zero `publicKeys` configured, verification is disabled entirely — that case doesn't produce this code, just a warning that nothing was verified |
-| `AUTH_REQUIRED` / `TOKEN_EXPIRED` | Run `brickkit login` again |
-| `ENGINE_MISSING` | Docker / kubectl isn't on `PATH`, or isn't running |
-| `PROJECT_MISSING` | The current directory isn't a BrickKit project, or `--config` points at the wrong file |
-| `PROJECT_EXISTS` | Already initialized — no need to run `init` again |
-| `LINT_FAILED` | `brickkit lint` found problems. Each one is already printed to stdout (naming its file and field) — fix them, then rerun. Warnings alone don't fail by default, unless `--strict` is given |
-| `CLONE_FAILED` | Two common causes: the component is closed-source (no Git repository, but **installs and works fine regardless**), or the target directory already exists |
+Every command-ending error prints a JSON line on stderr with a stable `error_code` right after the
+`❌` block; only `NETWORK_UNREACHABLE` is worth retrying unchanged.
 
 ## Where to check, and in what order
 
-**A component won't start** — check these in order, from most to least common:
+**A component won't start:**
 
-1. `brickkit status` — was it even judged as "starting"? Components that aren't starting are
-   listed too
-2. The **reason** on that line of CLI output (top-level / mode / X needs it)
-3. The component's own log — did the process itself come up
-4. Whether startup exceeded the default 60-second grace period (see point 2 above)
-5. Environment variables — is the dependency actually running? A missing optional dependency
-   **injects nothing** for that `*_ENDPOINT`
-6. Resource bindings — do `kind` and `engine` match
+1. `brickkit status` — was it judged as starting at all? (It reads the same deploy file as `up`.)
+2. The reason on its `up` output line (top-level / mode / X needs it)
+3. `brickkit lint` — offline check of all three layers together
+4. The component's own log: `docker compose -p brickkit-<project> logs <service>` — without `-p`,
+   compose looks at a different project and shows nothing
+5. Startup longer than 60 seconds (point 2 above)
+6. Its environment: is each dependency running? A missing optional one injects no `*_ENDPOINT`
 
-**Can't reach a dependency**: the address format is identical locally and on K8s, always
-`http://<versioned-service-name>:<port>`, where the service name is the component ID with `/` and
-`.` turned into `-`, plus the exact version (`people/basic` + `1.0.0` →
-`people-basic-1-0-0`). The variable name is based on the component ID and carries no version
-(`PEOPLE_BASIC_ENDPOINT`); only the value carries the version. Check against these two rules if
-something doesn't line up.
-
-**To see the generated result without starting anything**: `brickkit up --dry-run`.
-
-**To see how the dependencies connect** (who depends on whom, which edges are optional, which
-won't start this run, how `servedBy` groups things): `brickkit graph`. It prints Mermaid text, and
-saving it as a `.mmd` file lets GitHub render it directly.
+**Can't reach a dependency**: the address is `http://<versioned-service-name>:<port>` everywhere;
+the service name is the id with `/` and `.` → `-` plus the exact version (`erp/api` + `1.0.0` →
+`erp-api-1-0-0`), the variable name carries no version (`ERP_API_ENDPOINT`). A member hosted in a
+shell is reached at the shell's address. **To see the generated files** without starting anything:
+`brickkit up --dry-run`. **To see the graph**: `brickkit graph` or `brickkit deps`.
 
 ## Where to dig deeper
 
-(The `docs/...` and `AGENTS.md` paths below all live in the BrickKit repository
-<https://github.com/brickKit/brickKit>; every article under `docs/` has an `en/` and a `zh/`
-version, content-equivalent.)
-
 - Flags: `brickkit <command> --help`
-- The full treatment of common errors (symptom → cause → fix, with real output samples): `docs/en/08-troubleshooting.md`
-- The authoritative definition of error codes (constant names, wording): `internal/clierr/clierr.go`
-- The full argument for "why is it designed this way" (for when the user asks "why doesn't it..."):
-  root `AGENTS.md` §9 (the twenty-three "whys")
-- `override.yaml` itself (schema, downgrade-only target rule, the multi-environment `--config`
-  guard, the `brickkit override` command): root `AGENTS.md` §7.1
+- A component's own notes (configuration, known pitfalls): `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md`
+- The full specification and the reasoning behind each design choice:
+  <https://github.com/brickKit/brickKit> and its root `AGENTS.md`

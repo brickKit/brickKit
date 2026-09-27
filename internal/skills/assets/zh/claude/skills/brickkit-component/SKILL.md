@@ -1,150 +1,152 @@
 ---
 name: brickkit-component
-description: 新写一个 BrickKit 组件、修改 component.yaml、加数据库迁移、或让组件对外提供 gRPC / HTTP 接口时使用。含任何组件都必须满足的硬性契约、平台保留变量的禁区、健康检查禁令与启动宽限期、以及依赖声明的规则。当用户说「写一个组件」「组件起不来该怎么声明」或在编辑 component.yaml 时，这个技能适用。
+description: 新写一个 BrickKit 组件或外壳、修改 component.yaml、写组件的 BRICKKIT.md、加数据库迁移、声明依赖与配置项（configSchema）、配置镜像或 build、发布新版本（brickkit release）时使用。含任何组件都必须满足的硬性契约、平台保留名、健康检查禁令与启动宽限期、外壳 shell.members 的规则。当用户说「写一个组件」「写一个外壳」「发个新版本」或在编辑 component.yaml 时，这个技能适用。
 ---
 
 # 写一个 BrickKit 组件
 
 ## 什么时候用这个技能
 
-- 从零写一个新组件
-- 改 `component.yaml`
-- 给组件加数据库迁移
-- 让组件多开一个端口（比如 gRPC）
+- 从零写一个新组件，或一个把别的组件编进来的外壳
+- 改 `component.yaml` 或组件的 `BRICKKIT.md`
+- 给组件加配置项、依赖、数据库迁移、额外端口
+- 要发布组件的新版本
 - 组件起不来，怀疑是声明写错了
 
 ## 从零写：先跑 brickkit new
 
-`brickkit new <scope>/<name>` 生成一份已经能通过校验的 `component.yaml`
-骨架，写到 `components/<scope>/<name>/`（本地安装源本来就扫描这个布局）。
-带 `--contract openapi` 或 `--contract proto` 还会顺带生成一份契约占位
-文件并登记进 `artifacts`。骨架里全是 TODO——不生成 Dockerfile，不生成
-任何源码，平台不替你选语言。改完 TODO，先跑下一节的 `brickkit lint`，再对着后面
-这些"你会猜错的地方"逐条核。
+`brickkit new <scope>/<name>` 生成一份能通过校验的 `component.yaml` 和一份带标准章节
+（组件定位、依赖说明、配置指南、契约索引、外壳声明）的 `BRICKKIT.md`，写到
+`components/<scope>/<name>/`（本地安装源本来就扫描这个布局）。`--shell` 生成外壳骨架，写到
+`shell/<scope>/<name>/`，里面有一个要换掉的占位成员。`--contract openapi|proto` 顺带生成契约
+占位并登记进 `artifacts`。不生成 Dockerfile、不生成源码——平台不替你选语言；也不会自动
+`add`，那是一次单独、可审阅的动作。
 
 ## 写完、改完：先跑 brickkit lint
 
-只要动过 `component.yaml`——不管是刚改完骨架里的 TODO，还是之后手改了一处——先跑
-`brickkit lint`，再谈别的。它离线、只读、不需要 Docker，秒回，一次把结构上的问题全报出来：
-必填字段缺失、类型不对、不认识的键（拼写笔误）、版本号格式、端口范围，外加两类警告——
-`configSchema` 属性里拼错的键（比如 `defualt`，会静默不生效）、配置项名字撞上保留变量
-（下面第 2 条）。在独立的组件仓库里（只有 `component.yaml`、没有 `brickkit.yaml`）直接就能跑；
-在 BrickKit 项目里，它会顺带查本地安装源下的每一份 `component.yaml`。
-
-它**不查**依赖能不能解析、`servedBy` 指向的组件在不在——那要联网，留给用到这个组件的 BrickKit 项目里的
-`brickkit up --dry-run`（独立的组件仓库里没有 `brickkit.yaml`，跑不了 `up`）；
-也不检查 `configSchema` 里 `enum` / `minimum` 对应的值，平台不校验配置值。
+只要动过 `component.yaml`，先跑 `brickkit lint`。离线、只读、不要 Docker，一次报出必填字段、
+类型、不认识的键（拼写笔误）、版本格式、端口范围，外加两类警告：`configSchema` 属性里拼错的键
+（比如 `defualt`，会静默不生效）、配置项撞上保留名。它**不查**依赖能不能解析、外壳成员对不对得上
+——那要解析依赖图，留给项目里的 `brickkit up --dry-run`。
 
 ## 你会猜错的地方
 
 **1. `component.yaml` 没有扩展字段机制。**
 
-`apiVersion` 是 `brickkit/v1`。不认识的键会被**当场拒绝**，不是静默忽略。
-所以别往里加自定义字段——曾经有过 `observability` 和 `compatibility.minCliVersion`
-两个「预留」字段，已经删掉了：它们从未被任何一处读取，而后者更糟，它长得像一道安全闸，
-但写了 `minCliVersion: 2.0.0` 的组件在旧 CLI 上照装不误。
+`apiVersion: brickkit/v1`，不认识的键**当场拒绝**，不是静默忽略。要给底层引擎带元数据
+（监控抓取）用 `deployment.labels`；要随组件带文件（契约、SDK）用 `artifacts`——`add` / `fetch`
+会下载到 `.brickkit/artifacts/<版本化服务名>/<type>/`，CLI 只下载不解析。
 
-两个例外，用对了就不必自造字段：**要给底层引擎带一段元数据**（网关路由、监控抓取）
-用 `deployment.labels`（第 8 条）；**要给自己的工具链带一份文件**（额外的元数据、
-契约、SDK）用 `artifacts` —— 它随 Manifest 一起登记、闭源组件由市场存储、
-`add` / `fetch` 都会下载到 `.brickkit/artifacts/<版本化服务名>/<type>/`，
-而 CLI **只下载不解析**，正好是这类东西要的语义（002 §2.2.1、007 §11.4）。
+**2. `configSchema` 的键就是环境变量名。**
 
-**2. 保留变量不许碰。** 这是最容易踩的一条。
+写 `DB_HOST`，组件拿到的就是 `DB_HOST`——没有驼峰转大写下划线那一步，使用者在
+`config/<scope>-<name>.yaml` 里写的也是同一个键。所以键必须是合法的环境变量名（字母、数字、
+下划线，不以数字开头），按你代码里真正读的名字写。
 
-`configSchema` 里的配置项名转成大写下划线后，不得与这些冲突：
+数据库、缓存、消息队列在平台眼里**没有特殊地位**：它们就是你声明的普通配置项
+（`DB_HOST`、`DB_PASSWORD`……）。想让连接串之类的值被多个组件共用，是使用者的事
+（`config/vars.yaml` 的公共变量），你只管声明自己要什么。
 
-| 模式 | 匹配方式 |
+`required: [...]` 里没有 `default` 的键，使用者不填 `up` 就拒绝——只给平台真的猜不出来的值
+（别的项目的地址、账号密码）用这个。密码、Token 写 `secret: true`，K8s 下它的值走生成的
+Secret；平台从不按名字猜哪个是密钥。`enum` / `minimum` / `maximum` / `pattern` / `items`
+只是说明书，**从不校验值**。
+
+**3. 保留名不许碰。**
+
+| 名字 | 匹配方式 |
 | --- | --- |
-| `COMPONENT_ID`、`COMPONENT_VERSION` | 精确 |
+| `COMPONENT_ID`、`COMPONENT_VERSION`、`BRICKKIT_SERVED_MEMBERS`、`BRICKKIT_SERVED_MEMBERS_CONFIG`、`PORT` | 精确 |
 | `*_ENDPOINT` | 后缀 |
-| `DATABASE_*`、`REDIS_*`、`MQ_*`、`STORAGE_*`、`SEARCH_*`、`SMTP_*` | 前缀 |
-| `{envPrefix}_*` | 前缀，envPrefix 由使用者在 `brickkit.yaml` 里定 |
 
-撞了会怎样：市场在发布时**拒绝**；CLI 在注入时**警告并跳过该配置项**，平台注入的值优先。
-也就是说，你的配置项会静默失效。命名规则是 `defaultPageSize` → `DEFAULT_PAGE_SIZE`，
-所以叫 `databaseTimeout` 会撞 `DATABASE_*`——改成 `dbTimeout` 之类的。
+撞了：lint 与 up 警告，平台注入的值优先——你的配置项静默失效。`PORT` 是 `mode: local`
+起裸进程时平台给的监听端口。
 
-**3. 健康检查禁令：`/healthz` 只检查本进程存活。**
+**4. 健康检查禁令：只检查本进程存活。**
 
-**禁止**在里面查数据库、查依赖组件、查任何外部系统。原因是级联：一个下游抖动会让
-所有上游同时被判不健康并一起重启，把一次局部故障放大成整片雪崩。
+**禁止**在里面查数据库、查依赖组件、查任何外部系统——一个下游抖动会让所有上游同时被判
+不健康并一起重启，局部故障放大成雪崩。
 
-**4. 冷启动超过默认 60 秒的组件必须调大 `startPeriodSeconds`。**
+**5. 冷启动超过 60 秒必须调大 `healthCheck.startPeriodSeconds`。**
 
-`interval` / `timeout` / `failureThreshold` 由平台固定（10s / 3s / 3），相乘只有 30 秒，
-所以平台默认给每个组件 **60 秒**启动宽限期，绝大多数组件不用碰它。超过 60 秒：Docker 下判
-`unhealthy` 让 `up` 失败、依赖方卡在 `service_healthy`；K8s 下 Pod 被 kill 重启、
-再走一遍同样的 60 秒 → **永久 CrashLoopBackOff，而容器日志一路正常**。
+`interval` / `timeout` / `failureThreshold` 平台固定（10s / 3s / 3），默认宽限期 60 秒。超了：
+Docker 下 `unhealthy`、`up` 失败；K8s 下**永久 CrashLoopBackOff 而容器日志一路正常**。
+宽限期只推迟「判死」不推迟「判活」，写大一点没有代价。
 
-很重的 Spring Boot、预加载很多东西的 Django、.NET 首次 JIT 可能碰到这条线。宽限期只推迟
-「判死」不推迟「判活」（两秒就绪的组件照样两秒转 healthy），**所以写大一点没有任何代价**。
-它是 `healthCheck` 下唯一可覆盖的时间参数。
+**6. `dependencies.components` 里一个组件 ID 只能出现一次。**
 
-**5. `dependencies` 里一个组件 ID 只能出现一次。**
+强依赖写 `- erp/api@1.0.0`，弱依赖写 `- id: infra/redis@1.0.0` 加 `optional: true`，都是精确版本。
+不能同时依赖 X 的两个版本：变量名基于组件 ID 不带版本，两个版本会撞同一个 `X_ENDPOINT`。
+菱形依赖（A 要 X@1、B 要 X@2）不受影响，那是项目级的多版本共存。
 
-不能同时依赖 `people/basic@1.0.0` 和 `@2.0.0`。因为依赖地址的**变量名基于组件 ID、
-不带版本号**，写两个版本会撞同一个 `PEOPLE_BASIC_ENDPOINT`，后者静默覆盖前者。
-CLI 解析 Manifest 时就报错。
+**7. 弱依赖缺失时变量「完全不存在」，不是空字符串。**
 
-菱形依赖不受影响（A 依赖 X@1、B 依赖 X@2，各拿各的）。多版本共存是**项目级**能力。
+读它必须用 `os.environ.get()` / `System.getenv()`。`os.environ["X"]` 会 `KeyError` 让组件立刻
+崩溃——这是刻意的。降级逻辑（Redis 不在时查库还是返空）是你的业务代码，平台不管。
 
-**6. 弱依赖缺失时「完全不注入」，不是「注入空字符串」。**
+**8. `deployment.image` 与 `deployment.build` 至少写一个，镜像 tag 就是 `metadata.version`。**
 
-这是 BrickKit 最容易被误解的设计。组件代码必须用安全读取：Python 的
-`os.environ.get()`、Java 的 `System.getenv()`。用 `os.environ["X"]` 会抛 `KeyError`
-让组件立刻崩溃——**这是刻意的**，让「依赖不在」在启动时就暴露，而不是变成一个
-连向空地址的运行时谜题。
+只有 `build: { context: ., dockerfile: Dockerfile }` 的组件，使用者要 `brickkit build`；`up` 从不
+构建。所以**改了代码、没改版本**，旧镜像还在，`build` 会跳过——要么升 `metadata.version`，要么
+让使用者 `brickkit build <id> --force`。
 
-降级逻辑（Redis 挂了是查库、返空列表还是写本地文件）是你的业务代码，平台不管。
+**9. 外壳：`shell.members` 写的是编进去的精确版本。**
 
-**7. `resources` 建议只写 `requests`，别写 `limits`。**
+```yaml
+shell:
+  members: [erp/api@1.2.0, erp/auth@1.0.0]
+```
 
-配额优先级是 `brickkit.yaml` > `component.yaml` > CLI 默认值，而且**逐字段合并**——
-组件写了 `limits.cpu`，部署方就删不掉它。限额是业务判断，留给部署方。
+写了 `shell` 块，这个组件就是外壳：它的进程里编进了这些成员的代码。版本必须精确，一个成员只列
+一个版本，而且要**和你真正编进去的代码一致**——项目里承载的成员版本跟这里不一样，`up` 会报错。
+外壳启动时从 `BRICKKIT_SERVED_MEMBERS`（这次承载的成员服务名列表）决定初始化哪些模块，从
+`BRICKKIT_SERVED_MEMBERS_CONFIG`（JSON：每个成员的 componentId、version、httpPort、extraPorts、
+configEnvVars）找到每个成员的配置——成员的配置值在加了成员 ID 前缀的环境变量里，configEnvVars
+告诉你原键对应哪个变量名。每个成员仍然要有自己的镜像：它的迁移用成员自己的镜像跑。
 
-**8. `deployment.labels` 是唯一的部署元数据透传口，值必须是字符串。**
+**10. `BRICKKIT.md` 是写给使用者和他们的 AI 的。**
 
-平台**不解释键值**，只搬过去：Docker 写进 service 的 `labels`，K8s 写进
-Deployment 与 Pod 的 `annotations`。组件作者该写的是自己知道的事实
-（`prometheus.io/port: "9090"` —— 我在哪个端口暴露指标），网关路由那类留给部署方，
-他会在 `brickkit.yaml` 里**逐键**覆盖（002 §4.7）。
+它会随版本缓存进使用者项目的 `.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md`，是别人
+不读你源码就能用好你的唯一途径。配置指南里讲清每个必填键填什么、依赖说明里讲清为什么要它。
+外壳的 `BRICKKIT.md` 里的成员列表要与 `shell.members` 保持一致。
 
-两个坑：**值少了引号会当场报错**（`prometheus.io/scrape: true` 被 YAML 读成布尔）；
-**平台自己的键写了就报错**（`app`、`brickkit.io/*`、`com.docker.compose.*`）。
+**11. 迁移容器和主容器是同一个镜像，入口必须对不认识的参数快速失败。**
+
+`migration.command` 是数组，拿到的环境变量与主进程一样（包括全部配置值）。如果入口在不认识的
+参数上落回「启动服务」，迁移容器就变成第二个服务容器、永不退出，整个部署卡在 `Created`，而日志
+一片正常。先校验参数，再读环境变量、连数据库。迁移状态自己记；两个组件共用一个库时，状态表主键
+要带组件标识。
+
+**12. 发布新版本 = 改版本号、提交、推送、`brickkit release`。**
+
+版本号只取 `metadata.version`。`release` 先检查：能通过校验、组件目录干净、有上游且没有未推送的
+提交、tag 不存在；然后打 tag 并推送，推送失败就删掉本地 tag。tag 是 `1.2.0`（没有 `v`），
+monorepo 子目录里的组件是 `<scope>-<name>/1.2.0`。组件仓库里自己的 `brickkit.yaml`（本地联调
+工作台）与发布无关。发到市场是另一条命令 `brickkit publish`。
 
 ## 机制是怎么运作的
 
-**地址注入。** 平台给你注入依赖的地址，变量名基于组件 ID（`/` 和 `-` → `_`，全大写），
-值指向带版本的服务名：
+**地址注入。** 每个依赖的主端口注入成 `{组件ID}_ENDPOINT`（`/` 和 `-` → `_`，全大写），额外端口
+是 `{组件ID}_{NAME}_ENDPOINT`，值指向版本化服务名：
 
 ```
 PEOPLE_BASIC_ENDPOINT=http://people-basic-1-0-0:8080
 PEOPLE_BASIC_GRPC_ENDPOINT=http://people-basic-1-0-0:9090
 ```
 
-额外端口的变量名是 `{组件ID前缀}_{NAME大写}_ENDPOINT`，`NAME` 来自
-`deployment.extraPorts[].name`。
+地址格式在 Docker 与 K8s 下完全一样，组件代码零修改。依赖在外壳里跑时，地址指向外壳，端口仍是
+依赖自己声明的端口——调用方不知道也不需要知道。另外固定注入 `COMPONENT_ID`、`COMPONENT_VERSION`。
 
-**地址格式在本地和生产完全一样**（都是 `http://<版本化服务名>:<端口>`），
-所以组件代码在两个环境之间零修改。
+**`deployment.type` 固定是 `container`**，前端组件也一样（nginx 容器，`port: 80`）。
+`deployment.port` 必填，健康检查和 `_ENDPOINT` 都用它。
 
-**服务名 = 组件 ID 转换 + 精确版本**：`/` → `-`，`.` → `-`，全小写。
-`people/basic` + `1.0.0` → `people-basic-1-0-0`。
+**`local: { language, runCommand }`** 可选：`mode: local` 自动探测启动命令失败时手动指定。
 
-**主端口的用途有两个**：健康检查和 `_ENDPOINT` 变量。`deployment.port` 必填。
-
-**迁移**是 `migration.command`，数组格式。状态自己记（迁移状态表），平台只负责在
-`up` 时把它作为一个前置步骤跑掉。
-
-**`deployment.type` 固定是 `container`**，前端组件也一样——前端同样要监听端口、
-提供健康检查、被 Ingress 暴露、通过环境变量拿后端地址。
+**分形。** 组件仓库里也可以有自己的 `brickkit.yaml`，当作本地联调工作台（仓库里 `brickkit init`，
+或在上层项目 `brickkit add --local --init`）；`up` / `add` 把它当项目，`release` 只读 `component.yaml`。
 
 ## 去哪查更细的
 
-（下面的 `docs/...` 与 `AGENTS.zh.md` 路径都在 BrickKit 仓库 <https://github.com/brickKit/brickKit> 里；`docs/` 下每篇有 `en/` 与 `zh/` 两份，内容对等。）
-
-- `component.yaml` 每个字段的规则与完整参考：`docs/zh/06-architecture/07-component-yaml-reference.md`
-- 环境变量命名与保留变量的完整字典：`docs/zh/06-architecture/04-environment-variables.md`
-- 手把手教程（从零写一个组件）：`docs/zh/03-guide/12-build-your-own.md`；
-  完整的 Go 组件示例（含数据库、迁移）：`docs/zh/04-go-component-template.md`
+- 参数：`brickkit new --help`、`brickkit lint --help`、`brickkit release --help`
+- 完整规范：<https://github.com/brickKit/brickKit> 根目录 `AGENTS.zh.md`
+- 别的组件的写法样例：你项目里 `.brickkit/manifests/` 下缓存的 `component.yaml` 与 `BRICKKIT.md`

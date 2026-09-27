@@ -1,6 +1,6 @@
 ---
 name: brickkit-troubleshoot
-description: brickkit 命令报错、组件起不来、地址注入不生效、依赖解析失败、或需要按错误码定位问题时使用。含错误码到处理动作的映射、常见故障的排查顺序、以及哪些「看起来像 bug」其实是被刻意设计成这样的行为。当用户贴出 brickkit 的报错输出、或说「为什么起不来 / 连不上 / 找不到」时，这个技能适用。
+description: brickkit 命令报错、组件起不来、地址注入不生效、依赖解析失败、或需要按错误码定位问题时使用。含部署文件与 brickkit.yaml 对不上（DEPLOY_INCONSISTENT）、deploy.local.yaml 过期要 local refresh、config/ 必填项为空、upgrade 留下的重复 key、$var 引用未定义、IMAGE_MISSING / IMAGE_STALE、本地仓库版本不等于默认版本、外壳成员版本对不上、compose 启动环与 skipWaitFor、release 被拒，以及哪些「看起来像 bug」其实是刻意设计。当用户贴出 brickkit 的报错输出、或说「为什么起不来 / 连不上 / 找不到」时，这个技能适用。
 ---
 
 # 排障
@@ -9,114 +9,136 @@ description: brickkit 命令报错、组件起不来、地址注入不生效、�
 
 - 用户贴出一段 `brickkit` 的报错
 - 组件起不来，或者起来了但连不上依赖
-- 环境变量没注入
+- 环境变量没注入、配置不生效
 - `up` 之后跑起来的组件跟预期不一样
 - Pod 一直 CrashLoopBackOff，但容器日志看着正常
 
-## 先看这一条：有些「故障」是刻意设计
+## 先看报错里的 error_code
 
-在开始查之前，确认它不是下面这几种**按设计如此**的行为。把它们当 bug 去修会越修越坏。
+每个让命令失败的错误，在 `❌` 那一段之后的 stderr 上都有一行 JSON 日志，带稳定的 `error_code`。
+按码定位比按文案快；写脚本判断成败也认它和退出码，别 grep 人读的文字。只有
+`NETWORK_UNREACHABLE` 值得原样重试。报错下面的「提示」行通常已经给了具体命令，先照着做。
 
-**1. 弱依赖缺失时环境变量完全不存在，不是空字符串。**
+## 症状 → 原因 → 处理
 
-组件里 `os.environ["X"]` 抛 `KeyError` 然后崩掉——这是刻意的，让「依赖不在」在启动时
-就暴露，而不是变成一个连向空地址的运行时谜题。修法是在组件代码里改成
+**1. `DEPLOY_INCONSISTENT`：部署文件与 `brickkit.yaml` 对不上。**
+
+每个组件版本在部署文件里必须恰好一个条目（外壳下的成员也算），报错列出缺的和多的。通常是有人
+手改了 `brickkit.yaml` 或部署文件。处理：按列出的补上或删掉条目；以后增删走 `add` / `remove` /
+`upgrade`，它们会把三份文件一起改齐。
+
+**2. 本地模式下报 `deploy.local.yaml` 已过期。**
+
+还是 `DEPLOY_INCONSISTENT`，但原因是你开着本地模式，团队改了 `brickkit.yaml`（比如 `git pull`
+进来一个新组件），而你的 `deploy.local.yaml` 没跟上。处理：`brickkit local refresh`——旧文件存成
+`deploy.local.yaml.bak`，并列出你的每一处本地改动让你手工搬回去；或者手改文件；或者 `local off`。
+`brickkit local status` 能先确认是不是这种情况。
+
+**3. 改了 `deploy.yaml` 却没有任何效果。**
+
+本地模式开着，所有命令读的是 `deploy.local.yaml`，完全不看 `deploy.yaml`。`brickkit local status`
+确认；要么改本地文件，要么这次加 `--no-local`。
+
+**4. 必填的组件配置没有值（`CONFIG_INVALID`）。**
+
+`add` 在 `config/<scope>-<name>.yaml` 里给必填键写了 `KEY: ""`，那是要你填的空位。报错点名了组件和
+键；去读 `.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md` 的配置指南看该填什么。
+
+**5. 升级后 `up` 拒绝启动：检测到未解决的配置冲突（`CONFIG_CONFLICT`）。**
+
+`upgrade --yes`（或没有终端时）把冲突写成了**两行重复键**加一段注释——故意的，让冲突没法被忽略。
+用纯文本编辑器保留一行、删掉另一行和注释。**别用 yq 或编辑器的「格式化文档」**：它们会悄悄丢掉
+一行，冲突就假装解决了。编辑器把文件标成非法 YAML 是正常的。
+
+**6. `$var:` 引用了哪里都没有定义的公共变量（`CONFIG_INVALID`）。**
+
+`$var:NAME` 只从部署文件的 `vars:` 和 `config/vars.yaml` 取，没有别的兜底。在其中一处定义它。注意
+`-f deploy.prod.yaml` 时读的是那份文件的 `vars:`；写成 `$var: NAME`（冒号后带空格）是另一回事，YAML
+会把它读成映射。
+
+**7. 配置项「写了没生效」。**
+
+- 键拼错或不在组件的 `configSchema` 里：CLI 警告「不会生效」并猜你想写哪个。键就是环境变量名，
+  原样注入，没有大小写转换
+- 撞上保留名（`COMPONENT_ID`、`COMPONENT_VERSION`、`BRICKKIT_SERVED_MEMBERS`、
+  `BRICKKIT_SERVED_MEMBERS_CONFIG`、`PORT`、`*_ENDPOINT`）：警告并跳过，平台注入的值优先
+- 改的是别的版本的文件：兼容版本读 `config/<scope>-<name>@<版本>.yaml`，默认版本读不带版本的那份
+
+**8. `IMAGE_MISSING` / `IMAGE_STALE` / `IMAGE_UNVERIFIED`。**
+
+`up` 从不构建。`IMAGE_MISSING`：本地源的组件（或只有 `deployment.build` 的）还没构建 →
+`brickkit build <id>`。`IMAGE_STALE`：本机构建的外壳镜像里编进的成员版本与它的 `component.yaml`
+不一致 → `brickkit build <外壳> --force`。`IMAGE_UNVERIFIED` 只是警告：外壳镜像没有 `brickkit build`
+留下的标签，无法核对成员版本。改了代码没升版本号时，镜像 tag 没变，也要 `--force` 重建。
+
+**9. 从本地仓库运行的组件：仓库里的版本 ≠ 项目的默认版本。**
+
+`mode: local` / `mode: debug` 或裸进程外壳里的成员，是从本地仓库跑的；仓库里 `metadata.version`
+必须等于 `brickkit.yaml` 的默认版本。处理：真要跑仓库里的版本就 `brickkit upgrade <id>@<仓库版本>`；
+否则在仓库里检出对应的 tag。兼容版本（带 `requiredBy` 的）不能从本地仓库跑。
+
+**10. 外壳承载的成员版本与外壳编进的版本对不上。**
+
+三条出路：升级外壳到一个编进了这个版本的外壳版本；把那个成员条目挪出外壳，独立跑；两个版本都要——
+给外壳编进的版本加一行 `requiredBy: [<外壳>]`，把 `id@那个版本` 嵌进外壳，另一个版本留在顶层。
+
+**11. 把成员放进外壳后报启动环（`DEPENDENCY_CYCLE`）。**
+
+组件之间没有互相依赖，但外壳容器作为整体启动，继承了每个成员的依赖，compose 下就成了 `depends_on`
+环。报错列出了边。出路：把环上外面的那个组件也挪进外壳；把一个成员挪出来；或在条目上写
+`skipWaitFor: [<ID>]`——只去掉启动等待，组件自己必须重试直到依赖起来。
+
+**12. `DEPENDENCY_MISSING`：强依赖的版本没在 `brickkit.yaml` 里声明。**
+
+`brickkit.yaml` 是锁文件，解析只用它声明过的版本。照提示 `brickkit add <id>@<版本>`（依赖需要另一个版本
+时 add 会自动写成 `requiredBy` 兼容版本）。
+
+**13. `RELEASE_BLOCKED` / `RELEASE_PUSH_FAILED`。**
+
+被拒是发布前检查没过，什么都没写：组件目录有未提交的改动、当前分支没有上游或有未推送的提交、tag 已存在
+（该升 `metadata.version` 了）。推送失败时本地 tag 已经删掉，解决远端原因后原样重试。
+
+## 不变的老问题：它们是刻意设计
+
+**弱依赖缺失时变量完全不存在，不是空字符串。** `os.environ["X"]` 抛 `KeyError` 崩掉是故意的；改组件代码用
 `os.environ.get()` 并写降级逻辑，**不是**让平台注入空值。
 
-**2. Pod 永久 CrashLoopBackOff 而容器日志一路正常。**
+**CrashLoopBackOff 而容器日志一路正常。** 几乎总是冷启动超过了默认 60 秒的宽限期；在 `component.yaml`
+的 `healthCheck` 里调大 `startPeriodSeconds`，写大没有代价。
 
-几乎总是启动预算问题。平台固定 `interval`/`timeout`/`failureThreshold` 为 10s/3s/3，
-相乘只有 30 秒，所以默认给每个组件 **60 秒**启动宽限期。冷启动超过它的组件（很重的
-Spring Boot、Django 预加载、.NET 首次 JIT）会被 kill 重启，再走一遍同样的 60 秒。
+**健康检查查了数据库或依赖。** 一个下游抖动会让所有上游一起被判不健康并重启。健康检查只查本进程。
 
-修法：在 `component.yaml` 的 `healthCheck` 里把 `startPeriodSeconds` 写得比实际冷启动更大
-（默认 60，写大一点没有代价——宽限期只推迟「判死」不推迟「判活」）。
+**组件自己说 ready，平台说 unhealthy。** 镜像里多半没有 `wget` / `curl`，compose 的 healthcheck 调不起来。
 
-**3. 没有注册中心、没有常驻服务、没有配置中心、没有网关。**
+**某个组件「莫名其妙」跟着起来了。** 启停跟着上层走，强弱依赖一视同仁。读 CLI 每行后面的理由：
+`启动（顶层）` / `启动（mode: enabled）` / `启动（X 需要）`。
 
-找不到它们不是装漏了。服务发现靠 Docker / K8s 原生 DNS，健康检查靠 Probe /
-healthcheck + 重启策略。别建议加上，那是被论证过后拒绝的。
+**`mode: debug` 写进 `deploy.yaml` 被拒。** 它只能写在 `deploy.local.yaml`：`brickkit local on`，再到那里写。
+`target: k8s` 下 `mode: debug` / `mode: local` 都被拒，集群到不了你的机器。
 
-**4. 某个组件「莫名其妙」跟着起来了。**
+**`mode: debug` 的组件报 `relation does not exist`。** 它不生成迁移容器，手动跑一次迁移。
 
-启停是「跟着上层走」：只要还有一个上层在跑，它就跑，强弱依赖一视同仁。
-读 CLI 输出里每行后面的理由——`启动（顶层）` / `启动（mode: enabled）` /
-`启动（X 需要）`——它直接说明判定来源。
-
-**5. `configSchema` 里的某个配置项静默失效了。**
-
-撞上平台保留变量了。CLI 会警告并跳过该配置项，平台注入的值优先。检查配置项名转成
-大写下划线后是否命中 `DATABASE_*` / `REDIS_*` / `MQ_*` / `STORAGE_*` / `SEARCH_*` /
-`SMTP_*` / `*_ENDPOINT` / `COMPONENT_ID` / `COMPONENT_VERSION`。
-比如 `databaseTimeout` → `DATABASE_TIMEOUT`，撞了。
-
-**6. `brickkit.yaml` 拒绝 `mode: debug`——这不是一个要绕过去的 bug。**
-
-它在解析阶段就直接拒绝，无条件。`mode: debug` **只能**写在 `override.yaml` 里（可选、进
-`.gitignore`、按开发者各自一份——跑 `brickkit override` 创建/刷新它）。`mode: local`
-没有这条限制，照旧留在 `brickkit.yaml` 里。别建议改 `brickkit.yaml` 去加 `mode: debug`，
-也别把这个拒绝当成需要绕过的障碍——把使用者引到 `override.yaml` 去。
-
-**7. `override.yaml` 悄悄不生效——先查 `--config`。**
-
-`override.yaml` 只对针对**默认** `brickkit.yaml` 的这次运行生效。`--config
-brickkit.prod.yaml` 的运行会忽略当前存在的任何 `override.yaml`，并打印一句说明——
-这是设计如此（一份个人本地覆盖绝不能泄漏进某个具名环境的运行里），不是 bug。
-
-## 错误码 → 该干什么
-
-CLI 的报错带错误码。按码定位比按文案快。
-
-| 错误码 | 含义与第一步 |
-| --- | --- |
-| `DEPENDENCY_MISSING` | 强依赖在所有安装源里都没找到。查安装源配置、组件是否存在、版本是否为 stable |
-| `RESOURCE_UNBOUND` | 组件要的资源没在 `brickkit.yaml` 的 `resources` 里声明或绑定。`kind` + `engine` 必须与组件声明**完全一致**。暂时不想跑它就给 `mode: disable`——不启动的组件不参与这条检查 |
-| `COMPONENT_DISABLED` | 钉住的组件（`mode: enabled` 或 `mode: debug`）撞上被关掉的强依赖，两个意图冲突。要么放开那个 `mode: disable`，要么别钉住它 |
-| `VERSION_AMBIGUOUS` | 多版本共存时没指定版本。补上精确版本 |
-| `DEPENDENCY_CYCLE` | 强依赖成环。环只在弱依赖里是合法的 |
-| `MANIFEST_INVALID` | `component.yaml` 有问题。注意它**没有扩展字段机制**，不认识的键会被当场拒绝 |
-| `COMPONENT_NOT_FOUND` | 安装源里没有这个组件 |
-| `CONFIG_CONFLICT` | 配置项撞上保留变量（见上一节第 5 条）。这是警告，不阻断 |
-| `IMAGE_UNAUTHORIZED` | 镜像拉取未授权。先 `docker login <registry>`，再重跑 |
-| `MIGRATION_FAILED` | 迁移脚本失败。看迁移日志，修完重跑 |
-| `PORT_CONFLICT` | 端口撞了。多为 `localPort` 或 `exposePort` 重复 |
-| `SIGNATURE_INVALID` | 验签失败。注意：一个 `publicKeys` 都没配时验签是**整体失效**的，那种情况下不会报这个码，而是警告一句什么都没验 |
-| `AUTH_REQUIRED` / `TOKEN_EXPIRED` | 重新 `brickkit login` |
-| `ENGINE_MISSING` | Docker / kubectl 不在 PATH 上，或没起来 |
-| `PROJECT_MISSING` | 当前目录不是 BrickKit 项目，或 `--config` 指错了文件 |
-| `PROJECT_EXISTS` | 已初始化，不必重复 `init` |
-| `LINT_FAILED` | `brickkit lint` 查出了问题。逐条问题已经打在 stdout 上（每个都点明文件和字段），按它们改完再跑一次。只有警告时默认不算失败，加了 `--strict` 才算 |
-| `CLONE_FAILED` | 两种常见原因：组件是闭源的（没有 Git 仓库，但**照样能正常安装使用**），或目标目录已存在 |
+**没有注册中心、配置中心、网关。** 找不到不是装漏了，别建议加上。
 
 ## 排查顺序
 
-**组件起不来**，按这个顺序看，越靠前的越常见：
+**组件起不来**，越靠前越常见：
 
-1. `brickkit status` —— 它到底有没有被判定为「启动」？不启动的组件也会列出来
-2. 看 CLI 输出里那一行的**理由**（顶层 / mode / X 需要）
-3. 组件日志 —— 进程本身有没有起来
-4. 启动是不是超过了默认的 60 秒宽限期（见上面第 2 条）
-5. 环境变量 —— 依赖真在跑吗？弱依赖没在跑时**不会注入**那个 `*_ENDPOINT`
-6. 资源绑定 —— `kind` 和 `engine` 对得上吗
+1. `brickkit status` —— 它有没有被判定为启动？不启动的也会列出来
+2. CLI 输出里那一行的**理由**
+3. 组件日志：`docker compose -p brickkit-<项目名> logs <版本化服务名>`——少了 `-p`，compose 看的是别的项目
+4. 启动是不是超过了 60 秒宽限期
+5. 环境变量：依赖真在跑吗？弱依赖没在跑时不注入 `*_ENDPOINT`；配置值来自哪份 `config/` 文件
+6. `brickkit lint`：离线查三层文件的一致性、必填值、未知键、重复键；`--strict` 再查 `${VAR}` 与 `file://` 能否取到
 
-**连不上依赖**：地址格式在本地和 K8s 完全一样，都是
-`http://<版本化服务名>:<端口>`，服务名是组件 ID 的 `/`、`.` 换成 `-` 再加精确版本
-（`people/basic` + `1.0.0` → `people-basic-1-0-0`）。变量名基于组件 ID 不带版本
-（`PEOPLE_BASIC_ENDPOINT`），值才带版本。对不上就往这两条规则上核。
+**连不上依赖**：地址是 `http://<版本化服务名>:<端口>`，服务名是组件 ID 的 `/`、`.` 换成 `-` 再加精确版本
+（`people/basic` + `1.0.0` → `people-basic-1-0-0`）；变量名不带版本（`PEOPLE_BASIC_ENDPOINT`）。依赖在外壳里
+时地址指向外壳。
 
-**想在不启动任何东西的情况下看生成结果**：`brickkit up --dry-run`。
-
-**想看依赖关系是怎么连的**（谁依赖谁、哪些是弱依赖、哪些这次不启动、`servedBy` 怎么分组）：
-`brickkit graph`。它输出 Mermaid 文本，存成 `.mmd` 文件后 GitHub 能直接渲染。
+**只想看生成结果不启动**：`brickkit up --dry-run`。**看依赖怎么连的**：`brickkit deps` 或 `brickkit graph`。
 
 ## 去哪查更细的
 
-（下面的 `docs/...` 与 `AGENTS.zh.md` 路径都在 BrickKit 仓库 <https://github.com/brickKit/brickKit> 里；`docs/` 下每篇有 `en/` 与 `zh/` 两份，内容对等。）
-
 - 参数：`brickkit <命令> --help`
-- 常见报错的完整处置（症状 → 原因 → 修复，含真实输出样例）：`docs/zh/08-troubleshooting.md`
-- 错误码的权威定义（常量名、文案）：`internal/clierr/clierr.go`
-- 「为什么这样设计」的完整论证（用户问「为什么不……」时）：
-  根目录 `AGENTS.zh.md` §9（二十三个「为什么」）
-- `override.yaml` 本身（schema、降级专用的 target 规则、多环境 `--config` 护栏、
-  `brickkit override` 命令）：根目录 `AGENTS.zh.md` §7.1
+- 组件自己的说明（配置怎么填、依赖为什么要）：`.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md`
+- 「为什么这样设计」的完整论证与全部错误码：<https://github.com/brickKit/brickKit> 根目录 `AGENTS.zh.md`
