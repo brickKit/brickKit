@@ -1,12 +1,13 @@
 package projfile
 
 import (
+	"strings"
+
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlfile"
-	"strings"
 )
 
 // Validate 校验全部字段，一次报出所有问题。

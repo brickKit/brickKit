@@ -2,10 +2,13 @@ package source
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -333,4 +336,90 @@ func TestGitWithoutCacheDirIsAnError(t *testing.T) {
 	require.Error(t, err)
 	entries, _ := os.ReadDir(cwd)
 	assert.Empty(t, entries, "当前目录里什么都不能留下")
+}
+
+// 进程在克隆途中被杀掉会留下 .tmp/clone-*：下一次克隆时清掉放了很久的（正在进行的不碰）。
+func TestGitSweepsStaleTempClones(t *testing.T) {
+	org := newGitOrg(t)
+	org.release(componentSpec{ID: "erp/api", Version: "1.0.0"})
+	stale := filepath.Join(org.cache, ".tmp", "clone-stale")
+	fresh := filepath.Join(org.cache, ".tmp", "clone-fresh")
+	for _, d := range []string{stale, fresh} {
+		require.NoError(t, os.MkdirAll(filepath.Join(d, "objects"), 0o755))
+	}
+	old := time.Now().Add(-2 * time.Hour)
+	require.NoError(t, os.Chtimes(stale, old, old))
+
+	c, _ := org.client()
+	_, err := c.Manifest(context.Background(), "erp/api", "1.0.0")
+	require.NoError(t, err)
+	assert.NoDirExists(t, stale)
+	assert.DirExists(t, fresh, "可能是另一个进程正在克隆")
+}
+
+// git 启动之后才失败的克隆（地址是个普通目录，不是仓库）同样不留下任何东西。
+func TestGitCloneFailingAfterStartLeavesNoRepo(t *testing.T) {
+	notARepo := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(notARepo, "README"), []byte("x"), 0o644))
+	cache := t.TempDir()
+	repo := newRepoCache(cache).get("file://" + filepath.ToSlash(notARepo))
+	require.Error(t, repo.ensure(context.Background()))
+	assert.NoDirExists(t, repo.dir)
+	entries, _ := os.ReadDir(filepath.Join(cache, ".tmp"))
+	assert.Empty(t, entries)
+}
+
+// 两个进程同时克隆同一个仓库：都成功，缓存里只有一份完整仓库，临时目录都清掉了。
+func TestGitConcurrentClonesShareOneRepo(t *testing.T) {
+	org := newGitOrg(t)
+	remote := org.release(componentSpec{ID: "erp/api", Version: "1.0.0"})
+	errs := make(chan error, 4)
+	for i := 0; i < 4; i++ {
+		go func() { errs <- newRepoCache(org.cache).get(remote.URL()).ensure(context.Background()) }()
+	}
+	for i := 0; i < 4; i++ {
+		require.NoError(t, <-errs)
+	}
+	assert.DirExists(t, repoCacheDir(org.cache, remote.URL()))
+	entries, _ := os.ReadDir(filepath.Join(org.cache, ".tmp"))
+	assert.Empty(t, entries)
+}
+
+// 读 tag 里的文件时 git 自己失败了（被取消、仓库坏了）：是错误，不是"没有这个文件"。
+func TestGitFileFailureIsNotMissing(t *testing.T) {
+	org := newGitOrg(t)
+	remote := org.release(componentSpec{ID: "erp/api", Version: "1.0.0"})
+	repo := newRepoCache(org.cache).get(remote.URL())
+	require.NoError(t, repo.ensure(context.Background()))
+
+	_, ok, err := repo.file(context.Background(), "1.0.0", "nope.txt")
+	require.NoError(t, err)
+	assert.False(t, ok, "真没有这个文件")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, _, err = repo.file(ctx, "1.0.0", "component.yaml")
+	assert.Error(t, err)
+}
+
+// 真的鉴权失败（HTTPS 回 401）：GIT_TERMINAL_PROMPT=0 让 git 立刻失败而不是等输入密码，
+// 报错带着 git 自己的说法与三条检查方向。
+func TestGitAuthRequiredFailsWithoutPrompting(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("WWW-Authenticate", `Basic realm="git"`)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+	layout := newProject(t)
+	cfg := cfgWithSources(projfile.Source{Name: "org", Type: projfile.SourceTypeGit, BaseURL: srv.URL + "/myorg/"})
+	c := newClient(t, layout, cfg, Options{RepoCacheDir: t.TempDir()})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err := c.Manifest(ctx, "erp/api", "1.0.0")
+	require.Error(t, err)
+	require.NoError(t, ctx.Err(), "没有挂住等密码")
+	text := clierr.As(err).Format()
+	assert.Contains(t, text, srv.URL+"/myorg/erp-api")
+	assert.Contains(t, text, "credential")
 }

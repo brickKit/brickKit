@@ -7,6 +7,7 @@ const (
 	InstallHintAddDependent           = "install.hint_add_dependent"
 	InstallNoteShellHostsOtherVersion = "install.note_shell_hosts_other_version"
 	InstallNoteMemberUnderOtherShell  = "install.note_member_under_other_shell"
+	InstallNoteOptionalDependent      = "install.note_optional_dependent"
 	InstallRemoveHasDependents        = "install.remove_has_dependents"
 	InstallHintRemoveDependentsFirst  = "install.hint_remove_dependents_first"
 	InstallRemoveDefaultAmbiguous     = "install.remove_default_ambiguous"

@@ -378,3 +378,16 @@ func TestPlanRemoveChecksDependentsOfCascadedVersions(t *testing.T) {
 	assert.Equal(t, []install.Line{{ID: "erp/db", Version: "1.0.0", RequiredBy: []string{"erp/other"}}}, plan.SetRequiredBy,
 		"requiredBy 改成真正还需要它的组件")
 }
+
+// 弱依赖方不拦 remove，但要说一声：它照样运行，只是少了这个依赖（地址不再注入）。
+func TestPlanRemoveNotesOptionalDependents(t *testing.T) {
+	p := proj(t, `  - {id: erp/db, version: 1.0.0}
+  - {id: erp/web, version: 1.0.0}`, `  - id: erp/db
+  - id: erp/web`)
+	cat := catalog(mf("erp/db@1.0.0"), mf("erp/web@1.0.0", "?erp/db@1.0.0"))
+	plan, err := install.PlanRemove(p, graphFor(t, p, cat), ref("erp/db@1.0.0"))
+	require.NoError(t, err)
+	require.Len(t, plan.Notes, 1)
+	assert.Contains(t, plan.Notes[0], "erp/web@1.0.0")
+	assert.Contains(t, plan.Notes[0], "erp/db@1.0.0")
+}

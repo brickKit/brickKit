@@ -127,6 +127,12 @@ func ExistingSourceError(l project.Layout, componentID, ref string) error {
 //
 // tag 非空时克隆完检出它：本地仓库就是那个版本（附录 A22）。
 func Clone(ctx context.Context, l project.Layout, componentID, ref, gitURL, tag string) (string, error) {
+	return CloneFrom(ctx, l, componentID, ref, gitURL, gitURL, tag)
+}
+
+// CloneFrom 与 Clone 相同，但从 from（本机仓库缓存里的 bare 副本）克隆，再把 origin 指回
+// 真正的远端 gitURL：离线也能克隆，推送照常去原仓库。
+func CloneFrom(ctx context.Context, l project.Layout, componentID, ref, from, gitURL, tag string) (string, error) {
 	target := SourceDir(l, componentID)
 	if err := ExistingSourceError(l, componentID, ref); err != nil {
 		return "", err
@@ -139,7 +145,7 @@ func Clone(ctx context.Context, l project.Layout, componentID, ref, gitURL, tag 
 	}
 
 	// 完整 clone（不加 --depth）：使用者要能在这份仓库里改代码、提交、推送。
-	cmd := exec.CommandContext(ctx, "git", "clone", "--quiet", "--", gitURL, target)
+	cmd := exec.CommandContext(ctx, "git", "clone", "--quiet", "--", from, target)
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		_ = os.RemoveAll(target)
@@ -151,6 +157,16 @@ func Clone(ctx context.Context, l project.Layout, componentID, ref, gitURL, tag 
 				i18n.T(msgid.WorkspaceHintCheckNetworkAndURL),
 				i18n.T(msgid.WorkspaceHintCheckAccess),
 			).WithCause(err)
+	}
+	if from != gitURL {
+		if out, err := exec.CommandContext(ctx, "git", "-C", target, "remote", "set-url", "origin", gitURL).CombinedOutput(); err != nil {
+			_ = os.RemoveAll(target)
+			return "", clierr.New(clierr.CodeCloneFailed, i18n.T(msgid.WorkspaceCloneFailed)).
+				WithDetail(i18n.T(msgid.LabelComponent), ref).
+				WithDetail(i18n.T(msgid.LabelRepo), gitURL).
+				WithDetail(i18n.T(msgid.LabelReason), firstLine(string(out), err)).
+				WithCause(err)
+		}
 	}
 	if tag != "" {
 		checkout := exec.CommandContext(ctx, "git", "-C", target, "checkout", "--quiet", "tags/"+tag)

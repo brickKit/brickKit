@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // localRepoFixture 是外壳夹具的一份拷贝；edit 改其中一个文件。
@@ -96,4 +98,22 @@ func TestLocalRepoFindsShellDirectory(t *testing.T) {
 	})
 	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+}
+
+// 本地仓库的 component.yaml 读不出版本号（改到一半、YAML 写坏了）：说出来，不能当成版本对得上。
+// 本地安装源里的组件会被安装源自己拦下；这里是从 git 装、--repo 克隆出来的那份。
+func TestLocalRepoUnreadableVersionIsReported(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0"})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0", "--repo")
+	setMode(t, dir, "erp/api", "local")
+	repo := filepath.Join(dir, "components", "erp", "api")
+	writeTree(t, repo, map[string]string{"go.mod": "module example.com/api\n\ngo 1.22\n", "main.go": "package main\n\nfunc main() {}\n"})
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "component.yaml"), []byte("metadata: [this is: not: valid\n"), 0o644))
+
+	r := g.run(dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	// 原因（YAML 解析器的原话）在消息末尾：只核对它前面的部分
+	assert.Contains(t, r.stderr, i18n.T(msgid.CliUpLocalRepoUnreadable, "erp/api@1.0.0", "components/erp/api", ""))
 }

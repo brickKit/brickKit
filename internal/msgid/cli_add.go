@@ -28,6 +28,7 @@ const (
 	CliAddVarPrompt                  = "cli.add.var_prompt"
 	CliAddVarReferenced              = "cli.add.var_referenced"
 	CliAddCloneSkippedNoRepo         = "cli.add.clone_skipped_no_repo"
+	CliAddCloneAfterWrite            = "cli.add.clone_after_write"
 	CliAddCloned                     = "cli.add.cloned"
 	CliAddLocalNoLocalSource         = "cli.add.local_no_local_source"
 	CliAddLocalHintConfigureLocal    = "cli.add.local_hint_configure_local"

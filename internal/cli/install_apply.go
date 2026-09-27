@@ -57,6 +57,7 @@ type applied struct {
 type fileBackup struct {
 	path    string
 	data    []byte
+	mode    os.FileMode
 	existed bool
 }
 
@@ -65,7 +66,9 @@ type applier struct {
 	opts    *Options
 	backups map[string]*fileBackup
 	order   []string
-	result  *applied
+	// createdDirs 是这次新建的目录（按创建顺序）：还原时删掉，config/ 这种空目录不留下
+	createdDirs []string
+	result      *applied
 }
 
 // applyPlan 把 plan 写进三份文件，varRefs 是配置骨架里改成 $var: 引用的键（按组件版本）。
@@ -296,11 +299,29 @@ func (a *applier) write(path string, data []byte) error {
 }
 
 func (a *applier) writeRaw(path string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := a.mkdirAll(filepath.Dir(path)); err != nil {
 		return writeError(path, err)
 	}
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return writeError(path, err)
+	}
+	return nil
+}
+
+// mkdirAll 建目录，并记下哪些是这次新建的。
+func (a *applier) mkdirAll(dir string) error {
+	var missing []string
+	for d := dir; ; d = filepath.Dir(d) {
+		if _, err := os.Stat(d); err == nil || filepath.Dir(d) == d {
+			break
+		}
+		missing = append(missing, d)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	for i := len(missing) - 1; i >= 0; i-- {
+		a.createdDirs = append(a.createdDirs, missing[i])
 	}
 	return nil
 }
@@ -313,7 +334,11 @@ func (a *applier) backup(path string) error {
 	data, err := os.ReadFile(path)
 	switch {
 	case err == nil:
-		a.backups[path] = &fileBackup{path: path, data: data, existed: true}
+		mode := os.FileMode(0o644)
+		if info, statErr := os.Stat(path); statErr == nil {
+			mode = info.Mode().Perm()
+		}
+		a.backups[path] = &fileBackup{path: path, data: data, mode: mode, existed: true}
 	case errors.Is(err, fs.ErrNotExist):
 		a.backups[path] = &fileBackup{path: path}
 	default:
@@ -323,16 +348,21 @@ func (a *applier) backup(path string) error {
 	return nil
 }
 
-// rollback 把碰过的文件全部还原：原本有的写回原样，原本没有的删掉。
+// rollback 把碰过的文件全部还原：原本有的写回原样（连同权限），原本没有的删掉，
+// 这次新建的目录也删掉（从最深的开始，只删空的）。
 func (a *applier) rollback() {
 	for i := len(a.order) - 1; i >= 0; i-- {
 		b := a.backups[a.order[i]]
 		if b.existed {
 			_ = os.MkdirAll(filepath.Dir(b.path), 0o755)
-			_ = os.WriteFile(b.path, b.data, 0o644)
+			_ = os.WriteFile(b.path, b.data, b.mode)
+			_ = os.Chmod(b.path, b.mode)
 		} else {
 			_ = os.Remove(b.path)
 		}
+	}
+	for i := len(a.createdDirs) - 1; i >= 0; i-- {
+		_ = os.Remove(a.createdDirs[i])
 	}
 }
 

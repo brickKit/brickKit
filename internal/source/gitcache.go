@@ -32,6 +32,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 // repoCache 是这一趟运行里用到的全部仓库（按地址），多个 git 源与组件级来源共用。
@@ -84,6 +85,7 @@ func (r *gitRepo) ensure(ctx context.Context) error {
 	if err := os.MkdirAll(tmpRoot, 0o755); err != nil {
 		return err
 	}
+	sweepStaleClones(tmpRoot)
 	tmp, err := os.MkdirTemp(tmpRoot, "clone-")
 	if err != nil {
 		return err
@@ -109,6 +111,24 @@ func (r *gitRepo) ensure(ctx context.Context) error {
 	return nil
 }
 
+// staleCloneAge 之前开始的临时克隆，是被杀掉的进程留下的：正常的克隆不会进行这么久。
+const staleCloneAge = time.Hour
+
+// sweepStaleClones 清掉被杀掉的进程留在 .tmp/ 里的半个克隆。只清放了很久的——
+// 同一台机器上另一个项目可能正在克隆。清不掉不要紧，下次再清。
+func sweepStaleClones(tmpRoot string) {
+	entries, err := os.ReadDir(tmpRoot)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		info, err := e.Info()
+		if err == nil && strings.HasPrefix(e.Name(), "clone-") && time.Since(info.ModTime()) > staleCloneAge {
+			_ = os.RemoveAll(filepath.Join(tmpRoot, e.Name()))
+		}
+	}
+}
+
 // fetch 增量取远端的 tag（这一趟只取一次）。tag 被强制移动过时以远端为准。
 func (r *gitRepo) fetch(ctx context.Context) error {
 	r.mu.Lock()
@@ -130,13 +150,18 @@ func (r *gitRepo) hasTag(ctx context.Context, tag string) bool {
 	return err == nil
 }
 
-// file 读 tag 里的一个文件。文件不在时 ok 为 false、err 为 nil。
+// file 读 tag 里的一个文件。文件不在时 ok 为 false、err 为 nil；git 自己失败了（被取消、
+// 仓库坏了）是错误——不能说成"tag 里没有这个文件"，那会把人引向完全不相干的方向。
 func (r *gitRepo) file(ctx context.Context, tag, path string) (data []byte, ok bool, err error) {
-	object := tag + ":" + path
-	if _, err := runGit(ctx, r.dir, "cat-file", "-e", object); err != nil {
+	// ls-tree 对不存在的路径输出为空、正常退出；对坏掉的仓库或被取消的调用才失败
+	listing, err := runGit(ctx, r.dir, "ls-tree", "--name-only", tag, "--", path)
+	if err != nil {
+		return nil, false, err
+	}
+	if strings.TrimSpace(string(listing)) == "" {
 		return nil, false, nil
 	}
-	data, err = runGit(ctx, r.dir, "cat-file", "blob", object)
+	data, err = runGit(ctx, r.dir, "cat-file", "blob", tag+":"+path)
 	if err != nil {
 		return nil, false, err
 	}

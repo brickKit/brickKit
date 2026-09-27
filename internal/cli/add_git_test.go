@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -329,4 +330,62 @@ func TestAddRepoAllAndArtifacts(t *testing.T) {
 	r = g.run(dir, "add", "erp/web@1.0.0", "--repo")
 	require.Equal(t, clierr.ExitError, r.code)
 	assert.Equal(t, before, readFile(t, filepath.Join(dir, "brickkit.yaml")))
+}
+
+// 组件已经在项目里，事后才想要源码：add --repo 照样克隆（三份文件不用改）。
+func TestAddRepoOnAnAlreadyAddedComponent(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0"})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+	g.mustRun(dir, "add", "erp/api@1.0.0", "--repo")
+	assert.FileExists(t, filepath.Join(dir, "components", "erp", "api", "component.yaml"))
+}
+
+// 三份文件写好之后克隆失败：说清楚文件已经改好了，修好之后再 add --repo 只会补克隆。
+func TestAddCloneFailureSaysFilesAreWritten(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0"})
+	dir := g.project()
+	// components/erp 是个文件：资格检查放行（组件目录不存在），真克隆时建不了目录
+	writeTree(t, dir, map[string]string{"components/erp": "not a directory\n"})
+
+	r := g.run(dir, "add", "erp/api@1.0.0", "--repo")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, readFile(t, filepath.Join(dir, "brickkit.yaml")), "erp/api")
+	assert.Contains(t, r.stderr, "brickkit add erp/api@1.0.0 --repo")
+}
+
+// --repo 从本机的仓库缓存克隆（离线也行），origin 指回真正的远端：推送照常去原仓库。
+func TestAddRepoClonesFromTheCacheAndPointsOriginAtTheRemote(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0"})
+	url := gittest.BaseURL(g.org) + "erp-api" // brickkit.yaml 推导出的地址
+	g.mustRun(g.project(), "fetch", "erp/api@1.0.0")
+	require.NoError(t, os.Rename(g.remotes["erp/api"].Dir(), g.remotes["erp/api"].Dir()+".offline"))
+
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0", "--repo")
+	repo := filepath.Join(dir, "components", "erp", "api")
+	out, err := exec.Command("git", "-C", repo, "remote", "get-url", "origin").CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Equal(t, url, strings.TrimSpace(string(out)))
+}
+
+// 还原要彻底：这次新建的目录（config/）一并删掉，原有文件的权限保持原样。
+func TestAddRollbackRemovesCreatedDirsAndKeepsModes(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0", ConfigSchema: []string{"DB_HOST:localhost"}})
+	dir := g.project()
+	// 本地部署文件里多一个 brickkit.yaml 没有的条目：add 写完之后的核对会拦下
+	writeTree(t, dir, map[string]string{"deploy.local.yaml": "target: docker\ncomponents:\n  - id: erp/ghost\n"})
+	require.NoError(t, os.Chmod(filepath.Join(dir, "deploy.yaml"), 0o600))
+	require.NoDirExists(t, filepath.Join(dir, "config"))
+
+	r := g.run(dir, "add", "erp/api@1.0.0")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.NoDirExists(t, filepath.Join(dir, "config"))
+	info, err := os.Stat(filepath.Join(dir, "deploy.yaml"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }

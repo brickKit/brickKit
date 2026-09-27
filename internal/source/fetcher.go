@@ -161,6 +161,8 @@ type Origin struct {
 	Subpath string
 	// Tag 是这个版本对应的 git tag（git 源才有）：clone 源码后检出它，本地仓库就是这个版本。
 	Tag string
+	// CacheDir 是本机仓库缓存里这个仓库的 bare 副本（git 源才有）：--repo 从它克隆，离线也行。
+	CacheDir string
 }
 
 // IsOpenSource 判断该组件是否可以 clone 源码。

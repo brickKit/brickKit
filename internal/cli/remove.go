@@ -245,6 +245,9 @@ func renderRemoveResult(opts *Options, target resolver.Ref, plan *install.Plan, 
 			opts.Printf("   %s\n", i18n.T(msgid.CliRemoveRequiredByNow, l.Ref().String(), strings.Join(l.RequiredBy, ", ")))
 		}
 	}
+	for _, note := range plan.Notes {
+		opts.Printf("%s\n", i18n.T(msgid.CliInstallNote, note))
+	}
 	for _, a := range res.ConfigsArchived {
 		opts.Printf("%s\n", i18n.T(msgid.CliRemoveConfigArchived, a[0], a[1]))
 	}

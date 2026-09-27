@@ -30,6 +30,7 @@ func PlanRemove(p *project.Project, graph *resolver.Graph, target resolver.Ref) 
 	}
 	plan := &Plan{}
 	removed, affected := cascade(p, graph, target)
+	plan.Notes = optionalDependentNotes(graph, removed)
 
 	remaining := remainingVersions(p, target.ID, removed)
 	var promote *projfile.Component
@@ -68,6 +69,23 @@ func PlanRemove(p *project.Project, graph *resolver.Graph, target resolver.Ref) 
 		}
 	}
 	return plan, nil
+}
+
+// optionalDependentNotes：留下的组件里弱依赖被移除版本的，不拦，但要说一声——它照样运行，
+// 只是那个依赖的地址不再注入（组件自己的降级逻辑接手）。
+func optionalDependentNotes(graph *resolver.Graph, removed map[resolver.Ref]bool) []string {
+	var notes []string
+	for _, n := range graph.Nodes {
+		if removed[n.Ref] {
+			continue
+		}
+		for _, opt := range n.Optional {
+			if removed[opt] {
+				notes = append(notes, i18n.T(msgid.InstallNoteOptionalDependent, n.Ref.String(), opt.String()))
+			}
+		}
+	}
+	return notes
 }
 
 // targetFirst 把 target 那一行排到最前面（输出先说删了谁，再说连带删了谁），其余保持声明顺序。

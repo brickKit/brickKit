@@ -50,6 +50,7 @@ const (
 	CliUpCrashLinesHasNoEffect              = "cli.up.crash_lines_has_no_effect"
 	CliUpLocalReposInvalid                  = "cli.up.local_repos_invalid"
 	CliUpLocalRepoNotDefault                = "cli.up.local_repo_not_default"
+	CliUpLocalRepoUnreadable                = "cli.up.local_repo_unreadable"
 	CliUpLocalRepoVersionMismatch           = "cli.up.local_repo_version_mismatch"
 	CliUpHintUpgradeToRepo                  = "cli.up.hint_upgrade_to_repo"
 	CliUpHintCheckoutTag                    = "cli.up.hint_checkout_tag"

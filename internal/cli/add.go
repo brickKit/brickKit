@@ -121,7 +121,12 @@ func installAdd(ctx context.Context, opts *Options, proj *project.Project, clien
 	}
 	if plan.Empty() {
 		opts.Printf("%s\n", i18n.T(msgid.CliAddNothingChanged, joinRefs(targets)))
-		return nil
+		// 组件早就在了、事后才要源码：三份文件不用改，照样克隆
+		clones, err := planClones(ctx, opts, client, proj, plan, targets, f)
+		if err != nil {
+			return err
+		}
+		return runClones(ctx, opts, proj.Layout, clones, false)
 	}
 
 	// 克隆的资格检查在写文件之前：目录已存在时直接失败，不留下"写了一半"的现场
@@ -143,7 +148,7 @@ func installAdd(ctx context.Context, opts *Options, proj *project.Project, clien
 	renderWarnings(opts, graph.Warnings)
 	renderWarnings(opts, warnings)
 
-	if err := runClones(ctx, opts, proj.Layout, clones); err != nil {
+	if err := runClones(ctx, opts, proj.Layout, clones, true); err != nil {
 		return err
 	}
 	logging.Info(i18n.T(msgid.LogComponentAdded), "components", joinRefs(targets), "added", len(plan.Added))
@@ -275,6 +280,8 @@ type clonePlan struct {
 	ref resolver.Ref
 	url string
 	tag string
+	// from 是本机仓库缓存里的 bare 副本（有的话）：从它克隆，离线也行
+	from string
 }
 
 // planClones 决定 --repo / --repo-all 要克隆哪些，并在写文件之前做完资格检查。
@@ -284,6 +291,9 @@ func planClones(ctx context.Context, opts *Options, client *source.Client, proj 
 		return nil, nil
 	}
 	defaults := map[resolver.Ref]bool{}
+	for _, c := range proj.Decl.Components {
+		defaults[resolver.Ref{ID: c.ID, Version: c.Version}] = proj.Decl.IsDefault(c.ID, c.Version)
+	}
 	for _, l := range plan.AddLines {
 		defaults[l.Ref()] = len(l.RequiredBy) == 0
 	}
@@ -310,14 +320,22 @@ func planClones(ctx context.Context, opts *Options, client *source.Client, proj 
 		if err := workspace.ExistingSourceError(proj.Layout, ref.ID, ref.String()); err != nil {
 			return nil, err
 		}
-		clones = append(clones, clonePlan{ref: ref, url: origin.GitURL, tag: origin.Tag})
+		from := origin.GitURL
+		if origin.CacheDir != "" {
+			from = origin.CacheDir
+		}
+		clones = append(clones, clonePlan{ref: ref, url: origin.GitURL, tag: origin.Tag, from: from})
 	}
 	return clones, nil
 }
 
-func runClones(ctx context.Context, opts *Options, layout project.Layout, clones []clonePlan) error {
+// filesWritten 为 true 表示三份文件这次已经改好：克隆失败时要说出来，免得使用者以为什么都没发生。
+func runClones(ctx context.Context, opts *Options, layout project.Layout, clones []clonePlan, filesWritten bool) error {
 	for _, c := range clones {
-		if _, err := workspace.Clone(ctx, layout, c.ref.ID, c.ref.String(), c.url, c.tag); err != nil {
+		if _, err := workspace.CloneFrom(ctx, layout, c.ref.ID, c.ref.String(), c.from, c.url, c.tag); err != nil {
+			if filesWritten {
+				return clierr.As(err).WithHint(i18n.T(msgid.CliAddCloneAfterWrite, c.ref.String()))
+			}
 			return err
 		}
 		opts.Printf("%s\n", i18n.T(msgid.CliAddCloned, c.ref.String(), workspace.DisplayDir(c.ref.ID), c.tag))

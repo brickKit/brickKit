@@ -72,7 +72,11 @@ func checkLocalRepos(proj *project.Project, states *cascade.Result) error {
 			return
 		}
 		version, err := project.LocalRepoVersion(dir)
-		if err != nil || version == ref.Version {
+		if err != nil {
+			p.Add(field, i18n.T(msgid.CliUpLocalRepoUnreadable, ref.String(), display, err.Error()))
+			return
+		}
+		if version == ref.Version {
 			return
 		}
 		p.Add(field, i18n.T(msgid.CliUpLocalRepoVersionMismatch, ref.String(), display, version))
