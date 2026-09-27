@@ -23,6 +23,9 @@ import (
 // keyID 是列表条目用来互相区分的键：brickkit.yaml 与部署文件的组件条目都是 `- id: …`。
 const keyID = "id"
 
+// keyVersion 是 brickkit.yaml 组件条目的版本键：同一个 ID 的多行靠它区分。
+const keyVersion = "version"
+
 // keyMembers 是部署文件里外壳条目下嵌套成员条目的键。
 const keyMembers = "members"
 
@@ -132,30 +135,162 @@ func (e *Edit) AppendEntry(seqKey, id string) bool {
 // RemoveEntry 删除序列 seqKey 里 `id: <id>` 那一条（含嵌在外壳条目 members 下面的成员条目，
 // 与 entry 的查找范围一致）。最后一个成员删掉后 members 键一并去掉。不存在时返回 false。
 func (e *Edit) RemoveEntry(seqKey, id string) bool {
-	seq := e.sequence(seqKey, false)
-	if seq == nil {
+	return e.RemoveWhere(seqKey, Selector{ID: id})
+}
+
+// RemoveWhere 删除 sel 选中的那一条（查找范围同 RemoveEntry）。不存在时返回 false。
+func (e *Edit) RemoveWhere(seqKey string, sel Selector) bool {
+	loc := e.find(seqKey, sel)
+	if loc == nil {
 		return false
 	}
-	for i, item := range seq.Content {
-		if isEntry(item, id) {
-			seq.Content = append(seq.Content[:i], seq.Content[i+1:]...)
-			return true
-		}
-		members := mappingValue(item, keyMembers)
-		if members == nil || members.Kind != yaml.SequenceNode {
-			continue
-		}
-		for j, member := range members.Content {
-			if isEntry(member, id) {
-				members.Content = append(members.Content[:j], members.Content[j+1:]...)
-				if len(members.Content) == 0 {
-					removeKey(item, keyMembers)
-				}
-				return true
-			}
+	// 条目上方的注释常常是一段小节说明（与 DeleteField 同一个理由）：条目删了，注释交给
+	// 下一个条目；它是最后一条时挂在前一条下方
+	head := loc.item().HeadComment
+	index, seq := loc.index, loc.seq
+	loc.remove()
+	if head != "" {
+		switch {
+		case index < len(seq.Content):
+			seq.Content[index].HeadComment = joinComments(head, seq.Content[index].HeadComment)
+		case index > 0:
+			seq.Content[index-1].FootComment = joinComments(seq.Content[index-1].FootComment, head)
 		}
 	}
-	return false
+	return true
+}
+
+// Field 是 AppendMapping 写入的一个键。Value 是 string，或 []string（写成流式列表
+// `requiredBy: [erp/shell]`，与手写的样子一致）。
+type Field struct {
+	Key   string
+	Value any
+}
+
+// AppendMapping 在序列 seqKey 末尾追加一条由 fields 组成的条目（第一个键应当是 id）。
+// 同一个 id（有 version 键时连同版本）的条目已存在时返回 false，不重复写入。
+func (e *Edit) AppendMapping(seqKey string, fields []Field) bool {
+	var sel Selector
+	item := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	for _, f := range fields {
+		switch f.Key {
+		case keyID:
+			sel.ID, _ = f.Value.(string)
+		case keyVersion:
+			sel.Version, _ = f.Value.(string)
+		}
+		item.Content = append(item.Content, scalar(f.Key), valueNode(f.Value))
+	}
+	if e.find(seqKey, sel) != nil {
+		return false
+	}
+	seq := e.sequence(seqKey, true)
+	seq.Style = 0
+	seq.Content = append(seq.Content, item)
+	return true
+}
+
+// SetList 把 sel 选中条目的 field 设成流式列表；values 为空时删掉这个字段
+// （requiredBy 没人了就不该留一个空列表）。条目不存在、或要删的字段本来就没有时返回 false。
+func (e *Edit) SetList(seqKey string, sel Selector, field string, values []string) bool {
+	loc := e.find(seqKey, sel)
+	if loc == nil {
+		return false
+	}
+	item := loc.item()
+	for i := 0; i+1 < len(item.Content); i += 2 {
+		if item.Content[i].Value != field {
+			continue
+		}
+		if len(values) == 0 {
+			item.Content = append(item.Content[:i], item.Content[i+2:]...)
+			return true
+		}
+		old := item.Content[i+1]
+		node := valueNode(values)
+		node.LineComment, node.FootComment = old.LineComment, old.FootComment
+		item.Content[i+1] = node
+		return true
+	}
+	if len(values) == 0 {
+		return false
+	}
+	item.Content = append(item.Content, scalar(field), valueNode(values))
+	return true
+}
+
+// RenameID 把 `id: <oldID>` 改成 newID（id@1.0.0 ↔ id），无论它在顶层还是嵌在外壳下面。
+// 行尾注释留着。不存在时返回 false。
+func (e *Edit) RenameID(seqKey, oldID, newID string) bool {
+	loc := e.find(seqKey, Selector{ID: oldID})
+	if loc == nil {
+		return false
+	}
+	mappingValue(loc.item(), keyID).Value = newID
+	return true
+}
+
+// Nest 把 entryID 那一条挪到顶层外壳条目 shellID 的 members 下面（字段与注释跟着走）；
+// 条目还不存在时以裸条目 `- id: <entryID>` 加进去。外壳条目不在顶层时返回 false。
+func (e *Edit) Nest(seqKey, shellID, entryID string) bool {
+	_, shell, _ := e.topLevel(seqKey, shellID)
+	if shell == nil {
+		return false
+	}
+	var item *yaml.Node
+	if loc := e.find(seqKey, Selector{ID: entryID}); loc != nil {
+		if loc.parent == shell {
+			return true
+		}
+		item = loc.remove()
+	} else {
+		item = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{scalar(keyID), scalar(entryID)}}
+	}
+	members := mappingValue(shell, keyMembers)
+	if members == nil || members.Kind != yaml.SequenceNode {
+		removeKey(shell, keyMembers)
+		members = &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+		shell.Content = append(shell.Content, scalar(keyMembers), members)
+	}
+	members.Style = 0
+	members.Content = append(members.Content, item)
+	return true
+}
+
+// Unnest 把顶层外壳条目 shellID 的全部成员挪到顶层、紧跟在外壳后面（字段原样），
+// 去掉 members 键，返回挪出来的条目 id。外壳不在或没有成员时返回空。
+func (e *Edit) Unnest(seqKey, shellID string) []string {
+	seq, shell, index := e.topLevel(seqKey, shellID)
+	if shell == nil {
+		return nil
+	}
+	members := mappingValue(shell, keyMembers)
+	if members == nil || members.Kind != yaml.SequenceNode {
+		return nil
+	}
+	removeKey(shell, keyMembers)
+	var ids []string
+	for _, m := range members.Content {
+		if v := mappingValue(m, keyID); v != nil {
+			ids = append(ids, v.Value)
+		}
+	}
+	rest := append([]*yaml.Node{}, seq.Content[index+1:]...)
+	seq.Content = append(append(seq.Content[:index+1], members.Content...), rest...)
+	return ids
+}
+
+// valueNode 把 AppendMapping / SetList 的值做成节点：[]string 写成流式列表。
+func valueNode(v any) *yaml.Node {
+	if list, ok := v.([]string); ok {
+		node := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq", Style: yaml.FlowStyle}
+		for _, s := range list {
+			node.Content = append(node.Content, scalar(s))
+		}
+		return node
+	}
+	s, _ := v.(string)
+	return scalar(s)
 }
 
 // removeKey 从映射节点里删掉一个键及其值。
@@ -195,25 +330,83 @@ func (e *Edit) Save() error {
 
 // entry 找到序列 seqKey 里 `id: <id>` 的映射节点，不存在时返回 nil。
 func (e *Edit) entry(seqKey, id string) *yaml.Node {
+	loc := e.find(seqKey, Selector{ID: id})
+	if loc == nil {
+		return nil
+	}
+	return loc.item()
+}
+
+// Selector 选中列表里的一条：ID 必须相同；Version 非空时条目的 version 字段也必须相同——
+// brickkit.yaml 里同一个组件 ID 可以有多行（多版本共存），靠版本区分。部署文件的条目
+// 只用 ID（`id@version` 本身就是整个 id）。
+type Selector struct{ ID, Version string }
+
+func (s Selector) matches(item *yaml.Node) bool {
+	if !isEntry(item, s.ID) {
+		return false
+	}
+	if s.Version == "" {
+		return true
+	}
+	v := mappingValue(item, keyVersion)
+	return v != nil && v.Value == s.Version
+}
+
+// location 是条目所在的位置：seq 是它所在的序列（顶层或某个外壳的 members），
+// parent 是外壳条目（顶层条目时为 nil）。
+type location struct {
+	seq    *yaml.Node
+	index  int
+	parent *yaml.Node
+}
+
+func (l *location) item() *yaml.Node { return l.seq.Content[l.index] }
+
+// remove 把条目从所在序列里拿掉；外壳的最后一个成员拿掉后 members 键一并去掉。
+func (l *location) remove() *yaml.Node {
+	item := l.item()
+	l.seq.Content = append(l.seq.Content[:l.index], l.seq.Content[l.index+1:]...)
+	if l.parent != nil && len(l.seq.Content) == 0 {
+		removeKey(l.parent, keyMembers)
+	}
+	return item
+}
+
+// find 按 sel 找条目：先看顶层，再往外壳条目的 members 里找一层（部署文件里外壳的成员是
+// 嵌在外壳条目下面的完整条目，只嵌一层；id 在整个文件里唯一，由部署文件校验保证）。
+func (e *Edit) find(seqKey string, sel Selector) *location {
 	seq := e.sequence(seqKey, false)
 	if seq == nil {
 		return nil
 	}
-	for _, item := range seq.Content {
-		if isEntry(item, id) {
-			return item
+	for i, item := range seq.Content {
+		if sel.matches(item) {
+			return &location{seq: seq, index: i}
 		}
-		// 部署文件里外壳的成员是嵌在外壳条目 members 下面的完整条目（只嵌一层）；
-		// id 在整个文件里唯一（部署文件校验保证），往下找一层不会找错
 		if members := mappingValue(item, keyMembers); members != nil && members.Kind == yaml.SequenceNode {
-			for _, member := range members.Content {
-				if isEntry(member, id) {
-					return member
+			for j, member := range members.Content {
+				if sel.matches(member) {
+					return &location{seq: members, index: j, parent: item}
 				}
 			}
 		}
 	}
 	return nil
+}
+
+// topLevel 找顶层的 `id: <id>` 条目及其下标。
+func (e *Edit) topLevel(seqKey, id string) (*yaml.Node, *yaml.Node, int) {
+	seq := e.sequence(seqKey, false)
+	if seq == nil {
+		return nil, nil, -1
+	}
+	for i, item := range seq.Content {
+		if isEntry(item, id) {
+			return seq, item, i
+		}
+	}
+	return seq, nil, -1
 }
 
 // sequence 返回顶层键 seqKey 的序列节点。create 为 true 时在缺失（或写成 null）时创建。
