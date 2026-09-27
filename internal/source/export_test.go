@@ -109,3 +109,22 @@ func TestUntarRejectsEscapes(t *testing.T) {
 	_, err := os.Lstat(filepath.Join(dest, "link"))
 	assert.True(t, os.IsNotExist(err), "指到外面的链接不建")
 }
+
+// 一串链接也不能把文件写到外面：x -> .，d/y -> ../x/..（字面上在里面，实际是 dest 的上一层），
+// 再写 d/y/pwned——任何经过已建链接的条目都拒绝。
+func TestUntarRefusesWritingThroughSymlinks(t *testing.T) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	require.NoError(t, tw.WriteHeader(&tar.Header{Name: "x", Typeflag: tar.TypeSymlink, Linkname: "."}))
+	require.NoError(t, tw.WriteHeader(&tar.Header{Name: "d/", Typeflag: tar.TypeDir, Mode: 0o755}))
+	require.NoError(t, tw.WriteHeader(&tar.Header{Name: "d/y", Typeflag: tar.TypeSymlink, Linkname: "../x/.."}))
+	require.NoError(t, tw.WriteHeader(&tar.Header{Name: "d/y/pwned", Typeflag: tar.TypeReg, Mode: 0o644, Size: 1}))
+	_, _ = tw.Write([]byte("x"))
+	require.NoError(t, tw.Close())
+
+	parent := t.TempDir()
+	dest := filepath.Join(parent, "dest")
+	require.NoError(t, os.MkdirAll(dest, 0o755))
+	_ = untar(&buf, dest)
+	assert.NoFileExists(t, filepath.Join(parent, "pwned"))
+}

@@ -111,20 +111,36 @@ func TestBuildCompatibilityVersionFromTag(t *testing.T) {
 	assert.Equal(t, "one\n", contexts["erp-db:1.0.0"], "构建上下文是 1.0.0 那个 tag 的源码")
 }
 
-// 点名一个不需要构建的组件（镜像是拉的）：说明原因，不报错。
-func TestBuildNamedComponentThatNeedsNoBuild(t *testing.T) {
+// 不点名时，镜像是拉取的组件不构建；点名时照样构建一份本机镜像（源码从它的 tag 导出）——
+// 提案 §9.10.3：拉不到镜像时的出路就是 build。
+func TestBuildNamedComponentThatIsNormallyPulled(t *testing.T) {
 	g := newGitOrgProject(t)
-	g.release(comp{ID: "erp/pulled", Version: "2.0.0"})
+	g.release(comp{ID: "erp/pulled", Version: "2.0.0"}, map[string]string{"Dockerfile": "FROM scratch\n"})
 	dir := g.project()
 	g.mustRun(dir, "add", "erp/pulled@2.0.0")
+
 	images := newFakeImages()
-	r := g.runImages(dir, images, "build", "erp/pulled")
+	r := g.runImages(dir, images, "build")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Empty(t, images.built())
+	assert.Empty(t, images.built(), "不点名：拉取的镜像不构建")
+
+	r = g.runImages(dir, images, "build", "erp/pulled")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, []string{"registry.example.com/erp-pulled:2.0.0"}, images.built())
 	assert.Contains(t, r.stdout, "registry.example.com/erp-pulled:2.0.0")
 
 	r = g.runImages(dir, images, "build", "erp/nope")
 	assert.Equal(t, clierr.ExitError, r.code)
+}
+
+// 拉不到镜像时，up 的报错里也给出本机构建这条出路。
+func TestUpPullFailureOffersBuild(t *testing.T) {
+	g, dir := pulledImagesProject(t)
+	eng := newFakeEngine()
+	eng.checkErr["registry.example.com/people-basic:1.0.0"] = clierr.New(clierr.CodeNetworkUnreachable, "registry unreachable")
+	r := g.upWith(dir, eng, newFakeImages())
+	require.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "brickkit build people/basic@1.0.0")
 }
 
 // 一次构建失败就停下，点名是哪个组件；已经构建好的留着。
@@ -142,4 +158,32 @@ func TestBuildStopsAtFirstFailure(t *testing.T) {
 	require.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stderr, "erp/api@1.0.0")
 	assert.Equal(t, []string{"erp-db:1.0.0"}, images.built(), "依赖顺序：db 先构建，api 失败，web 没开始")
+}
+
+// 外壳镜像已存在、但记下的成员版本与 component.yaml 不一致（改了成员版本）：不跳过，重新构建。
+func TestBuildRebuildsStaleShellImage(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})
+	g.release(buildOnly(comp{ID: "erp/shell", Version: "1.0.0", ShellMembers: []string{"erp/a@1.0.0"}}), map[string]string{"Dockerfile": "FROM scratch\n"})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/shell@1.0.0")
+
+	images := newFakeImages()
+	images.present["erp-shell:1.0.0"] = map[string]string{labelShellMembers: "erp/a@0.9.0"}
+	r := g.runImages(dir, images, "build")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, []string{"erp-shell:1.0.0"}, images.built())
+}
+
+// 部署目标是 k8s：镜像构建在本机，集群拉不到——说一声要推到集群能访问的 registry。
+func TestBuildForK8sTargetSaysImagesAreLocal(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(buildOnly(comp{ID: "erp/api", Version: "1.0.0"}), map[string]string{"Dockerfile": "FROM scratch\n"})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+	editFile(t, filepath.Join(dir, "deploy.yaml"), "target: docker\n", "target: k8s\n")
+
+	r := g.runImages(dir, newFakeImages(), "build")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "registry")
 }

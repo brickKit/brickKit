@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
@@ -94,7 +95,7 @@ func untar(r io.Reader, dest string) error {
 			return err
 		}
 		target := filepath.Join(root, filepath.FromSlash(h.Name))
-		if !withinDir(root, target) {
+		if !withinDir(root, target) || throughSymlink(root, target) {
 			return errors.New(i18n.T(msgid.SourceArchiveEntryEscapes, h.Name))
 		}
 		switch h.Typeflag {
@@ -131,4 +132,21 @@ func untar(r io.Reader, dest string) error {
 		}
 		// 其余类型（git archive 的 pax 全局头等）不是文件，跳过
 	}
+}
+
+// throughSymlink 报告 target 的上级目录里有没有已经建好的链接：链接之后的路径字面上在 dest 里，
+// 实际却可能在外面（x -> .，d/y -> ../x/..，再写 d/y/文件）。经过链接的条目一律拒绝。
+func throughSymlink(root, target string) bool {
+	rel, err := filepath.Rel(root, filepath.Dir(target))
+	if err != nil || rel == "." {
+		return false
+	}
+	p := root
+	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+		p = filepath.Join(p, part)
+		if info, err := os.Lstat(p); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			return true
+		}
+	}
+	return false
 }

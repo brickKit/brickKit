@@ -112,6 +112,8 @@ type imageInfo struct {
 	manifest  *manifest.Manifest
 	// needsLocal：没有 image 的版本、本地安装源给出的版本，镜像必须已经在本机（brickkit build）
 	needsLocal bool
+	// localSource：本地安装源给出的版本——本机镜像还必须是从本地代码构建的（io.brickkit.build=local）
+	localSource bool
 }
 
 // upOptions 是 up 的命令行选项。
@@ -300,7 +302,8 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	plan.collectTargets(order)
 	for i := range plan.images {
 		info := &plan.images[i]
-		info.needsLocal = info.manifest.Deployment.Image == "" || client.IsLocal(ctx, info.ref.ID, info.ref.Version)
+		info.localSource = client.IsLocal(ctx, info.ref.ID, info.ref.Version)
+		info.needsLocal = info.manifest.Deployment.Image == "" || info.localSource
 	}
 	// plan.generated 只在 docker / podman 目标下才有值；k8s 目标下 mode: local 在部署文件
 	// 解析阶段就被拒绝了，所以这里判空既不会漏掉真实的 local 组件，也不会对 nil 取字段
@@ -715,6 +718,13 @@ func checkUpImages(ctx context.Context, opts *Options, eng engine.Engine, local 
 		if err != nil {
 			return err
 		}
+		if exists && info.localSource {
+			labels, _, err := local.ImageLabels(ctx, info.image)
+			if err != nil {
+				return err
+			}
+			exists = labels[labelBuild] == buildLocal
+		}
 		if !exists {
 			missing = append(missing, info)
 		}
@@ -729,7 +739,15 @@ func checkUpImages(ctx context.Context, opts *Options, eng engine.Engine, local 
 		return e.WithHint(append([]string{i18n.T(msgid.CliUpHintBuildNeverAutomatic)}, hints...)...)
 	}
 	if err := checkImages(ctx, opts, eng, pulled); err != nil {
-		return err
+		// 拉不到时还有一条出路：从源码在本机构建（§9.10.3）
+		e := clierr.As(err)
+		for _, d := range e.Details {
+			if d.Key == i18n.T(msgid.LabelComponent) {
+				e = e.WithHint(i18n.T(msgid.CliUpHintBuildInstead, d.Value))
+				break
+			}
+		}
+		return e
 	}
 	return checkShellImageLabels(ctx, opts, local, images)
 }
@@ -739,7 +757,8 @@ func checkUpImages(ctx context.Context, opts *Options, eng engine.Engine, local 
 // 镜像）只能警告；只在 registry 里的镜像是发布出去的版本，天然一致，不查。
 func checkShellImageLabels(ctx context.Context, opts *Options, local engine.Images, images []imageInfo) error {
 	for _, info := range images {
-		if !info.manifest.IsShell() {
+		// 只核对本机构建的外壳镜像：拉取的镜像（哪怕已经缓存在本机）是发布出去的版本
+		if !info.manifest.IsShell() || !info.needsLocal {
 			continue
 		}
 		labels, present, err := local.ImageLabels(ctx, info.image)
@@ -756,7 +775,7 @@ func checkShellImageLabels(ctx context.Context, opts *Options, local engine.Imag
 			opts.Printf("%s", clierr.Warn(clierr.CodeImageUnverified, i18n.T(msgid.CliUpShellImageUnlabelled, info.component)).
 				WithDetail(i18n.T(msgid.LabelImage), info.image).Format())
 		case recorded != declared:
-			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpShellImageStale, info.component)).
+			return clierr.New(clierr.CodeImageStale, i18n.T(msgid.CliUpShellImageStale, info.component)).
 				WithDetail(i18n.T(msgid.LabelImage), info.image).
 				WithDetail(i18n.T(msgid.CliUpLabelImageMembers), recorded).
 				WithDetail(i18n.T(msgid.CliUpLabelDeclaredMembers), declared).

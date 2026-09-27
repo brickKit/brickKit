@@ -48,6 +48,7 @@ const (
 	CliUpIgnoreShellsFlag                   = "cli.up.ignore_shells_flag"
 	CliUpCrashLinesHowManyLinesOfOutput     = "cli.up.crash_lines_how_many_lines_of_output"
 	CliUpCrashLinesHasNoEffect              = "cli.up.crash_lines_has_no_effect"
+	CliUpHintBuildInstead                   = "cli.up.hint_build_instead"
 	CliUpImagesNeedBuild                    = "cli.up.images_need_build"
 	CliUpHintBuildNeverAutomatic            = "cli.up.hint_build_never_automatic"
 	CliUpShellImageUnlabelled               = "cli.up.shell_image_unlabelled"

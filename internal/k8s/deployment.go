@@ -175,7 +175,7 @@ func (p *plan) containerDoc(c componentPlan) map[string]any {
 		// 容器名用不带版本的组件 ID：kubectl logs / exec 要手敲它，
 		// Pod 名本身已经带了版本，这里再带一遍只是更难打
 		"name":  containerName(c.Ref.ID),
-		"image": c.Manifest.Deployment.Image,
+		"image": manifest.ImageRef(c.Manifest),
 		"ports": containerPorts(c.Manifest),
 	}
 

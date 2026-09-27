@@ -37,6 +37,10 @@ const (
 	labelComponent    = "io.brickkit.component"
 	labelVersion      = "io.brickkit.version"
 	labelShellMembers = "io.brickkit.shell.members"
+	// labelBuild 标出"这个镜像是 brickkit build 在本机从源码构建的"：本地源的组件写了 image 时，
+	// 本机上同名的 tag 可能是以前从 registry 拉下来的——那是另一份代码，不能顶替本地构建
+	labelBuild = "io.brickkit.build"
+	buildLocal = "local"
 )
 
 func newBuildCommand(opts *Options) *cobra.Command {
@@ -100,17 +104,18 @@ func runBuild(ctx context.Context, opts *Options, arg string, force bool) error 
 		}
 		tag := manifest.ImageRef(node.Manifest)
 		if !needsLocalBuild(ctx, client, node) {
-			if id != "" {
-				opts.Printf("%s\n", i18n.T(msgid.CliBuildNotNeeded, ref.String(), tag))
+			if id == "" {
+				continue
 			}
-			continue
+			// 点名了：镜像平常是拉取的，这次在本机构建一份（拉不到时的出路，§9.10.3）
+			opts.Printf("%s\n", i18n.T(msgid.CliBuildNormallyPulled, ref.String(), tag))
 		}
 		if !force {
-			exists, err := images.ImageExists(ctx, tag)
+			current, err := localImageUsable(ctx, images, node, tag, client.IsLocal(ctx, ref.ID, ref.Version))
 			if err != nil {
 				return err
 			}
-			if exists {
+			if current {
 				opts.Printf("%s\n", i18n.T(msgid.CliBuildSkippedExists, ref.String(), tag))
 				skipped++
 				continue
@@ -126,7 +131,36 @@ func runBuild(ctx context.Context, opts *Options, arg string, force bool) error 
 	if built == 0 && skipped == 0 && id == "" {
 		opts.Printf("%s\n", i18n.T(msgid.CliBuildNothing))
 	}
+	if built > 0 && proj.Deploy.Target == deployfile.TargetK8s {
+		// 镜像构建在这台机器上：集群拉不到它，除非推到集群能访问的 registry（或载入本地集群）
+		opts.Printf("%s\n", i18n.T(msgid.CliBuildK8sNote))
+	}
 	return nil
+}
+
+// localImageUsable 报告本机上的镜像能不能直接用、不必重新构建：
+//
+//	本地源的版本     必须是 brickkit build 从本地代码构建的（带 io.brickkit.build=local）
+//	外壳             记下的成员版本要与 shell.members 一致（附录 A24）；没有标签的不追究
+func localImageUsable(ctx context.Context, images engine.Images, node *resolver.Node, tag string, localSource bool) (bool, error) {
+	exists, err := images.ImageExists(ctx, tag)
+	if err != nil || !exists {
+		return false, err
+	}
+	if !localSource && !node.Manifest.IsShell() {
+		return true, nil
+	}
+	labels, _, err := images.ImageLabels(ctx, tag)
+	if err != nil {
+		return false, err
+	}
+	if localSource && labels[labelBuild] != buildLocal {
+		return false, nil
+	}
+	if recorded, ok := labels[labelShellMembers]; ok && node.Manifest.IsShell() && recorded != shellMembersLabel(node.Manifest.Shell.Members) {
+		return false, nil
+	}
+	return true, nil
 }
 
 // needsLocalBuild：没有 image 的版本、本地安装源给出的版本要在本机构建；其余的镜像是拉的。
@@ -180,7 +214,7 @@ func sourceRoot(ctx context.Context, proj *project.Project, client *source.Clien
 
 // imageLabels 是写进镜像的标签：组件与版本；外壳还有编进去的成员版本（排好序）。
 func imageLabels(node *resolver.Node) map[string]string {
-	labels := map[string]string{labelComponent: node.Ref.ID, labelVersion: node.Ref.Version}
+	labels := map[string]string{labelComponent: node.Ref.ID, labelVersion: node.Ref.Version, labelBuild: buildLocal}
 	if node.Manifest.IsShell() {
 		labels[labelShellMembers] = shellMembersLabel(node.Manifest.Shell.Members)
 	}

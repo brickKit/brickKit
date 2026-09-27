@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/manifest"
 )
 
 func (g *gitOrgProject) upWith(dir string, eng *fakeEngine, images *fakeImages, args ...string) result {
@@ -117,6 +119,11 @@ func TestUpShellImageOnlyInRegistryNotChecked(t *testing.T) {
 	r := g.upWith(dir, newFakeEngine(), newFakeImages())
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.NotContains(t, r.stdout+r.stderr, "cannot be confirmed")
+
+	// 拉过一次之后镜像就在本机缓存里了——它仍然是发布出去的版本，照样不核对、不警告
+	r = g.upWith(dir, newFakeEngine(), newFakeImages("registry.example.com/erp-shell:1.0.0"))
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout+r.stderr, "cannot be confirmed")
 }
 
 // §8.5 规则 3：外壳成员必须有自己的镜像（image 或 build）——没有的组件连 Manifest 校验都过不了，add 当场失败。
@@ -130,4 +137,59 @@ func TestAddShellMemberWithoutImageFails(t *testing.T) {
 	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stderr, "erp/a")
 	assert.NotContains(t, readFile(t, filepath.Join(dir, "brickkit.yaml")), "erp/shell")
+}
+
+// 本地源的组件写了 image：本机上那个 tag 可能是以前从 registry 拉下来的（组件那时还是 git 装的）。
+// 那不是本地代码构建的——up 不认，build 不跳过。
+func TestLocalSourceRejectsAPulledImageWithTheSameTag(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"brickkit.yaml":                     "project: shop\nsources:\n  - {name: dev, type: local, path: ./components}\ncomponents:\n  - {id: erp/api, version: 1.0.0}\n",
+		"deploy.yaml":                       "target: docker\ncomponents:\n  - id: erp/api\n",
+		"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "1.0.0"}.yamlText(),
+		"components/erp/api/Dockerfile":     "FROM scratch\n",
+	})
+	images := newFakeImages("registry.example.com/erp-api:1.0.0") // 拉下来的：没有本地构建的标签
+	eng := newFakeEngine()
+	run := func(args ...string) result {
+		return runWith(t, func(o *Options) { o.Engine = eng; o.Images = images }, dir, args...)
+	}
+
+	r := run("up")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stderr, "brickkit build erp/api@1.0.0")
+	assert.Empty(t, eng.ups)
+
+	r = run("build")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, []string{"registry.example.com/erp-api:1.0.0"}, images.built(), "没有本地构建标签的镜像不算数，照样构建")
+	r = run("up")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+}
+
+// 外壳镜像过期有自己的错误码：脚本要分得清"重建镜像"与"配置写错了"。
+func TestShellImageStaleHasItsOwnCode(t *testing.T) {
+	images := newFakeImages()
+	images.present["erp-shell:1.0.0"] = map[string]string{labelShellMembers: "erp/a@0.9.0"}
+	m := &manifest.Manifest{Metadata: manifest.Metadata{ID: "erp/shell", Version: "1.0.0"}, Shell: &manifest.Shell{Members: []string{"erp/a@1.0.0"}}}
+	err := checkShellImageLabels(context.Background(), quietOptions(), images,
+		[]imageInfo{{component: "erp/shell@1.0.0", image: "erp-shell:1.0.0", manifest: m, needsLocal: true}})
+	require.Error(t, err)
+	assert.Equal(t, clierr.CodeImageStale, clierr.As(err).Code)
+}
+
+// 本机镜像查不了（docker 守护进程没起）：报引擎的错，不当成"镜像不在"。
+func TestUpImageCheckDaemonDown(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(buildOnly(comp{ID: "erp/api", Version: "1.0.0"}), map[string]string{"Dockerfile": "FROM scratch\n"})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+	r := runWith(t, func(o *Options) {
+		o.Engine = newFakeEngine()
+		o.Images = brokenImages{}
+		o.RepoCacheDir = g.cache
+	}, dir, "up")
+	require.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "Docker daemon")
+	assert.NotContains(t, r.stderr, "brickkit build")
 }

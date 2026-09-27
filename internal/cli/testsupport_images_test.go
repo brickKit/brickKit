@@ -6,16 +6,17 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/engine"
 )
 
-// everyImagePresent 是测试默认的本机镜像替身：什么镜像都当作在本机（多数用例关心的不是镜像），
-// 标签一律查不到——外壳镜像的核对只在用例专门给出本机镜像时才发生。测试绝不碰真的 docker。
+// everyImagePresent 是测试默认的本机镜像替身：什么镜像都当作 brickkit build 在本机构建好了
+// （多数用例关心的不是镜像）。测试绝不碰真的 docker；关心镜像的用例换成 fakeImages。
 type everyImagePresent struct{}
 
 func (everyImagePresent) ImageExists(context.Context, string) (bool, error) { return true, nil }
 func (everyImagePresent) ImageLabels(context.Context, string) (map[string]string, bool, error) {
-	return nil, false, nil
+	return map[string]string{labelBuild: buildLocal}, true, nil
 }
 func (everyImagePresent) Build(context.Context, engine.BuildRequest) error { return nil }
 
@@ -89,3 +90,16 @@ func (r recordingContext) Build(ctx context.Context, req engine.BuildRequest) er
 	}
 	return r.fakeImages.Build(ctx, req)
 }
+
+// brokenImages 模拟 docker 守护进程没起：每个本机镜像操作都失败（与真引擎一样是 ENGINE_FAILED）。
+type brokenImages struct{}
+
+func daemonDown() error {
+	return clierr.New(clierr.CodeEngineFailed, "docker failed").WithDetail("Output", "Cannot connect to the Docker daemon")
+}
+
+func (brokenImages) ImageExists(context.Context, string) (bool, error) { return false, daemonDown() }
+func (brokenImages) ImageLabels(context.Context, string) (map[string]string, bool, error) {
+	return nil, false, daemonDown()
+}
+func (brokenImages) Build(context.Context, engine.BuildRequest) error { return daemonDown() }

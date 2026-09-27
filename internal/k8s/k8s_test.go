@@ -711,3 +711,20 @@ func TestFilesHaveHeaderComment(t *testing.T) {
 	assert.Contains(t, text, "do not edit by hand")
 	assert.Contains(t, text, "2026-08-15T10:00:00Z")
 }
+
+// Deployment 与迁移 Job 用同一个镜像名（manifest.ImageRef）：不带 tag 的 image 补上组件版本，
+// 只有 build 的组件用推出来的 <scope>-<name>:<版本>——从前 Deployment 原样写 image，
+// Pod 跑 :latest 而迁移跑 :1.0.0，只有 build 的组件干脆是空镜像名。
+func TestDeploymentImageMatchesImageRef(t *testing.T) {
+	untagged := simple("erp/api", "1.0.0", 8080)
+	untagged.Deployment.Image = "ghcr.io/org/erp-api"
+	buildOnly := simple("erp/web", "2.0.0", 8081)
+	buildOnly.Deployment.Image = ""
+	buildOnly.Deployment.Build = &manifest.Build{}
+
+	b := newBuilder(t)
+	b.component(untagged, projecttest.Entry{})
+	b.component(buildOnly, projecttest.Entry{})
+	assert.Equal(t, "ghcr.io/org/erp-api:1.0.0", b.container("erp-api-1-0-0")["image"])
+	assert.Equal(t, "erp-web:2.0.0", b.container("erp-web-2-0-0")["image"])
+}
