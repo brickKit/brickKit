@@ -49,6 +49,8 @@ func run(t *testing.T, args ...string) result {
 		LogLevel: logging.LevelInfo,
 		Stdout:   &out,
 		Stderr:   &errBuf,
+		// git 源的仓库缓存放在测试自己的临时目录，绝不碰使用者的 ~/.cache
+		RepoCacheDir: t.TempDir(),
 	}
 	code := Run(NewRootCommand(opts), opts, args)
 	return result{stdout: out.String(), stderr: errBuf.String(), code: code}
@@ -161,9 +163,8 @@ func TestErrorOutputFormat(t *testing.T) {
 // 正在重建的命令给出明确的 NOT_IMPLEMENTED 错误与阶段编号：占位必须明确报错、
 // 不能假装成功。表空了也保留这个用例，将来再有占位命令时把它填回来。
 func TestNotImplementedCommands(t *testing.T) {
-	// add / remove 按三层文件模型在 P4 重建：帮助照常，执行时明确说"正在重建"
+	// remove 按三层文件模型在 P4 重建：帮助照常，执行时明确说"正在重建"
 	cases := map[string][]string{
-		"add":    {"add", "people/basic@1.0.0", "--yes"},
 		"remove": {"remove", "people/basic"},
 	}
 

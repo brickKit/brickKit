@@ -7,6 +7,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -73,6 +74,12 @@ type Options struct {
 	// ResolveDigest 把镜像 tag 解析成 registry 里的 digest（P29）。
 	// 为空时用真实实现（docker buildx imagetools）。测试可替换。
 	ResolveDigest func(ctx context.Context, image string) (string, error)
+	// RepoCacheDir 是 git 源的 bare 仓库缓存目录。空表示用户级默认位置（附录 A12）；
+	// 测试用它隔离，不是面向使用者的开关。
+	RepoCacheDir string
+	// stdinReader 是 Stdin 上唯一的缓冲读取器：一次命令里有好几个问题时，
+	// 每次新建读取器会把后面的回答吞进前一个的缓冲区。
+	stdinReader *bufio.Reader
 	// Engine 是容器引擎。为空时按 005 §7 自动检测（目前只支持 Docker）。
 	//
 	// 命令层的职责是"决定谁该启动、先检查什么"，不是"怎么调 docker"；

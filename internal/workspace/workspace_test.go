@@ -85,7 +85,7 @@ func TestCloneCreatesFullRepository(t *testing.T) {
 		"README.md":      "# people/basic\n",
 	})
 
-	target, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", repo)
+	target, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", repo, "")
 	require.NoError(t, err)
 
 	assert.Equal(t, SourceDir(layout, "people/basic"), target)
@@ -102,7 +102,7 @@ func TestCloneRefusesExistingDirectory(t *testing.T) {
 	require.NoError(t, os.MkdirAll(target, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(target, "mine.txt"), []byte("我的源码"), 0o644))
 
-	_, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", "irrelevant")
+	_, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", "irrelevant", "")
 	require.Error(t, err)
 
 	e := clierr.As(err)
@@ -128,7 +128,7 @@ func TestCloneRefusesArchivedSource(t *testing.T) {
 	require.NoError(t, os.MkdirAll(archived, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(archived, "mine.txt"), []byte("我的源码"), 0o644))
 
-	_, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", "irrelevant")
+	_, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", "irrelevant", "")
 	require.Error(t, err)
 
 	out := clierr.As(err).Format()
@@ -164,7 +164,7 @@ func TestCloneUnreachableRepository(t *testing.T) {
 	layout := newLayout(t)
 	missing := filepath.Join(t.TempDir(), "no-such-repo.git")
 
-	_, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", missing)
+	_, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", missing, "")
 	require.Error(t, err)
 
 	e := clierr.As(err)
@@ -178,7 +178,7 @@ func TestCloneCannotCreateParent(t *testing.T) {
 	layout := project.NewLayout(t.TempDir())
 	require.NoError(t, os.WriteFile(layout.ComponentsDir(), []byte("占位"), 0o644))
 
-	_, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", "irrelevant")
+	_, err := Clone(context.Background(), layout, "people/basic", "people/basic@1.0.0", "irrelevant", "")
 	require.Error(t, err)
 	assert.Contains(t, clierr.As(err).Format(), "could not create the source directory")
 }
@@ -417,4 +417,15 @@ func TestArchiveWorksOutsideGitRepo(t *testing.T) {
 	require.NoError(t, Archive(layout, "mdm/customer", nil))
 	assert.NoDirExists(t, dir)
 	assert.DirExists(t, ArchivedDir(layout, "mdm/customer"))
+}
+
+// 要检出的 tag 不存在：报错，并且不留下一份停在别的版本上的源码（附录 A22）。
+func TestCloneMissingTagLeavesNothing(t *testing.T) {
+	layout := newLayout(t)
+	repo := newRepo(t, map[string]string{"component.yaml": "metadata:\n  id: people/basic\n"})
+
+	_, err := Clone(context.Background(), layout, "people/basic", "people/basic@9.9.9", repo, "9.9.9")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "9.9.9")
+	assert.False(t, Exists(layout, "people/basic"))
 }

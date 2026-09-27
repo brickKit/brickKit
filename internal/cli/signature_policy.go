@@ -37,5 +37,6 @@ func newSourceClient(
 		return nil, err
 	}
 	sourceOpts.Signature = policy
+	sourceOpts.RepoCacheDir = opts.RepoCacheDir
 	return source.New(layout, cfg, sourceOpts)
 }

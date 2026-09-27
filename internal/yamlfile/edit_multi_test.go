@@ -158,3 +158,44 @@ components:
   - id: erp/portal
 `, saved(t, e, path))
 }
+
+// `components:` 空着（null）或整个没写：追加时建出块式列表。
+func TestAppendMappingCreatesTheList(t *testing.T) {
+	for name, text := range map[string]string{
+		"null":    "project: shop\ncomponents:\n",
+		"missing": "project: shop\n",
+		"flow":    "project: shop\ncomponents: []\n",
+	} {
+		e, path := openText(t, "brickkit.yaml", text)
+		require.True(t, e.AppendMapping("components", []yamlfile.Field{{Key: "id", Value: "erp/api"}, {Key: "version", Value: "1.0.0"}}), name)
+		assert.False(t, e.AppendMapping("components", []yamlfile.Field{{Key: "id", Value: "erp/api"}, {Key: "version", Value: "1.0.0"}}), name+"：同一个版本不重复写")
+		assert.Contains(t, saved(t, e, path), "components:\n  - id: erp/api\n    version: 1.0.0\n", name)
+	}
+}
+
+// 选不中任何条目时什么都不改，并如实返回 false。
+func TestEditOperationsOnMissingEntries(t *testing.T) {
+	e, path := openText(t, "deploy.yaml", deploySample)
+	sel := yamlfile.Selector{ID: "erp/nope"}
+	assert.False(t, e.SetList("components", sel, "requiredBy", []string{"x"}))
+	assert.False(t, e.RemoveWhere("components", sel))
+	assert.False(t, e.RemoveWhere("nothing", sel))
+	assert.Empty(t, e.Unnest("components", "erp/nope"))
+	assert.Empty(t, e.Unnest("nothing", "erp/shell"))
+	assert.Equal(t, deploySample, saved(t, e, path))
+}
+
+// SetList 换掉已有的列表，行尾注释留着。
+func TestSetListReplacesExistingList(t *testing.T) {
+	e, path := openText(t, "brickkit.yaml", `components:
+  - id: erp/db
+    version: 1.0.0
+    requiredBy: [erp/a] # kept for erp/a
+`)
+	require.True(t, e.SetList("components", yamlfile.Selector{ID: "erp/db", Version: "1.0.0"}, "requiredBy", []string{"erp/a", "erp/b"}))
+	assert.Equal(t, `components:
+  - id: erp/db
+    version: 1.0.0
+    requiredBy: [erp/a, erp/b] # kept for erp/a
+`, saved(t, e, path))
+}

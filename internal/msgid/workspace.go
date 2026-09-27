@@ -19,6 +19,7 @@ const (
 	WorkspaceCannotCreateSourceDir = "workspace.cannot_create_source_dir"
 
 	WorkspaceCloneFailed            = "workspace.clone_failed"
+	WorkspaceCheckoutFailed         = "workspace.checkout_failed"
 	WorkspaceHintCheckNetworkAndURL = "workspace.hint.check_network_and_url"
 	WorkspaceHintCheckAccess        = "workspace.hint.check_access"
 

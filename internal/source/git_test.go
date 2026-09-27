@@ -273,3 +273,33 @@ func TestProjfileGitSourceValidation(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "components[1].source", "同一个组件的几行来源不一致")
 }
+
+// 两个 git 组织：组件只在第二个里。第一个的仓库在、却没有这个版本——来源（--repo 用）
+// 要落到真正有它的那一个。
+func TestGitOriginIsTheSourceThatHasTheVersion(t *testing.T) {
+	first, second := newGitOrg(t), newGitOrg(t)
+	first.release(componentSpec{ID: "erp/api", Version: "0.1.0"})
+	second.release(componentSpec{ID: "erp/api", Version: "1.0.0"})
+	cfg := cfgWithSources(
+		projfile.Source{Name: "first", Type: projfile.SourceTypeGit, BaseURL: gittest.BaseURL(first.dir)},
+		projfile.Source{Name: "second", Type: projfile.SourceTypeGit, BaseURL: gittest.BaseURL(second.dir)},
+	)
+	c := newClient(t, newProject(t), cfg, Options{RepoCacheDir: t.TempDir()})
+
+	origin, err := c.Origin(context.Background(), "erp/api", "1.0.0")
+	require.NoError(t, err)
+	assert.Equal(t, "second", origin.SourceID)
+	got, err := c.Manifest(context.Background(), "erp/api", "1.0.0")
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.0", got.Manifest.Metadata.Version)
+}
+
+// 仓库在、却一个版本 tag 都没有：不是"这里有它"。
+func TestGitLatestWithoutVersionTags(t *testing.T) {
+	org := newGitOrg(t)
+	r := org.remote("erp/api")
+	r.Tag("draft", specFiles(componentSpec{ID: "erp/api", Version: "0.0.1"}))
+	c, _ := org.client()
+	_, err := c.LatestVersion(context.Background(), "erp/api")
+	require.Error(t, err)
+}

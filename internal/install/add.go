@@ -13,8 +13,9 @@ import (
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
-// PlanAdd 算出把 target 加进项目要做的改动。graph 以项目里已声明的全部组件、target、
-// 以及（target 是外壳时）它编进的成员为根解析——图里没在 brickkit.yaml 里的都是这次要加的。
+// PlanAdd 算出把 targets 加进项目要做的改动（add 一个组件，或 add --local 一批）。graph 以
+// 项目里已声明的全部组件、targets、以及外壳编进的成员为根解析——图里没在 brickkit.yaml
+// 里的都是这次要加的。
 //
 // 规则：
 //   - 新组件 ID 的第一个版本是默认版本：没有 requiredBy、部署条目写裸 ID、无版本号配置文件；
@@ -24,16 +25,20 @@ import (
 //   - target 本身是已有 ID 的另一个版本、又没有谁需要它：报错，换默认版本归 upgrade
 //   - 项目里（含这次新加的）有外壳编进了这个版本：条目嵌到外壳下面（附录 A21、A24、§8.5）；
 //     已在顶层的挪进去
-func PlanAdd(p *project.Project, graph *resolver.Graph, target resolver.Ref) (*Plan, error) {
+func PlanAdd(p *project.Project, graph *resolver.Graph, targets ...resolver.Ref) (*Plan, error) {
 	a := newAdder(p, graph)
-	if err := a.checkTarget(target); err != nil {
-		return nil, err
+	for _, target := range targets {
+		if err := a.checkTarget(target); err != nil {
+			return nil, err
+		}
 	}
-	a.chooseDefaults(target)
+	a.chooseDefaults(targets)
 	a.addNewRefs()
 	a.extendRequiredBy()
 	a.nestExisting()
-	a.fillMissingConfig(target)
+	for _, target := range targets {
+		a.fillMissingConfig(target)
+	}
 	sortEntries(a.plan.AddEntries)
 	return a.plan, nil
 }
@@ -87,14 +92,21 @@ func (a *adder) checkTarget(target resolver.Ref) error {
 		)
 }
 
-// chooseDefaults 给这次新出现的组件 ID 选默认版本：target 自己的版本优先，否则取最高的。
-func (a *adder) chooseDefaults(target resolver.Ref) {
+// chooseDefaults 给这次新出现的组件 ID 选默认版本：要 add 的那个版本优先，否则取最高的。
+func (a *adder) chooseDefaults(targets []resolver.Ref) {
+	wanted := map[string]string{}
+	for _, t := range targets {
+		wanted[t.ID] = t.Version
+	}
 	for _, ref := range a.fresh {
-		if len(a.p.Decl.Versions(ref.ID)) > 0 || a.defaults[ref.ID] == target.Version && ref.ID == target.ID {
+		if len(a.p.Decl.Versions(ref.ID)) > 0 {
 			continue
 		}
-		current, seen := a.defaults[ref.ID]
-		if ref == target || !seen || manifest.CompareVersions(ref.Version, current) > 0 {
+		if v, ok := wanted[ref.ID]; ok {
+			a.defaults[ref.ID] = v
+			continue
+		}
+		if current, seen := a.defaults[ref.ID]; !seen || manifest.CompareVersions(ref.Version, current) > 0 {
 			a.defaults[ref.ID] = ref.Version
 		}
 	}

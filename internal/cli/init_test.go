@@ -39,6 +39,8 @@ func runWith(t *testing.T, tweak func(*Options), dir string, args ...string) res
 		ResolveDigest: func(context.Context, string) (string, error) {
 			return stubDigest, nil
 		},
+		// git 源的仓库缓存放在测试自己的临时目录，绝不碰使用者的 ~/.cache
+		RepoCacheDir: t.TempDir(),
 	}
 	if tweak != nil {
 		tweak(opts)

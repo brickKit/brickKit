@@ -18,6 +18,8 @@ const (
 	LogK8sManifestsGenerated = "log.k8s_manifests_generated"
 	LogOrphansPruned         = "log.orphans_pruned"
 	LogArtifactsFetched      = "log.artifacts_fetched"
+	LogComponentAdded        = "log.component_added"
+	LogComponentRemoved      = "log.component_removed"
 	LogPruneQueryFailed      = "log.prune_query_failed"
 	LogPruneFailed           = "log.prune_failed"
 )

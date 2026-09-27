@@ -47,7 +47,10 @@ func confirm(opts *Options, prompt string) bool {
 		opts.Printf("\n")
 		return false
 	}
-	line, _ := bufio.NewReader(opts.Stdin).ReadString('\n')
+	if opts.stdinReader == nil {
+		opts.stdinReader = bufio.NewReader(opts.Stdin)
+	}
+	line, _ := opts.stdinReader.ReadString('\n')
 	opts.Printf("\n")
 	switch strings.ToLower(strings.TrimSpace(line)) {
 	case "y", "yes":

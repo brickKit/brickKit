@@ -8,13 +8,8 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
-// 三层文件重构期间，add / remove 按新的组件分发模型（Git 仓库 + tag、写三份文件、
-// 配置骨架与归档）整体重写，在 P4 落地。在那之前命令照常出现在帮助里，但执行时
-// 明确说明它正在重建——不能静默失败，也不能按旧模型写出一份新模型读不懂的文件。
-
-func newAddCommand(opts *Options) *cobra.Command {
-	return rebuildingCommand("add", i18n.T(msgid.CliAddAddComponentIdExactVersion), i18n.T(msgid.CliAddShort), "P4")
-}
+// 三层文件重构期间，remove 按新的组件分发模型整体重写，在 P4 落地。在那之前命令照常出现在
+// 帮助里，但执行时明确说明它正在重建——不能静默失败，也不能按旧模型写出一份新模型读不懂的文件。
 
 func newRemoveCommand(opts *Options) *cobra.Command {
 	return rebuildingCommand("remove", i18n.T(msgid.CliRemoveRemoveComponentIdVersion), i18n.T(msgid.CliRemoveShort), "P4")

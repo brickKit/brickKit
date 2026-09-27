@@ -124,7 +124,9 @@ func ExistingSourceError(l project.Layout, componentID, ref string) error {
 // 源码**两处任一处**已存在时报错阻断：活跃目录里可能是使用者正在开发的源码，
 // 归档目录里那份也是他自己的（只是被 sync 收起来了）。绝不覆盖，也绝不
 // 在活跃目录再造一份——那会打破"一个组件 ID 只有一个源码目录"（004 §8.1）。
-func Clone(ctx context.Context, l project.Layout, componentID, ref, gitURL string) (string, error) {
+//
+// tag 非空时克隆完检出它：本地仓库就是那个版本（附录 A22）。
+func Clone(ctx context.Context, l project.Layout, componentID, ref, gitURL, tag string) (string, error) {
 	target := SourceDir(l, componentID)
 	if err := ExistingSourceError(l, componentID, ref); err != nil {
 		return "", err
@@ -149,6 +151,17 @@ func Clone(ctx context.Context, l project.Layout, componentID, ref, gitURL strin
 				i18n.T(msgid.WorkspaceHintCheckNetworkAndURL),
 				i18n.T(msgid.WorkspaceHintCheckAccess),
 			).WithCause(err)
+	}
+	if tag != "" {
+		checkout := exec.CommandContext(ctx, "git", "-C", target, "checkout", "--quiet", "tags/"+tag)
+		if out, err := checkout.CombinedOutput(); err != nil {
+			_ = os.RemoveAll(target)
+			return "", clierr.New(clierr.CodeCloneFailed, i18n.T(msgid.WorkspaceCheckoutFailed, tag)).
+				WithDetail(i18n.T(msgid.LabelComponent), ref).
+				WithDetail(i18n.T(msgid.LabelRepo), gitURL).
+				WithDetail(i18n.T(msgid.LabelReason), firstLine(string(out), err)).
+				WithCause(err)
+		}
 	}
 	return target, nil
 }
