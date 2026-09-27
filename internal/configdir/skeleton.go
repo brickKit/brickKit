@@ -19,21 +19,18 @@ const HeaderPrefix = "# Component: "
 // 只有"必填且没有默认值"的键写成 KEY: ""；其余一律注释掉——没被使用者碰过的键
 // 就一直跟随组件的默认值，升级时默认值变了也不会制造假冲突。
 func Skeleton(id, version string, schema *manifest.ConfigSchema, varRefs map[string]string) []byte {
+	return renderSkeleton(id, version, schema, func(key string, prop manifest.ConfigProperty, required bool) string {
+		return skeletonLine(key, prop, varRefs[key], required)
+	})
+}
+
+// renderSkeleton 是骨架的版式（文件头、必填区、可选区）；每个键写成什么由 line 决定——
+// 生成骨架写骨架行，迁移（Migrate）把使用者写过的键换成他的原文或冲突块。
+func renderSkeleton(id, version string, schema *manifest.ConfigSchema, line func(key string, prop manifest.ConfigProperty, required bool) string) []byte {
 	if schema == nil || len(schema.Properties) == 0 {
 		return nil
 	}
-	required := map[string]bool{}
-	for _, key := range schema.Required {
-		required[key] = true
-	}
-	var requiredKeys, optionalKeys []string
-	for _, key := range sortedProperties(schema.Properties) {
-		if required[key] && schema.Properties[key].Default == nil {
-			requiredKeys = append(requiredKeys, key)
-		} else {
-			optionalKeys = append(optionalKeys, key)
-		}
-	}
+	requiredKeys, optionalKeys := splitKeys(schema)
 
 	var b strings.Builder
 	b.WriteString(HeaderPrefix + id + "@" + version + "\n")
@@ -44,12 +41,28 @@ func Skeleton(id, version string, schema *manifest.ConfigSchema, varRefs map[str
 		}
 		b.WriteString("\n" + yamlcomment.Block("", title))
 		for _, key := range keys {
-			b.WriteString(skeletonLine(key, schema.Properties[key], varRefs[key], isRequired))
+			b.WriteString(line(key, schema.Properties[key], isRequired))
 		}
 	}
 	section(i18n.T(msgid.ConfigdirSkeletonRequired), requiredKeys, true)
 	section(i18n.T(msgid.ConfigdirSkeletonOptional), optionalKeys, false)
 	return []byte(b.String())
+}
+
+// splitKeys 把键分成"必填且没有默认值"与其余两组（各自排好序）。
+func splitKeys(schema *manifest.ConfigSchema) (requiredKeys, optionalKeys []string) {
+	required := map[string]bool{}
+	for _, key := range schema.Required {
+		required[key] = true
+	}
+	for _, key := range sortedProperties(schema.Properties) {
+		if required[key] && schema.Properties[key].Default == nil {
+			requiredKeys = append(requiredKeys, key)
+		} else {
+			optionalKeys = append(optionalKeys, key)
+		}
+	}
+	return requiredKeys, optionalKeys
 }
 
 func skeletonLine(key string, prop manifest.ConfigProperty, varRef string, required bool) string {
