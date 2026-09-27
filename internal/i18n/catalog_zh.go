@@ -1334,6 +1334,8 @@ var zh = map[string]string{
 	msgid.ConfigdirFileRefMissing:             "错误：%[1]s 指向的文件读不到",
 	msgid.ConfigdirHintFileRef:                "file:// 的路径相对项目根；这类文件不要进 Git（比如放在 .secrets/ 下）",
 	msgid.ConfigdirCannotEvaluate:             "内部错误：%[1]s 在这里不能被求值",
+	msgid.SourceArchiveEntryEscapes:           "源码归档里的 %[1]s 会写到目标目录外面，拒绝导出",
+	msgid.SourceHintNoSourceToBuild:           "要构建它得有源码：git 源的组件从版本 tag 导出；市场组件只给镜像，要么用它发布的 image，要么把源码放进本地安装源",
 	msgid.SourceNoRepoCache:                   "拉取组件失败：%[1]s——找不到用户缓存目录，git 仓库没有地方放",
 	msgid.SourceHintSetCacheHome:              "设置 XDG_CACHE_HOME（或 HOME）指向一个可写目录",
 	msgid.SourceGitFetchFailed:                "拉取组件失败：%[1]s",

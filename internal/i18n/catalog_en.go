@@ -1343,6 +1343,8 @@ var en = map[string]string{
 	msgid.ConfigdirFileRefMissing:             "Error: %[1]s points at a file that cannot be read",
 	msgid.ConfigdirHintFileRef:                "file:// paths are relative to the project root; keep such files out of Git (e.g. under .secrets/)",
 	msgid.ConfigdirCannotEvaluate:             "internal error: %[1]s cannot be evaluated to a value here",
+	msgid.SourceArchiveEntryEscapes:           "the source archive entry %[1]s would be written outside the destination; export refused",
+	msgid.SourceHintNoSourceToBuild:           "Building it needs its source: a git component is exported from its version tag; a market component only ships an image, so use its published image or put the source in a local install source",
 	msgid.SourceNoRepoCache:                   "Failed to fetch component %[1]s: there is no user cache directory to keep git repositories in",
 	msgid.SourceHintSetCacheHome:              "Set XDG_CACHE_HOME (or HOME) to a writable directory",
 	msgid.SourceGitFetchFailed:                "Failed to fetch component %[1]s",

@@ -94,6 +94,8 @@ const (
 // 手工补充
 const (
 	SourceDescribe            = "source.describe"
+	SourceArchiveEntryEscapes = "source.archive_entry_escapes"
+	SourceHintNoSourceToBuild = "source.hint_no_source_to_build"
 	SourceNoRepoCache         = "source.no_repo_cache"
 	SourceHintSetCacheHome    = "source.hint_set_cache_home"
 	SourceGitFetchFailed      = "source.git_fetch_failed"
