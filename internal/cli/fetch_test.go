@@ -133,3 +133,35 @@ func TestFetchRejectsMultipleArgs(t *testing.T) {
 	r := runIn(t, f.Dir, "fetch", "infra/notifier@1.0.0", "infra/audit@1.0.0")
 	assert.Equal(t, clierr.ExitUsage, r.code)
 }
+
+// 提案 §10.1：fetch 从 git 源取 Manifest 与产物，三份文件一个字节都不动；
+// 项目没有部署文件也照样能用（fetch 只需要 sources）。
+func TestFetchFromGitDoesNotTouchProjectFiles(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "infra/notifier", Version: "1.0.0", Artifacts: []string{"api-contract:notifier.proto"}},
+		map[string]string{"notifier.proto": "syntax = \"proto3\";\n"})
+	dir := g.project()
+	require.NoError(t, os.Remove(filepath.Join(dir, "deploy.yaml")))
+	before := readFile(t, filepath.Join(dir, "brickkit.yaml"))
+
+	r := g.mustRun(dir, "fetch", "infra/notifier@1.0.0")
+	assert.Equal(t, before, readFile(t, filepath.Join(dir, "brickkit.yaml")))
+	assert.NoFileExists(t, filepath.Join(dir, "deploy.yaml"))
+	assert.NoDirExists(t, filepath.Join(dir, "config"))
+	assert.Equal(t, "syntax = \"proto3\";\n",
+		readFile(t, filepath.Join(dir, ".brickkit", "artifacts", "infra-notifier-1-0-0", "api-contract", "notifier.proto")))
+	assert.Contains(t, r.stdout, "notifier.proto")
+}
+
+func TestFetchLatestTag(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "infra/notifier", Version: "1.0.0", Artifacts: []string{"api-contract:notifier.proto"}},
+		map[string]string{"notifier.proto": "v1\n"})
+	g.release(comp{ID: "infra/notifier", Version: "1.1.0", Artifacts: []string{"api-contract:notifier.proto"}},
+		map[string]string{"notifier.proto": "v2\n"})
+	dir := g.project()
+
+	r := g.mustRun(dir, "fetch", "infra/notifier")
+	assert.Contains(t, r.stdout, "1.1.0")
+	assert.Equal(t, "v2\n", readFile(t, filepath.Join(dir, ".brickkit", "artifacts", "infra-notifier-1-1-0", "api-contract", "notifier.proto")))
+}
