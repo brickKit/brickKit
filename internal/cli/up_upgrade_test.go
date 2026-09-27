@@ -50,7 +50,7 @@ func TestUpgradeDownloadsNewVersionArtifacts(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.FileExists(t,
-		filepath.Join(f.Dir, ".brickkit", "manifests", "people-basic-1.1.0.yaml"),
+		f.Layout.CachedManifestPath("people/basic", "1.1.0"),
 		"P10：新版本 Manifest 要落进缓存")
 	assert.FileExists(t,
 		filepath.Join(f.Dir, ".brickkit", "artifacts", "people-basic-1-1-0",
@@ -202,21 +202,20 @@ func TestDryRunShowsUpgradeSummary(t *testing.T) {
 
 // TestUpgradeSummaryIgnoresSidecarCacheFiles 是一条回归。
 //
-// .brickkit/manifests/ 里除了 Manifest 本身，还躺着签名缓存
-// （people-basic-1.0.0.sig.json，Step 20 引入）。扫描这个目录找"已缓存的版本"
-// 时如果不筛扩展名，去掉一层 .json 会得到 people-basic-1.0.0.sig，
-// "版本号"就成了 1.0.0.sig，一路显示到升级摘要里：
+// Manifest 缓存的版本目录里除了 component.yaml，还躺着签名信封与 BRICKKIT.md。
+// 找"已缓存的版本"时只认真有 component.yaml 的版本目录：从前按文件名扫，
+// 签名缓存让"版本号"成了 1.0.0.sig，一路显示到升级摘要里：
 //
 //	people/basic: 1.0.0.sig → 1.1.0
 //
-// 这正是加签名缓存那天真跑出来的现象。目录里将来还会放别的东西，
-// 所以筛的是"只认 .yaml"，不是"排掉 .sig.json"。
+// 这里放一个只有签名信封、没有 Manifest 的版本目录，它不能被当成一个版本。
 func TestUpgradeSummaryIgnoresSidecarCacheFiles(t *testing.T) {
 	f := upgradableProject(t, comp{ID: "people/basic", Version: "1.1.0"})
 	bumpTo(t, f, "1.1.0")
 
-	// 手动放一个签名缓存，模拟这个版本当初是带签名装进来的
-	sidecar := filepath.Join(f.Layout.ManifestsDir(), "people-basic-1.0.0.sig.json")
+	// 手动放一个只有签名信封的版本目录
+	sidecar := f.Layout.CachedSignaturePath("people/basic", "1.0.5")
+	require.NoError(t, os.MkdirAll(filepath.Dir(sidecar), 0o755))
 	require.NoError(t, os.WriteFile(sidecar,
 		[]byte(`{"sourceKind":"market","signature":{"algorithm":"cosign"}}`), 0o644))
 
@@ -224,7 +223,7 @@ func TestUpgradeSummaryIgnoresSidecarCacheFiles(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "people/basic: 1.0.0 → 1.1.0")
-	assert.NotContains(t, r.stdout, "1.0.0.sig", "缓存旁边的文件不是版本号")
+	assert.NotContains(t, r.stdout, "1.0.5", "没有 Manifest 的版本目录不是一个缓存的版本")
 }
 
 // 新版本没有迁移时，摘要里要如实说"无"，而不是留一个空行让人猜。

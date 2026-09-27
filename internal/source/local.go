@@ -43,6 +43,19 @@ func (s *localSource) manifestBytes(_ context.Context, componentID, _ string) ([
 	return s.readFile(filepath.Join(s.componentDir(componentID), manifest.FileName))
 }
 
+// docBytes 读组件目录里的 BRICKKIT.md；没有时返回 errNotFound。只在目录里正是这个版本时给。
+func (s *localSource) docBytes(ctx context.Context, componentID, version string) ([]byte, error) {
+	raw, err := s.manifestBytes(ctx, componentID, version)
+	if err != nil || !manifestMatches(raw, componentID, version) {
+		return nil, errNotFound
+	}
+	data, err := os.ReadFile(filepath.Join(s.componentDir(componentID), project.FileCachedDoc))
+	if err != nil {
+		return nil, errNotFound
+	}
+	return data, nil
+}
+
 func (s *localSource) latestVersion(ctx context.Context, componentID string) (string, error) {
 	return singleVersionLatest(ctx, s, componentID)
 }

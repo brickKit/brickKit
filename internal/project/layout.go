@@ -3,10 +3,13 @@
 package project
 
 import (
+	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/brickkit/brickkit/internal/configdir"
 	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/projfile"
 )
 
@@ -81,3 +84,50 @@ func (l Layout) LocalModePath() string         { return l.path(DirBrickkit, File
 func (l Layout) ComponentsDir() string         { return l.path(DirComponents) }
 func (l Layout) ShellDir() string              { return l.path(DirShell) }
 func (l Layout) ArchivedDir() string           { return l.path(DirComponents, DirArchived) }
+
+// Manifest 缓存里每个版本目录下的文件（提案 §9.4、§9.5）。
+const (
+	FileCachedManifest  = "component.yaml"
+	FileCachedSignature = "signature.json"
+	FileCachedDoc       = "BRICKKIT.md"
+)
+
+// CachedManifestDir 是一个组件版本的永久缓存目录：.brickkit/manifests/<scope>/<name>/<version>/。
+// 精确版本不可变，缓存从不过期，也从不删除（提案 §9.5）。
+func (l Layout) CachedManifestDir(id, version string) string {
+	return filepath.Join(l.ManifestsDir(), filepath.FromSlash(id), version)
+}
+
+// CachedManifestPath 是缓存的 component.yaml。
+func (l Layout) CachedManifestPath(id, version string) string {
+	return filepath.Join(l.CachedManifestDir(id, version), FileCachedManifest)
+}
+
+// CachedSignaturePath 是缓存旁边的来源与签名信封。
+func (l Layout) CachedSignaturePath(id, version string) string {
+	return filepath.Join(l.CachedManifestDir(id, version), FileCachedSignature)
+}
+
+// CachedDocPath 是缓存的组件文档 BRICKKIT.md（组件带着时才有）。
+func (l Layout) CachedDocPath(id, version string) string {
+	return filepath.Join(l.CachedManifestDir(id, version), FileCachedDoc)
+}
+
+// CachedVersions 列出缓存里这个组件有 component.yaml 的精确版本，从低到高。
+func (l Layout) CachedVersions(id string) []string {
+	entries, err := os.ReadDir(filepath.Join(l.ManifestsDir(), filepath.FromSlash(id)))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if !e.IsDir() || !manifest.IsExactVersion(e.Name()) {
+			continue
+		}
+		if _, err := os.Stat(l.CachedManifestPath(id, e.Name())); err == nil {
+			out = append(out, e.Name())
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return manifest.CompareVersions(out[i], out[j]) < 0 })
+	return out
+}

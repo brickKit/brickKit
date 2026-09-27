@@ -6,7 +6,8 @@
 //
 //	优先级   按 brickkit.yaml 中 sources 的顺序依次尝试，靠前的优先（003 §6.5）
 //	开关     enabled: false 的安装源完全跳过（配置有误也不会导致失败）
-//	缓存     Manifest → .brickkit/manifests/<id>-<版本>.yaml
+//	缓存     Manifest → .brickkit/manifests/<scope>/<name>/<版本>/component.yaml（永久，
+//	         旁边是来源与签名信封 signature.json、组件带着时还有 BRICKKIT.md）
 //	         产物     → .brickkit/artifacts/<版本化服务名>/<type>/<文件路径>
 //	刷新     Options.Refresh 忽略缓存强制重新拉取（brickkit add 重复添加同一版本时打开）
 //	签名     只有市场源受签名策略约束（verify.go）；本地源与 git 源指向的是
@@ -237,10 +238,11 @@ func (c *Client) Manifest(ctx context.Context, id, version string) (*Fetched, er
 		}
 	}
 
-	raw, m, sourceID, kind, sig, err := c.fetchManifest(ctx, id, version)
+	raw, m, f, sig, err := c.fetchManifest(ctx, id, version)
 	if err != nil {
 		return nil, err
 	}
+	sourceID, kind := f.id(), f.kind()
 
 	// 先验后存：验不过的东西绝不能进缓存，否则下一次它就成了"本地已有的那份"
 	result, err := c.verifyFrom(kind, raw, sig, id, version)
@@ -256,6 +258,7 @@ func (c *Client) Manifest(ctx context.Context, id, version string) (*Fetched, er
 			WithCause(err)
 	}
 	c.writeCachedSignature(id, version, kind, sig)
+	c.cacheDoc(ctx, f, id, version)
 	c.recordSignature(id, version, sig, result)
 
 	return &Fetched{
@@ -317,9 +320,36 @@ func (c *Client) fromCache(cachePath, id, version string) (*Fetched, bool) {
 	}, true
 }
 
-// SignatureCachePath 返回签名缓存路径，与 Manifest 缓存同目录同名，后缀 .sig.json。
+// SignatureCachePath 返回签名缓存路径（与 Manifest 缓存同一个版本目录）。
 func (c *Client) SignatureCachePath(id, version string) string {
-	return strings.TrimSuffix(c.ManifestCachePath(id, version), ".yaml") + ".sig.json"
+	return c.layout.CachedSignaturePath(id, version)
+}
+
+// Doc 返回缓存里这个组件版本的 BRICKKIT.md；组件没带文档、或还没取过时 ok 为 false。
+func (c *Client) Doc(id, version string) (path string, ok bool) {
+	path = c.layout.CachedDocPath(id, version)
+	if _, err := os.Stat(path); err != nil {
+		return "", false
+	}
+	return path, true
+}
+
+// docFetcher 是能提供组件文档 BRICKKIT.md 的安装源（本地源读目录，git 源读 tag；
+// 市场不提供）。没有文档返回 errNotFound，不算错。
+type docFetcher interface {
+	docBytes(ctx context.Context, componentID, version string) ([]byte, error)
+}
+
+// cacheDoc 把安装源提供的 BRICKKIT.md 写进缓存。拿不到或写不进都不阻断：文档是给人与 AI
+// 读的辅助，没有它组件照样能装、能跑。
+func (c *Client) cacheDoc(ctx context.Context, f fetcher, id, version string) {
+	df, ok := f.(docFetcher)
+	if !ok {
+		return
+	}
+	if data, err := df.docBytes(ctx, id, version); err == nil {
+		_ = writeFileAll(c.layout.CachedDocPath(id, version), data)
+	}
 }
 
 // cachedSignature 是签名缓存文件的内容。
@@ -412,10 +442,9 @@ func (c *Client) servedByLocalSource(ctx context.Context, id, version string) bo
 }
 
 // ManifestCachePath 返回 Manifest 缓存路径，如
-// .brickkit/manifests/people-basic-1.0.0.yaml（003 §7.1）。
+// .brickkit/manifests/people/basic/1.0.0/component.yaml（提案 §9.4）。
 func (c *Client) ManifestCachePath(id, version string) string {
-	name := strings.ReplaceAll(id, "/", "-") + "-" + version + ".yaml"
-	return filepath.Join(c.layout.ManifestsDir(), name)
+	return c.layout.CachedManifestPath(id, version)
 }
 
 // ArtifactDir 返回某个组件版本的产物缓存目录，如
@@ -506,9 +535,9 @@ func (c *Client) Origin(ctx context.Context, id, version string) (*Origin, error
 // （原始字节 + 解析结果 + 源 id + 该源提供的签名）。
 func (c *Client) fetchManifest(
 	ctx context.Context, id, version string,
-) ([]byte, *manifest.Manifest, string, string, *security.Signature, error) {
+) ([]byte, *manifest.Manifest, fetcher, *security.Signature, error) {
 	if len(c.fetchers) == 0 {
-		return nil, nil, "", "", nil, noSourcesError()
+		return nil, nil, nil, nil, noSourcesError()
 	}
 
 	var failures []failure
@@ -537,9 +566,9 @@ func (c *Client) fetchManifest(
 			failures = append(failures, failure{sourceID: f.id(), err: errNotFound})
 			continue
 		}
-		return raw, m, f.id(), f.kind(), signatureFrom(f, id, version), nil
+		return raw, m, f, signatureFrom(f, id, version), nil
 	}
-	return nil, nil, "", "", nil, c.aggregateError(id, version, failures, mismatches)
+	return nil, nil, nil, nil, c.aggregateError(id, version, failures, mismatches)
 }
 
 // versionMismatch 是"这个源里有这个组件，但版本不是要的那个"。

@@ -301,8 +301,8 @@ func TestManifestCachedToDisk(t *testing.T) {
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
 	require.NoError(t, err)
 
-	// 003 §7.1 的命名：.brickkit/manifests/people-basic-1.0.0.yaml
-	cached := filepath.Join(layout.ManifestsDir(), "people-basic-1.0.0.yaml")
+	// 提案 §9.4：每个版本一个目录，.brickkit/manifests/people/basic/1.0.0/component.yaml
+	cached := filepath.Join(layout.ManifestsDir(), "people", "basic", "1.0.0", "component.yaml")
 	require.FileExists(t, cached)
 
 	// 缓存文件本身必须是可再次解析的合法 Manifest
@@ -390,7 +390,7 @@ func TestLocalSourceBrokenManifestErrorsInsteadOfUsingCache(t *testing.T) {
 	first, err := c.Manifest(context.Background(), "department/tree", "1.0.0")
 	require.NoError(t, err)
 	require.Equal(t, "好的那一份", first.Manifest.Metadata.Description)
-	require.FileExists(t, filepath.Join(layout.ManifestsDir(), "department-tree-1.0.0.yaml"))
+	require.FileExists(t, layout.CachedManifestPath("department/tree", "1.0.0"))
 
 	// 使用者把本地那份改坏了
 	writeFile(t, filepath.Join(sourceDir, "department", "tree", "component.yaml"),
@@ -421,7 +421,7 @@ func TestLocalSourceIDRenamedErrorsInsteadOfUsingCache(t *testing.T) {
 	first, err := c.Manifest(context.Background(), "foo/bar", "1.0.0")
 	require.NoError(t, err)
 	require.Equal(t, "改名前", first.Manifest.Metadata.Description)
-	require.FileExists(t, filepath.Join(layout.ManifestsDir(), "foo-bar-1.0.0.yaml"))
+	require.FileExists(t, layout.CachedManifestPath("foo/bar", "1.0.0"))
 
 	// 目录不动、缓存不清，只把 metadata.id 改成另一个身份
 	writeFile(t, filepath.Join(sourceDir, "foo", "bar", "component.yaml"),
@@ -448,7 +448,7 @@ func TestLocalSourceUpgradedStillServesOldVersionFromCache(t *testing.T) {
 
 	_, err := c.Manifest(context.Background(), "foo/bar", "1.0.0")
 	require.NoError(t, err)
-	require.FileExists(t, filepath.Join(layout.ManifestsDir(), "foo-bar-1.0.0.yaml"))
+	require.FileExists(t, layout.CachedManifestPath("foo/bar", "1.0.0"))
 
 	// 把这个组件升上去（一个目录只放得下一个版本）
 	writeFile(t, filepath.Join(sourceDir, "foo", "bar", "component.yaml"),
@@ -624,8 +624,8 @@ func TestArtifactsOfMultipleVersionsAreIndependent(t *testing.T) {
 	assert.Contains(t, readFile(t, p2), `"version":"2.0.0"`, "新版本不得覆盖旧版本的产物")
 
 	// Manifest 缓存同样按版本区分
-	assert.FileExists(t, filepath.Join(layout.ManifestsDir(), "department-tree-1.0.0.yaml"))
-	assert.FileExists(t, filepath.Join(layout.ManifestsDir(), "department-tree-2.0.0.yaml"))
+	assert.FileExists(t, layout.CachedManifestPath("department/tree", "1.0.0"))
+	assert.FileExists(t, layout.CachedManifestPath("department/tree", "2.0.0"))
 }
 
 // 已缓存的产物文件不重复下载。
@@ -675,7 +675,7 @@ func TestRefreshForcesRefetch(t *testing.T) {
 	require.NoError(t, err)
 
 	// 篡改缓存
-	cachedManifest := filepath.Join(layout.ManifestsDir(), "department-tree-1.0.0.yaml")
+	cachedManifest := layout.CachedManifestPath("department/tree", "1.0.0")
 	tampered := strings.Replace(spec.yamlText(), "安装源中的版本", "被改过的缓存", 1)
 	writeFile(t, cachedManifest, tampered)
 	cachedProto := filepath.Join(layout.ArtifactsDir(), "department-tree-1-0-0",
@@ -869,4 +869,27 @@ func TestGitSourceNotYetSupported(t *testing.T) {
 	}}, Options{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "org")
+}
+
+// 组件带着 BRICKKIT.md 时一起永久缓存在 Manifest 旁边（提案 §9.4、§16.2）；没有不算错。
+func TestManifestCacheKeepsBrickkitDoc(t *testing.T) {
+	layout := newProject(t)
+	dir := writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{ID: "people/basic", Version: "1.0.0"})
+	writeFile(t, filepath.Join(dir, "BRICKKIT.md"), "# people/basic\n")
+	writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{ID: "people/nodoc", Version: "1.0.0"})
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
+	}), Options{})
+
+	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+	require.NoError(t, err)
+	path, ok := c.Doc("people/basic", "1.0.0")
+	require.True(t, ok)
+	assert.Equal(t, layout.CachedDocPath("people/basic", "1.0.0"), path)
+	assert.Equal(t, "# people/basic\n", readFile(t, path))
+
+	_, err = c.Manifest(context.Background(), "people/nodoc", "1.0.0")
+	require.NoError(t, err)
+	_, ok = c.Doc("people/nodoc", "1.0.0")
+	assert.False(t, ok)
 }

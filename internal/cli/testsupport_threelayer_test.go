@@ -285,8 +285,7 @@ func (f *projectFixture) deployEntry(t *testing.T, id string) deployfile.Entry {
 // 升级检测按缓存里出现过、如今配置里已经没有的版本来认（add 在 P4 重建前不经过它）。
 func (f *projectFixture) seedInstalled(t *testing.T, c comp) {
 	t.Helper()
-	name := strings.ReplaceAll(c.ID, "/", "-") + "-" + c.Version + ".yaml"
-	writeTree(t, f.Layout.ManifestsDir(), map[string]string{name: c.yamlText()})
+	writeTree(t, f.Layout.CachedManifestDir(c.ID, c.Version), map[string]string{project.FileCachedManifest: c.yamlText()})
 	for _, a := range c.Artifacts {
 		typ, file, _ := strings.Cut(a, ":")
 		dir := filepath.Join(f.Layout.ArtifactsDir(), manifest.ServiceName(c.ID, c.Version), typ)

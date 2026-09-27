@@ -24,6 +24,7 @@ import (
 	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/project"
 )
 
 // servedEntry 是 BRICKKIT_SERVED_MEMBERS_CONFIG 里的一个成员。
@@ -375,11 +376,8 @@ func TestShellHostsDeclaredVersionWhileDefaultRunsStandalone(t *testing.T) {
 	dir := copyFixture(t, "three-layer-shell")
 	apiYAML := filepath.Join(dir, "components", "erp", "api", "component.yaml")
 	old := readFile(t, apiYAML)
-	cache := filepath.Join(dir, ".brickkit", "manifests")
-	require.NoError(t, os.MkdirAll(cache, 0o755))
 	// 本地源一个目录只放一个版本：1.0.0 在缓存里（连同信封，与之前一次 up 写下的一样）
-	require.NoError(t, os.WriteFile(filepath.Join(cache, "erp-api-1.0.0.yaml"), []byte(old), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(cache, "erp-api-1.0.0.sig.json"), []byte(`{"sourceKind":"local"}`), 0o644))
+	cacheManifest(t, dir, "erp/api", "1.0.0", old)
 	require.NoError(t, os.WriteFile(apiYAML, []byte(strings.ReplaceAll(old, "1.0.0", "1.1.0")), 0o644))
 
 	decl := filepath.Join(dir, "brickkit.yaml")
@@ -421,10 +419,7 @@ func shellCompiledOlderFixture(t *testing.T) string {
 	require.NoError(t, os.WriteFile(shellYAML, []byte(strings.Replace(readFile(t, shellYAML),
 		"erp/api@1.0.0", "erp/api@0.9.0", 1)), 0o644))
 	api := readFile(t, filepath.Join(dir, "components", "erp", "api", "component.yaml"))
-	cache := filepath.Join(dir, ".brickkit", "manifests")
-	require.NoError(t, os.MkdirAll(cache, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(cache, "erp-api-0.9.0.yaml"), []byte(strings.ReplaceAll(api, "1.0.0", "0.9.0")), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(cache, "erp-api-0.9.0.sig.json"), []byte(`{"sourceKind":"local"}`), 0o644))
+	cacheManifest(t, dir, "erp/api", "0.9.0", strings.ReplaceAll(api, "1.0.0", "0.9.0"))
 	return dir
 }
 
@@ -482,4 +477,14 @@ func TestPinDeclaredVersionHintWorksWhenFollowed(t *testing.T) {
 
 	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+}
+
+// cacheManifest 把一个组件版本放进项目的 Manifest 缓存（连同本地源的信封），
+// 与之前一次 up 从本地源取过它之后留下的一样。
+func cacheManifest(t *testing.T, dir, id, version, content string) {
+	t.Helper()
+	layout := project.NewLayout(dir)
+	require.NoError(t, os.MkdirAll(layout.CachedManifestDir(id, version), 0o755))
+	require.NoError(t, os.WriteFile(layout.CachedManifestPath(id, version), []byte(content), 0o644))
+	require.NoError(t, os.WriteFile(layout.CachedSignaturePath(id, version), []byte(`{"sourceKind":"local"}`), 0o644))
 }

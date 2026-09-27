@@ -10,8 +10,6 @@ package cli
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -66,7 +64,6 @@ type upgradeInfo struct {
 // 否则每次 `rm -rf .brickkit` 都会被当成一次全量升级。代价也小——跳过的只有
 // 那份信息性的摘要，检查一项都不会漏（它们本来就在常规 up 路径上）。
 func detectUpgrades(proj *project.Project) []upgradeInfo {
-	cached := cachedVersions(proj.Layout)
 
 	configured := map[string]map[string]bool{}
 	for _, c := range proj.Decl.Components {
@@ -80,7 +77,7 @@ func detectUpgrades(proj *project.Project) []upgradeInfo {
 	for _, c := range proj.Decl.Components {
 		// 该组件曾经在这个项目里出现过、如今配置里已经没有的版本
 		var replaced []string
-		for _, v := range cached[c.ID] {
+		for _, v := range proj.Layout.CachedVersions(c.ID) {
 			if !configured[c.ID][v] {
 				replaced = append(replaced, v)
 			}
@@ -152,55 +149,6 @@ func renderUpgradeBanner(opts *Options, upgrades []upgradeInfo) {
 		opts.Printf("   %s: %s → %s\n", u.ID, u.From, u.To)
 	}
 	opts.Printf("\n")
-}
-
-// cachedVersions 读出 .brickkit/manifests/ 里每个组件已缓存的版本。
-//
-// 文件名形如 people-basic-1.0.0.yaml：组件 ID 里的 `/` 在文件名里是 `-`，
-// 因此不能直接按 `-` 切——用配置里的组件 ID 反过来匹配前缀才可靠。
-func cachedVersions(layout project.Layout) map[string][]string {
-	entries, err := os.ReadDir(layout.ManifestsDir())
-	if err != nil {
-		return nil
-	}
-
-	out := map[string][]string{}
-	for _, entry := range entries {
-		// 只认 Manifest 本身。这个目录里还躺着签名缓存
-		// （people-basic-1.0.0.sig.json）——不筛掉的话，去掉一层扩展名会得到
-		// people-basic-1.0.0.sig，"版本号"就成了 1.0.0.sig，一路显示到升级摘要里。
-		if filepath.Ext(entry.Name()) != ".yaml" {
-			continue
-		}
-		name := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
-		id, version, ok := splitCachedName(name)
-		if !ok {
-			continue
-		}
-		out[id] = append(out[id], version)
-	}
-	return out
-}
-
-// splitCachedName 把 `people-basic-1.0.0` 拆成 people/basic + 1.0.0。
-//
-// 版本号一定在最后一个 `-` 之后，且带点；前面的 `-` 分隔的是 scope 与 name。
-func splitCachedName(name string) (id, version string, ok bool) {
-	idx := strings.LastIndex(name, "-")
-	if idx <= 0 {
-		return "", "", false
-	}
-	version = name[idx+1:]
-	if !strings.Contains(version, ".") {
-		return "", "", false
-	}
-
-	prefix := name[:idx]
-	slash := strings.Index(prefix, "-")
-	if slash <= 0 {
-		return "", "", false
-	}
-	return prefix[:slash] + "/" + prefix[slash+1:], version, true
 }
 
 // renderUpgradeSummary 输出 --dry-run 的版本变更摘要（004 §3.5.1）。

@@ -17,7 +17,6 @@ package cli
 // 至少让他知道这一项没算出来。
 
 import (
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -34,8 +33,7 @@ func unknownDiff() string { return i18n.T(msgid.CliUpUpgradeDiffUnknownDiff) }
 
 // cachedManifest 读缓存里某个版本的 Manifest；读不到返回 nil。
 func cachedManifest(layout project.Layout, id, version string) *manifest.Manifest {
-	name := strings.ReplaceAll(id, "/", "-") + "-" + version + ".yaml"
-	m, err := manifest.ParseFile(filepath.Join(layout.ManifestsDir(), name))
+	m, err := manifest.ParseFile(layout.CachedManifestPath(id, version))
 	if err != nil {
 		return nil // 缓存被清过或文件坏了；调用方会把这一项报成"未知"
 	}

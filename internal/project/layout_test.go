@@ -1,6 +1,7 @@
 package project_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -43,4 +44,21 @@ func TestLocalModeToggle(t *testing.T) {
 	on, err = project.LocalModeOn(l)
 	require.NoError(t, err)
 	assert.False(t, on)
+}
+
+// Manifest 缓存每个版本一个目录（提案 §9.4），CachedVersions 只认真有 component.yaml 的精确版本目录。
+func TestManifestCacheLayout(t *testing.T) {
+	l := project.NewLayout(t.TempDir())
+	assert.Equal(t, filepath.Join(l.ManifestsDir(), "erp", "api", "1.0.0", "component.yaml"), l.CachedManifestPath("erp/api", "1.0.0"))
+	assert.Equal(t, filepath.Join(l.ManifestsDir(), "erp", "api", "1.0.0", "signature.json"), l.CachedSignaturePath("erp/api", "1.0.0"))
+	assert.Equal(t, filepath.Join(l.ManifestsDir(), "erp", "api", "1.0.0", "BRICKKIT.md"), l.CachedDocPath("erp/api", "1.0.0"))
+
+	for _, v := range []string{"1.0.0", "1.10.0"} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(l.CachedManifestPath("erp/api", v)), 0o755))
+		require.NoError(t, os.WriteFile(l.CachedManifestPath("erp/api", v), []byte("x"), 0o644))
+	}
+	require.NoError(t, os.MkdirAll(filepath.Join(l.ManifestsDir(), "erp", "api", "latest"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(l.ManifestsDir(), "erp", "api", "2.0.0"), 0o755), "空目录不算")
+	assert.Equal(t, []string{"1.0.0", "1.10.0"}, l.CachedVersions("erp/api"))
+	assert.Empty(t, l.CachedVersions("erp/none"))
 }

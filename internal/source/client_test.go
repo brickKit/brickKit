@@ -49,7 +49,7 @@ func TestCachePaths(t *testing.T) {
 	layout := project.NewLayout("/projects/erp")
 	c := &Client{layout: layout}
 
-	assert.Equal(t, filepath.FromSlash("/projects/erp/.brickkit/manifests/people-basic-1.0.0.yaml"),
+	assert.Equal(t, filepath.FromSlash("/projects/erp/.brickkit/manifests/people/basic/1.0.0/component.yaml"),
 		c.ManifestCachePath("people/basic", "1.0.0"))
 	assert.Equal(t, filepath.FromSlash("/projects/erp/.brickkit/artifacts/people-basic-1-0-0"),
 		c.ArtifactDir("people/basic", "1.0.0"))

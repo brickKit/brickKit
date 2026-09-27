@@ -201,7 +201,8 @@ func TestSummarySaysUnknownWhenOldManifestIsUnreadable(t *testing.T) {
 		"people/basic@1.0.0")
 
 	// 把缓存里的旧 Manifest 弄坏，但保留文件——升级判据看的是"这个版本在不在缓存里"
-	old := filepath.Join(f.Layout.ManifestsDir(), "people-basic-1.0.0.yaml")
+	old := f.Layout.CachedManifestPath("people/basic", "1.0.0")
+	require.NoError(t, os.MkdirAll(filepath.Dir(old), 0o755))
 	require.NoError(t, os.WriteFile(old, []byte("这不是 YAML: {{{\n"), 0o644))
 
 	f.writeConfig(t, "components:\n  - id: people/basic\n    version: 1.1.0\n")
