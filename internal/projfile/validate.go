@@ -6,6 +6,7 @@ import (
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlfile"
+	"strings"
 )
 
 // Validate 校验全部字段，一次报出所有问题。
@@ -99,6 +100,9 @@ func (f *File) validateComponents(p *clierr.ProblemSet) {
 				switch {
 				case first.Kind != c.Kind:
 					p.Add(field+".kind", i18n.T(msgid.ProjfileKindInconsistent, c.ID, prevField))
+				case !sameSource(first.Source, c.Source):
+					// 来源按组件 ID 认（一个组件一个仓库）：几行各写各的，取哪个版本就成了看运气
+					p.Add(field+".source", i18n.T(msgid.ProjfileSourceInconsistent, c.ID, prevField))
 				case c.IsShell() && first.Version != c.Version:
 					p.Add(field, i18n.T(msgid.ProjfileShellSingleVersion, c.ID, prevField))
 				}
@@ -165,9 +169,35 @@ func validateComponentSource(p *clierr.ProblemSet, field string, s *ComponentSou
 		p.Missing(field + ".type")
 	case SourceTypeGit:
 		requireFor(p, field, "repo", s.Repo, s.Type)
+		// git 源的 path 是组件在仓库里的子目录（monorepo，附录 A9）：只能往仓库里面指
+		if s.Path != "" && !isInsideRelative(s.Path) {
+			p.Add(field+".path", i18n.T(msgid.ProjfileSourcePathOutsideRepo, s.Path))
+		}
 	case SourceTypeLocal:
 		requireFor(p, field, "path", s.Path, s.Type)
 	default:
 		p.Add(field+".type", i18n.T(msgid.ProjfileComponentSourceTypeInvalid, s.Type))
 	}
+}
+
+// isInsideRelative 判断 path 是相对路径，且不会经 .. 走到起点外面。
+func isInsideRelative(path string) bool {
+	path = strings.ReplaceAll(path, "\\", "/")
+	if strings.HasPrefix(path, "/") || (len(path) > 1 && path[1] == ':') {
+		return false
+	}
+	for _, seg := range strings.Split(path, "/") {
+		if seg == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+// sameSource 报告两行的组件级来源是否相同（都没写也算相同）。
+func sameSource(a, b *ComponentSource) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }

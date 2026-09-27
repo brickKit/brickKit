@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -47,6 +48,9 @@ type Options struct {
 	// Signature 是签名校验策略（008 §8.5）。零值表示既不强制、也没有可信公钥，
 	// 此时完全不校验——这正是还没用上签名的项目的默认处境。
 	Signature SignaturePolicy
+	// RepoCacheDir 是 git 源的 bare 仓库缓存目录。空表示用户级默认位置
+	// <用户缓存目录>/brickkit/repos（附录 A12）；测试用它隔离。
+	RepoCacheDir string
 }
 
 // SetRefresh 打开/关闭"忽略缓存强制重新拉取"（等价于构造时的 Options.Refresh）。
@@ -94,6 +98,9 @@ type Client struct {
 	layout   project.Layout
 	opts     Options
 	fetchers []fetcher
+	// overrides 是 brickkit.yaml 里自己写了 source 的组件：只从那个来源取（提案 §9.3、§9.6）。
+	overrides map[string]fetcher
+	repos     *repoCache
 
 	sigMu sync.Mutex
 	// sigStatuses 按 <id>@<version> 记下每次取 Manifest 的签名校验结果。
@@ -158,7 +165,12 @@ func New(layout project.Layout, decl *projfile.File, opts Options) (*Client, err
 		opts.Now = time.Now
 	}
 
-	c := &Client{layout: layout, opts: opts}
+	if opts.RepoCacheDir == "" {
+		if dir, err := os.UserCacheDir(); err == nil {
+			opts.RepoCacheDir = filepath.Join(dir, "brickkit", "repos")
+		}
+	}
+	c := &Client{layout: layout, opts: opts, repos: newRepoCache(opts.RepoCacheDir), overrides: map[string]fetcher{}}
 	if decl == nil {
 		return c, nil
 	}
@@ -169,7 +181,30 @@ func New(layout project.Layout, decl *projfile.File, opts Options) (*Client, err
 		}
 		c.fetchers = append(c.fetchers, f)
 	}
+	for _, comp := range decl.Components {
+		if comp.Source == nil || c.overrides[comp.ID] != nil {
+			continue
+		}
+		c.overrides[comp.ID] = c.componentFetcher(comp.ID, comp.Source)
+	}
 	return c, nil
+}
+
+// componentFetcher 是组件级来源：git 固定仓库（及子目录），或本地的一个组件目录。
+func (c *Client) componentFetcher(id string, src *projfile.ComponentSource) fetcher {
+	name := i18n.T(msgid.SourceComponentSourceName, id)
+	if src.Type == projfile.SourceTypeLocal {
+		return &localSource{sourceID: name, configured: src.Path, root: c.resolvePath(src.Path), exact: true}
+	}
+	return &gitSource{sourceID: name, repoURL: src.Repo, subpath: path.Clean("/" + src.Path)[1:], cache: c.repos}
+}
+
+// fetchersFor 返回取这个组件时依次尝试的安装源：组件自己写了来源就只用它。
+func (c *Client) fetchersFor(id string) []fetcher {
+	if f, ok := c.overrides[id]; ok {
+		return []fetcher{f}
+	}
+	return c.fetchers
 }
 
 func (c *Client) newFetcher(s projfile.Source) (fetcher, error) {
@@ -181,9 +216,7 @@ func (c *Client) newFetcher(s projfile.Source) (fetcher, error) {
 			root:       c.resolvePath(s.Path),
 		}, nil
 	case projfile.SourceTypeGit:
-		// git 源按"每个组件一个仓库"（baseUrl）重建中（三层文件重构 P4）
-		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SourceGitNotYetSupported)).
-			WithDetail(i18n.T(msgid.LabelSource), s.Name)
+		return &gitSource{sourceID: s.Name, baseURL: s.BaseURL, cache: c.repos}, nil
 	case projfile.SourceTypeMarket:
 		return &marketSource{
 			sourceID:        s.Name,
@@ -214,7 +247,11 @@ func (c *Client) resolvePath(path string) string {
 // Close 释放临时资源（git 安装源的临时 clone）。
 func (c *Client) Close() error {
 	var first error
-	for _, f := range c.fetchers {
+	all := append([]fetcher{}, c.fetchers...)
+	for _, f := range c.overrides {
+		all = append(all, f)
+	}
+	for _, f := range all {
 		if err := f.close(); err != nil && first == nil {
 			first = err
 		}
@@ -426,7 +463,7 @@ func (c *Client) writeCachedSignature(id, version, kind string, sig *security.Si
 // ——这是多版本共存的正常用法（试用指南 §8.2、§8.6），不是"改错了"。
 // 所以只在 id 也匹配、单纯版本不同时才继续往下走、允许缓存生效。
 func (c *Client) servedByLocalSource(ctx context.Context, id, version string) bool {
-	for _, f := range c.fetchers {
+	for _, f := range c.fetchersFor(id) {
 		if f.kind() != projfile.SourceTypeLocal {
 			return false
 		}
@@ -515,12 +552,12 @@ func (c *Client) Origin(ctx context.Context, id, version string) (*Origin, error
 	if err := checkRef(id, version); err != nil {
 		return nil, err
 	}
-	if len(c.fetchers) == 0 {
+	if len(c.fetchersFor(id)) == 0 {
 		return nil, noSourcesError()
 	}
 
 	var failures []failure
-	for _, f := range c.fetchers {
+	for _, f := range c.fetchersFor(id) {
 		origin, err := f.origin(ctx, id, version)
 		if err != nil {
 			failures = append(failures, failure{sourceID: f.id(), err: err})
@@ -536,13 +573,13 @@ func (c *Client) Origin(ctx context.Context, id, version string) (*Origin, error
 func (c *Client) fetchManifest(
 	ctx context.Context, id, version string,
 ) ([]byte, *manifest.Manifest, fetcher, *security.Signature, error) {
-	if len(c.fetchers) == 0 {
+	if len(c.fetchersFor(id)) == 0 {
 		return nil, nil, nil, nil, noSourcesError()
 	}
 
 	var failures []failure
 	var mismatches []versionMismatch
-	for _, f := range c.fetchers {
+	for _, f := range c.fetchersFor(id) {
 		raw, err := f.manifestBytes(ctx, id, version)
 		if err != nil {
 			failures = append(failures, failure{sourceID: f.id(), err: err})
@@ -596,11 +633,11 @@ func signatureFrom(f fetcher, id, version string) *security.Signature {
 
 // fetchArtifact 按优先级遍历安装源，返回首个能提供该产物文件的内容。
 func (c *Client) fetchArtifact(ctx context.Context, id, version string, art manifest.Artifact, file string) ([]byte, error) {
-	if len(c.fetchers) == 0 {
+	if len(c.fetchersFor(id)) == 0 {
 		return nil, noSourcesError()
 	}
 	var failures []failure
-	for _, f := range c.fetchers {
+	for _, f := range c.fetchersFor(id) {
 		data, err := f.artifactFile(ctx, id, version, art, file)
 		if err != nil {
 			failures = append(failures, failure{sourceID: f.id(), err: err})
@@ -682,8 +719,9 @@ func (c *Client) notFoundError(ref string, failures []failure, hints ...string) 
 		return err
 	}
 
-	tried := make([]string, 0, len(c.fetchers))
-	for _, f := range c.fetchers {
+	id, _, _ := manifest.SplitRef(ref)
+	tried := make([]string, 0, len(c.fetchersFor(id)))
+	for _, f := range c.fetchersFor(id) {
 		tried = append(tried, i18n.T(msgid.SourceIDWithKind, f.id(), f.kind()))
 	}
 	return clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.SourceNotFound)).

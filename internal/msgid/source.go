@@ -93,6 +93,17 @@ const (
 
 // 手工补充
 const (
-	SourceDescribe           = "source.describe"
-	SourceGitNotYetSupported = "source.git_not_yet_supported"
+	SourceDescribe            = "source.describe"
+	SourceGitFetchFailed      = "source.git_fetch_failed"
+	SourceLabelGitError       = "source.label_git_error"
+	SourceHintGitSSH          = "source.hint_git_ssh"
+	SourceHintGitHTTPS        = "source.hint_git_https"
+	SourceHintGitCI           = "source.hint_git_ci"
+	SourceGitTagMissing       = "source.git_tag_missing"
+	SourceLabelGitTag         = "source.label_git_tag"
+	SourceLabelGitVersions    = "source.label_git_versions"
+	SourceGitNoVersionTags    = "source.git_no_version_tags"
+	SourceGitNoManifestAtTag  = "source.git_no_manifest_at_tag"
+	SourceHintGitTagIsRelease = "source.hint_git_tag_is_release"
+	SourceComponentSourceName = "source.component_source_name"
 )

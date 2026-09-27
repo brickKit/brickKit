@@ -36,12 +36,12 @@ func (c *Client) LatestVersion(ctx context.Context, id string) (*Latest, error) 
 			WithDetail(i18n.T(msgid.LabelReason), problem).
 			WithHint(i18n.T(msgid.HintComponentIDFormat))
 	}
-	if len(c.fetchers) == 0 {
+	if len(c.fetchersFor(id)) == 0 {
 		return nil, noSourcesError()
 	}
 
 	var failures []failure
-	for _, f := range c.fetchers {
+	for _, f := range c.fetchersFor(id) {
 		version, err := f.latestVersion(ctx, id)
 		if err != nil {
 			failures = append(failures, failure{sourceID: f.id(), err: err})

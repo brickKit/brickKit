@@ -15,7 +15,6 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/manifest"
-	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/projfile"
 )
 
@@ -860,15 +859,6 @@ func TestSourceWithoutComponentStillSaysNotFound(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, clierr.As(err).Format(), "The component was not found in any install source")
-}
-
-// git 源按"每个组件一个仓库"重建之前（P4），配置了就要说清楚，不能静默跳过。
-func TestGitSourceNotYetSupported(t *testing.T) {
-	_, err := New(project.NewLayout(t.TempDir()), &projfile.File{Project: "p", Sources: []projfile.Source{
-		{Name: "org", Type: projfile.SourceTypeGit, BaseURL: "https://github.com/org/"},
-	}}, Options{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "org")
 }
 
 // 组件带着 BRICKKIT.md 时一起永久缓存在 Manifest 旁边（提案 §9.4、§16.2）；没有不算错。

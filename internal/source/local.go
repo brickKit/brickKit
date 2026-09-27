@@ -25,6 +25,8 @@ type localSource struct {
 	configured string
 	// root 是相对项目根解析后的目录。
 	root string
+	// exact 表示 root 就是组件目录本身（组件级 source.type: local），不再按 <scope>/<name> 往下找。
+	exact bool
 }
 
 // 编译期断言：localSource 是（也是唯一的）listableFetcher。list.go 里靠类型断言找它，
@@ -216,6 +218,9 @@ func (s *localSource) listError(path string, cause error) error {
 // `add --local` 不该把刚归档的组件又拽回配置里。两条规则各管各的——
 // **扫描时看不见，按 ID 找时找得到。**
 func (s *localSource) componentDir(componentID string) string {
+	if s.exact {
+		return s.root
+	}
 	active := filepath.Join(s.root, filepath.FromSlash(componentID))
 	if hasManifest(active) {
 		return active
