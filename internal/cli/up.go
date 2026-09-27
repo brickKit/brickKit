@@ -108,6 +108,10 @@ type migrationInfo struct {
 type imageInfo struct {
 	component string
 	image     string
+	ref       resolver.Ref
+	manifest  *manifest.Manifest
+	// needsLocal：没有 image 的版本、本地安装源给出的版本，镜像必须已经在本机（brickkit build）
+	needsLocal bool
 }
 
 // upOptions 是 up 的命令行选项。
@@ -181,7 +185,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	if err != nil {
 		return err
 	}
-	if err := checkImages(ctx, opts, eng, plan.images); err != nil {
+	if err := checkUpImages(ctx, opts, eng, resolveImages(opts, plan.proj), plan.images); err != nil {
 		return err
 	}
 
@@ -294,6 +298,10 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		return nil, err
 	}
 	plan.collectTargets(order)
+	for i := range plan.images {
+		info := &plan.images[i]
+		info.needsLocal = info.manifest.Deployment.Image == "" || client.IsLocal(ctx, info.ref.ID, info.ref.Version)
+	}
 	// plan.generated 只在 docker / podman 目标下才有值；k8s 目标下 mode: local 在部署文件
 	// 解析阶段就被拒绝了，所以这里判空既不会漏掉真实的 local 组件，也不会对 nil 取字段
 	if plan.generated != nil {
@@ -509,7 +517,7 @@ func (p *upPlan) collectTargets(order *resolver.Plan) {
 			// 被外壳承载的成员没有主容器，但它的迁移照样用它自己的镜像跑（提案 §8.9.4）
 			if _, hosted := p.states.HostOf(p.proj, ref); hosted {
 				if node := p.graph.Node(ref); node != nil && node.Manifest != nil && node.Manifest.Migration != nil {
-					p.images = append(p.images, imageInfo{component: ref.ID + "@" + ref.Version, image: node.Manifest.Deployment.Image})
+					p.images = append(p.images, newImageInfo(node))
 					p.migrations = append(p.migrations, migrationInfo{
 						component: ref.ID + "@" + ref.Version,
 						command:   strings.Join(node.Manifest.Migration.Command, " "),
@@ -523,10 +531,7 @@ func (p *upPlan) collectTargets(order *resolver.Plan) {
 			continue
 		}
 		p.services = append(p.services, manifest.ServiceName(ref.ID, ref.Version))
-		p.images = append(p.images, imageInfo{
-			component: ref.ID + "@" + ref.Version,
-			image:     node.Manifest.Deployment.Image,
-		})
+		p.images = append(p.images, newImageInfo(node))
 		if node.Manifest.Migration != nil {
 			p.migrations = append(p.migrations, migrationInfo{
 				component: ref.ID + "@" + ref.Version,
@@ -684,6 +689,82 @@ func renderMigrations(opts *Options, migrations []migrationInfo) {
 // 几百个并发只会撞上限流，那时候不但不快，还会换来一堆 429
 // 让人误以为是凭据出了问题。8 足够把串行的时间摊掉一个数量级。
 const checkImageConcurrency = 8
+
+// newImageInfo 是一个工作负载要用的镜像：名字一律来自 manifest.ImageRef（只有 build 的组件
+// 没有 image 字段，名字是推出来的）。
+func newImageInfo(node *resolver.Node) imageInfo {
+	return imageInfo{
+		component: node.Ref.String(), image: manifest.ImageRef(node.Manifest),
+		ref: node.Ref, manifest: node.Manifest,
+	}
+}
+
+// checkUpImages 是 up 的镜像检查（提案 §9.10.3，命令表 10 第 3 步）：up 从不构建。
+//
+//	本机构建的镜像（没有 image、或本地安装源的版本）   必须已经在本机，否则一次列出全部，提示 build
+//	拉取的镜像                                          在本机、或 registry 取得到（checkImages）
+//	本机的外壳镜像                                      记下的成员版本要与 shell.members 一致（附录 A24）
+func checkUpImages(ctx context.Context, opts *Options, eng engine.Engine, local engine.Images, images []imageInfo) error {
+	var pulled, missing []imageInfo
+	for _, info := range images {
+		if !info.needsLocal {
+			pulled = append(pulled, info)
+			continue
+		}
+		exists, err := local.ImageExists(ctx, info.image)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			missing = append(missing, info)
+		}
+	}
+	if len(missing) > 0 {
+		e := clierr.New(clierr.CodeImageMissing, i18n.T(msgid.CliUpImagesNeedBuild))
+		var hints []string
+		for _, m := range missing {
+			e = e.WithDetail(m.component, m.image)
+			hints = append(hints, "brickkit build "+m.component)
+		}
+		return e.WithHint(append([]string{i18n.T(msgid.CliUpHintBuildNeverAutomatic)}, hints...)...)
+	}
+	if err := checkImages(ctx, opts, eng, pulled); err != nil {
+		return err
+	}
+	return checkShellImageLabels(ctx, opts, local, images)
+}
+
+// checkShellImageLabels：本机上的外壳镜像是构建时编进的成员版本的快照（brickkit build 记在标签里）。
+// 与 shell.members 对不上说明改了成员版本却没重建——跑起来的是旧代码。没有标签（手工构建、第三方
+// 镜像）只能警告；只在 registry 里的镜像是发布出去的版本，天然一致，不查。
+func checkShellImageLabels(ctx context.Context, opts *Options, local engine.Images, images []imageInfo) error {
+	for _, info := range images {
+		if !info.manifest.IsShell() {
+			continue
+		}
+		labels, present, err := local.ImageLabels(ctx, info.image)
+		if err != nil {
+			return err
+		}
+		if !present {
+			continue
+		}
+		declared := shellMembersLabel(info.manifest.Shell.Members)
+		recorded, labelled := labels[labelShellMembers]
+		switch {
+		case !labelled:
+			opts.Printf("%s", clierr.Warn(clierr.CodeImageUnverified, i18n.T(msgid.CliUpShellImageUnlabelled, info.component)).
+				WithDetail(i18n.T(msgid.LabelImage), info.image).Format())
+		case recorded != declared:
+			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpShellImageStale, info.component)).
+				WithDetail(i18n.T(msgid.LabelImage), info.image).
+				WithDetail(i18n.T(msgid.CliUpLabelImageMembers), recorded).
+				WithDetail(i18n.T(msgid.CliUpLabelDeclaredMembers), declared).
+				WithHint(i18n.T(msgid.CliUpHintRebuildShell, info.component))
+		}
+	}
+	return nil
+}
 
 // checkImages 检测镜像拉取权限（15.19、004 §10.2）。
 //

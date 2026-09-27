@@ -84,7 +84,11 @@ const (
 	CodeAuthFailed         Code = "AUTH_FAILED"
 	CodeTokenExpired       Code = "TOKEN_EXPIRED"
 	CodeImageUnauthorized  Code = "IMAGE_UNAUTHORIZED"
-	CodeSignatureInvalid   Code = "SIGNATURE_INVALID"
+	// CodeImageMissing 是"这个镜像要在本机构建，还没有构建"（提案 §9.10：up 从不构建）。
+	CodeImageMissing Code = "IMAGE_MISSING"
+	// CodeImageUnverified 是"外壳镜像里编进的成员版本无法确认"（没有 brickkit build 的标签，附录 A24），只作警告。
+	CodeImageUnverified  Code = "IMAGE_UNVERIFIED"
+	CodeSignatureInvalid Code = "SIGNATURE_INVALID"
 
 	// 源码工作区。
 	CodeCloneFailed Code = "CLONE_FAILED"

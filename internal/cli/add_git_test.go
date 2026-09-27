@@ -44,6 +44,17 @@ func (g *gitOrgProject) release(c comp, extra ...map[string]string) {
 	r.Tag(c.Version, files)
 }
 
+// releaseRaw 发布一份原样的 component.yaml（造不合法的组件用）。
+func (g *gitOrgProject) releaseRaw(id, version, yamlText string) {
+	g.t.Helper()
+	r, ok := g.remotes[id]
+	if !ok {
+		r = gittest.NewRemoteIn(g.t, g.org, strings.ReplaceAll(id, "/", "-"))
+		g.remotes[id] = r
+	}
+	r.Tag(version, map[string]string{"component.yaml": yamlText})
+}
+
 // project 建一个空项目：只配了这个 git 组织作安装源。
 func (g *gitOrgProject) project() string {
 	g.t.Helper()

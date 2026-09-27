@@ -51,6 +51,7 @@ func run(t *testing.T, args ...string) result {
 		Stderr:   &errBuf,
 		// git 源的仓库缓存放在测试自己的临时目录，绝不碰使用者的 ~/.cache
 		RepoCacheDir: t.TempDir(),
+		Images:       everyImagePresent{},
 	}
 	code := Run(NewRootCommand(opts), opts, args)
 	return result{stdout: out.String(), stderr: errBuf.String(), code: code}

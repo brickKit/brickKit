@@ -9,6 +9,16 @@ import (
 	"github.com/brickkit/brickkit/internal/engine"
 )
 
+// everyImagePresent 是测试默认的本机镜像替身：什么镜像都当作在本机（多数用例关心的不是镜像），
+// 标签一律查不到——外壳镜像的核对只在用例专门给出本机镜像时才发生。测试绝不碰真的 docker。
+type everyImagePresent struct{}
+
+func (everyImagePresent) ImageExists(context.Context, string) (bool, error) { return true, nil }
+func (everyImagePresent) ImageLabels(context.Context, string) (map[string]string, bool, error) {
+	return nil, false, nil
+}
+func (everyImagePresent) Build(context.Context, engine.BuildRequest) error { return nil }
+
 // fakeImages 是本机镜像的替身：present 里的镜像算在本机，Build 记下请求并把镜像放进 present。
 type fakeImages struct {
 	mu       sync.Mutex

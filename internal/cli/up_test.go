@@ -130,23 +130,35 @@ func TestUpDryRunDoesNotTouchTheEngine(t *testing.T) {
 // ============================================================
 
 func TestUpChecksImagesBeforeStarting(t *testing.T) {
-	f := composeProject(t)
+	g, dir := pulledImagesProject(t)
 	eng := newFakeEngine()
 
-	require.Equal(t, clierr.ExitOK, runWithEngine(t, eng, f.Dir, "up").code)
+	require.Equal(t, clierr.ExitOK, g.upWith(dir, eng, newFakeImages()).code)
 
 	assert.Len(t, eng.checked, 2, "15.19：每个要启动的组件都要检查镜像")
 }
 
+// pulledImagesProject：两个从 git 安装、带 image 的组件——它们的镜像是拉取的，走 registry 检查。
+// （本地安装源的组件镜像必须在本机，走的是另一条检查，见 up_images_test.go。）
+func pulledImagesProject(t *testing.T) (*gitOrgProject, string) {
+	t.Helper()
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "people/basic", Version: "1.0.0", Port: 8081})
+	g.release(comp{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/backend@1.0.0")
+	return g, dir
+}
+
 func TestUpImageUnauthorizedBlocksStart(t *testing.T) {
-	f := composeProject(t)
+	g, dir := pulledImagesProject(t)
 	eng := newFakeEngine()
 	eng.checkErr["registry.example.com/people-basic:1.0.0"] =
 		clierr.New(clierr.CodeImageUnauthorized, "错误：镜像拉取未授权").
 			WithDetail("镜像", "registry.example.com/people-basic:1.0.0").
 			WithHint("执行 docker login <registry> 登录后重试")
 
-	r := runWithEngine(t, eng, f.Dir, "up")
+	r := g.upWith(dir, eng, newFakeImages())
 
 	assert.Equal(t, clierr.ExitError, r.code, "15.19")
 	assert.Contains(t, r.stderr, "docker login", "引擎给出的建议要原样传到使用者眼前")
@@ -158,13 +170,13 @@ func TestUpImageUnauthorizedBlocksStart(t *testing.T) {
 // 镜像检查失败但不是权限问题时，不要把引擎的说法换成"去 docker login"：
 // 那会把人引向错误的方向（P18 踩过同样的坑）。
 func TestUpImageCheckFailureKeepsTheRealReason(t *testing.T) {
-	f := composeProject(t)
+	g, dir := pulledImagesProject(t)
 	eng := newFakeEngine()
 	eng.checkErr["registry.example.com/people-basic:1.0.0"] =
 		clierr.New(clierr.CodeNetworkUnreachable, "错误：无法连接镜像仓库").
 			WithHint("检查网络与 registry 地址")
 
-	r := runWithEngine(t, eng, f.Dir, "up")
+	r := g.upWith(dir, eng, newFakeImages())
 
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stderr, "无法连接镜像仓库")

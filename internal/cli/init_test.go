@@ -41,6 +41,8 @@ func runWith(t *testing.T, tweak func(*Options), dir string, args ...string) res
 		},
 		// git 源的仓库缓存放在测试自己的临时目录，绝不碰使用者的 ~/.cache
 		RepoCacheDir: t.TempDir(),
+		// 本机镜像：默认都在（绝不碰真的 docker）；关心镜像的用例自己换掉
+		Images: everyImagePresent{},
 	}
 	if tweak != nil {
 		tweak(opts)
