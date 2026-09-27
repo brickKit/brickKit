@@ -1447,6 +1447,8 @@ var zh = map[string]string{
 	msgid.ShellHintMergeCycleSkipWait:         "或者接受代价：在部署文件里给 %[2]s 的条目各写上 skipWaitFor: [%[1]s]。它们就不等 %[1]s 直接启动，必须自己重试到对方就绪",
 	msgid.ComposeSkipWaitForCoHosted:          "%[1]s 跳过等待 %[2]s，但两者都在外壳 %[3]s 里：调用不出进程，本来就没有等待可跳过",
 	msgid.ShellHintSkipWaitForOnMember:        "外壳条目上的 skipWaitFor 只管外壳自己的依赖：要跳过的是成员的依赖时，写在 members 下面那个成员的条目上",
+	msgid.InstallUpgradeNotDefault:            "错误：%[1]s 是兼容版本（带 requiredBy），upgrade 只移动默认版本",
+	msgid.InstallHintUpgradeDependents:        "它跟着依赖它的组件走：升级那些组件，不再需要 %[1]s 时它会被自动移除",
 	msgid.InstallAddOtherVersion:              "错误：项目里已经有 %[1]s（默认版本）；add 只加新组件，不加已有组件的另一个版本（%[2]s）",
 	msgid.InstallHintUpgradeInstead:           "要把默认版本换成 %[1]s，用 brickkit upgrade %[1]s",
 	msgid.InstallHintAddDependent:             "如果是别的组件需要 %[1]s，add 那个组件：它的依赖会把这个版本以 requiredBy 带进来",

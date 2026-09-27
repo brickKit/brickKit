@@ -82,6 +82,19 @@ func proj(t *testing.T, decl, deploy string) *project.Project {
 	})
 }
 
+// projFiles 同 proj，另外写进 files（配置文件等）。
+func projFiles(t *testing.T, decl, deploy string, files projecttest.Files) *project.Project {
+	t.Helper()
+	all := projecttest.Files{
+		"brickkit.yaml": "project: p\ncomponents:" + orEmpty(decl) + "\n",
+		"deploy.yaml":   "target: docker\ncomponents:" + orEmpty(deploy) + "\n",
+	}
+	for k, v := range files {
+		all[k] = v
+	}
+	return projecttest.Load(t, all)
+}
+
 func orEmpty(s string) string {
 	if strings.TrimSpace(s) == "" {
 		return " []"

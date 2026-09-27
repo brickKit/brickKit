@@ -1456,6 +1456,8 @@ var en = map[string]string{
 	msgid.ShellHintMergeCycleSkipWait:         "Or accept the cost: in the deploy file, write skipWaitFor: [%[1]s] on the entry of each of %[2]s. They then start without waiting for %[1]s and must retry until it is ready",
 	msgid.ComposeSkipWaitForCoHosted:          "%[1]s skips waiting for %[2]s, but both run inside shell %[3]s: the call stays in the process, so there is no wait to skip",
 	msgid.ShellHintSkipWaitForOnMember:        "skipWaitFor on a shell entry covers only the shell's own dependencies: for a member's dependency, write it on that member's entry under members",
+	msgid.InstallUpgradeNotDefault:            "Error: %[1]s is a compatibility version (it has requiredBy); upgrade only moves default versions",
+	msgid.InstallHintUpgradeDependents:        "It follows the components that depend on it: upgrade those, and %[1]s is removed once nothing needs it",
 	msgid.InstallAddOtherVersion:              "Error: the project already has %[1]s (the default version); add brings in new components, not another version of one already there (%[2]s)",
 	msgid.InstallHintUpgradeInstead:           "To make %[1]s the default version, run brickkit upgrade %[1]s",
 	msgid.InstallHintAddDependent:             "If another component needs %[1]s, add that component: its dependency brings this version in with requiredBy",

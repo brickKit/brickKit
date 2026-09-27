@@ -47,6 +47,10 @@ type Rename struct{ From, To string }
 
 // Plan 是一次 add / remove 要对三份文件做的全部改动。每一类改动按列出的顺序应用。
 type Plan struct {
+	// Moves 是这次 upgrade 的版本移动（给输出用）；ChangeVersions 是原地改版本号的那些行。
+	Moves          []Move
+	ChangeVersions []Move
+
 	AddLines []Line
 	// SetRequiredBy 改已有行的 requiredBy（RequiredBy 为空表示去掉字段——默认版本转正）。
 	SetRequiredBy []Line
@@ -62,11 +66,17 @@ type Plan struct {
 	RenameEntries []Rename
 	// RemoveEntries 是要删的部署条目 id。
 	RemoveEntries []string
+	// LiftEntries 把嵌在外壳下面的条目挪到顶层（新外壳不再编进它，§8.7）。
+	LiftEntries []string
 
 	AddConfigs     []ConfigFile
 	ArchiveConfigs []ConfigRef
 	// RenameConfigs 把带版本号的配置文件改成无版本号文件（默认版本转正）。
 	RenameConfigs []ConfigRef
+	// DemoteConfigs 把无版本号配置文件改成带版本号的（旧默认版本留作兼容版本，附录 A5）。
+	DemoteConfigs []ConfigRef
+	// MigrateConfigs 按新版本的 configSchema 迁移配置（§12.2）。
+	MigrateConfigs []ConfigMigration
 
 	// Added 与 Removed 是这次进出项目的组件版本（给输出用；Removed 含连带移除的）。
 	Added   []resolver.Ref
@@ -79,9 +89,9 @@ type Plan struct {
 
 // Empty 报告这份计划是否什么都不改。
 func (p *Plan) Empty() bool {
-	return len(p.AddLines)+len(p.SetRequiredBy)+len(p.RemoveLines)+len(p.AddEntries)+len(p.NestEntries)+
-		len(p.UnnestShells)+len(p.RenameEntries)+len(p.RemoveEntries)+len(p.AddConfigs)+
-		len(p.ArchiveConfigs)+len(p.RenameConfigs) == 0
+	return len(p.ChangeVersions)+len(p.AddLines)+len(p.SetRequiredBy)+len(p.RemoveLines)+len(p.AddEntries)+
+		len(p.NestEntries)+len(p.UnnestShells)+len(p.RenameEntries)+len(p.RemoveEntries)+len(p.LiftEntries)+
+		len(p.AddConfigs)+len(p.ArchiveConfigs)+len(p.RenameConfigs)+len(p.DemoteConfigs)+len(p.MigrateConfigs) == 0
 }
 
 // EntryID 是一个组件版本在部署文件里的条目 id：默认版本写裸 ID，其余写 id@version（附录 A20）。

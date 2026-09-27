@@ -2,6 +2,8 @@ package msgid
 
 // install：add / remove 的计划（internal/install）。
 const (
+	InstallUpgradeNotDefault          = "install.upgrade_not_default"
+	InstallHintUpgradeDependents      = "install.hint_upgrade_dependents"
 	InstallAddOtherVersion            = "install.add_other_version"
 	InstallHintUpgradeInstead         = "install.hint_upgrade_instead"
 	InstallHintAddDependent           = "install.hint_add_dependent"
