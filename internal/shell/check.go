@@ -3,14 +3,16 @@ package shell
 // 本文件核对外壳的三处声明是否说的是同一件事（提案 §8.4、附录 A11）：
 //
 //	brickkit.yaml  kind: shell          "这是一个外壳"（由 CLI 维护）
-//	component.yaml shell.members        "我能承载这些组件"（能力声明）
-//	部署文件       members              "这些组件这次确实在我里面"（实际关系）
+//	component.yaml shell.members        "构建时编进我的是这些成员的这些版本"（附录 A24）
+//	部署文件       members              "这些组件这次确实在我里面"（实际关系，不写版本 = 默认版本）
 //
-// 三处对不上时生成出来的东西必然是错的——外壳镜像里根本没有成员的代码，或者外壳以为
-// 自己不是外壳、从不读 BRICKKIT_SERVED_MEMBERS_CONFIG——而错误要到容器跑起来才露面。
-// 所以在生成之前大声失败。
+// 三处对不上时生成出来的东西必然是错的——外壳镜像里根本没有成员的代码、编进的是另一个
+// 版本，或者外壳以为自己不是外壳、从不读 BRICKKIT_SERVED_MEMBERS_CONFIG——而错误要到
+// 容器跑起来才露面。所以在生成之前大声失败。平台只核对，不替使用者推导该跑哪个版本。
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/cascade"
@@ -27,7 +29,7 @@ import (
 //
 // "成员必须有独立镜像"（提案 §8.1 规则 1）这里不查：Manifest 校验已经要求每个组件
 // 写 deployment.image 或 deployment.build，这条规则因此对任何组件都自然成立。
-func Check(p *project.Project, graph *resolver.Graph, _ *cascade.Result) error {
+func Check(p *project.Project, graph *resolver.Graph, states *cascade.Result) error {
 	for _, c := range p.Decl.Components {
 		ref := resolver.Ref{ID: c.ID, Version: c.Version}
 		node := graph.Node(ref)
@@ -50,7 +52,67 @@ func Check(p *project.Project, graph *resolver.Graph, _ *cascade.Result) error {
 			}
 		}
 	}
+	if err := checkMemberVersions(p, graph, states); err != nil {
+		return err
+	}
 	return checkSkipWaitFor(p, graph)
+}
+
+// checkMemberVersions 核对这次被外壳承载的每个成员版本，正是外壳 component.yaml 里声明编进去的
+// 那个版本（附录 A24）。版本由 brickkit.yaml 与部署文件决定（成员条目不写版本 = 默认版本），
+// 外壳镜像里是什么由外壳自己说，两边对不上时外壳进程里跑的代码与平台注入的版本、地址、配置
+// 说的不是同一个东西。
+//
+// 这次没被承载的成员不查（HostOf 为假）：裸进程成员在宿主机上自己跑、外壳没在跑、
+// --ignore-shells——外壳这次都不加载它，镜像里编进的是哪个版本与它无关。
+func checkMemberVersions(p *project.Project, graph *resolver.Graph, states *cascade.Result) error {
+	problems := clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.ShellMemberVersionsMismatch)).
+		WithSource(i18n.T(msgid.LabelFile), p.DeployPath)
+	for _, c := range p.Decl.Components {
+		if !c.IsShell() {
+			continue
+		}
+		shellRef := resolver.Ref{ID: c.ID, Version: c.Version}
+		node := graph.Node(shellRef)
+		if node == nil || node.Manifest == nil {
+			continue
+		}
+		var contains, hosted, keepDecl, keepDeploy []string
+		for _, written := range p.MembersOf(c.ID) {
+			id, version := written.Key()
+			if version == "" {
+				version, _ = p.Decl.DefaultVersion(id)
+			}
+			ref := resolver.Ref{ID: id, Version: version}
+			declared, ok := node.Manifest.HostedVersion(id)
+			if host, hostedNow := states.HostOf(p, ref); !ok || !hostedNow || host != shellRef || declared == version {
+				continue
+			}
+			compiled := resolver.Ref{ID: id, Version: declared}
+			l, _ := p.Deploy.EntryAt(id, version, p.Decl.IsDefault(id, version))
+			problems.Add(l.Field, i18n.T(msgid.ShellMemberVersionMismatch, shellRef.String(), compiled.String(), ref.String()))
+			contains = append(contains, ref.String())
+			hosted = append(hosted, id)
+			if !slices.Contains(p.Decl.Versions(id), declared) {
+				keepDecl = append(keepDecl, fmt.Sprintf("`- {id: %s, version: %s, requiredBy: [%s]}`", id, declared, c.ID))
+			}
+			keepDeploy = append(keepDeploy, fmt.Sprintf("`- id: %s`", compiled.String()))
+		}
+		if len(hosted) == 0 {
+			continue
+		}
+		// 外壳编进的版本 brickkit.yaml 里已经留着：只差部署文件的成员条目
+		keepBoth := i18n.T(msgid.ShellHintPinDeclaredVersion, c.ID, strings.Join(keepDeploy, ", "), strings.Join(contains, ", "))
+		if len(keepDecl) > 0 {
+			keepBoth = i18n.T(msgid.ShellHintKeepBothVersions, strings.Join(keepDecl, ", "), c.ID, strings.Join(keepDeploy, ", "), strings.Join(contains, ", "))
+		}
+		problems.WithHint(
+			i18n.T(msgid.ShellHintUpgradeShell, c.ID, strings.Join(contains, ", ")),
+			i18n.T(msgid.ShellHintMoveMemberOut, strings.Join(hosted, ", "), c.ID),
+			keepBoth,
+		)
+	}
+	return problems.Err()
 }
 
 // checkSkipWaitFor 核对每个 skipWaitFor 写的都是那个组件版本真实的强依赖（附录 A23）：

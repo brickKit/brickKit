@@ -62,6 +62,10 @@ type testComp struct {
 	ID, Version, ServedBy, Mode string
 	Config                      map[string]any
 	SkipWaitFor                 []string
+	// RequiredBy 写进 brickkit.yaml；同一个 ID 没写它的那一行是默认版本。
+	RequiredBy []string
+	// Bare 让部署文件里的条目不写版本（= brickkit.yaml 的默认版本，附录 A20）。
+	Bare bool
 }
 
 type testCfg struct {
@@ -90,7 +94,11 @@ func projectFrom(t *testing.T, cfg *testCfg) *project.Project {
 		if _, isShell := shells[c.ID]; isShell {
 			kind = ", kind: shell"
 		}
-		fmt.Fprintf(&decl, "  - {id: %s, version: %s%s}\n", c.ID, c.Version, kind)
+		requiredBy := ""
+		if len(c.RequiredBy) > 0 {
+			requiredBy = ", requiredBy: [" + strings.Join(c.RequiredBy, ", ") + "]"
+		}
+		fmt.Fprintf(&decl, "  - {id: %s, version: %s%s%s}\n", c.ID, c.Version, kind, requiredBy)
 		if len(c.Config) > 0 {
 			data, err := yaml.Marshal(c.Config)
 			require.NoError(t, err)
@@ -99,7 +107,7 @@ func projectFrom(t *testing.T, cfg *testCfg) *project.Project {
 		if c.ServedBy != "" {
 			continue // 成员条目嵌在外壳条目下面
 		}
-		fmt.Fprintf(&deploy, "  - id: %s@%s\n", c.ID, c.Version)
+		fmt.Fprintf(&deploy, "  - id: %s\n", entryID(c))
 		if c.Mode != "" {
 			fmt.Fprintf(&deploy, "    mode: %s\n", c.Mode)
 		}
@@ -109,7 +117,7 @@ func projectFrom(t *testing.T, cfg *testCfg) *project.Project {
 		if members := shells[c.ID]; len(members) > 0 {
 			deploy.WriteString("    members:\n")
 			for _, m := range members {
-				fmt.Fprintf(&deploy, "      - id: %s@%s\n", m.ID, m.Version)
+				fmt.Fprintf(&deploy, "      - id: %s\n", entryID(m))
 				if m.Mode != "" {
 					fmt.Fprintf(&deploy, "        mode: %s\n", m.Mode)
 				}
@@ -129,6 +137,14 @@ func projectFrom(t *testing.T, cfg *testCfg) *project.Project {
 	p, err := project.Load(root, project.LoadOptions{})
 	require.NoError(t, err)
 	return p
+}
+
+// entryID 是部署文件条目的 id：Bare 时不写版本。
+func entryID(c testComp) string {
+	if c.Bare {
+		return c.ID
+	}
+	return c.ID + "@" + c.Version
 }
 
 // resolveFixture 跑完整条链路（解析依赖图 → 级联 → 注入 → shell.Resolve），

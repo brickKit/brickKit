@@ -347,3 +347,67 @@ func TestSkipWaitForOnCoHostedDependencyWarns(t *testing.T) {
 	assert.Contains(t, r.stdout+r.stderr,
 		i18n.T(msgid.ComposeSkipWaitForCoHosted, "erp/worker@1.0.0", "erp/api@1.0.0", "erp/shell@1.0.0"))
 }
+
+// 外壳 component.yaml 声明编进的成员版本（附录 A24）与这次承载的版本对不上：up --dry-run 与
+// graph 都在生成前失败，给出三条带具体取值的出路。
+func TestShellMemberVersionMismatchEndToEnd(t *testing.T) {
+	dir := copyFixture(t, "three-layer-shell")
+	shellYAML := filepath.Join(dir, "shell", "erp", "shell", "component.yaml")
+	require.NoError(t, os.WriteFile(shellYAML, []byte(strings.Replace(readFile(t, shellYAML),
+		"erp/api@1.0.0", "erp/api@0.9.0", 1)), 0o644))
+
+	for _, args := range [][]string{{"up", "--dry-run"}, {"graph"}} {
+		r := runWithEngine(t, newFakeEngine(), dir, args...)
+		require.Equal(t, clierr.ExitError, r.code, "%v\n%s", args, r.stdout+r.stderr)
+		assert.Contains(t, r.stderr, i18n.T(msgid.ShellMemberVersionMismatch, "erp/shell@1.0.0", "erp/api@0.9.0", "erp/api@1.0.0"), args)
+		assert.Contains(t, r.stderr, "components[0].members[0]", args)
+		assert.Contains(t, r.stderr, i18n.T(msgid.ShellHintUpgradeShell, "erp/shell", "erp/api@1.0.0"), args)
+		assert.Contains(t, r.stderr, i18n.T(msgid.ShellHintMoveMemberOut, "erp/api", "erp/shell"), args)
+		assert.Contains(t, r.stderr, "`- {id: erp/api, version: 0.9.0, requiredBy: [erp/shell]}`", args)
+		assert.Contains(t, r.stderr, "`- id: erp/api@0.9.0`", args)
+	}
+}
+
+// 第三条出路走通（附录 A24）：默认版本 1.1.0 在本地仓库、独立运行；外壳编进的 1.0.0 在
+// brickkit.yaml 里以 requiredBy 保留，外壳下写 erp/api@1.0.0。依赖 1.0.0 的 erp/portal
+// 拿到外壳地址，外壳 JSON 里是 1.0.0，两个版本的迁移按版本号串行。
+func TestShellHostsDeclaredVersionWhileDefaultRunsStandalone(t *testing.T) {
+	dir := copyFixture(t, "three-layer-shell")
+	apiYAML := filepath.Join(dir, "components", "erp", "api", "component.yaml")
+	old := readFile(t, apiYAML)
+	cache := filepath.Join(dir, ".brickkit", "manifests")
+	require.NoError(t, os.MkdirAll(cache, 0o755))
+	// 本地源一个目录只放一个版本：1.0.0 在缓存里（连同信封，与之前一次 up 写下的一样）
+	require.NoError(t, os.WriteFile(filepath.Join(cache, "erp-api-1.0.0.yaml"), []byte(old), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(cache, "erp-api-1.0.0.sig.json"), []byte(`{"sourceKind":"local"}`), 0o644))
+	require.NoError(t, os.WriteFile(apiYAML, []byte(strings.ReplaceAll(old, "1.0.0", "1.1.0")), 0o644))
+
+	decl := filepath.Join(dir, "brickkit.yaml")
+	require.NoError(t, os.WriteFile(decl, []byte(strings.Replace(readFile(t, decl),
+		"  - id: erp/api\n    version: 1.0.0\n",
+		"  - id: erp/api\n    version: 1.1.0\n  - id: erp/api\n    version: 1.0.0\n    requiredBy: [erp/shell, erp/portal]\n", 1)), 0o644))
+	deploy := filepath.Join(dir, "deploy.yaml")
+	require.NoError(t, os.WriteFile(deploy, []byte(strings.Replace(readFile(t, deploy),
+		"      - id: erp/api\n", "      - id: erp/api@1.0.0\n", 1)+"  - id: erp/api\n"), 0o644))
+
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	generated := filepath.Join(dir, ".brickkit", "generated")
+	var doc struct {
+		Services map[string]struct {
+			Environment []string       `yaml:"environment"`
+			DependsOn   map[string]any `yaml:"depends_on"`
+		} `yaml:"services"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(readFile(t, filepath.Join(generated, composeFileName))), &doc))
+	assert.Contains(t, doc.Services, "erp-api-1-1-0", "默认版本独立运行")
+	assert.NotContains(t, doc.Services, "erp-api-1-0-0", "1.0.0 在外壳里")
+	assert.Contains(t, doc.Services["erp-portal-1-0-0"].Environment, "ERP_API_ENDPOINT=http://erp-shell-1-0-0:8081")
+	assert.Contains(t, doc.Services["erp-api-1-1-0-migration"].DependsOn, "erp-api-1-0-0-migration", "同一个库的两个版本迁移串行")
+
+	entries := shellJSONFromEnvFile(t, readFile(t, filepath.Join(generated, "env", "erp-shell-1-0-0.env")))
+	require.NotEmpty(t, entries)
+	assert.Equal(t, "erp/api", entries[0].ComponentID)
+	assert.Equal(t, "1.0.0", entries[0].Version)
+}
