@@ -5,6 +5,7 @@
 package manifest_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,8 +17,9 @@ import (
 func TestScaffoldProducesValidManifest(t *testing.T) {
 	files, err := manifest.Scaffold("demo/widget", manifest.ScaffoldOptions{})
 	require.NoError(t, err)
-	require.Len(t, files, 1, "不带 --contract 时只生成 component.yaml")
+	require.Len(t, files, 2, "不带 --contract 时生成 component.yaml 与 BRICKKIT.md")
 	assert.Equal(t, manifest.FileName, files[0].Path)
+	assert.Equal(t, "BRICKKIT.md", files[1].Path)
 
 	m, err := manifest.Parse(files[0].Content, "demo/widget/component.yaml")
 	require.NoError(t, err, "生成的骨架必须是合法 YAML 且能解析")
@@ -46,7 +48,7 @@ func TestScaffoldRejectsBadID(t *testing.T) {
 func TestScaffoldWithOpenAPIContract(t *testing.T) {
 	files, err := manifest.Scaffold("demo/widget", manifest.ScaffoldOptions{Contract: manifest.ContractOpenAPI})
 	require.NoError(t, err)
-	require.Len(t, files, 2, "带 --contract 时还要生成一份契约占位文件")
+	require.Len(t, files, 3, "带 --contract 时还要生成一份契约占位文件")
 
 	m, err := manifest.Parse(files[0].Content, "demo/widget/component.yaml")
 	require.NoError(t, err)
@@ -58,14 +60,14 @@ func TestScaffoldWithOpenAPIContract(t *testing.T) {
 	assert.Equal(t, "openapi", a.Format)
 	require.Equal(t, []string{"api/openapi.yaml"}, a.Files)
 
-	assert.Equal(t, "api/openapi.yaml", files[1].Path)
-	assert.Contains(t, string(files[1].Content), "openapi: 3.0.3")
+	assert.Equal(t, "api/openapi.yaml", files[2].Path)
+	assert.Contains(t, string(files[2].Content), "openapi: 3.0.3")
 }
 
 func TestScaffoldWithProtoContract(t *testing.T) {
 	files, err := manifest.Scaffold("demo/widget", manifest.ScaffoldOptions{Contract: manifest.ContractProto})
 	require.NoError(t, err)
-	require.Len(t, files, 2)
+	require.Len(t, files, 3)
 
 	m, err := manifest.Parse(files[0].Content, "demo/widget/component.yaml")
 	require.NoError(t, err)
@@ -75,12 +77,54 @@ func TestScaffoldWithProtoContract(t *testing.T) {
 	assert.Equal(t, "proto", m.Artifacts[0].Format)
 	require.Equal(t, []string{"api/service.proto"}, m.Artifacts[0].Files)
 
-	assert.Equal(t, "api/service.proto", files[1].Path)
-	assert.Contains(t, string(files[1].Content), `syntax = "proto3";`)
+	assert.Equal(t, "api/service.proto", files[2].Path)
+	assert.Contains(t, string(files[2].Content), `syntax = "proto3";`)
 }
 
 func TestScaffoldRejectsUnknownContract(t *testing.T) {
 	_, err := manifest.Scaffold("demo/widget", manifest.ScaffoldOptions{Contract: "grpc-web"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid --contract value")
+}
+
+// 外壳骨架（提案 §9.6 外壳的目录约定）：出现 shell.members 即为外壳（附录 A11）；
+// 校验不接受空的成员列表，而骨架必须能通过校验，所以放一个占位成员。
+func TestScaffoldShellPassesValidation(t *testing.T) {
+	files, err := manifest.Scaffold("erp/shell", manifest.ScaffoldOptions{Shell: true})
+	require.NoError(t, err)
+	m, err := manifest.Parse(files[0].Content, "erp/shell/component.yaml")
+	require.NoError(t, err)
+	require.NoError(t, m.Validate())
+	assert.True(t, m.IsShell())
+	assert.Equal(t, []string{"example/member@0.1.0"}, m.Shell.Members)
+	assert.Contains(t, string(files[0].Content), "TODO")
+	assert.NotContains(t, string(files[0].Content), "kind: shell", "kind: shell 写在 brickkit.yaml，不在 component.yaml")
+}
+
+// 组件级 BRICKKIT.md 骨架（提案 §16.2）：五节标准结构；外壳声明一节只有外壳才填内容。
+func TestScaffoldWritesComponentDoc(t *testing.T) {
+	doc := func(opts manifest.ScaffoldOptions) string {
+		files, err := manifest.Scaffold("erp/backend", opts)
+		require.NoError(t, err)
+		for _, f := range files {
+			if f.Path == "BRICKKIT.md" {
+				return string(f.Content)
+			}
+		}
+		t.Fatal("没有生成 BRICKKIT.md")
+		return ""
+	}
+	plain := doc(manifest.ScaffoldOptions{})
+	assert.True(t, strings.HasPrefix(plain, "# erp/backend\n"))
+	for _, heading := range []string{"## Purpose", "## Dependencies", "## Configuration", "## Contracts", "## Shell declaration"} {
+		assert.Contains(t, plain, heading)
+	}
+	assert.Contains(t, plain, "Not a shell.")
+
+	shell := doc(manifest.ScaffoldOptions{Shell: true})
+	assert.Contains(t, shell, "example/member@0.1.0")
+	assert.NotContains(t, shell, "Not a shell.")
+
+	contract := doc(manifest.ScaffoldOptions{Contract: manifest.ContractOpenAPI})
+	assert.Contains(t, contract, "`api/openapi.yaml`")
 }

@@ -23,6 +23,8 @@ type ScaffoldOptions struct {
 	// Contract 是契约占位格式：ContractOpenAPI、ContractProto，或空字符串
 	// （不生成契约文件，也不写 artifacts 段）。
 	Contract string
+	// Shell 生成外壳骨架：带 shell.members（附录 A11、A24），BRICKKIT.md 的外壳声明一节随之填写。
+	Shell bool
 }
 
 // ScaffoldFile 是 Scaffold 生成的一份文件：相对组件目录的路径 → 内容。
@@ -91,6 +93,14 @@ service Service {
 			WithExit(clierr.ExitUsage)
 	}
 
+	// 外壳骨架：校验不接受空的成员列表，骨架又必须能通过校验，所以放一个占位成员；
+	// 不改就 add 会大声失败、点出这个成员
+	var shellBlock string
+	if opts.Shell {
+		shellBlock = "\nshell:\n" + yamlcomment.Block("  ", i18n.T(msgid.ManifestScaffoldShellMembersTodo)) +
+			"  members:\n    - " + scaffoldPlaceholderMember + "\n"
+	}
+
 	manifestContent := yamlcomment.Block("", i18n.T(msgid.ManifestScaffoldHeader, id)) + fmt.Sprintf(`apiVersion: brickkit/v1
 kind: Component
 
@@ -99,7 +109,7 @@ metadata:
   name: %s # %s
   version: 0.1.0
   description: %s
-%s
+%s%s
 deployment:
   type: container
   build: # %s
@@ -110,11 +120,12 @@ deployment:
 healthCheck:
   type: http
   path: /healthz
-%s`, id, name, i18n.T(msgid.ManifestScaffoldNameTodo), i18n.T(msgid.ManifestScaffoldDescriptionTodo), artifactsBlock,
+%s`, id, name, i18n.T(msgid.ManifestScaffoldNameTodo), i18n.T(msgid.ManifestScaffoldDescriptionTodo), artifactsBlock, shellBlock,
 		i18n.T(msgid.ManifestScaffoldBuildComment), i18n.T(msgid.ManifestScaffoldPortTodo),
 		yamlcomment.Block("  ", i18n.T(msgid.ManifestScaffoldStartPeriodComment)))
 
 	files := []ScaffoldFile{{Path: FileName, Content: []byte(manifestContent)}}
+	var contractPath string
 	if contractFile != "" {
 		ext := "yaml"
 		if opts.Contract == ContractProto {
@@ -124,10 +135,44 @@ healthCheck:
 		if opts.Contract == ContractProto {
 			filename = "service"
 		}
+		contractPath = "api/" + filename + "." + ext
 		files = append(files, ScaffoldFile{
-			Path:    "api/" + filename + "." + ext,
+			Path:    contractPath,
 			Content: []byte(contractFile),
 		})
 	}
+	// BRICKKIT.md 紧跟 component.yaml：它是消费方（人和 AI）读这个组件的入口（§16.2）
+	files = append(files[:1], append([]ScaffoldFile{{Path: FileDoc, Content: []byte(componentDoc(id, contractPath, opts.Shell))}}, files[1:]...)...)
 	return files, nil
+}
+
+// FileDoc 是组件仓库根目录的组件文档（提案 §16.2）。
+const FileDoc = "BRICKKIT.md"
+
+// scaffoldPlaceholderMember 是外壳骨架里的占位成员。
+const scaffoldPlaceholderMember = "example/member@0.1.0"
+
+// componentDoc 是组件级 BRICKKIT.md 的骨架：§16.2 的五节标准结构，要作者填的地方写成注释。
+func componentDoc(id, contractPath string, shell bool) string {
+	var b strings.Builder
+	b.WriteString("# " + id + "\n\n")
+	b.WriteString("## " + i18n.T(msgid.ManifestDocPurpose) + "\n\n<!-- " + i18n.T(msgid.ManifestDocPurposeTodo) + " -->\n\n")
+	b.WriteString("## " + i18n.T(msgid.ManifestDocDependencies) + "\n\n<!-- " + i18n.T(msgid.ManifestDocDependenciesTodo) + " -->\n\n")
+	b.WriteString("## " + i18n.T(msgid.ManifestDocConfiguration) + "\n\n")
+	b.WriteString("| " + i18n.T(msgid.ManifestDocColVariable) + " | " + i18n.T(msgid.ManifestDocColRequired) + " | " + i18n.T(msgid.ManifestDocColMeaning) + " |\n")
+	b.WriteString("|---|---|---|\n")
+	b.WriteString("| <!-- " + i18n.T(msgid.ManifestDocConfigKeyTodo) + " --> | | <!-- " + i18n.T(msgid.ManifestDocConfigMeaningTodo) + " --> |\n\n")
+	b.WriteString("## " + i18n.T(msgid.ManifestDocContracts) + "\n\n")
+	if contractPath != "" {
+		b.WriteString("- `" + contractPath + "`\n\n")
+	} else {
+		b.WriteString("<!-- " + i18n.T(msgid.ManifestDocContractsTodo) + " -->\n\n")
+	}
+	b.WriteString("## " + i18n.T(msgid.ManifestDocShell) + "\n\n")
+	if shell {
+		b.WriteString(i18n.T(msgid.ManifestDocShellMembers) + "\n\n- `" + scaffoldPlaceholderMember + "` <!-- " + i18n.T(msgid.ManifestDocShellMembersTodo) + " -->\n")
+	} else {
+		b.WriteString(i18n.T(msgid.ManifestDocNotShell) + "\n")
+	}
+	return b.String()
 }

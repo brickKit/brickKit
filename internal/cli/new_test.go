@@ -100,3 +100,26 @@ func TestNewRejectsInvalidContract(t *testing.T) {
 	assert.Equal(t, clierr.ExitUsage, r.code)
 	assert.Contains(t, r.stderr, "invalid --contract value")
 }
+
+// --shell 默认写到 shell/<scope>/<name>/（外壳是项目自己的代码，由本地源 local-shells 扫描）。
+func TestNewShellDefaultsToShellDir(t *testing.T) {
+	dir := t.TempDir()
+	r := runIn(t, dir, "new", "erp/shell", "--shell")
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	path := filepath.Join(dir, "shell", "erp", "shell", "component.yaml")
+	require.FileExists(t, path)
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	m, err := manifest.Parse(raw, path)
+	require.NoError(t, err)
+	assert.True(t, m.IsShell())
+	assert.Contains(t, r.stdout, filepath.Join("shell", "erp", "shell", "component.yaml"))
+}
+
+func TestNewWritesBrickkitMd(t *testing.T) {
+	dir := t.TempDir()
+	r := runIn(t, dir, "new", "demo/widget")
+	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
+	assert.FileExists(t, filepath.Join(dir, "components", "demo", "widget", "BRICKKIT.md"))
+	assert.Contains(t, r.stdout, filepath.Join("components", "demo", "widget", "BRICKKIT.md"))
+}

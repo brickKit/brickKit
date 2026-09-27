@@ -22,6 +22,7 @@ import (
 func newNewCommand(opts *Options) *cobra.Command {
 	var path string
 	var contract string
+	var shell bool
 	cmd := &cobra.Command{
 		Use:     "new <scope>/<name>",
 		Short:   i18n.T(msgid.CliNewShort),
@@ -30,25 +31,31 @@ func newNewCommand(opts *Options) *cobra.Command {
 		Example: i18n.T(msgid.CliNewExample),
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNew(opts, args[0], path, contract)
+			return runNew(opts, args[0], path, contract, shell)
 		},
 	}
 	cmd.Flags().StringVar(&path, "path", "",
 		i18n.T(msgid.CliNewWhichDirectoryToWriteTo))
 	cmd.Flags().StringVar(&contract, "contract", "",
 		i18n.T(msgid.CliNewContractPlaceholderFormatOpenapiOr))
+	cmd.Flags().BoolVar(&shell, "shell", false, i18n.T(msgid.CliNewFlagShell))
 	return cmd
 }
 
-func runNew(opts *Options, id, path, contract string) error {
-	files, err := manifest.Scaffold(id, manifest.ScaffoldOptions{Contract: contract})
+func runNew(opts *Options, id, path, contract string, shell bool) error {
+	files, err := manifest.Scaffold(id, manifest.ScaffoldOptions{Contract: contract, Shell: shell})
 	if err != nil {
 		return err
 	}
 
 	rel := path
 	if rel == "" {
-		rel = filepath.Join(project.DirComponents, id)
+		// 外壳是项目自己的代码，放 shell/（本地源 local-shells），普通组件放 components/
+		base := project.DirComponents
+		if shell {
+			base = project.DirShell
+		}
+		rel = filepath.Join(base, id)
 	}
 	// 绝对路径就是它自己：filepath.Join 会把它当成相对路径接在 WorkDir 后面，
 	// 写出去的位置和屏幕上打印的对不上。

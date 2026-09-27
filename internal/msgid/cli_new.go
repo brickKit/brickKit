@@ -17,4 +17,5 @@ const (
 	CliNewFinishTheTodosInThe                = "cli.new.finish_the_todos_in_the"
 	CliNewBrickkitAddLocalAddIt              = "cli.new.brickkit_add_local_add_it"
 	CliNewBrickkitUpDryRunCheck              = "cli.new.brickkit_up_dry_run_check"
+	CliNewFlagShell                          = "cli.new.flag_shell"
 )
