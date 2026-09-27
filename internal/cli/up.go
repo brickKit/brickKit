@@ -280,7 +280,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	}
 	renderOrder(opts, workloads, order, plan.graph, hosted, skippedWaits(proj, plan.graph, plan.states))
 
-	if err := checkLocalSources(proj, plan.states.Running()); err != nil {
+	if err := checkLocalRepos(proj, plan.states); err != nil {
 		return nil, err
 	}
 

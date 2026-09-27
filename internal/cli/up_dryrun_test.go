@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/workspace"
 )
 
 // generatedCompose 读出生成的 compose.yaml。
@@ -299,7 +298,7 @@ func TestUpDryRunWithoutLocalComponentWritesNoEnvFile(t *testing.T) {
 func TestUpDryRunShowsTheDetectedLocalCommand(t *testing.T) {
 	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
 	f := addedProject(t, comps, "demo/hello@1.0.0")
-	writeTree(t, workspace.SourceDir(f.Layout, "demo/hello"), map[string]string{
+	writeTree(t, f.repoDir(t, "demo/hello"), map[string]string{
 		"go.mod":  "module example.com/hello\n",
 		"main.go": "package main\n\nfunc main() {}\n",
 	})

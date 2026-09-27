@@ -57,6 +57,11 @@ func tagPrefix(componentID, subpath string) string {
 	return strings.ReplaceAll(componentID, "/", "-") + "/"
 }
 
+// VersionTag 是组件某个版本的 git tag：<版本>，组件在仓库子目录时是 <scope>-<name>/<版本>。
+func VersionTag(componentID, version, subpath string) string {
+	return tagPrefix(componentID, subpath) + version
+}
+
 // repoWithTag 返回已经有 tag 的仓库：缓存里没有仓库先克隆，仓库里没有 tag 先 fetch。
 // tag 仍然没有时 found 为 false。
 func (s *gitSource) repoWithTag(ctx context.Context, componentID, tag string) (*gitRepo, bool, error) {

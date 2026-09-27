@@ -18,7 +18,6 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/engine"
-	"github.com/brickkit/brickkit/internal/workspace"
 )
 
 // ============================================================
@@ -268,7 +267,7 @@ func TestUpModeLocalComponentIsNotAWorkloadTarget(t *testing.T) {
 	// mode: local 从 Plan 4b 起要求本地源码目录（跟 mode: debug 不同——平台自己
 	// 要 cd 进去执行探测出的命令）；main() 空函数立刻干净退出，探测阶段够用，
 	// 后续任务真正启动它时也不会挂起等待。
-	writeTree(t, workspace.SourceDir(f.Layout, "people/basic"), map[string]string{
+	writeTree(t, f.repoDir(t, "people/basic"), map[string]string{
 		"go.mod":  "module example.com/basic\n",
 		"main.go": "package main\n\nfunc main() {}\n",
 	})
@@ -300,7 +299,7 @@ func TestUpMixesContainerAndLocalComponents(t *testing.T) {
 		{ID: "people/basic", Version: "1.0.0"},
 	}
 	f := addedProject(t, comps, "erp/backend@1.0.0")
-	writeTree(t, workspace.SourceDir(f.Layout, "people/basic"), map[string]string{
+	writeTree(t, f.repoDir(t, "people/basic"), map[string]string{
 		"go.mod":  "module example.com/basic\n",
 		"main.go": listenThenExitCleanly,
 	})
@@ -339,7 +338,7 @@ func TestUpWithOnlyLocalComponentsNeverCallsTheEngine(t *testing.T) {
 	}
 	comps := []comp{{ID: "demo/hello", Version: "1.0.0"}}
 	f := addedProject(t, comps, "demo/hello@1.0.0")
-	writeTree(t, workspace.SourceDir(f.Layout, "demo/hello"), map[string]string{
+	writeTree(t, f.repoDir(t, "demo/hello"), map[string]string{
 		"go.mod":  "module example.com/hello\n",
 		"main.go": listenThenExitCleanly,
 	})

@@ -12,9 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/project/projecttest"
@@ -48,19 +50,23 @@ func TestStatusLabelsEachVersionOnItsOwn(t *testing.T) {
 	assert.NotContains(t, r.stdout, "deploy.local.yaml", "两份文件的 mode 完全一样，不该标出处：\n%s", r.stdout)
 }
 
-// mode: local 却没有源码目录：报错指向部署文件里的那个条目（mode 写在那里），并按组件版本判断
-// 这次跑不跑——同 ID 的另一个版本在跑，不等于这个 mode: local 的版本在跑。
+// mode: local 却找不到本地仓库：报错指向部署文件里的那个条目（mode 写在那里）。
+// 按组件版本判断：同 ID 的另一个版本在容器里跑，与它无关。
 func TestLocalSourceMissingPointsAtDeployEntry(t *testing.T) {
 	p := projecttest.Build(t, projecttest.Spec{Entries: []projecttest.Entry{
 		{ID: "demo/other", Version: "1.0.0"},
 		{ID: "demo/hello", Version: "2.0.0"},
 		{ID: "demo/hello", Version: "1.0.0", Mode: deployfile.ModeLocal},
 	}})
+	var nodes []*resolver.Node
+	for _, c := range p.Decl.Components {
+		nodes = append(nodes, &resolver.Node{Ref: resolver.Ref{ID: c.ID, Version: c.Version},
+			Manifest: &manifest.Manifest{Metadata: manifest.Metadata{ID: c.ID, Version: c.Version}}})
+	}
+	states, err := cascade.Compute(p, resolver.NewGraph(nodes))
+	require.NoError(t, err)
 
-	require.NoError(t, checkLocalSources(p, []resolver.Ref{{ID: "demo/hello", Version: "2.0.0"}}),
-		"1.0.0 这次不跑，不查它的源码目录")
-
-	err := checkLocalSources(p, []resolver.Ref{{ID: "demo/hello", Version: "1.0.0"}})
+	err = checkLocalRepos(p, states)
 	require.Error(t, err)
 	e := clierr.As(err)
 	var keys, values []string
@@ -68,6 +74,7 @@ func TestLocalSourceMissingPointsAtDeployEntry(t *testing.T) {
 		keys, values = append(keys, d.Key), append(values, d.Value)
 	}
 	assert.Contains(t, keys, "components[2]", "指向部署文件里的条目")
+	assert.NotContains(t, keys, "components[1]", "容器里跑的 2.0.0 不查")
 	assert.Contains(t, values, p.DeployPath)
 	assert.Contains(t, keys, i18n.T(msgid.LabelFile))
 }

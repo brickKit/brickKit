@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
 	"github.com/brickkit/brickkit/internal/deployfile"
@@ -19,6 +20,7 @@ import (
 	"github.com/brickkit/brickkit/internal/resolver"
 	"github.com/brickkit/brickkit/internal/runcmd"
 	"github.com/brickkit/brickkit/internal/sessionlock"
+	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/workspace"
 )
 
@@ -32,33 +34,73 @@ func anyModeLocal(proj *project.Project) bool {
 	return false
 }
 
-// checkLocalSources 确认每个即将运行的 mode: local 组件都有本地源码目录。
+// checkLocalRepos 核对这次从本地仓库运行代码的组件（附录 A22、A24）：
 //
-// 跟 mode: debug 不一样：debug 的进程由用户自己在 IDE 里启动，可能在这台机器
-// 上的任何地方，平台不关心；local 的进程由平台自己拉起，得知道去哪个目录、
-// cd 进去执行探测出的命令——没有源码目录，这件事根本无从谈起。
+//   - mode: local 的组件：平台自己在它的仓库里启动它，没有仓库就无从谈起
+//   - mode: debug 的组件：进程由使用者在 IDE 里启动，仓库可能在任何地方——找得到才核对
+//   - 以裸进程运行的外壳承载的成员：成员代码来自成员的本地仓库——找得到才核对
+//
+// 找到的仓库必须正是这次运行的版本，而且是默认版本：本地仓库永远是默认版本的代码
+// （附录 A22）。容器部署拉镜像，不看本地仓库。
 //
 // 放在生成阶段查（buildUpPlan 里，--dry-run 也会走到）："生成阶段就该知道、
 // 不该等运行时才炸"。
-func checkLocalSources(proj *project.Project, running []resolver.Ref) error {
-	runningSet := make(map[resolver.Ref]bool, len(running))
-	for _, ref := range running {
-		runningSet[ref] = true
-	}
-
-	// mode 写在部署文件里：问题指向那里的条目（外壳下面的成员条目同样算）
-	p := clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpLocalComponentsMissingSource)).
+func checkLocalRepos(proj *project.Project, states *cascade.Result) error {
+	p := clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpLocalReposInvalid)).
 		WithSource(i18n.T(msgid.LabelFile), proj.DeployPath)
+	hints := map[string]bool{}
+	var hintOrder []string
+	hint := func(h string) {
+		if !hints[h] {
+			hints[h] = true
+			hintOrder = append(hintOrder, h)
+		}
+	}
+	check := func(ref resolver.Ref, requireRepo bool) {
+		field := deployEntryField(proj, ref)
+		dir, ok := proj.LocalRepo(ref.ID)
+		if !ok {
+			if requireRepo {
+				p.Add(field, i18n.T(msgid.CliUpNoLocalSourceFor, ref.ID))
+			}
+			return
+		}
+		display := displayPath(proj.Layout.Root, dir)
+		if def, _ := proj.Decl.DefaultVersion(ref.ID); def != ref.Version {
+			p.Add(field, i18n.T(msgid.CliUpLocalRepoNotDefault, ref.String(), def))
+			hint(i18n.T(msgid.CliUpHintMakeDefault, ref.String()))
+			return
+		}
+		version, err := project.LocalRepoVersion(dir)
+		if err != nil || version == ref.Version {
+			return
+		}
+		p.Add(field, i18n.T(msgid.CliUpLocalRepoVersionMismatch, ref.String(), display, version))
+		hint(i18n.T(msgid.CliUpHintUpgradeToRepo, ref.ID+"@"+version))
+		hint(i18n.T(msgid.CliUpHintCheckoutTag, display, source.VersionTag(ref.ID, ref.Version, proj.LocalRepoSubpath(ref.ID))))
+	}
 	for _, c := range proj.Decl.Components {
 		ref := resolver.Ref{ID: c.ID, Version: c.Version}
-		if proj.DeployEntry(c.ID, c.Version).Mode != deployfile.ModeLocal || !runningSet[ref] {
+		entry := proj.DeployEntry(c.ID, c.Version)
+		if !states.IsRunning(ref) || !entry.IsBareProcess() {
 			continue
 		}
-		if !workspace.Exists(proj.Layout, c.ID) {
-			p.Add(deployEntryField(proj, ref), i18n.T(msgid.CliUpNoLocalSourceFor, c.ID))
+		check(ref, entry.Mode == deployfile.ModeLocal)
+		if !c.IsShell() {
+			continue
+		}
+		for _, member := range proj.MembersOf(c.ID) {
+			id, version := member.Key()
+			if version == "" {
+				version, _ = proj.Decl.DefaultVersion(id)
+			}
+			mref := resolver.Ref{ID: id, Version: version}
+			if host, ok := states.HostOf(proj, mref); ok && host == ref {
+				check(mref, false)
+			}
 		}
 	}
-	return p.Err()
+	return p.WithHint(hintOrder...).Err()
 }
 
 // deployEntryField 返回覆盖这个组件版本的部署条目的字段路径（如 components[0].members[1]）。
@@ -114,7 +156,10 @@ func collectLocalComponents(
 			continue // localEnvFiles 只含"这次真的在跑"的组件；跟 collectTargets 同一份 running 集合
 		}
 
-		dir := workspace.SourceDir(proj.Layout, ref.ID)
+		dir, found := proj.LocalRepo(ref.ID)
+		if !found {
+			dir = workspace.SourceDir(proj.Layout, ref.ID)
+		}
 		hints := hintsFromManifest(node.Manifest.Local)
 		cmd, err := runcmd.Detect(dir, hints, runcmd.Params{Port: port})
 		if err != nil {

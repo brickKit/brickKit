@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -194,6 +195,20 @@ func newProjectFixtureAt(t *testing.T, dir string, sources ...string) *projectFi
 	f := &projectFixture{Dir: dir, Layout: project.NewLayout(dir), Sources: sources}
 	f.writeConfig(t, "components: []\n")
 	return f
+}
+
+// repoDir 是组件本地仓库的目录——代码写在这里，up 的 mode: local 从这里启动：
+// 本地安装源里有它时是那个目录（与 project.LocalRepo 同一个顺序），否则是 components/<id>/。
+func (f *projectFixture) repoDir(t *testing.T, id string) string {
+	t.Helper()
+	matches, _ := filepath.Glob(filepath.Join(f.Dir, "*", filepath.FromSlash(id), "component.yaml"))
+	sort.Strings(matches)
+	for _, m := range matches {
+		if !strings.HasPrefix(m, f.Layout.ComponentsDir()+string(filepath.Separator)) {
+			return filepath.Dir(m)
+		}
+	}
+	return filepath.Join(f.Layout.ComponentsDir(), filepath.FromSlash(id))
 }
 
 // addedProject 建一个"已经装好"若干组件的项目：组件各自放进一个本地安装源，
