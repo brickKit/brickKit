@@ -320,3 +320,12 @@ func TestPlanRemoveDefaultAmbiguous(t *testing.T) {
 	assert.Contains(t, err.Error(), "erp/db@1.0.0")
 	assert.Contains(t, err.Error(), "erp/db@2.0.0")
 }
+
+// 只补这次 add 的那个组件的配置：别的组件的配置文件可能是使用者特意删掉的（键都有默认值）。
+func TestPlanAddFillsOnlyTargetConfig(t *testing.T) {
+	p := proj(t, "  - {id: erp/other, version: 1.0.0}", "  - id: erp/other")
+	cat := catalog(withSchema(mf("erp/other@1.0.0")), mf("erp/api@1.0.0"))
+	plan, err := install.PlanAdd(p, graphFor(t, p, cat, "erp/api@1.0.0"), ref("erp/api@1.0.0"))
+	require.NoError(t, err)
+	assert.Empty(t, plan.AddConfigs)
+}

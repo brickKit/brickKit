@@ -33,7 +33,7 @@ func PlanAdd(p *project.Project, graph *resolver.Graph, target resolver.Ref) (*P
 	a.addNewRefs()
 	a.extendRequiredBy()
 	a.nestExisting()
-	a.fillMissingConfigs()
+	a.fillMissingConfig(target)
 	sortEntries(a.plan.AddEntries)
 	return a.plan, nil
 }
@@ -211,16 +211,15 @@ func (a *adder) nestExisting() {
 	}
 }
 
-// fillMissingConfigs：已声明、有 configSchema、却没有配置文件的组件版本，补上骨架。
-func (a *adder) fillMissingConfigs() {
-	for _, c := range a.p.Decl.Components {
-		n := a.graph.Node(resolver.Ref{ID: c.ID, Version: c.Version})
-		if n == nil || !hasSchema(n.Manifest) || a.p.Config(c.ID, c.Version) != nil {
-			continue
-		}
-		a.plan.AddConfigs = append(a.plan.AddConfigs,
-			ConfigFile{ID: c.ID, Version: c.Version, Versioned: !a.p.Decl.IsDefault(c.ID, c.Version), Schema: n.Manifest.ConfigSchema})
+// fillMissingConfig：重复 add 一个已声明的组件、它有 configSchema 却没有配置文件——补上骨架。
+// 只补 target：别的组件的配置文件可能是使用者特意删掉的（键都有默认值时文件可以不要）。
+func (a *adder) fillMissingConfig(target resolver.Ref) {
+	n := a.graph.Node(target)
+	if !a.declared[target] || n == nil || !hasSchema(n.Manifest) || a.p.Config(target.ID, target.Version) != nil {
+		return
 	}
+	a.plan.AddConfigs = append(a.plan.AddConfigs, ConfigFile{ID: target.ID, Version: target.Version,
+		Versioned: !a.p.Decl.IsDefault(target.ID, target.Version), Schema: n.Manifest.ConfigSchema})
 }
 
 // sortEntries 让顶层条目排在嵌套条目前面（外壳条目要先在），各自保持原顺序。
