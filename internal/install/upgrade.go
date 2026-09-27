@@ -311,9 +311,9 @@ func (u *upgrader) entries() {
 			continue
 		}
 		want := u.entryID(ref)
-		switch {
-		case want == old.ID:
-		case want == ref.ID:
+		switch want {
+		case old.ID:
+		case ref.ID:
 			promote = append(promote, Rename{From: old.ID, To: want})
 		default:
 			demote = append(demote, Rename{From: old.ID, To: want})
