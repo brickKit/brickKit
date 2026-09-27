@@ -11,6 +11,7 @@ package cli
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -91,20 +92,19 @@ func runUpgrade(ctx context.Context, opts *Options, arg string, f upgradeFlags) 
 	}
 
 	if f.dryRun {
-		return renderUpgradePreview(opts, proj, plan)
+		return previewUpgrade(opts, proj, plan)
 	}
-	res, err := applyPlanWith(opts, proj, plan, applyOptions{topologyOnly: true, choose: conflictChooser(opts, f.yes)})
+	res, err := applyPlanWith(opts, proj, plan, applyOptions{allowConflicts: true, choose: conflictChooser(opts, f.yes)})
 	if err != nil {
 		return err
 	}
+	fresh := append([]resolver.Ref{}, plan.Added...)
 	for _, m := range plan.Moves {
-		if node := newGraph.Node(resolver.Ref{ID: m.ID, Version: m.To}); node != nil {
-			if dl, err := client.DownloadArtifacts(ctx, node.Manifest); err == nil {
-				renderWarnings(opts, dl.Warnings)
-			}
-		}
+		fresh = append(fresh, resolver.Ref{ID: m.ID, Version: m.To})
 	}
+	_, warnings := downloadAddedArtifacts(ctx, client, newGraph, fresh)
 	renderUpgradeResult(opts, plan, res)
+	renderWarnings(opts, warnings)
 	return nil
 }
 
@@ -145,6 +145,10 @@ func upgradeTargets(ctx context.Context, opts *Options, proj *project.Project, c
 			return nil, err
 		}
 		version = latest.Version
+		// 不写版本只往上走：安装源里最新的比项目里的旧，就是已经最新，绝不悄悄降级
+		if manifest.CompareVersions(version, current) < 0 {
+			version = current
+		}
 	}
 	if version == current {
 		opts.Printf("%s\n", i18n.T(msgid.CliUpgradeUpToDate, id+"@"+current))
@@ -200,23 +204,57 @@ func conflictChooser(opts *Options, yes bool) func(install.ConfigMigration, conf
 	}
 }
 
-// renderUpgradePreview 是 --dry-run：版本移动、进出项目的版本、每份配置的迁移结果，一个文件都不写。
-func renderUpgradePreview(opts *Options, proj *project.Project, plan *install.Plan) error {
-	opts.Printf("%s\n", i18n.T(msgid.CliUpgradePreviewHeader))
-	renderUpgradeLines(opts, plan)
-	for _, m := range plan.MigrateConfigs {
-		source, err := readOptional(filepath.Join(proj.Layout.ConfigDir(), configFileName(m.Source)))
-		if err != nil {
-			return err
-		}
-		_, report, err := migrateConfig(m, source, nil)
-		if err != nil {
-			return err
-		}
-		renderMigrationReport(opts, "config/"+configFileName(m.Target), report)
+// previewUpgrade 是 --dry-run：在项目文件的一份临时副本上真的做一遍、核对一遍（冲突一律写成冲突块），
+// 把结果原样报出来——会失败的升级在预览里就失败。项目本身一个文件都不动。
+func previewUpgrade(opts *Options, proj *project.Project, plan *install.Plan) error {
+	tmp, err := os.MkdirTemp("", "brickkit-upgrade-")
+	if err != nil {
+		return err
 	}
+	defer func() { _ = os.RemoveAll(tmp) }()
+	if err := copyProjectFiles(proj.Layout.Root, tmp); err != nil {
+		return err
+	}
+	copyProj, err := project.Load(tmp, project.LoadOptions{NoLocal: true})
+	if err != nil {
+		return err
+	}
+	res, err := applyPlanWith(opts, copyProj, plan, applyOptions{allowConflicts: true})
+	if err != nil {
+		return err
+	}
+	opts.Printf("%s\n", i18n.T(msgid.CliUpgradePreviewHeader))
+	renderUpgradeResult(opts, plan, res)
 	opts.Printf("\n%s\n", i18n.T(msgid.CliUpgradeDryRunNothingWritten))
 	return nil
+}
+
+// copyProjectFiles 复制三份文件（brickkit.yaml、deploy*.yaml、config/）到 dst。
+func copyProjectFiles(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, path)
+		top := strings.Split(filepath.ToSlash(rel), "/")[0]
+		keep := rel == "." || top == project.DirConfig || top == project.FileDecl ||
+			(strings.HasPrefix(top, "deploy") && strings.HasSuffix(top, ".yaml"))
+		if !keep {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, 0o644)
+	})
 }
 
 func renderUpgradeResult(opts *Options, plan *install.Plan, res *applied) {
@@ -246,7 +284,14 @@ func renderUpgradeResult(opts *Options, plan *install.Plan, res *applied) {
 // renderUpgradeLines 列出版本移动、加进来的、留作兼容版本的、移除的。
 func renderUpgradeLines(opts *Options, plan *install.Plan) {
 	for _, m := range plan.Moves {
-		opts.Printf("   %s\n", i18n.T(msgid.CliUpgradeMove, m.ID, m.From, m.To))
+		label := msgid.CliUpgradeMove
+		if manifest.CompareVersions(m.To, m.From) < 0 {
+			label = msgid.CliUpgradeMoveDown
+		}
+		opts.Printf("   %s\n", i18n.T(label, m.ID, m.From, m.To))
+	}
+	for _, note := range plan.Notes {
+		opts.Printf("   %s\n", i18n.T(msgid.CliInstallNote, note))
 	}
 	for _, l := range plan.AddLines {
 		if len(l.RequiredBy) > 0 {
@@ -255,8 +300,21 @@ func renderUpgradeLines(opts *Options, plan *install.Plan) {
 			opts.Printf("   %s\n", i18n.T(msgid.CliAddLine, l.Ref().String()))
 		}
 	}
+	oldDefaults := map[resolver.Ref]bool{}
+	for _, m := range plan.Moves {
+		oldDefaults[resolver.Ref{ID: m.ID, Version: m.From}] = true
+	}
 	for _, ref := range plan.Removed {
-		opts.Printf("   %s\n", i18n.T(msgid.CliRemoveCascaded, ref.String()))
+		label := msgid.CliRemoveCascaded
+		if oldDefaults[ref] {
+			label = msgid.CliUpgradeOldRemoved
+		}
+		opts.Printf("   %s\n", i18n.T(label, ref.String()))
+	}
+	for _, l := range plan.SetRequiredBy {
+		if len(l.RequiredBy) > 0 {
+			opts.Printf("   %s\n", i18n.T(msgid.CliRemoveRequiredByNow, l.Ref().String(), strings.Join(l.RequiredBy, ", ")))
+		}
 	}
 	for _, id := range plan.LiftEntries {
 		opts.Printf("   %s\n", i18n.T(msgid.CliUpgradeLifted, id))

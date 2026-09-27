@@ -102,6 +102,9 @@ func ResolveWorld(ctx context.Context, r *resolver.Resolver, defaults []resolver
 // 那个版本的成员，跟着换成新外壳编进的版本。只为外壳保留的兼容版本、新成员、被去掉的成员由
 // PlanUpgrade 按新旧世界的差处理。
 func ShellMoves(p *project.Project, oldShell, newShell *manifest.Manifest) []Move {
+	if !oldShell.IsShell() || !newShell.IsShell() {
+		return nil // 新版本不再是外壳（或原来就不是）：没有成员可跟
+	}
 	var moves []Move
 	for _, member := range newShell.Shell.Members {
 		id, to, _ := manifest.SplitRef(member)
@@ -124,8 +127,17 @@ func PlanUpgrade(p *project.Project, oldGraph, newGraph *resolver.Graph, moves [
 		}
 	}
 	u := newUpgrader(p, oldGraph, newGraph, moves)
+	if err := u.checkKinds(); err != nil {
+		return nil, err
+	}
+	for _, m := range moves {
+		if manifest.CompareVersions(m.To, m.From) < 0 {
+			u.plan.Notes = append(u.plan.Notes, i18n.T(msgid.InstallNoteDowngrade, m.ID, m.From, m.To))
+		}
+	}
 	u.lines()
 	u.entries()
+	u.nestIntoMovedShells()
 	u.configs()
 	sortEntries(u.plan.AddEntries)
 	return u.plan, nil
@@ -214,6 +226,49 @@ func (u *upgrader) hostOf(ref resolver.Ref) (string, bool) {
 	return "", false
 }
 
+// checkKinds：外壳只有一个版本（§8.6 的单版本约束仍然成立）——还有组件需要旧外壳时升级不了；
+// 组件在新版本里成了外壳（或不再是外壳）时 kind 跟着改，同一个 ID 还剩别的版本时就改不了
+// （一个组件的几行必须同一个 kind）。
+func (u *upgrader) checkKinds() error {
+	for _, m := range u.plan.Moves {
+		from := resolver.Ref{ID: m.ID, Version: m.From}
+		to := resolver.Ref{ID: m.ID, Version: m.To}
+		oldShell := u.p.Decl.IsShellID(m.ID)
+		newNode := u.newGraph.Node(to)
+		if newNode == nil {
+			continue
+		}
+		newShell := newNode.Manifest.IsShell()
+		if oldShell && u.inNew(from) {
+			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.InstallUpgradeShellStillNeeded, from.String(), joinStrings(neededIn(u.newGraph, from)))).
+				WithHint(i18n.T(msgid.InstallHintUpgradeShellDependents, from.String()))
+		}
+		if oldShell == newShell {
+			continue
+		}
+		if others := len(u.p.Decl.Versions(m.ID)); others > 1 {
+			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.InstallUpgradeKindChange, to.String())).
+				WithHint(i18n.T(msgid.InstallHintKindChange, m.ID))
+		}
+		u.plan.ChangeKinds = append(u.plan.ChangeKinds, Line{ID: m.ID, Version: m.To, Shell: newShell})
+		if oldShell {
+			u.plan.UnnestShells = append(u.plan.UnnestShells, m.ID)
+		}
+	}
+	return nil
+}
+
+func joinStrings(list []string) string {
+	out := ""
+	for i, s := range list {
+		if i > 0 {
+			out += ", "
+		}
+		out += s
+	}
+	return out
+}
+
 func (u *upgrader) lines() {
 	for _, c := range u.p.Decl.Components {
 		ref := resolver.Ref{ID: c.ID, Version: c.Version}
@@ -233,7 +288,7 @@ func (u *upgrader) lines() {
 			} else {
 				u.plan.ChangeVersions = append(u.plan.ChangeVersions, m)
 				if kept {
-					u.plan.AddLines = append(u.plan.AddLines, Line{ID: c.ID, Version: c.Version, RequiredBy: neededIn(u.newGraph, ref)})
+					u.plan.AddLines = append(u.plan.AddLines, Line{ID: c.ID, Version: c.Version, Shell: c.IsShell(), RequiredBy: neededIn(u.newGraph, ref)})
 				}
 			}
 		case moved && c.Version == m.To:
@@ -249,7 +304,8 @@ func (u *upgrader) lines() {
 	}
 	for _, n := range u.newGraph.Nodes {
 		ref := n.Ref
-		if u.declared[ref] {
+		// 只加这次升级带来的：旧世界里也有、却没声明的版本是使用者移除过的，不加回来
+		if u.declared[ref] || u.inOld(ref) {
 			continue
 		}
 		if m, ok := u.moves[ref.ID]; ok && m.To == ref.Version {
@@ -273,6 +329,7 @@ func (u *upgrader) removed(ref resolver.Ref) bool { return slices.Contains(u.pla
 
 func (u *upgrader) entries() {
 	var demote, promote []Rename
+	keepBare := u.promotionsKeepingBare()
 	for _, c := range u.p.Decl.Components {
 		ref := resolver.Ref{ID: c.ID, Version: c.Version}
 		old, found := u.p.Deploy.EntryAt(c.ID, c.Version, u.p.Decl.IsDefault(c.ID, c.Version))
@@ -281,6 +338,17 @@ func (u *upgrader) entries() {
 		}
 		owner, _, _ := manifest.SplitRef(old.Shell)
 		m, moved := u.moves[c.ID]
+		if moved && keepBare[c.ID] {
+			switch c.Version {
+			case m.From:
+				// 裸条目（使用者的字段）留下，现在指新的默认版本
+				u.liftIfNotHosted(owner, resolver.Ref{ID: m.ID, Version: m.To}, old.ID)
+				continue
+			case m.To:
+				u.plan.RemoveEntries = append(u.plan.RemoveEntries, old.ID)
+				continue
+			}
+		}
 		if u.removed(ref) {
 			u.plan.RemoveEntries = append(u.plan.RemoveEntries, old.ID)
 			continue
@@ -327,6 +395,61 @@ func (u *upgrader) entries() {
 			entry.Under = h
 		}
 		u.plan.AddEntries = append(u.plan.AddEntries, entry)
+	}
+}
+
+// promotionsKeepingBare：兼容版本转正、旧默认版本不留时，裸条目（带着使用者的字段）跟着默认版本
+// 走，兼容版本的条目删掉。例外：兼容版本的条目嵌在一个编进了它的外壳下面、而裸条目不在那个外壳
+// 下——那就留嵌套的那一条（改名成裸 ID），外壳里的承载关系不能丢。
+func (u *upgrader) promotionsKeepingBare() map[string]bool {
+	out := map[string]bool{}
+	for _, m := range u.moves {
+		from := resolver.Ref{ID: m.ID, Version: m.From}
+		to := resolver.Ref{ID: m.ID, Version: m.To}
+		if !u.declared[to] || u.inNew(from) {
+			continue
+		}
+		toEntry, ok := u.p.Deploy.EntryAt(to.ID, to.Version, false)
+		fromEntry, okFrom := u.p.Deploy.EntryAt(from.ID, from.Version, true)
+		if !ok || !okFrom {
+			continue
+		}
+		host, hosted := u.hostOf(to)
+		toOwner, _, _ := manifest.SplitRef(toEntry.Shell)
+		fromOwner, _, _ := manifest.SplitRef(fromEntry.Shell)
+		out[m.ID] = !hosted || toOwner != host || fromOwner == host
+	}
+	return out
+}
+
+// nestIntoMovedShells：升级后的外壳编进了、已经声明、却在顶层的版本，挪进外壳（同 add 外壳时，§8.5）。
+// 只对这次升级的外壳做：别的外壳下面缺的成员是使用者移出去的（§8.7）。
+func (u *upgrader) nestIntoMovedShells() {
+	renamed := map[string]string{}
+	for _, r := range u.plan.RenameEntries {
+		renamed[r.From] = r.To
+	}
+	for _, m := range u.plan.Moves {
+		shell, ok := u.shells[m.ID]
+		if !ok || shell.Metadata.Version != m.To {
+			continue
+		}
+		for _, member := range shell.Shell.Members {
+			id, version, _ := manifest.SplitRef(member)
+			ref := resolver.Ref{ID: id, Version: version}
+			if !u.declared[ref] || u.removed(ref) {
+				continue
+			}
+			entry, found := u.p.Deploy.EntryAt(id, version, u.p.Decl.IsDefault(id, version))
+			if !found || entry.Shell != "" {
+				continue
+			}
+			entryID := entry.ID
+			if to, ok := renamed[entryID]; ok {
+				entryID = to
+			}
+			u.plan.NestEntries = append(u.plan.NestEntries, Entry{ID: entryID, Under: m.ID})
+		}
 	}
 }
 

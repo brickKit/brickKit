@@ -74,9 +74,9 @@ type applyOptions struct {
 	varRefs map[install.ConfigRef]map[string]string
 	// choose 决定配置迁移里每一处冲突怎么处理；为空时一律写重复键（附录 A4 的非交互兜底）。
 	choose func(install.ConfigMigration, configdir.Conflict) configdir.Choice
-	// topologyOnly：改完只核对拓扑、不读 config/——upgrade 写出的冲突块本来就会让配置装载失败，
-	// 那是给使用者的待办，不是这次改动出了错。
-	topologyOnly bool
+	// allowConflicts：改完的核对放行配置冲突块（upgrade 写出的冲突是给使用者的待办，不是这次
+	// 改动出了错）；别的问题照样拦下。
+	allowConflicts bool
 }
 
 // fileBackup 记下一个文件改之前的样子：existed 为 false 表示原本没有，还原时删掉。
@@ -112,8 +112,8 @@ func applyPlanWith(opts *Options, proj *project.Project, plan *install.Plan, ao 
 		a.rollback()
 		return nil, err
 	}
-	// 迁移（upgrade、从归档恢复）写出了冲突块：那是给使用者的待办，配置当然装载不了，只核对拓扑
-	reloaded, err := checkInstalled(proj.Layout, ao.topologyOnly || a.wroteConflicts)
+	// 迁移（upgrade、从归档恢复）写出了冲突块：那是给使用者的待办，只有冲突块本身放行
+	reloaded, err := checkInstalled(proj.Layout, ao.allowConflicts || a.wroteConflicts)
 	if err != nil {
 		a.rollback()
 		return nil, wouldBreakError(err)
@@ -141,12 +141,13 @@ func loadForInstall(opts *Options) (*project.Project, error) {
 
 // checkInstalled 核对改完的项目：deploy.yaml 走一遍完整装载；deploy.local.yaml 存在时也按
 // 本地角色解析并核对拓扑——两份都改了，两份都要读得了。
-func checkInstalled(l project.Layout, topologyOnly bool) (*project.Project, error) {
-	load := project.Load
-	if topologyOnly {
-		load = project.LoadTopology
+func checkInstalled(l project.Layout, allowConflicts bool) (*project.Project, error) {
+	p, err := project.Load(l.Root, project.LoadOptions{NoLocal: true})
+	var cliErr *clierr.Error
+	if err != nil && allowConflicts && errors.As(err, &cliErr) && cliErr.Code == clierr.CodeConfigConflict {
+		// 冲突块是故意写的：配置层只放行它，拓扑照样核对
+		p, err = project.LoadTopology(l.Root, project.LoadOptions{NoLocal: true})
 	}
-	p, err := load(l.Root, project.LoadOptions{NoLocal: true})
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +204,15 @@ func (a *applier) editDecl(plan *install.Plan) error {
 	// 先原地改版本号：留下的旧版本另起一行时，按 ID + 版本找不能撞上还没改的那一行
 	for _, m := range plan.ChangeVersions {
 		e.SetValue(componentsKey, yamlfile.Selector{ID: m.ID, Version: m.From}, "version", m.To)
+	}
+	// 组件在新版本里成了外壳（或不再是外壳）：kind 跟着改（附录 A11，kind 由 CLI 维护）
+	for _, l := range plan.ChangeKinds {
+		sel := yamlfile.Selector{ID: l.ID, Version: l.Version}
+		if l.Shell {
+			e.SetValue(componentsKey, sel, "kind", projfile.KindShell)
+		} else {
+			e.DeleteFieldWhere(componentsKey, sel, "kind")
+		}
 	}
 	for _, l := range plan.AddLines {
 		fields := []yamlfile.Field{{Key: "id", Value: l.ID}, {Key: "version", Value: l.Version}}
@@ -492,26 +502,44 @@ func readOptional(path string) ([]byte, error) {
 	return data, nil
 }
 
-// archivedConfig 找 config/.archive/ 里这个组件的配置：同版本的优先，否则取版本最高的那份。
+// archivedConfig 找 config/.archive/ 里这个组件的配置：同版本的优先，否则取不高于它的最高版本，
+// 再没有才取最高的那份。文件名只按 FileBase 匹配会撞（a-b/c 与 a/b-c 都是 a-b-c），
+// 所以还要核对文件头里的组件 ID。
 func (a *applier) archivedConfig(id, version string) (path, archivedVersion string, ok bool) {
 	dir := a.proj.Layout.ConfigArchiveDir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", "", false
 	}
+	var below, above string
+	paths := map[string]string{}
 	for _, e := range entries {
 		base, v, parsed := configdir.ParseFileName(e.Name())
 		if !parsed || base != configdir.FileBase(id) || v == "" {
 			continue
 		}
-		if v == version {
-			return filepath.Join(dir, e.Name()), v, true
+		full := filepath.Join(dir, e.Name())
+		if data, err := os.ReadFile(full); err == nil {
+			if headerID, _, found := configdir.Header(data); found && headerID != id {
+				continue
+			}
 		}
-		if archivedVersion == "" || manifest.CompareVersions(v, archivedVersion) > 0 {
-			path, archivedVersion = filepath.Join(dir, e.Name()), v
+		paths[v] = full
+		switch cmp := manifest.CompareVersions(v, version); {
+		case cmp == 0:
+			return full, v, true
+		case cmp < 0 && (below == "" || manifest.CompareVersions(v, below) > 0):
+			below = v
+		case cmp > 0 && (above == "" || manifest.CompareVersions(v, above) > 0):
+			above = v
 		}
 	}
-	return path, archivedVersion, path != ""
+	for _, v := range []string{below, above} {
+		if v != "" {
+			return paths[v], v, true
+		}
+	}
+	return "", "", false
 }
 
 // restore 把归档的配置迁移到这次 add 的版本。旧版本的 configSchema 取自永久的 Manifest 缓存；

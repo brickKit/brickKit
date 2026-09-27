@@ -2,6 +2,11 @@ package msgid
 
 // install：add / remove 的计划（internal/install）。
 const (
+	InstallUpgradeShellStillNeeded    = "install.upgrade_shell_still_needed"
+	InstallHintUpgradeShellDependents = "install.hint_upgrade_shell_dependents"
+	InstallUpgradeKindChange          = "install.upgrade_kind_change"
+	InstallHintKindChange             = "install.hint_kind_change"
+	InstallNoteDowngrade              = "install.note_downgrade"
 	InstallUpgradeNotDefault          = "install.upgrade_not_default"
 	InstallHintUpgradeDependents      = "install.hint_upgrade_dependents"
 	InstallAddOtherVersion            = "install.add_other_version"

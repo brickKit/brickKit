@@ -139,3 +139,32 @@ func TestMigrateCopiesBlockScalars(t *testing.T) {
 	v, _ := parsed.Lookup("CERT")
 	assert.Equal(t, "line one\nline two\n", v.Text)
 }
+
+// 列表 / 映射类型的键冲突：两行重复键都写成单行（JSON 流式写法），文件照样是合法 YAML、
+// 照样被认成一处冲突——而不是一份解析不了的文件。
+func TestMigrateConflictOnListAndMapStaysValidYAML(t *testing.T) {
+	oldS := schema(map[string]manifest.ConfigProperty{
+		"HOSTS": {Type: "array", Default: []any{"a"}}, "M": {Type: "object", Default: map[string]any{"x": 1}}})
+	newS := schema(map[string]manifest.ConfigProperty{
+		"HOSTS": {Type: "array", Default: []any{"c"}}, "M": {Type: "object", Default: map[string]any{"y": 2}}})
+	out, report := migrate(t, "HOSTS:\n  - b\nM:\n  z: 3\n", oldS, newS, nil)
+	require.Len(t, report.Conflicts, 2)
+	_, err := configdir.ParseComponentFile([]byte(out), "config/erp-api.yaml")
+	var conflict *configdir.ConflictError
+	require.ErrorAs(t, err, &conflict, "解析出来是冲突，不是语法错误：\n%s", out)
+}
+
+// 旧版本必填、没默认值、使用者还没填的占位 P: ""——不是使用者写的值：新版本给了默认值时跟随它，不算冲突。
+func TestMigrateUnfilledRequiredPlaceholderIsNotWritten(t *testing.T) {
+	out, report := migrate(t, "P: \"\"\n",
+		schema(map[string]manifest.ConfigProperty{"P": str(nil)}, "P"),
+		schema(map[string]manifest.ConfigProperty{"P": str("ready")}), nil)
+	assert.Empty(t, report.Conflicts)
+	assert.Contains(t, out, "# P: ready")
+}
+
+// 不知道旧 schema 时，没写的键不能都报成"新版本新增"。
+func TestMigrateUnknownOldSchemaReportsNoAdded(t *testing.T) {
+	_, report := migrate(t, "A: x\n", nil, schema(map[string]manifest.ConfigProperty{"A": str(nil), "B": str(nil)}), nil)
+	assert.Empty(t, report.Added)
+}

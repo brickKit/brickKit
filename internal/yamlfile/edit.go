@@ -235,6 +235,22 @@ func (e *Edit) SetValue(seqKey string, sel Selector, field, value string) bool {
 	return true
 }
 
+// DeleteFieldWhere 删掉 sel 选中条目的 field。条目或字段不存在时返回 false。
+func (e *Edit) DeleteFieldWhere(seqKey string, sel Selector, field string) bool {
+	loc := e.find(seqKey, sel)
+	if loc == nil {
+		return false
+	}
+	item := loc.item()
+	for i := 0; i+1 < len(item.Content); i += 2 {
+		if item.Content[i].Value == field {
+			item.Content = append(item.Content[:i], item.Content[i+2:]...)
+			return true
+		}
+	}
+	return false
+}
+
 // Lift 把嵌在外壳条目下面的 entryID 挪到顶层、紧跟在它的外壳后面（字段与注释跟着走）；
 // 最后一个成员挪走后 members 键一并去掉。条目不在任何外壳下面时返回 false。
 func (e *Edit) Lift(seqKey, entryID string) bool {

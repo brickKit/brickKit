@@ -453,3 +453,13 @@ func TestAddArchiveRestoreConflictUsesYes(t *testing.T) {
 	assert.Equal(t, 2, strings.Count(readFile(t, cfg), "\nLOG_LEVEL: "))
 	assert.Equal(t, clierr.ExitError, g.run(dir, "up", "--dry-run").code)
 }
+
+// 归档文件名只按 FileBase 匹配会撞（a-b/c 与 a/b-c 都是 a-b-c）：还要核对文件头里的组件 ID。
+func TestAddRestoreChecksTheArchivedComponentID(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(withConfig(comp{ID: "a/b-c", Version: "1.0.0"}, "DB_HOST:x"))
+	dir := g.project()
+	writeTree(t, dir, map[string]string{"config/.archive/a-b-c@1.0.0.yaml": "# Component: a-b/c@1.0.0\nDB_HOST: someone-else\n"})
+	g.mustRun(dir, "add", "a/b-c@1.0.0")
+	assert.NotContains(t, readFile(t, filepath.Join(dir, "config", "a-b-c.yaml")), "someone-else")
+}

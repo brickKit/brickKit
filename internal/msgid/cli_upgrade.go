@@ -15,6 +15,8 @@ const (
 	CliUpgradePreviewHeader        = "cli.upgrade.preview_header"
 	CliUpgradeDryRunNothingWritten = "cli.upgrade.dry_run_nothing_written"
 	CliUpgradeMove                 = "cli.upgrade.move"
+	CliUpgradeMoveDown             = "cli.upgrade.move_down"
+	CliUpgradeOldRemoved           = "cli.upgrade.old_removed"
 	CliUpgradeLifted               = "cli.upgrade.lifted"
 	CliUpgradeKeysCopied           = "cli.upgrade.keys_copied"
 	CliUpgradeKeysAdded            = "cli.upgrade.keys_added"

@@ -205,3 +205,50 @@ func TestUpgradeRejectsUnknownAndCompatibilityTargets(t *testing.T) {
 	r := g.run(dir, "upgrade", "erp/nope")
 	assert.Equal(t, clierr.ExitError, r.code)
 }
+
+// 外壳的新版本不再是外壳：kind 去掉，成员挪回顶层独立运行，up 照常。
+func TestUpgradeShellThatStopsBeingAShell(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})
+	g.release(comp{ID: "erp/s", Version: "1.0.0", ShellMembers: []string{"erp/a@1.0.0"}})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/s@1.0.0")
+	g.release(comp{ID: "erp/s", Version: "2.0.0"})
+
+	g.mustRun(dir, "upgrade", "erp/s")
+	decl := readFile(t, filepath.Join(dir, "brickkit.yaml"))
+	assert.Contains(t, decl, "id: erp/s\n    version: 2.0.0\n")
+	assert.NotContains(t, decl, "kind: shell")
+	assert.NotContains(t, readFile(t, filepath.Join(dir, "deploy.yaml")), "members")
+	g.mustRun(dir, "up", "--dry-run")
+}
+
+// 不写版本时只往上走：安装源里最新的比项目里的旧，那就是"已是最新"，绝不悄悄降级。
+func TestUpgradeWithoutVersionNeverDowngrades(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "2.0.0"})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@2.0.0")
+	editFile(t, filepath.Join(dir, "brickkit.yaml"), "version: 2.0.0", "version: 3.0.0")
+	cacheManifest(t, dir, "erp/api", "3.0.0", comp{ID: "erp/api", Version: "3.0.0"}.yamlText())
+
+	r := g.mustRun(dir, "upgrade", "erp/api")
+	assert.Contains(t, r.stdout, "up to date")
+	assert.Contains(t, readFile(t, filepath.Join(dir, "brickkit.yaml")), "version: 3.0.0")
+}
+
+// --dry-run 在一份临时副本上真的做一遍、核对一遍：会失败的升级在预览里就失败，项目一个字不动。
+func TestUpgradeDryRunFailsLikeTheRealThing(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0"})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+	g.release(comp{ID: "erp/api", Version: "2.0.0"})
+	// deploy.local.yaml 多一个 brickkit.yaml 没有的条目：真升级改完之后的核对会拦下
+	writeTree(t, dir, map[string]string{"deploy.local.yaml": "target: docker\ncomponents:\n  - id: erp/api\n  - id: erp/ghost\n"})
+	before := readFile(t, filepath.Join(dir, "brickkit.yaml"))
+
+	r := g.run(dir, "upgrade", "--dry-run")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Equal(t, before, readFile(t, filepath.Join(dir, "brickkit.yaml")))
+}

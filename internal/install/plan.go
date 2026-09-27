@@ -50,6 +50,8 @@ type Plan struct {
 	// Moves 是这次 upgrade 的版本移动（给输出用）；ChangeVersions 是原地改版本号的那些行。
 	Moves          []Move
 	ChangeVersions []Move
+	// ChangeKinds 改一行的 kind（组件在新版本里成了外壳，或不再是外壳）。
+	ChangeKinds []Line
 
 	AddLines []Line
 	// SetRequiredBy 改已有行的 requiredBy（RequiredBy 为空表示去掉字段——默认版本转正）。
@@ -89,7 +91,7 @@ type Plan struct {
 
 // Empty 报告这份计划是否什么都不改。
 func (p *Plan) Empty() bool {
-	return len(p.ChangeVersions)+len(p.AddLines)+len(p.SetRequiredBy)+len(p.RemoveLines)+len(p.AddEntries)+
+	return len(p.ChangeVersions)+len(p.ChangeKinds)+len(p.AddLines)+len(p.SetRequiredBy)+len(p.RemoveLines)+len(p.AddEntries)+
 		len(p.NestEntries)+len(p.UnnestShells)+len(p.RenameEntries)+len(p.RemoveEntries)+len(p.LiftEntries)+
 		len(p.AddConfigs)+len(p.ArchiveConfigs)+len(p.RenameConfigs)+len(p.DemoteConfigs)+len(p.MigrateConfigs) == 0
 }

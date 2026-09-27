@@ -91,13 +91,17 @@ func Migrate(in MigrateInput) ([]byte, MigrateReport, error) {
 	out := renderSkeleton(in.ID, in.ToVersion, in.NewSchema, func(key string, prop manifest.ConfigProperty, required bool) string {
 		skeleton := skeletonLine(key, prop, in.VarRefs[key], required)
 		w, wrote := written[key]
+		oldProp, known := schemaProp(in.OldSchema, key)
+		// 旧版本必填、没默认值、还没填的占位 KEY: ""：不是使用者写下的值
+		if wrote && known && isUnfilledPlaceholder(w.value, oldProp) {
+			wrote = false
+		}
 		if !wrote {
-			if !inSchema(in.OldSchema, key) {
+			if in.OldSchema != nil && !known {
 				report.Added = append(report.Added, key)
 			}
 			return skeleton
 		}
-		oldProp, known := schemaProp(in.OldSchema, key)
 		if !known || sameValue(oldProp.Default, prop.Default) {
 			report.Copied = append(report.Copied, key)
 			return w.raw
@@ -106,7 +110,7 @@ func Migrate(in MigrateInput) ([]byte, MigrateReport, error) {
 			report.Followed = append(report.Followed, key)
 			return skeleton
 		}
-		c := Conflict{Key: key, UserYAML: ScalarYAML(w.value), OldDefault: yamlOrEmpty(oldProp.Default), NewDefault: yamlOrEmpty(prop.Default)}
+		c := Conflict{Key: key, UserYAML: oneLine(w.value), OldDefault: yamlOrEmpty(oldProp.Default), NewDefault: yamlOrEmpty(prop.Default)}
 		report.Conflicts = append(report.Conflicts, c)
 		choice := ChooseDuplicate
 		if in.Choose != nil {
@@ -176,11 +180,6 @@ func schemaProp(s *manifest.ConfigSchema, key string) (manifest.ConfigProperty, 
 	return p, ok
 }
 
-func inSchema(s *manifest.ConfigSchema, key string) bool {
-	_, ok := schemaProp(s, key)
-	return ok
-}
-
 // sameValue 比较两个值（YAML 解码出来的 int 与 JSON 解码出来的 float64 视为同一个数）。
 func sameValue(a, b any) bool {
 	if reflect.DeepEqual(a, b) {
@@ -214,5 +213,15 @@ func yamlOrEmpty(v any) string {
 	if v == nil {
 		return `""`
 	}
-	return ScalarYAML(v)
+	return oneLine(v)
+}
+
+// oneLine 把值写成能放在 "KEY: " 后面的一行：标量走 YAML，列表 / 映射写 JSON 流式写法
+// （它同时是合法的 YAML）——冲突块的两行重复键必须各占一行，才认得出是冲突。
+func oneLine(v any) string { return defaultText(v) }
+
+// isUnfilledPlaceholder：骨架给必填、无默认值的键写的 KEY: ""，使用者还没填。
+func isUnfilledPlaceholder(v any, prop manifest.ConfigProperty) bool {
+	s, ok := v.(string)
+	return ok && s == "" && prop.Default == nil
 }

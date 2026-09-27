@@ -78,8 +78,8 @@ func TestPlanUpgradePromotesExistingCompatibilityLine(t *testing.T) {
 
 	assert.Equal(t, []resolver.Ref{{ID: "erp/api", Version: "1.0.0"}}, plan.RemoveLines)
 	assert.Equal(t, []install.Line{{ID: "erp/api", Version: "2.0.0"}}, plan.SetRequiredBy)
-	assert.Equal(t, []string{"erp/api"}, plan.RemoveEntries, "旧默认版本的裸条目删掉")
-	assert.Equal(t, []install.Rename{{From: "erp/api@2.0.0", To: "erp/api"}}, plan.RenameEntries)
+	assert.Equal(t, []string{"erp/api@2.0.0"}, plan.RemoveEntries, "裸条目跟着默认版本走，兼容版本的条目删掉")
+	assert.Empty(t, plan.RenameEntries)
 	assert.Equal(t, []install.ConfigRef{{ID: "erp/api", Version: "1.0.0"}}, plan.ArchiveConfigs)
 	assert.Equal(t, []install.ConfigRef{{ID: "erp/api", Version: "2.0.0", Versioned: true}}, plan.RenameConfigs)
 	assert.Empty(t, plan.MigrateConfigs, "2.0.0 自己的配置已经在了")
@@ -159,4 +159,88 @@ func TestPlanUpgradeRejectsCompatibilityTarget(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "erp/db@1.0.0")
 	_ = cat
+}
+
+// 外壳的新版本不再是外壳（没有 shell 块）：不崩；成员挪回顶层，brickkit.yaml 的 kind 跟着去掉。
+func TestPlanUpgradeShellThatStopsBeingAShell(t *testing.T) {
+	p := proj(t, `  - {id: erp/s, version: 1.0.0, kind: shell}
+  - {id: erp/a, version: 1.0.0}`, `  - id: erp/s
+    members:
+      - id: erp/a`)
+	s1 := shellMf("erp/s@1.0.0", "erp/a@1.0.0")
+	s2 := mf("erp/s@2.0.0")
+	cat := catalog(s1, s2, mf("erp/a@1.0.0"))
+	assert.Empty(t, install.ShellMoves(p, s1, s2))
+	plan, err := planUpgrade(t, p, cat, mv("erp/s", "1.0.0", "2.0.0"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"erp/s"}, plan.UnnestShells)
+	assert.Equal(t, []install.Line{{ID: "erp/s", Version: "2.0.0"}}, plan.ChangeKinds)
+}
+
+// 留下的旧外壳版本仍然是外壳（kind: shell）。
+func TestPlanUpgradeKeptOldShellKeepsKind(t *testing.T) {
+	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
+  - {id: erp/web, version: 1.0.0}`, `  - id: erp/shell
+  - id: erp/web`)
+	cat := catalog(shellMf("erp/shell@1.0.0", "erp/a@1.0.0"), shellMf("erp/shell@2.0.0", "erp/a@1.0.0"), mf("erp/a@1.0.0"),
+		mf("erp/web@1.0.0", "erp/shell@1.0.0"))
+	_, err := planUpgrade(t, p, cat, mv("erp/shell", "1.0.0", "2.0.0"))
+	require.Error(t, err, "外壳只有一个版本（§8.6 单版本约束）：还有组件依赖旧外壳时升级不了")
+	assert.Contains(t, err.Error(), "erp/web")
+}
+
+// 与这次升级无关、使用者移除过的版本，不因为某个外壳编进了它就被加回来。
+func TestPlanUpgradeDoesNotReaddWhatTheUserRemoved(t *testing.T) {
+	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
+  - {id: erp/m, version: 2.0.0}
+  - {id: erp/x, version: 1.0.0}`, `  - id: erp/shell
+  - id: erp/m
+  - id: erp/x`)
+	cat := catalog(shellMf("erp/shell@1.0.0", "erp/m@1.0.0"), mf("erp/m@1.0.0"), mf("erp/m@2.0.0"), mf("erp/x@1.0.0"), mf("erp/x@2.0.0"))
+	plan, err := planUpgrade(t, p, cat, mv("erp/x", "1.0.0", "2.0.0"))
+	require.NoError(t, err)
+	assert.Empty(t, plan.AddLines)
+}
+
+// 升级外壳：新外壳编进的、已经声明的版本（在顶层）挪进外壳，像 add 外壳时一样。
+func TestPlanUpgradeShellNestsDeclaredVersionsItCompiles(t *testing.T) {
+	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
+  - {id: erp/m, version: 2.0.0}
+  - {id: erp/m, version: 1.0.0, requiredBy: [erp/shell]}`, `  - id: erp/shell
+    members:
+      - id: erp/m@1.0.0
+  - id: erp/m`)
+	s1 := shellMf("erp/shell@1.0.0", "erp/m@1.0.0")
+	s2 := shellMf("erp/shell@2.0.0", "erp/m@2.0.0")
+	cat := catalog(s1, s2, mf("erp/m@1.0.0"), mf("erp/m@2.0.0"))
+	moves := append([]install.Move{mv("erp/shell", "1.0.0", "2.0.0")}, install.ShellMoves(p, s1, s2)...)
+	plan, err := planUpgrade(t, p, cat, moves...)
+	require.NoError(t, err)
+	assert.Equal(t, []resolver.Ref{{ID: "erp/m", Version: "1.0.0"}}, plan.RemoveLines)
+	assert.Equal(t, []install.Entry{{ID: "erp/m", Under: "erp/shell"}}, plan.NestEntries)
+}
+
+// 转正：裸条目（带着使用者的字段）跟着默认版本走，兼容版本的条目删掉——计划里定下的做法。
+func TestPlanUpgradePromotionKeepsTheBareEntry(t *testing.T) {
+	p := proj(t, `  - {id: erp/api, version: 1.0.0}
+  - {id: erp/api, version: 2.0.0, requiredBy: [erp/new]}
+  - {id: erp/new, version: 1.0.0}`, `  - id: erp/api
+    mode: enabled
+  - id: erp/api@2.0.0
+  - id: erp/new`)
+	cat := catalog(mf("erp/api@1.0.0"), mf("erp/api@2.0.0"), mf("erp/new@1.0.0", "erp/api@2.0.0"))
+	plan, err := planUpgrade(t, p, cat, mv("erp/api", "1.0.0", "2.0.0"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"erp/api@2.0.0"}, plan.RemoveEntries)
+	assert.Empty(t, plan.RenameEntries)
+}
+
+// 显式降级：允许，但要说一声。
+func TestPlanUpgradeNotesDowngrade(t *testing.T) {
+	p := proj(t, "  - {id: erp/api, version: 2.0.0}", "  - id: erp/api")
+	cat := catalog(mf("erp/api@1.0.0"), mf("erp/api@2.0.0"))
+	plan, err := planUpgrade(t, p, cat, mv("erp/api", "2.0.0", "1.0.0"))
+	require.NoError(t, err)
+	require.Len(t, plan.Notes, 1)
+	assert.Contains(t, plan.Notes[0], "1.0.0")
 }
