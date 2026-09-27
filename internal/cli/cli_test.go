@@ -138,10 +138,10 @@ func TestErrorOutputFormat(t *testing.T) {
 		contains []string
 	}{
 		{
-			name:     "init 缺少项目名称",
-			args:     []string{"init"},
+			name:     "init 同时给了参数与 --name",
+			args:     []string{"init", "a", "--name", "b"},
 			wantCode: clierr.ExitUsage,
-			contains: []string{"❌ Please specify a project name: brickkit init <project-name>"},
+			contains: []string{"❌ Error: give the project name either as the argument or with --name, not both"},
 		},
 		{
 			name:     "日志级别非法",

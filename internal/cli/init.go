@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/spf13/cobra"
@@ -13,14 +14,23 @@ import (
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/skills"
 	"github.com/brickkit/brickkit/internal/version"
 )
 
-// newInitCommand 实现 brickkit init（004 §3.2）。
+// initFlags 是 brickkit init 的参数。
+type initFlags struct {
+	name      string
+	noSkills  bool
+	yes       bool
+	hooksOnly bool
+}
+
+// newInitCommand 实现 brickkit init（提案 §11.5）：带名字是创建式（新建 <name>/ 目录），
+// 不带名字是补全式（在当前目录缺什么补什么）。两种模式走同一个补全原语。
 func newInitCommand(opts *Options) *cobra.Command {
-	var noSkills bool
-	var hooksOnly bool
+	var f initFlags
 	cmd := &cobra.Command{
 		Use:     i18n.T(msgid.CliInitInitProjectName),
 		Short:   i18n.T(msgid.CliInitShort),
@@ -29,7 +39,7 @@ func newInitCommand(opts *Options) *cobra.Command {
 		Example: i18n.T(msgid.CliInitExample),
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if hooksOnly {
+			if f.hooksOnly {
 				if len(args) > 0 {
 					return clierr.New(clierr.CodeInvalidArgument,
 						i18n.T(msgid.CliInitBrickkitInitHooksOnlyInstalls)).
@@ -37,57 +47,168 @@ func newInitCommand(opts *Options) *cobra.Command {
 				}
 				return installCommitHook(opts, project.NewLayout(opts.WorkDir), true)
 			}
-			if len(args) == 0 {
-				return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.ConfigProjectNameMissing)).
-					WithExit(clierr.ExitUsage)
+			if len(args) == 1 {
+				if f.name != "" {
+					return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliInitNameWithArg)).
+						WithHint(i18n.T(msgid.CliInitHintNameOrArg)).WithExit(clierr.ExitUsage)
+				}
+				return runInitCreate(opts, args[0], f)
 			}
-			return runInit(opts, args[0], noSkills)
+			return runInitComplete(opts, f)
 		},
 	}
-	cmd.Flags().BoolVar(&noSkills, "no-skills", false,
+	cmd.Flags().StringVar(&f.name, "name", "", i18n.T(msgid.CliInitFlagName))
+	cmd.Flags().BoolVar(&f.noSkills, "no-skills", false,
 		i18n.T(msgid.CliInitDonTInstallTheAi))
-	cmd.Flags().BoolVar(&hooksOnly, "hooks", false,
+	cmd.Flags().BoolVar(&f.yes, "yes", false, i18n.T(msgid.CliInitFlagYes))
+	cmd.Flags().BoolVar(&f.hooksOnly, "hooks", false,
 		i18n.T(msgid.CliInitOnlyInstallThePreCommit))
 	return cmd
 }
 
-func runInit(opts *Options, name string, noSkills bool) error {
-	layout := project.NewLayout(opts.WorkDir)
-
-	result, err := project.Init(layout, name)
+// runInitCreate 是创建式：新建 <name>/ 目录并补全出整套骨架。目录已存在且不空就拒绝——
+// 往别人已有的目录里写是补全式的事，要在那个目录里显式跑 brickkit init。
+func runInitCreate(opts *Options, name string, f initFlags) error {
+	if err := projfile.ValidateProjectName(name); err != nil {
+		return err
+	}
+	dir := filepath.Join(opts.WorkDir, name)
+	if empty, err := project.DirIsEmpty(dir); err == nil && !empty {
+		return clierr.New(clierr.CodeProjectExists, i18n.T(msgid.CliInitDirNotEmpty, name)).
+			WithDetail(i18n.T(msgid.LabelDir), dir).
+			WithHint(i18n.T(msgid.CliInitHintCompleteInstead, name))
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return clierr.New(clierr.CodeInternal, i18n.T(msgid.IOFailed, i18n.T(msgid.ActionMkdir))).
+			WithDetail(i18n.T(msgid.LabelPath), dir).WithCause(err)
+	}
+	layout := project.NewLayout(dir)
+	plan, err := project.PlanComplete(layout, name)
 	if err != nil {
 		return err
 	}
+	if err := plan.Apply(layout); err != nil {
+		return err
+	}
+	logging.Info(i18n.T(msgid.LogProjectInitialized), "project", name, "config", layout.DeclPath())
 
-	logging.Info(i18n.T(msgid.LogProjectInitialized),
-		"project", result.ProjectName,
-		"config", layout.DeclPath(),
-		"gitignore_updated", result.GitignoreUpdated,
-	)
-
-	opts.Printf("%s\n", i18n.T(msgid.CliInitProjectInitialized, result.ProjectName))
+	opts.Printf("%s\n", i18n.T(msgid.CliInitProjectInitialized, name))
 	opts.Printf("   📄 %-21s%s\n", project.FileDecl, i18n.T(msgid.CliInitProjectConfig))
 	opts.Printf("   📄 %-21s%s\n", project.FileDeploy, i18n.T(msgid.CliInitDeployFile))
 	opts.Printf("   📁 %-21s%s\n", project.DirConfig+"/", i18n.T(msgid.CliInitConfigDir))
-	// components/ 是默认本地安装源，点出来
+	// components/ 与 shell/ 是两个默认本地安装源，点出来
 	opts.Printf("   📁 %-21s%s\n", project.DirComponents+"/", i18n.T(msgid.CliInitComponentSourceConfiguredAsThe))
+	opts.Printf("   📁 %-21s%s\n", project.DirShell+"/", i18n.T(msgid.CliInitShellDir))
 	opts.Printf("   📁 %-21s%s\n", project.DirBrickkit+"/", i18n.T(msgid.CliInitCliWorkingDirectory))
-
-	if !noSkills {
-		if err := installSkills(opts, layout); err != nil {
-			return err
-		}
-	}
-
-	if err := installCommitHook(opts, layout, false); err != nil {
+	opts.Printf("   📄 %-21s%s\n", project.FileProjectDoc, i18n.T(msgid.CliInitProjectDoc))
+	if err := finishInit(opts, layout, f, false); err != nil {
 		return err
 	}
 
 	opts.Printf("\n")
 	opts.Printf("%s\n", i18n.T(msgid.CliNewNextSteps))
+	opts.Printf("%s\n", i18n.T(msgid.CliInitNextCd, name))
 	opts.Printf("%s\n", i18n.T(msgid.CliInitBrickkitAddLocalAddEvery))
 	opts.Printf("%s\n", i18n.T(msgid.CliInitBrickkitAddPeopleBasicAdd))
 	opts.Printf("%s\n", i18n.T(msgid.CliInitBrickkitUpStartEverythingIn))
+	return nil
+}
+
+// runInitComplete 是补全式：当前目录缺什么补什么，已有的一个字节都不动；.gitignore 只校验、
+// 不改。非空目录先打印计划、等确认。最后跑一遍与 lint 相同的装载，确认项目能 up。
+func runInitComplete(opts *Options, f initFlags) error {
+	layout := project.NewLayout(opts.WorkDir)
+	name, err := project.ProjectNameFor(layout, f.name)
+	if err != nil {
+		return err
+	}
+	plan, err := project.PlanComplete(layout, name)
+	if err != nil {
+		return err
+	}
+	empty, err := project.DirIsEmpty(layout.Root)
+	if err != nil {
+		return clierr.New(clierr.CodeInternal, i18n.T(msgid.IOFailed, i18n.T(msgid.ConfigActionReadFile))).
+			WithDetail(i18n.T(msgid.LabelPath), layout.Root).WithCause(err)
+	}
+	if !empty {
+		opts.Printf("%s\n", i18n.T(msgid.CliInitCompletePlanHeader))
+		renderCompletePlan(opts, plan)
+		if !f.yes && !confirm(opts, i18n.T(msgid.CliInitCompleteConfirm)) {
+			opts.Printf("%s\n", i18n.T(msgid.CliInitCompleteCancelled))
+			return nil
+		}
+	}
+	if err := plan.Apply(layout); err != nil {
+		return err
+	}
+	logging.Info(i18n.T(msgid.LogProjectInitialized), "project", name, "config", layout.DeclPath())
+
+	opts.Printf("%s\n", i18n.T(msgid.CliInitCompleted, name))
+	if empty {
+		renderCompletePlan(opts, plan)
+	}
+	if len(plan.GitignoreMissing) > 0 {
+		w := clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliInitGitignoreMissing)).
+			WithDetail(i18n.T(msgid.LabelFile), project.FileGitignore)
+		for _, rule := range plan.GitignoreMissing {
+			w = w.WithDetail(i18n.T(msgid.CliInitGitignoreMissingEntry), rule)
+		}
+		opts.Printf("%s", w.WithHint(i18n.T(msgid.CliInitHintAddGitignore)).Format())
+	}
+	if plan.ProjectDocUnmanaged {
+		opts.Printf("   ℹ️ %s\n", i18n.T(msgid.CliInitProjectDocUnmanaged, project.FileProjectDoc))
+	}
+	return finishInit(opts, layout, f, true)
+}
+
+// renderCompletePlan 列出补全要创建、跳过的文件与 .gitignore 的缺项。
+func renderCompletePlan(opts *Options, plan *project.CompletePlan) {
+	for _, rel := range plan.Create {
+		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitPlanCreate, rel))
+	}
+	if plan.GitignoreCreate {
+		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitPlanCreate, project.FileGitignore))
+	}
+	if plan.ProjectDoc {
+		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitPlanCreate, project.FileProjectDoc))
+	}
+	for _, rel := range plan.Skip {
+		opts.Printf("   ⏭️  %s\n", i18n.T(msgid.CliInitPlanSkip, rel))
+	}
+	if len(plan.GitignoreMissing) > 0 {
+		opts.Printf("   ⚠️  %s\n", i18n.T(msgid.CliInitPlanGitignore, strings.Join(plan.GitignoreMissing, i18n.T(msgid.ListSeparator))))
+	}
+}
+
+// finishInit 是两种模式共同的收尾：技能、提交前检查、项目文档的组件表。
+// check 为真时（补全式）先做收尾校验：装载失败说明补全了但还跑不起来，命令以失败结束。
+func finishInit(opts *Options, layout project.Layout, f initFlags, check bool) error {
+	if !f.noSkills {
+		if err := installSkills(opts, layout); err != nil {
+			return err
+		}
+	}
+	if err := installCommitHook(opts, layout, false); err != nil {
+		return err
+	}
+	proj, err := project.Load(layout.Root, project.LoadOptions{NoLocal: true})
+	if err != nil {
+		if !check {
+			return err
+		}
+		// 问题本身原样打印（与 up / lint 报的是同一块），命令再以一句总结失败
+		opts.Printf("%s", clierr.As(err).Format())
+		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliInitClosingCheckFailed)).
+			WithHint(i18n.T(msgid.CliInitHintRunLint)).
+			WithCause(err)
+	}
+	if _, err := project.WriteProjectDoc(layout, proj); err != nil {
+		return err
+	}
+	if check {
+		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitClosingCheckPassed))
+	}
 	return nil
 }
 

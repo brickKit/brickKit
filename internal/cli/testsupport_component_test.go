@@ -195,7 +195,7 @@ func newProjectFixture(t *testing.T, sources ...string) *projectFixture {
 // 因此写组件的目录和项目目录必须是同一个。
 func newProjectFixtureAt(t *testing.T, dir string, sources ...string) *projectFixture {
 	t.Helper()
-	r := runIn(t, dir, "init", "my-erp")
+	r := runIn(t, dir, "init", "--name", "my-erp", "--yes")
 	require.Equal(t, 0, r.code, "init 应成功：%s%s", r.stdout, r.stderr)
 
 	f := &projectFixture{Dir: dir, Layout: project.NewLayout(dir), Sources: sources}

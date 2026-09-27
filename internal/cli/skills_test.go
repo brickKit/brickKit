@@ -14,7 +14,7 @@ import (
 
 func TestSkillsStatusOnFreshProject(t *testing.T) {
 	dir := t.TempDir()
-	require.Equal(t, 0, runIn(t, dir, "init", "p", "--no-skills").code)
+	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes", "--no-skills").code)
 
 	r := runIn(t, dir, "skills", "status")
 	require.Equal(t, 0, r.code, r.stderr)
@@ -25,7 +25,7 @@ func TestSkillsStatusOnFreshProject(t *testing.T) {
 // 不带子命令时等于 status——只读是安全的默认。
 func TestSkillsBareIsStatus(t *testing.T) {
 	dir := t.TempDir()
-	require.Equal(t, 0, runIn(t, dir, "init", "p", "--no-skills").code)
+	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes", "--no-skills").code)
 
 	r := runIn(t, dir, "skills")
 	require.Equal(t, 0, r.code, r.stderr)
@@ -37,7 +37,7 @@ func TestSkillsBareIsStatus(t *testing.T) {
 
 func TestSkillsUpdateInstallsThenIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
-	require.Equal(t, 0, runIn(t, dir, "init", "p", "--no-skills").code)
+	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes", "--no-skills").code)
 
 	r := runIn(t, dir, "skills", "update")
 	require.Equal(t, 0, r.code, r.stderr)
@@ -51,7 +51,7 @@ func TestSkillsUpdateInstallsThenIsIdempotent(t *testing.T) {
 
 func TestSkillsUpdateSkipsModifiedAndSaysHow(t *testing.T) {
 	dir := t.TempDir()
-	require.Equal(t, 0, runIn(t, dir, "init", "p").code)
+	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes").code)
 
 	p := filepath.Join(dir, "AGENTS.md")
 	mine := []byte("我改过了\n")
@@ -70,7 +70,7 @@ func TestSkillsUpdateSkipsModifiedAndSaysHow(t *testing.T) {
 // status 要能说出是从哪个版本升上来的。
 func TestSkillsStatusShowsOutdatedWithVersions(t *testing.T) {
 	dir := t.TempDir()
-	require.Equal(t, 0, runIn(t, dir, "init", "p").code)
+	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes").code)
 
 	// 伪造一份「上个版本写的」AGENTS.md：内容与 lock 记录一致、与资产不同。
 	old := []byte("上个版本的导读\n")
@@ -144,7 +144,7 @@ func TestSkillsInComponentRepoLeavesOwnAgentsMdAlone(t *testing.T) {
 // 目录里既有 brickkit.yaml 又有 component.yaml 时按项目处理，和以前一样。
 func TestSkillsPrefersProjectWhenBothFilesPresent(t *testing.T) {
 	dir := t.TempDir()
-	require.Equal(t, 0, runIn(t, dir, "init", "p", "--no-skills").code)
+	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes", "--no-skills").code)
 	writeTree(t, dir, comp{ID: "people/basic", Version: "1.0.0"}.files())
 
 	r := runIn(t, dir, "skills", "status")

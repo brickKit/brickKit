@@ -300,7 +300,7 @@ resources: []
 
 func TestGraphEmptyProject(t *testing.T) {
 	dir := t.TempDir()
-	require.Equal(t, 0, runIn(t, dir, "init", "p", "--no-skills").code)
+	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes", "--no-skills").code)
 
 	r := runIn(t, dir, "graph")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)

@@ -1,17 +1,19 @@
 package project
 
-// 本文件是 brickkit init 的创建原语：在一个空目录里写出能直接 `up` 的三层骨架。
-// P7 在它之上加补全式（缺什么补什么）与收尾 lint。
+// 本文件是 brickkit init 的补全原语（提案 §11.5）：对照完整项目的文件清单，缺的创建、
+// 有的跳过。创建式只是"在一个新建的空目录里补全"。
 
 import (
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/yamlcomment"
@@ -26,57 +28,159 @@ const (
 	FileDotEnv = ".env"
 	// LocalSourceName 是 init 写进 brickkit.yaml 的默认本地源名字。
 	LocalSourceName = "local-dev"
+	// LocalShellSourceName 是外壳目录（shell/，提案 §9.6 外壳的目录约定）对应的本地源。
+	LocalShellSourceName = "local-shells"
 
 	initFilePerm = 0o644
 	initDirPerm  = 0o755
 )
 
-// InitResult 是 Init 做了什么。
-type InitResult struct {
-	ProjectName      string
-	GitignoreUpdated bool
+// CompletePlan 是一次补全要做的事（提案 §11.5）：缺什么补什么，已有的不动。
+// 创建式（init <name>）与补全式（init）、add --local --init 的子工作台都走它。
+type CompletePlan struct {
+	Name string
+	// Create 与 Skip 是项目根下的相对路径（斜杠分隔），按固定顺序列出。
+	Create, Skip []string
+	// GitignoreCreate：.gitignore 不存在，整份写出。
+	GitignoreCreate bool
+	// GitignoreMissing：.gitignore 已存在但缺的必需条目——绝不替使用者改，只大声警告。
+	GitignoreMissing []string
+	// ProjectDoc：要生成项目 BRICKKIT.md（目录里是组件仓库时不生成，§16.1.1）。
+	ProjectDoc bool
+	// ProjectDocUnmanaged：已有的 BRICKKIT.md 没有 CLI 维护区，组件表不会自动更新。
+	ProjectDocUnmanaged bool
 }
 
-// Init 在 l.Root 下创建新项目：brickkit.yaml、deploy.yaml、config/vars.yaml、
-// .gitignore 的必需条目，以及 .brickkit/ 与 components/ 目录。
-//
-// 任何一个项目文件已经存在就整体拒绝、一个文件都不写：半套骨架比没有更难收拾。
-// 不生成 deploy.local.yaml——那是 brickkit local on 按需复制出来的个人文件。
-func Init(l Layout, name string) (*InitResult, error) {
+// projectFile 是补全清单里的一个文件：rel 是项目根下的相对路径，content 在 Apply 时才生成。
+type projectFile struct {
+	rel     string
+	content func(name string) string
+}
+
+func projectFiles() []projectFile {
+	return []projectFile{
+		{FileDecl, declSkeleton},
+		{FileDeploy, func(string) string { return deploySkeleton() }},
+		{DirConfig + "/" + FileVars, func(string) string {
+			return yamlcomment.Block("", i18n.T(msgid.ProjectSkeletonVarsHeader))
+		}},
+		{DirConfig + "/" + FileGitkeep, func(string) string { return "" }},
+		{DirShell + "/" + FileGitkeep, func(string) string { return "" }},
+	}
+}
+
+// PlanComplete 对照完整项目的文件清单，算出 l.Root 下缺哪些、有哪些。不写任何文件。
+func PlanComplete(l Layout, name string) (*CompletePlan, error) {
 	if err := projfile.ValidateProjectName(name); err != nil {
 		return nil, err
 	}
-	if err := checkNotInitialized(l); err != nil {
-		return nil, err
+	plan := &CompletePlan{Name: name}
+	for _, f := range projectFiles() {
+		if exists(l.path(filepath.FromSlash(f.rel))) {
+			plan.Skip = append(plan.Skip, f.rel)
+		} else {
+			plan.Create = append(plan.Create, f.rel)
+		}
 	}
 
+	existing, err := os.ReadFile(l.GitignorePath())
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		plan.GitignoreCreate = true
+	case err != nil:
+		return nil, ioError(i18n.T(msgid.ConfigActionReadFile), l.GitignorePath(), err)
+	default:
+		plan.GitignoreMissing = missingGitignore(existing)
+	}
+
+	switch {
+	case exists(l.ProjectDocPath()):
+		if data, err := os.ReadFile(l.ProjectDocPath()); err == nil && !hasManagedBlock(string(data)) {
+			plan.ProjectDocUnmanaged = true
+		}
+	case !exists(filepath.Join(l.Root, manifest.FileName)):
+		plan.ProjectDoc = true
+	}
+	return plan, nil
+}
+
+// Empty 报告补全是否什么都不用写。
+func (p *CompletePlan) Empty() bool {
+	return len(p.Create) == 0 && !p.GitignoreCreate && !p.ProjectDoc
+}
+
+// Apply 按计划写文件，并建好 CLI 自己的工作目录（mkdir -p，已有的不动）。
+func (p *CompletePlan) Apply(l Layout) error {
 	for _, dir := range []string{
-		l.ManifestsDir(), l.ArtifactsDir(), l.GeneratedDir(), l.ComponentsDir(), l.ConfigDir(),
+		l.ManifestsDir(), l.ArtifactsDir(), l.GeneratedDir(), l.ComponentsDir(), l.ShellDir(), l.ConfigDir(),
 	} {
 		if err := os.MkdirAll(dir, initDirPerm); err != nil {
-			return nil, ioError(i18n.T(msgid.ActionMkdir), dir, err)
+			return ioError(i18n.T(msgid.ActionMkdir), dir, err)
 		}
 	}
-	files := []struct {
-		path    string
-		content string
-	}{
-		{l.DeclPath(), declSkeleton(name)},
-		{l.DeployPath(), deploySkeleton()},
-		{l.VarsPath(), yamlcomment.Block("", i18n.T(msgid.ProjectSkeletonVarsHeader))},
-		{filepath.Join(l.ConfigDir(), FileGitkeep), ""},
-	}
-	for _, f := range files {
-		if err := writeNewFile(f.path, f.content); err != nil {
-			return nil, err
+	for _, f := range projectFiles() {
+		if !slices.Contains(p.Create, f.rel) {
+			continue
+		}
+		if err := writeNewFile(l.path(filepath.FromSlash(f.rel)), f.content(p.Name)); err != nil {
+			return err
 		}
 	}
+	if p.GitignoreCreate {
+		if err := writeNewFile(l.GitignorePath(), gitignoreContent()); err != nil {
+			return err
+		}
+	}
+	if p.ProjectDoc {
+		if err := writeNewFile(l.ProjectDocPath(), projectDocHead(p.Name)+managedBlock("")); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-	updated, err := EnsureGitignore(l.GitignorePath())
-	if err != nil {
-		return nil, err
+// ProjectNameFor 决定补全式的项目名：--name > 已有 brickkit.yaml 的 project > 目录名（规整成合法名字）。
+func ProjectNameFor(l Layout, flag string) (string, error) {
+	if flag != "" {
+		return flag, projfile.ValidateProjectName(flag)
 	}
-	return &InitResult{ProjectName: name, GitignoreUpdated: updated}, nil
+	if decl, err := projfile.ParseFile(l.DeclPath()); err == nil && decl.Project != "" {
+		return decl.Project, nil
+	}
+	root, err := filepath.Abs(l.Root)
+	if err != nil {
+		root = l.Root
+	}
+	base := filepath.Base(root)
+	if projfile.ProjectNameProblem(base) == "" {
+		return base, nil
+	}
+	if s := projfile.SuggestProjectName(base); s != "" && projfile.ProjectNameProblem(s) == "" {
+		return s, nil
+	}
+	return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.ProjectNameFromDirInvalid, base)).
+		WithDetail(i18n.T(msgid.ConfigLabelNamingRule), projfile.ProjectNameRule()).
+		WithHint(i18n.T(msgid.ProjectHintPassName)).
+		WithExit(clierr.ExitUsage)
+}
+
+// DirIsEmpty 报告目录里是否除了 .git 之外什么都没有（补全前要不要先确认）。
+func DirIsEmpty(dir string) (bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+	for _, e := range entries {
+		if e.Name() != ".git" {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func exists(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
 }
 
 // declSkeleton 是 brickkit.yaml 的骨架。
@@ -88,6 +192,9 @@ func declSkeleton(name string) string {
 		"  - name: " + LocalSourceName + "\n" +
 		"    type: local\n" +
 		"    path: ./" + DirComponents + "      # " + i18n.T(msgid.ProjectSkeletonLocalDirNote) + "\n" +
+		"  - name: " + LocalShellSourceName + "\n" +
+		"    type: local\n" +
+		"    path: ./" + DirShell + "           # " + i18n.T(msgid.ProjectSkeletonShellDirNote) + "\n" +
 		yamlcomment.Block("  ", i18n.T(msgid.ProjectSkeletonMoreSources)) +
 		"  # - name: company-git\n" +
 		"  #   type: git\n" +
@@ -103,28 +210,6 @@ func deploySkeleton() string {
 	return yamlcomment.Block("", i18n.T(msgid.ProjectSkeletonDeployHeader)) +
 		"target: docker          # " + i18n.T(msgid.ProjectSkeletonDeployTarget) + "\n\n" +
 		"components: []\n"
-}
-
-// checkNotInitialized 拒绝在已有项目文件的目录里再 init。
-func checkNotInitialized(l Layout) error {
-	var existing []string
-	for _, name := range []string{FileDecl, FileDeploy, DirConfig, DirBrickkit} {
-		if _, err := os.Stat(l.path(name)); err == nil {
-			existing = append(existing, name)
-		}
-	}
-	if len(existing) == 0 {
-		return nil
-	}
-	root, err := filepath.Abs(l.Root)
-	if err != nil {
-		root = l.Root
-	}
-	list := strings.Join(existing, i18n.T(msgid.ListSeparator))
-	return clierr.New(clierr.CodeProjectExists, i18n.T(msgid.ConfigProjectExists)).
-		WithDetail(i18n.T(msgid.LabelDir), root).
-		WithDetail(i18n.T(msgid.ConfigLabelExisting), list).
-		WithHint(i18n.T(msgid.ProjectHintReinit, list))
 }
 
 func writeNewFile(path, content string) error {
@@ -154,7 +239,7 @@ type gitignoreSection struct {
 }
 
 // RequiredGitignore 是一个项目的 .gitignore 必须有的条目（提案 §11.5）：
-// 漏了任何一条，个人文件或密钥就会被提交。P7 的补全式 init 与 lint 拿它做校验。
+// 漏了任何一条，个人文件或密钥就会被提交。补全式 init 拿它做校验。
 func RequiredGitignore() []string {
 	var rules []string
 	for _, s := range gitignoreSections() {
@@ -173,52 +258,32 @@ func gitignoreSections() []gitignoreSection {
 	}
 }
 
-// EnsureGitignore 把缺的必需条目追加到 .gitignore 末尾，已有的一条不动。
-// 返回这次是否真的改了文件。
-func EnsureGitignore(path string) (bool, error) {
-	existing, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return false, ioError(i18n.T(msgid.ConfigActionReadFile), path, err)
+// gitignoreContent 是新项目的整份 .gitignore，每组规则带说明注释。
+func gitignoreContent() string {
+	var block []string
+	for _, s := range gitignoreSections() {
+		if len(block) > 0 {
+			block = append(block, "")
+		}
+		block = append(block, "# "+s.comment)
+		block = append(block, s.rules...)
 	}
+	return strings.Join(block, "\n") + "\n"
+}
+
+// missingGitignore 列出已有 .gitignore 里缺的必需条目（逐行精确匹配，忽略首尾空白）。
+func missingGitignore(existing []byte) []string {
 	present := map[string]bool{}
 	for _, line := range strings.Split(string(existing), "\n") {
 		if trimmed := strings.TrimSpace(line); trimmed != "" {
 			present[trimmed] = true
 		}
 	}
-
-	var block []string
-	for _, s := range gitignoreSections() {
-		var missing []string
-		for _, rule := range s.rules {
-			if !present[rule] {
-				missing = append(missing, rule)
-			}
+	var missing []string
+	for _, rule := range RequiredGitignore() {
+		if !present[rule] {
+			missing = append(missing, rule)
 		}
-		if len(missing) == 0 {
-			continue
-		}
-		if len(block) > 0 {
-			block = append(block, "")
-		}
-		block = append(block, "# "+s.comment)
-		block = append(block, missing...)
 	}
-	if len(block) == 0 {
-		return false, nil
-	}
-
-	var b strings.Builder
-	if len(existing) > 0 {
-		b.Write(existing)
-		if !strings.HasSuffix(string(existing), "\n") {
-			b.WriteString("\n")
-		}
-		b.WriteString("\n")
-	}
-	b.WriteString(strings.Join(block, "\n") + "\n")
-	if err := os.WriteFile(path, []byte(b.String()), initFilePerm); err != nil {
-		return false, ioError(i18n.T(msgid.ActionWriteFile), path, err)
-	}
-	return true, nil
+	return missing
 }
