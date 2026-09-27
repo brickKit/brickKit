@@ -28,7 +28,7 @@ import (
 )
 
 type addFlags struct {
-	yes, repo, repoAll, local bool
+	yes, repo, repoAll, local, init bool
 }
 
 func newAddCommand(opts *Options) *cobra.Command {
@@ -51,6 +51,10 @@ func newAddCommand(opts *Options) *cobra.Command {
 				}
 				return runAddLocal(ctx, opts, f)
 			}
+			if f.init {
+				return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliAddInitNeedsLocal)).
+					WithHint(i18n.T(msgid.CliAddHintInitNeedsLocal)).WithExit(clierr.ExitUsage)
+			}
 			if len(args) == 0 {
 				return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliAddNeedsComponent)).
 					WithHint(i18n.T(msgid.CliAddHintNeedsComponent)).WithExit(clierr.ExitUsage)
@@ -62,6 +66,7 @@ func newAddCommand(opts *Options) *cobra.Command {
 	cmd.Flags().BoolVar(&f.repo, "repo", false, i18n.T(msgid.CliAddFlagRepo))
 	cmd.Flags().BoolVar(&f.repoAll, "repo-all", false, i18n.T(msgid.CliAddFlagRepoAll))
 	cmd.Flags().BoolVar(&f.local, "local", false, i18n.T(msgid.CliAddFlagLocal))
+	cmd.Flags().BoolVar(&f.init, "init", false, i18n.T(msgid.CliAddFlagInit))
 	return cmd
 }
 

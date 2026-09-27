@@ -60,4 +60,5 @@ const (
 	ProjectDocColContract               = "project.doc.col_contract"
 	ProjectDocLocalComponents           = "project.doc.local_components"
 	ProjectDocColSourceDir              = "project.doc.col_source_dir"
+	ProjectSkeletonWorkbenchHeader      = "project.skeleton.workbench_header"
 )

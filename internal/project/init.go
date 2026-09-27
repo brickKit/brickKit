@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -49,6 +51,10 @@ type CompletePlan struct {
 	ProjectDoc bool
 	// ProjectDocUnmanaged：已有的 BRICKKIT.md 没有 CLI 维护区，组件表不会自动更新。
 	ProjectDocUnmanaged bool
+
+	// sources 非 nil 时是组件目录里的本地联调工作台（PlanWorkbench）：brickkit.yaml 用这些安装源，
+	// 不建 components/ 与 shell/——那是项目的目录约定，组件仓库里用不上。
+	sources []projfile.Source
 }
 
 // projectFile 是补全清单里的一个文件：rel 是项目根下的相对路径，content 在 Apply 时才生成。
@@ -57,25 +63,41 @@ type projectFile struct {
 	content func(name string) string
 }
 
-func projectFiles() []projectFile {
-	return []projectFile{
+func projectFiles(workbench bool) []projectFile {
+	files := []projectFile{
 		{FileDecl, declSkeleton},
 		{FileDeploy, func(string) string { return deploySkeleton() }},
 		{DirConfig + "/" + FileVars, func(string) string {
 			return yamlcomment.Block("", i18n.T(msgid.ProjectSkeletonVarsHeader))
 		}},
 		{DirConfig + "/" + FileGitkeep, func(string) string { return "" }},
-		{DirShell + "/" + FileGitkeep, func(string) string { return "" }},
 	}
+	if !workbench {
+		files = append(files, projectFile{DirShell + "/" + FileGitkeep, func(string) string { return "" }})
+	}
+	return files
 }
 
 // PlanComplete 对照完整项目的文件清单，算出 l.Root 下缺哪些、有哪些。不写任何文件。
 func PlanComplete(l Layout, name string) (*CompletePlan, error) {
+	return planComplete(l, name, nil)
+}
+
+// PlanWorkbench 是组件目录里的本地联调工作台（提案 §9.6.1、§16.1.1）：与补全相同，
+// 只是 brickkit.yaml 的安装源取 sources（add --local --init 从顶层项目继承、改写好路径的那一份）。
+func PlanWorkbench(l Layout, name string, sources []projfile.Source) (*CompletePlan, error) {
+	if sources == nil {
+		sources = []projfile.Source{}
+	}
+	return planComplete(l, name, sources)
+}
+
+func planComplete(l Layout, name string, sources []projfile.Source) (*CompletePlan, error) {
 	if err := projfile.ValidateProjectName(name); err != nil {
 		return nil, err
 	}
-	plan := &CompletePlan{Name: name}
-	for _, f := range projectFiles() {
+	plan := &CompletePlan{Name: name, sources: sources}
+	for _, f := range projectFiles(plan.workbench()) {
 		if exists(l.path(filepath.FromSlash(f.rel))) {
 			plan.Skip = append(plan.Skip, f.rel)
 		} else {
@@ -104,20 +126,32 @@ func PlanComplete(l Layout, name string) (*CompletePlan, error) {
 	return plan, nil
 }
 
+func (p *CompletePlan) workbench() bool { return p.sources != nil }
+
 // Apply 按计划写文件，并建好 CLI 自己的工作目录（mkdir -p，已有的不动）。
 func (p *CompletePlan) Apply(l Layout) error {
-	for _, dir := range []string{
-		l.ManifestsDir(), l.ArtifactsDir(), l.GeneratedDir(), l.ComponentsDir(), l.ShellDir(), l.ConfigDir(),
-	} {
+	dirs := []string{l.ManifestsDir(), l.ArtifactsDir(), l.GeneratedDir(), l.ConfigDir()}
+	if !p.workbench() {
+		dirs = append(dirs, l.ComponentsDir(), l.ShellDir())
+	}
+	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, initDirPerm); err != nil {
 			return ioError(i18n.T(msgid.ActionMkdir), dir, err)
 		}
 	}
-	for _, f := range projectFiles() {
+	for _, f := range projectFiles(p.workbench()) {
 		if !slices.Contains(p.Create, f.rel) {
 			continue
 		}
-		if err := writeNewFile(l.path(filepath.FromSlash(f.rel)), f.content(p.Name)); err != nil {
+		content := f.content(p.Name)
+		if f.rel == FileDecl && p.workbench() {
+			decl, err := workbenchDecl(p.Name, p.sources)
+			if err != nil {
+				return err
+			}
+			content = decl
+		}
+		if err := writeNewFile(l.path(filepath.FromSlash(f.rel)), content); err != nil {
 			return err
 		}
 	}
@@ -198,6 +232,18 @@ func declSkeleton(name string) string {
 		"  #   type: market\n" +
 		"  #   url: https://market.example.com/api/v1\n\n" +
 		"components: []\n"
+}
+
+// workbenchDecl 是组件工作台的 brickkit.yaml：继承来的安装源，组件列表由之后的 add 填。
+func workbenchDecl(name string, sources []projfile.Source) (string, error) {
+	data, err := yaml.Marshal(struct {
+		Sources []projfile.Source `yaml:"sources"`
+	}{sources})
+	if err != nil {
+		return "", err
+	}
+	return yamlcomment.Block("", i18n.T(msgid.ProjectSkeletonWorkbenchHeader)) +
+		"project: " + name + "\n\n" + string(data) + "\ncomponents: []\n", nil
 }
 
 // deploySkeleton 是 deploy.yaml 的骨架。

@@ -45,4 +45,11 @@ const (
 	CliInstallHintFixFirst           = "cli.install.hint_fix_first"
 	CliInstallTargetExists           = "cli.install.target_exists"
 	CliInstallProjectDocFailed       = "cli.install.project_doc_failed"
+	CliAddFlagInit                   = "cli.add.flag_init"
+	CliAddInitNeedsLocal             = "cli.add.init_needs_local"
+	CliAddHintInitNeedsLocal         = "cli.add.hint_init_needs_local"
+	CliAddLocalInitFailed            = "cli.add.local_init_failed"
+	CliAddLocalInitHintKept          = "cli.add.local_init_hint_kept"
+	CliAddLocalInitDone              = "cli.add.local_init_done"
+	CountDependencies                = "count.dependencies"
 )

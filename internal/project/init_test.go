@@ -11,6 +11,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 )
 
 func complete(t *testing.T, root, name string) *project.CompletePlan {
@@ -250,4 +251,30 @@ func TestPlanCompleteReportsUnmanagedDoc(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, plan.ProjectDoc)
 	assert.True(t, plan.ProjectDocUnmanaged)
+}
+
+// 组件目录的本地联调工作台（提案 §9.6.1）：brickkit.yaml 继承给定的安装源，不建 components/、shell/
+// ——那是项目的目录约定，组件仓库里用不上。
+func TestPlanWorkbenchInheritsSources(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "component.yaml"), []byte("x"), 0o644))
+	l := project.NewLayout(root)
+	sources := []projfile.Source{
+		{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "../.."},
+		{Name: "org", Type: projfile.SourceTypeGit, BaseURL: "https://git.example.com/org/"},
+	}
+	plan, err := project.PlanWorkbench(l, "erp-backend", sources)
+	require.NoError(t, err)
+	require.NoError(t, plan.Apply(l))
+
+	decl, err := projfile.ParseFile(l.DeclPath())
+	require.NoError(t, err)
+	assert.Equal(t, "erp-backend", decl.Project)
+	assert.Equal(t, sources, decl.Sources)
+	assert.NoDirExists(t, filepath.Join(root, "components"))
+	assert.NoDirExists(t, filepath.Join(root, "shell"))
+	assert.FileExists(t, filepath.Join(root, "deploy.yaml"))
+	assert.FileExists(t, filepath.Join(root, "config", "vars.yaml"))
+	assert.FileExists(t, filepath.Join(root, ".gitignore"))
+	assert.NoFileExists(t, filepath.Join(root, "BRICKKIT.md"))
 }
