@@ -453,6 +453,14 @@ func TestKeepBothVersionsHintWorksWhenFollowed(t *testing.T) {
 
 	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	// 只写 requiredBy: [erp/shell]（附录 A24）：外壳承载 0.9.0，默认版本 1.0.0 独立运行
+	generated := filepath.Join(dir, ".brickkit", "generated")
+	entries := shellJSONFromEnvFile(t, readFile(t, filepath.Join(generated, "env", "erp-shell-1-0-0.env")))
+	require.NotEmpty(t, entries)
+	assert.Equal(t, "erp/api", entries[0].ComponentID)
+	assert.Equal(t, "0.9.0", entries[0].Version)
+	assert.Contains(t, readFile(t, filepath.Join(generated, composeFileName)), "erp-api-1-0-0:")
 }
 
 // brickkit.yaml 已经留着外壳编进的 0.9.0（部署文件顶层也有它的条目）：第三条出路是把两个

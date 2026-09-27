@@ -1,7 +1,6 @@
 package projecttest
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -92,7 +91,7 @@ func Render(t testing.TB, spec Spec) Files {
 			Resources: e.Resources, Labels: e.Labels,
 		}
 		if e.ServedBy != "" {
-			shell := strings.SplitN(e.ServedBy, "@", 2)[0]
+			shell, _, _ := manifest.SplitRef(e.ServedBy)
 			members[shell] = append(members[shell], entry)
 		}
 		c := projfile.Component{ID: e.ID, Version: e.Version, RequiredBy: e.RequiredBy}

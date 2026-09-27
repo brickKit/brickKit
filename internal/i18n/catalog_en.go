@@ -1263,6 +1263,7 @@ var en = map[string]string{
 	msgid.ManifestBuildPathEscapes:            "%[1]q must be a path inside the component repository",
 	msgid.ManifestShellMembersEmpty:           "a shell must list at least one component compiled into it",
 	msgid.ManifestShellMemberNeedsVersion:     "write the exact version compiled into the shell, as <component-id>@<exact-version>, e.g. erp/api@1.2.0 (currently %[1]s)",
+	msgid.ManifestShellMemberEmpty:            "this item is empty: write <component-id>@<exact-version>, e.g. erp/api@1.2.0",
 	msgid.ManifestShellMemberTwoVersions:      "%[1]s is already listed at %[2]s; a shell contains one version of a component (this line says %[3]s)",
 	msgid.ManifestScaffoldBuildComment:        "built locally with brickkit build (up never builds); add image: <registry>/<name> once you publish a prebuilt image",
 	msgid.ConfigdirFileRefMissing:             "Error: %[1]s points at a file that cannot be read",

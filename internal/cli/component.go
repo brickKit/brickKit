@@ -16,7 +16,7 @@ import (
 // 省略版本合法：add 由此触发"取安装源最新版本"，remove/fetch 由调用方按
 // brickkit.yaml 中的条目推断，多版本时再要求指定。
 func parseComponentRef(arg string) (id, version string, err error) {
-	id, version, hasVersion := strings.Cut(strings.TrimSpace(arg), "@")
+	id, version, hasVersion := manifest.SplitRef(strings.TrimSpace(arg))
 
 	if problem := manifest.ComponentIDProblem(id); problem != "" {
 		return "", "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.InvalidComponentID, id)).

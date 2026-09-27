@@ -4,8 +4,6 @@
 package deployfile
 
 import (
-	"strings"
-
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -148,10 +146,8 @@ type Component struct {
 
 // Key 把条目 ID 拆成组件 ID 与版本（裸 ID 时版本为空）。
 func (c Entry) Key() (id, version string) {
-	if i := strings.LastIndex(c.ID, "@"); i >= 0 {
-		return c.ID[:i], c.ID[i+1:]
-	}
-	return c.ID, ""
+	id, version, _ = manifest.SplitRef(c.ID)
+	return id, version
 }
 
 // ReplicaCount 返回副本数，未写时为 1。

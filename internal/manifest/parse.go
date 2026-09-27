@@ -250,10 +250,6 @@ func (d *ComponentDep) UnmarshalYAML(value *yaml.Node) error {
 		return errors.New(i18n.T(msgid.ManifestDependencyBadShape))
 	}
 
-	if id, version, found := strings.Cut(d.Ref, "@"); found {
-		d.ID, d.Version = id, version
-	} else {
-		d.ID, d.Version = d.Ref, ""
-	}
+	d.ID, d.Version, _ = SplitRef(d.Ref)
 	return nil
 }

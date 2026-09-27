@@ -481,8 +481,11 @@ func (m *Manifest) validateShell(p *clierr.ProblemSet) {
 	seen := map[string]string{}
 	for i, member := range m.Shell.Members {
 		field := fmt.Sprintf("shell.members[%d]", i)
-		id, version, hasVersion := strings.Cut(member, "@")
+		id, version, hasVersion := SplitRef(member)
 		switch {
+		case strings.TrimSpace(member) == "":
+			p.Add(field, i18n.T(msgid.ManifestShellMemberEmpty))
+			continue
 		case !hasVersion || version == "":
 			p.Add(field, i18n.T(msgid.ManifestShellMemberNeedsVersion, member))
 			continue

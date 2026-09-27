@@ -64,6 +64,7 @@ const (
 	ManifestBuildPathEscapes             = "manifest.build_path_escapes"
 	ManifestShellMembersEmpty            = "manifest.shell_members_empty"
 	ManifestShellMemberNeedsVersion      = "manifest.shell_member_needs_version"
+	ManifestShellMemberEmpty             = "manifest.shell_member_empty"
 	ManifestShellMemberTwoVersions       = "manifest.shell_member_two_versions"
 	ManifestScaffoldBuildComment         = "manifest.scaffold_build_comment"
 )

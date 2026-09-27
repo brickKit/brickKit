@@ -629,6 +629,8 @@ func TestValidateShellMembersNeedExactVersions(t *testing.T) {
 		"self":          {"[infra/tool@1.0.0]", []string{"shell.members[0]"}},
 		"same id twice": {"[erp/api@1.2.0, erp/api@1.3.0]", []string{"shell.members[1]", "erp/api", "1.2.0"}},
 		"bad id":        {"[Erp/Api@1.0.0]", []string{"shell.members[0]"}},
+		"empty item":    {`[""]`, []string{"shell.members[0]", "empty"}},
+		"extra @":       {"[erp/api@1.2.0@x]", []string{"shell.members[0]", "exact version"}},
 	}
 	for name, tc := range cases {
 		_, err := Parse([]byte(minimalYAML+"shell:\n  members: "+tc.members+"\n"), "component.yaml")

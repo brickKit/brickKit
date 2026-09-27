@@ -99,11 +99,11 @@ func Header(data []byte) (id, version string, ok bool) {
 			continue
 		}
 		ref := strings.TrimSpace(strings.TrimPrefix(line, HeaderPrefix))
-		i := strings.LastIndex(ref, "@")
-		if i <= 0 {
+		id, version, found := manifest.SplitRef(ref)
+		if !found || id == "" {
 			return "", "", false
 		}
-		return ref[:i], ref[i+1:], true
+		return id, version, true
 	}
 	return "", "", false
 }

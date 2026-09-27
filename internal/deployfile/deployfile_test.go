@@ -233,3 +233,11 @@ func TestSkipWaitForIgnoredOnK8sWarns(t *testing.T) {
 	require.Len(t, warnings, 1)
 	assert.Contains(t, warnings[0].Format(), "skipWaitFor")
 }
+
+// 条目 ID 与 component.yaml、命令行用同一种拆法（manifest.SplitRef）：多出来的 @ 落进版本，
+// 由精确版本校验拦下，而不是落进组件 ID。
+func TestEntryKeySplitsLikeEveryOtherRef(t *testing.T) {
+	id, version := deployfile.Entry{ID: "erp/api@1.2.0@x"}.Key()
+	assert.Equal(t, "erp/api", id)
+	assert.Equal(t, "1.2.0@x", version)
+}

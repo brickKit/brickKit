@@ -12,7 +12,7 @@ func (m *Manifest) HostedVersion(id string) (version string, ok bool) {
 		return "", false
 	}
 	for _, member := range m.Shell.Members {
-		if memberID, v, found := strings.Cut(member, "@"); found && memberID == id {
+		if memberID, v, found := SplitRef(member); found && memberID == id {
 			return v, true
 		}
 	}
