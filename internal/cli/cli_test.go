@@ -163,10 +163,8 @@ func TestErrorOutputFormat(t *testing.T) {
 // 正在重建的命令给出明确的 NOT_IMPLEMENTED 错误与阶段编号：占位必须明确报错、
 // 不能假装成功。表空了也保留这个用例，将来再有占位命令时把它填回来。
 func TestNotImplementedCommands(t *testing.T) {
-	// remove 按三层文件模型在 P4 重建：帮助照常，执行时明确说"正在重建"
-	cases := map[string][]string{
-		"remove": {"remove", "people/basic"},
-	}
+	// 三层文件重构期间还在重建的命令：帮助照常，执行时明确说"正在重建"（P4 之后一个都没有了）
+	cases := map[string][]string{}
 
 	// 显式 skip 而不是静默通过：一张空表跑出来的"PASS"与一个坏掉的用例
 	// 长得一模一样。写成 skip 之后，测试输出里就看得见"这条现在没在测什么"。
