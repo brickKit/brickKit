@@ -73,3 +73,29 @@ func TestApplierLeavesUnmanagedBrickkitMd(t *testing.T) {
 	g.mustRun(bare, "add", "erp/api@1.0.0")
 	assert.NoFileExists(t, filepath.Join(bare, "BRICKKIT.md"))
 }
+
+// 文档要在产物下载之后再写：契约路径那一列是这份文档存在的主要理由（§16.2.1）。
+func TestProjectDocListsContractsDownloadedByAdd(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0", Artifacts: []string{"api-contract:api/openapi.yaml"}},
+		map[string]string{"api/openapi.yaml": "openapi: 3.0.3\n"})
+	dir := docProject(t, g, managedDoc)
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+	assert.Contains(t, readFile(t, filepath.Join(dir, "BRICKKIT.md")), "`.brickkit/artifacts/erp-api-1-0-0/`")
+}
+
+// 本地源组件的文档列指向作者正在改的那份，不指向缓存里的旧快照。
+func TestProjectDocPointsLocalComponentsAtLiveDoc(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"brickkit.yaml":                     "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\ncomponents: []\n",
+		"deploy.yaml":                       "target: docker\ncomponents: []\n",
+		"BRICKKIT.md":                       managedDoc,
+		"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "1.0.0"}.yamlText(),
+		"components/erp/api/BRICKKIT.md":    "# erp/api\n",
+	})
+	r := runWith(t, func(o *Options) { o.Engine = newFakeEngine() }, dir, "add", "--local", "--yes")
+	require.Equal(t, 0, r.code, r.stdout+r.stderr)
+	doc := readFile(t, filepath.Join(dir, "BRICKKIT.md"))
+	assert.Contains(t, doc, "| erp/api | 1.0.0 | `components/erp/api/BRICKKIT.md` |")
+}

@@ -105,6 +105,7 @@ func runRemove(ctx context.Context, opts *Options, arg string, force bool) error
 	}
 
 	renderRemoveResult(opts, target, plan, res, released, removedDirs)
+	refreshProjectDoc(opts, proj.Layout)
 	logging.Info(i18n.T(msgid.LogComponentRemoved), "component", target.String(), "removed", len(plan.Removed))
 	return nil
 }

@@ -188,7 +188,7 @@ func TestRenderProjectDocTables(t *testing.T) {
 	assert.Contains(t, doc, "<!-- brickkit:managed:begin -->")
 	assert.Contains(t, doc, "<!-- brickkit:managed:end -->")
 	assert.Contains(t, doc, "| erp/backend | 2.0.0 | `.brickkit/manifests/erp/backend/2.0.0/BRICKKIT.md` | `.brickkit/artifacts/erp-backend-2-0-0/` |")
-	assert.Contains(t, doc, "| people/basic | 1.0.0 | — | — |", "没缓存的不写一条不存在的路径")
+	assert.Contains(t, doc, "| people/basic | 1.0.0 | `components/people/basic/BRICKKIT.md` | — |", "本地源组件指向正在改的那份；没下载的产物不写路径")
 	assert.Contains(t, doc, "| people/basic | `components/people/basic/` | `components/people/basic/BRICKKIT.md` |")
 }
 
@@ -277,4 +277,56 @@ func TestPlanWorkbenchInheritsSources(t *testing.T) {
 	assert.FileExists(t, filepath.Join(root, "config", "vars.yaml"))
 	assert.FileExists(t, filepath.Join(root, ".gitignore"))
 	assert.NoFileExists(t, filepath.Join(root, "BRICKKIT.md"))
+}
+
+// 组件仓库里的补全式 init（§16.1.1）与 add --local --init 是同一件事：只补 brickkit.yaml、
+// deploy.yaml、config/，不建项目的 components/ 与 shell/，也不替它声明那两个本地源。
+func TestPlanCompleteComponentRepoIsAWorkbench(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "component.yaml"), []byte("x"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "BRICKKIT.md"), []byte("# erp/api\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, ".gitignore"), []byte("bin/\n"), 0o644))
+	l := project.NewLayout(root)
+
+	plan, err := project.PlanComplete(l, "erp-api")
+	require.NoError(t, err)
+	assert.False(t, plan.ProjectDocUnmanaged, "组件仓库里的 BRICKKIT.md 本来就是组件自己的文档")
+	assert.NotContains(t, plan.GitignoreMissing, "components/", "组件仓库用不上 components/")
+	assert.Contains(t, plan.GitignoreMissing, ".brickkit/")
+	assert.NotContains(t, plan.Create, "shell/.gitkeep")
+	require.NoError(t, plan.Apply(l))
+
+	assert.NoDirExists(t, filepath.Join(root, "components"))
+	assert.NoDirExists(t, filepath.Join(root, "shell"))
+	decl, err := projfile.ParseFile(l.DeclPath())
+	require.NoError(t, err)
+	assert.Empty(t, decl.Sources, "安装源由作者自己加（骨架里有注释示例）")
+	raw, err := os.ReadFile(l.DeclPath())
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), "# - name: company-git")
+}
+
+// --name 与已有 brickkit.yaml 的 project 相矛盾：拒绝，而不是生成一份标题对不上的项目文档。
+func TestProjectNameForRejectsContradictingFlag(t *testing.T) {
+	root := t.TempDir()
+	l := project.NewLayout(root)
+	require.NoError(t, os.WriteFile(l.DeclPath(), []byte("project: declared\ncomponents: []\n"), 0o644))
+	_, err := project.ProjectNameFor(l, "other")
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Format(), "declared")
+	name, err := project.ProjectNameFor(l, "declared")
+	require.NoError(t, err)
+	assert.Equal(t, "declared", name)
+}
+
+// 工作台的 brickkit.yaml 与其它骨架同样两格缩进。
+func TestWorkbenchDeclUsesTwoSpaceIndent(t *testing.T) {
+	root := t.TempDir()
+	l := project.NewLayout(root)
+	plan, err := project.PlanWorkbench(l, "x", []projfile.Source{{Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "../.."}})
+	require.NoError(t, err)
+	require.NoError(t, plan.Apply(l))
+	raw, err := os.ReadFile(l.DeclPath())
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), "\nsources:\n  - name: local-dev\n")
 }

@@ -33,6 +33,8 @@ type lintConfigResult struct {
 	errors, warnings []*clierr.Error
 	// unchecked 是盘上找不到 Manifest、没能检查的组件版本。
 	unchecked []string
+	// unreadable 是盘上有 Manifest 但解析不了的组件版本（→ 原因）。
+	unreadable [][2]string
 }
 
 // lintConfig 检查项目里每个组件版本的配置。strict 时才查 ${VAR} 与 file:// 取不取得到。
@@ -44,9 +46,13 @@ func lintConfig(proj *project.Project, strict bool) lintConfigResult {
 
 	for _, c := range proj.Decl.Components {
 		ref := resolver.Ref{ID: c.ID, Version: c.Version}
-		m, ok := diskManifest(proj, c.ID, c.Version)
-		if !ok {
+		m, problem, found := diskManifest(proj, c.ID, c.Version)
+		switch {
+		case !found:
 			res.unchecked = append(res.unchecked, ref.String())
+			continue
+		case problem != "":
+			res.unreadable = append(res.unreadable, [2]string{ref.String(), problem})
 			continue
 		}
 		resolved, err := configdir.Resolve(proj.ConfigInput(c.ID, c.Version, m.ConfigSchema))
@@ -71,17 +77,29 @@ func lintConfig(proj *project.Project, strict bool) lintConfigResult {
 	return res
 }
 
-// diskManifest 读一个组件版本在盘上的 Manifest：先看永久缓存，再看正好是这个版本的本地源目录。
-func diskManifest(proj *project.Project, id, version string) (*manifest.Manifest, bool) {
-	if m, err := manifest.ParseFile(proj.Layout.CachedManifestPath(id, version)); err == nil {
-		return m, true
-	}
+// diskManifest 读一个组件版本在盘上的 Manifest，顺序与 up 取 Manifest 一致：本地源目录里正好是
+// 这个版本时只认它（本地源从不走缓存——改了 component.yaml，下一次 up 就按新的来），否则看永久缓存。
+// found 为假表示两处都没有；problem 非空表示找到了但解析不了。
+func diskManifest(proj *project.Project, id, version string) (m *manifest.Manifest, problem string, found bool) {
 	if dir, ok := proj.LocalRepo(id); ok {
-		if m, err := manifest.ParseFile(filepath.Join(dir, manifest.FileName)); err == nil && m.Metadata.Version == version {
-			return m, true
+		if v, err := project.LocalRepoVersion(dir); err == nil && v == version {
+			m, err := manifest.ParseFile(filepath.Join(dir, manifest.FileName))
+			if err != nil {
+				// 本地 component.yaml 的问题 lint 在后面逐文件报，这里只说没查成
+				return nil, clierr.As(err).Message, true
+			}
+			return m, "", true
 		}
 	}
-	return nil, false
+	path := proj.Layout.CachedManifestPath(id, version)
+	if _, err := os.Stat(path); err != nil {
+		return nil, "", false
+	}
+	m, err := manifest.ParseFile(path)
+	if err != nil {
+		return nil, clierr.As(err).Message, true
+	}
+	return m, "", true
 }
 
 // memberEntries 是部署文件里嵌在外壳条目下面的成员（它们的配置要 JSON 编码进外壳）。

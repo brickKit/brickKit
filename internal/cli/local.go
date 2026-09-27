@@ -10,9 +10,11 @@ package cli
 // 开关记在 .brickkit/local-mode（附录 A16）。不带子命令时等于 status：只读是安全的默认。
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -174,6 +176,21 @@ func runLocalRefresh(opts *Options) error {
 	fresh, err := os.ReadFile(l.DeployPath())
 	if err != nil {
 		return localIOError(l.DeployPath(), err)
+	}
+	// 团队文件本身写坏了：复制过来只会把一份能用的本地文件换成坏的，再刷新一次连备份也没了。
+	// 一个文件都不动，点名 deploy.yaml
+	if _, _, err := deployfile.ParseFile(l.DeployPath(), deployfile.RoleTeam); err != nil {
+		inner := clierr.As(err)
+		e := clierr.New(inner.Code, i18n.T(msgid.CliLocalTeamFileInvalid, project.FileDeploy, project.FileDeployLocal)).
+			WithDetail(i18n.T(msgid.LabelReason), strings.TrimPrefix(strings.TrimSpace(inner.Message), "❌ "))
+		for _, d := range inner.Details {
+			e = e.WithDetail(d.Key, d.Value)
+		}
+		return e.WithHint(i18n.T(msgid.CliLocalHintFixTeamFile, project.FileDeploy)).WithCause(err)
+	}
+	if bytes.Equal(old, fresh) {
+		opts.Printf("%s\n", i18n.T(msgid.CliLocalAlreadyFresh, project.FileDeployLocal, project.FileDeploy))
+		return nil
 	}
 	// 先算摘要：旧文件读不懂（YAML 写坏了）也要能刷新——那正是最需要重新生成的时候
 	changes, diffErr := deployfile.DiffLocal(old, fresh)

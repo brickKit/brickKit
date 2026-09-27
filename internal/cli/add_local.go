@@ -113,6 +113,7 @@ func initWorkbenches(ctx context.Context, opts *Options, proj *project.Project, 
 	for _, f := range files {
 		dirs[f.ID] = filepath.Dir(f.Path)
 	}
+	created := 0
 	for _, lc := range scan.Components {
 		dir, ok := dirs[lc.ID]
 		if !ok {
@@ -131,16 +132,29 @@ func initWorkbenches(ctx context.Context, opts *Options, proj *project.Project, 
 				WithHint(append(append([]string{}, e.Hints...), i18n.T(msgid.CliAddLocalInitHintKept))...).
 				WithCause(err)
 		}
-		opts.Printf("   🧰 %s\n", i18n.T(msgid.CliAddLocalInitDone, displayPath(opts.WorkDir, dir), i18n.Count(msgid.CountDependencies, added)))
+		opts.Printf("   🧰 %s\n", i18n.T(msgid.CliAddLocalInitDone, displayPath(opts.WorkDir, dir), i18n.Count(msgid.CountDependencies, added.deps)))
+		renderGitignoreWarning(opts, displayPath(opts.WorkDir, filepath.Join(dir, project.FileGitignore)), added.gitignoreMissing)
+		created++
+	}
+	if created > 0 {
+		// release 要求组件目录干净：没提交的工作台文件会让它拒绝发布
+		opts.Printf("   💡 %s\n", i18n.T(msgid.CliAddLocalInitCommit))
 	}
 	return nil
 }
 
-// initWorkbench 在 dir 里补全出工作台，再把组件自己的依赖（强弱都算）加进去。返回加了几个依赖。
-func initWorkbench(ctx context.Context, opts *Options, parent *project.Project, id, dir string) (int, error) {
+// workbenchResult 是建一个工作台的结果。
+type workbenchResult struct {
+	deps             int
+	gitignoreMissing []string
+}
+
+// initWorkbench 在 dir 里补全出工作台，再把组件自己的依赖（强弱都算）加进去。
+func initWorkbench(ctx context.Context, opts *Options, parent *project.Project, id, dir string) (workbenchResult, error) {
+	var res workbenchResult
 	m, err := manifest.ParseFile(filepath.Join(dir, manifest.FileName))
 	if err != nil {
-		return 0, err
+		return res, err
 	}
 	name := strings.ReplaceAll(id, "/", "-")
 	if s := projfile.SuggestProjectName(name); projfile.ProjectNameProblem(name) != "" && s != "" {
@@ -149,11 +163,12 @@ func initWorkbench(ctx context.Context, opts *Options, parent *project.Project, 
 	child := project.NewLayout(dir)
 	plan, err := project.PlanWorkbench(child, name, inheritSources(parent, dir))
 	if err != nil {
-		return 0, err
+		return res, err
 	}
 	if err := plan.Apply(child); err != nil {
-		return 0, err
+		return res, err
 	}
+	res.gitignoreMissing = plan.GitignoreMissing
 
 	var targets []resolver.Ref
 	if m.Dependencies != nil {
@@ -162,23 +177,24 @@ func initWorkbench(ctx context.Context, opts *Options, parent *project.Project, 
 		}
 	}
 	if len(targets) == 0 {
-		return 0, nil
+		return res, nil
 	}
 	childOpts := *opts
 	childOpts.WorkDir = dir
 	childProj, err := loadForInstall(&childOpts)
 	if err != nil {
-		return 0, err
+		return res, err
 	}
 	childClient, err := newSourceClient(&childOpts, childProj.Layout, childProj.Decl, source.Options{})
 	if err != nil {
-		return 0, err
+		return res, err
 	}
 	defer func() { _ = childClient.Close() }()
 	if err := installAdd(ctx, &childOpts, childProj, childClient, targets, addFlags{yes: true}); err != nil {
-		return 0, err
+		return res, err
 	}
-	return len(targets), nil
+	res.deps = len(targets)
+	return res, nil
 }
 
 // inheritSources 复制顶层项目的安装源给子工作台；本地源的路径改写成相对子目录，

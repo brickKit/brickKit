@@ -96,8 +96,19 @@ func runReleaseLocal(opts *Options) error {
 	}
 
 	var pending []*release.Target
+	// 本地源可能重叠（两个源指向同一目录，或同一个组件 ID 出现在两个源里）：
+	// 与 add --local 一样按源的顺序取第一个，一个组件只发布一次
+	seenID, seenDir := map[string]bool{}, map[string]bool{}
 	for _, f := range files {
-		target, err := release.Prepare(filepath.Dir(f.Path))
+		dir := filepath.Dir(f.Path)
+		if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+			dir = resolved
+		}
+		if seenID[f.ID] || seenDir[dir] {
+			continue
+		}
+		seenID[f.ID], seenDir[dir] = true, true
+		target, err := release.Prepare(dir)
 		if err != nil {
 			return err
 		}
@@ -123,7 +134,7 @@ func runReleaseLocal(opts *Options) error {
 			}
 			return e
 		}
-		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliReleaseDone, target.Ref(), target.Tag))
+		opts.Printf("   %s\n", i18n.T(msgid.CliReleaseDone, target.Ref(), target.Tag))
 	}
 	if len(pending) == 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliReleaseLocalNothing))

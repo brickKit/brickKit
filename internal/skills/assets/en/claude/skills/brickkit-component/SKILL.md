@@ -112,7 +112,10 @@ A release is a Git tag. Bump `metadata.version`, commit, push, then `brickkit re
 unless the component directory is clean, the branch has an upstream with nothing unpushed, and the
 tag doesn't exist. Tags are `1.2.0` (no `v`), or `<scope>-<name>/1.2.0` for a monorepo subdirectory.
 A failed push deletes the local tag again. A `brickkit.yaml` next to `component.yaml` (a local
-workbench) is ignored by `release`. `brickkit publish` to a market is separate.
+workbench) plays no part in what gets released — `release` reads only `component.yaml` — but its
+files still count for "the component directory is clean": commit the workbench (`brickkit.yaml`,
+`deploy.yaml`, `config/`, `.gitignore`) or `release` refuses. A tag that exists only locally (never
+pushed) is not a release: push it or delete it. `brickkit publish` to a market is separate.
 
 ## How the mechanism works
 

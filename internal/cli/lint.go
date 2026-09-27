@@ -142,10 +142,31 @@ func lintProject(opts *Options, layout project.Layout, strict bool) ([]lintFile,
 		files[0].errors = append(files[0].errors, clierr.As(err))
 		return files, append(notes, localSkippedNote())
 	}
+	own := filepath.Join(layout.Root, manifest.FileName)
+	ownListed := false
 	for _, f := range found {
 		files = append(files, lintManifest(opts, f.Path, f.ID))
+		if same, _ := sameFile(f.Path, own); same {
+			ownListed = true
+		}
+	}
+	// 组件仓库兼作工作台（§16.1.1）：它要发布的那份 component.yaml 不在任何本地源里，照样要查
+	if _, err := os.Stat(own); err == nil && !ownListed {
+		files = append(files, lintManifest(opts, own, ""))
 	}
 	return files, notes
+}
+
+func sameFile(a, b string) (bool, error) {
+	ia, err := os.Stat(a)
+	if err != nil {
+		return false, err
+	}
+	ib, err := os.Stat(b)
+	if err != nil {
+		return false, err
+	}
+	return os.SameFile(ia, ib), nil
 }
 
 // deployToLint 是一份要单独检查的部署文件。
@@ -188,6 +209,9 @@ func lintCrossFile(opts *Options, strict bool) ([]lintFile, []string) {
 	var notes []string
 	if len(cfg.unchecked) > 0 {
 		notes = append(notes, i18n.T(msgid.CliLintConfigUnchecked, strings.Join(cfg.unchecked, i18n.T(msgid.ListSeparator))))
+	}
+	for _, u := range cfg.unreadable {
+		notes = append(notes, i18n.T(msgid.CliLintManifestUnreadable, u[0], strings.TrimPrefix(strings.TrimSpace(u[1]), "❌ ")))
 	}
 	files := []lintFile{f}
 	if opts.DeployFile != "" {

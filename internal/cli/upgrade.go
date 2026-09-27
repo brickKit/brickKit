@@ -105,6 +105,7 @@ func runUpgrade(ctx context.Context, opts *Options, arg string, f upgradeFlags) 
 	_, warnings := downloadAddedArtifacts(ctx, client, newGraph, fresh)
 	renderUpgradeResult(opts, plan, res)
 	renderWarnings(opts, warnings)
+	refreshProjectDoc(opts, proj.Layout)
 	return nil
 }
 

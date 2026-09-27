@@ -499,3 +499,11 @@ func TestInitCompleteNotesUnmanagedProjectDoc(t *testing.T) {
 	assert.Equal(t, mine, readFile(t, filepath.Join(dir, "BRICKKIT.md")))
 	assert.Contains(t, r.stdout, "without the brickkit-managed block")
 }
+
+func TestInitNamedPathIsAFile(t *testing.T) {
+	parent := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(parent, "my-project"), []byte("x"), 0o644))
+	r := runIn(t, parent, "init", "my-project")
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stderr, "not a directory")
+}

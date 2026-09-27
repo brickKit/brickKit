@@ -122,7 +122,9 @@ configEnvVars）找到每个成员的配置——成员的配置值在加了成�
 版本号只取 `metadata.version`。`release` 先检查：能通过校验、组件目录干净、有上游且没有未推送的
 提交、tag 不存在；然后打 tag 并推送，推送失败就删掉本地 tag。tag 是 `1.2.0`（没有 `v`），
 monorepo 子目录里的组件是 `<scope>-<name>/1.2.0`。组件仓库里自己的 `brickkit.yaml`（本地联调
-工作台）与发布无关。发到市场是另一条命令 `brickkit publish`。
+工作台）不影响发布什么——`release` 只读 `component.yaml`——但它的文件照样算进"组件目录干净"：
+把工作台（`brickkit.yaml`、`deploy.yaml`、`config/`、`.gitignore`）提交进去，否则 `release` 会拒绝。
+只在本地、从没推送过的 tag 不算发布：推上去或者删掉。发到市场是另一条命令 `brickkit publish`。
 
 ## 机制是怎么运作的
 

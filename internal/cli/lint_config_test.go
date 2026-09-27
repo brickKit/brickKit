@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -163,4 +164,41 @@ func TestLintChecksTeamFileWhileLocalModeOn(t *testing.T) {
 
 	r = runIn(t, dir, "lint", "-f", "deploy.local.yaml")
 	assert.NotContains(t, r.stdout, "deploy.yaml does not match", "-f 只查那一份")
+}
+
+// 本地源提供的组件，up 从不读缓存里的旧 Manifest：lint 也必须按本地目录里的现状查。
+func TestLintPrefersLocalSourceOverStaleCache(t *testing.T) {
+	stale := strings.Replace(schemaComp("erp/api"), "  required: [DB_HOST]\n", "", 1)
+	dir := lintConfigProject(t, "", map[string]string{
+		".brickkit/manifests/erp/api/1.0.0/component.yaml": stale,
+	})
+	r := runIn(t, dir, "lint")
+	assert.Equal(t, clierr.ExitError, r.code, "本地 component.yaml 里 DB_HOST 是必填：%s", r.stdout)
+	assert.Contains(t, r.stdout, "DB_HOST")
+}
+
+// 缓存里的 Manifest 读不懂：说清是解析失败，不说"还没取回来"。
+func TestLintNamesUnparsableCachedManifest(t *testing.T) {
+	dir := lintConfigProject(t, "", map[string]string{
+		"brickkit.yaml": "project: shop\ncomponents:\n  - id: crm/web\n    version: 2.0.0\n",
+		"deploy.yaml":   "target: docker\ncomponents:\n  - id: crm/web\n",
+		".brickkit/manifests/crm/web/2.0.0/component.yaml": "metadata: [broken\n",
+	})
+	r := runIn(t, dir, "lint")
+	assert.Contains(t, r.stdout, "crm/web@2.0.0")
+	assert.NotContains(t, r.stdout, "no manifest on disk yet")
+	assert.Contains(t, r.stdout, "could not be read")
+}
+
+// 组件仓库兼作工作台（§16.1.1）：有了 brickkit.yaml 之后，lint 照样检查它要发布的 component.yaml。
+func TestLintWorkbenchStillChecksOwnManifest(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"component.yaml": schemaComp("erp/api") + "tpyo: 1\n",
+		"brickkit.yaml":  "project: erp-api\ncomponents: []\n",
+		"deploy.yaml":    "target: docker\ncomponents: []\n",
+	})
+	r := runIn(t, dir, "lint")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stdout, "tpyo")
 }

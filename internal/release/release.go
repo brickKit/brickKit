@@ -106,13 +106,15 @@ func (t *Target) Check() (State, error) {
 	}
 
 	branch, _ := git(t.RepoRoot, "symbolic-ref", "-q", "--short", "HEAD")
-	remote := ""
-	if branch != "" {
-		remote, _ = git(t.RepoRoot, "config", "--get", "branch."+branch+".remote")
+	if branch == "" {
+		// 游离 HEAD（CI 的检出常常是）：没有分支就谈不上"已推送到远端分支历史"
+		return 0, clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseDetachedHead, t.Ref())).
+			WithHint(i18n.T(msgid.ReleaseHintCheckoutBranch))
 	}
+	remote, _ := git(t.RepoRoot, "config", "--get", "branch."+branch+".remote")
 	if remote == "" {
 		return 0, clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseNoUpstream, t.Ref())).
-			WithDetail(i18n.T(msgid.ReleaseLabelBranch), orDetached(branch)).
+			WithDetail(i18n.T(msgid.ReleaseLabelBranch), branch).
 			WithHint(i18n.T(msgid.ReleaseHintSetUpstream))
 	}
 	t.remote = remote
@@ -131,35 +133,49 @@ func (t *Target) Check() (State, error) {
 	if err != nil {
 		return 0, t.gitFailed(err)
 	}
-	at, err := t.existingTag()
+	local, remote, err := t.existingTag()
 	if err != nil {
 		return 0, err
 	}
-	switch at {
-	case "":
+	// 发布与否看远端：消费方只取得到远端的 tag。本地多出来的（手打的、回滚失败留下的）不算
+	switch {
+	case local == "" && remote == "":
 		return Unreleased, nil
-	case head:
+	case remote == head && (local == "" || local == head):
 		return Released, nil
-	default:
-		return 0, clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseTagElsewhere, t.Tag)).
-			WithDetail(i18n.T(msgid.ReleaseLabelTagAt), short(at)).
-			WithDetail(i18n.T(msgid.ReleaseLabelHead), short(head)).
-			WithHint(i18n.T(msgid.ReleaseHintBumpVersion, manifest.FileName))
+	case remote == "" && local == head:
+		return 0, clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseTagOnlyLocal, t.Tag, t.Ref())).
+			WithHint(i18n.T(msgid.ReleaseHintPushTag, t.remote, t.Tag), i18n.T(msgid.ReleaseHintDropLocalTag, t.Tag))
 	}
+	at := remote
+	if at == "" || at == head {
+		at = local
+	}
+	return 0, clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseTagElsewhere, t.Tag)).
+		WithDetail(i18n.T(msgid.ReleaseLabelTagAt), short(at)).
+		WithDetail(i18n.T(msgid.ReleaseLabelHead), short(head)).
+		WithHint(i18n.T(msgid.ReleaseHintBumpVersion, manifest.FileName))
 }
 
-// existingTag 返回 tag 指向的提交：先看本地，再问远端；都没有时为空。
-func (t *Target) existingTag() (string, error) {
-	if sha, err := git(t.RepoRoot, "rev-parse", "-q", "--verify", "refs/tags/"+t.Tag+"^{commit}"); err == nil && sha != "" {
-		return sha, nil
+// existingTag 返回 tag 在本地与远端各指向的提交；没有的一侧为空。远端总是要问：
+// 本地有这个 tag 不等于它已经发布出去了。
+func (t *Target) existingTag() (local, remote string, err error) {
+	if sha, err := git(t.RepoRoot, "rev-parse", "-q", "--verify", "refs/tags/"+t.Tag+"^{commit}"); err == nil {
+		local = sha
 	}
 	out, err := git(t.RepoRoot, "ls-remote", "--tags", t.remote, "refs/tags/"+t.Tag, "refs/tags/"+t.Tag+"^{}")
 	if err != nil {
-		return "", clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.ReleaseRemoteUnreachable, t.remote)).
+		return "", "", clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.ReleaseRemoteUnreachable, t.remote)).
 			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
 			WithHint(i18n.T(msgid.ReleaseHintRemote))
 	}
-	// 附注 tag 有两行：tag 对象本身与 ^{} 解引用出的提交，要的是后者
+	remote = remoteSHA(out)
+	return local, remote, nil
+}
+
+// remoteSHA 从 ls-remote 的输出取 tag 指向的提交。附注 tag 有两行：tag 对象本身与 ^{} 解引用出的提交，
+// 要的是后者。
+func remoteSHA(out string) string {
 	sha := ""
 	for _, line := range strings.Split(out, "\n") {
 		fields := strings.Fields(line)
@@ -170,7 +186,7 @@ func (t *Target) existingTag() (string, error) {
 			sha = fields[0]
 		}
 	}
-	return sha, nil
+	return sha
 }
 
 // Publish 打 tag 并推送；推送失败时删掉本地 tag，再报推送失败的原因（提案 §10.2 第 5、6 步）。
@@ -191,7 +207,7 @@ func (t *Target) Publish() error {
 	}
 	if _, err := git(t.RepoRoot, "push", t.remote, "refs/tags/"+t.Tag); err != nil {
 		_, rollbackErr := git(t.RepoRoot, "tag", "-d", t.Tag)
-		e := clierr.New(clierr.CodeReleasePushFailed, i18n.T(msgid.ReleasePushFailed, t.Tag, t.remote)).
+		e := clierr.New(clierr.CodeReleasePushFailed, i18n.T(msgid.ReleasePushFailed, t.Tag, t.remote, t.Ref())).
 			WithDetail(i18n.T(msgid.LabelReason), err.Error())
 		if rollbackErr != nil {
 			return e.WithDetail(i18n.T(msgid.ReleaseLabelRollback), rollbackErr.Error()).
@@ -242,11 +258,4 @@ func short(sha string) string {
 		return sha[:12]
 	}
 	return sha
-}
-
-func orDetached(branch string) string {
-	if branch == "" {
-		return i18n.T(msgid.ReleaseDetached)
-	}
-	return branch
 }

@@ -4,6 +4,7 @@ package project
 // 有的跳过。创建式只是"在一个新建的空目录里补全"。
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"os"
@@ -52,8 +53,12 @@ type CompletePlan struct {
 	// ProjectDocUnmanaged：已有的 BRICKKIT.md 没有 CLI 维护区，组件表不会自动更新。
 	ProjectDocUnmanaged bool
 
-	// sources 非 nil 时是组件目录里的本地联调工作台（PlanWorkbench）：brickkit.yaml 用这些安装源，
-	// 不建 components/ 与 shell/——那是项目的目录约定，组件仓库里用不上。
+	// workbench：这里是组件仓库（根目录有 component.yaml），补全出来的是组件的本地联调工作台
+	// （§16.1.1、§9.6.1）：不建 components/ 与 shell/、不声明那两个本地源——那是项目的目录约定，
+	// 组件仓库里用不上；BRICKKIT.md 是组件自己的文档，不当项目文档。
+	workbench bool
+	// sources 非 nil 时是 add --local --init 从顶层项目继承、改写好路径的安装源；
+	// nil 时（init 在组件仓库里）brickkit.yaml 只写注释示例，安装源由作者自己加。
 	sources []projfile.Source
 }
 
@@ -96,8 +101,11 @@ func planComplete(l Layout, name string, sources []projfile.Source) (*CompletePl
 	if err := projfile.ValidateProjectName(name); err != nil {
 		return nil, err
 	}
-	plan := &CompletePlan{Name: name, sources: sources}
-	for _, f := range projectFiles(plan.workbench()) {
+	plan := &CompletePlan{
+		Name: name, sources: sources,
+		workbench: sources != nil || exists(filepath.Join(l.Root, manifest.FileName)),
+	}
+	for _, f := range projectFiles(plan.workbench) {
 		if exists(l.path(filepath.FromSlash(f.rel))) {
 			plan.Skip = append(plan.Skip, f.rel)
 		} else {
@@ -112,26 +120,25 @@ func planComplete(l Layout, name string, sources []projfile.Source) (*CompletePl
 	case err != nil:
 		return nil, ioError(i18n.T(msgid.ConfigActionReadFile), l.GitignorePath(), err)
 	default:
-		plan.GitignoreMissing = missingGitignore(existing)
+		plan.GitignoreMissing = missingGitignore(existing, plan.workbench)
 	}
 
 	switch {
+	case plan.workbench:
 	case exists(l.ProjectDocPath()):
 		if data, err := os.ReadFile(l.ProjectDocPath()); err == nil && !hasManagedBlock(string(data)) {
 			plan.ProjectDocUnmanaged = true
 		}
-	case !exists(filepath.Join(l.Root, manifest.FileName)):
+	default:
 		plan.ProjectDoc = true
 	}
 	return plan, nil
 }
 
-func (p *CompletePlan) workbench() bool { return p.sources != nil }
-
 // Apply 按计划写文件，并建好 CLI 自己的工作目录（mkdir -p，已有的不动）。
 func (p *CompletePlan) Apply(l Layout) error {
 	dirs := []string{l.ManifestsDir(), l.ArtifactsDir(), l.GeneratedDir(), l.ConfigDir()}
-	if !p.workbench() {
+	if !p.workbench {
 		dirs = append(dirs, l.ComponentsDir(), l.ShellDir())
 	}
 	for _, dir := range dirs {
@@ -139,12 +146,12 @@ func (p *CompletePlan) Apply(l Layout) error {
 			return ioError(i18n.T(msgid.ActionMkdir), dir, err)
 		}
 	}
-	for _, f := range projectFiles(p.workbench()) {
+	for _, f := range projectFiles(p.workbench) {
 		if !slices.Contains(p.Create, f.rel) {
 			continue
 		}
 		content := f.content(p.Name)
-		if f.rel == FileDecl && p.workbench() {
+		if f.rel == FileDecl && p.workbench {
 			decl, err := workbenchDecl(p.Name, p.sources)
 			if err != nil {
 				return err
@@ -156,7 +163,7 @@ func (p *CompletePlan) Apply(l Layout) error {
 		}
 	}
 	if p.GitignoreCreate {
-		if err := writeNewFile(l.GitignorePath(), gitignoreContent()); err != nil {
+		if err := writeNewFile(l.GitignorePath(), gitignoreContent(p.workbench)); err != nil {
 			return err
 		}
 	}
@@ -169,12 +176,24 @@ func (p *CompletePlan) Apply(l Layout) error {
 }
 
 // ProjectNameFor 决定补全式的项目名：--name > 已有 brickkit.yaml 的 project > 目录名（规整成合法名字）。
+//
+// 已有 brickkit.yaml 时它的 project 就是项目名：--name 与之矛盾就拒绝——补全从不改已有文件，
+// 照 --name 生成的项目文档只会与 brickkit.yaml 各说各的。
 func ProjectNameFor(l Layout, flag string) (string, error) {
+	declared := ""
+	if decl, err := projfile.ParseFile(l.DeclPath()); err == nil {
+		declared = decl.Project
+	}
 	if flag != "" {
+		if declared != "" && declared != flag {
+			return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.ProjectNameContradicts, flag, declared, FileDecl)).
+				WithHint(i18n.T(msgid.ProjectHintDropName, declared)).
+				WithExit(clierr.ExitUsage)
+		}
 		return flag, projfile.ValidateProjectName(flag)
 	}
-	if decl, err := projfile.ParseFile(l.DeclPath()); err == nil && decl.Project != "" {
-		return decl.Project, nil
+	if declared != "" {
+		return declared, nil
 	}
 	root, err := filepath.Abs(l.Root)
 	if err != nil {
@@ -225,25 +244,40 @@ func declSkeleton(name string) string {
 		"    type: local\n" +
 		"    path: ./" + DirShell + "           # " + i18n.T(msgid.ProjectSkeletonShellDirNote) + "\n" +
 		yamlcomment.Block("  ", i18n.T(msgid.ProjectSkeletonMoreSources)) +
-		"  # - name: company-git\n" +
-		"  #   type: git\n" +
-		"  #   baseUrl: https://git.example.com/components\n" +
-		"  # - name: market\n" +
-		"  #   type: market\n" +
-		"  #   url: https://market.example.com/api/v1\n\n" +
+		sourceExamples("  ") + "\n" +
 		"components: []\n"
 }
 
-// workbenchDecl 是组件工作台的 brickkit.yaml：继承来的安装源，组件列表由之后的 add 填。
+// sourceExamples 是骨架里注释掉的 git / market 安装源示例。
+func sourceExamples(indent string) string {
+	return indent + "# - name: company-git\n" +
+		indent + "#   type: git\n" +
+		indent + "#   baseUrl: https://git.example.com/components/\n" +
+		indent + "# - name: market\n" +
+		indent + "#   type: market\n" +
+		indent + "#   url: https://market.example.com/api/v1\n"
+}
+
+// workbenchDecl 是组件工作台的 brickkit.yaml：继承来的安装源（add --local --init），或者只有
+// 注释示例（init 在组件仓库里：作者自己决定从哪取依赖）；组件列表由之后的 add 填。
 func workbenchDecl(name string, sources []projfile.Source) (string, error) {
-	data, err := yaml.Marshal(struct {
+	head := yamlcomment.Block("", i18n.T(msgid.ProjectSkeletonWorkbenchHeader)) + "project: " + name + "\n\n"
+	if sources == nil {
+		return head + yamlcomment.Block("", i18n.T(msgid.ProjectSkeletonWorkbenchSources)) +
+			"sources: []\n" + sourceExamples("") + "\ncomponents: []\n", nil
+	}
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(struct {
 		Sources []projfile.Source `yaml:"sources"`
-	}{sources})
-	if err != nil {
+	}{sources}); err != nil {
 		return "", err
 	}
-	return yamlcomment.Block("", i18n.T(msgid.ProjectSkeletonWorkbenchHeader)) +
-		"project: " + name + "\n\n" + string(data) + "\ncomponents: []\n", nil
+	if err := enc.Close(); err != nil {
+		return "", err
+	}
+	return head + buf.String() + "\ncomponents: []\n", nil
 }
 
 // deploySkeleton 是 deploy.yaml 的骨架。
@@ -281,28 +315,32 @@ type gitignoreSection struct {
 
 // RequiredGitignore 是一个项目的 .gitignore 必须有的条目（提案 §11.5）：
 // 漏了任何一条，个人文件或密钥就会被提交。补全式 init 拿它做校验。
-func RequiredGitignore() []string {
+// 组件仓库里的工作台没有 components/，也就不要求忽略它。
+func RequiredGitignore(workbench bool) []string {
 	var rules []string
-	for _, s := range gitignoreSections() {
+	for _, s := range gitignoreSections(workbench) {
 		rules = append(rules, s.rules...)
 	}
 	return rules
 }
 
-func gitignoreSections() []gitignoreSection {
-	return []gitignoreSection{
+func gitignoreSections(workbench bool) []gitignoreSection {
+	sections := []gitignoreSection{
 		{i18n.T(msgid.ProjectGitignoreBrickkit), []string{DirBrickkit + "/"}},
 		{i18n.T(msgid.ProjectGitignoreLocalDeploy), []string{FileDeployLocal, FileDeployLocalBackup}},
 		{i18n.T(msgid.ProjectGitignoreSecrets), []string{DirSecrets + "/", FileDotEnv}},
 		{i18n.T(msgid.ProjectGitignoreConfigArchive), []string{DirConfig + "/" + DirConfigArchive + "/"}},
-		{i18n.T(msgid.ProjectGitignoreComponents), []string{DirComponents + "/"}},
 	}
+	if !workbench {
+		sections = append(sections, gitignoreSection{i18n.T(msgid.ProjectGitignoreComponents), []string{DirComponents + "/"}})
+	}
+	return sections
 }
 
 // gitignoreContent 是新项目的整份 .gitignore，每组规则带说明注释。
-func gitignoreContent() string {
+func gitignoreContent(workbench bool) string {
 	var block []string
-	for _, s := range gitignoreSections() {
+	for _, s := range gitignoreSections(workbench) {
 		if len(block) > 0 {
 			block = append(block, "")
 		}
@@ -313,7 +351,7 @@ func gitignoreContent() string {
 }
 
 // missingGitignore 列出已有 .gitignore 里缺的必需条目（逐行精确匹配，忽略首尾空白）。
-func missingGitignore(existing []byte) []string {
+func missingGitignore(existing []byte, workbench bool) []string {
 	present := map[string]bool{}
 	for _, line := range strings.Split(string(existing), "\n") {
 		if trimmed := strings.TrimSpace(line); trimmed != "" {
@@ -321,7 +359,7 @@ func missingGitignore(existing []byte) []string {
 		}
 	}
 	var missing []string
-	for _, rule := range RequiredGitignore() {
+	for _, rule := range RequiredGitignore(workbench) {
 		if !present[rule] {
 			missing = append(missing, rule)
 		}

@@ -115,17 +115,44 @@ func TestLocalRefreshBacksUpAndSummarises(t *testing.T) {
 func TestLocalRefreshNothingToMerge(t *testing.T) {
 	dir := localProject(t)
 	mustLocal(t, dir, "on")
+	writeTree(t, dir, map[string]string{"deploy.local.yaml": "# reformatted by hand\n" + localTeamDeploy})
 	r := mustLocal(t, dir, "refresh")
 	assert.Contains(t, r.stdout, "no local changes")
 }
 
 func TestLocalRefreshReplacesOldBackup(t *testing.T) {
 	dir := localProject(t)
-	mustLocal(t, dir, "on")
+	mine := localTeamDeploy + "    mode: debug\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.local.yaml"), []byte(mine), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.local.yaml.bak"), []byte("older\n"), 0o644))
 	r := mustLocal(t, dir, "refresh")
-	assert.Equal(t, localTeamDeploy, readFile(t, filepath.Join(dir, "deploy.local.yaml.bak")))
+	assert.Equal(t, mine, readFile(t, filepath.Join(dir, "deploy.local.yaml.bak")))
 	assert.Contains(t, r.stdout, "previous deploy.local.yaml.bak was replaced")
+}
+
+// 本地文件与团队文件一模一样：什么都不用做，尤其不能拿一份没有改动的副本盖掉上一次的备份。
+func TestLocalRefreshTwiceKeepsTheBackup(t *testing.T) {
+	dir := localProject(t)
+	mine := localTeamDeploy + "    mode: debug\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.local.yaml"), []byte(mine), 0o644))
+	mustLocal(t, dir, "refresh")
+	r := mustLocal(t, dir, "refresh")
+	assert.Equal(t, mine, readFile(t, filepath.Join(dir, "deploy.local.yaml.bak")), "第二次刷新不能丢掉第一次的备份")
+	assert.Contains(t, r.stdout, "already matches")
+}
+
+// 团队的 deploy.yaml 写坏了：拒绝刷新、点名 deploy.yaml，一个文件都不动。
+func TestLocalRefreshRefusesInvalidTeamFile(t *testing.T) {
+	dir := localProject(t)
+	mine := localTeamDeploy + "    mode: debug\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.local.yaml"), []byte(mine), 0o644))
+	writeTree(t, dir, map[string]string{"deploy.yaml": "target: [docker\n"})
+
+	r := runIn(t, dir, "local", "refresh")
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stderr, "deploy.yaml")
+	assert.Equal(t, mine, readFile(t, filepath.Join(dir, "deploy.local.yaml")))
+	assert.NoFileExists(t, filepath.Join(dir, "deploy.local.yaml.bak"))
 }
 
 func TestLocalRefreshWithoutFileFails(t *testing.T) {

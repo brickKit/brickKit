@@ -61,4 +61,7 @@ const (
 	ProjectDocLocalComponents           = "project.doc.local_components"
 	ProjectDocColSourceDir              = "project.doc.col_source_dir"
 	ProjectSkeletonWorkbenchHeader      = "project.skeleton.workbench_header"
+	ProjectSkeletonWorkbenchSources     = "project.skeleton.workbench_sources"
+	ProjectNameContradicts              = "project.name_contradicts"
+	ProjectHintDropName                 = "project.hint_drop_name"
 )

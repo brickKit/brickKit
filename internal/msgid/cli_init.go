@@ -61,4 +61,6 @@ const (
 	CliInitClosingCheckFailed             = "cli.init.closing_check_failed"
 	CliInitHintRunLint                    = "cli.init.hint_run_lint"
 	CliInitClosingCheckPassed             = "cli.init.closing_check_passed"
+	CliInitPathNotADir                    = "cli.init.path_not_a_dir"
+	CliInitHintOtherName                  = "cli.init.hint_other_name"
 )

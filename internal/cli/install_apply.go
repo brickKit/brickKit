@@ -119,13 +119,28 @@ func applyPlanWith(opts *Options, proj *project.Project, plan *install.Plan, ao 
 		return nil, wouldBreakError(err)
 	}
 	a.result.Project = reloaded
-	// 项目 BRICKKIT.md 的组件表跟着三份文件走（§16.2.1）。三份文件此刻已经正确，
-	// 文档写不进去不值得把它们还原：说一声，下一次成功的改动会把表补齐
-	if _, err := project.WriteProjectDoc(proj.Layout, reloaded); err != nil {
+	return a.result, nil
+}
+
+// refreshProjectDoc 重写项目 BRICKKIT.md 的组件表（§16.2.1）。add / remove / upgrade 在命令的
+// 最后调用——产物下载、源码克隆之后：表里的文档与契约路径只写盘上真有的，写早了就是空的。
+// 三份文件此刻已经正确，文档写不进去不值得让命令失败：说一声，下一次成功的改动会补齐。
+func refreshProjectDoc(opts *Options, layout project.Layout) {
+	proj, err := project.Load(layout.Root, project.LoadOptions{NoLocal: true})
+	if err == nil {
+		_, err = project.WriteProjectDoc(layout, proj)
+	}
+	var conflict *clierr.Error
+	if err != nil && errors.As(err, &conflict) && conflict.Code == clierr.CodeConfigConflict {
+		// upgrade 故意写下的冲突块让配置装载不了：拓扑照样能读，表照样能写
+		if proj, err = project.LoadTopology(layout.Root, project.LoadOptions{NoLocal: true}); err == nil {
+			_, err = project.WriteProjectDoc(layout, proj)
+		}
+	}
+	if err != nil {
 		renderWarnings(opts, []*clierr.Error{clierr.Warn(clierr.CodeInternal, i18n.T(msgid.CliInstallProjectDocFailed, project.FileProjectDoc)).
 			WithDetail(i18n.T(msgid.LabelReason), clierr.As(err).Message)})
 	}
-	return a.result, nil
 }
 
 // wouldBreakError 说"改完装载不了、已经还原"，把装载失败的原因、明细与建议原样带上。

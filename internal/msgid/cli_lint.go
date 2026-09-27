@@ -29,4 +29,5 @@ const (
 	CliLintLabelVariable          = "cli.lint.label_variable"
 	CliLintHintEnvRef             = "cli.lint.hint_env_ref"
 	CliLintFileRefMissing         = "cli.lint.file_ref_missing"
+	CliLintManifestUnreadable     = "cli.lint.manifest_unreadable"
 )

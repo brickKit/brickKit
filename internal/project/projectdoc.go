@@ -61,7 +61,7 @@ func RenderProjectDoc(p *Project) string {
 			i18n.T(msgid.ProjectDocColDoc), i18n.T(msgid.ProjectDocColContract),
 		}, " | ") + " |\n|---|---|---|---|\n")
 		for _, c := range p.Decl.Components {
-			doc := p.relIfExists(p.Layout.CachedDocPath(c.ID, c.Version))
+			doc := p.relIfExists(p.docPath(c.ID, c.Version))
 			contract := p.relIfExists(filepath.Join(p.Layout.ArtifactsDir(), manifest.ServiceName(c.ID, c.Version)))
 			if contract != "—" {
 				contract = strings.TrimSuffix(contract, "`") + "/`"
@@ -93,6 +93,17 @@ func RenderProjectDoc(p *Project) string {
 	}
 	b.WriteString("\n")
 	return managedBlock(b.String())
+}
+
+// docPath 是一个组件版本的文档：本地源目录里正好是这个版本时指向作者正在改的那一份
+// （缓存里的是快照，一改就过时），否则指向缓存。
+func (p *Project) docPath(id, version string) string {
+	if dir, ok := p.LocalRepo(id); ok {
+		if v, err := LocalRepoVersion(dir); err == nil && v == version && exists(filepath.Join(dir, FileProjectDoc)) {
+			return filepath.Join(dir, FileProjectDoc)
+		}
+	}
+	return p.Layout.CachedDocPath(id, version)
 }
 
 // rel 把路径写成项目根下的相对路径（斜杠分隔、反引号包起来）。

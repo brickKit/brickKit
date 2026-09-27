@@ -73,6 +73,11 @@ func runInitCreate(opts *Options, name string, f initFlags) error {
 		return err
 	}
 	dir := filepath.Join(opts.WorkDir, name)
+	if info, err := os.Stat(dir); err == nil && !info.IsDir() {
+		return clierr.New(clierr.CodeProjectExists, i18n.T(msgid.CliInitPathNotADir, name)).
+			WithDetail(i18n.T(msgid.LabelPath), dir).
+			WithHint(i18n.T(msgid.CliInitHintOtherName))
+	}
 	if empty, err := project.DirIsEmpty(dir); err == nil && !empty {
 		return clierr.New(clierr.CodeProjectExists, i18n.T(msgid.CliInitDirNotEmpty, name)).
 			WithDetail(i18n.T(msgid.LabelDir), dir).
@@ -148,18 +153,25 @@ func runInitComplete(opts *Options, f initFlags) error {
 	if empty {
 		renderCompletePlan(opts, plan)
 	}
-	if len(plan.GitignoreMissing) > 0 {
-		w := clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliInitGitignoreMissing)).
-			WithDetail(i18n.T(msgid.LabelFile), project.FileGitignore)
-		for _, rule := range plan.GitignoreMissing {
-			w = w.WithDetail(i18n.T(msgid.CliInitGitignoreMissingEntry), rule)
-		}
-		opts.Printf("%s", w.WithHint(i18n.T(msgid.CliInitHintAddGitignore)).Format())
-	}
+	renderGitignoreWarning(opts, project.FileGitignore, plan.GitignoreMissing)
 	if plan.ProjectDocUnmanaged {
 		opts.Printf("   ℹ️ %s\n", i18n.T(msgid.CliInitProjectDocUnmanaged, project.FileProjectDoc))
 	}
 	return finishInit(opts, layout, f, true)
+}
+
+// renderGitignoreWarning 大声说出 .gitignore 缺的必需条目（提案 §11.5 的核心防线）：
+// brickkit init 与 add --local --init 的子工作台走同一处，谁也不能悄悄放过。
+func renderGitignoreWarning(opts *Options, file string, missing []string) {
+	if len(missing) == 0 {
+		return
+	}
+	w := clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliInitGitignoreMissing)).
+		WithDetail(i18n.T(msgid.LabelFile), file)
+	for _, rule := range missing {
+		w = w.WithDetail(i18n.T(msgid.CliInitGitignoreMissingEntry), rule)
+	}
+	opts.Printf("%s", w.WithHint(i18n.T(msgid.CliInitHintAddGitignore)).Format())
 }
 
 // renderCompletePlan 列出补全要创建、跳过的文件与 .gitignore 的缺项。

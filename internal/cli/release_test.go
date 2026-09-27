@@ -166,3 +166,18 @@ func TestReleaseLocalNothingToRelease(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "no local-source components")
 }
+
+// 两个本地源指向同一个目录：一个组件只发布一次。
+func TestReleaseLocalOverlappingSourcesReleaseOnce(t *testing.T) {
+	dir, origins := localReleaseProject(t)
+	writeTree(t, dir, map[string]string{
+		"brickkit.yaml": "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\n  - name: again\n    type: local\n    path: ./components/\ncomponents: []\n",
+	})
+	r := runIn(t, dir, "release", "--local")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, 3, strings.Count(r.stdout, "Released erp/"))
+	assert.NotContains(t, r.stdout, "✅ ✅")
+	for _, origin := range origins {
+		assert.Equal(t, "1.0.0", relGit(t, origin, "tag", "--list"))
+	}
+}

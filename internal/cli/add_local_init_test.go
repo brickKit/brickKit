@@ -97,3 +97,14 @@ func TestAddInitWithoutLocalIsUsageError(t *testing.T) {
 	assert.Equal(t, clierr.ExitUsage, r.code)
 	assert.Contains(t, r.stderr, "--init")
 }
+
+// 子工作台的 .gitignore 缺必需条目：与 brickkit init 一样大声警告；并提醒把工作台提交进组件仓库。
+func TestAddLocalInitWarnsChildGitignore(t *testing.T) {
+	g, dir := workspaceProject(t)
+	writeTree(t, dir, map[string]string{"components/erp/backend/.gitignore": "bin/\n"})
+	r := g.mustRun(dir, "add", "--local", "--init", "--yes")
+	assert.Contains(t, r.stdout, ".gitignore is missing required entries")
+	assert.Contains(t, r.stdout, filepath.Join("components", "erp", "backend"))
+	assert.Contains(t, r.stdout, "missing: .brickkit/")
+	assert.Contains(t, r.stdout, "commit")
+}

@@ -200,3 +200,44 @@ func TestReleaseMissingManifest(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, clierr.As(err).Format(), "component.yaml")
 }
+
+// 只在本地有的 tag 不是"已发布"：消费方取不到它。要么推上去、要么删掉——不能让人去改版本号。
+func TestReleaseLocalOnlyTagIsNotReleased(t *testing.T) {
+	r := newRepo(t, map[string]string{"component.yaml": manifestYAML("erp/api", "1.0.0")})
+	git(t, r.work, "tag", "1.0.0")
+	_, err := prepare(t, r.work).Check()
+	require.Error(t, err)
+	msg := clierr.As(err).Format()
+	assert.Contains(t, msg, "only locally")
+	assert.Contains(t, msg, "git push origin 1.0.0")
+	assert.NotContains(t, msg, "metadata.version")
+}
+
+// 远端有、本地没有（别的机器发布的，还没 fetch 下来），而且就在当前提交上：已发布。
+func TestReleaseRemoteTagAtHeadIsReleased(t *testing.T) {
+	r := newRepo(t, map[string]string{"component.yaml": manifestYAML("erp/api", "1.0.0")})
+	git(t, r.work, "tag", "1.0.0")
+	git(t, r.work, "push", "-q", "origin", "1.0.0")
+	git(t, r.work, "tag", "-d", "1.0.0")
+	state, err := prepare(t, r.work).Check()
+	require.NoError(t, err)
+	assert.Equal(t, release.Released, state)
+}
+
+func TestReleasePushFailureNamesTheComponent(t *testing.T) {
+	r := newRepo(t, map[string]string{"component.yaml": manifestYAML("erp/api", "1.0.0")})
+	require.NoError(t, os.WriteFile(filepath.Join(r.origin, "hooks", "pre-receive"), []byte("#!/bin/sh\nexit 1\n"), 0o755))
+	err := prepare(t, r.work).Publish()
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Message, "erp/api@1.0.0")
+}
+
+// 游离 HEAD（CI 的检出常常是）：说清要在分支上发布，而不只是"没有上游"。
+func TestReleaseDetachedHeadSaysUseABranch(t *testing.T) {
+	r := newRepo(t, map[string]string{"component.yaml": manifestYAML("erp/api", "1.0.0")})
+	git(t, r.work, "checkout", "-q", "--detach")
+	_, err := prepare(t, r.work).Check()
+	require.Error(t, err)
+	assert.Contains(t, clierr.As(err).Format(), "branch")
+	assert.Contains(t, clierr.As(err).Format(), "git checkout")
+}

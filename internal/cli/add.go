@@ -159,6 +159,7 @@ func installAdd(ctx context.Context, opts *Options, proj *project.Project, clien
 	if err := runClones(ctx, opts, proj.Layout, clones, true); err != nil {
 		return err
 	}
+	refreshProjectDoc(opts, proj.Layout)
 	logging.Info(i18n.T(msgid.LogComponentAdded), "components", joinRefs(targets), "added", len(plan.Added))
 	return nil
 }

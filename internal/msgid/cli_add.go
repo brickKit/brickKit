@@ -52,4 +52,5 @@ const (
 	CliAddLocalInitHintKept          = "cli.add.local_init_hint_kept"
 	CliAddLocalInitDone              = "cli.add.local_init_done"
 	CountDependencies                = "count.dependencies"
+	CliAddLocalInitCommit            = "cli.add.local_init_commit"
 )
