@@ -80,6 +80,9 @@ type Options struct {
 	// stdinReader 是 Stdin 上唯一的缓冲读取器：一次命令里有好几个问题时，
 	// 每次新建读取器会把后面的回答吞进前一个的缓冲区。
 	stdinReader *bufio.Reader
+	// Images 是本机镜像的操作（build、up 的镜像检查）。为空时按部署目标用 docker 或 podman；
+	// 测试可替换。
+	Images engine.Images
 	// Engine 是容器引擎。为空时按 005 §7 自动检测（目前只支持 Docker）。
 	//
 	// 命令层的职责是"决定谁该启动、先检查什么"，不是"怎么调 docker"；
@@ -199,6 +202,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		newAddCommand(opts),
 		newRemoveCommand(opts),
 		newFetchCommand(opts),
+		newBuildCommand(opts),
 		newSyncCommand(opts),
 		newRestoreCommand(opts),
 		newUpCommand(opts),

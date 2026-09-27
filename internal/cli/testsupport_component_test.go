@@ -38,7 +38,8 @@ type comp struct {
 	Artifacts []string
 	// Migration 是 migration.command（002 §8.2）。
 	Migration []string
-	// Image 覆盖默认的 registry.example.com/<id>:<version>（P29 的 digest 用例要用）。
+	// Image 覆盖默认的 registry.example.com/<id>:<version>（P29 的 digest 用例要用）；
+	// 写 "-" 表示只有 deployment.build、没有 image。
 	Image string
 	// ConfigSchema 是 "键名:默认值" 的列表，如 "greeting:你好"（38.19 的升级摘要要用）。
 	ConfigSchema []string
@@ -108,7 +109,12 @@ func (c comp) yamlText() string {
 		}
 	}
 	b.WriteString("deployment:\n  type: container\n")
-	fmt.Fprintf(&b, "  image: %s\n", c.imageRef())
+	if c.Image == "-" {
+		// 只有 build、没有 image：镜像由 brickkit build 构建，名字由组件 ID 与版本推出来
+		b.WriteString("  build:\n    dockerfile: Dockerfile\n")
+	} else {
+		fmt.Fprintf(&b, "  image: %s\n", c.imageRef())
+	}
 	port := c.Port
 	if port == 0 {
 		port = 8080
