@@ -13,7 +13,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
-// shellManifest 造一个声明了 shell.members 的外壳。
+// shellManifest 造一个声明了 shell.members 的外壳；members 每项写 id@version。
 func shellManifest(id, version string, port int, members ...string) *manifest.Manifest {
 	m := simple(id, version, port)
 	m.Shell = &manifest.Shell{Members: members}
@@ -39,7 +39,7 @@ func TestCheckShellBlockWithoutKind(t *testing.T) {
 	_, err := resolveRaw(t, &testCfg{Components: []testComp{
 		comp("erp/shell", "1.0.0", ""),
 	}}, map[string]*manifest.Manifest{
-		"erp/shell@1.0.0": shellManifest("erp/shell", "1.0.0", 8080, "erp/a"),
+		"erp/shell@1.0.0": shellManifest("erp/shell", "1.0.0", 8080, "erp/a@1.0.0"),
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "erp/shell")
@@ -52,7 +52,7 @@ func TestCheckMemberNotHostable(t *testing.T) {
 		comp("erp/shell", "1.0.0", ""),
 		comp("erp/x", "1.0.0", "erp/shell@1.0.0"),
 	}}, map[string]*manifest.Manifest{
-		"erp/shell@1.0.0": shellManifest("erp/shell", "1.0.0", 8080, "erp/a"),
+		"erp/shell@1.0.0": shellManifest("erp/shell", "1.0.0", 8080, "erp/a@1.0.0"),
 		"erp/x@1.0.0":     simple("erp/x", "1.0.0", 8081),
 	})
 	require.Error(t, err)
@@ -67,7 +67,7 @@ func TestCheckBareShellWithMembersAllowed(t *testing.T) {
 		{ID: "erp/shell", Version: "1.0.0", Mode: deployfile.ModeLocal},
 		comp("erp/a", "1.0.0", "erp/shell@1.0.0"),
 	}}, map[string]*manifest.Manifest{
-		"erp/shell@1.0.0": shellManifest("erp/shell", "1.0.0", 8080, "erp/a"),
+		"erp/shell@1.0.0": shellManifest("erp/shell", "1.0.0", 8080, "erp/a@1.0.0"),
 		"erp/a@1.0.0":     simple("erp/a", "1.0.0", 8081),
 	})
 	require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestCheckConsistentProject(t *testing.T) {
 		comp("erp/shell", "1.0.0", ""),
 		comp("erp/a", "1.0.0", "erp/shell@1.0.0"),
 	}}, map[string]*manifest.Manifest{
-		"erp/shell@1.0.0": shellManifest("erp/shell", "1.0.0", 8080, "erp/a"),
+		"erp/shell@1.0.0": shellManifest("erp/shell", "1.0.0", 8080, "erp/a@1.0.0"),
 		"erp/a@1.0.0":     simple("erp/a", "1.0.0", 8081),
 	})
 	require.NoError(t, err)

@@ -352,7 +352,7 @@ func TestMemberMigrationJobServiceAccountIsGenerated(t *testing.T) {
 // 声明成外壳、这次一个成员都没有：两个保留变量照样写。
 func TestK8sShellWithoutMembersStillGetsReservedVariables(t *testing.T) {
 	shellM := simple("erp/shell", "1.0.0", 8080)
-	shellM.Shell = &manifest.Shell{Members: []string{"erp/a"}}
+	shellM.Shell = &manifest.Shell{Members: []string{"erp/a@1.0.0"}}
 	b := newBuilder(t)
 	b.component(shellM, projecttest.Entry{Shell: true})
 

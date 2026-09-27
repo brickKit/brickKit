@@ -112,6 +112,22 @@ func TestJSONSchemaTagKeywords(t *testing.T) {
 	assert.Equal(t, schema{"type": []string{"string", "null"}}, p["opt"])
 }
 
+// 字符串数组上的 pattern 约束的是每一项（shell.members 每项都是 <id>@<精确版本>）。
+func TestPatternOnStringArrayConstrainsEachItem(t *testing.T) {
+	type tagged struct {
+		Refs []string `yaml:"refs" jsonschema:"pattern=^[a-z]+@[0-9]+$"`
+	}
+	p := props(generate(t, tagged{}))
+	assert.Equal(t, schema{"type": "array", "items": schema{"type": "string", "pattern": "^[a-z]+@[0-9]+$"}}, p["refs"])
+
+	type ints struct {
+		N []int `yaml:"n" jsonschema:"pattern=^x$"`
+	}
+	_, err := newGenerator(nil).typeSchema(reflect.TypeOf(ints{}))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "pattern 只能用在 string")
+}
+
 func TestJSONSchemaTagErrorsAreLoud(t *testing.T) {
 	cases := map[string]any{
 		"不认识的关键字": struct {

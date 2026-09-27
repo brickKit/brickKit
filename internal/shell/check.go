@@ -41,9 +41,8 @@ func Check(p *project.Project, graph *resolver.Graph, _ *cascade.Result) error {
 			continue
 		}
 		for _, written := range p.MembersOf(c.ID) {
-			// 能力声明只列组件 ID；成员条目可能写了 id@version（外壳承载的是哪个版本）
 			member, _ := written.Key()
-			if !node.Manifest.CanHost(member) {
+			if _, ok := node.Manifest.HostedVersion(member); !ok {
 				return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellMemberNotHostable, member, ref.String())).
 					WithDetail(i18n.T(msgid.LabelFile), p.DeployPath).
 					WithDetail(i18n.T(msgid.ShellLabelCanHost), strings.Join(node.Manifest.Shell.Members, ", ")).

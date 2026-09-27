@@ -16,7 +16,7 @@
 //     jsonschema:"optional"。
 //   - 反射还决定"能不能写成 null"：不必填的字段（同上：omitempty、bool、指针、optional）允许，
 //     必填的不允许。理由与写法见 makeNullable。
-//   - `jsonschema` struct tag：封闭取值的约束——enum、pattern、minimum、maximum。
+//   - `jsonschema` struct tag：封闭取值的约束——enum、pattern（用在字符串数组上时约束每一项）、minimum、maximum。
 //     关键字之间用 `,` 分隔，enum 的取值之间用 `|` 分隔；取值与 pattern 里不能出现
 //     `,` 与 `|`（也就不必在 struct tag 里转义反斜杠，正则写成 [.] 而不是 \.）。
 //     不认识的关键字、重复的关键字、空的 enum 取值都直接报错，写错了不会悄悄不生效。
@@ -317,10 +317,15 @@ func applyTag(node schema, tag string) (optional bool, err error) {
 			}
 			node["enum"] = list
 		case "pattern":
-			if kind != "string" {
+			// 字符串数组上的 pattern 约束每一项
+			target := node
+			if items, ok := node["items"].(schema); ok && kind == "array" {
+				target = items
+			}
+			if itemKind, _ := target["type"].(string); itemKind != "string" {
 				return false, fmt.Errorf("pattern 只能用在 string 字段上（这个字段是 %q）", kind)
 			}
-			node["pattern"] = value
+			target["pattern"] = value
 		case "minimum", "maximum":
 			if kind != "integer" && kind != "number" {
 				return false, fmt.Errorf("%s 只能用在 integer / number 字段上（这个字段是 %q）", key, kind)

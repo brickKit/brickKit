@@ -481,7 +481,7 @@ func TestShellWaitsForMemberDependencies(t *testing.T) {
 // 声明成外壳、这次一个成员都没有：两个保留变量照样写（空值），"零个成员"与"不受平台管辖"不能混为一谈。
 func TestShellWithoutMembersStillGetsReservedVariables(t *testing.T) {
 	shellM := simple("erp/shell", "1.0.0", 8080)
-	shellM.Shell = &manifest.Shell{Members: []string{"erp/a"}}
+	shellM.Shell = &manifest.Shell{Members: []string{"erp/a@1.0.0"}}
 	b := newBuilder(t)
 	b.component(shellM, projecttest.Entry{Shell: true})
 

@@ -46,7 +46,7 @@ type comp struct {
 	Memory string
 	// SecretConfig 是 ConfigSchema 里声明了 secret: true 的键名。
 	SecretConfig []string
-	// ShellMembers 是 shell.members：这个组件能当哪些组件的外壳。
+	// ShellMembers 是 shell.members：编进这个外壳的成员，每项写 <组件ID>@<精确版本>（附录 A24）。
 	ShellMembers []string
 	// Port 覆盖默认的 deployment.port（8080）——同一个外壳下的 servedBy
 	// 成员测试要用不同端口，否则端口冲突校验会先一步报错。

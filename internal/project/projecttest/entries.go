@@ -183,8 +183,8 @@ func mustYAML(t testing.TB, v any) string {
 // IntPtr 方便写 Replicas。
 func IntPtr(n int) *int { return &n }
 
-// FillShellCapability 给 spec 里被成员指向、却没写 shell 块的外壳 Manifest 补上能力声明
-// （shell.members 列出指向它的成员）。三处外壳声明一致是生成的前提（shell.Check），
+// FillShellCapability 给 spec 里被成员指向的外壳 Manifest 补上声明
+// （shell.members 列出指向它的成员及其版本，附录 A24）。三处外壳声明一致是生成的前提（shell.Check），
 // 大多数用例关心的不是它；manifests 以 "id@version" 为键。
 func FillShellCapability(spec Spec, manifests map[string]*manifest.Manifest) {
 	for _, e := range spec.Entries {
@@ -195,8 +195,8 @@ func FillShellCapability(spec Spec, manifests map[string]*manifest.Manifest) {
 		if m.Shell == nil {
 			m.Shell = &manifest.Shell{}
 		}
-		if !m.CanHost(e.ID) {
-			m.Shell.Members = append(m.Shell.Members, e.ID)
+		if _, ok := m.HostedVersion(e.ID); !ok {
+			m.Shell.Members = append(m.Shell.Members, e.ID+"@"+e.Version)
 		}
 	}
 }

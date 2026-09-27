@@ -70,7 +70,7 @@ dependencies:
     - id: demo/weak@1.0.0
       optional: true
 shell:
-  members: [demo/member]
+  members: [demo/member@1.0.0]
 configSchema:
   type: object
   properties:
@@ -781,6 +781,13 @@ func constraintCases() []constraintCase {
 			dataPath: []any{"dependencies", "components", 1, "id"}, errField: "dependencies.components[1]",
 			valid:   []any{"demo/weak@1.0.0", "demo/weak@10.2.3"},
 			invalid: []any{"demo/weak@^1.0.0", "demo/weak@latest", "demo/weak@1.0", "demo/weak@", "demo/weak", ""},
+		},
+		{
+			// 外壳编进去的成员（附录 A24）：与依赖项同一条 "<id>@<精确版本>" 骨架，ID 细则同样只在校验器里。
+			name: "shell.members[0]", doc: "component", schemaPath: "shell/members[]",
+			dataPath: []any{"shell", "members", 0}, errField: "shell.members[0]",
+			valid:   []any{"demo/member@1.0.0", "demo/member@10.2.3"},
+			invalid: []any{"demo/member@^1.0.0", "demo/member@latest", "demo/member@1.0", "demo/member@", "demo/member", ""},
 		},
 	}
 }

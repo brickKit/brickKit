@@ -266,7 +266,7 @@ shell:
 `, []string{"shell.members"}},
 		{"—", "外壳把自己列为成员", minimalYAML + `
 shell:
-  members: [infra/tool]
+  members: [infra/tool@1.0.0]
 `, []string{"shell.members[0]"}},
 		{"4.11", "artifact 缺少 type", minimalYAML + `
 artifacts:
@@ -616,4 +616,29 @@ configSchema:
 	require.NoError(t, err)
 	assert.True(t, m.ConfigSchema.Properties["apiKey"].Secret)
 	assert.False(t, m.ConfigSchema.Properties["region"].Secret, "不写就是 false")
+}
+
+// 附录 A24：外壳的 component.yaml 写明编进去的每个成员的精确版本。
+func TestValidateShellMembersNeedExactVersions(t *testing.T) {
+	cases := map[string]struct {
+		members string
+		want    []string
+	}{
+		"bare id":       {"[erp/api]", []string{"shell.members[0]", "erp/api@1.2.0"}},
+		"range":         {"[erp/api@^1.2.0]", []string{"shell.members[0]", "exact version"}},
+		"self":          {"[infra/tool@1.0.0]", []string{"shell.members[0]"}},
+		"same id twice": {"[erp/api@1.2.0, erp/api@1.3.0]", []string{"shell.members[1]", "erp/api", "1.2.0"}},
+		"bad id":        {"[Erp/Api@1.0.0]", []string{"shell.members[0]"}},
+	}
+	for name, tc := range cases {
+		_, err := Parse([]byte(minimalYAML+"shell:\n  members: "+tc.members+"\n"), "component.yaml")
+		require.Error(t, err, name)
+		for _, w := range tc.want {
+			assert.Contains(t, err.Error(), w, name)
+		}
+	}
+
+	m, err := Parse([]byte(minimalYAML+"shell:\n  members: [erp/api@1.2.0, erp/worker@1.0.0]\n"), "component.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"erp/api@1.2.0", "erp/worker@1.0.0"}, m.Shell.Members)
 }

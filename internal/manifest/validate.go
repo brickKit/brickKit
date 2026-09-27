@@ -477,19 +477,29 @@ func (m *Manifest) validateShell(p *clierr.ProblemSet) {
 	if len(m.Shell.Members) == 0 {
 		p.Add("shell.members", i18n.T(msgid.ManifestShellMembersEmpty))
 	}
-	seen := map[string]bool{}
+	// 按组件 ID 记：一个外壳只编进一个组件的一个版本（附录 A24）
+	seen := map[string]string{}
 	for i, member := range m.Shell.Members {
 		field := fmt.Sprintf("shell.members[%d]", i)
+		id, version, hasVersion := strings.Cut(member, "@")
 		switch {
-		case member == m.Metadata.ID:
+		case !hasVersion || version == "":
+			p.Add(field, i18n.T(msgid.ManifestShellMemberNeedsVersion, member))
+			continue
+		case id == m.Metadata.ID:
 			p.Add(field, i18n.T(msgid.DeployfileMemberSelf))
-		case seen[member]:
-			p.Add(field, i18n.T(msgid.DeployfileMemberDuplicate, member))
-		default:
-			if reason := componentIDProblem(member); reason != "" {
-				p.Add(field, reason)
-			}
+			continue
 		}
-		seen[member] = true
+		if reason := componentIDProblem(id); reason != "" {
+			p.Add(field, reason)
+		}
+		if !exactVersionRe.MatchString(version) {
+			p.Add(field, i18n.T(msgid.ManifestDependencyVersionNotExact, version))
+		}
+		if prev, dup := seen[id]; dup {
+			p.Add(field, i18n.T(msgid.ManifestShellMemberTwoVersions, id, prev, version))
+			continue
+		}
+		seen[id] = version
 	}
 }

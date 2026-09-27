@@ -39,8 +39,19 @@ func TestStandaloneImageAndShell(t *testing.T) {
 
 	m := withImage("x", nil)
 	assert.False(t, m.IsShell())
-	m.Shell = &manifest.Shell{Members: []string{"erp/api"}}
+	m.Shell = &manifest.Shell{Members: []string{"erp/api@1.2.0"}}
 	assert.True(t, m.IsShell())
-	assert.True(t, m.CanHost("erp/api"))
-	assert.False(t, m.CanHost("erp/other"))
+}
+
+func TestHostedVersion(t *testing.T) {
+	m := withImage("x", nil)
+	_, ok := m.HostedVersion("erp/api")
+	assert.False(t, ok, "不是外壳")
+
+	m.Shell = &manifest.Shell{Members: []string{"erp/worker@1.0.0", "erp/api@1.2.0"}}
+	v, ok := m.HostedVersion("erp/api")
+	assert.True(t, ok)
+	assert.Equal(t, "1.2.0", v)
+	_, ok = m.HostedVersion("erp/other")
+	assert.False(t, ok)
 }

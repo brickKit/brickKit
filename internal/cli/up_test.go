@@ -589,7 +589,7 @@ func TestUpDoesNotWarnAboutCrashLinesWhenNotPassed(t *testing.T) {
 
 func TestUpDryRunFallsBackServedByMemberWhenShellDisabled(t *testing.T) {
 	comps := []comp{
-		{ID: "infra/shell-go-core", Version: "1.0.0", ShellMembers: []string{"mdm/customer"}},
+		{ID: "infra/shell-go-core", Version: "1.0.0", ShellMembers: []string{"mdm/customer@1.0.7"}},
 		{ID: "mdm/customer", Version: "1.0.7"},
 	}
 	f := addedProject(t, comps, "infra/shell-go-core@1.0.0", "mdm/customer@1.0.7")
@@ -617,7 +617,7 @@ func TestUpDryRunFallsBackServedByMemberWhenShellDisabled(t *testing.T) {
 // 否则文件里有这个 service、但没人真的把它启动起来，命令却报成功。
 func TestUpStartsFallbackMemberForReal(t *testing.T) {
 	comps := []comp{
-		{ID: "infra/shell-go-core", Version: "1.0.0", ShellMembers: []string{"mdm/customer"}},
+		{ID: "infra/shell-go-core", Version: "1.0.0", ShellMembers: []string{"mdm/customer@1.0.7"}},
 		{ID: "mdm/customer", Version: "1.0.7"},
 	}
 	f := addedProject(t, comps, "infra/shell-go-core@1.0.0", "mdm/customer@1.0.7")

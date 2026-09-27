@@ -5,17 +5,18 @@ import "strings"
 // IsShell 报告这个组件是不是外壳（附录 A11：出现 shell 块即是）。
 func (m *Manifest) IsShell() bool { return m != nil && m.Shell != nil }
 
-// CanHost 报告外壳是否声明过能承载 id。
-func (m *Manifest) CanHost(id string) bool {
+// HostedVersion 返回外壳声明编进去的 id 的精确版本（附录 A24）；
+// m 不是外壳、或没编进 id 时 ok 为 false。
+func (m *Manifest) HostedVersion(id string) (version string, ok bool) {
 	if !m.IsShell() {
-		return false
+		return "", false
 	}
 	for _, member := range m.Shell.Members {
-		if member == id {
-			return true
+		if memberID, v, found := strings.Cut(member, "@"); found && memberID == id {
+			return v, true
 		}
 	}
-	return false
+	return "", false
 }
 
 // HasStandaloneImage 报告组件是否有自己的镜像来源（预构建镜像或本地构建）。

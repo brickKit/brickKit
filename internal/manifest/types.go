@@ -39,8 +39,8 @@ type Manifest struct {
 	Migration    *Migration    `yaml:"migration,omitempty"`
 	HealthCheck  HealthCheck   `yaml:"healthCheck"`
 	Local        *Local        `yaml:"local,omitempty"`
-	// Shell 出现即表示这个组件是外壳（附录 A11），Members 是它"能承载"的组件——
-	// 能力声明；实际收编了谁只看部署文件的 members（提案 §8.4）。
+	// Shell 出现即表示这个组件是外壳（附录 A11），Members 是构建时编进外壳的成员及其
+	// 精确版本（附录 A24）；这次实际收编了谁只看部署文件的 members，平台只核对版本一致。
 	Shell *Shell `yaml:"shell,omitempty"`
 
 	// Source 是该 Manifest 的来源（文件路径或安装源描述），只用于错误提示。
@@ -173,9 +173,10 @@ type Build struct {
 	Dockerfile string `yaml:"dockerfile,omitempty"`
 }
 
-// Shell 是外壳的能力声明。
+// Shell 是外壳的声明：构建时编进外壳的成员及其精确版本（附录 A24）。
 type Shell struct {
-	Members []string `yaml:"members"`
+	// Members 每项是 <组件ID>@<精确版本>，一个组件 ID 只出现一次。
+	Members []string `yaml:"members" jsonschema:"pattern=^[^@ ]+@[0-9]+[.][0-9]+[.][0-9]+$"`
 }
 
 // ExtraPort 是额外端口声明（附录 B.7）。

@@ -6,7 +6,7 @@ metadata:
   version: 1.0.0
   description: 外壳：一个进程里承载 erp/api 与 erp/worker
 shell:
-  members: [erp/api, erp/worker]
+  members: [erp/api@1.0.0, erp/worker@1.0.0]
 deployment:
   type: container
   image: registry.example.com/erp-shell:1.0.0

@@ -158,7 +158,7 @@ func servedByProject(t *testing.T) *projectFixture {
 	t.Helper()
 
 	comps := []comp{
-		{ID: "infra/shell-go-core", Version: "1.0.0", ShellMembers: []string{"mdm/customer"}},
+		{ID: "infra/shell-go-core", Version: "1.0.0", ShellMembers: []string{"mdm/customer@1.0.7"}},
 		{ID: "mdm/customer", Version: "1.0.7", Port: 8081},
 	}
 	f := addedProject(t, comps, "infra/shell-go-core@1.0.0", "mdm/customer@1.0.7")
