@@ -218,15 +218,20 @@ func (c *Compose) exec(ctx context.Context, args ...string) ([]byte, error) {
 	if err == nil {
 		return out, nil
 	}
+	return out, c.failure(args, out, err, 3)
+}
+
+// failure 把一次失败的调用翻译成给人看的错误（缺二进制、执行失败），输出保留最后 lines 行。
+func (c *Compose) failure(args []string, out []byte, err error, lines int) error {
 	if isMissingBinary(err) {
-		return out, clierr.New(clierr.CodeEngineMissing, i18n.T(msgid.EngineBinaryMissing, c.bin)).
+		return clierr.New(clierr.CodeEngineMissing, i18n.T(msgid.EngineBinaryMissing, c.bin)).
 			WithHint(installHint(c.bin)).
 			WithCause(err)
 	}
 
 	failure := clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.EngineExecFailed, c.bin)).
 		WithDetail(i18n.T(msgid.LabelCommand), c.bin+" "+strings.Join(args, " ")).
-		WithDetail(i18n.T(msgid.LabelOutput), tail(string(out), 3)).
+		WithDetail(i18n.T(msgid.LabelOutput), tail(string(out), lines)).
 		WithCause(err)
 	// 特征串本身只可能来自 Podman 的 rootless 网络拆卸失败，所以不必按 c.bin
 	// 或子命令收窄——down 之外，up 的 --remove-orphans 清理孤儿容器时也会撞
@@ -234,7 +239,7 @@ func (c *Compose) exec(ctx context.Context, args ...string) ([]byte, error) {
 	if strings.Contains(string(out), "kill network process: permission denied") {
 		failure = failure.WithHint(i18n.T(msgid.EnginePodmanDownBlockedByAppArmor))
 	}
-	return out, failure
+	return failure
 }
 
 // installHint 按缺失的二进制给出对应的安装建议——Podman 引擎缺 podman 时
