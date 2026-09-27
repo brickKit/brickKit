@@ -28,6 +28,7 @@ import (
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/install"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/projfile"
@@ -43,8 +44,8 @@ type applied struct {
 	ConfigsWritten []string
 	// ConfigsArchived 是移进 config/.archive/ 的配置（原路径 → 归档路径，相对项目根）。
 	ConfigsArchived [][2]string
-	// ArchivedExisting 是这次生成骨架时，归档里已经躺着的同版本旧配置（相对项目根）。
-	ArchivedExisting []string
+	// Restored 是从 config/.archive/ 迁移回来的配置（§7.7）。
+	Restored []restoreResult
 	// DeployFiles 是改过的部署文件名。
 	DeployFiles []string
 	// OtherDeployFiles 是没有改的其他部署文件（-f 用的环境文件）。
@@ -53,6 +54,12 @@ type applied struct {
 	Migrations []migrationResult
 	// Project 是改完之后重新装载的项目。
 	Project *project.Project
+}
+
+// restoreResult 是一份从归档恢复的配置：从哪个归档文件、迁移成了哪个文件。
+type restoreResult struct {
+	File, Archive string
+	Report        configdir.MigrateReport
 }
 
 // migrationResult 是一份迁移过的配置文件。
@@ -89,6 +96,8 @@ type applier struct {
 	createdDirs []string
 	result      *applied
 	options     applyOptions
+	// wroteConflicts：这次写出了冲突块（两行重复键）
+	wroteConflicts bool
 }
 
 // applyPlan 把 plan 写进三份文件，varRefs 是配置骨架里改成 $var: 引用的键（按组件版本）。
@@ -103,7 +112,8 @@ func applyPlanWith(opts *Options, proj *project.Project, plan *install.Plan, ao 
 		a.rollback()
 		return nil, err
 	}
-	reloaded, err := checkInstalled(proj.Layout, ao.topologyOnly)
+	// 迁移（upgrade、从归档恢复）写出了冲突块：那是给使用者的待办，配置当然装载不了，只核对拓扑
+	reloaded, err := checkInstalled(proj.Layout, ao.topologyOnly || a.wroteConflicts)
 	if err != nil {
 		a.rollback()
 		return nil, wouldBreakError(err)
@@ -307,6 +317,7 @@ func (a *applier) editConfigs(plan *install.Plan) error {
 			return err
 		}
 		a.result.Migrations = append(a.result.Migrations, migrationResult{File: a.rel(path), Report: report})
+		a.noteConflicts(report)
 	}
 	for _, c := range plan.AddConfigs {
 		ref := install.ConfigRef{ID: c.ID, Version: c.Version, Versioned: c.Versioned}
@@ -314,14 +325,21 @@ func (a *applier) editConfigs(plan *install.Plan) error {
 		if _, err := os.Stat(path); err == nil {
 			continue // 已有的配置文件是使用者的，绝不覆盖
 		}
-		if err := a.write(path, configdir.Skeleton(c.ID, c.Version, c.Schema, a.options.varRefs[ref])); err != nil {
+		content := configdir.Skeleton(c.ID, c.Version, c.Schema, a.options.varRefs[ref])
+		// 归档里有这个组件的旧配置（remove 时留下的）：按迁移算法恢复，而不是给一份空骨架（§7.7）
+		if archive, version, ok := a.archivedConfig(c.ID, c.Version); ok {
+			restored, report, err := a.restore(c, archive, version)
+			if err != nil {
+				return err
+			}
+			content = restored
+			a.result.Restored = append(a.result.Restored, restoreResult{File: a.rel(path), Archive: a.rel(archive), Report: report})
+			a.noteConflicts(report)
+		}
+		if err := a.write(path, content); err != nil {
 			return err
 		}
 		a.result.ConfigsWritten = append(a.result.ConfigsWritten, a.rel(path))
-		archived := filepath.Join(l.ConfigArchiveDir(), configdir.FileName(c.ID, c.Version))
-		if _, err := os.Stat(archived); err == nil {
-			a.result.ArchivedExisting = append(a.result.ArchivedExisting, a.rel(archived))
-		}
 	}
 	return nil
 }
@@ -472,4 +490,49 @@ func readOptional(path string) ([]byte, error) {
 		return nil, writeError(path, err)
 	}
 	return data, nil
+}
+
+// archivedConfig 找 config/.archive/ 里这个组件的配置：同版本的优先，否则取版本最高的那份。
+func (a *applier) archivedConfig(id, version string) (path, archivedVersion string, ok bool) {
+	dir := a.proj.Layout.ConfigArchiveDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", "", false
+	}
+	for _, e := range entries {
+		base, v, parsed := configdir.ParseFileName(e.Name())
+		if !parsed || base != configdir.FileBase(id) || v == "" {
+			continue
+		}
+		if v == version {
+			return filepath.Join(dir, e.Name()), v, true
+		}
+		if archivedVersion == "" || manifest.CompareVersions(v, archivedVersion) > 0 {
+			path, archivedVersion = filepath.Join(dir, e.Name()), v
+		}
+	}
+	return path, archivedVersion, path != ""
+}
+
+// restore 把归档的配置迁移到这次 add 的版本。旧版本的 configSchema 取自永久的 Manifest 缓存；
+// 缓存里没有时不知道旧默认值，归档里的键都当作使用者写的。
+func (a *applier) restore(c install.ConfigFile, archive, archivedVersion string) ([]byte, configdir.MigrateReport, error) {
+	source, err := readOptional(archive)
+	if err != nil {
+		return nil, configdir.MigrateReport{}, err
+	}
+	m := install.ConfigMigration{ID: c.ID, From: archivedVersion, To: c.Version, NewSchema: c.Schema}
+	if old, err := manifest.ParseFile(a.proj.Layout.CachedManifestPath(c.ID, archivedVersion)); err == nil {
+		m.OldSchema = old.ConfigSchema
+	}
+	return migrateConfig(m, source, a.options.choose)
+}
+
+// noteConflicts 记下这次迁移有没有写出冲突块。
+func (a *applier) noteConflicts(r configdir.MigrateReport) {
+	for _, choice := range r.Resolved {
+		if choice == configdir.ChooseDuplicate {
+			a.wroteConflicts = true
+		}
+	}
 }

@@ -1128,7 +1128,7 @@ var en = map[string]string{
 	msgid.CliAddNested:                                                                       "🔗 %[1]s moved into shell %[2]s",
 	msgid.CliAddRequiredByExtended:                                                           "🔗 %[1]s is now required by: %[2]s",
 	msgid.CliAddConfigsWritten:                                                               "📝 Config skeletons: %[1]s (fill in the required keys)",
-	msgid.CliAddArchivedConfigExists:                                                         "ℹ️  An archived config for this version is at %[1]s; copy what you need from it by hand",
+	msgid.CliAddConfigRestored:                                                               "♻️  %[1]s restored from the archive (%[2]s, migrated to this version)",
 	msgid.CliAddArtifacts:                                                                    "📦 Artifacts: %[1]s, in .brickkit/artifacts/",
 	msgid.CliAddSignatureVerified:                                                            "🔏 Signature verified: %[1]s",
 	msgid.CliAddVarPrompt:                                                                    "config/vars.yaml already has %[1]s; reference it in %[2]s? [y/N] ",

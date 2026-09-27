@@ -134,7 +134,10 @@ func installAdd(ctx context.Context, opts *Options, proj *project.Project, clien
 	if err != nil {
 		return err
 	}
-	res, err := applyPlan(opts, proj, plan, askVarRefs(opts, proj, plan, f.yes))
+	res, err := applyPlanWith(opts, proj, plan, applyOptions{
+		varRefs: askVarRefs(opts, proj, plan, f.yes),
+		choose:  conflictChooser(opts, f.yes),
+	})
 	if err != nil {
 		return err
 	}
@@ -239,8 +242,9 @@ func renderAddResult(opts *Options, targets []resolver.Ref, plan *install.Plan, 
 	if len(res.ConfigsWritten) > 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliAddConfigsWritten, strings.Join(res.ConfigsWritten, ", ")))
 	}
-	for _, path := range res.ArchivedExisting {
-		opts.Printf("%s\n", i18n.T(msgid.CliAddArchivedConfigExists, path))
+	for _, r := range res.Restored {
+		opts.Printf("%s\n", i18n.T(msgid.CliAddConfigRestored, r.File, r.Archive))
+		renderMigrationReport(opts, r.File, r.Report)
 	}
 	for _, note := range plan.Notes {
 		opts.Printf("%s\n", i18n.T(msgid.CliInstallNote, note))

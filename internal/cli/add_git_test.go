@@ -400,3 +400,56 @@ func TestAddRollbackRemovesCreatedDirsAndKeepsModes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
+
+// §7.7：remove 归档的配置，重新 add 时迁移回来——使用者写过的值回来了。
+func TestAddRestoresArchivedConfig(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(withConfig(comp{ID: "erp/api", Version: "1.0.0"}, "DB_HOST:x"))
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+	cfg := filepath.Join(dir, "config", "erp-api.yaml")
+	editFile(t, cfg, "# DB_HOST: ", "DB_HOST: pg.internal  # ")
+	g.mustRun(dir, "remove", "erp/api")
+	require.NoFileExists(t, cfg)
+
+	r := g.mustRun(dir, "add", "erp/api@1.0.0")
+	assert.Contains(t, readFile(t, cfg), "DB_HOST: pg.internal")
+	assert.Contains(t, r.stdout, "config/.archive/erp-api@1.0.0.yaml")
+}
+
+// 归档里是旧版本（1.0.0），这次 add 的是 2.0.0：按迁移算法迁移，新版本没有了的键报出来。
+func TestAddRestoresFromOlderArchivedVersion(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(withConfig(comp{ID: "erp/api", Version: "1.0.0"}, "DB_HOST:x", "OLD_KEY:y"))
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+	cfg := filepath.Join(dir, "config", "erp-api.yaml")
+	editFile(t, cfg, "# DB_HOST: ", "DB_HOST: pg.internal  # ")
+	editFile(t, cfg, "# OLD_KEY: ", "OLD_KEY: legacy  # ")
+	g.mustRun(dir, "remove", "erp/api")
+	g.release(withConfig(comp{ID: "erp/api", Version: "2.0.0"}, "DB_HOST:x", "NEW_KEY:z"))
+
+	r := g.mustRun(dir, "add", "erp/api@2.0.0")
+	text := readFile(t, cfg)
+	assert.Contains(t, text, "DB_HOST: pg.internal")
+	assert.Contains(t, text, "# Component: erp/api@2.0.0")
+	assert.NotContains(t, text, "OLD_KEY")
+	assert.Contains(t, r.stdout, "OLD_KEY")
+}
+
+// 从归档恢复遇到冲突（使用者改过、默认值也变了）：--yes 写成冲突块，up 在解决之前拒绝启动。
+func TestAddArchiveRestoreConflictUsesYes(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(withConfig(comp{ID: "erp/api", Version: "1.0.0"}, "LOG_LEVEL:info"))
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+	cfg := filepath.Join(dir, "config", "erp-api.yaml")
+	editFile(t, cfg, "# LOG_LEVEL: ", "LOG_LEVEL: debug  # ")
+	g.mustRun(dir, "remove", "erp/api")
+	g.release(withConfig(comp{ID: "erp/api", Version: "2.0.0"}, "LOG_LEVEL:warn"))
+
+	r := g.run(dir, "add", "erp/api@2.0.0", "--yes")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, 2, strings.Count(readFile(t, cfg), "\nLOG_LEVEL: "))
+	assert.Equal(t, clierr.ExitError, g.run(dir, "up", "--dry-run").code)
+}

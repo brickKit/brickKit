@@ -1121,7 +1121,7 @@ var zh = map[string]string{
 	msgid.CliAddNested:                                               "🔗 %[1]s 挪进了外壳 %[2]s",
 	msgid.CliAddRequiredByExtended:                                   "🔗 %[1]s 的 requiredBy 现在是：%[2]s",
 	msgid.CliAddConfigsWritten:                                       "📝 配置骨架：%[1]s（必填项要自己填上）",
-	msgid.CliAddArchivedConfigExists:                                 "ℹ️  归档里有这个版本的旧配置：%[1]s——需要的话自己对照着填",
+	msgid.CliAddConfigRestored:                                       "♻️  %[1]s 从归档恢复（%[2]s，按新版本迁移）",
 	msgid.CliAddArtifacts:                                            "📦 产物：%[1]s，在 .brickkit/artifacts/",
 	msgid.CliAddSignatureVerified:                                    "🔏 签名已校验：%[1]s",
 	msgid.CliAddVarPrompt:                                            "config/vars.yaml 里已有 %[1]s，在 %[2]s 里引用它吗？[y/N] ",
