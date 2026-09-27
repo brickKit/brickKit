@@ -214,6 +214,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		newLoginCommand(opts),
 		newLogoutCommand(opts),
 		newPublishCommand(opts),
+		newReleaseCommand(opts),
 		newVersionCommand(opts),
 		newLangCommand(opts),
 	)

@@ -99,6 +99,15 @@ const (
 	// 不懂 .gitmodules，会把子模块的独立版本历史和 superproject 脱钩且不报错。
 	CodeSubmoduleGuard Code = "SUBMODULE_GUARD"
 
+	// 发布（brickkit release，提案 §10.2）。
+	//
+	// CodeReleaseBlocked 是"发布前的检查没过"（工作区不干净、有未推送的提交、没有上游、
+	// tag 已存在）：什么都没写，改好再发。
+	CodeReleaseBlocked Code = "RELEASE_BLOCKED"
+	// CodeReleasePushFailed 是"tag 推不上去"：本地 tag 已回滚，远端的原因（网络、权限、
+	// 服务端钩子）解决后可以原样重试。
+	CodeReleasePushFailed Code = "RELEASE_PUSH_FAILED"
+
 	// 结构检查（brickkit lint）。
 	//
 	// CodeLintFailed 是"lint 查出了问题"——逐条问题已经打印在 stdout，这个码只标记整条命令的结局。
