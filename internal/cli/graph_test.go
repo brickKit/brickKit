@@ -354,9 +354,9 @@ resources: []
 	assert.Contains(t, r.stdout, "    class demo_ghost_1_0_0 missing\n")
 }
 
-// brickkit.yaml 里没列出来的传递依赖照样画：resolver 会把它拉进图（up 也是），
-// 它没有自己的条目，也就没有 mode / servedBy 可读。
-func TestGraphDrawsTransitiveDependencyNotListedInConfig(t *testing.T) {
+// brickkit.yaml 是锁文件：没列出来的强依赖不会被悄悄拉进图（up 同样拦下），
+// graph 报错并给出 add 的出路，stdout 里不留半张图。
+func TestGraphStopsOnDependencyNotListedInConfig(t *testing.T) {
 	f := graphProject(t, `components:
   - id: demo/caller
     version: 1.0.0
@@ -367,12 +367,9 @@ resources: []
 	)
 
 	r := runIn(t, f.Dir, "graph")
-	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Equal(t, `graph TD
-    demo_hello_1_0_0["demo/hello@1.0.0"]
-    demo_caller_1_0_0["demo/caller@1.0.0"]
-    demo_caller_1_0_0 --> demo_hello_1_0_0
-`, r.stdout)
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Empty(t, r.stdout)
+	assert.Contains(t, r.stderr, "brickkit add demo/caller@1.0.0")
 }
 
 func TestGraphFailsWithoutProjectConfig(t *testing.T) {

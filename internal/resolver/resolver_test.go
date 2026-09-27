@@ -425,14 +425,52 @@ func TestResolveProject(t *testing.T) {
 		comp{ID: "people/basic", Version: "1.0.0"},
 	)
 	p := projecttest.Load(t, projecttest.Files{
+		"brickkit.yaml": "project: p\ncomponents:\n  - {id: erp/backend, version: 1.0.0}\n  - {id: people/basic, version: 1.0.0}\n",
+		"deploy.yaml":   "target: docker\ncomponents:\n  - id: erp/backend\n  - id: people/basic\n",
+	})
+
+	g, err := f.Resolver.ResolveProject(context.Background(), p)
+	require.NoError(t, err)
+	assert.Len(t, g.Nodes, 2)
+	assert.Equal(t, []Ref{{"erp/backend", "1.0.0"}, {"people/basic", "1.0.0"}}, g.Roots)
+}
+
+// brickkit.yaml 是锁文件：以项目为根解析时只在已声明的版本里找。强依赖没声明是错误
+// （它没有部署条目、没有配置文件，却会被拉下来运行），提示用 add 补上依赖。
+func TestResolveProjectRequiresDeclaredDependencies(t *testing.T) {
+	f := newFixture(t,
+		comp{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
+		comp{ID: "people/basic", Version: "1.0.0"},
+	)
+	p := projecttest.Load(t, projecttest.Files{
+		"brickkit.yaml": "project: p\ncomponents:\n  - {id: erp/backend, version: 1.0.0}\n",
+		"deploy.yaml":   "target: docker\ncomponents:\n  - id: erp/backend\n",
+	})
+
+	_, err := f.Resolver.ResolveProject(context.Background(), p)
+	require.Error(t, err)
+	text := clierr.As(err).Format()
+	assert.Contains(t, text, "people/basic@1.0.0")
+	assert.Contains(t, text, "brickkit add erp/backend@1.0.0")
+}
+
+// 弱依赖没声明：当作缺席（警告、不注入地址），而不是替使用者拉下来运行。
+func TestResolveProjectTreatsUndeclaredOptionalAsMissing(t *testing.T) {
+	f := newFixture(t,
+		comp{ID: "erp/backend", Version: "1.0.0", Optional: []string{"infra/cache@1.0.0"}},
+		comp{ID: "infra/cache", Version: "1.0.0"},
+	)
+	p := projecttest.Load(t, projecttest.Files{
 		"brickkit.yaml": "project: p\ncomponents:\n  - {id: erp/backend, version: 1.0.0}\n",
 		"deploy.yaml":   "target: docker\ncomponents:\n  - id: erp/backend\n",
 	})
 
 	g, err := f.Resolver.ResolveProject(context.Background(), p)
 	require.NoError(t, err)
-	assert.Len(t, g.Nodes, 2)
-	assert.Equal(t, []Ref{{"erp/backend", "1.0.0"}}, g.Roots)
+	assert.Len(t, g.Nodes, 1)
+	assert.Equal(t, []Ref{{"infra/cache", "1.0.0"}}, g.Node(Ref{"erp/backend", "1.0.0"}).MissingOptional)
+	require.Len(t, g.Warnings, 1)
+	assert.Contains(t, g.Warnings[0].Format(), "brickkit.yaml")
 }
 
 // ============================================================

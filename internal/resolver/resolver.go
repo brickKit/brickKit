@@ -204,10 +204,35 @@ func (r *Resolver) ResolveProject(ctx context.Context, p *project.Project) (*Gra
 		return r.Resolve(ctx)
 	}
 	roots := make([]Ref, 0, len(p.Decl.Components))
+	declared := make(map[Ref]bool, len(p.Decl.Components))
 	for _, c := range p.Decl.Components {
-		roots = append(roots, Ref{ID: c.ID, Version: c.Version})
+		ref := Ref{ID: c.ID, Version: c.Version}
+		roots = append(roots, ref)
+		declared[ref] = true
 	}
-	return r.Resolve(ctx, roots...)
+	// brickkit.yaml 是锁文件：只在声明过的版本里解析。没声明的依赖没有部署条目、没有配置
+	// 文件，替使用者从安装源拉下来运行，等于绕过了三份文件
+	scoped := &Resolver{provider: declaredOnly{inner: r.provider, declared: declared}}
+	return scoped.Resolve(ctx, roots...)
+}
+
+// declaredOnly 只提供 brickkit.yaml 里声明过的组件版本。
+type declaredOnly struct {
+	inner    Provider
+	declared map[Ref]bool
+}
+
+// errNotDeclared 标记"这个版本不在 brickkit.yaml 里"：强依赖缺它给出 add 的出路，弱依赖缺它只警告。
+var errNotDeclared = errors.New("not declared in brickkit.yaml")
+
+func (d declaredOnly) Manifest(ctx context.Context, id, version string) (*manifest.Manifest, error) {
+	ref := Ref{ID: id, Version: version}
+	if !d.declared[ref] {
+		return nil, clierr.New(clierr.CodeDependencyMissing, i18n.T(msgid.ResolverNotDeclared, ref.String())).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ResolverNotDeclared, ref.String())).
+			WithCause(errNotDeclared)
+	}
+	return d.inner.Manifest(ctx, id, version)
 }
 
 // ============================================================
@@ -347,6 +372,16 @@ func unwrapFetch(err error) error {
 //
 // 所以：底层给了建议就用它的（它更具体），没给才回落到通用的三条。
 func missingDependencyError(dependent, missing Ref, cause error) error {
+	if errors.Is(cause, errNotDeclared) {
+		return clierr.New(clierr.CodeDependencyMissing, i18n.T(msgid.ResolverStrongDependencyMissing)).
+			WithDetail(i18n.T(msgid.LabelComponent), dependent.String()).
+			WithDetail(i18n.T(msgid.ResolverLabelMissingDependency), missing.String()).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ResolverNotDeclared, missing.String())).
+			WithHint(
+				i18n.T(msgid.ResolverHintAddDependent, dependent.String()),
+				i18n.T(msgid.ResolverHintAddMissing, missing.String()),
+			)
+	}
 	e := clierr.New(clierr.CodeDependencyMissing, i18n.T(msgid.ResolverStrongDependencyMissing)).
 		WithDetail(i18n.T(msgid.LabelComponent), dependent.String()).
 		WithDetail(i18n.T(msgid.ResolverLabelMissingDependency), missing.String()).

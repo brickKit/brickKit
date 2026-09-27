@@ -36,6 +36,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -84,7 +85,13 @@ func upgradeSummary(t *testing.T, old, updated comp) string {
 	f := addedProject(t,
 		[]comp{old, updated, {ID: "department/tree", Version: "1.0.0"}}, old.ref())
 	f.seedInstalled(t, old)
-	f.writeConfig(t, "components:\n  - id: "+updated.ID+"\n    version: "+updated.Version+"\n")
+	// 新版本的依赖也写进 brickkit.yaml（锁文件：只在声明过的版本里解析；P6 的 upgrade 会自动写）
+	body := "components:\n  - id: " + updated.ID + "\n    version: " + updated.Version + "\n"
+	for _, dep := range updated.Requires {
+		id, version, _ := strings.Cut(dep, "@")
+		body += "  - id: " + id + "\n    version: " + version + "\n"
+	}
+	f.writeConfig(t, body)
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)

@@ -2,6 +2,9 @@ package msgid
 
 // internal/resolver/resolver.go
 const (
+	ResolverNotDeclared               = "resolver.not_declared"
+	ResolverHintAddDependent          = "resolver.hint_add_dependent"
+	ResolverHintAddMissing            = "resolver.hint_add_missing"
 	ResolverStrongDependencyMissing   = "resolver.strong_dependency_missing"
 	ResolverLabelMissingDependency    = "resolver.label.missing_dependency"
 	ResolverHintCheckSources          = "resolver.hint.check_sources"

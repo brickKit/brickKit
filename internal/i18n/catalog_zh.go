@@ -53,6 +53,9 @@ var zh = map[string]string{
 	msgid.CascadeHintRemoveDisabledFlag:   "在 %[2]s 中移除 %[1]s 的 mode: disable",
 	msgid.CascadeHintRemovePinnedFlag:     "或在 %[3]s 中去掉 %[1]s 的 mode: %[2]s，让它随上层一起不启动",
 
+	msgid.ResolverNotDeclared:               "%[1]s 没有声明在 brickkit.yaml 里",
+	msgid.ResolverHintAddDependent:          "brickkit add %[1]s 会把它的依赖一起写进三份文件",
+	msgid.ResolverHintAddMissing:            "或者单独加它：brickkit add %[1]s",
 	msgid.ResolverStrongDependencyMissing:   "错误：强依赖缺失",
 	msgid.ResolverLabelMissingDependency:    "缺失依赖",
 	msgid.ResolverHintCheckSources:          "检查安装源配置（brickkit.yaml → sources）",

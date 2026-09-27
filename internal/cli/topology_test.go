@@ -52,6 +52,8 @@ func TestResolveTopologyHonoursDisabledTopLevel(t *testing.T) {
   - id: demo/caller
     version: 1.0.0
     mode: disable
+  - id: demo/hello
+    version: 1.0.0
 resources: []
 `)
 

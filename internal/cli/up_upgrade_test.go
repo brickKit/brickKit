@@ -140,7 +140,7 @@ func TestUpgradeIntroducingACycleIsBlocked(t *testing.T) {
 		{ID: "department/tree", Version: "1.0.0", Requires: []string{"people/basic@1.1.0"}},
 	}
 	f := addedProject(t, comps, "people/basic@1.0.0")
-	bumpTo(t, f, "1.1.0")
+	f.writeConfig(t, "components:\n  - id: people/basic\n    version: 1.1.0\n  - id: department/tree\n    version: 1.0.0\n")
 	eng := newFakeEngine()
 
 	r := runWithEngine(t, eng, f.Dir, "up")

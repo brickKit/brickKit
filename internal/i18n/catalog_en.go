@@ -58,6 +58,9 @@ var en = map[string]string{
 	msgid.CascadeHintRemoveDisabledFlag:   "Remove mode: disable from %[1]s in %[2]s",
 	msgid.CascadeHintRemovePinnedFlag:     "Or remove mode: %[2]s from %[1]s in %[3]s, letting it follow whatever is above it",
 
+	msgid.ResolverNotDeclared:               "%[1]s is not declared in brickkit.yaml",
+	msgid.ResolverHintAddDependent:          "brickkit add %[1]s writes its dependencies into the three files too",
+	msgid.ResolverHintAddMissing:            "Or add it on its own: brickkit add %[1]s",
 	msgid.ResolverStrongDependencyMissing:   "Error: required dependency missing",
 	msgid.ResolverLabelMissingDependency:    "Missing dependency",
 	msgid.ResolverHintCheckSources:          "Check the install source configuration (brickkit.yaml → sources)",
