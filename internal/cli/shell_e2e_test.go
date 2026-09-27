@@ -411,3 +411,67 @@ func TestShellHostsDeclaredVersionWhileDefaultRunsStandalone(t *testing.T) {
 	assert.Equal(t, "erp/api", entries[0].ComponentID)
 	assert.Equal(t, "1.0.0", entries[0].Version)
 }
+
+// shellCompiledOlderFixture：外壳编进的是 erp/api@0.9.0，本地仓库（默认版本）是 1.0.0；
+// 0.9.0 的 Manifest 在缓存里（本地源一个目录只放一个版本）。
+func shellCompiledOlderFixture(t *testing.T) string {
+	t.Helper()
+	dir := copyFixture(t, "three-layer-shell")
+	shellYAML := filepath.Join(dir, "shell", "erp", "shell", "component.yaml")
+	require.NoError(t, os.WriteFile(shellYAML, []byte(strings.Replace(readFile(t, shellYAML),
+		"erp/api@1.0.0", "erp/api@0.9.0", 1)), 0o644))
+	api := readFile(t, filepath.Join(dir, "components", "erp", "api", "component.yaml"))
+	cache := filepath.Join(dir, ".brickkit", "manifests")
+	require.NoError(t, os.MkdirAll(cache, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(cache, "erp-api-0.9.0.yaml"), []byte(strings.ReplaceAll(api, "1.0.0", "0.9.0")), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(cache, "erp-api-0.9.0.sig.json"), []byte(`{"sourceKind":"local"}`), 0o644))
+	return dir
+}
+
+// editFile 把 path 里的 old 换成 new（必须出现）。
+func editFile(t *testing.T, path, old, new string) {
+	t.Helper()
+	content := readFile(t, path)
+	require.Contains(t, content, old)
+	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(content, old, new, 1)), 0o644))
+}
+
+// 照着第三条出路（两个版本都留）一字不差地改完，up 就要能过：brickkit.yaml 加上外壳编进的版本，
+// 成员条目钉到那个版本，默认版本在部署文件顶层有自己的条目、独立运行。
+func TestKeepBothVersionsHintWorksWhenFollowed(t *testing.T) {
+	dir := shellCompiledOlderFixture(t)
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	for _, line := range []string{"`- {id: erp/api, version: 0.9.0, requiredBy: [erp/shell]}`", "`- id: erp/api@0.9.0`", "`- id: erp/api`"} {
+		require.Contains(t, r.stderr, line)
+	}
+
+	editFile(t, filepath.Join(dir, "brickkit.yaml"), "  - id: erp/worker\n",
+		"  - {id: erp/api, version: 0.9.0, requiredBy: [erp/shell]}\n  - id: erp/worker\n")
+	editFile(t, filepath.Join(dir, "deploy.yaml"), "      - id: erp/api\n", "      - id: erp/api@0.9.0\n")
+	editFile(t, filepath.Join(dir, "deploy.yaml"), "  - id: erp/portal\n", "  - id: erp/portal\n  - id: erp/api\n")
+
+	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+}
+
+// brickkit.yaml 已经留着外壳编进的 0.9.0（部署文件顶层也有它的条目）：第三条出路是把两个
+// 条目对调——照着改完 up 要能过，而不是撞上"同一个版本两个条目"。
+func TestPinDeclaredVersionHintWorksWhenFollowed(t *testing.T) {
+	dir := shellCompiledOlderFixture(t)
+	editFile(t, filepath.Join(dir, "brickkit.yaml"), "  - id: erp/worker\n",
+		"  - {id: erp/api, version: 0.9.0, requiredBy: [erp/portal]}\n  - id: erp/worker\n")
+	editFile(t, filepath.Join(dir, "deploy.yaml"), "  - id: erp/portal\n", "  - id: erp/portal\n  - id: erp/api@0.9.0\n")
+
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	require.Contains(t, r.stderr, "`- id: erp/api@0.9.0`")
+	require.Contains(t, r.stderr, "components[2]", "指出顶层那个 0.9.0 条目")
+	require.NotContains(t, r.stderr, "requiredBy: [erp/shell]", "brickkit.yaml 里已经有 0.9.0")
+
+	editFile(t, filepath.Join(dir, "deploy.yaml"), "  - id: erp/portal\n  - id: erp/api@0.9.0\n", "  - id: erp/portal\n  - id: erp/api\n")
+	editFile(t, filepath.Join(dir, "deploy.yaml"), "      - id: erp/api\n", "      - id: erp/api@0.9.0\n")
+
+	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+}

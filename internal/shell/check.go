@@ -77,7 +77,7 @@ func checkMemberVersions(p *project.Project, graph *resolver.Graph, states *casc
 		if node == nil || node.Manifest == nil {
 			continue
 		}
-		var contains, hosted, keepDecl, keepDeploy []string
+		var contains, hosted, keepBoth []string
 		for _, written := range p.MembersOf(c.ID) {
 			id, version := written.Key()
 			if version == "" {
@@ -93,26 +93,37 @@ func checkMemberVersions(p *project.Project, graph *resolver.Graph, states *casc
 			problems.Add(l.Field, i18n.T(msgid.ShellMemberVersionMismatch, shellRef.String(), compiled.String(), ref.String()))
 			contains = append(contains, ref.String())
 			hosted = append(hosted, id)
-			if !slices.Contains(p.Decl.Versions(id), declared) {
-				keepDecl = append(keepDecl, fmt.Sprintf("`- {id: %s, version: %s, requiredBy: [%s]}`", id, declared, c.ID))
-			}
-			keepDeploy = append(keepDeploy, fmt.Sprintf("`- id: %s`", compiled.String()))
+			keepBoth = append(keepBoth, keepBothHint(p, c.ID, ref, compiled))
 		}
 		if len(hosted) == 0 {
 			continue
 		}
-		// 外壳编进的版本 brickkit.yaml 里已经留着：只差部署文件的成员条目
-		keepBoth := i18n.T(msgid.ShellHintPinDeclaredVersion, c.ID, strings.Join(keepDeploy, ", "), strings.Join(contains, ", "))
-		if len(keepDecl) > 0 {
-			keepBoth = i18n.T(msgid.ShellHintKeepBothVersions, strings.Join(keepDecl, ", "), c.ID, strings.Join(keepDeploy, ", "), strings.Join(contains, ", "))
-		}
 		problems.WithHint(
 			i18n.T(msgid.ShellHintUpgradeShell, c.ID, strings.Join(contains, ", ")),
 			i18n.T(msgid.ShellHintMoveMemberOut, strings.Join(hosted, ", "), c.ID),
-			keepBoth,
 		)
+		problems.WithHint(keepBoth...)
 	}
 	return problems.Err()
+}
+
+// keepBothHint 是第三条出路（两个版本都留）的具体改法：照着改完 up 就要能过。
+// 成员条目钉到外壳编进的版本；这次承载的版本挪到部署文件顶层独立运行（默认版本写裸 ID）。
+// 外壳编进的版本 brickkit.yaml 里已经留着时，部署文件里也已经有它的条目——两个条目对调，
+// 否则同一个版本会有两个条目。
+func keepBothHint(p *project.Project, shellID string, hosted, compiled resolver.Ref) string {
+	pinned := fmt.Sprintf("`- id: %s`", compiled.String())
+	standalone := fmt.Sprintf("`- id: %s`", hosted.String())
+	if p.Decl.IsDefault(hosted.ID, hosted.Version) {
+		standalone = fmt.Sprintf("`- id: %s`", hosted.ID)
+	}
+	if slices.Contains(p.Decl.Versions(compiled.ID), compiled.Version) {
+		if existing, ok := p.Deploy.EntryAt(compiled.ID, compiled.Version, p.Decl.IsDefault(compiled.ID, compiled.Version)); ok {
+			return i18n.T(msgid.ShellHintPinDeclaredVersion, shellID, pinned, existing.Field, standalone, hosted.String())
+		}
+	}
+	line := fmt.Sprintf("`- {id: %s, version: %s, requiredBy: [%s]}`", compiled.ID, compiled.Version, shellID)
+	return i18n.T(msgid.ShellHintKeepBothVersions, line, shellID, pinned, standalone, hosted.String())
 }
 
 // checkSkipWaitFor 核对每个 skipWaitFor 写的都是那个组件版本真实的强依赖（附录 A23）：
