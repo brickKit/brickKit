@@ -207,3 +207,16 @@ func TestLocalOnOutsideProjectIsNotALocalDir(t *testing.T) {
 	assert.NotEqual(t, clierr.ExitOK, r.code)
 	assert.Contains(t, r.stderr, "brickkit init")
 }
+
+func TestLocalRefreshSummarisesPlacement(t *testing.T) {
+	dir := localProject(t)
+	writeTree(t, dir, map[string]string{
+		"brickkit.yaml": "project: shop\ncomponents:\n  - id: erp/api\n    version: 1.0.0\n  - id: erp/shell\n    version: 1.0.0\n    kind: shell\n",
+		"deploy.yaml":   "target: docker\ncomponents:\n  - id: erp/shell\n    members:\n      - id: erp/api\n",
+	})
+	old := "target: docker\ncomponents:\n  - id: erp/shell\n  - id: erp/api\n    mode: debug\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.local.yaml"), []byte(old), 0o644))
+	r := mustLocal(t, dir, "refresh")
+	assert.Contains(t, r.stdout, "- [erp/api] at the top level (now under the shell erp/shell)")
+	assert.Contains(t, r.stdout, "- [erp/api] mode: debug (now unset)")
+}

@@ -20,6 +20,10 @@ const (
 	ScopeVars   = "vars"
 )
 
+// FieldPlacement 是条目所在位置这个"字段"：值是它嵌在哪个外壳条目下面，在顶层时为空。
+// 把成员挪出外壳单独跑（调试它时最常见的做法）不改任何字段，只改位置——也是本地修改。
+const FieldPlacement = "\x00placement"
+
 // LocalChange 是旧本地文件里的一处本地修改。
 type LocalChange struct {
 	// Scope 是 ScopeDeploy、ScopeVars，或组件条目的 id（外壳下面的成员也按自己的条目 id）。
@@ -105,7 +109,7 @@ func flatten(data []byte) ([]flatValue, []string, error) {
 		key, value := root.Content[i].Value, root.Content[i+1]
 		switch key {
 		case "components":
-			flattenEntries(value, &values, &entries)
+			flattenEntries(value, "", &values, &entries)
 		case "vars":
 			flattenMap(ScopeVars, "", value, &values)
 		default:
@@ -115,7 +119,7 @@ func flatten(data []byte) ([]flatValue, []string, error) {
 	return values, entries, nil
 }
 
-func flattenEntries(list *yaml.Node, values *[]flatValue, entries *[]string) {
+func flattenEntries(list *yaml.Node, shell string, values *[]flatValue, entries *[]string) {
 	if list.Kind != yaml.SequenceNode {
 		return
 	}
@@ -128,12 +132,13 @@ func flattenEntries(list *yaml.Node, values *[]flatValue, entries *[]string) {
 			continue
 		}
 		*entries = append(*entries, id)
+		*values = append(*values, flatValue{scope: id, field: FieldPlacement, value: shell})
 		for i := 0; i+1 < len(item.Content); i += 2 {
 			key, value := item.Content[i].Value, item.Content[i+1]
 			switch key {
 			case "id":
 			case "members":
-				flattenEntries(value, values, entries)
+				flattenEntries(value, id, values, entries)
 			default:
 				flattenMap(id, key, value, values)
 			}

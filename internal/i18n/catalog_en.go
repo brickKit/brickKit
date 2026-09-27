@@ -1672,4 +1672,7 @@ var en = map[string]string{
 	msgid.CliLocalTeamFileInvalid:                   "Error: %[1]s is not valid, so %[2]s was not refreshed (nothing was changed)",
 	msgid.CliLocalHintFixTeamFile:                   "fix %[1]s first (brickkit lint shows every problem), then run brickkit local refresh again",
 	msgid.CliLocalAlreadyFresh:                      "✅ %[1]s already matches %[2]s byte for byte: nothing to refresh, the backup is untouched",
+	msgid.CliLocalChangePlacement:                   "[%[1]s] %[2]s (now %[3]s)",
+	msgid.CliLocalPlacementTop:                      "at the top level",
+	msgid.CliLocalPlacementShell:                    "under the shell %[1]s",
 }

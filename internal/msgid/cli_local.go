@@ -39,4 +39,7 @@ const (
 	CliLocalTeamFileInvalid  = "cli.local.team_file_invalid"
 	CliLocalHintFixTeamFile  = "cli.local.hint_fix_team_file"
 	CliLocalAlreadyFresh     = "cli.local.already_fresh"
+	CliLocalChangePlacement  = "cli.local.change_placement"
+	CliLocalPlacementTop     = "cli.local.placement_top"
+	CliLocalPlacementShell   = "cli.local.placement_shell"
 )

@@ -127,3 +127,33 @@ func TestDiffLocalToleratesOddShapes(t *testing.T) {
 	_, err = deployfile.DiffLocal([]byte(freshTeam), []byte("target: [\n"))
 	require.Error(t, err)
 }
+
+// 本地把成员从外壳里挪到顶层单独跑（调试它时最常见的改动）：字段没变，位置变了，也是本地修改。
+func TestDiffLocalReportsMemberMovedOutOfShell(t *testing.T) {
+	old := `target: docker
+vars:
+  DB_PASSWORD: "${PROD_DB_PASSWORD}"
+components:
+  - id: erp/backend
+    mode: enabled
+  - id: erp/shell
+  - id: erp/api
+    expose: false
+`
+	changes, err := deployfile.DiffLocal([]byte(old), []byte(freshTeam))
+	require.NoError(t, err)
+	assert.Equal(t, []deployfile.LocalChange{
+		{Scope: "erp/api", Field: deployfile.FieldPlacement, Old: "", New: ptr("erp/shell")},
+	}, changes)
+}
+
+// 反过来：本地把一个顶层组件收进了外壳。
+func TestDiffLocalReportsEntryMovedIntoShell(t *testing.T) {
+	fresh := "target: docker\ncomponents:\n  - id: erp/shell\n  - id: erp/api\n"
+	old := "target: docker\ncomponents:\n  - id: erp/shell\n    members:\n      - id: erp/api\n"
+	changes, err := deployfile.DiffLocal([]byte(old), []byte(fresh))
+	require.NoError(t, err)
+	assert.Equal(t, []deployfile.LocalChange{
+		{Scope: "erp/api", Field: deployfile.FieldPlacement, Old: "erp/shell", New: ptr("")},
+	}, changes)
+}

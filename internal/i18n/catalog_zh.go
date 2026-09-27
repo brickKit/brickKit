@@ -1661,4 +1661,7 @@ var zh = map[string]string{
 	msgid.CliLocalTeamFileInvalid:             "错误：%[1]s 本身不合法，%[2]s 没有刷新（什么都没改）",
 	msgid.CliLocalHintFixTeamFile:             "先修好 %[1]s（brickkit lint 会列出全部问题），再执行 brickkit local refresh",
 	msgid.CliLocalAlreadyFresh:                "✅ %[1]s 与 %[2]s 逐字节一致：无需刷新，备份没有动",
+	msgid.CliLocalChangePlacement:             "[%[1]s] %[2]s（当前%[3]s）",
+	msgid.CliLocalPlacementTop:                "在顶层",
+	msgid.CliLocalPlacementShell:              "在外壳 %[1]s 下面",
 }

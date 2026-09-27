@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -107,4 +108,34 @@ func TestAddLocalInitWarnsChildGitignore(t *testing.T) {
 	assert.Contains(t, r.stdout, filepath.Join("components", "erp", "backend"))
 	assert.Contains(t, r.stdout, "missing: .brickkit/")
 	assert.Contains(t, r.stdout, "commit")
+}
+
+// components/ 本身是符号链接（指到别处的真实目录）：子工作台的相对路径按真实路径算，
+// 在真实目录里 up 时，local-shells 照样指回项目的 shell/。
+func TestAddLocalInitResolvesSymlinkedComponentsDir(t *testing.T) {
+	g, dir := workspaceProject(t)
+	real := filepath.Join(t.TempDir(), "components-real")
+	require.NoError(t, os.Rename(filepath.Join(dir, "components"), real))
+	require.NoError(t, os.Symlink(real, filepath.Join(dir, "components")))
+
+	g.mustRun(dir, "add", "--local", "--init", "--yes")
+	child := filepath.Join(real, "erp", "backend")
+	decl, err := projfile.ParseFile(filepath.Join(child, "brickkit.yaml"))
+	require.NoError(t, err)
+	want, err := filepath.EvalSymlinks(filepath.Join(dir, "shell"))
+	require.NoError(t, err)
+	for _, s := range decl.Sources {
+		if s.Name != "local-shells" {
+			continue
+		}
+		got := filepath.FromSlash(s.Path)
+		if !filepath.IsAbs(got) {
+			got = filepath.Join(child, got)
+		}
+		resolved, err := filepath.EvalSymlinks(got)
+		require.NoError(t, err, "从真实目录解析 %s 要能找到", s.Path)
+		assert.Equal(t, want, resolved)
+		return
+	}
+	t.Fatal("没有继承 local-shells")
 }

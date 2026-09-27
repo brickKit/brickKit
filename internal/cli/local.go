@@ -225,11 +225,21 @@ func renderLocalChange(c deployfile.LocalChange) string {
 	switch {
 	case c.Field == "":
 		return i18n.T(msgid.CliLocalChangeEntryGone, c.Scope, project.FileDeploy)
+	case c.Field == deployfile.FieldPlacement:
+		return i18n.T(msgid.CliLocalChangePlacement, c.Scope, placement(c.Old), placement(*c.New))
 	case c.New == nil:
 		return i18n.T(msgid.CliLocalChangeUnset, c.Scope, c.Field, c.Old)
 	default:
 		return i18n.T(msgid.CliLocalChangeDiffers, c.Scope, c.Field, c.Old, *c.New)
 	}
+}
+
+// placement 把条目所在位置说成人话：顶层，或者在某个外壳下面。
+func placement(shell string) string {
+	if shell == "" {
+		return i18n.T(msgid.CliLocalPlacementTop)
+	}
+	return i18n.T(msgid.CliLocalPlacementShell, shell)
 }
 
 func fileExists(path string) bool {

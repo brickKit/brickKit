@@ -203,8 +203,10 @@ func inheritSources(parent *project.Project, dir string) []projfile.Source {
 	out := make([]projfile.Source, 0, len(parent.Decl.Sources))
 	for _, s := range parent.Decl.Sources {
 		if s.Type == projfile.SourceTypeLocal && s.Path != "" {
+			// 两边都按真实路径算：目录链里有符号链接时，按逻辑路径算出的 ../.. 从真实目录出发会指错地方
 			abs, _ := filepath.Abs(parent.Layout.Resolve(s.Path))
 			from, _ := filepath.Abs(dir)
+			abs, from = realPath(abs), realPath(from)
 			if rel, err := filepath.Rel(from, abs); err == nil {
 				s.Path = filepath.ToSlash(rel)
 			}
@@ -212,4 +214,12 @@ func inheritSources(parent *project.Project, dir string) []projfile.Source {
 		out = append(out, s)
 	}
 	return out
+}
+
+// realPath 解析符号链接；解析不了（路径还不存在）就原样返回。
+func realPath(path string) string {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return resolved
+	}
+	return path
 }
