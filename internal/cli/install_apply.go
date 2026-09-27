@@ -119,6 +119,12 @@ func applyPlanWith(opts *Options, proj *project.Project, plan *install.Plan, ao 
 		return nil, wouldBreakError(err)
 	}
 	a.result.Project = reloaded
+	// 项目 BRICKKIT.md 的组件表跟着三份文件走（§16.2.1）。三份文件此刻已经正确，
+	// 文档写不进去不值得把它们还原：说一声，下一次成功的改动会把表补齐
+	if _, err := project.WriteProjectDoc(proj.Layout, reloaded); err != nil {
+		renderWarnings(opts, []*clierr.Error{clierr.Warn(clierr.CodeInternal, i18n.T(msgid.CliInstallProjectDocFailed, project.FileProjectDoc)).
+			WithDetail(i18n.T(msgid.LabelReason), clierr.As(err).Message)})
+	}
 	return a.result, nil
 }
 

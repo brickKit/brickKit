@@ -44,4 +44,5 @@ const (
 	CliInstallWouldBreakProject      = "cli.install.would_break_project"
 	CliInstallHintFixFirst           = "cli.install.hint_fix_first"
 	CliInstallTargetExists           = "cli.install.target_exists"
+	CliInstallProjectDocFailed       = "cli.install.project_doc_failed"
 )

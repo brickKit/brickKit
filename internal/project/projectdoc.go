@@ -112,18 +112,16 @@ func (p *Project) relIfExists(path string) string {
 	return p.rel(path)
 }
 
-// WriteProjectDoc 重写项目 BRICKKIT.md 的 CLI 维护区。文件不存在时整份生成——除非这里是
-// 组件仓库（那个位置属于组件自己的文档，§16.1.1）；文件没有维护区时一个字都不动。
+// WriteProjectDoc 重写项目 BRICKKIT.md 的 CLI 维护区。只改已有的、带维护区的文件：
+// 生成它是 init 的事（使用者删掉了它，add 不该每次都再造一份出来）；没有维护区的文件
+// （使用者自己写的，或组件仓库里组件自己的文档，§16.1.1）一个字都不动。
 // 返回这次是否写了文件。
 func WriteProjectDoc(l Layout, p *Project) (bool, error) {
 	path := l.ProjectDocPath()
 	data, err := os.ReadFile(path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		if exists(filepath.Join(l.Root, manifest.FileName)) {
-			return false, nil
-		}
-		return true, writeFile(path, projectDocHead(p.Decl.Project)+RenderProjectDoc(p))
+		return false, nil
 	case err != nil:
 		return false, ioError(i18n.T(msgid.ConfigActionReadFile), path, err)
 	}

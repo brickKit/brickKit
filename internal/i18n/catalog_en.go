@@ -1538,4 +1538,5 @@ var en = map[string]string{
 	msgid.CliInitClosingCheckFailed:           "Error: the project was completed but does not load yet",
 	msgid.CliInitHintRunLint:                  "fix the problem above, then run brickkit lint to check again",
 	msgid.CliInitClosingCheckPassed:           "closing check passed: the project loads",
+	msgid.CliInstallProjectDocFailed:          "Warning: the component table in %[1]s could not be updated (the three files are correct)",
 }

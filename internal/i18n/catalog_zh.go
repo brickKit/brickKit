@@ -1529,4 +1529,5 @@ var zh = map[string]string{
 	msgid.CliInitClosingCheckFailed:           "错误：项目已补全，但还装载不了",
 	msgid.CliInitHintRunLint:                  "改好上面的问题后，用 brickkit lint 再检查一遍",
 	msgid.CliInitClosingCheckPassed:           "收尾校验通过：项目可以装载",
+	msgid.CliInstallProjectDocFailed:          "警告：%[1]s 里的组件表没能更新（三份文件本身是对的）",
 }
