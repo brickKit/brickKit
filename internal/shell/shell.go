@@ -226,14 +226,23 @@ func memberConfig(
 		if err != nil {
 			return nil, err
 		}
-		if !utf8.ValidString(value) {
-			return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellMemberInvalidUTF8, ref.String(), v.Name)).
-				WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellMemberInvalidUTF8Reason)).
-				WithHint(i18n.T(msgid.ShellHintInvalidUTF8))
+		if err := CheckMemberValue(ref, v.Name, value); err != nil {
+			return nil, err
 		}
 		out[v.Name] = value
 	}
 	return out, nil
+}
+
+// CheckMemberValue 确认一个求好的成员值能装进外壳的 JSON（提案 §8.3）：必须是合法 UTF-8——
+// JSON 只能装文本，非法字节会被悄悄换成替换字符。up 与 lint 走同一处。
+func CheckMemberValue(ref resolver.Ref, name, value string) error {
+	if utf8.ValidString(value) {
+		return nil
+	}
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellMemberInvalidUTF8, ref.String(), name)).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellMemberInvalidUTF8Reason)).
+		WithHint(i18n.T(msgid.ShellHintInvalidUTF8))
 }
 
 func memberValue(

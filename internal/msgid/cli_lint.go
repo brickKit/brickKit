@@ -24,4 +24,9 @@ const (
 const (
 	CliLintLocalEnumerationFailed = "cli.lint.local_enumeration_failed"
 	CliLintCrossFile              = "cli.lint.cross_file"
+	CliLintConfigUnchecked        = "cli.lint.config_unchecked"
+	CliLintEnvRefUnset            = "cli.lint.env_ref_unset"
+	CliLintLabelVariable          = "cli.lint.label_variable"
+	CliLintHintEnvRef             = "cli.lint.hint_env_ref"
+	CliLintFileRefMissing         = "cli.lint.file_ref_missing"
 )

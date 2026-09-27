@@ -17,6 +17,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -73,7 +74,7 @@ func runLint(opts *Options, strict bool) error {
 		opts.Printf("%s\n", i18n.T(msgid.CliLintComponentRepositoryHasNoOnly, manifest.FileName, project.FileDecl, manifest.FileName))
 		files = append(files, lintManifest(opts, filepath.Join(layout.Root, manifest.FileName), ""))
 	} else {
-		files, notes = lintProject(opts, layout)
+		files, notes = lintProject(opts, layout, strict)
 	}
 
 	return reportLint(opts, files, notes, strict)
@@ -92,7 +93,7 @@ func localSkippedNote() string {
 // 先逐个文件查、再跨文件查：单个文件的错误要落在它自己的文件名下，人才知道去改哪一份；
 // 跨文件的问题（部署文件漏了组件、$var: 没定义、config 文件对不上组件）只有各文件都
 // 能读时才问得出来，单独列一行。
-func lintProject(opts *Options, layout project.Layout) ([]lintFile, []string) {
+func lintProject(opts *Options, layout project.Layout, strict bool) ([]lintFile, []string) {
 	head := lintFile{path: displayPath(opts.WorkDir, layout.DeclPath())}
 	decl, err := projfile.ParseFile(layout.DeclPath())
 	if err != nil {
@@ -114,8 +115,11 @@ func lintProject(opts *Options, layout project.Layout) ([]lintFile, []string) {
 		f.warnings = append(f.warnings, warnings...)
 		files = append(files, f)
 	}
+	var notes []string
 	if parsed {
-		files = append(files, lintCrossFile(opts))
+		cross, crossNotes := lintCrossFile(opts, strict)
+		files = append(files, cross...)
+		notes = append(notes, crossNotes...)
 	}
 
 	// 直接 source.New，不走 newSourceClient：后者会先去读 installer.publicKeys 指向的公钥文件，
@@ -129,19 +133,19 @@ func lintProject(opts *Options, layout project.Layout) ([]lintFile, []string) {
 	client, err := source.New(layout, decl, source.Options{})
 	if err != nil {
 		files[0].errors = append(files[0].errors, clierr.As(err))
-		return files, []string{localSkippedNote()}
+		return files, append(notes, localSkippedNote())
 	}
 	defer func() { _ = client.Close() }()
 
 	found, err := client.LocalManifestFiles()
 	if err != nil {
 		files[0].errors = append(files[0].errors, clierr.As(err))
-		return files, []string{localSkippedNote()}
+		return files, append(notes, localSkippedNote())
 	}
 	for _, f := range found {
 		files = append(files, lintManifest(opts, f.Path, f.ID))
 	}
-	return files, nil
+	return files, notes
 }
 
 // deployToLint 是一份要单独检查的部署文件。
@@ -163,16 +167,46 @@ func lintDeployFiles(opts *Options, layout project.Layout) []deployToLint {
 	return out
 }
 
-// lintCrossFile 用 up 同一条装载路径做跨文件校验：up 会拦的，lint 一样拦。
-func lintCrossFile(opts *Options) lintFile {
+// lintCrossFile 用 up 同一条装载路径做跨文件校验：up 会拦的，lint 一样拦；再对装载好的项目做
+// 配置检查（lint_config.go）。
+//
+// 团队的 deploy.yaml 与个人的 deploy.local.yaml 都要与 brickkit.yaml 一致（提案 §11.3）：
+// 这次装载用的是其中一份，另一份（存在的话）再单独装载一遍——本地模式关着时的
+// deploy.local.yaml 迟早会被用上，开着时团队文件也不能因此没人查。-f 指定了文件时
+// 两份都不看（-f 完全忽略本地文件，§11.6）。
+func lintCrossFile(opts *Options, strict bool) ([]lintFile, []string) {
 	proj, err := project.Load(opts.WorkDir, opts.loadOptions())
 	f := lintFile{path: i18n.T(msgid.CliLintCrossFile, project.FileDecl, lintedDeployName(opts, proj), project.DirConfig+"/")}
 	if err != nil {
 		f.errors = append(f.errors, clierr.As(err))
-		return f
+		return []lintFile{f}, nil
 	}
 	f.warnings = append(f.warnings, proj.Warnings...)
-	return f
+	cfg := lintConfig(proj, strict)
+	f.errors = append(f.errors, cfg.errors...)
+	f.warnings = append(f.warnings, cfg.warnings...)
+	var notes []string
+	if len(cfg.unchecked) > 0 {
+		notes = append(notes, i18n.T(msgid.CliLintConfigUnchecked, strings.Join(cfg.unchecked, i18n.T(msgid.ListSeparator))))
+	}
+	files := []lintFile{f}
+	if opts.DeployFile != "" {
+		return files, notes
+	}
+
+	other := func(name string, load project.LoadOptions) {
+		o := lintFile{path: i18n.T(msgid.CliLintCrossFile, project.FileDecl, name, project.DirConfig+"/")}
+		if _, err := project.Load(opts.WorkDir, load); err != nil {
+			o.errors = append(o.errors, clierr.As(err))
+		}
+		files = append(files, o)
+	}
+	if proj.DeploySource == project.DeployLocal {
+		other(project.FileDeploy, project.LoadOptions{NoLocal: true})
+	} else if _, err := os.Stat(proj.Layout.DeployLocalPath()); err == nil {
+		other(project.FileDeployLocal, project.LoadOptions{ForceLocal: true})
+	}
+	return files, notes
 }
 
 // lintedDeployName 是跨文件校验实际用的那份部署文件名（装载失败时按选择规则推断）。

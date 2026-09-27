@@ -31,6 +31,8 @@ type LoadOptions struct {
 	DeployFile string
 	// NoLocal 让本次忽略本地模式（--no-local）。
 	NoLocal bool
+	// ForceLocal 不管本地模式开没开，都按个人文件读 deploy.local.yaml（lint 检查它用）。
+	ForceLocal bool
 }
 
 // Project 是装载完成、跨文件一致的三层项目。
@@ -140,6 +142,9 @@ func (p *Project) checkTopology() error {
 func selectDeploy(l Layout, opts LoadOptions) (string, DeploySource, error) {
 	if opts.DeployFile != "" {
 		return l.Resolve(opts.DeployFile), DeployExplicit, nil
+	}
+	if opts.ForceLocal {
+		return l.DeployLocalPath(), DeployLocal, nil
 	}
 	if !opts.NoLocal {
 		on, err := LocalModeOn(l)

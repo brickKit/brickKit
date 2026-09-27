@@ -132,18 +132,18 @@ func Build(p *project.Project, graph *resolver.Graph, states *cascade.Result) (*
 			missing[node.Ref] = lacks
 		}
 	}
-	if err := missingRequiredError(p, missing); err != nil {
+	if err := MissingRequiredError(p, missing); err != nil {
 		return nil, err
 	}
 	return result, nil
 }
 
-// missingRequiredError 把"必填配置项没人给值"变成一条阻断错误。
+// MissingRequiredError 把"必填配置项没人给值"变成一条阻断错误（up 与 lint 共用同一段话）。
 //
 // 组件作者写下 required 又不给默认值，说的正是"这一项我猜不出来"——跨项目服务的
 // 地址就是典型。放行的后果是变量根本不出现，组件走进"未配置"分支，而使用者以为
 // 配好了：不崩、不报警，只是那一路调用永远走不通。
-func missingRequiredError(p *project.Project, missing map[resolver.Ref][]string) *clierr.Error {
+func MissingRequiredError(p *project.Project, missing map[resolver.Ref][]string) *clierr.Error {
 	if len(missing) == 0 {
 		return nil
 	}
