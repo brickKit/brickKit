@@ -197,6 +197,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		newInitCommand(opts),
 		newSkillsCommand(opts),
 		newGraphCommand(opts),
+		newDepsCommand(opts),
 		newLintCommand(opts),
 		newNewCommand(opts),
 		newAddCommand(opts),
