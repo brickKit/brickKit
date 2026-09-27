@@ -85,7 +85,7 @@ func TestUpFileFlagIgnoresLocalMode(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.DirExists(t, filepath.Join(f.Dir, ".brickkit", "generated", "k8s"))
-	assert.Contains(t, r.stdout, "deploy.target: k8s")
+	assert.Contains(t, r.stdout, "(target: k8s)")
 }
 
 // --no-local 让这一次忽略本地模式，读团队的 deploy.yaml。
