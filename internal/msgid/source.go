@@ -94,6 +94,8 @@ const (
 // 手工补充
 const (
 	SourceDescribe            = "source.describe"
+	SourceNoRepoCache         = "source.no_repo_cache"
+	SourceHintSetCacheHome    = "source.hint_set_cache_home"
 	SourceGitFetchFailed      = "source.git_fetch_failed"
 	SourceLabelGitError       = "source.label_git_error"
 	SourceHintGitSSH          = "source.hint_git_ssh"

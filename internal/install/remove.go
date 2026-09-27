@@ -2,6 +2,7 @@ package install
 
 import (
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
@@ -17,8 +18,10 @@ import (
 // 规则：
 //   - 还有留下的组件强依赖 target：报错（弱依赖方不拦，它本来就能在对方缺席时运行）
 //   - target 的行、部署条目删掉，配置归档（§7.7）；target 是外壳时成员挪回顶层（§8.7）
-//   - 每一行 requiredBy 里点名的组件没有任何版本留下时划掉它；划空了的兼容版本没人要了，
-//     一并移除，并继续往下传（附录 A20）
+//   - 受这次移除影响的兼容版本（依赖它、或编进了它的组件被移除了）：留下的组件里再没有谁
+//     依赖它、也没有外壳编进它，它没人要了，一并移除并继续往下传；还有人要的，requiredBy
+//     改成真正还需要它的那些组件（附录 A20）。按依赖图判断而不是只看 requiredBy 这张清单——
+//     清单点名的组件可能还有别的版本留着、而那个版本并不需要它，清单也可能是手改过的
 //   - 删的是默认版本、这个 ID 还剩版本：只剩一个就转正（去掉 requiredBy、条目 id@v → id、
 //     配置文件 <base>@v.yaml → <base>.yaml）；剩好几个报错（用户裁定，2026-09-27）
 func PlanRemove(p *project.Project, graph *resolver.Graph, target resolver.Ref) (*Plan, error) {
@@ -26,7 +29,7 @@ func PlanRemove(p *project.Project, graph *resolver.Graph, target resolver.Ref) 
 		return nil, err
 	}
 	plan := &Plan{}
-	removed := cascade(p, target)
+	removed, affected := cascade(p, graph, target)
 
 	remaining := remainingVersions(p, target.ID, removed)
 	var promote *projfile.Component
@@ -58,8 +61,8 @@ func PlanRemove(p *project.Project, graph *resolver.Graph, target resolver.Ref) 
 			}
 			plan.RenameConfigs = append(plan.RenameConfigs, ConfigRef{ID: c.ID, Version: c.Version, Versioned: true})
 			plan.Promoted = ref
-		default:
-			if kept := keptRequiredBy(p, c, removed); !slices.Equal(kept, c.RequiredBy) {
+		case affected[ref] && !isDefault:
+			if kept := neededBy(p, graph, ref, removed); !slices.Equal(kept, c.RequiredBy) {
 				plan.SetRequiredBy = append(plan.SetRequiredBy, Line{ID: c.ID, Version: c.Version, RequiredBy: kept})
 			}
 		}
@@ -105,34 +108,74 @@ func checkDependents(p *project.Project, graph *resolver.Graph, target resolver.
 		WithHint(i18n.T(msgid.InstallHintRemoveDependentsFirst))
 }
 
-// cascade 算出连带移除的组件版本：从 target 开始，requiredBy 被划空的兼容版本一个接一个跟着走。
-func cascade(p *project.Project, target resolver.Ref) map[resolver.Ref]bool {
-	removed := map[resolver.Ref]bool{target: true}
+// cascade 算出连带移除的组件版本：从 target 开始，受影响的兼容版本里再没人要的一个接一个跟着走。
+// affected 是依赖方或宿主外壳被移除了的版本（它们的 requiredBy 要重新算）。
+func cascade(p *project.Project, graph *resolver.Graph, target resolver.Ref) (removed, affected map[resolver.Ref]bool) {
+	removed = map[resolver.Ref]bool{target: true}
+	affected = map[resolver.Ref]bool{}
 	for changed := true; changed; {
 		changed = false
 		for _, c := range p.Decl.Components {
 			ref := resolver.Ref{ID: c.ID, Version: c.Version}
-			if removed[ref] || len(c.RequiredBy) == 0 {
+			if removed[ref] || p.Decl.IsDefault(c.ID, c.Version) || !lostANeeder(p, graph, ref, removed) {
 				continue
 			}
-			if len(keptRequiredBy(p, c, removed)) == 0 {
+			affected[ref] = true
+			if len(neededBy(p, graph, ref, removed)) == 0 {
 				removed[ref] = true
 				changed = true
 			}
 		}
 	}
-	return removed
+	return removed, affected
 }
 
-// keptRequiredBy 是 requiredBy 里还留在项目里的组件（有任何一个版本留下就算留下）。
-func keptRequiredBy(p *project.Project, c projfile.Component, removed map[resolver.Ref]bool) []string {
-	var kept []string
-	for _, id := range c.RequiredBy {
-		if len(remainingVersions(p, id, removed)) > 0 {
-			kept = append(kept, id)
+// lostANeeder 报告这个版本的依赖方（或编进了它的外壳）里有没有被这次移除的。
+func lostANeeder(p *project.Project, graph *resolver.Graph, ref resolver.Ref, removed map[resolver.Ref]bool) bool {
+	if n := graph.Node(ref); n != nil {
+		for _, d := range n.Dependents {
+			if removed[d] {
+				return true
+			}
 		}
 	}
-	return kept
+	for r := range removed {
+		if hosts(graph, r, ref) {
+			return true
+		}
+	}
+	return false
+}
+
+// neededBy 是移除之后还需要这个版本的组件 ID：留下的依赖方（强依赖、弱依赖都算——它们都会
+// 连它），以及留下的、编进了它的外壳。排好序、去重。
+func neededBy(p *project.Project, graph *resolver.Graph, ref resolver.Ref, removed map[resolver.Ref]bool) []string {
+	var out []string
+	if n := graph.Node(ref); n != nil {
+		for _, d := range n.Dependents {
+			if !removed[d] && d.ID != ref.ID {
+				out = append(out, d.ID)
+			}
+		}
+	}
+	for _, c := range p.Decl.Components {
+		shell := resolver.Ref{ID: c.ID, Version: c.Version}
+		if c.IsShell() && !removed[shell] && hosts(graph, shell, ref) {
+			out = append(out, c.ID)
+		}
+	}
+	sort.Strings(out)
+	return slices.Compact(out)
+}
+
+// hosts 报告外壳 shell 的 component.yaml 是否编进了 ref 这个版本（附录 A24）。
+func hosts(graph *resolver.Graph, shell, ref resolver.Ref) bool {
+	n := graph.Node(shell)
+	if n == nil || n.Manifest == nil {
+		return false
+	}
+	v, ok := n.Manifest.HostedVersion(ref.ID)
+	return ok && v == ref.Version
 }
 
 // remainingVersions 是这个组件 ID 在移除之后还留下的行。

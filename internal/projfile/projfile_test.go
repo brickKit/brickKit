@@ -173,3 +173,17 @@ func TestValidateRequiredBy(t *testing.T) {
 		})
 	}
 }
+
+// 仓库地址以 - 开头会被 git 当成参数（--upload-pack=… 能执行任意命令）：别人给的项目文件
+// 就是攻击入口，校验时拒绝。
+func TestRepoAddressesCannotLookLikeOptions(t *testing.T) {
+	for name, f := range map[string]*projfile.File{
+		"baseUrl": {Project: "p", Sources: []projfile.Source{{Name: "org", Type: projfile.SourceTypeGit, BaseURL: "--upload-pack=touch /tmp/x"}}},
+		"repo": {Project: "p", Components: []projfile.Component{{ID: "erp/api", Version: "1.0.0",
+			Source: &projfile.ComponentSource{Type: projfile.SourceTypeGit, Repo: "-uevil"}}}},
+	} {
+		err := f.Validate()
+		require.Error(t, err, name)
+		assert.Contains(t, err.Error(), "-", name)
+	}
+}

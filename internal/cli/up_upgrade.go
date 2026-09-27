@@ -10,6 +10,7 @@ package cli
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 
@@ -38,33 +39,28 @@ type upgradeInfo struct {
 	Quota         string
 }
 
-// detectUpgrades 比对 brickkit.yaml 与 Manifest 缓存，找出版本变更。
+// detectUpgrades 比对 brickkit.yaml 与这个项目上一次运行的版本，找出版本变更。
 //
-// # 判据：缓存里有、而配置里已经没有的版本，才是"被换掉的"
+// # 判据：上次跑的版本从配置里消失了、换成了一个上次没跑的版本
 //
-// 从前的判据是"缓存里有这个组件的别的版本、却没有现在这个版本"，`From` 取
-// os.ReadDir 顺序的第一个——那是**文件名的字典序**，与"上一个装的是哪个"
-// 毫无关系。四个场景里错了三个：
+//	首次运行      没有上次 → 不是变更
+//	加共存版本    上次的版本都还在 → 不是变更
+//	升级 / 回退   旧版本不在了、新版本上次没跑 → 旧版本就是基线
+//	连带移除      兼容版本不在了，但留下的版本上次就在跑 → 不是变更
 //
-//	1.0.0 → 2.0.0 → 3.0.0   缓存 {1,2}、配置 {3} → 报成 1.0.0 → 3.0.0
-//	                        六项摘要也拿 1.0.0 当基线，把 2.0.0 早有的配置项报成"新增"
-//	加一个共存版本           缓存 {1}、配置 {1,2} → 误报成升级，而使用者要的是两个一起跑
-//	回退 2.0.0 → 1.0.0      目标就在缓存里 → 完全检测不到，摘要一个字都没有
+// 基线取被换掉的那些里版本号最高的一个：连续升级时那正是上一个。基线来自上次运行记录
+// （project.ReadLastRun），不来自 Manifest 缓存——缓存是永久的，fetch 过、被拒的 add、
+// 连带移除的版本都在里面，只有差异描述要读缓存里旧版本的 Manifest。
 //
-// 换成"被换掉的 = 缓存有 ∖ 配置有"之后四个场景全对，规则反而更短：
-//
-//	首次安装      缓存空 → 没有被换掉的 → 不是变更
-//	加共存版本    两个版本都还在配置里 → 没有被换掉的 → 不是变更
-//	升级 / 回退   旧版本从配置里消失了 → 它就是基线
-//
-// 基线取被换掉的那些里**版本号最高**的一个：连续升级时那正是上一个。
-//
-// # 缓存被清空时检测不到，这是有意的
+// # 没有上次运行记录时检测不到，这是有意的
 //
 // 否则每次 `rm -rf .brickkit` 都会被当成一次全量升级。代价也小——跳过的只有
 // 那份信息性的摘要，检查一项都不会漏（它们本来就在常规 up 路径上）。
 func detectUpgrades(proj *project.Project) []upgradeInfo {
-
+	previous, ok := project.ReadLastRun(proj.Layout)
+	if !ok {
+		return nil
+	}
 	configured := map[string]map[string]bool{}
 	for _, c := range proj.Decl.Components {
 		if configured[c.ID] == nil {
@@ -75,9 +71,11 @@ func detectUpgrades(proj *project.Project) []upgradeInfo {
 
 	var out []upgradeInfo
 	for _, c := range proj.Decl.Components {
-		// 该组件曾经在这个项目里出现过、如今配置里已经没有的版本
+		if slices.Contains(previous[c.ID], c.Version) {
+			continue // 上次就在跑
+		}
 		var replaced []string
-		for _, v := range proj.Layout.CachedVersions(c.ID) {
+		for _, v := range previous[c.ID] {
 			if !configured[c.ID][v] {
 				replaced = append(replaced, v)
 			}

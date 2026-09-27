@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -149,4 +150,23 @@ func TestRemoveDeletesCleanClone(t *testing.T) {
 
 	g.mustRun(dir, "remove", "erp/api")
 	assert.NoDirExists(t, src)
+}
+
+// 转正的版本排在默认版本前面（或嵌在外壳下面）时，要删的是被移除版本的条目，
+// 转正的那一条原地改名、留在原位（包括嵌套），字段不串。
+func TestRemovePromotionKeepsTheRightEntry(t *testing.T) {
+	g, dir := removeFixture(t)
+	g.mustRun(dir, "remove", "erp/api")
+	// 把兼容版本的条目挪到默认版本前面，给默认版本加上自己的字段
+	deploy := filepath.Join(dir, "deploy.yaml")
+	text := readFile(t, deploy)
+	text = strings.Replace(text, "  - id: erp/db@1.0.0\n", "", 1)
+	text = strings.Replace(text, "  - id: erp/db\n", "  - id: erp/db@1.0.0\n  - id: erp/db\n    exposePort: 9999\n    expose: true\n", 1)
+	require.NoError(t, os.WriteFile(deploy, []byte(text), 0o644))
+
+	g.mustRun(dir, "remove", "erp/db@2.0.0")
+	got := readFile(t, deploy)
+	assert.Contains(t, got, "  - id: erp/db\n")
+	assert.NotContains(t, got, "9999", "被移除的 2.0.0 的字段不能落到转正的 1.0.0 上")
+	g.mustRun(dir, "up", "--dry-run")
 }

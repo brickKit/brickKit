@@ -9,6 +9,7 @@ const (
 	ProjfileKindInconsistent           = "projfile.kind_inconsistent"
 	ProjfileComponentSourceTypeInvalid = "projfile.component_source_type_invalid"
 	ProjfileSourcePathOutsideRepo      = "projfile.source_path_outside_repo"
+	ProjfileRepoLooksLikeOption        = "projfile.repo_looks_like_option"
 	ProjfileSourceInconsistent         = "projfile.source_inconsistent"
 	ProjfileRequiredByShell            = "projfile.required_by_shell"
 	ProjfileRequiredBySelf             = "projfile.required_by_self"

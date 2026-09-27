@@ -73,6 +73,10 @@ type gitRepo struct {
 func (r *gitRepo) ensure(ctx context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.root == "" {
+		// 拿不到用户缓存目录（没有 HOME / XDG_CACHE_HOME）：不能退回到当前目录里克隆
+		return errNoRepoCache
+	}
 	if isDir(r.dir) {
 		return nil
 	}
@@ -84,7 +88,8 @@ func (r *gitRepo) ensure(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if _, err := runGit(ctx, "", "clone", "--bare", "--quiet", r.url, tmp); err != nil {
+	// `--` 之后才是地址：以 - 开头的"地址"不能被 git 当成参数（projfile 校验也拒绝它）
+	if _, err := runGit(ctx, "", "clone", "--bare", "--quiet", "--", r.url, tmp); err != nil {
 		_ = os.RemoveAll(tmp)
 		return err
 	}
@@ -111,7 +116,8 @@ func (r *gitRepo) fetch(ctx context.Context) error {
 	if r.fetched {
 		return nil
 	}
-	if _, err := runGit(ctx, r.dir, "fetch", "--quiet", "--tags", "--force", r.url); err != nil {
+	// 克隆时已经配好了 origin：不再把地址放上命令行
+	if _, err := runGit(ctx, r.dir, "fetch", "--quiet", "--tags", "--force", "origin"); err != nil {
 		return err
 	}
 	r.fetched = true
@@ -145,6 +151,10 @@ func (r *gitRepo) tags(ctx context.Context) ([]string, error) {
 	}
 	return strings.Fields(string(out)), nil
 }
+
+// errNoRepoCache 是"拿不到用户缓存目录"：git 源的仓库缓存没有地方放。
+// 给人看的说法在 gitSource.failed 里（这里只是哨兵，不直接显示）。
+var errNoRepoCache = errors.New("no user cache directory")
 
 // gitFailure 是一次 git 调用的失败：保留 git 自己的 stderr，原样给使用者看（提案 §9.9）。
 type gitFailure struct {
@@ -191,16 +201,26 @@ func runGit(ctx context.Context, dir string, args ...string) ([]byte, error) {
 // 永远落在 root 下面。
 func repoCacheDir(root, repoURL string) string {
 	host, path := splitRepoURL(repoURL)
-	var segs []string
-	for _, seg := range strings.Split(strings.ReplaceAll(path, "\\", "/"), "/") {
+	hostSegs := cleanSegments(host)
+	if len(hostSegs) == 0 {
+		hostSegs = []string{"unknown"}
+	}
+	name := strings.TrimSuffix(strings.Join(cleanSegments(path), "/"), ".git") + ".git"
+	return filepath.Join(root, filepath.FromSlash(strings.Join(hostSegs, "_")), filepath.FromSlash(name))
+}
+
+// cleanSegments 把地址的一部分拆成能放进目录名的段：冒号换掉，空段、`.`、`..` 丢掉——
+// 主机名与路径用同一条规则，缓存目录才永远落在缓存根目录下面。
+func cleanSegments(s string) []string {
+	var out []string
+	for _, seg := range strings.Split(strings.ReplaceAll(s, "\\", "/"), "/") {
 		seg = strings.ReplaceAll(seg, ":", "_")
 		if seg == "" || seg == "." || seg == ".." {
 			continue
 		}
-		segs = append(segs, seg)
+		out = append(out, seg)
 	}
-	name := strings.TrimSuffix(strings.Join(segs, "/"), ".git") + ".git"
-	return filepath.Join(root, strings.ReplaceAll(host, ":", "_"), filepath.FromSlash(name))
+	return out
 }
 
 // splitRepoURL 拆出仓库地址的主机与路径。本地路径与 file:// 的主机记为 local。

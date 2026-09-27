@@ -306,6 +306,12 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	// 放在生成之后：这一步只补摘要用的差异描述与新版本产物，
 	// 它取不到东西也不该拦住已经算好的这份计划（004 §10.1）
 	describeUpgrades(ctx, opts, proj.Layout, client, plan.graph, plan.upgrades)
+	// 下一次的版本变更提示以这次为基线
+	refs := make([]string, 0, len(proj.Decl.Components))
+	for _, c := range proj.Decl.Components {
+		refs = append(refs, c.Ref())
+	}
+	project.WriteLastRun(proj.Layout, refs)
 	return plan, nil
 }
 

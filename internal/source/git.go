@@ -13,6 +13,7 @@ package source
 
 import (
 	"context"
+	"errors"
 	"path"
 	"sort"
 	"strings"
@@ -188,6 +189,11 @@ func (s *gitSource) origin(ctx context.Context, componentID, version string) (*O
 // failed 把一次 git 调用的失败做成给人看的错误：点名组件与仓库地址，原样带出 git 的报错，
 // 给出宿主机鉴权的三个检查方向（提案 §9.9）。
 func (s *gitSource) failed(componentID, repoURL string, err error) error {
+	if errors.Is(err, errNoRepoCache) {
+		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SourceNoRepoCache, componentID)).
+			WithDetail(i18n.T(msgid.LabelRepo), repoURL).
+			WithHint(i18n.T(msgid.SourceHintSetCacheHome))
+	}
 	e := clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.SourceGitFetchFailed, componentID)).
 		WithDetail(i18n.T(msgid.LabelSource), i18n.T(msgid.SourceIDWithKind, s.id(), s.kind())).
 		WithDetail(i18n.T(msgid.LabelRepo), repoURL).

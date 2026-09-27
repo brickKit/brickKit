@@ -139,7 +139,7 @@ func Clone(ctx context.Context, l project.Layout, componentID, ref, gitURL, tag 
 	}
 
 	// 完整 clone（不加 --depth）：使用者要能在这份仓库里改代码、提交、推送。
-	cmd := exec.CommandContext(ctx, "git", "clone", "--quiet", gitURL, target)
+	cmd := exec.CommandContext(ctx, "git", "clone", "--quiet", "--", gitURL, target)
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		_ = os.RemoveAll(target)

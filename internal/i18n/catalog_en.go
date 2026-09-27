@@ -1256,6 +1256,7 @@ var en = map[string]string{
 	msgid.ProjfileKindInconsistent:           "%[1]s is declared with a different kind in %[2]s; every version of one component ID must have the same kind",
 	msgid.ProjfileComponentSourceTypeInvalid: "must be git or local (currently %[1]q)",
 	msgid.ProjfileSourcePathOutsideRepo:      "must be the component's relative subdirectory inside the repository, not an absolute path and never leaving the repository through .. (currently %[1]s)",
+	msgid.ProjfileRepoLooksLikeOption:        "a repository address cannot start with - (git would read it as a command option): %[1]s",
 	msgid.ProjfileSourceInconsistent:         "the lines of %[1]s declare different sources (this one differs from %[2]s): a component has one repository, so every line must write the same source",
 
 	msgid.DeployfileComponentMustBeMapping: "each entry must be a mapping (id: …, mode: …)",
@@ -1337,6 +1338,8 @@ var en = map[string]string{
 	msgid.ConfigdirFileRefMissing:             "Error: %[1]s points at a file that cannot be read",
 	msgid.ConfigdirHintFileRef:                "file:// paths are relative to the project root; keep such files out of Git (e.g. under .secrets/)",
 	msgid.ConfigdirCannotEvaluate:             "internal error: %[1]s cannot be evaluated to a value here",
+	msgid.SourceNoRepoCache:                   "Failed to fetch component %[1]s: there is no user cache directory to keep git repositories in",
+	msgid.SourceHintSetCacheHome:              "Set XDG_CACHE_HOME (or HOME) to a writable directory",
 	msgid.SourceGitFetchFailed:                "Failed to fetch component %[1]s",
 	msgid.SourceLabelGitError:                 "Git error",
 	msgid.SourceHintGitSSH:                    "SSH: check that ~/.ssh/ holds the right key and that it is added to the repository host",

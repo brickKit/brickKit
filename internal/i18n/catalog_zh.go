@@ -1247,6 +1247,7 @@ var zh = map[string]string{
 	msgid.ProjfileKindInconsistent:           "%[1]s 在 %[2]s 里声明的 kind 与这里不同；同一个组件 ID 的所有版本 kind 必须一致",
 	msgid.ProjfileComponentSourceTypeInvalid: "只能是 git 或 local（当前是 %[1]q）",
 	msgid.ProjfileSourcePathOutsideRepo:      "要写组件在仓库里的相对子目录，不能是绝对路径、也不能用 .. 走出仓库（当前是 %[1]s）",
+	msgid.ProjfileRepoLooksLikeOption:        "仓库地址不能以 - 开头（会被 git 当成命令参数）：%[1]s",
 	msgid.ProjfileSourceInconsistent:         "%[1]s 的几行写了不同的 source（与 %[2]s 不一致）：一个组件只有一个仓库，每一行的 source 要写成一样",
 
 	msgid.DeployfileComponentMustBeMapping: "每个条目都必须是映射（id: …、mode: …）",
@@ -1328,6 +1329,8 @@ var zh = map[string]string{
 	msgid.ConfigdirFileRefMissing:             "错误：%[1]s 指向的文件读不到",
 	msgid.ConfigdirHintFileRef:                "file:// 的路径相对项目根；这类文件不要进 Git（比如放在 .secrets/ 下）",
 	msgid.ConfigdirCannotEvaluate:             "内部错误：%[1]s 在这里不能被求值",
+	msgid.SourceNoRepoCache:                   "拉取组件失败：%[1]s——找不到用户缓存目录，git 仓库没有地方放",
+	msgid.SourceHintSetCacheHome:              "设置 XDG_CACHE_HOME（或 HOME）指向一个可写目录",
 	msgid.SourceGitFetchFailed:                "拉取组件失败：%[1]s",
 	msgid.SourceLabelGitError:                 "Git 错误",
 	msgid.SourceHintGitSSH:                    "SSH：确认 ~/.ssh/ 下有对应的 key，且已添加到仓库托管平台",

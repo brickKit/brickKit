@@ -303,3 +303,34 @@ func TestGitLatestWithoutVersionTags(t *testing.T) {
 	_, err := c.LatestVersion(context.Background(), "erp/api")
 	require.Error(t, err)
 }
+
+// 精心构造的地址（主机名写成 ..）不能让缓存目录跑出缓存根目录。
+func TestRepoCacheDirNeverLeavesTheRoot(t *testing.T) {
+	root := filepath.FromSlash("/cache")
+	for _, url := range []string{"https://../evil", "git@..:x/y", "https://./a/../../b", "file://../../etc"} {
+		dir := repoCacheDir(root, url)
+		rel, err := filepath.Rel(root, dir)
+		require.NoError(t, err, url)
+		assert.False(t, strings.HasPrefix(rel, ".."), "%s → %s", url, dir)
+	}
+}
+
+// 拿不到用户缓存目录时报错，而不是把仓库克隆到当前目录里。
+func TestGitWithoutCacheDirIsAnError(t *testing.T) {
+	org := newGitOrg(t)
+	org.release(componentSpec{ID: "erp/api", Version: "1.0.0"})
+	t.Setenv("XDG_CACHE_HOME", "")
+	t.Setenv("HOME", "")
+	cwd := t.TempDir()
+	prev, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(cwd))
+	t.Cleanup(func() { _ = os.Chdir(prev) })
+
+	cfg := cfgWithSources(projfile.Source{Name: "org", Type: projfile.SourceTypeGit, BaseURL: gittest.BaseURL(org.dir)})
+	c := newClient(t, newProject(t), cfg, Options{})
+	_, err = c.Manifest(context.Background(), "erp/api", "1.0.0")
+	require.Error(t, err)
+	entries, _ := os.ReadDir(cwd)
+	assert.Empty(t, entries, "当前目录里什么都不能留下")
+}

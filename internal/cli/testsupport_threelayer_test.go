@@ -286,6 +286,15 @@ func (f *projectFixture) deployEntry(t *testing.T, id string) deployfile.Entry {
 func (f *projectFixture) seedInstalled(t *testing.T, c comp) {
 	t.Helper()
 	writeTree(t, f.Layout.CachedManifestDir(c.ID, c.Version), map[string]string{project.FileCachedManifest: c.yamlText()})
+	// 以前装过、跑过：上次运行记录里有它（版本变更的基线）
+	previous, _ := project.ReadLastRun(f.Layout)
+	var refs []string
+	for id, versions := range previous {
+		for _, v := range versions {
+			refs = append(refs, id+"@"+v)
+		}
+	}
+	project.WriteLastRun(f.Layout, append(refs, c.ref()))
 	for _, a := range c.Artifacts {
 		typ, file, _ := strings.Cut(a, ":")
 		dir := filepath.Join(f.Layout.ArtifactsDir(), manifest.ServiceName(c.ID, c.Version), typ)

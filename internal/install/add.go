@@ -201,11 +201,18 @@ func (a *adder) extendRequiredBy() {
 
 // nestExisting：已声明、在部署文件顶层的组件版本，正是某个外壳编进的那一个——挪进外壳。
 // 已经嵌在别的外壳下面的不动（一个版本只能在一个外壳里），说一声。
+//
+// 只对这次新加的外壳做（§8.5 第 4 步）：已在项目里的外壳下面缺的成员，是使用者移出去独立
+// 运行的（§8.7），之后 add 别的组件不能把它塞回去。
 func (a *adder) nestExisting() {
+	fresh := map[string]bool{}
+	for _, ref := range a.fresh {
+		fresh[ref.ID] = true
+	}
 	for _, c := range a.p.Decl.Components {
 		ref := resolver.Ref{ID: c.ID, Version: c.Version}
 		shell, ok := a.hostOf(ref)
-		if !ok {
+		if !ok || !fresh[shell] {
 			continue
 		}
 		l, found := a.p.Deploy.EntryAt(c.ID, c.Version, a.p.Decl.IsDefault(c.ID, c.Version))

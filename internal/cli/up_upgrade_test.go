@@ -377,3 +377,17 @@ func TestDryRunListsMigrations(t *testing.T) {
 	assert.Contains(t, r.stdout, "Database migrations", "dry-run 必须说清会不会动数据库：%s", r.stdout)
 	assert.Contains(t, r.stdout, "/app/people-basic migrate")
 }
+
+// Manifest 缓存是永久的（fetch、被拒的 add、连带移除都会在里面留下版本）：版本变更的基线是
+// 这个项目上一次运行的版本，不是缓存里有什么。连带移除一个兼容版本也不是版本变更。
+func TestVersionChangeBaselineIsTheLastRun(t *testing.T) {
+	g, dir := removeFixture(t)
+	g.mustRun(dir, "up", "--dry-run")
+	g.mustRun(dir, "remove", "erp/old") // 连带移除 erp/db 1.0.0，它的 Manifest 留在缓存里
+	r := g.mustRun(dir, "up", "--dry-run")
+	assert.NotContains(t, r.stdout, "1.0.0 → 2.0.0", "db 2.0.0 上次就在跑：这不是一次版本变更")
+
+	g.mustRun(dir, "fetch", "erp/db@1.0.0")
+	r = g.mustRun(dir, "up", "--dry-run")
+	assert.NotContains(t, r.stdout, "→ 2.0.0", "fetch 过的版本从没在这个项目里跑过")
+}

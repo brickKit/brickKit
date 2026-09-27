@@ -200,11 +200,13 @@ func (a *applier) editDeploy(path string, plan *install.Plan) error {
 	for _, entry := range plan.NestEntries {
 		e.Nest(componentsKey, entry.Under, entry.ID)
 	}
-	for _, r := range plan.RenameEntries {
-		e.RenameID(componentsKey, r.From, r.To)
-	}
+	// 先删再改名：转正时被移除的默认版本条目是裸 ID，兼容版本的条目改名后也是裸 ID——
+	// 先改名的话，按 ID 找到的可能是刚改名的那一条（排在前面、或嵌在外壳下面）
 	for _, id := range plan.RemoveEntries {
 		e.RemoveEntry(componentsKey, id)
+	}
+	for _, r := range plan.RenameEntries {
+		e.RenameID(componentsKey, r.From, r.To)
 	}
 	if err := e.Save(); err != nil {
 		return err

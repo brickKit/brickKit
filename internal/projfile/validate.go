@@ -47,6 +47,7 @@ func (f *File) validateSources(p *clierr.ProblemSet) {
 			requireFor(p, field, "url", s.URL, s.Type)
 		case SourceTypeGit:
 			requireFor(p, field, "baseUrl", s.BaseURL, s.Type)
+			rejectOptionLike(p, field+".baseUrl", s.BaseURL)
 		case SourceTypeLocal:
 			requireFor(p, field, "path", s.Path, s.Type)
 		default:
@@ -169,6 +170,7 @@ func validateComponentSource(p *clierr.ProblemSet, field string, s *ComponentSou
 		p.Missing(field + ".type")
 	case SourceTypeGit:
 		requireFor(p, field, "repo", s.Repo, s.Type)
+		rejectOptionLike(p, field+".repo", s.Repo)
 		// git 源的 path 是组件在仓库里的子目录（monorepo，附录 A9）：只能往仓库里面指
 		if s.Path != "" && !isInsideRelative(s.Path) {
 			p.Add(field+".path", i18n.T(msgid.ProjfileSourcePathOutsideRepo, s.Path))
@@ -177,6 +179,14 @@ func validateComponentSource(p *clierr.ProblemSet, field string, s *ComponentSou
 		requireFor(p, field, "path", s.Path, s.Type)
 	default:
 		p.Add(field+".type", i18n.T(msgid.ProjfileComponentSourceTypeInvalid, s.Type))
+	}
+}
+
+// rejectOptionLike：仓库地址以 - 开头会被 git 当成参数（--upload-pack=… 能执行任意命令），
+// 而项目文件可能来自别人。
+func rejectOptionLike(p *clierr.ProblemSet, field, value string) {
+	if strings.HasPrefix(strings.TrimSpace(value), "-") {
+		p.Add(field, i18n.T(msgid.ProjfileRepoLooksLikeOption, value))
 	}
 }
 

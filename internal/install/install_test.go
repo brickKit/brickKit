@@ -329,3 +329,52 @@ func TestPlanAddFillsOnlyTargetConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, plan.AddConfigs)
 }
+
+// §8.7：成员被使用者移出外壳独立运行是合法状态——之后 add 一个无关的组件，不能把它塞回去。
+// 只在外壳是这次新加的（§8.5 第 4 步），或 add 的正是这个成员时才挪进外壳。
+func TestPlanAddLeavesMembersTakenOutOfTheShell(t *testing.T) {
+	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
+  - {id: erp/a, version: 1.0.0}`, `  - id: erp/shell
+  - id: erp/a`)
+	cat := catalog(shellMf("erp/shell@1.0.0", "erp/a@1.0.0"), mf("erp/a@1.0.0"), mf("erp/x@1.0.0"))
+	plan, err := install.PlanAdd(p, graphFor(t, p, cat, "erp/x@1.0.0"), ref("erp/x@1.0.0"))
+	require.NoError(t, err)
+	assert.Empty(t, plan.NestEntries)
+}
+
+// requiredBy 点名的组件还有别的版本留着，但留下的版本并不依赖这个兼容版本——它没人要了，一并移除。
+func TestPlanRemoveCascadeLooksAtWhatRemainingVersionsNeed(t *testing.T) {
+	p := proj(t, `  - {id: erp/api, version: 2.0.0}
+  - {id: erp/api, version: 1.0.0, requiredBy: [erp/portal]}
+  - {id: erp/portal, version: 2.0.0}
+  - {id: erp/portal, version: 1.0.0, requiredBy: [erp/web]}
+  - {id: erp/web, version: 1.0.0}`, `  - id: erp/api
+  - id: erp/api@1.0.0
+  - id: erp/portal
+  - id: erp/portal@1.0.0
+  - id: erp/web`)
+	cat := catalog(mf("erp/api@1.0.0"), mf("erp/api@2.0.0"),
+		mf("erp/portal@2.0.0", "erp/api@2.0.0"), mf("erp/portal@1.0.0", "erp/api@1.0.0"),
+		mf("erp/web@1.0.0", "erp/portal@1.0.0"))
+	plan, err := install.PlanRemove(p, graphFor(t, p, cat), ref("erp/web@1.0.0"))
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []resolver.Ref{ref("erp/web@1.0.0"), ref("erp/portal@1.0.0"), ref("erp/api@1.0.0")}, plan.Removed)
+}
+
+// 连带移除的版本同样要查强依赖方：requiredBy 没写全（手改过）时，不能把别人还在用的版本删掉。
+func TestPlanRemoveChecksDependentsOfCascadedVersions(t *testing.T) {
+	p := proj(t, `  - {id: erp/db, version: 2.0.0}
+  - {id: erp/db, version: 1.0.0, requiredBy: [erp/old]}
+  - {id: erp/old, version: 1.0.0}
+  - {id: erp/other, version: 1.0.0}`, `  - id: erp/db
+  - id: erp/db@1.0.0
+  - id: erp/old
+  - id: erp/other`)
+	cat := catalog(mf("erp/db@1.0.0"), mf("erp/db@2.0.0"),
+		mf("erp/old@1.0.0", "erp/db@1.0.0"), mf("erp/other@1.0.0", "erp/db@1.0.0"))
+	plan, err := install.PlanRemove(p, graphFor(t, p, cat), ref("erp/old@1.0.0"))
+	require.NoError(t, err)
+	assert.Equal(t, []resolver.Ref{ref("erp/old@1.0.0")}, plan.Removed, "erp/other 还依赖 db 1.0.0，它留下")
+	assert.Equal(t, []install.Line{{ID: "erp/db", Version: "1.0.0", RequiredBy: []string{"erp/other"}}}, plan.SetRequiredBy,
+		"requiredBy 改成真正还需要它的组件")
+}
