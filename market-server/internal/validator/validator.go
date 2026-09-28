@@ -6,7 +6,7 @@
 //
 // 市场在 Manifest 规则之上只加发布请求自己的规则：
 //   - 市场版本必须有 deployment.image（装的人手上没有源码可以构建）
-//   - configSchema 的键不许撞上平台保留变量（CLI 注入时警告并跳过，市场直接拒收）
+//   - configSchema 的键不许撞上平台保留变量（manifest.ReservedHitFor；CLI 注入时警告并跳过，市场直接拒收）
 //   - 来源、仓库地址、版本号、可见性
 //   - 闭源组件提供 API 时必须带 api-contract 产物
 //
@@ -17,7 +17,6 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
-	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 
 	"github.com/brickkit/brickkit/market-server/internal/model"
@@ -43,7 +42,7 @@ func Validate(req model.PublishRequest) (*manifest.Manifest, error) {
 			WithDetail("problems", problems)
 	}
 
-	if hits := inject.ReservedHits(m); len(hits) > 0 {
+	if hits := m.ReservedConfigKeys(); len(hits) > 0 {
 		conflicts := make([]model.ReservedConflict, 0, len(hits))
 		for _, h := range hits {
 			conflicts = append(conflicts, model.ReservedConflict{

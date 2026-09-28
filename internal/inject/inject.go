@@ -220,8 +220,8 @@ func buildComponent(
 	}
 	warnings := append([]*clierr.Error{}, resolved.Warnings...)
 	for _, r := range resolved.Values {
-		if pattern, hit := staticReserved(r.Key); hit {
-			warnings = append(warnings, reservedConflictWarning(node.Ref.ID, ReservedHit{Key: r.Key, Pattern: pattern, Suggestion: renameSuggestion(r.Key, pattern)}))
+		if hit, reserved := manifest.ReservedHitFor(r.Key); reserved {
+			warnings = append(warnings, reservedConflictWarning(node.Ref.ID, hit))
 			continue
 		}
 		builder.set(Var{

@@ -1,9 +1,9 @@
 package inject
 
-// 本文件测保留变量：改名建议，以及 up 注入与 lint 共用的那份"哪些名字被保留"的判断。
+// 本文件测保留变量的警告：up 注入与 lint 共用。
 //
 // configSchema 的键就是环境变量名（附录 A10）；资源废除之后 DATABASE_* 等前缀不再保留。
-// 市场发布时经 ReservedHits 用的是同一份判断。
+// 判断本身在 manifest.ReservedHitFor，这里只测警告。
 
 import (
 	"testing"
@@ -15,22 +15,6 @@ import (
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
-// 建议必须**真的避得开**那条模式：*_ENDPOINT 是后缀规则，加前缀躲不开。
-func TestRenameSuggestionAvoidsThePattern(t *testing.T) {
-	cases := []struct{ key, pattern, want string }{
-		{"DEPARTMENT_TREE_ENDPOINT", "*_ENDPOINT", "DEPARTMENT_TREE_BASE_URL"},
-		{"NOTIFIER_ENDPOINT", "*_ENDPOINT", "NOTIFIER_BASE_URL"},
-		{"_ENDPOINT", "*_ENDPOINT", "_ENDPOINT_VALUE"},
-		{"PORT", "PORT", "CUSTOM_PORT"},
-		{"COMPONENT_ID", "COMPONENT_ID", "CUSTOM_COMPONENT_ID"},
-	}
-	for _, c := range cases {
-		got := renameSuggestion(c.key, c.pattern)
-		assert.Equal(t, c.want, got, c.key)
-		_, hit := staticReserved(got)
-		assert.False(t, hit, "按建议改成 %q 之后仍然命中保留规则——照着做不管用的建议比不给更糟", got)
-	}
-}
 
 func manifestWithConfigKeys(keys ...string) *manifest.Manifest {
 	props := map[string]manifest.ConfigProperty{}
@@ -72,15 +56,3 @@ func TestReservedKeyWarningsNothingToCheck(t *testing.T) {
 	assert.Nil(t, ReservedKeyWarnings(manifestWithConfigKeys("PAGE_SIZE", "DATABASE_URL", "REDIS_HOST")))
 }
 
-// 市场发布时拒绝的，正是 lint / up 警告的那一批：同一个判断，结构化给出。
-func TestReservedHits(t *testing.T) {
-	m := manifestWithConfigKeys("PORT", "PAGE_SIZE", "NOTIFIER_ENDPOINT", "COMPONENT_ID")
-	assert.Equal(t, []ReservedHit{
-		{Key: "COMPONENT_ID", Pattern: "COMPONENT_ID", Suggestion: "CUSTOM_COMPONENT_ID"},
-		{Key: "NOTIFIER_ENDPOINT", Pattern: "*_ENDPOINT", Suggestion: "NOTIFIER_BASE_URL"},
-		{Key: "PORT", Pattern: "PORT", Suggestion: "CUSTOM_PORT"},
-	}, ReservedHits(m))
-	assert.Nil(t, ReservedHits(nil))
-	assert.Nil(t, ReservedHits(manifestWithConfigKeys("PAGE_SIZE")))
-	assert.Len(t, ReservedKeyWarnings(m), len(ReservedHits(m)))
-}
