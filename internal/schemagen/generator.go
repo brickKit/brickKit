@@ -124,8 +124,14 @@ func (g *generator) document(t reflect.Type, title string) ([]byte, error) {
 }
 
 func (g *generator) typeSchema(t reflect.Type) (schema, error) {
-	for t.Kind() == reflect.Pointer {
+	// Go 允许自指的指针类型（type T *T），一路解下去永远解不到头：解过的就不再解。
+	seen := map[reflect.Type]bool{}
+	for t.Kind() == reflect.Pointer && !seen[t] {
+		seen[t] = true
 		t = t.Elem()
+	}
+	if t.Kind() == reflect.Pointer {
+		return nil, fmt.Errorf("递归类型 %s 不支持（指针指回自己）", t)
 	}
 	if build, ok := g.overrides[t]; ok {
 		return build(), nil

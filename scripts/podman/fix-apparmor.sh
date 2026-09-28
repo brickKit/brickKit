@@ -3,7 +3,7 @@
 # AppArmor policy gap that blocks `podman rm`/`down` from tearing down its
 # rootless network namespace. See the companion doc for the full story and
 # a line-by-line explanation of every step below:
-#   docs/en/07-patterns/11-podman-environment-checklist.md
+#   docs/en/10-troubleshooting/01-up-down-issues.md
 #
 # ============================================================================
 # READ THIS BEFORE RUNNING:

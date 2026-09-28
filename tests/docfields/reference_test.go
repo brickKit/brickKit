@@ -1,15 +1,14 @@
-// 本文件守着 docs/{en,zh}/06-architecture/ 下两份字段参考文档的**完整性**：
-// 07-component-yaml-reference.md 对着 manifest.Manifest，08-brickkit-yaml-reference.md
-// 对着 projfile.File。结构体里每一个 YAML 字段，参考文档里都得有一行讲它；
-// 文档里讲的每一个字段，结构体里都得真的存在。
+// 本文件守着 docs/{en,zh}/11-reference/ 下三份字段参考文档的**完整性**：
+// 01-component-yaml-schema.md 对着 manifest.Manifest，02-brickkit-yaml-schema.md
+// 对着 projfile.File，03-deploy-yaml-schema.md 对着 deployfile.File（deploy.yaml 与
+// deploy.local.yaml 是同一个结构）。结构体里每一个 YAML 字段，参考文档里都得有一行
+// 讲它；文档里讲的每一个字段，结构体里都得真的存在。
 //
 // # 为什么要有它
 //
 // docfields_test.go 只查"文档写了结构体不认识的字段"（正向，且只扫 AGENTS/README
 // 那几段骨架）。"结构体新增了字段、参考文档忘了写"这个方向没有任何东西看着——
-// 那组完整性检查随 design/ 归档一并撤掉了，当时的判据是"等 docs/architecture
-// 长出详尽的参考文档，就在那里重新引入"。参考文档已经有了，这条测试就是那个
-// 重新引入。
+// 字段参考文档就是详尽版，这条测试守的正是那个方向。
 //
 // 真相来源仍然是结构体本身（反射），不是又抄一份字段清单。所以结构体标签必须说
 // 真话：自己实现了 UnmarshalYAML 的类型（如 manifest.ComponentDep）要把"不是作者
@@ -26,7 +25,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/projfile"
 )
@@ -37,16 +38,45 @@ type fieldPaths struct {
 	leaves map[string]bool
 	// nodes 是容器路径（结构体、数组元素、map 值）：文档里提到它们合法，但不强求。
 	nodes map[string]bool
+	// recursive 是递归超过上限、展开被截停的类型。
+	recursive []string
 }
+
+// opaqueTypes 是"原样保留的值"：对写文件的人来说它就是一个值，和 string 一样是叶子，
+// 不往里展开。
+var opaqueTypes = map[reflect.Type]string{
+	// deploy.yaml 的 vars 值按原文保留（VER: 1.10 是 "1.10"，不是 1.1），所以存成
+	// YAML 节点再解释。它的 Content / Alias 字段又指回 Node——展开它就是一条没有尽头的路。
+	reflect.TypeOf(yaml.Node{}): "原样保留的 YAML 值",
+}
+
+// maxSameTypeOnPath 是同一个结构体类型在一条展开链上最多出现的次数。
+//
+// 按**类型**展开没有"数据有多深"这个自然终点：类型引用了自己，展开就永远停不下来
+// （真出过：vars 的 yaml.Node，一次测试吃掉 12 GB 内存，连编辑器一起被系统杀掉）。
+// 合理范围内的嵌套照常展开；超出上限的那条分支停下，并把类型记进 recursive——
+// 测试要求它为空，所以递归类型会被点名，而不是被无声截断。
+// 类型的种类有限，每种最多出现这么多次，展开链的长度就有上限，一定会结束。
+const maxSameTypeOnPath = 3
 
 func structPaths(typ reflect.Type) fieldPaths {
 	out := fieldPaths{leaves: map[string]bool{}, nodes: map[string]bool{}}
-	collectPaths(typ, "", &out)
+	collectPaths(typ, "", map[reflect.Type]int{}, &out)
 	return out
 }
 
+// expandable 判断一个元素类型要不要继续往里展开：结构体才展开，原样保留的值不展开。
+func expandable(typ reflect.Type) bool {
+	_, opaque := opaqueTypes[typ]
+	return typ.Kind() == reflect.Struct && !opaque
+}
+
+// derefType 一路解指针。Go 允许自指的指针类型（type T *T），那样永远解不到头；
+// 遇到解过的类型就停下，返回的类型仍是指针——只有指针成环时才会这样。
 func derefType(typ reflect.Type) reflect.Type {
-	for typ.Kind() == reflect.Pointer {
+	seen := map[reflect.Type]bool{}
+	for typ.Kind() == reflect.Pointer && !seen[typ] {
+		seen[typ] = true
 		typ = typ.Elem()
 	}
 	return typ
@@ -59,11 +89,25 @@ func joinFieldPath(prefix, name string) string {
 	return prefix + "." + name
 }
 
-func collectPaths(typ reflect.Type, path string, out *fieldPaths) {
+func collectPaths(typ reflect.Type, path string, onPath map[reflect.Type]int, out *fieldPaths) {
 	typ = derefType(typ)
+	if _, opaque := opaqueTypes[typ]; opaque {
+		out.leaves[path] = true
+		return
+	}
 
 	switch typ.Kind() {
+	case reflect.Pointer: // 解完指针还是指针：指针成环
+		out.recursive = appendOnce(out.recursive, typ.String())
+
 	case reflect.Struct:
+		if onPath[typ] >= maxSameTypeOnPath {
+			out.recursive = appendOnce(out.recursive, typ.String())
+			return
+		}
+		onPath[typ]++
+		defer func() { onPath[typ]-- }()
+
 		if path != "" {
 			out.nodes[path] = true
 		}
@@ -79,21 +123,21 @@ func collectPaths(typ reflect.Type, path string, out *fieldPaths) {
 			case "":
 				name = strings.ToLower(field.Name)
 			}
-			collectPaths(field.Type, joinFieldPath(path, name), out)
+			collectPaths(field.Type, joinFieldPath(path, name), onPath, out)
 		}
 
 	case reflect.Slice:
-		if elem := derefType(typ.Elem()); elem.Kind() == reflect.Struct {
+		if elem := derefType(typ.Elem()); expandable(elem) || elem.Kind() == reflect.Pointer {
 			out.nodes[path] = true
-			collectPaths(elem, path+"[]", out)
+			collectPaths(elem, path+"[]", onPath, out)
 			return
 		}
 		out.leaves[path] = true
 
 	case reflect.Map:
-		if elem := derefType(typ.Elem()); elem.Kind() == reflect.Struct {
+		if elem := derefType(typ.Elem()); expandable(elem) || elem.Kind() == reflect.Pointer {
 			out.nodes[path] = true
-			collectPaths(elem, path+".<key>", out)
+			collectPaths(elem, path+".<key>", onPath, out)
 			return
 		}
 		out.leaves[path] = true
@@ -101,6 +145,15 @@ func collectPaths(typ reflect.Type, path string, out *fieldPaths) {
 	default:
 		out.leaves[path] = true
 	}
+}
+
+func appendOnce(list []string, s string) []string {
+	for _, x := range list {
+		if x == s {
+			return list
+		}
+	}
+	return append(list, s)
 }
 
 var (
@@ -182,24 +235,37 @@ var referenceDocs = []struct {
 	file string
 	typ  reflect.Type
 }{
-	{"07-component-yaml-reference.md", reflect.TypeOf(manifest.Manifest{})},
-	{"08-brickkit-yaml-reference.md", reflect.TypeOf(projfile.File{})},
+	{"01-component-yaml-schema.md", reflect.TypeOf(manifest.Manifest{})},
+	{"02-brickkit-yaml-schema.md", reflect.TypeOf(projfile.File{})},
+	{"03-deploy-yaml-schema.md", reflect.TypeOf(deployfile.File{})},
+}
+
+// minFields 是反射与文档解析两侧的下限。它只用来发现"解析坏了、几乎什么都没取到"，
+// 不是字段数的约定：三层重构后 brickkit.yaml 只剩十几个字段，下限按最瘦的那个定。
+const minFields = 10
+
+// 反射这一侧先单独验：它不依赖文档，文档还没写时也必须是绿的。
+// 反射出来的字段太少，说明 structPaths 坏了，下面那条测试的结论就不可信。
+func TestReferenceStructsReflectTheirFields(t *testing.T) {
+	for _, ref := range referenceDocs {
+		fields := structPaths(ref.typ)
+		require.GreaterOrEqual(t, len(fields.leaves), minFields,
+			"%s 只反射出 %d 个字段——structPaths 坏了", ref.file, len(fields.leaves))
+	}
 }
 
 // 字段参考文档必须覆盖结构体里的每一个字段，且不多讲结构体没有的。
 func TestYAMLReferencesCoverEveryField(t *testing.T) {
 	for _, ref := range referenceDocs {
 		fields := structPaths(ref.typ)
-		require.GreaterOrEqual(t, len(fields.leaves), 25,
-			"%s 只反射出 %d 个字段——structPaths 坏了，这条测试的结论不可信", ref.file, len(fields.leaves))
 
 		for _, lang := range []string{"en", "zh"} {
-			rel := filepath.Join("docs", lang, "06-architecture", ref.file)
+			rel := filepath.Join("docs", lang, "11-reference", ref.file)
 			body, err := os.ReadFile(filepath.Join(repoRoot, rel))
 			require.NoError(t, err)
 
 			documented := documentedPaths(string(body))
-			require.GreaterOrEqual(t, len(documented), 25,
+			require.GreaterOrEqual(t, len(documented), minFields,
 				"%s 只抽出 %d 个字段路径——documentedPaths 坏了，这条测试的结论不可信", rel, len(documented))
 
 			missing, phantom := referenceDrift(documented, fields)

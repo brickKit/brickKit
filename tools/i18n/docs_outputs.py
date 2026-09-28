@@ -20,8 +20,8 @@
 
 用法：
 
-    python3 tools/i18n/docs_outputs.py docs/en/03-guide/01-first-project.md          # 干跑：只报告
-    python3 tools/i18n/docs_outputs.py --write docs/en/00-quick-start.md ...        # 原地改写
+    python3 tools/i18n/docs_outputs.py tutorials/en/01-first-project.md          # 干跑：只报告
+    python3 tools/i18n/docs_outputs.py --write docs/en/00-intro/02-quick-start.md ...        # 原地改写
     python3 tools/i18n/docs_outputs.py --tags none,bash,mermaid ...                # 处理哪些围栏（默认 none,bash,mermaid）
 
 只动围栏块里的行，不碰正文。翻完之后用 scripts/check-guide-output.py 对着真实的英文输出核对。

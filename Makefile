@@ -131,16 +131,14 @@ lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas ch
 # 教程的输出核对（check-guide-output、check-guides）随旧教程一起撤下：附录 A13
 # 规定 tutorials/ 先只建目录，没有教程可核对。写教程的那一阶段要为 tutorials/
 # 重新建一个逐行核对真实输出的检查（旧脚本在 git 历史里，机制可以照搬）。
-# check-cli-docs 拆成了两个方向：「文档写了不存在的命令/参数」（防伪造）计入
-# 退出码，重新加回 lint；「命令/参数有、文档没写」（详尽性）只打印不计入退出
-# 码——旧文档归档后全仓库没有任何一份"详尽命令参考"活文档，这个
-# 方向注定会随 CLI 新增命令/参数永久报警，直到 docs/en/06-architecture 长出
-# 详尽命令参考为止。
+# check-cli-docs 守两个方向，都计入退出码：「文档写了不存在的命令/参数」（防伪造，
+# 扫全部现行文档），与「命令/参数有、命令参考没写」（详尽性，只对着
+# docs/{en,zh}/07-cli-reference/README.md 查——那是详尽的那一份）。
 #
 # check-doc-tree 只在有活文档画了 .brickkit/ 目录树时才有东西可查：它扫不到
 # 任何一棵树就直接退出 2（"多半是树的画法变了"），而不是给出一个漂亮的通过。
-# docs/{en,zh}/06-architecture/00-overview.md 现在画着这棵树，所以它回到了 lint 里；
-# 哪天那两份文档里的树被删掉或改了画法，这里会立刻红，而不是悄悄不再检查。
+# 这棵树由 docs/{en,zh}/01-three-layers/01-overview.md 负责画，所以它在 lint 里；
+# 那篇还没写、或树被删掉/改了画法，这里会立刻红，而不是悄悄不再检查。
 	@if [ -x "$(GOLANGCI)" ]; then \
 		echo "▶ golangci-lint run"; \
 		$(GOLANGCI) run ./... && (cd market-server && $(GOLANGCI) run ./...); \
@@ -222,7 +220,7 @@ check-docs: ## 检查现行内容的引用（不再指向归档、规范小节�
 	@python3 scripts/check-docs.py
 
 .PHONY: check-cli-docs
-check-cli-docs: build-cli ## 检查文档里的命令与参数是否真的存在
+check-cli-docs: build-cli ## 检查文档里的命令与参数是否真的存在，命令参考是否写全
 	@python3 scripts/check-cli-docs.py $(BIN)/brickkit
 
 .PHONY: check-doc-tree

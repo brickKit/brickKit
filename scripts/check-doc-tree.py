@@ -11,13 +11,12 @@
 
 漏在缝里的是**散文里的结构**——目录树就是最典型的一种。`brickkit reset`
 连同整套备份机制删掉之后，四份文档的目录树里还画着 `.brickkit/backup/`，
-其中一处与本文件 §7.2「为什么这里没有 backup/」直接打架，
-另一处是让读者刚 init 完对着核对的表——四行里有一行是假的。
+其中一处是让读者刚 init 完对着核对的表——四行里有一行是假的。
 三道守卫一条都没响：目录树既不是链接，也不是命令，更不是 CLI 输出。
 
 # 判据从哪来
 
-不写死名单。合法名字从 `internal/config/layout.go` 推导：凡是
+不写死名单。合法名字从 `internal/project/layout.go` 推导：凡是
 `l.path(DirBrickkit, X)` 这种形状的方法，X 就是 `.brickkit/` 下的一项。
 代码里加一类缓存目录，这里自动跟着认；删掉一类，文档里还画着就会被抓住。
 
@@ -34,7 +33,6 @@
 第 ④ 条是关键：一个不会失败的检查等于没有检查。
 """
 
-import glob
 import os
 import re
 import shutil
@@ -43,9 +41,13 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LAYOUT = os.path.join(ROOT, "internal", "config", "layout.go")
+LAYOUT = os.path.join(ROOT, "internal", "project", "layout.go")
 
-SKIP_DIRS = ("playground", "node_modules", ".tools", "bin", "data", ".git", "archive")
+# 历史与规划目录不是"现行文档"：那里画的树可以是旧的，也可以是还没实现的。
+EXCLUDED_PREFIXES = ("archive/", "docs/superpowers/", "new_plan/", ".superpowers/")
+
+# 这棵树由哪篇现行文档负责画（扫不到任何一棵时，报错里点它的名）。
+TREE_OWNER = "docs/{en,zh}/01-three-layers/01-overview.md"
 
 # 树里出现、但不是"CLI 创建的东西"的行，跳过而不是报错。
 # 只有这一类：省略号。别的都该老实对上。
@@ -79,12 +81,13 @@ def real_init_entries(binary):
     """真跑一次 init，返回 `.brickkit/` 下实际出现的东西。"""
     work = tempfile.mkdtemp(prefix="brickkit-tree-")
     try:
-        r = subprocess.run([binary, "init", "treecheck"], cwd=work,
+        # init <name> 在 ./<name>/ 里建项目
+        r = subprocess.run([binary, "init", "treecheck", "--no-skills"], cwd=work,
                            capture_output=True, text=True)
         if r.returncode != 0:
             print("❌ 自检失败：brickkit init 跑不起来\n" + r.stdout + r.stderr)
             sys.exit(2)
-        return set(os.listdir(os.path.join(work, ".brickkit")))
+        return set(os.listdir(os.path.join(work, "treecheck", ".brickkit")))
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -145,9 +148,14 @@ def children_of_brickkit(block):
 def scan(allowed):
     """返回 [(文件, 名字)]：文档里画了、而 CLI 不会创建的东西。"""
     bad, seen = [], 0
-    for path in glob.glob(os.path.join(ROOT, "**", "*.md"), recursive=True):
-        rel = os.path.relpath(path, ROOT)
-        if any(part in SKIP_DIRS for part in rel.split(os.sep)):
+    out = subprocess.run(["git", "ls-files", "-z", "*.md"], cwd=ROOT,
+                         capture_output=True, check=True).stdout
+    for raw in out.split(b"\0"):
+        rel = raw.decode("utf-8")
+        if not rel or rel.startswith(EXCLUDED_PREFIXES):
+            continue
+        path = os.path.join(ROOT, rel)
+        if not os.path.isfile(path):
             continue
         for block in fenced_blocks(path):
             for name in children_of_brickkit(block):
@@ -209,8 +217,9 @@ def main():
 
     bad, seen = scan(allowed)
     if seen == 0:
-        print("❌ 文档里一棵 .brickkit/ 目录树都没扫到——多半是树的画法变了，"
-              "而不是文档里真的没有。")
+        print("❌ 现行文档里一棵 .brickkit/ 目录树都没扫到。\n"
+              f"   这棵树由 {TREE_OWNER} 负责画：那篇还没写，就是它的待办；"
+              "写了却扫不到，多半是树的画法变了。")
         sys.exit(2)
 
     if bad:

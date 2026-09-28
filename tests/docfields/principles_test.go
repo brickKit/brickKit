@@ -1,4 +1,4 @@
-// 本文件守着 docs/{en,zh}/06-architecture/01-design-principles.md 与根目录 AGENTS.md /
+// 本文件守着 docs/{en,zh}/06-architecture/05-design-principles.md 与根目录 AGENTS.md /
 // AGENTS.zh.md §4「十二条设计原则」**不漂移**。
 //
 // # 为什么要有它
@@ -150,7 +150,7 @@ func TestPrinciplesDocMirrorsAgents(t *testing.T) {
 			"%s §4 抽出了 %d 条原则，应该是 %d——agentsPrinciples 坏了，这条测试的结论不可信",
 			pair.agents, len(want), principleCount)
 
-		rel := filepath.Join("docs", pair.lang, "06-architecture", "01-design-principles.md")
+		rel := filepath.Join("docs", pair.lang, "06-architecture", "05-design-principles.md")
 		docBody, err := os.ReadFile(filepath.Join(repoRoot, rel))
 		require.NoError(t, err, "%s 不存在：这份文档是 %s §4 十二条原则的论证版", rel, pair.agents)
 		got, numberingProblems := splitNumbered(docPrinciples(string(docBody), pair.section))

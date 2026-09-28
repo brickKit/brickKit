@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 """检查文档里写的 brickkit 命令与参数是不是真的存在。
 
-查三类：
+查四类：
 
   ① 不存在的命令   文档写了 `brickkit foo`，而 CLI 里没有 foo
   ② 不存在的参数   文档写了 `brickkit up --bar`，而 up 没有 --bar
-  ③ 测试数量过期   文档写「N 个测试函数」，而仓库里 `^func Test` 的真实数目对不上
+  ③ 数量过期       文档写「N 个命令」「N 个测试函数」，而真实数目对不上
+  ④ 命令参考不全   CLI 有的命令或参数，命令参考（docs/{en,zh}/07-cli-reference/README.md）
+                   里没有写
 
 # 为什么需要它
 
@@ -20,15 +22,14 @@
 
 # 这个脚本自己会不会坏
 
-会，而且同类脚本在这个项目里已经坏过三次（Step 33 的错误审计、
-Step 39 的证据审计，都是先报出一堆假结果）。所以**自检是它的一部分**：
+会，而且同类脚本在这个项目里已经坏过好几次（错误建议的审计、验收证据的审计，
+都是先报出一堆假结果）。所以**自检是它的一部分**：
 先拿几个确定存在、以及确定不存在的命令/参数验一遍解析，
 验不过就直接退出，而不是继续跑出一个漂亮的 0。
 
 一个不会失败的检查等于没有检查。
 """
 
-import glob
 import os
 import re
 import subprocess
@@ -43,11 +44,11 @@ PLACEHOLDERS = {"--...", "--flag", "--选项"}
 # 只认同一行内的删除措辞：范围窄，不至于把真的笔误一起放过去。
 #
 # "刻意不做"是与"已删除"并列的另一类墓碑：那个命令**从来没有过**，而文档要写清
-# 为什么不做它（`brickkit search` 就是——发现归市场前端，007 §17.2）。这类句子
+# 为什么不做它（`brickkit search` 就是——发现归市场前端）。这类句子
 # 同样必须写出那个名字，否则读者根本不知道在说哪件事。
 # "不提供 / 不会有"是同一类墓碑的另外两种说法，都是真句子逼出来的：
-#   012 §2.21   "为什么平台不提供一个 `brickkit up --consolidated`"
-#   组件合并部署 "| `brickkit up --consolidated` 之类的命令 | 没有，也不会有 |"
+#   "为什么平台不提供一个 `brickkit up --consolidated`"
+#   "| `brickkit up --consolidated` 之类的命令 | 没有，也不会有 |"
 # 这两句的价值恰恰在于写出那个不存在的参数名。把它们报成"文档写错了"，
 # 只会逼人把「明确拒绝做这件事」的论证删掉，而下一个人又会把功能加回来。
 TOMBSTONE = re.compile(r"已删除|已作废|删掉|删除了|整个删|移除了|不再支持|早先有过|"
@@ -56,12 +57,18 @@ TOMBSTONE = re.compile(r"已删除|已作废|删掉|删除了|整个删|移除�
 # 反向检查（"二进制里有、文档里没有"）时豁免的东西。
 #
 #   help / completion  cobra 自带，不是这个平台的能力
-#   --help / --config / --log-level  全局工具参数，不属于任何一条命令的语义
+#   --help  cobra 自带
 #
 # 这份豁免是**白名单**，不是"凡是没写文档的都算豁免"——新增一条命令或参数而
-# 忘了写进设计书，就该在这里报出来。
+# 忘了写进命令参考，就该在这里报出来。（--log-level 是全局参数，命令参考照样要讲它。）
 UNDOCUMENTED_OK_CMDS = {"help", "completion"}
-UNDOCUMENTED_OK_FLAGS = {"--help", "--config", "--log-level"}
+UNDOCUMENTED_OK_FLAGS = {"--help"}
+
+# 命令参考：每条命令、每个参数都必须在这里写到。两种语言各一份，各自完整。
+CLI_REFERENCES = ["docs/en/07-cli-reference/README.md", "docs/zh/07-cli-reference/README.md"]
+
+# 历史与规划目录不是"现行文档"。
+EXCLUDED_PREFIXES = ("archive/", "docs/superpowers/", "new_plan/", ".superpowers/")
 
 # 自检基线：(命令, 参数, 是否应当存在)
 SELF_CHECK = [
@@ -70,7 +77,6 @@ SELF_CHECK = [
     ("up", "--no-such-flag", False),  # 确定没有
 ]
 
-SKIP_DIRS = ("playground", "node_modules", ".tools", "bin", "data")
 
 
 def cli_surface(binary):
@@ -133,6 +139,13 @@ def self_check(surface):
             problems.append(
                 f"{cmd} {flag}：应当{'存在' if expected else '不存在'}，"
                 f"而解析结果是{'存在' if flag in surface[cmd] else '不存在'}")
+    # 反向检查要真能报出缺口：一份只写了 up、没写 --dry-run 的命令参考，
+    # 与一份什么都没写的命令参考，都必须被点名
+    fake = {CLI_REFERENCES[0]: {"up": set()}, CLI_REFERENCES[1]: {}}
+    missing = {(ref, what) for ref, _, what in undocumented(surface, fake)}
+    for want in ((CLI_REFERENCES[0], "brickkit up --dry-run"), (CLI_REFERENCES[1], "brickkit up")):
+        if want not in missing:
+            problems.append(f"反向检查没报出 {want[0]} 缺 {want[1]}")
     if problems:
         print("❌ 自检失败：" + "；".join(problems))
         print("   说明这个脚本读 CLI 的方式坏了，报出来的结果不可信。先修脚本。")
@@ -202,28 +215,31 @@ def docs():
     # AI 助手技能。它们也算文档，而且是**最会被照着敲**的一类：读者是 AI 助手，
     # 它不会像人一样怀疑"是不是我装错了版本"，只会自信地把假参数敲下去。
     # 而且这些文件不在用户仓库里，用户改不了——说谎只能在这里被拦住。
-    for pattern in ["*.md", "deploy/**/*.md", "docs/en/**/*.md", "docs/zh/**/*.md",
-                    "llms.txt", "internal/skills/assets/**/*.md"]:
-        for path in glob.glob(pattern, recursive=True):
-            if any(d in path for d in SKIP_DIRS):
-                continue
-            yield path
+    out = subprocess.run(["git", "ls-files", "-z", "*.md", "llms.txt", "llms.*.txt"],
+                         capture_output=True, check=True).stdout
+    for raw in out.split(b"\0"):
+        path = raw.decode("utf-8")
+        if not path or path.startswith(EXCLUDED_PREFIXES) or not os.path.isfile(path):
+            continue
+        yield path
 
 
 def check(surface):
     """正向：文档写的命令/参数，二进制里存在吗。
 
-    顺带记下文档里**出现过**哪些命令与参数，供 undocumented() 做反向检查。
+    顺带按文件记下文档里**出现过**哪些命令与参数：{路径: {命令: {参数}}}，
+    供 undocumented() 对着命令参考做反向检查。
     """
     bad_cmd, bad_flag = [], []
     seen_cmd = seen_flag = 0
-    documented = {}
+    by_path = {}
 
     for path in docs():
         try:
             lines = open(path, encoding="utf-8").read().split("\n")
         except (OSError, UnicodeDecodeError):
             continue
+        documented = by_path.setdefault(path, {})
 
         for i, line in enumerate(lines, 1):
             tomb = TOMBSTONE.search(line)
@@ -263,7 +279,7 @@ def check(surface):
                 documented.setdefault(section, set()).update(
                     re.findall(r"(?<![\w-])--[a-z][a-z-]*", line))
 
-    return bad_cmd, bad_flag, seen_cmd, seen_flag, documented
+    return bad_cmd, bad_flag, seen_cmd, seen_flag, by_path
 
 
 # COBRA_BUILTINS 是 cobra 自带、不属于"BrickKit 的命令集"的那几个。
@@ -278,13 +294,6 @@ COBRA_BUILTINS = {"completion", "help"}
 # 同一件事换个量词很正常，认死一个等于给自己留个后门。
 COUNT_CLAIM = re.compile(r"(\d+)\s*(?:[个条]命令|commands\b)")
 
-# FROZEN_DOCS 是已冻结的历史记录：它们描述的是"当初做完时是什么样"，
-# 不该被迫跟着现状变——那正是"冻结"的含义（见 开发计划.md 的头部说明）。
-#
-# 只对**数量声明**豁免。命令名与参数名照查：那两条是"文档写了不存在的东西"，
-# 冻结的文档同样不该指向一个不存在的命令——它会把考古的人引向虚空。
-FROZEN_DOCS = ("开发计划.md", "开发进度/")
-
 
 def check_command_count(surface):
     """文档里写的"N 个命令"必须与真实数目一致。
@@ -292,18 +301,17 @@ def check_command_count(surface):
     # 为什么值得单独查
 
     这个数字没有任何东西守着，而它散在好几份文档里。复核时实测三处三个数：
-    000 说"11 个命令"、AI-CONTEXT 说"10 个命令 + version"、
+    导航文档说"11 个命令"、AI 导读说"10 个命令 + version"、
     llms.txt 说"11 个命令 + version"（那是 12）。
 
-    命令有没有、参数对不对都有守卫，唯独"一共几个"没有——而 000 是**导航
-    文档**，读者拿它当索引核对；llms.txt 是喂给 AI 助手的摘要，数错了它会
+    命令有没有、参数对不对都有守卫，唯独"一共几个"没有——而导航文档是读者
+    拿来当索引核对的；llms.txt 是喂给 AI 助手的摘要，数错了它会
     照着编出一个不存在的命令来凑数。
 
     只查业务命令数（不含 cobra 自带的 completion / help）。声明里
     "+ version" 那部分不参与比对——那是各文档自己的措辞。version 与 lang
-    都是 CLI 自身命令（跟业务无关），不计入"业务命令"数——这是已批准设计的
-    一部分（docs/superpowers/specs/2026-09-20-cli-i18n-design.md §3.3），
-    不是凑数字。
+    都是 CLI 自身命令（跟业务无关），不计入"业务命令"数——这是多语言设计时
+    定下的口径，不是凑数字。
     """
     NON_BUSINESS_COMMANDS = {"version", "lang"}
     real = len({name for name in surface if name and name not in COBRA_BUILTINS
@@ -311,8 +319,6 @@ def check_command_count(surface):
 
     bad = []
     for path in docs():
-        if any(path.startswith(f) for f in FROZEN_DOCS):
-            continue
         for i, line in enumerate(open(path, encoding="utf-8"), 1):
             for m in COUNT_CLAIM.finditer(line):
                 if int(m.group(1)) != real:
@@ -329,16 +335,15 @@ TEST_COUNT_CLAIM = re.compile(r"([\d,]+)(\+?)\s*(?:个测试函数|test function
 def real_test_function_count():
     """数一下仓库里真实的 `^func Test` 数量（跨 internal/、market-server/ 等全部模块）。"""
     n = 0
-    for root, dirs, files in os.walk("."):
-        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
-        for name in files:
-            if not name.endswith("_test.go"):
-                continue
-            path = os.path.join(root, name)
-            with open(path, encoding="utf-8") as f:
-                for line in f:
-                    if line.startswith("func Test"):
-                        n += 1
+    out = subprocess.run(["git", "ls-files", "-z", "*_test.go"], capture_output=True, check=True).stdout
+    for raw in out.split(b"\0"):
+        path = raw.decode("utf-8")
+        if not path or path.startswith(EXCLUDED_PREFIXES) or not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("func Test"):
+                    n += 1
     return n
 
 
@@ -369,27 +374,37 @@ def check_test_count(real):
     return bad
 
 
-def undocumented(surface, documented):
-    """反向：二进制里有、而文档里一次都没出现的命令与参数。
+def undocumented(surface, by_path):
+    """反向：二进制里有、而命令参考里没写的命令与参数。每份命令参考各查各的。
 
     正向检查挡的是"照着文档敲会 unknown flag"；这一条挡的是**反过来**——
-    新增了能力却没写进任何文档，使用者根本不知道它存在。两个方向都要有人守：
-    只查正向时，`publish` 悄悄长出 5 个参数而设计书一个都没写，没有任何东西会报。
+    新增了能力却没写进命令参考，使用者根本不知道它存在。两个方向都要有人守：
+    只查正向时，`publish` 悄悄长出 5 个参数而文档一个都没写，没有任何东西会报。
+
+    只对着命令参考查，不对着"全部文档"查：散落在教程里的一次提及不算写过——
+    命令参考是**详尽**的那一份，读者就是去那里查一个参数是干什么的。
+    全局参数（根命令的）写在命令参考里任意一处即可。
     """
-    miss_cmd, miss_flag = [], []
-    for cmd, flags in sorted(surface.items()):
-        if cmd == "":            # 根命令的全局参数
+    missing = []
+    for ref in CLI_REFERENCES:
+        if ref not in by_path:
+            missing.append((ref, 0, "命令参考还不存在"))
             continue
-        if cmd in UNDOCUMENTED_OK_CMDS:
-            continue
-        if cmd not in documented:
-            miss_cmd.append(("（全部文档）", 0, cmd))
-            continue
-        for flag in sorted(flags):
-            if flag in UNDOCUMENTED_OK_FLAGS or flag in documented[cmd]:
+        documented = by_path[ref]
+        written = set().union(*documented.values()) if documented else set()
+        for cmd, flags in sorted(surface.items()):
+            if cmd in UNDOCUMENTED_OK_CMDS:
                 continue
-            miss_flag.append(("（全部文档）", 0, f"{cmd} {flag}"))
-    return miss_cmd, miss_flag
+            if cmd and cmd not in documented:
+                missing.append((ref, 0, f"brickkit {cmd}"))
+                continue
+            for flag in sorted(flags):
+                if flag in UNDOCUMENTED_OK_FLAGS:
+                    continue
+                if (flag in written) if cmd == "" else (flag in documented[cmd]):
+                    continue
+                missing.append((ref, 0, " ".join(x for x in ("brickkit", cmd, flag) if x)))
+    return missing
 
 
 def report(title, rows, hint):
@@ -421,8 +436,8 @@ def main():
         sys.exit(1)
     print("✅ 帮助文本提到的命令都存在\n")
 
-    bad_cmd, bad_flag, seen_cmd, seen_flag, documented = check(surface)
-    miss_cmd, miss_flag = undocumented(surface, documented)
+    bad_cmd, bad_flag, seen_cmd, seen_flag, by_path = check(surface)
+    missing = undocumented(surface, by_path)
 
     # 扫到 0 处问题和根本没扫到东西，输出长得一模一样。把数目报出来，
     # 一份"检查通过"才有意义。
@@ -432,43 +447,42 @@ def main():
         sys.exit(2)
     print(f"   （检查了 {seen_cmd} 处命令用法、{seen_flag} 处参数）\n")
 
+    # 每一类都报完再退出：只报第一类，后面几类的问题就被藏住了
+    failed = 0
     real, bad_count = check_command_count(surface)
     if bad_count:
+        failed = 1
         print(f"❌ 文档里的命令数目对不上：{len(bad_count)} 处（真实是 {real} 个业务命令）")
         for path, line_no, claim, text in bad_count:
             print(f"   {path}:{line_no}  写着「{claim}」")
             print(f"     {text}")
-        print("   → 增删命令时改了实现与各处说明，唯独这个数字没人动")
-        sys.exit(1)
-    print(f"✅ 命令数目：文档与实现一致（{real} 个业务命令）\n")
+        print("   → 增删命令时改了实现与各处说明，唯独这个数字没人动\n")
+    else:
+        print(f"✅ 命令数目：文档与实现一致（{real} 个业务命令）\n")
 
     real_tests = real_test_function_count()
     bad_test_count = check_test_count(real_tests)
     if bad_test_count:
+        failed = 1
         print(f"❌ 文档里的测试数量对不上：{len(bad_test_count)} 处（真实是 {real_tests} 个）")
         for path, line_no, claim, text in bad_test_count:
             print(f"   {path}:{line_no}  写着「{claim}」")
             print(f"     {text}")
         print("   → 测试数量只涨不跌，精确数字迟早过期；不想每次都同步就改成"
-              "「N+ 个测试函数」这种下限写法")
-        sys.exit(1)
-    print(f"✅ 测试数量：文档里的声明与实际一致（{real_tests} 个测试函数）\n")
+              "「N+ 个测试函数」这种下限写法\n")
+    else:
+        print(f"✅ 测试数量：文档里的声明与实际一致（{real_tests} 个测试函数）\n")
 
-    failed = report("文档写了不存在的命令", bad_cmd, "命令被改名或删掉了，文档没跟着改")
+    failed |= report("文档写了不存在的命令", bad_cmd, "命令被改名或删掉了，文档没跟着改")
     failed |= report("文档写了不存在的参数", bad_flag, "参数被改名或删掉了，文档没跟着改")
 
-    # 这两条是"详尽性"方向（新增了却没写进任何文档），不计入退出码：design/ 试用指南
-    # 归档后，全仓库没有任何一份"详尽命令参考"活文档，这个方向注定会随 CLI 新增
-    # 命令/参数永久报警，直到 docs/en/06-architecture 长出详尽命令参考。继续打印是为了
-    # 让人知道有哪些新东西没写文档，但不能让 make lint 因此永久变红。
-    report("命令有、文档没写（仅供参考，不计入退出码）", miss_cmd, "新增了命令却没写进任何文档")
-    report("参数有、文档没写（仅供参考，不计入退出码）", miss_flag, "新增了参数却没写进任何文档")
+    failed |= report("命令参考没写全", missing, "新增了命令或参数，命令参考没跟着写")
 
     if bad_cmd or bad_flag:
         print("\n照着文档敲一遍会得到 unknown flag/command——"
               "而使用者多半会以为是自己装错了版本。")
-    if miss_cmd or miss_flag:
-        print("\n这些能力使用者只能靠 --help 撞见——文档里一次都没出现过。")
+    if missing:
+        print("\n这些能力使用者只能靠 --help 撞见——命令参考里查不到。")
     sys.exit(1 if failed else 0)
 
 

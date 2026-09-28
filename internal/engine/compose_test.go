@@ -396,7 +396,7 @@ func TestPodmanDownTranslatesKnownApparmorFailure(t *testing.T) {
 	err := podmanWith(rec).Down(context.Background(), DownRequest{Project: "brickkit-demo"})
 
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "11-podman-environment-checklist.md")
+	assert.Contains(t, clierr.As(err).Format(), "10-troubleshooting/01-up-down-issues.md")
 }
 
 // 无关的 permission denied 不该套用这条提示——过度匹配会把人引向错误的修法。
@@ -408,7 +408,7 @@ func TestGenericPermissionDeniedGetsNoApparmorHint(t *testing.T) {
 	err := podmanWith(rec).Down(context.Background(), DownRequest{Project: "brickkit-demo"})
 
 	require.Error(t, err)
-	assert.NotContains(t, clierr.As(err).Format(), "11-podman-environment-checklist.md",
+	assert.NotContains(t, clierr.As(err).Format(), "10-troubleshooting/01-up-down-issues.md",
 		"这条提示只匹配那一句具体的 kill network process 特征串，不是任何 permission denied")
 }
 

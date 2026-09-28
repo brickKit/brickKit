@@ -1,4 +1,4 @@
-// 本文件守着 docs/{en,zh}/06-architecture/10-error-codes.md（错误码参考）与 CLI 真实的
+// 本文件守着 docs/{en,zh}/06-architecture/09-error-codes.md（错误码参考）与 CLI 真实的
 // 错误码、报错标题**不脱节**。
 //
 // # 为什么要有它
@@ -287,7 +287,7 @@ func parseErrorCodeDoc(markdown string) errorCodeDoc {
 }
 
 func errorCodesDocPath(lang string) string {
-	return filepath.Join("docs", lang, "06-architecture", "10-error-codes.md")
+	return filepath.Join("docs", lang, "06-architecture", "09-error-codes.md")
 }
 
 // 错误码参考必须为每个错误码写一节，且不多写不存在的码。

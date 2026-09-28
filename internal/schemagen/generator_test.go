@@ -955,3 +955,13 @@ func TestNullableOverridesWithUnknownShapesAreRejected(t *testing.T) {
 		})
 	}
 }
+
+// selfPointer 是 Go 允许的自指指针类型：一路解指针永远解不到头。
+type selfPointer *selfPointer
+
+// 自指指针要报错，不能在解指针那一步原地死循环。
+func TestSelfReferentialPointerIsRejected(t *testing.T) {
+	_, err := newGenerator(nil).typeSchema(reflect.TypeOf(selfPointer(nil)))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "递归类型")
+}

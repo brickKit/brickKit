@@ -8,6 +8,8 @@
                   （"005 §5.12"、"D140"、"Step 15"、"P38"、"附录 D"、"试用指南"……）
   ② 悬空规范引用  "提案 §6.2"、"附录 A24" 指向 new_plan/提案.md 里不存在的小节或决议
   ③ 断链          现行 markdown 的链接指向不存在的文件
+  ④ 悬空文档路径  代码、脚本、报错建议里以纯文本写的文档路径
+                  （"docs/en/11-reference/01-component-yaml-schema.md"）指向不存在的文件
 
 # 为什么需要它
 
@@ -66,6 +68,9 @@ SPEC_REF_MORE = re.compile(r"\d+(?:\.\d+)*")
 # 附录 A 决议：附录 A24、附录 A1、A16、附录 A4、A20、A24
 APPENDIX_REF = re.compile(r"附录\s*A(\d+)((?:\s*[、，,/–-]\s*A\d+)*)")
 APPENDIX_MORE = re.compile(r"A(\d+)")
+
+# 纯文本里的文档路径：docs/en/…、docs/zh/…、docs/{en,zh}/…、docs/{zh,en}/…，tutorials 同理。
+DOC_PATH = re.compile(r"\b((?:docs|tutorials)/(?:en|zh|\{en,zh\}|\{zh,en\})/[\w./-]+?\.md)\b")
 
 CN_NUM = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
 
@@ -147,6 +152,10 @@ def self_check(sections, decisions):
     got = appendix_numbers("附录 A1、A16，以及附录 A24")
     if got != ["1", "16", "24"]:
         problems.append(f"附录引用解析错了：{got}")
+    # 文档路径：两种写法都要取到，{en,zh} 要展开成两份
+    got = doc_paths("见 docs/{en,zh}/11-reference/06-market-api.md 与 docs/zh/x/y.md（英文版把 zh 换成 en）")
+    if got != ["docs/en/11-reference/06-market-api.md", "docs/zh/11-reference/06-market-api.md", "docs/zh/x/y.md"]:
+        problems.append(f"文档路径解析错了：{got}")
     # 断链：已知存在的要找得到，编造的要找不到
     if not link_exists("README.md", "CONTRIBUTING.md") or link_exists("README.md", "no-such-file.md"):
         problems.append("链接解析坏了")
@@ -173,6 +182,36 @@ def appendix_numbers(line):
         out.append(m.group(1))
         out.extend(APPENDIX_MORE.findall(m.group(2)))
     return out
+
+
+def doc_paths(line):
+    out = []
+    for m in DOC_PATH.finditer(line):
+        path = m.group(1)
+        if "{" in path:
+            out += [path.replace(re.search(r"\{[^}]*\}", path).group(0), lang) for lang in ("en", "zh")]
+        else:
+            out.append(path)
+    return out
+
+
+def check_doc_paths(files):
+    """④ 代码、脚本、报错建议里以纯文本写的文档路径必须真实存在。
+
+    markdown 链接由 ③ 管；这里管的是**不是链接**的路径——报错建议里的
+    "完整字段参考见 docs/zh/…"、脚本里的 "Next step: read docs/en/…"。
+    它们不会被任何链接检查看到，而读者正是照着它们去找文档的。
+    """
+    bad = []
+    for path in files:
+        lines = read_lines(path)
+        if lines is None:
+            continue
+        for i, line in enumerate(lines, 1):
+            for doc in doc_paths(line):
+                if not os.path.isfile(doc):
+                    bad.append((path, i, doc))
+    return bad
 
 
 def check_archived(files):
@@ -253,6 +292,7 @@ def main():
     failed = report("归档引用", check_archived(files))
     failed |= report("悬空规范引用", check_spec_refs(files, sections, decisions))
     failed |= report("文档断链", check_links(files))
+    failed |= report("悬空文档路径", check_doc_paths(files))
 
     if failed:
         print("\n归档引用：把理由写在原地，或改指现行规范（提案 §x / 附录 Ax）。")

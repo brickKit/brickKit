@@ -46,9 +46,9 @@ import (
 // outputLineAllow 是允许"带符号却不匹配目录"的行：key 是 "语言|相对路径|那一行里的一段文字"。
 // 每一项要写清理由；加进来是有意识的决定，不是顺手。
 var outputLineAllow = map[string]string{
-	"en|docs/en/06-architecture/09-cli-reference.md|语言已设为 zh":           "brickkit lang 的示例：刻意展示切到中文之后 CLI 真实说的话",
-	"en|docs/en/06-architecture/09-cli-reference.md|不支持的语言：fr":          "同上",
-	"zh|docs/zh/06-architecture/09-cli-reference.md|Language set to en": "brickkit lang 的示例：切回英文之后 CLI 真实说的话",
+	"en|docs/en/07-cli-reference/README.md|语言已设为 zh":           "brickkit lang 的示例：刻意展示切到中文之后 CLI 真实说的话",
+	"en|docs/en/07-cli-reference/README.md|不支持的语言：fr":          "同上",
+	"zh|docs/zh/07-cli-reference/README.md|Language set to en": "brickkit lang 的示例：切回英文之后 CLI 真实说的话",
 }
 
 // templateVerb 匹配目录文案里的动词：%s、%[1]s、%-12[1]s、%5.1[2]f、%%。
@@ -302,18 +302,21 @@ func fencedOutputLines(t *testing.T, rel string, marks map[string]bool) []docOut
 func docFiles(t *testing.T, lang string) []string {
 	t.Helper()
 	var out []string
-	root := filepath.Join(repoRoot, "docs", lang)
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() && strings.HasSuffix(path, ".md") {
-			rel, _ := filepath.Rel(repoRoot, path)
-			out = append(out, filepath.ToSlash(rel))
-		}
-		return nil
-	})
-	require.NoError(t, err)
+	// 参考文档与教程都嵌着真实输出，两棵树各自按语言分目录
+	for _, top := range []string{"docs", "tutorials"} {
+		root := filepath.Join(repoRoot, top, lang)
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if !d.IsDir() && strings.HasSuffix(path, ".md") {
+				rel, _ := filepath.Rel(repoRoot, path)
+				out = append(out, filepath.ToSlash(rel))
+			}
+			return nil
+		})
+		require.NoError(t, err)
+	}
 	sort.Strings(out)
 	return out
 }
@@ -353,38 +356,6 @@ func TestDocOutputLinesConformToCatalog(t *testing.T) {
 			"docs/%s 里这些输出行在 %s 消息目录里找不到对应文案。CLI 改了措辞而文档没跟上，"+
 				"还是文档里抄错了？以真实输出为准改文档；确有理由（比如刻意缩写）再加进 outputLineAllow 并写清理由。\n%s",
 			lang, lang, strings.Join(offenders, "\n"))
-	}
-}
-
-// brickkit override 的两个例子块——"Wrote override.yaml"、"Drift: ..."——不带
-// 任何输出符号（CliOverrideWritten、CliOverrideDriftNote 两条目录文案本身就没有
-// 符号前缀）。fencedOutputLines 只认符号开头的行，这两行因此从没被这条守卫看过：
-// 目录文案哪天改了措辞，这两块例子会悄悄过期而没有任何东西发现（评审 Minor #3）。
-// 这条测试直接读真实文档，钉住这两行确实被选中、也确实与目录一致。
-func TestOverrideCliReferenceExamplesAreChecked(t *testing.T) {
-	cases := []struct {
-		lang i18n.Lang
-		path string
-		want string
-	}{
-		{i18n.EN, "docs/en/06-architecture/09-cli-reference.md", "Wrote override.yaml"},
-		{i18n.EN, "docs/en/06-architecture/09-cli-reference.md",
-			`Drift: demo/hello — "demo/hello"'s mode in brickkit.yaml changed from "enabled" to "" since this override was last confirmed`},
-		{i18n.ZH, "docs/zh/06-architecture/09-cli-reference.md", "已写入 override.yaml"},
-		{i18n.ZH, "docs/zh/06-architecture/09-cli-reference.md",
-			`漂移：demo/hello —— "demo/hello" 在 brickkit.yaml 里的 mode 从 "enabled" 变成了 ""（相对这份覆盖上次确认时）`},
-	}
-	for _, c := range cases {
-		catalog := i18n.CatalogFor(c.lang)
-		marks := outputMarks(catalog)
-		lines := fencedOutputLines(t, c.path, marks)
-		var found bool
-		for _, ln := range lines {
-			if strings.TrimSpace(ln.text) == c.want {
-				found = true
-			}
-		}
-		assert.True(t, found, "%s 里这一行该被这条守卫选中并核对：%q", c.path, c.want)
 	}
 }
 

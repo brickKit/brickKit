@@ -8,7 +8,7 @@
 # receiving the SIGTERM that `podman rm` sends it during teardown. `up` and
 # normal traffic work fine; only stopping/removing fails. See the companion
 # doc for the full story:
-#   docs/en/07-patterns/11-podman-environment-checklist.md
+#   docs/en/10-troubleshooting/01-up-down-issues.md
 #
 # Exit code: 0 = looks healthy, 1 = the known issue was reproduced,
 # 2 = could not run the check at all (podman missing, etc).
@@ -91,7 +91,7 @@ else
   if grep -qi "rootless netns" /tmp/brickkit-podman-check.log; then
     fail "This matches the known AppArmor/pasta signal issue."
     echo
-    echo "Next step: read docs/en/07-patterns/11-podman-environment-checklist.md"
+    echo "Next step: read docs/en/10-troubleshooting/01-up-down-issues.md"
     echo "and consider running scripts/podman/fix-apparmor.sh (review it first — it's destructive)."
   else
     warn "This doesn't match the known signature (no 'rootless netns' in the error)."

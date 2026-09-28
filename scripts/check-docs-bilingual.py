@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""docs/en 与 docs/zh 镜像一致性 + 根目录多语言入口文件齐全 + llms 索引链接完整性。
+"""docs/、tutorials/ 的 en 与 zh 镜像一致性 + 根目录多语言入口文件齐全 + llms 索引链接完整性。
 
 守四件事：① docs/en 下每一份文档，docs/zh 下必须有同一相对路径的对应文件，
 反之亦然——对称双语意味着任何一份都不是"翻译附属"，少了一份就是承诺被打破。
@@ -24,28 +24,23 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def mirror_pairs():
-    """返回 (docs/en 相对路径, docs/zh 相对路径) 应该成对存在的清单。"""
-    en_files = {
-        os.path.relpath(p, os.path.join(ROOT, "docs", "en"))
-        for p in glob.glob(os.path.join(ROOT, "docs", "en", "**", "*.md"), recursive=True)
-    }
-    zh_files = {
-        os.path.relpath(p, os.path.join(ROOT, "docs", "zh"))
-        for p in glob.glob(os.path.join(ROOT, "docs", "zh", "**", "*.md"), recursive=True)
-    }
-    return en_files, zh_files
+# 两棵对称镜像树：参考文档与教程，各自 en/ 与 zh/ 下的相对路径一一对应。
+MIRROR_ROOTS = ["docs", "tutorials"]
+
+
+def md_files(*parts):
+    base = os.path.join(ROOT, *parts)
+    return {os.path.relpath(p, base) for p in glob.glob(os.path.join(base, "**", "*.md"), recursive=True)}
 
 
 def check_mirror():
-    en_files, zh_files = mirror_pairs()
-    only_en = sorted(en_files - zh_files)
-    only_zh = sorted(zh_files - en_files)
     bad = []
-    for rel in only_en:
-        bad.append(f"docs/en/{rel} 有英文版，docs/zh/{rel} 缺对应中文版")
-    for rel in only_zh:
-        bad.append(f"docs/zh/{rel} 有中文版，docs/en/{rel} 缺对应英文版")
+    for top in MIRROR_ROOTS:
+        en_files, zh_files = md_files(top, "en"), md_files(top, "zh")
+        for rel in sorted(en_files - zh_files):
+            bad.append(f"{top}/en/{rel} 有英文版，{top}/zh/{rel} 缺对应中文版")
+        for rel in sorted(zh_files - en_files):
+            bad.append(f"{top}/zh/{rel} 有中文版，{top}/en/{rel} 缺对应英文版")
     return bad
 
 
@@ -56,19 +51,26 @@ HAN = re.compile(r"[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]")
 # ENGLISH_DOCS_ALLOW：允许出现中文的位置。key 是 (相对路径, 那一行里的一段文字)，value 是理由。
 # 加一条是有意识的决定，不是顺手。
 ENGLISH_DOCS_ALLOW = {
-    ("docs/en/06-architecture/09-cli-reference.md", "当前语言：zh"):
+    ("docs/en/07-cli-reference/README.md", "当前语言：zh"):
         "brickkit lang 的示例：刻意展示切到中文之后 CLI 真实说的话",
-    ("docs/en/06-architecture/09-cli-reference.md", "语言已设为 zh"):
+    ("docs/en/07-cli-reference/README.md", "语言已设为 zh"):
         "同上",
-    ("docs/en/06-architecture/09-cli-reference.md", "不支持的语言：fr"):
+    ("docs/en/07-cli-reference/README.md", "不支持的语言：fr"):
         "同上",
 }
 
 
 def english_side_files():
-    files = sorted(glob.glob(os.path.join(ROOT, "docs", "en", "**", "*.md"), recursive=True))
+    files = []
+    for top in MIRROR_ROOTS:
+        files += sorted(glob.glob(os.path.join(ROOT, top, "en", "**", "*.md"), recursive=True))
     files.append(os.path.join(ROOT, "llms.txt"))
     return files
+
+
+# 自检用：一定存在的英文侧文件。拿"找到了几份"当判据会随文档增删漂移
+# （重写期间整棵树可能只剩几份），拿一份已知文件当判据不会。
+KNOWN_ENGLISH_FILE = "docs/en/11-reference/06-market-api.md"
 
 
 def check_english_docs_have_no_chinese():
@@ -89,9 +91,13 @@ def self_check():
     if not HAN.search("你好") or HAN.search("hello"):
         print("❌ 自检失败：中文字符的正则认不出中文（或把英文当成了中文）。")
         sys.exit(2)
-    if len(english_side_files()) < 20:
-        print(f"❌ 自检失败：只找到 {len(english_side_files())} 份英文侧文档——glob 多半坏了，"
-              "而不是文档真的这么少。")
+    found = {os.path.relpath(p, ROOT) for p in english_side_files()}
+    if KNOWN_ENGLISH_FILE not in found:
+        print(f"❌ 自检失败：英文侧文档里找不到 {KNOWN_ENGLISH_FILE}——glob 多半坏了。"
+              "（这份文件真被挪走了的话，换一份一定存在的文件填进 KNOWN_ENGLISH_FILE。）")
+        sys.exit(2)
+    if not check_mirror_detects_gap():
+        print("❌ 自检失败：一份只有英文版的假文档没被镜像检查认出来。")
         sys.exit(2)
     prefix = "https://raw.githubusercontent.com/brickKit/brickKit/main/"
     for name in LLMS_TXT_FILES:
@@ -101,6 +107,23 @@ def self_check():
             print(f"❌ 自检失败：{name} 里只解析出 {count} 条 raw 链接——正则或路径前缀多半坏了，"
                   "而不是链接真的这么少。")
             sys.exit(2)
+
+
+def check_mirror_detects_gap():
+    """造一对只缺中文版的临时文件，镜像检查必须报出来。"""
+    import tempfile
+    global ROOT
+    saved = ROOT
+    with tempfile.TemporaryDirectory() as tmp:
+        gap = "x/a.md"
+        os.makedirs(os.path.join(tmp, "docs", "en", "x"))
+        os.makedirs(os.path.join(tmp, "docs", "zh", "x"))
+        open(os.path.join(tmp, "docs", "en", gap), "w").close()
+        ROOT = tmp
+        try:
+            return any(f"docs/zh/{gap}" in line for line in check_mirror())
+        finally:
+            ROOT = saved
 
 
 def check_llms_txt_links():
@@ -161,7 +184,7 @@ def main():
         for line in bad:
             print(f"   - {line}")
         sys.exit(1)
-    print("✅ docs/en ↔ docs/zh 镜像完整，README/AGENTS/llms 双语齐全，llms 索引全部链接可解析，英文文档里没有中文")
+    print("✅ docs、tutorials 的 en ↔ zh 镜像完整，README/AGENTS/llms 双语齐全，llms 索引全部链接可解析，英文文档里没有中文")
 
 
 if __name__ == "__main__":
