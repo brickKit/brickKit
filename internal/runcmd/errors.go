@@ -34,6 +34,15 @@ const (
 	ReasonConflictingBuildTools Reason = "conflicting-build-tools"
 )
 
+// Reasons 是全部原因，顺序固定。CLI 给每一个原因配一句话，测试靠它确认没有漏掉的。
+func Reasons() []Reason {
+	return []Reason{
+		ReasonMarkerMissing, ReasonUnreadableManifest, ReasonNoEntryPoint, ReasonMultipleEntryPoints,
+		ReasonNoStartScript, ReasonConflictingPackageManagers, ReasonUnsupportedPackageManager,
+		ReasonNotSpringBoot, ReasonMultiModule, ReasonConflictingBuildTools,
+	}
+}
+
 // Problem 是某一种语言"认得出、但给不出命令"的一条记录。
 type Problem struct {
 	Language string
@@ -110,3 +119,18 @@ type ProgramMissingError struct {
 func (e *ProgramMissingError) Error() string {
 	return fmt.Sprintf("runcmd: program %q not found", e.Program)
 }
+
+// DirError：组件目录本身有问题——不存在、读不了（Err 非空），或者不是目录（Err 为空）。
+type DirError struct {
+	Dir string
+	Err error
+}
+
+func (e *DirError) Error() string {
+	if e.Err == nil {
+		return fmt.Sprintf("runcmd: %s is not a directory", e.Dir)
+	}
+	return fmt.Sprintf("runcmd: %s: %v", e.Dir, e.Err)
+}
+
+func (e *DirError) Unwrap() error { return e.Err }

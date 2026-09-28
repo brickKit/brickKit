@@ -193,21 +193,84 @@ func hintsFromManifest(l *manifest.Local) runcmd.Hints {
 	return runcmd.Hints{Language: l.Language, RunCommand: l.RunCommand}
 }
 
-// runcmd 那几个结构化错误类型（*NoCommandError/*AmbiguousError/*UnknownLanguageError/
-// *ProgramMissingError）各自的 Error() 已经把 Problem.Reason/Detail/Options（或候选
-// 语言/命令）拼成了一句完整、可读的英文诊断。不逐条翻译底层错误的文字本身（那会是
-// 一张几乎复述 runcmd/errors.go 全部枚举值的翻译表，且两边的分类迟早会走漂），
-// 照抄 engineFailure 的手法：一条通用的顶层消息，把 err.Error() 原样放进一条
-// Detail（复用现成的 msgid.LabelReason）。
+// detectionReasonMessages 给 runcmd 的每个原因配一句话（%[1]s 是 Problem.Detail，%[2]s 是候选项）。
+// runcmd 只给结构化的原因，不碰语言；话由这里按当前语言说。漏配的原因由测试拦下。
+var detectionReasonMessages = map[runcmd.Reason]string{
+	runcmd.ReasonMarkerMissing:              msgid.CliUpReasonMarkerMissing,
+	runcmd.ReasonUnreadableManifest:         msgid.CliUpReasonUnreadableManifest,
+	runcmd.ReasonNoEntryPoint:               msgid.CliUpReasonNoEntryPoint,
+	runcmd.ReasonMultipleEntryPoints:        msgid.CliUpReasonMultipleEntryPoints,
+	runcmd.ReasonNoStartScript:              msgid.CliUpReasonNoStartScript,
+	runcmd.ReasonConflictingPackageManagers: msgid.CliUpReasonConflictingPackageManagers,
+	runcmd.ReasonUnsupportedPackageManager:  msgid.CliUpReasonUnsupportedPackageManager,
+	runcmd.ReasonNotSpringBoot:              msgid.CliUpReasonNotSpringBoot,
+	runcmd.ReasonMultiModule:                msgid.CliUpReasonMultiModule,
+	runcmd.ReasonConflictingBuildTools:      msgid.CliUpReasonConflictingBuildTools,
+}
+
+// detectionError 把 runcmd 探测失败说成当前语言的话：标题说哪个组件起不来，
+// 明细说为什么——认得出却给不出命令的每种语言各占一行。
 func detectionError(ref resolver.Ref, err error) error {
-	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpCouldNotDetermineHowToStart, ref.String())).
-		WithDetail(i18n.T(msgid.LabelReason), err.Error()).
-		WithHint(i18n.T(msgid.CliUpWriteLocalRunCommandInThe, ref.ID))
+	e := clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpCouldNotDetermineHowToStart, ref.String()))
+	hint := i18n.T(msgid.CliUpWriteLocalRunCommandInThe, ref.ID)
+	var (
+		noCommand *runcmd.NoCommandError
+		ambiguous *runcmd.AmbiguousError
+		unknown   *runcmd.UnknownLanguageError
+		dir       *runcmd.DirError
+	)
+	switch {
+	case errors.As(err, &noCommand) && len(noCommand.Problems) == 0:
+		e = e.WithDetail(i18n.T(msgid.LabelReason),
+			i18n.T(msgid.CliUpDetectNoLanguage, noCommand.Dir, strings.Join(runcmd.Languages(), ", ")))
+	case errors.As(err, &noCommand):
+		e = e.WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliUpDetectNoCommand, noCommand.Dir))
+		for _, p := range noCommand.Problems {
+			e = e.WithDetail(p.Language, problemText(p))
+		}
+	case errors.As(err, &ambiguous):
+		parts := make([]string, len(ambiguous.Candidates))
+		for i, c := range ambiguous.Candidates {
+			parts[i] = c.Language + " (" + strings.Join(c.Argv, " ") + ")"
+		}
+		e = e.WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliUpDetectAmbiguous, strings.Join(parts, ", ")))
+		return e.WithHint(i18n.T(msgid.CliUpHintSetLocalLanguage, ref.ID), hint)
+	case errors.As(err, &unknown):
+		e = e.WithDetail(i18n.T(msgid.LabelReason),
+			i18n.T(msgid.CliUpDetectUnknownLanguage, unknown.Language, strings.Join(runcmd.Languages(), ", ")))
+	case errors.As(err, &dir) && dir.Err == nil:
+		e = e.WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliUpDetectNotDir, dir.Dir))
+	case errors.As(err, &dir):
+		// 操作系统给的原因（permission denied 之类）原样带上：那是系统的话，不是本程序的
+		e = e.WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliUpDetectDirUnreadable, dir.Dir, dir.Err.Error()))
+	default:
+		// runcmd 之外的失败（端口越界之类，CLI 自己选的值出了错）：只可能是 bug
+		return e.WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithHint(i18n.T(msgid.HintInternalBug))
+	}
+	return e.WithHint(hint)
+}
+
+// problemText 是一种语言"认得出、给不出命令"的原因。
+func problemText(p runcmd.Problem) string {
+	id, ok := detectionReasonMessages[p.Reason]
+	if !ok {
+		return string(p.Reason)
+	}
+	return i18n.T(id, p.Detail, strings.Join(p.Options, ", "))
 }
 
 func programMissingError(ref resolver.Ref, err error) error {
+	reason := err.Error()
+	var missing *runcmd.ProgramMissingError
+	if errors.As(err, &missing) {
+		reason = i18n.T(msgid.CliUpProgramNotFound, missing.Program)
+		if missing.Program == "" {
+			reason = i18n.T(msgid.CliUpStartCommandEmpty)
+		}
+	}
 	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpTheDetectedProgramIsNotInstalled, ref.String())).
-		WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithHint(i18n.T(msgid.CliUpHintInstallProgram), i18n.T(msgid.CliUpWriteLocalRunCommandInThe, ref.ID))
+		WithDetail(i18n.T(msgid.LabelReason), reason).
+		WithHint(i18n.T(msgid.CliUpHintInstallProgram), i18n.T(msgid.CliUpWriteLocalRunCommandInThe, ref.ID))
 }
 
 // localDebugEnvVarsToStrip 是每种语言里，一旦从启动 brickkit up 的那个 shell

@@ -18,6 +18,7 @@ import (
 	"go/token"
 	"io/fs"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -132,6 +133,122 @@ func TestNoHardcodedChineseInProductionCode(t *testing.T) {
 	assert.Empty(t, offenders, "生产代码里有写死的中文字符串。用户看得见的文字要放进 internal/msgid + "+
 		"internal/i18n 两份目录，代码里写 i18n.T(msgid.X)（不能在包级 var/const 里调，要包成函数）。"+
 		"确有理由保留就加进 hardcodedAllow 并写清理由。\n%s", strings.Join(offenders, "\n"))
+}
+
+// ---------------------------------------------------------------------------
+// 守卫 1b：报错与输出里没有写死的英文句子
+// ---------------------------------------------------------------------------
+
+// 守卫 1 只拦中文：写死的英文句子它看不见，而那种句子在中文模式下照样以英文出现在
+// 中文标题下面。这里看"给人读的文字"所在的位置——报错的标题、建议、提示、明细的标签、
+// 问题的原因，以及 Printf / Println 的格式串——只要是写死的一句英文（两个以上连着的单词）
+// 就拦下。字段名（deployment.image）、K8s 的资源类型（Job）、YAML 示例行不是句子，不算。
+var textPositions = map[string][]int{
+	"clierr.New": {1}, "clierr.Newf": {1}, "clierr.Warn": {1}, "clierr.NewProblemSet": {1},
+	"WithHint": {-1}, "WithTip": {-1}, "WithDetail": {0}, "WithDetailf": {0}, "WithSource": {0},
+	"Add": {1}, "Addf": {1},
+	"Printf": {0}, "Println": {-1}, "Fprintf": {1}, "Fprintln": {-1},
+}
+
+// proseAllow 是允许写死的英文，key 是 "相对路径|文字在源码里的写法"，每一项写清理由。
+var proseAllow = map[string]string{
+	"internal/cli/version.go|BrickKit CLI %s\\n": "产品名加版本号，不是要翻译的句子",
+}
+
+var prose = regexp.MustCompile(`[A-Za-z]{2,} [A-Za-z]{2,}`)
+
+func TestNoHardcodedEnglishInUserText(t *testing.T) {
+	var offenders []string
+	for _, rel := range goFiles(t, []string{"internal", "cmd"}, false) {
+		skip := false
+		for _, d := range hardcodedSkipDirs {
+			if strings.HasPrefix(rel, d) {
+				skip = true
+			}
+		}
+		if skip {
+			continue
+		}
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, filepath.Join(repoRoot, rel), nil, 0)
+		require.NoError(t, err, rel)
+		ast.Inspect(f, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			name := sel.Sel.Name
+			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "clierr" {
+				name = "clierr." + name
+			}
+			positions, ok := textPositions[name]
+			if !ok {
+				return true
+			}
+			var args []ast.Expr
+			for _, i := range positions {
+				switch {
+				case i == -1:
+					args = append(args, call.Args...)
+				case i < len(call.Args):
+					args = append(args, call.Args[i])
+				}
+			}
+			for _, a := range args {
+				for _, lit := range stringLiterals(a) {
+					if prose.MatchString(lit) && proseAllow[rel+"|"+sourceForm(lit)] == "" {
+						offenders = append(offenders, fset.Position(a.Pos()).String()+"  "+name+"  "+abbreviate(lit))
+					}
+				}
+			}
+			return true
+		})
+	}
+	assert.Empty(t, offenders, "给人读的位置上有写死的英文句子——中文模式下它照样是英文。"+
+		"放进 internal/msgid + internal/i18n 两份目录，代码里写 i18n.T(msgid.X)；"+
+		"确实不是要翻译的句子就加进 proseAllow 并写清理由。\n%s", strings.Join(offenders, "\n"))
+}
+
+// 自检：allowlist 里的每一项都还对得上代码，删掉的代码不能在白名单里留个空位。
+func TestProseAllowEntriesStillExist(t *testing.T) {
+	for key := range proseAllow {
+		rel, lit, _ := strings.Cut(key, "|")
+		src, err := readFile(filepath.Join(repoRoot, rel))
+		require.NoError(t, err, key)
+		assert.Contains(t, src, lit, "proseAllow 的 %s 已经不在代码里了", key)
+	}
+}
+
+// sourceForm 是字符串在 Go 源码里的写法（换行写成 \n），白名单按这个形式记，才能在源码里找到。
+func sourceForm(v string) string {
+	q := strconv.Quote(v)
+	return q[1 : len(q)-1]
+}
+
+// stringLiterals 取出表达式里的字符串字面量：直接的、拼接的、fmt.Sprintf 的格式串。
+// i18n.T(...) 的参数不看——那是目录里的消息 ID 与插值，不是写死的文字。
+func stringLiterals(e ast.Expr) []string {
+	var out []string
+	ast.Inspect(e, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+				if id, ok := sel.X.(*ast.Ident); ok && id.Name == "i18n" {
+					return false
+				}
+			}
+		}
+		if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+			if v, err := strconv.Unquote(lit.Value); err == nil {
+				out = append(out, v)
+			}
+		}
+		return true
+	})
+	return out
 }
 
 // ---------------------------------------------------------------------------

@@ -321,8 +321,8 @@ func (p *plan) checkIngressController() error {
 		WithHint(
 			i18n.T(msgid.K8sHintFindControllerNamespace),
 			// 示例本身是 YAML，不随语言变；只有引导句翻译
-			i18n.T(msgid.K8sHintThenWriteBrickkitYAML)+"\n"+
-				"    deploy:\n"+
+			i18n.T(msgid.K8sHintThenWriteDeployFile)+"\n"+
+				"    k8s:\n"+
 				"      networkPolicy:\n"+
 				"        enabled: true\n"+
 				"        ingressController:\n"+

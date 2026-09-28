@@ -29,6 +29,6 @@ const (
 	K8sRefExposed                        = "k8s.ref_exposed"
 	K8sIngressControllerReasonDetail     = "k8s.ingress_controller_reason_detail"
 	K8sHintFindControllerNamespace       = "k8s.hint.find_controller_namespace"
-	K8sHintThenWriteBrickkitYAML         = "k8s.hint.then_write_brickkit_yaml"
+	K8sHintThenWriteDeployFile           = "k8s.hint.then_write_brickkit_yaml"
 	K8sHintDropNetworkPolicy             = "k8s.hint.drop_network_policy"
 )

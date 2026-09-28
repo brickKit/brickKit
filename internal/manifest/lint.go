@@ -39,9 +39,8 @@ func PropertyKeyWarnings(raw []byte, source string) []*clierr.Error {
 	for i := 0; i+1 < len(properties.Content); i += 2 {
 		name := properties.Content[i].Value
 
-		// 标题不会渲染（这里只取 Items），所以不进目录
-		// clierr:nohint 只用来收集问题（取 Items），从不渲染给人看
-		scoped := clierr.NewProblemSet(clierr.CodeManifestInvalid, "unknown fields")
+		// clierr:nohint 只用来收集问题（取 Items），从不渲染给人看，所以标题留空、也不进目录
+		scoped := clierr.NewProblemSet(clierr.CodeManifestInvalid, "")
 		yamlcheck.Walk(properties.Content[i+1], reflect.TypeOf(ConfigProperty{}), scoped)
 		for _, problem := range scoped.Items() {
 			found = append(found, clierr.Problem{

@@ -105,7 +105,7 @@ func adapterFor(language string) (adapter, bool) {
 // Detect 在组件源码目录 dir 里确定启动命令。
 //
 // 错误全是本包的类型（可用 errors.As 区分），调用方据此在 CLI 层给出面向用户的文字：
-// *UnknownLanguageError、*NoCommandError、*AmbiguousError；目录本身读不了则是普通的 error。
+// *UnknownLanguageError、*NoCommandError、*AmbiguousError、*DirError（目录本身有问题）。
 func Detect(dir string, hints Hints, params Params) (Command, error) {
 	return detect(dir, hints, params, runtime.GOOS)
 }
@@ -117,20 +117,20 @@ func detect(dir string, hints Hints, params Params, goos string) (Command, error
 	}
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return Command{}, fmt.Errorf("runcmd: %w", err)
+		return Command{}, &DirError{Dir: dir, Err: err}
 	}
 	info, err := os.Stat(abs)
 	if err != nil {
-		return Command{}, fmt.Errorf("runcmd: %w", err)
+		return Command{}, &DirError{Dir: abs, Err: err}
 	}
 	if !info.IsDir() {
-		return Command{}, fmt.Errorf("runcmd: %s is not a directory", abs)
+		return Command{}, &DirError{Dir: abs}
 	}
 	// 目录本身读不了就直接报错。否则里面每个标记文件的读取都会以权限错误失败，
 	// 被误报成"package.json 读不了""pom.xml 读不了"，而它们其实根本不存在。
 	entries, err := os.ReadDir(abs)
 	if err != nil {
-		return Command{}, fmt.Errorf("runcmd: %w", err)
+		return Command{}, &DirError{Dir: abs, Err: err}
 	}
 	s := &scan{dir: abs, goos: goos, params: params, entries: entries}
 

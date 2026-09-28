@@ -18,6 +18,17 @@ var removedConcepts = []string{
 	"envPrefix",
 	"base resource",
 	"基础资源",
+	// 旧 brickkit.yaml 的 deploy.<字段>：这些设置搬进了部署文件的 k8s: 块（附录 A15），
+	// 字段路径是 k8s.<字段>。提示里还写 deploy.networkPolicy，使用者照着写只会得到"未知字段"
+	"deploy.context",
+	"deploy.namespace",
+	"deploy.createNamespace",
+	"deploy.podSecurity",
+	"deploy.imagePullSecrets",
+	"deploy.ingressClass",
+	"deploy.ingressAnnotations",
+	"deploy.networkPolicy",
+	"deploy.serviceAccount",
 }
 
 func TestCatalogsHaveNoRemovedConcepts(t *testing.T) {
