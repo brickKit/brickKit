@@ -45,6 +45,7 @@ const (
 	MarketActionPublishVersion = "market.action.publish_version"
 	MarketActionListVersions   = "market.action.list_versions"
 	MarketActionFetchManifest  = "market.action.fetch_manifest"
+	MarketActionFetchDoc       = "market.action.fetch_doc"
 	MarketActionListArtifacts  = "market.action.list_artifacts"
 	MarketActionUploadArtifact = "market.action.upload_artifact"
 	MarketActionSetStatus      = "market.action.set_status"

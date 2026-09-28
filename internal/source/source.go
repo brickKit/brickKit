@@ -371,8 +371,8 @@ func (c *Client) Doc(id, version string) (path string, ok bool) {
 	return path, true
 }
 
-// docFetcher 是能提供组件文档 BRICKKIT.md 的安装源（本地源读目录，git 源读 tag；
-// 市场不提供）。没有文档返回 errNotFound，不算错。
+// docFetcher 是能提供组件文档 BRICKKIT.md 的安装源（本地源读目录，git 源读 tag，
+// 市场走文档端点）。没有文档返回 errNotFound，不算错。
 type docFetcher interface {
 	docBytes(ctx context.Context, componentID, version string) ([]byte, error)
 }

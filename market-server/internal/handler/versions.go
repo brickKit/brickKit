@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"io"
 	"net/http"
 	"time"
 
@@ -114,6 +115,24 @@ func (a *api) manifest(w http.ResponseWriter, r *http.Request, p params) {
 		return
 	}
 	writeJSON(w, http.StatusOK, view)
+}
+
+// doc 处理 GET /api/v1/components/{id}/versions/{ver}/doc：这个版本的 BRICKKIT.md，
+// 原样的 Markdown，不包信封（它就是一个文件）。错误照常是 JSON 信封。
+func (a *api) doc(w http.ResponseWriter, r *http.Request, p params) {
+	id, ok := a.requireIdentity(w, r)
+	if !ok {
+		return
+	}
+
+	doc, err := a.svc.GetDoc(r.Context(), id, p.componentID(), p["version"])
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.WriteString(w, doc)
 }
 
 // listAudit 处理 GET /api/v1/audit（007 §16、18.13）。

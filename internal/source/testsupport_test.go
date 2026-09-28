@@ -3,6 +3,7 @@ package source
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -215,6 +216,8 @@ type marketMock struct {
 	versionStatus map[string]string
 	// failVersionList 为 true 时，版本列表端点返回 503。
 	failVersionList bool
+	// docs 是各版本的 BRICKKIT.md，键是 "<id>@<version>"；没有的版本 /doc 回 404。
+	docs map[string]string
 
 	mu       sync.Mutex
 	requests []recordedRequest
@@ -238,6 +241,17 @@ func (m *marketMock) recorded() []recordedRequest {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]recordedRequest(nil), m.requests...)
+}
+
+// recordedFor 只取路径以 suffix 结尾的请求（如 "/manifest"、"/doc"）。
+func (m *marketMock) recordedFor(suffix string) []recordedRequest {
+	var out []recordedRequest
+	for _, r := range m.recorded() {
+		if strings.HasSuffix(r.Path, suffix) {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func (m *marketMock) handle(w http.ResponseWriter, r *http.Request) {
@@ -290,6 +304,17 @@ func (m *marketMock) handle(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case action == "manifest":
 		m.writeManifest(w, spec)
+	case action == "doc":
+		doc, ok := m.docs[idPart+"@"+version]
+		if !ok {
+			writeJSON(w, http.StatusNotFound, map[string]any{
+				"success": false,
+				"error":   map[string]any{"code": "NOT_FOUND", "message": "no doc"},
+			})
+			return
+		}
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		_, _ = io.WriteString(w, doc)
 	case action == "artifacts":
 		m.writeArtifactList(w, spec)
 	case strings.HasPrefix(action, "artifacts/"):

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/manifest"
 )
 
 // ============================================================
@@ -499,7 +500,7 @@ func TestPublishSurfacesMarketValidationDetails(t *testing.T) {
 		status: 400,
 		body: `{"success":false,"error":{"code":"CONFIG_SCHEMA_RESERVED_VARIABLE_CONFLICT",` +
 			`"message":"配置项与保留环境变量冲突","details":{"conflicts":[` +
-			`{"configKey":"databaseUrl","envVarName":"DATABASE_URL"}]}}}`,
+			`{"configKey":"NOTIFIER_ENDPOINT","conflictPattern":"*_ENDPOINT","suggestion":"NOTIFIER_BASE_URL"}]}}}`,
 	}
 	f := newMarketProject(t, m, "")
 	loginTo(t, f, m)
@@ -509,7 +510,7 @@ func TestPublishSurfacesMarketValidationDetails(t *testing.T) {
 
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stderr, "配置项与保留环境变量冲突")
-	assert.Contains(t, r.stderr, "DATABASE_URL")
+	assert.Contains(t, r.stderr, "NOTIFIER_BASE_URL")
 }
 
 // 未登录（Token 被市场拒绝）时提示重新登录。
@@ -744,4 +745,103 @@ func TestPublishRefusesToResumeWhenManifestChanged(t *testing.T) {
 	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
 	assert.Contains(t, r.stderr, "differs", "要说清是 Manifest 变了")
 	assert.Contains(t, r.stderr, "Use another version number")
+}
+
+// ============================================================
+// 组件文档（BRICKKIT.md，提案 §16.2）
+// ============================================================
+
+func publishedDoc(t *testing.T, m *fakeMarket) (string, bool) {
+	t.Helper()
+	var req map[string]any
+	require.NoError(t, json.Unmarshal(m.find(t, "POST", "/versions").Body, &req))
+	doc, ok := req["doc"].(string)
+	return doc, ok
+}
+
+// 组件仓库根的 BRICKKIT.md 随版本一起发，市场上装的人也读得到。
+func TestPublishSendsBrickkitMd(t *testing.T) {
+	m := newFakeMarket(t)
+	f := newMarketProject(t, m, "")
+	loginTo(t, f, m)
+	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
+	writeTree(t, root, map[string]string{"BRICKKIT.md": "# people/basic\n\n调用方式……\n"})
+
+	r := runIn(t, f.Dir, "publish", "--path", root)
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	doc, ok := publishedDoc(t, m)
+	require.True(t, ok, "请求里应带 doc")
+	assert.Equal(t, "# people/basic\n\n调用方式……\n", doc)
+	assert.Contains(t, r.stdout, "BRICKKIT.md")
+}
+
+func TestPublishWithoutBrickkitMdSendsNoDoc(t *testing.T) {
+	m := newFakeMarket(t)
+	f := newMarketProject(t, m, "")
+	loginTo(t, f, m)
+	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
+
+	r := runIn(t, f.Dir, "publish", "--path", root)
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	_, ok := publishedDoc(t, m)
+	assert.False(t, ok, "没有文档就不发这个字段")
+}
+
+// 超过上限（或不是 UTF-8 文本）在本地就拦下：市场里不留一个建了一半的版本。
+func TestPublishRefusesOversizedDoc(t *testing.T) {
+	for name, content := range map[string]string{
+		"oversized": strings.Repeat("x", manifest.MaxDocBytes+1),
+		"not utf-8": "# doc\xff\xfe",
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := newFakeMarket(t)
+			f := newMarketProject(t, m, "")
+			loginTo(t, f, m)
+			root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
+			writeTree(t, root, map[string]string{"BRICKKIT.md": content})
+
+			r := runIn(t, f.Dir, "publish", "--path", root)
+
+			require.Equal(t, clierr.ExitError, r.code, r.stdout)
+			assert.Contains(t, r.stderr, "BRICKKIT.md")
+			assert.Equal(t, []string{"POST /auth/login"}, m.requests(), "一个版本都不建")
+		})
+	}
+}
+
+// 续传时文档也要与 draft 里登记的一致：否则市场上留着上一次的文档，而没人知道。
+func TestPublishRefusesToResumeWhenDocChanged(t *testing.T) {
+	f, _, dir := interruptedPublish(t, comp{
+		ID: "people/basic", Version: "1.0.0", Artifacts: []string{"api-docs:openapi.json"},
+	})
+	writeTree(t, dir, map[string]string{"BRICKKIT.md": "# changed after the first attempt\n"})
+
+	r := runIn(t, f.Dir, "publish", "--path", dir)
+
+	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
+	assert.Contains(t, r.stderr, "BRICKKIT.md")
+	assert.Contains(t, r.stderr, "Use another version number")
+}
+
+// 文档没变：照常续传。
+func TestPublishResumesWithTheSameDoc(t *testing.T) {
+	dir := t.TempDir()
+	spec := comp{ID: "people/basic", Version: "1.0.0", Artifacts: []string{"api-docs:openapi.json"}}
+	writeTree(t, dir, spec.files())
+	writeTree(t, dir, map[string]string{"BRICKKIT.md": "# people/basic\n"})
+
+	market := newFakeMarket(t)
+	market.artifacts = []map[string]any{{"id": "a1", "type": "api-docs", "files": []string{"openapi.json"}}}
+	market.overrides = map[string]marketResponse{
+		"/upload": {status: 500, body: `{"success":false,"error":{"code":"INTERNAL","message":"x"}}`},
+	}
+	f := newProjectFixtureAt(t, t.TempDir(), marketSourceFragment("m", market.url(), "tok"))
+	require.NotEqual(t, clierr.ExitOK, runIn(t, f.Dir, "publish", "--path", dir).code)
+	market.overrides = nil
+
+	r := runIn(t, f.Dir, "publish", "--path", dir)
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, "stable", market.storedStatus)
 }

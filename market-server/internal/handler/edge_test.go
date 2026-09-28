@@ -401,6 +401,7 @@ func TestInvalidTokenIsRejectedByEveryEndpoint(t *testing.T) {
 		{"详情", http.MethodGet, "/api/v1/components/people/basic", nil},
 		{"版本列表", http.MethodGet, "/api/v1/components/people/basic/versions", nil},
 		{"Manifest", http.MethodGet, versionPath("people/basic", "1.0.0") + "/manifest", nil},
+		{"文档", http.MethodGet, versionPath("people/basic", "1.0.0") + "/doc", nil},
 		{"产物列表", http.MethodGet, versionPath("people/basic", "1.0.0") + "/artifacts", nil},
 		{"下载", http.MethodGet, versionPath("people/basic", "1.0.0") + "/artifacts/art-0/download?file=x", nil},
 		{"发布", http.MethodPost, "/api/v1/components/people/basic/versions",

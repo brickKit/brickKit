@@ -330,3 +330,33 @@ func TestMarketUnauthorizedStillAsksToLogin(t *testing.T) {
 	assert.Equal(t, clierr.CodeAuthRequired, e.Code)
 	assert.Contains(t, e.Format(), "brickkit login")
 }
+
+// 市场给出 BRICKKIT.md 时，与本地源、git 源一样缓存在 Manifest 旁边（提案 §16.3）。
+func TestMarketAddCachesDoc(t *testing.T) {
+	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
+	mock.docs = map[string]string{"people/basic@1.0.0": "# people/basic\n"}
+	layout := newProject(t)
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
+	}), Options{})
+
+	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+	require.NoError(t, err)
+	path, ok := c.Doc("people/basic", "1.0.0")
+	require.True(t, ok)
+	assert.Equal(t, "# people/basic\n", readFile(t, path))
+}
+
+// 没有文档的版本（包括市场支持文档之前发布的、以及还没有 /doc 端点的旧市场）：照常装，不缓存文档。
+func TestMarketAddWithoutDoc(t *testing.T) {
+	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
+	layout := newProject(t)
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
+	}), Options{})
+
+	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+	require.NoError(t, err)
+	_, ok := c.Doc("people/basic", "1.0.0")
+	assert.False(t, ok)
+}

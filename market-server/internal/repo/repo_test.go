@@ -60,6 +60,7 @@ func runContract(t *testing.T, newRepo func(t *testing.T) repo.Repository) {
 		"版本创建与重复拒绝":            testVersionCreate,
 		"版本列表与状态变更":            testVersionListAndStatus,
 		"版本签名的存取":              testVersionSignature,
+		"版本文档的存取":              testVersionDocRoundTrip,
 		"产物按版本独立存储":            testArtifactsPerVersion,
 		"产物上传标记":               testArtifactUploadMark,
 		"访问策略":                 testAccessPolicies,
@@ -698,4 +699,23 @@ func testOrganizations(t *testing.T, r repo.Repository) {
 	t.Run("给不存在的用户设组织返回 ErrNotFound", func(t *testing.T) {
 		assert.ErrorIs(t, r.SetUserOrg(ctx, "user-不存在", "org-1"), repo.ErrNotFound)
 	})
+}
+
+// BRICKKIT.md 随版本存取；没带文档的版本（包括这一功能之前发布的）读出来是空。
+func testVersionDocRoundTrip(t *testing.T, r repo.Repository) {
+	ctx := context.Background()
+	require.NoError(t, r.UpsertComponent(ctx, newComponent("people/basic")))
+
+	withDoc := newVersion("people/basic", "1.0.0")
+	withDoc.Doc = "# people/basic\n\n多行文档，含中文。\n"
+	require.NoError(t, r.CreateVersion(ctx, withDoc))
+	require.NoError(t, r.CreateVersion(ctx, newVersion("people/basic", "2.0.0")))
+
+	got, err := r.GetVersion(ctx, "people/basic", "1.0.0")
+	require.NoError(t, err)
+	assert.Equal(t, withDoc.Doc, got.Doc)
+
+	got, err = r.GetVersion(ctx, "people/basic", "2.0.0")
+	require.NoError(t, err)
+	assert.Empty(t, got.Doc)
 }

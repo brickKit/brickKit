@@ -149,6 +149,10 @@ healthCheck:
 // FileDoc 是组件仓库根目录的组件文档（提案 §16.2）。
 const FileDoc = "BRICKKIT.md"
 
+// MaxDocBytes 是发布到市场的 BRICKKIT.md 的上限：publish 发之前查，市场收的时候再查。
+// 文档是给人与 AI 读的说明，256 KiB 已经是几万字。
+const MaxDocBytes = 256 << 10
+
 // scaffoldPlaceholderMember 是外壳骨架里的占位成员。
 const scaffoldPlaceholderMember = "example/member@0.1.0"
 

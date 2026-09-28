@@ -3,11 +3,14 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -100,6 +103,9 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 	opts.Printf("%s\n", i18n.T(msgid.CliPublishManifestValidationPassed))
 	renderWarnings(opts, pkg.warnings)
 	opts.Printf("%s\n", i18n.T(msgid.CliPublishImageReferenceIsValid, pkg.manifest.Deployment.Image))
+	if pkg.doc != "" {
+		opts.Printf("%s\n", i18n.T(msgid.CliPublishDocIncluded, len(pkg.doc)))
+	}
 
 	// ⚠️ 钉 digest 必须在**签名之前**：反过来的话签的是旧 Manifest，
 	// 上传的却是钉过的——消费方一律验签失败，而发布者这边一切正常（P29）
@@ -141,6 +147,8 @@ type publishPackage struct {
 	// document 是 component.yaml 转成的 JSON，原样上传：
 	// 走结构体转一手会把市场认识、而 CLI 还没建模的字段丢掉。
 	document json.RawMessage
+	// doc 是组件仓库根的 BRICKKIT.md（提案 §16.2），没有时为空。
+	doc string
 	// files 是 artifacts 声明的文件（相对路径 → 内容）。
 	files      map[string][]byte
 	fileOrder  []string
@@ -190,6 +198,9 @@ func loadPublishPackage(f publishFlags) (*publishPackage, error) {
 	if err := pkg.loadArtifactFiles(); err != nil {
 		return nil, err
 	}
+	if err := pkg.loadDoc(); err != nil {
+		return nil, err
+	}
 	pkg.sourceType, pkg.gitURL = resolveOrigin(root, f)
 	return pkg, nil
 }
@@ -222,6 +233,36 @@ func (p *publishPackage) loadArtifactFiles() error {
 		}
 	}
 	return nil
+}
+
+// loadDoc 读组件仓库根的 BRICKKIT.md。没有不算错；太大或不是文本就在建版本之前拦下，
+// 与产物文件同一个理由：传到一半才被市场拒收，那个版本号就烧掉了。
+func (p *publishPackage) loadDoc() error {
+	path := filepath.Join(p.root, manifest.FileDoc)
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishDocCannotBePublished)).
+			WithDetail(i18n.T(msgid.LabelPath), path).
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+			WithCause(err)
+	}
+	var reason string
+	switch {
+	case len(data) > manifest.MaxDocBytes:
+		reason = i18n.T(msgid.CliPublishDocTooLarge, len(data), manifest.MaxDocBytes)
+	case !utf8.Valid(data):
+		reason = i18n.T(msgid.CliPublishDocNotUTF8)
+	default:
+		p.doc = string(data)
+		return nil
+	}
+	return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishDocCannotBePublished)).
+		WithDetail(i18n.T(msgid.LabelPath), path).
+		WithDetail(i18n.T(msgid.LabelReason), reason).
+		WithHint(i18n.T(msgid.CliPublishHintShortenDoc))
 }
 
 // manifestDocument 把 component.yaml 原样转成 JSON。
@@ -261,6 +302,7 @@ func uploadRelease(
 		GitURL:     pkg.gitURL,
 		Changelog:  f.changelog,
 		Signature:  pkg.signature,
+		Doc:        pkg.doc,
 	})
 	switch {
 	case market.IsVersionExists(err):
@@ -344,6 +386,20 @@ func resumable(ctx context.Context, client *market.Client, pkg *publishPackage) 
 			WithHint(
 				i18n.T(msgid.CliPublishUseAnotherVersionNumberChange),
 				i18n.T(msgid.CliPublishIfYouReallyWantTo),
+			)
+	}
+
+	remoteDoc, _, err := client.FetchDoc(ctx, id, version)
+	if err != nil {
+		return err
+	}
+	if remoteDoc != pkg.doc {
+		return clierr.New(clierr.CodeConfigConflict,
+			i18n.T(msgid.CliPublishErrorDocChangedSinceLastTime, id, version)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliPublishResumingCannotChangeDoc)).
+			WithHint(
+				i18n.T(msgid.CliPublishUseAnotherVersionNumberChange),
+				i18n.T(msgid.CliPublishChangeDocBack),
 			)
 	}
 	return nil

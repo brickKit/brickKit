@@ -55,6 +55,8 @@ type fakeMarket struct {
 	storedVersion  string
 	storedStatus   string
 	storedManifest any
+	// storedDoc 是建版本时一起发来的 BRICKKIT.md；空表示没带，GET /doc 回 404。
+	storedDoc string
 }
 
 // createVersion 模拟 POST /versions：第一次记下来，之后一律 409。
@@ -70,9 +72,11 @@ func (m *fakeMarket) createVersion(w http.ResponseWriter, body []byte) {
 	var req struct {
 		Version  string `json:"version"`
 		Manifest any    `json:"manifest"`
+		Doc      string `json:"doc"`
 	}
 	_ = json.Unmarshal(body, &req)
 	m.storedVersion, m.storedStatus, m.storedManifest = req.Version, "draft", req.Manifest
+	m.storedDoc = req.Doc
 	writeOK(w, http.StatusCreated,
 		map[string]any{"version": req.Version, "status": "draft"})
 }
@@ -166,6 +170,9 @@ func (m *fakeMarket) handle(w http.ResponseWriter, r *http.Request) {
 		writeOK(w, http.StatusOK, m.versionList())
 	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/manifest"):
 		writeOK(w, http.StatusOK, map[string]any{"manifest": m.storedManifest})
+	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/doc") && m.storedDoc != "":
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		_, _ = io.WriteString(w, m.storedDoc)
 	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/artifacts"):
 		writeOK(w, http.StatusOK, m.artifacts)
 	case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/upload"):

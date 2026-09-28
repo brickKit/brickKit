@@ -81,6 +81,9 @@ type PublishRequest struct {
 	Changelog  string          `json:"changelog,omitempty"`
 	// Signature 是对 Manifest 规范化载荷的签名（008 §8.3），未签名时为 nil。
 	Signature *security.Signature `json:"signature,omitempty"`
+	// Doc 是组件仓库根的 BRICKKIT.md 全文，没有时不发。它不在签名范围内：
+	// 是给人与 AI 读的说明，改了它改不了实际运行的任何东西。
+	Doc string `json:"doc,omitempty"`
 }
 
 // Artifact 是市场返回的产物条目。
@@ -142,6 +145,22 @@ func (c *Client) FetchManifest(ctx context.Context, componentID, version string)
 		return nil, err
 	}
 	return envelope.Manifest, nil
+}
+
+// FetchDoc 取市场上这个版本登记的 BRICKKIT.md；版本没带文档时 found 为 false。
+//
+// 续传之前与本地比对，理由同 FetchManifest：draft 里登记的是上一次那份。
+func (c *Client) FetchDoc(ctx context.Context, componentID, version string) (doc string, found bool, err error) {
+	body, err := c.do(ctx, http.MethodGet,
+		versionPath(componentID, version)+"/doc", nil, nil, i18n.T(msgid.MarketActionFetchDoc))
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return string(body), true, nil
 }
 
 // ListArtifacts 取该版本已登记的产物，用来知道每个文件该往哪个 artifactId 上传。

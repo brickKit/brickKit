@@ -127,8 +127,9 @@ func TestMarketSourceFetchesManifest(t *testing.T) {
 	assert.Equal(t, "1.2.0", got.Manifest.Metadata.Version)
 	assert.Equal(t, "来自市场", got.Manifest.Metadata.Description)
 
-	reqs := mock.recorded()
+	reqs := mock.recordedFor("/manifest")
 	require.Len(t, reqs, 1, "获取 Manifest 只需要一次请求")
+	assert.Len(t, mock.recordedFor("/doc"), 1, "另有一次取组件文档")
 	assert.Equal(t, http.MethodGet, reqs[0].Method)
 	assert.Equal(t, "/api/v1/components/people/basic/versions/1.2.0/manifest", reqs[0].Path,
 		"007 §4.5 / 004 §3.3：GET /api/v1/components/{id}/versions/{ver}/manifest")
@@ -328,7 +329,8 @@ func TestManifestServedFromCache(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, second.FromCache, "第二次应命中 .brickkit/manifests/ 缓存")
 	assert.Equal(t, "people/basic", second.Manifest.Metadata.ID)
-	assert.Len(t, mock.recorded(), 1, "命中缓存时不应再请求市场")
+	assert.Len(t, mock.recordedFor("/manifest"), 1, "命中缓存时不应再请求市场")
+	assert.Len(t, mock.recordedFor("/doc"), 1, "文档随 Manifest 一起缓存，也不再请求")
 }
 
 // 本地源不吃 Manifest 缓存。
@@ -481,7 +483,8 @@ func TestMarketSourceStillUsesCache(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, second.FromCache)
-	assert.Len(t, mock.recorded(), 1)
+	assert.Len(t, mock.recordedFor("/manifest"), 1)
+	assert.Len(t, mock.recordedFor("/doc"), 1)
 }
 
 // 本地源里没有这个组件时，不该因为"探了一下"就绕开缓存去打市场。
@@ -503,7 +506,8 @@ func TestCacheStillUsedWhenLocalSourceLacksTheComponent(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, second.FromCache, "该组件不来自本地源，缓存照常生效")
-	assert.Len(t, mock.recorded(), 1)
+	assert.Len(t, mock.recordedFor("/manifest"), 1)
+	assert.Len(t, mock.recordedFor("/doc"), 1)
 }
 
 // ============================================================

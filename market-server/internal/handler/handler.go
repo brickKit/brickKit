@@ -89,6 +89,7 @@ func registerRoutes(rt *router) {
 	rt.handle(http.MethodPut, "/api/v1/components/:scope/:name/versions/:version", (*api).setVersionStatus)
 	rt.handle(http.MethodDelete, "/api/v1/components/:scope/:name/versions/:version", (*api).deleteVersion)
 	rt.handle(http.MethodGet, "/api/v1/components/:scope/:name/versions/:version/manifest", (*api).manifest)
+	rt.handle(http.MethodGet, "/api/v1/components/:scope/:name/versions/:version/doc", (*api).doc)
 
 	rt.handle(http.MethodGet, "/api/v1/components/:scope/:name/versions/:version/artifacts",
 		(*api).listArtifacts)

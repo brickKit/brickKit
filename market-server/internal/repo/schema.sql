@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS component_versions (
     manifest_json   JSONB        NOT NULL,
     changelog       TEXT,
     signature_json  JSONB,
+    doc             TEXT,                               -- BRICKKIT.md 全文，没有时为 NULL
     published_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     published_by    VARCHAR(128),
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -127,3 +128,6 @@ CREATE INDEX IF NOT EXISTS idx_audit_action          ON audit_logs(action);
 -- container 类型产物（镜像地址记在 reference 里）随市场改用 CLI 的 Manifest 规则一起去掉：
 -- 镜像就是 deployment.image，Manifest 里没有第二个地方写它。
 ALTER TABLE artifacts DROP COLUMN IF EXISTS reference;
+
+-- 组件文档（BRICKKIT.md）随版本存；这一列之前发布的版本没有文档。
+ALTER TABLE component_versions ADD COLUMN IF NOT EXISTS doc TEXT;

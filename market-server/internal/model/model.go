@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+
+	"github.com/brickkit/brickkit/internal/manifest"
 )
 
 // 组件来源类型（007 §11.1）。
@@ -167,7 +169,13 @@ type PublishRequest struct {
 	Visibility string          `json:"visibility,omitempty"`
 	// Signature 是对 Manifest 规范化载荷的签名（008 §8.3.1），可选。
 	Signature *Signature `json:"signature,omitempty"`
+	// Doc 是组件仓库根的 BRICKKIT.md 全文（提案 §16.2），可选，不超过 MaxDocBytes。
+	// 它不在签名范围内：是给人和 AI 读的说明，改了它改不了实际运行的任何东西。
+	Doc string `json:"doc,omitempty"`
 }
+
+// MaxDocBytes 是 BRICKKIT.md 的上限，与 CLI 发布前查的是同一个值。
+const MaxDocBytes = manifest.MaxDocBytes
 
 // Component 是组件记录（007 §10.1）。
 type Component struct {
@@ -197,6 +205,8 @@ type Version struct {
 	PublishedBy string          `json:"publishedBy"`
 	// Signature 是发布时提交的签名（008 §8.3），未签名时为 nil。
 	Signature *Signature `json:"signature,omitempty"`
+	// Doc 是这个版本的 BRICKKIT.md，没有时为空。它只经文档端点给出，不进版本的 JSON。
+	Doc string `json:"-"`
 }
 
 // Installable 判断该版本能否被安装（007 §6：blocked 不能安装，deleted 视同不存在）。

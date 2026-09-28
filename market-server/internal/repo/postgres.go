@@ -272,10 +272,10 @@ func (p *Postgres) CreateVersion(ctx context.Context, v *model.Version) error {
 	_, err = p.db.ExecContext(ctx, `
 		INSERT INTO component_versions
 			(component_id, version, status, manifest_json, changelog, signature_json,
-			 published_at, published_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+			 published_at, published_by, doc)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''))`,
 		v.ComponentID, v.Version, v.Status, []byte(v.Manifest), v.Changelog, signature,
-		publishedAt, v.PublishedBy)
+		publishedAt, v.PublishedBy, v.Doc)
 	if isUniqueViolation(err) {
 		return ErrConflict
 	}
@@ -285,7 +285,7 @@ func (p *Postgres) CreateVersion(ctx context.Context, v *model.Version) error {
 func (p *Postgres) GetVersion(ctx context.Context, componentID, version string) (*model.Version, error) {
 	row := p.db.QueryRowContext(ctx, `
 		SELECT component_id, version, status, manifest_json, COALESCE(changelog,''),
-		       signature_json, published_at, COALESCE(published_by,'')
+		       signature_json, published_at, COALESCE(published_by,''), COALESCE(doc,'')
 		FROM component_versions WHERE component_id = $1 AND version = $2`, componentID, version)
 	return scanVersion(row)
 }
@@ -293,7 +293,8 @@ func (p *Postgres) GetVersion(ctx context.Context, componentID, version string) 
 func (p *Postgres) ListVersions(ctx context.Context, componentID string) ([]model.Version, error) {
 	rows, err := p.db.QueryContext(ctx, `
 		SELECT component_id, version, status, manifest_json, COALESCE(changelog,''),
-		       signature_json, published_at, COALESCE(published_by,'')
+		       signature_json, published_at, COALESCE(published_by,''),
+		       '' -- 列表不带文档：用不上，而它可能是一行里最大的值
 		FROM component_versions WHERE component_id = $1`, componentID)
 	if err != nil {
 		return nil, err
@@ -635,7 +636,7 @@ func scanVersion(s scanner) (*model.Version, error) {
 		signature []byte
 	)
 	err := s.Scan(&v.ComponentID, &v.Version, &v.Status, &manifest,
-		&v.Changelog, &signature, &v.PublishedAt, &v.PublishedBy)
+		&v.Changelog, &signature, &v.PublishedAt, &v.PublishedBy, &v.Doc)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

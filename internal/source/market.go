@@ -131,6 +131,12 @@ func (s *marketSource) artifactFile(ctx context.Context, componentID, version st
 		url.Values{"file": []string{file}})
 }
 
+// docBytes 取这个版本的 BRICKKIT.md。版本没带文档（或市场还没有这个端点）时是 404，
+// 即 errNotFound，不算错。
+func (s *marketSource) docBytes(ctx context.Context, componentID, version string) ([]byte, error) {
+	return s.get(ctx, s.versionPath(componentID, version)+"/doc", nil)
+}
+
 // origin 读取该版本的来源信息（开源 git / 闭源 registry，007 §11）。
 //
 // 它总是直接问市场，不走 Manifest 缓存：缓存里存的是 component.yaml 本身，
