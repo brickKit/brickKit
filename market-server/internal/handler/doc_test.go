@@ -31,6 +31,8 @@ func TestDocEndpointServesMarkdown(t *testing.T) {
 	resp := f.do(t, http.MethodGet, versionPath("people/basic", "1.0.0")+"/doc", "", nil)
 	require.Equal(t, http.StatusOK, resp.status, "响应：%s", resp.body)
 	assert.Equal(t, "text/markdown; charset=utf-8", resp.header.Get("Content-Type"))
+	assert.Equal(t, "nosniff", resp.header.Get("X-Content-Type-Options"),
+		"正文是发布者写的，从市场的域名送出：浏览器不许把它猜成别的类型")
 	assert.Equal(t, sampleDoc, string(resp.body), "原样，不包信封")
 }
 

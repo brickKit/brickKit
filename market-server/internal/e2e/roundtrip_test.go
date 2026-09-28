@@ -98,11 +98,13 @@ func newComponent(t *testing.T, id, image string, extraNew ...string) string {
 	return dir
 }
 
-// withConfig 给组件加一个带默认值的配置项（configSchema 的键就是环境变量名）。
+// withConfig 给组件加一个带默认值的配置项（configSchema 的键就是环境变量名），
+// 以及本机启动方式（local:）——三层格式里市场旧规则最不认识的两块。
 func withConfig(t *testing.T, dir string) {
 	t.Helper()
 	appendFile(t, filepath.Join(dir, "component.yaml"),
-		"\nconfigSchema:\n  properties:\n    GREETING:\n      type: string\n      default: hello\n")
+		"\nconfigSchema:\n  properties:\n    GREETING:\n      type: string\n      default: hello\n"+
+			"\nlocal:\n  runCommand: [./bin/server]\n")
 }
 
 // publish 在组件目录里登录并发布（凭据写在组件目录的 .brickkit/ 下）。
@@ -144,6 +146,10 @@ func TestPublishAndAddBack(t *testing.T) {
 	doc, err := os.ReadFile(layout.CachedDocPath("people/basic", "0.1.0"))
 	require.NoError(t, err, "市场给的 BRICKKIT.md 应当缓存在 Manifest 旁边")
 	assert.Equal(t, readFile(t, filepath.Join(comp, "BRICKKIT.md")), string(doc))
+
+	cached := readFile(t, layout.CachedManifestPath("people/basic", "0.1.0"))
+	assert.Contains(t, cached, "runCommand", "local: 原样经市场回到消费方")
+	assert.Contains(t, cached, "build", "deployment.build 与 image 并存也原样回来")
 
 	config := readFile(t, filepath.Join(proj, project.DirConfig, "people-basic.yaml"))
 	assert.Contains(t, config, "GREETING", "add 写出这个组件的配置骨架")

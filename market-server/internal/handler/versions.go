@@ -131,6 +131,8 @@ func (a *api) doc(w http.ResponseWriter, r *http.Request, p params) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	// 正文是发布者写的，从市场的域名送出：不许浏览器把它猜成 HTML 之类
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.WriteString(w, doc)
 }
