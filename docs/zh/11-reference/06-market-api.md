@@ -195,7 +195,7 @@ Manifest 的问题与请求字段的问题（`version`、`sourceType`、`visibil
 1. **必须有 `deployment.image`。** 从市场装组件的人手上没有源码，没法自己构建镜像。只写了 `deployment.build`（只能从源码构建）的组件用 git 源分发。
 2. **配置项不能与平台保留的环境变量同名。** `configSchema` 的键就是注入给组件的环境变量名；撞上平台自己要注入的名字，组件永远拿不到自己的值。保留的名字是 `COMPONENT_ID`、`COMPONENT_VERSION`、`BRICKKIT_SERVED_MEMBERS`、`BRICKKIT_SERVED_MEMBERS_CONFIG`、`PORT`，以及所有以 `_ENDPOINT` 结尾的名字。CLI 部署时遇到这种组件只是警告并跳过那一项（组件可能来自不经过市场的安装源）；市场在发布时直接拒收，返回 `CONFIG_SCHEMA_RESERVED_VARIABLE_CONFLICT`，`details.conflicts` 里每项有 `configKey`、`conflictPattern` 和一个避得开的新名字 `suggestion`。
 3. **闭源组件必须带接口契约。** `sourceType: registry` 的组件至少要声明一个 `type: api-contract` 的产物：代码可以不公开，调用它的接口不能不公开。
-4. **`doc` 不超过 256 KiB，并且是 UTF-8 文本。** `brickkit publish` 在建版本之前就先查一遍。
+4. **`doc` 不超过 256 KiB。** 它是 JSON 字符串，本身就是文本；`brickkit publish` 在建版本之前先查一遍大小，并拒绝不是 UTF-8 的文件。这一条与 Manifest、请求字段的问题一起报。
 
 ### 发布分三步
 

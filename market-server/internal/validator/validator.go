@@ -7,13 +7,14 @@
 // 市场在 Manifest 规则之上只加发布请求自己的规则：
 //   - 市场版本必须有 deployment.image（装的人手上没有源码可以构建）
 //   - configSchema 的键不许撞上平台保留变量（manifest.ReservedHitFor；CLI 注入时警告并跳过，市场直接拒收）
-//   - 来源、仓库地址、版本号、可见性
+//   - 来源、仓库地址、版本号、可见性、组件文档的大小
 //   - 闭源组件提供 API 时必须带 api-contract 产物
 //
 // 规则的文字来自 CLI 的 i18n 目录；市场从不设置语言，于是始终是英文。
 package validator
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
@@ -131,6 +132,15 @@ func validateRequest(req model.PublishRequest, m *manifest.Manifest) []model.Pro
 	if req.Visibility != "" &&
 		req.Visibility != model.VisibilityPublic && req.Visibility != model.VisibilityPrivate {
 		p = append(p, model.Problem{Field: "visibility", Reason: "must be public or private"})
+	}
+
+	// 文档只查大小。它经 JSON 字符串到来，本身就是文本；原文件不是 UTF-8 的，
+	// brickkit publish 在发之前就拦下了。
+	if len(req.Doc) > manifest.MaxDocBytes {
+		p = append(p, model.Problem{
+			Field:  "doc",
+			Reason: fmt.Sprintf("BRICKKIT.md is %d bytes; the limit is %d", len(req.Doc), manifest.MaxDocBytes),
+		})
 	}
 	return p
 }

@@ -195,7 +195,7 @@ Manifest problems and request-field problems (`version`, `sourceType`, `visibili
 1. **`deployment.image` is required.** Whoever installs from the market has no source code, so they can't build an image. A component that only declares `deployment.build` (built from source) is distributed through a git source.
 2. **No config key may take the name of a platform-injected variable.** A `configSchema` key is the name of the environment variable the component receives; if it collides with a name the platform injects itself, the component never sees its own value. The reserved names are `COMPONENT_ID`, `COMPONENT_VERSION`, `BRICKKIT_SERVED_MEMBERS`, `BRICKKIT_SERVED_MEMBERS_CONFIG`, `PORT`, and every name ending in `_ENDPOINT`. When the CLI deploys such a component it only warns and skips that key, since the component may come from a source that never went through a market. The market refuses it at publish time with `CONFIG_SCHEMA_RESERVED_VARIABLE_CONFLICT`; each entry in `details.conflicts` has `configKey`, `conflictPattern`, and a `suggestion` that avoids the pattern.
 3. **A closed-source component must ship its API contract.** A `sourceType: registry` component declares at least one artifact with `type: api-contract`: the code may stay private, the interface its callers depend on may not.
-4. **`doc` is UTF-8 text of at most 256 KiB.** `brickkit publish` checks this before it creates the version.
+4. **`doc` is at most 256 KiB.** It arrives as a JSON string, so it is text by construction; `brickkit publish` checks the size before it creates the version, and refuses a file that isn't UTF-8. This problem is reported together with the Manifest and request-field problems.
 
 ### Publishing takes three requests
 

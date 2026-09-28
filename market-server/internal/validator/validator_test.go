@@ -5,6 +5,7 @@ package validator
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -307,6 +308,29 @@ func TestValidateReportsManifestAndRequestProblemsTogether(t *testing.T) {
 	got := fields(problemsOf(t, apiErr))
 	assert.Contains(t, got, "futureField")
 	assert.Contains(t, got, "visibility")
+}
+
+// 组件文档的上限由服务端自己把关（绕过 CLI 的请求同样拦下），而且与别的问题一起报。
+func TestValidateRefusesOversizedDoc(t *testing.T) {
+	apiErr := requireInvalid(t, req(t, manifestJSON(t, nil), func(r *model.PublishRequest) {
+		r.Doc = strings.Repeat("x", manifest.MaxDocBytes+1)
+	}))
+	assert.Equal(t, model.CodeInvalidRequest, apiErr.Code)
+	assert.Equal(t, []string{"doc"}, fields(problemsOf(t, apiErr)))
+
+	requireValid(t, req(t, manifestJSON(t, nil), func(r *model.PublishRequest) {
+		r.Doc = strings.Repeat("x", manifest.MaxDocBytes)
+	}))
+}
+
+func TestValidateReportsDocWithManifestProblems(t *testing.T) {
+	apiErr := requireInvalid(t, req(t, manifestJSON(t, map[string]any{"futureField": true}), func(r *model.PublishRequest) {
+		r.Doc = strings.Repeat("x", manifest.MaxDocBytes+1)
+	}))
+	assert.Equal(t, model.CodeManifestInvalid, apiErr.Code)
+	got := fields(problemsOf(t, apiErr))
+	assert.Contains(t, got, "futureField")
+	assert.Contains(t, got, "doc")
 }
 
 // ============================================================

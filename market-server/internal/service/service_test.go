@@ -967,26 +967,19 @@ func TestGetDocWithoutDocIsNotFound(t *testing.T) {
 }
 
 // 上限由服务端自己把关：绕过 CLI 直接调 API 的请求同样拦下，库里不留痕迹。
-func TestPublishRefusesOversizedOrBinaryDoc(t *testing.T) {
-	for name, doc := range map[string]string{
-		"oversized": strings.Repeat("x", model.MaxDocBytes+1),
-		"not utf-8": "# doc\xff\xfe",
-	} {
-		t.Run(name, func(t *testing.T) {
-			f := newFixture(t)
-			id := f.registerUser(t, "zhangsan")
-			req := publishRequest(t, "people/basic", "1.0.0", nil)
-			req.Doc = doc
+func TestPublishRefusesOversizedDoc(t *testing.T) {
+	f := newFixture(t)
+	id := f.registerUser(t, "zhangsan")
+	req := publishRequest(t, "people/basic", "1.0.0", nil)
+	req.Doc = strings.Repeat("x", model.MaxDocBytes+1)
 
-			_, err := f.svc.Publish(context.Background(), id, "people/basic", req)
-			e := apiErrorOf(t, err)
-			assert.Equal(t, model.CodeInvalidRequest, e.Code)
-			assert.Contains(t, fmt.Sprint(e.Details["problems"]), "doc")
+	_, err := f.svc.Publish(context.Background(), id, "people/basic", req)
+	e := apiErrorOf(t, err)
+	assert.Equal(t, model.CodeInvalidRequest, e.Code)
+	assert.Contains(t, fmt.Sprint(e.Details["problems"]), "doc")
 
-			_, err = f.repo.GetVersion(context.Background(), "people/basic", "1.0.0")
-			assert.Error(t, err, "被拒的发布不建版本")
-		})
-	}
+	_, err = f.repo.GetVersion(context.Background(), "people/basic", "1.0.0")
+	assert.Error(t, err, "被拒的发布不建版本")
 }
 
 func TestPublishAcceptsDocAtTheLimit(t *testing.T) {

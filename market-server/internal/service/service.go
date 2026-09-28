@@ -14,12 +14,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -99,9 +97,6 @@ func (s *Service) Publish(
 
 	m, err := validator.Validate(req)
 	if err != nil {
-		return nil, err
-	}
-	if err := validateDoc(req.Doc); err != nil {
 		return nil, err
 	}
 	// 结构上就不可能有效的签名当场退回，不让它在库里留下痕迹
@@ -377,20 +372,6 @@ func (s *Service) GetDoc(ctx context.Context, id *Identity, componentID, version
 	return v.Doc, nil
 }
 
-// validateDoc：文档是 UTF-8 文本，不超过 MaxDocBytes。
-func validateDoc(doc string) error {
-	var reason string
-	switch {
-	case len(doc) > model.MaxDocBytes:
-		reason = fmt.Sprintf("BRICKKIT.md is %d bytes; the limit is %d", len(doc), model.MaxDocBytes)
-	case !utf8.ValidString(doc):
-		reason = "BRICKKIT.md must be UTF-8 text"
-	default:
-		return nil
-	}
-	return model.Errorf(model.CodeInvalidRequest, "the publish request is invalid").
-		WithDetail("problems", []model.Problem{{Field: "doc", Reason: reason}})
-}
 
 // ListVersions 列出组件的版本（默认隐藏 draft 与已删除版本）。
 func (s *Service) ListVersions(
