@@ -11,7 +11,7 @@ import (
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
-// renderStates 输出组件状态计算结果（003 §4.3 的输出样例）。
+// renderStates 输出组件状态计算结果。
 //
 // 不启动的组件也要列出来并说明理由：否则使用者只会看到"我加的组件不见了"。
 //
@@ -37,7 +37,7 @@ func renderStates(opts *Options, states *cascade.Result) {
 	opts.Printf("\n")
 }
 
-// renderOrder 输出启动顺序、要点与依赖图（004 §3.8 输出样例）。
+// renderOrder 输出启动顺序、要点与依赖图。
 //
 // plan 是工作负载的启动顺序（外壳承载的成员已并进外壳，见 shell.Workloads），hosted 是每个外壳
 // 这次承载的成员，skipped 是每个工作负载因 skipWaitFor 而不等的强依赖；components 是组件层面的顺序，弱依赖名单与依赖图照组件来画——依赖关系是
@@ -87,7 +87,7 @@ func renderOrder(
 		}
 		// 这一行回答的是"哪些是可以关掉的"。
 		//
-		// 只被弱依赖引用的组件照常启动（003 §4.3：它跟着上层走），
+		// 只被弱依赖引用的组件照常启动（它跟着上层走），
 		// 但关掉它们不会连累任何人——调用方拿不到 *_ENDPOINT，自己降级。
 		// 嫌容器太多时，这里就是那份可以下手的名单。
 		opts.Printf("%s\n", i18n.T(msgid.CliRenderOrderOnlyReferencedByOptionalDependencies, strings.Join(ids, i18n.T(msgid.ListSeparator))))
@@ -109,7 +109,7 @@ func renderOrder(
 //  2. demo-b-1-0-0  无依赖
 //     必须最后启动：demo/b（需等前 1 个组件就绪）    ← 它谁都不等
 //
-// 设计书自己的例子也是错的（004 §3.8）：people/basic 只强依赖 department/tree，
+// 设计书自己的例子也是错的：people/basic 只强依赖 department/tree，
 // 却写着"需等前 4 个组件就绪"，而紧挨着它的那张依赖图正在打脸。使用者据此得到的
 // 印象是"整个 up 是串行的"，于是组件一多就以为启动会线性变慢。
 //

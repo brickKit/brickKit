@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-// 本文件覆盖开发计划 25.1–25.7。
-//
 // erp/backend 是一个**连接组件**：它自己几乎没有数据，价值全在"把四个组件
 // 正确地串起来"。因此这里的测试大多不是在测业务逻辑，而是在测**编排**：
 // 谁在什么时候被调用、某一个挂了会怎样、弱依赖缺席时还能不能干活。
@@ -175,7 +173,7 @@ func do(t *testing.T, svc *service, method, path, token, body string) (int, map[
 }
 
 // ============================================================
-// 25.1 所有强依赖调用正常
+// 所有强依赖调用正常
 // ============================================================
 
 // TestListOrdersCallsEveryStrongDependency 是 25.1 的主干。
@@ -284,7 +282,7 @@ func TestApproveNeedsStrongerPermission(t *testing.T) {
 }
 
 // ============================================================
-// 强依赖故障（002 §6：如实报，不假装）
+// 强依赖故障（如实报，不假装）
 // ============================================================
 
 func TestStrongDependencyOutageIsUnavailable(t *testing.T) {
@@ -317,12 +315,12 @@ func TestStrongDependencyOutageIsUnavailable(t *testing.T) {
 }
 
 // ============================================================
-// 25.2 / 25.3 弱依赖：事件总线
+// 弱依赖：事件总线
 // ============================================================
 
 // TestApprovePublishesEvent 是 25.2 的单元层验证。
 //
-// 真实的端到端验证要等 infra/redis-event-bus 建好（Step 27）。
+// 真实的端到端验证要等 infra/redis-event-bus 建好。
 func TestApprovePublishesEvent(t *testing.T) {
 	d := newDeps()
 	svc := newTestService(t, d, config{})
@@ -346,8 +344,8 @@ func TestApprovePublishesEvent(t *testing.T) {
 
 // TestApproveSucceedsWhenEventBusDisabled 是 25.3 的核心。
 //
-// 弱依赖缺席时，平台**完全不注入** INFRA_REDIS_EVENT_BUS_ENDPOINT（003 §4.3、
-// 开发进度 D140）。此时业务必须照常完成——弱依赖的定义就是"有就用、没有就降级"。
+// 弱依赖缺席时，平台**完全不注入** INFRA_REDIS_EVENT_BUS_ENDPOINT。
+// 此时业务必须照常完成——弱依赖的定义就是"有就用、没有就降级"。
 // 若因为发不出事件而让审批失败，它就成了事实上的强依赖。
 func TestApproveSucceedsWhenEventBusDisabled(t *testing.T) {
 	d := newDeps()
@@ -409,7 +407,7 @@ func TestOrderStateChangesEvenWithoutEvent(t *testing.T) {
 }
 
 // ============================================================
-// 25.5 config 覆盖
+// config 覆盖
 // ============================================================
 
 // TestSessionTTLComesFromConfig：SESSION_TTL_SECONDS 真的被用上了。
@@ -435,7 +433,7 @@ func TestSessionTTLComesFromConfig(t *testing.T) {
 }
 
 // ============================================================
-// 25.6 / 25.7 健康检查
+// 健康检查
 // ============================================================
 
 func TestHealthzReturns200(t *testing.T) {

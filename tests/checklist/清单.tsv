@@ -1,105 +1,103 @@
-# Step 32–35 验收清单：边界 / 错误处理 / 兼容性 / 安全。
+# 验收清单：边界 / 错误处理 / 兼容性 / 安全。
 #
-# 每一行是「计划里的一个验收项」→「今天真正证明它的那份证据」。
-# 列：类别 / 编号 / 说明 / 证据类型 / module / 包 / 测试名（制表符分隔）
+# 每一行是「一条验收项」→「今天真正证明它的那个测试」。
+# 列：编号 / 说明 / module 目录 / 包 / 测试名（制表符分隔）
 #
-# 这份文件是**唯一事实源**：checklist_test.go 读它验证每个测试真的存在，
-# `make test-boundary` / `test-error` / `test-compat` / `test-security` 读它来执行。
+# 编号是 <类别>.<序号>，类别只有 boundary / error / compat / security 四种——
+# `make test-boundary` / `test-error` / `test-compat` / `test-security` 就按它筛行。
 #
-# 为什么需要它：这四个 Step 早就做完了，测试却都写在**被测代码旁边**
-# （internal/**/​*_test.go），而不是 tests/boundary/ 这类目录里。
-# 于是 `make test-boundary` 长期打印「暂无测试文件，跳过」——
-# 看起来像"还没写"，实际是写完了、只是不在那儿。
-# **一个永远跳过的检查比没有检查更坏，因为它还在成绩单上占一行。**
+# 这份文件是**唯一事实源**：checklist_test.go 读它验证每个测试真的存在（go test -list），
+# 那四个 make 目标读它来执行。改清单只改这里。
 #
-# 证据类型：test → module / 包 / 测试名，由 go test -list 确认它今天仍然存在。
-# （曾经还有一种 record：33.17 指向一次全量审计的记录。审计只证明审计那天，所以它改成了
-# tests/errorhints 的守卫——每次跑测试都重新证明一遍，这种证据类型也就不再需要。）
+# 为什么需要它：这些验收项的测试都写在**被测代码旁边**（internal/**/*_test.go），
+# 而不是 tests/boundary/ 这类目录里。没有这份清单，谁也说不出「security.11
+# 不声明 expose 就不生成 Ingress」到底由哪个测试保证；测试被改名或删掉，也没人发现。
 #
 # 一个编号可以有多行（一项承诺由多个测试共同证明）；但每个编号至少要有一行。
-boundary	32.1	组件 ID 超长	test	.	./internal/manifest	TestValidationErrors
-boundary	32.2	组件 ID 含特殊字符	test	.	./internal/manifest	TestValidationErrors
-boundary	32.3	版本号超长	test	.	./internal/manifest	TestParseVeryLongVersion
-boundary	32.4	依赖列表为空（刚 init 完的项目）	test	.	./internal/projfile	TestParseEmptyListsAreValid
-boundary	32.5	依赖列表超大（100 个）	test	.	./internal/manifest	TestParseManyDependencies
-boundary	32.6	config 值为空字符串	test	.	./internal/configdir	TestResolveEmptyStringVsNull
-boundary	32.7	config 值为 null	test	.	./internal/configdir	TestResolveEmptyStringVsNull
-boundary	32.8	config 值为特殊字符（$、引号、多行 PEM 原样到达）	test	.	./internal/cli	TestThreeLayerDryRunDockerAndK8s
-boundary	32.9	brickkit.yaml 为空文件	test	.	./internal/projfile	TestParseEmptyFile
-boundary	32.10	brickkit.yaml 非法 YAML，报错指出行号	test	.	./internal/projfile	TestParseInvalidYAMLNamesTheLine
-boundary	32.11	component.yaml 为空文件	test	.	./internal/manifest	TestParseEmptyFile
-boundary	32.12	组件 ID 只有 scope	test	.	./internal/manifest	TestValidationErrors
-boundary	32.13	组件 ID 只有 name	test	.	./internal/manifest	TestValidationErrors
-boundary	32.14	port 为 0	test	.	./internal/manifest	TestValidationErrors
-boundary	32.15	port 为负数	test	.	./internal/manifest	TestValidationErrors
-boundary	32.16	port 超过 65535	test	.	./internal/manifest	TestValidationErrors
-boundary	32.17	extraPorts 与主端口相同	test	.	./internal/manifest	TestValidationErrors
-boundary	32.18	深层嵌套依赖（10 层）	test	.	./internal/resolver	TestTenLevelDependencyChain
-boundary	32.19	大量组件（50 个）	test	.	./internal/projfile	TestParseManyComponents
-boundary	32.20	项目名称含中划线	test	.	./internal/cli	TestInitAcceptsValidProjectNames
-boundary	32.21	项目名称含数字	test	.	./internal/projfile	TestValidateProjectNameAcceptsDigits
-boundary	32.22	项目名称只有数字	test	.	./internal/cli	TestInitAcceptsValidProjectNames
-boundary	32.23	artifacts files 列表为空	test	.	./internal/manifest	TestValidationErrors
-boundary	32.24	artifacts files 路径含特殊字符	test	.	./internal/manifest	TestParseArtifactPathWithSpace
-boundary	32.25	configSchema properties 为空	test	.	./internal/manifest	TestParseEmptyConfigSchemaProperties
-error	33.1	强依赖缺失，信息含组件 ID 与缺失依赖	test	.	./internal/resolver	TestStrongDependencyMissingBlocks
-error	33.2	循环依赖，信息含循环路径	test	.	./internal/resolver	TestDependencyCycleIsReported
-error	33.3	必填配置项缺失，信息含组件 ID 与配置项	test	.	./internal/inject	TestRequiredConfigWithoutValueBlocks
-error	33.4	镜像拉取失败，信息含镜像与 docker login 提示	test	.	./internal/cli	TestUpImageUnauthorizedBlocksStart
-error	33.5	迁移失败，信息含组件、命令、退出码	test	.	./internal/engine	TestKubectlMigrationFailure
-error	33.5	迁移失败后给出的 logs 命令可直接执行	test	.	./internal/cli	TestUpPrintsUsableLogsCommand
-error	33.6	端口冲突，信息含冲突组件与建议	test	.	./internal/compose	TestConflictingExposePortsIsAnError
-error	33.7	未登录发布，信息含 brickkit login 提示	test	.	./internal/cli	TestPublishWithoutLoginFails
-error	33.8	Token 过期，信息说明过期并提示重新登录	test	.	./internal/cli	TestPublishWithExpiredTokenAsksToLoginAgain
-error	33.9	保留变量冲突，警告含配置项与环境变量名	test	.	./internal/inject	TestReservedVariableConflictWarnsAndSkips
-error	33.10	--repo 遇到闭源组件：照常安装，点名说明它没有源码仓库、没有克隆	test	.	./internal/cli	TestAddRepoClosedSourceIsSaidAndSkipped
-error	33.11	clone 失败（目录已存在），信息含路径与建议	test	.	./internal/workspace	TestCloneRefusesExistingDirectory
-error	33.12	多版本 remove 未指定版本，信息含版本列表	test	.	./internal/cli	TestRemoveNeedsVersionWhenSeveral
-error	33.13	钉住的组件强依赖了被关掉的组件	test	.	./internal/cli	TestUpDisabledStrongDependencyIsAnError
-error	33.14	所有错误的退出码非 0	test	.	./internal/clierr	TestExitCodes
-error	33.15	所有警告的退出码为 0	test	.	./internal/cli	TestRunRendersWarningWithZeroExit
-error	33.16	错误信息不暴露内部实现细节	test	.	./internal/market	TestWithDetailsRendersNestedDetails
-error	33.17	错误信息包含建议（每一处报错构造都带建议，或写明豁免理由）	test	.	./tests/errorhints	TestEveryErrorCarriesASuggestion
-error	33.18	brickkit.yaml 格式错误指出行号	test	.	./internal/projfile	TestParseInvalidYAMLNamesTheLine
-error	33.19	市场不可达时提示检查网络	test	.	./internal/source	TestMarketSourceUnreachable
-error	33.20	Git 仓库不可达或地址写错时点名仓库地址	test	.	./internal/source	TestGitMissingRepositoryNamesTheAddress
-compat	34.1	brickkit up 正常启动	test	.	./internal/cli	TestUpStartsAllComponents
-compat	34.2	brickkit down 正常停止	test	.	./internal/engine	TestDownNeverRemovesVolumes
-compat	34.3	brickkit status 正常展示	test	.	./internal/cli	TestStatusShowsRunningComponents
-compat	34.4	健康检查：healthy 才算就绪	test	.	./internal/engine	TestRunningRequiresHealthy
-compat	34.5	migration 失败则主服务不启动	test	.	./internal/compose	TestMainServiceWaitsForMigration
-compat	34.6	mode: debug 的组件经 extra_hosts 指到宿主机（host-gateway）	test	.	./internal/compose	TestHostGateway
-compat	34.7	down 不删数据卷	test	.	./internal/engine	TestDownNeverRemovesVolumes
-compat	34.8	网络隔离：每个项目一个网络	test	.	./internal/compose	TestEveryServiceJoinsTheNetwork
-compat	34.9	expose 才映射到宿主机	test	.	./internal/compose	TestComponentWithoutExposeHasNoPorts
-compat	34.10	日志提示里的命令可直接执行	test	.	./internal/cli	TestUpPrintsUsableLogsCommand
-compat	34.11	CLI 自动检测引擎	test	.	./internal/engine	TestDetectPrefersDocker
-compat	34.11	只有 Podman 时报专门的错	test	.	./internal/engine	TestDetectReportsPodmanSpecifically
-compat	34.12	引擎不存在时报错	test	.	./internal/engine	TestDetectWithoutAnyEngine
-compat	34.13	NewPodman 调用的是 podman 二进制，不是 docker	test	.	./internal/engine	TestPodmanUsesPodmanBinary
-compat	34.14	引擎二进制缺失时的安装建议按引擎名走，不永远建议装 Docker	test	.	./internal/engine	TestPodmanMissingBinaryGivesInstallHint
-compat	34.15	down 已知的 AppArmor 失败信号带上环境检查清单的提示	test	.	./internal/engine	TestPodmanDownTranslatesKnownApparmorFailure
-compat	34.16	无关的 permission denied 不套用 AppArmor 提示	test	.	./internal/engine	TestGenericPermissionDeniedGetsNoApparmorHint
-compat	34.17	只装 Podman、未显式启用时提示怎么启用	test	.	./internal/engine	TestPodmanOnlyMachineGetsEnableHint
-compat	34.18	resolveEngineFor 对 target: podman 真实分发到 Podman 引擎	test	.	./internal/cli	TestResolveEngineForPodmanTargetDispatchesRealEngine
-compat	34.19	brickkit up 对 target: podman 真的调用引擎，不再报未实现	test	.	./internal/cli	TestUpRealRunSucceedsWithPodmanTarget
-compat	34.20	brickkit down 对 target: podman 真的调用引擎	test	.	./internal/cli	TestDownSucceedsWithPodmanTarget
-compat	34.21	brickkit status 对 target: podman 真的调用引擎	test	.	./internal/cli	TestStatusSucceedsWithPodmanTarget
-security	35.1	保留变量保护（市场发布时校验）	test	market-server	./internal/validator	TestValidateRefusesReservedKey
-security	35.2	保留变量保护（CLI 注入时检测）	test	.	./internal/inject	TestReservedVariableConflictWarnsAndSkips
-security	35.3	所有保留模式覆盖	test	.	./internal/manifest	TestReservedHitForPatterns
-security	35.4	密钥不以明文写进要提交的 config/（写了就告警）	test	.	./internal/cli	TestConfigWithSecretWarns
-security	35.5	init 生成的 .gitignore 含 .env	test	.	./internal/cli	TestInitCreatesGitignore
-security	35.6	init 生成的 .gitignore 含 .brickkit/credentials	test	.	./internal/cli	TestInitCreatesGitignore
-security	35.7	requireSignature: true 阻断未签名组件	test	.	./internal/source	TestRequireSignatureBlocksUnsigned
-security	35.8	requireSignature: false 允许未签名组件	test	.	./internal/source	TestRequireSignatureFalseAllowsUnsigned
-security	35.9	private 组件未授权不可访问	test	market-server	./internal/service	TestPrivateComponentDeniedForAnonymous
-security	35.10	默认不暴露端口	test	.	./internal/compose	TestComponentWithoutExposeHasNoPorts
-security	35.11	不声明 expose 不生成 Ingress	test	.	./internal/k8s	TestNoIngressWithoutExpose
-security	35.12	闭源组件必须提供 API 契约	test	market-server	./internal/validator	TestValidateKeepsRequestRules
-security	35.13	生成物里不落明文密码	test	.	./internal/k8s	TestPasswordNeverAppearsInDeployment
-security	35.14	告警信息不打印密码本身	test	.	./internal/cli	TestConfigWithSecretWarns
-security	35.15	blocked 组件不可安装	test	.	./internal/market	TestAsCLIErrorMapsCodesToDistinctAdvice
-security	35.16	容器使用非 root 用户	test	.	./internal/k8s	TestRestrictedPodSecurity
-security	35.17	config 字段不包含密钥	test	.	./internal/cli	TestConfigWithSecretWarns
-security	35.18	配置要求签名时强制生效	test	.	./internal/source	TestRequireSignatureBlocksUnsigned
+# 新增条目在所属类别里顺延序号。
+boundary.1	组件 ID 超长	.	./internal/manifest	TestValidationErrors
+boundary.2	组件 ID 含特殊字符	.	./internal/manifest	TestValidationErrors
+boundary.3	版本号超长	.	./internal/manifest	TestParseVeryLongVersion
+boundary.4	依赖列表为空（刚 init 完的项目）	.	./internal/projfile	TestParseEmptyListsAreValid
+boundary.5	依赖列表超大（100 个）	.	./internal/manifest	TestParseManyDependencies
+boundary.6	config 值为空字符串	.	./internal/configdir	TestResolveEmptyStringVsNull
+boundary.7	config 值为 null	.	./internal/configdir	TestResolveEmptyStringVsNull
+boundary.8	config 值为特殊字符（$、引号、多行 PEM 原样到达）	.	./internal/cli	TestThreeLayerDryRunDockerAndK8s
+boundary.9	brickkit.yaml 为空文件	.	./internal/projfile	TestParseEmptyFile
+boundary.10	brickkit.yaml 非法 YAML，报错指出行号	.	./internal/projfile	TestParseInvalidYAMLNamesTheLine
+boundary.11	component.yaml 为空文件	.	./internal/manifest	TestParseEmptyFile
+boundary.12	组件 ID 只有 scope	.	./internal/manifest	TestValidationErrors
+boundary.13	组件 ID 只有 name	.	./internal/manifest	TestValidationErrors
+boundary.14	port 为 0	.	./internal/manifest	TestValidationErrors
+boundary.15	port 为负数	.	./internal/manifest	TestValidationErrors
+boundary.16	port 超过 65535	.	./internal/manifest	TestValidationErrors
+boundary.17	extraPorts 与主端口相同	.	./internal/manifest	TestValidationErrors
+boundary.18	深层嵌套依赖（10 层）	.	./internal/resolver	TestTenLevelDependencyChain
+boundary.19	大量组件（50 个）	.	./internal/projfile	TestParseManyComponents
+boundary.20	项目名称含中划线	.	./internal/cli	TestInitAcceptsValidProjectNames
+boundary.21	项目名称含数字	.	./internal/projfile	TestValidateProjectNameAcceptsDigits
+boundary.22	项目名称只有数字	.	./internal/cli	TestInitAcceptsValidProjectNames
+boundary.23	artifacts files 列表为空	.	./internal/manifest	TestValidationErrors
+boundary.24	artifacts files 路径含特殊字符	.	./internal/manifest	TestParseArtifactPathWithSpace
+boundary.25	configSchema properties 为空	.	./internal/manifest	TestParseEmptyConfigSchemaProperties
+error.1	强依赖缺失，信息含组件 ID 与缺失依赖	.	./internal/resolver	TestStrongDependencyMissingBlocks
+error.2	循环依赖，信息含循环路径	.	./internal/resolver	TestDependencyCycleIsReported
+error.3	必填配置项缺失，信息含组件 ID 与配置项	.	./internal/inject	TestRequiredConfigWithoutValueBlocks
+error.4	镜像拉取失败，信息含镜像与 docker login 提示	.	./internal/cli	TestUpImageUnauthorizedBlocksStart
+error.5	迁移失败，信息含组件、命令、退出码	.	./internal/engine	TestKubectlMigrationFailure
+error.5	迁移失败后给出的 logs 命令可直接执行	.	./internal/cli	TestUpPrintsUsableLogsCommand
+error.6	端口冲突，信息含冲突组件与建议	.	./internal/compose	TestConflictingExposePortsIsAnError
+error.7	未登录发布，信息含 brickkit login 提示	.	./internal/cli	TestPublishWithoutLoginFails
+error.8	Token 过期，信息说明过期并提示重新登录	.	./internal/cli	TestPublishWithExpiredTokenAsksToLoginAgain
+error.9	保留变量冲突，警告含配置项与环境变量名	.	./internal/inject	TestReservedVariableConflictWarnsAndSkips
+error.10	--repo 遇到闭源组件：照常安装，点名说明它没有源码仓库、没有克隆	.	./internal/cli	TestAddRepoClosedSourceIsSaidAndSkipped
+error.11	clone 失败（目录已存在），信息含路径与建议	.	./internal/workspace	TestCloneRefusesExistingDirectory
+error.12	多版本 remove 未指定版本，信息含版本列表	.	./internal/cli	TestRemoveNeedsVersionWhenSeveral
+error.13	钉住的组件强依赖了被关掉的组件	.	./internal/cli	TestUpDisabledStrongDependencyIsAnError
+error.14	所有错误的退出码非 0	.	./internal/clierr	TestExitCodes
+error.15	所有警告的退出码为 0	.	./internal/cli	TestRunRendersWarningWithZeroExit
+error.16	错误信息不暴露内部实现细节	.	./internal/market	TestWithDetailsRendersNestedDetails
+error.17	错误信息包含建议（每一处报错构造都带建议，或写明豁免理由）	.	./tests/errorhints	TestEveryErrorCarriesASuggestion
+error.18	brickkit.yaml 格式错误指出行号	.	./internal/projfile	TestParseInvalidYAMLNamesTheLine
+error.19	市场不可达时提示检查网络	.	./internal/source	TestMarketSourceUnreachable
+error.20	Git 仓库不可达或地址写错时点名仓库地址	.	./internal/source	TestGitMissingRepositoryNamesTheAddress
+compat.1	brickkit up 正常启动	.	./internal/cli	TestUpStartsAllComponents
+compat.2	brickkit down 正常停止	.	./internal/engine	TestDownNeverRemovesVolumes
+compat.3	brickkit status 正常展示	.	./internal/cli	TestStatusShowsRunningComponents
+compat.4	健康检查：healthy 才算就绪	.	./internal/engine	TestRunningRequiresHealthy
+compat.5	migration 失败则主服务不启动	.	./internal/compose	TestMainServiceWaitsForMigration
+compat.6	mode: debug 的组件经 extra_hosts 指到宿主机（host-gateway）	.	./internal/compose	TestHostGateway
+compat.7	down 不删数据卷	.	./internal/engine	TestDownNeverRemovesVolumes
+compat.8	网络隔离：每个项目一个网络	.	./internal/compose	TestEveryServiceJoinsTheNetwork
+compat.9	expose 才映射到宿主机	.	./internal/compose	TestComponentWithoutExposeHasNoPorts
+compat.10	日志提示里的命令可直接执行	.	./internal/cli	TestUpPrintsUsableLogsCommand
+compat.11	CLI 自动检测引擎	.	./internal/engine	TestDetectPrefersDocker
+compat.11	只有 Podman 时报专门的错	.	./internal/engine	TestDetectReportsPodmanSpecifically
+compat.12	引擎不存在时报错	.	./internal/engine	TestDetectWithoutAnyEngine
+compat.13	NewPodman 调用的是 podman 二进制，不是 docker	.	./internal/engine	TestPodmanUsesPodmanBinary
+compat.14	引擎二进制缺失时的安装建议按引擎名走，不永远建议装 Docker	.	./internal/engine	TestPodmanMissingBinaryGivesInstallHint
+compat.15	down 已知的 AppArmor 失败信号带上环境检查清单的提示	.	./internal/engine	TestPodmanDownTranslatesKnownApparmorFailure
+compat.16	无关的 permission denied 不套用 AppArmor 提示	.	./internal/engine	TestGenericPermissionDeniedGetsNoApparmorHint
+compat.17	只装 Podman、未显式启用时提示怎么启用	.	./internal/engine	TestPodmanOnlyMachineGetsEnableHint
+compat.18	resolveEngineFor 对 target: podman 真实分发到 Podman 引擎	.	./internal/cli	TestResolveEngineForPodmanTargetDispatchesRealEngine
+compat.19	brickkit up 对 target: podman 真的调用引擎，不再报未实现	.	./internal/cli	TestUpRealRunSucceedsWithPodmanTarget
+compat.20	brickkit down 对 target: podman 真的调用引擎	.	./internal/cli	TestDownSucceedsWithPodmanTarget
+compat.21	brickkit status 对 target: podman 真的调用引擎	.	./internal/cli	TestStatusSucceedsWithPodmanTarget
+security.1	保留变量保护（市场发布时校验）	market-server	./internal/validator	TestValidateRefusesReservedKey
+security.2	保留变量保护（CLI 注入时检测）	.	./internal/inject	TestReservedVariableConflictWarnsAndSkips
+security.3	所有保留模式覆盖	.	./internal/manifest	TestReservedHitForPatterns
+security.4	密钥不以明文写进要提交的 config/（写了就告警）	.	./internal/cli	TestConfigWithSecretWarns
+security.5	init 生成的 .gitignore 含 .env	.	./internal/cli	TestInitCreatesGitignore
+security.6	init 生成的 .gitignore 含 .brickkit/credentials	.	./internal/cli	TestInitCreatesGitignore
+security.7	requireSignature: true 阻断未签名组件	.	./internal/source	TestRequireSignatureBlocksUnsigned
+security.8	requireSignature: false 允许未签名组件	.	./internal/source	TestRequireSignatureFalseAllowsUnsigned
+security.9	private 组件未授权不可访问	market-server	./internal/service	TestPrivateComponentDeniedForAnonymous
+security.10	默认不暴露端口	.	./internal/compose	TestComponentWithoutExposeHasNoPorts
+security.11	不声明 expose 不生成 Ingress	.	./internal/k8s	TestNoIngressWithoutExpose
+security.12	闭源组件必须提供 API 契约	market-server	./internal/validator	TestValidateKeepsRequestRules
+security.13	生成物里不落明文密码	.	./internal/k8s	TestPasswordNeverAppearsInDeployment
+security.14	告警信息不打印密码本身	.	./internal/cli	TestConfigWithSecretWarns
+security.15	blocked 组件不可安装	.	./internal/market	TestAsCLIErrorMapsCodesToDistinctAdvice
+security.16	容器使用非 root 用户	.	./internal/k8s	TestRestrictedPodSecurity
+security.17	config 字段不包含密钥	.	./internal/cli	TestConfigWithSecretWarns
+security.18	配置要求签名时强制生效	.	./internal/source	TestRequireSignatureBlocksUnsigned

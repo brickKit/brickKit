@@ -1,6 +1,6 @@
 package cli
 
-// 本文件是 deploy.target: k8s 那条路（005 §5）。
+// 本文件是 deploy.target: k8s 那条路。
 //
 // 与 Docker 那条路共用前半段：读配置 → 升级检查 → 解析依赖 → 级联 → 注入。
 // 从"生成什么文件"开始分岔，因为两边确实是两回事：
@@ -70,8 +70,8 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 // 靠 grep 去猜会在托管集群（CNI 跑在控制面、用户看不见）上误报"不支持"，
 // 把本来正确的部署拦下来。
 //
-// 既然测不出来，就必须说出来。从前这句话只写在 005 §5.13.0 与 003 §3.2 里，
-// 而打开这个开关的人多半是从附录 D 抄了个字段——他不会回去读那两节。
+// 既然测不出来，就必须说出来。从前这句话只写在设计文档里，
+// 而打开这个开关的人多半是从示例里抄了个字段——他不会回去读文档。
 // 于是完整的失败路径是：抄字段 → up 静默生成 → apply 成功 →
 // get networkpolicy 看得见 → 以为收紧了，实际全通。
 //
@@ -103,7 +103,7 @@ func renderNetworkPolicyNotice(opts *Options, result *k8s.Result) {
 //
 // **up 与 down 共用这一个判据，全仓库只此一处。** 三个用途：
 //
-//	up   K8s 侧按它比对集群实际资源，清理上一次留下的孤儿（P38）
+//	up   K8s 侧按它比对集群实际资源，清理上一次留下的孤儿
 //	up   Docker 侧只用"空 / 非空"决定带不带 `--remove-orphans`
 //	down 命名空间是运维建的那条路上，按它逐类删自己的资源
 //
@@ -115,7 +115,7 @@ func renderNetworkPolicyNotice(opts *Options, result *k8s.Result) {
 //
 // 这里曾经有一个"`--only` 时返回空串不清理"的分支：那时生成的部署文件只含
 // 被点名的子集，其余组件全部落进清理的射程，一条 `up --only` 就会把正在服务的
-// 组件下线。`--only` 已删（003 §4.3：要收窄范围就改 enabled），
+// 组件下线。`--only` 已删（要收窄范围就改 mode），
 // 生成物永远是完整的一份，这个分支也就没有了。
 func projectSelector(proj *project.Project) string {
 	return k8s.LabelProject + "=" + proj.Decl.Project
@@ -159,7 +159,7 @@ func applyK8s(
 // resolveEngineFor 按部署目标选引擎。
 //
 // K8s 与 Docker/Podman 不是"同一类引擎的两个牌子"，而是两种部署目标：
-// 前者把清单交给集群，后两者在本机起容器。选错的后果在 Step 16 之前撞到过一次——
+// 前者把清单交给集群，后两者在本机起容器。选错的后果真撞到过一次——
 // 一个 target: k8s 的项目被按 Docker 处理，文件生成了、命令也成功了，
 // 只是整个项目跑在了错误的编排器上。
 //
@@ -184,7 +184,7 @@ func resolveEngineFor(opts *Options, proj *project.Project) (engine.Engine, erro
 	return resolveEngine(opts)
 }
 
-// renderPruned 如实汇报清理掉了哪些孤儿资源（P38）。
+// renderPruned 如实汇报清理掉了哪些孤儿资源。
 //
 // 悄悄删东西不可接受：集群里少了什么，使用者得知道——
 // 尤其是他其实误删了 brickkit.yaml 里的一行、本意并非下线那个组件的时候，

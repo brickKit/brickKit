@@ -1,6 +1,6 @@
 // Package cli 实现 BrickKit CLI 的命令树。
 //
-// 设计依据：004 §3 命令集设计（11 个业务命令 + version）。
+// 命令分两类：项目命令（init / add / up …）与 CLI 自身的命令（version / lang）。
 //
 // 输出分工（见 internal/logging 说明）：人类可读输出走 stdout，
 // 结构化 JSON 日志与错误块走 stderr。
@@ -71,7 +71,7 @@ type Options struct {
 	// Now 提供当前时间（登录凭据的签发/过期判断等）。为空时用 time.Now，
 	// 便于测试锁定输出而不依赖真实时钟。
 	Now func() time.Time
-	// ResolveDigest 把镜像 tag 解析成 registry 里的 digest（P29）。
+	// ResolveDigest 把镜像 tag 解析成 registry 里的 digest。
 	// 为空时用真实实现（docker buildx imagetools）。测试可替换。
 	ResolveDigest func(ctx context.Context, image string) (string, error)
 	// RepoCacheDir 是 git 源的 bare 仓库缓存目录。空表示用户级默认位置（附录 A12）；
@@ -83,7 +83,7 @@ type Options struct {
 	// Images 是本机镜像的操作（build、up 的镜像检查）。为空时按部署目标用 docker 或 podman；
 	// 测试可替换。
 	Images engine.Images
-	// Engine 是容器引擎。为空时按 005 §7 自动检测（目前只支持 Docker）。
+	// Engine 是容器引擎。为空时按部署目标自动选择。
 	//
 	// 命令层的职责是"决定谁该启动、先检查什么"，不是"怎么调 docker"；
 	// 把它做成注入点之后，这些决定可以在没有 Docker 的机器上被完整测试。

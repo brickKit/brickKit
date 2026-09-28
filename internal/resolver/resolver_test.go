@@ -1,4 +1,4 @@
-// 本文件是 Step 7「依赖解析引擎」的业务行为测试，逐项覆盖开发计划 7.1–7.15。
+// 本文件是 「依赖解析引擎」的业务行为测试。
 package resolver
 
 import (
@@ -14,10 +14,10 @@ import (
 )
 
 // ============================================================
-// 7.1 强依赖缺失
+// 强依赖缺失
 // ============================================================
 
-// 7.1 强依赖缺失时报错阻断，并指出缺失的组件。
+// 强依赖缺失时报错阻断，并指出缺失的组件。
 func TestStrongDependencyMissingBlocks(t *testing.T) {
 	f := newFixture(t,
 		comp{ID: "erp/backend", Version: "1.0.0", Requires: []string{"authorization/rbac@1.0.0"}},
@@ -29,7 +29,7 @@ func TestStrongDependencyMissingBlocks(t *testing.T) {
 	e := clierr.As(err)
 	assert.Equal(t, clierr.CodeDependencyMissing, e.Code)
 	out := e.Format()
-	// 逐字对齐 004 §10.2 的强依赖缺失错误块
+	// 强依赖缺失错误块
 	assert.Contains(t, out, "required dependency missing")
 	assert.Contains(t, out, "erp/backend@1.0.0")
 	assert.Contains(t, out, "authorization/rbac@1.0.0")
@@ -62,10 +62,10 @@ func TestRootComponentMissing(t *testing.T) {
 }
 
 // ============================================================
-// 7.2 / 7.6 弱依赖
+// 弱依赖
 // ============================================================
 
-// 7.2 弱依赖缺失时警告但继续。
+// 弱依赖缺失时警告但继续。
 func TestOptionalDependencyMissingWarnsAndContinues(t *testing.T) {
 	f := newFixture(t,
 		comp{
@@ -88,14 +88,14 @@ func TestOptionalDependencyMissingWarnsAndContinues(t *testing.T) {
 	assert.True(t, w.Warning, "必须渲染为 ⚠️ 且不影响退出码")
 	assert.Equal(t, clierr.ExitOK, w.ExitCode())
 	out := w.Format()
-	// 004 §4.5 的弱依赖警告块
+	// 弱依赖警告块
 	assert.Contains(t, out, "infra/redis-event-bus@1.0.0")
 	assert.Contains(t, out, "erp/backend@1.0.0")
 	assert.Contains(t, out, "INFRA_REDIS_EVENT_BUS_ENDPOINT")
 	assert.Contains(t, out, "will not be injected")
 }
 
-// 7.6 弱依赖 `optional: true` 正确识别：能取到时正常进入依赖图，且不产生警告。
+// 弱依赖 `optional: true` 正确识别：能取到时正常进入依赖图，且不产生警告。
 func TestOptionalDependencyPresentIsResolved(t *testing.T) {
 	f := newFixture(t,
 		comp{
@@ -120,10 +120,10 @@ func TestOptionalDependencyPresentIsResolved(t *testing.T) {
 }
 
 // ============================================================
-// 7.3 / 7.9 循环依赖
+// 循环依赖
 // ============================================================
 
-// 7.3 循环依赖时报错，并指出循环路径。
+// 循环依赖时报错，并指出循环路径。
 func TestDependencyCycleIsReported(t *testing.T) {
 	f := newFixture(t,
 		comp{ID: "a/one", Version: "1.0.0", Requires: []string{"b/two@1.0.0"}},
@@ -139,7 +139,7 @@ func TestDependencyCycleIsReported(t *testing.T) {
 	out := e.Format()
 	assert.Contains(t, out, "dependency cycle")
 	assert.Contains(t, out, "a/one@1.0.0 → b/two@1.0.0 → c/three@1.0.0 → a/one@1.0.0",
-		"004 §4.3：要打印完整循环路径")
+		"要打印完整循环路径")
 	assert.Contains(t, out, "Manifest")
 }
 
@@ -202,9 +202,9 @@ func TestStrongCycleIsStillRejected(t *testing.T) {
 		"要给出出路：其中一方改成弱依赖就不再是死结")
 }
 
-// 7.9 自依赖时报错。
+// 自依赖时报错。
 //
-// component.yaml 里写自依赖会被 Manifest 校验（002）直接拒掉，因此这里用构造好的
+// component.yaml 里写自依赖会被 Manifest 校验直接拒掉，因此这里用构造好的
 // Manifest 走解析器，确认解析器自身也防住了 A→A。
 func TestSelfDependencyIsReported(t *testing.T) {
 	p := newFakeProvider().add("a/one", "1.0.0", dep("a/one@1.0.0"))
@@ -217,7 +217,7 @@ func TestSelfDependencyIsReported(t *testing.T) {
 	assert.Contains(t, e.Format(), "a/one@1.0.0 → a/one@1.0.0")
 }
 
-// 组件依赖"自己的另一个版本"：Manifest 校验（002，见 D27）在更早的一层就拒绝了，
+// 组件依赖"自己的另一个版本"：Manifest 校验（002）在更早的一层就拒绝了，
 // 根本到不了解析器。这里锁定这条分层边界，避免以后有人误以为解析器该放行。
 func TestDependingOnOwnOtherVersionIsRejectedByManifest(t *testing.T) {
 	f := newFixture(t,
@@ -247,10 +247,10 @@ func TestSameIDDifferentVersionsAreDistinctNodes(t *testing.T) {
 }
 
 // ============================================================
-// 7.4 / 7.8 去重
+// 去重
 // ============================================================
 
-// 7.4 多个组件依赖同一个组件时只解析一次。
+// 多个组件依赖同一个组件时只解析一次。
 func TestSharedDependencyResolvedOnce(t *testing.T) {
 	f := newFixture(t,
 		comp{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0", "authorization/rbac@1.0.0"}},
@@ -265,7 +265,7 @@ func TestSharedDependencyResolvedOnce(t *testing.T) {
 	assert.Len(t, g.Nodes, 4, "去重后共 4 个组件")
 	assert.Equal(t, 1, f.Provider.count("department/tree@1.0.0"), "department/tree 只应被获取一次")
 
-	// 被依赖方记录了所有依赖它的组件，供卸载检查（002 §3.9）与错误提示复用
+	// 被依赖方记录了所有依赖它的组件，供卸载检查与错误提示复用
 	dept := g.Node(Ref{"department/tree", "1.0.0"})
 	require.NotNil(t, dept)
 	assert.ElementsMatch(t, []Ref{
@@ -274,7 +274,7 @@ func TestSharedDependencyResolvedOnce(t *testing.T) {
 	}, dept.Dependents)
 }
 
-// 7.8 菱形依赖 A→B、A→C、B→D、C→D：D 只解析一次。
+// 菱形依赖 A→B、A→C、B→D、C→D：D 只解析一次。
 func TestDiamondDependencyDeduplicates(t *testing.T) {
 	f := newFixture(t,
 		comp{ID: "x/a", Version: "1.0.0", Requires: []string{"x/b@1.0.0", "x/c@1.0.0"}},
@@ -301,10 +301,10 @@ func TestDuplicateRootsDeduplicate(t *testing.T) {
 }
 
 // ============================================================
-// 7.5 多版本共存
+// 多版本共存
 // ============================================================
 
-// 7.5 A 依赖 X@1.0.0、B 依赖 X@2.0.0：两个版本都进入依赖图（共存，不报错）。
+// A 依赖 X@1.0.0、B 依赖 X@2.0.0：两个版本都进入依赖图（共存，不报错）。
 func TestMultipleVersionsCoexist(t *testing.T) {
 	f := newFixture(t,
 		comp{ID: "erp/a", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
@@ -321,14 +321,14 @@ func TestMultipleVersionsCoexist(t *testing.T) {
 	assert.True(t, g.Has(Ref{"people/basic", "1.0.0"}))
 	assert.True(t, g.Has(Ref{"people/basic", "2.0.0"}))
 	assert.Equal(t, []string{"1.0.0", "2.0.0"}, g.Versions("people/basic"),
-		"同 ID 的多个版本可被查询出来，供 add 写入 brickkit.yaml（Step 9）")
+		"同 ID 的多个版本可被查询出来，供 add 写入 brickkit.yaml")
 }
 
 // ============================================================
-// 7.7 深层递归
+// 深层递归
 // ============================================================
 
-// 7.7 深层递归解析（A→B→C→D）。
+// 深层递归解析（A→B→C→D）。
 func TestDeepRecursion(t *testing.T) {
 	f := newFixture(t,
 		comp{ID: "x/a", Version: "1.0.0", Requires: []string{"x/b@1.0.0"}},
@@ -344,13 +344,13 @@ func TestDeepRecursion(t *testing.T) {
 	for _, id := range []string{"x/a", "x/b", "x/c", "x/d"} {
 		assert.True(t, g.Has(Ref{id, "1.0.0"}), "%s 应被解析", id)
 	}
-	// 解析结果按"依赖先于依赖方"排列，Step 10 的拓扑排序与 up 的启动顺序据此推进
+	// 解析结果按"依赖先于依赖方"排列，拓扑排序与 up 的启动顺序据此推进
 	assert.Equal(t, []Ref{
 		{"x/d", "1.0.0"}, {"x/c", "1.0.0"}, {"x/b", "1.0.0"}, {"x/a", "1.0.0"},
 	}, g.Refs())
 }
 
-// 32.18 十层依赖链：确认没有隐藏的深度上限。
+// 十层依赖链：确认没有隐藏的深度上限。
 //
 // 上面那条只到 4 层，证明了"递归能走通"；这条证明的是"走多深都不会断"。
 // 两者不重复：深度上限这类限制往往不是有意加的，而是某个中间结构
@@ -373,25 +373,25 @@ func TestTenLevelDependencyChain(t *testing.T) {
 
 	f := newFixture(t, comps...)
 	g, err := f.Resolver.Resolve(context.Background(), Ref{"x/n00", "1.0.0"})
-	require.NoError(t, err, "32.18：十层依赖链必须能解析")
+	require.NoError(t, err, "十层依赖链必须能解析")
 
 	require.Len(t, g.Nodes, depth)
 	for _, id := range names {
-		assert.True(t, g.Has(Ref{id, "1.0.0"}), "32.18：%s 应被解析", id)
+		assert.True(t, g.Has(Ref{id, "1.0.0"}), "%s 应被解析", id)
 	}
 
 	// 顺序仍要满足"依赖先于依赖方"——最深的排最前
 	refs := g.Refs()
 	require.Len(t, refs, depth)
-	assert.Equal(t, "x/n09", refs[0].ID, "32.18：最深的那个要最先启动")
-	assert.Equal(t, "x/n00", refs[depth-1].ID, "32.18：根组件最后启动")
+	assert.Equal(t, "x/n09", refs[0].ID, "最深的那个要最先启动")
+	assert.Equal(t, "x/n00", refs[depth-1].ID, "根组件最后启动")
 }
 
 // ============================================================
-// 7.15 空依赖
+// 空依赖
 // ============================================================
 
-// 7.15 空依赖列表解析成功。
+// 空依赖列表解析成功。
 func TestEmptyDependencies(t *testing.T) {
 	f := newFixture(t,
 		comp{ID: "people/basic", Version: "1.0.0", EmptyDependencies: true},
@@ -474,15 +474,15 @@ func TestResolveProjectTreatsUndeclaredOptionalAsMissing(t *testing.T) {
 }
 
 // ============================================================
-// 002 §7.7 的五项检查在哪
+// 升级时的五项兼容性检查在哪
 // ============================================================
 //
-// 这里从前有 CheckUpgrade（外加 UpgradeReport / newDependencies）与 7.10–7.14
+// 这里从前有 CheckUpgrade（外加 UpgradeReport / newDependencies）与
 // 五条用例。**已删除**：那五项检查常规解析路径本来就全做了——Manifest 取不到
 // 报错、强依赖缺失报错、弱依赖缺失警告、循环依赖报错，资源绑定由
 // CheckResourceBindings 负责。CheckUpgrade 是同一套判断的第二份拷贝，
-// 而且复制得不完整：它无条件阻断，既不认 --dry-run 的降级（004 §4.4），
-// 也不过滤本次不启动的组件（006 §4.4），于是只有升级路径上会撞到两个 bug。
+// 而且复制得不完整：它无条件阻断，既不认 --dry-run 的降级，
+// 也不过滤本次不启动的组件，于是只有升级路径上会撞到两个 bug。
 //
 // 五项的用例改挂到真正在跑的那条路上，见 internal/cli/up_upgrade_test.go
-// 的"002 §7.7 升级时的五项检查"一节：改版本号、up、看结果。
+// 的"升级时的五项兼容性检查"一节：改版本号、up、看结果。

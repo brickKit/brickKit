@@ -20,7 +20,7 @@ tags:
   - master-data
 
 artifacts:
-  # 契约即产物（002 §7）：调用方据此生成 gRPC 客户端
+  # 契约即产物：调用方据此生成 gRPC 客户端
   - type: api-contract
     format: protobuf
     description: gRPC API 契约文件
@@ -76,13 +76,13 @@ deployment:
   image: brickkit-demo/people-basic:1.0.0
   # 主端口（HTTP）：健康检查与 PEOPLE_BASIC_ENDPOINT 用它
   port: 8080
-  # 额外端口（gRPC）：Python 的 grpcio 不能与 HTTP 共用端口（009）。
+  # 额外端口（gRPC）：Python 的 grpcio 不能与 HTTP 共用端口。
   # 平台据此注入 PEOPLE_BASIC_GRPC_ENDPOINT
   extraPorts:
     - name: grpc
       port: 9090
   resources:
-    # 只声明 requests，不声明 limits（002 §4.6）：
+    # 只声明 requests，不声明 limits：
     # 组件知道自己稳态占多少，而"允许它涨到多少"是部署方的判断。
     # 而且逐字段合并意味着这里写了 limits.cpu，用它的项目就删不掉了
     requests:
@@ -92,4 +92,4 @@ deployment:
 healthCheck:
   type: http
   path: /healthz
-  # ⚠️ 只检查本进程存活，不查数据库、不调 department/tree（002 §9.4）
+  # ⚠️ 只检查本进程存活，不查数据库、不调 department/tree

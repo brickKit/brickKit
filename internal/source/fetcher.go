@@ -14,7 +14,7 @@ import (
 
 // errNotFound 表示"该安装源里没有这个组件（或没有这个版本）"。
 //
-// 它不是失败：调用方应继续尝试下一个安装源（003 §6.5 安装源优先级）。
+// 它不是失败：调用方应继续尝试下一个安装源（安装源按顺序优先）。
 var errNotFound error = notFoundError{}
 
 // notFoundError 让 errNotFound 成为可以用 errors.Is 比较的哨兵，同时把消息推迟到
@@ -139,7 +139,7 @@ func manifestParses(data []byte) bool {
 	return yaml.Unmarshal(data, &h) == nil
 }
 
-// 组件来源类型（007 §11.1）。
+// 组件来源类型。
 const (
 	// OriginGit 表示开源组件：有 Git 仓库，可以 clone 源码。
 	OriginGit = "git"

@@ -1,56 +1,55 @@
-# 回归测试清单（开发计划 Step 37）。
+# 回归测试清单。
 #
 # 每一行是「一条对使用者的承诺」→「证明它的那个测试」。
-# 列：编号 / 说明 / 对应 Step / module 目录 / 包 / 测试名（制表符分隔）
+# 列：编号 / 说明 / module 目录 / 包 / 测试名（制表符分隔）
 #
 # 这份文件是**唯一事实源**：regression_test.go 读它来验证每个测试真的存在，
 # `make test-regression` 读它来执行。改清单只改这里。
 #
-# R1–R25 来自开发计划 Step 37（那份计划已冻结成历史记录）。**从 R26 起是冻结之后
-# 新增的承诺**，Step 一列写 `-`：它们不属于任何 Step，只是"这件事我们答应了使用者，
-# 而这个测试证明它今天还成立"。顺延编号即可，不需要回头改开发计划。
+# 编号是 R 加一个序号，新增条目顺延编号；删掉的编号不再复用
+# （某项承诺随概念一起被取消时，整行删掉，编号就空着）。
 #
-# 为什么要有「测试名」这一列：没有它，清单就只是 25 个要人手打勾的方框，
+# 为什么要有「测试名」这一列：没有它，清单就只是一串要人手打勾的方框，
 # 谁也证明不了勾是真的。有了它，测试被改名或删掉时守卫会立刻喊出来。
 #
 # 注意 R18 在 market-server —— 那是**另一个 Go module**，
 # 根模块的 `go test ./...` 到不了它。
-R1	brickkit init 基本功能（新建目录与完整骨架）	3	.	./internal/cli	TestInitCreatesNamedDirectory
-R2	brickkit add 基本功能（写三层文件）	9	.	./internal/cli	TestAddFromGitWritesThreeLayers
-R3	brickkit add 递归依赖	9	.	./internal/cli	TestAddFromGitWritesThreeLayers
-R4	brickkit add artifacts 下载	9	.	./internal/cli	TestAddDownloadsArtifacts
-R5	brickkit add --repo	9	.	./internal/cli	TestAddRepoClonesFromTheCacheAndPointsOriginAtTheRemote
-R6	brickkit remove 基本功能	9	.	./internal/cli	TestRemoveArchivesConfigAndEntries
-R7	brickkit up 基本功能	15	.	./internal/cli	TestUpStartsAllComponents
-R8	brickkit up 启停判定	15	.	./internal/cascade	TestCascadeMatchesDesignExample
-R9	brickkit up 迁移执行	14/15	.	./internal/compose	TestMainServiceWaitsForMigration
-R10	brickkit down 不删 volume	15	.	./internal/engine	TestDownNeverRemovesVolumes
-R11	brickkit status 基本功能	15	.	./internal/cli	TestStatusShowsRunningComponents
-R12	启动顺序把依赖排在前面	10	.	./internal/cli	TestDryRunOrderPutsDependenciesFirst
-R13	brickkit sync 基本功能	17	.	./internal/cli	TestSyncKeepsEnabledComponents
-R14	写配置失败时不留下半改的配置	9	.	./internal/cli	TestAddWriteFailureLeavesNoHalfWrittenProject
-R15	brickkit login 基本功能	19	.	./internal/cli	TestLoginCredentialsFormat
-R16	brickkit publish 基本功能	19	.	./internal/cli	TestPublishSendsManifestAndSourceType
-R17	环境变量注入正确	11	.	./internal/inject	TestConfigValuesAreInjectedVerbatim
-R18	保留变量保护	11	market-server	./internal/validator	TestValidateRefusesReservedKey
-R19	多版本共存	29	.	./internal/compose	TestMultiVersionGeneratesOneServicePerVersion
-R20	弱依赖降级	25	.	./internal/cascade	TestDisabledWeakDependencyDoesNotBlockDependent
-R21	mode: debug 本地调试	13	.	./internal/compose	TestLocalDebugEnvFileIsGenerated
-R22	K8s 部署文件生成	16	.	./internal/k8s	TestDeploymentBasics
-R23	市场发布校验	18	.	./internal/cli	TestPublishRejectsInvalidManifest
-R24	签名校验	20	.	./internal/source	TestManifestRejectsTamperedContent
-R25	升级兼容性检查	7	.	./internal/cli	TestUpgradeIsReported
-R26	brickkit down 不依赖安装源（读不到 Manifest 也停得掉）	-	.	./internal/cli	TestDownStopsEvenWhenManifestIsBroken
-R27	依赖图取不到时 status 降级而不是失败	-	.	./internal/cli	TestStatusReportsRunningWhenGraphUnavailable
-R28	同一组件的多个版本，迁移按版本号串行（不抢同一个库）	-	.	./internal/compose	TestSameComponentMigrationsAreChainedByVersion
-R29	K8s 下一个域名只能归一个组件（抢了在生成阶段报错）	-	.	./internal/k8s	TestDuplicateHostnameIsAnError
-R30	启动顺序小结报的是真实关键路径，不是拓扑序号	-	.	./internal/resolver	TestPlanLongestChain
-R31	local 组件上写了 expose 会出声，并给出真实地址	-	.	./internal/compose	TestLocalComponentWithExposeIsWarned
-R32	版本变更的基线是上一个版本，不是缓存里字典序最前的	-	.	./internal/cli	TestSecondUpgradeReportsThePreviousVersion
-R33	安装源里版本不符时说清它实际是哪个版本	-	.	./internal/source	TestSourceWithDifferentVersionSaysWhichVersionItHas
-R35	弱依赖这次不跑时说清谁拿不到什么（信息，不是警告）	-	.	./internal/cli	TestWeakDependencyNotRunningIsReported
-R36	remove 不会删掉找不回来的源码（手写组件、脏工作区、没推的提交）	-	.	./internal/cli	TestRemoveRefusesToDeleteUnrecoverableSource
-R37	brickkit logout 作废市场 Token 并删本地凭据	-	.	./internal/cli	TestLogoutRevokesTokenAndRemovesCredentials
-R38	没配公钥的签名提醒只说一次，不逐个组件刷屏	-	.	./internal/cli	TestNoPublicKeysWarningIsSaidOnce
-R40	publish 中途失败后能续传，不烧掉版本号	-	.	./internal/cli	TestPublishResumesUnfinishedDraft
-R41	文档里的 yaml 片段不会教出 CLI 拒绝的字段	-	.	./tests/docfields	TestDocSkeletonsUseOnlyKnownFields
+R1	brickkit init 基本功能（新建目录与完整骨架）	.	./internal/cli	TestInitCreatesNamedDirectory
+R2	brickkit add 基本功能（写三层文件）	.	./internal/cli	TestAddFromGitWritesThreeLayers
+R3	brickkit add 递归依赖	.	./internal/cli	TestAddFromGitWritesThreeLayers
+R4	brickkit add artifacts 下载	.	./internal/cli	TestAddDownloadsArtifacts
+R5	brickkit add --repo	.	./internal/cli	TestAddRepoClonesFromTheCacheAndPointsOriginAtTheRemote
+R6	brickkit remove 基本功能	.	./internal/cli	TestRemoveArchivesConfigAndEntries
+R7	brickkit up 基本功能	.	./internal/cli	TestUpStartsAllComponents
+R8	brickkit up 启停判定	.	./internal/cascade	TestCascadeMatchesDesignExample
+R9	brickkit up 迁移执行	.	./internal/compose	TestMainServiceWaitsForMigration
+R10	brickkit down 不删 volume	.	./internal/engine	TestDownNeverRemovesVolumes
+R11	brickkit status 基本功能	.	./internal/cli	TestStatusShowsRunningComponents
+R12	启动顺序把依赖排在前面	.	./internal/cli	TestDryRunOrderPutsDependenciesFirst
+R13	brickkit sync 基本功能	.	./internal/cli	TestSyncKeepsEnabledComponents
+R14	写配置失败时不留下半改的配置	.	./internal/cli	TestAddWriteFailureLeavesNoHalfWrittenProject
+R15	brickkit login 基本功能	.	./internal/cli	TestLoginCredentialsFormat
+R16	brickkit publish 基本功能	.	./internal/cli	TestPublishSendsManifestAndSourceType
+R17	环境变量注入正确	.	./internal/inject	TestConfigValuesAreInjectedVerbatim
+R18	保留变量保护	market-server	./internal/validator	TestValidateRefusesReservedKey
+R19	多版本共存	.	./internal/compose	TestMultiVersionGeneratesOneServicePerVersion
+R20	弱依赖降级	.	./internal/cascade	TestDisabledWeakDependencyDoesNotBlockDependent
+R21	mode: debug 本地调试	.	./internal/compose	TestLocalDebugEnvFileIsGenerated
+R22	K8s 部署文件生成	.	./internal/k8s	TestDeploymentBasics
+R23	市场发布校验	.	./internal/cli	TestPublishRejectsInvalidManifest
+R24	签名校验	.	./internal/source	TestManifestRejectsTamperedContent
+R25	升级兼容性检查	.	./internal/cli	TestUpgradeIsReported
+R26	brickkit down 不依赖安装源（读不到 Manifest 也停得掉）	.	./internal/cli	TestDownStopsEvenWhenManifestIsBroken
+R27	依赖图取不到时 status 降级而不是失败	.	./internal/cli	TestStatusReportsRunningWhenGraphUnavailable
+R28	同一组件的多个版本，迁移按版本号串行（不抢同一个库）	.	./internal/compose	TestSameComponentMigrationsAreChainedByVersion
+R29	K8s 下一个域名只能归一个组件（抢了在生成阶段报错）	.	./internal/k8s	TestDuplicateHostnameIsAnError
+R30	启动顺序小结报的是真实关键路径，不是拓扑序号	.	./internal/resolver	TestPlanLongestChain
+R31	local 组件上写了 expose 会出声，并给出真实地址	.	./internal/compose	TestLocalComponentWithExposeIsWarned
+R32	版本变更的基线是上一个版本，不是缓存里字典序最前的	.	./internal/cli	TestSecondUpgradeReportsThePreviousVersion
+R33	安装源里版本不符时说清它实际是哪个版本	.	./internal/source	TestSourceWithDifferentVersionSaysWhichVersionItHas
+R35	弱依赖这次不跑时说清谁拿不到什么（信息，不是警告）	.	./internal/cli	TestWeakDependencyNotRunningIsReported
+R36	remove 不会删掉找不回来的源码（手写组件、脏工作区、没推的提交）	.	./internal/cli	TestRemoveRefusesToDeleteUnrecoverableSource
+R37	brickkit logout 作废市场 Token 并删本地凭据	.	./internal/cli	TestLogoutRevokesTokenAndRemovesCredentials
+R38	没配公钥的签名提醒只说一次，不逐个组件刷屏	.	./internal/cli	TestNoPublicKeysWarningIsSaidOnce
+R40	publish 中途失败后能续传，不烧掉版本号	.	./internal/cli	TestPublishResumesUnfinishedDraft
+R41	文档里的 yaml 片段不会教出 CLI 拒绝的字段	.	./tests/docfields	TestDocSkeletonsUseOnlyKnownFields

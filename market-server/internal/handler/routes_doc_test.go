@@ -63,7 +63,7 @@ var pathParam = regexp.MustCompile(`\{[^}]+\}|:[^/]+`)
 // normalize 把路径里的参数名抹平。
 //
 // 文档写 `{componentId}`、路由写 `:scope/:name`，比对的是**形状**不是命名。
-// 组件 ID 是两段式 scope/name（002 §10.3），路由里因此是两段参数，
+// 组件 ID 是两段式 scope/name，路由里因此是两段参数，
 // 而文档写成一个 {componentId}——这不是分叉，是同一个东西的两种写法。
 func normalize(path string) string {
 	segments := strings.Split(strings.Trim(path, "/"), "/")

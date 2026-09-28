@@ -72,7 +72,7 @@ func NewDiscoverer() *Discoverer {
 
 // Discover 探测全部目标，返回按组件 ID 排序的结果。
 //
-// **任何一个组件出问题都不能影响其余的**（开发计划 28.3）：每个目标各自
+// **任何一个组件出问题都不能影响其余的**：每个目标各自
 // 捕获错误，最坏也只是它自己显示成"不可用"。这正是这个组件要验证的东西——
 // 它弱依赖一大堆组件，而弱依赖缺席是常态，不是异常。
 func (d *Discoverer) Discover(ctx context.Context, targets []Target) []Source {
@@ -96,7 +96,7 @@ func (d *Discoverer) probe(ctx context.Context, target Target) Source {
 	source := Source{ComponentID: target.ComponentID, Endpoint: target.Endpoint, Kinds: []string{}}
 
 	// 平台没注入地址 = 这个弱依赖压根没装。这是**正常状态**，不是故障：
-	// 003 §4.3 说得明白，弱依赖缺席时完全不注入那个变量
+	// 弱依赖的约定说得明白：缺席时完全不注入那个变量
 	if target.Endpoint == "" {
 		source.Status = statusAbsent
 		source.Reason = "该组件未安装（平台没有注入它的地址）"
@@ -248,7 +248,7 @@ func listServices(stream reflectStream) ([]string, error) {
 //
 // 反射返回的是 FileDescriptorProto 的原始字节。这里不引入 protobuf 描述符
 // 解析库，而是**只提取方法名**——文档页面要的就是"有哪些方法可以调"，
-// 完整的请求/响应结构由组件自己的 .proto 产物提供（002 §7 契约即产物）。
+// 完整的请求/响应结构由组件自己的 .proto 产物提供（契约即产物）。
 func listMethods(stream reflectStream, service string) ([]string, error) {
 	if err := stream.Send(&reflectionpb.ServerReflectionRequest{
 		MessageRequest: &reflectionpb.ServerReflectionRequest_FileContainingSymbol{

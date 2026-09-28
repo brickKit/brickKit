@@ -221,7 +221,7 @@ func (c *grpcPeopleClient) GetPerson(ctx context.Context, id string) (person, er
 // "dns resolver: missing address" 之类跟业务毫无关系的错。
 //
 // 用 grpc.NewClient 而不是 Dial：它不在这里阻塞等连接，
-// 下游还没起来时本组件照样能先启动，等真正调用时再连（005 §7 的启动顺序问题）。
+// 下游还没起来时本组件照样能先启动，等真正调用时再连（的启动顺序问题）。
 func dialGRPC(endpoint string) (*grpc.ClientConn, error) {
 	return grpc.NewClient(grpcTarget(endpoint),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))

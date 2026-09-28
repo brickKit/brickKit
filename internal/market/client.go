@@ -44,7 +44,7 @@ type LoginResult struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-// Login 用用户名密码换取访问令牌（007 §9.6）。
+// Login 用用户名密码换取访问令牌。
 func (c *Client) Login(ctx context.Context, username, password string) (*LoginResult, error) {
 	body, err := c.do(ctx, http.MethodPost, "/auth/login", nil,
 		jsonBody(map[string]string{"username": username, "password": password}), i18n.T(msgid.MarketActionLogin))
@@ -63,7 +63,7 @@ func (c *Client) Login(ctx context.Context, username, password string) (*LoginRe
 	return &result, nil
 }
 
-// Logout 作废服务端那一侧的令牌（007 §9.5）。
+// Logout 作废服务端那一侧的令牌。
 //
 // 重复注销是幂等的（市场侧保证），所以本地凭据已经删了、再调一次也没关系。
 func (c *Client) Logout(ctx context.Context) error {
@@ -71,7 +71,7 @@ func (c *Client) Logout(ctx context.Context) error {
 	return err
 }
 
-// PublishRequest 是发布一个版本的请求体（007 §3.7）。
+// PublishRequest 是发布一个版本的请求体。
 type PublishRequest struct {
 	Version    string          `json:"version"`
 	Status     string          `json:"status"`
@@ -79,7 +79,7 @@ type PublishRequest struct {
 	SourceType string          `json:"sourceType"`
 	GitURL     string          `json:"gitUrl,omitempty"`
 	Changelog  string          `json:"changelog,omitempty"`
-	// Signature 是对 Manifest 规范化载荷的签名（008 §8.3），未签名时为 nil。
+	// Signature 是对 Manifest 规范化载荷的签名，未签名时为 nil。
 	Signature *security.Signature `json:"signature,omitempty"`
 	// Doc 是组件仓库根的 BRICKKIT.md 全文，没有时不发。它不在签名范围内：
 	// 是给人与 AI 读的说明，改了它改不了实际运行的任何东西。
@@ -100,7 +100,7 @@ func (c *Client) CreateVersion(ctx context.Context, componentID string, req Publ
 	return err
 }
 
-// VersionInfo 是市场上一个版本的状态（007 §9.2 的版本列表）。
+// VersionInfo 是市场上一个版本的状态（版本列表里的一项）。
 type VersionInfo struct {
 	Version string `json:"version"`
 	Status  string `json:"status"`
@@ -196,14 +196,14 @@ func (c *Client) SetVersionStatus(ctx context.Context, componentID, version, sta
 	return err
 }
 
-// SetVisibility 设置组件可见性（007 §9.4）。
+// SetVisibility 设置组件可见性。
 func (c *Client) SetVisibility(ctx context.Context, componentID, visibility string) error {
 	_, err := c.do(ctx, http.MethodPut, "/components/"+componentID+"/visibility", nil,
 		jsonBody(map[string]string{"visibility": visibility}), i18n.T(msgid.MarketActionSetVisibility))
 	return err
 }
 
-// 组件 ID 中的 `/` 是路径的一部分（007 §4.5），不做转义。
+// 组件 ID 中的 `/` 是路径的一部分，不做转义。
 func versionsPath(componentID string) string { return "/components/" + componentID + "/versions" }
 
 func versionPath(componentID, version string) string {

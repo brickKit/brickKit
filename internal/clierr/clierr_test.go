@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 004 §10.2：错误块由 ❌ + 标题 + 明细行 + 建议组成。
+// 错误块由 ❌ + 标题 + 明细行 + 建议组成。
 func TestFormatFullBlock(t *testing.T) {
 	err := New(CodeDependencyMissing, "错误：强依赖缺失").
 		WithDetail("组件", "erp/backend@1.0.0").
@@ -47,14 +47,14 @@ func TestFormatNoDetailsOrHints(t *testing.T) {
 	assert.Equal(t, "❌ 请指定项目名称\n", New(CodeInvalidArgument, "请指定项目名称").Format())
 }
 
-// 开发计划 33.14 / 33.15：错误退出码非 0，警告退出码为 0。
+// 错误退出码非 0，警告退出码为 0。
 func TestExitCodes(t *testing.T) {
 	assert.Equal(t, ExitError, New(CodeInternal, "x").ExitCode())
 	assert.Equal(t, ExitUsage, New(CodeInvalidArgument, "x").WithExit(ExitUsage).ExitCode())
 	assert.Equal(t, ExitOK, Warn(CodeConfigConflict, "x").ExitCode())
 }
 
-// 004 §10.2 保留变量冲突是警告，用 ⚠️ 渲染。
+// 保留变量冲突是警告，用 ⚠️ 渲染。
 func TestWarningRendersWithWarnSymbol(t *testing.T) {
 	w := Warn(CodeConfigConflict, "配置冲突（警告，不阻断）：").
 		WithDetail("配置项", "departmentTreeEndpoint").
@@ -105,14 +105,6 @@ func TestRenderWritesAndReturnsExitCode(t *testing.T) {
 	buf.Reset()
 	assert.Equal(t, ExitOK, Render(&buf, nil))
 	assert.Empty(t, buf.String())
-}
-
-func TestNotImplementedCarriesStep(t *testing.T) {
-	e := NotImplemented("brickkit up", 15)
-	assert.Equal(t, CodeNotImplemented, e.Code)
-	assert.Contains(t, e.Format(), "brickkit up is not implemented yet")
-	assert.Contains(t, e.Format(), "Development plan, Step 15")
-	assert.Equal(t, ExitError, e.ExitCode())
 }
 
 func TestNewfAndWithDetailf(t *testing.T) {

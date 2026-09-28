@@ -1,10 +1,10 @@
 package cli
 
-// 本文件测**镜像预检的并发**（开发计划 36.1）。
+// 本文件测**镜像预检的并发**。
 //
 // # 为什么这条测试存在
 //
-// Step 36 量完纯计算层之后，结论是那几层离成为瓶颈差三到六个数量级
+// 量完纯计算层之后，结论是那几层离成为瓶颈差三到六个数量级
 // （解析 100 个依赖 42µs，生成 50 个组件的 compose 2.4ms）。
 // 真正不随组件数伸缩的只有一处：`checkImages`。
 //
@@ -120,10 +120,10 @@ func TestCheckImagesRunsConcurrently(t *testing.T) {
 	// 卡太紧只会换来一个在负载高时随机红的测试。
 	serial := count * delay
 	assert.Less(t, elapsed, serial/2,
-		"36.1：%d 个镜像用了 %v，串行也就是 %v——看起来根本没并发。"+
+		"%d 个镜像用了 %v，串行也就是 %v——看起来根本没并发。"+
 			"组件一多，光预检就会吃掉整个 up 的时间预算", count, elapsed, serial)
 	assert.Greater(t, eng.peakConcurrency(), 1,
-		"36.1：任何时刻都只有一个检查在跑，说明是串行的")
+		"任何时刻都只有一个检查在跑，说明是串行的")
 }
 
 // 并发要有上限：一次性对 registry 发几百个请求会被限流，
@@ -134,7 +134,7 @@ func TestCheckImagesBoundsConcurrency(t *testing.T) {
 	require.NoError(t, checkImages(context.Background(), quietOptions(), eng, manyImages(100)))
 
 	assert.LessOrEqual(t, eng.peakConcurrency(), checkImageConcurrency,
-		"36.1：并发数超过了上限——对 registry 来说这和 DDoS 没区别，会被限流")
+		"并发数超过了上限——对 registry 来说这和 DDoS 没区别，会被限流")
 }
 
 // 并发之后每个镜像仍然都要被检查到，一个都不能漏。
@@ -145,7 +145,7 @@ func TestCheckImagesChecksEveryImage(t *testing.T) {
 	require.NoError(t, checkImages(context.Background(), quietOptions(), eng, images))
 
 	checked := eng.checkedImages()
-	assert.Len(t, checked, len(images), "36.1：漏检的镜像会在启动时变成 ImagePullBackOff")
+	assert.Len(t, checked, len(images), "漏检的镜像会在启动时变成 ImagePullBackOff")
 	for _, want := range images {
 		assert.Contains(t, checked, want.image)
 	}
@@ -164,7 +164,7 @@ func TestCheckImagesReportsFailingComponent(t *testing.T) {
 	require.Error(t, err)
 	text := clierr.As(err).Format()
 	assert.Contains(t, text, images[7].component,
-		"36.1：并发之后如果丢了组件名，使用者就只知道'有个镜像拉不到'：%s", text)
+		"并发之后如果丢了组件名，使用者就只知道'有个镜像拉不到'：%s", text)
 }
 
 // 多个都失败时，报的必须是**固定的**那一个。
@@ -185,7 +185,7 @@ func TestCheckImagesFailureIsDeterministic(t *testing.T) {
 		err := checkImages(context.Background(), quietOptions(), eng, images)
 		require.Error(t, err)
 		assert.Contains(t, clierr.As(err).Format(), images[3].component,
-			"36.1：第 %d 次报的不是输入顺序里第一个失败的——错误信息会在每次运行时变", i+1)
+			"第 %d 次报的不是输入顺序里第一个失败的——错误信息会在每次运行时变", i+1)
 	}
 }
 

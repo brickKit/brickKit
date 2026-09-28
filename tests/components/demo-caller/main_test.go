@@ -20,7 +20,7 @@ func get(t *testing.T, srv *server, path string) (int, map[string]any) {
 	return rec.Code, body
 }
 
-// 002 §9.4：/healthz 不检查依赖组件——上游挂了，本组件的存活状态不变。
+// /healthz 不检查依赖组件——上游挂了，本组件的存活状态不变。
 func TestHealthzDoesNotDependOnUpstream(t *testing.T) {
 	srv := &server{componentID: "demo/caller", helloEndpoint: "http://不可达:8080"}
 
@@ -34,7 +34,7 @@ func TestHealthzDoesNotDependOnUpstream(t *testing.T) {
 	}
 }
 
-// 002 §5.4：调用方从环境变量拿到依赖地址，直接发 HTTP 调用。
+// 调用方从环境变量拿到依赖地址，直接发 HTTP 调用。
 func TestCallUsesInjectedEndpoint(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/hello" {
@@ -75,7 +75,7 @@ func TestCallWithoutEndpointFails(t *testing.T) {
 	}
 }
 
-// 002 §3.4：弱依赖缺失时用安全方式读取并自行降级，不能崩。
+// 弱依赖缺失时用安全方式读取并自行降级，不能崩。
 func TestOptionalDependencyDegradesGracefully(t *testing.T) {
 	srv := &server{componentID: "demo/caller"} // 没有 DEMO_BUS_ENDPOINT
 

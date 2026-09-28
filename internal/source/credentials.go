@@ -12,7 +12,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
-// Credentials 是 .brickkit/credentials 的内容（004 §5.3）。
+// Credentials 是 .brickkit/credentials 的内容。
 //
 //	{
 //	  "type": "password",
@@ -113,7 +113,7 @@ func (c *Credentials) Expired(now time.Time) bool {
 // MatchesMarket 判断该凭据是否属于给定的市场地址。
 //
 // marketUrl 缺失时视为通配（兼容手工写入的凭据）；否则必须与安装源 url 一致。
-// 这是安全边界（008）：绝不把 A 市场的 Token 发给 B 市场。
+// 这是安全边界：绝不把 A 市场的 Token 发给 B 市场。
 func (c *Credentials) MatchesMarket(url string) bool {
 	if c.MarketURL == "" {
 		return true
@@ -123,6 +123,6 @@ func (c *Credentials) MatchesMarket(url string) bool {
 
 func normalizeURL(u string) string { return strings.TrimRight(strings.TrimSpace(u), "/") }
 
-// CredentialTypePassword 是当前唯一的凭据类型（004 §3.12）。
+// CredentialTypePassword 是当前唯一的凭据类型。
 // 未来扩展 OAuth / API Key 时按 type 分流。
 const CredentialTypePassword = "password"

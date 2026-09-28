@@ -15,7 +15,7 @@ import (
 	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
-// schemaSQL 是库表定义（007 §10）。跟着二进制走，部署时不用额外分发 SQL 文件。
+// schemaSQL 是库表定义。跟着二进制走，部署时不用额外分发 SQL 文件。
 //
 //go:embed schema.sql
 var schemaSQL string
@@ -171,7 +171,7 @@ func componentFilter(q ComponentQuery) (where []string, args []any) {
 	return where, args
 }
 
-// CountComponents 统计符合条件的组件数，忽略分页（007 §4.2 的 total）。
+// CountComponents 统计符合条件的组件数，忽略分页（搜索响应的 total）。
 func (p *Postgres) CountComponents(ctx context.Context, q ComponentQuery) (int, error) {
 	where, args := componentFilter(q)
 
@@ -763,7 +763,7 @@ func nullable(s string) any {
 }
 
 // ============================================================
-// 组织（007 §9.5）
+// 组织
 // ============================================================
 
 const orgColumns = `org_id, name, owner_id, created_at`

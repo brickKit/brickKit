@@ -278,7 +278,7 @@ func TestCheckArchivedInIndexActiveOnDiskNamesGitAddDashA(t *testing.T) {
 	gitDo(t, f.Dir, "commit", "--quiet", "-m", "init")
 
 	// 归档 hello（caller 级联跟着走），把这份归档结构连同 mode: disable
-	// 一起提交下来——这是「归档在 git 里」的合法起点（004 §3.9.3）。
+	// 一起提交下来——这是「归档在 git 里」的合法起点。
 	f.writeConfig(t, helloDisabled)
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
 	gitDo(t, f.Dir, "add", "-A")

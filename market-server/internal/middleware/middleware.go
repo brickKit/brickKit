@@ -69,7 +69,7 @@ func (s *statusRecorder) Write(b []byte) (int, error) {
 // AccessLog 记录一行访问日志。
 //
 // 不记录查询串与请求头：前者可能带组件路径以外的信息，
-// 后者带 Authorization（008 §5：凭据不进日志）。
+// 后者带 Authorization（凭据不进日志）。
 func AccessLog(logf func(string, ...any)) Middleware {
 	write := logfOrDefault(logf)
 

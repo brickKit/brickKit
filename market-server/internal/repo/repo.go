@@ -1,11 +1,11 @@
 // Package repo 定义市场的数据访问层。
 //
-// 设计依据：007 §10 市场数据模型。
+// 它是服务层与存储之间的唯一接口：组件、版本、用户、令牌、组织、访问策略、审计。
 //
 // 这里只定义**接口与查询条件**，具体实现有两个：
 //
 //	memory.go    进程内实现：单元测试与"先跑起来看看"的本地模式
-//	postgres.go  生产实现：PostgreSQL（007 §10 的库表）
+//	postgres.go  生产实现：PostgreSQL（库表见 schema.sql）
 //
 // 两个实现共用一份行为契约测试（repo_test.go），保证语义完全一致——
 // 否则测试全绿、上了真库就出问题。
@@ -29,7 +29,7 @@ var (
 	ErrConflict = errors.New("record already exists")
 )
 
-// ComponentQuery 是组件搜索条件（007 §4.2）。
+// ComponentQuery 是组件搜索条件。
 type ComponentQuery struct {
 	// Keyword 匹配组件 ID、名称与描述。
 	Keyword string
@@ -46,10 +46,10 @@ type ComponentQuery struct {
 	PageSize int
 }
 
-// DefaultPageSize 是搜索的默认分页大小（007 §4.2 示例用 20）。
+// DefaultPageSize 是搜索的默认分页大小。
 const DefaultPageSize = 20
 
-// AuditQuery 是审计日志查询条件（007 §16）。
+// AuditQuery 是审计日志查询条件。
 type AuditQuery struct {
 	ComponentID string
 	Action      string
@@ -78,9 +78,9 @@ type Repository interface {
 	GetComponent(ctx context.Context, componentID string) (*model.Component, error)
 	// ListComponents 按条件搜索组件。
 	ListComponents(ctx context.Context, q ComponentQuery) ([]model.Component, error)
-	// CountComponents 统计符合条件的组件总数，忽略分页（007 §4.2 的 total）。
+	// CountComponents 统计符合条件的组件总数，忽略分页（搜索响应的 total）。
 	CountComponents(ctx context.Context, q ComponentQuery) (int, error)
-	// SetVisibility 设置可见性（007 §9.4）。
+	// SetVisibility 设置可见性。
 	SetVisibility(ctx context.Context, componentID, visibility string) error
 	// SetComponentStatus 设置组件状态（active / blocked）。
 	SetComponentStatus(ctx context.Context, componentID, status string) error
@@ -89,7 +89,7 @@ type Repository interface {
 
 	// ---- 版本 ----
 
-	// CreateVersion 创建版本；同 ID 同版本已存在时返回 ErrConflict（18.14）。
+	// CreateVersion 创建版本；同 ID 同版本已存在时返回 ErrConflict。
 	CreateVersion(ctx context.Context, v *model.Version) error
 	// GetVersion 查询单个版本，不存在时返回 ErrNotFound。
 	GetVersion(ctx context.Context, componentID, version string) (*model.Version, error)
@@ -111,12 +111,12 @@ type Repository interface {
 
 	// ---- 访问策略 ----
 
-	// ReplaceAccessPolicies 覆盖某个组件的访问策略（007 §9.4）。
+	// ReplaceAccessPolicies 覆盖某个组件的访问策略。
 	ReplaceAccessPolicies(ctx context.Context, componentID string, policies []model.AccessPolicy) error
 	// ListAccessPolicies 查询访问策略。
 	ListAccessPolicies(ctx context.Context, componentID string) ([]model.AccessPolicy, error)
 
-	// ---- 组织（007 §9.5）----
+	// ---- 组织----
 
 	// CreateOrganization 创建组织；ID 已存在时返回 ErrConflict。
 	CreateOrganization(ctx context.Context, o *model.Organization) error
@@ -150,7 +150,7 @@ type Repository interface {
 
 	// ---- 审计 ----
 
-	// AppendAudit 追加一条审计日志。审计只能追加，不能修改或删除（007 §16.3）。
+	// AppendAudit 追加一条审计日志。审计只能追加，不能修改或删除。
 	AppendAudit(ctx context.Context, e *model.AuditEntry) error
 	// ListAudit 查询审计日志，按时间倒序。
 	ListAudit(ctx context.Context, q AuditQuery) ([]model.AuditEntry, error)

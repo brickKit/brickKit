@@ -10,7 +10,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
-// 项目名称规则（003 §3.1）：
+// 项目名称规则：
 //   - 全部小写
 //   - 只能包含字母、数字、中划线
 //   - 不得包含空格

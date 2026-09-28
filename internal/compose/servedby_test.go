@@ -1,5 +1,5 @@
-// 本文件测试 servedBy（外壳合并部署）在 Docker 目标下的渲染，覆盖
-// servedBy 设计书 §6-§8。mode: debug 的既有行为不受影响，回归覆盖见
+// 本文件测试 servedBy（外壳合并部署）在 Docker 目标下的渲染。
+// mode: debug 的既有行为不受影响，回归覆盖见
 // TestLocalStillWorksAlongsideServedBy；local 组件依赖 servedBy 成员时的
 // 宿主机端口映射，见文件末尾 "mode: debug 依赖 servedBy 成员" 一节。
 package compose_test

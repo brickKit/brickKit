@@ -1,4 +1,4 @@
-// 本文件覆盖启动顺序与依赖图的渲染（开发计划 10.1–10.7）。
+// 本文件覆盖启动顺序与依赖图的渲染。
 //
 // 从前这些是 brickkit order 的测试；order 已删除（它逐字输出的就是
 // up --dry-run 的中段），因此改由 up --dry-run 驱动同一批渲染函数。
@@ -42,10 +42,10 @@ func orderProject(t *testing.T) *projectFixture {
 }
 
 // ============================================================
-// 10.3 输出格式
+// 输出格式
 // ============================================================
 
-// 10.3 输出包含编号、箭头与依赖图（004 §3.8）。
+// 输出包含编号、箭头与依赖图。
 func TestDryRunOrderOutputFormat(t *testing.T) {
 	f := orderProject(t)
 
@@ -76,7 +76,7 @@ func TestDryRunOrderOutputFormat(t *testing.T) {
 	assert.Contains(t, out, "→")
 }
 
-// 10.1 顺序本身正确：被依赖的组件出现在依赖方之前。
+// 顺序本身正确：被依赖的组件出现在依赖方之前。
 func TestDryRunOrderPutsDependenciesFirst(t *testing.T) {
 	f := orderProject(t)
 
@@ -91,14 +91,14 @@ func TestDryRunOrderPutsDependenciesFirst(t *testing.T) {
 		indexOf(t, r.stdout, "portal-user-frontend-1-0-0"))
 }
 
-// 10.2 弱依赖照常启动，但不约束启动顺序，且单独列出来告诉使用者它可以关。
+// 弱依赖照常启动，但不约束启动顺序，且单独列出来告诉使用者它可以关。
 func TestDryRunOrderListsOptionalDependencies(t *testing.T) {
 	f := orderProject(t)
 
 	r := runIn(t, f.Dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 
-	// 它跟着上层一起启动（003 §4.3），只是不约束顺序——
+	// 它跟着上层一起启动，只是不约束顺序——
 	// 那一行"只被弱依赖引用"回答的是"哪些是可以关掉的"。
 	assert.Contains(t, r.stdout, "infra/redis-event-bus@1.0.0")
 	assert.Contains(t, startupSection(r.stdout), "infra-redis-event-bus-1-0-0",
@@ -108,7 +108,7 @@ func TestDryRunOrderListsOptionalDependencies(t *testing.T) {
 	assert.Contains(t, r.stdout, "(optional)", "依赖图里要标出弱依赖")
 }
 
-// 10.6 多版本各自独立出现在顺序里。
+// 多版本各自独立出现在顺序里。
 func TestDryRunOrderShowsEachVersionSeparately(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/a", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
@@ -127,7 +127,7 @@ func TestDryRunOrderShowsEachVersionSeparately(t *testing.T) {
 }
 
 // ============================================================
-// 10.7 空项目
+// 空项目
 // ============================================================
 
 func TestDryRunOrderOnEmptyProject(t *testing.T) {
@@ -141,7 +141,7 @@ func TestDryRunOrderOnEmptyProject(t *testing.T) {
 }
 
 // ============================================================
-// 10.4 循环依赖
+// 循环依赖
 // ============================================================
 
 func TestDryRunOrderReportsCycle(t *testing.T) {
@@ -252,12 +252,7 @@ func TestDryRunOrderShowsMissingOptionalDependency(t *testing.T) {
 	assert.NotContains(t, r.stdout, "Only referenced by optional dependencies", "没装进图里的弱依赖不该出现在这一行")
 }
 
-// ⚠️ 现状锁定：order 目前**不做级联计算**，mode: disable 的组件也会出现在顺序里。
-//
-// 级联启停是 Step 11 的职责（延后清单 P17）。Step 11 实现后，本用例应改为
-// 断言被禁用的组件不出现在启动顺序中——它失败正是提醒回来改这里。
-// P17 回填：order 按级联结果过滤（003 §4.3）。
-// 被显式禁用的组件不该出现在启动顺序里。
+// order 按级联结果过滤：被显式禁用的组件不该出现在启动顺序里。
 func TestDryRunOrderExcludesDisabledComponent(t *testing.T) {
 	comps := []comp{
 		{ID: "people/basic", Version: "1.0.0"},
@@ -323,7 +318,7 @@ func TestDryRunOrderWithNothingRunning(t *testing.T) {
 	assert.Contains(t, r.stdout, "No component will start this run")
 }
 
-// P14 回填：钉住的组件依赖了被禁用的组件 → 报错（004 §10.3）。
+// 钉住的组件依赖了被禁用的组件 → 报错。
 func TestDryRunOrderReportsDisabledStrongDependency(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"authorization/rbac@1.0.0"}},

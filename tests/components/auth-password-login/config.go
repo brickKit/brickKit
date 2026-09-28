@@ -19,7 +19,7 @@ const (
 	defaultTokenTTL = 30 * time.Minute
 )
 
-// databaseConfig 是平台注入的数据库连接（006 §5.2）。
+// databaseConfig 是平台注入的数据库连接。
 type databaseConfig struct {
 	Host     string
 	Port     int
@@ -41,14 +41,14 @@ func (d databaseConfig) DSN() string {
 	return u.String()
 }
 
-// config 是组件的全部配置。**只来自环境变量**（002 §1.4、006 §5.1）：
+// config 是组件的全部配置。**只来自环境变量**：
 // 组件不知道也不该知道自己被部署在哪。
 type config struct {
 	ComponentID string
 	Version     string
 	LogLevel    string
 	Database    databaseConfig
-	// PeopleEndpoint 由平台按强依赖注入（003 §4.5：PEOPLE_BASIC_ENDPOINT）。
+	// PeopleEndpoint 由平台按强依赖注入（PEOPLE_BASIC_ENDPOINT）。
 	PeopleEndpoint string
 	// JWTSecret 是令牌签名密钥，由使用者通过 .env / K8s Secret 提供。
 	JWTSecret string
@@ -145,16 +145,16 @@ func sortStrings(items []string) {
 }
 
 // ============================================================
-// 日志（002 §11）
+// 日志
 // ============================================================
 
-// 敏感字段名：这些键的值一律不写进日志（002 §11.3）。
+// 敏感字段名：这些键的值一律不写进日志。
 //
 // 对一个认证组件，这条比别处更要紧：出错时最想打印的就是"收到的请求体"，
 // 而那里面正好是明文口令。
 var sensitiveKeys = []string{"password", "token", "secret", "dsn", "key", "hash", "credential"}
 
-// newLogger 创建 JSON 日志器，每条都带 componentId（002 §11.3）。
+// newLogger 创建 JSON 日志器，每条都带 componentId。
 func newLogger(w io.Writer, level, componentID string) *slog.Logger {
 	handler := slog.NewJSONHandler(w, &slog.HandlerOptions{
 		Level:       parseLevel(level),

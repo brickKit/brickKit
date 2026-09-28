@@ -17,7 +17,7 @@ func TestProblemSetEmptyReturnsNil(t *testing.T) {
 func TestProblemSetRendersAllProblems(t *testing.T) {
 	p := NewProblemSet(CodeManifestInvalid, "错误：component.yaml 校验失败").
 		WithSource("文件", "components/people/basic/component.yaml").
-		WithHint("参考 002 §2.2", "参考附录 B.1")
+		WithHint("参考 component.yaml 字段说明", "参考完整字段表")
 	p.Missing("metadata.id")
 	p.Add("deployment.type", "必须是 container")
 	p.Addf("deployment.port", "必须在 %d~%d 之间（当前是 %d）", 1, 65535, 0)
@@ -37,8 +37,8 @@ func TestProblemSetRendersAllProblems(t *testing.T) {
 		"   deployment.type: 必须是 container\n" +
 		"   deployment.port: 必须在 1~65535 之间（当前是 0）\n" +
 		"   Suggestions:\n" +
-		"   1. 参考 002 §2.2\n" +
-		"   2. 参考附录 B.1\n"
+		"   1. 参考 component.yaml 字段说明\n" +
+		"   2. 参考完整字段表\n"
 	assert.Equal(t, want, e.Format())
 }
 

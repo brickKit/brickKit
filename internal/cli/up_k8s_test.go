@@ -1,10 +1,10 @@
 package cli
 
-// 本文件是 Step 16-C「K8s 目标的 up / down / status 接线」的业务行为测试。
+// 本文件是「K8s 目标的 up / down / status 接线」的业务行为测试。
 //
 // 引擎是假的：命令层的职责是"生成什么、交给引擎什么、按什么顺序"，
 // 而不是"怎么调 kubectl"（那一段由 internal/engine 的用例盯住）。
-// 真集群验证是 P25。
+// 真集群验证不在单元测试里。
 
 import (
 	"fmt"
@@ -150,7 +150,7 @@ func TestUpK8sHandsDirectoryAndNamespaceToEngine(t *testing.T) {
 	assert.Equal(t, []string{"people-basic-1-0-0"}, up.Services)
 }
 
-// 迁移 Job 名要传给引擎：清理旧 Job 与等待完成都靠它（16.14）。
+// 迁移 Job 名要传给引擎：清理旧 Job 与等待完成都靠它。
 func TestUpK8sPassesMigrationJobs(t *testing.T) {
 	f := k8sProjectWith(t, comp{
 		ID: "people/basic", Version: "1.0.0",
@@ -221,7 +221,7 @@ func TestDownK8s(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
 	require.Len(t, eng.downs, 1)
 	// 交给引擎的只有项目名（这里就是命名空间）：down 不认生成目录，
-	// 那份目录会被 up --dry-run 重写（005 §5.9.3）
+	// 那份目录会被 up --dry-run 重写
 	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project)
 }
 
@@ -282,8 +282,8 @@ func TestPodmanLogsCommandUsesPodmanBinary(t *testing.T) {
 //
 // 不支持执行 NetworkPolicy 的集群上，apply 会成功、get networkpolicy 看得见、
 // 而流量完全不受限制——没有任何报错。而 CLI 测不出来（K8s 没有这个 API）。
-// 既然测不出来就必须说出来：从前这句话只写在 005 §5.13.0 与 003 §3.2 里，
-// 而打开这个开关的人多半是从附录 D 抄了个字段，不会回去读那两节。
+// 既然测不出来就必须说出来：从前这句话只写在设计文档里，
+// 而打开这个开关的人多半是从示例里抄了个字段，不会回去读文档。
 func TestNetworkPolicyNoticeIsPrinted(t *testing.T) {
 	f := k8sProjectWith(t, comp{ID: "people/basic", Version: "1.0.0"}, "", "")
 

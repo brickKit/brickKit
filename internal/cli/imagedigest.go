@@ -1,6 +1,6 @@
 package cli
 
-// 本文件把镜像 tag 解析成 registry 里的 digest（P29）。
+// 本文件把镜像 tag 解析成 registry 里的 digest。
 //
 // # 为什么要钉 digest
 //

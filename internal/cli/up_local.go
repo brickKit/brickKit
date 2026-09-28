@@ -426,7 +426,7 @@ func runLocalComponents(
 // 而 --crash-lines 的帮助文本对使用者的承诺是"0 = 只打印崩溃信息，不带
 // 输出行"——同一个 0，两层意思完全相反。这条 CLI 专属的承诺只能在 CLI 自己
 // 这层兑现：crashLines <= 0 时，不管 procsup 内部实际捕获、塞进 Exit.Tail
-// 的是默认的 20 行还是别的，这里都不打印任何一行（手动验证 Task 6 Step 5
+// 的是默认的 20 行还是别的，这里都不打印任何一行（手动验证
 // 时用真实进程试 --crash-lines 0 才发现两层语义对不上）。
 //
 // 用 sup.Printf 而不是 opts.Printf 是同一个理由：这个函数从 runLocalComponents

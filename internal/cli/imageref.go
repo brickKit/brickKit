@@ -8,14 +8,14 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
-// checkImageReference 校验镜像引用（开发计划 19.13、010 §5）。
+// checkImageReference 校验镜像引用。
 //
 // 只做发布前拦得住的检查——镜像到底存不存在要问镜像仓库，那是 up 时的事。
 // 这里管的是两件在发布这一刻就能确定是错的事：
 //
 //   - 没有标签：拉取时会退化成 latest，等于放弃了版本控制；
 //   - 标签是 latest：同一个引用在不同时间指向不同镜像，
-//     002 §7.1 建立在精确版本上的全部可复现性都会崩。
+//     建立在精确版本上的全部可复现性都会崩。
 func checkImageReference(image string) error {
 	image = strings.TrimSpace(image)
 	if image == "" {
@@ -27,7 +27,7 @@ func checkImageReference(image string) error {
 
 	// digest 形式要真的是个 digest。`@` 后面原本什么都能写——
 	// `repo@latest` 这种会一路传到市场，消费方拉取时才失败，
-	// 而那时已经查不清是谁传坏的了（P29）
+	// 而那时已经查不清是谁传坏的了
 	if repo, digest, ok := strings.Cut(image, "@"); ok {
 		switch {
 		case repo == "":

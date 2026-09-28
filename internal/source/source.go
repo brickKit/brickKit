@@ -1,17 +1,17 @@
 // Package source 实现三种安装源（local / git / market）与 Manifest、artifacts 缓存。
 //
-// 设计依据：003 §6 安装源配置详解、004 §3.3 brickkit add、007 §9.1 市场 API。
+// 安装源按 sources 的顺序查找组件，取 Manifest 与产物。
 //
 // 核心行为：
 //
-//	优先级   按 brickkit.yaml 中 sources 的顺序依次尝试，靠前的优先（003 §6.5）
+//	优先级   按 brickkit.yaml 中 sources 的顺序依次尝试，靠前的优先
 //	开关     enabled: false 的安装源完全跳过（配置有误也不会导致失败）
 //	缓存     Manifest → .brickkit/manifests/<scope>/<name>/<版本>/component.yaml（永久，
 //	         旁边是来源与签名信封 signature.json、组件带着时还有 BRICKKIT.md）
 //	         产物     → .brickkit/artifacts/<版本化服务名>/<type>/<文件路径>
 //	刷新     Options.Refresh 忽略缓存强制重新拉取（brickkit add 重复添加同一版本时打开）
 //	签名     只有市场源受签名策略约束（verify.go）；本地源与 git 源指向的是
-//	         使用者自己的目录与仓库，那里没有"发布者"这个角色（008 §8.5.2）
+//	         使用者自己的目录与仓库，那里没有"发布者"这个角色
 //	来源     Origin 绕开 Manifest 缓存直接问安装源，供 brickkit add --repo 判断
 //	         组件是开源（git）还是闭源（registry）
 package source
@@ -45,7 +45,7 @@ type Options struct {
 	HTTPClient *http.Client
 	// Now 用于判断 Token 是否过期。为空时使用 time.Now。
 	Now func() time.Time
-	// Signature 是签名校验策略（008 §8.5）。零值表示既不强制、也没有可信公钥，
+	// Signature 是签名校验策略。零值表示既不强制、也没有可信公钥，
 	// 此时完全不校验——这正是还没用上签名的项目的默认处境。
 	Signature SignaturePolicy
 	// RepoCacheDir 是 git 源的 bare 仓库缓存目录。空表示用户级默认位置
@@ -70,7 +70,7 @@ type Fetched struct {
 	SourceID string
 	// FromCache 表示该 Manifest 来自 .brickkit/manifests/ 缓存。
 	FromCache bool
-	// Signature 是安装源提供的签名（008 §8.3），未签名时为 nil。
+	// Signature 是安装源提供的签名，未签名时为 nil。
 	Signature *security.Signature
 	// Verified 表示签名**真的验过并通过**。
 	//
@@ -87,7 +87,7 @@ type ArtifactResult struct {
 	Downloaded []string
 	// Cached 是已存在于缓存、本次跳过的产物文件。
 	Cached []string
-	// Warnings 是下载失败的产物。产物文件是开发时辅助，失败不阻断安装（004 §10.1）。
+	// Warnings 是下载失败的产物。产物文件是开发时辅助，失败不阻断安装。
 	Warnings []*clierr.Error
 }
 
@@ -115,7 +115,7 @@ type Client struct {
 type SignatureStatus struct {
 	ComponentID string
 	Version     string
-	// Verified 为 true 表示签名**真的验过并通过**（008 §8.4）。
+	// Verified 为 true 表示签名**真的验过并通过**。
 	Verified  bool
 	Signature *security.Signature
 	// Warnings 是放行但需要提醒的情况（未配公钥、发布者未声明）。
@@ -306,7 +306,7 @@ func (c *Client) Manifest(ctx context.Context, id, version string) (*Fetched, er
 
 // verifyFrom 按安装源类型决定要不要应用签名策略。
 //
-// **只有市场源受签名约束。** 008 §8.4 说的是"从**市场**获取 Manifest 和签名"：
+// **只有市场源受签名约束。** 签名约束的是"从**市场**获取 Manifest 和签名"：
 // 本地源指向的是使用者自己硬盘上、正被他编辑的目录，git 源指向的是他自己在
 // brickkit.yaml 里写下的仓库——那里根本没有"发布者"这个角色，也就无所谓签名。
 //
@@ -434,7 +434,7 @@ func (c *Client) writeCachedSignature(id, version, kind string, sig *security.Si
 // 本地源的 component.yaml 就在使用者硬盘上、正被他编辑；缓存一份快照
 // 只会让改动静默地不生效——改了端口、迁移命令或配额之后 `brickkit up`
 // 依旧按旧的生成，而且一声不吭。缓存是为了省网络往返，
-// 本地源没有网络往返，也就没有缓存的理由（004 §7.5）。
+// 本地源没有网络往返，也就没有缓存的理由。
 //
 // 只扫到第一个非本地源为止：优先级更高的远程源可能才是真正的提供方，
 // 而"远程源有没有这个组件"问不起——那正是缓存存在的原因。
@@ -460,7 +460,7 @@ func (c *Client) writeCachedSignature(id, version, kind string, sig *security.Si
 //
 // **但版本对不上要放行缓存**：本地源一个目录只放得下一个版本，把组件升上去
 // （改 metadata.version）之后，还依赖旧版本的调用方就只能从缓存里取那一份
-// ——这是多版本共存的正常用法（试用指南 §8.2、§8.6），不是"改错了"。
+// ——这是多版本共存的正常用法，不是"改错了"。
 // 所以只在 id 也匹配、单纯版本不同时才继续往下走、允许缓存生效。
 func (c *Client) servedByLocalSource(ctx context.Context, id, version string) bool {
 	for _, f := range c.fetchersFor(id) {
@@ -485,7 +485,7 @@ func (c *Client) ManifestCachePath(id, version string) string {
 }
 
 // ArtifactDir 返回某个组件版本的产物缓存目录，如
-// .brickkit/artifacts/department-tree-1-0-0/（003 §7.1）。
+// .brickkit/artifacts/department-tree-1-0-0/。
 func (c *Client) ArtifactDir(id, version string) string {
 	return filepath.Join(c.layout.ArtifactsDir(), manifest.ServiceName(id, version))
 }
@@ -494,7 +494,7 @@ func (c *Client) ArtifactDir(id, version string) string {
 // .brickkit/artifacts/<版本化服务名>/<type>/<文件路径>。
 //
 // 已缓存的文件默认跳过；Options.Refresh 为 true 时重新下载。
-// 单个文件下载失败只记入 Warnings，不阻断（004 §10.1：产物是开发时辅助）。
+// 单个文件下载失败只记入 Warnings，不阻断（产物是开发时辅助）。
 func (c *Client) DownloadArtifacts(ctx context.Context, m *manifest.Manifest) (*ArtifactResult, error) {
 	if m == nil {
 		return nil, clierr.New(clierr.CodeInternal, i18n.T(msgid.SourceNoManifest)).WithHint(i18n.T(msgid.HintInternalBug))
@@ -515,7 +515,7 @@ func (c *Client) DownloadArtifacts(ctx context.Context, m *manifest.Manifest) (*
 			rel := filepath.Join(manifest.ServiceName(id, version), art.Type, filepath.FromSlash(file))
 			dest := filepath.Join(c.layout.ArtifactsDir(), rel)
 			if !withinDir(base, dest) {
-				// Manifest 校验已禁止越界路径（002 §2.3），这里是纵深防御（008）。
+				// Manifest 校验已禁止越界路径，这里是纵深防御。
 				res.Warnings = append(res.Warnings, artifactWarning(id, version, art.Type, file,
 					i18n.T(msgid.SourceArtifactEscapes)))
 				continue
@@ -544,7 +544,7 @@ func (c *Client) DownloadArtifacts(ctx context.Context, m *manifest.Manifest) (*
 	return res, nil
 }
 
-// Origin 按安装源优先级查询组件的来源信息（开源 git / 闭源 registry，007 §11）。
+// Origin 按安装源优先级查询组件的来源信息（开源 git / 闭源 registry）。
 //
 // 它不走 Manifest 缓存：缓存里存的是 component.yaml，不含 sourceType / gitUrl。
 // 只有 brickkit add --repo / --repo-all 需要这个信息。
@@ -617,7 +617,7 @@ type versionMismatch struct {
 }
 
 // signedFetcher 是能提供签名的安装源。只有市场源实现它——本地源与 git 源
-// 指向的是使用者自己的目录与仓库，那里没有"发布者"这个角色（008 §8.4 说的是
+// 指向的是使用者自己的目录与仓库，那里没有"发布者"这个角色（签名约束的是
 // "从**市场**获取 Manifest 和签名"）。
 type signedFetcher interface {
 	signatureFor(componentID, version string) *security.Signature
@@ -661,7 +661,7 @@ type failure struct {
 // aggregateError 汇总所有安装源的失败。
 //
 // 只要有一个源是"真失败"（路径不存在、克隆失败、市场不可达……），就把该错误报出来——
-// 那通常才是使用者要修的问题；全部都只是"没有"时，报 004 §10.2 的组件未找到。
+// 那通常才是使用者要修的问题；全部都只是"没有"时，报组件未找到。
 func (c *Client) aggregateError(
 	id, version string, failures []failure, mismatches []versionMismatch,
 ) error {
@@ -684,7 +684,7 @@ func (c *Client) aggregateError(
 // # 为什么值得单独说一句
 //
 // 本地安装源的目录结构是 `<root>/<scope>/<name>/component.yaml`——**一个组件 ID
-// 只放得下一个版本**（003 §6.4）。本地开发时把某个组件升上去（改那份
+// 只放得下一个版本**。本地开发时把某个组件升上去（改那份
 // component.yaml），而别的组件还依赖着旧版本，旧版本就只剩 Manifest 缓存里
 // 那一份；缓存一冷（同事 clone 而 .brickkit/manifests 被 gitignore、
 // 或者 rm -rf .brickkit），解析立刻断在"强依赖缺失"上。

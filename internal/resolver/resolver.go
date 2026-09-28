@@ -1,17 +1,17 @@
 // Package resolver 实现依赖解析引擎。
 //
-// 设计依据：002 §3 组件依赖与拼装规范、§7.7 升级时依赖兼容性检查、004 §4 依赖解析引擎。
+// 它把 brickkit.yaml 里的组件递归展开成依赖图：强依赖缺失报错、弱依赖缺失警告、循环依赖报错。
 //
 // 核心行为：
 //
-//	递归解析   从根组件出发递归拉取依赖的 Manifest，按 ID + 版本去重（004 §4.2）
-//	强依赖缺失 报错阻断，指出是谁依赖了它（002 §3.3）
-//	弱依赖缺失 警告但继续，并说明哪个环境变量不会被注入（004 §4.5）
-//	循环依赖   报错阻断，打印完整循环路径（004 §4.3）
-//	多版本共存 同一 ID 的不同版本是两个独立节点，不冲突、不报错（002 §3.6）
+//	递归解析   从根组件出发递归拉取依赖的 Manifest，按 ID + 版本去重
+//	强依赖缺失 报错阻断，指出是谁依赖了它
+//	弱依赖缺失 警告但继续，并说明哪个环境变量不会被注入
+//	循环依赖   报错阻断，打印完整循环路径
+//	多版本共存 同一 ID 的不同版本是两个独立节点，不冲突、不报错
 //
 // 不在本包职责内：级联启停计算、拓扑排序输出（brickkit order）、环境变量注入。
-// 解析结果的 Nodes 已按"依赖先于依赖方"排列，Step 10 的拓扑排序在此之上做输出与分组。
+// 解析结果的 Nodes 已按"依赖先于依赖方"排列，拓扑排序在此之上做输出与分组。
 package resolver
 
 import (
@@ -28,7 +28,7 @@ import (
 	"github.com/brickkit/brickkit/internal/source"
 )
 
-// Ref 是一个精确的组件引用（002 §3.3：版本必须精确）。
+// Ref 是一个精确的组件引用（版本必须精确）。
 type Ref struct {
 	ID      string
 	Version string
@@ -64,9 +64,9 @@ type Node struct {
 	Requires []Ref
 	// Optional 是已解析的弱依赖。
 	Optional []Ref
-	// MissingOptional 是获取失败的弱依赖：CLI 不会为它们注入环境变量（002 §3.4）。
+	// MissingOptional 是获取失败的弱依赖：CLI 不会为它们注入环境变量。
 	MissingOptional []Ref
-	// Dependents 是依赖本组件的组件，供卸载检查（002 §3.9）与错误提示使用。
+	// Dependents 是依赖本组件的组件，供卸载检查与错误提示使用。
 	Dependents []Ref
 }
 
@@ -358,7 +358,7 @@ func unwrapFetch(err error) error {
 // 错误与警告
 // ============================================================
 
-// missingDependencyError 逐字对齐 004 §10.2 的"强依赖缺失"错误块。
+// missingDependencyError 是"强依赖缺失"错误块。
 //
 // # 底下那层的明细与建议要带上来
 //
@@ -409,7 +409,7 @@ func missingDependencyError(dependent, missing Ref, cause error) error {
 	).WithCause(cause)
 }
 
-// optionalMissingWarning 逐字对齐 004 §4.5 的弱依赖警告块。
+// optionalMissingWarning 是弱依赖取不到时的警告块。
 func optionalMissingWarning(dependent, missing Ref, cause error) *clierr.Error {
 	return clierr.Warn(clierr.CodeDependencyMissing, i18n.T(msgid.ResolverOptionalDependencyMissing, missing.String())).
 		WithDetail(i18n.T(msgid.ResolverLabelAffectedComponent), dependent.String()).
@@ -418,7 +418,7 @@ func optionalMissingWarning(dependent, missing Ref, cause error) *clierr.Error {
 		WithTip(i18n.T(msgid.ResolverOptionalTip))
 }
 
-// cycleError 打印完整循环路径（004 §4.3）。
+// cycleError 打印完整循环路径。
 func cycleError(path []Ref, repeated Ref) error {
 	cycle := make([]string, 0, len(path)+1)
 	started := false

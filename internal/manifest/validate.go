@@ -15,20 +15,20 @@ import (
 	"github.com/brickkit/brickkit/internal/runcmd"
 )
 
-// 组件 ID 规则（002 §10.1、§10.3）：格式 <scope>/<name>，
+// 组件 ID 规则：格式 <scope>/<name>，
 // 全部小写，只能包含字母、数字、斜杠、中划线。
 var componentIDRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?/[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
-// 精确版本规则（002 §7.1）：major.minor.patch，不接受 ^ / ~ / 范围 / 预发布后缀。
+// 精确版本规则：major.minor.patch，不接受 ^ / ~ / 范围 / 预发布后缀。
 var exactVersionRe = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 // K8s Service 端口名规则（IANA_SVC_NAME）：≤15 字符，小写字母数字与中划线，
-// 首尾必须是字母或数字。extraPorts.name 会直接用作 Service 端口名（附录 B.7）。
+// 首尾必须是字母或数字。extraPorts.name 会直接用作 Service 端口名。
 var portNameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
 const (
 	// MaxComponentIDLen 是组件 ID 长度上限。
-	// ID 转换后的版本化服务名要符合 DNS 标签规则（≤63 字符，002 §10.4）。
+	// ID 转换后的版本化服务名要符合 DNS 标签规则（≤63 字符）。
 	MaxComponentIDLen = 63
 	// MaxPortNameLen 是 K8s Service 端口名长度上限。
 	MaxPortNameLen = 15
@@ -85,11 +85,11 @@ func (m *Manifest) Validate() error {
 
 // ComponentIDProblem 返回组件 ID 的不合法原因；合法时返回空字符串。
 //
-// 组件 ID 规则由 002 §10.3 定义，brickkit.yaml 中的组件条目（Step 5）
+// 组件 ID 规则在这里定义，brickkit.yaml 中的组件条目
 // 与 Manifest 中的依赖声明共用同一套规则，因此导出给 config 包复用。
 func ComponentIDProblem(id string) string { return componentIDProblem(id) }
 
-// IsExactVersion 判断版本号是否为精确版本 major.minor.patch（002 §7.1）。
+// IsExactVersion 判断版本号是否为精确版本 major.minor.patch。
 func IsExactVersion(version string) bool { return exactVersionRe.MatchString(version) }
 
 // CompareVersions 比较两个精确版本（major.minor.patch），返回 -1 / 0 / 1。
@@ -199,7 +199,7 @@ type dependencyClaim struct {
 //
 // # 为什么按组件 ID 去重，而不是按 <ID>@<版本>
 //
-// 依赖地址的环境变量名**基于组件 ID，不带版本号**（001 §8.3）：
+// 依赖地址的环境变量名**基于组件 ID，不带版本号**：
 //
 //	demo/hello@1.0.0  →  DEMO_HELLO_ENDPOINT=http://demo-hello-1-0-0:8080
 //	demo/hello@2.0.0  →  DEMO_HELLO_ENDPOINT=http://demo-hello-2-0-0:9090
@@ -216,7 +216,7 @@ type dependencyClaim struct {
 // # 这不与"多版本共存"矛盾
 //
 // 多版本共存是**项目级**能力：brickkit.yaml 里可以同时跑 X@1 与 X@2，
-// 供不同的调用方各用各的（002 §3.6）。而单个组件的视角里，
+// 供不同的调用方各用各的。而单个组件的视角里，
 // "我依赖 X 的哪个版本"只能有一个答案——这正是变量名不带版本换来的：
 // 组件代码在升级时一个字都不用改。
 //
@@ -444,7 +444,7 @@ func (m *Manifest) validateHealthCheck(p *clierr.ProblemSet) {
 // 于是一个真的起不来的组件会一直挂在 starting 上，谁也不会去看它。
 const maxStartPeriodSeconds = 3600
 
-// validateStartPeriod 校验启动宽限期（002 §9.3）。
+// validateStartPeriod 校验启动宽限期。
 func validateStartPeriod(p *clierr.ProblemSet, h HealthCheck) {
 	if h.StartPeriodSeconds == 0 {
 		return // 没写 = 用默认值

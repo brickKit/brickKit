@@ -1,4 +1,4 @@
-// Package cascade 计算"这次到底跑哪些组件"（003 §4.3）。
+// Package cascade 计算"这次到底跑哪些组件"。
 //
 // # 规则：跟着上层走
 //
@@ -111,7 +111,7 @@ func (r *Result) TopLevel() []Component {
 	return out
 }
 
-// Compute 按 003 §4.3 判定本次启动哪些组件。
+// Compute 按"跟着上层走"的规则判定本次启动哪些组件。
 //
 // 算的是"**谁不跑**"，不是"谁跑"——两者互为补集，但只有前者能把环算对。
 // 详见 computeStopped。
@@ -197,7 +197,7 @@ func computeStopped(
 
 // deadRequirement 找出该组件第一个不跑的**强**依赖。
 //
-// 只看强依赖：弱依赖不跑是正常状态，调用方按 002 §3.4 自行降级。
+// 只看强依赖：弱依赖不跑是正常状态，调用方自行降级。
 func deadRequirement(node *resolver.Node, stopped map[resolver.Ref]bool) (resolver.Ref, bool) {
 	for _, dep := range node.Requires {
 		if stopped[dep] {

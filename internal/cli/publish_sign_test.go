@@ -1,4 +1,4 @@
-// 本文件覆盖开发计划 20.1（签名生成正常）在 CLI 侧的行为：
+// 本文件覆盖签名生成在 CLI 侧的行为：
 // brickkit publish --sign。
 //
 // 这里用的是**真 cosign 二进制**。理由与 internal/security 的跨工具测试一样：
@@ -71,7 +71,7 @@ func publishedSignature(t *testing.T, m *fakeMarket) (security.Signature, json.R
 }
 
 // ============================================================
-// 20.1 签名生成正常
+// 签名生成正常
 // ============================================================
 
 // TestPublishSignProducesVerifiableSignature 是 20.1 的主干。
@@ -94,7 +94,7 @@ func TestPublishSignProducesVerifiableSignature(t *testing.T) {
 	sig, manifest := publishedSignature(t, m)
 	assert.Equal(t, security.AlgorithmCosign, sig.Algorithm)
 	assert.NotEmpty(t, sig.Value)
-	assert.False(t, sig.SignedAt.IsZero(), "signedAt 要填（008 §8.3）")
+	assert.False(t, sig.SignedAt.IsZero(), "signedAt 要填")
 
 	// 用使用者侧的校验代码验一遍：这才是签名有没有用的唯一判据
 	pubPEM, err := os.ReadFile(pubPath)
@@ -110,7 +110,7 @@ func TestPublishSignProducesVerifiableSignature(t *testing.T) {
 //
 // ref 是发布者与使用者之间的契约（使用者照它在 installer.publicKeys 配同名条目），
 // 所以既不能不填，也不该由 CLI 随手编一个。按 .key → .pub 推导，
-// 恰好得到 008 §8.3 示例里的 keys/people-basic-release.pub，可预期也可解释。
+// 恰好得到 keys/people-basic-release.pub，可预期也可解释。
 func TestPublishSignDerivesPublicKeyRefFromKey(t *testing.T) {
 	t.Setenv("COSIGN_PASSWORD", "")
 	m := newFakeMarket(t)

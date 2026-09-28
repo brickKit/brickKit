@@ -1,6 +1,6 @@
 package compose
 
-// 本文件实现 mode: debug（005 §4）。
+// 本文件实现 mode: debug。
 //
 // 一个组件被标成 local 时，它从容器里搬到了宿主机的 IDE 里，于是**两个方向**
 // 都断了，必须由 CLI 各补一条路：
@@ -43,7 +43,7 @@ const (
 	EnginePodman = "podman"
 )
 
-// 宿主机端口分配的基准（005 §4.6、§4.8）。
+// 宿主机端口分配的基准。
 const (
 	// localPortBase 是 local 组件自己监听端口的起点。
 	localPortBase = 8081
@@ -54,11 +54,11 @@ const (
 	maxPort        = 65535
 )
 
-// LocalEnvFile 是一个 local 组件的调试环境变量文件（005 §4.9）。
+// LocalEnvFile 是一个 local 组件的调试环境变量文件。
 type LocalEnvFile struct {
 	Ref resolver.Ref
 	// Mode 是这个组件写的 mode（deployfile.ModeDebug 或 deployfile.ModeLocal）。
-	// 两者共用同一套"算出本地化环境"的逻辑（005 §5.6：mode: local 复用了
+	// 两者共用同一套"算出本地化环境"的逻辑（mode: local 复用了
 	// mode: debug 已经算好的宿主机地址），但调用方要拿它们做完全不同的事——
 	// debug 组件由使用者自己在 IDE 里启动，这份文件与"在 IDE 里怎么用"的
 	// 提示只对它有意义；local 组件由 brickkit 自己拉起（internal/cli/up_local.go
@@ -81,7 +81,7 @@ type LocalEnvFile struct {
 	Unresolved map[string]string
 }
 
-// hostGateway 返回 extra_hosts 里指向宿主机的魔法值（005 §7.5）。
+// hostGateway 返回 extra_hosts 里指向宿主机的魔法值。
 //
 // 值固定是 `host-gateway`。
 //
@@ -118,7 +118,7 @@ type portTable struct {
 
 func newPortTable() *portTable { return &portTable{owner: map[int]string{}} }
 
-// claim 占用一个**明确指定**的端口，已被占用时报错（13.12、P4）。
+// claim 占用一个**明确指定**的端口，已被占用时报错（P4）。
 //
 // 指定的端口不能挪，撞了只能让使用者自己决定改谁——CLI 替他挑一个
 // 会让 IDE 里配好的调试端口莫名其妙地失效。
@@ -162,7 +162,7 @@ func (t *portTable) allocate(preferred, base int, owner string) int {
 // localExposeWarnings 提醒"local 组件上的 expose / exposePort 本次不生效"。
 //
 // mode: debug 的组件不生成容器，平台因此没有任何东西可以映射到宿主机——
-// 那两个字段就是写了不算数。003 §3.2 立的规矩是**写了不生效就得出声**，
+// 那两个字段就是写了不算数。平台立的规矩是**写了不生效就得出声**，
 // 而这一条从前完全没守：配了 exposePort: 8888 的人打开浏览器访问 8888
 // 什么都没有，而 up 全程一个字不说。
 //
@@ -311,7 +311,7 @@ func (p *plan) assignHostPorts() error {
 		}
 	}
 
-	// 4) 没写 localPort 的自动分配（005 §4.6，延后项 P3）
+	// 4) 没写 localPort 的自动分配
 	//
 	//    默认就用组件**自己声明的主端口**：进程在容器里监听的是它，
 	//    搬到宿主机上跑的还是同一份代码，监听的当然也是它。直接从 8081 起分配
@@ -329,7 +329,7 @@ func (p *plan) assignHostPorts() error {
 		p.locals[i].Port = port
 	}
 
-	// 5) local 组件（以及裸进程外壳承载的成员）要访问的容器依赖 → 映射到宿主机（005 §4.8）
+	// 5) local 组件（以及裸进程外壳承载的成员）要访问的容器依赖 → 映射到宿主机
 	for _, l := range p.locals {
 		for _, dep := range p.runningDependencies(l.Ref) {
 			p.mapDependencyToHost(ports, dep)
@@ -344,7 +344,7 @@ func (p *plan) assignHostPorts() error {
 		}
 	}
 
-	// 基础资源不在这里：平台不部署它们（006 §9.1），它们本来就在容器网络之外。
+	// 基础资源不在这里：平台不部署它们，它们本来就在容器网络之外。
 	// 宿主机上的进程按声明的地址直接连得上，没有可映射的端口。
 	return nil
 }
@@ -399,7 +399,7 @@ func (p *plan) mapDependencyToHost(ports *portTable, dep resolver.Ref) {
 		return
 	}
 
-	// 主端口：expose 已经把它映射到宿主机了，用现成的那个，不重复占一个（13.13）
+	// 主端口：expose 已经把它映射到宿主机了，用现成的那个，不重复占一个
 	//
 	// exposedPort/debugPort 判重仍然按依赖**自己**的服务名记账，即使映射
 	// 最终发布在外壳身上——两个不同的 local 组件依赖同一个 外壳成员时，
@@ -487,15 +487,15 @@ func (p *plan) hostAccessPort(dep resolver.Ref) (int, bool) {
 //
 // 它带点，因此不会被 isServiceName 判成服务名——CLI 不托管它，
 // 使用者的意思是"连宿主机上那个已经跑着的库"。但容器里默认解析不了这个名字，
-// 必须靠 extra_hosts 指到网关上（005 §7.5）。
+// 必须靠 extra_hosts 指到网关上。
 const hostMachineAlias = deploy.HostMachineAlias
 
 // extraHostsOf 返回该容器要映射到宿主机的名字。
 //
 // 两个来源：
 //
-//	mode: debug 的依赖组件  服务名 → 宿主机网关（005 §4.2）
-//	host.docker.internal    资源在宿主机上时，这个名字得能解析（P34）
+//	mode: debug 的依赖组件  服务名 → 宿主机网关
+//	host.docker.internal    资源在宿主机上时，这个名字得能解析
 //
 // 后者是真实装配时踩出来的：把资源 host 写成 host.docker.internal 之后，
 // 迁移容器直接报 `dial tcp: lookup host.docker.internal ... no such host`——
@@ -596,7 +596,7 @@ func (p *plan) hostPortsOf(c componentPlan) []string {
 // rewriteEndpointsForLocalDependencies 把指向 local 组件的地址换成 localPort。
 //
 // 服务名保持不变——靠 extra_hosts 把它解析到宿主机，容器里的代码
-// 依旧访问 `http://people-basic-1-0-0:8081`，一行都不用改（005 §4.5）。
+// 依旧访问 `http://people-basic-1-0-0:8081`，一行都不用改。
 //
 // 被外壳承载的成员同样要改：它的环境经由外壳的 JSON 在外壳进程里用，
 // 依赖一个本地调试中的组件时，拿到的也得是宿主机上那个进程的端口。
@@ -628,7 +628,7 @@ func (p *plan) rewriteEndpointsForLocalDependencies() {
 	}
 }
 
-// localEnvFiles 生成所有 local 组件的调试 env 文件（005 §4.9）。
+// localEnvFiles 生成所有 local 组件的调试 env 文件。
 func (p *plan) localEnvFiles(now time.Time) ([]LocalEnvFile, error) {
 	out := make([]LocalEnvFile, 0, len(p.locals))
 	for _, l := range p.locals {
@@ -704,7 +704,7 @@ func lookupOrNil(lookup func(string) (string, bool), name string) (string, bool)
 	return lookup(name)
 }
 
-// pointDependenciesAtLocalhost 把依赖地址改成宿主机上的映射端口（13.5）。
+// pointDependenciesAtLocalhost 把依赖地址改成宿主机上的映射端口。
 func (p *plan) pointDependenciesAtLocalhost(ref resolver.Ref, vars []inject.Var) {
 	for _, dep := range p.runningDependencies(ref) {
 		node := p.graph.Node(dep)
@@ -810,7 +810,7 @@ func needsShellQuoting(r rune) bool {
 	return true
 }
 
-// localMigrationWarnings 提醒 local 组件的迁移得自己跑（13.1）。
+// localMigrationWarnings 提醒 local 组件的迁移得自己跑。
 //
 // local 组件不生成容器，它的迁移容器也就一并没了。不说这一句，
 // 开发者会对着一句 "relation does not exist" 找半天。

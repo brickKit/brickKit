@@ -1,6 +1,6 @@
 // Package yamlcheck 找出 YAML 里**拼错或多余的字段**。
 //
-// 它服务两份使用者手写的 YAML：`brickkit.yaml`（003）与 `component.yaml`（002）。
+// 它服务两份使用者手写的 YAML：`brickkit.yaml`与 `component.yaml`。
 // 两边共用一份实现，是因为它们要防的是同一件事，而分开写只会让其中一边先烂掉
 // ——事实上 component.yaml 那边一开始就没有，见 Walk 的注释。
 package yamlcheck
@@ -29,7 +29,7 @@ import (
 //
 //	缺少数据库连接配置：DATABASE_USER（这些变量由平台按资源绑定注入）
 //
-// ——一句把**配置笔误**指向**平台**的错误。这是真实装配时踩到的（P33），
+// ——一句把**配置笔误**指向**平台**的错误。这是真实装配时踩到的，
 // 而且是最费时间的一类：使用者会去查注入引擎、查资源绑定、查组件代码，
 // 唯独不会想到自己少打了三个字母。
 //
@@ -46,7 +46,7 @@ import (
 //	migration    写成 migrations    迁移不跑，组件起来报 relation does not exist
 //	extraPorts / configSchema / resources    静默失效
 //
-// 002 §8.5.1 花了一整节警告"迁移命令写错一个字母"的后果，
+// 迁移命令写错一个字母的后果人人都知道要警惕，
 // 而字段名写错一个字母同样静默——只是从前没有任何东西看着它。
 func Walk(doc *yaml.Node, typ reflect.Type, p *clierr.ProblemSet) {
 	walkFields(doc, typ, "", p)

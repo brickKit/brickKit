@@ -16,7 +16,7 @@ import (
 	"github.com/brickkit/brickkit/internal/project"
 )
 
-// localSource 是本地目录安装源（003 §6.4）。
+// localSource 是本地目录安装源。
 //
 // 目录结构：<root>/<scope>/<name>/component.yaml
 type localSource struct {
@@ -86,7 +86,7 @@ type localManifestFile struct {
 	path string
 }
 
-// manifestFiles 枚举 <root>/<scope>/<name>/component.yaml（003 §6.4）。
+// manifestFiles 枚举 <root>/<scope>/<name>/component.yaml。
 //
 // 两道过滤各管一件事：
 //   - 目录名拼出来必须是合法组件 ID。非法 ID 进不了 brickkit.yaml，
@@ -141,7 +141,7 @@ func (s *localSource) manifestFiles() ([]localManifestFile, error) {
 	return out, nil
 }
 
-// listComponents 扫出该目录下的所有组件（003 §6.4 的 <scope>/<name>/component.yaml）。
+// listComponents 扫出该目录下的所有组件（<scope>/<name>/component.yaml）。
 //
 // 在 manifestFiles 的目录遍历之上再过一遍"表头"：读不动的文件直接跳过，
 // 表头不合格的记成 listProblem。
@@ -203,7 +203,7 @@ func (s *localSource) listError(path string, cause error) error {
 //
 // # 为什么按 ID 找时要认归档目录
 //
-// sync 的用途是"把这次不跑的组件从眼前挪开"（004 §3.9），而挪开**不等于**
+// sync 的用途是"把这次不跑的组件从眼前挪开"，而挪开**不等于**
 // 从项目里消失：brickkit.yaml 里那一行还在，级联计算就得读得到它的 Manifest。
 //
 // 不回落的话，默认约定（init 骨架把 local 源指向 ./components）下有一个
@@ -239,7 +239,7 @@ func hasManifest(dir string) bool {
 }
 
 // checkRoot 校验安装源目录本身。路径不存在是配置错误，必须报出来，
-// 而不是当作"该源没有这个组件"静默跳过（开发计划 6.2）。
+// 而不是当作"该源没有这个组件"静默跳过。
 func (s *localSource) checkRoot() error {
 	info, err := os.Stat(s.root)
 	switch {

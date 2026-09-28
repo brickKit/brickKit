@@ -359,7 +359,7 @@ func TestRunLocalComponentsReportsACrash(t *testing.T) {
 // procsup.Options.TailLines 自己的约定是 "<= 0 时用默认行数"（它自己的
 // TestTailKeepsOnlyTheConfiguredNumberOfLines 锁死的），同一个 0 在两层
 // 意思正好相反。这条测试锁住 CLI 这一层必须自己兑现"0 就是 0 行"的承诺，
-// 不能假设 procsup 内部会照办（手动验证 Task 6 Step 5 用真实进程 + 真实
+// 不能假设 procsup 内部会照办（用真实进程 + 真实
 // --crash-lines 0 才发现这个两层语义对不上的真实 bug）。
 func TestRunLocalComponentsCrashLinesZeroPrintsNoOutputLines(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {

@@ -1,4 +1,4 @@
-// 本文件覆盖 `labels` 透传在 K8s 侧的行为（002 §4.7、003 §4.11、012 §2.23）。
+// 本文件覆盖 `labels` 透传在 K8s 侧的行为。
 //
 // K8s 下它落在 **annotations** 而不是 labels，而这个选择正是要守住的东西：
 // 平台的 `app: <版本化服务名>` 是 Deployment 选择器与 NetworkPolicy 的匹配依据，

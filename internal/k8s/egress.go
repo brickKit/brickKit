@@ -1,6 +1,6 @@
 package k8s
 
-// 本文件渲染出站策略（P37）。
+// 本文件渲染出站策略。
 //
 // # 出站与入站不是对称的
 //
@@ -12,7 +12,7 @@ package k8s
 //
 //	漏了 DNS      什么都不通
 //	启动时建连    组件起不来，rollout 失败——显眼，但要等到部署时才发现
-//	首次请求建连  健康检查照过（/healthz 只查本进程，002 §9.4），业务请求失败
+//	首次请求建连  健康检查照过（/healthz 只查本进程），业务请求失败
 //
 // 更阴险的是**改策略不会杀掉已建立的连接**：正在跑的组件照常工作，
 // 问题要等到下一次重启（节点排空、升级、扩缩容）才暴露，可能是几周以后。
@@ -69,7 +69,7 @@ func dnsRule() map[string]any {
 // dependencyTargets 是"我能连谁"：本组件依赖的那些组件。
 //
 // 与入站方向是同一张图的两面（dependentSources 问的是"谁能连我"）。
-// 强弱依赖都算，理由与 D381 相同：弱依赖在对方存在时是真会去连的。
+// 强弱依赖都算，理由与入站相同：弱依赖在对方存在时是真会去连的。
 //
 // 外壳还包括它承载的成员的依赖（shell.Dependencies）：成员的代码跑在外壳 Pod 里，
 // 流量是从外壳 Pod 发出去的。
@@ -86,7 +86,7 @@ func (p *plan) dependencyTargets(c componentPlan) []any {
 		mf      *manifest.Manifest
 	}
 	var deps []depTarget
-	// 强依赖与弱依赖都算：弱依赖在对方存在时是真会去连的（D381）
+	// 强依赖与弱依赖都算：弱依赖在对方存在时是真会去连的
 	for _, ref := range append(requires, optional...) {
 		if dep, ok := running[ref]; ok {
 			deps = append(deps, depTarget{service: dep.Service, mf: dep.Manifest})

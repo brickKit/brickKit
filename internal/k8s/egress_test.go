@@ -1,6 +1,6 @@
 package k8s_test
 
-// 本文件是 P37「出站策略」的业务行为测试。
+// 本文件是「出站策略」的业务行为测试。
 //
 // # 出站与入站不是对称的，这里有个真陷阱
 //
@@ -12,7 +12,7 @@ package k8s_test
 //
 //	漏了 DNS      什么都不通
 //	启动时建连    组件起不来，rollout 失败
-//	首次请求建连  健康检查照过（/healthz 只查本进程，002 §9.4），业务请求失败
+//	首次请求建连  健康检查照过（/healthz 只查本进程），业务请求失败
 //
 // 最阴险的一点也是实测的：**改策略不会杀掉已建立的连接**。
 // 正在跑的组件照常工作，问题要等到下一次重启（节点排空、升级、扩缩容）
@@ -93,8 +93,8 @@ func TestEgressNotGeneratedByDefault(t *testing.T) {
 	doc := b.doc(npPath("people-basic-1-0-0"))
 
 	assert.Equal(t, []any{"Ingress"}, dig(t, doc, "spec", "policyTypes"),
-		"P37：不开出站时 policyTypes 只有 Ingress")
-	assert.NotContains(t, doc["spec"], "egress", "P37：不该有 egress 段")
+		"不开出站时 policyTypes 只有 Ingress")
+	assert.NotContains(t, doc["spec"], "egress", "不该有 egress 段")
 }
 
 // ============================================================
@@ -106,7 +106,7 @@ func TestEgressAddsEgressPolicyType(t *testing.T) {
 	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
 
 	assert.Equal(t, []any{"Ingress", "Egress"},
-		dig(t, b.doc(npPath("people-basic-1-0-0")), "spec", "policyTypes"), "P37")
+		dig(t, b.doc(npPath("people-basic-1-0-0")), "spec", "policyTypes"), "出站策略")
 }
 
 // DNS 由平台**自动**放行，不需要任何声明。
@@ -125,11 +125,11 @@ func TestEgressAlwaysAllowsDNS(t *testing.T) {
 	rule := ruleWithPort(t, b.doc(npPath("people-basic-1-0-0")), 53)
 
 	assert.Equal(t, []any{map[string]any{"namespaceSelector": map[string]any{}}},
-		rule["to"], "P37：DNS 放行集群内任意命名空间")
+		rule["to"], "DNS 放行集群内任意命名空间")
 	assert.Equal(t, []any{
 		map[string]any{"protocol": "UDP", "port": 53},
 		map[string]any{"protocol": "TCP", "port": 53},
-	}, rule["ports"], "P37：UDP 与 TCP 都要放——大响应会退回 TCP")
+	}, rule["ports"], "UDP 与 TCP 都要放——大响应会退回 TCP")
 }
 
 // 组件依赖从**依赖图**推导，不用声明。
@@ -149,14 +149,14 @@ func TestEgressAllowsDependencies(t *testing.T) {
 
 	assert.Equal(t, []any{map[string]any{
 		"podSelector": map[string]any{"matchLabels": map[string]any{"app": "people-basic-1-0-0"}},
-	}}, rule["to"], "P37：出站目标是被依赖方")
+	}}, rule["to"], "出站目标是被依赖方")
 	assert.Equal(t, []any{
 		map[string]any{"protocol": "TCP", "port": 8080},
 		map[string]any{"protocol": "TCP", "port": 9090},
-	}, rule["ports"], "P37：被依赖方声明过的端口都要放（gRPC 常在 extraPorts）")
+	}, rule["ports"], "被依赖方声明过的端口都要放（gRPC 常在 extraPorts）")
 }
 
-// 弱依赖也要放行——与入站方向同一个道理（D381）。
+// 弱依赖也要放行——与入站方向同一个道理。
 func TestEgressAllowsOptionalDependencies(t *testing.T) {
 	b := withEgress(newBuilder(t))
 	b.component(simple("infra/redis-event-bus", "1.0.0", 8080),
@@ -182,7 +182,7 @@ func TestEgressAllowsOptionalDependencies(t *testing.T) {
 			}
 		}
 	}
-	assert.True(t, found, "P37：弱依赖运行时照样会连，必须放行")
+	assert.True(t, found, "弱依赖运行时照样会连，必须放行")
 }
 
 // ============================================================
@@ -204,7 +204,7 @@ func TestEgressAllowsDeclaredResource(t *testing.T) {
 			"matchLabels": map[string]any{"kubernetes.io/metadata.name": "infra"},
 		},
 		"podSelector": map[string]any{"matchLabels": map[string]any{"app": "postgres"}},
-	}}, rule["to"], "P37：命名空间与标签同样是 AND")
+	}}, rule["to"], "命名空间与标签同样是 AND")
 }
 
 // 集群外的目标用 CIDR。
@@ -217,7 +217,7 @@ func TestEgressAllowsCIDR(t *testing.T) {
 	rule := ruleWithPort(t, b.doc(npPath("people-basic-1-0-0")), 443)
 
 	assert.Equal(t, []any{map[string]any{"ipBlock": map[string]any{"cidr": "34.0.0.0/8"}}},
-		rule["to"], "P37：集群外目标走 ipBlock")
+		rule["to"], "集群外目标走 ipBlock")
 }
 
 // ============================================================

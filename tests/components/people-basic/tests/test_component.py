@@ -1,4 +1,4 @@
-"""组件对平台的承诺（开发计划 22.2、22.5、22.9、22.10）。
+"""组件对平台的承诺。
 
 这些不是业务功能，而是"能不能被平台装配"的前提。
 """
@@ -23,7 +23,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 # ============================================================
-# 22.10 extraPorts / 22.9 artifacts
+# extraPorts / artifacts
 # ============================================================
 
 
@@ -32,9 +32,9 @@ def load_manifest() -> dict:
 
 
 def test_manifest_declares_extra_grpc_port() -> None:
-    """22.10：Python 的 grpcio 不能与 HTTP 共用端口，必须声明 extraPorts。
+    """Python 的 grpcio 不能与 HTTP 共用端口，必须声明 extraPorts。
 
-    平台据此注入 PEOPLE_BASIC_GRPC_ENDPOINT（004 §5.6），
+    平台据此注入 PEOPLE_BASIC_GRPC_ENDPOINT，
     调用方才知道 gRPC 在哪个端口上。
     """
     deployment = load_manifest()["deployment"]
@@ -57,7 +57,7 @@ def test_manifest_declares_dependencies() -> None:
 
 
 def test_manifest_declares_artifacts_that_exist() -> None:
-    """22.9：声明的产物文件必须真的存在——市场发布时按这个列表逐个上传。"""
+    """声明的产物文件必须真的存在——市场发布时按这个列表逐个上传。"""
     artifacts = load_manifest()["artifacts"]
     types = {a["type"] for a in artifacts}
 
@@ -71,12 +71,12 @@ def test_manifest_declares_artifacts_that_exist() -> None:
 def test_dockerfile_runs_as_non_root() -> None:
     text = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 
-    assert "USER " in text, "容器不得以 root 运行（008）"
+    assert "USER " in text, "容器不得以 root 运行"
     assert "USER root" not in text
 
 
 # ============================================================
-# 22.2 gRPC（extraPorts 上的 9090）
+# gRPC（extraPorts 上的 9090）
 # ============================================================
 
 
@@ -134,11 +134,11 @@ def test_grpc_and_http_agree(grpc_channel) -> None:
     assert over_grpc == over_http
 
 
-# 22.5 的迁移测试在 test_migrate.py：SQL 迁移只能对着真库测。
+# 迁移测试在 test_migrate.py：SQL 迁移只能对着真库测。
 
 
 # ============================================================
-# 配置与日志（002 §1.4、§11）
+# 配置与日志
 # ============================================================
 
 
@@ -184,7 +184,7 @@ def test_missing_strong_dependency_endpoint_is_an_error() -> None:
 
 
 def test_weak_dependency_endpoint_is_optional() -> None:
-    """22.8：弱依赖用 os.environ.get() 安全读取，缺失不是错误。"""
+    """弱依赖用 os.environ.get() 安全读取，缺失不是错误。"""
     env = {
         "DATABASE_HOST": "pg",
         "DATABASE_NAME": "people",
@@ -223,7 +223,7 @@ def test_config_repr_hides_password() -> None:
 
 
 def test_logs_are_json_with_component_id(capsys: pytest.CaptureFixture[str]) -> None:
-    """22.x / 002 §11：日志必须是 JSON，且带 componentId。"""
+    """日志必须是 JSON，且带 componentId。"""
     configure_logging("info", "people/basic")
 
     logging.getLogger("app").info("人员已加载", extra={"count": 3})

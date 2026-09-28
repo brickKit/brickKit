@@ -1,4 +1,4 @@
-// 本文件覆盖 brickkit fetch：只取产物、不装组件（003 §4.9 跨项目共用组件）。
+// 本文件覆盖 brickkit fetch：只取产物、不装组件（跨项目调用时用）。
 package cli
 
 import (
@@ -127,7 +127,7 @@ func TestFetchErrorsWhenNoArtifactSucceeds(t *testing.T) {
 	assert.Contains(t, r.stderr, "none of the artifacts")
 }
 
-// fetch 不接受多个参数：一次一个，版本要人工确认过（见 003 §4.9）。
+// fetch 不接受多个参数：一次一个，版本要人工确认过。
 func TestFetchRejectsMultipleArgs(t *testing.T) {
 	f := fetchProject(t, comp{ID: "infra/notifier", Version: "1.0.0"})
 

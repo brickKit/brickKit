@@ -19,13 +19,13 @@ const (
 	defaultSessionTTL = time.Hour
 )
 
-// config 是组件的全部配置。**只来自环境变量**（002 §1.4、006 §5.1）：
+// config 是组件的全部配置。**只来自环境变量**：
 // 组件不知道也不该知道自己被部署在哪。
 type config struct {
 	ComponentID string
 	Version     string
 	LogLevel    string
-	// PeopleEndpoint 由平台按强依赖注入（003 §4.5：PEOPLE_BASIC_ENDPOINT）。
+	// PeopleEndpoint 由平台按强依赖注入（PEOPLE_BASIC_ENDPOINT）。
 	PeopleEndpoint string
 	// AuthEndpoint 是 auth/password-login 的 HTTP 地址（强依赖）。
 	AuthEndpoint string
@@ -35,7 +35,7 @@ type config struct {
 	//
 	// 注意它来自 PEOPLE_BASIC_GRPC_ENDPOINT 而不是 PEOPLE_BASIC_ENDPOINT：
 	// people/basic 是 Python 组件，grpcio 无法与 HTTP 共用端口，因此在
-	// Manifest 里声明了 extraPorts（9090），平台据此额外注入这个变量（003 §4.5）。
+	// Manifest 里声明了 extraPorts（9090），平台据此额外注入这个变量。
 	PeopleGRPCEndpoint string
 	// EventBusEndpoint 是 infra/redis-event-bus 的地址（**弱依赖**）。
 	//
@@ -81,7 +81,7 @@ func configFromEnv(lookup func(string) string) (config, error) {
 	// 或者这个组件被手工跑起来了——两种情况都该当场说清楚。
 	//
 	// **INFRA_REDIS_EVENT_BUS_ENDPOINT 不在这里**：它是弱依赖，
-	// 缺席是正常状态（003 §4.3）。把它列进来就等于把弱依赖变成了强依赖。
+	// 缺席是正常状态。把它列进来就等于把弱依赖变成了强依赖。
 	var missing []string
 	for name, value := range map[string]string{
 		"AUTH_PASSWORD_LOGIN_ENDPOINT": cfg.AuthEndpoint,
@@ -95,7 +95,7 @@ func configFromEnv(lookup func(string) string) (config, error) {
 	if len(missing) > 0 {
 		sortStrings(missing)
 		return config{}, fmt.Errorf(
-			"缺少必需的配置：%s（这些地址由平台按 Manifest 中的强依赖注入，见 003 §4.5；"+
+			"缺少必需的配置：%s（这些地址由平台按 Manifest 中的强依赖注入；"+
 				"PEOPLE_BASIC_GRPC_ENDPOINT 来自 people/basic 声明的 extraPorts）",
 			strings.Join(missing, ", "))
 	}
@@ -127,16 +127,16 @@ func sortStrings(items []string) {
 }
 
 // ============================================================
-// 日志（002 §11）
+// 日志
 // ============================================================
 
-// 敏感字段名：这些键的值一律不写进日志（002 §11.3）。
+// 敏感字段名：这些键的值一律不写进日志。
 //
 // 这里不把 "key" 列为敏感词：本组件的日志里会出现缓存键（cacheKey），
 // 那是排障时最有用的信息之一，而且不含任何秘密。
 var sensitiveKeys = []string{"password", "token", "secret", "dsn", "credential"}
 
-// newLogger 创建 JSON 日志器，每条都带 componentId（002 §11.3）。
+// newLogger 创建 JSON 日志器，每条都带 componentId。
 func newLogger(w io.Writer, level, componentID string) *slog.Logger {
 	handler := slog.NewJSONHandler(w, &slog.HandlerOptions{
 		Level:       parseLevel(level),

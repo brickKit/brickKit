@@ -1,11 +1,9 @@
-// 本文件是 Step 18-D「HTTP 层」的业务行为测试。
+// 本文件是「HTTP 层」的业务行为测试：市场 API 参考
+// （docs/{zh,en}/11-reference/06-market-api.md）定义的路径与响应形状。
 //
-// 覆盖开发计划 18.1–18.5、18.15、18.16、18.23，以及 007 §9（API 设计）
-// 定义的路径与响应形状。
-//
-// 另外回填 P11：CLI 侧的市场安装源（internal/source/market.go）在 Step 6
-// 只对着 Mock 验证过 D47（Manifest 信封）与 D48（产物列表 + ?file= 下载）。
-// 本文件把那两条契约写成服务端的验收测试——响应形状一旦漂移，这里就红。
+// CLI 侧的市场安装源（internal/source/market.go）只对着 Mock 验证
+// Manifest 信封与产物列表 + ?file= 下载这两条契约。本文件把它们写成
+// 服务端的验收测试——响应形状一旦漂移，这里就红。
 package handler_test
 
 import (
@@ -183,7 +181,7 @@ func (f *fixture) publish(t *testing.T, token, componentID, version string) {
 }
 
 // ============================================================
-// 18.23 健康检查
+// 健康检查
 // ============================================================
 
 // 健康检查是 compose 的 healthcheck 探针（运维指南 §4），必须匿名可访问。
@@ -205,7 +203,7 @@ func TestHealthEndpointIsPublic(t *testing.T) {
 }
 
 // ============================================================
-// 18.1 组件发布
+// 组件发布
 // ============================================================
 
 func TestPublishReturns201(t *testing.T) {
@@ -227,7 +225,7 @@ func TestPublishReturns201(t *testing.T) {
 	assert.False(t, v.PublishedAt.IsZero())
 }
 
-// 发布必须认证（007 §9.6）。
+// 发布必须认证。
 func TestPublishWithoutTokenReturns401(t *testing.T) {
 	f := newFixture(t)
 
@@ -265,7 +263,7 @@ func TestPublishRejectsComponentIDMismatch(t *testing.T) {
 	assert.Equal(t, model.CodeInvalidRequest, resp.Error.Code)
 }
 
-// 18.6 / 18.7 在服务层已覆盖；这里确认校验错误经 HTTP 出去时详情不丢。
+// 在服务层已覆盖；这里确认校验错误经 HTTP 出去时详情不丢。
 func TestPublishReservedVariableConflictKeepsDetails(t *testing.T) {
 	f := newFixture(t)
 	token := f.login(t, "alice")
@@ -285,11 +283,11 @@ func TestPublishReservedVariableConflictKeepsDetails(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, resp.status, "响应：%s", resp.body)
 	require.NotNil(t, resp.Error)
 	assert.Equal(t, model.CodeReservedVariableConflict, resp.Error.Code)
-	assert.Contains(t, string(resp.body), "conflicts", "冲突详情必须随响应返回（18.7）")
+	assert.Contains(t, string(resp.body), "conflicts", "冲突详情必须随响应返回")
 	assert.Contains(t, string(resp.body), "NOTIFIER_BASE_URL", "带着避得开的新名字")
 }
 
-// 18.14 在 HTTP 层的表现：409，不是 500。
+// 在 HTTP 层的表现：409，不是 500。
 func TestPublishDuplicateVersionReturns409(t *testing.T) {
 	f := newFixture(t)
 	token := f.login(t, "alice")
@@ -322,7 +320,7 @@ func TestPublishRejectsMalformedJSON(t *testing.T) {
 }
 
 // ============================================================
-// 18.2 版本列表
+// 版本列表
 // ============================================================
 
 func TestListVersionsReturnsNewestFirst(t *testing.T) {
@@ -358,7 +356,7 @@ func TestListVersionsOfUnknownComponentReturns404(t *testing.T) {
 }
 
 // ============================================================
-// 18.3 获取 Manifest —— 回填 P11 / D47
+// 获取 Manifest
 // ============================================================
 
 // CLI 的 manifestFromBody 从 data.manifest 取 Manifest，
@@ -403,7 +401,7 @@ func TestManifestEndpointMatchesCLIEnvelopeContract(t *testing.T) {
 	assert.Equal(t, "1.2.0", metadata["version"])
 }
 
-// CLI 靠 404 判断"这个源没有该组件"，然后继续尝试下一个安装源（D40）。
+// CLI 靠 404 判断"这个源没有该组件"，然后继续尝试下一个安装源。
 // 任何别的状态码都会中断整条源链。
 func TestManifestOfUnknownVersionReturns404(t *testing.T) {
 	f := newFixture(t)
@@ -418,7 +416,7 @@ func TestManifestOfUnknownVersionReturns404(t *testing.T) {
 }
 
 // ============================================================
-// 18.4 / 18.5 产物上传与下载 —— 回填 P11 / D48
+// 产物上传与下载
 // ============================================================
 
 // protoArtifact 是一份带文件的产物声明。
@@ -521,7 +519,7 @@ func TestUploadArtifactWithoutFileParamReturns400(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, resp.status, "响应：%s", resp.body)
 }
 
-// 18.5 + D48：下载端点返回文件正文本身，不是 JSON 信封。
+// 下载端点返回文件正文本身，不是 JSON 信封。
 func TestDownloadArtifactReturnsRawFileContent(t *testing.T) {
 	f := newFixture(t)
 	token := f.login(t, "alice")
@@ -545,7 +543,7 @@ func TestDownloadArtifactReturnsRawFileContent(t *testing.T) {
 		"应带文件名，便于浏览器与 curl -O 直接落盘")
 }
 
-// 同一个产物的不同文件靠 ?file= 区分（D48）。
+// 同一个产物的不同文件靠 ?file= 区分。
 func TestDownloadArtifactSelectsFileByQueryParam(t *testing.T) {
 	f := newFixture(t)
 	token := f.login(t, "alice")
@@ -579,7 +577,7 @@ func TestDownloadUndeclaredFileReturns404(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, resp.status, "响应：%s", resp.body)
 }
 
-// D48：产物列表必须给出 id / type / format / files，CLI 用它把
+// 产物列表必须给出 id / type / format / files，CLI 用它把
 // Manifest 里的产物声明映射到下载用的 artifactId。
 func TestArtifactListMatchesCLIContract(t *testing.T) {
 	f := newFixture(t)
@@ -614,10 +612,10 @@ func TestArtifactListMatchesCLIContract(t *testing.T) {
 }
 
 // ============================================================
-// 18.15 组件搜索
+// 组件搜索
 // ============================================================
 
-// 007 §4.2 的响应形状：data.items + data.total。
+// 搜索的响应形状：data.items + data.total。
 func TestSearchComponentsReturnsItemsAndTotal(t *testing.T) {
 	f := newFixture(t)
 	token := f.login(t, "alice")
@@ -684,7 +682,7 @@ func TestSearchComponentsFiltersByTags(t *testing.T) {
 }
 
 // total 是"符合条件的总数"，不是"这一页的条数"——
-// 否则前端永远算不出还有几页（007 §4.2）。
+// 否则前端永远算不出还有几页。
 func TestSearchTotalCountsBeyondCurrentPage(t *testing.T) {
 	f := newFixture(t)
 	token := f.login(t, "alice")
@@ -742,10 +740,10 @@ func TestSearchWithNoMatchesReturnsEmptyArrayNotNull(t *testing.T) {
 }
 
 // ============================================================
-// 18.16 组件详情
+// 组件详情
 // ============================================================
 
-// 007 §4.3：详情页要一次给出组件元数据 + 版本列表 + 最新版本。
+// 详情页要一次给出组件元数据 + 版本列表 + 最新版本。
 func TestComponentDetailReturnsMetadataAndVersions(t *testing.T) {
 	f := newFixture(t)
 	token := f.login(t, "alice")
@@ -791,7 +789,7 @@ func TestComponentDetailOfUnknownComponentReturns404(t *testing.T) {
 }
 
 // ============================================================
-// 18.19 / 18.20 注册与登录
+// 注册与登录
 // ============================================================
 
 func TestRegisterEndpointReturns201WithoutPasswordHash(t *testing.T) {
@@ -831,7 +829,7 @@ func TestRegisterDuplicateUsernameReturns409(t *testing.T) {
 	assert.Equal(t, model.CodeConflict, resp.Error.Code)
 }
 
-// 登录返回的 Token 与过期时间，就是 CLI 写进 .brickkit/credentials 的内容（004 §5.3）。
+// 登录返回的 Token 与过期时间，就是 CLI 写进 .brickkit/credentials 的内容。
 func TestLoginEndpointReturnsTokenAndExpiry(t *testing.T) {
 	f := newFixture(t)
 	f.login(t, "alice")
@@ -891,7 +889,7 @@ func TestLogoutInvalidatesToken(t *testing.T) {
 }
 
 // ============================================================
-// 18.21 未认证访问 private 组件
+// 未认证访问 private 组件
 // ============================================================
 
 func TestPrivateComponentIsInvisibleToAnonymous(t *testing.T) {
@@ -955,7 +953,7 @@ func TestAccessPolicyListRequiresOwner(t *testing.T) {
 }
 
 // ============================================================
-// 18.17 / 18.18 状态与可见性变更
+// 状态与可见性变更
 // ============================================================
 
 func TestVersionStatusEndpointDeprecates(t *testing.T) {
@@ -968,7 +966,7 @@ func TestVersionStatusEndpointDeprecates(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.status, "响应：%s", resp.body)
 
 	manifest := f.do(t, http.MethodGet, versionPath("people/basic", "1.0.0")+"/manifest", "", nil)
-	require.Equal(t, http.StatusOK, manifest.status, "deprecated 仍然可安装（007 §6.1）")
+	require.Equal(t, http.StatusOK, manifest.status, "deprecated 仍然可安装")
 
 	var data struct {
 		Status string `json:"status"`
@@ -977,7 +975,7 @@ func TestVersionStatusEndpointDeprecates(t *testing.T) {
 	assert.Equal(t, model.VersionDeprecated, data.Status)
 }
 
-// 007 §6.3：blocked 只有市场管理员能标记。
+// blocked 只有市场管理员能标记。
 func TestBlockingVersionRequiresAdmin(t *testing.T) {
 	f := newFixture(t)
 	owner := f.login(t, "alice")
@@ -1030,7 +1028,7 @@ func TestVisibilityChangeByOtherUserReturns403(t *testing.T) {
 }
 
 // ============================================================
-// 18.24 软删除 / 18.25 blocked 不可安装
+// 软删除 / blocked 不可安装
 // ============================================================
 
 func TestDeleteVersionIsSoftAndVersionNumberStaysTaken(t *testing.T) {
@@ -1076,7 +1074,7 @@ func TestBlockedVersionIsNotInstallable(t *testing.T) {
 }
 
 // ============================================================
-// 18.13 审计
+// 审计
 // ============================================================
 
 // 审计里有"谁下载了什么"，必须登录才能看。
@@ -1149,7 +1147,7 @@ func TestErrorEnvelopeShape(t *testing.T) {
 	assert.NotContains(t, string(resp.body), `"data"`, "失败响应不该带 data")
 }
 
-// 组件 ID 是两段式 scope/name（002 §10.3）：一段的路径不是有效组件 ID。
+// 组件 ID 是两段式 scope/name：一段的路径不是有效组件 ID。
 func TestSingleSegmentComponentIDIsNotFound(t *testing.T) {
 	f := newFixture(t)
 

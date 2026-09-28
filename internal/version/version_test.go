@@ -7,17 +7,17 @@ import (
 )
 
 func TestManifestAPIVersion(t *testing.T) {
-	// 002 §2：Manifest 的 apiVersion 固定为 brickkit/v1。
+	// Manifest 的 apiVersion 固定为 brickkit/v1。
 	assert.Equal(t, "brickkit/v1", ManifestAPIVersion)
 }
 
 func TestDeployTargets(t *testing.T) {
-	// 003 §3：部署目标只有 docker 与 k8s 两种。
+	// 部署目标只有 docker 与 k8s 两种。
 	assert.Equal(t, []string{"docker", "k8s"}, DeployTargets)
 	assert.Equal(t, "docker, k8s", SupportedTargets())
 }
 
-// 004 §11.3：版本号输出格式为 "v1.0.0"，已带 v 前缀时不重复添加。
+// 版本号输出格式为 "v1.0.0"，已带 v 前缀时不重复添加。
 func TestDisplay(t *testing.T) {
 	original := Version
 	defer func() { Version = original }()

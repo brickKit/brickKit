@@ -1,4 +1,4 @@
-// 本文件是 Step 18-D 中间件的测试。
+// 本文件是中间件的测试。
 package middleware_test
 
 import (
@@ -98,7 +98,7 @@ func TestAccessLogDefaultsToStatus200(t *testing.T) {
 	assert.Contains(t, logs.lines[0], "200")
 }
 
-// 凭据绝不进日志（008 §5）。
+// 凭据绝不进日志。
 func TestAccessLogDoesNotLogAuthorizationHeaderOrQuery(t *testing.T) {
 	logs := &recorder{}
 	h := middleware.AccessLog(logs.logf)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

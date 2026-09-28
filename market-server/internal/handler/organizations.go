@@ -1,6 +1,6 @@
 package handler
 
-// 本文件实现组织管理的三个端点（007 §9.5）。
+// 本文件实现组织管理的三个端点。
 
 import (
 	"net/http"
@@ -51,7 +51,7 @@ func (a *api) createOrganization(w http.ResponseWriter, r *http.Request, _ param
 // addOrganizationMember 处理 POST /api/v1/organizations/{id}/members。
 //
 // 这是组织成员关系的**唯一**写入口，而成员关系就是 private 组件的授权本身
-// （007 §5.3）——因此它必须有门：只有组织所有者与市场管理员能进。
+// ——因此它必须有门：只有组织所有者与市场管理员能进。
 func (a *api) addOrganizationMember(w http.ResponseWriter, r *http.Request, p params) {
 	id, err := a.identity(r)
 	if err != nil {

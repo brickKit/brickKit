@@ -51,7 +51,7 @@ func (s *Service) EnsureAdmin(ctx context.Context, username, password string) er
 
 // ResetAdminPassword 重置管理员口令（运维指南 §9 Q5：忘记管理员密码）。
 //
-// EnsureAdmin 有意不覆盖口令（见 D118），所以"救回管理员账号"需要这条显式路径。
+// EnsureAdmin 有意不覆盖口令，所以"救回管理员账号"需要这条显式路径。
 // 它同时做三件事：改口令、确保管理员权限、**吊销该账号已签发的全部令牌**——
 // 会走到这里通常意味着凭据已经不可信，留着旧 Token 等于没改。
 func (s *Service) ResetAdminPassword(ctx context.Context, username, password string) error {

@@ -1,6 +1,6 @@
 // 本文件盯 component.yaml 的未知字段检查。
 //
-// 这条检查 brickkit.yaml 那边早就有（P33），component.yaml 这边一直没有。
+// 这条检查 brickkit.yaml 那边早就有，component.yaml 这边一直没有。
 // 两份文件都是使用者手写的，而 component.yaml 这边其实**更危险**：
 // brickkit.yaml 的必填字段写错了，语义校验会兜住（"project 缺失"）；
 // component.yaml 里真正会咬人的是**可选字段**——它们没有任何兜底，
@@ -39,7 +39,7 @@ func TestUnknownOptionalFieldIsRejected(t *testing.T) {
 			yaml:    minimalYAML + "migrations:\n  command: [\"./migrate\"]\n",
 			wrong:   "migrations",
 			guess:   "migration",
-			fallout: "迁移不跑，组件起来报 relation does not exist（002 §8.5.1）",
+			fallout: "迁移不跑，组件起来报 relation does not exist",
 		},
 		{
 			name:    "configSchema",

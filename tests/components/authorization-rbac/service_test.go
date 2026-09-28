@@ -13,7 +13,7 @@ import (
 	authorizationv1 "github.com/brickkit/components/authorization-rbac/gen/authorization/v1"
 )
 
-// 本文件覆盖开发计划 24.1（HTTP）、24.4 / 24.5（健康检查），
+// 本文件覆盖 HTTP 接口与健康检查，
 // 以及这个组件真正难的地方：**权限从哪来、算不出来的时候怎么办**。
 
 // ============================================================
@@ -111,7 +111,7 @@ func stringsOf(t *testing.T, value any) []string {
 }
 
 // ============================================================
-// 24.1 HTTP API
+// HTTP API
 // ============================================================
 
 // TestListPermissionsMergesDirectAndDepartment 是这个组件的核心语义。
@@ -256,7 +256,7 @@ func TestCheckDeniedIsNot403(t *testing.T) {
 }
 
 // ============================================================
-// 24.3 Redis 缓存
+// Redis 缓存
 // ============================================================
 
 // TestSecondCallHitsCache：第二次查询不再回源。
@@ -414,7 +414,7 @@ func TestUnknownPersonIsNotAnError(t *testing.T) {
 }
 
 // ============================================================
-// 24.4 / 24.5 健康检查
+// 健康检查
 // ============================================================
 
 func TestHealthzReturns200(t *testing.T) {
@@ -429,7 +429,7 @@ func TestHealthzReturns200(t *testing.T) {
 	}
 }
 
-// TestHealthzDoesNotTouchRedisOrDependencies 是 24.5 与 002 §9.4。
+// TestHealthzDoesNotTouchRedisOrDependencies 是健康检查的硬约束：只查本进程。
 //
 // 依赖全挂时健康检查仍要 200：它只回答"本进程还活着吗"。
 // 去查 Redis 的话，Redis 一抖，编排系统就会把这些**本身完全正常**的容器
@@ -468,7 +468,7 @@ func TestStorageFailureIsUnavailable(t *testing.T) {
 }
 
 // ============================================================
-// 24.2 gRPC 与 HTTP 必须给出同一个答案
+// gRPC 与 HTTP 必须给出同一个答案
 // ============================================================
 
 // TestGRPCAndHTTPAgree 锁住"一份逻辑、两个协议出口"。

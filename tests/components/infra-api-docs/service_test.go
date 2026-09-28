@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// 本文件覆盖开发计划 28.1（Swagger UI 展示）、28.2（gRPC 文档）、
-// **28.3（弱依赖组件不可用时不崩溃）**——最后一条是这个组件存在的理由。
+// 本文件覆盖 Swagger UI 展示、gRPC 文档，
+// 以及**弱依赖组件不可用时不崩溃**——最后一条是这个组件存在的理由。
 
 func quietLogger() *slog.Logger {
 	return slog.New(slog.NewJSONHandler(io.Discard, nil))
@@ -87,7 +87,7 @@ func sourceOf(t *testing.T, sources []map[string]any, componentID string) map[st
 const sampleSpec = `{"openapi":"3.0.3","info":{"title":"people/basic","version":"1.0.0"},"paths":{}}`
 
 // ============================================================
-// 28.1 抓到并展示 OpenAPI
+// 抓到并展示 OpenAPI
 // ============================================================
 
 func TestDiscoversOpenAPI(t *testing.T) {
@@ -105,7 +105,7 @@ func TestDiscoversOpenAPI(t *testing.T) {
 
 // TestOpenAPIIsProxiedThroughThisComponent 说明为什么要代理。
 //
-// 那些组件默认不暴露端口（008 §5.2），浏览器根本连不上；就算连得上也会撞跨域。
+// 那些组件默认不暴露端口，浏览器根本连不上；就算连得上也会撞跨域。
 // 由本组件代理是唯一走得通的路。
 func TestOpenAPIIsProxiedThroughThisComponent(t *testing.T) {
 	backend := fakeComponent(t, sampleSpec)
@@ -145,12 +145,12 @@ func TestEndpointsAreNotLeaked(t *testing.T) {
 }
 
 // ============================================================
-// 28.3 弱依赖不可用时不崩溃
+// 弱依赖不可用时不崩溃
 // ============================================================
 
 // TestAbsentComponentIsNotAnError 是这个组件最核心的一条。
 //
-// 弱依赖缺席时平台**完全不注入**那个地址变量（003 §4.3、开发进度 D140）。
+// 弱依赖缺席时平台**完全不注入**那个地址变量。
 // 这是**正常状态**，不是故障——把它当成错误，等于要求使用者必须把七个组件
 // 全装上才能看文档。
 func TestAbsentComponentIsNotAnError(t *testing.T) {

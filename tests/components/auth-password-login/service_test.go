@@ -9,8 +9,7 @@ import (
 	"testing"
 )
 
-// 本文件覆盖开发计划 23.1 / 23.3 / 23.4 的 HTTP 行为，
-// 以及 002 §9.4（健康检查不越界）与 008（认证组件的基本底线）。
+// 本文件覆盖 HTTP 行为、健康检查不越界，以及认证组件的基本底线。
 
 // ============================================================
 // 夹具
@@ -78,7 +77,7 @@ func login(t *testing.T, svc *service, body string) (int, map[string]any) {
 }
 
 // ============================================================
-// 23.1 登录 API 正常
+// 登录 API 正常
 // ============================================================
 
 func TestLoginReturnsToken(t *testing.T) {
@@ -122,7 +121,7 @@ func TestLoginResponseNeverLeaksHash(t *testing.T) {
 }
 
 // ============================================================
-// 23.3 密码错误返回 401
+// 密码错误返回 401
 // ============================================================
 
 func TestLoginRejectsWrongPassword(t *testing.T) {
@@ -193,7 +192,7 @@ func TestLoginRejectsWrongMethod(t *testing.T) {
 }
 
 // ============================================================
-// 强依赖 people/basic 的行为（002 §6：强依赖不可用要如实报）
+// 强依赖 people/basic 的行为（强依赖不可用要如实报）
 // ============================================================
 
 // TestLoginReportsDependencyOutageAsUnavailable：people/basic 挂了是 503，不是 401。
@@ -253,7 +252,7 @@ func TestTokenCarriesPersonInfoFromDependency(t *testing.T) {
 }
 
 // ============================================================
-// 23.4 健康检查
+// 健康检查
 // ============================================================
 
 func TestHealthzReturns200(t *testing.T) {
@@ -268,7 +267,7 @@ func TestHealthzReturns200(t *testing.T) {
 	}
 }
 
-// TestHealthzDoesNotTouchDependencies 是 002 §9.4 的硬约束。
+// TestHealthzDoesNotTouchDependencies 是健康检查的硬约束：只查本进程。
 //
 // 健康检查只回答"本进程还活着吗"。若它去查库、去调 people/basic，
 // 那么依赖一抖，编排系统就会把这个**本身完全正常**的容器杀掉重启——
@@ -301,7 +300,7 @@ func TestStorageFailureIsNotAuthFailure(t *testing.T) {
 		t.Fatalf("期望 503，实际 %d：%v", code, body)
 	}
 
-	// 底层错误不外泄（004 §错误信息不暴露内部实现细节）
+	// 底层错误不外泄（错误信息不暴露内部实现细节）
 	raw, _ := json.Marshal(body)
 	for _, leaked := range []string{"pq:", "sql", "connection refused", "postgres"} {
 		if strings.Contains(strings.ToLower(string(raw)), leaked) {
@@ -316,7 +315,7 @@ func TestStorageFailureIsNotAuthFailure(t *testing.T) {
 
 // TestVerifyAcceptsIssuedToken 说明这个端点为什么存在。
 //
-// 计划里 Step 23 只要求"签发 JWT"。但令牌是用 HS256 签的——密钥只有本组件
+// 只"签发 JWT"是不够的：令牌是用 HS256 签的——密钥只有本组件
 // 有，别的组件拿到令牌根本验不了。没有这个端点，签出去的令牌对下游
 // （erp/backend、authorization/rbac）就是一串不可用的字符串。
 func TestVerifyAcceptsIssuedToken(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// 本文件覆盖 002 §1.4（配置只从环境变量读）、§11（JSON 日志）与
+// 本文件覆盖配置只从环境变量读、JSON 日志与
 // "组件对平台的承诺"（Manifest 声明的产物真的在、镜像不以 root 运行）。
 
 func envOf(pairs map[string]string) func(string) string {
@@ -185,7 +185,7 @@ func TestLoggerRedactsSecrets(t *testing.T) {
 }
 
 // ============================================================
-// 参数解析（002 §8.5.1）
+// 参数解析
 // ============================================================
 
 func TestParseArgsRejectsUnknown(t *testing.T) {

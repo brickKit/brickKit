@@ -1,6 +1,6 @@
 package k8s
 
-// 本文件负责把生成结果落到 .brickkit/generated/k8s/ 下（005 §5、开发计划 16.13）。
+// 本文件负责把生成结果落到 .brickkit/generated/k8s/ 下。
 
 import (
 	"os"

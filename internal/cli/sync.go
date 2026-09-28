@@ -1,9 +1,9 @@
 package cli
 
-// 本文件实现 brickkit sync（004 §3.9）：按级联计算结果整理组件源码工作区。
+// 本文件实现 brickkit sync：按级联计算结果整理组件源码工作区。
 //
 // 它与 up 共用同一套级联计算，但**只动目录，不碰引擎**：
-// 运行中的容器一个都不受影响（004 §3.9 的职责对照表）。
+// 运行中的容器一个都不受影响（up 管运行时，sync 管源码目录）。
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 	"github.com/brickkit/brickkit/internal/workspace"
 )
 
-// newSyncCommand 实现 brickkit sync（004 §3.9）。
+// newSyncCommand 实现 brickkit sync。
 func newSyncCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "sync",
@@ -39,7 +39,7 @@ func newSyncCommand(opts *Options) *cobra.Command {
 	return cmd
 }
 
-// 归档 / 激活的原因（17.12）。
+// 归档 / 激活的原因。
 //
 // 是函数而不是常量：文案要跟着语言变，包初始化时语言还没确定。
 func reasonDisabled() string { return i18n.T(msgid.CascadeReasonDisabled) }
@@ -95,10 +95,10 @@ func applyWorkspacePlan(opts *Options, layout project.Layout, actions []syncActi
 
 // focus 是"这一次哪些组件留在活跃目录"的判定结果，按**组件 ID** 归集。
 //
-// 按 ID 而不是按版本：一个组件 ID 只有一份源码目录（004 §8.1），
+// 按 ID 而不是按版本：一个组件 ID 只有一份源码目录，
 // 同 ID 的多个版本共用它。
 //
-// keep 就是 brickkit up 这次会启动的那些（003 §4.3）。
+// keep 就是 brickkit up 这次会启动的那些。
 type focus struct {
 	keep map[string]bool
 	// reason 是**没留下**的组件各自的理由，直接出现在输出里。
@@ -134,7 +134,7 @@ func syncFocus(
 
 // focusFrom 把启停判定结果折成"哪些源码留在活跃目录"。
 //
-// 与 up 完全同一套判定（003 §4.3）：两处各判一次，迟早会出现
+// 与 up 完全同一套判定：两处各判一次，迟早会出现
 // "up 会启动它、sync 却把它源码归档了"这种自相矛盾的局面。
 func focusFrom(proj *project.Project, states *cascade.Result) *focus {
 	f := newFocus(reasonRestored())
@@ -184,7 +184,7 @@ func planSync(layout project.Layout, ids []string, f *focus) []syncAction {
 	return actions
 }
 
-// skipReason 说明这个组件为什么不启动（17.12）。
+// skipReason 说明这个组件为什么不启动。
 func skipReason(id string, entry deployfile.Entry, states *cascade.Result) string {
 	if entry.IsDisabled() {
 		return reasonDisabled()
@@ -198,7 +198,7 @@ func skipReason(id string, entry deployfile.Entry, states *cascade.Result) strin
 	return reasonStopped()
 }
 
-// applySync 真的去移动目录，并如实汇报（17.11 / 17.12）。
+// applySync 真的去移动目录，并如实汇报。
 func applySync(opts *Options, layout project.Layout, actions []syncAction) error {
 	opts.Printf("%s\n", i18n.T(msgid.CliSyncWorkspaceTidying))
 

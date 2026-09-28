@@ -1,20 +1,19 @@
 // Package manifest 负责组件 Manifest（component.yaml）的解析与校验。
 //
-// 设计依据：002 组件规范 §2（Manifest 结构）、§3（依赖）、§4（部署形态）、
-// §8（迁移）、§9（健康检查）、§10（组件 ID 命名），附录 B（完整字段参考）。
+// 字段的完整说明见 component.yaml 字段参考；这里的类型就是那份参考的来源。
 package manifest
 
-// APIVersion 与 Kind 的固定值（002 §2.2）。
+// APIVersion 与 Kind 的固定值。
 const (
 	APIVersion = "brickkit/v1"
 	Kind       = "Component"
 )
 
 // DeploymentTypeContainer 是唯一合法的部署类型：
-// 所有组件都是 container，包括前端组件（002 §4.1）。
+// 所有组件都是 container，包括前端组件。
 const DeploymentTypeContainer = "container"
 
-// 健康检查类型（002 §9.1）。
+// 健康检查类型。
 const (
 	HealthCheckHTTP = "http"
 	HealthCheckTCP  = "tcp"
@@ -47,7 +46,7 @@ type Manifest struct {
 	Source string `yaml:"-"`
 }
 
-// Metadata 是组件元信息（002 §2.3）。
+// Metadata 是组件元信息。
 //
 // Version 的 jsonschema pattern 是 exactVersionRe 的等价写法（tag 里不写反斜杠，所以用 [0-9]、[.]）：
 // 与 validateMetadata 里的规则是同一份取值，改一处要改另一处，schemas_test.go 会核对（见 internal/schemagen）。
@@ -61,7 +60,7 @@ type Metadata struct {
 	APIDocs     string `yaml:"apiDocs,omitempty"`
 }
 
-// Artifact 是组件附带的产物（002 §2.3、附录 B.5）。
+// Artifact 是组件附带的产物。
 // type 与 format 都是自由字符串，平台不限枚举、不解析文件内容。
 type Artifact struct {
 	Type        string   `yaml:"type"`
@@ -70,7 +69,7 @@ type Artifact struct {
 	Files       []string `yaml:"files"`
 }
 
-// Dependencies 是组件依赖声明（002 §3）。
+// Dependencies 是组件依赖声明。
 //
 // 旧版的 resources（基础资源依赖）随 brickkit.yaml 的 resources 一起废除：
 // 组件需要的连接信息就是它 configSchema 里的环境变量（提案 §7.1）。
@@ -78,7 +77,7 @@ type Dependencies struct {
 	Components []ComponentDep `yaml:"components,omitempty"`
 }
 
-// ComponentDep 是一条组件依赖。支持两种 YAML 写法（002 §3.2）：
+// ComponentDep 是一条组件依赖。支持两种 YAML 写法：
 //
 //   - department/tree@1.0.0                 # 强依赖
 //   - id: infra/redis-event-bus@1.0.0       # 弱依赖
@@ -103,7 +102,7 @@ type ComponentDep struct {
 	Ref string `yaml:"-"`
 }
 
-// ConfigSchema 是组件的"配置说明书"（002 §6.5）。
+// ConfigSchema 是组件的"配置说明书"。
 // CLI 不用它校验使用者填写的 config 值类型，只在发布/解析时校验其自身结构。
 type ConfigSchema struct {
 	Type       string                    `yaml:"type,omitempty"`
@@ -144,7 +143,7 @@ type ItemDef struct {
 	Type string `yaml:"type" jsonschema:"optional"`
 }
 
-// Deployment 是部署声明（002 §4）。
+// Deployment 是部署声明。
 //
 // Type 与 Port 的 jsonschema 约束（enum、范围）与 validateDeployment 里的规则是同一份取值，
 // 改一处要改另一处，schemas_test.go 会核对（见 internal/schemagen）。
@@ -157,11 +156,11 @@ type Deployment struct {
 	Port       int         `yaml:"port" jsonschema:"minimum=1,maximum=65535"`
 	ExtraPorts []ExtraPort `yaml:"extraPorts,omitempty"`
 	Resources  *Resources  `yaml:"resources,omitempty"`
-	// Labels 是组件作者推荐的部署元数据（002 §4.7）。
+	// Labels 是组件作者推荐的部署元数据。
 	//
 	// 平台**不解释键值，只透传**：Docker 写进 service 的 labels，
 	// K8s 写进 Deployment 与 Pod 的 annotations。与 Resources 一样，
-	// 这里是"作者的推荐值"，brickkit.yaml 的 labels 逐键覆盖它（004 §5.6.2）。
+	// 这里是"作者的推荐值"，brickkit.yaml 的 labels 逐键覆盖它。
 	Labels map[string]string `yaml:"labels,omitempty"`
 }
 
@@ -179,7 +178,7 @@ type Shell struct {
 	Members []string `yaml:"members" jsonschema:"pattern=^[^@ ]+@[0-9]+[.][0-9]+[.][0-9]+$"`
 }
 
-// ExtraPort 是额外端口声明（附录 B.7）。
+// ExtraPort 是额外端口声明。
 //
 // Port 的 jsonschema 范围与 MinPort / MaxPort 是同一份取值，改一处要改另一处，
 // schemas_test.go 会核对（见 internal/schemagen）。
@@ -188,7 +187,7 @@ type ExtraPort struct {
 	Port int    `yaml:"port" jsonschema:"minimum=1,maximum=65535"`
 }
 
-// Resources 是推荐的资源配额（002 §4.6）。CLI 透传，不校验数值合理性。
+// Resources 是推荐的资源配额。CLI 透传，不校验数值合理性。
 type Resources struct {
 	Requests *ResourceSpec `yaml:"requests,omitempty"`
 	Limits   *ResourceSpec `yaml:"limits,omitempty"`
@@ -200,17 +199,17 @@ type ResourceSpec struct {
 	Memory string `yaml:"memory,omitempty"`
 }
 
-// Migration 是数据库迁移声明（002 §8.2）。command 必须是数组格式。
+// Migration 是数据库迁移声明。command 必须是数组格式。
 type Migration struct {
 	Command []string `yaml:"command"`
 }
 
 // Local 是组件在本机（mode: local/debug）的启动方式声明，跟 migration/healthCheck/
-// deployment 平级（005 §2）。两个字段全部可选——不写时完全依赖自动探测；写了才是
+// deployment 平级。两个字段全部可选——不写时完全依赖自动探测；写了才是
 // "探测失败/歧义时的手动覆盖出口"，不是必须完整声明的配置块。
 //
 // 没有 DebugCommand 字段：spec 原本设想 mode: local 默认产出"可调试挂载"的启动方式
-// （005 §4），但这个前提本身站不住——2026-09-22 brainstorming 澄清时查了原始记录，
+// ，但这个前提本身站不住——2026-09-22 brainstorming 澄清时查了原始记录，
 // "local 模式的动机就是要盯着它调试"这句话是早期对话里单方面断言的，用户从没这样说过、
 // 也从没确认过。真实意图是 mode: local 单纯托管启动（不涉及断点），真要调试用
 // mode: debug（用户自己在 IDE 里启动，原生调试体验）。字段与校验已随之删除。
@@ -222,7 +221,7 @@ type Local struct {
 	RunCommand []string `yaml:"runCommand,omitempty"`
 }
 
-// DefaultStartPeriodSeconds 是启动宽限期的默认值（002 §9.3）。
+// DefaultStartPeriodSeconds 是启动宽限期的默认值。
 //
 // # 为什么必须有这一段，以及为什么默认给到 60 秒
 //
@@ -236,7 +235,7 @@ type Local struct {
 //	        → **永久 CrashLoopBackOff**
 //
 // 而症状极具误导性：容器日志一路正常，最后一行往往正好是"服务已启动"。
-// 这与 002 §9.3.1（镜像里没有 wget）是同一种事故，区别在于那一种组件作者
+// 这与"镜像里没有 wget"是同一种事故，区别在于那一种组件作者
 // 能修，这一种他做对了每件事也躲不掉。
 //
 // 默认值取 60 而不是 30，是因为两个方向的失败代价完全不对称：
@@ -244,15 +243,15 @@ type Local struct {
 // ——两秒就绪的组件照样在两秒后转 healthy；给少了是整类组件起不来。
 const DefaultStartPeriodSeconds = 60
 
-// HealthCheck 是健康检查声明（002 §9）。
-// 注意：/healthz 只检查本进程存活，禁止检查外部依赖（002 §9.4）。
+// HealthCheck 是健康检查声明。
+// 注意：/healthz 只检查本进程存活，禁止检查外部依赖。
 //
 // Type 的 jsonschema enum 与 HealthCheckHTTP / TCP / None 是同一份取值，改一处要改另一处，
 // schemas_test.go 会核对（见 internal/schemagen）。
 type HealthCheck struct {
 	Type string `yaml:"type" jsonschema:"enum=http|tcp|none"`
 	Path string `yaml:"path,omitempty"`
-	// StartPeriodSeconds 是启动宽限期：这段时间内探测失败不算数（002 §9.3）。
+	// StartPeriodSeconds 是启动宽限期：这段时间内探测失败不算数。
 	//
 	// 这是 healthCheck 下**唯一**可由组件覆盖的时间参数。interval / timeout /
 	// failureThreshold 三个由平台固定：它们管的是"跑起来之后多久发现它死了"，
@@ -284,7 +283,7 @@ func (h HealthCheck) StartPeriod() int {
 // 是"最低 CLI 版本"，还是"我用到了哪些能力"。
 //
 // 顺带一提：组件用了新版本才有的**字段**时，老 CLI 现在会直接报"未知字段"
-// （002 §2.2.1）。那句话对这种情形是误导的（它不是拼写错误），
+// 。那句话对这种情形是误导的（它不是拼写错误），
 // 也正是把 minCliVersion 加回来的信号之一。
 
 // IsOptional 返回该依赖是否为弱依赖。

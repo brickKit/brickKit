@@ -9,7 +9,7 @@
     "/healthz": {
       "get": {
         "summary": "健康检查",
-        "description": "只检查本进程是否存活。**不查数据库、不调 people/basic**（002 §9.4）——否则依赖一抖，编排系统就会把这个本身完全正常的容器杀掉重启。",
+        "description": "只检查本进程是否存活。**不查数据库、不调 people/basic**——否则依赖一抖，编排系统就会把这个本身完全正常的容器杀掉重启。",
         "responses": {
           "200": {
             "description": "进程存活",

@@ -41,7 +41,7 @@ Docker 的内嵌 DNS 与 K8s 的 CoreDNS 是两个完全不同的地址，写死
 
 ## 非 root 的 nginx 需要三处改动
 
-002 §1.4 要求容器不以 root 运行。官方 nginx 镜像默认 master 进程是 root，
+平台要求容器不以 root 运行。官方 nginx 镜像默认 master 进程是 root，
 只有 worker 降权。要整个进程非 root：
 
 | 改动 | 不改会怎样 |
@@ -62,13 +62,13 @@ location = /healthz {
 ```
 
 用**精确匹配**（`location =`），避免被 `location /api/` 之类的规则捞去代理到后端 ——
-那样后端一抖，编排系统就会把这个本身完全正常的前端容器杀掉重启（002 §9.4）。
+那样后端一抖，编排系统就会把这个本身完全正常的前端容器杀掉重启。
 
 ## 配置
 
 | 环境变量 | 来源 | 必需 |
 | --- | --- | --- |
-| `ERP_BACKEND_ENDPOINT` | 平台按强依赖注入（003 §4.5） | ✅ |
+| `ERP_BACKEND_ENDPOINT` | 平台按强依赖注入 | ✅ |
 | `NGINX_LOCAL_RESOLVERS` | 容器自己从 `/etc/resolv.conf` 生成 | 自动 |
 
 没有 `configSchema`：这个组件没有任何需要使用者调的东西。
@@ -83,7 +83,7 @@ components:
     exposePort: 18080     # → ports: 18080:8080（可选，仅 Docker 环境）
 ```
 
-K8s 环境下 `expose: true` 生成的是 Ingress，`exposePort` 被忽略（003 §4.7）。
+K8s 环境下 `expose: true` 生成的是 Ingress，`exposePort` 被忽略。
 
 ## 本地运行
 

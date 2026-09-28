@@ -1,6 +1,6 @@
 package cli
 
-// 本文件是 Step 17「brickkit sync」的业务行为测试，覆盖开发计划 17.1–17.13。
+// 本文件是 「brickkit sync」的业务行为测试。
 //
 // sync 移动的是**使用者的源码目录**，而且每个组件是一个独立的 Git 仓库。
 // 断言因此落在两件事上：目录到底在哪，以及 .git 有没有被弄坏。
@@ -44,7 +44,7 @@ func newSyncFixture(t *testing.T, body string, withSource ...string) *syncFixtur
 
 // initGitRepo 在目标位置建一个真的 Git 仓库（含一次提交）。
 //
-// 用真仓库而不是空目录：17.5 / 17.6 要验证归档之后 .git 还完整、
+// 用真仓库而不是空目录：17.5 / 要验证归档之后 .git 还完整、
 // git 命令还能正常跑——那是 sync 最容易弄坏、也最要命的东西。
 func initGitRepo(t *testing.T, dir string) {
 	t.Helper()
@@ -107,7 +107,7 @@ resources: []
 `
 
 // ============================================================
-// 17.1 / 17.2 / 17.3 归档与保留
+// 归档与保留
 // ============================================================
 
 func TestSyncKeepsEnabledComponents(t *testing.T) {
@@ -139,7 +139,7 @@ func TestSyncArchivesCascadeSkippedComponent(t *testing.T) {
 }
 
 // ============================================================
-// 17.4 / 17.9 双向：归档过的还能回来
+// 双向：归档过的还能回来
 // ============================================================
 
 func TestSyncRestoresReenabledComponent(t *testing.T) {
@@ -169,7 +169,7 @@ func TestSyncIsIdempotent(t *testing.T) {
 }
 
 // ============================================================
-// 17.5 / 17.6 Git 仓库必须完好
+// Git 仓库必须完好
 // ============================================================
 
 // 归档移动的是整个目录，.git 必须原封不动地跟过去。
@@ -196,7 +196,7 @@ func TestSyncKeepsGitUsable(t *testing.T) {
 }
 
 // ============================================================
-// 17.7 没有源码的组件不受影响
+// 没有源码的组件不受影响
 // ============================================================
 
 func TestSyncIgnoresComponentsWithoutSource(t *testing.T) {
@@ -223,7 +223,7 @@ func TestSyncLeavesUnmanagedSourceAlone(t *testing.T) {
 }
 
 // ============================================================
-// 17.8 mode: debug 与 mode: enabled 一样钉在运行状态
+// mode: debug 与 mode: enabled 一样钉在运行状态
 // ============================================================
 
 // debug 的组件是使用者此刻正在 IDE 里改的，sync 绝不能把它的源码收进归档目录——
@@ -275,7 +275,7 @@ resources: []
 }
 
 // ============================================================
-// 17.10 不影响运行中的容器
+// 不影响运行中的容器
 // ============================================================
 
 // sync 只动目录，绝不碰引擎。
@@ -302,7 +302,7 @@ func TestSyncDoesNotTouchConfigOrGenerated(t *testing.T) {
 }
 
 // ============================================================
-// 17.11 / 17.12 输出
+// 输出
 // ============================================================
 
 func TestSyncOutputMarksEachAction(t *testing.T) {
@@ -344,7 +344,7 @@ func TestSyncOutputSummarizesCounts(t *testing.T) {
 }
 
 // ============================================================
-// 17.13 没什么可整理的
+// 没什么可整理的
 // ============================================================
 
 func TestSyncOnEmptyWorkspace(t *testing.T) {
@@ -435,7 +435,7 @@ func newWorkspaceFixture(t *testing.T, body string) *syncFixture {
 
 // 归档之后，即使 Manifest 缓存没了，up 照样算得出依赖图。
 //
-// `.brickkit/` 是 gitignore 的（003 §11），换台机器、清一次工作区、
+// `.brickkit/` 是 gitignore 的，换台机器、清一次工作区、
 // 或者一次 --refresh，缓存就没了。缓存不是保障，只是恰好挡住了。
 func TestSyncArchivedComponentStillResolvableWithoutCache(t *testing.T) {
 	f := newWorkspaceFixture(t, helloDisabled)

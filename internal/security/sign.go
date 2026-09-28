@@ -25,7 +25,7 @@ type SignOptions struct {
 	// PublicKeyRef 写进签名，使用者照它在 installer.publicKeys 里配公钥。
 	// 必填：这是发布者与使用者之间的契约，不能由 CLI 代为编造。
 	PublicKeyRef string
-	// SignedBy 是签名者标识（008 §8.3），如 release-bot@brickkit.io。
+	// SignedBy 是签名者标识，如 release-bot@brickkit.io。
 	SignedBy string
 	// CosignPath 是 cosign 可执行文件，留空时从 PATH 查找。
 	CosignPath string
@@ -33,7 +33,7 @@ type SignOptions struct {
 	Now func() time.Time
 }
 
-// Sign 调用 cosign 对 payload 签名（010 §6.2）。
+// Sign 调用 cosign 对 payload 签名。
 //
 // payload 应当是 CanonicalPayload 的输出。
 //
@@ -189,7 +189,7 @@ func isPasswordPromptFailure(output string) bool {
 //
 // --tlog-upload=false 不是可选优化，是必须的：cosign **默认**会把签名条目上传到
 // Sigstore 的公共 Rekor 透明日志，全世界可查。对开源组件那是优点（可审计、
-// 可发现伪造），但 BrickKit 的组件大量是 private 的（007 §5.1），默认上传等于
+// 可发现伪造），但 BrickKit 的组件大量是 private 的，默认上传等于
 // 把"某公司在某时刻发布了某个内部组件、其内容哈希是什么"公开出去。
 // 要透明日志的项目可以自建 Rekor，那是另一件事。
 //

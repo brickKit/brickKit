@@ -67,7 +67,7 @@ kubectl apply -k .
 
 `kubectl apply -k` 是 **kubectl 自带的**，不需要额外装任何东西，也不引入 release 状态——这份部署的读者是运维，不是要把市场当成产品分发出去的人。
 
-要把市场作为产品分发给第三方时，Helm chart 更合适（版本化、依赖、values schema）。那件事还没做，登记在《开发进度》的延后清单里。
+要把市场作为产品分发给第三方时，Helm chart 更合适（版本化、依赖、values schema）。那件事还没做。
 
 ---
 

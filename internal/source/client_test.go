@@ -224,14 +224,14 @@ func TestDownloadArtifactsWithoutSources(t *testing.T) {
 	assert.Contains(t, res.Warnings[0].Format(), "No sources are configured")
 }
 
-// 纵深防御：产物路径越出组件目录时拒绝写入（008）。
+// 纵深防御：产物路径越出组件目录时拒绝写入。
 func TestArtifactPathTraversalIsRefused(t *testing.T) {
 	layout := newProject(t)
 	c := newClient(t, layout, cfgWithSources(projfile.Source{
 		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
 	}), Options{})
 
-	// 绕开 Manifest 校验直接构造（正常路径下 002 §2.3 的校验已拦住）
+	// 绕开 Manifest 校验直接构造（正常路径下 Manifest 校验已拦住）
 	m := &manifest.Manifest{
 		Metadata: manifest.Metadata{ID: "department/tree", Version: "1.0.0"},
 		Artifacts: []manifest.Artifact{

@@ -1,4 +1,4 @@
-// 本文件是 Step 19 市场客户端的代码级测试。
+// 本文件是市场客户端的代码级测试。
 //
 // 业务行为（登录、发布的完整流程）在 internal/cli 的测试里；
 // 这里只管协议细节：信封解析、错误码翻译、异常响应。
@@ -213,7 +213,7 @@ func TestClientSendsBearerToken(t *testing.T) {
 	assert.Equal(t, "Bearer tok-abc", got)
 }
 
-// 组件 ID 里的斜杠是路径的一部分，不转义（007 §4.5）。
+// 组件 ID 里的斜杠是路径的一部分，不转义。
 func TestClientKeepsComponentIDSlashInPath(t *testing.T) {
 	var path, query string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

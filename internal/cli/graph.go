@@ -165,7 +165,7 @@ func renderMermaid(
 			label += i18n.T(msgid.CliGraphBrManagedLocally)
 			if entry.LocalPort > 0 {
 				// mode: local 也接受 localPort 作为"固定端口"的手动覆盖
-				// （005 §5：默认自动分配，只有想固定端口时才手动指定）
+				// （默认自动分配，只有想固定端口时才手动指定）
 				label += fmt.Sprintf(" :%d", entry.LocalPort)
 			}
 			if running {
@@ -181,10 +181,10 @@ func renderMermaid(
 	// 外壳分组：只看部署文件里外壳条目下面的成员（cascade.ShellOf），不跑环境变量注入。
 	// 外壳不在图里（目标不存在）时不成组——目标在不在是 up 在生成阶段报的事，
 	// 但"在不在图里"跟"在不在跑"是两回事：外壳存在、只是这次没跑，成员
-	// 这时会按普通组件独立部署（外壳独立部署回落设计书 §6.1），图必须
+	// 这时会按普通组件独立部署（外壳不在时成员回落为独立部署），图必须
 	// 跟着画成普通节点，不能再套进一个灰掉的外壳子图——那会画反：暗示
 	// "这段代码活在一个没在跑的外壳容器里"，而 up 真实生成的是它自己的
-	// 独立容器（006 §8："graph 读的是跟 up --dry-run 同一份解析结果"）。
+	// 独立容器（graph 读的是跟 up --dry-run 同一份解析结果）。
 	members := map[resolver.Ref][]resolver.Ref{}
 	var shells []resolver.Ref
 	inShell := map[resolver.Ref]bool{}

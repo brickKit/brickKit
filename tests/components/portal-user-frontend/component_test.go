@@ -18,13 +18,13 @@ import (
 var placeholderPattern = regexp.MustCompile(`\$\{[A-Z_][A-Z0-9_]*\}`)
 
 // ============================================================
-// 26.5 后端地址来自环境变量
+// 后端地址来自环境变量
 // ============================================================
 
 // TestConfigUsesInjectedBackendEndpoint 是 26.5。
 //
 // 前端硬编码后端地址的话，换一个部署环境这个组件就废了——而平台明明
-// 已经按强依赖把地址注入进来了（003 §4.5）。
+// 已经按强依赖把地址注入进来了。
 func TestConfigUsesInjectedBackendEndpoint(t *testing.T) {
 	conf := readFile(t, "templates/default.conf.template")
 
@@ -104,10 +104,10 @@ func TestResolverIsNotHardcoded(t *testing.T) {
 }
 
 // ============================================================
-// 26.6 健康检查
+// 健康检查
 // ============================================================
 
-// TestHealthzDoesNotProxy 是 002 §9.4 在 nginx 上的形态。
+// TestHealthzDoesNotProxy 是"健康检查只查本进程"在 nginx 上的形态。
 //
 // 健康检查若被 location /api/ 之类的规则捞去代理到后端，后端一抖，
 // 编排系统就会把这个本身完全正常的前端容器杀掉重启。

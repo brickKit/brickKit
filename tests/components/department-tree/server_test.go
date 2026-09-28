@@ -1,4 +1,4 @@
-// 本文件验证"单端口双协议"这件事本身（开发计划 21.2 / 21.3）：
+// 本文件验证"单端口双协议"这件事本身：
 // 同一个监听端口既能收 HTTP/1.1 的 REST 请求，也能收 gRPC（HTTP/2 cleartext）请求，
 // 并且 gRPC Reflection 可用（grpcurl 不带 proto 文件也能调）。
 package main
@@ -50,7 +50,7 @@ func dialGRPC(t *testing.T, addr string) *grpc.ClientConn {
 	return conn
 }
 
-// 21.1 + 21.2：同一个端口，HTTP 与 gRPC 都能用。
+// 同一个端口，HTTP 与 gRPC 都能用。
 func TestSinglePortServesBothProtocols(t *testing.T) {
 	addr := startServer(t)
 
@@ -85,7 +85,7 @@ func TestSinglePortServesBothProtocols(t *testing.T) {
 	}
 }
 
-// 21.3 gRPC Reflection 可用：grpcurl 不带 .proto 也能列出服务并调用。
+// gRPC Reflection 可用：grpcurl 不带 .proto 也能列出服务并调用。
 func TestGRPCReflectionListsService(t *testing.T) {
 	addr := startServer(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -133,7 +133,7 @@ func contains(items []string, target string) bool {
 }
 
 // 健康检查走的是 HTTP，必须在同一个端口上可达 ——
-// compose 的 healthcheck 与 K8s 探针都只认 deployment.port（002 §5.5）。
+// compose 的 healthcheck 与 K8s 探针都只认 deployment.port。
 func TestHealthzOnTheSamePort(t *testing.T) {
 	addr := startServer(t)
 

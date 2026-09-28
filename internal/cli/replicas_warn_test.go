@@ -1,8 +1,8 @@
 package cli
 
-// 本文件测「写了不生效就得出声」这条规矩（003 §3.2），两个方向都测。
+// 本文件测「写了不生效就得出声」这条规矩，两个方向都测。
 //
-// 起点是 replicas（005 §5.8，P35 前置）：Docker 目标下它完全不生效，
+// 起点是 replicas：Docker 目标下它完全不生效，
 // 不提醒的话，使用者写了 replicas: 3、`up` 一切正常、然后 `docker ps` 里
 // 只有一个容器——他会怀疑是不是自己写错了字段名，而字段名是对的。
 //
@@ -40,10 +40,10 @@ func TestReplicasOnDockerWarns(t *testing.T) {
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
-	require.Equal(t, clierr.ExitOK, r.code, "P35：是提醒不是错误：%s", r.stderr)
+	require.Equal(t, clierr.ExitOK, r.code, "是提醒不是错误：%s", r.stderr)
 	out := r.stdout + r.stderr
 	assert.Contains(t, out, "replicas",
-		"P35：Docker 下它完全不生效，不说的话使用者会以为是自己写错了字段名：%s", out)
+		"Docker 下它完全不生效，不说的话使用者会以为是自己写错了字段名：%s", out)
 }
 
 // K8s 目标下不该有这条警告。
@@ -54,11 +54,11 @@ func TestReplicasOnK8sDoesNotWarn(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.NotContains(t, r.stdout+r.stderr, "only take effect on K8s",
-		"P35：K8s 下它是生效的，再提醒就是噪音")
+		"K8s 下它是生效的，再提醒就是噪音")
 }
 
-// 003 §3.2 承诺的是"`deploy` 下除 target 外**全部**只对 K8s 生效，
-// 写了会提醒本次被忽略"。这条承诺一度只兑现了四个字段。
+// 平台承诺的是"部署文件里只对 K8s 生效的字段**全部**会在 Docker 下
+// 提醒本次被忽略"。这条承诺一度只兑现了四个字段。
 //
 // 最要紧的是 networkPolicy：写了它的人以为自己收紧了网络边界，
 // 而 Docker 下一条策略都不会生成，网络照旧全通——而且毫无提示。
@@ -99,11 +99,11 @@ func TestAllK8sOnlyFieldsWarnOnDocker(t *testing.T) {
 		"replicas", "hostname", "tlsSecret", "serviceAccountName",
 	} {
 		assert.Contains(t, out, field,
-			"003 §3.2：Docker 下写了 %s 必须提醒它被忽略了：%s", field, out)
+			"Docker 下写了 %s 必须提醒它被忽略了：%s", field, out)
 	}
 }
 
-// 反方向：K8s 目标下 exposePort 不生效，同样要出声（003 §3.2）。
+// 反方向：K8s 目标下 exposePort 不生效，同样要出声。
 //
 // 从前这个方向一个字都不查：`mode: debug` / `localPort` 有专门的报错挡着，
 // 而 exposePort 静默失效。

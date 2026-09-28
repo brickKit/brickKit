@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""检查文档里写的 brickkit 命令与参数是不是真的存在（开发计划 Step 40）。
+"""检查文档里写的 brickkit 命令与参数是不是真的存在。
 
 查三类：
 

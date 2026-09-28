@@ -21,12 +21,12 @@ import (
 	"github.com/brickkit/brickkit/internal/security"
 )
 
-// 本文件覆盖开发计划 20.2–20.5 在下载链路上的行为：
+// 本文件覆盖签名策略在下载链路上的行为：
 //
-//	20.2  有效签名 → 通过
-//	20.3  内容被篡改 → 报错
-//	20.4  requireSignature: true 且组件未签名 → 阻断
-//	20.5  requireSignature: false 且组件未签名 → 可安装
+//	有效签名 → 通过
+//	内容被篡改 → 报错
+//	requireSignature: true 且组件未签名 → 阻断
+//	requireSignature: false 且组件未签名 → 可安装
 //
 // 校验放在 internal/source 而不是 add 命令里：add / up / sync 都会取 Manifest，
 // 放在命令层就得在三个地方各写一遍，漏一个就是一条不验签的通路。
@@ -113,7 +113,7 @@ func signedComponent() componentSpec {
 }
 
 // ============================================================
-// 20.2 签名校验通过
+// 签名校验通过
 // ============================================================
 
 func TestManifestAcceptsValidSignature(t *testing.T) {
@@ -132,13 +132,13 @@ func TestManifestAcceptsValidSignature(t *testing.T) {
 }
 
 // ============================================================
-// 20.3 篡改后校验失败
+// 篡改后校验失败
 // ============================================================
 
 // TestManifestRejectsTamperedContent 模拟"市场被攻破，Manifest 被改了"。
 //
-// 签名是照原始规格签的，市场发出去的却是改过镜像的版本——这正是 008 §14.1
-// 里"组件篡改"与"市场被攻破"两条威胁的实际形态。
+// 签名是照原始规格签的，市场发出去的却是改过镜像的版本——这正是
+// "组件篡改"与"市场被攻破"两条威胁的实际形态。
 func TestManifestRejectsTamperedContent(t *testing.T) {
 	key := newSigningKey(t)
 	original := signedComponent()
@@ -190,7 +190,7 @@ func TestManifestRejectsVersionSubstitution(t *testing.T) {
 }
 
 // ============================================================
-// 20.4 / 20.5 requireSignature 的开与关
+// requireSignature 的开与关
 // ============================================================
 
 // TestRequireSignatureBlocksUnsigned 是 20.4。
@@ -287,7 +287,7 @@ func TestNoKeysConfiguredSkipsVerification(t *testing.T) {
 }
 
 // TestNoKeysConfiguredDoesNotBlockUnsignedComponents 是这一整套策略里
-// 最要紧的一条，也是整个 Step 20 最容易做错的地方。
+// 最要紧的一条，也是签名策略里最容易做错的地方。
 //
 // requireSignature **默认为 true**，而现存的每一个项目都还没配过 publicKeys。
 // 若在这种处境下因为"组件没有签名"就阻断，所有人的下一次 brickkit add 立刻
@@ -446,7 +446,7 @@ func TestCacheWithoutSignatureEnvelope(t *testing.T) {
 
 // TestLocalSourceIsNotSubjectToSignature 记录一条边界。
 //
-// 008 §8.4 说的是"从**市场**获取 Manifest 和签名"。本地安装源指向的是使用者
+// 签名约束的是"从**市场**获取 Manifest 和签名"。本地安装源指向的是使用者
 // 自己硬盘上的目录、由他自己在编辑——那里根本没有"发布者"这个角色，也就无所谓
 // 签名。若一并强制，打开 requireSignature 会让所有用本地源开发的项目当场瘫痪，
 // 结果只会是大家把它关掉——那才是真正的安全损失。

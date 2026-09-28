@@ -9,12 +9,12 @@ import (
 	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
-// envelope 是市场的统一响应信封（007 §4.2）。
+// envelope 是市场的统一响应信封。
 //
 // 成功：{"success": true, "data": ...}
 // 失败：{"success": false, "error": {"code": ..., "message": ..., "details": ...}}
 //
-// CLI 侧的 internal/source/market.go 就是按这个形状解析的（D47/D48），
+// CLI 侧的 internal/source/market.go 就是按这个形状解析的，
 // 改动信封等于改动客户端契约。
 type envelope struct {
 	Success bool            `json:"success"`
@@ -42,7 +42,7 @@ func writeError(w http.ResponseWriter, err error) {
 // asAPIError 把任意错误规整成 APIError。
 //
 // 非 APIError 说明是没被服务层包装的意外错误：对外只说"市场内部错误"，
-// 具体原因留在服务端日志里（008 §5：错误信息不泄漏内部结构）。
+// 具体原因留在服务端日志里（错误信息不泄漏内部结构）。
 func asAPIError(err error) *model.APIError {
 	var apiErr *model.APIError
 	if errors.As(err, &apiErr) {
@@ -54,7 +54,7 @@ func asAPIError(err error) *model.APIError {
 // statusOf 决定 HTTP 状态码。
 //
 // 状态码是对外契约的一部分：CLI 靠 404 判断"这个源没有该组件"从而继续
-// 尝试下一个安装源（D40），靠 401/403 提示登录。映射错了会让整条安装链跑偏。
+// 尝试下一个安装源，靠 401/403 提示登录。映射错了会让整条安装链跑偏。
 func statusOf(err *model.APIError) int {
 	if err.Status != 0 {
 		return err.Status

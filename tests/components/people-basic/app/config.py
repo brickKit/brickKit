@@ -1,6 +1,6 @@
 """配置与日志。
 
-组件的配置**只来自环境变量**（002 §1.4、006 §5.1）：
+组件的配置**只来自环境变量**：
 组件不知道也不该知道自己被部署在哪、连的是哪个库。
 """
 
@@ -17,7 +17,7 @@ from urllib.parse import quote
 HTTP_PORT = 8080
 GRPC_PORT = 9090
 
-# 日志里一律打码的字段（002 §11.3）。
+# 日志里一律打码的字段。
 SENSITIVE_KEYS = ("password", "token", "secret", "dsn", "key")
 
 
@@ -43,7 +43,7 @@ class Config:
     version: str
     log_level: str
     database: DatabaseConfig
-    # 强依赖 department/tree 的地址：平台按依赖关系注入（004 §5.6）。
+    # 强依赖 department/tree 的地址：平台按依赖关系注入。
     department_endpoint: str
     # 弱依赖 infra/redis-event-bus：**缺失是正常的**，平台完全不注入这个变量。
     event_bus_endpoint: str | None
@@ -103,13 +103,13 @@ def config_from_env(lookup: Callable[[str], str | None]) -> Config:
             password=get("DATABASE_PASSWORD"),
         ),
         department_endpoint=department_endpoint,
-        # 002 §3.4：弱依赖用 get() 安全读取，缺失不是错误
+        # 弱依赖用 get() 安全读取，缺失不是错误
         event_bus_endpoint=get("INFRA_REDIS_EVENT_BUS_ENDPOINT") or None,
     )
 
 
 # ============================================================
-# 日志（002 §11）
+# 日志
 # ============================================================
 
 
@@ -150,7 +150,7 @@ def _is_sensitive(key: str) -> bool:
 
 
 def configure_logging(level: str, component_id: str) -> None:
-    """配置根日志器：JSON 格式、输出到 stdout（002 §11.3）。"""
+    """配置根日志器：JSON 格式、输出到 stdout。"""
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JSONFormatter(component_id))
 

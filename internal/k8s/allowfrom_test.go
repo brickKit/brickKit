@@ -1,6 +1,6 @@
 package k8s_test
 
-// 本文件是 P36「NetworkPolicy 挡掉了依赖图之外的合法访问方」的业务行为测试。
+// 本文件是「NetworkPolicy 挡掉了依赖图之外的合法访问方」（allowFrom）的业务行为测试。
 //
 // 缺陷本身：生成的策略只放行依赖图里的组件，而 Prometheus 不在那张图上。
 // 组件就算在 Manifest 里声明了 `observability.metrics: true`，抓取照样被挡——
@@ -62,7 +62,7 @@ func namespaceSourcesOf(t *testing.T, doc map[string]any) []map[string]any {
 
 // 不写 allowFrom 时，生成物与之前**完全一致**。
 //
-// 这条是回归保护：P36 是给已有能力打补丁，不能顺手改了别人的行为。
+// 这条是回归保护：allowFrom 是给已有能力打补丁，不能顺手改了别人的行为。
 func TestNoAllowFromKeepsPolicyUnchanged(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
 	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
@@ -70,7 +70,7 @@ func TestNoAllowFromKeepsPolicyUnchanged(t *testing.T) {
 	doc := b.doc(npPath("people-basic-1-0-0"))
 
 	assert.Equal(t, []any{}, dig(t, doc, "spec", "ingress"),
-		"P36：没写 allowFrom 就不该多出任何规则")
+		"没写 allowFrom 就不该多出任何规则")
 }
 
 // ============================================================
@@ -88,16 +88,16 @@ func TestAllowFromAppliesToEveryComponent(t *testing.T) {
 
 	for _, service := range []string{"people-basic-1-0-0", "department-tree-1-0-0"} {
 		sources := namespaceSourcesOf(t, b.doc(npPath(service)))
-		require.Len(t, sources, 1, "P36：%s 少了图外来源", service)
+		require.Len(t, sources, 1, "%s 少了图外来源", service)
 		assert.Equal(t, map[string]any{
 			"matchLabels": map[string]any{"kubernetes.io/metadata.name": "monitoring"},
-		}, sources[0]["namespaceSelector"], "P36：%s", service)
+		}, sources[0]["namespaceSelector"], "%s", service)
 	}
 }
 
 // namespaceSelector 与 podSelector 必须在**同一个 from 元素**里。
 //
-// 与 ingressController 那条踩的是同一个坑（D384）：同一元素内是 AND，
+// 与 ingressController 那条踩的是同一个坑：同一元素内是 AND，
 // 拆成两个元素就变成"该命名空间的所有 Pod + 所有命名空间里符合标签的 Pod"。
 // 写错了照样 apply 成功、照样通，只是放行范围大得多，且没有任何迹象。
 func TestAllowFromCombinesSelectorsWithAnd(t *testing.T) {
@@ -114,7 +114,7 @@ func TestAllowFromCombinesSelectorsWithAnd(t *testing.T) {
 		"podSelector": map[string]any{
 			"matchLabels": map[string]any{"app.kubernetes.io/name": "prometheus"},
 		},
-	}, sources[0], "P36：两个 selector 必须是 AND")
+	}, sources[0], "两个 selector 必须是 AND")
 }
 
 // 不写 podSelector 就只按命名空间放行。
@@ -127,7 +127,7 @@ func TestAllowFromWithoutPodSelector(t *testing.T) {
 	require.Len(t, sources, 1)
 
 	assert.NotContains(t, sources[0], "podSelector",
-		"P36：没写 podSelector 就只按命名空间放行")
+		"没写 podSelector 就只按命名空间放行")
 }
 
 // 不写 ports 时放行组件**声明过**的全部端口。
@@ -147,7 +147,7 @@ func TestAllowFromDefaultsToAllDeclaredPorts(t *testing.T) {
 	assert.Equal(t, []any{
 		map[string]any{"protocol": "TCP", "port": 8080},
 		map[string]any{"protocol": "TCP", "port": 9090},
-	}, dig(t, rules[0], "ports"), "P36：默认放行组件声明过的全部端口")
+	}, dig(t, rules[0], "ports"), "默认放行组件声明过的全部端口")
 }
 
 // 写了 ports 就只放这些。
@@ -165,7 +165,7 @@ func TestAllowFromRestrictsToDeclaredPorts(t *testing.T) {
 	require.Len(t, rules, 1)
 
 	assert.Equal(t, []any{map[string]any{"protocol": "TCP", "port": 8080}},
-		dig(t, rules[0], "ports"), "P36：写了就只放这些")
+		dig(t, rules[0], "ports"), "写了就只放这些")
 }
 
 // ============================================================
@@ -186,10 +186,10 @@ func TestAllowFromCoexistsWithOtherRules(t *testing.T) {
 
 	doc := b.doc(npPath("portal-user-frontend-1-0-0"))
 
-	assert.True(t, allowedFrom(t, doc)["erp-backend-1-0-0"], "P36：依赖方那条还要在")
+	assert.True(t, allowedFrom(t, doc)["erp-backend-1-0-0"], "依赖方那条还要在")
 	require.Len(t, namespaceSourcesOf(t, doc), 2,
-		"P36：ingress controller 与图外来源两条都要在")
-	assert.Len(t, ingressRules(t, doc), 3, "P36：三类规则各占一条")
+		"ingress controller 与图外来源两条都要在")
+	assert.Len(t, ingressRules(t, doc), 3, "三类规则各占一条")
 }
 
 // 生成的策略上要能看出这些额外口子是为谁开的。
@@ -204,7 +204,7 @@ func TestAllowFromIsAnnotated(t *testing.T) {
 	annotations := dig(t, b.doc(npPath("people-basic-1-0-0")), "metadata", "annotations")
 
 	assert.Equal(t, "prometheus,backup", dig(t, annotations, "brickkit.io/allow-from"),
-		"P36：注解里要写清额外放行了谁")
+		"注解里要写清额外放行了谁")
 }
 
 // ============================================================

@@ -16,7 +16,7 @@ import (
 type fakeEngine struct {
 	name string
 
-	// mu 只保护 checked：镜像预检是并发的（36.1），其余调用都在单线程里
+	// mu 只保护 checked：镜像预检是并发的，其余调用都在单线程里
 	mu sync.Mutex
 
 	// 记录到的调用
@@ -33,7 +33,7 @@ type fakeEngine struct {
 	statuses []engine.Status
 	// currentContext 是引擎当前指向的集群（只有 K8s 有意义）。
 	currentContext string
-	// pruned 模拟"这次清理掉了这些孤儿资源"，通过 UpRequest.OnPrune 回传（P38）。
+	// pruned 模拟"这次清理掉了这些孤儿资源"，通过 UpRequest.OnPrune 回传。
 	pruned []string
 }
 
@@ -45,7 +45,7 @@ func (f *fakeEngine) Name() string { return f.name }
 
 func (f *fakeEngine) Up(_ context.Context, req engine.UpRequest) error {
 	f.ups = append(f.ups, req)
-	// 真引擎清理孤儿时会逐个回调；夹具照做，命令层的汇报才测得到（P38）
+	// 真引擎清理孤儿时会逐个回调；夹具照做，命令层的汇报才测得到
 	if req.OnPrune != nil {
 		for _, resource := range f.pruned {
 			req.OnPrune(resource)
@@ -87,7 +87,7 @@ func (f *fakeEngine) CurrentContext(context.Context) (string, error) {
 	return f.currentContext, nil
 }
 
-// CheckImage 会被**并发**调用（36.1 之后镜像预检是并行的），
+// CheckImage 会被**并发**调用（镜像预检是并行的），
 // 所以这里必须上锁——否则真正在 race 的是夹具，而不是被测代码。
 func (f *fakeEngine) CheckImage(_ context.Context, image string) error {
 	f.mu.Lock()

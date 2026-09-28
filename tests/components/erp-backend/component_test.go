@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// 本文件覆盖 002 §1.4（配置只从环境变量读）、§11（JSON 日志）与
+// 本文件覆盖配置只从环境变量读、JSON 日志与
 // "组件对平台的承诺"（Manifest 里的依赖声明与实现一致）。
 
 func envOf(pairs map[string]string) func(string) string {
@@ -41,8 +41,8 @@ func TestConfigFromEnv(t *testing.T) {
 
 // TestWeakDependencyIsNotRequired 是这个组件最要紧的一条配置规则。
 //
-// 弱依赖缺席时，平台**完全不注入** INFRA_REDIS_EVENT_BUS_ENDPOINT
-// （003 §4.3、开发进度 D140）。若把它列进"缺少必需配置"的校验里，
+// 弱依赖缺席时，平台**完全不注入** INFRA_REDIS_EVENT_BUS_ENDPOINT。
+// 若把它列进"缺少必需配置"的校验里，
 // 一个从没装过事件总线的项目就永远启动不了这个组件——
 // 弱依赖就此变成了事实上的强依赖。
 func TestWeakDependencyIsNotRequired(t *testing.T) {

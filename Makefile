@@ -1,8 +1,8 @@
 # BrickKit Monorepo Makefile
 #
 # 交付物：
-#   bin/brickkit         BrickKit CLI（单二进制分发，001 §4.1）
-#   bin/market-server    BrickKit Market 后端（007）
+#   bin/brickkit         BrickKit CLI（单二进制分发）
+#   bin/market-server    BrickKit Market 后端
 #
 # 本地工具链统一装在 .tools/bin，不污染系统环境。
 
@@ -57,7 +57,7 @@ define run_category
 	@echo "▶ $(1)：先验清单没失效"
 	@$(GO) test $(TESTFLAGS) ./tests/checklist/...
 	@echo ""
-	@awk -F'\t' -v C="$(1)" '!/^#/ && NF==7 && $$1==C && $$4=="test" { print $$5 "\t" $$6 "\t" $$7 }' \
+	@awk -F'\t' -v C="$(1)" '!/^#/ && NF==5 && index($$1, C ".")==1 { print $$3 "\t" $$4 "\t" $$5 }' \
 	     tests/checklist/清单.tsv | sort -u \
 	  | awk -F'\t' '{ if (k != $$1 "\t" $$2) { if (k) print k "\t" p; k=$$1 "\t" $$2; p=$$3 } \
 	                  else p = p "|" $$3 } END { if (k) print k "\t" p }' \
@@ -66,7 +66,7 @@ define run_category
 	        ( cd $$mod && $(GO) test $(TESTFLAGS) $$pkg -run "^($$names)\$$" ) || exit 1; \
 	    done
 	@echo ""
-	@echo "✅ $(1)：清单里 $$(awk -F'\t' -v C="$(1)" '!/^#/ && NF==7 && $$1==C {print $$2}' tests/checklist/清单.tsv | sort -u | wc -l) 项全部通过"
+	@echo "✅ $(1)：清单里 $$(awk -F'\t' -v C="$(1)" '!/^#/ && NF==5 && index($$1, C ".")==1 {print $$1}' tests/checklist/清单.tsv | sort -u | wc -l) 项全部通过"
 
 endef
 
@@ -133,7 +133,7 @@ lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas ch
 # 重新建一个逐行核对真实输出的检查（旧脚本在 git 历史里，机制可以照搬）。
 # check-cli-docs 拆成了两个方向：「文档写了不存在的命令/参数」（防伪造）计入
 # 退出码，重新加回 lint；「命令/参数有、文档没写」（详尽性）只打印不计入退出
-# 码——design/试用指南 归档后全仓库没有任何一份"详尽命令参考"活文档，这个
+# 码——旧文档归档后全仓库没有任何一份"详尽命令参考"活文档，这个
 # 方向注定会随 CLI 新增命令/参数永久报警，直到 docs/en/06-architecture 长出
 # 详尽命令参考为止。
 #
@@ -218,11 +218,11 @@ check-guards: ## 跑仓库级守卫：旧模型不许回来、主模块不 impor
 	@$(GO) test -count=1 ./tests/archguard/ ./tests/errorhints/
 
 .PHONY: check-docs
-check-docs: ## 检查文档引用（悬空小节号、断链、指南编号与前置）
+check-docs: ## 检查现行内容的引用（不再指向归档、规范小节真实存在、markdown 不断链）
 	@python3 scripts/check-docs.py
 
 .PHONY: check-cli-docs
-check-cli-docs: build-cli ## 检查文档里的命令与参数是否真的存在（Step 40）
+check-cli-docs: build-cli ## 检查文档里的命令与参数是否真的存在
 	@python3 scripts/check-cli-docs.py $(BIN)/brickkit
 
 .PHONY: check-doc-tree
@@ -262,19 +262,19 @@ test-unit: ## 单元测试（internal/**，测试与被测代码同处一包）
 	@$(GO) test $(TESTFLAGS) ./internal/...
 
 .PHONY: test-boundary
-test-boundary: ## 边界测试（Step 32，读 tests/checklist/清单.tsv）
+test-boundary: ## 边界测试（读 tests/checklist/清单.tsv）
 	$(call run_category,boundary)
 
 .PHONY: test-error
-test-error: ## 错误处理测试（Step 33）
+test-error: ## 错误处理测试
 	$(call run_category,error)
 
 .PHONY: test-compat
-test-compat: ## 兼容性测试（Step 34，Docker）
+test-compat: ## 兼容性测试（Docker）
 	$(call run_category,compat)
 
 .PHONY: test-security
-test-security: ## 安全测试（Step 35）
+test-security: ## 安全测试
 	$(call run_category,security)
 
 .PHONY: test-perf
@@ -286,8 +286,8 @@ test-regression: ## 回归测试（读 tests/regression/清单.tsv，先验清�
 	@echo "▶ 校验回归清单（每一项指向的测试是否仍然存在）"
 	@$(GO) test $(TESTFLAGS) ./tests/regression/...
 	@echo ""
-	@echo "▶ 执行清单里的 $$(awk -F'\t' '!/^#/ && NF==6' tests/regression/清单.tsv | wc -l | tr -d ' ') 项回归测试"
-	@awk -F'\t' '!/^#/ && NF==6 { print $$4 "\t" $$5 "\t" $$6 }' tests/regression/清单.tsv \
+	@echo "▶ 执行清单里的 $$(awk -F'\t' '!/^#/ && NF==5' tests/regression/清单.tsv | wc -l | tr -d ' ') 项回归测试"
+	@awk -F'\t' '!/^#/ && NF==5 { print $$3 "\t" $$4 "\t" $$5 }' tests/regression/清单.tsv \
 	  | sort -u \
 	  | awk -F'\t' '{ if (k != $$1 "\t" $$2) { if (k) print k "\t" p; k=$$1 "\t" $$2; p=$$3 } \
 	                  else p = p "|" $$3 } END { if (k) print k "\t" p }' \
@@ -299,7 +299,7 @@ test-regression: ## 回归测试（读 tests/regression/清单.tsv，先验清�
 	@echo "✅ 回归清单 $$(grep -c '^R' tests/regression/清单.tsv) 项全部通过"
 
 .PHONY: test-upgrade
-test-upgrade: ## 升级测试（Step 38；用例与被测代码同处一包）
+test-upgrade: ## 升级测试（用例与被测代码同处一包）
 	@n=$$(for p in ./internal/cli ./internal/compose ./internal/resolver; do \
 	        $(GO) test -list Upgrade $$p | grep -c '^Test'; done | paste -sd+ | bc); \
 	  if [ "$$n" -lt 20 ]; then \
@@ -389,7 +389,7 @@ test-components-py: ## Python 组件的测试（在容器里跑，需要 Docker�
 
 .PHONY: test-components-integration
 test-components-integration: ## 组件的迁移集成测试（需要本机 PostgreSQL，读 .env）
-	@# 组件的数据库按设计由人创建（006 §9.1：CLI 不负责建库，见各组件 README）；
+	@# 组件的数据库按设计由人创建（CLI 不负责建库，见各组件 README）；
 	@# 这里是测试夹具代劳，免得每次跑测试前手工建库
 	@set -a; . ./.env; set +a; \
 	for db in brickkit_department brickkit_people brickkit_auth brickkit_rbac; do \
@@ -423,7 +423,7 @@ test-components-integration: ## 组件的迁移集成测试（需要本机 Postg
 		brickkit-test/infra-redis-event-bus
 
 .PHONY: demo-images
-demo-images: ## 构建平台自测组件的容器镜像（Step 11-15 的真实验证靠它们）
+demo-images: ## 构建平台自测组件的容器镜像（真实部署验证靠它们）
 	@docker build -q -t brickkit-demo/caller:1.0.0 tests/components/demo-caller
 	@docker build -q -t brickkit-demo/department-tree:1.0.0 tests/components/department-tree
 	@docker build -q -t brickkit-demo/people-basic:1.0.0 tests/components/people-basic
@@ -622,7 +622,7 @@ market-image: ## 只构建市场镜像（VERSION=x.y.z 注入版本号；上下�
 		--build-arg VERSION=$(or $(VERSION),dev) .
 
 .PHONY: env
-env: ## 打印开发环境基线（对照开发计划附录 G）
+env: ## 打印开发环境基线（Go、Docker、kubectl 等工具的版本）
 	@echo "Go       : $$($(GO) version)"
 	@echo "protoc   : $$([ -x $(PROTOC) ] && $(PROTOC) --version || echo 未安装)"
 	@echo "docker   : $$(docker --version 2>/dev/null || echo 未安装)"

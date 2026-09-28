@@ -1,13 +1,13 @@
 // Package storage 定义市场的产物（artifacts）存储抽象。
 //
-// 市场需要存储组件发布时上传的 artifacts（API 契约、SDK、文档等，002 §5），
-// 每个版本独立存储（开发计划 Step 18 任务 8）。
+// 市场需要存储组件发布时上传的 artifacts（API 契约、SDK、文档等），
+// 每个版本独立存储。
 //
 // 默认实现基于 **RustFS**（S3 兼容对象存储），通过 aws-sdk-go-v2 访问。
-// 设计书 007 只要求"对象存储"，不绑定具体产品：任何 S3 兼容服务
+// 市场只要求"对象存储"，不绑定具体产品：任何 S3 兼容服务
 // （RustFS / Ceph / S3 本体）都能通过同一份配置接入。
 //
-// 本文件只建立接口骨架、连接配置与客户端构造，读写实现见 Step 18。
+// 本文件只建立接口骨架、连接配置与客户端构造，读写实现。
 package storage
 
 import (
@@ -22,7 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-// 连接配置的环境变量名（006 §6：密钥不落配置文件，只走环境变量）。
+// 连接配置的环境变量名（密钥不落配置文件，只走环境变量）。
 const (
 	EnvEndpoint  = "RUSTFS_ENDPOINT"
 	EnvAccessKey = "RUSTFS_ACCESS_KEY"

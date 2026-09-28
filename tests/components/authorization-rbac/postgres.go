@@ -10,7 +10,7 @@ import (
 
 // postgresStore 是 PostgreSQL 实现。
 //
-// 连接信息全部来自平台注入的 DATABASE_* 环境变量（006 §5.1）。
+// 连接信息全部来自平台注入的 DATABASE_* 环境变量。
 type postgresStore struct {
 	db *sql.DB
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/brickkit/brickkit/internal/version"
 )
 
-// newVersionCommand 实现 brickkit version（004 §11.3）。
+// newVersionCommand 实现 brickkit version。
 //
 // 输出格式严格对齐设计书（中文示例，英文按 internal/i18n 目录对应变化）：
 //

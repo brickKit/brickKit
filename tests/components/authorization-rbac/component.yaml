@@ -22,7 +22,7 @@ tags:
   - rbac
 
 artifacts:
-  # 契约即产物（002 §7）：调用方据此生成 gRPC 客户端
+  # 契约即产物：调用方据此生成 gRPC 客户端
   - type: api-contract
     format: protobuf
     description: gRPC API 契约文件
@@ -93,7 +93,7 @@ deployment:
   # HTTP 与 gRPC 共用这一个端口（h2c + Content-Type 分流，同 department/tree）
   port: 8080
   resources:
-    # 只声明 requests，不声明 limits（002 §4.6）：
+    # 只声明 requests，不声明 limits：
     # 组件知道自己稳态占多少，而"允许它涨到多少"是部署方的判断。
     # 而且逐字段合并意味着这里写了 limits.cpu，用它的项目就删不掉了
     requests:
@@ -103,5 +103,5 @@ deployment:
 healthCheck:
   type: http
   path: /healthz
-  # ⚠️ 只检查本进程存活，**不碰 Redis**、不查库、不调 people/basic（002 §9.4、
-  # 开发计划 24.5）。Redis 一抖就把所有副本杀掉重启，而它只是个加速器
+  # ⚠️ 只检查本进程存活，**不碰 Redis**、不查库、不调 people/basic。
+  # Redis 一抖就把所有副本杀掉重启，而它只是个加速器

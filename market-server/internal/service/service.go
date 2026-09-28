@@ -1,6 +1,6 @@
 // Package service 实现市场的业务编排：发布、查询、下载、可见性、状态与审计。
 //
-// 设计依据：007 §5（可见性与权限）、§6（版本状态）、§9（API 行为）、§16（审计）、§18（发布校验）。
+// 它承担市场的全部规则：可见性与权限、版本状态、API 行为、审计、发布校验。
 //
 // 分层约定：
 //
@@ -29,7 +29,7 @@ import (
 	"github.com/brickkit/brickkit/market-server/internal/validator"
 )
 
-// DefaultTokenTTL 是登录令牌的默认有效期（004 §5.3：CLI 会检查 expiresAt）。
+// DefaultTokenTTL 是登录令牌的默认有效期（CLI 会检查 expiresAt）。
 const DefaultTokenTTL = 30 * 24 * time.Hour
 
 // maxScanComponents 是"遍历 private 组件判断可见性"时的上限，防止无界扫描。
@@ -84,7 +84,7 @@ func New(r repo.Repository, store storage.ArtifactStore, opts Options) *Service 
 // 发布
 // ============================================================
 
-// Publish 发布一个新版本（007 §17.2、§18）。
+// Publish 发布一个新版本。
 //
 // 顺序：认证 → Manifest 校验 → 归属权检查 → 建组件 → 建版本 → 落产物元数据 → 审计。
 // 校验放在最前面：不合规的东西根本不该在库里留下任何痕迹。
@@ -117,7 +117,7 @@ func (s *Service) Publish(
 			return nil, err
 		}
 	case errors.Is(err, repo.ErrNotFound):
-		// 首次创建这个组件：这时才检查命名空间归属（007 §14.2）。
+		// 首次创建这个组件：这时才检查命名空间归属。
 		// 已存在的组件走上面的 requireOwner——那条更严格，也更具体。
 		if err := requireNamespace(id, componentID); err != nil {
 			return nil, err
@@ -219,7 +219,7 @@ func artifactRecords(componentID, version string, artifacts []manifest.Artifact)
 // 产物
 // ============================================================
 
-// UploadArtifact 上传一个产物文件（007 §9.3）。
+// UploadArtifact 上传一个产物文件。
 func (s *Service) UploadArtifact(
 	ctx context.Context, id *Identity,
 	componentID, version, artifactID, file string, r io.Reader, size int64,
@@ -242,7 +242,7 @@ func (s *Service) UploadArtifact(
 		}
 		return internalError(err)
 	}
-	// 上传的文件必须与 Manifest 声明一致（007 §18.2）
+	// 上传的文件必须与 Manifest 声明一致
 	if !containsString(artifact.Files, file) {
 		return model.Errorf(model.CodeInvalidRequest, "this file was not declared in the Manifest: "+file).
 			WithDetail("declared", artifact.Files)
@@ -277,7 +277,7 @@ func (s *Service) ListArtifacts(
 	return records, nil
 }
 
-// DownloadArtifact 下载一个产物文件，并记录下载与审计（007 §16.1）。
+// DownloadArtifact 下载一个产物文件，并记录下载与审计。
 func (s *Service) DownloadArtifact(
 	ctx context.Context, id *Identity, componentID, version, artifactID, file string,
 ) (io.ReadCloser, error) {
@@ -318,7 +318,7 @@ func (s *Service) DownloadArtifact(
 // 查询
 // ============================================================
 
-// ManifestView 是 Manifest 查询结果，附带 CLI 需要的来源信息（007 §11）。
+// ManifestView 是 Manifest 查询结果，附带 CLI 需要的来源信息。
 type ManifestView struct {
 	ComponentID string          `json:"componentId"`
 	Version     string          `json:"version"`
@@ -326,12 +326,12 @@ type ManifestView struct {
 	Manifest    json.RawMessage `json:"manifest"`
 	SourceType  string          `json:"sourceType"`
 	GitURL      string          `json:"gitUrl,omitempty"`
-	// Signature 随 Manifest 一起返回：CLI 在 add 时只请求这一个端点（007 §4.5），
+	// Signature 随 Manifest 一起返回：CLI 在 add 时只请求这一个端点，
 	// 签名不跟着回来，使用者就得再猜一次它在哪儿——或者干脆验不了。
 	Signature *model.Signature `json:"signature,omitempty"`
 }
 
-// GetManifest 获取某个版本的 Manifest（007 §4.5）。
+// GetManifest 获取某个版本的 Manifest。
 func (s *Service) GetManifest(
 	ctx context.Context, id *Identity, componentID, version string,
 ) (*ManifestView, error) {
@@ -372,7 +372,6 @@ func (s *Service) GetDoc(ctx context.Context, id *Identity, componentID, version
 	return v.Doc, nil
 }
 
-
 // ListVersions 列出组件的版本（默认隐藏 draft 与已删除版本）。
 func (s *Service) ListVersions(
 	ctx context.Context, id *Identity, componentID string,
@@ -401,7 +400,7 @@ func (s *Service) ListVersions(
 	return out, nil
 }
 
-// ComponentDetail 是组件详情（007 §4.3）。
+// ComponentDetail 是组件详情。
 type ComponentDetail struct {
 	Component     model.Component `json:"component"`
 	Versions      []string        `json:"versions"`
@@ -432,7 +431,7 @@ func (s *Service) GetComponent(
 	return detail, nil
 }
 
-// SearchResult 是一页搜索结果（007 §4.2）。
+// SearchResult 是一页搜索结果。
 type SearchResult struct {
 	// Items 是当前页的组件，永远非 nil。
 	Items []model.Component `json:"items"`
@@ -440,7 +439,7 @@ type SearchResult struct {
 	Total int `json:"total"`
 }
 
-// SearchComponents 搜索组件（007 §4.2）。
+// SearchComponents 搜索组件。
 //
 // 可见性作为查询条件下推到仓储层：先分页再过滤会导致翻页缺条目。
 func (s *Service) SearchComponents(
@@ -473,7 +472,7 @@ func (s *Service) SearchComponents(
 // 状态与可见性
 // ============================================================
 
-// SetVersionStatus 变更版本状态（007 §6.3）。
+// SetVersionStatus 变更版本状态。
 //
 // 权限：stable / deprecated 由所有者变更；blocked 只有市场管理员。
 func (s *Service) SetVersionStatus(
@@ -529,13 +528,13 @@ const maxReasonRunes = 200
 // 从前 Detail 填的就是 status 一个词，而 Action 已经是
 // component.version.status_changed 了——那一格几乎没加任何信息。
 //
-// 而 HTTP 层**一直在接收** reason（008 §10.4 与运维指南 §6.5 都在教人填），
+// 而 HTTP 层**一直在接收** reason（文档也在教人填），
 // 只是解析出来就丢掉了，它自己的注释还写着"只用于审计"。
-// 这正是 002 §2.3 删掉 observability 时点名的那一类：不生效的字段，
+// 这正是 Manifest 删掉 observability 时点名的那一类：不生效的字段，
 // 代价是每个读到它的人都要想一遍该不该填，而填了没有任何效果——
-// 这里还更糟一点，文档在两处教人填它。
+// 这里还更糟一点，文档在教人填它。
 //
-// blocked 是整个信任模型的最后一道闸（001 §12：平台只做最后的 blocked 下架）。
+// blocked 是整个信任模型的最后一道闸（安装即信任：平台只做最后的 blocked 下架）。
 // 一条不记**为什么**的下架审计，在这个动作上等于没记：半年后回头看，
 // 唯一能回答"这个版本当初为什么被下架"的那句话，被丢在了 HTTP 层。
 func statusDetail(status, reason string) string {
@@ -549,7 +548,7 @@ func statusDetail(status, reason string) string {
 	return status + ": " + reason
 }
 
-// ensureArtifactsUploaded 校验声明的产物文件都已上传（007 §18.2）。
+// ensureArtifactsUploaded 校验声明的产物文件都已上传。
 func (s *Service) ensureArtifactsUploaded(ctx context.Context, componentID, version string) error {
 	records, err := s.repo.ListArtifacts(ctx, componentID, version)
 	if err != nil {
@@ -572,7 +571,7 @@ func (s *Service) ensureArtifactsUploaded(ctx context.Context, componentID, vers
 		WithDetail("missing", missing)
 }
 
-// DeleteVersion 删除版本。已发布的版本只做**软删除**（18.24）：
+// DeleteVersion 删除版本。已发布的版本只做**软删除**：
 // 历史必须可追溯，而且版本号不能被回收后指向不同的内容。
 func (s *Service) DeleteVersion(ctx context.Context, id *Identity, componentID, version string) error {
 	component, err := s.loadComponent(ctx, componentID)
@@ -596,7 +595,7 @@ func (s *Service) DeleteVersion(ctx context.Context, id *Identity, componentID, 
 	return nil
 }
 
-// SetVisibility 设置组件可见性（007 §9.4）。
+// SetVisibility 设置组件可见性。
 func (s *Service) SetVisibility(ctx context.Context, id *Identity, componentID, visibility string) error {
 	if visibility != model.VisibilityPublic && visibility != model.VisibilityPrivate {
 		return model.Errorf(model.CodeInvalidRequest, "visibility must be public or private")
@@ -619,7 +618,7 @@ func (s *Service) SetVisibility(ctx context.Context, id *Identity, componentID, 
 	return nil
 }
 
-// SetComponentStatus 下架 / 恢复组件。只有市场管理员能做（007 §15）。
+// SetComponentStatus 下架 / 恢复组件。只有市场管理员能做。
 func (s *Service) SetComponentStatus(ctx context.Context, id *Identity, componentID, status string) error {
 	if status != model.ComponentActive && status != model.ComponentBlocked {
 		return model.Errorf(model.CodeInvalidRequest, "component status must be active or blocked")
@@ -641,7 +640,7 @@ func (s *Service) SetComponentStatus(ctx context.Context, id *Identity, componen
 	return nil
 }
 
-// SetAccessPolicies 覆盖组件的访问策略（007 §9.4）。
+// SetAccessPolicies 覆盖组件的访问策略。
 func (s *Service) SetAccessPolicies(
 	ctx context.Context, id *Identity, componentID string, policies []model.AccessPolicy,
 ) error {
@@ -773,7 +772,7 @@ func (s *Service) readableVersion(
 	return s.installableVersion(ctx, id, component, version)
 }
 
-// installableVersion 检查版本能否被安装（007 §6）：
+// installableVersion 检查版本能否被安装：
 //
 //	blocked   → 明确告知被阻止，而不是含糊的 404
 //	deleted   → 对外等同于不存在
@@ -826,7 +825,7 @@ func operatorOf(id *Identity) string {
 	return id.Username
 }
 
-// internalError 把底层错误包成对外的 500，不泄漏实现细节（004 §10）。
+// internalError 把底层错误包成对外的 500，不泄漏实现细节。
 func internalError(err error) error {
 	return model.Errorf(model.CodeInternal, "internal Market error").WithDetail("cause", err.Error())
 }

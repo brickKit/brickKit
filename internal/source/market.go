@@ -24,7 +24,7 @@ import (
 // marketTimeout 是单次市场 API 请求的超时时间。
 const marketTimeout = 30 * time.Second
 
-// marketSource 是远程市场安装源（003 §6.2、007 §9.1）。
+// marketSource 是远程市场安装源。
 //
 // 使用的端点：
 //
@@ -48,9 +48,9 @@ type marketSource struct {
 	mu sync.Mutex
 	// artifactIndex 缓存每个 <id>@<version> 的产物列表，避免逐个文件重复请求。
 	artifactIndex map[string][]marketArtifact
-	// signatures 记下每个 <id>@<version> 随 Manifest 一起返回的签名（008 §8.3）。
+	// signatures 记下每个 <id>@<version> 随 Manifest 一起返回的签名。
 	//
-	// 签名在取 Manifest 时顺手拿到，不另发一次请求：CLI 只调用 007 §4.5 的
+	// 签名在取 Manifest 时顺手拿到，不另发一次请求：CLI 只调用市场的
 	// manifest 端点，签名就在那个信封里。
 	signatures map[string]*security.Signature
 }
@@ -137,7 +137,7 @@ func (s *marketSource) docBytes(ctx context.Context, componentID, version string
 	return s.get(ctx, s.versionPath(componentID, version)+"/doc", nil)
 }
 
-// origin 读取该版本的来源信息（开源 git / 闭源 registry，007 §11）。
+// origin 读取该版本的来源信息（开源 git / 闭源 registry）。
 //
 // 它总是直接问市场，不走 Manifest 缓存：缓存里存的是 component.yaml 本身，
 // 不含 sourceType / gitUrl。--repo 是低频操作，多一次请求换取信息准确。
@@ -205,7 +205,7 @@ type marketVersion struct {
 	Status  string `json:"status"`
 }
 
-// installable 判断该版本能否被安装（007 §6）。
+// installable 判断该版本能否被安装。
 //
 // draft（产物还没传完）、blocked（已下架）、deleted（软删除）都装不上。
 // deprecated 能装，只是要提示风险，因此不能跳过。
@@ -245,7 +245,7 @@ func (s *marketSource) latestVersion(ctx context.Context, componentID string) (s
 }
 
 func (s *marketSource) versionPath(componentID, version string) string {
-	// 组件 ID 中的 `/` 是路径分隔符的一部分（007 §4.5），不做转义。
+	// 组件 ID 中的 `/` 是路径分隔符的一部分，不做转义。
 	return "/components/" + componentID + "/versions/" + version
 }
 
@@ -308,7 +308,7 @@ func (s *marketSource) get(ctx context.Context, path string, query url.Values) (
 	return body, nil
 }
 
-// resolveToken 按 004 §5.3 的优先级解析 Token：
+// resolveToken 按优先级解析 Token：
 // .brickkit/credentials（登录态）> brickkit.yaml 的 sources.authToken。
 func (s *marketSource) resolveToken() (string, error) {
 	s.tokenOnce.Do(func() {

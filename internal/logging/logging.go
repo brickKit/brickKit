@@ -1,6 +1,6 @@
 // Package logging 提供 BrickKit CLI 的结构化日志。
 //
-// 设计依据：开发计划 Step 2 任务 4「日志模块：结构化 JSON 输出到 stderr」。
+// 日志是结构化 JSON，只走 stderr。
 //
 // 分工约定（很重要）：
 //

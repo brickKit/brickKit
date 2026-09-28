@@ -21,7 +21,7 @@ const (
 // 跨包共享（改名自各包私有的同文案 key）
 const (
 	// ServedByFallbackStandalone：外壳没跑，成员这次按自己的镜像独立部署
-	// （不是外壳那份代码），外壳独立部署回落设计书 §6.1/§7。
+	// （不是外壳那份代码）。
 	ServedByFallbackStandalone          = "shell.served.fallback_standalone"
 	ServedByFallbackReasonDetail        = "shell.served.fallback_reason_detail"
 	HintFallbackEnableShellToMergeAgain = "shell.served.hint.fallback_enable_shell_to_merge_again"

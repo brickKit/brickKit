@@ -1,4 +1,4 @@
-// Package perf 是性能基准（开发计划 Step 36）。
+// Package perf 是性能基准。
 //
 // # 为什么这里几乎没有时间断言
 //
@@ -21,7 +21,7 @@
 // # 覆盖范围
 //
 // 只测**纯计算**那几层：解析、依赖解析、拓扑排序、生成。
-// 涉及 Docker 与网络的（36.1 up、36.4 artifacts 下载、36.8 status、36.9 sync）
+// 涉及 Docker 与网络的（up、 artifacts 下载、 status、 sync）
 // 不在这里——它们的耗时由镜像大小、网络、磁盘决定，测出来的数字
 // 说明不了 BrickKit 的性能，只说明当时那台机器的状态。
 package perf
@@ -147,7 +147,7 @@ func projectYAML(n int) (decl, deploy []byte) {
 // Benchmark：报告数字，不判定对错
 // ============================================================
 
-// 36.2 深层依赖树解析。
+// 深层依赖树解析。
 func BenchmarkResolveDeepChain10(b *testing.B) {
 	p, root := deepChain(10)
 	r := resolver.New(p)
@@ -173,7 +173,7 @@ func BenchmarkResolveDeepChain100(b *testing.B) {
 	}
 }
 
-// 36.3 一个组件 100 个依赖。
+// 一个组件 100 个依赖。
 func BenchmarkResolveWide100(b *testing.B) {
 	p, root := wideGraph(100)
 	r := resolver.New(p)
@@ -186,7 +186,7 @@ func BenchmarkResolveWide100(b *testing.B) {
 	}
 }
 
-// 36.5 brickkit.yaml + deploy.yaml 解析（100 个组件条目）。
+// brickkit.yaml + deploy.yaml 解析（100 个组件条目）。
 func BenchmarkParseConfig100(b *testing.B) {
 	decl, deploy := projectYAML(100)
 	b.ReportAllocs()
@@ -201,7 +201,7 @@ func BenchmarkParseConfig100(b *testing.B) {
 	}
 }
 
-// 36.6 compose.yaml 生成（50 个组件）。
+// compose.yaml 生成（50 个组件）。
 //
 // 这条走的是完整链路：解析 → 级联 → 注入 → 生成，
 // 因为使用者感知到的"生成有多慢"就是这一整条。
@@ -227,7 +227,7 @@ func BenchmarkGenerateCompose50(b *testing.B) {
 	}
 }
 
-// 36.7 拓扑排序（50 个组件）。
+// 拓扑排序（50 个组件）。
 func BenchmarkTopologicalOrder50(b *testing.B) {
 	_, p, refs := flatProject(50)
 	graph, err := resolver.New(p).Resolve(context.Background(), refs...)
@@ -265,7 +265,7 @@ func within(t *testing.T, budget time.Duration, name string, fn func()) {
 	}
 }
 
-// 36.2 十层依赖链不该出现量级退化。
+// 十层依赖链不该出现量级退化。
 func TestDeepChainDoesNotBlowUp(t *testing.T) {
 	p, root := deepChain(10)
 
@@ -275,7 +275,7 @@ func TestDeepChainDoesNotBlowUp(t *testing.T) {
 	})
 }
 
-// 36.3 100 个依赖不该出现量级退化。
+// 100 个依赖不该出现量级退化。
 func TestWideGraphDoesNotBlowUp(t *testing.T) {
 	p, root := wideGraph(100)
 
@@ -286,7 +286,7 @@ func TestWideGraphDoesNotBlowUp(t *testing.T) {
 	})
 }
 
-// 36.5 / 36.6 / 36.7 完整链路：100 个组件条目从解析到生成。
+// 完整链路：100 个组件条目从解析到生成。
 //
 // 这条最接近使用者的真实感受——他改一行配置按下 `up`，
 // 在容器起来之前 CLI 要走完的就是这一整条。
@@ -309,7 +309,7 @@ func TestFullPipelineDoesNotBlowUp(t *testing.T) {
 	})
 }
 
-// 36.10 内存使用（50 个组件）< 100MB。
+// 内存使用（50 个组件）< 100MB。
 //
 // # 量的是累计分配，不是常驻堆——这是被实测逼出来的选择
 //
@@ -354,7 +354,7 @@ func TestMemoryForFiftyComponents(t *testing.T) {
 		float64(churned)/(1<<20), budget>>20)
 
 	require.Less(t, churned, uint64(budget),
-		"36.10：50 个组件的累计分配超了 100MB，峰值驻留有可能也超")
+		"50 个组件的累计分配超了 100MB，峰值驻留有可能也超")
 }
 
 // 依赖链变深 10 倍，耗时不该涨到失控。

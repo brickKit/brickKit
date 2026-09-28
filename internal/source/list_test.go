@@ -120,7 +120,7 @@ func TestLocalComponentsSkipsMismatchedManifest(t *testing.T) {
 	assert.Equal(t, "people/basic", got.Components[0].ID)
 }
 
-// 多个 local 源：同 ID 靠前的赢（003 §6.5），后面的不再重复列出。
+// 多个 local 源：同 ID 靠前的赢，后面的不再重复列出。
 func TestLocalComponentsFirstSourceWinsOnDuplicateID(t *testing.T) {
 	layout := newProject(t)
 	writeComponent(t, filepath.Join(layout.Root, "a"), componentSpec{ID: "people/basic", Version: "1.0.0"})

@@ -1,6 +1,6 @@
-"""Step 22「people/basic」的业务行为测试。
+"""「people/basic」的业务行为测试。
 
-覆盖开发计划 22.1（HTTP）、22.4（健康检查）、22.7（强依赖调用）、22.8（弱依赖安全读取），
+覆盖 HTTP、健康检查、强依赖调用、弱依赖安全读取，
 以及这个组件存在的意义：**强依赖与弱依赖在故障时的表现必须不一样**。
 """
 
@@ -76,7 +76,7 @@ def client() -> TestClient:
 
 
 # ============================================================
-# 22.1 HTTP API
+# HTTP API
 # ============================================================
 
 
@@ -113,14 +113,14 @@ def test_get_unknown_person_returns_404(client: TestClient) -> None:
 
 
 # ============================================================
-# 22.7 强依赖 department/tree
+# 强依赖 department/tree
 # ============================================================
 
 
 def test_person_is_enriched_with_department_name() -> None:
     """人员信息里的部门名来自 department/tree，不是自己存一份。
 
-    组件不重复存别人的数据（002 §2.2 数据自治）：部门改名以后，
+    组件不重复存别人的数据（数据自治）：部门改名以后，
     这里必须立刻跟着变，而不是等一次数据同步。
     """
     client = TestClient(create_app(build_service()))
@@ -162,12 +162,12 @@ def test_strong_dependency_outage_also_affects_list() -> None:
 
 
 # ============================================================
-# 22.8 弱依赖 infra/redis-event-bus
+# 弱依赖 infra/redis-event-bus
 # ============================================================
 
 
 def test_weak_dependency_absent_does_not_break_anything() -> None:
-    """弱依赖缺失时组件照常工作（002 §3.4）。
+    """弱依赖缺失时组件照常工作。
 
     平台**完全不注入** INFRA_REDIS_EVENT_BUS_ENDPOINT，
     组件必须用 os.environ.get() 安全读取，而不是直接下标取值。
@@ -207,7 +207,7 @@ def test_event_bus_failure_does_not_break_the_request() -> None:
 
 
 # ============================================================
-# 22.4 健康检查
+# 健康检查
 # ============================================================
 
 
@@ -219,7 +219,7 @@ def test_healthz_returns_200(client: TestClient) -> None:
 
 
 def test_healthz_does_not_touch_database_or_dependencies() -> None:
-    """002 §9.4：/healthz 只检查本进程存活。
+    """/healthz 只检查本进程存活。
 
     健康检查一旦连库或调依赖，数据库抖一下就会让所有组件被判死重启，
     把一次故障放大成整个系统雪崩。
@@ -261,17 +261,17 @@ def test_store_failure_is_reported_as_503() -> None:
     resp = client.get("/api/v1/people")
 
     assert resp.status_code == 503
-    # 002 §11.3：错误信息不向外暴露内部实现细节
+    # 错误信息不向外暴露内部实现细节
     assert "数据库连接已断开" not in resp.text
 
 
 # ============================================================
-# 22.6 OpenAPI
+# OpenAPI
 # ============================================================
 
 
 def test_openapi_document_is_served(client: TestClient) -> None:
-    """22.6：OpenAPI 由 FastAPI 自动生成，随组件一起提供。"""
+    """OpenAPI 由 FastAPI 自动生成，随组件一起提供。"""
     resp = client.get("/openapi.json")
 
     assert resp.status_code == 200

@@ -18,14 +18,14 @@ func TestAPIError(t *testing.T) {
 	assert.Equal(t, "people/basic", e.Details["componentId"])
 	assert.Equal(t, "1.0.0", e.Details["version"])
 
-	// 序列化后仍是 007 §18 约定的形状
+	// 序列化后仍是 API 约定的形状
 	out, err := json.Marshal(e)
 	require.NoError(t, err)
 	assert.Contains(t, string(out), `"code":"MANIFEST_INVALID"`)
 	assert.Contains(t, string(out), `"details"`)
 }
 
-// 007 §6：blocked 不能安装；deleted 视同不存在；deprecated 可以安装但要提示风险。
+// blocked 不能安装；deleted 视同不存在；deprecated 可以安装但要提示风险。
 func TestVersionInstallable(t *testing.T) {
 	cases := map[string]bool{
 		VersionStable:     true,

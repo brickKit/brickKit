@@ -19,7 +19,7 @@ tags:
   - portal
   - frontend
 
-# 没有 artifacts：前端不对外提供 API，没有契约可发布（002 §7：有什么发什么）
+# 没有 artifacts：前端不对外提供 API，没有契约可发布（有什么发什么）
 
 dependencies:
   components:
@@ -36,10 +36,10 @@ dependencies:
 deployment:
   type: container
   image: brickkit-demo/portal-user-frontend:1.0.0
-  # 8080 而不是 80：容器以非 root 运行（002 §1.4），1024 以下的端口需要特权
+  # 8080 而不是 80：容器以非 root 运行，1024 以下的端口需要特权
   port: 8080
   resources:
-    # 只声明 requests，不声明 limits（002 §4.6）：
+    # 只声明 requests，不声明 limits：
     # 组件知道自己稳态占多少，而"允许它涨到多少"是部署方的判断。
     # 而且逐字段合并意味着这里写了 limits.cpu，用它的项目就删不掉了
     requests:
@@ -49,6 +49,6 @@ deployment:
 healthCheck:
   type: http
   path: /healthz
-  # ⚠️ 只回一个常量，**不探 erp/backend**（002 §9.4）。
+  # ⚠️ 只回一个常量，**不探 erp/backend**。
   # 若让它去探后端，后端一抖，编排系统就会把这个本身完全正常的前端容器
   # 杀掉重启——而它明明还能把页面发出去

@@ -2,7 +2,7 @@
 --
 -- 迁移文件按文件名顺序执行，执行过的版本记在 schema_migrations 里，
 -- 因此这个文件只会跑一次。后续变更请**新增**文件，不要改这一个
--- （002 §8.9：先兼容后迁移，不做破坏性操作）。
+-- （先兼容后迁移，不做破坏性操作）。
 
 CREATE TABLE departments (
     id         TEXT PRIMARY KEY,

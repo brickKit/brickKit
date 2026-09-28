@@ -1,11 +1,9 @@
-// 本文件是 Step 15-C 的业务行为测试：`--config` 与启动前的告警
-// （004 §3.5、§3.5.1）。覆盖 15.12，以及延后项 P5（资源密码硬编码告警）、
-// P10（升级拉新版本）、P15（CheckUpgrade 接线）。
+// 本文件是启动前告警的业务行为测试。
 //
-// 15.7 与 P22 曾经由 `--check-resources` 承担，那个参数已经删掉
+// 资源连通性检查曾经由 `--check-resources` 承担，那个参数已经删掉
 // （理由见 TestUpNeverProbesResources）。
-// 15.8–15.11 曾经由 `--only` 承担，那个参数也已删掉
-// （003 §4.3：要收窄这次启动的范围就改 mode，不再多一套语义）。
+// 只启动其中几个组件曾经由 `--only` 承担，那个参数也已删掉
+// （要收窄这次启动的范围就改 mode，不再多一套语义）。
 package cli
 
 import (
@@ -146,7 +144,7 @@ func TestUpDryRunWritesEnvFiles0600(t *testing.T) {
 
 // 关掉一个只被弱依赖指着的组件，调用方就拿不到它的 *_ENDPOINT。
 //
-// 003 §4.3 与 004 §4.1/§4.5 都承诺过这一句，而代码从前一个字不说：
+// 弱依赖的约定本身就承诺了这一句，而代码从前一个字不说：
 // 状态表里只有一行"⬜ 显式禁用"，依赖图里只有一条"（弱）"，
 // 两者都不说"于是 demo/caller 这次会走降级分支"。使用者得自己把两处对起来。
 func TestWeakDependencyNotRunningIsReported(t *testing.T) {
@@ -168,12 +166,12 @@ func TestWeakDependencyNotRunningIsReported(t *testing.T) {
 	assert.Contains(t, r.stdout, "demo/hello@1.0.0", "要点名是谁没跑")
 	assert.Contains(t, r.stdout, "demo/caller", "要点名谁受影响")
 	assert.Contains(t, r.stdout, "DEMO_HELLO_ENDPOINT", "要说清哪个变量拿不到")
-	assert.Contains(t, r.stdout, "degradation", "要说清后果由调用方自己处理（002 §3.4）")
+	assert.Contains(t, r.stdout, "degradation", "要说清后果由调用方自己处理")
 }
 
 // 这是信息，不是警告。
 //
-// 关掉只被弱依赖引用的组件，正是 003 §4.3 推荐的"嫌容器多就下手"的做法，
+// 关掉只被弱依赖引用的组件，正是"嫌容器多就下手"的推荐做法，
 // `up --dry-run` 甚至专门列出那份可以下手的名单。给一个推荐动作配 ⚠️，
 // 只会训练使用者整块跳过警告区——而真正要紧的那几条也一起被跳过。
 func TestWeakDependencyNotRunningIsNotAWarning(t *testing.T) {

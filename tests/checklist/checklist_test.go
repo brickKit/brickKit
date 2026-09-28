@@ -1,12 +1,12 @@
-// 本包守着 Step 32–35 的验收清单（边界 / 错误处理 / 兼容性 / 安全）。
+// 本包守着验收清单（边界 / 错误处理 / 兼容性 / 安全）。
 //
-// # 这里为什么不是 75 条新测试
+// # 这里为什么不是一堆新测试
 //
-// 那 75 项**早就有测试覆盖**——它们在写各自的解析器、错误路径、
+// 清单里的每一项**早就有测试覆盖**——它们在写各自的解析器、错误路径、
 // 生成器时就顺手写了，只是散落在被测代码旁边。再抄一遍没有意义。
 //
-// 清单缺的从来不是覆盖，是**连接**：计划里那 75 项是 75 个要人手打勾的方框，
-// 谁也说不出「35.11 不声明 expose 不生成 Ingress」到底由哪个测试保证。
+// 清单缺的从来不是覆盖，是**连接**：没有它，谁也说不出
+// 「security.11 不声明 expose 不生成 Ingress」到底由哪个测试保证。
 // 于是有两个坏结果：
 //
 //	改了生成器之后，不知道该重点看哪几条测试有没有红
@@ -14,10 +14,9 @@
 //
 // # 以及一个更难看的历史
 //
-// 这四个 Step 的目录（tests/boundary、tests/error、tests/compat、tests/security）
-// 从 Step 1 建起来之后**一直是空的**，只有一个 .gitkeep。
-// 而 `make test-all` 里那四行照跑不误，每次打印「暂无测试文件，跳过」。
-// 看起来像"这几类还没写"，实际是写完了、只是不在那儿。
+// 这四类的目录（tests/boundary、tests/error、tests/compat、tests/security）
+// 曾经**一直是空的**，只有一个 .gitkeep。而 `make test-all` 里那四行照跑不误，
+// 每次打印「暂无测试文件，跳过」。看起来像"这几类还没写"，实际是写完了、只是不在那儿。
 //
 // 一个永远不会失败的检查等于没有检查；一个永远跳过、却还在成绩单上
 // 占一行的检查比那更坏——它让人以为那一格是空的，而不是错位的。
@@ -38,26 +37,23 @@ import (
 
 const manifestName = "清单.tsv"
 
-// 计划里每个 Step 的验收项数量（开发计划 Step 32–35）。
+// 每个类别最初的验收项数量：<类别>.1 到 <类别>.<N> 必须每一项都有证据。
 //
-// total 是**下限**，不是总数：见 TestManifestCoversEveryPlanItem。
-var plan = []struct {
-	category string
-	step     string
-	total    int
+// 它是**下限**，不是总数：见 TestManifestCoversEveryOriginalItem。
+var categories = []struct {
+	name  string
+	total int
 }{
-	{"boundary", "32", 25},
-	{"error", "33", 20},
-	{"compat", "34", 12},
-	{"security", "35", 18},
+	{"boundary", 25},
+	{"error", 20},
+	{"compat", 12},
+	{"security", 18},
 }
 
 // 列序号，与 清单.tsv 的表头一致。
 const (
-	colCategory = iota
-	colID
+	colID = iota
 	colDesc
-	colKind
 	colModule
 	colPkg
 	colTest
@@ -79,22 +75,21 @@ func repoRoot(t *testing.T) string {
 	return root
 }
 
-// 清单必须覆盖 Step 32–35 的每一项，一项都不能少；允许在其之上继续添加。
+// 清单必须覆盖每个类别最初的全部验收项，一项都不能少；允许在其之上继续添加。
 //
 // # 只守一个方向
 //
-// 计划里那 75 项一条都不能失去证据——这个方向必须守死，否则
+// 最初那些验收项一条都不能失去证据——这个方向必须守死，否则
 // "跑完这四类就安全了"就成了一句没有依据的话。
 //
-// 反方向（"不许有计划之外的条目"）**已经取消**。开发计划在 41 个 Step 全部
-// 完成后冻结成了历史记录（见它的头部说明），而项目还在继续改：今天补一条
-// 边界用例、明天补一条安全用例，它们都该落在这份清单上，因为这里是
-// 「验收项 → 证明它的证据」的唯一落点。继续守"不许多"，等于规定此后新增的
+// 反方向（"不许有额外的条目"）不守：项目还在继续改，今天补一条边界用例、
+// 明天补一条安全用例，它们都该落在这份清单上，因为这里是
+// 「验收项 → 证明它的证据」的唯一落点。守"不许多"，等于规定此后新增的
 // 每一项都不准被记录——那是把防止清单变成谎话的守卫，变成阻止它继续记录真话。
 //
-// 新增条目在对应 Step 的编号上顺延即可（如 security.19），
-// 类别与编号必须对得上仍由 TestCategoryMatchesStepNumber 守着。
-func TestManifestCoversEveryPlanItem(t *testing.T) {
+// 新增条目在所属类别里顺延序号即可（如 security.19），
+// 编号的形状由 TestIDsNameAKnownCategory 守着。
+func TestManifestCoversEveryOriginalItem(t *testing.T) {
 	rows := load(t)
 
 	seen := map[string]int{}
@@ -105,43 +100,33 @@ func TestManifestCoversEveryPlanItem(t *testing.T) {
 		assert.NotEmpty(t, r.Cell(colTest), "第 %d 行（%s）没有指向任何证据", r.Line, id)
 	}
 
-	knownStep := map[string]bool{}
-	for _, p := range plan {
-		knownStep[p.step] = true
-		for i := 1; i <= p.total; i++ {
-			id := p.step + "." + strconv.Itoa(i)
+	for _, c := range categories {
+		for i := 1; i <= c.total; i++ {
+			id := c.name + "." + strconv.Itoa(i)
 			assert.NotZero(t, seen[id],
-				"Step %s：清单里找不到 %s——这一项在计划里是 ✅，"+
-					"却没有任何东西证明它今天还成立", p.step, id)
-			delete(seen, id)
+				"清单里找不到 %s——这一项曾经被验收过，"+
+					"却没有任何东西证明它今天还成立", id)
 		}
-	}
-	// 剩下的是计划冻结之后新增的验收项：不限数量，但必须仍属于这四个 Step，
-	// 否则 make test-boundary 那几个目标筛不到它，那一行从此不会被执行
-	for id := range seen {
-		step, _, ok := strings.Cut(id, ".")
-		assert.True(t, ok && knownStep[step],
-			"清单里的 %s 不属于 Step 32–35 中的任何一个——"+
-				"那样它不会被任何 make 目标跑到，而清单看上去仍然是满的", id)
 	}
 }
 
-// 每一行的类别必须与编号对得上。
+// 每一行的编号必须是 <类别>.<序号>，类别只能是那四种之一。
 //
 // 类别是 `make test-boundary` 这些目标用来筛行的键。错一个字，
 // 那一整行就从此不再被任何目标执行，而清单看上去仍然是满的。
-func TestCategoryMatchesStepNumber(t *testing.T) {
-	byStep := map[string]string{}
-	for _, p := range plan {
-		byStep[p.step] = p.category
+func TestIDsNameAKnownCategory(t *testing.T) {
+	known := map[string]bool{}
+	for _, c := range categories {
+		known[c.name] = true
 	}
 
 	for _, r := range load(t) {
-		step, _, ok := strings.Cut(r.Cell(colID), ".")
-		require.True(t, ok, "第 %d 行的编号 %q 不是 <Step>.<项> 的形式", r.Line, r.Cell(colID))
-		assert.Equal(t, byStep[step], r.Cell(colCategory),
-			"第 %d 行：编号 %s 属于 Step %s，类别却写成了 %q",
-			r.Line, r.Cell(colID), step, r.Cell(colCategory))
+		id := r.Cell(colID)
+		name, num, ok := strings.Cut(id, ".")
+		n, err := strconv.Atoi(num)
+		assert.True(t, ok && known[name] && err == nil && n > 0 && strconv.Itoa(n) == num,
+			"第 %d 行的编号 %q 不是 <类别>.<序号>（类别只有 boundary / error / compat / security）——"+
+				"那样它不会被任何 make 目标跑到，而清单看上去仍然是满的", r.Line, id)
 	}
 }
 
@@ -156,15 +141,13 @@ func TestEveryListedTestStillExists(t *testing.T) {
 	groups := map[key][]checklist.Row{}
 	var order []key
 	for _, r := range load(t) {
-		// 证据只有一种：一个今天还在的测试。别的写法（拼错的类型）不能被悄悄跳过
-		require.Equal(t, "test", r.Cell(colKind), "%s（%s）的证据类型只能是 test", r.Cell(colID), r.Cell(colDesc))
 		k := key{r.Cell(colModule), r.Cell(colPkg)}
 		if _, ok := groups[k]; !ok {
 			order = append(order, k)
 		}
 		groups[k] = append(groups[k], r)
 	}
-	require.NotEmpty(t, order, "一行 test 类型的证据都没有——多半是列序号错了")
+	require.NotEmpty(t, order, "一行证据都没有——多半是列序号错了")
 
 	for _, k := range order {
 		group := groups[k]

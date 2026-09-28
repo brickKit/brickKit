@@ -69,7 +69,7 @@ guide articles run against.
 
 If you're adding a checklist-worthy behavior (a boundary condition, an
 error case, a compatibility or security guarantee), add the line to the
-relevant `tests/checklist/*/清单.tsv`/`tests/regression/清单.tsv` and wire a
+relevant `tests/checklist/清单.tsv`/`tests/regression/清单.tsv` and wire a
 real test to it — a checklist entry with no test, or a test that's stopped
 existing, fails the build on purpose (see the "Build & test" table in the
 README for why).

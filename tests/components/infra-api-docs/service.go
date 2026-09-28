@@ -54,7 +54,7 @@ func (s *service) sources(ctx context.Context) []Source {
 func (s *service) routes() http.Handler {
 	mux := http.NewServeMux()
 
-	// 健康检查只回答"本进程还活着吗"（002 §9.4）。
+	// 健康检查只回答"本进程还活着吗"。
 	// **绝不去探那七个组件**：它们全是弱依赖，全挂了这个页面也该打得开——
 	// 而且那时候正是最需要看文档的时候
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -95,7 +95,7 @@ func (s *service) handleSources(w http.ResponseWriter, r *http.Request) {
 
 // handleOpenAPI 把抓到的 OpenAPI 原样代理出去。
 //
-// 为什么不让浏览器直接去连组件：那些组件默认不暴露端口（008 §5.2），
+// 为什么不让浏览器直接去连组件：那些组件默认不暴露端口，
 // 浏览器根本连不上；就算连得上也会撞跨域。由本组件代理是唯一走得通的路。
 func (s *service) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 	componentID := strings.TrimPrefix(r.URL.Path, "/api/v1/openapi/")

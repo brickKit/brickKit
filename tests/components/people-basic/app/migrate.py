@@ -4,7 +4,7 @@
 不是埋在代码里的建表语句：只有这样，"1.0.0 到 2.0.0 改了什么"
 才是看得见、可评审、可回溯的。
 
-执行方式各语言可以不同（002 §8.7 允许 Django / Rails / Flyway / 脚本…），
+执行方式各语言可以不同（允许 Django / Rails / Flyway / 脚本…），
 但不变量是一样的：幂等、原子、有序、按组件隔离。
 """
 
@@ -18,7 +18,7 @@ import psycopg
 
 logger = logging.getLogger("app.migrate")
 
-# 迁移脚本目录。002 §8.4：脚本和业务代码打包在同一个镜像里。
+# 迁移脚本目录。脚本和业务代码打包在同一个镜像里。
 MIGRATIONS_DIR = pathlib.Path(__file__).resolve().parent.parent / "migrations"
 
 # 主键是 (component_id, version) 而不是 version：**版本号是每个组件各自的**，
@@ -86,7 +86,7 @@ def _warn_if_shared(conn: psycopg.Connection, component_id: str) -> None:
     """库里有别的组件的迁移记录时提醒一句。
 
     不阻断：共用一个库在本地调试时确实方便，按组件隔离之后也不会再互相顶掉。
-    但 002 §2.2 的数据自治要求每个组件有自己的库。
+    但数据自治要求每个组件有自己的库。
     """
     with conn.cursor() as cur:
         cur.execute(
@@ -97,7 +97,7 @@ def _warn_if_shared(conn: psycopg.Connection, component_id: str) -> None:
     if others:
         logger.warning(
             "该数据库里还有其他组件的表",
-            extra={"others": ", ".join(others), "advice": "002 §2.2：每个组件用自己的数据库，见 README"},
+            extra={"others": ", ".join(others), "advice": "数据自治：每个组件用自己的数据库，见 README"},
         )
 
 
@@ -146,7 +146,7 @@ def rollback_migrations(
     顺序反了会出现"表已经删了，再去删表里的数据"。
 
     这是给开发与测试用的：反复把库搭起来、拆掉。
-    生产环境请用新的 up 迁移修问题（002 §8.9）。
+    生产环境请用新的 up 迁移修问题。
     """
     _ensure_table(conn)
 

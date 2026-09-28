@@ -145,7 +145,7 @@ func TestOpenAPIDocumentIsValid(t *testing.T) {
 	}
 }
 
-// TestDockerfileRunsAsNonRoot 对应 002 §1.4。
+// TestDockerfileRunsAsNonRoot：容器不以 root 运行。
 func TestDockerfileRunsAsNonRoot(t *testing.T) {
 	raw, err := os.ReadFile("Dockerfile")
 	if err != nil {

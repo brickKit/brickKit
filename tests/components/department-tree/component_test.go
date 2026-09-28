@@ -1,4 +1,4 @@
-// 本文件验证组件对平台的承诺（开发计划 21.6–21.10）：
+// 本文件验证组件对平台的承诺：
 // 迁移、artifacts 声明、JSON 日志、环境变量配置、非 root 镜像。
 //
 // 这些不是业务功能，而是"能不能被平台装配"的前提。
@@ -13,10 +13,10 @@ import (
 )
 
 // ============================================================
-// 21.9 配置只来自环境变量
+// 配置只来自环境变量
 // ============================================================
 
-// 006 §5.1：组件不得硬编码资源连接信息，一律从环境变量读。
+// 组件不得硬编码资源连接信息，一律从环境变量读。
 func TestConfigComesFromEnvironment(t *testing.T) {
 	lookup := map[string]string{
 		"COMPONENT_ID":      "department/tree",
@@ -77,7 +77,7 @@ func TestInvalidDatabasePortIsAnError(t *testing.T) {
 	}
 }
 
-// 口令不能出现在配置的字符串形式里（002 §11.3：日志不输出密码）。
+// 口令不能出现在配置的字符串形式里（日志不输出密码）。
 func TestConfigStringHidesPassword(t *testing.T) {
 	lookup := map[string]string{
 		"DATABASE_HOST": "pg", "DATABASE_NAME": "d", "DATABASE_USER": "u",
@@ -98,7 +98,7 @@ func TestConfigStringHidesPassword(t *testing.T) {
 }
 
 // ============================================================
-// 21.8 JSON 日志（002 §11）
+// JSON 日志
 // ============================================================
 
 func TestLogsAreJSONWithComponentID(t *testing.T) {
@@ -112,7 +112,7 @@ func TestLogsAreJSONWithComponentID(t *testing.T) {
 		t.Fatalf("21.8 日志必须是 JSON：%s", buf.String())
 	}
 	if entry["componentId"] != "department/tree" {
-		t.Fatalf("002 §11.3：日志必须带 componentId，实际：%v", entry)
+		t.Fatalf("日志必须带 componentId，实际：%v", entry)
 	}
 	if entry["msg"] != "部门树已加载" && entry["message"] != "部门树已加载" {
 		t.Fatalf("日志内容不对：%v", entry)
@@ -137,7 +137,7 @@ func TestLogLevelIsConfigurable(t *testing.T) {
 	}
 }
 
-// 口令绝不能进日志（002 §11.3）。
+// 口令绝不能进日志。
 func TestLoggerRedactsPasswordLikeFields(t *testing.T) {
 	var buf bytes.Buffer
 	logger := newLogger(&buf, "info", "department/tree")
@@ -149,10 +149,10 @@ func TestLoggerRedactsPasswordLikeFields(t *testing.T) {
 	}
 }
 
-// 21.6 的迁移测试在 migrate_test.go：SQL 迁移只能对着真库测。
+// 迁移测试在 migrate_test.go：SQL 迁移只能对着真库测。
 
 // ============================================================
-// 21.7 artifacts 声明 / 21.10 非 root
+// artifacts 声明 / 非 root
 // ============================================================
 
 // 21.7：component.yaml 必须声明 proto 与 openapi 两类产物，
@@ -210,7 +210,7 @@ func keysOf(m map[string]any) []string {
 	return out
 }
 
-// 21.10 / 008：容器不得以 root 运行。
+// 容器不得以 root 运行。
 func TestDockerfileRunsAsNonRoot(t *testing.T) {
 	raw, err := os.ReadFile("Dockerfile")
 	if err != nil {

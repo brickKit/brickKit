@@ -1,6 +1,6 @@
 // Package clierr 定义 BrickKit CLI 的统一错误类型与错误输出格式。
 //
-// 设计依据：004 §10 错误处理。
+// 一条错误由标题、明细、建议组成，渲染成使用者一眼能看懂的块。
 //
 // 所有面向用户的错误都应该是 *clierr.Error，它包含四部分：
 //
@@ -9,7 +9,7 @@
 //	Details  有序的明细行（组件、镜像、退出码……）
 //	Hints    建议（一条时单行，多条时自动编号）
 //
-// 渲染示例（004 §10.2）：
+// 渲染示例：
 //
 //	❌ 错误：强依赖缺失
 //	   组件：erp/backend@1.0.0
@@ -33,7 +33,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
-// Code 是机器可读的错误码。分类依据 004 §10.1。
+// Code 是机器可读的错误码。
 type Code string
 
 // 错误码目录。新增错误场景时在此登记，并写进 docs/{en,zh}/06-architecture/10-error-codes.md
@@ -43,10 +43,10 @@ const (
 	CodeInternal Code = "INTERNAL"
 	// 命令用法错误：参数缺失、参数非法、未知命令。
 	CodeInvalidArgument Code = "INVALID_ARGUMENT"
-	// 功能尚未实现（骨架阶段占位）。
+	// 功能尚未实现。目前没有任何命令会产生它；码已经发布过，按上面的规则保留。
 	CodeNotImplemented Code = "NOT_IMPLEMENTED"
 
-	// 配置错误（004 §10.1 配置错误）。
+	// 配置错误。
 	CodeConfigInvalid  Code = "CONFIG_INVALID"
 	CodeConfigConflict Code = "CONFIG_CONFLICT"
 	// CodeDeployInconsistent 是"部署文件（deploy.yaml / deploy.local.yaml / -f 指定的文件）
@@ -62,7 +62,7 @@ const (
 	CodeVersionAmbiguous  Code = "VERSION_AMBIGUOUS"
 	CodeComponentDisabled Code = "COMPONENT_DISABLED"
 	CodeComponentNotFound Code = "COMPONENT_NOT_FOUND"
-	// CodeComponentBlocked 是"市场已下架该组件版本"（007 §6）。
+	// CodeComponentBlocked 是"市场已下架该组件版本"。
 	// 它与认证失败是两回事：去登录并不能让被下架的组件变回可安装。
 	CodeComponentBlocked Code = "COMPONENT_BLOCKED"
 
@@ -119,7 +119,7 @@ const (
 )
 
 // 退出码。004 未规定具体数值，此处约定：
-// 用法错误 2，其余错误 1，警告不影响退出码（0，见开发计划 33.15）。
+// 用法错误 2，其余错误 1，警告不影响退出码（0）。
 // 唯一的例外是 brickkit lint --strict：警告在那里也算失败，以 CodeLintFailed、退出码 1 收尾。
 const (
 	ExitOK    = 0
@@ -289,12 +289,4 @@ func Render(w io.Writer, err error) int {
 	}
 	_, _ = fmt.Fprint(w, e.Format())
 	return e.ExitCode()
-}
-
-// NotImplemented 生成"该命令尚未实现"错误，用于骨架阶段的命令占位。
-// step 是开发计划中实现该命令的 Step 编号。
-func NotImplemented(command string, step int) *Error {
-	return New(CodeNotImplemented, i18n.T(msgid.ClierrNotImplemented, command)).
-		WithDetail(i18n.T(msgid.ClierrLabelPlan), i18n.T(msgid.ClierrPlanStepDetail, step)).
-		WithHint(i18n.T(msgid.ClierrHintSkeleton))
 }

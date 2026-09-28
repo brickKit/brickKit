@@ -10,7 +10,7 @@ HTTP 在 8080，gRPC 在 9090（Python 的 grpcio 无法与 HTTP 共用端口，
 
 ## 使用前：创建数据库（执行一次）
 
-平台**不会**替你创建数据库（006 §9.1 / §9.5）。库里的**表**由本组件的 migrations 建，
+平台**不会**替你创建数据库（/ §9.5）。库里的**表**由本组件的 migrations 建，
 但**库本身**需要你先建好。
 
 本组件预设的数据库名是 **`brickkit_people`**。执行一次即可：
@@ -59,8 +59,8 @@ migrations/
 └── 0002_seed_people.down.sql   回退：删初始数据
 ```
 
-脚本随镜像一起打包（002 §8.4），执行记录写在 `schema_migrations` 表里，
-主键 `(component_id, version)`（002 §8.11）。
+脚本随镜像一起打包，执行记录写在 `schema_migrations` 表里，
+主键 `(component_id, version)`。
 
 ### 命令
 
@@ -75,7 +75,7 @@ docker run --rm --env-file .env brickkit-demo/people-basic:1.0.0 migrate reset  
 ```
 
 > `down` / `reset` 是**给开发与测试用的**。生产环境的结构问题请用一个新的
-> up 迁移去修（002 §8.9：先兼容后迁移、不做破坏性操作）。
+> up 迁移去修（先兼容后迁移、不做破坏性操作）。
 
 ### 加一个新迁移
 
@@ -105,7 +105,7 @@ migrations/0003_add_email.down.sql   ALTER TABLE people DROP COLUMN email
 | 弱依赖没注入 / 调用出错 | 接口 **200**，静默降级，只记一条警告 |
 | **强依赖 department/tree 挂了** | 业务接口 **503**「部门信息暂时不可用」，`/healthz` 仍 200，依赖恢复后自动好 |
 
-`/healthz` **只检查本进程存活**，不查数据库也不调依赖（002 §9.4）——
+`/healthz` **只检查本进程存活**，不查数据库也不调依赖——
 健康检查一旦连库，数据库抖一下就会让所有组件被判死重启。
 
 ---
@@ -126,7 +126,7 @@ grpcurl -plaintext -d '{"departmentId":"d-hr"}' localhost:9090 \
   people.v1.PeopleService/ListPeople
 ```
 
-**部门名不在本组件存副本**（002 §2.2 数据自治）：每次去问 `department/tree`，
+**部门名不在本组件存副本**（数据自治）：每次去问 `department/tree`，
 因此部门改名后这里立刻跟着变。一次列表请求内按部门去重，不会 N+1。
 
 ---

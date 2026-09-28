@@ -36,7 +36,7 @@ func runWith(t *testing.T, tweak func(*Options), dir string, args ...string) res
 		Stdout:   &out,
 		Stderr:   &errBuf,
 		// 默认假装 registry 里已经有这个镜像——那是发布时的常态
-		// （build → push → publish）。测试要验解析失败时自己覆盖它（P29）。
+		// （build → push → publish）。测试要验解析失败时自己覆盖它。
 		ResolveDigest: func(context.Context, string) (string, error) {
 			return stubDigest, nil
 		},
@@ -227,7 +227,7 @@ func TestInitCompleteClosingCheckFails(t *testing.T) {
 	assert.FileExists(t, filepath.Join(dir, "deploy.yaml"), "补全本身已经做完")
 }
 
-// 3.8 / 3.9 项目名称非法时报错并给出命名规则。
+// 项目名称非法时报错并给出命名规则。
 func TestInitRejectsInvalidProjectNames(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -262,7 +262,7 @@ func TestInitRejectsInvalidProjectNames(t *testing.T) {
 	}
 }
 
-// 32.20–32.22 合法名称：中划线、数字、纯数字。
+// 合法名称：中划线、数字、纯数字。
 func TestInitAcceptsValidProjectNames(t *testing.T) {
 	for _, name := range []string{"my-project", "project123", "123", "a", "my-erp-dev"} {
 		t.Run(name, func(t *testing.T) {

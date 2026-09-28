@@ -1,17 +1,17 @@
 package manifest
 
-// 本文件管 `labels` 这个**透传口**（002 §4.7、003 §4.11）。
+// 本文件管 `labels` 这个**透传口**。
 //
 // # 平台不解释键值，只透传
 //
 // Traefik / Caddy / Prometheus / Loki 这一整类工具的标准接入方式就是读容器
-// labels。平台不做网关（012 §2.1、005 §5.11），这条立场本身没问题——问题在于
+// labels。平台不做网关，这条立场本身没问题——问题在于
 // 平台**同时**没有给出透传口，于是"不做网关"变成了"也不让你自己做"：
 // 使用者只能退回去手写一份 file-provider 配置，而那份配置里必须写满**版本化
 // 服务名**（`erp-sales-1-0-0`），组件每升一次版本就要同步改一遍，
 // 而平台一个字都不会提醒。60 个组件时那份手写配置是必然会腐烂的那一份。
 //
-// 所以这个口子恰恰**让平台可以继续不理解网关**，而不是相反。详见 012 §2.23。
+// 所以这个口子恰恰**让平台可以继续不理解网关**，而不是相反。。
 //
 // # 唯一的校验：不许覆盖平台自己拥有的键
 //
@@ -42,7 +42,7 @@ const (
 	// config-hash…）。覆盖它们会让 `docker compose` 认不出自己生成的东西。
 	reservedComposePrefix = "com.docker.compose."
 	// reservedAppLabel 是 K8s 下 Deployment 找到自己 Pod 的唯一依据，
-	// 也是 NetworkPolicy 的匹配依据（005 §5.3、§5.13.1）。
+	// 也是 NetworkPolicy 的匹配依据。
 	reservedAppLabel = "app"
 )
 
@@ -81,7 +81,7 @@ func ValidateLabels(labels map[string]string, path string, add func(field, messa
 
 // MergeLabels 按"后来的覆盖先前的"逐键合并，全空时返回 nil。
 //
-// 逐键合并而不是整块覆盖，与 mergeResources 同一个理由（004 §5.6.2）：
+// 逐键合并而不是整块覆盖，与 mergeResources 同一个理由：
 // 使用者常常只想加一条路由规则，不该因此把组件作者写的抓取路径一起丢掉。
 //
 // 全空返回 nil 而不是空 map：渲染器据此判断"这一段要不要生成"。

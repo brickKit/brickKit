@@ -37,7 +37,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
-# 迁移脚本必须进镜像：002 §8.4 要求它和业务代码同镜像同版本
+# 迁移脚本必须进镜像：平台要求它和业务代码同镜像同版本
 COPY migrations ./migrations
 COPY component.yaml openapi.json ./
 COPY proto ./proto
@@ -55,13 +55,13 @@ CMD ["python", "-m", "pytest", "-q", "tests"]
 
 # ---------- 运行期镜像 ----------
 FROM base AS runtime
-# 健康检查跑在容器**内部**，用的必须是镜像里真有的命令（002 §9.6）。
+# 健康检查跑在容器**内部**，用的必须是镜像里真有的命令。
 # python:slim 既没有 wget 也没有 curl——不装的话，组件明明跑得好好的，
 # 平台却判它 unhealthy，依赖方永远等不到它。真跑起来撞到过。
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
-# 002 §1.4 / 开发计划 21.10：容器不得以 root 运行
+# 容器不得以 root 运行
 RUN useradd --uid 10001 --create-home brickkit
 USER 10001
 

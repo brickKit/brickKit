@@ -1,6 +1,6 @@
-// 本文件是 Step 12「compose.yaml 生成」的业务行为测试，
-// 覆盖开发计划 12.1–12.16，以及延后项 P2（配额写进部署文件）、P4（expose 端口冲突）、
-// P20（注入引擎接线）、P21（extraPorts 变量出现在 compose 里）。
+// 本文件是 「compose.yaml 生成」的业务行为测试，
+// 包括配额写进部署文件、expose 端口冲突、注入引擎接线、
+// extraPorts 变量出现在 compose 里。
 //
 // 生成的文件是给人看、也给 docker 读的：断言尽量落在"最终 YAML 里有什么"，
 // 而不是内部结构，这样重构渲染方式不会让测试全红。
@@ -178,7 +178,7 @@ func dependsOn(m *manifest.Manifest, id, version string) *manifest.Manifest {
 }
 
 // ============================================================
-// 12.16 文件头 / 12.8 网络
+// 文件头 / 网络
 // ============================================================
 
 func TestGeneratedFileHasHeaderComment(t *testing.T) {
@@ -193,7 +193,7 @@ func TestGeneratedFileHasHeaderComment(t *testing.T) {
 	assert.Contains(t, text, "my-erp", "项目名要写进头部")
 }
 
-// 12.8 网络名是 brickkit-<项目名>-net。
+// 网络名是 brickkit-<项目名>-net。
 func TestNetworkName(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
@@ -220,7 +220,7 @@ func TestEveryServiceJoinsTheNetwork(t *testing.T) {
 }
 
 // ============================================================
-// 12.2 / 12.12 依赖顺序
+// 依赖顺序
 // ============================================================
 
 // 12.2：强依赖体现为 depends_on + service_healthy。
@@ -258,7 +258,7 @@ func TestWeakDependencyIsNotInDependsOn(t *testing.T) {
 }
 
 // ============================================================
-// 12.6 / 12.11 / 12.12 迁移
+// 迁移
 // ============================================================
 
 func withMigration(m *manifest.Manifest) *manifest.Manifest {
@@ -274,11 +274,11 @@ func TestMigrationServiceIsGenerated(t *testing.T) {
 	svc := serviceOf(t, b.parsed(), "people-basic-1-0-0-migration")
 
 	assert.Equal(t, "registry.example.com/people-basic:1.0.0", svc["image"],
-		"002 §8.4：迁移用组件自己的镜像")
-	assert.Equal(t, "no", svc["restart"], "12.11：一次性任务不能自动重启")
+		"迁移用组件自己的镜像")
+	assert.Equal(t, "no", svc["restart"], "一次性任务不能自动重启")
 
 	// 必须同时覆盖 entrypoint 与 command。
-	// 这是真跑起来才发现的：组件镜像普遍带 ENTRYPOINT（002 §1.4 推荐的写法），
+	// 这是真跑起来才发现的：组件镜像普遍带 ENTRYPOINT（推荐的写法），
 	// 而 compose 的 command 只覆盖 CMD——只写 command 会变成
 	// `/app/people-basic /app/people-basic migrate`，参数错位，
 	// 结果迁移容器把**服务**起起来了，主服务永远等不到"迁移完成"。
@@ -287,7 +287,7 @@ func TestMigrationServiceIsGenerated(t *testing.T) {
 	assert.Equal(t, []any{"migrate"}, svc["command"], "其余作为参数")
 }
 
-// 002 §8.5：迁移容器要拿到与主容器一样的环境变量。
+// 迁移容器要拿到与主容器一样的环境变量。
 func TestMigrationServiceInheritsEnvironment(t *testing.T) {
 	b := newBuilder(t)
 	m := withMigration(simple("people/basic", "1.0.0", 8080))
@@ -317,7 +317,7 @@ func TestMainServiceWaitsForMigration(t *testing.T) {
 	assert.Equal(t, "service_completed_successfully", migration["condition"])
 }
 
-// 迁移容器不 depends_on 任何资源：平台不部署基础资源（006 §9.1），
+// 迁移容器不 depends_on 任何资源：平台不部署基础资源，
 // compose 文件里根本没有可等的 service——写进去 compose 会直接报错。
 //
 // 库没起来时迁移就是第一个失败的，那条 connection refused 比任何
@@ -359,7 +359,7 @@ func TestSingleWordMigrationCommand(t *testing.T) {
 	assert.NotContains(t, svc, "command", "没有额外参数时不写 command")
 }
 
-// 没声明 migration 的组件不生成迁移 service（002 §8.8）。
+// 没声明 migration 的组件不生成迁移 service。
 func TestComponentWithoutMigrationHasNoMigrationService(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
@@ -367,7 +367,7 @@ func TestComponentWithoutMigrationHasNoMigrationService(t *testing.T) {
 	assert.NotContains(t, servicesOf(t, b.parsed()), "people-basic-1-0-0-migration")
 }
 
-// 14.6：环境变量"原封不动复制"（002 §8.5）这条承诺，在依赖被搬去本地调试
+// 环境变量"原封不动复制"这条承诺，在依赖被搬去本地调试
 // 之后也要成立——地址被改写成 localPort 时，两边必须一起改。
 func TestMigrationServiceInheritsRewrittenEnvironment(t *testing.T) {
 	b := newBuilder(t)
@@ -450,7 +450,7 @@ func TestMigrationServiceHasNoHealthcheck(t *testing.T) {
 }
 
 // ============================================================
-// 12.3 健康检查
+// 健康检查
 // ============================================================
 
 // 健康检查不能只赌镜像里有 wget。
@@ -490,7 +490,7 @@ func TestHealthcheckFromManifest(t *testing.T) {
 	assert.NotEmpty(t, health["retries"])
 }
 
-// 启动宽限期必须写进 healthcheck（002 §9.3）。
+// 启动宽限期必须写进 healthcheck。
 //
 // 少了 start_period，平台给组件的启动预算就是写死的 interval × retries = 30 秒。
 // 真跑验证过：一个 40 秒才开始监听的容器，在没有 start_period 时被判 unhealthy，
@@ -528,7 +528,7 @@ func TestTCPHealthcheckHasStartPeriod(t *testing.T) {
 	assert.Equal(t, "60s", health["start_period"])
 }
 
-// 健康检查探的是**主端口**，不是额外端口（002 §5.5）。
+// 健康检查探的是**主端口**，不是额外端口。
 func TestHealthcheckUsesMainPortNotExtraPort(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9090}}
@@ -571,7 +571,7 @@ func TestDependencyWithoutHealthcheckUsesStartedCondition(t *testing.T) {
 }
 
 // ============================================================
-// 12.4 资源配额（回填 P2 的后半部分）
+// 资源配额
 // ============================================================
 
 // K8s 风格的 100m / 128Mi 要转成 compose 的 cpus / memory 写法。
@@ -597,7 +597,7 @@ func TestResourceQuotaConversion(t *testing.T) {
 	assert.Equal(t, "128M", reservations["memory"])
 }
 
-// 没声明配额的组件：requests 用 CLI 默认值，**limits 整段不生成**（004 §5.6.2）。
+// 没声明配额的组件：requests 用 CLI 默认值，**limits 整段不生成**。
 //
 // 平台不替人猜上限：猜一个数字的后果是去 kill 一个跑得好好的组件，
 // 而组件作者从没同意过那个数字。
@@ -632,7 +632,7 @@ func TestResourceQuotaOverrideReachesTheFile(t *testing.T) {
 }
 
 // ============================================================
-// 12.5 expose 端口映射（含 P4 冲突判定）
+// expose 端口映射（含 P4 冲突判定）
 // ============================================================
 
 // expose: true 且没写 exposePort 时，用组件的主端口做宿主机端口。
@@ -663,7 +663,7 @@ func TestComponentWithoutExposeHasNoPorts(t *testing.T) {
 	assert.NotContains(t, serviceOf(t, b.parsed(), "people-basic-1-0-0"), "ports")
 }
 
-// P4：两个组件抢同一个宿主机端口 → 报错并指出改哪里（004 §10.3）。
+// P4：两个组件抢同一个宿主机端口 → 报错并指出改哪里。
 func TestConflictingExposePortsIsAnError(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80), projecttest.Entry{Expose: true, ExposePort: 8080})
@@ -693,7 +693,7 @@ func TestConflictingDefaultExposePortsIsAnError(t *testing.T) {
 }
 
 // ============================================================
-// 12.7 mode: debug
+// mode: debug
 // ============================================================
 
 // mode: debug 的组件在宿主机（IDE）里跑，不生成容器。
@@ -796,13 +796,13 @@ func TestLocalEnvFileVarsMatchTheRenderedContent(t *testing.T) {
 }
 
 // ============================================================
-// 12.13 / 12.14 / 12.9 基础资源
+// 基础资源
 // ============================================================
 
-// 平台**不生成任何基础资源容器**（006 §9.1）。
+// 平台**不生成任何基础资源容器**。
 //
 // 这条从前是反过来的：`host` 不含点时 CLI 会自己起一个 postgres / redis
-// （旧的 006 §10.4）。那条路已经取消，理由有三条，每条单独都不够、合起来足够：
+// （早先的设计）。那条路已经取消，理由有三条，每条单独都不够、合起来足够：
 //
 //	只覆盖 6 种 kind 里的 2 种   mq / storage / search / smtp 会生成一个没有
 //	                            image 的 service，compose 直接判定非法
@@ -821,11 +821,11 @@ func TestNoResourceContainerIsGenerated(t *testing.T) {
 }
 
 // ============================================================
-// 006 §9.5：库不存在时平台的责任是"说清楚"
+// 库不存在时平台的责任是"说清楚"
 // ============================================================
 
 // ============================================================
-// 12.10 / 12.15 其他
+// 其他
 // ============================================================
 
 func TestRestartPolicy(t *testing.T) {
@@ -858,7 +858,7 @@ func TestSkippedComponentGeneratesNoService(t *testing.T) {
 }
 
 // ============================================================
-// P20 / P21：注入引擎的结果真的写进了文件
+// 注入引擎的结果真的写进了文件
 // ============================================================
 
 func TestInjectedEnvironmentReachesTheFile(t *testing.T) {
@@ -884,7 +884,7 @@ func TestInjectedEnvironmentReachesTheFile(t *testing.T) {
 	assert.Equal(t, "7200", env["SESSION_TTL_SECONDS"], "config 覆盖要落到文件里")
 }
 
-// ${ENV_VAR} 必须原样保留，绝不能把展开后的密钥写进生成文件（003 §5.4）。
+// ${ENV_VAR} 必须原样保留，绝不能把展开后的密钥写进生成文件。
 func TestSecretsStayAsEnvironmentReferences(t *testing.T) {
 	b := newBuilder(t)
 	m := simple("people/basic", "1.0.0", 8080)
@@ -974,7 +974,7 @@ func TestGenerationIsDeterministic(t *testing.T) {
 }
 
 // ============================================================
-// 12.1 真实 docker compose 校验
+// 真实 docker compose 校验
 // ============================================================
 
 // 12.1：生成的文件必须能被真实的 docker compose 解析。

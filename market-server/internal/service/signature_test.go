@@ -11,7 +11,7 @@ import (
 	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
-// 本文件覆盖开发计划 20.6：签名信息存储在版本记录中。
+// 本文件覆盖签名信息存储在版本记录中。
 //
 // 市场对签名做的事只有两件：**存下来**，以及**挡住结构上就不可能有效的签名**。
 // 它不做密码学校验——见 TestPublishDoesNotCryptographicallyVerify 的说明。
@@ -62,7 +62,7 @@ func TestPublishStoresSignature(t *testing.T) {
 
 // TestGetManifestReturnsSignature 决定 CLI 能不能验签。
 //
-// CLI 在 add 时只请求这一个端点（007 §4.5）。签名不跟着 Manifest 一起回来，
+// CLI 在 add 时只请求这一个端点。签名不跟着 Manifest 一起回来，
 // 使用者就得再发一次请求去猜它在哪儿——或者干脆验不了。
 func TestGetManifestReturnsSignature(t *testing.T) {
 	f := newFixture(t)
@@ -108,7 +108,7 @@ func TestListVersionsShowsSignature(t *testing.T) {
 
 // TestPublishWithoutSignatureIsAllowed：市场不强制签名。
 //
-// 强制与否是**使用者**的策略（installer.requireSignature，008 §8.5）：
+// 强制与否是**使用者**的策略（installer.requireSignature）：
 // 同一个市场同时服务着"本地开发随便装"和"生产必须验签"的项目。
 // 市场在发布侧一刀切，等于替所有使用者做了决定。
 func TestPublishWithoutSignatureIsAllowed(t *testing.T) {
@@ -160,16 +160,16 @@ func TestPublishRejectsMalformedSignature(t *testing.T) {
 	}
 }
 
-// TestPublishDoesNotCryptographicallyVerify 记录一处与设计书的**有意偏离**。
+// TestPublishDoesNotCryptographicallyVerify 记录市场**有意不做**的一件事。
 //
-// 008 §8.2 的时序图里有一步 "Market->>Market: 校验签名（使用公钥）"。市场做不到，
+// 直觉上发布时市场该"校验签名（使用公钥）"。市场做不到，
 // 而且不该假装做得到：它手里没有任何可信的公钥。若让发布者连公钥一起上传，
 // 那就是自己给自己发证——攻击者拿到发布 Token 后，用自己的密钥对签名、连公钥
 // 一起传，"校验"照样通过。这种校验比没有更糟，因为它会让人以为验过了。
 //
-// 真正的校验在 CLI 侧，公钥来自使用者的 installer.publicKeys（008 §8.4）。
+// 真正的校验在 CLI 侧，公钥来自使用者的 installer.publicKeys。
 // 市场若要做有意义的校验，前提是发布者公钥在账号下登记并有独立的变更审计——
-// 那是另一件事，已登记为延后项。
+// 那是另一件事，目前没有做。
 func TestPublishDoesNotCryptographicallyVerify(t *testing.T) {
 	f := newFixture(t)
 	id := f.registerUser(t, "release-bot")

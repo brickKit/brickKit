@@ -1,6 +1,6 @@
-// 本文件是 Step 21「department/tree」的业务行为测试。
+// 本文件是 「department/tree」的业务行为测试。
 //
-// 覆盖开发计划 21.1（HTTP）、21.2（gRPC）、21.4/21.5（健康检查），
+// 覆盖 HTTP、gRPC、健康检查，
 // 以及这个组件存在的意义：**同一份数据必须能从两种协议拿到一样的结果**。
 package main
 
@@ -86,7 +86,7 @@ func equalStrings(a, b []string) bool {
 }
 
 // ============================================================
-// 21.1 HTTP API
+// HTTP API
 // ============================================================
 
 func TestListDepartmentsOverHTTP(t *testing.T) {
@@ -177,7 +177,7 @@ func TestSubtreeOfUnknownDepartmentReturns404(t *testing.T) {
 }
 
 // ============================================================
-// 21.2 gRPC API
+// gRPC API
 // ============================================================
 
 func TestListDepartmentsOverGRPC(t *testing.T) {
@@ -289,7 +289,7 @@ func TestFilterIsConsistentAcrossProtocols(t *testing.T) {
 }
 
 // ============================================================
-// 21.4 / 21.5 健康检查
+// 健康检查
 // ============================================================
 
 func TestHealthzReturns200(t *testing.T) {
@@ -323,7 +323,7 @@ func (s *failingStore) Subtree(context.Context, string) ([]Department, error) {
 	return nil, errors.New("数据库连接已断开")
 }
 
-// 002 §9.4：/healthz 只检查本进程存活，**禁止**检查数据库或任何外部系统。
+// /healthz 只检查本进程存活，**禁止**检查数据库或任何外部系统。
 //
 // 这条不是洁癖：健康检查一旦连库，数据库抖一下就会让所有组件被判死重启，
 // 把一次数据库故障放大成整个系统雪崩。
@@ -354,7 +354,7 @@ func TestBusinessEndpointReportsStoreFailure(t *testing.T) {
 	if body["error"] == nil {
 		t.Fatalf("要说明原因：%v", body)
 	}
-	// 002 §11.3：错误信息不向外暴露内部实现细节
+	// 错误信息不向外暴露内部实现细节
 	if msg, _ := body["error"].(string); msg == "数据库连接已断开" {
 		t.Fatalf("不该把底层错误原样透出：%v", msg)
 	}

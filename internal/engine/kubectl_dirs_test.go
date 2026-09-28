@@ -3,7 +3,7 @@ package engine
 // 本文件只盯一件事：**生成器产出的子目录，引擎全都认识**。
 //
 // 这是一条接线测试。它防的不是某个函数算错，而是两个包各写各的字符串字面量：
-// k8s 包新增一类清单（P26 的 networkpolicies / serviceaccounts 就是这么来的），
+// k8s 包新增一类清单（networkpolicies / serviceaccounts 就是这么来的），
 // 引擎这边忘了加，表现是"清单生成了、集群里却没有"——`brickkit up`
 // 一路成功、退出码 0，只有去 kubectl get 才发现少了东西。
 // down 那边漏掉更隐蔽：删不干净，下次 up 撞上残留。
@@ -85,15 +85,15 @@ func TestHardeningAppliedBeforeWorkloads(t *testing.T) {
 	}
 }
 
-// PDB 必须在孤儿清理范围内（P35）。
+// PDB 必须在孤儿清理范围内。
 //
 // 漏了它的后果是**单向不可逆**：把 replicas 从 3 改回 1 之后，
 // 生成物里不再有 PDB，`kubectl apply` 也不会删已经在集群里的那一份——
 // 于是一份 maxUnavailable: 1 的 PDB 永远留在单副本组件上，
-// 让节点从此排不空。而这正是 P35 当初决定不生成 PDB 的那个理由，
+// 让节点从此排不空。而这正是当初决定单副本不生成 PDB 的那个理由，
 // 只不过换了个更隐蔽的入口。
 func TestPruneCoversPodDisruptionBudget(t *testing.T) {
 	assert.Contains(t, pruneKinds, "poddisruptionbudget",
-		"P35：replicas 从 3 改回 1 时这份 PDB 必须被删掉，"+
+		"replicas 从 3 改回 1 时这份 PDB 必须被删掉，"+
 			"否则它会永远留在单副本组件上让节点排不空")
 }

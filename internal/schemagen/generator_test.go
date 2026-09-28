@@ -240,7 +240,7 @@ func TestDocumentIsDeterministic(t *testing.T) {
 	}
 }
 
-// ---- 以下是在设计书 §4.2 / §4.3 的规则上补的用例：把上面没走到的分支与"错在哪"钉住 ----
+// ---- 以下补的用例：把上面没走到的分支与"错在哪"钉住 ----
 
 func TestNumericKindsMapToJSONSchemaTypes(t *testing.T) {
 	cases := []struct {

@@ -10,8 +10,8 @@ import (
 // params 是路径参数。
 type params map[string]string
 
-// componentID 拼出组件 ID。组件 ID 是两段式 scope/name（002 §10.3），
-// 路径里的 `/` 是它自身的一部分，不做转义（007 §4.5）。
+// componentID 拼出组件 ID。组件 ID 是两段式 scope/name，
+// 路径里的 `/` 是它自身的一部分，不做转义。
 func (p params) componentID() string { return p["scope"] + "/" + p["name"] }
 
 // route 是一条路由规则。segments 里以 `:` 开头的是参数段。

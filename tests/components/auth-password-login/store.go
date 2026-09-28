@@ -34,7 +34,7 @@ type Credential struct {
 // 抽成接口是为了让 HTTP 行为测试用内存实现跑得飞快，
 // 而 SQL 的正确性由契约测试对着真库验（store_test.go）。
 //
-// 建表与初始数据不在这里，它们是 migrations/*.sql（002 §8）。
+// 建表与初始数据不在这里，它们是 migrations/*.sql。
 type Store interface {
 	// GetByUsername 按用户名取凭据，不存在时返回 ErrCredentialNotFound。
 	GetByUsername(ctx context.Context, username string) (Credential, error)

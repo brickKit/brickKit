@@ -1,10 +1,10 @@
 // demo/caller 是 BrickKit 平台的自测组件：一个会调用别人的 HTTP 组件。
 //
 // 它覆盖平台最核心的几条承诺，让它们能被真容器验证：
-//   - 强依赖地址通过环境变量注入（DEMO_HELLO_ENDPOINT），DNS 即注册中心（002 §5）
-//   - 弱依赖缺失时自行降级，平台完全不注入该变量（002 §3.4）
+//   - 强依赖地址通过环境变量注入（DEMO_HELLO_ENDPOINT），DNS 即注册中心
+//   - 弱依赖缺失时自行降级，平台完全不注入该变量
 //   - 自己声明的配置项注入为同名环境变量（DATABASE_* 等）
-//   - 迁移命令在主服务启动前执行，失败要以非 0 退出码阻断（005）
+//   - 迁移命令在主服务启动前执行，失败要以非 0 退出码阻断
 package main
 
 import (
@@ -25,10 +25,10 @@ import (
 // 主端口固定 8080，与 component.yaml 的 deployment.port 一致。
 const addr = ":8080"
 
-// upstreamTimeout 是调用依赖组件的超时。组件之间是同步 HTTP 调用（002 §5.4）。
+// upstreamTimeout 是调用依赖组件的超时。组件之间是同步 HTTP 调用。
 const upstreamTimeout = 3 * time.Second
 
-// platformEnvKeys 是回显给调用方的环境变量（004 §5.6）。
+// platformEnvKeys 是回显给调用方的环境变量。
 // 弱依赖的 DEMO_BUS_ENDPOINT 也在列：它的值为空正好说明"平台没有注入"。
 var platformEnvKeys = []string{
 	"COMPONENT_ID",
@@ -55,7 +55,7 @@ func newServerFromEnv() *server {
 		componentID:   envOr("COMPONENT_ID", "demo/caller"),
 		version:       envOr("COMPONENT_VERSION", "1.0.0"),
 		helloEndpoint: os.Getenv("DEMO_HELLO_ENDPOINT"),
-		// 002 §3.4：弱依赖必须用安全方式读取，不存在就是不存在
+		// 弱依赖必须用安全方式读取，不存在就是不存在
 		busEndpoint: os.Getenv("DEMO_BUS_ENDPOINT"),
 	}
 }
@@ -76,7 +76,7 @@ func (s *server) routes() *http.ServeMux {
 	return mux
 }
 
-// handleHealthz 只检查本进程存活：上游挂了也不影响本组件的健康状态（002 §9.4）。
+// handleHealthz 只检查本进程存活：上游挂了也不影响本组件的健康状态。
 func (s *server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 }

@@ -16,7 +16,7 @@ import (
 	"errors"
 )
 
-// FileName 是 Manifest 的固定文件名（002 §2.1）。
+// FileName 是 Manifest 的固定文件名。
 const FileName = "component.yaml"
 
 // ParseFile 读取并解析一个 component.yaml。
@@ -207,7 +207,7 @@ func checkShapes(doc *yaml.Node, p *clierr.ProblemSet) {
 	}
 
 	// deployment.labels 必须是映射，而且每个值都得是字符串
-	// ——`traefik.enable: true` 少的那对引号在这里报（002 §4.7）。
+	// ——`traefik.enable: true` 少的那对引号在这里报。
 	if labels := lookup(doc, "deployment", "labels"); labels != nil && !isNull(labels) {
 		if labels.Kind != yaml.MappingNode {
 			p.Add("deployment.labels", i18n.T(msgid.ProblemMustBeMapping, yamlcheck.KindName(labels)))
@@ -247,7 +247,7 @@ func isNull(node *yaml.Node) bool {
 // 依赖项的两种写法
 // ============================================================
 
-// UnmarshalYAML 支持组件依赖的两种写法（002 §3.2）：
+// UnmarshalYAML 支持组件依赖的两种写法：
 //
 //   - department/tree@1.0.0              # 标量：强依赖
 //   - id: infra/redis-event-bus@1.0.0    # 映射：可带 optional

@@ -1,6 +1,6 @@
 package cli
 
-// 本文件在发布时把镜像 tag 钉成 digest（P29）。
+// 本文件在发布时把镜像 tag 钉成 digest。
 //
 // 顺序上它必须排在**签名之前**——理由见 imagedigest.go 的包注释与
 // runPublish 里的那段注释。

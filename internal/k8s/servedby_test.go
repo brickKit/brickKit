@@ -1,5 +1,4 @@
-// 本文件测试 servedBy（外壳合并部署）在 K8s 目标下的渲染，覆盖 servedBy
-// 设计书 §6-§9。mode: debug 在 K8s 下依旧照常拒绝，但那条检查已经不在
+// 本文件测试 servedBy（外壳合并部署）在 K8s 目标下的渲染。mode: debug 在 K8s 下依旧照常拒绝，但那条检查已经不在
 // k8s.Generate 这一层了，见下面 servedUnsupportedFieldWarnings 之前那段说明。
 package k8s_test
 
@@ -90,7 +89,7 @@ func TestShellDeploymentGetsServedMembersButNotMemberEndpoints(t *testing.T) {
 // 不出现在 states.Running() 里，shell.Resolve 因此不会为这个外壳产出任何
 // Group。但外壳本身还在跑，BRICKKIT_SERVED_MEMBERS 依旧必须显式写成空
 // 字符串，不能让整个变量消失：“空字符串”（零个成员激活）与“变量不存在”
-// （不受平台管辖）语义相反，不能合并处理（servedBy 设计书 §7）。
+// （不受平台管辖）语义相反，不能合并处理。
 func TestShellServedMembersIsEmptyStringWhenMemberNotRunning(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
@@ -112,7 +111,7 @@ func TestServedByServiceIsInDesired(t *testing.T) {
 
 	result := b.generate()
 	assert.Contains(t, result.Desired, "service/mdm-customer-1-0-7",
-		"P38 孤儿清理靠 Desired 判断该留还是该删——servedBy 撤销之后这条要能被识别成孤儿")
+		"孤儿清理靠 Desired 判断该留还是该删——servedBy 撤销之后这条要能被识别成孤儿")
 }
 
 // ---- 迁移警告 ----

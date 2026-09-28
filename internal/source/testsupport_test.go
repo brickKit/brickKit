@@ -44,7 +44,7 @@ type componentSpec struct {
 	Files map[string]string
 }
 
-// yamlText 渲染出一份合法的 component.yaml（字段依据 002 §2.2）。
+// yamlText 渲染出一份合法的 component.yaml。
 func (s componentSpec) yamlText() string {
 	desc := s.Description
 	if desc == "" {
@@ -116,7 +116,7 @@ func readFile(t *testing.T, path string) string {
 	return string(data)
 }
 
-// protoSpec 是一个带两类 artifacts 的典型组件（对齐 002 §12.5 department/tree）。
+// protoSpec 是一个带两类 artifacts 的典型组件（department/tree）。
 func protoSpec(id, version string) componentSpec {
 	return componentSpec{
 		ID:      id,
@@ -175,7 +175,7 @@ func at(ts string) func() time.Time {
 // ============================================================
 
 // ============================================================
-// 市场 API Mock（007 §9.1 端点表）
+// 市场 API Mock
 // ============================================================
 
 type recordedRequest struct {
@@ -199,15 +199,15 @@ type marketMock struct {
 	// failManifest 为 true 时，Manifest 端点返回 500。
 	failManifest bool
 	// blocked 为 true 时，Manifest 端点返回 403 + COMPONENT_BLOCKED
-	// （市场把该版本下架了，007 §6）。
+	// （市场把该版本下架了）。
 	blocked bool
 	// failArtifactList 为 true 时，产物列表端点返回 503。
 	failArtifactList bool
 	// garbageArtifactList 为 true 时，产物列表端点返回无法解析的正文。
 	garbageArtifactList bool
-	// signature 非空时，Manifest 端点信封里带上签名（008 §8.3）。
+	// signature 非空时，Manifest 端点信封里带上签名。
 	signature *security.Signature
-	// sourceType / gitURL 是 Manifest 端点信封里的来源信息（007 §11）。
+	// sourceType / gitURL 是 Manifest 端点信封里的来源信息。
 	// 为空时分别默认为 git 与由组件 ID 推导的仓库地址。
 	sourceType string
 	gitURL     string
@@ -234,7 +234,7 @@ func newMarketMock(t *testing.T, specs ...componentSpec) *marketMock {
 	return m
 }
 
-// URL 返回市场 API 基地址（含 /api/v1 前缀，对齐 003 §6.2）。
+// URL 返回市场 API 基地址（含 /api/v1 前缀）。
 func (m *marketMock) URL() string { return m.server.URL + "/api/v1" }
 
 func (m *marketMock) recorded() []recordedRequest {
@@ -324,7 +324,7 @@ func (m *marketMock) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// writeVersionList 实现 GET /components/{id}/versions（007 §4.4）。
+// writeVersionList 实现 GET /components/{id}/versions。
 // 与真实服务端一致：返回 {success, data} 信封，data 是版本对象数组。
 func (m *marketMock) writeVersionList(w http.ResponseWriter, componentID string) {
 	if m.failVersionList {

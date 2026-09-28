@@ -9,7 +9,7 @@ import (
 	"github.com/brickkit/brickkit/internal/security"
 )
 
-// SignaturePolicy 是签名校验策略（008 §8.5、003 §3.6）。
+// SignaturePolicy 是签名校验策略。
 //
 // # 两条独立的规则，别把它们混成一条
 //
@@ -25,7 +25,7 @@ import (
 //
 //	                          Require=true       Require=false
 //	Ring 为空（没配公钥）       放行 + 警告         放行（静默）
-//	Ring 非空，组件没有签名     阻断（20.4）        放行（20.5）
+//	Ring 非空，组件没有签名     阻断        放行
 //	Ring 非空，ref 不在列表里   阻断               放行 + 警告
 //	Ring 非空，签名验不过       阻断               阻断
 //

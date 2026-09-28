@@ -12,7 +12,7 @@ import (
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
-// 组件来源类型（007 §11.1）。
+// 组件来源类型。
 const (
 	// SourceTypeGit 是开源组件：有 Git 仓库，CLI 可以 clone 源码。
 	SourceTypeGit = "git"
@@ -20,13 +20,13 @@ const (
 	SourceTypeRegistry = "registry"
 )
 
-// 组件可见性（007 §5.1）。
+// 组件可见性。
 const (
 	VisibilityPublic  = "public"
 	VisibilityPrivate = "private"
 )
 
-// 版本状态（007 §6）。
+// 版本状态。
 const (
 	// VersionDraft 是发布中的版本：产物还没传完，不可安装。
 	VersionDraft = "draft"
@@ -46,10 +46,10 @@ const (
 	ComponentBlocked = "blocked"
 )
 
-// ArtifactTypeAPIContract 是 API 契约产物：闭源组件提供 API 时必须有它（002 §5.11）。
+// ArtifactTypeAPIContract 是 API 契约产物：闭源组件提供 API 时必须有它。
 const ArtifactTypeAPIContract = "api-contract"
 
-// 错误码。与 007 §18 的响应示例保持一致。
+// 错误码。与市场 API 参考里的响应示例保持一致。
 const (
 	CodeManifestInvalid                = "MANIFEST_INVALID"
 	CodeReservedVariableConflict       = "CONFIG_SCHEMA_RESERVED_VARIABLE_CONFLICT"
@@ -70,14 +70,14 @@ type Problem struct {
 	Reason string `json:"reason"`
 }
 
-// ReservedConflict 是一条保留变量冲突详情（007 §18.1）。
+// ReservedConflict 是一条保留变量冲突详情。
 type ReservedConflict struct {
 	ConfigKey       string `json:"configKey"`
 	ConflictPattern string `json:"conflictPattern"`
 	Suggestion      string `json:"suggestion"`
 }
 
-// APIError 是市场对外的统一错误结构（007 §18 的 error 对象）。
+// APIError 是市场对外的统一错误结构（响应信封里的 error 对象）。
 type APIError struct {
 	// Code 是机器可读的错误码。
 	Code string `json:"code"`
@@ -109,18 +109,18 @@ func Errorf(code, message string) *APIError {
 // 请求 / 响应契约
 // ============================================================
 
-// AlgorithmCosign 是目前唯一支持的签名算法标识（008 §8.3）。
+// AlgorithmCosign 是目前唯一支持的签名算法标识。
 const AlgorithmCosign = "cosign"
 
-// Signature 是一条组件版本签名（008 §8.3、007 §7.3）。
+// Signature 是一条组件版本签名。
 //
 // 市场对它做的事只有两件：存下来，以及挡住结构上就不可能有效的（见 Validate）。
 // **市场不做密码学校验**——它手里没有任何可信的公钥。让发布者连公钥一起上传
 // 就是自己给自己发证：攻击者拿到发布 Token 后，用自己的密钥对签名、连公钥一起
 // 传，"校验"照样通过。那种校验比没有更糟，因为它会让人以为验过了。
 //
-// 真正的校验在 CLI 侧，公钥来自使用者自己的 installer.publicKeys（008 §8.4）。
-// 这是对 008 §8.2 时序图中 "Market->>Market: 校验签名" 一步的有意偏离。
+// 真正的校验在 CLI 侧，公钥来自使用者自己的 installer.publicKeys。
+// 所以市场发布时**有意不**校验签名。
 type Signature struct {
 	Algorithm    string    `json:"algorithm"`
 	PublicKeyRef string    `json:"publicKeyRef"`
@@ -158,7 +158,7 @@ func (s *Signature) Validate() error {
 	return nil
 }
 
-// PublishRequest 是发布新版本的请求体（007 §3.7）。
+// PublishRequest 是发布新版本的请求体。
 type PublishRequest struct {
 	Version    string          `json:"version"`
 	Status     string          `json:"status,omitempty"`
@@ -167,7 +167,7 @@ type PublishRequest struct {
 	GitURL     string          `json:"gitUrl,omitempty"`
 	Changelog  string          `json:"changelog,omitempty"`
 	Visibility string          `json:"visibility,omitempty"`
-	// Signature 是对 Manifest 规范化载荷的签名（008 §8.3.1），可选。
+	// Signature 是对 Manifest 规范化载荷的签名，可选。
 	Signature *Signature `json:"signature,omitempty"`
 	// Doc 是组件仓库根的 BRICKKIT.md 全文（提案 §16.2），可选，不超过 MaxDocBytes。
 	// 它不在签名范围内：是给人和 AI 读的说明，改了它改不了实际运行的任何东西。
@@ -177,7 +177,7 @@ type PublishRequest struct {
 // MaxDocBytes 是 BRICKKIT.md 的上限，与 CLI 发布前查的是同一个值。
 const MaxDocBytes = manifest.MaxDocBytes
 
-// Component 是组件记录（007 §10.1）。
+// Component 是组件记录。
 type Component struct {
 	ComponentID string    `json:"componentId"`
 	Name        string    `json:"name"`
@@ -194,7 +194,7 @@ type Component struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-// Version 是组件版本记录（007 §10.3）。
+// Version 是组件版本记录。
 type Version struct {
 	ComponentID string          `json:"componentId"`
 	Version     string          `json:"version"`
@@ -203,18 +203,18 @@ type Version struct {
 	Changelog   string          `json:"changelog,omitempty"`
 	PublishedAt time.Time       `json:"publishedAt"`
 	PublishedBy string          `json:"publishedBy"`
-	// Signature 是发布时提交的签名（008 §8.3），未签名时为 nil。
+	// Signature 是发布时提交的签名，未签名时为 nil。
 	Signature *Signature `json:"signature,omitempty"`
 	// Doc 是这个版本的 BRICKKIT.md，没有时为空。它只经文档端点给出，不进版本的 JSON。
 	Doc string `json:"-"`
 }
 
-// Installable 判断该版本能否被安装（007 §6：blocked 不能安装，deleted 视同不存在）。
+// Installable 判断该版本能否被安装（blocked 不能安装，deleted 视同不存在）。
 func (v *Version) Installable() bool {
 	return v.Status == VersionStable || v.Status == VersionDeprecated
 }
 
-// ArtifactRecord 是产物记录（007 §10.4）。
+// ArtifactRecord 是产物记录。
 type ArtifactRecord struct {
 	ArtifactID  string   `json:"id"`
 	ComponentID string   `json:"componentId"`
@@ -227,7 +227,7 @@ type ArtifactRecord struct {
 	Uploaded []string `json:"-"`
 }
 
-// User 是市场用户（007 §9.5）。
+// User 是市场用户。
 type User struct {
 	UserID       string    `json:"userId"`
 	Username     string    `json:"username"`
@@ -238,9 +238,9 @@ type User struct {
 	CreatedAt    time.Time `json:"createdAt"`
 }
 
-// Organization 是一个组织（007 §9.5、§10）。
+// Organization 是一个组织。
 //
-// 组织存在的意义只有一个：把 private 组件按组织授权出去（007 §5.3 的
+// 组织存在的意义只有一个：把 private 组件按组织授权出去（访问策略里的
 // allowedOrganizations）。因此**成员关系就是授权本身**，只能由组织所有者
 // 或市场管理员建立——绝不能由使用者在注册时自报。
 type Organization struct {
@@ -252,7 +252,7 @@ type Organization struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-// Token 是登录后签发的访问令牌（007 §9.6 Bearer Token）。
+// Token 是登录后签发的访问令牌（Bearer Token）。
 type Token struct {
 	Token     string    `json:"token"`
 	UserID    string    `json:"userId"`
@@ -261,7 +261,7 @@ type Token struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-// AccessPolicy 是 private 组件的访问策略（007 §10.5）。
+// AccessPolicy 是 private 组件的访问策略。
 type AccessPolicy struct {
 	ComponentID string `json:"componentId"`
 	TargetType  string `json:"targetType"` // user / organization
@@ -275,7 +275,7 @@ const (
 	TargetOrganization = "organization"
 )
 
-// AuditEntry 是一条审计日志（007 §16.2）。
+// AuditEntry 是一条审计日志。
 type AuditEntry struct {
 	AuditID     string    `json:"auditId"`
 	Action      string    `json:"action"`
@@ -287,7 +287,7 @@ type AuditEntry struct {
 	Detail      string    `json:"detail,omitempty"`
 }
 
-// 审计动作（007 §16.1）。
+// 审计动作。
 const (
 	ActionVersionPublished    = "component.version.published"
 	ActionVersionStatus       = "component.version.status_changed"

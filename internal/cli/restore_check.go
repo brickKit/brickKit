@@ -27,7 +27,7 @@ import (
 
 // commitLayout 是"即将提交的那份目录结构"按**组件 ID** 折出来的结果。
 //
-// 按 ID 而不是按 (id, version) 条目：一个组件 ID 只有一份源码目录（004 §8.1），
+// 按 ID 而不是按 (id, version) 条目：一个组件 ID 只有一份源码目录，
 // 同 ID 的多个版本共用它。按条目判会让"同 ID 一个版本跑、一个不跑"自相矛盾。
 type commitLayout struct {
 	// active[id] 为真表示 index 里 <components>/<id>/ 下有东西。
@@ -91,8 +91,8 @@ type violation struct {
 //
 // # 为什么只拦一个方向
 //
-// 反方向——源码在活跃目录、而 yaml 说它不跑——只是"没跑过 sync"。004 §3.9
-// 明说 sync 是可选的（"用户忘记执行就自己发现、自己处理"），拦它等于强迫
+// 反方向——源码在活跃目录、而 yaml 说它不跑——只是"没跑过 sync"。sync
+// 本来就是可选的（"用户忘记执行就自己发现、自己处理"），拦它等于强迫
 // 全员跑 sync，影响面大得多。
 //
 // 而"归档结构 + mode: disable 一起进了提交"同样放行：那是使用者的**意图声明**。
@@ -277,7 +277,7 @@ func skipCheck(opts *Options, reason string, cause error) error {
 //
 // 它超出"结构还原"的职责，但和"把 components/ 从 .gitignore 去掉"是同一个决定
 // 引出来的坑：没有 .gitmodules 的 gitlink 不是指针，是个死记录。
-// 004 §8.2 早就点过"会出现 Git 嵌套仓库的问题"，这里只是让它在真发生时说话。
+// 嵌套 Git 仓库本来就是个已知的坑，这里只是让它在真发生时说话。
 //
 // registered 是 repo.Submodules() 的结果：路径在里面说明这不是"意外死
 // gitlink"，是 `git submodule add` 正确登记过的真 submodule——别再报警
@@ -374,7 +374,7 @@ func violationError(
 	}
 
 	// 两组都非空时才在建议前面点名——单独一组时保持原来的措辞，
-	// 那条措辞是设计书 004 §3.14.5 原样抄下来的输出块。
+	// 那条措辞是这个检查最早定下、使用者已经见惯的输出块。
 	mixed := len(archivedOnDisk) > 0 && len(staleIndex) > 0
 
 	var hints []string

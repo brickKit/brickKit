@@ -51,7 +51,7 @@ func TestLatestVersionFromMarketPicksHighest(t *testing.T) {
 	assert.Equal(t, "brickkit-market", got.SourceID)
 }
 
-// blocked 版本装不上（007 §6），选最新版时必须跳过它——
+// blocked 版本装不上，选最新版时必须跳过它——
 // 否则不写版本号的人会稳定解析到一个装不上的版本。
 func TestLatestVersionSkipsNonInstallableVersions(t *testing.T) {
 	mock := newMarketMock(t,
@@ -90,7 +90,7 @@ func TestLatestVersionAcceptsDeprecated(t *testing.T) {
 	assert.Equal(t, "2.0.0", got.Version)
 }
 
-// 003 §6.5：第一个有这个组件的源说了算，不跨源比大小。
+// 第一个有这个组件的源说了算，不跨源比大小。
 // 跨源比会让"到底装了哪个源的东西"变得不可预测。
 func TestLatestVersionFirstSourceWithComponentWins(t *testing.T) {
 	layout := newProject(t)

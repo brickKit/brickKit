@@ -1,4 +1,4 @@
-// 本文件测试 Graph.Subgraph（Step 11：先算级联、再对启动集合排序）。
+// 本文件测试 Graph.Subgraph（先算级联、再对启动集合排序）。
 package resolver
 
 import (

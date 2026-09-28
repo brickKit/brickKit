@@ -2,7 +2,7 @@
 --
 -- department_id 对应 department/tree 的 0002_seed_departments.sql：
 -- 两个组件的样例数据是对得上的，装配起来才有东西可看。
--- 注意本组件**不存部门名**，那是 department/tree 的数据（002 §2.2 数据自治）。
+-- 注意本组件**不存部门名**，那是 department/tree 的数据（数据自治）。
 
 INSERT INTO people (id, name, department_id, title) VALUES
     ('p-001', '张三', 'd-tech',    '后端工程师'),

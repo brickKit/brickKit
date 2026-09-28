@@ -1,7 +1,7 @@
-// 本文件是 Step 12 在命令层的业务行为测试：`brickkit up --dry-run`
-// 只生成部署文件、不启动任何东西（004 §3.5）。
+// 本文件是命令层的业务行为测试：`brickkit up --dry-run`
+// 只生成部署文件、不启动任何东西。
 //
-// Step 12 的交付物是"生成"，`--dry-run` 正好就是这条路径；真正的启动属 Step 15。
+// "生成"与"启动"分开测：`--dry-run` 正好只走生成这条路径；真正的启动见 up_test.go。
 package cli
 
 import (
@@ -121,7 +121,7 @@ func TestUpDryRunIsRepeatable(t *testing.T) {
 }
 
 // ============================================================
-// 13.4 本地调试
+// 本地调试
 // ============================================================
 
 // localDebugProject：people/basic 在 IDE 里跑，强依赖容器里的 department/tree。

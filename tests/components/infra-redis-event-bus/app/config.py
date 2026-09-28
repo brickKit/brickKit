@@ -1,6 +1,6 @@
 """配置与日志。
 
-组件的配置**只来自环境变量**（002 §1.4、006 §5.1）：
+组件的配置**只来自环境变量**：
 组件不知道也不该知道自己被部署在哪、连的是哪个 Redis。
 """
 
@@ -15,7 +15,7 @@ from typing import Callable
 # 主端口，与 component.yaml 的 deployment.port 一致。
 HTTP_PORT = 8080
 
-# 日志里一律打码的字段（002 §11.3）。
+# 日志里一律打码的字段。
 SENSITIVE_KEYS = ("password", "token", "secret", "dsn")
 
 # 事件流的默认名与默认长度上限。
@@ -103,7 +103,7 @@ def config_from_env(getenv: Callable[[str], str | None]) -> Config:
 
 
 class JSONFormatter(logging.Formatter):
-    """JSON 日志（002 §11）。每条都带 componentId：一个项目里跑着十几个组件，
+    """JSON 日志。每条都带 componentId：一个项目里跑着十几个组件，
     没有这个字段就没法在聚合日志里把它们分开。"""
 
     def __init__(self, component_id: str) -> None:

@@ -1,10 +1,10 @@
 package cli
 
-// 本文件测**产物下载并发**（P40）。
+// 本文件测**产物下载并发**。
 //
-// # 这条修改推翻了我自己在 Step 36 记下的判断
+// # 这条修改推翻了我自己早先记下的判断
 //
-// 当初把 P40 登记为"暂不做"，理由写的是：`CheckImage` 是**延迟受限**（并发有效），
+// 当初把产物并发下载登记为"暂不做"，理由写的是：`CheckImage` 是**延迟受限**（并发有效），
 // 而产物下载是**带宽受限**（并发只是把同一条管道切成几份）。
 //
 // 那个判断是**没有量就下的**。真量之后：
@@ -91,12 +91,12 @@ func TestArtifactDownloadRunsConcurrently(t *testing.T) {
 	elapsed := time.Since(start)
 
 	require.NotNil(t, sum)
-	assert.Equal(t, count, d.count(), "P40：每个组件都要下到")
+	assert.Equal(t, count, d.count(), "每个组件都要下到")
 
 	serial := count * delay
 	assert.Less(t, elapsed, serial/2,
-		"P40：%d 个组件用了 %v，串行也就是 %v——看起来根本没并发", count, elapsed, serial)
-	assert.Greater(t, d.peak(), 1, "P40：任何时刻都只有一个在下，说明是串行的")
+		"%d 个组件用了 %v，串行也就是 %v——看起来根本没并发", count, elapsed, serial)
+	assert.Greater(t, d.peak(), 1, "任何时刻都只有一个在下，说明是串行的")
 }
 
 // 并发要有上限：产物大多来自同一个市场，几十个并发请求只会撞限流。
@@ -111,7 +111,7 @@ func TestArtifactDownloadBoundsConcurrency(t *testing.T) {
 		})
 
 	assert.LessOrEqual(t, d.peak(), artifactConcurrency,
-		"P40：并发数超过上限——对市场来说这和 DDoS 没区别")
+		"并发数超过上限——对市场来说这和 DDoS 没区别")
 }
 
 // 计数与每组件的文件数必须准确。
@@ -123,7 +123,7 @@ func TestArtifactSummaryCountsAreCorrect(t *testing.T) {
 			return artifactOutcome{downloaded: 2, cached: 1}
 		})
 
-	assert.Equal(t, 10, sum.downloaded, "P40：并发累加不能丢数")
+	assert.Equal(t, 10, sum.downloaded, "并发累加不能丢数")
 	assert.Equal(t, 5, sum.cached)
 	assert.Len(t, sum.perNode, 5)
 	for ref, n := range sum.perNode {
@@ -155,7 +155,7 @@ func TestArtifactWarningsAreDeterministic(t *testing.T) {
 			continue
 		}
 		assert.Equal(t, first, got,
-			"P40：第 %d 次的警告顺序变了——同一次 add 连跑两次不该给出不同的输出", i+1)
+			"第 %d 次的警告顺序变了——同一次 add 连跑两次不该给出不同的输出", i+1)
 	}
 }
 

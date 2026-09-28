@@ -1,6 +1,6 @@
 package cli
 
-// 本文件实现 brickkit restore（004 §3.14）：把 brickkit.yaml 的 mode 与组件
+// 本文件实现 brickkit restore：把 brickkit.yaml 的 mode 与组件
 // 源码结构还原到最后一次提交，以及供 pre-commit hook 调用的 --check。
 
 import (
@@ -19,7 +19,7 @@ import (
 	"github.com/brickkit/brickkit/internal/yamlfile"
 )
 
-// newRestoreCommand 实现 brickkit restore（004 §3.14）。
+// newRestoreCommand 实现 brickkit restore。
 func newRestoreCommand(opts *Options) *cobra.Command {
 	var check bool
 	cmd := &cobra.Command{
@@ -219,7 +219,7 @@ func restoreBaseline(layout project.Layout) (*gitrepo.Repo, string, error) {
 func restorePreflight(repo *gitrepo.Repo, layout project.Layout, ids []string) error {
 	// ① components/ 下有已暂存的改动
 	//
-	// 004 §3.9.3 明说允许直接在 components/.archived/<id>/ 下改代码。如果那些改动
+	// 设计上允许直接在 components/.archived/<id>/ 下改代码。如果那些改动
 	// 已经 git add 过，restore 一 rename 目录，index 里那些路径就变成"删除"——
 	// 提交出去等于删文件。
 	if compRel, ok := repo.Rel(layout.ComponentsDir()); ok && repo.StagedUnder(compRel) {

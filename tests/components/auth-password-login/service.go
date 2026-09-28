@@ -30,7 +30,7 @@ func newService(store Store, people peopleClient, issuer *tokenIssuer, cfg confi
 func (s *service) routes() http.Handler {
 	mux := http.NewServeMux()
 
-	// 健康检查只回答"本进程还活着吗"（002 §9.4）。
+	// 健康检查只回答"本进程还活着吗"。
 	// 它**不查库、不调 people/basic**：否则依赖一抖，编排系统就会把这个本身
 	// 完全正常的容器杀掉重启，故障从一个组件扩散成一片。
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -177,7 +177,7 @@ func writeAuthError(w http.ResponseWriter, err error) {
 
 // handleVerify 校验令牌并返回其中的身份。
 //
-// 计划里 Step 23 只要求"签发 JWT"，但令牌是用 HS256 签的——密钥只有本组件有，
+// 只"签发 JWT"是不够的：令牌是用 HS256 签的——密钥只有本组件有，
 // 下游（erp/backend、authorization/rbac）拿到令牌根本验不了。没有这个端点，
 // 签出去的令牌对他们就是一串不可用的字符串。
 func (s *service) handleVerify(w http.ResponseWriter, r *http.Request) {
@@ -250,7 +250,7 @@ var openapiSpec []byte
 // handleOpenAPI 把本组件的 API 文档发出去。
 //
 // 路径固定为 /openapi.json：这是 FastAPI 之类的框架的惯例，
-// 文档聚合组件也按这个路径来探（002 §7 契约即产物）。
+// 文档聚合组件也按这个路径来探（契约即产物）。
 func handleOpenAPI(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	// 文档不常变，让代理与浏览器缓存一会儿

@@ -1,5 +1,5 @@
-// 本文件是 Step 10「拓扑排序」的业务行为测试，覆盖开发计划 10.1、10.2、10.4–10.6。
-// 命令层的输出格式（10.3、10.7）见 internal/cli/order_test.go。
+// 本文件是 「拓扑排序」的业务行为测试。
+// 命令层的输出格式见 internal/cli/order_test.go。
 package resolver
 
 import (
@@ -32,10 +32,10 @@ func refsInOrder(plan *Plan) []string {
 }
 
 // ============================================================
-// 10.1 / 10.5 正确的拓扑排序
+// 正确的拓扑排序
 // ============================================================
 
-// 10.1 用 004 §4.3 的 ERP 依赖链验证排序结果。
+// 用一条 ERP 依赖链验证排序结果。
 func TestOrderERPChain(t *testing.T) {
 	f := newFixture(t,
 		comp{ID: "portal/user-frontend", Version: "1.0.0", Requires: []string{"erp/backend@1.0.0"}},
@@ -55,14 +55,14 @@ func TestOrderERPChain(t *testing.T) {
 	require.Len(t, plan.Steps, 5)
 
 	pos := positions(t, plan)
-	// 004 §4.3：被依赖的排在前面，依赖方排在后面
+	// 被依赖的排在前面，依赖方排在后面
 	assert.Less(t, pos["department/tree@1.0.0"], pos["people/basic@1.0.0"])
 	assert.Less(t, pos["department/tree@1.0.0"], pos["authorization/rbac@1.0.0"])
 	assert.Less(t, pos["people/basic@1.0.0"], pos["erp/backend@1.0.0"])
 	assert.Less(t, pos["authorization/rbac@1.0.0"], pos["erp/backend@1.0.0"])
 	assert.Less(t, pos["erp/backend@1.0.0"], pos["portal/user-frontend@1.0.0"])
 
-	// 10.5 无依赖的组件排第一
+	// 无依赖的组件排第一
 	assert.Equal(t, 1, pos["department/tree@1.0.0"])
 	assert.Equal(t, "department-tree-1-0-0", plan.Steps[0].Service, "输出用版本化服务名")
 
@@ -72,7 +72,7 @@ func TestOrderERPChain(t *testing.T) {
 	}
 }
 
-// 每一步都记录了自己直接强依赖的序号（004 §3.8 的 "← 依赖 1, 2"）。
+// 每一步都记录了自己直接强依赖的序号（输出里的 "← 依赖 1, 2"）。
 func TestOrderRecordsDependencyPositions(t *testing.T) {
 	f := newFixture(t,
 		comp{ID: "erp/backend", Version: "1.0.0", Requires: []string{
@@ -128,7 +128,7 @@ func TestPlanIndependentAndChain(t *testing.T) {
 }
 
 // ============================================================
-// 10.2 弱依赖不参与排序约束
+// 弱依赖不参与排序约束
 // ============================================================
 
 // 弱依赖不产生排序边：它可能根本不启动，让它约束顺序会把可选变成必选。
@@ -151,7 +151,7 @@ func TestOptionalDependencyDoesNotConstrainOrder(t *testing.T) {
 	assert.Equal(t, 1, pos["aaa/app@1.0.0"], "只有弱依赖的组件本身也算可独立启动")
 	assert.Empty(t, plan.Steps[0].RequirePositions)
 
-	// 004 §3.8：弱依赖引入的组件要能单列出来（order 单列一行说明它默认不启动）
+	// 弱依赖引入的组件要能单列出来（order 单列一行说明它默认不启动）
 	assert.Equal(t, []Ref{{"zzz/bus", "1.0.0"}}, plan.Optional)
 }
 
@@ -175,7 +175,7 @@ func TestDependencyRequiredBySomeoneIsNotOptional(t *testing.T) {
 }
 
 // ============================================================
-// 10.4 循环依赖
+// 循环依赖
 // ============================================================
 
 // 排序阶段的环检测是最后一道防线：Manifest 校验与递归解析都放过的环，这里必须拦住。
@@ -200,7 +200,7 @@ func TestOrderDetectsCycle(t *testing.T) {
 }
 
 // ============================================================
-// 10.6 多版本各自独立排序
+// 多版本各自独立排序
 // ============================================================
 
 func TestOrderMultipleVersionsIndependently(t *testing.T) {

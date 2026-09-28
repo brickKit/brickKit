@@ -26,7 +26,7 @@ import (
 	"github.com/brickkit/brickkit/internal/source"
 )
 
-// publishFlags 是 brickkit publish 的参数（004 §3.11、010 §7.3）。
+// publishFlags 是 brickkit publish 的参数。
 type publishFlags struct {
 	path         string
 	visibility   string
@@ -38,11 +38,11 @@ type publishFlags struct {
 	key          string
 	publicKeyRef string
 	signedBy     string
-	// noPinDigest 跳过把镜像 tag 钉成 digest（P29）。
+	// noPinDigest 跳过把镜像 tag 钉成 digest。
 	noPinDigest bool
 }
 
-// newPublishCommand 实现 brickkit publish（004 §3.11）。
+// newPublishCommand 实现 brickkit publish。
 func newPublishCommand(opts *Options) *cobra.Command {
 	var f publishFlags
 
@@ -108,7 +108,7 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 	}
 
 	// ⚠️ 钉 digest 必须在**签名之前**：反过来的话签的是旧 Manifest，
-	// 上传的却是钉过的——消费方一律验签失败，而发布者这边一切正常（P29）
+	// 上传的却是钉过的——消费方一律验签失败，而发布者这边一切正常
 	if err := pinImageDigest(ctx, opts, pkg, f); err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 type publishPackage struct {
 	root     string
 	manifest *manifest.Manifest
-	// signature 是 --sign 生成的签名（008 §8.3），未签名时为 nil。
+	// signature 是 --sign 生成的签名，未签名时为 nil。
 	signature *security.Signature
 	// document 是 component.yaml 转成的 JSON，原样上传：
 	// 走结构体转一手会把市场认识、而 CLI 还没建模的字段丢掉。
@@ -342,8 +342,8 @@ func uploadRelease(
 //
 // # 为什么值得救
 //
-// 发布是三步：建版本（draft）→ 逐个上传产物 → 转 stable（004 §3.11）。第一步一旦
-// 成功，那个版本号就**永久占住了**——版本不可回收，软删除也占位（007 §6.4）。
+// 发布是三步：建版本（draft）→ 逐个上传产物 → 转 stable。第一步一旦
+// 成功，那个版本号就**永久占住了**——版本不可回收，软删除也占位。
 // 于是网络在第二步抖一下，使用者就只剩"跳一个版本号"这一条路，而中断的原因
 // 跟他毫无关系。服务端本来就支持接着发（draft 可以继续上传产物再转 stable），
 // 缺的只是 CLI 这一侧。
@@ -461,7 +461,7 @@ func uploadArtifacts(ctx context.Context, client *market.Client, pkg *publishPac
 	return nil
 }
 
-// resolvePublishToken 按 004 §5.3 的优先级取 Token：
+// resolvePublishToken 按以下优先级取 Token：
 // .brickkit/credentials（登录态）> brickkit.yaml 的 sources.authToken。
 func resolvePublishToken(opts *Options, layout project.Layout, marketURL string) (string, error) {
 	creds, err := source.LoadCredentials(layout.CredentialsPath())
@@ -511,7 +511,7 @@ func sameMarket(a, b string) bool {
 	return strings.TrimRight(strings.TrimSpace(a), "/") == strings.TrimRight(strings.TrimSpace(b), "/")
 }
 
-// resolveOrigin 决定来源类型与 Git 地址（007 §11）。
+// resolveOrigin 决定来源类型与 Git 地址。
 //
 // 显式参数优先；否则看组件目录是不是一个有 origin 的 Git 仓库：
 // 有就是开源（git），没有就按闭源（registry）走镜像分发。
@@ -571,7 +571,7 @@ func publishAuthHint(err error) error {
 const (
 	manifestFileName   = "component.yaml"
 	versionStatusDraft = "draft"
-	// versionStatusStable 是"可被安装"的状态（007 §6.1）。
+	// versionStatusStable 是"可被安装"的状态。
 	versionStatusStable = "stable"
 	visibilityPublic    = "public"
 	visibilityPrivate   = "private"

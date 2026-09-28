@@ -26,7 +26,7 @@ type Department struct {
 // 抽成接口是为了让业务逻辑与存储实现分开测：HTTP / gRPC 的行为测试用内存实现，
 // SQL 的正确性由契约测试对着真库跑（见 store_test.go）。
 //
-// 注意：**建表与初始数据不在这里**，它们是 migrations/*.sql（002 §8）。
+// 注意：**建表与初始数据不在这里**，它们是 migrations/*.sql。
 // 内存实现只是测试替身，用 newMemoryStore(seed...) 直接给数据即可。
 type Store interface {
 	// List 返回全部部门；parentID 非空时只返回其直接下级。结果按 ID 排序。

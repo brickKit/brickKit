@@ -12,7 +12,7 @@ import (
 
 // 契约占位格式。跟 Artifact.Format 一样是自由字符串，这里只收窄到
 // Scaffold 认识怎么生成占位文件的那几种——不代表平台限定了这个枚举，
-// 组件发布时完全可以用别的 format（002 §2.3：type/format 都不限枚举）。
+// 组件发布时完全可以用别的 format（type/format 都不限枚举）。
 const (
 	ContractOpenAPI = "openapi"
 	ContractProto   = "proto"

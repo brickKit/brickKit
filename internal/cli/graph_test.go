@@ -222,7 +222,7 @@ func TestGraphGroupsServedByMembersUnderTheirShell(t *testing.T) {
 
 // 外壳被关掉了：成员这次会按普通组件独立部署（Task 1-4 的回落规则），
 // 图不该再把它画在一个灰掉的外壳子图里面——那等于说"这段代码活在一个
-// 没在跑的外壳容器里"，跟 up 真实生成的东西正好相反（006 §8："graph
+// 没在跑的外壳容器里"，跟 up 真实生成的东西正好相反（graph
 // 读的是跟 up --dry-run 同一份解析结果"）。
 func TestGraphDoesNotGroupMemberUnderADisabledShell(t *testing.T) {
 	f := graphProject(t, `components:

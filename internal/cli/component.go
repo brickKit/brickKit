@@ -61,7 +61,7 @@ func confirm(opts *Options, prompt string) bool {
 }
 
 // dependencyKinds 把依赖图中的节点分成"强依赖可达"与"仅弱依赖可达"两类，
-// 用于输出时区分 `依赖` 与 `弱依赖`（004 §3.3 输出样例）。
+// 用于输出时区分 `依赖` 与 `弱依赖`。
 func dependencyKinds(g *resolver.Graph) map[resolver.Ref]bool {
 	optionalOnly := map[resolver.Ref]bool{}
 	for _, n := range g.Nodes {

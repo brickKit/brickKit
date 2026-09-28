@@ -39,7 +39,7 @@ type Grant struct {
 
 // Store 是授权数据的存取接口。
 //
-// 建表与初始数据不在这里，它们是 migrations/*.sql（002 §8）。
+// 建表与初始数据不在这里，它们是 migrations/*.sql。
 type Store interface {
 	// Roles 返回全部角色及其权限。
 	Roles(ctx context.Context) ([]Role, error)

@@ -31,7 +31,7 @@ func NewDocker() *Compose {
 // NewPodman 返回 podman compose 引擎。
 //
 // podman compose 在已验证的机器上直接调用与 Docker 相同的 docker-compose
-// 二进制，因此 Compose 结构体的其余行为（命令拼装、ps 输出解析、P27 的
+// 二进制，因此 Compose 结构体的其余行为（命令拼装、ps 输出解析、
 // stdout/stderr 处理）全部原样适用，只有 bin 不同。
 func NewPodman() *Compose {
 	return &Compose{name: Podman, bin: "podman", base: []string{"compose"}, runner: run}
@@ -48,7 +48,7 @@ func (c *Compose) Name() string { return c.name }
 // `--remove-orphans` 由 PruneSelector 是否非空来决定。`--only` 删除之后
 // 命令层其实总会给出选择器（每次 up 都按完整配置生成），但这个条件留着：
 // 引擎不该假设调用方永远想清理——那是命令层的判断，K8s 侧同一个字段
-// 也是这么用的（005 §5.9.1）。
+// 也是这么用的。
 //
 // RunAfter 里的一次性 service 在 up 之后逐个跑，见 UpRequest.RunAfter。
 func (c *Compose) Up(ctx context.Context, req UpRequest) error {
@@ -79,7 +79,7 @@ func (c *Compose) Up(ctx context.Context, req UpRequest) error {
 	return nil
 }
 
-// Down 停止整个项目。**不带 -v**：数据卷（数据库数据）必须保留（004 §3.6）。
+// Down 停止整个项目。**不带 -v**：数据卷（数据库数据）必须保留。
 //
 // # 只认项目名，不认部署文件
 //
@@ -125,7 +125,7 @@ func (c *Compose) Status(ctx context.Context, project string) ([]Status, error) 
 	return parsePS(out)
 }
 
-// CheckImage 检查镜像是否可用（004 §3.5 的"检测镜像拉取权限"）。
+// CheckImage 检查镜像是否可用（up 前的"检测镜像拉取权限"）。
 //
 // 先看本地：自己 build 出来的镜像根本不在任何 registry 里，
 // 去问 registry 只会得到一个假的"未授权"，把使用者引向 docker login 这条死路。
@@ -259,7 +259,7 @@ func installHint(bin string) string {
 //	podman compose  每次打一行 "Executing external compose provider ..." 横幅
 //	kubectl         弃用警告
 //
-// 真撞到过（P27）：容器起来了、也 healthy，而 `ps --format json` 的输出变成
+// 真撞到过：容器起来了、也 healthy，而 `ps --format json` 的输出变成
 // "横幅 + JSON"，解析失败，**一次成功的部署被报成了失败**。
 //
 // 失败时则相反，必须带上 stderr——错误信息几乎总在那里，
@@ -415,7 +415,7 @@ func statusParseError(err error) error {
 		WithCause(err)
 }
 
-// Detect 挑选可用的容器引擎（005 §7.4）。
+// Detect 挑选可用的容器引擎。
 //
 // 没有显式配置时只在 Docker/Podman 之间按 PATH 挑：Docker 优先，只有 Podman
 // 也不会把它悄悄当默认——选中哪个引擎必须来自配置，不能来自"猜"（这条线
@@ -455,7 +455,7 @@ func podmanNotEnabled() error {
 
 // ProjectName 是引擎侧的项目名：brickkit-<项目名>。
 //
-// 与网络名（brickkit-<项目名>-net，005 §5）同源，容器名因此也带上项目前缀，
+// 与网络名（brickkit-<项目名>-net）同源，容器名因此也带上项目前缀，
 // 一眼能看出某个容器属于哪个 BrickKit 项目。
 func ProjectName(project string) string {
 	project = strings.TrimSpace(project)

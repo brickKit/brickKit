@@ -9,8 +9,7 @@
 一个都没装也照样起得来。
 
 这不是"容错做得好"，而是这个组件的本来面目：**文档入口不该因为某个业务组件没装
-就打不开**，而且业务组件全挂的时候，正是最需要看文档的时候。开发计划 28.3
-要验的就是这一点。
+就打不开**，而且业务组件全挂的时候，正是最需要看文档的时候。
 
 ## 两条发现路径
 
@@ -20,7 +19,7 @@
 | gRPC | **Reflection**，不需要 `.proto` 文件 | department/tree、authorization/rbac |
 
 Reflection 的价值在于**不必预先 vendored 一堆契约**：组件升级加了新方法，
-这里自动跟上。Step 21 验证过 `grpcurl` 能这么用，这里是同一套机制的程序化调用。
+这里自动跟上。`grpcurl` 就是这么用的，这里是同一套机制的程序化调用。
 
 ## 四种状态，各自对应不同的处置
 
@@ -46,7 +45,7 @@ Reflection 的价值在于**不必预先 vendored 一堆契约**：组件升级�
 
 ### 为什么要代理 OpenAPI 而不是让浏览器直连
 
-那些组件**默认不暴露端口**（008 §5.2），浏览器根本连不上；就算连得上也会撞跨域。
+那些组件**默认不暴露端口**，浏览器根本连不上；就算连得上也会撞跨域。
 由本组件代理是唯一走得通的路。
 
 同理，`/api/v1/sources` 的响应里**不包含组件的内部地址** —— 那等于把内网结构
@@ -60,7 +59,7 @@ FROM swaggerapi/swagger-ui:v5.17.14 AS swagger
 COPY --from=swagger /usr/share/nginx/html/swagger-ui.css ... /app/web/swagger-ui/
 ```
 
-008 §5 的"默认不暴露"意味着这个页面很可能跑在内网甚至气隙环境里。
+平台"默认不暴露端口"意味着这个页面很可能跑在内网甚至气隙环境里。
 指向公网 CDN 的 `<script>` 会让页面永远转圈 —— 而症状看起来像"文档组件坏了"。
 版本钉死才可复现。
 
@@ -85,14 +84,6 @@ COPY --from=swagger /usr/share/nginx/html/swagger-ui.css ... /app/web/swagger-ui
 `config.go` 里的 `aggregated` 清单必须与 `component.yaml` 的弱依赖声明一一对应 ——
 漏声明的表现是"那个组件在页面上永远显示未安装"，因为平台根本不会注入它的地址。
 
-## 已知的空白
-
-Go 组件目前**不在运行时暴露 `/openapi.json`**（它们的 `openapi.json` 是作为
-市场产物分发的，没进镜像）。所以 department/tree 与 authorization/rbac 在这里
-只显示 gRPC 文档，auth/password-login 与 erp/backend 显示 `no-docs`。
-
-要让它们出现在 Swagger UI 里，得给这些组件加一个 `GET /openapi.json`。
-那是对四个已完成组件的改动，登记在《开发进度》延后清单里。
 
 ## 本地运行
 
@@ -100,8 +91,3 @@ Go 组件目前**不在运行时暴露 `/openapi.json`**（它们的 `openapi.js
 go test ./...    # 不需要任何外部服务：目标组件都有 httptest 替身
 ```
 
-## 设计依据
-
-002 组件规范（§1.4 组件约束、§7 契约即产物、§9.4 健康检查、§11 日志）、
-003 §4.3（弱依赖）、008 §5.2（默认不暴露端口）、开发计划 §0.2（Swagger UI +
-gRPC Reflection 聚合）。

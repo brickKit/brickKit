@@ -1,8 +1,8 @@
 // Package compose 把解析、级联、注入的结果渲染成 compose.yaml
-// （004 §5.3、005 §5）。
+// 。
 //
 // 它是纯函数：进去的是配置与三份计算结果，出来的是文件内容与一份
-// "使用者还需要做什么"的清单。不碰磁盘、不调 docker——那是 up 的事（Step 15）。
+// "使用者还需要做什么"的清单。不碰磁盘、不调 docker——那是 up 的事。
 package compose
 
 import (
@@ -31,7 +31,7 @@ import (
 const (
 	// networkAlias 是 compose 文件内部引用网络的别名；真实网络名见 networkName。
 	networkAlias = "brickkit-net"
-	// healthcheckInterval 等参数对齐 005 §5 的样例。
+	// healthcheckInterval 等参数是平台固定的健康检查节奏。
 	healthcheckInterval = "10s"
 	healthcheckTimeout  = "3s"
 	healthcheckRetries  = 3
@@ -42,7 +42,7 @@ type Options struct {
 	// Now 用于文件头的生成时间，测试可注入。
 	Now func() time.Time
 	// Engine 是容器引擎（目前只有 EngineDocker）。
-	// 只影响 mode: debug 时 extra_hosts 的宿主机别名（005 §7.5）；空值按 Docker 处理。
+	// 只影响 mode: debug 时 extra_hosts 的宿主机别名；空值按 Docker 处理。
 	Engine string
 	// Root 是项目根：file:// 相对它解析。
 	Root string
@@ -73,7 +73,7 @@ type Result struct {
 	YAML []byte
 	// EnvFiles 是要以 0600 写盘的 env 文件，按服务名排序。
 	EnvFiles []EnvFile
-	// LocalEnvFiles 是 mode: debug 组件的调试环境变量文件（005 §4.9）。
+	// LocalEnvFiles 是 mode: debug 组件的调试环境变量文件。
 	LocalEnvFiles []LocalEnvFile
 	// RunAfter 是 up 之后要单独跑完的一次性 service：裸进程外壳承载的成员的迁移——
 	// 外壳不在 compose 文件里，没有 service 通过 depends_on 等着它们（engine.UpRequest.RunAfter）。
@@ -128,10 +128,10 @@ func Generate(
 	}, nil
 }
 
-// networkName 是项目专属网络名（005 §5）：brickkit-<项目名>-net。
+// networkName 是项目专属网络名：brickkit-<项目名>-net。
 func networkName(project string) string { return deploy.NetworkName(project) }
 
-// header 是生成文件的头注释（12.16）。
+// header 是生成文件的头注释。
 //
 // 生成的文件会被人打开看、被 git 记录，所以要写清楚"这是谁生成的、别手改"。
 func header(proj *project.Project, plan *plan, now time.Time) []byte {
@@ -260,7 +260,7 @@ func newPlan(
 		service := manifest.ServiceName(ref.ID, ref.Version)
 
 		if entry.IsBareProcess() {
-			// 12.7 / 13.1 / Plan 4a：mode: debug 与 mode: local 的组件都不生成容器——
+			// mode: debug 与 mode: local 的组件都不生成容器——
 			// 前者在宿主机 IDE 里跑，后者由 brickkit 自己拉起裸进程（Plan 4b 起才
 			// 真正启动），但两者都仍然是"启动中"的组件，依赖方要能找到它。
 			p.locals = append(p.locals, localComponent{
@@ -331,13 +331,13 @@ func newPlan(
 //
 // # 为什么必须串
 //
-// 资源绑定按组件 ID 记（不带版本，003 §5.3），所以同一组件的多个版本拿到的
+// 资源绑定按组件 ID 记（不带版本），所以同一组件的多个版本拿到的
 // `DATABASE_NAME` 必然是同一个；迁移状态表的主键是 (component_id, version)
-// （002 §8.11），两个版本的 component_id 也是同一个。于是"两个迁移容器同时对
+// ，两个版本的 component_id 也是同一个。于是"两个迁移容器同时对
 // 同一个库、用同一个身份跑迁移"完全是**平台自己生成出来的**——使用者在
-// brickkit.yaml 里只是照 003 §8.3 写了两行版本号。
+// brickkit.yaml 里只是写了两行版本号。
 //
-// 迁移只增不改（002 §8.10），所以高版本的迁移集合是低版本的超集。这在老库上
+// 迁移只增不改，所以高版本的迁移集合是低版本的超集。这在老库上
 // 没问题（低版本发现已应用就跳过、干净退出），但在**空库**上两个容器都会去跑
 // 那批重合的迁移——一个成功，另一个撞主键退出，那个版本的主服务永远停在
 // Created。而且重跑一次就好（那时已经写进去了），错误指向数据库主键冲突，
@@ -346,14 +346,14 @@ func newPlan(
 // # 为什么只串同一个组件 ID
 //
 // 不同组件的 component_id 不同，主键 (component_id, version) 已经让它们互不
-// 相干——那正是 002 §8.11 设计这个主键的目的。把它们也串起来只会平白拖慢
+// 相干——那正是这个主键的设计目的。把它们也串起来只会平白拖慢
 // `up`（迁移是所有组件的前置阻塞步骤），换不来任何东西。
 //
 // # 平台挡不住的那一半
 //
 // 这条链只作用于**这一次 up**。两个人同时 `brickkit up` 打同一个开发库、
 // 或者 CI 与人撞上，平台一点办法没有——那要靠迁移工具自己的库级锁
-// （002 §8.12 的第四条不变量）。
+// （迁移工具自己要保证并发安全）。
 func (p *plan) chainMigrations() {
 	// 按组件 ID 归集有迁移的版本
 	byID := map[string][]componentPlan{}
@@ -382,7 +382,7 @@ func (p *plan) chainMigrations() {
 // migrationService 是某个组件的迁移 service 名。
 func migrationService(service string) string { return service + "-migration" }
 
-// checkExposePorts 检查宿主机端口冲突（延后项 P4、004 §10.3）。
+// checkExposePorts 检查宿主机端口冲突。
 //
 // 两个组件抢同一个宿主机端口时，docker 会在启动到第二个容器时才失败，
 // 那时第一个已经起来了——不如在生成阶段就说清楚。
@@ -469,11 +469,11 @@ func (p *plan) componentService(c componentPlan) map[string]any {
 	if deploy := deployOf(c.Env); deploy != nil {
 		svc["deploy"] = deploy
 	}
-	// 002 §4.7：平台不解释键值，只透传。
+	// 平台不解释键值，只透传。
 	//
 	// **只写主容器，不写迁移容器。** 迁移不是服务：Traefik / Prometheus 一类
 	// 工具读到同一份 labels，会把那个跑完就退出的一次性容器当成路由目标或抓取
-	// 目标。这与"环境变量必须与主容器完全一致"（002 §8.5）不冲突——那是因为
+	// 目标。这与"环境变量必须与主容器完全一致"不冲突——那是因为
 	// 迁移要连同一个库，而 labels 说的是"外面怎么找到这个服务"。
 	if len(c.Env.Labels) > 0 {
 		svc["labels"] = c.Env.Labels
@@ -489,10 +489,10 @@ func (p *plan) componentService(c componentPlan) map[string]any {
 // 两类依赖：自己的迁移必须**成功结束**、强依赖组件必须**健康**。
 // 弱依赖不写——它可能根本不启动，写进去会把整个项目卡死。
 //
-// **基础资源不出现在这里**：平台不部署它们（006 §9.1），compose 文件里
+// **基础资源不出现在这里**：平台不部署它们，compose 文件里
 // 根本没有对应的 service，写进 depends_on 只会让 compose 直接报错。
 // 资源没起来时组件自己会连不上——这正是 `up` 每次都把"要先跑起来什么"
-// 列出来的理由（那是一句**声明**，不是替使用者去探测一遍，006 §8）。
+// 列出来的理由（那是一句**声明**，不是替使用者去探测一遍）。
 func (p *plan) componentDependsOn(c componentPlan) map[string]any {
 	dependsOn := map[string]any{}
 
@@ -542,10 +542,10 @@ func (p *plan) readyCondition(ref resolver.Ref) string {
 
 func condition(value string) map[string]any { return map[string]any{"condition": value} }
 
-// migrationDoc 生成迁移用的一次性 service（002 §8.3、12.6）。
+// migrationDoc 生成迁移用的一次性 service。
 func (p *plan) migrationDoc(c componentPlan) map[string]any {
 	svc := map[string]any{
-		// 002 §8.4：用组件自己的镜像，迁移脚本与业务代码同版本
+		// 用组件自己的镜像，迁移脚本与业务代码同版本
 		"image":    manifest.ImageRef(c.Manifest),
 		"networks": []string{networkAlias},
 		// 12.11：一次性任务，失败了要让人看见，不能自动重启
@@ -557,13 +557,13 @@ func (p *plan) migrationDoc(c componentPlan) map[string]any {
 	// 组件镜像普遍带 ENTRYPOINT（推荐写法），而 compose 的 command 只覆盖 CMD：
 	// 只写 command 会拼成 `<entrypoint> <migration.command...>`，参数错位，
 	// 于是"迁移容器"实际上把**服务**起了起来，主服务永远等不到"迁移完成"，
-	// 整个项目卡死。这是真跑起来才发现的（005 §5 的样例同样有此问题）。
+	// 整个项目卡死。这是真跑起来才发现的。
 	command := c.Manifest.Migration.Command
 	svc["entrypoint"] = []string{command[0]}
 	if len(command) > 1 {
 		svc["command"] = command[1:]
 	}
-	// 002 §8.5：环境变量与主容器完全一致（同一份 inline 与同一个 env 文件）
+	// 环境变量与主容器完全一致（同一份 inline 与同一个 env 文件）
 	p.applyEnvironment(svc, c.Service)
 	// 环境变量一致，寻址方式也得一致：拿到一个指向宿主机的地址
 	// 却没有 extra_hosts，这个主机名在迁移容器里根本解析不了
@@ -585,9 +585,9 @@ func (p *plan) migrationDoc(c componentPlan) map[string]any {
 	return svc
 }
 
-// healthcheckOf 把 Manifest 的健康检查转成 compose 的 healthcheck（12.3）。
+// healthcheckOf 把 Manifest 的健康检查转成 compose 的 healthcheck。
 //
-// 探的是**主端口**（002 §5.5）：额外端口不参与健康检查。
+// 探的是**主端口**：额外端口不参与健康检查。
 func healthcheckOf(m *manifest.Manifest) map[string]any {
 	if m == nil {
 		return nil
@@ -596,7 +596,7 @@ func healthcheckOf(m *manifest.Manifest) map[string]any {
 	// ——所以它只推迟"判死刑"，不推迟"判活"。少了它，平台给组件的启动预算
 	// 就是写死的 interval × retries = 30 秒，任何冷启动超过半分钟的组件
 	// （Spring Boot / Django / .NET）都会被判 unhealthy，
-	// 而 `up -d --wait` 见到 unhealthy 直接失败（002 §9.3）。
+	// 而 `up -d --wait` 见到 unhealthy 直接失败。
 	startPeriod := fmt.Sprintf("%ds", m.HealthCheck.StartPeriod())
 
 	switch m.HealthCheck.Type {
@@ -607,7 +607,7 @@ func healthcheckOf(m *manifest.Manifest) map[string]any {
 		// compose 的健康检查跑在**容器内部**，用的必须是镜像里真有的命令。
 		// 只写 wget 的话，python:slim / 各种 distroless 基础镜像上必然失败——
 		// 组件明明跑得好好的，平台却判它 unhealthy，依赖方永远等不到它，
-		// 而容器日志里写着"组件已就绪"。这是真跑起来撞到的（002 §9.6）。
+		// 而容器日志里写着"组件已就绪"。这是真跑起来撞到的。
 		return map[string]any{
 			"test": []string{"CMD-SHELL", fmt.Sprintf(
 				"wget -q --spider %s || curl -fsS %s || exit 1", url, url)},
@@ -631,7 +631,7 @@ func healthcheckOf(m *manifest.Manifest) map[string]any {
 	}
 }
 
-// deployOf 渲染资源配额（12.4）。
+// deployOf 渲染资源配额。
 //
 // compose 用 limits / reservations 表达 K8s 的 limits / requests。
 func deployOf(c inject.Component) map[string]any {

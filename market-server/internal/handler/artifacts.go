@@ -15,12 +15,12 @@ import (
 // maxArtifactSize 是单个产物文件的大小上限。
 //
 // 产物是契约与文档（proto / openapi / 迁移脚本），不是容器镜像——
-// 镜像走镜像仓库（007 §11.4）。给个上限，免得一次误传把磁盘写满。
+// 镜像走镜像仓库。给个上限，免得一次误传把磁盘写满。
 const maxArtifactSize = 64 << 20 // 64 MiB
 
-// listArtifacts 处理 GET .../artifacts（007 §9.3）。
+// listArtifacts 处理 GET .../artifacts。
 //
-// 响应形状受 CLI 契约（D48）约束：每条必须有 id / type / format / files，
+// 响应形状受 CLI 契约约束：每条必须有 id / type / format / files，
 // CLI 靠它把 Manifest 里的产物声明映射到下载用的 artifactId。
 func (a *api) listArtifacts(w http.ResponseWriter, r *http.Request, p params) {
 	id, ok := a.requireIdentity(w, r)
@@ -39,9 +39,9 @@ func (a *api) listArtifacts(w http.ResponseWriter, r *http.Request, p params) {
 	writeJSON(w, http.StatusOK, records)
 }
 
-// uploadArtifact 处理 POST .../artifacts/{artifactId}/upload?file=（18.4）。
+// uploadArtifact 处理 POST .../artifacts/{artifactId}/upload?file=。
 //
-// 请求体就是文件正文。007 §9.3 写的是 POST .../artifacts，这里多了
+// 请求体就是文件正文。路径里带着
 // artifactId 与 ?file=：一个产物可以声明多个文件（如多份 proto），
 // 不指明是哪个文件就没法落到正确的对象键上。一次请求传一个文件，
 // 因此也不需要 multipart。
@@ -113,7 +113,7 @@ func tooLargeError() error {
 		WithDetail("limitBytes", maxArtifactSize)
 }
 
-// downloadArtifact 处理 GET .../artifacts/{artifactId}/download?file=（18.5、D48）。
+// downloadArtifact 处理 GET .../artifacts/{artifactId}/download?file=。
 //
 // 返回的是文件正文本身，不是 JSON 信封：CLI 会把它原样写进
 // .brickkit/components/<id>/<版本>/ 下，多一层封装就得多一次解码。

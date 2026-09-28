@@ -36,14 +36,14 @@ type comp struct {
 	Optional []string
 	// Artifacts 是 "type:文件路径" 的列表，如 "api-docs:openapi.json"。
 	Artifacts []string
-	// Migration 是 migration.command（002 §8.2）。
+	// Migration 是 migration.command。
 	Migration []string
-	// Image 覆盖默认的 registry.example.com/<id>:<version>（P29 的 digest 用例要用）；
+	// Image 覆盖默认的 registry.example.com/<id>:<version>（digest 用例要用）；
 	// 写 "-" 表示只有 deployment.build、没有 image。
 	Image string
-	// ConfigSchema 是 "键名:默认值" 的列表，如 "greeting:你好"（38.19 的升级摘要要用）。
+	// ConfigSchema 是 "键名:默认值" 的列表，如 "greeting:你好"（升级摘要要用）。
 	ConfigSchema []string
-	// CPU / Memory 是 deployment.resources.limits（38.22 的配额变更要用）。
+	// CPU / Memory 是 deployment.resources.limits（配额变更要用）。
 	CPU    string
 	Memory string
 	// SecretConfig 是 ConfigSchema 里声明了 secret: true 的键名。
@@ -338,18 +338,18 @@ func gitCmd(t *testing.T, dir string, args ...string) {
 }
 
 // ============================================================
-// 市场 Mock（007 §9.1；只实现 CLI 用到的三个端点）
+// 市场 Mock（只实现 CLI 用到的端点）
 // ============================================================
 
 type mockComponent struct {
 	Spec comp
-	// SourceType 是 git（开源）或 registry（闭源），007 §11。
+	// SourceType 是 git（开源）或 registry（闭源）。
 	SourceType string
 	// GitURL 是开源组件的仓库地址（测试里指向本地 git 仓库）。
 	GitURL string
 	// FailDownload 为 true 时，产物下载端点返回 500。
 	FailDownload bool
-	// Status 是该版本在市场上的状态（007 §6）。为空时视作 stable。
+	// Status 是该版本在市场上的状态。为空时视作 stable。
 	// draft / blocked 装不上，选最新版时要被跳过。
 	Status string
 }
@@ -370,7 +370,7 @@ func newMockMarket(t *testing.T, comps ...*mockComponent) *mockMarket {
 	return m
 }
 
-// writeVersionList 实现 GET /components/{id}/versions（007 §4.4）。
+// writeVersionList 实现 GET /components/{id}/versions。
 func (m *mockMarket) writeVersionList(w http.ResponseWriter, componentID string) {
 	list := make([]map[string]any, 0)
 	for _, c := range m.comps {
@@ -462,7 +462,7 @@ func writeJSONBody(w http.ResponseWriter, status int, body any) {
 // breakLocalManifest 把本地安装源里某个组件的 component.yaml 改坏（一处笔误）。
 //
 // 用来验证"Manifest 读不到时，命令还能不能干它本职的事"。本地安装源不吃缓存
-// （004 §7.5），所以改坏这个文件就等于让依赖图解析必然失败——
+// ，所以改坏这个文件就等于让依赖图解析必然失败——
 // 而 down / status 的本职工作里没有一件需要依赖图。
 func breakLocalManifest(t *testing.T, f *projectFixture, componentID string) {
 	t.Helper()

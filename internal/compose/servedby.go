@@ -93,7 +93,7 @@ func (p *plan) shellOf(ref resolver.Ref) (resolver.Ref, bool) {
 // fallbackStandaloneWarnings 提醒"这个组件本来写在外壳下面，但这次它
 // 指向的外壳没跑，所以按自己的镜像独立部署了"——不说清楚的话，使用者
 // 会以为代码照常跑在外壳里，实际上跑的是它自己的镜像，而且它自己的迁移
-// 这次是真的会执行（外壳独立部署回落设计书 §6.1/§7）。
+// 这次是真的会执行。
 func (p *plan) fallbackStandaloneWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, c := range p.components {

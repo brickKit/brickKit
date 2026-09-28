@@ -1,5 +1,4 @@
-# 取自 002 §2.2「完整结构」，覆盖 extraPorts、弱依赖、migration、configSchema。
-# Step 22 开发 people/basic 组件时复用此文件。
+# 一份完整结构的 Manifest，覆盖 extraPorts、弱依赖、migration、configSchema。
 apiVersion: brickkit/v1
 kind: Component
 

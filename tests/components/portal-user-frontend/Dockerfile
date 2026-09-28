@@ -1,6 +1,6 @@
 # portal/user-frontend 组件镜像。
 #
-# 基于官方 nginx:alpine，但**以非 root 运行**（002 §1.4）。
+# 基于官方 nginx:alpine，但**以非 root 运行**。
 # nginx 官方镜像默认 master 进程是 root，只有 worker 降权；要整个进程非 root，
 # 需要额外做三件事，下面逐条注明——这也是这个组件想演示的东西之一。
 FROM nginx:1.27-alpine

@@ -2,7 +2,7 @@
 //
 // # 为什么需要它
 //
-// 002 §2.3 删掉 `observability` 与 `compatibility` 之后，规范书改了，
+// Manifest 删掉 `observability` 与 `compatibility` 之后，规范改了，
 // 而根目录 AI-CONTEXT.md 的 Manifest 骨架里那两个字段一直留着。
 // 那份文件开头写着「写给 AI 助手的，读完这一份就够了」——于是 AI 照着它
 // 教用户写 component.yaml，用户第一条命令就撞上：
@@ -21,7 +21,7 @@
 // 两边不可能给出不同的答案，因为它们是同一段代码。
 //
 // 形状上照着 clierr.TestEveryErrorCodeIsDocumented：那条守的是"新增了错误码
-// 却忘了写进 004 §10.2.1"，这条守的是"改了字段却忘了改骨架"。都是那种
+// 却忘了写进错误码文档"，这条守的是"改了字段却忘了改骨架"。都是那种
 // **不会让任何东西失败**、只会让照着文档做的人撞墙的缺失。
 package docfields_test
 
@@ -61,7 +61,7 @@ type docFile struct {
 // 骨架逐字相同，一并扫描能防止两份文件里的骨架悄悄改出分叉。
 //
 // design/ 已归档为历史记录，不再参与"文档跟不跟得上 CLI"的验证——继续验证
-// 一份承诺不再更新的文档没有意义。试用指南也不在其中：那里的 YAML 多是
+// 一份承诺不再更新的文档没有意义。教程也不在其中：那里的 YAML 多是
 // "改这一行"的片段，本来就不会被分类到（见 classify）。
 func docs(t *testing.T) []docFile {
 	t.Helper()
@@ -139,7 +139,7 @@ func classify(body string) reflect.Type {
 	// 里只查了 24 段——而剩下那 197 段恰恰是**人们真正照抄的东西**：
 	// components: 46 段、apiVersion: 20 段、resources: 16 段、sources: 13 段、
 	// dependencies: 11 段、deployment: 9 段……真出过的两个字段 bug
-	// （006 §3.2 教了一个不存在的 resources[].database、附录 D.1 漏了
+	// （教了一个不存在的 resources[].database、字段参考漏了
 	// sources[].ref）都在那 197 段的势力范围里。
 	//
 	// 片段本身就是合法的部分文档：`resources:` 开头的那段就是一份只写了

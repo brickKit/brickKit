@@ -9,7 +9,7 @@
     "/healthz": {
       "get": {
         "summary": "健康检查",
-        "description": "只检查本进程是否存活。**不碰 Redis**、不查库、不调 people/basic（002 §9.4）——Redis 一抖就把所有副本杀掉重启，而它在这里只是个加速器。",
+        "description": "只检查本进程是否存活。**不碰 Redis**、不查库、不调 people/basic——Redis 一抖就把所有副本杀掉重启，而它在这里只是个加速器。",
         "responses": {
           "200": {
             "description": "进程存活",

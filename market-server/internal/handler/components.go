@@ -9,7 +9,7 @@ import (
 	"github.com/brickkit/brickkit/market-server/internal/repo"
 )
 
-// searchComponents 处理 GET /api/v1/components（007 §4.2、18.15）。
+// searchComponents 处理 GET /api/v1/components。
 func (a *api) searchComponents(w http.ResponseWriter, r *http.Request, _ params) {
 	id, ok := a.requireIdentity(w, r)
 	if !ok {
@@ -57,7 +57,7 @@ func positiveInt(value string) int {
 	return parsed
 }
 
-// componentView 是组件详情的响应体（007 §4.3）。
+// componentView 是组件详情的响应体。
 //
 // 这里把服务层的 ComponentDetail 摊平成一层：007 的详情页示例是平铺的，
 // 前端与文档都按那个形状写。
@@ -78,7 +78,7 @@ type componentView struct {
 	UpdatedAt     string   `json:"updatedAt"`
 }
 
-// componentDetail 处理 GET /api/v1/components/{id}（007 §4.3、18.16）。
+// componentDetail 处理 GET /api/v1/components/{id}。
 func (a *api) componentDetail(w http.ResponseWriter, r *http.Request, p params) {
 	id, ok := a.requireIdentity(w, r)
 	if !ok {
@@ -111,7 +111,7 @@ func (a *api) componentDetail(w http.ResponseWriter, r *http.Request, p params) 
 	writeJSON(w, http.StatusOK, view)
 }
 
-// setVisibility 处理 PUT /api/v1/components/{id}/visibility（007 §9.4、18.18）。
+// setVisibility 处理 PUT /api/v1/components/{id}/visibility。
 func (a *api) setVisibility(w http.ResponseWriter, r *http.Request, p params) {
 	id, ok := a.requireIdentity(w, r)
 	if !ok {
@@ -135,7 +135,7 @@ func (a *api) setVisibility(w http.ResponseWriter, r *http.Request, p params) {
 	})
 }
 
-// listAccess 处理 GET /api/v1/components/{id}/access（007 §9.4）。
+// listAccess 处理 GET /api/v1/components/{id}/access。
 func (a *api) listAccess(w http.ResponseWriter, r *http.Request, p params) {
 	id, ok := a.requireIdentity(w, r)
 	if !ok {
@@ -153,7 +153,7 @@ func (a *api) listAccess(w http.ResponseWriter, r *http.Request, p params) {
 	writeJSON(w, http.StatusOK, policies)
 }
 
-// setAccess 处理 PUT /api/v1/components/{id}/access（007 §9.4）。
+// setAccess 处理 PUT /api/v1/components/{id}/access。
 //
 // 语义是整体覆盖而非增量：增量语义下"撤销一条授权"需要额外的接口，
 // 而覆盖语义天然支持撤销，也不会出现两次调用顺序不同结果不同的问题。

@@ -2,10 +2,10 @@ package manifest
 
 import "strings"
 
-// serviceNameReplacer 实现 002 §5.3 的转换规则：`/` → `-`、`.` → `-`。
+// serviceNameReplacer 实现版本化服务名的转换规则：`/` → `-`、`.` → `-`。
 var serviceNameReplacer = strings.NewReplacer("/", "-", ".", "-")
 
-// ServiceName 返回组件的版本化服务名（002 §5.3）。
+// ServiceName 返回组件的版本化服务名。
 //
 //	people/basic + 1.0.0 → people-basic-1-0-0
 //

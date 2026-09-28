@@ -49,7 +49,7 @@ const (
 func (s *service) routes() http.Handler {
 	mux := http.NewServeMux()
 
-	// 健康检查只回答"本进程还活着吗"（002 §9.4、开发计划 25.7）。
+	// 健康检查只回答"本进程还活着吗"。
 	// 连接组件依赖四个组件；健康检查若逐个去探，任意一个抖动都会让它被杀掉重启，
 	// 而它本身完全正常——只是暂时干不了活，那该由业务接口如实报 503
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -207,7 +207,7 @@ func (s *service) handleOrderAction(w http.ResponseWriter, r *http.Request) {
 	// 弱依赖：发事件失败**不影响审批结果**。
 	//
 	// 若因为发不出事件就让审批失败（或回滚），弱依赖就成了事实上的强依赖——
-	// 而 003 §4.3 对弱依赖的定义是"有就用、没有就降级"。
+	// 而弱依赖的定义是"有就用、没有就降级"。
 	// 但要如实告诉调用方事件到底发出去没有，不能假装发了
 	published := s.publishApproved(r.Context(), id.PersonID, orderID)
 
@@ -336,7 +336,7 @@ var openapiSpec []byte
 // handleOpenAPI 把本组件的 API 文档发出去。
 //
 // 路径固定为 /openapi.json：这是 FastAPI 之类的框架的惯例，
-// 文档聚合组件也按这个路径来探（002 §7 契约即产物）。
+// 文档聚合组件也按这个路径来探（契约即产物）。
 func handleOpenAPI(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	// 文档不常变，让代理与浏览器缓存一会儿

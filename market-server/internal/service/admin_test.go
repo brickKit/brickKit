@@ -1,6 +1,6 @@
-// 本文件是 Step 18-D 管理员引导（运维指南 §6.5）的业务行为测试。
+// 本文件是管理员引导的业务行为测试。
 //
-// 市场刚部署完时库里一个用户都没有，而 blocked 只有管理员能标（007 §6.3）。
+// 市场刚部署完时库里一个用户都没有，而 blocked 只有管理员能标。
 // 所以服务启动时要按 ADMIN_USERNAME / ADMIN_PASSWORD 把管理员准备好。
 package service_test
 
@@ -75,7 +75,7 @@ func TestEnsureAdminSkipsWhenNotConfigured(t *testing.T) {
 // 管理员口令重置（运维指南 §9 Q5：忘记管理员密码）
 // ============================================================
 
-// 引导不覆盖口令（D118），所以"忘记密码"必须有一条显式的重置路径，
+// 引导不覆盖口令，所以"忘记密码"必须有一条显式的重置路径，
 // 否则运维只能去库里改哈希。
 func TestResetAdminPasswordChangesCredentials(t *testing.T) {
 	f := newFixture(t)
@@ -151,7 +151,7 @@ func TestResetAdminPasswordRejectsWeakPassword(t *testing.T) {
 	assert.NoError(t, loginErr, "校验失败时不该动原口令")
 }
 
-// 引导管理员这件事本身要留痕（008 §审计：权限变更必须可追溯）。
+// 引导管理员这件事本身要留痕（权限变更必须可追溯）。
 func TestEnsureAdminIsAudited(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()

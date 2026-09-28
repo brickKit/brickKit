@@ -1,9 +1,9 @@
 package cli
 
-// 本文件是 `brickkit up` 路上的升级处理（004 §3.5.1）。
+// 本文件是 `brickkit up` 路上的升级处理。
 //
 // 触发条件不是某个开关，而是 brickkit.yaml 里的版本号与本地缓存对不上——
-// 于是拉新版本 Manifest 与产物、做 002 §7.7 的兼容性检查，
+// 于是拉新版本 Manifest 与产物、做兼容性检查，
 // 阻断项在真正启动之前就报错。
 //
 // 升级前后的差异呈现（哪些环境变量变了）在 up_upgrade_diff.go。
@@ -31,7 +31,7 @@ type upgradeInfo struct {
 	// Migration 是新版本声明的迁移命令，空表示新版本没有迁移。
 	Migration string
 	// Deps / AddedConfig / RemovedConfig / Artifacts / Quota 是新旧 Manifest 的
-	// 差异描述（004 §3.5.1 规定的六项里的其余五项），空字符串表示"无变化"。
+	// 差异描述（升级摘要里除版本号外的其余五项），空字符串表示"无变化"。
 	Deps          string
 	AddedConfig   string
 	RemovedConfig string
@@ -97,15 +97,15 @@ func detectUpgrades(proj *project.Project) []upgradeInfo {
 //
 // # 为什么不在这里做兼容性检查
 //
-// 这里从前还跑一遍 `resolver.CheckUpgrade`（002 §7.7 的五项）。**那五项常规
+// 这里从前还跑一遍 `resolver.CheckUpgrade`（五项兼容性检查）。**那五项常规
 // `up` 路径一项不落地全做了**——解析拿不到 Manifest 就报错、强依赖缺失报错、
 // 弱依赖缺失警告、循环依赖报错、资源未绑定报错。它是同一套判断的第二份拷贝，
 // 而且复制得不完整，于是升级路径上多出两个只有升级才会撞的 bug：
 //
-//	--dry-run 被阻断      常规路径把资源检查降级成警告（004 §4.4），这份拷贝没有
-//	mode: disable 被阻断   常规路径只查会启动的组件（006 §4.4），这份拷贝无条件查
+//	--dry-run 被阻断      常规路径把资源检查降级成警告，这份拷贝没有
+//	mode: disable 被阻断   常规路径只查会启动的组件，这份拷贝无条件查
 //
-// 删掉之后两个 bug 一起消失，002 §7.7 那五项一项没少——只是由常规路径统一执行。
+// 删掉之后两个 bug 一起消失，那五项一项没少——只是由常规路径统一执行。
 //
 // 放在依赖图解析**之后**：新版本的 Manifest 已经在图里，不必再取一次。
 func describeUpgrades(
@@ -122,16 +122,16 @@ func describeUpgrades(
 		if node.Manifest.Migration != nil {
 			upgrades[i].Migration = strings.Join(node.Manifest.Migration.Command, " ")
 		}
-		// 004 §3.5.1 的其余五项：拿缓存里的旧 Manifest 与新的比
+		// 升级摘要的其余五项：拿缓存里的旧 Manifest 与新的比
 		describeUpgradeDiff(&upgrades[i], cachedManifest(layout, u.ID, u.From), node.Manifest)
 
-		// P10：新版本的产物要下载到新的版本化服务名目录下。手改版本号时没跑过
+		// 新版本的产物要下载到新的版本化服务名目录下。手改版本号时没跑过
 		// `add`，这是唯一会拉它们的地方。旧版本的保留——调用方可能还指着
-		// 旧版本（002 §7.8）
+		// 旧版本
 		if result, err := client.DownloadArtifacts(ctx, node.Manifest); err == nil {
 			renderWarnings(opts, result.Warnings)
 		} else {
-			// 产物是开发时的辅助，取不到不该拦住启动（004 §10.1）
+			// 产物是开发时的辅助，取不到不该拦住启动
 			opts.Printf("%s\n", i18n.T(msgid.CliUpUpgradeArtifactDownloadForFailed, refText(target), clierr.As(err).Message))
 		}
 	}
@@ -149,7 +149,7 @@ func renderUpgradeBanner(opts *Options, upgrades []upgradeInfo) {
 	opts.Printf("\n")
 }
 
-// renderUpgradeSummary 输出 --dry-run 的版本变更摘要（004 §3.5.1）。
+// renderUpgradeSummary 输出 --dry-run 的版本变更摘要。
 //
 // 只是信息展示，不阻断任何操作。
 //
@@ -164,7 +164,7 @@ func renderUpgradeSummary(opts *Options, plan *upPlan) {
 	for _, u := range plan.upgrades {
 		opts.Printf("   %s: %s → %s\n", u.ID, u.From, u.To)
 
-		// 六项固定都出（004 §3.5.1）。没变化的写"无"而不是隐藏——
+		// 六项固定都出。没变化的写"无"而不是隐藏——
 		// 藏起来会让人分不清"没有变化"和"平台没检查这一方面"。
 		for _, row := range []struct{ label, value string }{
 			{i18n.T(msgid.CliUpUpgradeDependencyChanges), u.Deps},

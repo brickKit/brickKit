@@ -8,7 +8,7 @@ package deploy
 //
 // 这个包只依赖 config，因此 compose / k8s / inject 都能引用它而不会成环。
 
-// Namespace 是项目的默认 K8s 命名空间：brickkit-<项目名>（005 §5.2）。
+// Namespace 是项目的默认 K8s 命名空间：brickkit-<项目名>。
 func Namespace(project string) string {
 	if project == "" {
 		// 配置校验保证项目名非空，这里只是不生成一个以 - 结尾的非法命名空间
@@ -17,7 +17,7 @@ func Namespace(project string) string {
 	return "brickkit-" + project
 }
 
-// NetworkName 是项目专属的 Docker 网络名：brickkit-<项目名>-net（005 §5）。
+// NetworkName 是项目专属的 Docker 网络名：brickkit-<项目名>-net。
 func NetworkName(project string) string {
 	if project == "" {
 		project = "brickkit"
@@ -28,7 +28,7 @@ func NetworkName(project string) string {
 // HostMachineAlias 是"宿主机"在容器里的惯用别名。
 //
 // 它带点，因此不会被当成容器网络内的服务名；但容器里默认也解析不了它，
-// 必须靠 extra_hosts 指到网关上（P34）。
+// 必须靠 extra_hosts 指到网关上。
 const HostMachineAlias = "host.docker.internal"
 
 // DialHost 把资源的 host 换成**从宿主机拨号时**该用的名字。

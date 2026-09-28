@@ -1,13 +1,11 @@
-// 本文件是 Step 18-C「服务层与认证」的业务行为测试。
-//
-// 覆盖开发计划 18.12–18.14、18.17–18.21、18.24、18.25，
-// 以及 007 §5（可见性与权限）、§6（版本状态）、§16（审计）的规则。
+// 本文件是「服务层与认证」的业务行为测试：
+// 可见性与权限、版本状态、审计的规则。
 package service_test
 
 import (
 	"context"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -123,7 +121,7 @@ func apiErrorOf(t *testing.T, err error) *model.APIError {
 }
 
 // ============================================================
-// 18.19 / 18.20 注册与登录
+// 注册与登录
 // ============================================================
 
 func TestRegisterAndLogin(t *testing.T) {
@@ -248,7 +246,7 @@ func TestLogout(t *testing.T) {
 }
 
 // ============================================================
-// 发布（18.14 版本不可重复）
+// 发布（版本不可重复）
 // ============================================================
 
 func TestPublishCreatesComponentAndVersion(t *testing.T) {
@@ -271,7 +269,7 @@ func TestPublishCreatesComponentAndVersion(t *testing.T) {
 	assert.Equal(t, []string{"demo"}, c.Tags, "标签取自 Manifest")
 }
 
-// 18.14 版本不可重复。
+// 版本不可重复。
 func TestPublishRejectsDuplicateVersion(t *testing.T) {
 	f := newFixture(t)
 	id := f.registerUser(t, "zhangsan")
@@ -286,7 +284,7 @@ func TestPublishRejectsDuplicateVersion(t *testing.T) {
 	assert.Equal(t, "1.0.0", e.Details["version"])
 }
 
-// 发布必须认证（007 §9.6：组件发布操作必须认证）。
+// 发布必须认证。
 func TestPublishRequiresAuthentication(t *testing.T) {
 	f := newFixture(t)
 
@@ -383,7 +381,7 @@ func TestUploadAndDownloadArtifact(t *testing.T) {
 	require.NoError(t, f.svc.UploadArtifact(ctx, id, "people/basic", "1.0.0", "art-0",
 		"proto/people.proto", strings.NewReader(content), int64(len(content))))
 
-	// 上传后才能转 stable（007 §18.2：文件必须与 files 列表一致）
+	// 上传后才能转 stable（文件必须与 files 列表一致）
 	require.NoError(t, f.svc.SetVersionStatus(ctx, id, "people/basic", "1.0.0", model.VersionStable, ""))
 
 	r, err := f.svc.DownloadArtifact(ctx, service.Anonymous(), "people/basic", "1.0.0", "art-0", "proto/people.proto")
@@ -454,7 +452,7 @@ func TestUploadRequiresOwner(t *testing.T) {
 	assert.Equal(t, model.CodeForbidden, apiErrorOf(t, err).Code)
 }
 
-// 下载会累加下载计数并留下审计（007 §16.1）。
+// 下载会累加下载计数并留下审计。
 func TestDownloadRecordsAudit(t *testing.T) {
 	f := newFixture(t)
 	id := f.registerUser(t, "zhangsan")
@@ -484,10 +482,10 @@ func TestDownloadRecordsAudit(t *testing.T) {
 }
 
 // ============================================================
-// 18.12 / 18.21 可见性与访问控制
+// 可见性与访问控制
 // ============================================================
 
-// 18.21 未认证访问 private 组件被拒绝。
+// 未认证访问 private 组件被拒绝。
 func TestPrivateComponentDeniedForAnonymous(t *testing.T) {
 	f := newFixture(t)
 	owner := f.registerUser(t, "zhangsan")
@@ -509,7 +507,7 @@ func TestPrivateComponentDeniedForAnonymous(t *testing.T) {
 	assert.Equal(t, model.CodeForbidden, apiErrorOf(t, err).Code)
 }
 
-// 18.12 private 组件：授权用户可访问，未授权用户不行。
+// private 组件：授权用户可访问，未授权用户不行。
 func TestPrivateComponentAccessControl(t *testing.T) {
 	f := newFixture(t)
 	owner := f.registerUser(t, "zhangsan")
@@ -577,7 +575,7 @@ func TestPrivateComponentOrgAccess(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// 18.18 可见性变更：只有所有者或管理员能改。
+// 可见性变更：只有所有者或管理员能改。
 func TestSetVisibilityRequiresOwner(t *testing.T) {
 	f := newFixture(t)
 	owner := f.registerUser(t, "zhangsan")
@@ -598,10 +596,10 @@ func TestSetVisibilityRequiresOwner(t *testing.T) {
 }
 
 // ============================================================
-// 18.17 / 18.24 / 18.25 版本状态
+// 版本状态
 // ============================================================
 
-// 18.17 版本状态变更。
+// 版本状态变更。
 func TestSetVersionStatus(t *testing.T) {
 	f := newFixture(t)
 	owner := f.registerUser(t, "zhangsan")
@@ -613,13 +611,13 @@ func TestSetVersionStatus(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, model.VersionDeprecated, v.Status)
 
-	// deprecated 仍可安装（007 §6：可以安装，但提示风险）
+	// deprecated 仍可安装（可以安装，但提示风险）
 	view, err := f.svc.GetManifest(ctx, service.Anonymous(), "people/basic", "1.0.0")
 	require.NoError(t, err)
 	assert.Equal(t, model.VersionDeprecated, view.Status)
 }
 
-// 007 §6.3：标记 blocked 只有市场管理员。
+// 标记 blocked 只有市场管理员。
 func TestOnlyAdminCanBlockVersion(t *testing.T) {
 	f := newFixture(t)
 	owner := f.registerUser(t, "zhangsan")
@@ -635,7 +633,7 @@ func TestOnlyAdminCanBlockVersion(t *testing.T) {
 	require.NoError(t, f.svc.SetVersionStatus(ctx, admin, "people/basic", "1.0.0", model.VersionBlocked, ""), "")
 }
 
-// 18.25 blocked 组件/版本不可安装。
+// blocked 组件/版本不可安装。
 func TestBlockedVersionCannotBeInstalled(t *testing.T) {
 	f := newFixture(t)
 	owner := f.registerUser(t, "zhangsan")
@@ -670,7 +668,7 @@ func TestBlockedComponentCannotBeInstalled(t *testing.T) {
 	assert.Equal(t, model.CodeForbidden, apiErrorOf(t, err).Code, "解除下架同样只有管理员能做")
 }
 
-// 18.24 已发布版本不可物理删除，只能软删除。
+// 已发布版本不可物理删除，只能软删除。
 func TestDeleteVersionIsSoftDelete(t *testing.T) {
 	f := newFixture(t)
 	owner := f.registerUser(t, "zhangsan")
@@ -705,7 +703,7 @@ func TestDeleteVersionRequiresOwner(t *testing.T) {
 }
 
 // ============================================================
-// 查询（18.2 / 18.3 / 18.15 / 18.16）
+// 查询
 // ============================================================
 
 func TestGetManifestReturnsSourceInfo(t *testing.T) {
@@ -760,7 +758,7 @@ func TestDraftVersionIsNotInstallable(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// 18.2 版本列表：默认不含已删除版本，按版本号倒序。
+// 版本列表：默认不含已删除版本，按版本号倒序。
 func TestListVersions(t *testing.T) {
 	f := newFixture(t)
 	owner := f.registerUser(t, "zhangsan")
@@ -777,7 +775,7 @@ func TestListVersions(t *testing.T) {
 	assert.Equal(t, "1.0.0", versions[1].Version)
 }
 
-// 18.16 组件详情：带版本列表与最新版本。
+// 组件详情：带版本列表与最新版本。
 func TestGetComponentDetail(t *testing.T) {
 	f := newFixture(t)
 	owner := f.registerUser(t, "zhangsan")
@@ -792,7 +790,7 @@ func TestGetComponentDetail(t *testing.T) {
 	assert.Equal(t, []string{"1.2.0", "1.0.0"}, detail.Versions)
 }
 
-// 18.15 组件搜索。
+// 组件搜索。
 func TestSearchComponents(t *testing.T) {
 	f := newFixture(t)
 	owner := f.registerUser(t, "zhangsan")
@@ -812,7 +810,7 @@ func TestSearchComponents(t *testing.T) {
 }
 
 // ============================================================
-// 18.13 审计
+// 审计
 // ============================================================
 
 func TestAuditRecordsPublishAndChanges(t *testing.T) {
@@ -846,9 +844,9 @@ func TestAuditRecordsPublishAndChanges(t *testing.T) {
 	assert.Equal(t, "1.0.0", published[0].Version)
 }
 
-// 下架的**理由**必须进审计（008 §10.4、运维指南 §6.5）。
+// 下架的**理由**必须进审计。
 //
-// blocked 是整个信任模型的最后一道闸（001 §12）。从前 HTTP 层接收了 reason
+// blocked 是整个信任模型的最后一道闸。从前 HTTP 层接收了 reason
 // 却解析出来就丢掉，审计里只有 "blocked" 一个词——而 Action 本身已经是
 // component.version.status_changed 了，那一格几乎没加任何信息。
 // 半年后回头看，唯一能回答"这个版本当初为什么被下架"的那句话不见了。

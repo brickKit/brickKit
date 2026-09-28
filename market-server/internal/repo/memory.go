@@ -87,7 +87,7 @@ func (m *Memory) ListComponents(_ context.Context, q ComponentQuery) ([]model.Co
 	return paginate(out, q.Page, q.PageSize), nil
 }
 
-// CountComponents 统计符合条件的组件数，忽略分页（007 §4.2 的 total）。
+// CountComponents 统计符合条件的组件数，忽略分页（搜索响应的 total）。
 func (m *Memory) CountComponents(_ context.Context, q ComponentQuery) (int, error) {
 	return len(m.filterComponents(q)), nil
 }
@@ -540,7 +540,7 @@ func paginate(items []model.Component, page, pageSize int) []model.Component {
 }
 
 // ============================================================
-// 组织（007 §9.5）
+// 组织
 // ============================================================
 
 func (m *Memory) CreateOrganization(_ context.Context, o *model.Organization) error {

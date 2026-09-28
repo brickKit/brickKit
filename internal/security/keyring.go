@@ -18,12 +18,12 @@ import (
 //
 // # 公钥为什么必须由使用者配置
 //
-// 008 §8.3 的签名信息里只有 publicKeyRef（一个名字），没有密钥材料——设计书
-// 没有明说这个名字该由谁来解析，而这恰恰决定了整套机制有没有意义：
+// 签名信息里只有 publicKeyRef（一个名字），没有密钥材料——
+// 这个名字该由谁来解析，恰恰决定了整套机制有没有意义：
 //
 //	从市场取公钥   市场自己给自己发证。市场被攻破 → 攻击者把组件和公钥一起换掉
-//	               → 验签通过 → 签名等于没有（008 §14.1 恰恰把"市场被攻破"的
-//	               应对写成"签名校验"，这条路把它变成了空话）
+//	               → 验签通过 → 签名等于没有（而"市场被攻破"正是签名要防的
+//	               那种情况，这条路把它变成了空话）
 //	从项目取公钥   信任锚点在使用者手里，跟着 brickkit.yaml 进 Git、有评审记录
 //
 // 所以本包只接受后者：ref 必须能在 KeyRing 里找到，找不到就是校验失败，
@@ -147,7 +147,7 @@ func parsePublicKey(ref string, pemBytes []byte) (*ecdsa.PublicKey, error) {
 //
 // 这条**必须给出下一步**：公钥是使用者自己在 installer.publicKeys 里配的，
 // 配错了他完全能改。只说"不可用"而不说怎么办，人会以为是组件或市场的问题，
-// 而实际上要改的是自己那三行配置（开发计划 33.17）。
+// 而实际上要改的是自己那三行配置。
 func badKey(ref, reason string) *clierr.Error {
 	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityKeyUnusable)).
 		WithDetail(i18n.T(msgid.SecurityLabelKeyRef), ref).

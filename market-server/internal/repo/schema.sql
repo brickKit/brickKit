@@ -1,4 +1,4 @@
--- BrickKit Market 库表（007 §10 市场数据模型）
+-- BrickKit Market 库表（市场数据模型）
 --
 -- 迁移是幂等的：市场启动时执行一次即可，重复执行不报错。
 
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS component_versions (
     PRIMARY KEY (component_id, version)
 );
 
--- 产物按 <组件, 版本> 归属，天然做到"每个版本独立存储"（开发计划 18.22）
+-- 产物按 <组件, 版本> 归属，天然做到"每个版本独立存储"
 CREATE TABLE IF NOT EXISTS artifacts (
     component_id    VARCHAR(256) NOT NULL,
     version         VARCHAR(64)  NOT NULL,
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS access_policies (
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- 组织（007 §9.5、§10）。
+-- 组织。
 -- 成员关系记在 users.org_id 上：一个用户至多属于一个组织。
 CREATE TABLE IF NOT EXISTS organizations (
     org_id          VARCHAR(128) PRIMARY KEY,
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS tokens (
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- 审计日志只追加，不修改不删除（007 §16.3）
+-- 审计日志只追加，不修改不删除
 CREATE TABLE IF NOT EXISTS audit_logs (
     audit_id        BIGSERIAL PRIMARY KEY,
     action          VARCHAR(64)  NOT NULL,

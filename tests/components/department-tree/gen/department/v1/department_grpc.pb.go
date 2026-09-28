@@ -1,4 +1,4 @@
-// department/tree 的 gRPC 契约（002 §7：契约即产物）。
+// department/tree 的 gRPC 契约（契约即产物）。
 //
 // 这份 proto 会作为 api-contract 产物发布到市场；使用方 `brickkit add` 之后
 // 从 .brickkit/artifacts/department-tree-1-0-0/api-contract/ 取到它来生成客户端。

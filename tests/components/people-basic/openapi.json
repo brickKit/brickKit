@@ -12,7 +12,7 @@
           "platform"
         ],
         "summary": "Healthz",
-        "description": "健康检查。\n\n002 §9.4：只检查本进程存活，**不查数据库、不调依赖组件**。\n健康检查一旦连库，数据库抖一下就会让所有组件被判死重启。",
+        "description": "健康检查。\n\n只检查本进程存活，**不查数据库、不调依赖组件**。\n健康检查一旦连库，数据库抖一下就会让所有组件被判死重启。",
         "operationId": "healthz_healthz_get",
         "responses": {
           "200": {

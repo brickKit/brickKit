@@ -16,7 +16,7 @@ import (
 	"github.com/brickkit/brickkit/internal/userconfig"
 )
 
-// allCommands 是设计书 004 §3.1 定义的命令 + version。
+// allCommands 是 CLI 的全部命令 + version。
 var allCommands = []string{
 	"init", "new", "add", "remove", "up", "down", "status",
 	"fetch", "sync", "restore", "login", "publish", "version", "graph", "lint",
@@ -57,7 +57,7 @@ func run(t *testing.T, args ...string) result {
 	return result{stdout: out.String(), stderr: errBuf.String(), code: code}
 }
 
-// 2.1 brickkit version 输出版本号、支持的 Manifest 版本、部署目标。
+// brickkit version 输出版本号、支持的 Manifest 版本、部署目标。
 func TestVersionCommand(t *testing.T) {
 	r := run(t, "version")
 	assert.Equal(t, clierr.ExitOK, r.code)
@@ -73,7 +73,7 @@ func TestVersionVerboseAddsBuildInfo(t *testing.T) {
 	assert.Contains(t, r.stdout, "Build date:")
 }
 
-// 2.2 brickkit --help 列出所有子命令。
+// brickkit --help 列出所有子命令。
 func TestRootHelpListsAllCommands(t *testing.T) {
 	r := run(t, "--help")
 	assert.Equal(t, clierr.ExitOK, r.code)
@@ -98,7 +98,7 @@ func TestRootHelpIsLocalizedWhenBrickkitLangIsZH(t *testing.T) {
 	assert.Contains(t, r.stdout, "用法：")
 }
 
-// 2.3 未知命令报错，退出码非 0。
+// 未知命令报错，退出码非 0。
 func TestUnknownCommandFails(t *testing.T) {
 	r := run(t, "nosuchcommand")
 	assert.NotEqual(t, clierr.ExitOK, r.code)
@@ -116,7 +116,7 @@ func TestUnknownFlagFails(t *testing.T) {
 	assert.Contains(t, r.stderr, "Suggestion:")
 }
 
-// 2.4 每个子命令 --help 输出帮助信息，退出码 0。
+// 每个子命令 --help 输出帮助信息，退出码 0。
 func TestEachSubcommandHelp(t *testing.T) {
 	for _, name := range allCommands {
 		t.Run(name, func(t *testing.T) {
@@ -129,7 +129,7 @@ func TestEachSubcommandHelp(t *testing.T) {
 	}
 }
 
-// 2.5 错误输出格式：包含 ❌ 符号、错误描述、建议。
+// 错误输出格式：包含 ❌ 符号、错误描述、建议。
 func TestErrorOutputFormat(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -161,29 +161,6 @@ func TestErrorOutputFormat(t *testing.T) {
 	}
 }
 
-// 正在重建的命令给出明确的 NOT_IMPLEMENTED 错误与阶段编号：占位必须明确报错、
-// 不能假装成功。表空了也保留这个用例，将来再有占位命令时把它填回来。
-func TestNotImplementedCommands(t *testing.T) {
-	// 三层文件重构期间还在重建的命令：帮助照常，执行时明确说"正在重建"（P4 之后一个都没有了）
-	cases := map[string][]string{}
-
-	// 显式 skip 而不是静默通过：一张空表跑出来的"PASS"与一个坏掉的用例
-	// 长得一模一样。写成 skip 之后，测试输出里就看得见"这条现在没在测什么"。
-	if len(cases) == 0 {
-		t.Skip("命令树上已经没有未实现的入口；将来加占位命令时把表填回来")
-	}
-
-	for name, args := range cases {
-		t.Run(name, func(t *testing.T) {
-			r := run(t, args...)
-			assert.Equal(t, clierr.ExitError, r.code)
-			assert.Contains(t, r.stderr, "being rebuilt for the three-layer project model")
-			assert.Contains(t, r.stderr, "phase P4")
-			assert.Contains(t, r.stderr, "\"error_code\":\"NOT_IMPLEMENTED\"")
-		})
-	}
-}
-
 // 参数个数超限时走 translate 的兜底分支（cobra 的 Args 校验错误）。
 func TestTooManyArgsUsesFallbackTranslation(t *testing.T) {
 	r := run(t, "init", "a", "b", "c")
@@ -194,7 +171,7 @@ func TestTooManyArgsUsesFallbackTranslation(t *testing.T) {
 }
 
 // 警告（⚠️）不阻断、退出码 0，日志级别为 WARN。
-// 这条契约由 Step 11 的保留变量冲突检测使用（004 §5.6.1、开发计划 33.15）。
+// 这条契约由保留变量冲突检测使用。
 func TestRunRendersWarningWithZeroExit(t *testing.T) {
 	var out, errBuf bytes.Buffer
 	opts := &Options{LogLevel: logging.LevelInfo, Stdout: &out, Stderr: &errBuf}
@@ -218,7 +195,7 @@ func TestRunRendersWarningWithZeroExit(t *testing.T) {
 	assert.NotContains(t, errBuf.String(), "❌")
 }
 
-// 2.6 日志输出为 JSON 格式，包含 time / level / message，且只走 stderr。
+// 日志输出为 JSON 格式，包含 time / level / message，且只走 stderr。
 func TestLogsAreJSONOnStderr(t *testing.T) {
 	r := run(t, "version")
 	require.NotEmpty(t, r.stderr, "stderr 应包含 JSON 日志")

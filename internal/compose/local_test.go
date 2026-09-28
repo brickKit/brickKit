@@ -1,5 +1,5 @@
-// 本文件是 Step 13「本地调试（mode: debug）与 local-debug.env」的业务行为测试，
-// 覆盖开发计划 13.1–13.14，以及延后项 P3（localPort 自动分配）。
+// 本文件是 「本地调试（mode: debug）与 local-debug.env」的业务行为测试，
+// 包括 localPort 自动分配。
 //
 // mode: debug 有两个方向要打通，测试也按这两个方向组织：
 //
@@ -51,7 +51,7 @@ func docOf(t *testing.T, result *compose.Result) map[string]any {
 	return doc
 }
 
-// withExtraPort 给组件加一个额外端口（002 §5.4）。
+// withExtraPort 给组件加一个额外端口。
 func withExtraPort(m *manifest.Manifest, name string, port int) *manifest.Manifest {
 	m.Deployment.ExtraPorts = append(m.Deployment.ExtraPorts,
 		manifest.ExtraPort{Name: name, Port: port})
@@ -192,7 +192,7 @@ func localProject(t *testing.T, local projecttest.Entry) *builder {
 }
 
 // ============================================================
-// 13.1 local 组件不生成容器
+// local 组件不生成容器
 // ============================================================
 
 // local 组件的迁移容器同样不生成：迁移由开发者在本机自己跑
@@ -206,7 +206,7 @@ func TestLocalComponentGeneratesNoMigrationService(t *testing.T) {
 
 	assert.NotContains(t, services, "people-basic-1-0-0", "13.1")
 	assert.NotContains(t, services, "people-basic-1-0-0-migration",
-		"13.1：local 组件不生成容器，它的迁移容器也不该生成")
+		"local 组件不生成容器，它的迁移容器也不该生成")
 }
 
 // 迁移不再由 CLI 代跑时必须说一声，否则开发者会对着"表不存在"发懵。
@@ -232,7 +232,7 @@ func joinWarnings(warnings []*clierr.Error) string {
 }
 
 // ============================================================
-// 13.2 extra_hosts 映射
+// extra_hosts 映射
 // ============================================================
 
 func TestDependentGetsExtraHostsForLocalComponent(t *testing.T) {
@@ -249,7 +249,7 @@ func TestNonDependentHasNoExtraHosts(t *testing.T) {
 
 	svc := serviceOf(t, b.parsed(), "department-tree-1-0-0")
 
-	assert.Empty(t, extraHostsOf(t, svc), "13.2：department/tree 不依赖 local 组件")
+	assert.Empty(t, extraHostsOf(t, svc), "department/tree 不依赖 local 组件")
 }
 
 // 完全没有 local 组件时，生成的文件里不该出现 extra_hosts。
@@ -262,10 +262,10 @@ func TestNoLocalComponentMeansNoExtraHosts(t *testing.T) {
 	result := b.generate()
 
 	assert.NotContains(t, string(result.YAML), "extra_hosts")
-	assert.Empty(t, result.LocalEnvFiles, "13.4：没有 local 组件就不生成 env 文件")
+	assert.Empty(t, result.LocalEnvFiles, "没有 local 组件就不生成 env 文件")
 }
 
-// 多个组件同时本地调试时，依赖方要为每一个都写 extra_hosts（005 §4.4）。
+// 多个组件同时本地调试时，依赖方要为每一个都写 extra_hosts。
 func TestExtraHostsForMultipleLocalComponents(t *testing.T) {
 	b := newBuilder(t)
 	b.component(
@@ -288,7 +288,7 @@ func TestExtraHostsForMultipleLocalComponents(t *testing.T) {
 }
 
 // ============================================================
-// 13.10 / 13.11 / 13.12 localPort
+// localPort
 // ============================================================
 
 // 13.10：用户指定了 localPort，依赖方的地址就用这个端口。
@@ -313,7 +313,7 @@ func TestAutoAssignedLocalPortDefaultsToDeclaredPort(t *testing.T) {
 	assert.Equal(t, "http://people-basic-1-0-0:8080", env["PEOPLE_BASIC_ENDPOINT"], "13.11")
 }
 
-// 声明端口被占了才退到 8081 起递增（005 §4.6）。
+// 声明端口被占了才退到 8081 起递增。
 func TestAutoAssignedLocalPortFallsBackTo8081(t *testing.T) {
 	b := newBuilder(t)
 	b.component(
@@ -330,7 +330,7 @@ func TestAutoAssignedLocalPortFallsBackTo8081(t *testing.T) {
 	assert.Equal(t, "http://department-tree-1-0-0:8080", env["DEPARTMENT_TREE_ENDPOINT"],
 		"先到的用自己声明的端口")
 	assert.Equal(t, "http://people-basic-1-0-0:8081", env["PEOPLE_BASIC_ENDPOINT"],
-		"13.11：撞车的退到 8081")
+		"撞车的退到 8081")
 }
 
 // 自动分配要绕开用户已经钉死的端口，而不是硬撞上去。
@@ -414,7 +414,7 @@ func TestExtraPortOfLocalComponentKeepsDeclaredPort(t *testing.T) {
 }
 
 // ============================================================
-// 13.3 / 13.13 local 组件的依赖：映射到宿主机端口
+// local 组件的依赖：映射到宿主机端口
 // ============================================================
 
 // 13.3：local 组件要访问的容器依赖，自动映射一个宿主机端口。
@@ -432,7 +432,7 @@ func TestUnrelatedComponentIsNotMappedToHost(t *testing.T) {
 
 	svc := serviceOf(t, b.parsed(), "erp-backend-1-0-0")
 
-	assert.Empty(t, portsOf(t, svc), "13.3：erp/backend 不是 local 组件的依赖")
+	assert.Empty(t, portsOf(t, svc), "erp/backend 不是 local 组件的依赖")
 }
 
 // 13.13：依赖组件已经 expose 过了就用现成的端口，不重复映射。
@@ -446,7 +446,7 @@ func TestDependencyWithExposeReusesItsHostPort(t *testing.T) {
 	result := b.generate()
 	svc := serviceOf(t, docOf(t, result), "department-tree-1-0-0")
 
-	assert.Equal(t, []string{"9100:8080"}, portsOf(t, svc), "13.13：不重复映射")
+	assert.Equal(t, []string{"9100:8080"}, portsOf(t, svc), "不重复映射")
 	assert.Equal(t, "http://localhost:9100",
 		localEnv(t, result, "people-basic-1-0-0")["DEPARTMENT_TREE_ENDPOINT"], "13.13")
 }
@@ -467,14 +467,14 @@ func TestMultipleDependenciesGetDistinctHostPorts(t *testing.T) {
 
 	require.Len(t, tree, 1)
 	require.Len(t, rbac, 1)
-	assert.NotEqual(t, tree[0], rbac[0], "13.3：两个依赖不能抢同一个宿主机端口")
+	assert.NotEqual(t, tree[0], rbac[0], "两个依赖不能抢同一个宿主机端口")
 }
 
 // ============================================================
-// 13.4 / 13.6 / 13.7 env 文件
+// env 文件
 // ============================================================
 
-// 13.4 / 13.7：文件按版本化服务名命名，且带上组件身份。
+// 文件按版本化服务名命名，且带上组件身份。
 func TestLocalDebugEnvFileIsGenerated(t *testing.T) {
 	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
@@ -520,7 +520,7 @@ func TestMultipleVersionsGetSeparateEnvFiles(t *testing.T) {
 }
 
 // ============================================================
-// 13.5 env 文件里的依赖地址指向 localhost
+// env 文件里的依赖地址指向 localhost
 // ============================================================
 
 func TestLocalDebugEnvPointsDependenciesAtLocalhost(t *testing.T) {
@@ -544,7 +544,7 @@ func TestLocalDependencyOnAnotherLocalComponentUsesItsLocalPort(t *testing.T) {
 	assert.Equal(t, "http://localhost:8082", env["DEPARTMENT_TREE_ENDPOINT"])
 }
 
-// 额外端口同样要能从宿主机访问（002 §5.4、P21）。
+// 额外端口同样要能从宿主机访问。
 func TestLocalDebugEnvMapsExtraPorts(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
@@ -632,7 +632,7 @@ func TestEveryLocalhostEndpointIsActuallyPublished(t *testing.T) {
 	}
 }
 
-// 弱依赖没启动时，env 文件里同样一个字都不该有（002 §3.4）。
+// 弱依赖没启动时，env 文件里同样一个字都不该有。
 func TestLocalDebugEnvOmitsMissingWeakDependency(t *testing.T) {
 	b := newBuilder(t)
 	m := simple("people/basic", "1.0.0", 8080)
@@ -647,7 +647,7 @@ func TestLocalDebugEnvOmitsMissingWeakDependency(t *testing.T) {
 }
 
 // ============================================================
-// 13.8 env 文件里的资源连接
+// env 文件里的资源连接
 // ============================================================
 
 // 密码是 ${VAR} 引用时保持原样：env 文件由 shell / IDE 再展开，
@@ -667,7 +667,7 @@ func TestLocalDebugEnvKeepsSecretReference(t *testing.T) {
 }
 
 // ============================================================
-// 13.9 env 文件里的 config
+// env 文件里的 config
 // ============================================================
 
 func TestLocalDebugEnvContainsConfigValues(t *testing.T) {
@@ -687,12 +687,12 @@ func TestLocalDebugEnvContainsConfigValues(t *testing.T) {
 
 	env := localEnv(t, b.generate(), "people-basic-1-0-0")
 
-	assert.Equal(t, "debug", env["LOG_LEVEL"], "13.9：覆盖值优先")
-	assert.Equal(t, "20", env["PAGE_SIZE"], "13.9：没覆盖的用默认值")
+	assert.Equal(t, "debug", env["LOG_LEVEL"], "覆盖值优先")
+	assert.Equal(t, "20", env["PAGE_SIZE"], "没覆盖的用默认值")
 }
 
 // ============================================================
-// 13.9 续：需要加引号才能被正确 source 的 config 值
+// 续：需要加引号才能被正确 source 的 config 值
 // ============================================================
 //
 // 三个用例对应 brickKit 反馈《local-debug.*.env 序列化多行值和特殊字符会
@@ -763,7 +763,7 @@ func TestLocalDebugEnvLeavesSimpleValuesUnquoted(t *testing.T) {
 }
 
 // ============================================================
-// 13.14 Podman
+// Podman
 // ============================================================
 
 // ============================================================
@@ -870,7 +870,7 @@ func TestComposeFileKeepsPlaceholders(t *testing.T) {
 // 这条断言保留着一段历史：设计书原来写"Podman 用 host.containers.internal 替代"，
 // 那是把两件事搞混了——`host.containers.internal` 是**自动注入到 /etc/hosts 的
 // 主机名**，不是 `--add-host` 能接受的**值**。按原文生成的话容器根本创建不出来。
-// Podman 支持已经移除（005 §7），但这个错误的值一旦被谁"顺手补回来"，
+// Podman 支持已经移除，但这个错误的值一旦被谁"顺手补回来"，
 // Docker 上同样是坏的，所以断言留着。
 func TestExtraHostsUsesHostGateway(t *testing.T) {
 	b := newBuilder(t)
@@ -888,7 +888,7 @@ func TestExtraHostsUsesHostGateway(t *testing.T) {
 }
 
 // ============================================================
-// 宿主机上的资源（P34 —— 真实装配时踩到的）
+// 宿主机上的资源（真实装配时踩到的）
 // ============================================================
 
 // ============================================================
@@ -897,7 +897,7 @@ func TestExtraHostsUsesHostGateway(t *testing.T) {
 
 // mode: debug 的组件不生成容器，所以 expose / exposePort 没有任何东西可映射。
 //
-// 003 §3.2 立的规矩是"写了不生效就得出声"。这一条从前完全没守：配了
+// 平台立的规矩是"写了不生效就得出声"。这一条从前完全没守：配了
 // exposePort: 8888 的人打开浏览器访问 8888 什么都没有，而 up 全程一个字不说。
 func TestLocalComponentWithExposeIsWarned(t *testing.T) {
 	b := newBuilder(t)
@@ -956,7 +956,7 @@ func TestLocalComponentWithExposeOnlyIsWarned(t *testing.T) {
 
 	text := joinWarnings(result.Warnings)
 	assert.Contains(t, text, "expose")
-	// 没写 localPort 时默认取组件声明的主端口（005 §4.6）
+	// 没写 localPort 时默认取组件声明的主端口
 	assert.Contains(t, text, "8080")
 }
 

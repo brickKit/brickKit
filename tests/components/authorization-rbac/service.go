@@ -171,7 +171,7 @@ func (s *service) reasonFor(ctx context.Context, set permissionSet, permission s
 func (s *service) routes() http.Handler {
 	mux := http.NewServeMux()
 
-	// 健康检查只回答"本进程还活着吗"（002 §9.4、开发计划 24.5）。
+	// 健康检查只回答"本进程还活着吗"。
 	// **不碰 Redis、不查库、不调 people/basic**：Redis 一抖，编排系统就会把这些
 	// 本身完全正常的容器全部杀掉重启——而 Redis 在这里只是个加速器
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -372,7 +372,7 @@ var openapiSpec []byte
 // handleOpenAPI 把本组件的 API 文档发出去。
 //
 // 路径固定为 /openapi.json：这是 FastAPI 之类的框架的惯例，
-// 文档聚合组件也按这个路径来探（002 §7 契约即产物）。
+// 文档聚合组件也按这个路径来探（契约即产物）。
 func handleOpenAPI(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	// 文档不常变，让代理与浏览器缓存一会儿

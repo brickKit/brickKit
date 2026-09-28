@@ -1,4 +1,4 @@
-// 本文件是 Step 9 中组件源码工作区（components/）的单元测试。
+// 本文件是组件源码工作区（components/）的单元测试。
 package workspace
 
 import (
@@ -95,7 +95,7 @@ func TestCloneCreatesFullRepository(t *testing.T) {
 	assert.True(t, Exists(layout, "people/basic"))
 }
 
-// 目标目录已存在时报错，且不碰已有内容（004 §3.3 输出样例）。
+// 目标目录已存在时报错，且不碰已有内容。
 func TestCloneRefusesExistingDirectory(t *testing.T) {
 	layout := newLayout(t)
 	target := SourceDir(layout, "people/basic")
@@ -119,7 +119,7 @@ func TestCloneRefusesExistingDirectory(t *testing.T) {
 
 // 源码被 sync 归档着时，绝不在活跃目录再 clone 一份。
 //
-// 这条守的是 004 §8.1 的不变量：一个组件 ID 只有一个源码目录。
+// 这条守的是一条不变量：一个组件 ID 只有一个源码目录。
 // 从前只查活跃目录，于是"归档 → 再 add --repo"会造出两份，
 // 而下一次 sync 卡死在"目标目录已存在，无法移动组件源码"上。
 func TestCloneRefusesArchivedSource(t *testing.T) {

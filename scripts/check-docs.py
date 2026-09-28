@@ -1,131 +1,235 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""检查文档引用有没有指向不存在的地方。
+"""检查现行内容里的引用有没有指向不该指、或不存在的地方。
 
 查三类：
 
-  ① 悬空小节引用    代码与文档里的 "005 §5.12" 指向设计书里不存在的小节
-  ② 断链            markdown 链接指向不存在的文件
-  ③ 指南编号错位    试用指南某篇的文件号是 09，H1 或篇内小节却写着 19
-  ④ 前置对不上      README 索引表说某篇前置是 12，那一篇自己却写着 13
+  ① 归档引用      现行代码与文档里还指着已归档的旧设计书、旧决策、旧开发计划
+                  （"005 §5.12"、"D140"、"Step 15"、"P38"、"附录 D"、"试用指南"……）
+  ② 悬空规范引用  "提案 §6.2"、"附录 A24" 指向 new_plan/提案.md 里不存在的小节或决议
+  ③ 断链          现行 markdown 的链接指向不存在的文件
 
 # 为什么需要它
 
-这两类错误的共同点是**写的时候是对的，之后才坏掉**：重写一节时改了编号、
-拆分文件时换了路径，而引用方没人记得跟着改。它们不会让任何测试失败，
-也不会让构建报错——直到某天有人点进去，发现指向一个不存在的地方。
+归档的东西会过时：旧设计书里的决定有的已经被推翻，读者顺着引用过去，
+读到的是一个不再成立的理由。所以现行内容要么把理由写在原地，要么指向
+现行规范（new_plan/提案.md，它的附录 A 优先于正文）。① 守住"不再指回去"，
+② 守住"指向现行规范的地方真的存在"。
 
-真撞到过：重写 005 §7 时改了小节编号，留下 5 处指向 `§7.4.1` 的引用，
-其中一处是**使用者会看到的错误文案**（"详见 design/005 §7.4.1"）。
+这些错误的共同点是**写的时候是对的，之后才坏掉**：重写一节时改了编号、
+拆分文件时换了路径，而引用方没人记得跟着改。它们不会让任何测试失败——
+直到某天有人顺着引用过去，发现那里什么都没有。
 
 # 这个脚本自己会不会坏
 
-会。写它的过程中错了三次——正则截断得不对、把标题里的 "## 2. 完整结构"
-当成不合法（数字后面是点不是空格）、只找了一种引用写法。
-每次的症状都是"报出一堆假的缺口"或"报 0 处"，而两者看起来都像成功。
+会。同类脚本写的时候错过好几次：正则截断得不对、标题写法没认全、
+只找了一种引用写法。症状都是"报出一堆假的缺口"或"报 0 处"，而两者看起来都像成功。
 
-所以**自检是这个脚本的一部分**（见 self_check）：它先拿几个已知存在的小节
-验证自己的解析没坏，解析不出来就直接失败，而不是继续跑出一个漂亮的 0。
-一个不会失败的检查等于没有检查。
+所以**自检是这个脚本的一部分**（见 self_check）：它先拿已知的样例验证
+每一类的解析都没坏，坏了就直接失败，而不是继续跑出一个漂亮的 0。
 """
 
-import glob
 import os
 import re
+import subprocess
 import sys
 import urllib.parse
-from collections import defaultdict
 
-# 已知一定存在的小节，用来自证解析没坏。
-# 挑的是标题写法各不相同的几个：带点的、多级的、纯数字的。
-SELF_CHECK = [
-    ("003", "2"),        # "## 2. 完整结构"        —— 数字后带点
-    ("003", "3.2"),      # "### 3.2 deploy（必须）" —— 数字后带空格
-    ("005", "5.13.1"),   # "#### 5.13.1 …"         —— 三级编号
-]
+SPEC = "new_plan/提案.md"
 
-SKIP_DIRS = (".git", "playground", "node_modules", ".tools", "bin", "data")
+# 这些目录本身就是历史或规划，不是"现行内容"。
+EXCLUDED_PREFIXES = ("archive/", "docs/superpowers/", "new_plan/", ".superpowers/")
+EXCLUDED_FILES = ("CHANGELOG.md", "scripts/check-docs.py")
+
+# 指向归档内容的写法。每一种都在清理时真出现过。
+ARCHIVED_REF = re.compile(
+    r"(?<![\d.])0[01]\d ?§"    # 旧设计书小节：005 §5.12（前面可以紧挨字母，如 JSON 里的 \n002 §9.4）
+    r"|design/0\d\d"           # 旧设计书路径
+    r"|\bD\d{2,3}\b"           # 旧决策记录：D140
+    r"|开发计划 ?\d"           # 旧开发计划条目
+    r"|\bStep ?\d"             # 旧开发计划的 Step
+    r"|\bP\d{2}\b"             # 旧完成记录里的延后项：P38（路线图阶段是 P1–P10，一位数）
+    r"|附录 ?[B-G]\b|附录 [B-G]\."  # 旧设计书附录（现行规范只有附录 A）
+    r"|试用指南|开发进度|延后项|延后清单"
+    r"|回填 ?P\d|设计书 ?§|设计书 ?\d"
+)
+
+# 合法地用着相同字样、但不是归档引用的地方。每一条都要写清为什么。
+ARCHIVED_REF_ALLOW = {
+    # 脚本自己的进度输出："Step 1: Cleaning up …"，与开发计划无关
+    "scripts/podman/fix-apparmor.sh": re.compile(r'echo ".*Step \d: '),
+}
+
+# 规范引用：提案 §6.2、提案 §9.3、§9.6、提案 §6.2–6.6
+SPEC_REF = re.compile(r"提案\s*§\s*(\d+(?:\.\d+)*)((?:\s*[、，,–-]\s*§?\s*\d+(?:\.\d+)*)*)")
+SPEC_REF_MORE = re.compile(r"\d+(?:\.\d+)*")
+# 附录 A 决议：附录 A24、附录 A1、A16、附录 A4、A20、A24
+APPENDIX_REF = re.compile(r"附录\s*A(\d+)((?:\s*[、，,/–-]\s*A\d+)*)")
+APPENDIX_MORE = re.compile(r"A(\d+)")
+
+CN_NUM = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
 
 
-def walk(patterns):
-    for pattern in patterns:
-        for path in glob.glob(pattern, recursive=True):
-            if any(("/" + d + "/") in ("/" + path) or path.startswith(d + "/") for d in SKIP_DIRS):
-                continue
-            yield path
+def cn_to_int(s):
+    """十六 → 16、二十 → 20：规范的章用中文数字编号。"""
+    if s == "十":
+        return 10
+    if s.startswith("十"):
+        return 10 + CN_NUM[s[1]]
+    if s.endswith("十"):
+        return CN_NUM[s[0]] * 10
+    if "十" in s:
+        a, b = s.split("十")
+        return CN_NUM[a] * 10 + CN_NUM[b]
+    return CN_NUM[s]
 
 
-def design_sections():
-    """收集每本设计书里实际存在的小节号：{"005": {"5.1", "5.13.1", …}}"""
-    found = defaultdict(set)
-    for path in glob.glob("docs/archive/design/[0-9][0-9][0-9]*.md"):
-        number = re.match(r"docs/archive/design/(\d{3})", path).group(1)
+def live_files():
+    """现行内容：git 跟踪的文本文件，去掉历史与规划目录。"""
+    out = subprocess.run(["git", "ls-files", "-z"], capture_output=True, check=True).stdout
+    for raw in out.split(b"\0"):
+        if not raw:
+            continue
+        path = raw.decode("utf-8")
+        if path.startswith(EXCLUDED_PREFIXES) or path in EXCLUDED_FILES:
+            continue
+        if not os.path.isfile(path):
+            continue
+        yield path
+
+
+def read_lines(path):
+    try:
         with open(path, encoding="utf-8") as f:
-            for line in f:
-                # 标题写法有两种：`## 2. 完整结构` 与 `### 3.2 deploy`
-                m = re.match(r"#{2,6}\s+(\d+(?:\.\d+)*)\.?\s", line)
-                if m:
-                    found[number].add(m.group(1))
-    return found
+            return f.read().split("\n")
+    except (OSError, UnicodeDecodeError):
+        return None
 
 
-def self_check(sections):
-    """确认解析本身没坏。坏了就直接退出——继续跑只会给出一个假的通过。"""
-    broken = [
-        f"{doc} §{sec}"
-        for doc, sec in SELF_CHECK
-        if sec not in sections.get(doc, ())
-    ]
-    if broken:
-        print("❌ 自检失败：解析不出这些**已知存在**的小节：" + "、".join(broken))
-        print("   说明这个脚本的标题解析坏了，报出来的结果不可信。先修脚本。")
+def spec_anchors():
+    """规范里真实存在的小节号与附录决议号。"""
+    sections, decisions = set(), set()
+    with open(SPEC, encoding="utf-8") as f:
+        for line in f:
+            m = re.match(r"#{2,6}\s+(\d+(?:\.\d+)*)\.?\s", line)
+            if m:
+                sections.add(m.group(1))
+            m = re.match(r"#{2,6}\s+([一二三四五六七八九十]+)、", line)
+            if m:
+                sections.add(str(cn_to_int(m.group(1))))
+            m = re.match(r"\|\s*A(\d+)\s*\|", line)
+            if m:
+                decisions.add(m.group(1))
+    return sections, decisions
+
+
+def self_check(sections, decisions):
+    """确认每一类的解析本身没坏。坏了就直接退出——继续跑只会给出一个假的通过。"""
+    problems = []
+    # 规范解析：挑写法各不相同的几个——中文章号、两级、三级、附录决议首尾
+    for sec in ("6", "16", "6.2", "8.9"):
+        if sec not in sections:
+            problems.append(f"解析不出规范里已知存在的 §{sec}")
+    for dec in ("1", "24"):
+        if dec not in decisions:
+            problems.append(f"解析不出规范里已知存在的附录 A{dec}")
+    # 归档引用：该抓的要抓到，现行规范引用与路线图阶段号不能误伤
+    for sample in ("见 005 §5.12", "\\n\\n002 §9.4", "开发进度 D140", "Step 15-C", "延后项 P38", "附录 D.1", "试用指南 17"):
+        if not ARCHIVED_REF.search(sample):
+            problems.append(f"归档引用的正则漏掉了 {sample!r}")
+    for sample in ("提案 §6.2", "附录 A24", "路线图 P7b", "HTTP/1.1"):
+        if ARCHIVED_REF.search(sample):
+            problems.append(f"归档引用的正则误伤了 {sample!r}")
+    # 规范引用：列举与区间里的每个号都要取到
+    got = spec_numbers("提案 §9.3、§9.6 与 提案 §6.2–6.6")
+    if got != ["9.3", "9.6", "6.2", "6.6"]:
+        problems.append(f"规范引用解析错了：{got}")
+    got = appendix_numbers("附录 A1、A16，以及附录 A24")
+    if got != ["1", "16", "24"]:
+        problems.append(f"附录引用解析错了：{got}")
+    # 断链：已知存在的要找得到，编造的要找不到
+    if not link_exists("README.md", "CONTRIBUTING.md") or link_exists("README.md", "no-such-file.md"):
+        problems.append("链接解析坏了")
+
+    if problems:
+        print("❌ 自检失败：")
+        for p in problems:
+            print(f"   {p}")
+        print("   说明这个脚本的解析坏了，报出来的结果不可信。先修脚本。")
         sys.exit(2)
 
 
-def check_sections(sections):
-    """① 悬空小节引用。"""
+def spec_numbers(line):
+    out = []
+    for m in SPEC_REF.finditer(line):
+        out.append(m.group(1))
+        out.extend(SPEC_REF_MORE.findall(m.group(2)))
+    return out
+
+
+def appendix_numbers(line):
+    out = []
+    for m in APPENDIX_REF.finditer(line):
+        out.append(m.group(1))
+        out.extend(APPENDIX_MORE.findall(m.group(2)))
+    return out
+
+
+def check_archived(files):
+    """① 归档引用。"""
     bad = []
-    for path in walk(["internal/**/*.go", "market-server/**/*.go",
-                      "docs/archive/design/*.md", "docs/archive/guide/*.md",
-                      "docs/archive/decisions/**/*.md",
-                      "docs/en/**/*.md", "docs/zh/**/*.md", "*.md"]):
-        try:
-            lines = open(path, encoding="utf-8").read().split("\n")
-        except (OSError, UnicodeDecodeError):
+    for path in files:
+        lines = read_lines(path)
+        if lines is None:
             continue
+        allow = ARCHIVED_REF_ALLOW.get(path)
         for i, line in enumerate(lines, 1):
-            for doc, sec in re.findall(r"(\d{3})\s*§\s*(\d+(?:\.\d+)*)", line):
-                known = sections.get(doc)
-                if not known or sec in known:
-                    continue
-                # 引用父节是允许的：写 §5 而文档里只有 §5.1 / §5.2
-                if any(x.startswith(sec + ".") for x in known):
-                    continue
-                bad.append((path, i, f"{doc} §{sec}"))
+            m = ARCHIVED_REF.search(line)
+            if m and not (allow and allow.search(line)):
+                bad.append((path, i, f"{m.group(0)!r}  {line.strip()[:80]}"))
     return bad
 
 
-def check_links():
-    """② markdown 断链。"""
+def check_spec_refs(files, sections, decisions):
+    """② 悬空规范引用。引用父节是允许的：写 §8 而规范里只有 §8.1 / §8.2。"""
     bad = []
-    for path in walk(["docs/archive/design/**/*.md", "docs/archive/guide/**/*.md",
-                      "docs/archive/decisions/**/*.md", "deploy/**/*.md",
-                      "docs/en/**/*.md", "docs/zh/**/*.md", "*.md"]):
-        root = os.path.dirname(path)
-        try:
-            lines = open(path, encoding="utf-8").read().split("\n")
-        except (OSError, UnicodeDecodeError):
+    for path in files:
+        lines = read_lines(path)
+        if lines is None:
+            continue
+        for i, line in enumerate(lines, 1):
+            for sec in spec_numbers(line):
+                if sec not in sections and not any(x.startswith(sec + ".") for x in sections):
+                    bad.append((path, i, f"提案 §{sec}"))
+            for dec in appendix_numbers(line):
+                if dec not in decisions:
+                    bad.append((path, i, f"附录 A{dec}"))
+    return bad
+
+
+def link_exists(path, href):
+    target = urllib.parse.unquote(href.split("#")[0])
+    return os.path.exists(os.path.normpath(os.path.join(os.path.dirname(path), target)))
+
+
+def check_links(files):
+    """③ 现行 markdown 的断链。"""
+    bad = []
+    for path in files:
+        if not path.endswith(".md"):
+            continue
+        lines = read_lines(path)
+        if lines is None:
             continue
         for i, line in enumerate(lines, 1):
             # 行内代码不是链接：`[a-z0-9]([a-z0-9-]*[a-z0-9])?` 这类正则文本长得像 [文字](目标)
             line = re.sub(r"`[^`]*`", "", line)
-            for _, href in re.findall(r"\[([^\]]*)\]\(([^)]+)\)", line):
+            for _, href in re.findall(r"\[([^\]]*)\]\(([^)\s]+)\)", line):
                 if href.startswith(("http", "#", "mailto")):
                     continue
-                target = urllib.parse.unquote(href.split("#")[0])
-                if not target:
+                if not href.split("#")[0]:
                     continue
-                if not os.path.exists(os.path.normpath(os.path.join(root, target))):
+                if not link_exists(path, href):
                     bad.append((path, i, href))
     return bad
 
@@ -140,288 +244,19 @@ def report(title, rows):
     return 1
 
 
-def guide_section_numbers():
-    """试用指南每一篇的 H1 与小节号都必须与文件编号一致。
-
-    2026-08-18 按「理解」重排时，13 篇改了文件名，**篇内小节号却没跟着改**：
-    打开「09-多副本与优雅排空」，每个标题都写着 `## 19.1`。
-    共 75 处标题 + 21 处引用错位，而当时三道检查一处都没报——
-
-    ①② 抓不到它：`19.1` 在那个文件里**确实存在**，链接也没断。
-    错的不是"指向不存在的地方"，而是"号本身不该是这个"。
-
-    所以这里查的是一条不变式：**篇内小节号的前缀 == 文件名里的编号**。
-    它便宜、机械，而且正好卡在改号最容易漏的那一步上。
-    """
-    problems = []
-    seen_h1 = seen_sec = 0
-
-    for path in sorted(glob.glob("docs/archive/guide/[0-9]*-*.md")):
-        tag = os.path.basename(path).split("-")[0]      # "09" / "00a"
-        prefixes = set()
-        h1 = None
-        for line in open(path, encoding="utf-8"):
-            if h1 is None and line.startswith("# "):
-                h1 = line.rstrip()
-            m = re.match(r"#+ (\d+)\.\d", line)
-            if m:
-                prefixes.add(int(m.group(1)))
-
-        # H1 形如 `# 09 · 多副本与优雅排空`
-        m = re.match(r"# (\d+[a-z]?) · ", h1 or "")
-        if m:
-            seen_h1 += 1
-            if m.group(1) != tag:
-                problems.append((path, 1, f"文件号是 {tag}，H1 却写着 {m.group(1)}"))
-
-        # 篇内小节号（00-准备、20-排障速查 用无编号小节，正常）
-        for p in sorted(prefixes):
-            seen_sec += 1
-            if p != int(tag.rstrip("ab") or 0):
-                problems.append((path, 0, f"文件号是 {tag}，小节却写着 {p}.x"))
-
-    if seen_h1 == 0 or seen_sec == 0:
-        print(f"❌ 扫到 H1 {seen_h1} 个、小节前缀 {seen_sec} 个——"
-              "有一项是 0，多半是路径或正则不对，而不是文档真没编号。")
-        sys.exit(2)
-    return problems
-
-
-def guide_prerequisites():
-    """README 索引表的「前置」列，必须与各篇自己写的前置一致。
-
-    2026-08-18 改号时漏了这一列：README 说 14 的前置是 12，而 14 自己写着
-    「走完 13-完整装配」——12 正是 13 的**旧编号**。同样的错还有 15/16（←13）、
-    18（←16）、11/12（←10）、09（←06），一共 7 处。
-
-    ①②③ 三道检查全都抓不到它：这一列是**裸数字，不是链接**，
-    既不是断链，也不是"指向不存在的小节"，更不是篇内小节号错位。
-    改号脚本改的是链接标签，于是这一列原封不动地留在了旧编号上。
-
-    这里查的不变式：**README 前置列里出现的每个篇号，都必须在那一篇自己的
-    前置行里也出现**。方向是单向的——篇内可以写得更细（"05 做完；Docker 可用；
-    镜像已构建"），但 README 不能凭空点名一篇那里根本没提的。
-    """
-    problems = []
-
-    readme = "docs/archive/guide/README.md"
-    if not os.path.exists(readme):
-        return problems
-
-    # 各篇自己声明的前置：文件号 → 那一行里出现的所有篇号
-    declared = {}
-    for path in sorted(glob.glob("docs/archive/guide/[0-9]*-*.md")):
-        tag = os.path.basename(path).split("-")[0]
-        head = "".join(open(path, encoding="utf-8").readlines()[:12])
-        m = re.search(r"前置[：:]\**\s*(.+)", head)
-        declared[tag] = set(re.findall(r"\d{2}", m.group(1))) if m else set()
-
-    # README 四列索引表：| 14 | [链接](…) | 内容 | 前置 |
-    rows = 0
-    for i, line in enumerate(open(readme, encoding="utf-8"), 1):
-        m = re.match(r"^\| (\d{2}[ab]?) \| \[[^]]+\]\([^)]+\) \| [^|]* \| ([^|]*)\|\s*$", line)
-        if not m:
-            continue
-        tag, cell = m.group(1), m.group(2).strip()
-        if tag not in declared:
-            continue
-        rows += 1
-        for num in re.findall(r"\d{2}", cell):
-            if num not in declared[tag]:
-                problems.append((readme, i, f"索引表说 {tag} 的前置含 {num}，"
-                                            f"但 {tag} 自己的前置行里没有它"))
-
-    if rows == 0:
-        print("❌ README 索引表一行都没解析出来——多半是表格列数或正则不对，"
-              "而不是它真的空了。")
-        sys.exit(2)
-    return problems
-
-
-def why_sections_reachable():
-    """012 里每一节「为什么」，都要有某一篇指南指过去。
-
-    012 是**架构辩护书**——二十节，每一节回答一个"为什么不那样做"。
-    它是整套文档里唯一系统回答「为什么该这么用」的地方，而在补上这道
-    检查之前，整份试用指南只引过它**一次**（04 §2.14）。
-
-    照着指南做完一遍的人，因此学会了怎么用，却一次都没被告知为什么是这样：
-    为什么只收精确版本、为什么 remove 连源码一起删、为什么弱依赖缺失时
-    连环境变量都不注入。这些不是背景知识——每一条都直接决定他会不会
-    误用，或者在踩到之后以为是 bug。
-
-    不变式：**012 §2.x 全部可达**。新写一节辩护而没有任何一篇指过去，
-    等于写完就沉底；这道检查会当场说出是哪一节。
-    """
-    book = "docs/archive/design/012-架构设计原理与考量.md"
-    if not os.path.exists(book):
-        return []
-
-    have = set()
-    for line in open(book, encoding="utf-8"):
-        m = re.match(r"### (2\.\d+) ", line)
-        if m:
-            have.add(m.group(1))
-    if len(have) < 10:
-        print(f"❌ 012 里只解析出 {len(have)} 节——多半是标题格式变了。")
-        sys.exit(2)
-
-    # 只认**同一行里点了 012 的名**的引用。散在指南各处的裸 §2.x 多得是
-    # （005 §2.5 讲内存上限、02 §2.7 是指南自己的小节），把它们算进来的话，
-    # 删掉一条真正的 012 指路这道检查也照样绿——那就等于没有这道检查。
-    cited = set()
-    for path in glob.glob("docs/archive/guide/*.md"):
-        for line in open(path, encoding="utf-8"):
-            if "012" not in line:
-                continue
-            cited.update(re.findall(r"§(2\.\d+)", line))
-
-    missing = sorted(have - cited, key=lambda x: [int(n) for n in x.split(".")])
-    return [(book, 0, f"§{sec} 没有任何一篇指南指过去——"
-                      "读者做完一遍也不会知道为什么是这样")
-            for sec in missing]
-
-
-# 正文里指向别的篇时的裸写法：「12 节」「13 那一篇」。
-BARE_REF = re.compile(r"(?<![\d.])(\d{2})(?= ?节|\s*那一篇|\s*那篇)")
-
-
-def guide_bare_chapter_refs():
-    """正文里指别的篇，必须写成链接，不能写裸编号。
-
-    这是 2026-08-18 改号漏掉的第四处，也是最难看见的一处。改号脚本改得了
-    `[13-完整装配.md](13-完整装配.md)`，改不了藏在句子和**注释**里的裸数字：
-
-        15 §15.1  cd 试用指南/erp-demo      # 12 节建的项目
-        16 §16.1  把 12 节那套八个组件原样搬到 Kubernetes
-        13 §13.8  13 节会让你亲手把它停掉验证这一点
-
-    12 现在是「市场进阶」。照着做的人打开它，找不到任何 erp-demo。
-    最后一条更绕：13 在说 13 自己——旧号里「依赖组合实验」正是 13。
-
-    前面四道检查一条都抓不到：这些不是链接（断链检查跳过），不是小节号
-    （编号检查只看 `## N.x`），也不在 README 的前置列里。
-
-    不变式：**跨篇引用一律走链接**。理由不是格式洁癖——链接会被断链检查
-    盯着，裸数字不会被任何东西盯着，而改号这件事一定还会再发生一次。
-    本篇引自己的号（「见 18.5」）不算跨篇，放行。
-    """
-    # 这道检查健康时的正常状态就是**一处都不命中**，所以"命中了几处"
-    # 不能当分母——那样一个失效的正则和一份干净的文档长得一模一样。
-    # 分母换成两样：正则对着已知样本还认不认得出来，以及到底扫了多少行。
-    probe = "把 12 节那套八个组件搬过去，见 13 那一篇"
-    if [m.group(1) for m in BARE_REF.finditer(probe)] != ["12", "13"]:
-        print("❌ BARE_REF 认不出样例句里的裸篇号了——正则坏了，"
-              "而不是文档突然全都规范了。")
-        sys.exit(2)
-    if BARE_REF.search("见 18.5 那一段") or BARE_REF.search("005 §5.13 讲的"):
-        print("❌ BARE_REF 把小节号 / 设计书号也当成篇号了，会误报。")
-        sys.exit(2)
-
-    problems = []
-    lines = 0
-
-    for path in sorted(glob.glob("docs/archive/guide/[0-9]*-*.md")):
-        tag = os.path.basename(path).split("-")[0]
-        for i, line in enumerate(open(path, encoding="utf-8"), 1):
-            lines += 1
-            # 先把 markdown 链接整段拿掉，剩下的才是"裸"的
-            bare = re.sub(r"\[[^\]]*\]\([^)]*\)", "", line)
-            for m in BARE_REF.finditer(bare):
-                if m.group(1) != tag:
-                    problems.append((path, i,
-                        f"「{m.group(0)}」是裸篇号——写成链接，"
-                        f"否则下次改号时没有任何检查看得见它"))
-
-    if lines < 5000:
-        print(f"❌ 只扫到 {lines} 行——多半是路径规则变了，而不是指南真的这么短。")
-        sys.exit(2)
-    print(f"   （裸篇号：扫了 {lines} 行）")
-    return problems
-
-
-# 篇尾那一行的样子：➡️ 下一节：[08-升级与多版本.md](…)
-NEXT_MARK = re.compile(r"➡️ 下一节[：:]\s*\[([^\]]+)\]")
-
-
-def guide_next_chain():
-    """每一篇篇尾的「➡️ 下一节」必须指向**编号上的下一篇**。
-
-    2026-08-18 改号时漏掉的第三处——前两处（篇内小节号、README 前置列）
-    都已经有看守，而这一条链一直没人查，于是它整整保留了**旧编号时代的路线**：
-
-        05 → 06 → 08 → 10 → 20 →（11）→ ⬅️ 20
-
-    按旧号读一遍就明白：旧 06 是本地调试、旧 07 是 K8s、旧 09 是市场、
-    旧 10 是排障速查。改号脚本把链接的**标签和文件名**都改对了，
-    所以 ①②③④ 四道检查全绿——断链没有，编号没错位，前置也对得上。
-    错的是**顺序本身**。
-
-    代价是实打实的：跟着篇尾走的人在 20 那里到头，一共只看到 8 篇，
-    13「完整装配」（八组件真实项目，00a 把它列进两小时主线）一次都到不了；
-    而 10 → 20 → 11 → ⬅️ 20 还是个原地打转的环。
-
-    不变式：**除末篇外，每一篇都要有 ➡️ 下一节，且第一个链接指向编号后继。**
-    00a / 00b 是查阅篇（README 说明它们没有 ▶️ 操作），不在链上。
-    """
-    problems = []
-
-    chapters = []
-    for path in sorted(glob.glob("docs/archive/guide/[0-9]*-*.md")):
-        tag = os.path.basename(path).split("-")[0]
-        if not tag.isdigit():        # 00a / 00b 是查的，不是照着做的
-            continue
-        chapters.append((tag, path))
-
-    if len(chapters) < 10:
-        print(f"❌ 只扫到 {len(chapters)} 篇正文——多半是文件名规则变了，"
-              "而不是指南真的只剩这么几篇。")
-        sys.exit(2)
-
-    checked = 0
-    for i, (tag, path) in enumerate(chapters):
-        text = open(path, encoding="utf-8").read()
-        m = re.search(NEXT_MARK, text)
-        last = i == len(chapters) - 1
-
-        if last:
-            if m:
-                problems.append((path, 0, f"{tag} 是最后一篇，不该再有「➡️ 下一节」"))
-            continue
-
-        checked += 1
-        want_tag, want_path = chapters[i + 1]
-        if not m:
-            problems.append((path, 0, f"{tag} 篇尾没有「➡️ 下一节」，"
-                                      f"读者跟着走会在这里断掉（该指向 {want_tag}）"))
-            continue
-        got = m.group(1)
-        if got != os.path.basename(want_path):
-            problems.append((path, 0, f"{tag} 的下一节指向 {got}，"
-                                      f"但编号后继是 {os.path.basename(want_path)}"))
-
-    if checked == 0:
-        print("❌ 一条「➡️ 下一节」都没比对——多半是标记文案变了。")
-        sys.exit(2)
-    return problems
-
-
 def main():
-    sections = design_sections()
-    self_check(sections)
-    print(f"✅ 自检通过（解析出 {sum(len(v) for v in sections.values())} 个小节）\n")
+    sections, decisions = spec_anchors()
+    self_check(sections, decisions)
+    print(f"✅ 自检通过（规范里解析出 {len(sections)} 个小节、{len(decisions)} 条附录决议）\n")
 
-    failed = report("悬空小节引用", check_sections(sections))
-    failed |= report("文档断链", check_links())
-    failed |= report("指南编号错位", guide_section_numbers())
-    failed |= report("指南前置对不上", guide_prerequisites())
-    failed |= report("指南「下一节」链断开", guide_next_chain())
-    failed |= report("指南里的裸篇号", guide_bare_chapter_refs())
-    failed |= report("012 有「为什么」没人指过去", why_sections_reachable())
+    files = list(live_files())
+    failed = report("归档引用", check_archived(files))
+    failed |= report("悬空规范引用", check_spec_refs(files, sections, decisions))
+    failed |= report("文档断链", check_links(files))
 
     if failed:
-        print("\n引用坏掉的常见原因：重写某一节时改了编号、拆分文件时换了路径。")
-        print("修的时候请指向**语义对得上**的那一节，而不是随便找一个存在的号。")
+        print("\n归档引用：把理由写在原地，或改指现行规范（提案 §x / 附录 Ax）。")
+        print("悬空引用与断链：请指向**语义对得上**的那一处，而不是随便找一个存在的号。")
     sys.exit(1 if failed else 0)
 
 

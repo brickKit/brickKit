@@ -1,4 +1,4 @@
-// 本文件覆盖 `labels` 透传在 Docker 侧的行为（002 §4.7、003 §4.11、012 §2.23）。
+// 本文件覆盖 `labels` 透传在 Docker 侧的行为。
 //
 // 断言全部落在**最终 YAML 里有什么**：这个字段存在的全部意义就是让容器上
 // 真的出现那几行标签，让 Traefik / Prometheus 的 Docker Provider 读得到。

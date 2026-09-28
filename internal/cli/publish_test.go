@@ -1,5 +1,5 @@
-// 本文件是 Step 19「brickkit publish」的业务行为测试，
-// 覆盖开发计划 19.6–19.15，以及 004 §3.11 / 010 §7.3 的发布流程。
+// 本文件是 「brickkit publish」的业务行为测试，
+// 覆盖 publish 的发布流程：建 draft、上传产物、转 stable、续传。
 package cli
 
 import (
@@ -48,10 +48,10 @@ func publishable() comp {
 }
 
 // ============================================================
-// 19.7 / 19.11 正常发布
+// 正常发布
 // ============================================================
 
-// 发布是三步：建 draft 版本 → 上传产物 → 转 stable（市场侧 D103）。
+// 发布是三步：建 draft 版本 → 上传产物 → 转 stable（市场侧的约定）。
 // 顺序错了就会出现"版本已 stable 但文件还没传齐"的半成品。
 func TestPublishFollowsDraftUploadStableOrder(t *testing.T) {
 	m := newFakeMarket(t)
@@ -72,7 +72,7 @@ func TestPublishFollowsDraftUploadStableOrder(t *testing.T) {
 	}, m.requests())
 }
 
-// 19.11 输出要逐项报告校验结果（004 §3.11 的输出样例）。
+// 输出要逐项报告校验结果。
 func TestPublishOutputReportsEachCheck(t *testing.T) {
 	m := newFakeMarket(t)
 	m.artifacts = []map[string]any{artifactEntry("art-0", "api-docs", "openapi", "openapi.json")}
@@ -126,7 +126,7 @@ func TestPublishIsQuietAboutWellFormedConfigSchema(t *testing.T) {
 	assert.NotContains(t, r.stdout, "won't take effect")
 }
 
-// 发布请求体必须带上完整 Manifest 与来源类型（007 §3.7）。
+// 发布请求体必须带上完整 Manifest 与来源类型。
 func TestPublishSendsManifestAndSourceType(t *testing.T) {
 	m := newFakeMarket(t)
 	f := newMarketProject(t, m, "")
@@ -161,7 +161,7 @@ func TestPublishSendsManifestAndSourceType(t *testing.T) {
 }
 
 // ============================================================
-// 19.9 产物上传
+// 产物上传
 // ============================================================
 
 // 上传的必须是组件目录里那个文件的真实内容，路径也要对得上。
@@ -213,7 +213,7 @@ func TestPublishRejectsMissingArtifactFileBeforeCreatingVersion(t *testing.T) {
 }
 
 // ============================================================
-// 19.8 未登录 / 19.6 Token 过期
+// 未登录 / Token 过期
 // ============================================================
 
 func TestPublishWithoutLoginFails(t *testing.T) {
@@ -229,7 +229,7 @@ func TestPublishWithoutLoginFails(t *testing.T) {
 	assert.Empty(t, m.requests(), "未登录时不该向市场发任何请求")
 }
 
-// 19.6 Token 过期要明确说"过期了，重新登录"，而不是笼统的认证失败。
+// Token 过期要明确说"过期了，重新登录"，而不是笼统的认证失败。
 func TestPublishWithExpiredTokenAsksToLoginAgain(t *testing.T) {
 	m := newFakeMarket(t)
 	f := newMarketProject(t, m, "")
@@ -263,10 +263,10 @@ func expireCredentials(t *testing.T, dir string, at time.Time) {
 }
 
 // ============================================================
-// 19.14 / 19.15 Token 优先级
+// Token 优先级
 // ============================================================
 
-// 004 §5.3：登录态优先于配置文件里的 authToken。
+// 登录态优先于配置文件里的 authToken。
 func TestPublishPrefersCredentialsOverAuthToken(t *testing.T) {
 	m := newFakeMarket(t)
 	f := newMarketProject(t, m, "token-from-config")
@@ -276,10 +276,10 @@ func TestPublishPrefersCredentialsOverAuthToken(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "publish", "--path", root).code)
 
 	assert.Equal(t, m.token, m.find(t, "POST", "/versions").Token,
-		"19.14：两者都在时用 credentials 里的 Token")
+		"两者都在时用 credentials 里的 Token")
 }
 
-// 19.15 没登录过就回落到配置里的 authToken。
+// 没登录过就回落到配置里的 authToken。
 func TestPublishFallsBackToAuthToken(t *testing.T) {
 	m := newFakeMarket(t)
 	f := newMarketProject(t, m, "token-from-config")
@@ -312,7 +312,7 @@ func TestPublishIgnoresCredentialsOfAnotherMarket(t *testing.T) {
 }
 
 // ============================================================
-// 19.12 Manifest 校验 / 19.13 镜像引用
+// Manifest 校验 / 镜像引用
 // ============================================================
 
 func TestPublishRejectsInvalidManifest(t *testing.T) {
@@ -343,7 +343,7 @@ func TestPublishFailsWhenComponentYamlMissing(t *testing.T) {
 	assert.Contains(t, r.stderr, "component.yaml")
 }
 
-// 19.13 镜像引用无效时报错。生产环境不接受 latest（010 §5）。
+// 镜像引用无效时报错。生产环境不接受 latest。
 func TestPublishRejectsInvalidImageReference(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -386,10 +386,10 @@ func replaceInFile(t *testing.T, path, old, replacement string) {
 }
 
 // ============================================================
-// 19.10 从归档目录发布
+// 从归档目录发布
 // ============================================================
 
-// 010 §7.3：被 sync 归档到 .archived/ 的组件依然可以直接发布。
+// 被 sync 归档到 .archived/ 的组件依然可以直接发布。
 func TestPublishFromArchivedDirectory(t *testing.T) {
 	m := newFakeMarket(t)
 	f := newMarketProject(t, m, "")
@@ -531,14 +531,14 @@ func TestPublishReportsUnauthorizedFromMarket(t *testing.T) {
 }
 
 // ============================================================
-// 签名（Step 20）
+// 签名
 // ============================================================
 
 // --sign 不带 --key 时找项目根目录下的 cosign.key（generate-key-pair 的默认名字）。
 // 找不到就必须说清楚找的是哪个路径、以及怎么生成——绝不能假装签过了，
 // 那会让使用者以为组件带签名，而市场里其实什么都没有。
 //
-// 本用例前身是 Step 20 之前的 TestPublishSignFlagReportsNotImplemented
+// 本用例前身是签名功能落地之前的 TestPublishSignFlagReportsNotImplemented
 // （断言 --sign 报"未实现"）。功能落地后按新行为重写。
 func TestPublishSignWithoutKeyReportsWhereItLooked(t *testing.T) {
 	m := newFakeMarket(t)
@@ -556,7 +556,7 @@ func TestPublishSignWithoutKeyReportsWhereItLooked(t *testing.T) {
 }
 
 // ============================================================
-// 来源类型推断（007 §11）
+// 来源类型推断
 // ============================================================
 
 // 组件目录是个有 origin 的 Git 仓库 → 开源组件，仓库地址自动带上，
@@ -663,7 +663,7 @@ func TestPublishAcceptsRegistryWithPortAndDigest(t *testing.T) {
 //
 // 走的是**真实路径**：让 /upload 返回 500，publish 在第二步失败，而市场那边
 // 已经留下一个 draft 版本。手工编一份 Manifest 塞进去是构造不出来的——
-// publish 会先把 image tag 钉成 digest 再发（P29），编的那份对不上。
+// publish 会先把 image tag 钉成 digest 再发，编的那份对不上。
 func interruptedPublish(t *testing.T, spec comp) (*projectFixture, *fakeMarket, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -690,8 +690,8 @@ func interruptedPublish(t *testing.T, spec comp) (*projectFixture, *fakeMarket, 
 //
 // # 为什么这条重要
 //
-// 发布是三步：建版本（draft）→ 逐个上传产物 → 转 stable（004 §3.11）。第一步一旦
-// 成功，那个版本号就**永久占住了**——版本不可回收，软删除也占位（007 §6.4）。
+// 发布是三步：建版本（draft）→ 逐个上传产物 → 转 stable。第一步一旦
+// 成功，那个版本号就**永久占住了**——版本不可回收，软删除也占位。
 // 于是网络在第二步抖一下，使用者就只剩"跳一个版本号"这一条路，而中断的原因
 // 跟他毫无关系。
 //

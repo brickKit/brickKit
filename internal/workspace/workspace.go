@@ -1,6 +1,6 @@
 // Package workspace 管理 components/ 下的组件源码工作区。
 //
-// 设计依据：003 §1.4 目录结构、004 §3.3（--repo / --repo-all）、§3.4（remove 删除源码目录）。
+// 源码目录来自 `add --repo` / `--repo-all` 的 clone 或使用者手写；`remove` 会删掉它。
 //
 // 约定：一个组件 ID 只有一个源码目录 `components/<scope>/<name>/`，与版本无关。
 // 因此同 ID 的多个版本共用一份源码目录，只有最后一个版本被移除时才删除它。
@@ -47,13 +47,13 @@ const (
 //
 // # 为什么要有一个统一的入口，而不是两个各查一半的布尔
 //
-// 004 §8.1 立了一条不变量：**一个组件 ID 在 components/ 下只能有一个源码目录**。
+// 这里有一条不变量：**一个组件 ID 在 components/ 下只能有一个源码目录**。
 // 从前守这条的两处（Clone 与命令层的预检）都只 stat 活跃目录，归档目录在
 // 它们眼里根本不存在——于是 `sync` 归档之后再 `add --repo`，会往活跃目录
 // 再 clone 一份，报"✅ 已 clone"，而下一次 `sync` 就卡在
 // "目标目录已存在，无法移动组件源码"上，只剩手工 rm 一条路。
 //
-// 根子上是 004 §3.9 那句"**归档只改变看不看得见，不改变取不取得到**"
+// 根子上是"**归档只改变看不看得见，不改变取不取得到**"这句
 // 只被执行了一半：安装源按组件 ID 查找时会回落到归档目录（否则归档过的
 // 组件会让 up 与 sync 双双失败），而"有没有源码"这一问没有回落。
 // 同一个概念，两条路各理解了一半。
@@ -89,7 +89,7 @@ func isDir(path string) bool {
 // 两种已存在的说法刻意不同——它们要的下一步动作不一样：
 //
 //	活跃目录里有   多半是使用者自己的源码。平台不替他决定删不删
-//	归档目录里有   源码没丢，只是被 sync 收起来了（004 §3.9）。
+//	归档目录里有   源码没丢，只是被 sync 收起来了。
 //	               他要的其实是 `brickkit sync`，不是再 clone 一份
 //
 // 从前只查活跃目录，于是第二种一路绿灯：归档之后再 add --repo 会在活跃目录
@@ -119,11 +119,11 @@ func ExistingSourceError(l project.Layout, componentID, ref string) error {
 	}
 }
 
-// Clone 把开源组件的完整 Git 仓库 clone 到 components/<scope>/<name>/（004 §3.3）。
+// Clone 把开源组件的完整 Git 仓库 clone 到 components/<scope>/<name>/。
 //
 // 源码**两处任一处**已存在时报错阻断：活跃目录里可能是使用者正在开发的源码，
 // 归档目录里那份也是他自己的（只是被 sync 收起来了）。绝不覆盖，也绝不
-// 在活跃目录再造一份——那会打破"一个组件 ID 只有一个源码目录"（004 §8.1）。
+// 在活跃目录再造一份——那会打破"一个组件 ID 只有一个源码目录"。
 //
 // tag 非空时克隆完检出它：本地仓库就是那个版本（附录 A22）。
 func Clone(ctx context.Context, l project.Layout, componentID, ref, gitURL, tag string) (string, error) {
@@ -188,11 +188,11 @@ func CloneFrom(ctx context.Context, l project.Layout, componentID, ref, from, gi
 //
 // # 为什么要问这一句
 //
-// `brickkit remove` 会删掉组件的源码目录。012 §2.20 论证过这是对的——"remove
+// `brickkit remove` 会删掉组件的源码目录。这本身是对的——"remove
 // 就是彻底移除"，"未提交的修改应该先 commit + push"。**但那句话的前提是有地方
 // 可 push**，也就是源码来自 `--repo` clone。
 //
-// 而 `init` 生成的骨架把本地安装源指向 `./components`，试用指南 17 教的正是在
+// 而 `init` 生成的骨架把本地安装源指向 `./components`，使用者正是在
 // 那儿手写自己的组件。那种源码没有远端，`remove` 一删就是**永久丢失**——
 // 没有确认、没有 `--yes`、没有任何一句提示。这条路是默认约定自己铺出来的。
 //
@@ -206,8 +206,8 @@ func CloneFrom(ctx context.Context, l project.Layout, componentID, ref, from, gi
 //	有未提交的改动         那些改动只在这一份工作区里
 //	有提交没推到任何远端   删掉 .git 就一起没了（没有远端时，所有提交都算）
 //
-// 干净、且全部推上去了的 clone → 删掉不丢任何东西，照常删。那正是 012 §2.20
-// 写的那种情况，行为一点没变。
+// 干净、且全部推上去了的 clone → 删掉不丢任何东西，照常删。那正是"remove
+// 就是彻底移除"说的那种情况，行为一点没变。
 func DeletionRisk(dir string) string {
 	if !isDir(dir) {
 		return ""
@@ -216,7 +216,7 @@ func DeletionRisk(dir string) string {
 		return i18n.T(msgid.WorkspaceRiskNotGitRepo)
 	}
 	// 两条查询都要**限定到这个目录**（`-- .`）。不限定的话它们报的是整个仓库的
-	// 状态——组件目录常常嵌在一个更大的仓库里（试用指南的 playground 就是），
+	// 状态——组件目录常常嵌在一个更大的仓库里（项目仓库本身就是），
 	// 那时仓库别处的任何一点改动都会让这个组件被判成"删不得"。
 	if out, ok := gitOut(dir, "status", "--porcelain", "--", "."); !ok ||
 		strings.TrimSpace(out) != "" {
@@ -349,7 +349,7 @@ func firstLine(out string, err error) string {
 }
 
 // ============================================================
-// 归档 / 激活（004 §3.9，brickkit sync）
+// 归档 / 激活（brickkit sync）
 // ============================================================
 
 // ArchivedDir 返回组件在归档目录中的路径。
@@ -377,7 +377,7 @@ func IsArchived(l project.Layout, componentID string) bool {
 // # 为什么 Locate 答不出这一问
 //
 // Locate 回答"在哪"时活跃优先——两处都有时它答 StateActive，于是 planSync 判它
-// "已经在该在的位置"、什么都不做。而这种状态是**错的**：004 §8.1 立过
+// "已经在该在的位置"、什么都不做。而这种状态是**错的**：违反了
 // "一个组件 ID 只有一个源码目录"。
 //
 // 不单独回答这一问，它就会和提交前的闸门形成死循环：闸门拦下提交、

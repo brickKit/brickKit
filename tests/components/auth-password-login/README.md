@@ -11,7 +11,7 @@
 | --- | --- |
 | 强依赖注入 | `PEOPLE_BASIC_ENDPOINT` 由平台按 Manifest 的 `dependencies.components` 注入 |
 | 强依赖故障的正确表现 | people/basic 挂掉时报 **503**，不是 401；健康检查仍然 200 |
-| 健康检查不越界 | `/healthz` 不查库、不调 people/basic（002 §9.4） |
+| 健康检查不越界 | `/healthz` 不查库、不调 people/basic |
 | 配置只来自环境变量 | 缺 `JWT_SECRET` 等任一项直接启动失败，**绝不用默认值顶上** |
 | migration | 与服务共用同一个二进制，幂等 |
 | 敏感信息不落地 | 日志、响应、令牌里都不出现口令与哈希 |
@@ -90,7 +90,7 @@ people/basic  管「你是谁」：姓名、部门、职务
 
 ## 本地运行
 
-组件的数据库按设计由人创建（006 §9.1：CLI 不负责建库）：
+组件的数据库按设计由人创建（CLI 不负责建库）：
 
 ```bash
 docker exec my-postgres psql -U postgres -c "CREATE DATABASE brickkit_auth"
@@ -129,7 +129,3 @@ HS256，载荷含 `sub`（personId）、`iat`、`exp`、`nbf`、`username`、`de
 载荷只是 base64，**不是加密**：任何拿到令牌的人都能读。所以里面不放口令、不放哈希、
 不放任何秘密。
 
-## 设计依据
-
-002 组件规范（§1.4 组件约束、§8 迁移、§9.4 健康检查、§11 日志）、
-003 §4.5（依赖地址注入）、006 §5（资源环境变量）、008（安全与治理）。

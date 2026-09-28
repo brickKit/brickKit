@@ -28,13 +28,13 @@ CMD ["python", "-m", "pytest", "-q", "tests"]
 
 # ---------- 运行期镜像 ----------
 FROM base AS runtime
-# 健康检查跑在容器**内部**，用的必须是镜像里真有的命令（002 §9.6）。
+# 健康检查跑在容器**内部**，用的必须是镜像里真有的命令。
 # python:slim 既没有 wget 也没有 curl——不装的话，组件明明跑得好好的，
 # 平台却判它 unhealthy，依赖方永远等不到它
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
-# 002 §1.4：容器不得以 root 运行
+# 容器不得以 root 运行
 RUN useradd --uid 10001 --create-home brickkit
 USER 10001
 

@@ -12,7 +12,7 @@ type PlanStep struct {
 	Position int
 	// Ref 是组件引用。
 	Ref Ref
-	// Service 是版本化服务名（002 §5.3），部署文件与输出都用它。
+	// Service 是版本化服务名，部署文件与输出都用它。
 	Service string
 	// Requires 是该组件的直接强依赖（都排在它前面）。
 	Requires []Ref
@@ -20,11 +20,11 @@ type PlanStep struct {
 	RequirePositions []int
 }
 
-// Plan 是一次拓扑排序的结果（004 §3.8 brickkit order）。
+// Plan 是一次拓扑排序的结果（up --dry-run 的启动顺序）。
 type Plan struct {
 	// Steps 按启动顺序排列。
 	Steps []PlanStep
-	// Optional 是只被弱依赖引入的组件：它们可以不启动（004 §4.5）。
+	// Optional 是只被弱依赖引入的组件：它们可以不启动。
 	Optional []Ref
 	// Chain 是最长的一条**强依赖**链，从最底层排到最上层（启动的关键路径）。
 	//
@@ -54,9 +54,9 @@ func (p *Plan) Independent() []PlanStep {
 	return out
 }
 
-// Order 用 Kahn 算法对依赖图做拓扑排序（004 §4.3）。
+// Order 用 Kahn 算法对依赖图做拓扑排序。
 //
-// 只有**强依赖**参与排序约束：弱依赖可能根本不启动（004 §4.5），
+// 只有**强依赖**参与排序约束：弱依赖可能根本不启动，
 // 让它约束顺序等于把"可选"偷偷变成"必选"。
 //
 // 同一层内按组件 ID + 版本排序，保证同一份依赖图每次都得到完全相同的顺序——

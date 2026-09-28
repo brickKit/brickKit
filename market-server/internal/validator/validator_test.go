@@ -364,4 +364,3 @@ func conflictsOf(t *testing.T, e *model.APIError) []model.ReservedConflict {
 	require.True(t, ok, "conflicts 应为 []model.ReservedConflict，实际 %T", raw)
 	return conflicts
 }
-

@@ -23,8 +23,8 @@ var ErrObjectNotFound = errors.New("artifact file not found")
 //
 //	components/<组件ID>/<版本>/<产物类型>/<文件路径>
 //
-// 版本在路径里，因此**每个版本的产物天然独立存储**（开发计划 18.22）：
-// 升级不会覆盖旧版本的 API 契约，调用方还能拿到自己那一版（002 §7.10）。
+// 版本在路径里，因此**每个版本的产物天然独立存储**：
+// 升级不会覆盖旧版本的 API 契约，调用方还能拿到自己那一版。
 func ObjectKey(componentID, version, artifactType, file string) string {
 	return path.Join("components", componentID, version, artifactType, path.Clean("/" + file)[1:])
 }

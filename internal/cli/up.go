@@ -30,7 +30,7 @@ import (
 	"github.com/brickkit/brickkit/internal/workspace"
 )
 
-// composeFileName 是生成的部署文件名（004 §3.5 输出样例）。
+// composeFileName 是生成的部署文件名。
 //
 // 叫 compose.yaml 而不是 docker-compose.yaml：这份文件遵循的是 Compose
 // 规范（compose-spec.io），Docker、Podman 都能消费同一份——带上 docker
@@ -38,7 +38,7 @@ import (
 // 同一份文件。
 const composeFileName = "compose.yaml"
 
-// newUpCommand 实现 brickkit up（004 §3.5）。
+// newUpCommand 实现 brickkit up。
 func newUpCommand(opts *Options) *cobra.Command {
 	var (
 		dryRun       bool
@@ -85,11 +85,11 @@ type upPlan struct {
 	kubeContext string
 	// services 是本次要交给引擎启动的 service（不含 local 组件与迁移容器）。
 	services []string
-	// migrations 是本次会执行的迁移，供输出（15.25）。
+	// migrations 是本次会执行的迁移，供输出。
 	migrations []migrationInfo
-	// images 是要检查拉取权限的镜像（15.19）。
+	// images 是要检查拉取权限的镜像。
 	images []imageInfo
-	// upgrades 是本次检测到的版本变更（004 §3.5.1）。
+	// upgrades 是本次检测到的版本变更。
 	upgrades []upgradeInfo
 	// localComponents 是本次要真正拉起的 mode: local 组件（按拓扑序）。
 	localComponents []localComponentPlan
@@ -176,8 +176,8 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		// 这次没有任何组件需要容器（可能全是 mode: local / mode: debug，
 		// 或者全被外壳承载）——不该去起一个引擎：`docker compose
 		// up` 对着一份 `services: {}` 的空文件会报 "no service selected"，
-		// 而且一个纯 mode: local 的项目本不该被要求装 Docker（手动验证 Task 6
-		// Step 5 时用真实 docker 跑出来的：demo/hello 单组件、mode: local，
+		// 而且一个纯 mode: local 的项目本不该被要求装 Docker（手动验证
+		// 时用真实 docker 跑出来的：demo/hello 单组件、mode: local，
 		// 之前这里会直接报 ENGINE_FAILED，明明这个项目一个容器都不需要）。
 		stopPreviousContainers(ctx, opts, plan)
 		return runLocalComponents(ctx, opts, plan.proj.Layout, plan.localComponents, plan.crashLines)
@@ -240,7 +240,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	}
 	defer func() { _ = client.Close() }()
 
-	// 版本号变了就报一句（004 §3.5.1）。检测只读配置与本地缓存，不碰网络
+	// 版本号变了就报一句。检测只读配置与本地缓存，不碰网络
 	plan.upgrades = detectUpgrades(proj)
 	renderUpgradeBanner(opts, plan.upgrades)
 
@@ -315,7 +315,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		}
 	}
 	// 放在生成之后：这一步只补摘要用的差异描述与新版本产物，
-	// 它取不到东西也不该拦住已经算好的这份计划（004 §10.1）
+	// 它取不到东西也不该拦住已经算好的这份计划
 	describeUpgrades(ctx, opts, proj.Layout, client, plan.graph, plan.upgrades)
 	// 下一次的版本变更提示以这次为基线
 	refs := make([]string, 0, len(proj.Decl.Components))
@@ -389,17 +389,17 @@ func nothingRunningHint(tops []cascade.Component) string {
 //
 // 状态表里只有一行「⬜ demo/hello 显式禁用」，依赖图里只有一条「（弱）」。
 // 两处都对，但"于是 demo/caller 这次会走降级分支"要使用者自己把它们对起来——
-// 而弱依赖的整个约定就建立在"调用方拿不到 *_ENDPOINT 时自己降级"上（002 §3.4）。
-// 003 §4.3 与 004 §4.1 / §4.5 都承诺过这一句。
+// 而弱依赖的整个约定就建立在"调用方拿不到 *_ENDPOINT 时自己降级"上。
+// 弱依赖的约定本身就承诺了这一句。
 //
 // # 为什么是 💡 而不是 ⚠️
 //
-// 关掉只被弱依赖引用的组件，正是 003 §4.3 推荐的"嫌容器多就下手"的做法，
+// 关掉只被弱依赖引用的组件，正是"嫌容器多就下手"的推荐做法，
 // `up --dry-run` 甚至专门列出那份可以下手的名单。给一个推荐动作配警告，
 // 只会训练使用者整块跳过警告区——而真正要紧的那几条也一起被跳过。
 //
 // 与它对应的**警告**是另一回事：弱依赖**取不到**（安装源里没有）那是异常，
-// 由解析器报 ⚠️（resolver.optionalMissingWarning）。两者从前被 004 §4.5
+// 由解析器报 ⚠️（resolver.optionalMissingWarning）。两者从前被
 // 合成一条，说辞也只有一种，现已拆开。
 func renderDegradedWeakDeps(opts *Options, graph *resolver.Graph, states *cascade.Result) {
 	if graph == nil || states == nil {
@@ -438,7 +438,7 @@ func renderDegradedWeakDeps(opts *Options, graph *resolver.Graph, states *cascad
 
 // renderSyncHint 提醒可以把不启动的组件源码收起来。
 //
-// sync 不由 up 自动执行（012 §2.17：up 管运行时，sync 管源码目录），
+// sync 不由 up 自动执行（up 管运行时，sync 管源码目录），
 // 但"忘了 sync"是最常见的落差——改完 enabled 跑了 up，源码目录还是老样子。
 // 只在真有源码可收时才提，否则每次 up 都多一行噪音。
 func renderSyncHint(opts *Options, layout project.Layout, states *cascade.Result) {
@@ -454,10 +454,10 @@ func renderSyncHint(opts *Options, layout project.Layout, states *cascade.Result
 	opts.Printf("%s\n", i18n.TN(msgid.CliUpComponentsArenTStartingThis, n, n, workspace.DisplayArchivedRoot()))
 }
 
-// generate 按部署目标渲染部署文件（005 §5）。
+// generate 按部署目标渲染部署文件。
 //
 // 两种目标共用到这一步为止的**全部**结论（依赖图、级联、注入），
-// 只有渲染方式不同——规则写在渲染器里迟早会分叉（D138）。
+// 只有渲染方式不同——规则写在渲染器里迟早会分叉。
 func (p *upPlan) generate(opts *Options, env *inject.Result) error {
 	root := p.proj.Layout.Root
 	if p.proj.Deploy.Target == deployfile.TargetK8s {
@@ -626,7 +626,7 @@ func reportStarted(
 // engineFailure 把引擎的失败变成一条能看的错误。
 //
 // 引擎已经给出结构化错误时原样透传——它比这里更清楚发生了什么
-// （P18 的教训：自作主张换掉下层的说法，会把人引向错误的方向）。
+// （教训：自作主张换掉下层的说法，会把人引向错误的方向）。
 // 只有裸 error 才在这里兜住：不然它会被顶层当成"命令用法不正确"，
 // 明明是 docker 挂了，却让使用者去查自己的命令怎么写。
 func engineFailure(action string, err error) error {
@@ -672,9 +672,9 @@ func renderNextSteps(opts *Options, plan *upPlan) {
 	}
 }
 
-// renderMigrations 说明本次会跑哪些迁移（15.25）。
+// renderMigrations 说明本次会跑哪些迁移。
 //
-// 迁移由部署文件里的一次性容器执行（002 §8.3），CLI 不自己跑；
+// 迁移由部署文件里的一次性容器执行，CLI 不自己跑；
 // 但使用者需要知道"这次会动哪些库"，出问题时也才知道去看哪个容器。
 func renderMigrations(opts *Options, migrations []migrationInfo) {
 	if len(migrations) == 0 {
@@ -785,12 +785,12 @@ func checkShellImageLabels(ctx context.Context, opts *Options, local engine.Imag
 	return nil
 }
 
-// checkImages 检测镜像拉取权限（15.19、004 §10.2）。
+// checkImages 检测镜像拉取权限。
 //
 // 放在启动之前：镜像取不到还硬启，只会得到一堆 ImagePullBackOff，
 // 而真正的原因（没登录）埋在引擎的输出里。
 //
-// # 为什么要并发（36.1）
+// # 为什么要并发
 //
 // 本地没有该镜像时，`CheckImage` 会走一次 **registry 往返**。
 // 原来这里是串行的，于是 50 个组件就是 50 次串行网络请求：
@@ -857,7 +857,7 @@ func checkImages(ctx context.Context, opts *Options, eng engine.Engine, images [
 	return err
 }
 
-// resolveEngine 返回要用的容器引擎：注入优先，否则自动检测（005 §7.3）。
+// resolveEngine 返回要用的容器引擎：注入优先，否则自动检测。
 func resolveEngine(opts *Options) (engine.Engine, error) {
 	if opts.Engine != nil {
 		return opts.Engine, nil
@@ -902,14 +902,14 @@ func writeGenerated(layout project.Layout, content []byte) (string, error) {
 	return path, nil
 }
 
-// writeLocalEnvFiles 写出 mode: debug 组件的调试环境变量文件（005 §4.9）。
+// writeLocalEnvFiles 写出 mode: debug 组件的调试环境变量文件。
 //
 // mode: local 的组件也会出现在 files 里（两者共用同一套"算出本地化环境"的
 // 生成逻辑，见 compose.LocalEnvFile.Mode 的文档），但这里要跳过：它由
 // brickkit 自己拉起（internal/cli/up_local.go 的 buildLocalEnv 直接用
 // LocalEnvFile.Vars 严格展开，不落盘），"No container is generated; start
 // it in your IDE" 这句对它是一句假话，会跟紧随其后 mode: local 自己那段
-// "会启动"的输出自相矛盾（手动验证 Task 6 Step 5 时发现）。
+// "会启动"的输出自相矛盾（用真实进程手动验证时发现）。
 func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.LocalEnvFile) error {
 	debugFiles := make([]compose.LocalEnvFile, 0, len(files))
 	keep := map[string]bool{}

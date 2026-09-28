@@ -1,6 +1,6 @@
 package cli
 
-// 本文件是 P38 在**命令层**的行为：什么时候允许清理孤儿，清理了要不要说。
+// 本文件是 K8s 孤儿清理在**命令层**的行为：什么时候允许清理孤儿，清理了要不要说。
 //
 // 引擎那一层负责"怎么清"（internal/engine/kubectl_prune_test.go），
 // 这一层负责"该不该清"——而这正是整个修复里最危险的判断：
@@ -22,7 +22,7 @@ func TestUpK8sEnablesPrune(t *testing.T) {
 	require.Equal(t, 0, r.code, r.stderr)
 
 	assert.Equal(t, "brickkit.io/project=my-erp", eng.lastUp(t).PruneSelector,
-		"P38：升级后要能清掉旧版本，且只清本项目的东西")
+		"升级后要能清掉旧版本，且只清本项目的东西")
 }
 
 // 清理掉什么要**告诉使用者**。
@@ -38,8 +38,8 @@ func TestUpK8sReportsPruned(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "up")
 	require.Equal(t, 0, r.code, r.stderr)
 
-	assert.Contains(t, r.stdout, "people-basic-0-9-0", "P38：删了什么要说出来：%s", r.stdout)
-	assert.Contains(t, r.stdout, "Cleaned up", "P38：要说清这是清理动作：%s", r.stdout)
+	assert.Contains(t, r.stdout, "people-basic-0-9-0", "删了什么要说出来：%s", r.stdout)
+	assert.Contains(t, r.stdout, "Cleaned up", "要说清这是清理动作：%s", r.stdout)
 }
 
 // 没清理任何东西时不要输出噪音。
@@ -52,12 +52,12 @@ func TestUpK8sSaysNothingWhenNothingPruned(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "up")
 	require.Equal(t, 0, r.code, r.stderr)
 
-	assert.NotContains(t, r.stdout, "Cleaned up leftovers", "P38：没清理就别提这件事：%s", r.stdout)
+	assert.NotContains(t, r.stdout, "Cleaned up leftovers", "没清理就别提这件事：%s", r.stdout)
 }
 
 // Docker 目标用**同一个判据**决定要不要清理孤儿。
 //
-// 生成物永远是完整的一份（`--only` 已删，003 §4.3：要收窄范围就改 mode），
+// 生成物永远是完整的一份（`--only` 已删：要收窄范围就改 mode），
 // 所以清理是无条件的——配置里关掉的组件，它的容器也要跟着消失。
 // `down` 的帮助文本把这条路写成了"只停其中几个"的正解，它必须真的通
 // （down_test.go 的 TestDisablingAComponentRemovesItsContainerOnNextUp）。

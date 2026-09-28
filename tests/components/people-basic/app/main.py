@@ -3,7 +3,7 @@
 它是一个**连接组件**的雏形：有自己的数据（人员），
 强依赖 department/tree 补全部门名，弱依赖 infra/redis-event-bus 发事件。
 
-组件开发约束（002 §1.4）：配置只从环境变量读、/healthz 只检查本进程、
+组件开发约束：配置只从环境变量读、/healthz 只检查本进程、
 日志为 JSON 输出到 stdout、容器不以 root 运行。
 """
 
@@ -26,7 +26,7 @@ from app.store import PostgresStore
 
 logger = logging.getLogger("app.main")
 
-# 运行模式。迁移容器与主容器用的是同一个镜像，靠参数区分（002 §8.4）。
+# 运行模式。迁移容器与主容器用的是同一个镜像，靠参数区分。
 MODE_SERVE = "serve"
 MODE_MIGRATE = "migrate"
 
@@ -36,7 +36,7 @@ def parse_args(argv: list[str]) -> tuple[str, list[str]]:
 
     **不认识的参数必须报错，绝不能回落到"那就启动服务吧"。** 否则一个拼错的
     迁移命令会让迁移容器变成服务容器：它永不退出，主服务永远等不到
-    "迁移完成"，整个项目卡在 Created——而日志里写着"组件已就绪"（002 §8.5.1）。
+    "迁移完成"，整个项目卡在 Created——而日志里写着"组件已就绪"。
 
     它是纯函数，不读环境变量、不连库：告诉使用者"参数写错了"这件事，
     不该先去连一个可能根本连不上的数据库。
@@ -58,7 +58,7 @@ def run_migrate(args: list[str], cfg, store, logger) -> int:
         migrate reset     全部回退（开发与测试用）
 
     down / reset 是给开发和测试用的，让人能反复把库搭起来、拆掉。
-    生产环境的结构问题请用一个新的 up 迁移去修（002 §8.9）。
+    生产环境的结构问题请用一个新的 up 迁移去修。
     """
     if not args:
         logger.info("开始执行数据库迁移", extra={"config": str(cfg)})
@@ -113,7 +113,7 @@ def main(argv: list[str]) -> int:
         logger.error("连接数据库失败", exc_info=exc)
         return 1
 
-    # migrate 子命令：平台在启动组件之前单独跑一次（002 §8.2、005 §6）
+    # migrate 子命令：平台在启动组件之前单独跑一次
     if mode == MODE_MIGRATE:
         return run_migrate(migrate_args, cfg, store, logger)
 

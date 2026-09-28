@@ -1,6 +1,6 @@
 package engine
 
-// 本文件是 P38「K8s 升级后旧版本变成孤儿」的行为测试。
+// 本文件是「K8s 升级后旧版本变成孤儿」的行为测试。
 //
 // 缺陷本身：把版本号从 1.0.0 改成 2.0.0 再 `brickkit up`，新版本起来了，
 // **旧版本的 Deployment / Service / NetworkPolicy / SA 全部继续运行**。
@@ -10,7 +10,7 @@ package engine
 // 已在 minikube 上真跑复现过（demo/hello 1.0.0 → 2.0.0）。
 //
 // 这里断言的是**引擎发出了哪些 kubectl 命令**——它是"把决定翻译成命令"的那一层。
-// 真集群上的效果由 P38 的真跑验证覆盖。
+// 真集群上的效果靠手动真跑验证。
 
 import (
 	"context"
@@ -58,7 +58,7 @@ func deleteCommand(rec *recorder) string {
 
 // 上一个版本留在集群里的资源要被删掉。
 //
-// 这是 P38 的核心：不删的话它会一直跑下去，而且 `down` 也带不走它。
+// 这是孤儿清理的核心：不删的话它会一直跑下去，而且 `down` 也带不走它。
 func TestKubectlUpPrunesOrphanedOldVersion(t *testing.T) {
 	rec := newRecorder()
 	clusterHas(rec,
@@ -71,10 +71,10 @@ func TestKubectlUpPrunesOrphanedOldVersion(t *testing.T) {
 	require.NoError(t, kubectlWith(rec).Up(context.Background(), pruneRequest()))
 
 	command := deleteCommand(rec)
-	require.NotEmpty(t, command, "P38：必须发出清理命令，实际命令：%v", rec.commands())
+	require.NotEmpty(t, command, "必须发出清理命令，实际命令：%v", rec.commands())
 
-	assert.Contains(t, command, "deployment.apps/demo-hello-1-0-0", "P38：旧版本要删")
-	assert.Contains(t, command, "service/demo-hello-1-0-0", "P38：旧版本的 Service 也要删")
+	assert.Contains(t, command, "deployment.apps/demo-hello-1-0-0", "旧版本要删")
+	assert.Contains(t, command, "service/demo-hello-1-0-0", "旧版本的 Service 也要删")
 }
 
 // 本次部署的资源**绝不能**被删。
@@ -93,7 +93,7 @@ func TestKubectlUpNeverPrunesCurrentVersion(t *testing.T) {
 
 	command := deleteCommand(rec)
 	assert.NotContains(t, command, "demo-hello-2-0-0",
-		"P38：本次部署的资源被删了——这比孤儿严重得多：%s", command)
+		"本次部署的资源被删了——这比孤儿严重得多：%s", command)
 }
 
 // 迁移 Job 属于本次部署，不是孤儿。
@@ -114,7 +114,7 @@ func TestKubectlUpKeepsMigrationJobs(t *testing.T) {
 	require.NoError(t, kubectlWith(rec).Up(context.Background(), req))
 
 	assert.NotContains(t, deleteCommand(rec), "demo-hello-2-0-0-migration",
-		"P38：本次的迁移 Job 不是孤儿")
+		"本次的迁移 Job 不是孤儿")
 }
 
 // ============================================================
@@ -124,7 +124,7 @@ func TestKubectlUpKeepsMigrationJobs(t *testing.T) {
 // `--only` 时**绝不清理**。
 //
 // 这是整个修复里最危险的一处：`--only` 下 Services 只是子集，
-// 照着它清理会把没点名的组件全部删掉——那比 P38 本身危险得多。
+// 照着它清理会把没点名的组件全部删掉——那比孤儿本身危险得多。
 // 命令层用"不给选择器"表达这件事。
 func TestKubectlUpDoesNotPruneWhenSelectorEmpty(t *testing.T) {
 	rec := newRecorder()
@@ -135,10 +135,10 @@ func TestKubectlUpDoesNotPruneWhenSelectorEmpty(t *testing.T) {
 	require.NoError(t, kubectlWith(rec).Up(context.Background(), req))
 
 	assert.Empty(t, deleteCommand(rec),
-		"P38：没有选择器时一条清理命令都不该发：%v", rec.commands())
+		"没有选择器时一条清理命令都不该发：%v", rec.commands())
 	for _, command := range rec.commands() {
 		assert.NotContains(t, command, "-o name",
-			"P38：连查询都不该发——查了就说明逻辑还在往下走")
+			"连查询都不该发——查了就说明逻辑还在往下走")
 	}
 }
 
@@ -158,10 +158,10 @@ func TestKubectlUpPruneIsScopedByProjectLabel(t *testing.T) {
 			query = command
 		}
 	}
-	require.NotEmpty(t, query, "P38：应该先查一次集群里有什么")
+	require.NotEmpty(t, query, "应该先查一次集群里有什么")
 
-	assert.Contains(t, query, "-l brickkit.io/project=my-erp", "P38：必须按项目标签收窄")
-	assert.Contains(t, query, "-n brickkit-my-erp", "P38：必须限定命名空间")
+	assert.Contains(t, query, "-l brickkit.io/project=my-erp", "必须按项目标签收窄")
+	assert.Contains(t, query, "-n brickkit-my-erp", "必须限定命名空间")
 }
 
 // 命名空间永远不在清理范围内。
@@ -177,7 +177,7 @@ func TestKubectlUpNeverPrunesNamespace(t *testing.T) {
 	for _, command := range rec.commands() {
 		if strings.Contains(command, "-o name") || strings.Contains(command, "delete") {
 			assert.NotContains(t, command, "namespace",
-				"P38：命名空间绝不能进清理范围：%s", command)
+				"命名空间绝不能进清理范围：%s", command)
 		}
 	}
 }
@@ -192,7 +192,7 @@ func TestKubectlUpSkipsDeleteWhenNothingOrphaned(t *testing.T) {
 
 	require.NoError(t, kubectlWith(rec).Up(context.Background(), pruneRequest()))
 
-	assert.Empty(t, deleteCommand(rec), "P38：没有孤儿就不该发 delete")
+	assert.Empty(t, deleteCommand(rec), "没有孤儿就不该发 delete")
 }
 
 // ============================================================
@@ -216,7 +216,7 @@ func TestKubectlUpPrunesAfterRollout(t *testing.T) {
 	require.NotEqual(t, -1, rollout, "应该等过滚动更新")
 	require.NotEqual(t, -1, prune, "应该清理过")
 	assert.Less(t, rollout, prune,
-		"P38：必须等新版本就绪再删旧的，否则升级过程中会有一段谁都服务不了")
+		"必须等新版本就绪再删旧的，否则升级过程中会有一段谁都服务不了")
 }
 
 // 清理掉什么要能回传给命令层。
@@ -235,7 +235,7 @@ func TestKubectlUpReportsPrunedResources(t *testing.T) {
 
 	assert.ElementsMatch(t,
 		[]string{"deployment.apps/demo-hello-1-0-0", "service/demo-hello-1-0-0"}, pruned,
-		"P38：删了什么要如实回传，命令层才能告诉使用者")
+		"删了什么要如实回传，命令层才能告诉使用者")
 }
 
 // 查询失败不能让整次部署失败。
@@ -248,14 +248,14 @@ func TestKubectlUpSurvivesPruneQueryFailure(t *testing.T) {
 
 	err := kubectlWith(rec).Up(context.Background(), pruneRequest())
 
-	assert.NoError(t, err, "P38：清理查询失败不该让整次部署失败")
+	assert.NoError(t, err, "清理查询失败不该让整次部署失败")
 }
 
 type assertAnError struct{}
 
 func (assertAnError) Error() string { return "集群暂时查不到" }
 
-// 副本数从 3 改回 1 时，那份 PDB 必须被删掉（P35）。
+// 副本数从 3 改回 1 时，那份 PDB 必须被删掉。
 //
 // # 这条测试是被一次真跑逼出来的
 //
@@ -271,7 +271,7 @@ func (assertAnError) Error() string { return "集群暂时查不到" }
 // （只有多副本才有），它把这个前提打破了。
 //
 // 漏掉的后果单向不可逆：一份 maxUnavailable: 1 的 PDB 永远留在单副本组件上，
-// 让节点从此排不空——正是 P35 当初决定不生成 PDB 的那个理由，换了个更隐蔽的入口。
+// 让节点从此排不空——正是当初决定单副本不生成 PDB 的那个理由，换了个更隐蔽的入口。
 func TestKubectlUpPrunesPDBWhenReplicasDropToOne(t *testing.T) {
 	rec := newRecorder()
 	clusterHas(rec,
@@ -283,13 +283,13 @@ func TestKubectlUpPrunesPDBWhenReplicasDropToOne(t *testing.T) {
 	require.NoError(t, kubectlWith(rec).Up(context.Background(), pruneRequest()))
 
 	command := deleteCommand(rec)
-	require.NotEmpty(t, command, "P35：必须发出清理命令，实际命令：%v", rec.commands())
+	require.NotEmpty(t, command, "必须发出清理命令，实际命令：%v", rec.commands())
 
 	assert.Contains(t, command, "poddisruptionbudget.policy/demo-hello-2-0-0",
-		"P35：它与 Deployment 同名，只按名字比对会把它当成该留的——"+
+		"它与 Deployment 同名，只按名字比对会把它当成该留的——"+
 			"于是永远留在单副本组件上拦着 drain")
 	assert.NotContains(t, command, "deployment.apps/demo-hello-2-0-0",
-		"P35：同名的 Deployment 是本次要留的，绝不能被一起删掉")
+		"同名的 Deployment 是本次要留的，绝不能被一起删掉")
 }
 
 // ============================================================
@@ -300,7 +300,7 @@ func TestKubectlUpPrunesPDBWhenReplicasDropToOne(t *testing.T) {
 // 都只在某个开关打开时才生成，而 Deployment 是必然生成的——
 // 于是"名字还在期望集合里"这个近似对它们全部失效。
 //
-// PDB 是当初唯一被发现的那一个（P35），修法是维护一张"条件生成的类型"例外表；
+// PDB 是当初唯一被发现的那一个，修法是维护一张"条件生成的类型"例外表；
 // 那张表只填了 PDB，另外三类照样漏。判据换成"类型 + 名字"之后例外表消失，
 // 这四条测试守着它不要再回来。
 
@@ -407,7 +407,7 @@ func TestKubectlUpKeepsConditionalResourcesStillGenerated(t *testing.T) {
 		"本次都生成了，一个都不该删：%v", rec.commands())
 }
 
-// 组件从 brickkit.yaml 移除之后，集群里留下的旧资源要被清理掉（P38）。
+// 组件从 brickkit.yaml 移除之后，集群里留下的旧资源要被清理掉。
 //
 // # 为什么单独钉一条
 //
@@ -430,11 +430,11 @@ func TestKubectlUpPrunesRemovedComponent(t *testing.T) {
 	require.NoError(t, kubectlWith(rec).Up(context.Background(), pruneRequest()))
 
 	command := deleteCommand(rec)
-	require.NotEmpty(t, command, "P38：必须清掉已经不在配置里的那一份：%v", rec.commands())
+	require.NotEmpty(t, command, "必须清掉已经不在配置里的那一份：%v", rec.commands())
 
 	assert.Contains(t, command, "deployment.apps/infra-notifier-1-0-0",
-		"P38：配置里已经没有它了，留着就是一份没人知道还在跑的实例")
+		"配置里已经没有它了，留着就是一份没人知道还在跑的实例")
 	assert.Contains(t, command, "service/infra-notifier-1-0-0")
 	assert.NotContains(t, command, "demo-hello-2-0-0",
-		"P38：还在配置里的组件绝不能被一起删")
+		"还在配置里的组件绝不能被一起删")
 }

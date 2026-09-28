@@ -1,4 +1,4 @@
-// 本文件是 Step 18-D HTTP 层的代码级测试：协议细节与异常路径。
+// 本文件是 HTTP 层的代码级测试：协议细节与异常路径。
 //
 // 业务规则的测试在 handler_test.go；这里只管"协议层自己会不会出错"。
 package handler_test
@@ -149,7 +149,7 @@ func TestRootPathReturnsJSONNotFound(t *testing.T) {
 	assert.Equal(t, model.CodeNotFound, resp.Error.Code)
 }
 
-// 组件 ID 多于两段时不匹配任何路由（002 §10.3 只有 scope/name 两段）。
+// 组件 ID 多于两段时不匹配任何路由（组件 ID 只有 scope/name 两段）。
 func TestThreeSegmentComponentIDIsNotFound(t *testing.T) {
 	f := newFixture(t)
 
@@ -277,7 +277,7 @@ func TestSearchItemsCarryNoSecrets(t *testing.T) {
 		"列表页不需要 Manifest 全文，带上只是白白撑大响应")
 }
 
-// 详情响应是平铺的（007 §4.3），不是 {"component": {...}} 的嵌套形状。
+// 详情响应是平铺的，不是 {"component": {...}} 的嵌套形状。
 func TestComponentDetailIsFlat(t *testing.T) {
 	f := newFixture(t)
 	token := f.login(t, "alice")

@@ -1,6 +1,6 @@
 package cli
 
-// 本文件实现 brickkit fetch：只取一个组件的产物，不把它装进项目（003 §4.9）。
+// 本文件实现 brickkit fetch：只取一个组件的产物，不把它装进项目。
 //
 // # 为什么需要一条自己的命令
 //
@@ -39,7 +39,7 @@ import (
 	"github.com/brickkit/brickkit/internal/source"
 )
 
-// newFetchCommand 实现 brickkit fetch（003 §4.9）。
+// newFetchCommand 实现 brickkit fetch。
 func newFetchCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     i18n.T(msgid.CliFetchFetchComponentIdVersion),

@@ -79,7 +79,7 @@ func TestDirectoryLayout(t *testing.T) {
 		"secrets/config-secrets.yaml",
 		"services/people-basic-1-0-0.yaml",
 		"services/portal-user-frontend-1-0-0.yaml",
-	}, pathsOf(b.generate()), "16.13 目录结构（005 §5）")
+	}, pathsOf(b.generate()), "16.13 目录结构")
 }
 
 func TestSecretFileIsNotWorldReadable(t *testing.T) {

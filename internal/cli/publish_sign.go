@@ -14,11 +14,11 @@ import (
 // defaultSigningKey 是 --key 的默认值：cosign generate-key-pair 就叫这个名字。
 const defaultSigningKey = "cosign.key"
 
-// signPackage 对发布包签名（008 §8.2、010 §6.2），--sign 未指定时什么都不做。
+// signPackage 对发布包签名，--sign 未指定时什么都不做。
 //
 // 签名的对象是 **Manifest 的规范化载荷**，不是 component.yaml 的原始字节：
 // 这份文档一路 YAML→JSON→YAML 地被改写形态，对某一种写法的字节签名必然失效
-// （008 §8.3.1）。规范化由 internal/security 负责，两侧共用同一个函数。
+// 。规范化由 internal/security 负责，两侧共用同一个函数。
 func signPackage(ctx context.Context, opts *Options, pkg *publishPackage, f publishFlags) error {
 	if !f.sign {
 		return nil
@@ -67,7 +67,7 @@ func signPackage(ctx context.Context, opts *Options, pkg *publishPackage, f publ
 // 条目），所以既不能空着，也不该由 CLI 随手编一个。规则只有一条：
 // 按 .key → .pub 推导，并保留 --key 写的那个相对路径形式。
 // 于是 --key keys/people-basic-release.key 得到 keys/people-basic-release.pub
-// ——正是 008 §8.3 示例里的那个名字，可预期也可解释。
+// ——可预期也可解释。
 func publicKeyRefFor(explicit, flagKey, resolvedKey string) (string, error) {
 	if ref := strings.TrimSpace(explicit); ref != "" {
 		return ref, nil

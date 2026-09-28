@@ -17,7 +17,7 @@ import (
 	"github.com/brickkit/brickkit/internal/sessionlock"
 )
 
-// newStatusCommand 实现 brickkit status（004 §3.7）。
+// newStatusCommand 实现 brickkit status。
 func newStatusCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "status",
@@ -58,7 +58,7 @@ func runStatus(ctx context.Context, opts *Options) error {
 	//
 	// 从前这里先看 `.brickkit/generated/` 下那份生成物在不在，不在就断言
 	// "项目尚未启动过"并返回，引擎一次都不调。而那份文件在 .gitignore 里、
-	// 003 §7.1 还明说可以随时删——一次 `git clean -xdf` 之后，
+	// 它本来就可以随时删——一次 `git clean -xdf` 之后，
 	// status 会对着一屋子正在跑的容器说"尚未启动过"。
 	//
 	// 容器跑没跑只有引擎知道，所以只问它一处。"还没起过"与"已经 down 过"
@@ -324,7 +324,7 @@ func statusText(s engine.Status, found bool) string {
 	}
 }
 
-// renderSkipped 输出没启动的组件及原因（15.16）。
+// renderSkipped 输出没启动的组件及原因。
 func renderSkipped(opts *Options, v componentView) {
 	if len(v.skipped) == 0 {
 		return
@@ -338,7 +338,7 @@ func renderSkipped(opts *Options, v componentView) {
 	opts.Printf("%s\n", t.render(" "))
 }
 
-// renderLocalDebug 输出本地调试的组件（15.17）。
+// renderLocalDebug 输出本地调试的组件。
 //
 // 它们没有容器，引擎里查不到——不单独说一句的话，
 // 使用者会以为这些组件"消失了"。
@@ -377,7 +377,7 @@ func renderLocalModeSessionHint(opts *Options, proj *project.Project) {
 
 // localAddress 是 local 组件在宿主机上的地址。
 //
-// 没写 localPort 时默认取组件自己声明的主端口（005 §4.6）——那要读 Manifest。
+// 没写 localPort 时默认取组件自己声明的主端口——那要读 Manifest。
 // 降级时读不到，就老实说读不到：编一个端口号出来，使用者会照着它去连一个没人监听的口。
 func localAddress(p *liveProject, ref resolver.Ref) string {
 	if port := p.entry(ref).LocalPort; port > 0 {

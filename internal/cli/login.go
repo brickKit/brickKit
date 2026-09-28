@@ -26,7 +26,7 @@ type loginFlags struct {
 	passwordStdin bool
 }
 
-// newLoginCommand 实现 brickkit login（004 §3.12）。
+// newLoginCommand 实现 brickkit login。
 func newLoginCommand(opts *Options) *cobra.Command {
 	var f loginFlags
 
@@ -81,7 +81,7 @@ func runLogin(ctx context.Context, opts *Options, f loginFlags) error {
 		return loginError(err)
 	}
 
-	// 凭据里记下是哪个市场的 Token：绝不把 A 市场的凭据发给 B 市场（008）
+	// 凭据里记下是哪个市场的 Token：绝不把 A 市场的凭据发给 B 市场
 	creds := &source.Credentials{
 		Type:      source.CredentialTypePassword,
 		MarketURL: marketURL,

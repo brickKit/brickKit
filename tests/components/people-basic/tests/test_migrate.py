@@ -1,4 +1,4 @@
-"""迁移执行器的测试（开发计划 22.5）。
+"""迁移执行器的测试。
 
 迁移是**有版本的 SQL 文件**，不是埋在代码里的建表语句。
 文件加载与排序不需要数据库；实际执行需要真实 PostgreSQL，
@@ -24,7 +24,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 def test_migrations_are_shipped_with_the_component() -> None:
-    """002 §8.4：迁移脚本和业务代码打包在同一个镜像里。
+    """迁移脚本和业务代码打包在同一个镜像里。
 
     这条测试跑在容器内，因此它同时验证了"SQL 文件真的被 COPY 进镜像了"——
     靠"记得改 Dockerfile"是不可靠的。

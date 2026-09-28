@@ -1,11 +1,11 @@
-// ping.proto 是工具链自检用的示例契约（开发计划 Step 1 验证项 1.5）。
+// ping.proto 是工具链自检用的示例契约。
 //
 // 它同时验证三件事：
 //   1. protoc 可用；
 //   2. proto/include/ 下的 google/api/annotations.proto 可被正确 import；
 //   3. protoc-gen-go / protoc-gen-go-grpc 插件可用。
 //
-// 真实组件的 proto 契约放在各组件自己的仓库中（002 §1.6 一个组件一个仓库）。
+// 真实组件的 proto 契约放在各组件自己的仓库中（一个组件一个仓库）。
 syntax = "proto3";
 
 package brickkit.example.v1;

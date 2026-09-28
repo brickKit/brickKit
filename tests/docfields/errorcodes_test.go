@@ -5,8 +5,8 @@
 //
 // 错误码是**对外契约**：每条终止命令的错误都在 stderr 的 JSON 日志里带一个稳定的
 // error_code，CI 脚本据此判断该重试还是该报警——NETWORK_UNREACHABLE 值得重试，
-// CONFIG_INVALID 重试多少次都一样。这份契约原本写在设计书 004 §10.2.1，并由
-// clierr.TestEveryErrorCodeIsDocumented 守着；设计书归档时那条测试跟着撤了，
+// CONFIG_INVALID 重试多少次都一样。这份契约原本写在一份旧设计文档里，并由
+// clierr.TestEveryErrorCodeIsDocumented 守着；那份文档归档时那条测试跟着撤了，
 // 契约就没有了活文档的家——新增一个码、改掉一句报错，都不会让任何东西失败，
 // 只会让照着文档写脚本、或照着文档排障的人对不上号。
 //

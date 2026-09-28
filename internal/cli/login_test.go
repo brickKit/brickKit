@@ -1,5 +1,5 @@
-// 本文件是 Step 19「brickkit login」的业务行为测试，
-// 覆盖开发计划 19.1–19.6，以及 004 §3.12 的凭据格式与 Token 优先级。
+// 本文件是 「brickkit login」的业务行为测试，
+// 覆盖 login 的交互、凭据格式与 Token 优先级。
 package cli
 
 import (
@@ -16,7 +16,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 )
 
-// credentialsPath 是登录凭据的位置（004 §5.3）。
+// credentialsPath 是登录凭据的位置。
 func credentialsPath(dir string) string {
 	return filepath.Join(dir, ".brickkit", "credentials")
 }
@@ -42,7 +42,7 @@ func newMarketProject(t *testing.T, m *fakeMarket, authToken string) *projectFix
 }
 
 // ============================================================
-// 19.1 / 19.3 登录成功
+// 登录成功
 // ============================================================
 
 func TestLoginWritesCredentials(t *testing.T) {
@@ -52,13 +52,13 @@ func TestLoginWritesCredentials(t *testing.T) {
 	r := runStdin(t, f.Dir, "zhangsan\ncorrect-horse-battery\n", "login")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.FileExists(t, credentialsPath(f.Dir), "19.3：Token 必须存到 .brickkit/credentials")
+	assert.FileExists(t, credentialsPath(f.Dir), "Token 必须存到 .brickkit/credentials")
 	assert.Contains(t, r.stdout, "✅ Logged in")
 	assert.Contains(t, r.stdout, "zhangsan")
 	assert.Contains(t, r.stdout, ".brickkit/credentials")
 }
 
-// 19.4 / 19.5 凭据文件的字段（004 §3.12 的格式）。
+// 凭据文件的字段。
 func TestLoginCredentialsFormat(t *testing.T) {
 	m := newFakeMarket(t)
 	f := newMarketProject(t, m, "")
@@ -66,11 +66,11 @@ func TestLoginCredentialsFormat(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, runStdin(t, f.Dir, "zhangsan\ncorrect-horse-battery\n", "login").code)
 
 	creds := readCredentials(t, f.Dir)
-	assert.Equal(t, "password", creds["type"], "19.4：type 字段当前固定为 password")
+	assert.Equal(t, "password", creds["type"], "type 字段当前固定为 password")
 	assert.Equal(t, "zhangsan", creds["username"])
 	assert.Equal(t, m.token, creds["token"])
 	assert.Equal(t, m.url(), creds["marketUrl"], "必须记下是哪个市场的 Token（008：不能跨市场发凭据）")
-	require.Contains(t, creds, "expiresAt", "19.5：必须有 expiresAt")
+	require.Contains(t, creds, "expiresAt", "必须有 expiresAt")
 
 	expiresAt, err := time.Parse(time.RFC3339, creds["expiresAt"].(string))
 	require.NoError(t, err, "expiresAt 必须是 RFC3339")
@@ -106,7 +106,7 @@ func TestLoginNeverEchoesPassword(t *testing.T) {
 }
 
 // ============================================================
-// 19.2 登录失败
+// 登录失败
 // ============================================================
 
 func TestLoginWithWrongPasswordFails(t *testing.T) {

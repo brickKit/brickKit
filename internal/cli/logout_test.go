@@ -1,4 +1,4 @@
-// 本文件是 brickkit logout 的行为测试（004 §3.13）。
+// 本文件是 brickkit logout 的行为测试。
 package cli
 
 import (

@@ -46,7 +46,7 @@ def create_app(service: PeopleService) -> FastAPI:
     def healthz() -> dict:
         """健康检查。
 
-        002 §9.4：只检查本进程存活，**不查数据库、不调依赖组件**。
+        只检查本进程存活，**不查数据库、不调依赖组件**。
         健康检查一旦连库，数据库抖一下就会让所有组件被判死重启。
         """
         return {"status": "ok", "component": service.component_id, "version": service.version}

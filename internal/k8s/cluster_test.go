@@ -1,4 +1,4 @@
-// 本文件是 Step 16-D-2「面向真实集群：集群约束」的业务行为测试。
+// 本文件是「面向真实集群：集群约束」的业务行为测试。
 //
 // 这一类问题在 minikube 上都试不出来：默认不开 Pod Security Admission、
 // 镜像是本地 load 进去的、只有一个 ingress controller 且是默认 class。

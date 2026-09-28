@@ -1,5 +1,4 @@
-// 本文件是 Step 15-C 的升级路径测试（004 §3.5.1、002 §7.7）。
-// 回填 P10（升级时拉新版本 Manifest 与产物）。
+// 本文件是升级路径测试：升级时拉新版本 Manifest 与产物、做兼容性检查、输出变更摘要。
 //
 // "升级"在 BrickKit 里就是一件事：把 brickkit.yaml 里的版本号改了，然后 up。
 // 所以这些用例都长这样：先装 1.0.0 跑一次，再把版本号改成 1.1.0 再跑一次。
@@ -37,7 +36,7 @@ func bumpTo(t *testing.T, f *projectFixture, version string) {
 }
 
 // ============================================================
-// P10 升级时拉新版本 Manifest 与产物
+// 升级时拉新版本 Manifest 与产物
 // ============================================================
 
 func TestUpgradeDownloadsNewVersionArtifacts(t *testing.T) {
@@ -51,14 +50,14 @@ func TestUpgradeDownloadsNewVersionArtifacts(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.FileExists(t,
 		f.Layout.CachedManifestPath("people/basic", "1.1.0"),
-		"P10：新版本 Manifest 要落进缓存")
+		"新版本 Manifest 要落进缓存")
 	assert.FileExists(t,
 		filepath.Join(f.Dir, ".brickkit", "artifacts", "people-basic-1-1-0",
 			"api-docs", "openapi.json"),
-		"P10：新版本的产物要下载到新版本化服务名目录下")
+		"新版本的产物要下载到新版本化服务名目录下")
 }
 
-// 旧版本的产物保留：调用方可能还指着旧版本（002 §7.8、开发计划 38.4）。
+// 旧版本的产物保留：调用方可能还指着旧版本。
 func TestUpgradeKeepsOldVersionArtifacts(t *testing.T) {
 	f := upgradableProject(t, comp{
 		ID: "people/basic", Version: "1.1.0", Artifacts: []string{"api-docs:openapi.json"},
@@ -108,7 +107,7 @@ func TestFirstInstallIsNotAnUpgrade(t *testing.T) {
 }
 
 // ============================================================
-// 002 §7.7 升级时的五项检查
+// 升级时的五项兼容性检查
 //
 // 这五项没有专门的"升级检查"入口——它们本来就在常规 up 路径上（解析拿不到
 // Manifest 就报错、强依赖缺失报错、弱依赖缺失警告、循环依赖报错、资源未绑定
@@ -126,7 +125,7 @@ func TestUpgradeToUnavailableVersionIsBlocked(t *testing.T) {
 
 	r := runWithEngine(t, eng, f.Dir, "up")
 
-	assert.Equal(t, clierr.ExitError, r.code, "002 §7.7 检查项 1")
+	assert.Equal(t, clierr.ExitError, r.code, "兼容性检查：Manifest 取不到")
 	assert.Contains(t, r.stderr, "people/basic@9.9.9")
 	assert.Empty(t, eng.ups, "取不到就别启动")
 }
@@ -145,7 +144,7 @@ func TestUpgradeIntroducingACycleIsBlocked(t *testing.T) {
 
 	r := runWithEngine(t, eng, f.Dir, "up")
 
-	assert.Equal(t, clierr.ExitError, r.code, "002 §7.7 检查项 5")
+	assert.Equal(t, clierr.ExitError, r.code, "兼容性检查：循环依赖")
 	assert.Contains(t, r.stderr, "dependency cycle")
 	assert.Empty(t, eng.ups)
 }
@@ -160,12 +159,12 @@ func TestUpgradeWithUnsatisfiableDependencyIsBlocked(t *testing.T) {
 
 	r := runWithEngine(t, eng, f.Dir, "up")
 
-	assert.Equal(t, clierr.ExitError, r.code, "002 §7.7 检查项 2")
+	assert.Equal(t, clierr.ExitError, r.code, "兼容性检查：强依赖缺失")
 	assert.Contains(t, r.stderr, "infra/vault")
 	assert.Empty(t, eng.ups, "升级检查没过就别启动")
 }
 
-// 新版本新增了弱依赖但取不到 → 警告，照常启动（002 §7.7 检查项 4）。
+// 新版本新增了弱依赖但取不到 → 警告，照常启动。
 func TestUpgradeWithMissingWeakDependencyOnlyWarns(t *testing.T) {
 	f := upgradableProject(t, comp{
 		ID: "people/basic", Version: "1.1.0", Optional: []string{"infra/bus@1.0.0"},
@@ -181,7 +180,7 @@ func TestUpgradeWithMissingWeakDependencyOnlyWarns(t *testing.T) {
 }
 
 // ============================================================
-// 004 §3.5.1 --dry-run 的升级变更摘要
+// --dry-run 的升级变更摘要
 // ============================================================
 
 func TestDryRunShowsUpgradeSummary(t *testing.T) {
@@ -241,7 +240,7 @@ func TestUpgradeSummaryWithoutMigration(t *testing.T) {
 // 但必须照常按新配置启动那个版本。
 //
 // 判据是"这个版本的东西本地有没有"，不是"版本号有没有变过"——
-// CLI 不持有运行时状态（004 §1.3），它记不住上一次跑的是哪个版本。
+// CLI 不持有运行时状态，它记不住上一次跑的是哪个版本。
 func TestSwitchingBackToAnInstalledVersionStartsIt(t *testing.T) {
 	f := upgradableProject(t, comp{ID: "people/basic", Version: "1.1.0"})
 	bumpTo(t, f, "1.1.0")
@@ -308,7 +307,7 @@ func TestSecondUpgradeReportsThePreviousVersion(t *testing.T) {
 
 // 加一个共存版本不是升级：配置里两个版本都还在，没有谁被换掉。
 //
-// 从前只要"缓存里有别的版本"就报升级，于是照 003 §8.3 加第二个版本条目
+// 从前只要"缓存里有别的版本"就报升级，于是加第二个版本条目
 // （灰度迁移的标准写法）会看到一句"⬆️ 检测到版本变更"——
 // 而使用者要的恰恰是两个一起跑。
 func TestAddingACoexistingVersionIsNotAnUpgrade(t *testing.T) {
@@ -338,7 +337,7 @@ func TestAddingACoexistingVersionIsNotAnUpgrade(t *testing.T) {
 // 回退（2.0.0 → 1.0.0）也是一次版本变更，同样要报。
 //
 // 从前完全检测不到：判据是"配置里的版本不在缓存里"，而回退的目标恰恰在缓存里。
-// 于是 005 §5.10 教的"改版本号重新 up"这条回退路径上，摘要一个字都没有。
+// 于是"改版本号重新 up"这条回退路径上，摘要一个字都没有。
 func TestRollbackIsReported(t *testing.T) {
 	f := versionedProject(t, "1.0.0", "2.0.0")
 

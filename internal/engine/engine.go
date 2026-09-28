@@ -17,7 +17,7 @@ const (
 	Docker = "docker"
 	Podman = "podman"
 	// K8s 是 kubectl 引擎。它不是"另一种容器引擎"，而是另一种**部署目标**
-	// （005 §5）：清单交给集群，跑不跑得起来是集群的事。
+	// ：清单交给集群，跑不跑得起来是集群的事。
 	K8s = "k8s"
 )
 
@@ -28,7 +28,7 @@ type Status struct {
 	// State 是引擎报告的状态：running / exited / created / restarting …
 	State string
 	// Health 是健康检查结论：healthy / unhealthy / starting；
-	// 没有健康检查时为空（002 §9：不是所有组件都有健康检查）。
+	// 没有健康检查时为空（不是所有组件都有健康检查）。
 	Health string
 	// Ports 是端口映射的原始描述，如 "0.0.0.0:18080->8080/tcp"。
 	Ports string
@@ -66,7 +66,7 @@ type UpRequest struct {
 	ProjectDir string
 	// Services 为空表示全部启动；非空时只把这些 service 交给引擎。
 	//
-	// 现在它总是本次会启动的完整一批（`--only` 已删，003 §4.3：要收窄范围就改
+	// 现在它总是本次会启动的完整一批（`--only` 已删：要收窄范围就改
 	// enabled）。留着这个字段是因为引擎不该假设调用方永远想全起。
 	Services []string
 	// RunAfter 是 up 之后要单独跑完的一次性 service（compose 目标）：没有任何 service 通过
@@ -81,7 +81,7 @@ type UpRequest struct {
 	// MigrationGroups 是本次要执行的迁移 Job，**按组件 ID 分组**，只对 K8s 目标有意义。
 	//
 	// compose 用 depends_on + service_completed_successfully 表达"等迁移跑完"，
-	// K8s 没有这种东西，只能由 CLI 串行控制：清理旧 Job → apply → wait（005 §6.3）。
+	// K8s 没有这种东西，只能由 CLI 串行控制：清理旧 Job → apply → wait。
 	//
 	// 组内必须**一个跑完再下发下一个**：同一组件的多个版本共用一个库、共用一个
 	// component_id，同时下发会在空库上撞主键（分组理由见 k8s.Result.MigrationGroups）。
@@ -116,7 +116,7 @@ type UpRequest struct {
 	// 被点名组件的 compose 文件会让其余正在服务的组件全成了 orphan，
 	// 一条 `up --only` 就把它们删光。`--only` 删除之后分支跟着消失了——
 	// 现在每次 up 都按完整配置生成，文件里没有的只可能是使用者关掉的，
-	// 删掉它的容器正是他要的（005 §5.9.2）。
+	// 删掉它的容器正是他要的。
 	PruneSelector string
 	// OnPrune 在清理掉一个孤儿资源时回调，供命令层如实汇报；为 nil 时不回调。
 	//
@@ -130,7 +130,7 @@ type UpRequest struct {
 // **刻意没有 File 字段。** down 的身份是项目名（compose 的标签 / K8s 的
 // brickkit.io/project），不是那份生成出来的部署文件——文件回答的是"这次打算
 // 跑什么"，而 `up --dry-run` 也会重写它。拿它当"上次实际部署了什么"来删，
-// 少一个 service 就漏停一个容器，命令却照样报成功（005 §5.9.3）。
+// 少一个 service 就漏停一个容器，命令却照样报成功。
 //
 // 字段留着就迟早有人用回去，所以这里把它整个拿掉：两个引擎都不可能再读到它。
 type DownRequest struct {
@@ -167,12 +167,12 @@ type Engine interface {
 	Up(ctx context.Context, req UpRequest) error
 	// Down 停止。
 	//
-	// **不删除数据卷**（004 §3.6）：数据库数据始终保留。
+	// **不删除数据卷**：数据库数据始终保留。
 	// 需要彻底清理时由使用者自己执行 docker volume rm。
 	Down(ctx context.Context, req DownRequest) error
 	// Status 返回该项目下所有 service 的状态。
 	//
-	// **只认项目名，不认部署文件**（与 Down 同一条规则，005 §5.9.3）。
+	// **只认项目名，不认部署文件**（与 Down 同一条规则）。
 	// 两种引擎都做得到：compose 从容器标签认项目（`-p X ps` 不需要 `-f`），
 	// kubectl 本来就只按命名空间查。
 	//

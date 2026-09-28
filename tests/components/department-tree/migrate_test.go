@@ -1,4 +1,4 @@
-// 本文件测试迁移执行器（开发计划 21.6）。
+// 本文件测试迁移执行器。
 //
 // 迁移是**有版本的 SQL 文件**，不是埋在代码里的建表语句：
 // 只有这样，"1.0.0 到 2.0.0 改了什么"才是看得见、可评审、可回溯的。
@@ -95,7 +95,7 @@ func equal(a, b []string) bool {
 }
 
 // ============================================================
-// 21.6 向上迁移
+// 向上迁移
 // ============================================================
 
 func TestMigrationsApplyInOrder(t *testing.T) {
@@ -143,7 +143,7 @@ func TestMigrationsAreNotReapplied(t *testing.T) {
 }
 
 // 新增一个迁移文件时，只执行新的那个 ——
-// 这正是"组件升级带来结构变更"的路径（Step 38 升级测试依赖它）。
+// 这正是"组件升级带来结构变更"的路径（升级测试依赖它）。
 func TestOnlyNewMigrationsAreApplied(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()

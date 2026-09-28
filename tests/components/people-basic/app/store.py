@@ -1,6 +1,6 @@
 """人员数据的存取。
 
-组件只存自己的数据（002 §2.2 数据自治）：这里只有人员，
+组件只存自己的数据（数据自治）：这里只有人员，
 部门信息属于 department/tree，用到时去调它，不在这里存副本。
 """
 
@@ -25,7 +25,7 @@ class Person:
 class Store(Protocol):
     """人员数据的存取接口。
 
-    注意：**建表与初始数据不在这里**，它们是 migrations/*.sql（002 §8）。
+    注意：**建表与初始数据不在这里**，它们是 migrations/*.sql。
     内存实现只是测试替身，用 MemoryStore(seed) 直接给数据即可。
     """
 
@@ -64,7 +64,7 @@ class MemoryStore:
 
 
 class PostgresStore:
-    """PostgreSQL 实现。连接信息全部来自平台注入的 DATABASE_*（006 §5.1）。"""
+    """PostgreSQL 实现。连接信息全部来自平台注入的 DATABASE_*。"""
 
     def __init__(self, dsn: str):
         self._dsn = dsn

@@ -66,7 +66,7 @@ type LocalScan struct {
 
 // LocalComponents 列出所有本地安装源里的组件，按组件 ID 排序。
 //
-// 同一个 ID 出现在多个本地源里时，**靠前的源赢**（003 §6.5），后面的不再列出——
+// 同一个 ID 出现在多个本地源里时，**靠前的源赢**，后面的不再列出——
 // 与 Manifest / LatestVersion 的取源规则保持一致，否则 add --local 装进来的东西
 // 会和随后 up 时真正拉取的那份对不上。
 func (c *Client) LocalComponents(ctx context.Context) (*LocalScan, error) {

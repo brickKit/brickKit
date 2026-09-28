@@ -1,30 +1,22 @@
 package cli
 
-// 本文件覆盖开发计划 35.17：**`component.config` 里不该放密钥**。
+// 本文件覆盖清单 35.17：**config/ 里不该放明文密钥**。
 //
-// P5 那条明文密码告警只看 `resources[].password`，而 `config` 完全没人管——
-// 于是这样的配置一声不吭地通过：
+// 泄漏路径不是生成物，而是 config/ 本身：config/<组件>.yaml 与 config/vars.yaml 是要跟着项目
+// 提交进 Git 的。于是这样一行会把密钥带进版本历史，而且删不干净：
 //
-//	components:
-//	  - id: demo/hello
-//	    config:
-//	      apiToken: "sk-live-REALSECRET123456"
+//	# config/demo-hello.yaml
+//	API_TOKEN: sk-live-REALSECRET123456
 //
-// 后果值得警惕的地方在于**泄漏路径不是生成物，而是 `brickkit.yaml` 本身**：
-// 那个文件是**明确建议提交进 Git 的**（003 §1.2「可版本控制：建议提交到 Git，
-// 团队共享」）。写在 `resources[].password` 里的密码有 P5 告警兜着，
-// 写在 `config` 里的却一声不吭。
+// 判据是组件声明了 secret: true，或者名字长得像密钥（只看名字，不看值）；写成 ${VAR}、
+// file://、existingSecret 的都是做对了。经 $var: 引到公共变量的明文同样算，来自个人
+// deploy.local.yaml（不进 Git）的不算。
 //
-// 顺带澄清一个我一开始搞错的点：未在 `configSchema` 里声明的 config 项
-// **不会被注入**，所以它未必会进生成物。但它照样躺在提交进 Git 的
-// `brickkit.yaml` 里——泄漏路径与生成物无关。
+// （写了 configSchema 里没有的键会另出一条"不会生效"的警告。本文件的用例因此都让组件
+// 真的声明了对应的配置项：两条警告混在一起会让"普通配置项不该被误判"的断言失去意义。）
 //
-// （那种"写了却不生效"的情形现在会另出一条警告，见 inject.unknownConfigWarnings。
-// 本文件的用例因此都让组件真的声明了对应的 configSchema 项：
-// 两条警告混在一起会让下面"普通配置项不该被误判"的断言失去意义。）
-//
-// 与 P5 一样是**警告不是错误**：`config` 里放什么由使用者决定，
-// 平台不该替他判断哪个值算密钥；但看着像密钥的东西必须说一声。
+// 是**警告不是错误**：config 里放什么由使用者决定，平台不该替他判断哪个值算密钥；
+// 但看着像密钥的东西必须说一声，而且绝不把值本身打出来。
 
 import (
 	"os"
@@ -70,11 +62,11 @@ func TestConfigWithSecretWarns(t *testing.T) {
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 
-	require.Equal(t, clierr.ExitOK, r.code, "35.17：是警告不是错误：%s", r.stderr)
+	require.Equal(t, clierr.ExitOK, r.code, "是警告不是错误：%s", r.stderr)
 	out := r.stdout + r.stderr
-	assert.Contains(t, out, "API_TOKEN", "35.17：要点名是哪个配置项：%s", out)
+	assert.Contains(t, out, "API_TOKEN", "要点名是哪个配置项：%s", out)
 	assert.NotContains(t, out, "sk-live-REALSECRET123456",
-		"35.17：**绝不能把密钥本身打出来**——那等于又抄了一遍到终端和 CI 日志里")
+		"**绝不能把密钥本身打出来**——那等于又抄了一遍到终端和 CI 日志里")
 }
 
 // 警告要说清为什么，以及该怎么做。
@@ -86,9 +78,9 @@ func TestConfigSecretWarningExplainsWhy(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 	out := r.stdout + r.stderr
 
-	assert.Contains(t, out, "${", "35.17：要给出 ${ENV_VAR} 这条出路：%s", out)
+	assert.Contains(t, out, "${", "要给出 ${ENV_VAR} 这条出路：%s", out)
 	assert.Contains(t, out, "Git",
-		"35.17：要说清 brickkit.yaml 是建议提交进 Git 的——那才是使用者没想到的地方：%s", out)
+		"要说清 brickkit.yaml 是建议提交进 Git 的——那才是使用者没想到的地方：%s", out)
 }
 
 // 用了 ${ENV_VAR} 就不该警告——那正是做对了的写法。
@@ -102,7 +94,7 @@ func TestConfigWithEnvVarDoesNotWarn(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.NotContains(t, r.stdout+r.stderr, "API_TOKEN",
-		"35.17：用了环境变量引用就是做对了，不该再骂人")
+		"用了环境变量引用就是做对了，不该再骂人")
 }
 
 // 普通配置项不该被误判。
@@ -123,7 +115,7 @@ func TestOrdinaryConfigDoesNotWarn(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	for _, name := range []string{"sessionTtlSeconds", "greeting", "logLevel", "retryCount"} {
 		assert.NotContains(t, r.stdout+r.stderr, name,
-			"35.17：%s 不是密钥，误报会让这个告警很快被无视", name)
+			"%s 不是密钥，误报会让这个告警很快被无视", name)
 	}
 }
 
@@ -139,7 +131,7 @@ func TestConfigSecretSitsInCommittedConfig(t *testing.T) {
 	body, err := os.ReadFile(filepath.Join(f.Layout.ConfigDir(), "demo-hello@1.0.0.yaml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "sk-live-REALSECRET123456",
-		"35.17：密钥就在 config/ 里，而 config/ 是要提交进 Git 的")
+		"密钥就在 config/ 里，而 config/ 是要提交进 Git 的")
 }
 
 // 组件亲口声明了 secret: true 的配置项，不必名字长得像密钥也要警告：

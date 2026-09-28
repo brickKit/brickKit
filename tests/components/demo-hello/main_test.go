@@ -21,8 +21,8 @@ func doJSON(t *testing.T, srv *server, path string) (int, map[string]any) {
 	return rec.Code, body
 }
 
-// 002 §9.1：/healthz 必须返回 200。
-// 002 §9.4：只检查本进程存活，禁止检查数据库、依赖组件或任何外部系统。
+// /healthz 必须返回 200。
+// 只检查本进程存活，禁止检查数据库、依赖组件或任何外部系统。
 func TestHealthz(t *testing.T) {
 	srv := &server{componentID: "demo/hello", version: "1.0.0"}
 
@@ -76,7 +76,7 @@ func TestEnvEndpointEchoesPlatformVariables(t *testing.T) {
 	}
 }
 
-// 002 §1.4：配置只从环境变量读取，不硬编码；缺省值要合理。
+// 配置只从环境变量读取，不硬编码；缺省值要合理。
 func TestNewServerFromEnvDefaults(t *testing.T) {
 	t.Setenv("COMPONENT_ID", "")
 	t.Setenv("COMPONENT_VERSION", "")

@@ -1,10 +1,10 @@
 package engine
 
 // 本文件是 kubectl 引擎的测试：命令序列怎么拼、输出怎么解析。
-// 覆盖开发计划 16.14（执行前清理旧 Job）。
+// 包括执行前清理旧 Job。
 //
-// 本机没有 kubectl、也没有集群（见开发进度 L7），因此这里只验证
-// "把决定翻译成 kubectl 命令"这一段；真集群验证登记为 P25。
+// 单元测试里没有 kubectl、也没有集群，因此这里只验证
+// "把决定翻译成 kubectl 命令"这一段；真集群靠手动验证。
 
 import (
 	"context"
@@ -46,7 +46,7 @@ func indexOfCommand(commands []string, sub string) int {
 }
 
 // ============================================================
-// 启动顺序（005 §5.7）
+// 启动顺序
 // ============================================================
 
 func TestKubectlUpAppliesInOrder(t *testing.T) {
@@ -261,7 +261,7 @@ func TestKubectlDownRefusesEmptySelector(t *testing.T) {
 	assert.Empty(t, rec.commands(), "一条 kubectl 都不该发出去")
 }
 
-// down 一个字节都不读生成目录（005 §5.9.3）。
+// down 一个字节都不读生成目录。
 //
 // 那份目录回答的是"这次打算部署什么"，而 `up --dry-run` 也会重写它。
 // 拿它当"上次实际部署了什么"来删，少一个文件就漏删一个 Deployment，
@@ -443,7 +443,7 @@ func TestKubectlMigrationTimeoutPointsAtEvents(t *testing.T) {
 //
 // 全部 apply 完再逐个 wait 是不够的：Job 一 apply 就开始跑，两个版本会同时
 // 对同一个库、用同一个 component_id 跑那批重合的迁移，空库上必有一个撞主键
-// 退出（002 §8.11、§8.10；分组理由见 k8s.Result.MigrationGroups）。
+// 退出（分组理由见 k8s.Result.MigrationGroups）。
 func TestKubectlRunsGroupedMigrationsInOrder(t *testing.T) {
 	rec := newRecorder()
 

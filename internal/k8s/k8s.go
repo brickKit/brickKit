@@ -1,4 +1,4 @@
-// Package k8s 把解析、级联、注入的结果渲染成 Kubernetes 清单（005 §5）。
+// Package k8s 把解析、级联、注入的结果渲染成 Kubernetes 清单。
 //
 // 与 compose 包是并列关系：同一份注入结果（inject.Result），两种目标各自渲染。
 // 它同样是纯函数——进去的是配置与计算结果，出来的是一组文件内容；
@@ -6,8 +6,8 @@
 //
 // 与 Docker 目标的三处根本差别：
 //
-//	基础资源   K8s 环境里由运维部署（005 §5.1），CLI 不生成资源容器
-//	密码       走 Secret + secretKeyRef，绝不明文写进 Deployment（005 §5.6）
+//	基础资源   K8s 环境里由运维部署，CLI 不生成资源容器
+//	密码       走 Secret + secretKeyRef，绝不明文写进 Deployment
 //	${VAR}     必须在**生成时**求值：compose 会自己读 .env，kubectl 不会
 package k8s
 
@@ -35,7 +35,7 @@ import (
 
 // LabelProject 是打在本项目每份生成物上的标签键。
 //
-// 导出是因为命令层要用它构造清理孤儿资源的选择器（P38）：
+// 导出是因为命令层要用它构造清理孤儿资源的选择器：
 // `kubectl get ... -l brickkit.io/project=<项目名>` 才能只扫到本项目的东西，
 // 而不会碰到同一个命名空间里别人的服务。
 const LabelProject = "brickkit.io/project"
@@ -102,16 +102,16 @@ type Result struct {
 	Files []File
 	// MigrationGroups 是本次会执行的迁移 Job，**按组件 ID 分组**。
 	//
-	// 组内按版本号升序、必须串行；组间彼此独立、可以并行（005 §6.3）。
+	// 组内按版本号升序、必须串行；组间彼此独立、可以并行。
 	// 命令层要用它清理上一次残留的 Job 并等待本次跑完。
 	//
 	// # 为什么是分组而不是一张平表
 	//
-	// 同一组件 ID 的多个版本共用一个库（绑定按组件 ID 记，003 §5.3），
+	// 同一组件 ID 的多个版本共用一个库（绑定按组件 ID 记），
 	// 迁移状态表的主键 (component_id, version) 里的 component_id 也是同一个
-	// （002 §8.11）。同时下发这些 Job，在**空库**上两个版本会去跑那批重合的
+	// 。同时下发这些 Job，在**空库**上两个版本会去跑那批重合的
 	// 迁移——一个成功，另一个撞主键退出，那个版本的 Deployment 永远起不来。
-	// 而迁移只增不改（002 §8.10），高版本的迁移集合本就是低版本的超集，
+	// 而迁移只增不改，高版本的迁移集合本就是低版本的超集，
 	// 让它们抢没有任何意义。
 	//
 	// 不同组件 ID 之间不串：主键里的 component_id 已经让它们互不相干，
@@ -135,7 +135,7 @@ type Result struct {
 	// 只比名字的话，Deployment 还在 → 名字还在期望里 → 这些统统被判成"该留的"。
 	// 于是把 expose 改成 false 之后 Ingress **一直留着继续对外路由**，
 	// 关掉 networkPolicy 之后策略**继续执行**而生成目录里已经没有那份文件。
-	// 这个坑在 PDB 上真踩过一次（P35），当时的修法是维护一张"哪些类型是条件生成的"
+	// 这个坑在 PDB 上真踩过一次，当时的修法是维护一张"哪些类型是条件生成的"
 	// 例外表——而那张表本身就是第二份真相，漏填一类就再犯一次。
 	//
 	// 带上类型之后判据只剩一句"集群里有、本次没生成 → 删"，例外表整个消失。
@@ -195,7 +195,7 @@ func Generate(
 			dirServices+"/"+c.Service+".yaml", p.serviceDoc(c)); err != nil {
 			return nil, err
 		}
-		// P35：只有多副本才生成。单副本下 PDB 必然让节点排不空，
+		// 只有多副本才生成。单副本下 PDB 必然让节点排不空，
 		// 而那个报错要几个月后运维执行 drain 时才出现
 		if needsPDB(c.Entry) {
 			if err := p.emit(result, proj, now,
@@ -293,7 +293,7 @@ func NamespaceOf(proj *project.Project) string {
 	return Namespace(proj.Decl.Project)
 }
 
-// Namespace 是项目的默认命名空间：brickkit-<项目名>（005 §5.2）。
+// Namespace 是项目的默认命名空间：brickkit-<项目名>。
 //
 // 与引擎侧的 compose 项目名同源——同一个项目在两种目标下叫同一个名字，
 // 换目标时不用重新学一套命名。
@@ -521,7 +521,7 @@ func marshal(doc map[string]any) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// namespaceDoc 渲染 Namespace（005 §5.2）。
+// namespaceDoc 渲染 Namespace。
 func (p *plan) namespaceDoc() map[string]any {
 	return map[string]any{
 		"apiVersion": "v1",

@@ -1,6 +1,6 @@
 package cli
 
-// 本文件算"这次升级到底会改变什么"（004 §3.5.1 的升级变更摘要，开发计划 38.18–38.22）。
+// 本文件算"这次升级到底会改变什么"（升级变更摘要）。
 //
 // # 为什么值得算
 //
@@ -56,7 +56,7 @@ func describeUpgradeDiff(u *upgradeInfo, oldM, newM *manifest.Manifest) {
 }
 
 // ============================================================
-// 依赖（38.18）
+// 依赖
 // ============================================================
 
 // dependencyNames 收集组件依赖的名字。
@@ -72,7 +72,7 @@ func dependencyNames(m *manifest.Manifest) []string {
 }
 
 // ============================================================
-// 配置项（38.19）
+// 配置项
 // ============================================================
 
 func configKeys(m *manifest.Manifest) []string {
@@ -89,7 +89,7 @@ func configKeys(m *manifest.Manifest) []string {
 
 // addedConfigText 列出新增的配置项，并带上各自的默认值。
 //
-// 带默认值是因为新增项走的就是它（38.13）——使用者要判断这个值对不对，
+// 带默认值是因为新增项走的就是它——使用者要判断这个值对不对，
 // 而不只是知道"多了个配置项"。
 func addedConfigText(oldM, newM *manifest.Manifest) string {
 	added := removed(configKeys(newM), configKeys(oldM)) // 新有旧无
@@ -110,7 +110,7 @@ func addedConfigText(oldM, newM *manifest.Manifest) string {
 }
 
 // ============================================================
-// 产物（38.21）
+// 产物
 // ============================================================
 
 func artifactFiles(m *manifest.Manifest) []string {
@@ -123,7 +123,7 @@ func artifactFiles(m *manifest.Manifest) []string {
 }
 
 // ============================================================
-// 资源配额（38.22）
+// 资源配额
 // ============================================================
 
 // quotaText 描述 deployment.resources 的变化。

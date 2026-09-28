@@ -133,7 +133,7 @@ func TestRestoreRejectsStagedComponentChanges(t *testing.T) {
 
 	f.writeConfig(t, helloDisabled)
 	require.Equal(t, clierr.ExitOK, runIn(t, f.Dir, "sync").code)
-	// 在归档目录里改了代码并暂存（004 §3.9.3 明说允许在那儿改）
+	// 在归档目录里改了代码并暂存（设计上允许在那儿改）
 	require.NoError(t, os.WriteFile(
 		filepath.Join(f.archived("demo/hello"), "component.yaml"), []byte("# 改了\n"), 0o644))
 	gitDo(t, f.Dir, "add", "-A", "components")

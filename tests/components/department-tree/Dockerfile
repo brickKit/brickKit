@@ -17,7 +17,7 @@ FROM alpine:3.20
 RUN adduser -D -u 10001 brickkit
 COPY --from=build /out/department-tree /app/department-tree
 
-# 002 §1.4 / 开发计划 21.10：容器不得以 root 运行
+# 容器不得以 root 运行
 USER 10001
 EXPOSE 8080
 ENTRYPOINT ["/app/department-tree"]

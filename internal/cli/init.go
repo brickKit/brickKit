@@ -263,7 +263,7 @@ func installSkills(opts *Options, layout project.Layout) error {
 	return nil
 }
 
-// installCommitHook 装提交前检查用的 pre-commit hook（004 §3.14）。
+// installCommitHook 装提交前检查用的 pre-commit hook。
 //
 // # 为什么 init 顺带装时要多一条"项目根 == 仓库根"
 //

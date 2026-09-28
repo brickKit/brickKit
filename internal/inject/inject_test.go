@@ -1,6 +1,5 @@
-// 本文件是 Step 11「环境变量注入引擎」的业务行为测试，
-// 覆盖开发计划 11.1–11.18，以及 004 §5.6（注入规则）、§5.6.1（保留变量冲突）、
-// §5.6.2（资源配额合并，延后项 P2 的前半部分）、006 §5（资源连接变量）。
+// 本文件是 「环境变量注入引擎」的业务行为测试，
+// 包括注入规则、保留变量冲突、资源配额合并。
 package inject_test
 
 import (
@@ -237,7 +236,7 @@ func weaklyDependsOn(m *manifest.Manifest, id, version string) *manifest.Manifes
 }
 
 // ============================================================
-// 11.9 / 11.10 平台通用变量
+// 平台通用变量
 // ============================================================
 
 func TestComponentIdentityVariables(t *testing.T) {
@@ -246,15 +245,15 @@ func TestComponentIdentityVariables(t *testing.T) {
 
 	env := envOf(t, b.build(), "people/basic")
 
-	assert.Equal(t, "people/basic", env["COMPONENT_ID"], "11.9：变量名不带版本，值是组件 ID")
+	assert.Equal(t, "people/basic", env["COMPONENT_ID"], "变量名不带版本，值是组件 ID")
 	assert.Equal(t, "1.2.0", env["COMPONENT_VERSION"])
 }
 
 // ============================================================
-// 11.1 / 11.2 依赖地址注入
+// 依赖地址注入
 // ============================================================
 
-// 11.1：变量名基于组件 ID（不带版本），值指向版本化服务名（004 §5.6 关键规则 1/2）。
+// 变量名基于组件 ID（不带版本），值指向版本化服务名。
 func TestDependencyEndpointInjection(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "department/tree", "1.0.0"),
@@ -266,7 +265,7 @@ func TestDependencyEndpointInjection(t *testing.T) {
 	assert.Equal(t, "http://department-tree-1-0-0:8080", env["DEPARTMENT_TREE_ENDPOINT"])
 }
 
-// 11.2 额外端口：PEOPLE_BASIC_GRPC_ENDPOINT。
+// 额外端口：PEOPLE_BASIC_GRPC_ENDPOINT。
 func TestExtraPortEndpointInjection(t *testing.T) {
 	dep := simple("people/basic", "1.0.0", 8080)
 	dep.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "grpc", Port: 9090}}
@@ -282,7 +281,7 @@ func TestExtraPortEndpointInjection(t *testing.T) {
 	assert.Equal(t, "http://people-basic-1-0-0:9090", env["PEOPLE_BASIC_GRPC_ENDPOINT"])
 }
 
-// 11.18 组件 ID 含中划线时的变量名。
+// 组件 ID 含中划线时的变量名。
 func TestEnvVarNameForHyphenatedComponentID(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "infra/redis-event-bus", "1.0.0"),
@@ -296,11 +295,11 @@ func TestEnvVarNameForHyphenatedComponentID(t *testing.T) {
 }
 
 // ============================================================
-// 11.3 / 11.4 弱依赖缺失
+// 弱依赖缺失
 // ============================================================
 
 // 弱依赖没启动时**完全不注入**，不是注入空值 ——
-// 组件靠 os.environ.get() 判断"有没有"，注入空串会让它以为有（002 §3.4）。
+// 组件靠 os.environ.get() 判断"有没有"，注入空串会让它以为有。
 func TestWeakDependencyNotRunningIsNotInjected(t *testing.T) {
 	weak := simple("infra/redis-event-bus", "1.0.0", 6379)
 	weak.Deployment.ExtraPorts = []manifest.ExtraPort{{Name: "metrics", Port: 9100}}
@@ -313,7 +312,7 @@ func TestWeakDependencyNotRunningIsNotInjected(t *testing.T) {
 	env := envOf(t, b.build(), "erp/backend")
 
 	assert.NotContains(t, env, "INFRA_REDIS_EVENT_BUS_ENDPOINT", "11.3")
-	assert.NotContains(t, env, "INFRA_REDIS_EVENT_BUS_METRICS_ENDPOINT", "11.4：额外端口也不注入")
+	assert.NotContains(t, env, "INFRA_REDIS_EVENT_BUS_METRICS_ENDPOINT", "额外端口也不注入")
 	for name := range env {
 		assert.NotContains(t, name, "REDIS_EVENT_BUS", "不该残留任何该组件的变量：%s", name)
 	}
@@ -342,7 +341,7 @@ func TestSkippedComponentProducesNoEnv(t *testing.T) {
 }
 
 // ============================================================
-// 11.7 / 11.8 / 11.17 配置项注入
+// 配置项注入
 // ============================================================
 
 // configSchema 是默认值来源，brickkit.yaml 的 config 是覆盖值。
@@ -362,9 +361,9 @@ func TestConfigDefaultsAndOverrides(t *testing.T) {
 
 	env := envOf(t, b.build(), "people/basic")
 
-	assert.Equal(t, "50", env["DEFAULT_PAGE_SIZE"], "11.7：覆盖值优先")
-	assert.Equal(t, "false", env["ENABLE_AUDIT"], "11.7：false 也是有效覆盖，不能当成没写")
-	assert.Equal(t, "300", env["CACHE_TTL_SECONDS"], "11.8：没覆盖的用默认值")
+	assert.Equal(t, "50", env["DEFAULT_PAGE_SIZE"], "覆盖值优先")
+	assert.Equal(t, "false", env["ENABLE_AUDIT"], "false 也是有效覆盖，不能当成没写")
+	assert.Equal(t, "300", env["CACHE_TTL_SECONDS"], "没覆盖的用默认值")
 }
 
 // Var.Key 要记住原始 configSchema key（驼峰形式），不只是转换后的环境变量名——
@@ -441,7 +440,7 @@ func TestNonConfigVarsHaveNoKey(t *testing.T) {
 	assert.Empty(t, v.Key)
 }
 
-// CLI 不校验 config 的值类型（004 §5.6 关键规则 4）：原样转成字符串注入。
+// CLI 不校验 config 的值类型：原样转成字符串注入。
 func TestConfigValuesAreInjectedVerbatim(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
@@ -496,7 +495,7 @@ func TestConfigWithoutDefaultOrOverrideIsNotInjected(t *testing.T) {
 // configSchema.required 且没有默认值、也没有覆盖 → **阻断**。
 //
 // 组件作者写下 required 又不给默认值，说的正是"这一项我猜不出来，必须由项目给"。
-// 跨项目服务的地址就是典型（003 §4.9）：那台服务归别人管，平台推导不出来。
+// 跨项目服务的地址就是典型：那台服务归别人管，平台推导不出来。
 // 从前这里只是不注入，组件看到"未配置"，而使用者以为自己配好了。
 func TestRequiredConfigWithoutValueBlocks(t *testing.T) {
 	m := simple("shop/order", "1.0.0", 8080)
@@ -558,7 +557,7 @@ func TestOptionalConfigWithoutValueStillSilent(t *testing.T) {
 }
 
 // ============================================================
-// 11.13–11.16 升级时 configSchema 变更
+// 升级时 configSchema 变更
 // ============================================================
 
 // 新版本新增配置项 → 用新默认值（使用者没覆盖过它）。
@@ -578,7 +577,7 @@ func TestUpgradeAddedConfigKeyUsesDefault(t *testing.T) {
 }
 
 // 新版本删掉了配置项，而 brickkit.yaml 里还留着旧的覆盖 →
-// 不注入、不阻断，但**警告一声**（11.14、002 §7.9）。
+// 不注入、不阻断，但**警告一声**。
 //
 // 这一条曾经是"静默忽略"，改成警告的理由：使用者刚升完级，他配的那一行
 // 从此不起作用了，而他多半以为还在生效——那正是最该说一句的时刻。
@@ -701,7 +700,7 @@ func TestCorrectConfigKeysProduceNoWarning(t *testing.T) {
 	assert.Empty(t, b.build().Warnings)
 }
 
-// 新版本改了默认值且使用者没覆盖 → 用新默认值（11.15）。
+// 新版本改了默认值且使用者没覆盖 → 用新默认值。
 func TestUpgradeChangedDefaultTakesEffect(t *testing.T) {
 	m := simple("people/basic", "2.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
@@ -714,7 +713,7 @@ func TestUpgradeChangedDefaultTakesEffect(t *testing.T) {
 	assert.Equal(t, "100", envOf(t, b.build(), "people/basic")["DEFAULT_PAGE_SIZE"])
 }
 
-// 新版本改了默认值但使用者覆盖过 → 覆盖值优先（11.16）。
+// 新版本改了默认值但使用者覆盖过 → 覆盖值优先。
 func TestUpgradeOverrideBeatsNewDefault(t *testing.T) {
 	m := simple("people/basic", "2.0.0", 8080)
 	m.ConfigSchema = &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
@@ -728,7 +727,7 @@ func TestUpgradeOverrideBeatsNewDefault(t *testing.T) {
 }
 
 // ============================================================
-// 11.5 保留变量冲突（004 §5.6.1）
+// 保留变量冲突
 // ============================================================
 
 // 冲突时"警告但跳过，平台注入的值优先"——
@@ -779,7 +778,7 @@ func TestReservedConflictSuggestionActuallyAvoidsThePattern(t *testing.T) {
 }
 
 // ============================================================
-// 11.6 资源配额合并（004 §5.6.2，延后项 P2）
+// 资源配额合并
 // ============================================================
 
 func spec2(cpu, memory string) *manifest.ResourceSpec {
@@ -840,7 +839,7 @@ func TestResourceQuotaUsesManifestWhenNotOverridden(t *testing.T) {
 
 // 只写内存上限时，CPU 上限不该被凭空补出来。
 //
-// 这是推荐写法（005 §5.3）：内存 requests = limits 拿 Guaranteed，
+// 这是推荐写法：内存 requests = limits 拿 Guaranteed，
 // 而 CPU 不设上限——CPU limit 走 CFS quota，即使节点空闲也会在每个
 // 100ms 周期里限流，表现成毫无来由的 p99 毛刺。
 func TestMemoryLimitOnlyDoesNotInventCPULimit(t *testing.T) {

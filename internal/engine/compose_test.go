@@ -97,13 +97,13 @@ func TestUpCommand(t *testing.T) {
 	assert.Contains(t, call, "people-basic-1-0-0")
 }
 
-// `--remove-orphans` 只在"本次要清理孤儿"时才带（P38 的 Docker 侧）。
+// `--remove-orphans` 只在"本次要清理孤儿"时才带（孤儿清理的 Docker 侧）。
 //
 // 它删的是"compose 文件里没有的容器"，而 `--only` 生成的文件**只含被点名的子集**——
 // 其余组件与 CLI 托管的资源容器全部落进它的射程。K8s 侧早就为这件事设了防
 // （up_k8s.go 的 pruneSelectorFor），Docker 侧当时以为 `--remove-orphans` 是
 // 同一件事的等价物，其实正相反：它做的恰恰是被论证过不可接受的那件事
-// ——把没点名、正在服务的组件下线（005 §5.9.1）。
+// ——把没点名、正在服务的组件下线。
 func TestUpRemoveOrphansFollowsPruneSelector(t *testing.T) {
 	t.Run("整个项目一起起：清理孤儿", func(t *testing.T) {
 		rec := newRecorder()
@@ -127,7 +127,7 @@ func TestUpRemoveOrphansFollowsPruneSelector(t *testing.T) {
 	})
 }
 
-// down 绝不能带 -v：那会连数据库数据一起删掉（004 §3.6）。
+// down 绝不能带 -v：那会连数据库数据一起删掉。
 func TestDownNeverRemovesVolumes(t *testing.T) {
 	rec := newRecorder()
 
@@ -141,7 +141,7 @@ func TestDownNeverRemovesVolumes(t *testing.T) {
 	assert.NotContains(t, call, "--volumes")
 }
 
-// down 停的是**项目**，命令里不该出现任何文件路径（005 §5.9.3）。
+// down 停的是**项目**，命令里不该出现任何文件路径。
 //
 // 从前它带着 `-f <生成的 compose 文件>`，于是停掉的是"文件里写着的那些
 // service"而不是"这个项目实际跑着的那些"。两者会分叉，因为

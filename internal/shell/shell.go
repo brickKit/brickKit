@@ -59,7 +59,7 @@ type Member struct {
 // 收编成员的版本化服务名，逗号分隔、按字典序排列。零个成员时返回空字符
 // 串——这个空字符串本身就是"零个成员激活"的信号，外壳读到空字符串必须
 // 一个模块都不初始化，不能当成"变量不存在"去回退成全部启动（这两种语义
-// 不能合并处理，设计书 §7）。
+// 不能合并处理）。
 func (g Group) ServedMembers() string {
 	names := make([]string, 0, len(g.Members))
 	for _, m := range g.Members {

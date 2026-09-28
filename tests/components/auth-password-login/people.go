@@ -38,7 +38,7 @@ type peopleClient interface {
 
 // httpPeopleClient 通过 HTTP 调用 people/basic。
 //
-// 地址来自平台注入的 PEOPLE_BASIC_ENDPOINT（003 §4.5），
+// 地址来自平台注入的 PEOPLE_BASIC_ENDPOINT，
 // 组件自己不知道也不该知道对方部署在哪。
 type httpPeopleClient struct {
 	endpoint string

@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// 002 §5.3 版本化服务名：组件 ID 转换 + 精确版本号。
+// 版本化服务名：组件 ID 转换 + 精确版本号。
 // 转换规则：`/` → `-`、`.` → `-`、全部小写、拼接版本号（版本号中的 `.` → `-`）。
 func TestServiceName(t *testing.T) {
 	cases := []struct {
@@ -14,7 +14,7 @@ func TestServiceName(t *testing.T) {
 		version string
 		want    string
 	}{
-		// 002 §5.3 表格中的四行，逐字对齐
+		// 四个典型组件 ID
 		{"people/basic", "1.0.0", "people-basic-1-0-0"},
 		{"department/tree", "1.2.0", "department-tree-1-2-0"},
 		{"erp/backend", "2.1.3", "erp-backend-2-1-3"},

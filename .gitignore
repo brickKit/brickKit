@@ -63,16 +63,16 @@ go.work.sum
 # 目录以 . 开头，Go 工具链天然忽略，不会进入 ./... 的构建范围
 /.tools/
 
-# ---- BrickKit 项目运行时目录（003 §7）----
+# ---- BrickKit 项目运行时目录----
 # CLI 生成的部署文件：每次 brickkit up 重新生成，不入库
 .brickkit/generated/
-# 登录凭据：Token 绝不入库（008 §6）
+# 登录凭据：Token 绝不入库
 .brickkit/credentials
 # Manifest / artifacts 本地缓存：可由 brickkit add 重新拉取
 .brickkit/manifests/
 .brickkit/artifacts/
 
-# ---- 组件源码工作区（002 §1.6：一个组件一个仓库）----
+# ---- 组件源码工作区（一个组件一个仓库）----
 # brickkit add --repo clone 下来的组件源码各自有独立 Git 仓库，
 # 不提交到项目仓库（功能点 39）
 #
@@ -80,10 +80,10 @@ go.work.sum
 # 平台自测组件的源码，必须入库。
 /components/
 
-# 本地调试环境变量文件（005 §4）
+# 本地调试环境变量文件
 local-debug.*.env
 
-# 试用指南的试验场（每次 准备.sh --reset 都会重建）
+# 归档的旧教程试验场（每次 准备.sh --reset 都会重建）
 archive/v1/guide/playground/
 archive/v1/guide/bin/
 

@@ -1,6 +1,6 @@
 """配置、日志与"组件对平台的承诺"。
 
-覆盖 002 §1.4（配置只从环境变量读）、§11（JSON 日志、敏感字段脱敏），
+覆盖配置只从环境变量读、JSON 日志与敏感字段脱敏，
 以及 Manifest 声明与实现是否对得上。
 """
 
@@ -133,7 +133,7 @@ def test_log_level_is_configurable(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_parse_args_rejects_unknown() -> None:
-    """拼错的命令不能悄悄变成正常启动（与 002 §8.5.1 同一条道理）。"""
+    """拼错的命令不能悄悄变成正常启动（与迁移命令写错要报错是同一条道理）。"""
     with pytest.raises(ValueError):
         parse_args(["migrate"])
 
@@ -194,7 +194,7 @@ def test_dockerfile_runs_as_non_root() -> None:
 
 
 def test_dockerfile_has_healthcheck_tool() -> None:
-    """健康检查跑在容器**内部**，用的必须是镜像里真有的命令（002 §9.6）。
+    """健康检查跑在容器**内部**，用的必须是镜像里真有的命令。
 
     python:slim 既没有 wget 也没有 curl——不装的话，组件明明跑得好好的，
     平台却判它 unhealthy，依赖方永远等不到它。people/basic 真跑起来撞到过。

@@ -18,13 +18,13 @@ type Problem struct {
 // ProblemSet 收集一次校验中的全部问题，最终渲染成一个 *Error。
 //
 // 设计意图：校验不"遇错即返回"，而是一次报出所有问题，
-// 使用者改一轮就能改完（004 §10 的错误可读性要求）。
+// 使用者改一轮就能改完。
 //
 // 典型用法：
 //
 //	p := clierr.NewProblemSet(clierr.CodeManifestInvalid, "错误：component.yaml 校验失败").
 //		WithSource("文件", source).
-//		WithHint("参考 002 §2.2")
+//		WithHint("参考 component.yaml 字段说明")
 //	p.Missing("metadata.id")
 //	return p.Err()   // 没有问题时返回 nil
 type ProblemSet struct {

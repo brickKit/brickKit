@@ -1,5 +1,4 @@
-# 取自 002 §12.5「gRPC 双协议组件（含 artifacts）」，逐字对齐设计书。
-# Step 21 开发 department/tree 组件时复用此文件。
+# 一个 gRPC 双协议组件（含 artifacts）的完整 Manifest。
 apiVersion: brickkit/v1
 kind: Component
 

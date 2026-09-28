@@ -1,6 +1,6 @@
 package cli
 
-// 本文件是 P29「镜像签名」的业务行为测试。
+// 本文件是镜像 digest 钉住（发布时把 tag 换成 digest）的业务行为测试。
 //
 // # 缺口比"没做镜像签名"要小
 //
@@ -93,11 +93,11 @@ func TestPublishPinsImageDigest(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, []string{"registry.example.com/people-basic:1.2.0"}, asked,
-		"P29：应该拿着 Manifest 里的 tag 去问 registry")
+		"应该拿着 Manifest 里的 tag 去问 registry")
 	assert.Contains(t, uploadedImage(t, m), "@"+testDigest,
-		"P29：上传的 Manifest 里应该是 digest，而不是 tag")
+		"上传的 Manifest 里应该是 digest，而不是 tag")
 	assert.NotContains(t, uploadedImage(t, m), ":1.2.0",
-		"P29：tag 该被换掉，不是附加上去")
+		"tag 该被换掉，不是附加上去")
 }
 
 // **签名必须覆盖钉过 digest 的那份内容。**
@@ -124,7 +124,7 @@ func TestPublishSignsAfterPinning(t *testing.T) {
 	require.NoError(t, ring.Add(sig.PublicKeyRef, pubPEM))
 
 	assert.NoError(t, security.VerifyManifest(raw, sig, ring, "people/basic", "1.2.0"),
-		"P29：签名必须对上传的那份（已钉 digest 的）Manifest 有效")
+		"签名必须对上传的那份（已钉 digest 的）Manifest 有效")
 	assert.Contains(t, string(raw), testDigest, "上传的确实是钉过的版本")
 }
 
@@ -142,7 +142,7 @@ func TestPublishKeepsExistingDigest(t *testing.T) {
 	r := publishWith(t, f, okResolver(&asked), "publish", "--path", root)
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Empty(t, asked, "P29：已经是 digest 了，没必要再问 registry")
+	assert.Empty(t, asked, "已经是 digest 了，没必要再问 registry")
 	assert.Contains(t, uploadedImage(t, m), testDigest)
 }
 
@@ -171,7 +171,7 @@ func TestPublishBlocksWhenDigestUnresolvable(t *testing.T) {
 	assert.Contains(t, r.stderr, "--no-pin-digest", "要给出跳过的办法：%s", r.stderr)
 	for _, req := range m.requests() {
 		assert.NotContains(t, req, "/components/",
-			"P29：本地检查没过，市场里不该建出任何版本——版本号不可回收")
+			"本地检查没过，市场里不该建出任何版本——版本号不可回收")
 	}
 }
 
@@ -190,7 +190,7 @@ func TestPublishNoPinDigestWarnsLoudly(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Empty(t, asked, "给了 --no-pin-digest 就不该去问 registry")
-	assert.Contains(t, r.stdout, "⚠️", "P29：要警告：%s", r.stdout)
+	assert.Contains(t, r.stdout, "⚠️", "要警告：%s", r.stdout)
 	assert.Contains(t, uploadedImage(t, m), ":1.2.0", "跳过时保持原样的 tag")
 }
 
@@ -228,7 +228,7 @@ func TestPublishRejectsMalformedDigest(t *testing.T) {
 	for name, image := range cases {
 		t.Run(name, func(t *testing.T) {
 			err := checkImageReference(image)
-			require.Error(t, err, "P29：%s 应该被拦下", image)
+			require.Error(t, err, "%s 应该被拦下", image)
 			assert.Contains(t, clierr.As(err).Format(), "digest",
 				"错误要说清是 digest 的问题")
 		})
@@ -281,5 +281,5 @@ func TestDigestResolverRejectsGarbageOutput(t *testing.T) {
 
 	_, err := resolve(context.Background(), "registry.example.com/app:1.0.0")
 
-	require.Error(t, err, "P29：拿到一串不是 digest 的东西时不能当成成功")
+	require.Error(t, err, "拿到一串不是 digest 的东西时不能当成成功")
 }

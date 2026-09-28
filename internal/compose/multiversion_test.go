@@ -1,10 +1,9 @@
 package compose_test
 
-// 本文件是 Step 29「多版本默认共存」在**生成侧**的业务行为测试，
-// 覆盖开发计划 29.1、29.2、29.3。
+// 本文件是 「多版本默认共存」在**生成侧**的业务行为测试。
 //
 // 多版本共存不是一个开关，而是 brickkit.yaml 的直接含义：
-// **写了几个版本就启动几个容器**（003 §4.8）。它之所以成立，
+// **写了几个版本就启动几个容器**。它之所以成立，
 // 靠的是服务名带版本（`people-basic-1-0-0`）——那既是容器名，
 // 也是依赖方拿到的地址。
 //
@@ -38,7 +37,7 @@ func twoVersionProject(t *testing.T) *builder {
 	return b
 }
 
-// 29.1 / 29.2：两个版本各生成一个 service，名字带版本。
+// 两个版本各生成一个 service，名字带版本。
 func TestMultiVersionGeneratesOneServicePerVersion(t *testing.T) {
 	b := twoVersionProject(t)
 	result, err := b.build(compose.Options{})
@@ -47,11 +46,11 @@ func TestMultiVersionGeneratesOneServicePerVersion(t *testing.T) {
 	text := string(result.YAML)
 	for _, service := range []string{"people-basic-1-0-0", "people-basic-2-0-0"} {
 		assert.Contains(t, text, service+":",
-			"29.1/29.2：每个版本都该有自己的 service —— brickkit.yaml 写了几个版本就启动几个")
+			"每个版本都该有自己的 service —— brickkit.yaml 写了几个版本就启动几个")
 	}
 }
 
-// 29.3 **两个调用方注入到的地址必须各指各的。**
+// **两个调用方注入到的地址必须各指各的。**
 //
 // 这是整条多版本能力的关键。写错的表现不是报错，而是
 // "两个调用方都跑得好好的，只是其中一个连到了错的版本上"——
@@ -63,28 +62,28 @@ func TestMultiVersionInjectsDistinctEndpoints(t *testing.T) {
 	backend := envOf(t, serviceOf(t, doc, "erp-backend-1-0-0"))
 
 	assert.Equal(t, "http://people-basic-1-0-0:8080", legacy["PEOPLE_BASIC_ENDPOINT"],
-		"29.3：依赖 1.0.0 的调用方必须指向 1.0.0")
+		"依赖 1.0.0 的调用方必须指向 1.0.0")
 	assert.Equal(t, "http://people-basic-2-0-0:8080", backend["PEOPLE_BASIC_ENDPOINT"],
-		"29.3：依赖 2.0.0 的调用方必须指向 2.0.0")
+		"依赖 2.0.0 的调用方必须指向 2.0.0")
 	assert.NotEqual(t, legacy["PEOPLE_BASIC_ENDPOINT"], backend["PEOPLE_BASIC_ENDPOINT"],
-		"29.3：两个调用方指到了同一个地方 —— 多版本共存就失去意义了")
+		"两个调用方指到了同一个地方 —— 多版本共存就失去意义了")
 }
 
 // 环境变量名**不带版本**。
 //
 // 组件读的是 `PEOPLE_BASIC_ENDPOINT`，不是 `PEOPLE_BASIC_1_0_0_ENDPOINT`——
 // 否则调用方的代码会随被依赖方的版本一起改，而那正是版本化服务名要避免的：
-// 版本差异只体现在**地址的值**里，不体现在**变量名**上（004 §5.6）。
+// 版本差异只体现在**地址的值**里，不体现在**变量名**上。
 func TestMultiVersionKeepsEnvVarNameStable(t *testing.T) {
 	doc := twoVersionProject(t).parsed()
 
 	for _, service := range []string{"erp-legacy-1-0-0", "erp-backend-1-0-0"} {
 		env := envOf(t, serviceOf(t, doc, service))
 		require.Contains(t, env, "PEOPLE_BASIC_ENDPOINT",
-			"29.3：%s 的变量名该是稳定的 PEOPLE_BASIC_ENDPOINT", service)
+			"%s 的变量名该是稳定的 PEOPLE_BASIC_ENDPOINT", service)
 		for name := range env {
 			assert.False(t, strings.Contains(name, "1_0_0") || strings.Contains(name, "2_0_0"),
-				"29.3：变量名里不该出现版本号（%s），否则调用方代码会跟着被依赖方的版本改", name)
+				"变量名里不该出现版本号（%s），否则调用方代码会跟着被依赖方的版本改", name)
 		}
 	}
 }
@@ -98,7 +97,7 @@ func TestMultiVersionServicesAreIndependent(t *testing.T) {
 
 	assert.Equal(t, "people/basic", one["COMPONENT_ID"])
 	assert.Equal(t, "people/basic", two["COMPONENT_ID"])
-	assert.Equal(t, "1.0.0", one["COMPONENT_VERSION"], "29.2：各自知道自己是哪一版")
+	assert.Equal(t, "1.0.0", one["COMPONENT_VERSION"], "各自知道自己是哪一版")
 	assert.Equal(t, "2.0.0", two["COMPONENT_VERSION"])
 }
 
@@ -110,16 +109,16 @@ func TestMultiVersionServicesAreIndependent(t *testing.T) {
 //
 // # 为什么这是平台的责任
 //
-// 资源绑定按**组件 ID** 记（不带版本，003 §5.3），所以同一组件的多个版本
+// 资源绑定按**组件 ID** 记（不带版本），所以同一组件的多个版本
 // 拿到的 DATABASE_NAME 必然是同一个；而迁移状态表的主键是
-// (component_id, version)（002 §8.11），两个版本的 component_id 也是同一个。
+// (component_id, version)，两个版本的 component_id 也是同一个。
 // 于是"两个迁移容器同时对同一个库、用同一个身份跑迁移"这件事，
-// 完全是平台自己生成出来的——使用者在 brickkit.yaml 里只是照 003 §8.3
+// 完全是平台自己生成出来的——使用者在 brickkit.yaml 里只是
 // 写了两行版本号。
 //
 // # 撞的恰好是超集里重合的那部分
 //
-// 迁移只增不改（002 §8.10），所以 2.0.0 的迁移集合是 1.0.0 的超集。
+// 迁移只增不改，所以 2.0.0 的迁移集合是 1.0.0 的超集。
 // 这在**老库**上没问题：1.0.0 发现 0001 已应用就跳过、干净退出。
 // 但在**空库**上两个容器都会去跑 0001——一个成功，另一个撞主键退出，
 // 那个版本的主服务永远停在 Created。

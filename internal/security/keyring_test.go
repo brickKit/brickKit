@@ -76,7 +76,7 @@ func TestLoadKeyRingRejectsGarbage(t *testing.T) {
 
 // TestLoadKeyRingEmptyIsNotAnError 说明"没配公钥"本身不是配置错误。
 //
-// requireSignature 默认就是 true（附录 D.1），若把"没配公钥"直接判为配置非法，
+// requireSignature 默认就是 true，若把"没配公钥"直接判为配置非法，
 // 那么每一个还没用上签名的现有项目连 brickkit status 都跑不起来了。
 // 该拦的地方是安装时（那里能说清楚是哪个组件、该怎么办），不是解析配置时。
 func TestLoadKeyRingEmptyIsNotAnError(t *testing.T) {

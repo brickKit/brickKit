@@ -1,4 +1,4 @@
-// people/basic 的 gRPC 契约（002 §7：契约即产物）。
+// people/basic 的 gRPC 契约（契约即产物）。
 //
 // gRPC 跑在 extraPorts 声明的 9090 端口上：Python 的 grpcio 无法与 HTTP
 // 共用一个端口（Go 组件可以，见 department/tree），因此按 009 的建议用双端口。

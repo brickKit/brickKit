@@ -1,9 +1,9 @@
 package k8s
 
-// 本文件渲染 NetworkPolicy 与 ServiceAccount（P26），
-// 以及依赖图之外的入站来源（P36）。
+// 本文件渲染 NetworkPolicy 与 ServiceAccount，
+// 以及依赖图之外的入站来源。
 //
-// 两者都是**opt-in** 的，理由与 podSecurity 一样（D246）：加上去可能让本来
+// 两者都是**opt-in** 的，理由与 podSecurity 一样：加上去可能让本来
 // 跑得好好的东西不通，平台不替使用者做这个决定。
 //
 // NetworkPolicy 之所以值得由平台生成，只有一个理由：**依赖图在平台手里**。
@@ -38,7 +38,7 @@ const namespaceNameLabel = "kubernetes.io/metadata.name"
 //	podSelector   选中自己（用 Service 认后端的同一个 app 标签）
 //	policyTypes   只有 Ingress
 //	ingress       依赖方一条 + ingress controller 一条（对外暴露时）
-//	              + allowFrom 每条一条（图外来源，P36）
+//	              + allowFrom 每条一条（图外来源）
 //
 // 空的 ingress 列表不是"没写完"，而是"谁也不许进"——一个 Pod 只要没被
 // 任何策略选中就是全放行，所以没人依赖的组件也必须有这么一份。
@@ -87,7 +87,7 @@ func (p *plan) networkPolicyDoc(c componentPlan) map[string]any {
 
 // dependentSources 是"谁可以连我"：依赖本组件的那些组件。
 //
-// 强依赖与弱依赖**都算**。弱依赖的语义是"有就用、没有就降级"（003 §4.3），
+// 强依赖与弱依赖**都算**。弱依赖的语义是"有就用、没有就降级"，
 // 对方在的时候它是真的会去连的；漏在策略外面的表现极其迷惑——
 // 组件装了、起来了、健康检查也过，只有那条"可选"链路永远超时。
 //
@@ -216,13 +216,13 @@ func namespacedSource(namespace string, podSelector map[string]string) map[strin
 	return source
 }
 
-// annotationAllowFrom 记下额外放行了谁（P36）。
+// annotationAllowFrom 记下额外放行了谁。
 //
 // 半年后有人 `kubectl get networkpolicy -o yaml`，看到一条放行某个命名空间的
 // 规则，得能立刻知道它是干什么的——否则它只能在"不敢删"里一直躺着。
 const annotationAllowFrom = "brickkit.io/allow-from"
 
-// allowFromRules 渲染依赖图之外的入站来源（P36）。
+// allowFromRules 渲染依赖图之外的入站来源。
 //
 // 为什么需要它：生成的规则只放行依赖图里的组件，而监控、备份、服务网格
 // 这些都不在那张图上。最典型的是 Prometheus 抓 /metrics——挡掉之后

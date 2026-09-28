@@ -1,6 +1,6 @@
 package k8s
 
-// 本文件渲染 Deployment（005 §5.3）：镜像、环境变量、探针、资源配额。
+// 本文件渲染 Deployment：镜像、环境变量、探针、资源配额。
 
 import (
 	"strings"
@@ -11,7 +11,7 @@ import (
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
-// 平台标签与注解（005 §5.3）。
+// 平台标签与注解。
 const (
 	labelApp              = "app"
 	labelComponent        = "brickkit.io/component"
@@ -25,12 +25,12 @@ const (
 	//
 	// 它不能当标签：K8s 的标签**值**只允许字母数字与 - _ .，而组件 ID 是
 	// `scope/name` 带斜杠的（斜杠只在标签**键**的前缀里合法）。
-	// 设计书 005 §5.3 原来的样例 `brickkit.io/component-id: people/basic`
+	// 早先设计里的样例 `brickkit.io/component-id: people/basic`
 	// 会被 API Server 整份拒绝，连 Deployment 都建不出来。
 	annotationComponentID = "brickkit.io/component-id"
 )
 
-// 探针参数（005 §5.3）。
+// 探针参数。
 //
 // 就绪探针比存活探针更早、更密：它决定"能不能开始收流量"，
 // 而存活探针决定"要不要杀掉重启"——后者错杀的代价大得多，所以给得更宽。
@@ -70,14 +70,14 @@ func (p *plan) annotationsOf(c componentPlan) map[string]any {
 	return map[string]any{annotationComponentID: c.Ref.ID}
 }
 
-// passthroughAnnotationsOf 是平台注解加上使用者的透传 labels（002 §4.7）。
+// passthroughAnnotationsOf 是平台注解加上使用者的透传 labels。
 //
 // # 为什么 K8s 下落在 annotations 而不是 labels
 //
 // 两条理由，各自都足够：
 //
 //	打架  平台的 `app: <版本化服务名>` 是 Deployment 找到自己 Pod 的唯一依据，
-//	      也是 NetworkPolicy 的匹配依据（005 §5.3、§5.13.1）。使用者的键透传进
+//	      也是 NetworkPolicy 的匹配依据。使用者的键透传进
 //	      labels，一旦撞上就是选择器选空或策略放行错对象——两者都不报错
 //	限制  labels 的**值**只许 [A-Za-z0-9._-]，而要透传的键值里全是斜杠、
 //	      反引号与括号（`PathPrefix(`+"`"+`/erp/sales`+"`"+`)`）。写进 labels 会被
@@ -89,7 +89,7 @@ func (p *plan) annotationsOf(c componentPlan) map[string]any {
 // # 为什么只落在 Deployment 与 Pod
 //
 // Service / Ingress / PDB / NetworkPolicy 都不加：Ingress 的注解口已经是
-// `deploy.ingressAnnotations`（003 §3），两个口子写同一处会互相覆盖而且没人
+// `deploy.ingressAnnotations`，两个口子写同一处会互相覆盖而且没人
 // 说得清谁赢。Pod 必须加，`prometheus.io/scrape` 这一类抓的是 Pod。
 // 迁移 Job 不加，理由与 Docker 侧相同（见 compose.componentService）。
 func (p *plan) passthroughAnnotationsOf(c componentPlan) map[string]any {
@@ -115,7 +115,7 @@ func (p *plan) deploymentDoc(c componentPlan) map[string]any {
 			"annotations": annotations,
 		},
 		"spec": map[string]any{
-			// 副本数由 brickkit.yaml 的 replicas 决定，不写就是 1（005 §5.8）。
+			// 副本数由 brickkit.yaml 的 replicas 决定，不写就是 1。
 			// HPA 自动扩容仍是后期能力
 			"replicas": c.Entry.ReplicaCount(),
 			// selector 只认 app：它是 K8s 里 Deployment 找到自己 Pod 的唯一依据，
@@ -134,7 +134,7 @@ func (p *plan) deploymentDoc(c componentPlan) map[string]any {
 	}
 }
 
-// podSpec 渲染 Pod 规格：容器 + 集群侧要求（005 §5.5.2）。
+// podSpec 渲染 Pod 规格：容器 + 集群侧要求。
 func (p *plan) podSpec(c componentPlan, container map[string]any) map[string]any {
 	spec := map[string]any{"containers": []any{container}}
 
@@ -150,7 +150,7 @@ func (p *plan) podSpec(c componentPlan, container map[string]any) map[string]any
 	return spec
 }
 
-// securityContext 按 Pod Security Standards 的 restricted 级别生成（005 §14.3）。
+// securityContext 按 Pod Security Standards 的 restricted 级别生成。
 //
 // 不写 deploy.podSecurity 时**什么都不生成**：加上它可能让本来跑得好好的组件
 // 起不来（镜像以 root 运行、要绑 1024 以下的端口……），不能默默替使用者决定。
@@ -204,7 +204,7 @@ func containerName(id string) string {
 	return strings.NewReplacer("/", "-", ".", "-").Replace(strings.ToLower(id))
 }
 
-// containerPorts 渲染 containerPort 列表：主端口 + extraPorts（附录 B.7）。
+// containerPorts 渲染 containerPort 列表：主端口 + extraPorts。
 func containerPorts(m *manifest.Manifest) []any {
 	ports := []any{map[string]any{"name": mainPortName, "containerPort": m.Deployment.Port}}
 	for _, extra := range m.Deployment.ExtraPorts {
@@ -238,9 +238,9 @@ func (p *plan) envDoc(c componentPlan) []any {
 	return out
 }
 
-// livenessProbe 渲染存活探针（005 §5.3）。
+// livenessProbe 渲染存活探针。
 //
-// ⚠️ 探的是主端口上的 /healthz，而 /healthz 只应检查本进程存活（002 §9.4）：
+// ⚠️ 探的是主端口上的 /healthz，而 /healthz 只应检查本进程存活：
 // 存活探针失败会让 K8s 直接杀掉 Pod，在里面检查数据库等于让下游故障
 // 变成自己的重启风暴。
 func livenessProbe(m *manifest.Manifest) map[string]any {
@@ -260,7 +260,7 @@ func livenessProbe(m *manifest.Manifest) map[string]any {
 	return probe
 }
 
-// startupProbe 渲染启动探针（005 §5.3、002 §9.3）。
+// startupProbe 渲染启动探针。
 //
 // # 为什么必须有它，而不是把 livenessProbe 的 initialDelaySeconds 调大
 //
@@ -302,7 +302,7 @@ func startupFailureThreshold(seconds int) int {
 	return threshold
 }
 
-// readinessProbe 渲染就绪探针（005 §5.3）。
+// readinessProbe 渲染就绪探针。
 func readinessProbe(m *manifest.Manifest) map[string]any {
 	action := probeAction(m)
 	if action == nil {
@@ -324,7 +324,7 @@ func readinessProbe(m *manifest.Manifest) map[string]any {
 //
 // 与 compose 那边的一处根本差别：K8s 的 httpGet 由 kubelet 从**容器外**发起，
 // 不要求镜像里有 wget / curl（compose 的 healthcheck 跑在容器内部，
-// 因此那边必须凑出一条镜像里真有的命令，见 002 §9.6）。
+// 因此那边必须凑出一条镜像里真有的命令）。
 func probeAction(m *manifest.Manifest) map[string]any {
 	if m == nil {
 		return nil
@@ -343,7 +343,7 @@ func probeAction(m *manifest.Manifest) map[string]any {
 	}
 }
 
-// resourcesDoc 渲染资源配额（005 §5.3）。
+// resourcesDoc 渲染资源配额。
 //
 // 直接用 Manifest 里的写法（100m / 128Mi）——那本来就是 K8s 的写法，
 // 不需要 compose 那边的换算。

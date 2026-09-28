@@ -27,7 +27,7 @@ make lint             # vet + 全部文档一致性检查
 
 单元测试**紧挨着被测代码**（`internal/**/*_test.go`、`market-server/internal/**/*_test.go`）——不用维护一套平行的测试目录。`tests/` 只放真的没法挨着代码放的东西：`tests/checklist/` 和 `tests/regression/` 是验收清单，每一行都配着证明它的测试（两者都由 `make lint` 守着，具体见 README 的"构建与测试"表格），`tests/components/` 放的是好几个测试和教程文章实际会跑起来的真实夹具组件。
 
-如果你要加一条值得进清单的行为（边界条件、错误场景、兼容性或安全保证），把这一行加进对应的 `tests/checklist/*/清单.tsv` 或 `tests/regression/清单.tsv`，再接一个真测试上去——清单里有一行没测试、或者测试已经不存在了，都会**故意**让构建失败（原因见 README"构建与测试"那张表）。
+如果你要加一条值得进清单的行为（边界条件、错误场景、兼容性或安全保证），把这一行加进对应的 `tests/checklist/清单.tsv` 或 `tests/regression/清单.tsv`，再接一个真测试上去——清单里有一行没测试、或者测试已经不存在了，都会**故意**让构建失败（原因见 README"构建与测试"那张表）。
 
 ## 文档规范
 

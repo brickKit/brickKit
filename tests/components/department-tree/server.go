@@ -13,7 +13,7 @@ import (
 	departmentv1 "github.com/brickkit/components/department-tree/gen/department/v1"
 )
 
-// server 在**同一个端口**上同时提供 HTTP/1.1 REST 与 gRPC（009 §Go 组件）。
+// server 在**同一个端口**上同时提供 HTTP/1.1 REST 与 gRPC。
 //
 // 做法：用 h2c 承载明文 HTTP/2，再按 Content-Type 分流——
 // `application/grpc` 交给 gRPC 服务器，其余交给 REST 路由。
@@ -30,7 +30,7 @@ func newServer(svc *service) *server {
 	grpcServer := grpc.NewServer()
 	departmentv1.RegisterDepartmentServiceServer(grpcServer, svc)
 
-	// 21.3 反射：让 grpcurl 不带 .proto 文件也能列出并调用服务。
+	// 反射：让 grpcurl 不带 .proto 文件也能列出并调用服务。
 	// 对一个"契约即产物"的平台来说，这是排障时最省事的入口。
 	reflection.Register(grpcServer)
 

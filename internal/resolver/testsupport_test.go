@@ -37,7 +37,7 @@ type comp struct {
 	EmptyDependencies bool
 }
 
-// yamlText 渲染出一份合法的 component.yaml（002 §2.2）。
+// yamlText 渲染出一份合法的 component.yaml。
 func (c comp) yamlText() string {
 	var b strings.Builder
 	b.WriteString("apiVersion: brickkit/v1\nkind: Component\nmetadata:\n")

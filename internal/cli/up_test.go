@@ -1,5 +1,4 @@
-// 本文件是 Step 15-A 的业务行为测试：`brickkit up` 真正把项目启动起来
-// （004 §3.5）。覆盖 15.1–15.6、15.19、15.22–15.25。
+// 本文件是 `brickkit up` 的业务行为测试：真正把项目启动起来。
 //
 // 引擎是假的：命令层的职责是"决定谁该启动、先检查什么、按什么顺序说给人听"，
 // 不是"怎么调 docker"。真引擎另有真实运行验证。
@@ -21,7 +20,7 @@ import (
 )
 
 // ============================================================
-// 15.1 启动
+// 启动
 // ============================================================
 
 func TestUpStartsAllComponents(t *testing.T) {
@@ -111,7 +110,7 @@ func TestUpReportsEngineFailure(t *testing.T) {
 }
 
 // ============================================================
-// 15.6 --dry-run
+// --dry-run
 // ============================================================
 
 func TestUpDryRunDoesNotTouchTheEngine(t *testing.T) {
@@ -121,12 +120,12 @@ func TestUpDryRunDoesNotTouchTheEngine(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "up", "--dry-run")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Empty(t, eng.ups, "15.6：--dry-run 不启动")
+	assert.Empty(t, eng.ups, "--dry-run 不启动")
 	assert.Empty(t, eng.checked, "--dry-run 也不该去问 registry")
 }
 
 // ============================================================
-// 15.19 镜像拉取权限
+// 镜像拉取权限
 // ============================================================
 
 func TestUpChecksImagesBeforeStarting(t *testing.T) {
@@ -135,7 +134,7 @@ func TestUpChecksImagesBeforeStarting(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, g.upWith(dir, eng, newFakeImages()).code)
 
-	assert.Len(t, eng.checked, 2, "15.19：每个要启动的组件都要检查镜像")
+	assert.Len(t, eng.checked, 2, "每个要启动的组件都要检查镜像")
 }
 
 // pulledImagesProject：两个从 git 安装、带 image 的组件——它们的镜像是拉取的，走 registry 检查。
@@ -168,7 +167,7 @@ func TestUpImageUnauthorizedBlocksStart(t *testing.T) {
 }
 
 // 镜像检查失败但不是权限问题时，不要把引擎的说法换成"去 docker login"：
-// 那会把人引向错误的方向（P18 踩过同样的坑）。
+// 那会把人引向错误的方向（这个坑真踩过）。
 func TestUpImageCheckFailureKeepsTheRealReason(t *testing.T) {
 	g, dir := pulledImagesProject(t)
 	eng := newFakeEngine()
@@ -184,7 +183,7 @@ func TestUpImageCheckFailureKeepsTheRealReason(t *testing.T) {
 }
 
 // ============================================================
-// 15.2–15.5 启停判定
+// 启停判定
 // ============================================================
 
 // 15.2：没人依赖、也没钉住的组件不会被启动。
@@ -206,7 +205,7 @@ func TestUpCascadeSkipsUnneededComponent(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "up")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Empty(t, eng.ups, "15.2/15.4：一个都不该启动")
+	assert.Empty(t, eng.ups, "一个都不该启动")
 	assert.Contains(t, r.stdout, "No component will start this run")
 }
 
@@ -393,7 +392,7 @@ func TestUpDisabledStrongDependencyIsAnError(t *testing.T) {
 }
 
 // ============================================================
-// 15.22–15.25 输出
+// 输出
 // ============================================================
 
 func TestUpOutputShowsStatesAndOrder(t *testing.T) {

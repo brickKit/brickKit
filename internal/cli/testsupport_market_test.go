@@ -1,4 +1,4 @@
-// 本文件为 Step 19 的测试提供一个假市场。
+// 本文件为发布相关的测试提供一个假市场。
 //
 // 它按真实市场（market-server，18-D 落地）的路径与信封形状应答，并把收到的
 // 每一次调用记录下来——发布的正确性就是"按什么顺序、发了哪些请求"。
@@ -48,10 +48,10 @@ type fakeMarket struct {
 	// storedVersion / storedStatus / storedManifest 是这个假市场"记住"的那个版本。
 	//
 	// 它像真市场一样有状态：第一次建版本记下 Manifest 与 draft 状态，之后再建
-	// 同一个版本就返回 409（版本号不可回收，007 §6.4），转 stable 时改状态。
+	// 同一个版本就返回 409（版本号不可回收），转 stable 时改状态。
 	// 有了它，"上一次没发完"这个场景可以**照真实路径构造**——让上传产物失败一次
 	// 就行，不用手工编一份 Manifest（而手工编的那份还对不上：publish 会先把
-	// image tag 钉成 digest 再发，P29）。
+	// image tag 钉成 digest 再发）。
 	storedVersion  string
 	storedStatus   string
 	storedManifest any

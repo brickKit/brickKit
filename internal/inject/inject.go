@@ -1,4 +1,4 @@
-// Package inject 计算每个组件的环境变量与资源配额（004 §5.6）。
+// Package inject 计算每个组件的环境变量与资源配额。
 //
 // 它只产出"注入什么"，不负责"写到哪里、什么时候求值"——Docker、K8s、本地进程
 // 各有一处唯一的判定（compose.envPlacement、k8s.envPlacement、compose.localValue），
@@ -26,7 +26,7 @@ import (
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
-// CLI 默认资源配额（004 §5.6.2）。
+// CLI 默认资源配额。
 //
 // **只有 requests 有默认值，limits 没有。** 没人写就不生成 limits——
 // 这是刻意的，两个方向的失败代价完全不对称：
@@ -39,7 +39,7 @@ import (
 //
 // 从前这里默认给 500m / 512Mi。那意味着**任何一个真的需要 600Mi 的组件，
 // 都会被一个平台编出来的数字反复 OOMKill**，而配置里一个字都没写过它。
-// 这与"平台提供工具，不替人做决定"（001 §12）直接冲突——限额是业务判断，
+// 这与"平台提供工具，不替人做决定"直接冲突——限额是业务判断，
 // 只有写下它的人知道那个数字对不对。
 //
 // requests 保留默认值，因为它的性质相反：它是**给调度器的提示**，
@@ -83,11 +83,11 @@ const (
 // Component 是一个组件的注入结果。
 type Component struct {
 	Ref resolver.Ref
-	// Service 是版本化服务名（002 §5.3）。
+	// Service 是版本化服务名。
 	Service string
 	// Env 按变量名排序，保证生成的部署文件稳定可比对。
 	Env []Var
-	// Resources 是合并后的资源配额（004 §5.6.2）。
+	// Resources 是合并后的资源配额。
 	Resources manifest.Resources
 	// Labels 是合并后的透传部署元数据；一个键都没有时是 nil。
 	Labels map[string]string
@@ -198,7 +198,7 @@ func buildComponent(
 	// 2. 依赖地址（强依赖 + 正在启动的弱依赖）
 	for _, dep := range append(append([]resolver.Ref{}, node.Requires...), node.Optional...) {
 		if !states.IsRunning(dep) {
-			// 弱依赖没启动 → 完全不注入（002 §3.4）；强依赖没启动时这个组件自己也不会启动
+			// 弱依赖没启动 → 完全不注入；强依赖没启动时这个组件自己也不会启动
 			continue
 		}
 		// 被外壳承载的成员没有自己的容器：地址指向外壳（提案 §8.8），端口仍是成员自己的
@@ -236,7 +236,7 @@ func buildComponent(
 		Service:   service,
 		Env:       builder.sorted(),
 		Resources: mergeResources(manifestResources(m), entry.Resources),
-		// 部署文件逐键覆盖 component.yaml（004 §5.6.2）
+		// 部署文件逐键覆盖 component.yaml
 		Labels: manifest.MergeLabels(manifestLabels(m), entry.Labels),
 	}
 	return component, warnings, resolved.Missing, nil
@@ -292,7 +292,7 @@ func (b *envBuilder) sorted() []Var {
 }
 
 // ============================================================
-// 资源配额合并（004 §5.6.2）
+// 资源配额合并
 // ============================================================
 
 // mergeResources 按 brickkit.yaml > component.yaml > CLI 默认值 合并配额。

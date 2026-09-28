@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// 本文件覆盖开发计划 23.2（JWT 格式正确：包含 exp/iat/sub），
+// 本文件覆盖 JWT 格式正确（包含 exp/iat/sub），
 // 以及一组"签发方最容易被绕过"的攻击面。
 //
 // 令牌是这个组件唯一的产出物。它被签发出去之后，组件就管不着了——
@@ -38,7 +38,7 @@ func newTestIssuer(t *testing.T, now func() time.Time) *tokenIssuer {
 }
 
 // ============================================================
-// 23.2 JWT 格式
+// JWT 格式
 // ============================================================
 
 func TestIssuedTokenCarriesRequiredClaims(t *testing.T) {

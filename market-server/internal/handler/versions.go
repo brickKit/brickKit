@@ -8,7 +8,7 @@ import (
 	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
-// publish 处理 POST /api/v1/components/{id}/versions（007 §3.7、18.1）。
+// publish 处理 POST /api/v1/components/{id}/versions。
 func (a *api) publish(w http.ResponseWriter, r *http.Request, p params) {
 	id, ok := a.requireIdentity(w, r)
 	if !ok {
@@ -29,7 +29,7 @@ func (a *api) publish(w http.ResponseWriter, r *http.Request, p params) {
 	writeJSON(w, http.StatusCreated, version)
 }
 
-// listVersions 处理 GET /api/v1/components/{id}/versions（007 §4.4、18.2）。
+// listVersions 处理 GET /api/v1/components/{id}/versions。
 func (a *api) listVersions(w http.ResponseWriter, r *http.Request, p params) {
 	id, ok := a.requireIdentity(w, r)
 	if !ok {
@@ -51,7 +51,7 @@ func (a *api) listVersions(w http.ResponseWriter, r *http.Request, p params) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// setVersionStatus 处理 PUT /api/v1/components/{id}/versions/{ver}（007 §6.3、18.17）。
+// setVersionStatus 处理 PUT /api/v1/components/{id}/versions/{ver}。
 func (a *api) setVersionStatus(w http.ResponseWriter, r *http.Request, p params) {
 	id, ok := a.requireIdentity(w, r)
 	if !ok {
@@ -60,7 +60,7 @@ func (a *api) setVersionStatus(w http.ResponseWriter, r *http.Request, p params)
 
 	var body struct {
 		Status string `json:"status"`
-		// Reason 落进审计条目的 detail，不影响判定（008 §10.4、运维指南 §6.5）。
+		// Reason 落进审计条目的 detail，不影响判定。
 		// 这里曾经解析出来就丢掉——注释写着"只用于审计"，而它哪儿都没去。
 		Reason string `json:"reason,omitempty"`
 	}
@@ -80,7 +80,7 @@ func (a *api) setVersionStatus(w http.ResponseWriter, r *http.Request, p params)
 	})
 }
 
-// deleteVersion 处理 DELETE /api/v1/components/{id}/versions/{ver}（18.24）。
+// deleteVersion 处理 DELETE /api/v1/components/{id}/versions/{ver}。
 //
 // 是软删除：对外视同不存在，但版本号继续占位。
 func (a *api) deleteVersion(w http.ResponseWriter, r *http.Request, p params) {
@@ -98,9 +98,9 @@ func (a *api) deleteVersion(w http.ResponseWriter, r *http.Request, p params) {
 	})
 }
 
-// manifest 处理 GET /api/v1/components/{id}/versions/{ver}/manifest（007 §4.5、18.3）。
+// manifest 处理 GET /api/v1/components/{id}/versions/{ver}/manifest。
 //
-// 这是 `brickkit add` 的入口端点，响应形状受 CLI 契约（D47）约束：
+// 这是 `brickkit add` 的入口端点，响应形状受 CLI 契约约束：
 // data.manifest 是 component.yaml 本身，data.sourceType / data.gitUrl
 // 供 `--repo` 判断开源还是闭源。
 func (a *api) manifest(w http.ResponseWriter, r *http.Request, p params) {
@@ -137,7 +137,7 @@ func (a *api) doc(w http.ResponseWriter, r *http.Request, p params) {
 	_, _ = io.WriteString(w, doc)
 }
 
-// listAudit 处理 GET /api/v1/audit（007 §16、18.13）。
+// listAudit 处理 GET /api/v1/audit。
 func (a *api) listAudit(w http.ResponseWriter, r *http.Request, _ params) {
 	id, ok := a.requireIdentity(w, r)
 	if !ok {

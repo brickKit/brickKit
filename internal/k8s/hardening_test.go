@@ -1,6 +1,6 @@
-// 本文件是 P26「NetworkPolicy / ServiceAccount」的业务行为测试。
+// 本文件是「NetworkPolicy / ServiceAccount」的业务行为测试。
 //
-// 这两样设计书原本没有（005 §5 只写到 Ingress 为止）。P26 当初记的理由是
+// 这两样最初的设计里没有（生成只写到 Ingress 为止），当初记的理由是
 // "三者都强依赖集群侧的策略约定，凭空生成一份多半是错的"——那个判断对 PDB
 // 仍然成立（见 pdb_test.go 里的说明），但对 NetworkPolicy 不成立，
 // 因为**BrickKit 手里有依赖图**：谁该连谁是组件声明出来的，不是猜的。
@@ -99,7 +99,7 @@ func allowedFrom(t *testing.T, doc map[string]any) map[string]bool {
 
 // 不写 deploy.networkPolicy 时**什么都不生成**。
 //
-// 与 podSecurity 同一个道理（D246）：集群里可能压根没有能执行策略的 CNI，
+// 与 podSecurity 同一个道理：集群里可能压根没有能执行策略的 CNI，
 // 也可能运维已经在命名空间级别铺了一套自己的策略。默默给每个组件套一层
 // 默认拒绝，最好的情况是没人执行、白写；最坏的情况是把本来通的流量掐断。
 func TestNetworkPolicyNotGeneratedByDefault(t *testing.T) {
@@ -109,7 +109,7 @@ func TestNetworkPolicyNotGeneratedByDefault(t *testing.T) {
 	result := b.generate()
 
 	assert.False(t, hasFile(result, npPath("people-basic-1-0-0")),
-		"P26：不写 deploy.networkPolicy 就不该有 NetworkPolicy，实际生成了：%v", pathsOf(result))
+		"不写 deploy.networkPolicy 就不该有 NetworkPolicy，实际生成了：%v", pathsOf(result))
 }
 
 // ============================================================
@@ -122,14 +122,14 @@ func TestNetworkPolicyBasics(t *testing.T) {
 
 	doc := b.doc(npPath("people-basic-1-0-0"))
 
-	assert.Equal(t, "networking.k8s.io/v1", doc["apiVersion"], "P26")
-	assert.Equal(t, "NetworkPolicy", doc["kind"], "P26")
+	assert.Equal(t, "networking.k8s.io/v1", doc["apiVersion"])
+	assert.Equal(t, "NetworkPolicy", doc["kind"])
 	assert.Equal(t, "people-basic-1-0-0", dig(t, doc, "metadata", "name"))
 	assert.Equal(t, "brickkit-my-erp", dig(t, doc, "metadata", "namespace"))
 
 	assert.Equal(t, map[string]any{"matchLabels": map[string]any{"app": "people-basic-1-0-0"}},
 		dig(t, doc, "spec", "podSelector"),
-		"P26：策略作用在自己的 Pod 上，用的是 Service 认后端的同一个标签")
+		"策略作用在自己的 Pod 上，用的是 Service 认后端的同一个标签")
 }
 
 // 只生成 Ingress 方向，不生成 Egress。
@@ -137,7 +137,7 @@ func TestNetworkPolicyBasics(t *testing.T) {
 // 这是一条**有意的**边界，不是漏做：出站方向 BrickKit 生成不出正确的规则。
 //
 //	DNS       得显式放行 kube-dns，而它在哪个命名空间、什么标签，各集群不一样
-//	数据库    K8s 下基础资源由运维部署（005 §5.1），可能在别的命名空间、
+//	数据库    K8s 下基础资源由运维部署，可能在别的命名空间、
 //	          也可能是集群外一个托管实例的 IP——配置里只有一个 host 字符串，
 //	          变不成 podSelector 也变不成 CIDR
 //
@@ -150,9 +150,9 @@ func TestNetworkPolicyIsIngressOnly(t *testing.T) {
 	doc := b.doc(npPath("people-basic-1-0-0"))
 
 	assert.Equal(t, []any{"Ingress"}, dig(t, doc, "spec", "policyTypes"),
-		"P26：只管入站。出站方向生成不出正确规则，见本测试的注释")
+		"只管入站。出站方向生成不出正确规则，见本测试的注释")
 	assert.NotContains(t, doc["spec"], "egress",
-		"P26：不能生成 egress 段")
+		"不能生成 egress 段")
 }
 
 // ============================================================
@@ -169,7 +169,7 @@ func TestNetworkPolicyAllowsDependents(t *testing.T) {
 	allowed := allowedFrom(t, b.doc(npPath("people-basic-1-0-0")))
 
 	assert.True(t, allowed["erp-backend-1-0-0"],
-		"P26：声明了依赖就必须放行，否则装上就连不通——实际放行的是 %v", allowed)
+		"声明了依赖就必须放行，否则装上就连不通——实际放行的是 %v", allowed)
 }
 
 // 没声明依赖的组件进不来。
@@ -186,17 +186,17 @@ func TestNetworkPolicyDeniesNonDependents(t *testing.T) {
 	allowed := allowedFrom(t, b.doc(npPath("people-basic-1-0-0")))
 
 	assert.False(t, allowed["infra-redis-event-bus-1-0-0"],
-		"P26：没声明依赖就不该被放行——实际放行的是 %v", allowed)
+		"没声明依赖就不该被放行——实际放行的是 %v", allowed)
 }
 
 // 弱依赖也要放行。
 //
-// 弱依赖的语义是"有就用、没有就降级"（003 §4.3）——组件在的时候它是真的会去连的。
+// 弱依赖的语义是"有就用、没有就降级"——组件在的时候它是真的会去连的。
 // 把弱依赖漏在策略外面，表现会非常迷惑：组件装了、起来了、健康检查也过，
 // 只是那条"可选"的链路永远超时，看起来就像对方本来就没装。
 func TestNetworkPolicyAllowsOptionalDependents(t *testing.T) {
 	b := withNetworkPolicy(newBuilder(t))
-	// mode: enabled 是必需的：只被弱依赖引用的组件会被级联跳过（004 §4.5），
+	// mode: enabled 是必需的：只被弱依赖引用的组件会被级联跳过，
 	// 要它真的跑起来就得钉住
 	b.component(simple("infra/redis-event-bus", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeEnabled})
 	b.component(
@@ -206,7 +206,7 @@ func TestNetworkPolicyAllowsOptionalDependents(t *testing.T) {
 	allowed := allowedFrom(t, b.doc(npPath("infra-redis-event-bus-1-0-0")))
 
 	assert.True(t, allowed["erp-backend-1-0-0"],
-		"P26：弱依赖运行时照样会连，必须放行——实际放行的是 %v", allowed)
+		"弱依赖运行时照样会连，必须放行——实际放行的是 %v", allowed)
 }
 
 // 没人依赖的组件：生成一份**空** ingress 的策略，而不是不生成。
@@ -220,7 +220,7 @@ func TestNetworkPolicyWithoutDependentsDeniesAll(t *testing.T) {
 	doc := b.doc(npPath("people-basic-1-0-0"))
 
 	assert.Equal(t, []any{}, dig(t, doc, "spec", "ingress"),
-		"P26：没人依赖它，就应该是一条规则都没有的空列表（拒绝一切入站）")
+		"没人依赖它，就应该是一条规则都没有的空列表（拒绝一切入站）")
 }
 
 // 只放行组件**声明过**的端口，包括 extraPorts。
@@ -244,7 +244,7 @@ func TestNetworkPolicyAllowsDeclaredPortsOnly(t *testing.T) {
 		map[string]any{"protocol": "TCP", "port": 8080},
 		map[string]any{"protocol": "TCP", "port": 9090},
 	}, dig(t, rules[0], "ports"),
-		"P26：主端口与 extraPorts 都要放行，且仅放行这些")
+		"主端口与 extraPorts 都要放行，且仅放行这些")
 }
 
 // ============================================================
@@ -277,11 +277,11 @@ func TestNetworkPolicyAllowsIngressController(t *testing.T) {
 		"podSelector": map[string]any{
 			"matchLabels": map[string]any{"app.kubernetes.io/name": "ingress-nginx"},
 		},
-	}, froms[0], "P26：AND 语义")
+	}, froms[0], "AND 语义")
 
 	assert.Equal(t, []any{map[string]any{"protocol": "TCP", "port": 8080}},
 		dig(t, rules[0], "ports"),
-		"P26：Ingress 只会打到主端口，没必要把 extraPorts 也对外放开")
+		"Ingress 只会打到主端口，没必要把 extraPorts 也对外放开")
 }
 
 // 不写 podSelector 时放行该命名空间的所有 Pod。
@@ -305,7 +305,7 @@ func TestNetworkPolicyIngressControllerNamespaceOnly(t *testing.T) {
 		"namespaceSelector": map[string]any{
 			"matchLabels": map[string]any{"kubernetes.io/metadata.name": "ingress-nginx"},
 		},
-	}, froms[0], "P26：没写 podSelector 就只按命名空间放行")
+	}, froms[0], "没写 podSelector 就只按命名空间放行")
 }
 
 // 有 expose: true 的组件却没说 ingress controller 在哪 → 阻断。
@@ -321,7 +321,7 @@ func TestNetworkPolicyRequiresIngressControllerWhenExposed(t *testing.T) {
 
 	_, err := b.build()
 
-	require.Error(t, err, "P26：这个组合必须阻断")
+	require.Error(t, err, "这个组合必须阻断")
 	assert.Contains(t, err.Error(), "ingressController",
 		"错误要点出到底该补哪个字段：%v", err)
 	assert.Contains(t, err.Error(), "portal/user-frontend",
@@ -336,7 +336,7 @@ func TestNetworkPolicyWithoutExposedComponentsNeedsNoController(t *testing.T) {
 
 	_, err := b.build()
 
-	require.NoError(t, err, "P26：全是内部组件时不该逼人去配 ingress controller")
+	require.NoError(t, err, "全是内部组件时不该逼人去配 ingress controller")
 }
 
 // ============================================================
@@ -361,7 +361,7 @@ func TestServiceAccountFallsBackToDefaultWhenDisabled(t *testing.T) {
 
 	result := b.generate()
 	assert.False(t, hasFile(result, saPath("people-basic-1-0-0")),
-		"P26：不写 deploy.serviceAccount 就不该生成 SA 对象，实际有：%v", pathsOf(result))
+		"不写 deploy.serviceAccount 就不该生成 SA 对象，实际有：%v", pathsOf(result))
 
 	spec := dig(t, b.doc("deployments/people-basic-1-0-0.yaml"), "spec", "template", "spec")
 	assert.Equal(t, "default", spec.(map[string]any)["serviceAccountName"],
@@ -404,12 +404,12 @@ func TestServiceAccountGenerated(t *testing.T) {
 
 	doc := b.doc(saPath("people-basic-1-0-0"))
 
-	assert.Equal(t, "v1", doc["apiVersion"], "P26")
-	assert.Equal(t, "ServiceAccount", doc["kind"], "P26")
+	assert.Equal(t, "v1", doc["apiVersion"])
+	assert.Equal(t, "ServiceAccount", doc["kind"])
 	assert.Equal(t, "people-basic-1-0-0", dig(t, doc, "metadata", "name"))
 	assert.Equal(t, "brickkit-my-erp", dig(t, doc, "metadata", "namespace"))
 	assert.Equal(t, false, doc["automountServiceAccountToken"],
-		"P26：业务组件不需要跟 API Server 说话，令牌不该挂进去")
+		"业务组件不需要跟 API Server 说话，令牌不该挂进去")
 }
 
 // Deployment 要真的用上它——SA 建了但没人引用是最容易漏的一步。
@@ -424,8 +424,8 @@ func TestDeploymentUsesServiceAccount(t *testing.T) {
 
 	spec := dig(t, b.doc("deployments/people-basic-1-0-0.yaml"), "spec", "template", "spec")
 
-	assert.Equal(t, "people-basic-1-0-0", dig(t, spec, "serviceAccountName"), "P26")
-	assert.Equal(t, false, dig(t, spec, "automountServiceAccountToken"), "P26")
+	assert.Equal(t, "people-basic-1-0-0", dig(t, spec, "serviceAccountName"))
+	assert.Equal(t, false, dig(t, spec, "automountServiceAccountToken"))
 }
 
 // 迁移 Job 用同一个 SA：它是同一个组件的同一个镜像，跑在同一个命名空间里。
@@ -440,13 +440,13 @@ func TestMigrationJobUsesServiceAccount(t *testing.T) {
 	spec := dig(t, b.doc("migrations/people-basic-1-0-0-migration.yaml"),
 		"spec", "template", "spec")
 
-	assert.Equal(t, "people-basic-1-0-0", dig(t, spec, "serviceAccountName"), "P26")
-	assert.Equal(t, false, dig(t, spec, "automountServiceAccountToken"), "P26")
+	assert.Equal(t, "people-basic-1-0-0", dig(t, spec, "serviceAccountName"))
+	assert.Equal(t, false, dig(t, spec, "automountServiceAccountToken"))
 }
 
 // 组件指定了已有的 SA 时：只引用，不生成。
 //
-// 这是 P26 当初"用哪个 SA"这个问号的正面回答。云上很常见——SA 上绑着
+// 这是当初"用哪个 SA"这个问号的正面回答。云上很常见——SA 上绑着
 // IRSA / Workload Identity 的注解，由运维创建并授权，平台去覆盖它
 // 就等于把那份授权抹掉，而且是安静地抹掉（apply 会成功）。
 func TestExistingServiceAccountIsReferencedNotGenerated(t *testing.T) {
@@ -457,12 +457,12 @@ func TestExistingServiceAccountIsReferencedNotGenerated(t *testing.T) {
 
 	result := b.generate()
 	assert.False(t, hasFile(result, saPath("people-basic-1-0-0")),
-		"P26：运维建的 SA 不能由平台重新生成一份盖掉，实际有：%v", pathsOf(result))
+		"运维建的 SA 不能由平台重新生成一份盖掉，实际有：%v", pathsOf(result))
 
 	spec := dig(t, b.doc("deployments/people-basic-1-0-0.yaml"), "spec", "template", "spec")
-	assert.Equal(t, "people-s3-reader", dig(t, spec, "serviceAccountName"), "P26")
+	assert.Equal(t, "people-s3-reader", dig(t, spec, "serviceAccountName"))
 	assert.NotContains(t, spec, "automountServiceAccountToken",
-		"P26：别人的 SA 由别人决定挂不挂令牌——它可能正是靠令牌去调 API 的")
+		"别人的 SA 由别人决定挂不挂令牌——它可能正是靠令牌去调 API 的")
 }
 
 // 只写 serviceAccountName、没开 deploy.serviceAccount 时照样生效。
@@ -475,7 +475,7 @@ func TestServiceAccountNameWorksWithoutGlobalSwitch(t *testing.T) {
 
 	spec := dig(t, b.doc("deployments/people-basic-1-0-0.yaml"), "spec", "template", "spec")
 
-	assert.Equal(t, "people-s3-reader", dig(t, spec, "serviceAccountName"), "P26")
+	assert.Equal(t, "people-s3-reader", dig(t, spec, "serviceAccountName"))
 }
 
 // ============================================================
@@ -498,7 +498,7 @@ func TestServiceAccountNameWorksWithoutGlobalSwitch(t *testing.T) {
 // 要命的是代价落在谁身上：打开开关的是开发者，撞上的是几个月后升级集群的运维，
 // 而那时现场只有一个排不空的节点，跟 brickkit.yaml 里某个开关联系不起来。
 //
-// **P35 已落地**：`replicas` 现在可配（005 §5.8），多副本时生成
+// `replicas` 现在可配，多副本时生成
 // `maxUnavailable: 1` 的 PDB（见 pdb_test.go）。这条测试留下来守另一半——
 // **副本数是 1 时坚决不生成**，那才是上面那段实测结论真正要钉住的东西。
 func TestNoPodDisruptionBudgetGenerated(t *testing.T) {
@@ -540,7 +540,7 @@ func TestHardenedProjectGeneratesFullSet(t *testing.T) {
 		npPath("portal-user-frontend-1-0-0"),
 		saPath("portal-user-frontend-1-0-0"),
 	} {
-		assert.True(t, hasFile(result, path), "P26：缺少 %s，实际有 %v", path, pathsOf(result))
+		assert.True(t, hasFile(result, path), "缺少 %s，实际有 %v", path, pathsOf(result))
 	}
 }
 
@@ -568,7 +568,7 @@ func TestAllGeneratedDirsAreKnownToEngine(t *testing.T) {
 			continue // namespace.yaml 不在子目录里，引擎单独处理
 		}
 		assert.True(t, known[dir],
-			"P26：生成了 %s，但 k8s.ManifestDirs() 里没有 %q——引擎不会 apply 也不会 delete 它",
+			"生成了 %s，但 k8s.ManifestDirs() 里没有 %q——引擎不会 apply 也不会 delete 它",
 			path, dir)
 	}
 }

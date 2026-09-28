@@ -1,11 +1,11 @@
 package cli
 
-// 本文件实现 brickkit logout（004 §3.13）。
+// 本文件实现 brickkit logout。
 //
 // # 为什么需要它
 //
 // `login` 把 Token 写进 `.brickkit/credentials`，而在此之前**没有任何命令能
-// 撤销这件事**：市场早就有 `POST /api/v1/auth/logout`（007 §9.5），CLI 侧却是
+// 撤销这件事**：市场早就有 `POST /api/v1/auth/logout`，CLI 侧却是
 // 空的。使用者只能手工 `rm .brickkit/credentials`——而那只删了本地那一份，
 // 服务端那个 Token 一直有效到过期为止。换台机器、换个账号、或者只是不想让一份
 // 长期有效的凭据躺在盘上，都没有正经的出路。
@@ -24,7 +24,7 @@ import (
 	"github.com/brickkit/brickkit/internal/source"
 )
 
-// newLogoutCommand 实现 brickkit logout（004 §3.13）。
+// newLogoutCommand 实现 brickkit logout。
 func newLogoutCommand(opts *Options) *cobra.Command {
 	var keepRemote bool
 

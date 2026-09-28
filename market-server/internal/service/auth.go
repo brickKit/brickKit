@@ -23,21 +23,21 @@ type Identity struct {
 	Username string
 	OrgID    string
 	IsAdmin  bool
-	// Anonymous 为 true 表示没带令牌：只能访问 public 组件（007 §5.5）。
+	// Anonymous 为 true 表示没带令牌：只能访问 public 组件。
 	Anonymous bool
 }
 
 // Anonymous 返回匿名身份。
 func Anonymous() *Identity { return &Identity{Anonymous: true} }
 
-// RegisterRequest 是注册请求（007 §9.5）。
+// RegisterRequest 是注册请求。
 type RegisterRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Email    string `json:"email,omitempty"`
 	// OrgID 会被**忽略**，保留字段只是为了老客户端传了也不报错。
 	//
-	// 组织成员关系就是授权本身（007 §5.3：private 组件按 allowedOrganizations 授权）。
+	// 组织成员关系就是授权本身（private 组件按 allowedOrganizations 授权）。
 	// 注册时能自报组织，等于任何人写上别人的组织 ID 就能读走该组织的全部 private
 	// 组件——详情、Manifest、产物，一样不落。入组只能走 AddOrganizationMember，
 	// 那里要求组织所有者或市场管理员。
@@ -94,7 +94,7 @@ func validateRegister(req RegisterRequest) error {
 	return nil
 }
 
-// Login 校验用户名密码并签发访问令牌（007 §9.6）。
+// Login 校验用户名密码并签发访问令牌。
 func (s *Service) Login(ctx context.Context, username, password string) (*model.Token, error) {
 	user, err := s.repo.GetUserByUsername(ctx, username)
 	if err != nil {
@@ -139,7 +139,7 @@ func (s *Service) Logout(ctx context.Context, token string) error {
 
 // Authenticate 把 Bearer Token 解析成调用者身份。
 //
-// 令牌为空表示匿名——这不是错误：public 组件的查询本来就不需要认证（007 §9.6）。
+// 令牌为空表示匿名——这不是错误：public 组件的查询本来就不需要认证。
 func (s *Service) Authenticate(ctx context.Context, token string) (*Identity, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
@@ -196,7 +196,7 @@ func requireOwner(id *Identity, c *model.Component, action string) error {
 	return model.Errorf(model.CodeForbidden, action+" requires being the component owner: "+c.ComponentID)
 }
 
-// requireAdmin 要求调用者是市场管理员（007 §6.3：blocked 只有管理员能标记）。
+// requireAdmin 要求调用者是市场管理员（blocked 只有管理员能标记）。
 func requireAdmin(id *Identity, action string) error {
 	if err := requireAuth(id, action); err != nil {
 		return err
@@ -207,9 +207,9 @@ func requireAdmin(id *Identity, action string) error {
 	return nil
 }
 
-// reservedScopes 是**只有市场管理员**能首次创建的命名空间（007 §14.2）。
+// reservedScopes 是**只有市场管理员**能首次创建的命名空间。
 //
-// 这两个前缀在设计书里被写成"官方组件"与"基础设施工具组件"，
+// 这两个前缀代表"官方组件"与"基础设施工具组件"，
 // 使用者据此判断可不可信。谁都能发的话，`brickkit/saga-orchestrator`
 // 就是一次冒名——而这正是签名机制想防、却在"还没配公钥"时防不住的那一类。
 var reservedScopes = map[string]string{
@@ -221,7 +221,7 @@ var reservedScopes = map[string]string{
 //
 // # 只拦官方前缀，其余先到先得
 //
-// 007 §14.2 原本还写着"组织名/ 由该组织成员发布、用户名/ 由该用户发布、
+// 早先的设计还写着"组织名/ 由该组织成员发布、用户名/ 由该用户发布、
 // 业务域/ 由该业务域的所有者发布"。那需要一套命名空间注册表
 // （申请、审批、转让、争议处理），是一个独立的子系统——而它换来的东西
 // npm 也没有：unscoped 的包名同样是先到先得。
@@ -253,7 +253,7 @@ func afterSlash(componentID string) string {
 	return componentID
 }
 
-// canRead 判断调用者能否看到该组件（007 §5）。
+// canRead 判断调用者能否看到该组件。
 func (s *Service) canRead(ctx context.Context, id *Identity, c *model.Component) (bool, error) {
 	if c.Visibility != model.VisibilityPrivate {
 		return true, nil

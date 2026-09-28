@@ -1,6 +1,6 @@
 package k8s
 
-// 本文件生成 PodDisruptionBudget（P35，005 §5.8）。
+// 本文件生成 PodDisruptionBudget。
 //
 // # 它保护什么
 //

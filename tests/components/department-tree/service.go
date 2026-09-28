@@ -101,7 +101,7 @@ func toProtoList(items []Department) []*departmentv1.Department {
 
 // grpcError 把内部错误翻译成 gRPC 状态码。
 //
-// 存储故障对外只说"暂时不可用"：错误信息不暴露内部实现细节（002 §11.3）。
+// 存储故障对外只说"暂时不可用"：错误信息不暴露内部实现细节。
 func grpcError(err error) error {
 	if errors.Is(err, ErrNotFound) {
 		return status.Error(codes.NotFound, "部门不存在")
@@ -131,7 +131,7 @@ func (s *service) routes() http.Handler {
 
 // handleHealthz 只回答"本进程还活着吗"。
 //
-// 002 §9.4 明令禁止在这里检查数据库或依赖组件：健康检查一旦连库，
+// 健康检查只查本进程：禁止在这里检查数据库或依赖组件：健康检查一旦连库，
 // 数据库抖一下就会让所有组件被判死重启，把一次故障放大成雪崩。
 func (s *service) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -207,7 +207,7 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "部门不存在")
 		return
 	}
-	// 底层错误不外泄（002 §11.3），真实原因留在服务端日志里
+	// 底层错误不外泄，真实原因留在服务端日志里
 	writeError(w, http.StatusServiceUnavailable, "部门数据暂时不可用")
 }
 
@@ -234,7 +234,7 @@ var openapiSpec []byte
 // handleOpenAPI 把本组件的 API 文档发出去。
 //
 // 路径固定为 /openapi.json：这是 FastAPI 之类的框架的惯例，
-// 文档聚合组件也按这个路径来探（002 §7 契约即产物）。
+// 文档聚合组件也按这个路径来探（契约即产物）。
 func handleOpenAPI(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	// 文档不常变，让代理与浏览器缓存一会儿

@@ -16,7 +16,7 @@
 //	people/basic  数据源，挂了且缓存未命中 → 503（**不做部分降级**）
 //	Redis         加速器，挂了 → 照常回源，只是慢一点
 //
-// 组件开发约束（002 §1.4）：配置只从环境变量读、/healthz 只检查本进程、
+// 组件开发约束：配置只从环境变量读、/healthz 只检查本进程、
 // 日志为 JSON 输出到 stdout、容器不以 root 运行。
 package main
 
@@ -39,7 +39,7 @@ func main() {
 	}
 }
 
-// 运行模式。迁移容器与主容器用的是同一个镜像，靠参数区分（002 §8.4）。
+// 运行模式。迁移容器与主容器用的是同一个镜像，靠参数区分。
 const (
 	modeServe   = "serve"
 	modeMigrate = "migrate"
@@ -47,7 +47,7 @@ const (
 
 // parseArgs 认参数：要么启动服务，要么执行迁移，没有第三种。
 //
-// **不认识的参数必须报错，绝不能回落到"那就启动服务吧"**（002 §8.5.1）。
+// **不认识的参数必须报错，绝不能回落到"那就启动服务吧"**。
 func parseArgs(args []string) (mode string, rest []string, err error) {
 	if len(args) == 0 {
 		return modeServe, nil, nil

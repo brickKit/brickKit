@@ -231,7 +231,7 @@ func TestRedisCacheSetsTTL(t *testing.T) {
 	}
 }
 
-// TestRedisKeysArePrefixed：键要带组件前缀（006 §7）。
+// TestRedisKeysArePrefixed：键要带组件前缀。
 //
 // 一个项目里多个组件可能连同一个 Redis；不带前缀的话，
 // 两个组件用了同一个键名就会互相覆盖，症状是"权限偶尔不对"。

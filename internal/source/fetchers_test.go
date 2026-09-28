@@ -52,7 +52,7 @@ func TestLocalSourceInvalidManifest(t *testing.T) {
 	assert.Contains(t, out, "people/basic@1.0.0")
 }
 
-// local 源里的产物文件缺失：只警告，不阻断（004 §10.1）。
+// local 源里的产物文件缺失：只警告，不阻断。
 func TestLocalSourceMissingArtifactFile(t *testing.T) {
 	layout := newProject(t)
 	spec := protoSpec("department/tree", "1.0.0")

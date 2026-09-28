@@ -3,7 +3,7 @@
 // 它存在的目的不是业务，而是让平台自己有东西可测——环境变量注入、
 // 部署文件生成、健康检查、多版本共存都需要一个真的能跑起来的容器。
 //
-// 组件开发约束（002 §1.4）：
+// 组件开发约束：
 //   - 配置只从环境变量读取，不硬编码
 //   - /healthz 只检查本进程存活（§9.4）
 //   - 日志为 JSON，输出到 stdout
@@ -24,7 +24,7 @@ import (
 // 主端口固定 8080，与 component.yaml 的 deployment.port 一致。
 const addr = ":8080"
 
-// platformEnvKeys 是回显给调用方的环境变量（004 §5.6 平台注入的那几类）。
+// platformEnvKeys 是回显给调用方的环境变量（平台注入的那几类）。
 var platformEnvKeys = []string{
 	"COMPONENT_ID",
 	"COMPONENT_VERSION",
@@ -61,7 +61,7 @@ func (s *server) routes() *http.ServeMux {
 }
 
 // handleHealthz 只回答"本进程还活着吗"。
-// 002 §9.4 明令禁止在这里检查数据库、依赖组件或任何外部系统。
+// 健康检查只查本进程：禁止在这里检查数据库、依赖组件或任何外部系统。
 func (s *server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 }

@@ -17,7 +17,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
-// APIError 是市场错误信封里的 error 对象（007 §9）。
+// APIError 是市场错误信封里的 error 对象。
 //
 //	{"success":false,"error":{"code":"...","message":"...","details":{...}}}
 type APIError struct {
@@ -87,7 +87,7 @@ func fallbackMessage(status int, body []byte) string {
 // AsCLIError 把市场错误翻译成面向使用者的 CLI 错误。
 //
 // 关键在于**不同的错误码要给不同的建议**：401 该去登录，而"组件被下架"
-// 让人去登录只会白折腾——这正是 P18 记录的问题。
+// 让人去登录只会白折腾。
 func AsCLIError(action string, apiErr *APIError) *clierr.Error {
 	switch apiErr.Code {
 	case CodeComponentBlocked:

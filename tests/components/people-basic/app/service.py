@@ -68,7 +68,7 @@ class PeopleService:
         try:
             return query()
         except Exception as exc:  # noqa: BLE001 —— 存储实现可能抛任何异常
-            # 真实原因留在服务端日志里，对外只说"暂时不可用"（002 §11.3）
+            # 真实原因留在服务端日志里，对外只说"暂时不可用"
             logger.error("查询人员数据失败", exc_info=exc)
             raise StoreUnavailable("人员数据暂时不可用") from exc
 

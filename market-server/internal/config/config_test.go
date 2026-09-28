@@ -1,4 +1,4 @@
-// 本文件是 Step 18-D 服务端启动配置的业务行为测试。
+// 本文件是服务端启动配置的业务行为测试。
 //
 // 配置项与默认值来自《市场部署与运维指南》§5.1。配置读错的代价很高——
 // 服务要么起不来，要么连到错误的库上，所以这里逐条锁住。
@@ -164,7 +164,7 @@ func TestFromEnvRejectsEndpointWithoutScheme(t *testing.T) {
 	assert.Contains(t, err.Error(), "http://")
 }
 
-// 管理员口令太弱时不该放过：它是市场里权限最大的账号（007 §6.3 blocked 只有它能标）。
+// 管理员口令太弱时不该放过：它是市场里权限最大的账号（blocked 只有它能标）。
 func TestFromEnvRejectsWeakAdminPassword(t *testing.T) {
 	env := fullEnv()
 	env["ADMIN_PASSWORD"] = "123"

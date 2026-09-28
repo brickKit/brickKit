@@ -12,7 +12,7 @@ import (
 
 // migrationFiles 是随二进制一起打包的迁移脚本。
 //
-// 002 §8.4 要求"迁移脚本和主业务代码打包在同一个镜像中"。用 go:embed
+// 平台要求"迁移脚本和主业务代码打包在同一个镜像中"。用 go:embed
 // 比拷贝目录更进一步：脚本直接进二进制，不可能出现"镜像里漏了 SQL 文件"。
 //
 //go:embed migrations/*.sql
@@ -22,7 +22,7 @@ var migrationFiles embed.FS
 //
 // Version 取自文件名（去掉 .up.sql / .down.sql），它同时是执行顺序与去重依据。
 // Down 是回退脚本：**给开发与测试用**，让人能反复把库搭起来、拆掉。
-// 生产环境的结构问题应当用一个新的 up 迁移去修（002 §8.9：不做破坏性操作）。
+// 生产环境的结构问题应当用一个新的 up 迁移去修（不做破坏性操作）。
 type migration struct {
 	Version string
 	Up      string
@@ -93,7 +93,7 @@ func splitMigrationName(name string) (version, direction string) {
 	return base, "up"
 }
 
-// applyMigrations 按顺序执行尚未执行过的迁移（002 §8）。
+// applyMigrations 按顺序执行尚未执行过的迁移。
 //
 // 三条不变量：
 //   - **幂等**：已执行过的版本不会再跑一遍，因此容器重启是安全的；
@@ -190,7 +190,7 @@ func ensureMigrationsTable(ctx context.Context, db *sql.DB) error {
 // warnIfDatabaseIsShared 在库里发现别的组件的迁移记录时提醒一句。
 //
 // 不阻断：共用一个库在本地调试时确实方便，而且按组件隔离之后也不会再互相顶掉。
-// 但 002 §2.2 的数据自治要求每个组件有自己的库——共用意味着一个组件能读到
+// 但数据自治要求每个组件有自己的库——共用意味着一个组件能读到
 // 另一个组件的表。
 func warnIfDatabaseIsShared(ctx context.Context, db *sql.DB, componentID string) {
 	rows, err := db.QueryContext(ctx,
@@ -210,7 +210,7 @@ func warnIfDatabaseIsShared(ctx context.Context, db *sql.DB, componentID string)
 	if len(others) > 0 {
 		slog.Warn("该数据库里还有其他组件的表",
 			"others", strings.Join(others, ", "),
-			"建议", "002 §2.2 数据自治：每个组件用自己的数据库，见组件 README")
+			"建议", "数据自治：每个组件用自己的数据库，见组件 README")
 	}
 }
 

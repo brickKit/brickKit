@@ -1,6 +1,6 @@
 // 本文件测试 internal/shell 的校验与合并逻辑——这是 servedBy 唯一的一份
 // 目标无关逻辑，Docker（internal/compose）与 K8s（internal/k8s）都只消费
-// 它的结果，不重新实现任何一条规则（servedBy 设计书 §3）。
+// 它的结果，不重新实现任何一条规则。
 package shell_test
 
 import (

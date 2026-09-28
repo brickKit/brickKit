@@ -1,5 +1,4 @@
-// 本文件是 Step 16-A「K8s Namespace / Deployment / Secret 生成」的业务行为测试，
-// 覆盖开发计划 16.1、16.2、16.8、16.9、16.10、16.11、16.15。
+// 本文件是「K8s Namespace / Deployment / Secret 生成」的业务行为测试。
 //
 // 与 compose 那边同样的取舍：断言落在**最终 YAML 里有什么**，不看内部结构。
 // 这些文件最终要交给 kubectl，写错一个字段名 K8s 只会沉默地忽略它。
@@ -237,7 +236,7 @@ func dependsOn(m *manifest.Manifest, id, version string) *manifest.Manifest {
 }
 
 // ============================================================
-// 16.1 Namespace
+// Namespace
 // ============================================================
 
 func TestNamespaceGenerated(t *testing.T) {
@@ -261,7 +260,7 @@ func TestResultCarriesNamespace(t *testing.T) {
 }
 
 // ============================================================
-// 16.2 Deployment
+// Deployment
 // ============================================================
 
 func TestDeploymentBasics(t *testing.T) {
@@ -274,7 +273,7 @@ func TestDeploymentBasics(t *testing.T) {
 	assert.Equal(t, "Deployment", doc["kind"], "16.2")
 	assert.Equal(t, "people-basic-1-0-0", dig(t, doc, "metadata", "name"), "名字是版本化服务名")
 	assert.Equal(t, "brickkit-my-erp", dig(t, doc, "metadata", "namespace"))
-	assert.Equal(t, 1, dig(t, doc, "spec", "replicas"), "没写 replicas 时的默认值（P35）")
+	assert.Equal(t, 1, dig(t, doc, "spec", "replicas"), "没写 replicas 时的默认值")
 	assert.Equal(t, "people-basic-1-0-0",
 		dig(t, doc, "spec", "selector", "matchLabels", "app"), "selector 必须选得中自己的 Pod")
 	assert.Equal(t, "people-basic-1-0-0",
@@ -292,7 +291,7 @@ func TestDeploymentLabels(t *testing.T) {
 		"brickkit.io/component":         "people-basic",
 		"brickkit.io/component-version": "1.0.0",
 		"brickkit.io/project":           "my-erp",
-	}, dig(t, doc, "metadata", "labels"), "16.2 labels（005 §5.3）")
+	}, dig(t, doc, "metadata", "labels"), "16.2 labels")
 	assert.Equal(t, "people/basic",
 		dig(t, doc, "metadata", "annotations", "brickkit.io/component-id"),
 		"原样的组件 ID 放注解里——标签值放不下带斜杠的写法")
@@ -301,7 +300,7 @@ func TestDeploymentLabels(t *testing.T) {
 // 标签值里绝不能出现斜杠。
 //
 // K8s 的标签**值**只允许字母数字与 - _ .（斜杠只在标签**键**的前缀里合法）。
-// 设计书 005 §5.3 原来的样例写的是 `brickkit.io/component-id: people/basic`，
+// 早先设计里的样例写的是 `brickkit.io/component-id: people/basic`，
 // 那份 Deployment 会被 API Server 整份拒绝——错误信息还只提"a valid label must…"，
 // 完全看不出是组件 ID 的锅。
 func TestLabelValuesAreValid(t *testing.T) {
@@ -385,7 +384,7 @@ func TestEnvValuesAreStrings(t *testing.T) {
 }
 
 // ============================================================
-// 16.9 / 16.10 探针
+// 探针
 // ============================================================
 
 func TestLivenessProbe(t *testing.T) {
@@ -396,7 +395,7 @@ func TestLivenessProbe(t *testing.T) {
 
 	assert.Equal(t, "/healthz", dig(t, probe, "httpGet", "path"), "16.9")
 	assert.Equal(t, 8080, dig(t, probe, "httpGet", "port"), "16.9 探主端口")
-	assert.Equal(t, 10, dig(t, probe, "initialDelaySeconds"), "16.9（005 §5.3）")
+	assert.Equal(t, 10, dig(t, probe, "initialDelaySeconds"), "16.9")
 	assert.Equal(t, 10, dig(t, probe, "periodSeconds"))
 	assert.Equal(t, 3, dig(t, probe, "timeoutSeconds"))
 	assert.Equal(t, 3, dig(t, probe, "failureThreshold"))
@@ -410,11 +409,11 @@ func TestReadinessProbe(t *testing.T) {
 
 	assert.Equal(t, "/healthz", dig(t, probe, "httpGet", "path"), "16.10")
 	assert.Equal(t, 8080, dig(t, probe, "httpGet", "port"), "16.10")
-	assert.Equal(t, 5, dig(t, probe, "initialDelaySeconds"), "16.10 就绪探针比存活探针早（005 §5.3）")
+	assert.Equal(t, 5, dig(t, probe, "initialDelaySeconds"), "16.10 就绪探针比存活探针早")
 	assert.Equal(t, 5, dig(t, probe, "periodSeconds"))
 }
 
-// 启动探针（002 §9.3）。
+// 启动探针。
 //
 // 没有它时，冷启动 45 秒的组件会在 t≈30s 被 livenessProbe 判死
 // （initialDelay 10 + period 10 × failureThreshold 3）→ kill → 重启 →
@@ -491,7 +490,7 @@ func TestNoProbeWhenHealthCheckNone(t *testing.T) {
 }
 
 // ============================================================
-// 16.11 资源配额
+// 资源配额
 // ============================================================
 
 func TestResourcesUseCLIDefaults(t *testing.T) {
@@ -530,7 +529,7 @@ func TestResourcesMergedFromConfig(t *testing.T) {
 }
 
 // ============================================================
-// 16.8 / 16.15 Secret
+// Secret
 // ============================================================
 
 func TestSecretReferencedFromEnv(t *testing.T) {

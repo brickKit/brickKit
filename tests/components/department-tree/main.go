@@ -7,7 +7,7 @@
 //   - migration（平台在启动前执行，必须幂等）
 //   - artifacts（proto 与 openapi 作为产物发布到市场）
 //
-// 组件开发约束（002 §1.4）：配置只从环境变量读、/healthz 只检查本进程、
+// 组件开发约束：配置只从环境变量读、/healthz 只检查本进程、
 // 日志为 JSON 输出到 stdout、容器不以 root 运行。
 package main
 
@@ -31,7 +31,7 @@ func main() {
 	}
 }
 
-// 运行模式。迁移容器与主容器用的是同一个镜像，靠参数区分（002 §8.4）。
+// 运行模式。迁移容器与主容器用的是同一个镜像，靠参数区分。
 const (
 	modeServe   = "serve"
 	modeMigrate = "migrate"
@@ -42,7 +42,7 @@ const (
 // **不认识的参数必须报错，绝不能回落到"那就启动服务吧"。** 否则一个拼错的
 // 迁移命令会让迁移容器变成服务容器：它永不退出，主服务永远等不到
 // "迁移完成"，整个项目卡在 Created——而日志里写着"组件已就绪"，
-// 看起来一切正常（002 §8.5.1）。
+// 看起来一切正常。
 //
 // 它是纯函数，不读环境变量、不连库：告诉使用者"参数写错了"这件事，
 // 不该先去连一个可能根本连不上的数据库。
@@ -75,7 +75,7 @@ func run(args []string) error {
 	}
 	defer func() { _ = store.Close() }()
 
-	// migrate 子命令：平台在启动组件之前单独跑一次（002 §8.2、005 §6）
+	// migrate 子命令：平台在启动组件之前单独跑一次
 	if mode == modeMigrate {
 		return runMigrate(context.Background(), migrateArgs, cfg, store, logger)
 	}
@@ -90,7 +90,7 @@ func run(args []string) error {
 //	migrate reset     全部回退（开发与测试用）
 //
 // down / reset 是给开发和测试用的，让人能反复把库搭起来、拆掉。
-// 生产环境的结构问题请用一个新的 up 迁移去修（002 §8.9）。
+// 生产环境的结构问题请用一个新的 up 迁移去修。
 func runMigrate(
 	ctx context.Context, args []string, cfg config, store *postgresStore, logger *slog.Logger,
 ) error {

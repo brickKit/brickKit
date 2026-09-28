@@ -1,6 +1,6 @@
 package k8s
 
-// 本文件渲染 Secret（005 §5.6）。
+// 本文件渲染 Secret。
 //
 // 规则只有一条：**密码永远不出现在 Deployment 里**。
 // Deployment 那份 YAML 是给人看、给 git 记的，密码进去就等于泄露；

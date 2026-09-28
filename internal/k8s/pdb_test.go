@@ -1,6 +1,6 @@
 package k8s_test
 
-// 本文件测 PodDisruptionBudget 生成（P35，005 §5.8）。
+// 本文件测 PodDisruptionBudget 生成。
 //
 // # 为什么这件事拖到现在才做
 //
@@ -39,13 +39,13 @@ func pdbBuilder(t *testing.T, replicas *int) *builder {
 
 // 单副本时**坚决不生成**。
 //
-// 这是整个 P35 里最重要的一条。生成了的话，几个月后运维 `kubectl drain`
+// 这是 PDB 里最重要的一条。生成了的话，几个月后运维 `kubectl drain`
 // 会永远排不空，而现场没有任何线索指向 brickkit.yaml。
 func TestNoPDBForSingleReplica(t *testing.T) {
 	result := pdbBuilder(t, nil).generate()
 
 	assert.False(t, hasFile(result, pdbPath),
-		"P35：单副本下 PDB 必然让节点排不空，而报错现场在几个月后运维的终端上")
+		"单副本下 PDB 必然让节点排不空，而报错现场在几个月后运维的终端上")
 }
 
 // 显式写 replicas: 1 同样不生成。
@@ -55,7 +55,7 @@ func TestNoPDBForExplicitSingleReplica(t *testing.T) {
 	result := pdbBuilder(t, intPtr(1)).generate()
 
 	assert.False(t, hasFile(result, pdbPath),
-		"P35：判据是实际副本数，不是有没有写 replicas")
+		"判据是实际副本数，不是有没有写 replicas")
 }
 
 // 多副本时生成。
@@ -78,9 +78,9 @@ func TestPDBUsesMaxUnavailable(t *testing.T) {
 	require.True(t, ok, "%v", doc)
 
 	assert.Equal(t, 1, spec["maxUnavailable"],
-		"P35：maxUnavailable 随副本数自动成立，minAvailable 得跟着副本数一起改")
+		"maxUnavailable 随副本数自动成立，minAvailable 得跟着副本数一起改")
 	assert.NotContains(t, spec, "minAvailable",
-		"P35：两个都写的话 K8s 直接拒绝这份清单")
+		"两个都写的话 K8s 直接拒绝这份清单")
 }
 
 // selector 必须和 Deployment 选中的是同一批 Pod。
@@ -95,17 +95,17 @@ func TestPDBSelectorMatchesDeployment(t *testing.T) {
 	assert.Equal(t,
 		dig(t, deployment, "spec", "selector", "matchLabels"),
 		dig(t, pdb, "spec", "selector", "matchLabels"),
-		"P35：selector 对不上时 PDB 保护的是空集——看着正常，drain 时一个都没拦住")
+		"selector 对不上时 PDB 保护的是空集——看着正常，drain 时一个都没拦住")
 }
 
 // PDB 要落在正确的命名空间里，并带上项目标签。
 //
-// 带标签是为了能被 P38 的孤儿清理认领：不带的话，副本数改回 1 之后
+// 带标签是为了能被孤儿清理认领：不带的话，副本数改回 1 之后
 // 这份 PDB 会**永远留在集群里**，继续拦着 drain。
 func TestPDBHasNamespaceAndProjectLabel(t *testing.T) {
 	doc := pdbBuilder(t, intPtr(3)).doc(pdbPath)
 
 	assert.Equal(t, "brickkit-my-erp", dig(t, doc, "metadata", "namespace"))
 	assert.Equal(t, "my-erp", dig(t, doc, "metadata", "labels", "brickkit.io/project"),
-		"P35：不带项目标签的话，副本数改回 1 之后这份 PDB 会永远留在集群里拦着 drain")
+		"不带项目标签的话，副本数改回 1 之后这份 PDB 会永远留在集群里拦着 drain")
 }

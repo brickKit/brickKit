@@ -1,4 +1,4 @@
-// 本文件是 Step 18-B 仓储层的**行为契约测试**。
+// 本文件是仓储层的**行为契约测试**。
 //
 // 同一份测试跑两个实现：内存实现（始终跑）与 PostgreSQL 实现
 // （设置 MARKET_TEST_DATABASE_URL 时跑）。两边语义必须完全一致——
@@ -189,7 +189,7 @@ func testComponentSearch(t *testing.T, r repo.Repository) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"people/basic"}, idsOf(page2))
 
-	// 计数忽略分页，但沿用其余过滤条件（007 §4.2 的 total）
+	// 计数忽略分页，但沿用其余过滤条件（搜索响应的 total）
 	total, err := r.CountComponents(ctx, repo.ComponentQuery{Page: 1, PageSize: 2})
 	require.NoError(t, err)
 	assert.Equal(t, 3, total)
@@ -248,7 +248,7 @@ func newVersion(componentID, version string) *model.Version {
 	}
 }
 
-// 18.14 版本不可重复。
+// 版本不可重复。
 func testVersionCreate(t *testing.T, r repo.Repository) {
 	ctx := context.Background()
 	require.NoError(t, r.UpsertComponent(ctx, newComponent("people/basic")))
@@ -344,7 +344,7 @@ func testVersionListAndStatus(t *testing.T, r repo.Repository) {
 	require.NoError(t, err)
 	assert.Equal(t, model.VersionDeprecated, got.Status)
 
-	// 软删除后记录仍在（007 §9.2：删除版本是软删除）
+	// 软删除后记录仍在（删除版本是软删除）
 	require.NoError(t, r.SetVersionStatus(ctx, "people/basic", "2.0.0", model.VersionDeleted))
 	got, err = r.GetVersion(ctx, "people/basic", "2.0.0")
 	require.NoError(t, err)
@@ -376,7 +376,7 @@ func artifacts(version string) []model.ArtifactRecord {
 	}
 }
 
-// 18.22 artifacts 按版本独立存储。
+// artifacts 按版本独立存储。
 func testArtifactsPerVersion(t *testing.T, r repo.Repository) {
 	ctx := context.Background()
 	require.NoError(t, r.UpsertComponent(ctx, newComponent("people/basic")))
@@ -639,7 +639,7 @@ func versionsOf(versions []model.Version) []string {
 	return out
 }
 
-// testOrganizations 是组织的行为契约（007 §9.5）。
+// testOrganizations 是组织的行为契约。
 //
 // 成员关系记在 users.org_id 上，因此这套用例同时钉住"改组织"这件事
 // 落在用户记录上，而不是另开一张成员表。

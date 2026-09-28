@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// 本文件覆盖 002 §1.4（配置只从环境变量读）与 §11（JSON 日志、敏感字段脱敏）。
+// 本文件覆盖配置只从环境变量读、JSON 日志与敏感字段脱敏。
 
 // envOf 把 map 变成 lookup 函数。
 func envOf(pairs map[string]string) func(string) string {
@@ -205,7 +205,7 @@ func TestLogLevelIsConfigurable(t *testing.T) {
 }
 
 // ============================================================
-// 参数解析（002 §8.5.1）
+// 参数解析
 // ============================================================
 
 // TestParseArgsRejectsUnknown 挡住"迁移容器变成服务容器"。

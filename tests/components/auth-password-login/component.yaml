@@ -22,7 +22,7 @@ tags:
   - identity
 
 artifacts:
-  # 本组件只提供 HTTP，没有 gRPC，因此没有 proto 契约（002 §7：有什么发什么）
+  # 本组件只提供 HTTP，没有 gRPC，因此没有 proto 契约（有什么发什么）
   - type: api-docs
     format: openapi
     description: HTTP REST API 文档
@@ -82,7 +82,7 @@ deployment:
   image: brickkit-demo/auth-password-login:1.0.0
   port: 8080
   resources:
-    # 只声明 requests，不声明 limits（002 §4.6）：
+    # 只声明 requests，不声明 limits：
     # 组件知道自己稳态占多少，而"允许它涨到多少"是部署方的判断。
     # 而且逐字段合并意味着这里写了 limits.cpu，用它的项目就删不掉了
     requests:
@@ -92,5 +92,5 @@ deployment:
 healthCheck:
   type: http
   path: /healthz
-  # ⚠️ 只检查本进程存活，不查数据库、不调 people/basic（002 §9.4）。
+  # ⚠️ 只检查本进程存活，不查数据库、不调 people/basic。
   # 否则依赖一抖，编排系统就会把这个本身完全正常的容器杀掉重启

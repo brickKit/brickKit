@@ -1,4 +1,4 @@
-// 本文件是 Step 6「安装源实现」的业务行为测试，逐项覆盖开发计划 6.1–6.13。
+// 本文件是 「安装源实现」的业务行为测试。
 // 这些用例只依赖对外行为（安装源 → Manifest / artifacts / 缓存），不依赖内部实现细节。
 package source
 
@@ -19,10 +19,10 @@ import (
 )
 
 // ============================================================
-// 6.1 / 6.2 local 安装源
+// local 安装源
 // ============================================================
 
-// 6.1 local 安装源读取本地 component.yaml。
+// local 安装源读取本地 component.yaml。
 func TestLocalSourceReadsComponentYAML(t *testing.T) {
 	layout := newProject(t)
 	sourceDir := filepath.Join(layout.Root, "components")
@@ -48,7 +48,7 @@ func TestLocalSourceReadsComponentYAML(t *testing.T) {
 	assert.False(t, got.FromCache, "首次获取来自安装源而非缓存")
 }
 
-// 6.2 local 安装源路径不存在时报错。
+// local 安装源路径不存在时报错。
 func TestLocalSourcePathMissing(t *testing.T) {
 	layout := newProject(t)
 	c := newClient(t, layout, cfgWithSources(projfile.Source{
@@ -80,7 +80,7 @@ func TestComponentNotFoundInAnySource(t *testing.T) {
 	assert.Equal(t, clierr.CodeComponentNotFound, e.Code)
 	out := e.Format()
 	assert.Contains(t, out, "people/basic@1.0.0")
-	assert.Contains(t, out, "any install source", "对齐 004 §10.2：该组件在所有安装源中均未找到")
+	assert.Contains(t, out, "any install source", "该组件在所有安装源中均未找到")
 	assert.Contains(t, out, "local-dev", "应列出已尝试的安装源")
 }
 
@@ -101,14 +101,14 @@ func TestLocalSourceVersionMismatchIsNotFound(t *testing.T) {
 }
 
 // ============================================================
-// 6.3 / 6.4 git 安装源
+// git 安装源
 // ============================================================
 
 // ============================================================
-// 6.5 / 6.6 market 安装源
+// market 安装源
 // ============================================================
 
-// 6.5 market 安装源调用 API 获取 Manifest（Mock API，验证请求）。
+// market 安装源调用 API 获取 Manifest（Mock API，验证请求）。
 func TestMarketSourceFetchesManifest(t *testing.T) {
 	spec := protoSpec("people/basic", "1.2.0")
 	spec.Description = "来自市场"
@@ -132,7 +132,7 @@ func TestMarketSourceFetchesManifest(t *testing.T) {
 	assert.Len(t, mock.recordedFor("/doc"), 1, "另有一次取组件文档")
 	assert.Equal(t, http.MethodGet, reqs[0].Method)
 	assert.Equal(t, "/api/v1/components/people/basic/versions/1.2.0/manifest", reqs[0].Path,
-		"007 §4.5 / 004 §3.3：GET /api/v1/components/{id}/versions/{ver}/manifest")
+		"GET /api/v1/components/{id}/versions/{ver}/manifest")
 	assert.Equal(t, "Bearer tok-abc", reqs[0].Auth, "authToken 应作为 Bearer Token 发送")
 }
 
@@ -197,7 +197,7 @@ func TestMarketSourceVersionNotFound(t *testing.T) {
 	assert.Equal(t, clierr.CodeComponentNotFound, clierr.As(err).Code)
 }
 
-// 6.6 market 安装源 API 不可达时报错。
+// market 安装源 API 不可达时报错。
 func TestMarketSourceUnreachable(t *testing.T) {
 	mock := newMarketMock(t)
 	url := mock.URL()
@@ -215,10 +215,10 @@ func TestMarketSourceUnreachable(t *testing.T) {
 	assert.Equal(t, clierr.CodeNetworkUnreachable, e.Code)
 	out := e.Format()
 	assert.Contains(t, out, "brickkit-market")
-	assert.Contains(t, out, "network", "004 §10.1：网络错误应建议检查网络")
+	assert.Contains(t, out, "network", "网络错误应建议检查网络")
 }
 
-// 市场返回 401 时，提示登录（004 §10.2 未登录市场）。
+// 市场返回 401 时，提示登录。
 func TestMarketSourceUnauthorized(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
 	mock.token = "tok-abc" // 客户端不带 token
@@ -236,7 +236,7 @@ func TestMarketSourceUnauthorized(t *testing.T) {
 	assert.Contains(t, e.Format(), "brickkit login")
 }
 
-// 已登录时优先用 .brickkit/credentials 中的 Token，忽略 authToken（004 §5.3 Token 优先级）。
+// 已登录时优先用 .brickkit/credentials 中的 Token，忽略 authToken。
 func TestMarketSourcePrefersCredentialsOverAuthToken(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
 	mock.token = "tok-from-login"
@@ -260,7 +260,7 @@ func TestMarketSourcePrefersCredentialsOverAuthToken(t *testing.T) {
 	assert.Equal(t, "Bearer tok-from-login", mock.recorded()[0].Auth)
 }
 
-// Token 过期时报错提示重新登录（004 §5.3）。
+// Token 过期时报错提示重新登录。
 func TestMarketSourceExpiredCredentials(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
 
@@ -285,10 +285,10 @@ func TestMarketSourceExpiredCredentials(t *testing.T) {
 }
 
 // ============================================================
-// 6.7 Manifest 缓存
+// Manifest 缓存
 // ============================================================
 
-// 6.7 Manifest 缓存到 .brickkit/manifests/。
+// Manifest 缓存到 .brickkit/manifests/。
 func TestManifestCachedToDisk(t *testing.T) {
 	layout := newProject(t)
 	writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{
@@ -435,7 +435,7 @@ func TestLocalSourceIDRenamedErrorsInsteadOfUsingCache(t *testing.T) {
 
 // 但"id 不变、只是版本升上去了"是另一回事：本地源一个目录只放得下一个版本，
 // 把组件升到 2.0.0 之后，还依赖 1.0.0 的调用方只能从缓存里取那一份——这是
-// 多版本共存的正常用法（试用指南 §8.2、§8.6），不能跟"身份改错了"一起误伤。
+// 多版本共存的正常用法，不能跟"身份改错了"一起误伤。
 func TestLocalSourceUpgradedStillServesOldVersionFromCache(t *testing.T) {
 	layout := newProject(t)
 	sourceDir := filepath.Join(layout.Root, "components")
@@ -457,7 +457,7 @@ func TestLocalSourceUpgradedStillServesOldVersionFromCache(t *testing.T) {
 
 	// 依赖 1.0.0 的调用方仍然解析得到它——从缓存里那份
 	old, err := c.Manifest(context.Background(), "foo/bar", "1.0.0")
-	require.NoError(t, err, "升级不该切断还指向旧版本的调用方（试用指南 §8.2）")
+	require.NoError(t, err, "升级不该切断还指向旧版本的调用方")
 	assert.True(t, old.FromCache)
 	assert.Equal(t, "旧版本", old.Manifest.Metadata.Description)
 
@@ -511,10 +511,10 @@ func TestCacheStillUsedWhenLocalSourceLacksTheComponent(t *testing.T) {
 }
 
 // ============================================================
-// 6.8 / 6.12 / 6.13 artifacts 缓存
+// artifacts 缓存
 // ============================================================
 
-// 6.8 artifacts 缓存到 .brickkit/artifacts/；6.12 按版本化服务名 + type 组织目录。
+// artifacts 缓存到 .brickkit/artifacts/；6.12 按版本化服务名 + type 组织目录。
 func TestArtifactsCachedByServiceName(t *testing.T) {
 	layout := newProject(t)
 	spec := protoSpec("department/tree", "1.0.0")
@@ -533,7 +533,7 @@ func TestArtifactsCachedByServiceName(t *testing.T) {
 	assert.Len(t, res.Downloaded, 2)
 	assert.Empty(t, res.Cached)
 
-	// 003 §7.1：.brickkit/artifacts/<版本化服务名>/<type>/<文件路径>
+	// .brickkit/artifacts/<版本化服务名>/<type>/<文件路径>
 	base := filepath.Join(layout.ArtifactsDir(), "department-tree-1-0-0")
 	proto := filepath.Join(base, "api-contract", "proto", "department", "v1", "department.proto")
 	docs := filepath.Join(base, "api-docs", "openapi.json")
@@ -543,7 +543,7 @@ func TestArtifactsCachedByServiceName(t *testing.T) {
 	assert.Equal(t, spec.Files["openapi.json"], readFile(t, docs))
 }
 
-// 市场源的 artifacts 通过市场 API 下载（007 §9.1）。
+// 市场源的 artifacts 通过市场 API 下载。
 func TestArtifactsDownloadedFromMarket(t *testing.T) {
 	spec := protoSpec("department/tree", "1.0.0")
 	mock := newMarketMock(t, spec)
@@ -573,7 +573,7 @@ func TestArtifactsDownloadedFromMarket(t *testing.T) {
 		"api-contract", "proto", "department", "v1", "department.proto"))
 }
 
-// 004 §10.1：产物下载失败只警告，不阻断安装。
+// 产物下载失败只警告，不阻断安装。
 func TestArtifactDownloadFailureIsWarningOnly(t *testing.T) {
 	spec := protoSpec("department/tree", "1.0.0")
 	mock := newMarketMock(t, spec)
@@ -595,7 +595,7 @@ func TestArtifactDownloadFailureIsWarningOnly(t *testing.T) {
 	assert.Contains(t, res.Warnings[0].Format(), "department/tree@1.0.0")
 }
 
-// 6.13 多版本 artifacts 独立存储。
+// 多版本 artifacts 独立存储。
 func TestArtifactsOfMultipleVersionsAreIndependent(t *testing.T) {
 	layout := newProject(t)
 	sourceDir := filepath.Join(layout.Root, "components")
@@ -656,10 +656,10 @@ func TestArtifactsSkippedWhenCached(t *testing.T) {
 }
 
 // ============================================================
-// 6.9 --refresh
+// --refresh
 // ============================================================
 
-// 6.9 --refresh 强制重新拉取 Manifest 与 artifacts。
+// --refresh 强制重新拉取 Manifest 与 artifacts。
 func TestRefreshForcesRefetch(t *testing.T) {
 	layout := newProject(t)
 	spec := protoSpec("department/tree", "1.0.0")
@@ -715,10 +715,10 @@ func TestRefreshForcesRefetch(t *testing.T) {
 }
 
 // ============================================================
-// 6.10 / 6.11 安装源优先级与开关
+// 安装源优先级与开关
 // ============================================================
 
-// 6.10 安装源优先级：靠前的优先。
+// 安装源优先级：靠前的优先。
 func TestSourcePriorityFirstWins(t *testing.T) {
 	layout := newProject(t)
 	writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{
@@ -759,7 +759,7 @@ func TestSourceFallsBackToNextSource(t *testing.T) {
 	assert.Equal(t, "来自市场", got.Manifest.Metadata.Description)
 }
 
-// 6.11 安装源 enabled: false 时跳过。
+// 安装源 enabled: false 时跳过。
 func TestDisabledSourceIsSkipped(t *testing.T) {
 	layout := newProject(t)
 	writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{

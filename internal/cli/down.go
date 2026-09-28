@@ -12,7 +12,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
-// newDownCommand 实现 brickkit down（004 §3.6）。
+// newDownCommand 实现 brickkit down。
 func newDownCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "down",
@@ -59,7 +59,7 @@ func runDown(ctx context.Context, opts *Options) error {
 	// 先问一句"现在有没有东西在跑"，只为决定最后那句话怎么说。
 	//
 	// 从前这里判的是"生成的部署文件在不在"，据此直接返回"项目尚未启动过"——
-	// 而那份文件在 .gitignore 里、文档还明说可以随时删（003 §7.1）。
+	// 而那份文件在 .gitignore 里、文档还明说可以随时删。
 	// 一次 git clean 之后，down 就成了一条什么都不做却报成功的命令。
 	//
 	// 探测失败**不阻断**：停止本身照做。这一步只影响措辞，
@@ -67,7 +67,7 @@ func runDown(ctx context.Context, opts *Options) error {
 	running, probed := runningCount(ctx, eng, p.engineProject())
 
 	// 只交项目名，不交部署文件：停的是"这个项目现在跑着的一切"，
-	// 而不是"生成目录里此刻写着的那些"（005 §5.9.3）。停止顺序也在引擎里。
+	// 而不是"生成目录里此刻写着的那些"。停止顺序也在引擎里。
 	if err := eng.Down(ctx, engine.DownRequest{
 		Project: p.engineProject(),
 		// 标签值是项目名，与 Project（K8s 下是命名空间）不是一回事——
@@ -112,7 +112,7 @@ func renderDownResult(opts *Options, k8sTarget bool, engineName string, running 
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliDownAllComponentsStopped))
 
-	// 004 §3.6：down 不删数据卷。这一点必须主动说——
+	// down 不删数据卷。这一点必须主动说——
 	// 使用者最怕的就是"我停一下会不会把数据弄没了"
 	if k8sTarget {
 		// K8s 下基础资源由运维部署，本来就不归 CLI 管，更不会被 down 碰到

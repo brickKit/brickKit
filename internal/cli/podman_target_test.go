@@ -28,7 +28,7 @@ func TestUpDryRunSucceedsWithPodmanTarget(t *testing.T) {
 }
 
 // 真跑（非 --dry-run）时，target: podman 现在必须真的把工作交给 Podman
-// 引擎——005 §7 挪掉的那个 engine.Engine 实现已经回来了。这里注入假引擎，
+// 引擎——曾经被挪掉的那个 engine.Engine 实现已经回来了。这里注入假引擎，
 // 验证的是"分发对了"，不实际调用真 podman 二进制。
 func TestUpRealRunSucceedsWithPodmanTarget(t *testing.T) {
 	f := addedProject(t, []comp{{ID: "demo/hello", Version: "1.0.0"}}, "demo/hello@1.0.0")

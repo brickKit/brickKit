@@ -1,10 +1,10 @@
 package cli
 
-// 本文件负责**并发下载组件产物**（P40）。
+// 本文件负责**并发下载组件产物**。
 //
-// # 这里推翻了 Step 36 记下的一个判断
+// # 这里推翻了早先记下的一个判断
 //
-// P40 当初被登记为"暂不做"，理由是：`CheckImage` 是延迟受限（并发有效），
+// 产物并发下载当初被登记为"暂不做"，理由是：`CheckImage` 是延迟受限（并发有效），
 // 而产物下载是**带宽受限**（并发只是把同一条管道切成几份）。
 //
 // 那是**没有量就下的判断**。真量之后：
@@ -42,7 +42,7 @@ const artifactConcurrency = 8
 type artifactOutcome struct {
 	downloaded int
 	cached     int
-	// warning 非空表示整个组件的下载失败了（产物不阻断安装，004 §10.1）。
+	// warning 非空表示整个组件的下载失败了（产物不阻断安装）。
 	warning string
 	// warnings 是逐文件的警告。
 	warnings []*clierr.Error
@@ -58,7 +58,7 @@ func downloadArtifacts(
 	return downloadArtifactsWith(ctx, graph, func(ctx context.Context, node *resolver.Node) artifactOutcome {
 		res, err := client.DownloadArtifacts(ctx, node.Manifest)
 		if err != nil {
-			// 产物是开发时辅助，不阻断安装（004 §10.1）
+			// 产物是开发时辅助，不阻断安装
 			return artifactOutcome{warning: clierr.As(err).Message}
 		}
 		return artifactOutcome{

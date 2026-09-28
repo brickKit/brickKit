@@ -6,7 +6,7 @@ import (
 	"github.com/brickkit/brickkit/market-server/internal/service"
 )
 
-// register 处理 POST /api/v1/auth/register（007 §9.5、18.19）。
+// register 处理 POST /api/v1/auth/register。
 func (a *api) register(w http.ResponseWriter, r *http.Request, _ params) {
 	var req service.RegisterRequest
 	if err := decodeBody(r, &req); err != nil {
@@ -23,9 +23,9 @@ func (a *api) register(w http.ResponseWriter, r *http.Request, _ params) {
 	writeJSON(w, http.StatusCreated, user)
 }
 
-// login 处理 POST /api/v1/auth/login（007 §9.6、18.20）。
+// login 处理 POST /api/v1/auth/login。
 //
-// 返回的 token 与 expiresAt 就是 CLI 写进 .brickkit/credentials 的内容（004 §5.3）。
+// 返回的 token 与 expiresAt 就是 CLI 写进 .brickkit/credentials 的内容。
 func (a *api) login(w http.ResponseWriter, r *http.Request, _ params) {
 	var req struct {
 		Username string `json:"username"`

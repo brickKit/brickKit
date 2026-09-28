@@ -1,6 +1,6 @@
 package cli
 
-// 本文件负责"别部错地方"（005 §5.11）。
+// 本文件负责"别部错地方"。
 //
 // kubectl 的默认行为是部到 `kubectl config current-context` 指的集群。
 // 一份写着生产的部署文件，在一个 context 停在预发的终端里执行，

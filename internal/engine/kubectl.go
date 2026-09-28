@@ -1,6 +1,6 @@
 package engine
 
-// 本文件是 kubectl 引擎（005 §5.7）。
+// 本文件是 kubectl 引擎。
 //
 // 与 compose 引擎共用同一个 Engine 接口，但两处约定的含义不同：
 //
@@ -64,8 +64,8 @@ func (k *Kubectl) Name() string { return K8s }
 // 顺序不是随便排的：
 //
 //	secrets           Pod 起来的那一刻就要读密码
-//	serviceaccounts   Pod 引用它，得先在（P26）
-//	networkpolicies   先铺策略再起 Pod，不留一段谁都进得来的窗口（P26）
+//	serviceaccounts   Pod 引用它，得先在
+//	networkpolicies   先铺策略再起 Pod，不留一段谁都进得来的窗口
 //	migrations        业务代码不能撞上旧表结构；K8s 没有 compose 的 depends_on，
 //	                  只能由 CLI 串行控制：清理旧 Job → apply → wait
 //	deployments…      最后才是主服务
@@ -81,7 +81,7 @@ var applyOrder = []string{
 // migrationsDir 在 applyOrder 里要走一条特殊路径（清理 → apply → 等待）。
 const migrationsDir = "migrations"
 
-// Up 按顺序把清单交给集群（005 §5.7）。
+// Up 按顺序把清单交给集群。
 //
 // namespace 单独处理：它不在子目录里，且必须最先 apply——别的东西都得放进去。
 func (k *Kubectl) Up(ctx context.Context, req UpRequest) error {
@@ -120,7 +120,7 @@ func (k *Kubectl) Up(ctx context.Context, req UpRequest) error {
 // 而是"删错了代价无限大"。
 var pruneKinds = []string{
 	"deployment", "service", "ingress", "networkpolicy", "serviceaccount", "job",
-	// P35：漏了它的后果是单向不可逆——replicas 从 3 改回 1 之后生成物里不再有 PDB，
+	// 漏了它的后果是单向不可逆——replicas 从 3 改回 1 之后生成物里不再有 PDB，
 	// 而 apply 不会删集群里已有的那一份，于是一份 maxUnavailable: 1 的 PDB
 	// 永远留在单副本组件上，让节点从此排不空
 	"poddisruptionbudget",
@@ -131,7 +131,7 @@ var pruneKinds = []string{
 	"secret",
 }
 
-// prune 删掉带本项目标签、却不属于本次部署的资源（P38）。
+// prune 删掉带本项目标签、却不属于本次部署的资源。
 //
 // 为什么需要它：`kubectl apply` 只会创建和更新，**不会删**目录里没有的资源。
 // 于是把版本号从 1.0.0 改成 2.0.0 再 up，1.0.0 的 Deployment 会一直跑下去——
@@ -204,7 +204,7 @@ func normalizeRef(line string) (string, bool) {
 // 把 expose 改成 false 之后 Ingress 一直留着继续对外路由，
 // 关掉 networkPolicy 之后策略继续执行而生成目录里已经没有那份文件。
 //
-// 这个坑在 PDB 上踩过一次（P35，minikube 上真跑到），当时的修法是维护一张
+// 这个坑在 PDB 上踩过一次（minikube 上真跑到），当时的修法是维护一张
 // "哪些类型是条件生成的"例外表。那张表是第二份真相，漏填一类就再犯一次——
 // 而它当时确实只填了 PDB 一个。带上类型之后例外表整个消失。
 //
@@ -236,7 +236,7 @@ func setOf(names []string) map[string]bool {
 	return out
 }
 
-// runMigrations 执行数据库迁移并等它跑完（005 §6.3）。
+// runMigrations 执行数据库迁移并等它跑完。
 //
 // # 为什么不是"全部 apply 再逐个 wait"
 //
@@ -244,7 +244,7 @@ func setOf(names []string) map[string]bool {
 // 在旁边看着。同一个组件的两个版本共用一个库、共用一个 component_id，
 // 同时跑会在**空库**上去抢那批重合的迁移——一个成功，另一个撞
 // (component_id, version) 主键退出，那个版本的 Deployment 永远起不来
-// （002 §8.11、§8.10；分组的完整理由见 k8s.Result.MigrationGroups）。
+// （分组的完整理由见 k8s.Result.MigrationGroups）。
 //
 // 所以按组走：**组内**一个 apply、一个 wait，跑完再下发下一个；
 // **组间**先把每组的头一个都下发出去，再逐个往下推——不同组件之间没有

@@ -1,6 +1,6 @@
 package service_test
 
-// 本文件是 P24「组织管理」（007 §9.5）的业务行为测试。
+// 本文件是「组织管理」的业务行为测试。
 //
 // 这三个端点不只是"补几个接口"：它们是**组织成员关系的唯一入口**。
 // 在它们存在之前，成员关系只能靠注册时自报 orgId——那等于没有门。
@@ -101,7 +101,7 @@ func TestCreateOrganizationRequiresName(t *testing.T) {
 	assert.Equal(t, model.CodeInvalidRequest, apiErrorOf(t, err).Code)
 }
 
-// 一个人只能属于一个组织（users.org_id 是单值，007 §10 的数据模型如此）。
+// 一个人只能属于一个组织（users.org_id 是单值，数据模型如此）。
 // 已在别的组织里的人再建一个，必须明确报错，不能悄悄把他挪走。
 func TestCreateOrganizationWhenAlreadyInOne(t *testing.T) {
 	f := newFixture(t)

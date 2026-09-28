@@ -1,11 +1,11 @@
-// Package regression 守着回归测试清单（开发计划 Step 37）。
+// Package regression 守着回归测试清单。
 //
-// # 这里为什么不是 25 条新测试
+// # 这里为什么不是一堆新测试
 //
-// R1–R25 全部**早就有测试覆盖**——项目里有 1599 个测试函数，
-// 每条命令都有几十条。再写 25 条只是把已有的东西抄一遍。
+// 清单里的承诺全部**早就有测试覆盖**——每条命令都有几十条测试。
+// 再写一遍只是把已有的东西抄一遍。
 //
-// 清单真正缺的不是覆盖，是**连接**：计划里那 25 项是 25 个要人手打勾的方框，
+// 清单真正缺的不是覆盖，是**连接**：没有它，
 // 谁也说不出「R7 up 基本功能」到底由哪个测试保证。于是有两个坏结果：
 //
 //	改了 up.go 之后，不知道该重点看哪几条测试有没有红
@@ -40,7 +40,6 @@ import (
 type item struct {
 	id     string // R1
 	desc   string // brickkit init 基本功能
-	step   string // 3
 	module string // "." 或 "market-server"
 	pkg    string // ./internal/cli
 	test   string // TestInitCreatesProjectStructure
@@ -61,42 +60,40 @@ func repoRoot(t *testing.T) string {
 func loadManifest(t *testing.T) []item {
 	t.Helper()
 
-	rows, err := checklist.Load(manifestName, 6)
+	rows, err := checklist.Load(manifestName, 5)
 	require.NoError(t, err, "读不到回归清单")
 	require.NotEmpty(t, rows, "清单是空的——那不是「全部通过」，是根本没读到东西")
 
 	items := make([]item, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, item{
-			id: r.Cell(0), desc: r.Cell(1), step: r.Cell(2),
-			module: r.Cell(3), pkg: r.Cell(4), test: r.Cell(5), line: r.Line,
+			id: r.Cell(0), desc: r.Cell(1),
+			module: r.Cell(2), pkg: r.Cell(3), test: r.Cell(4), line: r.Line,
 		})
 	}
 	return items
 }
 
-// planItems 是开发计划 Step 37 列出的回归项数（R1–R25）。
+// originalItems 是最初的回归承诺数（R1–R25）。
 //
 // 它是**下限**，不是总数：见 TestManifestCoversEveryChecklistItem。
-const planItems = 25
+const originalItems = 25
 
 // regressionID 是清单编号的形状：R 加一个十进制数。
 var regressionID = regexp.MustCompile(`^R[1-9][0-9]*$`)
 
-// 清单必须**至少**覆盖 R1–R25，并允许在其之上继续添加。
+// 清单必须**至少**覆盖最初的回归承诺，并允许在其之上继续添加。
 //
 // # 只守一个方向
 //
-// 计划里那 25 条承诺一条都不能失去证据——这个方向必须守死，
+// 最初那些承诺一条都不能悄悄失去证据——这个方向必须守死，
 // 否则「跑完回归就安全了」就成了一句没有依据的话。
 //
-// 反方向（"不许有计划之外的条目"）**已经取消**。开发计划在 41 个 Step 全部
-// 完成后冻结成了历史记录（见它的头部说明），而项目还在继续改。继续守"不许多"
-// 等于规定此后新增的每一条用户承诺都不准进这份清单——而这份清单恰恰是
-// 「承诺 → 证明它的测试」的唯一落点。那会把一个防止清单变成谎话的守卫，
-// 变成一个阻止清单继续记录真话的守卫。
+// 反方向（"不许有额外的条目"）不守：项目还在继续改，此后新增的每一条用户承诺
+// 都该进这份清单——它恰恰是「承诺 → 证明它的测试」的唯一落点。守"不许多"，
+// 会把一个防止清单变成谎话的守卫，变成一个阻止清单继续记录真话的守卫。
 //
-// 新增条目从 R26 起顺延编号，不需要回头改开发计划。
+// 新增条目顺延编号。
 func TestManifestCoversEveryChecklistItem(t *testing.T) {
 	items := loadManifest(t)
 
@@ -110,13 +107,13 @@ func TestManifestCoversEveryChecklistItem(t *testing.T) {
 				"错一个字那一行就再也不会被跑到，而清单看上去仍然是满的", it.line, it.id)
 	}
 
-	for i := 1; i <= planItems; i++ {
+	for i := 1; i <= originalItems; i++ {
 		id := "R" + strconv.Itoa(i)
 		assert.Equal(t, 1, seen[id],
-			"Step 37：清单里 %s 出现了 %d 次（应当正好 1 次）", id, seen[id])
+			"清单里 %s 出现了 %d 次（应当正好 1 次）", id, seen[id])
 		delete(seen, id)
 	}
-	// 剩下的是计划冻结之后新增的承诺：不限数量，但同样不许重号
+	// 剩下的是后来新增的承诺：不限数量，但同样不许重号
 	for id, n := range seen {
 		assert.Equal(t, 1, n, "清单里 %s 出现了 %d 次（应当正好 1 次）", id, n)
 	}
@@ -156,10 +153,10 @@ func TestEveryListedTestStillExists(t *testing.T) {
 		where := filepath.Join(k.module, strings.TrimPrefix(k.pkg, "./"))
 		for _, it := range group {
 			assert.True(t, found[it.test],
-				"Step 37：%s（%s，对应 Step %s）指向的测试 %s 在 %s 里已经不存在了。\n"+
+				"%s（%s）指向的测试 %s 在 %s 里已经不存在了。\n"+
 					"    清单少一条证据就等于多一句没人验证的话——\n"+
 					"    请把它改成现在真正覆盖这条承诺的测试，而不是从清单里删掉这一项。",
-				it.id, it.desc, it.step, it.test, where)
+				it.id, it.desc, it.test, where)
 		}
 	}
 }
@@ -180,6 +177,6 @@ func TestGuardDetectsMissingTest(t *testing.T) {
 	require.NoError(t, err, "%s", out)
 
 	assert.NotContains(t, string(out), "TestThisNameDeliberatelyDoesNotExist",
-		"Step 37：一个不存在的测试被「找到」了，说明存在性检查根本没在工作——"+
+		"一个不存在的测试被「找到」了，说明存在性检查根本没在工作——"+
 			"那么 TestEveryListedTestStillExists 的绿灯也不可信")
 }

@@ -1,4 +1,4 @@
-// 本文件是 Step 15-B 的业务行为测试：`brickkit down`（004 §3.6）。
+// 本文件是 `brickkit down` 的业务行为测试。
 // 覆盖 15.13、15.14、15.21。
 package cli
 
@@ -35,7 +35,7 @@ func startedProject(t *testing.T) (*projectFixture, *fakeEngine) {
 }
 
 // ============================================================
-// 15.13 停止
+// 停止
 // ============================================================
 
 func TestDownStopsTheProject(t *testing.T) {
@@ -46,7 +46,7 @@ func TestDownStopsTheProject(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	require.Len(t, eng.downs, 1)
 	// 交给引擎的只有项目名：停的是"这个项目现在跑着的一切"，
-	// 而不是"生成目录里此刻写着的那些"（005 §5.9.3）
+	// 而不是"生成目录里此刻写着的那些"
 	assert.Equal(t, "brickkit-my-erp", eng.downs[0].Project)
 	assert.Contains(t, r.stdout, "stopped")
 }
@@ -67,11 +67,11 @@ func TestDownTellsThatDataIsKept(t *testing.T) {
 
 	r := runWithEngine(t, eng, f.Dir, "down")
 
-	assert.Contains(t, r.stdout, "data", "15.13：要让使用者知道数据没被删")
+	assert.Contains(t, r.stdout, "data", "要让使用者知道数据没被删")
 	assert.Contains(t, r.stdout, "docker volume rm", "并告诉他真想删该怎么做")
 }
 
-// override.yaml 能把生效目标从 k8s 降到 docker（override.yaml 设计书 §5.2），
+// 个人部署文件能把生效目标从 k8s 降到 docker，
 // down 必须读到这个降级后的值，而不是 brickkit.yaml 自己声明的 k8s——否则
 // 会去连一个从没配置过的集群，跟 up/sync/status 这次实际用的引擎对不上。
 // 这里不直接断言"选中了哪个引擎"：fakeEngine 一旦被注入，resolveEngineFor
@@ -166,7 +166,7 @@ func TestDownWithNothingRunning(t *testing.T) {
 
 // ⚠️ 回归：生成目录被清掉之后，down 必须照样停得掉。
 //
-// `.brickkit/generated/` 在 .gitignore 里，003 §7.1 还明说它"整个都是可再生的"——
+// `.brickkit/generated/` 在 .gitignore 里，整个目录都是可再生的——
 // 一次 `git clean -xdf` 就没了。从前 down 拿它在不在当"项目跑没跑"的判据，
 // 于是这种情况下会报"📋 项目尚未启动过"、退出码 0、引擎一次都不调，
 // 而容器好好地跑着。这与当初把 DownRequest.File 拿掉是同一个 bug，
@@ -206,10 +206,10 @@ func TestDownReportsEngineFailure(t *testing.T) {
 }
 
 // ============================================================
-// 15.14 只停其中几个：改 mode 再 up
+// 只停其中几个：改 mode 再 up
 // ============================================================
 
-// `down --only` 已删除（003 §4.3：要收窄范围就改配置）。它的用途由
+// `down --only` 已删除：要收窄范围就改配置。它的用途由
 // "写 mode: disable 再 up" 覆盖——生成的部署文件里没有它，
 // 而 up 带着清理选择器（Docker 侧即 `--remove-orphans`），
 // 引擎会把它的容器一并移除。
@@ -254,7 +254,7 @@ resources:
 
 // 停止顺序交给引擎：compose 本身就按依赖倒序停。
 //
-// 15.21 要的是"依赖方先停、被依赖方后停"——不带服务名时 compose 自己就这么做，
+// 要的是"依赖方先停、被依赖方后停"——不带服务名时 compose 自己就这么做，
 // CLI 再排一遍只是多一份会与它分叉的真相。
 func TestDownDelegatesStopOrderToTheEngine(t *testing.T) {
 	f, eng := startedProject(t)
@@ -354,7 +354,7 @@ func TestDownAlwaysPassesSelector(t *testing.T) {
 // 组件的 component.yaml 写坏了，down 照样要能把容器停掉。
 //
 // down 需要的只有项目名——它交给引擎的就是"停掉 brickkit-<项目名> 名下的一切"
-// （005 §5.9.3）。而它从前会先把每个组件的 component.yaml 都读一遍去建依赖图，
+// 。而它从前会先把每个组件的 component.yaml 都读一遍去建依赖图，
 // 那套结论一个字段都没用上，却让 component.yaml 里的一处笔误、本地源目录被删、
 // 市场连不上……任何一种都能把"停容器"这件事拦下来，而容器还好好跑着。
 //

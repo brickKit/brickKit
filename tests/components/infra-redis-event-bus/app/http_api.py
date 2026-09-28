@@ -1,6 +1,6 @@
 """HTTP 出口。
 
-契约由**调用方**先定下：erp/backend 早在 Step 25 就在往
+契约由**调用方**先定下：erp/backend 早就在往
 `POST {endpoint}/api/v1/events` 发事件了（见它的 eventbus.go）。
 这里必须照着实现，不能反过来要求已经上线的调用方改。
 """
@@ -50,7 +50,7 @@ def create_app(store: Any, cfg: Config) -> FastAPI:
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
-        """健康检查只回答"本进程还活着吗"（002 §9.4、开发计划 27.3）。
+        """健康检查只回答"本进程还活着吗"。
 
         **不 ping Redis。** Redis 在这里是唯一的数据源，比别处更容易让人
         想去探一探；但去探的话，Redis 一抖，编排系统就把这些本身完全正常的

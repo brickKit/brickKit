@@ -13,10 +13,10 @@ import (
 )
 
 // ============================================================
-// 合法 Manifest 解析（4.1、4.19–4.25）
+// 合法 Manifest 解析
 // ============================================================
 
-// 4.1 用 department/tree 的 component.yaml 测试（002 §12.5）。
+// 用 department/tree 的 component.yaml 测试。
 func TestParseFileDepartmentTree(t *testing.T) {
 	m, err := ParseFile(filepath.Join("testdata", "department-tree.yaml"))
 	require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestParseFileDepartmentTree(t *testing.T) {
 	assert.Equal(t, "/healthz", m.HealthCheck.Path)
 }
 
-// 4.19 弱依赖 optional: true 正确识别；extraPorts 正确解析（002 §2.2）。
+// 弱依赖 optional: true 正确识别；extraPorts 正确解析。
 func TestParseFilePeopleBasic(t *testing.T) {
 	m, err := ParseFile(filepath.Join("testdata", "people-basic.yaml"))
 	require.NoError(t, err)
@@ -119,7 +119,7 @@ healthCheck:
   path: /healthz
 `
 
-// 4.21–4.25 可选字段全部缺失时解析成功。
+// 可选字段全部缺失时解析成功。
 func TestParseMinimalManifest(t *testing.T) {
 	m, err := Parse([]byte(minimalYAML), "component.yaml")
 	require.NoError(t, err)
@@ -133,7 +133,7 @@ func TestParseMinimalManifest(t *testing.T) {
 	assert.Empty(t, m.Tags)
 }
 
-// 4.20 空 dependencies 解析成功。
+// 空 dependencies 解析成功。
 func TestParseEmptyDependencies(t *testing.T) {
 	m, err := Parse([]byte(minimalYAML+`
 dependencies:
@@ -145,7 +145,7 @@ dependencies:
 	assert.Empty(t, m.Dependencies.Components)
 }
 
-// 4.25 configSchema properties 为空（32.25）也是合法的。
+// configSchema properties 为空也是合法的。
 func TestParseEmptyConfigSchemaProperties(t *testing.T) {
 	m, err := Parse([]byte(minimalYAML+`
 configSchema:
@@ -158,7 +158,7 @@ configSchema:
 }
 
 // ============================================================
-// 校验失败（4.2–4.18、4.26–4.30）
+// 校验失败
 // ============================================================
 
 // mutate 基于最小合法 Manifest 做替换，构造非法输入。
@@ -340,7 +340,7 @@ configSchema:
 		{"4.30", "resources.requests 缺少 cpu 与 memory", mutate(t, "  port: 8080", `  port: 8080
   resources:
     requests: {}`), []string{"deployment.resources.requests"}},
-		// 同一个组件 ID 的两个版本：变量名不带版本（001 §8.3），
+		// 同一个组件 ID 的两个版本：变量名不带版本，
 		// 两条都注入 DEPARTMENT_TREE_ENDPOINT，后者静默覆盖前者
 		{"—", "同一依赖声明了两个版本", minimalYAML + `
 dependencies:
@@ -363,7 +363,7 @@ dependencies:
 		{"—", "healthCheck path 不以 / 开头",
 			mutate(t, "  path: /healthz", "  path: healthz"),
 			[]string{"healthCheck.path", "/"}},
-		// 002 §9.3：写了不生效的字段必须出声，与 brickkit.yaml 侧
+		// 写了不生效的字段必须出声，与 brickkit.yaml 侧
 		// localPort / exposePort 同一条规矩
 		{"—", "startPeriodSeconds 配 type: none",
 			mutate(t, "  type: http\n  path: /healthz",
@@ -397,7 +397,7 @@ dependencies:
 	}
 }
 
-// 4.13 extraPorts name 重复（两个 name: grpc）。
+// extraPorts name 重复（两个 name: grpc）。
 func TestExtraPortsDuplicateName(t *testing.T) {
 	y := mutate(t, "  port: 8080", `  port: 8080
   extraPorts:
@@ -413,7 +413,7 @@ func TestExtraPortsDuplicateName(t *testing.T) {
 }
 
 // ============================================================
-// local: 块（005 §2、§4）
+// local: 块
 // ============================================================
 
 func TestParseWithoutLocalBlock(t *testing.T) {
@@ -488,7 +488,7 @@ deployment:
 // 解析层错误
 // ============================================================
 
-// 32.10 非法 YAML 报错并指出行号。
+// 非法 YAML 报错并指出行号。
 func TestParseInvalidYAML(t *testing.T) {
 	_, err := Parse([]byte("apiVersion: brickkit/v1\n  kind: Component\n\tbad: indent\n"), "component.yaml")
 	require.Error(t, err)
@@ -498,7 +498,7 @@ func TestParseInvalidYAML(t *testing.T) {
 	assert.Contains(t, e.Format(), "line")
 }
 
-// 32.11 空文件报错。
+// 空文件报错。
 func TestParseEmptyFile(t *testing.T) {
 	for _, in := range []string{"", "   \n\n", "# 只有注释\n"} {
 		_, err := Parse([]byte(in), "component.yaml")
@@ -523,22 +523,22 @@ func TestErrorsAreCLIErrors(t *testing.T) {
 
 	e := clierr.As(err)
 	assert.Equal(t, clierr.ExitError, e.ExitCode())
-	assert.NotEmpty(t, e.Hints, "错误必须带建议（004 §10.2）")
+	assert.NotEmpty(t, e.Hints, "错误必须带建议")
 	assert.Contains(t, e.Format(), "❌")
 }
 
 // ============================================================
-// 边界（Step 32 提前覆盖）
+// 边界
 // ============================================================
 
-// 32.3 版本号超长仍可正常处理。
+// 版本号超长仍可正常处理。
 func TestParseVeryLongVersion(t *testing.T) {
 	m, err := Parse([]byte(mutate(t, "version: 1.0.0", `version: "999999.999999.999999"`)), "component.yaml")
 	require.NoError(t, err)
 	assert.Equal(t, "999999.999999.999999", m.Metadata.Version)
 }
 
-// 32.5 依赖列表超大（100 个依赖）正常解析。
+// 依赖列表超大（100 个依赖）正常解析。
 func TestParseManyDependencies(t *testing.T) {
 	var b strings.Builder
 	b.WriteString(minimalYAML)
@@ -552,7 +552,7 @@ func TestParseManyDependencies(t *testing.T) {
 	assert.Len(t, m.Dependencies.Components, 100)
 }
 
-// 32.24 artifacts 文件路径含空格属于合法输入。
+// artifacts 文件路径含空格属于合法输入。
 func TestParseArtifactPathWithSpace(t *testing.T) {
 	m, err := Parse([]byte(minimalYAML+`
 artifacts:
@@ -563,7 +563,7 @@ artifacts:
 	assert.Equal(t, []string{"a b/c.proto"}, m.Artifacts[0].Files)
 }
 
-// 前端组件（nginx，port 80，无 migration/依赖）也必须合法（002 §4.3）。
+// 前端组件（nginx，port 80，无 migration/依赖）也必须合法。
 func TestParseFrontendComponent(t *testing.T) {
 	m, err := Parse([]byte(`
 apiVersion: brickkit/v1
@@ -586,7 +586,7 @@ healthCheck:
 	assert.Equal(t, "/", m.HealthCheck.Path)
 }
 
-// healthCheck type: tcp / none 也是合法值（002 §9.1）。
+// healthCheck type: tcp / none 也是合法值。
 func TestParseHealthCheckTypes(t *testing.T) {
 	for _, tc := range []struct{ yaml, wantType string }{
 		{"  type: tcp", "tcp"},

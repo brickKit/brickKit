@@ -138,7 +138,7 @@ func testStoreUpsertIsIdempotent(t *testing.T, store Store) {
 
 // TestMigrationIsIdempotent：迁移重复执行不能出错。
 //
-// 平台每次 up 都会跑一遍迁移（005 §6），不幂等的话第二次启动就失败。
+// 平台每次 up 都会跑一遍迁移，不幂等的话第二次启动就失败。
 func TestMigrationIsIdempotent(t *testing.T) {
 	dsn := os.Getenv(envTestDatabaseURL)
 	if dsn == "" {
@@ -161,7 +161,7 @@ func TestMigrationIsIdempotent(t *testing.T) {
 		t.Errorf("样例账号应当指向 people/basic 的 p-001，实际 %q", cred.PersonID)
 	}
 	if !verifyPassword(cred.PasswordHash, "demo-password") {
-		t.Error("样例账号的口令应当是 demo-password（试用指南里写的就是它）")
+		t.Error("样例账号的口令应当是 demo-password（README 里写的就是它）")
 	}
 }
 

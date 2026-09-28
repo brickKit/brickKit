@@ -1,4 +1,4 @@
-// 本文件是 Step 4「component.yaml 解析器」的代码层测试：形状错误、
+// 本文件是 「component.yaml 解析器」的代码层测试：形状错误、
 // null 字段、各条校验规则的分支与边界。
 //
 // 业务行为由 manifest_test.go 从"解析出来的 Manifest 里有什么"那一侧盯住；
@@ -374,7 +374,7 @@ configSchema:
 	assert.Contains(t, clierr.As(err).Format(), "configSchema.properties.pageSize.type")
 }
 
-// configSchema 支持 enum 与 array items（002 §6.5 的说明书用途）。
+// configSchema 支持 enum 与 array items（说明书用途，不做校验）。
 func TestConfigSchemaEnumAndItems(t *testing.T) {
 	m, err := Parse([]byte(minimalYAML+`
 configSchema:
@@ -493,7 +493,7 @@ dependencies:
 	assert.Contains(t, clierr.As(err).Format(), "dependencies.components[0]")
 }
 
-// 导出给 config 包复用的两个规则函数（Step 5 的 brickkit.yaml 校验依赖它们）。
+// 导出给 brickkit.yaml 校验复用的两个规则函数。
 func TestExportedRuleHelpers(t *testing.T) {
 	assert.Empty(t, ComponentIDProblem("people/basic"))
 	assert.Contains(t, ComponentIDProblem("People/Basic"), "lowercase")

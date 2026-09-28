@@ -37,7 +37,7 @@ var aggregated = []struct {
 	{"infra/redis-event-bus", "INFRA_REDIS_EVENT_BUS_ENDPOINT"},
 }
 
-// config 是组件的全部配置。**只来自环境变量**（002 §1.4、006 §5.1）。
+// config 是组件的全部配置。**只来自环境变量**。
 type config struct {
 	ComponentID string
 	Version     string
@@ -68,7 +68,7 @@ func (c config) String() string {
 // configFromEnv 从环境变量读配置。
 //
 // 与其他组件的一个根本差别：**这里没有"缺少必需配置"的校验**。
-// 本组件的依赖全是弱依赖（003 §4.3），缺席是常态——把任何一个列成必需，
+// 本组件的依赖全是弱依赖，缺席是常态——把任何一个列成必需，
 // 就等于要求使用者必须把七个组件全装上才能看文档。
 func configFromEnv(lookup func(string) string) (config, error) {
 	get := func(key string) string { return strings.TrimSpace(lookup(key)) }
@@ -97,7 +97,7 @@ func valueOr(value, fallback string) string {
 }
 
 // ============================================================
-// 日志（002 §11）
+// 日志
 // ============================================================
 
 var sensitiveKeys = []string{"password", "token", "secret", "dsn"}

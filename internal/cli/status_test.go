@@ -1,5 +1,4 @@
-// 本文件是 Step 15-B 的业务行为测试：`brickkit status`（004 §3.7）。
-// 覆盖 15.15–15.18。
+// 本文件是 `brickkit status` 的业务行为测试。
 //
 // status 的价值在于"一眼看清现在是什么样"：谁在跑、谁没跑、为什么没跑、
 // 哪些在 IDE 里、资源通不通。因此断言几乎都落在输出内容上。
@@ -28,7 +27,7 @@ func statusOf(t *testing.T, eng *fakeEngine, dir string) result {
 }
 
 // ============================================================
-// 15.15 运行中的组件
+// 运行中的组件
 // ============================================================
 
 func TestStatusShowsRunningComponents(t *testing.T) {
@@ -109,7 +108,7 @@ func TestStatusWhenNothingIsRunning(t *testing.T) {
 }
 
 // ============================================================
-// 15.16 未启动的组件及原因
+// 未启动的组件及原因
 // ============================================================
 
 func TestStatusShowsSkippedComponentsWithReason(t *testing.T) {
@@ -132,9 +131,9 @@ func TestStatusShowsSkippedComponentsWithReason(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "erp/backend")
-	assert.Contains(t, r.stdout, "disabled explicitly", "15.16：要说清为什么没跑")
+	assert.Contains(t, r.stdout, "disabled explicitly", "要说清为什么没跑")
 	assert.Contains(t, r.stdout, "people/basic")
-	assert.Contains(t, r.stdout, "nothing above it is starting", "15.16：跟着上层不跑的也要给出原因")
+	assert.Contains(t, r.stdout, "nothing above it is starting", "跟着上层不跑的也要给出原因")
 }
 
 // 本地模式下 deploy.local.yaml 里的 mode: disable 让这个组件这次不跑——status 得说清楚
@@ -199,7 +198,7 @@ func TestStatusDoesNotLabelComponentDisabledInTeamFile(t *testing.T) {
 }
 
 // ============================================================
-// 15.17 本地调试组件
+// 本地调试组件
 // ============================================================
 
 func TestStatusShowsLocalComponents(t *testing.T) {
@@ -306,7 +305,7 @@ func TestStatusSkipsSessionCheckWhenNoModeLocalComponent(t *testing.T) {
 }
 
 // ============================================================
-// 15.18 资源状态
+// 资源状态
 // ============================================================
 
 // 没有声明资源的项目不该冒出一个空的"资源状态"小节。

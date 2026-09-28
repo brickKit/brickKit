@@ -14,10 +14,10 @@ var (
 	BuildDate = "unknown"
 )
 
-// ManifestAPIVersion 是 CLI 支持的 component.yaml apiVersion（002 §2）。
+// ManifestAPIVersion 是 CLI 支持的 component.yaml apiVersion。
 const ManifestAPIVersion = "brickkit/v1"
 
-// DeployTargets 是 CLI 支持的部署目标（003 §3）。
+// DeployTargets 是 CLI 支持的部署目标。
 var DeployTargets = []string{"docker", "k8s"}
 
 // SupportedTargets 返回逗号分隔的部署目标列表。
@@ -25,7 +25,7 @@ func SupportedTargets() string {
 	return strings.Join(DeployTargets, ", ")
 }
 
-// Display 返回带 v 前缀的版本号（004 §11.3 输出格式为 "v1.0.0"）。
+// Display 返回带 v 前缀的版本号（如 "v1.0.0"）。
 // Version 本身已带 v 前缀时不重复添加。
 func Display() string {
 	if strings.HasPrefix(Version, "v") {

@@ -1,5 +1,4 @@
-// 本文件是 Step 16-B「Service / Ingress / 迁移 Job / 目录结构」的业务行为测试，
-// 覆盖开发计划 16.3、16.4、16.5、16.6、16.7、16.12、16.13。
+// 本文件是「Service / Ingress / 迁移 Job / 目录结构」的业务行为测试。
 package k8s_test
 
 import (
@@ -19,7 +18,7 @@ import (
 )
 
 // ============================================================
-// 16.3 / 16.4 Service
+// Service
 // ============================================================
 
 func TestServiceGenerated(t *testing.T) {
@@ -57,7 +56,7 @@ func TestServiceIncludesExtraPorts(t *testing.T) {
 }
 
 // ============================================================
-// 16.5 / 16.6 Ingress
+// Ingress
 // ============================================================
 
 func TestIngressGenerated(t *testing.T) {
@@ -132,7 +131,7 @@ func TestExposeWithoutHostnameIsAnError(t *testing.T) {
 //
 // # 多版本共存时几乎必然踩到
 //
-// 照 003 §8.3 加第二个版本时，那一整个条目是复制出来的，hostname 会跟着复制。
+// 加第二个共存版本时，那一整个条目是复制出来的，hostname 会跟着复制。
 func TestDuplicateHostnameIsAnError(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
@@ -154,7 +153,7 @@ func TestDuplicateHostnameIsAnError(t *testing.T) {
 
 // 同一个组件的两个版本共用一个 hostname 同样报错。
 //
-// 这是最常撞的一种：003 §8.3 的多版本条目是复制出来的。
+// 这是最常撞的一种：多版本条目是复制出来的。
 // 而且这里没有"让它俩轮流服务"这种解释——两份 Ingress 不是负载均衡，
 // 是未定义行为，请求会稳定落到其中一个版本上。
 func TestDuplicateHostnameAcrossVersionsIsAnError(t *testing.T) {
@@ -187,7 +186,7 @@ func TestHostnameOnUnexposedComponentDoesNotConflict(t *testing.T) {
 }
 
 // ============================================================
-// 16.12 K8s 不需要 exposePort
+// K8s 不需要 exposePort
 // ============================================================
 
 // K8s 通过 Ingress + 域名路由，两个组件共用 80 端口也不冲突，
@@ -204,7 +203,7 @@ func TestExposePortIgnoredOnK8s(t *testing.T) {
 }
 
 // ============================================================
-// 16.7 迁移 Job
+// 迁移 Job
 // ============================================================
 
 func migrating(m *manifest.Manifest) *manifest.Manifest {
@@ -266,7 +265,7 @@ func TestMigrationPodIsNotAServiceEndpoint(t *testing.T) {
 	assert.Equal(t, "migration", labels["brickkit.io/role"], "迁移 Pod 要标出自己的角色")
 }
 
-// 002 §8.5：迁移容器的环境变量与主容器完全一致，密码同样走 Secret。
+// 迁移容器的环境变量与主容器完全一致，密码同样走 Secret。
 func TestMigrationJobEnvMatchesComponent(t *testing.T) {
 	b := newBuilder(t)
 	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
@@ -287,7 +286,7 @@ func TestNoMigrationJobWithoutMigration(t *testing.T) {
 	assert.False(t, hasFile(b.generate(), "migrations/people-basic-1-0-0-migration.yaml"))
 }
 
-// 要清理的旧 Job 名字必须回填给命令层（16.14 的输入）。
+// 要清理的旧 Job 名字必须回填给命令层（它清理旧 Job 时要用）。
 func TestResultCarriesMigrationJobs(t *testing.T) {
 	b := newBuilder(t)
 	b.component(migrating(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
@@ -297,7 +296,7 @@ func TestResultCarriesMigrationJobs(t *testing.T) {
 }
 
 // ============================================================
-// 16.13 目录结构
+// 目录结构
 // ============================================================
 
 func TestWriteFiles(t *testing.T) {

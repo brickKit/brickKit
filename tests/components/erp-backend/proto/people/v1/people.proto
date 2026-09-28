@@ -1,4 +1,4 @@
-// people/basic 的 gRPC 契约（002 §7：契约即产物）。
+// people/basic 的 gRPC 契约（契约即产物）。
 //
 // gRPC 跑在 extraPorts 声明的 9090 端口上：Python 的 grpcio 无法与 HTTP
 // 共用一个端口（Go 组件可以，见 department/tree），因此按 009 的建议用双端口。
@@ -7,7 +7,7 @@ syntax = "proto3";
 package people.v1;
 
 // go_package 是**调用方**加的：people/basic 本身是 Python 组件，它的 proto 里
-// 没有这一行。契约即产物（002 §7）——调用方拿到 .proto 后按自己的语言生成客户端，
+// 没有这一行。契约即产物——调用方拿到 .proto 后按自己的语言生成客户端，
 // 生成用的选项属于调用方，不该要求发布者预先为每种语言都写一遍。
 option go_package = "github.com/brickkit/components/erp-backend/gen/people/v1;peoplev1";
 

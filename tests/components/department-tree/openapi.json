@@ -103,7 +103,7 @@
     "/healthz": {
       "get": {
         "summary": "健康检查",
-        "description": "只检查本进程存活，不检查数据库或任何外部依赖（002 §9.4）。",
+        "description": "只检查本进程存活，不检查数据库或任何外部依赖。",
         "responses": {
           "200": {
             "description": "进程存活",

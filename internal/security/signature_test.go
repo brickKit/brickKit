@@ -11,7 +11,7 @@ import (
 	"github.com/brickkit/brickkit/internal/security"
 )
 
-// 一份最小但真实的 Manifest（002 §3）。签名的对象就是它。
+// 一份最小但真实的 Manifest。签名的对象就是它。
 const sampleManifest = `apiVersion: brickkit.io/v1
 kind: Component
 metadata:
@@ -61,7 +61,7 @@ func codeOf(t *testing.T, err error) clierr.Code {
 }
 
 // ---------------------------------------------------------------
-// 20.2 签名校验通过
+// 签名校验通过
 // ---------------------------------------------------------------
 
 func TestVerifyAcceptsValidSignature(t *testing.T) {
@@ -73,7 +73,7 @@ func TestVerifyAcceptsValidSignature(t *testing.T) {
 }
 
 // ---------------------------------------------------------------
-// 20.3 篡改后校验失败
+// 篡改后校验失败
 // ---------------------------------------------------------------
 
 func TestVerifyRejectsTamperedPayload(t *testing.T) {
@@ -121,8 +121,8 @@ func TestVerifyRejectsSignatureFromAnotherKey(t *testing.T) {
 // TestVerifyRejectsUnknownKeyRef 是整套签名机制成立的前提。
 //
 // 如果公钥能跟着签名一起从市场取，那等于市场自己给自己发证：市场被攻破时，
-// 攻击者把组件和公钥一起换掉，验签照样通过，签名就成了摆设（008 §14.1
-// "市场被攻破 → 签名校验"）。所以公钥只能来自 brickkit.yaml。
+// 攻击者把组件和公钥一起换掉，验签照样通过，签名就成了摆设。
+// 所以公钥只能来自 brickkit.yaml。
 func TestVerifyRejectsUnknownKeyRef(t *testing.T) {
 	k := newTestKey(t)
 	payload, err := security.CanonicalPayload([]byte(sampleManifest))
@@ -287,7 +287,7 @@ func TestVerifyManifestAcceptsMatchingComponent(t *testing.T) {
 		newRing(t, k), "people/basic", "1.2.0"))
 }
 
-// TestVerifyManifestErrorNamesComponent 对应 008 §8.7 的失败提示。
+// TestVerifyManifestErrorNamesComponent 对应验签失败的提示。
 func TestVerifyManifestErrorNamesComponent(t *testing.T) {
 	k := newTestKey(t)
 	sig := validSignature(t, k)

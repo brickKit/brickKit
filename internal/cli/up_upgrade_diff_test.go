@@ -1,35 +1,23 @@
 package cli
 
-// 本文件补齐开发计划 Step 38 里的 6 处真缺口。
+// 本文件守着"升级到底会改变什么"：升级摘要的每一项、升级后真正跑起来的版本。
 //
-// 其余 22 项逐条查证后都已有覆盖（38.13–38.16 甚至有专门的
-// `TestUpgradeAddedConfigKeyUsesDefault` 等四条），这里只补真的没有的。
+// # 一、升级摘要要把六项都说全
 //
-// # 一、升级摘要比设计书少了四行（38.18 / 38.19 / 38.21 / 38.22）
-//
-// 004 §3.5.1 规定 `--dry-run` 的摘要长这样：
-//
-//	📋 升级变更摘要：
-//	   people/basic: 1.0.0 → 1.1.0
-//	   ├── 依赖变更：无
-//	   ├── 新增配置项：enableNotification（默认 true）
-//	   ├── 删除配置项：无
-//	   ├── 数据库迁移：python manage.py migrate
-//	   ├── artifacts 变更：openapi.json 更新
-//	   └── 资源配额变更：无
-//
-// 而实现只输出了版本行、数据库迁移、旧版本产物三行——**六项里缺四项**。
+// `--dry-run` 的升级摘要逐项列出：依赖变更、新增配置项、删除配置项、
+// 数据库迁移、产物变更、资源配额变更。它一度只输出了版本行、数据库迁移、
+// 旧版本产物三行——**六项里缺四项**。
 //
 // 缺的偏偏是"升级到底会改变什么"这个问题本身：使用者按下 `--dry-run`
 // 就是想在真动手之前知道这个。只告诉他"有迁移"，
 // 等于让他自己去 diff 两份 Manifest——而他多半不知道旧的那份在缓存里。
 //
-// # 二、没有人断言"升级之后新版本真的跑起来了"（38.1）
+// # 二、断言"升级之后新版本真的跑起来了"
 //
-// 现有升级测试验的是缓存落盘（`TestUpgradeDownloadsNewVersionArtifacts`）
-// 与输出文案（`TestUpgradeIsReported`），**没有一条断言引擎收到的是新版本的服务**。
-// 回滚方向反而有（`TestSwitchingBackToAnInstalledVersionStartsIt` 断言了
-// `people-basic-1-0-0`），升级方向没有。
+// 验缓存落盘（`TestUpgradeDownloadsNewVersionArtifacts`）与输出文案
+// （`TestUpgradeIsReported`）的用例都**不断言引擎收到的是新版本的服务**。
+// 回滚方向有（`TestSwitchingBackToAnInstalledVersionStartsIt` 断言了
+// `people-basic-1-0-0`），升级方向要在这里补上。
 //
 // 这条要是坏了，`TestUpgradeIsReported` 照样绿——它只看 stdout 里有没有那几个字。
 
@@ -46,7 +34,7 @@ import (
 )
 
 // ============================================================
-// 38.1 升级后新版本真的被启动
+// 升级后新版本真的被启动
 // ============================================================
 
 // 改完版本号执行 up，引擎收到的必须是**新版本**的服务名。
@@ -62,22 +50,22 @@ func TestUpgradeActuallyStartsNewVersion(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, []string{"people-basic-1-1-0"}, eng.lastUp(t).Services,
-		"38.1：升级之后跑的必须是新版本——现有用例只验了缓存与文案，"+
+		"升级之后跑的必须是新版本——现有用例只验了缓存与文案，"+
 			"这条要是坏了它们照样全绿")
 }
 
 // ============================================================
-// 38.7 升级引入未绑定的资源 → 报错阻断
+// 升级引入未绑定的资源 → 报错阻断
 // ============================================================
 
 // ============================================================
-// 38.18 / 38.19 / 38.21 / 38.22 升级摘要要说清"改了什么"
+// 升级摘要要说清"改了什么"
 // ============================================================
 
 // upgradeSummary 装好 old、把版本号改成 new，跑一次 --dry-run 并返回输出。
 //
 // 安装源里额外备着 department/tree——依赖变更那条用例要新增一个依赖，
-// 而取不到的依赖会在算摘要之前就被拦下（002 §7.7）。
+// 而取不到的依赖会在算摘要之前就被拦下。
 func upgradeSummary(t *testing.T, old, updated comp) string {
 	t.Helper()
 
@@ -98,7 +86,7 @@ func upgradeSummary(t *testing.T, old, updated comp) string {
 	return r.stdout
 }
 
-// 38.18 依赖变更要报出来。
+// 依赖变更要报出来。
 //
 // 这是六项里最要紧的一条：新版本多依赖一个组件，意味着这次升级会
 // **多起一个容器**。使用者有权在按下 up 之前知道。
@@ -107,9 +95,9 @@ func TestSummaryReportsDependencyChange(t *testing.T) {
 		comp{ID: "people/basic", Version: "1.0.0"},
 		comp{ID: "people/basic", Version: "1.1.0", Requires: []string{"department/tree@1.0.0"}})
 
-	assert.Contains(t, out, "Dependency changes", "38.18：%s", out)
+	assert.Contains(t, out, "Dependency changes", "%s", out)
 	assert.Contains(t, out, "department/tree",
-		"38.18：要点名多出来的是谁，只说'有变化'等于没说：%s", out)
+		"要点名多出来的是谁，只说'有变化'等于没说：%s", out)
 }
 
 // 依赖没变时也要如实说"无"，而不是把这一行藏起来。
@@ -120,12 +108,12 @@ func TestSummaryReportsNoDependencyChange(t *testing.T) {
 		comp{ID: "people/basic", Version: "1.0.0"},
 		comp{ID: "people/basic", Version: "1.1.0"})
 
-	assert.Contains(t, out, "Dependency changes: none", "38.18：%s", out)
+	assert.Contains(t, out, "Dependency changes: none", "%s", out)
 }
 
-// 38.19 新增配置项要报出来，并带上默认值。
+// 新增配置项要报出来，并带上默认值。
 //
-// 带默认值是因为：新增项走的是默认值（38.13），使用者要判断
+// 带默认值是因为：新增项走的是默认值，使用者要判断
 // 这个默认值对不对，而不只是知道"多了个配置项"。
 func TestSummaryReportsAddedConfigKey(t *testing.T) {
 	out := upgradeSummary(t,
@@ -133,16 +121,16 @@ func TestSummaryReportsAddedConfigKey(t *testing.T) {
 		comp{ID: "people/basic", Version: "1.1.0",
 			ConfigSchema: []string{"greeting:你好", "enableNotification:true"}})
 
-	assert.Contains(t, out, "Added config items", "38.19：%s", out)
-	assert.Contains(t, out, "ENABLE_NOTIFICATION", "38.19：%s", out)
+	assert.Contains(t, out, "Added config items", "%s", out)
+	assert.Contains(t, out, "ENABLE_NOTIFICATION", "%s", out)
 	assert.Contains(t, out, "true",
-		"38.19：要带上默认值——新增项走的就是它，使用者要判断这个值对不对：%s", out)
+		"要带上默认值——新增项走的就是它，使用者要判断这个值对不对：%s", out)
 }
 
-// 38.19 删除配置项要报出来。
+// 删除配置项要报出来。
 //
 // 这条比新增更值得说：删掉的配置项如果 brickkit.yaml 里还写着覆盖值，
-// 那个覆盖会被**静默忽略**（38.14，有意如此）。不提醒的话，
+// 那个覆盖会被**静默忽略**（有意如此）。不提醒的话，
 // 使用者会以为自己的配置仍然生效。
 func TestSummaryReportsRemovedConfigKey(t *testing.T) {
 	out := upgradeSummary(t,
@@ -150,22 +138,22 @@ func TestSummaryReportsRemovedConfigKey(t *testing.T) {
 			ConfigSchema: []string{"greeting:你好", "legacyMode:off"}},
 		comp{ID: "people/basic", Version: "1.1.0", ConfigSchema: []string{"greeting:你好"}})
 
-	assert.Contains(t, out, "Removed config items", "38.19：%s", out)
-	assert.Contains(t, out, "LEGACY_MODE", "38.19：%s", out)
+	assert.Contains(t, out, "Removed config items", "%s", out)
+	assert.Contains(t, out, "LEGACY_MODE", "%s", out)
 }
 
-// 38.21 artifacts 变更要报出来。
+// artifacts 变更要报出来。
 func TestSummaryReportsArtifactChange(t *testing.T) {
 	out := upgradeSummary(t,
 		comp{ID: "people/basic", Version: "1.0.0", Artifacts: []string{"api-docs:openapi.json"}},
 		comp{ID: "people/basic", Version: "1.1.0",
 			Artifacts: []string{"api-docs:openapi.json", "sdk:client.ts"}})
 
-	assert.Contains(t, out, "Artifacts changes", "38.21：%s", out)
-	assert.Contains(t, out, "client.ts", "38.21：要点名新增的产物：%s", out)
+	assert.Contains(t, out, "Artifacts changes", "%s", out)
+	assert.Contains(t, out, "client.ts", "要点名新增的产物：%s", out)
 }
 
-// 38.22 资源配额变更要报出来。
+// 资源配额变更要报出来。
 //
 // 配额变了意味着这次升级可能因为节点资源不够而起不来，
 // 这是少数几个"升级失败但和组件代码无关"的原因之一。
@@ -174,14 +162,14 @@ func TestSummaryReportsResourceQuotaChange(t *testing.T) {
 		comp{ID: "people/basic", Version: "1.0.0", CPU: "500m", Memory: "256Mi"},
 		comp{ID: "people/basic", Version: "1.1.0", CPU: "2", Memory: "1Gi"})
 
-	assert.Contains(t, out, "Resource quota changes", "38.22：%s", out)
+	assert.Contains(t, out, "Resource quota changes", "%s", out)
 	assert.Contains(t, out, "1Gi",
-		"38.22：要给出新配额——只说'变了'的话使用者还得自己去翻 Manifest：%s", out)
+		"要给出新配额——只说'变了'的话使用者还得自己去翻 Manifest：%s", out)
 }
 
 // 六行要齐。
 //
-// 设计书 §3.5.1 把摘要定成固定的六项，缺哪一项都会让人以为
+// 升级摘要固定是六项，缺哪一项都会让人以为
 // "平台没检查这一方面"。所以这条不测某一项，测的是**框架完整**。
 func TestSummaryHasEverySection(t *testing.T) {
 	out := upgradeSummary(t,
@@ -192,7 +180,7 @@ func TestSummaryHasEverySection(t *testing.T) {
 		"Dependency changes", "Added config items", "Removed config items", "Database migration", "Artifacts changes", "Resource quota changes",
 	} {
 		assert.Contains(t, out, section,
-			"38.17：设计书 004 §3.5.1 规定的六项里缺了「%s」——"+
+			"升级摘要的六项里缺了「%s」——"+
 				"缺一项就会让人以为平台没检查这一方面：%s", section, out)
 	}
 }
@@ -218,14 +206,14 @@ func TestSummarySaysUnknownWhenOldManifestIsUnreadable(t *testing.T) {
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "unknown",
-		"38.18：旧 Manifest 读不到时必须说'未知'：%s", r.stdout)
+		"旧 Manifest 读不到时必须说'未知'：%s", r.stdout)
 	assert.NotContains(t, r.stdout, "Dependency changes: none",
-		"38.18：**绝不能报'无'**——那是一句看起来正常的假话，"+
+		"**绝不能报'无'**——那是一句看起来正常的假话，"+
 			"使用者会据此认为可以放心升级：%s", r.stdout)
 }
 
 // ============================================================
-// 38.26 升级后 status 显示新版本
+// 升级后 status 显示新版本
 // ============================================================
 
 // 升级之后执行 status，显示的必须是新版本。
@@ -239,8 +227,8 @@ func TestStatusShowsNewVersionAfterUpgrade(t *testing.T) {
 	r := runWithEngine(t, eng, f.Dir, "status")
 
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "1.1.0", "38.26：升级后 status 要显示新版本：%s", r.stdout)
+	assert.Contains(t, r.stdout, "1.1.0", "升级后 status 要显示新版本：%s", r.stdout)
 	assert.NotContains(t, r.stdout, "1.0.0",
-		"38.26：旧版本已经不在配置里了，不该还显示着——"+
+		"旧版本已经不在配置里了，不该还显示着——"+
 			"那会让人以为升级没生效，或者两个版本都在跑")
 }

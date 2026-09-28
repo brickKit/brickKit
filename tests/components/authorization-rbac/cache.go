@@ -9,7 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// cacheKeyPrefix 让本组件的键在共享的 Redis 里不与别人打架（006 §7）。
+// cacheKeyPrefix 让本组件的键在共享的 Redis 里不与别人打架。
 //
 // 一个项目里多个组件可能连同一个 Redis；不带前缀的话，
 // 两个组件用了同一个键名就会互相覆盖，而且症状是"权限偶尔不对"。

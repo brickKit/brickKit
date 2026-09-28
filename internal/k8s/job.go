@@ -1,13 +1,13 @@
 package k8s
 
-// 本文件渲染数据库迁移 Job（005 §6.3）。
+// 本文件渲染数据库迁移 Job。
 
 import "github.com/brickkit/brickkit/internal/manifest"
 
 // MigrationJobName 是某个组件的迁移 Job 名。
 //
 // 命令层要用它做两件事：执行前 `kubectl delete job --ignore-not-found` 清理残留，
-// 之后 `kubectl wait --for=condition=complete` 等它跑完（005 §6.3）。
+// 之后 `kubectl wait --for=condition=complete` 等它跑完。
 func MigrationJobName(service string) string { return service + "-migration" }
 
 // jobLabelsOf 是迁移 Job 的标签。
@@ -41,7 +41,7 @@ func (p *plan) migrationJobDoc(c componentPlan) map[string]any {
 			// backoffLimit: 0——迁移失败不重试。
 			//
 			// 重试只会把同一个坏脚本再跑几遍：迁移失败几乎总是脚本或数据的问题，
-			// 重跑既修不好，还可能在半成品状态上再叠一层（005 §6.3）
+			// 重跑既修不好，还可能在半成品状态上再叠一层
 			"backoffLimit": 0,
 			"template": map[string]any{
 				"metadata": map[string]any{"labels": labels},
@@ -64,18 +64,18 @@ func (p *plan) migrationPodSpec(c componentPlan) map[string]any {
 // migrationContainerDoc 渲染迁移容器。
 func (p *plan) migrationContainerDoc(c componentPlan) map[string]any {
 	container := map[string]any{
-		// 002 §8.4：用组件自己的镜像，迁移脚本与业务代码同版本
+		// 用组件自己的镜像，迁移脚本与业务代码同版本
 		"name":  containerName(c.Ref.ID) + "-migration",
 		"image": manifest.ImageRef(c.Manifest),
 		// K8s 的 command 整体替换镜像的 ENTRYPOINT，所以整条命令原样写进去即可。
 		//
 		// 这里与 compose 那边不一样：compose 的 command 只覆盖 CMD，得把命令
 		// 拆成 entrypoint + command 两半，否则会拼成 `<entrypoint> migrate up`，
-		// 参数错位，"迁移容器"实际上把服务起了起来（005 §6.3）
+		// 参数错位，"迁移容器"实际上把服务起了起来
 		"command": anySlice(c.Manifest.Migration.Command),
 	}
 
-	// 002 §8.5：环境变量与主容器完全一致——迁移连的必须是同一个库
+	// 环境变量与主容器完全一致——迁移连的必须是同一个库
 	if env := p.envDoc(c); len(env) > 0 {
 		container["env"] = env
 	}

@@ -1,7 +1,7 @@
 // Package config 读取市场服务端的启动配置。
 //
 // 配置项、默认值与必填性来自《市场部署与运维指南》§5.1。所有密钥只走
-// 环境变量，不落配置文件（006 §6、008 §4）。
+// 环境变量，不落配置文件。
 package config
 
 import (
@@ -38,7 +38,7 @@ const (
 	// DefaultTokenExpiryHours 是 30 天。
 	DefaultTokenExpiryHours = 720
 	// MinAdminPasswordLength 是管理员口令的最短长度。
-	// 管理员是市场里权限最大的账号（007 §6.3），不接受弱口令。
+	// 管理员是市场里权限最大的账号，不接受弱口令。
 	MinAdminPasswordLength = 8
 )
 
