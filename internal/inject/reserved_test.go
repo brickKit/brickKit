@@ -71,3 +71,16 @@ func TestReservedKeyWarningsNothingToCheck(t *testing.T) {
 	assert.Nil(t, ReservedKeyWarnings(&manifest.Manifest{}))
 	assert.Nil(t, ReservedKeyWarnings(manifestWithConfigKeys("PAGE_SIZE", "DATABASE_URL", "REDIS_HOST")))
 }
+
+// 市场发布时拒绝的，正是 lint / up 警告的那一批：同一个判断，结构化给出。
+func TestReservedHits(t *testing.T) {
+	m := manifestWithConfigKeys("PORT", "PAGE_SIZE", "NOTIFIER_ENDPOINT", "COMPONENT_ID")
+	assert.Equal(t, []ReservedHit{
+		{Key: "COMPONENT_ID", Pattern: "COMPONENT_ID"},
+		{Key: "NOTIFIER_ENDPOINT", Pattern: "*_ENDPOINT"},
+		{Key: "PORT", Pattern: "PORT"},
+	}, ReservedHits(m))
+	assert.Nil(t, ReservedHits(nil))
+	assert.Nil(t, ReservedHits(manifestWithConfigKeys("PAGE_SIZE")))
+	assert.Len(t, ReservedKeyWarnings(m), len(ReservedHits(m)))
+}

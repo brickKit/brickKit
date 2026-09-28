@@ -85,5 +85,6 @@ func (s *ProblemSet) Err() error {
 	for _, item := range s.items {
 		_ = e.WithDetail(item.Field, item.Reason)
 	}
+	e.Problems = append([]Problem(nil), s.items...)
 	return e.WithHint(s.hints...)
 }

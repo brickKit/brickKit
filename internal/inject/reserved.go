@@ -10,11 +10,10 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
-// 平台保留变量（004 §5.6.1）。
+// 平台保留变量（提案 §5.2）。
 //
-// 市场发布时也会校验同一套规则（007 §18.1），但那一侧看不到
-// `{envPrefix}_*`——envPrefix 是使用者在 brickkit.yaml 里定的。
-// 所以注入时必须再防一次：这是最后一道闸。
+// 市场发布时拒绝撞上它们的配置项；注入时仍再防一次（警告并跳过那一项）——
+// 组件可能来自不经过市场的安装源。
 var (
 	reservedExact  = []string{"COMPONENT_ID", "COMPONENT_VERSION", "BRICKKIT_SERVED_MEMBERS", "BRICKKIT_SERVED_MEMBERS_CONFIG", "PORT"}
 	reservedSuffix = []string{"_ENDPOINT"}
@@ -23,7 +22,7 @@ var (
 // staticReserved 判断环境变量名是否命中保留模式中**不依赖项目配置**的那部分
 // （精确匹配、*_ENDPOINT 后缀、资源类型前缀），返回命中的模式。
 //
-// 与市场发布时校验的是同一套规则（007 §18.1）。它单独成函数，是为了让不在
+// 市场发布时校验的也是这一份（经 ReservedHits）。它单独成函数，是为了让不在
 // 注入现场的调用方——brickkit lint 在组件仓库里检查 Manifest——也能用同一份判断，
 // 而不是再抄一遍。
 func staticReserved(name string) (string, bool) {
@@ -40,13 +39,16 @@ func staticReserved(name string) (string, bool) {
 	return "", false
 }
 
-// ReservedKeyWarnings 检查一份 Manifest 的 configSchema 里有没有键撞上平台保留变量。
+// ReservedHit 是 configSchema 里撞上保留变量的一个键，以及它撞上的模式。
+type ReservedHit struct {
+	Key     string
+	Pattern string
+}
+
+// ReservedHits 列出一份 Manifest 的 configSchema 里撞上平台保留变量的键，按键排序。
 //
-// 这是 up 注入时那条警告的离线版（brickkit lint 在组件仓库里用），规则同一份
-// （staticReserved），措辞同一份（reservedConflictWarning）。configSchema 的键就是
-// 环境变量名（附录 A10），不需要任何转换。是警告不是错误：一个配置项名字写错，
-// 不该让整个项目起不来。
-func ReservedKeyWarnings(m *manifest.Manifest) []*clierr.Error {
+// 判断只有这一份：up 注入与 lint 据此警告，市场发布时据此拒绝（AGENTS §5.2 的两道防线）。
+func ReservedHits(m *manifest.Manifest) []ReservedHit {
 	if m == nil || m.ConfigSchema == nil {
 		return nil
 	}
@@ -56,11 +58,25 @@ func ReservedKeyWarnings(m *manifest.Manifest) []*clierr.Error {
 	}
 	sort.Strings(keys)
 
-	var warnings []*clierr.Error
+	var hits []ReservedHit
 	for _, key := range keys {
 		if pattern, hit := staticReserved(key); hit {
-			warnings = append(warnings, reservedConflictWarning(m.Metadata.ID, key, pattern))
+			hits = append(hits, ReservedHit{Key: key, Pattern: pattern})
 		}
+	}
+	return hits
+}
+
+// ReservedKeyWarnings 检查一份 Manifest 的 configSchema 里有没有键撞上平台保留变量。
+//
+// 这是 up 注入时那条警告的离线版（brickkit lint 在组件仓库里用），规则同一份
+// （staticReserved），措辞同一份（reservedConflictWarning）。configSchema 的键就是
+// 环境变量名（附录 A10），不需要任何转换。是警告不是错误：一个配置项名字写错，
+// 不该让整个项目起不来。
+func ReservedKeyWarnings(m *manifest.Manifest) []*clierr.Error {
+	var warnings []*clierr.Error
+	for _, hit := range ReservedHits(m) {
+		warnings = append(warnings, reservedConflictWarning(m.Metadata.ID, hit.Key, hit.Pattern))
 	}
 	return warnings
 }

@@ -143,6 +143,9 @@ type Error struct {
 	Exit    int      // 0 表示使用默认退出码 ExitError
 	Cause   error    // 底层错误，只进日志，不给用户看（004：错误信息不暴露内部实现细节）
 	Warning bool     // true 表示这是警告（⚠️），不阻断、退出码 0
+	// Problems 是 ProblemSet 收集的逐条问题，已经渲染在 Details 里；另存一份结构化的，
+	// 给要按字段转交问题的调用方（市场把它们映射成自己响应里的 {field, reason}）。
+	Problems []Problem
 }
 
 // New 创建一个错误。message 需要是完整的用户文案。

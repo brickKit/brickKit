@@ -69,3 +69,16 @@ func TestProblemSetSingleHintInline(t *testing.T) {
 	p.Add("f", "r")
 	assert.Contains(t, As(p.Err()).Format(), "   Suggestion: 只有一条建议\n")
 }
+
+// 市场把每一条问题原样映射成自己的 {field, reason}：渲染成明细行之后结构不能丢。
+func TestProblemSetErrCarriesProblems(t *testing.T) {
+	p := NewProblemSet(CodeManifestInvalid, "invalid").WithSource("File", "component.yaml")
+	p.Add("metadata.id", "missing")
+	p.Add("deployment.port", "out of range")
+
+	e := As(p.Err())
+	assert.Equal(t, []Problem{
+		{Field: "metadata.id", Reason: "missing"},
+		{Field: "deployment.port", Reason: "out of range"},
+	}, e.Problems, "来源行不是问题，不进列表")
+}
