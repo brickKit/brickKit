@@ -67,6 +67,7 @@ func runContract(t *testing.T, newRepo func(t *testing.T) repo.Repository) {
 		"用户与令牌":                testUsersAndTokens,
 		"组织与成员":                testOrganizations,
 		"审计只追加":                testAudit,
+		"审计按查看者收窄":             testAuditVisibleTo,
 		"不存在的记录返回 ErrNotFound": testNotFound,
 	}
 
@@ -718,4 +719,43 @@ func testVersionDocRoundTrip(t *testing.T, r repo.Repository) {
 	got, err = r.GetVersion(ctx, "people/basic", "2.0.0")
 	require.NoError(t, err)
 	assert.Empty(t, got.Doc)
+}
+
+// 非管理员只看得到自己名下组件的条目、以及自己做过的操作；limit 在收窄之后才生效。
+func testAuditVisibleTo(t *testing.T, r repo.Repository) {
+	ctx := context.Background()
+	mine := newComponent("people/basic")
+	mine.OwnerID = "user-alice"
+	theirs := newComponent("secret/thing")
+	theirs.OwnerID = "user-bob"
+	require.NoError(t, r.UpsertComponent(ctx, mine))
+	require.NoError(t, r.UpsertComponent(ctx, theirs))
+
+	for _, e := range []*model.AuditEntry{
+		{Action: model.ActionVersionPublished, ComponentID: "people/basic", Operator: "alice", Result: model.ResultSuccess},
+		{Action: model.ActionVersionPublished, ComponentID: "secret/thing", Operator: "bob", Result: model.ResultSuccess},
+		{Action: model.ActionArtifactDownload, ComponentID: "people/basic", Operator: "carol", Result: model.ResultSuccess},
+		{Action: model.ActionArtifactDownload, ComponentID: "secret/thing", Operator: "alice", Result: model.ResultSuccess},
+		{Action: model.ActionAccessChanged, ComponentID: "secret/thing", Operator: "bob", Result: model.ResultSuccess},
+	} {
+		require.NoError(t, r.AppendAudit(ctx, e))
+	}
+
+	alice := &repo.AuditViewer{OwnerID: "user-alice", Username: "alice"}
+	got, err := r.ListAudit(ctx, repo.AuditQuery{VisibleTo: alice})
+	require.NoError(t, err)
+	var seen []string
+	for _, e := range got {
+		seen = append(seen, e.ComponentID+" "+e.Operator)
+	}
+	assert.Equal(t, []string{"secret/thing alice", "people/basic carol", "people/basic alice"}, seen,
+		"自己组件上的一切（包括别人的下载），加上自己在别人组件上做的事；bob 在 secret/thing 上的动静看不到")
+
+	limited, err := r.ListAudit(ctx, repo.AuditQuery{VisibleTo: alice, Limit: 2})
+	require.NoError(t, err)
+	assert.Len(t, limited, 2, "limit 在收窄之后生效，不会因为前面有看不到的条目而少给")
+
+	nobody, err := r.ListAudit(ctx, repo.AuditQuery{VisibleTo: &repo.AuditViewer{OwnerID: "user-dave", Username: "dave"}})
+	require.NoError(t, err)
+	assert.Empty(t, nobody)
 }

@@ -70,7 +70,7 @@ Authorization: Bearer <令牌>
 | 方法 | 路径 | 认证 | 说明 |
 | --- | --- | --- | --- |
 | GET | `/api/v1/health` | 否 | 健康检查，返回 `status`、服务端版本号与当前时间。自托管时容器的 healthcheck 探的就是它 |
-| GET | `/api/v1/audit` | 是 | 审计日志。查询参数：`componentId`、`action`、`limit` |
+| GET | `/api/v1/audit` | 是 | 审计日志，按时间倒序。查询参数：`componentId`、`action`、`limit`。管理员看全部；其他人只看自己名下组件上的条目（包括别人的下载），以及自己做过的操作 |
 
 ### 账号
 

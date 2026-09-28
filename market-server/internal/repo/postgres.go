@@ -571,6 +571,11 @@ func (p *Postgres) ListAudit(ctx context.Context, q AuditQuery) ([]model.AuditEn
 		args = append(args, q.Action)
 		where = append(where, `action = $`+strconv.Itoa(len(args)))
 	}
+	if v := q.VisibleTo; v != nil {
+		args = append(args, v.Username, v.OwnerID)
+		where = append(where, `(operator = $`+strconv.Itoa(len(args)-1)+
+			` OR component_id IN (SELECT component_id FROM components WHERE owner_id = $`+strconv.Itoa(len(args))+`))`)
+	}
 
 	query := `SELECT audit_id, action, COALESCE(component_id,''), COALESCE(version,''),
 	                 operator, result, COALESCE(detail,''), created_at FROM audit_logs`

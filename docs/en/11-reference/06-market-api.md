@@ -70,7 +70,7 @@ Authorization: Bearer <token>
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/api/v1/health` | No | Health check: returns `status`, the server version and the current time. A self-hosted deployment's container healthcheck probes this |
-| GET | `/api/v1/audit` | Yes | The audit log. Query parameters: `componentId`, `action`, `limit` |
+| GET | `/api/v1/audit` | Yes | The audit log, newest first. Query parameters: `componentId`, `action`, `limit`. An admin sees every entry; anyone else sees the entries on components they own (other people's downloads included) and their own actions |
 
 ### Accounts
 

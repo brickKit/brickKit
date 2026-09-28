@@ -922,7 +922,7 @@ func TestAuditRecordsRegistrationAndLogin(t *testing.T) {
 	assert.True(t, actions[model.ActionUserLogin])
 }
 
-// 审计日志只有管理员能查（里面有谁下载了什么，属于敏感信息）。
+// 审计日志要登录才能查（里面有谁下载了什么，属于敏感信息；登录之后看得到哪些见下一条）。
 func TestAuditQueryRequiresAuthentication(t *testing.T) {
 	f := newFixture(t)
 
@@ -989,4 +989,37 @@ func TestPublishAcceptsDocAtTheLimit(t *testing.T) {
 	req.Doc = strings.Repeat("x", model.MaxDocBytes)
 	_, err := f.svc.Publish(context.Background(), id, "people/basic", req)
 	require.NoError(t, err)
+}
+
+// 审计日志按查看者收窄：管理员看全部；其他人看自己名下组件上的一切，加上自己做过的操作。
+// 注册是开放的——不收窄，谁注册一个账号都能看到私有组件被谁下载、访问策略被谁改过。
+func TestAuditIsScopedToWhatTheCallerIsAccountableFor(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	alice := f.registerUser(t, "alice")
+	bob := f.registerUser(t, "bob")
+	f.publish(t, alice, "people/basic", "1.0.0")
+	f.publish(t, bob, "secret/thing", "1.0.0")
+	require.NoError(t, f.svc.SetVisibility(ctx, bob, "secret/thing", model.VisibilityPrivate))
+
+	seen := func(id *service.Identity) map[string]bool {
+		entries, err := f.svc.ListAudit(ctx, id, repo.AuditQuery{})
+		require.NoError(t, err)
+		out := map[string]bool{}
+		for _, e := range entries {
+			out[e.ComponentID+"|"+e.Operator] = true
+		}
+		return out
+	}
+
+	forAlice := seen(alice)
+	assert.True(t, forAlice["people/basic|alice"], "自己组件的发布")
+	assert.True(t, forAlice["|alice"], "自己的注册与登录")
+	assert.False(t, forAlice["secret/thing|bob"], "别人的私有组件上的动静看不到")
+	assert.False(t, forAlice["|bob"], "别人的登录看不到")
+
+	admin := f.promoteAdmin(t, f.registerUser(t, "root"))
+	forAdmin := seen(admin)
+	assert.True(t, forAdmin["secret/thing|bob"])
+	assert.True(t, forAdmin["people/basic|alice"])
 }

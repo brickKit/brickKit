@@ -700,6 +700,11 @@ func (s *Service) ListAudit(
 	if err := requireAuth(id, "querying the audit log"); err != nil {
 		return nil, err
 	}
+	// 审计里有谁下载了什么、谁改了访问策略：管理员看全部，其他人只看自己负责的那一部分
+	q.VisibleTo = nil
+	if !id.IsAdmin {
+		q.VisibleTo = &repo.AuditViewer{OwnerID: id.UserID, Username: id.Username}
+	}
 	entries, err := s.repo.ListAudit(ctx, q)
 	if err != nil {
 		return nil, internalError(err)

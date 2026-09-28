@@ -441,6 +441,11 @@ func (m *Memory) ListAudit(_ context.Context, q AuditQuery) ([]model.AuditEntry,
 		if q.Action != "" && e.Action != q.Action {
 			continue
 		}
+		if v := q.VisibleTo; v != nil && e.Operator != v.Username {
+			if c, ok := m.components[e.ComponentID]; !ok || c.OwnerID != v.OwnerID {
+				continue
+			}
+		}
 		out = append(out, e)
 		if q.Limit > 0 && len(out) >= q.Limit {
 			break

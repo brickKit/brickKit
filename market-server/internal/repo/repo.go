@@ -54,6 +54,18 @@ type AuditQuery struct {
 	ComponentID string
 	Action      string
 	Limit       int
+	// VisibleTo 非 nil 时只返回这个查看者看得到的条目（Limit 在收窄之后生效）。
+	// 管理员查询时为 nil。
+	VisibleTo *AuditViewer
+}
+
+// AuditViewer 是一个非管理员查看者：他看得到自己名下组件上的一切（包括别人的下载），
+// 以及自己做过的操作（注册、登录、在别人组件上的下载……）。
+type AuditViewer struct {
+	// OwnerID 是查看者的用户 ID，与组件的 owner_id 比对。
+	OwnerID string
+	// Username 是查看者的用户名，与审计条目的 operator 比对。
+	Username string
 }
 
 // Repository 是市场的数据访问接口。
