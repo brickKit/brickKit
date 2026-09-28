@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/brickkit/brickkit/market-server/internal/model"
 )
@@ -75,9 +76,22 @@ func statusOf(err *model.APIError) int {
 	}
 }
 
+// maxJSONBody 是 JSON 请求体的上限。注册是开放的：没有上限，谁都能让市场把任意大的
+// 请求体读进内存。最大的正常请求是带着满额 BRICKKIT.md 的发布（manifest.MaxDocBytes），
+// JSON 会把 <、>、& 转义成 6 个字节，所以留到它的几倍；产物文件走单独的上传端点，不经过这里。
+const maxJSONBody = 8 << 20
+
 // decodeBody 解析 JSON 请求体。
 func decodeBody(r *http.Request, target any) error {
-	if err := json.NewDecoder(r.Body).Decode(target); err != nil {
+	// 写 nil 而不是 ResponseWriter：超限时不让 net/http 自己去关连接，由下面照常写出 400
+	err := json.NewDecoder(http.MaxBytesReader(nil, r.Body, maxJSONBody)).Decode(target)
+	var tooLarge *http.MaxBytesError
+	switch {
+	case errors.As(err, &tooLarge):
+		return model.Errorf(model.CodeInvalidRequest,
+			"the request body is larger than "+strconv.Itoa(maxJSONBody>>20)+" MiB").
+			WithDetail("limitBytes", maxJSONBody)
+	case err != nil:
 		return model.Errorf(model.CodeInvalidRequest, "the request body is not valid JSON").
 			WithDetail("cause", err.Error())
 	}

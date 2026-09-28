@@ -51,7 +51,7 @@ Authorization: Bearer <令牌>
 
 | 错误码 | HTTP 状态 | 含义 |
 | --- | --- | --- |
-| `INVALID_REQUEST` | 400 | 请求体不是合法 JSON，或者请求字段（来源、版本号、可见性、文档……）不合法 |
+| `INVALID_REQUEST` | 400 | 请求体不是合法 JSON、超过 8 MiB（`details.limitBytes`），或者请求字段（来源、版本号、可见性、文档……）不合法 |
 | `MANIFEST_INVALID` | 400 | 发布时提交的 Manifest 没通过校验；`details.problems` 逐条列出 |
 | `CONFIG_SCHEMA_RESERVED_VARIABLE_CONFLICT` | 400 | `configSchema` 里的配置项与平台保留的环境变量同名 |
 | `CLOSED_SOURCE_MISSING_API_CONTRACT` | 400 | 闭源组件没有声明 `api-contract` 产物 |

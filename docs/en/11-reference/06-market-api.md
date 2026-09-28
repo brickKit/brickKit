@@ -51,7 +51,7 @@ Authorization: Bearer <token>
 
 | Code | HTTP status | Meaning |
 | --- | --- | --- |
-| `INVALID_REQUEST` | 400 | The body is not valid JSON, or a request field (source type, version, visibility, doc, …) is invalid |
+| `INVALID_REQUEST` | 400 | The body is not valid JSON, is larger than 8 MiB (`details.limitBytes`), or a request field (source type, version, visibility, doc, …) is invalid |
 | `MANIFEST_INVALID` | 400 | The Manifest in a publish request failed validation; `details.problems` lists each problem |
 | `CONFIG_SCHEMA_RESERVED_VARIABLE_CONFLICT` | 400 | A `configSchema` key has the same name as a variable the platform injects |
 | `CLOSED_SOURCE_MISSING_API_CONTRACT` | 400 | A closed-source component declares no `api-contract` artifact |

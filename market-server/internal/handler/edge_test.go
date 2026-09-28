@@ -470,3 +470,24 @@ func mustJSON(t *testing.T, v any) []byte {
 	require.NoError(t, err)
 	return raw
 }
+
+// JSON 请求体有上限：注册是开放的，没有上限就是谁都能让市场把任意大的请求体读进内存。
+// 上限要容得下一份满额的 BRICKKIT.md（JSON 转义后可能变大几倍）。
+func TestJSONBodyIsCapped(t *testing.T) {
+	f := newFixture(t)
+	token := f.login(t, "alice")
+
+	huge := map[string]any{"username": strings.Repeat("x", 9<<20), "password": "x"}
+	resp := f.do(t, http.MethodPost, "/api/v1/auth/register", "", huge)
+	require.Equal(t, http.StatusBadRequest, resp.status)
+	require.NotNil(t, resp.Error)
+	assert.Equal(t, model.CodeInvalidRequest, resp.Error.Code)
+	assert.Contains(t, resp.Error.Message, "MiB")
+	assert.NotNil(t, resp.Error.Details["limitBytes"])
+
+	// 满额的文档、全是会被转义的字符，也放得下
+	body := publishBody(t, "people/basic", "1.0.0", nil)
+	body["doc"] = strings.Repeat("<", 256<<10)
+	resp = f.do(t, http.MethodPost, "/api/v1/components/people/basic/versions", token, body)
+	assert.Equal(t, http.StatusCreated, resp.status, "%s", resp.body)
+}
