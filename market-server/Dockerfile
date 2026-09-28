@@ -5,7 +5,7 @@
 # （market-server/go.mod 里 replace 指向 ../），所以两个模块都要进上下文：
 #
 #   docker build -f market-server/Dockerfile -t brickkit/market-server:1.0.0 .
-#   （或 make docker-market）
+#   （或 make market-image VERSION=1.0.0）
 #
 # 上下文里只放构建用得到的东西，见 market-server/Dockerfile.dockerignore。
 #

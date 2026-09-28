@@ -100,11 +100,6 @@ build-cli: ## 构建 BrickKit CLI 到 bin/brickkit
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/brickkit ./cmd/brickkit
 	@echo "✅ $(BIN)/brickkit"
 
-.PHONY: docker-market
-docker-market: ## 构建市场镜像 brickkit/market-server:$(VERSION)（上下文是仓库根目录）
-	docker build -f market-server/Dockerfile --build-arg VERSION=$(VERSION) -t brickkit/market-server:$(VERSION) .
-	@echo "✅ brickkit/market-server:$(VERSION)"
-
 .PHONY: build-market
 build-market: ## 构建市场后端到 bin/market-server
 	@mkdir -p $(BIN)
@@ -613,9 +608,9 @@ market-logs: ## 跟随查看市场 API 日志
 	@cd $(MARKET_DEPLOY) && docker compose logs -f market-api
 
 .PHONY: market-image
-market-image: ## 只构建市场镜像（VERSION=x.y.z 注入版本号）
-	docker build -t brickkit/market-server:$(or $(VERSION),dev) \
-		--build-arg VERSION=$(or $(VERSION),dev) market-server/
+market-image: ## 只构建市场镜像（VERSION=x.y.z 注入版本号；上下文是仓库根目录，市场要用主模块的 internal/）
+	docker build -f market-server/Dockerfile -t brickkit/market-server:$(or $(VERSION),dev) \
+		--build-arg VERSION=$(or $(VERSION),dev) .
 
 .PHONY: env
 env: ## 打印开发环境基线（对照开发计划附录 G）
