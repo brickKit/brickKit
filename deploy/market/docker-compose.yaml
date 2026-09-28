@@ -70,7 +70,9 @@ services:
     image: ${MARKET_IMAGE:-brickkit/market-server:dev}
     # 本地开发可直接从源码构建：docker compose up -d --build
     build:
-      context: ../../market-server
+      # 上下文是仓库根目录：市场用主模块的 internal/ 包（见 market-server/Dockerfile）
+      context: ../..
+      dockerfile: market-server/Dockerfile
       args:
         VERSION: ${MARKET_VERSION:-dev}
     ports:

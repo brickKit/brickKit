@@ -1,0 +1,12 @@
+# 市场镜像的构建上下文是仓库根目录（见 Dockerfile 开头）。这份忽略文件只作用于
+# market-server/Dockerfile：先全部排除，再放回构建用得到的——两个模块的依赖清单、
+# 主模块的 internal/ 与 market-server/。别的（.git、文档、测试组件、构建产物）都不进上下文。
+*
+!go.mod
+!go.sum
+!internal/
+!market-server/
+**/*_test.go
+**/testdata/
+**/coverage.out
+**/.env

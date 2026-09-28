@@ -100,6 +100,11 @@ build-cli: ## 构建 BrickKit CLI 到 bin/brickkit
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/brickkit ./cmd/brickkit
 	@echo "✅ $(BIN)/brickkit"
 
+.PHONY: docker-market
+docker-market: ## 构建市场镜像 brickkit/market-server:$(VERSION)（上下文是仓库根目录）
+	docker build -f market-server/Dockerfile --build-arg VERSION=$(VERSION) -t brickkit/market-server:$(VERSION) .
+	@echo "✅ brickkit/market-server:$(VERSION)"
+
 .PHONY: build-market
 build-market: ## 构建市场后端到 bin/market-server
 	@mkdir -p $(BIN)
