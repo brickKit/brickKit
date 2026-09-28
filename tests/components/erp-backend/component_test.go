@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -214,9 +215,9 @@ func TestComponentYamlDeclaresDependencies(t *testing.T) {
 	}
 }
 
-// TestComponentYamlHasNoResources：这个组件不绑定任何资源。
+// TestComponentYamlHasNoResources：这个组件不需要任何数据库或缓存。
 //
-// 它是连接组件，不掌握主数据。声明一个用不上的 database 资源会让使用者
+// 它是连接组件，不掌握主数据。声明一组用不上的 DATABASE_* 会让使用者
 // 白建一个库，还得为它填口令。
 func TestComponentYamlHasNoResources(t *testing.T) {
 	raw, err := os.ReadFile("component.yaml")
@@ -225,12 +226,12 @@ func TestComponentYamlHasNoResources(t *testing.T) {
 	}
 	manifest := string(raw)
 
-	if strings.Contains(manifest, "kind: database") || strings.Contains(manifest, "kind: cache") {
-		t.Error("erp/backend 不该绑定任何资源——它是连接组件，不掌握主数据")
+	if regexp.MustCompile(`\n    (DATABASE|REDIS)_[A-Z_]+:`).MatchString(manifest) {
+		t.Error("erp/backend 不该要数据库或缓存——它是连接组件，不掌握主数据")
 	}
-	// 没有资源就没有表，也就没有迁移
+	// 没有库就没有表，也就没有迁移
 	if strings.Contains(manifest, "migration:") {
-		t.Error("没有资源依赖的组件不该声明 migration")
+		t.Error("没有自己的库的组件不该声明 migration")
 	}
 }
 
@@ -241,8 +242,8 @@ func TestComponentYamlDeclaresSessionTTL(t *testing.T) {
 		t.Fatalf("读取 component.yaml 失败：%v", err)
 	}
 
-	if !strings.Contains(string(raw), "sessionTtlSeconds") {
-		t.Error("configSchema 应当声明 sessionTtlSeconds（平台据此注入 SESSION_TTL_SECONDS）")
+	if !strings.Contains(string(raw), "\n    SESSION_TTL_SECONDS:") {
+		t.Error("configSchema 应当声明 SESSION_TTL_SECONDS（键就是注入的环境变量名）")
 	}
 }
 

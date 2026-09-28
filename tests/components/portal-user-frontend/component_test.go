@@ -135,8 +135,8 @@ func TestComponentYamlDeclaresDependency(t *testing.T) {
 	if strings.Contains(manifest, "optional: true") {
 		t.Error("erp/backend 是强依赖：没有它这个前端什么也做不了，不该标 optional")
 	}
-	if strings.Contains(manifest, "kind: database") || strings.Contains(manifest, "kind: cache") {
-		t.Error("静态前端不该绑定任何资源")
+	if regexp.MustCompile(`\n    (DATABASE|REDIS)_[A-Z_]+:`).MatchString(manifest) {
+		t.Error("静态前端不该要数据库或缓存")
 	}
 }
 

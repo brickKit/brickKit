@@ -82,7 +82,7 @@ def config_from_env(lookup: Callable[[str], str | None]) -> Config:
     if missing:
         raise ValueError(
             "缺少必需的环境变量：" + ", ".join(missing) +
-            "（这些变量由平台按 brickkit.yaml 的资源绑定与依赖关系注入，见 004 §5.6、006 §5）"
+            "（DATABASE_* 写在项目的 config/ 里；DEPARTMENT_TREE_ENDPOINT 由平台按强依赖注入）"
         )
 
     raw_port = get("DATABASE_PORT")

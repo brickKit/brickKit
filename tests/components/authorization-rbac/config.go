@@ -51,16 +51,16 @@ type config struct {
 	Version     string
 	LogLevel    string
 	Database    databaseConfig
-	// PeopleEndpoint 由平台按强依赖注入（003 §4.5：PEOPLE_BASIC_ENDPOINT）。
+	// PeopleEndpoint 由平台按强依赖注入（PEOPLE_BASIC_ENDPOINT）。
 	PeopleEndpoint string
-	// Cache 是平台按 cache 资源绑定注入的 Redis 连接（006 §5.2）。
+	// Cache 是可选的 Redis 连接：项目的 config/ 里配了 REDIS_HOST 才启用。
 	Cache cacheConfig
 }
 
 // cacheConfig 是缓存连接。
 //
 // 注意它**没有**"缺失就报错"的校验：Redis 在本组件里是加速器不是数据源，
-// 没绑定 cache 资源时组件照样能跑，只是每次都回源（见 Cache 的说明）。
+// 没配 Redis 时组件照样能跑，只是每次都回源（见 Cache 的说明）。
 type cacheConfig struct {
 	Host     string
 	Port     int
@@ -71,7 +71,7 @@ type cacheConfig struct {
 // Addr 拼出 host:port。
 func (c cacheConfig) Addr() string { return c.Host + ":" + strconv.Itoa(c.Port) }
 
-// Enabled 表示平台是否注入了 cache 资源。
+// Enabled 表示项目是否配了 Redis（REDIS_HOST）。
 func (c cacheConfig) Enabled() bool { return c.Host != "" }
 
 // String 返回可安全写进日志的摘要：有地址与库名，**没有口令、没有签名密钥**。
@@ -116,7 +116,7 @@ func configFromEnv(lookup func(string) string) (config, error) {
 		"DATABASE_HOST": cfg.Database.Host,
 		"DATABASE_NAME": cfg.Database.Name,
 		"DATABASE_USER": cfg.Database.User,
-		// 强依赖的地址由平台注入。它缺失说明 brickkit.yaml 里没装 people/basic，
+		// 强依赖的地址由平台注入。它缺失说明项目里没装 people/basic，
 		// 或者这个组件被手工跑起来了——两种情况都该当场说清楚
 		"PEOPLE_BASIC_ENDPOINT": cfg.PeopleEndpoint,
 	} {
@@ -127,8 +127,8 @@ func configFromEnv(lookup func(string) string) (config, error) {
 	if len(missing) > 0 {
 		sortStrings(missing)
 		return config{}, fmt.Errorf(
-			"缺少必需的配置：%s（DATABASE_* 由平台按资源绑定注入、"+
-				"PEOPLE_BASIC_ENDPOINT 由平台按强依赖注入，见 006 §5 与 003 §4.5）",
+			"缺少必需的配置：%s（DATABASE_* 写在项目的 config/ 里；"+
+				"PEOPLE_BASIC_ENDPOINT 由平台按强依赖注入）",
 			strings.Join(missing, ", "))
 	}
 
@@ -142,7 +142,7 @@ func configFromEnv(lookup func(string) string) (config, error) {
 	}
 	cfg.Database.Port = port
 
-	// Redis 端口：没绑定 cache 资源时保持 0，Enabled() 据此判断
+	// Redis 端口：没配 Redis 时保持 0，Enabled() 据此判断
 	if cfg.Cache.Host != "" {
 		cfg.Cache.Port = 6379
 		if raw := get("REDIS_PORT"); raw != "" {

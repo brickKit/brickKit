@@ -101,8 +101,8 @@ func (s *service) handleLogin(w http.ResponseWriter, r *http.Request) {
 		"token":    result.Token,
 		"personId": result.PersonID,
 		"username": result.Username,
-		// 25.5：会话时长是**本组件**的配置（configSchema.sessionTtlSeconds），
-		// 由使用者在 brickkit.yaml 里覆盖，与 auth 组件自己的令牌有效期无关
+		// 会话时长是**本组件**的配置（configSchema.SESSION_TTL_SECONDS），
+		// 由使用者在项目的 config/ 里改，与 auth 组件自己的令牌有效期无关
 		"sessionTtlSeconds": int(s.cfg.SessionTTL.Seconds()),
 	})
 }

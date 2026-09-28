@@ -1,6 +1,6 @@
 # department/tree —— 部门树组件（BrickKit Phase 5 测试组件）
 #
-# 叶子组件：不依赖任何其他组件，只依赖一个 database 资源。
+# 叶子组件：不依赖任何其他组件，只需要一个 PostgreSQL（DATABASE_* 配置项）。
 # 同时是平台的验证夹具：单端口双协议、gRPC Reflection、migration、artifacts。
 apiVersion: brickkit/v1
 kind: Component
@@ -30,19 +30,33 @@ artifacts:
     files:
       - openapi.json
 
-dependencies:
-  # 叶子组件：没有 components 依赖
-  resources:
-    - kind: database
-      engine: postgresql
-
 configSchema:
   type: object
   properties:
-    logLevel:
+    LOG_LEVEL:
       type: string
       default: "info"
-      description: 日志级别，注入为环境变量 LOG_LEVEL（debug | info | warn | error）
+      description: 日志级别（debug | info | warn | error）
+    # 数据库连接：configSchema 的键就是环境变量名，值由使用者写在项目的 config/ 里。
+    # 库由使用者建好；表由本组件的迁移建
+    DATABASE_HOST:
+      type: string
+      description: PostgreSQL 主机名
+    DATABASE_PORT:
+      type: integer
+      default: 5432
+      description: PostgreSQL 端口
+    DATABASE_NAME:
+      type: string
+      description: 库名
+    DATABASE_USER:
+      type: string
+      description: 连接用户
+    DATABASE_PASSWORD:
+      type: string
+      secret: true
+      description: 连接口令。写成 ${VAR} 或 file:// 引用，不要把明文写进 config/
+  required: [DATABASE_HOST, DATABASE_NAME, DATABASE_USER]
 
 migration:
   # 平台在启动组件之前执行一次；必须幂等（002 §8.2）

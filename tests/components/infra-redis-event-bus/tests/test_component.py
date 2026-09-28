@@ -44,7 +44,7 @@ def test_config_from_env() -> None:
 def test_redis_is_required() -> None:
     """这个组件与 authorization/rbac 最大的差别。
 
-    那里 Redis 是加速器，没绑定也能跑；**这里 Redis 是唯一的数据源，
+    那里 Redis 是加速器，不配也能跑；**这里 Redis 是唯一的数据源，
     缺了必须启动失败**——一个连不上存储的事件总线，起来了也只会
     把每一条事件都丢掉，而发布方以为它们都安全落地了。
     """
@@ -52,8 +52,8 @@ def test_redis_is_required() -> None:
         config_from_env(env_of({}))
 
     assert "REDIS_HOST" in str(exc.value)
-    # 要说清楚这个变量由谁负责给，否则使用者不知道该去改哪儿
-    assert "cache" in str(exc.value) or "平台" in str(exc.value)
+    # 要说清楚这个变量该去哪儿配，否则使用者不知道该去改哪儿
+    assert "config/" in str(exc.value)
 
 
 def test_config_never_falls_back_to_localhost() -> None:
@@ -145,13 +145,18 @@ def test_parse_args_rejects_unknown() -> None:
 # ============================================================
 
 
-def test_component_yaml_declares_cache_resource() -> None:
+def test_component_yaml_declares_redis_config() -> None:
     manifest = yaml.safe_load((ROOT / "component.yaml").read_text(encoding="utf-8"))
 
-    resources = manifest["dependencies"]["resources"]
-    assert any(r["kind"] == "cache" and r["engine"] == "redis" for r in resources)
+    schema = manifest["configSchema"]
+    # 连接信息是它自己声明的配置项：不声明，项目里配了也注入不进来
+    for key in ("REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD"):
+        assert key in schema["properties"]
+    assert schema["properties"]["REDIS_PASSWORD"].get("secret") is True
+    # Redis 是唯一的数据源：必填，缺了 up 当场点名
+    assert "REDIS_HOST" in schema["required"]
     # 它是叶子组件：不依赖任何其他组件
-    assert "components" not in manifest["dependencies"]
+    assert "dependencies" not in manifest
 
 
 def test_component_yaml_has_no_migration() -> None:

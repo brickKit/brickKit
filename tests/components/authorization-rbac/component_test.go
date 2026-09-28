@@ -47,9 +47,9 @@ func TestConfigFromEnv(t *testing.T) {
 
 // TestCacheIsOptional 是这个组件与前两个最大的不同。
 //
-// **Redis 是加速器，不是数据源。** 没绑定 cache 资源时组件照样要能起来，
+// **Redis 是加速器，不是数据源。** 没配 Redis 时组件照样要能起来，
 // 只是每次都回源。若在这里报错，一个可选的基础设施就变成了硬依赖——
-// 而 006 把 cache 定义为一种普通资源，绑不绑是使用者的决定。
+// 而配不配 Redis 是使用者的决定。
 func TestCacheIsOptional(t *testing.T) {
 	env := completeEnv()
 	delete(env, "REDIS_HOST")
@@ -57,7 +57,7 @@ func TestCacheIsOptional(t *testing.T) {
 
 	cfg, err := configFromEnv(envOf(env))
 	if err != nil {
-		t.Fatalf("没绑定 cache 资源也该能启动：%v", err)
+		t.Fatalf("没配 Redis 也该能启动：%v", err)
 	}
 	if cfg.Cache.Enabled() {
 		t.Error("没有 REDIS_HOST 时 Enabled() 应当为 false")
@@ -80,7 +80,7 @@ func TestRequiredConfigReportedAtOnce(t *testing.T) {
 	}
 	// Redis 是可选的，不该出现在"缺少必需配置"里
 	if strings.Contains(err.Error(), "REDIS") {
-		t.Errorf("Redis 是可选资源，不该被当成必需项：%v", err)
+		t.Errorf("Redis 是可选的，不该被当成必需项：%v", err)
 	}
 }
 
@@ -137,7 +137,7 @@ func TestConfigStringHasNoSecrets(t *testing.T) {
 
 // TestConfigStringSaysWhenCacheIsAbsent：没绑缓存时摘要要说出来。
 //
-// 否则"为什么这么慢"这个问题会查很久——而答案只是没绑 cache 资源。
+// 否则"为什么这么慢"这个问题会查很久——而答案只是没配 Redis。
 func TestConfigStringSaysWhenCacheIsAbsent(t *testing.T) {
 	env := completeEnv()
 	delete(env, "REDIS_HOST")
@@ -223,9 +223,9 @@ func TestComponentYamlDeclaresArtifactsThatExist(t *testing.T) {
 	}
 }
 
-// TestComponentYamlDeclaresDependencies：强依赖与资源都要写在 Manifest 里。
+// TestComponentYamlDeclaresDependencies：强依赖与连接配置都要写在 Manifest 里。
 //
-// cache 资源必须声明，否则平台不会注入 REDIS_*，组件就永远走"没绑缓存"的路径
+// REDIS_* 必须声明，否则项目里配了也注入不进来，组件就永远走"没有缓存"的路径
 // ——而它照样能跑，只是慢，谁也不会发现声明漏了。
 func TestComponentYamlDeclaresDependencies(t *testing.T) {
 	raw, err := os.ReadFile("component.yaml")
@@ -235,7 +235,7 @@ func TestComponentYamlDeclaresDependencies(t *testing.T) {
 	manifest := string(raw)
 
 	for _, want := range []string{
-		"people/basic@1.0.0", "engine: postgresql", "kind: cache", "engine: redis",
+		"people/basic@1.0.0", "\n    DATABASE_HOST:", "\n    REDIS_HOST:", "\n    REDIS_PASSWORD:",
 	} {
 		if !strings.Contains(manifest, want) {
 			t.Errorf("component.yaml 缺少声明：%s", want)

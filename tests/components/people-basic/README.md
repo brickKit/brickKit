@@ -22,26 +22,29 @@ psql -U postgres -c "CREATE DATABASE brickkit_people"
 docker exec -i my-postgres psql -U postgres -c "CREATE DATABASE brickkit_people"
 ```
 
-然后在 `brickkit.yaml` 里绑定：
+然后在项目的 `config/` 里给两个组件各填一份连接，公共部分放进 `config/vars.yaml`：
 
 ```yaml
-resources:
-  - kind: database
-    engine: postgresql
-    id: postgres-main
-    host: postgres
-    port: 5432
-    username: postgres
-    password: ${POSTGRES_PASSWORD}
-    bindings:
-      - componentId: people/basic
-        database: brickkit_people          # ← 上面建好的库
-      - componentId: department/tree
-        database: brickkit_department      # ← 强依赖也需要它自己的库
+# config/vars.yaml
+PG_HOST: postgres
+PG_USER: postgres
+PG_PASSWORD: ${POSTGRES_PASSWORD}
+
+# config/people-basic.yaml
+DATABASE_HOST: $var:PG_HOST
+DATABASE_NAME: brickkit_people          # ← 上面建好的库
+DATABASE_USER: $var:PG_USER
+DATABASE_PASSWORD: $var:PG_PASSWORD
+
+# config/department-tree.yaml（强依赖也需要它自己的库）
+DATABASE_HOST: $var:PG_HOST
+DATABASE_NAME: brickkit_department
+DATABASE_USER: $var:PG_USER
+DATABASE_PASSWORD: $var:PG_PASSWORD
 ```
 
 > **每个组件用自己的库。** 共用一个库意味着一个组件能读到另一个组件的表，
-> 违反 002 §2.2 的数据自治。迁移记录虽然按 `(component_id, version)` 隔离了
+> 组件的数据就不再是它自己的了。迁移记录虽然按 `(component_id, version)` 隔离了
 > （共用时不会互相顶掉），但组件启动时会打一条警告提醒你分开。
 
 ---

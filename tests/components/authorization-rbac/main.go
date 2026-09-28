@@ -1,7 +1,7 @@
 // authorization/rbac 是 BrickKit 的授权组件：回答"某个人能不能做某件事"。
 //
 // 它同时是平台的验证夹具，验证两件前面的组件都没覆盖的事：
-//   - **cache 资源**（Redis）：一个"有了更快、没有也能跑"的可选依赖
+//   - **可选的 Redis**：一个"有了更快、没有也能跑"的外部系统
 //   - 单端口双协议 + 强依赖 + 缓存三者叠在一起时的降级行为
 //
 // 权限来自两条路径的并集：
@@ -128,13 +128,13 @@ func runMigrate(
 
 // newCache 按配置选缓存实现。
 //
-// 没绑定 cache 资源时用内存实现而不是报错：Redis 在这里是加速器不是数据源
+// 没配 Redis 时用内存实现而不是报错：Redis 在这里是加速器不是数据源
 // （见 Cache 的说明）。进程内缓存对单副本部署完全够用，多副本时各自缓存、
 // 各自按 TTL 过期，也不会算错——只是命中率低一些。
 func newCache(cfg config, logger *slog.Logger) (Cache, func() error) {
 	if !cfg.Cache.Enabled() {
-		logger.Warn("未绑定 cache 资源，改用进程内缓存",
-			"提示", "在 brickkit.yaml 中绑定一个 kind: cache / engine: redis 的资源可获得跨副本共享的缓存")
+		logger.Warn("没有配置 Redis，改用进程内缓存",
+			"提示", "在项目的 config/ 里给本组件配上 REDIS_HOST（及 REDIS_PORT / REDIS_PASSWORD）可获得跨副本共享的缓存")
 		return newMemoryCache(), func() error { return nil }
 	}
 

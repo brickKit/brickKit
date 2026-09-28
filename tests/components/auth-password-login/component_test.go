@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -38,13 +39,12 @@ func TestComponentYamlDeclaresArtifactsThatExist(t *testing.T) {
 
 // TestComponentYamlDeclaresJWTSecret 是真实装配跑出来的一条。
 //
-// brickkit.yaml **没有**组件级的 env / secrets 机制：唯一能给组件传值的通道
-// 是 config（映射 configSchema）。JWT_SECRET 不声明在 configSchema 里的话，
-// 平台根本无法注入它——这个组件在真实项目里压根起不来，而单元测试全绿，
+// 平台只注入 configSchema 里声明了的键：JWT_SECRET 不声明的话，项目的 config/
+// 里写了也注入不进来——这个组件在真实项目里压根起不来，而单元测试全绿，
 // 因为测试是自己 set 环境变量的。
 //
 // 同时它**不能有 default**：有默认值就意味着所有装了这个组件的人共用同一把
-// 钥匙，任何人都能给任何一处部署签出管理员令牌。
+// 钥匙，任何人都能给任何一处部署签出管理员令牌。所以它必填、而且是密钥。
 func TestComponentYamlDeclaresJWTSecret(t *testing.T) {
 	raw, err := os.ReadFile("component.yaml")
 	if err != nil {
@@ -52,17 +52,24 @@ func TestComponentYamlDeclaresJWTSecret(t *testing.T) {
 	}
 	manifest := string(raw)
 
-	if !strings.Contains(manifest, "jwtSecret") {
-		t.Fatal("configSchema 必须声明 jwtSecret，否则平台无法注入 JWT_SECRET")
+	start := strings.Index(manifest, "\n    JWT_SECRET:")
+	if start < 0 {
+		t.Fatal("configSchema 必须声明 JWT_SECRET，否则平台无法注入它")
 	}
 
-	// 截出 jwtSecret 那一段，确认它没有 default
-	section := manifest[strings.Index(manifest, "jwtSecret:"):]
-	if end := strings.Index(section, "\nmigration:"); end > 0 {
-		section = section[:end]
+	// 截出 JWT_SECRET 那一段（到下一个配置项为止），确认它是必填的密钥、没有 default
+	section := manifest[start+1:]
+	if next := regexp.MustCompile(`\n    [A-Z#]`).FindStringIndex(section); next != nil {
+		section = section[:next[0]]
 	}
 	if strings.Contains(section, "default:") {
-		t.Error("jwtSecret 绝不能有默认值——那等于所有部署共用同一把钥匙")
+		t.Error("JWT_SECRET 绝不能有默认值——那等于所有部署共用同一把钥匙")
+	}
+	if !strings.Contains(section, "secret: true") {
+		t.Error("JWT_SECRET 要标 secret: true：K8s 上它走 Secret，不以明文进 Deployment")
+	}
+	if !regexp.MustCompile(`required: \[[^\]]*JWT_SECRET`).MatchString(manifest) {
+		t.Error("JWT_SECRET 要列进 required：缺了它 up 当场点名，而不是组件起来再失败")
 	}
 }
 
@@ -83,8 +90,8 @@ func TestComponentYamlDeclaresStrongDependency(t *testing.T) {
 	if strings.Contains(manifest, "optional: true") {
 		t.Error("people/basic 是强依赖，不该标 optional")
 	}
-	if !strings.Contains(manifest, "engine: postgresql") {
-		t.Error("应当声明 database 资源依赖")
+	if !strings.Contains(manifest, "\n    DATABASE_HOST:") {
+		t.Error("应当声明数据库连接配置项（DATABASE_*）")
 	}
 }
 

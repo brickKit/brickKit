@@ -6,7 +6,7 @@
 
 | 验证点 | 怎么体现 |
 | --- | --- |
-| **cache 资源**（Redis） | 平台按 `kind: cache` 注入 `REDIS_HOST/PORT/PASSWORD`（006 §5.2） |
+| **可选的 Redis** | `REDIS_HOST/PORT/PASSWORD` 是可选配置项：配了就用共享缓存，不配就用进程内缓存 |
 | 单端口双协议 | HTTP 与 gRPC 共用 `deployment.port`，h2c + Content-Type 分流 |
 | gRPC Reflection | `grpcurl list` 不带 `.proto` 也能列出服务 |
 | **三种依赖、三种故障表现** | 见下表，这是本组件最值得抄的地方 |
@@ -21,7 +21,7 @@
 | Redis | **加速器** | 照常回源，只是慢一点 |
 
 **Redis 是加速器，不是数据源。** 它挂了若报错，等于让一个可选的基础设施变成单点——
-整个系统的每一次权限检查都会失败。没绑定 `cache` 资源时组件也照样能起来，
+整个系统的每一次权限检查都会失败。没配 Redis 时组件也照样能起来，
 只是改用进程内缓存。
 
 **people/basic 挂了且缓存未命中时不做部分降级。** 那时只知道"直接授予的角色"、
@@ -70,7 +70,7 @@ gRPC 提供同样的两个方法，契约见 `proto/authorization/v1/authorizati
 
 键：`authorization-rbac:permissions:<personId>`，TTL 默认 5 分钟。
 
-- **带组件前缀**（006 §7）：一个项目里多个组件可能绑定同一个 cache 资源，
+- **带组件前缀**（006 §7）：一个项目里多个组件可能连同一个 Redis，
   不带前缀的话两个组件用了同一个键名就会互相覆盖，症状是"权限偶尔不对"。
 - **按人分开**：键漏了 personId 会让所有人共用同一份权限——这是权限系统里最严重的
   一类事故，而且功能测试全都会通过。
@@ -82,11 +82,11 @@ gRPC 提供同样的两个方法，契约见 `proto/authorization/v1/authorizati
 
 | 环境变量 | 来源 | 必需 |
 | --- | --- | --- |
-| `DATABASE_*` | 平台按资源绑定注入（006 §5） | ✅ |
-| `PEOPLE_BASIC_ENDPOINT` | 平台按强依赖注入（003 §4.5） | ✅ |
-| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | 平台按 cache 资源注入 | ❌ 可选 |
-| `LOG_LEVEL` | `configSchema.logLevel` | ❌ |
-| `CACHE_TTL_SECONDS` | `configSchema.cacheTtlSeconds` | ❌ |
+| `DATABASE_*` | 项目的 `config/authorization-rbac.yaml` | ✅ |
+| `PEOPLE_BASIC_ENDPOINT` | 平台按强依赖注入 | ✅ |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | 项目的 `config/` | ❌ 可选 |
+| `LOG_LEVEL` | 配置项，默认 info | ❌ |
+| `CACHE_TTL_SECONDS` | 配置项，默认 300 | ❌ |
 
 ## 本地运行
 

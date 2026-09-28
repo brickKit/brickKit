@@ -65,10 +65,10 @@ Redis 在这里是唯一的数据源，比别处更容易让人想去探一探�
 
 | 环境变量 | 来源 | 必需 |
 | --- | --- | --- |
-| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | 平台按 cache 资源注入（006 §5.2） | ✅ |
-| `STREAM_NAME` | `configSchema.streamName`，默认 `brickkit:events` | ❌ |
-| `STREAM_MAXLEN` | `configSchema.streamMaxlen`，默认 10000 | ❌ |
-| `LOG_LEVEL` | `configSchema.logLevel` | ❌ |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | 项目的 `config/infra-redis-event-bus.yaml`（`REDIS_HOST` 必填） | ✅ |
+| `STREAM_NAME` | 配置项，默认 `brickkit:events` | ❌ |
+| `STREAM_MAXLEN` | 配置项，默认 10000 | ❌ |
+| `LOG_LEVEL` | 配置项，默认 info | ❌ |
 
 ## 本地运行
 

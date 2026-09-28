@@ -58,7 +58,7 @@
                     "sessionTtlSeconds": {
                       "type": "integer",
                       "example": 3600,
-                      "description": "本组件的 configSchema.sessionTtlSeconds，可由 brickkit.yaml 覆盖"
+                      "description": "本组件的配置项 SESSION_TTL_SECONDS，可在项目的 config/ 里改"
                     }
                   }
                 }

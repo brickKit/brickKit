@@ -77,7 +77,7 @@ COPY --from=swagger /usr/share/nginx/html/swagger-ui.css ... /app/web/swagger-ui
 | 环境变量 | 来源 | 必需 |
 | --- | --- | --- |
 | `DEPARTMENT_TREE_ENDPOINT` 等六个 | 平台按**弱依赖**注入 | ❌ 全都不是 |
-| `LOG_LEVEL` | `configSchema.logLevel` | ❌ |
+| `LOG_LEVEL` | 配置项，默认 info | ❌ |
 
 这个组件**没有任何必需配置**。把任何一个列成必需，就等于要求使用者必须把
 六个组件全装上才能看文档。

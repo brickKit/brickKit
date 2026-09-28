@@ -3,7 +3,7 @@
 // 它覆盖平台最核心的几条承诺，让它们能被真容器验证：
 //   - 强依赖地址通过环境变量注入（DEMO_HELLO_ENDPOINT），DNS 即注册中心（002 §5）
 //   - 弱依赖缺失时自行降级，平台完全不注入该变量（002 §3.4）
-//   - 资源连接信息按 kind 注入（DATABASE_*，006）
+//   - 自己声明的配置项注入为同名环境变量（DATABASE_* 等）
 //   - 迁移命令在主服务启动前执行，失败要以非 0 退出码阻断（005）
 package main
 
@@ -170,7 +170,7 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 //
 // 这里不做真实的建表：平台要验证的是"迁移在主服务前执行、失败能阻断"，
 // 而不是某个业务表长什么样。所以它只做两件可控的事：
-//   - 若注入了 DATABASE_HOST，验证数据库确实可达（证明资源注入是真的）
+//   - 若注入了 DATABASE_HOST，验证数据库确实可达（证明配置注入是真的）
 //   - MIGRATION_SHOULD_FAIL=1 时以非 0 退出码失败，供平台验证阻断行为
 func migrate() error {
 	if os.Getenv("MIGRATION_SHOULD_FAIL") == "1" {
@@ -179,7 +179,7 @@ func migrate() error {
 
 	host := os.Getenv("DATABASE_HOST")
 	if host == "" {
-		// 没有绑定数据库资源时跳过：迁移不该成为无资源组件的阻塞项
+		// 没配数据库时跳过：迁移不该成为不用数据库的部署的阻塞项
 		return nil
 	}
 

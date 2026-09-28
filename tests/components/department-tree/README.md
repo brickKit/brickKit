@@ -22,29 +22,23 @@ psql -U postgres -c "CREATE DATABASE brickkit_department"
 docker exec -i my-postgres psql -U postgres -c "CREATE DATABASE brickkit_department"
 ```
 
-然后在 `brickkit.yaml` 里把它绑定给本组件：
+然后在项目的 `config/department-tree.yaml` 里填上连接（`brickkit add` 会生成这份文件的骨架）：
 
 ```yaml
-resources:
-  - kind: database
-    engine: postgresql
-    id: postgres-main
-    host: postgres              # Docker Network 内的服务名
-    port: 5432
-    username: postgres
-    password: ${POSTGRES_PASSWORD}
-    bindings:
-      - componentId: department/tree
-        database: brickkit_department      # ← 上面建好的库
+DATABASE_HOST: postgres              # Docker Network 内的服务名
+DATABASE_NAME: brickkit_department   # ← 上面建好的库
+DATABASE_USER: postgres
+DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+# DATABASE_PORT 不写就是 5432
 ```
 
-平台会把它转成 `DATABASE_HOST` / `DATABASE_PORT` / `DATABASE_NAME` /
-`DATABASE_USER` / `DATABASE_PASSWORD` 注入给容器（006 §5.2）。
-**组件不知道也不关心数据库跑在哪**，换库只改 `brickkit.yaml`。
+几个组件连同一台 PostgreSQL 时，把公共的部分写进 `config/vars.yaml`，各组件用 `$var:` 引用：
+`DATABASE_HOST: $var:PG_HOST`。这些键就是注入给容器的环境变量名。
+**组件不知道也不关心数据库跑在哪**，换库只改项目的 `config/`。
 
-> 想用别的库名？改 `bindings[].database` 即可，组件不认死名字。
+> 想用别的库名？改 `DATABASE_NAME` 即可，组件不认死名字。
 > 但**每个组件用自己的库**：共用一个库意味着一个组件能读到另一个组件的表，
-> 违反 002 §2.2 的数据自治。
+> 组件的数据就不再是它自己的了。
 
 ---
 

@@ -4,10 +4,10 @@
 # 都声明了 optional: true）。这意味着它缺席时那些组件应当照常工作、只是不发事件
 # ——弱依赖降级的另一半就在这里。
 #
-# 它与 authorization/rbac 形成一个刻意的对照：两者都绑 cache 资源，但
+# 它与 authorization/rbac 形成一个刻意的对照：两者都连 Redis，但
 #   authorization/rbac  Redis 是**加速器** —— 挂了照常回源查库
 #   本组件              Redis 是**唯一的数据源** —— 挂了就 503，绝不假装收下
-# 同一种资源，两种截然不同的故障处理。
+# 同一种外部系统，两种截然不同的故障处理。
 apiVersion: brickkit/v1
 kind: Component
 
@@ -30,31 +30,35 @@ artifacts:
     files:
       - openapi.json
 
-dependencies:
-  # 没有 components：它是叶子组件，谁也不依赖
-  resources:
-    # Redis 在这里是**唯一的数据源**，不是加速器：没绑定就启动失败。
-    # 一个连不上存储的事件总线，起来了也只会把每一条事件都丢掉
-    - kind: cache
-      engine: redis
-
 configSchema:
   type: object
   properties:
-    logLevel:
+    LOG_LEVEL:
       type: string
       default: "info"
-      description: 日志级别，注入为环境变量 LOG_LEVEL（debug | info | warn | error）
-    streamName:
+      description: 日志级别（debug | info | warn | error）
+    STREAM_NAME:
       type: string
       default: "brickkit:events"
-      description: Redis Stream 的名字，注入为环境变量 STREAM_NAME
-    streamMaxlen:
+      description: Redis Stream 的名字
+    STREAM_MAXLEN:
       type: integer
       default: 10000
       description: >
-        流的长度上限，注入为环境变量 STREAM_MAXLEN。事件流会一直长，
-        不裁剪迟早把 Redis 撑爆
+        流的长度上限。事件流会一直长，不裁剪迟早把 Redis 撑爆
+    # Redis 连接。Redis 在这里是**唯一的数据源**，不是加速器：不配就启动失败。一个连不上存储的事件总线，起来了也只会把每一条事件都丢掉
+    REDIS_HOST:
+      type: string
+      description: Redis 主机名
+    REDIS_PORT:
+      type: integer
+      default: 6379
+      description: Redis 端口
+    REDIS_PASSWORD:
+      type: string
+      secret: true
+      description: Redis 口令；没设口令的 Redis 不写这一项
+  required: [REDIS_HOST]
 
 # 没有 migration：事件存在 Redis 里，没有表
 

@@ -91,7 +91,7 @@ func configFromEnv(lookup func(string) string) (config, error) {
 		"DATABASE_HOST": cfg.Database.Host,
 		"DATABASE_NAME": cfg.Database.Name,
 		"DATABASE_USER": cfg.Database.User,
-		// 强依赖的地址由平台注入。它缺失说明 brickkit.yaml 里没装 people/basic，
+		// 强依赖的地址由平台注入。它缺失说明项目里没装 people/basic，
 		// 或者这个组件被手工跑起来了——两种情况都该当场说清楚
 		"PEOPLE_BASIC_ENDPOINT": cfg.PeopleEndpoint,
 		"JWT_SECRET":            cfg.JWTSecret,
@@ -103,9 +103,8 @@ func configFromEnv(lookup func(string) string) (config, error) {
 	if len(missing) > 0 {
 		sortStrings(missing)
 		return config{}, fmt.Errorf(
-			"缺少必需的配置：%s（DATABASE_* 由平台按资源绑定注入、"+
-				"PEOPLE_BASIC_ENDPOINT 由平台按强依赖注入，见 006 §5 与 003 §4.5；"+
-				"JWT_SECRET 需要你自己在 .env 或 K8s Secret 中提供）",
+			"缺少必需的配置：%s（DATABASE_* 与 JWT_SECRET 写在项目的 config/ 里；"+
+				"PEOPLE_BASIC_ENDPOINT 由平台按强依赖注入）",
 			strings.Join(missing, ", "))
 	}
 

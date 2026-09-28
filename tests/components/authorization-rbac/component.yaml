@@ -1,7 +1,7 @@
 # authorization/rbac —— 授权组件（BrickKit Phase 5 测试组件）
 #
 # 它验证的是前面几个组件都没覆盖的两件事：
-#   - **cache 资源**（Redis）：一个"有了更快、没有也能跑"的可选依赖
+#   - **可选的 Redis**：一个"有了更快、没有也能跑"的外部系统（REDIS_* 配置项不填就不用）
 #   - 单端口双协议 + 强依赖 + 缓存三者叠在一起时的降级行为
 #
 # 权限来自两条路径的并集：直接授予这个人的角色 + 授予其所在**部门**的角色。
@@ -39,25 +39,50 @@ dependencies:
     # 强依赖：地址注入为 PEOPLE_BASIC_ENDPOINT。
     # 部门从这里取；它不可用且缓存未命中时本组件如实报 503，**不做部分降级**
     - people/basic@1.0.0
-  resources:
-    - kind: database
-      engine: postgresql
-    # 缓存资源。注入 REDIS_HOST / REDIS_PORT / REDIS_PASSWORD（006 §5.2）。
-    # 它是加速器不是数据源：没绑定时组件照样能跑，只是每次都回源
-    - kind: cache
-      engine: redis
 
 configSchema:
   type: object
   properties:
-    logLevel:
+    LOG_LEVEL:
       type: string
       default: "info"
-      description: 日志级别，注入为环境变量 LOG_LEVEL（debug | info | warn | error）
-    cacheTtlSeconds:
+      description: 日志级别（debug | info | warn | error）
+    CACHE_TTL_SECONDS:
       type: integer
       default: 300
-      description: 权限缓存有效期（秒），注入为环境变量 CACHE_TTL_SECONDS
+      description: 权限缓存有效期（秒）
+    # 数据库连接：configSchema 的键就是环境变量名，值由使用者写在项目的 config/ 里。
+    # 库由使用者建好；表由本组件的迁移建
+    DATABASE_HOST:
+      type: string
+      description: PostgreSQL 主机名
+    DATABASE_PORT:
+      type: integer
+      default: 5432
+      description: PostgreSQL 端口
+    DATABASE_NAME:
+      type: string
+      description: 库名
+    DATABASE_USER:
+      type: string
+      description: 连接用户
+    DATABASE_PASSWORD:
+      type: string
+      secret: true
+      description: 连接口令。写成 ${VAR} 或 file:// 引用，不要把明文写进 config/
+    # Redis 连接。它是加速器不是数据源：不配时组件照样能跑，只是每次都回源
+    REDIS_HOST:
+      type: string
+      description: Redis 主机名
+    REDIS_PORT:
+      type: integer
+      default: 6379
+      description: Redis 端口
+    REDIS_PASSWORD:
+      type: string
+      secret: true
+      description: Redis 口令；没设口令的 Redis 不写这一项
+  required: [DATABASE_HOST, DATABASE_NAME, DATABASE_USER]
 
 migration:
   command: ["/app/authorization-rbac", "migrate"]

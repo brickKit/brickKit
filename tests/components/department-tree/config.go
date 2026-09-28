@@ -89,7 +89,7 @@ func configFromEnv(lookup func(string) string) (config, error) {
 	if len(missing) > 0 {
 		sortStrings(missing)
 		return config{}, fmt.Errorf(
-			"缺少数据库连接配置：%s（这些变量由平台按 brickkit.yaml 的资源绑定注入，见 006 §5）",
+			"缺少数据库连接配置：%s（这些配置项写在项目的 config/ 里）",
 			strings.Join(missing, ", "))
 	}
 

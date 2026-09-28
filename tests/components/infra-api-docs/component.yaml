@@ -40,17 +40,17 @@ dependencies:
       optional: true
     - id: infra/redis-event-bus@1.0.0
       optional: true
-  # 没有 resources：探测结果放在内存里，缓存 30 秒就够
+  # 不需要数据库：探测结果放在内存里，缓存 30 秒就够
 
 configSchema:
   type: object
   properties:
-    logLevel:
+    LOG_LEVEL:
       type: string
       default: "info"
-      description: 日志级别，注入为环境变量 LOG_LEVEL（debug | info | warn | error）
+      description: 日志级别（debug | info | warn | error）
 
-# 没有 migration：不绑定资源，也就没有自己的表
+# 没有 migration：没有自己的库，也就没有自己的表
 
 deployment:
   type: container

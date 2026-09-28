@@ -25,13 +25,13 @@ dependencies:
   components:
     # 强依赖：注入 ERP_BACKEND_ENDPOINT，nginx 模板直接引用它
     - erp/backend@1.0.0
-  # 没有 resources：静态文件在镜像里，不需要任何库
+  # 不需要数据库：静态文件在镜像里
 
 # 没有 configSchema：这个组件没有任何需要使用者调的东西。
 # DNS 地址由容器自己从 /etc/resolv.conf 取（Docker 与 K8s 的 DNS 地址不同），
 # 后端地址由平台按强依赖注入——两者都不该让使用者操心
 
-# 没有 migration：不绑定资源，也就没有自己的表
+# 没有 migration：没有自己的库，也就没有自己的表
 
 deployment:
   type: container

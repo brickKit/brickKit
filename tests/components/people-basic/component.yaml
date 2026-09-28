@@ -39,17 +39,34 @@ dependencies:
     # 弱依赖：缺失时平台完全不注入 INFRA_REDIS_EVENT_BUS_ENDPOINT，组件自行降级
     - id: infra/redis-event-bus@1.0.0
       optional: true
-  resources:
-    - kind: database
-      engine: postgresql
 
 configSchema:
   type: object
   properties:
-    logLevel:
+    LOG_LEVEL:
       type: string
       default: "info"
-      description: 日志级别，注入为环境变量 LOG_LEVEL（debug | info | warn | error）
+      description: 日志级别（debug | info | warn | error）
+    # 数据库连接：configSchema 的键就是环境变量名，值由使用者写在项目的 config/ 里。
+    # 库由使用者建好；表由本组件的迁移建
+    DATABASE_HOST:
+      type: string
+      description: PostgreSQL 主机名
+    DATABASE_PORT:
+      type: integer
+      default: 5432
+      description: PostgreSQL 端口
+    DATABASE_NAME:
+      type: string
+      description: 库名
+    DATABASE_USER:
+      type: string
+      description: 连接用户
+    DATABASE_PASSWORD:
+      type: string
+      secret: true
+      description: 连接口令。写成 ${VAR} 或 file:// 引用，不要把明文写进 config/
+  required: [DATABASE_HOST, DATABASE_NAME, DATABASE_USER]
 
 migration:
   command: ["python", "-m", "app.main", "migrate"]

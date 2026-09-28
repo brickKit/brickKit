@@ -57,7 +57,7 @@ def config_from_env(getenv: Callable[[str], str | None]) -> Config:
     缺失项一次全部报出，且**绝不退化到默认地址**：悄悄连到 localhost
     会让人以为配好了，实际连的根本不是那个 Redis。
 
-    与 authorization/rbac 的一个关键差别：那里 Redis 是加速器，没绑定也能跑；
+    与 authorization/rbac 的一个关键差别：那里 Redis 是加速器，不配也能跑；
     **这里 Redis 是唯一的数据源，缺了就必须启动失败**——一个连不上存储的
     事件总线，起来了也只会把每一条事件都丢掉。
     """
@@ -68,7 +68,7 @@ def config_from_env(getenv: Callable[[str], str | None]) -> Config:
     host = get("REDIS_HOST")
     if not host:
         raise ValueError(
-            "缺少必需的配置：REDIS_HOST（由平台按 cache 资源绑定注入，见 006 §5.2）。"
+            "缺少必需的配置：REDIS_HOST（写在项目的 config/ 里）。"
             "本组件把 Redis 作为唯一的数据源，没有它无法工作"
         )
 

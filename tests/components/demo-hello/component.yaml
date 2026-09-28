@@ -26,10 +26,10 @@ artifacts:
 configSchema:
   type: object
   properties:
-    greeting:
+    GREETING:
       type: string
       default: "Hello"
-      description: The greeting, injected as the environment variable GREETING
+      description: The greeting the component answers with
 
 deployment:
   type: container

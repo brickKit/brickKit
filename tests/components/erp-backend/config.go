@@ -14,8 +14,8 @@ const (
 	listenAddr = ":8080"
 	// readHeaderTimeout 防住慢速请求头攻击。
 	readHeaderTimeout = 10 * time.Second
-	// defaultSessionTTL 是会话默认时长，对应 configSchema.sessionTtlSeconds
-	// 的 default（3600）。使用者可在 brickkit.yaml 的 config 里覆盖（003 §5.4）。
+	// defaultSessionTTL 是会话默认时长，对应 configSchema.SESSION_TTL_SECONDS
+	// 的 default（3600）。使用者可在项目的 config/ 里改它。
 	defaultSessionTTL = time.Hour
 )
 
@@ -42,7 +42,7 @@ type config struct {
 	// 弱依赖缺席时平台完全不注入这个变量，这里就是空串——组件据此降级。
 	// 它绝不能出现在"缺少必需配置"的校验里。
 	EventBusEndpoint string
-	// SessionTTL 来自 configSchema 的 sessionTtlSeconds（开发计划 25.5）。
+	// SessionTTL 来自配置项 SESSION_TTL_SECONDS。
 	SessionTTL time.Duration
 }
 
@@ -77,7 +77,7 @@ func configFromEnv(lookup func(string) string) (config, error) {
 		SessionTTL:            defaultSessionTTL,
 	}
 
-	// 三个**强依赖**的地址由平台注入。缺失说明 brickkit.yaml 里没装对应组件，
+	// 三个**强依赖**的地址由平台注入。缺失说明项目里没装对应组件，
 	// 或者这个组件被手工跑起来了——两种情况都该当场说清楚。
 	//
 	// **INFRA_REDIS_EVENT_BUS_ENDPOINT 不在这里**：它是弱依赖，

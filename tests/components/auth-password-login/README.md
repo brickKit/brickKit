@@ -59,11 +59,11 @@ people/basic  管「你是谁」：姓名、部门、职务
 
 | 环境变量 | 来源 | 说明 |
 | --- | --- | --- |
-| `DATABASE_*` | 平台按资源绑定注入（006 §5） | HOST / PORT / NAME / USER / PASSWORD |
-| `PEOPLE_BASIC_ENDPOINT` | 平台按强依赖注入（003 §4.5） | people/basic 的地址 |
-| `JWT_SECRET` | **你自己提供**（`.env` / K8s Secret） | 令牌签名密钥，至少 32 字节 |
-| `LOG_LEVEL` | `configSchema.logLevel` | debug / info / warn / error |
-| `TOKEN_TTL_SECONDS` | `configSchema.tokenTtlSeconds` | 令牌有效期，默认 1800 |
+| `DATABASE_*` | 项目的 `config/auth-password-login.yaml` | HOST / PORT / NAME / USER / PASSWORD |
+| `PEOPLE_BASIC_ENDPOINT` | 平台按强依赖注入 | people/basic 的地址 |
+| `JWT_SECRET` | 项目的 `config/`，**写成 `${JWT_SECRET}` 或 `file://` 引用** | 令牌签名密钥，至少 32 字节；必填，没有默认值 |
+| `LOG_LEVEL` | 配置项，默认 info | debug / info / warn / error |
+| `TOKEN_TTL_SECONDS` | 配置项，默认 1800 | 令牌有效期 |
 
 **缺任何一项都直接启动失败，不会用默认值顶上。** 对 `JWT_SECRET` 尤其重要：
 一个内置默认密钥意味着所有装了这个组件的人共用同一把钥匙，任何人都能给任何一处部署

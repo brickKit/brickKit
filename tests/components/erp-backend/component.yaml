@@ -6,7 +6,7 @@
 #   - **弱依赖降级**：事件总线缺席或调用失败时，审批照常成功、状态照常改变
 #   - **extraPorts 注入**：people/basic 的 gRPC 在 9090，平台额外注入
 #     PEOPLE_BASIC_GRPC_ENDPOINT
-#   - **没有资源依赖**：只依赖组件，不绑定任何 database / cache
+#   - **没有外部系统**：只依赖组件，不需要任何数据库或缓存
 apiVersion: brickkit/v1
 kind: Component
 
@@ -43,22 +43,22 @@ dependencies:
     # 本组件据此降级——审批照常成功，只是不发事件（003 §4.3）
     - id: infra/redis-event-bus@1.0.0
       optional: true
-  # 没有 resources：连接组件不掌握主数据，订单是内置的样例数据。
-  # 声明一个用不上的 database 会让使用者白建一个库、还要为它填口令
+  # 不需要数据库：连接组件不掌握主数据，订单是内置的样例数据。
+  # 声明一组用不上的 DATABASE_* 会让使用者白建一个库、还要为它填口令
 
 configSchema:
   type: object
   properties:
-    logLevel:
+    LOG_LEVEL:
       type: string
       default: "info"
-      description: 日志级别，注入为环境变量 LOG_LEVEL（debug | info | warn | error）
-    sessionTtlSeconds:
+      description: 日志级别（debug | info | warn | error）
+    SESSION_TTL_SECONDS:
       type: integer
       default: 3600
-      description: 会话时长（秒），注入为环境变量 SESSION_TTL_SECONDS
+      description: 会话时长（秒）
 
-# 没有 migration：不绑定资源，也就没有自己的表
+# 没有 migration：没有自己的库，也就没有自己的表
 
 deployment:
   type: container

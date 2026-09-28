@@ -61,8 +61,8 @@ POST /api/v1/orders/{id}/approve
 | `AUTHORIZATION_RBAC_ENDPOINT` | 平台按强依赖注入 | ✅ |
 | `PEOPLE_BASIC_GRPC_ENDPOINT` | 平台按 people/basic 的 **extraPorts** 注入 | ✅ |
 | `INFRA_REDIS_EVENT_BUS_ENDPOINT` | 弱依赖，缺席时**完全不注入** | ❌ |
-| `SESSION_TTL_SECONDS` | `configSchema.sessionTtlSeconds`，可在 brickkit.yaml 覆盖 | ❌ |
-| `LOG_LEVEL` | `configSchema.logLevel` | ❌ |
+| `SESSION_TTL_SECONDS` | 配置项，默认 3600，可在项目的 `config/` 里改 | ❌ |
+| `LOG_LEVEL` | 配置项，默认 info | ❌ |
 
 弱依赖那一项**绝不能**出现在"缺少必需配置"的校验里 —— 那会让一个从没装过
 事件总线的项目永远启动不了这个组件。
