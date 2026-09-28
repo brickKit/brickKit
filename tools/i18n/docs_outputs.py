@@ -20,7 +20,7 @@
 
 用法：
 
-    python3 tools/i18n/docs_outputs.py tutorials/en/01-first-project.md          # 干跑：只报告
+    python3 tools/i18n/docs_outputs.py docs/en/02-project-guide/01-init-and-project-creation.md          # 干跑：只报告
     python3 tools/i18n/docs_outputs.py --write docs/en/00-intro/02-quick-start.md ...        # 原地改写
     python3 tools/i18n/docs_outputs.py --tags none,bash,mermaid ...                # 处理哪些围栏（默认 none,bash,mermaid）
 
