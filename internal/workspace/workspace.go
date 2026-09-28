@@ -222,9 +222,12 @@ func DeletionRisk(dir string) string {
 		strings.TrimSpace(out) != "" {
 		return i18n.T(msgid.WorkspaceRiskUncommitted)
 	}
-	// --branches --not --remotes：本地任何分支上、而任何远端分支上都没有的提交。
+	// HEAD --branches --not --remotes：当前检出的与本地任何分支上、而任何远端分支上都没有的提交。
 	// 没有配远端时它等于"全部提交"，正好也该拦——那时 .git 就是唯一的副本。
-	if out, ok := gitOut(dir, "log", "--branches", "--not", "--remotes", "--oneline", "--", "."); !ok ||
+	// 少了 HEAD 就漏掉最常见的一种：add --repo 检出的是 tag（detached HEAD），在那上面
+	// 直接提交的改动不在任何分支上，只有 HEAD 指着它们。tag 本身所在的提交通常已在远端
+	// 分支上；不在时（孤立的 tag）这里多拦一次，--force 照删——宁可多问，不丢东西。
+	if out, ok := gitOut(dir, "log", "HEAD", "--branches", "--not", "--remotes", "--oneline", "--", "."); !ok ||
 		strings.TrimSpace(out) != "" {
 		return i18n.T(msgid.WorkspaceRiskUnpushed)
 	}

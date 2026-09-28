@@ -202,3 +202,35 @@ func TestExistingSecretShapeDoesNotTriggerPlaintextWarning(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
 	assert.NotContains(t, r.stdout+r.stderr, "plaintext secrets")
 }
+
+// 密钥明文经 $var: 来自部署文件的 vars:：团队的 deploy.yaml 进 Git，要警告；
+// 个人的 deploy.local.yaml 被 .gitignore 挡在 Git 外面，本地口令写在那里正是它的用处，不警告。
+func TestPlaintextSecretFromDeployVarsDependsOnWhichFile(t *testing.T) {
+	setup := func(t *testing.T) *projectFixture {
+		f := configProject(t, "    config:\n      dbPassword: $var:PG_PASSWORD\n", "dbPassword")
+		return f
+	}
+	appendVars := func(t *testing.T, path string) {
+		body, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(path, append(body, []byte("\nvars:\n  PG_PASSWORD: plain-pass\n")...), 0o644))
+	}
+
+	t.Run("team deploy.yaml", func(t *testing.T) {
+		f := setup(t)
+		appendVars(t, filepath.Join(f.Dir, "deploy.yaml"))
+		r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+		require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+		assert.Contains(t, r.stdout+r.stderr, "plaintext secrets", "deploy.yaml 进 Git")
+		assert.NotContains(t, r.stdout+r.stderr, "plain-pass")
+	})
+	t.Run("personal deploy.local.yaml", func(t *testing.T) {
+		f := setup(t)
+		r := runIn(t, f.Dir, "local", "on")
+		require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+		appendVars(t, filepath.Join(f.Dir, "deploy.local.yaml"))
+		r = runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+		require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+		assert.NotContains(t, r.stdout+r.stderr, "plaintext secrets", "deploy.local.yaml 不进 Git")
+	})
+}

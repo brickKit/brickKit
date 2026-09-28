@@ -423,3 +423,20 @@ func TestGitAuthRequiredFailsWithoutPrompting(t *testing.T) {
 	assert.Contains(t, text, srv.URL+"/myorg/erp-api")
 	assert.Contains(t, text, "credential")
 }
+
+// 仓库地址写错（或仓库不存在）：点名那个地址、带出 git 自己的话，并提醒"地址写错也是这个样子"——
+// git 对"不存在"与"没权限"给的是同一句话，只说鉴权会把人引去查一把本来就没问题的钥匙。
+func TestGitMissingRepositoryNamesTheAddress(t *testing.T) {
+	org := newGitOrg(t)
+	c, _ := org.client()
+
+	_, err := c.Manifest(context.Background(), "erp/api", "1.0.0")
+
+	require.Error(t, err)
+	e := clierr.As(err)
+	assert.Equal(t, clierr.CodeNetworkUnreachable, e.Code)
+	out := e.Format()
+	assert.Contains(t, out, gittest.BaseURL(org.dir), "报出的是它实际去找的那个地址")
+	assert.Contains(t, out, "erp-api")
+	assert.Contains(t, out, "mistyped", "提醒地址写错也会这样失败")
+}

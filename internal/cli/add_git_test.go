@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/source/gittest"
 )
 
@@ -462,4 +464,123 @@ func TestAddRestoreChecksTheArchivedComponentID(t *testing.T) {
 	writeTree(t, dir, map[string]string{"config/.archive/a-b-c@1.0.0.yaml": "# Component: a-b/c@1.0.0\nDB_HOST: someone-else\n"})
 	g.mustRun(dir, "add", "a/b-c@1.0.0")
 	assert.NotContains(t, readFile(t, filepath.Join(dir, "config", "a-b-c.yaml")), "someone-else")
+}
+
+// 闭源组件（市场里 sourceType: registry）没有源码仓库：--repo 照常装上组件，
+// 只是点名说明它没被克隆、为什么，而不是一声不吭——也不是整条 add 失败。
+func TestAddRepoClosedSourceIsSaidAndSkipped(t *testing.T) {
+	market := newMockMarket(t, &mockComponent{
+		Spec: comp{ID: "vendor/engine", Version: "1.0.0"}, SourceType: "registry",
+	})
+	f := newProjectFixture(t, market.source())
+
+	r := runIn(t, f.Dir, "add", "vendor/engine@1.0.0", "--repo", "--yes")
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "vendor/engine@1.0.0 has no source repository")
+	assert.Contains(t, r.stdout, "closed source")
+	assert.NoDirExists(t, filepath.Join(f.Dir, "components", "vendor", "engine"))
+	assert.Contains(t, f.refs(t), "vendor/engine@1.0.0", "组件照常装上")
+}
+
+// add 把组件声明的产物（契约、文档）下载进 .brickkit/artifacts/<服务名>/，内容与组件仓库里的一致。
+func TestAddDownloadsArtifacts(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0", Artifacts: []string{"api-contract:api/openapi.yaml"}},
+		map[string]string{"api/openapi.yaml": "openapi: 3.0.3\n"})
+	dir := g.project()
+
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+
+	var found []string
+	root := filepath.Join(project.NewLayout(dir).ArtifactsDir(), "erp-api-1-0-0")
+	require.NoError(t, filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			found = append(found, path)
+		}
+		return err
+	}))
+	require.Len(t, found, 1, "声明了一个产物文件，就下载一个")
+	assert.Equal(t, "openapi: 3.0.3\n", readFile(t, found[0]))
+}
+
+// 写到一半失败（这里是 config/ 不可写）：已经写过的 brickkit.yaml / deploy.yaml 要回到 add 之前，
+// 不能留下一份"组件登记了、配置却没有"的半成品。
+func TestAddWriteFailureLeavesNoHalfWrittenProject(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root 不受目录权限限制，造不出写失败")
+	}
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0", ConfigSchema: []string{"DB_HOST:localhost"}})
+	dir := g.project()
+	configDir := filepath.Join(dir, "config")
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
+	require.NoError(t, os.Chmod(configDir, 0o500))
+	t.Cleanup(func() { _ = os.Chmod(configDir, 0o755) })
+	before := map[string]string{
+		"brickkit.yaml": readFile(t, filepath.Join(dir, "brickkit.yaml")),
+		"deploy.yaml":   readFile(t, filepath.Join(dir, "deploy.yaml")),
+	}
+
+	r := g.run(dir, "add", "erp/api@1.0.0")
+
+	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	for name, content := range before {
+		assert.Equal(t, content, readFile(t, filepath.Join(dir, name)), "%s 回到 add 之前", name)
+	}
+}
+
+// remove 会删组件的源码目录——只在删掉之后还找得回来时才删。找不回来的三种情况都要拦下，
+// 并且拦下时三份文件一个字都不改；--force 才照删。
+func TestRemoveRefusesToDeleteUnrecoverableSource(t *testing.T) {
+	commit := func(t *testing.T, dir string, args ...string) {
+		t.Helper()
+		gitCmd(t, dir, append([]string{"-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)...)
+	}
+	refused := func(t *testing.T, g *gitOrgProject, dir, id, src string) {
+		t.Helper()
+		r := g.run(dir, "remove", id)
+		require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+		assert.DirExists(t, src)
+		assert.Contains(t, readFile(t, filepath.Join(dir, "brickkit.yaml")), id, "拦下时三份文件都不动")
+		g.mustRun(dir, "remove", id, "--force")
+		assert.NoDirExists(t, src)
+	}
+
+	t.Run("hand-written component, not a git repository", func(t *testing.T) {
+		g := newGitOrgProject(t)
+		dir := g.project()
+		replaceInFile(t, filepath.Join(dir, "brickkit.yaml"), "sources:\n",
+			"sources:\n  - name: local-dev\n    type: local\n    path: ./components\n")
+		hand := comp{ID: "demo/hand", Version: "1.0.0"}
+		src := filepath.Join(dir, "components", "demo", "hand")
+		writeTree(t, src, hand.files())
+		g.mustRun(dir, "add", "demo/hand@1.0.0")
+		refused(t, g, dir, "demo/hand", src)
+	})
+
+	t.Run("commit on a branch that was never pushed", func(t *testing.T) {
+		g := newGitOrgProject(t)
+		g.release(comp{ID: "erp/api", Version: "1.0.0"})
+		dir := g.project()
+		g.mustRun(dir, "add", "erp/api@1.0.0", "--repo")
+		src := filepath.Join(dir, "components", "erp", "api")
+		gitCmd(t, src, "switch", "--quiet", "-c", "fix")
+		require.NoError(t, os.WriteFile(filepath.Join(src, "main.go"), []byte("package main\n"), 0o644))
+		gitCmd(t, src, "add", "main.go")
+		commit(t, src, "commit", "--quiet", "-m", "local work")
+		refused(t, g, dir, "erp/api", src)
+	})
+
+	t.Run("commit on the detached tag checkout", func(t *testing.T) {
+		g := newGitOrgProject(t)
+		g.release(comp{ID: "erp/api", Version: "1.0.0"})
+		dir := g.project()
+		g.mustRun(dir, "add", "erp/api@1.0.0", "--repo")
+		src := filepath.Join(dir, "components", "erp", "api")
+		require.NoError(t, os.WriteFile(filepath.Join(src, "main.go"), []byte("package main\n"), 0o644))
+		gitCmd(t, src, "add", "main.go")
+		commit(t, src, "commit", "--quiet", "-m", "local work on the tag")
+		refused(t, g, dir, "erp/api", src)
+	})
 }

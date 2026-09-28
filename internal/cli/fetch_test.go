@@ -4,6 +4,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -164,4 +165,20 @@ func TestFetchLatestTag(t *testing.T) {
 	r := g.mustRun(dir, "fetch", "infra/notifier")
 	assert.Contains(t, r.stdout, "1.1.0")
 	assert.Equal(t, "v2\n", readFile(t, filepath.Join(dir, ".brickkit", "artifacts", "infra-notifier-1-1-0", "api-contract", "notifier.proto")))
+}
+
+// 默认要求签名、却一把公钥都没配：这是整个项目的一件事，不是每个组件一件事——
+// 装三个组件就刷三遍同一段话，使用者只会学会跳过所有警告。
+func TestNoPublicKeysWarningIsSaidOnce(t *testing.T) {
+	market := newMockMarket(t,
+		&mockComponent{Spec: comp{ID: "erp/app", Version: "1.0.0", Requires: []string{"erp/api@1.0.0", "erp/web@1.0.0"}}},
+		&mockComponent{Spec: comp{ID: "erp/api", Version: "1.0.0", Port: 8081}},
+		&mockComponent{Spec: comp{ID: "erp/web", Version: "1.0.0", Port: 8082}},
+	)
+	f := newProjectFixture(t, market.source())
+	const warning = "requireSignature is true, but the project declares no trusted public keys"
+
+	r := runIn(t, f.Dir, "add", "erp/app@1.0.0", "--yes")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, 1, strings.Count(r.stdout+r.stderr, warning), "三个组件只该说一次：%s%s", r.stdout, r.stderr)
 }

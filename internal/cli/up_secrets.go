@@ -55,7 +55,8 @@ func declaredSecretKeys(graph *resolver.Graph, ref resolver.Ref) map[string]bool
 // 泄漏路径是 config/*.yaml 与 config/vars.yaml 本身：它们是要提交进 Git 的。
 // 判据是：组件声明了 secret: true，或名字长得像密钥（只看名字，不看值）；
 // 写成 ${ENV_VAR}、file://、existingSecret 的都是做对了。经 $var: 引到 vars.yaml
-// 里的明文，点名的是那个公共变量。**绝不打印值本身。**
+// 里的明文，点名的是那个公共变量；来自个人 deploy.local.yaml 的不算（它不进 Git）。
+// **绝不打印值本身。**
 func warnConfigSecrets(opts *Options, p *project.Project, graph *resolver.Graph) {
 	var offenders []string
 	for _, c := range p.Decl.Components {
@@ -72,6 +73,10 @@ func warnConfigSecrets(opts *Options, p *project.Project, graph *resolver.Graph)
 			if value.Kind == configdir.KindVarRef {
 				target, ok := configdir.LookupVar(value.Name, p.DeployVars, p.Vars)
 				if !ok {
+					continue
+				}
+				if _, fromDeploy := p.DeployVars[value.Name]; fromDeploy && p.DeploySource == project.DeployLocal {
+					// 个人的 deploy.local.yaml 不进 Git：本地口令写在那里正是它的用处
 					continue
 				}
 				value, where = target, where+" ($var:"+value.Name+")"
