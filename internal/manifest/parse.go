@@ -68,6 +68,7 @@ func Parse(data []byte, source string) (*Manifest, error) {
 	// 与形状问题一起报：两者都是"这份 Manifest 根本读不对"，
 	// 分两轮报会让人改完一处又撞下一处
 	walkUnknownFields(doc, shape)
+	checkTypes(doc, shape)
 	if shape.Len() > 0 {
 		return nil, shape.Err()
 	}
@@ -100,6 +101,26 @@ func walkUnknownFields(doc *yaml.Node, shape *clierr.ProblemSet) {
 		}
 		shape.Add(problem.Field, reason)
 	}
+}
+
+// checkTypes 把解不进字段类型的值按字段路径报出来（yamlcheck.TypeMismatches）。
+// 形状检查已经报过的字段（及其下层）不再重复。
+func checkTypes(doc *yaml.Node, shape *clierr.ProblemSet) {
+	var reported []string
+	for _, item := range shape.Items() {
+		if item.Field == FileName {
+			return // 整份文档就不对（顶层不是映射），下面每个字段都无从谈起
+		}
+		reported = append(reported, item.Field)
+	}
+	yamlcheck.TypeMismatches(doc, reflect.TypeOf(Manifest{}), func(field, message string) {
+		for _, r := range reported {
+			if field == r || strings.HasPrefix(field, r+".") || strings.HasPrefix(field, r+"[") {
+				return
+			}
+		}
+		shape.Add(field, message)
+	})
 }
 
 func syntaxError(source string, cause error) error {
@@ -147,7 +168,6 @@ var sequenceFields = [][]string{
 	{"tags"},
 	{"artifacts"},
 	{"dependencies", "components"},
-	{"dependencies", "resources"},
 	{"deployment", "extraPorts"},
 	{"migration", "command"},
 	{"configSchema", "required"},
@@ -240,6 +260,14 @@ func (d *ComponentDep) UnmarshalYAML(value *yaml.Node) error {
 		var raw struct {
 			ID       string `yaml:"id"`
 			Optional bool   `yaml:"optional"`
+		}
+		// 自己解析的类型，类型检查只能整个交给这里：键写错了什么，由这里说清楚
+		var problems []string
+		yamlcheck.TypeMismatches(value, reflect.TypeOf(raw), func(field, message string) {
+			problems = append(problems, field+": "+message)
+		})
+		if len(problems) > 0 {
+			return errors.New(strings.Join(problems, "; "))
 		}
 		if err := value.Decode(&raw); err != nil {
 			return err

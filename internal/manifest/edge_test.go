@@ -38,8 +38,6 @@ func TestShapeErrors(t *testing.T) {
 			[]string{"artifacts[0].files", "must be an array"}},
 		{"dependencies.components 非数组", minimalYAML + "dependencies:\n  components: department/tree@1.0.0\n",
 			[]string{"dependencies.components", "must be an array"}},
-		{"dependencies.resources 非数组", minimalYAML + "dependencies:\n  resources: database\n",
-			[]string{"dependencies.resources", "must be an array"}},
 		{"extraPorts 非数组", minimalYAML + "  extraPortsX: x\n", nil}, // 占位：字段名不同，不触发
 		{"configSchema.required 非数组", minimalYAML + "configSchema:\n  type: object\n  required: pageSize\n",
 			[]string{"configSchema.required", "must be an array"}},
@@ -455,7 +453,7 @@ configSchema:
       minimum: lots
 `), "component.yaml")
 	require.Error(t, err)
-	assert.Contains(t, clierr.As(err).Format(), "Type mismatch")
+	assert.Contains(t, clierr.As(err).Format(), "configSchema.properties.dbPort.minimum", "报错点名字段")
 	assert.Contains(t, clierr.As(err).Format(), "lots", "报错要带上出错的那个值")
 }
 
@@ -517,4 +515,38 @@ func TestCompareVersions(t *testing.T) {
 	// 非法版本不该 panic：Manifest 校验拦得住，但这个函数自己也要站得住
 	assert.NotPanics(t, func() { CompareVersions("abc", "1.0.0") })
 	assert.Positive(t, CompareVersions("abc", "1.0.0"))
+}
+
+// 类型写错时报出字段路径，而不是 yaml 库那句只有行号的话：写成一行的 JSON（市场收到的
+// Manifest 就是）所有值都在第 1 行，行号什么也说明不了。
+func TestTypeErrorsNameTheField(t *testing.T) {
+	cases := []struct {
+		name, yaml, field string
+	}{
+		{"port 是字符串", mustReplace(minimalYAML, "port: 8080", `port: "abc"`), "deployment.port"},
+		{"optional 不是布尔值", minimalYAML + "dependencies:\n  components:\n    - id: department/tree@1.0.0\n      optional: [not, a, bool]\n", "dependencies.components[0]"},
+		{"依赖项是数组", minimalYAML + "dependencies:\n  components:\n    - [a, b]\n", "dependencies.components[0]"},
+		{"一行的 JSON", `{"apiVersion":"brickkit/v1","kind":"Component","metadata":{"id":"a/b","name":"x","version":"1.0.0","description":"x"},"deployment":{"type":"container","image":"r/a:1","port":"abc"},"healthCheck":{"type":"none"}}`, "deployment.port"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := Parse([]byte(c.yaml), "component.yaml")
+			require.Error(t, err)
+			e := clierr.As(err)
+			assert.Equal(t, clierr.CodeManifestInvalid, e.Code)
+			require.Len(t, e.Problems, 1, e.Format())
+			assert.Equal(t, c.field, e.Problems[0].Field)
+			assert.NotContains(t, e.Problems[0].Reason, "line ", e.Format())
+		})
+	}
+}
+
+// 依赖项自己解析：写错的键在原因里点名。
+func TestDependencyTypeErrorNamesTheKey(t *testing.T) {
+	_, err := Parse([]byte(minimalYAML+"dependencies:\n  components:\n    - id: department/tree@1.0.0\n      optional: [not, a, bool]\n"), "component.yaml")
+	require.Error(t, err)
+	e := clierr.As(err)
+	require.Len(t, e.Problems, 1)
+	assert.Contains(t, e.Problems[0].Reason, "optional")
+	assert.Contains(t, e.Problems[0].Reason, "true or false")
 }

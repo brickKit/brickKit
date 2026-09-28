@@ -12,9 +12,16 @@ const (
 
 // internal/yamlcheck/kind.go
 const (
-	YamlcheckKindScalar  = "yamlcheck.kind.scalar"
-	YamlcheckKindMapping = "yamlcheck.kind.mapping"
-	YamlcheckKindArray   = "yamlcheck.kind.array"
-	YamlcheckKindAlias   = "yamlcheck.kind.alias"
-	YamlcheckKindUnknown = "yamlcheck.kind.unknown"
+	YamlcheckKindScalar   = "yamlcheck.kind.scalar"
+	YamlcheckKindMapping  = "yamlcheck.kind.mapping"
+	YamlcheckKindArray    = "yamlcheck.kind.array"
+	YamlcheckKindAlias    = "yamlcheck.kind.alias"
+	YamlcheckKindUnknown  = "yamlcheck.kind.unknown"
+	YamlcheckTypeMismatch = "yamlcheck.type_mismatch"
+	YamlcheckWantBool     = "yamlcheck.want_bool"
+	YamlcheckWantInteger  = "yamlcheck.want_integer"
+	YamlcheckWantNumber   = "yamlcheck.want_number"
+	YamlcheckWantString   = "yamlcheck.want_string"
+	YamlcheckWantMapping  = "yamlcheck.want_mapping"
+	YamlcheckWantArray    = "yamlcheck.want_array"
 )

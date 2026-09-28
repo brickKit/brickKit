@@ -126,6 +126,9 @@ func TestValidateRejectsWhatTheCLIRejects(t *testing.T) {
 		{"range dependency", map[string]any{
 			"dependencies": map[string]any{"components": []string{"department/tree@^1.0.0"}},
 		}, "dependencies.components[0]"},
+		{"type mismatch", map[string]any{
+			"deployment": map[string]any{"type": "container", "image": "r/p:1", "port": "abc"},
+		}, "deployment.port"},
 		{"bare member", map[string]any{
 			"shell": map[string]any{"members": []string{"people/profile"}},
 		}, "shell.members[0]"},
