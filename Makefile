@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-docs-bilingual check-market-api check-install-sh check-no-binaries check-guide-output check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + 双语镜像 + 市场 API 表 + 安装脚本 + 仓库无二进制 + 教程输出核对 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-docs-bilingual check-market-api check-market-mod check-install-sh check-no-binaries check-guide-output check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + 双语镜像 + 市场 API 表 + 市场模块依赖清单 + 安装脚本 + 仓库无二进制 + 教程输出核对 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
 # check-guide-output 2026-09-19 曾移出 lint：当时它的全部用例都核对
 # docs/archive/ 里的输出块，而归档已明确不再要求与 CLI 保持同步（错误文案里
 # 的设计书章节引用被清掉后，这份检查立刻发现了这一点——archive 里的旧文案
@@ -198,6 +198,17 @@ check-schemas: ## 检查签入的 schemas/*.json 与结构体生成的一致，�
 .PHONY: check-market-api
 check-market-api: ## 检查市场 API 参考（docs/{zh,en}/11-reference/06-market-api.md）的端点表与真实路由表双向一致、中英一致
 	@cd market-server && $(GO) test ./internal/handler/ -run 'TestEveryRouteIsDocumented|TestEveryDocumentedRouteExists|TestRouteDocParsingSelfCheck|TestRouteDocsAgreeAcrossLanguages'
+
+.PHONY: check-market-mod
+check-market-mod: ## 检查 market-server 的 go.mod/go.sum 已整理（它 replace 主模块：主模块加了依赖，这里要跟着 tidy）
+	@tmp=$$(mktemp -d); cp market-server/go.mod market-server/go.sum $$tmp/; \
+	(cd market-server && $(GO) mod tidy) || { cp $$tmp/go.mod $$tmp/go.sum market-server/; rm -rf $$tmp; exit 1; }; \
+	if cmp -s $$tmp/go.mod market-server/go.mod && cmp -s $$tmp/go.sum market-server/go.sum; then \
+		rm -rf $$tmp; echo "✅ market-server 的 go.mod/go.sum 已整理"; \
+	else \
+		cp $$tmp/go.mod $$tmp/go.sum market-server/; rm -rf $$tmp; \
+		echo "❌ market-server 的 go.mod/go.sum 没有整理：执行 cd market-server && go mod tidy 后提交"; exit 1; \
+	fi
 
 .PHONY: check-docs
 check-docs: ## 检查文档引用（悬空小节号、断链、指南编号与前置）
