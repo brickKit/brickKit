@@ -5,7 +5,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/brickkit/market-server/internal/service"
+	"github.com/brickkit/brickkit/market-server/internal/service"
 )
 
 // listOrganizations 处理 GET /api/v1/organizations。

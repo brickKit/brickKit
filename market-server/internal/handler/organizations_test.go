@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
 // createOrg 建一个组织并返回它的 ID。

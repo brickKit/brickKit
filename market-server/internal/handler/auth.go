@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/brickkit/market-server/internal/service"
+	"github.com/brickkit/brickkit/market-server/internal/service"
 )
 
 // register 处理 POST /api/v1/auth/register（007 §9.5、18.19）。

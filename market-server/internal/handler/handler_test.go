@@ -23,11 +23,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/brickkit/market-server/internal/handler"
-	"github.com/brickkit/market-server/internal/model"
-	"github.com/brickkit/market-server/internal/repo"
-	"github.com/brickkit/market-server/internal/service"
-	"github.com/brickkit/market-server/internal/storage"
+	"github.com/brickkit/brickkit/market-server/internal/handler"
+	"github.com/brickkit/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/repo"
+	"github.com/brickkit/brickkit/market-server/internal/service"
+	"github.com/brickkit/brickkit/market-server/internal/storage"
 )
 
 // ============================================================
@@ -274,7 +274,7 @@ func TestPublishReservedVariableConflictKeepsDetails(t *testing.T) {
 	doc["configSchema"] = map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"databaseUrl": map[string]any{"type": "string", "description": "数据库地址"},
+			"NOTIFIER_ENDPOINT": map[string]any{"type": "string", "description": "通知服务地址"},
 		},
 	}
 	body := publishBody(t, "people/basic", "1.0.0", nil)
@@ -286,6 +286,7 @@ func TestPublishReservedVariableConflictKeepsDetails(t *testing.T) {
 	require.NotNil(t, resp.Error)
 	assert.Equal(t, model.CodeReservedVariableConflict, resp.Error.Code)
 	assert.Contains(t, string(resp.body), "conflicts", "冲突详情必须随响应返回（18.7）")
+	assert.Contains(t, string(resp.body), "NOTIFIER_BASE_URL", "带着避得开的新名字")
 }
 
 // 18.14 在 HTTP 层的表现：409，不是 500。

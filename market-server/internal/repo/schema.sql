@@ -46,7 +46,6 @@ CREATE TABLE IF NOT EXISTS artifacts (
     type            VARCHAR(64)  NOT NULL,             -- 自由字符串，市场不校验取值
     format          VARCHAR(64),                       -- 自由字符串
     description     TEXT,
-    reference       VARCHAR(512),                      -- container 类型的镜像地址
     file_list       JSONB,                             -- 文件路径列表
     uploaded_files  JSONB,                             -- 已上传到对象存储的文件
     checksum        VARCHAR(256),
@@ -119,3 +118,12 @@ CREATE INDEX IF NOT EXISTS idx_components_status     ON components(status);
 CREATE INDEX IF NOT EXISTS idx_versions_component    ON component_versions(component_id);
 CREATE INDEX IF NOT EXISTS idx_audit_component       ON audit_logs(component_id);
 CREATE INDEX IF NOT EXISTS idx_audit_action          ON audit_logs(action);
+
+-- ============================================================
+-- 已有库的结构变更。这份文件每次启动都整份执行，所以变更也写成幂等语句，
+-- 追加在末尾；新库在上面的 CREATE 里已经是最新结构，这些语句什么也不做。
+-- ============================================================
+
+-- container 类型产物（镜像地址记在 reference 里）随市场改用 CLI 的 Manifest 规则一起去掉：
+-- 镜像就是 deployment.image，Manifest 里没有第二个地方写它。
+ALTER TABLE artifacts DROP COLUMN IF EXISTS reference;

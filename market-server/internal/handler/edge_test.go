@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
 // Authorization 头的 scheme 按 RFC 7235 是大小写不敏感的。

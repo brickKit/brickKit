@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
 // sortComponents 按组件 ID 升序，保证列表输出稳定可预期。

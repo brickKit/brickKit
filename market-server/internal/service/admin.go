@@ -6,8 +6,8 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/brickkit/market-server/internal/model"
-	"github.com/brickkit/market-server/internal/repo"
+	"github.com/brickkit/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/repo"
 )
 
 // EnsureAdmin 保证市场里存在一个管理员账号（运维指南 §6.5）。

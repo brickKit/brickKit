@@ -1,4 +1,4 @@
-module github.com/brickkit/market-server
+module github.com/brickkit/brickkit/market-server
 
 go 1.22
 
@@ -27,3 +27,9 @@ require (
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// 市场用 CLI 的 Manifest 规则校验发布（同一份规则，不是两份各自漂移的拷贝）。
+// 模块路径在主模块之下，主模块的 internal/ 包才可以导入；replace 指向本仓库的父目录。
+require github.com/brickkit/brickkit v0.0.0
+
+replace github.com/brickkit/brickkit => ../

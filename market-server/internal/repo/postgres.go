@@ -12,7 +12,7 @@ import (
 
 	"github.com/lib/pq"
 
-	"github.com/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
 // schemaSQL 是库表定义（007 §10）。跟着二进制走，部署时不用额外分发 SQL 文件。
@@ -344,9 +344,9 @@ func (p *Postgres) PutArtifacts(ctx context.Context, componentID, version string
 			}
 			if _, err := tx.ExecContext(ctx, `
 				INSERT INTO artifacts
-					(component_id, version, artifact_id, ordinal, type, format, description, reference, file_list, uploaded_files)
-				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-				componentID, version, a.ArtifactID, i, a.Type, a.Format, a.Description, a.Reference,
+					(component_id, version, artifact_id, ordinal, type, format, description, file_list, uploaded_files)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+				componentID, version, a.ArtifactID, i, a.Type, a.Format, a.Description,
 				files, uploaded); err != nil {
 				return err
 			}
@@ -356,7 +356,7 @@ func (p *Postgres) PutArtifacts(ctx context.Context, componentID, version string
 }
 
 const artifactColumns = `component_id, version, artifact_id, type, COALESCE(format,''),
-	COALESCE(description,''), COALESCE(reference,''), file_list, uploaded_files`
+	COALESCE(description,''), file_list, uploaded_files`
 
 func (p *Postgres) ListArtifacts(ctx context.Context, componentID, version string) ([]model.ArtifactRecord, error) {
 	rows, err := p.db.QueryContext(ctx,
@@ -679,7 +679,7 @@ func scanArtifact(s scanner) (*model.ArtifactRecord, error) {
 		files, uploads []byte
 	)
 	err := s.Scan(&a.ComponentID, &a.Version, &a.ArtifactID, &a.Type, &a.Format,
-		&a.Description, &a.Reference, &files, &uploads)
+		&a.Description, &files, &uploads)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

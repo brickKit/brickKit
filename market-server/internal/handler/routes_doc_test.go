@@ -37,7 +37,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/market-server/internal/handler"
+	"github.com/brickkit/brickkit/market-server/internal/handler"
 )
 
 // designDoc 是 007 组件市场设计的路径（本包在 market-server/internal/handler/ 下）。

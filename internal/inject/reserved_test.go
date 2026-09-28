@@ -3,7 +3,7 @@ package inject
 // 本文件测保留变量：改名建议，以及 up 注入与 lint 共用的那份"哪些名字被保留"的判断。
 //
 // configSchema 的键就是环境变量名（附录 A10）；资源废除之后 DATABASE_* 等前缀不再保留。
-// market-server 的 validator 仍是旧规则（附录 A2：市场代码本次不动），两边暂时不一致。
+// 市场发布时经 ReservedHits 用的是同一份判断。
 
 import (
 	"testing"
@@ -76,9 +76,9 @@ func TestReservedKeyWarningsNothingToCheck(t *testing.T) {
 func TestReservedHits(t *testing.T) {
 	m := manifestWithConfigKeys("PORT", "PAGE_SIZE", "NOTIFIER_ENDPOINT", "COMPONENT_ID")
 	assert.Equal(t, []ReservedHit{
-		{Key: "COMPONENT_ID", Pattern: "COMPONENT_ID"},
-		{Key: "NOTIFIER_ENDPOINT", Pattern: "*_ENDPOINT"},
-		{Key: "PORT", Pattern: "PORT"},
+		{Key: "COMPONENT_ID", Pattern: "COMPONENT_ID", Suggestion: "CUSTOM_COMPONENT_ID"},
+		{Key: "NOTIFIER_ENDPOINT", Pattern: "*_ENDPOINT", Suggestion: "NOTIFIER_BASE_URL"},
+		{Key: "PORT", Pattern: "PORT", Suggestion: "CUSTOM_PORT"},
 	}, ReservedHits(m))
 	assert.Nil(t, ReservedHits(nil))
 	assert.Nil(t, ReservedHits(manifestWithConfigKeys("PAGE_SIZE")))

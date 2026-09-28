@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/brickkit/market-server/internal/model"
-	"github.com/brickkit/market-server/internal/repo"
+	"github.com/brickkit/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/repo"
 )
 
 // maxArtifactSize 是单个产物文件的大小上限。

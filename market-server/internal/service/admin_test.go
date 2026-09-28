@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/market-server/internal/model"
-	"github.com/brickkit/market-server/internal/repo"
-	"github.com/brickkit/market-server/internal/service"
+	"github.com/brickkit/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/repo"
+	"github.com/brickkit/brickkit/market-server/internal/service"
 )
 
 func TestEnsureAdminCreatesAdminOnFirstStart(t *testing.T) {

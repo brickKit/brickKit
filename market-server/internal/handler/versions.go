@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
 // publish 处理 POST /api/v1/components/{id}/versions（007 §3.7、18.1）。

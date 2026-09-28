@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/market-server/internal/middleware"
+	"github.com/brickkit/brickkit/market-server/internal/middleware"
 )
 
 // recorder 收集中间件写出的日志。

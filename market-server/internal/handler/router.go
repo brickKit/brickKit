@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
 // params 是路径参数。

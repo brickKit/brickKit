@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brickkit/market-server/internal/storage"
+	"github.com/brickkit/brickkit/market-server/internal/storage"
 )
 
 // 环境变量名（运维指南 §5.1）。

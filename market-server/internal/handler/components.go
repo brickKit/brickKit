@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/brickkit/market-server/internal/model"
-	"github.com/brickkit/market-server/internal/repo"
+	"github.com/brickkit/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/repo"
 )
 
 // searchComponents 处理 GET /api/v1/components（007 §4.2、18.15）。

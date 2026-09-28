@@ -18,7 +18,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
 // 仓储层的语义错误。上层据此翻译成 404 / 409。

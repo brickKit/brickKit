@@ -19,11 +19,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/brickkit/market-server/internal/config"
-	"github.com/brickkit/market-server/internal/handler"
-	"github.com/brickkit/market-server/internal/repo"
-	"github.com/brickkit/market-server/internal/service"
-	"github.com/brickkit/market-server/internal/storage"
+	"github.com/brickkit/brickkit/market-server/internal/config"
+	"github.com/brickkit/brickkit/market-server/internal/handler"
+	"github.com/brickkit/brickkit/market-server/internal/repo"
+	"github.com/brickkit/brickkit/market-server/internal/service"
+	"github.com/brickkit/brickkit/market-server/internal/storage"
 )
 
 // version 由构建时注入：go build -ldflags "-X main.version=..."。

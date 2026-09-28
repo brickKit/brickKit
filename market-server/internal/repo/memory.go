@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
 // Memory 是仓储的进程内实现。

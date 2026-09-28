@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/market-server/internal/model"
-	"github.com/brickkit/market-server/internal/repo"
+	"github.com/brickkit/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/repo"
 )
 
 // EnvTestDatabaseURL 指向用于集成测试的 PostgreSQL。未设置时跳过 PG 用例。
@@ -368,8 +368,8 @@ func artifacts(version string) []model.ArtifactRecord {
 			Files: []string{"openapi.json"}, Description: "版本 " + version,
 		},
 		{
-			ArtifactID: "art-2", Type: model.ArtifactTypeContainer,
-			Reference: "registry.brickkit.io/people-basic:" + version,
+			ArtifactID: "art-2", Type: "sdk", Format: "go",
+			Files: []string{"sdk/go/client.go", "sdk/go/types.go"},
 		},
 	}
 }
@@ -390,7 +390,7 @@ func testArtifactsPerVersion(t *testing.T, r repo.Repository) {
 	assert.Equal(t, "art-0", v1[0].ArtifactID)
 	assert.Equal(t, []string{"proto/people/v1/people.proto"}, v1[0].Files)
 	assert.Equal(t, "版本 1.0.0", v1[1].Description)
-	assert.Equal(t, "registry.brickkit.io/people-basic:1.0.0", v1[2].Reference)
+	assert.Equal(t, []string{"sdk/go/client.go", "sdk/go/types.go"}, v1[2].Files, "多文件的顺序原样保留")
 
 	v2, err := r.ListArtifacts(ctx, "people/basic", "2.0.0")
 	require.NoError(t, err)

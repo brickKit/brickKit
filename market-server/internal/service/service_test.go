@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/brickkit/market-server/internal/model"
-	"github.com/brickkit/market-server/internal/repo"
-	"github.com/brickkit/market-server/internal/service"
-	"github.com/brickkit/market-server/internal/storage"
+	"github.com/brickkit/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/repo"
+	"github.com/brickkit/brickkit/market-server/internal/service"
+	"github.com/brickkit/brickkit/market-server/internal/storage"
 )
 
 // ============================================================
@@ -345,7 +345,7 @@ func TestPublishRecordsArtifacts(t *testing.T) {
 
 	req := publishRequest(t, "people/basic", "1.0.0", []any{
 		map[string]any{"type": "api-contract", "format": "protobuf", "files": []string{"proto/people.proto"}},
-		map[string]any{"type": "container", "reference": "registry.example.com/people-basic:1.0.0"},
+		map[string]any{"type": "sdk", "format": "go", "files": []string{"sdk/client.go"}},
 	})
 	req.Status = model.VersionDraft
 
@@ -358,7 +358,8 @@ func TestPublishRecordsArtifacts(t *testing.T) {
 	assert.Equal(t, "art-0", artifacts[0].ArtifactID)
 	assert.Equal(t, model.ArtifactTypeAPIContract, artifacts[0].Type)
 	assert.Equal(t, []string{"proto/people.proto"}, artifacts[0].Files)
-	assert.Equal(t, "registry.example.com/people-basic:1.0.0", artifacts[1].Reference)
+	assert.Equal(t, "sdk", artifacts[1].Type)
+	assert.Equal(t, []string{"sdk/client.go"}, artifacts[1].Files)
 }
 
 // ============================================================

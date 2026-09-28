@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/brickkit/market-server/internal/model"
-	"github.com/brickkit/market-server/internal/repo"
-	"github.com/brickkit/market-server/internal/service"
-	"github.com/brickkit/market-server/internal/storage"
+	"github.com/brickkit/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/repo"
+	"github.com/brickkit/brickkit/market-server/internal/service"
+	"github.com/brickkit/brickkit/market-server/internal/storage"
 )
 
 // ============================================================
@@ -216,15 +216,13 @@ func TestPublishWithVisibility(t *testing.T) {
 	assert.Equal(t, model.CodeForbidden, apiErrorOf(t, err).Code)
 }
 
-// 没有文件产物的版本可以直接转 stable（只有 container 引用时无须上传）。
+// 没有声明产物的版本可以直接转 stable：没有要上传的文件。
 func TestSetStableWithoutFileArtifacts(t *testing.T) {
 	f := newFixture(t)
 	owner := f.registerUser(t, "zhangsan")
 	ctx := context.Background()
 
-	req := publishRequest(t, "people/basic", "1.0.0", []any{
-		map[string]any{"type": "container", "reference": "registry.example.com/x:1.0.0"},
-	})
+	req := publishRequest(t, "people/basic", "1.0.0", nil)
 	req.Status = model.VersionDraft
 	_, err := f.svc.Publish(ctx, owner, "people/basic", req)
 	require.NoError(t, err)

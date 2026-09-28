@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brickkit/market-server/internal/middleware"
-	"github.com/brickkit/market-server/internal/model"
-	"github.com/brickkit/market-server/internal/service"
+	"github.com/brickkit/brickkit/market-server/internal/middleware"
+	"github.com/brickkit/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/service"
 )
 
 // Options 是 HTTP 层的可选配置。

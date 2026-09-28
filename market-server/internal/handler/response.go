@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/model"
 )
 
 // envelope 是市场的统一响应信封（007 §4.2）。

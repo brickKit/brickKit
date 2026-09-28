@@ -21,10 +21,12 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/brickkit/market-server/internal/model"
-	"github.com/brickkit/market-server/internal/repo"
-	"github.com/brickkit/market-server/internal/storage"
-	"github.com/brickkit/market-server/internal/validator"
+	"github.com/brickkit/brickkit/internal/manifest"
+
+	"github.com/brickkit/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/repo"
+	"github.com/brickkit/brickkit/market-server/internal/storage"
+	"github.com/brickkit/brickkit/market-server/internal/validator"
 )
 
 // DefaultTokenTTL 是登录令牌的默认有效期（004 §5.3：CLI 会检查 expiresAt）。
@@ -93,7 +95,7 @@ func (s *Service) Publish(
 		return nil, err
 	}
 
-	manifest, err := validator.Validate(req)
+	m, err := validator.Validate(req)
 	if err != nil {
 		return nil, err
 	}
@@ -101,11 +103,11 @@ func (s *Service) Publish(
 	if err := req.Signature.Validate(); err != nil {
 		return nil, err
 	}
-	if manifest.Metadata.ID != componentID {
+	if m.Metadata.ID != componentID {
 		return nil, model.Errorf(model.CodeInvalidRequest,
 			"the component ID does not match metadata.id in the Manifest").
 			WithDetail("path", componentID).
-			WithDetail("manifest", manifest.Metadata.ID)
+			WithDetail("manifest", m.Metadata.ID)
 	}
 
 	existing, err := s.repo.GetComponent(ctx, componentID)
@@ -125,7 +127,7 @@ func (s *Service) Publish(
 		return nil, internalError(err)
 	}
 
-	component := s.buildComponent(existing, id, componentID, req, manifest)
+	component := s.buildComponent(existing, id, componentID, req, m)
 	if err := s.repo.UpsertComponent(ctx, component); err != nil {
 		return nil, internalError(err)
 	}
@@ -136,7 +138,7 @@ func (s *Service) Publish(
 	}
 	version := &model.Version{
 		ComponentID: componentID,
-		Version:     manifest.Metadata.Version,
+		Version:     m.Metadata.Version,
 		Status:      status,
 		Manifest:    req.Manifest,
 		Changelog:   req.Changelog,
@@ -149,13 +151,13 @@ func (s *Service) Publish(
 			// 18.14：版本号不可重复，也不可回收（软删除的版本同样占位）
 			return nil, model.Errorf(model.CodeVersionExists, "this version already exists; a version number cannot be republished").
 				WithDetail("componentId", componentID).
-				WithDetail("version", manifest.Metadata.Version)
+				WithDetail("version", m.Metadata.Version)
 		}
 		return nil, internalError(err)
 	}
 
 	if err := s.repo.PutArtifacts(ctx, componentID, version.Version,
-		artifactRecords(componentID, version.Version, manifest.Artifacts)); err != nil {
+		artifactRecords(componentID, version.Version, m.Artifacts)); err != nil {
 		return nil, internalError(err)
 	}
 
@@ -170,19 +172,19 @@ func (s *Service) Publish(
 // 已存在的组件保留原有的 owner 与可见性：发布新版本不该悄悄改变这两样。
 func (s *Service) buildComponent(
 	existing *model.Component, id *Identity, componentID string,
-	req model.PublishRequest, manifest *model.Manifest,
+	req model.PublishRequest, m *manifest.Manifest,
 ) *model.Component {
 	c := &model.Component{
 		ComponentID: componentID,
-		Name:        manifest.Metadata.Name,
-		Description: manifest.Metadata.Description,
-		Vendor:      manifest.Metadata.Vendor,
+		Name:        m.Metadata.Name,
+		Description: m.Metadata.Description,
+		Vendor:      m.Metadata.Vendor,
 		Visibility:  model.VisibilityPublic,
 		SourceType:  req.SourceType,
 		GitURL:      req.GitURL,
 		Status:      model.ComponentActive,
 		OwnerID:     id.UserID,
-		Tags:        manifest.Tags,
+		Tags:        m.Tags,
 	}
 	if existing != nil {
 		c.OwnerID = existing.OwnerID
@@ -196,7 +198,7 @@ func (s *Service) buildComponent(
 }
 
 // artifactRecords 把 Manifest 中的 artifacts 声明落成产物记录。
-func artifactRecords(componentID, version string, artifacts []model.Artifact) []model.ArtifactRecord {
+func artifactRecords(componentID, version string, artifacts []manifest.Artifact) []model.ArtifactRecord {
 	records := make([]model.ArtifactRecord, 0, len(artifacts))
 	for i, a := range artifacts {
 		records = append(records, model.ArtifactRecord{
@@ -206,7 +208,6 @@ func artifactRecords(componentID, version string, artifacts []model.Artifact) []
 			Type:        a.Type,
 			Format:      a.Format,
 			Description: a.Description,
-			Reference:   a.Reference,
 			Files:       a.Files,
 		})
 	}

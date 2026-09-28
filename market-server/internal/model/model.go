@@ -44,9 +44,6 @@ const (
 	ComponentBlocked = "blocked"
 )
 
-// ArtifactTypeContainer 是镜像引用类产物，它用 reference 而不是 files（007 §10.4）。
-const ArtifactTypeContainer = "container"
-
 // ArtifactTypeAPIContract 是 API 契约产物：闭源组件提供 API 时必须有它（002 §5.11）。
 const ArtifactTypeAPIContract = "api-contract"
 
@@ -74,7 +71,6 @@ type Problem struct {
 // ReservedConflict 是一条保留变量冲突详情（007 §18.1）。
 type ReservedConflict struct {
 	ConfigKey       string `json:"configKey"`
-	EnvVarName      string `json:"envVarName"`
 	ConflictPattern string `json:"conflictPattern"`
 	Suggestion      string `json:"suggestion"`
 }
@@ -216,7 +212,6 @@ type ArtifactRecord struct {
 	Type        string   `json:"type"`
 	Format      string   `json:"format,omitempty"`
 	Description string   `json:"description,omitempty"`
-	Reference   string   `json:"reference,omitempty"`
 	Files       []string `json:"files,omitempty"`
 	// Uploaded 记录已经上传到对象存储的文件（相对路径）。
 	Uploaded []string `json:"-"`

@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/brickkit/market-server/internal/config"
+	"github.com/brickkit/brickkit/market-server/internal/config"
 )
 
 // fullEnv 是一份最小可用的完整配置。

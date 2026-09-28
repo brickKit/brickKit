@@ -39,10 +39,11 @@ func staticReserved(name string) (string, bool) {
 	return "", false
 }
 
-// ReservedHit 是 configSchema 里撞上保留变量的一个键，以及它撞上的模式。
+// ReservedHit 是 configSchema 里撞上保留变量的一个键、它撞上的模式，以及一个避得开的新名字。
 type ReservedHit struct {
-	Key     string
-	Pattern string
+	Key        string
+	Pattern    string
+	Suggestion string
 }
 
 // ReservedHits 列出一份 Manifest 的 configSchema 里撞上平台保留变量的键，按键排序。
@@ -61,7 +62,7 @@ func ReservedHits(m *manifest.Manifest) []ReservedHit {
 	var hits []ReservedHit
 	for _, key := range keys {
 		if pattern, hit := staticReserved(key); hit {
-			hits = append(hits, ReservedHit{Key: key, Pattern: pattern})
+			hits = append(hits, ReservedHit{Key: key, Pattern: pattern, Suggestion: renameSuggestion(key, pattern)})
 		}
 	}
 	return hits
@@ -76,22 +77,22 @@ func ReservedHits(m *manifest.Manifest) []ReservedHit {
 func ReservedKeyWarnings(m *manifest.Manifest) []*clierr.Error {
 	var warnings []*clierr.Error
 	for _, hit := range ReservedHits(m) {
-		warnings = append(warnings, reservedConflictWarning(m.Metadata.ID, hit.Key, hit.Pattern))
+		warnings = append(warnings, reservedConflictWarning(m.Metadata.ID, hit))
 	}
 	return warnings
 }
 
 // reservedConflictWarning 生成保留变量冲突的警告：平台的值优先，这一项被跳过。
-func reservedConflictWarning(componentID, key, pattern string) *clierr.Error {
+func reservedConflictWarning(componentID string, hit ReservedHit) *clierr.Error {
 	return clierr.Warn(clierr.CodeConfigConflict,
 		i18n.T(msgid.InjectReservedConflict, componentID)).
 		WithDetail(i18n.T(msgid.LabelComponent), componentID).
-		WithDetail(i18n.T(msgid.LabelConfigKey), key).
-		WithDetail(i18n.T(msgid.InjectLabelReservedPattern), pattern).
+		WithDetail(i18n.T(msgid.LabelConfigKey), hit.Key).
+		WithDetail(i18n.T(msgid.InjectLabelReservedPattern), hit.Pattern).
 		WithDetail(i18n.T(msgid.InjectLabelHandling), i18n.T(msgid.InjectReservedHandlingDetail)).
 		WithHint(
 			i18n.T(msgid.InjectHintRenameConfigKey),
-			i18n.T(msgid.InjectHintRenameExample, renameSuggestion(key, pattern)),
+			i18n.T(msgid.InjectHintRenameExample, hit.Suggestion),
 		)
 }
 

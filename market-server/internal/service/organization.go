@@ -12,8 +12,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/brickkit/market-server/internal/model"
-	"github.com/brickkit/market-server/internal/repo"
+	"github.com/brickkit/brickkit/market-server/internal/model"
+	"github.com/brickkit/brickkit/market-server/internal/repo"
 )
 
 // CreateOrganizationRequest 是创建组织的请求。
