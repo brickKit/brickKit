@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS artifacts (
     type            VARCHAR(64)  NOT NULL,             -- 自由字符串，市场不校验取值
     format          VARCHAR(64),                       -- 自由字符串
     description     TEXT,
+    reference       VARCHAR(512),                      -- 不再使用（见文件末尾的说明），留着让旧镜像还能读
     file_list       JSONB,                             -- 文件路径列表
     uploaded_files  JSONB,                             -- 已上传到对象存储的文件
     checksum        VARCHAR(256),
@@ -125,9 +126,10 @@ CREATE INDEX IF NOT EXISTS idx_audit_action          ON audit_logs(action);
 -- 追加在末尾；新库在上面的 CREATE 里已经是最新结构，这些语句什么也不做。
 -- ============================================================
 
--- container 类型产物（镜像地址记在 reference 里）随市场改用 CLI 的 Manifest 规则一起去掉：
--- 镜像就是 deployment.image，Manifest 里没有第二个地方写它。
-ALTER TABLE artifacts DROP COLUMN IF EXISTS reference;
+-- artifacts.reference 不再使用：container 类型产物（镜像地址记在 reference 里）随市场改用
+-- CLI 的 Manifest 规则一起去掉了——镜像就是 deployment.image。列本身留着：这份文件每次启动
+-- 都执行，删列之后回滚到旧镜像（或滚动升级时还没换下的旧副本）读这一列就会失败。
+-- 结构只加不减（schema_test.go 守着）。
 
 -- 组件文档（BRICKKIT.md）随版本存；这一列之前发布的版本没有文档。
 ALTER TABLE component_versions ADD COLUMN IF NOT EXISTS doc TEXT;
