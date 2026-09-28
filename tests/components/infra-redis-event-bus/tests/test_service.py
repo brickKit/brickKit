@@ -141,7 +141,7 @@ def test_time_is_filled_when_missing(client: TestClient) -> None:
 def test_extra_fields_are_preserved(client: TestClient) -> None:
     """发布方带了额外字段就原样存下来。
 
-    事件总线不理解事件的内容（002 的一贯立场：平台不解析业务语义）。
+    事件总线不理解事件的内容（平台的一贯立场：不解析业务语义）。
     丢掉不认识的字段，等于逼所有发布方都来改这个组件。
     """
     client.post("/api/v1/events", json=sample_event(orderAmount="120000"))

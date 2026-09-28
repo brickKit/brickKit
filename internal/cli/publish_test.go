@@ -291,7 +291,7 @@ func TestPublishFallsBackToAuthToken(t *testing.T) {
 	assert.Equal(t, "token-from-config", m.find(t, "POST", "/versions").Token)
 }
 
-// A 市场的 Token 绝不能发给 B 市场（008 安全边界）。
+// A 市场的 Token 绝不能发给 B 市场（安全边界）。
 func TestPublishIgnoresCredentialsOfAnotherMarket(t *testing.T) {
 	other := newFakeMarket(t)
 	target := newFakeMarket(t)

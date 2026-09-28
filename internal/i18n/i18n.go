@@ -45,7 +45,7 @@ func catalogFor(l Lang) map[string]string {
 // id 必须是 internal/msgid 里声明的常量。两份目录都缺失同一个 key 会被
 // TestCatalogParity 在测试期拦住，正常运行不会走到"查不到"这条分支；
 // 万一真的走到了（比如新增 key 时漏了一份目录、测试又没跑），直接暴露
-// 问题而不是悄悄回落到另一种语言——这是这个项目一贯的态度（§9.13）。
+// 问题而不是悄悄回落到另一种语言——这是这个项目一贯的态度：宁可大声失败，也不悄悄出错。
 func T(id string, args ...any) string {
 	text, ok := catalogFor(current)[id]
 	if !ok {

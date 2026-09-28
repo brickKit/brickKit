@@ -170,163 +170,162 @@ func mutate(t *testing.T, old, new string) string {
 
 func TestValidationErrors(t *testing.T) {
 	cases := []struct {
-		item     string // 开发计划验证项编号
 		name     string
 		yaml     string
 		contains []string // 错误输出必须包含的片段（字段名 + 原因）
 	}{
-		{"4.2", "缺少 metadata.id", strings.Replace(minimalYAML, "  id: infra/tool\n", "", 1),
+		{"缺少 metadata.id", strings.Replace(minimalYAML, "  id: infra/tool\n", "", 1),
 			[]string{"metadata.id", "missing"}},
-		{"4.3", "缺少 metadata.version", strings.Replace(minimalYAML, "  version: 1.0.0\n", "", 1),
+		{"缺少 metadata.version", strings.Replace(minimalYAML, "  version: 1.0.0\n", "", 1),
 			[]string{"metadata.version", "missing"}},
-		{"—", "缺少 metadata.name", strings.Replace(minimalYAML, "  name: 工具组件\n", "", 1),
+		{"缺少 metadata.name", strings.Replace(minimalYAML, "  name: 工具组件\n", "", 1),
 			[]string{"metadata.name", "missing"}},
-		{"—", "缺少 metadata.description", strings.Replace(minimalYAML, "  description: 最小组件\n", "", 1),
+		{"缺少 metadata.description", strings.Replace(minimalYAML, "  description: 最小组件\n", "", 1),
 			[]string{"metadata.description", "missing"}},
-		{"4.4", "image 与 build 都没写",
+		{"image 与 build 都没写",
 			strings.Replace(minimalYAML, "  image: registry.brickkit.io/tool:1.0.0\n", "", 1),
 			[]string{"deployment:", "deployment.build"}},
-		{"4.5", "缺少 deployment.port", strings.Replace(minimalYAML, "  port: 8080\n", "", 1),
+		{"缺少 deployment.port", strings.Replace(minimalYAML, "  port: 8080\n", "", 1),
 			[]string{"deployment.port", "missing"}},
-		{"4.6", "缺少 healthCheck",
+		{"缺少 healthCheck",
 			strings.Replace(minimalYAML, "healthCheck:\n  type: http\n  path: /healthz\n", "", 1),
 			[]string{"healthCheck", "missing"}},
-		{"4.7", "版本号格式错误", mutate(t, "version: 1.0.0", `version: "abc"`),
+		{"版本号格式错误", mutate(t, "version: 1.0.0", `version: "abc"`),
 			[]string{"metadata.version", "major.minor.patch"}},
-		{"4.8", "版本号缺少 patch", mutate(t, "version: 1.0.0", `version: "1.0"`),
+		{"版本号缺少 patch", mutate(t, "version: 1.0.0", `version: "1.0"`),
 			[]string{"metadata.version", "major.minor.patch"}},
-		{"4.16", "deployment.type 非 container", mutate(t, "type: container", "type: static"),
+		{"deployment.type 非 container", mutate(t, "type: container", "type: static"),
 			[]string{"deployment.type", "container"}},
-		{"4.26", "apiVersion 非 brickkit/v1", mutate(t, "apiVersion: brickkit/v1", "apiVersion: v2"),
+		{"apiVersion 非 brickkit/v1", mutate(t, "apiVersion: brickkit/v1", "apiVersion: v2"),
 			[]string{"apiVersion", "brickkit/v1"}},
-		{"4.27", "kind 非 Component", mutate(t, "kind: Component", "kind: Service"),
+		{"kind 非 Component", mutate(t, "kind: Component", "kind: Service"),
 			[]string{"kind", "Component"}},
-		{"4.28", "组件 ID 含非法字符", mutate(t, "id: infra/tool", `id: "people basic"`),
+		{"组件 ID 含非法字符", mutate(t, "id: infra/tool", `id: "people basic"`),
 			[]string{"metadata.id", "scope/name"}},
-		{"4.29", "组件 ID 含大写", mutate(t, "id: infra/tool", "id: People/Basic"),
+		{"组件 ID 含大写", mutate(t, "id: infra/tool", "id: People/Basic"),
 			[]string{"metadata.id", "lowercase"}},
-		{"32.2", "组件 ID 含 @", mutate(t, "id: infra/tool", `id: "a@b/c"`),
+		{"组件 ID 含 @", mutate(t, "id: infra/tool", `id: "a@b/c"`),
 			[]string{"metadata.id"}},
-		{"32.12", "组件 ID 只有 scope", mutate(t, "id: infra/tool", `id: "people/"`),
+		{"组件 ID 只有 scope", mutate(t, "id: infra/tool", `id: "people/"`),
 			[]string{"metadata.id"}},
-		{"32.13", "组件 ID 只有 name", mutate(t, "id: infra/tool", "id: basic"),
+		{"组件 ID 只有 name", mutate(t, "id: infra/tool", "id: basic"),
 			[]string{"metadata.id", "scope/name"}},
-		{"32.1", "组件 ID 超长",
+		{"组件 ID 超长",
 			mutate(t, "id: infra/tool", "id: a/"+strings.Repeat("b", 256)),
 			[]string{"metadata.id", "characters long"}},
-		{"32.14", "port 为 0", mutate(t, "port: 8080", "port: 0"),
+		{"port 为 0", mutate(t, "port: 8080", "port: 0"),
 			[]string{"deployment.port"}},
-		{"32.15", "port 为负数", mutate(t, "port: 8080", "port: -1"),
+		{"port 为负数", mutate(t, "port: 8080", "port: -1"),
 			[]string{"deployment.port", "between 1 and 65535"}},
-		{"32.16", "port 超过 65535", mutate(t, "port: 8080", "port: 99999"),
+		{"port 超过 65535", mutate(t, "port: 8080", "port: 99999"),
 			[]string{"deployment.port", "between 1 and 65535"}},
-		{"4.9", "依赖非精确版本（^）", minimalYAML + `
+		{"依赖非精确版本（^）", minimalYAML + `
 dependencies:
   components:
     - department/tree@^1.0.0
 `, []string{"dependencies.components[0]", "exact version"}},
-		{"4.10", "依赖使用 ~", minimalYAML + `
+		{"依赖使用 ~", minimalYAML + `
 dependencies:
   components:
     - department/tree@~1.0.0
 `, []string{"dependencies.components[0]", "exact version"}},
-		{"—", "依赖缺少 @版本", minimalYAML + `
+		{"依赖缺少 @版本", minimalYAML + `
 dependencies:
   components:
     - department/tree
 `, []string{"dependencies.components[0]", "<component-id>@<exact-version>"}},
-		{"—", "依赖 ID 非法", minimalYAML + `
+		{"依赖 ID 非法", minimalYAML + `
 dependencies:
   components:
     - Department/Tree@1.0.0
 `, []string{"dependencies.components[0]"}},
-		{"—", "自依赖", minimalYAML + `
+		{"自依赖", minimalYAML + `
 dependencies:
   components:
     - infra/tool@1.0.0
 `, []string{"dependencies.components[0]", "itself"}},
-		{"—", "resources 依赖已废除（附录：连接信息走 configSchema）", minimalYAML + `
+		{"resources 依赖已废除（附录：连接信息走 configSchema）", minimalYAML + `
 dependencies:
   resources:
     - kind: database
       engine: postgresql
 `, []string{"dependencies.resources", "unknown field"}},
-		{"—", "configSchema 键不是合法环境变量名", minimalYAML + `
+		{"configSchema 键不是合法环境变量名", minimalYAML + `
 configSchema:
   properties:
     db-host:
       type: string
 `, []string{"configSchema.properties.db-host", "environment variable"}},
-		{"—", "build 路径逃出仓库", mutate(t, "  port: 8080", `  port: 8080
+		{"build 路径逃出仓库", mutate(t, "  port: 8080", `  port: 8080
   build:
     dockerfile: ../Dockerfile`), []string{"deployment.build.dockerfile"}},
-		{"—", "外壳 members 为空", minimalYAML + `
+		{"外壳 members 为空", minimalYAML + `
 shell:
   members: []
 `, []string{"shell.members"}},
-		{"—", "外壳把自己列为成员", minimalYAML + `
+		{"外壳把自己列为成员", minimalYAML + `
 shell:
   members: [infra/tool@1.0.0]
 `, []string{"shell.members[0]"}},
-		{"4.11", "artifact 缺少 type", minimalYAML + `
+		{"artifact 缺少 type", minimalYAML + `
 artifacts:
   - files: [openapi.json]
 `, []string{"artifacts[0].type", "missing"}},
-		{"4.12", "artifact 缺少 files", minimalYAML + `
+		{"artifact 缺少 files", minimalYAML + `
 artifacts:
   - type: api-docs
 `, []string{"artifacts[0].files", "missing"}},
-		{"32.23", "artifact files 为空列表", minimalYAML + `
+		{"artifact files 为空列表", minimalYAML + `
 artifacts:
   - type: api-docs
     files: []
 `, []string{"artifacts[0].files", "missing"}},
-		{"—", "artifact 文件路径为绝对路径", minimalYAML + `
+		{"artifact 文件路径为绝对路径", minimalYAML + `
 artifacts:
   - type: api-docs
     files: ["/etc/passwd"]
 `, []string{"artifacts[0].files[0]", "relative path"}},
-		{"—", "artifact 文件路径越界", minimalYAML + `
+		{"artifact 文件路径越界", minimalYAML + `
 artifacts:
   - type: api-docs
     files: ["../../etc/passwd"]
 `, []string{"artifacts[0].files[0]", "repository root"}},
-		{"4.13", "extraPorts name 重复", minimalYAML + `
+		{"extraPorts name 重复", minimalYAML + `
 `, nil}, // 占位，见下方独立用例
-		{"4.14", "extraPorts 缺少 name", mutate(t, "  port: 8080", `  port: 8080
+		{"extraPorts 缺少 name", mutate(t, "  port: 8080", `  port: 8080
   extraPorts:
     - port: 9090`), []string{"deployment.extraPorts[0].name", "missing"}},
-		{"4.15", "extraPorts 缺少 port", mutate(t, "  port: 8080", `  port: 8080
+		{"extraPorts 缺少 port", mutate(t, "  port: 8080", `  port: 8080
   extraPorts:
     - name: grpc`), []string{"deployment.extraPorts[0].port", "missing"}},
-		{"32.17", "extraPort 与主端口相同", mutate(t, "  port: 8080", `  port: 8080
+		{"extraPort 与主端口相同", mutate(t, "  port: 8080", `  port: 8080
   extraPorts:
     - name: grpc
       port: 8080`), []string{"deployment.extraPorts[0].port", "main port"}},
-		{"—", "extraPort name 非法（K8s 端口名规则）", mutate(t, "  port: 8080", `  port: 8080
+		{"extraPort name 非法（K8s 端口名规则）", mutate(t, "  port: 8080", `  port: 8080
   extraPorts:
     - name: GRPC_PORT
       port: 9090`), []string{"deployment.extraPorts[0].name"}},
-		{"4.17", "migration.command 非数组", minimalYAML + `
+		{"migration.command 非数组", minimalYAML + `
 migration:
   command: "python manage.py migrate"
 `, []string{"migration.command", "array"}},
-		{"—", "migration.command 为空数组", minimalYAML + `
+		{"migration.command 为空数组", minimalYAML + `
 migration:
   command: []
 `, []string{"migration.command", "missing"}},
-		{"4.18", "configSchema type 非 object", minimalYAML + `
+		{"configSchema type 非 object", minimalYAML + `
 configSchema:
   type: array
 `, []string{"configSchema.type", "object"}},
-		{"4.18", "configSchema 属性类型非法", minimalYAML + `
+		{"configSchema 属性类型非法", minimalYAML + `
 configSchema:
   type: object
   properties:
     pageSize:
       type: int
 `, []string{"configSchema.properties.pageSize.type"}},
-		{"4.18", "configSchema required 项未声明", minimalYAML + `
+		{"configSchema required 项未声明", minimalYAML + `
 configSchema:
   type: object
   properties:
@@ -335,45 +334,45 @@ configSchema:
   required:
     - notDeclared
 `, []string{"configSchema.required", "notDeclared"}},
-		{"4.30", "resources 缺少 requests/limits", mutate(t, "  port: 8080", `  port: 8080
+		{"resources 缺少 requests/limits", mutate(t, "  port: 8080", `  port: 8080
   resources: {}`), []string{"deployment.resources", "requests"}},
-		{"4.30", "resources.requests 缺少 cpu 与 memory", mutate(t, "  port: 8080", `  port: 8080
+		{"resources.requests 缺少 cpu 与 memory", mutate(t, "  port: 8080", `  port: 8080
   resources:
     requests: {}`), []string{"deployment.resources.requests"}},
 		// 同一个组件 ID 的两个版本：变量名不带版本，
 		// 两条都注入 DEPARTMENT_TREE_ENDPOINT，后者静默覆盖前者
-		{"—", "同一依赖声明了两个版本", minimalYAML + `
+		{"同一依赖声明了两个版本", minimalYAML + `
 dependencies:
   components:
     - department/tree@1.0.0
     - department/tree@2.0.0
 `, []string{"dependencies.components[1]", "two versions", "DEPARTMENT_TREE_ENDPOINT"}},
 		// 强弱混写撞的是同一个变量名，一视同仁
-		{"—", "同一依赖一强一弱两个版本", minimalYAML + `
+		{"同一依赖一强一弱两个版本", minimalYAML + `
 dependencies:
   components:
     - department/tree@1.0.0
     - id: department/tree@2.0.0
       optional: true
 `, []string{"dependencies.components[1]", "two versions"}},
-		{"—", "healthCheck.type 非法", mutate(t, "  type: http\n  path: /healthz", "  type: grpc"),
+		{"healthCheck.type 非法", mutate(t, "  type: http\n  path: /healthz", "  type: grpc"),
 			[]string{"healthCheck.type", "http"}},
-		{"—", "healthCheck http 缺少 path", mutate(t, "  type: http\n  path: /healthz", "  type: http"),
+		{"healthCheck http 缺少 path", mutate(t, "  type: http\n  path: /healthz", "  type: http"),
 			[]string{"healthCheck.path", "missing"}},
-		{"—", "healthCheck path 不以 / 开头",
+		{"healthCheck path 不以 / 开头",
 			mutate(t, "  path: /healthz", "  path: healthz"),
 			[]string{"healthCheck.path", "/"}},
 		// 写了不生效的字段必须出声，与 brickkit.yaml 侧
 		// localPort / exposePort 同一条规矩
-		{"—", "startPeriodSeconds 配 type: none",
+		{"startPeriodSeconds 配 type: none",
 			mutate(t, "  type: http\n  path: /healthz",
 				"  type: none\n  startPeriodSeconds: 120"),
 			[]string{"healthCheck.startPeriodSeconds", "none"}},
 		// 单位是秒不是毫秒。写成 60000 的组件会长时间挂在 starting 上而不报错
-		{"—", "startPeriodSeconds 超上限（多半是写成了毫秒）",
+		{"startPeriodSeconds 超上限（多半是写成了毫秒）",
 			mutate(t, "  path: /healthz", "  path: /healthz\n  startPeriodSeconds: 60000"),
 			[]string{"healthCheck.startPeriodSeconds", "seconds"}},
-		{"—", "startPeriodSeconds 为负",
+		{"startPeriodSeconds 为负",
 			mutate(t, "  path: /healthz", "  path: /healthz\n  startPeriodSeconds: -1"),
 			[]string{"healthCheck.startPeriodSeconds", "positive integer"}},
 	}
@@ -382,7 +381,7 @@ dependencies:
 		if c.contains == nil {
 			continue // 占位用例
 		}
-		t.Run(c.item+" "+c.name, func(t *testing.T) {
+		t.Run(c.name, func(t *testing.T) {
 			m, err := Parse([]byte(c.yaml), "component.yaml")
 			require.Error(t, err, "该 Manifest 应校验失败")
 			assert.Nil(t, m)

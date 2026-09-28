@@ -48,13 +48,13 @@ type CompletePlan struct {
 	GitignoreCreate bool
 	// GitignoreMissing：.gitignore 已存在但缺的必需条目——绝不替使用者改，只大声警告。
 	GitignoreMissing []string
-	// ProjectDoc：要生成项目 BRICKKIT.md（目录里是组件仓库时不生成，§16.1.1）。
+	// ProjectDoc：要生成项目 BRICKKIT.md（目录里是组件仓库时不生成，提案 §16.1.1）。
 	ProjectDoc bool
 	// ProjectDocUnmanaged：已有的 BRICKKIT.md 没有 CLI 维护区，组件表不会自动更新。
 	ProjectDocUnmanaged bool
 
 	// workbench：这里是组件仓库（根目录有 component.yaml），补全出来的是组件的本地联调工作台
-	// （§16.1.1、§9.6.1）：不建 components/ 与 shell/、不声明那两个本地源——那是项目的目录约定，
+	// （提案 §16.1.1、§9.6.1）：不建 components/ 与 shell/、不声明那两个本地源——那是项目的目录约定，
 	// 组件仓库里用不上；BRICKKIT.md 是组件自己的文档，不当项目文档。
 	workbench bool
 	// sources 非 nil 时是 add --local --init 从顶层项目继承、改写好路径的安装源；

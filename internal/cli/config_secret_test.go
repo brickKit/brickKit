@@ -21,6 +21,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -225,4 +226,35 @@ func TestPlaintextSecretFromDeployVarsDependsOnWhichFile(t *testing.T) {
 		require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
 		assert.NotContains(t, r.stdout+r.stderr, "plaintext secrets", "deploy.local.yaml 不进 Git")
 	})
+	// 本地模式遮住了同名变量，但**已提交**的文件里仍然写着明文：泄漏的是那份文件，
+	// 与这次跑的是哪一份部署文件无关。
+	for _, committed := range []string{"config/vars.yaml", "deploy.yaml"} {
+		t.Run("personal value shadows plaintext in "+committed, func(t *testing.T) {
+			f := setup(t)
+			path := filepath.Join(f.Dir, filepath.FromSlash(committed))
+			if committed == "config/vars.yaml" {
+				require.NoError(t, os.WriteFile(path, []byte("PG_PASSWORD: plain-pass\n"), 0o644))
+			} else {
+				appendVars(t, path)
+			}
+			r := runIn(t, f.Dir, "local", "on")
+			require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+			local := filepath.Join(f.Dir, "deploy.local.yaml")
+			body, err := os.ReadFile(local)
+			require.NoError(t, err)
+			if !strings.Contains(string(body), "vars:") {
+				body = append(body, []byte("\nvars:\n")...)
+			}
+			body = []byte(strings.Replace(string(body), "  PG_PASSWORD: plain-pass\n", "", 1))
+			body = []byte(strings.Replace(string(body), "vars:\n", "vars:\n  PG_PASSWORD: my-local-pass\n", 1))
+			require.NoError(t, os.WriteFile(local, body, 0o644))
+
+			r = runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
+			require.Equal(t, clierr.ExitOK, r.code, "%s%s", r.stdout, r.stderr)
+			assert.Contains(t, r.stdout+r.stderr, "plaintext secrets", "%s 进 Git，明文还在那里", committed)
+			assert.Contains(t, r.stdout+r.stderr, "PG_PASSWORD")
+			assert.NotContains(t, r.stdout+r.stderr, "plain-pass")
+			assert.NotContains(t, r.stdout+r.stderr, "my-local-pass")
+		})
+	}
 }

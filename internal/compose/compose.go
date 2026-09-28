@@ -331,10 +331,10 @@ func newPlan(
 //
 // # 为什么必须串
 //
-// 资源绑定按组件 ID 记（不带版本），所以同一组件的多个版本拿到的
-// `DATABASE_NAME` 必然是同一个；迁移状态表的主键是 (component_id, version)
-// ，两个版本的 component_id 也是同一个。于是"两个迁移容器同时对
-// 同一个库、用同一个身份跑迁移"完全是**平台自己生成出来的**——使用者在
+// 同一个组件的两个版本管的是同一份数据，它们的配置（无论共用 config/<id>.yaml，
+// 还是各有一份带版本号的，提案 §7.3）通常指向同一个库；迁移状态表的主键是
+// (component_id, version)，两个版本的 component_id 也是同一个。于是"两个迁移容器
+// 同时对同一个库、用同一个身份跑迁移"完全是**平台自己生成出来的**——使用者在
 // brickkit.yaml 里只是写了两行版本号。
 //
 // 迁移只增不改，所以高版本的迁移集合是低版本的超集。这在老库上
@@ -459,7 +459,7 @@ func (p *plan) componentService(c componentPlan) map[string]any {
 	if ports := p.hostPortsOf(c); len(ports) > 0 {
 		svc["ports"] = ports
 	}
-	// 13.2：把 local 组件的服务名解析到宿主机，容器里的代码一行不用改
+	// 把 local 组件的服务名解析到宿主机，容器里的代码一行不用改
 	if hosts := p.extraHostsOf(c); len(hosts) > 0 {
 		svc["extra_hosts"] = hosts
 	}
@@ -497,7 +497,7 @@ func (p *plan) componentDependsOn(c componentPlan) map[string]any {
 	dependsOn := map[string]any{}
 
 	if c.Manifest.Migration != nil {
-		// 12.12：等迁移成功结束，而不是等它"起来了"
+		// 等迁移成功结束，而不是等它"起来了"
 		dependsOn[migrationService(c.Service)] = condition("service_completed_successfully")
 	}
 	// 外壳：它承载的成员的迁移也必须先成功结束——成员的代码在外壳进程里加载
@@ -548,7 +548,7 @@ func (p *plan) migrationDoc(c componentPlan) map[string]any {
 		// 用组件自己的镜像，迁移脚本与业务代码同版本
 		"image":    manifest.ImageRef(c.Manifest),
 		"networks": []string{networkAlias},
-		// 12.11：一次性任务，失败了要让人看见，不能自动重启
+		// 一次性任务，失败了要让人看见，不能自动重启
 		"restart": "no",
 	}
 

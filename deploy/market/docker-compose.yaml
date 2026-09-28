@@ -1,4 +1,4 @@
-# BrickKit Market 单机部署（运维指南 §4.4）。
+# BrickKit Market 单机部署。
 #
 # 用法：
 #   cp .env.example .env && vi .env      # 填口令
@@ -18,7 +18,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
-    # 默认不发布到宿主机：数据库只该被市场访问（运维指南 §2.3）。
+    # 默认不发布到宿主机：数据库只该被市场访问。
     # 需要用 psql 直连排障时再取消注释。
     # ports:
     #   - "${POSTGRES_HOST_PORT:-5432}:5432"
@@ -95,7 +95,7 @@ services:
       # 管理员：首次启动自动创建；已存在时只补管理员权限，不覆盖口令
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      # 忘记管理员口令时临时置 true，重启一次后改回 false（运维指南 §9 Q5）
+      # 忘记管理员口令时临时置 true，重启一次后改回 false
       ADMIN_PASSWORD_RESET: ${ADMIN_PASSWORD_RESET:-false}
       PORT: 8080
     depends_on:

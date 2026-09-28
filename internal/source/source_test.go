@@ -406,8 +406,8 @@ func TestLocalSourceBrokenManifestErrorsInsteadOfUsingCache(t *testing.T) {
 // 也必须重新判定，而不是悄悄退回改名前那份缓存。
 //
 // 这是 TestLocalSourceBrokenManifestErrorsInsteadOfUsingCache 漏掉的一种"改坏了"：
-// 前者防的是"改成坏 YAML"，这条防的是"改成合法但对不上的身份"——同样触发
-// §7.5 那段设计意图描述的后果："up 却拿上一份好的缓存照常成功，一个字都不说"。
+// 前者防的是"改成坏 YAML"，这条防的是"改成合法但对不上的身份"——同样会造成
+// 那种后果："up 却拿上一份好的缓存照常成功，一个字都不说"。
 func TestLocalSourceIDRenamedErrorsInsteadOfUsingCache(t *testing.T) {
 	layout := newProject(t)
 	sourceDir := filepath.Join(layout.Root, "components")

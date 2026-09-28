@@ -240,7 +240,7 @@ check-smoke: build-cli ## 用本机构建的 brickkit 跑发布冒烟（.github/
 
 # install.sh 是唯一一条不需要 Go 就能拿到 CLI 的路，而它坏掉的方式最难被发现：
 # 校验和逻辑退化成"永远通过"不会有任何症状。所以这个检查专门把校验和改坏，
-# 确认它真的会拒绝安装（《发布与分发》§7）。
+# 确认它真的会拒绝安装。
 .PHONY: check-install-sh
 check-install-sh: ## 真跑 install.sh：装得上，且校验和坏掉时真的拒绝装
 	@bash scripts/check-install-sh.sh
@@ -591,7 +591,7 @@ tools-proto-include: ## 下载 google/api 与 openapiv2 依赖 proto 到 proto/i
 	done
 
 # ============================================================
-# 市场部署（deploy/market，详见《部署模式》与《市场部署与运维指南》）
+# 市场部署（deploy/market）
 # ============================================================
 
 MARKET_DEPLOY := deploy/market
@@ -661,7 +661,7 @@ release-artifacts: ## 交叉编译发布产物到 dist/（VERSION=0.1.0）
 	@rm -rf $(DIST)/.stage
 	@cd $(DIST) && { sha256sum brickkit_* 2>/dev/null || shasum -a 256 brickkit_*; } > checksums.txt
 	@# 自检：产物数对不上矩阵条数就失败。一个产出零个产物却退出码为 0 的发布
-	@# 目标，和一个安静跳过的测试套件是同一种错（《发布与分发》§4.1）。
+	@# 目标，和一个安静跳过的测试套件是同一种错。
 	@n=$$(ls $(DIST)/brickkit_* | wc -l); \
 	if [ "$$n" -ne $(words $(RELEASE_PLATFORMS)) ]; then \
 		echo "❌ 产物数 $$n ≠ 矩阵条数 $(words $(RELEASE_PLATFORMS))——有平台没打出来"; exit 1; \

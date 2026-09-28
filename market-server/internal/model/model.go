@@ -1,6 +1,6 @@
 // Package model 定义市场的领域模型与对外契约类型。
 //
-// 设计依据：007 组件市场设计（§9 API、§10 数据模型、§18 发布校验）。
+// 对外契约见市场 API 参考（docs/{zh,en}/11-reference/06-market-api.md）。
 package model
 
 import (

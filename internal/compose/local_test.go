@@ -291,7 +291,7 @@ func TestExtraHostsForMultipleLocalComponents(t *testing.T) {
 // localPort
 // ============================================================
 
-// 13.10：用户指定了 localPort，依赖方的地址就用这个端口。
+// 用户指定了 localPort，依赖方的地址就用这个端口。
 func TestExplicitLocalPortIsUsed(t *testing.T) {
 	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 9999})
 
@@ -300,7 +300,7 @@ func TestExplicitLocalPortIsUsed(t *testing.T) {
 	assert.Equal(t, "http://people-basic-1-0-0:9999", env["PEOPLE_BASIC_ENDPOINT"], "13.10")
 }
 
-// 13.11：没写 localPort 时默认用组件**自己声明的主端口**。
+// 没写 localPort 时默认用组件**自己声明的主端口**。
 //
 // 搬到宿主机上跑的是同一份代码，它监听的还是 Manifest 里那个端口。
 // 直接分配 8081 会得到一个没人监听的端口，依赖方连过去只有 connection refused
@@ -351,7 +351,7 @@ func TestAutoAssignedLocalPortSkipsExplicitOne(t *testing.T) {
 	assert.Equal(t, "http://people-basic-1-0-0:8081", env["PEOPLE_BASIC_ENDPOINT"], "13.11")
 }
 
-// 13.12：两个 local 组件抢同一个 localPort 直接报错。
+// 两个 local 组件抢同一个 localPort 直接报错。
 func TestConflictingLocalPortsIsAnError(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080),
@@ -417,7 +417,7 @@ func TestExtraPortOfLocalComponentKeepsDeclaredPort(t *testing.T) {
 // local 组件的依赖：映射到宿主机端口
 // ============================================================
 
-// 13.3：local 组件要访问的容器依赖，自动映射一个宿主机端口。
+// local 组件要访问的容器依赖，自动映射一个宿主机端口。
 func TestDependencyOfLocalComponentGetsHostPort(t *testing.T) {
 	b := localProject(t, projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 8081})
 
@@ -435,7 +435,7 @@ func TestUnrelatedComponentIsNotMappedToHost(t *testing.T) {
 	assert.Empty(t, portsOf(t, svc), "erp/backend 不是 local 组件的依赖")
 }
 
-// 13.13：依赖组件已经 expose 过了就用现成的端口，不重复映射。
+// 依赖组件已经 expose 过了就用现成的端口，不重复映射。
 func TestDependencyWithExposeReusesItsHostPort(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("people/basic", "1.0.0", 8080), "department/tree", "1.0.0"),
@@ -499,7 +499,7 @@ func TestLocalDebugEnvFileHasHeader(t *testing.T) {
 	assert.Contains(t, text, "8081", "要写清这个进程该监听哪个端口")
 }
 
-// 13.6：同一组件的两个版本同时本地调试，两份 env 文件互不覆盖。
+// 同一组件的两个版本同时本地调试，两份 env 文件互不覆盖。
 func TestMultipleVersionsGetSeparateEnvFiles(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080),

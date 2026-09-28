@@ -60,7 +60,7 @@ func TestDownPassesProjectName(t *testing.T) {
 	assert.Contains(t, eng.downs[0].Project, "my-erp")
 }
 
-// 15.13：数据卷必须保留。这一条在引擎层也有用例（不带 -v），
+// 数据卷必须保留。这一条在引擎层也有用例（不带 -v），
 // 这里再从使用者视角确认一次：输出要明确说数据还在。
 func TestDownTellsThatDataIsKept(t *testing.T) {
 	f, eng := startedProject(t)

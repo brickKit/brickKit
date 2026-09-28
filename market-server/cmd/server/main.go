@@ -3,7 +3,7 @@
 // 市场只回答两个问题：有什么可以装？谁有权装？
 // 它不安装组件、不运行组件、不管运行状态。
 //
-// 配置全部来自环境变量（运维指南 §5.1），启动顺序：
+// 配置全部来自环境变量（清单见 internal/config），启动顺序：
 // 读配置 → 连库并建表 → 连对象存储并建 bucket → 引导管理员 → 监听。
 package main
 
@@ -63,7 +63,7 @@ func run() error {
 		return fmt.Errorf("failed to initialize the database schema: %w", err)
 	}
 
-	// 对象存储：bucket 不存在时自动创建，省掉运维指南里手工建桶那一步
+	// 对象存储：bucket 不存在时自动创建，省掉手工建桶那一步
 	store, err := storage.NewS3Store(cfg.Storage)
 	if err != nil {
 		return fmt.Errorf("failed to connect to object storage: %w", err)

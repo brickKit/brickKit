@@ -25,7 +25,7 @@ func decodeLines(t *testing.T, s string) []map[string]any {
 	return out
 }
 
-// 开发计划验证项 2.6：日志为 JSON 格式，包含 time / level / message。
+// 日志为 JSON 格式，包含 time / level / message。
 func TestLogIsJSONWithRequiredKeys(t *testing.T) {
 	var buf bytes.Buffer
 	Init(&buf, LevelInfo)

@@ -36,6 +36,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/yamlcheck"
@@ -62,7 +63,7 @@ type docFile struct {
 //
 // design/ 已归档为历史记录，不再参与"文档跟不跟得上 CLI"的验证——继续验证
 // 一份承诺不再更新的文档没有意义。教程也不在其中：那里的 YAML 多是
-// "改这一行"的片段，本来就不会被分类到（见 classify）。
+// "改这一行"的片段，本来就不会被认成三种文件之一（见 candidates）。
 func docs(t *testing.T) []docFile {
 	t.Helper()
 
@@ -109,15 +110,30 @@ func yamlBlocksOf(d docFile) []yamlBlock {
 	return out
 }
 
-// classify 判断这段 YAML 是不是一份完整的 component.yaml / brickkit.yaml 骨架。
+// skeletonTypes 是文档里的 YAML 块可能描述的三种文件，与各自的文件名。
+var skeletonTypes = []struct {
+	typ  reflect.Type
+	file string
+}{
+	{reflect.TypeOf(manifest.Manifest{}), "component.yaml"},
+	{reflect.TypeOf(projfile.File{}), "brickkit.yaml"},
+	{reflect.TypeOf(deployfile.File{}), "deploy.yaml"},
+}
+
+// candidates 列出这段 YAML 可能是哪几种文件：顶层键全都属于它的那些。
 //
-// 判据刻意窄：只认**完整骨架**（有 kind: Component，或有顶层 project:）。
-// 片段（"给这个组件加一行 expose: true"）不检查——它们没有上下文，
-// 拿全结构体去比会把一堆正常写法判成错的。
+// 判据是"顶层键是不是全都属于某一边"，而不是"有没有那个招牌字段"。
 //
-// 生成物（compose.yaml、K8s 清单）因此天然被排除：
-// 它们既没有 kind: Component，也没有顶层 project:。
-func classify(body string) reflect.Type {
+// 从前只认整份骨架（有 kind: Component 或顶层 project:），于是 221 段 YAML
+// 里只查了 24 段——而剩下那 197 段恰恰是**人们真正照抄的东西**：
+// components: 46 段、apiVersion: 20 段、sources: 13 段、
+// dependencies: 11 段、deployment: 9 段……真出过的两个字段 bug
+// （教了一个不存在的字段、字段参考漏了 sources[].ref）都在那 197 段的势力范围里。
+// 片段本身就是合法的部分文档，直接拿去 Walk 即可。
+//
+// 顶层出现了三边都不认的键——那多半根本不是这三种文件之一
+// （K8s 清单、docker-compose、config/ 下的配置、示意用的伪 YAML），不查。
+func candidates(body string) []int {
 	// K8s 清单长得很像 component.yaml（apiVersion / kind / metadata 三个键都一样），
 	// 而它的 metadata.labels 在 Manifest 里不存在。先按 kind 把它们剔出去。
 	for _, line := range strings.Split(body, "\n") {
@@ -132,40 +148,52 @@ func classify(body string) reflect.Type {
 	if len(keys) == 0 {
 		return nil
 	}
+	var out []int
+	for i, st := range skeletonTypes {
+		known := yamlcheck.KnownFields(st.typ)
+		all := true
+		for _, k := range keys {
+			if _, ok := known[k]; !ok {
+				all = false
+				break
+			}
+		}
+		if all {
+			out = append(out, i)
+		}
+	}
+	return out
+}
 
-	// 判据是"顶层键是不是全都属于某一边"，而不是"有没有那个招牌字段"。
-	//
-	// 从前只认整份骨架（有 kind: Component 或顶层 project:），于是 221 段 YAML
-	// 里只查了 24 段——而剩下那 197 段恰恰是**人们真正照抄的东西**：
-	// components: 46 段、apiVersion: 20 段、resources: 16 段、sources: 13 段、
-	// dependencies: 11 段、deployment: 9 段……真出过的两个字段 bug
-	// （教了一个不存在的 resources[].database、字段参考漏了
-	// sources[].ref）都在那 197 段的势力范围里。
-	//
-	// 片段本身就是合法的部分文档：`resources:` 开头的那段就是一份只写了
-	// resources 的 brickkit.yaml，直接拿去 Walk 即可。
-	cfg, man := reflect.TypeOf(projfile.File{}), reflect.TypeOf(manifest.Manifest{})
-	inCfg, inMan := true, true
-	for _, k := range keys {
-		if !hasYAMLField(cfg, k) {
-			inCfg = false
+// skeletonProblems 检查一段 YAML：checked 表示它被认成了三种文件之一。
+//
+// 同一段 YAML 可能同时像两种文件（brickkit.yaml 与 deploy.yaml 都有 components:）。
+// 只要其中**一种**能完整接受它，它就是对的；都不接受时，按问题最少的那种报——
+// 那多半就是作者想写的文件。
+func skeletonProblems(body string) (checked bool, file string, problems []clierr.Problem) {
+	idx := candidates(body)
+	if len(idx) == 0 {
+		return false, "", nil
+	}
+	var root yaml.Node
+	if err := yaml.Unmarshal([]byte(body), &root); err != nil {
+		return true, skeletonTypes[idx[0]].file, []clierr.Problem{{Field: "(YAML)", Reason: err.Error()}}
+	}
+	if len(root.Content) == 0 {
+		return false, "", nil
+	}
+	for n, i := range idx {
+		p := clierr.NewProblemSet(clierr.CodeConfigInvalid, "未知字段")
+		yamlcheck.Walk(root.Content[0], skeletonTypes[i].typ, p)
+		items := p.Items()
+		if len(items) == 0 {
+			return true, skeletonTypes[i].file, nil
 		}
-		if !hasYAMLField(man, k) {
-			inMan = false
+		if n == 0 || len(items) < len(problems) {
+			file, problems = skeletonTypes[i].file, items
 		}
 	}
-	switch {
-	case inMan && !inCfg:
-		return man
-	case inCfg:
-		// 两边都认（如 resources / version）时归 brickkit.yaml：那边的顶层
-		// 字段集合更大，误判成它只会让检查更宽，不会冤枉正确的文档
-		return cfg
-	default:
-		// 顶层出现了两边都不认的键——那多半根本不是这两份文件之一
-		// （K8s 清单、docker-compose、示意用的伪 YAML）
-		return nil
-	}
+	return true, file, problems
 }
 
 // topLevelKeys 取出不缩进的那些键名。
@@ -182,16 +210,6 @@ func topLevelKeys(body string) []string {
 	return out
 }
 
-// hasYAMLField 判断结构体有没有这个 yaml 字段名。
-func hasYAMLField(typ reflect.Type, name string) bool {
-	for i := 0; i < typ.NumField(); i++ {
-		if tag := strings.Split(typ.Field(i).Tag.Get("yaml"), ",")[0]; tag == name {
-			return true
-		}
-	}
-	return false
-}
-
 // ============================================================
 // 正向：文档写了结构体不认识的字段
 // ============================================================
@@ -205,42 +223,21 @@ func TestDocSkeletonsUseOnlyKnownFields(t *testing.T) {
 
 	for _, d := range docs(t) {
 		for _, block := range yamlBlocksOf(d) {
-			typ := classify(block.body)
-			if typ == nil {
+			ok, file, problems := skeletonProblems(block.body)
+			if !ok {
 				continue
 			}
 			checked++
-
-			var root yaml.Node
-			if err := yaml.Unmarshal([]byte(block.body), &root); err != nil {
-				t.Errorf("%s 第 %d 行的骨架不是合法 YAML：%v\n"+
-					"   骨架是给人照抄的，抄不动就没有意义", block.doc, block.line, err)
-				continue
-			}
-			if len(root.Content) == 0 {
-				continue
-			}
-
-			p := clierr.NewProblemSet(clierr.CodeConfigInvalid, "未知字段")
-			yamlcheck.Walk(root.Content[0], typ, p)
-
-			for _, problem := range p.Items() {
+			for _, problem := range problems {
 				t.Errorf("%s 第 %d 行：%s —— %s\n"+
 					"   照着这份骨架写出来的 %s 会被 CLI 当场拒绝",
-					block.doc, block.line, problem.Field, problem.Reason, fileNameOf(typ))
+					block.doc, block.line, problem.Field, problem.Reason, file)
 			}
 		}
 	}
 
 	// 自检：一个骨架都没认出来时，上面的"全过"没有任何意义
 	require.GreaterOrEqual(t, checked, 4,
-		"只认出 %d 个骨架——classify 的判据坏了，这条测试的结论不可信", checked)
-	t.Logf("检查了 %d 段完整骨架", checked)
-}
-
-func fileNameOf(typ reflect.Type) string {
-	if typ == reflect.TypeOf(manifest.Manifest{}) {
-		return "component.yaml"
-	}
-	return "brickkit.yaml"
+		"只认出 %d 个骨架——candidates 的判据坏了，这条测试的结论不可信", checked)
+	t.Logf("检查了 %d 段骨架", checked)
 }

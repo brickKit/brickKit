@@ -1,6 +1,6 @@
 // 本文件是服务端启动配置的业务行为测试。
 //
-// 配置项与默认值来自《市场部署与运维指南》§5.1。配置读错的代价很高——
+// 配置项与默认值由 internal/config 定义，deploy/market/.env.example 照着它写。配置读错的代价很高——
 // 服务要么起不来，要么连到错误的库上，所以这里逐条锁住。
 package config_test
 
@@ -52,7 +52,7 @@ func TestFromEnvReportsAllMissingRequiredVarsAtOnce(t *testing.T) {
 	assert.NotContains(t, err.Error(), "DATABASE_HOST", "已给的项不该报缺失")
 }
 
-// 运维指南 §5.1 的默认值。
+// 未设置时的默认值。
 func TestFromEnvAppliesDocumentedDefaults(t *testing.T) {
 	cfg, err := config.FromEnv(lookupFrom(fullEnv()))
 	require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestFromEnvRejectsInvalidTokenExpiry(t *testing.T) {
 	assert.Contains(t, err.Error(), "JWT_EXPIRY_HOURS")
 }
 
-// 运维指南 §5.1 与故障排查都强调 RUSTFS_ENDPOINT 必须带 scheme。
+// RUSTFS_ENDPOINT 必须带 scheme。
 func TestFromEnvRejectsEndpointWithoutScheme(t *testing.T) {
 	env := fullEnv()
 	env["RUSTFS_ENDPOINT"] = "rustfs:9000"
@@ -183,7 +183,7 @@ func TestAdminPasswordResetDefaultsOff(t *testing.T) {
 	assert.False(t, cfg.AdminPasswordReset)
 }
 
-// 运维指南 §9 Q5 的操作是"改 .env 里的口令 + 打开开关 + 重启"，
+// 忘记管理员口令时的操作是"改 .env 里的口令 + 打开开关 + 重启"，
 // 所以开关要认几种常见写法，不能只认 "true"。
 func TestAdminPasswordResetAcceptsCommonTruthyValues(t *testing.T) {
 	for _, value := range []string{"true", "TRUE", "1", "yes", "on"} {

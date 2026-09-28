@@ -85,7 +85,7 @@ kubectl apply -k ../overlays/in-cluster-deps
 
 # 忘了管理员口令：改 base/.env 的 ADMIN_PASSWORD，
 # 把 base/kustomization.yaml 里的 ADMIN_PASSWORD_RESET 改成 true，apply，
-# 起来之后再改回 false 并 apply（运维指南 §9 Q5）
+# 起来之后再改回 false 并 apply
 
 # 全部删掉（数据卷会保留，PVC 要单独删）
 kubectl delete -k ../overlays/in-cluster-deps

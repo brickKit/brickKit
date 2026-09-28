@@ -200,7 +200,7 @@ func TestPlanAddShellNestsDeclaredMembers(t *testing.T) {
 	assert.Equal(t, []install.Entry{{ID: "erp/c", Under: "erp/shell"}}, plan.NestEntries)
 }
 
-// §8.5：add 一个成员，项目里的外壳编进的正是这个版本——直接嵌到外壳下面；
+// 提案 §8.5：add 一个成员，项目里的外壳编进的正是这个版本——直接嵌到外壳下面；
 // 外壳编进的是别的版本——放在顶层，说明为什么。
 func TestPlanAddMemberJoinsProjectShell(t *testing.T) {
 	p := proj(t, "  - {id: erp/shell, version: 1.0.0, kind: shell}", "  - id: erp/shell")
@@ -278,7 +278,7 @@ func TestPlanRemoveCascadesRequiredBy(t *testing.T) {
 	assert.Equal(t, plan.RemoveLines, plan.Removed)
 }
 
-// §8.7：删外壳，成员挪回顶层独立运行；只因外壳而在的成员版本一并移除。
+// 提案 §8.7：删外壳，成员挪回顶层独立运行；只因外壳而在的成员版本一并移除。
 func TestPlanRemoveShellPromotesMembers(t *testing.T) {
 	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
   - {id: erp/a, version: 1.0.0}
@@ -343,8 +343,8 @@ func TestPlanAddFillsOnlyTargetConfig(t *testing.T) {
 	assert.Empty(t, plan.AddConfigs)
 }
 
-// §8.7：成员被使用者移出外壳独立运行是合法状态——之后 add 一个无关的组件，不能把它塞回去。
-// 只在外壳是这次新加的（§8.5 第 4 步），或 add 的正是这个成员时才挪进外壳。
+// 提案 §8.7：成员被使用者移出外壳独立运行是合法状态——之后 add 一个无关的组件，不能把它塞回去。
+// 只在外壳是这次新加的（提案 §8.5 第 4 步），或 add 的正是这个成员时才挪进外壳。
 func TestPlanAddLeavesMembersTakenOutOfTheShell(t *testing.T) {
 	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
   - {id: erp/a, version: 1.0.0}`, `  - id: erp/shell

@@ -66,7 +66,7 @@ func (f *fixture) login(t *testing.T, username string) string {
 	return token.Token
 }
 
-// loginAdmin 走管理员引导（运维指南 §6.5）造一个管理员并返回其 Token。
+// loginAdmin 走管理员引导造一个管理员并返回其 Token。
 func (f *fixture) loginAdmin(t *testing.T, username string) string {
 	t.Helper()
 
@@ -184,7 +184,7 @@ func (f *fixture) publish(t *testing.T, token, componentID, version string) {
 // 健康检查
 // ============================================================
 
-// 健康检查是 compose 的 healthcheck 探针（运维指南 §4），必须匿名可访问。
+// 健康检查是 compose 的 healthcheck 探针，必须匿名可访问。
 func TestHealthEndpointIsPublic(t *testing.T) {
 	f := newFixture(t)
 
@@ -468,7 +468,7 @@ func (f *fixture) publishWithArtifacts(t *testing.T, token, componentID, version
 	return records
 }
 
-// 18.4：上传的文件真的落到了对象存储里，键上带组件 ID 与版本。
+// 上传的文件真的落到了对象存储里，键上带组件 ID 与版本。
 func TestUploadArtifactStoresObjectUnderVersionPrefix(t *testing.T) {
 	f := newFixture(t)
 	token := f.login(t, "alice")
@@ -1057,7 +1057,7 @@ func TestDeleteVersionIsSoftAndVersionNumberStaysTaken(t *testing.T) {
 		"删掉的版本号必须继续占位，否则同一个 people/basic@1.0.0 会指向不同内容")
 }
 
-// 18.25：blocked 版本要给出明确的错误码，而不是含糊的 404。
+// blocked 版本要给出明确的错误码，而不是含糊的 404。
 func TestBlockedVersionIsNotInstallable(t *testing.T) {
 	f := newFixture(t)
 	owner := f.login(t, "alice")

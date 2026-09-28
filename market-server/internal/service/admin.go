@@ -10,7 +10,7 @@ import (
 	"github.com/brickkit/brickkit/market-server/internal/repo"
 )
 
-// EnsureAdmin 保证市场里存在一个管理员账号（运维指南 §6.5）。
+// EnsureAdmin 保证市场里存在一个管理员账号（启动时引导）。
 //
 // 服务每次启动都会调用它，所以必须幂等：
 //   - 账号不存在 → 按给定口令创建，并标记为管理员；
@@ -49,7 +49,7 @@ func (s *Service) EnsureAdmin(ctx context.Context, username, password string) er
 	return nil
 }
 
-// ResetAdminPassword 重置管理员口令（运维指南 §9 Q5：忘记管理员密码）。
+// ResetAdminPassword 重置管理员口令（忘记管理员密码时用）。
 //
 // EnsureAdmin 有意不覆盖口令，所以"救回管理员账号"需要这条显式路径。
 // 它同时做三件事：改口令、确保管理员权限、**吊销该账号已签发的全部令牌**——

@@ -1,6 +1,6 @@
 // Package config 读取市场服务端的启动配置。
 //
-// 配置项、默认值与必填性来自《市场部署与运维指南》§5.1。所有密钥只走
+// 这里是市场配置项、默认值与必填性的唯一定义（deploy/market/.env.example 照着它写）。所有密钥只走
 // 环境变量，不落配置文件。
 package config
 
@@ -14,7 +14,7 @@ import (
 	"github.com/brickkit/brickkit/market-server/internal/storage"
 )
 
-// 环境变量名（运维指南 §5.1）。
+// 环境变量名。
 const (
 	EnvDatabaseHost       = "DATABASE_HOST"
 	EnvDatabasePort       = "DATABASE_PORT"
@@ -29,7 +29,7 @@ const (
 	EnvPort               = "PORT"
 )
 
-// 默认值（运维指南 §5.1）。
+// 默认值。
 const (
 	DefaultPort         = 8080
 	DefaultDatabasePort = 5432
@@ -56,7 +56,7 @@ type Config struct {
 	AdminUsername string
 	AdminPassword string
 	// AdminPasswordReset 为 true 时，启动会把管理员口令重置成 AdminPassword
-	// 并吊销其全部令牌（运维指南 §9 Q5）。默认关闭：正常重启不该动口令。
+	// 并吊销其全部令牌（忘记管理员口令时用）。默认关闭：正常重启不该动口令。
 	AdminPasswordReset bool
 	// Version 是构建版本，健康检查会回显它。
 	Version string
@@ -144,7 +144,7 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	}
 
 	// storage.Config.Validate 会检查 endpoint 是否带 scheme——
-	// 少了 scheme 时 S3 客户端的报错完全看不出根因（运维指南 §8 故障排查）。
+	// 少了 scheme 时 S3 客户端的报错完全看不出根因。
 	if err := store.Validate(); err != nil {
 		return Config{}, err
 	}

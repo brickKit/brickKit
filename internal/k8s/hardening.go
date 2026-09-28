@@ -339,7 +339,7 @@ func (p *plan) checkIngressController() error {
 //
 // automountServiceAccountToken: false 是这件事的全部意义。默认情况下每个 Pod
 // 都会被塞进一张 default SA 的令牌（/var/run/secrets/kubernetes.io/serviceaccount/token），
-// 拿着它就能跟 API Server 说话——而 003 的组件模型里根本没有"访问 K8s API"这回事。
+// 拿着它就能跟 API Server 说话——而组件模型里根本没有"访问 K8s API"这回事。
 // 关掉它是纯收益：任何一个组件被拿下，攻击者也拿不到一张能问集群要东西的票。
 func (p *plan) serviceAccountDoc(c componentPlan) map[string]any {
 	return map[string]any{
@@ -396,7 +396,7 @@ func (p *plan) serviceAccountNameOf(c componentPlan) string {
 // 而活着的 Deployment 里 `serviceAccountName` 与 `serviceAccount` 双双还是旧值。
 //
 // 从前这不会造成故障：SA 永远不被清理，那个陈旧的引用一直指着一个存在的对象。
-// 孤儿清理开始清 SA 之后（§5.9.1.1），后果变成**部署直接失败**：
+// 孤儿清理开始清 SA 之后，后果变成**部署直接失败**：
 //
 //	pods "..." is forbidden: error looking up service account ...:
 //	serviceaccount "demo-portal-1-0-0" not found

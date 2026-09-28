@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 打 tag 并推送，触发 GitHub Actions 发布（《发布与分发》§4.2）。
+# 打 tag 并推送，触发 GitHub Actions 发布。
 #
 # 用法：make release VERSION=0.1.0
 #

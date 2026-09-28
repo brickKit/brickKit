@@ -75,6 +75,7 @@ SELF_CHECK = [
     ("up", "--dry-run", True),      # 确定有
     ("publish", "--sign", True),    # 确定有
     ("up", "--no-such-flag", False),  # 确定没有
+    ("skills update", "--lang", True),  # 子命令自己的参数
 ]
 
 
@@ -91,8 +92,17 @@ def cli_surface(binary):
     解析多认了会被探测否掉。
     """
     def probe(name):
-        r = subprocess.run([binary, name, "--help"], capture_output=True, text=True)
+        r = subprocess.run([binary] + name.split() + ["--help"], capture_output=True, text=True)
         return r.returncode == 0 and "unknown command" not in (r.stderr + r.stdout)
+
+    def subcommands(name):
+        """帮助里 "Available Commands:" 下列出的子命令名。"""
+        out = subprocess.run([binary, name, "--help"], capture_output=True, text=True).stdout
+        m = re.search(r"(?ms)^Available Commands:\n(.*?)(?:\n\S|\Z)", out)
+        if not m:
+            return []
+        return [n for n in re.findall(r"(?m)^ {2}([a-z][a-z-]*) {2,}", m.group(1))
+                if n not in COBRA_BUILTINS]
 
     def flags(args):
         """只认**参数定义行**，不扫整段帮助文本。
@@ -117,6 +127,12 @@ def cli_surface(binary):
     for name in sorted(candidates):
         if probe(name):
             surface[name] = flags([name]) | surface[""]
+            # 子命令（skills update、local on……）有自己的参数：键写成 "skills update"。
+            # 同样只把帮助里的列表当候选，每个再真跑一次 --help 确认。
+            if name not in COBRA_BUILTINS:
+                for sub in subcommands(name):
+                    if probe(f"{name} {sub}"):
+                        surface[f"{name} {sub}"] = flags([name, sub]) | surface[""]
         else:
             # 帮助文本里提到、CLI 里却没有——`brickkit --help` 是全产品被读得
             # 最多的一段文字，第一屏就教人敲一条报 unknown command 的命令。
@@ -141,11 +157,29 @@ def self_check(surface):
                 f"而解析结果是{'存在' if flag in surface[cmd] else '不存在'}")
     # 反向检查要真能报出缺口：一份只写了 up、没写 --dry-run 的命令参考，
     # 与一份什么都没写的命令参考，都必须被点名
-    fake = {CLI_REFERENCES[0]: {"up": set()}, CLI_REFERENCES[1]: {}}
+    fake = {CLI_REFERENCES[0]: {"up": set(), "": set()}, CLI_REFERENCES[1]: {}}
     missing = {(ref, what) for ref, _, what in undocumented(surface, fake)}
     for want in ((CLI_REFERENCES[0], "brickkit up --dry-run"), (CLI_REFERENCES[1], "brickkit up")):
         if want not in missing:
             problems.append(f"反向检查没报出 {want[0]} 缺 {want[1]}")
+    # 一份把每条命令自己的参数都写到、全局参数只写一处的命令参考，必须一个缺口都不报
+    full = {cmd: flags - surface[""] for cmd, flags in surface.items() if cmd}
+    full[""] = set(surface[""])
+    extra = undocumented(surface, {ref: full for ref in CLI_REFERENCES})
+    if extra:
+        problems.append(f"写全了的命令参考仍被报缺口（多半是全局参数被要求逐条命令重写）：{extra[:3]}")
+    # 布局规定的命令参考写法：带编号、带反引号的标题，底下的「#### 参数」不结束小节
+    sample = ["### 6. `brickkit add <id>[@ver]`", "", "```bash", "# 模式 A：代码块里的注释不是标题", "```",
+              "#### 参数", "| `--repo` | 同时 clone |",
+              "### 7. `brickkit remove <id>`", "| `--force` | 强制 |"]
+    *_, got = scan_lines("<自检>", sample, surface)
+    if "--repo" not in got.get("add", set()) or "--force" in got.get("add", set()) \
+            or "--force" not in got.get("remove", set()):
+        problems.append(f"小节标题归属参数错了：{got}")
+    # 子命令的参数归子命令，不能被当成父命令写错了参数
+    bc, bf, *_, got = scan_lines("<自检>", ["brickkit skills update --lang zh"], surface)
+    if bc or bf or "--lang" not in got.get("skills update", set()):
+        problems.append(f"子命令的参数没认出来：{bc} {bf} {got}")
     if problems:
         print("❌ 自检失败：" + "；".join(problems))
         print("   说明这个脚本读 CLI 的方式坏了，报出来的结果不可信。先修脚本。")
@@ -215,13 +249,87 @@ def docs():
     # AI 助手技能。它们也算文档，而且是**最会被照着敲**的一类：读者是 AI 助手，
     # 它不会像人一样怀疑"是不是我装错了版本"，只会自信地把假参数敲下去。
     # 而且这些文件不在用户仓库里，用户改不了——说谎只能在这里被拦住。
-    out = subprocess.run(["git", "ls-files", "-z", "*.md", "llms.txt", "llms.*.txt"],
+    out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+                          "*.md", "llms.txt", "llms.*.txt"],
                          capture_output=True, check=True).stdout
     for raw in out.split(b"\0"):
         path = raw.decode("utf-8")
         if not path or path.startswith(EXCLUDED_PREFIXES) or not os.path.isfile(path):
             continue
         yield path
+
+
+FLAG = re.compile(r"(?<![\w-])--[a-z][a-z-]*")
+
+# 小节标题里的命令：`## brickkit up`、`### 6. `brickkit add <id>[@ver]``、`#### 1.2 brickkit local on`。
+SECTION = re.compile(r"^(#+)\s*(?:\d+(?:\.\d+)*\.?\s*)?`?brickkit ([a-z][a-z-]*)(?: ([a-z][a-z-]*))?")
+
+
+def command_key(surface, cmd, word):
+    """cmd 后面紧跟的词是它的子命令时，返回 "cmd 子命令"，否则返回 cmd。"""
+    if word and f"{cmd} {word}" in surface:
+        return f"{cmd} {word}"
+    return cmd
+
+
+def scan_lines(path, lines, surface):
+    """扫一份文档：返回 (写错的命令, 写错的参数, 命令用法数, 参数数, {命令: {参数}})。"""
+    bad_cmd, bad_flag = [], []
+    seen_cmd = seen_flag = 0
+    documented = {}
+
+    for i, line in enumerate(lines, 1):
+        tomb = TOMBSTONE.search(line)
+        for cmd, rest in usages(line):
+            seen_cmd += 1
+
+            if cmd not in surface:
+                if not tomb:
+                    bad_cmd.append((path, i, cmd))
+                continue
+            # `brickkit skills update --lang zh`：--lang 属于子命令 skills update
+            m = re.match(r"\s+([a-z][a-z-]*)", rest)
+            key = command_key(surface, cmd, m.group(1) if m else None)
+            if key != cmd:
+                rest = rest[m.end():]
+            documented.setdefault(key, set())
+
+            for flag in FLAG.findall(rest):
+                seen_flag += 1
+                if flag in PLACEHOLDERS or flag in surface[key] or tomb:
+                    continue
+                bad_flag.append((path, i, f"{key} {flag}"))
+        # 反向检查（「参数有、文档没写」）用的是**宽松**归属：参数常写在表格、
+        # 散文、小节标题底下，离命令很远。这一侧宽松只会漏报，不会误报；
+        # 而上面那一侧（报文档写错了）必须严格，否则会冤枉正确的句子。
+        for cmd, word in re.findall(r"brickkit ([a-z][a-z-]*)(?: ([a-z][a-z-]*))?", line):
+            if cmd in surface:
+                documented.setdefault(command_key(surface, cmd, word), set()).update(FLAG.findall(line))
+
+    # 「参数」表格里的行不带 `brickkit xxx`，靠所属小节归属命令。
+    # 小节只在遇到**同级或更高级**的标题时结束：命令小节底下的「#### 参数」不算结束。
+    section = level = None
+    fenced = False
+    for line in lines:
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        # 代码块里以 # 开头的是 shell 注释，不是标题
+        head = None if fenced else re.match(r"^(#+)\s", line)
+        m = None if fenced else SECTION.match(line)
+        if m:
+            key = command_key(surface, m.group(2), m.group(3))
+            section = key if key in surface else None
+            level = len(m.group(1))
+            continue
+        if head and level is not None and len(head.group(1)) <= level:
+            section = level = None
+            continue
+        if section:
+            documented.setdefault(section, set()).update(FLAG.findall(line))
+
+    # 全局参数不属于任何一条命令：整份文件里出现过就算写了，记在 "" 名下
+    documented[""] = set(FLAG.findall("\n".join(lines)))
+    return bad_cmd, bad_flag, seen_cmd, seen_flag, documented
 
 
 def check(surface):
@@ -239,45 +347,12 @@ def check(surface):
             lines = open(path, encoding="utf-8").read().split("\n")
         except (OSError, UnicodeDecodeError):
             continue
-        documented = by_path.setdefault(path, {})
-
-        for i, line in enumerate(lines, 1):
-            tomb = TOMBSTONE.search(line)
-            for cmd, rest in usages(line):
-                seen_cmd += 1
-
-                if cmd not in surface:
-                    if not tomb:
-                        bad_cmd.append((path, i, cmd))
-                    continue
-                documented.setdefault(cmd, set())
-
-                for flag in re.findall(r"(?<![\w-])--[a-z][a-z-]*", rest):
-                    seen_flag += 1
-                    if flag in PLACEHOLDERS or flag in surface[cmd] or tomb:
-                        continue
-                    bad_flag.append((path, i, f"{cmd} {flag}"))
-            # 反向检查（「参数有、文档没写」）用的是**宽松**归属：参数常写在表格、
-            # 散文、小节标题底下，离命令很远。这一侧宽松只会漏报，不会误报；
-            # 而上面那一侧（报文档写错了）必须严格，否则会冤枉正确的句子。
-            for cmd in re.findall(r"brickkit ([a-z][a-z-]*)", line):
-                if cmd in surface:
-                    documented.setdefault(cmd, set()).update(
-                        re.findall(r"(?<![\w-])--[a-z][a-z-]*", line))
-
-        # 「参数：」表格里的行不带 `brickkit xxx`，靠所属小节归属命令
-        section = None
-        for line in lines:
-            m = re.match(r"#+ [0-9.]* ?brickkit ([a-z][a-z-]*)", line)
-            if m:
-                section = m.group(1) if m.group(1) in surface else None
-                continue
-            if section:
-                if line.startswith("#"):
-                    section = None
-                    continue
-                documented.setdefault(section, set()).update(
-                    re.findall(r"(?<![\w-])--[a-z][a-z-]*", line))
+        bc, bf, sc, sf, documented = scan_lines(path, lines, surface)
+        bad_cmd += bc
+        bad_flag += bf
+        seen_cmd += sc
+        seen_flag += sf
+        by_path[path] = documented
 
     return bad_cmd, bad_flag, seen_cmd, seen_flag, by_path
 
@@ -314,8 +389,8 @@ def check_command_count(surface):
     定下的口径，不是凑数字。
     """
     NON_BUSINESS_COMMANDS = {"version", "lang"}
-    real = len({name for name in surface if name and name not in COBRA_BUILTINS
-                and name not in NON_BUSINESS_COMMANDS})
+    real = len({name for name in surface if name and " " not in name
+                and name not in COBRA_BUILTINS and name not in NON_BUSINESS_COMMANDS})
 
     bad = []
     for path in docs():
@@ -335,7 +410,7 @@ TEST_COUNT_CLAIM = re.compile(r"([\d,]+)(\+?)\s*(?:个测试函数|test function
 def real_test_function_count():
     """数一下仓库里真实的 `^func Test` 数量（跨 internal/、market-server/ 等全部模块）。"""
     n = 0
-    out = subprocess.run(["git", "ls-files", "-z", "*_test.go"], capture_output=True, check=True).stdout
+    out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "*_test.go"], capture_output=True, check=True).stdout
     for raw in out.split(b"\0"):
         path = raw.decode("utf-8")
         if not path or path.startswith(EXCLUDED_PREFIXES) or not os.path.isfile(path):
@@ -391,14 +466,16 @@ def undocumented(surface, by_path):
             missing.append((ref, 0, "命令参考还不存在"))
             continue
         documented = by_path[ref]
-        written = set().union(*documented.values()) if documented else set()
+        written = documented.get("", set())
         for cmd, flags in sorted(surface.items()):
             if cmd in UNDOCUMENTED_OK_CMDS:
                 continue
             if cmd and cmd not in documented:
                 missing.append((ref, 0, f"brickkit {cmd}"))
                 continue
-            for flag in sorted(flags):
+            # 全局参数（--log-level）只要求在命令参考里写一处，不要求每条命令下都写一遍
+            own = flags if cmd == "" else flags - surface[""]
+            for flag in sorted(own):
                 if flag in UNDOCUMENTED_OK_FLAGS:
                     continue
                 if (flag in written) if cmd == "" else (flag in documented[cmd]):

@@ -11,7 +11,7 @@
 //
 // # 判据
 //
-// AGENTS 文件 §4 的表格是清单的来源：每行第一列 `**原则名**` 一条。论证版文档里
+// AGENTS §4 的表格是清单的来源：每行第一列 `**原则名**` 一条。论证版文档里
 // 「十二条原则」那一节下，必须恰好有同样的十二个三级标题——名字逐字相同，顺序相同。
 // 标题带编号，形如 `### 3. 环境无关`：去掉编号后的名字才与 AGENTS 表格逐字对照；
 // 编号本身必须是按出现顺序连续的 1、2、3……——它是给人看的目录，错位了比没有更糟。
@@ -49,13 +49,13 @@ var principlePairs = []struct {
 	{"zh", "AGENTS.zh.md", "十二条原则"},
 }
 
-// principleRow 匹配 §4 表格里的一行：第一列是加粗的原则名。
+// principleRow 匹配 AGENTS §4 表格里的一行：第一列是加粗的原则名。
 // 表头（Principle / 原则）与分隔行不加粗，所以不会被抽进来。
 var principleRow = regexp.MustCompile(`^\|\s*\*\*(.+?)\*\*\s*\|`)
 
-// agentsPrinciples 抽出 AGENTS 文件 §4 表格里的原则名，按出现顺序。
+// agentsPrinciples 抽出 AGENTS §4 表格里的原则名，按出现顺序。
 //
-// §4 从 "## 4." 开头的标题起，到下一个 "### " 或 "## " 止——"### 4.1" 的
+// AGENTS §4 从 "## 4." 开头的标题起，到下一个 "### " 或 "## " 止——"### 4.1" 的
 // 拒绝清单也是一张表，第一列同样加粗，必须截在它前面。
 func agentsPrinciples(markdown string) []string {
 	var out []string
@@ -147,12 +147,12 @@ func TestPrinciplesDocMirrorsAgents(t *testing.T) {
 		require.NoError(t, err)
 		want := agentsPrinciples(string(agentsBody))
 		require.Len(t, want, principleCount,
-			"%s §4 抽出了 %d 条原则，应该是 %d——agentsPrinciples 坏了，这条测试的结论不可信",
+			"%s 第 4 节抽出了 %d 条原则，应该是 %d——agentsPrinciples 坏了，这条测试的结论不可信",
 			pair.agents, len(want), principleCount)
 
 		rel := filepath.Join("docs", pair.lang, "06-architecture", "05-design-principles.md")
 		docBody, err := os.ReadFile(filepath.Join(repoRoot, rel))
-		require.NoError(t, err, "%s 不存在：这份文档是 %s §4 十二条原则的论证版", rel, pair.agents)
+		require.NoError(t, err, "%s 不存在：这份文档是 %s 第 4 节十二条原则的论证版", rel, pair.agents)
 		got, numberingProblems := splitNumbered(docPrinciples(string(docBody), pair.section))
 		for _, problem := range numberingProblems {
 			t.Errorf("%s：%s", rel, problem)
@@ -160,20 +160,20 @@ func TestPrinciplesDocMirrorsAgents(t *testing.T) {
 
 		missing, extra := nameDrift(want, got)
 		for _, name := range missing {
-			t.Errorf("%s：%s §4 有原则「%s」，文档「%s」一节下没有对应的三级标题\n"+
+			t.Errorf("%s：%s 第 4 节有原则「%s」，文档「%s」一节下没有对应的三级标题\n"+
 				"   去掉编号后，标题要与 AGENTS 表格第一列逐字相同", rel, pair.agents, name, pair.section)
 		}
 		for _, name := range extra {
-			t.Errorf("%s：文档「%s」一节下有三级标题「%s」，%s §4 里没有这条原则\n"+
+			t.Errorf("%s：文档「%s」一节下有三级标题「%s」，%s 第 4 节里没有这条原则\n"+
 				"   原则改名了/被删了，或者这个标题不该放在这一节里", rel, pair.section, name, pair.agents)
 		}
 		if len(missing) == 0 && len(extra) == 0 {
-			require.Equal(t, want, got, "%s：十二条原则的顺序要与 %s §4 一致", rel, pair.agents)
+			require.Equal(t, want, got, "%s：十二条原则的顺序要与 %s 第 4 节一致", rel, pair.agents)
 		}
 	}
 }
 
-// 检测器自己要能两个方向都抓得到，并且认得出 §4.1 那张同样加粗第一列的表——
+// 检测器自己要能两个方向都抓得到，并且认得出 AGENTS §4.1 那张同样加粗第一列的表——
 // 否则上面那条测试的"全绿"没有意义。
 func TestPrincipleDriftDetectorCatchesBothDirections(t *testing.T) {
 	agents := "## 4. Principles\n\n" +
@@ -182,7 +182,7 @@ func TestPrincipleDriftDetectorCatchesBothDirections(t *testing.T) {
 		"### 4.1 Things we refuse\n\n" +
 		"| **Not-a-principle** | third |\n"
 	require.Equal(t, []string{"A", "B"}, agentsPrinciples(agents),
-		"§4.1 之后的表格不能算进原则清单")
+		"第 4.1 节之后的表格不能算进原则清单")
 
 	doc := "# Title\n\n## Intro\n\n### Z\n\n## The twelve principles\n\n### 1. A\n\n### 2. X\n\n## Next\n\n### Y\n"
 	headings := docPrinciples(doc, "The twelve principles")

@@ -469,7 +469,7 @@ func TestCheckWarnsWhenGraphResolutionFails(t *testing.T) {
 }
 
 // ============================================================
-// 已登记 submodule 的三个行为缺口（2026-09-06 gap report）
+// 已登记 submodule 的三个行为缺口（外部实操反馈指出的）
 // ============================================================
 
 // newBareSubmoduleRemote 造一个裸仓库当"组件仓库"的远端，避免依赖网络。
@@ -508,7 +508,7 @@ func TestCheckWarnsForUnregisteredGitlink(t *testing.T) {
 		"没有 .gitmodules 登记的死 gitlink 仍然要提醒")
 }
 
-// gap report §2.1：be-assembly-standard 的 .gitmodules 里明明登记了
+// 外部实操反馈：be-assembly-standard 的 .gitmodules 里明明登记了
 // components/mdm/customer，但 warnGitlinks 只看 index 的 160000，
 // 每次提交都收到"没有 .gitmodules"这句误报。
 func TestCheckDoesNotWarnForRegisteredSubmodule(t *testing.T) {

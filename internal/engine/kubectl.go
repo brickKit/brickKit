@@ -255,7 +255,7 @@ func (k *Kubectl) runMigrations(ctx context.Context, req UpRequest) error {
 		return nil
 	}
 
-	// 16.14：先清掉可能残留的旧 Job。
+	// 先清掉可能残留的旧 Job。
 	//
 	// Job 的 spec 是不可变的：上一次失败留下的同名 Job 还在时，直接 apply 会以
 	// "field is immutable" 失败——而使用者只是改了迁移脚本想重跑一次。

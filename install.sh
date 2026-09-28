@@ -1,5 +1,5 @@
 #!/bin/sh
-# BrickKit CLI install script (see the "Release and Distribution" design doc, §6)
+# BrickKit CLI install script
 #
 #   curl -fsSL https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh | sh
 #

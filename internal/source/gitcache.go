@@ -129,7 +129,13 @@ func sweepStaleClones(tmpRoot string) {
 	}
 }
 
-// fetch 增量取远端的 tag（这一趟只取一次）。tag 被强制移动过时以远端为准。
+// fetch 增量取远端的 tag 与分支（这一趟只取一次）。tag 被强制移动过时以远端为准。
+//
+// 分支也要跟着远端走，不能只取 tag：`clone --bare` 不配 fetch refspec，只带 --tags 的
+// fetch 永远不会移动缓存里的分支。而 add --repo 从缓存 clone 出源码目录，它的 origin/*
+// 就是缓存里的分支——停在第一次克隆那天的话，之后发的每个版本在那份源码目录看来都
+// "不在任何远端上"，remove 会把一份一个字没改的 clone 当成有没推送的提交拦下来。
+// --prune 让远端删掉的分支在缓存里也消失（只作用于分支；tag 不受 --prune 影响）。
 func (r *gitRepo) fetch(ctx context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -137,7 +143,8 @@ func (r *gitRepo) fetch(ctx context.Context) error {
 		return nil
 	}
 	// 克隆时已经配好了 origin：不再把地址放上命令行
-	if _, err := runGit(ctx, r.dir, "fetch", "--quiet", "--tags", "--force", "origin"); err != nil {
+	if _, err := runGit(ctx, r.dir, "fetch", "--quiet", "--tags", "--force", "--prune", "origin",
+		"+refs/heads/*:refs/heads/*"); err != nil {
 		return err
 	}
 	r.fetched = true

@@ -272,7 +272,7 @@ func RemoveArchived(l project.Layout, componentID string, repo *gitrepo.Repo) (b
 //
 // repo 为 nil、或 path 不在这个仓库里、或没有 .gitmodules 登记时一律返回
 // false——查不清楚时当"没登记"处理，不能让这条判断反过来在没有 git、或
-// git 状态异常的项目里制造新的阻断（2026-09-06 gap report §5.1/§5.3，与
+// git 状态异常的项目里制造新的阻断（外部实操反馈指出过，与
 // gitrepo.Submodules 同一个"漏查代价小于堵死一次"的立场）。
 func registeredSubmodulePath(repo *gitrepo.Repo, path string) (string, bool) {
 	if repo == nil {
@@ -291,7 +291,7 @@ func registeredSubmodulePath(repo *gitrepo.Repo, path string) (string, bool) {
 //
 // 导出是因为**这一问必须在改 brickkit.yaml 之前先问一遍**：`brickkit remove`
 // 先写配置、再删源码，等 removeDir 自己查到时配置已经存盘——拦下也留下了
-// "配置说组件没了、源码却还在"的现场（2026-09-06 gap report 之后发现的
+// "配置说组件没了、源码却还在"的现场（一次外部实操反馈之后发现的
 // 时序问题，与 workspace.ExistingSourceError 必须在改配置前先查一遍是
 // 同一个道理）。调用方在改配置之前先调这个函数，removeDir 自己再兜一次。
 func SubmoduleRemoveGuard(repo *gitrepo.Repo, dir, componentID, display string) error {
@@ -325,7 +325,7 @@ func removeDir(repo *gitrepo.Repo, loc srcLoc, componentID string) (bool, error)
 //
 // 直接 os.RemoveAll 只删工作目录：.gitmodules 里的 stanza、superproject 索引
 // 里的 gitlink 记录、.git/modules/ 下的内部仓库数据都还留着——之后 git 状态
-// 会"引用一个不存在的东西"，需要人工清理（gap report §2.3）。
+// 会"引用一个不存在的东西"，需要人工清理。
 func submoduleRemoveBlockedError(componentID, display string) error {
 	return clierr.New(clierr.CodeSubmoduleGuard, i18n.T(msgid.WorkspaceRemoveBlockedSubmodule)).
 		WithDetail(i18n.T(msgid.LabelComponent), componentID).
@@ -437,7 +437,7 @@ func (loc srcLoc) pruneEmptyScope() {
 // 搬之前先问一句 from 是不是已登记的 submodule：直接 os.Rename 不会跟着改
 // .gitmodules 的 path 字段，也不会更新 superproject 索引，移动之后 git 会把
 // 旧路径判成删除、新路径判成未跟踪——下一次 git add -A 就会把这个组件的
-// 独立版本历史拍扁成普通文件，且没有任何报错（gap report §2.2 的最小复现）。
+// 独立版本历史拍扁成普通文件，且没有任何报错。
 func move(repo *gitrepo.Repo, from, to srcLoc, componentID string) error {
 	if _, ok := registeredSubmodulePath(repo, from.path); ok {
 		return submoduleMoveBlockedError(componentID, from.display, to.display)

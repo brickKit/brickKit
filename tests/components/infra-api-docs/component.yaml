@@ -3,7 +3,7 @@
 # 它在平台里的位置很特殊：**全部依赖都是弱依赖**。这是唯一一个这样的组件，
 # 也正是它要验证的东西——文档入口不该因为某个业务组件没装就打不开。
 #
-# 两条发现路径（开发计划 §0.2：Swagger UI + gRPC Reflection 聚合）：
+# 两条发现路径（Swagger UI + gRPC Reflection 聚合）：
 #   OpenAPI   GET {endpoint}/openapi.json
 #   gRPC      Reflection（不需要 .proto 文件）
 apiVersion: brickkit/v1

@@ -209,7 +209,7 @@ const helloModeWithUnresolvable = `components:
 resources: []
 `
 
-// TestRestoreLeavesConfigUntouchedWhenFocusFails 补的是 §5.3 顺序约束本身：
+// TestRestoreLeavesConfigUntouchedWhenFocusFails 补的是"先判定、再落盘"这条顺序约束本身：
 // 先算判定（syncFocus），算成功了才落盘 yaml。反过来会在判定失败时留下
 // "yaml 改了、结构没动"的半成品——那正是提交前最不该撞上的状态。
 //

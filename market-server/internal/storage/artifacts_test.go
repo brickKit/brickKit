@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 18.22：版本在对象键里，所以两个版本的同名产物天然互不覆盖。
+// 版本在对象键里，所以两个版本的同名产物天然互不覆盖。
 func TestObjectKeyIsPerVersion(t *testing.T) {
 	v1 := ObjectKey("people/basic", "1.0.0", "api-contract", "proto/people/v1/people.proto")
 	v2 := ObjectKey("people/basic", "2.0.0", "api-contract", "proto/people/v1/people.proto")
@@ -26,7 +26,7 @@ func TestObjectKeyIsPerVersion(t *testing.T) {
 	assert.False(t, strings.HasPrefix(v2, VersionPrefix("people/basic", "1.0.0")))
 }
 
-// 产物文件路径来自 Manifest，必须防住越界写入（008 安全边界）。
+// 产物文件路径来自 Manifest，必须防住越界写入（安全边界）。
 func TestObjectKeyIsConfinedToVersionPrefix(t *testing.T) {
 	key := ObjectKey("people/basic", "1.0.0", "api-contract", "../../../etc/passwd")
 

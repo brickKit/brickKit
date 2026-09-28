@@ -129,7 +129,7 @@ func TestSyncArchivesDisabledComponent(t *testing.T) {
 	f.assertArchived(t, "demo/hello") // 17.2
 }
 
-// 17.3：caller 自己没写 mode，但它强依赖的 hello 被关了，于是一起归档。
+// caller 自己没写 mode，但它强依赖的 hello 被关了，于是一起归档。
 func TestSyncArchivesCascadeSkippedComponent(t *testing.T) {
 	f := newSyncFixture(t, helloDisabled, "demo/hello", "demo/caller")
 

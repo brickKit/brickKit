@@ -95,7 +95,7 @@ const (
 	// 源码工作区。
 	CodeCloneFailed Code = "CLONE_FAILED"
 	// CodeSubmoduleGuard 是"目标已登记为 git submodule，阻断 sync/remove 的
-	// 直接文件系统操作"（2026-09-06 gap report §5.3）。os.Rename/os.RemoveAll
+	// 直接文件系统操作"（一次外部实操反馈指出的）。os.Rename/os.RemoveAll
 	// 不懂 .gitmodules，会把子模块的独立版本历史和 superproject 脱钩且不报错。
 	CodeSubmoduleGuard Code = "SUBMODULE_GUARD"
 
@@ -118,7 +118,7 @@ const (
 	CodeLintFailed Code = "LINT_FAILED"
 )
 
-// 退出码。004 未规定具体数值，此处约定：
+// 退出码约定：
 // 用法错误 2，其余错误 1，警告不影响退出码（0）。
 // 唯一的例外是 brickkit lint --strict：警告在那里也算失败，以 CodeLintFailed、退出码 1 收尾。
 const (

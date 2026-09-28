@@ -125,7 +125,7 @@ func (p *Project) relIfExists(path string) string {
 
 // WriteProjectDoc 重写项目 BRICKKIT.md 的 CLI 维护区。只改已有的、带维护区的文件：
 // 生成它是 init 的事（使用者删掉了它，add 不该每次都再造一份出来）；没有维护区的文件
-// （使用者自己写的，或组件仓库里组件自己的文档，§16.1.1）一个字都不动。
+// （使用者自己写的，或组件仓库里组件自己的文档，提案 §16.1.1）一个字都不动。
 // 返回这次是否写了文件。
 func WriteProjectDoc(l Layout, p *Project) (bool, error) {
 	path := l.ProjectDocPath()

@@ -29,7 +29,7 @@ func removeFixture(t *testing.T) (*gitOrgProject, string) {
 	return g, dir
 }
 
-// §7.7 / §6.7：配置不删、移进 config/.archive/（带版本号），部署条目一起删。
+// 提案 §7.7、§6.7：配置不删、移进 config/.archive/（带版本号），部署条目一起删。
 func TestRemoveArchivesConfigAndEntries(t *testing.T) {
 	g, dir := removeFixture(t)
 	r := g.mustRun(dir, "remove", "erp/api")
@@ -97,7 +97,7 @@ func TestRemoveNeedsVersionWhenSeveral(t *testing.T) {
 	assert.Contains(t, r.stderr, "erp/nope")
 }
 
-// §8.7：删外壳，成员挪回顶层独立运行（部署字段原样），只因外壳而在的成员版本一并移除。
+// 提案 §8.7：删外壳，成员挪回顶层独立运行（部署字段原样），只因外壳而在的成员版本一并移除。
 func TestRemoveShellReleasesMembers(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})

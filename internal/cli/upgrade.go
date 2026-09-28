@@ -4,10 +4,10 @@ package cli
 // 三份文件跟着改——brickkit.yaml 的版本与 requiredBy、部署条目、config/ 的迁移。
 //
 // 整次升级先算好、再一次落盘（失败全部还原）：全量升级时第二个升不了，第一个也不会改——
-// §12.1 的"不留半成品"。判断在 internal/install（PlanUpgrade），迁移在 internal/configdir（Migrate）。
+// 提案 §12.1 的"不留半成品"。判断在 internal/install（PlanUpgrade），迁移在 internal/configdir（Migrate）。
 //
 // 配置冲突（使用者改过、默认值也变了）：终端里逐条问；--yes 或没有输入时写两行重复键，
-// up 在使用者解决之前拒绝启动（§12.3）。所以改完只核对拓扑，冲突块是给使用者的待办。
+// up 在使用者解决之前拒绝启动（提案 §12.3）。所以改完只核对拓扑，冲突块是给使用者的待办。
 
 import (
 	"context"

@@ -394,7 +394,7 @@ func TestServiceAccountReferenceIsRewrittenWhenTurnedOff(t *testing.T) {
 //
 // 不挂载才是重点。默认情况下每个 Pod 都会被塞进一个 default SA 的令牌
 // （/var/run/secrets/kubernetes.io/serviceaccount/token），拿着它就能跟
-// API Server 说话。业务组件没有一个需要它——003 里的组件模型里根本没有
+// API Server 说话。业务组件没有一个需要它——组件模型里根本没有
 // "访问 K8s API"这回事。关掉它是纯收益：任何一个组件被拿下，
 // 攻击者也拿不到一张能问集群要东西的票。
 func TestServiceAccountGenerated(t *testing.T) {

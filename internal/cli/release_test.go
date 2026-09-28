@@ -56,7 +56,7 @@ func TestReleaseCommandTagsAndPushes(t *testing.T) {
 	assert.Contains(t, r.stderr, "already released")
 }
 
-// 组件目录里同时有 brickkit.yaml（作者的本地工作台）：release 只认 component.yaml（§16.1.1）。
+// 组件目录里同时有 brickkit.yaml（作者的本地工作台）：release 只认 component.yaml（提案 §16.1.1）。
 func TestReleaseIgnoresWorkbenchBrickkitYaml(t *testing.T) {
 	repo := filepath.Join(t.TempDir(), "api")
 	origin := pushedRepo(t, repo, map[string]string{

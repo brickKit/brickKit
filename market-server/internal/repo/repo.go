@@ -135,9 +135,9 @@ type Repository interface {
 	GetUserByUsername(ctx context.Context, username string) (*model.User, error)
 	// GetUserByID 按用户 ID 查询。
 	GetUserByID(ctx context.Context, userID string) (*model.User, error)
-	// SetUserAdmin 设置管理员标记（运维指南 §6.5 启动引导用）。
+	// SetUserAdmin 设置管理员标记（启动时的管理员引导用）。
 	SetUserAdmin(ctx context.Context, userID string, isAdmin bool) error
-	// SetUserPassword 更新口令哈希（运维指南 §9 Q5 的重置路径）。
+	// SetUserPassword 更新口令哈希（忘记管理员口令时的重置路径）。
 	SetUserPassword(ctx context.Context, userID, passwordHash string) error
 	// CreateToken 保存签发的访问令牌。
 	CreateToken(ctx context.Context, t *model.Token) error

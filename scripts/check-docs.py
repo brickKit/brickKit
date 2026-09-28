@@ -6,7 +6,9 @@
 
   ① 归档引用      现行代码与文档里还指着已归档的旧设计书、旧决策、旧开发计划
                   （"005 §5.12"、"D140"、"Step 15"、"P38"、"附录 D"、"试用指南"……）
-  ② 悬空规范引用  "提案 §6.2"、"附录 A24" 指向 new_plan/提案.md 里不存在的小节或决议
+  ② 悬空小节引用  每个 "§" 都要写明是哪份现行文档的小节——"提案 §6.2"、"附录 A24"、
+                  "AGENTS.md §9.12"、"RFC 8725 §3.5"——并且那一节真的存在；
+                  没写文档名的 "§5.10" 是无主引用（多半指向归档的旧设计书）
   ③ 断链          现行 markdown 的链接指向不存在的文件
   ④ 悬空文档路径  代码、脚本、报错建议里以纯文本写的文档路径
                   （"docs/en/11-reference/01-component-yaml-schema.md"）指向不存在的文件
@@ -44,16 +46,25 @@ EXCLUDED_PREFIXES = ("archive/", "docs/superpowers/", "new_plan/", ".superpowers
 EXCLUDED_FILES = ("CHANGELOG.md", "scripts/check-docs.py")
 
 # 指向归档内容的写法。每一种都在清理时真出现过。
+# 能写窄就写窄：P9 要写的现行文档里会自然出现 "Step 1:"、"P99"、"延后"这类字样。
+CJK_AFTER = r"(?=\s*[\u4e00-\u9fff（「、，。)）」])"
 ARCHIVED_REF = re.compile(
-    r"(?<![\d.])0[01]\d ?§"    # 旧设计书小节：005 §5.12（前面可以紧挨字母，如 JSON 里的 \n002 §9.4）
-    r"|design/0\d\d"           # 旧设计书路径
-    r"|\bD\d{2,3}\b"           # 旧决策记录：D140
-    r"|开发计划 ?\d"           # 旧开发计划条目
-    r"|\bStep ?\d"             # 旧开发计划的 Step
-    r"|\bP\d{2}\b"             # 旧完成记录里的延后项：P38（路线图阶段是 P1–P10，一位数）
-    r"|附录 ?[B-G]\b|附录 [B-G]\."  # 旧设计书附录（现行规范只有附录 A）
-    r"|试用指南|开发进度|延后项|延后清单"
+    r"(?<![\d.])0[01]\d ?§"                     # 旧设计书小节：005 §5.12（也认 JSON 里紧挨 \n 的）
+    r"|(?<![\d.\w-])0(?:0[1-9]|1[0-2])(?=[ ]?[\u4e00-\u9fff（])"  # 旧设计书编号（001–012）：004 未规定
+    r"|design/0\d\d"                            # 旧设计书路径
+    r"|\bD\d{2,3}\b"                            # 旧决策记录：D140
+    r"|开发计划"                                 # 旧开发计划
+    r"|\bStep ?\d+(?:[-–][\dA-Z]+)?" + CJK_AFTER +  # 旧开发计划的 Step：Step 15-C、Step 12 在……
+    r"|\bStep ?\d+[-–][\dA-Z]+"                  # Step 15-C、Step 32–35
+    r"|\bP(?:1[1-9]|[2-8]\d)\b" + CJK_AFTER +     # 旧完成记录的延后项 P38（路线图阶段是 P1–P10）
+    r"|附录 ?[B-G]\b|附录 [B-G]\."                # 旧设计书附录（现行规范只有附录 A）
+    r"|试用指南|《开发进度》|开发进度 ?[A-Z]?\d|延后项 ?P\d|延后清单"
     r"|回填 ?P\d|设计书 ?§|设计书 ?\d"
+    r"|《发布与分发》|运维指南|《组件合并部署》|Release and Distribution|gap report"
+    r"|\bSpec 20\d\d-\d\d-\d\d"                   # 旧 spec
+    # 开发计划条目号：注释开头的 // 15.13：、// 15.13 停止，以及断言消息开头的 "36.1：
+    r"|^\s*(?://|#|--)\s*\d{1,2}\.\d{1,2}(?:\s*[/、–-]\s*[\d.]+)*(?:\s*[：:]|\s+[\u4e00-\u9fff])"
+    r"|\"\d{1,2}\.\d{1,2}(?:\s*[/、–-]\s*[\d.]+)*\s*[：:]"
 )
 
 # 合法地用着相同字样、但不是归档引用的地方。每一条都要写清为什么。
@@ -62,9 +73,19 @@ ARCHIVED_REF_ALLOW = {
     "scripts/podman/fix-apparmor.sh": re.compile(r'echo ".*Step \d: '),
 }
 
-# 规范引用：提案 §6.2、提案 §9.3、§9.6、提案 §6.2–6.6
-SPEC_REF = re.compile(r"提案\s*§\s*(\d+(?:\.\d+)*)((?:\s*[、，,–-]\s*§?\s*\d+(?:\.\d+)*)*)")
-SPEC_REF_MORE = re.compile(r"\d+(?:\.\d+)*")
+# 小节引用：一行里按顺序出现的"文档名"与"§ 编号"。每个 § 归到它前面最近的文档名：
+#   提案 §8.1 规则 2、§8.9.4   两个都归提案
+#   提案 §6.2–6.6              区间两端都要存在
+# 逗号后面的普通数字（"提案 §6.2, 2026-09-28"）不是编号：只认紧跟在 § 后面的。
+SECTION_TOKEN = re.compile(
+    r"(?P<owner>提案|附录\s*A\d+|AGENTS\.zh(?:\.md)?|AGENTS(?:\.md)?|RFC\s*\d+)"
+    r"|§\s*(?P<sec>\d+(?:\.\d+)*)(?:\s*–\s*(?P<to>\d+(?:\.\d+)*))?")
+
+# 这些文件里没写文档名的 § 是自己的小节，不算无主。
+SELF_SECTIONED = ("docs/", "tutorials/")
+SELF_SECTIONED_FILES = ("AGENTS.md", "AGENTS.zh.md", "README.md", "README.zh.md",
+                       "llms.txt", "llms.zh.txt", "CONTRIBUTING.md", "CONTRIBUTING.zh.md")
+
 # 附录 A 决议：附录 A24、附录 A1、A16、附录 A4、A20、A24
 APPENDIX_REF = re.compile(r"附录\s*A(\d+)((?:\s*[、，,/–-]\s*A\d+)*)")
 APPENDIX_MORE = re.compile(r"A(\d+)")
@@ -90,8 +111,11 @@ def cn_to_int(s):
 
 
 def live_files():
-    """现行内容：git 跟踪的文本文件，去掉历史与规划目录。"""
-    out = subprocess.run(["git", "ls-files", "-z"], capture_output=True, check=True).stdout
+    """现行内容：仓库里的文本文件（已跟踪的，加上还没 git add、但没被忽略的新文件），
+    去掉历史与规划目录。新写的一页还没暂存时也要被检查到——否则写文档的人会被
+    "那一页不存在"之类的报错误导。"""
+    out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                         capture_output=True, check=True).stdout
     for raw in out.split(b"\0"):
         if not raw:
             continue
@@ -109,6 +133,40 @@ def read_lines(path):
             return f.read().split("\n")
     except (OSError, UnicodeDecodeError):
         return None
+
+
+def heading_numbers(lines):
+    """markdown 里带编号的小节：标题（## 4.、### 9.24）与加粗编号的条目（**9.12 Why …**）。"""
+    out = set()
+    for line in lines:
+        m = re.match(r"#{2,6}\s+(\d+(?:\.\d+)*)\.?\s", line) or re.match(r"\*\*(\d+(?:\.\d+)+)\.?\s", line)
+        if m:
+            out.add(m.group(1))
+    return out
+
+
+def owner_kind(token):
+    """文档名 → 校验时用哪份文档的小节表。"""
+    if token.startswith(("提案", "附录")):
+        return "spec"
+    if token.startswith("AGENTS.zh"):
+        return "AGENTS.zh.md"
+    if token.startswith("AGENTS"):
+        return "AGENTS.md"
+    return "external"
+
+
+def section_refs(line):
+    """[(文档, 编号)]；没写文档名的 § 文档记为 None。"""
+    out, owner = [], None
+    for m in SECTION_TOKEN.finditer(line):
+        if m.group("owner"):
+            owner = owner_kind(m.group("owner"))
+            continue
+        out.append((owner, m.group("sec")))
+        if m.group("to"):
+            out.append((owner, m.group("to")))
+    return out
 
 
 def spec_anchors():
@@ -139,19 +197,30 @@ def self_check(sections, decisions):
         if dec not in decisions:
             problems.append(f"解析不出规范里已知存在的附录 A{dec}")
     # 归档引用：该抓的要抓到，现行规范引用与路线图阶段号不能误伤
-    for sample in ("见 005 §5.12", "\\n\\n002 §9.4", "开发进度 D140", "Step 15-C", "延后项 P38", "附录 D.1", "试用指南 17"):
+    for sample in ("见 005 §5.12", "\\n\\n002 §9.4", "004 未规定具体数值", "开发进度 D140", "Step 15-C",
+                   "Step 12 在命令层", "Step 32–35", "延后项 P38", "附录 D.1", "试用指南 17", "《发布与分发》§5",
+                   "运维指南 §5.1", "gap report §2.1", "Spec 2026-09-19 §3.1", "开发计划 §0.2",
+                   '"36.1：并发', "// 15.13 停止：", "\t// 16.14：清理旧 Job"):
         if not ARCHIVED_REF.search(sample):
             problems.append(f"归档引用的正则漏掉了 {sample!r}")
-    for sample in ("提案 §6.2", "附录 A24", "路线图 P7b", "HTTP/1.1"):
+    for sample in ("提案 §6.2", "附录 A24", "路线图 P7b", "路线图 P10 的多语言", "HTTP/1.1",
+                   "Step 1: create a project", "P99 latency", "这件事延后了", "0.3–0.5 秒", "版本 1.1.0：",
+                   "chmod 000 挡不住读取"):
         if ARCHIVED_REF.search(sample):
             problems.append(f"归档引用的正则误伤了 {sample!r}")
-    # 规范引用：列举与区间里的每个号都要取到
-    got = spec_numbers("提案 §9.3、§9.6 与 提案 §6.2–6.6")
-    if got != ["9.3", "9.6", "6.2", "6.6"]:
+    # 小节引用：每个 § 归到前面最近的文档名；逗号后面的普通数字不算编号
+    got = section_refs("提案 §9.3、§9.6 与 提案 §8.1 规则 2、§8.9.4、§6.2–6.6, 2026-09-28")
+    if got != [("spec", n) for n in ("9.3", "9.6", "8.1", "8.9.4", "6.2", "6.6")]:
         problems.append(f"规范引用解析错了：{got}")
+    got = section_refs("见 §5.10；AGENTS.md §9.12、AGENTS.zh.md §4；RFC 8725 §3.5")
+    if got != [(None, "5.10"), ("AGENTS.md", "9.12"), ("AGENTS.zh.md", "4"), ("external", "3.5")]:
+        problems.append(f"小节引用的归属错了：{got}")
     got = appendix_numbers("附录 A1、A16，以及附录 A24")
     if got != ["1", "16", "24"]:
         problems.append(f"附录引用解析错了：{got}")
+    got = heading_numbers(["## 4. Twelve principles", "### 9.24 Summary", "**9.12 Why not …**", "**Bold** text"])
+    if got != {"4", "9.24", "9.12"}:
+        problems.append(f"小节编号解析错了：{got}")
     # 文档路径：两种写法都要取到，{en,zh} 要展开成两份
     got = doc_paths("见 docs/{en,zh}/11-reference/06-market-api.md 与 docs/zh/x/y.md（英文版把 zh 换成 en）")
     if got != ["docs/en/11-reference/06-market-api.md", "docs/zh/11-reference/06-market-api.md", "docs/zh/x/y.md"]:
@@ -166,14 +235,6 @@ def self_check(sections, decisions):
             print(f"   {p}")
         print("   说明这个脚本的解析坏了，报出来的结果不可信。先修脚本。")
         sys.exit(2)
-
-
-def spec_numbers(line):
-    out = []
-    for m in SPEC_REF.finditer(line):
-        out.append(m.group(1))
-        out.extend(SPEC_REF_MORE.findall(m.group(2)))
-    return out
 
 
 def appendix_numbers(line):
@@ -229,20 +290,32 @@ def check_archived(files):
     return bad
 
 
-def check_spec_refs(files, sections, decisions):
-    """② 悬空规范引用。引用父节是允许的：写 §8 而规范里只有 §8.1 / §8.2。"""
+def check_section_refs(files, sections, decisions):
+    """② 悬空 / 无主的小节引用。引用父节是允许的：写 §8 而规范里只有 §8.1 / §8.2。"""
+    anchors = {"spec": sections,
+               "AGENTS.md": heading_numbers(read_lines("AGENTS.md") or []),
+               "AGENTS.zh.md": heading_numbers(read_lines("AGENTS.zh.md") or [])}
     bad = []
     for path in files:
         lines = read_lines(path)
         if lines is None:
             continue
+        self_sectioned = path.startswith(SELF_SECTIONED) or path in SELF_SECTIONED_FILES
         for i, line in enumerate(lines, 1):
-            for sec in spec_numbers(line):
-                if sec not in sections and not any(x.startswith(sec + ".") for x in sections):
-                    bad.append((path, i, f"提案 §{sec}"))
+            for doc, sec in section_refs(line):
+                if doc is None:
+                    if not self_sectioned:
+                        bad.append((path, i, f"§{sec} 没写是哪份文档的小节"))
+                    continue
+                if doc == "external":
+                    continue
+                known = anchors[doc]
+                if sec not in known and not any(x.startswith(sec + ".") for x in known):
+                    name = "提案" if doc == "spec" else doc
+                    bad.append((path, i, f"{name} §{sec} 不存在"))
             for dec in appendix_numbers(line):
                 if dec not in decisions:
-                    bad.append((path, i, f"附录 A{dec}"))
+                    bad.append((path, i, f"附录 A{dec} 不存在"))
     return bad
 
 
@@ -290,7 +363,7 @@ def main():
 
     files = list(live_files())
     failed = report("归档引用", check_archived(files))
-    failed |= report("悬空规范引用", check_spec_refs(files, sections, decisions))
+    failed |= report("悬空 / 无主的小节引用", check_section_refs(files, sections, decisions))
     failed |= report("文档断链", check_links(files))
     failed |= report("悬空文档路径", check_doc_paths(files))
 

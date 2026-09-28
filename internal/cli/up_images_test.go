@@ -126,7 +126,7 @@ func TestUpShellImageOnlyInRegistryNotChecked(t *testing.T) {
 	assert.NotContains(t, r.stdout+r.stderr, "cannot be confirmed")
 }
 
-// §8.5 规则 3：外壳成员必须有自己的镜像（image 或 build）——没有的组件连 Manifest 校验都过不了，add 当场失败。
+// 提案 §8.5 第 3 步：外壳成员必须有自己的镜像（image 或 build）——没有的组件连 Manifest 校验都过不了，add 当场失败。
 func TestAddShellMemberWithoutImageFails(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/shell", Version: "1.0.0", ShellMembers: []string{"erp/a@1.0.0"}})

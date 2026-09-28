@@ -1,7 +1,7 @@
 """gRPC 出口（grpcio，额外端口 9090）。
 
 Python 的 grpcio 无法与 HTTP 共用一个端口（Go 组件可以，见 department/tree），
-因此按 009 的建议在 component.yaml 里用 extraPorts 声明 9090。
+因此在 component.yaml 里用 extraPorts 声明 9090。
 平台据此注入 PEOPLE_BASIC_GRPC_ENDPOINT，调用方才知道 gRPC 在哪。
 """
 

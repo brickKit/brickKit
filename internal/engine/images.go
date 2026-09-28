@@ -22,7 +22,7 @@ type Images interface {
 
 // BuildRequest 是一次构建。
 type BuildRequest struct {
-	// Tag 是镜像引用（tag 与组件版本一致，§9.10.4）。
+	// Tag 是镜像引用（tag 与组件版本一致，提案 §9.10.4）。
 	Tag string
 	// Context 是构建上下文目录，Dockerfile 是 Dockerfile 的路径（都是绝对路径）。
 	Context    string

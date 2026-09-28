@@ -56,8 +56,8 @@ type Signature struct {
 
 // Empty 表示这个版本没有签名。
 //
-// 它与"签名无效"是两回事：没签名要不要放行由 installer.requireSignature 决定
-// ，签名无效则任何情况下都不能放行。
+// 它与"签名无效"是两回事：没签名要不要放行由 installer.requireSignature 决定，
+// 签名无效则任何情况下都不能放行。
 func (s Signature) Empty() bool {
 	return strings.TrimSpace(s.Algorithm) == "" && strings.TrimSpace(s.Value) == ""
 }

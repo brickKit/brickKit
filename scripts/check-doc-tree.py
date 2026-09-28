@@ -148,7 +148,7 @@ def children_of_brickkit(block):
 def scan(allowed):
     """返回 [(文件, 名字)]：文档里画了、而 CLI 不会创建的东西。"""
     bad, seen = [], 0
-    out = subprocess.run(["git", "ls-files", "-z", "*.md"], cwd=ROOT,
+    out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "*.md"], cwd=ROOT,
                          capture_output=True, check=True).stdout
     for raw in out.split(b"\0"):
         rel = raw.decode("utf-8")

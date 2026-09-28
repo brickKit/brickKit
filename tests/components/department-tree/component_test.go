@@ -155,7 +155,7 @@ func TestLoggerRedactsPasswordLikeFields(t *testing.T) {
 // artifacts 声明 / 非 root
 // ============================================================
 
-// 21.7：component.yaml 必须声明 proto 与 openapi 两类产物，
+// component.yaml 必须声明 proto 与 openapi 两类产物，
 // 且声明的文件必须真的存在——市场发布时会按这个列表逐个上传。
 func TestComponentYamlDeclaresArtifactsThatExist(t *testing.T) {
 	raw, err := os.ReadFile("component.yaml")

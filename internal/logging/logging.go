@@ -4,12 +4,12 @@
 //
 // 分工约定（很重要）：
 //
-//	stdout  面向用户的人类可读输出（✅ / 📦 / 表格等，见 004 各命令输出示例）
+//	stdout  面向用户的人类可读输出（✅ / 📦 / 表格等）
 //	stderr  结构化 JSON 日志（诊断用）+ 错误块（clierr 渲染结果）
 //
 // 这样 `brickkit order > order.txt` 只会拿到人类可读内容，日志不会混进去。
 //
-// 日志字段固定包含 time / level / message 三个键（开发计划验证项 2.6）。
+// 日志字段固定包含 time / level / message 三个键。
 package logging
 
 import (
@@ -96,7 +96,7 @@ func IsValidLevel(name string) bool {
 }
 
 // replaceAttr 把 slog 默认的 "msg" 键改名为 "message"，
-// 使日志字段与开发计划验证项 2.6 要求的 time / level / message 一致。
+// 使日志字段固定为 time / level / message。
 func replaceAttr(_ []string, a slog.Attr) slog.Attr {
 	if a.Key == slog.MessageKey {
 		a.Key = "message"

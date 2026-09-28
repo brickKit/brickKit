@@ -73,7 +73,7 @@ func TestMigrateUnwrittenKeyFollowsNewDefault(t *testing.T) {
 	assert.Empty(t, report.Conflicts)
 }
 
-// §12.3 第一行：值等于旧默认值——能确认使用者没改过它，跟随新默认值。
+// 提案 §12.3 第一行：值等于旧默认值——能确认使用者没改过它，跟随新默认值。
 func TestMigrateUserValueEqualsOldDefaultFollowsNew(t *testing.T) {
 	out, report := migrate(t, "LOG_LEVEL: info\n",
 		schema(map[string]manifest.ConfigProperty{"LOG_LEVEL": str("info")}),
@@ -83,7 +83,7 @@ func TestMigrateUserValueEqualsOldDefaultFollowsNew(t *testing.T) {
 	assert.Empty(t, report.Conflicts)
 }
 
-// §12.3：使用者改过、开发者也改了默认值——写重复键（注释说明），大声失败。
+// 提案 §12.3：使用者改过、开发者也改了默认值——写重复键（注释说明），大声失败。
 func TestMigrateConflictDuplicate(t *testing.T) {
 	out, report := migrate(t, "LOG_LEVEL: debug\n",
 		schema(map[string]manifest.ConfigProperty{"LOG_LEVEL": str("info")}),

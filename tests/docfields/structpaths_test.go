@@ -60,3 +60,47 @@ func TestStructPathsStopsOnSelfReferentialPointer(t *testing.T) {
 	got := structPaths(reflect.TypeOf(holder{}))
 	assert.Equal(t, []string{"docfields_test.selfPointer"}, got.recursive)
 }
+
+// yaml:",inline" 的结构体，键摊平到外层——路径里不能多出一段字段名。
+// deploy.yaml 的组件条目就是这样：Component 内联了 Entry。
+type InlineEntry struct {
+	ID   string `yaml:"id"`
+	Mode string `yaml:"mode"`
+}
+
+func TestStructPathsFlattensInlineStructs(t *testing.T) {
+	type component struct {
+		InlineEntry `yaml:",inline"`
+		Members     []InlineEntry `yaml:"members"`
+	}
+	type file struct {
+		Components []component `yaml:"components"`
+	}
+	got := structPaths(reflect.TypeOf(file{}))
+
+	for _, want := range []string{"components[].id", "components[].mode", "components[].members[].id"} {
+		assert.True(t, got.leaves[want], "缺 %s：%v", want, got.leaves)
+	}
+	for path := range got.leaves {
+		assert.NotContains(t, path, "inlineentry", "内联结构体的字段名不该出现在路径里：%s", path)
+	}
+}
+
+// 结构体藏在多层容器里也要展开：map 的值是数组、数组的元素是数组、定长数组。
+func TestStructPathsExpandsStructsInsideNestedContainers(t *testing.T) {
+	type item struct {
+		Name string `yaml:"name"`
+	}
+	type file struct {
+		Groups map[string][]item `yaml:"groups"`
+		Grid   [][]item          `yaml:"grid"`
+		Pair   [2]item           `yaml:"pair"`
+		Tags   []string          `yaml:"tags"`
+	}
+	got := structPaths(reflect.TypeOf(file{}))
+
+	for _, want := range []string{"groups.<key>[].name", "grid[][].name", "pair[].name", "tags"} {
+		assert.True(t, got.leaves[want], "缺 %s：%v", want, got.leaves)
+	}
+	assert.Len(t, got.leaves, 4, "%v", got.leaves)
+}

@@ -78,8 +78,8 @@ msgid 常量、两份目录、嵌套、`%w`、复用与出错时不改文件。
 明细行、参数里嵌套的文案都能处理），译不出的行原样保留并点名：
 
 ```sh
-python3 tools/i18n/docs_outputs.py docs/en/03-guide/01-first-project.md          # 干跑：只报告
-python3 tools/i18n/docs_outputs.py --write docs/en/00-quick-start.md ...        # 原地改写
+python3 tools/i18n/docs_outputs.py docs/en/02-project-guide/01-init-and-project-creation.md          # 干跑：只报告
+python3 tools/i18n/docs_outputs.py --write docs/en/00-intro/02-quick-start.md ...        # 原地改写
 ```
 
 它已经把 docs/en 里 661 行输出译完了，之后是一次性工具，留在仓库里是为了"万一还要用"。

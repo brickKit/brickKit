@@ -281,7 +281,7 @@ func skipCheck(opts *Options, reason string, cause error) error {
 //
 // registered 是 repo.Submodules() 的结果：路径在里面说明这不是"意外死
 // gitlink"，是 `git submodule add` 正确登记过的真 submodule——别再报警
-// （2026-09-06 gap report §2.1：之前不分青红皂白，已登记的项目每次提交都收到
+// （一次外部实操反馈：之前不分青红皂白，已登记的项目每次提交都收到
 // 一句"仓库里没有 .gitmodules"的假警告，其实明明有）。
 func warnGitlinks(opts *Options, paths []string, registered map[string]gitrepo.Submodule) {
 	for _, p := range paths {

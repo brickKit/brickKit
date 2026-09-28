@@ -127,7 +127,7 @@ func applyK8s(
 ) error {
 	opts.Printf("\n%s\n", i18n.T(msgid.CliUpK8sDeployingToKubernetesNamespace, plan.k8s.Namespace))
 	if len(plan.k8s.MigrationGroups) > 0 {
-		// 16.14：先清旧 Job 再 apply，然后等它跑完
+		// 先清旧 Job 再 apply，然后等它跑完
 		opts.Printf("%s\n", i18n.T(msgid.CliUpK8sDatabaseMigrationsRunFirstThe))
 	}
 

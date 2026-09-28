@@ -358,7 +358,7 @@ func renderLocalDebug(opts *Options, p *liveProject, v componentView) {
 
 // renderLocalModeSessionHint 在项目有 mode: local 组件、且会话锁被持有时，
 // 打一行指向信息——这是使用者从**别的终端**唯一能知道"那边有个 local 会话
-// 在跑"的办法（spec §3：status/down 跨终端可见性，复用同一把锁文件）。
+// 在跑"的办法（status/down 跨终端可见，复用同一把锁文件）。
 //
 // 项目里没有 mode: local 组件时，压根不去碰锁文件：没有意义，也避免每次
 // status 都多一次无谓的文件系统访问。

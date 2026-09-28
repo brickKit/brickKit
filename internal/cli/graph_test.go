@@ -497,10 +497,8 @@ func TestMermaidIDReplacesEveryHyphen(t *testing.T) {
 }
 
 // brickkit graph --help 描述的节点样式要跟 graph.go 实际画的一致——它曾经说
-// "mode: debug 的节点标'local debug'"，但 mode: debug 现在只能写在
-// override.yaml 里，graph 又明确不读 override.yaml（只读 brickkit.yaml，设计书
-// §9），"local debug"这个样式已经彻底画不出来了，帮助文本却还在讲一个不存在
-// 的行为（评审 Minor #8）。
+// "mode: debug 的节点标'local debug'"，而 graph.go 根本不画这种样式：
+// 帮助文本在讲一个不存在的行为。
 func TestGraphHelpDoesNotMentionUnreachableLocalDebugStyle(t *testing.T) {
 	r := run(t, "graph", "--help")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)

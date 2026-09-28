@@ -492,7 +492,7 @@ func testUsersAndTokens(t *testing.T, r repo.Repository) {
 	_, err = r.GetUserByUsername(ctx, "nobody")
 	assert.ErrorIs(t, err, repo.ErrNotFound)
 
-	// 管理员标记（运维指南 §6.5 启动引导会把配置里的账号提成管理员）
+	// 管理员标记（启动时的管理员引导会把配置里的账号提成管理员）
 	assert.False(t, got.IsAdmin, "普通注册的用户默认不是管理员")
 	require.NoError(t, r.SetUserAdmin(ctx, "user-1", true))
 	got, err = r.GetUserByID(ctx, "user-1")
@@ -502,7 +502,7 @@ func testUsersAndTokens(t *testing.T, r repo.Repository) {
 
 	assert.ErrorIs(t, r.SetUserAdmin(ctx, "user-404", true), repo.ErrNotFound)
 
-	// 改口令哈希（运维指南 §9 Q5 的重置路径）
+	// 改口令哈希（忘记管理员口令时的重置路径）
 	require.NoError(t, r.SetUserPassword(ctx, "user-1", "new-hash"))
 	got, err = r.GetUserByID(ctx, "user-1")
 	require.NoError(t, err)

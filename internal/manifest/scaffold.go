@@ -141,7 +141,7 @@ healthCheck:
 			Content: []byte(contractFile),
 		})
 	}
-	// BRICKKIT.md 紧跟 component.yaml：它是消费方（人和 AI）读这个组件的入口（§16.2）
+	// BRICKKIT.md 紧跟 component.yaml：它是消费方（人和 AI）读这个组件的入口（提案 §16.2）
 	files = append(files[:1], append([]ScaffoldFile{{Path: FileDoc, Content: []byte(componentDoc(id, contractPath, opts.Shell))}}, files[1:]...)...)
 	return files, nil
 }
@@ -156,7 +156,7 @@ const MaxDocBytes = 256 << 10
 // scaffoldPlaceholderMember 是外壳骨架里的占位成员。
 const scaffoldPlaceholderMember = "example/member@0.1.0"
 
-// componentDoc 是组件级 BRICKKIT.md 的骨架：§16.2 的五节标准结构，要作者填的地方写成注释。
+// componentDoc 是组件级 BRICKKIT.md 的骨架：提案 §16.2 的五节标准结构，要作者填的地方写成注释。
 func componentDoc(id, contractPath string, shell bool) string {
 	var b strings.Builder
 	b.WriteString("# " + id + "\n\n")

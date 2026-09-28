@@ -9,7 +9,7 @@ package cli
 //	本地安装源给出的版本       正在开发的代码：它的镜像必须从这份代码构建，不能拿 registry 里的顶替
 //
 // 源码从哪来：本地仓库正是这个版本时用它；否则从这个版本的 git tag 导出（兼容版本、没克隆
-// 过的 git 组件）。镜像 tag 与 metadata.version 一致（§9.10.4），外壳镜像记下编进去的成员
+// 过的 git 组件）。镜像 tag 与 metadata.version 一致（提案 §9.10.4），外壳镜像记下编进去的成员
 // 版本（附录 A24），up 用它核对。
 
 import (
@@ -107,7 +107,7 @@ func runBuild(ctx context.Context, opts *Options, arg string, force bool) error 
 			if id == "" {
 				continue
 			}
-			// 点名了：镜像平常是拉取的，这次在本机构建一份（拉不到时的出路，§9.10.3）
+			// 点名了：镜像平常是拉取的，这次在本机构建一份（拉不到时的出路，提案 §9.10.3）
 			opts.Printf("%s\n", i18n.T(msgid.CliBuildNormallyPulled, ref.String(), tag))
 		}
 		if !force {

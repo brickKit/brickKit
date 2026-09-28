@@ -46,7 +46,7 @@ type Target struct {
 }
 
 // Prepare 读取并校验 dir 下的 component.yaml，定位它所在的 git 仓库。只读 component.yaml——
-// 同一目录里的 brickkit.yaml 是作者的本地工作台，与发布无关（§16.1.1）。
+// 同一目录里的 brickkit.yaml 是作者的本地工作台，与发布无关（提案 §16.1.1）。
 func Prepare(dir string) (*Target, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {

@@ -71,7 +71,7 @@ func TestCredentialsExpired(t *testing.T) {
 	assert.False(t, (&Credentials{ExpiresAt: now}).Expired(now), "恰好到期的瞬间还不算过期")
 }
 
-// 008 安全边界：绝不把 A 市场的 Token 发给 B 市场。
+// 安全边界：绝不把 A 市场的 Token 发给 B 市场。
 func TestCredentialsMatchesMarket(t *testing.T) {
 	const url = "https://market.brickkit.io/api/v1"
 

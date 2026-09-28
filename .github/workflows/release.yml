@@ -1,4 +1,4 @@
-# 发布流水线（《发布与分发》§5）—— 这个仓库的第一份 CI。
+# 发布流水线 —— 这个仓库的第一份 CI。
 #
 # 顺序是 build → smoke → sign → publish，不能改：**先验后发**。
 # 一个已经挂到 release 页面上、再回头发现跑不起来的二进制撤不干净——
@@ -57,7 +57,7 @@ jobs:
             runner: macos-14
             asset: darwin_arm64.tar.gz
           # Windows 只验不需要 Docker 的那一半：GitHub 的 windows runner 跑不了
-          # Linux 容器，up 真起容器与 K8s 那条线在这里没法验（§3.1）。
+          # Linux 容器，up 真起容器与 K8s 那条线在这里没法验。
           - name: windows/amd64
             runner: windows-latest
             asset: windows_amd64.zip

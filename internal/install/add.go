@@ -23,7 +23,7 @@ import (
 //   - ID 已有别的版本：这是为依赖方（或外壳）保留的兼容版本，requiredBy 写上它们
 //     （附录 A20）、部署条目写 id@version、配置文件带版本号（附录 A5）
 //   - target 本身是已有 ID 的另一个版本、又没有谁需要它：报错，换默认版本归 upgrade
-//   - 项目里（含这次新加的）有外壳编进了这个版本：条目嵌到外壳下面（附录 A21、A24、§8.5）；
+//   - 项目里（含这次新加的）有外壳编进了这个版本：条目嵌到外壳下面（附录 A21、A24，提案 §8.5）；
 //     已在顶层的挪进去
 func PlanAdd(p *project.Project, graph *resolver.Graph, targets ...resolver.Ref) (*Plan, error) {
 	a := newAdder(p, graph)
@@ -202,8 +202,8 @@ func (a *adder) extendRequiredBy() {
 // nestExisting：已声明、在部署文件顶层的组件版本，正是某个外壳编进的那一个——挪进外壳。
 // 已经嵌在别的外壳下面的不动（一个版本只能在一个外壳里），说一声。
 //
-// 只对这次新加的外壳做（§8.5 第 4 步）：已在项目里的外壳下面缺的成员，是使用者移出去独立
-// 运行的（§8.7），之后 add 别的组件不能把它塞回去。
+// 只对这次新加的外壳做（提案 §8.5 第 4 步）：已在项目里的外壳下面缺的成员，是使用者移出去独立
+// 运行的（提案 §8.7），之后 add 别的组件不能把它塞回去。
 func (a *adder) nestExisting() {
 	fresh := map[string]bool{}
 	for _, ref := range a.fresh {

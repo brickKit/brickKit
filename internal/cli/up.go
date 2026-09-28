@@ -34,7 +34,7 @@ import (
 //
 // 叫 compose.yaml 而不是 docker-compose.yaml：这份文件遵循的是 Compose
 // 规范（compose-spec.io），Docker、Podman 都能消费同一份——带上 docker
-// 前缀会让人误以为它是 Docker 专属的，而 target: podman（§5.10）读的正是
+// 前缀会让人误以为它是 Docker 专属的，而 target: podman（附录 A15）读的正是
 // 同一份文件。
 const composeFileName = "compose.yaml"
 
@@ -739,7 +739,7 @@ func checkUpImages(ctx context.Context, opts *Options, eng engine.Engine, local 
 		return e.WithHint(append([]string{i18n.T(msgid.CliUpHintBuildNeverAutomatic)}, hints...)...)
 	}
 	if err := checkImages(ctx, opts, eng, pulled); err != nil {
-		// 拉不到时还有一条出路：从源码在本机构建（§9.10.3）
+		// 拉不到时还有一条出路：从源码在本机构建（提案 §9.10.3）
 		e := clierr.As(err)
 		for _, d := range e.Details {
 			if d.Key == i18n.T(msgid.LabelComponent) {

@@ -88,7 +88,7 @@ func TestPlanCompleteNeverEditsExistingGitignore(t *testing.T) {
 	assert.Equal(t, gitignore, string(got))
 }
 
-// 组件仓库兼作工作台（§16.1.1）：BRICKKIT.md 是组件自己的文档，不能生成项目文档盖掉它，
+// 组件仓库兼作工作台（提案 §16.1.1）：BRICKKIT.md 是组件自己的文档，不能生成项目文档盖掉它，
 // 也不能在它不在时替组件作者生成一份项目文档。
 func TestPlanCompleteInComponentRepoLeavesBrickkitMd(t *testing.T) {
 	root := t.TempDir()
@@ -279,7 +279,7 @@ func TestPlanWorkbenchInheritsSources(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(root, "BRICKKIT.md"))
 }
 
-// 组件仓库里的补全式 init（§16.1.1）与 add --local --init 是同一件事：只补 brickkit.yaml、
+// 组件仓库里的补全式 init（提案 §16.1.1）与 add --local --init 是同一件事：只补 brickkit.yaml、
 // deploy.yaml、config/，不建项目的 components/ 与 shell/，也不替它声明那两个本地源。
 func TestPlanCompleteComponentRepoIsAWorkbench(t *testing.T) {
 	root := t.TempDir()

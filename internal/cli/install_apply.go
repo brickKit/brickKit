@@ -44,7 +44,7 @@ type applied struct {
 	ConfigsWritten []string
 	// ConfigsArchived 是移进 config/.archive/ 的配置（原路径 → 归档路径，相对项目根）。
 	ConfigsArchived [][2]string
-	// Restored 是从 config/.archive/ 迁移回来的配置（§7.7）。
+	// Restored 是从 config/.archive/ 迁移回来的配置（提案 §7.7）。
 	Restored []restoreResult
 	// DeployFiles 是改过的部署文件名。
 	DeployFiles []string
@@ -122,7 +122,7 @@ func applyPlanWith(opts *Options, proj *project.Project, plan *install.Plan, ao 
 	return a.result, nil
 }
 
-// refreshProjectDoc 重写项目 BRICKKIT.md 的组件表（§16.2.1）。add / remove / upgrade 在命令的
+// refreshProjectDoc 重写项目 BRICKKIT.md 的组件表（提案 §16.2.1）。add / remove / upgrade 在命令的
 // 最后调用——产物下载、源码克隆之后：表里的文档与契约路径只写盘上真有的，写早了就是空的。
 // 三份文件此刻已经正确，文档写不进去不值得让命令失败：说一声，下一次成功的改动会补齐。
 func refreshProjectDoc(opts *Options, layout project.Layout) {
@@ -313,7 +313,7 @@ func (a *applier) editConfigs(plan *install.Plan) error {
 		if _, err := os.Stat(from); err != nil {
 			continue
 		}
-		// 归档名永远带版本号：无版本号文件归档之后，版本也不能丢（§7.7 恢复时要认出来）
+		// 归档名永远带版本号：无版本号文件归档之后，版本也不能丢（提案 §7.7：恢复时要认出来）
 		to := filepath.Join(l.ConfigArchiveDir(), configdir.FileName(ref.ID, ref.Version))
 		if err := a.move(from, to); err != nil {
 			return err
@@ -357,7 +357,7 @@ func (a *applier) editConfigs(plan *install.Plan) error {
 			continue // 已有的配置文件是使用者的，绝不覆盖
 		}
 		content := configdir.Skeleton(c.ID, c.Version, c.Schema, a.options.varRefs[ref])
-		// 归档里有这个组件的旧配置（remove 时留下的）：按迁移算法恢复，而不是给一份空骨架（§7.7）
+		// 归档里有这个组件的旧配置（remove 时留下的）：按迁移算法恢复，而不是给一份空骨架（提案 §7.7）
 		if archive, version, ok := a.archivedConfig(c.ID, c.Version); ok {
 			restored, report, err := a.restore(c, archive, version)
 			if err != nil {

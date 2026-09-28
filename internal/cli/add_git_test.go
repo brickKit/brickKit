@@ -403,7 +403,7 @@ func TestAddRollbackRemovesCreatedDirsAndKeepsModes(t *testing.T) {
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
-// §7.7：remove 归档的配置，重新 add 时迁移回来——使用者写过的值回来了。
+// 提案 §7.7：remove 归档的配置，重新 add 时迁移回来——使用者写过的值回来了。
 func TestAddRestoresArchivedConfig(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(withConfig(comp{ID: "erp/api", Version: "1.0.0"}, "DB_HOST:x"))
@@ -583,4 +583,24 @@ func TestRemoveRefusesToDeleteUnrecoverableSource(t *testing.T) {
 		commit(t, src, "commit", "--quiet", "-m", "local work on the tag")
 		refused(t, g, dir, "erp/api", src)
 	})
+}
+
+// 缓存建好之后远端又发了新版本：从缓存 clone 出来的源码目录一个字没改，
+// remove 就必须照常删——不能因为缓存里的分支还停在第一次克隆时，
+// 就把新版本的提交说成"没推到任何远端"。
+func TestRemoveAcceptsPristineCloneOfLaterRelease(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0"})
+	first := g.project()
+	g.mustRun(first, "add", "erp/api@1.0.0") // 缓存在这时建好
+
+	g.release(comp{ID: "erp/api", Version: "1.1.0"}) // 远端 main 前进了
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.1.0", "--repo")
+	src := filepath.Join(dir, "components", "erp", "api")
+	require.DirExists(t, src)
+
+	r := g.run(dir, "remove", "erp/api")
+	require.Equal(t, clierr.ExitOK, r.code, "一份没改过的 clone 不该被拦：%s", r.stdout+r.stderr)
+	assert.NoDirExists(t, src)
 }

@@ -265,7 +265,7 @@ func TestDeployFileFlags(t *testing.T) {
 	}
 }
 
-// 各命令的参数必须与 004 定义一致。
+// 各命令的参数必须与命令表一致。
 func TestSubcommandFlags(t *testing.T) {
 	root := NewRootCommand(&Options{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
 	want := map[string][]string{

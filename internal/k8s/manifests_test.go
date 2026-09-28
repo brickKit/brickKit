@@ -118,7 +118,7 @@ func TestExposeWithoutHostnameIsAnError(t *testing.T) {
 //
 // # 为什么这是错的
 //
-// 平台生成的每条 Ingress 规则都是 `host: <hostname>` + `path: /`（§5.5）。
+// 平台生成的每条 Ingress 规则都是 `host: <hostname>` + `path: /`。
 // 两个组件共用一个 hostname，就是两条一模一样的规则指向不同的后端——
 // K8s 对此没有定义行为（nginx-ingress 取创建时间最早的那份并记一条冲突日志），
 // 表现是外面打进来的请求随机落到其中一个，而 `kubectl apply` 一句抱怨都没有。

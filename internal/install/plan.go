@@ -62,13 +62,13 @@ type Plan struct {
 	AddEntries []Entry
 	// NestEntries 把已有的顶层条目挪到外壳下面。
 	NestEntries []Entry
-	// UnnestShells 把外壳下面的成员挪回顶层（删外壳时，附录 A21 / §8.7）。
+	// UnnestShells 把外壳下面的成员挪回顶层（删外壳时，附录 A21、提案 §8.7）。
 	UnnestShells []string
 	// RenameEntries 改部署条目的 id（默认版本转正时 id@v → id）。
 	RenameEntries []Rename
 	// RemoveEntries 是要删的部署条目 id。
 	RemoveEntries []string
-	// LiftEntries 把嵌在外壳下面的条目挪到顶层（新外壳不再编进它，§8.7）。
+	// LiftEntries 把嵌在外壳下面的条目挪到顶层（新外壳不再编进它，提案 §8.7）。
 	LiftEntries []string
 
 	AddConfigs     []ConfigFile
@@ -77,7 +77,7 @@ type Plan struct {
 	RenameConfigs []ConfigRef
 	// DemoteConfigs 把无版本号配置文件改成带版本号的（旧默认版本留作兼容版本，附录 A5）。
 	DemoteConfigs []ConfigRef
-	// MigrateConfigs 按新版本的 configSchema 迁移配置（§12.2）。
+	// MigrateConfigs 按新版本的 configSchema 迁移配置（提案 §12.2）。
 	MigrateConfigs []ConfigMigration
 
 	// Added 与 Removed 是这次进出项目的组件版本（给输出用；Removed 含连带移除的）。
@@ -104,7 +104,7 @@ func EntryID(id, version string, isDefault bool) string {
 	return id + "@" + version
 }
 
-// hasSchema 报告组件有没有要生成骨架的配置项（没有 configSchema 的组件不生成文件，§7.6）。
+// hasSchema 报告组件有没有要生成骨架的配置项（没有 configSchema 的组件不生成文件，提案 §7.6）。
 func hasSchema(m *manifest.Manifest) bool {
 	return m != nil && m.ConfigSchema != nil && len(m.ConfigSchema.Properties) > 0
 }

@@ -121,7 +121,7 @@ func TestUpgradeShellMovesMembers(t *testing.T) {
 	g.mustRun(dir, "up", "--dry-run")
 }
 
-// §12.1：全量升级要么全做、要么一个字都不写——第二个升不了，第一个也不改。
+// 提案 §12.1：全量升级要么全做、要么一个字都不写——第二个升不了，第一个也不改。
 func TestUpgradeAllIsAllOrNothing(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})

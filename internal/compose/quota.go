@@ -13,7 +13,7 @@ import (
 // Manifest 里的资源配额用 K8s 的写法（`100m` / `128Mi`），
 // compose 用的是另一套（`0.10` / `128M`）。这里做转换。
 //
-// 组件作者只需要按 002 写一种写法，两种部署目标各自翻译——
+// 组件作者只需要在 component.yaml 里写一种写法，两种部署目标各自翻译——
 // 否则同一份 Manifest 得为 Docker 和 K8s 各写一遍配额。
 
 // cpuToCompose 把 K8s 的 CPU 写法转成 compose 的 cpus。

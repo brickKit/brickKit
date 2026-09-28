@@ -308,7 +308,7 @@ func TestInBothPlacesAnswersWhatLocateCannot(t *testing.T) {
 }
 
 // ============================================================
-// submodule 阻断（2026-09-06 gap report §2.2 / §2.3 的安全版修复）
+// submodule 阻断（外部实操反馈之后的安全版修复）
 //
 // Archive/Activate（move）与 RemoveSource/RemoveArchived（removeDir）在真正
 // 动文件系统之前，先问一句"目标是不是已登记的 submodule"——是就阻断并报错，

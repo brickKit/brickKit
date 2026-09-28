@@ -22,7 +22,7 @@ func (g *gitOrgProject) runImages(dir string, images *fakeImages, args ...string
 }
 
 // 提案 §11.2：本地源的组件、没有 image 的组件从源码构建；有 image 的 git 组件是拉的，不构建。
-// tag 与 metadata.version 一致（§9.10.4）。
+// tag 与 metadata.version 一致（提案 §9.10.4）。
 func TestBuildBuildsLocalAndBuildOnlyVersions(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(buildOnly(comp{ID: "erp/builtonly", Version: "1.0.0", Port: 8082}), map[string]string{"Dockerfile": "FROM scratch\n"})

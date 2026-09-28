@@ -461,8 +461,8 @@ func writeJSONBody(w http.ResponseWriter, status int, body any) {
 
 // breakLocalManifest 把本地安装源里某个组件的 component.yaml 改坏（一处笔误）。
 //
-// 用来验证"Manifest 读不到时，命令还能不能干它本职的事"。本地安装源不吃缓存
-// ，所以改坏这个文件就等于让依赖图解析必然失败——
+// 用来验证"Manifest 读不到时，命令还能不能干它本职的事"。本地安装源不吃缓存，
+// 所以改坏这个文件就等于让依赖图解析必然失败——
 // 而 down / status 的本职工作里没有一件需要依赖图。
 func breakLocalManifest(t *testing.T, f *projectFixture, componentID string) {
 	t.Helper()

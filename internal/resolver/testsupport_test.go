@@ -155,7 +155,7 @@ func (p *countingProvider) count(ref string) int {
 
 // ============================================================
 // fakeProvider：用于构造解析器必须防住、但 Manifest 校验器不允许写出来的图
-// （如自依赖——component.yaml 里写自依赖会被 002 校验直接拒掉）
+// （如自依赖——component.yaml 里写自依赖会被 Manifest 校验直接拒掉）
 // ============================================================
 
 type fakeProvider struct {

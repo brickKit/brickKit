@@ -59,7 +59,7 @@ func positiveInt(value string) int {
 
 // componentView 是组件详情的响应体。
 //
-// 这里把服务层的 ComponentDetail 摊平成一层：007 的详情页示例是平铺的，
+// 这里把服务层的 ComponentDetail 摊平成一层：市场 API 参考里的详情响应是平铺的，
 // 前端与文档都按那个形状写。
 type componentView struct {
 	ComponentID   string   `json:"componentId"`

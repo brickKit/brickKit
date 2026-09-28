@@ -223,7 +223,7 @@ func TestEveryServiceJoinsTheNetwork(t *testing.T) {
 // 依赖顺序
 // ============================================================
 
-// 12.2：强依赖体现为 depends_on + service_healthy。
+// 强依赖体现为 depends_on + service_healthy。
 func TestDependsOnUsesHealthCondition(t *testing.T) {
 	b := newBuilder(t)
 	b.component(dependsOn(simple("erp/backend", "1.0.0", 8080), "people/basic", "1.0.0"),
@@ -266,7 +266,7 @@ func withMigration(m *manifest.Manifest) *manifest.Manifest {
 	return m
 }
 
-// 12.6：声明了 migration 的组件生成一个一次性 service。
+// 声明了 migration 的组件生成一个一次性 service。
 func TestMigrationServiceIsGenerated(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
@@ -304,7 +304,7 @@ func TestMigrationServiceInheritsEnvironment(t *testing.T) {
 	assert.Equal(t, "people", migration["DB_NAME"])
 }
 
-// 12.12：主服务必须等迁移**成功结束**再启动。
+// 主服务必须等迁移**成功结束**再启动。
 func TestMainServiceWaitsForMigration(t *testing.T) {
 	b := newBuilder(t)
 	b.component(withMigration(withDatabase(simple("people/basic", "1.0.0", 8080))), projecttest.Entry{})
@@ -645,7 +645,7 @@ func TestExposeUsesComponentPortByDefault(t *testing.T) {
 	assert.Equal(t, []any{"80:80"}, svc["ports"])
 }
 
-// 12.5：exposePort 自定义宿主机端口。
+// exposePort 自定义宿主机端口。
 func TestExposePortMapsToCustomHostPort(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("portal/user-frontend", "1.0.0", 80),
@@ -835,7 +835,7 @@ func TestRestartPolicy(t *testing.T) {
 	assert.Equal(t, "unless-stopped", serviceOf(t, b.parsed(), "people-basic-1-0-0")["restart"], "12.10")
 }
 
-// 12.15：多版本各自独立 service。
+// 多版本各自独立 service。
 func TestMultipleVersionsGenerateSeparateServices(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("people/basic", "1.0.0", 8080), projecttest.Entry{})
@@ -879,7 +879,7 @@ func TestInjectedEnvironmentReachesTheFile(t *testing.T) {
 	assert.Equal(t, "erp/backend", env["COMPONENT_ID"])
 	assert.Equal(t, "1.0.0", env["COMPONENT_VERSION"])
 	assert.Equal(t, "http://people-basic-1-0-0:8080", env["PEOPLE_BASIC_ENDPOINT"])
-	// 22.3：extraPorts 的地址变量必须出现在最终的 compose 里
+	// extraPorts 的地址变量必须出现在最终的 compose 里
 	assert.Equal(t, "http://people-basic-1-0-0:9090", env["PEOPLE_BASIC_GRPC_ENDPOINT"])
 	assert.Equal(t, "7200", env["SESSION_TTL_SECONDS"], "config 覆盖要落到文件里")
 }
@@ -977,7 +977,7 @@ func TestGenerationIsDeterministic(t *testing.T) {
 // 真实 docker compose 校验
 // ============================================================
 
-// 12.1：生成的文件必须能被真实的 docker compose 解析。
+// 生成的文件必须能被真实的 docker compose 解析。
 //
 // 这条是这一整套测试的锚：前面所有断言都建立在"我认为 compose 长这样"上，
 // 只有真的让 docker 读一遍，才知道有没有写出它不认的字段。

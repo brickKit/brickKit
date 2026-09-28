@@ -186,7 +186,7 @@ func TestUpImageCheckFailureKeepsTheRealReason(t *testing.T) {
 // 启停判定
 // ============================================================
 
-// 15.2：没人依赖、也没钉住的组件不会被启动。
+// 没人依赖、也没钉住的组件不会被启动。
 func TestUpCascadeSkipsUnneededComponent(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
@@ -242,7 +242,7 @@ func TestNothingRunningDoesNotBlameTheTopLevel(t *testing.T) {
 	assert.Contains(t, r.stdout, "The top level itself isn't turned off")
 }
 
-// 15.3：钉住的组件即使没人依赖也要启动。
+// 钉住的组件即使没人依赖也要启动。
 func TestUpPinnedComponentStartsAnyway(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
@@ -367,7 +367,7 @@ func TestUpWithOnlyLocalComponentsNeverCallsTheEngine(t *testing.T) {
 	assert.Contains(t, r.stdout, "listening on port")
 }
 
-// 15.5：钉住的组件强依赖了一个被显式关掉的组件——两个意图直接冲突，必须报错。
+// 钉住的组件强依赖了一个被显式关掉的组件——两个意图直接冲突，必须报错。
 func TestUpDisabledStrongDependencyIsAnError(t *testing.T) {
 	comps := []comp{
 		{ID: "erp/backend", Version: "1.0.0", Requires: []string{"people/basic@1.0.0"}},
@@ -419,7 +419,7 @@ func TestUpOutputShowsWeakDependencyWarning(t *testing.T) {
 	assert.Contains(t, r.stdout+r.stderr, "infra/bus")
 }
 
-// 15.25：迁移由部署文件驱动，但使用者得知道"这次会跑哪些迁移"。
+// 迁移由部署文件驱动，但使用者得知道"这次会跑哪些迁移"。
 func TestUpOutputShowsMigrations(t *testing.T) {
 	comps := []comp{
 		{ID: "people/basic", Version: "1.0.0", Migration: []string{"python", "manage.py", "migrate"}},

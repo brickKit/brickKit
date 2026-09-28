@@ -232,7 +232,7 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 // writeError 输出统一的错误结构。
 //
 // 只有一句面向使用者的话，**不带底层原因**：把 "pq: connection refused"
-// 透出去既帮不上调用方，又把内部拓扑告诉了外面（004 的错误信息约定）。
+// 透出去既帮不上调用方，又把内部拓扑告诉了外面（平台的错误信息约定）。
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }

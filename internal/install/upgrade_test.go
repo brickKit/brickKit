@@ -185,7 +185,7 @@ func TestPlanUpgradeKeptOldShellKeepsKind(t *testing.T) {
 	cat := catalog(shellMf("erp/shell@1.0.0", "erp/a@1.0.0"), shellMf("erp/shell@2.0.0", "erp/a@1.0.0"), mf("erp/a@1.0.0"),
 		mf("erp/web@1.0.0", "erp/shell@1.0.0"))
 	_, err := planUpgrade(t, p, cat, mv("erp/shell", "1.0.0", "2.0.0"))
-	require.Error(t, err, "外壳只有一个版本（§8.6 单版本约束）：还有组件依赖旧外壳时升级不了")
+	require.Error(t, err, "外壳只有一个版本（提案 §8.6 单版本约束）：还有组件依赖旧外壳时升级不了")
 	assert.Contains(t, err.Error(), "erp/web")
 }
 

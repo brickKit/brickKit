@@ -190,7 +190,7 @@ func TestLintNamesUnparsableCachedManifest(t *testing.T) {
 	assert.Contains(t, r.stdout, "could not be read")
 }
 
-// 组件仓库兼作工作台（§16.1.1）：有了 brickkit.yaml 之后，lint 照样检查它要发布的 component.yaml。
+// 组件仓库兼作工作台（提案 §16.1.1）：有了 brickkit.yaml 之后，lint 照样检查它要发布的 component.yaml。
 func TestLintWorkbenchStillChecksOwnManifest(t *testing.T) {
 	dir := t.TempDir()
 	writeTree(t, dir, map[string]string{

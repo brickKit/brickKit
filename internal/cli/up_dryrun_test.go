@@ -171,7 +171,7 @@ func servedByProject(t *testing.T) *projectFixture {
 	return f
 }
 
-// 13.4：env 文件按版本化服务名落到 .brickkit/generated/。
+// env 文件按版本化服务名落到 .brickkit/generated/。
 func TestUpDryRunWritesLocalDebugEnvFile(t *testing.T) {
 	f := localDebugProject(t)
 

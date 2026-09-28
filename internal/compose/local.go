@@ -213,8 +213,8 @@ func (p *plan) localExposeWarnings() []*clierr.Error {
 // 用途恰恰是"让外面的工具找到它"，静默失效的表现是"Traefik 里查不到这条路由"，
 // 那时人会去翻 Traefik 的日志，翻不出任何东西。
 //
-// 也和 expose 一样只警告不报错：合并部署交付现场满是 mode: debug
-// （《组件合并部署》§4.3），而那份 brickkit.yaml 常常是从一份完整配置改出来的
+// 也和 expose 一样只警告不报错：合并部署交付现场满是 mode: debug，
+// 而那份 brickkit.yaml 常常是从一份完整配置改出来的
 // ——labels 留在那里是正常的，只是这一次挂不上。真正要挂 labels 的是使用者
 // 自己写的那个外壳，不是这个不生成容器的条目。
 func (p *plan) localLabelWarnings() []*clierr.Error {
@@ -356,7 +356,7 @@ func (p *plan) assignHostPorts() error {
 // 这站得住脚是因为一个既有不变量：`internal/shell/shell.go` 的
 // checkPortConflicts 已经把"外壳自己的端口 + 每个成员自己声明的端口互不
 // 冲突、都在同一个容器上监听"当成生成期硬校验（同一个不变量也是 K8s 渲染器
-// 能把 外壳成员的 *_ENDPOINT 正确指到外壳地址的前提，见 §5.7）——
+// 能把外壳成员的 *_ENDPOINT 正确指到外壳地址的前提）——
 // 这里不是在教 local.go 一件关于外壳内部结构的新事情，只是复用了一个平台
 // 已经在别处依赖的假设。
 //

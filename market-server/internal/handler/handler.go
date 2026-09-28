@@ -101,8 +101,8 @@ func registerRoutes(rt *router) {
 
 // identity 把 Authorization 头换成调用者身份。
 //
-// 没带 Token 时返回匿名身份而不是错误：public 组件的查询本来就不需要登录
-// ，"要不要认证"由服务层按被访问的资源决定。
+// 没带 Token 时返回匿名身份而不是错误：public 组件的查询本来就不需要登录，
+// "要不要认证"由服务层按被访问的资源决定。
 func (a *api) identity(r *http.Request) (*service.Identity, error) {
 	return a.svc.Authenticate(r.Context(), bearerToken(r))
 }
@@ -137,7 +137,7 @@ func equalFold(a, b string) bool {
 	return true
 }
 
-// health 是健康检查（运维指南 §4 的 compose healthcheck 探针）。
+// health 是健康检查（compose healthcheck 的探针）。
 //
 // 它必须匿名可访问，也不查库：探针要回答的是"进程还活着吗"，
 // 让它依赖数据库会在数据库抖动时把还能提供只读服务的实例一起判死。

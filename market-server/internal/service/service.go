@@ -149,7 +149,7 @@ func (s *Service) Publish(
 	}
 	if err := s.repo.CreateVersion(ctx, version); err != nil {
 		if errors.Is(err, repo.ErrConflict) {
-			// 18.14：版本号不可重复，也不可回收（软删除的版本同样占位）
+			// 版本号不可重复，也不可回收（软删除的版本同样占位）
 			return nil, model.Errorf(model.CodeVersionExists, "this version already exists; a version number cannot be republished").
 				WithDetail("componentId", componentID).
 				WithDetail("version", m.Metadata.Version)

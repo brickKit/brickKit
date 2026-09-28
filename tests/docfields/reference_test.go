@@ -30,6 +30,7 @@ import (
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/projfile"
+	"github.com/brickkit/brickkit/internal/yamlcheck"
 )
 
 // fieldPaths 是从结构体反射出来的字段路径。
@@ -65,10 +66,24 @@ func structPaths(typ reflect.Type) fieldPaths {
 	return out
 }
 
-// expandable 判断一个元素类型要不要继续往里展开：结构体才展开，原样保留的值不展开。
-func expandable(typ reflect.Type) bool {
-	_, opaque := opaqueTypes[typ]
-	return typ.Kind() == reflect.Struct && !opaque
+// holdsStruct 判断一个容器元素要不要继续往里展开：隔着任意层数组 / map 最终装的是
+// 结构体（原样保留的值不算），或者是成环的指针（交给 collectPaths 去点名）。
+// 装的是标量的容器整体是一个叶子：`tags` 而不是 `tags[]`。
+func holdsStruct(typ reflect.Type) bool {
+	for {
+		typ = derefType(typ)
+		switch typ.Kind() {
+		case reflect.Slice, reflect.Array, reflect.Map:
+			typ = typ.Elem()
+			continue
+		case reflect.Pointer: // 解完还是指针：指针成环
+			return true
+		case reflect.Struct:
+			_, opaque := opaqueTypes[typ]
+			return !opaque
+		}
+		return false
+	}
 }
 
 // derefType 一路解指针。Go 允许自指的指针类型（type T *T），那样永远解不到头；
@@ -111,33 +126,30 @@ func collectPaths(typ reflect.Type, path string, onPath map[reflect.Type]int, ou
 		if path != "" {
 			out.nodes[path] = true
 		}
-		for i := 0; i < typ.NumField(); i++ {
-			field := typ.Field(i)
-			if !field.IsExported() {
-				continue
-			}
-			name := strings.Split(field.Tag.Get("yaml"), ",")[0]
-			switch name {
-			case "-":
-				continue
-			case "":
-				name = strings.ToLower(field.Name)
-			}
-			collectPaths(field.Type, joinFieldPath(path, name), onPath, out)
+		// 键名与 CLI 拒绝未知字段用的是同一份：yamlcheck.KnownFields 已经把
+		// yaml:",inline" 的结构体摊平、排除了 yaml:"-"。按键名排序，结果才稳定。
+		known := yamlcheck.KnownFields(typ)
+		names := make([]string, 0, len(known))
+		for name := range known {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			collectPaths(known[name].Type, joinFieldPath(path, name), onPath, out)
 		}
 
-	case reflect.Slice:
-		if elem := derefType(typ.Elem()); expandable(elem) || elem.Kind() == reflect.Pointer {
+	case reflect.Slice, reflect.Array:
+		if holdsStruct(typ.Elem()) {
 			out.nodes[path] = true
-			collectPaths(elem, path+"[]", onPath, out)
+			collectPaths(typ.Elem(), path+"[]", onPath, out)
 			return
 		}
 		out.leaves[path] = true
 
 	case reflect.Map:
-		if elem := derefType(typ.Elem()); expandable(elem) || elem.Kind() == reflect.Pointer {
+		if holdsStruct(typ.Elem()) {
 			out.nodes[path] = true
-			collectPaths(elem, path+".<key>", onPath, out)
+			collectPaths(typ.Elem(), path+".<key>", onPath, out)
 			return
 		}
 		out.leaves[path] = true

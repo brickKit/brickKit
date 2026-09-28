@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 生成 release 页面的正文（《发布与分发》§5 的 publish 阶段用它）。
+# 生成 release 页面的正文（发布流水线的 publish 阶段用它）。
 #
 # 抽成单独脚本而不是塞进 workflow 的 run 里：里面有反引号和 heredoc，写在 YAML
 # 的块标量里要同时躲开 YAML 缩进、shell 展开和 Markdown 转义三层坑，而且**没法

@@ -555,7 +555,7 @@ func TestPasswordNeverAppearsInDeployment(t *testing.T) {
 }
 
 // ============================================================
-// 声明了 secret: true 的配置项（Spec 2026-09-19 §3.1）
+// 声明了 secret: true 的配置项（提案 §7.4，附录 A6）
 // ============================================================
 
 func secretConfigManifest() *manifest.Manifest {
@@ -630,7 +630,7 @@ func TestUnresolvedSecretConfigIsAnError(t *testing.T) {
 }
 
 // ============================================================
-// existingSecret：引用外部已建好的 Secret（Spec 2026-09-19 §3.2）
+// existingSecret：引用外部已建好的 Secret（K8s 下的 existingSecret 写法）
 // ============================================================
 
 // 组件声明的配置密钥写成 existingSecret 形状：secretKeyRef 指向使用者给的名字与 key，
