@@ -28,8 +28,9 @@ echo "▶ version"
 "$BK" version --log-level off
 
 echo "▶ init"
-# init 在**当前目录**里初始化，不新建子目录——所以先进一个空目录再 init
-"$BK" init smoke-shop --log-level off
+# init <名字> 新建 ./<名字>/ 并在里面生成完整项目
+"$BK" init smoke-shop --no-skills --log-level off
+cd smoke-shop
 
 # init 已经把 components/ 配成了本地安装源 local-dev，按 <scope>/<name> 放进去即可
 # 整份拷过去而不是只拷 component.yaml：manifest 里声明了 openapi.json 这个

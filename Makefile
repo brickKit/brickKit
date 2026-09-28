@@ -127,15 +127,10 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-docs-bilingual check-market-api check-market-mod check-components check-install-sh check-no-binaries check-guide-output check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + 双语镜像 + 市场 API 表 + 市场模块依赖清单 + 测试组件合规 + 安装脚本 + 仓库无二进制 + 教程输出核对 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
-# check-guide-output 2026-09-19 曾移出 lint：当时它的全部用例都核对
-# docs/archive/ 里的输出块，而归档已明确不再要求与 CLI 保持同步（错误文案里
-# 的设计书章节引用被清掉后，这份检查立刻发现了这一点——archive 里的旧文案
-# 永远不会再改，于是永远报"对不上"）。同一天已经整份重写并重新加回来：
-# 现在核对的是 docs/{en,zh}/03-guide/ 教程里的真实输出块（覆盖不需要 Docker /
-# minikube / 市场 / cosign 的"核心层"场景）。2026-09-21 CLI 有了多语言之后，
-# 它改成对 en、zh 各跑一遍、各对各的真实输出（不再要求两棵树抄同一份中文）。
-# 见脚本顶部的说明。
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-docs-bilingual check-market-api check-market-mod check-components check-install-sh check-smoke check-no-binaries check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + 双语镜像 + 市场 API 表 + 市场模块依赖清单 + 测试组件合规 + 安装脚本 + 发布冒烟 + 仓库无二进制 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
+# 教程的输出核对（check-guide-output、check-guides）随旧教程一起撤下：附录 A13
+# 规定 tutorials/ 先只建目录，没有教程可核对。写教程的那一阶段要为 tutorials/
+# 重新建一个逐行核对真实输出的检查（旧脚本在 git 历史里，机制可以照搬）。
 # check-cli-docs 拆成了两个方向：「文档写了不存在的命令/参数」（防伪造）计入
 # 退出码，重新加回 lint；「命令/参数有、文档没写」（详尽性）只打印不计入退出
 # 码——design/试用指南 归档后全仓库没有任何一份"详尽命令参考"活文档，这个
@@ -234,21 +229,12 @@ check-doc-tree: build-cli ## 检查文档里画的 .brickkit/ 目录树与 CLI �
 check-docs-bilingual: ## 检查 docs/en 与 docs/zh 镜像完整、llms.txt 链接不悬空、英文文档里没有中文
 	@python3 scripts/check-docs-bilingual.py
 
-# 两个"真跑"检查的分工：
-#   check-guide-output  docs/{en,zh}/03-guide/ 教程里的输出块必须逐行等于 CLI 真实
-#                       输出——en 对 BRICKKIT_LANG=en 的输出，zh 对 BRICKKIT_LANG=zh
-#                       的输出，各对各的。只覆盖不需要
-#                       Docker / minikube / 市场 / cosign 的"核心层"场景，因此
-#                       能稳定进 lint。
-#   check-guides        分层冒烟：关键步骤跑得通、输出里有该有的关键词。
-#                       要 Docker / minikube 的层缺环境时响亮跳过，因此不进 lint。
-.PHONY: check-guide-output
-check-guide-output: build-cli ## 核对 docs/{en,zh}/03-guide/ 教程的预期输出与 CLI 真实输出逐行一致（en、zh 各对各的语言）
-	@python3 scripts/check-guide-output.py
-
-.PHONY: check-guides
-check-guides: build-cli ## 真跑试用指南里的关键步骤（缺环境的层会响亮跳过）
-	@bash scripts/check-guides.sh
+# 发布前的冒烟（.github/smoke.sh）在发布流水线里对每个平台的产物跑；这里对本机
+# 构建的二进制跑同一份脚本——init / add --local / up --dry-run 的行为一变，
+# 在 lint 里就红，不必等到发版那天。它不需要 Docker。
+.PHONY: check-smoke
+check-smoke: build-cli ## 用本机构建的 brickkit 跑发布冒烟（.github/smoke.sh）
+	@bash .github/smoke.sh "$(BIN)/brickkit" >/dev/null && echo "✅ 发布冒烟通过"
 
 # install.sh 是唯一一条不需要 Go 就能拿到 CLI 的路，而它坏掉的方式最难被发现：
 # 校验和逻辑退化成"永远通过"不会有任何症状。所以这个检查专门把校验和改坏，

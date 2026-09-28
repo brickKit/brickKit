@@ -83,8 +83,8 @@ README for why).
   that language rather than mechanically translated.
 - **A guide or troubleshooting example that shows CLI output must be real
   output**, not what you expect the CLI to print. Run the command, paste
-  what actually came back. `make check-guide-output` verifies this for the
-  hands-on guide series.
+  what actually came back. `make check-doc-fields` checks that every output
+  line in the docs is a line the CLI can really print.
 - **A YAML field shown in a doc must exist on the real struct** — `make
   check-doc-fields` checks this against `component.yaml`/`brickkit.yaml`'s
   actual Go types, not the other way around.
