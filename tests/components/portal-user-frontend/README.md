@@ -75,10 +75,11 @@ location = /healthz {
 
 ## 怎么暴露到宿主机
 
+在 `deploy.yaml` 里这个组件的条目上写（版本号只在 `brickkit.yaml` 里）：
+
 ```yaml
 components:
   - id: portal/user-frontend
-    version: 1.0.0
     expose: true          # → ports: 8080:8080
     exposePort: 18080     # → ports: 18080:8080（可选，仅 Docker 环境）
 ```

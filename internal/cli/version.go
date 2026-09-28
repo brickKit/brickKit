@@ -14,7 +14,7 @@ import (
 //
 //	BrickKit CLI v1.0.0
 //	支持 Manifest 版本：brickkit/v1
-//	支持部署目标：docker, k8s
+//	支持部署目标：docker, podman, k8s
 //
 // "BrickKit CLI %s" 这一行不接 i18n：纯产品名 + 版本号，不含任何语言
 // 相关的词。Short 与 --verbose 的参数说明仍是硬编码中文，留给子项目 2

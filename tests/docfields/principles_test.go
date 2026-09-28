@@ -1,22 +1,22 @@
 // 本文件守着 docs/{en,zh}/06-architecture/05-design-principles.md 与根目录 AGENTS.md /
-// AGENTS.zh.md §4「十二条设计原则」**不漂移**。
+// AGENTS.zh.md §2「核心设计原则」**不漂移**。
 //
 // # 为什么要有它
 //
-// 同一份原则清单现在有两个家：AGENTS.md 是写给 AI 的压缩版（一页表格，一条一行），
-// 01-design-principles.md 是写给人的论证版（每条原则一节：是什么、为什么、代价、拒绝了什么）。
-// 两份内容天然要互相引用，也就天然会分叉——一边新增了第十三条、改了某条的名字，
+// 同一份原则清单现在有两个家：AGENTS.md 是写给 AI 的压缩版（一条一行的编号清单），
+// 05-design-principles.md 是写给人的论证版（每条原则一节：是什么、为什么、代价、拒绝了什么）。
+// 两份内容天然要互相引用，也就天然会分叉——一边新增了第十一条、改了某条的名字，
 // 另一边没人记得跟着改。它不会让任何测试失败，只会让读到不同版本的人对"BrickKit
 // 到底有哪几条原则"得出不同答案。
 //
 // # 判据
 //
-// AGENTS §4 的表格是清单的来源：每行第一列 `**原则名**` 一条。论证版文档里
-// 「十二条原则」那一节下，必须恰好有同样的十二个三级标题——名字逐字相同，顺序相同。
-// 标题带编号，形如 `### 3. 环境无关`：去掉编号后的名字才与 AGENTS 表格逐字对照；
+// AGENTS §2 的编号清单是清单的来源：每行 `N. **原则名**：……` 一条。论证版文档里
+// 「十条原则」那一节下，必须恰好有同样的十个三级标题——名字逐字相同，顺序相同。
+// 标题带编号，形如 `### 3. 所见即所得`：去掉编号后的名字才与 AGENTS 清单逐字对照；
 // 编号本身必须是按出现顺序连续的 1、2、3……——它是给人看的目录，错位了比没有更糟。
 // 英文与中文各自对着自己的 AGENTS 文件比：两个语言树是对等的，不是翻译附属，
-// 原则的措辞在两边本来就不同（"精确优于隐式" / "Explicit over implicit"）。
+// 原则的措辞在两边本来就不同（"显式优于隐式" / "Explicit over implicit"）。
 //
 // 形状上照着 reference_test.go：真相来源是另一份文件本身，不是又抄一份清单；
 // 检测器自己要有一条测试证明两个方向都抓得到，且解析坏了会直接失败而不是给出一个
@@ -35,9 +35,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// principleCount 是 AGENTS §4 里原则的条数。写死它是为了让解析坏掉时失败：
+// principleCount 是 AGENTS §2 里原则的条数。写死它是为了让解析坏掉时失败：
 // 抽出 0 条时，"文档与清单一致"是空真。
-const principleCount = 12
+const principleCount = 10
 
 // principlePairs 是每种语言的一对文件：清单在哪，论证版文档里哪一节放三级标题。
 var principlePairs = []struct {
@@ -45,33 +45,33 @@ var principlePairs = []struct {
 	agents  string
 	section string
 }{
-	{"en", "AGENTS.md", "The twelve principles"},
-	{"zh", "AGENTS.zh.md", "十二条原则"},
+	{"en", "AGENTS.md", "The ten principles"},
+	{"zh", "AGENTS.zh.md", "十条原则"},
 }
 
-// principleRow 匹配 AGENTS §4 表格里的一行：第一列是加粗的原则名。
+// principleItem 匹配 AGENTS §2 清单里的一行：编号之后加粗的是原则名。
 // 表头（Principle / 原则）与分隔行不加粗，所以不会被抽进来。
-var principleRow = regexp.MustCompile(`^\|\s*\*\*(.+?)\*\*\s*\|`)
+var principleItem = regexp.MustCompile(`^\d+\.\s+\*\*(.+?)\*\*`)
 
-// agentsPrinciples 抽出 AGENTS §4 表格里的原则名，按出现顺序。
+// agentsPrinciples 抽出 AGENTS §2 编号清单里的原则名，按出现顺序。
 //
-// AGENTS §4 从 "## 4." 开头的标题起，到下一个 "### " 或 "## " 止——"### 4.1" 的
-// 拒绝清单也是一张表，第一列同样加粗，必须截在它前面。
+// AGENTS §2 从 "## §2" 开头的标题起，到下一个 "## " 止；清单每行形如
+// "1. **大声失败**：……"，取加粗的那段。别的节里也有加粗开头的编号行，不算。
 func agentsPrinciples(markdown string) []string {
 	var out []string
 	inSection := false
 	for _, line := range strings.Split(markdown, "\n") {
 		switch {
-		case strings.HasPrefix(line, "## 4."):
+		case strings.HasPrefix(line, "## §2"):
 			inSection = true
 			continue
-		case inSection && (strings.HasPrefix(line, "### ") || strings.HasPrefix(line, "## ")):
+		case inSection && strings.HasPrefix(line, "## "):
 			return out
 		}
 		if !inSection {
 			continue
 		}
-		if m := principleRow.FindStringSubmatch(line); m != nil {
+		if m := principleItem.FindStringSubmatch(line); m != nil {
 			out = append(out, m[1])
 		}
 	}
@@ -140,19 +140,19 @@ func nameDrift(want, got []string) (missing, extra []string) {
 	return missing, extra
 }
 
-// 论证版文档必须为 AGENTS §4 的每一条原则各写一节，名字与顺序都一致。
+// 论证版文档必须为 AGENTS §2 的每一条原则各写一节，名字与顺序都一致。
 func TestPrinciplesDocMirrorsAgents(t *testing.T) {
 	for _, pair := range principlePairs {
 		agentsBody, err := os.ReadFile(filepath.Join(repoRoot, pair.agents))
 		require.NoError(t, err)
 		want := agentsPrinciples(string(agentsBody))
 		require.Len(t, want, principleCount,
-			"%s 第 4 节抽出了 %d 条原则，应该是 %d——agentsPrinciples 坏了，这条测试的结论不可信",
+			"%s 的原则清单抽出了 %d 条原则，应该是 %d——agentsPrinciples 坏了，这条测试的结论不可信",
 			pair.agents, len(want), principleCount)
 
 		rel := filepath.Join("docs", pair.lang, "06-architecture", "05-design-principles.md")
 		docBody, err := os.ReadFile(filepath.Join(repoRoot, rel))
-		require.NoError(t, err, "%s 不存在：这份文档是 %s 第 4 节十二条原则的论证版", rel, pair.agents)
+		require.NoError(t, err, "%s 不存在：这份文档是 %s 里十条原则的论证版", rel, pair.agents)
 		got, numberingProblems := splitNumbered(docPrinciples(string(docBody), pair.section))
 		for _, problem := range numberingProblems {
 			t.Errorf("%s：%s", rel, problem)
@@ -160,32 +160,31 @@ func TestPrinciplesDocMirrorsAgents(t *testing.T) {
 
 		missing, extra := nameDrift(want, got)
 		for _, name := range missing {
-			t.Errorf("%s：%s 第 4 节有原则「%s」，文档「%s」一节下没有对应的三级标题\n"+
-				"   去掉编号后，标题要与 AGENTS 表格第一列逐字相同", rel, pair.agents, name, pair.section)
+			t.Errorf("%s：%s 的原则清单有「%s」，文档「%s」一节下没有对应的三级标题\n"+
+				"   去掉编号后，标题要与 AGENTS §2 清单里加粗的名字逐字相同", rel, pair.agents, name, pair.section)
 		}
 		for _, name := range extra {
-			t.Errorf("%s：文档「%s」一节下有三级标题「%s」，%s 第 4 节里没有这条原则\n"+
+			t.Errorf("%s：文档「%s」一节下有三级标题「%s」，%s 的原则清单里没有这条原则\n"+
 				"   原则改名了/被删了，或者这个标题不该放在这一节里", rel, pair.section, name, pair.agents)
 		}
 		if len(missing) == 0 && len(extra) == 0 {
-			require.Equal(t, want, got, "%s：十二条原则的顺序要与 %s 第 4 节一致", rel, pair.agents)
+			require.Equal(t, want, got, "%s：十条原则的顺序要与 %s 的原则清单一致", rel, pair.agents)
 		}
 	}
 }
 
-// 检测器自己要能两个方向都抓得到，并且认得出 AGENTS §4.1 那张同样加粗第一列的表——
-// 否则上面那条测试的"全绿"没有意义。
+// 检测器自己要能两个方向都抓得到，并且只认 AGENTS §2 那张编号清单——后面几节里
+// 同样有加粗开头的编号行，不能算进来——否则上面那条测试的"全绿"没有意义。
 func TestPrincipleDriftDetectorCatchesBothDirections(t *testing.T) {
-	agents := "## 4. Principles\n\n" +
-		"| Principle | Explanation |\n| --- | --- |\n" +
-		"| **A** | first |\n| **B** | second |\n\n" +
-		"### 4.1 Things we refuse\n\n" +
-		"| **Not-a-principle** | third |\n"
+	agents := "## §1 Positioning\n\n1. **Not-a-principle**: before the list\n\n" +
+		"## §2 Core design principles (ten)\n\n" +
+		"1. **A**: first\n2. **B**: second\n\n" +
+		"## §3 Three files\n\n1. **Also-not-a-principle**: after the list\n"
 	require.Equal(t, []string{"A", "B"}, agentsPrinciples(agents),
-		"第 4.1 节之后的表格不能算进原则清单")
+		"只有 AGENTS §2 的编号清单算原则")
 
-	doc := "# Title\n\n## Intro\n\n### Z\n\n## The twelve principles\n\n### 1. A\n\n### 2. X\n\n## Next\n\n### Y\n"
-	headings := docPrinciples(doc, "The twelve principles")
+	doc := "# Title\n\n## Intro\n\n### Z\n\n## The ten principles\n\n### 1. A\n\n### 2. X\n\n## Next\n\n### Y\n"
+	headings := docPrinciples(doc, "The ten principles")
 	require.Equal(t, []string{"1. A", "2. X"}, headings, "只认目标那一节下的三级标题")
 	got, problems := splitNumbered(headings)
 	require.Equal(t, []string{"A", "X"}, got, "名字要去掉编号再与清单对照")

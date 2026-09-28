@@ -10,6 +10,9 @@ import (
 	"github.com/brickkit/brickkit/internal/yamlfile"
 )
 
+// Targets 是部署文件的 target 能写的全部值，顺序固定；brickkit version 报的就是它。
+var Targets = []string{TargetDocker, TargetPodman, TargetK8s}
+
 const (
 	TargetDocker = "docker"
 	TargetPodman = "podman"

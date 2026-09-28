@@ -27,6 +27,7 @@ package docfields_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -51,37 +52,42 @@ type docFile struct {
 	body string
 }
 
-// 完整性检查（"每个字段都出现过"）随 design/ 归档一并移除——它的判据依赖一份
-// 详尽的参考文档，而 docs() 只扫几份刻意压缩的一页纸导读（AGENTS.md/
-// AGENTS.zh.md、README.md/README.zh.md），要求它们详尽是不合理的。等价的检查
-// 现在落在真正详尽的那份文档上，见 reference_test.go。
-
-// docs 收集根目录的 AGENTS.md/AGENTS.zh.md 与 README.md/README.zh.md。
+// docs 收集所有现行的 markdown 页：仓库里跟踪的，加上还没 git add、但没被忽略的新页
+// （新写的一页暂存之前也要被检查到）。名字是相对仓库根的路径，报错时照着就能找到。
 //
-// AGENTS.zh.md、README.zh.md 各自与英文版内容对等（不是翻译附属），YAML
-// 骨架逐字相同，一并扫描能防止两份文件里的骨架悄悄改出分叉。
-//
-// design/ 已归档为历史记录，不再参与"文档跟不跟得上 CLI"的验证——继续验证
-// 一份承诺不再更新的文档没有意义。教程也不在其中：那里的 YAML 多是
-// "改这一行"的片段，本来就不会被认成三种文件之一（见 candidates）。
+// 归档（archive/）、规划（docs/superpowers/、.superpowers/）与提案（new_plan/）不在其中：
+// 那里的 YAML 可以是旧的，也可以是还没实现的。CHANGELOG 记的是历史，同样不查。
+// 片段式的 YAML（"改这一行"）多半认不成三种文件之一，本来就不会被检查（见 candidates）。
 func docs(t *testing.T) []docFile {
 	t.Helper()
 
-	var out []docFile
-	paths := []string{
-		filepath.Join(repoRoot, "AGENTS.md"),
-		filepath.Join(repoRoot, "AGENTS.zh.md"),
-		filepath.Join(repoRoot, "README.md"),
-		filepath.Join(repoRoot, "README.zh.md"),
-	}
+	cmd := exec.Command("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "*.md")
+	cmd.Dir = repoRoot
+	listing, err := cmd.Output()
+	require.NoError(t, err)
 
-	for _, path := range paths {
-		body, err := os.ReadFile(path)
-		require.NoError(t, err)
-		out = append(out, docFile{name: filepath.Base(path), body: string(body)})
+	var out []docFile
+	for _, rel := range strings.Split(string(listing), "\x00") {
+		if rel == "" || rel == "CHANGELOG.md" || hasAnyPrefix(rel, "archive/", "docs/superpowers/", ".superpowers/", "new_plan/") {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(repoRoot, rel))
+		if err != nil {
+			continue // 列出来之后被删了
+		}
+		out = append(out, docFile{name: rel, body: string(body)})
 	}
 	require.NotEmpty(t, out)
 	return out
+}
+
+func hasAnyPrefix(s string, prefixes ...string) bool {
+	for _, p := range prefixes {
+		if strings.HasPrefix(s, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // yamlBlock 是文档里一段 ```yaml 代码块。

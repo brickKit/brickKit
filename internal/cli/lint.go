@@ -12,7 +12,7 @@ package cli
 //
 // 不做的事：不解析依赖图、不核对外壳与成员跟它们的 component.yaml 是否一致（那要取
 // Manifest，可能联网，留给 up / graph）、不校验 configSchema 里 enum / minimum 对应的值
-// （AGENTS.md §9.12：configSchema 是说明书，不是安全闸）。
+// （configSchema 是说明书，不是安全闸，见 docs/{en,zh}/11-reference/04-config-schema-spec.md）。
 
 import (
 	"os"

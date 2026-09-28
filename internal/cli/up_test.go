@@ -514,7 +514,7 @@ func TestUpIgnoreShellsPrintsBanner(t *testing.T) {
 }
 
 // 这是一次内存里的验证运行，不是持久化配置的方式——brickkit.yaml 本身
-// 一个字节都不该变（AGENTS.md §9.9：配置即真相，不搞临时覆盖落盘）。
+// 一个字节都不该变（AGENTS.md §2「所见即所得」：不搞临时覆盖落盘）。
 func TestUpIgnoreShellsDoesNotModifyConfigFile(t *testing.T) {
 	f := servedByProject(t)
 	before, err := os.ReadFile(filepath.Join(f.Dir, "brickkit.yaml"))

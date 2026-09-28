@@ -42,7 +42,7 @@ func varValueSchema() schema {
 
 // componentDepSchema：依赖项有两种写法（见 manifest.ComponentDep.UnmarshalYAML）——
 // 字符串 department/tree@1.0.0，或映射 {id, optional}。版本必须精确：不接受 ^ ~ 范围
-// （AGENTS §9.2），与 manifest.Validate 一致。
+// （精确版本，AGENTS.md §2「显式优于隐式」），与 manifest.Validate 一致。
 //
 // 组件 ID 的细则（全小写、字符集、63 字符的长度上限，见 manifest.componentIDProblem）不放进来：
 // 长度没法用一个 pattern 表达，只抄一半反而多出一处要同步的真相；而 schema 宁可松也不能比校验器

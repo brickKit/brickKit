@@ -120,14 +120,14 @@ type ConfigProperty struct {
 	Enum        []any    `yaml:"enum,omitempty"`
 	Items       *ItemDef `yaml:"items,omitempty"`
 	// Minimum、Maximum、Pattern 与 Enum、Items 同属说明书上的一栏：被解析、存下来，
-	// 没有任何代码拿它们去核对使用者填的值（AGENTS.md §9.12）。
+	// 没有任何代码拿它们去核对使用者填的值（docs/{en,zh}/11-reference/04-config-schema-spec.md）。
 	Minimum *float64 `yaml:"minimum,omitempty"`
 	Maximum *float64 `yaml:"maximum,omitempty"`
 	Pattern string   `yaml:"pattern,omitempty"`
 	// Secret 声明这一项的值是凭据（API 密钥、令牌……）。
 	//
 	// 它和 Enum、Pattern 一样是说明书上的一栏：平台不用它校验任何值、不拒绝任何输入
-	// （AGENTS.md §9.12）。不同的是它决定**值写到哪里**——K8s 目标下这一项进平台生成的
+	// （docs/{en,zh}/11-reference/04-config-schema-spec.md）。不同的是它决定**值写到哪里**——K8s 目标下这一项进平台生成的
 	// Secret，Deployment 里只留 secretKeyRef，而不是把值明文写进 env。
 	//
 	// 是不是凭据只有组件作者最清楚，所以由 Manifest 声明，平台不按名字去猜
@@ -137,7 +137,7 @@ type ConfigProperty struct {
 
 // ItemDef 描述数组类型配置项的元素类型。
 //
-// Type 没写 omitempty，可是并不必填：校验器从不检查 items.type（items 只是说明书，AGENTS.md §9.12），
+// Type 没写 omitempty，可是并不必填：校验器从不检查 items.type（items 只是说明书），
 // 所以用 jsonschema:"optional" 把它挪出 JSON Schema 的 required（见 internal/schemagen）。
 type ItemDef struct {
 	Type string `yaml:"type" jsonschema:"optional"`

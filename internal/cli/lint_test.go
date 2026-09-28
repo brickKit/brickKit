@@ -17,7 +17,7 @@ import (
 )
 
 // runWithLogs 把日志级别打开再执行：错误码只出现在 stderr 的 JSON 日志行里
-// （❌ 块本身不带码，AGENTS §10），而 runIn 默认把日志关了。
+// （❌ 块本身不带码，错误码只在 stderr 的 JSON 日志里），而 runIn 默认把日志关了。
 func runWithLogs(t *testing.T, dir string, args ...string) result {
 	t.Helper()
 	return runWith(t, func(o *Options) { o.LogLevel = logging.LevelInfo }, dir, args...)

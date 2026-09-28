@@ -23,7 +23,7 @@ import (
 )
 
 // addedProject（remove_test.go）只用 `add`（不带 --repo）搭项目：只拉 Manifest
-// 缓存，从不往 components/ 下写源码目录（AGENTS.md §2.3：add 默认不 clone 源码）。
+// 缓存，从不往 components/ 下写源码目录（add 默认不 clone 源码）。
 // 所以这条测试不需要任何"删掉源码目录"的步骤——它天然就不存在。
 func TestUpModeLocalWithoutSourceDirectoryIsAnError(t *testing.T) {
 	// 从 git 源装的组件没有 --repo 克隆时，本地没有它的仓库，mode: local 无从启动

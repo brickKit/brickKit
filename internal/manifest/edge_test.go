@@ -422,7 +422,7 @@ configSchema:
 }
 
 // 声明的范围与模式**从不被执行**：默认值越界、范围自相矛盾、模式不是合法正则，
-// 都照样通过。configSchema 是说明书，不是安检机（AGENTS.md §9.12）——这条测试
+// 都照样通过。configSchema 是说明书，不是安检机（docs/{en,zh}/11-reference/04-config-schema-spec.md）——这条测试
 // 钉住的是这个立场，防止有人出于好意在这里加一道校验。
 func TestConfigSchemaBoundsAndPatternAreNeverEnforced(t *testing.T) {
 	_, err := Parse([]byte(minimalYAML+`

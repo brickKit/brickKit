@@ -46,6 +46,9 @@ def check_mirror():
 
 LLMS_TXT_FILES = ["llms.txt", "llms.zh.txt"]
 
+# 带 raw 链接的文件：llms 两份是纯索引；AGENTS 两份的文档树索引一节同样是给 AI 顺着抓取的。
+RAW_LINK_FILES = LLMS_TXT_FILES + ["AGENTS.md", "AGENTS.zh.md"]
+
 HAN = re.compile(r"[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]")
 
 # ENGLISH_DOCS_ALLOW：允许出现中文的位置。key 是 (相对路径, 那一行里的一段文字)，value 是理由。
@@ -129,7 +132,7 @@ def check_mirror_detects_gap():
 def check_llms_txt_links():
     prefix = "https://raw.githubusercontent.com/brickKit/brickKit/main/"
     bad = []
-    for name in LLMS_TXT_FILES:
+    for name in RAW_LINK_FILES:
         text = open(os.path.join(ROOT, name), encoding="utf-8").read()
         for m in re.finditer(r"\[([^\]]+)\]\((" + re.escape(prefix) + r"[^)]+)\)", text):
             url = m.group(2)

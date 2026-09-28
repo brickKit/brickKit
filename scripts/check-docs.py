@@ -37,6 +37,7 @@ import os
 import re
 import subprocess
 import sys
+import unicodedata
 import urllib.parse
 
 SPEC = "new_plan/提案.md"
@@ -79,7 +80,7 @@ ARCHIVED_REF_ALLOW = {
 # 逗号后面的普通数字（"提案 §6.2, 2026-09-28"）不是编号：只认紧跟在 § 后面的。
 SECTION_TOKEN = re.compile(
     r"(?P<owner>提案|附录\s*A\d+|AGENTS\.zh(?:\.md)?|AGENTS(?:\.md)?|RFC\s*\d+)"
-    r"|§\s*(?P<sec>\d+(?:\.\d+)*)(?:\s*–\s*(?P<to>\d+(?:\.\d+)*))?")
+    r"|(?P<heading>#+\s*)?§\s*(?P<sec>\d+(?:\.\d+)*)(?:\s*–\s*(?P<to>\d+(?:\.\d+)*))?")
 
 # 这些文件里没写文档名的 § 是自己的小节，不算无主。
 SELF_SECTIONED = ("docs/", "tutorials/")
@@ -139,7 +140,7 @@ def heading_numbers(lines):
     """markdown 里带编号的小节：标题（## 4.、### 9.24）与加粗编号的条目（**9.12 Why …**）。"""
     out = set()
     for line in lines:
-        m = re.match(r"#{2,6}\s+(\d+(?:\.\d+)*)\.?\s", line) or re.match(r"\*\*(\d+(?:\.\d+)+)\.?\s", line)
+        m = re.match(r"#{2,6}\s+§?(\d+(?:\.\d+)*)\.?\s", line) or re.match(r"\*\*(\d+(?:\.\d+)+)\.?\s", line)
         if m:
             out.add(m.group(1))
     return out
@@ -162,6 +163,8 @@ def section_refs(line):
     for m in SECTION_TOKEN.finditer(line):
         if m.group("owner"):
             owner = owner_kind(m.group("owner"))
+            continue
+        if m.group("heading"):  # "## §2 …" 是标题本身（比如测试里的 markdown 样例），不是引用
             continue
         out.append((owner, m.group("sec")))
         if m.group("to"):
@@ -212,15 +215,23 @@ def self_check(sections, decisions):
     got = section_refs("提案 §9.3、§9.6 与 提案 §8.1 规则 2、§8.9.4、§6.2–6.6, 2026-09-28")
     if got != [("spec", n) for n in ("9.3", "9.6", "8.1", "8.9.4", "6.2", "6.6")]:
         problems.append(f"规范引用解析错了：{got}")
-    got = section_refs("见 §5.10；AGENTS.md §9.12、AGENTS.zh.md §4；RFC 8725 §3.5")
+    got = section_refs('见 §5.10；AGENTS.md §9.12、AGENTS.zh.md §4；RFC 8725 §3.5；"## §2 Core"')
     if got != [(None, "5.10"), ("AGENTS.md", "9.12"), ("AGENTS.zh.md", "4"), ("external", "3.5")]:
         problems.append(f"小节引用的归属错了：{got}")
     got = appendix_numbers("附录 A1、A16，以及附录 A24")
     if got != ["1", "16", "24"]:
         problems.append(f"附录引用解析错了：{got}")
-    got = heading_numbers(["## 4. Twelve principles", "### 9.24 Summary", "**9.12 Why not …**", "**Bold** text"])
-    if got != {"4", "9.24", "9.12"}:
+    got = heading_numbers(["## 4. Twelve principles", "### 9.24 Summary", "**9.12 Why not …**", "**Bold** text",
+                           "## §2 核心设计原则（十条）", "### 3.1 文件检索地图"])
+    if got != {"4", "9.24", "9.12", "2", "3.1"}:
         problems.append(f"小节编号解析错了：{got}")
+    # 链接里的 #锚点：按 GitHub 的规则从标题算出来（中文保留、标点去掉、重名加 -1）
+    sample = ["# 标题", "## 三层架构（核心）", "## `brickkit add <id>[@ver]`", "## 三层架构（核心）",
+              "```", "## 代码块里的不是标题", "```", '<a id="custom-anchor"></a>', "## Mode: `debug` & Local"]
+    got = anchors_of(sample)
+    want = {"标题", "三层架构核心", "brickkit-add-idver", "三层架构核心-1", "custom-anchor", "mode-debug--local"}
+    if got != want:
+        problems.append(f"锚点算错了：多了 {sorted(got - want)}，少了 {sorted(want - got)}")
     # 文档路径：两种写法都要取到，{en,zh} 要展开成两份
     got = doc_paths("见 docs/{en,zh}/11-reference/06-market-api.md 与 docs/zh/x/y.md（英文版把 zh 换成 en）")
     if got != ["docs/en/11-reference/06-market-api.md", "docs/zh/11-reference/06-market-api.md", "docs/zh/x/y.md"]:
@@ -319,13 +330,54 @@ def check_section_refs(files, sections, decisions):
     return bad
 
 
+def github_slug(text):
+    """GitHub 给标题生成锚点的规则：去掉 markdown 记号，转小写，只留字母（含中文）、
+    数字、下划线、连字符和空格，再把空格换成连字符。"""
+    text = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", text)  # 链接与图片只留文字
+    text = text.lower()
+    kept = "".join(c for c in text
+                   if unicodedata.category(c)[0] in "LMN" or c in "-_ ")
+    return kept.replace(" ", "-")
+
+
+def anchors_of(lines):
+    """一份 markdown 里所有可以链接的锚点：每个标题（重名的依次加 -1、-2），
+    以及手写的 <a id="…"> / <a name="…">。代码块里的 # 不是标题。"""
+    out, seen, fenced = set(), {}, False
+    for line in lines:
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        for m in re.finditer(r'<a\s+(?:id|name)="([^"]+)"', line):
+            out.add(m.group(1))
+        m = re.match(r"^(#{1,6})\s+(.*?)\s*#*\s*$", line)
+        if not m:
+            continue
+        slug = github_slug(m.group(2))
+        n = seen.get(slug, 0)
+        seen[slug] = n + 1
+        out.add(slug if n == 0 else f"{slug}-{n}")
+    return out
+
+
+_anchor_cache = {}
+
+
+def anchor_exists(path, fragment):
+    if path not in _anchor_cache:
+        _anchor_cache[path] = anchors_of(read_lines(path) or [])
+    return urllib.parse.unquote(fragment).lower() in _anchor_cache[path]
+
+
 def link_exists(path, href):
     target = urllib.parse.unquote(href.split("#")[0])
     return os.path.exists(os.path.normpath(os.path.join(os.path.dirname(path), target)))
 
 
 def check_links(files):
-    """③ 现行 markdown 的断链。"""
+    """③ 现行 markdown 的断链：目标文件不存在，或 #锚点 在目标文件里不存在。"""
     bad = []
     for path in files:
         if not path.endswith(".md"):
@@ -337,12 +389,19 @@ def check_links(files):
             # 行内代码不是链接：`[a-z0-9]([a-z0-9-]*[a-z0-9])?` 这类正则文本长得像 [文字](目标)
             line = re.sub(r"`[^`]*`", "", line)
             for _, href in re.findall(r"\[([^\]]*)\]\(([^)\s]+)\)", line):
-                if href.startswith(("http", "#", "mailto")):
+                if href.startswith(("http", "mailto")):
                     continue
-                if not href.split("#")[0]:
-                    continue
-                if not link_exists(path, href):
-                    bad.append((path, i, href))
+                target, _, fragment = href.partition("#")
+                if target:
+                    if not link_exists(path, target):
+                        bad.append((path, i, href))
+                        continue
+                    target_path = os.path.normpath(os.path.join(os.path.dirname(path), urllib.parse.unquote(target)))
+                else:
+                    target_path = path
+                # 只有 markdown 才有标题锚点；目录、图片等不查
+                if fragment and target_path.endswith(".md") and not anchor_exists(target_path, fragment):
+                    bad.append((path, i, f"{href}（锚点不存在）"))
     return bad
 
 

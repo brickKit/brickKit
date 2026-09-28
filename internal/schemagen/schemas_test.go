@@ -605,7 +605,7 @@ func TestBoolFieldsAreDeclaredButNotRequired(t *testing.T) {
 	}
 }
 
-// ItemDef 没写 omitempty，可是校验器从不检查 items.type（AGENTS §9.12：items 只是说明书），
+// ItemDef 没写 omitempty，可是校验器从不检查 items.type（items 只是说明书），
 // 所以它靠 jsonschema:"optional" 挪出了必填。
 func TestConfigItemsTypeIsOptional(t *testing.T) {
 	node, ok := indexSchema(t, "component")["configSchema/properties{}/items"]

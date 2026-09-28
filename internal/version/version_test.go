@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/brickkit/brickkit/internal/deployfile"
 )
 
 func TestManifestAPIVersion(t *testing.T) {
@@ -11,10 +13,11 @@ func TestManifestAPIVersion(t *testing.T) {
 	assert.Equal(t, "brickkit/v1", ManifestAPIVersion)
 }
 
-func TestDeployTargets(t *testing.T) {
-	// 部署目标只有 docker 与 k8s 两种。
-	assert.Equal(t, []string{"docker", "k8s"}, DeployTargets)
-	assert.Equal(t, "docker, k8s", SupportedTargets())
+// brickkit version 报的部署目标，必须正好是部署文件的 target 能写的那几种——
+// 从前这里只写了 docker、k8s，而 deploy.yaml 早就接受 target: podman。
+func TestDeployTargetsMatchWhatDeployFilesAccept(t *testing.T) {
+	assert.Equal(t, deployfile.Targets, DeployTargets)
+	assert.Equal(t, "docker, podman, k8s", SupportedTargets())
 }
 
 // 版本号输出格式为 "v1.0.0"，已带 v 前缀时不重复添加。

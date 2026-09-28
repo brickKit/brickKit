@@ -212,7 +212,7 @@ func TestValidateRequiresImageForTheMarket(t *testing.T) {
 	assert.Contains(t, problems[0].Reason, "git")
 }
 
-// AGENTS §5.2：配置项撞上保留变量，CLI 注入时警告并跳过，市场发布时直接拒收。
+// 配置项撞上保留变量（docs/{en,zh}/06-architecture/03-env-injection-contract.md），CLI 注入时警告并跳过，市场发布时直接拒收。
 func TestValidateRefusesReservedKey(t *testing.T) {
 	raw := manifestJSON(t, map[string]any{
 		"configSchema": map[string]any{

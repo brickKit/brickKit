@@ -1,6 +1,7 @@
 package deployfile
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
@@ -29,11 +30,10 @@ func (f *File) Validate(role Role) ([]*clierr.Error, error) {
 }
 
 func (f *File) validateTarget(p *clierr.ProblemSet) {
-	switch f.Target {
-	case "":
+	switch {
+	case f.Target == "":
 		p.Missing("target")
-	case TargetDocker, TargetPodman, TargetK8s:
-	default:
+	case !slices.Contains(Targets, f.Target):
 		p.Add("target", i18n.T(msgid.ProblemMustBeOneOfThree, TargetDocker, TargetPodman, TargetK8s, f.Target))
 	}
 }

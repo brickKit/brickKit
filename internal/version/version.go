@@ -17,8 +17,9 @@ var (
 // ManifestAPIVersion 是 CLI 支持的 component.yaml apiVersion。
 const ManifestAPIVersion = "brickkit/v1"
 
-// DeployTargets 是 CLI 支持的部署目标。
-var DeployTargets = []string{"docker", "k8s"}
+// DeployTargets 是 CLI 支持的部署目标：部署文件的 target 能写的全部值
+// （与 deployfile.Targets 一致，由测试守着——version 是叶子包，不反过来依赖它）。
+var DeployTargets = []string{"docker", "podman", "k8s"}
 
 // SupportedTargets 返回逗号分隔的部署目标列表。
 func SupportedTargets() string {

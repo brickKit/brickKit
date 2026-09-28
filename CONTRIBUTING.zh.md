@@ -4,7 +4,7 @@
 
 ## 动手之前先看这个
 
-先扫一遍 [AGENTS.md](AGENTS.zh.md)——它把整个平台的理念、术语、十二条设计原则压缩进了一个文件，包括一份明确的"平台刻意不做的事"清单（§4.1）和每一条的论证（§9）。很多"为什么不干脆……"的问题其实已经有答案了。如果你的改动会往这份拒绝清单里加东西，先开一个 issue 把道理讲清楚，再动手写代码——大概率是要先推翻二十三条论证里的某一条，而不只是加个功能。
+先扫一遍 [AGENTS.zh.md](AGENTS.zh.md)——它把整个平台的三层文件、十条设计原则、命令集压缩进了一个文件，包括一份明确的"平台刻意不做的事"清单（AGENTS.zh.md §6）；每条原则的论证在[设计原则与取舍](docs/zh/06-architecture/05-design-principles.md)。很多"为什么不干脆……"的问题其实已经有答案了。如果你的改动会往这份清单里加东西，先开一个 issue 把道理讲清楚，再动手写代码——大概率是要先推翻某一条原则的论证，而不只是加个功能。
 
 ## 构建与跑测试
 
@@ -19,9 +19,9 @@ make lint             # vet + 全部文档一致性检查
 
 `make lint` 如果检测到装了 `golangci-lint` 就会跑它（`make tools-lint` 会把它装到 `.tools/bin`；仓库没有自己的 `.golangci.yml`，用的就是 golangci-lint v2 的默认规则集），没装就退回 `go vet`。开 PR 之前建议装上——光靠 `go vet` 抓不到 golangci-lint 能抓到的那些问题。
 
-`make lint` 还会跑一组文档一致性脚本（`scripts/check-*.py`）——悬空的小节引用、断链、文档里写的命令/参数其实不存在、文档画的 YAML 字段名和真实结构体对不上、docs/en↔docs/zh 镜像，还有几个别的（完整列表和每一条守住什么，见 README 的["构建与测试"](README.zh.md#构建与测试)一节）。这些不是摆设——好几条的存在就是因为某次改动破坏了一些测试套件根本没法察觉的东西：改名的参数、过期的示例、曾经指向真实位置、后来指向空处的链接。
+`make lint` 还会跑一组文档一致性脚本（`scripts/check-*.py`）——指向归档的引用、悬空或没写文档名的小节引用、断链与断掉的锚点、文档里写的命令/参数其实不存在、命令参考没写全、文档画的 YAML 字段名和真实结构体对不上、docs/zh↔docs/en 镜像，还有几个别的（完整列表和每一条守住什么，见 README 的["构建与测试"](README.zh.md#构建与测试)一节）。这些不是摆设——好几条的存在就是因为某次改动破坏了一些测试套件根本没法察觉的东西：改名的参数、过期的示例、曾经指向真实位置、后来指向空处的链接。
 
-`make lint` 还守着 `schemas/` 里的 JSON Schema（`schemas/component.schema.json`、`schemas/brickkit.schema.json`——编辑器用它们给 `component.yaml` 和 `brickkit.yaml` 做补全与检查）。它们是从 `internal/manifest` 与 `internal/config` 的 Go 结构体生成出来的，从不手改。**只要你在那里新增、删除或改了某个字段的类型，或者动了它的 `omitempty`、某个 `jsonschema` tag，就要跑 `make generate-schemas`，把重新生成的文件和你的改动一起提交**——否则 `make check-schemas`（`make lint` 的一部分）会失败。这道检查还会拿真实的校验器去核对 schema 里的必填字段、封闭取值、正则和范围，所以 `jsonschema` tag 不会悄悄和 `Validate` 脱节。
+`make lint` 还守着 `schemas/` 里的 JSON Schema（`schemas/component.schema.json`、`schemas/brickkit.schema.json`、`schemas/deploy.schema.json`——编辑器用它们给 `component.yaml`、`brickkit.yaml` 和部署文件做补全与检查）。它们是从 `internal/manifest`、`internal/projfile` 与 `internal/deployfile` 的 Go 结构体生成出来的，从不手改。**只要你在那里新增、删除或改了某个字段的类型，或者动了它的 `omitempty`、某个 `jsonschema` tag，就要跑 `make generate-schemas`，把重新生成的文件和你的改动一起提交**——否则 `make check-schemas`（`make lint` 的一部分）会失败。这道检查还会拿真实的校验器去核对 schema 里的必填字段、封闭取值、正则和范围，所以 `jsonschema` tag 不会悄悄和 `Validate` 脱节。
 
 ## 测试放在哪
 
@@ -31,9 +31,9 @@ make lint             # vet + 全部文档一致性检查
 
 ## 文档规范
 
-- **`docs/en/` 和 `docs/zh/` 是两棵独立撰写、彼此对称的目录树**——不是一份原文配翻译。你在其中一棵改了或加了文档，另一棵在相同相对路径下也要有对应文件（`make check-docs-bilingual` 会守这条），而且要用那门语言自然地写，不是机械翻译过去。
+- **`docs/zh/` 和 `docs/en/` 是两棵独立撰写、彼此对称的目录树**——不是一份原文配翻译。你在其中一棵改了或加了文档，另一棵在相同相对路径下也要有对应文件（`make check-docs-bilingual` 会守这条），而且要用那门语言自然地写，不是机械翻译过去。
 - **教程或故障排除文档里展示的 CLI 输出必须是真实输出**，不是你以为 CLI 会打印的样子。真的跑一遍命令，把跑出来的东西贴进去。`make check-doc-fields` 会核对文档里的每一行输出都是 CLI 真能打印出来的那一行。
-- **文档里画的 YAML 字段必须在真实结构体里存在**——`make check-doc-fields` 拿 `component.yaml`/`brickkit.yaml` 真实的 Go 类型去反查文档，而不是反过来。
+- **文档里画的 YAML 字段必须在真实结构体里存在**——`make check-doc-fields` 拿 `component.yaml`/`brickkit.yaml`/部署文件真实的 Go 类型去反查文档，而不是反过来；字段参考（`docs/*/11-reference/`）还必须把每个字段都写到。
 - 如果你改了 `AGENTS.md`/`AGENTS.zh.md`，保证两份内容真的对等——它们各自独立撰写，不是互译关系，但该覆盖的内容要覆盖到。
 
 ## 提交信息和分支
@@ -44,4 +44,4 @@ make lint             # vet + 全部文档一致性检查
 
 ## 报 bug 或提功能请求
 
-开一个 GitHub issue。报 bug 的话，CLI 自己的输出通常就够用了大半——`brickkit` 把结构化 JSON 日志写到 stderr（`--log-level debug` 看更多细节），人类可读的输出写到 stdout；把这两部分连同你的 `brickkit.yaml` 和相关组件的 `component.yaml` 一起贴出来，能省一轮来回。提一个不在[拒绝清单](AGENTS.zh.md#41-平台明确不做的事拒绝清单)上的功能请求时，讲清楚你要解决的问题，而不只是你想好的实现方式——新机制要过的门槛见["十二条设计原则"](AGENTS.zh.md#4-十二条设计原则理念内核)。
+开一个 GitHub issue。报 bug 的话，CLI 自己的输出通常就够用了大半——`brickkit` 把结构化 JSON 日志写到 stderr（`--log-level debug` 看更多细节），人类可读的输出写到 stdout；把这两部分连同你的 `brickkit.yaml`、部署文件和相关组件的 `component.yaml` 一起贴出来（`config/` 里的密钥记得先抹掉），能省一轮来回。提一个不在["不做"清单](AGENTS.zh.md#6-不做清单)上的功能请求时，讲清楚你要解决的问题，而不只是你想好的实现方式——新机制要过的门槛见["十条设计原则"](AGENTS.zh.md#2-核心设计原则十条)。

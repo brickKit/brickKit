@@ -1,6 +1,7 @@
 package docfields_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,4 +36,21 @@ func TestSkeletonKeepsCheckingBrickkitYAML(t *testing.T) {
 	checked, _, problems = skeletonProblems("sources:\n  - name: local-dev\n    typo: local\n")
 	assert.True(t, checked)
 	assert.NotEmpty(t, problems, "sources 里写错的字段必须被抓到")
+}
+
+// 骨架检查扫的是**所有**现行文档页：参考、指南、排障里的 YAML 同样是给人照抄的。
+// 归档、规划与提案目录不在其中——那里的 YAML 可以是旧的，也可以是还没实现的。
+func TestDocsCoversEveryLiveMarkdownPage(t *testing.T) {
+	names := map[string]bool{}
+	for _, d := range docs(t) {
+		names[d.name] = true
+	}
+	for _, want := range []string{"AGENTS.md", "README.zh.md", "docs/zh/11-reference/06-market-api.md", "tests/components/people-basic/README.md"} {
+		assert.True(t, names[want], "缺 %s", want)
+	}
+	for name := range names {
+		for _, prefix := range []string{"archive/", "docs/superpowers/", "new_plan/"} {
+			assert.False(t, strings.HasPrefix(name, prefix), "不该扫 %s", name)
+		}
+	}
 }

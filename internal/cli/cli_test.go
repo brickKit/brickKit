@@ -63,7 +63,7 @@ func TestVersionCommand(t *testing.T) {
 	assert.Equal(t, clierr.ExitOK, r.code)
 	assert.Contains(t, r.stdout, "BrickKit CLI v")
 	assert.Contains(t, r.stdout, "Supported Manifest version: brickkit/v1")
-	assert.Contains(t, r.stdout, "Supported deploy targets: docker, k8s")
+	assert.Contains(t, r.stdout, "Supported deploy targets: docker, podman, k8s")
 }
 
 func TestVersionVerboseAddsBuildInfo(t *testing.T) {

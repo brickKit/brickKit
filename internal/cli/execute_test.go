@@ -43,5 +43,5 @@ func TestExecuteReadsOSArgs(t *testing.T) {
 
 	assert.Equal(t, clierr.ExitOK, code)
 	assert.Contains(t, string(out), "BrickKit CLI v")
-	assert.Contains(t, string(out), "Supported deploy targets: docker, k8s")
+	assert.Contains(t, string(out), "Supported deploy targets: docker, podman, k8s")
 }
