@@ -845,3 +845,33 @@ func TestPublishResumesWithTheSameDoc(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Equal(t, "stable", market.storedStatus)
 }
+
+// 旧市场不认识 doc 字段、悄悄丢掉：发布照常完成，但要明说文档没发上去——
+// 不然作者以为调用方读得到，调用方却什么也拿不到。
+func TestPublishWarnsWhenTheMarketDropsTheDoc(t *testing.T) {
+	m := newFakeMarket(t)
+	m.dropsDoc = true
+	f := newMarketProject(t, m, "")
+	loginTo(t, f, m)
+	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
+	writeTree(t, root, map[string]string{"BRICKKIT.md": "# people/basic\n"})
+
+	r := runIn(t, f.Dir, "publish", "--path", root)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "did not keep BRICKKIT.md")
+}
+
+// 市场存下了：不多嘴。
+func TestPublishIsQuietWhenTheMarketKeepsTheDoc(t *testing.T) {
+	m := newFakeMarket(t)
+	f := newMarketProject(t, m, "")
+	loginTo(t, f, m)
+	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
+	writeTree(t, root, map[string]string{"BRICKKIT.md": "# people/basic\n"})
+
+	r := runIn(t, f.Dir, "publish", "--path", root)
+
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "did not keep")
+}

@@ -225,10 +225,11 @@ A version left at `draft` can't be installed. If a publish fails halfway, run `b
 - On success, the body is the file itself with `Content-Type: text/markdown; charset=utf-8`. It is **not** wrapped in the envelope; it is a file.
 - A version published without a doc answers `404` with code `NOT_FOUND`, in the usual JSON envelope. Every version published before the market supported docs answers this way.
 - Who may read it, and which versions they see, follows exactly the rules of `/manifest`.
+- A market that predates this endpoint ignores `doc` in the publish request and answers 404 on `/doc`. `brickkit publish` checks after creating the version and says so when the doc wasn't kept; the version is published anyway, just without its doc.
 
 `BRICKKIT.md` is what a component tells its callers: how to call it, how to configure it, what to watch out for. It is written for people and for AI assistants alike. When `brickkit add` or `fetch` gets a Manifest, it gets the doc too and caches it at `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md`, the same as for local and git sources. A missing doc is not an error; the component installs and runs as usual.
 
-**The doc is not signed.** The signature protects what gets executed: the Manifest decides what is deployed, what is injected and which migration runs, and the image is the code that runs. The doc is explanatory text; changing it changes nothing that runs. The worst a compromised market can do with it is mislead a reader, not alter a deployment. Signing the doc would mean burning a new version number to fix a typo.
+**The doc is not signed.** The signature protects what gets executed: the Manifest decides what is deployed, what is injected and which migration runs, and the image is the code that runs. The doc is explanatory text; changing it changes nothing that runs. The worst a compromised market can do with it is mislead a reader, not alter a deployment.
 
 ## Endpoints that deliberately don't exist
 

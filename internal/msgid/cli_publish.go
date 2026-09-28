@@ -37,6 +37,7 @@ const (
 	CliPublishMakeSureTheFileHas                          = "cli.publish.make_sure_the_file_has"
 	CliPublishImageReferenceIsValid                       = "cli.publish.image_reference_is_valid"
 	CliPublishDocIncluded                                 = "cli.publish.doc_included"
+	CliPublishDocNotKept                                  = "cli.publish.doc_not_kept"
 	CliPublishDocCannotBePublished                        = "cli.publish.doc_cannot_be_published"
 	CliPublishDocTooLarge                                 = "cli.publish.doc_too_large"
 	CliPublishDocNotUTF8                                  = "cli.publish.doc_not_utf8"

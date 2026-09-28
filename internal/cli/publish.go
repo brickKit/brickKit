@@ -313,6 +313,8 @@ func uploadRelease(
 		opts.Printf("%s\n", i18n.T(msgid.CliPublishResumingThisVersionWasCreated))
 	case err != nil:
 		return err
+	default:
+		warnIfDocDropped(ctx, opts, client, pkg)
 	}
 
 	if len(pkg.fileOrder) > 0 {
@@ -403,6 +405,17 @@ func resumable(ctx context.Context, client *market.Client, pkg *publishPackage) 
 			)
 	}
 	return nil
+}
+
+// warnIfDocDropped 核实市场真的存下了 BRICKKIT.md。早于组件文档功能的市场不认识 doc 字段，
+// 会悄悄丢掉它：版本照常发布，而作者以为调用方读得到。核实本身失败（网络抖动）不影响发布。
+func warnIfDocDropped(ctx context.Context, opts *Options, client *market.Client, pkg *publishPackage) {
+	if pkg.doc == "" {
+		return
+	}
+	if _, found, err := client.FetchDoc(ctx, pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version); err == nil && !found {
+		opts.Printf("⚠️ %s\n", i18n.T(msgid.CliPublishDocNotKept))
+	}
 }
 
 // sameJSON 比较两份 JSON 的**语义**是否相同（键序与空白不算数）。

@@ -57,6 +57,8 @@ type fakeMarket struct {
 	storedManifest any
 	// storedDoc 是建版本时一起发来的 BRICKKIT.md；空表示没带，GET /doc 回 404。
 	storedDoc string
+	// dropsDoc 模拟还不支持组件文档的旧市场：请求里的 doc 被忽略，/doc 一律 404。
+	dropsDoc bool
 }
 
 // createVersion 模拟 POST /versions：第一次记下来，之后一律 409。
@@ -76,7 +78,9 @@ func (m *fakeMarket) createVersion(w http.ResponseWriter, body []byte) {
 	}
 	_ = json.Unmarshal(body, &req)
 	m.storedVersion, m.storedStatus, m.storedManifest = req.Version, "draft", req.Manifest
-	m.storedDoc = req.Doc
+	if !m.dropsDoc {
+		m.storedDoc = req.Doc
+	}
 	writeOK(w, http.StatusCreated,
 		map[string]any{"version": req.Version, "status": "draft"})
 }
