@@ -1,24 +1,15 @@
 package handler_test
 
-// 本文件守着 007 §9 那张 API 表与真实路由表一致，**两个方向都守**。
+// 本文件守着市场 API 参考文档（docs/{zh,en}/11-reference/06-market-api.md）的端点表
+// 与真实路由表一致，**两个方向都守**，并且中英两份列的端点一模一样。
 //
 // # 为什么需要它
 //
-// 007 §9 是**对外契约**：它自称"定稿"，读者会照着它写客户端。
-// 而复核时实测两个方向都已经漂了：
+// 那张表是对外契约，读者会照着它写客户端。两个方向的漂移代价不一样，但都是真的：
+// 文档写了、没实现，照着写客户端的人撞 404；实现了、文档没写，使用者无从知道端点存在——
+// `/api/v1/health` 曾经就是这样：自托管的 healthcheck 探的是它，API 文档里一个字都没有。
 //
-//	文档写了、没实现（5 个）  POST /components、PUT /components/{id}、
-//	                          DELETE /components/{id}、GET .../versions/{ver}、
-//	                          POST .../artifacts（真实路径带 {artifactId}/upload）
-//	实现了、文档没写（3 个）  GET /health、POST /auth/logout、GET /audit
-//
-// 两个方向的代价不一样，但都是真的：照着写客户端的人会撞 404；
-// 而 `/api/v1/health` 在《市场部署与运维指南》里出现了四次
-// （compose 的 healthcheck 探的就是它），却在这份定义市场 API 的文档里
-// 一个字都没有——没人知道有这个端点。
-//
-// 已有的文档守卫一个都抓不到它：check-docs 查的是小节引用与断链，
-// check-cli-docs 查的是 **CLI** 的命令与参数，docfields 查的是 YAML 字段名。
+// 别的文档守卫抓不到它：它们查小节引用、断链、CLI 命令与参数、YAML 字段名；
 // HTTP 路径在它们眼里只是一段普通文本。
 //
 // # 真相来源是路由注册函数，不是又抄一份清单
@@ -40,39 +31,29 @@ import (
 	"github.com/brickkit/brickkit/market-server/internal/handler"
 )
 
-// designDoc 是 007 组件市场设计的路径（本包在 market-server/internal/handler/ 下）。
-const designDoc = "../../../docs/archive/design/007-组件市场设计.md"
-
-// apiChapter 截出 007 §9 那一章。
-//
-// 只看这一章：别处（§3.7 发布请求示例、§17 交互流程）也会出现路径，
-// 那些是叙述，不是清单——拿它们当"文档写了"会让守卫失去意义。
-func apiChapter(t *testing.T) string {
-	t.Helper()
-
-	body, err := os.ReadFile(filepath.FromSlash(designDoc))
-	require.NoError(t, err, "读不到设计书就没法比对，这本身就该让测试失败")
-	text := string(body)
-
-	start := strings.Index(text, "\n## 9. 市场 API 设计")
-	require.Positive(t, start, "007 §9 那一章不见了——是不是改了标题？")
-	end := strings.Index(text[start+1:], "\n## ")
-	require.Positive(t, end, "找不到 §9 的结尾")
-	return text[start : start+1+end]
+// referenceDocs 是两种语言的市场 API 参考（本包在 market-server/internal/handler/ 下）。
+var referenceDocs = []string{
+	"../../../docs/zh/11-reference/06-market-api.md",
+	"../../../docs/en/11-reference/06-market-api.md",
 }
 
-// docRow 匹配 API 表里的一行：| GET | /api/v1/... | 说明 |
-var docRow = regexp.MustCompile(`(?m)^\|\s*(GET|POST|PUT|DELETE)\s*\|\s*(/api/v1/\S*?)\s*\|`)
+// docRow 匹配端点表里的一行：| GET | `/api/v1/...` | 说明 |（路径两边的反引号可有可无）。
+//
+// 方法单独占一列才算：「故意不做」那张表把方法和路径写在同一格里，是叙述，不是清单。
+var docRow = regexp.MustCompile("(?m)^\\|\\s*(GET|POST|PUT|DELETE)\\s*\\|\\s*`?(/api/v1/[^`|\\s]*)`?\\s*\\|")
 
-// documentedRoutes 收集 §9 表格里列出的端点，归一化成与 Routes() 同一种写法。
-func documentedRoutes(t *testing.T) []string {
+// routesIn 收集一份文档端点表里的端点，归一化成与 Routes() 同一种写法。
+func routesIn(t *testing.T, path string) []string {
 	t.Helper()
 
+	body, err := os.ReadFile(filepath.FromSlash(path))
+	require.NoError(t, err, "读不到 API 参考就没法比对，这本身就该让测试失败")
 	var out []string
-	for _, m := range docRow.FindAllStringSubmatch(apiChapter(t), -1) {
+	for _, m := range docRow.FindAllStringSubmatch(string(body), -1) {
 		out = append(out, m[1]+" "+normalize(m[2]))
 	}
-	require.NotEmpty(t, out, "一条都没解析出来——正则与表格写法对不上了，结论不可信")
+	require.NotEmpty(t, out, "%s 一条都没解析出来——正则与表格写法对不上了，结论不可信", path)
+	sort.Strings(out)
 	return out
 }
 
@@ -104,11 +85,19 @@ func normalize(path string) string {
 	return "/" + strings.Join(out, "/")
 }
 
-// 007 §9 写了的端点，必须真的实现。
+// 参考文档写了的端点，必须真的实现。
 //
 // 反方向同样要守：照着一份"定稿"规范书写客户端的人，撞 404 时
 // 第一反应是自己写错了，而不是文档错了。
 func TestEveryDocumentedRouteExists(t *testing.T) {
+	for _, doc := range referenceDocs {
+		t.Run(filepath.Base(filepath.Dir(filepath.Dir(doc))), func(t *testing.T) {
+			documentedRoutesExist(t, doc)
+		})
+	}
+}
+
+func documentedRoutesExist(t *testing.T, doc string) {
 	implemented := map[string]bool{}
 	for _, route := range handler.Routes() {
 		method, path, _ := strings.Cut(route, " ")
@@ -116,7 +105,7 @@ func TestEveryDocumentedRouteExists(t *testing.T) {
 	}
 
 	var phantom []string
-	for _, r := range documentedRoutes(t) {
+	for _, r := range routesIn(t, doc) {
 		if !implemented[r] {
 			phantom = append(phantom, r)
 		}
@@ -124,24 +113,24 @@ func TestEveryDocumentedRouteExists(t *testing.T) {
 	sort.Strings(phantom)
 
 	assert.Empty(t, phantom,
-		"007 §9 列了这些端点，但服务端没有实现——照着写客户端的人会撞 404：\n   %s\n"+
+		"%s 列了这些端点，但服务端没有实现——照着写客户端的人会撞 404：\n   %s\n"+
 			"   要么实现它，要么把它从表里挪进「故意不做」那一节并写清理由",
-		strings.Join(phantom, "\n   "))
+		doc, strings.Join(phantom, "\n   "))
 }
 
-// 实现了的端点，必须真的写进 007 §9。
-//
-// 反方向同样要守：`/api/v1/health` 曾经在这份文档里一个字都没有，
-// 却在《市场部署与运维指南》里出现了四次——compose 的 healthcheck 探的
-// 就是它。一个只活在代码里、文档一个字没提的端点，使用者根本无从知道
+// 实现了的端点，必须真的写进 API 参考。一个只活在代码里的端点，使用者无从知道
 // 它存在，也就无从知道能不能依赖它。
-//
-// 这条此前只在注释和 Makefile 的 -run 参数里被提到过，函数本身并不存在——
-// check-market-api 的 -run 过滤器匹配不到任何测试就悄悄跳过，这个方向
-// 因此从未被真正执行过。补上它。
 func TestEveryRouteIsDocumented(t *testing.T) {
+	for _, doc := range referenceDocs {
+		t.Run(filepath.Base(filepath.Dir(filepath.Dir(doc))), func(t *testing.T) {
+			everyRouteDocumentedIn(t, doc)
+		})
+	}
+}
+
+func everyRouteDocumentedIn(t *testing.T, doc string) {
 	documented := map[string]bool{}
-	for _, r := range documentedRoutes(t) {
+	for _, r := range routesIn(t, doc) {
 		documented[r] = true
 	}
 
@@ -156,9 +145,9 @@ func TestEveryRouteIsDocumented(t *testing.T) {
 	sort.Strings(undocumented)
 
 	assert.Empty(t, undocumented,
-		"服务端实现了这些端点，但 007 §9 没写——没人知道它们存在：\n   %s\n"+
-			"   补进 §9 对应的小节，或者如果它不该对外，说清楚为什么",
-		strings.Join(undocumented, "\n   "))
+		"服务端实现了这些端点，但 %s 没写——没人知道它们存在：\n   %s\n"+
+			"   补进参考文档（中英两份）对应的小节，或者如果它不该对外，说清楚为什么",
+		doc, strings.Join(undocumented, "\n   "))
 }
 
 // 自检：解析没坏。
@@ -170,9 +159,9 @@ func TestRouteDocParsingSelfCheck(t *testing.T) {
 	require.NotEmpty(t, routes, "一条路由都没取到")
 	assert.Contains(t, routes, "GET /api/v1/health", "自检：这条一定存在")
 
-	documented := documentedRoutes(t)
-	assert.Contains(t, documented, "GET /api/v1/health",
-		"自检：§9.7 里一定有它")
+	for _, path := range referenceDocs {
+		assert.Contains(t, routesIn(t, path), "GET /api/v1/health", "自检：%s 里一定有它", path)
+	}
 
 	assert.Equal(t, "/api/v1/components/{}/versions/{}/manifest",
 		normalize("/api/v1/components/:scope/:name/versions/:version/manifest"),
@@ -180,4 +169,10 @@ func TestRouteDocParsingSelfCheck(t *testing.T) {
 	assert.Equal(t, "/api/v1/components/{}/versions/{}/manifest",
 		normalize("/api/v1/components/{id}/versions/{ver}/manifest"),
 		"自检：文档写法与路由写法要归一到同一个形状")
+}
+
+// 中英两份是各自独立写的，但列的端点必须一模一样：一边漏写的端点，读那种语言的人就不知道它。
+func TestRouteDocsAgreeAcrossLanguages(t *testing.T) {
+	assert.Equal(t, routesIn(t, referenceDocs[0]), routesIn(t, referenceDocs[1]),
+		"%s 与 %s 的端点表不一致", referenceDocs[0], referenceDocs[1])
 }

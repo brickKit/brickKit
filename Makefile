@@ -196,8 +196,8 @@ check-schemas: ## 检查签入的 schemas/*.json 与结构体生成的一致，�
 	@$(GO) test ./internal/schemagen/ -count=1
 
 .PHONY: check-market-api
-check-market-api: ## 检查 007 §9 的 API 表与市场真实路由表双向一致
-	@cd market-server && $(GO) test ./internal/handler/ -run 'TestEveryRouteIsDocumented|TestEveryDocumentedRouteExists|TestRouteDocParsingSelfCheck'
+check-market-api: ## 检查市场 API 参考（docs/{zh,en}/11-reference/06-market-api.md）的端点表与真实路由表双向一致、中英一致
+	@cd market-server && $(GO) test ./internal/handler/ -run 'TestEveryRouteIsDocumented|TestEveryDocumentedRouteExists|TestRouteDocParsingSelfCheck|TestRouteDocsAgreeAcrossLanguages'
 
 .PHONY: check-docs
 check-docs: ## 检查文档引用（悬空小节号、断链、指南编号与前置）
