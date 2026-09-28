@@ -154,7 +154,8 @@ func VerifyManifest(raw []byte, sig Signature, ring *KeyRing, componentID, versi
 		} `json:"metadata"`
 	}
 	if err := json.Unmarshal(payload, &doc); err != nil {
-		return withComponent(invalid(i18n.T(msgid.SecuritySignedManifestUnparseable)).WithCause(err),
+		return withComponent(invalid(i18n.T(msgid.SecuritySignedManifestUnparseable)).WithCause(err).
+			WithHint(i18n.T(msgid.SecurityHintContactPublisher)),
 			componentID, version)
 	}
 
@@ -195,5 +196,6 @@ func withComponent(err error, componentID, version string) error {
 }
 
 func invalid(message string) *clierr.Error {
+	// clierr:nohint 这是签名校验失败的公共壳子；每个调用方都按自己的情形接着补建议（联系发布者重签、配公钥……）
 	return clierr.New(clierr.CodeSignatureInvalid, message)
 }

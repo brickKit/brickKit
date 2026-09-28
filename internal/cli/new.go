@@ -78,11 +78,11 @@ func runNew(opts *Options, id, path, contract string, shell bool) error {
 		full := filepath.Join(dir, f.Path)
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliNewErrorFailedToCreateThe)).
-				WithDetail(i18n.T(msgid.LabelDir), filepath.Dir(full)).WithCause(err)
+				WithDetail(i18n.T(msgid.LabelDir), filepath.Dir(full)).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 		}
 		if err := os.WriteFile(full, f.Content, 0o644); err != nil {
 			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliNewErrorFailedToWriteThe)).
-				WithDetail(i18n.T(msgid.LabelFile), full).WithCause(err)
+				WithDetail(i18n.T(msgid.LabelFile), full).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 		}
 	}
 

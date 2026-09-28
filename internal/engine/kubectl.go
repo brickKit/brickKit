@@ -487,7 +487,7 @@ func (k *Kubectl) exec(ctx context.Context, args ...string) ([]byte, error) {
 	return out, clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.EngineKubectlFailed)).
 		WithDetail(i18n.T(msgid.LabelCommand), k.bin+" "+strings.Join(args, " ")).
 		WithDetail(i18n.T(msgid.LabelOutput), tail(string(out), 3)).
-		WithCause(err)
+		WithCause(err).WithHint(i18n.T(msgid.EngineHintKubectlOutput))
 }
 
 // migrationFailure 把等待超时/失败翻译成一条能指出下一步的错误。
@@ -548,7 +548,7 @@ func parseDeployments(out []byte) ([]Status, error) {
 	if err := json.Unmarshal([]byte(text), &list); err != nil {
 		return nil, clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.EngineKubectlOutputUnparseable)).
 			WithDetail(i18n.T(msgid.LabelOutput), tail(text, 3)).
-			WithCause(err)
+			WithCause(err).WithHint(i18n.T(msgid.EngineHintKubectlJSON))
 	}
 
 	statuses := make([]Status, 0, len(list.Items))

@@ -31,7 +31,7 @@ func ProjectNameRule() string { return i18n.T(msgid.ConfigProjectNameRule) }
 func ValidateProjectName(name string) error {
 	if strings.TrimSpace(name) == "" {
 		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.ConfigProjectNameMissing)).
-			WithExit(clierr.ExitUsage)
+			WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.HintForExample, "brickkit init my-shop"))
 	}
 
 	reason := ProjectNameProblem(name)

@@ -88,7 +88,7 @@ func checkLocalFlagCombo(args []string, f addFlags) error {
 	}{{f.repo, "--repo"}, {f.repoAll, "--repo-all"}} {
 		if bad.on {
 			return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliAddLocalWithRepo, bad.flag)).
-				WithExit(clierr.ExitUsage)
+				WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliAddLocalHintDropRepo, bad.flag))
 		}
 	}
 	return nil

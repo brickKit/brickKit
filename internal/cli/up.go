@@ -890,14 +890,14 @@ func writeGenerated(layout project.Layout, content []byte) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToCreateThe)).
 			WithDetail(i18n.T(msgid.LabelPath), dir).
-			WithCause(err)
+			WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 
 	path := filepath.Join(dir, composeFileName)
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		return "", clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToWriteThe)).
 			WithDetail(i18n.T(msgid.LabelPath), path).
-			WithCause(err)
+			WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 	return path, nil
 }
@@ -933,7 +933,7 @@ func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.Lo
 		if err := os.WriteFile(path, file.Content, 0o600); err != nil {
 			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToWriteThe2)).
 				WithDetail(i18n.T(msgid.LabelPath), path).
-				WithCause(err)
+				WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 		}
 
 		relative := displayPath(opts.WorkDir, path)
@@ -1019,7 +1019,7 @@ func writeEnvFiles(layout project.Layout, files []compose.EnvFile) error {
 	dir := filepath.Join(layout.Root, filepath.FromSlash(compose.EnvFileDir))
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToCreateThe)).
-			WithDetail(i18n.T(msgid.LabelPath), dir).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelPath), dir).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 	keep := map[string]bool{}
 	for _, file := range files {
@@ -1027,7 +1027,7 @@ func writeEnvFiles(layout project.Layout, files []compose.EnvFile) error {
 		keep[filepath.Base(path)] = true
 		if err := os.WriteFile(path, file.Content, 0o600); err != nil {
 			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToWriteThe2)).
-				WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err)
+				WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 		}
 		// WriteFile 不改已存在文件的权限：旧文件是 0644 时照样得收紧
 		if err := os.Chmod(path, 0o600); err != nil {

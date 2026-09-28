@@ -16,4 +16,5 @@ const (
 	DeployfileSkipWaitForVersioned   = "deployfile.skip_wait_for_versioned"
 	DeployfileSkipWaitForSelf        = "deployfile.skip_wait_for_self"
 	DeployfileSkipWaitForDuplicate   = "deployfile.skip_wait_for_duplicate"
+	DeployfileHintFieldReference     = "deployfile.hint_field_reference"
 )

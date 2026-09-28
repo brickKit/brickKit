@@ -74,7 +74,7 @@ func TestRepositoryComponentsAssembleIntoAProject(t *testing.T) {
 
 	// 使用者该做的那一步：给要连数据库、Redis 的组件填上连接。公共部分放 vars.yaml
 	writeTree(t, dir, map[string]string{
-		".env": "POSTGRES_PASSWORD=pg-secret\nJWT_SECRET=0123456789abcdef0123456789abcdef\n",
+		".env":             "POSTGRES_PASSWORD=pg-secret\nJWT_SECRET=0123456789abcdef0123456789abcdef\n",
 		"config/vars.yaml": "PG_HOST: postgres\nPG_USER: postgres\nPG_PASSWORD: ${POSTGRES_PASSWORD}\nREDIS_HOST: redis\n",
 	})
 	database := func(name string) string {

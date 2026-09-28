@@ -156,9 +156,8 @@ func TestEveryListedTestStillExists(t *testing.T) {
 	groups := map[key][]checklist.Row{}
 	var order []key
 	for _, r := range load(t) {
-		if r.Cell(colKind) != "test" {
-			continue
-		}
+		// 证据只有一种：一个今天还在的测试。别的写法（拼错的类型）不能被悄悄跳过
+		require.Equal(t, "test", r.Cell(colKind), "%s（%s）的证据类型只能是 test", r.Cell(colID), r.Cell(colDesc))
 		k := key{r.Cell(colModule), r.Cell(colPkg)}
 		if _, ok := groups[k]; !ok {
 			order = append(order, k)
@@ -186,26 +185,6 @@ func TestEveryListedTestStillExists(t *testing.T) {
 				r.Cell(colID), r.Cell(colDesc), r.Cell(colTest), where)
 		}
 	}
-}
-
-// record 类型的证据指向的文件必须存在。
-//
-// 有极少数验收项不是单个测试，而是一次全量审计（例如 33.17 扫了 154 处错误构造）。
-// 它们的证据是那份记录本身——记录被删或改名，这一项同样失去了依据。
-func TestRecordEvidenceFilesExist(t *testing.T) {
-	root := repoRoot(t)
-	checked := 0
-
-	for _, r := range load(t) {
-		if r.Cell(colKind) != "record" {
-			continue
-		}
-		path := filepath.Join(root, r.Cell(colTest))
-		assert.FileExists(t, path,
-			"%s（%s）的证据文件不存在了", r.Cell(colID), r.Cell(colDesc))
-		checked++
-	}
-	assert.NotZero(t, checked, "一条 record 证据都没查到——清单或列序号可能错了")
 }
 
 // 守卫本身会不会坏？

@@ -33,4 +33,5 @@ const (
 	ConfigdirFileRefMissing         = "configdir.file_ref_missing"
 	ConfigdirHintFileRef            = "configdir.hint_file_ref"
 	ConfigdirCannotEvaluate         = "configdir.cannot_evaluate"
+	ConfigdirHintFieldReference     = "configdir.hint_field_reference"
 )

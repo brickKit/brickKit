@@ -54,7 +54,7 @@ func Document(data []byte, source string, allowEmpty bool) (*yaml.Node, error) {
 		var extra yaml.Node
 		if next := decoder.Decode(&extra); !errors.Is(next, io.EOF) {
 			return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.LayerMultipleDocuments, name)).
-				WithDetail(i18n.T(msgid.LabelFile), source)
+				WithDetail(i18n.T(msgid.LabelFile), source).WithHint(i18n.T(msgid.LayerHintRemoveSeparator))
 		}
 	}
 	if err != nil {
@@ -69,13 +69,13 @@ func Document(data []byte, source string, allowEmpty bool) (*yaml.Node, error) {
 			return nil, nil
 		}
 		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.LayerEmpty, name)).
-			WithDetail(i18n.T(msgid.LabelFile), source)
+			WithDetail(i18n.T(msgid.LabelFile), source).WithHint(i18n.T(msgid.LayerHintEmpty))
 	}
 	doc := root.Content[0]
 	if doc.Kind != yaml.MappingNode {
 		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ProblemValidationFailed, name)).
 			WithDetail(i18n.T(msgid.LabelFile), source).
-			WithDetail(name, i18n.T(msgid.ProblemTopLevelMustBeMapping))
+			WithDetail(name, i18n.T(msgid.ProblemTopLevelMustBeMapping)).WithHint(i18n.T(msgid.LayerHintMapping))
 	}
 	return doc, nil
 }

@@ -68,7 +68,7 @@ func Prepare(dir string) (*Target, error) {
 	root := evalSymlinks(out)
 	subpath, err := filepath.Rel(root, evalSymlinks(abs))
 	if err != nil {
-		return nil, clierr.New(clierr.CodeInternal, i18n.T(msgid.ReleaseNotARepo)).WithCause(err)
+		return nil, clierr.New(clierr.CodeInternal, i18n.T(msgid.ReleaseNotARepo)).WithCause(err).WithHint(i18n.T(msgid.HintInternalBug))
 	}
 	subpath = filepath.ToSlash(subpath)
 	if subpath == "." {
@@ -221,7 +221,7 @@ func (t *Target) Publish() error {
 
 func (t *Target) gitFailed(err error) error {
 	return clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseGitFailed, t.Ref())).
-		WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err)
+		WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err).WithHint(i18n.T(msgid.ReleaseHintRunGit))
 }
 
 // git 在 dir 里跑一条 git 命令，返回去掉首尾空白的 stdout；失败时错误里带 stderr。

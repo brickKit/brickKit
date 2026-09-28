@@ -40,6 +40,6 @@ func Evaluate(v Value, root string, lookup func(string) (string, bool)) (string,
 		}
 		return string(data), nil
 	default:
-		return "", clierr.New(clierr.CodeInternal, i18n.T(msgid.ConfigdirCannotEvaluate, v.String()))
+		return "", clierr.New(clierr.CodeInternal, i18n.T(msgid.ConfigdirCannotEvaluate, v.String())).WithHint(i18n.T(msgid.HintInternalBug))
 	}
 }

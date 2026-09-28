@@ -16,4 +16,5 @@ const (
 	ProjfileRequiredByUnknown          = "projfile.required_by_unknown"
 	ProjfileDefaultTwice               = "projfile.default_twice"
 	ProjfileDefaultMissing             = "projfile.default_missing"
+	ProjfileHintFieldReference         = "projfile.hint_field_reference"
 )

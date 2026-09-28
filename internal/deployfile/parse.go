@@ -112,5 +112,5 @@ func checkFieldShapes(item *yaml.Node, field string, p *clierr.ProblemSet) {
 
 func newProblems(source string) *clierr.ProblemSet {
 	return clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.ProblemValidationFailed, filepath.Base(source))).
-		WithSource(i18n.T(msgid.LabelFile), source)
+		WithSource(i18n.T(msgid.LabelFile), source).WithHint(i18n.T(msgid.DeployfileHintFieldReference))
 }

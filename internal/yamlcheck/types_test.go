@@ -51,17 +51,17 @@ func typeMismatches(t *testing.T, doc string) map[string]string {
 
 func TestTypeMismatchesNamesTheField(t *testing.T) {
 	cases := map[string]string{
-		`{"port": "abc"}`:                  "port",
-		`on: maybe`:                        "on",
-		`ratio: fast`:                      "ratio",
-		`name: [a, b]`:                     "name",
-		`items: [{n: x}]`:                  "items[0].n",
-		`items: just-one`:                  "items",
-		`labels: {a: [1]}`:                 "labels.a",
-		`labels: [a]`:                      "labels",
-		`ptr: {n: "x"}`:                    "ptr.n",
-		`ptr: 3`:                           "ptr",
-		`custom: [1]`:                      "custom",
+		`{"port": "abc"}`:                   "port",
+		`on: maybe`:                         "on",
+		`ratio: fast`:                       "ratio",
+		`name: [a, b]`:                      "name",
+		`items: [{n: x}]`:                   "items[0].n",
+		`items: just-one`:                   "items",
+		`labels: {a: [1]}`:                  "labels.a",
+		`labels: [a]`:                       "labels",
+		`ptr: {n: "x"}`:                     "ptr.n",
+		`ptr: 3`:                            "ptr",
+		`custom: [1]`:                       "custom",
 		`{"items": [{"n": 1}, {"n": "y"}]}`: "items[1].n",
 	}
 	for doc, field := range cases {

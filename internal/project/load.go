@@ -167,7 +167,7 @@ func deployMissingError(path string, source DeploySource) *clierr.Error {
 	case DeployExplicit:
 		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.ProjectDeployFileNotFound)).
 			WithDetail(i18n.T(msgid.LabelPath), path).
-			WithExit(clierr.ExitUsage)
+			WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.ProjectHintDeployFilePath))
 	default:
 		return clierr.New(clierr.CodeProjectMissing, i18n.T(msgid.ProjectDeployMissing)).
 			WithDetail(i18n.T(msgid.LabelPath), path).

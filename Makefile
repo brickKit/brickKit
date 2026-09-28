@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-docs-bilingual check-market-api check-market-mod check-components check-install-sh check-smoke check-no-binaries check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + 双语镜像 + 市场 API 表 + 市场模块依赖清单 + 测试组件合规 + 安装脚本 + 发布冒烟 + 仓库无二进制 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-docs-bilingual check-market-api check-market-mod check-components check-guards check-install-sh check-smoke check-no-binaries check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + 双语镜像 + 市场 API 表 + 市场模块依赖清单 + 测试组件合规 + 架构与报错守卫 + 安装脚本 + 发布冒烟 + 仓库无二进制 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
 # 教程的输出核对（check-guide-output、check-guides）随旧教程一起撤下：附录 A13
 # 规定 tutorials/ 先只建目录，没有教程可核对。写教程的那一阶段要为 tutorials/
 # 重新建一个逐行核对真实输出的检查（旧脚本在 git 历史里，机制可以照搬）。
@@ -212,6 +212,10 @@ check-components: build-cli ## 仓库自带的测试组件（tests/components）
 			echo "❌ $$d 没有通过 brickkit lint --strict："; \
 			(cd $$d && BRICKKIT_LANG=en $(BIN)/brickkit lint --strict --log-level off); exit 1; }; \
 	done; echo "✅ tests/components 下的组件都通过 brickkit lint --strict"
+
+.PHONY: check-guards
+check-guards: ## 跑仓库级守卫：旧模型不许回来、主模块不 import 市场（archguard），每条报错都带建议（errorhints）
+	@$(GO) test -count=1 ./tests/archguard/ ./tests/errorhints/
 
 .PHONY: check-docs
 check-docs: ## 检查文档引用（悬空小节号、断链、指南编号与前置）

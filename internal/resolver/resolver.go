@@ -230,7 +230,7 @@ func (d declaredOnly) Manifest(ctx context.Context, id, version string) (*manife
 	if !d.declared[ref] {
 		return nil, clierr.New(clierr.CodeDependencyMissing, i18n.T(msgid.ResolverNotDeclared, ref.String())).
 			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ResolverNotDeclared, ref.String())).
-			WithCause(errNotDeclared)
+			WithCause(errNotDeclared).WithHint(i18n.T(msgid.ResolverHintAddDeclared, ref.String()))
 	}
 	return d.inner.Manifest(ctx, id, version)
 }

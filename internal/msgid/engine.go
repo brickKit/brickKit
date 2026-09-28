@@ -45,4 +45,6 @@ const (
 	EngineHintMigrationBlocksMain  = "engine.hint.migration_blocks_main"
 	EngineHintFixAndRerun          = "engine.hint.fix_and_rerun"
 	EngineKubectlOutputUnparseable = "engine.kubectl_output_unparseable"
+	EngineHintKubectlOutput        = "engine.hint_kubectl_output"
+	EngineHintKubectlJSON          = "engine.hint_kubectl_json"
 )

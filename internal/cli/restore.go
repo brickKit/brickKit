@@ -205,7 +205,7 @@ func restoreBaseline(layout project.Layout) (*gitrepo.Repo, string, error) {
 		return nil, "", clierr.New(clierr.CodeConfigInvalid,
 			i18n.T(msgid.CliRestoreErrorIsNotInsideThis, project.FileDeploy)).
 			WithDetail(i18n.T(msgid.LabelPath), layout.DeployPath()).
-			WithDetail(i18n.T(msgid.LabelRepo), repo.Root())
+			WithDetail(i18n.T(msgid.LabelRepo), repo.Root()).WithHint(i18n.T(msgid.CliRestoreHintInsideRepo))
 	}
 	if !repo.Tracked(deployRel) {
 		return nil, "", clierr.New(clierr.CodeConfigInvalid,
@@ -312,6 +312,7 @@ func toMode(v string) string {
 
 // restoreErr 是 restore 前置检查的统一错误壳子。
 func restoreErr(message string, cause error) *clierr.Error {
+	// clierr:nohint 这是 restore 前置检查的公共壳子；三个调用方都按自己的情形接着补建议
 	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliRestoreError, message)).
 		WithDetail(i18n.T(msgid.LabelReason), cause.Error()).
 		WithCause(cause)

@@ -378,7 +378,7 @@ func manifestFromBody(body []byte, sourceID string) ([]byte, error) {
 		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.SourceMarketManifestUnparseable)).
 			WithDetail(i18n.T(msgid.LabelSource), sourceID).
 			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
-			WithCause(err)
+			WithCause(err).WithHint(i18n.T(msgid.HintInternalBug))
 	}
 	return out, nil
 }

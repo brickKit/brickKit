@@ -72,20 +72,20 @@ func rewriteImage(pkg *publishPackage, pinned string) error {
 	var doc map[string]any
 	if err := json.Unmarshal(pkg.document, &doc); err != nil {
 		return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishDigestErrorCouldNotRewriteThe)).
-			WithCause(err)
+			WithCause(err).WithHint(i18n.T(msgid.HintInternalBug))
 	}
 
 	deployment, ok := doc["deployment"].(map[string]any)
 	if !ok {
 		return clierr.New(clierr.CodeManifestInvalid,
-			i18n.T(msgid.CliPublishDigestErrorComponentYamlHasNo))
+			i18n.T(msgid.CliPublishDigestErrorComponentYamlHasNo)).WithHint(i18n.T(msgid.HintInternalBug))
 	}
 	deployment["image"] = pinned
 
 	updated, err := json.Marshal(doc)
 	if err != nil {
 		return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliPublishDigestErrorCouldNotSerializeThe)).
-			WithCause(err)
+			WithCause(err).WithHint(i18n.T(msgid.HintInternalBug))
 	}
 
 	pkg.document = updated

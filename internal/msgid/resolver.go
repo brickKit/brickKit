@@ -19,6 +19,7 @@ const (
 	ResolverCycleReasonDetail         = "resolver.cycle_reason_detail"
 	ResolverHintCheckManifestDeps     = "resolver.hint.check_manifest_deps"
 	ResolverHintMakeOptional          = "resolver.hint.make_optional"
+	ResolverHintAddDeclared           = "resolver.hint_add_declared"
 )
 
 // resolver 补漏：不经过 clierr、直接当数据显示给用户的文案

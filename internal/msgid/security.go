@@ -79,4 +79,5 @@ const (
 	SecurityLabelSignatureCovers         = "security.label_signature_covers"
 	SecurityHintMarketMismatch           = "security.hint_market_mismatch"
 	SecurityHintTryOtherSource           = "security.hint_try_other_source"
+	SecurityHintCosignBundle             = "security.hint_cosign_bundle"
 )

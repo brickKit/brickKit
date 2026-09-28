@@ -68,7 +68,7 @@ func Sign(ctx context.Context, payload []byte, opts SignOptions) (*Signature, er
 	// cosign sign-blob 只接受文件，不读 stdin
 	dir, err := os.MkdirTemp("", "brickkit-sign-")
 	if err != nil {
-		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityTempDirFailed)).WithCause(err)
+		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityTempDirFailed)).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
@@ -76,7 +76,7 @@ func Sign(ctx context.Context, payload []byte, opts SignOptions) (*Signature, er
 	bundleFile := filepath.Join(dir, "bundle.json")
 	if err := os.WriteFile(blob, payload, 0o600); err != nil {
 		return nil, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityWriteBlobFailed)).
-			WithDetail(i18n.T(msgid.LabelPath), blob).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelPath), blob).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 
 	args := signArgs(opts.KeyPath, bundleFile, blob)
@@ -129,7 +129,7 @@ func readBundleSignature(bundleFile string) (string, error) {
 	raw, err := os.ReadFile(bundleFile)
 	if err != nil {
 		return "", clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SecurityReadBundleFailed)).
-			WithDetail(i18n.T(msgid.LabelPath), bundleFile).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelPath), bundleFile).WithCause(err).WithHint(i18n.T(msgid.SecurityHintCosignBundle))
 	}
 
 	var bundle cosignBundle

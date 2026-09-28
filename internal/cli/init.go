@@ -43,7 +43,7 @@ func newInitCommand(opts *Options) *cobra.Command {
 				if len(args) > 0 {
 					return clierr.New(clierr.CodeInvalidArgument,
 						i18n.T(msgid.CliInitBrickkitInitHooksOnlyInstalls)).
-						WithExit(clierr.ExitUsage)
+						WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliInitHintHooksNoName))
 				}
 				return installCommitHook(opts, project.NewLayout(opts.WorkDir), true)
 			}
@@ -85,7 +85,7 @@ func runInitCreate(opts *Options, name string, f initFlags) error {
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return clierr.New(clierr.CodeInternal, i18n.T(msgid.IOFailed, i18n.T(msgid.ActionMkdir))).
-			WithDetail(i18n.T(msgid.LabelPath), dir).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelPath), dir).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 	layout := project.NewLayout(dir)
 	plan, err := project.PlanComplete(layout, name)
@@ -134,7 +134,7 @@ func runInitComplete(opts *Options, f initFlags) error {
 	empty, err := project.DirIsEmpty(layout.Root)
 	if err != nil {
 		return clierr.New(clierr.CodeInternal, i18n.T(msgid.IOFailed, i18n.T(msgid.ConfigActionReadFile))).
-			WithDetail(i18n.T(msgid.LabelPath), layout.Root).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelPath), layout.Root).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 	if !empty {
 		opts.Printf("%s\n", i18n.T(msgid.CliInitCompletePlanHeader))
@@ -313,7 +313,7 @@ func installCommitHook(opts *Options, layout project.Layout, explicit bool) erro
 		if explicit {
 			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliInitErrorTheProjectRootIs)).
 				WithDetail(i18n.T(msgid.CliInitProject), layout.Root).
-				WithDetail(i18n.T(msgid.LabelRepo), repo.Root())
+				WithDetail(i18n.T(msgid.LabelRepo), repo.Root()).WithHint(i18n.T(msgid.CliInitHintHooksNeedRepo))
 		}
 		hookHint(opts)
 		return nil

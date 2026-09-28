@@ -35,7 +35,7 @@ func newReleaseCommand(opts *Options) *cobra.Command {
 			if local {
 				if cmd.Flags().Changed("path") {
 					return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliReleaseLocalWithPath)).
-						WithExit(clierr.ExitUsage)
+						WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliReleaseHintLocalOrPath))
 				}
 				return runReleaseLocal(opts)
 			}

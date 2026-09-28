@@ -87,4 +87,9 @@ const (
 	CliUpUsingExplicitDeployFile            = "cli.up.using_explicit_deploy_file"
 	CliUpStopPreviousFailed                 = "cli.up.stop_previous_failed"
 	CliUpHintStopPreviousByHand             = "cli.up.hint_stop_previous_by_hand"
+	CliUpHintInstallProgram                 = "cli.up.hint_install_program"
+	CliUpHintSetEnvVar                      = "cli.up.hint_set_env_var"
+	CliUpHintStopSession                    = "cli.up.hint_stop_session"
+	CliUpHintCheckStartCommand              = "cli.up.hint_check_start_command"
+	CliUpHintCrashSummary                   = "cli.up.hint_crash_summary"
 )

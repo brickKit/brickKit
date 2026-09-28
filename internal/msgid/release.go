@@ -30,4 +30,5 @@ const (
 	ReleaseTagOnlyLocal       = "release.tag_only_local"
 	ReleaseHintPushTag        = "release.hint_push_tag"
 	ReleaseHintDropLocalTag   = "release.hint_drop_local_tag"
+	ReleaseHintRunGit         = "release.hint_run_git"
 )

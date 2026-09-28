@@ -114,12 +114,12 @@ func installHook(
 	hooks, err := repo.HooksDir()
 	if err != nil {
 		return "", false, clierr.New(clierr.CodeInternal, i18n.T(msgid.CliHooksErrorFailedToLocateThe)).
-			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err).WithHint(i18n.T(msgid.CliHooksHintCheckGit))
 	}
 	if err := os.MkdirAll(hooks, 0o755); err != nil {
 		return "", false, clierr.New(clierr.CodeInternal, i18n.T(msgid.CliHooksErrorFailedToCreateThe)).
 			WithDetail(i18n.T(msgid.LabelDir), hooks).
-			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 	path := filepath.Join(hooks, "pre-commit")
 
@@ -137,7 +137,7 @@ func installHook(
 	if err := os.WriteFile(path, []byte(renderHook(binPath, ver, projects)), 0o755); err != nil {
 		return "", false, clierr.New(clierr.CodeInternal, i18n.T(msgid.CliHooksErrorFailedToWriteThe)).
 			WithDetail(i18n.T(msgid.LabelFile), path).
-			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 	return path, added, nil
 }

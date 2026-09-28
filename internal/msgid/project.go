@@ -64,4 +64,5 @@ const (
 	ProjectSkeletonWorkbenchSources     = "project.skeleton.workbench_sources"
 	ProjectNameContradicts              = "project.name_contradicts"
 	ProjectHintDropName                 = "project.hint_drop_name"
+	ProjectHintDeployFilePath           = "project.hint_deploy_file_path"
 )

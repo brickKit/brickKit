@@ -73,7 +73,7 @@ func digestResolverWith(run commandRunner) func(context.Context, string) (string
 			return "", clierr.New(clierr.CodeEngineFailed,
 				i18n.T(msgid.CliImagedigestErrorCouldNotGetThe)).
 				WithDetail(i18n.T(msgid.LabelImage), image).
-				WithDetail(i18n.T(msgid.CliImagedigestActualOutput), tailLine(digest))
+				WithDetail(i18n.T(msgid.CliImagedigestActualOutput), tailLine(digest)).WithHint(i18n.T(msgid.CliImagedigestMakeSureTheImageHas, image), i18n.T(msgid.CliImagedigestMakeSureThisMachineCan))
 		}
 		return digest, nil
 	}

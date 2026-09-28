@@ -16,4 +16,5 @@ const (
 const (
 	CliHooksHeaderComment    = "cli.hooks.header_comment"
 	CliHooksBrickkitNotFound = "cli.hooks.brickkit_not_found"
+	CliHooksHintCheckGit     = "cli.hooks.hint_check_git"
 )

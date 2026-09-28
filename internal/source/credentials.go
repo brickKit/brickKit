@@ -62,7 +62,7 @@ func LoadCredentials(path string) (*Credentials, error) {
 func SaveCredentials(path string, c *Credentials) error {
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
-		return clierr.New(clierr.CodeInternal, i18n.T(msgid.SourceCredentialsSerializeFailed)).WithCause(err)
+		return clierr.New(clierr.CodeInternal, i18n.T(msgid.SourceCredentialsSerializeFailed)).WithCause(err).WithHint(i18n.T(msgid.HintInternalBug))
 	}
 	data = append(data, '\n')
 

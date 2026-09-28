@@ -387,7 +387,7 @@ func configFileName(ref install.ConfigRef) string {
 func (a *applier) move(from, to string) error {
 	if _, err := os.Stat(to); err == nil && !strings.HasPrefix(to, a.proj.Layout.ConfigArchiveDir()) {
 		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliInstallTargetExists, a.rel(to))).
-			WithDetail(i18n.T(msgid.LabelFile), a.rel(from))
+			WithDetail(i18n.T(msgid.LabelFile), a.rel(from)).WithHint(i18n.T(msgid.CliInstallHintMoveTarget, a.rel(to)))
 	}
 	for _, p := range []string{from, to} {
 		if err := a.backup(p); err != nil {

@@ -207,7 +207,7 @@ func detectionError(ref resolver.Ref, err error) error {
 
 func programMissingError(ref resolver.Ref, err error) error {
 	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpTheDetectedProgramIsNotInstalled, ref.String())).
-		WithDetail(i18n.T(msgid.LabelReason), err.Error())
+		WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithHint(i18n.T(msgid.CliUpHintInstallProgram), i18n.T(msgid.CliUpWriteLocalRunCommandInThe, ref.ID))
 }
 
 // localDebugEnvVarsToStrip 是每种语言里，一旦从启动 brickkit up 的那个 shell
@@ -257,7 +257,7 @@ func buildLocalEnv(
 
 func missingEnvVarError(ref resolver.Ref, envVarName, missingVarName string) error {
 	return clierr.New(clierr.CodeConfigInvalid,
-		i18n.T(msgid.CliUpMissingEnvVarFor, ref.String(), missingVarName, envVarName))
+		i18n.T(msgid.CliUpMissingEnvVarFor, ref.String(), missingVarName, envVarName)).WithHint(i18n.T(msgid.CliUpHintSetEnvVar, missingVarName))
 }
 
 // renderLocalComponentCommands 在 --dry-run 下告诉使用者每个 mode: local
@@ -296,9 +296,9 @@ func runLocalComponents(
 		var held *sessionlock.HeldError
 		if errors.As(err, &held) {
 			return clierr.New(clierr.CodeConfigInvalid,
-				i18n.T(msgid.CliUpSessionAlreadyRunning, held.Info.PID))
+				i18n.T(msgid.CliUpSessionAlreadyRunning, held.Info.PID)).WithHint(i18n.T(msgid.CliUpHintStopSession, held.Info.PID))
 		}
-		return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpFailedToAcquireTheSession)).WithCause(err)
+		return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpFailedToAcquireTheSession)).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 	defer func() { _ = lock.Release() }()
 
@@ -313,7 +313,7 @@ func runLocalComponents(
 	}
 	sup, err := procsup.New(procsup.Options{Out: opts.Stdout, NameWidth: widest, TailLines: crashLines})
 	if err != nil {
-		return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpFailedToStartTheLocal)).WithCause(err)
+		return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpFailedToStartTheLocal)).WithCause(err).WithHint(i18n.T(msgid.HintInternalBug))
 	}
 	defer sup.Shutdown()
 
@@ -329,7 +329,7 @@ func runLocalComponents(
 		}
 		if err != nil {
 			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpFailedToStartTheLocal)).
-				WithDetail(i18n.T(msgid.LabelComponent), p.Service).WithCause(err)
+				WithDetail(i18n.T(msgid.LabelComponent), p.Service).WithCause(err).WithHint(i18n.T(msgid.CliUpHintCheckStartCommand))
 		}
 
 		// 组件的身份统一用 p.Service（版本化服务名）——procsup 给这个进程自己
@@ -393,5 +393,5 @@ func renderCrashSummary(sup *procsup.Supervisor, exits []procsup.Exit, crashLine
 			sup.Printf("      %s\n", line)
 		}
 	}
-	return clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.CliUpLocalComponentsCrashed, len(crashed)))
+	return clierr.New(clierr.CodeEngineFailed, i18n.T(msgid.CliUpLocalComponentsCrashed, len(crashed))).WithHint(i18n.T(msgid.CliUpHintCrashSummary))
 }

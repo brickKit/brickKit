@@ -20,10 +20,12 @@ const (
 	CliPublishErrorInvalidVisibilityValue                 = "cli.publish.error_invalid_visibility_value"
 	CliPublishSourceType                                  = "cli.publish.source_type"
 	CliPublishErrorComponentYamlIsNot                     = "cli.publish.error_component_yaml_is_not"
+	CliPublishHintRunLint                                 = "cli.publish.hint_run_lint"
 	CliPublishComponentSourceDirectoryContainingComponent = "cli.publish.component_source_directory_containing_component"
 	CliPublishErrorTheMarketHasNo                         = "cli.publish.error_the_market_has_no"
 	CliPublishErrorAFileDeclaredUnder                     = "cli.publish.error_a_file_declared_under"
 	CliPublishErrorComponentYamlCouldNot                  = "cli.publish.error_component_yaml_could_not"
+	CliPublishHintNonTextKey                              = "cli.publish.hint_non_text_key"
 	CliPublishSignerIdentifierForExampleRelease           = "cli.publish.signer_identifier_for_example_release"
 	CliPublishErrorThereIsNoComponent                     = "cli.publish.error_there_is_no_component"
 	CliPublishOrSpecifyWhichMarketTo                      = "cli.publish.or_specify_which_market_to"
@@ -63,4 +65,5 @@ const (
 	CliPublishResumingCanOnlyUploadThe                    = "cli.publish.resuming_can_only_upload_the"
 	CliPublishExample                                     = "cli.publish.example"
 	CliPublishLong                                        = "cli.publish.long"
+	CliPublishHintVisibility                              = "cli.publish.hint_visibility"
 )

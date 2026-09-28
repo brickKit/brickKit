@@ -23,4 +23,5 @@ const (
 	CliRootLong                       = "cli.root.long"
 	CliRootFlagDeployFile             = "cli.root.flag_deploy_file"
 	CliRootFlagNoLocal                = "cli.root.flag_no_local"
+	CliRootHintLogLevel               = "cli.root.hint_log_level"
 )

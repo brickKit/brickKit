@@ -247,7 +247,7 @@ func (p *publishPackage) loadDoc() error {
 		return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishDocCannotBePublished)).
 			WithDetail(i18n.T(msgid.LabelPath), path).
 			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
-			WithCause(err)
+			WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 	var reason string
 	switch {
@@ -270,19 +270,19 @@ func manifestDocument(path string) (json.RawMessage, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorFailedToReadComponent)).
-			WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 
 	var document any
 	if err := yaml.Unmarshal(raw, &document); err != nil {
 		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorComponentYamlIsNot)).
-			WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err).WithHint(i18n.T(msgid.CliPublishHintRunLint))
 	}
 
 	encoded, err := json.Marshal(document)
 	if err != nil {
 		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorComponentYamlCouldNot)).
-			WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err).WithHint(i18n.T(msgid.CliPublishHintNonTextKey))
 	}
 	return encoded, nil
 }
@@ -555,7 +555,7 @@ func validateVisibility(visibility string) error {
 		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliPublishErrorInvalidVisibilityValue)).
 			WithDetail(i18n.T(msgid.CliPublishCurrentValue), visibility).
 			WithDetailf(i18n.T(msgid.CliPublishAllowedValues), "%s | %s", visibilityPublic, visibilityPrivate).
-			WithExit(clierr.ExitUsage)
+			WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliPublishHintVisibility))
 	}
 }
 

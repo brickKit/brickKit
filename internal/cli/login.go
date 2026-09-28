@@ -228,7 +228,7 @@ func (p *prompter) readSecret() (string, error) {
 	raw, err := term.ReadPassword(int(file.Fd()))
 	if err != nil {
 		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginErrorFailedToReadThe)).
-			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err).WithHint(i18n.T(msgid.CliLoginHintPasswordStdin))
 	}
 	return strings.TrimSpace(string(raw)), nil
 }
@@ -243,7 +243,7 @@ func (p *prompter) line() (string, error) {
 	line, err := p.reader.ReadString('\n')
 	if err != nil && line == "" {
 		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginErrorFailedToReadThe2)).
-			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err)
+			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err).WithHint(i18n.T(msgid.CliLoginHintPasswordStdin))
 	}
 	return strings.TrimSpace(line), nil
 }

@@ -36,4 +36,5 @@ const (
 	CliRestoreRemoveTheFieldTheCommit          = "cli.restore.remove_the_field_the_commit"
 	CliRestoreError                            = "cli.restore.error"
 	CliRestoreLocalModeUntouched               = "cli.restore.local_mode_untouched"
+	CliRestoreHintInsideRepo                   = "cli.restore.hint_inside_repo"
 )

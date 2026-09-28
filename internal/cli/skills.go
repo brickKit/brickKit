@@ -106,7 +106,7 @@ func skillsInstaller(opts *Options, langOverride string) (skills.Installer, erro
 		if !ok {
 			return skills.Installer{}, clierr.Newf(clierr.CodeInvalidArgument,
 				i18n.T(msgid.LangInvalidValue, langOverride, langNamesJoined())).
-				WithExit(clierr.ExitUsage)
+				WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.HintForExample, "brickkit skills update --lang zh"))
 		}
 		in.Lang = lang
 	}

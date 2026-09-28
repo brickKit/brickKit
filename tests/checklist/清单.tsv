@@ -12,9 +12,9 @@
 # 看起来像"还没写"，实际是写完了、只是不在那儿。
 # **一个永远跳过的检查比没有检查更坏，因为它还在成绩单上占一行。**
 #
-# 证据类型：
-#   test    → module / 包 / 测试名，由 go test -list 确认它今天仍然存在
-#   record  → 该项是一次全量审计而非单个测试，最后两列为 "-"，第七列是记录文件
+# 证据类型：test → module / 包 / 测试名，由 go test -list 确认它今天仍然存在。
+# （曾经还有一种 record：33.17 指向一次全量审计的记录。审计只证明审计那天，所以它改成了
+# tests/errorhints 的守卫——每次跑测试都重新证明一遍，这种证据类型也就不再需要。）
 #
 # 一个编号可以有多行（一项承诺由多个测试共同证明）；但每个编号至少要有一行。
 boundary	32.1	组件 ID 超长	test	.	./internal/manifest	TestValidationErrors
@@ -59,7 +59,7 @@ error	33.13	钉住的组件强依赖了被关掉的组件	test	.	./internal/cli	
 error	33.14	所有错误的退出码非 0	test	.	./internal/clierr	TestExitCodes
 error	33.15	所有警告的退出码为 0	test	.	./internal/cli	TestRunRendersWarningWithZeroExit
 error	33.16	错误信息不暴露内部实现细节	test	.	./internal/market	TestWithDetailsRendersNestedDetails
-error	33.17	错误信息包含建议（重构前的 154 处全量审计记录；重构后新增的报错未复核）	record	-	-	archive/v1/decisions/完成记录/07-复核与结欠账.md
+error	33.17	错误信息包含建议（每一处报错构造都带建议，或写明豁免理由）	test	.	./tests/errorhints	TestEveryErrorCarriesASuggestion
 error	33.18	brickkit.yaml 格式错误指出行号	test	.	./internal/projfile	TestParseInvalidYAMLNamesTheLine
 error	33.19	市场不可达时提示检查网络	test	.	./internal/source	TestMarketSourceUnreachable
 error	33.20	Git 仓库不可达或地址写错时点名仓库地址	test	.	./internal/source	TestGitMissingRepositoryNamesTheAddress

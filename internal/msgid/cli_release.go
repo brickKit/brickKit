@@ -14,4 +14,5 @@ const (
 	CliReleaseLocalNotAttempted = "cli.release.local_not_attempted"
 	CliReleaseLocalNothing      = "cli.release.local_nothing"
 	CliReleaseLocalSummary      = "cli.release.local_summary"
+	CliReleaseHintLocalOrPath   = "cli.release.hint_local_or_path"
 )

@@ -43,11 +43,11 @@ func runLangSet(opts *Options, value string) error {
 	lang, ok := i18n.ParseLang(value)
 	if !ok {
 		return clierr.Newf(clierr.CodeInvalidArgument, i18n.T(msgid.LangInvalidValue, value, langNamesJoined())).
-			WithExit(clierr.ExitUsage)
+			WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.HintForExample, "brickkit lang set zh"))
 	}
 
 	if err := userconfig.Save(&userconfig.Config{Lang: string(lang)}); err != nil {
-		e := clierr.New(clierr.CodeInternal, i18n.T(msgid.LangSetWriteFailed)).WithCause(err)
+		e := clierr.New(clierr.CodeInternal, i18n.T(msgid.LangSetWriteFailed)).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 		if path, pathErr := userconfig.Path(); pathErr == nil {
 			e = e.WithDetail(i18n.T(msgid.LabelPath), path)
 		}

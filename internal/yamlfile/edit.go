@@ -369,7 +369,7 @@ func (e *Edit) Save() error {
 	if err != nil {
 		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.LayerEncodeFailed, name)).
 			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
-			WithCause(err)
+			WithCause(err).WithHint(i18n.T(msgid.HintInternalBug))
 	}
 	if err := writeAtomic(e.path, restoreBlankLines(e.original, buf.Bytes())); err != nil {
 		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.LayerWriteFailed, name)).

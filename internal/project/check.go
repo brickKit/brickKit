@@ -99,7 +99,7 @@ func (p *Project) inconsistencyError(missing, extra []string) *clierr.Error {
 func (p *Project) checkMembers() error {
 	problems := clierr.NewProblemSet(clierr.CodeConfigInvalid,
 		i18n.T(msgid.ProblemValidationFailed, filepath.Base(p.DeployPath))).
-		WithSource(i18n.T(msgid.LabelFile), p.DeployPath)
+		WithSource(i18n.T(msgid.LabelFile), p.DeployPath).WithHint(i18n.T(msgid.DeployfileHintFieldReference))
 	p.shellOf = map[string]string{}
 	hostedBy := map[string]string{}
 

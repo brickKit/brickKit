@@ -66,5 +66,5 @@ func newProblems(source string) *clierr.ProblemSet {
 		source = FileName
 	}
 	return clierr.NewProblemSet(clierr.CodeConfigInvalid, i18n.T(msgid.ProblemValidationFailed, FileName)).
-		WithSource(i18n.T(msgid.LabelFile), source)
+		WithSource(i18n.T(msgid.LabelFile), source).WithHint(i18n.T(msgid.ProjfileHintFieldReference))
 }

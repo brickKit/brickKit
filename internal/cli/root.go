@@ -174,7 +174,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 			return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliRootErrorInvalidLogLevel)).
 				WithDetail(i18n.T(msgid.CliRootValueGiven), opts.LogLevel).
 				WithDetail(i18n.T(msgid.CliRootValidValues), strings.Join(logging.LevelNames(), " | ")).
-				WithExit(clierr.ExitUsage)
+				WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliRootHintLogLevel))
 		}
 		logging.SetLevel(opts.LogLevel)
 		logging.Info(i18n.T(msgid.LogCommandStarted),

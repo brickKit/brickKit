@@ -497,7 +497,7 @@ func (c *Client) ArtifactDir(id, version string) string {
 // 单个文件下载失败只记入 Warnings，不阻断（004 §10.1：产物是开发时辅助）。
 func (c *Client) DownloadArtifacts(ctx context.Context, m *manifest.Manifest) (*ArtifactResult, error) {
 	if m == nil {
-		return nil, clierr.New(clierr.CodeInternal, i18n.T(msgid.SourceNoManifest))
+		return nil, clierr.New(clierr.CodeInternal, i18n.T(msgid.SourceNoManifest)).WithHint(i18n.T(msgid.HintInternalBug))
 	}
 	id, version := m.Metadata.ID, m.Metadata.Version
 	if err := checkRef(id, version); err != nil {

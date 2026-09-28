@@ -52,4 +52,5 @@ const (
 	WorkspaceRiskNotGitRepo  = "workspace.risk.not_git_repo"
 	WorkspaceRiskUncommitted = "workspace.risk.uncommitted"
 	WorkspaceRiskUnpushed    = "workspace.risk.unpushed"
+	WorkspaceHintRetryClone  = "workspace.hint_retry_clone"
 )

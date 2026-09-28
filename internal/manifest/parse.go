@@ -91,6 +91,7 @@ func Parse(data []byte, source string) (*Manifest, error) {
 // 字段：id、optional"只告诉作者它不认识，没告诉作者版本去了哪儿。
 func walkUnknownFields(doc *yaml.Node, shape *clierr.ProblemSet) {
 	// 标题不会渲染（这里只取 Items），所以不进目录
+	// clierr:nohint 只用来收集问题（取 Items），从不渲染给人看
 	found := clierr.NewProblemSet(clierr.CodeManifestInvalid, "unknown fields")
 	yamlcheck.Walk(doc, reflect.TypeOf(Manifest{}), found)
 	for _, problem := range found.Items() {

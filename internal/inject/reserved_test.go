@@ -15,7 +15,6 @@ import (
 	"github.com/brickkit/brickkit/internal/manifest"
 )
 
-
 func manifestWithConfigKeys(keys ...string) *manifest.Manifest {
 	props := map[string]manifest.ConfigProperty{}
 	for _, k := range keys {
@@ -55,4 +54,3 @@ func TestReservedKeyWarningsNothingToCheck(t *testing.T) {
 	assert.Nil(t, ReservedKeyWarnings(&manifest.Manifest{}))
 	assert.Nil(t, ReservedKeyWarnings(manifestWithConfigKeys("PAGE_SIZE", "DATABASE_URL", "REDIS_HOST")))
 }
-

@@ -34,4 +34,5 @@ const (
 	CliLoginRunBrickkitLoginInA              = "cli.login.run_brickkit_login_in_a"
 	CliLoginSpecifyTheMarketAddressWith      = "cli.login.specify_the_market_address_with"
 	CliLoginLong                             = "cli.login.long"
+	CliLoginHintPasswordStdin                = "cli.login.hint_password_stdin"
 )

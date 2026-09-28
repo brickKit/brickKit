@@ -44,6 +44,7 @@ const (
 	CliInstallWouldBreakProject      = "cli.install.would_break_project"
 	CliInstallHintFixFirst           = "cli.install.hint_fix_first"
 	CliInstallTargetExists           = "cli.install.target_exists"
+	CliInstallHintMoveTarget         = "cli.install.hint_move_target"
 	CliInstallProjectDocFailed       = "cli.install.project_doc_failed"
 	CliAddFlagInit                   = "cli.add.flag_init"
 	CliAddInitNeedsLocal             = "cli.add.init_needs_local"
@@ -53,4 +54,5 @@ const (
 	CliAddLocalInitDone              = "cli.add.local_init_done"
 	CountDependencies                = "count.dependencies"
 	CliAddLocalInitCommit            = "cli.add.local_init_commit"
+	CliAddLocalHintDropRepo          = "cli.add.local_hint_drop_repo"
 )

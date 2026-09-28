@@ -141,7 +141,7 @@ func CloneFrom(ctx context.Context, l project.Layout, componentID, ref, from, gi
 		return "", clierr.New(clierr.CodeCloneFailed, i18n.T(msgid.WorkspaceCannotCreateSourceDir)).
 			WithDetail(i18n.T(msgid.LabelDir), DisplayDir(componentID)).
 			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
-			WithCause(err)
+			WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
 
 	// 完整 clone（不加 --depth）：使用者要能在这份仓库里改代码、提交、推送。
@@ -165,7 +165,7 @@ func CloneFrom(ctx context.Context, l project.Layout, componentID, ref, from, gi
 				WithDetail(i18n.T(msgid.LabelComponent), ref).
 				WithDetail(i18n.T(msgid.LabelRepo), gitURL).
 				WithDetail(i18n.T(msgid.LabelReason), firstLine(string(out), err)).
-				WithCause(err)
+				WithCause(err).WithHint(i18n.T(msgid.WorkspaceHintRetryClone))
 		}
 	}
 	if tag != "" {
@@ -176,7 +176,7 @@ func CloneFrom(ctx context.Context, l project.Layout, componentID, ref, from, gi
 				WithDetail(i18n.T(msgid.LabelComponent), ref).
 				WithDetail(i18n.T(msgid.LabelRepo), gitURL).
 				WithDetail(i18n.T(msgid.LabelReason), firstLine(string(out), err)).
-				WithCause(err)
+				WithCause(err).WithHint(i18n.T(msgid.WorkspaceHintRetryClone))
 		}
 	}
 	return target, nil
