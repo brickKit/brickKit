@@ -220,7 +220,7 @@ dependencies; derive everything else.**
 | **Least privilege** | Nothing is reachable until it is declared; optional network policies are generated from the dependency graph; signed components are verified with the Go standard library alone | A smaller blast radius by default, with the trust anchor in **your** project |
 
 What each idea is, what it costs, and how BrickKit treats it, in plain terms:
-[Design principles and trade-offs](docs/en/06-architecture/05-design-principles.md#meet-the-ideas).
+[Design principles and trade-offs](docs/en/06-architecture/05-design-principles.md#getting-to-know-these-ideas).
 
 ## If you write code with AI
 
