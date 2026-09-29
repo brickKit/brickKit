@@ -1624,6 +1624,8 @@ var zh = map[string]string{
 	msgid.CliDepsOptional:                       "弱依赖",
 	msgid.CliDepsOptionalMissing:                "弱依赖，未安装",
 	msgid.CliDepsCycle:                          "环",
+	msgid.CliDepsNotes:                          "（%[1]s）",
+	msgid.CliDepsNoteSeparator:                  "，",
 	msgid.CliDepsShownAbove:                     "见上",
 	msgid.ReleaseNotARepo:                       "错误：组件目录不在 Git 仓库里",
 	msgid.ReleaseHintGitInit:                    "发布就是往组件仓库推一个 Git tag：先 git init、提交、配置远端并推送",

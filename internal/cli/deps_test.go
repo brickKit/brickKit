@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 )
 
 // depsProject：portal → api → db、portal → auth → db（db 是共享的菱形底），admin → auth，
@@ -123,4 +124,17 @@ func TestDepsRejectsBadReference(t *testing.T) {
 	g, dir := depsProject(t)
 	r := g.run(dir, "deps", "erp/auth@^1.0.0")
 	assert.NotEqual(t, clierr.ExitOK, r.code)
+}
+
+// 注记的括号与分隔符跟着语言走：中文输出里是"（弱依赖，未安装）"，不是半角的"(弱依赖, 未安装)"。
+func TestDepsNotesUseTheLanguagesPunctuation(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0", Optional: []string{"infra/mq@1.0.0"}})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+
+	t.Setenv("BRICKKIT_LANG", "zh")
+	t.Cleanup(func() { i18n.SetCurrent(i18n.EN) })
+	r := g.mustRun(dir, "deps")
+	assert.Contains(t, r.stdout, "└── infra/mq@1.0.0（弱依赖，未安装）\n")
 }

@@ -207,7 +207,7 @@ func (t *depsTree) children(b *strings.Builder, ref resolver.Ref, prefix string,
 			expand = false
 		}
 		if len(notes) > 0 {
-			line += " (" + strings.Join(notes, ", ") + ")"
+			line += i18n.T(msgid.CliDepsNotes, strings.Join(notes, i18n.T(msgid.CliDepsNoteSeparator)))
 		}
 		b.WriteString(prefix + branch + line + "\n")
 		if !expand {

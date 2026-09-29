@@ -14,4 +14,6 @@ const (
 	CliDepsOptionalMissing = "cli.deps.optional_missing"
 	CliDepsCycle           = "cli.deps.cycle"
 	CliDepsShownAbove      = "cli.deps.shown_above"
+	CliDepsNotes           = "cli.deps.notes"
+	CliDepsNoteSeparator   = "cli.deps.note_separator"
 )

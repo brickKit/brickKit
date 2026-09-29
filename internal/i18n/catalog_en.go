@@ -1634,6 +1634,8 @@ var en = map[string]string{
 	msgid.CliDepsOptional:                           "optional",
 	msgid.CliDepsOptionalMissing:                    "optional, not installed",
 	msgid.CliDepsCycle:                              "cycle",
+	msgid.CliDepsNotes:                              " (%[1]s)",
+	msgid.CliDepsNoteSeparator:                      ", ",
 	msgid.CliDepsShownAbove:                         "shown above",
 	msgid.ReleaseNotARepo:                           "Error: the component directory is not in a Git repository",
 	msgid.ReleaseHintGitInit:                        "a release is a Git tag pushed to the component's repository: git init, commit, add a remote and push first",
