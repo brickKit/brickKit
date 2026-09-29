@@ -577,7 +577,7 @@ brickkit local <命令> [参数]
 
 ### `brickkit local on`
 
-开启本地模式；第一次开启时从 `deploy.yaml` 逐字节复制出 `deploy.local.yaml`。
+开启本地模式；第一次开启时从 `deploy.yaml` 复制出 `deploy.local.yaml`——内容一字不差，只有 `init` 写的团队文件头注释换成个人文件的说明。
 
 ```text
 ✅ 本地模式已开启：命令现在读取 deploy.local.yaml

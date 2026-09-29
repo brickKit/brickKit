@@ -28,7 +28,8 @@ networkPolicy……只在 `target: k8s` 时生效，别的 target 下写了会�
 
 **2. 个人的事写进 `deploy.local.yaml`，不是改 `deploy.yaml`。**
 
-`brickkit local on` 第一次会把 `deploy.yaml` 逐字节复制成 `deploy.local.yaml`（已存在就沿用，
+`brickkit local on` 第一次会把 `deploy.yaml` 复制成 `deploy.local.yaml`（内容一字不差，只有 `init`
+写的团队文件头换成个人文件的说明；已存在就沿用，
 从不覆盖），并打开本地模式。**开着时所有命令整份读 `deploy.local.yaml`，完全替代 `deploy.yaml`，
 不合并**——所以你看到的就是实际跑的，但你改 `deploy.yaml` 也不会生效。这份文件不进 Git。
 `local off` 关开关、文件留着；`local status` 看开关和文件是否还跟 `brickkit.yaml` 一致；

@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -219,4 +220,26 @@ func TestLocalRefreshSummarisesPlacement(t *testing.T) {
 	r := mustLocal(t, dir, "refresh")
 	assert.Contains(t, r.stdout, "- [erp/api] at the top level (now under the shell erp/shell)")
 	assert.Contains(t, r.stdout, "- [erp/api] mode: debug (now unset)")
+}
+
+// init 生成的 deploy.yaml 文件头写着"团队文件：请提交它"。deploy.local.yaml 从不提交，
+// 原样抄过去就是一句假话：复制时文件头换成个人文件的说明，其余逐字节不变；refresh 同理，
+// 团队文件没变时仍然是"已经是最新"。
+func TestLocalCopySwapsTheTeamHeader(t *testing.T) {
+	dir := t.TempDir()
+	require.Equal(t, clierr.ExitOK, runIn(t, dir, "init", "--name", "shop", "--yes", "--no-skills").code)
+	team := readFile(t, filepath.Join(dir, "deploy.yaml"))
+	require.Contains(t, team, "The team file: commit it.")
+
+	mustLocal(t, dir, "on")
+	local := readFile(t, filepath.Join(dir, "deploy.local.yaml"))
+	assert.NotContains(t, local, "commit it")
+	assert.Contains(t, local, "# deploy.local.yaml — your personal deploy file")
+	_, teamBody, _ := strings.Cut(team, "\ntarget:")
+	_, localBody, _ := strings.Cut(local, "\ntarget:")
+	assert.Equal(t, teamBody, localBody, "文件头以外逐字节相同")
+
+	r := mustLocal(t, dir, "refresh")
+	assert.Contains(t, r.stdout, "already")
+	assert.NoFileExists(t, filepath.Join(dir, "deploy.local.yaml.bak"))
 }

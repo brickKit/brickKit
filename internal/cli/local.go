@@ -2,7 +2,7 @@ package cli
 
 // 本文件实现 brickkit local：管理个人本地部署文件 deploy.local.yaml（提案 §6.2–6.6，附录 A1、A16）。
 //
-//	on       开启本地模式；文件不存在时从 deploy.yaml 逐字节复制，已存在时沿用（off 不删它）
+//	on       开启本地模式；文件不存在时从 deploy.yaml 复制（团队文件头换成个人文件头，见 project.LocalDeployContent），已存在时沿用（off 不删它）
 //	off      关闭本地模式：只停止读取，文件留着
 //	status   开关、文件、以及（开着时）与 brickkit.yaml 是否一致
 //	refresh  备份旧文件、重新复制，列出旧文件里的本地修改——CLI 不合并，完整替换（附录 A1）
@@ -79,7 +79,7 @@ func runLocalOn(opts *Options) error {
 	}
 	copied := false
 	if !fileExists(l.DeployLocalPath()) {
-		if err := copyFile(l.DeployPath(), l.DeployLocalPath()); err != nil {
+		if err := copyDeployToLocal(l); err != nil {
 			return err
 		}
 		copied = true
@@ -173,10 +173,11 @@ func runLocalRefresh(opts *Options) error {
 	if err != nil {
 		return localIOError(l.DeployLocalPath(), err)
 	}
-	fresh, err := os.ReadFile(l.DeployPath())
+	team, err := os.ReadFile(l.DeployPath())
 	if err != nil {
 		return localIOError(l.DeployPath(), err)
 	}
+	fresh := project.LocalDeployContent(team)
 	// 团队文件本身写坏了：复制过来只会把一份能用的本地文件换成坏的，再刷新一次连备份也没了。
 	// 一个文件都不动，点名 deploy.yaml
 	if _, _, err := deployfile.ParseFile(l.DeployPath(), deployfile.RoleTeam); err != nil {
@@ -247,13 +248,14 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-func copyFile(from, to string) error {
-	data, err := os.ReadFile(from)
+// copyDeployToLocal 写出第一份 deploy.local.yaml（内容见 project.LocalDeployContent）。
+func copyDeployToLocal(l project.Layout) error {
+	data, err := os.ReadFile(l.DeployPath())
 	if err != nil {
-		return localIOError(from, err)
+		return localIOError(l.DeployPath(), err)
 	}
-	if err := os.WriteFile(to, data, 0o644); err != nil {
-		return localIOError(to, err)
+	if err := os.WriteFile(l.DeployLocalPath(), project.LocalDeployContent(data), 0o644); err != nil {
+		return localIOError(l.DeployLocalPath(), err)
 	}
 	return nil
 }

@@ -34,7 +34,8 @@ One entry per version in `brickkit.yaml`, members nested under their shell count
 
 **2. `deploy.local.yaml` replaces `deploy.yaml`; it is never merged.**
 
-`brickkit local on` copies `deploy.yaml` byte for byte the first time (an existing file is reused)
+`brickkit local on` copies `deploy.yaml` the first time — identical except that the "team file" header
+`init` wrote becomes a personal-file header (an existing file is reused)
 and from then on **every** command reads `deploy.local.yaml` instead. `local off` switches back and
 keeps the file. When the team changes `deploy.yaml`, your copy doesn't follow: `up` refuses once the
 component set differs. Run `brickkit local refresh` — it saves the old file as

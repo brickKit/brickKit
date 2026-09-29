@@ -287,6 +287,22 @@ func deploySkeleton() string {
 		"components: []\n"
 }
 
+// LocalDeployContent 是 local on / refresh 从 deploy.yaml 复制出来的 deploy.local.yaml 内容。
+// 逐字节复制，只有一处例外：文件开头正是 init 写下的团队文件头（"团队文件：请提交它"）时，
+// 换成个人文件的说明，语言与原文件头相同——那句话放进一个从不提交的文件里是假话。
+// 使用者改过的文件头认不出来，原样保留。
+func LocalDeployContent(team []byte) []byte {
+	for _, lang := range i18n.SupportedLangs() {
+		catalog := i18n.CatalogFor(lang)
+		header := yamlcomment.Block("", catalog[msgid.ProjectSkeletonDeployHeader])
+		if rest, ok := bytes.CutPrefix(team, []byte(header)); ok {
+			local := yamlcomment.Block("", catalog[msgid.ProjectSkeletonDeployLocalHeader])
+			return append([]byte(local), rest...)
+		}
+	}
+	return team
+}
+
 func writeNewFile(path, content string) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, initFilePerm)
 	if err != nil {

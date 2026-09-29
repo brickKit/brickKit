@@ -33,6 +33,7 @@ const (
 	ProjectSkeletonLocalDirNote         = "project.skeleton.local_dir_note"
 	ProjectSkeletonMoreSources          = "project.skeleton.more_sources"
 	ProjectSkeletonDeployHeader         = "project.skeleton.deploy_header"
+	ProjectSkeletonDeployLocalHeader    = "project.skeleton.deploy_local_header"
 	ProjectSkeletonDeployTarget         = "project.skeleton.deploy_target"
 	ProjectSkeletonVarsHeader           = "project.skeleton.vars_header"
 	ProjectHintReinit                   = "project.hint_reinit"
