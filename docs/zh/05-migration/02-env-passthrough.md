@@ -1,0 +1,71 @@
+# 环境变量透传
+
+## 平台不拼连接串
+
+迁移要连数据库。平台不知道你用的是 PostgreSQL 还是 MySQL、连接串长什么样、要不要 SSL——它也不需要知道。
+**迁移容器拿到的环境变量与主服务一模一样**：同一份配置、同一份依赖地址、同一个密钥文件。组件从环境变量里取出主机、端口、库名、用户、口令，自己拼连接串。
+
+## 一个完整的例子
+
+组件声明它要哪些配置：
+
+```yaml
+# component.yaml
+configSchema:
+  type: object
+  properties:
+    DB_HOST:
+      type: string
+      description: PostgreSQL 主机名
+    DB_PORT:
+      type: integer
+      default: 5432
+      description: PostgreSQL 端口
+    DB_NAME:
+      type: string
+      description: 库名
+    DB_USER:
+      type: string
+      description: 连接用户
+    DB_PASSWORD:
+      type: string
+      secret: true
+      description: 连接口令
+  required: [DB_HOST, DB_NAME, DB_USER, DB_PASSWORD]
+
+migration:
+  command: ["/app/orders", "migrate"]
+```
+
+使用方填值——几个组件共用一个库时，地址写成公共变量：
+
+```yaml
+# config/vars.yaml
+PG_HOST: pg.internal
+PG_PASSWORD: ${PG_PASSWORD}
+```
+
+```yaml
+# config/shop-orders.yaml
+DB_HOST: $var:PG_HOST
+DB_NAME: orders
+DB_USER: orders
+DB_PASSWORD: $var:PG_PASSWORD
+```
+
+迁移容器和主服务都拿到 `DB_HOST=pg.internal`、`DB_PORT=5432`、`DB_NAME=orders`、`DB_USER=orders`；`DB_PASSWORD` 是密钥，
+Docker 下两者引用同一个 0600 的 env 文件，Kubernetes 下两者引用同一个生成的 Secret。组件代码里：
+
+```go
+dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
+	os.Getenv("DB_USER"), url.QueryEscape(os.Getenv("DB_PASSWORD")),
+	os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_NAME"))
+```
+
+## 为什么这样分工
+
+- **连接串的格式是组件的事。** 同一个 PostgreSQL，Go 的驱动、JDBC、SQLAlchemy 要的写法各不相同；平台替你拼，只能拼成其中一种。
+- **一份配置两处用。** 迁移和主服务读的是同一组变量，不会出现"迁移连的是 A 库、服务连的是 B 库"。
+- **库由使用方准备。** 平台不创建数据库：`DB_NAME` 指向的库要先存在（运维创建一次），表由迁移创建。
+
+依赖地址也一样透传：迁移需要调用别的组件时（比如迁移前先向某个服务注册），它同样拿到 `*_ENDPOINT`。
