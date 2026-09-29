@@ -144,7 +144,7 @@ func TestLoginAgainstUnreachableMarketReportsNetworkError(t *testing.T) {
 	r := runStdin(t, f.Dir, "zhangsan\nany-password\n", "login")
 
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "Market unreachable")
+	assert.Contains(t, r.stderr, "the Market is unreachable")
 }
 
 // ============================================================

@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/market"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // ============================================================
@@ -297,7 +299,7 @@ func TestUnreachableMarket(t *testing.T) {
 	e := clierr.As(err)
 	require.NotNil(t, e)
 	assert.Equal(t, clierr.CodeNetworkUnreachable, e.Code)
-	assert.Contains(t, e.Format(), "Market unreachable")
+	assert.Contains(t, e.Format(), i18n.T(msgid.MarketUnreachable), "与安装源那条同一种说法")
 	assert.NotContains(t, e.Format(), "Reason: Post \"http", "错误里不该重复整条 URL")
 }
 
