@@ -36,20 +36,8 @@ func Check(p *project.Project, graph *resolver.Graph, states *cascade.Result) er
 		if node == nil || node.Manifest == nil {
 			continue
 		}
-		if err := checkKind(ref, c.IsShell(), node.Manifest); err != nil {
+		if err := CheckDeclaration(p, ref, c.IsShell(), node.Manifest); err != nil {
 			return err
-		}
-		if !c.IsShell() {
-			continue
-		}
-		for _, written := range p.MembersOf(c.ID) {
-			member, _ := written.Key()
-			if _, ok := node.Manifest.HostedVersion(member); !ok {
-				return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellMemberNotHostable, member, ref.String())).
-					WithDetail(i18n.T(msgid.LabelFile), p.DeployPath).
-					WithDetail(i18n.T(msgid.ShellLabelCanHost), strings.Join(node.Manifest.Shell.Members, ", ")).
-					WithHint(i18n.T(msgid.ShellHintMemberNotHostable))
-			}
 		}
 	}
 	if err := checkMemberVersions(p, graph, states); err != nil {
@@ -168,6 +156,28 @@ func checkSkipWaitFor(p *project.Project, graph *resolver.Graph) error {
 		problems.WithHint(i18n.T(msgid.ShellHintSkipWaitForOnMember))
 	}
 	return problems.Err()
+}
+
+// CheckDeclaration 是只看声明、不看依赖图的那部分核对：brickkit.yaml 的 kind: shell 与
+// component.yaml 的 shell 块一致；部署文件放在外壳下面的成员，外壳确实编进了它。
+// up / graph 经 Check 调它；lint 对盘上有 Manifest 的组件直接调它（附录 A11）——离线就能查。
+func CheckDeclaration(p *project.Project, ref resolver.Ref, declared bool, m *manifest.Manifest) *clierr.Error {
+	if err := checkKind(ref, declared, m); err != nil {
+		return err
+	}
+	if !declared {
+		return nil
+	}
+	for _, written := range p.MembersOf(ref.ID) {
+		member, _ := written.Key()
+		if _, ok := m.HostedVersion(member); !ok {
+			return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellMemberNotHostable, member, ref.String())).
+				WithDetail(i18n.T(msgid.LabelFile), p.DeployPath).
+				WithDetail(i18n.T(msgid.ShellLabelCanHost), strings.Join(m.Shell.Members, ", ")).
+				WithHint(i18n.T(msgid.ShellHintMemberNotHostable))
+		}
+	}
+	return nil
 }
 
 // checkKind 核对 brickkit.yaml 的 kind: shell 与 component.yaml 的 shell 块。

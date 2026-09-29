@@ -319,7 +319,8 @@ brickkit fetch infra/notifier         # 取最新版本的产物
 1. `brickkit.yaml`；
 2. 部署文件：`deploy.yaml`，存在时还有 `deploy.local.yaml`（给了 `-f` 只查那一份）——两份都必须与 `brickkit.yaml` 一致，不管本地模式开没开；
 3. 三层文件放在一起查：每个组件版本恰好一个部署条目、成员写在外壳下面、`$var:` 都有定义、`config/` 的文件对得上组件、没有升级遗留的重复键；
-4. 按 `configSchema` 查每个组件的配置：必填项有值、写下的键在 schema 里、外壳成员的值能 JSON 编码进外壳——只查盘上有 Manifest 的组件，其余的列为未检查；
+4. 按 `configSchema` 查每个组件的配置：必填项有值、写下的键在 schema 里、外壳成员的值能 JSON 编码进外壳；以及外壳声明：`kind: shell`
+   与 `shell` 块一致、放在外壳下面的成员确实编进了外壳——只查盘上有 Manifest 的组件，其余的列为未检查；
 5. 本地安装源目录下的每一份 `component.yaml`，不管有没有 `add` 过（`.archived/` 不查）。
 
 `brickkit.yaml` 自己没通过时，后面的都不可信，跳过并说明。
@@ -327,7 +328,7 @@ brickkit fetch infra/notifier         # 取最新版本的产物
 **组件仓库（有 `component.yaml`、没有 `brickkit.yaml`）：** 只查这一份 `component.yaml`。
 
 查的是结构规则：必填字段、类型、未知字段（拼写笔误）、版本号格式、端口范围。警告有两类：`configSchema` 里拼错的键
-（比如 `defualt`）不会生效；配置项名字撞上平台保留变量。**不查**：依赖能不能解析、外壳与成员对不对得上
+（比如 `defualt`）不会生效；配置项名字撞上平台保留变量。**不查**：依赖能不能解析、外壳这次承载的成员版本与它编进的版本对不对得上
 （要解析出依赖图才知道，而 `lint` 故意不建这张图——那可能意味着联网），这些留给 `up --dry-run` 与 `graph`；
 也不查配置的值合不合 `enum`、`minimum`（平台只检查键名、不检查值）。
 

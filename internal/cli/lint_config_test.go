@@ -202,3 +202,15 @@ func TestLintWorkbenchStillChecksOwnManifest(t *testing.T) {
 	assert.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stdout, "tpyo")
 }
+
+// 附录 A11：brickkit.yaml 的 kind: shell 由 lint 核对与 component.yaml 一致——离线就能查，
+// 与配置检查同一条路：只看盘上有 Manifest 的组件。
+func TestLintChecksShellKindAgainstManifest(t *testing.T) {
+	dir := lintConfigProject(t, "DB_HOST: db.local\n", map[string]string{
+		"brickkit.yaml": "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\ncomponents:\n  - id: erp/api\n    version: 1.0.0\n    kind: shell\n",
+	})
+	r := runIn(t, dir, "lint")
+	assert.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout+r.stderr, "erp/api@1.0.0")
+	assert.Contains(t, r.stdout+r.stderr, "kind: shell")
+}
