@@ -1375,6 +1375,8 @@ var zh = map[string]string{
 	msgid.ProjectHintLocalRefresh:               "方案 A（推荐）：brickkit local refresh 按 deploy.yaml 重新生成 deploy.local.yaml，旧文件备份为 deploy.local.yaml.bak",
 	msgid.ProjectHintLocalEdit:                  "方案 B：在 deploy.local.yaml 里手动增删下面列出的条目",
 	msgid.ProjectHintLocalOff:                   "方案 C：brickkit local off 切回团队的 deploy.yaml",
+	msgid.ProjectLocalStaleReasonOff:            "brickkit.yaml 变了，你的 deploy.local.yaml 没有同步。本地模式现在关着，命令不读它；但下次 brickkit local on 就会读到它",
+	msgid.ProjectHintLocalDelete:                "方案 C：不再需要它，就删掉 deploy.local.yaml（它不会被提交）",
 	msgid.ProjectDeployInconsistent:             "错误：%[1]s 与 brickkit.yaml 的组件对不上",
 	msgid.ProjectHintDeploySync:                 "brickkit.yaml 里的每个组件版本在部署文件里都要有且只有一个条目：裸 ID 覆盖默认版本（不带 requiredBy 的那一行），因依赖而保留的版本（requiredBy）要有自己的 id@version 条目；外壳下面的成员条目同样算数；brickkit add / remove 会自动保持 deploy.yaml 同步",
 	msgid.ProjectHintDeployEdit:                 "手动增删下面列出的条目",

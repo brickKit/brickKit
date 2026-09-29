@@ -169,6 +169,28 @@ func TestLoadLocalFileStale(t *testing.T) {
 	assert.Contains(t, detailValues(err), "crm/backend")
 	require.NotEmpty(t, e.Hints)
 	assert.Equal(t, i18n.T(msgid.ProjectHintLocalRefresh), e.Hints[0])
+	assert.Contains(t, detailValues(err), i18n.T(msgid.ProjectLocalStaleReason))
+	assert.Contains(t, e.Hints, i18n.T(msgid.ProjectHintLocalOff))
+}
+
+// lint 不管本地模式开没开都查个人文件（ForceLocal）。开关关着时，理由不能说"你开启了本地模式"，
+// 出路也不能是"brickkit local off"——那是一件已经成立的事。
+func TestLoadLocalFileStaleWhileLocalModeOff(t *testing.T) {
+	root := baseProject(t)
+	write(t, root, map[string]string{
+		"deploy.local.yaml": baseDeploy,
+		"brickkit.yaml":     baseDecl + "  - {id: crm/backend, version: 1.0.0}\n",
+		"deploy.yaml":       baseDeploy + "  - id: crm/backend\n",
+	})
+
+	_, err := project.Load(root, project.LoadOptions{ForceLocal: true})
+	require.Error(t, err)
+	e := clierr.As(err)
+	assert.Equal(t, i18n.T(msgid.ProjectLocalStale), e.Message)
+	assert.Contains(t, detailValues(err), i18n.T(msgid.ProjectLocalStaleReasonOff))
+	assert.NotContains(t, detailValues(err), i18n.T(msgid.ProjectLocalStaleReason))
+	assert.NotContains(t, e.Hints, i18n.T(msgid.ProjectHintLocalOff))
+	assert.Contains(t, e.Hints, i18n.T(msgid.ProjectHintLocalDelete))
 }
 
 func TestLoadDeployExtraAndMissing(t *testing.T) {

@@ -1384,6 +1384,8 @@ var en = map[string]string{
 	msgid.ProjectHintLocalRefresh:                   "Option A (recommended): brickkit local refresh regenerates deploy.local.yaml from deploy.yaml and keeps the old one as deploy.local.yaml.bak",
 	msgid.ProjectHintLocalEdit:                      "Option B: add or remove the listed entries in deploy.local.yaml by hand",
 	msgid.ProjectHintLocalOff:                       "Option C: brickkit local off switches back to the team's deploy.yaml",
+	msgid.ProjectLocalStaleReasonOff:                "brickkit.yaml changed, but your deploy.local.yaml was not updated. Local mode is off, so commands don't read it now — but the next brickkit local on will",
+	msgid.ProjectHintLocalDelete:                    "Option C: if you no longer need it, delete deploy.local.yaml (it is never committed)",
 	msgid.ProjectDeployInconsistent:                 "Error: %[1]s does not match the components in brickkit.yaml",
 	msgid.ProjectHintDeploySync:                     "Every component version in brickkit.yaml needs exactly one entry in the deploy file: a bare ID covers the default version (the line without requiredBy), a version kept for a dependent (requiredBy) needs its own id@version entry; a shell's members count as entries too; brickkit add and remove keep deploy.yaml in sync",
 	msgid.ProjectHintDeployEdit:                     "Add or remove the listed entries by hand",

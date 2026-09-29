@@ -11,6 +11,8 @@ const (
 	ProjectHintLocalRefresh             = "project.hint_local_refresh"
 	ProjectHintLocalEdit                = "project.hint_local_edit"
 	ProjectHintLocalOff                 = "project.hint_local_off"
+	ProjectLocalStaleReasonOff          = "project.local_stale_reason_off"
+	ProjectHintLocalDelete              = "project.hint_local_delete"
 	ProjectDeployInconsistent           = "project.deploy_inconsistent"
 	ProjectHintDeploySync               = "project.hint_deploy_sync"
 	ProjectHintDeployEdit               = "project.hint_deploy_edit"

@@ -86,6 +86,11 @@ func (p *Project) inconsistencyError(missing, extra []string) *clierr.Error {
 	for _, ref := range extra {
 		err = err.WithDetail(i18n.T(msgid.ProjectLabelExtraEntry), ref)
 	}
+	if local && !p.LocalModeOn {
+		// lint 不管开关都查个人文件：开关关着时，它只是"下次打开时会过期"
+		return err.WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ProjectLocalStaleReasonOff)).
+			WithHint(i18n.T(msgid.ProjectHintLocalRefresh), i18n.T(msgid.ProjectHintLocalEdit), i18n.T(msgid.ProjectHintLocalDelete))
+	}
 	if local {
 		return err.WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ProjectLocalStaleReason)).
 			WithHint(i18n.T(msgid.ProjectHintLocalRefresh), i18n.T(msgid.ProjectHintLocalEdit), i18n.T(msgid.ProjectHintLocalOff))
