@@ -42,6 +42,8 @@ const componentsKey = "components"
 type applied struct {
 	// ConfigsWritten 是新生成的配置骨架（相对项目根）。
 	ConfigsWritten []string
+	// ConfigsToFill 是新骨架里还空着的必填项，按文件列出。
+	ConfigsToFill []configToFill
 	// ConfigsArchived 是移进 config/.archive/ 的配置（原路径 → 归档路径，相对项目根）。
 	ConfigsArchived [][2]string
 	// Restored 是从 config/.archive/ 迁移回来的配置（提案 §7.7）。
@@ -374,8 +376,17 @@ func (a *applier) editConfigs(plan *install.Plan) error {
 			return err
 		}
 		a.result.ConfigsWritten = append(a.result.ConfigsWritten, a.rel(path))
+		if keys := configdir.PendingRequired(c.Schema, a.options.varRefs[ref]); len(keys) > 0 {
+			a.result.ConfigsToFill = append(a.result.ConfigsToFill, configToFill{File: a.rel(path), Keys: keys})
+		}
 	}
 	return nil
+}
+
+// configToFill 是一份新骨架里还空着的必填项。
+type configToFill struct {
+	File string
+	Keys []string
 }
 
 // configFileName 是组件版本的配置文件名：默认版本用无版本号文件（附录 A5）。

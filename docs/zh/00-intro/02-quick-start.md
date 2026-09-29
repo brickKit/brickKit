@@ -73,7 +73,7 @@ brickkit add demo/hello
 ➕ 加入 demo/hello@1.0.0
    ✅ demo/hello@1.0.0
 📝 已写：brickkit.yaml, deploy.yaml
-📝 配置骨架：config/demo-hello.yaml（必填项要自己填上）
+📝 配置骨架：config/demo-hello.yaml
 📦 产物：1 个文件，在 .brickkit/artifacts/
 ```
 

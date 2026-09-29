@@ -24,6 +24,22 @@ func Skeleton(id, version string, schema *manifest.ConfigSchema, varRefs map[str
 	})
 }
 
+// PendingRequired 是骨架写出来之后还空着、要使用者自己填的键：必填、没有默认值、
+// 也没有写成 $var: 引用的那些（排好序）。空着它们 up 会拒绝启动，所以 add 要点名。
+func PendingRequired(schema *manifest.ConfigSchema, varRefs map[string]string) []string {
+	if schema == nil {
+		return nil
+	}
+	requiredKeys, _ := splitKeys(schema)
+	var pending []string
+	for _, key := range requiredKeys {
+		if varRefs[key] == "" {
+			pending = append(pending, key)
+		}
+	}
+	return pending
+}
+
 // renderSkeleton 是骨架的版式（文件头、必填区、可选区）；每个键写成什么由 line 决定——
 // 生成骨架写骨架行，迁移（Migrate）把使用者写过的键换成他的原文或冲突块。
 func renderSkeleton(id, version string, schema *manifest.ConfigSchema, line func(key string, prop manifest.ConfigProperty, required bool) string) []byte {

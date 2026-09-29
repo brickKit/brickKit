@@ -36,7 +36,7 @@ func newLoginCommand(opts *Options) *cobra.Command {
 		GroupID: groupMarket,
 		Long:    i18n.T(msgid.CliLoginLong),
 		Example: `  brickkit login
-  brickkit login --market https://market.brickkit.io/api/v1
+  brickkit login --market https://market.example.com/api/v1
   echo "$PASSWORD" | brickkit login --username ci-bot --password-stdin`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

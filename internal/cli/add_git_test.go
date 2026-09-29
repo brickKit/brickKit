@@ -622,3 +622,21 @@ func TestRemoveAcceptsPristineCloneOfLaterRelease(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, "一份没改过的 clone 不该被拦：%s", r.stdout+r.stderr)
 	assert.NoDirExists(t, src)
 }
+
+// 新骨架里只有真有"必填且没有默认值"的键时才提示去填，而且点名是哪个文件、哪几个键；
+// 全是可选项的骨架不能说"必填项要自己填上"——使用者会去找一个并不存在的必填项。
+func TestAddNamesTheRequiredKeysToFill(t *testing.T) {
+	dir := t.TempDir()
+	optional := strings.Replace(schemaComp("erp/web"), "  required: [DB_HOST]\n", "", 1)
+	writeTree(t, dir, map[string]string{
+		"brickkit.yaml":                     "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\ncomponents: []\n",
+		"deploy.yaml":                       "target: docker\ncomponents: []\n",
+		"components/erp/api/component.yaml": schemaComp("erp/api"),
+		"components/erp/web/component.yaml": optional,
+	})
+	r := runIn(t, dir, "add", "--local", "--yes")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "Config skeletons: config/erp-api.yaml, config/erp-web.yaml\n")
+	assert.Contains(t, r.stdout, "Fill in the required keys in config/erp-api.yaml: DB_HOST")
+	assert.NotContains(t, r.stdout, "config/erp-web.yaml: ")
+}

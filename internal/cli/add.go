@@ -254,6 +254,9 @@ func renderAddResult(opts *Options, targets []resolver.Ref, plan *install.Plan, 
 	if len(res.ConfigsWritten) > 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliAddConfigsWritten, strings.Join(res.ConfigsWritten, ", ")))
 	}
+	for _, f := range res.ConfigsToFill {
+		opts.Printf("   %s\n", i18n.T(msgid.CliAddConfigsToFill, f.File, strings.Join(f.Keys, ", ")))
+	}
 	for _, r := range res.Restored {
 		opts.Printf("%s\n", i18n.T(msgid.CliAddConfigRestored, r.File, r.Archive))
 		renderMigrationReport(opts, r.File, r.Report)

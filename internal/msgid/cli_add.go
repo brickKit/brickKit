@@ -22,6 +22,7 @@ const (
 	CliAddNested                     = "cli.add.nested"
 	CliAddRequiredByExtended         = "cli.add.required_by_extended"
 	CliAddConfigsWritten             = "cli.add.configs_written"
+	CliAddConfigsToFill              = "cli.add.configs_to_fill"
 	CliAddConfigRestored             = "cli.add.config_restored"
 	CliAddArtifacts                  = "cli.add.artifacts"
 	CliAddSignatureVerified          = "cli.add.signature_verified"

@@ -42,3 +42,19 @@ func TestCatalogsHaveNoRemovedConcepts(t *testing.T) {
 		}
 	}
 }
+
+// 设计文档（new_plan/ 下的提案与附录）不随 CLI 发布：帮助文本里写"（附录 A4）"，
+// 使用者既找不到这份文档，也读不懂这个编号。要讲的道理直接写在文本里。
+var designDocCitations = []string{"附录", "提案", "Appendix A", "proposal §", "§"}
+
+func TestCatalogsNeverCiteTheDesignDocuments(t *testing.T) {
+	for _, lang := range SupportedLangs() {
+		for id, text := range catalogFor(lang) {
+			for _, cite := range designDocCitations {
+				if strings.Contains(text, cite) {
+					t.Errorf("%s %s 引用了使用者看不到的设计文档 %q：%s", lang, id, cite, text)
+				}
+			}
+		}
+	}
+}

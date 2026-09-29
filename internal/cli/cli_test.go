@@ -294,3 +294,41 @@ func findCommand(root *cobra.Command, name string) *cobra.Command {
 	}
 	return nil
 }
+
+// 根帮助是每个人最先读到的一屏：它必须讲三层文件，而不是只提 brickkit.yaml
+// （从前写着"管理项目配置（brickkit.yaml）"，那是单文件时代的说法）。
+// 帮助文本讲的必须是现在的行为：up 从不构建、也生成 K8s 清单并托管 mode: local；status 也查
+// Podman 与 K8s；fetch 的产物落在不进 Git 的 .brickkit/ 下；示例里不写一个并不存在的公共市场。
+func TestHelpTextsDescribeCurrentBehavior(t *testing.T) {
+	up := run(t, "up", "--help").stdout
+	for _, want := range []string{"brickkit build", "Kubernetes", "mode: local", "mode: debug"} {
+		assert.Contains(t, up, want, "brickkit up --help")
+	}
+	for _, gone := range []string{"docker login", "compatibility check"} {
+		assert.NotContains(t, up, gone, "brickkit up --help")
+	}
+	status := run(t, "status", "--help").stdout
+	for _, want := range []string{"podman compose", "kubectl"} {
+		assert.Contains(t, status, want, "brickkit status --help")
+	}
+	fetch := run(t, "fetch", "--help").stdout
+	assert.NotContains(t, fetch, "committed with the project")
+	assert.Contains(t, fetch, "not committed")
+	assert.NotContains(t, run(t, "login", "--help").stdout, "brickkit.io")
+}
+
+func TestRootHelpDescribesTheThreeLayers(t *testing.T) {
+	r := run(t, "--help")
+	require.Equal(t, clierr.ExitOK, r.code)
+	for _, want := range []string{"brickkit.yaml", "deploy.yaml", "deploy.local.yaml", "config/"} {
+		assert.Contains(t, r.stdout, want)
+	}
+	for _, short := range []struct{ cmd, want string }{
+		{"add", "three layers"},
+		{"lint", "deploy files"},
+		{"remove", "archive"},
+	} {
+		h := run(t, short.cmd, "--help")
+		assert.Contains(t, r.stdout+h.stdout, short.want, "brickkit %s 的一句话简介", short.cmd)
+	}
+}
