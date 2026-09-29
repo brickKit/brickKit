@@ -181,3 +181,16 @@ func TestReleaseLocalOverlappingSourcesReleaseOnce(t *testing.T) {
 		assert.Equal(t, "1.0.0", relGit(t, origin, "tag", "--list"))
 	}
 }
+
+// 报错里的组件目录按使用者给的写法显示（相对当前目录），与其它命令一致——不是一长串绝对路径。
+func TestReleaseShowsTheDirectoryRelative(t *testing.T) {
+	project := t.TempDir()
+	repo := filepath.Join(project, "svc", "api")
+	pushedRepo(t, repo, map[string]string{"component.yaml": compYAML("erp/api", "1.1.0")})
+	writeTree(t, repo, map[string]string{"main.go": "package main\n"})
+
+	r := runIn(t, project, "release", "--path", "svc/api")
+	require.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stderr, "svc/api")
+	assert.NotContains(t, r.stderr, project, "不打印绝对路径")
+}

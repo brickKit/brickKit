@@ -33,9 +33,9 @@ const (
 
 // Target 是一次要发布的组件版本。
 type Target struct {
-	// Dir 是组件目录（component.yaml 所在处）。
-	Dir      string
-	Manifest *manifest.Manifest
+	// Dir 是组件目录（component.yaml 所在处）；Display 是报错里给人看的写法（相对当前目录）。
+	Dir, Display string
+	Manifest     *manifest.Manifest
 	// RepoRoot 是组件所在 git 仓库的根；Subpath 是组件目录相对它的路径（斜杠分隔），在根上时为空。
 	RepoRoot, Subpath string
 	// Tag 是要打的 tag：<版本>，组件在子目录时是 <scope>-<name>/<版本>（附录 A9），
@@ -47,10 +47,16 @@ type Target struct {
 
 // Prepare 读取并校验 dir 下的 component.yaml，定位它所在的 git 仓库。只读 component.yaml——
 // 同一目录里的 brickkit.yaml 是作者的本地工作台，与发布无关（提案 §16.1.1）。
-func Prepare(dir string) (*Target, error) {
+func Prepare(dir string) (*Target, error) { return PrepareAs(dir, "") }
+
+// PrepareAs 同 Prepare；display 是报错里显示的目录写法（空串时显示绝对路径）。
+func PrepareAs(dir, display string) (*Target, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		abs = dir
+	}
+	if display == "" {
+		display = abs
 	}
 	m, err := manifest.ParseFile(filepath.Join(abs, manifest.FileName))
 	if err != nil {
@@ -62,7 +68,7 @@ func Prepare(dir string) (*Target, error) {
 	out, err := git(abs, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return nil, clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseNotARepo)).
-			WithDetail(i18n.T(msgid.LabelDir), abs).
+			WithDetail(i18n.T(msgid.LabelDir), display).
 			WithHint(i18n.T(msgid.ReleaseHintGitInit))
 	}
 	root := evalSymlinks(out)
@@ -75,7 +81,7 @@ func Prepare(dir string) (*Target, error) {
 		subpath = ""
 	}
 	return &Target{
-		Dir: abs, Manifest: m, RepoRoot: root, Subpath: subpath,
+		Dir: abs, Display: display, Manifest: m, RepoRoot: root, Subpath: subpath,
 		Tag: source.VersionTag(m.Metadata.ID, m.Metadata.Version, subpath),
 	}, nil
 }
@@ -98,7 +104,7 @@ func (t *Target) Check() (State, error) {
 	}
 	if status != "" {
 		e := clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseDirty, t.Ref())).
-			WithDetail(i18n.T(msgid.LabelDir), t.Dir)
+			WithDetail(i18n.T(msgid.LabelDir), t.Display)
 		for _, line := range strings.Split(status, "\n") {
 			e = e.WithDetail(i18n.T(msgid.ReleaseLabelChanged), strings.TrimSpace(line))
 		}
