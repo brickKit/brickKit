@@ -648,3 +648,24 @@ func TestUpStartsFallbackMemberForReal(t *testing.T) {
 	assert.Contains(t, req.Services, "mdm-customer-1-0-7",
 		"外壳没跑，这个成员该被真的交给引擎启动，不是只出现在生成的文件里")
 }
+
+// Docker 下迁移失败，compose 只说"didn't complete successfully"：点名是哪个组件的迁移、日志在哪，
+// 与 K8s 下的 MIGRATION_FAILED 同一种说法——而不是一句"docker 执行失败"加一长串命令。
+func TestUpNamesTheFailedMigration(t *testing.T) {
+	comps := []comp{
+		{ID: "people/basic", Version: "1.0.0", Migration: []string{"python", "manage.py", "migrate"}},
+	}
+	f := addedProject(t, comps, "people/basic@1.0.0")
+	eng := newFakeEngine()
+	eng.upErr = errors.New(`service "people-basic-1-0-0-migration" didn't complete successfully: exit 1`)
+	eng.statuses = []engine.Status{
+		{Service: "people-basic-1-0-0-migration", State: "exited", ExitCode: 1},
+		{Service: "people-basic-1-0-0", State: "created"},
+	}
+
+	r := runWithEngine(t, eng, f.Dir, "up")
+	require.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "database migration failed")
+	assert.Contains(t, r.stderr, "people/basic@1.0.0")
+	assert.Contains(t, r.stderr, "logs people-basic-1-0-0-migration")
+}

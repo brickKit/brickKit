@@ -36,6 +36,8 @@ const (
 	CliUpStartingProjectDeployTarget        = "cli.up.starting_project_deploy_target"
 	CliUpViewTheLogsToFind                  = "cli.up.view_the_logs_to_find"
 	CliUpAFailedMigrationLeavesThe          = "cli.up.a_failed_migration_leaves_the"
+	CliUpMigrationBlocksMain                = "cli.up.migration_blocks_main"
+	CliUpMigrationFixAndRerun               = "cli.up.migration_fix_and_rerun"
 	CliUpNoContainerIsGeneratedStart        = "cli.up.no_container_is_generated_start"
 	CliUpTheTopLevelItselfIsn               = "cli.up.the_top_level_itself_isn"
 	CliUpDatabaseMigrationsThatRunBefore    = "cli.up.database_migrations_that_run_before"

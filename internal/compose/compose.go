@@ -380,7 +380,10 @@ func (p *plan) chainMigrations() {
 }
 
 // migrationService 是某个组件的迁移 service 名。
-func migrationService(service string) string { return service + "-migration" }
+// MigrationService 是一个组件迁移容器的 service 名。CLI 在 up 失败后按它认出失败的迁移。
+func MigrationService(service string) string { return service + "-migration" }
+
+func migrationService(service string) string { return MigrationService(service) }
 
 // checkExposePorts 检查宿主机端口冲突。
 //

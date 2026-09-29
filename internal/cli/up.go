@@ -560,6 +560,9 @@ func start(
 		RunAfter:      plan.runAfter(),
 		PruneSelector: pruneSelector,
 	}); err != nil {
+		if failed := failedMigration(ctx, opts, eng, plan, project, err); failed != nil {
+			return failed
+		}
 		return engineFailure(i18n.T(msgid.CliUpStart), err)
 	}
 
@@ -575,6 +578,34 @@ func start(
 	}
 
 	return runLocalComponents(ctx, opts, plan.proj.Layout, plan.localComponents, plan.crashLines)
+}
+
+// failedMigration 在 up 失败后问一次引擎：有迁移容器非零退出，就是它挡住了主服务——点名是哪个
+// 组件的迁移、日志怎么看（K8s 下的同一件事由 engine 报 MIGRATION_FAILED）。认不出时返回 nil，
+// 由 engineFailure 原样报引擎的说法。
+func failedMigration(
+	ctx context.Context, opts *Options, eng engine.Engine, plan *upPlan, project string, cause error,
+) error {
+	statuses, err := eng.Status(ctx, project)
+	if err != nil {
+		return nil
+	}
+	byService := map[string]resolver.Ref{}
+	for _, ref := range plan.states.Running() {
+		byService[compose.MigrationService(manifest.ServiceName(ref.ID, ref.Version))] = ref
+	}
+	for _, s := range statuses {
+		ref, ok := byService[s.Service]
+		if !ok || s.State != "exited" || s.ExitCode == 0 {
+			continue
+		}
+		return clierr.New(clierr.CodeMigrationFailed, i18n.T(msgid.EngineMigrationFailed)).
+			WithDetail(i18n.T(msgid.LabelComponent), ref.String()).
+			WithDetail(i18n.T(msgid.EngineLabelLogs), logsCommand(engineName(opts, plan.proj), project, s.Service)).
+			WithHint(i18n.T(msgid.CliUpMigrationBlocksMain), i18n.T(msgid.CliUpMigrationFixAndRerun)).
+			WithCause(cause)
+	}
+	return nil
 }
 
 // reportStarted 汇报启动结果，并在有组件没起来时给出非零退出码。

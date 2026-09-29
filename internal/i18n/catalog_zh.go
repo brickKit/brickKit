@@ -1257,6 +1257,8 @@ var zh = map[string]string{
 	msgid.CliUpViewTheLogs:                                           "   查看日志：%[1]s",
 	msgid.CliUpStartingProjectDeployTarget:                           "🚀 启动项目 %[1]s（target: %[2]s）",
 	msgid.CliUpViewTheLogsToFind:                                     "看日志定位：%[1]s",
+	msgid.CliUpMigrationBlocksMain:                                   "迁移失败时主服务不会启动：它要等迁移成功结束",
+	msgid.CliUpMigrationFixAndRerun:                                  "修好之后重新 brickkit up：迁移容器会再跑一次",
 	msgid.CliUpAFailedMigrationLeavesThe:                             "迁移失败会让主服务停在 Created，先看该组件的 -migration 容器",
 	msgid.CliUpNoContainerIsGeneratedStart:                           "      不生成容器；请在 IDE 里启动它，监听 localhost:%[1]d",
 	msgid.CliUpTheTopLevelItselfIsn:                                  "顶层自己都没被关掉——要放开的是上面那行理由里点名的组件",

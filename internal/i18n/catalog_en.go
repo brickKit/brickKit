@@ -1264,6 +1264,8 @@ var en = map[string]string{
 	msgid.CliUpViewTheLogs:                                                                   "   View the logs: %[1]s",
 	msgid.CliUpStartingProjectDeployTarget:                                                   "🚀 Starting project %[1]s (target: %[2]s)",
 	msgid.CliUpViewTheLogsToFind:                                                             "View the logs to find out why: %[1]s",
+	msgid.CliUpMigrationBlocksMain:                                                           "When a migration fails the main service does not start: it waits for the migration to finish successfully",
+	msgid.CliUpMigrationFixAndRerun:                                                          "Fix it and run brickkit up again: the migration container runs once more",
 	msgid.CliUpAFailedMigrationLeavesThe:                                                     "A failed migration leaves the main service stuck at Created; look at that component's -migration container first",
 	msgid.CliUpNoContainerIsGeneratedStart:                                                   "      No container is generated; start it in your IDE, listening on localhost:%[1]d",
 	msgid.CliUpTheTopLevelItselfIsn:                                                          "The top level itself isn't turned off — what to release is the component named in the reason line above",
