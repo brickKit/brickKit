@@ -189,6 +189,13 @@ def self_check(surface):
         bc, *_ = scan_lines("<自检>", [tomb], surface)
         if bc:
             problems.append(f"删除标记没认出来：{tomb}")
+    # 代码块里的注释行不是命令；代码块里真写出来的命令照查
+    bc, *_ = scan_lines("<自检>", ["```yaml", "# until then brickkit refuses to start.", "```"], surface)
+    if bc:
+        problems.append(f"代码块里的注释被当成了命令：{bc}")
+    bc, *_ = scan_lines("<自检>", ["```bash", "brickkit refuses", "```"], surface)
+    if not bc:
+        problems.append("代码块里写错的命令没被报出来")
     bc, *_ = scan_lines("<自检>", ["Run `brickkit override` to refresh it."], surface)
     if not bc:
         problems.append("不带删除标记的已删除命令没被报出来")
@@ -290,7 +297,15 @@ def scan_lines(path, lines, surface):
     seen_cmd = seen_flag = 0
     documented = {}
 
+    in_fence = False
     for i, line in enumerate(lines, 1):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        # 代码块里 # 开头的是注释（shell 注释、CLI 生成的 YAML 注释），不是要敲的命令：
+        # "# … until then brickkit refuses to start." 说的是 CLI 的行为，不是一条叫 refuses 的命令
+        if in_fence and line.lstrip().startswith("#"):
+            continue
         tomb = TOMBSTONE.search(line)
         for cmd, rest in usages(line):
             seen_cmd += 1

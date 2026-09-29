@@ -14,10 +14,10 @@
 components:
   - id: demo/hello
     mode: disable
+  - id: demo/bus
   - id: demo/caller
     mode: disable
   - id: demo/hello@1.0.0
-  - id: demo/bus
 ```
 
 ```bash

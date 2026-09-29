@@ -32,19 +32,21 @@ CLI 自己不存运行状态——没有后台进程替它记着。`status` 每�
 - `mode: debug` 的组件单独一张表（见 [本地调试](03-local-debug-workflow.md)）。`mode: local` 的组件是另一个终端里 `up` 看护的进程，
   不在表里；有这样的会话在跑时，会提示是哪个进程。
 
-`down` 之后，组件都列在"未在运行"里，并提示去哪看日志：
+`down` 之后，本该运行的组件都列在"未在运行"里，并提示去哪看日志（被关掉的 `demo/bus` 仍在"未启动"那张表里）：
 
 ```text
-❌ 未在运行（4 个组件）
+❌ 未在运行（3 个组件）
  ┌─────────────┬───────┬────────┐
  │ 组件        │ 版本  │ 状态   │
  ├─────────────┼───────┼────────┤
- │ demo/bus    │ 1.0.0 │ 未创建 │
  │ demo/hello  │ 1.0.0 │ 未创建 │
  │ demo/caller │ 1.0.0 │ 未创建 │
  │ demo/hello  │ 1.1.0 │ 未创建 │
  └─────────────┴───────┴────────┘
    看日志定位：docker compose -p brickkit-my-shop logs <服务名>
+
+📋 没有正在运行的组件（可能已经 brickkit down 过）
+   重新启动：brickkit up
 ```
 
 ## `brickkit deps`
@@ -96,8 +98,8 @@ brickkit graph
 ```text
 graph TD
     demo_hello_1_1_0["demo/hello@1.1.0"]
-    demo_hello_1_0_0["demo/hello@1.0.0"]
     demo_bus_1_0_0["demo/bus@1.0.0"]
+    demo_hello_1_0_0["demo/hello@1.0.0"]
     demo_caller_1_0_0["demo/caller@1.0.0"]
     demo_caller_1_0_0 --> demo_hello_1_0_0
     demo_caller_1_0_0 -.-> demo_bus_1_0_0
@@ -110,8 +112,8 @@ graph TD
 ```mermaid
 graph TD
     demo_hello_1_1_0["demo/hello@1.1.0"]
-    demo_hello_1_0_0["demo/hello@1.0.0"]
     demo_bus_1_0_0["demo/bus@1.0.0"]
+    demo_hello_1_0_0["demo/hello@1.0.0"]
     demo_caller_1_0_0["demo/caller@1.0.0"]
     demo_caller_1_0_0 --> demo_hello_1_0_0
     demo_caller_1_0_0 -.-> demo_bus_1_0_0

@@ -28,6 +28,8 @@ brickkit init my-shop
 生成的 `brickkit.yaml` 已经声明了两个**本地安装源**，另外两种安装源写成了注释，取消注释、填上地址就能用：
 
 ```yaml
+# brickkit.yaml —— 这个项目由什么组成：安装源与各组件的精确版本。
+# 与代码一样共享、评审：请提交它。
 project: my-shop
 
 # 安装源，按声明顺序依次尝试
@@ -106,7 +108,7 @@ brickkit init
    ✅ 创建  shell/.gitkeep
    ✅ 创建  components/
    ✅ 创建  BRICKKIT.md
-   ⚠️  .gitignore 缺少：.brickkit/、deploy.local.yaml、deploy.local.yaml.bak、.secrets/、config/.archive/、components/（不替你改——请自己补上）
+   ⚠️  .gitignore 缺少：.brickkit/、deploy.local.yaml、deploy.local.yaml.bak、.secrets/、.env、config/.archive/、components/（不替你改——请自己补上）
 继续？[y/N] 
 ```
 
@@ -114,7 +116,7 @@ brickkit init
 
 - **已有的 `.gitignore` 只校验、不修改。** 缺的每一条都大声警告：缺了它们，个人部署文件和密钥会被提交。它不替你改，是因为那份文件是你的，
   里面可能有它看不懂的规则。
-- **`--yes` 跳过确认**，给 CI 用。
+- **`--yes` 跳过确认**（计划照样打印出来），给 CI 用。
 - **项目名**取 `--name`，否则沿用已有 `brickkit.yaml` 的 `project`，否则取目录名。
 - **最后按 `up` 的方式装载一遍项目**；装载不了，命令就失败——补全出来的必须是能用的项目。
 
@@ -123,6 +125,15 @@ brickkit init --yes
 ```
 
 ```text
+当前目录已有文件，brickkit init 将：
+   ✅ 创建  brickkit.yaml
+   ✅ 创建  deploy.yaml
+   ✅ 创建  config/vars.yaml
+   ✅ 创建  config/.gitkeep
+   ✅ 创建  shell/.gitkeep
+   ✅ 创建  components/
+   ✅ 创建  BRICKKIT.md
+   ⚠️  .gitignore 缺少：.brickkit/、deploy.local.yaml、deploy.local.yaml.bak、.secrets/、.env、config/.archive/、components/（不替你改——请自己补上）
 ✅ 项目已补全：legacy-shop
 ⚠️ 警告：.gitignore 缺少必需条目——个人部署文件和密钥可能被提交
    文件：.gitignore
@@ -130,6 +141,7 @@ brickkit init --yes
    缺少：deploy.local.yaml
    缺少：deploy.local.yaml.bak
    缺少：.secrets/
+   缺少：.env
    缺少：config/.archive/
    缺少：components/
    建议：把缺的每一行手动加进 .gitignore（brickkit init 从不修改已有的 .gitignore）
