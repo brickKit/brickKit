@@ -63,7 +63,7 @@ shop/portal@1.0.0
 ```text
 ❌ 错误：检测到循环依赖
    循环路径：shop/order@1.0.0 → shop/stock@1.0.0 → shop/order@1.0.0
-   原因：这几个组件互相**强依赖**，谁都要等对方先起来，启动顺序无解
+   原因：这几个组件互相强依赖，谁都要等对方先起来，启动顺序无解
    建议：
    1. 检查 Manifest 中的依赖声明（dependencies.components）
    2. 其中一方改成弱依赖（optional: true）即可——弱依赖不约束启动顺序，环上有一条弱边就不再是死结

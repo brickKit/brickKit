@@ -90,7 +90,7 @@ Kubernetes 没有提供"这个集群执行 NetworkPolicy 吗"的 API，平台测
 🔒 已生成 5 份 NetworkPolicy（k8s.networkPolicy.enabled: true）
    ⚠️ 它们只在集群的 CNI 支持执行时才有效。不支持时：apply 会成功、
       kubectl get networkpolicy 看得见、而流量完全不受限制——没有任何报错。
-      minikube / kind 的**默认** CNI 就属于这一类。
+      minikube / kind 的默认 CNI 就属于这一类。
    平台测不出来（K8s 没有这个 API），只能你自己验一次：
       详见 docs/zh/06-architecture/08-security-and-signing.md（英文版把 zh 换 en）
 ```
