@@ -45,7 +45,7 @@ func requireContext(
 		WithDetail(i18n.T(msgid.CliK8sClusterCurrentContext), current).
 		WithHint(
 			i18n.T(msgid.CliK8sClusterSwitchToItKubectlConfig, want),
-			i18n.T(msgid.CliK8sClusterOrSpecifyItExplicitlyFor, current),
+			i18n.T(msgid.CliK8sClusterOrUseItsDeployFile, current),
 			i18n.T(msgid.CliK8sClusterDonTContinueUntilYou),
 		)
 }

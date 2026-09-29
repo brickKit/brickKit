@@ -849,7 +849,7 @@ var zh = map[string]string{
 	msgid.CliK8sClusterRequiredByTheConfigurationDeploy:              "部署文件要求（k8s.context）",
 	msgid.CliK8sClusterCurrentContext:                                "当前 context",
 	msgid.CliK8sClusterSwitchToItKubectlConfig:                       "切过去：kubectl config use-context %[1]s",
-	msgid.CliK8sClusterOrSpecifyItExplicitlyFor:                      "或本次显式指定：brickkit up --context %[1]s",
+	msgid.CliK8sClusterOrUseItsDeployFile:                            "要部到的就是 %[1]s 的话：用一份 k8s.context 写着它的部署文件（brickkit up -f <文件>）",
 	msgid.CliK8sClusterDonTContinueUntilYou:                          "确认无误前不要继续——部到错误的集群是不可逆的",
 	msgid.CliRenderOrderComponentStateCalculation:                    "📋 组件状态计算：",
 	msgid.CliRenderOrderStartOrderTopologicalSort:                    "📋 启动顺序（拓扑排序）：",

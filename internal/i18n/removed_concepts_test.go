@@ -15,6 +15,9 @@ var removedConcepts = []string{
 	"override.yaml",
 	"brickkit override",
 	"--ignore-served-by",
+	// up / down 的 --context 已删除：换集群就换一份部署文件（k8s.context），命令行上不能临时改
+	"up --context",
+	"down --context",
 	"envPrefix",
 	"base resource",
 	"基础资源",

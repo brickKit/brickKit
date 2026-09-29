@@ -7,6 +7,6 @@ const (
 	CliK8sClusterRequiredByTheConfigurationDeploy  = "cli.k8s.cluster.required_by_the_configuration_deploy"
 	CliK8sClusterCurrentContext                    = "cli.k8s.cluster.current_context"
 	CliK8sClusterSwitchToItKubectlConfig           = "cli.k8s.cluster.switch_to_it_kubectl_config"
-	CliK8sClusterOrSpecifyItExplicitlyFor          = "cli.k8s.cluster.or_specify_it_explicitly_for"
+	CliK8sClusterOrUseItsDeployFile                = "cli.k8s.cluster.or_use_its_deploy_file"
 	CliK8sClusterDonTContinueUntilYou              = "cli.k8s.cluster.don_t_continue_until_you"
 )

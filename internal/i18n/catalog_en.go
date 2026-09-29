@@ -855,7 +855,7 @@ var en = map[string]string{
 	msgid.CliK8sClusterRequiredByTheConfigurationDeploy:              "Required by the deploy file (k8s.context)",
 	msgid.CliK8sClusterCurrentContext:                                "Current context",
 	msgid.CliK8sClusterSwitchToItKubectlConfig:                       "Switch to it: kubectl config use-context %[1]s",
-	msgid.CliK8sClusterOrSpecifyItExplicitlyFor:                      "Or specify it explicitly for this run: brickkit up --context %[1]s",
+	msgid.CliK8sClusterOrUseItsDeployFile:                            "If %[1]s is where you mean to deploy: use a deploy file whose k8s.context names it (brickkit up -f <file>)",
 	msgid.CliK8sClusterDonTContinueUntilYou:                          "Don't continue until you are sure — deploying to the wrong cluster can't be undone",
 	msgid.CliRenderOrderComponentStateCalculation:                    "📋 Component state calculation:",
 	msgid.CliRenderOrderStartOrderTopologicalSort:                    "📋 Start order (topological sort):",
