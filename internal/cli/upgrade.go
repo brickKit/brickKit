@@ -114,6 +114,7 @@ func runUpgrade(ctx context.Context, opts *Options, arg string, f upgradeFlags) 
 func upgradeTargets(ctx context.Context, opts *Options, proj *project.Project, client *source.Client, arg string) ([]install.Move, error) {
 	if arg == "" {
 		var moves []install.Move
+		var fromLocal []localLatest
 		for _, c := range proj.Decl.Components {
 			if !proj.Decl.IsDefault(c.ID, c.Version) {
 				continue
@@ -124,11 +125,14 @@ func upgradeTargets(ctx context.Context, opts *Options, proj *project.Project, c
 			}
 			if manifest.CompareVersions(latest.Version, c.Version) > 0 {
 				moves = append(moves, install.Move{ID: c.ID, From: c.Version, To: latest.Version})
+			} else if latest.SourceKind == source.OriginLocal {
+				fromLocal = append(fromLocal, localLatest{ref: c.Ref(), source: latest.SourceID})
 			}
 		}
 		if len(moves) == 0 {
 			opts.Printf("%s\n", i18n.T(msgid.CliUpgradeAllUpToDate))
 		}
+		renderLocalLatest(opts, fromLocal)
 		return moves, nil
 	}
 	id, version, err := parseComponentRef(arg)
@@ -140,12 +144,16 @@ func upgradeTargets(ctx context.Context, opts *Options, proj *project.Project, c
 		return nil, clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.CliRemoveNotInProject, id)).
 			WithHint(i18n.T(msgid.CliUpgradeHintAddFirst, id))
 	}
+	var fromLocal []localLatest
 	if version == "" {
 		latest, err := client.LatestVersion(ctx, id)
 		if err != nil {
 			return nil, err
 		}
 		version = latest.Version
+		if latest.SourceKind == source.OriginLocal {
+			fromLocal = append(fromLocal, localLatest{ref: id + "@" + current, source: latest.SourceID})
+		}
 		// 不写版本只往上走：安装源里最新的比项目里的旧，就是已经最新，绝不悄悄降级
 		if manifest.CompareVersions(version, current) < 0 {
 			version = current
@@ -153,9 +161,26 @@ func upgradeTargets(ctx context.Context, opts *Options, proj *project.Project, c
 	}
 	if version == current {
 		opts.Printf("%s\n", i18n.T(msgid.CliUpgradeUpToDate, id+"@"+current))
+		renderLocalLatest(opts, fromLocal)
 		return nil, nil
 	}
 	return []install.Move{{ID: id, From: current, To: version}}, nil
+}
+
+// localLatest 是一个"最新版本"由本地源回答、因而没有移动的组件（附录 A8）。
+type localLatest struct{ ref, source string }
+
+// renderLocalLatest 说明这些组件的"最新"来自本地工作区：不说的话，"都是最新"会让人
+// 以为远端没有新版本，而其实只是本地源排在前面、它的工作区还在旧版本上。
+func renderLocalLatest(opts *Options, items []localLatest) {
+	if len(items) == 0 {
+		return
+	}
+	opts.Printf("%s\n", i18n.T(msgid.CliUpgradeLocalLatestHeader))
+	for _, it := range items {
+		opts.Printf("   %s\n", i18n.T(msgid.CliUpgradeLocalLatestLine, it.ref, it.source))
+	}
+	opts.Printf("   %s\n", i18n.T(msgid.CliUpgradeLocalLatestHint))
 }
 
 // withShellMoves：升级外壳时，成员跟着换成新外壳编进的版本（附录 A24）。

@@ -252,3 +252,20 @@ func TestUpgradeDryRunFailsLikeTheRealThing(t *testing.T) {
 	require.Equal(t, clierr.ExitError, r.code, r.stdout+r.stderr)
 	assert.Equal(t, before, readFile(t, filepath.Join(dir, "brickkit.yaml")))
 }
+
+// 附录 A8：本地源里的组件，"最新"就是工作区里的版本——哪怕 Git 上有更新的 tag。
+// 只说"都是最新"会让人以为远端没有新版本；要点名是哪几个组件、答案来自哪个本地源。
+func TestUpgradeSaysWhenTheAnswerCameFromALocalSource(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0"})
+	g.release(comp{ID: "erp/api", Version: "1.1.0"})
+	dir := g.project()
+	editFile(t, filepath.Join(dir, "brickkit.yaml"), "sources:\n", "sources:\n  - name: local-dev\n    type: local\n    path: ./components\n")
+	g.mustRun(dir, "add", "erp/api@1.0.0", "--repo")
+
+	for _, args := range [][]string{{"upgrade"}, {"upgrade", "erp/api"}} {
+		r := g.mustRun(dir, args...)
+		assert.Contains(t, r.stdout, "erp/api@1.0.0", "%v", args)
+		assert.Contains(t, r.stdout, "local source local-dev", "%v", args)
+	}
+}
