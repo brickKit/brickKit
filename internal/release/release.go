@@ -115,7 +115,7 @@ func (t *Target) Check() (State, error) {
 	if remote == "" {
 		return 0, clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseNoUpstream, t.Ref())).
 			WithDetail(i18n.T(msgid.ReleaseLabelBranch), branch).
-			WithHint(i18n.T(msgid.ReleaseHintSetUpstream))
+			WithHint(i18n.T(msgid.ReleaseHintSetUpstream, branch))
 	}
 	t.remote = remote
 	ahead, err := git(t.RepoRoot, "rev-list", "--count", "@{u}..HEAD")

@@ -1636,7 +1636,7 @@ var zh = map[string]string{
 	msgid.ReleaseHintCommit:                     "先提交（或丢弃）它们——tag 装的是提交，不是你的工作区",
 	msgid.ReleaseNoUpstream:                     "错误：发布 %[1]s 的这个分支没有上游",
 	msgid.ReleaseLabelBranch:                    "分支",
-	msgid.ReleaseHintSetUpstream:                "推送分支并设好上游：git push -u origin <分支>",
+	msgid.ReleaseHintSetUpstream:                "推送分支并设好上游：git push -u origin %[1]s",
 	msgid.ReleaseUnpushed:                       "错误：当前分支有未推送到远端的提交（发布 %[1]s）",
 	msgid.ReleaseLabelUnpushed:                  "未推送的提交",
 	msgid.ReleaseHintPush:                       "先执行 git push，让打 tag 的提交进入远端分支历史，再执行 brickkit release",

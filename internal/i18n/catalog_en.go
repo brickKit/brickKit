@@ -1646,7 +1646,7 @@ var en = map[string]string{
 	msgid.ReleaseHintCommit:                         "commit (or discard) them first — a tag holds a commit, never your working tree",
 	msgid.ReleaseNoUpstream:                         "Error: the branch %[1]s is released from has no upstream",
 	msgid.ReleaseLabelBranch:                        "branch",
-	msgid.ReleaseHintSetUpstream:                    "push the branch and set its upstream: git push -u origin <branch>",
+	msgid.ReleaseHintSetUpstream:                    "push the branch and set its upstream: git push -u origin %[1]s",
 	msgid.ReleaseUnpushed:                           "Error: the branch has commits that are not pushed yet (releasing %[1]s)",
 	msgid.ReleaseLabelUnpushed:                      "unpushed commits",
 	msgid.ReleaseHintPush:                           "run git push first, so the tagged commit is part of the remote branch history, then brickkit release again",

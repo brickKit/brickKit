@@ -135,6 +135,7 @@ func TestReleaseRefusesNoUpstream(t *testing.T) {
 	_, err := prepare(t, r.work).Check()
 	require.Error(t, err)
 	assert.Contains(t, clierr.As(err).Format(), "upstream")
+	assert.Contains(t, clierr.As(err).Format(), "git push -u origin feature", "分支名已知：提示直接给出能敲的命令")
 }
 
 func TestReleaseRefusesExistingTag(t *testing.T) {
