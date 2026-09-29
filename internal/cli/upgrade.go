@@ -103,7 +103,7 @@ func runUpgrade(ctx context.Context, opts *Options, arg string, f upgradeFlags) 
 		fresh = append(fresh, resolver.Ref{ID: m.ID, Version: m.To})
 	}
 	_, warnings := downloadAddedArtifacts(ctx, client, newGraph, fresh)
-	renderUpgradeResult(opts, plan, res)
+	renderUpgradeResult(opts, plan, res, false)
 	renderWarnings(opts, warnings)
 	refreshProjectDoc(opts, proj.Layout)
 	return nil
@@ -250,7 +250,7 @@ func previewUpgrade(opts *Options, proj *project.Project, plan *install.Plan) er
 		return err
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliUpgradePreviewHeader))
-	renderUpgradeResult(opts, plan, res)
+	renderUpgradeResult(opts, plan, res, true)
 	opts.Printf("\n%s\n", i18n.T(msgid.CliUpgradeDryRunNothingWritten))
 	return nil
 }
@@ -283,7 +283,12 @@ func copyProjectFiles(src, dst string) error {
 	})
 }
 
-func renderUpgradeResult(opts *Options, plan *install.Plan, res *applied) {
+// renderUpgradeResult 报告一次升级；preview（--dry-run）时用"会"的语气——那些文件只在副本上改过。
+func renderUpgradeResult(opts *Options, plan *install.Plan, res *applied, preview bool) {
+	archived, written, conflicts := msgid.CliRemoveConfigArchived, msgid.CliInstallWritten, msgid.CliUpgradeConflictsLeft
+	if preview {
+		archived, written, conflicts = msgid.CliUpgradeWouldArchive, msgid.CliUpgradeWouldWrite, msgid.CliUpgradeConflictsWouldLeave
+	}
 	renderUpgradeLines(opts, plan)
 	var conflicted []string
 	for _, m := range res.Migrations {
@@ -296,14 +301,14 @@ func renderUpgradeResult(opts *Options, plan *install.Plan, res *applied) {
 		}
 	}
 	for _, a := range res.ConfigsArchived {
-		opts.Printf("%s\n", i18n.T(msgid.CliRemoveConfigArchived, a[0], a[1]))
+		opts.Printf("%s\n", i18n.T(archived, a[0], a[1]))
 	}
-	opts.Printf("%s\n", i18n.T(msgid.CliInstallWritten, strings.Join(append([]string{project.FileDecl}, res.DeployFiles...), ", ")))
+	opts.Printf("%s\n", i18n.T(written, strings.Join(append([]string{project.FileDecl}, res.DeployFiles...), ", ")))
 	if len(res.OtherDeployFiles) > 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliInstallOtherDeployFiles, strings.Join(res.OtherDeployFiles, ", ")))
 	}
 	if len(conflicted) > 0 {
-		opts.Printf("\n%s\n", i18n.T(msgid.CliUpgradeConflictsLeft, strings.Join(conflicted, ", ")))
+		opts.Printf("\n%s\n", i18n.T(conflicts, strings.Join(conflicted, ", ")))
 	}
 }
 

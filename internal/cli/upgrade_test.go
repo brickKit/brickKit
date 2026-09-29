@@ -269,3 +269,23 @@ func TestUpgradeSaysWhenTheAnswerCameFromALocalSource(t *testing.T) {
 		assert.Contains(t, r.stdout, "local source local-dev", "%v", args)
 	}
 }
+
+// --dry-run 在副本上真做一遍，但报告要用"会"的语气：说"已写"、"留下了冲突块"，
+// 与最后那句"一个文件都没有改"自相矛盾。
+func TestUpgradeDryRunSpeaksInTheFuture(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(withConfig(comp{ID: "erp/api", Version: "1.0.0"}, "LOG_LEVEL:info"))
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+	editFile(t, filepath.Join(dir, "config", "erp-api.yaml"), "# LOG_LEVEL: ", "LOG_LEVEL: debug  # was: ")
+	g.release(withConfig(comp{ID: "erp/api", Version: "2.0.0"}, "LOG_LEVEL:warn"))
+
+	r := g.mustRun(dir, "upgrade", "--dry-run")
+	assert.NotContains(t, r.stdout, "Written:")
+	assert.Contains(t, r.stdout, "Would write: brickkit.yaml, deploy.yaml")
+	assert.NotContains(t, r.stdout, "contain conflict blocks")
+	assert.Contains(t, r.stdout, "would get conflict blocks")
+	assert.NotContains(t, r.stdout, "Config archived:")
+	assert.Contains(t, r.stdout, "Would archive config: config/erp-api.yaml")
+	assert.Contains(t, readFile(t, filepath.Join(dir, "brickkit.yaml")), "version: 1.0.0")
+}
