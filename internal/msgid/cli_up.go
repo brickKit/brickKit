@@ -39,6 +39,7 @@ const (
 	CliUpMigrationBlocksMain                = "cli.up.migration_blocks_main"
 	CliUpMigrationFixAndRerun               = "cli.up.migration_fix_and_rerun"
 	CliUpNoContainerIsGeneratedStart        = "cli.up.no_container_is_generated_start"
+	CliUpDebugEnvUnresolved                 = "cli.up.debug_env_unresolved"
 	CliUpTheTopLevelItselfIsn               = "cli.up.the_top_level_itself_isn"
 	CliUpDatabaseMigrationsThatRunBefore    = "cli.up.database_migrations_that_run_before"
 	CliUpVsCodeSetEnvfileWorkspacefolder    = "cli.up.vs_code_set_envfile_workspacefolder"

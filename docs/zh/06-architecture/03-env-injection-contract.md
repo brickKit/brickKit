@@ -101,11 +101,12 @@ if bus is None:
 
 | 值落到哪里 | `${VAR}` | `file://` |
 | --- | --- | --- |
-| Docker / Podman 的普通值 | 原样写进 `compose.yaml`，`docker compose` 启动时展开 | CLI 读出内容，按密钥写进 0600 的 env 文件 |
-| Docker / Podman 的密钥（`secret: true`） | 原样写进 0600 的 env 文件，`docker compose` 启动时展开 | 同上 |
+| Docker / Podman 的普通值 | 原样写进 `compose.yaml`，`docker compose` 启动时展开；CLI 生成时核对它有定义，没有就停下 | CLI 读出内容，按密钥写进 0600 的 env 文件 |
+| Docker / Podman 的密钥（`secret: true`） | 原样写进 0600 的 env 文件，`docker compose` 启动时展开；同样先核对有定义 | 同上 |
 | Kubernetes | CLI 生成清单时展开（`kubectl` 不做替换）；取不到就停下 | CLI 读出内容 |
 | 外壳的 `BRICKKIT_SERVED_MEMBERS_CONFIG` | CLI 生成时展开并做 JSON 编码；取不到就停下 | CLI 读出内容并做 JSON 编码 |
 | `mode: local` 进程的环境 | CLI 启动进程前展开；取不到就拒绝启动 | CLI 读出内容 |
+| `mode: debug` 的 `local-debug.*.env` | CLI 生成时展开；取不到就留着占位符，并在输出里点名 | CLI 读出内容 |
 
 外壳的 JSON 必须提前求值：`docker compose` 的替换是不懂 JSON 的纯文本替换，一个带引号或换行的值替换进去，JSON 就坏了
 （见 [特殊字符](../04-shell/06-special-characters.md)）。Kubernetes 必须提前求值：`kubectl` 根本不做替换。

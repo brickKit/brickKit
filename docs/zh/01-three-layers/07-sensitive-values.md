@@ -50,6 +50,20 @@ TLS_KEY: file://.secrets/tls.key
 | `secret: true` 的值、`file://` 的内容 | 写进 `.brickkit/generated/env/<服务名>.env`，文件权限 0600，由 `env_file` 引用；`${VAR}` 在这里同样留给 compose 启动时展开，`file://` 的内容由 CLI 读出后写入 |
 | `existingSecret` | Docker 没有这个概念：这一项不注入，并提醒你 |
 
+`${VAR}` 虽然留给 compose 去展开，CLI 生成时仍会用同样的顺序（进程环境，其次 `.env`）核对它**有没有定义**。
+没有的话直接报错，而不是交给 compose：compose 会把它换成空字符串、只在自己的输出里警告一句，组件就带着一个残缺的值跑起来。
+
+```text
+❌ 错误：config/ 或部署文件里引用的环境变量没有定义
+   缺少的变量：PG_HOST
+   原因：docker compose 启动时会把它们换成空字符串，只在它自己的输出里警告一句：组件拿到的是残缺的值，却不会有任何报错
+   建议：
+   1. 在项目根目录的 .env 里补上这些变量，或在当前 shell 里 export
+   2. 也可以写默认值：${POSTGRES_PASSWORD:-dev}
+```
+
+K8s 下同一份配置也在生成时因为同一个原因失败——两个目标对"未定义的引用"说法一致。有意允许为空的，写成 `${VAR:-}`。
+
 上面那个例子生成出来是这样的：
 
 ```yaml

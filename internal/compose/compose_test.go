@@ -54,6 +54,8 @@ type builder struct {
 	spec     projecttest.Spec
 	// proj 是最近一次 build 装载出来的项目（测试要看项目根时用）。
 	proj *project.Project
+	// env 是部署机上有的环境变量：配置里的 ${VAR} 生成时要能在这里找到，否则生成失败。
+	env map[string]string
 }
 
 func newBuilder(t *testing.T) *builder {
@@ -92,6 +94,12 @@ func (b *builder) build(opts compose.Options) (*compose.Result, error) {
 	}
 	if opts.Root == "" {
 		opts.Root = b.proj.Layout.Root
+	}
+	if opts.Lookup == nil {
+		opts.Lookup = func(name string) (string, bool) {
+			v, ok := b.env[name]
+			return v, ok
+		}
 	}
 	return compose.Generate(b.proj, graph, states, env, opts)
 }
@@ -892,6 +900,7 @@ func TestSecretsStayAsEnvironmentReferences(t *testing.T) {
 		"DB_URL": {Type: "string"},
 	}}
 	b.component(m, projecttest.Entry{Config: map[string]any{"DB_URL": "pg://app:${POSTGRES_PASSWORD}@db"}})
+	b.env = map[string]string{"POSTGRES_PASSWORD": "s3cr3t"}
 
 	text := string(b.generate().YAML)
 

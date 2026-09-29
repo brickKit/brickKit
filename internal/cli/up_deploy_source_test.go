@@ -47,3 +47,20 @@ func TestDebugHintSaysListenOnAllInterfaces(t *testing.T) {
 	env := readFile(t, filepath.Join(dir, ".brickkit", "generated", "local-debug.erp-shell-1-0-0.env"))
 	assert.Contains(t, env, "0.0.0.0")
 }
+
+// mode: debug 的 env 文件对找不到的 ${VAR} 是宽松的（留着占位符，看得出漏了哪个）——但 up 得说出来：
+// 照着这份文件 source 之后，进程拿到的是字面量 ${VAR}，而且不会有任何报错。
+func TestDebugEnvFileNamesUnresolvedReferences(t *testing.T) {
+	dir := copyFixture(t, "three-layer-shell")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "config", "erp-api.yaml"),
+		[]byte("TLS_KEY: file://.secrets/api.pem\nDB_HOST: ${BRICKKIT_TEST_UNSET_DB_HOST}\n"), 0o644))
+	local := strings.Replace(readFile(t, filepath.Join(dir, "deploy.yaml")),
+		"      - id: erp/api\n", "      - id: erp/api\n        mode: debug\n        localPort: 18001\n", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "deploy.local.yaml"), []byte(local), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".brickkit"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".brickkit", "local-mode"), []byte("on\n"), 0o644))
+
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.CliUpDebugEnvUnresolved, "erp/api@1.0.0", "DB_HOST", "BRICKKIT_TEST_UNSET_DB_HOST"))
+}

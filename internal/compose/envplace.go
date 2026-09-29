@@ -74,11 +74,16 @@ func envFileLine(name, value string, literal bool) string {
 // placeEnvironment 为每个要生成容器的服务算好 inline 与 env 文件两份内容。
 // 必须在外壳合并（applyShellGroups）之后跑：外壳的环境变量那时才齐。
 func (p *plan) placeEnvironment() error {
+	undefined := map[string]bool{}
 	for _, c := range append(append([]componentPlan{}, p.components...), p.memberMigrations...) {
 		var inline []string
 		var file strings.Builder
 		for _, v := range c.Env.Env {
-			switch envPlacement(v) {
+			placement := envPlacement(v)
+			if placement != placeSkip && v.Value.Kind == configdir.KindEnvTemplate {
+				p.collectUndefined(v.Value.Text, undefined)
+			}
+			switch placement {
 			case placeSkip:
 				continue
 			case placeInline:
@@ -105,7 +110,38 @@ func (p *plan) placeEnvironment() error {
 			p.envFile[c.Service] = []byte(file.String())
 		}
 	}
-	return nil
+	return undefinedError(undefined)
+}
+
+// collectUndefined 记下模板里用 compose 启动时会看到的同一个查找（进程环境，其次 .env）找不到的 ${NAME}。
+// 留给 compose 展开的引用，生成时就能知道它展不展得开：compose 把展不开的换成空字符串、
+// 只在它自己的输出里警告，而 up 成功时那段输出没人看得到——组件带着残缺的值跑起来。
+// K8s 在生成时求值、展不开就失败；这里让 Docker 与它说法一致。${NAME:-默认值} 不算。
+func (p *plan) collectUndefined(template string, undefined map[string]bool) {
+	for _, name := range envref.Names(template) {
+		if p.lookup == nil {
+			undefined[name] = true
+			continue
+		}
+		if _, ok := p.lookup(name); !ok {
+			undefined[name] = true
+		}
+	}
+}
+
+func undefinedError(undefined map[string]bool) error {
+	if len(undefined) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(undefined))
+	for name := range undefined {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ComposeEnvVarsUndefined)).
+		WithDetail(i18n.T(msgid.K8sLabelMissingVars), strings.Join(names, i18n.T(msgid.ListSeparator))).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeEnvVarsReasonDetail)).
+		WithHint(i18n.T(msgid.K8sHintDefineEnvVars), i18n.T(msgid.K8sHintEnvVarDefault))
 }
 
 // withVariable 给求值错误补上"是哪个组件的哪一项"。

@@ -8,7 +8,9 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project/projecttest"
 )
 
@@ -43,6 +45,7 @@ func TestComposeTemplateEscapesOtherDollars(t *testing.T) {
 		"GREETING": "cost $5 at ${HOOK} $$HOME",
 		"DSN":      "pg://u:${DB_PASS}@h/$weird",
 	}})
+	b.env = map[string]string{"HOOK": "h", "DB_PASS": "p"}
 
 	result := b.generate()
 	assert.Contains(t, string(result.YAML), "GREETING=cost $$5 at ${HOOK} $$$$HOME")
@@ -64,6 +67,7 @@ func TestComposeSecretsGoToEnvFile(t *testing.T) {
 		"TOKEN": "${TOKEN_FROM_ENV}", "KEY": "file://secrets/key.pem", "PLAIN": "visible",
 	}})
 	b.spec.Files["secrets/key.pem"] = pem
+	b.env = map[string]string{"TOKEN_FROM_ENV": "t"}
 
 	result := b.generate()
 	text := string(result.YAML)
@@ -134,4 +138,35 @@ func TestLocalEnvEvaluatesFileRef(t *testing.T) {
 	}
 	assert.Equal(t, pem, vars["KEY"])
 	assert.NotContains(t, vars, "REF", "existingSecret 在宿主机上没有对应物")
+}
+
+// ${VAR} 在进程环境与 .env 里都找不到时，docker compose 会把它换成空字符串，只在它自己的输出里
+// 警告一句——而 up 成功时那段输出没人看得到。组件拿到 postgres://app@:5432/shop 这样的残缺值，
+// 却不会有任何报错。K8s 下同一份配置在生成时就失败；Docker 下也在生成时失败，两个目标说法一致。
+// 带默认值的 ${VAR:-x} 不算未定义。
+func TestComposeUndefinedReferenceFails(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withSchema(simple("people/basic", "1.0.0", 8080), map[string]manifest.ConfigProperty{
+		"DB_URL":   {Type: "string"},
+		"TOKEN":    {Type: "string", Secret: true},
+		"LOG_HOOK": {Type: "string"},
+	}), projecttest.Entry{Config: map[string]any{
+		"DB_URL":   "postgres://app@${PG_HOST}:5432/shop",
+		"TOKEN":    "${API_TOKEN}",
+		"LOG_HOOK": "${LOG_HOOK_URL:-http://localhost}",
+	}})
+
+	_, err := b.build(compose.Options{Lookup: func(string) (string, bool) { return "", false }})
+	require.Error(t, err)
+	e := clierr.As(err)
+	assert.Equal(t, clierr.CodeConfigInvalid, e.Code)
+	assert.Equal(t, i18n.T(msgid.ComposeEnvVarsUndefined), e.Message)
+	rendered := e.Format()
+	assert.Contains(t, rendered, "API_TOKEN")
+	assert.Contains(t, rendered, "PG_HOST")
+	assert.NotContains(t, rendered, "LOG_HOOK_URL")
+
+	defined := map[string]bool{"PG_HOST": true, "API_TOKEN": true}
+	_, err = b.build(compose.Options{Lookup: func(name string) (string, bool) { return "x", defined[name] }})
+	require.NoError(t, err)
 }

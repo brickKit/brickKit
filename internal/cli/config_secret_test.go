@@ -173,6 +173,7 @@ components:
       webhookUrl: ${HELLO_WEBHOOK}
 `
 	f.rewrite(t, body)
+	t.Setenv("HELLO_WEBHOOK", "https://hooks.example.com/x") // 部署机上有这个变量
 
 	r := runWithEngine(t, newFakeEngine(), f.Dir, "up", "--dry-run")
 

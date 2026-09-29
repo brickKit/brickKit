@@ -976,6 +976,16 @@ func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.Lo
 		opts.Printf("%s\n", i18n.T(msgid.CliUpNoContainerIsGeneratedStart, file.Port))
 		opts.Printf("%s\n", i18n.T(msgid.CliUpEnvironmentVariables, relative))
 		opts.Printf("%s\n", i18n.T(msgid.CliUpVsCodeSetEnvfileWorkspacefolder, relative))
+		// 这份文件对找不到的 ${VAR} 是宽松的（留着占位符，看得出漏了哪个）；不说出来，
+		// 进程就带着字面量的 ${VAR} 跑起来，没有任何报错
+		names := make([]string, 0, len(file.Unresolved))
+		for name := range file.Unresolved {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			opts.Printf("%s\n", i18n.T(msgid.CliUpDebugEnvUnresolved, file.Ref.String(), name, file.Unresolved[name]))
+		}
 	}
 	return nil
 }

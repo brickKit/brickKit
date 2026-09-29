@@ -36,6 +36,8 @@ const (
 	ComposeOwnerDebugAccessViaShell   = "compose.owner.debug_access_via_shell"
 	ComposeEnvHeader                  = "compose.env_header"
 	ComposeLocalMigrationSkipped      = "compose.local_migration_skipped"
+	ComposeEnvVarsUndefined           = "compose.env_vars_undefined"
+	ComposeEnvVarsReasonDetail        = "compose.env_vars_reason_detail"
 	ComposeLocalMigrationReasonDetail = "compose.local_migration_reason_detail"
 	ComposeHintRunMigrationByHand     = "compose.hint.run_migration_by_hand"
 	ComposeHintUseLocalDebugEnv       = "compose.hint.use_local_debug_env"
