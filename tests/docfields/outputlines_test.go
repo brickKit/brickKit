@@ -76,17 +76,26 @@ func literalWidth(s string) int {
 // compileLineTemplates 把目录里每条文案的每一行编译成正则（动词 → 非贪婪通配）。
 // 模板与文档里的候选片段两侧都去掉行首符号再比：同一句话有的地方带 ✅ 前缀、有的地方
 // 由渲染器加前缀，去掉之后才是同一个东西。
+//
+// 例外是固定文字不够、却带着自己的行首符号和标点骨架的文案（"⬆️  %s：%s → %s"）：它连同
+// 符号一起编译，只匹配以同一个符号开头、骨架一致的整行——符号加至少两个骨架字符足以认出它，
+// 而只有符号（"✅ %s"）或只有骨架（"%s（%s）"）的仍然进不来。
 func compileLineTemplates(catalog map[string]string) []*regexp.Regexp {
 	var out []*regexp.Regexp
 	for _, message := range catalog {
 		for _, line := range strings.Split(message, "\n") {
 			line = strings.TrimSpace(line)
-			if m := leadingMark(line); m != "" {
-				line = strings.TrimSpace(line[len(m):])
+			mark := leadingMark(line)
+			if mark != "" {
+				line = strings.TrimSpace(line[len(mark):])
 			}
 			literal := strings.TrimSpace(templateVerb.ReplaceAllString(line, ""))
+			prefix := "^"
 			if literalWidth(literal) < minTemplateLiteral {
-				continue
+				if mark == "" || utf8.RuneCountInString(strings.ReplaceAll(literal, " ", "")) < 2 {
+					continue
+				}
+				prefix = "^" + regexp.QuoteMeta(mark) + " +"
 			}
 			var pattern strings.Builder
 			pos := 0
@@ -100,7 +109,7 @@ func compileLineTemplates(catalog map[string]string) []*regexp.Regexp {
 				pos = loc[1]
 			}
 			pattern.WriteString(regexp.QuoteMeta(line[pos:]))
-			out = append(out, regexp.MustCompile("^"+pattern.String()+"$"))
+			out = append(out, regexp.MustCompile(prefix+pattern.String()+"$"))
 		}
 	}
 	return out
@@ -384,4 +393,23 @@ func TestOutputLineMatcher(t *testing.T) {
 	assert.True(t, conformsToCatalog("📦 components/a/    → components/.archived/a", marks, templates), "路径对路径的列放行")
 	assert.False(t, conformsToCatalog("📦 the source went missing", marks, templates), "一句不在目录里的话不能放行")
 	assert.True(t, conformsToCatalog("💡 Can start on their own: x (no dependencies)", marks, templates), "渲染器加的符号要认")
+}
+
+// 固定文字少、却带着自己的行首符号和标点骨架的文案（"⬆️  %s：%s → %s"）：只在符号相同时整行匹配。
+// 不这样做，这类真实输出永远核对不了；放得太宽（"✅ %s" 匹配一切），又等于没查。
+func TestOutputLineMatcherMarkedSkeletons(t *testing.T) {
+	catalog := map[string]string{
+		"move": "⬆️  %[1]s：%[2]s → %[3]s",
+		"bare": "✅ %[1]s",           // 只有符号、没有骨架：不能进
+		"par":  "%[1]s（%[2]s）",     // 有骨架、没有符号：不能进
+		"one":  "📦 %[1]s → %[2]s", // 骨架只有一个字符：不能进
+	}
+	templates := compileLineTemplates(catalog)
+	marks := outputMarks(catalog)
+
+	assert.True(t, conformsToCatalog("   ⬆️  demo/hello：1.0.0 → 1.1.0", marks, templates))
+	assert.False(t, conformsToCatalog("   ⬆️  demo/hello 1.0.0 to 1.1.0", marks, templates), "骨架对不上")
+	assert.False(t, conformsToCatalog("✅ demo/hello：1.0.0 → 1.1.0", marks, templates), "符号不同")
+	assert.False(t, conformsToCatalog("✅ a whole made-up sentence", marks, templates), "只有符号的文案不能放行一切")
+	assert.False(t, conformsToCatalog("📦 made up words → here", marks, templates))
 }
