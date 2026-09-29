@@ -164,9 +164,9 @@ func TestInitCompleteWarnsMissingGitignoreEntries(t *testing.T) {
 	assert.Contains(t, r.stdout, "⚠️")
 	assert.Contains(t, r.stdout, ".gitignore is missing required entries")
 	for _, entry := range []string{".brickkit/", ".secrets/", "config/.archive/"} {
-		assert.Contains(t, r.stdout, "missing: "+entry)
+		assert.Contains(t, r.stdout, "Missing: "+entry)
 	}
-	assert.NotContains(t, r.stdout, "missing: deploy.local.yaml\n")
+	assert.NotContains(t, r.stdout, "Missing: deploy.local.yaml\n")
 }
 
 // 非空目录先打印计划，等确认；说不就什么都不写。

@@ -106,7 +106,7 @@ func TestAddLocalInitWarnsChildGitignore(t *testing.T) {
 	r := g.mustRun(dir, "add", "--local", "--init", "--yes")
 	assert.Contains(t, r.stdout, ".gitignore is missing required entries")
 	assert.Contains(t, r.stdout, filepath.Join("components", "erp", "backend"))
-	assert.Contains(t, r.stdout, "missing: .brickkit/")
+	assert.Contains(t, r.stdout, "Missing: .brickkit/")
 	assert.Contains(t, r.stdout, "commit")
 }
 
