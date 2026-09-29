@@ -79,7 +79,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - 外壳是一个普通组件，把多个成员组件编进**一个进程**里跑（1:N），用来省内存与 CPU。
 - 成员写在部署文件里外壳条目的 `members` 下面（唯一来源）；`brickkit.yaml` 里外壳那一行带 `kind: shell`，由 CLI 维护。
 - 外壳的 `component.yaml` 在 `shell.members` 里写明它编进了哪些成员的**精确版本**；项目托管的版本与之不符时报错，并给出三条出路。
-- 成员的配置经 `BRICKKIT_SERVED_MEMBERS_CONFIG`（CLI 提前求好值的 JSON）注入外壳；多行密钥（PEM）照样能 JSON 编码，控制字符大声失败。
+- 成员的配置经 `BRICKKIT_SERVED_MEMBERS_CONFIG`（CLI 提前求好值的 JSON）注入外壳；多行密钥（PEM）、引号、`$` 照样能 JSON 编码，不是合法 UTF-8 的值（二进制）大声失败。
 - 调用方的 `*_ENDPOINT` 由平台自动指到外壳的地址；外壳作者只负责进程内把请求分给对应成员。
 - 成员的迁移照常单独跑，用成员自己的镜像与配置，所以每个成员都必须有自己的镜像（`image` 或 `build`）。
 - 外壳本身也是组件：有自己的 `configSchema` 和 `config/` 文件。
