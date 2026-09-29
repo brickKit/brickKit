@@ -13,7 +13,7 @@ metadata:
   id: infra/api-docs
   name: API 文档中心
   version: 1.0.0
-  description: 把各组件的 API 文档聚合到一个入口；组件没装或没文档时如实标出，不影响页面打开
+  description: Gathers every component's API docs behind one entry point; a component that isn't installed or has no docs is marked as such, and the page still opens
   vendor: brickkit-platform
   license: MIT
 
@@ -48,7 +48,7 @@ configSchema:
     LOG_LEVEL:
       type: string
       default: "info"
-      description: 日志级别（debug | info | warn | error）
+      description: Log level (debug | info | warn | error)
 
 # 没有 migration：没有自己的库，也就没有自己的表
 

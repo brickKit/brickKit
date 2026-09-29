@@ -13,7 +13,7 @@ metadata:
   id: authorization/rbac
   name: 基于角色的授权
   version: 1.0.0
-  description: 回答"某个人能不能做某件事"；权限按人与部门两条路径合并，结果缓存在 Redis
+  description: 'Answers "may this person do this"; permissions merge a person path and a department path, and results are cached in Redis'
   vendor: brickkit-platform
   license: MIT
 
@@ -25,12 +25,12 @@ artifacts:
   # 契约即产物：调用方据此生成 gRPC 客户端
   - type: api-contract
     format: protobuf
-    description: gRPC API 契约文件
+    description: gRPC API contract
     files:
       - proto/authorization/v1/authorization.proto
   - type: api-docs
     format: openapi
-    description: HTTP REST API 文档
+    description: HTTP REST API documentation
     files:
       - openapi.json
 
@@ -46,42 +46,42 @@ configSchema:
     LOG_LEVEL:
       type: string
       default: "info"
-      description: 日志级别（debug | info | warn | error）
+      description: Log level (debug | info | warn | error)
     CACHE_TTL_SECONDS:
       type: integer
       default: 300
-      description: 权限缓存有效期（秒）
+      description: How long permissions stay cached (seconds)
     # 数据库连接：configSchema 的键就是环境变量名，值由使用者写在项目的 config/ 里。
     # 库由使用者建好；表由本组件的迁移建
     DATABASE_HOST:
       type: string
-      description: PostgreSQL 主机名
+      description: PostgreSQL host name
     DATABASE_PORT:
       type: integer
       default: 5432
-      description: PostgreSQL 端口
+      description: PostgreSQL port
     DATABASE_NAME:
       type: string
-      description: 库名
+      description: Database name
     DATABASE_USER:
       type: string
-      description: 连接用户
+      description: User to connect as
     DATABASE_PASSWORD:
       type: string
       secret: true
-      description: 连接口令。写成 ${VAR} 或 file:// 引用，不要把明文写进 config/
+      description: "Password to connect with. Write it as a ${VAR} or file:// reference, never as plain text in config/"
     # Redis 连接。它是加速器不是数据源：不配时组件照样能跑，只是每次都回源
     REDIS_HOST:
       type: string
-      description: Redis 主机名
+      description: Redis host name
     REDIS_PORT:
       type: integer
       default: 6379
-      description: Redis 端口
+      description: Redis port
     REDIS_PASSWORD:
       type: string
       secret: true
-      description: Redis 口令；没设口令的 Redis 不写这一项
+      description: Redis password; leave it out for a Redis without one
   required: [DATABASE_HOST, DATABASE_NAME, DATABASE_USER]
 
 migration:

@@ -14,7 +14,7 @@ metadata:
   id: erp/backend
   name: ERP 后端
   version: 1.0.0
-  description: 订单查询与审批；认证、授权、人员信息分别来自三个上游组件，审批事件发往事件总线
+  description: Order queries and approvals; authentication, authorisation and people data come from three upstream components, and approval events go to the event bus
   vendor: brickkit-platform
   license: MIT
 
@@ -25,7 +25,7 @@ tags:
 artifacts:
   - type: api-docs
     format: openapi
-    description: HTTP REST API 文档
+    description: HTTP REST API documentation
     files:
       - openapi.json
 
@@ -52,11 +52,11 @@ configSchema:
     LOG_LEVEL:
       type: string
       default: "info"
-      description: 日志级别（debug | info | warn | error）
+      description: Log level (debug | info | warn | error)
     SESSION_TTL_SECONDS:
       type: integer
       default: 3600
-      description: 会话时长（秒）
+      description: Session length (seconds)
 
 # 没有 migration：没有自己的库，也就没有自己的表
 

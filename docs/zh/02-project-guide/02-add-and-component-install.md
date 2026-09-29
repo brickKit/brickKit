@@ -58,11 +58,11 @@ components:
 # 公共变量：$var:NAME（config/vars.yaml）· 环境变量：${NAME} · 本地文件：file://path
 
 # === 可选：注释掉的键使用组件默认值，取消注释即可覆盖 ===
-# DATABASE_HOST:  # string | PostgreSQL 主机名
-# DATABASE_NAME:  # string | 库名
-# DATABASE_PORT: 5432  # integer | PostgreSQL 端口 (默认值)
-# DATABASE_USER:  # string | 连接用户
-# MIGRATION_SHOULD_FAIL:  # string | 测试用开关：设为 "1" 时迁移以非零退出，用来验证迁移失败会挡住主服务
+# DATABASE_HOST:  # string | PostgreSQL host name
+# DATABASE_NAME:  # string | Database name
+# DATABASE_PORT: 5432  # integer | PostgreSQL port (默认值)
+# DATABASE_USER:  # string | User to connect as
+# MIGRATION_SHOULD_FAIL:  # string | Test switch: set to "1" to make the migration exit non-zero, to check that a failed migration holds back the main service
 ```
 
 有必填项要填时，`add` 会点名是哪个文件、哪几个键：
@@ -98,8 +98,8 @@ config/vars.yaml 里已有 DATABASE_PORT，在 config/demo-caller.yaml 里引用
 答"是"的那一项写成 `$var:` 引用，没答的保持注释：
 
 ```yaml
-DATABASE_HOST: $var:DATABASE_HOST  # string | PostgreSQL 主机名
-# DATABASE_PORT: 5432  # integer | PostgreSQL 端口 (默认值)
+DATABASE_HOST: $var:DATABASE_HOST  # string | PostgreSQL host name
+# DATABASE_PORT: 5432  # integer | PostgreSQL port (默认值)
 ```
 
 为什么要问、而不是自动引用：配置文件里每个值从哪来，应该一眼能看出来。`$var:` 的规则见

@@ -36,20 +36,20 @@ configSchema:
     # 可选的数据库：配了 DATABASE_HOST，组件就验证它确实连得上
     DATABASE_HOST:
       type: string
-      description: PostgreSQL 主机名
+      description: PostgreSQL host name
     DATABASE_PORT:
       type: integer
       default: 5432
-      description: PostgreSQL 端口
+      description: PostgreSQL port
     DATABASE_NAME:
       type: string
-      description: 库名
+      description: Database name
     DATABASE_USER:
       type: string
-      description: 连接用户
+      description: User to connect as
     MIGRATION_SHOULD_FAIL:
       type: string
-      description: 测试用开关：设为 "1" 时迁移以非零退出，用来验证迁移失败会挡住主服务
+      description: 'Test switch: set to "1" to make the migration exit non-zero, to check that a failed migration holds back the main service'
 
 migration:
   command: ["/app/caller", "migrate"]

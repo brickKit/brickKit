@@ -13,7 +13,7 @@ metadata:
   id: auth/password-login
   name: 口令登录
   version: 1.0.0
-  description: 校验用户名与口令并签发 JWT；身份信息来自 people/basic，不在本组件重复存储
+  description: Checks a user name and password and issues a JWT; identities come from people/basic and are not stored again here
   vendor: brickkit-platform
   license: MIT
 
@@ -25,7 +25,7 @@ artifacts:
   # 本组件只提供 HTTP，没有 gRPC，因此没有 proto 契约（有什么发什么）
   - type: api-docs
     format: openapi
-    description: HTTP REST API 文档
+    description: HTTP REST API documentation
     files:
       - openapi.json
 
@@ -41,37 +41,37 @@ configSchema:
     LOG_LEVEL:
       type: string
       default: "info"
-      description: 日志级别（debug | info | warn | error）
+      description: Log level (debug | info | warn | error)
     TOKEN_TTL_SECONDS:
       type: integer
       default: 1800
-      description: 令牌有效期（秒）
+      description: Token lifetime (seconds)
     JWT_SECRET:
       type: string
       secret: true
       # **故意没有 default，而且必填**：有默认值就意味着所有装了这个组件的人共用同一把
       # 钥匙，任何人都能给任何一处部署签出管理员令牌，而且看起来一切正常。
       # 必填让 up 在启动之前就点名缺它，而不是等组件起来再失败
-      description: JWT 签名密钥，至少 32 字节。写成 ${JWT_SECRET} 或 file:// 引用，不要把明文写进 config/
+      description: "JWT signing key, at least 32 bytes. Write it as a ${JWT_SECRET} or file:// reference, never as plain text in config/"
     # 数据库连接：configSchema 的键就是环境变量名，值由使用者写在项目的 config/ 里。
     # 库由使用者建好；表由本组件的迁移建
     DATABASE_HOST:
       type: string
-      description: PostgreSQL 主机名
+      description: PostgreSQL host name
     DATABASE_PORT:
       type: integer
       default: 5432
-      description: PostgreSQL 端口
+      description: PostgreSQL port
     DATABASE_NAME:
       type: string
-      description: 库名
+      description: Database name
     DATABASE_USER:
       type: string
-      description: 连接用户
+      description: User to connect as
     DATABASE_PASSWORD:
       type: string
       secret: true
-      description: 连接口令。写成 ${VAR} 或 file:// 引用，不要把明文写进 config/
+      description: "Password to connect with. Write it as a ${VAR} or file:// reference, never as plain text in config/"
   required: [JWT_SECRET, DATABASE_HOST, DATABASE_NAME, DATABASE_USER]
 
 migration:

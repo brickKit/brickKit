@@ -15,7 +15,7 @@ metadata:
   id: infra/redis-event-bus
   name: 事件总线
   version: 1.0.0
-  description: 基于 Redis Streams 的事件总线；组件把事件发到这里，消费方按需读取
+  description: An event bus on Redis Streams; components publish events here and consumers read them as needed
   vendor: brickkit-platform
   license: MIT
 
@@ -26,7 +26,7 @@ tags:
 artifacts:
   - type: api-docs
     format: openapi
-    description: HTTP REST API 文档
+    description: HTTP REST API documentation
     files:
       - openapi.json
 
@@ -36,11 +36,11 @@ configSchema:
     LOG_LEVEL:
       type: string
       default: "info"
-      description: 日志级别（debug | info | warn | error）
+      description: Log level (debug | info | warn | error)
     STREAM_NAME:
       type: string
       default: "brickkit:events"
-      description: Redis Stream 的名字
+      description: Name of the Redis stream
     STREAM_MAXLEN:
       type: integer
       default: 10000
@@ -49,15 +49,15 @@ configSchema:
     # Redis 连接。Redis 在这里是**唯一的数据源**，不是加速器：不配就启动失败。一个连不上存储的事件总线，起来了也只会把每一条事件都丢掉
     REDIS_HOST:
       type: string
-      description: Redis 主机名
+      description: Redis host name
     REDIS_PORT:
       type: integer
       default: 6379
-      description: Redis 端口
+      description: Redis port
     REDIS_PASSWORD:
       type: string
       secret: true
-      description: Redis 口令；没设口令的 Redis 不写这一项
+      description: Redis password; leave it out for a Redis without one
   required: [REDIS_HOST]
 
 # 没有 migration：事件存在 Redis 里，没有表

@@ -9,7 +9,7 @@ metadata:
   id: department/tree
   name: 部门树
   version: 1.0.0
-  description: 提供组织架构（部门树）的查询能力，HTTP 与 gRPC 双协议共用同一端口
+  description: Queries the organisation structure (the department tree); HTTP and gRPC share one port
   vendor: brickkit-platform
   license: MIT
 
@@ -21,12 +21,12 @@ artifacts:
   # 契约即产物：使用方 brickkit add 之后据此生成 gRPC 客户端
   - type: api-contract
     format: protobuf
-    description: gRPC API 契约文件
+    description: gRPC API contract
     files:
       - proto/department/v1/department.proto
   - type: api-docs
     format: openapi
-    description: HTTP REST API 文档
+    description: HTTP REST API documentation
     files:
       - openapi.json
 
@@ -36,26 +36,26 @@ configSchema:
     LOG_LEVEL:
       type: string
       default: "info"
-      description: 日志级别（debug | info | warn | error）
+      description: Log level (debug | info | warn | error)
     # 数据库连接：configSchema 的键就是环境变量名，值由使用者写在项目的 config/ 里。
     # 库由使用者建好；表由本组件的迁移建
     DATABASE_HOST:
       type: string
-      description: PostgreSQL 主机名
+      description: PostgreSQL host name
     DATABASE_PORT:
       type: integer
       default: 5432
-      description: PostgreSQL 端口
+      description: PostgreSQL port
     DATABASE_NAME:
       type: string
-      description: 库名
+      description: Database name
     DATABASE_USER:
       type: string
-      description: 连接用户
+      description: User to connect as
     DATABASE_PASSWORD:
       type: string
       secret: true
-      description: 连接口令。写成 ${VAR} 或 file:// 引用，不要把明文写进 config/
+      description: "Password to connect with. Write it as a ${VAR} or file:// reference, never as plain text in config/"
   required: [DATABASE_HOST, DATABASE_NAME, DATABASE_USER]
 
 migration:

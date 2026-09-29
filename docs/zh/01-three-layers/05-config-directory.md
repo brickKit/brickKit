@@ -37,14 +37,14 @@ config/
 # 公共变量：$var:NAME（config/vars.yaml）· 环境变量：${NAME} · 本地文件：file://path
 
 # === 必填：没有值就无法启动 ===
-DATABASE_HOST: ""  # string | PostgreSQL 主机名
-DATABASE_NAME: ""  # string | 库名
-DATABASE_USER: ""  # string | 连接用户
+DATABASE_HOST: ""  # string | PostgreSQL host name
+DATABASE_NAME: ""  # string | Database name
+DATABASE_USER: ""  # string | User to connect as
 
 # === 可选：注释掉的键使用组件默认值，取消注释即可覆盖 ===
-# DATABASE_PASSWORD:  # string | secret | 连接口令。写成 ${VAR} 或 file:// 引用，不要把明文写进 config/
-# DATABASE_PORT: 5432  # integer | PostgreSQL 端口 (默认值)
-# LOG_LEVEL: info  # string | 日志级别（debug | info | warn | error） (默认值)
+# DATABASE_PASSWORD:  # string | secret | Password to connect with. Write it as a ${VAR} or file:// reference, never as plain text in config/
+# DATABASE_PORT: 5432  # integer | PostgreSQL port (默认值)
+# LOG_LEVEL: info  # string | Log level (debug | info | warn | error) (默认值)
 ```
 
 - **必填、没有默认值的项**留一个空值，由你填上。填之前 `up` 会停下来并点名缺哪几项：
@@ -68,7 +68,7 @@ DATABASE_USER: ""  # string | 连接用户
 ```
 
 ```yaml
-DATABASE_HOST: $var:DATABASE_HOST  # string | PostgreSQL 主机名
+DATABASE_HOST: $var:DATABASE_HOST  # string | PostgreSQL host name
 ```
 
 已经存在的配置文件，`add` 一个字节都不动。
@@ -88,7 +88,7 @@ DATABASE_HOST: $var:DATABASE_HOST  # string | PostgreSQL 主机名
 ```text
 ♻️  config/department-tree.yaml 从归档恢复（config/.archive/department-tree@1.0.0.yaml，按新版本迁移）
 📝 config/department-tree.yaml
-   原样保留：DATABASE_NAME, DATABASE_USER
+   原样保留：DATABASE_HOST, DATABASE_NAME, DATABASE_USER
 ```
 
 从归档恢复时，归档里就是你当初写的配置，以它为准，不再问要不要引用公共变量。`.archive/` 默认在 `.gitignore` 里：

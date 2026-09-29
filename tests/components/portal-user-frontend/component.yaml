@@ -11,7 +11,7 @@ metadata:
   id: portal/user-frontend
   name: ERP 门户
   version: 1.0.0
-  description: 静态前端，通过 nginx 反向代理访问 erp/backend；后端地址由平台注入
+  description: A static frontend reaching erp/backend through an nginx reverse proxy; the backend address is injected by the platform
   vendor: brickkit-platform
   license: MIT
 
