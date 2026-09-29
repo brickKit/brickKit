@@ -43,6 +43,12 @@ func PendingRequired(schema *manifest.ConfigSchema, varRefs map[string]string) [
 // renderSkeleton 是骨架的版式（文件头、必填区、可选区）；每个键写成什么由 line 决定——
 // 生成骨架写骨架行，迁移（Migrate）把使用者写过的键换成他的原文或冲突块。
 func renderSkeleton(id, version string, schema *manifest.ConfigSchema, line func(key string, prop manifest.ConfigProperty, required bool) string) []byte {
+	return renderSkeletonWith(id, version, schema, "", line)
+}
+
+// renderSkeletonWith 同 renderSkeleton，另把 preamble（迁移时旧文件开头使用者写的注释）
+// 放在生成的文件头之后。
+func renderSkeletonWith(id, version string, schema *manifest.ConfigSchema, preamble string, line func(key string, prop manifest.ConfigProperty, required bool) string) []byte {
 	if schema == nil || len(schema.Properties) == 0 {
 		return nil
 	}
@@ -51,6 +57,9 @@ func renderSkeleton(id, version string, schema *manifest.ConfigSchema, line func
 	var b strings.Builder
 	b.WriteString(HeaderPrefix + id + "@" + version + "\n")
 	b.WriteString(yamlcomment.Block("", i18n.T(msgid.ConfigdirSkeletonIntro)))
+	if preamble != "" {
+		b.WriteString("\n" + preamble)
+	}
 	section := func(title string, keys []string, isRequired bool) {
 		if len(keys) == 0 {
 			return

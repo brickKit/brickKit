@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/configdir"
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -167,4 +168,52 @@ func TestMigrateUnfilledRequiredPlaceholderIsNotWritten(t *testing.T) {
 func TestMigrateUnknownOldSchemaReportsNoAdded(t *testing.T) {
 	_, report := migrate(t, "A: x\n", nil, schema(map[string]manifest.ConfigProperty{"A": str(nil), "B": str(nil)}), nil)
 	assert.Empty(t, report.Added)
+}
+
+// 保留式块标量（|+、>+）末尾的空行是值的一部分：迁移后解析出来的值必须一字不差，
+// 否则报告里"原样保留"就是假话。
+func TestMigrateKeepsTrailingBlankLinesOfKeepBlocks(t *testing.T) {
+	s := schema(map[string]manifest.ConfigProperty{"GREETING": str(nil), "DB_HOST": str(nil)})
+	old := "GREETING: |+\n  你好\n  欢迎\n\n\n# 下一项\nDB_HOST: pg\n"
+	out, report := migrate(t, old, s, s, nil)
+	assert.ElementsMatch(t, []string{"GREETING", "DB_HOST"}, report.Copied)
+
+	var before, after map[string]any
+	require.NoError(t, yaml.Unmarshal([]byte(old), &before))
+	require.NoError(t, yaml.Unmarshal([]byte(out), &after))
+	assert.Equal(t, "你好\n欢迎\n\n\n", after["GREETING"])
+	assert.Equal(t, before, after)
+}
+
+// 使用者写在键上方的注释跟着这个键走；写在文件开头的注释放回新文件头之后。
+// 骨架自己生成的注释（文件头、分节标题）不会因此多出一份。
+func TestMigrateCarriesUserComments(t *testing.T) {
+	oldS := schema(map[string]manifest.ConfigProperty{"GREETING": str("Hello"), "DB_HOST": str(nil)})
+	newS := schema(map[string]manifest.ConfigProperty{"GREETING": str("Hello"), "DB_HOST": str(nil), "TOKEN": str(nil)})
+	old := string(configdir.Skeleton("erp/api", "1.0.0", oldS, nil))
+	old = "# 这份配置由支付组维护\n" + old
+	old = strings.Replace(old, "# DB_HOST:", "# 生产库，DBA 说不要改\nDB_HOST: pg.internal  #", 1)
+
+	out, _ := migrate(t, old, oldS, newS, nil)
+	assert.Contains(t, out, "# 这份配置由支付组维护\n")
+	assert.Contains(t, out, "# 生产库，DBA 说不要改\nDB_HOST: pg.internal")
+	assert.True(t, strings.HasPrefix(out, "# Component: erp/api@2.0.0\n"), "生成的文件头仍在最前面")
+	assert.Equal(t, 1, strings.Count(out, "# Component: "), out)
+	fresh := string(configdir.Skeleton("erp/api", "2.0.0", newS, nil))
+	for _, line := range strings.Split(fresh, "\n") {
+		if strings.HasPrefix(line, "# ===") {
+			assert.Equal(t, 1, strings.Count(out, line), "分节标题只出现一次：%s\n%s", line, out)
+		}
+	}
+}
+
+// 骨架里注释掉的键行（# KEY: …）不是使用者的注释：它们挨着使用者取消注释的那个键，
+// 当成注释带过去，新文件里同一行就出现两次。
+func TestMigrateDoesNotCarryCommentedSkeletonLines(t *testing.T) {
+	s := schema(map[string]manifest.ConfigProperty{"A_KEY": str("a"), "B_KEY": str("b"), "C_KEY": str("c")})
+	old := string(configdir.Skeleton("erp/api", "1.0.0", s, nil))
+	old = strings.Replace(old, "# B_KEY: b", "B_KEY: mine  #", 1)
+	out, _ := migrate(t, old, s, s, nil)
+	assert.Equal(t, 1, strings.Count(out, "# A_KEY: "), out)
+	assert.Contains(t, out, "B_KEY: mine")
 }
