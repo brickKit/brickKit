@@ -145,6 +145,11 @@ func TestLatestVersionNotFoundInAnySource(t *testing.T) {
 	text := clierr.As(err).Format()
 	assert.Contains(t, text, "people/basic")
 	assert.Contains(t, text, "local-dev")
+	// LatestVersion 被 add、fetch、upgrade 共用：提示里不能写死其中一条命令，更不能编一个版本号
+	assert.NotContains(t, text, "brickkit add")
+	assert.NotContains(t, text, "@1.0.0")
+	// 不止市场：Git 源上"发布"就是打了版本 tag
+	assert.Contains(t, text, "tag")
 }
 
 // 一个组件都没有的项目：没有安装源时要说"没有配置安装源"，而不是"组件不存在"。
