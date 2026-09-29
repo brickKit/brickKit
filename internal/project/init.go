@@ -62,7 +62,9 @@ type CompletePlan struct {
 	sources []projfile.Source
 }
 
-// projectFile 是补全清单里的一个文件：rel 是项目根下的相对路径，content 在 Apply 时才生成。
+// projectFile 是补全清单里的一项：rel 是项目根下的相对路径，content 在 Apply 时才生成。
+// content 为 nil 的是目录（rel 以 / 结尾）：components/ 被 .gitignore 忽略、放不了 .gitkeep，
+// 但它同样是项目的一部分，计划里要列出来——列出的就是会建的，不多不少。
 type projectFile struct {
 	rel     string
 	content func(name string) string
@@ -78,7 +80,9 @@ func projectFiles(workbench bool) []projectFile {
 		{DirConfig + "/" + FileGitkeep, func(string) string { return "" }},
 	}
 	if !workbench {
-		files = append(files, projectFile{DirShell + "/" + FileGitkeep, func(string) string { return "" }})
+		files = append(files,
+			projectFile{DirShell + "/" + FileGitkeep, func(string) string { return "" }},
+			projectFile{DirComponents + "/", nil})
 	}
 	return files
 }
@@ -147,8 +151,8 @@ func (p *CompletePlan) Apply(l Layout) error {
 		}
 	}
 	for _, f := range projectFiles(p.workbench) {
-		if !slices.Contains(p.Create, f.rel) {
-			continue
+		if f.content == nil || !slices.Contains(p.Create, f.rel) {
+			continue // 目录在上面已经建好
 		}
 		content := f.content(p.Name)
 		if f.rel == FileDecl && p.workbench {

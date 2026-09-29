@@ -178,6 +178,7 @@ func TestInitCompleteAsksInNonEmptyDir(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "This directory already has files")
 	assert.Contains(t, r.stdout, "create  brickkit.yaml")
+	assert.Contains(t, r.stdout, "create  components/", "计划里列出它会建的每样东西：components/ 被忽略、没有 .gitkeep，也要列")
 	assert.Contains(t, r.stdout, "Cancelled")
 	assert.NoFileExists(t, filepath.Join(dir, "brickkit.yaml"))
 
