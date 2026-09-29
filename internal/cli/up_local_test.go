@@ -405,3 +405,21 @@ func localPlans(t *testing.T, f *projectFixture) ([]localComponentPlan, error) {
 	require.NoError(t, err)
 	return collectLocalComponents(proj, graph, order, genResult.LocalEnvFiles)
 }
+
+// 本机进程运行的组件不跑迁移容器，提醒里要说出它真实的 mode：mode: local 的组件被说成
+// "mode: debug 组件"，读的人会去找一个根本没写过的 debug。
+func TestLocalMigrationNoteNamesTheRealMode(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, map[string]string{
+		"brickkit.yaml": "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\ncomponents:\n  - id: erp/api\n    version: 1.0.0\n",
+		"deploy.yaml":   "target: docker\ncomponents:\n  - id: erp/api\n    mode: local\n",
+		"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "1.0.0", Migration: []string{"/app/api", "migrate"}}.yamlText(),
+		"components/erp/api/go.mod":         "module erp/api\n\ngo 1.22\n",
+		"components/erp/api/main.go":        "package main\n\nfunc main() {}\n",
+	})
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	out := r.stdout + r.stderr
+	assert.Contains(t, out, "a mode: local component's database migration won't run automatically")
+	assert.NotContains(t, out, "mode: debug component's database migration")
+}

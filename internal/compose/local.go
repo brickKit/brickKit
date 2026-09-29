@@ -810,7 +810,7 @@ func needsShellQuoting(r rune) bool {
 	return true
 }
 
-// localMigrationWarnings 提醒 local 组件的迁移得自己跑。
+// localMigrationWarnings 提醒本机进程组件（mode: debug / mode: local）的迁移得自己跑，说出它真实的 mode。
 //
 // local 组件不生成容器，它的迁移容器也就一并没了。不说这一句，
 // 开发者会对着一句 "relation does not exist" 找半天。
@@ -821,9 +821,9 @@ func (p *plan) localMigrationWarnings() []*clierr.Error {
 			continue
 		}
 		out = append(out, clierr.Warn(clierr.CodeMigrationSkipped,
-			i18n.T(msgid.ComposeLocalMigrationSkipped)).
+			i18n.T(msgid.ComposeLocalMigrationSkipped, l.Entry.Mode)).
 			WithDetail(i18n.T(msgid.LabelComponent), refText(l.Ref)).
-			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeLocalMigrationReasonDetail)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeLocalMigrationReasonDetail, l.Entry.Mode)).
 			WithHint(
 				i18n.T(msgid.ComposeHintRunMigrationByHand, strings.Join(l.Manifest.Migration.Command, " ")),
 				i18n.T(msgid.ComposeHintUseLocalDebugEnv, l.Service),
