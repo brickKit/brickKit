@@ -128,7 +128,7 @@ func runFetch(ctx context.Context, opts *Options, arg string) error {
 
 	opts.Printf("\n")
 	opts.Printf("%s\n", i18n.T(msgid.CliFetchThisComponentWonTBe))
-	opts.Printf("%s\n", i18n.T(msgid.CliFetchAComponentSharedAcrossProjects))
+	opts.Printf("%s\n", i18n.T(msgid.CliFetchHowToCallIt))
 
 	logging.Info(i18n.T(msgid.LogArtifactsFetched), "component", ref,
 		"downloaded", len(res.Downloaded), "cached", len(res.Cached))

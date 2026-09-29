@@ -40,6 +40,10 @@ func TestFetchDownloadsArtifactsWithoutTouchingConfig(t *testing.T) {
 	assert.Equal(t, before, f.config(t), "fetch 绝不能修改 brickkit.yaml")
 	assert.Empty(t, f.refs(t), "组件不该出现在配置里")
 	assert.Contains(t, r.stdout, "not written to brickkit.yaml")
+	// 告诉人接下来怎么连它：平台不会为它注入地址，地址是调用方自己的一项配置
+	assert.Contains(t, r.stdout, "_ENDPOINT")
+	assert.Contains(t, r.stdout, "configSchema")
+	assert.NotContains(t, r.stdout, "(a component shared across projects)")
 }
 
 // 产物落到与 add 完全相同的位置：.brickkit/artifacts/<版本化服务名>/
