@@ -209,9 +209,20 @@ func (e *Error) Error() string {
 		b.WriteString(d.Key)
 		b.WriteString("=")
 		// 日志要一行：多行的明细值（引擎的原始输出）用 " / " 接起来
-		b.WriteString(strings.ReplaceAll(d.Value, "\n", " / "))
+		b.WriteString(strings.Join(valueLines(d.Value), " / "))
 	}
 	return b.String()
+}
+
+// valueLines 把一个明细值拆成行，去掉行尾空白与空行：空行在错误块里只会是一行孤零零的缩进。
+func valueLines(v string) []string {
+	var lines []string
+	for _, line := range strings.Split(v, "\n") {
+		if line = strings.TrimRight(line, " \t\r"); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return lines
 }
 
 // Unwrap 支持 errors.Is / errors.As 穿透到底层错误。
@@ -237,14 +248,16 @@ func (e *Error) Format() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s %s\n", symbol, e.Message)
 	for _, d := range e.Details {
-		// 多行的值（引擎的原始输出、Dockerfile 摘录）按行给出，续行比明细行多缩进三格：
+		// 多行的值（引擎的原始输出、Dockerfile 摘录、git 的原话）按行给出，续行比明细行多缩进三格：
 		// 压成一行，摘录里的行号与 >>> 标记就读不出来了
-		first, rest, _ := strings.Cut(d.Value, "\n")
+		lines := valueLines(d.Value)
+		first := ""
+		if len(lines) > 0 {
+			first = lines[0]
+		}
 		fmt.Fprintf(&b, "   %s\n", i18n.T(msgid.DetailLine, d.Key, first))
-		if rest != "" {
-			for _, line := range strings.Split(rest, "\n") {
-				fmt.Fprintf(&b, "      %s\n", line)
-			}
+		for _, line := range lines[min(1, len(lines)):] {
+			fmt.Fprintf(&b, "      %s\n", line)
 		}
 	}
 	switch len(e.Hints) {

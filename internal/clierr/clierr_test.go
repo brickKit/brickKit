@@ -29,11 +29,11 @@ func TestFormatFullBlock(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
-// 多行的明细值（引擎的原始输出、Dockerfile 摘录）按行渲染、续行缩进；
+// 多行的明细值（引擎的原始输出、Dockerfile 摘录、git 的原话）按行渲染、续行缩进、空行略去；
 // Error() 给日志用，仍然是一行。
 func TestMultiLineDetailValue(t *testing.T) {
 	err := New(CodeEngineFailed, "错误：docker 执行失败").
-		WithDetail("输出", "Dockerfile:8\n8 | >>> COPY missing.go ./\nERROR: not found").
+		WithDetail("输出", "Dockerfile:8\n8 | >>> COPY missing.go ./\n\nERROR: not found").
 		WithDetail("组件", "shop/order@0.1.0")
 
 	want := "❌ 错误：docker 执行失败\n" +
@@ -44,6 +44,7 @@ func TestMultiLineDetailValue(t *testing.T) {
 	assert.Equal(t, want, err.Format())
 	assert.NotContains(t, err.Error(), "\n")
 	assert.Contains(t, err.Error(), "Dockerfile:8 / 8 | >>> COPY missing.go ./ / ERROR: not found")
+	// 空行不渲染成一行只有缩进的续行
 }
 
 func TestFormatSingleHintIsInline(t *testing.T) {
