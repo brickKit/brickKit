@@ -235,7 +235,11 @@ func MergeCycleError(p *project.Project, graph *resolver.Graph, states *cascade.
 	}
 	hints := []string{i18n.T(msgid.ShellHintMergeCycleHostBoth), i18n.T(msgid.ShellHintMergeCycleOptional)}
 	if target, from := skipSuggestion(p, states, cycleEdges); len(from) > 0 {
-		hints = append(hints, i18n.T(msgid.ShellHintMergeCycleSkipWait, target.ID, strings.Join(from, i18n.T(msgid.ListSeparator))))
+		id := msgid.ShellHintMergeCycleSkipWait
+		if len(from) == 1 {
+			id = msgid.ShellHintMergeCycleSkipWaitOne
+		}
+		hints = append(hints, i18n.T(id, target.ID, strings.Join(from, i18n.T(msgid.ListSeparator))))
 	}
 	return err.WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellMergeCycleReason)).WithHint(hints...)
 }

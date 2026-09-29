@@ -57,5 +57,6 @@ const (
 	ShellSkipWaitForNotRequired         = "shell.skip_wait_for_not_required"
 	ShellSkipWaitForNoRequired          = "shell.skip_wait_for_no_required"
 	ShellHintMergeCycleSkipWait         = "shell.hint_merge_cycle_skip_wait"
+	ShellHintMergeCycleSkipWaitOne      = "shell.hint_merge_cycle_skip_wait_one"
 	ShellHintSkipWaitForOnMember        = "shell.hint_skip_wait_for_on_member"
 )

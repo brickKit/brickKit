@@ -13,7 +13,7 @@ brickkit new demo/quote --path demo-quote --contract openapi
    📄 demo-quote/api/openapi.yaml
 
 Next steps:
-  finish the TODOs in the skeleton
+  Finish the TODOs in the skeleton
   cd demo-quote && brickkit init    give it a local workbench (completion mode: existing files are left alone)
   brickkit lint                     check that component.yaml passes validation
 ```

@@ -34,7 +34,7 @@ brickkit new shop/orders --path orders
    📄 orders/BRICKKIT.md
 
 Next steps:
-  finish the TODOs in the skeleton
+  Finish the TODOs in the skeleton
   cd orders && brickkit init    give it a local workbench (completion mode: existing files are left alone)
   brickkit lint                 check that component.yaml passes validation
 ```

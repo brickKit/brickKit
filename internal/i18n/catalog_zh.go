@@ -1510,6 +1510,7 @@ var zh = map[string]string{
 	msgid.CliRenderOrderSkipsWaitFor:            "不等 %s",
 	msgid.ComposeSkipWaitForOnBareProcess:       "%s 这次以裸进程运行（或在裸进程外壳里）：它没有 depends_on，skipWaitFor 不起作用",
 	msgid.ShellHintMergeCycleSkipWait:           "或者接受代价：在部署文件里给 %[2]s 的条目各写上 skipWaitFor: [%[1]s]。它们就不等 %[1]s 直接启动，必须自己重试到对方就绪",
+	msgid.ShellHintMergeCycleSkipWaitOne:        "或者接受代价：在部署文件里给 %[2]s 的条目写上 skipWaitFor: [%[1]s]。它就不等 %[1]s 直接启动，必须自己重试到对方就绪",
 	msgid.ComposeSkipWaitForCoHosted:            "%[1]s 跳过等待 %[2]s，但两者都在外壳 %[3]s 里：调用不出进程，本来就没有等待可跳过",
 	msgid.ShellHintSkipWaitForOnMember:          "外壳条目上的 skipWaitFor 只管外壳自己的依赖：要跳过的是成员的依赖时，写在 members 下面那个成员的条目上",
 	msgid.InstallUpgradeShellStillNeeded:        "错误：还有组件需要外壳 %[1]s（%[2]s），而外壳只能有一个版本",

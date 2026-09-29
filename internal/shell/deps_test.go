@@ -183,3 +183,34 @@ func TestMergeCycleSuggestsEveryMemberThatMustSkip(t *testing.T) {
 	require.Error(t, cycle)
 	assert.Contains(t, clierr.As(cycle).Hints, i18n.T(msgid.ShellHintMergeCycleSkipWait, "erp/x", "erp/a@1.0.0, erp/b@1.0.0"))
 }
+
+// 环上只有一个成员要跳过时，出路说"给这一个条目写上"，不说"各写上"。
+func TestMergeCycleSuggestsTheOneMemberThatMustSkip(t *testing.T) {
+	cfg := &testCfg{Components: []testComp{
+		comp("erp/shell", "1.0.0", ""),
+		comp("erp/a", "1.0.0", "erp/shell@1.0.0"),
+		comp("erp/d", "1.0.0", "erp/shell@1.0.0"),
+		comp("erp/x", "1.0.0", ""),
+	}}
+	manifests := map[string]*manifest.Manifest{
+		"erp/shell@1.0.0": simple("erp/shell", "1.0.0", 8080),
+		"erp/a@1.0.0":     dependsOn(simple("erp/a", "1.0.0", 8081), "erp/x", "1.0.0"),
+		"erp/d@1.0.0":     simple("erp/d", "1.0.0", 8083),
+		"erp/x@1.0.0":     dependsOn(simple("erp/x", "1.0.0", 8090), "erp/d", "1.0.0"),
+	}
+	_, err := resolveFixture(t, cfg, manifests)
+	require.NoError(t, err)
+	p := projectFrom(t, cfg)
+	var roots []resolver.Ref
+	for _, c := range cfg.Components {
+		roots = append(roots, resolver.Ref{ID: c.ID, Version: c.Version})
+	}
+	graph, err := resolver.New(stubProvider(manifests)).Resolve(context.Background(), roots...)
+	require.NoError(t, err)
+	states, err := cascade.Compute(p, graph)
+	require.NoError(t, err)
+
+	cycle := shell.MergeCycleError(p, graph, states, shell.Workloads(p, graph, states))
+	require.Error(t, cycle)
+	assert.Contains(t, clierr.As(cycle).Hints, i18n.T(msgid.ShellHintMergeCycleSkipWaitOne, "erp/x", "erp/a@1.0.0"))
+}
