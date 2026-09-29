@@ -33,6 +33,9 @@ func TestRenderHookIsPosixShAndListsProjects(t *testing.T) {
 	assert.NotContains(t, script, "--config", "--config 已删除，脚本不能再传它")
 	assert.NotContains(t, script, "[[", "不用任何 bash 特性")
 	assert.NotContains(t, script, "function ")
+	// 启停由部署文件的 mode 决定：注释还说 brickkit.yaml，读的人会去错的文件里找原因
+	assert.Contains(t, script, "while deploy.yaml says it should start")
+	assert.NotContains(t, script, "brickkit.yaml says")
 }
 
 func TestRenderedHookRunsAndBlocks(t *testing.T) {

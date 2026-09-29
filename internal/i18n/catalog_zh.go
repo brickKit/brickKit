@@ -708,7 +708,7 @@ var zh = map[string]string{
 	msgid.CliSyncSActive:                                             "   ✅ %-36[1]s 活跃",
 	msgid.CliSyncReason:                                              "      原因：%[1]s",
 	msgid.CliSyncWorkspaceTidiedActiveArchivedActivated:              "✅ 工作区整理完成（%[1]d 个活跃，%[2]d 个归档，%[3]d 个激活）",
-	msgid.CliHooksHeaderComment:                                      "由 brickkit init --hooks 写入。可安全覆盖升级；想卸载就删掉这个文件。\n\n它拦一件事：组件源码提交在 components/.archived/ 里，而 brickkit.yaml 说它该启动。\n判据与出路见 brickkit restore --check。\n\n--log-level off 是必需的，不是洁癖：默认日志级别会往 stderr 吐 JSON，\n而这里的读者是一个正在提交、突然被拦下的人——他要看的是那句人话，\n不是夹在两行 {\"time\":...,\"level\":\"INFO\"} 中间的它。错误本身不走日志，\n关掉日志不会让它消失。",
+	msgid.CliHooksHeaderComment:                                      "由 brickkit init --hooks 写入。可安全覆盖升级；想卸载就删掉这个文件。\n\n它拦一件事：组件源码提交在 components/.archived/ 里，而 deploy.yaml 说它该启动。\n判据与出路见 brickkit restore --check。\n\n--log-level off 是必需的，不是洁癖：出错时默认会往 stderr 再写一行 JSON 日志，\n而这里的读者是一个正在提交、突然被拦下的人——他要看的是那句人话，\n不是紧跟着的一行 {\"time\":...,\"level\":\"ERROR\"}。错误本身不走日志，\n关掉日志不会让它消失。",
 	msgid.CliHooksBrickkitNotFound:                                   "⚠️  找不到 brickkit，跳过组件结构检查（brickkit init --hooks 可重装本 hook）",
 	msgid.CliSyncReasonStopped:                                       "本次不启动",
 	msgid.CliSyncReasonRestored:                                      "恢复启用",
