@@ -281,7 +281,7 @@ func workbenchDecl(name string, sources []projfile.Source) (string, error) {
 	if err := enc.Close(); err != nil {
 		return "", err
 	}
-	return head + buf.String() + "\ncomponents: []\n", nil
+	return head + yamlcomment.Block("", i18n.T(msgid.ProjectSkeletonWorkbenchInherited)) + buf.String() + "\ncomponents: []\n", nil
 }
 
 // deploySkeleton 是 deploy.yaml 的骨架。

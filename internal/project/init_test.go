@@ -277,6 +277,9 @@ func TestPlanWorkbenchInheritsSources(t *testing.T) {
 	assert.FileExists(t, filepath.Join(root, "config", "vars.yaml"))
 	assert.FileExists(t, filepath.Join(root, ".gitignore"))
 	assert.NoFileExists(t, filepath.Join(root, "BRICKKIT.md"))
+	raw, err := os.ReadFile(l.DeclPath())
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), "inherited from the enclosing project", "安装源确实是继承来的：要说出来")
 }
 
 // 组件仓库里的补全式 init（提案 §16.1.1）与 add --local --init 是同一件事：只补 brickkit.yaml、
@@ -304,6 +307,9 @@ func TestPlanCompleteComponentRepoIsAWorkbench(t *testing.T) {
 	raw, err := os.ReadFile(l.DeclPath())
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), "# - name: company-git")
+	// 这份文件是 init 在组件仓库里建的，不是 add --local --init，也没有继承谁的安装源
+	assert.NotContains(t, string(raw), "--init")
+	assert.NotContains(t, string(raw), "inherited")
 }
 
 // --name 与已有 brickkit.yaml 的 project 相矛盾：拒绝，而不是生成一份标题对不上的项目文档。

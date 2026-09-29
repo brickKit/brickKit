@@ -63,6 +63,7 @@ const (
 	ProjectDocColSourceDir              = "project.doc.col_source_dir"
 	ProjectSkeletonWorkbenchHeader      = "project.skeleton.workbench_header"
 	ProjectSkeletonWorkbenchSources     = "project.skeleton.workbench_sources"
+	ProjectSkeletonWorkbenchInherited   = "project.skeleton.workbench_inherited"
 	ProjectNameContradicts              = "project.name_contradicts"
 	ProjectHintDropName                 = "project.hint_drop_name"
 	ProjectHintDeployFilePath           = "project.hint_deploy_file_path"

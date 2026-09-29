@@ -38,6 +38,12 @@ func TestNewWithPath(t *testing.T) {
 
 	_, err = os.Stat(filepath.Join(dir, "components"))
 	assert.True(t, os.IsNotExist(err), "--path 指定后不该再额外建 components/ 目录")
+
+	// 独立仓库里还没有项目：下一步是给它建工作台，不是 add --local（那是项目里的事）
+	assert.Contains(t, r.stdout, "cd somewhere/else && brickkit init")
+	assert.NotContains(t, r.stdout, "brickkit add --local")
+	assert.Contains(t, r.stdout, "brickkit lint", "新工作台里还没有组件，up --dry-run 校验不到什么；lint 查的正是这份 component.yaml")
+	assert.NotContains(t, r.stdout, "brickkit up --dry-run")
 }
 
 // --path 给绝对路径，就写到那个绝对路径——不能被当成相对路径接在项目目录后面。

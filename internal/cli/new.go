@@ -93,6 +93,12 @@ func runNew(opts *Options, id, path, contract string, shell bool) error {
 	opts.Printf("\n")
 	opts.Printf("%s\n", i18n.T(msgid.CliNewNextSteps))
 	opts.Printf("%s\n", i18n.T(msgid.CliNewFinishTheTodosInThe))
+	if path != "" {
+		// --path 是独立的组件仓库：这里还没有项目——先给它建工作台，再用 lint 查这份 component.yaml
+		opts.Printf("%s\n", i18n.T(msgid.CliNewInitWorkbench, filepath.ToSlash(rel)))
+		opts.Printf("%s\n", i18n.T(msgid.CliNewLintManifest))
+		return nil
+	}
 	opts.Printf("%s\n", i18n.T(msgid.CliNewBrickkitAddLocalAddIt))
 	opts.Printf("%s\n", i18n.T(msgid.CliNewBrickkitUpDryRunCheck))
 	return nil
