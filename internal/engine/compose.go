@@ -289,7 +289,7 @@ func isMissingBinary(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "executable file not found")
 }
 
-// tail 取输出里最后 n 行**有内容**的文字，用 " / " 连起来。
+// tail 取输出里最后 n 行**有内容**的文字，按行保留（错误块里逐行显示，日志里由 clierr 接成一行）。
 //
 // compose 的输出是一长串进度行（Creating / Created / Started …），
 // **真正的原因在最后一行**。取开头只会得到 "Network xxx Creating" 这种
@@ -304,7 +304,7 @@ func tail(text string, n int) string {
 	if len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}
-	return strings.Join(lines, " / ")
+	return strings.Join(lines, "\n")
 }
 
 // psEntry 是 `compose ps --format json` 的一条记录。

@@ -437,7 +437,7 @@ func TestEngineFailureShowsTheEndOfOutput(t *testing.T) {
 
 func TestTailKeepsLastMeaningfulLines(t *testing.T) {
 	assert.Equal(t, "c", tail("a\nb\nc\n", 1))
-	assert.Equal(t, "b / c", tail("a\nb\nc", 2))
+	assert.Equal(t, "b\nc", tail("a\nb\nc", 2))
 	assert.Equal(t, "only", tail("\n only \n\n", 3))
 	assert.Equal(t, "", tail("\n \n", 2))
 }

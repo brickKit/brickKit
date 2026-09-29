@@ -29,6 +29,23 @@ func TestFormatFullBlock(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
+// 多行的明细值（引擎的原始输出、Dockerfile 摘录）按行渲染、续行缩进；
+// Error() 给日志用，仍然是一行。
+func TestMultiLineDetailValue(t *testing.T) {
+	err := New(CodeEngineFailed, "错误：docker 执行失败").
+		WithDetail("输出", "Dockerfile:8\n8 | >>> COPY missing.go ./\nERROR: not found").
+		WithDetail("组件", "shop/order@0.1.0")
+
+	want := "❌ 错误：docker 执行失败\n" +
+		"   输出: Dockerfile:8\n" +
+		"      8 | >>> COPY missing.go ./\n" +
+		"      ERROR: not found\n" +
+		"   组件: shop/order@0.1.0\n"
+	assert.Equal(t, want, err.Format())
+	assert.NotContains(t, err.Error(), "\n")
+	assert.Contains(t, err.Error(), "Dockerfile:8 / 8 | >>> COPY missing.go ./ / ERROR: not found")
+}
+
 func TestFormatSingleHintIsInline(t *testing.T) {
 	err := New(CodePortConflict, "错误：expose 端口冲突").
 		WithHint("在 brickkit.yaml 中为其中一个组件添加 exposePort 字段")

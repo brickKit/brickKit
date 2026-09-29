@@ -208,7 +208,8 @@ func (e *Error) Error() string {
 		b.WriteString("; ")
 		b.WriteString(d.Key)
 		b.WriteString("=")
-		b.WriteString(d.Value)
+		// 日志要一行：多行的明细值（引擎的原始输出）用 " / " 接起来
+		b.WriteString(strings.ReplaceAll(d.Value, "\n", " / "))
 	}
 	return b.String()
 }
@@ -236,7 +237,15 @@ func (e *Error) Format() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s %s\n", symbol, e.Message)
 	for _, d := range e.Details {
-		fmt.Fprintf(&b, "   %s\n", i18n.T(msgid.DetailLine, d.Key, d.Value))
+		// 多行的值（引擎的原始输出、Dockerfile 摘录）按行给出，续行比明细行多缩进三格：
+		// 压成一行，摘录里的行号与 >>> 标记就读不出来了
+		first, rest, _ := strings.Cut(d.Value, "\n")
+		fmt.Fprintf(&b, "   %s\n", i18n.T(msgid.DetailLine, d.Key, first))
+		if rest != "" {
+			for _, line := range strings.Split(rest, "\n") {
+				fmt.Fprintf(&b, "      %s\n", line)
+			}
+		}
 	}
 	switch len(e.Hints) {
 	case 0:
