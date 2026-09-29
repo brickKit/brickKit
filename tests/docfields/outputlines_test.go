@@ -321,41 +321,45 @@ func docFiles(t *testing.T, lang string) []string {
 	return out
 }
 
+// 每种语言一个子测试：一边的文档还没写完，不能挡住另一边的检查。
+// 错的行先报、行数下限后查——写到一半的文档树照样能看到哪几行抄错了。
 func TestDocOutputLinesConformToCatalog(t *testing.T) {
 	for _, lang := range []i18n.Lang{i18n.EN, i18n.ZH} {
-		catalog := i18n.CatalogFor(lang)
-		templates := compileLineTemplates(catalog)
-		require.GreaterOrEqual(t, len(templates), 500,
-			"%s：只编出 %d 个行模板——compileLineTemplates 坏了，这条测试的结论不可信", lang, len(templates))
-		marks := outputMarks(catalog)
-		require.GreaterOrEqual(t, len(marks), 8, "%s：只认出 %d 个输出符号——outputMarks 坏了", lang, len(marks))
+		t.Run(string(lang), func(t *testing.T) {
+			catalog := i18n.CatalogFor(lang)
+			templates := compileLineTemplates(catalog)
+			require.GreaterOrEqual(t, len(templates), 500,
+				"%s：只编出 %d 个行模板——compileLineTemplates 坏了，这条测试的结论不可信", lang, len(templates))
+			marks := outputMarks(catalog)
+			require.GreaterOrEqual(t, len(marks), 8, "%s：只认出 %d 个输出符号——outputMarks 坏了", lang, len(marks))
 
-		checked := 0
-		var offenders []string
-		for _, rel := range docFiles(t, string(lang)) {
-			for _, ln := range fencedOutputLines(t, rel, marks) {
-				checked++
-				if conformsToCatalog(ln.text, marks, templates) {
-					continue
-				}
-				allowed := false
-				for key := range outputLineAllow {
-					parts := strings.SplitN(key, "|", 3)
-					if len(parts) == 3 && parts[0] == string(lang) && parts[1] == rel && strings.Contains(ln.text, parts[2]) {
-						allowed = true
+			checked := 0
+			var offenders []string
+			for _, rel := range docFiles(t, string(lang)) {
+				for _, ln := range fencedOutputLines(t, rel, marks) {
+					checked++
+					if conformsToCatalog(ln.text, marks, templates) {
+						continue
+					}
+					allowed := false
+					for key := range outputLineAllow {
+						parts := strings.SplitN(key, "|", 3)
+						if len(parts) == 3 && parts[0] == string(lang) && parts[1] == rel && strings.Contains(ln.text, parts[2]) {
+							allowed = true
+						}
+					}
+					if !allowed {
+						offenders = append(offenders, rel+":"+strconv.Itoa(ln.n)+"  "+strings.TrimSpace(ln.text))
 					}
 				}
-				if !allowed {
-					offenders = append(offenders, rel+":"+strconv.Itoa(ln.n)+"  "+strings.TrimSpace(ln.text))
-				}
 			}
-		}
-		require.GreaterOrEqual(t, checked, 200,
-			"%s：只查了 %d 行输出——fencedOutputLines 坏了，而不是文档里真的只有这么点", lang, checked)
-		assert.Empty(t, offenders,
-			"docs/%s 里这些输出行在 %s 消息目录里找不到对应文案。CLI 改了措辞而文档没跟上，"+
-				"还是文档里抄错了？以真实输出为准改文档；确有理由（比如刻意缩写）再加进 outputLineAllow 并写清理由。\n%s",
-			lang, lang, strings.Join(offenders, "\n"))
+			assert.Empty(t, offenders,
+				"docs/%s 里这些输出行在 %s 消息目录里找不到对应文案。CLI 改了措辞而文档没跟上，"+
+					"还是文档里抄错了？以真实输出为准改文档；确有理由（比如刻意缩写）再加进 outputLineAllow 并写清理由。\n%s",
+				lang, lang, strings.Join(offenders, "\n"))
+			require.GreaterOrEqual(t, checked, 200,
+				"%s：只查了 %d 行输出——fencedOutputLines 坏了，而不是文档里真的只有这么点", lang, checked)
+		})
 	}
 }
 

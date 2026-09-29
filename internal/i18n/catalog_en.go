@@ -1092,7 +1092,7 @@ var en = map[string]string{
 	msgid.CliBuildNormallyPulled:                                                             "ℹ️  %[1]s normally pulls its image (%[2]s); building a local one because it was named",
 	msgid.CliBuildSkippedExists:                                                              "⏭️  %[1]s: image %[2]s already exists, skipped (--force rebuilds)",
 	msgid.CliBuildBuilding:                                                                   "🔨 Building %[1]s → %[2]s",
-	msgid.CliBuildBuilt:                                                                      "✅ %[1]s → %[2]s",
+	msgid.CliBuildBuilt:                                                                      "✅ Built %[1]s → %[2]s",
 	msgid.CliBuildK8sNote:                                                                    "ℹ️  The deploy target is k8s: these images were built on this machine and the cluster cannot pull them; push them to a registry the cluster can reach (for a local cluster: minikube image load / kind load docker-image)",
 	msgid.CliBuildNothing:                                                                    "✅ No component needs a local build",
 	msgid.CliUpgradeUse:                                                                      "upgrade [component-id[@version]]",

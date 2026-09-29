@@ -1085,7 +1085,7 @@ var zh = map[string]string{
 	msgid.CliBuildNormallyPulled:                                     "ℹ️  %[1]s 的镜像平常是拉取的（%[2]s），按点名在本机构建一份",
 	msgid.CliBuildSkippedExists:                                      "⏭️  %[1]s：镜像 %[2]s 已存在，跳过（--force 重新构建）",
 	msgid.CliBuildBuilding:                                           "🔨 构建 %[1]s → %[2]s",
-	msgid.CliBuildBuilt:                                              "✅ %[1]s → %[2]s",
+	msgid.CliBuildBuilt:                                              "✅ 已构建 %[1]s → %[2]s",
 	msgid.CliBuildK8sNote:                                            "ℹ️  部署目标是 k8s：镜像构建在这台机器上，集群拉不到——推到集群能访问的 registry（本地集群可用 minikube image load / kind load docker-image）",
 	msgid.CliBuildNothing:                                            "✅ 没有需要在本机构建的组件",
 	msgid.CliUpgradeUse:                                              "upgrade [组件ID[@版本]]",

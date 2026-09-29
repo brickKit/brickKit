@@ -46,6 +46,8 @@ func TestBuildBuildsLocalAndBuildOnlyVersions(t *testing.T) {
 		assert.True(t, images.hadDockerfile[b.Tag], "构建时 Dockerfile 在上下文里：%s", b.Tag)
 		assert.NotEmpty(t, b.Labels["io.brickkit.component"])
 	}
+	// 每构建完一个都说一声"已构建"：只有一个箭头的那一行看不出发生了什么
+	assert.Contains(t, r.stdout, "✅ Built erp/local@1.0.0 → registry.example.com/erp-local:1.0.0")
 }
 
 // buildOnly 去掉 image，只留 build：镜像名由组件 ID 与版本推出来。

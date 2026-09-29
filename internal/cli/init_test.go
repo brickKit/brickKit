@@ -288,7 +288,7 @@ func TestInitOutputMatchesDesignDocs(t *testing.T) {
 		"   📁 .brickkit/           CLI working directory\n" +
 		"   📄 BRICKKIT.md          Project map: components and where their docs are\n" +
 		"   📁 .claude/skills/      AI assistant skills (4)\n" +
-		"   📁 AGENTS.md            AI assistant project guide\n" +
+		"   📄 AGENTS.md            AI assistant project guide\n" +
 		"   💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check\n" +
 		"\n" +
 		"Next steps:\n" +
