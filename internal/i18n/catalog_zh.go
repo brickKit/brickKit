@@ -358,7 +358,7 @@ var zh = map[string]string{
 	msgid.ComposeOwnerAutoAssigned:                                   "组件 %[1]s（自动分配）",
 	msgid.ComposeOwnerDebugAccess:                                    "组件 %[1]s（供本地调试访问）",
 	msgid.ComposeOwnerDebugAccessViaShell:                            "组件 %[1]s（供本地调试访问，经外壳 %[2]s）",
-	msgid.ComposeEnvHeader:                                           "由 BrickKit CLI 自动生成，供 IDE 加载，请勿手动编辑\n每次 brickkit up 都会重新生成；改动请落到部署文件（deploy.local.yaml）或 config/\n组件：%[1]s@%[2]s（mode: debug）\n本地监听端口：%[3]d —— 请让 IDE 里启动的进程监听这个端口\n生成时间：%[4]s\n用法：VS Code 在 launch.json 里配 envFile；\n      命令行 `set -a && source 本文件 && set +a` 之后再启动进程\n值按 POSIX shell 规则加了引号，多行值（PEM 私钥等）与含 |、空格等\n特殊字符的值都能被正确 source（brickKit 反馈：local-debug.*.env 序列化\n多行值和特殊字符会截断或解析错误）",
+	msgid.ComposeEnvHeader:                                           "由 BrickKit CLI 自动生成，供 IDE 加载，请勿手动编辑\n每次 brickkit up 都会重新生成；改动请落到部署文件（deploy.local.yaml）或 config/\n组件：%[1]s@%[2]s（mode: debug）\n本地监听端口：%[3]d —— 请让 IDE 里启动的进程监听这个端口\n生成时间：%[4]s\n用法：VS Code 在 launch.json 里配 envFile；\n      命令行 `set -a && source 本文件 && set +a` 之后再启动进程\n值按 POSIX shell 规则加了引号，多行值（PEM 私钥等）与含 |、空格等\n特殊字符的值都能被正确 source",
 	msgid.ComposeLocalMigrationSkipped:                               "提示：mode: debug 组件的数据库迁移不会自动执行",
 	msgid.ComposeLocalMigrationReasonDetail:                          "mode: debug 的组件不生成容器，它的迁移容器也一并跳过",
 	msgid.ComposeHintRunMigrationByHand:                              "在本机手动执行该组件的迁移命令：%[1]s",

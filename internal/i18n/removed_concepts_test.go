@@ -43,9 +43,9 @@ func TestCatalogsHaveNoRemovedConcepts(t *testing.T) {
 	}
 }
 
-// 设计文档（new_plan/ 下的提案与附录）不随 CLI 发布：帮助文本里写"（附录 A4）"，
-// 使用者既找不到这份文档，也读不懂这个编号。要讲的道理直接写在文本里。
-var designDocCitations = []string{"附录", "提案", "Appendix A", "proposal §", "§"}
+// 设计文档（new_plan/ 下的提案与附录）与内部的反馈记录不随 CLI 发布：帮助文本里写"（附录 A4）"、
+// 生成文件里写"（brickKit 反馈：…）"，使用者既找不到这些文档，也读不懂那个编号。要讲的道理直接写在文本里。
+var designDocCitations = []string{"附录", "提案", "Appendix A", "proposal §", "§", "brickKit 反馈", "brickKit feedback"}
 
 func TestCatalogsNeverCiteTheDesignDocuments(t *testing.T) {
 	for _, lang := range SupportedLangs() {
