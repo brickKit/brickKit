@@ -488,3 +488,16 @@ func cacheManifest(t *testing.T, dir, id, version, content string) {
 	require.NoError(t, os.WriteFile(layout.CachedManifestPath(id, version), []byte(content), 0o644))
 	require.NoError(t, os.WriteFile(layout.CachedSignaturePath(id, version), []byte(`{"sourceKind":"local"}`), 0o644))
 }
+
+// 启动顺序里外壳那一行的几条说明放在一组括号里："（承载 …；不等 …）"，不是两组括号挨着。
+func TestOrderLineNotesShareOneBracket(t *testing.T) {
+	dir := mergeCycleFixture(t)
+	path := filepath.Join(dir, "deploy.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(readFile(t, path),
+		"      - id: erp/worker\n", "      - id: erp/worker\n        skipWaitFor: [erp/pay]\n", 1)), 0o644))
+
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "; does not wait for erp/pay@1.0.0)")
+	assert.NotContains(t, r.stdout, ")  (")
+}

@@ -55,19 +55,24 @@ func renderOrder(
 	}
 	for _, s := range plan.Steps {
 		note := dependencyNote(s)
+		// 承载了谁、不等谁：同一组括号里，分号隔开
+		var extras []string
 		if members := hosted[s.Ref]; len(members) > 0 {
 			names := make([]string, 0, len(members))
 			for _, m := range members {
 				names = append(names, m.String())
 			}
-			note += i18n.T(msgid.CliRenderOrderHosts, strings.Join(names, i18n.T(msgid.ListSeparator)))
+			extras = append(extras, i18n.T(msgid.CliRenderOrderHosts, strings.Join(names, i18n.T(msgid.ListSeparator))))
 		}
 		if deps := skipped[s.Ref]; len(deps) > 0 {
 			names := make([]string, 0, len(deps))
 			for _, d := range deps {
 				names = append(names, d.String())
 			}
-			note += i18n.T(msgid.CliRenderOrderSkipsWaitFor, strings.Join(names, i18n.T(msgid.ListSeparator)))
+			extras = append(extras, i18n.T(msgid.CliRenderOrderSkipsWaitFor, strings.Join(names, i18n.T(msgid.ListSeparator))))
+		}
+		if len(extras) > 0 {
+			note += i18n.T(msgid.CliRenderOrderNotes, strings.Join(extras, i18n.T(msgid.CliRenderOrderNoteSeparator)))
 		}
 		opts.Printf("   %d. %s  %s\n", s.Position, pad(s.Service, width), note)
 	}
