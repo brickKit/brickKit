@@ -419,6 +419,24 @@ func TestAddRestoresArchivedConfig(t *testing.T) {
 	assert.Contains(t, r.stdout, "config/.archive/erp-api@1.0.0.yaml")
 }
 
+// 配置要从归档恢复时，归档里是使用者当初写的配置，以它为准：不再问要不要引用公共变量，
+// 更不能宣称"已引用"——从前这里先问、再被恢复的文件整个盖掉，输出与文件对不上。
+func TestAddVarPromptSkipsConfigRestoredFromArchive(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(withConfig(comp{ID: "erp/api", Version: "1.0.0"}, "DB_HOST:x"))
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+	cfg := filepath.Join(dir, "config", "erp-api.yaml")
+	editFile(t, cfg, "# DB_HOST: ", "DB_HOST: pg.internal  # ")
+	g.mustRun(dir, "remove", "erp/api")
+	writeTree(t, dir, map[string]string{"config/vars.yaml": "DB_HOST: shared.host\n"})
+
+	r := g.mustRun(dir, "add", "erp/api@1.0.0", "--yes")
+	assert.Contains(t, readFile(t, cfg), "DB_HOST: pg.internal", "恢复的是使用者当初写的值")
+	assert.NotContains(t, r.stdout, "references the variable of the same name", "没有引用的事不能说引用了")
+	assert.NotContains(t, r.stdout, "Config skeletons: config/erp-api.yaml", "恢复出来的不是新骨架")
+}
+
 // 归档里是旧版本（1.0.0），这次 add 的是 2.0.0：按迁移算法迁移，新版本没有了的键报出来。
 func TestAddRestoresFromOlderArchivedVersion(t *testing.T) {
 	g := newGitOrgProject(t)

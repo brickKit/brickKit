@@ -166,10 +166,16 @@ func installAdd(ctx context.Context, opts *Options, proj *project.Project, clien
 
 // askVarRefs：新生成的配置骨架里，config/vars.yaml（或部署文件 vars:）里有同名变量的键，
 // 问使用者要不要写成 $var: 引用（提案 §7.2.5）。--yes 一律引用；没有输入等于不引用。
+//
+// 要从归档恢复的配置不问：那里是使用者当初写的配置，以它为准——问了、再被恢复的文件盖掉，
+// 输出就会说"已引用"而文件里没有。
 func askVarRefs(opts *Options, proj *project.Project, plan *install.Plan, yes bool) map[install.ConfigRef]map[string]string {
 	refs := map[install.ConfigRef]map[string]string{}
 	for _, c := range plan.AddConfigs {
 		ref := install.ConfigRef{ID: c.ID, Version: c.Version, Versioned: c.Versioned}
+		if _, _, restored := archivedConfigFor(proj.Layout, c.ID, c.Version); restored {
+			continue
+		}
 		keys := make([]string, 0, len(c.Schema.Properties))
 		for key := range c.Schema.Properties {
 			keys = append(keys, key)

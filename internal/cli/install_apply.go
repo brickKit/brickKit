@@ -356,17 +356,20 @@ func (a *applier) editConfigs(plan *install.Plan) error {
 		if _, err := os.Stat(path); err == nil {
 			continue // 已有的配置文件是使用者的，绝不覆盖
 		}
-		content := configdir.Skeleton(c.ID, c.Version, c.Schema, a.options.varRefs[ref])
 		// 归档里有这个组件的旧配置（remove 时留下的）：按迁移算法恢复，而不是给一份空骨架（提案 §7.7）
 		if archive, version, ok := a.archivedConfig(c.ID, c.Version); ok {
 			restored, report, err := a.restore(c, archive, version)
 			if err != nil {
 				return err
 			}
-			content = restored
+			if err := a.write(path, restored); err != nil {
+				return err
+			}
 			a.result.Restored = append(a.result.Restored, restoreResult{File: a.rel(path), Archive: a.rel(archive), Report: report})
 			a.noteConflicts(report)
+			continue
 		}
+		content := configdir.Skeleton(c.ID, c.Version, c.Schema, a.options.varRefs[ref])
 		if err := a.write(path, content); err != nil {
 			return err
 		}
@@ -527,7 +530,13 @@ func readOptional(path string) ([]byte, error) {
 // 再没有才取最高的那份。文件名只按 FileBase 匹配会撞（a-b/c 与 a/b-c 都是 a-b-c），
 // 所以还要核对文件头里的组件 ID。
 func (a *applier) archivedConfig(id, version string) (path, archivedVersion string, ok bool) {
-	dir := a.proj.Layout.ConfigArchiveDir()
+	return archivedConfigFor(a.proj.Layout, id, version)
+}
+
+// archivedConfigFor 是 archivedConfig 的实际查找，不依赖 applier：add 在写文件之前
+// （问要不要引用公共变量时）就要知道哪些配置会从归档恢复。
+func archivedConfigFor(layout project.Layout, id, version string) (path, archivedVersion string, ok bool) {
+	dir := layout.ConfigArchiveDir()
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", "", false
