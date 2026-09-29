@@ -1436,6 +1436,7 @@ var en = map[string]string{
 	msgid.CliRootFlagNoLocal:                        "ignore deploy.local.yaml for this run (local mode stays switched on)",
 	msgid.CliUpUsingLocalDeployFile:                 "Local mode is on: using %[1]s (brickkit local off switches back to deploy.yaml)",
 	msgid.CliUpUsingExplicitDeployFile:              "Using %[1]s (--file); local mode is ignored for this run",
+	msgid.CliUpUsingDeployFile:                      "Using %[1]s (--file)",
 	msgid.LayerWriteFailed:                          "Could not write %[1]s",
 	msgid.LayerEncodeFailed:                         "Could not re-encode %[1]s after editing",
 	msgid.CliRestoreLocalModeUntouched:              "ℹ️ Local mode is on: %[1]s is your personal file, has no commit to restore to, and was left as is",

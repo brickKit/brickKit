@@ -42,6 +42,8 @@ type Project struct {
 	Deploy       *deployfile.File
 	DeploySource DeploySource
 	DeployPath   string
+	// LocalModeIgnored：本地模式开着，但这次 -f 显式选了别的部署文件。
+	LocalModeIgnored bool
 	// Vars 是 config/vars.yaml；DeployVars 是部署文件的 vars:（同名时优先）。
 	Vars       map[string]configdir.Value
 	DeployVars map[string]configdir.Value
@@ -108,9 +110,14 @@ func LoadFiles(root string, opts LoadOptions) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
+	ignored := false
+	if source == DeployExplicit {
+		// 只为提示"忽略了本地模式"读开关；读不到就不提，不该因此挡住 -f
+		ignored, _ = LocalModeOn(l)
+	}
 	return &Project{
 		Layout: l, Decl: decl, Deploy: deploy,
-		DeploySource: source, DeployPath: path, Warnings: warnings,
+		DeploySource: source, DeployPath: path, LocalModeIgnored: ignored, Warnings: warnings,
 	}, nil
 }
 

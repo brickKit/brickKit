@@ -1427,6 +1427,7 @@ var zh = map[string]string{
 	msgid.CliRootFlagNoLocal:                    "本次忽略 deploy.local.yaml（本地模式的开关不变）",
 	msgid.CliUpUsingLocalDeployFile:             "本地模式已开启：使用 %[1]s（brickkit local off 切回 deploy.yaml）",
 	msgid.CliUpUsingExplicitDeployFile:          "使用 %[1]s（--file）；本次忽略本地模式",
+	msgid.CliUpUsingDeployFile:                  "使用 %[1]s（--file）",
 	msgid.LayerWriteFailed:                      "无法写入 %[1]s",
 	msgid.LayerEncodeFailed:                     "编辑后无法重新生成 %[1]s",
 	msgid.CliRestoreLocalModeUntouched:          "ℹ️ 本地模式开着：%[1]s 是个人文件，没有提交可还原，保持原样",

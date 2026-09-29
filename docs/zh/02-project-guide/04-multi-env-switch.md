@@ -13,8 +13,14 @@ brickkit up -f deploy.prod.yaml
 不会退回默认文件。`up`、`down`、`status`、`sync`、`lint`、`graph` 都接受它。
 
 ```text
-使用 deploy.prod.yaml（--file）；本次忽略本地模式
+使用 deploy.prod.yaml（--file）
 🚀 启动项目 my-shop（target: k8s）
+```
+
+本地模式开着时，第一行会多说一句，免得你以为自己的个人设置也生效了：
+
+```text
+使用 deploy.prod.yaml（--file）；本次忽略本地模式
 ```
 
 `brickkit.yaml` 和 `config/` 只有一份，所有环境共用：用哪些组件、哪个版本、业务配置是什么，在每个环境都一样。不同的只有"怎么部署"。

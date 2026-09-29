@@ -334,7 +334,11 @@ func renderDeploySource(opts *Options, proj *project.Project) {
 	case project.DeployLocal:
 		opts.Printf("%s\n", i18n.T(msgid.CliUpUsingLocalDeployFile, name))
 	case project.DeployExplicit:
-		opts.Printf("%s\n", i18n.T(msgid.CliUpUsingExplicitDeployFile, name))
+		if proj.LocalModeIgnored {
+			opts.Printf("%s\n", i18n.T(msgid.CliUpUsingExplicitDeployFile, name))
+		} else {
+			opts.Printf("%s\n", i18n.T(msgid.CliUpUsingDeployFile, name))
+		}
 	}
 }
 

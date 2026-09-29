@@ -87,6 +87,7 @@ const (
 	CliUpLong                               = "cli.up.long"
 	CliUpUsingLocalDeployFile               = "cli.up.using_local_deploy_file"
 	CliUpUsingExplicitDeployFile            = "cli.up.using_explicit_deploy_file"
+	CliUpUsingDeployFile                    = "cli.up.using_deploy_file"
 	CliUpStopPreviousFailed                 = "cli.up.stop_previous_failed"
 	CliUpHintStopPreviousByHand             = "cli.up.hint_stop_previous_by_hand"
 	CliUpHintInstallProgram                 = "cli.up.hint_install_program"
