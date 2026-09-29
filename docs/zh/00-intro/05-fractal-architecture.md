@@ -32,8 +32,8 @@ brickkit new shop/orders --path orders
 
 下一步：
   改完骨架里的 TODO
-  brickkit add --local               把它加进 brickkit.yaml（本地安装源里能扫到它的话）
-  brickkit up --dry-run               校验能不能通过
+  cd orders && brickkit init    给它建本地联调工作台（补全式：已有的文件不动）
+  brickkit lint                 检查 component.yaml 能不能通过
 ```
 
 ```bash

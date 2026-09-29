@@ -37,6 +37,12 @@ brickkit init my-shop
    📁 .claude/skills/      AI 助手技能（4 个）
    📄 AGENTS.md            AI 助手项目导读
    💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查
+
+下一步：
+  cd my-shop
+  brickkit add --local               把 components/ 下的组件全加进来
+  brickkit add people/basic@1.0.0    从安装源添加组件
+  brickkit up                        一键启动
 ```
 
 `init <名字>` 新建一个同名目录，三层文件的骨架都在里面：

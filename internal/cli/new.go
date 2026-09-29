@@ -91,15 +91,18 @@ func runNew(opts *Options, id, path, contract string, shell bool) error {
 		opts.Printf("   📄 %s\n", filepath.Join(rel, f.Path))
 	}
 	opts.Printf("\n")
-	opts.Printf("%s\n", i18n.T(msgid.CliNewNextSteps))
-	opts.Printf("%s\n", i18n.T(msgid.CliNewFinishTheTodosInThe))
+	todo := nextStep{what: i18n.T(msgid.CliNewFinishTheTodosInThe)}
 	if path != "" {
 		// --path 是独立的组件仓库：这里还没有项目——先给它建工作台，再用 lint 查这份 component.yaml
-		opts.Printf("%s\n", i18n.T(msgid.CliNewInitWorkbench, filepath.ToSlash(rel)))
-		opts.Printf("%s\n", i18n.T(msgid.CliNewLintManifest))
+		printNextSteps(opts, []nextStep{todo,
+			{cmd: "cd " + filepath.ToSlash(rel) + " && brickkit init", what: i18n.T(msgid.CliNewInitWorkbench)},
+			{cmd: "brickkit lint", what: i18n.T(msgid.CliNewLintManifest)},
+		})
 		return nil
 	}
-	opts.Printf("%s\n", i18n.T(msgid.CliNewBrickkitAddLocalAddIt))
-	opts.Printf("%s\n", i18n.T(msgid.CliNewBrickkitUpDryRunCheck))
+	printNextSteps(opts, []nextStep{todo,
+		{cmd: "brickkit add --local", what: i18n.T(msgid.CliNewBrickkitAddLocalAddIt)},
+		{cmd: "brickkit up --dry-run", what: i18n.T(msgid.CliNewBrickkitUpDryRunCheck)},
+	})
 	return nil
 }

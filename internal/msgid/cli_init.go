@@ -46,7 +46,6 @@ const (
 	CliInitHintCompleteInstead            = "cli.init.hint_complete_instead"
 	CliInitShellDir                       = "cli.init.shell_dir"
 	CliInitProjectDoc                     = "cli.init.project_doc"
-	CliInitNextCd                         = "cli.init.next_cd"
 	CliInitCompletePlanHeader             = "cli.init.complete_plan_header"
 	CliInitCompleteConfirm                = "cli.init.complete_confirm"
 	CliInitCompleteCancelled              = "cli.init.complete_cancelled"

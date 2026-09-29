@@ -111,11 +111,12 @@ func runInitCreate(opts *Options, name string, f initFlags) error {
 	}
 
 	opts.Printf("\n")
-	opts.Printf("%s\n", i18n.T(msgid.CliNewNextSteps))
-	opts.Printf("%s\n", i18n.T(msgid.CliInitNextCd, name))
-	opts.Printf("%s\n", i18n.T(msgid.CliInitBrickkitAddLocalAddEvery))
-	opts.Printf("%s\n", i18n.T(msgid.CliInitBrickkitAddPeopleBasicAdd))
-	opts.Printf("%s\n", i18n.T(msgid.CliInitBrickkitUpStartEverythingIn))
+	printNextSteps(opts, []nextStep{
+		{cmd: "cd " + name},
+		{cmd: "brickkit add --local", what: i18n.T(msgid.CliInitBrickkitAddLocalAddEvery)},
+		{cmd: "brickkit add people/basic@1.0.0", what: i18n.T(msgid.CliInitBrickkitAddPeopleBasicAdd)},
+		{cmd: "brickkit up", what: i18n.T(msgid.CliInitBrickkitUpStartEverythingIn)},
+	})
 	return nil
 }
 

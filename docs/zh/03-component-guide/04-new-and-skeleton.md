@@ -14,7 +14,7 @@ brickkit new demo/quote --path demo-quote --contract openapi
 
 下一步：
   改完骨架里的 TODO
-  cd demo-quote && brickkit init   给它建本地联调工作台（补全式：已有的文件不动）
+  cd demo-quote && brickkit init    给它建本地联调工作台（补全式：已有的文件不动）
   brickkit lint                     检查 component.yaml 能不能通过
 ```
 
