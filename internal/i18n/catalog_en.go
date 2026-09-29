@@ -1427,6 +1427,8 @@ var en = map[string]string{
 	msgid.SourceHintGitSSH:                          "SSH: check that ~/.ssh/ holds the right key and that it is added to the repository host",
 	msgid.SourceHintGitHTTPS:                        "HTTPS: check that a git credential helper is configured (store, cache, osxkeychain, manager…)",
 	msgid.SourceHintGitCI:                           "CI/CD: check that a token is injected (GIT_ASKPASS, .netrc or the CI system's credentials); a mistyped or missing repository fails the same way",
+	msgid.SourceHintGitNetwork:                      "Can't reach the repository: check the network and the host name in the repository address; retry once the network is back",
+	msgid.SourceHintGitOfflinePinVersion:            "Finding the latest version needs the network. Offline, name the version (%[1]s@<version>): versions already in the local cache need no network — %[2]s",
 	msgid.SourceGitTagMissing:                       "The repository has no version %[1]s",
 	msgid.SourceLabelGitTag:                         "Tag looked for",
 	msgid.SourceLabelGitVersions:                    "Versions in the repository",

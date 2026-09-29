@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
 	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/source/gittest"
@@ -439,4 +442,45 @@ func TestGitMissingRepositoryNamesTheAddress(t *testing.T) {
 	assert.Contains(t, out, gittest.BaseURL(org.dir), "报出的是它实际去找的那个地址")
 	assert.Contains(t, out, "erp-api")
 	assert.Contains(t, out, "mistyped", "提醒地址写错也会这样失败")
+}
+
+// 连不上远端（离线、主机名解析不了）时，建议不能只谈鉴权；查"最新版本"又必须联网（附录 A8），
+// 所以点名本机缓存里已有的版本，告诉使用者写明版本号就不用联网。不静默回落到缓存里的最高版本：
+// 那可能不是远端的最新，而使用者以为是。
+func TestGitLatestOfflineNamesCachedVersions(t *testing.T) {
+	org := newGitOrg(t)
+	org.release(componentSpec{ID: "erp/api", Version: "1.0.0"})
+	r := org.release(componentSpec{ID: "erp/api", Version: "1.2.0"})
+	first, _ := org.client()
+	_, err := first.LatestVersion(context.Background(), "erp/api")
+	require.NoError(t, err)
+
+	// 远端变得不可达：缓存里的 origin 指向一个没人监听的端口（连接被拒绝，不依赖 DNS）
+	cached := repoCacheDir(org.cache, r.URL())
+	_, err = runGit(context.Background(), cached, "remote", "set-url", "origin", "http://127.0.0.1:1/erp-api")
+	require.NoError(t, err)
+
+	second, _ := org.client()
+	_, err = second.LatestVersion(context.Background(), "erp/api")
+	require.Error(t, err)
+	e := clierr.As(err)
+	assert.Equal(t, clierr.CodeNetworkUnreachable, e.Code)
+	assert.Contains(t, e.Hints, i18n.T(msgid.SourceHintGitNetwork))
+	assert.NotContains(t, e.Hints, i18n.T(msgid.SourceHintGitSSH), "连不上远端时不该把人引向 SSH key")
+	assert.Contains(t, e.Hints, i18n.T(msgid.SourceHintGitOfflinePinVersion, "erp/api", "1.0.0, 1.2.0"))
+
+	// 写明一个缓存里已有的版本：不联网也能取到
+	got, err := second.Manifest(context.Background(), "erp/api", "1.2.0")
+	require.NoError(t, err)
+	assert.Equal(t, "1.2.0", got.Manifest.Metadata.Version)
+}
+
+// 鉴权一类的失败（仓库不存在、没有权限）照旧给三个鉴权方向。
+func TestGitAuthFailureKeepsAuthHints(t *testing.T) {
+	s := &gitSource{}
+	err := s.failed("erp/api", "https://git.example.com/erp-api",
+		errors.New("fatal: could not read Username for 'https://git.example.com': terminal prompts disabled"))
+	e := clierr.As(err)
+	assert.Contains(t, e.Hints, i18n.T(msgid.SourceHintGitSSH))
+	assert.NotContains(t, e.Hints, i18n.T(msgid.SourceHintGitNetwork))
 }

@@ -1418,6 +1418,8 @@ var zh = map[string]string{
 	msgid.SourceHintGitSSH:                      "SSH：确认 ~/.ssh/ 下有对应的 key，且已添加到仓库托管平台",
 	msgid.SourceHintGitHTTPS:                    "HTTPS：确认已配置 git credential helper（store、cache、osxkeychain、manager……）",
 	msgid.SourceHintGitCI:                       "CI/CD：确认环境里已注入 token（GIT_ASKPASS、.netrc 或 CI 平台的凭据）；仓库地址拼错、仓库不存在也会是这个报错",
+	msgid.SourceHintGitNetwork:                  "连不上仓库：检查网络，以及仓库地址里的主机名；网络恢复后重试",
+	msgid.SourceHintGitOfflinePinVersion:        "查最新版本要联网。离线时写明版本号（%[1]s@<版本>）：本机缓存里已有的版本不用联网——%[2]s",
 	msgid.SourceGitTagMissing:                   "仓库里没有 %[1]s 这个版本",
 	msgid.SourceLabelGitTag:                     "要找的 tag",
 	msgid.SourceLabelGitVersions:                "仓库里有的版本",

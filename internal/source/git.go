@@ -112,7 +112,14 @@ func (s *gitSource) latestVersion(ctx context.Context, componentID string) (stri
 		return "", s.failed(componentID, repoURL, err)
 	}
 	if err := repo.fetch(ctx); err != nil {
-		return "", s.failed(componentID, repoURL, err)
+		failure := s.failed(componentID, repoURL, err)
+		// 最新版本以远端为准（附录 A8），连不上就不能回答——但不静默回落到缓存里的最高版本：
+		// 它未必是远端的最新。点名缓存里已有的版本，写明其中一个就不用联网
+		if cached, _ := s.versions(ctx, repo, componentID, subpath); unreachable(err) && len(cached) > 0 {
+			failure = clierr.As(failure).WithHint(
+				i18n.T(msgid.SourceHintGitOfflinePinVersion, componentID, strings.Join(cached, ", ")))
+		}
+		return "", failure
 	}
 	versions, err := s.versions(ctx, repo, componentID, subpath)
 	if err != nil {
@@ -198,13 +205,43 @@ func (s *gitSource) failed(componentID, repoURL string, err error) error {
 	e := clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.SourceGitFetchFailed, componentID)).
 		WithDetail(i18n.T(msgid.LabelSource), i18n.T(msgid.SourceIDWithKind, s.id(), s.kind())).
 		WithDetail(i18n.T(msgid.LabelRepo), repoURL).
-		WithDetail(i18n.T(msgid.SourceLabelGitError), lastLines(err.Error(), 10)).
-		WithHint(
+		WithDetail(i18n.T(msgid.SourceLabelGitError), lastLines(err.Error(), 10))
+	if unreachable(err) {
+		// 根本没连上：谈 SSH key、credential helper 只会把人引到错的方向
+		e = e.WithHint(i18n.T(msgid.SourceHintGitNetwork))
+	} else {
+		e = e.WithHint(
 			i18n.T(msgid.SourceHintGitSSH),
 			i18n.T(msgid.SourceHintGitHTTPS),
 			i18n.T(msgid.SourceHintGitCI),
 		)
+	}
 	return e.WithCause(err)
+}
+
+// unreachableSignatures 是 git（curl、ssh）连不上远端时的原话：离线、主机名解析不了、端口没人听。
+// 鉴权失败、仓库不存在不在其中——那时远端是连上了的。
+var unreachableSignatures = []string{
+	"could not resolve host",
+	"could not resolve hostname",
+	"temporary failure in name resolution",
+	"failed to connect to",
+	"connection refused",
+	"connection timed out",
+	"operation timed out",
+	"network is unreachable",
+	"no route to host",
+}
+
+// unreachable 报告一次 git 失败是不是"根本没连上远端"。
+func unreachable(err error) bool {
+	text := strings.ToLower(err.Error())
+	for _, sig := range unreachableSignatures {
+		if strings.Contains(text, sig) {
+			return true
+		}
+	}
+	return false
 }
 
 // tagMissing 说清楚"仓库在，但没有这个版本的 tag"，列出仓库里有的版本。
