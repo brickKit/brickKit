@@ -52,7 +52,10 @@ PLACEHOLDERS = {"--...", "--flag", "--选项"}
 # 这两句的价值恰恰在于写出那个不存在的参数名。把它们报成"文档写错了"，
 # 只会逼人把「明确拒绝做这件事」的论证删掉，而下一个人又会把功能加回来。
 TOMBSTONE = re.compile(r"已删除|已作废|删掉|删除了|整个删|移除了|不再支持|早先有过|"
-                       r"为什么没有|也没有|刻意不做|不打算做|不提供|不会有|~~")
+                       r"为什么没有|也没有|刻意不做|不打算做|不提供|不会有|~~|"
+                       # 英文文档的同一类说法
+                       r"\b(?:[Dd]eleted|[Rr]emoved|[Nn]o longer (?:exists|supported)|[Tt]here is no|"
+                       r"[Dd]eliberately (?:no|not)|[Nn]ever (?:had|existed))\b")
 
 # 反向检查（"二进制里有、文档里没有"）时豁免的东西。
 #
@@ -180,6 +183,15 @@ def self_check(surface):
     bc, bf, *_, got = scan_lines("<自检>", ["brickkit skills update --lang zh"], surface)
     if bc or bf or "--lang" not in got.get("skills update", set()):
         problems.append(f"子命令的参数没认出来：{bc} {bf} {got}")
+    # 已删除命令的"墓碑"两种语言都要认：英文文档写 Deleted / Removed，不能被当成写了不存在的命令
+    for tomb in ("| Removed | `brickkit override` | Deleted: replaced by `brickkit local` |",
+                 "| 已删除 | `brickkit override` | 已删除：改成 `brickkit local` |"):
+        bc, *_ = scan_lines("<自检>", [tomb], surface)
+        if bc:
+            problems.append(f"删除标记没认出来：{tomb}")
+    bc, *_ = scan_lines("<自检>", ["Run `brickkit override` to refresh it."], surface)
+    if not bc:
+        problems.append("不带删除标记的已删除命令没被报出来")
     if problems:
         print("❌ 自检失败：" + "；".join(problems))
         print("   说明这个脚本读 CLI 的方式坏了，报出来的结果不可信。先修脚本。")
