@@ -24,6 +24,8 @@ DNS 天然把它们分开：同时运行，互不冲突，不需要任何额外�
 components:
   - id: demo/hello
     version: 1.1.0
+  - id: demo/quote
+    version: 0.1.0
   - id: demo/hello
     version: 1.0.0
     requiredBy: [demo/caller]

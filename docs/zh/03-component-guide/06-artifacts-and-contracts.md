@@ -83,6 +83,9 @@ brickkit fetch demo/quote
 📦 已下载 demo/quote@0.1.0 的产物（未写入 brickkit.yaml）
    .brickkit/artifacts/demo-quote-0-1-0/
      api-contract/api/openapi.yaml
+
+💡 这个组件不会被本项目部署。
+   它由别的项目运行，平台不会为它注入 *_ENDPOINT：把对方给的地址当作调用方的一项配置——在 configSchema 里声明，在 config/ 里填值
 ```
 
 它只下载 `component.yaml` 和契约文件：不改 `brickkit.yaml`，不生成部署文件，不拉镜像，不启动任何东西。
