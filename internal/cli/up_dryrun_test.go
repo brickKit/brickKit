@@ -272,7 +272,7 @@ func TestUpDryRunTellsHowToDebugLocally(t *testing.T) {
 	r := runIn(t, f.Dir, "up", "--dry-run")
 
 	assert.Contains(t, r.stdout, "Local debugging")
-	assert.Contains(t, r.stdout, "localhost:8081")
+	assert.Contains(t, r.stdout, "port 8081")
 	assert.Contains(t, r.stdout, "local-debug.people-basic-1-0-0.env")
 	assert.Contains(t, r.stdout, "envFile", "给出 IDE 里怎么用")
 }

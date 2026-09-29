@@ -411,8 +411,8 @@ func localPlans(t *testing.T, f *projectFixture) ([]localComponentPlan, error) {
 func TestLocalMigrationNoteNamesTheRealMode(t *testing.T) {
 	dir := t.TempDir()
 	writeTree(t, dir, map[string]string{
-		"brickkit.yaml": "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\ncomponents:\n  - id: erp/api\n    version: 1.0.0\n",
-		"deploy.yaml":   "target: docker\ncomponents:\n  - id: erp/api\n    mode: local\n",
+		"brickkit.yaml":                     "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\ncomponents:\n  - id: erp/api\n    version: 1.0.0\n",
+		"deploy.yaml":                       "target: docker\ncomponents:\n  - id: erp/api\n    mode: local\n",
 		"components/erp/api/component.yaml": comp{ID: "erp/api", Version: "1.0.0", Migration: []string{"/app/api", "migrate"}}.yamlText(),
 		"components/erp/api/go.mod":         "module erp/api\n\ngo 1.22\n",
 		"components/erp/api/main.go":        "package main\n\nfunc main() {}\n",

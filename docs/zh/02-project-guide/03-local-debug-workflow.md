@@ -38,6 +38,7 @@ components:
 
 `mode: debug` 的意思是"这个组件我自己在本机启动"：平台不给它生成容器，但照样把它算作在运行，别的组件照样拿到它的地址。
 `localPort` 是你的进程**实际监听**的端口。`demo/hello` 在代码里写死监听 8080，所以这里写 8080；两者对不上，调用方只会得到连接被拒绝。
+进程还要监听**所有网卡**（`0.0.0.0`）：容器是经宿主机的网桥地址过来的，只听 `127.0.0.1` 的进程收不到（见 [本地调试问题](../10-troubleshooting/02-local-debug-issues.md#容器里的组件连不上你的进程)）。
 
 `mode: debug` 只能写在 `deploy.local.yaml` 里——"我正在自己机器上调试它"是你个人的事实，不该出现在团队评审的文件里。
 
@@ -56,7 +57,7 @@ brickkit up
 ```text
 🔧 本地调试（mode: debug）：
    demo/hello@1.0.0
-      不生成容器；请在 IDE 里启动它，监听 localhost:8080
+      不生成容器；请在 IDE 里启动它，监听端口 8080，而且要监听所有网卡（0.0.0.0）——只听 127.0.0.1 的进程，容器连不到
       环境变量：.brickkit/generated/local-debug.demo-hello-1-0-0.env
       VS Code：launch.json 里配 "envFile": "${workspaceFolder}/.brickkit/generated/local-debug.demo-hello-1-0-0.env"
 ```
