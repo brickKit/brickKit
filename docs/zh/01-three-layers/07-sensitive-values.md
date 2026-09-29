@@ -124,7 +124,7 @@ TLS_KEY="-----BEGIN PRIVATE KEY-----\nMIIBVQ...\n-----END PRIVATE KEY-----\n"
 
 外壳把成员的配置打包成一个 JSON 注入（`BRICKKIT_SERVED_MEMBERS_CONFIG`）。这份 JSON 由 CLI 提前求好值，
 所以成员的 `${VAR}`、`file://` 在生成时就被展开并 JSON 编码——多行的 PEM 在 JSON 里是一个带 `\n` 的字符串，
-能原样解析回来；含有 JSON 无法表示的控制字符时大声失败。这份 JSON 同样走密钥通道（Docker 的 0600 env 文件、K8s 的 Secret），
+能原样解析回来；不是合法 UTF-8 的值（二进制）大声失败。这份 JSON 同样走密钥通道（Docker 的 0600 env 文件、K8s 的 Secret），
 见 [特殊字符处理](../04-shell/06-special-characters.md)。
 
 ## 离线检查

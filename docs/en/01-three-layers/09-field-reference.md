@@ -1,0 +1,96 @@
+# Quick field reference
+
+Every field you can write in the three files (plus a component's `component.yaml`), on one page. Each field's exact
+type and validation rules are in the [Reference](../11-reference/README.md); for editor completion, use the JSON Schemas
+in `schemas/` — see [JSON Schemas](../11-reference/05-json-schemas.md).
+
+## brickkit.yaml
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `project` | ✅ | Project name: lowercase letters, digits, hyphens |
+| `sources[].name` | ✅ | The install source's name |
+| `sources[].type` | ✅ | `git` / `local` / `market` |
+| `sources[].baseUrl` | for git | Component `a/b`'s repository is `<baseUrl>a-b` |
+| `sources[].path` | for local | A directory on this machine |
+| `sources[].url` | for market | The component market's API address |
+| `sources[].authToken` | | A market token (usually `${VAR}`, or use `brickkit login`) |
+| `sources[].enabled` | | Default `true` |
+| `components[].id` | ✅ | `scope/name` |
+| `components[].version` | ✅ | An exact version |
+| `components[].kind` | | `shell` (maintained by the CLI) |
+| `components[].requiredBy` | | Which components this version is here for |
+| `components[].source` | | A source for this one component: `type` (`git` / `local`), `repo`, `path` |
+| `installer.requireSignature` | | Market components must be signed; default `true` |
+| `installer.publicKeys` | | Trusted publisher keys: name → public key file path |
+
+## deploy.yaml / deploy.local.yaml
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `target` | ✅ | `docker` / `podman` / `k8s` |
+| `vars` | | Overrides shared variables of the same name in `config/vars.yaml` |
+| `k8s.context` / `k8s.namespace` / `k8s.createNamespace` | | Which cluster and namespace to deploy to |
+| `k8s.podSecurity` | | `restricted`: generate for the Pod Security "restricted" level |
+| `k8s.imagePullSecrets` | | Names of the Secrets used to pull images |
+| `k8s.ingressClass` / `k8s.ingressAnnotations` | | The Ingress class and annotations |
+| `k8s.networkPolicy.*` | | NetworkPolicies generated from the dependency graph: `enabled`, `ingressController`, `allowFrom[]`, `egress` |
+| `k8s.serviceAccount.enabled` | | One ServiceAccount per component, with no token mounted |
+| `components[].id` | ✅ | The bare ID (default version) or `id@version` |
+| `components[].mode` | | `enabled` / `disable` / `local` / `debug` (`debug` only in `deploy.local.yaml`) |
+| `components[].localPort` | | With `local` / `debug`, the port of the process on your machine |
+| `components[].expose` / `exposePort` | | Open it to the outside; the host port on Docker |
+| `components[].hostname` / `tlsSecret` | | The Kubernetes Ingress host name and certificate |
+| `components[].replicas` | | Kubernetes replicas |
+| `components[].resources` | | `cpu` and `memory` for `requests` / `limits` |
+| `components[].serviceAccountName` | | Use an existing ServiceAccount on Kubernetes |
+| `components[].labels` | | Labels passed through as-is |
+| `components[].skipWaitFor` | | Required dependencies not to wait for at start |
+| `components[].members[]` | | The members a shell hosts, each a full entry (the fields above, but no nested `members`) |
+
+## config/*.yaml
+
+No fixed fields: the keys are the config items declared in the component's `configSchema`, which are also the
+environment variable names in the container. A value can be a literal, `$var:NAME`, a string with `${VAR}` in it,
+`file://path`, or `{ existingSecret: name, key: key }`. In `config/vars.yaml` you choose the keys, and a value can't be
+`$var:`.
+
+## component.yaml
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `apiVersion`, `kind` | ✅ | `brickkit/v1`, `Component` |
+| `metadata.id` / `name` / `version` / `description` | ✅ | Component ID, name, exact version, description |
+| `metadata.vendor` / `license` / `apiDocs` | | Publisher, licence, API docs address |
+| `tags` | | Tags for search |
+| `artifacts[]` | | Contracts: `type`, `format`, `description`, `files` |
+| `dependencies.components[]` | | Dependencies: `id@version`; an optional one says `optional: true` |
+| `configSchema` | | The config spec sheet: `type`, `default`, `description`, `secret`, `enum`, `minimum`, `maximum`, `pattern`, `items` under `properties.<key>`; `required` |
+| `deployment.type` | ✅ | Always `container` |
+| `deployment.image` / `deployment.build` | one or both | The image to pull, or the `context` and `dockerfile` to build locally |
+| `deployment.port` | ✅ | The main port |
+| `deployment.extraPorts[]` | | Extra ports: `name`, `port` |
+| `deployment.resources` | | Recommended resources |
+| `deployment.labels` | | Labels passed through |
+| `migration.command` | | The database migration command (an array) |
+| `healthCheck.type` | ✅ | `http` / `tcp` / `none` |
+| `healthCheck.path` / `startPeriodSeconds` | | The HTTP path, the startup grace period in seconds (default 60) |
+| `shell.members` | | The members a shell compiles in, as exact `id@version` |
+| `local.language` / `local.runCommand` | | For `mode: local`, the language, or the start command given outright |
+
+How to write it and design choices: the [component.yaml field guide](../03-component-guide/02-component-yaml-reference.md).
+
+## Common mistakes
+
+| Wrong | Why it doesn't work | Right |
+| --- | --- | --- |
+| `version: ^1.2.0` / `latest` | Only exact versions are accepted | `version: 1.2.0` |
+| `version: local` | A local source also states its real version, or exact dependency matching fails | The version from `component.yaml` |
+| `expose` or `mode` in `brickkit.yaml` | That's how things are deployed | On this component's entry in the deploy file |
+| `mode: debug` in `deploy.yaml` | It's a personal fact, not for Git | In `deploy.local.yaml` |
+| `localPort` without `mode` | `localPort` only means something for a process on your machine | With `mode: local` or `mode: debug` |
+| A config key `dbHost` while the component reads `DB_HOST` | The key is the environment variable name, injected as-is | Exactly the key in `configSchema` |
+| `DATABASE_URL: $var:PG_HOST:5432` | `$var:` must be the whole value | `jdbc:…://${PG_HOST}:5432`, or reference the pieces separately |
+| A secret in plain text | `config/` goes into Git | `${VAR}` or `file://` |
+| Two entries for the same component version in a deploy file | Each version has exactly one entry | Delete the extra one |
+| Shell members at the top level plus a separate list of member IDs | Membership has one source | Member entries nested under the shell's entry, as `members` |
