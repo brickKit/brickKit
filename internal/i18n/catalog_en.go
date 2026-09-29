@@ -541,7 +541,7 @@ var en = map[string]string{
 	msgid.K8sRefExposed:                                              "%[1]s (expose: true)",
 	msgid.K8sIngressControllerReasonDetail:                           "The generated policy denies all inbound traffic by default; unless you say where the ingress controller lives, it is locked out too — every deployment step succeeds, yet the website simply won't open",
 	msgid.K8sHintFindControllerNamespace:                             "Find out which namespace the controller lives in: kubectl get pods -A | grep ingress",
-	msgid.K8sHintThenWriteDeployFile:                                 "Then write it into the deploy file (deploy.yaml):",
+	msgid.K8sHintThenWriteDeployFile:                                 "Then write it into the deploy file (%[1]s):",
 	msgid.K8sHintDropNetworkPolicy:                                   "Remove k8s.networkPolicy from the deploy file if you don't need network policies",
 	msgid.SourceCredentialsReadFailed:                                "Error: failed to read the login credentials",
 	msgid.SourceHintLoginAgain:                                       "Run brickkit login again to log in to the Market",

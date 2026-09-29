@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/k8s"
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -326,6 +327,22 @@ func TestNetworkPolicyRequiresIngressControllerWhenExposed(t *testing.T) {
 		"错误要点出到底该补哪个字段：%v", err)
 	assert.Contains(t, err.Error(), "portal/user-frontend",
 		"错误要点名是哪个组件：%v", err)
+}
+
+// 建议里的 YAML 要写进这次用的那份部署文件：-f deploy.prod.yaml 时点名它，而不是 deploy.yaml。
+func TestIngressControllerHintNamesTheDeployFileInUse(t *testing.T) {
+	b := newBuilder(t)
+	b.deployFile = "deploy.prod.yaml"
+	b.spec.K8s.NetworkPolicy = &deployfile.NetworkPolicy{Enabled: true}
+	b.component(simple("portal/user-frontend", "1.0.0", 8080),
+		projecttest.Entry{Expose: true, Hostname: "portal.example.com"})
+
+	_, err := b.build()
+
+	require.Error(t, err)
+	hints := strings.Join(clierr.As(err).Hints, "\n")
+	assert.Contains(t, hints, "deploy.prod.yaml", "建议要点名这次用的部署文件")
+	assert.NotContains(t, hints, "(deploy.yaml)", "不能写死 deploy.yaml")
 }
 
 // 没有任何 expose: true 的组件时，不配 ingressController 是合法的。

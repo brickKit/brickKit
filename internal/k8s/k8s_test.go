@@ -53,6 +53,8 @@ type builder struct {
 	spec     projecttest.Spec
 	env      map[string]string
 	proj     *project.Project
+	// deployFile 不空时，模拟 -f 选了另一份部署文件（项目根目录下的文件名）。
+	deployFile string
 }
 
 func newBuilder(t *testing.T) *builder {
@@ -78,6 +80,9 @@ func (b *builder) build() (*k8s.Result, error) {
 	b.t.Helper()
 
 	b.proj = projecttest.Build(b.t, b.spec)
+	if b.deployFile != "" {
+		b.proj.DeployPath = filepath.Join(b.proj.Layout.Root, b.deployFile)
+	}
 	projecttest.FillShellCapability(b.spec, b.provider)
 	graph, err := resolver.New(b.provider).Resolve(context.Background(), b.roots...)
 	require.NoError(b.t, err)

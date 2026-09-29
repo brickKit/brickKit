@@ -536,7 +536,7 @@ var zh = map[string]string{
 	msgid.K8sRefExposed:                                              "%[1]s（expose: true）",
 	msgid.K8sIngressControllerReasonDetail:                           "生成的策略默认拒绝一切入站；不说明 ingress controller 在哪，它也会被挡在门外——部署会全部成功，网站却直接打不开",
 	msgid.K8sHintFindControllerNamespace:                             "查一下 controller 在哪个命名空间：kubectl get pods -A | grep ingress",
-	msgid.K8sHintThenWriteDeployFile:                                 "然后写进部署文件（deploy.yaml）：",
+	msgid.K8sHintThenWriteDeployFile:                                 "然后写进部署文件（%[1]s）：",
 	msgid.K8sHintDropNetworkPolicy:                                   "不需要网络策略就从部署文件里去掉 k8s.networkPolicy",
 	msgid.SourceCredentialsReadFailed:                                "错误：读取登录凭据失败",
 	msgid.SourceHintLoginAgain:                                       "重新执行 brickkit login 登录市场",

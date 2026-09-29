@@ -11,6 +11,7 @@ package k8s
 // 删依赖没人记得收回，久而久之策略就成了一份谁也不敢动的摆设。
 
 import (
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -321,7 +322,7 @@ func (p *plan) checkIngressController() error {
 		WithHint(
 			i18n.T(msgid.K8sHintFindControllerNamespace),
 			// 示例本身是 YAML，不随语言变；只有引导句翻译
-			i18n.T(msgid.K8sHintThenWriteDeployFile)+"\n"+
+			i18n.T(msgid.K8sHintThenWriteDeployFile, filepath.Base(p.proj.DeployPath))+"\n"+
 				"    k8s:\n"+
 				"      networkPolicy:\n"+
 				"        enabled: true\n"+
