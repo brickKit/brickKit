@@ -1,0 +1,10 @@
+{
+  "enabledPlugins": {
+    "skill-creator@claude-plugins-official": true,
+    "feature-dev@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "playground@claude-plugins-official": true,
+    "remember@claude-plugins-official": false
+  }
+}
