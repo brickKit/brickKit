@@ -10,7 +10,8 @@ does.
 
 ## Before you begin
 
-- `brickkit` is installed (see [Install in the README](../../../README.md#install)) and `brickkit version` prints a version;
+- `brickkit` is installed (see [Install in the README](../../../README.md#install)) and `brickkit version` prints a version
+  (TAB completes commands and component IDs — see [Shell completion](03-shell-completion.md));
 - Docker 20.10+ (with Compose V2) is running;
 - port 8080 on your machine is free (if it isn't, step 4 says how to use another port).
 

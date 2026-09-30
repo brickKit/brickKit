@@ -330,6 +330,11 @@ BrickKit CLI v0.9.0
 支持部署目标：docker, podman, k8s
 ```
 
+### TAB 补全
+
+按 TAB 能补全命令、组件 ID、版本和部署文件。`install.sh` 会给 bash、zsh、fish 装好（zsh 可能要在 `~/.zshrc` 里加两行——它会打印出来）；
+别的安装方式，或者按 TAB 没反应，见[命令补全](docs/zh/00-intro/03-shell-completion.md)。
+
 ### 切换 CLI 的语言
 
 CLI 默认说英文。想让它说中文：

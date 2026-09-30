@@ -66,6 +66,16 @@ cobra.usage_template: |
   执行 "{{.CommandPath}} <命令> --help" 查看某个命令的详细说明。{{end}}
 cobra.help_short: "查看某个命令的帮助信息"
 cobra.completion_short: "生成指定 shell 的自动补全脚本"
+cobra.completion_long: "打印一段脚本，让你的 shell 在按 TAB 时补全 brickkit 的命令、参数、组件 ID、版本和部署文件。\n\ninstall.sh 已经给它找到的 shell（bash、zsh、fish）装好了。要手动设置，看对应 shell 子命令的帮助，例如 brickkit completion bash --help。\n完整说明：docs/zh/00-intro/03-shell-completion.md"
+cobra.completion_bash_short: "打印 bash 的补全脚本"
+cobra.completion_bash_long: "打印 bash 的补全脚本。加载它的是 bash-completion 这个包（apt install bash-completion、dnf install bash-completion、brew install bash-completion@2）。\n\n只对当前这个 shell 生效：\n  source <(brickkit completion bash)\n\n对以后每个新 shell 生效（install.sh 就是这么做的）：\n  mkdir -p ~/.local/share/bash-completion/completions\n  brickkit completion bash > ~/.local/share/bash-completion/completions/brickkit\n\n然后开一个新终端。"
+cobra.completion_zsh_short: "打印 zsh 的补全脚本"
+cobra.completion_zsh_long: "打印 zsh 的补全脚本。\n\n只对当前这个 shell 生效：\n  source <(brickkit completion zsh)\n\n对以后每个新 shell 生效，文件要放进 zsh 的 $fpath 里的某个目录。install.sh 用那里第一个能写的 site-functions 目录；没有就放 ~/.zsh/completions，这时 ~/.zshrc 里要有这两行：\n  fpath=(~/.zsh/completions $fpath)\n  autoload -Uz compinit && compinit\n\n手动：\n  mkdir -p ~/.zsh/completions\n  brickkit completion zsh > ~/.zsh/completions/_brickkit\n\n然后开一个新终端。"
+cobra.completion_fish_short: "打印 fish 的补全脚本"
+cobra.completion_fish_long: "打印 fish 的补全脚本。\n\n只对当前这个 shell 生效：\n  brickkit completion fish | source\n\n对以后每个新 shell 生效（install.sh 就是这么做的）：\n  brickkit completion fish > ~/.config/fish/completions/brickkit.fish\n\n然后开一个新终端。"
+cobra.completion_powershell_short: "打印 PowerShell 的补全脚本"
+cobra.completion_powershell_long: "打印 PowerShell 的补全脚本。\n\n只对当前这个会话生效：\n  brickkit completion powershell | Out-String | Invoke-Expression\n\n对以后每个新会话生效：把这一行加进你的配置文件（$PROFILE 指向的那个文件）。"
+cobra.completion_no_descriptions: "不显示每个候选旁边那一行说明"
 cobra.help_flag: "查看 %[2]s 的帮助信息"
 
 lang.cmd.short: "查看 CLI 当前的显示语言"

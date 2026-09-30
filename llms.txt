@@ -23,6 +23,7 @@ written independently for the Chinese documentation tree, not a translation of t
 - [docs/en/00-intro/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/README.md): module index and reading order
 - [docs/en/00-intro/01-what-is-brickkit.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/01-what-is-brickkit.md): what BrickKit is — its place, its core ideas, why it is fractal
 - [docs/en/00-intro/02-quick-start.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/02-quick-start.md): quick start — from an empty directory to curling a container in five minutes
+- [docs/en/00-intro/03-shell-completion.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/03-shell-completion.md): shell completion — what install.sh set up, checking it, bash / zsh / fish / PowerShell by hand
 - [docs/en/00-intro/04-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/04-core-concepts.md): glossary — component, the three layers, shell, fractal, contract
 - [docs/en/00-intro/05-comparison.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/05-comparison.md): how it compares with Compose, Helm, Kustomize, Tilt and Backstage
 - [docs/en/00-intro/06-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/06-fractal-architecture.md): the fractal structure — developing a component vs. using one

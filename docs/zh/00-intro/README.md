@@ -6,6 +6,7 @@
 | --- | --- |
 | [01 BrickKit 是什么](01-what-is-brickkit.md) | 一句话定位、核心理念、三层文件的样子、它和你已经会的工具怎么对应 |
 | [02 快速开始](02-quick-start.md) | 从空目录到一个 curl 得通的容器，七步，每一步都是真实命令和真实输出 |
+| [03 命令补全](03-shell-completion.md) | 用 TAB 补全命令、组件 ID 和版本：`install.sh` 设置了什么、怎么确认、每种 shell 怎么手动设置 |
 | [04 核心概念](04-core-concepts.md) | 一页纸的术语表、贯穿全局的命名规则、几个关键动词 |
 | [05 与现有方案对比](05-comparison.md) | 和 Docker Compose、Helm、Kustomize、Tilt、Backstage、monorepo 工具哪里重叠、哪里不重叠 |
 | [06 分形架构](06-fractal-architecture.md) | 一个组件在开发时是项目、在被使用时是黑盒：这件事怎么成立 |

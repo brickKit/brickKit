@@ -8,7 +8,8 @@
 
 ## 前置条件
 
-- 装好 `brickkit`（见 [README 的安装一节](../../../README.zh.md#安装)），`brickkit version` 能打印版本；
+- 装好 `brickkit`（见 [README 的安装一节](../../../README.zh.md#安装)），`brickkit version` 能打印版本
+  （按 TAB 能补全命令和组件 ID——见[命令补全](03-shell-completion.md)）；
 - Docker 20.10+（含 Compose V2）在跑；
 - 本机的 8080 端口空着（被占了的话，第五步里把 `expose` 换成别的端口，见那一步的说明）；
 - 想看中文输出：`brickkit lang set zh`。

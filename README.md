@@ -337,6 +337,12 @@ Supported Manifest version: brickkit/v1
 Supported deploy targets: docker, podman, k8s
 ```
 
+### TAB completion
+
+TAB completes commands, component IDs, versions and deploy files. `install.sh` sets it up for bash, zsh and fish (zsh
+may need two lines in `~/.zshrc` — it prints them); for other installs, or if TAB does nothing, see
+[Shell completion](docs/en/00-intro/03-shell-completion.md).
+
 ### The CLI's language
 
 The CLI speaks English by default. To have it speak Chinese:

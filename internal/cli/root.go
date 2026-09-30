@@ -300,6 +300,7 @@ func localize(root *cobra.Command) {
 			if s := i18n.T(msgid.CobraCompletionShort); s != "" {
 				c.Short = s
 			}
+			localizeCompletion(c)
 		}
 	}
 	flagText := i18n.T(msgid.CobraHelpFlag)
@@ -314,6 +315,28 @@ func localize(root *cobra.Command) {
 		}
 	}
 	walk(root)
+}
+
+// localizeCompletion 换掉 cobra 自带的 completion 帮助：两种语言各一份，而且说的是 install.sh 的做法
+// （放进各 shell 自己会找的用户级目录、从不改 rc 文件），不是 cobra 默认教的写 /etc 下面。
+func localizeCompletion(c *cobra.Command) {
+	c.Long = i18n.T(msgid.CobraCompletionLong)
+	texts := map[string][2]msgid.ID{
+		"bash":       {msgid.CobraCompletionBashShort, msgid.CobraCompletionBashLong},
+		"zsh":        {msgid.CobraCompletionZshShort, msgid.CobraCompletionZshLong},
+		"fish":       {msgid.CobraCompletionFishShort, msgid.CobraCompletionFishLong},
+		"powershell": {msgid.CobraCompletionPowershellShort, msgid.CobraCompletionPowershellLong},
+	}
+	for _, sub := range c.Commands() {
+		t, ok := texts[sub.Name()]
+		if !ok {
+			continue
+		}
+		sub.Short, sub.Long = i18n.T(t[0]), i18n.T(t[1])
+		if f := sub.Flags().Lookup("no-descriptions"); f != nil {
+			f.Usage = i18n.T(msgid.CobraCompletionNoDescriptions)
+		}
+	}
 }
 
 // Execute 运行 CLI，返回进程退出码。

@@ -7,6 +7,7 @@ before reading the rest.
 | --- | --- |
 | [01 What BrickKit is](01-what-is-brickkit.md) | Its place in one sentence, the core ideas, what the three layers look like, how it maps onto tools you already know |
 | [02 Quick start](02-quick-start.md) | From an empty directory to a container you can curl, in seven steps — every step a real command with its real output |
+| [03 Shell completion](03-shell-completion.md) | TAB completion for commands, component IDs and versions: what `install.sh` set up, how to check it, every shell by hand |
 | [04 Core concepts](04-core-concepts.md) | A one-page glossary, the naming rule everything builds on, the handful of key verbs |
 | [05 Comparison](05-comparison.md) | Where it overlaps with Docker Compose, Helm, Kustomize, Tilt, Backstage and monorepo tools, and where it doesn't |
 | [06 The fractal structure](06-fractal-architecture.md) | How a component can be a project while you develop it and a black box when someone uses it |
