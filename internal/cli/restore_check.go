@@ -190,7 +190,7 @@ func runRestoreCheck(ctx context.Context, opts *Options) error {
 	if err != nil {
 		return skipCheck(opts, i18n.T(msgid.CliRestoreCheckTheAboutToBeCommitted, project.FileDeploy), err)
 	}
-	f, err := syncFocus(ctx, opts, proj)
+	f, err := syncActiveSet(ctx, opts, proj)
 	if err != nil {
 		return skipCheck(opts, i18n.T(msgid.CliRestoreCheckCannotWorkOutWhichComponents), err)
 	}

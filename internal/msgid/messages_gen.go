@@ -1258,6 +1258,7 @@ const (
 	CliUpFocusNeedsLocal                                       ID = "cli.up.focus_needs_local"
 	CliUpHintFocusOrAll                                        ID = "cli.up.hint_focus_or_all"
 	CliUpHintFocusNeedsLocal                                   ID = "cli.up.hint_focus_needs_local"
+	CliLintHintFocusSource                                     ID = "cli.lint.hint_focus_source"
 	CliUpCrashLinesHowManyLinesOfOutput                        ID = "cli.up.crash_lines_how_many_lines_of_output"
 	CliUpCrashLinesHasNoEffect                                 ID = "cli.up.crash_lines_has_no_effect"
 	CliUpNoLocalSourceFor                                      ID = "cli.up.no_local_source_for"

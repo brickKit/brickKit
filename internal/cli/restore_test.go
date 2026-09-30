@@ -198,7 +198,7 @@ func TestRestoreIsIdempotent(t *testing.T) {
 // 会算出一处真实的改动（把 mode: disable 写回来）——这正是顺序测试必须有的前提：
 // changes 非空，writeMode 才不会走 len(changes)==0 的提前返回，
 // "判定失败时不落盘"这条性质才真的被测到。
-// solo/thing@9.9.9 照旧负责让 syncFocus 失败。
+// solo/thing@9.9.9 照旧负责让 syncActiveSet 失败。
 const helloModeWithUnresolvable = `components:
   - id: demo/hello
     version: 1.0.0
@@ -210,16 +210,16 @@ resources: []
 `
 
 // TestRestoreLeavesConfigUntouchedWhenFocusFails 补的是"先判定、再落盘"这条顺序约束本身：
-// 先算判定（syncFocus），算成功了才落盘 yaml。反过来会在判定失败时留下
+// 先算判定（syncActiveSet），算成功了才落盘 yaml。反过来会在判定失败时留下
 // "yaml 改了、结构没动"的半成品——那正是提交前最不该撞上的状态。
 //
 // 工作区与 HEAD 在 demo/hello 的 mode 上刻意不同（见 helloModeWithUnresolvable
 // 的注释），否则 changes 为空、这个测试什么都证明不了——writeMode 遇到空
-// changes 会直接提前返回、不做任何 I/O，这时不管它排在 syncFocus 前面还是
+// changes 会直接提前返回、不做任何 I/O，这时不管它排在 syncActiveSet 前面还是
 // 后面，测试都会通过，测不出真正的顺序约束。
 //
 // 用 solo/thing@9.9.9 制造判定失败：语法上合法（ParseConfig 认得），但本地
-// 安装源里只有 1.0.0，resolver.ResolveConfig 解不出来，syncFocus 因此报错——
+// 安装源里只有 1.0.0，resolver.ResolveConfig 解不出来，syncActiveSet 因此报错——
 // 与 TestCheckWarnsWhenGraphResolutionFails 用的是同一个机制。
 func TestRestoreLeavesConfigUntouchedWhenFocusFails(t *testing.T) {
 	f := newSyncFixture(t, allEnabled, "demo/hello", "demo/caller")
@@ -233,7 +233,7 @@ func TestRestoreLeavesConfigUntouchedWhenFocusFails(t *testing.T) {
 	gitDo(t, f.Dir, "commit", "--quiet", "-m", "archive hello")
 
 	// 工作区换成：demo/hello 的 mode 字段与 HEAD 不同（有真实改动要还原），
-	// 且引用不存在的版本让 syncFocus 解不出来。
+	// 且引用不存在的版本让 syncActiveSet 解不出来。
 	f.writeConfig(t, helloModeWithUnresolvable)
 	before := f.deployText(t)
 

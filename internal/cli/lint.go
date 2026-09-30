@@ -204,6 +204,14 @@ func lintCrossFile(opts *Options, strict bool) ([]lintFile, []string) {
 		return []lintFile{f}, nil
 	}
 	renderFocus(opts, proj)
+	// 焦点组件要从源码跑：up 会拦下没有本地源码的焦点，lint 提前说（设计 §4.6）
+	if id, _, ok := proj.FocusRef(); ok {
+		if _, found := proj.LocalRepo(id); !found {
+			f.errors = append(f.errors, clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpNoLocalSourceFor, id)).
+				WithDetail(i18n.T(msgid.LabelFile), opts.display(proj.DeployPath)).
+				WithHint(i18n.T(msgid.CliLintHintFocusSource, id)))
+		}
+	}
 	f.warnings = append(f.warnings, proj.Warnings...)
 	cfg := lintConfig(proj, strict)
 	f.errors = append(f.errors, cfg.errors...)

@@ -465,7 +465,7 @@ func TestCheckWarnsWhenGraphResolutionFails(t *testing.T) {
 	assert.Equal(t, clierr.ExitOK, r.code, "算不出来 ≠ 判据不通过，必须放行：%s%s", r.stdout, r.stderr)
 	assert.Contains(t, r.stdout, "component layout check")
 	assert.Contains(t, r.stdout, "cannot work out which components would start this time",
-		"必须是走到了 syncFocus 失败这一支，不是撞在别的放行分支上")
+		"必须是走到了 syncActiveSet 失败这一支，不是撞在别的放行分支上")
 }
 
 // ============================================================

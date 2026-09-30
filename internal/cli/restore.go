@@ -160,7 +160,7 @@ func runRestore(ctx context.Context, opts *Options) error {
 	if err != nil {
 		return err
 	}
-	f, err := syncFocus(ctx, opts, proj)
+	f, err := syncActiveSet(ctx, opts, proj)
 	if err != nil {
 		return err
 	}

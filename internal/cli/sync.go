@@ -72,8 +72,11 @@ func runSync(ctx context.Context, opts *Options) error {
 		return err
 	}
 	renderWarnings(opts, proj.Warnings)
+	// 焦点是一次临时的收窄，不是"你需要哪些源码"的声明：sync 按不带焦点时项目要跑的组件
+	// 留源码，否则每换一次焦点就要把几十个目录搬进归档（设计 §4.6）。宁可多留，从不归档正在跑的。
+	proj.IgnoreFocus()
 
-	keep, err := syncFocus(ctx, opts, proj)
+	keep, err := syncActiveSet(ctx, opts, proj)
 	if err != nil {
 		return err
 	}
@@ -94,13 +97,13 @@ func applyWorkspacePlan(opts *Options, layout project.Layout, actions []syncActi
 	return applySync(opts, layout, actions)
 }
 
-// focus 是"这一次哪些组件留在活跃目录"的判定结果，按**组件 ID** 归集。
+// activeSet 是"这一次哪些组件留在活跃目录"的判定结果，按**组件 ID** 归集。
 //
 // 按 ID 而不是按版本：一个组件 ID 只有一份源码目录，
 // 同 ID 的多个版本共用它。
 //
 // keep 就是 brickkit up 这次会启动的那些。
-type focus struct {
+type activeSet struct {
 	keep map[string]bool
 	// reason 是**没留下**的组件各自的理由，直接出现在输出里。
 	reason map[string]string
@@ -108,16 +111,16 @@ type focus struct {
 	restored string
 }
 
-func newFocus(restored string) *focus {
-	return &focus{keep: map[string]bool{}, reason: map[string]string{}, restored: restored}
+func newActiveSet(restored string) *activeSet {
+	return &activeSet{keep: map[string]bool{}, reason: map[string]string{}, restored: restored}
 }
 
-// syncFocus 算出这次要留下哪些组件：与 brickkit up 同一套启停判定。
-func syncFocus(
+// syncActiveSet 算出这次要留下哪些组件：与 brickkit up 同一套启停判定。
+func syncActiveSet(
 	ctx context.Context, opts *Options, proj *project.Project,
-) (*focus, error) {
+) (*activeSet, error) {
 	if len(proj.Decl.Components) == 0 {
-		return newFocus(reasonRestored()), nil
+		return newActiveSet(reasonRestored()), nil
 	}
 
 	client, err := newSourceClient(opts, proj.Layout, proj.Decl, source.Options{})
@@ -130,15 +133,15 @@ func syncFocus(
 	if err != nil {
 		return nil, err
 	}
-	return focusFrom(proj, states), nil
+	return activeSetFrom(proj, states), nil
 }
 
-// focusFrom 把启停判定结果折成"哪些源码留在活跃目录"。
+// activeSetFrom 把启停判定结果折成"哪些源码留在活跃目录"。
 //
 // 与 up 完全同一套判定：两处各判一次，迟早会出现
 // "up 会启动它、sync 却把它源码归档了"这种自相矛盾的局面。
-func focusFrom(proj *project.Project, states *cascade.Result) *focus {
-	f := newFocus(reasonRestored())
+func activeSetFrom(proj *project.Project, states *cascade.Result) *activeSet {
+	f := newActiveSet(reasonRestored())
 	for _, ref := range states.Running() {
 		f.keep[ref.ID] = true
 	}
@@ -163,7 +166,7 @@ func focusFrom(proj *project.Project, states *cascade.Result) *focus {
 //
 // ids 是 brickkit.yaml 声明过的组件 ID（projfile.File.IDs）：一个组件 ID 只有一份源码目录，
 // 与版本无关。按 ID 排序，输出与判据结果才稳定。
-func planSync(layout project.Layout, ids []string, f *focus) []syncAction {
+func planSync(layout project.Layout, ids []string, f *activeSet) []syncAction {
 	ids = append([]string(nil), ids...)
 	sort.Strings(ids)
 
