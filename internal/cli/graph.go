@@ -52,6 +52,7 @@ func newGraphCommand(opts *Options) *cobra.Command {
 		i18n.T(msgid.CliGraphIgnoreShellsFlag))
 	// 只给 -f，不给 --no-local：graph 本来就不看本地模式（见 runGraph）
 	cmd.Flags().StringVarP(&opts.DeployFile, "file", "f", opts.DeployFile, i18n.T(msgid.CliRootFlagDeployFile))
+	_ = cmd.RegisterFlagCompletionFunc("file", completeDeployFiles(opts))
 	return cmd
 }
 

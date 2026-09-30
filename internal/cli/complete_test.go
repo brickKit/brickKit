@@ -101,3 +101,10 @@ func TestCompleteFocus(t *testing.T) {
 		assert.NotContains(t, c, "@")
 	}
 }
+
+// graph 自己注册 -f（它不接 --no-local）：-f 的候选照样是项目根下的部署文件。
+func TestCompleteGraphDeployFile(t *testing.T) {
+	dir := focusFixture(t)
+	got := candidates(t, runIn(t, dir, "__complete", "graph", "-f", ""))
+	assert.Contains(t, got, "deploy.yaml")
+}
