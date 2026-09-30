@@ -255,6 +255,9 @@ func renderRemoveResult(opts *Options, target resolver.Ref, plan *install.Plan, 
 		opts.Printf("%s\n", i18n.T(msgid.CliRemoveConfigArchived, a[0], a[1]))
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliInstallWritten, strings.Join(append([]string{project.FileDecl}, res.DeployFiles...), ", ")))
+	if res.FocusDropped != "" {
+		opts.Printf("%s\n", i18n.T(msgid.CliRemoveFocusDropped, res.FocusDropped, project.FileDeployLocal))
+	}
 	for _, d := range dirs {
 		opts.Printf("%s\n", i18n.T(msgid.CliRemoveSourceDeleted, d))
 	}

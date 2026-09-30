@@ -264,3 +264,18 @@ func TestAFocusThatFailsTheProjectChecksChangesNothing(t *testing.T) {
 		})
 	}
 }
+
+// remove 焦点指着的组件：焦点跟着这个组件一起去掉，并说一句——不是被拒绝、也不是只能靠 up 解套（Final review #6）。
+func TestRemovingTheFocusedComponentDropsTheFocus(t *testing.T) {
+	dir := focusFixture(t)
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/portal")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+
+	r = runWithEngine(t, newFakeEngine(), dir, "remove", "erp/portal", "--force")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, readFile(t, in(dir, "deploy.local.yaml")), "focus:")
+	assert.Contains(t, r.stdout, i18n.T(msgid.CliRemoveFocusDropped, "erp/portal", "deploy.local.yaml"))
+
+	r = runWithEngine(t, newFakeEngine(), dir, "status")
+	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+}

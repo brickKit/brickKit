@@ -20,6 +20,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -54,6 +55,8 @@ type applied struct {
 	OtherDeployFiles []string
 	// Migrations 是这次迁移过的配置（相对项目根的文件 → 迁移报告，按应用顺序）。
 	Migrations []migrationResult
+	// FocusDropped 是跟着组件一起从 deploy.local.yaml 里去掉的焦点（没有时为空）。
+	FocusDropped string
 	// Project 是改完之后重新装载的项目。
 	Project *project.Project
 }
@@ -187,7 +190,41 @@ func (a *applier) apply(plan *install.Plan) error {
 			return err
 		}
 	}
+	if err := a.dropRemovedFocus(); err != nil {
+		return err
+	}
 	return a.editConfigs(plan)
+}
+
+// dropRemovedFocus：个人文件的焦点指着的组件这次整个离开了项目，焦点就跟着它一起去掉——
+// 与删掉它的部署条目是同一件机械的事。改在同一份快照里，装载核对不过时一起还原。
+func (a *applier) dropRemovedFocus() error {
+	l := a.proj.Layout
+	path := l.DeployLocalPath()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil // 没有个人文件：没有焦点可去
+	}
+	local, _, err := deployfile.Parse(data, path, deployfile.RoleLocal)
+	if err != nil || local.Focus == "" {
+		return nil // 读不了的个人文件交给装载核对去说
+	}
+	decl, err := projfile.ParseFile(l.DeclPath())
+	if err != nil || slices.Contains(decl.IDs(), local.Focus) {
+		return nil
+	}
+	if err := a.backup(path); err != nil {
+		return err
+	}
+	out, err := deployfile.SetFocus(data, "")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, out, 0o644); err != nil {
+		return writeError(path, err)
+	}
+	a.result.FocusDropped = local.Focus
+	return nil
 }
 
 // deployFiles 是要改的部署文件：deploy.yaml，以及存在的 deploy.local.yaml。其余的只记名字。

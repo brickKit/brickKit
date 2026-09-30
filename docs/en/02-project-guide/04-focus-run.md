@@ -128,8 +128,10 @@ read my personal file", and the focus is in it.
 
 Which components start is worked out the same way as always, only from a different starting point: without a focus,
 every top-level component starts; with one, only the focus and the components whose `mode` says they always run
-(`enabled`, `local`, `debug`). What they need follows, as usual. A focus can't be a component that is `mode: disable` — that is a contradiction and `up`
-says so.
+(`enabled`, `local`, `debug`). What they need follows, as usual. Shells count too: a focused shell runs with its members (`starting (hosted by …)`), and
+when the focus needs a component a shell hosts, that shell starts to host it (`starting (hosts …)`) rather than the
+member running on its own. A focus can't be a component that is `mode: disable` — that is a contradiction, and `up`
+refuses it without changing any file.
 
 ## What the other commands do with it
 
@@ -139,6 +141,7 @@ says so.
 | `lint` | Also checks that the focus has source to run from |
 | `sync` | **Ignores the focus**: it keeps the source of every component the project runs without one, so switching focus never moves directories around |
 | `local refresh` | Lists the focus as one of your local changes, so you can put it back in the new file |
+| `remove` | Removing the focused component removes the focus with it, and says so |
 | `graph`, `deps` | Unaffected — they read `deploy.yaml` |
 | `build`, `deps` without an argument | Use the component whose directory you are in |
 

@@ -1032,6 +1032,7 @@ const (
 	SkillsStateModified                                        ID = "skills.state.modified"
 	SkillsStateUntracked                                       ID = "skills.state.untracked"
 	CliRemoveRemoveComponentIDVersion                          ID = "cli.remove.remove_component_id_version"
+	CliRemoveFocusDropped                                      ID = "cli.remove.focus_dropped"
 	CliRemoveShort                                             ID = "cli.remove.short"
 	CliRemoveLong                                              ID = "cli.remove.long"
 	CliRemoveExample                                           ID = "cli.remove.example"
