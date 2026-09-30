@@ -20,6 +20,7 @@ import (
 func (f *File) Validate(role Role) ([]*clierr.Error, error) {
 	p := newProblems(f.Source)
 	f.validateTarget(p)
+	f.validateFocus(p, role)
 	f.validateK8s(p)
 	f.validateVarNames(p)
 	f.validateComponents(p, role)
@@ -35,6 +36,21 @@ func (f *File) validateTarget(p *clierr.ProblemSet) {
 		p.Missing("target")
 	case !slices.Contains(Targets, f.Target):
 		p.Add("target", i18n.T(msgid.ProblemMustBeOneOfThree, TargetDocker, TargetPodman, TargetK8s, f.Target))
+	}
+}
+
+// validateFocus：焦点只写在个人文件里；k8s 上不行（集群里的 Pod 够不着你的机器）；值是组件 ID。
+func (f *File) validateFocus(p *clierr.ProblemSet, role Role) {
+	if f.Focus == "" {
+		return
+	}
+	switch {
+	case role != RoleLocal:
+		p.Add("focus", i18n.T(msgid.DeployfileFocusOnlyLocal))
+	case manifest.ComponentIDProblem(f.Focus) != "":
+		p.Add("focus", i18n.T(msgid.DeployfileFocusInvalid, f.Focus))
+	case f.Target == TargetK8s:
+		p.Add("focus", i18n.T(msgid.ConfigFocusK8sUnsupported))
 	}
 }
 
@@ -146,7 +162,7 @@ func (f *File) validateComponents(p *clierr.ProblemSet, role Role) {
 		}
 
 		f.validateMode(p, field, c, role)
-		validatePorts(p, field, c, localPorts, exposePorts)
+		f.validatePorts(p, field, c, localPorts, exposePorts)
 		if c.TLSSecret != "" && !c.Expose {
 			p.Add(field+".tlsSecret", i18n.T(msgid.ConfigTLSSecretNeedsExpose))
 		}
@@ -180,10 +196,16 @@ func (f *File) validateMode(p *clierr.ProblemSet, field string, c Entry, role Ro
 	}
 }
 
-func validatePorts(p *clierr.ProblemSet, field string, c Entry, localPorts, exposePorts map[int]string) {
+// runsAsBareProcess：条目以裸进程运行——写了 local / debug，或者它是焦点组件的裸 ID 条目
+// （按 local 跑，见 withFocus），这时 localPort 对它有效。
+func (f *File) runsAsBareProcess(c Entry) bool {
+	return c.IsBareProcess() || (f.Focus != "" && c.ID == f.Focus)
+}
+
+func (f *File) validatePorts(p *clierr.ProblemSet, field string, c Entry, localPorts, exposePorts map[int]string) {
 	if c.LocalPort != 0 {
 		switch {
-		case !c.IsBareProcess():
+		case !f.runsAsBareProcess(c):
 			p.Add(field+".localPort", i18n.T(msgid.DeployfileLocalPortNeedsMode))
 		case c.LocalPort < MinPort || c.LocalPort > MaxPort:
 			p.Add(field+".localPort", i18n.T(msgid.ProblemPortOutOfRange, MinPort, MaxPort, c.LocalPort))

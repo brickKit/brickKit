@@ -45,6 +45,9 @@ const (
 // File 是一份部署文件的完整结构。
 type File struct {
 	Target string `yaml:"target" jsonschema:"enum=docker|podman|k8s"`
+	// Focus 是焦点组件（裸 ID）：只有它和它需要的组件启动，它从源码跑（设计 §4）。
+	// 只允许写在个人文件 deploy.local.yaml 里，与 mode: debug 同一条规则。
+	Focus string `yaml:"focus,omitempty"`
 	// K8s 收拢所有只在 target: k8s 下有意义的项目级设置；其它 target 下写了会警告。
 	K8s *K8s `yaml:"k8s,omitempty"`
 	// Vars 覆盖 config/vars.yaml 里的同名公共变量，只作用于 $var: 查找（附录 A、提案 §6.1）。
@@ -211,7 +214,7 @@ func (f *File) EntryAt(id, version string, isDefault bool) (Located, bool) {
 			continue
 		}
 		if entryVersion == version {
-			return l, true
+			return f.withFocus(l, isDefault), true
 		}
 		if entryVersion == "" && isDefault {
 			found := l
@@ -219,9 +222,24 @@ func (f *File) EntryAt(id, version string, isDefault bool) (Located, bool) {
 		}
 	}
 	if bare != nil {
-		return *bare, true
+		return f.withFocus(*bare, isDefault), true
 	}
 	return Located{}, false
+}
+
+// withFocus：焦点组件的默认版本从源码跑——没写 mode、写了 enabled 或 local 都按 local；
+// debug 按写的来（交给 IDE 启动）；disable 原样返回，由项目校验报两个意图矛盾。
+// 条目是值拷贝，文件本身一个字段都不改。
+func (f *File) withFocus(l Located, isDefault bool) Located {
+	id, _ := l.Key()
+	if f.Focus == "" || id != f.Focus || !isDefault {
+		return l
+	}
+	switch l.Mode {
+	case "", ModeEnabled, ModeLocal:
+		l.Mode = ModeLocal
+	}
+	return l
 }
 
 // Settings 返回 K8s 设置；没写 k8s: 时是零值。

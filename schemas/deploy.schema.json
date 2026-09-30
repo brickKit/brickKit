@@ -286,6 +286,12 @@
         "null"
       ]
     },
+    "focus": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "k8s": {
       "additionalProperties": false,
       "properties": {

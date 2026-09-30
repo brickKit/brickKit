@@ -11,6 +11,7 @@ that they have "no effect with target: … and are ignored" — they take effect
 | Field | Type | Required | Rules |
 | --- | --- | --- | --- |
 | `target` | string | ✅ | `docker` / `podman` / `k8s` |
+| `focus` | string | | Only in `deploy.local.yaml`: a component ID. Only that component and what it needs start, and it runs from its source (as `mode: local`, or as written `mode: debug`); not with `target: k8s`. See [deploy.local.yaml](../01-three-layers/04-deploy-local-yaml.md) |
 | `vars` | map | | Overrides same-named shared variables from `config/vars.yaml`, affecting only `$var:` lookups; keys must be valid environment variable names |
 
 ## k8s
