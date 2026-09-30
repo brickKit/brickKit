@@ -237,7 +237,9 @@ def usages(line):
     **③ 行内代码里的命令，只认自己那段代码与紧随其后的纯参数代码段**（见下面的实现注释）
     ——英文文档没有"第一个中文字符"这个边界，全靠这一条收住。
     """
-    hits = list(re.finditer(r"brickkit ([a-z][a-z-]*)", line))
+    # 前面不能紧挨着名字字符：`__start_brickkit brickkit`（bash 的 complete -p 输出）里的
+    # "brickkit brickkit" 不是一条叫 brickkit 的命令
+    hits = list(re.finditer(r"(?<![\w-])brickkit ([a-z][a-z-]*)", line))
     out = []
     for n, m in enumerate(hits):
         end = hits[n + 1].start() if n + 1 < len(hits) else len(line)
@@ -329,7 +331,7 @@ def scan_lines(path, lines, surface):
         # 反向检查（「参数有、文档没写」）用的是**宽松**归属：参数常写在表格、
         # 散文、小节标题底下，离命令很远。这一侧宽松只会漏报，不会误报；
         # 而上面那一侧（报文档写错了）必须严格，否则会冤枉正确的句子。
-        for cmd, word in re.findall(r"brickkit ([a-z][a-z-]*)(?: ([a-z][a-z-]*))?", line):
+        for cmd, word in re.findall(r"(?<![\w-])brickkit ([a-z][a-z-]*)(?: ([a-z][a-z-]*))?", line):
             if cmd in surface:
                 documented.setdefault(command_key(surface, cmd, word), set()).update(FLAG.findall(line))
 
