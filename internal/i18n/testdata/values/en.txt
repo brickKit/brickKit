@@ -79,7 +79,7 @@
    ✅ Upload succeeded
    ✅ artifacts uploaded (%[1]s)
    💡 Users need to declare it under installer.publicKeys in brickkit.yaml:
-  (%s)
+  (%[1]s)
   brickkit add erp/backend                    # latest tag, pinned as an exact version\n  brickkit add erp/backend@1.0.0              # a given version\n  brickkit add --local                        # every component in the local sources at once\n  brickkit add --local --init                 # ...and give each one its own local workbench first\n  brickkit add erp/backend@1.0.0 --repo       # also clone the source (at this version)\n  brickkit add erp/backend@1.0.0 --yes        # non-interactive (CI/CD)
   brickkit build                      # build every component that needs a local build\n  brickkit build erp/backend          # only this component\n  brickkit build erp/backend --force  # rebuild after changing the code
   brickkit deps\n  brickkit deps erp/backend\n  brickkit deps erp/backend@2.0.0
@@ -139,6 +139,8 @@
 %[1]s (default %[2]v)
 %[1]s (expose: true)
 %[1]s (hosted by %[2]s)
+%[1]s (in shell %[2]s)
+%[1]s (in shell %[2]s)
 %[1]s (its component.yaml could not be resolved)
 %[1]s (local source %[2]s)
 %[1]s (no default)
@@ -147,6 +149,7 @@
 %[1]s (requiredBy: %[2]s)
 %[1]s (suggested by %[2]s)
 %[1]s (your previous value, %[2]s)
+%[1]s already has a default version at %[2]s; a second version kept for a dependent needs requiredBy: [<the component that depends on it>]
 %[1]s belongs to no component in brickkit.yaml and is ignored
 %[1]s cannot be read or parsed
 %[1]s cannot be read: %[2]s
@@ -170,6 +173,7 @@
 %[1]s is declared with a different kind in %[2]s; every version of one component ID must have the same kind
 %[1]s is defined in deploy.yaml's vars: but not in your deploy.local.yaml — run brickkit local refresh, or copy it over
 %[1]s is kept; brickkit local on uses it again
+%[1]s is listed twice
 %[1]s is not a directory
 %[1]s is not a required dependency of %[2]s, so there is no wait to skip (its required dependencies: %[3]s)
 %[1]s is not declared in brickkit.yaml
@@ -178,6 +182,7 @@
 %[1]s needs %[2]s (referenced as ${%[2]s} in %[3]s), but it's not set in the environment or .env
 %[1]s of %[2]s: your value %[3]s (%[4]s), new default %[5]s (%[6]s) — [m] keep yours / [n] take the new one / Enter keeps both as a conflict to resolve later: 
 %[1]s optionally depends on %[2]s: it keeps running, without the address of %[2]s
+%[1]s runs as a bare process this time (or inside a bare-process shell): it has no depends_on, so its skipWaitFor has no effect
 %[1]s runs from the local repository %[2]s, which holds %[3]s
 %[1]s runs from the local repository %[2]s, whose component.yaml version cannot be read: %[3]s
 %[1]s sets both namespace and cidr; write only one (namespace for in-cluster targets, cidr for outside the cluster)
@@ -203,11 +208,6 @@
 %[1]sThe archived path about to be committed no longer matches the working tree (the source was moved away by sync or deleted, and that change wasn't staged) → git add -A %[2]s/
 %[1]sTo keep this archived layout → git add %[2]s (the mode: disable in the yaml going into the commit is your declaration of intent)
 %[1]v (%[2]T)
-%s (in shell %s)
-%s (in shell %s)
-%s already has a default version at %s; a second version kept for a dependent needs requiredBy: [<the component that depends on it>]
-%s is listed twice
-%s runs as a bare process this time (or inside a bare-process shell): it has no depends_on, so its skipWaitFor has no effect
 (empty)
 (empty)
 (no such component)
@@ -613,7 +613,7 @@ Error: publishing failed: not logged in
 Error: pushing the tag %[1]s of %[3]s to %[2]s failed
 Error: required dependency %[1]s is disabled
 Error: required dependency missing
-Error: running the members inside shell %s makes it wait for a component that in turn waits for the shell
+Error: running the members inside shell %[1]s makes it wait for a component that in turn waits for the shell
 Error: several Market install sources are configured, so it can't tell which to log in to
 Error: several component IDs map to the same config file name
 Error: shell %[1]s is still needed (%[2]s), and a shell has only one version
@@ -1363,7 +1363,7 @@ closing check passed: the project loads
 component ID %[1]s %[2]s
 components and their versions: `%[1]s`
 config item %[1]s is not declared in properties
-config/%s and config/%s both configure %s (the default version); keep one
+config/%[1]s and config/%[2]s both configure %[3]s (the default version); keep one
 config/*.yaml and config/vars.yaml are meant to be committed to Git, so a secret written there goes into version control with it and can't be removed from the history
 config/vars.yaml already has %[1]s; reference it in %[2]s? [y/N] 
 config/vars.yaml — values shared by several components.\nA component config file refers to one with $var:NAME.
@@ -1398,13 +1398,13 @@ deployment/<service-name>
 disabled explicitly (mode: disable)
 docker compose would replace them with an empty string at start, warning only in its own output: the component would get a broken value and no error at all
 docker | podman | k8s
-does not wait for %s
+does not wait for %[1]s
 duplicates %[1]s (%[2]s has two entries)
 duplicates %[1]s.name (install source names must be unique)
 duplicates deployment.extraPorts[%[1]d].name
 each entry must be a mapping (id: …, mode: …)
 entry #%[1]d
-every version of %s carries requiredBy; exactly one version (the default) must not
+every version of %[1]s carries requiredBy; exactly one version (the default) must not
 existingSecret only works on K8s, and the current target is docker
 exit code %[1]d
 exited (exit code %[1]d)
@@ -1423,7 +1423,7 @@ give it a local workbench (completion mode: existing files are left alone)
 global config file
 hand-edited
 has no effect under type: none (no probe is generated, so there is no grace period); remove this field, or change type to http / tcp
-hosts %s
+hosts %[1]s
 how they are deployed: `%[1]s` (team) / `%[2]s` (personal, brickkit local on)
 init [<project-name>]
 is %[1]d characters long, over the limit of %[2]d (the versioned service name derived from it must be a valid DNS label)
@@ -1524,7 +1524,7 @@ reason unknown (the dependency graph could not be obtained)
 remove <component-id>[@version]
 remove the field (the commit doesn't set it)
 removed %[1]s
-requiredBy names %s, which is not in brickkit.yaml
+requiredBy names %[1]s, which is not in brickkit.yaml
 requiredBy names the component itself
 restore moves the source directories, and staged paths would turn into "deleted"
 restricted drops all capabilities, NET_BIND_SERVICE included
@@ -1537,8 +1537,8 @@ setting the version status
 setting visibility
 several runnable entry points: %[2]s
 shell %[1]s contains %[2]s, but this run hosts %[3]s
+shell %[1]s has a single version; it cannot carry requiredBy
 shell %[1]s may only have one version in a project, and %[2]s already declares a different one
-shell %s has a single version; it cannot carry requiredBy
 shells (kind: shell) are project code: brickkit new --shell writes here
 shown above
 skip    %[1]s (exists, left unchanged)
@@ -1591,7 +1591,7 @@ value must not be empty (line %[1]d)
 version %[1]s must be an exact version, major.minor.patch; range constraints such as ^ or ~ are not accepted
 what it means for the business, especially what the default cannot say
 where this component's dependencies come from — add the install sources it needs
-write the component ID without a version (%s): a component depends on only one version of it
+write the component ID without a version (%[1]s): a component depends on only one version of it
 write the exact version compiled into the shell, as <component-id>@<exact-version>, e.g. erp/api@1.2.0 (currently %[1]s)
 write the file
 ℹ️  %[1]s

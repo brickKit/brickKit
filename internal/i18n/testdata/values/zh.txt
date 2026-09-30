@@ -123,8 +123,10 @@
 %[1]s 从本地仓库 %[2]s 运行，仓库里却是 %[3]s
 %[1]s 从本地仓库 %[2]s 运行，读不出它 component.yaml 里的版本：%[3]s
 %[1]s 保留着；brickkit local on 会接着用它
+%[1]s 写了两次
 %[1]s 列了 members，但它不是外壳（brickkit.yaml 里没有 kind: shell）
 %[1]s 同时写了 namespace 与 cidr，只能写一个（集群内目标用 namespace，集群外用 cidr）
+%[1]s 在 %[2]s 已经有默认版本；为依赖而保留的另一个版本要写 requiredBy: [<依赖它的组件>]
 %[1]s 在 %[2]s 里声明的 kind 与这里不同；同一个组件 ID 的所有版本 kind 必须一致
 %[1]s 在 target: %[2]s 下不起作用，已忽略
 %[1]s 定义在 deploy.yaml 的 vars: 里，但你的 deploy.local.yaml 没有——执行 brickkit local refresh，或者手动抄过去
@@ -144,6 +146,7 @@
 %[1]s 没有声明在 brickkit.yaml 里
 %[1]s 的 source
 %[1]s 的几行写了不同的 source（与 %[2]s 不一致）：一个组件只有一个仓库，每一行的 source 要写成一样
+%[1]s 的每个版本都写了 requiredBy；必须恰好有一个版本（默认版本）不写
 %[1]s 的额外端口 %[3]s（由裸进程外壳 %[2]s 承载）
 %[1]s 缺少目标位置：集群内写 namespace，集群外写 cidr
 %[1]s 要从本地仓库运行，但它不是默认版本（默认版本是 %[2]s）：本地仓库永远是默认版本的代码
@@ -151,6 +154,7 @@
 %[1]s 读不了：%[2]s
 %[1]s 跳过等待 %[2]s，但两者都在外壳 %[3]s 里：调用不出进程，本来就没有等待可跳过
 %[1]s 还没监听端口 %[2]d——可能只是启动得慢
+%[1]s 这次以裸进程运行（或在裸进程外壳里）：它没有 depends_on，skipWaitFor 不起作用
 %[1]s 里既没有 start 也没有 dev 脚本
 %[1]s 里没有 Spring Boot 的构建插件，没有通用的运行命令
 %[1]s 里没有可运行的入口（没有 main 包、只有解决方案文件，或是虚拟工作区）
@@ -169,6 +173,8 @@
 %[1]s（requiredBy: %[2]s）
 %[1]s（你之前的值，%[2]s）
 %[1]s（取不到它的 component.yaml）
+%[1]s（在外壳 %[2]s 里）
+%[1]s（在外壳 %[2]s 里）
 %[1]s（弱）
 %[1]s（弱，未安装）
 %[1]s（无默认值）
@@ -187,12 +193,6 @@
 %[1]s：存在，正在使用
 %[1]v（%[2]T）
 %[2]s 的 %[1]s：你的值 %[3]s（%[4]s），新默认值 %[5]s（%[6]s）——[m] 留你的 / [n] 用新的 / 回车两行都留下、之后自己选：
-%s 写了两次
-%s 在 %s 已经有默认版本；为依赖而保留的另一个版本要写 requiredBy: [<依赖它的组件>]
-%s 的每个版本都写了 requiredBy；必须恰好有一个版本（默认版本）不写
-%s 这次以裸进程运行（或在裸进程外壳里）：它没有 depends_on，skipWaitFor 不起作用
-%s（在外壳 %s 里）
-%s（在外壳 %s 里）
 (空)
 --crash-lines 不起作用：这个项目没有 mode: local 组件
 .env 必须在 .gitignore 中
@@ -274,7 +274,7 @@ component.yaml 里有一个键不是文本（把裸数字、true/false 或列表
 config 里用 file:// 引用的密钥文件，以及 .env 文件
 config/ 下的文件可能写了明文密钥
 config/ 文件的写法：docs/zh/01-three-layers/05-config-directory.md（英文版把 zh 换成 en）
-config/%s 与 config/%s 都在配置 %s（默认版本），只留一份
+config/%[1]s 与 config/%[2]s 都在配置 %[3]s（默认版本），只留一份
 config/*.yaml 与 config/vars.yaml 是要提交进 Git 的，写在里面的密钥会跟着进版本库，而且没法从历史里删掉
 config/vars.yaml —— 多个组件共用的值。\n组件配置文件里用 $var:NAME 引用。
 config/vars.yaml 里已有 %[1]s，在 %[2]s 里引用它吗？[y/N] 
@@ -321,7 +321,7 @@ publicKeyRef 是使用者查找公钥的名字，必须显式指定
 ref 必须与签名里的完全一致（含 keys/ 前缀）
 remove <组件ID>[@版本]
 requiredBy 写了组件自己
-requiredBy 里的 %s 不在 brickkit.yaml 里
+requiredBy 里的 %[1]s 不在 brickkit.yaml 里
 restore 要移动源码目录，而已暂存的路径会跟着变成「删除」
 restricted 会 drop 掉全部 capabilities，包括 NET_BIND_SERVICE
 running（%[1]s）
@@ -436,7 +436,7 @@ upgrade [组件ID[@版本]]
 不是合法的 PEM 文件
 不是外壳。
 不止一种语言能启动这个组件：%[1]s
-不等 %s
+不等 %[1]s
 不经市场发布组件：发布就是往组件自己的仓库推一个 Git tag。\n\n版本号取 component.yaml 的 metadata.version——唯一的事实来源。只读 component.yaml；\n同一目录里的 brickkit.yaml（作者的本地联调工作台）与发布无关。\n\n写任何东西之前，这些检查必须全部通过：\n  - component.yaml 能解析、能通过校验\n  - 组件目录里没有未提交的改动（monorepo 子目录里的组件只看它自己的目录）\n  - 当前分支有上游、没有未推送的提交：打 tag 的提交必须已经在远端历史里\n  - 这个 tag 还不存在（本地和远端都查）\n然后打 tag 并推送。推送失败时删掉本地 tag——发布要么完整做完，要么不留痕迹。\n\n组件目录是仓库根时 tag 是 <版本>，是子目录时是 <scope>-<name>/<版本>——\n正是 git 安装源读取的名字。\n\n--local 发布项目本地安装源里的每一个组件：先全部检查一遍，再逐个打 tag、推送。\n已经发布过的（tag 就在当前提交上）跳过；遇到第一个推送失败就停——之前发布的保留，之后的不再尝试。\n\n发布到市场是另一条命令：brickkit publish。
 不联网、不需要 Docker / K8s，只读地把这个目录里的 YAML 检查一遍。\n\n两种场景，按当前目录自动判断（与 brickkit skills 同一条规则，两者都有时按项目算）：\n\n  项目（有 brickkit.yaml）\n      检查 brickkit.yaml，再检查部署文件（deploy.yaml，存在时还有 deploy.local.yaml；给了 -f 只查那一份），\n      再按 up 同一条装载路径把三层文件放在一起查：每个组件版本恰好一个部署条目、成员写在外壳下面、\n      $var: 都有定义、config/ 的文件对得上组件、没有升级遗留的重复 key。\n      deploy.yaml 与 deploy.local.yaml（存在时）都必须与 brickkit.yaml 一致，不管本地模式开没开。\n      然后按 configSchema 检查每个组件的配置——必填项有值、写下的键在 schema 里、外壳成员的值能 JSON 编码进外壳——\n      以及外壳声明：kind: shell 与 shell 块一致、放在外壳下面的成员确实编进了外壳；\n      只查盘上有 Manifest 的组件（.brickkit/manifests/ 缓存，或它的本地源目录），其余的列为未检查。\n      最后检查本地安装源（type: local）目录下的每一份 component.yaml——不管有没有 add 过。\n      归档目录（.archived/）不检查。\n      brickkit.yaml 自己没通过时，后面的都不可信，会跳过后续步骤并说明。\n  组件仓库（有 component.yaml、没有 brickkit.yaml）\n      只检查这一份 component.yaml。\n\n查的是已有的结构规则：必填字段、类型、未知字段（拼写笔误）、版本号格式、端口范围；\n警告有两类——configSchema 里拼错的键（比如 defualt）不会生效，以及配置项名字撞上\n平台保留变量。后一类比 up 查得更全：up 只在配置项有默认值、或被 config 覆盖时才会\n碰到它，lint 把 configSchema 里声明的每一项都查一遍（与市场发布时同一个范围）。\n\n--strict 还检查引用：进程环境与 .env 里都没有的 ${VAR}、文件不存在的 file://，都是警告——\n而 --strict 下警告即失败。\n\n不查：依赖能不能解析、外壳这次承载的成员版本与它编进的版本对不对得上——这些要解析出依赖图才知道，而 lint 故意不建这张图\n（对市场或带版本管理的组件来说这可能意味着联网），留给 up / graph；\nconfigSchema 里 enum、minimum 之类对应的值（平台不校验值，见 docs/zh/11-reference/04-config-schema-spec.md）。\n\n有错误时退出码为 1；只有警告时为 0，加 --strict 则警告也算失败，给 CI 门禁用。
 不能与 mode: debug 或 mode: local 同时声明：两者都是这个组件跑成单个裸进程，不是一组容器副本
@@ -551,7 +551,7 @@ upgrade [组件ID[@版本]]
 再执行一次；一直失败的话，自己用 git 克隆这个仓库，看 git 完整的回答
 再执行：git rm -f %[1]s
 写 --visibility public 或 --visibility private；不写就保持组件现在的可见性
-写不带版本的组件 ID（%s）：一个组件只会依赖它的一个版本
+写不带版本的组件 ID（%[1]s）：一个组件只会依赖它的一个版本
 写入 %[1]s 失败：
 写入文件
 写入语言偏好失败
@@ -692,11 +692,11 @@ upgrade [组件ID[@版本]]
 处理
 外壳
 外壳
+外壳 %[1]s 只有一个版本，不能写 requiredBy
 外壳 %[1]s 在一个项目里只能有一个版本，%[2]s 已经声明了另一个版本
 外壳 %[1]s 的镜像里编进了哪些成员版本无法确认（镜像没有 brickkit build 记下的标签）
 外壳 %[1]s 编进的是 %[2]s，%[3]s 不在外壳里，独立运行
 外壳 %[1]s 编进的是 %[2]s，这次承载的却是 %[3]s
-外壳 %s 只有一个版本，不能写 requiredBy
 外壳不能把自己列为成员
 外壳声明
 外壳条目上的 skipWaitFor 只管外壳自己的依赖：要跳过的是成员的依赖时，写在 members 下面那个成员的条目上
@@ -864,7 +864,7 @@ upgrade [组件ID[@版本]]
 执行 brickkit login 登录市场
 找不到
 找过的位置
-承载 %s
+承载 %[1]s
 技能语言：%[1]s（记在 skills.lock 里；brickkit skills update --lang 可以改）
 把 %[1]s 的条目从 %[2]s 的 members 挪到部署文件的顶层，让它独立运行
 把 %[1]s=<值> 写进项目的 .env，或者在执行 brickkit up 之前在这个 shell 里 export 它
@@ -1507,7 +1507,7 @@ upgrade [组件ID[@版本]]
 错误：找不到容器引擎 %[1]s
 错误：承载这个组件的外壳不在依赖图里
 错误：把 %[3]s 的 tag %[1]s 推送到 %[2]s 失败
-错误：把成员放进外壳 %s 之后，外壳要等一个组件，而那个组件又在等外壳
+错误：把成员放进外壳 %[1]s 之后，外壳要等一个组件，而那个组件又在等外壳
 错误：改写镜像地址后无法序列化 Manifest
 错误：数据库迁移失败
 错误：无法创建源码目录
@@ -1641,7 +1641,7 @@ upgrade [组件ID[@版本]]
 默认值
 （%[1]s）
 （%[1]s）
-（%s）
+（%[1]s）
 （deploy.local.yaml）
 （之前的 %[1]s 已被替换）
 （未识别）

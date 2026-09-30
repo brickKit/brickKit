@@ -377,6 +377,8 @@ func tnKeys(t *testing.T) map[string]string {
 	return out
 }
 
+// 单数形式补全是英文的规则（中文不分单复数），这个守卫只对英文目录有意义，所以点名 i18n.EN。
+// 另一种分单复数的语言加进来时，照这个守卫给它写一份。
 func TestEnglishPluralFormsAreCompleteAndUsed(t *testing.T) {
 	values := msgidValues(t)
 	en := i18n.CatalogFor(i18n.EN)

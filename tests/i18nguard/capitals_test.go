@@ -24,7 +24,7 @@ import (
 var lowercaseStartAllowed = map[string]bool{
 	"brickkit": true, "git": true, "docker": true, "kubectl": true, "cosign": true, "podman": true,
 	"systemctl": true, "up": true, "restore": true, "configSchema": true, "publicKeyRef": true,
-	"exposePort": true, "skipWaitFor": true, "type": true, "existingSecret": true, "config/%s": true,
+	"exposePort": true, "skipWaitFor": true, "type": true, "existingSecret": true, "config/%[1]s": true,
 }
 
 // sentenceStartMsgids 找出生产代码里当作标签或建议用的 msgid：
@@ -90,6 +90,7 @@ func translatedMsgid(e ast.Expr) string {
 	return ""
 }
 
+// 大写开头是英文的规则，这个守卫只对英文目录有意义，所以点名 i18n.EN，不遍历登记处。
 func TestEnglishLabelsAndHintsStartWithACapital(t *testing.T) {
 	values := msgidValues(t)
 	en := i18n.CatalogFor(i18n.EN)

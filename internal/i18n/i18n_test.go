@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/msgid"
 )
@@ -73,6 +74,28 @@ func TestCatalogParity(t *testing.T) {
 				t.Errorf("%s 目录多出 %s 目录里没有的 key：%s", l.Code, SourceLang(), key)
 			}
 		}
+	}
+}
+
+// 每份目录的 key 顺序与源语言那份一样（单数形式不算）：译者把两份文件并排比着看、比着改。
+func TestCatalogKeyOrderFollowsSource(t *testing.T) {
+	order := func(l Lang) []string {
+		file := "locales/" + string(l) + ".yaml"
+		data, err := localeFS.ReadFile(file)
+		require.NoError(t, err)
+		keys, _, err := parseCatalog(data, file)
+		require.NoError(t, err)
+		out := make([]string, 0, len(keys))
+		for _, k := range keys {
+			if !isPluralOne(k) {
+				out = append(out, k)
+			}
+		}
+		return out
+	}
+	src := order(SourceLang())
+	for _, l := range registry[1:] {
+		assert.Equal(t, src, order(l.Code), "%s 的 key 顺序与 %s 不同", l.Code, SourceLang())
 	}
 }
 
