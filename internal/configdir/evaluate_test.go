@@ -55,3 +55,10 @@ func TestEvaluateEnvDefault(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "pg-dev", got)
 }
+
+// 不合语法的 ${…} 在解析时就失败：不能悄悄当成字面量交给容器。
+func TestParseValueRejectsMalformedReference(t *testing.T) {
+	_, err := configdir.ParseValue("pg-${PGH:-${DEF}}")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "${PGH:-${DEF}")
+}

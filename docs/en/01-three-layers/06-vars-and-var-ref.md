@@ -50,7 +50,8 @@ up the process environment and `.env`, not shared variables.
 | `file://path` | The file's content (the path is relative to the project root) | When the CLI generates deployment files |
 
 `${NAME:-default}` takes the default when the variable can't be found, so it never counts as undefined. The default is
-plain text, and can't contain `$`, `{` or `}`.
+plain text, and can't contain `$`, `{` or `}`. Something that starts like a reference but isn't one (`${A:-${B}}`,
+`${1X}`, a missing `}`) is an error when the project is loaded, rather than reaching the container as literal text.
 
 The last two are mainly for secrets; see [Secrets](07-sensitive-values.md).
 

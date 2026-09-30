@@ -152,11 +152,14 @@ func parseString(s string) (Value, error) {
 			return Value{}, errors.New(i18n.T(msgid.ConfigdirFileRefEmpty))
 		}
 		return Value{Kind: KindFileRef, Path: path}, nil
-	case envref.Has(s):
-		return Value{Kind: KindEnvTemplate, Text: s}, nil
-	default:
-		return literal(s), nil
 	}
+	if frag, bad := envref.Malformed(s); bad {
+		return Value{}, errors.New(i18n.T(msgid.ConfigdirEnvRefMalformed, frag))
+	}
+	if envref.Has(s) {
+		return Value{Kind: KindEnvTemplate, Text: s}, nil
+	}
+	return literal(s), nil
 }
 
 func secretRef(m map[string]any) (name, key string, ok bool) {

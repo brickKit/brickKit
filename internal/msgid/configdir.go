@@ -4,6 +4,7 @@ package msgid
 const (
 	ConfigdirValueUnencodable       = "configdir.value_unencodable"
 	ConfigdirVarRefBadName          = "configdir.var_ref_bad_name"
+	ConfigdirEnvRefMalformed        = "configdir.env_ref_malformed"
 	ConfigdirFileRefEmpty           = "configdir.file_ref_empty"
 	ConfigdirKeyInvalid             = "configdir.key_invalid"
 	ConfigdirVarsNoChain            = "configdir.vars_no_chain"

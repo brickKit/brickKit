@@ -1351,6 +1351,7 @@ var en = map[string]string{
 	msgid.DeployfileFieldIgnoredForTarget:  "%[1]s has no effect with target: %[2]s and is ignored",
 
 	msgid.ConfigdirValueUnencodable:     "the value cannot be encoded: %[1]s",
+	msgid.ConfigdirEnvRefMalformed:      "%[1]q is not a valid ${} reference; write ${NAME} or ${NAME:-default}, where NAME uses letters, digits and underscores and the default holds no $, { or }",
 	msgid.ConfigdirVarRefBadName:        "%[1]q is not a valid $var: reference; write $var:NAME, where NAME uses letters, digits and underscores",
 	msgid.ConfigdirFileRefEmpty:         "file:// needs a path after it (relative to the project root)",
 	msgid.ConfigdirKeyInvalid:           "must be a valid environment variable name: letters, digits and underscores, not starting with a digit",

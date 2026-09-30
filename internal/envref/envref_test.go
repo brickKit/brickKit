@@ -54,3 +54,19 @@ func TestExpandNodeHonoursSkip(t *testing.T) {
 	assert.Equal(t, "${HOST_X}", out["vars"].(map[string]any)["P"])
 	assert.Equal(t, []any{"h"}, out["list"])
 }
+
+// 写得像引用、却不合语法的 ${…}：交给 compose 或原样注入都会让容器拿到一段意料之外的文字，
+// 所以要认出来，让调用方大声失败。合法引用之外的普通 $ 不算。
+func TestMalformedFindsBrokenReferences(t *testing.T) {
+	for _, s := range []string{"${A:-${B}}", "${A:-a$b}", "${1X}", "pg-${HOST", "${A B}", "${}"} {
+		frag, bad := envref.Malformed(s)
+		assert.True(t, bad, s)
+		assert.NotEmpty(t, frag, s)
+	}
+	for _, s := range []string{"${A}", "x${A:-d}y", "cost $5", "$$HOME", "no refs", "${A:-}"} {
+		_, bad := envref.Malformed(s)
+		assert.False(t, bad, s)
+	}
+	frag, _ := envref.Malformed("ok ${A} then ${A:-${B}} end")
+	assert.Equal(t, "${A:-${B}", frag, "点出的是坏掉的那一段")
+}

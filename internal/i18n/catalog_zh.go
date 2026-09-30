@@ -1342,6 +1342,7 @@ var zh = map[string]string{
 	msgid.DeployfileFieldIgnoredForTarget:  "%[1]s 在 target: %[2]s 下不起作用，已忽略",
 
 	msgid.ConfigdirValueUnencodable:     "这个值无法编码：%[1]s",
+	msgid.ConfigdirEnvRefMalformed:      "%[1]q 不是合法的 ${} 引用；写成 ${NAME} 或 ${NAME:-默认值}，NAME 由字母、数字、下划线组成，默认值里不能有 $、{、}",
 	msgid.ConfigdirVarRefBadName:        "%[1]q 不是合法的 $var: 引用；写成 $var:NAME，NAME 由字母、数字、下划线组成",
 	msgid.ConfigdirFileRefEmpty:         "file:// 后面要跟一个路径（相对项目根）",
 	msgid.ConfigdirKeyInvalid:           "必须是合法的环境变量名：字母、数字、下划线，不能以数字开头",

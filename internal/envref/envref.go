@@ -107,3 +107,31 @@ func EscapeLiterals(s string) string {
 	b.WriteString(strings.ReplaceAll(s[last:], "$", "$$"))
 	return b.String()
 }
+
+// Malformed 找出 s 里写得像引用（以 ${ 开头）、却不合引用语法的第一段，比如嵌套的默认值
+// ${A:-${B}}、默认值里带 $、变量名以数字开头、缺右括号。frag 是从 ${ 到下一个 }（没有就到结尾）。
+//
+// 这样的文字不能悄悄当字面量处理：交给 docker compose 会被它按自己的语法展开，原样注入则让
+// 组件拿到一段意料之外的文字——两种都是不报错的错误值。调用方拿到 bad 就该大声失败。
+func Malformed(s string) (frag string, bad bool) {
+	valid := refRe.FindAllStringIndex(s, -1)
+	inValid := func(i int) bool {
+		for _, loc := range valid {
+			if i >= loc[0] && i < loc[1] {
+				return true
+			}
+		}
+		return false
+	}
+	for i := 0; i+1 < len(s); i++ {
+		if s[i] != '$' || s[i+1] != '{' || inValid(i) {
+			continue
+		}
+		end := strings.IndexByte(s[i:], '}')
+		if end < 0 {
+			return s[i:], true
+		}
+		return s[i : i+end+1], true
+	}
+	return "", false
+}
