@@ -121,7 +121,8 @@ func Compute(p *project.Project, graph *resolver.Graph) (*Result, error) {
 	}
 
 	decl := declarations(p)
-	stopped, blocker := computeStopped(graph, decl)
+	focus, focused := focusRef(p)
+	stopped, blocker := computeStopped(graph, decl, focus, focused)
 
 	// 钉住的组件撞上被关掉的强依赖 → 两个意图直接冲突，报错而不是二选一
 	for _, node := range graph.Nodes {
@@ -141,7 +142,7 @@ func Compute(p *project.Project, graph *resolver.Graph) (*Result, error) {
 	result := &Result{running: running}
 	for _, node := range graph.Nodes {
 		result.Components = append(result.Components,
-			classify(node, decl, stopped, running, blocker))
+			classify(node, decl, stopped, running, blocker, focus, focused))
 	}
 	return result, nil
 }
@@ -164,7 +165,7 @@ func Compute(p *project.Project, graph *resolver.Graph) (*Result, error) {
 //
 // blocker 记下 A 规则里是被哪个组件挡住的，报错时要顺着它打印依赖链。
 func computeStopped(
-	graph *resolver.Graph, decl declSet,
+	graph *resolver.Graph, decl declSet, focus resolver.Ref, focused bool,
 ) (stopped map[resolver.Ref]bool, blocker map[resolver.Ref]resolver.Ref) {
 	stopped = map[resolver.Ref]bool{}
 	blocker = map[resolver.Ref]resolver.Ref{}
@@ -173,6 +174,9 @@ func computeStopped(
 		if decl.disabled(node.Ref) {
 			stopped[node.Ref] = true
 		}
+	}
+	if focused {
+		seedOutsideFocus(graph, decl, focus, stopped)
 	}
 
 	for changed := true; changed; {
@@ -193,6 +197,51 @@ func computeStopped(
 		}
 	}
 	return stopped, blocker
+}
+
+// focusRef 是焦点组件的默认版本（部署文件里写了 focus 时）。
+func focusRef(p *project.Project) (resolver.Ref, bool) {
+	if p == nil {
+		return resolver.Ref{}, false
+	}
+	id, version, ok := p.FocusRef()
+	return resolver.Ref{ID: id, Version: version}, ok
+}
+
+// seedOutsideFocus 是焦点运行的起点规则（设计 §4.4）：起点只有焦点组件与显式钉住的组件；
+// 从起点沿依赖（强弱都算）走不到的一律不跑。按可达性算而不是"顶层才跑"——与焦点无关的
+// 弱依赖环上谁都不是顶层，那条规则停不下它们。走到被关掉的组件就不再往下走：它下面的只为它而跑。
+// 焦点组件本身经 DeployEntry 读成 mode: local，已是钉住的，后面的传播与冲突检查都不用改。
+func seedOutsideFocus(graph *resolver.Graph, decl declSet, focus resolver.Ref, stopped map[resolver.Ref]bool) {
+	reached := map[resolver.Ref]bool{}
+	var walk func(resolver.Ref)
+	walk = func(ref resolver.Ref) {
+		if reached[ref] || decl.disabled(ref) {
+			return
+		}
+		reached[ref] = true
+		node := graph.Node(ref)
+		if node == nil {
+			return
+		}
+		for _, dep := range node.Requires {
+			walk(dep)
+		}
+		for _, dep := range node.Optional {
+			walk(dep)
+		}
+	}
+	walk(focus)
+	for _, node := range graph.Nodes {
+		if decl.pinned(node.Ref) {
+			walk(node.Ref)
+		}
+	}
+	for _, node := range graph.Nodes {
+		if !reached[node.Ref] {
+			stopped[node.Ref] = true
+		}
+	}
 }
 
 // deadRequirement 找出该组件第一个不跑的**强**依赖。
@@ -221,12 +270,19 @@ func allStopped(dependents []resolver.Ref, stopped map[resolver.Ref]bool) bool {
 func classify(
 	node *resolver.Node, decl declSet,
 	stopped, running map[resolver.Ref]bool, blocker map[resolver.Ref]resolver.Ref,
+	focus resolver.Ref, focused bool,
 ) Component {
 	ref := node.Ref
 	top := len(node.Dependents) == 0
 	c := Component{Ref: ref, TopLevel: top}
 
 	switch {
+	case focused && ref == focus && !stopped[ref]:
+		c.State, c.Reason = StateRunning, i18n.T(msgid.CascadeReasonFocus)
+
+	case focused && stopped[ref] && !decl.disabled(ref) && blocker[ref] == (resolver.Ref{}):
+		c.State, c.Reason = StateSkipped, i18n.T(msgid.CascadeReasonOutsideFocus)
+
 	case decl.disabled(ref):
 		c.State, c.Reason = StateDisabled, i18n.T(msgid.CascadeReasonDisabled)
 

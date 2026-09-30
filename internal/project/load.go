@@ -140,7 +140,7 @@ func Assemble(l Layout, decl *projfile.File, deploy *deployfile.File) (*Project,
 
 // checkTopology 是与 config/ 无关的那部分跨文件校验。
 func (p *Project) checkTopology() error {
-	for _, step := range []func() error{p.checkCoverage, p.checkHostPorts, p.checkMembers} {
+	for _, step := range []func() error{p.checkCoverage, p.checkHostPorts, p.checkMembers, p.checkFocus} {
 		if err := step(); err != nil {
 			return err
 		}
@@ -214,6 +214,23 @@ func (p *Project) ShellOf(memberID, version string) (string, bool) {
 	}
 	shell, ok := p.shellOf[refKey(memberID, version)]
 	return shell, ok
+}
+
+// FocusRef 返回焦点组件的默认版本；没写焦点时 ok 为 false。
+func (p *Project) FocusRef() (id, version string, ok bool) {
+	if p.Deploy == nil || p.Deploy.Focus == "" {
+		return "", "", false
+	}
+	version, ok = p.Decl.DefaultVersion(p.Deploy.Focus)
+	return p.Deploy.Focus, version, ok
+}
+
+// IgnoreFocus 让这次运行不看焦点（sync 用：它保留的是不带焦点时项目要跑的全部源码，设计 §4.6）。
+// 只改内存里的解析结果，文件不动。
+func (p *Project) IgnoreFocus() {
+	if p.Deploy != nil {
+		p.Deploy.Focus = ""
+	}
 }
 
 // IgnoreShells 让本次运行把每个组件都当独立部署（--ignore-shells）：只改内存，

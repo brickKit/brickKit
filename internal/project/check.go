@@ -178,3 +178,24 @@ func (p *Project) checkHostPorts() error {
 	}
 	return nil
 }
+
+// checkFocus：焦点指向的组件要在 brickkit.yaml 里；它的条目不能写 mode: disable（两个意图矛盾）。
+func (p *Project) checkFocus() error {
+	id := p.Deploy.Focus
+	if id == "" {
+		return nil
+	}
+	version, ok := p.Decl.DefaultVersion(id)
+	if !ok {
+		return clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.ProjectFocusUnknown, id)).
+			WithDetail(i18n.T(msgid.LabelFile), p.DeployPath).
+			WithHint(i18n.T(msgid.ProjectHintFocusClear))
+	}
+	// withFocus 把 disable 原样返回，这里才看得到它
+	if entry, found := p.Deploy.Entry(id, version, true); found && entry.Mode == deployfile.ModeDisable {
+		return clierr.New(clierr.CodeComponentDisabled, i18n.T(msgid.ProjectFocusDisabled, id)).
+			WithDetail(i18n.T(msgid.LabelFile), p.DeployPath).
+			WithHint(i18n.T(msgid.ProjectHintFocusDisabled, id))
+	}
+	return nil
+}
