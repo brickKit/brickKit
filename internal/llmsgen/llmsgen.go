@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"sort"
@@ -163,7 +164,36 @@ func docPages(root, lang string) ([]page, error) {
 		}
 		return nil
 	}
-	return out, walk("docs/" + lang)
+	if err := walk("docs/" + lang); err != nil {
+		return nil, err
+	}
+	// 合集是要发布出去的：被 git 忽略的 .md（放在文档树里的本地笔记）不进合集
+	ignored := ignoredPaths(root, out)
+	kept := out[:0]
+	for _, p := range out {
+		if !ignored[p.path] {
+			kept = append(kept, p)
+		}
+	}
+	return kept, nil
+}
+
+// ignoredPaths 问 git 这些页里哪些被忽略了。不是 git 仓库、或者没装 git 时，当作一个都没被忽略。
+func ignoredPaths(root string, pages []page) map[string]bool {
+	var in strings.Builder
+	for _, p := range pages {
+		in.WriteString(p.path + "\n")
+	}
+	cmd := exec.Command("git", "-C", root, "check-ignore", "--stdin")
+	cmd.Stdin = strings.NewReader(in.String())
+	out, _ := cmd.Output() // 退出码 1 是"一个都没被忽略"，128 是"不是仓库"：都只看输出
+	ignored := map[string]bool{}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line != "" {
+			ignored[line] = true
+		}
+	}
+	return ignored
 }
 
 type texts struct{ lang, core, part, contains, paths, next, last, rest string }
@@ -221,7 +251,11 @@ func updateIndex(root string, l Lang, bundles []Output) (Output, error) {
 	b.WriteString(markerBegin + "\n")
 	for _, o := range bundles {
 		first, last := contains(o.Content)
-		fmt.Fprintf(&b, "- [%s](%s): %s … %s\n", o.Path, o.Path, first, last)
+		if first == last {
+			fmt.Fprintf(&b, "- [%s](%s): %s\n", o.Path, o.Path, first)
+		} else {
+			fmt.Fprintf(&b, "- [%s](%s): %s … %s\n", o.Path, o.Path, first, last)
+		}
 	}
 	out := s[:i] + b.String() + s[j:]
 	return Output{l.Index, []byte(out)}, nil

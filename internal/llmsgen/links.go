@@ -3,36 +3,63 @@ package llmsgen
 import (
 	"path"
 	"regexp"
+	"sort"
 	"strings"
 )
 
+// 链接目标出现的三种位置：[文字](目标 "可选标题")、行首的引用式定义 [名]: 目标、HTML 的 href / src。
+// 每个正则的第 2 个分组是目标。
 var (
-	mdLink     = regexp.MustCompile(`\[([^\]]*)\]\(([^)\s]+)\)`)
+	linkForms = []*regexp.Regexp{
+		regexp.MustCompile(`\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)`),
+		regexp.MustCompile(`^(\s*\[[^\]]+\]:\s*)(\S+)`),
+		regexp.MustCompile(`\b(href|src)="([^"]+)"`),
+	}
 	inlineCode = regexp.MustCompile("`[^`]*`")
 )
 
-// fence 是 Markdown 代码块的开头与结尾（三个反引号）。
-const fence = "\x60\x60\x60"
+// fences 是 Markdown 代码块的两种围栏（三个反引号、三个波浪号）。
+var fences = []string{"\x60\x60\x60", "~~~"}
+
+// fenceOf 是这一行开头的围栏；不是围栏时为空。
+func fenceOf(line string) string {
+	t := strings.TrimSpace(line)
+	for _, f := range fences {
+		if strings.HasPrefix(t, f) {
+			return f
+		}
+	}
+	return ""
+}
 
 // RewriteLinks 把 pagePath（仓库相对路径）里的相对链接改写成相对 bundleDir 的写法。
 // 外部链接、页内锚点、代码块与行内代码里的内容不动。
 func RewriteLinks(body, pagePath, bundleDir string) string {
+	return mapLinks(body, func(target string) string { return rewriteTarget(target, pagePath, bundleDir) })
+}
+
+// mapLinks 对代码块与行内代码之外的每个链接目标调用 fn，用它的返回值替换目标。
+func mapLinks(body string, fn func(target string) string) string {
 	lines := strings.Split(body, "\n")
-	inFence := false
+	open := "" // 正在其中的代码块的围栏：只有同一种围栏才能把它关上
 	for i, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), fence) {
-			inFence = !inFence
+		if f := fenceOf(line); f != "" && (open == "" || f == open) {
+			if open == "" {
+				open = f
+			} else {
+				open = ""
+			}
 			continue
 		}
-		if inFence {
+		if open != "" {
 			continue
 		}
-		lines[i] = rewriteLine(line, pagePath, bundleDir)
+		lines[i] = mapLine(line, fn)
 	}
 	return strings.Join(lines, "\n")
 }
 
-func rewriteLine(line, pagePath, bundleDir string) string {
+func mapLine(line string, fn func(string) string) string {
 	codes := inlineCode.FindAllStringIndex(line, -1)
 	inCode := func(at int) bool {
 		for _, c := range codes {
@@ -42,16 +69,24 @@ func rewriteLine(line, pagePath, bundleDir string) string {
 		}
 		return false
 	}
+	var spans [][2]int
+	for _, re := range linkForms {
+		for _, m := range re.FindAllStringSubmatchIndex(line, -1) {
+			if !inCode(m[0]) {
+				spans = append(spans, [2]int{m[4], m[5]})
+			}
+		}
+	}
+	sort.Slice(spans, func(i, j int) bool { return spans[i][0] < spans[j][0] })
 	var b strings.Builder
 	last := 0
-	for _, m := range mdLink.FindAllStringSubmatchIndex(line, -1) {
-		if inCode(m[0]) {
+	for _, sp := range spans {
+		if sp[0] < last { // 两种写法重叠（不会发生，保险起见只认先出现的那个）
 			continue
 		}
-		target := line[m[4]:m[5]]
-		b.WriteString(line[last:m[4]])
-		b.WriteString(rewriteTarget(target, pagePath, bundleDir))
-		last = m[5]
+		b.WriteString(line[last:sp[0]])
+		b.WriteString(fn(line[sp[0]:sp[1]]))
+		last = sp[1]
 	}
 	b.WriteString(line[last:])
 	return b.String()

@@ -2,6 +2,7 @@ package llmsgen
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -199,4 +200,43 @@ func TestBundleHeaderExplainsBothKindsOfPaths(t *testing.T) {
 	assert.Contains(t, string(en.Content), "links inside pages are relative to this file")
 	zh, _ := find(outs, "llms/zh/01.md")
 	assert.Contains(t, string(zh.Content), "页内链接相对这份合集自己")
+}
+
+// 只有一页的分卷，清单里只写那一页，不写成"X … X"。
+func TestIndexNamesASinglePageOnce(t *testing.T) {
+	root := fixture(t, merge(both("00-intro/01-a.md", 100), both("01-x/01-c.md", 2500), both("01-x/02-d.md", 2500)))
+	outs, err := Generate(root, smallOpts())
+	require.NoError(t, err)
+	idx, _ := find(outs, "llms.txt")
+	assert.Contains(t, string(idx.Content), "- [llms/en/01.md](llms/en/01.md): "+en("01-x/01-c.md")+"\n")
+}
+
+// 其他几种链接写法也要改写：带标题的、引用式定义、HTML 的 href / src；~~~ 围起来的代码块不动。
+func TestRewriteLinksOtherForms(t *testing.T) {
+	page := en("02-g/03-x.md")
+	cases := map[string]struct{ in, want string }{
+		"title":       {`[a](04-y.md "Y")`, `[a](../../` + en("02-g/04-y.md") + ` "Y")`},
+		"reference":   {"[y]: 04-y.md#top", "[y]: ../../" + en("02-g/04-y.md") + "#top"},
+		"html href":   {`<a href="04-y.md">y</a>`, `<a href="../../` + en("02-g/04-y.md") + `">y</a>`},
+		"html src":    {`<img src="../img/a.png">`, `<img src="../../` + en("img/a.png") + `">`},
+		"html extern": {`<a href="https://x.io/a.md">x</a>`, `<a href="https://x.io/a.md">x</a>`},
+		"tilde fence": {"~~~\n[a](b.md)\n~~~", "~~~\n[a](b.md)\n~~~"},
+		"mixed fence": {strings.Repeat("`", 3) + "\n~~~\n[a](b.md)\n" + strings.Repeat("`", 3), strings.Repeat("`", 3) + "\n~~~\n[a](b.md)\n" + strings.Repeat("`", 3)},
+	}
+	for name, c := range cases {
+		assert.Equal(t, c.want, RewriteLinks(c.in, page, "llms/en"), name)
+	}
+}
+
+// 被 git 忽略的 .md（放在文档树里的本地笔记）不进合集：合集是要发布出去的。
+func TestIgnoredPagesStayOut(t *testing.T) {
+	root := fixture(t, merge(both("00-intro/01-a.md", 100), both("01-x/01-c.md", 100), both("01-x/notes.md", 100)))
+	require.NoError(t, os.WriteFile(filepath.Join(root, ".gitignore"), []byte("notes.md\n"), 0o644))
+	cmd := exec.Command("git", "init", "-q", root)
+	require.NoError(t, cmd.Run())
+	outs, err := Generate(root, smallOpts())
+	require.NoError(t, err)
+	for _, o := range outs {
+		assert.NotContains(t, string(o.Content), "notes.md", o.Path)
+	}
 }
