@@ -68,7 +68,7 @@ func docs(t *testing.T) []docFile {
 
 	var out []docFile
 	for _, rel := range strings.Split(string(listing), "\x00") {
-		if rel == "" || rel == "CHANGELOG.md" || hasAnyPrefix(rel, "archive/", "docs/superpowers/", ".superpowers/") {
+		if rel == "" || rel == "CHANGELOG.md" || hasAnyPrefix(rel, "archive/", "docs/superpowers/", ".superpowers/", "llms/") {
 			continue
 		}
 		body, err := os.ReadFile(filepath.Join(repoRoot, rel))

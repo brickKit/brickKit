@@ -11,6 +11,20 @@ If you are an AI assistant, fetch `AGENTS.md` first — one file that is enough 
 [`llms.zh.txt`](https://raw.githubusercontent.com/brickKit/brickKit/main/llms.zh.txt)** instead — the same kind of index,
 written independently for the Chinese documentation tree, not a translation of this file.
 
+## Read everything
+
+<!-- llms:bundles:begin -->
+- [llms/en/00-core.md](llms/en/00-core.md): AGENTS.md … docs/en/01-three-layers/09-field-reference.md
+- [llms/en/01.md](llms/en/01.md): docs/en/README.md … docs/en/02-project-guide/02-add-and-component-install.md
+- [llms/en/02.md](llms/en/02.md): docs/en/02-project-guide/03-local-debug-workflow.md … docs/en/03-component-guide/03-config-schema-design.md
+- [llms/en/03.md](llms/en/03.md): docs/en/03-component-guide/04-new-and-skeleton.md … docs/en/06-architecture/README.md
+- [llms/en/04.md](llms/en/04.md): docs/en/06-architecture/01-pipeline-overview.md … docs/en/06-architecture/04-deploy-file-generation.md
+- [llms/en/05.md](llms/en/05.md): docs/en/06-architecture/05-design-principles.md … docs/en/06-architecture/08-security-and-signing.md
+- [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/09-error-codes.md … docs/en/09-patterns/README.md
+- [llms/en/07.md](llms/en/07.md): docs/en/09-patterns/01-component-design.md … docs/en/10-troubleshooting/02-local-debug-issues.md
+- [llms/en/08.md](llms/en/08.md): docs/en/10-troubleshooting/03-config-conflict-issues.md … docs/en/11-reference/06-market-api.md
+<!-- llms:bundles:end -->
+
 ## Top-level files
 
 - [AGENTS.md](https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.md): the AI entry point — where each answer lives, the fractal structure, the ten principles, the command set, what the platform won't do

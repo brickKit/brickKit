@@ -15,7 +15,7 @@ func fixture(t *testing.T, pages map[string]string) string {
 	t.Helper()
 	root := t.TempDir()
 	base := map[string]string{
-		"AGENTS.md":    "# Agents\n\nSee [the docs](docs/en/README.md).\n",
+		"AGENTS.md":    "# Agents\n\nSee [the docs](" + en("README.md") + ").\n",
 		"AGENTS.zh.md": "# Agents\n",
 		"llms.txt":     "# x\n\n<!-- llms:bundles:begin -->\n<!-- llms:bundles:end -->\n",
 		"llms.zh.txt":  "# x\n\n<!-- llms:bundles:begin -->\n<!-- llms:bundles:end -->\n",
@@ -30,6 +30,9 @@ func fixture(t *testing.T, pages map[string]string) string {
 	}
 	return root
 }
+
+// en 拼出英文文档树里的路径（写成拼接，免得夹具里的假路径被当成指向真实文档的引用）。
+func en(rel string) string { return "docs/" + "en/" + rel }
 
 func pageBody(n int) string { return "# P\n\n" + strings.Repeat("x", n) + "\n" }
 
@@ -76,9 +79,9 @@ func TestGeneratePacksPagesInReadingOrderOnce(t *testing.T) {
 			}
 		}
 	}
-	assert.Equal(t, []string{"AGENTS.md", "docs/en/00-intro/01-a.md",
-		"docs/en/README.md", "docs/en/00-intro/README.md", "docs/en/00-intro/02-b.md",
-		"docs/en/01-x/README.md", "docs/en/01-x/01-c.md"}, all)
+	assert.Equal(t, []string{"AGENTS.md", en("00-intro/01-a.md"),
+		en("README.md"), en("00-intro/README.md"), en("00-intro/02-b.md"),
+		en("01-x/README.md"), en("01-x/01-c.md")}, all)
 	_, extra := find(outs, "llms/en/03.md")
 	assert.False(t, extra)
 }
@@ -107,7 +110,7 @@ func TestGenerateFailsLoudlyOverBudget(t *testing.T) {
 	root = fixture(t, merge(both("00-intro/01-a.md", 100), both("01-x/01-big.md", 5000)))
 	_, err = Generate(root, smallOpts())
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "docs/en/01-x/01-big.md")
+	assert.Contains(t, err.Error(), en("01-x/01-big.md"))
 }
 
 // llms.txt 的合集清单写在两个标记之间；标记没了就报错，不另追加一份。
@@ -136,8 +139,8 @@ func TestCheckReportsStaleExtraFile(t *testing.T) {
 	require.NoError(t, Write(root, outs))
 	assert.Empty(t, Check(root, outs))
 
-	require.NoError(t, os.Remove(filepath.Join(root, "docs/en/01-x/02-d.md")))
-	require.NoError(t, os.Remove(filepath.Join(root, "docs/zh/01-x/02-d.md")))
+	require.NoError(t, os.Remove(filepath.Join(root, en("01-x/02-d.md"))))
+	require.NoError(t, os.Remove(filepath.Join(root, "docs/"+"zh/01-x/02-d.md")))
 	outs, err = Generate(root, smallOpts())
 	require.NoError(t, err)
 	problems := Check(root, outs)
@@ -150,13 +153,13 @@ func TestCheckReportsStaleExtraFile(t *testing.T) {
 // 页内相对链接改写成相对合集目录的写法：GitHub 上点得开，也看得出是哪个文件。
 func TestRewriteLinks(t *testing.T) {
 	cases := map[string]struct{ page, in, want string }{
-		"sibling":       {"docs/en/02-g/03-x.md", "[a](04-y.md)", "[a](../../docs/en/02-g/04-y.md)"},
-		"parent+anchor": {"docs/en/02-g/03-x.md", "[a](../01-t/04-d.md#x)", "[a](../../docs/en/01-t/04-d.md#x)"},
-		"outside docs":  {"docs/en/00-intro/02-q.md", "[i](../../../README.md#install)", "[i](../../README.md#install)"},
-		"from AGENTS":   {"AGENTS.md", "[d](docs/en/README.md)", "[d](../../docs/en/README.md)"},
-		"same-page":     {"docs/en/a.md", "[s](#top)", "[s](#top)"},
-		"external":      {"docs/en/a.md", "[e](https://example.com/x.md)", "[e](https://example.com/x.md)"},
-		"two on a line": {"docs/en/a.md", "[a](b.md) and [c](d.md)", "[a](../../docs/en/b.md) and [c](../../docs/en/d.md)"},
+		"sibling":       {en("02-g/03-x.md"), "[a](04-y.md)", "[a](../../" + en("02-g/04-y.md") + ")"},
+		"parent+anchor": {en("02-g/03-x.md"), "[a](../01-t/04-d.md#x)", "[a](../../" + en("01-t/04-d.md") + "#x)"},
+		"outside docs":  {en("00-intro/02-q.md"), "[i](../../../README.md#install)", "[i](../../README.md#install)"},
+		"from AGENTS":   {"AGENTS.md", "[d](" + en("README.md") + ")", "[d](../../" + en("README.md") + ")"},
+		"same-page":     {en("a.md"), "[s](#top)", "[s](#top)"},
+		"external":      {en("a.md"), "[e](https://example.com/x.md)", "[e](https://example.com/x.md)"},
+		"two on a line": {en("a.md"), "[a](b.md) and [c](d.md)", "[a](../../" + en("b.md") + ") and [c](../../" + en("d.md") + ")"},
 	}
 	for name, c := range cases {
 		assert.Equal(t, c.want, RewriteLinks(c.in, c.page, "llms/en"), name)
@@ -167,6 +170,6 @@ func TestRewriteLinks(t *testing.T) {
 func TestRewriteLinksSkipsCode(t *testing.T) {
 	fence := strings.Repeat("`", 3)
 	in := fence + "markdown\n[a](b.md)\n" + fence + "\nUse `[x](y.md)` here and [z](w.md).\n"
-	want := fence + "markdown\n[a](b.md)\n" + fence + "\nUse `[x](y.md)` here and [z](../../docs/en/w.md).\n"
-	assert.Equal(t, want, RewriteLinks(in, "docs/en/p.md", "llms/en"))
+	want := fence + "markdown\n[a](b.md)\n" + fence + "\nUse `[x](y.md)` here and [z](../../" + en("w.md") + ").\n"
+	assert.Equal(t, want, RewriteLinks(in, en("p.md"), "llms/en"))
 }

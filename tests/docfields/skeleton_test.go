@@ -49,7 +49,7 @@ func TestDocsCoversEveryLiveMarkdownPage(t *testing.T) {
 		assert.True(t, names[want], "缺 %s", want)
 	}
 	for name := range names {
-		for _, prefix := range []string{"archive/", "docs/superpowers/"} {
+		for _, prefix := range []string{"archive/", "docs/superpowers/", "llms/"} {
 			assert.False(t, strings.HasPrefix(name, prefix), "不该扫 %s", name)
 		}
 	}

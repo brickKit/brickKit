@@ -9,6 +9,19 @@
 **如果你被问到的问题是英文（或其它语言），请到此为止，改抓取
 [`llms.txt`](https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt)**——同一份索引，为英文文档树独立撰写的，不是这份文件的翻译。
 
+## 读完全部
+
+<!-- llms:bundles:begin -->
+- [llms/zh/00-core.md](llms/zh/00-core.md): AGENTS.zh.md … docs/zh/01-three-layers/09-field-reference.md
+- [llms/zh/01.md](llms/zh/01.md): docs/zh/README.md … docs/zh/02-project-guide/03-local-debug-workflow.md
+- [llms/zh/02.md](llms/zh/02.md): docs/zh/02-project-guide/04-focus-run.md … docs/zh/03-component-guide/06-artifacts-and-contracts.md
+- [llms/zh/03.md](llms/zh/03.md): docs/zh/03-component-guide/07-release-workflow.md … docs/zh/06-architecture/04-deploy-file-generation.md
+- [llms/zh/04.md](llms/zh/04.md): docs/zh/06-architecture/05-design-principles.md … docs/zh/06-architecture/08-security-and-signing.md
+- [llms/zh/05.md](llms/zh/05.md): docs/zh/06-architecture/09-error-codes.md … docs/zh/09-patterns/README.md
+- [llms/zh/06.md](llms/zh/06.md): docs/zh/09-patterns/01-component-design.md … docs/zh/10-troubleshooting/04-git-auth-issues.md
+- [llms/zh/07.md](llms/zh/07.md): docs/zh/10-troubleshooting/05-build-issues.md … docs/zh/11-reference/06-market-api.md
+<!-- llms:bundles:end -->
+
 ## 顶层文件
 
 - [AGENTS.zh.md](https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.zh.md): AI 总路由——三层检索路径、分形架构、十条原则、命令集、不做清单

@@ -42,7 +42,7 @@ import unicodedata
 import urllib.parse
 
 # 这些目录本身就是历史或规划，不是"现行内容"。
-EXCLUDED_PREFIXES = ("archive/", "docs/superpowers/", ".superpowers/")
+EXCLUDED_PREFIXES = ("archive/", "docs/superpowers/", ".superpowers/", "llms/")
 EXCLUDED_FILES = ("CHANGELOG.md", "scripts/check-docs.py")
 
 # 指向归档内容的写法。每一种都在清理时真出现过。
