@@ -99,3 +99,20 @@ func TestInitInsideAProjectsComponentAddsANote(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, i18n.T(msgid.CliInitInsideProjectNote, "erp/portal"))
 }
+
+// 报错给出能照着敲的命令：项目里已经有同一个组件时是"把要的改动搬过去，再删掉这一份"
+// （这一份不在 git 里，没有别的副本）；项目里没有时是挪进项目的 components/。
+func TestNestedCopyHintsGiveTheCommands(t *testing.T) {
+	dir := focusFixture(t)
+	nestCopy(t, dir)
+	r := runWithEngine(t, newFakeEngine(), dir, "lint")
+	nested := "components/erp/portal/components/erp/api"
+	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.ProjectHintNestedMergeThenDelete, "erp/api", nested, "components/erp/api"))
+
+	dir = focusFixture(t)
+	lib := in(dir, "components", "erp", "portal", "components", "demo", "lib")
+	writeTree(t, lib, map[string]string{"component.yaml": "metadata:\n  id: demo/lib\n"})
+	r = runWithEngine(t, newFakeEngine(), dir, "lint")
+	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.ProjectHintNestedMove,
+		"components/erp/portal/components/demo/lib", "components/demo/lib", "components/demo"))
+}

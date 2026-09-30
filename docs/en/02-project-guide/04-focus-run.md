@@ -203,11 +203,15 @@ exist twice, and nobody can tell which copy runs. `up`, `lint` and `sync` refuse
 ❌ Error: component source is nested inside another component's directory
    components/demo/caller/components/demo/hello: demo/hello, inside demo/caller; the project's components/ has demo/hello too
    Before you move or delete it: It is not a Git repository — these files have no other copy
-   Suggestion: A component's source lives in one place, the project's components/; move or delete the nested copy yourself — BrickKit moves nothing
+   Suggestions:
+   1. The project's components/ already has demo/hello at components/demo/hello: carry over the changes you still need, then rm -rf components/demo/caller/components/demo/hello
+   2. A component's source lives in one place, the project's components/; move or delete the nested copy yourself — BrickKit moves nothing
 ```
 
-BrickKit never moves or deletes the nested copy for you: it may hold changes that exist nowhere else — the line
-before the suggestion says whether it does. For the same reason, `brickkit add --repo` refuses to run inside a
+BrickKit never moves or deletes the nested copy for you: it may hold changes that exist nowhere else — the
+"Before you move or delete it" line says whether it does. The suggestion gives the command for each copy: delete it
+when the project already has the component (after carrying over what you still need), or move it into the project's
+`components/` when the project doesn't. For the same reason, `brickkit add --repo` refuses to run inside a
 workbench that sits in another project's `components/`: it would clone a second copy.
 
 ## Git submodules

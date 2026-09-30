@@ -188,10 +188,13 @@ brickkit up --all
 ❌ 错误：组件源码嵌在另一个组件的目录里
    components/demo/caller/components/demo/hello：demo/hello，在 demo/caller 里面；项目的 components/ 里也有 demo/hello
    挪走或删掉之前：它不是一个 Git 仓库——这些文件没有别的副本
-   建议：组件源码只放一处：项目的 components/。嵌套的那份请自己挪走或删掉——BrickKit 不替你挪
+   建议：
+   1. 项目的 components/ 里已经有 demo/hello（components/demo/hello）：把还要的改动搬过去，再 rm -rf components/demo/caller/components/demo/hello
+   2. 组件源码只放一处：项目的 components/。嵌套的那份请自己挪走或删掉——BrickKit 不替你挪
 ```
 
-BrickKit 从不替你挪动或删除嵌套的那份：里面可能有别处都没有的改动——建议上面那一行就说了有没有。同样的道理，`brickkit add --repo`
+BrickKit 从不替你挪动或删除嵌套的那份：里面可能有别处都没有的改动——"挪走或删掉之前"那一行就说了有没有。建议给出了每一份的命令：
+项目里已经有这个组件时删掉它（先把还要的改动搬过去），项目里没有时把它挪进项目的 `components/`。同样的道理，`brickkit add --repo`
 在一个嵌在别的项目 `components/` 里的工作台中会拒绝运行：它会再克隆出一份。
 
 ## Git submodule

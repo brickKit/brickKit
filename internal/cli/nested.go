@@ -25,6 +25,7 @@ func checkNestedCopies(opts *Options, proj *project.Project) error {
 		return err
 	}
 	e := clierr.New(clierr.CodeConfigConflict, i18n.T(msgid.ProjectNestedCopies))
+	var hints []string
 	for _, c := range copies {
 		parts := []string{i18n.T(msgid.ProjectNestedCopyDetail, c.ID, c.Inside)}
 		if c.TopHasIt {
@@ -32,11 +33,27 @@ func checkNestedCopies(opts *Options, proj *project.Project) error {
 		}
 		e = e.WithDetail(opts.display(c.Dir), strings.Join(parts, i18n.T(msgid.SemicolonSeparator)))
 		// 这一份的字节在别处有没有：没提交、没推送、不是仓库——挪走或删掉之前都得先知道
-		if risk := workspace.DeletionRisk(c.Dir); risk != "" {
+		risk := workspace.DeletionRisk(c.Dir)
+		if risk != "" {
 			e = e.WithDetail(i18n.T(msgid.ProjectNestedRiskLabel), risk)
 		}
+		hints = append(hints, nestedCopyHint(opts, proj, c, risk != ""))
 	}
-	return e.WithHint(i18n.T(msgid.ProjectNestedHintOnePlace))
+	return e.WithHint(append(hints, i18n.T(msgid.ProjectNestedHintOnePlace))...)
+}
+
+// nestedCopyHint 是这一份能照着敲的出路：项目里没有这个组件就挪进项目的 components/；
+// 有了就删掉这一份——这一份有别处没有的字节时，先把还要的改动搬过去。命令只给出、从不替人执行。
+func nestedCopyHint(opts *Options, proj *project.Project, c project.NestedCopy, atRisk bool) string {
+	here, top := opts.display(c.Dir), opts.display(workspace.SourceDir(proj.Layout, c.ID))
+	switch {
+	case !c.TopHasIt:
+		return i18n.T(msgid.ProjectHintNestedMove, here, top, filepath.Dir(top))
+	case atRisk:
+		return i18n.T(msgid.ProjectHintNestedMergeThenDelete, c.ID, here, top)
+	default:
+		return i18n.T(msgid.ProjectHintNestedDelete, c.ID, here)
+	}
 }
 
 // refuseRepoInNestedWorkbench：当前项目是嵌在另一个项目本地源里的工作台时，--repo 会在组件目录里
