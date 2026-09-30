@@ -170,7 +170,10 @@ fi
 
 # ---------- 6. PATH 提示 ----------
 echo "▶ 装到不在 PATH 的目录时要提醒"
-if run_install "$tmp/bin4" | grep -q "is not on PATH"; then
+# 先收下全部输出再找：边读边 grep -q 会在找到后提前关掉管道，install.sh 后面还有输出，
+# 写端吃 SIGPIPE，pipefail 下这一条就时过时不过
+out="$(run_install "$tmp/bin4")"
+if grep -q "is not on PATH" <<<"$out"; then
 	ok "提醒了"
 else
 	bad "没提醒——装完了却敲不到 brickkit，最容易被当成没装上"
