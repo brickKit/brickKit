@@ -178,11 +178,11 @@ func newPrompter(opts *Options) *prompter {
 // username 取用户名：优先参数，其次交互输入。
 func (p *prompter) username(explicit string) (string, error) {
 	if explicit = strings.TrimSpace(explicit); explicit != "" {
-		p.opts.Printf("%s\n", i18n.T(msgid.CliLoginUserName2, explicit))
+		p.opts.Printf("%s\n", i18n.T(msgid.CliLoginUserNameGiven, explicit))
 		return explicit, nil
 	}
 
-	p.opts.Printf("%s", i18n.T(msgid.CliLoginUserName))
+	p.opts.Printf("%s", i18n.T(msgid.CliLoginUserNamePrompt))
 	line, err := p.line()
 	if err != nil {
 		return "", err
@@ -190,7 +190,7 @@ func (p *prompter) username(explicit string) (string, error) {
 	p.opts.Printf("%s\n", line)
 	if line == "" {
 		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginErrorTheUserNameMust)).
-			WithHint(i18n.T(msgid.CliLoginRunBrickkitLoginAgainAnd2))
+			WithHint(i18n.T(msgid.CliLoginHintRetryWithUserName))
 	}
 	return line, nil
 }
@@ -213,7 +213,7 @@ func (p *prompter) password(fromStdin bool) (string, error) {
 	}
 	if value == "" {
 		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginErrorThePasswordMustNot)).
-			WithHint(i18n.T(msgid.CliLoginRunBrickkitLoginAgainAnd))
+			WithHint(i18n.T(msgid.CliLoginHintRetryWithPassword))
 	}
 	return value, nil
 }
@@ -227,7 +227,7 @@ func (p *prompter) readSecret() (string, error) {
 
 	raw, err := term.ReadPassword(int(file.Fd()))
 	if err != nil {
-		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginErrorFailedToReadThe)).
+		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginPasswordReadFailed)).
 			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err).WithHint(i18n.T(msgid.CliLoginHintPasswordStdin))
 	}
 	return strings.TrimSpace(string(raw)), nil
@@ -242,7 +242,7 @@ func (p *prompter) line() (string, error) {
 
 	line, err := p.reader.ReadString('\n')
 	if err != nil && line == "" {
-		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginErrorFailedToReadThe2)).
+		return "", clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLoginInputReadFailed)).
 			WithDetail(i18n.T(msgid.LabelReason), err.Error()).WithCause(err).WithHint(i18n.T(msgid.CliLoginHintPasswordStdin))
 	}
 	return strings.TrimSpace(line), nil

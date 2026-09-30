@@ -147,7 +147,7 @@ func runRestore(ctx context.Context, opts *Options) error {
 	if err != nil {
 		return restoreErr(i18n.T(msgid.CliRestoreInTheLastCommitIs, project.FileDeploy), err).
 			WithHint(
-				i18n.T(msgid.CliRestoreTheBaselineForRestoringIs),
+				i18n.T(msgid.CliRestoreHintFileIsTheBaseline),
 				i18n.T(msgid.CliRestoreFirstCommitAVersionThat),
 			)
 	}
@@ -198,7 +198,7 @@ func restoreBaseline(layout project.Layout) (*gitrepo.Repo, string, error) {
 	}
 	if !repo.HasHEAD() {
 		return nil, "", clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliRestoreErrorThisRepositoryHasNo)).
-			WithHint(i18n.T(msgid.CliRestoreTheBaselineForRestoringIs2))
+			WithHint(i18n.T(msgid.CliRestoreHintLastCommitIsTheBaseline))
 	}
 	deployRel, ok := repo.Rel(layout.DeployPath())
 	if !ok {
@@ -292,7 +292,7 @@ func printModeChanges(opts *Options, changes []modeChange, untouched []string) {
 		opts.Printf("   %-26s mode: %s → %s\n", ch.entry, showMode(ch.from), toMode(ch.to))
 	}
 	for _, ref := range untouched {
-		opts.Printf("%s\n", i18n.T(msgid.CliRestoreSLeftAsIsThis, ref))
+		opts.Printf("%s\n", i18n.T(msgid.CliRestoreLeftAsIsLine, ref))
 	}
 }
 

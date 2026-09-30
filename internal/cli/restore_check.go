@@ -370,7 +370,7 @@ func violationError(
 			why = i18n.T(msgid.CliRestoreCheckSyncHasAlreadyMovedIt)
 		}
 		e = e.WithDetail(id,
-			i18n.T(msgid.CliRestoreCheckLocationAboutToBeCommitted2, archivedRoot, id, why))
+			i18n.T(msgid.CliRestoreCheckLocationAboutToBeCommittedGoneFromTree, archivedRoot, id, why))
 	}
 
 	// 两组都非空时才在建议前面点名——单独一组时保持原来的措辞，

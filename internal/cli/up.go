@@ -936,7 +936,7 @@ func writeGenerated(layout project.Layout, content []byte) (string, error) {
 
 	path := filepath.Join(dir, composeFileName)
 	if err := os.WriteFile(path, content, 0o644); err != nil {
-		return "", clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToWriteThe)).
+		return "", clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpDeployFilesWriteFailed)).
 			WithDetail(i18n.T(msgid.LabelPath), path).
 			WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
@@ -972,7 +972,7 @@ func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.Lo
 	for _, file := range debugFiles {
 		path := filepath.Join(layout.GeneratedDir(), file.Name)
 		if err := os.WriteFile(path, file.Content, 0o600); err != nil {
-			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToWriteThe2)).
+			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpDebugEnvWriteFailed)).
 				WithDetail(i18n.T(msgid.LabelPath), path).
 				WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 		}
@@ -1077,7 +1077,7 @@ func writeEnvFiles(layout project.Layout, files []compose.EnvFile) error {
 		path := filepath.Join(layout.Root, filepath.FromSlash(file.Path))
 		keep[filepath.Base(path)] = true
 		if err := os.WriteFile(path, file.Content, 0o600); err != nil {
-			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpErrorFailedToWriteThe2)).
+			return clierr.New(clierr.CodeInternal, i18n.T(msgid.CliUpDebugEnvWriteFailed)).
 				WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 		}
 		// WriteFile 不改已存在文件的权限：旧文件是 0644 时照样得收紧

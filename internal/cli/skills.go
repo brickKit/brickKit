@@ -151,7 +151,7 @@ func runSkillsStatus(opts *Options) error {
 		state := s.State.Label()
 		switch s.State {
 		case skills.StateOutdated:
-			state = i18n.T(msgid.CliSkillsMsg, state, s.FromVersion, version.Version)
+			state = i18n.T(msgid.CliSkillsStateWithVersions, state, s.FromVersion, version.Version)
 			stale++
 		case skills.StateMissing:
 			stale++
@@ -199,7 +199,7 @@ func runSkillsUpdate(opts *Options, lang string) error {
 	if len(res.Skipped) > 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliSkillsSkipped, len(res.Skipped)))
 		for _, s := range res.Skipped {
-			opts.Printf("%s\n", i18n.T(msgid.CliSkillsMsg2, s.Target, s.State.Label()))
+			opts.Printf("%s\n", i18n.T(msgid.CliSkillsSkippedLine, s.Target, s.State.Label()))
 		}
 		opts.Printf("\n%s\n", i18n.T(msgid.CliSkillsNoteToDiscardLocalEdits))
 	}

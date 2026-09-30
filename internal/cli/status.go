@@ -311,7 +311,7 @@ func statusText(s engine.Status, found bool) string {
 	switch {
 	case s.Running():
 		if s.Health != "" {
-			return i18n.T(msgid.CliStatusRunning2, s.Health)
+			return i18n.T(msgid.CliStatusRunningWithHealth, s.Health)
 		}
 		return i18n.T(msgid.CliStatusRunning)
 	case s.State == "exited":

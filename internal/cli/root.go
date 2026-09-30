@@ -329,13 +329,13 @@ func translate(err error) *clierr.Error {
 		}
 		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliRootErrorUnknownCommand, name)).
 			WithDetail(i18n.T(msgid.LabelUsage), i18n.T(msgid.CliRootBrickkitCommandArguments)).
-			WithHint(i18n.T(msgid.CliRootRunBrickkitHelpToSee2)).
+			WithHint(i18n.T(msgid.CliRootHintHelpForCommands)).
 			WithExit(clierr.ExitUsage).
 			WithCause(err)
 	default:
 		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliRootErrorIncorrectCommandUsage)).
 			WithDetail(i18n.T(msgid.LabelReason), msg).
-			WithHint(i18n.T(msgid.CliRootRunBrickkitHelpToSee)).
+			WithHint(i18n.T(msgid.CliRootHintHelpForUsage)).
 			WithExit(clierr.ExitUsage).
 			WithCause(err)
 	}

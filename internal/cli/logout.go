@@ -84,7 +84,7 @@ func runLogout(ctx context.Context, opts *Options, keepRemote bool) error {
 
 	opts.Printf("%s\n", i18n.T(msgid.CliLogoutLoggedOut))
 	opts.Printf("%s\n", i18n.T(msgid.CliLogoutUser, creds.Username))
-	opts.Printf("%s\n", i18n.T(msgid.CliLogoutDeleted2, displayPath(opts.WorkDir, path)))
+	opts.Printf("%s\n", i18n.T(msgid.CliLogoutDeletedDetail, displayPath(opts.WorkDir, path)))
 	if remote != "" {
 		opts.Printf("   ⚠️ %s\n", remote)
 		opts.Printf("%s\n", i18n.T(msgid.CliLogoutThatTokenRemainsValidOn, creds.ExpiresAt.Format("2006-01-02 15:04:05")))

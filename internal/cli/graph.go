@@ -149,7 +149,7 @@ func renderMermaid(
 		b.WriteString(i18n.T(msgid.CliGraphShellsIgnoredNote) + "\n")
 	}
 	if len(graph.Nodes) == 0 {
-		b.WriteString(i18n.T(msgid.CliGraphHeCurrentProjectHasNo) + "\n")
+		b.WriteString(i18n.T(msgid.CliGraphEmptyProjectComment) + "\n")
 		return b.String()
 	}
 

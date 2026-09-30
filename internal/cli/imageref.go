@@ -31,8 +31,8 @@ func checkImageReference(image string) error {
 	if repo, digest, ok := strings.Cut(image, "@"); ok {
 		switch {
 		case repo == "":
-			return imageError(image, i18n.T(msgid.CliImagerefInvalidImageAddressTheImage),
-				i18n.T(msgid.CliImagerefTheCorrectFormLooksLike))
+			return imageError(image, i18n.T(msgid.CliImagerefNameMissingBeforeDigest),
+				i18n.T(msgid.CliImagerefHintDigestForm))
 		case !digestPattern.MatchString(digest):
 			return imageError(image, i18n.T(msgid.CliImagerefInvalidImageDigestFormat),
 				i18n.T(msgid.CliImagerefItMustBeSha256Followed),
@@ -43,10 +43,10 @@ func checkImageReference(image string) error {
 
 	name, tag := splitImageTag(image)
 	if name == "" {
-		return imageError(image, i18n.T(msgid.CliImagerefInvalidImageAddressTheImage2), i18n.T(msgid.CliImagerefTheCorrectFormLooksLike2))
+		return imageError(image, i18n.T(msgid.CliImagerefNameMissing), i18n.T(msgid.CliImagerefHintTagForm))
 	}
 	if strings.ToLower(name) != name {
-		return imageError(image, i18n.T(msgid.CliImagerefInvalidImageAddressTheImage3), i18n.T(msgid.CliImagerefChangeTheImageNameTo))
+		return imageError(image, i18n.T(msgid.CliImagerefNameNotLowercase), i18n.T(msgid.CliImagerefChangeTheImageNameTo))
 	}
 	if tag == "" {
 		return imageError(image, i18n.T(msgid.CliImagerefTheImageAddressHasNo),

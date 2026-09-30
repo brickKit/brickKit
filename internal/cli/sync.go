@@ -211,7 +211,7 @@ func applySync(opts *Options, layout project.Layout, actions []syncAction) error
 		switch a.kind {
 		case actionActive:
 			active++
-			opts.Printf("%s\n", i18n.T(msgid.CliSyncSActive, workspace.DisplayDir(a.componentID)))
+			opts.Printf("%s\n", i18n.T(msgid.CliSyncActiveLine, workspace.DisplayDir(a.componentID)))
 
 		case actionArchive:
 			if err := workspace.Archive(layout, a.componentID, repo); err != nil {
