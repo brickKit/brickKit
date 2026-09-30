@@ -233,6 +233,18 @@ func (p *Project) IgnoreFocus() {
 	}
 }
 
+// WithoutFocus 是不看焦点的一份副本（原来的不变）：up 要回答"sync 会收起哪些源码"时用它——
+// sync 按不带焦点的判定留源码，提示必须用同一个判定，否则 up 说的和 sync 做的对不上。
+func (p *Project) WithoutFocus() *Project {
+	c := *p
+	if p.Deploy != nil {
+		d := *p.Deploy
+		d.Focus = ""
+		c.Deploy = &d
+	}
+	return &c
+}
+
 // IgnoreShells 让本次运行把每个组件都当独立部署（--ignore-shells）：只改内存，
 // 不动任何文件；下游只通过 ShellOf 认成员关系，关掉这一处就够。
 func (p *Project) IgnoreShells() { p.ignoreShells = true }

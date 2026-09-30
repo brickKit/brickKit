@@ -222,3 +222,18 @@ func TestFocusNeedingAMemberStartsItsShell(t *testing.T) {
 	assert.Regexp(t, `erp/worker@1\.0\.0 +`+regexp.QuoteMeta(i18n.T(msgid.CascadeReasonOutsideFocus)), r.stdout,
 		"only the member the focus needs is reached; the shell hosts whichever members run")
 }
+
+// 焦点下 up 不说"sync 能把焦点之外的源码收起来"：sync 不看焦点，它什么都不会收（Final review #3）。
+func TestUpUnderAFocusDoesNotPromiseWhatSyncWontDo(t *testing.T) {
+	dir := focusFixture(t)
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/api")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	require.Contains(t, r.stdout, i18n.T(msgid.CascadeReasonOutsideFocus))
+	assert.NotContains(t, r.stdout, "brickkit sync")
+
+	// 焦点之外、而没有焦点时也不跑的组件，照样提示：那是 sync 真会收起来的
+	editFile(t, in(dir, "deploy.local.yaml"), "  - id: erp/portal\n", "  - id: erp/portal\n    mode: disable\n")
+	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "brickkit sync")
+}

@@ -275,12 +275,12 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	renderStates(opts, plan.states)
 	if plan.states.Empty() {
 		renderNothingRunning(opts, plan.states)
-		renderSyncHint(opts, proj.Layout, plan.states)
+		renderSyncHint(opts, proj, plan.graph, plan.states)
 		plan.done = true
 		return plan, nil
 	}
 	renderDegradedWeakDeps(opts, plan.graph, plan.states)
-	renderSyncHint(opts, proj.Layout, plan.states)
+	renderSyncHint(opts, proj, plan.graph, plan.states)
 	warnConfigSecrets(opts, proj, plan.graph)
 	warnExistingSecretOnDocker(opts, proj)
 
@@ -468,10 +468,20 @@ func renderDegradedWeakDeps(opts *Options, graph *resolver.Graph, states *cascad
 // sync 不由 up 自动执行（up 管运行时，sync 管源码目录），
 // 但"忘了 sync"是最常见的落差——改完 enabled 跑了 up，源码目录还是老样子。
 // 只在真有源码可收时才提，否则每次 up 都多一行噪音。
-func renderSyncHint(opts *Options, layout project.Layout, states *cascade.Result) {
+//
+// 数的是 sync 真会收起来的：sync 不看焦点（焦点只是一次临时的收窄），所以有焦点时按不带焦点的
+// 判定来数——焦点之外、而项目平时要跑的组件，sync 不会动它们，这里也不该许诺。
+func renderSyncHint(opts *Options, proj *project.Project, graph *resolver.Graph, states *cascade.Result) {
+	if _, _, focused := proj.FocusRef(); focused {
+		unfocused, err := cascade.Compute(proj.WithoutFocus(), graph)
+		if err != nil {
+			return
+		}
+		states = unfocused
+	}
 	n := 0
 	for _, c := range states.Components {
-		if c.State != cascade.StateRunning && workspace.Exists(layout, c.Ref.ID) {
+		if c.State != cascade.StateRunning && workspace.Exists(proj.Layout, c.Ref.ID) {
 			n++
 		}
 	}
