@@ -14,8 +14,8 @@
 
 BrickKit is a **declarative component assembly platform**: you declare which components you have and what they
 depend on, and the CLI derives everything else — start order, service addresses, environment variables,
-deployment manifests, network policies — then hands it to Docker or Kubernetes and exits. No registry, no config
-server, no gateway, no long-running process.
+deployment manifests, network policies — and leaves the running to the container platform you already have. No
+registry, no config server, no gateway, no long-running process.
 
 Each component is a self-contained domain unit, developed, tested, deployed and called on its own. From outside,
 the only things you depend on are its manifest and its published contract; the implementation behind the contract

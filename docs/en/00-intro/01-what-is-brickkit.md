@@ -4,7 +4,7 @@
 
 BrickKit is a **declarative component assembly platform**: you write down which components you want and what they
 depend on, and everything else — start order, service addresses, environment variables, deployment files — is derived
-by BrickKit and handed to Docker or Kubernetes to run.
+by BrickKit and handed to Docker, Podman or Kubernetes to run.
 
 "Declarative" means you describe **the result you want** ("I want `erp/backend` 1.0.0, and it has to reach a
 database"), not **the steps that get you there** ("start the database, wait until it's healthy, put its address in this

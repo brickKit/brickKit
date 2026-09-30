@@ -1,8 +1,8 @@
 # BrickKit
 
 > A declarative component assembly platform built on three layers of files (declaration, deployment,
-> configuration): declare the components and what they depend on, it derives the rest and hands it to Docker or
-> Kubernetes. Fractal by design: the specification nests, the files don't.
+> configuration): declare the components and what they depend on, it derives the rest and hands it to Docker, Podman
+> or Kubernetes. Fractal by design: the specification nests, the files don't.
 
 Repository: https://github.com/brickKit/brickKit | License: Apache-2.0
 
