@@ -243,3 +243,25 @@ func TestLocalCopySwapsTheTeamHeader(t *testing.T) {
 	assert.Contains(t, r.stdout, "already")
 	assert.NoFileExists(t, filepath.Join(dir, "deploy.local.yaml.bak"))
 }
+
+// local on 记下复制时的团队文件作基线；之后在本地删掉的字段，refresh 也列出来。
+// 团队在这期间才改的值不是本地修改，不列。
+func TestLocalRefreshListsFieldsRemovedLocally(t *testing.T) {
+	dir := localProject(t)
+	writeTree(t, dir, map[string]string{"deploy.yaml": "target: docker\ncomponents:\n  - id: erp/api\n    expose: true\n    exposePort: 18080\n"})
+	mustLocal(t, dir, "on")
+	// 本地：删掉 expose / exposePort，加 mode: debug
+	writeTree(t, dir, map[string]string{"deploy.local.yaml": "target: docker\ncomponents:\n  - id: erp/api\n    mode: debug\n    localPort: 8081\n"})
+	// 团队随后把 exposePort 改成了 18090
+	writeTree(t, dir, map[string]string{"deploy.yaml": "target: docker\ncomponents:\n  - id: erp/api\n    expose: true\n    exposePort: 18090\n"})
+
+	r := mustLocal(t, dir, "refresh")
+	assert.Contains(t, r.stdout, "4 local changes", r.stdout)
+	assert.Contains(t, r.stdout, "- [erp/api] mode: debug (now unset)")
+	assert.Contains(t, r.stdout, "- [erp/api] expose: removed locally (now `true`)")
+	assert.Contains(t, r.stdout, "- [erp/api] exposePort: removed locally (now `18090`)")
+
+	// 刷新之后基线就是新复制的这份：紧接着再刷新，没有本地修改可列
+	r = mustLocal(t, dir, "refresh")
+	assert.NotContains(t, r.stdout, "removed locally", r.stdout)
+}

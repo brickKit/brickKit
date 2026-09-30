@@ -26,6 +26,7 @@ Bare repositories are covered in [The Git repository cache](06-bare-repo-mechani
 │   └── local-debug.<service name>.env   environment variables of a mode: debug component
 ├── last-run               the component versions of the last up; the baseline for version-change notices
 ├── local-mode             local mode is on while this exists
+├── deploy.local.base.yaml the deploy.yaml that deploy.local.yaml was last copied from; refresh tells local changes by it
 ├── session.lock           a mode: local session is running
 ├── skills.lock            version and language of the AI assistant skills installed in the project
 └── credentials            the component market login token (0600)

@@ -37,6 +37,9 @@ const (
 	// FileLocalMode 存在即"本地模式已开启"（附录 A16）：local off 只删它，
 	// 不删 deploy.local.yaml，再开时本地改动还在。
 	FileLocalMode = "local-mode"
+	// FileLocalBase 是 deploy.local.yaml 上次从 deploy.yaml 复制时的那份团队文件（local on / refresh 写）。
+	// refresh 拿它分辨"你在本地改了什么"：与它不同的值、它有而你删掉的字段；没有它时退回两方对比。
+	FileLocalBase = "deploy.local.base.yaml"
 )
 
 // Layout 描述项目目录布局。所有路径都由 Root 推导，不依赖进程当前目录。
@@ -81,6 +84,7 @@ func (l Layout) CredentialsPath() string       { return l.path(DirBrickkit, File
 func (l Layout) SkillsLockPath() string        { return l.path(DirBrickkit, FileSkillsLock) }
 func (l Layout) SessionLockPath() string       { return l.path(DirBrickkit, FileSessionLock) }
 func (l Layout) LocalModePath() string         { return l.path(DirBrickkit, FileLocalMode) }
+func (l Layout) LocalBasePath() string         { return l.path(DirBrickkit, FileLocalBase) }
 func (l Layout) ComponentsDir() string         { return l.path(DirComponents) }
 func (l Layout) ShellDir() string              { return l.path(DirShell) }
 func (l Layout) ArchivedDir() string           { return l.path(DirComponents, DirArchived) }

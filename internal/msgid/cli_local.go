@@ -34,6 +34,7 @@ const (
 	CliLocalChangesHeader    = "cli.local.changes_header"
 	CliLocalChangeEntryGone  = "cli.local.change_entry_gone"
 	CliLocalChangeUnset      = "cli.local.change_unset"
+	CliLocalChangeRemoved    = "cli.local.change_removed"
 	CliLocalChangeDiffers    = "cli.local.change_differs"
 	CountLocalChanges        = "count.local_changes"
 	CliLocalTeamFileInvalid  = "cli.local.team_file_invalid"

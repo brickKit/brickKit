@@ -193,8 +193,13 @@ func runLocalRefresh(opts *Options) error {
 		opts.Printf("%s\n", i18n.T(msgid.CliLocalAlreadyFresh, project.FileDeployLocal, project.FileDeploy))
 		return nil
 	}
-	// 先算摘要：旧文件读不懂（YAML 写坏了）也要能刷新——那正是最需要重新生成的时候
-	changes, diffErr := deployfile.DiffLocal(old, fresh)
+	// 先算摘要：旧文件读不懂（YAML 写坏了）也要能刷新——那正是最需要重新生成的时候。
+	// 基线是上次复制时的团队文件；没有（更早的项目）就退回两方对比
+	base, err := os.ReadFile(l.LocalBasePath())
+	if err != nil {
+		base = nil
+	}
+	changes, diffErr := deployfile.DiffLocal(base, old, fresh)
 
 	replacedBackup := fileExists(l.DeployLocalBackupPath())
 	if err := os.WriteFile(l.DeployLocalBackupPath(), old, 0o644); err != nil {
@@ -202,6 +207,9 @@ func runLocalRefresh(opts *Options) error {
 	}
 	if err := os.WriteFile(l.DeployLocalPath(), fresh, 0o644); err != nil {
 		return localIOError(l.DeployLocalPath(), err)
+	}
+	if err := writeLocalBase(l, team); err != nil {
+		return err
 	}
 
 	opts.Printf("%s\n", i18n.T(msgid.CliLocalRefreshed, project.FileDeployLocal, project.FileDeploy, project.FileDeployLocalBackup))
@@ -228,6 +236,8 @@ func renderLocalChange(c deployfile.LocalChange) string {
 		return i18n.T(msgid.CliLocalChangeEntryGone, c.Scope, project.FileDeploy)
 	case c.Field == deployfile.FieldPlacement:
 		return i18n.T(msgid.CliLocalChangePlacement, c.Scope, placement(c.Old), placement(*c.New))
+	case c.Removed:
+		return i18n.T(msgid.CliLocalChangeRemoved, c.Scope, c.Field, *c.New)
 	case c.New == nil:
 		return i18n.T(msgid.CliLocalChangeUnset, c.Scope, c.Field, c.Old)
 	default:
@@ -257,7 +267,7 @@ func copyDeployToLocal(l project.Layout) error {
 	if err := os.WriteFile(l.DeployLocalPath(), project.LocalDeployContent(data), 0o644); err != nil {
 		return localIOError(l.DeployLocalPath(), err)
 	}
-	return nil
+	return writeLocalBase(l, data)
 }
 
 func localIOError(path string, cause error) error {
@@ -270,4 +280,15 @@ func localIOError(path string, cause error) error {
 
 func localSwitchError(l project.Layout, cause error) error {
 	return localIOError(l.LocalModePath(), cause)
+}
+
+// writeLocalBase 记下这次复制所用的团队文件，作为下一次 refresh 分辨本地修改的基线。
+func writeLocalBase(l project.Layout, team []byte) error {
+	if err := os.MkdirAll(l.BrickkitDir(), 0o755); err != nil {
+		return localIOError(l.BrickkitDir(), err)
+	}
+	if err := os.WriteFile(l.LocalBasePath(), team, 0o644); err != nil {
+		return localIOError(l.LocalBasePath(), err)
+	}
+	return nil
 }

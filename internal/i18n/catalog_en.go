@@ -1634,6 +1634,7 @@ var en = map[string]string{
 	msgid.CliLocalNoChanges:                         "The old file had no local changes: nothing to merge.",
 	msgid.CliLocalChangesHeader:                     "The old file had %[1]s; merge the ones you still need into the new %[2]s by hand:",
 	msgid.CliLocalChangeEntryGone:                   "[%[1]s] the whole entry (%[2]s no longer has it)",
+	msgid.CliLocalChangeRemoved:                     "[%[1]s] %[2]s: removed locally (now `%[3]s`)",
 	msgid.CliLocalChangeUnset:                       "[%[1]s] %[2]s: %[3]s (now unset)",
 	msgid.CliLocalChangeDiffers:                     "[%[1]s] %[2]s: %[3]s (now `%[4]s`)",
 	msgid.CountLocalChanges:                         "%[1]d local changes",

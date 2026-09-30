@@ -39,7 +39,7 @@ components:
       - id: erp/api
         expose: false
 `
-	changes, err := deployfile.DiffLocal([]byte(old), []byte(freshTeam))
+	changes, err := deployfile.DiffLocal(nil, []byte(old), []byte(freshTeam))
 	require.NoError(t, err)
 	assert.Equal(t, []deployfile.LocalChange{
 		{Scope: "deploy", Field: "target", Old: "k8s", New: ptr("docker")},
@@ -64,7 +64,7 @@ components:
         expose: true
         exposePort: 9000
 `
-	changes, err := deployfile.DiffLocal([]byte(old), []byte(freshTeam))
+	changes, err := deployfile.DiffLocal(nil, []byte(old), []byte(freshTeam))
 	require.NoError(t, err)
 	assert.Equal(t, []deployfile.LocalChange{
 		{Scope: "erp/api", Field: "expose", Old: "true", New: ptr("false")},
@@ -74,7 +74,7 @@ components:
 
 func TestDiffLocalWholeEntryGone(t *testing.T) {
 	old := freshTeam + "  - id: crm/old\n    mode: debug\n"
-	changes, err := deployfile.DiffLocal([]byte(old), []byte(freshTeam))
+	changes, err := deployfile.DiffLocal(nil, []byte(old), []byte(freshTeam))
 	require.NoError(t, err)
 	assert.Equal(t, []deployfile.LocalChange{{Scope: "crm/old"}}, changes)
 }
@@ -94,7 +94,7 @@ vars:
 target: "docker"
 `
 	fresh := freshTeam + "  - id: crm/new\n"
-	changes, err := deployfile.DiffLocal([]byte(old), []byte(fresh))
+	changes, err := deployfile.DiffLocal(nil, []byte(old), []byte(fresh))
 	require.NoError(t, err)
 	assert.Empty(t, changes)
 }
@@ -103,7 +103,7 @@ target: "docker"
 func TestDiffLocalRendersListsOnOneLine(t *testing.T) {
 	old := "target: docker\ncomponents:\n  - id: a/b\n    skipWaitFor: [c/d, e/f]\n"
 	fresh := "target: docker\ncomponents:\n  - id: a/b\n    skipWaitFor: [c/d]\n"
-	changes, err := deployfile.DiffLocal([]byte(old), []byte(fresh))
+	changes, err := deployfile.DiffLocal(nil, []byte(old), []byte(fresh))
 	require.NoError(t, err)
 	assert.Equal(t, []deployfile.LocalChange{
 		{Scope: "a/b", Field: "skipWaitFor", Old: `["c/d","e/f"]`, New: ptr(`["c/d"]`)},
@@ -113,18 +113,18 @@ func TestDiffLocalRendersListsOnOneLine(t *testing.T) {
 // 形状不对的部分（非映射的文档、没有 id 的条目、不是列表的 components）不报改动、也不出错：
 // 那些是 up 装载时该报的错，摘要只比能比的。
 func TestDiffLocalToleratesOddShapes(t *testing.T) {
-	changes, err := deployfile.DiffLocal([]byte("- just a list\n"), []byte(freshTeam))
+	changes, err := deployfile.DiffLocal(nil, []byte("- just a list\n"), []byte(freshTeam))
 	require.NoError(t, err)
 	assert.Empty(t, changes)
 
 	odd := "target: docker\ncomponents:\n  - mode: debug\n  - plain\n"
-	changes, err = deployfile.DiffLocal([]byte(odd), []byte("target: docker\ncomponents: nope\n"))
+	changes, err = deployfile.DiffLocal(nil, []byte(odd), []byte("target: docker\ncomponents: nope\n"))
 	require.NoError(t, err)
 	assert.Empty(t, changes)
 
-	_, err = deployfile.DiffLocal([]byte("target: [\n"), []byte(freshTeam))
+	_, err = deployfile.DiffLocal(nil, []byte("target: [\n"), []byte(freshTeam))
 	require.Error(t, err)
-	_, err = deployfile.DiffLocal([]byte(freshTeam), []byte("target: [\n"))
+	_, err = deployfile.DiffLocal(nil, []byte(freshTeam), []byte("target: [\n"))
 	require.Error(t, err)
 }
 
@@ -140,7 +140,7 @@ components:
   - id: erp/api
     expose: false
 `
-	changes, err := deployfile.DiffLocal([]byte(old), []byte(freshTeam))
+	changes, err := deployfile.DiffLocal(nil, []byte(old), []byte(freshTeam))
 	require.NoError(t, err)
 	assert.Equal(t, []deployfile.LocalChange{
 		{Scope: "erp/api", Field: deployfile.FieldPlacement, Old: "", New: ptr("erp/shell")},
@@ -151,9 +151,39 @@ components:
 func TestDiffLocalReportsEntryMovedIntoShell(t *testing.T) {
 	fresh := "target: docker\ncomponents:\n  - id: erp/shell\n  - id: erp/api\n"
 	old := "target: docker\ncomponents:\n  - id: erp/shell\n    members:\n      - id: erp/api\n"
-	changes, err := deployfile.DiffLocal([]byte(old), []byte(fresh))
+	changes, err := deployfile.DiffLocal(nil, []byte(old), []byte(fresh))
 	require.NoError(t, err)
 	assert.Equal(t, []deployfile.LocalChange{
 		{Scope: "erp/api", Field: deployfile.FieldPlacement, Old: "erp/shell", New: ptr("")},
 	}, changes)
+}
+
+// 有基线（上次复制时的团队文件）时，本地删掉的字段也是本地修改：只拿新旧两份对比，
+// 分不清"你删了它"与"团队后来才加上它"，所以只有基线能说出来。
+func TestDiffLocalWithBaseReportsFieldsRemovedLocally(t *testing.T) {
+	base := "target: docker\ncomponents:\n  - id: erp/backend\n    expose: true\n    exposePort: 18080\n"
+	old := "target: docker\ncomponents:\n  - id: erp/backend\n    exposePort: 18080\n"
+	changes, err := deployfile.DiffLocal([]byte(base), []byte(old), []byte(base))
+	require.NoError(t, err)
+	assert.Equal(t, []deployfile.LocalChange{{Scope: "erp/backend", Field: "expose", Removed: true, New: ptr("true")}}, changes)
+}
+
+// 旧本地文件里等于基线的值不是本地修改，哪怕团队后来改了它：刷新之后跟随团队的新值，不该让人抄回旧值。
+func TestDiffLocalWithBaseIgnoresValuesOnlyTheTeamChanged(t *testing.T) {
+	base := "target: docker\ncomponents:\n  - id: erp/backend\n    mode: enabled\n"
+	old := "target: docker\ncomponents:\n  - id: erp/backend\n    mode: enabled\n    localPort: 9000\n"
+	fresh := "target: docker\ncomponents:\n  - id: erp/backend\n    mode: disable\n"
+	changes, err := deployfile.DiffLocal([]byte(base), []byte(old), []byte(fresh))
+	require.NoError(t, err)
+	assert.Equal(t, []deployfile.LocalChange{{Scope: "erp/backend", Field: "localPort", Old: "9000"}}, changes)
+}
+
+// 基线里没有的条目（比如 add 之后才出现的组件）按两方对比，与没有基线时一样。
+func TestDiffLocalWithBaseFallsBackForNewEntries(t *testing.T) {
+	base := "target: docker\ncomponents:\n  - id: erp/backend\n"
+	old := "target: docker\ncomponents:\n  - id: erp/backend\n  - id: erp/new\n    mode: debug\n"
+	fresh := "target: docker\ncomponents:\n  - id: erp/backend\n  - id: erp/new\n"
+	changes, err := deployfile.DiffLocal([]byte(base), []byte(old), []byte(fresh))
+	require.NoError(t, err)
+	assert.Equal(t, []deployfile.LocalChange{{Scope: "erp/new", Field: "mode", Old: "debug"}}, changes)
 }

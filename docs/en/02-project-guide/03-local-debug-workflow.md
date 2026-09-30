@@ -174,8 +174,8 @@ brickkit local refresh
 
 1. keeps the old file as is in `deploy.local.yaml.bak` (overwriting the previous backup);
 2. copies a complete new file from `deploy.yaml` — **no merging**: the new file is a copy of the team file;
-3. compares the old file with the new one and lists every local change you had: `mode`, `localPort`, `vars` values, a
-   changed `target`, entries you moved.
+3. compares the old file with the copy it was made from, and lists every local change you had that differs from the team
+   file now: `mode`, `localPort`, `vars` values, a changed `target`, entries you moved, fields you deleted.
 
 You just go down that list and copy back the lines you still want, instead of comparing two YAML files end to end. Once
 copied back:

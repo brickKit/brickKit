@@ -111,10 +111,23 @@ brickkit local refresh
 `refresh` doesn't merge for you: it lists every place the old file differs from the team file, and you decide which
 ones you still want. The old file is in `.bak`.
 
-The list is built from what the **old file says**: a value it sets that the new file doesn't have, or has differently.
-A field you **deleted** from your personal copy isn't on it — comparing only the two files, a field missing from your
-copy looks the same as one the team added since. If you removed something on purpose (say, an `expose` that clashed
-with a port on your machine), check `deploy.local.yaml.bak` against the new file.
+What counts as "a local change" is decided against **the copy your file was made from**: `local on` and `refresh` keep
+that team file as `.brickkit/deploy.local.base.yaml`. A value you changed or added, and a field you **deleted**, are local
+changes; a value you never touched isn't, even if the team has changed it since — after the refresh it simply follows the
+team's new value. Only changes that differ from the team file as it is now are listed. Say you swapped the team's
+`expose` for local debugging:
+
+```text
+ℹ️ The old file had 4 local changes; merge the ones you still need into the new deploy.local.yaml by hand:
+   - [demo/hello] mode: debug (now unset)
+   - [demo/hello] localPort: 18080 (now unset)
+   - [demo/hello] expose: removed locally (now `true`)
+   - [demo/hello] exposePort: removed locally (now `18080`)
+```
+
+When there's no such record (a `deploy.local.yaml` you wrote by hand), `refresh` can only compare the old file with the
+new one: it lists values the old file sets differently or that the new file doesn't have, and a field you deleted can't be
+told apart from one the team added — check `deploy.local.yaml.bak` against the new file yourself.
 
 ## With `-f` / `--no-local`
 

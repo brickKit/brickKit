@@ -25,6 +25,7 @@ bare 仓库见 [Git 仓库缓存](06-bare-repo-mechanism.md)。这一篇讲项�
 │   └── local-debug.<服务名>.env   mode: debug 组件的环境变量
 ├── last-run               上一次 up 运行的组件版本，版本变更提示以它为基线
 ├── local-mode             存在即本地模式开着
+├── deploy.local.base.yaml deploy.local.yaml 上次复制自的那份 deploy.yaml；refresh 靠它分辨本地修改
 ├── session.lock           mode: local 会话正在运行
 ├── skills.lock            装进项目的 AI 助手技能的版本与语言
 └── credentials            组件市场的登录令牌（0600）

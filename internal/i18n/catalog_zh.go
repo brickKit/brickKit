@@ -1625,6 +1625,7 @@ var zh = map[string]string{
 	msgid.CliLocalNoChanges:                     "旧文件没有本地修改，无需合并。",
 	msgid.CliLocalChangesHeader:                 "旧文件中有 %[1]s，请把仍然需要的手动合并到新的 %[2]s 中：",
 	msgid.CliLocalChangeEntryGone:               "[%[1]s] 整个条目（%[2]s 里已经没有它）",
+	msgid.CliLocalChangeRemoved:                 "[%[1]s] %[2]s: 本地删掉了（当前为 `%[3]s`）",
 	msgid.CliLocalChangeUnset:                   "[%[1]s] %[2]s: %[3]s（当前未设置）",
 	msgid.CliLocalChangeDiffers:                 "[%[1]s] %[2]s: %[3]s（当前为 `%[4]s`）",
 	msgid.CountLocalChanges:                     "%[1]d 处本地修改",
