@@ -632,7 +632,8 @@ None of the four subcommands has flags of its own.
 ### `brickkit local on`
 
 Turn local mode on; the first time, `deploy.local.yaml` is copied from `deploy.yaml` — word for word, except that the
-team-file header comment `init` wrote is replaced with one for a personal file.
+comment lines at the top (the team-file header `init` wrote) are replaced with a personal-file header in the CLI's
+current language.
 
 ```text
 ✅ Local mode is on: commands now read deploy.local.yaml

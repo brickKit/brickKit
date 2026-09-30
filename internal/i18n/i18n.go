@@ -112,9 +112,9 @@ func Count(id msgid.ID, n int) string {
 	return TN(id, n, n)
 }
 
-// CatalogFor 返回给定语言目录的只读快照，供工具类代码使用
-// （tests/docfields 核对错误码文档标题要用到），不用于运行时查文案——
-// 运行时一律用 T()。返回值是拷贝，调用方改它不会影响真正的目录。
+// CatalogFor 返回给定语言目录的拷贝，只给测试与工具用（核对各语言目录、把文档里的输出行对回
+// 文案）。生产代码只用 T 说当前语言，不翻整份目录——tests/i18nguard 拦着。
+// 返回值是拷贝，调用方改它不会影响真正的目录。
 func CatalogFor(l Lang) map[msgid.ID]string {
 	src := catalogFor(l)
 	out := make(map[msgid.ID]string, len(src))

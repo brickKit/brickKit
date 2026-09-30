@@ -171,3 +171,25 @@ func TestNoLanguageNamedInExampleCommands(t *testing.T) {
 		})
 	}
 }
+
+// 生产代码只用当前语言说话（i18n.T），不去翻所有语言的目录：拿别的语言的译文去比对、去认东西，
+// 译文一改就认不出来了（生成的注释按结构认，见 configdir 与 project.LocalDeployContent）。
+// i18n.CatalogFor 只给测试与工具用。
+func TestProductionCodeReadsNoCatalogDirectly(t *testing.T) {
+	for _, rel := range goFiles(t, []string{"internal", "cmd"}, false) {
+		if strings.HasPrefix(rel, "internal/i18n/") {
+			continue
+		}
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, filepath.Join(repoRoot, rel), nil, 0)
+		require.NoError(t, err, rel)
+		ast.Inspect(f, func(n ast.Node) bool {
+			if sel, ok := n.(*ast.SelectorExpr); ok && sel.Sel.Name == "CatalogFor" {
+				if id, ok := sel.X.(*ast.Ident); ok && id.Name == "i18n" {
+					t.Errorf("%s: 生产代码读了整份目录（i18n.CatalogFor）：用 i18n.T 说当前语言", fset.Position(sel.Pos()))
+				}
+			}
+			return true
+		})
+	}
+}

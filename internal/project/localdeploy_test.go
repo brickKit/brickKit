@@ -10,15 +10,26 @@ import (
 	"github.com/brickkit/brickkit/internal/yamlcomment"
 )
 
-// 文件头按生成它的语言认，与 CLI 现在说什么语言无关：中文 init 的项目，英文 CLI 下 local on 也要换掉那句"请提交它"。
-func TestLocalDeployContentSwapsHeaderInItsOwnLanguage(t *testing.T) {
-	body := "target: docker\n\ncomponents: []\n"
+// 个人文件的文件头按结构认：deploy.yaml 开头连续的注释行（到第一个不是注释的行为止）就是文件头，
+// 换成个人文件的说明，用当前 CLI 的语言——这份文件是写给这个人看的。不拿文字去比：团队文件头是
+// 哪种语言写的、译文后来改没改过、团队自己改没改过，都一样换掉；那句"团队文件，请提交它"放进
+// 一个从不提交的文件里就是假话。
+func TestLocalDeployContentReplacesTheOpeningCommentsWithThePersonalHeader(t *testing.T) {
+	prev := i18n.Current()
+	t.Cleanup(func() { i18n.SetCurrent(prev) })
+	i18n.SetCurrent(i18n.SourceLang())
+	personal := yamlcomment.Block("", i18n.T(msgid.ProjectSkeletonDeployLocalHeader))
+	body := "target: docker\n\ncomponents: []  # kept\n# a note further down, kept\n"
+
 	for _, lang := range i18n.SupportedLangs() {
-		catalog := i18n.CatalogFor(lang)
-		team := yamlcomment.Block("", catalog[msgid.ProjectSkeletonDeployHeader]) + body
-		want := yamlcomment.Block("", catalog[msgid.ProjectSkeletonDeployLocalHeader]) + body
-		assert.Equal(t, want, string(LocalDeployContent([]byte(team))), lang)
+		team := yamlcomment.Block("", i18n.CatalogFor(lang)[msgid.ProjectSkeletonDeployHeader]) + body
+		assert.Equal(t, personal+body, string(LocalDeployContent([]byte(team))), lang)
 	}
-	edited := "# our own header\n" + body
-	assert.Equal(t, edited, string(LocalDeployContent([]byte(edited))), "认不出的文件头原样保留")
+	for _, team := range []string{
+		"# deploy.yaml header from an older catalog\n# second line\n" + body,
+		"# our own header, written by the team\n" + body,
+		body,
+	} {
+		assert.Equal(t, personal+body, string(LocalDeployContent([]byte(team))), team)
+	}
 }

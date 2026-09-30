@@ -292,19 +292,21 @@ func deploySkeleton() string {
 }
 
 // LocalDeployContent 是 local on / refresh 从 deploy.yaml 复制出来的 deploy.local.yaml 内容。
-// 逐字节复制，只有一处例外：文件开头正是 init 写下的团队文件头（"团队文件：请提交它"）时，
-// 换成个人文件的说明，语言与原文件头相同——那句话放进一个从不提交的文件里是假话。
-// 使用者改过的文件头认不出来，原样保留。
+// 逐字节复制，只有一处例外：开头连续的注释行（到第一个不是注释的行为止）是文件头，换成个人
+// 文件的说明，用当前 CLI 的语言——"团队文件：请提交它"放进一个从不提交的文件里是假话。
+// 文件头按结构认、不拿文字去比：init 写下它时是哪种语言、译文后来改没改过、团队自己改没改过，
+// 都一样换掉。没有文件头就加上一个。
 func LocalDeployContent(team []byte) []byte {
-	for _, lang := range i18n.SupportedLangs() {
-		catalog := i18n.CatalogFor(lang)
-		header := yamlcomment.Block("", catalog[msgid.ProjectSkeletonDeployHeader])
-		if rest, ok := bytes.CutPrefix(team, []byte(header)); ok {
-			local := yamlcomment.Block("", catalog[msgid.ProjectSkeletonDeployLocalHeader])
-			return append([]byte(local), rest...)
+	rest := team
+	for len(rest) > 0 {
+		line, after, _ := bytes.Cut(rest, []byte("\n"))
+		if !bytes.HasPrefix(bytes.TrimSpace(line), []byte("#")) {
+			break
 		}
+		rest = after
 	}
-	return team
+	local := yamlcomment.Block("", i18n.T(msgid.ProjectSkeletonDeployLocalHeader))
+	return append([]byte(local), rest...)
 }
 
 func writeNewFile(path, content string) error {

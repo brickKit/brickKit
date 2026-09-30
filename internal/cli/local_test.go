@@ -10,11 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/yamlcomment"
 )
 
 const localTeamDeploy = "# team deploy file\ntarget: docker\ncomponents:\n  - id: erp/api\n"
 
-// localProject 是一个有一个组件的项目；deploy.yaml 带注释，用来确认 local on 是逐字节复制。
+// localProject 是一个有一个组件的项目；deploy.yaml 带注释，用来确认 local on 除文件头外逐字节复制。
 func localProject(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -23,6 +26,13 @@ func localProject(t *testing.T) string {
 		"deploy.yaml":   localTeamDeploy,
 	})
 	return dir
+}
+
+// localCopy 是 local on / refresh 从 localTeamDeploy 复制出来的个人文件：其余逐字节不变，
+// 开头的团队文件头换成个人文件头（当前语言）。
+func localCopy() string {
+	return yamlcomment.Block("", i18n.T(msgid.ProjectSkeletonDeployLocalHeader)) +
+		strings.TrimPrefix(localTeamDeploy, "# team deploy file\n")
 }
 
 func mustLocal(t *testing.T, dir string, args ...string) result {
@@ -35,7 +45,7 @@ func mustLocal(t *testing.T, dir string, args ...string) result {
 func TestLocalOnCopiesDeployBytes(t *testing.T) {
 	dir := localProject(t)
 	r := mustLocal(t, dir, "on")
-	assert.Equal(t, localTeamDeploy, readFile(t, filepath.Join(dir, "deploy.local.yaml")), "逐字节复制，注释也在")
+	assert.Equal(t, localCopy(), readFile(t, filepath.Join(dir, "deploy.local.yaml")), "逐字节复制，只把团队文件头换成个人文件头")
 	assert.FileExists(t, filepath.Join(dir, ".brickkit", "local-mode"))
 	assert.Contains(t, r.stdout, "Local mode is on")
 	assert.Contains(t, r.stdout, "copied from deploy.yaml")
@@ -106,7 +116,7 @@ func TestLocalRefreshBacksUpAndSummarises(t *testing.T) {
 
 	r := mustLocal(t, dir, "refresh")
 	assert.Equal(t, old, readFile(t, filepath.Join(dir, "deploy.local.yaml.bak")))
-	assert.Equal(t, localTeamDeploy, readFile(t, filepath.Join(dir, "deploy.local.yaml")))
+	assert.Equal(t, localCopy(), readFile(t, filepath.Join(dir, "deploy.local.yaml")))
 	assert.Contains(t, r.stdout, "deploy.local.yaml.bak")
 	assert.Contains(t, r.stdout, "2 local changes")
 	assert.Contains(t, r.stdout, "- [erp/api] mode: debug (now unset)")
@@ -199,7 +209,7 @@ func TestLocalRefreshBrokenOldFile(t *testing.T) {
 
 	r := mustLocal(t, dir, "refresh")
 	assert.Equal(t, broken, readFile(t, filepath.Join(dir, "deploy.local.yaml.bak")))
-	assert.Equal(t, localTeamDeploy, readFile(t, filepath.Join(dir, "deploy.local.yaml")))
+	assert.Equal(t, localCopy(), readFile(t, filepath.Join(dir, "deploy.local.yaml")))
 	assert.Contains(t, r.stdout, "could not be compared")
 }
 

@@ -29,14 +29,15 @@ brickkit local on
    deploy.local.yaml was copied from deploy.yaml — change it as you like, it is not committed
 ```
 
-The first `on` copies `deploy.yaml` over word for word; the one exception is the header comment `init` wrote ("team
-file, please commit it"), replaced with a note for a personal file — that sentence would be false in a file that is
-never committed:
+The first `on` copies `deploy.yaml` over word for word; the one exception is the run of comment lines at the very top —
+the team-file header `init` wrote ("team file, please commit it"), or whatever the team has made of it since — which is
+replaced with a note for a personal file, in the language the CLI speaks. "Please commit it" would be false in a file
+that is never committed:
 
 ```yaml
 # deploy.local.yaml — your personal deploy file: while local mode is on, commands read it instead of deploy.yaml.
 # Copied from deploy.yaml and never committed; after the team changes deploy.yaml, brickkit local refresh copies it again.
-target: docker # docker | podman | k8s
+target: docker          # docker | podman | k8s
 ```
 
 After that, change it freely, for example:
