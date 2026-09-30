@@ -80,12 +80,40 @@ tar -czf "$rel/$archive" -C "$stage" brickkit
 (cd "$rel" && sha256sum "$archive" >checksums.txt)
 ok "假 release 就绪：$archive"
 
+# install.sh 会往 HOME 里写补全文件，也会看 PATH 上有没有 bash / zsh / fish。检查绝不能碰
+# 跑它的这台机器：HOME 换成临时目录，PATH 只放 install.sh 用得到的工具（一个一个链过来），
+# shell 只放各个场景自己造的假货。
+tools="$tmp/tools"
+mkdir -p "$tools"
+for t in awk chmod curl wget grep head mkdir mktemp mv printf rm sed sha256sum shasum sort tar gzip uname dirname cat; do
+	if p="$(command -v "$t")" && [ "${p#/}" != "$p" ]; then ln -s "$p" "$tools/$t"; fi
+done
+SH="$(command -v sh)"
+
 run_install() {
-	# $1 = 装到哪；其余环境变量由调用方 export
-	env BRICKKIT_VERSION="$FAKE_VERSION" \
+	# $1 = 装到哪；$2 = PATH 上放哪些假 shell 的目录（可省）；再往后是额外的环境变量。
+	# HOME 用 $RUN_HOME（默认 $tmp/home）
+	local dir="$1" shells="${2:-$tmp/no-shells}"
+	shift
+	[ $# -gt 0 ] && shift
+	env -u XDG_DATA_HOME -u XDG_CONFIG_HOME \
+		PATH="$tools:$shells" HOME="${RUN_HOME:-$tmp/home}" \
+		BRICKKIT_VERSION="$FAKE_VERSION" \
 		BRICKKIT_BASE_URL="file://$tmp/release" \
-		BRICKKIT_INSTALL_DIR="$1" \
-		sh "$ROOT/install.sh" 2>&1
+		BRICKKIT_INSTALL_DIR="$dir" \
+		"$@" "$SH" "$ROOT/install.sh" 2>&1
+}
+
+# fake_shells <目录> <shell>...：造只会被 command -v 找到的假 shell。假 zsh 被问到 fpath 时
+# 答 $FAKE_FPATH（造的时候定下来）。
+fake_shells() {
+	local dir="$1"
+	shift
+	mkdir -p "$dir"
+	for s in "$@"; do
+		printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "${FAKE_FPATH:-}" >"$dir/$s"
+		chmod +x "$dir/$s"
+	done
 }
 
 # ---------- 3. 正常路径 ----------
@@ -132,8 +160,7 @@ mv "$rel/checksums.txt.bak" "$rel/checksums.txt"
 
 # ---------- 5. 版本不存在 ----------
 echo "▶ 版本不存在时报得清楚"
-if out="$(env BRICKKIT_VERSION=v0.0.404 BRICKKIT_BASE_URL="file://$tmp/release" \
-	BRICKKIT_INSTALL_DIR="$tmp/bin3" sh "$ROOT/install.sh" 2>&1)"; then
+if out="$(run_install "$tmp/bin3" "" BRICKKIT_VERSION=v0.0.404)"; then
 	bad "版本不存在，它却成功了"
 elif echo "$out" | grep -q "Download failed"; then
 	ok "报了下载失败，并带上了 URL"
@@ -147,6 +174,68 @@ if run_install "$tmp/bin4" | grep -q "is not on PATH"; then
 	ok "提醒了"
 else
 	bad "没提醒——装完了却敲不到 brickkit，最容易被当成没装上"
+fi
+
+# ---------- 7. shell 补全 ----------
+#
+# 补全文件放到各个 shell 自己会去找的目录；绝不改使用者的 rc 文件。
+echo "▶ 装上 bash / zsh / fish 的补全，不碰 rc 文件"
+fake_shells "$tmp/shells-all" bash zsh fish
+home="$tmp/home-all"
+out="$(RUN_HOME="$home" run_install "$tmp/bin5" "$tmp/shells-all")"
+check_file() { # $1 = 文件，$2 = cobra 写在第一行的开头
+	if [ -s "$1" ] && head -1 "$1" | grep -q "^$2"; then
+		ok "有 ${1#"$tmp"/}"
+	else
+		bad "${1#"$tmp"/} 不存在、是空的，或不是 $2 开头"
+	fi
+	if echo "$out" | grep -qF "$1"; then ok "输出里点名了它"; else bad "输出里没说装到了 $1"; fi
+}
+check_file "$home/.local/share/bash-completion/completions/brickkit" "# bash completion V2 for brickkit"
+check_file "$home/.zsh/completions/_brickkit" "#compdef brickkit"
+check_file "$home/.config/fish/completions/brickkit.fish" "# fish completion for brickkit"
+# shellcheck disable=SC2016 # 要找的就是字面上的 $fpath
+if echo "$out" | grep -qF 'fpath=(~/.zsh/completions $fpath)' && echo "$out" | grep -qF 'autoload -Uz compinit && compinit'; then
+	ok "zsh 没有现成目录时，把要加进 ~/.zshrc 的两行告诉了使用者"
+else
+	bad "没告诉使用者 ~/.zshrc 里要加哪两行"
+fi
+if [ -e "$home/.zshrc" ] || [ -e "$home/.bashrc" ]; then
+	bad "动了使用者的 rc 文件"
+else
+	ok "没碰 rc 文件"
+fi
+
+echo "▶ zsh 的 fpath 上有能写的 site-functions 时直接放进去，不用改 ~/.zshrc"
+mkdir -p "$tmp/site/share/zsh/site-functions"
+FAKE_FPATH="$tmp/site/share/zsh/site-functions" fake_shells "$tmp/shells-zsh" zsh
+home="$tmp/home-zsh"
+out="$(RUN_HOME="$home" run_install "$tmp/bin6" "$tmp/shells-zsh")"
+if [ -s "$tmp/site/share/zsh/site-functions/_brickkit" ] && [ ! -e "$home/.zsh" ]; then
+	ok "放进了 zsh 自己的 site-functions"
+else
+	bad "没放进 zsh 的 site-functions：$(echo "$out" | grep zsh | tr '\n' ' ')"
+fi
+if echo "$out" | grep -qF "fpath=("; then bad "已经在 fpath 上了，却还让使用者改 ~/.zshrc"; else ok "没多余地让人改 ~/.zshrc"; fi
+
+echo "▶ BRICKKIT_NO_COMPLETION 时一个补全文件都不装"
+home="$tmp/home-none"
+out="$(RUN_HOME="$home" run_install "$tmp/bin7" "$tmp/shells-all" BRICKKIT_NO_COMPLETION=1)"
+if [ -e "$home/.local" ] || [ -e "$home/.zsh" ] || [ -e "$home/.config" ]; then
+	bad "设了 BRICKKIT_NO_COMPLETION 还是装了补全"
+else
+	ok "什么都没装"
+fi
+if echo "$out" | grep -q "BRICKKIT_NO_COMPLETION"; then ok "说了跳过的原因"; else bad "跳过了却没说"; fi
+
+echo "▶ 只有 fish 时只装 fish 的"
+fake_shells "$tmp/shells-fish" fish
+home="$tmp/home-fish"
+RUN_HOME="$home" run_install "$tmp/bin8" "$tmp/shells-fish" >/dev/null
+if [ -s "$home/.config/fish/completions/brickkit.fish" ] && [ ! -e "$home/.local" ] && [ ! -e "$home/.zsh" ]; then
+	ok "只有 fish 的"
+else
+	bad "装的不只是 fish 的，或者 fish 的没装上"
 fi
 
 echo

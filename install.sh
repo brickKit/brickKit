@@ -9,6 +9,7 @@
 #                          ~/.local/bin if that isn't writable)
 #   BRICKKIT_BASE_URL     where to fetch artifacts from (default: GitHub Releases;
 #                          override with a file:// URL for testing)
+#   BRICKKIT_NO_COMPLETION  set to anything to skip installing shell completion
 #
 # macOS and Linux only. On Windows, download the zip by hand — all 23 hands-on
 # guides are bash, the Docker workflow has never once been verified on
@@ -166,3 +167,68 @@ case ":${PATH}:" in
 	info "    export PATH=\"${install_dir}:\$PATH\""
 	;;
 esac
+
+# ---- 7. Shell completion ----
+#
+# Completion is the shell's own feature: it loads a function registered for
+# `brickkit` from a directory it already searches. A program can't change a
+# shell that is already running, so the most an installer can do is put the
+# file where the shell looks — what Homebrew and apt packages do. Never edit
+# rc files: they are the user's own. A completion that can't be written is
+# reported and skipped; the CLI itself is already installed.
+bk="${install_dir}/brickkit"
+
+# put_completion <shell> <file> [note]: write one shell's completion file.
+put_completion() {
+	if mkdir -p "$(dirname "$2")" 2>/dev/null && "$bk" completion "$1" >"$2" 2>/dev/null; then
+		info "   $(printf '%-5s' "$1") ${2}${3:-}"
+		return 0
+	fi
+	rm -f "$2" 2>/dev/null
+	info "   ⚠️  $1: could not write $2 — see: brickkit completion $1 --help"
+	return 1
+}
+
+# zsh_site_dir: the first writable site-functions directory on zsh's own
+# fpath (Homebrew's and /usr/local's are there). Asking zsh beats guessing
+# paths per distro, and a file there needs no ~/.zshrc change.
+zsh_site_dir() {
+	zsh -fc 'print -l $fpath' 2>/dev/null | while IFS= read -r d; do
+		case "$d" in
+		*/site-functions)
+			if [ -d "$d" ] && [ -w "$d" ]; then
+				printf '%s\n' "$d"
+				return 0
+			fi
+			;;
+		esac
+	done
+	return 0
+}
+
+info ""
+if [ -n "${BRICKKIT_NO_COMPLETION:-}" ]; then
+	info "Shell completion skipped (BRICKKIT_NO_COMPLETION is set)"
+else
+	info "Shell completion:"
+	if command -v bash >/dev/null 2>&1; then
+		put_completion bash "${XDG_DATA_HOME:-${HOME}/.local/share}/bash-completion/completions/brickkit" \
+			" (loaded by the bash-completion package)" || true
+	fi
+	if command -v zsh >/dev/null 2>&1; then
+		zdir="$(zsh_site_dir)"
+		if [ -n "$zdir" ]; then
+			put_completion zsh "${zdir}/_brickkit" || true
+		elif put_completion zsh "${HOME}/.zsh/completions/_brickkit" " — add these two lines to ~/.zshrc:"; then
+			info "           fpath=(~/.zsh/completions \$fpath)"
+			info "           autoload -Uz compinit && compinit"
+		fi
+	fi
+	if command -v fish >/dev/null 2>&1; then
+		put_completion fish "${XDG_CONFIG_HOME:-${HOME}/.config}/fish/completions/brickkit.fish" || true
+	fi
+	if command -v pwsh >/dev/null 2>&1; then
+		info "   PowerShell: add  brickkit completion powershell | Out-String | Invoke-Expression  to \$PROFILE"
+	fi
+	info "   Open a new terminal (or run: exec \$SHELL) for completion to take effect."
+fi
