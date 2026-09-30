@@ -14,7 +14,7 @@ import (
 // 每种语言的每条消息，用到的参数（位置与 verb）与源语言那一条完全一致——否则运行时冒出 %!s(MISSING)。
 //
 // 源语言是空字符串的 key（cobra.* 那几条："保留 cobra 自带的英文"）没有可比的文案，不比；
-// 它们接收哪些参数写在 en.yaml 里那条 key 上方的注释里。
+// 它们由 TestKeysWithoutSourceTextUseOnlyTheArgumentsPassed 按代码实际传的参数检查。
 func TestCatalogVerbsMatchSource(t *testing.T) {
 	source := catalogFor(SourceLang())
 	for _, l := range registry[1:] {
@@ -25,6 +25,35 @@ func TestCatalogVerbsMatchSource(t *testing.T) {
 				continue // 缺的 key 由 parity 测试报
 			}
 			assert.Equal(t, verbSet(want), verbSet(text), "%s %s", l.Code, key)
+		}
+	}
+}
+
+// argsOfKeysWithoutSourceText 是源语言留空的 key（"保留 cobra 自带的英文"）实际收到的参数：
+// 没有源文案可比，就按代码传的参数比。键就是 root.go 的 localize 怎么调它们。
+var argsOfKeysWithoutSourceText = map[string][]string{
+	msgid.CobraUsageTemplate:   nil,
+	msgid.CobraHelpShort:       nil,
+	msgid.CobraCompletionShort: nil,
+	msgid.CobraHelpFlag:        {"1s", "2s"}, // 命令的显示名、命令路径
+}
+
+// 源语言留空的 key，译文只能用代码真的会传的参数——否则 -h 里冒出 %!s(BADINDEX)。
+// 新加一条留空的 key，要先在上面那张表里写明它收到哪些参数。
+func TestKeysWithoutSourceTextUseOnlyTheArgumentsPassed(t *testing.T) {
+	source := catalogFor(SourceLang())
+	for key, text := range source {
+		if text != "" {
+			continue
+		}
+		allowed, ok := argsOfKeysWithoutSourceText[key]
+		if !assert.True(t, ok, "%s 在 %s 里是空的：在 argsOfKeysWithoutSourceText 里写明它收到的参数", key, SourceLang()) {
+			continue
+		}
+		for _, l := range registry[1:] {
+			for _, v := range verbSet(catalogFor(l.Code)[key]) {
+				assert.Contains(t, allowed, v, "%s %s 用了代码不会传的参数 %s", l.Code, key, v)
+			}
 		}
 	}
 }
