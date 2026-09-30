@@ -18,7 +18,7 @@
 | --- | --- | --- | --- |
 | `sources[].name` | 字符串 | ✅ | 安装源的名字，在这份文件里唯一 |
 | `sources[].type` | 字符串 | ✅ | `git` / `local` / `market` |
-| `sources[].baseUrl` | 字符串 | `git` 必填 | 组件 `<scope>/<name>` 的仓库是 `<baseUrl><scope>-<name>`；不能以 `-` 开头 |
+| `sources[].baseUrl` | 字符串 | `git` 必填 | 组件 `<scope>/<name>` 的仓库是 `<baseUrl>/<scope>-<name>`（`baseUrl` 末尾的 `/` 可写可不写，CLI 只补一个）；不能以 `-` 开头 |
 | `sources[].path` | 字符串 | `local` 必填 | 本机目录，相对项目根；里面按 `<scope>/<name>/component.yaml` 摆放 |
 | `sources[].url` | 字符串 | `market` 必填 | 组件市场的 API 地址 |
 | `sources[].authToken` | 字符串 | | 市场令牌，通常写 `${VAR}`；已 `brickkit login` 时优先用登录凭据 |
