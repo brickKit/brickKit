@@ -3,6 +3,7 @@ package project
 import (
 	"errors"
 	"io/fs"
+	"path/filepath"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/configdir"
@@ -101,7 +102,8 @@ func LoadFiles(root string, opts LoadOptions) (*Project, error) {
 		return nil, err
 	}
 	role := deployfile.RoleTeam
-	if source == DeployLocal {
+	// -f 指向的正是个人文件时也按个人文件的规则读：mode: debug 在那里合法
+	if source == DeployLocal || filepath.Clean(path) == filepath.Clean(l.DeployLocalPath()) {
 		role = deployfile.RoleLocal
 	}
 	deploy, warnings, err := deployfile.ParseFile(path, role)

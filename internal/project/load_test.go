@@ -232,6 +232,19 @@ func TestLoadDebugRejectedOutsideLocalFile(t *testing.T) {
 	require.Error(t, err)
 }
 
+// -f 指向的正是个人文件 deploy.local.yaml 时，按个人文件的规则读：mode: debug 在那里是合法的。
+// 否则报"mode: debug 只能写在 deploy.local.yaml 里"——而它就写在 deploy.local.yaml 里。
+func TestLoadExplicitPersonalFileKeepsPersonalRules(t *testing.T) {
+	root := baseProject(t)
+	debug := strings.Replace(baseDeploy, "      - id: erp/backend\n", "      - {id: erp/backend, mode: debug, localPort: 9000}\n", 1)
+	write(t, root, map[string]string{"deploy.local.yaml": debug})
+	for _, f := range []string{"deploy.local.yaml", "./deploy.local.yaml", filepath.Join(root, "deploy.local.yaml")} {
+		p, err := project.Load(root, project.LoadOptions{DeployFile: f})
+		require.NoError(t, err, f)
+		assert.Equal(t, project.DeployExplicit, p.DeploySource, "仍然是 -f 选的文件：%s", f)
+	}
+}
+
 func TestLoadMemberRules(t *testing.T) {
 	cases := map[string]struct{ decl, deploy string }{
 		"members on non-shell": {baseDecl, `target: docker
