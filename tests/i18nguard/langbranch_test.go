@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -123,6 +124,34 @@ func TestNoLanguageListWrittenOut(t *testing.T) {
 		for _, l := range lists {
 			if strings.Contains(text, l) {
 				t.Errorf("%s 写死了语言列表 %q：用 i18n.LangNames() 拼出来", where, l)
+			}
+		}
+	}
+	for _, lang := range i18n.SupportedLangs() {
+		for key, text := range i18n.CatalogFor(lang) {
+			check(string(lang)+" "+key, text)
+		}
+	}
+	for _, rel := range goFiles(t, []string{"internal", "cmd"}, false) {
+		f, err := parser.ParseFile(token.NewFileSet(), filepath.Join(repoRoot, rel), nil, 0)
+		require.NoError(t, err, rel)
+		ast.Inspect(f, func(n ast.Node) bool {
+			if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+				check(rel, lit.Value)
+			}
+			return true
+		})
+	}
+}
+
+// 示例命令里不写死某一种语言（"--lang zh"、"lang set zh"）：示例的语言从登记处取，
+// 加一种语言、或登记的语言变了，示例都还成立。
+func TestNoLanguageNamedInExampleCommands(t *testing.T) {
+	re := regexp.MustCompile(`(?:--lang|lang set)[ =]([A-Za-z-]+)`)
+	check := func(where, text string) {
+		for _, m := range re.FindAllStringSubmatch(text, -1) {
+			if _, ok := i18n.ParseLang(m[1]); ok {
+				t.Errorf("%s 的示例命令写死了语言 %q：从 i18n 的登记处取", where, m[0])
 			}
 		}
 	}

@@ -830,6 +830,7 @@ cli.skills.long: "管理装进本项目的 AI 助手技能（.claude/skills/、A
 cli.skills.example: "  brickkit skills          看装了什么、有没有过期\n  brickkit skills update   刷新到当前 CLI 版本"
 cli.skills.status_short: "查看每个技能文件的状态（只读）"
 cli.skills.update_short: "缺的装上、旧的刷新；手改过的跳过"
+cli.skills.update_example: "  brickkit skills update\n  brickkit skills update --lang %[1]s   换一种语言重装技能"
 cli.skills.error_the_current_directory_is: "错误：当前目录既不是 BrickKit 项目，也不是组件仓库"
 cli.skills.not_found: "找不到"
 cli.skills.and_no_either: "%[1]s，也没有 %[2]s"

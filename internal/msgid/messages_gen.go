@@ -772,6 +772,7 @@ const (
 	CliSkillsExample                                           = "cli.skills.example"
 	CliSkillsStatusShort                                       = "cli.skills.status_short"
 	CliSkillsUpdateShort                                       = "cli.skills.update_short"
+	CliSkillsUpdateExample                                     = "cli.skills.update_example"
 	CliSkillsErrorTheCurrentDirectoryIs                        = "cli.skills.error_the_current_directory_is"
 	CliSkillsNotFound                                          = "cli.skills.not_found"
 	CliSkillsAndNoEither                                       = "cli.skills.and_no_either"

@@ -831,6 +831,7 @@ cli.skills.long: "Manage the AI assistant skills installed into this project (.c
 cli.skills.example: "  brickkit skills          see what is installed and whether it is out of date\n  brickkit skills update   refresh to the current CLI version"
 cli.skills.status_short: "Show the state of each skill file (read-only)"
 cli.skills.update_short: "Install what is missing and refresh what is outdated; skip hand-edited ones"
+cli.skills.update_example: "  brickkit skills update\n  brickkit skills update --lang %[1]s   reinstall the skills in another language"
 cli.skills.error_the_current_directory_is: "Error: the current directory is neither a BrickKit project nor a component repository"
 cli.skills.not_found: "Not found"
 cli.skills.and_no_either: "%[1]s, and no %[2]s either"

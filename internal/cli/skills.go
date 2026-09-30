@@ -40,7 +40,7 @@ func newSkillsCommand(opts *Options) *cobra.Command {
 		Use:     "update",
 		Short:   i18n.T(msgid.CliSkillsUpdateShort),
 		Args:    cobra.NoArgs,
-		Example: "  brickkit skills update\n  brickkit skills update --lang zh",
+		Example: i18n.T(msgid.CliSkillsUpdateExample, exampleOtherLang()),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSkillsUpdate(opts, lang)
 		},
@@ -107,7 +107,7 @@ func skillsInstaller(opts *Options, langOverride string) (skills.Installer, erro
 		if !ok {
 			return skills.Installer{}, clierr.Newf(clierr.CodeInvalidArgument,
 				i18n.T(msgid.LangInvalidValue, langOverride, langNamesJoined())).
-				WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.HintForExample, "brickkit skills update --lang zh"))
+				WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.HintForExample, "brickkit skills update --lang "+exampleOtherLang()))
 		}
 		in.Lang = lang
 	}

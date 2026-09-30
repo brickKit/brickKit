@@ -43,7 +43,7 @@ func runLangSet(opts *Options, value string) error {
 	lang, ok := i18n.ParseLang(value)
 	if !ok {
 		return clierr.Newf(clierr.CodeInvalidArgument, i18n.T(msgid.LangInvalidValue, value, langNamesJoined())).
-			WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.HintForExample, "brickkit lang set zh"))
+			WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.HintForExample, "brickkit lang set "+exampleOtherLang()))
 	}
 
 	if err := userconfig.Save(&userconfig.Config{Lang: string(lang)}); err != nil {
@@ -68,6 +68,17 @@ func langSourceLabel(s i18n.Source) string {
 	default:
 		return i18n.T(msgid.LangSourceDefault)
 	}
+}
+
+// exampleOtherLang 是示例命令里用的语言：当前语言之外登记的第一种，示例正好演示"换一种语言"。
+// 只登记了一种语言时就用它自己。
+func exampleOtherLang() string {
+	for _, name := range i18n.LangNames() {
+		if name != string(i18n.Current()) {
+			return name
+		}
+	}
+	return string(i18n.Current())
 }
 
 func langNamesJoined() string {
