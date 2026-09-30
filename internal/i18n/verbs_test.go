@@ -61,3 +61,22 @@ func verbSet(tmpl string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// 译文的行结构与源语言一致：开头与结尾的换行数都相同。CLI 靠它们排版——多一个结尾换行
+// 就多一行空行。写成 | 块的译文最容易多出一个结尾换行（| 默认保留一个）。
+// 开头的空格不比：英文在括号前空一格、中文用全角括号不空，是各自的排版习惯。
+func TestCatalogLineBreaksMatchSource(t *testing.T) {
+	lead := func(s string) int { return len(s) - len(strings.TrimLeft(s, "\n")) }
+	trail := func(s string) int { return len(s) - len(strings.TrimRight(s, "\n")) }
+	source := catalogFor(SourceLang())
+	for _, l := range registry[1:] {
+		for key, text := range catalogFor(l.Code) {
+			want, ok := source[strings.TrimSuffix(key, msgid.PluralOneSuffix)]
+			if !ok || want == "" {
+				continue
+			}
+			assert.Equal(t, lead(want), lead(text), "%s %s: starts with a different number of newlines from %s", l.Code, key, SourceLang())
+			assert.Equal(t, trail(want), trail(text), "%s %s: ends with a different number of newlines from %s", l.Code, key, SourceLang())
+		}
+	}
+}

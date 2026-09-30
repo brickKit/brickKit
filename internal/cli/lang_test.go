@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/userconfig"
 )
 
@@ -43,11 +44,13 @@ func TestLangSetPersistsAcrossInvocations(t *testing.T) {
 }
 
 func TestLangSetRejectsUnsupportedValue(t *testing.T) {
-	r := run(t, "lang", "set", "fr")
+	// 永远不会被登记的代码；别用真实语言（fr……），否则加了那种语言这里就会变红
+	r := run(t, "lang", "set", "not-a-language")
 	assert.Equal(t, clierr.ExitUsage, r.code)
-	assert.Contains(t, r.stderr, "fr")
-	assert.Contains(t, r.stderr, "en")
-	assert.Contains(t, r.stderr, "zh")
+	assert.Contains(t, r.stderr, "not-a-language")
+	for _, name := range i18n.LangNames() {
+		assert.Contains(t, r.stderr, name, "错误信息列出每一种支持的语言")
+	}
 }
 
 func TestLangSetRequiresExactlyOneArg(t *testing.T) {

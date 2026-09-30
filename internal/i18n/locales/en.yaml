@@ -850,6 +850,7 @@ cli.skills.msg_2: "     %[1]s (%[2]s)"
 cli.skills.note_to_discard_local_edits: "Note: to discard local edits, delete that file and run brickkit skills update again"
 cli.skills.error_failed_to_read_or: "Error: failed to read or write the AI assistant skills"
 cli.skills.language_line: "Skill language: %[1]s (recorded in skills.lock; brickkit skills update --lang to change it)"
+cli.skills.lang_fallback: "ℹ️  No AI assistant skills are written in %[1]s yet; installed the %[2]s ones"
 cli.skills.lang_flag: "Reinstall using this language (%[1]s), and remember it for this project from now on"
 cli.lint.local_enumeration_failed: "The local install sources could not be enumerated; skipped the local components' %[1]s (fix the error above first)"
 

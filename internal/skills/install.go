@@ -188,6 +188,8 @@ type ApplyResult struct {
 	Written []string
 	// Skipped 是刻意没碰的文件（已手改 / 未托管）。
 	Skipped []FileStatus
+	// Lang 是实际装的资产语言：要的语言还没有技能译本时，是源语言（见 AssetLang）。
+	Lang i18n.Lang
 }
 
 // Apply 按状态写入资产：缺失与待更新写入，已手改与未托管跳过，最新只补登记 lock。
@@ -209,7 +211,7 @@ func (in Installer) Apply() (*ApplyResult, error) {
 		return nil, err
 	}
 	lang := in.resolveLang(lock)
-	res := &ApplyResult{}
+	res := &ApplyResult{Lang: lang}
 	for _, a := range AssetsFor(in.Scope, lang) {
 		st, err := in.stateOf(a, lock)
 		if err != nil {

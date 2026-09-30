@@ -79,8 +79,7 @@ func goFiles(t *testing.T, dirs []string, test bool) []string {
 var hardcodedAllow = map[string]struct {
 	decls  []string
 	reason string
-}{
-}
+}{}
 
 // hardcodedSkipDirs 是整目录不检查的开发者工具：它们只在 make generate-schemas /
 // make generate-msgid 时由维护者运行，报错读者不是使用者。

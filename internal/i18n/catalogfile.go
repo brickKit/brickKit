@@ -2,6 +2,7 @@ package i18n
 
 import (
 	"fmt"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -38,6 +39,7 @@ func parseCatalog(data []byte, file string) ([]string, map[string]string, error)
 	if root.Kind != yaml.MappingNode {
 		return nil, nil, &CatalogError{File: file, Line: root.Line, Reason: "the file must be a mapping of key: text"}
 	}
+	lines := strings.Split(string(data), "\n")
 	keys := make([]string, 0, len(root.Content)/2)
 	texts := make(map[string]string, len(root.Content)/2)
 	firstLine := map[string]int{}
@@ -50,8 +52,52 @@ func parseCatalog(data []byte, file string) ([]string, map[string]string, error)
 		if v.Kind != yaml.ScalarNode || (v.Style != yaml.DoubleQuotedStyle && v.Style != yaml.LiteralStyle) {
 			return nil, nil, &CatalogError{File: file, Line: k.Line, Key: k.Value, Reason: `write the text in double quotes ("…") or as a literal block (|)`}
 		}
+		if v.Style == yaml.DoubleQuotedStyle && !quotedOnOneLine(lines, v) {
+			return nil, nil, &CatalogError{File: file, Line: k.Line, Key: k.Value, Reason: `a double-quoted text must stay on one line (YAML folds a line break into a space); write a multi-line text as a literal block (|), or use \n`}
+		}
+		if v.Style == yaml.LiteralStyle && !blockIndentedByTwo(lines, k, v) {
+			return nil, nil, &CatalogError{File: file, Line: k.Line, Key: k.Value, Reason: "indent a literal block by two spaces (YAML takes the first line's indentation for the whole block, so extra spaces vanish); for a text that starts with spaces, write the indentation indicator: |2"}
+		}
 		keys = append(keys, k.Value)
 		texts[k.Value] = v.Value
 	}
 	return keys, texts, nil
+}
+
+// quotedOnOneLine 报告双引号纯量的收尾引号是否与开头在同一行。
+// yaml.v3 的列号按字符计，所以按 rune 取那一行。
+func quotedOnOneLine(lines []string, v *yaml.Node) bool {
+	line := []rune(lines[v.Line-1])
+	for i := v.Column; i < len(line); i++ { // line[v.Column-1] 是开头的引号
+		switch line[i] {
+		case '\\':
+			i++
+		case '"':
+			return true
+		}
+	}
+	return false
+}
+
+// blockIndentedByTwo 报告字面块的内容是否比 key 多缩进两格。写了缩进标记（|2）的块，
+// 缩进由标记说了算，不查。
+func blockIndentedByTwo(lines []string, k, v *yaml.Node) bool {
+	header := []rune(lines[v.Line-1])[v.Column-1:]
+	for _, r := range header {
+		if r == ' ' || r == '#' {
+			break
+		}
+		if r >= '1' && r <= '9' {
+			return true
+		}
+	}
+	keyIndent := k.Column - 1
+	for _, l := range lines[v.Line:] {
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+		indent := len(l) - len(strings.TrimLeft(l, " "))
+		return indent <= keyIndent || indent == keyIndent+2 // 缩进不超过 key 的是下一条：空块
+	}
+	return true
 }

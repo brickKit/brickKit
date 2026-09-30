@@ -138,13 +138,13 @@ func assetByTarget(lang i18n.Lang, target string) Asset {
 	return Asset{}
 }
 
-// 无效的语言值（比如 --lang fr 解析出来的空 i18n.Lang，不该传进来；
+// 无效的语言值（比如 --lang 给了不支持的值，解析出来的空 i18n.Lang，不该传进来；
 // 这里守的是 resolveLang 对"lock.Lang 是脏数据"的容错——旧的、损坏的
 // 或手改过的 lock 文件里塞了一个不认识的语言代码时，回退到下一层，
 // 而不是让 AssetsFor 拿着一个不存在的语言目录空手而归）。
 func TestResolveLangIgnoresUnrecognizedLockValue(t *testing.T) {
 	in := newInstaller(t)
-	l := &Lock{Lang: "fr"}
+	l := &Lock{Lang: "not-a-language"}
 	l.Set(LockEntry{Path: "AGENTS.md", Version: "0.1.0", Sum: "sha256:whatever"})
 	require.NoError(t, l.Save(in.LockPath))
 
@@ -167,6 +167,7 @@ func TestInstallingALanguageWithoutAssetsInstallsAndRecordsTheSourceLanguage(t *
 	res, err := in.Apply()
 	require.NoError(t, err)
 	assert.NotEmpty(t, res.Written)
+	assert.Equal(t, i18n.SourceLang(), res.Lang, "Apply 报出实际装的语言，调用方据此告诉使用者")
 
 	l, err := LoadLock(in.LockPath)
 	require.NoError(t, err)

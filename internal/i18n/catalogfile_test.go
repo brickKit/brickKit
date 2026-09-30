@@ -60,3 +60,37 @@ func TestParseCatalogRejectsNonMappingDocument(t *testing.T) {
 	_, _, err := parseCatalog([]byte("- a\n- b\n"), "locales/xx.yaml")
 	require.Error(t, err)
 }
+
+// 双引号文案写成了两行：YAML 会把换行折成一个空格（行尾空格也丢掉），读出来不是译者写的那句。
+// 多行文案要写成 | 块。转义的 \n 照常可以用。
+func TestParseCatalogRejectsADoubleQuotedTextBrokenAcrossLines(t *testing.T) {
+	for _, bad := range []string{
+		"a.x: \"line one\n  line two\"\n",
+		"a.x:\n  \"line one\n  line two\"\n",
+	} {
+		_, _, err := parseCatalog([]byte(bad), "locales/xx.yaml")
+		var ce *CatalogError
+		require.True(t, errors.As(err, &ce), bad)
+		assert.Equal(t, "a.x", ce.Key)
+		assert.Contains(t, ce.Reason, "|")
+	}
+	_, texts, err := parseCatalog([]byte("a.x: \"one \\\" quote\\nand a newline\" # c\nb.y: \"#\"\n"), "locales/xx.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, "one \" quote\nand a newline", texts["a.x"])
+	assert.Equal(t, "#", texts["b.y"])
+}
+
+// | 块的第一行缩进多了：YAML 拿第一行的缩进当整块的缩进，多出来的空格悄悄没了。
+// 块内容一律缩进两格；文案本身要以空格开头，就写缩进标记（|2）。
+func TestParseCatalogRejectsALiteralBlockIndentedDeeper(t *testing.T) {
+	_, _, err := parseCatalog([]byte("a.x: |-\n     ✅ foo\n"), "locales/xx.yaml")
+	var ce *CatalogError
+	require.True(t, errors.As(err, &ce))
+	assert.Equal(t, "a.x", ce.Key)
+	assert.Contains(t, ce.Reason, "|2")
+
+	_, texts, err := parseCatalog([]byte("a.x: |2-\n     ✅ foo\nb.y: |\n\n  after a blank line\n    kept indent\n"), "locales/xx.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, "   ✅ foo", texts["a.x"])
+	assert.Equal(t, "\nafter a blank line\n  kept indent\n", texts["b.y"])
+}

@@ -166,7 +166,7 @@ func TestMessagesNameTheFileThatHoldsTheField(t *testing.T) {
 	// 查不到的：跨行的一句话、经 %s 填进去的文件名，这两种只能靠写文案的人自己留意。
 	deployField := regexp.MustCompile(`\b(mode: ?\w|mode to \w|exposePort|hostname|localPort|expose: |replicas)`)
 	legacy := regexp.MustCompile(`override\.yaml|servedBy|served-by|brickkit override`)
-	for _, lang := range []Lang{EN, ZH} {
+	for _, lang := range SupportedLangs() {
 		for id, text := range CatalogFor(lang) {
 			// 逐行看：同一句话里既说 brickkit.yaml 又说部署字段，才是把字段指错了文件
 			for _, line := range strings.Split(text, "\n") {

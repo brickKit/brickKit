@@ -790,6 +790,7 @@ const (
 	CliSkillsNoteToDiscardLocalEdits                           = "cli.skills.note_to_discard_local_edits"
 	CliSkillsErrorFailedToReadOr                               = "cli.skills.error_failed_to_read_or"
 	CliSkillsLanguageLine                                      = "cli.skills.language_line"
+	CliSkillsLangFallback                                      = "cli.skills.lang_fallback"
 	CliSkillsLangFlag                                          = "cli.skills.lang_flag"
 	CliLintLocalEnumerationFailed                              = "cli.lint.local_enumeration_failed"
 	ClauseSeparator                                            = "clause.separator"

@@ -17,16 +17,21 @@ import (
 	"github.com/brickkit/brickkit/internal/runcmd"
 )
 
-// 每个原因都有两种语言的说法，而且真的翻译了（不是照抄）。
+// 每个原因在每种语言里都有说法，而且真的翻译了（不是照抄源语言）。
 func TestEveryDetectionReasonHasAMessage(t *testing.T) {
+	src := i18n.CatalogFor(i18n.SourceLang())
 	for _, reason := range runcmd.Reasons() {
 		id, ok := detectionReasonMessages[reason]
 		require.True(t, ok, "runcmd.%s 没有对应的文案", reason)
-		en := i18n.CatalogFor(i18n.EN)[id]
-		zh := i18n.CatalogFor(i18n.ZH)[id]
-		assert.NotEmpty(t, en, "%s", reason)
-		assert.NotEmpty(t, zh, "%s", reason)
-		assert.NotEqual(t, en, zh, "%s 的中文没有翻译", reason)
+		assert.NotEmpty(t, src[id], "%s", reason)
+		for _, lang := range i18n.SupportedLangs() {
+			if lang == i18n.SourceLang() {
+				continue
+			}
+			text := i18n.CatalogFor(lang)[id]
+			assert.NotEmpty(t, text, "%s %s", lang, reason)
+			assert.NotEqual(t, src[id], text, "%s 的 %s 没有翻译", lang, reason)
+		}
 	}
 }
 

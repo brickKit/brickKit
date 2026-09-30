@@ -114,6 +114,14 @@ func skillsInstaller(opts *Options, langOverride string) (skills.Installer, erro
 	return in, nil
 }
 
+// renderSkillsLangFallback 在要的语言还没有技能译本、装的是源语言那一套时说一句——
+// 不悄悄换语言。没指定语言、或装的就是要的语言时什么都不印。
+func renderSkillsLangFallback(opts *Options, requested, installed i18n.Lang) {
+	if requested != "" && requested != installed {
+		opts.Printf("%s\n", i18n.T(msgid.CliSkillsLangFallback, string(requested), string(installed)))
+	}
+}
+
 // renderSkillsScope 在组件仓库模式下说一句"为什么只有一个文件"。
 func renderSkillsScope(opts *Options, in skills.Installer) {
 	if in.Scope == skills.ScopeComponent {
@@ -172,8 +180,9 @@ func runSkillsUpdate(opts *Options, lang string) error {
 	renderSkillsScope(opts, in)
 	if lang != "" {
 		// 只在显式 --lang 时才提；裸的 update 每次都印会很吵，且不带信息量——
-		// 项目的语言本来就没变。
-		opts.Printf("%s\n", i18n.T(msgid.CliSkillsLanguageLine, string(in.Lang)))
+		// 项目的语言本来就没变。报的是实际装的语言，不是要的那种。
+		opts.Printf("%s\n", i18n.T(msgid.CliSkillsLanguageLine, string(res.Lang)))
+		renderSkillsLangFallback(opts, in.Lang, res.Lang)
 	}
 	if len(res.Written) == 0 && len(res.Skipped) == 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliSkillsAiAssistantSkillsAreUp, version.Display()))

@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -28,27 +29,77 @@ func TestNoProductionCodeBranchesOnALanguage(t *testing.T) {
 		f, err := parser.ParseFile(token.NewFileSet(), filepath.Join(repoRoot, rel), nil, 0)
 		require.NoError(t, err, rel)
 		ast.Inspect(f, func(n ast.Node) bool {
-			var hit string
-			switch v := n.(type) {
-			case *ast.SelectorExpr:
-				if id, ok := v.X.(*ast.Ident); ok && id.Name == "i18n" && (v.Sel.Name == "ZH" || v.Sel.Name == "EN") {
-					hit = "i18n." + v.Sel.Name
-				}
-			case *ast.CallExpr:
-				if sel, ok := v.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Lang" {
-					if id, ok := sel.X.(*ast.Ident); ok && id.Name == "i18n" && len(v.Args) == 1 {
-						if _, lit := v.Args[0].(*ast.BasicLit); lit {
-							hit = "i18n.Lang(literal)"
-						}
-					}
-				}
-			}
-			if hit != "" && langBranchAllow[rel] == "" {
+			if hit := languageHit(n); hit != "" && langBranchAllow[rel] == "" {
 				t.Errorf("%s 点名了一种具体语言（%s）：语言从 i18n 的登记处推出来，不在这里写死", rel, hit)
 			}
 			return true
 		})
 	}
+}
+
+// languageHit 认出一处点名具体语言的写法：i18n.ZH / i18n.EN、i18n.Lang("…")、
+// 拿语言代码字面量做 == / != 比较、switch 里的 case "zh"。返回写法的说明，不是就返回空串。
+func languageHit(n ast.Node) string {
+	isCode := func(e ast.Expr) bool {
+		lit, ok := e.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return false
+		}
+		v, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return false
+		}
+		_, ok = i18n.ParseLang(v)
+		return ok && strings.TrimSpace(v) == v
+	}
+	switch v := n.(type) {
+	case *ast.SelectorExpr:
+		if id, ok := v.X.(*ast.Ident); ok && id.Name == "i18n" && (v.Sel.Name == "ZH" || v.Sel.Name == "EN") {
+			return "i18n." + v.Sel.Name
+		}
+	case *ast.CallExpr:
+		if sel, ok := v.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Lang" {
+			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "i18n" && len(v.Args) == 1 {
+				if _, lit := v.Args[0].(*ast.BasicLit); lit {
+					return "i18n.Lang(literal)"
+				}
+			}
+		}
+	case *ast.BinaryExpr:
+		if (v.Op == token.EQL || v.Op == token.NEQ) && (isCode(v.X) || isCode(v.Y)) {
+			return "comparison with a language code"
+		}
+	case *ast.CaseClause:
+		for _, e := range v.List {
+			if isCode(e) {
+				return "case on a language code"
+			}
+		}
+	}
+	return ""
+}
+
+// languageHit 认得每一种点名语言的写法，也不把普通字符串当成语言。
+func TestLanguageHitRecognisesEveryForm(t *testing.T) {
+	hits := func(src string) []string {
+		f, err := parser.ParseFile(token.NewFileSet(), "x.go", "package x\n"+src, 0)
+		require.NoError(t, err)
+		var out []string
+		ast.Inspect(f, func(n ast.Node) bool {
+			if h := languageHit(n); h != "" {
+				out = append(out, h)
+			}
+			return true
+		})
+		return out
+	}
+	assert.Len(t, hits(`var _ = i18n.ZH`), 1)
+	assert.Len(t, hits(`var _ = i18n.Lang("zh")`), 1)
+	assert.Len(t, hits(`var _ = string(i18n.Current()) == "zh"`), 1)
+	assert.Len(t, hits(`var _ = "en" != lock.Lang`), 1)
+	assert.Len(t, hits(`func f(l string) { switch l { case "zh": } }`), 1)
+	assert.Empty(t, hits(`var _ = name == "zhong" || s == "end"`))
+	assert.Empty(t, hits(`func f(l string) { switch l { case "up": } }`))
 }
 
 // 白名单里的文件确实还点名着那种语言——白名单不许留下失效的条目。

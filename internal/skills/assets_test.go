@@ -66,9 +66,9 @@ func TestSumIsStableAndPrefixed(t *testing.T) {
 	assert.NotEqual(t, s, Sum([]byte("hello!")))
 }
 
-// 两种语言的落点必须逐个对应：同一份资产在两棵树里必须写到同一个位置，
+// 每种有自己资产树的语言，落点都与源语言逐个对应：同一份资产在每棵树里必须写到同一个位置，
 // 否则语言切换（Apply 靠"落点相同、内容不同"这一点让旧语言的文件被判成
-// "待更新"而不是"缺失"+"多余"）就会失效。
+// "待更新"而不是"缺失"+"多余"）就会失效；译了一半的资产树也会悄悄少装几份。
 func TestAssetTargetsMatchAcrossLanguages(t *testing.T) {
 	targets := func(lang i18n.Lang) map[string]bool {
 		out := map[string]bool{}
@@ -77,12 +77,19 @@ func TestAssetTargetsMatchAcrossLanguages(t *testing.T) {
 		}
 		return out
 	}
-	en, zh := targets(i18n.EN), targets(i18n.ZH)
-	for t2 := range en {
-		assert.True(t, zh[t2], "en 有 %s，zh 没有", t2)
-	}
-	for t2 := range zh {
-		assert.True(t, en[t2], "zh 有 %s，en 没有", t2)
+	src := i18n.SourceLang()
+	want := targets(src)
+	for _, lang := range i18n.SupportedLangs() {
+		if lang == src || AssetLang(lang) != lang {
+			continue // 没有自己资产树的语言装的就是源语言那一套
+		}
+		got := targets(lang)
+		for t2 := range want {
+			assert.True(t, got[t2], "%s 有 %s，%s 没有", src, t2, lang)
+		}
+		for t2 := range got {
+			assert.True(t, want[t2], "%s 有 %s，%s 没有", lang, t2, src)
+		}
 	}
 }
 
