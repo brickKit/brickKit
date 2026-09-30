@@ -36,6 +36,35 @@ make lint             # vet + 全部文档一致性检查
 - **文档里画的 YAML 字段必须在真实结构体里存在**——`make check-doc-fields` 拿 `component.yaml`/`brickkit.yaml`/部署文件真实的 Go 类型去反查文档，而不是反过来；字段参考（`docs/*/11-reference/`）还必须把每个字段都写到。
 - 如果你改了 `AGENTS.md`/`AGENTS.zh.md`，保证两份内容真的对等——它们各自独立撰写，不是互译关系，但该覆盖的内容要覆盖到。
 
+## 消息与语言
+
+CLI 打给人看的每一句话——错误、建议、进度行、`--help`——都来自**消息目录**：`internal/i18n/locales/` 下每种语言一个文件（`en.yaml`、`zh.yaml`），一行是一个 key 配上这种语言的文案：
+
+```yaml
+# internal/i18n/locales/zh.yaml
+cli.release.done: "✅ 已发布 %[1]s：tag %[2]s 已推送"
+```
+
+```yaml
+# internal/i18n/locales/en.yaml
+cli.release.done: "✅ Released %[1]s: tag %[2]s pushed"
+```
+
+代码里不写文案，只通过一个 Go 常量点名 key、把参数传进去：
+
+```go
+opts.Printf("%s\n", i18n.T(msgid.CliReleaseDone, target.Ref(), target.Tag))
+```
+
+英文是**源目录**：每个 key 先在 `en.yaml` 里声明，别的目录 key 一条不多、一条不少，顺序也一样。`internal/msgid/messages_gen.go` 里的常量由 `en.yaml` 生成，从不手写。
+
+- **改一条文案**：改 `en.yaml` 和其他每份 `locales/*.yaml` 里那一行，别的都不用动。
+- **加一条文案**：在 `en.yaml` 里加 `key: "文案"`，其他每份目录在同一位置也加上；跑 `make generate-msgid`；代码里用 `msgid.<名字>`（`cli.release.done` 对应 `msgid.CliReleaseDone`）。key 的写法是 `<范围>.<它是什么>`，小写加下划线：范围是包或命令（`cli.release.`、`configdir.`），后面说这条消息是什么（建议、标签、原因分别以 `hint_`、`label_`、`reason_` 开头）。`en.yaml` 里 key 上方的注释说明什么时候用它。
+- **加一种语言**：把 `en.yaml` 复制成 `locales/<代码>.yaml`，译完每一条，再在 `internal/i18n/languages.go` 的 `registry` 里加一行 `{Code: "<代码>"}`——不用改别的 Go 代码。从此 `BRICKKIT_LANG=<代码>` 与 `brickkit lang set` 都认它。`brickkit init` 装进项目的 AI 助手技能单独翻译（`internal/skills/assets/<代码>/`），没译之前，这种语言的项目装的是英文技能。
+- **文案怎么写**：写在双引号里；多行文案写成 `|` 块。其他 YAML 写法会被拒绝并报出文件和行号，因为 YAML 会悄悄改掉它们（`yes`、开头的空格、`#`）。参数按位置写——`%[1]s`、`%[2]d`——这样译文可以调整语序；每种语言用到的参数与英文那一条完全相同。有几条 `cobra.*` 在英文里是空字符串：意思是保留 cobra 自带的英文。
+
+这些都由 `make lint` 守着：缺 key、多 key、顺序不同、参数与英文对不上、写法不对，以及常量没跟上 `en.yaml`（`make check-msgid`）。给 key 改名用 `go run ./tools/i18n/rekey`，它把代码和每份目录一次改完（见 [tools/i18n/README.md](tools/i18n/README.md)）。
+
 ## 提交信息和分支
 
 这个仓库的提交标题习惯用"`<类型>: <改了什么>`"这种形状——`fix`、`feat`、`docs`、`refactor`、`test` 是最常见的几种，可以带一个范围（`docs(zh): …`）。翻一下 `git log` 就能看出规律；不强制照抄，但照着写能让历史更好扫。

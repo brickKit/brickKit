@@ -4,8 +4,10 @@
 用它们把 `internal/` 里约 1400 条用户可见的中文文案迁进了消息目录；留在仓库里，是因为以后
 新增一个包、扩展更多语言、或者哪天又要批量改文案时，这套流程还能直接用。
 
-日常改一条文案**不需要**它们：改 `internal/i18n/locales/{en,zh}.yaml` 里对应的那一行就行。
-新增一条文案：两份目录各写一条，再跑 `make generate-msgid` 生成 `internal/msgid` 的常量；`TestCatalogParity` 会拦漏的。
+日常改一条文案**不需要**它们：改 `internal/i18n/locales/` 下每份目录（`en.yaml`、`zh.yaml`……）里对应的那一行就行。
+新增一条文案：每份目录在同一位置各写一条，再跑 `make generate-msgid` 由 `en.yaml` 生成 `internal/msgid` 的常量；
+缺 key、多 key、顺序或参数对不上，`make lint` 都会拦下。完整的写法（加一种语言也在内）见
+[CONTRIBUTING.zh.md 的"消息与语言"](../../CONTRIBUTING.zh.md#消息与语言)。
 
 ## 有哪些
 
@@ -14,7 +16,7 @@
 | `migrate/`（Go） | 用 `go/parser` 找出 Go 源码里带中文的字符串字面量，按所处的调用（`Printf`、`clierr.New`、`WithDetail`、结构体字段……）判断怎么改，生成 `i18n.T(msgid.X, …)` 改写和两份目录（`locales/*.yaml`）条目；常量随后由 `make generate-msgid` 生成。英文措辞由人写 |
 | `fix_imports.py` | 给改写过的文件补 `i18n` / `msgid` 的 import，并删掉编译器点名"没用到"的 import |
 | `post_join.py` | 把写死的分隔符 `strings.Join(x, "、")` 换成随语言变的共享 key |
-| `rename_keys.py` | 两个包的文案措辞完全一致时，把私有常量提升成共享的（或改名） |
+| `rekey/`（Go） | 给消息 key 改名：`-apply renames.tsv`（每行 `旧key<TAB>新key`）用 `go/ast` 改代码里的 `msgid.X`、改每份目录里的 key（连同单数形式 `.one`），文案一个字节不动；任何一条通不过校验就什么都不写。改完跑 `make generate-msgid`。`-drift` 列出名字可能已经与英文文案对不上的 key，只是审阅线索，不做决定 |
 | `failx.py` | 跑测试，把"断言失败"抽成 `文件:行  类型  期望片段` 的清单 |
 | `suggest.py` | 按中文片段查目录里的候选译文，帮你决定期望值改成英文的哪一段 |
 | `testrewrite.py` | 批量改测试里的期望值：带次数校验、跳过注释行、一个文件失败不影响别的文件 |

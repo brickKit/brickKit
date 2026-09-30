@@ -70,6 +70,52 @@ line with no test, or a test that no longer exists, fails the build **on purpose
 - If you change `AGENTS.md` / `AGENTS.zh.md`, keep them genuinely equivalent: each is written independently for its
   language, not translated from the other, but both must cover the same ground.
 
+## Messages and languages
+
+Everything the CLI prints to a person — errors, suggestions, progress lines, `--help` — comes from a **message
+catalog**: one file per language in `internal/i18n/locales/` (`en.yaml`, `zh.yaml`). Each line pairs a key with that
+language's text:
+
+```yaml
+# internal/i18n/locales/en.yaml
+cli.release.done: "✅ Released %[1]s: tag %[2]s pushed"
+```
+
+```yaml
+# internal/i18n/locales/zh.yaml
+cli.release.done: "✅ 已发布 %[1]s：tag %[2]s 已推送"
+```
+
+The code never holds the text; it names the key through a Go constant and passes the arguments:
+
+```go
+opts.Printf("%s\n", i18n.T(msgid.CliReleaseDone, target.Ref(), target.Tag))
+```
+
+English is the **source** catalog: every key is declared in `en.yaml` first, and every other catalog has exactly the
+same keys, in the same order. The constants in `internal/msgid/messages_gen.go` are generated from `en.yaml`, never
+written by hand.
+
+- **Changing a message**: edit its line in `en.yaml` and in every other `locales/*.yaml`. Nothing else changes.
+- **Adding a message**: add `key: "text"` to `en.yaml` and, at the same position, to every other catalog; run
+  `make generate-msgid`; use `msgid.<Name>` in the code (`cli.release.done` becomes `msgid.CliReleaseDone`). A key reads
+  `<scope>.<what it is>`, in lower snake case, where the scope is the package or command (`cli.release.`,
+  `configdir.`), and the rest says what the message is (`hint_`, `label_`, `reason_` for those roles). A comment above
+  a key in `en.yaml` says when to use it.
+- **Adding a language**: copy `en.yaml` to `locales/<code>.yaml`, translate every value, and add `{Code: "<code>"}` to
+  `registry` in `internal/i18n/languages.go` — no other Go changes. `BRICKKIT_LANG=<code>` and `brickkit lang set` accept
+  it from then on. The AI assistant skills that `brickkit init` installs are translated separately
+  (`internal/skills/assets/<code>/`); until they are, a project in that language gets the English skills.
+- **Writing the text**: put it in double quotes, or write a multi-line text as a `|` block; other YAML forms are
+  refused with the file and line, because YAML would quietly change them (`yes`, a leading space, a `#`). Arguments are
+  written by position — `%[1]s`, `%[2]d` — so a translation can reorder them, and each language uses exactly the
+  arguments the English entry uses. A few `cobra.*` keys are empty in English: that keeps cobra's own English text.
+
+`make lint` checks all of this: a missing or extra key, a different key order, a placeholder that doesn't match the
+English one, a value in the wrong YAML form, and constants out of date with `en.yaml` (`make check-msgid`).
+Renaming a key goes through `go run ./tools/i18n/rekey`, which renames it in the code and every catalog at once (see
+[tools/i18n/README.md](tools/i18n/README.md)).
+
 ## Commit messages and branches
 
 Commit subjects follow a `<type>: <what changed>` shape — `fix`, `feat`, `docs`, `refactor` and `test` are the
