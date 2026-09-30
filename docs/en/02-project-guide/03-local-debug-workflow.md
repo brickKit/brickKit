@@ -6,6 +6,10 @@ running in containers and can still call your process. This page walks through i
 Background: what your personal deploy file `deploy.local.yaml` is, and why it "replaces the whole file rather than
 merging", is in [deploy.local.yaml](../01-three-layers/04-deploy-local-yaml.md).
 
+In a large project where you only need this component and what it depends on, start with a focus run instead:
+`brickkit up` in the component's directory runs just those, and `mode: debug` on the focus still gives you breakpoints —
+see [Developing inside the project](04-focus-run.md).
+
 ## The whole flow
 
 ### 1. Turn local mode on

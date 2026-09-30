@@ -174,6 +174,19 @@ from your working copy — the code you change is what `brickkit build` puts int
 
 `--repo-all` clones the source of every open-source component this add brings in (each at its default version).
 
+Wherever you run it inside the project — even in another component's directory — `add` works on the project, so the
+clone always lands in the project's own `components/`: component source lives in one place (see
+[Developing inside the project](04-focus-run.md#one-components)).
+
+**Git submodules are never fetched.** The clone leaves them as empty directories and says which:
+
+```text
+📥 Cloned the source of demo/lib@1.0.0 into components/demo/lib/ (checked out 1.0.0)
+   ℹ️  demo/lib@1.0.0 has git submodules, not fetched: third_party/sdk (git submodule update --init fetches them if you need them)
+```
+
+Fetch them in the cloned repository yourself if the code needs them.
+
 ## `--yes`: non-interactive
 
 ```bash

@@ -65,6 +65,22 @@ Once a version has been fetched, it's in the project's permanent cache, and `up`
 network from then on. When another project wants the same version, the bare repository is already in the user cache and
 level 2 finds it, again without the network. Only a version never seen, or a repository never cloned, needs the network.
 
+## Git submodules are never fetched
+
+A component repository may register git submodules. BrickKit fetches none of them, on every path:
+
+| Path | What you get |
+| --- | --- |
+| The bare-repository cache | Tags and their commits; a submodule is only a pointer in its tree |
+| Reading `component.yaml`, `BRICKKIT.md`, artifacts | Files read straight from the tag — never inside a submodule |
+| `build` from a tag | An export of the tag: submodule directories are empty, and `build` warns about them |
+| `add --repo` | A clone without `--recurse-submodules`; it names the submodules it left empty |
+
+The reasons: a submodule points at another repository, with its own address and its own credentials; fetching it would
+make installing one component quietly reach into repositories nobody declared. The contract of a component is its
+`component.yaml`, its artifacts and its image — none of which should need a submodule. When the build does need one, the
+component should publish an image; in a cloned repository you can always run `git submodule update --init` yourself.
+
 ## Authentication
 
 The CLI calls your system's `git`, with the credentials you've already set up (SSH keys, a credential helper, a token CI

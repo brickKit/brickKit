@@ -78,6 +78,8 @@ The command line is wrong. In most cases the exit code is `2`.
 | `Error: invalid version: <…>` | Not an exact version | Write `major.minor.patch`; `^1.0.0` and `latest` aren't accepted |
 | `Error: <…> has several versions (<…>); name the one to remove` | `remove` on a component with several versions, without a version | `brickkit remove <component>@<version>` |
 | `Error: --init only works together with --local` | `add --init` on its own | Write `add --local --init` |
+| `Error: --focus and --all contradict each other` | `up --focus` and `--all` in one command | Pick one |
+| `Error: --focus is written into deploy.local.yaml, which -f and --no-local skip` | `up --focus` or `--all` together with `-f` / `--no-local` | Drop `-f` / `--no-local`, or edit the `focus:` line of `deploy.local.yaml` yourself |
 | `Error: <…> is a compatibility version (it has requiredBy); upgrade only moves default versions` | `upgrade` on a version with `requiredBy` | Upgrade the components depending on it; the compatibility version follows |
 | `Error: invalid log level` | A wrong `--log-level` value | `debug`, `info`, `warn`, `error`, `off` |
 | `Error: the user name must not be empty` | `login` got no user name | Type it at the prompt, or `--username` |
@@ -94,6 +96,7 @@ common error code, with many situations behind it, told apart by their titles.
 | Title | Situation | What to do |
 | --- | --- | --- |
 | `Error: <…> failed validation` | The structure of `brickkit.yaml` or a deploy file is wrong: an unknown field, a wrong type, a required field missing | The error names the field and line; fix it there |
+| `Error: <…> failed validation` (on the focus field) | `focus:` written in `deploy.yaml` (it's personal), with `target: k8s` (a cluster can't reach a process on your machine), or not a component ID; `up --focus` refuses to write such a focus | Keep `focus` in `deploy.local.yaml` on `docker` / `podman`; see [Developing inside the project](../02-project-guide/04-focus-run.md) |
 | `Error: <…> is not valid YAML` | A YAML syntax error | Check indentation and colons at the line the error gives |
 | `Error: <…> contains more than one YAML document (a stray --- line?)` | The file has an extra `---` line, and the part after it would be dropped silently | Delete the extra `---` |
 | `Error: a required component config item has no value` | An item in `configSchema.required` has no default, and nothing was filled in under `config/` | Fill it in in `config/<component>.yaml` |
@@ -116,7 +119,7 @@ common error code, with many situations behind it, told apart by their titles.
 | `Error: cosign not found` | `publish --sign` needs cosign, and it isn't installed | Install cosign (only publishers need it) |
 | `Error: trusted public key unusable` | A public key file `installer.publicKeys` points at has a problem | Check the file's path and contents |
 | `Couldn't determine how to start <…>` | The start command of a `mode: local` component can't be recognised | Write `language` or `runCommand` under `local` in `component.yaml` |
-| `Code that runs from a local repository does not match this run` | For a component running as a process on this machine, the local repository's version isn't the one in `brickkit.yaml` | `brickkit upgrade <component>@<repository version>`, or check out the matching tag in the repository |
+| `Code that runs from a local repository does not match this run` | For a component running as a process on this machine (`mode: local`, or the focus), the local repository's version isn't the one in `brickkit.yaml` — or there is no local repository at all | `brickkit upgrade <component>@<repository version>`, or check out the matching tag in the repository; without a repository, `brickkit add <component> --repo` |
 | `This project already has a local session running (pid <…>) — stop it first, or switch to that terminal` | `up` in another terminal is supervising `mode: local` processes | `Ctrl+C` in that terminal |
 
 The same code also has warnings (which don't make the command fail):
@@ -125,6 +128,7 @@ The same code also has warnings (which don't make the command fail):
 | --- | --- | --- |
 | `Warning: .gitignore is missing required entries — personal deploy files and secrets can be committed` | An existing `.gitignore` is missing entries, and `init` doesn't change it for you | Add each line listed |
 | `<…>: <…> is not declared in the component's configSchema, so it has no effect` | A misspelled config key | Follow the "did you mean" suggestion |
+| `Warning: the source of <…> has git submodules, and they are empty directories here` | `build` found registered submodules that are empty: BrickKit never fetches submodules | Have the component publish an image (`deployment.image`), or make the build not need them; `git submodule update --init` in a cloned repository if you must |
 | `Files under config/ may contain plaintext secrets` | A secret written in plain text, while `config/` goes into Git | Change it to `${VAR}` or `file://` |
 | `existingSecret only works on K8s, and the current target is docker` | `existingSecret` used on Docker | The item isn't injected; on Docker use `${VAR}` or `file://` |
 | `<…> has no effect with target: <…> and is ignored` | A field only useful for the other deploy target was written | It can stay; it takes effect when the target changes |
@@ -140,6 +144,8 @@ Two things say conflicting things, and the platform doesn't choose for you.
 | `Commit blocked: the same component's source appears in two places in the commit` | It's in both the active and the archive directory | Delete one of them |
 | `Error: a pre-commit hook already exists and wasn't written by brickkit` | Another pre-commit hook is already there | Add `brickkit restore --check` to that hook yourself |
 | `Error: <…>@<…> has already been published` | The same version published to the market again | Raise the version |
+| `Error: component source is nested inside another component's directory` | A component's source sits in another component's own `components/` (a workbench inside the project) — two copies of one component | Move or delete the nested copy yourself; the error says whether it exists anywhere else. BrickKit moves nothing |
+| `Error: this workbench sits inside project <…>; --repo would clone a second copy here` | `add --repo` in a workbench that is itself a component of an enclosing project | Run `add --repo` in that project, or work on the component with a focus run there |
 
 Warning: `Config conflict: the config item of component <…> was ignored` — a config item collides with a variable name the
 platform reserves, and the platform's value wins. See
@@ -217,6 +223,7 @@ are several now report `INVALID_ARGUMENT`.
 | Title | Situation | What to do |
 | --- | --- | --- |
 | `Error: required dependency <…> is disabled` | A component pinned to run (`mode: enabled` / `debug` / `local`) has a required dependency written `mode: disable` | The two intents contradict each other: drop one |
+| `Error: the focus <…> is written mode: disable` | The focused component's entry says `mode: disable` | Remove `mode: disable`, or focus on another component |
 
 ### COMPONENT_NOT_FOUND
 
@@ -226,6 +233,7 @@ are several now report `INVALID_ARGUMENT`.
 | `Error: the install source has this component, but not the version that was asked for` | A local source holds another version | Write the right version, or use another install source |
 | `The repository has no version <…>` | The Git repository has no tag for this version | Have the component's author `brickkit release` this version |
 | `Error: <…> is not in the project` | `remove` on a component that isn't in the project | Check the component ID |
+| `Error: the focus <…> is not a component of this project` | `focus:` or `--focus` names a component that isn't in `brickkit.yaml` (removed since, or a typo) | Follow the "did you mean"; `brickkit up --all` drops the focus |
 
 ### COMPONENT_BLOCKED
 

@@ -1,6 +1,6 @@
 # CLI 命令参考
 
-BrickKit CLI 共 21 个业务命令，外加 `version` 与 `lang` 两个关于 CLI 自身的命令。这一页把每条命令、每个子命令、
+BrickKit CLI 共 21 个业务命令，外加 `version`、`lang`、`completion` 三个关于 CLI 自身的命令。这一页把每条命令、每个子命令、
 每个参数都写全了；内容与 `brickkit <命令> --help` 一致，`--help` 是权威。
 
 没有长驻进程：每条命令跑完就退出。项目的"应该是什么样"写在三层文件里（`brickkit.yaml`、部署文件、`config/`，
@@ -33,6 +33,7 @@ BrickKit CLI 共 21 个业务命令，外加 `version` 与 `lang` 两个关于 C
 | 发布 | [`logout`](#brickkit-logout) | 退出组件市场的登录 |
 | CLI | [`version`](#brickkit-version) | 查看 CLI 版本、支持的 Manifest 版本与部署目标 |
 | CLI | [`lang`](#brickkit-lang) | 查看或切换 CLI 的显示语言 |
+| CLI | [`completion`](#brickkit-completion) | 打印让 TAB 补全命令、组件 ID 和版本的脚本 |
 
 ## 全局参数
 
@@ -46,6 +47,34 @@ BrickKit CLI 共 21 个业务命令，外加 `version` 与 `lang` 两个关于 C
 （错误码见 [错误码参考](../06-architecture/09-error-codes.md)）。想看每条命令的起止等例行日志，用
 `--log-level info`；想在整个 shell 里都这样，设一次环境变量 `BRICKKIT_LOG_LEVEL=info`。`--log-level off` 连出错时
 那行 JSON 也不打，只适合没有程序解析 `error_code` 的场合（比如 pre-commit 钩子）。
+
+## 在子目录里运行
+
+作用于项目的命令，在项目里的任何位置都能运行。当前目录没有 `brickkit.yaml` 时，命令顺着上级目录往上找——像 `git` 找 `.git`
+那样——找到最近的一个有 `brickkit.yaml` 的目录，在那里运行。它会在第一行说出来，打印的路径都相对你所在的目录：
+
+```text
+📁 项目：../../..（my-shop）
+```
+
+最近的 `brickkit.yaml` 说了算：本身就是工作台的组件仓库是一个项目，它上面的一概不看。往上找不会停在 `.git` 目录——`components/`
+下的组件通常各自就是仓库。一路往上都没有 `brickkit.yaml` 时，照旧报 `PROJECT_MISSING`。
+
+| 命令 | 往上找 | 在组件目录里 |
+| --- | --- | --- |
+| `up` | 是 | 以这个组件为焦点运行（见[在项目里就地开发](../02-project-guide/04-focus-run.md)） |
+| `down`、`status`、`sync`、`lint`、`graph`、`restore`、`local` | 是 | 作用于整个项目 |
+| `add`、`remove`、`upgrade`、`fetch` | 是 | ——（所以 `add --repo` 克隆到项目的 `components/`） |
+| `build` | 是 | 不带参数时只构建这个组件 |
+| `deps` | 是 | 不带参数时打印这个组件的树 |
+| `new` | 是 | 新组件写进项目的 `components/`（相对的 `--path` 从你所在的目录算） |
+| `login`、`logout` | 是 | ——（凭据按项目保存） |
+| `release`、`publish` | 否 | 作用于当前目录里的组件 |
+| `init` | 否 | 在这里创建文件；在项目的某个组件里运行时，多提示一句：焦点运行用不着工作台 |
+| `skills` | 否 | 管理这个目录里的文件 |
+| `lang`、`version`、`completion` | —— | 全局 |
+
+"组件目录"指项目某个本地安装源提供的组件的源码目录里的任何位置（`components/<scope>/<name>/…`）。
 
 ## 读部署文件的命令共用的参数
 
@@ -370,6 +399,7 @@ brickkit lint -f deploy.prod.yaml
 | `brickkit deps` | 每个顶层组件（项目里没有谁依赖它）一棵树 |
 | `brickkit deps <id>` | 这个组件的树（项目里它的每个版本各一棵），以及谁依赖它 |
 | `brickkit deps <id>@<版本>` | 只看这一个版本 |
+| 在组件目录里 `brickkit deps` | 这个组件的树，和写了它的 ID 一样 |
 
 一个组件版本在一次输出里只展开一次，之后再出现标"（见上）"；弱依赖标"（弱依赖）"，不在项目里的弱依赖标"（弱依赖，未安装）"。
 没有自己的参数。
@@ -438,6 +468,9 @@ graph TD
 构建需要在本机构建的镜像：没有 `deployment.image` 的组件，以及本地安装源里的组件（正在开发的代码，镜像必须从它构建）。
 有 `image` 的 git / 市场组件是拉取的，不构建。
 
+不带参数时构建所有需要本机构建的组件——在组件目录里则只构建这一个。BrickKit 从不拉取 git submodule：源码里有 submodule
+而它们是空目录时，`build` 在构建之前给出警告（见[构建与镜像](../02-project-guide/12-build-and-images.md)）。
+
 镜像 tag 与组件的 `metadata.version` 一致；外壳镜像记下编进去的成员版本，`up` 用它核对。镜像已存在时跳过。
 源码来自本地仓库（正是这个版本时），否则从这个版本的 Git tag 导出。**`up` 从不构建**：镜像不在时它报错，提示运行 `build`。
 
@@ -450,7 +483,7 @@ brickkit build [组件ID[@版本]] [flags]
 | `--force` | 镜像已存在也重新构建 |
 
 ```bash
-brickkit build                      # 构建所有需要本机构建的组件
+brickkit build                      # 构建所有需要本机构建的组件（在组件目录里：只构建这一个）
 brickkit build erp/backend          # 只构建这个组件
 brickkit build erp/backend --force  # 改了代码之后重新构建
 ```
@@ -460,7 +493,7 @@ brickkit build erp/backend --force  # 改了代码之后重新构建
 一键启动项目：
 
 1. 装载三层文件与所有组件的 Manifest；
-2. 启停判定（跟着上层走：顶层没写 `mode` 就跑，下层跟上层）；
+2. 启停判定（跟着上层走：顶层没写 `mode` 就跑，下层跟上层；有焦点时，起点只有焦点和写明总要运行的组件）；
 3. 检查强依赖（缺失报错）与弱依赖（缺失警告，且完全不注入环境变量）；
 4. 拓扑排序得出启动顺序；
 5. 解析配置、注入环境变量、合并资源配额，生成部署文件：`docker` / `podman` 生成 `.brickkit/generated/compose.yaml`，`k8s` 生成 Kubernetes 清单；
@@ -483,12 +516,20 @@ brickkit up [flags]
 | `--crash-lines <N>` | `mode: local` 的组件崩溃时，最后一屏打印它最后几行输出；缺省 20，`0` 只打印崩溃信息 |
 | `-f, --file <文件>` | 用这一份部署文件，见 [共用参数](#读部署文件的命令共用的参数) |
 | `--no-local` | 本次忽略 `deploy.local.yaml` |
+| `--focus <id>` | 把这个组件设为焦点：把 `focus: <id>` 写进 `deploy.local.yaml`（需要时先打开本地模式），然后只运行它——从源码跑——和它需要的组件 |
+| `--all` | 从 `deploy.local.yaml` 里去掉焦点，所有组件重新都跑 |
+
+**焦点运行。** 在组件目录里 `up`，就以这个组件为焦点，和 `--focus <id>` 一样；焦点一直留在 `deploy.local.yaml` 里，直到你改掉它。
+`--focus` 和 `--all` 不能一起用，也不能和 `-f`、`--no-local` 一起用（那两个跳过焦点所在的个人文件）；`target: k8s` 下焦点不能用。
+完整说明见[在项目里就地开发](../02-project-guide/04-focus-run.md)。
 
 ```bash
 brickkit up
 brickkit up --dry-run              # 只生成文件，不启动
 brickkit up -f deploy.prod.yaml    # 使用另一份部署文件（每个环境一份完整文件）
 brickkit up --no-local             # 本次忽略 deploy.local.yaml
+brickkit up --focus erp/api        # 只运行一个组件（从源码跑）和它需要的
+brickkit up --all                  # 去掉焦点，运行全部组件
 brickkit up --ignore-shells --dry-run
 ```
 
@@ -825,6 +866,39 @@ brickkit lang set <en|zh> [flags]
 brickkit lang set zh                 # 从此说中文
 BRICKKIT_LANG=en brickkit status     # 只对这一条命令说英文
 ```
+
+## `brickkit completion`
+
+打印一段脚本，让 TAB 补全你在 `brickkit` 后面敲的东西：命令、参数、组件 ID、版本和部署文件。`install.sh` 已经给 bash、zsh、fish
+装好了；怎么确认、怎么手动设置见[命令补全](../00-intro/03-shell-completion.md)，`brickkit completion <shell> --help` 也会打印这些步骤。
+
+```text
+brickkit completion bash|zsh|fish|powershell [flags]
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `--no-descriptions` | 不显示每个候选旁边那一行说明 |
+
+```bash
+brickkit completion bash > ~/.local/share/bash-completion/completions/brickkit
+brickkit completion zsh > ~/.zsh/completions/_brickkit
+brickkit completion fish > ~/.config/fish/completions/brickkit.fish
+brickkit completion powershell | Out-String | Invoke-Expression
+```
+
+TAB 给出什么：
+
+| 在这之后 | 候选 |
+| --- | --- |
+| `remove`、`deps`、`build` | `brickkit.yaml` 里的组件；敲了 `<id>@` 之后，是这个组件在项目里的版本 |
+| `upgrade` | `brickkit.yaml` 里的组件；敲了 `<id>@` 之后，是本机已知的版本 |
+| `up --focus` | `brickkit.yaml` 里的组件 |
+| `add` | 本地安装源里有的、项目清单缓存里有的组件；敲了 `<id>@` 之后，是本机已知的版本 |
+| `-f` / `--file` | 项目根目录下的 `deploy*.yaml` |
+| `lang set`、`skills update --lang` | CLI 支持的语言 |
+
+补全只读这台机器上的文件——从不联网；在项目外面，它不给组件候选。
 
 ---
 

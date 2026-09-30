@@ -119,6 +119,23 @@ brickkit local refresh
 没有这份记录时（`deploy.local.yaml` 是你手写的），`refresh` 只能比较新旧两份文件：列出旧文件里设了、新文件里没有或不一样的值，
 而"你删掉了某个字段"和"团队后来加了它"分不开——那时请自己拿 `deploy.local.yaml.bak` 和新文件对照一下。
 
+## `focus`：只运行一个组件和它需要的
+
+有一个字段只存在于个人文件里：
+
+```yaml
+# deploy.local.yaml
+target: docker
+focus: demo/caller
+```
+
+`focus` 写的是项目里的一个组件。写了它，`up` 就不再启动整个项目，只启动这个组件——从它的源码跑，是你机器上的一个进程
+（按 `mode: local`，写了 `mode: debug` 就按 debug）——再加上它需要的组件。它是个人的事，理由和 `mode: debug` 一样："我现在正在改这个组件"
+说的是你自己。写在 `deploy.yaml` 里会被拒绝；`target: k8s` 下也用不了（集群够不着你的机器）。
+
+它很少需要手写：在组件目录里 `brickkit up`，或者 `brickkit up --focus <id>`，就会写上它（需要时顺手打开本地模式）；`brickkit up --all`
+把它去掉。`local refresh` 会把它列在你的本地修改里。完整说明见[在项目里就地开发](../02-project-guide/04-focus-run.md)。
+
 ## 与 `-f` / `--no-local` 的关系
 
 | 写法 | 读哪份部署文件 |
@@ -127,11 +144,12 @@ brickkit local refresh
 | `--no-local` | 这一次读 `deploy.yaml`，本地模式开关不变 |
 | `-f deploy.prod.yaml` | 这一次只读指定的文件，完全不看 `deploy.local.yaml` 与本地模式开关 |
 
-`--no-local` 与 `-f` 都只管这一次命令。支持它们的命令见 [CLI 命令参考](../07-cli-reference/README.md)。
+`--no-local` 与 `-f` 都只管这一次命令。两者都跳过个人文件，所以也跳过其中的 `focus`。支持它们的命令见 [CLI 命令参考](../07-cli-reference/README.md)。
 
 ## 常见用法
 
 - **在 IDE 里调一个组件：** `mode: debug` 加 `localPort`，其余组件照常在容器里跑，见 [本地调试工作流](../02-project-guide/03-local-debug-workflow.md)。
+- **在大项目里只改一个组件：** 在它的目录里 `brickkit up`，就设好了 `focus`，见[在项目里就地开发](../02-project-guide/04-focus-run.md)。
 - **本机端口被占：** 改这个组件的 `exposePort`。
 - **连自己的数据库：** 在 `vars:` 里覆盖对应的公共变量，比如 `PG_HOST: localhost`。
 - **换一个引擎：** `target: podman`；团队文件是 `k8s` 时，个人文件写 `docker` 就能在本机跑起同一套组件。

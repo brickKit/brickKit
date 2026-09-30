@@ -165,6 +165,54 @@ vars:
   REPORT_URL: http://localhost:8000
 ```
 
+## A focus run won't start
+
+**Symptom**
+
+`up` in a component's directory, or `up --focus`, stops with one of these:
+
+```text
+❌ Error: the focus demo/lb is not a component of this project
+   Suggestions:
+   1. brickkit up --focus <id> sets another one; brickkit up --all runs every component
+   2. Did you mean: demo/lib?
+```
+
+```text
+❌ Error: the focus demo/lib is written mode: disable
+   File: deploy.local.yaml
+   Suggestion: Remove mode: disable from demo/lib, or focus on another component
+```
+
+**Cause and fix**
+
+- **Not a component of this project**: `focus:` in `deploy.local.yaml` names a component that isn't in `brickkit.yaml`
+  — a typo, or the team removed it. Pick another with `--focus`, or drop the focus with `brickkit up --all`.
+- **`mode: disable`**: "run this" and "never run this" at once. Remove the `mode: disable` from the entry, or focus on
+  another component.
+- **`failed validation` on the `focus` field**: the focus is in `deploy.yaml` (it belongs in your personal file), or
+  your personal file says `target: k8s` — a cluster can't reach a process on your machine.
+- **`Code that runs from a local repository does not match this run`**: the focus runs from its source, and that source
+  either isn't there (`brickkit add <id> --repo`) or holds another version than `brickkit.yaml` (run the `upgrade` the
+  error suggests). See [Developing inside the project](../02-project-guide/04-focus-run.md#moving-versions-forward).
+
+## Under a focus, a component didn't start
+
+**Symptom**
+
+A component you expected is listed as `not starting (outside the focus)`.
+
+**Cause**
+
+With a focus, only the focus and the components whose `mode` says they always run (`enabled`, `local`, `debug`) are
+starting points; everything else starts only if one of them needs it. A component the focus doesn't depend on — one
+that calls the focus, for instance — stays off.
+
+**Fix**
+
+Write `mode: enabled` on that component in `deploy.local.yaml` to pin it for your runs, or run everything with
+`brickkit up --all`.
+
 ## Debugging a member inside a shell on its own
 
 In `deploy.local.yaml`, write `mode: debug` and `localPort` on that member under the shell entry's `members`. This time

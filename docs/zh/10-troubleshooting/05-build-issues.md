@@ -99,6 +99,29 @@ brickkit build demo/hello@1.1.0 --force
 
 按 `docker build` 的原话修 Dockerfile。想单独复现，在组件仓库根目录执行一次同样的 `docker build`，不经过 BrickKit。
 
+## submodule 目录是空的
+
+**现象**
+
+`build` 在构建之前给出警告，接着构建因为缺文件失败——或者构建成功了，组件却行为异常：
+
+```text
+⚠️ 警告：demo/lib@1.0.0 的源码里有 git submodule，这里它们是空目录
+   目录：third_party/sdk
+   建议：BrickKit 从不拉取 submodule；构建要是需要它们，这个组件应当发布现成的镜像（deployment.image），或者让构建不依赖它们
+```
+
+**原因**
+
+BrickKit 从不拉取 git submodule——仓库缓存里不拉，从 tag 导出源码来构建时不拉，`add --repo` 也不拉（见
+[bare 仓库机制](../06-architecture/06-bare-repo-mechanism.md#从不拉取-git-submodule)）。目录在，是空的。
+
+**解决**
+
+- 长久的办法在组件那一侧：发布镜像（`deployment.image`），谁都不用从源码构建它。
+- 如果你是从 `components/` 下克隆的仓库构建，自己在里面 `git submodule update --init`；那份工作区正好是这个版本时，`build` 用的就是它。
+- 或者让构建不依赖它们。
+
 ## 镜像太大
 
 **症状**

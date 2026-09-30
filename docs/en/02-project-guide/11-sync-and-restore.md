@@ -44,6 +44,12 @@ The rules:
 - **Only components declared in `brickkit.yaml` whose source is present.**
 - **The whole directory moves, `.git` included.** Git keeps working inside it after archiving.
 - **No `--dry-run`.** If it got it wrong, running it again brings things back.
+- **The focus doesn't count.** A [focus run](04-focus-run.md) is a temporary narrowing, not a statement of what source
+  you need: `sync` keeps the source of everything the project runs *without* the focus, so switching focus never moves
+  directories back and forth.
+- **One `components/`.** When a component's source sits nested inside another component's directory, `sync` stops
+  before moving anything and lists each copy — moving directories around a copy nobody can place would only make it
+  worse. See [Developing inside the project](04-focus-run.md#one-components).
 
 `sync` is a command of its own, not folded into `up`: `up` manages what runs, `sync` manages directories. If `up` moved
 your files as a side effect, you'd wonder why they suddenly disappeared. `up` never needs component source either — it

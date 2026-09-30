@@ -43,7 +43,26 @@ brickkit build demo/bus
 ✅ 已构建 demo/bus@1.0.0 → demo-bus:1.0.0
 ```
 
-`brickkit build demo/hello` 构建这个组件在项目里的每个版本；`brickkit build demo/hello@1.1.0` 只构建那一个。
+`brickkit build demo/hello` 构建这个组件在项目里的每个版本；`brickkit build demo/hello@1.1.0` 只构建那一个。在组件目录里，
+不带参数的 `brickkit build` 只构建这一个组件：
+
+```bash
+cd components/demo/lib
+brickkit build
+```
+
+```text
+📁 项目：../../..（shop）
+🔨 构建 demo/lib@1.0.0 → demo-lib:1.0.0
+⚠️ 警告：demo/lib@1.0.0 的源码里有 git submodule，这里它们是空目录
+   目录：third_party/sdk
+   建议：BrickKit 从不拉取 submodule；构建要是需要它们，这个组件应当发布现成的镜像（deployment.image），或者让构建不依赖它们
+✅ 已构建 demo/lib@1.0.0 → demo-lib:1.0.0
+```
+
+中间那条警告说的是 **git submodule**：BrickKit 从不拉取它们，所以在拿来构建的源码里，它们是空目录。Dockerfile 不从里面拷东西时，
+镜像没问题；需要它们时，构建会失败——更糟的是构建成功了、里面却少了东西。长久的办法是让组件发布镜像（`deployment.image`），
+谁都不用构建它；在克隆下来的仓库里，你也可以自己 `git submodule update --init`。
 
 **镜像已经存在就跳过：**
 

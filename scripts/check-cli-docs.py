@@ -59,12 +59,15 @@ TOMBSTONE = re.compile(r"已删除|已作废|删掉|删除了|整个删|移除�
 
 # 反向检查（"二进制里有、文档里没有"）时豁免的东西。
 #
-#   help / completion  cobra 自带，不是这个平台的能力
+#   help    cobra 自带，不是这个平台的能力
 #   --help  cobra 自带
+#
+# completion 不在其中：它的候选（组件 ID、版本、部署文件）是这个平台自己提供的，
+# install.sh 也会装它，命令参考要写到。
 #
 # 这份豁免是**白名单**，不是"凡是没写文档的都算豁免"——新增一条命令或参数而
 # 忘了写进命令参考，就该在这里报出来。（--log-level 是全局参数，命令参考照样要讲它。）
-UNDOCUMENTED_OK_CMDS = {"help", "completion"}
+UNDOCUMENTED_OK_CMDS = {"help"}
 UNDOCUMENTED_OK_FLAGS = {"--help"}
 
 # 命令参考：每条命令、每个参数都必须在这里写到。两种语言各一份，各自完整。

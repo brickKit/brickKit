@@ -135,6 +135,23 @@ A few notes:
 - **Whether to commit this workbench into the component repository** is up to you: commit it, and collaborators who clone
   the repository are one `brickkit up` away from running it; it doesn't affect releases, and users never see it.
 
+## Workbench or focus run
+
+A workbench is not the only way to run a component while you develop it. When the component already lives in a
+project's `components/`, `brickkit up` in its directory runs a **focus run**: that component from its source, plus what
+it needs, at the versions the project uses — no workbench to write. See
+[Developing inside the project](../02-project-guide/04-focus-run.md).
+
+| Use | When |
+| --- | --- |
+| A focus run | The component is part of one project, and the question is "does my change work in this system?" |
+| A workbench | The component has a life outside any single project: many projects use it, and it's developed on its own terms |
+
+The two don't mix. Inside a workbench, commands use the workbench — the nearest `brickkit.yaml` wins, and nothing above
+it is consulted. And a workbench inside a project must not carry a `components/` of its own full of copies: component
+source lives in one place, the project's `components/`. `up`, `lint` and `sync` refuse a component nested inside another
+component's directory, and `add --repo` refuses to clone into a workbench that sits inside another project.
+
 ## One repository, two identities
 
 When a component repository has both `component.yaml` and `brickkit.yaml`, the CLI treats it like this:

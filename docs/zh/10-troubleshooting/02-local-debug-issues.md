@@ -146,6 +146,50 @@ vars:
   REPORT_URL: http://localhost:8000
 ```
 
+## 焦点运行起不来
+
+**现象**
+
+在组件目录里 `up`，或者 `up --focus`，停在下面其中一种：
+
+```text
+❌ 错误：焦点 demo/lb 不是这个项目的组件
+   建议：
+   1. brickkit up --focus <id> 换一个焦点；brickkit up --all 运行全部组件
+   2. 你是不是想写：demo/lib？
+```
+
+```text
+❌ 错误：焦点 demo/lib 的条目写着 mode: disable
+   文件：deploy.local.yaml
+   建议：去掉 demo/lib 的 mode: disable，或换一个焦点
+```
+
+**原因与解决**
+
+- **不是这个项目的组件**：`deploy.local.yaml` 里的 `focus:` 写的组件不在 `brickkit.yaml` 里——拼错了，或者团队把它删了。
+  用 `--focus` 换一个，或者 `brickkit up --all` 去掉焦点。
+- **`mode: disable`**：同时说了"跑它"和"永远别跑它"。去掉条目上的 `mode: disable`，或者换一个焦点。
+- **`focus` 字段上的"校验失败"**：焦点写在了 `deploy.yaml` 里（它属于你的个人文件），或者你的个人文件是 `target: k8s`——
+  集群够不着你机器上的进程。
+- **`从本地仓库运行的代码与这次运行的版本对不上`**：焦点从源码跑，而源码要么不在（`brickkit add <id> --repo`），要么是和
+  `brickkit.yaml` 不同的版本（运行报错建议的那条 `upgrade`）。见[在项目里就地开发](../02-project-guide/04-focus-run.md#版本往前走)。
+
+## 有焦点时，某个组件没启动
+
+**现象**
+
+一个你以为会启动的组件，列成了 `不启动（焦点之外）`。
+
+**原因**
+
+有焦点时，起点只有焦点，加上 `mode` 写明总要运行的组件（`enabled`、`local`、`debug`）；别的组件只有被它们需要时才启动。
+焦点不依赖的组件——比如调用焦点的那些——都不会启动。
+
+**解决**
+
+在 `deploy.local.yaml` 里给那个组件写上 `mode: enabled`，让它在你的运行里总是启动；或者用 `brickkit up --all` 运行全部组件。
+
 ## 外壳里的成员怎么单独调试
 
 在 `deploy.local.yaml` 里，给外壳条目 `members` 下的那个成员写 `mode: debug` 和 `localPort`。这次外壳不再承载它，它在你的机器上运行，

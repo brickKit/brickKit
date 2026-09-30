@@ -132,6 +132,25 @@ When there's no such record (a `deploy.local.yaml` you wrote by hand), `refresh`
 new one: it lists values the old file sets differently or that the new file doesn't have, and a field you deleted can't be
 told apart from one the team added — check `deploy.local.yaml.bak` against the new file yourself.
 
+## `focus`: run one component and what it needs
+
+One field exists only in the personal file:
+
+```yaml
+# deploy.local.yaml
+target: docker
+focus: demo/caller
+```
+
+`focus` names a component of the project. While it is set, `up` starts only that component — from its source, as a
+process on your machine (as `mode: local`, or as the `mode: debug` you wrote) — and what it needs, instead of the whole
+project. It is personal for the same reason `mode: debug` is: "I'm working on this component right now" is a fact about
+you. In `deploy.yaml` it is rejected, and with `target: k8s` it can't work (a cluster can't reach your machine).
+
+You rarely write it by hand: `brickkit up` in a component's directory, or `brickkit up --focus <id>`, writes it (and
+turns local mode on if needed); `brickkit up --all` removes it. `local refresh` lists it among your local changes. The
+whole story: [Developing inside the project](../02-project-guide/04-focus-run.md).
+
 ## With `-f` / `--no-local`
 
 | Written | Which deploy file is read |
@@ -140,13 +159,15 @@ told apart from one the team added — check `deploy.local.yaml.bak` against the
 | `--no-local` | `deploy.yaml` this time; the local-mode switch stays as it is |
 | `-f deploy.prod.yaml` | Only the named file this time, ignoring `deploy.local.yaml` and the local-mode switch entirely |
 
-Both `--no-local` and `-f` apply to that one command only. Which commands take them is in the
+Both `--no-local` and `-f` apply to that one command only. Both skip the personal file, so its `focus` too. Which commands take them is in the
 [CLI reference](../07-cli-reference/README.md).
 
 ## Common uses
 
 - **Debug a component in your IDE:** `mode: debug` plus `localPort`; the other components keep running in containers.
   See [Local debugging](../02-project-guide/03-local-debug-workflow.md).
+- **Work on one component inside a big project:** `brickkit up` in its directory sets `focus`. See
+  [Developing inside the project](../02-project-guide/04-focus-run.md).
 - **A port is taken on your machine:** change that component's `exposePort`.
 - **Use your own database:** override the matching shared variable under `vars:`, for example `PG_HOST: localhost`.
 - **Use another engine:** `target: podman`; when the team file says `k8s`, a personal file saying `docker` runs the same

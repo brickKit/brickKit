@@ -40,6 +40,23 @@
 **Change defaults with care**: keys the project never wrote follow the new default automatically — which is what you want;
 keys it did write become a conflict, and it has to decide each one.
 
+## Working in a large project
+
+When the project has dozens of components and the task is about one of them, don't start them all.
+
+1. **Run a focus run.** `brickkit up` in the component's directory (or `brickkit up --focus <id>` anywhere in the
+   project) runs that component from its source plus what it needs; the reasons printed next to each component say why
+   it starts or doesn't. `brickkit up --all` goes back to the whole project. See
+   [Developing inside the project](../02-project-guide/04-focus-run.md).
+2. **Run commands from where you are.** Every project command finds the project upward; `build` and `deps` without an
+   argument mean "this component".
+3. **Move versions forward explicitly.** When you raise `metadata.version` in a component under `components/`, `up`
+   stops until the project follows: run the `brickkit upgrade <id>@<version>` it suggests, and read the config migration
+   it reports. Nothing moves because a directory changed.
+4. **Keep one `components/`.** Never clone or copy a component into another component's directory; `up`, `lint` and
+   `sync` refuse nested copies, and BrickKit never moves them for you — ask the person before deleting one: it may hold
+   the only copy of their changes.
+
 ## What you don't need to do
 
 - **Read the whole codebase.** Component boundaries are written in files; the current component and its direct dependencies

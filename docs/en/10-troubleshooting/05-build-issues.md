@@ -114,6 +114,31 @@ outside the build context.
 Fix the Dockerfile following `docker build`'s own words. To reproduce it alone, run the same `docker build` in the
 component repository's root, without BrickKit.
 
+## Submodule directories are empty
+
+**Symptom**
+
+`build` warns before building, and the build then fails on missing files — or succeeds, and the component misbehaves:
+
+```text
+⚠️ Warning: the source of demo/lib@1.0.0 has git submodules, and they are empty directories here
+   Directory: third_party/sdk
+   Suggestion: BrickKit never fetches submodules; if the build needs them, the component should publish an image (deployment.image) or build without them
+```
+
+**Cause**
+
+BrickKit never fetches git submodules — not in its repository cache, not when exporting a tag to build from, not in
+`add --repo` (see [The bare-repository mechanism](../06-architecture/06-bare-repo-mechanism.md#git-submodules-are-never-fetched)).
+The directories are there, empty.
+
+**Fix**
+
+- The lasting fix is on the component's side: publish an image (`deployment.image`), so nobody builds it from source.
+- If you build from a cloned repository under `components/`, run `git submodule update --init` in it yourself; `build`
+  uses your working copy when it holds exactly this version.
+- Or make the build not need them.
+
 ## The image is too big
 
 **Symptom**

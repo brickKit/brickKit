@@ -50,7 +50,27 @@ brickkit build demo/bus
 ```
 
 `brickkit build demo/hello` builds every version of that component in the project; `brickkit build demo/hello@1.1.0`
-only that one.
+only that one. In a component's directory, `brickkit build` without an argument builds just that component:
+
+```bash
+cd components/demo/lib
+brickkit build
+```
+
+```text
+📁 Project: ../../.. (shop)
+🔨 Building demo/lib@1.0.0 → demo-lib:1.0.0
+⚠️ Warning: the source of demo/lib@1.0.0 has git submodules, and they are empty directories here
+   Directory: third_party/sdk
+   Suggestion: BrickKit never fetches submodules; if the build needs them, the component should publish an image (deployment.image) or build without them
+✅ Built demo/lib@1.0.0 → demo-lib:1.0.0
+```
+
+The warning in the middle is about **git submodules**: BrickKit never fetches them, so in the source it builds from they
+are empty directories. When the Dockerfile copies nothing from them, the image is fine; when it needs them, the build
+fails or — worse — succeeds without their contents. The lasting fix is for the component to publish an image
+(`deployment.image`), so nobody has to build it; in a cloned repository you can also run `git submodule update --init`
+yourself.
 
 **An image that already exists is skipped:**
 

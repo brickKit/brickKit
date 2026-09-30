@@ -52,6 +52,21 @@ BrickKit 的做法是：每个组件仓库在本机只克隆**一次**，存成�
 同一个版本只要取过一次，项目的永久缓存里就有它，之后不联网也能 `up`、`graph`、`deps`。换一个项目要用同一个版本时，bare 仓库已经在用户缓存里，
 第 2 级就能取到，也不用联网。只有从没见过的版本、从没克隆过的仓库需要网络。
 
+## 从不拉取 git submodule
+
+组件仓库可能登记了 git submodule。BrickKit 在每一条路径上都一个也不拉：
+
+| 路径 | 你得到的 |
+| --- | --- |
+| bare 仓库缓存 | tag 和它们的提交；submodule 在树里只是一个指针 |
+| 读 `component.yaml`、`BRICKKIT.md`、产物 | 直接从 tag 读文件——从不读 submodule 里面的 |
+| 从 tag `build` | tag 的导出：submodule 目录是空的，`build` 会为此警告 |
+| `add --repo` | 不带 `--recurse-submodules` 的克隆；它会点名留空了哪些 submodule |
+
+原因：submodule 指向另一个仓库，有它自己的地址、自己的凭据；拉它，就意味着装一个组件会悄悄伸手到谁都没声明过的仓库里。
+组件的契约是它的 `component.yaml`、产物和镜像——这些都不该需要 submodule。构建确实需要时，组件应当发布镜像；在克隆下来的仓库里，
+你随时可以自己 `git submodule update --init`。
+
 ## 鉴权
 
 CLI 调用系统的 `git`，用的就是你已经配置好的凭据（SSH key、credential helper、CI 注入的 token）。它只设一个环境变量 `GIT_TERMINAL_PROMPT=0`：

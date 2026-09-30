@@ -1,6 +1,6 @@
 # CLI reference
 
-The BrickKit CLI has 21 business commands, plus `version` and `lang`, which are about the CLI itself. This page covers
+The BrickKit CLI has 21 business commands, plus `version`, `lang` and `completion`, which are about the CLI itself. This page covers
 every command, every subcommand and every flag; it agrees with `brickkit <command> --help`, and `--help` is the
 authority.
 
@@ -35,6 +35,7 @@ what it *actually* looks like lives in the engine underneath (Docker / Podman / 
 | Release | [`logout`](#brickkit-logout) | Log out of a component market |
 | CLI | [`version`](#brickkit-version) | The CLI version, the supported manifest version and deploy targets |
 | CLI | [`lang`](#brickkit-lang) | Show or change the language the CLI speaks |
+| CLI | [`completion`](#brickkit-completion) | Print the script that makes TAB complete commands, component IDs and versions |
 
 ## Global flag
 
@@ -49,6 +50,37 @@ for scripts to act on (the codes are in the [error-code reference](../06-archite
 routine log lines around each command, use `--log-level info`; to get that for a whole shell session, set
 `BRICKKIT_LOG_LEVEL=info` once. `--log-level off` also drops the JSON line on failure — only for places where nothing
 parses `error_code` (a pre-commit hook, say).
+
+## Running from a subdirectory
+
+A command that works on a project can be run anywhere inside it. When the current directory has no `brickkit.yaml`, the
+command walks up the parent directories — like `git` looking for `.git` — to the nearest one that has, and runs there.
+It says so on its first line, and the paths it prints are relative to where you are:
+
+```text
+📁 Project: ../../.. (my-shop)
+```
+
+The nearest `brickkit.yaml` wins: a component repository that is a workbench of its own is a project, and nothing above it
+is consulted. The walk does not stop at a `.git` directory — components under `components/` are usually repositories of
+their own. With no `brickkit.yaml` anywhere above, the error is `PROJECT_MISSING` as before.
+
+| Command | Looks upward | In a component's directory |
+| --- | --- | --- |
+| `up` | yes | Runs a focus run on this component (see [Developing inside the project](../02-project-guide/04-focus-run.md)) |
+| `down`, `status`, `sync`, `lint`, `graph`, `restore`, `local` | yes | Act on the whole project |
+| `add`, `remove`, `upgrade`, `fetch` | yes | — (`add --repo` therefore clones into the project's `components/`) |
+| `build` | yes | Without an argument, builds only this component |
+| `deps` | yes | Without an argument, prints this component's tree |
+| `new` | yes | Writes the new component into the project's `components/` (a relative `--path` is taken from where you are) |
+| `login`, `logout` | yes | — (credentials are kept per project) |
+| `release`, `publish` | no | Act on the component in the current directory |
+| `init` | no | Creates files here; inside a project's component it adds a note that a focus run needs no workbench |
+| `skills` | no | Manages the files in this directory |
+| `lang`, `version`, `completion` | — | Global |
+
+"A component's directory" is anywhere inside the source directory of a component one of the project's local install
+sources provides (`components/<scope>/<name>/…`).
 
 ## Flags shared by the commands that read a deploy file
 
@@ -406,6 +438,7 @@ draws (manifests not yet cached are fetched from the install sources).
 | `brickkit deps` | One tree per top-level component (nothing in the project depends on it) |
 | `brickkit deps <id>` | This component's tree (one per version in the project), and what depends on it |
 | `brickkit deps <id>@<version>` | Only that version |
+| `brickkit deps` in a component's directory | That component's tree, as if its ID were given |
 
 Within one output, a component version is expanded only once; later appearances are marked "(see above)"; optional
 dependencies are marked "(optional)", and optional ones missing from the project "(optional, not installed)". No flags of
@@ -477,6 +510,10 @@ Build the images that are built locally: components without a `deployment.image`
 sources (code being developed, whose image has to be built from it). A git or market component with an `image` is
 pulled, not built.
 
+Without an argument, it builds every component built locally — or, in a component's directory, only that component.
+BrickKit never fetches git submodules: when the source has submodules that are empty directories, `build` warns before
+building (see [Building and images](../02-project-guide/12-build-and-images.md)).
+
 The image tag equals the component's `metadata.version`; a shell's image records the member versions compiled into it,
 which `up` checks. An image that already exists is skipped. The source is the local repository (when it's at this
 version), otherwise an export of this version's Git tag. **`up` never builds**: when an image is missing it stops and
@@ -491,7 +528,7 @@ brickkit build [component-ID[@version]] [flags]
 | `--force` | Rebuild even when the image already exists |
 
 ```bash
-brickkit build                      # every component built locally
+brickkit build                      # every component built locally (in a component's directory: only that one)
 brickkit build erp/backend          # only this component
 brickkit build erp/backend --force  # rebuild after changing the code
 ```
@@ -501,7 +538,8 @@ brickkit build erp/backend --force  # rebuild after changing the code
 Start the project in one go:
 
 1. load the three layers and every component's manifest;
-2. decide what runs (follow the ones above: a top-level component without `mode` runs, the ones below follow);
+2. decide what runs (follow the ones above: a top-level component without `mode` runs, the ones below follow; with a
+   focus, only the focus and the components pinned to run are starting points);
 3. check required dependencies (missing: error) and optional ones (missing: a warning, and no environment variable at all);
 4. sort topologically into a start order;
 5. resolve config, inject environment variables, merge resource settings, and generate the deployment files:
@@ -528,12 +566,21 @@ brickkit up [flags]
 | `--crash-lines <N>` | When a `mode: local` component crashes, how many of its last output lines to show at the end; default 20, `0` shows only the crash information |
 | `-f, --file <file>` | Use this deploy file; see [shared flags](#flags-shared-by-the-commands-that-read-a-deploy-file) |
 | `--no-local` | Ignore `deploy.local.yaml` this time |
+| `--focus <id>` | Make this component the focus: write `focus: <id>` into `deploy.local.yaml` (turning local mode on if needed), then run only it — from its source — and what it needs |
+| `--all` | Remove the focus from `deploy.local.yaml` and run every component again |
+
+**Focus runs.** `up` in a component's directory focuses on that component, the same as `--focus <id>`; the focus stays
+in `deploy.local.yaml` until you change it. `--focus` and `--all` can't be combined with each other, nor with `-f` or
+`--no-local` (those skip the personal file the focus lives in), and a focus doesn't work with `target: k8s`. The whole
+story: [Developing inside the project](../02-project-guide/04-focus-run.md).
 
 ```bash
 brickkit up
 brickkit up --dry-run              # only generate the files, start nothing
 brickkit up -f deploy.prod.yaml    # use another deploy file (one complete file per environment)
 brickkit up --no-local             # ignore deploy.local.yaml this time
+brickkit up --focus erp/api        # run one component (from source) and what it needs
+brickkit up --all                  # drop the focus, run every component
 brickkit up --ignore-shells --dry-run
 ```
 
@@ -894,6 +941,40 @@ brickkit lang set <en|zh> [flags]
 brickkit lang set zh                 # speak Chinese from now on
 BRICKKIT_LANG=en brickkit status     # English for this one command
 ```
+
+## `brickkit completion`
+
+Print the script that makes TAB complete what you type after `brickkit`: commands, flags, component IDs, versions and
+deploy files. `install.sh` already installs it for bash, zsh and fish; how to check it and set it up by hand is in
+[Shell completion](../00-intro/03-shell-completion.md), and `brickkit completion <shell> --help` prints the steps too.
+
+```text
+brickkit completion bash|zsh|fish|powershell [flags]
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--no-descriptions` | Leave out the one-line description next to each candidate |
+
+```bash
+brickkit completion bash > ~/.local/share/bash-completion/completions/brickkit
+brickkit completion zsh > ~/.zsh/completions/_brickkit
+brickkit completion fish > ~/.config/fish/completions/brickkit.fish
+brickkit completion powershell | Out-String | Invoke-Expression
+```
+
+What TAB offers:
+
+| After | Candidates |
+| --- | --- |
+| `remove`, `deps`, `build` | The components in `brickkit.yaml`; after `<id>@`, that component's versions in the project |
+| `upgrade` | The components in `brickkit.yaml`; after `<id>@`, the versions known on this machine |
+| `up --focus` | The components in `brickkit.yaml` |
+| `add` | Components the local install sources provide and the project's manifest cache holds; after `<id>@`, the versions known on this machine |
+| `-f` / `--file` | The `deploy*.yaml` files at the project root |
+| `lang set`, `skills update --lang` | The CLI's languages |
+
+Completion reads only files on this machine — never the network — and outside a project it offers no components.
 
 ---
 

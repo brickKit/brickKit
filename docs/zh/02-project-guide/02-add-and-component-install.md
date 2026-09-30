@@ -161,6 +161,18 @@ brickkit add demo/hello@1.0.0 --repo
 
 `--repo-all` 把这次加进来的每个开源组件的源码都克隆下来（各自的默认版本）。
 
+在项目里的任何位置运行——哪怕是在另一个组件的目录里——`add` 作用的都是项目，所以克隆总是落在项目自己的 `components/` 里：
+组件源码只放一处（见[在项目里就地开发](04-focus-run.md#只有一个-components)）。
+
+**从不拉取 git submodule。** 克隆下来它们是空目录，并且会点名：
+
+```text
+📥 demo/lib@1.0.0 的源码已克隆到 components/demo/lib/（检出 1.0.0）
+   ℹ️  demo/lib@1.0.0 里有 git submodule，没有拉取：third_party/sdk（确实需要时 git submodule update --init）
+```
+
+代码确实需要它们的话，自己在克隆下来的仓库里拉。
+
 ## `--yes`：非交互
 
 ```bash

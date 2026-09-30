@@ -4,6 +4,9 @@
 
 背景：你的个人部署文件 `deploy.local.yaml` 是什么、为什么是"整份替换而不是合并"，见 [deploy.local.yaml](../01-three-layers/04-deploy-local-yaml.md)。
 
+项目很大、你只需要这个组件和它依赖的组件时，先用焦点运行：在组件目录里 `brickkit up` 就只跑这些，给焦点写上 `mode: debug`
+照样能打断点——见[在项目里就地开发](04-focus-run.md)。
+
 ## 完整流程
 
 ### 1. 开启本地模式
