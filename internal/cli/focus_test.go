@@ -124,3 +124,18 @@ func TestFocusIsAnnouncedByEveryCommandThatReadsIt(t *testing.T) {
 		assert.Contains(t, r.stdout, i18n.T(msgid.CliFocusLine, "erp/portal"), "%v", args)
 	}
 }
+
+// 这次刚写进焦点：那一句"已写入"就是焦点的说明，不再紧跟一行同样的状态行；
+// 焦点没变的下一次 up 才打状态行。
+func TestUpSaysTheFocusOnce(t *testing.T) {
+	dir := focusFixture(t)
+	r := runWithEngine(t, newFakeEngine(), in(dir, "components", "erp", "portal"), "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, i18n.T(msgid.CliFocusSet, "erp/portal", "deploy.local.yaml"))
+	assert.NotContains(t, r.stdout, i18n.T(msgid.CliFocusLine, "erp/portal")+"\n")
+
+	r = runWithEngine(t, newFakeEngine(), in(dir, "components", "erp", "portal"), "up", "--dry-run")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, i18n.T(msgid.CliFocusSet, "erp/portal", "deploy.local.yaml"))
+	assert.Equal(t, 1, strings.Count(r.stdout, i18n.T(msgid.CliFocusLine, "erp/portal")+"\n"))
+}

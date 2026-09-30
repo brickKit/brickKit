@@ -138,6 +138,8 @@ type upOptions struct {
 	// focus 是 --focus 的值，all 是 --all：写进 deploy.local.yaml 的焦点意图。
 	focus string
 	all   bool
+	// focusWritten：这次 up 刚把焦点写进文件，那一句已经说过焦点，不再打状态行。
+	focusWritten bool
 }
 
 // runUp 执行 brickkit up。
@@ -145,9 +147,11 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := applyFocusIntent(opts, flags); err != nil {
+	written, err := applyFocusIntent(opts, flags)
+	if err != nil {
 		return err
 	}
+	flags.focusWritten = written
 
 	plan, err := buildUpPlan(ctx, opts, flags)
 	if err != nil || plan.done {
@@ -214,7 +218,9 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		return nil, err
 	}
 	renderDeploySource(opts, proj)
-	renderFocus(opts, proj)
+	if !flags.focusWritten {
+		renderFocus(opts, proj)
+	}
 	renderWarnings(opts, proj.Warnings)
 	if err := checkNestedCopies(opts, proj); err != nil {
 		return nil, err

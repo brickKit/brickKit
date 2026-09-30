@@ -57,20 +57,21 @@ func componentHere(opts *Options) (string, bool) {
 }
 
 // applyFocusIntent 把这次 up 的焦点意图落进文件：--all 清掉；--focus 设成它；
-// 在组件目录里、两个都没写就设成这个组件；否则不动。
-func applyFocusIntent(opts *Options, flags upOptions) error {
+// 在组件目录里、两个都没写就设成这个组件；否则不动。written 说这次改没改文件
+// （改了就已经说过一句，up 不再重复打焦点的状态行）。
+func applyFocusIntent(opts *Options, flags upOptions) (written bool, err error) {
 	if flags.focus != "" && flags.all {
-		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliUpFocusAndAll)).
+		return false, clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliUpFocusAndAll)).
 			WithHint(i18n.T(msgid.CliUpHintFocusOrAll)).WithExit(clierr.ExitUsage)
 	}
 	// 焦点写在 deploy.local.yaml 里，-f 与 --no-local 都不读它：显式要焦点时说清楚，
 	// 没显式要（在组件目录里跑）就按这两个参数的意思不碰个人文件
 	if opts.DeployFile != "" || opts.NoLocal {
 		if flags.focus != "" || flags.all {
-			return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliUpFocusNeedsLocal)).
+			return false, clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliUpFocusNeedsLocal)).
 				WithHint(i18n.T(msgid.CliUpHintFocusNeedsLocal)).WithExit(clierr.ExitUsage)
 		}
-		return nil
+		return false, nil
 	}
 	l := project.NewLayout(opts.WorkDir)
 	if flags.all {
@@ -78,17 +79,17 @@ func applyFocusIntent(opts *Options, flags upOptions) error {
 	}
 	decl, err := projfile.ParseFile(l.DeclPath())
 	if err != nil {
-		return err
+		return false, err
 	}
 	id := flags.focus
 	if id == "" {
 		var ok bool
 		if id, ok = componentAt(l, decl, opts.CallDir); !ok {
-			return nil
+			return false, nil
 		}
 	}
 	if !slices.Contains(decl.IDs(), id) {
-		return withDidYouMean(clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.ProjectFocusUnknown, id)).
+		return false, withDidYouMean(clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.ProjectFocusUnknown, id)).
 			WithHint(i18n.T(msgid.ProjectHintFocusClear)), id, decl.IDs())
 	}
 	return ensureFocus(opts, l, id)
@@ -96,21 +97,21 @@ func applyFocusIntent(opts *Options, flags upOptions) error {
 
 // ensureFocus 把焦点设成 id：本地模式没开就先打开（与 local on 同样复制或沿用），
 // 文件里的焦点不同才改，改了就说一句。
-func ensureFocus(opts *Options, l project.Layout, id string) error {
+func ensureFocus(opts *Options, l project.Layout, id string) (bool, error) {
 	if !fileExists(l.DeployLocalPath()) {
 		if err := copyDeployToLocal(l); err != nil {
-			return err
+			return false, err
 		}
 		opts.Printf("%s\n", i18n.T(msgid.CliLocalOn, project.FileDeployLocal))
 		opts.Printf("   %s\n", i18n.T(msgid.CliLocalCopied, project.FileDeployLocal, project.FileDeploy))
 		if err := project.SetLocalMode(l, true); err != nil {
-			return localSwitchError(l, err)
+			return false, localSwitchError(l, err)
 		}
 	} else if on, err := project.LocalModeOn(l); err != nil {
-		return err
+		return false, err
 	} else if !on {
 		if err := project.SetLocalMode(l, true); err != nil {
-			return localSwitchError(l, err)
+			return false, localSwitchError(l, err)
 		}
 		opts.Printf("%s\n", i18n.T(msgid.CliLocalOn, project.FileDeployLocal))
 		opts.Printf("   %s\n", i18n.T(msgid.CliLocalReused, project.FileDeployLocal))
@@ -119,36 +120,36 @@ func ensureFocus(opts *Options, l project.Layout, id string) error {
 }
 
 // clearFocus 删掉个人文件里的焦点；没有个人文件或本来就没写焦点时什么都不做。
-func clearFocus(opts *Options, l project.Layout) error {
+func clearFocus(opts *Options, l project.Layout) (bool, error) {
 	if !fileExists(l.DeployLocalPath()) {
-		return nil
+		return false, nil
 	}
 	return writeFocus(opts, l, "")
 }
 
-// writeFocus 只改 focus: 这一行（deployfile.SetFocus），内容不变就不写。
-func writeFocus(opts *Options, l project.Layout, id string) error {
+// writeFocus 只改 focus: 这一行（deployfile.SetFocus），内容不变就不写；写了返回 true。
+func writeFocus(opts *Options, l project.Layout, id string) (bool, error) {
 	path := l.DeployLocalPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return localIOError(path, err)
+		return false, localIOError(path, err)
 	}
 	out, err := deployfile.SetFocus(data, id)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if bytes.Equal(out, data) {
-		return nil
+		return false, nil
 	}
 	if err := os.WriteFile(path, out, 0o644); err != nil {
-		return localIOError(path, err)
+		return false, localIOError(path, err)
 	}
 	if id == "" {
 		opts.Printf("%s\n", i18n.T(msgid.CliFocusCleared))
 	} else {
 		opts.Printf("%s\n", i18n.T(msgid.CliFocusSet, id, project.FileDeployLocal))
 	}
-	return nil
+	return true, nil
 }
 
 // renderFocus 在读部署文件的命令里说一句焦点，与本地模式的提醒放在一起。
