@@ -9,7 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 func (g *gitOrgProject) upWith(dir string, eng *fakeEngine, images *fakeImages, args ...string) result {
@@ -69,6 +71,24 @@ func TestUpListsEveryMissingImage(t *testing.T) {
 	require.Equal(t, clierr.ExitError, r.code)
 	assert.Contains(t, r.stderr, "erp-a:1.0.0")
 	assert.Contains(t, r.stderr, "erp-b:1.0.0")
+
+	// 每条编号建议都是一句完整的话：第 1 条让全部构建，其余每条点名一个，而不是把一句话拆在两条上。
+	assert.Contains(t, r.stderr, "1. "+i18n.T(msgid.CliUpHintBuildNeverAutomatic, "brickkit build"))
+	assert.Contains(t, r.stderr, i18n.T(msgid.CliUpHintBuildJustOne, "brickkit build erp/a@1.0.0"))
+	assert.Contains(t, r.stderr, i18n.T(msgid.CliUpHintBuildJustOne, "brickkit build erp/b@1.0.0"))
+}
+
+// 只缺一个镜像时，第 1 条就给出那一个的构建命令，不再另列。
+func TestUpOneMissingImageNamesItsBuildCommand(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(buildOnly(comp{ID: "erp/api", Version: "1.0.0"}), map[string]string{"Dockerfile": "FROM scratch\n"})
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+
+	r := g.upWith(dir, newFakeEngine(), newFakeImages())
+	require.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, i18n.T(msgid.CliUpHintBuildNeverAutomatic, "brickkit build erp/api@1.0.0"))
+	assert.NotContains(t, r.stderr, "2. ")
 }
 
 // shellFixture：外壳（只有 build）编进 erp/a@1.0.0。

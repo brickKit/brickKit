@@ -54,6 +54,7 @@ const (
 	CliUpHintBuildInstead                   = "cli.up.hint_build_instead"
 	CliUpImagesNeedBuild                    = "cli.up.images_need_build"
 	CliUpHintBuildNeverAutomatic            = "cli.up.hint_build_never_automatic"
+	CliUpHintBuildJustOne                   = "cli.up.hint_build_just_one"
 	CliUpShellImageUnlabelled               = "cli.up.shell_image_unlabelled"
 	CliUpShellImageStale                    = "cli.up.shell_image_stale"
 	CliUpLabelImageMembers                  = "cli.up.label_image_members"

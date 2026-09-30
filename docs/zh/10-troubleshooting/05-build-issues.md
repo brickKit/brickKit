@@ -35,9 +35,9 @@ brickkit build demo/hello@1.1.0 --force
    demo/hello@1.0.0：demo-hello:1.0.0
    demo/caller@1.0.0：demo-caller:1.0.0
    建议：
-   1. up 从不自动构建（构建与部署分离）：先运行 brickkit build，或者只构建其中一个：
-   2. brickkit build demo/hello@1.0.0
-   3. brickkit build demo/caller@1.0.0
+   1. up 从不自动构建（构建与部署分离）：先运行 brickkit build
+   2. 或者只构建其中一个：brickkit build demo/hello@1.0.0
+   3. 或者只构建其中一个：brickkit build demo/caller@1.0.0
 ```
 
 **原因**

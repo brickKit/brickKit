@@ -39,9 +39,9 @@ version (`metadata.version`) and build, with no need for `--force`.
    demo/hello@1.0.0: demo-hello:1.0.0
    demo/caller@1.0.0: demo-caller:1.0.0
    Suggestions:
-   1. up never builds on its own (building and deploying are separate): run brickkit build first, or build one of them:
-   2. brickkit build demo/hello@1.0.0
-   3. brickkit build demo/caller@1.0.0
+   1. up never builds on its own (building and deploying are separate): run brickkit build first
+   2. Or build just one of them: brickkit build demo/hello@1.0.0
+   3. Or build just one of them: brickkit build demo/caller@1.0.0
 ```
 
 **Cause**

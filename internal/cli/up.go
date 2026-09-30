@@ -766,12 +766,18 @@ func checkUpImages(ctx context.Context, opts *Options, eng engine.Engine, local 
 	}
 	if len(missing) > 0 {
 		e := clierr.New(clierr.CodeImageMissing, i18n.T(msgid.CliUpImagesNeedBuild))
-		var hints []string
 		for _, m := range missing {
 			e = e.WithDetail(m.component, m.image)
-			hints = append(hints, "brickkit build "+m.component)
 		}
-		return e.WithHint(append([]string{i18n.T(msgid.CliUpHintBuildNeverAutomatic)}, hints...)...)
+		// 每条建议是一句完整的话：只缺一个就直接给它的命令；缺好几个时第一条全部构建，其余逐个点名。
+		if len(missing) == 1 {
+			return e.WithHint(i18n.T(msgid.CliUpHintBuildNeverAutomatic, "brickkit build "+missing[0].component))
+		}
+		hints := []string{i18n.T(msgid.CliUpHintBuildNeverAutomatic, "brickkit build")}
+		for _, m := range missing {
+			hints = append(hints, i18n.T(msgid.CliUpHintBuildJustOne, "brickkit build "+m.component))
+		}
+		return e.WithHint(hints...)
 	}
 	if err := checkImages(ctx, opts, eng, pulled); err != nil {
 		// 拉不到时还有一条出路：从源码在本机构建（提案 §9.10.3）

@@ -129,9 +129,7 @@ brickkit up
 📄 已生成：.brickkit/generated/compose.yaml
 ❌ 错误：这些镜像要在本机构建，还没有构建
    demo/hello@1.0.0：brickkit-demo/hello:1.0.0
-   建议：
-   1. up 从不自动构建（构建与部署分离）：先运行 brickkit build，或者只构建其中一个：
-   2. brickkit build demo/hello@1.0.0
+   建议：up 从不自动构建（构建与部署分离）：先运行 brickkit build demo/hello@1.0.0
 ```
 
 它失败了，而且说得很清楚为什么：本地源里的组件是**正在开发的代码**，镜像必须从它构建；而

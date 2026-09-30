@@ -134,9 +134,7 @@ Can start on their own: demo-hello-1-0-0 (no dependencies)
 📄 Generated: .brickkit/generated/compose.yaml
 ❌ Error: these images are built locally and have not been built yet
    demo/hello@1.0.0: brickkit-demo/hello:1.0.0
-   Suggestions:
-   1. up never builds on its own (building and deploying are separate): run brickkit build first, or build one of them:
-   2. brickkit build demo/hello@1.0.0
+   Suggestion: up never builds on its own (building and deploying are separate): run brickkit build demo/hello@1.0.0 first
 ```
 
 It fails, and it says exactly why: a component in a local source is **code you're developing**, so its image has to be
