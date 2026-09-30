@@ -28,6 +28,11 @@ otherwise have to invent are all derived by the platform. Assembly mistakes show
 
 </div>
 
+**Docs:** [Quick start](docs/en/00-intro/02-quick-start.md) · [The three layers](docs/en/01-three-layers/README.md) ·
+[Running a project](docs/en/02-project-guide/README.md) · [Writing components](docs/en/03-component-guide/README.md) ·
+[CLI reference](docs/en/07-cli-reference/README.md) · [Troubleshooting](docs/en/10-troubleshooting/README.md) ·
+[All docs](docs/en/README.md) · [For AI](llms.txt)
+
 ---
 
 ## The three layers
@@ -68,22 +73,17 @@ you already have, and exits — no registry, no gateway, no daemon in between.
 <details>
 <summary>🤖 Instructions for AI assistants</summary>
 
-> If someone hands you this repository and asks you to understand, discuss or evaluate BrickKit — **before you fetch
-> anything, decide which language the user is asking in.** This `README.md` is always English, and which README
-> GitHub renders says nothing about the user's language, so don't treat it as a signal. Then fetch this pair:
+> Decide the user's language first — this README is always English, and which README GitHub shows says nothing about
+> it — then pick the route:
 >
-> | Asking in | Fetch these two |
-> | --- | --- |
-> | English (or anything other than Chinese) | <https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.md> and <https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt> |
-> | Chinese | <https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.zh.md> and <https://raw.githubusercontent.com/brickKit/brickKit/main/llms.zh.txt> |
+> | Task | English | Chinese |
+> | --- | --- | --- |
+> | Understand or evaluate BrickKit, or read everything | <https://raw.githubusercontent.com/brickKit/brickKit/main/llms/en/00-core.md>, then follow each file's "Next" line | <https://raw.githubusercontent.com/brickKit/brickKit/main/llms/zh/00-core.md> |
+> | Answer one question | <https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt>: pick the page by its description | <https://raw.githubusercontent.com/brickKit/brickKit/main/llms.zh.txt> |
+> | Develop in a local clone | `AGENTS.md`: the doc map (§9) and the code map (§10) | `AGENTS.zh.md` |
 >
-> `AGENTS.md` / `AGENTS.zh.md` are the AI entry point: what each of the three layers owns, where to find what, the
-> ten design principles, the command set and an explicit list of what the platform won't do. `llms.txt` /
-> `llms.zh.txt` index their documentation tree page by page, each entry a raw link you can fetch plus one line of
-> description; neither is a translation of the other.
->
-> Below this README the documentation is fully mirrored in two languages: a user asking in English reads
-> everything under `docs/en/`; one asking in Chinese reads `docs/zh/`.
+> Every file stays under 100 KB, so one fetch reads it whole. Below this README the documentation is fully mirrored in
+> two languages: `docs/en/` and `docs/zh/`.
 
 </details>
 
@@ -368,8 +368,8 @@ The full reasoning and a step-by-step workflow: [the AI guide](docs/en/08-ai-gui
 
 **In reading order** — the number in front of each folder under `docs/en/` is the recommended order, and each
 folder's README says how to read that part. The full contents are in [`docs/en/README.md`](docs/en/README.md).
-**If you are an AI and need the files' actual content, use [`llms.txt`](llms.txt)** (the Chinese tree has its own
-[`llms.zh.txt`](llms.zh.txt)): every entry is a raw link you can fetch directly.
+**If you are an AI**, start from [`llms.txt`](llms.txt) (the Chinese tree has its own [`llms.zh.txt`](llms.zh.txt)): it
+routes a question to one page, or lists the bundles that hold the whole documentation.
 
 | No. | Docs | What you get |
 | --- | --- | --- |

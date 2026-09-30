@@ -23,9 +23,10 @@ reads it whole. `00-core` alone — AGENTS.md plus the core pages — is enough 
 - [llms/en/03.md](llms/en/03.md): docs/en/03-component-guide/04-new-and-skeleton.md … docs/en/06-architecture/README.md
 - [llms/en/04.md](llms/en/04.md): docs/en/06-architecture/01-pipeline-overview.md … docs/en/06-architecture/04-deploy-file-generation.md
 - [llms/en/05.md](llms/en/05.md): docs/en/06-architecture/05-design-principles.md … docs/en/06-architecture/08-security-and-signing.md
-- [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/09-error-codes.md … docs/en/09-patterns/README.md
-- [llms/en/07.md](llms/en/07.md): docs/en/09-patterns/01-component-design.md … docs/en/10-troubleshooting/02-local-debug-issues.md
-- [llms/en/08.md](llms/en/08.md): docs/en/10-troubleshooting/03-config-conflict-issues.md … docs/en/11-reference/06-market-api.md
+- [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/09-error-codes.md … docs/en/08-ai-guide/04-fractal-reading.md
+- [llms/en/07.md](llms/en/07.md): docs/en/08-ai-guide/05-reading-brickkit.md … docs/en/10-troubleshooting/01-up-down-issues.md
+- [llms/en/08.md](llms/en/08.md): docs/en/10-troubleshooting/02-local-debug-issues.md … docs/en/11-reference/05-json-schemas.md
+- [llms/en/09.md](llms/en/09.md): docs/en/11-reference/06-market-api.md … docs/en/11-reference/06-market-api.md
 <!-- llms:bundles:end -->
 
 ## Answer a question
@@ -129,6 +130,7 @@ code, read the code map in [AGENTS.md](AGENTS.md) (§10).
 - [docs/en/08-ai-guide/02-ai-dev-workflow.md](docs/en/08-ai-guide/02-ai-dev-workflow.md): AI-assisted development — from reading docs to writing code to releasing
 - [docs/en/08-ai-guide/03-component-doc-spec.md](docs/en/08-ai-guide/03-component-doc-spec.md): component docs from an AI's point of view — reading and writing them
 - [docs/en/08-ai-guide/04-fractal-reading.md](docs/en/08-ai-guide/04-fractal-reading.md): reading a fractal project — three entry points, keeping context small
+- [docs/en/08-ai-guide/05-reading-brickkit.md](docs/en/08-ai-guide/05-reading-brickkit.md): reading BrickKit itself — the bundles, llms.txt routing, the AGENTS.md maps
 
 ### 09-patterns/
 - [docs/en/09-patterns/README.md](docs/en/09-patterns/README.md): module index — not "how to use it" but "how to use it well"

@@ -27,6 +27,11 @@ init` 还会把 AI 助手技能装进项目里。
 
 </div>
 
+**文档：**[快速开始](docs/zh/00-intro/02-quick-start.md) · [三层文件](docs/zh/01-three-layers/README.md) ·
+[运行项目](docs/zh/02-project-guide/README.md) · [编写组件](docs/zh/03-component-guide/README.md) ·
+[命令参考](docs/zh/07-cli-reference/README.md) · [排障](docs/zh/10-troubleshooting/README.md) ·
+[全部文档](docs/zh/README.md) · [给 AI](llms.zh.txt)
+
 ---
 
 ## 三层文件架构
@@ -66,21 +71,15 @@ flowchart LR
 <details>
 <summary>🤖 给 AI 助手的指令</summary>
 
-> 如果有人把这个仓库的地址交给你，让你了解、讨论或评估 BrickKit —— **抓取任何文件
-> 之前，先判断用户提问用的是什么语言。** 这份 `README.zh.md` 固定是中文，但 GitHub
-> 渲染哪份 README 跟提问语言无关，别把它当成语言信号。判断完，按下表抓这一对：
+> 先判断用户提问用的是什么语言——这份 README.zh.md 固定是中文，GitHub 渲染哪份 README 跟提问语言无关——再按任务选路线：
 >
-> | 提问语言 | 抓这两份 |
-> | --- | --- |
-> | 中文 | <https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.zh.md> 与 <https://raw.githubusercontent.com/brickKit/brickKit/main/llms.zh.txt> |
-> | 英文（或其他语言） | <https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.md> 与 <https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt> |
+> | 任务 | 中文 | 英文（或其他语言） |
+> | --- | --- | --- |
+> | 了解、评估 BrickKit，或者读完全部 | <https://raw.githubusercontent.com/brickKit/brickKit/main/llms/zh/00-core.md>，再顺着每份的"下一份"往下读 | <https://raw.githubusercontent.com/brickKit/brickKit/main/llms/en/00-core.md> |
+> | 回答一个问题 | <https://raw.githubusercontent.com/brickKit/brickKit/main/llms.zh.txt>：按说明挑页 | <https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt> |
+> | 在本地克隆里开发 | `AGENTS.zh.md`：文档地图（§9）与代码地图（§10） | `AGENTS.md` |
 >
-> `AGENTS.md` / `AGENTS.zh.md` 是 AI 的总路由：三层文件各管什么、该去哪里找什么、
-> 十条设计原则、命令集、明确列出的「不做」清单。`llms.txt` / `llms.zh.txt` 是所属
-> 文档树的逐页索引，每一条都带可以直接抓取的 raw 链接与一句话说明；两者互不为对方译本。
->
-> 这份 README 之下的文档是完整对称的双语：用户在用中文提问，读 `docs/zh/` 下的
-> 一切；在用英文（或其他语言）提问，读 `docs/en/`。
+> 每份文件都不超过 100 KB，一次抓取就能读完整。这份 README 之下的文档是完整对称的双语：`docs/zh/` 与 `docs/en/`。
 
 </details>
 
@@ -356,8 +355,8 @@ AI 按需只读用得到的那一个。
 
 **按阅读顺序**——`docs/zh/` 下文件夹前面的编号就是推荐的顺序，每个文件夹里的 README
 讲清楚这一块怎么读。完整目录见 [`docs/zh/README.md`](docs/zh/README.md)。
-**如果你是 AI，需要文件的真实内容，改用 [`llms.zh.txt`](llms.zh.txt)**（英文文档树有自己的
-[`llms.txt`](llms.txt)）：每条都是可以直接抓取的 raw 链接。
+**如果你是 AI**，从 [`llms.zh.txt`](llms.zh.txt) 开始（英文文档树有自己的 [`llms.txt`](llms.txt)）：它把一个问题路由到一页，
+也列出装着全部文档的那几份合集。
 
 | 编号 | 文档 | 你会得到什么 |
 | --- | --- | --- |

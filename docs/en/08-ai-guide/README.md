@@ -28,3 +28,4 @@ flags, ask `brickkit <command> --help`.
 | [02 The development workflow](02-ai-dev-workflow.md) | The steps for writing a new component and changing an existing one |
 | [03 Component docs, from an AI's side](03-component-doc-spec.md) | How to read someone else's `BRICKKIT.md`, and how to write one for a component |
 | [04 Reading fractally](04-fractal-reading.md) | The reading order from platform to project to component, and managing the context window |
+| [05 Reading BrickKit itself](05-reading-brickkit.md) | Three routes into this repository: the bundles, `llms.txt` routing, the `AGENTS.md` maps |

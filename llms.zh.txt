@@ -124,6 +124,7 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 - [docs/zh/08-ai-guide/02-ai-dev-workflow.md](docs/zh/08-ai-guide/02-ai-dev-workflow.md): AI 辅助开发工作流——从读文档到写代码到发布
 - [docs/zh/08-ai-guide/03-component-doc-spec.md](docs/zh/08-ai-guide/03-component-doc-spec.md): 组件文档规范（AI 视角）——如何消费和生成
 - [docs/zh/08-ai-guide/04-fractal-reading.md](docs/zh/08-ai-guide/04-fractal-reading.md): 分形架构下的读取策略——三层路由、上下文管理
+- [docs/zh/08-ai-guide/05-reading-brickkit.md](docs/zh/08-ai-guide/05-reading-brickkit.md): 读 BrickKit 本身——文档合集、llms.zh.txt 路由、AGENTS.zh.md 的两张地图
 
 ### 09-patterns/
 - [docs/zh/09-patterns/README.md](docs/zh/09-patterns/README.md): 模块索引——不是"怎么用"，是"怎么用好"
