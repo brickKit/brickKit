@@ -26,6 +26,9 @@ import (
 
 // componentAt 返回 dir 所在的本地组件：dir 在某个本地安装源的 <scope>/<name>/ 下面（更深的子目录也算），
 // 且那里有 component.yaml。
+//
+// 组件目录就是项目根（或者包着项目根）时不算：那是组件自己的工作台——它继承的本地源 ../..
+// 正好提供它自己——在那里，"我所在的组件"是项目本身，不是项目里的一个组件。
 func componentAt(l project.Layout, decl *projfile.File, dir string) (string, bool) {
 	for _, s := range decl.Sources {
 		if s.Type != projfile.SourceTypeLocal || s.Path == "" {
@@ -40,7 +43,11 @@ func componentAt(l project.Layout, decl *projfile.File, dir string) (string, boo
 		if len(parts) < 2 {
 			continue
 		}
-		if fileExists(filepath.Join(root, parts[0], parts[1], manifest.FileName)) {
+		compDir := filepath.Join(root, parts[0], parts[1])
+		if inside, err := filepath.Rel(compDir, l.Root); err == nil && !strings.HasPrefix(inside, "..") {
+			continue
+		}
+		if fileExists(filepath.Join(compDir, manifest.FileName)) {
 			return parts[0] + "/" + parts[1], true
 		}
 	}

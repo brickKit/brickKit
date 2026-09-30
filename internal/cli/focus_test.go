@@ -180,3 +180,21 @@ func TestImplicitFocusOnK8sPointsAtAll(t *testing.T) {
 	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/portal")
 	assert.NotContains(t, r.stdout+r.stderr, i18n.T(msgid.CliUpHintImplicitFocus, "erp/portal"), "--focus was asked for explicitly")
 }
+
+// 真实的工作台（add --local --init 建的）：它继承的本地源 ../.. 正好提供工作台自己这个组件。
+// 在工作台里，"我所在的组件"就是项目本身，不是焦点——up、deps、build 不带参数照旧作用于工作台（Final review #1）。
+func TestARealWorkbenchIsNotItsOwnFocus(t *testing.T) {
+	dir := focusFixture(t)
+	r := runWithEngine(t, newFakeEngine(), dir, "add", "--local", "--init", "--yes")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	bench := in(dir, "components", "erp", "portal")
+	require.FileExists(t, in(bench, "brickkit.yaml"))
+
+	r = runWithEngine(t, newFakeEngine(), bench, "up", "--dry-run")
+	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, i18n.T(msgid.CliFocusSet, "erp/portal", "deploy.local.yaml"))
+	assert.NoFileExists(t, in(bench, "deploy.local.yaml"))
+
+	r = runWithEngine(t, newFakeEngine(), bench, "deps")
+	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+}
