@@ -6,7 +6,7 @@
 **先读**：[快速开始](../00-intro/02-quick-start.md)（五分钟跑通一个组件）和 [三层架构](../01-three-layers/README.md)
 （`brickkit.yaml`、部署文件、`config/` 各管什么）。
 
-这一模块按一个项目的生命周期排：建项目 → 加组件 → 本地调试 → 多环境 → 启停 → 升级 → 移除 → 查看 → 检查 → 管源码 → 构建。
+这一模块按一个项目的生命周期排：建项目 → 加组件 → 本地调试 → 就地开发 → 多环境 → 启停 → 升级 → 移除 → 查看 → 检查 → 管源码 → 构建。
 每一篇的命令和输出都是真跑出来的，用的是同一个演示项目 `my-shop`：
 
 | 组件 | 做什么 |
@@ -22,6 +22,7 @@
 | [01 创建项目](01-init-and-project-creation.md) | `init` 的两种模式、生成的骨架与 `.gitignore`、克隆已有项目 |
 | [02 添加组件](02-add-and-component-install.md) | `add` 一次改了哪些文件、`$var:` 提示、`--local`、`--repo` |
 | [03 本地调试](03-local-debug-workflow.md) | `local on` → `mode: debug` → 在 IDE 里跑 → 容器连得上你；团队改了文件之后怎么办 |
+| [04 在项目里就地开发](04-focus-run.md) | 在组件目录里 `up`、`--focus` / `--all`、哪些启动以及为什么、只有一个 `components/` |
 | [05 多环境](05-multi-env-switch.md) | 每个环境一份部署文件，`-f` 选；`vars:` 让同一份 `config/` 在不同环境取不同的值 |
 | [06 启动与停止](06-up-and-down.md) | `up` 的流程、镜像检查、`--dry-run`、`down`、常见启动失败 |
 | [07 升级与配置迁移](07-upgrade-and-migration.md) | `upgrade` 怎么迁移配置、冲突怎么解决、旧版本怎么留下 |

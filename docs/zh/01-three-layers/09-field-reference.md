@@ -29,7 +29,7 @@
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
 | `target` | ✅ | `docker` / `podman` / `k8s` |
-| `focus` | | 只能写在 `deploy.local.yaml` 里：只运行这个组件（从源码跑）和它需要的组件——见 [deploy.local.yaml](04-deploy-local-yaml.md) |
+| `focus` | | 只能写在 `deploy.local.yaml` 里：只运行这个组件（从源码跑）和它需要的组件——见[在项目里就地开发](../02-project-guide/04-focus-run.md) |
 | `vars` | | 覆盖 `config/vars.yaml` 的同名公共变量 |
 | `k8s.context` / `k8s.namespace` / `k8s.createNamespace` | | 部署到哪个集群、哪个命名空间 |
 | `k8s.podSecurity` | | `restricted`：按 Pod Security 的 restricted 级别生成 |

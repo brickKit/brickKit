@@ -9,7 +9,7 @@
 | 字段 | 类型 | 必填 | 规则 |
 | --- | --- | --- | --- |
 | `target` | 字符串 | ✅ | `docker` / `podman` / `k8s` |
-| `focus` | 字符串 | | 只能写在 `deploy.local.yaml` 里：一个组件 ID。只有这个组件和它需要的组件启动，它从源码跑（按 `mode: local`，写了 `mode: debug` 就按 debug）；`target: k8s` 下不能用。见 [deploy.local.yaml](../01-three-layers/04-deploy-local-yaml.md) |
+| `focus` | 字符串 | | 只能写在 `deploy.local.yaml` 里：一个组件 ID。只有这个组件和它需要的组件启动，它从源码跑（按 `mode: local`，写了 `mode: debug` 就按 debug）；`target: k8s` 下不能用。见[在项目里就地开发](../02-project-guide/04-focus-run.md) |
 | `vars` | 映射 | | 覆盖 `config/vars.yaml` 里的同名公共变量，只影响 `$var:` 的查找；键必须是合法的环境变量名 |
 
 ## k8s

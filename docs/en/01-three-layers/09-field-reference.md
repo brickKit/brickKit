@@ -29,7 +29,7 @@ in `schemas/` — see [JSON Schemas](../11-reference/05-json-schemas.md).
 | Field | Required | Notes |
 | --- | --- | --- |
 | `target` | ✅ | `docker` / `podman` / `k8s` |
-| `focus` | | Only in `deploy.local.yaml`: run just this component (from source) and what it needs — see [deploy.local.yaml](04-deploy-local-yaml.md) |
+| `focus` | | Only in `deploy.local.yaml`: run just this component (from source) and what it needs — see [Developing inside the project](../02-project-guide/04-focus-run.md) |
 | `vars` | | Overrides shared variables of the same name in `config/vars.yaml` |
 | `k8s.context` / `k8s.namespace` / `k8s.createNamespace` | | Which cluster and namespace to deploy to |
 | `k8s.podSecurity` | | `restricted`: generate for the Pod Security "restricted" level |

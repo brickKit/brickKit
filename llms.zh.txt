@@ -42,6 +42,7 @@
 - [docs/zh/02-project-guide/01-init-and-project-creation.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/01-init-and-project-creation.md): 创建项目——三层骨架、补全式初始化（已有目录）、克隆不需要 init
 - [docs/zh/02-project-guide/02-add-and-component-install.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/02-add-and-component-install.md): 添加组件——副作用、--local、--init
 - [docs/zh/02-project-guide/03-local-debug-workflow.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/03-local-debug-workflow.md): 本地调试工作流——local on、debug、refresh
+- [docs/zh/02-project-guide/04-focus-run.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/04-focus-run.md): 在项目里就地开发——在组件目录里 up、--focus / --all、只有一个 components/
 - [docs/zh/02-project-guide/05-multi-env-switch.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/05-multi-env-switch.md): 多环境切换——--file、vars 覆盖
 - [docs/zh/02-project-guide/06-up-and-down.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/06-up-and-down.md): 启动与停止——六步流程、镜像检查、绝不自动 build
 - [docs/zh/02-project-guide/07-upgrade-and-migration.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/07-upgrade-and-migration.md): 升级与配置迁移——算法、冲突、重复 key
