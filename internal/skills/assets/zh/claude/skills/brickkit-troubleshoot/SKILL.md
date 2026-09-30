@@ -114,6 +114,23 @@ description: brickkit 命令报错、组件起不来、地址注入不生效、�
 `components/.archived/` 下。处理：`brickkit restore` 把 `mode` 恢复到上次提交的样子；或者把目录的移动一起
 提交。想不提交先查一遍，跑 `brickkit restore --check`。
 
+**16. 焦点运行、嵌套副本、submodule。**
+
+- 「焦点 … 不是这个项目的组件」（`COMPONENT_NOT_FOUND`）：`deploy.local.yaml` 的 `focus:` 写的组件不在
+  `brickkit.yaml` 里（拼错了，或被删了）。照「是不是想写」改；`brickkit up --focus <id>` 换一个，`brickkit up --all` 去掉焦点。
+- 「焦点 … 的条目写着 mode: disable」（`COMPONENT_DISABLED`）：同时说了「跑它」和「永远别跑它」。去掉 `mode: disable`，或换一个焦点。
+- `focus` 字段上的「校验失败」（`CONFIG_INVALID`）：`focus:` 写进了 `deploy.yaml`（它是个人的事）、配了 `target: k8s`
+  （集群够不着你的机器），或者不是组件 ID。只写在 `deploy.local.yaml` 里、只用于 docker / podman。
+- 「--focus 与 --all 互相矛盾」「--focus 写在 deploy.local.yaml 里，而 -f 与 --no-local 都不读它」（`INVALID_ARGUMENT`）：二选一；
+  要用焦点就去掉 `-f` / `--no-local`。
+- 以为会启动的组件打印 `不启动（焦点之外）`：设了焦点，起点只有焦点和钉住的组件。`brickkit up --all`，或者在
+  `deploy.local.yaml` 里给它写 `mode: enabled`。
+- 「组件源码嵌在另一个组件的目录里」（`CONFIG_CONFLICT`）：同一个组件有了两份，`up`、`lint`、`sync` 都拒绝。自己挪走或删掉
+  嵌套的那份——先问人；报错会说它在别处有没有副本。
+- 「这个工作台在项目 … 里面；--repo 会在这里再克隆一份」（`CONFIG_CONFLICT`）：到外层项目里 `add --repo`，或在那里用焦点运行。
+- `build` 的警告「… 的源码里有 git submodule，这里它们是空目录」：BrickKit 从不拉取 submodule。让组件发布镜像；或者在克隆下来的
+  仓库里自己 `git submodule update --init`。
+
 ## 其余错误码速查
 
 | 错误码 | 情形 | 处理 |

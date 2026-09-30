@@ -132,6 +132,14 @@ p99 毛刺）；内存 requests = limits（拿 Guaranteed QoS）。写法：
 **13. `publicKeys` 是唯一让验签生效的字段**（`brickkit.yaml` 的 `installer:`，市场组件用）。
 一个公钥都没配，`requireSignature: true` 也不起作用。
 
+**14. `focus:` 是个人的「只跑这一个」开关。**
+
+`focus: <id>` 只存在于 `deploy.local.yaml`（`deploy.yaml` 里会被拒，`target: k8s` 下也会被拒）。写了它，
+`up` 只启动这个组件——从本地源码跑，相当于 `mode: local`（你写的 `mode: debug` 会保留）——和它需要的；
+钉住的组件（`enabled` / `local` / `debug`）照样启动。在组件目录里 `brickkit up` 或 `up --focus <id>` 会写上它
+（需要时顺手打开本地模式），`up --all` 去掉它；`-f` 与 `--no-local` 跳过它；`sync` 不看它；`local refresh`
+把它列在你的本地修改里。会让文件通不过校验的焦点，在写任何东西之前就被拒绝。
+
 ## 机制是怎么运作的
 
 **地址格式在所有 target 下一样**：`http://<版本化服务名>:<端口>`，组件代码零修改，多版本天然共存。

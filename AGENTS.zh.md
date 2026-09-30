@@ -55,6 +55,8 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - `brickkit.yaml` 是锁文件：用到的每个组件版本都写在这里。没声明的强依赖是错误（报错时给出 `add` 的写法），没声明的弱依赖就是不存在。
 - `deploy.local.yaml` 是**完整替换**，不是属性覆盖：本地模式开着时，运行或检查部署的命令（`up`、`down`、`status`、`sync`、`lint`、`build`）只读它、不读 `deploy.yaml`；`graph` 与 `deps` 始终读 `deploy.yaml`，输出对谁都一样。它必须与 `brickkit.yaml` 一一对应，团队加了组件就要 `brickkit local refresh`。
 - `mode: debug` 只写在 `deploy.local.yaml`：那是"我正在自己机器上调它"这个个人事实，不进 Git。
+- `focus: <id>` 只写在 `deploy.local.yaml`——在组件目录里 `brickkit up` 或 `up --focus <id>` 会写上它，`up --all` 去掉它。写了它，就只启动这个组件（从源码跑）和它需要的组件；`sync` 不看它，`target: k8s` 下用不了。
+- 项目命令在任何子目录里都能用：往上找到最近的 `brickkit.yaml`（像 `git` 一样，不停在 `.git`），找到上面的就说一句 `📁 项目：…`；打印的路径都相对你所在的目录。`release`、`publish`、`init`、`skills` 作用于当前目录。
 - `$var:NAME` 从 `config/vars.yaml`（或部署文件的 `vars:`）取值；`${NAME}` 从进程环境与 `.env` 取值；`file://路径` 读文件。没有隐式的环境变量覆盖。
 - `brickkit up` 绝不构建镜像：本地该有的镜像没有时，它报错并告诉你跑 `brickkit build`。
 - `brickkit init <名字>` 新建目录；不带名字的 `brickkit init` 在当前目录补全缺的文件，已有的一个字节都不动，`.gitignore` 缺必需条目时大声警告。
@@ -65,6 +67,8 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - **消费态**：使用它的项目只读它的 `component.yaml`（契约）和 `BRICKKIT.md`（文档）。
 - **物理不套娃，规范套娃**：子组件的三层文件不会被带进父项目，只有契约和文档会。
 - `brickkit add` 时把组件的 `BRICKKIT.md` 永久缓存到 `.brickkit/manifests/` 下。
+- **项目里的组件用焦点运行，独立的组件用工作台。** 焦点运行不需要任何自己的文件；工作台是组件仓库自己的 `brickkit.yaml`，最近的 `brickkit.yaml` 永远说了算。
+- **只有一个 `components/`**：组件源码只放在项目的 `components/` 里。嵌在另一个组件目录里的组件，`up`、`lint`、`sync` 都拒绝，也从不替你挪；`add --repo` 总是克隆到项目的 `components/`。git submodule 从不拉取。
 
 ### 3.4 AI 的三层路由
 
@@ -84,7 +88,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - 成员的迁移照常单独跑，用成员自己的镜像与配置，所以每个成员都必须有自己的镜像（`image` 或 `build`）。
 - 外壳本身也是组件：有自己的 `configSchema` 和 `config/` 文件。
 
-## §5 命令集（21 个 + version + lang）
+## §5 命令集（21 个 + version + lang + completion）
 
 | 命令 | 核心行为 |
 | --- | --- |
@@ -97,7 +101,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `remove` | 移除组件，配置移进 `config/.archive/` |
 | `fetch` | 只下载组件的产物（契约），不装进项目 |
 | `upgrade` | 升级版本，按新旧 `configSchema` 迁移配置，冲突处写重复 key 大声失败 |
-| `up` | 生成部署文件 → 跑迁移 → 起容器（绝不自动构建） |
+| `up` | 生成部署文件 → 跑迁移 → 起容器（绝不自动构建）；在组件目录里或带 `--focus` 时，只起这个组件和它需要的 |
 | `down` | 停止容器（不删 volume） |
 | `status` | 运行状态表 |
 | `sync` | 整理组件源码工作区：这次用不上的收进 `.archived/`，要用的放回来 |
@@ -110,7 +114,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `login` | 登录组件市场 |
 | `logout` | 退出组件市场（吊销令牌、删本地凭据） |
 
-`version` 打印版本；`lang` 查看或设置 CLI 的界面语言（`lang set zh|en`）。
+`version` 打印版本；`lang` 查看或设置 CLI 的界面语言（`lang set zh|en`）；`completion` 打印某种 shell 的 TAB 补全脚本（`install.sh` 会给 bash、zsh、fish 装好）。
 
 ### 参数
 
@@ -118,6 +122,8 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - `-f, --file <路径>`：读部署文件的命令（`up`、`down`、`status`、`sync`、`lint`、`graph`）用它指定一份部署文件，同时完全忽略 `deploy.local.yaml` 与本地模式开关。
 - `--no-local`：`up`、`down`、`status`、`sync`、`lint` 本次忽略 `deploy.local.yaml`，不改变本地模式开关。
 - `--dry-run`：`up` 只生成部署文件不执行；`upgrade` 只演算不写盘。
+- `--focus <id>` / `--all`：`up` 在 `deploy.local.yaml` 里设上或去掉焦点；两者都不能和 `-f`、`--no-local` 一起用。
+- 在组件目录里不带参数：`build` 和 `deps` 指的就是这个组件。
 
 每条命令的全部参数见 [`docs/zh/07-cli-reference/README.md`](docs/zh/07-cli-reference/README.md)。
 

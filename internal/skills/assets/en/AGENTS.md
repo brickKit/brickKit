@@ -56,6 +56,14 @@ step for you; hand-editing one layer and forgetting another is what produces a
 5. **Start/stop follows the layer above.** Turn off a top-level component (`mode: disable` in the
    deploy file) and everything below it stops too — don't turn things off one by one.
 
+## Working on one component
+
+In a big project, don't start everything to test one component. `brickkit up` in its directory
+(`components/<scope>/<name>/`) runs just that component — from its source — plus what it needs, and
+remembers it as the focus in `deploy.local.yaml`; `brickkit up --all` runs everything again. Every
+project command works from any subdirectory. Component source lives only in the project's
+`components/`: never copy a component into another component's directory.
+
 ## Don't memorize flags
 
 **For any command's flags, ask `brickkit <command> --help`.** This file and the skills under
@@ -68,7 +76,7 @@ stale one is what makes you confidently type an `unknown flag`.
 
 | Skill | Use it for |
 | --- | --- |
-| `brickkit-assemble` | add / remove / upgrade / fetch / deps / sync / up / down / status, default versions and `requiredBy`, what starts |
+| `brickkit-assemble` | add / remove / upgrade / fetch / deps / sync / up / down / status, default versions and `requiredBy`, what starts, focus runs |
 | `brickkit-component` | writing or editing a `component.yaml` and its `BRICKKIT.md`, shells, migrations, releasing a version |
 | `brickkit-deploy` | `deploy.yaml` / `deploy.local.yaml`, targets, local mode, `mode: debug` / `local`, environments, `config/` values and secrets, images |
 | `brickkit-troubleshoot` | an error from `brickkit`, a component that won't start or connect, looking up an `error_code` |

@@ -53,6 +53,13 @@ BrickKit 是**声明式的组件管理与拼装平台**：每块积木（组件�
 5. **启停跟着上层走。** 顶层组件关掉，它下面那一串跟着不启动。想收窄范围就改部署文件
    里顶层条目的 `mode`，别逐个关。
 
+## 只改一个组件时
+
+大项目里，别为了测一个组件把所有组件都起起来。在它的目录（`components/<scope>/<name>/`）里 `brickkit up`，
+就只运行这个组件——从源码跑——和它需要的，并把它作为焦点记在 `deploy.local.yaml` 里；`brickkit up --all`
+恢复运行全部组件。每个项目命令在任何子目录里都能用。组件源码只放在项目的 `components/` 里：永远不要把组件复制进
+另一个组件的目录。
+
 ## 别去记参数
 
 **任何命令的参数都去问 `brickkit <命令> --help`。** 这份文件和 `.claude/skills/`
@@ -65,7 +72,7 @@ BrickKit 是**声明式的组件管理与拼装平台**：每块积木（组件�
 
 | 技能 | 管什么 |
 | --- | --- |
-| `brickkit-assemble` | 增删、升级组件，默认版本与兼容版本，`brickkit.yaml` 锁文件，启停与 `mode`，up / down / status / deps |
+| `brickkit-assemble` | 增删、升级组件，默认版本与兼容版本，`brickkit.yaml` 锁文件，启停与 `mode`，焦点运行，up / down / status / deps |
 | `brickkit-component` | 写或改 `component.yaml`：配置项、保留名、依赖、镜像与构建、外壳、`BRICKKIT.md`、迁移、健康检查、release |
 | `brickkit-deploy` | `deploy.yaml` / `deploy.local.yaml` 字段、本地模式、mode debug/local、多环境、`config/` 的值与密钥写法、镜像、外壳成员、K8s |
 | `brickkit-troubleshoot` | 报错与症状 → 原因 → 处理，按 `error_code` 定位 |

@@ -1,6 +1,6 @@
 ---
 name: brickkit-assemble
-description: 在 BrickKit 项目里增删组件、升级组件版本、调整启停、启动或停止整套服务、查看运行状态和依赖树时使用。覆盖 add / remove / upgrade / fetch / sync / deps / up / down / status 的适用场景，brickkit.yaml 作为锁文件、默认版本与 requiredBy 兼容版本、多版本共存，以及写在 deploy.yaml / deploy.local.yaml 里的 mode「启停跟着上层走」规则。当用户问「怎么把某个组件加进来 / 升级 / 关掉 / 为什么它没起来 / 谁依赖谁」时，这个技能适用。
+description: 在 BrickKit 项目里增删组件、升级组件版本、调整启停、启动或停止整套服务、查看运行状态和依赖树时使用。覆盖 add / remove / upgrade / fetch / sync / deps / up / down / status 的适用场景，brickkit.yaml 作为锁文件、默认版本与 requiredBy 兼容版本、多版本共存，写在 deploy.yaml / deploy.local.yaml 里的 mode「启停跟着上层走」规则，以及焦点运行（在大项目里只改一个组件，up --focus / --all）。当用户问「怎么把某个组件加进来 / 升级 / 关掉 / 为什么它没起来 / 谁依赖谁」时，这个技能适用。
 ---
 
 # 拼装 BrickKit 项目
@@ -89,6 +89,19 @@ description: 在 BrickKit 项目里增删组件、升级组件版本、调整启
 该启动的移回来，判据与 `up` 完全一致。
 
 **12. `up` 从不构建镜像。** 本地源的组件要先 `brickkit build`，见 `brickkit-deploy` 技能。
+
+**13. 只改一个组件时，用焦点运行，别起整套。**
+
+在组件目录里 `brickkit up`（或在项目任何位置 `brickkit up --focus <id>`），就把 `focus: <id>` 写进
+`deploy.local.yaml`，只启动这个组件——从源码跑——和它需要的；其余的都打印 `不启动（焦点之外）`。焦点一直在，
+直到 `brickkit up --all`。项目命令在任何子目录里都能用（往上找最近的 `brickkit.yaml`）；不带参数的 `build`、
+`deps` 指的就是你所在的组件。`sync` 不看焦点，换焦点不会挪目录。
+
+**14. 只有一个 `components/`。**
+
+组件源码只放在项目的 `components/` 里（`add --repo` 不管在哪运行都克隆到那里）。永远不要把组件复制或克隆进另一个
+组件的目录：`up`、`lint`、`sync` 会拒绝嵌套的副本，BrickKit 也从不替你挪——删之前先问人，那里可能是某人改动的
+唯一一份。git submodule 从不拉取。
 
 ## 机制是怎么运作的
 

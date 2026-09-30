@@ -58,6 +58,8 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 - `brickkit.yaml` is the lock file: every component version in use is written there. An undeclared required dependency is an error (the error shows the `add` to run); an undeclared optional dependency simply does not exist.
 - `deploy.local.yaml` **replaces** `deploy.yaml` as a whole; it does not override fields. With local mode on, the commands that run or check the deployment (`up`, `down`, `status`, `sync`, `lint`, `build`) read it and not `deploy.yaml`; `graph` and `deps` always read `deploy.yaml`, so their output is the same for everyone. It must match `brickkit.yaml` entry for entry, so after the team adds a component you run `brickkit local refresh`.
 - `mode: debug` is written only in `deploy.local.yaml`: "I'm debugging this on my machine right now" is a personal fact and never goes into Git.
+- `focus: <id>` is written only in `deploy.local.yaml` — `brickkit up` in a component's directory or `up --focus <id>` writes it, `up --all` removes it. While it is set, only that component (from its source) and what it needs start; `sync` ignores it, and it doesn't work with `target: k8s`.
+- Project commands work from any subdirectory: they walk up to the nearest `brickkit.yaml` (like `git`, not stopping at `.git`) and say `📁 Project: …` when they did; paths they print are relative to where you are. `release`, `publish`, `init` and `skills` act on the current directory.
 - `$var:NAME` takes its value from `config/vars.yaml` (or the deploy file's `vars:`); `${NAME}` from the process environment, then `.env`; `file://path` reads a file. The environment never overrides a value implicitly.
 - `brickkit up` never builds an image: when an image that has to be built locally is missing, it stops and tells you to run `brickkit build`.
 - `brickkit init <name>` creates a new directory; `brickkit init` without a name completes the current directory, adding only what is missing and never touching an existing byte, and warns loudly when `.gitignore` lacks a required entry.
@@ -68,6 +70,8 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 - **When a project uses it**, the project reads only its `component.yaml` (the contract) and its `BRICKKIT.md` (the documentation).
 - **The spec nests, the files don't**: a component's own three layers never travel into the project that uses it; only the contract and the docs do.
 - `brickkit add` caches each component's `BRICKKIT.md` permanently under `.brickkit/manifests/`.
+- **Inside a project, a focus run; for a standalone component, a workbench.** A focus run needs no files of its own; a workbench is the component repository's own `brickkit.yaml`, and the nearest `brickkit.yaml` always wins.
+- **One `components/`**: component source lives only in the project's `components/`. A component nested inside another component's directory is refused by `up`, `lint` and `sync` and never moved for you; `add --repo` always clones into the project's `components/`. Git submodules are never fetched.
 
 ### 3.4 How an AI should read a project
 
@@ -87,7 +91,7 @@ Don't load every component's documentation at once: read only the components the
 - Members' migrations still run on their own, with each member's own image and config — so every member needs its own image (`image` or `build`).
 - A shell is a component too: it has its own `configSchema` and its own `config/` file.
 
-## §5 Commands (21, plus version and lang)
+## §5 Commands (21, plus version, lang and completion)
 
 | Command | What it does |
 | --- | --- |
@@ -100,7 +104,7 @@ Don't load every component's documentation at once: read only the components the
 | `remove` | Remove a component; its config moves to `config/.archive/` |
 | `fetch` | Download only a component's artifacts (contracts), without adding it to the project |
 | `upgrade` | Move to another version and migrate config between the old and new `configSchema`; a conflict becomes a duplicate key that stops `up` |
-| `up` | Generate deployment files → run migrations → start containers (never builds) |
+| `up` | Generate deployment files → run migrations → start containers (never builds); in a component's directory or with `--focus`, only that component and what it needs |
 | `down` | Stop containers (volumes are kept) |
 | `status` | Running-state table |
 | `sync` | Tidy the component source workspace: sources not used this run go to `.archived/`, the ones needed come back |
@@ -113,7 +117,7 @@ Don't load every component's documentation at once: read only the components the
 | `login` | Log in to a component market |
 | `logout` | Log out of a component market (revokes the token, deletes local credentials) |
 
-`version` prints the version; `lang` shows or sets the language the CLI speaks (`lang set en|zh`).
+`version` prints the version; `lang` shows or sets the language the CLI speaks (`lang set en|zh`); `completion` prints the TAB-completion script for a shell (`install.sh` installs it for bash, zsh and fish).
 
 ### Flags
 
@@ -121,6 +125,8 @@ Don't load every component's documentation at once: read only the components the
 - `-f, --file <path>`: the commands that read a deploy file (`up`, `down`, `status`, `sync`, `lint`, `graph`) use it to pick one deploy file, ignoring `deploy.local.yaml` and the local-mode switch entirely.
 - `--no-local`: `up`, `down`, `status`, `sync` and `lint` ignore `deploy.local.yaml` for this run, without changing the local-mode switch.
 - `--dry-run`: `up` generates the deployment files without running them; `upgrade` works everything out without writing.
+- `--focus <id>` / `--all`: `up` sets or removes the focus in `deploy.local.yaml`; neither goes with `-f` or `--no-local`.
+- No argument, in a component's directory: `build` and `deps` mean that component.
 
 Every command's full flag list is in [`docs/en/07-cli-reference/README.md`](docs/en/07-cli-reference/README.md).
 

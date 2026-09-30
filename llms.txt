@@ -33,7 +33,7 @@ written independently for the Chinese documentation tree, not a translation of t
 - [docs/en/01-three-layers/01-overview.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/01-overview.md): overview — directory layout, who owns what, where to look
 - [docs/en/01-three-layers/02-brickkit-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/02-brickkit-yaml.md): brickkit.yaml — fields, exact versions, its role as the lock file
 - [docs/en/01-three-layers/03-deploy-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/03-deploy-yaml.md): deploy.yaml — target, mode, members, vars
-- [docs/en/01-three-layers/04-deploy-local-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/04-deploy-local-yaml.md): deploy.local.yaml — whole-file replacement, strict checks, refresh
+- [docs/en/01-three-layers/04-deploy-local-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/04-deploy-local-yaml.md): deploy.local.yaml — whole-file replacement, strict checks, refresh, the personal focus field
 - [docs/en/01-three-layers/05-config-directory.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/05-config-directory.md): the config/ directory — file names, per-version files, the archive
 - [docs/en/01-three-layers/06-vars-and-var-ref.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/06-vars-and-var-ref.md): shared variables and explicit $var: references — syntax, rules, why nothing is implicit
 - [docs/en/01-three-layers/07-sensitive-values.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/07-sensitive-values.md): secrets — ${}, file://, and why the environment never overrides silently
@@ -52,8 +52,8 @@ written independently for the Chinese documentation tree, not a translation of t
 - [docs/en/02-project-guide/08-remove-and-archive.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/08-remove-and-archive.md): removing and archiving — .archive/, restoring through migration
 - [docs/en/02-project-guide/09-status-and-graph.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/09-status-and-graph.md): status and topology — the status table, graph as Mermaid, deps
 - [docs/en/02-project-guide/10-lint-and-checks.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/10-lint-and-checks.md): offline checks — what lint checks, --strict, where up --dry-run takes over
-- [docs/en/02-project-guide/11-sync-and-restore.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/11-sync-and-restore.md): component source — sync archives and restores, restore goes back to the last commit
-- [docs/en/02-project-guide/12-build-and-images.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/12-build-and-images.md): building and images — --force, skipping existing images, tags that follow versions
+- [docs/en/02-project-guide/11-sync-and-restore.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/11-sync-and-restore.md): component source — sync archives and restores (ignoring the focus), restore goes back to the last commit
+- [docs/en/02-project-guide/12-build-and-images.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/12-build-and-images.md): building and images — --force, skipping existing images, tags that follow versions, empty submodules
 
 ### 03-component-guide/
 - [docs/en/03-component-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/README.md): module index — for component authors
@@ -93,13 +93,13 @@ written independently for the Chinese documentation tree, not a translation of t
 - [docs/en/06-architecture/03-env-injection-contract.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/03-env-injection-contract.md): the environment-variable contract — every variable
 - [docs/en/06-architecture/04-deploy-file-generation.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/04-deploy-file-generation.md): generating deployment files — Compose and Kubernetes side by side
 - [docs/en/06-architecture/05-design-principles.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/05-design-principles.md): design principles and trade-offs — the ten principles argued one by one
-- [docs/en/06-architecture/06-bare-repo-mechanism.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/06-bare-repo-mechanism.md): the bare-repository cache — the four-step read order
+- [docs/en/06-architecture/06-bare-repo-mechanism.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/06-bare-repo-mechanism.md): the bare-repository cache — the four-step read order, submodules never fetched
 - [docs/en/06-architecture/07-cache-design.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/07-cache-design.md): caches — permanent manifests, what a first clone rebuilds
 - [docs/en/06-architecture/08-security-and-signing.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/08-security-and-signing.md): security and signing — cosign, verification with the Go standard library
 - [docs/en/06-architecture/09-error-codes.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/09-error-codes.md): error codes — every code, exit statuses, what to retry
 
 ### 07-cli-reference/
-- [docs/en/07-cli-reference/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/07-cli-reference/README.md): the complete CLI reference — 21 commands and every flag of each
+- [docs/en/07-cli-reference/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/07-cli-reference/README.md): the complete CLI reference — 21 commands and every flag of each, running from a subdirectory, completion
 
 ### 08-ai-guide/
 - [docs/en/08-ai-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/08-ai-guide/README.md): module index — for AI assistants

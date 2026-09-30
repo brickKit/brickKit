@@ -1,6 +1,6 @@
 ---
 name: brickkit-assemble
-description: Use when adding, removing or upgrading components in a BrickKit project, keeping two versions side by side, changing what's on or off, starting or stopping the stack, or checking what's running. Covers add / remove / upgrade / fetch / deps / sync / up / down / status, brickkit.yaml as a lock file, the default version and requiredBy, how add/remove/upgrade keep deploy.yaml, deploy.local.yaml and config/ in step, and the "follows the layer above" rule for what starts. Applies when the user mentions brickkit.yaml's components, requiredBy, mode, upgrade, or asks "how do I add / upgrade / turn off a component" or "why isn't it starting".
+description: Use when adding, removing or upgrading components in a BrickKit project, keeping two versions side by side, changing what's on or off, starting or stopping the stack, or checking what's running. Covers add / remove / upgrade / fetch / deps / sync / up / down / status, brickkit.yaml as a lock file, the default version and requiredBy, how add/remove/upgrade keep deploy.yaml, deploy.local.yaml and config/ in step, the "follows the layer above" rule for what starts, and focus runs (one component inside a big project, up --focus / --all). Applies when the user mentions brickkit.yaml's components, requiredBy, mode, upgrade, or asks "how do I add / upgrade / turn off a component" or "why isn't it starting".
 ---
 
 # Assembling a BrickKit project
@@ -98,6 +98,22 @@ calling another project's service (generate a client from its contract). It isn'
 It moves the source of components that won't start this run into `components/.archived/` (and back),
 using exactly `up`'s decision. Containers aren't touched. `brickkit restore` puts `deploy.yaml`'s
 `mode` values back to the last commit, for projects that commit `components/`.
+
+**11. To work on one component, run a focus run — not the whole stack.**
+
+`brickkit up` in the component's directory (or `brickkit up --focus <id>` anywhere in the project)
+writes `focus: <id>` into `deploy.local.yaml` and starts only that component — from its source — plus
+what it needs; everything else prints `not starting (outside the focus)`. The focus stays until
+`brickkit up --all`. Project commands work from any subdirectory (they find the nearest
+`brickkit.yaml` upward); `build` and `deps` without an argument mean the component you are in.
+`sync` ignores the focus, so switching focus moves no directories.
+
+**12. There is one `components/`.**
+
+Component source lives only in the project's `components/` (`add --repo` always clones there, from
+wherever you run it). Never copy or clone a component into another component's directory: `up`,
+`lint` and `sync` refuse nested copies and BrickKit never moves them — ask before deleting one, it may
+hold the only copy of someone's changes. Git submodules are never fetched.
 
 ## How the mechanism works
 

@@ -31,7 +31,7 @@
 - [docs/zh/01-three-layers/01-overview.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/01-overview.md): 三层架构总览——目录结构、职责表、检索路径
 - [docs/zh/01-three-layers/02-brickkit-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/02-brickkit-yaml.md): brickkit.yaml 详解——字段、精确版本、Lock File 角色
 - [docs/zh/01-three-layers/03-deploy-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/03-deploy-yaml.md): deploy.yaml 详解——target、mode、members、vars
-- [docs/zh/01-three-layers/04-deploy-local-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/04-deploy-local-yaml.md): deploy.local.yaml 详解——完整替换、严格校验、refresh
+- [docs/zh/01-three-layers/04-deploy-local-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/04-deploy-local-yaml.md): deploy.local.yaml 详解——完整替换、严格校验、refresh、个人的 focus 字段
 - [docs/zh/01-three-layers/05-config-directory.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/05-config-directory.md): config/ 目录详解——命名、版本感知、归档
 - [docs/zh/01-three-layers/06-vars-and-var-ref.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/06-vars-and-var-ref.md): 公共变量与 $var: 显式引用——语法、规则、为什么不用隐式
 - [docs/zh/01-three-layers/07-sensitive-values.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/07-sensitive-values.md): 敏感值处理——${}、file://、不做隐式覆盖
@@ -50,8 +50,8 @@
 - [docs/zh/02-project-guide/08-remove-and-archive.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/08-remove-and-archive.md): 移除与归档——.archive/、恢复走迁移算法
 - [docs/zh/02-project-guide/09-status-and-graph.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/09-status-and-graph.md): 状态与拓扑——status 表格、graph Mermaid、deps
 - [docs/zh/02-project-guide/10-lint-and-checks.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/10-lint-and-checks.md): 离线检查——八项检查、--strict、与 up --dry-run 的边界
-- [docs/zh/02-project-guide/11-sync-and-restore.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/11-sync-and-restore.md): 源码管理——sync 归档/激活、restore 还原
-- [docs/zh/02-project-guide/12-build-and-images.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/12-build-and-images.md): 构建与镜像——--force、缓存、Tag 对齐
+- [docs/zh/02-project-guide/11-sync-and-restore.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/11-sync-and-restore.md): 源码管理——sync 归档/激活（不看焦点）、restore 还原
+- [docs/zh/02-project-guide/12-build-and-images.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/12-build-and-images.md): 构建与镜像——--force、缓存、Tag 对齐、空的 submodule
 
 ### 03-component-guide/
 - [docs/zh/03-component-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/README.md): 模块索引——面向组件开发者
@@ -91,13 +91,13 @@
 - [docs/zh/06-architecture/03-env-injection-contract.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/03-env-injection-contract.md): 环境变量注入契约——所有变量字典
 - [docs/zh/06-architecture/04-deploy-file-generation.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/04-deploy-file-generation.md): 部署文件生成——Compose 与 K8s 对照
 - [docs/zh/06-architecture/05-design-principles.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/05-design-principles.md): 设计原则与取舍——十条原则逐条论证
-- [docs/zh/06-architecture/06-bare-repo-mechanism.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/06-bare-repo-mechanism.md): Bare Repo 增量机制——四级优先级
+- [docs/zh/06-architecture/06-bare-repo-mechanism.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/06-bare-repo-mechanism.md): Bare Repo 增量机制——四级优先级、从不拉取 submodule
 - [docs/zh/06-architecture/07-cache-design.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/07-cache-design.md): 缓存设计——永久缓存、首次克隆再生
 - [docs/zh/06-architecture/08-security-and-signing.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/08-security-and-signing.md): 安全与签名——cosign、标准库验签
 - [docs/zh/06-architecture/09-error-codes.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/09-error-codes.md): 错误码字典——所有错误码、退出码
 
 ### 07-cli-reference/
-- [docs/zh/07-cli-reference/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/07-cli-reference/README.md): CLI 命令完整参考——21 个命令与每条命令的全部参数
+- [docs/zh/07-cli-reference/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/07-cli-reference/README.md): CLI 命令完整参考——21 个命令与每条命令的全部参数、在子目录里运行、命令补全
 
 ### 08-ai-guide/
 - [docs/zh/08-ai-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/08-ai-guide/README.md): 模块索引——面向 AI 助手

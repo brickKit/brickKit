@@ -110,6 +110,16 @@ file-provider config full of versioned service names — it goes stale on every 
 **11. Signature verification needs `installer.publicKeys` in `brickkit.yaml`.** With none configured,
 nothing is verified, whatever `requireSignature` says.
 
+**12. `focus:` is the personal "run just this one" switch.**
+
+`focus: <id>` exists only in `deploy.local.yaml` (`deploy.yaml` rejects it, and so does
+`target: k8s`). While it is set, `up` starts only that component — from its local source, as if it
+were `mode: local` (a `mode: debug` you wrote is kept) — and what it needs; pinned components
+(`enabled` / `local` / `debug`) still start. `brickkit up` in a component's directory or
+`up --focus <id>` writes it (turning local mode on if needed), `up --all` removes it; `-f` and
+`--no-local` skip it; `sync` ignores it; `local refresh` lists it among your local changes. A focus
+that would break the file is refused before anything is written.
+
 ## How the mechanism works
 
 **Targets**: `target: docker | podman | k8s` in the deploy file. Podman runs the same generated
