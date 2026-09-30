@@ -26,7 +26,15 @@ brickkit local on
    deploy.local.yaml 从 deploy.yaml 复制而来——随意修改，它不会被提交
 ```
 
-第一次 `on` 时把 `deploy.yaml` 复制过来，内容一字不差；唯一的例外是 `init` 写的那段文件头注释（"团队文件：请提交它"）换成了个人文件的说明——那句话放在一个从不提交的文件里是假话。之后随便改它，比如：
+第一次 `on` 时把 `deploy.yaml` 复制过来，内容一字不差；唯一的例外是 `init` 写的那段文件头注释（"团队文件：请提交它"）换成了个人文件的说明——那句话放在一个从不提交的文件里是假话：
+
+```yaml
+# deploy.local.yaml —— 你个人的部署文件：本地模式开着时，命令读它而不是 deploy.yaml。
+# 从 deploy.yaml 复制而来，不会被提交；团队改了 deploy.yaml 之后，brickkit local refresh 重新复制。
+target: docker          # docker | podman | k8s
+```
+
+之后随便改它，比如：
 
 ```yaml
 components:

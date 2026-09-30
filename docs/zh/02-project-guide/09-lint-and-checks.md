@@ -82,7 +82,8 @@ brickkit lint --strict
    建议：按上面逐条列出的位置修改，再执行 brickkit lint
 ```
 
-不带 `--strict` 时这两项不查：在开发机上，生产的口令本来就不在环境里。
+不带 `--strict` 时这两项不查：在开发机上，生产的口令本来就不在环境里。（Docker 下 `up` 会检查这次部署要用的 `${VAR}` 有没有定义——
+见 [敏感值](../01-three-layers/07-sensitive-values.md)。）
 
 ## 退出码
 

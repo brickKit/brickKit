@@ -53,8 +53,27 @@ DB_USER: orders
 DB_PASSWORD: $var:PG_PASSWORD
 ```
 
-迁移容器和主服务都拿到 `DB_HOST=pg.internal`、`DB_PORT=5432`、`DB_NAME=orders`、`DB_USER=orders`；`DB_PASSWORD` 是密钥，
-Docker 下两者引用同一个 0600 的 env 文件，Kubernetes 下两者引用同一个生成的 Secret。组件代码里：
+迁移容器和主服务拿到的是同一组环境变量：
+
+```yaml
+  shop-orders-0-1-0-migration:
+    command:
+      - migrate
+    entrypoint:
+      - /app/orders
+    env_file:
+      - path: .brickkit/generated/env/shop-orders-0-1-0.env
+    environment:
+      - COMPONENT_ID=shop/orders
+      - COMPONENT_VERSION=0.1.0
+      - DB_HOST=pg.internal
+      - DB_NAME=orders
+      - DB_PORT=5432
+      - DB_USER=orders
+```
+
+`DB_PASSWORD` 是密钥：Docker 下两者引用同一个 0600 的 env 文件（里面是 `DB_PASSWORD="${PG_PASSWORD}"`，由 `docker compose`
+启动时从环境里填上），Kubernetes 下两者引用同一个生成的 Secret。组件代码里：
 
 ```go
 dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",

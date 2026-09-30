@@ -70,11 +70,15 @@ Kubernetes 下它是一个 Job：`up` 先删掉上一次留下的同名 Job，�
 
 ```text
 ❌ 错误：数据库迁移失败
-   组件：demo/caller@1.0.0
-   看日志：docker compose -p brickkit-my-shop logs demo-caller-1-0-0-migration
+   组件：shop/stock@0.2.0
+   看日志：docker compose -p brickkit-shop logs shop-stock-0-2-0-migration
    建议：
    1. 迁移失败时主服务不会启动：它要等迁移成功结束
    2. 修好之后重新 brickkit up：迁移容器会再跑一次
+```
+
+```text
+shop-stock-0-2-0-migration-1  | shop/stock: migration 002 failed: column "warehouse" already exists
 ```
 
 修好之后再 `up` 就行：迁移容器每次 `up` 都会跑。所以**迁移必须是幂等的**——已经做过的变更再跑一遍什么都不做。
@@ -85,7 +89,12 @@ Kubernetes 下它是一个 Job：`up` 先删掉上一次留下的同名 Job，�
 组件以本机进程运行时（`mode: debug`、`mode: local`）没有容器，迁移容器也一并跳过，`up` 会提醒你：
 
 ```text
-⚠️ 提示：mode: local 组件的数据库迁移不会自动执行
+⚠️ 提示：mode: debug 组件的数据库迁移不会自动执行
+   组件：shop/stock@0.2.0
+   原因：mode: debug 的组件不生成容器，它的迁移容器也一并跳过
+   建议：
+   1. 在本机手动执行该组件的迁移命令：/app/stock migrate
+   2. 环境变量用 local-debug.shop-stock-0-2-0.env 里的那一份
 ```
 
 这时迁移要你自己跑一次：用 `local-debug.<服务名>.env` 里的环境变量，在本机执行组件的迁移命令。
