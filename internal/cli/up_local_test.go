@@ -217,8 +217,8 @@ func main() {
 `
 
 // localComponentPlansFor 搭一个真实项目、真的跑一遍解析+生成，返回
-// collectLocalComponents 的结果——这是 Task 5 把 runLocalComponents 接进
-// runUp 之前，Task 4 独立验证它的路子：不依赖还不存在的那条接线。
+// collectLocalComponents 的结果——单独验证收集这一步，不经过 runUp 与
+// runLocalComponents 的接线。
 func localComponentPlansFor(t *testing.T, f *projectFixture, mainGo string) (*Options, []localComponentPlan) {
 	t.Helper()
 	writeTree(t, f.repoDir(t, "demo/hello"), map[string]string{

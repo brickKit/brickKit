@@ -10,7 +10,7 @@
 //   - 两种语言都认得出可运行的命令，就报歧义，绝不悄悄挑一个。
 //   - 只产出普通的启动命令，不注入任何调试参数。JAVA_TOOL_OPTIONS / NODE_OPTIONS 会被
 //     mvnw、gradlew、npm 这些包装进程自己先吃掉，真正的服务进程反而起不来或者挂不上调试器
-//     （实测记录见 docs/superpowers/plans/2026-09-22-run-command-detection.md）。
+//     （实测过：调试参数只能由使用者在 IDE 里加）。
 package runcmd
 
 import (

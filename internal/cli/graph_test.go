@@ -220,7 +220,7 @@ func TestGraphGroupsServedByMembersUnderTheirShell(t *testing.T) {
 	assert.Contains(t, r.stdout, "\n    demo_free_1_0_0[\"demo/free@1.0.0\"]\n")
 }
 
-// 外壳被关掉了：成员这次会按普通组件独立部署（Task 1-4 的回落规则），
+// 外壳被关掉了：成员这次会按普通组件独立部署（外壳没跑时成员回落成独立组件），
 // 图不该再把它画在一个灰掉的外壳子图里面——那等于说"这段代码活在一个
 // 没在跑的外壳容器里"，跟 up 真实生成的东西正好相反（graph
 // 读的是跟 up --dry-run 同一份解析结果"）。

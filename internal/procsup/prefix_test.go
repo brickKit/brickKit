@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// tailForTest 是这个文件里的测试给 Tail 留的行数。默认行数常量要到 Task 3 才有，这里不依赖它。
+// tailForTest 是这个文件里的测试给 Tail 留的行数：与 DefaultTailLines 解耦，默认值改了这里不跟着变。
 const tailForTest = 20
 
 func newPrefixWriter(prefix string) (*prefixWriter, *bytes.Buffer) {

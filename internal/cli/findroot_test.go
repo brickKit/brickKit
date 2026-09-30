@@ -54,7 +54,7 @@ func TestPathsAreShownRelativeToWhereYouAre(t *testing.T) {
 	assert.Contains(t, r.stdout, filepath.Join("..", ".brickkit", "generated"))
 }
 
-// graph 的 stdout 只有 Mermaid（brickkit graph > graph.mmd）：在子目录里运行时，项目那一行走 stderr（Final review #4）。
+// graph 的 stdout 只有 Mermaid（brickkit graph > graph.mmd）：在子目录里运行时，项目那一行走 stderr。
 func TestGraphFromASubdirectoryKeepsStdoutPureMermaid(t *testing.T) {
 	dir := copyFixture(t, "three-layer-shell")
 	r := runWithEngine(t, newFakeEngine(), filepath.Join(dir, "config"), "graph")

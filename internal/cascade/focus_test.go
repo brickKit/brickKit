@@ -55,7 +55,7 @@ func TestFocusKeepsExplicitPins(t *testing.T) {
 	assert.ElementsMatch(t, []string{"erp/api", "shop/report"}, runningIDs(result))
 }
 
-// 与焦点无关的弱依赖环不跑：环上谁都不是顶层，"顶层才跑"那条规则停不下它们（Review Focus 4）。
+// 与焦点无关的弱依赖环不跑：环上谁都不是顶层，"顶层才跑"那条规则停不下它们。
 func TestFocusDoesNotStartAnUnrelatedCycle(t *testing.T) {
 	graph := newGraph(t,
 		spec{id: "x/a", optional: []string{"x/b"}},

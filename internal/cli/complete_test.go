@@ -54,7 +54,7 @@ func TestCompleteLanguages(t *testing.T) {
 	assert.ElementsMatch(t, i18n.LangNames(), candidates(t, runIn(t, t.TempDir(), "__complete", "lang", "set", "")))
 }
 
-// 项目外：没有候选，也没有任何报错块（Review Focus 5）。
+// 项目外：没有候选，也没有任何报错块——补全里冒出报错块会搅乱使用者的命令行。
 func TestCompletionOutsideAProjectIsSilent(t *testing.T) {
 	r := runIn(t, t.TempDir(), "__complete", "remove", "")
 	assert.Empty(t, candidates(t, r))

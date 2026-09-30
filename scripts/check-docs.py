@@ -59,6 +59,9 @@ ARCHIVED_REF = re.compile(
     r"|\bP(?:1[1-9]|[2-8]\d)\b" + CJK_AFTER +     # 旧完成记录的延后项 P38（路线图阶段是 P1–P10）
     r"|附录 ?[B-G]\b|附录 [B-G]\."                # 旧设计书附录
     r"|提案 ?§|附录 ?A\d|命令表 ?\d|new_plan/"      # 三层重构的提案、它的附录 A 决议与命令表（已归档）
+    # 规划记录（docs/superpowers/ 的规格与实施计划）迟早归档：现行内容只能关联 docs/{en,zh}/，
+    # 不写它的路径，也不写它里面的编号——实施计划的 Task N、审查的 Review Focus N / Final review #N
+    r"|docs/superpowers/[\w-]|\bReview Focus\b|Final review #\d|\bTask \d+(?:[-–]\d+)?\b"
     r"|试用指南|《开发进度》|开发进度 ?[A-Z]?\d|延后项 ?P\d|延后清单"
     r"|回填 ?P\d|设计书 ?§|设计书 ?\d"
     r"|《发布与分发》|运维指南|《组件合并部署》|Release and Distribution|gap report"
@@ -162,10 +165,12 @@ def self_check():
                    "Step 12 在命令层", "Step 32–35", "延后项 P38", "附录 D.1", "试用指南 17", "《发布与分发》§5",
                    "运维指南 §5.1", "gap report §2.1", "Spec 2026-09-19 §3.1", "开发计划 §0.2",
                    '"36.1：并发', "// 15.13 停止：", "\t// 16.14：清理旧 Job",
-                   "提案 §6.2", "（附录 A24）", "命令表 6", "new_plan/提案.md"):
+                   "提案 §6.2", "（附录 A24）", "命令表 6", "new_plan/提案.md",
+                   "见 docs/superpowers/plans/x.md", "（Review Focus 4）", "（Final review #2）", "Task 1-4 的回落规则",
+                   "Task 5：容器"):
         if not ARCHIVED_REF.search(sample):
             problems.append(f"归档引用的正则漏掉了 {sample!r}")
-    for sample in ("AGENTS.md §3.2", "路线图 P7b", "路线图 P10 的多语言", "HTTP/1.1",
+    for sample in ("AGENTS.md §3.2", "路线图 P7b", "a task runner", "Tasks: 3", '("archive/", "docs/superpowers/")', "路线图 P10 的多语言", "HTTP/1.1",
                    "Step 1: create a project", "P99 latency", "这件事延后了", "0.3–0.5 秒", "版本 1.1.0：",
                    "chmod 000 挡不住读取"):
         if ARCHIVED_REF.search(sample):

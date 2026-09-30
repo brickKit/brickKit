@@ -641,7 +641,7 @@ func TestUnresolvedSecretConfigIsAnError(t *testing.T) {
 // 组件声明的配置密钥写成 existingSecret 形状：secretKeyRef 指向使用者给的名字与 key，
 // 不是平台按 <服务名>-config-secret 算出来的那个。
 func TestConfigExistingSecretReferencesGivenNameAndKey(t *testing.T) {
-	m := secretConfigManifest() // Task 2 加的：apiKey 声明了 secret: true
+	m := secretConfigManifest() // apiKey 声明了 secret: true
 	b := newBuilder(t)
 	b.component(m, projecttest.Entry{Config: map[string]any{
 		"API_KEY": map[string]any{"existingSecret": "acme-hello-vault-synced", "key": "api-key"},

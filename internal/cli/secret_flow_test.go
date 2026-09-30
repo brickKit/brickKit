@@ -8,7 +8,7 @@ package cli
 // 以前变量在**进程环境**里（CI 里最常见）时，compose 文件里会出现明文，
 // 变量在 .env 里时却不会——同一份配置、两种结果。
 //
-// Task 4 会在这份文件里继续加 existingSecret 的端到端用例。
+// existingSecret 的端到端用例也在这份文件里。
 
 import (
 	"os"

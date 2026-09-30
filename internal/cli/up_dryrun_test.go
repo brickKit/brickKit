@@ -315,7 +315,7 @@ func TestUpDryRunShowsTheDetectedLocalCommand(t *testing.T) {
 	assert.Contains(t, r.stdout, "go run .")
 	// mode: local 不该冒出 mode: debug 的那段话——brickkit 自己会拉起这个
 	// 组件，"start it in your IDE" 对它是假的，之前跟"go run ." 那句同屏
-	// 出现会自相矛盾（Task 6 手动验证时发现，见 writeLocalEnvFiles 的说明）。
+	// 出现会自相矛盾（用真实 Docker 手动验证时发现，见 writeLocalEnvFiles 的说明）。
 	assert.NotContains(t, r.stdout, "Local debugging")
 	assert.NotContains(t, r.stdout, "start it in your IDE")
 }

@@ -45,7 +45,7 @@ func TestUpFromAComponentDirectoryFocusesIt(t *testing.T) {
 		"团队文件一个字节都不动")
 }
 
-// shell/ 下的外壳目录一样（Review Focus 1）。
+// shell/ 下的外壳目录一样。
 func TestUpFromShellDirectoryFocusesTheShell(t *testing.T) {
 	dir := focusFixture(t)
 	r := runWithEngine(t, newFakeEngine(), in(dir, "shell", "erp", "shell"), "up", "--dry-run")
@@ -53,7 +53,7 @@ func TestUpFromShellDirectoryFocusesTheShell(t *testing.T) {
 	assert.Contains(t, readFile(t, in(dir, "deploy.local.yaml")), "\nfocus: erp/shell\n")
 }
 
-// 组件目录里有自己的 brickkit.yaml（工作台）：跑的是工作台，外面项目的文件一个字节都不动（Review Focus 3）。
+// 组件目录里有自己的 brickkit.yaml（工作台）：跑的是工作台，外面项目的文件一个字节都不动。
 func TestUpInsideAWorkbenchRunsTheWorkbench(t *testing.T) {
 	dir := focusFixture(t)
 	bench := in(dir, "components", "erp", "portal")
@@ -91,7 +91,7 @@ func TestUpFocusFlagAndAll(t *testing.T) {
 	}
 }
 
-// 本地文件里的个人修改与注释在写焦点后原样都在（Review Focus 2 的命令层一侧）。
+// 本地文件里的个人修改与注释在写焦点后原样都在。
 func TestUpFocusKeepsPersonalEdits(t *testing.T) {
 	dir := focusFixture(t)
 	mustLocal(t, dir, "on")
@@ -183,7 +183,7 @@ func TestImplicitFocusOnK8sPointsAtAll(t *testing.T) {
 }
 
 // 真实的工作台（add --local --init 建的）：它继承的本地源 ../.. 正好提供工作台自己这个组件。
-// 在工作台里，"我所在的组件"就是项目本身，不是焦点——up、deps、build 不带参数照旧作用于工作台（Final review #1）。
+// 在工作台里，"我所在的组件"就是项目本身，不是焦点——up、deps、build 不带参数照旧作用于工作台。
 func TestARealWorkbenchIsNotItsOwnFocus(t *testing.T) {
 	dir := focusFixture(t)
 	r := runWithEngine(t, newFakeEngine(), dir, "add", "--local", "--init", "--yes")
@@ -200,7 +200,7 @@ func TestARealWorkbenchIsNotItsOwnFocus(t *testing.T) {
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 }
 
-// 焦点是外壳：外壳带着它的成员跑，不是一个空壳（Final review #2）。
+// 焦点是外壳：外壳带着它的成员跑，不是一个空壳。
 func TestFocusOnAShellRunsItsMembers(t *testing.T) {
 	dir := focusFixture(t)
 	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/shell")
@@ -212,7 +212,7 @@ func TestFocusOnAShellRunsItsMembers(t *testing.T) {
 }
 
 // 焦点需要的组件是外壳的成员：它照项目声明的那样在外壳里跑，外壳跟着启动——
-// 不回落成独立容器，也不冒出一句"把外壳重新打开"的误导警告（Final review #2）。
+// 不回落成独立容器，也不冒出一句"把外壳重新打开"的误导警告。
 func TestFocusNeedingAMemberStartsItsShell(t *testing.T) {
 	dir := focusFixture(t)
 	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/portal")
@@ -223,7 +223,7 @@ func TestFocusNeedingAMemberStartsItsShell(t *testing.T) {
 		"only the member the focus needs is reached; the shell hosts whichever members run")
 }
 
-// 焦点下 up 不说"sync 能把焦点之外的源码收起来"：sync 不看焦点，它什么都不会收（Final review #3）。
+// 焦点下 up 不说"sync 能把焦点之外的源码收起来"：sync 不看焦点，它什么都不会收。
 func TestUpUnderAFocusDoesNotPromiseWhatSyncWontDo(t *testing.T) {
 	dir := focusFixture(t)
 	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/api")
@@ -239,7 +239,7 @@ func TestUpUnderAFocusDoesNotPromiseWhatSyncWontDo(t *testing.T) {
 }
 
 // 焦点在跨文件的检查上通不过（条目写着 mode: disable、没有源码可跑）：报错，并且什么都没变——
-// 个人文件没写上焦点、本地模式没被打开，之后的命令照常能用（Final review #5）。
+// 个人文件没写上焦点、本地模式没被打开，之后的命令照常能用。
 func TestAFocusThatFailsTheProjectChecksChangesNothing(t *testing.T) {
 	cases := map[string]func(t *testing.T, dir string){
 		"mode: disable": func(t *testing.T, dir string) {
@@ -265,7 +265,7 @@ func TestAFocusThatFailsTheProjectChecksChangesNothing(t *testing.T) {
 	}
 }
 
-// remove 焦点指着的组件：焦点跟着这个组件一起去掉，并说一句——不是被拒绝、也不是只能靠 up 解套（Final review #6）。
+// remove 焦点指着的组件：焦点跟着这个组件一起去掉，并说一句——不是被拒绝、也不是只能靠 up 解套。
 func TestRemovingTheFocusedComponentDropsTheFocus(t *testing.T) {
 	dir := focusFixture(t)
 	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/portal")

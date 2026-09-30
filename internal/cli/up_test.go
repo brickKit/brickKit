@@ -298,7 +298,7 @@ func TestUpModeLocalComponentIsNotAWorkloadTarget(t *testing.T) {
 		"mode: local 的组件不该混进传给引擎的目标列表")
 }
 
-// Task 5：容器与本地进程混部同一个项目——容器由引擎负责，mode: local 组件由
+// 容器与本地进程混部同一个项目——容器由引擎负责，mode: local 组件由
 // runLocalComponents 负责，start() 里先 reportStarted 后 runLocalComponents，
 // 输出顺序必须体现这一点：容器的汇报先出现，本地组件的"已监听端口"后出现。
 func TestUpMixesContainerAndLocalComponents(t *testing.T) {
@@ -336,13 +336,13 @@ func TestUpMixesContainerAndLocalComponents(t *testing.T) {
 	assert.NotContains(t, r.stdout, "Local debugging")
 }
 
-// Task 6 手动验证时用真实 Docker 发现的真实 bug：一个项目里全部组件都是
+// 用真实 Docker 手动验证时发现的真实 bug：一个项目里全部组件都是
 // mode: local（没有任何容器要起），plan.services 因此是空切片，而
 // start() 原来无条件调 eng.Up()——真 docker compose 对着一份 services: {}
 // 的空文件跑 up 会报 "no service selected"，命令直接以 ENGINE_FAILED 收场，
 // 而这个项目其实一个容器都不需要，不该被要求装 Docker。假引擎测不出这个
 // bug（它对任何请求都来者不拒），这里只锁住"引擎压根不该被调用"这一半——
-// 真 docker 会不会报错，由 Task 6 的手动验证覆盖。
+// 真 docker 会不会报错，靠用真实 Docker 手动验证。
 func TestUpWithOnlyLocalComponentsNeverCallsTheEngine(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
 		t.Skip("这台机器没有 go 工具链")

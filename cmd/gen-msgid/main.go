@@ -1,7 +1,7 @@
 // cmd/gen-msgid：从 internal/i18n/locales/en.yaml 生成 internal/msgid/messages_gen.go。
 // 新增一条消息只写目录：en.yaml 加一行、其余语言各加一行，再跑 make generate-msgid。
 //
-// -check-names：一次性的迁移检查，列出现有手写常量里名字与 GoName(key) 不一致的（Task 5 用完即可保留，无害）。
+// -check-names：一次性的迁移检查，列出现有手写常量里名字与 GoName(key) 不一致的（迁移早已做完；留着无害）。
 package main
 
 import (
