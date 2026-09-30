@@ -117,6 +117,7 @@ With oh-my-zsh, which already runs `compinit`, add only the `fpath=` line, and p
 ### fish
 
 ```bash
+mkdir -p ~/.config/fish/completions
 brickkit completion fish > ~/.config/fish/completions/brickkit.fish
 ```
 

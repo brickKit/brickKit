@@ -52,5 +52,7 @@ func TestCompletionHelpComesFromTheCatalog(t *testing.T) {
 		assert.Contains(t, i18n.T(msgid.CobraCompletionBashLong), "~/.local/share/bash-completion/completions/brickkit", lang)
 		assert.Contains(t, i18n.T(msgid.CobraCompletionZshLong), "fpath=(~/.zsh/completions $fpath)", lang)
 		assert.Contains(t, i18n.T(msgid.CobraCompletionFishLong), "~/.config/fish/completions/brickkit.fish", lang)
+		assert.Contains(t, i18n.T(msgid.CobraCompletionFishLong), "mkdir -p ~/.config/fish/completions\n", lang,
+			"the directory may not exist yet, and > can't create it")
 	}
 }

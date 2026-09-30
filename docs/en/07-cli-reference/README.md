@@ -958,6 +958,7 @@ brickkit completion bash|zsh|fish|powershell [flags]
 | `--no-descriptions` | Leave out the one-line description next to each candidate |
 
 ```bash
+mkdir -p ~/.local/share/bash-completion/completions ~/.zsh/completions ~/.config/fish/completions
 brickkit completion bash > ~/.local/share/bash-completion/completions/brickkit
 brickkit completion zsh > ~/.zsh/completions/_brickkit
 brickkit completion fish > ~/.config/fish/completions/brickkit.fish

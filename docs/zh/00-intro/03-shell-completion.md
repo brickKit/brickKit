@@ -110,6 +110,7 @@ autoload -Uz compinit && compinit
 ### fish
 
 ```bash
+mkdir -p ~/.config/fish/completions
 brickkit completion fish > ~/.config/fish/completions/brickkit.fish
 ```
 
