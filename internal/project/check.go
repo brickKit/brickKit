@@ -12,10 +12,10 @@ import (
 	"github.com/brickkit/brickkit/internal/yamlfile"
 )
 
-// checkCoverage 执行严格一致性校验（提案 §6.3）：brickkit.yaml 的每个组件版本恰好被一个
+// checkCoverage 执行严格一致性校验：brickkit.yaml 的每个组件版本恰好被一个
 // 部署条目覆盖（顶层或外壳下面），没有覆盖不到任何组件的条目。
 //
-// id@version 条目覆盖那个版本；裸 ID 条目只覆盖默认版本（附录 A20）——因依赖而存在的版本
+// id@version 条目覆盖那个版本；裸 ID 条目只覆盖默认版本——因依赖而存在的版本
 // 必须有自己的条目，不能悄悄继承默认版本的 expose、端口。默认版本已有专属条目时，
 // 裸 ID 条目什么也没覆盖，算多余。
 func (p *Project) checkCoverage() error {
@@ -99,7 +99,7 @@ func (p *Project) inconsistencyError(missing, extra []string) *clierr.Error {
 	return err.WithHint(i18n.T(msgid.ProjectHintDeploySync), i18n.T(msgid.ProjectHintDeployEdit))
 }
 
-// checkMembers 校验外壳成员关系（提案 §8.1、§8.4、附录 A21）：成员条目只能嵌在外壳条目下面，
+// checkMembers 校验外壳成员关系：成员条目只能嵌在外壳条目下面，
 // 外壳不能被收编，一个组件 ID 只进一个外壳（外壳进程里编进的是那一份代码）。
 // 成员条目是否对得上 brickkit.yaml 由 checkCoverage 负责（它先跑）。
 func (p *Project) checkMembers() error {

@@ -1,13 +1,13 @@
 package cli
 
-// 本文件实现 brickkit upgrade（命令表 9，提案 §12，附录 A4、A20、A24）：移动组件的默认版本，
+// 本文件实现 brickkit upgrade：移动组件的默认版本，
 // 三份文件跟着改——brickkit.yaml 的版本与 requiredBy、部署条目、config/ 的迁移。
 //
 // 整次升级先算好、再一次落盘（失败全部还原）：全量升级时第二个升不了，第一个也不会改——
-// 提案 §12.1 的"不留半成品"。判断在 internal/install（PlanUpgrade），迁移在 internal/configdir（Migrate）。
+// 不留半成品。判断在 internal/install（PlanUpgrade），迁移在 internal/configdir（Migrate）。
 //
 // 配置冲突（使用者改过、默认值也变了）：终端里逐条问；--yes 或没有输入时写两行重复键，
-// up 在使用者解决之前拒绝启动（提案 §12.3）。所以改完只核对拓扑，冲突块是给使用者的待办。
+// up 在使用者解决之前拒绝启动。所以改完只核对拓扑，冲突块是给使用者的待办。
 
 import (
 	"context"
@@ -112,7 +112,7 @@ func runUpgrade(ctx context.Context, opts *Options, arg string, f upgradeFlags) 
 }
 
 // upgradeTargets 定下这次移动哪些默认版本：点名的组件（写了版本就是那个版本，否则最新）；
-// 不点名就是每个有更新版本的默认版本。本地源的组件"最新"就是它目录里的版本（附录 A8）。
+// 不点名就是每个有更新版本的默认版本。本地源的组件"最新"就是它目录里的版本。
 func upgradeTargets(ctx context.Context, opts *Options, proj *project.Project, client *source.Client, arg string) ([]install.Move, error) {
 	if arg == "" {
 		var moves []install.Move
@@ -169,7 +169,7 @@ func upgradeTargets(ctx context.Context, opts *Options, proj *project.Project, c
 	return []install.Move{{ID: id, From: current, To: version}}, nil
 }
 
-// localLatest 是一个"最新版本"由本地源回答、因而没有移动的组件（附录 A8）。
+// localLatest 是一个"最新版本"由本地源回答、因而没有移动的组件。
 type localLatest struct{ ref, source string }
 
 // renderLocalLatest 说明这些组件的"最新"来自本地工作区：不说的话，"都是最新"会让人
@@ -185,7 +185,7 @@ func renderLocalLatest(opts *Options, items []localLatest) {
 	opts.Printf("   %s\n", i18n.T(msgid.CliUpgradeLocalLatestHint))
 }
 
-// withShellMoves：升级外壳时，成员跟着换成新外壳编进的版本（附录 A24）。
+// withShellMoves：升级外壳时，成员跟着换成新外壳编进的版本。
 func withShellMoves(ctx context.Context, proj *project.Project, client *source.Client, moves []install.Move) ([]install.Move, error) {
 	out := append([]install.Move{}, moves...)
 	moved := map[string]bool{}
@@ -215,7 +215,7 @@ func withShellMoves(ctx context.Context, proj *project.Project, client *source.C
 }
 
 // conflictChooser：终端里逐条问（m 留自己的值、n 用新默认值、直接回车写成冲突块）；
-// --yes 或没有输入时一律写冲突块（附录 A4）。
+// --yes 或没有输入时一律写冲突块。
 func conflictChooser(opts *Options, yes bool) func(install.ConfigMigration, configdir.Conflict) configdir.Choice {
 	return func(m install.ConfigMigration, c configdir.Conflict) configdir.Choice {
 		if yes || opts.Stdin == nil {

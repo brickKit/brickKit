@@ -1,6 +1,6 @@
 package install
 
-// 本文件规划 upgrade（提案 §12，附录 A4、A20、A24）：把一组默认版本的移动变成对三份文件的改动。
+// 本文件规划 upgrade：把一组默认版本的移动变成对三份文件的改动。
 //
 // # 思路：比较升级前后的"世界"
 //
@@ -98,7 +98,7 @@ func ResolveWorld(ctx context.Context, r *resolver.Resolver, defaults []resolver
 	}
 }
 
-// ShellMoves 把外壳的升级展开成成员的版本移动（附录 A24，取代提案 §8.6）：默认版本正是旧外壳编进的
+// ShellMoves 把外壳的升级展开成成员的版本移动（外壳编进的是成员的精确版本）：默认版本正是旧外壳编进的
 // 那个版本的成员，跟着换成新外壳编进的版本。只为外壳保留的兼容版本、新成员、被去掉的成员由
 // PlanUpgrade 按新旧世界的差处理。
 func ShellMoves(p *project.Project, oldShell, newShell *manifest.Manifest) []Move {
@@ -226,7 +226,7 @@ func (u *upgrader) hostOf(ref resolver.Ref) (string, bool) {
 	return "", false
 }
 
-// checkKinds：外壳只有一个版本（提案 §8.6 的单版本约束仍然成立）——还有组件需要旧外壳时升级不了；
+// checkKinds：外壳只有一个版本（单版本约束）——还有组件需要旧外壳时升级不了；
 // 组件在新版本里成了外壳（或不再是外壳）时 kind 跟着改，同一个 ID 还剩别的版本时就改不了
 // （一个组件的几行必须同一个 kind）。
 func (u *upgrader) checkKinds() error {
@@ -422,8 +422,8 @@ func (u *upgrader) promotionsKeepingBare() map[string]bool {
 	return out
 }
 
-// nestIntoMovedShells：升级后的外壳编进了、已经声明、却在顶层的版本，挪进外壳（同 add 外壳时，提案 §8.5）。
-// 只对这次升级的外壳做：别的外壳下面缺的成员是使用者移出去的（提案 §8.7）。
+// nestIntoMovedShells：升级后的外壳编进了、已经声明、却在顶层的版本，挪进外壳（同 add 外壳时）。
+// 只对这次升级的外壳做：别的外壳下面缺的成员是使用者移出去的。
 func (u *upgrader) nestIntoMovedShells() {
 	renamed := map[string]string{}
 	for _, r := range u.plan.RenameEntries {
@@ -453,7 +453,7 @@ func (u *upgrader) nestIntoMovedShells() {
 	}
 }
 
-// liftIfNotHosted：条目嵌在外壳 owner 下面，而新世界里 owner 不编进 ref——挪到顶层独立运行（提案 §8.7）。
+// liftIfNotHosted：条目嵌在外壳 owner 下面，而新世界里 owner 不编进 ref——挪到顶层独立运行。
 func (u *upgrader) liftIfNotHosted(owner string, ref resolver.Ref, entryID string) {
 	if owner == "" {
 		return
@@ -487,7 +487,7 @@ func (u *upgrader) configs() {
 }
 
 // moveConfig 处理被移动的默认版本的配置：旧版本留下就改名成带版本号的文件，否则归档；新版本
-// 原本有自己的配置（兼容版本）就转正它，否则从旧文件迁移过来（提案 §12.2）。
+// 原本有自己的配置（兼容版本）就转正它，否则从旧文件迁移过来。
 func (u *upgrader) moveConfig(m Move, from resolver.Ref) {
 	to := resolver.Ref{ID: m.ID, Version: m.To}
 	kept := u.inNew(from)

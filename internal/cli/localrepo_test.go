@@ -35,7 +35,7 @@ func bumpRepo(t *testing.T, dir, repoDir, id, from, to string) {
 	require.NoError(t, os.WriteFile(path, []byte(strings.ReplaceAll(old, "version: "+from, "version: "+to)), 0o644))
 }
 
-// 附录 A22：代码从本地仓库运行（mode: local）时，仓库版本必须是这次运行的版本。
+// 代码从本地仓库运行（mode: local）时，仓库版本必须是这次运行的版本。
 func TestLocalRepoVersionMustMatchDefault(t *testing.T) {
 	dir := localRepoFixture(t)
 	setMode(t, dir, "erp/portal", "local")
@@ -49,7 +49,7 @@ func TestLocalRepoVersionMustMatchDefault(t *testing.T) {
 	assert.Contains(t, r.stderr, "checkout 1.0.0")
 }
 
-// 附录 A24：外壳以裸进程运行时，成员的代码从成员的本地仓库来——它的版本也要对。
+// 外壳以裸进程运行时，成员的代码从成员的本地仓库来——它的版本也要对。
 func TestBareShellMemberRepoMustMatchDeclared(t *testing.T) {
 	dir := localRepoFixture(t)
 	setMode(t, dir, "erp/shell", "local")
@@ -61,7 +61,7 @@ func TestBareShellMemberRepoMustMatchDeclared(t *testing.T) {
 	assert.Contains(t, r.stderr, "1.1.0")
 }
 
-// 附录 A22：裸进程外壳承载的不是默认版本——本地仓库里是默认版本的代码，拦下。
+// 裸进程外壳承载的不是默认版本——本地仓库里是默认版本的代码，拦下。
 func TestBareShellHostingNonDefaultBlocked(t *testing.T) {
 	dir := localRepoFixture(t)
 	setMode(t, dir, "erp/shell", "local")
@@ -80,7 +80,7 @@ func TestBareShellHostingNonDefaultBlocked(t *testing.T) {
 	assert.Contains(t, r.stderr, "default")
 }
 
-// 容器部署拉的是镜像，不看本地仓库（附录 A22）。
+// 容器部署拉的是镜像，不看本地仓库。
 func TestContainerDeploymentNotChecked(t *testing.T) {
 	dir := localRepoFixture(t)
 	bumpRepo(t, dir, "components", "erp/portal", "1.0.0", "1.1.0")

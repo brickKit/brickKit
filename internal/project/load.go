@@ -148,7 +148,7 @@ func (p *Project) checkTopology() error {
 	return nil
 }
 
-// selectDeploy 决定读哪一份部署文件：-f > 本地模式 > deploy.yaml（提案 §6.2、§11.6）。
+// selectDeploy 决定读哪一份部署文件：-f > 本地模式 > deploy.yaml。
 func selectDeploy(l Layout, opts LoadOptions) (string, DeploySource, error) {
 	if opts.DeployFile != "" {
 		return l.Resolve(opts.DeployFile), DeployExplicit, nil

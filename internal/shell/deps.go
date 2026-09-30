@@ -30,7 +30,7 @@ func Dependencies(
 }
 
 // WaitFor 返回 ref 的工作负载启动前要等的强依赖：Dependencies 的强依赖，去掉各来源条目
-// （组件自己，外壳还有它承载的每个成员）在 skipWaitFor 里写的那些（附录 A23）。两个成员都依赖
+// （组件自己，外壳还有它承载的每个成员）在 skipWaitFor 里写的那些。两个成员都依赖
 // erp/pay、只有一个写了 skipWaitFor 时照样要等——另一个成员没接受这个代价。
 // 只管"等"，不管"连"：网络策略、extra_hosts 仍按 Dependencies。
 func WaitFor(p *project.Project, graph *resolver.Graph, states *cascade.Result, ref resolver.Ref) []resolver.Ref {
@@ -56,7 +56,7 @@ func SkippedWaits(p *project.Project, graph *resolver.Graph, states *cascade.Res
 
 // skipApplies 报告 ref 这个工作负载采不采纳 skipWaitFor：只有 docker / podman 上的容器才有
 // depends_on 可去。K8s 的 Pod 之间没有启动顺序，裸进程（含裸进程外壳里的成员）不在 compose
-// 文件里——这两种情况下它不起作用（附录 A23），启动顺序也就不能照它排。
+// 文件里——这两种情况下它不起作用，启动顺序也就不能照它排。
 func skipApplies(p *project.Project, states *cascade.Result, ref resolver.Ref) bool {
 	if p.Deploy.Target == deployfile.TargetK8s || p.DeployEntry(ref.ID, ref.Version).IsBareProcess() {
 		return false

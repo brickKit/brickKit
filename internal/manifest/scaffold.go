@@ -23,7 +23,7 @@ type ScaffoldOptions struct {
 	// Contract 是契约占位格式：ContractOpenAPI、ContractProto，或空字符串
 	// （不生成契约文件，也不写 artifacts 段）。
 	Contract string
-	// Shell 生成外壳骨架：带 shell.members（附录 A11、A24），BRICKKIT.md 的外壳声明一节随之填写。
+	// Shell 生成外壳骨架：带 shell.members，BRICKKIT.md 的外壳声明一节随之填写。
 	Shell bool
 }
 
@@ -141,12 +141,12 @@ healthCheck:
 			Content: []byte(contractFile),
 		})
 	}
-	// BRICKKIT.md 紧跟 component.yaml：它是消费方（人和 AI）读这个组件的入口（提案 §16.2）
+	// BRICKKIT.md 紧跟 component.yaml：它是消费方（人和 AI）读这个组件的入口
 	files = append(files[:1], append([]ScaffoldFile{{Path: FileDoc, Content: []byte(componentDoc(id, contractPath, opts.Shell))}}, files[1:]...)...)
 	return files, nil
 }
 
-// FileDoc 是组件仓库根目录的组件文档（提案 §16.2）。
+// FileDoc 是组件仓库根目录的组件文档。
 const FileDoc = "BRICKKIT.md"
 
 // MaxDocBytes 是发布到市场的 BRICKKIT.md 的上限：publish 发之前查，市场收的时候再查。
@@ -156,7 +156,7 @@ const MaxDocBytes = 256 << 10
 // scaffoldPlaceholderMember 是外壳骨架里的占位成员。
 const scaffoldPlaceholderMember = "example/member@0.1.0"
 
-// componentDoc 是组件级 BRICKKIT.md 的骨架：提案 §16.2 的五节标准结构，要作者填的地方写成注释。
+// componentDoc 是组件级 BRICKKIT.md 的骨架：五节标准结构，要作者填的地方写成注释。
 func componentDoc(id, contractPath string, shell bool) string {
 	var b strings.Builder
 	b.WriteString("# " + id + "\n\n")

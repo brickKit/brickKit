@@ -34,7 +34,7 @@ import (
 //
 // 叫 compose.yaml 而不是 docker-compose.yaml：这份文件遵循的是 Compose
 // 规范（compose-spec.io），Docker、Podman 都能消费同一份——带上 docker
-// 前缀会让人误以为它是 Docker 专属的，而 target: podman（附录 A15）读的正是
+// 前缀会让人误以为它是 Docker 专属的，而 target: podman读的正是
 // 同一份文件。
 const composeFileName = "compose.yaml"
 
@@ -554,7 +554,7 @@ func (p *upPlan) collectTargets(order *resolver.Plan) {
 	for _, step := range order.Steps {
 		ref := step.Ref
 		if noWorkload[ref] {
-			// 被外壳承载的成员没有主容器，但它的迁移照样用它自己的镜像跑（提案 §8.9.4）
+			// 被外壳承载的成员没有主容器，但它的迁移照样用它自己的镜像跑
 			if _, hosted := p.states.HostOf(p.proj, ref); hosted {
 				if node := p.graph.Node(ref); node != nil && node.Manifest != nil && node.Manifest.Migration != nil {
 					p.images = append(p.images, newImageInfo(node))
@@ -770,11 +770,11 @@ func newImageInfo(node *resolver.Node) imageInfo {
 	}
 }
 
-// checkUpImages 是 up 的镜像检查（提案 §9.10.3，命令表 10 第 3 步）：up 从不构建。
+// checkUpImages 是 up 的镜像检查：up 从不构建。
 //
 //	本机构建的镜像（没有 image、或本地安装源的版本）   必须已经在本机，否则一次列出全部，提示 build
 //	拉取的镜像                                          在本机、或 registry 取得到（checkImages）
-//	本机的外壳镜像                                      记下的成员版本要与 shell.members 一致（附录 A24）
+//	本机的外壳镜像                                      记下的成员版本要与 shell.members 一致
 func checkUpImages(ctx context.Context, opts *Options, eng engine.Engine, local engine.Images, images []imageInfo) error {
 	var pulled, missing []imageInfo
 	for _, info := range images {
@@ -813,7 +813,7 @@ func checkUpImages(ctx context.Context, opts *Options, eng engine.Engine, local 
 		return e.WithHint(hints...)
 	}
 	if err := checkImages(ctx, opts, eng, pulled); err != nil {
-		// 拉不到时还有一条出路：从源码在本机构建（提案 §9.10.3）
+		// 拉不到时还有一条出路：从源码在本机构建
 		e := clierr.As(err)
 		for _, d := range e.Details {
 			if d.Key == i18n.T(msgid.LabelComponent) {
@@ -1054,7 +1054,7 @@ func removeLocalEnvFiles(layout project.Layout, keep map[string]bool) error {
 }
 
 // pruneOtherTarget 删掉另一种部署目标上一次留下的生成物：生成目录只属于这一次的目标。
-// 从 docker 切到 k8s 时，0600 的 env 文件与调试文件里有密钥与 file:// 的内容（附录 A7）；
+// 从 docker 切到 k8s 时，0600 的 env 文件与调试文件里有密钥与 file:// 的内容；
 // 从 k8s 切回来时，k8s/secrets/ 里有明文的 Secret 清单。换了目标还留着它们，
 // 就是一份没人再用、也没人记得去删的密钥副本。compose.yaml 不含密钥，但它引用的 env 文件
 // 已经删了，一并收走，免得有人对着一份过期的文件手动 docker compose up。
@@ -1097,7 +1097,7 @@ func stopPreviousContainers(ctx context.Context, opts *Options, plan *upPlan) {
 	}
 }
 
-// writeEnvFiles 以 0600 写出密钥与 file:// 内容的 env 文件（附录 A7），并删掉这次
+// writeEnvFiles 以 0600 写出密钥与 file:// 内容的 env 文件，并删掉这次
 // 没再生成的旧文件——留着的话，一个不再是密钥的值会在磁盘上多躺一份。
 func writeEnvFiles(layout project.Layout, files []compose.EnvFile) error {
 	dir := filepath.Join(layout.Root, filepath.FromSlash(compose.EnvFileDir))

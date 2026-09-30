@@ -751,7 +751,7 @@ func TestPublishRefusesToResumeWhenManifestChanged(t *testing.T) {
 }
 
 // ============================================================
-// 组件文档（BRICKKIT.md，提案 §16.2）
+// 组件文档（BRICKKIT.md）
 // ============================================================
 
 func publishedDoc(t *testing.T, m *fakeMarket) (string, bool) {

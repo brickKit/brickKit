@@ -7,12 +7,12 @@ package cli
 // 既费事又容易在搬运中改坏断言；让测试继续用熟悉的单文件写法、由这里负责拆成
 // brickkit.yaml + deploy.yaml（+ deploy.local.yaml）+ config/，改动面最小、也最不容易错。
 //
-// 翻译规则与提案一致：
+// 翻译规则：
 //
 //	sources[].id            → sources[].name
 //	deploy.target / k8s 字段 → deploy.yaml 的 target 与 k8s:
 //	组件的部署字段           → deploy.yaml 的组件条目（id@version）
-//	组件的 config           → config/<scope>-<name>@<version>.yaml（键名转成环境变量名，附录 A10）
+//	组件的 config           → config/<scope>-<name>@<version>.yaml（键名转成环境变量名）
 //	servedBy: 外壳@版本      → 外壳条目的 members + brickkit.yaml 里外壳的 kind: shell
 //	mode: debug             → 只进 deploy.local.yaml，并打开本地模式
 //	resources               → 丢弃（基础资源已从平台移除）
@@ -103,7 +103,7 @@ func writeLegacy(t *testing.T, dir, text string) {
 		return id
 	}
 
-	// 成员条目嵌在外壳条目下面（附录 A21）；同一个 ID 的第一行是默认版本，后面的版本补上 requiredBy
+	// 成员条目嵌在外壳条目下面；同一个 ID 的第一行是默认版本，后面的版本补上 requiredBy
 	teamMembers := map[string][]deployfile.Entry{}
 	localMembers := map[string][]deployfile.Entry{}
 	var teamTop, localTop []deployfile.Component
@@ -177,7 +177,7 @@ func writeYAML(t *testing.T, path string, v any) {
 	require.NoError(t, os.WriteFile(path, data, 0o644))
 }
 
-// legacyEnvKey 把旧式 camelCase 配置键转成大写下划线的环境变量名（附录 A10：键名就是
+// legacyEnvKey 把旧式 camelCase 配置键转成大写下划线的环境变量名（键名就是
 // 变量名，旧测试的断言按旧规则写的是大写形式）。已经是大写形式的原样返回。
 func legacyEnvKey(key string) string {
 	if manifest.IsEnvName(key) && key == strings.ToUpper(key) {
@@ -211,7 +211,7 @@ type legacyOverride struct {
 }
 
 // writeOverride 把旧式 override.yaml 翻译成本地部署文件：以当前 deploy.yaml 为底
-// （deploy.local.yaml 是它的完整副本，附录 A1），套上 target 与各组件的 mode / localPort，
+// （deploy.local.yaml 是它的完整副本），套上 target 与各组件的 mode / localPort，
 // 再打开本地模式。旧 override 按组件 ID 覆盖全部版本，这里也一样。
 func (f *projectFixture) writeOverride(t *testing.T, body string) {
 	t.Helper()

@@ -1,6 +1,6 @@
 package k8s
 
-// 本文件是外壳（提案 §8）在 K8s 下的渲染：被承载的成员不生成 Deployment，只生成一个选中
+// 本文件是外壳在 K8s 下的渲染：被承载的成员不生成 Deployment，只生成一个选中
 // 外壳 Pod 的 Service（成员自己的服务名照样能解析）；外壳的 JSON 进外壳的 Secret。
 // mode: debug / local 在 K8s 下不合法，部署文件解析阶段就拦下了。
 
@@ -58,7 +58,7 @@ func (p *plan) applyShellGroups(groups []shell.Group) {
 // servedServiceDoc 渲染一个 外壳成员的 Service：selector 指向外壳
 // 的 Pod（labelApp: 外壳的服务名），而不是它自己——它没有自己的
 // Deployment，这个 Service 存在的唯一目的是让它自己的版本化服务名解析
-// 到外壳的 Pod（提案 §8）。
+// 到外壳的 Pod。
 func (p *plan) servedServiceDoc(m servedPlan) map[string]any {
 	shellService := manifest.ServiceName(m.Shell.ID, m.Shell.Version)
 	return map[string]any{

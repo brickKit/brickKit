@@ -21,7 +21,7 @@ package k8s_test
 // 所以出站这一块的设计重点不是"能不能生成"，而是**不让人漏**：
 // DNS 由平台自动放行（谁都需要，且漏了必挂）；组件依赖从依赖图推导；
 // 而外部服务（数据库 / 缓存）现在只是组件 config 里的一串地址，平台不认识它们——
-// 由使用者在 k8s.networkPolicy.egress.allowTo 里直接写位置与端口（附录 A15）。
+// 由使用者在 k8s.networkPolicy.egress.allowTo 里直接写位置与端口。
 
 import (
 	"testing"

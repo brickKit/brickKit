@@ -13,7 +13,7 @@ import (
 	"github.com/brickkit/brickkit/internal/projfile"
 )
 
-// 项目目录里的固定名字（提案 §4.1）。
+// 项目目录里的固定名字。
 const (
 	FileDecl              = projfile.FileName
 	FileDeploy            = deployfile.FileTeam
@@ -34,7 +34,7 @@ const (
 	FileCredentials       = "credentials"
 	FileSkillsLock        = "skills.lock"
 	FileSessionLock       = "session.lock"
-	// FileLocalMode 存在即"本地模式已开启"（附录 A16）：local off 只删它，
+	// FileLocalMode 存在即"本地模式已开启"：local off 只删它，
 	// 不删 deploy.local.yaml，再开时本地改动还在。
 	FileLocalMode = "local-mode"
 	// FileLocalBase 是 deploy.local.yaml 上次从 deploy.yaml 复制时的那份团队文件（local on / refresh 写）。
@@ -89,7 +89,7 @@ func (l Layout) ComponentsDir() string         { return l.path(DirComponents) }
 func (l Layout) ShellDir() string              { return l.path(DirShell) }
 func (l Layout) ArchivedDir() string           { return l.path(DirComponents, DirArchived) }
 
-// Manifest 缓存里每个版本目录下的文件（提案 §9.4、§9.5）。
+// Manifest 缓存里每个版本目录下的文件。
 const (
 	FileCachedManifest  = "component.yaml"
 	FileCachedSignature = "signature.json"
@@ -97,7 +97,7 @@ const (
 )
 
 // CachedManifestDir 是一个组件版本的永久缓存目录：.brickkit/manifests/<scope>/<name>/<version>/。
-// 精确版本不可变，缓存从不过期，也从不删除（提案 §9.5）。
+// 精确版本不可变，缓存从不过期，也从不删除。
 func (l Layout) CachedManifestDir(id, version string) string {
 	return filepath.Join(l.ManifestsDir(), filepath.FromSlash(id), version)
 }

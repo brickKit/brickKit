@@ -54,7 +54,7 @@ func TestServedByComponentGeneratesNoContainer(t *testing.T) {
 
 	services := servicesOf(t, b.parsed())
 	assert.NotContains(t, services, "mdm-customer-1-0-7", "被承载的成员没有自己的主容器")
-	assert.Contains(t, services, "mdm-customer-1-0-7-migration", "迁移仍然单独跑（提案 §8.9.4）")
+	assert.Contains(t, services, "mdm-customer-1-0-7-migration", "迁移仍然单独跑")
 	assert.Contains(t, services, "infra-shell-go-core-1-0-0", "外壳自己照常生成")
 }
 
@@ -173,7 +173,7 @@ func TestServedByShellOwnLabelsAreUnaffectedByMembers(t *testing.T) {
 		"外壳自己的 labels 原样保留，成员的一个键都不该混进来")
 }
 
-// 成员条目的 expose / labels 这类字段是它"自己跑"时的部署配置（附录 A21）：外壳在跑时暂时
+// 成员条目的 expose / labels 这类字段是它"自己跑"时的部署配置：外壳在跑时暂时
 // 用不上，不该每次 up 都警告；外壳不跑、成员独立部署时，它们照常生效。
 func TestComposeHostedMemberFieldsNotWarned(t *testing.T) {
 	member := simple("mdm/customer", "1.0.7", 8080)
@@ -323,7 +323,7 @@ func TestShellWithoutLocalDependentsPublishesNoExtraPorts(t *testing.T) {
 	assert.Empty(t, portsOf(t, svc))
 }
 
-// 成员的迁移仍然单独跑，用的是成员自己的镜像与配置（提案 §8.1 规则 2、§8.9.4）：
+// 成员的迁移仍然单独跑，用的是成员自己的镜像与配置：
 // 成员的迁移脚本与运行时在成员的镜像里，外壳镜像不保证有。外壳要等它成功结束才启动——
 // 成员的代码加载之前库结构就得就位。
 func TestHostedMemberMigrationUsesMemberImage(t *testing.T) {
@@ -365,7 +365,7 @@ func TestHostedMemberMigrationUsesMemberImage(t *testing.T) {
 	assert.NotContains(t, string(result.YAML), "sk-member")
 }
 
-// 外壳的 JSON 装着成员的密钥：写进外壳的 0600 env 文件（附录 A7），compose.yaml 里一个字都没有；
+// 外壳的 JSON 装着成员的密钥：写进外壳的 0600 env 文件，compose.yaml 里一个字都没有；
 // 字面量里的 $ 写成 $$，compose 读 env 文件时才不会把它当变量。
 func TestShellJSONGoesToEnvFile(t *testing.T) {
 	member := simple("mdm/customer", "1.0.7", 8080)
@@ -391,7 +391,7 @@ func TestShellJSONGoesToEnvFile(t *testing.T) {
 	assert.Contains(t, shellFile, `\"TOKEN\":\"t$$k\"`)
 }
 
-// 附录 A18：成员设成 mode: debug——这一次它在宿主机上自己跑：不在外壳的 BRICKKIT_SERVED_MEMBERS
+// 成员设成 mode: debug——这一次它在宿主机上自己跑：不在外壳的 BRICKKIT_SERVED_MEMBERS
 // 与 JSON 里，外壳带着剩下的成员照常运行；依赖它的组件拿到的是它自己的地址（经宿主机路由），
 // 不是外壳的地址；它自己的本地 env 文件是它独立运行时的那份环境。
 func TestDebugMemberLeavesTheShell(t *testing.T) {
@@ -442,7 +442,7 @@ func shellEnvFile(t *testing.T, result *compose.Result, service string) string {
 
 // 同一个外壳里的成员 b 依赖设成 mode: debug 的成员 a：b 在外壳进程里拿到的地址要指向
 // 宿主机上的 a（端口是 localPort），外壳容器也要能把 a 的服务名解析到宿主机——
-// 调试外壳里的一个模块、其余模块照常调用它，正是附录 A18 的主要用法。
+// 调试外壳里的一个模块、其余模块照常调用它，正是给外壳成员写 mode: debug 的主要用法。
 func TestSiblingMemberReachesDebugMember(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})

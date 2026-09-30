@@ -33,7 +33,7 @@ import (
 const DefaultConfigFile = project.FileDecl
 
 // addDeployFileFlags 给读取部署文件的命令（up / down / status / sync / lint / graph）
-// 加上 -f / --file 与 --no-local（提案 §11.6）。
+// 加上 -f / --file 与 --no-local。
 func addDeployFileFlags(cmd *cobra.Command, opts *Options) {
 	cmd.Flags().StringVarP(&opts.DeployFile, "file", "f", opts.DeployFile, i18n.T(msgid.CliRootFlagDeployFile))
 	cmd.Flags().BoolVar(&opts.NoLocal, "no-local", opts.NoLocal, i18n.T(msgid.CliRootFlagNoLocal))
@@ -113,7 +113,7 @@ type Options struct {
 	// 项目根，而显示给人看的路径、"我在哪个组件里"都按 CallDir 算——像 git 一样。
 	CallDir string
 	// DeployFile 是 -f / --file 指定的部署文件（deploy.prod.yaml 之类）：指定了就只读它，
-	// 本地模式被忽略（提案 §11.6）。空表示按默认规则选择。
+	// 本地模式被忽略。空表示按默认规则选择。
 	DeployFile string
 	// NoLocal 是 --no-local：本次忽略 deploy.local.yaml，不改变本地模式的开关。
 	NoLocal bool
@@ -131,7 +131,7 @@ type Options struct {
 	// ResolveDigest 把镜像 tag 解析成 registry 里的 digest。
 	// 为空时用真实实现（docker buildx imagetools）。测试可替换。
 	ResolveDigest func(ctx context.Context, image string) (string, error)
-	// RepoCacheDir 是 git 源的 bare 仓库缓存目录。空表示用户级默认位置（附录 A12）；
+	// RepoCacheDir 是 git 源的 bare 仓库缓存目录。空表示用户级默认位置；
 	// 测试用它隔离，不是面向使用者的开关。
 	RepoCacheDir string
 	// stdinReader 是 Stdin 上唯一的缓冲读取器：一次命令里有好几个问题时，

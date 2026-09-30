@@ -55,7 +55,7 @@ type docFile struct {
 // docs 收集所有现行的 markdown 页：仓库里跟踪的，加上还没 git add、但没被忽略的新页
 // （新写的一页暂存之前也要被检查到）。名字是相对仓库根的路径，报错时照着就能找到。
 //
-// 归档（archive/）、规划（docs/superpowers/、.superpowers/）与提案（new_plan/）不在其中：
+// 归档（archive/）、规划（docs/superpowers/、.superpowers/）不在其中：
 // 那里的 YAML 可以是旧的，也可以是还没实现的。CHANGELOG 记的是历史，同样不查。
 // 片段式的 YAML（"改这一行"）多半认不成三种文件之一，本来就不会被检查（见 candidates）。
 func docs(t *testing.T) []docFile {
@@ -68,7 +68,7 @@ func docs(t *testing.T) []docFile {
 
 	var out []docFile
 	for _, rel := range strings.Split(string(listing), "\x00") {
-		if rel == "" || rel == "CHANGELOG.md" || hasAnyPrefix(rel, "archive/", "docs/superpowers/", ".superpowers/", "new_plan/") {
+		if rel == "" || rel == "CHANGELOG.md" || hasAnyPrefix(rel, "archive/", "docs/superpowers/", ".superpowers/") {
 			continue
 		}
 		body, err := os.ReadFile(filepath.Join(repoRoot, rel))

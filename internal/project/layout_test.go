@@ -46,7 +46,7 @@ func TestLocalModeToggle(t *testing.T) {
 	assert.False(t, on)
 }
 
-// Manifest 缓存每个版本一个目录（提案 §9.4），CachedVersions 只认真有 component.yaml 的精确版本目录。
+// Manifest 缓存每个版本一个目录，CachedVersions 只认真有 component.yaml 的精确版本目录。
 func TestManifestCacheLayout(t *testing.T) {
 	l := project.NewLayout(t.TempDir())
 	assert.Equal(t, filepath.Join(l.ManifestsDir(), "erp", "api", "1.0.0", "component.yaml"), l.CachedManifestPath("erp/api", "1.0.0"))

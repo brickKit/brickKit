@@ -49,7 +49,7 @@ type Options struct {
 	// 此时完全不校验——这正是还没用上签名的项目的默认处境。
 	Signature SignaturePolicy
 	// RepoCacheDir 是 git 源的 bare 仓库缓存目录。空表示用户级默认位置
-	// <用户缓存目录>/brickkit/repos（附录 A12）；测试用它隔离。
+	// <用户缓存目录>/brickkit/repos；测试用它隔离。
 	RepoCacheDir string
 }
 
@@ -98,7 +98,7 @@ type Client struct {
 	layout   project.Layout
 	opts     Options
 	fetchers []fetcher
-	// overrides 是 brickkit.yaml 里自己写了 source 的组件：只从那个来源取（提案 §9.3、§9.6）。
+	// overrides 是 brickkit.yaml 里自己写了 source 的组件：只从那个来源取。
 	overrides map[string]fetcher
 	repos     *repoCache
 
@@ -479,7 +479,7 @@ func (c *Client) servedByLocalSource(ctx context.Context, id, version string) bo
 }
 
 // ManifestCachePath 返回 Manifest 缓存路径，如
-// .brickkit/manifests/people/basic/1.0.0/component.yaml（提案 §9.4）。
+// .brickkit/manifests/people/basic/1.0.0/component.yaml。
 func (c *Client) ManifestCachePath(id, version string) string {
 	return c.layout.CachedManifestPath(id, version)
 }

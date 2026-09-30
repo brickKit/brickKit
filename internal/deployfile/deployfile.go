@@ -1,6 +1,6 @@
 // Package deployfile 负责部署层文件：团队的 deploy.yaml、个人的 deploy.local.yaml、
 // 以及 -f 显式指定的环境文件（deploy.prod.yaml 之类）。三者结构完全相同，只有"角色"不同——
-// mode: debug 只允许出现在个人文件里（提案 §6.4）。
+// mode: debug 只允许出现在个人文件里。
 package deployfile
 
 import (
@@ -50,7 +50,7 @@ type File struct {
 	Focus string `yaml:"focus,omitempty"`
 	// K8s 收拢所有只在 target: k8s 下有意义的项目级设置；其它 target 下写了会警告。
 	K8s *K8s `yaml:"k8s,omitempty"`
-	// Vars 覆盖 config/vars.yaml 里的同名公共变量，只作用于 $var: 查找（附录 A、提案 §6.1）。
+	// Vars 覆盖 config/vars.yaml 里的同名公共变量，只作用于 $var: 查找（附录 A）。
 	// 值里的 ${VAR} 解析时不展开——它们多半是密钥，何时求值由渲染器决定。
 	// 保留成 YAML 节点：数字要按原文取值（VER: 1.10 是 "1.10"），由 configdir.ParseVarsMap 解释。
 	Vars       map[string]yaml.Node `yaml:"vars,omitempty"`
@@ -103,7 +103,7 @@ type Egress struct {
 
 // AllowToTarget 是一个出站目标：集群内写 Namespace，集群外写 CIDR。
 //
-// 旧版的 resource 写法随 resources 一起废除（附录 A15）：数据库地址现在只是某个组件
+// 旧版的 resource 写法随 resources 一起废除：数据库地址现在只是某个组件
 // config 里的一串字符，平台不再知道它在哪，只能由使用者直接写位置与端口。
 type AllowToTarget struct {
 	Name        string            `yaml:"name"`
@@ -135,7 +135,7 @@ type Entry struct {
 	Resources          *manifest.Resources `yaml:"resources,omitempty"`
 	Labels             map[string]string   `yaml:"labels,omitempty"`
 	// SkipWaitFor 列出启动时不等的强依赖（组件 ID）：只去掉 depends_on 与启动顺序里的等待，
-	// 照样连得到它们（附录 A23）。代价由写的人承担——组件得扛住这些依赖暂时没就绪。
+	// 照样连得到它们。代价由写的人承担——组件得扛住这些依赖暂时没就绪。
 	// 只在 docker / podman 下起作用：K8s 的 Pod 之间没有启动顺序。
 	SkipWaitFor []string `yaml:"skipWaitFor,omitempty"`
 }
@@ -143,7 +143,7 @@ type Entry struct {
 // Component 是 components 下面的一个顶层条目。
 //
 // 外壳条目把它实际收编的成员作为完整条目嵌在 Members 下面——这是成员关系的唯一来源
-// （提案 §8.4、附录 A21）。成员条目的字段是它"自己跑"时的部署配置：外壳这次不跑时，
+// 。成员条目的字段是它"自己跑"时的部署配置：外壳这次不跑时，
 // 成员就按这些字段独立部署。成员条目是 Entry，没有 Members：只嵌一层由类型本身保证。
 type Component struct {
 	Entry   `yaml:",inline"`

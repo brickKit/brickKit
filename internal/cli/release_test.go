@@ -56,7 +56,7 @@ func TestReleaseCommandTagsAndPushes(t *testing.T) {
 	assert.Contains(t, r.stderr, "already released")
 }
 
-// 组件目录里同时有 brickkit.yaml（作者的本地工作台）：release 只认 component.yaml（提案 §16.1.1）。
+// 组件目录里同时有 brickkit.yaml（作者的本地工作台）：release 只认 component.yaml。
 func TestReleaseIgnoresWorkbenchBrickkitYaml(t *testing.T) {
 	repo := filepath.Join(t.TempDir(), "api")
 	origin := pushedRepo(t, repo, map[string]string{
@@ -133,7 +133,7 @@ func TestReleaseLocalSkipsAlreadyReleased(t *testing.T) {
 	assert.Contains(t, r.stdout, "2 components released")
 }
 
-// 第二个推送失败：第一个的 tag 留在远端，第二个本地回滚，第三个从没动过（提案 §9.6.2）。
+// 第二个推送失败：第一个的 tag 留在远端，第二个本地回滚，第三个从没动过。
 func TestReleaseLocalStopsAtFirstPushFailure(t *testing.T) {
 	dir, origins := localReleaseProject(t)
 	hook := filepath.Join(origins["erp/b"], "hooks", "pre-receive")

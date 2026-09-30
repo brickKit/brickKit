@@ -15,7 +15,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
-// 引用写法的前缀（提案 §7.2.3、§7.4）。
+// 引用写法的前缀。
 const (
 	VarRefPrefix  = "$var:"
 	FileRefPrefix = "file://"
@@ -23,7 +23,7 @@ const (
 
 // Kind 是一个配置值"是什么"：字面量，还是某种引用。
 //
-// 解析时只认形状、不求值——什么时候求值取决于部署目标（附录 A6/A7），那是 P2 渲染器的事。
+// 解析时只认形状、不求值——什么时候求值取决于部署目标，那是 P2 渲染器的事。
 type Kind int
 
 const (

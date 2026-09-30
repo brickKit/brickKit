@@ -125,7 +125,7 @@ func ExistingSourceError(l project.Layout, componentID, ref string) error {
 // 归档目录里那份也是他自己的（只是被 sync 收起来了）。绝不覆盖，也绝不
 // 在活跃目录再造一份——那会打破"一个组件 ID 只有一个源码目录"。
 //
-// tag 非空时克隆完检出它：本地仓库就是那个版本（附录 A22）。
+// tag 非空时克隆完检出它：本地仓库就是那个版本。
 func Clone(ctx context.Context, l project.Layout, componentID, ref, gitURL, tag string) (string, error) {
 	return CloneFrom(ctx, l, componentID, ref, gitURL, gitURL, tag)
 }

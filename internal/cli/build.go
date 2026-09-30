@@ -1,6 +1,6 @@
 package cli
 
-// 本文件实现 brickkit build（命令表 17，提案 §9.10、§11.2）：构建需要在本机构建的镜像。
+// 本文件实现 brickkit build：构建需要在本机构建的镜像。
 // 构建与部署分离——up 从不构建，只检查镜像在不在（up.go 的镜像检查）。
 //
 // 要构建的是这些版本：
@@ -9,8 +9,8 @@ package cli
 //	本地安装源给出的版本       正在开发的代码：它的镜像必须从这份代码构建，不能拿 registry 里的顶替
 //
 // 源码从哪来：本地仓库正是这个版本时用它；否则从这个版本的 git tag 导出（兼容版本、没克隆
-// 过的 git 组件）。镜像 tag 与 metadata.version 一致（提案 §9.10.4），外壳镜像记下编进去的成员
-// 版本（附录 A24），up 用它核对。
+// 过的 git 组件）。镜像 tag 与 metadata.version 一致，外壳镜像记下编进去的成员
+// 版本，up 用它核对。
 
 import (
 	"context"
@@ -32,7 +32,7 @@ import (
 	"github.com/brickkit/brickkit/internal/source"
 )
 
-// 镜像标签（附录 A24）：up 读 labelShellMembers 核对外壳镜像里编进的成员版本。
+// 镜像标签：up 读 labelShellMembers 核对外壳镜像里编进的成员版本。
 const (
 	labelComponent    = "io.brickkit.component"
 	labelVersion      = "io.brickkit.version"
@@ -112,7 +112,7 @@ func runBuild(ctx context.Context, opts *Options, arg string, force bool) error 
 			if id == "" {
 				continue
 			}
-			// 点名了：镜像平常是拉取的，这次在本机构建一份（拉不到时的出路，提案 §9.10.3）
+			// 点名了：镜像平常是拉取的，这次在本机构建一份（拉不到时的出路）
 			opts.Printf("%s\n", i18n.T(msgid.CliBuildNormallyPulled, ref.String(), tag))
 		}
 		if !force {
@@ -146,7 +146,7 @@ func runBuild(ctx context.Context, opts *Options, arg string, force bool) error 
 // localImageUsable 报告本机上的镜像能不能直接用、不必重新构建：
 //
 //	本地源的版本     必须是 brickkit build 从本地代码构建的（带 io.brickkit.build=local）
-//	外壳             记下的成员版本要与 shell.members 一致（附录 A24）；没有标签的不追究
+//	外壳             记下的成员版本要与 shell.members 一致；没有标签的不追究
 func localImageUsable(ctx context.Context, images engine.Images, node *resolver.Node, tag string, localSource bool) (bool, error) {
 	exists, err := images.ImageExists(ctx, tag)
 	if err != nil || !exists {

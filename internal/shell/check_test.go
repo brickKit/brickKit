@@ -25,7 +25,7 @@ func shellManifest(id, version string, port int, members ...string) *manifest.Ma
 	return m
 }
 
-// brickkit.yaml 标了 kind: shell，component.yaml 却没有 shell 块：两处说法对不上（附录 A11）。
+// brickkit.yaml 标了 kind: shell，component.yaml 却没有 shell 块：两处说法对不上。
 func TestCheckKindWithoutShellBlock(t *testing.T) {
 	_, err := resolveRaw(t, &testCfg{Components: []testComp{
 		comp("erp/shell", "1.0.0", ""),
@@ -135,7 +135,7 @@ func TestShellSkipWaitForNamingAMemberDependency(t *testing.T) {
 	assert.Contains(t, clierr.As(err).Hints, i18n.T(msgid.ShellHintSkipWaitForOnMember))
 }
 
-// 附录 A24：外壳镜像里编进的是 erp/a@1.2.0，这次按 brickkit.yaml 的默认版本承载的却是 1.3.0——
+// 外壳镜像里编进的是 erp/a@1.2.0，这次按 brickkit.yaml 的默认版本承载的却是 1.3.0——
 // 外壳进程里跑的代码与平台注入的版本对不上。生成前大声失败，给出三条具体出路。
 func TestCheckMemberVersionMismatch(t *testing.T) {
 	_, err := resolveRaw(t, &testCfg{Components: []testComp{

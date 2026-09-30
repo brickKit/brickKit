@@ -33,7 +33,7 @@ func migrate(t *testing.T, old string, oldS, newS *manifest.ConfigSchema, choose
 	return string(out), report
 }
 
-// 提案 §12.2：使用者写过、新版本还有的键，原样抄过去——$var:、${}、引号一个字符都不动。
+// 使用者写过、新版本还有的键，原样抄过去——$var:、${}、引号一个字符都不动。
 func TestMigrateCopiesWrittenKeys(t *testing.T) {
 	s := schema(map[string]manifest.ConfigProperty{
 		"DB_HOST": str(nil), "DB_PASSWORD": {Type: "string", Secret: true}, "GREETING": str(nil),
@@ -65,7 +65,7 @@ func TestMigrateDroppedKeysReported(t *testing.T) {
 	assert.Equal(t, []string{"OLD_KEY"}, report.Dropped)
 }
 
-// 附录 A4：使用者没写的键（骨架里是注释）跟随新默认值——不会有假冲突。
+// 使用者没写的键（骨架里是注释）跟随新默认值——不会有假冲突。
 func TestMigrateUnwrittenKeyFollowsNewDefault(t *testing.T) {
 	out, report := migrate(t, "# LOG_LEVEL: info  # string (default)\n",
 		schema(map[string]manifest.ConfigProperty{"LOG_LEVEL": str("info")}),
@@ -74,7 +74,7 @@ func TestMigrateUnwrittenKeyFollowsNewDefault(t *testing.T) {
 	assert.Empty(t, report.Conflicts)
 }
 
-// 提案 §12.3 第一行：值等于旧默认值——能确认使用者没改过它，跟随新默认值。
+// 值等于旧默认值——能确认使用者没改过它，跟随新默认值。
 func TestMigrateUserValueEqualsOldDefaultFollowsNew(t *testing.T) {
 	out, report := migrate(t, "LOG_LEVEL: info\n",
 		schema(map[string]manifest.ConfigProperty{"LOG_LEVEL": str("info")}),
@@ -84,7 +84,7 @@ func TestMigrateUserValueEqualsOldDefaultFollowsNew(t *testing.T) {
 	assert.Empty(t, report.Conflicts)
 }
 
-// 提案 §12.3：使用者改过、开发者也改了默认值——写重复键（注释说明），大声失败。
+// 使用者改过、开发者也改了默认值——写重复键（注释说明），大声失败。
 func TestMigrateConflictDuplicate(t *testing.T) {
 	out, report := migrate(t, "LOG_LEVEL: debug\n",
 		schema(map[string]manifest.ConfigProperty{"LOG_LEVEL": str("info")}),

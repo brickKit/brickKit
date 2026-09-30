@@ -122,7 +122,7 @@ func TestLoadDeploySelection(t *testing.T) {
 	assert.Equal(t, project.DeployLocal, p.DeploySource)
 	assert.Equal(t, "podman", p.Deploy.Target)
 	assert.Equal(t, "debug", p.DeployEntry("erp/backend", "2.0.0").Mode)
-	// erp/backend 是 erp/shell 的成员：成员必须可以设 debug / local（附录 A18），装载不得拒绝
+	// erp/backend 是 erp/shell 的成员：成员必须可以设 debug / local，装载不得拒绝
 
 	p, err = project.Load(root, project.LoadOptions{NoLocal: true})
 	require.NoError(t, err)
@@ -407,7 +407,7 @@ func TestLoadLocalPortVsExposePort(t *testing.T) {
 	_, err := project.Load(root, project.LoadOptions{})
 	require.Error(t, err)
 	assert.Equal(t, clierr.CodePortConflict, clierr.As(err).Code)
-	assert.NotContains(t, clierr.As(err).Hints[0], "every version", "裸 ID 条目只覆盖默认版本（附录 A20）")
+	assert.NotContains(t, clierr.As(err).Hints[0], "every version", "裸 ID 条目只覆盖默认版本")
 
 	// k8s 下没有宿主机端口，不查
 	write(t, root, map[string]string{"deploy.yaml": strings.Replace(strings.Replace(baseDeploy, "target: docker", "target: k8s", 1),

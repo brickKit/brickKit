@@ -4,7 +4,7 @@ package cli
 // 从 brickkit.yaml + deploy*.yaml + config/ 出发，走完 up --dry-run 的整条流水线，
 // 分别落到 Docker 与 K8s。
 //
-// 它钉的是"值最后落在哪里"（附录 A6 / A7）——这是整个重构里最容易悄悄出错的地方：
+// 它钉的是"值最后落在哪里"——这是整个重构里最容易悄悄出错的地方：
 //
 //	Docker  密钥与 file:// 读出的内容进 0600 的 env 文件，按 compose 的规则转义，
 //	        字面量里的 $ 写成 $$；compose.yaml 里只有 env_file 引用，一个字的密钥都没有

@@ -62,12 +62,12 @@ func (f *File) Keys() []string {
 	return out
 }
 
-// ParseComponentFile 解析 config/<id>.yaml。有重复键时返回 *ConflictError（大声失败，提案 §12.3）。
+// ParseComponentFile 解析 config/<id>.yaml。有重复键时返回 *ConflictError（大声失败）。
 func ParseComponentFile(data []byte, source string) (*File, error) {
 	return parseFlat(data, source, false)
 }
 
-// ParseVarsFile 解析 config/vars.yaml：不允许 $var: 链式引用（提案 §7.2.4）。
+// ParseVarsFile 解析 config/vars.yaml：不允许 $var: 链式引用。
 func ParseVarsFile(data []byte, source string) (*File, error) {
 	return parseFlat(data, source, true)
 }

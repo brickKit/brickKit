@@ -21,7 +21,7 @@ const (
 	OriginDefault Origin = "default"
 )
 
-// Resolved 是一个配置项的最终值。Key 就是环境变量名（附录 A10）；
+// Resolved 是一个配置项的最终值。Key 就是环境变量名；
 // Value 已经穿过了 $var:，但 ${VAR} / file:// / existingSecret 仍是引用——何时求值是渲染器的事。
 type Resolved struct {
 	Key     string
@@ -72,7 +72,7 @@ func LookupVar(name string, deployVars, vars map[string]Value) (Value, bool) {
 	return v, ok
 }
 
-// Resolve 按优先级算出一个组件每个配置项的值（提案 §7.5，经附录 A 修正）：
+// Resolve 按优先级算出一个组件每个配置项的值：
 // 组件配置文件里写了且有值 → schema 默认值 → 没有（必填即缺失）。
 func Resolve(in Input) (*Result, error) {
 	res := &Result{}

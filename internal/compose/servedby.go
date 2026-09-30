@@ -1,6 +1,6 @@
 package compose
 
-// 本文件是外壳（提案 §8）在 Docker 下的渲染：被承载的成员不生成主容器，外壳挂上成员的
+// 本文件是外壳在 Docker 下的渲染：被承载的成员不生成主容器，外壳挂上成员的
 // 网络别名，外壳的环境里多出 BRICKKIT_SERVED_MEMBERS 与（放进 env 文件的）
 // BRICKKIT_SERVED_MEMBERS_CONFIG。谁被承载由 cascade.Result.HostOf 决定，与 K8s 渲染器同一个判据。
 
@@ -172,7 +172,7 @@ func (p *plan) runAfter() []string {
 }
 
 // bareSkipWaitForWarnings 提醒"skipWaitFor 这次不起作用"：以裸进程运行的组件、裸进程外壳里的
-// 成员都不在 compose 文件里，没有 depends_on 可去（附录 A23）。不拦——换回容器时它又会生效。
+// 成员都不在 compose 文件里，没有 depends_on 可去。不拦——换回容器时它又会生效。
 func (p *plan) bareSkipWaitForWarnings() []*clierr.Error {
 	var out []*clierr.Error
 	for _, ref := range p.states.Running() {

@@ -56,7 +56,7 @@ type Options struct {
 	Lookup func(name string) (string, bool)
 }
 
-// EnvFile 是一个服务的 0600 环境变量文件：密钥与 file:// 内容不进 compose.yaml（附录 A7）。
+// EnvFile 是一个服务的 0600 环境变量文件：密钥与 file:// 内容不进 compose.yaml。
 type EnvFile struct {
 	Service string
 	// Path 相对项目根（compose 的 --project-directory）：.brickkit/generated/env/<service>.env
@@ -189,7 +189,7 @@ type plan struct {
 	// 几条提醒（见 servedby.go）。
 	served []servedComponent
 	// memberMigrations 是被外壳承载、又声明了 migration 的成员：它们没有主容器，
-	// 迁移却仍然单独跑，用成员自己的镜像与配置（提案 §8.1 规则 2、§8.9.4）。
+	// 迁移却仍然单独跑，用成员自己的镜像与配置。
 	memberMigrations []componentPlan
 	// shellAliases 是外壳的服务名 → 它要挂的额外网络别名（收编成员的
 	// 版本化服务名），供 componentService 渲染 networks 段。
@@ -332,7 +332,7 @@ func newPlan(
 // # 为什么必须串
 //
 // 同一个组件的两个版本管的是同一份数据，它们的配置（无论共用 config/<id>.yaml，
-// 还是各有一份带版本号的，提案 §7.3）通常指向同一个库；迁移状态表的主键是
+// 还是各有一份带版本号的）通常指向同一个库；迁移状态表的主键是
 // (component_id, version)，两个版本的 component_id 也是同一个。于是"两个迁移容器
 // 同时对同一个库、用同一个身份跑迁移"完全是**平台自己生成出来的**——使用者在
 // brickkit.yaml 里只是写了两行版本号。
@@ -511,7 +511,7 @@ func (p *plan) componentDependsOn(c componentPlan) map[string]any {
 	}
 
 	// 外壳要等的还包括它承载的成员的强依赖：成员的代码就在外壳进程里（shell.WaitFor）
-	// 只等 WaitFor：skipWaitFor 写掉的强依赖不进 depends_on（附录 A23），但照样连得到
+	// 只等 WaitFor：skipWaitFor 写掉的强依赖不进 depends_on，但照样连得到
 	for _, dep := range shell.WaitFor(p.proj, p.graph, p.states, c.Ref) {
 		service := manifest.ServiceName(dep.ID, dep.Version)
 		if p.rendered[service] {

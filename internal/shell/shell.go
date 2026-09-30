@@ -1,4 +1,4 @@
-// Package shell 计算外壳分组（提案 §8）。
+// Package shell 计算外壳分组。
 //
 // 这是 Docker（internal/compose）与 K8s（internal/k8s）两个渲染器共用的唯一一份外壳逻辑：
 // 声明核对（check.go）、谁被哪个外壳承载、以及交给外壳的 BRICKKIT_SERVED_MEMBERS_CONFIG。
@@ -27,9 +27,9 @@ import (
 // 逗号分隔。登记在 internal/inject/reserved.go 的精确匹配保留名里。
 const EnvVarServedMembers = "BRICKKIT_SERVED_MEMBERS"
 
-// EnvVarServedMembersConfig 是外壳容器上装着全部成员配置的保留变量（提案 §8.2）：一个 JSON 数组，
-// 每个成员一个对象，config 里是 CLI 已经求好的值（提案 §8.3 场景 A）。它装着成员的密钥，
-// 所以按密钥放置：Docker 写进 0600 的 env 文件、K8s 进生成的 Secret（附录 A7），
+// EnvVarServedMembersConfig 是外壳容器上装着全部成员配置的保留变量：一个 JSON 数组，
+// 每个成员一个对象，config 里是 CLI 已经求好的值。它装着成员的密钥，
+// 所以按密钥放置：Docker 写进 0600 的 env 文件、K8s 进生成的 Secret，
 // 绝不明文出现在 compose.yaml 或 Deployment 里。
 const EnvVarServedMembersConfig = "BRICKKIT_SERVED_MEMBERS_CONFIG"
 
@@ -76,7 +76,7 @@ type servedMemberExtraPort struct {
 	Port int    `json:"port"`
 }
 
-// servedMemberConfigEntry 是 BRICKKIT_SERVED_MEMBERS_CONFIG JSON 数组里的一个元素（提案 §8.2）。
+// servedMemberConfigEntry 是 BRICKKIT_SERVED_MEMBERS_CONFIG JSON 数组里的一个元素。
 type servedMemberConfigEntry struct {
 	ComponentID string                  `json:"componentId"`
 	Version     string                  `json:"version"`
@@ -205,7 +205,7 @@ func Resolve(
 	return groups, nil
 }
 
-// memberConfig 把成员算好的环境（配置项与依赖地址）求成最终的值（提案 §8.3 场景 A）。
+// memberConfig 把成员算好的环境（配置项与依赖地址）求成最终的值。
 //
 //	字面量     原样
 //	file://    读文件
@@ -234,7 +234,7 @@ func memberConfig(
 	return out, nil
 }
 
-// CheckMemberValue 确认一个求好的成员值能装进外壳的 JSON（提案 §8.3）：必须是合法 UTF-8——
+// CheckMemberValue 确认一个求好的成员值能装进外壳的 JSON：必须是合法 UTF-8——
 // JSON 只能装文本，非法字节会被悄悄换成替换字符。up 与 lint 走同一处。
 func CheckMemberValue(ref resolver.Ref, name, value string) error {
 	if utf8.ValidString(value) {

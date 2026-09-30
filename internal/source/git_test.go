@@ -85,7 +85,7 @@ func TestGitManifestAtTag(t *testing.T) {
 	assert.Equal(t, "second", got.Manifest.Metadata.Description)
 }
 
-// 提案 §9.4/9.5、附录 A12：仓库克隆一次后放在用户级缓存里，多个项目共用；
+// 仓库克隆一次后放在用户级缓存里，多个项目共用；
 // 远端没了，另一个项目照样能读到之前见过的版本。
 func TestGitReadsCachedRepoWithoutNetwork(t *testing.T) {
 	org := newGitOrg(t)
@@ -132,7 +132,7 @@ func TestGitLatestIsHighestExactTag(t *testing.T) {
 	assert.Equal(t, "1.10.0", latest.Version)
 }
 
-// 附录 A9：组件在仓库子目录里（monorepo）时，tag 带命名空间 <scope>-<name>/<版本>；
+// 组件在仓库子目录里（monorepo）时，tag 带命名空间 <scope>-<name>/<版本>；
 // 同一个仓库里不带命名空间的 tag 属于别的东西，不认。
 func TestGitMonorepoNamespacedTag(t *testing.T) {
 	mono := gittest.NewRemote(t, "platform")
@@ -165,7 +165,7 @@ func TestGitMissingTagListsExisting(t *testing.T) {
 	assert.Contains(t, clierr.As(err).Format(), "1.0.0, 1.1.0")
 }
 
-// 提案 §9.9：鉴权、仓库不存在这类失败原样带出 git 的报错，再给三条检查方向；绝不挂住等输入。
+// 鉴权、仓库不存在这类失败原样带出 git 的报错，再给三条检查方向；绝不挂住等输入。
 func TestGitAuthFailurePassesStderr(t *testing.T) {
 	org := newGitOrg(t)
 	c, _ := org.client()
@@ -217,7 +217,7 @@ func TestRepoCacheDirNormalisesAddresses(t *testing.T) {
 	}
 }
 
-// 组件自己写了 source.repo：只从那个仓库取，不按 baseUrl 推导（提案 §9.3）。
+// 组件自己写了 source.repo：只从那个仓库取，不按 baseUrl 推导。
 func TestComponentSourceOverride(t *testing.T) {
 	org := newGitOrg(t)
 	org.release(componentSpec{ID: "third/pay", Version: "1.0.0", Description: "from baseUrl"})
@@ -445,7 +445,7 @@ func TestGitMissingRepositoryNamesTheAddress(t *testing.T) {
 	assert.Contains(t, out, "mistyped", "提醒地址写错也会这样失败")
 }
 
-// 连不上远端（离线、主机名解析不了）时，建议不能只谈鉴权；查"最新版本"又必须联网（附录 A8），
+// 连不上远端（离线、主机名解析不了）时，建议不能只谈鉴权；查"最新版本"又必须联网，
 // 所以点名本机缓存里已有的版本，告诉使用者写明版本号就不用联网。不静默回落到缓存里的最高版本：
 // 那可能不是远端的最新，而使用者以为是。
 func TestGitLatestOfflineNamesCachedVersions(t *testing.T) {

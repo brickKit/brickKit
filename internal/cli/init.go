@@ -27,7 +27,7 @@ type initFlags struct {
 	hooksOnly bool
 }
 
-// newInitCommand 实现 brickkit init（提案 §11.5）：带名字是创建式（新建 <name>/ 目录），
+// newInitCommand 实现 brickkit init：带名字是创建式（新建 <name>/ 目录），
 // 不带名字是补全式（在当前目录缺什么补什么）。两种模式走同一个补全原语。
 func newInitCommand(opts *Options) *cobra.Command {
 	var f initFlags
@@ -179,7 +179,7 @@ func renderInsideProjectNote(opts *Options, dir string) {
 	}
 }
 
-// renderGitignoreWarning 大声说出 .gitignore 缺的必需条目（提案 §11.5 的核心防线）：
+// renderGitignoreWarning 大声说出 .gitignore 缺的必需条目：
 // brickkit init 与 add --local --init 的子工作台走同一处，谁也不能悄悄放过。
 func renderGitignoreWarning(opts *Options, file string, missing []string) {
 	if len(missing) == 0 {

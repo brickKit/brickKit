@@ -9,7 +9,7 @@ import (
 
 // signaturePolicyOf 从项目配置构造签名校验策略。
 //
-// 信任锚点只有一个来源：brickkit.yaml 的 installer.publicKeys（附录 A14）。绝不从市场取
+// 信任锚点只有一个来源：brickkit.yaml 的 installer.publicKeys。绝不从市场取
 // 公钥——那等于市场自己给自己发证，签名就成了摆设（见 security.KeyRing 的说明）。
 func signaturePolicyOf(opts *Options, cfg *projfile.File) (source.SignaturePolicy, error) {
 	if cfg == nil {

@@ -617,7 +617,7 @@ configSchema:
 	assert.False(t, m.ConfigSchema.Properties["region"].Secret, "不写就是 false")
 }
 
-// 附录 A24：外壳的 component.yaml 写明编进去的每个成员的精确版本。
+// 外壳的 component.yaml 写明编进去的每个成员的精确版本。
 func TestValidateShellMembersNeedExactVersions(t *testing.T) {
 	cases := map[string]struct {
 		members string

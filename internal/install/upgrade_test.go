@@ -47,7 +47,7 @@ func TestPlanUpgradeMovesDefault(t *testing.T) {
 	assert.Equal(t, []install.ConfigRef{{ID: "erp/api", Version: "1.0.0"}}, plan.ArchiveConfigs, "旧版本没人要了：配置归档")
 }
 
-// 附录 A20：还有组件依赖旧版本——旧版本留下（requiredBy），条目 id@1.0.0，配置改名成带版本号的文件。
+// 还有组件依赖旧版本——旧版本留下（requiredBy），条目 id@1.0.0，配置改名成带版本号的文件。
 func TestPlanUpgradeKeepsOldVersionForDependent(t *testing.T) {
 	p := proj(t, `  - {id: erp/api, version: 1.0.0}
   - {id: erp/old, version: 1.0.0}`, `  - id: erp/api
@@ -124,7 +124,7 @@ func TestPlanUpgradeNestedEntryUnderShellCompilingOld(t *testing.T) {
 	assert.Equal(t, []install.Entry{{ID: "erp/a"}}, plan.AddEntries)
 }
 
-// 附录 A24：外壳升级展开成成员的版本移动——默认版本是旧外壳编进的那个的成员跟着走；
+// 外壳升级展开成成员的版本移动——默认版本是旧外壳编进的那个的成员跟着走；
 // 新外壳不再编进的成员挪到顶层独立运行；新成员加进来、嵌在外壳下面。
 func TestShellMovesFollowNewMembers(t *testing.T) {
 	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
@@ -185,7 +185,7 @@ func TestPlanUpgradeKeptOldShellKeepsKind(t *testing.T) {
 	cat := catalog(shellMf("erp/shell@1.0.0", "erp/a@1.0.0"), shellMf("erp/shell@2.0.0", "erp/a@1.0.0"), mf("erp/a@1.0.0"),
 		mf("erp/web@1.0.0", "erp/shell@1.0.0"))
 	_, err := planUpgrade(t, p, cat, mv("erp/shell", "1.0.0", "2.0.0"))
-	require.Error(t, err, "外壳只有一个版本（提案 §8.6 单版本约束）：还有组件依赖旧外壳时升级不了")
+	require.Error(t, err, "外壳只有一个版本（单版本约束）：还有组件依赖旧外壳时升级不了")
 	assert.Contains(t, err.Error(), "erp/web")
 }
 

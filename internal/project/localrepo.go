@@ -1,7 +1,7 @@
 package project
 
 // 本文件回答"这个组件的本地仓库在哪、是哪个版本"——代码从本地仓库运行时（mode: local /
-// debug、以裸进程运行的外壳的成员）up 要核对它（附录 A22、A24），mode: local 也从这里启动。
+// debug、以裸进程运行的外壳的成员）up 要核对它，mode: local 也从这里启动。
 //
 // 找的顺序：
 //
@@ -68,7 +68,7 @@ func LocalRepoVersion(dir string) (string, error) {
 }
 
 // LocalRepoSubpath 是组件在它的 git 仓库里的子目录（monorepo，组件级 source.path）；
-// 在仓库根目录时为空。版本 tag 的命名跟着它（附录 A9）。
+// 在仓库根目录时为空。版本 tag 的命名跟着它。
 func (p *Project) LocalRepoSubpath(id string) string {
 	if src := p.componentSource(id); src != nil && src.Type == projfile.SourceTypeGit {
 		return src.Path

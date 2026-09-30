@@ -48,7 +48,7 @@ type comp struct {
 	Memory string
 	// SecretConfig 是 ConfigSchema 里声明了 secret: true 的键名。
 	SecretConfig []string
-	// ShellMembers 是 shell.members：编进这个外壳的成员，每项写 <组件ID>@<精确版本>（附录 A24）。
+	// ShellMembers 是 shell.members：编进这个外壳的成员，每项写 <组件ID>@<精确版本>。
 	ShellMembers []string
 	// Port 覆盖默认的 deployment.port（8080）——同一个外壳下的 servedBy
 	// 成员测试要用不同端口，否则端口冲突校验会先一步报错。
@@ -101,7 +101,7 @@ func (c comp) yamlText() string {
 		b.WriteString("configSchema:\n  type: object\n  properties:\n")
 		for _, item := range c.ConfigSchema {
 			name, def, _ := strings.Cut(item, ":")
-			// 旧测试写的是 camelCase 键：统一转成环境变量名（附录 A10）
+			// 旧测试写的是 camelCase 键：统一转成环境变量名
 			fmt.Fprintf(&b, "    %s:\n      type: string\n      default: \"%s\"\n", legacyEnvKey(name), def)
 			if slices.Contains(c.SecretConfig, name) {
 				b.WriteString("      secret: true\n")

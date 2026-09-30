@@ -10,7 +10,7 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
-// Evaluate 把一个值求成最终的字符串（附录 A6/A7：何时调用由渲染器决定）。
+// Evaluate 把一个值求成最终的字符串（何时调用由渲染器决定）。
 //
 //	字面量       原样
 //	${VAR}       用 lookup 展开（找不到的引用原样保留，生成物里一眼能看出漏配了哪个）

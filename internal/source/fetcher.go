@@ -157,7 +157,7 @@ type Origin struct {
 	Type string
 	// GitURL 是开源组件的仓库地址（OriginGit 时有值）。
 	GitURL string
-	// Subpath 是组件在仓库里的子目录（monorepo，附录 A9）；在仓库根目录时为空。
+	// Subpath 是组件在仓库里的子目录（monorepo）；在仓库根目录时为空。
 	Subpath string
 	// Tag 是这个版本对应的 git tag（git 源才有）：clone 源码后检出它，本地仓库就是这个版本。
 	Tag string

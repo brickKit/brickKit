@@ -1,6 +1,6 @@
 package cli
 
-// 本文件实现 brickkit deps：把依赖关系打印成树（提案 §11.1）。
+// 本文件实现 brickkit deps：把依赖关系打印成树。
 //
 // brickkit.yaml 只锁版本、不写依赖——依赖是组件的内在属性，写在各自的 component.yaml 里；
 // 两处都写，对不上时就不知道听谁的。要看依赖关系，就用这条命令从 Manifest 里读出来。

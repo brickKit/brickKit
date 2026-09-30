@@ -1,6 +1,6 @@
 package project
 
-// 本文件是项目级 BRICKKIT.md（提案 §16.2.1 的实例层）：列出项目里的组件与各自文档、契约的位置，
+// 本文件是项目级 BRICKKIT.md（组件文档的项目层）：列出项目里的组件与各自文档、契约的位置，
 // 让 AI 与人不翻源码就能按图索骥。
 //
 // 组件表由 CLI 维护，放在一对标记之间：add / remove / upgrade 每次改完 brickkit.yaml 都重写它，
@@ -125,7 +125,7 @@ func (p *Project) relIfExists(path string) string {
 
 // WriteProjectDoc 重写项目 BRICKKIT.md 的 CLI 维护区。只改已有的、带维护区的文件：
 // 生成它是 init 的事（使用者删掉了它，add 不该每次都再造一份出来）；没有维护区的文件
-// （使用者自己写的，或组件仓库里组件自己的文档，提案 §16.1.1）一个字都不动。
+// （使用者自己写的，或组件仓库里组件自己的文档）一个字都不动。
 // 返回这次是否写了文件。
 func WriteProjectDoc(l Layout, p *Project) (bool, error) {
 	path := l.ProjectDocPath()

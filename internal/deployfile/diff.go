@@ -1,6 +1,6 @@
 package deployfile
 
-// 本文件是 brickkit local refresh 的"本地修改摘要"（提案 §6.6）：列出旧的 deploy.local.yaml 里
+// 本文件是 brickkit local refresh 的"本地修改摘要"：列出旧的 deploy.local.yaml 里
 // 使用者自己的每一处修改，让使用者照着把它们合并回重新从 deploy.yaml 复制出来的新文件。
 //
 // "本地修改"以基线为准：基线是上次复制时的团队文件（local on / refresh 存下的那份）。
@@ -9,7 +9,7 @@ package deployfile
 // 没有（add 之后才出现）时，退回两方对比：旧文件里与新文件不同、或新文件没有的值。
 //
 // 比的是数据而不是文本：注释、键的顺序、引号写法都不算改动；新文件多出来的值也不算——
-// 那是团队的标准配置，不是使用者的本地修改。CLI 只列出来，不替人合并（完整替换，附录 A1）。
+// 那是团队的标准配置，不是使用者的本地修改。CLI 只列出来，不替人合并（完整替换）。
 
 import (
 	"encoding/json"

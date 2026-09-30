@@ -147,7 +147,7 @@ type publishPackage struct {
 	// document 是 component.yaml 转成的 JSON，原样上传：
 	// 走结构体转一手会把市场认识、而 CLI 还没建模的字段丢掉。
 	document json.RawMessage
-	// doc 是组件仓库根的 BRICKKIT.md（提案 §16.2），没有时为空。
+	// doc 是组件仓库根的 BRICKKIT.md，没有时为空。
 	doc string
 	// files 是 artifacts 声明的文件（相对路径 → 内容）。
 	files      map[string][]byte

@@ -64,7 +64,7 @@ type testComp struct {
 	SkipWaitFor                 []string
 	// RequiredBy 写进 brickkit.yaml；同一个 ID 没写它的那一行是默认版本。
 	RequiredBy []string
-	// Bare 让部署文件里的条目不写版本（= brickkit.yaml 的默认版本，附录 A20）。
+	// Bare 让部署文件里的条目不写版本（= brickkit.yaml 的默认版本）。
 	Bare bool
 }
 
@@ -328,8 +328,7 @@ func TestServedMembersEmptyWhenNoMembers(t *testing.T) {
 		"零个成员时是空字符串——这个空字符串本身就是信号，不是变量缺失")
 }
 
-// ---- BRICKKIT_SERVED_MEMBERS_CONFIG（brickKit 反馈：两个降低 servedBy
-// 运维摩擦的架构提案，提案一）----
+// ---- BRICKKIT_SERVED_MEMBERS_CONFIG ----
 
 func TestServedMembersConfigEmptyWhenNoMembers(t *testing.T) {
 	assert.Equal(t, "[]", shell.Group{}.ServedMembersConfig(),
@@ -342,7 +341,7 @@ func TestServedMembersConfigEmptyWhenNoMembers(t *testing.T) {
 
 // ---- ParseRef ----
 
-// 附录 A18：外壳成员可以设 mode: local / debug——这一次它以裸进程在宿主机上跑，
+// 外壳成员可以设 mode: local / debug——这一次它以裸进程在宿主机上跑，
 // 不并进外壳（完整语义 P3 设计；这里钉住"至少能设置、且不被当成成员"）。
 func TestResolveBareProcessMemberStaysOutOfShell(t *testing.T) {
 	member := testComp{ID: "erp/sales", Version: "1.0.0", ServedBy: "infra/shell-go-core@1.0.0", Mode: deployfile.ModeLocal}
@@ -358,7 +357,7 @@ func TestResolveBareProcessMemberStaysOutOfShell(t *testing.T) {
 	}
 }
 
-// ---- BRICKKIT_SERVED_MEMBERS_CONFIG：CLI 提前求值的 JSON（提案 §8.2、§8.3 场景 A）----
+// ---- BRICKKIT_SERVED_MEMBERS_CONFIG：CLI 提前求值的 JSON ----
 
 const memberPEM = "-----BEGIN KEY-----\nab$c\"d\\e\n-----END KEY-----\n"
 
@@ -409,7 +408,7 @@ func TestServedMembersConfigCarriesEvaluatedValues(t *testing.T) {
 		byName[v.Name] = v
 	}
 	json := byName[shell.EnvVarServedMembersConfig]
-	assert.True(t, json.Secret, "JSON 里装着成员的密钥：按密钥放置（Docker 进 0600 env 文件，K8s 进 Secret，附录 A7）")
+	assert.True(t, json.Secret, "JSON 里装着成员的密钥：按密钥放置（Docker 进 0600 env 文件，K8s 进 Secret）")
 	assert.Equal(t, shell.EnvVarServedMembersConfig, json.Key)
 	assert.Equal(t, "erp-a-1-0-0", byName[shell.EnvVarServedMembers].Value.Text)
 	for name := range byName {

@@ -44,7 +44,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LAYOUT = os.path.join(ROOT, "internal", "project", "layout.go")
 
 # 历史与规划目录不是"现行文档"：那里画的树可以是旧的，也可以是还没实现的。
-EXCLUDED_PREFIXES = ("archive/", "docs/superpowers/", "new_plan/", ".superpowers/")
+EXCLUDED_PREFIXES = ("archive/", "docs/superpowers/", ".superpowers/")
 
 # 这棵树由哪篇现行文档负责画（扫不到任何一棵时，报错里点它的名）。
 TREE_OWNER = "docs/{en,zh}/01-three-layers/01-overview.md"

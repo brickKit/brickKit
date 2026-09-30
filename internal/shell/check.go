@@ -1,9 +1,9 @@
 package shell
 
-// 本文件核对外壳的三处声明是否说的是同一件事（提案 §8.4、附录 A11）：
+// 本文件核对外壳的三处声明是否说的是同一件事：
 //
 //	brickkit.yaml  kind: shell          "这是一个外壳"（由 CLI 维护）
-//	component.yaml shell.members        "构建时编进我的是这些成员的这些版本"（附录 A24）
+//	component.yaml shell.members        "构建时编进我的是这些成员的这些版本"
 //	部署文件       members              "这些组件这次确实在我里面"（实际关系，不写版本 = 默认版本）
 //
 // 三处对不上时生成出来的东西必然是错的——外壳镜像里根本没有成员的代码、编进的是另一个
@@ -27,7 +27,7 @@ import (
 
 // Check 核对依赖图里每个 brickkit.yaml 组件的外壳声明。只看解析到了 Manifest 的组件。
 //
-// "成员必须有独立镜像"（提案 §8.1 规则 1）这里不查：Manifest 校验已经要求每个组件
+// "成员必须有独立镜像"这里不查：Manifest 校验已经要求每个组件
 // 写 deployment.image 或 deployment.build，这条规则因此对任何组件都自然成立。
 func Check(p *project.Project, graph *resolver.Graph, states *cascade.Result) error {
 	for _, c := range p.Decl.Components {
@@ -47,7 +47,7 @@ func Check(p *project.Project, graph *resolver.Graph, states *cascade.Result) er
 }
 
 // checkMemberVersions 核对这次被外壳承载的每个成员版本，正是外壳 component.yaml 里声明编进去的
-// 那个版本（附录 A24）。版本由 brickkit.yaml 与部署文件决定（成员条目不写版本 = 默认版本），
+// 那个版本。版本由 brickkit.yaml 与部署文件决定（成员条目不写版本 = 默认版本），
 // 外壳镜像里是什么由外壳自己说，两边对不上时外壳进程里跑的代码与平台注入的版本、地址、配置
 // 说的不是同一个东西。
 //
@@ -114,7 +114,7 @@ func keepBothHint(p *project.Project, shellID string, hosted, compiled resolver.
 	return i18n.T(msgid.ShellHintKeepBothVersions, line, shellID, pinned, standalone, hosted.String())
 }
 
-// checkSkipWaitFor 核对每个 skipWaitFor 写的都是那个组件版本真实的强依赖（附录 A23）：
+// checkSkipWaitFor 核对每个 skipWaitFor 写的都是那个组件版本真实的强依赖：
 // 拼错的名字、弱依赖（它本来就不等）、根本不依赖的组件，写了都等于没写——使用者却以为
 // 那条等待已经去掉了。只看解析到了 Manifest 的组件。
 func checkSkipWaitFor(p *project.Project, graph *resolver.Graph) error {
@@ -160,7 +160,7 @@ func checkSkipWaitFor(p *project.Project, graph *resolver.Graph) error {
 
 // CheckDeclaration 是只看声明、不看依赖图的那部分核对：brickkit.yaml 的 kind: shell 与
 // component.yaml 的 shell 块一致；部署文件放在外壳下面的成员，外壳确实编进了它。
-// up / graph 经 Check 调它；lint 对盘上有 Manifest 的组件直接调它（附录 A11）——离线就能查。
+// up / graph 经 Check 调它；lint 对盘上有 Manifest 的组件直接调它——离线就能查。
 func CheckDeclaration(p *project.Project, ref resolver.Ref, declared bool, m *manifest.Manifest) *clierr.Error {
 	if err := checkKind(ref, declared, m); err != nil {
 		return err

@@ -419,7 +419,7 @@ func TestArchiveWorksOutsideGitRepo(t *testing.T) {
 	assert.DirExists(t, ArchivedDir(layout, "mdm/customer"))
 }
 
-// 要检出的 tag 不存在：报错，并且不留下一份停在别的版本上的源码（附录 A22）。
+// 要检出的 tag 不存在：报错，并且不留下一份停在别的版本上的源码。
 func TestCloneMissingTagLeavesNothing(t *testing.T) {
 	layout := newLayout(t)
 	repo := newRepo(t, map[string]string{"component.yaml": "metadata:\n  id: people/basic\n"})

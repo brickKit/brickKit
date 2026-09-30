@@ -48,7 +48,7 @@ func TestHostOf(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, shell, got)
 	_, ok = states.HostOf(p, ref("erp/b"))
-	assert.False(t, ok, "以裸进程运行的成员这次不进外壳（附录 A18）")
+	assert.False(t, ok, "以裸进程运行的成员这次不进外壳")
 	_, ok = states.HostOf(p, ref("erp/solo"))
 	assert.False(t, ok)
 

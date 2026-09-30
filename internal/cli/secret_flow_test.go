@@ -1,6 +1,6 @@
 package cli
 
-// 本文件钉住"密钥值写到哪"（提案 §7.4，附录 A6、A7）：
+// 本文件钉住"密钥值写到哪"：
 //
 //	Docker  compose 文件里永远没有密钥，占位符留给 docker compose 启动时求值
 //	K8s     生成时求值，资源密码进 Secret、Deployment 里只有 secretKeyRef

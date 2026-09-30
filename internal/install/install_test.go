@@ -135,7 +135,7 @@ func TestPlanAddNewComponentIsDefault(t *testing.T) {
 	assert.False(t, plan.AddConfigs[0].Versioned)
 }
 
-// 附录 A20/A5：依赖要的是另一个版本——加进来，写 requiredBy，部署条目带版本，配置文件带版本号。
+// 依赖要的是另一个版本——加进来，写 requiredBy，部署条目带版本，配置文件带版本号。
 func TestPlanAddDependencyAtOtherVersionGetsRequiredBy(t *testing.T) {
 	p := proj(t, "  - {id: erp/db, version: 2.0.0}", "  - id: erp/db")
 	cat := catalog(mf("erp/api@1.0.0", "erp/db@1.0.0"), withSchema(mf("erp/db@1.0.0")), mf("erp/db@2.0.0"))
@@ -175,7 +175,7 @@ func TestPlanAddOtherVersionDirectlyIsAnError(t *testing.T) {
 	assert.Contains(t, hints(err), "brickkit upgrade erp/api@2.0.0")
 }
 
-// 附录 A24：add 外壳时按它编进的成员版本写三份文件——
+// add 外壳时按它编进的成员版本写三份文件——
 // 新成员成为默认版本、嵌在外壳下面写裸 ID；默认版本不同的成员加一行 requiredBy: [外壳]、嵌套条目写 @版本；
 // 已在顶层、版本正好是外壳编进的那个的成员挪进外壳。
 func TestPlanAddShellNestsDeclaredMembers(t *testing.T) {
@@ -200,7 +200,7 @@ func TestPlanAddShellNestsDeclaredMembers(t *testing.T) {
 	assert.Equal(t, []install.Entry{{ID: "erp/c", Under: "erp/shell"}}, plan.NestEntries)
 }
 
-// 提案 §8.5：add 一个成员，项目里的外壳编进的正是这个版本——直接嵌到外壳下面；
+// add 一个成员，项目里的外壳编进的正是这个版本——直接嵌到外壳下面；
 // 外壳编进的是别的版本——放在顶层，说明为什么。
 func TestPlanAddMemberJoinsProjectShell(t *testing.T) {
 	p := proj(t, "  - {id: erp/shell, version: 1.0.0, kind: shell}", "  - id: erp/shell")
@@ -261,7 +261,7 @@ func TestPlanRemoveBlockedByDependents(t *testing.T) {
 	assert.NotContains(t, err.Error(), "erp/web", "弱依赖方不拦")
 }
 
-// 附录 A20：依赖方移除后没人再要的版本一并清掉（配置归档、条目删掉）。
+// 依赖方移除后没人再要的版本一并清掉（配置归档、条目删掉）。
 func TestPlanRemoveCascadesRequiredBy(t *testing.T) {
 	p := proj(t, `  - {id: erp/db, version: 2.0.0}
   - {id: erp/db, version: 1.0.0, requiredBy: [erp/old]}
@@ -278,7 +278,7 @@ func TestPlanRemoveCascadesRequiredBy(t *testing.T) {
 	assert.Equal(t, plan.RemoveLines, plan.Removed)
 }
 
-// 提案 §8.7：删外壳，成员挪回顶层独立运行；只因外壳而在的成员版本一并移除。
+// 删外壳，成员挪回顶层独立运行；只因外壳而在的成员版本一并移除。
 func TestPlanRemoveShellPromotesMembers(t *testing.T) {
 	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
   - {id: erp/a, version: 1.0.0}
@@ -343,8 +343,8 @@ func TestPlanAddFillsOnlyTargetConfig(t *testing.T) {
 	assert.Empty(t, plan.AddConfigs)
 }
 
-// 提案 §8.7：成员被使用者移出外壳独立运行是合法状态——之后 add 一个无关的组件，不能把它塞回去。
-// 只在外壳是这次新加的（提案 §8.5 第 4 步），或 add 的正是这个成员时才挪进外壳。
+// 成员被使用者移出外壳独立运行是合法状态——之后 add 一个无关的组件，不能把它塞回去。
+// 只在外壳是这次新加的，或 add 的正是这个成员时才挪进外壳。
 func TestPlanAddLeavesMembersTakenOutOfTheShell(t *testing.T) {
 	p := proj(t, `  - {id: erp/shell, version: 1.0.0, kind: shell}
   - {id: erp/a, version: 1.0.0}`, `  - id: erp/shell

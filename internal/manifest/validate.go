@@ -292,7 +292,7 @@ func (m *Manifest) validateConfigSchema(p *clierr.ProblemSet) {
 
 	for name, prop := range m.ConfigSchema.Properties {
 		field := "configSchema.properties." + name
-		// 键就是注入的环境变量名（附录 A10），不再做 camelCase → SNAKE 转换
+		// 键就是注入的环境变量名，不再做 camelCase → SNAKE 转换
 		if !envNameRe.MatchString(name) {
 			p.Add(field, i18n.T(msgid.ManifestConfigKeyNotEnvName, name))
 		}
@@ -480,7 +480,7 @@ func (m *Manifest) validateShell(p *clierr.ProblemSet) {
 	if len(m.Shell.Members) == 0 {
 		p.Add("shell.members", i18n.T(msgid.ManifestShellMembersEmpty))
 	}
-	// 按组件 ID 记：一个外壳只编进一个组件的一个版本（附录 A24）
+	// 按组件 ID 记：一个外壳只编进一个组件的一个版本
 	seen := map[string]string{}
 	for i, member := range m.Shell.Members {
 		field := fmt.Sprintf("shell.members[%d]", i)

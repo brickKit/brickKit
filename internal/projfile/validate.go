@@ -172,7 +172,7 @@ func validateComponentSource(p *clierr.ProblemSet, field string, s *ComponentSou
 	case SourceTypeGit:
 		requireFor(p, field, "repo", s.Repo, s.Type)
 		rejectOptionLike(p, field+".repo", s.Repo)
-		// git 源的 path 是组件在仓库里的子目录（monorepo，附录 A9）：只能往仓库里面指
+		// git 源的 path 是组件在仓库里的子目录（monorepo）：只能往仓库里面指
 		if s.Path != "" && !isInsideRelative(s.Path) {
 			p.Add(field+".path", i18n.T(msgid.ProjfileSourcePathOutsideRepo, s.Path))
 		}

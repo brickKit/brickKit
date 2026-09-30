@@ -114,7 +114,7 @@ func TestLintStrictEnvAndFileReferences(t *testing.T) {
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 }
 
-// 外壳成员的值要 JSON 编码进外壳（提案 §8.3）：非法 UTF-8 编不进去，lint 就拦下。
+// 外壳成员的值要 JSON 编码进外壳：非法 UTF-8 编不进去，lint 就拦下。
 func TestLintMemberInvalidUTF8(t *testing.T) {
 	shell := "apiVersion: brickkit/v1\nkind: Component\nmetadata:\n  id: erp/shell\n  name: x\n  version: 1.0.0\n  description: x\n" +
 		"deployment:\n  type: container\n  image: registry.example.com/s:1.0.0\n  port: 8000\nhealthCheck:\n  type: http\n  path: /healthz\n" +
@@ -190,7 +190,7 @@ func TestLintNamesUnparsableCachedManifest(t *testing.T) {
 	assert.Contains(t, r.stdout, "could not be read")
 }
 
-// 组件仓库兼作工作台（提案 §16.1.1）：有了 brickkit.yaml 之后，lint 照样检查它要发布的 component.yaml。
+// 组件仓库兼作工作台：有了 brickkit.yaml 之后，lint 照样检查它要发布的 component.yaml。
 func TestLintWorkbenchStillChecksOwnManifest(t *testing.T) {
 	dir := t.TempDir()
 	writeTree(t, dir, map[string]string{
@@ -203,7 +203,7 @@ func TestLintWorkbenchStillChecksOwnManifest(t *testing.T) {
 	assert.Contains(t, r.stdout, "tpyo")
 }
 
-// 附录 A11：brickkit.yaml 的 kind: shell 由 lint 核对与 component.yaml 一致——离线就能查，
+// brickkit.yaml 的 kind: shell 由 lint 核对与 component.yaml 一致——离线就能查，
 // 与配置检查同一条路：只看盘上有 Manifest 的组件。
 func TestLintChecksShellKindAgainstManifest(t *testing.T) {
 	dir := lintConfigProject(t, "DB_HOST: db.local\n", map[string]string{

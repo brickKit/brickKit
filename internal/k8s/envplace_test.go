@@ -12,7 +12,7 @@ import (
 
 const pemText = "-----BEGIN KEY-----\nabc\n-----END KEY-----\n"
 
-// 每种值在 K8s 下的去处（附录 A6/A7）：明文字面量与模板进 env.value（模板生成时就展开），
+// 每种值在 K8s 下的去处：明文字面量与模板进 env.value（模板生成时就展开），
 // 密钥与 file:// 进生成的 Secret，existingSecret 直接引用外部 Secret。
 func TestK8sPlacement(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)

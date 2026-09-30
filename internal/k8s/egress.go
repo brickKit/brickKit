@@ -22,7 +22,7 @@ package k8s
 //	DNS       平台自动放行（谁都要，漏了必挂）
 //	组件依赖  从依赖图推导（平台已经知道，让人再写一遍必然过期）
 //	外部目标  数据库等外部服务现在只是某个组件 config 里的一串地址，平台不认识它们，
-//	          由使用者在 k8s.networkPolicy.egress.allowTo 里直接写位置与端口（附录 A15）
+//	          由使用者在 k8s.networkPolicy.egress.allowTo 里直接写位置与端口
 
 import (
 	"sort"

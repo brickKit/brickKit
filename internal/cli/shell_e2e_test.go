@@ -1,7 +1,7 @@
 package cli
 
 // 本文件是外壳机制的端到端用例：一个真实形状的外壳项目（testdata/three-layer-shell/）
-// 走完 up --dry-run，分别落到 Docker 与 K8s（提案 §8、附录 A3 / A7）。
+// 走完 up --dry-run，分别落到 Docker 与 K8s。
 //
 //	erp/shell   外壳，shell.members 声明能承载 erp/api 与 erp/worker
 //	erp/api     成员：带迁移、带一个 file:// 的 PEM 密钥（含 $ 与 "）
@@ -203,7 +203,7 @@ func TestStatusReportsHostedMembersThroughTheirShell(t *testing.T) {
 	assert.NotContains(t, r.stdout, "not created", "裸进程外壳的成员同样没有容器")
 }
 
-// 成员条目的字段是它"自己跑"时用的（附录 A21）：外壳在跑时它们不生效、也不警告；
+// 成员条目的字段是它"自己跑"时用的：外壳在跑时它们不生效、也不警告；
 // 外壳一关，成员按自己的条目独立部署（erp/api 发布自己的端口）。
 func TestShellDisabledMembersRunStandalone(t *testing.T) {
 	dir := copyFixture(t, "three-layer-shell")
@@ -349,7 +349,7 @@ func TestSkipWaitForOnCoHostedDependencyWarns(t *testing.T) {
 		i18n.T(msgid.ComposeSkipWaitForCoHosted, "erp/worker@1.0.0", "erp/api@1.0.0", "erp/shell@1.0.0"))
 }
 
-// 外壳 component.yaml 声明编进的成员版本（附录 A24）与这次承载的版本对不上：up --dry-run 与
+// 外壳 component.yaml 声明编进的成员版本与这次承载的版本对不上：up --dry-run 与
 // graph 都在生成前失败，给出三条带具体取值的出路。
 func TestShellMemberVersionMismatchEndToEnd(t *testing.T) {
 	dir := copyFixture(t, "three-layer-shell")
@@ -369,7 +369,7 @@ func TestShellMemberVersionMismatchEndToEnd(t *testing.T) {
 	}
 }
 
-// 第三条出路走通（附录 A24）：默认版本 1.1.0 在本地仓库、独立运行；外壳编进的 1.0.0 在
+// 第三条出路走通：默认版本 1.1.0 在本地仓库、独立运行；外壳编进的 1.0.0 在
 // brickkit.yaml 里以 requiredBy 保留，外壳下写 erp/api@1.0.0。依赖 1.0.0 的 erp/portal
 // 拿到外壳地址，外壳 JSON 里是 1.0.0，两个版本的迁移按版本号串行。
 func TestShellHostsDeclaredVersionWhileDefaultRunsStandalone(t *testing.T) {
@@ -449,7 +449,7 @@ func TestKeepBothVersionsHintWorksWhenFollowed(t *testing.T) {
 	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
-	// 只写 requiredBy: [erp/shell]（附录 A24）：外壳承载 0.9.0，默认版本 1.0.0 独立运行
+	// 只写 requiredBy: [erp/shell]：外壳承载 0.9.0，默认版本 1.0.0 独立运行
 	generated := filepath.Join(dir, ".brickkit", "generated")
 	entries := shellJSONFromEnvFile(t, readFile(t, filepath.Join(generated, "env", "erp-shell-1-0-0.env")))
 	require.NotEmpty(t, entries)

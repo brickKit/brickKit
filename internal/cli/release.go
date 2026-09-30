@@ -1,9 +1,9 @@
 package cli
 
-// 本文件实现 brickkit release：无 Market 的组件发布（提案 §10.2、§9.6.2）——校验 component.yaml、
+// 本文件实现 brickkit release：无 Market 的组件发布——校验 component.yaml、
 // 确认代码都已提交并推送，然后打 tag、推送；推送失败回滚本地 tag。
 //
-// 与 publish 并存（附录 A14）：publish 发布到市场，release 发布到组件自己的 Git 仓库。
+// 与 publish 并存：publish 发布到市场，release 发布到组件自己的 Git 仓库。
 // 实际的 git 操作在 internal/release；这里只管选组件、按顺序跑、把结果说清楚。
 
 import (
@@ -71,7 +71,7 @@ func runRelease(opts *Options, path string) error {
 	return nil
 }
 
-// runReleaseLocal 发布项目本地源里的每一个组件（提案 §9.6.2）。先把所有组件都检查一遍，
+// runReleaseLocal 发布项目本地源里的每一个组件。先把所有组件都检查一遍，
 // 全部通过才打第一个 tag——检查阶段发现的问题不留任何痕迹；打 tag 阶段遇到推送失败立即停：
 // 之前发布的保留，这一个回滚，之后的没动过。已经发布过（tag 就在当前提交上）的跳过。
 func runReleaseLocal(opts *Options) error {

@@ -16,7 +16,7 @@ import (
 )
 
 // loadConfig 读 config/：公共变量、部署文件的 vars:、每个组件版本对应的配置文件，
-// 并检查文件名冲突、多版本歧义、孤儿文件与悬空的 $var: 引用（提案 §7、附录 A5）。
+// 并检查文件名冲突、多版本歧义、孤儿文件与悬空的 $var: 引用。
 func (p *Project) loadConfig() error {
 	conflicts := &configdir.ConflictError{}
 	// vars.yaml 的冲突与组件配置文件的冲突一起报：改一轮就能改完
@@ -42,7 +42,7 @@ func (p *Project) loadConfig() error {
 	p.configs = map[string]*configdir.File{}
 	used := map[string]bool{}
 	for _, c := range p.Decl.Components {
-		// 无版本号的文件归默认版本（附录 A5、A20）；其余版本只读自己的 @version 文件
+		// 无版本号的文件归默认版本；其余版本只读自己的 @version 文件
 		versioned, unversioned := configdir.FileName(c.ID, c.Version), configdir.FileName(c.ID, "")
 		isDefault := p.Decl.IsDefault(c.ID, c.Version)
 		var name string

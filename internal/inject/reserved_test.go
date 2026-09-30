@@ -2,7 +2,7 @@ package inject
 
 // 本文件测保留变量的警告：up 注入与 lint 共用。
 //
-// configSchema 的键就是环境变量名（附录 A10）；资源废除之后 DATABASE_* 等前缀不再保留。
+// configSchema 的键就是环境变量名；资源废除之后 DATABASE_* 等前缀不再保留。
 // 判断本身在 manifest.ReservedHitFor，这里只测警告。
 
 import (

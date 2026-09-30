@@ -469,7 +469,7 @@ var requiredGolden = []requiredCase{
 	{"component", "artifacts[]", []string{"files", "type"}, []any{"artifacts", 0}},
 	{"component", "dependencies/components[]#oneOf[1]", []string{"id"}, []any{"dependencies", "components", 1}}, // 映射写法
 	{"component", "configSchema/properties{}", []string{"type"}, []any{"configSchema", "properties", "pageSize"}},
-	// image 不再必填：image 与 build 二选一（附录 A3），校验器按"至少一个"报，schema 表达不了
+	// image 不再必填：image 与 build 二选一，校验器按"至少一个"报，schema 表达不了
 	{"component", "deployment", []string{"port", "type"}, []any{"deployment"}},
 	{"component", "deployment/extraPorts[]", []string{"name", "port"}, []any{"deployment", "extraPorts", 0}},
 	{"component", "healthCheck", []string{"type"}, []any{"healthCheck"}},
@@ -692,7 +692,7 @@ func constraintCases() []constraintCase {
 			invalid: []any{"svn", "LOCAL", ""},
 		},
 		{
-			// 外壳标记只有一个取值（附录 A11）；不写就是普通组件。
+			// 外壳标记只有一个取值；不写就是普通组件。
 			name: "components[1].kind", doc: "project", schemaPath: "components[]/kind",
 			dataPath: []any{"components", 1, "kind"}, errField: "components[1].kind",
 			valid:         []any{projfile.KindShell, nil},
@@ -783,7 +783,7 @@ func constraintCases() []constraintCase {
 			invalid: []any{"demo/weak@^1.0.0", "demo/weak@latest", "demo/weak@1.0", "demo/weak@", "demo/weak", ""},
 		},
 		{
-			// 外壳编进去的成员（附录 A24）：与依赖项同一条 "<id>@<精确版本>" 骨架，ID 细则同样只在校验器里。
+			// 外壳编进去的成员：与依赖项同一条 "<id>@<精确版本>" 骨架，ID 细则同样只在校验器里。
 			name: "shell.members[0]", doc: "component", schemaPath: "shell/members[]",
 			dataPath: []any{"shell", "members", 0}, errField: "shell.members[0]",
 			valid:   []any{"demo/member@1.0.0", "demo/member@10.2.3"},
@@ -1172,7 +1172,7 @@ func optionalPropertyPaths(node map[string]any, data any, path []any, visit func
 // 校验器拒绝。这是"校验器比 schema 更严"，是允许的方向；登记在这里，并且要求它们真的被拒绝，名单才不会过期。
 var conditionallyRequired = map[string]string{
 	"component:healthCheck.path":        "healthCheck.type 是 http 时必填（validateHealthCheck）",
-	"component:deployment.image":        "deployment.image 与 deployment.build 至少写一个，基准里只写了 image（附录 A3）",
+	"component:deployment.image":        "deployment.image 与 deployment.build 至少写一个，基准里只写了 image",
 	"project:sources[0].path":           "sources[].type 是 local 时必填",
 	"project:sources[1].baseUrl":        "sources[].type 是 git 时必填",
 	"project:sources[2].url":            "sources[].type 是 market 时必填",

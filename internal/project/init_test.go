@@ -88,7 +88,7 @@ func TestPlanCompleteNeverEditsExistingGitignore(t *testing.T) {
 	assert.Equal(t, gitignore, string(got))
 }
 
-// 组件仓库兼作工作台（提案 §16.1.1）：BRICKKIT.md 是组件自己的文档，不能生成项目文档盖掉它，
+// 组件仓库兼作工作台：BRICKKIT.md 是组件自己的文档，不能生成项目文档盖掉它，
 // 也不能在它不在时替组件作者生成一份项目文档。
 func TestPlanCompleteInComponentRepoLeavesBrickkitMd(t *testing.T) {
 	root := t.TempDir()
@@ -253,7 +253,7 @@ func TestPlanCompleteReportsUnmanagedDoc(t *testing.T) {
 	assert.True(t, plan.ProjectDocUnmanaged)
 }
 
-// 组件目录的本地联调工作台（提案 §9.6.1）：brickkit.yaml 继承给定的安装源，不建 components/、shell/
+// 组件目录的本地联调工作台：brickkit.yaml 继承给定的安装源，不建 components/、shell/
 // ——那是项目的目录约定，组件仓库里用不上。
 func TestPlanWorkbenchInheritsSources(t *testing.T) {
 	root := t.TempDir()
@@ -282,7 +282,7 @@ func TestPlanWorkbenchInheritsSources(t *testing.T) {
 	assert.Contains(t, string(raw), "inherited from the enclosing project", "安装源确实是继承来的：要说出来")
 }
 
-// 组件仓库里的补全式 init（提案 §16.1.1）与 add --local --init 是同一件事：只补 brickkit.yaml、
+// 组件仓库里的补全式 init与 add --local --init 是同一件事：只补 brickkit.yaml、
 // deploy.yaml、config/，不建项目的 components/ 与 shell/，也不替它声明那两个本地源。
 func TestPlanCompleteComponentRepoIsAWorkbench(t *testing.T) {
 	root := t.TempDir()

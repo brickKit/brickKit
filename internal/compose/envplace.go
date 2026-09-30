@@ -13,7 +13,7 @@ import (
 	"github.com/brickkit/brickkit/internal/resolver"
 )
 
-// placement 是一条变量在 Docker 目标下的去处（附录 A6/A7）。
+// placement 是一条变量在 Docker 目标下的去处。
 type placement int
 
 const (

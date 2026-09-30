@@ -5,7 +5,7 @@ import (
 	"github.com/brickkit/brickkit/internal/inject"
 )
 
-// placement 是一条变量在 K8s 目标下的去处（附录 A6/A7）。
+// placement 是一条变量在 K8s 目标下的去处。
 type placement int
 
 const (

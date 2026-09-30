@@ -84,7 +84,7 @@ func TestReleaseTagsAndPushes(t *testing.T) {
 	assert.Equal(t, git(t, r.work, "rev-parse", "HEAD"), git(t, r.origin, "rev-parse", "1.1.0^{commit}"))
 }
 
-// 附录 A9：组件目录不是仓库根时，tag 带命名空间 <scope>-<name>/<版本>。
+// 组件目录不是仓库根时，tag 带命名空间 <scope>-<name>/<版本>。
 func TestReleaseSubdirUsesNamespacedTag(t *testing.T) {
 	r := newRepo(t, map[string]string{"svc/api/component.yaml": manifestYAML("erp/api", "1.0.0"), "README.md": "x"})
 	target := prepare(t, filepath.Join(r.work, "svc", "api"))
@@ -168,7 +168,7 @@ func TestReleaseSeesRemoteOnlyTag(t *testing.T) {
 	require.Error(t, err)
 }
 
-// 推送失败：本地 tag 回滚，就像从没执行过（提案 §10.2 原子性）。
+// 推送失败：本地 tag 回滚，就像从没执行过（发布是原子的）。
 func TestReleaseRollsBackOnPushFailure(t *testing.T) {
 	r := newRepo(t, map[string]string{"component.yaml": manifestYAML("erp/api", "1.0.0")})
 	hook := filepath.Join(r.origin, "hooks", "pre-receive")

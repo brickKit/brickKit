@@ -1,6 +1,6 @@
 package source
 
-// 本文件是 git 源的"仓库这一层"：用户级 bare 仓库缓存（附录 A12）、克隆、增量 fetch、
+// 本文件是 git 源的"仓库这一层"：用户级 bare 仓库缓存、克隆、增量 fetch、
 // 从 tag 里读文件。它不认识组件——组件 ID → 仓库地址、版本 → tag 由 git.go 决定。
 //
 // # 为什么放在用户级目录
@@ -9,7 +9,7 @@ package source
 // 下面，同一个仓库会被克隆 N 次。缓存目录按**完整仓库地址**命名：不同组织下同名的仓库
 // （github.com/a/erp-api 与 github.com/b/erp-api）不会撞在一起。
 //
-// # 读取优先级（提案 §9.4）
+// # 读取优先级
 //
 //	1 .brickkit/manifests/ 缓存        Client.Manifest 在进这里之前已经查过
 //	2 缓存的 bare 仓库 git show        零网络
@@ -18,7 +18,7 @@ package source
 //
 // # 鉴权
 //
-// 平台不碰凭据（提案 §9.9）：调用系统 git，SSH key、credential helper、CI 注入的 token
+// 平台不碰凭据：调用系统 git，SSH key、credential helper、CI 注入的 token
 // 全部由宿主机的 git 配置承担。只做一件事：GIT_TERMINAL_PROMPT=0——没有凭据时让 git
 // 直接失败，而不是在 CI 里挂住等一个永远不会来的密码。
 
@@ -188,7 +188,7 @@ func (r *gitRepo) tags(ctx context.Context) ([]string, error) {
 // 给人看的说法在 gitSource.failed 里（这里只是哨兵，不直接显示）。
 var errNoRepoCache = errors.New("no user cache directory")
 
-// gitFailure 是一次 git 调用的失败：保留 git 自己的 stderr，原样给使用者看（提案 §9.9）。
+// gitFailure 是一次 git 调用的失败：保留 git 自己的 stderr，原样给使用者看。
 type gitFailure struct {
 	args   []string
 	stderr string

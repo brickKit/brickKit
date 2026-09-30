@@ -23,7 +23,7 @@ components:
         expose: false
 `
 
-// 提案 §6.6 的例子：本地文件里每一处和团队文件不同（或团队文件没有）的值都列出来。
+// 本地文件里每一处和团队文件不同（或团队文件没有）的值都列出来。
 func TestDiffLocalReportsEntryFieldTopLevelAndVars(t *testing.T) {
 	old := `target: k8s
 k8s:

@@ -80,7 +80,7 @@ func Render(t testing.TB, spec Spec) Files {
 	deploy := deployfile.File{Target: spec.Target, K8s: spec.K8s}
 	files := Files{}
 	hasDebug := false
-	// 成员条目嵌在外壳条目下面（附录 A21），一律写 id@version
+	// 成员条目嵌在外壳条目下面，一律写 id@version
 	members := map[string][]deployfile.Entry{}
 	seenID := map[string]bool{}
 	for _, e := range spec.Entries {
@@ -183,7 +183,7 @@ func mustYAML(t testing.TB, v any) string {
 func IntPtr(n int) *int { return &n }
 
 // FillShellCapability 给 spec 里被成员指向的外壳 Manifest 补上声明
-// （shell.members 列出指向它的成员及其版本，附录 A24）。三处外壳声明一致是生成的前提（shell.Check），
+// （shell.members 列出指向它的成员及其版本）。三处外壳声明一致是生成的前提（shell.Check），
 // 大多数用例关心的不是它；manifests 以 "id@version" 为键。
 func FillShellCapability(spec Spec, manifests map[string]*manifest.Manifest) {
 	for _, e := range spec.Entries {

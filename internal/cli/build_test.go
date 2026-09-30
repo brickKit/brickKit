@@ -21,8 +21,8 @@ func (g *gitOrgProject) runImages(dir string, images *fakeImages, args ...string
 	}, dir, args...)
 }
 
-// 提案 §11.2：本地源的组件、没有 image 的组件从源码构建；有 image 的 git 组件是拉的，不构建。
-// tag 与 metadata.version 一致（提案 §9.10.4）。
+// 本地源的组件、没有 image 的组件从源码构建；有 image 的 git 组件是拉的，不构建。
+// tag 与 metadata.version 一致。
 func TestBuildBuildsLocalAndBuildOnlyVersions(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(buildOnly(comp{ID: "erp/builtonly", Version: "1.0.0", Port: 8082}), map[string]string{"Dockerfile": "FROM scratch\n"})
@@ -73,7 +73,7 @@ func TestBuildSkipsExistingUnlessForce(t *testing.T) {
 	assert.Equal(t, []string{"erp-api:1.0.0"}, images.built())
 }
 
-// 附录 A24：外壳镜像记下构建时编进去的成员版本。
+// 外壳镜像记下构建时编进去的成员版本。
 func TestBuildShellRecordsMemberVersions(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})
@@ -114,7 +114,7 @@ func TestBuildCompatibilityVersionFromTag(t *testing.T) {
 }
 
 // 不点名时，镜像是拉取的组件不构建；点名时照样构建一份本机镜像（源码从它的 tag 导出）——
-// 提案 §9.10.3：拉不到镜像时的出路就是 build。
+// 拉不到镜像时的出路就是 build。
 func TestBuildNamedComponentThatIsNormallyPulled(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/pulled", Version: "2.0.0"}, map[string]string{"Dockerfile": "FROM scratch\n"})

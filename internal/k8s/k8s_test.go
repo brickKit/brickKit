@@ -560,7 +560,7 @@ func TestPasswordNeverAppearsInDeployment(t *testing.T) {
 }
 
 // ============================================================
-// 声明了 secret: true 的配置项（提案 §7.4，附录 A6）
+// 声明了 secret: true 的配置项
 // ============================================================
 
 func secretConfigManifest() *manifest.Manifest {

@@ -87,7 +87,7 @@ func TestScaffoldRejectsUnknownContract(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid --contract value")
 }
 
-// 外壳骨架（提案 §9.6 外壳的目录约定）：出现 shell.members 即为外壳（附录 A11）；
+// 外壳骨架：出现 shell.members 即为外壳；
 // 校验不接受空的成员列表，而骨架必须能通过校验，所以放一个占位成员。
 func TestScaffoldShellPassesValidation(t *testing.T) {
 	files, err := manifest.Scaffold("erp/shell", manifest.ScaffoldOptions{Shell: true})
@@ -101,7 +101,7 @@ func TestScaffoldShellPassesValidation(t *testing.T) {
 	assert.NotContains(t, string(files[0].Content), "kind: shell", "kind: shell 写在 brickkit.yaml，不在 component.yaml")
 }
 
-// 组件级 BRICKKIT.md 骨架（提案 §16.2）：五节标准结构；外壳声明一节只有外壳才填内容。
+// 组件级 BRICKKIT.md 骨架：五节标准结构；外壳声明一节只有外壳才填内容。
 func TestScaffoldWritesComponentDoc(t *testing.T) {
 	doc := func(opts manifest.ScaffoldOptions) string {
 		files, err := manifest.Scaffold("erp/backend", opts)

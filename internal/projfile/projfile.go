@@ -1,20 +1,20 @@
 // Package projfile 负责 brickkit.yaml（三层文件的"组件声明"层）：项目名、安装源、
 // 有哪些组件与版本、谁是外壳、组件从哪来、信任哪些发布者公钥。
 //
-// 部署怎么做（deploy.yaml）与组件要读的环境变量（config/）都不在这里——提案 §4.2。
+// 部署怎么做（deploy.yaml）与组件要读的环境变量（config/）都不在这里——每件事只写在一个地方。
 package projfile
 
 // FileName 是声明层文件名。
 const FileName = "brickkit.yaml"
 
-// 安装源类型。market 继续可用（附录 A14），git 按组件一仓库推导地址，local 是开发态目录。
+// 安装源类型。market 继续可用，git 按组件一仓库推导地址，local 是开发态目录。
 const (
 	SourceTypeMarket = "market"
 	SourceTypeGit    = "git"
 	SourceTypeLocal  = "local"
 )
 
-// KindShell 标记外壳组件（附录 A11：由 CLI 维护，只作识别用，成员关系只看 deploy 文件的 members）。
+// KindShell 标记外壳组件（由 CLI 维护，只作识别用，成员关系只看 deploy 文件的 members）。
 const KindShell = "shell"
 
 // File 是 brickkit.yaml 的完整结构。
@@ -28,7 +28,7 @@ type File struct {
 	Source string `yaml:"-"`
 }
 
-// Source 是一个安装源（提案 §9.3）。
+// Source 是一个安装源。
 type Source struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type" jsonschema:"enum=market|git|local"`
@@ -48,7 +48,7 @@ func (s Source) IsEnabled() bool { return s.Enabled == nil || *s.Enabled }
 
 // Component 是一条组件声明。
 //
-// Version 永远是精确版本——本地源也写 component.yaml 里的真实版本（附录 A8），
+// Version 永远是精确版本——本地源也写 component.yaml 里的真实版本，
 // 否则依赖方的精确匹配会落空，多版本共存会再从远端拉一份。
 type Component struct {
 	ID      string           `yaml:"id"`
@@ -66,7 +66,7 @@ func (c Component) Ref() string { return c.ID + "@" + c.Version }
 // IsShell 报告它是不是外壳。
 func (c Component) IsShell() bool { return c.Kind == KindShell }
 
-// ComponentSource 显式覆盖一个组件的来源（提案 §9.3、§9.6）。
+// ComponentSource 显式覆盖一个组件的来源。
 type ComponentSource struct {
 	Type string `yaml:"type" jsonschema:"enum=git|local"`
 	// Repo 是 git 仓库地址（映射冲突或第三方组织时用）。
@@ -75,7 +75,7 @@ type ComponentSource struct {
 	Path string `yaml:"path,omitempty"`
 }
 
-// Installer 是安装器行为配置（签名校验，附录 A14）。
+// Installer 是安装器行为配置（签名校验）。
 type Installer struct {
 	RequireSignature *bool             `yaml:"requireSignature,omitempty"`
 	PublicKeys       map[string]string `yaml:"publicKeys,omitempty"`

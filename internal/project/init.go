@@ -1,6 +1,6 @@
 package project
 
-// 本文件是 brickkit init 的补全原语（提案 §11.5）：对照完整项目的文件清单，缺的创建、
+// 本文件是 brickkit init 的补全原语：对照完整项目的文件清单，缺的创建、
 // 有的跳过。创建式只是"在一个新建的空目录里补全"。
 
 import (
@@ -31,14 +31,14 @@ const (
 	FileDotEnv = ".env"
 	// LocalSourceName 是 init 写进 brickkit.yaml 的默认本地源名字。
 	LocalSourceName = "local-dev"
-	// LocalShellSourceName 是外壳目录（shell/，提案 §9.6 外壳的目录约定）对应的本地源。
+	// LocalShellSourceName 是外壳目录（shell/，外壳是项目自己的代码）对应的本地源。
 	LocalShellSourceName = "local-shells"
 
 	initFilePerm = 0o644
 	initDirPerm  = 0o755
 )
 
-// CompletePlan 是一次补全要做的事（提案 §11.5）：缺什么补什么，已有的不动。
+// CompletePlan 是一次补全要做的事：缺什么补什么，已有的不动。
 // 创建式（init <name>）与补全式（init）、add --local --init 的子工作台都走它。
 type CompletePlan struct {
 	Name string
@@ -48,13 +48,13 @@ type CompletePlan struct {
 	GitignoreCreate bool
 	// GitignoreMissing：.gitignore 已存在但缺的必需条目——绝不替使用者改，只大声警告。
 	GitignoreMissing []string
-	// ProjectDoc：要生成项目 BRICKKIT.md（目录里是组件仓库时不生成，提案 §16.1.1）。
+	// ProjectDoc：要生成项目 BRICKKIT.md（目录里是组件仓库时不生成）。
 	ProjectDoc bool
 	// ProjectDocUnmanaged：已有的 BRICKKIT.md 没有 CLI 维护区，组件表不会自动更新。
 	ProjectDocUnmanaged bool
 
 	// workbench：这里是组件仓库（根目录有 component.yaml），补全出来的是组件的本地联调工作台
-	// （提案 §16.1.1、§9.6.1）：不建 components/ 与 shell/、不声明那两个本地源——那是项目的目录约定，
+	// ：不建 components/ 与 shell/、不声明那两个本地源——那是项目的目录约定，
 	// 组件仓库里用不上；BRICKKIT.md 是组件自己的文档，不当项目文档。
 	workbench bool
 	// sources 非 nil 时是 add --local --init 从顶层项目继承、改写好路径的安装源；
@@ -92,7 +92,7 @@ func PlanComplete(l Layout, name string) (*CompletePlan, error) {
 	return planComplete(l, name, nil)
 }
 
-// PlanWorkbench 是组件目录里的本地联调工作台（提案 §9.6.1、§16.1.1）：与补全相同，
+// PlanWorkbench 是组件目录里的本地联调工作台：与补全相同，
 // 只是 brickkit.yaml 的安装源取 sources（add --local --init 从顶层项目继承、改写好路径的那一份）。
 func PlanWorkbench(l Layout, name string, sources []projfile.Source) (*CompletePlan, error) {
 	if sources == nil {
@@ -335,7 +335,7 @@ type gitignoreSection struct {
 	rules   []string
 }
 
-// RequiredGitignore 是一个项目的 .gitignore 必须有的条目（提案 §11.5）：
+// RequiredGitignore 是一个项目的 .gitignore 必须有的条目：
 // 漏了任何一条，个人文件或密钥就会被提交。补全式 init 拿它做校验。
 // 组件仓库里的工作台没有 components/，也就不要求忽略它。
 func RequiredGitignore(workbench bool) []string {

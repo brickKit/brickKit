@@ -1,5 +1,5 @@
 // Package configdir 负责 config/ 目录——三层文件的"业务配置"层：每个组件一份环境变量文件、
-// 一份项目级公共变量 vars.yaml，以及两者之间显式的 $var: 引用（提案 §7）。
+// 一份项目级公共变量 vars.yaml，以及两者之间显式的 $var: 引用。
 package configdir
 
 import (

@@ -1,8 +1,8 @@
 package cli
 
-// 本文件是 lint 的配置检查（提案 §11.3）：必填项有没有值、configSchema 里没有的键、
+// 本文件是 lint 的配置检查：必填项有没有值、configSchema 里没有的键、
 // --strict 下 ${VAR} 与 file:// 取不取得到、外壳成员的值能不能装进外壳的 JSON；
-// 以及外壳声明（kind: shell 与 shell 块一致、放进外壳的成员确实编进了它，附录 A11）。
+// 以及外壳声明（kind: shell 与 shell 块一致、放进外壳的成员确实编进了它）。
 //
 // 仍然离线：每个组件版本的 configSchema 只从盘上读——permanent 缓存 .brickkit/manifests/
 // （git、market 组件 add 过就在那里），或者正好是这个版本的本地源目录。两处都没有的组件

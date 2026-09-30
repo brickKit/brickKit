@@ -1,6 +1,6 @@
 package cli
 
-// 本文件实现 brickkit remove（命令表 7，提案 §6.7、§7.7、§8.7，附录 A20）：检查强依赖方后
+// 本文件实现 brickkit remove：检查强依赖方后
 // 移除组件——配置归档而不是删除、部署条目同步删掉、外壳的成员挪回顶层独立运行、只因它而
 // 保留的兼容版本一并移除。判断在 internal/install，落盘与还原在 install_apply.go。
 //

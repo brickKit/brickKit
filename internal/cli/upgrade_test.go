@@ -79,7 +79,7 @@ func TestUpgradeRoundTripConflict(t *testing.T) {
 	g.mustRun(dir, "up", "--dry-run")
 }
 
-// 附录 A20：还有组件依赖旧版本——旧版本以 requiredBy 留下，条目 id@1.0.0，配置文件改名成带版本号的
+// 还有组件依赖旧版本——旧版本以 requiredBy 留下，条目 id@1.0.0，配置文件改名成带版本号的
 // （使用者的旧值还在里面），新的无版本号文件按新版本迁移。
 func TestUpgradeKeepsOldVersionForDependent(t *testing.T) {
 	g := newGitOrgProject(t)
@@ -100,7 +100,7 @@ func TestUpgradeKeepsOldVersionForDependent(t *testing.T) {
 	g.mustRun(dir, "up", "--dry-run")
 }
 
-// 附录 A24：升级外壳就是换成新外壳编进的那一套成员版本；新外壳不再编进的成员挪到顶层独立运行。
+// 升级外壳就是换成新外壳编进的那一套成员版本；新外壳不再编进的成员挪到顶层独立运行。
 func TestUpgradeShellMovesMembers(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})
@@ -121,7 +121,7 @@ func TestUpgradeShellMovesMembers(t *testing.T) {
 	g.mustRun(dir, "up", "--dry-run")
 }
 
-// 提案 §12.1：全量升级要么全做、要么一个字都不写——第二个升不了，第一个也不改。
+// 全量升级要么全做、要么一个字都不写——第二个升不了，第一个也不改。
 func TestUpgradeAllIsAllOrNothing(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})
@@ -163,7 +163,7 @@ func TestUpgradeDryRunWritesNothing(t *testing.T) {
 	assert.NoDirExists(t, filepath.Join(dir, "config", ".archive"))
 }
 
-// TTY 下逐条问：m 留自己的值，n 用新默认值（附录 A4）。
+// TTY 下逐条问：m 留自己的值，n 用新默认值。
 func TestUpgradeInteractiveChoice(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(withConfig(comp{ID: "erp/api", Version: "1.0.0"}, "LOG_LEVEL:info"))
@@ -181,7 +181,7 @@ func TestUpgradeInteractiveChoice(t *testing.T) {
 	g.mustRun(dir, "up", "--dry-run")
 }
 
-// 本地源的组件：仓库里升到了 1.1.0（附录 A22 的检查会建议的 upgrade）——upgrade 把 brickkit.yaml 跟上。
+// 本地源的组件：仓库里升到了 1.1.0（本地仓库版本对不上时，up 的报错建议的正是这条 upgrade）——upgrade 把 brickkit.yaml 跟上。
 func TestUpgradeLocalSourceToRepoVersion(t *testing.T) {
 	dir := t.TempDir()
 	writeTree(t, dir, map[string]string{
@@ -253,7 +253,7 @@ func TestUpgradeDryRunFailsLikeTheRealThing(t *testing.T) {
 	assert.Equal(t, before, readFile(t, filepath.Join(dir, "brickkit.yaml")))
 }
 
-// 附录 A8：本地源里的组件，"最新"就是工作区里的版本——哪怕 Git 上有更新的 tag。
+// 本地源里的组件，"最新"就是工作区里的版本——哪怕 Git 上有更新的 tag。
 // 只说"都是最新"会让人以为远端没有新版本；要点名是哪几个组件、答案来自哪个本地源。
 func TestUpgradeSaysWhenTheAnswerCameFromALocalSource(t *testing.T) {
 	g := newGitOrgProject(t)

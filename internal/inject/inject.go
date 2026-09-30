@@ -53,7 +53,7 @@ const (
 // Var 是一条环境变量。
 //
 // Value 保留 configdir 的引用种类（字面量 / ${VAR} / file:// / existingSecret）：
-// 何时求值、写到哪里由渲染器决定（附录 A6/A7）。
+// 何时求值、写到哪里由渲染器决定。
 type Var struct {
 	Name  string
 	Value configdir.Value
@@ -61,7 +61,7 @@ type Var struct {
 	Source string
 	// Secret 来自 configSchema 的 secret: true：平台从不按名字猜哪一条是密码。
 	Secret bool
-	// Key 是原始 configSchema 键。附录 A10 之后它与 Name 相同，保留给外壳 JSON 使用。
+	// Key 是原始 configSchema 键。配置键就是环境变量名，所以它与 Name 相同；保留给外壳 JSON 使用。
 	Key string
 	// Owner 是配置类变量所属组件的版本化服务名（K8s 据此给生成的 Secret 命名）。
 	Owner string
@@ -201,7 +201,7 @@ func buildComponent(
 			// 弱依赖没启动 → 完全不注入；强依赖没启动时这个组件自己也不会启动
 			continue
 		}
-		// 被外壳承载的成员没有自己的容器：地址指向外壳（提案 §8.8），端口仍是成员自己的
+		// 被外壳承载的成员没有自己的容器：地址指向外壳，端口仍是成员自己的
 		host := dep
 		if shell, hosted := states.HostOf(p, dep); hosted {
 			host = shell
@@ -209,7 +209,7 @@ func buildComponent(
 		builder.addEndpoints(dep, host, graph.Node(dep))
 	}
 
-	// 3. 组件自身配置：config/ 目录 + vars + schema 默认值（提案 §7.5）
+	// 3. 组件自身配置：config/ 目录 + vars + schema 默认值
 	var schema *manifest.ConfigSchema
 	if m != nil {
 		schema = m.ConfigSchema

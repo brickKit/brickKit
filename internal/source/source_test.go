@@ -301,7 +301,7 @@ func TestManifestCachedToDisk(t *testing.T) {
 	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
 	require.NoError(t, err)
 
-	// 提案 §9.4：每个版本一个目录，.brickkit/manifests/people/basic/1.0.0/component.yaml
+	// 每个版本一个目录，.brickkit/manifests/people/basic/1.0.0/component.yaml
 	cached := filepath.Join(layout.ManifestsDir(), "people", "basic", "1.0.0", "component.yaml")
 	require.FileExists(t, cached)
 
@@ -865,7 +865,7 @@ func TestSourceWithoutComponentStillSaysNotFound(t *testing.T) {
 	assert.Contains(t, clierr.As(err).Format(), "The component was not found in any install source")
 }
 
-// 组件带着 BRICKKIT.md 时一起永久缓存在 Manifest 旁边（提案 §9.4、§16.2）；没有不算错。
+// 组件带着 BRICKKIT.md 时一起永久缓存在 Manifest 旁边；没有不算错。
 func TestManifestCacheKeepsBrickkitDoc(t *testing.T) {
 	layout := newProject(t)
 	dir := writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{ID: "people/basic", Version: "1.0.0"})

@@ -13,7 +13,7 @@ import (
 	"github.com/brickkit/brickkit/internal/yamlcomment"
 )
 
-// 冲突标记（提案 §12.3、附录 A4）：升级时 brickkit 把同一个键写两遍，每行行尾注释带
+// 冲突标记：升级时 brickkit 把同一个键写两遍，每行行尾注释带
 // "brickkit:conflict <side> <version>"。YAML 解析器遇到重复键会拒绝，所以冲突不可能被忽略；
 // 这里认出标记，是为了把冷冰冰的"mapping key already defined"换成能直接照做的提示。
 const (

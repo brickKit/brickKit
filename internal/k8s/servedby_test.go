@@ -50,7 +50,7 @@ func TestServedByComponentGeneratesOnlyAService(t *testing.T) {
 	assert.True(t, hasFile(result, "services/mdm-customer-1-0-7.yaml"),
 		"但要有一个 Service 让它自己的服务名能被解析")
 	assert.True(t, hasFile(result, "migrations/mdm-customer-1-0-7-migration.yaml"),
-		"迁移 Job 仍然单独跑（提案 §8.9.4）")
+		"迁移 Job 仍然单独跑")
 	assert.True(t, hasFile(result, "deployments/infra-shell-go-core-1-0-0.yaml"),
 		"外壳自己照常生成 Deployment")
 }
@@ -158,7 +158,7 @@ func TestServedByMemberLabelsDoNotLeakIntoShellAnnotations(t *testing.T) {
 	assert.False(t, present, "外壳自己没声明这个键，成员的不该被合并上来：%v", annotations)
 }
 
-// 成员的 labels 是它自己跑时用的：外壳在跑时不警告（附录 A21）。
+// 成员的 labels 是它自己跑时用的：外壳在跑时不警告。
 func TestHostedMemberLabelsNotWarnedInK8s(t *testing.T) {
 	b := newBuilder(t)
 	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
@@ -251,7 +251,7 @@ func TestServedByMemberSecretConfigStaysWithMemberSecret(t *testing.T) {
 	assert.NotContains(t, deployment, "sk-customer")
 }
 
-// 被承载的成员仍然有自己的迁移 Job：成员自己的镜像与配置（提案 §8.1 规则 2、§8.9.4），
+// 被承载的成员仍然有自己的迁移 Job：成员自己的镜像与配置，
 // 排进 MigrationGroups——命令层在应用任何 Deployment（包括外壳）之前等它跑完。
 func TestK8sHostedMemberMigrationJob(t *testing.T) {
 	member := migrating(simple("mdm/customer", "1.0.7", 8080))
@@ -303,7 +303,7 @@ func TestK8sShellJSONInSecret(t *testing.T) {
 	assert.NotContains(t, string(b.file("deployments/infra-shell-go-core-1-0-0.yaml").YAML), "BEGIN KEY")
 }
 
-// 迁移 Job 的镜像与 Deployment 同一条规则：image 不带 tag 时补上组件版本（提案 §9.10.4）。
+// 迁移 Job 的镜像与 Deployment 同一条规则：image 不带 tag 时补上组件版本。
 func TestK8sMigrationUsesImageRef(t *testing.T) {
 	m := migrating(simple("people/basic", "1.0.0", 8080))
 	m.Deployment.Image = "registry.example.com/people-basic"

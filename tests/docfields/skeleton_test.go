@@ -39,7 +39,7 @@ func TestSkeletonKeepsCheckingBrickkitYAML(t *testing.T) {
 }
 
 // 骨架检查扫的是**所有**现行文档页：参考、指南、排障里的 YAML 同样是给人照抄的。
-// 归档、规划与提案目录不在其中——那里的 YAML 可以是旧的，也可以是还没实现的。
+// 归档与规划目录不在其中——那里的 YAML 可以是旧的，也可以是还没实现的。
 func TestDocsCoversEveryLiveMarkdownPage(t *testing.T) {
 	names := map[string]bool{}
 	for _, d := range docs(t) {
@@ -49,7 +49,7 @@ func TestDocsCoversEveryLiveMarkdownPage(t *testing.T) {
 		assert.True(t, names[want], "缺 %s", want)
 	}
 	for name := range names {
-		for _, prefix := range []string{"archive/", "docs/superpowers/", "new_plan/"} {
+		for _, prefix := range []string{"archive/", "docs/superpowers/"} {
 			assert.False(t, strings.HasPrefix(name, prefix), "不该扫 %s", name)
 		}
 	}

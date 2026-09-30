@@ -139,7 +139,7 @@ func TestFetchRejectsMultipleArgs(t *testing.T) {
 	assert.Equal(t, clierr.ExitUsage, r.code)
 }
 
-// 提案 §10.1：fetch 从 git 源取 Manifest 与产物，三份文件一个字节都不动；
+// fetch 从 git 源取 Manifest 与产物，三份文件一个字节都不动；
 // 项目没有部署文件也照样能用（fetch 只需要 sources）。
 func TestFetchFromGitDoesNotTouchProjectFiles(t *testing.T) {
 	g := newGitOrgProject(t)

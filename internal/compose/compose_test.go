@@ -308,7 +308,7 @@ func TestMigrationServiceInheritsEnvironment(t *testing.T) {
 	main := envOf(t, serviceOf(t, doc, "people-basic-1-0-0"))
 	migration := envOf(t, serviceOf(t, doc, "people-basic-1-0-0-migration"))
 
-	assert.Equal(t, main, migration, "迁移容器的环境变量应与主容器完全一致（提案 §8.9.2：平台透传全部配置）")
+	assert.Equal(t, main, migration, "迁移容器的环境变量应与主容器完全一致（平台透传全部配置）")
 	assert.Equal(t, "people", migration["DB_NAME"])
 }
 

@@ -331,7 +331,7 @@ func TestMarketUnauthorizedStillAsksToLogin(t *testing.T) {
 	assert.Contains(t, e.Format(), "brickkit login")
 }
 
-// 市场给出 BRICKKIT.md 时，与本地源、git 源一样缓存在 Manifest 旁边（提案 §16.3）。
+// 市场给出 BRICKKIT.md 时，与本地源、git 源一样缓存在 Manifest 旁边。
 func TestMarketAddCachesDoc(t *testing.T) {
 	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
 	mock.docs = map[string]string{"people/basic@1.0.0": "# people/basic\n"}

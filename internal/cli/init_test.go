@@ -66,7 +66,7 @@ func requireDir(t *testing.T, path string) {
 	assert.True(t, info.IsDir(), "%s 应是目录", path)
 }
 
-// 创建式：init <name> 新建 <name>/ 目录，三层文件写在里面（提案 §11.5、命令表 1）。
+// 创建式：init <name> 新建 <name>/ 目录，三层文件写在里面。
 // 不生成 deploy.local.yaml——那是 brickkit local on 按需复制出来的个人文件。
 func TestInitCreatesNamedDirectory(t *testing.T) {
 	parent := t.TempDir()
@@ -138,7 +138,7 @@ func TestInitConfigSkeletonContent(t *testing.T) {
 	assert.Empty(t, deploy["components"])
 }
 
-// .gitignore 必须挡住个人文件与密钥（提案 §11.5）。
+// .gitignore 必须挡住个人文件与密钥。
 func TestInitCreatesGitignore(t *testing.T) {
 	dir := t.TempDir()
 	require.Equal(t, clierr.ExitOK, runIn(t, dir, "init", "--name", "my-project").code)
@@ -151,7 +151,7 @@ func TestInitCreatesGitignore(t *testing.T) {
 	}
 }
 
-// 补全式：已有 .gitignore 只校验、绝不修改；缺的条目大声警告并逐条列出（提案 §11.5）。
+// 补全式：已有 .gitignore 只校验、绝不修改；缺的条目大声警告并逐条列出。
 func TestInitCompleteWarnsMissingGitignoreEntries(t *testing.T) {
 	dir := t.TempDir()
 	existing := "# 我自己的规则\n*.log\ndeploy.local.yaml\n"

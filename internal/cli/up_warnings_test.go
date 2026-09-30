@@ -40,7 +40,7 @@ func threeTierProject(t *testing.T) *projectFixture {
 }
 
 // ============================================================
-// 选哪份部署文件：-f > 本地模式 > deploy.yaml（提案 §6.2、§11.6）
+// 选哪份部署文件：-f > 本地模式 > deploy.yaml
 // ============================================================
 
 // writeDeployFile 在项目根写一份部署文件（相对路径），三个组件都要覆盖到。
@@ -102,7 +102,7 @@ func TestUpNoLocal(t *testing.T) {
 	assert.Contains(t, lineContaining(t, team.stdout, "portal/user-frontend@1.0.0"), "starting (top-level)")
 }
 
-// 密钥值与 file:// 读出的内容在 Docker 下写进 0600 的 env 文件（附录 A7），
+// 密钥值与 file:// 读出的内容在 Docker 下写进 0600 的 env 文件，
 // compose.yaml 里只剩 env_file 引用；不再生成的服务，它的旧 env 文件要清掉。
 func TestUpDryRunWritesEnvFiles0600(t *testing.T) {
 	spec := comp{ID: "demo/hello", Version: "1.0.0", ConfigSchema: []string{"API_TOKEN:"}, SecretConfig: []string{"API_TOKEN"}}

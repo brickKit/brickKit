@@ -169,7 +169,7 @@ type PublishRequest struct {
 	Visibility string          `json:"visibility,omitempty"`
 	// Signature 是对 Manifest 规范化载荷的签名，可选。
 	Signature *Signature `json:"signature,omitempty"`
-	// Doc 是组件仓库根的 BRICKKIT.md 全文（提案 §16.2），可选，不超过 MaxDocBytes。
+	// Doc 是组件仓库根的 BRICKKIT.md 全文，可选，不超过 MaxDocBytes。
 	// 它不在签名范围内：是给人和 AI 读的说明，改了它改不了实际运行的任何东西。
 	Doc string `json:"doc,omitempty"`
 }

@@ -17,10 +17,10 @@ import (
 //
 // 规则：
 //   - 还有留下的组件强依赖 target：报错（弱依赖方不拦，它本来就能在对方缺席时运行）
-//   - target 的行、部署条目删掉，配置归档（提案 §7.7）；target 是外壳时成员挪回顶层（提案 §8.7）
+//   - target 的行、部署条目删掉，配置归档；target 是外壳时成员挪回顶层
 //   - 受这次移除影响的兼容版本（依赖它、或编进了它的组件被移除了）：留下的组件里再没有谁
 //     依赖它、也没有外壳编进它，它没人要了，一并移除并继续往下传；还有人要的，requiredBy
-//     改成真正还需要它的那些组件（附录 A20）。按依赖图判断而不是只看 requiredBy 这张清单——
+//     改成真正还需要它的那些组件。按依赖图判断而不是只看 requiredBy 这张清单——
 //     清单点名的组件可能还有别的版本留着、而那个版本并不需要它，清单也可能是手改过的
 //   - 删的是默认版本、这个 ID 还剩版本：只剩一个就转正（去掉 requiredBy、条目 id@v → id、
 //     配置文件 <base>@v.yaml → <base>.yaml）；剩好几个报错（用户裁定，2026-09-27）
@@ -186,7 +186,7 @@ func neededBy(p *project.Project, graph *resolver.Graph, ref resolver.Ref, remov
 	return slices.Compact(out)
 }
 
-// hosts 报告外壳 shell 的 component.yaml 是否编进了 ref 这个版本（附录 A24）。
+// hosts 报告外壳 shell 的 component.yaml 是否编进了 ref 这个版本。
 func hosts(graph *resolver.Graph, shell, ref resolver.Ref) bool {
 	n := graph.Node(shell)
 	if n == nil || n.Manifest == nil {

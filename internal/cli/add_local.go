@@ -1,10 +1,10 @@
 package cli
 
 // 本文件实现 brickkit add --local：把本地安装源里的组件一次全部加进项目，版本写
-// component.yaml 里的真实版本（附录 A8）。一批组件一份计划、一次落盘：互相依赖的
+// component.yaml 里的真实版本。一批组件一份计划、一次落盘：互相依赖的
 // 本地组件谁先谁后都一样，也不会加到一半停下。
 //
-// --init 先给还没有 brickkit.yaml 的每个本地组件建一个本地联调工作台（提案 §9.6.1）：
+// --init 先给还没有 brickkit.yaml 的每个本地组件建一个本地联调工作台：
 // 与 brickkit init 同一个补全原语，安装源继承自这个项目，再把组件自己的依赖加进去——
 // 之后 cd 进组件目录 brickkit up，就能单独拉起它的依赖树联调。
 
@@ -63,7 +63,7 @@ func runAddLocal(ctx context.Context, opts *Options, f addFlags) error {
 			targets = append(targets, ref)
 		case !slices.Contains(versions, lc.Version):
 			// 本地仓库的版本与项目里的对不上：add 不改已有组件的版本（那是 upgrade），
-			// 说一声——up 在这个组件从本地仓库运行时会拦下（附录 A22）
+			// 说一声——up 在这个组件从本地仓库运行时会拦下
 			current, _ := proj.Decl.DefaultVersion(lc.ID)
 			opts.Printf("%s\n", i18n.T(msgid.CliAddLocalVersionDiffers, lc.ID, lc.Version, current))
 		}

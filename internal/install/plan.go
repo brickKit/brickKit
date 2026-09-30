@@ -1,5 +1,4 @@
-// Package install 回答"add / remove 要对三份文件做哪些改动"（提案 §5.4、§6.7、§7.6、§7.7、§8.5、§8.7，
-// 附录 A5、A20、A21、A24）。
+// Package install 回答"add / remove 要对三份文件做哪些改动"。
 //
 // 这里只有判断，没有读写：输入是装载好的项目与解析好的依赖图，输出是一份 Plan。
 // 命令层（internal/cli）负责取 Manifest、问使用者、按 Plan 改文件、改完再装载一遍核对。
@@ -15,7 +14,7 @@ import (
 type Line struct {
 	ID, Version string
 	Shell       bool
-	// RequiredBy 为空就是默认版本（附录 A20）。
+	// RequiredBy 为空就是默认版本。
 	RequiredBy []string
 }
 
@@ -23,13 +22,13 @@ type Line struct {
 func (l Line) Ref() resolver.Ref { return resolver.Ref{ID: l.ID, Version: l.Version} }
 
 // Entry 是部署文件的一条：ID 是条目里写的 id（默认版本写裸 ID，其余写 id@version）；
-// Under 非空时嵌在那个外壳条目的 members 下面（附录 A21）。
+// Under 非空时嵌在那个外壳条目的 members 下面。
 type Entry struct {
 	ID    string
 	Under string
 }
 
-// ConfigFile 是要生成的配置骨架（附录 A5：默认版本用无版本号文件，其余版本带版本号）。
+// ConfigFile 是要生成的配置骨架（默认版本用无版本号文件，其余版本带版本号）。
 type ConfigFile struct {
 	ID, Version string
 	Versioned   bool
@@ -62,22 +61,22 @@ type Plan struct {
 	AddEntries []Entry
 	// NestEntries 把已有的顶层条目挪到外壳下面。
 	NestEntries []Entry
-	// UnnestShells 把外壳下面的成员挪回顶层（删外壳时，附录 A21、提案 §8.7）。
+	// UnnestShells 把外壳下面的成员挪回顶层（删外壳时）。
 	UnnestShells []string
 	// RenameEntries 改部署条目的 id（默认版本转正时 id@v → id）。
 	RenameEntries []Rename
 	// RemoveEntries 是要删的部署条目 id。
 	RemoveEntries []string
-	// LiftEntries 把嵌在外壳下面的条目挪到顶层（新外壳不再编进它，提案 §8.7）。
+	// LiftEntries 把嵌在外壳下面的条目挪到顶层（新外壳不再编进它）。
 	LiftEntries []string
 
 	AddConfigs     []ConfigFile
 	ArchiveConfigs []ConfigRef
 	// RenameConfigs 把带版本号的配置文件改成无版本号文件（默认版本转正）。
 	RenameConfigs []ConfigRef
-	// DemoteConfigs 把无版本号配置文件改成带版本号的（旧默认版本留作兼容版本，附录 A5）。
+	// DemoteConfigs 把无版本号配置文件改成带版本号的（旧默认版本留作兼容版本）。
 	DemoteConfigs []ConfigRef
-	// MigrateConfigs 按新版本的 configSchema 迁移配置（提案 §12.2）。
+	// MigrateConfigs 按新版本的 configSchema 迁移配置。
 	MigrateConfigs []ConfigMigration
 
 	// Added 与 Removed 是这次进出项目的组件版本（给输出用；Removed 含连带移除的）。
@@ -96,7 +95,7 @@ func (p *Plan) Empty() bool {
 		len(p.AddConfigs)+len(p.ArchiveConfigs)+len(p.RenameConfigs)+len(p.DemoteConfigs)+len(p.MigrateConfigs) == 0
 }
 
-// EntryID 是一个组件版本在部署文件里的条目 id：默认版本写裸 ID，其余写 id@version（附录 A20）。
+// EntryID 是一个组件版本在部署文件里的条目 id：默认版本写裸 ID，其余写 id@version。
 func EntryID(id, version string, isDefault bool) string {
 	if isDefault {
 		return id
@@ -104,7 +103,7 @@ func EntryID(id, version string, isDefault bool) string {
 	return id + "@" + version
 }
 
-// hasSchema 报告组件有没有要生成骨架的配置项（没有 configSchema 的组件不生成文件，提案 §7.6）。
+// hasSchema 报告组件有没有要生成骨架的配置项（没有 configSchema 的组件不生成文件）。
 func hasSchema(m *manifest.Manifest) bool {
 	return m != nil && m.ConfigSchema != nil && len(m.ConfigSchema.Properties) > 0
 }

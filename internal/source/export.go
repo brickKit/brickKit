@@ -1,6 +1,6 @@
 package source
 
-// 本文件回答 brickkit build 的两个问题（提案 §9.10）：
+// 本文件回答 brickkit build 的两个问题：
 //
 //	IsLocal       这个版本是不是由本地安装源给出的——本地源是正在开发的代码，它的镜像
 //	              必须从这份代码构建，不能拿 registry 里的镜像顶替

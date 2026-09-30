@@ -1,4 +1,4 @@
-// Package release 是无 Market 的组件发布（提案 §10.2）：发布一个版本 = 给组件仓库打一个规范的
+// Package release 是无 Market 的组件发布：发布一个版本 = 给组件仓库打一个规范的
 // tag 并推送。要么本地与远端都有这个 tag，要么就像从没执行过——推送失败时删掉本地 tag。
 //
 // 与 internal/gitrepo 分开：那个包只做只读查询，并且刻意不读使用者的全局 git 配置；
@@ -38,7 +38,7 @@ type Target struct {
 	Manifest     *manifest.Manifest
 	// RepoRoot 是组件所在 git 仓库的根；Subpath 是组件目录相对它的路径（斜杠分隔），在根上时为空。
 	RepoRoot, Subpath string
-	// Tag 是要打的 tag：<版本>，组件在子目录时是 <scope>-<name>/<版本>（附录 A9），
+	// Tag 是要打的 tag：<版本>，组件在子目录时是 <scope>-<name>/<版本>，
 	// 与 git 安装源读取的名字是同一个函数算出来的。
 	Tag string
 	// remote 是当前分支的上游所在的远端（Check 时确定）。
@@ -46,7 +46,7 @@ type Target struct {
 }
 
 // Prepare 读取并校验 dir 下的 component.yaml，定位它所在的 git 仓库。只读 component.yaml——
-// 同一目录里的 brickkit.yaml 是作者的本地工作台，与发布无关（提案 §16.1.1）。
+// 同一目录里的 brickkit.yaml 是作者的本地工作台，与发布无关。
 func Prepare(dir string) (*Target, error) { return PrepareAs(dir, "") }
 
 // PrepareAs 同 Prepare；display 是报错里显示的目录写法（空串时显示绝对路径）。
@@ -89,7 +89,7 @@ func PrepareAs(dir, display string) (*Target, error) {
 // Ref 是 <组件 ID>@<版本>。
 func (t *Target) Ref() string { return t.Manifest.Metadata.ID + "@" + t.Manifest.Metadata.Version }
 
-// Check 做发布前的全部检查，一个都不写（提案 §10.2 第 3、4 步）：
+// Check 做发布前的全部检查，一个都不写：
 //   - 组件目录里没有未提交的改动（子目录组件只看自己的目录：monorepo 里旁边组件的改动与它无关）；
 //   - 当前分支有上游，且没有未推送的提交——tag 指向的提交必须已经在远端的分支历史里；
 //   - 这个 tag 不存在（本地与远端都查）。已经在当前提交上时返回 Released；在别的提交上是错误。
@@ -195,7 +195,7 @@ func remoteSHA(out string) string {
 	return sha
 }
 
-// Publish 打 tag 并推送；推送失败时删掉本地 tag，再报推送失败的原因（提案 §10.2 第 5、6 步）。
+// Publish 打 tag 并推送；推送失败时删掉本地 tag，再报推送失败的原因。
 // 调用方先 Check：Publish 不重复检查（--local 要先把所有组件都查完再开始打 tag）。
 func (t *Target) Publish() error {
 	if t.remote == "" {

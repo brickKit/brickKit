@@ -325,7 +325,7 @@ type plan struct {
 	// served 是 外壳成员：只生成一个指向外壳 Pod 的 Service。
 	served []servedPlan
 	// memberMigrations 是被外壳承载、又声明了 migration 的成员：没有 Deployment，
-	// 迁移 Job 却照常生成，用成员自己的镜像与配置（提案 §8.1 规则 2、§8.9.4）。
+	// 迁移 Job 却照常生成，用成员自己的镜像与配置。
 	memberMigrations []componentPlan
 	// secrets 按 Secret 名排序。
 	secrets []secretPlan

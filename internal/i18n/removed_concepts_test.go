@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// 三层文件重构删掉的概念（提案 §5.2、§11.0，附录 A17）不能再出现在 CLI 给人看的文字里：
+// 三层文件重构删掉的概念不能再出现在 CLI 给人看的文字里：
 // 帮助文本里还写着 --config、deploy.target、基础资源，使用者照着敲，得到的只会是
 // unknown flag 或一个 CLI 根本不认的字段。
 var removedConcepts = []string{
@@ -21,7 +21,7 @@ var removedConcepts = []string{
 	"envPrefix",
 	"base resource",
 	"基础资源",
-	// 旧 brickkit.yaml 的 deploy.<字段>：这些设置搬进了部署文件的 k8s: 块（附录 A15），
+	// 旧 brickkit.yaml 的 deploy.<字段>：这些设置搬进了部署文件的 k8s: 块，
 	// 字段路径是 k8s.<字段>。提示里还写 deploy.networkPolicy，使用者照着写只会得到"未知字段"
 	"deploy.context",
 	"deploy.namespace",
@@ -46,7 +46,7 @@ func TestCatalogsHaveNoRemovedConcepts(t *testing.T) {
 	}
 }
 
-// 设计文档（new_plan/ 下的提案与附录）与内部的反馈记录不随 CLI 发布：帮助文本里写"（附录 A4）"、
+// 设计文档（已归档的提案与附录）与内部的反馈记录不随 CLI 发布：帮助文本里写"（附录 A4）"、
 // 生成文件里写"（brickKit 反馈：…）"，使用者既找不到这些文档，也读不懂那个编号。要讲的道理直接写在文本里。
 var designDocCitations = []string{"附录", "提案", "Appendix A", "proposal §", "§", "brickKit 反馈", "brickKit feedback"}
 

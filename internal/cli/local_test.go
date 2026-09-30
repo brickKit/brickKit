@@ -51,7 +51,7 @@ func TestLocalOnCopiesDeployBytes(t *testing.T) {
 	assert.Contains(t, r.stdout, "copied from deploy.yaml")
 }
 
-// 附录 A16：off 不删文件，再 on 时沿用它——绝不覆盖使用者的本地修改。
+// off 不删文件，再 on 时沿用它——绝不覆盖使用者的本地修改。
 func TestLocalOnReusesExistingFile(t *testing.T) {
 	dir := localProject(t)
 	mine := "target: docker\ncomponents:\n  - id: erp/api\n    mode: debug\n    localPort: 8081\n"

@@ -74,7 +74,7 @@ func TestApplierLeavesUnmanagedBrickkitMd(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(bare, "BRICKKIT.md"))
 }
 
-// 文档要在产物下载之后再写：契约路径那一列是这份文档存在的主要理由（提案 §16.2.1）。
+// 文档要在产物下载之后再写：契约路径那一列是这份文档存在的主要理由。
 func TestProjectDocListsContractsDownloadedByAdd(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/api", Version: "1.0.0", Artifacts: []string{"api-contract:api/openapi.yaml"}},

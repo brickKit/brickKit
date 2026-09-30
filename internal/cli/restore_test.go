@@ -43,7 +43,7 @@ func TestRestorePlanOnlyTouchesEntriesPresentInBothVersions(t *testing.T) {
 		"提交里没有的条目一个字不动——这是不吃掉未提交 add 的解药")
 }
 
-// 外壳下面的成员条目同样按 id 配对还原（附录 A21：成员条目嵌在外壳条目下面）。
+// 外壳下面的成员条目同样按 id 配对还原（成员条目嵌在外壳条目下面）。
 func TestRestorePlanCoversNestedMembers(t *testing.T) {
 	head := &deployfile.File{Components: []deployfile.Component{
 		{Entry: deployfile.Entry{ID: "erp/shell"}, Members: []deployfile.Entry{{ID: "erp/api"}}},

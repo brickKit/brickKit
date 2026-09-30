@@ -14,7 +14,7 @@ import (
 // HeaderPrefix 是骨架第一行的固定写法（不翻译）：归档恢复靠它认出旧文件属于哪个版本。
 const HeaderPrefix = "# Component: "
 
-// Skeleton 按 configSchema 生成组件配置文件骨架（提案 §7.6，经附录 A4 修正）。
+// Skeleton 按 configSchema 生成组件配置文件骨架。
 //
 // 只有"必填且没有默认值"的键写成 KEY: ""；其余一律注释掉——没被使用者碰过的键
 // 就一直跟随组件的默认值，升级时默认值变了也不会制造假冲突。

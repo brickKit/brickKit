@@ -232,7 +232,7 @@ func TestLogLevelOffSilencesLogs(t *testing.T) {
 }
 
 // --config 与 up/down --context 随三层文件重构删除：部署文件用 -f 选，
-// 集群用部署文件里的 k8s.context 选（提案 §11.0）。写了就是未知参数，不能静默忽略。
+// 集群用部署文件里的 k8s.context 选。写了就是未知参数，不能静默忽略。
 func TestRemovedFlagsRejected(t *testing.T) {
 	for _, args := range [][]string{
 		{"version", "--config", "brickkit.prod.yaml"},
@@ -265,7 +265,7 @@ func TestDeployFileFlags(t *testing.T) {
 	}
 }
 
-// 各命令的参数必须与命令表一致。
+// 各命令的参数必须与命令参考（docs/*/07-cli-reference）写的一致。
 func TestSubcommandFlags(t *testing.T) {
 	root := NewRootCommand(&Options{Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}})
 	want := map[string][]string{

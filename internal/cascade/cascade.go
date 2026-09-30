@@ -395,7 +395,7 @@ func runningReason(
 // 这类组件按"没写 mode"处理。
 type declSet map[resolver.Ref]deployfile.Entry
 
-// declarations 取每个已声明组件版本的部署条目（mode 写在部署文件里，提案 §6.4）。
+// declarations 取每个已声明组件版本的部署条目（mode 写在部署文件里）。
 func declarations(p *project.Project) declSet {
 	out := declSet{}
 	if p == nil {

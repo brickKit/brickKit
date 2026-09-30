@@ -14,7 +14,7 @@ import (
 	"github.com/brickkit/brickkit/internal/i18n"
 )
 
-// 技能资产是写给项目里的 AI 助手的：讲的必须是现在的三层文件模型（提案 §4），
+// 技能资产是写给项目里的 AI 助手的：讲的必须是现在的三层文件模型，
 // 已经删掉的概念留在里面，AI 就会照着去写一个 CLI 根本不认的文件。
 var removedConcepts = []*regexp.Regexp{
 	regexp.MustCompile(`servedBy`),

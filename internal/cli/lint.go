@@ -151,7 +151,7 @@ func lintProject(opts *Options, layout project.Layout, strict bool) ([]lintFile,
 			ownListed = true
 		}
 	}
-	// 组件仓库兼作工作台（提案 §16.1.1）：它要发布的那份 component.yaml 不在任何本地源里，照样要查
+	// 组件仓库兼作工作台：它要发布的那份 component.yaml 不在任何本地源里，照样要查
 	if _, err := os.Stat(own); err == nil && !ownListed {
 		files = append(files, lintManifest(opts, own, ""))
 	}
@@ -192,10 +192,10 @@ func lintDeployFiles(opts *Options, layout project.Layout) []deployToLint {
 // lintCrossFile 用 up 同一条装载路径做跨文件校验：up 会拦的，lint 一样拦；再对装载好的项目做
 // 配置检查（lint_config.go）。
 //
-// 团队的 deploy.yaml 与个人的 deploy.local.yaml 都要与 brickkit.yaml 一致（提案 §11.3）：
+// 团队的 deploy.yaml 与个人的 deploy.local.yaml 都要与 brickkit.yaml 一致：
 // 这次装载用的是其中一份，另一份（存在的话）再单独装载一遍——本地模式关着时的
 // deploy.local.yaml 迟早会被用上，开着时团队文件也不能因此没人查。-f 指定了文件时
-// 两份都不看（-f 完全忽略本地文件，提案 §11.6）。
+// 两份都不看（-f 完全忽略本地文件）。
 func lintCrossFile(opts *Options, strict bool) ([]lintFile, []string) {
 	proj, err := project.Load(opts.WorkDir, opts.loadOptions())
 	f := lintFile{path: i18n.T(msgid.CliLintCrossFile, project.FileDecl, lintedDeployName(opts, proj), project.DirConfig+"/")}

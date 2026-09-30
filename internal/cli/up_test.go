@@ -483,8 +483,7 @@ func TestUpSkipsServedByComponentInTargetServices(t *testing.T) {
 		"servedBy 成员没有自己的容器，不该出现在启动目标里")
 }
 
-// ---- --ignore-shells（brickKit 反馈：两个降低外壳运维摩擦的
-// 架构提案，提案二）：内存里清空全部 servedBy 声明再跑一次，验证"每个
+// ---- --ignore-shells：内存里清空全部外壳成员声明再跑一次，验证"每个
 // 组件必须能独立 brickkit up 起来"这条设计原则，不写回 brickkit.yaml ----
 
 // 加了这个 flag，原本被收编的成员要当成独立组件一样启动，出现在引擎的

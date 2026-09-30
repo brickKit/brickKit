@@ -23,7 +23,7 @@ func (g *gitOrgProject) upWith(dir string, eng *fakeEngine, images *fakeImages, 
 	}, dir, append([]string{"up"}, args...)...)
 }
 
-// 提案 §9.10.1/9.10.3：up 从不构建。只有 build 的组件镜像不在本机：启动前就失败，提示 build；
+// up 从不构建。只有 build 的组件镜像不在本机：启动前就失败，提示 build；
 // --dry-run 不看镜像；构建之后照常启动，用的是推出来的镜像名。
 func TestUpBuildOnlyImageMissingPointsToBuild(t *testing.T) {
 	g := newGitOrgProject(t)
@@ -102,7 +102,7 @@ func shellImageFixture(t *testing.T) (*gitOrgProject, string) {
 	return g, dir
 }
 
-// 附录 A24：本机构建的外壳镜像记下的成员版本与 component.yaml 对不上（改了成员版本没重建）——报错，提示 build --force。
+// 本机构建的外壳镜像记下的成员版本与 component.yaml 对不上（改了成员版本没重建）——报错，提示 build --force。
 func TestUpShellImageLabelMismatch(t *testing.T) {
 	g, dir := shellImageFixture(t)
 	images := newFakeImages()
@@ -146,7 +146,7 @@ func TestUpShellImageOnlyInRegistryNotChecked(t *testing.T) {
 	assert.NotContains(t, r.stdout+r.stderr, "cannot be confirmed")
 }
 
-// 提案 §8.5 第 3 步：外壳成员必须有自己的镜像（image 或 build）——没有的组件连 Manifest 校验都过不了，add 当场失败。
+// 外壳成员必须有自己的镜像（image 或 build）——没有的组件连 Manifest 校验都过不了，add 当场失败。
 func TestAddShellMemberWithoutImageFails(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/shell", Version: "1.0.0", ShellMembers: []string{"erp/a@1.0.0"}})

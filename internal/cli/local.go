@@ -1,13 +1,13 @@
 package cli
 
-// 本文件实现 brickkit local：管理个人本地部署文件 deploy.local.yaml（提案 §6.2–6.6，附录 A1、A16）。
+// 本文件实现 brickkit local：管理个人本地部署文件 deploy.local.yaml。
 //
 //	on       开启本地模式；文件不存在时从 deploy.yaml 复制（团队文件头换成个人文件头，见 project.LocalDeployContent），已存在时沿用（off 不删它）
 //	off      关闭本地模式：只停止读取，文件留着
 //	status   开关、文件、以及（开着时）与 brickkit.yaml 是否一致
-//	refresh  备份旧文件、重新复制，列出旧文件里的本地修改——CLI 不合并，完整替换（附录 A1）
+//	refresh  备份旧文件、重新复制，列出旧文件里的本地修改——CLI 不合并，完整替换
 //
-// 开关记在 .brickkit/local-mode（附录 A16）。不带子命令时等于 status：只读是安全的默认。
+// 开关记在 .brickkit/local-mode。不带子命令时等于 status：只读是安全的默认。
 
 import (
 	"bytes"
@@ -96,7 +96,7 @@ func runLocalOn(opts *Options) error {
 	if copied {
 		opts.Printf("   %s\n", i18n.T(msgid.CliLocalCopied, project.FileDeployLocal, project.FileDeploy))
 	} else {
-		// 附录 A16：off 留下了文件，再开时沿用——那里面是使用者的本地修改，绝不覆盖
+		// off 留下了文件，再开时沿用——那里面是使用者的本地修改，绝不覆盖
 		opts.Printf("   %s\n", i18n.T(msgid.CliLocalReused, project.FileDeployLocal))
 		opts.Printf("   💡 %s\n", i18n.T(msgid.CliLocalHintRefresh))
 	}
@@ -152,7 +152,7 @@ func runLocalStatus(opts *Options) error {
 	if !on {
 		return nil
 	}
-	// 与 up 同一处校验（提案 §6.3）：过期就把那一块原样打印出来，status 本身不算失败
+	// 与 up 同一处校验：过期就把那一块原样打印出来，status 本身不算失败
 	if _, err := project.Load(l.Root, project.LoadOptions{}); err != nil {
 		opts.Printf("%s", opts.render(clierr.As(err)))
 		return nil

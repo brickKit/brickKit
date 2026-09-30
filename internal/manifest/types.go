@@ -38,8 +38,8 @@ type Manifest struct {
 	Migration    *Migration    `yaml:"migration,omitempty"`
 	HealthCheck  HealthCheck   `yaml:"healthCheck"`
 	Local        *Local        `yaml:"local,omitempty"`
-	// Shell 出现即表示这个组件是外壳（附录 A11），Members 是构建时编进外壳的成员及其
-	// 精确版本（附录 A24）；这次实际收编了谁只看部署文件的 members，平台只核对版本一致。
+	// Shell 出现即表示这个组件是外壳，Members 是构建时编进外壳的成员及其
+	// 精确版本；这次实际收编了谁只看部署文件的 members，平台只核对版本一致。
 	Shell *Shell `yaml:"shell,omitempty"`
 
 	// Source 是该 Manifest 的来源（文件路径或安装源描述），只用于错误提示。
@@ -72,7 +72,7 @@ type Artifact struct {
 // Dependencies 是组件依赖声明。
 //
 // 旧版的 resources（基础资源依赖）随 brickkit.yaml 的 resources 一起废除：
-// 组件需要的连接信息就是它 configSchema 里的环境变量（提案 §7.1）。
+// 组件需要的连接信息就是它 configSchema 里的环境变量。
 type Dependencies struct {
 	Components []ComponentDep `yaml:"components,omitempty"`
 }
@@ -151,7 +151,7 @@ type Deployment struct {
 	Type string `yaml:"type" jsonschema:"enum=container"`
 	// Image 是预构建镜像地址（可选）；不带 tag 时由平台补上 metadata.version（见 ImageRef）。
 	Image string `yaml:"image,omitempty"`
-	// Build 是本地构建配置（可选）。Image 与 Build 至少要有一个（提案 §9.10.2）。
+	// Build 是本地构建配置（可选）。Image 与 Build 至少要有一个。
 	Build      *Build      `yaml:"build,omitempty"`
 	Port       int         `yaml:"port" jsonschema:"minimum=1,maximum=65535"`
 	ExtraPorts []ExtraPort `yaml:"extraPorts,omitempty"`
@@ -164,7 +164,7 @@ type Deployment struct {
 	Labels map[string]string `yaml:"labels,omitempty"`
 }
 
-// Build 是本地构建配置：brickkit build 用它构建镜像，up 从不自动构建（提案 §9.10）。
+// Build 是本地构建配置：brickkit build 用它构建镜像，up 从不自动构建。
 type Build struct {
 	// Context 是构建上下文，相对组件仓库根；不写为 "."。
 	Context string `yaml:"context,omitempty"`
@@ -172,7 +172,7 @@ type Build struct {
 	Dockerfile string `yaml:"dockerfile,omitempty"`
 }
 
-// Shell 是外壳的声明：构建时编进外壳的成员及其精确版本（附录 A24）。
+// Shell 是外壳的声明：构建时编进外壳的成员及其精确版本。
 type Shell struct {
 	// Members 每项是 <组件ID>@<精确版本>，一个组件 ID 只出现一次。
 	Members []string `yaml:"members" jsonschema:"pattern=^[^@ ]+@[0-9]+[.][0-9]+[.][0-9]+$"`

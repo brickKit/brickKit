@@ -1,11 +1,11 @@
 package source
 
-// 本文件是 git 安装源（提案 §9）：一个组件一个仓库，一个版本一个 tag。
+// 本文件是 git 安装源：一个组件一个仓库，一个版本一个 tag。
 //
 //	仓库地址   sources[].baseUrl + <scope>-<name>（erp/backend → <baseUrl>erp-backend）；
-//	           组件自己写了 source.repo 时用它（提案 §9.3）
+//	           组件自己写了 source.repo 时用它
 //	版本       tag 就是版本号（1.0.0，不带 v）；组件在仓库子目录（source.path）时
-//	           tag 带命名空间 <scope>-<name>/<版本>（附录 A9），同一个 monorepo 里的
+//	           tag 带命名空间 <scope>-<name>/<版本>，同一个 monorepo 里的
 //	           组件各打各的 tag
 //	最新版本   精确版本形式的 tag 里最高的那个；v1.0.0、latest 这类 tag 不是版本
 //
@@ -50,7 +50,7 @@ func (s *gitSource) locate(componentID string) (repoURL, subpath string) {
 }
 
 // tagPrefix 是这个组件的 tag 前缀：仓库根目录下的组件没有前缀；子目录里的组件用
-// <scope>-<name>/（附录 A9）。
+// <scope>-<name>/。
 func tagPrefix(componentID, subpath string) string {
 	if subpath == "" {
 		return ""
@@ -113,7 +113,7 @@ func (s *gitSource) latestVersion(ctx context.Context, componentID string) (stri
 	}
 	if err := repo.fetch(ctx); err != nil {
 		failure := s.failed(componentID, repoURL, err)
-		// 最新版本以远端为准（附录 A8），连不上就不能回答——但不静默回落到缓存里的最高版本：
+		// 最新版本以远端为准，连不上就不能回答——但不静默回落到缓存里的最高版本：
 		// 它未必是远端的最新。点名缓存里已有的版本，写明其中一个就不用联网
 		if cached, _ := s.versions(ctx, repo, componentID, subpath); unreachable(err) && len(cached) > 0 {
 			failure = clierr.As(failure).WithHint(
@@ -195,7 +195,7 @@ func (s *gitSource) origin(ctx context.Context, componentID, version string) (*O
 }
 
 // failed 把一次 git 调用的失败做成给人看的错误：点名组件与仓库地址，原样带出 git 的报错，
-// 给出宿主机鉴权的三个检查方向（提案 §9.9）。
+// 给出宿主机鉴权的三个检查方向。
 func (s *gitSource) failed(componentID, repoURL string, err error) error {
 	if errors.Is(err, errNoRepoCache) {
 		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.SourceNoRepoCache, componentID)).

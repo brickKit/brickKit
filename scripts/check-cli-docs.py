@@ -74,7 +74,7 @@ UNDOCUMENTED_OK_FLAGS = {"--help"}
 CLI_REFERENCES = ["docs/en/07-cli-reference/README.md", "docs/zh/07-cli-reference/README.md"]
 
 # 历史与规划目录不是"现行文档"。
-EXCLUDED_PREFIXES = ("archive/", "docs/superpowers/", "new_plan/", ".superpowers/")
+EXCLUDED_PREFIXES = ("archive/", "docs/superpowers/", ".superpowers/")
 
 # 自检基线：(命令, 参数, 是否应当存在)
 SELF_CHECK = [

@@ -84,11 +84,11 @@ const (
 	CodeAuthFailed         Code = "AUTH_FAILED"
 	CodeTokenExpired       Code = "TOKEN_EXPIRED"
 	CodeImageUnauthorized  Code = "IMAGE_UNAUTHORIZED"
-	// CodeImageMissing 是"这个镜像要在本机构建，还没有构建"（提案 §9.10：up 从不构建）。
+	// CodeImageMissing 是"这个镜像要在本机构建，还没有构建"（up 从不构建）。
 	CodeImageMissing Code = "IMAGE_MISSING"
-	// CodeImageStale 是"本机构建的外壳镜像编进的成员版本与 component.yaml 不一致"（附录 A24）：重建镜像。
+	// CodeImageStale 是"本机构建的外壳镜像编进的成员版本与 component.yaml 不一致"：重建镜像。
 	CodeImageStale Code = "IMAGE_STALE"
-	// CodeImageUnverified 是"外壳镜像里编进的成员版本无法确认"（没有 brickkit build 的标签，附录 A24），只作警告。
+	// CodeImageUnverified 是"外壳镜像里编进的成员版本无法确认"（没有 brickkit build 的标签），只作警告。
 	CodeImageUnverified  Code = "IMAGE_UNVERIFIED"
 	CodeSignatureInvalid Code = "SIGNATURE_INVALID"
 
@@ -102,7 +102,7 @@ const (
 	// 与 MIGRATION_SKIPPED 同类：平台刻意不做的事，只作警告使用，不阻断。
 	CodeSubmodulesSkipped Code = "SUBMODULES_SKIPPED"
 
-	// 发布（brickkit release，提案 §10.2）。
+	// 发布（brickkit release）。
 	//
 	// CodeReleaseBlocked 是"发布前的检查没过"（工作区不干净、有未推送的提交、没有上游、
 	// tag 已存在）：什么都没写，改好再发。

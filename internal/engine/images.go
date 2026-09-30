@@ -1,6 +1,6 @@
 package engine
 
-// 本文件是本机镜像的操作（brickkit build、up 的镜像检查，提案 §9.10）：只有 docker / podman
+// 本文件是本机镜像的操作（brickkit build、up 的镜像检查）：只有 docker / podman
 // 有"本机镜像"这回事——K8s 从集群能访问的 registry 拉，不经过这台机器，所以它不在 Engine 里。
 
 import (
@@ -22,12 +22,12 @@ type Images interface {
 
 // BuildRequest 是一次构建。
 type BuildRequest struct {
-	// Tag 是镜像引用（tag 与组件版本一致，提案 §9.10.4）。
+	// Tag 是镜像引用（tag 与组件版本一致）。
 	Tag string
 	// Context 是构建上下文目录，Dockerfile 是 Dockerfile 的路径（都是绝对路径）。
 	Context    string
 	Dockerfile string
-	// Labels 写进镜像（外壳镜像记下编进去的成员版本，附录 A24）。
+	// Labels 写进镜像（外壳镜像记下编进去的成员版本）。
 	Labels map[string]string
 }
 

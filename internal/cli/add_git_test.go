@@ -112,7 +112,7 @@ func TestAddFromGitWritesThreeLayers(t *testing.T) {
 	g.mustRun(dir, "up", "--dry-run")
 }
 
-// 提案 §5.5：不写版本时取仓库里最高的精确版本 tag，钉进 brickkit.yaml。
+// 不写版本时取仓库里最高的精确版本 tag，钉进 brickkit.yaml。
 func TestAddLatestFromTags(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/api", Version: "1.0.0"})
@@ -124,7 +124,7 @@ func TestAddLatestFromTags(t *testing.T) {
 	assert.Contains(t, readFile(t, filepath.Join(dir, "brickkit.yaml")), "version: 1.2.0")
 }
 
-// 附录 A20：依赖要的是另一个版本——多版本自动共存，requiredBy 写上依赖方。
+// 依赖要的是另一个版本——多版本自动共存，requiredBy 写上依赖方。
 func TestAddDependencyOtherVersionCoexists(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/db", Version: "1.0.0", ConfigSchema: []string{"DB_HOST:localhost"}})
@@ -143,7 +143,7 @@ func TestAddDependencyOtherVersionCoexists(t *testing.T) {
 	g.mustRun(dir, "up", "--dry-run")
 }
 
-// 附录 A24：add 外壳时按它编进的成员版本写三份文件，P3f 的版本核对直接通过。
+// add 外壳时按它编进的成员版本写三份文件，P3f 的版本核对直接通过。
 func TestAddShellWithMembers(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/a", Version: "1.0.0", Port: 8081})
@@ -180,7 +180,7 @@ func TestAddWritesDeployLocalToo(t *testing.T) {
 	assert.Contains(t, r.stdout, "deploy.prod.yaml")
 }
 
-// 提案 §7.2.5：config/vars.yaml 里有同名变量——问要不要引用；--yes 引用，没有输入不引用。
+// config/vars.yaml 里有同名变量——问要不要引用；--yes 引用，没有输入不引用。
 func TestAddVarPrompt(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/api", Version: "1.0.0", ConfigSchema: []string{"DB_HOST:localhost"}})
@@ -207,7 +207,7 @@ func TestAddRollsBackWhenProjectWouldNotLoad(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/api", Version: "1.0.0", ConfigSchema: []string{"DB_HOST:localhost"}})
 	dir := g.project()
-	// 一份孤立的带版本号配置：erp/api 1.0.0 一旦成为默认版本，默认版本就有了两份配置文件（附录 A5）
+	// 一份孤立的带版本号配置：erp/api 1.0.0 一旦成为默认版本，默认版本就有了两份配置文件
 	writeTree(t, dir, map[string]string{"config/erp-api@1.0.0.yaml": "DB_HOST: x\n"})
 	before := map[string]string{
 		"brickkit.yaml": readFile(t, filepath.Join(dir, "brickkit.yaml")),
@@ -222,7 +222,7 @@ func TestAddRollsBackWhenProjectWouldNotLoad(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(dir, "config", "erp-api.yaml"))
 }
 
-// 提案 §9.5、附录 A12：拉过一次之后，远端没了，同一台机器上的另一个项目照样能 add、能 up。
+// 拉过一次之后，远端没了，同一台机器上的另一个项目照样能 add、能 up。
 func TestAddOfflineAfterFirstFetch(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/api", Version: "1.0.0"})
@@ -234,7 +234,7 @@ func TestAddOfflineAfterFirstFetch(t *testing.T) {
 	g.mustRun(dir, "up", "--dry-run")
 }
 
-// 附录 A22：--repo 克隆源码后检出这个版本的 tag——本地仓库就是默认版本。
+// --repo 克隆源码后检出这个版本的 tag——本地仓库就是默认版本。
 func TestAddRepoChecksOutTag(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(comp{ID: "erp/api", Version: "1.0.0"})
@@ -245,7 +245,7 @@ func TestAddRepoChecksOutTag(t *testing.T) {
 	assert.Contains(t, readFile(t, filepath.Join(dir, "components", "erp", "api", "component.yaml")), "version: 1.0.0")
 }
 
-// 附录 A8：--local 把本地安装源里的组件按 component.yaml 的真实版本一次全加进来。
+// --local 把本地安装源里的组件按 component.yaml 的真实版本一次全加进来。
 func TestAddLocalAddsAllAtRealVersions(t *testing.T) {
 	dir := t.TempDir()
 	writeTree(t, dir, map[string]string{
@@ -403,7 +403,7 @@ func TestAddRollbackRemovesCreatedDirsAndKeepsModes(t *testing.T) {
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
-// 提案 §7.7：remove 归档的配置，重新 add 时迁移回来——使用者写过的值回来了。
+// remove 归档的配置，重新 add 时迁移回来——使用者写过的值回来了。
 func TestAddRestoresArchivedConfig(t *testing.T) {
 	g := newGitOrgProject(t)
 	g.release(withConfig(comp{ID: "erp/api", Version: "1.0.0"}, "DB_HOST:x"))

@@ -394,7 +394,7 @@ func localAddress(p *liveProject, ref resolver.Ref) string {
 
 // localModeDiffers 报告这个组件版本在 deploy.local.yaml 里的 mode 与团队 deploy.yaml 不同——
 // status 据此把"因为你本地的文件才没跑"与"团队本来就关着"分开说。按组件版本比：同一个 ID 的
-// 两个版本各有各的条目（附录 A20）。只在本地模式下成立；读团队文件出错就当不知道（这只是一句提示）。
+// 两个版本各有各的条目。只在本地模式下成立；读团队文件出错就当不知道（这只是一句提示）。
 func (p *liveProject) localModeDiffers(ref resolver.Ref) bool {
 	if p.proj.DeploySource != project.DeployLocal {
 		return false

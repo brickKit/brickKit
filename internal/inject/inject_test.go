@@ -99,7 +99,7 @@ func (b *builder) project() *project.Project {
 		Components []deployfile.Component `yaml:"components"`
 	}{Target: deployfile.TargetDocker}
 	files := projecttest.Files{}
-	// 成员条目嵌在外壳条目下面（附录 A21）
+	// 成员条目嵌在外壳条目下面
 	shellOf := map[string]bool{}
 	for _, e := range b.entries {
 		for _, m := range e.Members {
@@ -367,7 +367,7 @@ func TestConfigDefaultsAndOverrides(t *testing.T) {
 }
 
 // Var.Key 要记住原始 configSchema key（驼峰形式），不只是转换后的环境变量名——
-// servedBy 的 BRICKKIT_SERVED_MEMBERS_CONFIG（提案一）要把合并后的 config
+// 外壳的 BRICKKIT_SERVED_MEMBERS_CONFIG 要把合并后的 config
 // 原样交给外壳作者，用的就是这个原始 key，不是转换后的大写下划线名。
 func TestConfigVarRecordsOriginalKeyForOverride(t *testing.T) {
 	m := simple("people/basic", "1.0.0", 8080)
@@ -967,7 +967,7 @@ func TestBuildReservedEndpointSuffixStillBlocked(t *testing.T) {
 	assert.NotContains(t, envOf(t, result, "people/basic"), "NOTIFIER_ENDPOINT")
 }
 
-// 依赖一个被外壳承载的成员：地址指向外壳（提案 §8.8，网络拓扑层由 CLI 重写），
+// 依赖一个被外壳承载的成员：地址指向外壳（网络拓扑层由 CLI 重写），
 // 端口仍是成员自己的端口——外壳进程在那个端口上替它监听。
 func TestEndpointOfHostedMemberPointsAtShell(t *testing.T) {
 	a := simple("erp/a", "1.0.0", 8081)
@@ -982,7 +982,7 @@ func TestEndpointOfHostedMemberPointsAtShell(t *testing.T) {
 	assert.Equal(t, "http://erp-shell-1-0-0:9091", env["ERP_A_GRPC_ENDPOINT"])
 }
 
-// 成员以裸进程运行（附录 A18）或外壳这次没跑：地址指向成员自己。
+// 成员以裸进程运行或外壳这次没跑：地址指向成员自己。
 func TestEndpointOfUnhostedMemberPointsAtMember(t *testing.T) {
 	for name, e := range map[string][2]entry{
 		"成员 mode: local": {{Members: []string{"erp/a"}}, {Mode: deployfile.ModeLocal}},

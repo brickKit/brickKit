@@ -1,6 +1,6 @@
 package cli
 
-// 本文件实现 brickkit add（命令表 6，提案 §5.5、§6.7、§7.6、§8.5，附录 A20–A24）：
+// 本文件实现 brickkit add：
 // 拉取组件与它的依赖，一次写好三份文件——brickkit.yaml 的声明、部署文件的条目、
 // config/ 的骨架。
 //
@@ -121,7 +121,7 @@ func installAdd(ctx context.Context, opts *Options, proj *project.Project, clien
 			return err
 		}
 		roots = append(roots, t)
-		// 外壳编进的成员跟着外壳一起进来（附录 A24）
+		// 外壳编进的成员跟着外壳一起进来
 		if fetched.Manifest.IsShell() {
 			for _, member := range fetched.Manifest.Shell.Members {
 				id, version, _ := manifest.SplitRef(member)
@@ -178,7 +178,7 @@ func installAdd(ctx context.Context, opts *Options, proj *project.Project, clien
 }
 
 // askVarRefs：新生成的配置骨架里，config/vars.yaml（或部署文件 vars:）里有同名变量的键，
-// 问使用者要不要写成 $var: 引用（提案 §7.2.5）。--yes 一律引用；没有输入等于不引用。
+// 问使用者要不要写成 $var: 引用。--yes 一律引用；没有输入等于不引用。
 //
 // 要从归档恢复的配置不问：那里是使用者当初写的配置，以它为准——问了、再被恢复的文件盖掉，
 // 输出就会说"已引用"而文件里没有。
@@ -307,7 +307,7 @@ func joinRefs(refs []resolver.Ref) string {
 	return strings.Join(parts, ", ")
 }
 
-// clonePlan 是一次 --repo 克隆：检出的 tag 就是这个版本（附录 A22：本地仓库 = 默认版本）。
+// clonePlan 是一次 --repo 克隆：检出的 tag 就是这个版本（本地仓库 = 默认版本）。
 type clonePlan struct {
 	ref resolver.Ref
 	url string
@@ -317,7 +317,7 @@ type clonePlan struct {
 }
 
 // planClones 决定 --repo / --repo-all 要克隆哪些，并在写文件之前做完资格检查。
-// 只克隆默认版本：本地仓库只能是默认版本（附录 A22），兼容版本的代码用不上它。
+// 只克隆默认版本：本地仓库只能是默认版本，兼容版本的代码用不上它。
 func planClones(ctx context.Context, opts *Options, client *source.Client, proj *project.Project, plan *install.Plan, targets []resolver.Ref, f addFlags) ([]clonePlan, error) {
 	if !f.repo && !f.repoAll {
 		return nil, nil
