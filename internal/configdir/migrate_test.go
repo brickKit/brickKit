@@ -217,3 +217,37 @@ func TestMigrateDoesNotCarryCommentedSkeletonLines(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(out, "# A_KEY: "), out)
 	assert.Contains(t, out, "B_KEY: mine")
 }
+
+// 使用者写在一条注释掉的骨架行上方的注释，说的是那个键：迁移后仍在那个键上方，
+// 而不是挪到下一个使用者写了值的键上。
+func TestMigrateCommentAboveSkeletonLineStaysWithItsKey(t *testing.T) {
+	s := schema(map[string]manifest.ConfigProperty{"A_KEY": str("a"), "B_KEY": str("b")})
+	old := string(configdir.Skeleton("erp/api", "1.0.0", s, nil))
+	old = strings.Replace(old, "# A_KEY:", "# change A on staging\n# A_KEY:", 1)
+	old = strings.Replace(old, "# B_KEY: b", "B_KEY: mine  #", 1)
+
+	out, _ := migrate(t, old, s, s, nil)
+	assert.Contains(t, out, "# change A on staging\n# A_KEY: ", out)
+	assert.NotContains(t, out, "# change A on staging\nB_KEY", out)
+}
+
+// 写在最后一个键之后的注释不能丢：放回新文件的末尾。
+func TestMigrateKeepsCommentsAfterTheLastKey(t *testing.T) {
+	s := schema(map[string]manifest.ConfigProperty{"A_KEY": str("a")})
+	old := string(configdir.Skeleton("erp/api", "1.0.0", s, nil))
+	old = strings.Replace(old, "# A_KEY: a", "A_KEY: mine  #", 1) + "\n# trailing note: revisit next quarter\n"
+
+	out, _ := migrate(t, old, s, s, nil)
+	assert.Contains(t, out, "# trailing note: revisit next quarter\n", out)
+	assert.True(t, strings.Index(out, "trailing note") > strings.Index(out, "A_KEY: mine"), out)
+}
+
+// 使用者自己写的"# KEY: 说明"式注释（没有骨架行末尾的"  # 类型 | 说明"），不是骨架行，不能被当成骨架丢掉。
+func TestMigrateKeepsUserCommentNamingASchemaKey(t *testing.T) {
+	s := schema(map[string]manifest.ConfigProperty{"A_KEY": str("a"), "B_KEY": str("b")})
+	old := string(configdir.Skeleton("erp/api", "1.0.0", s, nil))
+	old = strings.Replace(old, "# B_KEY: b", "# A_KEY: set to 5 in production, see ticket 42\nB_KEY: mine  #", 1)
+
+	out, _ := migrate(t, old, s, s, nil)
+	assert.Contains(t, out, "# A_KEY: set to 5 in production, see ticket 42\nB_KEY: mine", out)
+}

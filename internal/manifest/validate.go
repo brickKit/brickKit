@@ -43,6 +43,9 @@ var configSchemaTypes = map[string]bool{
 	"boolean": true, "array": true, "object": true,
 }
 
+// ValidConfigType 报告 t 是不是 configSchema 允许的类型。
+func ValidConfigType(t string) bool { return configSchemaTypes[t] }
+
 // newProblems 创建 Manifest 校验用的问题收集器。
 func newProblems(source string) *clierr.ProblemSet {
 	if source == "" {

@@ -82,7 +82,7 @@ func (w writtenKey) withComment(line string) string { return w.comment + line }
 // Migrate 把旧配置文件迁移到新版本的 configSchema。
 func Migrate(in MigrateInput) ([]byte, MigrateReport, error) {
 	report := MigrateReport{Resolved: map[string]Choice{}}
-	written, order, fileComment, err := readWritten(in.Old, schemaKeys(in.OldSchema, in.NewSchema))
+	written, order, comments, err := readWritten(in.Old, schemaKeys(in.OldSchema, in.NewSchema))
 	if err != nil {
 		return nil, report, err
 	}
@@ -96,7 +96,7 @@ func Migrate(in MigrateInput) ([]byte, MigrateReport, error) {
 		}
 	}
 
-	out := renderSkeletonWith(in.ID, in.ToVersion, in.NewSchema, fileComment, func(key string, prop manifest.ConfigProperty, required bool) string {
+	out := renderSkeletonWith(in.ID, in.ToVersion, in.NewSchema, comments.file, func(key string, prop manifest.ConfigProperty, required bool) string {
 		skeleton := skeletonLine(key, prop, in.VarRefs[key], required)
 		w, wrote := written[key]
 		oldProp, known := schemaProp(in.OldSchema, key)
@@ -108,7 +108,7 @@ func Migrate(in MigrateInput) ([]byte, MigrateReport, error) {
 			if in.OldSchema != nil && !known {
 				report.Added = append(report.Added, key)
 			}
-			return skeleton
+			return comments.byKey[key] + skeleton
 		}
 		if !known || sameValue(oldProp.Default, prop.Default) {
 			report.Copied = append(report.Copied, key)
@@ -134,34 +134,44 @@ func Migrate(in MigrateInput) ([]byte, MigrateReport, error) {
 			return w.withComment(ConflictBlock(key, c.UserYAML, in.FromVersion, c.NewDefault, in.ToVersion))
 		}
 	})
+	if comments.trailer != "" {
+		out = append(out, []byte("\n"+comments.trailer)...)
+	}
 	return out, report, nil
+}
+
+// oldComments 是旧文件里使用者写的注释，按它说的对象分好：文件开头的一段（放回新文件头之后）、
+// 每个键上方的（键名 → 注释，那个键在旧文件里写了值还是只是一条注释掉的骨架行都一样）、
+// 最后一个键之后的（放回新文件末尾）。每段每行带换行，没有就是空串。
+type oldComments struct {
+	file    string
+	byKey   map[string]string
+	trailer string
 }
 
 // readWritten 读出旧文件里使用者写下的键（注释掉的骨架行不算）：每个键的原文取自源码行，
 // 从它那一行到下一个键之前（去掉尾部的空行与整行注释）——块标量的续行因此一起带上。
-// 还读出使用者写的注释：键上方的跟着键，文件开头的（fileComment）放回新文件头之后。
+// 使用者写的注释另由 scanComments 按行归属。
 //
 // keys 是新旧 configSchema 里的全部键：骨架里注释掉的"# KEY: …"行不是使用者的注释。
-func readWritten(old []byte, keys map[string]bool) (written map[string]writtenKey, order []string, fileComment string, err error) {
+func readWritten(old []byte, keys map[string]bool) (written map[string]writtenKey, order []string, comments oldComments, err error) {
 	written = map[string]writtenKey{}
+	comments = oldComments{byKey: map[string]string{}}
 	if len(strings.TrimSpace(string(old))) == 0 {
-		return written, nil, "", nil
+		return written, nil, comments, nil
 	}
 	doc, err := yamlfile.Document(old, "", true)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, nil, comments, err
 	}
 	if doc == nil {
-		return written, nil, "", nil
+		return written, nil, comments, nil
 	}
 	if conflict := findConflicts(doc, ""); conflict != nil {
-		return nil, nil, "", conflict
-	}
-	var root yaml.Node
-	if err := yaml.Unmarshal(old, &root); err == nil {
-		fileComment = userComment(root.HeadComment, keys)
+		return nil, nil, comments, conflict
 	}
 	lines := strings.Split(string(old), "\n")
+	spans := map[int]keySpan{}
 	for i := 0; i+1 < len(doc.Content); i += 2 {
 		keyNode, valueNode := doc.Content[i], doc.Content[i+1]
 		end := len(lines)
@@ -170,13 +180,89 @@ func readWritten(old []byte, keys map[string]bool) (written map[string]writtenKe
 		}
 		var value any
 		if err := valueNode.Decode(&value); err != nil {
-			return nil, nil, "", err
+			return nil, nil, comments, err
 		}
 		raw := keyRaw(lines[keyNode.Line-1:end], keyNode.Value, value)
-		written[keyNode.Value] = writtenKey{raw: raw, comment: userComment(keyNode.HeadComment, keys), value: value}
+		written[keyNode.Value] = writtenKey{raw: raw, value: value}
+		spans[keyNode.Line-1] = keySpan{key: keyNode.Value, lines: strings.Count(raw, "\n")}
 		order = append(order, keyNode.Value)
 	}
-	return written, order, fileComment, nil
+	comments = scanComments(lines, spans, keys)
+	for key, c := range comments.byKey {
+		if w, ok := written[key]; ok {
+			w.comment = c
+			written[key] = w
+		}
+	}
+	return written, order, comments, nil
+}
+
+// keySpan 是旧文件里一个写了值的键：从哪一行起、占几行。
+type keySpan struct {
+	key   string
+	lines int
+}
+
+// scanComments 逐行把使用者的注释归给它下面的那一项：写了值的键，或者一条注释掉的骨架行。
+// 生成的文件头、说明、分节标题不是使用者的注释。第一项之前、与它隔着空行或生成行的注释是
+// 文件开头的注释；最后一项之后的是文件末尾的注释。
+func scanComments(lines []string, spans map[int]keySpan, keys map[string]bool) oldComments {
+	out := oldComments{byKey: map[string]string{}}
+	var pending []string
+	detached := false // pending 与下面的东西之间隔着空行或生成行
+	seenItem := false
+	flushToFile := func() {
+		if len(pending) > 0 {
+			out.file += strings.Join(pending, "\n") + "\n"
+			pending = nil
+		}
+	}
+	attach := func(key string) {
+		if !seenItem && detached {
+			flushToFile()
+		}
+		if len(pending) > 0 {
+			out.byKey[key] += strings.Join(pending, "\n") + "\n"
+			pending = nil
+		}
+		detached, seenItem = false, true
+	}
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+		trimmed := strings.TrimSpace(line)
+		if span, ok := spans[i]; ok {
+			attach(span.key)
+			i += span.lines - 1
+			continue
+		}
+		switch {
+		case trimmed == "":
+			if len(pending) > 0 {
+				detached = true
+			}
+		case isGeneratedComment(line):
+			if len(pending) > 0 {
+				detached = true
+			}
+		case isSkeletonKeyLine(line, keys):
+			key, _, _ := strings.Cut(strings.TrimPrefix(trimmed, "# "), ":")
+			attach(key)
+		case strings.HasPrefix(trimmed, "#"):
+			if detached && !seenItem {
+				flushToFile()
+			}
+			detached = false
+			pending = append(pending, line)
+		}
+	}
+	if len(pending) > 0 {
+		if seenItem {
+			out.trailer = strings.Join(pending, "\n") + "\n"
+		} else {
+			flushToFile()
+		}
+	}
+	return out
 }
 
 // keyRaw 是一个键的原文：去掉尾部的空行与整行注释（它们属于下一个键，或者只是排版）——
@@ -201,30 +287,25 @@ func keyRaw(chunk []string, key string, value any) string {
 	return strings.Join(chunk, "\n") + "\n"
 }
 
-// userComment 从一段注释里去掉骨架自己生成的行（文件头、说明、分节标题，任一语言，以及
-// 注释掉的"# KEY: …"骨架行），剩下的是使用者写的；每行带换行，没有就是空串。
-func userComment(comment string, keys map[string]bool) string {
-	var kept []string
-	for _, line := range strings.Split(comment, "\n") {
-		if strings.TrimSpace(line) == "" || isGeneratedComment(line) || isSkeletonKeyLine(line, keys) {
-			continue
-		}
-		kept = append(kept, line)
-	}
-	if len(kept) == 0 {
-		return ""
-	}
-	return strings.Join(kept, "\n") + "\n"
-}
-
-// isSkeletonKeyLine：这一行是骨架里注释掉的键行"# KEY: …"，KEY 是 configSchema 里的键。
+// isSkeletonKeyLine：这一行是骨架里注释掉的键行——"# KEY: 默认值  # 类型 | 说明"或"# KEY:  # 类型 | 说明"，
+// KEY 是 configSchema 里的键，行尾的说明以一个 configSchema 类型开头。使用者自己写的"# KEY: 说明"没有那段行尾，
+// 是注释，不是骨架行。
 func isSkeletonKeyLine(line string, keys map[string]bool) bool {
 	rest, ok := strings.CutPrefix(strings.TrimSpace(line), "# ")
 	if !ok {
 		return false
 	}
-	key, _, ok := strings.Cut(rest, ":")
-	return ok && keys[key]
+	key, after, ok := strings.Cut(rest, ":")
+	if !ok || !keys[key] {
+		return false
+	}
+	idx := strings.LastIndex(after, "  # ")
+	if idx < 0 {
+		return false
+	}
+	desc := after[idx+len("  # "):]
+	kind, _, _ := strings.Cut(desc, " ")
+	return manifest.ValidConfigType(kind)
 }
 
 // schemaKeys 是几份 configSchema 里出现过的全部键。

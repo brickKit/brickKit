@@ -112,8 +112,10 @@ Each config item is decided mechanically by the table below — no rename guessi
 | The new version dropped the item | Not written into the new file; the value stays in the archive, and the report lists it |
 | An item the new version added | Written as a skeleton line; a required one without a default becomes `KEY: ""`, and `up` stops until you fill it in |
 
-Comments you wrote at the top of the config file or above an item move along; the skeleton's own notes and section
-headings are regenerated for the new version, so they don't appear twice. Block scalars (`|`, `|+`, `>` and other
+Comments you wrote move along with what they're about: those at the top of the file stay at the top, those above an item
+stay above it (whether you wrote a value for the item or it's still a commented-out skeleton line), and those after the
+last item stay at the end. A comment above an item the new version dropped goes with it. The skeleton's own notes and
+section headings are regenerated for the new version, so they don't appear twice. Block scalars (`|`, `|+`, `>` and other
 multi-line forms) are carried over as written, parsing back to exactly the same value.
 
 When the old version doesn't stay, its whole config file is kept in `config/.archive/<component>@<old version>.yaml`, to
