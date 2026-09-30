@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/version"
 )
 
@@ -42,6 +44,47 @@ func (o *Options) loadOptions() project.LoadOptions {
 	return project.LoadOptions{DeployFile: o.DeployFile, NoLocal: o.NoLocal}
 }
 
+// annotFindsProject 标出"作用于项目"的命令：在项目的子目录里运行时向上找项目根（设计 §3）。
+// 只作用于当前目录的命令（init、release、publish、skills）不带它。
+const annotFindsProject = "brickkit/finds-project"
+
+// findsProject 看命令自己或它的上级有没有这个标记（local on 之类的子命令跟着 local 走）。
+func findsProject(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Annotations[annotFindsProject] == "true" {
+			return true
+		}
+	}
+	return false
+}
+
+// findsProjectAnnotation 是给项目命令用的 Annotations。
+func findsProjectAnnotation() map[string]string {
+	return map[string]string{annotFindsProject: "true"}
+}
+
+// display 把路径显示成相对使用者所在目录的样子。
+func (o *Options) display(path string) string { return displayPath(o.CallDir, path) }
+
+// enterProject 在项目命令开始前定位项目根：当前目录没有 brickkit.yaml 就往上找；找到了就
+// 换过去并说一句用的是哪个项目。找不到时什么都不改，命令照旧报它自己的 PROJECT_MISSING。
+func (o *Options) enterProject() error {
+	root, found, err := project.FindRoot(o.WorkDir)
+	if err != nil || !found {
+		return err
+	}
+	if filepath.Clean(root) == filepath.Clean(o.CallDir) {
+		return nil
+	}
+	o.WorkDir = root
+	name := filepath.Base(root)
+	if decl, err := projfile.ParseFile(project.NewLayout(root).DeclPath()); err == nil && decl.Project != "" {
+		name = decl.Project
+	}
+	o.Printf("%s\n", i18n.T(msgid.CliProjectFoundAbove, o.display(root), name))
+	return nil
+}
+
 // 命令分组 ID，用于 --help 中的归类展示。
 const (
 	groupProject   = "project"
@@ -54,7 +97,11 @@ const (
 type Options struct {
 	// WorkDir 是项目根目录。默认是进程当前目录；显式传入可让命令
 	// 不依赖进程级 cwd（测试与将来的嵌套调用都需要这个注入点）。
+	// 项目命令在子目录里运行时，它会被换成向上找到的项目根（见 enterProject）。
 	WorkDir string
+	// CallDir 是使用者敲命令时所在的目录（绝对路径）。项目命令向上找到项目后，WorkDir 换成
+	// 项目根，而显示给人看的路径、"我在哪个组件里"都按 CallDir 算——像 git 一样。
+	CallDir string
 	// DeployFile 是 -f / --file 指定的部署文件（deploy.prod.yaml 之类）：指定了就只读它，
 	// 本地模式被忽略（提案 §11.6）。空表示按默认规则选择。
 	DeployFile string
@@ -177,6 +224,18 @@ func NewRootCommand(opts *Options) *cobra.Command {
 				WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliRootHintLogLevel))
 		}
 		logging.SetLevel(opts.LogLevel)
+		if opts.CallDir == "" {
+			abs, err := filepath.Abs(opts.WorkDir)
+			if err != nil {
+				return err
+			}
+			opts.WorkDir, opts.CallDir = abs, abs
+		}
+		if findsProject(cmd) {
+			if err := opts.enterProject(); err != nil {
+				return err
+			}
+		}
 		logging.Info(i18n.T(msgid.LogCommandStarted),
 			"command", cmd.CommandPath(),
 			"args", args,

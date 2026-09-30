@@ -23,12 +23,13 @@ import (
 func newRestoreCommand(opts *Options) *cobra.Command {
 	var check bool
 	cmd := &cobra.Command{
-		Use:     "restore",
-		Short:   i18n.T(msgid.CliRestoreShort),
-		GroupID: groupProject,
-		Long:    i18n.T(msgid.CliRestoreLong),
-		Example: i18n.T(msgid.CliRestoreExample),
-		Args:    cobra.NoArgs,
+		Annotations: findsProjectAnnotation(),
+		Use:         "restore",
+		Short:       i18n.T(msgid.CliRestoreShort),
+		GroupID:     groupProject,
+		Long:        i18n.T(msgid.CliRestoreLong),
+		Example:     i18n.T(msgid.CliRestoreExample),
+		Args:        cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if check {
 				return runRestoreCheck(cmd.Context(), opts)

@@ -52,7 +52,7 @@ func runRelease(opts *Options, path string) error {
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(opts.WorkDir, dir)
 	}
-	target, err := release.PrepareAs(dir, displayPath(opts.WorkDir, dir))
+	target, err := release.PrepareAs(dir, opts.display(dir))
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func runReleaseLocal(opts *Options) error {
 			continue
 		}
 		seenID[f.ID], seenDir[dir] = true, true
-		target, err := release.PrepareAs(dir, displayPath(opts.WorkDir, dir))
+		target, err := release.PrepareAs(dir, opts.display(dir))
 		if err != nil {
 			return err
 		}

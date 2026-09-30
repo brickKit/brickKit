@@ -34,12 +34,13 @@ type addFlags struct {
 func newAddCommand(opts *Options) *cobra.Command {
 	var f addFlags
 	cmd := &cobra.Command{
-		Use:     i18n.T(msgid.CliAddAddComponentIDExactVersion),
-		Short:   i18n.T(msgid.CliAddShort),
-		Long:    i18n.T(msgid.CliAddLong),
-		Example: i18n.T(msgid.CliAddExample),
-		GroupID: groupComponent,
-		Args:    cobra.MaximumNArgs(1),
+		Annotations: findsProjectAnnotation(),
+		Use:         i18n.T(msgid.CliAddAddComponentIDExactVersion),
+		Short:       i18n.T(msgid.CliAddShort),
+		Long:        i18n.T(msgid.CliAddLong),
+		Example:     i18n.T(msgid.CliAddExample),
+		GroupID:     groupComponent,
+		Args:        cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			if ctx == nil {

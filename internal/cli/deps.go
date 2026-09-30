@@ -26,12 +26,13 @@ import (
 
 func newDepsCommand(opts *Options) *cobra.Command {
 	return &cobra.Command{
-		Use:     "deps [<id>[@<version>]]",
-		Short:   i18n.T(msgid.CliDepsShort),
-		GroupID: groupProject,
-		Long:    i18n.T(msgid.CliDepsLong),
-		Example: i18n.T(msgid.CliDepsExample),
-		Args:    cobra.MaximumNArgs(1),
+		Annotations: findsProjectAnnotation(),
+		Use:         "deps [<id>[@<version>]]",
+		Short:       i18n.T(msgid.CliDepsShort),
+		GroupID:     groupProject,
+		Long:        i18n.T(msgid.CliDepsLong),
+		Example:     i18n.T(msgid.CliDepsExample),
+		Args:        cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target := ""
 			if len(args) == 1 {

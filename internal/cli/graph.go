@@ -36,12 +36,13 @@ func newGraphCommand(opts *Options) *cobra.Command {
 	var ignoreShells bool
 
 	cmd := &cobra.Command{
-		Use:     "graph",
-		Short:   i18n.T(msgid.CliGraphShort),
-		GroupID: groupProject,
-		Long:    i18n.T(msgid.CliGraphLong),
-		Example: i18n.T(msgid.CliGraphExample),
-		Args:    cobra.NoArgs,
+		Annotations: findsProjectAnnotation(),
+		Use:         "graph",
+		Short:       i18n.T(msgid.CliGraphShort),
+		GroupID:     groupProject,
+		Long:        i18n.T(msgid.CliGraphLong),
+		Example:     i18n.T(msgid.CliGraphExample),
+		Args:        cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runGraph(cmd.Context(), opts, ignoreShells)
 		},

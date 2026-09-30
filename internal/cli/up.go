@@ -47,12 +47,13 @@ func newUpCommand(opts *Options) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:     "up",
-		Short:   i18n.T(msgid.CliUpShort),
-		GroupID: groupLifecycle,
-		Long:    i18n.T(msgid.CliUpLong),
-		Example: i18n.T(msgid.CliUpExample),
-		Args:    cobra.NoArgs,
+		Annotations: findsProjectAnnotation(),
+		Use:         "up",
+		Short:       i18n.T(msgid.CliUpShort),
+		GroupID:     groupLifecycle,
+		Long:        i18n.T(msgid.CliUpLong),
+		Example:     i18n.T(msgid.CliUpExample),
+		Args:        cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runUp(cmd.Context(), opts, upOptions{
 				dryRun: dryRun, ignoreShells: ignoreShells,
@@ -157,7 +158,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	if err := writeLocalEnvFiles(opts, plan.proj.Layout, plan.generated.LocalEnvFiles); err != nil {
 		return err
 	}
-	opts.Printf("%s\n", i18n.T(msgid.CliUpGenerated, displayPath(opts.WorkDir, path)))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpGenerated, opts.display(path)))
 	// 在 --dry-run 的分岔**之前**："这次会动哪些库"正是 dry-run 最该回答的问题
 	// 之一，而它与升不升级无关。从前它在分岔之后，于是 dry-run 里一个字都没有，
 	// 唯一提到迁移的地方是升级摘要里那一行——还得先检测到升级才会出现
@@ -167,7 +168,7 @@ func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 		renderUpgradeSummary(opts, plan)
 		renderLocalComponentCommands(opts, plan.localComponents)
 		opts.Printf("\n%s\n", i18n.T(msgid.CliUpDryRunOnlyGeneratesThe))
-		opts.Printf("%s\n", i18n.T(msgid.CliUpViewItCat, displayPath(opts.WorkDir, path)))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpViewItCat, opts.display(path)))
 		logging.Info(i18n.T(msgid.LogDeployFilesGenerated), "path", path)
 		return nil
 	}
@@ -977,7 +978,7 @@ func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.Lo
 				WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 		}
 
-		relative := displayPath(opts.WorkDir, path)
+		relative := opts.display(path)
 		opts.Printf("   %s@%s\n", file.Ref.ID, file.Ref.Version)
 		opts.Printf("%s\n", i18n.T(msgid.CliUpNoContainerIsGeneratedStart, file.Port))
 		opts.Printf("%s\n", i18n.T(msgid.CliUpEnvironmentVariables, relative))

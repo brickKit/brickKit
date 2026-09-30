@@ -127,13 +127,13 @@ func initWorkbenches(ctx context.Context, opts *Options, proj *project.Project, 
 		if err != nil {
 			e := clierr.As(err)
 			return clierr.New(e.Code, i18n.T(msgid.CliAddLocalInitFailed, lc.ID)).
-				WithDetail(i18n.T(msgid.LabelDir), displayPath(opts.WorkDir, dir)).
+				WithDetail(i18n.T(msgid.LabelDir), opts.display(dir)).
 				WithDetail(i18n.T(msgid.LabelReason), strings.TrimPrefix(strings.TrimSpace(e.Message), "❌ ")).
 				WithHint(append(append([]string{}, e.Hints...), i18n.T(msgid.CliAddLocalInitHintKept))...).
 				WithCause(err)
 		}
-		opts.Printf("   🧰 %s\n", i18n.T(msgid.CliAddLocalInitDone, displayPath(opts.WorkDir, dir), i18n.Count(msgid.CountDependencies, added.deps)))
-		renderGitignoreWarning(opts, displayPath(opts.WorkDir, filepath.Join(dir, project.FileGitignore)), added.gitignoreMissing)
+		opts.Printf("   🧰 %s\n", i18n.T(msgid.CliAddLocalInitDone, opts.display(dir), i18n.Count(msgid.CountDependencies, added.deps)))
+		renderGitignoreWarning(opts, opts.display(filepath.Join(dir, project.FileGitignore)), added.gitignoreMissing)
 		created++
 	}
 	if created > 0 {

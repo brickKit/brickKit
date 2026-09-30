@@ -38,12 +38,13 @@ func newLintCommand(opts *Options) *cobra.Command {
 	var strict bool
 
 	cmd := &cobra.Command{
-		Use:     "lint",
-		Short:   i18n.T(msgid.CliLintShort),
-		GroupID: groupProject,
-		Long:    i18n.T(msgid.CliLintLong),
-		Example: i18n.T(msgid.CliLintExample),
-		Args:    cobra.NoArgs,
+		Annotations: findsProjectAnnotation(),
+		Use:         "lint",
+		Short:       i18n.T(msgid.CliLintShort),
+		GroupID:     groupProject,
+		Long:        i18n.T(msgid.CliLintLong),
+		Example:     i18n.T(msgid.CliLintExample),
+		Args:        cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLint(opts, strict)
 		},
@@ -94,7 +95,7 @@ func localSkippedNote() string {
 // 跨文件的问题（部署文件漏了组件、$var: 没定义、config 文件对不上组件）只有各文件都
 // 能读时才问得出来，单独列一行。
 func lintProject(opts *Options, layout project.Layout, strict bool) ([]lintFile, []string) {
-	head := lintFile{path: displayPath(opts.WorkDir, layout.DeclPath())}
+	head := lintFile{path: opts.display(layout.DeclPath())}
 	decl, err := projfile.ParseFile(layout.DeclPath())
 	if err != nil {
 		head.errors = append(head.errors, clierr.As(err))
@@ -106,7 +107,7 @@ func lintProject(opts *Options, layout project.Layout, strict bool) ([]lintFile,
 	files := []lintFile{head}
 	parsed := true
 	for _, d := range lintDeployFiles(opts, layout) {
-		f := lintFile{path: displayPath(opts.WorkDir, d.path)}
+		f := lintFile{path: opts.display(d.path)}
 		_, warnings, err := deployfile.ParseFile(d.path, d.role)
 		if err != nil {
 			f.errors = append(f.errors, clierr.As(err))
@@ -237,7 +238,7 @@ func lintCrossFile(opts *Options, strict bool) ([]lintFile, []string) {
 func lintedDeployName(opts *Options, proj *project.Project) string {
 	switch {
 	case proj != nil:
-		return displayPath(opts.WorkDir, proj.DeployPath)
+		return opts.display(proj.DeployPath)
 	case opts.DeployFile != "":
 		return opts.DeployFile
 	default:
@@ -247,7 +248,7 @@ func lintedDeployName(opts *Options, proj *project.Project) string {
 
 // lintManifest 检查一份 component.yaml。dirID 非空时（项目模式）还要核对目录名与 metadata.id 一致。
 func lintManifest(opts *Options, path, dirID string) lintFile {
-	f := lintFile{path: displayPath(opts.WorkDir, path)}
+	f := lintFile{path: opts.display(path)}
 
 	raw, err := os.ReadFile(path)
 	if err != nil {

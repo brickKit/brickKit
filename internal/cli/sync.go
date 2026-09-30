@@ -25,12 +25,13 @@ import (
 // newSyncCommand 实现 brickkit sync。
 func newSyncCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "sync",
-		Short:   i18n.T(msgid.CliSyncShort),
-		GroupID: groupComponent,
-		Long:    i18n.T(msgid.CliSyncLong),
-		Example: i18n.T(msgid.CliSyncExample),
-		Args:    cobra.NoArgs,
+		Annotations: findsProjectAnnotation(),
+		Use:         "sync",
+		Short:       i18n.T(msgid.CliSyncShort),
+		GroupID:     groupComponent,
+		Long:        i18n.T(msgid.CliSyncLong),
+		Example:     i18n.T(msgid.CliSyncExample),
+		Args:        cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSync(cmd.Context(), opts)
 		},

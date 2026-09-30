@@ -1756,6 +1756,7 @@ cli.publish.hint_visibility: "写 --visibility public 或 --visibility private�
 cli.release.hint_local_or_path: "去掉 --path 就发布全部本地源组件；去掉 --local 就只发布 --path 指的那一个"
 cli.restore.hint_inside_repo: "brickkit restore 读的是包含项目的那个 git 仓库的最后一次提交，所以 deploy.yaml 必须在这个仓库里"
 cli.root.hint_log_level: "例如：--log-level info（或者在 shell 里设一次 BRICKKIT_LOG_LEVEL）"
+cli.project_found_above: "📁 项目：%[1]s（%[2]s）"
 cli.up.hint_install_program: "安装上面点名的程序，并确认它在 PATH 里"
 cli.up.hint_set_env_var: "把 %[1]s=<值> 写进项目的 .env，或者在执行 brickkit up 之前在这个 shell 里 export 它"
 cli.up.hint_stop_session: "在运行那个 brickkit up 的终端里按 Ctrl+C（pid %[1]d）；brickkit status 也会显示这个会话"

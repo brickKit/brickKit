@@ -42,12 +42,13 @@ import (
 // newFetchCommand 实现 brickkit fetch。
 func newFetchCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     i18n.T(msgid.CliFetchFetchComponentIDVersion),
-		Short:   i18n.T(msgid.CliFetchShort),
-		GroupID: groupComponent,
-		Long:    i18n.T(msgid.CliFetchLong),
-		Example: i18n.T(msgid.CliFetchExample),
-		Args:    cobra.ExactArgs(1),
+		Annotations: findsProjectAnnotation(),
+		Use:         i18n.T(msgid.CliFetchFetchComponentIDVersion),
+		Short:       i18n.T(msgid.CliFetchShort),
+		GroupID:     groupComponent,
+		Long:        i18n.T(msgid.CliFetchLong),
+		Example:     i18n.T(msgid.CliFetchExample),
+		Args:        cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFetch(cmd.Context(), opts, args[0])
 		},
@@ -115,7 +116,7 @@ func runFetch(ctx context.Context, opts *Options, arg string) error {
 	// 版本化服务名。上面已经把它作为目录打过一次，这里去掉，免得同一个名字
 	// 在每一行里重复一遍。
 	service := manifest.ServiceName(id, version)
-	dir := displayPath(opts.WorkDir, client.ArtifactDir(id, version))
+	dir := opts.display(client.ArtifactDir(id, version))
 	opts.Printf("%s\n", i18n.T(msgid.CliFetchDownloadedTheArtifactsOfNot, ref, project.FileDecl))
 	opts.Printf("   %s/\n", dir)
 	for _, file := range res.Downloaded {

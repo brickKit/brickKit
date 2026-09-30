@@ -15,12 +15,13 @@ import (
 // newDownCommand 实现 brickkit down。
 func newDownCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "down",
-		Short:   i18n.T(msgid.CliDownStopEveryComponentInOne),
-		GroupID: groupLifecycle,
-		Long:    i18n.T(msgid.CliDownStopTheProjectTheStop),
-		Example: "  brickkit down",
-		Args:    cobra.NoArgs,
+		Annotations: findsProjectAnnotation(),
+		Use:         "down",
+		Short:       i18n.T(msgid.CliDownStopEveryComponentInOne),
+		GroupID:     groupLifecycle,
+		Long:        i18n.T(msgid.CliDownStopTheProjectTheStop),
+		Example:     "  brickkit down",
+		Args:        cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runDown(cmd.Context(), opts)
 		},

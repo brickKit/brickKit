@@ -31,10 +31,11 @@ func newLoginCommand(opts *Options) *cobra.Command {
 	var f loginFlags
 
 	cmd := &cobra.Command{
-		Use:     "login",
-		Short:   i18n.T(msgid.CliLoginShort),
-		GroupID: groupMarket,
-		Long:    i18n.T(msgid.CliLoginLong),
+		Annotations: findsProjectAnnotation(),
+		Use:         "login",
+		Short:       i18n.T(msgid.CliLoginShort),
+		GroupID:     groupMarket,
+		Long:        i18n.T(msgid.CliLoginLong),
 		Example: `  brickkit login
   brickkit login --market https://market.example.com/api/v1
   echo "$PASSWORD" | brickkit login --username ci-bot --password-stdin`,

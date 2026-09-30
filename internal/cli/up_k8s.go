@@ -36,7 +36,7 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 		return err
 	}
 
-	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sGeneratedManifests, i18n.Count(msgid.CountManifests, len(plan.k8s.Files)), displayPath(opts.WorkDir, dir)))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sGeneratedManifests, i18n.Count(msgid.CountManifests, len(plan.k8s.Files)), opts.display(dir)))
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sNamespace, plan.k8s.Namespace))
 	renderNetworkPolicyNotice(opts, plan.k8s)
 	// 与 Docker 侧同一条：在 --dry-run 的分岔之前说清会不会动数据库
@@ -45,7 +45,7 @@ func upK8s(ctx context.Context, opts *Options, flags upOptions, plan *upPlan) er
 	if flags.dryRun {
 		renderUpgradeSummary(opts, plan)
 		opts.Printf("\n%s\n", i18n.T(msgid.CliUpK8sDryRunOnlyGeneratesManifests))
-		opts.Printf("%s\n", i18n.T(msgid.CliUpK8sViewThemLsR, displayPath(opts.WorkDir, dir)))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpK8sViewThemLsR, opts.display(dir)))
 		logging.Info(i18n.T(msgid.LogK8sManifestsGenerated), "dir", dir, "files", len(plan.k8s.Files))
 		return nil
 	}

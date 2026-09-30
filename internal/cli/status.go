@@ -20,12 +20,13 @@ import (
 // newStatusCommand 实现 brickkit status。
 func newStatusCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "status",
-		Short:   i18n.T(msgid.CliStatusShort),
-		GroupID: groupLifecycle,
-		Long:    i18n.T(msgid.CliStatusLong),
-		Example: "  brickkit status",
-		Args:    cobra.NoArgs,
+		Annotations: findsProjectAnnotation(),
+		Use:         "status",
+		Short:       i18n.T(msgid.CliStatusShort),
+		GroupID:     groupLifecycle,
+		Long:        i18n.T(msgid.CliStatusLong),
+		Example:     "  brickkit status",
+		Args:        cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runStatus(cmd.Context(), opts)
 		},

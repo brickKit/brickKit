@@ -24,12 +24,13 @@ func newNewCommand(opts *Options) *cobra.Command {
 	var contract string
 	var shell bool
 	cmd := &cobra.Command{
-		Use:     "new <scope>/<name>",
-		Short:   i18n.T(msgid.CliNewShort),
-		GroupID: groupComponent,
-		Long:    i18n.T(msgid.CliNewLong),
-		Example: i18n.T(msgid.CliNewExample),
-		Args:    cobra.ExactArgs(1),
+		Annotations: findsProjectAnnotation(),
+		Use:         "new <scope>/<name>",
+		Short:       i18n.T(msgid.CliNewShort),
+		GroupID:     groupComponent,
+		Long:        i18n.T(msgid.CliNewLong),
+		Example:     i18n.T(msgid.CliNewExample),
+		Args:        cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runNew(opts, args[0], path, contract, shell)
 		},
@@ -48,20 +49,25 @@ func runNew(opts *Options, id, path, contract string, shell bool) error {
 		return err
 	}
 
-	rel := path
-	if rel == "" {
-		// 外壳是项目自己的代码，放 shell/（本地源 local-shells），普通组件放 components/
-		base := project.DirComponents
+	// --path 相对使用者所在的目录（像 cp、mkdir 一样）；默认位置在项目里：
+	// 外壳是项目自己的代码，放 shell/（本地源 local-shells），普通组件放 components/。
+	// 在项目的子目录里运行时 WorkDir 已是项目根，默认位置就落在顶层（设计 §3、§5）。
+	// 绝对路径就是它自己：filepath.Join 会把它当成相对路径接在后面，写出去的位置和屏幕上打印的对不上。
+	dir, base := path, opts.CallDir
+	if dir == "" {
+		sub := project.DirComponents
 		if shell {
-			base = project.DirShell
+			sub = project.DirShell
 		}
-		rel = filepath.Join(base, id)
+		dir, base = filepath.Join(sub, id), opts.WorkDir
 	}
-	// 绝对路径就是它自己：filepath.Join 会把它当成相对路径接在 WorkDir 后面，
-	// 写出去的位置和屏幕上打印的对不上。
-	dir := rel
 	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(opts.WorkDir, rel)
+		dir = filepath.Join(base, dir)
+	}
+	// 显示给人看的路径：他给的是绝对路径就照原样，否则相对他所在的目录（下一步的 cd 要能照着敲）
+	rel := dir
+	if !filepath.IsAbs(path) {
+		rel = opts.display(dir)
 	}
 
 	if _, statErr := os.Stat(dir); statErr == nil {

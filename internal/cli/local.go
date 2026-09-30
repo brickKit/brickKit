@@ -27,12 +27,13 @@ import (
 
 func newLocalCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "local",
-		Short:   i18n.T(msgid.CliLocalShort),
-		GroupID: groupLifecycle,
-		Long:    i18n.T(msgid.CliLocalLong),
-		Example: i18n.T(msgid.CliLocalExample),
-		Args:    cobra.NoArgs,
+		Annotations: findsProjectAnnotation(),
+		Use:         "local",
+		Short:       i18n.T(msgid.CliLocalShort),
+		GroupID:     groupLifecycle,
+		Long:        i18n.T(msgid.CliLocalLong),
+		Example:     i18n.T(msgid.CliLocalExample),
+		Args:        cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLocalStatus(opts)
 		},

@@ -1691,6 +1691,7 @@ const (
 	CliReleaseHintLocalOrPath                                  ID = "cli.release.hint_local_or_path"
 	CliRestoreHintInsideRepo                                   ID = "cli.restore.hint_inside_repo"
 	CliRootHintLogLevel                                        ID = "cli.root.hint_log_level"
+	CliProjectFoundAbove                                       ID = "cli.project_found_above"
 	CliUpHintInstallProgram                                    ID = "cli.up.hint_install_program"
 	CliUpHintSetEnvVar                                         ID = "cli.up.hint_set_env_var"
 	CliUpHintStopSession                                       ID = "cli.up.hint_stop_session"

@@ -46,12 +46,13 @@ const (
 func newBuildCommand(opts *Options) *cobra.Command {
 	var force bool
 	cmd := &cobra.Command{
-		Use:     i18n.T(msgid.CliBuildUse),
-		Short:   i18n.T(msgid.CliBuildShort),
-		Long:    i18n.T(msgid.CliBuildLong),
-		Example: i18n.T(msgid.CliBuildExample),
-		GroupID: groupComponent,
-		Args:    cobra.MaximumNArgs(1),
+		Annotations: findsProjectAnnotation(),
+		Use:         i18n.T(msgid.CliBuildUse),
+		Short:       i18n.T(msgid.CliBuildShort),
+		Long:        i18n.T(msgid.CliBuildLong),
+		Example:     i18n.T(msgid.CliBuildExample),
+		GroupID:     groupComponent,
+		Args:        cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			if ctx == nil {

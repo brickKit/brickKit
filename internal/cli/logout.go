@@ -29,12 +29,13 @@ func newLogoutCommand(opts *Options) *cobra.Command {
 	var keepRemote bool
 
 	cmd := &cobra.Command{
-		Use:     "logout",
-		Short:   i18n.T(msgid.CliLogoutLogOutOfTheMarket),
-		GroupID: groupMarket,
-		Long:    i18n.T(msgid.CliLogoutLogOutOfTheComponent),
-		Example: i18n.T(msgid.CliLogoutBrickkitLogoutBrickkitLogoutKeep),
-		Args:    cobra.NoArgs,
+		Annotations: findsProjectAnnotation(),
+		Use:         "logout",
+		Short:       i18n.T(msgid.CliLogoutLogOutOfTheMarket),
+		GroupID:     groupMarket,
+		Long:        i18n.T(msgid.CliLogoutLogOutOfTheComponent),
+		Example:     i18n.T(msgid.CliLogoutBrickkitLogoutBrickkitLogoutKeep),
+		Args:        cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLogout(cmd.Context(), opts, keepRemote)
 		},
@@ -63,13 +64,13 @@ func runLogout(ctx context.Context, opts *Options, keepRemote bool) error {
 		if err := source.RemoveCredentials(path); err != nil {
 			return err
 		}
-		opts.Printf("%s\n", i18n.T(msgid.CliLogoutDeleted, displayPath(opts.WorkDir, path)))
+		opts.Printf("%s\n", i18n.T(msgid.CliLogoutDeleted, opts.display(path)))
 		opts.Printf("%s\n", i18n.T(msgid.CliLogoutTheTokenInsideItIf))
 		return nil
 
 	case creds == nil:
 		// 文件根本不存在：没登录，什么都不用做，也不算失败
-		opts.Printf("%s\n", i18n.T(msgid.CliLogoutThereAreNoLoginCredentials, displayPath(opts.WorkDir, path)))
+		opts.Printf("%s\n", i18n.T(msgid.CliLogoutThereAreNoLoginCredentials, opts.display(path)))
 		opts.Printf("%s\n", i18n.T(msgid.CliLogoutLogInToTheMarket))
 		return nil
 	}
@@ -84,7 +85,7 @@ func runLogout(ctx context.Context, opts *Options, keepRemote bool) error {
 
 	opts.Printf("%s\n", i18n.T(msgid.CliLogoutLoggedOut))
 	opts.Printf("%s\n", i18n.T(msgid.CliLogoutUser, creds.Username))
-	opts.Printf("%s\n", i18n.T(msgid.CliLogoutDeletedDetail, displayPath(opts.WorkDir, path)))
+	opts.Printf("%s\n", i18n.T(msgid.CliLogoutDeletedDetail, opts.display(path)))
 	if remote != "" {
 		opts.Printf("   ⚠️ %s\n", remote)
 		opts.Printf("%s\n", i18n.T(msgid.CliLogoutThatTokenRemainsValidOn, creds.ExpiresAt.Format("2006-01-02 15:04:05")))

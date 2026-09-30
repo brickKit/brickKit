@@ -1769,6 +1769,7 @@ cli.publish.hint_visibility: "Use --visibility public or --visibility private; l
 cli.release.hint_local_or_path: "Drop --path to release every local-source component, or drop --local to release the one at --path"
 cli.restore.hint_inside_repo: "brickkit restore reads the last commit of the git repository that holds the project, so deploy.yaml must be inside that repository"
 cli.root.hint_log_level: "For example: --log-level info (or set BRICKKIT_LOG_LEVEL once for the whole shell)"
+cli.project_found_above: "📁 Project: %[1]s (%[2]s)"
 cli.up.hint_install_program: "Install the program named above and make sure it is on PATH"
 cli.up.hint_set_env_var: "Add %[1]s=<value> to the project's .env, or export it in this shell before brickkit up"
 cli.up.hint_stop_session: "Press Ctrl+C in the terminal running that brickkit up (pid %[1]d); brickkit status also shows the session"
