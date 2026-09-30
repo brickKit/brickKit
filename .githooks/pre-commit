@@ -22,7 +22,8 @@ dirty=$(git diff --name-only -- $paths; git ls-files --others --exclude-standard
 if [ -n "$dirty" ]; then
 	echo "❌ 这些文档还有没暂存的改动或没跟踪的新文件，合集会与这次提交对不上："
 	echo "$dirty" | sed 's/^/   /'
-	echo "   把它们整个 git add 进来（或 git stash 掉），再提交；确实要分开提交就用 --no-verify，之后跑 make generate-llms"
+	echo "   把它们整个 git add 进来，或者用 git stash push --keep-index --include-untracked 先收起没暂存的部分，再提交；"
+	echo "   确实要分开提交就用 --no-verify，之后跑 make generate-llms"
 	exit 1
 fi
 if ! command -v go >/dev/null 2>&1; then
@@ -30,6 +31,9 @@ if ! command -v go >/dev/null 2>&1; then
 	exit 0
 fi
 go run ./cmd/gen-llms
-for p in llms llms.txt llms.zh.txt; do
-	if [ -e "$p" ]; then git add -- "$p"; fi
+# 只暂存生成器的产出：两份 llms*.txt 与 llms/<语言>/*.md（llms/ 下别的杂散文件不碰）；
+# 生成器删掉的旧合集，把删除也记进这次提交
+for f in llms.txt llms.zh.txt llms/en/*.md llms/zh/*.md; do
+	if [ -e "$f" ]; then git add -- "$f"; fi
 done
+git ls-files --deleted -- llms | while IFS= read -r f; do git rm -q --cached -- "$f"; done

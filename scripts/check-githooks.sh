@@ -48,6 +48,7 @@ cat >"$tmp/bin/go" <<EOF
 #!/bin/sh
 mkdir -p llms/en
 date +%s%N >llms/en/00-core.md
+if [ -n "\$FAKE_DELETE" ]; then rm -f "\$FAKE_DELETE"; fi
 echo ran >>"$tmp/go-calls"
 EOF
 chmod +x "$tmp/bin/go"
@@ -80,6 +81,31 @@ else
 	bad "提交失败：$out"
 fi
 
+echo "▶ llms/ 下的杂散文件不跟着合集进提交"
+echo "scratch" >"$repo/llms/notes.txt"
+echo "stray" >>"$repo/$A"
+g add "$A"
+(cd "$repo" && g commit -qm stray >/dev/null 2>&1) || true
+if g show --name-only --format= HEAD | grep -q "llms/notes.txt"; then
+	bad "llms/notes.txt 被钩子加进了提交"
+else
+	ok "只加了生成出来的合集"
+fi
+rm -f "$repo/llms/notes.txt"
+
+echo "▶ 生成器删掉的旧合集，删除也进提交"
+echo "old" >"$repo/llms/en/09.md"
+g add llms/en/09.md
+g commit -qm old-part --no-verify
+echo "shrink" >>"$repo/$A"
+g add "$A"
+(cd "$repo" && FAKE_DELETE=llms/en/09.md g commit -qm shrink >/dev/null 2>&1) || true
+if g show --name-status --format= HEAD | grep -q "^D.*llms/en/09.md"; then
+	ok "llms/en/09.md 的删除进了这次提交"
+else
+	bad "生成器删掉的 llms/en/09.md 没有记进提交"
+fi
+
 echo "▶ 只改了别的文件：什么都不做"
 before=$(calls)
 echo "y" >>"$repo/other.txt"
@@ -98,6 +124,8 @@ if out=$(cd "$repo" && g commit -qm half 2>&1); then
 	bad "半暂存的文档却提交成功了"
 else
 	if echo "$out" | grep -q "$A"; then ok "拒绝了，并点名 $A"; else bad "拒绝了，但没点名文件：$out"; fi
+	# 普通的 git stash 会把已经暂存的也一起收走：出路要给保留暂存区的那种
+	if echo "$out" | grep -q -- "--keep-index"; then ok "给出的 stash 出路保留暂存区"; else bad "stash 的建议会连暂存区一起收走：$out"; fi
 fi
 g add "$A"
 g commit -qm half-done --no-verify
