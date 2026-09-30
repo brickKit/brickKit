@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-msgid check-llms check-docs-bilingual check-market-api check-market-mod check-components check-guards check-install-sh check-smoke check-no-binaries check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + msgid 常量与英文目录一致 + 文档合集 + 双语镜像 + 市场 API 表 + 市场模块依赖清单 + 测试组件合规 + 架构与报错守卫 + 安装脚本 + 发布冒烟 + 仓库无二进制 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-msgid check-llms check-githooks check-docs-bilingual check-market-api check-market-mod check-components check-guards check-install-sh check-smoke check-no-binaries check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + msgid 常量与英文目录一致 + 文档合集 + 提交钩子 + 双语镜像 + 市场 API 表 + 市场模块依赖清单 + 测试组件合规 + 架构与报错守卫 + 安装脚本 + 发布冒烟 + 仓库无二进制 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
 # 教程的输出核对（check-guide-output、check-guides）随旧教程一起撤下：
 # tutorials/ 先只建目录，没有教程可核对。写教程的那一阶段要为 tutorials/
 # 重新建一个逐行核对真实输出的检查（旧脚本在 git 历史里，机制可以照搬）。
@@ -207,6 +207,14 @@ generate-llms: ## 重新生成 llms/ 下的文档合集与 llms*.txt 的合集�
 .PHONY: check-llms
 check-llms: ## 检查签入的 llms/ 合集就是当前文档生成的那一份
 	@$(GO) test ./internal/llmsgen/ -count=1
+
+.PHONY: hooks
+hooks: ## 启用仓库自带的提交钩子（.githooks/：提交时自动更新 llms/ 合集），每个克隆一次
+	@git config core.hooksPath .githooks && echo "✅ 已启用 .githooks/（git config core.hooksPath .githooks）"
+
+.PHONY: check-githooks
+check-githooks: ## 真跑提交钩子：文档改动会重新生成并暂存合集，半暂存或未跟踪的文档会被拒绝
+	@bash scripts/check-githooks.sh
 
 .PHONY: check-market-api
 check-market-api: ## 检查市场 API 参考（docs/{zh,en}/11-reference/06-market-api.md）的端点表与真实路由表双向一致、中英一致

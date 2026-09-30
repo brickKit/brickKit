@@ -255,7 +255,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `cmd/gen-llms/` | Generates `llms/` |
 
 Elsewhere: `market-server/` (the optional component market, its own Go module), `tools/i18n/` (one-off i18n
-migration scripts), `scripts/` (lint checks, install checks, release), `install.sh`.
+migration scripts), `scripts/` (lint checks, install checks, release), `install.sh`, `.githooks/` (the commit hook).
 
 ### Features → code
 
@@ -280,7 +280,7 @@ migration scripts), `scripts/` (lint checks, install checks, release), `install.
 | "Did you mean" | `internal/cli/didyoumean.go` | `suggest` |
 | How errors look | `internal/clierr/clierr.go`, `internal/cli/shown.go` | |
 | Adding a message | `internal/i18n/locales/en.yaml`, `internal/i18n/locales/zh.yaml`, then `make generate-msgid` | `msgid` |
-| Documentation bundles | `cmd/gen-llms/`, `internal/llmsgen/` | `make generate-llms` |
+| Documentation bundles | `cmd/gen-llms/`, `internal/llmsgen/` | `.githooks/pre-commit`, `make generate-llms` |
 
 ### Tests and checks
 

@@ -1,0 +1,24 @@
+#!/bin/sh
+# 提交前让 llms/ 下的文档合集跟上这次提交里的文档（make hooks 启用本钩子）。
+# 生成器读的是工作区：这些文件还有没暂存的改动、或有没跟踪的新文档时，拒绝提交——
+# 那样生成的合集与提交的内容对不上。没有 go 时只提醒，make lint 的 check-llms 兜底。
+set -e
+paths='docs AGENTS.md AGENTS.zh.md llms.txt llms.zh.txt'
+# shellcheck disable=SC2086
+[ -n "$(git diff --cached --name-only -- $paths)" ] || exit 0
+# shellcheck disable=SC2086
+dirty=$(git diff --name-only -- $paths; git ls-files --others --exclude-standard -- docs)
+if [ -n "$dirty" ]; then
+	echo "❌ 这些文档还有没暂存的改动或没跟踪的新文件，合集会与这次提交对不上："
+	echo "$dirty" | sed 's/^/   /'
+	echo "   把它们整个 git add 进来（或 git stash 掉），再提交；确实要分开提交就用 --no-verify，之后跑 make generate-llms"
+	exit 1
+fi
+if ! command -v go >/dev/null 2>&1; then
+	echo "⚠️  找不到 go，没有重新生成 llms/ 合集；make lint（check-llms）会指出它过期了"
+	exit 0
+fi
+go run ./cmd/gen-llms
+for p in llms llms.txt llms.zh.txt; do
+	if [ -e "$p" ]; then git add -- "$p"; fi
+done

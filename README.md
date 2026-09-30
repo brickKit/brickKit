@@ -455,6 +455,8 @@ zero problems:
 | `make check-i18n` | No hard-coded Chinese or English text in production code; every English plural form is present |
 | `make check-guards` | Architecture boundaries, a suggestion on every error, the i18n guards |
 | `make check-install-sh` | `install.sh` installs, and **really** refuses when the checksum is wrong |
+| `make check-llms` | The documentation bundles in `llms/` and the bundle list in `llms*.txt` equal a fresh `make generate-llms` |
+| `make check-githooks` | The commit hook regenerates and stages the bundles for a docs change, and refuses half-staged or untracked docs |
 
 A checklist pointing at a test that no longer exists fails the build. So does a test target whose directory has gone
 empty — **a suite that silently skips is worse than no suite**, because it still takes up a row on the scoreboard.

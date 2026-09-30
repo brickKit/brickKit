@@ -13,7 +13,14 @@ make build            # bin/brickkit + bin/market-server
 make test             # 单元测试
 make test-all         # 全部测试套件，含 checklist / regression 门禁
 make lint             # vet + 全部文档一致性检查
+make hooks            # 每个克隆一次：启用仓库自带的提交钩子（.githooks/）
 ```
+
+**每个克隆运行一次 `make hooks`，启用提交钩子**（它会设置 `git config core.hooksPath .githooks`；git 从不自己启用仓库里的钩子）。
+提交里动了 `docs/`、`AGENTS*.md` 或 `llms*.txt` 时，钩子会跑 `make generate-llms`——重新生成 `llms/` 下给网页端 AI 读的文档合集——
+并把它们加进同一个提交。那些文件还有没暂存的改动、或者 `docs/` 里有没跟踪的新页面时，钩子拒绝提交：从工作区生成的合集会与这次提交
+对不上。把整个文件暂存（或 stash 掉）再提交；没装钩子的话，自己跑 `make generate-llms`——`make lint` 里的 `make check-llms`
+会在合集过期时失败。
 
 **没有任何 CI 会在 PR 上自动跑。** 仓库里唯一的 GitHub Actions 工作流（`.github/workflows/release.yml`）只在推 `v*` tag 时触发，负责构建/签名/发布——分支或 PR 上不会跑。也就是说，开 PR 之前你自己在本机跑通 `make lint` 和 `make test-all`，是唯一的关卡。你机器上跑红的东西，到任何 reviewer 那里也一样是红的。
 

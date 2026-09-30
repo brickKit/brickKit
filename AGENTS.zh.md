@@ -249,7 +249,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `cmd/gen-schemas/` | 生成 `schemas/*.json` |
 | `cmd/gen-llms/` | 生成 `llms/` |
 
-其他地方：`market-server/`（可选的组件市场，独立的 Go 模块）、`tools/i18n/`（多语言迁移时的一次性脚本）、`scripts/`（lint 检查、安装检查、发布）、`install.sh`。
+其他地方：`market-server/`（可选的组件市场，独立的 Go 模块）、`tools/i18n/`（多语言迁移时的一次性脚本）、`scripts/`（lint 检查、安装检查、发布）、`install.sh`、`.githooks/`（提交钩子）。
 
 ### 功能 → 代码
 
@@ -274,7 +274,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | "你是不是想写" | `internal/cli/didyoumean.go` | `suggest` |
 | 报错长什么样 | `internal/clierr/clierr.go`、`internal/cli/shown.go` | |
 | 加一条消息 | `internal/i18n/locales/en.yaml`、`internal/i18n/locales/zh.yaml`，再跑 `make generate-msgid` | `msgid` |
-| 文档合集 | `cmd/gen-llms/`、`internal/llmsgen/` | `make generate-llms` |
+| 文档合集 | `cmd/gen-llms/`、`internal/llmsgen/` | `.githooks/pre-commit`、`make generate-llms` |
 
 ### 测试与检查
 

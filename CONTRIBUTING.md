@@ -18,7 +18,15 @@ make build            # bin/brickkit + bin/market-server
 make test             # unit tests
 make test-all         # every suite, including the checklist / regression gates
 make lint             # vet + every documentation-consistency check
+make hooks            # once per clone: enable the repository's commit hook (.githooks/)
 ```
+
+**Enable the commit hook once per clone** with `make hooks` (it sets `git config core.hooksPath .githooks`; git never
+enables a repository's hooks by itself). When a commit touches `docs/`, `AGENTS*.md` or `llms*.txt`, the hook runs
+`make generate-llms` — rebuilding the documentation bundles in `llms/` that web AIs read — and adds them to the same
+commit. It refuses when one of those files still has unstaged changes, or when `docs/` has an untracked new page:
+bundles built from the working tree would not match the commit. Stage the whole file (or stash it) and commit again;
+without the hook, run `make generate-llms` yourself — `make check-llms` in `make lint` fails on stale bundles.
 
 **No CI runs on pull requests.** The repository's only GitHub Actions workflow (`.github/workflows/release.yml`)
 triggers on a `v*` tag push and builds, signs and publishes a release — never on a branch or a PR. So `make lint`
