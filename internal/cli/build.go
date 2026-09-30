@@ -61,6 +61,8 @@ func newBuildCommand(opts *Options) *cobra.Command {
 			arg := ""
 			if len(args) == 1 {
 				arg = args[0]
+			} else if id, ok := componentHere(opts); ok {
+				arg = id
 			}
 			return runBuild(ctx, opts, arg, force)
 		},

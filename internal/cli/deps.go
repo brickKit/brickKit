@@ -37,6 +37,8 @@ func newDepsCommand(opts *Options) *cobra.Command {
 			target := ""
 			if len(args) == 1 {
 				target = args[0]
+			} else if id, ok := componentHere(opts); ok {
+				target = id
 			}
 			return runDeps(cmd.Context(), opts, target)
 		},

@@ -45,6 +45,17 @@ func componentAt(l project.Layout, decl *projfile.File, dir string) (string, boo
 	return "", false
 }
 
+// componentHere 是使用者所在目录属于的本地组件（在项目根或非组件目录里时 ok 为 false）。
+// build、deps 不带参数时用它：在组件目录里说的"这个"，就是它（设计 §3）。
+func componentHere(opts *Options) (string, bool) {
+	l := project.NewLayout(opts.WorkDir)
+	decl, err := projfile.ParseFile(l.DeclPath())
+	if err != nil {
+		return "", false // 读不了就当没有：命令自己会在装载时把错报清楚
+	}
+	return componentAt(l, decl, opts.CallDir)
+}
+
 // applyFocusIntent 把这次 up 的焦点意图落进文件（设计 §4.3）：--all 清掉；--focus 设成它；
 // 在组件目录里、两个都没写就设成这个组件；否则不动。
 func applyFocusIntent(opts *Options, flags upOptions) error {
