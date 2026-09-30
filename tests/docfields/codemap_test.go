@@ -47,17 +47,25 @@ func codeMapPaths(section string) []string {
 	return out
 }
 
+// packageDirs 是 internal/ 与 cmd/ 下每一个有非测试 Go 源文件的目录——嵌套的包（msgidgen、projecttest……）也算。
 func packageDirs(t *testing.T) []string {
 	t.Helper()
+	seen := map[string]bool{}
 	var out []string
 	for _, top := range []string{"internal", "cmd"} {
-		entries, err := os.ReadDir(filepath.Join(repoRoot, top))
-		require.NoError(t, err)
-		for _, e := range entries {
-			if e.IsDir() {
-				out = append(out, top+"/"+e.Name())
+		err := filepath.WalkDir(filepath.Join(repoRoot, top), func(p string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
+				return err
 			}
-		}
+			rel, _ := filepath.Rel(repoRoot, filepath.Dir(p))
+			rel = filepath.ToSlash(rel)
+			if !seen[rel] {
+				seen[rel] = true
+				out = append(out, rel)
+			}
+			return nil
+		})
+		require.NoError(t, err)
 	}
 	return out
 }

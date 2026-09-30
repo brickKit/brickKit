@@ -220,6 +220,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | --- | --- |
 | `internal/cli/` | 命令树：每条命令一个文件、参数、输出；报错里的路径按使用者所在的目录显示（`shown.go`）；TAB 补全的候选（`complete.go`） |
 | `internal/project/` | 把一个项目（brickkit.yaml + 部署文件 + config/）装载成一个 `Project`；往上找项目根（`findroot.go`）；一致性检查；项目地图 `BRICKKIT.md` |
+| `internal/project/projecttest/` | 测试辅助：用几行 YAML 搭一个三层项目并装载它 |
 | `internal/projfile/` | `brickkit.yaml`：安装源、组件、版本、`kind: shell` |
 | `internal/deployfile/` | 部署文件（`deploy.yaml`、`deploy.local.yaml`、`-f`）：字段、校验、`focus`、本地修改的差异 |
 | `internal/configdir/` | `config/`：每个组件的环境变量文件、`vars.yaml`、取值、骨架、升级时的配置迁移 |
@@ -237,6 +238,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `internal/sessionlock/` | 一个项目同一时刻只有一个前台本地会话 |
 | `internal/install/` | `add` / `remove` / `upgrade` 要对三份文件做哪些改动 |
 | `internal/source/` | 安装源（local / git / market）、Manifest 与产物缓存、bare 仓库缓存、不联网可知的版本 |
+| `internal/source/gittest/` | 测试辅助：真实的 git "远端"——本地 bare 仓库，按版本打 tag，经 `file://` 访问 |
 | `internal/gitrepo/` | 对 git 仓库的只读查询（状态、submodule） |
 | `internal/workspace/` | `components/` 下的组件源码：归档、激活、删除风险 |
 | `internal/release/` | `brickkit release`：检查、打 tag、推送、回滚 |
@@ -246,6 +248,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `internal/clierr/` | 错误类型、错误码与报错的样子 |
 | `internal/i18n/` | 消息目录（`locales/en.yaml`、`locales/zh.yaml`）与语言判定 |
 | `internal/msgid/` | 消息的 key（`messages_gen.go` 是生成的） |
+| `internal/msgid/msgidgen/` | 从英文目录生成 `messages_gen.go`（只在构建期用：`cmd/gen-msgid`、检查） |
 | `internal/logging/` | stderr 上的 JSON 日志行 |
 | `internal/suggest/` | "你是不是想写"的候选 |
 | `internal/envref/` | `${VAR}` 引用 |

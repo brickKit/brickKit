@@ -213,6 +213,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | --- | --- |
 | `internal/cli/` | The command tree: one file per command, flags, output; errors shown relative to where you stand (`shown.go`); TAB completion candidates (`complete.go`) |
 | `internal/project/` | Loading a project (brickkit.yaml + deploy file + config/) into one `Project`; finding the root upward (`findroot.go`); consistency checks; the project map `BRICKKIT.md` |
+| `internal/project/projecttest/` | Test helper: a three-layer project built from a few lines of YAML, then loaded |
 | `internal/projfile/` | `brickkit.yaml`: sources, components, versions, `kind: shell` |
 | `internal/deployfile/` | Deploy files (`deploy.yaml`, `deploy.local.yaml`, `-f`): fields, validation, `focus`, the local-change diff |
 | `internal/configdir/` | `config/`: per-component env files, `vars.yaml`, value resolution, skeletons, migration on upgrade |
@@ -230,6 +231,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `internal/sessionlock/` | One foreground local session per project |
 | `internal/install/` | What `add` / `remove` / `upgrade` change in the three layers |
 | `internal/source/` | Install sources (local / git / market), the manifest and artifact caches, the bare-repository cache, offline versions |
+| `internal/source/gittest/` | Test helper: real Git "remotes" — local bare repositories tagged per version, reached over `file://` |
 | `internal/gitrepo/` | Read-only git queries (status, submodules) |
 | `internal/workspace/` | Component source under `components/`: archive, activate, deletion risk |
 | `internal/release/` | `brickkit release`: checks, tag, push, rollback |
@@ -239,6 +241,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `internal/clierr/` | The error type, error codes and how errors render |
 | `internal/i18n/` | Message catalogs (`locales/en.yaml`, `locales/zh.yaml`) and language resolution |
 | `internal/msgid/` | Message keys (`messages_gen.go` is generated) |
+| `internal/msgid/msgidgen/` | Renders `messages_gen.go` from the English catalog (build time only: `cmd/gen-msgid`, the checks) |
 | `internal/logging/` | JSON log lines on stderr |
 | `internal/suggest/` | "Did you mean" suggestions |
 | `internal/envref/` | `${VAR}` references |
