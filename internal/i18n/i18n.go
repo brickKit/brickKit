@@ -9,14 +9,6 @@ import (
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
-// Lang 是已支持的语言。
-type Lang string
-
-const (
-	EN Lang = "en"
-	ZH Lang = "zh"
-)
-
 // current 是当前进程的语言。默认 EN；CLI 每次构建命令树时都会重新解析
 // 并设置一次（跟 internal/logging 的 SetLevel 是同一种"进程级全局状态，
 // 但每次入口调用都重新初始化"的用法），所以测试不需要手动复位。
@@ -32,11 +24,15 @@ func Current() Lang {
 	return current
 }
 
+// catalogs 是每种登记语言的目录。
+var catalogs = map[Lang]map[string]string{EN: en, ZH: zh}
+
+// catalogFor 返回 l 的目录；没登记的语言用源语言的目录（与重构前一样：未知语言就是英文）。
 func catalogFor(l Lang) map[string]string {
-	if l == ZH {
-		return zh
+	if c, ok := catalogs[l]; ok && registered(l) {
+		return c
 	}
-	return en
+	return catalogs[SourceLang()]
 }
 
 // T 返回 id 对应的当前语言文案，用 args 做位置参数插值

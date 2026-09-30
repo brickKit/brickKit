@@ -21,21 +21,22 @@ const (
 	SourceDefault Source = "default"
 )
 
-// ParseLang 校验字符串是否是已支持的语言，容忍大小写与前后空白。
+// ParseLang 校验字符串是否是已登记的语言，容忍大小写与前后空白。
 func ParseLang(s string) (Lang, bool) {
-	switch Lang(strings.ToLower(strings.TrimSpace(s))) {
-	case EN:
-		return EN, true
-	case ZH:
-		return ZH, true
-	default:
-		return "", false
+	l := Lang(strings.ToLower(strings.TrimSpace(s)))
+	if registered(l) {
+		return l, true
 	}
+	return "", false
 }
 
-// SupportedLangs 返回全部已支持语言，顺序固定。
+// SupportedLangs 返回全部已登记语言，顺序即 registry 的顺序。
 func SupportedLangs() []Lang {
-	return []Lang{EN, ZH}
+	out := make([]Lang, len(registry))
+	for i, l := range registry {
+		out[i] = l.Code
+	}
+	return out
 }
 
 // LangNames 是 SupportedLangs 的字符串形式，用于拼错误提示。
@@ -66,5 +67,5 @@ func Resolve() (Lang, Source) {
 			return l, SourceConfig
 		}
 	}
-	return EN, SourceDefault
+	return SourceLang(), SourceDefault
 }
