@@ -668,7 +668,7 @@ func (p *plan) localEnvFile(l localComponent, now time.Time) (LocalEnvFile, erro
 	unresolved := map[string]string{}
 	for _, v := range vars {
 		if v.Value.Kind == configdir.KindEnvTemplate {
-			for _, name := range envref.Names(v.Value.Text) {
+			for _, name := range envref.Required(v.Value.Text) {
 				if _, ok := lookupOrNil(p.lookup, name); !ok {
 					unresolved[v.Name] = name
 					break

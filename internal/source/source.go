@@ -850,7 +850,7 @@ func AuthToken(s projfile.Source, root string) string {
 // 有任何一个引用取不到就当没配 Token：把字面的 "${VAR}" 当 Bearer 发出去，
 // 市场只会回一个看不出原因的 401；没有 Token 时走的是"请先 login"那条说得清的路。
 func expandToken(token string, lookup func(string) (string, bool)) string {
-	for _, name := range envref.Names(token) {
+	for _, name := range envref.Required(token) {
 		if _, ok := lookup(name); !ok {
 			return ""
 		}

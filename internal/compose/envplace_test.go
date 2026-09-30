@@ -53,6 +53,18 @@ func TestComposeTemplateEscapesOtherDollars(t *testing.T) {
 	assert.Equal(t, `DSN="pg://u:${DB_PASS}@h/$$weird"`+"\n", string(result.EnvFiles[0].Content))
 }
 
+// ${VAR:-默认值} 是引用，不是字面量：原样交给 compose 展开（变量取不到时 compose 用默认值），
+// 而不是把 $ 转义成 $$、让容器拿到 "${VAR:-默认值}" 这串字面文本。
+func TestComposeDefaultReferencePassesToCompose(t *testing.T) {
+	b := newBuilder(t)
+	b.component(withSchema(simple("people/basic", "1.0.0", 8080), map[string]manifest.ConfigProperty{
+		"LOG_HOOK": {Type: "string"},
+	}), projecttest.Entry{Config: map[string]any{"LOG_HOOK": "hook=${LOG_HOOK_URL:-http://localhost}"}})
+
+	result := b.generate()
+	assert.Contains(t, string(result.YAML), "LOG_HOOK=hook=${LOG_HOOK_URL:-http://localhost}")
+}
+
 const pem = "-----BEGIN KEY-----\nab$c\"d\\e\n-----END KEY-----\n"
 
 // 密钥与 file:// 内容绝不进 compose.yaml：写进 0600 的 env 文件，主容器与迁移容器都引用它。

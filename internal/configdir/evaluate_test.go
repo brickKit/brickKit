@@ -43,3 +43,15 @@ func TestEvaluateFileRefMissing(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, clierr.As(err).Error(), "nope.pem")
 }
+
+// ${VAR:-默认值} 是引用：解析成模板而不是字面量，求值时变量取不到就用默认值。
+// 外壳成员的 JSON、mode: local 的进程环境、mode: debug 的 env 文件都经过这里。
+func TestEvaluateEnvDefault(t *testing.T) {
+	v, err := configdir.ParseValue("pg-${PGH:-dev}")
+	require.NoError(t, err)
+	require.Equal(t, configdir.KindEnvTemplate, v.Kind)
+
+	got, err := configdir.Evaluate(v, t.TempDir(), func(string) (string, bool) { return "", false })
+	require.NoError(t, err)
+	assert.Equal(t, "pg-dev", got)
+}

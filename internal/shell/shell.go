@@ -254,7 +254,7 @@ func memberValue(
 			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellMemberExistingSecretReason)).
 			WithHint(i18n.T(msgid.ShellHintExistingSecret))
 	case configdir.KindEnvTemplate:
-		for _, name := range envref.Names(v.Value.Text) {
+		for _, name := range envref.Required(v.Value.Text) {
 			if lookup == nil {
 				lookup = func(string) (string, bool) { return "", false }
 			}

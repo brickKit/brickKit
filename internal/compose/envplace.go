@@ -118,7 +118,7 @@ func (p *plan) placeEnvironment() error {
 // 只在它自己的输出里警告，而 up 成功时那段输出没人看得到——组件带着残缺的值跑起来。
 // K8s 在生成时求值、展不开就失败；这里让 Docker 与它说法一致。${NAME:-默认值} 不算。
 func (p *plan) collectUndefined(template string, undefined map[string]bool) {
-	for _, name := range envref.Names(template) {
+	for _, name := range envref.Required(template) {
 		if p.lookup == nil {
 			undefined[name] = true
 			continue

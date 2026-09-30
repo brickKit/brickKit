@@ -129,7 +129,7 @@ func referenceWarnings(proj *project.Project, ref resolver.Ref, resolved *config
 		switch r.Value.Kind {
 		case configdir.KindEnvTemplate:
 			var unset []string
-			for _, name := range envref.Names(r.Value.Text) {
+			for _, name := range envref.Required(r.Value.Text) {
 				if _, ok := lookup(name); !ok {
 					unset = append(unset, name)
 				}

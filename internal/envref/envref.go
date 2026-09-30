@@ -12,34 +12,41 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// refRe 匹配 ${NAME}：字母或下划线开头，后接字母、数字、下划线（shell 惯例）。
-var refRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+// refRe 匹配 ${NAME} 与 ${NAME:-默认值}：NAME 字母或下划线开头，后接字母、数字、下划线（shell 惯例）；
+// 默认值是一段不含 $、{、} 的纯文本（可以为空）。这是三层文件里唯一的引用语法：docker compose
+// 与 K8s 下的展开、shell 成员的 JSON、本机进程的环境、lint 的检查都按它认。
+var refRe = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(:-[^${}]*)?\}`)
 
-// Has 报告 s 里是否含有 ${VAR} 引用。
+// Has 报告 s 里是否含有 ${VAR} 引用（带不带默认值都算）。
 func Has(s string) bool { return refRe.MatchString(s) }
 
-// Names 按出现顺序返回 s 里引用到的变量名，去重。
-func Names(s string) []string {
+// Required 按出现顺序返回 s 里**必须有定义**的变量名，去重：带默认值的引用永远展得开，不在其中。
+func Required(s string) []string {
 	var out []string
 	seen := map[string]bool{}
 	for _, m := range refRe.FindAllStringSubmatch(s, -1) {
-		if !seen[m[1]] {
-			seen[m[1]] = true
-			out = append(out, m[1])
+		if m[2] != "" || seen[m[1]] {
+			continue
 		}
+		seen[m[1]] = true
+		out = append(out, m[1])
 	}
 	return out
 }
 
-// Expand 用 lookup 替换 s 里的 ${VAR}。lookup 找不到的引用**原样保留**：
+// Expand 用 lookup 替换 s 里的引用。取不到时用默认值；没有默认值的引用**原样保留**：
 // 生成物里留着 ${VAR} 一眼就能看出漏配了哪个，换成空串则无从查起。
 func Expand(s string, lookup func(string) (string, bool)) string {
 	if !Has(s) {
 		return s
 	}
 	return refRe.ReplaceAllStringFunc(s, func(match string) string {
-		if v, ok := lookup(match[2 : len(match)-1]); ok {
+		m := refRe.FindStringSubmatch(match)
+		if v, ok := lookup(m[1]); ok {
 			return v
+		}
+		if m[2] != "" {
+			return m[2][len(":-"):]
 		}
 		return match
 	})
@@ -84,7 +91,7 @@ func appendPath(path []string, segment string) []string {
 	return append(append([]string(nil), path...), segment)
 }
 
-// EscapeLiterals 把 s 里不属于 ${NAME} 引用的每个 $ 写成 $$，引用本身原样保留。
+// EscapeLiterals 把 s 里不属于引用（${NAME}、${NAME:-默认值}）的每个 $ 写成 $$，引用本身原样保留。
 //
 // 给"模板原样交给别的程序展开"的场合用（docker compose）：brickkit 只把 ${NAME} 当引用，
 // 那边却把 $5、$HOME、$$ 都当成自己的语法。不转义，同一个值在不同部署目标下到达容器时

@@ -49,6 +49,9 @@ up the process environment and `.env`, not shared variables.
 | `${NAME}`, `${NAME:-default}` | The process environment, then `.env` at the project root | On Docker, expanded by `docker compose` at start (the CLI checks at generation time that it's defined); on Kubernetes, by the CLI when it generates manifests |
 | `file://path` | The file's content (the path is relative to the project root) | When the CLI generates deployment files |
 
+`${NAME:-default}` takes the default when the variable can't be found, so it never counts as undefined. The default is
+plain text, and can't contain `$`, `{` or `}`.
+
 The last two are mainly for secrets; see [Secrets](07-sensitive-values.md).
 
 ## Fail loudly when it's not found

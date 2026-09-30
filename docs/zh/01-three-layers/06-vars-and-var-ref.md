@@ -43,8 +43,10 @@ DATABASE_NAME: people            # 只属于这个组件的值，直接写
 | 写法 | 从哪里取值 | 什么时候求值 |
 | --- | --- | --- |
 | `$var:NAME` | 部署文件的 `vars:`，其次 `config/vars.yaml` | CLI 装载项目时 |
-| `${NAME}`、`${NAME:-默认值}` | 进程环境变量，其次项目根目录的 `.env` | Docker 下由 `docker compose` 启动时展开；K8s 下由 CLI 生成清单时展开 |
+| `${NAME}`、`${NAME:-默认值}` | 进程环境变量，其次项目根目录的 `.env` | Docker 下由 `docker compose` 启动时展开（CLI 生成时先核对它有定义）；K8s 下由 CLI 生成清单时展开 |
 | `file://路径` | 文件内容（路径相对项目根） | CLI 生成部署文件时读取 |
+
+`${NAME:-默认值}` 在变量取不到时用默认值，所以永远不算未定义。默认值是一段纯文本，不能含 `$`、`{`、`}`。
 
 后两种主要用来放密钥，见 [敏感值](07-sensitive-values.md)。
 

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
 )
@@ -32,44 +33,13 @@ func newExpander(lookup func(name string) (string, bool)) *expander {
 
 // value 展开一段文本里的全部 ${...}。
 func (e *expander) value(raw string) string {
-	if !strings.Contains(raw, "${") {
-		return raw
-	}
-
-	var b strings.Builder
-	for {
-		start := strings.Index(raw, "${")
-		if start < 0 {
-			b.WriteString(raw)
-			return b.String()
+	for _, name := range envref.Required(raw) {
+		if _, ok := e.get(name); !ok {
+			// 展开后原样留着 ${NAME}，只是为了让后续渲染能继续跑完；check() 会阻断这次生成
+			e.missing[name] = true
 		}
-		end := strings.Index(raw[start:], "}")
-		if end < 0 {
-			// 没有右括号：不是引用，原样保留
-			b.WriteString(raw)
-			return b.String()
-		}
-		end += start
-
-		b.WriteString(raw[:start])
-		b.WriteString(e.one(raw[start+2 : end]))
-		raw = raw[end+1:]
 	}
-}
-
-// one 展开一个 ${...} 里的内容。
-func (e *expander) one(expr string) string {
-	name, fallback, hasFallback := strings.Cut(expr, ":-")
-
-	if value, ok := e.get(name); ok {
-		return value
-	}
-	if hasFallback {
-		return fallback
-	}
-	e.missing[name] = true
-	// 原样返回只是为了让后续渲染能继续跑完；check() 会阻断这次生成
-	return "${" + expr + "}"
+	return envref.Expand(raw, e.get)
 }
 
 func (e *expander) get(name string) (string, bool) {
