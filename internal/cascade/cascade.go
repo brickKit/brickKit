@@ -123,7 +123,7 @@ func Compute(p *project.Project, graph *resolver.Graph) (*Result, error) {
 	decl := declarations(p)
 	focus, focused := focusRef(p)
 	host := hostingOf(p, graph)
-	stopped, blocker := computeStopped(graph, decl, host, focus, focused)
+	stopped, blocker, reached := computeStopped(graph, decl, host, focus, focused)
 
 	// 钉住的组件撞上被关掉的强依赖 → 两个意图直接冲突，报错而不是二选一
 	for _, node := range graph.Nodes {
@@ -143,7 +143,7 @@ func Compute(p *project.Project, graph *resolver.Graph) (*Result, error) {
 	result := &Result{running: running}
 	for _, node := range graph.Nodes {
 		result.Components = append(result.Components,
-			classify(node, decl, host, stopped, running, blocker, focus, focused))
+			classify(node, decl, host, stopped, running, reached, blocker, focus, focused))
 	}
 	return result, nil
 }
@@ -165,9 +165,10 @@ func Compute(p *project.Project, graph *resolver.Graph) (*Result, error) {
 // 环上的 A、B 互为上层，谁也没先倒下 → 两个都跑。不需要为环写任何特例。
 //
 // blocker 记下 A 规则里是被哪个组件挡住的，报错时要顺着它打印依赖链。
+// reached 是有焦点时从起点走得到的组件（没有焦点时为 nil）：走不到的才是"焦点之外"。
 func computeStopped(
 	graph *resolver.Graph, decl declSet, host hosting, focus resolver.Ref, focused bool,
-) (stopped map[resolver.Ref]bool, blocker map[resolver.Ref]resolver.Ref) {
+) (stopped map[resolver.Ref]bool, blocker map[resolver.Ref]resolver.Ref, reached map[resolver.Ref]bool) {
 	stopped = map[resolver.Ref]bool{}
 	blocker = map[resolver.Ref]resolver.Ref{}
 
@@ -177,7 +178,7 @@ func computeStopped(
 		}
 	}
 	if focused {
-		seedOutsideFocus(graph, decl, host, focus, stopped)
+		reached = seedOutsideFocus(graph, decl, host, focus, stopped)
 	}
 
 	for changed := true; changed; {
@@ -197,7 +198,7 @@ func computeStopped(
 			}
 		}
 	}
-	return stopped, blocker
+	return stopped, blocker, reached
 }
 
 // focusRef 是焦点组件的默认版本（部署文件里写了 focus 时）。
@@ -218,7 +219,9 @@ func focusRef(p *project.Project) (resolver.Ref, bool) {
 // 它照项目声明的那样在外壳里跑，不回落成独立容器；起点本身是外壳时，走到它声明的成员——
 // 焦点落在外壳上，是要外壳带着成员跑，不是一个空壳。只从起点展开成员：因为某个成员被需要
 // 而启动的外壳，只承载被走到的那些。
-func seedOutsideFocus(graph *resolver.Graph, decl declSet, host hosting, focus resolver.Ref, stopped map[resolver.Ref]bool) {
+func seedOutsideFocus(
+	graph *resolver.Graph, decl declSet, host hosting, focus resolver.Ref, stopped map[resolver.Ref]bool,
+) map[resolver.Ref]bool {
 	reached := map[resolver.Ref]bool{}
 	var walk func(resolver.Ref)
 	walk = func(ref resolver.Ref) {
@@ -257,6 +260,7 @@ func seedOutsideFocus(graph *resolver.Graph, decl declSet, host hosting, focus r
 			stopped[node.Ref] = true
 		}
 	}
+	return reached
 }
 
 // deadRequirement 找出该组件第一个不跑的**强**依赖。
@@ -305,7 +309,7 @@ func allStopped(dependents []resolver.Ref, stopped map[resolver.Ref]bool) bool {
 // classify 把一个组件归入三态之一，并给出理由。
 func classify(
 	node *resolver.Node, decl declSet, host hosting,
-	stopped, running map[resolver.Ref]bool, blocker map[resolver.Ref]resolver.Ref,
+	stopped, running, reached map[resolver.Ref]bool, blocker map[resolver.Ref]resolver.Ref,
 	focus resolver.Ref, focused bool,
 ) Component {
 	ref := node.Ref
@@ -316,7 +320,7 @@ func classify(
 	case focused && ref == focus && !stopped[ref]:
 		c.State, c.Reason = StateRunning, i18n.T(msgid.CascadeReasonFocus)
 
-	case focused && stopped[ref] && !decl.disabled(ref) && blocker[ref] == (resolver.Ref{}):
+	case focused && !reached[ref] && !decl.disabled(ref):
 		c.State, c.Reason = StateSkipped, i18n.T(msgid.CascadeReasonOutsideFocus)
 
 	case decl.disabled(ref):

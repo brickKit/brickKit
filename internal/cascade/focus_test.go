@@ -86,3 +86,21 @@ func TestNoFocusKeepsTheTopLevelRule(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"erp/api", "shop/report"}, runningIDs(result))
 }
+
+// 焦点走得到、却因为上层都不跑而停下的组件：原因是"上层都不启动"，不是"焦点之外"。
+func TestAReachableComponentStoppedByItsParentsIsNotOutsideTheFocus(t *testing.T) {
+	graph := newGraph(t,
+		spec{id: "shop/web", optional: []string{"erp/api"}},
+		spec{id: "erp/api", requires: []string{"erp/db"}, optional: []string{"infra/cache"}},
+		spec{id: "erp/db"},
+		spec{id: "infra/cache"},
+	)
+	p := focusOn(cfgOf(entry("shop/web", ""), entry("erp/api", ""), entry("erp/db", "disable"),
+		entry("infra/cache", "")), "shop/web")
+
+	result, err := cascade.Compute(p, graph)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"shop/web"}, runningIDs(result))
+	_, why := reasonOf(t, result, "infra/cache")
+	assert.Equal(t, i18n.T(msgid.CascadeReasonNothingAbove), why)
+}
