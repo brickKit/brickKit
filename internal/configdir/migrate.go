@@ -20,9 +20,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
-	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlcomment"
 	"github.com/brickkit/brickkit/internal/yamlfile"
 )
@@ -227,6 +225,7 @@ func scanComments(lines []string, spans map[int]keySpan, keys map[string]bool) o
 		}
 		detached, seenItem = false, true
 	}
+	header := generatedHeaderLines(lines, keys)
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 		trimmed := strings.TrimSpace(line)
@@ -240,7 +239,7 @@ func scanComments(lines []string, spans map[int]keySpan, keys map[string]bool) o
 			if len(pending) > 0 {
 				detached = true
 			}
-		case isGeneratedComment(line):
+		case header[i] || yamlcomment.IsSection(line):
 			if len(pending) > 0 {
 				detached = true
 			}
@@ -322,23 +321,26 @@ func schemaKeys(schemas ...*manifest.ConfigSchema) map[string]bool {
 	return keys
 }
 
-// isGeneratedComment：这一行是骨架生成的注释（HeaderPrefix 行，或者任一语言下的说明与分节标题）。
-func isGeneratedComment(line string) bool {
-	line = strings.TrimSpace(line)
-	if strings.HasPrefix(line, strings.TrimSpace(HeaderPrefix)) {
-		return true
-	}
-	for _, lang := range i18n.SupportedLangs() {
-		catalog := i18n.CatalogFor(lang)
-		for _, id := range []msgid.ID{msgid.ConfigdirSkeletonIntro, msgid.ConfigdirSkeletonRequired, msgid.ConfigdirSkeletonOptional} {
-			for _, generated := range strings.Split(yamlcomment.Block("", catalog[id]), "\n") {
-				if generated != "" && strings.TrimSpace(generated) == line {
-					return true
-				}
+// generatedHeaderLines 标出骨架生成的文件头：HeaderPrefix 那一行，加上紧跟在它下面、
+// 一直到第一个空行（或第一个键）的注释行——说明文字有几行由当时的语言决定，所以按结构认，
+// 不拿文字去比：译文改过、或文件是另一种语言写的，都认得出来。
+func generatedHeaderLines(lines []string, keys map[string]bool) map[int]bool {
+	out := map[int]bool{}
+	for i := 0; i < len(lines); i++ {
+		if !strings.HasPrefix(strings.TrimSpace(lines[i]), strings.TrimSpace(HeaderPrefix)) {
+			continue
+		}
+		out[i] = true
+		for i+1 < len(lines) {
+			next := strings.TrimSpace(lines[i+1])
+			if !strings.HasPrefix(next, "#") || isSkeletonKeyLine(lines[i+1], keys) {
+				break
 			}
+			i++
+			out[i] = true
 		}
 	}
-	return false
+	return out
 }
 
 func schemaProp(s *manifest.ConfigSchema, key string) (manifest.ConfigProperty, bool) {

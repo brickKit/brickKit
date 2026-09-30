@@ -251,3 +251,32 @@ func TestMigrateKeepsUserCommentNamingASchemaKey(t *testing.T) {
 	out, _ := migrate(t, old, s, s, nil)
 	assert.Contains(t, out, "# A_KEY: set to 5 in production, see ticket 42\nB_KEY: mine", out)
 }
+
+// 生成的说明与分节标题按结构认，不按文字认：这份文件写下之后译文改过（或者当时是另一种语言），
+// 旧的说明与标题照样认得出来，不会被当成使用者的注释搬进新文件、和新的叠在一起。
+// 文件头下面隔着空行写的注释是使用者的，照旧保留。
+func TestMigrateRecognisesGeneratedCommentsWrittenInAnOlderWording(t *testing.T) {
+	s := schema(map[string]manifest.ConfigProperty{"A_KEY": str("a"), "B_KEY": str(nil)}, "B_KEY")
+	fresh := string(configdir.Skeleton("erp/api", "1.0.0", s, nil))
+	lines := strings.Split(fresh, "\n")
+	var old []string
+	for i, line := range lines {
+		switch {
+		case i > 0 && strings.HasPrefix(line, "# ") && !strings.HasPrefix(line, "# ===") && !strings.Contains(line, "_KEY"):
+			old = append(old, "# an intro sentence from an older catalog")
+		case strings.HasPrefix(line, "# === "):
+			old = append(old, "# === a section title from an older catalog ===")
+		default:
+			old = append(old, line)
+		}
+	}
+	oldText := strings.Join(old, "\n")
+	oldText = strings.Replace(oldText, "\n\n# === a section", "\n\n# kept: the payments team owns this file\n\n# === a section", 1)
+	oldText = strings.Replace(oldText, `B_KEY: ""`, "B_KEY: mine", 1)
+
+	out, _ := migrate(t, oldText, s, s, nil)
+	assert.NotContains(t, out, "older catalog", out)
+	assert.Contains(t, out, "# kept: the payments team owns this file\n", out)
+	fresh2 := string(configdir.Skeleton("erp/api", "2.0.0", s, nil))
+	assert.Equal(t, fresh2, strings.Replace(strings.Replace(out, "B_KEY: mine", `B_KEY: ""`, 1), "\n# kept: the payments team owns this file\n", "", 1), "除了使用者写的值与注释，新文件就是新骨架")
+}

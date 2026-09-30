@@ -25,6 +25,18 @@ func Block(indent, text string) string {
 	return b.String()
 }
 
+// Section 是一行分节标题：# === title ===。"===" 由这里加、不进译文——读文件的一方
+// （配置迁移）靠这个形状认出生成的标题，不靠标题的文字，译文怎么改都认得出来。
+func Section(indent, title string) string {
+	return indent + "# === " + title + " ===\n"
+}
+
+// IsSection 报告 line 是不是 Section 写出的分节标题，只看形状，不看文字。
+func IsSection(line string) bool {
+	t := strings.TrimSpace(line)
+	return strings.HasPrefix(t, "# === ") && strings.HasSuffix(t, " ===")
+}
+
 // Banner 把 text 包成头注释：上下各一条分隔线，末尾留一个空行。
 func Banner(text string) []byte {
 	var b bytes.Buffer

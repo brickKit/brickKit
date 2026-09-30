@@ -1401,8 +1401,8 @@ configdir.label_undefined_ref: "未定义的引用"
 configdir.hint_define_var: "在 config/vars.yaml（或部署文件的 vars:）里定义这个变量"
 
 configdir.skeleton_intro: "这个组件的环境变量，每个键原样注入。\n公共变量：$var:NAME（config/vars.yaml）· 环境变量：${NAME} · 本地文件：file://path"
-configdir.skeleton_required: "=== 必填：没有值就无法启动 ==="
-configdir.skeleton_optional: "=== 可选：注释掉的键使用组件默认值，取消注释即可覆盖 ==="
+configdir.skeleton_required: "必填：没有值就无法启动"
+configdir.skeleton_optional: "可选：注释掉的键使用组件默认值，取消注释即可覆盖"
 configdir.skeleton_default: "默认值"
 
 project.deploy_missing: "错误：找不到 deploy.yaml"

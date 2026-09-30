@@ -1412,8 +1412,8 @@ configdir.label_undefined_ref: "Undefined reference"
 configdir.hint_define_var: "Define the variable in config/vars.yaml, or in the deploy file's vars:"
 
 configdir.skeleton_intro: "Environment variables for this component; every key is injected as-is.\nShared variable: $var:NAME (config/vars.yaml) · environment variable: ${NAME} · local file: file://path"
-configdir.skeleton_required: "=== Required: startup is blocked until these have a value ==="
-configdir.skeleton_optional: "=== Optional: commented keys use the component's default; uncomment to override ==="
+configdir.skeleton_required: "Required: startup is blocked until these have a value"
+configdir.skeleton_optional: "Optional: commented keys use the component's default; uncomment to override"
 configdir.skeleton_default: "default"
 
 project.deploy_missing: "Error: deploy.yaml not found"

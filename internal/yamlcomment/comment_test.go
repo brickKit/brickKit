@@ -23,3 +23,14 @@ func TestBannerWrapsInRulesAndLeavesBlankLine(t *testing.T) {
 	rule := "# ============================================================\n"
 	assert.Equal(t, rule+"# hello\n# world\n"+rule+"\n", got)
 }
+
+// 分节标题按形状认，与标题文字（哪种语言、哪一版措辞）无关；Banner 的横线不是标题。
+func TestSectionIsRecognisedByShapeOnly(t *testing.T) {
+	assert.Equal(t, "# === Required ===\n", yamlcomment.Section("", "Required"))
+	for _, title := range []string{"Required: startup is blocked", "必填：没有值就无法启动", "any older wording"} {
+		assert.True(t, yamlcomment.IsSection(yamlcomment.Section("  ", title)), title)
+	}
+	for _, line := range []string{"# ============================================================", "# a user note", "# === unterminated", "KEY: \"=== x ===\""} {
+		assert.False(t, yamlcomment.IsSection(line), line)
+	}
+}

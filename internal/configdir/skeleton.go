@@ -64,7 +64,7 @@ func renderSkeletonWith(id, version string, schema *manifest.ConfigSchema, pream
 		if len(keys) == 0 {
 			return
 		}
-		b.WriteString("\n" + yamlcomment.Block("", title))
+		b.WriteString("\n" + yamlcomment.Section("", title))
 		for _, key := range keys {
 			b.WriteString(line(key, schema.Properties[key], isRequired))
 		}
