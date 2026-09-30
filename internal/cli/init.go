@@ -158,7 +158,25 @@ func runInitComplete(opts *Options, f initFlags) error {
 	if plan.ProjectDocUnmanaged {
 		opts.Printf("   ℹ️ %s\n", i18n.T(msgid.CliInitProjectDocUnmanaged, project.FileProjectDoc))
 	}
+	renderInsideProjectNote(opts, layout.Root)
 	return finishInit(opts, layout, f, true)
+}
+
+// renderInsideProjectNote：刚补全的目录是外面某个项目的本地组件时说一句（设计 §3）——焦点运行不需要
+// 工作台；而这里有了 brickkit.yaml 之后，这个目录里的命令就用这个工作台，不再往上找。
+func renderInsideProjectNote(opts *Options, dir string) {
+	outer, found, err := project.FindRoot(filepath.Dir(dir))
+	if err != nil || !found {
+		return
+	}
+	l := project.NewLayout(outer)
+	decl, err := projfile.ParseFile(l.DeclPath())
+	if err != nil {
+		return
+	}
+	if id, inside := componentAt(l, decl, dir); inside {
+		opts.Printf("   💡 %s\n", i18n.T(msgid.CliInitInsideProjectNote, id))
+	}
 }
 
 // renderGitignoreWarning 大声说出 .gitignore 缺的必需条目（提案 §11.5 的核心防线）：

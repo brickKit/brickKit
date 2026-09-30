@@ -75,6 +75,10 @@ func runSync(ctx context.Context, opts *Options) error {
 	// 焦点是一次临时的收窄，不是"你需要哪些源码"的声明：sync 按不带焦点时项目要跑的组件
 	// 留源码，否则每换一次焦点就要把几十个目录搬进归档（设计 §4.6）。宁可多留，从不归档正在跑的。
 	proj.IgnoreFocus()
+	// 嵌套的副本先说清楚：sync 搬的是目录，在一份认不清归属的源码上动手只会更乱
+	if err := checkNestedCopies(opts, proj); err != nil {
+		return err
+	}
 
 	keep, err := syncActiveSet(ctx, opts, proj)
 	if err != nil {

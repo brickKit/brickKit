@@ -215,6 +215,9 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 	renderDeploySource(opts, proj)
 	renderFocus(opts, proj)
 	renderWarnings(opts, proj.Warnings)
+	if err := checkNestedCopies(opts, proj); err != nil {
+		return nil, err
+	}
 	if flags.ignoreShells {
 		proj.IgnoreShells()
 		opts.Printf("%s\n", i18n.T(msgid.CliUpShellsIgnoredBanner))

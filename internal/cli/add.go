@@ -60,6 +60,11 @@ func newAddCommand(opts *Options) *cobra.Command {
 				return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliAddNeedsComponent)).
 					WithHint(i18n.T(msgid.CliAddHintNeedsComponent)).WithExit(clierr.ExitUsage)
 			}
+			if f.repo || f.repoAll {
+				if err := refuseRepoInNestedWorkbench(opts); err != nil {
+					return err
+				}
+			}
 			return runAdd(ctx, opts, args[0], f)
 		},
 	}

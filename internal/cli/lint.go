@@ -204,6 +204,9 @@ func lintCrossFile(opts *Options, strict bool) ([]lintFile, []string) {
 		return []lintFile{f}, nil
 	}
 	renderFocus(opts, proj)
+	if err := checkNestedCopies(opts, proj); err != nil {
+		f.errors = append(f.errors, clierr.As(err))
+	}
 	// 焦点组件要从源码跑：up 会拦下没有本地源码的焦点，lint 提前说（设计 §4.6）
 	if id, _, ok := proj.FocusRef(); ok {
 		if _, found := proj.LocalRepo(id); !found {
