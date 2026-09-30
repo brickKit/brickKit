@@ -123,9 +123,12 @@ Next: https://raw.githubusercontent.com/brickKit/brickKit/main/llms/en/03.md    
 ```
 
 - Part 00's title says "core"; its header adds "for the rest, read 01 … NN".
-- **Link rewriting:** a relative link in a page (`../01-three-layers/04-deploy-local-yaml.md#x`) becomes
-  repository-relative (`docs/en/01-three-layers/04-deploy-local-yaml.md#x`), so inside a bundle every link still
-  names its file. External links are untouched.
+- **Link rewriting:** a relative link in a page (`../01-three-layers/04-deploy-local-yaml.md#x`) is rewritten
+  relative to the bundle's own directory (`../../docs/en/01-three-layers/04-deploy-local-yaml.md#x`), so it resolves
+  on GitHub and against the raw base alike, and inside a bundle every link still names its file. External links,
+  same-page anchors and anything in code are untouched.
+- Generated `llms/` is excluded from the doc scanners (check-docs, check-cli-docs, check-doc-tree, `tests/docfields`):
+  it duplicates the docs, and `check-llms` proves it equals a fresh generation.
 - Output is deterministic: same input, byte-identical output.
 
 ### Generator
