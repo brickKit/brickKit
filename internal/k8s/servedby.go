@@ -90,12 +90,12 @@ func (p *plan) fallbackStandaloneWarnings() []*clierr.Error {
 		if !ok {
 			continue
 		}
-		hints := []string{i18n.T(msgid.HintFallbackEnableShellToMergeAgain)}
+		hints := []string{i18n.T(msgid.ShellServedHintFallbackEnableShellToMergeAgain)}
 		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
-			i18n.T(msgid.ServedByFallbackStandalone)).
+			i18n.T(msgid.ShellServedFallbackStandalone)).
 			WithDetail(i18n.T(msgid.LabelComponent), c.Ref.String()).
 			WithDetail(i18n.T(msgid.LabelShell), shellRef.String()).
-			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ServedByFallbackReasonDetail)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ShellServedFallbackReasonDetail)).
 			WithHint(hints...))
 	}
 	return out

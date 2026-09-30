@@ -78,7 +78,7 @@ func rewriteImage(pkg *publishPackage, pinned string) error {
 	deployment, ok := doc["deployment"].(map[string]any)
 	if !ok {
 		return clierr.New(clierr.CodeManifestInvalid,
-			i18n.T(msgid.CliPublishDigestErrorComponentYamlHasNo)).WithHint(i18n.T(msgid.HintInternalBug))
+			i18n.T(msgid.CliPublishDigestErrorComponentYAMLHasNo)).WithHint(i18n.T(msgid.HintInternalBug))
 	}
 	deployment["image"] = pinned
 

@@ -275,13 +275,13 @@ func manifestDocument(path string) (json.RawMessage, error) {
 
 	var document any
 	if err := yaml.Unmarshal(raw, &document); err != nil {
-		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorComponentYamlIsNot)).
+		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorComponentYAMLIsNot)).
 			WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err).WithHint(i18n.T(msgid.CliPublishHintRunLint))
 	}
 
 	encoded, err := json.Marshal(document)
 	if err != nil {
-		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorComponentYamlCouldNot)).
+		return nil, clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishErrorComponentYAMLCouldNot)).
 			WithDetail(i18n.T(msgid.LabelPath), path).WithCause(err).WithHint(i18n.T(msgid.CliPublishHintNonTextKey))
 	}
 	return encoded, nil

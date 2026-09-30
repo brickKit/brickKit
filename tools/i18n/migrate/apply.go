@@ -67,7 +67,7 @@ func loadEntries(path string) ([]Entry, error) {
 // newItem 是一条新建的目录条目。
 type newItem struct{ name, key, en, zh string }
 
-// applyTranslations 按译文改写源文件、生成 msgid 常量、追加两份目录。
+// applyTranslations 按译文改写源文件、追加两份目录（常量随后由 make generate-msgid 生成）。
 //
 // 先在内存里把所有文件的改写都算完并校验（区间不重叠），确认没问题才动第一个文件——
 // 半路失败不会留下"改了一半"的文件。
@@ -141,14 +141,14 @@ func applyTranslations(o applyOptions) (applyReport, error) {
 	}
 	report.files = len(fileOrder)
 
-	if err := writeMsgids(o, perStem); err != nil {
+	if err := writeCatalogs(o, perStem); err != nil {
 		return report, err
 	}
 	return report, nil
 }
 
 // resolveName 决定一条译文用哪个常量：`@名字` 显式复用；中文英文都相同的已有条目自动复用；
-// 否则新建（并登记进 perStem，稍后写进 msgid 文件与目录）。
+// 否则新建（并登记进 perStem，稍后写进两份目录）。
 func resolveName(o applyOptions, reg *keyRegistry, idx catalogIndex, made map[string]string,
 	perStem map[string][]newItem, stem string, e *Entry, en string) (string, error) {
 	if strings.HasPrefix(en, "@") {
@@ -275,8 +275,9 @@ func rewriteFile(file string, edits []Edit) error {
 	return os.WriteFile(file, []byte(s), 0o644)
 }
 
-// writeMsgids 把新建的常量写进 internal/msgid/，并把两份译文追加到 internal/i18n/ 的目录里。
-func writeMsgids(o applyOptions, perStem map[string][]newItem) error {
+// writeCatalogs 把新建条目的两份译文追加到 internal/i18n/locales 的目录里。
+// msgid 常量不在这里写：跑完工具再 make generate-msgid，由 en.yaml 生成。
+func writeCatalogs(o applyOptions, perStem map[string][]newItem) error {
 	stems := make([]string, 0, len(perStem))
 	for s := range perStem {
 		stems = append(stems, s)
@@ -285,26 +286,9 @@ func writeMsgids(o applyOptions, perStem map[string][]newItem) error {
 
 	var enBody, zhBody strings.Builder
 	for _, stem := range stems {
-		var block strings.Builder
-		fmt.Fprintf(&block, "// internal/%s/%s.go\nconst (\n", o.pkg, stem)
 		for _, it := range perStem[stem] {
-			fmt.Fprintf(&block, "\t%s = %s\n", it.name, jsonString(it.key))
 			fmt.Fprintf(&enBody, "%s: %s\n", it.key, jsonString(it.en))
 			fmt.Fprintf(&zhBody, "%s: %s\n", it.key, jsonString(it.zh))
-		}
-		block.WriteString(")\n")
-
-		name := "cli_" + stem + ".go"
-		if o.pkg != "cli" {
-			name = o.pkg + ".go"
-		}
-		path := filepath.Join(o.root, "internal/msgid", name)
-		content := "package msgid\n\n" + block.String()
-		if old, err := os.ReadFile(path); err == nil {
-			content = string(old) + "\n" + block.String()
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			return err
 		}
 	}
 	if err := appendCatalog(filepath.Join(o.root, "internal/i18n/locales/en.yaml"), enBody.String()); err != nil {

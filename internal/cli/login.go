@@ -146,7 +146,7 @@ func resolveMarketURL(layout project.Layout, explicit string) (string, error) {
 	case 1:
 		return candidates[0].URL, nil
 	case 0:
-		return "", clierr.New(clierr.CodeAuthRequired, i18n.T(msgid.CliLoginErrorBrickkitYamlHasNo)).
+		return "", clierr.New(clierr.CodeAuthRequired, i18n.T(msgid.CliLoginErrorBrickkitYAMLHasNo)).
 			WithHint(
 				i18n.T(msgid.CliLoginAddAnInstallSourceOf),
 				i18n.T(msgid.CliLoginOrSpecifyTheMarketAddress),

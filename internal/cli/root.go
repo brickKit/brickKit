@@ -157,7 +157,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 	root.SetErr(opts.Stderr)
 
 	root.PersistentFlags().StringVar(&opts.LogLevel, "log-level", opts.LogLevel,
-		i18n.T(msgid.CliRootLevelOfTheJsonLogs, strings.Join(logging.LevelNames(), " | ")))
+		i18n.T(msgid.CliRootLevelOfTheJSONLogs, strings.Join(logging.LevelNames(), " | ")))
 
 	// flag 解析错误统一转成 CLI 错误格式。
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {

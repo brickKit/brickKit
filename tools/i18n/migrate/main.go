@@ -76,7 +76,7 @@ func runApply(args []string, log io.Writer) error {
 	fs.StringVar(&o.entriesPath, "entries", "entries.json", "extract 写出的 JSON")
 	fs.StringVar(&o.transPath, "trans", "trans.txt", "译文文件：每行 编号<TAB>英文，@常量名 表示复用已有 key")
 	fs.StringVar(&o.root, "root", ".", "仓库根")
-	fs.StringVar(&o.pkg, "pkg", "cli", "被迁移的包名（决定 key 前缀与 msgid 文件名）")
+	fs.StringVar(&o.pkg, "pkg", "cli", "被迁移的包名（决定 key 前缀）")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

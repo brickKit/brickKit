@@ -32,7 +32,7 @@ import (
 func newRemoveCommand(opts *Options) *cobra.Command {
 	var force bool
 	cmd := &cobra.Command{
-		Use:     i18n.T(msgid.CliRemoveRemoveComponentIdVersion),
+		Use:     i18n.T(msgid.CliRemoveRemoveComponentIDVersion),
 		Short:   i18n.T(msgid.CliRemoveShort),
 		Long:    i18n.T(msgid.CliRemoveLong),
 		Example: i18n.T(msgid.CliRemoveExample),

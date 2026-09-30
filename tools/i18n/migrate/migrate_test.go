@@ -40,7 +40,7 @@ func demo(opts *Options, id string, err error) error {
 }
 `
 
-// fakeRepo 造一个只有 msgid / i18n 骨架的迷你仓库，并把 sample 放进 internal/cli/sample.go。
+// fakeRepo 造一个只有两份目录的迷你仓库，并把 sample 放进 internal/cli/sample.go。
 func fakeRepo(t *testing.T) (root, sampleFile string) {
 	t.Helper()
 	root = t.TempDir()
@@ -49,7 +49,6 @@ func fakeRepo(t *testing.T) (root, sampleFile string) {
 		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
 		require.NoError(t, os.WriteFile(p, []byte(body), 0o644))
 	}
-	write("internal/msgid/msgid.go", "package msgid\n\nconst (\n\tLabelPath = \"label.path\"\n)\n")
 	write("internal/i18n/locales/en.yaml", "label.path: \"Path\"\n")
 	write("internal/i18n/locales/zh.yaml", "label.path: \"路径\"\n")
 	write("internal/cli/sample.go", sample)
@@ -150,10 +149,9 @@ func TestApplyRewritesSourceAndCatalogs(t *testing.T) {
 	assert.Contains(t, got, `"github.com/brickkit/brickkit/internal/i18n"`)
 	assert.Contains(t, got, `"github.com/brickkit/brickkit/internal/msgid"`)
 
-	// msgid 常量与两份目录
-	msgidFile := read(t, filepath.Join(root, "internal/msgid/cli_sample.go"))
-	assert.Contains(t, msgidFile, "package msgid")
-	assert.Contains(t, msgidFile, `CliSampleAdded = "cli.sample.added"`)
+	// 两份目录
+	// msgid 常量由 make generate-msgid 从 en.yaml 生成，工具不再手写常量文件
+	assert.NoFileExists(t, filepath.Join(root, "internal/msgid/cli_sample.go"))
 	en := read(t, filepath.Join(root, "internal/i18n/locales/en.yaml"))
 	zh := read(t, filepath.Join(root, "internal/i18n/locales/zh.yaml"))
 	assert.Contains(t, en, "\ncli.sample.added: \"✅ Added %[1]s (%[2]d)\"\n")
@@ -211,4 +209,16 @@ func TestRunReportsUsageErrors(t *testing.T) {
 	assert.Equal(t, 2, run([]string{"nosuch"}, &log))
 	assert.Equal(t, 1, run([]string{"extract"}, &log), "extract 不给文件是错误")
 	assert.Equal(t, 1, run([]string{"apply", "-entries", "/nonexistent.json"}, &log))
+}
+
+// 新建的常量名就是 make generate-msgid 从 key 推出的那个名字（缩写词全大写），
+// 否则改写后的源码引用的常量在生成的文件里不存在。
+func TestMakeKeyNameIsTheGeneratedName(t *testing.T) {
+	reg := &keyRegistry{names: map[string]bool{}, keys: map[string]bool{}}
+	name, key := reg.makeKey("cli", "sample", "Invalid component ID in YAML", "")
+	assert.Equal(t, "cli.sample.invalid_component_id_in_yaml", key)
+	assert.Equal(t, "CliSampleInvalidComponentIDInYAML", name)
+	name, key = reg.makeKey("cli", "sample", "Invalid component ID in YAML", "")
+	assert.Equal(t, "cli.sample.invalid_component_id_in_yaml_2", key)
+	assert.Equal(t, "CliSampleInvalidComponentIDInYAML2", name)
 }

@@ -123,10 +123,10 @@ func (p *liveProject) labelIfOverridden(ref resolver.Ref, text string) string {
 	if !p.localModeDiffers(ref) {
 		return text
 	}
-	if merged, ok := insertBeforeTrailingParen(text, i18n.T(msgid.CliStatusViaOverrideYamlSuffix)); ok {
+	if merged, ok := insertBeforeTrailingParen(text, i18n.T(msgid.CliStatusViaOverrideYAMLSuffix)); ok {
 		return merged
 	}
-	return text + i18n.T(msgid.CliStatusViaOverrideYaml)
+	return text + i18n.T(msgid.CliStatusViaOverrideYAML)
 }
 
 // asciiRightParen、fullWidthRightParen 是 insertBeforeTrailingParen 认的两种

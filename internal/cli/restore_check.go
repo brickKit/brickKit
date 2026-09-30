@@ -352,7 +352,7 @@ func violationError(
 			e = e.WithDetail(id, i18n.T(msgid.CliRestoreCheckAnd, componentsRel, id, archivedRoot, id))
 		}
 		return e.WithHint(
-			i18n.T(msgid.CliRestoreCheckAComponentIdCanHave),
+			i18n.T(msgid.CliRestoreCheckAComponentIDCanHave),
 			i18n.T(msgid.CliRestoreCheckMostLikelyThePathGiven, componentsRel),
 			i18n.T(msgid.CliRestoreWhenBothPlacesHaveSource),
 		)

@@ -1,8 +1,10 @@
 # BrickKit CLI messages — English. This is the source catalog: every key is declared here first,
 # and every other locales/<lang>.yaml has exactly the same keys.
 # Each text is written in double quotes ("…") or as a literal block (|); %[1]s, %[2]d… are the
-# message's arguments, by position. After adding or removing a key here, run: make generate-msgid
+# message's arguments, by position. A comment above a key says when to use it.
+# After adding or removing a key here, run: make generate-msgid
 
+# The skeleton clierr renders every error with: a detail line ("Label: value") and the suggestion label.
 detail.line: "%[1]s: %[2]s"
 hint.label.single: "Suggestion: %[1]s"
 hint.label.multi: "Suggestions:"
@@ -12,6 +14,9 @@ version.targets_line: "Supported deploy targets: %[1]s"
 version.commit_line: "Git commit: %[1]s"
 version.build_date_line: "Build date: %[1]s"
 
+# Detail labels shared by every package (WithDetail's first argument). A label belongs here when two or
+# more unrelated packages use it with exactly the same meaning; label.source is the "sources" setting,
+# not any source in general.
 label.path: "Path"
 label.reason: "Reason"
 label.component: "Component"
@@ -25,8 +30,14 @@ label.address: "Address"
 label.output: "Output"
 label.command: "Command"
 label.repo: "Repository"
+
+# Punctuation that changes with the language: the separator between listed names (component IDs, config
+# items…).
 list.separator: ", "
 
+# A number together with its noun ("3 files" / "1 file"), used through i18n.Count; a sentence takes the
+# phrase through %s, so singular and plural are solved once here, not in every sentence. The .one key is
+# the singular form; a language without one (zh) leaves it out.
 count.components: "%[1]d components"
 count.components.one: "%[1]d component"
 count.files: "%[1]d files"
@@ -130,7 +141,9 @@ workspace.move_blocked_reason_detail: "Moving the directory directly doesn't upd
 workspace.hint.manual_move_equivalent: "Run the equivalent by hand: mkdir -p %[1]s && git mv %[2]s %[3]s"
 workspace.hint.confirm_then_sync: "Once .gitmodules and git status both look normal, rerun brickkit sync"
 
-prefix.error: "Error: "
+# The "Error: " prefix on its own, for a title that ends in text only known at run time (a message the
+# Market server returned). A title that is all fixed text writes the prefix into its own entry instead.
+error.prefix: "Error: "
 
 market.no_token: "Error: the Market did not return an access token"
 market.hint.check_market_version: "Confirm the Market server version is compatible"
@@ -144,6 +157,7 @@ market.body_shape_mismatch: "Error: the Market's response has an unexpected form
 market.unreachable: "Error: the Market is unreachable"
 market.hint.check_network_and_url: "Check the network connection and whether the Market address is correct"
 
+# Used only when the Market server sends no message of its own; when it does, its message is shown as is.
 market.fallback.blocked: "This component version has been taken down by the Market"
 market.fallback.unauthorized: "Market authentication failed"
 market.fallback.forbidden: "You are not allowed to perform this operation"
@@ -168,6 +182,7 @@ market.status_only: "The Market returned status code %[1]d"
 market.status_with_body: "The Market returned status code %[1]d: %[2]s"
 market.describe_join: "; "
 
+# The action inside "Error: %s failed": written as a gerund phrase.
 market.action.login: "logging in to the Market"
 market.action.logout: "logging out"
 market.action.publish_version: "publishing the component version"
@@ -190,7 +205,7 @@ engine.hint.build_local_image: "For a locally developed component, build the ima
 engine.binary_missing: "Error: container engine %[1]s not found"
 engine.hint.install_docker: "Install Docker 20.10+ and retry"
 engine.hint.install_podman: "Install Podman and retry"
-engine.podman_down_blocked_by_apparmor: "This is a known Ubuntu/Debian AppArmor gap blocking rootless Podman's network teardown (containers/podman#27372), not a BrickKit or Podman bug — see docs/en/10-troubleshooting/01-up-down-issues.md for the fix"
+engine.podman_down_blocked_by_app_armor: "This is a known Ubuntu/Debian AppArmor gap blocking rootless Podman's network teardown (containers/podman#27372), not a BrickKit or Podman bug — see docs/en/10-troubleshooting/01-up-down-issues.md for the fix"
 engine.exec_failed: "Error: %[1]s failed to run"
 engine.status_parse_failed: "Error: could not parse the container engine's status output"
 engine.hint.compose_v2: "Confirm your compose provider is V2+ (docker compose version, or podman compose version for target: podman)"
@@ -234,6 +249,9 @@ inject.required_reason_detail: "The component declares it in configSchema.requir
 inject.hint.set_value: "Give it a value in %[1]s:\n    %[2]s: <value>"
 inject.hint.env_var_value: "The value may be ${ENV_VAR} (real value in .env), $var:NAME (shared, from config/vars.yaml) or file://path"
 
+# The message field of the JSON log lines on stderr. The log's field names (command, elapsed_ms,
+# error_code…) are a stable interface for machines and stay English outside the catalogs; only this
+# human sentence follows the language. Scripts branch on error_code, never on message.
 log.command_started: "Command started"
 log.command_finished: "Command finished"
 log.command_failed: "Command failed"
@@ -331,6 +349,8 @@ security.label_signature_covers: "What the signature covers"
 security.hint_market_mismatch: "What the Market returned doesn't match what was requested — a Market misconfiguration, or the response was swapped"
 security.hint_try_other_source: "Retry with a different install source, and ask the Market administrator to investigate"
 label.shell: "Shell"
+
+# The shared head comment of generated files (compose.yaml, Kubernetes manifests).
 header.do_not_edit: "Generated automatically by the BrickKit CLI — do not edit by hand"
 header.overwritten: "Manual edits are overwritten on the next brickkit up; edit brickkit.yaml, the deploy file or config/ instead"
 header.generated_at: "Generated at: %[1]s"
@@ -456,7 +476,7 @@ invalid_component_id: "Error: invalid component ID: %[1]s"
 hint.component_id_format: "A component ID has the form <scope>/<name>, for example people/basic"
 manifest.scaffold.bad_contract: "Error: invalid --contract value: %[1]s"
 manifest.scaffold.hint_contract_values: "Must be one of %[1]s or %[2]s"
-manifest.scaffold.openapi_description: "TODO — the API this component exposes"
+manifest.scaffold.open_api_description: "TODO — the API this component exposes"
 manifest.scaffold.proto_todo: "TODO: define the RPCs this component exposes"
 manifest.scaffold.header: "%[1]s — skeleton generated by brickkit new\nEvery TODO below has to be replaced with the real thing; the structure itself already passes brickkit up --dry-run validation"
 manifest.scaffold.name_todo: "TODO: change to a human-readable display name"
@@ -541,7 +561,7 @@ k8s.label.exposed_component: "Exposed component"
 k8s.ref_exposed: "%[1]s (expose: true)"
 k8s.ingress_controller_reason_detail: "The generated policy denies all inbound traffic by default; unless you say where the ingress controller lives, it is locked out too — every deployment step succeeds, yet the website simply won't open"
 k8s.hint.find_controller_namespace: "Find out which namespace the controller lives in: kubectl get pods -A | grep ingress"
-k8s.hint.then_write_brickkit_yaml: "Then write it into the deploy file (%[1]s):"
+k8s.hint.then_write_deploy_file: "Then write it into the deploy file (%[1]s):"
 k8s.hint.drop_network_policy: "Remove k8s.networkPolicy from the deploy file if you don't need network policies"
 source.credentials_read_failed: "Error: failed to read the login credentials"
 source.hint.login_again: "Run brickkit login again to log in to the Market"
@@ -824,6 +844,8 @@ cli.skills.error_failed_to_read_or: "Error: failed to read or write the AI assis
 cli.skills.language_line: "Skill language: %[1]s (recorded in skills.lock; brickkit skills update --lang to change it)"
 cli.skills.lang_flag: "Reinstall using this language (en|zh), and remember it for this project from now on"
 cli.lint.local_enumeration_failed: "The local install sources could not be enumerated; skipped the local components' %[1]s (fix the error above first)"
+
+# Separators between clauses: full-width in Chinese, ASCII plus a space in English.
 clause.separator: ", "
 semicolon.separator: "; "
 cli.imagedigest.error_could_not_get_the: "Error: could not get the image digest from the registry"
@@ -917,7 +939,9 @@ cli.up.upgrade.diff.memory: "memory %[1]s"
 cli.up.upgrade.diff.added: "added %[1]s"
 cli.up.upgrade.diff.removed: "removed %[1]s"
 cli.up_upgrade_diff.unknown_diff: "unknown (the old version's Manifest can't be read)"
-placeholder.service_name: "<service-name>"
+
+# The "put the service name here" placeholder in a suggested command (the logs command).
+service_name.placeholder: "<service-name>"
 cli.init.project: "Project"
 cli.init.project_config: "Project config"
 cli.init.locations_searched: "Locations searched"
@@ -1041,6 +1065,8 @@ skills.lock.failed_to_parse_skills_lock: "Failed to parse skills.lock: "
 skills.lock.failed_to_read_skills_lock: "Failed to read skills.lock: "
 skills.lock.failed_to_serialize_skills_lock: "Failed to serialize skills.lock: "
 skills.lock.failed_to_create_the_directory: "Failed to create the directory that holds skills.lock: "
+
+# Display names of a skill file's state; the state itself is a language-neutral identifier.
 skills.state.missing: "missing"
 skills.state.current: "up to date"
 skills.state.outdated: "outdated"

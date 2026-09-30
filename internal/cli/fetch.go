@@ -42,7 +42,7 @@ import (
 // newFetchCommand 实现 brickkit fetch。
 func newFetchCommand(opts *Options) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     i18n.T(msgid.CliFetchFetchComponentIdVersion),
+		Use:     i18n.T(msgid.CliFetchFetchComponentIDVersion),
 		Short:   i18n.T(msgid.CliFetchShort),
 		GroupID: groupComponent,
 		Long:    i18n.T(msgid.CliFetchLong),

@@ -8,12 +8,13 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/brickkit/brickkit/internal/msgid/msgidgen"
 )
 
 var (
 	wordRe        = regexp.MustCompile(`[A-Za-z][A-Za-z0-9]*`)
 	placeholderRe = regexp.MustCompile(`%(?:\[\d+\])?[-+# 0]*\d*(?:\.\d+)?[a-zA-Z]`)
-	constRe       = regexp.MustCompile(`(?m)^\s*([A-Z][A-Za-z0-9]*)\s*=\s*"([^"]*)"`)
 	// yamlEntryRe 是 locales/*.yaml 里的一条：key: "文案"（迁移工具只写、也只读双引号这一种写法）
 	yamlEntryRe = regexp.MustCompile(`(?m)^([a-z0-9_.]+):\s*("(?:[^"\\]|\\.)*")\s*$`)
 )
@@ -24,28 +25,23 @@ type keyRegistry struct {
 	keys  map[string]bool // key 字符串值
 }
 
-// loadKeyRegistry 读 internal/msgid/*.go，收齐现有的常量名与 key 值。
+// loadKeyRegistry 读源语言目录 locales/en.yaml，收齐现有的 key 与它们生成的常量名。
 func loadKeyRegistry(root string) (*keyRegistry, error) {
 	reg := &keyRegistry{names: map[string]bool{}, keys: map[string]bool{}}
-	files, err := filepath.Glob(filepath.Join(root, "internal/msgid/*.go"))
+	keys, err := msgidgen.SourceKeys(filepath.Join(root, "internal/i18n/locales/en.yaml"))
 	if err != nil {
 		return nil, err
 	}
-	for _, f := range files {
-		body, err := os.ReadFile(f)
-		if err != nil {
-			return nil, err
-		}
-		for _, m := range constRe.FindAllStringSubmatch(string(body), -1) {
-			reg.names[m[1]] = true
-			reg.keys[m[2]] = true
-		}
+	for _, k := range keys {
+		reg.names[msgidgen.GoName(k)] = true
+		reg.keys[k] = true
 	}
 	return reg, nil
 }
 
-// makeKey 由英文文案生成常量名与 key 值：取前五个单词，前面拼上包名与文件名，
+// makeKey 由英文文案生成 key 与常量名：取前五个单词，前面拼上包名与文件名，
 // 重名时在末尾加序号。命令的 Short / Long / Example 字段直接用字段名，比取词更好认。
+// 常量名一律是 msgidgen.GoName(key)——make generate-msgid 生成的正是这个名字。
 func (r *keyRegistry) makeKey(pkg, stem, en, field string) (name, key string) {
 	words := wordRe.FindAllString(placeholderRe.ReplaceAllString(en, " "), -1)
 	if len(words) > 5 {
@@ -54,38 +50,23 @@ func (r *keyRegistry) makeKey(pkg, stem, en, field string) (name, key string) {
 	if len(words) == 0 {
 		words = []string{"Msg"}
 	}
-	var pascal, snake []string
-	for _, w := range words {
-		w = strings.ToLower(w)
-		pascal = append(pascal, strings.ToUpper(w[:1])+w[1:])
-		snake = append(snake, w)
+	snake := make([]string, len(words))
+	for i, w := range words {
+		snake[i] = strings.ToLower(w)
 	}
-	pkgTitle := strings.ToUpper(pkg[:1]) + pkg[1:]
-	base := pkgTitle + title(stem) + strings.Join(pascal, "")
 	keyBase := pkg + "." + strings.ReplaceAll(stem, "_", ".") + "." + strings.Join(snake, "_")
 	if field == "Short" || field == "Long" || field == "Example" {
-		base = pkgTitle + title(stem) + field
 		keyBase = pkg + "." + strings.ReplaceAll(stem, "_", ".") + "." + strings.ToLower(field)
 	}
 
-	name, key = base, keyBase
+	key = keyBase
+	name = msgidgen.GoName(key)
 	for n := 2; r.names[name] || r.keys[key]; n++ {
-		name = base + strconv.Itoa(n)
 		key = keyBase + "_" + strconv.Itoa(n)
+		name = msgidgen.GoName(key)
 	}
 	r.names[name], r.keys[key] = true, true
 	return name, key
-}
-
-// title 把 snake_case 的文件名变成 PascalCase：up_upgrade_diff → UpUpgradeDiff。
-func title(stem string) string {
-	var b strings.Builder
-	for _, p := range strings.Split(stem, "_") {
-		if p != "" {
-			b.WriteString(strings.ToUpper(p[:1]) + p[1:])
-		}
-	}
-	return b.String()
 }
 
 // catalogIndex 是"中文文案 → 已有的 (常量名, 英文文案)"的反向索引，
@@ -112,10 +93,6 @@ func loadCatalogIndex(root string) (catalogIndex, error) {
 
 // loadCatalog 读一份 locales/<lang>.yaml，返回"常量名 → 文案"。
 func loadCatalog(root, lang string) (map[string]string, error) {
-	names, err := keyToName(root)
-	if err != nil {
-		return nil, err
-	}
 	body, err := os.ReadFile(filepath.Join(root, "internal/i18n/locales", lang+".yaml"))
 	if err != nil {
 		return nil, err
@@ -126,28 +103,7 @@ func loadCatalog(root, lang string) (map[string]string, error) {
 		if err := json.Unmarshal([]byte(m[2]), &v); err != nil {
 			return nil, fmt.Errorf("%s: %w", m[1], err)
 		}
-		if name, ok := names[m[1]]; ok {
-			out[name] = v
-		}
-	}
-	return out, nil
-}
-
-// keyToName 读 internal/msgid 下的常量，返回 key → 常量名。
-func keyToName(root string) (map[string]string, error) {
-	files, err := filepath.Glob(filepath.Join(root, "internal/msgid", "*.go"))
-	if err != nil {
-		return nil, err
-	}
-	out := map[string]string{}
-	for _, f := range files {
-		body, err := os.ReadFile(f)
-		if err != nil {
-			return nil, err
-		}
-		for _, m := range constRe.FindAllStringSubmatch(string(body), -1) {
-			out[m[2]] = m[1]
-		}
+		out[msgidgen.GoName(m[1])] = v
 	}
 	return out, nil
 }

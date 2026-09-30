@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-docs-bilingual check-market-api check-market-mod check-components check-guards check-install-sh check-smoke check-no-binaries check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + 双语镜像 + 市场 API 表 + 市场模块依赖清单 + 测试组件合规 + 架构与报错守卫 + 安装脚本 + 发布冒烟 + 仓库无二进制 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-msgid check-docs-bilingual check-market-api check-market-mod check-components check-guards check-install-sh check-smoke check-no-binaries check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + msgid 常量与英文目录一致 + 双语镜像 + 市场 API 表 + 市场模块依赖清单 + 测试组件合规 + 架构与报错守卫 + 安装脚本 + 发布冒烟 + 仓库无二进制 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
 # 教程的输出核对（check-guide-output、check-guides）随旧教程一起撤下：附录 A13
 # 规定 tutorials/ 先只建目录，没有教程可核对。写教程的那一阶段要为 tutorials/
 # 重新建一个逐行核对真实输出的检查（旧脚本在 git 历史里，机制可以照搬）。
@@ -187,6 +187,16 @@ generate-schemas: ## 从 Go 结构体重新生成 schemas/*.json（改了 manife
 .PHONY: check-schemas
 check-schemas: ## 检查签入的 schemas/*.json 与结构体生成的一致，且约束与真实校验器一致
 	@$(GO) test ./internal/schemagen/ -count=1
+
+# internal/msgid/messages_gen.go 是从 internal/i18n/locales/en.yaml 生成的：增删一条消息只改目录，
+# 再跑 generate-msgid 并把结果一起提交；check-msgid 在 lint 里拦住"忘了跑"。
+.PHONY: generate-msgid
+generate-msgid: ## 从 internal/i18n/locales/en.yaml 重新生成 internal/msgid/messages_gen.go（增删消息之后跑）
+	@$(GO) run ./cmd/gen-msgid
+
+.PHONY: check-msgid
+check-msgid: ## 检查签入的 msgid 常量就是 en.yaml 生成的那一份
+	@$(GO) test ./internal/msgid/msgidgen/ -run TestGeneratedMsgidIsCurrent -count=1
 
 .PHONY: check-market-api
 check-market-api: ## 检查市场 API 参考（docs/{zh,en}/11-reference/06-market-api.md）的端点表与真实路由表双向一致、中英一致

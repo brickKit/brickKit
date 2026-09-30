@@ -99,7 +99,7 @@ func lintProject(opts *Options, layout project.Layout, strict bool) ([]lintFile,
 	if err != nil {
 		head.errors = append(head.errors, clierr.As(err))
 		return []lintFile{head}, []string{
-			i18n.T(msgid.CliLintBrickkitYamlDidNotPass, manifest.FileName),
+			i18n.T(msgid.CliLintBrickkitYAMLDidNotPass, manifest.FileName),
 		}
 	}
 
@@ -265,7 +265,7 @@ func lintManifest(opts *Options, path, dirID string) lintFile {
 	} else {
 		if dirID != "" && m.Metadata.ID != dirID {
 			f.errors = append(f.errors, clierr.New(clierr.CodeManifestInvalid,
-				i18n.T(msgid.CliLintErrorTheComponentIdIn, manifest.FileName)).
+				i18n.T(msgid.CliLintErrorTheComponentIDIn, manifest.FileName)).
 				WithDetail(i18n.T(msgid.LabelFile), f.path).
 				WithDetail(i18n.T(msgid.CliLintDirectoryName), dirID).
 				WithDetail("metadata.id", m.Metadata.ID).

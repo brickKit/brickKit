@@ -37,7 +37,7 @@ func newRestoreCommand(opts *Options) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&check, "check", false,
-		i18n.T(msgid.CliRestoreOnlyCheckWhetherTheYaml))
+		i18n.T(msgid.CliRestoreOnlyCheckWhetherTheYAML))
 	return cmd
 }
 
@@ -248,7 +248,7 @@ func restorePreflight(repo *gitrepo.Repo, layout project.Layout, ids []string) e
 				i18n.T(msgid.CliRestoreAnd, workspace.DisplayDir(id), workspace.DisplayArchivedDir(id)))
 		}
 		return e.WithHint(
-			i18n.T(msgid.CliRestoreAComponentIdCanHave),
+			i18n.T(msgid.CliRestoreAComponentIDCanHave),
 			i18n.T(msgid.CliRestoreFirstCheckWhatEachOf),
 			i18n.T(msgid.CliRestoreWhenBothPlacesHaveSource),
 		)
