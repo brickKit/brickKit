@@ -1,0 +1,13 @@
+关闭本地模式（文件保留）
+
+用法：
+  brickkit local off [flags]
+
+示例：
+  brickkit local off
+
+参数：
+  -h, --help   查看 brickkit local off 的帮助信息
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

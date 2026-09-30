@@ -1,0 +1,29 @@
+登录 BrickKit 市场。
+
+行为：
+  1. 终端输入用户名
+  2. 终端输入密码（隐藏输入）
+  3. 调用市场 API 验证凭据
+  4. 成功则把 Token 写入 .brickkit/credentials（权限 0600）
+
+市场地址取自 brickkit.yaml 中类型为 market 的安装源；配了多个时用 --market 指定。
+
+Token 优先级：.brickkit/credentials > brickkit.yaml 中的 sources.authToken。
+CLI 每次使用 Token 前检查 expiresAt，过期则提示重新登录（不做自动刷新）。
+
+用法：
+  brickkit login [flags]
+
+示例：
+  brickkit login
+  brickkit login --market https://market.example.com/api/v1
+  echo "$PASSWORD" | brickkit login --username ci-bot --password-stdin
+
+参数：
+  -h, --help              查看 brickkit login 的帮助信息
+      --market string     市场地址（默认取 brickkit.yaml 中的 market 安装源）
+      --password-stdin    从标准输入读密码（CI 用，不回显也不进历史）
+      --username string   用户名（不指定则交互式输入）
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

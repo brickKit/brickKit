@@ -1,0 +1,24 @@
+停止项目。
+
+停止顺序与启动顺序相反（依赖方先停，被依赖方后停），交给引擎处理。
+
+只想停其中几个：在部署文件里给它们的条目写 mode: disable 再 brickkit up。
+生成的部署文件里没有它们，引擎会把对应的容器一并移除——效果与"只停这几个"
+相同，而且配置里留下了痕迹，下次 up 不会又把它们拉起来。
+
+重要：down 不删除 volume，数据库数据始终保留。
+如需彻底清理，请手动执行 docker/podman volume rm 或 docker/podman compose down -v。
+
+用法：
+  brickkit down [flags]
+
+示例：
+  brickkit down
+
+参数：
+  -f, --file string   要使用的部署文件（如 deploy.prod.yaml）：只读这一份，本地模式被忽略
+  -h, --help          查看 brickkit down 的帮助信息
+      --no-local      本次忽略 deploy.local.yaml（本地模式的开关不变）
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

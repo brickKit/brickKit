@@ -1,0 +1,13 @@
+Turn local mode on (copies deploy.yaml the first time)
+
+Usage:
+  brickkit local on [flags]
+
+Examples:
+  brickkit local on
+
+Flags:
+  -h, --help   help for on
+
+Global Flags:
+      --log-level string   Level of the JSON logs on stderr (debug | info | warn | error | off) (default "off")

@@ -1,0 +1,38 @@
+管理装进本项目的 AI 助手技能（.claude/skills/、AGENTS.md）。
+
+这些文件由 brickkit init 装入，跟着项目提交、团队共享。它们描述的是
+当前这个 CLI 版本的行为，所以 CLI 升级后需要刷新一次。
+
+  brickkit skills          看每个文件的状态（只读，等同 status）
+  brickkit skills status   同上
+  brickkit skills update   缺的装上、旧的刷新
+
+手改过的文件绝不覆盖。 update 会把它们列出来并跳过。想放弃本地
+修改，删掉那个文件再执行一次 update——刻意不提供 --force：删文件这个
+动作本身已经足够明确，而多一个开关就多一条误伤路径。
+
+在独立的组件仓库里（有 component.yaml、没有 brickkit.yaml）也能用：这时只管理
+brickkit-component 这一个技能——项目导读与拼装/部署/排障三个技能在那里讲不通。
+组件仓库自己的 AGENTS.md 一个字都不碰。
+
+不碰你的 CLAUDE.md：那是你自己的流程文件。
+
+用法：
+  brickkit skills [flags]
+  brickkit skills <命令> [参数]
+
+示例：
+  brickkit skills          看装了什么、有没有过期
+  brickkit skills update   刷新到当前 CLI 版本
+
+可用命令：
+  status      查看每个技能文件的状态（只读）
+  update      缺的装上、旧的刷新；手改过的跳过
+
+参数：
+  -h, --help   查看 brickkit skills 的帮助信息
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")
+
+执行 "brickkit skills <命令> --help" 查看某个命令的详细说明。

@@ -1,0 +1,19 @@
+Generate the autocompletion script for brickkit for the specified shell.
+See each sub-command's help for details on how to use the generated script.
+
+用法：
+  brickkit completion <命令> [参数]
+
+可用命令：
+  bash        Generate the autocompletion script for bash
+  fish        Generate the autocompletion script for fish
+  powershell  Generate the autocompletion script for powershell
+  zsh         Generate the autocompletion script for zsh
+
+参数：
+  -h, --help   查看 brickkit completion 的帮助信息
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")
+
+执行 "brickkit completion <命令> --help" 查看某个命令的详细说明。

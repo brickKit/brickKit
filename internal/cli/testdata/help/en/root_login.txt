@@ -1,0 +1,29 @@
+Log in to the BrickKit Market.
+
+What it does:
+  1. Asks for the user name in the terminal
+  2. Asks for the password in the terminal (input hidden)
+  3. Calls the Market API to verify the credentials
+  4. On success writes the token to .brickkit/credentials (permissions 0600)
+
+The Market address is taken from the install source of type market in brickkit.yaml; if several are configured, choose with --market.
+
+Token priority: .brickkit/credentials > sources.authToken in brickkit.yaml.
+Before each use of a token the CLI checks expiresAt; when expired it asks you to log in again (there is no automatic refresh).
+
+Usage:
+  brickkit login [flags]
+
+Examples:
+  brickkit login
+  brickkit login --market https://market.example.com/api/v1
+  echo "$PASSWORD" | brickkit login --username ci-bot --password-stdin
+
+Flags:
+  -h, --help              help for login
+      --market string     Market address (defaults to the market install source in brickkit.yaml)
+      --password-stdin    Read the password from standard input (for CI; not echoed and not kept in history)
+      --username string   User name (asked interactively if not given)
+
+Global Flags:
+      --log-level string   Level of the JSON logs on stderr (debug | info | warn | error | off) (default "off")

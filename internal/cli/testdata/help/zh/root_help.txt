@@ -1,0 +1,11 @@
+Help provides help for any command in the application.
+Simply type brickkit help [path to command] for full details.
+
+用法：
+  brickkit help [command] [flags]
+
+参数：
+  -h, --help   查看 brickkit help 的帮助信息
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

@@ -1,0 +1,11 @@
+Show the CLI version, the supported Manifest version and the deploy targets
+
+Usage:
+  brickkit version [flags]
+
+Flags:
+  -h, --help      help for version
+  -v, --verbose   Also print the Git commit and build time
+
+Global Flags:
+      --log-level string   Level of the JSON logs on stderr (debug | info | warn | error | off) (default "off")

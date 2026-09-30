@@ -1,0 +1,16 @@
+查看 CLI 当前的显示语言
+
+用法：
+  brickkit lang [flags]
+  brickkit lang <命令> [参数]
+
+可用命令：
+  set         设置 CLI 的显示语言
+
+参数：
+  -h, --help   查看 brickkit lang 的帮助信息
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")
+
+执行 "brickkit lang <命令> --help" 查看某个命令的详细说明。

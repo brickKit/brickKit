@@ -1,0 +1,39 @@
+管理本地模式：你个人的部署文件 deploy.local.yaml（从不提交）。
+
+本地模式开着时，所有命令读 deploy.local.yaml 而不是 deploy.yaml——读整份文件，
+不是两份合并，所以文件里写的就是实际运行的。个人的事实写在这里：
+正在调试的组件写 mode: debug、本机空着的 localPort、自己数据库的 vars 值，甚至换一个 target。
+
+  brickkit local on        开启本地模式；第一次开启时从 deploy.yaml 复制（只把团队文件的文件头换成个人文件的说明）
+  brickkit local off       关闭（文件留着，下次 local on 接着用）
+  brickkit local status    开关、文件、以及文件是否还与 brickkit.yaml 一致
+  brickkit local refresh   团队改了 deploy.yaml 之后重新复制；旧文件保存为 deploy.local.yaml.bak，
+                           其中每一处本地修改都列出来，由你合并回去
+
+文件里的组件必须与 brickkit.yaml 声明的完全一致：团队新加了组件，up 会拒绝运行，
+直到你 refresh（或者手改文件、或者关掉本地模式）。
+单次运行可以用 --no-local 忽略它；-f <文件> 也会忽略它。
+
+用法：
+  brickkit local [flags]
+  brickkit local <命令> [参数]
+
+示例：
+  brickkit local on
+  brickkit local status
+  brickkit local refresh      团队改了 deploy.yaml 之后
+  brickkit local off
+
+可用命令：
+  off         关闭本地模式（文件保留）
+  on          开启本地模式（第一次从 deploy.yaml 复制）
+  refresh     重新从 deploy.yaml 复制，备份旧文件并列出其中的本地修改
+  status      查看开关、文件，以及它是否还与 brickkit.yaml 一致
+
+参数：
+  -h, --help   查看 brickkit local 的帮助信息
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")
+
+执行 "brickkit local <命令> --help" 查看某个命令的详细说明。

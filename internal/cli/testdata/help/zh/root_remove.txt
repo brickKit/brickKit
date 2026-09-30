@@ -1,0 +1,18 @@
+检查强依赖方后移除组件：配置不删，移进 config/.archive/；deploy.yaml（以及存在的 deploy.local.yaml）里的条目一起删；删外壳时成员挪回顶层独立运行；只因它而保留的兼容版本（requiredBy 只剩它）一并移除。
+
+删的是默认版本、这个组件只剩一个版本时，剩下的那个转正成默认版本。组件的最后一个版本走了才删它的源码目录，而且先确认删了还找得回来。
+
+用法：
+  brickkit remove <组件ID>[@版本] [flags]
+
+示例：
+  brickkit remove erp/backend                 # 只有一个版本时
+  brickkit remove erp/backend@1.0.0           # 有好几个版本时写明
+  brickkit remove erp/backend@1.0.0 --force   # 源码目录里有没推送的改动也删
+
+参数：
+      --force   源码目录里有未提交、未推送的改动也照样删
+  -h, --help    查看 brickkit remove 的帮助信息
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

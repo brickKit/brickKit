@@ -1,0 +1,27 @@
+拉取组件及其依赖，一次写好三份文件：brickkit.yaml 的声明、deploy.yaml（以及存在的 deploy.local.yaml）的部署条目、config/ 的配置骨架。
+
+不写版本时取安装源里最新的精确版本并钉进 brickkit.yaml。依赖要的是项目里已有组件的另一个版本时，这个版本以 requiredBy 保留（多版本共存）。add 一个外壳时，它编进的成员按声明的版本一起加进来、嵌在外壳下面。
+
+改完之后项目装载不了，全部还原。
+
+用法：
+  brickkit add [组件ID[@精确版本]] [flags]
+
+示例：
+  brickkit add erp/backend                    # 最新 tag，钉成精确版本
+  brickkit add erp/backend@1.0.0              # 指定版本
+  brickkit add --local                        # 本地安装源里的组件一次全加
+  brickkit add --local --init                 # ……并先给每个组件建好本地联调工作台
+  brickkit add erp/backend@1.0.0 --repo       # 顺便克隆源码（检出这个版本）
+  brickkit add erp/backend@1.0.0 --yes        # 非交互（CI/CD）
+
+参数：
+  -h, --help       查看 brickkit add 的帮助信息
+      --init       与 --local 一起用：先给每个还没有 brickkit.yaml 的本地组件建好本地联调工作台
+      --local      把本地安装源里的组件一次全部加进来
+      --repo       同时把这个组件的源码仓库克隆到 components/，检出这个版本
+      --repo-all   同时克隆这次加进来的每个开源组件的源码（默认版本）
+  -y, --yes        非交互：每个问题都回答「是」（CI/CD 用）
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

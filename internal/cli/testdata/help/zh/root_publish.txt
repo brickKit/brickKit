@@ -1,0 +1,38 @@
+把组件发布到市场。
+
+行为：
+  1. 检查登录状态（credentials 或 sources.authToken），未登录报错
+  2. 读取组件目录中的 component.yaml 并校验 Manifest 格式
+  3. 检查镜像引用是否有效，并确认 artifacts 声明的文件都在
+  4. 建 draft 版本 → 上传产物 → 转 stable
+  5. 设置可见性（--visibility）
+
+发布分三步是有意的：版本转 stable 时市场会校验"文件与 artifacts 声明一致"，
+先建 draft 才能保证不会出现"已 stable 但文件没传齐"的半成品。
+
+--path 支持归档目录，例如 ./components/.archived/erp/backend。
+
+用法：
+  brickkit publish [flags]
+
+示例：
+  brickkit publish --path ./components/people/basic
+  brickkit publish --path ./components/people/basic --visibility private
+  brickkit publish --path ./components/people/basic --changelog "新增人员状态字段"
+
+参数：
+      --changelog string        本次版本的更新说明
+      --git-url string          开源组件的 Git 仓库地址（默认取组件目录的 origin）
+  -h, --help                    查看 brickkit publish 的帮助信息
+      --key string              cosign 私钥路径（默认 cosign.key）
+      --market string           市场地址（默认取 brickkit.yaml 中的 market 安装源）
+      --no-pin-digest           不把镜像 tag 钉成 digest（默认会钉；跳过后 registry 上换掉同名 tag 时签名照样有效）
+      --path string             组件源码目录（含 component.yaml） (default ".")
+      --public-key-ref string   写进签名的公钥 ref（默认按 --key 的 .key → .pub 推导）
+      --sign                    对组件签名后发布（cosign）
+      --signed-by string        签名者标识，如 release-bot@example.com
+      --source-type string      来源类型：git（开源）| registry（闭源）。默认按组件目录的 git remote 推断
+      --visibility string       可见性：public | private（默认沿用市场侧设置）
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

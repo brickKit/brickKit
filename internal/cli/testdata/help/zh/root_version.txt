@@ -1,0 +1,11 @@
+查看 CLI 版本、支持的 Manifest 版本与部署目标
+
+用法：
+  brickkit version [flags]
+
+参数：
+  -h, --help      查看 brickkit version 的帮助信息
+  -v, --verbose   额外输出 Git commit 与构建时间
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

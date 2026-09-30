@@ -1,0 +1,27 @@
+Pull a component and its dependencies, and write all three files at once: the declaration in brickkit.yaml, the entries in deploy.yaml (and deploy.local.yaml when it exists), and the config skeleton in config/.
+
+Without a version, the latest exact version in the install source is pinned into brickkit.yaml. When a dependency needs another version of a component already in the project, that version is kept with requiredBy (multiple versions side by side). Adding a shell brings in the members it compiles in, at the declared versions, nested under the shell.
+
+If the project would not load afterwards, every file is restored.
+
+Usage:
+  brickkit add [component-id[@exact-version]] [flags]
+
+Examples:
+  brickkit add erp/backend                    # latest tag, pinned as an exact version
+  brickkit add erp/backend@1.0.0              # a given version
+  brickkit add --local                        # every component in the local sources at once
+  brickkit add --local --init                 # ...and give each one its own local workbench first
+  brickkit add erp/backend@1.0.0 --repo       # also clone the source (at this version)
+  brickkit add erp/backend@1.0.0 --yes        # non-interactive (CI/CD)
+
+Flags:
+  -h, --help       help for add
+      --init       With --local: give every local component without a brickkit.yaml its own local workbench first
+      --local      Add every component in the local install sources at once
+      --repo       Also clone this component's source repository into components/, at this version
+      --repo-all   Also clone the source of every open-source component this add brings in (default versions)
+  -y, --yes        Non-interactive: answer yes to every question (for CI/CD)
+
+Global Flags:
+      --log-level string   Level of the JSON logs on stderr (debug | info | warn | error | off) (default "off")

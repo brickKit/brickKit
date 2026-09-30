@@ -1,0 +1,32 @@
+Draw the current project's dependency topology as a Mermaid diagram and print it to stdout.
+
+What is in the diagram:
+  nodes     component id@version; mode: local ones are marked "managed locally" (with the port too if localPort is set)
+  solid     required dependency; dashed is an optional dependency (an optional one that can't be found is drawn as a "not installed" node)
+  greyed    components that won't start this run (turned off by mode: disable, or not running because everything above them is off)
+  shell     members hosted by a shell this run (members in the deploy file) are drawn inside their shell (subgraph)
+
+graph never reads local mode — it reads deploy.yaml (or the file given with -f), so mode: debug, which lives only in deploy.local.yaml, never appears here.
+
+Edges are always drawn, whether or not the other end starts this run — the diagram shows the declared structure, and "started or not" is expressed by node style.
+
+Nothing but Mermaid goes to stdout, so it can be saved straight to a .mmd file (brickkit graph > graph.mmd),
+and GitHub renders .mmd / .mermaid files directly; inside Markdown you must wrap it in a mermaid code fence
+(fence language mermaid) — pasting the text alone won't be rendered. Warnings from dependency resolution go to stderr.
+Like up, Market / Git components that aren't cached yet are fetched over the network for their Manifest; if the dependency graph can't be resolved it reports the same errors.
+
+Usage:
+  brickkit graph [flags]
+
+Examples:
+  brickkit graph
+  brickkit graph > graph.mmd
+  brickkit graph --ignore-shells   ignore every shell's members and show each component as if it started on its own
+
+Flags:
+  -f, --file string     Deploy file to use (e.g. deploy.prod.yaml); only this file is read and local mode is ignored
+  -h, --help            help for graph
+      --ignore-shells   Ignore every shell's members before drawing (same meaning as up --ignore-shells); nothing is written back
+
+Global Flags:
+      --log-level string   Level of the JSON logs on stderr (debug | info | warn | error | off) (default "off")

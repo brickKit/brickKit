@@ -1,0 +1,69 @@
+BrickKit CLI — build systems like snapping together bricks.
+
+You declare which components you want and what they depend on; the CLI derives the rest and hands it to Docker, Podman or Kubernetes.
+A project is described in three layers:
+  brickkit.yaml       which components, at which exact versions
+  deploy.yaml         how they are deployed (your personal deploy.local.yaml stays out of Git)
+  config/             the environment variables each component gets
+
+What the CLI does:
+  1. Pull components and artifacts (Git / local directories / Market) and write them into the three layers
+  2. Resolve dependencies and work out the start order (required/optional dependencies + topological sort)
+  3. Generate deployment files, run migrations and call the underlying engine (compose / kubectl)
+  4. Build local images and release component versions (build / release / publish)
+  5. Manage the component source workspace (--repo / sync)
+
+It is not a long-running service: it exits once the command finishes and uses no background resources.
+
+Usage:
+  brickkit
+  brickkit [command]
+
+Examples:
+  brickkit init my-project              initialize a project
+  brickkit add erp/backend@1.0.0        add a component (dependencies are pulled recursively)
+  brickkit up --dry-run                 compute without starting: see what would run and in what order
+  brickkit up                           generate deployment files and start
+  brickkit status                       show the running state
+  brickkit down                         stop (volumes are kept)
+
+Project commands:
+  deps        Print the dependency tree
+  graph       Output the project's dependency topology as a Mermaid diagram
+  init        Create a project, or complete the three-layer skeleton in the current directory
+  lint        Check the three layers (brickkit.yaml, deploy files, config/) and component.yaml offline
+  restore     Restore mode in deploy.yaml and the component source layout to the last commit
+  skills      Show and refresh the AI assistant skills installed into the project
+
+Component commands:
+  add         Add a component, pull its dependencies and artifacts recursively, and write it into the three layers
+  build       Build the component images that need a local build
+  fetch       Download a component's artifacts (API contract, SDK, ...) without installing it into the project
+  new         Generate the minimal skeleton of a new component
+  release     Release a component version: check, tag and push to its Git repository
+  remove      Remove a component: drop its entries from the three layers and archive its config in config/.archive/
+  sync        Tidy the component source workspace: move source you don't need this run into .archived/
+  upgrade     Upgrade a component's default version and migrate its config
+
+Lifecycle commands:
+  down        Stop every component in one go (volumes are kept)
+  local       Manage deploy.local.yaml, your personal copy of deploy.yaml
+  status      View the running state of components (reads the underlying engine)
+  up          Generate the deployment files, run migrations and start every component in one go
+
+Market commands:
+  login       Log in to the component Market; the token is stored in .brickkit/credentials
+  logout      Log out of the Market: revoke the token on the server and delete the local credentials
+  publish     Publish a component to the Market (brickkit login first)
+
+Additional Commands:
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  lang        Show the CLI's current display language
+  version     Show the CLI version, the supported Manifest version and the deploy targets
+
+Flags:
+  -h, --help               help for brickkit
+      --log-level string   Level of the JSON logs on stderr (debug | info | warn | error | off) (default "off")
+
+Use "brickkit [command] --help" for more information about a command.

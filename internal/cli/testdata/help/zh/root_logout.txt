@@ -1,0 +1,25 @@
+退出组件市场的登录。
+
+做两件事：
+  1. 调市场的 POST /auth/logout 作废这个 Token（服务端那一侧）
+  2. 删掉 .brickkit/credentials（本地那一侧）
+
+本地那一份一定会删，即使市场连不上——否则一次网络抖动就让人以为自己已经
+退出了，而凭据还躺在盘上。市场不可达时只警告一句，并说明那个 Token 仍然有效
+到过期为止。
+
+没登录时什么都不做，也不算失败。
+
+用法：
+  brickkit logout [flags]
+
+示例：
+  brickkit logout
+  brickkit logout --keep-remote   只删本地凭据，不通知市场
+
+参数：
+  -h, --help          查看 brickkit logout 的帮助信息
+      --keep-remote   只删本地凭据，不调市场作废 Token（离线时用）
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

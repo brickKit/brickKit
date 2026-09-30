@@ -1,0 +1,18 @@
+Remove a component after checking what requires it: its config is moved into config/.archive/ rather than deleted, its entries in deploy.yaml (and deploy.local.yaml when it exists) are removed, a removed shell's members move back to the top level and run on their own, and versions kept only for it (a requiredBy naming only it) go too.
+
+When the default version goes and one version is left, that version becomes the default. The source directory is deleted only when the last version goes, and only if nothing in it would be lost.
+
+Usage:
+  brickkit remove <component-id>[@version] [flags]
+
+Examples:
+  brickkit remove erp/backend                 # when it has one version
+  brickkit remove erp/backend@1.0.0           # name the version when there are several
+  brickkit remove erp/backend@1.0.0 --force   # delete the source directory even with unpushed changes
+
+Flags:
+      --force   Delete the source directory even with uncommitted or unpushed changes
+  -h, --help    help for remove
+
+Global Flags:
+      --log-level string   Level of the JSON logs on stderr (debug | info | warn | error | off) (default "off")

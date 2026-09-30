@@ -1,0 +1,30 @@
+Generate the autocompletion script for the bash shell.
+
+This script depends on the 'bash-completion' package.
+If it is not installed already, you can install it via your OS's package manager.
+
+To load completions in your current shell session:
+
+	source <(brickkit completion bash)
+
+To load completions for every new session, execute once:
+
+#### Linux:
+
+	brickkit completion bash > /etc/bash_completion.d/brickkit
+
+#### macOS:
+
+	brickkit completion bash > $(brew --prefix)/etc/bash_completion.d/brickkit
+
+You will need to start a new shell for this setup to take effect.
+
+用法：
+  brickkit completion bash
+
+参数：
+  -h, --help              查看 brickkit completion bash 的帮助信息
+      --no-descriptions   disable completion descriptions
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

@@ -1,0 +1,10 @@
+设置 CLI 的显示语言
+
+用法：
+  brickkit lang set <en|zh> [flags]
+
+参数：
+  -h, --help   查看 brickkit lang set 的帮助信息
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

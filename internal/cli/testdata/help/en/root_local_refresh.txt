@@ -1,0 +1,13 @@
+Copy deploy.yaml afresh, back up the old file and list its local changes
+
+Usage:
+  brickkit local refresh [flags]
+
+Examples:
+  brickkit local refresh
+
+Flags:
+  -h, --help   help for refresh
+
+Global Flags:
+      --log-level string   Level of the JSON logs on stderr (debug | info | warn | error | off) (default "off")

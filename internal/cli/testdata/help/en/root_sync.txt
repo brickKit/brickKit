@@ -1,0 +1,31 @@
+Move component source you don't need right now from components/ into components/.archived/.
+
+Once a project has many components, the source you aren't touching at the moment still piles up under components/:
+IDE indexing, global search, grep, and any AI reading code for you all have to scan it too.
+sync moves it into one fixed directory — you don't have to care about it until you open it, and when you need it you know exactly where it is.
+
+The criterion is exactly the same as brickkit up: what will start this run stays in the active directory, what won't start is archived.
+To narrow the scope, change mode in the deploy file (turn off the top level and everything below it follows),
+and sync follows along.
+
+Rules:
+
+  - Two-way: what should be archived is archived, what should be active is moved back
+  - It doesn't affect running containers and doesn't change who up will start — it only touches directories
+  - It only operates on components that are declared in brickkit.yaml and already have source
+  - The whole directory moves, .git included, so git commands keep working after archiving
+  - There is no --dry-run: if you get it wrong, run it once more and everything comes back
+
+Usage:
+  brickkit sync [flags]
+
+Examples:
+  brickkit sync   move the source of components that won't start this run into .archived/, and move back the ones that should return
+
+Flags:
+  -f, --file string   Deploy file to use (e.g. deploy.prod.yaml); only this file is read and local mode is ignored
+  -h, --help          help for sync
+      --no-local      Ignore deploy.local.yaml for this run (local mode stays switched on)
+
+Global Flags:
+      --log-level string   Level of the JSON logs on stderr (debug | info | warn | error | off) (default "off")

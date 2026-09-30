@@ -1,0 +1,35 @@
+Start the project in one go.
+
+How it flows:
+  1. Load the three layers: brickkit.yaml, the deploy file (deploy.yaml; deploy.local.yaml in local mode; or the one -f names), config/, and the Manifests of all components
+  2. Decide who starts and who stops (follows the top: a top-level component without mode runs, lower ones follow the ones above)
+  3. Check required dependencies (missing → error) and optional dependencies (missing → warning, and no environment variable is injected at all)
+  4. Topological sort gives the start order
+  5. Resolve configuration, inject environment variables, merge resource quotas, and generate the deployment files:
+     compose.yaml for docker / podman, Kubernetes manifests for k8s
+  6. When there are mode: debug components, generate local-debug.<versioned-service-name>.env for you to start them from your IDE
+  7. Check images: an image built on this machine must already exist (up never builds; a missing one points you at brickkit build); a pulled image must be reachable
+  8. Call the underlying engine to start; database migrations run first (a one-shot container on Docker, a Job on K8s), and a failure blocks the main service
+  9. When there are mode: local components, up starts and supervises those host processes in the foreground; Ctrl+C stops them
+
+When a component's version differs from the last up, it says so, and --dry-run also prints a change summary; moving a version itself is brickkit upgrade's job.
+
+Usage:
+  brickkit up [flags]
+
+Examples:
+  brickkit up
+  brickkit up --dry-run              only generate the files, don't start
+  brickkit up -f deploy.prod.yaml    use another deploy file (one complete file per environment)
+  brickkit up --no-local             ignore deploy.local.yaml for this run
+
+Flags:
+      --crash-lines int   How many lines of a crashed local component's output to show at the end (0 = crash info only, no output lines) (default 20)
+      --dry-run           Only generate the deployment files, don't start (on an upgrade it also prints a version change summary)
+  -f, --file string       Deploy file to use (e.g. deploy.prod.yaml); only this file is read and local mode is ignored
+  -h, --help              help for up
+      --ignore-shells     Ignore every shell's members in memory and run once more, to verify each component can start on its own; nothing is written back
+      --no-local          Ignore deploy.local.yaml for this run (local mode stays switched on)
+
+Global Flags:
+      --log-level string   Level of the JSON logs on stderr (debug | info | warn | error | off) (default "off")

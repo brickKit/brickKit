@@ -1,0 +1,31 @@
+把当前用不上的组件源码从 components/ 收进 components/.archived/。
+
+项目里组件一多，那些当下根本不碰的源码仍然堆在 components/ 下：
+IDE 索引、全局搜索、grep、以及替你读代码的 AI 都得连它们一起扫。
+sync 把它们挪进一个固定的目录——不打开就不用关心，要找时又一眼知道在哪。
+
+判据与 brickkit up 完全一致：这次会启动的留在活跃目录，不启动的归档。
+想收窄范围就改部署文件里的 mode（顶层关掉，下面一串跟着走），
+sync 跟着走就行。
+
+规则：
+
+  - 双向：该归档的归档，该激活的移回来
+  - 不影响运行中的容器，也不改变 up 会启动谁——它只动目录
+  - 只操作 brickkit.yaml 里声明过、且已有源码的组件
+  - 整个目录连 .git 一起搬，归档后 git 命令照常
+  - 不提供 --dry-run：搞错了再执行一次就回来了
+
+用法：
+  brickkit sync [flags]
+
+示例：
+  brickkit sync   把这次不启动的组件源码收进 .archived/，该回来的移回来
+
+参数：
+  -f, --file string   要使用的部署文件（如 deploy.prod.yaml）：只读这一份，本地模式被忽略
+  -h, --help          查看 brickkit sync 的帮助信息
+      --no-local      本次忽略 deploy.local.yaml（本地模式的开关不变）
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

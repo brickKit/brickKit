@@ -1,0 +1,25 @@
+下载一个组件声明的产物文件，但不把它装进本项目。
+
+用于跨项目调用：你要对方的 .proto / openapi.json 来生成客户端，
+但那个服务由别的项目部署，写进 brickkit.yaml 会让平台在你这边再部一份。
+
+不写版本号时取安装源里的最新版本。
+
+产物落到 .brickkit/artifacts/<版本化服务名>/<type>/... ——
+与 brickkit add 下来的完全同一个位置。.brickkit/ 是本机缓存，不进 Git：
+队友在自己机器上执行同一条 fetch 即可；要让契约随项目提交，把需要的文件复制到你自己的目录里。
+
+这条命令只读：不修改 brickkit.yaml，不生成部署文件，不启动任何东西。
+
+用法：
+  brickkit fetch <组件ID>[@<版本>] [flags]
+
+示例：
+  brickkit fetch infra/notifier@1.0.0   取指定版本的产物
+  brickkit fetch infra/notifier         取最新版本的产物
+
+参数：
+  -h, --help   查看 brickkit fetch 的帮助信息
+
+全局参数：
+      --log-level string   stderr 上 JSON 日志的级别（debug | info | warn | error | off） (default "off")

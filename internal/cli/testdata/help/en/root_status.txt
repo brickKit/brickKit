@@ -1,0 +1,24 @@
+Show the running state of every component in the current project.
+
+The CLI stores no running state itself; it queries the engine the deploy file's target names:
+  docker   docker compose ps -a --format json
+  podman   podman compose ps -a --format json
+  k8s      kubectl get deployments -o json (in the project's namespace)
+
+The output covers: running components, components that aren't started and why (marked when the reason comes from deploy.local.yaml),
+and locally debugged components (mode: debug). mode: local components are processes supervised by an up in another terminal
+and aren't in the table; when such a session is running, it names the process.
+
+Usage:
+  brickkit status [flags]
+
+Examples:
+  brickkit status
+
+Flags:
+  -f, --file string   Deploy file to use (e.g. deploy.prod.yaml); only this file is read and local mode is ignored
+  -h, --help          help for status
+      --no-local      Ignore deploy.local.yaml for this run (local mode stays switched on)
+
+Global Flags:
+      --log-level string   Level of the JSON logs on stderr (debug | info | warn | error | off) (default "off")

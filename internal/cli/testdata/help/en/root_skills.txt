@@ -1,0 +1,38 @@
+Manage the AI assistant skills installed into this project (.claude/skills/, AGENTS.md).
+
+These files are installed by brickkit init, committed with the project and shared by the team. They describe the behavior of
+this CLI version, so they need refreshing once after a CLI upgrade.
+
+  brickkit skills          show the state of each file (read-only, same as status)
+  brickkit skills status   same as above
+  brickkit skills update   install what is missing, refresh what is outdated
+
+Hand-edited files are never overwritten. update lists them and skips them. To discard local
+edits, delete that file and run update again — --force is deliberately not offered: deleting a file
+is already explicit enough, and one more switch is one more way to hurt yourself.
+
+It also works in a standalone component repository (has component.yaml, no brickkit.yaml): there it manages only
+the brickkit-component skill — the project-overview and assemble/deploy/troubleshoot skills make no sense there.
+The component repository's own AGENTS.md is not touched at all.
+
+Your CLAUDE.md is not touched either: that is your own workflow file.
+
+Usage:
+  brickkit skills [flags]
+  brickkit skills [command]
+
+Examples:
+  brickkit skills          see what is installed and whether it is out of date
+  brickkit skills update   refresh to the current CLI version
+
+Available Commands:
+  status      Show the state of each skill file (read-only)
+  update      Install what is missing and refresh what is outdated; skip hand-edited ones
+
+Flags:
+  -h, --help   help for skills
+
+Global Flags:
+      --log-level string   Level of the JSON logs on stderr (debug | info | warn | error | off) (default "off")
+
+Use "brickkit skills [command] --help" for more information about a command.
