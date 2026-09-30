@@ -24,13 +24,13 @@ They live on a company-internal Git server at `https://git.example.com/component
 | [01 Creating a project](01-init-and-project-creation.md) | `init`'s two modes, the generated skeleton and `.gitignore`, cloning an existing project |
 | [02 Adding components](02-add-and-component-install.md) | Which files one `add` changes, the `$var:` prompt, `--local`, `--repo` |
 | [03 Local debugging](03-local-debug-workflow.md) | `local on` → `mode: debug` → run it in your IDE → containers reach you; what to do after the team changes files |
-| [04 Several environments](04-multi-env-switch.md) | One deploy file per environment, chosen with `-f`; `vars:` gives the same `config/` different values per environment |
-| [05 Starting and stopping](05-up-and-down.md) | What `up` does, the image check, `--dry-run`, `down`, common start failures |
-| [06 Upgrading and config migration](06-upgrade-and-migration.md) | How `upgrade` migrates config, how conflicts are resolved, how old versions stay |
-| [07 Removing and archiving](07-remove-and-archive.md) | `remove`'s checks, archiving and restoring config, protecting source directories |
-| [08 Status and topology](08-status-and-graph.md) | `status`, `deps`, `graph` |
-| [09 Offline checks](09-lint-and-checks.md) | What `lint` checks and doesn't, putting it in CI |
-| [10 Managing source](10-sync-and-restore.md) | `sync` archives unused source, `restore` puts things back, the pre-commit check |
-| [11 Building and images](11-build-and-images.md) | Why `up` never builds, how to use `build`, image tag rules |
+| [05 Several environments](05-multi-env-switch.md) | One deploy file per environment, chosen with `-f`; `vars:` gives the same `config/` different values per environment |
+| [06 Starting and stopping](06-up-and-down.md) | What `up` does, the image check, `--dry-run`, `down`, common start failures |
+| [07 Upgrading and config migration](07-upgrade-and-migration.md) | How `upgrade` migrates config, how conflicts are resolved, how old versions stay |
+| [08 Removing and archiving](08-remove-and-archive.md) | `remove`'s checks, archiving and restoring config, protecting source directories |
+| [09 Status and topology](09-status-and-graph.md) | `status`, `deps`, `graph` |
+| [10 Offline checks](10-lint-and-checks.md) | What `lint` checks and doesn't, putting it in CI |
+| [11 Managing source](11-sync-and-restore.md) | `sync` archives unused source, `restore` puts things back, the pre-commit check |
+| [12 Building and images](12-build-and-images.md) | Why `up` never builds, how to use `build`, image tag rules |
 
 Every command's full flag list is in the [CLI reference](../07-cli-reference/README.md).

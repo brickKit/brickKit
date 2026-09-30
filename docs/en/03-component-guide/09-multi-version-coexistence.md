@@ -61,7 +61,7 @@ In the generated deployment file (an excerpt), each caller connects to the versi
 
 The file without a version always follows the default version; when the default moves (`upgrade`), the config is carried
 over by the migration rules, and an old version that is still depended on keeps its original config renamed with the
-version (see [Upgrading and config migration](../02-project-guide/06-upgrade-and-migration.md)). Deploy files work the
+version (see [Upgrading and config migration](../02-project-guide/07-upgrade-and-migration.md)). Deploy files work the
 same way: the entry with the bare ID (`- id: demo/hello`) is the default version, and every other version has its own
 `id@version` entry.
 

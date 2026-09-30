@@ -55,7 +55,7 @@ components:
 | `config/demo-hello@1.0.0.yaml` | 兼容版本 1.0.0 |
 
 不带版本号的文件永远跟着默认版本走；默认版本移动时（`upgrade`），配置按迁移规则搬过去，旧版本如果还被依赖，它原来的配置改名成带版本号的文件留下
-（见 [升级与配置迁移](../02-project-guide/06-upgrade-and-migration.md)）。部署文件里也一样：裸 ID 的条目（`- id: demo/hello`）是默认版本，
+（见 [升级与配置迁移](../02-project-guide/07-upgrade-and-migration.md)）。部署文件里也一样：裸 ID 的条目（`- id: demo/hello`）是默认版本，
 其余版本各有自己的 `id@版本` 条目。
 
 ## 作为组件作者要知道的

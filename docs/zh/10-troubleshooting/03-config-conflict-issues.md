@@ -39,7 +39,7 @@ GREETING: Hi  # brickkit:conflict proposed 1.1.0
 GREETING: 你好
 ```
 
-然后重新执行命令。背景见 [升级与配置迁移](../02-project-guide/06-upgrade-and-migration.md#解决冲突)。
+然后重新执行命令。背景见 [升级与配置迁移](../02-project-guide/07-upgrade-and-migration.md#解决冲突)。
 
 ## 用 yq 或"格式化文档"之后，冲突报错消失了，值却不对
 

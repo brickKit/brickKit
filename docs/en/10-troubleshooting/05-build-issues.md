@@ -1,7 +1,7 @@
 # Build problems
 
 `brickkit build` builds the images that have to be built on this machine; `brickkit up` never builds. Background in
-[Building and images](../02-project-guide/11-build-and-images.md).
+[Building and images](../02-project-guide/12-build-and-images.md).
 
 ## Code changed, but the old behaviour still runs
 

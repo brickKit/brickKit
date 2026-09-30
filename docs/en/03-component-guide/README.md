@@ -3,7 +3,7 @@
 **Who it's for**: whoever writes and releases components. A component is BrickKit's smallest unit you install and run — a
 service that runs on its own, with a `component.yaml` describing itself.
 
-**Read first**: [What BrickKit is](../00-intro/01-what-is-brickkit.md) and [Core concepts](../00-intro/03-core-concepts.md).
+**Read first**: [What BrickKit is](../00-intro/01-what-is-brickkit.md) and [Core concepts](../00-intro/04-core-concepts.md).
 Assembling components into a system and deploying it is another matter; see [Running a project](../02-project-guide/README.md).
 
 This module follows a real component, `demo/quote`, from nothing to its release: every time it's called it returns a

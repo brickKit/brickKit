@@ -1,6 +1,6 @@
 # 构建问题
 
-`brickkit build` 构建需要在本机构建的镜像；`brickkit up` 从不构建。背景见 [构建与镜像](../02-project-guide/11-build-and-images.md)。
+`brickkit build` 构建需要在本机构建的镜像；`brickkit up` 从不构建。背景见 [构建与镜像](../02-project-guide/12-build-and-images.md)。
 
 ## 改了代码，跑起来还是旧的
 

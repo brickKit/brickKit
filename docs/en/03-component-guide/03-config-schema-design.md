@@ -167,6 +167,6 @@ platform can't derive it, so users have to fill it in:
   of the component's [BRICKKIT.md](08-component-doc-spec.md).
 - **Changing a default is something to do carefully.** Keys users never wrote follow the new default automatically; a key
   a user wrote, whose default you then change, becomes a conflict on upgrade that they must decide one by one (see
-  [Upgrading and config migration](../02-project-guide/06-upgrade-and-migration.md)).
+  [Upgrading and config migration](../02-project-guide/07-upgrade-and-migration.md)).
 
 The complete field rules are in the [configSchema specification](../11-reference/04-config-schema-spec.md).

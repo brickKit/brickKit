@@ -80,7 +80,7 @@ Change the config and run it again, and only the affected containers are recreat
 | From a local source (code being developed), or its `component.yaml` says only how to build and names no `image` | The image must already be on this machine (built by `brickkit build`); otherwise it's an error |
 | A Git / market component that names an `image` | The image is on this machine or can be pulled from the registry; otherwise it's an error, with a note that you can build locally instead |
 
-Every problem is listed at once, rather than one at a time. Why it doesn't just build: see [Building and images](11-build-and-images.md).
+Every problem is listed at once, rather than one at a time. Why it doesn't just build: see [Building and images](12-build-and-images.md).
 
 ## `--dry-run`: generate, don't start
 
@@ -102,7 +102,7 @@ It goes through the first four steps, writes the deployment files, and stops:
 
 It's for reviewing before you act: which components will start, what environment variables each one gets, which
 databases will be touched. It's also the most complete check short of running — dependency resolution and the checks on
-shells and members happen here, while `lint` deliberately doesn't do them (see [Offline checks](09-lint-and-checks.md)).
+shells and members happen here, while `lint` deliberately doesn't do them (see [Offline checks](10-lint-and-checks.md)).
 `--ignore-shells` together with `--dry-run` verifies that every component can still start on its own, outside its shell.
 
 ## `brickkit down`

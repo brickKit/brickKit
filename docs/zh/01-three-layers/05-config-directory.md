@@ -58,7 +58,7 @@ DATABASE_USER: ""  # string | User to connect as
   ```
 
 - **可选项写成注释**，注释里带着它的默认值。你没取消注释的项，永远跟随组件当前版本的默认值——组件升级改了默认值，
-  你自动拿到新的；只有你真正写下的值才归你管，升级时才可能冲突（见 [升级与配置迁移](../02-project-guide/06-upgrade-and-migration.md)）。
+  你自动拿到新的；只有你真正写下的值才归你管，升级时才可能冲突（见 [升级与配置迁移](../02-project-guide/07-upgrade-and-migration.md)）。
 - **声明了 `secret: true` 的项**在注释里标着 `secret`，提醒你用引用而不是明文（见 [敏感值](07-sensitive-values.md)）。
 
 如果 `config/vars.yaml`（或部署文件的 `vars:`）里已经有同名的公共变量，`add` 会问你要不要直接引用它；`--yes` 时一律引用：

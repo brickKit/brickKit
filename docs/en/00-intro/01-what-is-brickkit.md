@@ -67,7 +67,7 @@ edited by everyone and understood by no one. See [The three layers at a glance](
 **While you develop it**, a component is itself a complete BrickKit project — it can have its own three layers to
 bring up its dependencies locally for integration work. **When another project uses it**, it's a black box: the
 project reads only its `component.yaml` and `BRICKKIT.md`. The specification nests; the files don't. See
-[The fractal structure](05-fractal-architecture.md).
+[The fractal structure](06-fractal-architecture.md).
 
 ## Friendly to AI
 
@@ -97,6 +97,6 @@ See [For AI assistants](../08-ai-guide/README.md).
 
 The difference: npm installs a code library; BrickKit installs **a service that runs on its own**, so it also handles
 dependency resolution, address injection, database migrations and start order. A closer comparison is in
-[Comparison](04-comparison.md).
+[Comparison](05-comparison.md).
 
 Next: [Quick start](02-quick-start.md).

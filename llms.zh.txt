@@ -21,9 +21,9 @@
 - [docs/zh/00-intro/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/README.md): 模块索引与阅读顺序
 - [docs/zh/00-intro/01-what-is-brickkit.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/01-what-is-brickkit.md): BrickKit 是什么——定位、核心理念、分形架构引出
 - [docs/zh/00-intro/02-quick-start.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/02-quick-start.md): 快速开始——5 分钟从空目录到 curl 通容器
-- [docs/zh/00-intro/03-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/03-core-concepts.md): 核心概念术语表——组件、三层文件、外壳、分形、契约
-- [docs/zh/00-intro/04-comparison.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/04-comparison.md): 与 Compose/Helm/Kustomize/Tilt/Backstage 的对比
-- [docs/zh/00-intro/05-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/05-fractal-architecture.md): 分形架构——开发态与消费态、物理不套娃规范套娃
+- [docs/zh/00-intro/04-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/04-core-concepts.md): 核心概念术语表——组件、三层文件、外壳、分形、契约
+- [docs/zh/00-intro/05-comparison.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/05-comparison.md): 与 Compose/Helm/Kustomize/Tilt/Backstage 的对比
+- [docs/zh/00-intro/06-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/06-fractal-architecture.md): 分形架构——开发态与消费态、物理不套娃规范套娃
 
 ### 01-three-layers/
 - [docs/zh/01-three-layers/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/README.md): 模块索引
@@ -42,14 +42,14 @@
 - [docs/zh/02-project-guide/01-init-and-project-creation.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/01-init-and-project-creation.md): 创建项目——三层骨架、补全式初始化（已有目录）、克隆不需要 init
 - [docs/zh/02-project-guide/02-add-and-component-install.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/02-add-and-component-install.md): 添加组件——副作用、--local、--init
 - [docs/zh/02-project-guide/03-local-debug-workflow.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/03-local-debug-workflow.md): 本地调试工作流——local on、debug、refresh
-- [docs/zh/02-project-guide/04-multi-env-switch.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/04-multi-env-switch.md): 多环境切换——--file、vars 覆盖
-- [docs/zh/02-project-guide/05-up-and-down.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/05-up-and-down.md): 启动与停止——六步流程、镜像检查、绝不自动 build
-- [docs/zh/02-project-guide/06-upgrade-and-migration.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/06-upgrade-and-migration.md): 升级与配置迁移——算法、冲突、重复 key
-- [docs/zh/02-project-guide/07-remove-and-archive.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/07-remove-and-archive.md): 移除与归档——.archive/、恢复走迁移算法
-- [docs/zh/02-project-guide/08-status-and-graph.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/08-status-and-graph.md): 状态与拓扑——status 表格、graph Mermaid、deps
-- [docs/zh/02-project-guide/09-lint-and-checks.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/09-lint-and-checks.md): 离线检查——八项检查、--strict、与 up --dry-run 的边界
-- [docs/zh/02-project-guide/10-sync-and-restore.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/10-sync-and-restore.md): 源码管理——sync 归档/激活、restore 还原
-- [docs/zh/02-project-guide/11-build-and-images.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/11-build-and-images.md): 构建与镜像——--force、缓存、Tag 对齐
+- [docs/zh/02-project-guide/05-multi-env-switch.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/05-multi-env-switch.md): 多环境切换——--file、vars 覆盖
+- [docs/zh/02-project-guide/06-up-and-down.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/06-up-and-down.md): 启动与停止——六步流程、镜像检查、绝不自动 build
+- [docs/zh/02-project-guide/07-upgrade-and-migration.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/07-upgrade-and-migration.md): 升级与配置迁移——算法、冲突、重复 key
+- [docs/zh/02-project-guide/08-remove-and-archive.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/08-remove-and-archive.md): 移除与归档——.archive/、恢复走迁移算法
+- [docs/zh/02-project-guide/09-status-and-graph.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/09-status-and-graph.md): 状态与拓扑——status 表格、graph Mermaid、deps
+- [docs/zh/02-project-guide/10-lint-and-checks.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/10-lint-and-checks.md): 离线检查——八项检查、--strict、与 up --dry-run 的边界
+- [docs/zh/02-project-guide/11-sync-and-restore.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/11-sync-and-restore.md): 源码管理——sync 归档/激活、restore 还原
+- [docs/zh/02-project-guide/12-build-and-images.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/12-build-and-images.md): 构建与镜像——--force、缓存、Tag 对齐
 
 ### 03-component-guide/
 - [docs/zh/03-component-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/README.md): 模块索引——面向组件开发者

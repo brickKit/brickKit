@@ -63,7 +63,7 @@ DATABASE_USER: ""  # string | User to connect as
 - **Optional items are written as comments**, carrying their default. An item you haven't uncommented always follows
   the default of the component's current version — when an upgrade changes a default, you get the new one
   automatically; only the values you actually write are yours, and only they can conflict on an upgrade (see
-  [Upgrading and config migration](../02-project-guide/06-upgrade-and-migration.md)).
+  [Upgrading and config migration](../02-project-guide/07-upgrade-and-migration.md)).
 - **Items declared `secret: true`** are marked `secret` in the comment, to remind you to use a reference rather than
   plain text (see [Secrets](07-sensitive-values.md)).
 

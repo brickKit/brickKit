@@ -18,7 +18,7 @@ messages — this page is enough. Every term points to the page that explains it
 | **Contract** (artifacts) | The API description a component publishes (OpenAPI, Protobuf, …), declared under `artifacts` in `component.yaml` and downloaded by `add` / `fetch` |
 | **Shell** | A component that compiles several components into **one process**, to save memory and CPU; see [Shells](../04-shell/README.md) |
 | **Member** | A component hosted by a shell; it has no container of its own but still has its own config and migrations |
-| **Fractal structure** | A component is a project while you develop it and a black box when someone uses it; see [The fractal structure](05-fractal-architecture.md) |
+| **Fractal structure** | A component is a project while you develop it and a black box when someone uses it; see [The fractal structure](06-fractal-architecture.md) |
 | **`BRICKKIT.md`** | Documentation for people and AIs: the one in a component repository explains how to use that component; the one at the project root lists the project's components and where their docs are |
 | **Local mode** | After `brickkit local on`, every command reads the personal `deploy.local.yaml` instead; see [Local debugging](../02-project-guide/03-local-debug-workflow.md) |
 

@@ -68,7 +68,7 @@ graph TD
 ```
 
 `upgrade` 在迁移配置时遇到"你改过、组件作者也改了默认值"的键，正是故意写出这样两行，逼你做决定，
-见 [升级与配置迁移](../02-project-guide/06-upgrade-and-migration.md)。
+见 [升级与配置迁移](../02-project-guide/07-upgrade-and-migration.md)。
 
 ## 不参与这条链的东西
 

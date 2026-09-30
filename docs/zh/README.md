@@ -23,7 +23,7 @@
 ## 按你是谁来读
 
 **第一次接触 BrickKit：** [BrickKit 是什么](00-intro/01-what-is-brickkit.md) →
-[快速开始](00-intro/02-quick-start.md) → [核心概念](00-intro/03-core-concepts.md) →
+[快速开始](00-intro/02-quick-start.md) → [核心概念](00-intro/04-core-concepts.md) →
 [三层架构总览](01-three-layers/01-overview.md)，然后按需翻 [项目管理者指南](02-project-guide/README.md)。
 
 **要把组件装配成一个系统：** [三层架构详解](01-three-layers/README.md) →

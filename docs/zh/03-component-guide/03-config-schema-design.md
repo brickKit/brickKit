@@ -145,6 +145,6 @@ configSchema:
 - `description` 会出现在使用方的配置骨架里，每一行的末尾。写它的业务含义和单位，而不是重复键名。
 - 默认值说不清的（取值之间怎么选、改了会怎样），写进组件的 [BRICKKIT.md](08-component-doc-spec.md) 的"配置指南"。
 - **改默认值是一件要慎重的事。** 使用方没写过的键会自动跟随新默认值；写过的键、而你又改了默认值，升级时就是一处冲突，要他逐条决定
-  （见 [升级与配置迁移](../02-project-guide/06-upgrade-and-migration.md)）。
+  （见 [升级与配置迁移](../02-project-guide/07-upgrade-and-migration.md)）。
 
 完整的字段规则见 [configSchema 规范](../11-reference/04-config-schema-spec.md)。

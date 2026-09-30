@@ -18,7 +18,7 @@
 | **契约**（Contract / Artifacts） | 组件对外公开的 API 描述（OpenAPI、Protobuf 等），在 `component.yaml` 的 `artifacts` 里声明，`add` / `fetch` 时下载 |
 | **外壳**（Shell） | 把多个组件编进**一个进程**里跑的组件，用来省内存和 CPU，见 [外壳机制](../04-shell/README.md) |
 | **成员**（Member） | 被外壳承载的组件；它没有自己的容器，但仍然有自己的配置和迁移 |
-| **分形架构** | 组件开发时本身是一个项目，被使用时是一个黑盒，见 [分形架构](05-fractal-architecture.md) |
+| **分形架构** | 组件开发时本身是一个项目，被使用时是一个黑盒，见 [分形架构](06-fractal-architecture.md) |
 | **`BRICKKIT.md`** | 给人和 AI 读的文档：组件仓库里的那份讲这个组件怎么用，项目根目录的那份列出项目里有哪些组件、文档在哪 |
 | **本地模式** | `brickkit local on` 之后，所有命令改读个人的 `deploy.local.yaml`，见 [本地调试工作流](../02-project-guide/03-local-debug-workflow.md) |
 

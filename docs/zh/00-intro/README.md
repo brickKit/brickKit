@@ -6,11 +6,11 @@
 | --- | --- |
 | [01 BrickKit 是什么](01-what-is-brickkit.md) | 一句话定位、核心理念、三层文件的样子、它和你已经会的工具怎么对应 |
 | [02 快速开始](02-quick-start.md) | 从空目录到一个 curl 得通的容器，七步，每一步都是真实命令和真实输出 |
-| [03 核心概念](03-core-concepts.md) | 一页纸的术语表、贯穿全局的命名规则、几个关键动词 |
-| [04 与现有方案对比](04-comparison.md) | 和 Docker Compose、Helm、Kustomize、Tilt、Backstage、monorepo 工具哪里重叠、哪里不重叠 |
-| [05 分形架构](05-fractal-architecture.md) | 一个组件在开发时是项目、在被使用时是黑盒：这件事怎么成立 |
+| [04 核心概念](04-core-concepts.md) | 一页纸的术语表、贯穿全局的命名规则、几个关键动词 |
+| [05 与现有方案对比](05-comparison.md) | 和 Docker Compose、Helm、Kustomize、Tilt、Backstage、monorepo 工具哪里重叠、哪里不重叠 |
+| [06 分形架构](06-fractal-architecture.md) | 一个组件在开发时是项目、在被使用时是黑盒：这件事怎么成立 |
 
-**阅读顺序：** 第一次接触按 01 → 02 → 03 读；04 和 05 可以留到你想知道"为什么不直接用 X"或者
+**阅读顺序：** 第一次接触按 01 → 02 → 03 → 04 读；05 和 06 可以留到你想知道"为什么不直接用 X"或者
 "组件自己怎么联调"的时候再读。
 
 **适合谁：** 所有人。从来没用过 BrickKit 的人从这里开始；AI 助手读完仓库根目录的 `AGENTS.zh.md`

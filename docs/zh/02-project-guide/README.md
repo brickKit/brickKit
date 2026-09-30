@@ -22,13 +22,13 @@
 | [01 创建项目](01-init-and-project-creation.md) | `init` 的两种模式、生成的骨架与 `.gitignore`、克隆已有项目 |
 | [02 添加组件](02-add-and-component-install.md) | `add` 一次改了哪些文件、`$var:` 提示、`--local`、`--repo` |
 | [03 本地调试](03-local-debug-workflow.md) | `local on` → `mode: debug` → 在 IDE 里跑 → 容器连得上你；团队改了文件之后怎么办 |
-| [04 多环境](04-multi-env-switch.md) | 每个环境一份部署文件，`-f` 选；`vars:` 让同一份 `config/` 在不同环境取不同的值 |
-| [05 启动与停止](05-up-and-down.md) | `up` 的流程、镜像检查、`--dry-run`、`down`、常见启动失败 |
-| [06 升级与配置迁移](06-upgrade-and-migration.md) | `upgrade` 怎么迁移配置、冲突怎么解决、旧版本怎么留下 |
-| [07 移除与归档](07-remove-and-archive.md) | `remove` 的检查、配置归档与恢复、源码目录的保护 |
-| [08 状态与拓扑](08-status-and-graph.md) | `status`、`deps`、`graph` |
-| [09 离线检查](09-lint-and-checks.md) | `lint` 查什么、不查什么、怎么放进 CI |
-| [10 源码管理](10-sync-and-restore.md) | `sync` 归档不用的源码、`restore` 还原、提交前检查 |
-| [11 构建与镜像](11-build-and-images.md) | 为什么 `up` 从不构建、`build` 怎么用、镜像 tag 规则 |
+| [05 多环境](05-multi-env-switch.md) | 每个环境一份部署文件，`-f` 选；`vars:` 让同一份 `config/` 在不同环境取不同的值 |
+| [06 启动与停止](06-up-and-down.md) | `up` 的流程、镜像检查、`--dry-run`、`down`、常见启动失败 |
+| [07 升级与配置迁移](07-upgrade-and-migration.md) | `upgrade` 怎么迁移配置、冲突怎么解决、旧版本怎么留下 |
+| [08 移除与归档](08-remove-and-archive.md) | `remove` 的检查、配置归档与恢复、源码目录的保护 |
+| [09 状态与拓扑](09-status-and-graph.md) | `status`、`deps`、`graph` |
+| [10 离线检查](10-lint-and-checks.md) | `lint` 查什么、不查什么、怎么放进 CI |
+| [11 源码管理](11-sync-and-restore.md) | `sync` 归档不用的源码、`restore` 还原、提交前检查 |
+| [12 构建与镜像](12-build-and-images.md) | 为什么 `up` 从不构建、`build` 怎么用、镜像 tag 规则 |
 
 每条命令的完整参数见 [CLI 命令参考](../07-cli-reference/README.md)。

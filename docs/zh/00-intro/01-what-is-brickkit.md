@@ -59,7 +59,7 @@ graph LR
 
 一个组件在**开发时**本身就是一个完整的 BrickKit 项目——它可以有自己的三层文件，用来在本地拉起它的
 依赖联调；在**被别的项目使用时**，它只是一个黑盒，别人只读它的 `component.yaml` 和 `BRICKKIT.md`。
-"物理不套娃，规范套娃"。详见 [分形架构](05-fractal-architecture.md)。
+"物理不套娃，规范套娃"。详见 [分形架构](06-fractal-architecture.md)。
 
 ## 对 AI 友好
 
@@ -85,6 +85,6 @@ graph LR
 | `brickkit release` | 给组件仓库打一个版本 tag 并推送 |
 
 区别在于：npm 装的是代码库，BrickKit 装的是**能独立跑起来的服务**，所以它还要管依赖解析、地址注入、
-数据库迁移和启动顺序。更细的比较见 [与现有方案对比](04-comparison.md)。
+数据库迁移和启动顺序。更细的比较见 [与现有方案对比](05-comparison.md)。
 
 下一步：[快速开始](02-quick-start.md)。

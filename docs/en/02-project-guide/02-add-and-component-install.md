@@ -170,7 +170,7 @@ handle Git permissions.
 
 Note: `components/` is a local install source, and it comes before the Git source. After cloning, the component resolves
 from your working copy — the code you change is what `brickkit build` puts into the image, and the "latest version"
-`upgrade` sees is the working copy's version (see [Upgrading](06-upgrade-and-migration.md#when-a-component-comes-from-a-local-source)).
+`upgrade` sees is the working copy's version (see [Upgrading](07-upgrade-and-migration.md#when-a-component-comes-from-a-local-source)).
 
 `--repo-all` clones the source of every open-source component this add brings in (each at its default version).
 

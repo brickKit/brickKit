@@ -55,7 +55,7 @@ be judged on the dependency graph.
 **Fix**
 
 Run both steps in CI: `lint --strict` stops structural problems, `up --dry-run` stops dependency problems (it needs access
-to the install sources, but not to a cluster). See [Offline checks](../02-project-guide/09-lint-and-checks.md#in-ci).
+to the install sources, but not to a cluster). See [Offline checks](../02-project-guide/10-lint-and-checks.md#in-ci).
 
 ## The editor shows nothing red, yet `lint` reports an error
 

@@ -48,7 +48,7 @@
 
 **解决**
 
-在 CI 里两步都跑：`lint --strict` 挡结构问题，`up --dry-run` 挡依赖问题（它要能访问安装源，但不需要能访问集群）。见 [离线检查](../02-project-guide/09-lint-and-checks.md#放进-ci)。
+在 CI 里两步都跑：`lint --strict` 挡结构问题，`up --dry-run` 挡依赖问题（它要能访问安装源，但不需要能访问集群）。见 [离线检查](../02-project-guide/10-lint-and-checks.md#放进-ci)。
 
 ## 编辑器没标红，`lint` 却报错
 

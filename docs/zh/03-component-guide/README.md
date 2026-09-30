@@ -3,7 +3,7 @@
 **写给谁**：编写、发布组件的人。组件是 BrickKit 里最小的安装和运行单位——一个能独立跑起来的服务，带着一份说明自己的
 `component.yaml`。
 
-**先读**：[什么是 BrickKit](../00-intro/01-what-is-brickkit.md) 与 [核心概念](../00-intro/03-core-concepts.md)。
+**先读**：[什么是 BrickKit](../00-intro/01-what-is-brickkit.md) 与 [核心概念](../00-intro/04-core-concepts.md)。
 把组件拼成系统、部署出去是另一件事，见 [项目管理者指南](../02-project-guide/README.md)。
 
 这一模块跟着一个真实的组件 `demo/quote` 从零走到发布：它每次返回一句名言，前面带上另一个组件 `demo/hello` 的问候语。

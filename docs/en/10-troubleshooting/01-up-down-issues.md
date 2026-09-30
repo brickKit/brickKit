@@ -2,7 +2,7 @@
 
 `up` works in a fixed order: load and check the three layers → decide who starts this time → resolve dependencies →
 generate the deployment files → check images → run migrations → call the engine. Which step an error appears in roughly
-tells you which layer the problem is in. The whole flow is in [Starting and stopping](../02-project-guide/05-up-and-down.md).
+tells you which layer the problem is in. The whole flow is in [Starting and stopping](../02-project-guide/06-up-and-down.md).
 
 ## Images don't exist
 

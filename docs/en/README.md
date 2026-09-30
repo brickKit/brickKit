@@ -24,7 +24,7 @@ and mirrors this tree page for page, but each side is written on its own — nei
 ## Read by who you are
 
 **New to BrickKit:** [What BrickKit is](00-intro/01-what-is-brickkit.md) →
-[Quick start](00-intro/02-quick-start.md) → [Core concepts](00-intro/03-core-concepts.md) →
+[Quick start](00-intro/02-quick-start.md) → [Core concepts](00-intro/04-core-concepts.md) →
 [The three layers at a glance](01-three-layers/01-overview.md), then dip into [Running a project](02-project-guide/README.md)
 as you need it.
 

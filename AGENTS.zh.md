@@ -170,8 +170,8 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - [docs/zh/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/README.md): 中文文档总目录与阅读顺序
 - [docs/zh/00-intro/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/README.md): 概览与入门
 - [docs/zh/00-intro/02-quick-start.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/02-quick-start.md): 5 分钟从空目录到跑起来的容器
-- [docs/zh/00-intro/03-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/03-core-concepts.md): 核心概念术语表
-- [docs/zh/00-intro/05-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/05-fractal-architecture.md): 分形架构——开发态与消费态
+- [docs/zh/00-intro/04-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/04-core-concepts.md): 核心概念术语表
+- [docs/zh/00-intro/06-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/06-fractal-architecture.md): 分形架构——开发态与消费态
 - [docs/zh/01-three-layers/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/README.md): 三层文件详解
 - [docs/zh/01-three-layers/08-resolution-priority.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/08-resolution-priority.md): 配置解析优先级
 - [docs/zh/02-project-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/README.md): 项目管理者指南

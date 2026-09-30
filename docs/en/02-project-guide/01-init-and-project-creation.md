@@ -164,7 +164,7 @@ This directory already has files; brickkit init will:
 ```
 
 When the project root is the Git repository root, `init` also installs the pre-commit check (see
-[Managing source](10-sync-and-restore.md#the-pre-commit-check)).
+[Managing source](11-sync-and-restore.md#the-pre-commit-check)).
 
 ## Cloning an existing project
 
@@ -181,7 +181,7 @@ brickkit up
 `component.yaml` and contract files from the install sources again, following `brickkit.yaml`. `components/` isn't in the
 repository either — `up` needs only the components' `component.yaml`, not their source; to change a component's code,
 clone it with `brickkit add <id>@<version> --repo` (see [Adding components](02-add-and-component-install.md#cloning-source---repo---repo-all)).
-The `build` step only has work to do when a component's image is built locally; see [Building and images](11-build-and-images.md).
+The `build` step only has work to do when a component's image is built locally; see [Building and images](12-build-and-images.md).
 
 ## The project layout
 

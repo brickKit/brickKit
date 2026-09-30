@@ -42,7 +42,7 @@ GREETING: Howdy
 ```
 
 Then run the command again. Background in
-[Upgrading and config migration](../02-project-guide/06-upgrade-and-migration.md#resolving-a-conflict).
+[Upgrading and config migration](../02-project-guide/07-upgrade-and-migration.md#resolving-a-conflict).
 
 ## After yq or "Format Document", the conflict error is gone but the value is wrong
 

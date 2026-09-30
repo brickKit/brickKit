@@ -23,9 +23,9 @@ written independently for the Chinese documentation tree, not a translation of t
 - [docs/en/00-intro/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/README.md): module index and reading order
 - [docs/en/00-intro/01-what-is-brickkit.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/01-what-is-brickkit.md): what BrickKit is — its place, its core ideas, why it is fractal
 - [docs/en/00-intro/02-quick-start.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/02-quick-start.md): quick start — from an empty directory to curling a container in five minutes
-- [docs/en/00-intro/03-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/03-core-concepts.md): glossary — component, the three layers, shell, fractal, contract
-- [docs/en/00-intro/04-comparison.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/04-comparison.md): how it compares with Compose, Helm, Kustomize, Tilt and Backstage
-- [docs/en/00-intro/05-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/05-fractal-architecture.md): the fractal structure — developing a component vs. using one
+- [docs/en/00-intro/04-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/04-core-concepts.md): glossary — component, the three layers, shell, fractal, contract
+- [docs/en/00-intro/05-comparison.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/05-comparison.md): how it compares with Compose, Helm, Kustomize, Tilt and Backstage
+- [docs/en/00-intro/06-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/06-fractal-architecture.md): the fractal structure — developing a component vs. using one
 
 ### 01-three-layers/
 - [docs/en/01-three-layers/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/README.md): module index
@@ -44,14 +44,14 @@ written independently for the Chinese documentation tree, not a translation of t
 - [docs/en/02-project-guide/01-init-and-project-creation.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/01-init-and-project-creation.md): creating a project — the skeleton, completing an existing directory, why a clone needs no init
 - [docs/en/02-project-guide/02-add-and-component-install.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/02-add-and-component-install.md): adding components — what add writes, --local, --init
 - [docs/en/02-project-guide/03-local-debug-workflow.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/03-local-debug-workflow.md): local debugging — local on, mode: debug, refresh
-- [docs/en/02-project-guide/04-multi-env-switch.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/04-multi-env-switch.md): several environments — --file, per-environment vars
-- [docs/en/02-project-guide/05-up-and-down.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/05-up-and-down.md): starting and stopping — what up does, the image check, never building
-- [docs/en/02-project-guide/06-upgrade-and-migration.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/06-upgrade-and-migration.md): upgrading and config migration — the rules, conflicts, duplicate keys
-- [docs/en/02-project-guide/07-remove-and-archive.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/07-remove-and-archive.md): removing and archiving — .archive/, restoring through migration
-- [docs/en/02-project-guide/08-status-and-graph.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/08-status-and-graph.md): status and topology — the status table, graph as Mermaid, deps
-- [docs/en/02-project-guide/09-lint-and-checks.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/09-lint-and-checks.md): offline checks — what lint checks, --strict, where up --dry-run takes over
-- [docs/en/02-project-guide/10-sync-and-restore.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/10-sync-and-restore.md): component source — sync archives and restores, restore goes back to the last commit
-- [docs/en/02-project-guide/11-build-and-images.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/11-build-and-images.md): building and images — --force, skipping existing images, tags that follow versions
+- [docs/en/02-project-guide/05-multi-env-switch.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/05-multi-env-switch.md): several environments — --file, per-environment vars
+- [docs/en/02-project-guide/06-up-and-down.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/06-up-and-down.md): starting and stopping — what up does, the image check, never building
+- [docs/en/02-project-guide/07-upgrade-and-migration.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/07-upgrade-and-migration.md): upgrading and config migration — the rules, conflicts, duplicate keys
+- [docs/en/02-project-guide/08-remove-and-archive.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/08-remove-and-archive.md): removing and archiving — .archive/, restoring through migration
+- [docs/en/02-project-guide/09-status-and-graph.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/09-status-and-graph.md): status and topology — the status table, graph as Mermaid, deps
+- [docs/en/02-project-guide/10-lint-and-checks.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/10-lint-and-checks.md): offline checks — what lint checks, --strict, where up --dry-run takes over
+- [docs/en/02-project-guide/11-sync-and-restore.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/11-sync-and-restore.md): component source — sync archives and restores, restore goes back to the last commit
+- [docs/en/02-project-guide/12-build-and-images.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/12-build-and-images.md): building and images — --force, skipping existing images, tags that follow versions
 
 ### 03-component-guide/
 - [docs/en/03-component-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/README.md): module index — for component authors

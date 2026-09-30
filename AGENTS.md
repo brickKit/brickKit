@@ -173,8 +173,8 @@ Every command's full flag list is in [`docs/en/07-cli-reference/README.md`](docs
 - [docs/en/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/README.md): the English docs index and reading order
 - [docs/en/00-intro/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/README.md): overview and getting started
 - [docs/en/00-intro/02-quick-start.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/02-quick-start.md): from an empty directory to running containers in five minutes
-- [docs/en/00-intro/03-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/03-core-concepts.md): glossary of core concepts
-- [docs/en/00-intro/05-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/05-fractal-architecture.md): the fractal structure — developing a component vs. using one
+- [docs/en/00-intro/04-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/04-core-concepts.md): glossary of core concepts
+- [docs/en/00-intro/06-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/06-fractal-architecture.md): the fractal structure — developing a component vs. using one
 - [docs/en/01-three-layers/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/README.md): the three layers in depth
 - [docs/en/01-three-layers/08-resolution-priority.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/08-resolution-priority.md): where a config value comes from, in order
 - [docs/en/02-project-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/README.md): guide for people running a project

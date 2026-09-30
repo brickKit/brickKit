@@ -151,7 +151,7 @@ brickkit init --yes
    ✅ 收尾校验通过：项目可以装载
 ```
 
-项目根就是 Git 仓库根时，`init` 顺带装上提交前检查（见 [源码管理](10-sync-and-restore.md#提交前检查)）。
+项目根就是 Git 仓库根时，`init` 顺带装上提交前检查（见 [源码管理](11-sync-and-restore.md#提交前检查)）。
 
 ## 克隆一个已有的项目
 
@@ -167,7 +167,7 @@ brickkit up
 `.brickkit/` 不在仓库里，但它只是缓存：第一次运行时，CLI 按 `brickkit.yaml` 从安装源重新取回每个组件的
 `component.yaml` 和契约文件。`components/` 同样不在仓库里——`up` 只需要组件的 `component.yaml`，不需要源码；
 要改哪个组件的代码，再用 `brickkit add <id>@<版本> --repo` 把它克隆下来（见 [添加组件](02-add-and-component-install.md#克隆源码--repo--repo-all)）。
-`build` 那一步只在组件需要本机构建镜像时才有事可做，见 [构建与镜像](11-build-and-images.md)。
+`build` 那一步只在组件需要本机构建镜像时才有事可做，见 [构建与镜像](12-build-and-images.md)。
 
 ## 项目结构约定
 

@@ -74,7 +74,7 @@ brickkit add demo/bus
 📦 Artifacts: 1 file, in .brickkit/artifacts/
 ```
 
-Restoring uses the same [migration rules](06-upgrade-and-migration.md#how-config-is-migrated) as an upgrade rather than a
+Restoring uses the same [migration rules](07-upgrade-and-migration.md#how-config-is-migrated) as an upgrade rather than a
 plain copy: what you add back may be another version, and items the new version dropped, added or gave a new default are
 handled by that table. When the archive holds several versions, the one for the same version is taken; failing that, the
 highest one not above this version; failing that, the highest one.

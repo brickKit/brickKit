@@ -73,7 +73,7 @@ A key appearing twice in one file isn't "the later one wins" — it **fails loud
 
 When `upgrade` migrates config and meets a key "you changed and the component's author also changed the default of",
 it writes exactly two such lines on purpose, to make you decide; see
-[Upgrading and config migration](../02-project-guide/06-upgrade-and-migration.md).
+[Upgrading and config migration](../02-project-guide/07-upgrade-and-migration.md).
 
 ## What isn't part of this chain
 
