@@ -114,7 +114,7 @@ func runInitCreate(opts *Options, name string, f initFlags) error {
 	printNextSteps(opts, []nextStep{
 		{cmd: "cd " + name},
 		{cmd: "brickkit add --local", what: i18n.T(msgid.CliInitBrickkitAddLocalAddEvery)},
-		{cmd: "brickkit add people/basic@1.0.0", what: i18n.T(msgid.CliInitBrickkitAddPeopleBasicAdd)},
+		{cmd: "brickkit add <scope>/<name>@<version>", what: i18n.T(msgid.CliInitBrickkitAddPeopleBasicAdd)},
 		{cmd: "brickkit up", what: i18n.T(msgid.CliInitBrickkitUpStartEverythingIn)},
 	})
 	return nil

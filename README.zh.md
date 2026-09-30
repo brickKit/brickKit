@@ -93,6 +93,10 @@ init` 还会把 AI 助手技能装进项目里。
 
 ### 渐进式构建
 
+这些组件来自你们组织自己的安装源——一个 Git 组织或组件市场，在 `brickkit.yaml` 的 `sources:` 里启用
+（新建的项目只有 `./components` 与 `./shell` 两个本地源）。什么都没准备、想先照着跑一遍，
+[快速开始](docs/zh/00-intro/02-quick-start.md) 用的是仓库自带的示例组件。
+
 ```bash
 brickkit init my-shop && cd my-shop
 brickkit add people/basic@1.0.0 && brickkit up
@@ -146,6 +150,7 @@ DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
 ```bash
 brickkit init my-shop                 # 创建项目（生成三层文件骨架）
 cd my-shop
+# 在 brickkit.yaml 的 sources: 里启用一个提供 erp/backend 的安装源
 brickkit add erp/backend@1.0.0        # 一条命令拉下整棵依赖树
 brickkit build                        # 构建需要在本机构建的镜像（如果有）
 brickkit up --dry-run                 # 看启动顺序（拓扑排序）

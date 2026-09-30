@@ -40,9 +40,9 @@ brickkit init my-shop
 
 下一步：
   cd my-shop
-  brickkit add --local               把 components/ 下的组件全加进来
-  brickkit add people/basic@1.0.0    从安装源添加组件
-  brickkit up                        一键启动
+  brickkit add --local                     把 components/ 下的组件全加进来
+  brickkit add <scope>/<name>@<version>    从安装源添加组件（先在 brickkit.yaml 的 sources: 里启用一个）
+  brickkit up                              一键启动
 ```
 
 `init <名字>` 新建一个同名目录，三层文件的骨架都在里面：

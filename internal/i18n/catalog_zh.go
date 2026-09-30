@@ -932,7 +932,7 @@ var zh = map[string]string{
 	msgid.CliInitComponentSourceConfiguredAsThe:                      "组件源码（已配为本地安装源 local-dev）",
 	msgid.CliInitDonTInstallTheAi:                                    "不装 AI 助手技能（.claude/skills/、AGENTS.md）",
 	msgid.CliInitTheProjectItselfHasBeen:                             "项目本身已经初始化完成，只是技能没装上",
-	msgid.CliInitBrickkitAddPeopleBasicAdd:                           "从安装源添加组件",
+	msgid.CliInitBrickkitAddPeopleBasicAdd:                           "从安装源添加组件（先在 brickkit.yaml 的 sources: 里启用一个）",
 	msgid.CliInitYouCanAlsoDoWithout:                                 "也可以不要它们：技能不影响 brickkit 的任何功能",
 	msgid.CliInitBrickkitInitHooksOnlyInstalls:                       "brickkit init --hooks 只安装 pre-commit hook，不需要项目名称",
 	msgid.CliInitOnlyInstallThePreCommit:                             "只安装提交前检查用的 pre-commit hook（在已有项目里补装）",

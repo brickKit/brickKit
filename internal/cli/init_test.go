@@ -294,9 +294,9 @@ func TestInitOutputMatchesDesignDocs(t *testing.T) {
 		"\n" +
 		"Next steps:\n" +
 		"  cd my-project\n" +
-		"  brickkit add --local               add every component under components/\n" +
-		"  brickkit add people/basic@1.0.0    add a component from an install source\n" +
-		"  brickkit up                        start everything in one go\n"
+		"  brickkit add --local                     add every component under components/\n" +
+		"  brickkit add <scope>/<name>@<version>    add a component from an install source (enable one under sources: in brickkit.yaml first)\n" +
+		"  brickkit up                              start everything in one go\n"
 	assert.Equal(t, want, r.stdout)
 }
 

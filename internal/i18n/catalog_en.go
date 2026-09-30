@@ -939,7 +939,7 @@ var en = map[string]string{
 	msgid.CliInitComponentSourceConfiguredAsThe:                                              "Component source (configured as the local install source local-dev)",
 	msgid.CliInitDonTInstallTheAi:                                                            "Don't install the AI assistant skills (.claude/skills/, AGENTS.md)",
 	msgid.CliInitTheProjectItselfHasBeen:                                                     "The project itself has been initialized; only the skills were not installed",
-	msgid.CliInitBrickkitAddPeopleBasicAdd:                                                   "add a component from an install source",
+	msgid.CliInitBrickkitAddPeopleBasicAdd:                                                   "add a component from an install source (enable one under sources: in brickkit.yaml first)",
 	msgid.CliInitYouCanAlsoDoWithout:                                                         "You can also do without them: the skills don't affect any brickkit feature",
 	msgid.CliInitBrickkitInitHooksOnlyInstalls:                                               "brickkit init --hooks only installs the pre-commit hook and needs no project name",
 	msgid.CliInitOnlyInstallThePreCommit:                                                     "Only install the pre-commit hook used for pre-commit checks (to add it to an existing project)",

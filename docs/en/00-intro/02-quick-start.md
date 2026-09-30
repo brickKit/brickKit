@@ -41,9 +41,9 @@ brickkit init my-shop
 
 Next steps:
   cd my-shop
-  brickkit add --local               add every component under components/
-  brickkit add people/basic@1.0.0    add a component from an install source
-  brickkit up                        start everything in one go
+  brickkit add --local                     add every component under components/
+  brickkit add <scope>/<name>@<version>    add a component from an install source (enable one under sources: in brickkit.yaml first)
+  brickkit up                              start everything in one go
 ```
 
 `init <name>` creates a directory of that name holding the skeleton of the three layers:

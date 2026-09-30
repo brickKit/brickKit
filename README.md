@@ -97,6 +97,11 @@ component market is optional infrastructure.
 
 ### Grow it one piece at a time
 
+These components come from an install source your organisation runs — a Git organisation or a component market,
+enabled under `sources:` in `brickkit.yaml` (a fresh project only has the local sources `./components` and `./shell`).
+To try the same thing with nothing set up, the [quick start](docs/en/00-intro/02-quick-start.md) uses the repository's
+own sample components.
+
 ```bash
 brickkit init my-shop && cd my-shop
 brickkit add people/basic@1.0.0 && brickkit up
@@ -150,6 +155,7 @@ Take that variable away and the component runs anywhere.
 ```bash
 brickkit init my-shop                 # create the project (the three-layer skeleton)
 cd my-shop
+# enable an install source that serves erp/backend under sources: in brickkit.yaml
 brickkit add erp/backend@1.0.0        # one command pulls the whole dependency tree
 brickkit build                        # build the images that are built locally (if any)
 brickkit up --dry-run                 # see the start order
