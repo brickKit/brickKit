@@ -43,6 +43,26 @@ To stay clear as a project grows, BrickKit splits the concerns across exactly th
 Declare the components; BrickKit derives everything else. A one-component project and a fifty-component project use
 the same three layers.
 
+```mermaid
+flowchart LR
+    subgraph P["Your project: three layers of files"]
+        L1["<b>brickkit.yaml</b><br/>which components,<br/>at which exact versions"]
+        L2["<b>deploy.yaml</b><br/>how they run: target,<br/>ports, modes, shells"]
+        L3["<b>config/</b><br/>the environment variables<br/>each component gets"]
+    end
+    LOCAL["<b>deploy.local.yaml</b><br/>your personal copy, not in Git"] -.->|"replaces it while<br/>local mode is on"| L2
+    M["<b>component.yaml</b> of each component<br/>its contract: dependencies, configSchema"]
+    L1 --> UP{{"brickkit up"}}
+    L2 --> UP
+    L3 --> UP
+    M --> UP
+    UP -->|derives| OUT["start order<br/>service addresses<br/>environment variables<br/>compose.yaml or<br/>Kubernetes manifests"]
+    OUT --> ENG["<b>Docker · Podman · Kubernetes</b><br/>run the components,<br/>which call each other<br/>directly by DNS"]
+```
+
+`brickkit up` reads the three layers and each component's `component.yaml`, derives the rest, hands it to the engine
+you already have, and exits — no registry, no gateway, no daemon in between.
+
 ---
 
 <details>
@@ -66,6 +86,122 @@ the same three layers.
 > everything under `docs/en/`; one asking in Chinese reads `docs/zh/`.
 
 </details>
+
+---
+
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh | sh
+brickkit version
+```
+
+The script detects your OS and architecture, **refuses to install if the sha256 doesn't match**, and installs to
+`/usr/local/bin` (or `~/.local/bin`, with a PATH hint when that isn't on it). It also sets up TAB completion for bash,
+zsh and fish — commands, component IDs, versions and deploy files; zsh may need two lines in `~/.zshrc`, which it
+prints. See [Shell completion](docs/en/00-intro/03-shell-completion.md).
+
+To run things you also need Git and Docker 20.10+ (with Compose V2) or Podman — and kubectl with a cluster for
+`target: k8s`.
+
+<details>
+<summary>Other ways to install, versions, requirements, Windows, uninstalling</summary>
+
+The CLI is a **single-file** Go binary with no runtime to install. It doesn't stay running — a project's state lives
+in its three layers and `.brickkit/`, component Git repositories are cached in a user-level cache directory (shared
+by every project), and the real work is done by the `docker` / `podman` / `kubectl` on your machine.
+
+**Read the script before running it:**
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh
+less install.sh && sh install.sh
+```
+
+A specific version: `BRICKKIT_VERSION=v0.7.1`. Somewhere else: `BRICKKIT_INSTALL_DIR=...`. No shell completion:
+`BRICKKIT_NO_COMPLETION=1`.
+
+**With Go** — `go install` lands in `$(go env GOPATH)/bin` (by default `~/go/bin`). It bypasses the Makefile, so no
+version is injected and `brickkit version` shows `v0.0.0-dev`:
+
+```bash
+go install github.com/brickkit/brickkit/cmd/brickkit@latest
+```
+
+**From source** — `make install` puts it in GOBIN instead, with the version, commit and build time injected:
+
+```bash
+git clone https://github.com/brickKit/brickKit.git
+cd brickKit
+make build-cli                 # produces bin/brickkit
+sudo install -m 0755 bin/brickkit /usr/local/bin/brickkit
+```
+
+Neither sets up completion; [Shell completion](docs/en/00-intro/03-shell-completion.md) has the one command per shell.
+
+**`brickkit version`** prints:
+
+```
+BrickKit CLI v0.9.0
+Supported Manifest version: brickkit/v1
+Supported deploy targets: docker, podman, k8s
+```
+
+**What else you need:**
+
+| | When |
+| --- | --- |
+| Git | To fetch components from Git repositories (the default source) |
+| Docker 20.10+ (with Compose V2), or Podman | For `brickkit up` to start local containers |
+| kubectl + a cluster (minikube is enough) | When a deploy file says `target: k8s` |
+| Go 1.22+ | **Only for `go install` and building from source** (or when a component is itself written in Go) |
+| [cosign](https://github.com/sigstore/cosign) | **Only for publishers** who sign; verification uses the Go standard library, so users of the CLI don't need it |
+
+**The CLI's language** is English by default; `brickkit lang set zh` switches it to Chinese on this machine, and
+`BRICKKIT_LANG=zh` does it for one command. Error codes, command names and flag names never change. See
+[`brickkit lang`](docs/en/07-cli-reference/README.md#brickkit-lang).
+
+**Windows:** there is a `windows/amd64` zip to download by hand from
+[Releases](https://github.com/brickKit/brickKit/releases). Only the commands that don't need Docker have been checked
+on it — the container and Kubernetes paths are **untested** on Windows: not unsupported, untested. There are no
+Homebrew / Scoop / apt packages yet: they all sit downstream of Releases, and the upstream comes first.
+
+**Uninstall:** `rm "$(command -v brickkit)"`. A project keeps everything in its own directory, so deleting the
+directory removes it cleanly; to clear the component repository cache as well, delete `brickkit/` under your user
+cache directory.
+
+</details>
+
+---
+
+## One minute
+
+```bash
+brickkit init my-shop                 # create the project (the three-layer skeleton)
+cd my-shop
+# enable an install source that serves erp/backend under sources: in brickkit.yaml
+brickkit add erp/backend@1.0.0        # one command pulls the whole dependency tree
+brickkit build                        # build the images that are built locally (if any)
+brickkit up --dry-run                 # see the start order
+brickkit up                           # generate deployment files → run migrations → start containers
+```
+
+One `add` fetches every dependency. One `up` turns the declaration into running containers — or into Kubernetes
+manifests, by changing one field:
+
+```yaml
+# deploy.yaml
+target: k8s          # was docker
+```
+
+Not a line of component code changes: the address format is the same in both environments,
+`http://<versioned-service-name>:<port>` (for example `http://people-basic-1-0-0:8080`).
+
+**21 commands, plus `version`, `lang` and `completion`:** `init` `skills` `graph` `lint` `new` `add` `remove`
+`fetch` `upgrade` `up` `down` `status` `sync` `local` `restore` `deps` `build` `release` `publish` `login` `logout`
+
+Want to walk through it yourself? The [five-minute quick start](docs/en/00-intro/02-quick-start.md) takes this whole
+path with the repository's own test fixtures — every step a real command with its real output.
 
 ---
 
@@ -150,37 +286,6 @@ Take that variable away and the component runs anywhere.
 
 ---
 
-## One minute
-
-```bash
-brickkit init my-shop                 # create the project (the three-layer skeleton)
-cd my-shop
-# enable an install source that serves erp/backend under sources: in brickkit.yaml
-brickkit add erp/backend@1.0.0        # one command pulls the whole dependency tree
-brickkit build                        # build the images that are built locally (if any)
-brickkit up --dry-run                 # see the start order
-brickkit up                           # generate deployment files → run migrations → start containers
-```
-
-One `add` fetches every dependency. One `up` turns the declaration into running containers — or into Kubernetes
-manifests, by changing one field:
-
-```yaml
-# deploy.yaml
-target: k8s          # was docker
-```
-
-Not a line of component code changes: the address format is the same in both environments,
-`http://<versioned-service-name>:<port>` (for example `http://people-basic-1-0-0:8080`).
-
-**21 commands, plus `version` and `lang`:** `init` `skills` `graph` `lint` `new` `add` `remove` `fetch` `upgrade`
-`up` `down` `status` `sync` `local` `restore` `deps` `build` `release` `publish` `login` `logout`
-
-Want to walk through it yourself? The [five-minute quick start](docs/en/00-intro/02-quick-start.md) takes this whole
-path with the repository's own test fixtures — every step a real command with its real output.
-
----
-
 ## Design philosophy: why so little
 
 This list matters as much as the features above — these aren't "not done yet", they were **argued through and
@@ -241,148 +346,6 @@ plus side-by-side versions mean an AI-generated v2 can live safely next to v1 wi
 on v1.
 
 The full reasoning and a step-by-step workflow: [the AI guide](docs/en/08-ai-guide/README.md).
-
----
-
-## Architecture at a glance
-
-```mermaid
-graph LR
-    subgraph Three layers
-        A1[brickkit.yaml] --> C
-        A2[deploy.yaml] --> C
-        A3[config/] --> C
-    end
-
-    subgraph CLI
-        C[brickkit up] --> D[resolve dependencies]
-        D --> E[topological sort]
-        E --> F[inject environment variables]
-        F --> G[generate deployment files]
-    end
-
-    subgraph Runtime
-        G --> H[docker compose up / kubectl apply]
-        H --> I[component A]
-        H --> J[component B]
-        H --> K[component C]
-
-        I <-->|DNS, direct| J
-        J <-->|DNS, direct| K
-    end
-
-    subgraph Infrastructure
-        I --> L[(PostgreSQL)]
-        J --> L
-        K --> M[(Redis)]
-    end
-```
-
----
-
-## Install
-
-The CLI is a **single-file** Go binary with no runtime to install. It doesn't stay running — a project's state lives
-in its three layers and `.brickkit/`, component Git repositories are cached in a user-level cache directory (shared
-by every project), and the real work is done by the `docker` / `podman` / `kubectl` on your machine.
-
-### Option 1: one line in a terminal (recommended, no Go needed)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh | sh
-```
-
-The script detects your OS and architecture, downloads the matching archive, **refuses to install if the sha256
-doesn't match**, and installs to `/usr/local/bin` (falling back to `~/.local/bin` with a PATH hint when that isn't
-writable).
-
-Rather not pipe it? Download, read, then run:
-
-```bash
-curl -fsSLO https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh
-less install.sh && sh install.sh
-```
-
-A specific version: `BRICKKIT_VERSION=v0.7.1`. Somewhere else: `BRICKKIT_INSTALL_DIR=...`.
-
-### Option 2: `go install` (if you have Go)
-
-```bash
-go install github.com/brickkit/brickkit/cmd/brickkit@latest
-```
-
-This lands in `$(go env GOPATH)/bin` (by default `~/go/bin`). It bypasses the Makefile, so no version is injected
-and `brickkit version` shows `v0.0.0-dev` — use option 1 or 3 for a real version number.
-
-### Option 3: build from source
-
-```bash
-git clone https://github.com/brickKit/brickKit.git
-cd brickKit
-make build-cli                 # produces bin/brickkit
-sudo install -m 0755 bin/brickkit /usr/local/bin/brickkit
-```
-
-Or `make install` into GOBIN — the same place as option 2, but with the version, commit and build time injected.
-
-### Check it
-
-```bash
-brickkit version
-```
-
-```
-BrickKit CLI v0.9.0
-Supported Manifest version: brickkit/v1
-Supported deploy targets: docker, podman, k8s
-```
-
-### TAB completion
-
-TAB completes commands, component IDs, versions and deploy files. `install.sh` sets it up for bash, zsh and fish (zsh
-may need two lines in `~/.zshrc` — it prints them); for other installs, or if TAB does nothing, see
-[Shell completion](docs/en/00-intro/03-shell-completion.md).
-
-### The CLI's language
-
-The CLI speaks English by default. To have it speak Chinese:
-
-```bash
-brickkit lang set zh                # from now on, on this machine
-BRICKKIT_LANG=zh brickkit status    # just this once
-brickkit lang                       # which language is in effect, and why
-```
-
-`BRICKKIT_LANG` wins over the saved setting, and the saved setting wins over the English default. Error codes,
-command names and flag names never change with the language. See
-[`brickkit lang`](docs/en/07-cli-reference/README.md#brickkit-lang).
-
-### What else you need
-
-| | When |
-| --- | --- |
-| Git | To fetch components from Git repositories (the default source) |
-| Docker 20.10+ (with Compose V2), or Podman | For `brickkit up` to start local containers |
-| kubectl + a cluster (minikube is enough) | When a deploy file says `target: k8s` |
-| Go 1.22+ | **Only for options 2 and 3**; option 1 doesn't need it (unless a component is itself written in Go) |
-| [cosign](https://github.com/sigstore/cosign) | **Only for publishers** who sign; verification uses the Go standard library, so users of the CLI don't need it |
-
-> **Windows:** there is a `windows/amd64` zip to download by hand from
-> [Releases](https://github.com/brickKit/brickKit/releases). Only the commands that don't need Docker have been
-> checked on it — the container and Kubernetes paths are **untested** on Windows: not unsupported, untested.
->
-> **No Homebrew / Scoop / apt packages yet.** They all sit downstream of Releases; the upstream comes first.
-
----
-
-## Uninstall
-
-```bash
-rm "$(command -v brickkit)"
-```
-
-A project keeps everything in its own directory, so deleting the directory removes it cleanly; to clear the component
-repository cache as well, delete `brickkit/` under your user cache directory.
 
 ---
 

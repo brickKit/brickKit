@@ -41,6 +41,26 @@ init` 还会把 AI 助手技能装进项目里。
 
 声明组件，BrickKit 派生其余一切。一个组件的项目和五十个组件的项目，用的是同样的三层。
 
+```mermaid
+flowchart LR
+    subgraph P["你的项目：三层文件"]
+        L1["<b>brickkit.yaml</b><br/>有哪些组件、<br/>各是什么精确版本"]
+        L2["<b>deploy.yaml</b><br/>怎么跑：目标、<br/>端口、模式、外壳"]
+        L3["<b>config/</b><br/>每个组件拿到的<br/>环境变量"]
+    end
+    LOCAL["<b>deploy.local.yaml</b><br/>你的个人副本，不进 Git"] -.->|"本地模式开着时<br/>整份替换它"| L2
+    M["每个组件的 <b>component.yaml</b><br/>它的契约：依赖、configSchema"]
+    L1 --> UP{{"brickkit up"}}
+    L2 --> UP
+    L3 --> UP
+    M --> UP
+    UP -->|派生| OUT["启动顺序 · 服务地址<br/>环境变量<br/>compose.yaml 或<br/>Kubernetes 清单"]
+    OUT --> ENG["<b>Docker · Podman · Kubernetes</b><br/>把组件跑起来，<br/>组件之间<br/>通过 DNS 直接调用"]
+```
+
+`brickkit up` 读三层文件和每个组件的 `component.yaml`，派生出其余的一切，交给你已有的引擎，然后退出——中间没有注册中心、
+没有网关、没有常驻进程。
+
 ---
 
 <details>
@@ -63,6 +83,118 @@ init` 还会把 AI 助手技能装进项目里。
 > 一切；在用英文（或其他语言）提问，读 `docs/en/`。
 
 </details>
+
+---
+
+## 安装
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh | sh
+brickkit version
+brickkit lang set zh        # CLI 默认说英文；这一条让它从此说中文
+```
+
+脚本认出你的系统与架构，**校验 sha256 对不上就拒绝安装**，装进 `/usr/local/bin`（不可写则退到 `~/.local/bin`，不在 PATH
+上时会提示）。它还会给 bash、zsh、fish 装好 TAB 补全——命令、组件 ID、版本、部署文件都能补；zsh 可能要在 `~/.zshrc` 里加两行，
+它会打印出来。见[命令补全](docs/zh/00-intro/03-shell-completion.md)。
+
+要真正跑起来，还需要 Git，以及 Docker 20.10+（含 Compose V2）或 Podman；部署到 `target: k8s` 时再加 kubectl 和一个集群。
+
+<details>
+<summary>其他安装方式、指定版本、依赖清单、Windows、卸载</summary>
+
+CLI 是一个**单文件** Go 二进制，装它不需要任何运行时。它不常驻——项目的状态都在项目目录的三层文件与 `.brickkit/` 里，
+组件的 Git 仓库缓存在用户级的缓存目录里（多个项目共享），真正干活时调用你机器上的 `docker` / `podman` / `kubectl`。
+
+**先看脚本再跑：**
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh
+less install.sh && sh install.sh
+```
+
+装指定版本用 `BRICKKIT_VERSION=v0.7.1`，装到别处用 `BRICKKIT_INSTALL_DIR=...`，不装补全用 `BRICKKIT_NO_COMPLETION=1`。
+
+**有 Go 的话**——`go install` 装到 `$(go env GOPATH)/bin`（默认 `~/go/bin`）。它不走 Makefile，拿不到注入的版本号，
+`brickkit version` 会显示 `v0.0.0-dev`：
+
+```bash
+go install github.com/brickkit/brickkit/cmd/brickkit@latest
+```
+
+**从源码构建**——`make install` 则装到 GOBIN，版本号、commit、构建时间都注入进了二进制：
+
+```bash
+git clone https://github.com/brickKit/brickKit.git
+cd brickKit
+make build-cli                 # 产出 bin/brickkit
+sudo install -m 0755 bin/brickkit /usr/local/bin/brickkit
+```
+
+这两种方式都不装补全；[命令补全](docs/zh/00-intro/03-shell-completion.md)里每种 shell 各有一条命令。
+
+**`brickkit version`** 打印的是：
+
+```
+BrickKit CLI v0.9.0
+支持 Manifest 版本：brickkit/v1
+支持部署目标：docker, podman, k8s
+```
+
+**还需要什么：**
+
+| | 什么时候要 |
+| --- | --- |
+| Git | 从 Git 仓库拉组件时（默认的组件来源） |
+| Docker 20.10+（含 Compose V2），或 Podman | `brickkit up` 起本地容器时 |
+| kubectl + 一个集群（minikube 够用） | 部署文件写 `target: k8s` 时 |
+| Go 1.22+ | **只有 `go install` 和从源码构建**才要（或者组件本身是 Go 写的） |
+| [cosign](https://github.com/sigstore/cosign) | **只有发布方**签名时；验签用 Go 标准库，装 CLI 的人不需要 |
+
+**CLI 的语言：** `brickkit lang set zh` 在这台机器上从此说中文，`BRICKKIT_LANG=zh` 只管一条命令，`brickkit lang`
+说出现在生效的是哪种、为什么。`BRICKKIT_LANG` 优先于保存下来的设置，保存下来的设置优先于默认的英文；错误码、命令名、参数名
+不随语言变化。详见 [`brickkit lang`](docs/zh/07-cli-reference/README.md#brickkit-lang)。
+
+**Windows：** 有 `windows/amd64` 的 zip，在 [Releases](https://github.com/brickKit/brickKit/releases) 页面手动下。但它只验过
+不需要 Docker 的那部分命令——起容器和 K8s 那条线在 Windows 上**没验过**，不是不支持，是没验过。还没有 Homebrew / Scoop / apt
+包：它们都是 Releases 的下游，先把上游做出来。
+
+**卸载：** `rm "$(command -v brickkit)"`。项目自己的东西都在项目目录里，删掉项目目录就删干净了；想连组件仓库的缓存一起清，
+再删掉用户缓存目录下的 `brickkit/`。
+
+</details>
+
+---
+
+## 一分钟看完
+
+```bash
+brickkit init my-shop                 # 创建项目（生成三层文件骨架）
+cd my-shop
+# 在 brickkit.yaml 的 sources: 里启用一个提供 erp/backend 的安装源
+brickkit add erp/backend@1.0.0        # 一条命令拉下整棵依赖树
+brickkit build                        # 构建需要在本机构建的镜像（如果有）
+brickkit up --dry-run                 # 看启动顺序（拓扑排序）
+brickkit up                           # 生成部署文件 → 跑迁移 → 起容器
+```
+
+一次 `add` 拉下全部依赖。一次 `up` 把声明变成运行中的容器 —— 或者变成
+Kubernetes 清单，只改一个字段：
+
+```yaml
+# deploy.yaml
+target: k8s          # 原本是 docker
+```
+
+组件代码一个字都不用改：两个环境下的地址格式完全一样，都是
+`http://<版本化服务名>:<端口>`（例如 `http://people-basic-1-0-0:8080`）。
+
+**21 个命令，加 `version`、`lang` 与 `completion`：** `init` `skills` `graph` `lint` `new` `add` `remove`
+`fetch` `upgrade` `up` `down` `status` `sync` `local` `restore` `deps` `build` `release`
+`publish` `login` `logout`
+
+想动手照着跑一遍？[5 分钟 Quick Start](docs/zh/00-intro/02-quick-start.md) 用仓库自带的
+测试夹具走完这整条路径，每一步都是真实命令和真实输出。
 
 ---
 
@@ -144,38 +276,6 @@ DEPARTMENT_TREE_ENDPOINT=http://department-tree-1-0-0:8080
 
 ---
 
-## 一分钟看完
-
-```bash
-brickkit init my-shop                 # 创建项目（生成三层文件骨架）
-cd my-shop
-# 在 brickkit.yaml 的 sources: 里启用一个提供 erp/backend 的安装源
-brickkit add erp/backend@1.0.0        # 一条命令拉下整棵依赖树
-brickkit build                        # 构建需要在本机构建的镜像（如果有）
-brickkit up --dry-run                 # 看启动顺序（拓扑排序）
-brickkit up                           # 生成部署文件 → 跑迁移 → 起容器
-```
-
-一次 `add` 拉下全部依赖。一次 `up` 把声明变成运行中的容器 —— 或者变成
-Kubernetes 清单，只改一个字段：
-
-```yaml
-# deploy.yaml
-target: k8s          # 原本是 docker
-```
-
-组件代码一个字都不用改：两个环境下的地址格式完全一样，都是
-`http://<版本化服务名>:<端口>`（例如 `http://people-basic-1-0-0:8080`）。
-
-**21 个命令，加 `version` 与 `lang`：** `init` `skills` `graph` `lint` `new` `add` `remove`
-`fetch` `upgrade` `up` `down` `status` `sync` `local` `restore` `deps` `build` `release`
-`publish` `login` `logout`
-
-想动手照着跑一遍？[5 分钟 Quick Start](docs/zh/00-intro/02-quick-start.md) 用仓库自带的
-测试夹具走完这整条路径，每一步都是真实命令和真实输出。
-
----
-
 ## 设计哲学：为什么这么少
 
 这份清单和上面的能力同样重要 —— 它们不是「还没做」，而是**被论证过并拒绝**的：
@@ -233,148 +333,6 @@ AI 按需只读用得到的那一个。
 多版本共存意味着 AI 生成的 v2 可以和 v1 安全并存，不会搞坏依赖 v1 的其他组件。
 
 完整的道理和一步一步的工作流，见 [AI 专属指南](docs/zh/08-ai-guide/README.md)。
-
----
-
-## 架构一瞥
-
-```mermaid
-graph LR
-    subgraph 三层文件
-        A1[brickkit.yaml] --> C
-        A2[deploy.yaml] --> C
-        A3[config/] --> C
-    end
-
-    subgraph CLI
-        C[brickkit up] --> D[解析依赖]
-        D --> E[拓扑排序]
-        E --> F[注入环境变量]
-        F --> G[生成部署文件]
-    end
-
-    subgraph 运行环境
-        G --> H[docker compose up / kubectl apply]
-        H --> I[组件 A]
-        H --> J[组件 B]
-        H --> K[组件 C]
-
-        I <-->|DNS 直连| J
-        J <-->|DNS 直连| K
-    end
-
-    subgraph 基础设施
-        I --> L[(PostgreSQL)]
-        J --> L
-        K --> M[(Redis)]
-    end
-```
-
----
-
-## 安装
-
-CLI 是一个**单文件** Go 二进制，装它不需要任何运行时。它不常驻——项目的状态都在项目目录的
-三层文件与 `.brickkit/` 里，组件的 Git 仓库缓存在用户级的缓存目录里（多个项目共享），
-真正干活时调用你机器上的 `docker` / `podman` / `kubectl`。
-
-### 方式一：一行装进终端（推荐，不需要 Go）
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh | sh
-```
-
-脚本认出你的系统与架构，下对应的包，**校验 sha256 对不上就拒绝安装**，装进
-`/usr/local/bin`（不可写则退到 `~/.local/bin` 并提示 PATH）。
-
-不想走管道，先下再看再跑也一样：
-
-```bash
-curl -fsSLO https://raw.githubusercontent.com/brickKit/brickKit/main/install.sh
-less install.sh && sh install.sh
-```
-
-装指定版本用 `BRICKKIT_VERSION=v0.7.1`，装到别处用 `BRICKKIT_INSTALL_DIR=...`。
-
-### 方式二：`go install`（有 Go 的话）
-
-```bash
-go install github.com/brickkit/brickkit/cmd/brickkit@latest
-```
-
-装到 `$(go env GOPATH)/bin`（默认 `~/go/bin`）。它不走 Makefile，所以拿不到
-注入的版本号，`brickkit version` 会显示 `v0.0.0-dev` —— 想要真版本号就用方式
-一或方式三。
-
-### 方式三：从源码构建
-
-```bash
-git clone https://github.com/brickKit/brickKit.git
-cd brickKit
-make build-cli                 # 产出 bin/brickkit
-sudo install -m 0755 bin/brickkit /usr/local/bin/brickkit
-```
-
-或者 `make install` 装到 GOBIN —— 与方式二同一个位置，但版本号、commit、构建
-时间都注入进了二进制。
-
-### 验证
-
-```bash
-brickkit version
-```
-
-```
-BrickKit CLI v0.9.0
-支持 Manifest 版本：brickkit/v1
-支持部署目标：docker, podman, k8s
-```
-
-### TAB 补全
-
-按 TAB 能补全命令、组件 ID、版本和部署文件。`install.sh` 会给 bash、zsh、fish 装好（zsh 可能要在 `~/.zshrc` 里加两行——它会打印出来）；
-别的安装方式，或者按 TAB 没反应，见[命令补全](docs/zh/00-intro/03-shell-completion.md)。
-
-### 切换 CLI 的语言
-
-CLI 默认说英文。想让它说中文：
-
-```bash
-brickkit lang set zh                # 从此在这台机器上都说中文
-BRICKKIT_LANG=zh brickkit status    # 只管这一次
-brickkit lang                       # 现在生效的是哪种语言，为什么
-```
-
-`BRICKKIT_LANG` 优先于保存下来的设置，保存下来的设置优先于默认的英文。
-错误码、命令名、参数名不随语言变化。
-详见 [`brickkit lang`](docs/zh/07-cli-reference/README.md#brickkit-lang)。
-
-### 还需要什么
-
-| | 什么时候要 |
-| --- | --- |
-| Git | 从 Git 仓库拉组件时（默认的组件来源） |
-| Docker 20.10+（含 Compose V2），或 Podman | `brickkit up` 起本地容器时 |
-| kubectl + 一个集群（minikube 够用） | 部署文件写 `target: k8s` 时 |
-| Go 1.22+ | **只有方式二、三**要；方式一不需要（除非组件本身是 Go 写的） |
-| [cosign](https://github.com/sigstore/cosign) | **只有发布方**签名时；验签用 Go 标准库，装 CLI 的人不需要 |
-
-> **Windows：** 有 `windows/amd64` 的 zip，[Releases](https://github.com/brickKit/brickKit/releases)
-> 页面手动下。但它只验过不需要 Docker 的那部分命令 —— 起容器和 K8s 那条线在
-> Windows 上**没验过**，不是不支持，是没验过。
->
-> **还没有 Homebrew / Scoop / apt 包。** 它们都是 Releases 的下游，先把上游做出来。
-
----
-
-## 卸载
-
-```bash
-rm "$(command -v brickkit)"
-```
-
-项目自己的东西都在项目目录里，删掉项目目录就删干净了；想连组件仓库的缓存一起清，
-再删掉用户缓存目录下的 `brickkit/`。
 
 ---
 
