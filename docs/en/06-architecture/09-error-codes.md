@@ -128,7 +128,6 @@ The same code also has warnings (which don't make the command fail):
 | --- | --- | --- |
 | `Warning: .gitignore is missing required entries — personal deploy files and secrets can be committed` | An existing `.gitignore` is missing entries, and `init` doesn't change it for you | Add each line listed |
 | `<…>: <…> is not declared in the component's configSchema, so it has no effect` | A misspelled config key | Follow the "did you mean" suggestion |
-| `Warning: the source of <…> has git submodules, and they are empty directories here` | `build` found registered submodules that are empty: BrickKit never fetches submodules | Have the component publish an image (`deployment.image`), or make the build not need them; `git submodule update --init` in a cloned repository if you must |
 | `Files under config/ may contain plaintext secrets` | A secret written in plain text, while `config/` goes into Git | Change it to `${VAR}` or `file://` |
 | `existingSecret only works on K8s, and the current target is docker` | `existingSecret` used on Docker | The item isn't injected; on Docker use `${VAR}` or `file://` |
 | `<…> has no effect with target: <…> and is ignored` | A field only useful for the other deploy target was written | It can stay; it takes effect when the target changes |
@@ -369,6 +368,14 @@ isn't actually in effect`, `Warning: the signature comes from an undeclared publ
 | --- | --- | --- |
 | `Error: can't move this component's source — it's a registered git submodule` | The directory `sync` wants to archive is a submodule registered in the project repository | Deregister the submodule in the project repository first |
 | `Error: can't remove this component's source — it's a registered git submodule` | The directory `remove` wants to delete is a submodule | As above |
+
+### SUBMODULES_SKIPPED
+
+Only a warning, from `build`: `Warning: the source of <…> has git submodules, and they are empty directories here` —
+BrickKit never fetches git submodules (see
+[The bare-repository mechanism](06-bare-repo-mechanism.md#git-submodules-are-never-fetched)), so in the source it builds
+from they are empty. Have the component publish an image (`deployment.image`), or make the build not need them; in a
+cloned repository under `components/`, `git submodule update --init` if you must.
 
 ### RELEASE_BLOCKED
 

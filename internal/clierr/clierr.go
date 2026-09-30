@@ -98,6 +98,9 @@ const (
 	// 直接文件系统操作"（一次外部实操反馈指出的）。os.Rename/os.RemoveAll
 	// 不懂 .gitmodules，会把子模块的独立版本历史和 superproject 脱钩且不报错。
 	CodeSubmoduleGuard Code = "SUBMODULE_GUARD"
+	// CodeSubmodulesSkipped 是"平台从不拉取 git submodule，这里它们是空目录"（build 时）。
+	// 与 MIGRATION_SKIPPED 同类：平台刻意不做的事，只作警告使用，不阻断。
+	CodeSubmodulesSkipped Code = "SUBMODULES_SKIPPED"
 
 	// 发布（brickkit release，提案 §10.2）。
 	//

@@ -121,7 +121,6 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 | --- | --- | --- |
 | `警告：.gitignore 缺少必需条目——个人部署文件和密钥可能被提交` | 已有的 `.gitignore` 缺条目，`init` 不替你改 | 把列出的每一行加进去 |
 | `<…>：<…> 不在组件的 configSchema 里，不会生效` | 配置键写错了 | 按"是不是想写"的建议改 |
-| `警告：<…> 的源码里有 git submodule，这里它们是空目录` | `build` 发现登记了的 submodule 是空的：BrickKit 从不拉取 submodule | 让组件发布镜像（`deployment.image`），或让构建不依赖它们；实在需要，在克隆下来的仓库里 `git submodule update --init` |
 | `config/ 下的文件可能写了明文密钥` | 密钥写成了明文，而 `config/` 要进 Git | 改成 `${VAR}` 或 `file://` |
 | `existingSecret 只在 K8s 生效，当前是 docker 目标` | Docker 下用了 `existingSecret` | 这一项不注入；Docker 上用 `${VAR}` 或 `file://` |
 | `<…> 在 target: <…> 下不起作用，已忽略` | 写了只对另一种部署目标有用的字段 | 可以留着，换目标时生效 |
@@ -347,6 +346,12 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 | --- | --- | --- |
 | `错误：无法移动组件源码——它是一个已登记的 git submodule` | `sync` 要归档的目录是项目仓库登记的 submodule | 先在项目仓库里取消这个 submodule |
 | `错误：无法删除组件源码——它是一个已登记的 git submodule` | `remove` 要删的目录是 submodule | 同上 |
+
+### SUBMODULES_SKIPPED
+
+只作警告，来自 `build`：`警告：<…> 的源码里有 git submodule，这里它们是空目录`——BrickKit 从不拉取 git submodule
+（见 [bare 仓库机制](06-bare-repo-mechanism.md#从不拉取-git-submodule)），所以在拿来构建的源码里它们是空的。让组件发布镜像
+（`deployment.image`），或者让构建不依赖它们；实在需要，在 `components/` 下克隆的仓库里 `git submodule update --init`。
 
 ### RELEASE_BLOCKED
 

@@ -128,7 +128,7 @@ description: brickkit 命令报错、组件起不来、地址注入不生效、�
 - 「组件源码嵌在另一个组件的目录里」（`CONFIG_CONFLICT`）：同一个组件有了两份，`up`、`lint`、`sync` 都拒绝。自己挪走或删掉
   嵌套的那份——先问人；报错会说它在别处有没有副本。
 - 「这个工作台在项目 … 里面；--repo 会在这里再克隆一份」（`CONFIG_CONFLICT`）：到外层项目里 `add --repo`，或在那里用焦点运行。
-- `build` 的警告「… 的源码里有 git submodule，这里它们是空目录」：BrickKit 从不拉取 submodule。让组件发布镜像；或者在克隆下来的
+- `build` 的警告「… 的源码里有 git submodule，这里它们是空目录」（`SUBMODULES_SKIPPED`）：BrickKit 从不拉取 submodule。让组件发布镜像；或者在克隆下来的
   仓库里自己 `git submodule update --init`。
 
 ## 其余错误码速查

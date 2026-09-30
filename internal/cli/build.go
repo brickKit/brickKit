@@ -182,9 +182,7 @@ func buildOne(ctx context.Context, opts *Options, proj *project.Project, client 
 	defer cleanup()
 	// BrickKit 从不拉取 submodule：从 tag 导出的源码里它们只剩空目录，构建要是用到就会莫名失败
 	if empty := emptySubmodules(root); len(empty) > 0 {
-		renderWarnings(opts, []*clierr.Error{clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliBuildSubmodulesEmpty, node.Ref.String())).
-			WithDetail(i18n.T(msgid.LabelDir), strings.Join(empty, i18n.T(msgid.ListSeparator))).
-			WithHint(i18n.T(msgid.CliBuildHintSubmodules))})
+		renderWarnings(opts, []*clierr.Error{submodulesEmptyWarning(node.Ref.String(), empty)})
 	}
 	b := node.Manifest.Deployment.Build
 	contextDir, dockerfile := ".", "Dockerfile"

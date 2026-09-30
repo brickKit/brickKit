@@ -76,6 +76,13 @@ func refuseRepoInNestedWorkbench(opts *Options) error {
 		WithHint(i18n.T(msgid.CliAddHintRepoFromOuter, shown))
 }
 
+// submodulesEmptyWarning 是 build 在源码里遇到空的 submodule 目录时的警告。
+func submodulesEmptyWarning(ref string, empty []string) *clierr.Error {
+	return clierr.Warn(clierr.CodeSubmodulesSkipped, i18n.T(msgid.CliBuildSubmodulesEmpty, ref)).
+		WithDetail(i18n.T(msgid.LabelDir), strings.Join(empty, i18n.T(msgid.ListSeparator))).
+		WithHint(i18n.T(msgid.CliBuildHintSubmodules))
+}
+
 // emptySubmodules 是 dir 的 .gitmodules 里登记了、而目录是空的（或不存在）的 submodule 路径。
 // 使用者自己拉过的 submodule 有内容，不算。
 func emptySubmodules(dir string) []string {

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
 )
@@ -58,4 +59,12 @@ func TestBuildWarnsAboutEmptySubmoduleDirectories(t *testing.T) {
 	r := g.mustRun(dir, "build", "demo/app", "--force")
 	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.CliBuildSubmodulesEmpty, "demo/app@1.0.0"))
 	assert.Contains(t, r.stdout+r.stderr, "components/demo/lib")
+}
+
+// submodule 没拉是平台刻意不做的事，不是配置写错：警告有它自己的码（与 MIGRATION_SKIPPED 同类），
+// 脚本才分得清"该修配置"与"该发布镜像"。
+func TestEmptySubmoduleWarningHasItsOwnCode(t *testing.T) {
+	w := submodulesEmptyWarning("demo/lib@1.0.0", []string{"third_party/sdk"})
+	assert.True(t, w.Warning)
+	assert.Equal(t, clierr.CodeSubmodulesSkipped, w.Code)
 }
