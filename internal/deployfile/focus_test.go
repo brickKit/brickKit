@@ -90,3 +90,14 @@ func TestFocusEntryMayCarryALocalPort(t *testing.T) {
 	_, err := f.Validate(RoleLocal)
 	require.NoError(t, err)
 }
+
+// 兼容版本的条目（erp/api@0.9.0）不从源码跑：它写 localPort 照样是错，焦点不替它开这个口子。
+func TestFocusDoesNotLicenseALocalPortOnAnotherVersion(t *testing.T) {
+	f := &File{Target: TargetDocker, Focus: "erp/api", Components: []Component{
+		{Entry: Entry{ID: "erp/api"}},
+		{Entry: Entry{ID: "erp/api@0.9.0", LocalPort: 8082}},
+	}}
+	_, err := f.Validate(RoleLocal)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "localPort")
+}
