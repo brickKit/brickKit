@@ -203,8 +203,14 @@ def self_check():
     if not link_exists("README.md", "CONTRIBUTING.md") or link_exists("README.md", "no-such-file.md"):
         problems.append("链接解析坏了")
 
-    if (RAW_PREFIX + "a " + RAW_PREFIX + "b").count(RAW_PREFIX) != 2:
-        problems.append("网页前缀的计数坏了")
+    # 入口文件的网页前缀：真跑一遍检查——两处的要报，一处的不报
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        open(os.path.join(tmp, "twice.md"), "w").write(f"{RAW_PREFIX}a\n[x]({RAW_PREFIX}b)\n")
+        open(os.path.join(tmp, "once.md"), "w").write(f"{RAW_PREFIX}\n[x](b)\n")
+        got = [p for p, _, _ in check_raw_prefix_once(("twice.md", "once.md"), root=tmp)]
+        if got != ["twice.md"]:
+            problems.append(f"网页前缀只出现一次的检查坏了：{got}")
 
     if problems:
         print("❌ 自检失败：")
@@ -334,11 +340,11 @@ RAW_PREFIX = "https://raw.githubusercontent.com/brickKit/brickKit/main/"
 RAW_ONCE_FILES = ("AGENTS.md", "AGENTS.zh.md", "llms.txt", "llms.zh.txt")
 
 
-def check_raw_prefix_once():
+def check_raw_prefix_once(files=RAW_ONCE_FILES, root="."):
     """⑤ 入口文件里网页前缀只出现一次。"""
     bad = []
-    for path in RAW_ONCE_FILES:
-        n = sum(line.count(RAW_PREFIX) for line in read_lines(path) or [])
+    for path in files:
+        n = sum(line.count(RAW_PREFIX) for line in read_lines(os.path.join(root, path)) or [])
         if n != 1:
             bad.append((path, 0, f"网页前缀出现了 {n} 次，应当只在开头说明一次、其余一律写相对路径"))
     return bad
