@@ -17,13 +17,13 @@ type nextStep struct {
 // printNextSteps 打印"下一步："和各行，把命令补齐到同一宽度，让说明对成一列。
 //
 // 宽度在这里算，而不是在文案里数空格：命令里常带着用户给的名字（cd <目录>），
-// 文案里数出来的空格只对某一个长度成立。
+// 文案里数出来的空格只对某一个长度成立。宽度按终端里占的格数算（汉字两格），不按字节。
 func printNextSteps(opts *Options, steps []nextStep) {
 	opts.Printf("%s\n", i18n.T(msgid.CliNewNextSteps))
 	width := 0
 	for _, s := range steps {
-		if s.what != "" && len(s.cmd) > width {
-			width = len(s.cmd)
+		if s.what != "" && displayWidth(s.cmd) > width {
+			width = displayWidth(s.cmd)
 		}
 	}
 	for _, s := range steps {
@@ -33,7 +33,7 @@ func printNextSteps(opts *Options, steps []nextStep) {
 		case s.what == "":
 			opts.Printf("  %s\n", s.cmd)
 		default:
-			opts.Printf("  %s%s%s\n", s.cmd, strings.Repeat(" ", width-len(s.cmd)+4), s.what)
+			opts.Printf("  %s%s%s\n", s.cmd, strings.Repeat(" ", width-displayWidth(s.cmd)+4), s.what)
 		}
 	}
 }

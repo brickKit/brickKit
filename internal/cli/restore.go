@@ -1,6 +1,6 @@
 package cli
 
-// 本文件实现 brickkit restore：把 brickkit.yaml 的 mode 与组件
+// 本文件实现 brickkit restore：把 deploy.yaml 的 mode 与组件
 // 源码结构还原到最后一次提交，以及供 pre-commit hook 调用的 --check。
 
 import (

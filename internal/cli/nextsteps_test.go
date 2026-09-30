@@ -41,3 +41,35 @@ func TestNextStepsDescriptionsLineUp(t *testing.T) {
 		}
 	}
 }
+
+// 终端里一个汉字占两格：命令里带中文目录名时，说明仍要在屏幕上对成一列——按字节或按字符数补空格都对不齐。
+func TestNextStepsLineUpOnScreenWithWideCharacters(t *testing.T) {
+	r := runIn(t, t.TempDir(), "new", "shop/orders", "--path", "订单组件")
+	_, after, ok := strings.Cut(r.stdout, "Next steps:\n")
+	require.True(t, ok, r.stdout)
+	var cols []int
+	for _, line := range strings.Split(after, "\n") {
+		if m := stepColumn.FindStringSubmatchIndex(line); m != nil {
+			cols = append(cols, screenWidth(line[:m[6]]))
+		}
+	}
+	require.GreaterOrEqual(t, len(cols), 2, r.stdout)
+	for _, c := range cols {
+		assert.Equal(t, cols[0], c, "descriptions should start in one screen column:\n%s", r.stdout)
+	}
+}
+
+// screenWidth 是测试自己的宽度算法（不复用被测代码）：东亚宽字符两格，其余一格。
+func screenWidth(s string) int {
+	w := 0
+	for _, r := range s {
+		switch {
+		case r >= 0x1100 && r <= 0x115F, r >= 0x2E80 && r <= 0xA4CF, r >= 0xAC00 && r <= 0xD7A3,
+			r >= 0xF900 && r <= 0xFAFF, r >= 0xFF00 && r <= 0xFF60, r >= 0xFFE0 && r <= 0xFFE6:
+			w += 2
+		default:
+			w++
+		}
+	}
+	return w
+}

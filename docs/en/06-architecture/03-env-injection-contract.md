@@ -25,7 +25,8 @@ The **name** is derived from the component ID: `/` and `-` become `_`, all upper
 **carries no version**.
 
 The **value** does: `http://<versioned service name>:<port>`. The service name is the component ID with `/` and `.` turned
-into `-`, all lowercase, followed by the exact version. This string is exactly the same on Docker and on Kubernetes.
+into `-`, all lowercase, followed by the exact version with its dots turned into `-` too (`demo/hello@1.0.0` →
+`demo-hello-1-0-0`). This string is exactly the same on Docker and on Kubernetes.
 
 | Dependency | Variable | Value |
 | --- | --- | --- |
