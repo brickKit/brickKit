@@ -12,6 +12,9 @@
 | `could not read Username … terminal prompts disabled` | HTTPS 没有凭据 | [HTTPS 鉴权失败](#https-鉴权失败) |
 | `Could not resolve host`、`Connection refused`、`timed out` | 根本没连上 | [离线或连不上](#离线或连不上) |
 
+脚本可以按错误码分开这两类：根本没连上是 `NETWORK_UNREACHABLE`，过一会儿重试可能就好；连上了却被拒绝是 `AUTH_FAILED`，
+原样重试多少次都一样（见 [错误码参考](../06-architecture/09-error-codes.md)）。
+
 ## SSH 鉴权失败
 
 **症状**

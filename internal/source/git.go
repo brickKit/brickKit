@@ -202,11 +202,17 @@ func (s *gitSource) failed(componentID, repoURL string, err error) error {
 			WithDetail(i18n.T(msgid.LabelRepo), repoURL).
 			WithHint(i18n.T(msgid.SourceHintSetCacheHome))
 	}
-	e := clierr.New(clierr.CodeNetworkUnreachable, i18n.T(msgid.SourceGitFetchFailed, componentID)).
+	// 错误码只分两类：根本没连上（值得原样重试），与连上了却被拒绝（鉴权失败，或者仓库不存在——
+	// 托管平台对这两种常给同一句话）。后一类原样重试多少次都一样，报成网络错误会让脚本一直重试下去。
+	code := clierr.CodeAuthFailed
+	if unreachable(err) {
+		code = clierr.CodeNetworkUnreachable
+	}
+	e := clierr.New(code, i18n.T(msgid.SourceGitFetchFailed, componentID)).
 		WithDetail(i18n.T(msgid.LabelSource), i18n.T(msgid.SourceIDWithKind, s.id(), s.kind())).
 		WithDetail(i18n.T(msgid.LabelRepo), repoURL).
 		WithDetail(i18n.T(msgid.SourceLabelGitError), lastLines(err.Error(), 10))
-	if unreachable(err) {
+	if code == clierr.CodeNetworkUnreachable {
 		// 根本没连上：谈 SSH key、credential helper 只会把人引到错的方向
 		e = e.WithHint(i18n.T(msgid.SourceHintGitNetwork))
 	} else {

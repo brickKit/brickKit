@@ -14,6 +14,9 @@ First tell which kind it is: look at git's own words on the **Git error** line o
 | `could not read Username … terminal prompts disabled` | HTTPS has no credentials | [HTTPS authentication fails](#https-authentication-fails) |
 | `Could not resolve host`, `Connection refused`, `timed out` | Never connected at all | [Offline or unreachable](#offline-or-unreachable) |
 
+Scripts can tell the two apart by the error code: never connecting is `NETWORK_UNREACHABLE`, worth retrying later;
+connecting and being refused is `AUTH_FAILED`, which retrying as it is never fixes (see [Error codes](../06-architecture/09-error-codes.md)).
+
 ## SSH authentication fails
 
 **Symptom**

@@ -437,7 +437,8 @@ func TestGitMissingRepositoryNamesTheAddress(t *testing.T) {
 
 	require.Error(t, err)
 	e := clierr.As(err)
-	assert.Equal(t, clierr.CodeNetworkUnreachable, e.Code)
+	// 远端连上了、却拒绝了：原样重试没有用，不能报成 NETWORK_UNREACHABLE（脚本会一直重试下去）
+	assert.Equal(t, clierr.CodeAuthFailed, e.Code)
 	out := e.Format()
 	assert.Contains(t, out, gittest.BaseURL(org.dir), "报出的是它实际去找的那个地址")
 	assert.Contains(t, out, "erp-api")
@@ -481,6 +482,7 @@ func TestGitAuthFailureKeepsAuthHints(t *testing.T) {
 	err := s.failed("erp/api", "https://git.example.com/erp-api",
 		errors.New("fatal: could not read Username for 'https://git.example.com': terminal prompts disabled"))
 	e := clierr.As(err)
+	assert.Equal(t, clierr.CodeAuthFailed, e.Code, "鉴权失败不是网络问题，不值得原样重试")
 	assert.Contains(t, e.Hints, i18n.T(msgid.SourceHintGitSSH))
 	assert.NotContains(t, e.Hints, i18n.T(msgid.SourceHintGitNetwork))
 }

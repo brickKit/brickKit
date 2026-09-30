@@ -282,7 +282,7 @@ A network problem. **This is the only error code worth retrying as it is.**
 
 | Title | Situation | What to do |
 | --- | --- | --- |
-| `Failed to fetch component <…>` | Fetching a component from a Git repository failed: the network, authentication, a repository that doesn't exist | Read git's own words in the error, and tell which kind it is with the table in [Git authentication problems](../10-troubleshooting/04-git-auth-issues.md) |
+| `Failed to fetch component <…>` | Fetching a component from a Git repository failed because the remote was never reached: offline, a host name that doesn't resolve, a refused connection | Check the network and the host name; retry once the network is back. Offline, name a version the local cache already has |
 | `Error: the Market is unreachable` | The component market can't be reached | Check the network and the market address; retry later |
 | `Error: could not reach the image registry` | The image registry can't be reached while checking images | Check the network; retry later |
 | `Error: none of the artifacts of <…> could be downloaded` | Every artifact of a `fetch` failed to download | Retry later |
@@ -305,6 +305,7 @@ completes.
 | --- | --- | --- |
 | `Error: login failed: wrong user name or password` | The market refused the credentials | Check the user name and password |
 | `Error: the login credentials are malformed` | `.brickkit/credentials` is damaged | `brickkit logout`, then `login` |
+| `Failed to fetch component <…>` | The Git remote was reached but refused: the credentials were refused, or the repository doesn't exist (hosting platforms often answer both the same way) | Read git's own words in the error, and tell which it is with the table in [Git authentication problems](../10-troubleshooting/04-git-auth-issues.md); retrying as it is changes nothing |
 
 ### TOKEN_EXPIRED
 
