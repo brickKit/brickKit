@@ -279,3 +279,25 @@ func TestRemovingTheFocusedComponentDropsTheFocus(t *testing.T) {
 	r = runWithEngine(t, newFakeEngine(), dir, "status")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 }
+
+// -f / --no-local 跳过个人文件：--focus 与 --all 都改那份文件，报错两个都点名。
+func TestFocusNeedsLocalNamesBothFlags(t *testing.T) {
+	dir := focusFixture(t)
+	for _, flag := range []string{"--all", "--focus=erp/api"} {
+		r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", flag, "--no-local")
+		assert.Equal(t, clierr.ExitUsage, r.code, flag)
+		assert.Contains(t, r.stderr, "--all", flag)
+		assert.Contains(t, r.stderr, "--focus", flag)
+	}
+}
+
+// 在一个还没 add 进项目的组件目录里 up：多半是想把它加进来——提示 brickkit add。
+func TestImplicitFocusOnAnUndeclaredComponentSuggestsAdd(t *testing.T) {
+	dir := focusFixture(t)
+	writeTree(t, in(dir, "components", "erp", "extra"), map[string]string{
+		"component.yaml": readFile(t, in(dir, "components", "erp", "worker", "component.yaml")),
+	})
+	r := runWithEngine(t, newFakeEngine(), in(dir, "components", "erp", "extra"), "up", "--dry-run")
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.CliUpHintAddUndeclared, "erp/extra"))
+}

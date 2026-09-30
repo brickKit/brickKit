@@ -121,7 +121,7 @@ description: brickkit 命令报错、组件起不来、地址注入不生效、�
 - 「焦点 … 的条目写着 mode: disable」（`COMPONENT_DISABLED`）：同时说了「跑它」和「永远别跑它」。去掉 `mode: disable`，或换一个焦点。
 - `focus` 字段上的「校验失败」（`CONFIG_INVALID`）：`focus:` 写进了 `deploy.yaml`（它是个人的事）、配了 `target: k8s`
   （集群够不着你的机器），或者不是组件 ID。只写在 `deploy.local.yaml` 里、只用于 docker / podman。
-- 「--focus 与 --all 互相矛盾」「--focus 写在 deploy.local.yaml 里，而 -f 与 --no-local 都不读它」（`INVALID_ARGUMENT`）：二选一；
+- 「--focus 与 --all 互相矛盾」「--focus 与 --all 改的是 deploy.local.yaml，而 -f 与 --no-local 都不读它」（`INVALID_ARGUMENT`）：二选一；
   要用焦点就去掉 `-f` / `--no-local`。
 - 以为会启动的组件打印 `不启动（焦点之外）`：设了焦点，起点只有焦点和钉住的组件。`brickkit up --all`，或者在
   `deploy.local.yaml` 里给它写 `mode: enabled`。

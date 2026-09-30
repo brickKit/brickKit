@@ -97,8 +97,12 @@ func applyFocusIntent(opts *Options, flags upOptions) (written bool, err error) 
 		}
 	}
 	if !slices.Contains(decl.IDs(), id) {
-		return false, withDidYouMean(clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.ProjectFocusUnknown, id)).
-			WithHint(i18n.T(msgid.ProjectHintFocusClear)), id, decl.IDs())
+		e := clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.ProjectFocusUnknown, id))
+		if implicit {
+			// 源码就在这里、项目里却没有它：多半是想把它加进来
+			e = e.WithHint(i18n.T(msgid.CliUpHintAddUndeclared, id))
+		}
+		return false, withDidYouMean(e.WithHint(i18n.T(msgid.ProjectHintFocusClear)), id, decl.IDs())
 	}
 	written, err = ensureFocus(opts, l, id)
 	if err != nil && implicit {

@@ -79,7 +79,7 @@ The command line is wrong. In most cases the exit code is `2`.
 | `Error: <…> has several versions (<…>); name the one to remove` | `remove` on a component with several versions, without a version | `brickkit remove <component>@<version>` |
 | `Error: --init only works together with --local` | `add --init` on its own | Write `add --local --init` |
 | `Error: --focus and --all contradict each other` | `up --focus` and `--all` in one command | Pick one |
-| `Error: --focus is written into deploy.local.yaml, which -f and --no-local skip` | `up --focus` or `--all` together with `-f` / `--no-local` | Drop `-f` / `--no-local`, or edit the `focus:` line of `deploy.local.yaml` yourself |
+| `Error: --focus and --all change deploy.local.yaml, which -f and --no-local skip` | `up --focus` or `--all` together with `-f` / `--no-local` | Drop `-f` / `--no-local`, or edit the `focus:` line of `deploy.local.yaml` yourself |
 | `Error: <…> is a compatibility version (it has requiredBy); upgrade only moves default versions` | `upgrade` on a version with `requiredBy` | Upgrade the components depending on it; the compatibility version follows |
 | `Error: invalid log level` | A wrong `--log-level` value | `debug`, `info`, `warn`, `error`, `off` |
 | `Error: the user name must not be empty` | `login` got no user name | Type it at the prompt, or `--username` |

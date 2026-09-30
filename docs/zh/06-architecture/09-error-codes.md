@@ -73,7 +73,7 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 | `错误：<…> 有好几个版本（<…>），要写明删哪一个` | `remove` 一个多版本组件时没写版本 | `brickkit remove <组件>@<版本>` |
 | `错误：--init 只能与 --local 一起用` | `add --init` 单独用 | 写成 `add --local --init` |
 | `错误：--focus 与 --all 互相矛盾` | 一条命令里同时写了 `up --focus` 和 `--all` | 二选一 |
-| `错误：--focus 写在 deploy.local.yaml 里，而 -f 与 --no-local 都不读它` | `up --focus` 或 `--all` 和 `-f` / `--no-local` 一起用 | 去掉 `-f` / `--no-local`，或者自己改 `deploy.local.yaml` 里的 `focus:` 那一行 |
+| `错误：--focus 与 --all 改的是 deploy.local.yaml，而 -f 与 --no-local 都不读它` | `up --focus` 或 `--all` 和 `-f` / `--no-local` 一起用 | 去掉 `-f` / `--no-local`，或者自己改 `deploy.local.yaml` 里的 `focus:` 那一行 |
 | `错误：<…> 是兼容版本（带 requiredBy），upgrade 只移动默认版本` | 对一个 `requiredBy` 版本执行 `upgrade` | 升级依赖它的组件，兼容版本会随之调整 |
 | `错误：日志级别不合法` | `--log-level` 取值不对 | `debug`、`info`、`warn`、`error`、`off` |
 | `错误：用户名不能为空` | `login` 没给用户名 | 交互输入或 `--username` |
