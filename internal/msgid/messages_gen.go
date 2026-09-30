@@ -452,6 +452,8 @@ const (
 	CascadeReasonNeededBy                                      ID = "cascade.reason.needed_by"
 	CascadeReasonFocus                                         ID = "cascade.reason.focus"
 	CascadeReasonOutsideFocus                                  ID = "cascade.reason.outside_focus"
+	CascadeReasonHostedBy                                      ID = "cascade.reason.hosted_by"
+	CascadeReasonHosts                                         ID = "cascade.reason.hosts"
 	WorkspaceRiskNotGitRepo                                    ID = "workspace.risk.not_git_repo"
 	WorkspaceRiskUncommitted                                   ID = "workspace.risk.uncommitted"
 	WorkspaceRiskUnpushed                                      ID = "workspace.risk.unpushed"

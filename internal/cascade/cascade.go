@@ -122,7 +122,8 @@ func Compute(p *project.Project, graph *resolver.Graph) (*Result, error) {
 
 	decl := declarations(p)
 	focus, focused := focusRef(p)
-	stopped, blocker := computeStopped(graph, decl, focus, focused)
+	host := hostingOf(p, graph)
+	stopped, blocker := computeStopped(graph, decl, host, focus, focused)
 
 	// 钉住的组件撞上被关掉的强依赖 → 两个意图直接冲突，报错而不是二选一
 	for _, node := range graph.Nodes {
@@ -142,7 +143,7 @@ func Compute(p *project.Project, graph *resolver.Graph) (*Result, error) {
 	result := &Result{running: running}
 	for _, node := range graph.Nodes {
 		result.Components = append(result.Components,
-			classify(node, decl, stopped, running, blocker, focus, focused))
+			classify(node, decl, host, stopped, running, blocker, focus, focused))
 	}
 	return result, nil
 }
@@ -165,7 +166,7 @@ func Compute(p *project.Project, graph *resolver.Graph) (*Result, error) {
 //
 // blocker 记下 A 规则里是被哪个组件挡住的，报错时要顺着它打印依赖链。
 func computeStopped(
-	graph *resolver.Graph, decl declSet, focus resolver.Ref, focused bool,
+	graph *resolver.Graph, decl declSet, host hosting, focus resolver.Ref, focused bool,
 ) (stopped map[resolver.Ref]bool, blocker map[resolver.Ref]resolver.Ref) {
 	stopped = map[resolver.Ref]bool{}
 	blocker = map[resolver.Ref]resolver.Ref{}
@@ -176,7 +177,7 @@ func computeStopped(
 		}
 	}
 	if focused {
-		seedOutsideFocus(graph, decl, focus, stopped)
+		seedOutsideFocus(graph, decl, host, focus, stopped)
 	}
 
 	for changed := true; changed; {
@@ -212,7 +213,12 @@ func focusRef(p *project.Project) (resolver.Ref, bool) {
 // 从起点沿依赖（强弱都算）走不到的一律不跑。按可达性算而不是"顶层才跑"——与焦点无关的
 // 弱依赖环上谁都不是顶层，那条规则停不下它们。走到被关掉的组件就不再往下走：它下面的只为它而跑。
 // 焦点组件本身经 DeployEntry 读成 mode: local，已是钉住的，后面的传播与冲突检查都不用改。
-func seedOutsideFocus(graph *resolver.Graph, decl declSet, focus resolver.Ref, stopped map[resolver.Ref]bool) {
+//
+// 外壳承载也是一条边（外壳承载这次跑的那些成员）：走到一个被承载的成员，就走到它的外壳——
+// 它照项目声明的那样在外壳里跑，不回落成独立容器；起点本身是外壳时，走到它声明的成员——
+// 焦点落在外壳上，是要外壳带着成员跑，不是一个空壳。只从起点展开成员：因为某个成员被需要
+// 而启动的外壳，只承载被走到的那些。
+func seedOutsideFocus(graph *resolver.Graph, decl declSet, host hosting, focus resolver.Ref, stopped map[resolver.Ref]bool) {
 	reached := map[resolver.Ref]bool{}
 	var walk func(resolver.Ref)
 	walk = func(ref resolver.Ref) {
@@ -220,6 +226,9 @@ func seedOutsideFocus(graph *resolver.Graph, decl declSet, focus resolver.Ref, s
 			return
 		}
 		reached[ref] = true
+		if shell, ok := host.shellOf[ref]; ok {
+			walk(shell)
+		}
 		node := graph.Node(ref)
 		if node == nil {
 			return
@@ -231,10 +240,16 @@ func seedOutsideFocus(graph *resolver.Graph, decl declSet, focus resolver.Ref, s
 			walk(dep)
 		}
 	}
-	walk(focus)
+	seed := func(ref resolver.Ref) {
+		walk(ref)
+		for _, member := range host.members[ref] {
+			walk(member)
+		}
+	}
+	seed(focus)
 	for _, node := range graph.Nodes {
 		if decl.pinned(node.Ref) {
-			walk(node.Ref)
+			seed(node.Ref)
 		}
 	}
 	for _, node := range graph.Nodes {
@@ -256,6 +271,27 @@ func deadRequirement(node *resolver.Node, stopped map[resolver.Ref]bool) (resolv
 	return resolver.Ref{}, false
 }
 
+// firstRunning 是这些组件里在跑的、ID 字典序最前的那个（同一份配置每次给出同一句话）；没有时为空。
+func firstRunning(refs []resolver.Ref, running map[resolver.Ref]bool) string {
+	first := ""
+	for _, ref := range refs {
+		if running[ref] && (first == "" || ref.ID < first) {
+			first = ref.ID
+		}
+	}
+	return first
+}
+
+// anyRunning 判断这些上层里有没有在跑的。
+func anyRunning(dependents []resolver.Ref, running map[resolver.Ref]bool) bool {
+	for _, ref := range dependents {
+		if running[ref] {
+			return true
+		}
+	}
+	return false
+}
+
 // allStopped 判断这些上层是否全都不跑。
 func allStopped(dependents []resolver.Ref, stopped map[resolver.Ref]bool) bool {
 	for _, ref := range dependents {
@@ -268,7 +304,7 @@ func allStopped(dependents []resolver.Ref, stopped map[resolver.Ref]bool) bool {
 
 // classify 把一个组件归入三态之一，并给出理由。
 func classify(
-	node *resolver.Node, decl declSet,
+	node *resolver.Node, decl declSet, host hosting,
 	stopped, running map[resolver.Ref]bool, blocker map[resolver.Ref]resolver.Ref,
 	focus resolver.Ref, focused bool,
 ) Component {
@@ -285,6 +321,16 @@ func classify(
 
 	case decl.disabled(ref):
 		c.State, c.Reason = StateDisabled, i18n.T(msgid.CascadeReasonDisabled)
+
+	case focused && !stopped[ref] && !decl.pinned(ref) && !anyRunning(node.Dependents, running) &&
+		running[host.shellOf[ref]]:
+		// 焦点下因外壳而跑的成员：没有谁需要它，是它的外壳这次在跑、承载着它
+		c.State, c.Reason = StateRunning, i18n.T(msgid.CascadeReasonHostedBy, host.shellOf[ref].ID)
+
+	case focused && !stopped[ref] && !decl.pinned(ref) && !anyRunning(node.Dependents, running) &&
+		firstRunning(host.members[ref], running) != "":
+		// 焦点下因承载成员而跑的外壳：没有谁需要它本身，是它承载的成员被需要
+		c.State, c.Reason = StateRunning, i18n.T(msgid.CascadeReasonHosts, firstRunning(host.members[ref], running))
 
 	case !stopped[ref]:
 		c.State, c.Reason = StateRunning, runningReason(node, decl, running, top)

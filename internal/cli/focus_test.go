@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -197,4 +198,27 @@ func TestARealWorkbenchIsNotItsOwnFocus(t *testing.T) {
 
 	r = runWithEngine(t, newFakeEngine(), bench, "deps")
 	assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+}
+
+// 焦点是外壳：外壳带着它的成员跑，不是一个空壳（Final review #2）。
+func TestFocusOnAShellRunsItsMembers(t *testing.T) {
+	dir := focusFixture(t)
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/shell")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	for _, id := range []string{"erp/api", "erp/worker"} {
+		assert.NotRegexp(t, id+`@1\.0\.0 +`+regexp.QuoteMeta(i18n.T(msgid.CascadeReasonOutsideFocus)), r.stdout, id)
+	}
+	assert.Contains(t, r.stdout, i18n.T(msgid.CascadeReasonHostedBy, "erp/shell"))
+}
+
+// 焦点需要的组件是外壳的成员：它照项目声明的那样在外壳里跑，外壳跟着启动——
+// 不回落成独立容器，也不冒出一句"把外壳重新打开"的误导警告（Final review #2）。
+func TestFocusNeedingAMemberStartsItsShell(t *testing.T) {
+	dir := focusFixture(t)
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/portal")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotRegexp(t, `erp/shell@1\.0\.0 +`+regexp.QuoteMeta(i18n.T(msgid.CascadeReasonOutsideFocus)), r.stdout)
+	assert.Contains(t, r.stdout, i18n.T(msgid.CascadeReasonHosts, "erp/api"))
+	assert.Regexp(t, `erp/worker@1\.0\.0 +`+regexp.QuoteMeta(i18n.T(msgid.CascadeReasonOutsideFocus)), r.stdout,
+		"only the member the focus needs is reached; the shell hosts whichever members run")
 }

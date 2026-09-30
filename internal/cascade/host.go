@@ -34,3 +34,26 @@ func (r *Result) HostOf(p *project.Project, ref resolver.Ref) (resolver.Ref, boo
 	}
 	return shell, true
 }
+
+// hosting 是声明上的承载关系（与这次谁跑无关）：成员 → 外壳，外壳 → 成员。自己以裸进程运行的
+// 成员（mode: debug / local）不算：它这次不在外壳里。焦点的可达性要把承载当成一条边。
+type hosting struct {
+	shellOf map[resolver.Ref]resolver.Ref
+	members map[resolver.Ref][]resolver.Ref
+}
+
+func hostingOf(p *project.Project, graph *resolver.Graph) hosting {
+	h := hosting{shellOf: map[resolver.Ref]resolver.Ref{}, members: map[resolver.Ref][]resolver.Ref{}}
+	if p == nil {
+		return h
+	}
+	for _, node := range graph.Nodes {
+		shell, ok := ShellOf(p, node.Ref)
+		if !ok || p.DeployEntry(node.Ref.ID, node.Ref.Version).IsBareProcess() {
+			continue
+		}
+		h.shellOf[node.Ref] = shell
+		h.members[shell] = append(h.members[shell], node.Ref)
+	}
+	return h
+}
