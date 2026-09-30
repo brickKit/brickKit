@@ -81,6 +81,7 @@ func runBuild(ctx context.Context, opts *Options, arg string, force bool) error 
 	if err != nil {
 		return err
 	}
+	renderFocus(opts, proj)
 	if id != "" && !declared(proj, id, version) {
 		return clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.CliRemoveNotInProject, strings.TrimSuffix(id+"@"+version, "@"))).
 			WithDetail(i18n.T(msgid.CliRemoveLabelDeclared), declaredVersions(proj, id)).

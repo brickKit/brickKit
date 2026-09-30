@@ -203,6 +203,7 @@ func lintCrossFile(opts *Options, strict bool) ([]lintFile, []string) {
 		f.errors = append(f.errors, clierr.As(err))
 		return []lintFile{f}, nil
 	}
+	renderFocus(opts, proj)
 	f.warnings = append(f.warnings, proj.Warnings...)
 	cfg := lintConfig(proj, strict)
 	f.errors = append(f.errors, cfg.errors...)

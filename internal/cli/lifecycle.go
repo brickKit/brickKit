@@ -58,6 +58,7 @@ func loadConfig(opts *Options) (*liveProject, error) {
 	if err != nil {
 		return nil, err
 	}
+	renderFocus(opts, proj)
 	renderWarnings(opts, proj.Warnings)
 	return &liveProject{proj: proj}, nil
 }
@@ -73,6 +74,7 @@ func loadProject(ctx context.Context, opts *Options) (*liveProject, error) {
 	if err != nil {
 		return nil, err
 	}
+	renderFocus(opts, proj)
 	renderWarnings(opts, proj.Warnings)
 	p := &liveProject{proj: proj}
 	if len(p.proj.Decl.Components) == 0 {

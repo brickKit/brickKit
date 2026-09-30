@@ -44,6 +44,8 @@ func newUpCommand(opts *Options) *cobra.Command {
 		dryRun       bool
 		ignoreShells bool
 		crashLines   int
+		focus        string
+		all          bool
 	)
 
 	cmd := &cobra.Command{
@@ -58,6 +60,7 @@ func newUpCommand(opts *Options) *cobra.Command {
 			return runUp(cmd.Context(), opts, upOptions{
 				dryRun: dryRun, ignoreShells: ignoreShells,
 				crashLines: crashLines, crashLinesSet: cmd.Flags().Changed("crash-lines"),
+				focus: focus, all: all,
 			})
 		},
 	}
@@ -68,6 +71,8 @@ func newUpCommand(opts *Options) *cobra.Command {
 		i18n.T(msgid.CliUpIgnoreShellsFlag))
 	cmd.Flags().IntVar(&crashLines, "crash-lines", procsup.DefaultTailLines,
 		i18n.T(msgid.CliUpCrashLinesHowManyLinesOfOutput))
+	cmd.Flags().StringVar(&focus, "focus", "", i18n.T(msgid.CliUpFlagFocus))
+	cmd.Flags().BoolVar(&all, "all", false, i18n.T(msgid.CliUpFlagAll))
 	return cmd
 }
 
@@ -129,12 +134,18 @@ type upOptions struct {
 	// --crash-lines 20，跟不传时拿到的默认值撞在一起）。
 	crashLines    int
 	crashLinesSet bool
+	// focus 是 --focus 的值，all 是 --all：写进 deploy.local.yaml 的焦点意图（设计 §4.3）。
+	focus string
+	all   bool
 }
 
 // runUp 执行 brickkit up。
 func runUp(ctx context.Context, opts *Options, flags upOptions) error {
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if err := applyFocusIntent(opts, flags); err != nil {
+		return err
 	}
 
 	plan, err := buildUpPlan(ctx, opts, flags)
@@ -202,6 +213,7 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		return nil, err
 	}
 	renderDeploySource(opts, proj)
+	renderFocus(opts, proj)
 	renderWarnings(opts, proj.Warnings)
 	if flags.ignoreShells {
 		proj.IgnoreShells()
