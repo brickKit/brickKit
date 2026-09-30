@@ -50,8 +50,8 @@ func fakeRepo(t *testing.T) (root, sampleFile string) {
 		require.NoError(t, os.WriteFile(p, []byte(body), 0o644))
 	}
 	write("internal/msgid/msgid.go", "package msgid\n\nconst (\n\tLabelPath = \"label.path\"\n)\n")
-	write("internal/i18n/catalog_en.go", "package i18n\n\nvar en = map[string]string{\n\tmsgid.LabelPath: \"Path\",\n}\n")
-	write("internal/i18n/catalog_zh.go", "package i18n\n\nvar zh = map[string]string{\n\tmsgid.LabelPath: \"路径\",\n}\n")
+	write("internal/i18n/locales/en.yaml", "label.path: \"Path\"\n")
+	write("internal/i18n/locales/zh.yaml", "label.path: \"路径\"\n")
 	write("internal/cli/sample.go", sample)
 	return root, filepath.Join(root, "internal/cli/sample.go")
 }
@@ -154,12 +154,12 @@ func TestApplyRewritesSourceAndCatalogs(t *testing.T) {
 	msgidFile := read(t, filepath.Join(root, "internal/msgid/cli_sample.go"))
 	assert.Contains(t, msgidFile, "package msgid")
 	assert.Contains(t, msgidFile, `CliSampleAdded = "cli.sample.added"`)
-	en := read(t, filepath.Join(root, "internal/i18n/catalog_en.go"))
-	zh := read(t, filepath.Join(root, "internal/i18n/catalog_zh.go"))
-	assert.Contains(t, en, `msgid.CliSampleAdded: "✅ Added %[1]s (%[2]d)",`)
-	assert.Contains(t, zh, `msgid.CliSampleAdded: "✅ 已添加 %[1]s（%[2]d 个）",`)
-	assert.Contains(t, en, `msgid.CliSampleServiceName: "<service-name>",`, "尖括号不转义")
-	assert.Equal(t, 1, strings.Count(en, "msgid.LabelPath"), "复用已有 key，不重复建")
+	en := read(t, filepath.Join(root, "internal/i18n/locales/en.yaml"))
+	zh := read(t, filepath.Join(root, "internal/i18n/locales/zh.yaml"))
+	assert.Contains(t, en, "\ncli.sample.added: \"✅ Added %[1]s (%[2]d)\"\n")
+	assert.Contains(t, zh, "\ncli.sample.added: \"✅ 已添加 %[1]s（%[2]d 个）\"\n")
+	assert.Contains(t, en, "\ncli.sample.service_name: \"<service-name>\"\n", "尖括号不转义")
+	assert.Equal(t, 1, strings.Count(en, "label.path:"), "复用已有 key，不重复建")
 
 	// 第二遍：源码里只剩 MANUAL 的两处中文
 	again, err := extractFiles([]string{file})

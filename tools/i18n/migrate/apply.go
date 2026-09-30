@@ -289,8 +289,8 @@ func writeMsgids(o applyOptions, perStem map[string][]newItem) error {
 		fmt.Fprintf(&block, "// internal/%s/%s.go\nconst (\n", o.pkg, stem)
 		for _, it := range perStem[stem] {
 			fmt.Fprintf(&block, "\t%s = %s\n", it.name, jsonString(it.key))
-			fmt.Fprintf(&enBody, "\tmsgid.%s: %s,\n", it.name, jsonString(it.en))
-			fmt.Fprintf(&zhBody, "\tmsgid.%s: %s,\n", it.name, jsonString(it.zh))
+			fmt.Fprintf(&enBody, "%s: %s\n", it.key, jsonString(it.en))
+			fmt.Fprintf(&zhBody, "%s: %s\n", it.key, jsonString(it.zh))
 		}
 		block.WriteString(")\n")
 
@@ -307,13 +307,13 @@ func writeMsgids(o applyOptions, perStem map[string][]newItem) error {
 			return err
 		}
 	}
-	if err := appendCatalog(filepath.Join(o.root, "internal/i18n/catalog_en.go"), enBody.String()); err != nil {
+	if err := appendCatalog(filepath.Join(o.root, "internal/i18n/locales/en.yaml"), enBody.String()); err != nil {
 		return err
 	}
-	return appendCatalog(filepath.Join(o.root, "internal/i18n/catalog_zh.go"), zhBody.String())
+	return appendCatalog(filepath.Join(o.root, "internal/i18n/locales/zh.yaml"), zhBody.String())
 }
 
-// appendCatalog 把条目追加到目录 map 字面量的结尾（最后一个 `}` 之前）。
+// appendCatalog 把条目追加到目录文件末尾。
 func appendCatalog(path, body string) error {
 	if body == "" {
 		return nil
@@ -322,10 +322,6 @@ func appendCatalog(path, body string) error {
 	if err != nil {
 		return err
 	}
-	s := strings.TrimRight(string(b), "\n ")
-	i := strings.LastIndex(s, "}")
-	if i < 0 {
-		return fmt.Errorf("%s: 不像目录文件（找不到结尾的 })", path)
-	}
-	return os.WriteFile(path, []byte(s[:i]+body+s[i:]+"\n"), 0o644)
+	s := strings.TrimRight(string(b), "\n") + "\n"
+	return os.WriteFile(path, []byte(s+body), 0o644)
 }

@@ -4,14 +4,14 @@
 用它们把 `internal/` 里约 1400 条用户可见的中文文案迁进了消息目录；留在仓库里，是因为以后
 新增一个包、扩展更多语言、或者哪天又要批量改文案时，这套流程还能直接用。
 
-日常改一条文案**不需要**它们：改 `internal/i18n/catalog_{en,zh}.go` 里对应的那一行就行。
+日常改一条文案**不需要**它们：改 `internal/i18n/locales/{en,zh}.yaml` 里对应的那一行就行。
 新增一条文案：在 `internal/msgid` 加常量，两份目录各写一条，`TestCatalogParity` 会拦漏的。
 
 ## 有哪些
 
 | 工具 | 干什么 |
 | --- | --- |
-| `migrate/`（Go） | 用 `go/parser` 找出 Go 源码里带中文的字符串字面量，按所处的调用（`Printf`、`clierr.New`、`WithDetail`、结构体字段……）判断怎么改，生成 `i18n.T(msgid.X, …)` 改写、msgid 常量和两份目录条目。英文措辞由人写 |
+| `migrate/`（Go） | 用 `go/parser` 找出 Go 源码里带中文的字符串字面量，按所处的调用（`Printf`、`clierr.New`、`WithDetail`、结构体字段……）判断怎么改，生成 `i18n.T(msgid.X, …)` 改写、msgid 常量和两份目录（`locales/*.yaml`）条目。英文措辞由人写 |
 | `fix_imports.py` | 给改写过的文件补 `i18n` / `msgid` 的 import，并删掉编译器点名"没用到"的 import |
 | `post_join.py` | 把写死的分隔符 `strings.Join(x, "、")` 换成随语言变的共享 key |
 | `rename_keys.py` | 两个包的文案措辞完全一致时，把私有常量提升成共享的（或改名） |

@@ -54,20 +54,24 @@ func TestCatalogForReturnsIndependentSnapshot(t *testing.T) {
 // 才写的，中文没有，所以它可以只出现在一份目录里；它自己的完整性由下面两个
 // 测试守着。
 func TestCatalogParity(t *testing.T) {
-	for key := range en {
-		if isPluralOne(key) {
-			continue
+	src := catalogFor(SourceLang())
+	for _, l := range registry[1:] {
+		cat := catalogFor(l.Code)
+		for key := range src {
+			if isPluralOne(key) {
+				continue
+			}
+			if _, ok := cat[key]; !ok {
+				t.Errorf("%s 目录缺少 key：%s", l.Code, key)
+			}
 		}
-		if _, ok := zh[key]; !ok {
-			t.Errorf("zh 目录缺少 key：%s", key)
-		}
-	}
-	for key := range zh {
-		if isPluralOne(key) {
-			continue
-		}
-		if _, ok := en[key]; !ok {
-			t.Errorf("en 目录缺少 key：%s", key)
+		for key := range cat {
+			if isPluralOne(key) {
+				continue
+			}
+			if _, ok := src[key]; !ok {
+				t.Errorf("%s 目录多出 %s 目录里没有的 key：%s", l.Code, SourceLang(), key)
+			}
 		}
 	}
 }
@@ -96,7 +100,8 @@ func verbs(tmpl string) []string {
 // TestPluralOneKeysComplementTheirBase：每条单数形式都必须有对应的"其他"形式，
 // 并且两者用到的参数一致。
 func TestPluralOneKeysComplementTheirBase(t *testing.T) {
-	for name, cat := range map[string]map[string]string{"en": en, "zh": zh} {
+	for _, l := range registry {
+		name, cat := l.Code, catalogFor(l.Code)
 		for key, one := range cat {
 			if !isPluralOne(key) {
 				continue

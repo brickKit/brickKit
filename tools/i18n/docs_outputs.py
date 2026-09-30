@@ -36,13 +36,13 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 CJK = re.compile(r'[一-鿿　-〿＀-￯]')
 HAN = re.compile(r'[\u4e00-\u9fff]')
-ENTRY = re.compile(r'^\s*msgid\.(\w+):\s*("(?:[^"\\]|\\.)*"),?\s*$', re.M)
+ENTRY = re.compile(r'^([a-z0-9_.]+):\s*("(?:[^"\\]|\\.)*")\s*$', re.M)
 # 位置动词：%[1]s、%-36[1]s、%5.1[1]f、%%
 VERB = re.compile(r'%%|%([-+# 0]*)(\d*)(?:\.(\d+))?\[(\d+)\]([a-zA-Z])')
 
 
-def load_catalog(name):
-    text = (ROOT / "internal/i18n" / name).read_text(encoding="utf-8")
+def load_catalog(lang):
+    text = (ROOT / "internal/i18n/locales" / f"{lang}.yaml").read_text(encoding="utf-8")
     return {m.group(1): json.loads(m.group(2)) for m in ENTRY.finditer(text)}
 
 
@@ -108,7 +108,7 @@ def build_templates(zh, en):
 
 class Translator:
     def __init__(self):
-        zh, en = load_catalog("catalog_zh.go"), load_catalog("catalog_en.go")
+        zh, en = load_catalog("zh"), load_catalog("en")
         self.templates = build_templates(zh, en)
         self.zh, self.en = zh, en
         # 标签：整条目录文案就是一个短词（"组件"、"原因"、"文件"……），明细行的键要翻它
@@ -117,8 +117,8 @@ class Translator:
             if "\n" not in z and "%" not in z and len(z) <= 12 and key in en:
                 self.labels.setdefault(z, en[key])
         self._whole, self._tr = {}, {}
-        self.detail_en = en["DetailLine"]
-        self.hint_single_zh = zh["HintLabelSingle"]
+        self.detail_en = en["detail.line"]
+        self.hint_single_zh = zh["hint.label.single"]
 
     # ---- 单行翻译 ----
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,7 +14,8 @@ var (
 	wordRe        = regexp.MustCompile(`[A-Za-z][A-Za-z0-9]*`)
 	placeholderRe = regexp.MustCompile(`%(?:\[\d+\])?[-+# 0]*\d*(?:\.\d+)?[a-zA-Z]`)
 	constRe       = regexp.MustCompile(`(?m)^\s*([A-Z][A-Za-z0-9]*)\s*=\s*"([^"]*)"`)
-	catalogRe     = regexp.MustCompile(`(?m)^\s*msgid\.(\w+):\s*("(?:[^"\\]|\\.)*"),?\s*$`)
+	// yamlEntryRe 是 locales/*.yaml 里的一条：key: "文案"（迁移工具只写、也只读双引号这一种写法）
+	yamlEntryRe = regexp.MustCompile(`(?m)^([a-z0-9_.]+):\s*("(?:[^"\\]|\\.)*")\s*$`)
 )
 
 // keyRegistry 记着已经用掉的常量名与 key 值，新生成的名字不许与它们冲突。
@@ -93,11 +95,11 @@ type catalogIndex map[string][]catalogItem
 type catalogItem struct{ name, en string }
 
 func loadCatalogIndex(root string) (catalogIndex, error) {
-	zh, err := loadCatalog(filepath.Join(root, "internal/i18n/catalog_zh.go"))
+	zh, err := loadCatalog(root, "zh")
 	if err != nil {
 		return nil, err
 	}
-	en, err := loadCatalog(filepath.Join(root, "internal/i18n/catalog_en.go"))
+	en, err := loadCatalog(root, "en")
 	if err != nil {
 		return nil, err
 	}
@@ -108,19 +110,44 @@ func loadCatalogIndex(root string) (catalogIndex, error) {
 	return idx, nil
 }
 
-// loadCatalog 读一份目录文件，返回"常量名 → 文案"。
-func loadCatalog(path string) (map[string]string, error) {
-	body, err := os.ReadFile(path)
+// loadCatalog 读一份 locales/<lang>.yaml，返回"常量名 → 文案"。
+func loadCatalog(root, lang string) (map[string]string, error) {
+	names, err := keyToName(root)
+	if err != nil {
+		return nil, err
+	}
+	body, err := os.ReadFile(filepath.Join(root, "internal/i18n/locales", lang+".yaml"))
 	if err != nil {
 		return nil, err
 	}
 	out := map[string]string{}
-	for _, m := range catalogRe.FindAllStringSubmatch(string(body), -1) {
+	for _, m := range yamlEntryRe.FindAllStringSubmatch(string(body), -1) {
 		var v string
 		if err := json.Unmarshal([]byte(m[2]), &v); err != nil {
+			return nil, fmt.Errorf("%s: %w", m[1], err)
+		}
+		if name, ok := names[m[1]]; ok {
+			out[name] = v
+		}
+	}
+	return out, nil
+}
+
+// keyToName 读 internal/msgid 下的常量，返回 key → 常量名。
+func keyToName(root string) (map[string]string, error) {
+	files, err := filepath.Glob(filepath.Join(root, "internal/msgid", "*.go"))
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, f := range files {
+		body, err := os.ReadFile(f)
+		if err != nil {
 			return nil, err
 		}
-		out[m[1]] = v
+		for _, m := range constRe.FindAllStringSubmatch(string(body), -1) {
+			out[m[2]] = m[1]
+		}
 	}
 	return out, nil
 }

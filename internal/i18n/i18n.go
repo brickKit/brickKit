@@ -4,7 +4,9 @@
 package i18n
 
 import (
+	"embed"
 	"fmt"
+	"sync"
 
 	"github.com/brickkit/brickkit/internal/msgid"
 )
@@ -24,15 +26,42 @@ func Current() Lang {
 	return current
 }
 
-// catalogs 是每种登记语言的目录。
-var catalogs = map[Lang]map[string]string{EN: en, ZH: zh}
+//go:embed locales/*.yaml
+var localeFS embed.FS
 
-// catalogFor 返回 l 的目录；没登记的语言用源语言的目录（与重构前一样：未知语言就是英文）。
+// loadCatalog 读 locales/<l>.yaml。
+func loadCatalog(l Lang) (map[string]string, error) {
+	file := "locales/" + string(l) + ".yaml"
+	data, err := localeFS.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	_, texts, err := parseCatalog(data, file)
+	return texts, err
+}
+
+var (
+	loadMu sync.Mutex
+	loaded = map[Lang]map[string]string{}
+)
+
+// catalogFor 返回 l 的目录，第一次用到时才读；没登记的语言用源语言的目录。
 func catalogFor(l Lang) map[string]string {
-	if c, ok := catalogs[l]; ok && registered(l) {
+	if !registered(l) {
+		l = SourceLang()
+	}
+	loadMu.Lock()
+	defer loadMu.Unlock()
+	if c, ok := loaded[l]; ok {
 		return c
 	}
-	return catalogs[SourceLang()]
+	c, err := loadCatalog(l)
+	if err != nil {
+		// 目录文件内嵌在二进制里、每次测试都会读：读不通是构建缺陷，不是使用者会遇到的情形
+		panic("brickkit: embedded catalog is broken: " + err.Error())
+	}
+	loaded[l] = c
+	return c
 }
 
 // T 返回 id 对应的当前语言文案，用 args 做位置参数插值

@@ -14,16 +14,16 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-ENTRY = re.compile(r'^\s*msgid\.(\w+):\s*("(?:[^"\\]|\\.)*"),?\s*$', re.M)
+ENTRY = re.compile(r'^([a-z0-9_.]+):\s*("(?:[^"\\]|\\.)*")\s*$', re.M)
 
 
-def load(name):
-    text = (ROOT / "internal/i18n" / name).read_text(encoding="utf-8")
+def load(lang):
+    text = (ROOT / "internal/i18n/locales" / f"{lang}.yaml").read_text(encoding="utf-8")
     return {m.group(1): json.loads(m.group(2)) for m in ENTRY.finditer(text)}
 
 
 def main():
-    zh, en = load("catalog_zh.go"), load("catalog_en.go")
+    zh, en = load("zh"), load("en")
     for frag in sys.argv[1:]:
         print("##", frag)
         for key, value in list(zh.items()):

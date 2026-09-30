@@ -3,7 +3,7 @@
 // 前两条守卫都用 go/parser 看真正的字符串字面量（注释、文档不算）：
 //
 //  1. 生产代码里不许再写死带中文的字符串——用户看得见的文字一律走
-//     i18n.T(msgid.X)，翻译只改 catalog_*.go。
+//     i18n.T(msgid.X)，翻译只改 internal/i18n/locales/*.yaml。
 //  2. 测试里不许写"中文短语的否定断言"（NotContains / NotEqual / NotRegexp）：
 //     默认语言是英文，这种断言对英文输出永远成立，等于检查悄悄消失了。
 //  3. 英文的单复数：用 i18n.TN / i18n.Count 的每一条文案，英文目录里都得有
@@ -80,8 +80,6 @@ var hardcodedAllow = map[string]struct {
 	decls  []string
 	reason string
 }{
-	"internal/i18n/catalog_zh.go": {reason: "中文消息目录本身"},
-	"internal/i18n/catalog_en.go": {reason: "英文目录里也有作为示例出现的中文（如 zh 路径说明）"},
 	"internal/cli/root.go": {
 		decls:  []string{"usageTemplate", "localize"},
 		reason: "cobra 的中文用法模板与 help/completion 中文化，只在语言为 zh 时才套用；英文用 cobra 自带默认文案",
