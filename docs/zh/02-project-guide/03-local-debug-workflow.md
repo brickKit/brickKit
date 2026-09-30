@@ -17,7 +17,7 @@ brickkit local on
    deploy.local.yaml 从 deploy.yaml 复制而来——随意修改，它不会被提交
 ```
 
-之后每条命令都读 `deploy.local.yaml`，每次运行开头会提醒一句：
+之后运行或检查部署的命令（`up`、`down`、`status`、`sync`、`lint`、`build`）都读 `deploy.local.yaml`，每次运行开头会提醒一句（`graph` 与 `deps` 仍读 `deploy.yaml`）：
 
 ```text
 本地模式已开启：使用 deploy.local.yaml（brickkit local off 切回 deploy.yaml）

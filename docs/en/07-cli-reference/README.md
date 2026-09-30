@@ -612,8 +612,9 @@ brickkit status
 
 ## `brickkit local`
 
-Manage local mode: your personal deploy file `deploy.local.yaml` (never committed). With local mode on, every command
-reads `deploy.local.yaml` instead of `deploy.yaml` — the whole file, not a merge of the two, so what the file says is what
+Manage local mode: your personal deploy file `deploy.local.yaml` (never committed). With local mode on, the commands
+that run or check the deployment (`up`, `down`, `status`, `sync`, `lint`, `build`; not `graph` or `deps`) read
+`deploy.local.yaml` instead of `deploy.yaml` — the whole file, not a merge of the two, so what the file says is what
 runs. Personal facts go here: `mode: debug` on the component you're debugging, a free `localPort` on your machine, `vars`
 values for your own database, even another `target` (see [deploy.local.yaml](../01-three-layers/04-deploy-local-yaml.md)).
 

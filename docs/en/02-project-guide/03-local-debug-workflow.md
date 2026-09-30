@@ -19,7 +19,8 @@ brickkit local on
    deploy.local.yaml was copied from deploy.yaml — change it as you like, it is not committed
 ```
 
-From then on every command reads `deploy.local.yaml`, and each run starts with a reminder:
+From then on the commands that run or check the deployment (`up`, `down`, `status`, `sync`, `lint`, `build`) read
+`deploy.local.yaml`, and each run starts with a reminder (`graph` and `deps` keep reading `deploy.yaml`):
 
 ```text
 Local mode is on: using deploy.local.yaml (brickkit local off switches back to deploy.yaml)

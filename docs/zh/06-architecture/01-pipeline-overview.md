@@ -67,7 +67,8 @@ flowchart TD
 | `brickkit up` | 全程 |
 | `brickkit sync` | ①②③，按启停判定的结果整理源码目录 |
 
-它们用的是同一份代码：同一个项目，`graph` 画出来的、`sync` 归档的、`up` 启动的，一定是同一个判定结果。
+它们用的是同一份代码：同一个项目、同一份部署文件，`graph` 画出来的、`sync` 归档的、`up` 启动的，一定是同一个判定结果。
+（本地模式开着时，`sync` 与 `up` 读 `deploy.local.yaml`，`graph` 始终读 `deploy.yaml`；要画本地的判定，用 `graph --file deploy.local.yaml`。）
 
 ## 平台刻意不做的事
 

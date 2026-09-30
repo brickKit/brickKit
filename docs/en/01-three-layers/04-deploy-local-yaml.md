@@ -8,8 +8,10 @@ deploying that belongs only to you and only to this moment — "I'm debugging th
 
 ## Whole-file replacement, not field overrides
 
-With local mode on, every command reads **only** `deploy.local.yaml` and doesn't look at `deploy.yaml` at all. It is
-not "a few fields layered on top of the team file".
+With local mode on, the commands that run or check the deployment (`up`, `down`, `status`, `sync`, `lint`, `build`) read
+**only** `deploy.local.yaml` and don't look at `deploy.yaml` at all. It is not "a few fields layered on top of the team
+file". (`graph` and `deps` are the exception: they always read `deploy.yaml`, because what they print is meant to be
+shared and mustn't depend on whose machine it came from.)
 
 Why: layering (an overlay) means merging two files in your head to know what is actually in effect; when something
 goes wrong, you have to read both files plus a set of merge rules. With whole-file replacement, the file you open is

@@ -81,8 +81,9 @@ those processes on this machine until `Ctrl+C`.
 | `brickkit up` | All of it |
 | `brickkit sync` | ①②③, arranging the source directories by who runs |
 
-They share the same code: for the same project, what `graph` draws, what `sync` archives and what `up` starts are always
-the same decision.
+They share the same code: for the same project and the same deploy file, what `graph` draws, what `sync` archives and
+what `up` starts are always the same decision. (With local mode on, `sync` and `up` read `deploy.local.yaml` while `graph`
+always reads `deploy.yaml`; `graph --file deploy.local.yaml` draws the local decision.)
 
 ## What the platform deliberately doesn't do
 

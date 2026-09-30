@@ -562,7 +562,7 @@ brickkit status
 
 ## `brickkit local`
 
-管理本地模式：你个人的部署文件 `deploy.local.yaml`（从不提交）。本地模式开着时，所有命令读 `deploy.local.yaml` 而不是
+管理本地模式：你个人的部署文件 `deploy.local.yaml`（从不提交）。本地模式开着时，运行或检查部署的命令（`up`、`down`、`status`、`sync`、`lint`、`build`；`graph`、`deps` 除外）读 `deploy.local.yaml` 而不是
 `deploy.yaml`——读整份文件，不是两份合并，所以文件里写的就是实际运行的。个人的事实写在这里：正在调试的组件写
 `mode: debug`、本机空着的 `localPort`、自己数据库的 `vars` 值，甚至换一个 `target`（见 [deploy.local.yaml](../01-three-layers/04-deploy-local-yaml.md)）。
 
