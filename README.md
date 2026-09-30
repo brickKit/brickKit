@@ -97,12 +97,27 @@ brickkit version
 ```
 
 The script detects your OS and architecture, **refuses to install if the sha256 doesn't match**, and installs to
-`/usr/local/bin` (or `~/.local/bin`, with a PATH hint when that isn't on it). It also sets up TAB completion for bash,
-zsh and fish — commands, component IDs, versions and deploy files; zsh may need two lines in `~/.zshrc`, which it
-prints. See [Shell completion](docs/en/00-intro/03-shell-completion.md).
+`/usr/local/bin` (or `~/.local/bin`, with a PATH hint when that isn't on it).
 
 To run things you also need Git and Docker 20.10+ (with Compose V2) or Podman — and kubectl with a cluster for
 `target: k8s`.
+
+### ⌨️ TAB completion — already set up
+
+`install.sh` also installs TAB completion for bash, zsh and fish. Open a new terminal and let TAB fill in commands,
+flags, component IDs, versions and deploy files — offline, from anywhere inside a project:
+
+```text
+$ brickkit remove <TAB>
+demo/bus     demo/caller  demo/hello
+$ brickkit add demo/hello@<TAB>
+demo/hello@1.0.0
+$ brickkit up -f <TAB>
+deploy.local.yaml  deploy.yaml
+```
+
+zsh may need two lines in `~/.zshrc` — `install.sh` prints them when it does. Installed another way, or TAB does
+nothing? [Shell completion](docs/en/00-intro/03-shell-completion.md) has the one command per shell and a checklist.
 
 <details>
 <summary>Other ways to install, versions, requirements, Windows, uninstalling</summary>

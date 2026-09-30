@@ -95,10 +95,26 @@ brickkit lang set zh        # CLI 默认说英文；这一条让它从此说中�
 ```
 
 脚本认出你的系统与架构，**校验 sha256 对不上就拒绝安装**，装进 `/usr/local/bin`（不可写则退到 `~/.local/bin`，不在 PATH
-上时会提示）。它还会给 bash、zsh、fish 装好 TAB 补全——命令、组件 ID、版本、部署文件都能补；zsh 可能要在 `~/.zshrc` 里加两行，
-它会打印出来。见[命令补全](docs/zh/00-intro/03-shell-completion.md)。
+上时会提示）。
 
 要真正跑起来，还需要 Git，以及 Docker 20.10+（含 Compose V2）或 Podman；部署到 `target: k8s` 时再加 kubectl 和一个集群。
+
+### ⌨️ TAB 补全——已经装好了
+
+`install.sh` 还会给 bash、zsh、fish 装好 TAB 补全。开一个新终端，命令、参数、组件 ID、版本、部署文件都能按 TAB 补出来——
+不联网，在项目里的任何位置都能用：
+
+```text
+$ brickkit remove <TAB>
+demo/bus     demo/caller  demo/hello
+$ brickkit add demo/hello@<TAB>
+demo/hello@1.0.0
+$ brickkit up -f <TAB>
+deploy.local.yaml  deploy.yaml
+```
+
+zsh 可能要在 `~/.zshrc` 里加两行——需要时 `install.sh` 会打印出来。用别的方式装的，或者按 TAB 没反应？
+[命令补全](docs/zh/00-intro/03-shell-completion.md)里有每种 shell 的一条命令和排查清单。
 
 <details>
 <summary>其他安装方式、指定版本、依赖清单、Windows、卸载</summary>
