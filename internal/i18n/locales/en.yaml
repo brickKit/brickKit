@@ -52,6 +52,14 @@ count.manifests.one: "%[1]d manifest"
 project.missing: "Error: project config file not found"
 project.missing.hint.init: "Run brickkit init <project-name> inside the project directory to initialize it"
 
+# cobra's own texts: the usage template, the built-in help and completion commands, and the -h flag.
+# An empty value keeps cobra's built-in English. cobra.help_flag: %[1]s is the command's display name,
+# %[2]s its command path.
+cobra.usage_template: ""
+cobra.help_short: ""
+cobra.completion_short: ""
+cobra.help_flag: ""
+
 lang.cmd.short: "Show the CLI's current display language"
 lang.set_cmd.short: "Set the CLI's display language"
 lang.current_line: "Current language: %[1]s (source: %[2]s)"

@@ -80,10 +80,6 @@ var hardcodedAllow = map[string]struct {
 	decls  []string
 	reason string
 }{
-	"internal/cli/root.go": {
-		decls:  []string{"usageTemplate", "localize"},
-		reason: "cobra 的中文用法模板与 help/completion 中文化，只在语言为 zh 时才套用；英文用 cobra 自带默认文案",
-	},
 }
 
 // hardcodedSkipDirs 是整目录不检查的开发者工具：它们只在 make generate-schemas /

@@ -995,11 +995,13 @@ upgrade [组件ID[@版本]]
 查一下 controller 在哪个命名空间：kubectl get pods -A | grep ingress
 查找路径
 查最新版本要联网。离线时写明版本号（%[1]s@<版本>）：本机缓存里已有的版本不用联网——%[2]s
+查看 %[2]s 的帮助信息
 查看 CLI 当前的显示语言
 查看 CLI 版本、支持的 Manifest 版本与部署目标
 查看与刷新装进项目的 AI 助手技能
 查看开关、文件，以及它是否还与 brickkit.yaml 一致
 查看当前项目所有组件的运行状态。\n\nCLI 本身不存储运行状态，查询时直接调用部署文件里 target 对应的引擎：\n  docker   docker compose ps -a --format json\n  podman   podman compose ps -a --format json\n  k8s      kubectl get deployments -o json（在项目的命名空间里）\n\n输出包含：运行中的组件、未启动的组件及原因（原因来自 deploy.local.yaml 时会标出来）、\n本地调试组件（mode: debug）。mode: local 的组件是另一个终端里 up 看护的进程，\n不在表里；有这样的会话在跑时，会提示是哪个进程。
+查看某个命令的帮助信息
 查看每个技能文件的状态（只读）
 查看组件运行状态（读取底层引擎）
 查询产物列表
@@ -1075,6 +1077,7 @@ upgrade [组件ID[@版本]]
 生成一个新组件的最小骨架
 生成一个组件的骨架：一份能通过 brickkit up --dry-run 校验的 component.yaml，\n和一份带标准章节（组件定位、依赖说明、配置指南、契约索引、外壳声明）的 BRICKKIT.md，\n写给将来使用这个组件的人和 AI 助手。\n\n默认写到 components/<scope>/<name>/ —— 本地安装源本来就按这个布局扫描\n（<scope>/<name>/component.yaml），brickkit add --repo 克隆源码也放在这里，\n不需要另外配置就能 brickkit add --local 把它加进项目。\n\n--shell 生成外壳（把别的组件编进来的组件）：component.yaml 带 shell.members 和一个要换掉的占位成员，\n默认写到 shell/<scope>/<name>/（本地安装源 local-shells）——外壳是项目自己的代码，随项目提交。\n\n--path 写到别的目录，给独立成一个 Git 仓库的组件用（一个组件一个仓库）：\n这时目录本身就是组件仓库根，不再套 <scope>/<name> 这层。\n\n生成之后不会自动 brickkit add：写进 brickkit.yaml 是一次单独、可审阅的\n动作。也不会装 AI 助手技能——项目根已经有了，独立仓库场景请自己执行\nbrickkit skills update。
 生成外壳骨架（带占位成员的 shell.members）；默认写到 shell/<scope>/<name>/
+生成指定 shell 的自动补全脚本
 生成时间：%[1]s
 生成的策略默认拒绝一切入站；不说明 ingress controller 在哪，它也会被挡在门外——部署会全部成功，网站却直接打不开
 生成部署文件、执行迁移并一键启动所有组件
@@ -1088,6 +1091,7 @@ upgrade [组件ID[@版本]]
 用 docker buildx imagetools inspect <镜像> --format '{{.Manifest.Digest}}' 取正确的值
 用户名（不指定则交互式输入）
 用法
+用法：{{if .Runnable}}\n  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}\n  {{.CommandPath}} <命令> [参数]{{end}}{{if gt (len .Aliases) 0}}\n\n别名：\n  {{.NameAndAliases}}{{end}}{{if .HasExample}}\n\n示例：\n{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}\n\n可用命令：{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}\n  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}\n\n{{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}\n  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}\n\n其他命令：{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}\n  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}\n\n参数：\n{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}\n\n全局参数：\n{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}\n\n帮助主题：{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}\n  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}\n\n执行 "{{.CommandPath}} <命令> --help" 查看某个命令的详细说明。{{end}}\n
 用环境变量传入口令后重试：COSIGN_PASSWORD=<口令> brickkit publish --sign
 用纯文本编辑器打开文件，保留你要的那一行，删掉另一行和上方的注释，然后重新执行命令
 用这种语言重装（en|zh），并从此记住这个项目该用哪种语言

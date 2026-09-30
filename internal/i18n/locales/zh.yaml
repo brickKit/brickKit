@@ -34,6 +34,40 @@ count.manifests: "%[1]d 份清单"
 project.missing: "错误：项目配置文件不存在"
 project.missing.hint.init: "在项目目录中执行 brickkit init <项目名称> 初始化项目"
 
+cobra.usage_template: |
+  用法：{{if .Runnable}}
+    {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+    {{.CommandPath}} <命令> [参数]{{end}}{{if gt (len .Aliases) 0}}
+
+  别名：
+    {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+  示例：
+  {{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
+
+  可用命令：{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+    {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+
+  {{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+    {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+  其他命令：{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+    {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+  参数：
+  {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+  全局参数：
+  {{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+  帮助主题：{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+    {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+  执行 "{{.CommandPath}} <命令> --help" 查看某个命令的详细说明。{{end}}
+cobra.help_short: "查看某个命令的帮助信息"
+cobra.completion_short: "生成指定 shell 的自动补全脚本"
+cobra.help_flag: "查看 %[2]s 的帮助信息"
+
 lang.cmd.short: "查看 CLI 当前的显示语言"
 lang.set_cmd.short: "设置 CLI 的显示语言"
 lang.current_line: "当前语言：%[1]s（来源：%[2]s）"

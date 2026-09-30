@@ -219,66 +219,35 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		newLangCommand(opts),
 	)
 
-	if lang == i18n.ZH {
-		localize(root)
-	}
+	localize(root)
 	return root
 }
 
-// usageTemplate 是中文化的 usage 模板（cobra 默认模板的中文版），
-// 使帮助信息与设计书中的中文输出风格一致。
-const usageTemplate = `用法：{{if .Runnable}}
-  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
-  {{.CommandPath}} <命令> [参数]{{end}}{{if gt (len .Aliases) 0}}
-
-别名：
-  {{.NameAndAliases}}{{end}}{{if .HasExample}}
-
-示例：
-{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
-
-可用命令：{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
-
-{{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
-
-其他命令：{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
-
-参数：
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
-
-全局参数：
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
-
-帮助主题：{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
-  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
-
-执行 "{{.CommandPath}} <命令> --help" 查看某个命令的详细说明。{{end}}
-`
-
-// localize 中文化 cobra 内置的 help / completion 命令与 -h 参数说明。
+// localize 用当前语言目录里的文案替换 cobra 自带的模板与说明；目录里是空字符串就保留 cobra 自带的英文。
 func localize(root *cobra.Command) {
-	root.SetUsageTemplate(usageTemplate)
-
+	if tmpl := i18n.T(msgid.CobraUsageTemplate); tmpl != "" {
+		root.SetUsageTemplate(tmpl)
+	}
 	root.InitDefaultHelpCmd()
 	root.InitDefaultCompletionCmd()
 	for _, c := range root.Commands() {
 		switch c.Name() {
 		case "help":
-			c.Short = "查看某个命令的帮助信息"
+			if s := i18n.T(msgid.CobraHelpShort); s != "" {
+				c.Short = s
+			}
 		case "completion":
-			c.Short = "生成指定 shell 的自动补全脚本"
+			if s := i18n.T(msgid.CobraCompletionShort); s != "" {
+				c.Short = s
+			}
 		}
 	}
-
-	// 递归中文化 -h/--help 的说明文案。
+	flagText := i18n.T(msgid.CobraHelpFlag)
 	var walk func(c *cobra.Command)
 	walk = func(c *cobra.Command) {
 		c.InitDefaultHelpFlag()
-		if f := c.Flags().Lookup("help"); f != nil {
-			f.Usage = fmt.Sprintf("查看 %s 的帮助信息", c.CommandPath())
+		if f := c.Flags().Lookup("help"); f != nil && flagText != "" {
+			f.Usage = i18n.T(msgid.CobraHelpFlag, c.DisplayName(), c.CommandPath())
 		}
 		for _, sub := range c.Commands() {
 			walk(sub)
