@@ -362,7 +362,7 @@ func renderNothingRunning(opts *Options, states *cascade.Result) {
 	tops := states.TopLevel()
 	if len(tops) == 0 {
 		opts.Printf("%s\n", i18n.T(msgid.CliUpNoTopLevelComponentWas))
-		opts.Printf("%s\n", i18n.T(msgid.CliUpWriteEnabledTrueForThe))
+		opts.Printf("%s\n", i18n.T(msgid.CliUpHintEnableTheOneToRun))
 		return
 	}
 
@@ -381,7 +381,7 @@ func renderNothingRunning(opts *Options, states *cascade.Result) {
 func nothingRunningHint(tops []cascade.Component) string {
 	for _, c := range tops {
 		if c.State == cascade.StateDisabled {
-			return i18n.T(msgid.CliUpRemoveEnabledFalseFromOne)
+			return i18n.T(msgid.CliUpHintRemoveDisableFromOne)
 		}
 	}
 	return i18n.T(msgid.CliUpTheTopLevelItselfIsn)
@@ -968,7 +968,7 @@ func writeLocalEnvFiles(opts *Options, layout project.Layout, files []compose.Lo
 		return nil
 	}
 
-	opts.Printf("\n%s\n", i18n.T(msgid.CliUpLocalDebuggingLocalTrue))
+	opts.Printf("\n%s\n", i18n.T(msgid.CliUpDebugSectionTitle))
 	for _, file := range debugFiles {
 		path := filepath.Join(layout.GeneratedDir(), file.Name)
 		if err := os.WriteFile(path, file.Content, 0o600); err != nil {

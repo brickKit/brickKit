@@ -116,7 +116,7 @@ func renderDownResult(opts *Options, k8sTarget bool, engineName string, running 
 	// 使用者最怕的就是"我停一下会不会把数据弄没了"
 	if k8sTarget {
 		// K8s 下基础资源由运维部署，本来就不归 CLI 管，更不会被 down 碰到
-		opts.Printf("\n%s\n", i18n.T(msgid.CliDownBaseResourcesDatabasesAndSo))
+		opts.Printf("\n%s\n", i18n.T(msgid.CliDownExternalServicesUnaffected))
 	} else {
 		opts.Printf("\n%s\n", i18n.T(msgid.CliDownDataVolumesWereNotDeleted))
 		// engineName 得跟 up 起这批容器用的引擎一致——docker volume rm

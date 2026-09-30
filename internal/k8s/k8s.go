@@ -445,7 +445,7 @@ func (p *plan) privilegedPortWarnings() []*clierr.Error {
 		check(c.Manifest, c.Ref.ID+"@"+c.Ref.Version)
 	}
 	for _, s := range p.served {
-		check(s.Manifest, i18n.T(msgid.K8sRefServedBy, s.Ref.ID+"@"+s.Ref.Version, s.Shell.String()))
+		check(s.Manifest, i18n.T(msgid.K8sRefHostedBy, s.Ref.ID+"@"+s.Ref.Version, s.Shell.String()))
 	}
 	return out
 }

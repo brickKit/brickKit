@@ -310,8 +310,8 @@ func checkPortConflicts(shellRef resolver.Ref, shellNode *resolver.Node, members
 }
 
 func shellNotFoundError(member, target resolver.Ref) *clierr.Error {
-	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellServedByTargetNotFound)).
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.ShellHostNotInGraph)).
 		WithDetail(i18n.T(msgid.LabelComponent), member.String()).
-		WithDetail(i18n.T(msgid.ShellLabelServedByTarget), i18n.T(msgid.ShellServedByTargetNotInProjectDetail, target.String())).
-		WithHint(i18n.T(msgid.ShellHintCheckServedByValue))
+		WithDetail(i18n.T(msgid.ShellLabelHostingShell), i18n.T(msgid.ShellHostUnresolvedDetail, target.String())).
+		WithHint(i18n.T(msgid.ShellHintCheckShellDeclared))
 }

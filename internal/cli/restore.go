@@ -287,7 +287,7 @@ func printModeChanges(opts *Options, changes []modeChange, untouched []string) {
 		opts.Printf("%s\n", i18n.T(msgid.CliRestoreMatchesTheLastCommit, project.FileDeploy))
 		return
 	}
-	opts.Printf("%s\n", i18n.T(msgid.CliRestoreEnabledRestoredFromTheLast, project.FileDeploy))
+	opts.Printf("%s\n", i18n.T(msgid.CliRestoreModeRestored, project.FileDeploy))
 	for _, ch := range changes {
 		opts.Printf("   %-26s mode: %s → %s\n", ch.entry, showMode(ch.from), toMode(ch.to))
 	}

@@ -53,7 +53,8 @@ func SourceKeys(path string) ([]string, error) {
 	return keys, nil
 }
 
-const pluralOneSuffix = ".one" // 与 msgid.PluralOneSuffix 相同；msgidgen 不引用 msgid，免得生成器依赖被生成的包
+// PluralOneSuffix 与 msgid.PluralOneSuffix 相同；msgidgen 不引用 msgid，免得生成器依赖被生成的包。
+const PluralOneSuffix = ".one"
 
 // Render 生成 messages_gen.go 的源码。
 func Render(keys []string) ([]byte, error) {
@@ -63,7 +64,7 @@ func Render(keys []string) ([]byte, error) {
 	b.WriteString("package msgid\n\nconst (\n")
 	owner := map[string]string{}
 	for _, key := range keys {
-		if strings.HasSuffix(key, pluralOneSuffix) {
+		if strings.HasSuffix(key, PluralOneSuffix) {
 			continue
 		}
 		name := GoName(key)

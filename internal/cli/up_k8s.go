@@ -96,7 +96,7 @@ func renderNetworkPolicyNotice(opts *Options, result *k8s.Result) {
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sKubectlGetNetworkpolicyShowsThem))
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sTheDefaultCniOfMinikube))
 	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sThePlatformCanTDetect))
-	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sSeeDocsEnGuideNetwork))
+	opts.Printf("%s\n", i18n.T(msgid.CliUpK8sSeeSecurityDoc))
 }
 
 // projectSelector 是本项目全部生成物共有的标签选择器。

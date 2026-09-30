@@ -96,9 +96,9 @@ func warnConfigSecrets(opts *Options, p *project.Project, graph *resolver.Graph)
 	sort.Strings(offenders)
 
 	renderWarnings(opts, []*clierr.Error{
-		clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpSecretsTheConfigInBrickkitYAML)).
+		clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpSecretsConfigMayHoldSecrets)).
 			WithDetail(i18n.T(msgid.CliUpSecretsConfigItems), strings.Join(offenders, i18n.T(msgid.ListSeparator))).
-			WithDetail(i18n.T(msgid.CliUpSecretsWhyItMatters), i18n.T(msgid.CliUpSecretsBrickkitYAMLIsMeantTo)).
+			WithDetail(i18n.T(msgid.CliUpSecretsWhyItMatters), i18n.T(msgid.CliUpSecretsConfigIsCommitted)).
 			WithHint(
 				i18n.T(msgid.CliUpSecretsChangeItToAReference),
 				i18n.T(msgid.CliUpSecretsEnvMustBeListedIn),

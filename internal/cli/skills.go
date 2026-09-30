@@ -37,7 +37,7 @@ func newSkillsCommand(opts *Options) *cobra.Command {
 	var lang string
 	updateCmd := &cobra.Command{
 		Use:     "update",
-		Short:   i18n.T(msgid.CliSkillsShort3),
+		Short:   i18n.T(msgid.CliSkillsUpdateShort),
 		Args:    cobra.NoArgs,
 		Example: "  brickkit skills update\n  brickkit skills update --lang zh",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -49,7 +49,7 @@ func newSkillsCommand(opts *Options) *cobra.Command {
 	cmd.AddCommand(
 		&cobra.Command{
 			Use:     "status",
-			Short:   i18n.T(msgid.CliSkillsShort2),
+			Short:   i18n.T(msgid.CliSkillsStatusShort),
 			Args:    cobra.NoArgs,
 			Example: `  brickkit skills status`,
 			RunE: func(cmd *cobra.Command, args []string) error {

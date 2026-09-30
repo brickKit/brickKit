@@ -123,10 +123,10 @@ func (p *liveProject) labelIfOverridden(ref resolver.Ref, text string) string {
 	if !p.localModeDiffers(ref) {
 		return text
 	}
-	if merged, ok := insertBeforeTrailingParen(text, i18n.T(msgid.CliStatusViaOverrideYAMLSuffix)); ok {
+	if merged, ok := insertBeforeTrailingParen(text, i18n.T(msgid.CliStatusViaLocalFileSuffix)); ok {
 		return merged
 	}
-	return text + i18n.T(msgid.CliStatusViaOverrideYAML)
+	return text + i18n.T(msgid.CliStatusViaLocalFile)
 }
 
 // asciiRightParen、fullWidthRightParen 是 insertBeforeTrailingParen 认的两种
@@ -352,7 +352,7 @@ func renderLocalDebug(opts *Options, p *liveProject, v componentView) {
 		t.add(ref.ID, ref.Version, localAddress(p, ref))
 	}
 
-	opts.Printf("%s\n", i18n.T(msgid.CliStatusLocalDebuggingLocalTrueNot))
+	opts.Printf("%s\n", i18n.T(msgid.CliStatusDebugSectionTitle))
 	opts.Printf("%s\n", t.render(" "))
 }
 
