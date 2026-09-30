@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/brickkit/brickkit/internal/i18n"
 )
 
 // langBranchAllow 是生产代码里唯一允许点名某种语言的地方，各带理由。
@@ -55,5 +57,37 @@ func TestLangBranchAllowEntriesStillExist(t *testing.T) {
 		body, err := readFile(filepath.Join(repoRoot, rel))
 		require.NoError(t, err, rel)
 		assert.Contains(t, body, "lockLangBeforeLangField", rel)
+	}
+}
+
+// 语言列表不写死在文案或代码里（"en|zh"、"en, zh"）：加一种语言后，这些地方不会跟着变。
+// 列表一律从 i18n.LangNames() 拼出来。
+func TestNoLanguageListWrittenOut(t *testing.T) {
+	names := i18n.LangNames()
+	var lists []string
+	for _, sep := range []string{"|", ", ", "/", " | "} {
+		lists = append(lists, strings.Join(names, sep))
+	}
+	check := func(where, text string) {
+		for _, l := range lists {
+			if strings.Contains(text, l) {
+				t.Errorf("%s 写死了语言列表 %q：用 i18n.LangNames() 拼出来", where, l)
+			}
+		}
+	}
+	for _, lang := range i18n.SupportedLangs() {
+		for key, text := range i18n.CatalogFor(lang) {
+			check(string(lang)+" "+key, text)
+		}
+	}
+	for _, rel := range goFiles(t, []string{"internal", "cmd"}, false) {
+		f, err := parser.ParseFile(token.NewFileSet(), filepath.Join(repoRoot, rel), nil, 0)
+		require.NoError(t, err, rel)
+		ast.Inspect(f, func(n ast.Node) bool {
+			if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+				check(rel, lit.Value)
+			}
+			return true
+		})
 	}
 }

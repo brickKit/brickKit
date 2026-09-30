@@ -23,7 +23,7 @@ func newLangCommand(opts *Options) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(&cobra.Command{
-		Use:   "set <en|zh>",
+		Use:   "set <" + strings.Join(i18n.LangNames(), "|") + ">",
 		Short: i18n.T(msgid.LangSetCmdShort),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

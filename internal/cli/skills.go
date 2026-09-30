@@ -8,6 +8,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -44,7 +45,7 @@ func newSkillsCommand(opts *Options) *cobra.Command {
 			return runSkillsUpdate(opts, lang)
 		},
 	}
-	updateCmd.Flags().StringVar(&lang, "lang", "", i18n.T(msgid.CliSkillsLangFlag))
+	updateCmd.Flags().StringVar(&lang, "lang", "", i18n.T(msgid.CliSkillsLangFlag, strings.Join(i18n.LangNames(), "|")))
 
 	cmd.AddCommand(
 		&cobra.Command{
