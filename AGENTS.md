@@ -5,6 +5,10 @@
 >
 > If the user is asking in Chinese, read [`AGENTS.zh.md`](AGENTS.zh.md) instead — an equivalent, independently
 > written Chinese version, not a translation.
+>
+> Paths in this file are relative to the repository root. On the web, prefix them with
+> https://raw.githubusercontent.com/brickKit/brickKit/main/ . To read all the documentation in a few fetches, start
+> with [`llms/en/00-core.md`](llms/en/00-core.md) and follow its "Next" line.
 
 ## §1 What BrickKit is
 
@@ -174,26 +178,113 @@ Every command's full flag list is in [`docs/en/07-cli-reference/README.md`](docs
 - `brickkit release`: check → tag → push, deleting the tag if the push fails; `--local` releases the components in local sources, stopping at the first failure.
 - A component market (`publish` / `login` / `logout`, `sources[].type: market`) is optional infrastructure that works alongside Git sources.
 
-## §9 Documentation index
+## §9 Doc map
 
-- [docs/en/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/README.md): the English docs index and reading order
-- [docs/en/00-intro/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/README.md): overview and getting started
-- [docs/en/00-intro/02-quick-start.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/02-quick-start.md): from an empty directory to running containers in five minutes
-- [docs/en/00-intro/04-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/04-core-concepts.md): glossary of core concepts
-- [docs/en/00-intro/06-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/06-fractal-architecture.md): the fractal structure — developing a component vs. using one
-- [docs/en/01-three-layers/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/README.md): the three layers in depth
-- [docs/en/01-three-layers/08-resolution-priority.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/08-resolution-priority.md): where a config value comes from, in order
-- [docs/en/02-project-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/README.md): guide for people running a project
-- [docs/en/03-component-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/README.md): guide for component authors
-- [docs/en/04-shell/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/04-shell/README.md): shells
-- [docs/en/05-migration/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/05-migration/README.md): database migrations
-- [docs/en/06-architecture/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/README.md): architecture and the mechanisms underneath
-- [docs/en/06-architecture/03-env-injection-contract.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/03-env-injection-contract.md): every environment variable the platform injects
-- [docs/en/06-architecture/09-error-codes.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/09-error-codes.md): error codes — and which ones are worth retrying
-- [docs/en/07-cli-reference/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/07-cli-reference/README.md): the complete CLI reference
-- [docs/en/08-ai-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/08-ai-guide/README.md): guide written for AI assistants
-- [docs/en/09-patterns/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/09-patterns/README.md): recommended practices
-- [docs/en/10-troubleshooting/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/10-troubleshooting/README.md): troubleshooting — symptom → cause → fix
-- [docs/en/11-reference/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/11-reference/README.md): reference — every field of the three files
+To find out → read. The page-by-page list, one line per page, is [`llms.txt`](llms.txt).
 
-The page-by-page index is [`llms.txt`](llms.txt).
+| To find out | Read |
+| --- | --- |
+| The platform in one read | [`llms/en/00-core.md`](llms/en/00-core.md): this file plus the core pages |
+| Getting it running | [`docs/en/00-intro/02-quick-start.md`](docs/en/00-intro/02-quick-start.md) |
+| Words and concepts | [`docs/en/00-intro/04-core-concepts.md`](docs/en/00-intro/04-core-concepts.md) |
+| The three files, every field | [`docs/en/01-three-layers/README.md`](docs/en/01-three-layers/README.md), [`docs/en/01-three-layers/09-field-reference.md`](docs/en/01-three-layers/09-field-reference.md), [`docs/en/11-reference/README.md`](docs/en/11-reference/README.md) |
+| Where a config value comes from | [`docs/en/01-three-layers/08-resolution-priority.md`](docs/en/01-three-layers/08-resolution-priority.md) |
+| Running a project: init, add, local, up, upgrade … | [`docs/en/02-project-guide/README.md`](docs/en/02-project-guide/README.md) |
+| Working on one component inside a project | [`docs/en/02-project-guide/04-focus-run.md`](docs/en/02-project-guide/04-focus-run.md) |
+| Writing a component | [`docs/en/03-component-guide/README.md`](docs/en/03-component-guide/README.md) |
+| Shells | [`docs/en/04-shell/README.md`](docs/en/04-shell/README.md) |
+| Database migrations | [`docs/en/05-migration/README.md`](docs/en/05-migration/README.md) |
+| Architecture, principles, the env contract, error codes | [`docs/en/06-architecture/README.md`](docs/en/06-architecture/README.md), [`docs/en/06-architecture/05-design-principles.md`](docs/en/06-architecture/05-design-principles.md), [`docs/en/06-architecture/03-env-injection-contract.md`](docs/en/06-architecture/03-env-injection-contract.md), [`docs/en/06-architecture/09-error-codes.md`](docs/en/06-architecture/09-error-codes.md) |
+| Every command and flag | [`docs/en/07-cli-reference/README.md`](docs/en/07-cli-reference/README.md) |
+| How an AI works with BrickKit | [`docs/en/08-ai-guide/README.md`](docs/en/08-ai-guide/README.md) |
+| Recommended practices | [`docs/en/09-patterns/README.md`](docs/en/09-patterns/README.md) |
+| Something failed | [`docs/en/10-troubleshooting/README.md`](docs/en/10-troubleshooting/README.md) |
+| Building, testing, conventions for contributors | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Where a feature lives in the code | §10 below |
+
+## §10 Code map
+
+One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`; every command is one file,
+`internal/cli/<command>.go`.
+
+### Packages
+
+| Package | Owns |
+| --- | --- |
+| `internal/cli/` | The command tree: one file per command, flags, output; errors shown relative to where you stand (`shown.go`); TAB completion candidates (`complete.go`) |
+| `internal/project/` | Loading a project (brickkit.yaml + deploy file + config/) into one `Project`; finding the root upward (`findroot.go`); consistency checks; the project map `BRICKKIT.md` |
+| `internal/projfile/` | `brickkit.yaml`: sources, components, versions, `kind: shell` |
+| `internal/deployfile/` | Deploy files (`deploy.yaml`, `deploy.local.yaml`, `-f`): fields, validation, `focus`, the local-change diff |
+| `internal/configdir/` | `config/`: per-component env files, `vars.yaml`, value resolution, skeletons, migration on upgrade |
+| `internal/manifest/` | `component.yaml`: parsing, validation, the scaffolds `brickkit new` writes |
+| `internal/resolver/` | Dependency resolution into a graph; start order |
+| `internal/cascade/` | What runs this time: `mode`, "follows the layer above", focus reachability, shell hosting |
+| `internal/inject/` | Each component's environment variables: dependency addresses, config, resources |
+| `internal/shell/` | Shell grouping and the members' JSON config |
+| `internal/compose/` | Rendering `compose.yaml` for docker / podman |
+| `internal/k8s/` | Rendering Kubernetes manifests |
+| `internal/deploy/` | Naming rules and file headers shared by both targets |
+| `internal/engine/` | Docker, Podman and kubectl: detection and invocation |
+| `internal/procsup/` | Supervising `mode: local` processes in the foreground |
+| `internal/runcmd/` | Working out how to start a component from its source |
+| `internal/sessionlock/` | One foreground local session per project |
+| `internal/install/` | What `add` / `remove` / `upgrade` change in the three layers |
+| `internal/source/` | Install sources (local / git / market), the manifest and artifact caches, the bare-repository cache, offline versions |
+| `internal/gitrepo/` | Read-only git queries (status, submodules) |
+| `internal/workspace/` | Component source under `components/`: archive, activate, deletion risk |
+| `internal/release/` | `brickkit release`: checks, tag, push, rollback |
+| `internal/market/` | Market client: login and publish |
+| `internal/security/` | Component signatures: signing and verification |
+| `internal/skills/` | AI-assistant skills installed into user projects (`assets/`) |
+| `internal/clierr/` | The error type, error codes and how errors render |
+| `internal/i18n/` | Message catalogs (`locales/en.yaml`, `locales/zh.yaml`) and language resolution |
+| `internal/msgid/` | Message keys (`messages_gen.go` is generated) |
+| `internal/logging/` | JSON log lines on stderr |
+| `internal/suggest/` | "Did you mean" suggestions |
+| `internal/envref/` | `${VAR}` references |
+| `internal/yamlfile/` | The read / parse / decode pipeline the three layers share |
+| `internal/yamlcheck/` | Misspelled or unknown YAML fields |
+| `internal/yamlcomment/` | Comment blocks in generated YAML, `.env`, `.gitignore` |
+| `internal/schemagen/` | JSON Schemas generated from the Go structs into `schemas/` |
+| `internal/userconfig/` | Machine-level preferences (the CLI's language) |
+| `internal/version/` | Version and capability constants |
+| `internal/llmsgen/` | The documentation bundles in `llms/` and the bundle list in `llms*.txt` |
+| `cmd/brickkit/` | The CLI's `main` |
+| `cmd/gen-msgid/` | Generates `internal/msgid/messages_gen.go` |
+| `cmd/gen-schemas/` | Generates `schemas/*.json` |
+| `cmd/gen-llms/` | Generates `llms/` |
+
+Elsewhere: `market-server/` (the optional component market, its own Go module), `tools/i18n/` (one-off i18n
+migration scripts), `scripts/` (lint checks, install checks, release), `install.sh`.
+
+### Features → code
+
+| Feature | Start here | Then |
+| --- | --- | --- |
+| `up` | `internal/cli/up.go` (`up_local.go`, `up_k8s.go`, `up_upgrade.go`) | `cascade`, `inject`, `compose`, `k8s`, `engine`, `procsup` |
+| `down`, `status` | `internal/cli/down.go`, `internal/cli/status.go`, `internal/cli/lifecycle.go` | `engine`, `sessionlock` |
+| `add`, `remove`, `upgrade` | `internal/cli/add.go`, `internal/cli/remove.go`, `internal/cli/upgrade.go`, `internal/cli/install_apply.go` | `install`, `configdir`, `source` |
+| `fetch` | `internal/cli/fetch.go`, `internal/cli/artifacts.go` | `source` |
+| `build` | `internal/cli/build.go` | `source`, `engine`, `gitrepo` |
+| `lint` | `internal/cli/lint.go`, `internal/cli/lint_config.go` | `project`, `yamlcheck` |
+| `graph`, `deps` | `internal/cli/graph.go`, `internal/cli/deps.go`, `internal/cli/topology.go` | `resolver`, `cascade` |
+| `sync`, `restore` | `internal/cli/sync.go`, `internal/cli/restore.go`, `internal/cli/restore_check.go` | `workspace` |
+| `local` | `internal/cli/local.go` | `deployfile` |
+| `init`, `new` | `internal/cli/init.go`, `internal/cli/new.go`, `internal/cli/hooks.go` | `project`, `manifest`, `skills` |
+| `release`, `publish`, `login`, `logout` | `internal/cli/release.go`, `internal/cli/publish*.go`, `internal/cli/login.go`, `internal/cli/logout.go` | `release`, `market`, `security` |
+| `skills`, `lang`, `version` | `internal/cli/skills.go`, `internal/cli/lang.go`, `internal/cli/version.go` | `skills`, `i18n`, `userconfig` |
+| Finding the project upward | `internal/project/findroot.go`, `internal/cli/root.go` | |
+| Focus run | `internal/cli/focus.go` | `internal/cascade/cascade.go`, `internal/deployfile/focus.go` |
+| One `components/` (nested copies) | `internal/cli/nested.go` | `internal/project/nested.go` |
+| TAB completion | `internal/cli/complete.go` | `internal/source/cached.go`, `install.sh` |
+| "Did you mean" | `internal/cli/didyoumean.go` | `suggest` |
+| How errors look | `internal/clierr/clierr.go`, `internal/cli/shown.go` | |
+| Adding a message | `internal/i18n/locales/en.yaml`, `internal/i18n/locales/zh.yaml`, then `make generate-msgid` | `msgid` |
+| Documentation bundles | `cmd/gen-llms/`, `internal/llmsgen/` | `make generate-llms` |
+
+### Tests and checks
+
+- Unit tests sit next to the code (`*_test.go`); CLI tests run commands in-process against `internal/cli/testdata/`.
+- `tests/components/`: real components (Go, Python, nginx) used as fixtures; `tests/checklist/`: the regression
+  list `make test-all` runs; `tests/docfields/`: guards that the docs match the code.
+- `make lint` (every static check, `scripts/check-*.py`) and `make test-all`; `make hooks` once per clone.

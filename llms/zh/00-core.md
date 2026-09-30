@@ -16,6 +16,9 @@
 > 不该读什么、以及这个平台的设计边界在哪里。
 >
 > 用户用英文（或其它语言）提问时，改读 [`AGENTS.md`](../../AGENTS.md)——内容对等的独立英文版，不是译本。
+>
+> 这份文件里的路径都相对仓库根目录；在网页上读，前面加 https://raw.githubusercontent.com/brickKit/brickKit/main/ 。
+> 想用最少的抓取读完全部文档，从 [`llms/zh/00-core.md`](00-core.md) 开始，顺着"下一份"往下读。
 
 ## §1 平台定位
 
@@ -183,29 +186,113 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - `brickkit release`：校验 → 打 tag → 推送，推送失败删掉 tag；`--local` 批量发布本地源里的组件，遇到第一个失败就停。
 - 组件市场（`publish` / `login` / `logout`，`sources[].type: market`）是可选的基础设施，与 Git 源并存。
 
-## §9 文档树索引
+## §9 文档地图
 
-- [docs/zh/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/README.md): 中文文档总目录与阅读顺序
-- [docs/zh/00-intro/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/README.md): 概览与入门
-- [docs/zh/00-intro/02-quick-start.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/02-quick-start.md): 5 分钟从空目录到跑起来的容器
-- [docs/zh/00-intro/04-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/04-core-concepts.md): 核心概念术语表
-- [docs/zh/00-intro/06-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/06-fractal-architecture.md): 分形架构——开发态与消费态
-- [docs/zh/01-three-layers/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/README.md): 三层文件详解
-- [docs/zh/01-three-layers/08-resolution-priority.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/08-resolution-priority.md): 配置解析优先级
-- [docs/zh/02-project-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/README.md): 项目管理者指南
-- [docs/zh/03-component-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/README.md): 组件开发者指南
-- [docs/zh/04-shell/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/04-shell/README.md): 外壳机制
-- [docs/zh/05-migration/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/05-migration/README.md): 数据库迁移
-- [docs/zh/06-architecture/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/README.md): 架构与深度机制
-- [docs/zh/06-architecture/03-env-injection-contract.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/03-env-injection-contract.md): 平台注入的全部环境变量
-- [docs/zh/06-architecture/09-error-codes.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/09-error-codes.md): 错误码字典——哪些值得重试
-- [docs/zh/07-cli-reference/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/07-cli-reference/README.md): CLI 命令完整参考
-- [docs/zh/08-ai-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/08-ai-guide/README.md): AI 专属指南
-- [docs/zh/09-patterns/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/09-patterns/README.md): 推荐实践
-- [docs/zh/10-troubleshooting/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/10-troubleshooting/README.md): 故障排除——症状 → 原因 → 解决
-- [docs/zh/11-reference/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/11-reference/README.md): 参考手册——三个文件的完整字段规格
+要知道什么 → 读哪一页。逐页、每页一行说明的完整列表在 [`llms.zh.txt`](../../llms.zh.txt)。
 
-完整的逐页索引见 [`llms.zh.txt`](../../llms.zh.txt)。
+| 要知道什么 | 读 |
+| --- | --- |
+| 一次读懂整个平台 | [`llms/zh/00-core.md`](00-core.md)：这份文件加上几篇核心页 |
+| 先跑起来 | [`docs/zh/00-intro/02-quick-start.md`](../../docs/zh/00-intro/02-quick-start.md) |
+| 术语与概念 | [`docs/zh/00-intro/04-core-concepts.md`](../../docs/zh/00-intro/04-core-concepts.md) |
+| 三份文件、每个字段 | [`docs/zh/01-three-layers/README.md`](../../docs/zh/01-three-layers/README.md)、[`docs/zh/01-three-layers/09-field-reference.md`](../../docs/zh/01-three-layers/09-field-reference.md)、[`docs/zh/11-reference/README.md`](../../docs/zh/11-reference/README.md) |
+| 一个配置值从哪来 | [`docs/zh/01-three-layers/08-resolution-priority.md`](../../docs/zh/01-three-layers/08-resolution-priority.md) |
+| 运行项目：init、add、local、up、upgrade…… | [`docs/zh/02-project-guide/README.md`](../../docs/zh/02-project-guide/README.md) |
+| 在项目里只改一个组件 | [`docs/zh/02-project-guide/04-focus-run.md`](../../docs/zh/02-project-guide/04-focus-run.md) |
+| 编写组件 | [`docs/zh/03-component-guide/README.md`](../../docs/zh/03-component-guide/README.md) |
+| 外壳 | [`docs/zh/04-shell/README.md`](../../docs/zh/04-shell/README.md) |
+| 数据库迁移 | [`docs/zh/05-migration/README.md`](../../docs/zh/05-migration/README.md) |
+| 架构、设计原则、环境变量契约、错误码 | [`docs/zh/06-architecture/README.md`](../../docs/zh/06-architecture/README.md)、[`docs/zh/06-architecture/05-design-principles.md`](../../docs/zh/06-architecture/05-design-principles.md)、[`docs/zh/06-architecture/03-env-injection-contract.md`](../../docs/zh/06-architecture/03-env-injection-contract.md)、[`docs/zh/06-architecture/09-error-codes.md`](../../docs/zh/06-architecture/09-error-codes.md) |
+| 每条命令、每个参数 | [`docs/zh/07-cli-reference/README.md`](../../docs/zh/07-cli-reference/README.md) |
+| AI 怎么配合 BrickKit 工作 | [`docs/zh/08-ai-guide/README.md`](../../docs/zh/08-ai-guide/README.md) |
+| 推荐做法 | [`docs/zh/09-patterns/README.md`](../../docs/zh/09-patterns/README.md) |
+| 出错了 | [`docs/zh/10-troubleshooting/README.md`](../../docs/zh/10-troubleshooting/README.md) |
+| 贡献者的构建、测试与约定 | [`CONTRIBUTING.zh.md`](../../CONTRIBUTING.zh.md) |
+| 某个功能的代码在哪 | 见下面 §10 |
+
+## §10 代码地图
+
+一个 Go 模块：`github.com/brickkit/brickkit`。CLI 的入口在 `cmd/brickkit/`；每条命令一个文件，`internal/cli/<命令>.go`。
+
+### 包
+
+| 包 | 管什么 |
+| --- | --- |
+| `internal/cli/` | 命令树：每条命令一个文件、参数、输出；报错里的路径按使用者所在的目录显示（`shown.go`）；TAB 补全的候选（`complete.go`） |
+| `internal/project/` | 把一个项目（brickkit.yaml + 部署文件 + config/）装载成一个 `Project`；往上找项目根（`findroot.go`）；一致性检查；项目地图 `BRICKKIT.md` |
+| `internal/projfile/` | `brickkit.yaml`：安装源、组件、版本、`kind: shell` |
+| `internal/deployfile/` | 部署文件（`deploy.yaml`、`deploy.local.yaml`、`-f`）：字段、校验、`focus`、本地修改的差异 |
+| `internal/configdir/` | `config/`：每个组件的环境变量文件、`vars.yaml`、取值、骨架、升级时的配置迁移 |
+| `internal/manifest/` | `component.yaml`：解析、校验，以及 `brickkit new` 写出的骨架 |
+| `internal/resolver/` | 依赖解析成图；启动顺序 |
+| `internal/cascade/` | 这次到底跑哪些组件：`mode`、"跟着上层走"、焦点的可达性、外壳承载 |
+| `internal/inject/` | 每个组件的环境变量：依赖地址、配置、资源配额 |
+| `internal/shell/` | 外壳分组与成员的 JSON 配置 |
+| `internal/compose/` | 给 docker / podman 渲染 `compose.yaml` |
+| `internal/k8s/` | 渲染 Kubernetes 清单 |
+| `internal/deploy/` | 两种部署目标共用的命名规则与文件头注释 |
+| `internal/engine/` | Docker、Podman、kubectl：探测与调用 |
+| `internal/procsup/` | 在前台监管 `mode: local` 的本机进程 |
+| `internal/runcmd/` | 从组件源码推出在本机怎么启动它 |
+| `internal/sessionlock/` | 一个项目同一时刻只有一个前台本地会话 |
+| `internal/install/` | `add` / `remove` / `upgrade` 要对三份文件做哪些改动 |
+| `internal/source/` | 安装源（local / git / market）、Manifest 与产物缓存、bare 仓库缓存、不联网可知的版本 |
+| `internal/gitrepo/` | 对 git 仓库的只读查询（状态、submodule） |
+| `internal/workspace/` | `components/` 下的组件源码：归档、激活、删除风险 |
+| `internal/release/` | `brickkit release`：检查、打 tag、推送、回滚 |
+| `internal/market/` | 市场客户端：登录与发布 |
+| `internal/security/` | 组件签名：签与验 |
+| `internal/skills/` | 装进用户项目的 AI 助手技能（`assets/`） |
+| `internal/clierr/` | 错误类型、错误码与报错的样子 |
+| `internal/i18n/` | 消息目录（`locales/en.yaml`、`locales/zh.yaml`）与语言判定 |
+| `internal/msgid/` | 消息的 key（`messages_gen.go` 是生成的） |
+| `internal/logging/` | stderr 上的 JSON 日志行 |
+| `internal/suggest/` | "你是不是想写"的候选 |
+| `internal/envref/` | `${VAR}` 引用 |
+| `internal/yamlfile/` | 三份文件共用的读取 / 解析 / 解码流水线 |
+| `internal/yamlcheck/` | YAML 里拼错或多余的字段 |
+| `internal/yamlcomment/` | 生成的 YAML、`.env`、`.gitignore` 里的注释块 |
+| `internal/schemagen/` | 从 Go 结构体生成 JSON Schema 到 `schemas/` |
+| `internal/userconfig/` | 机器级的偏好（CLI 的显示语言） |
+| `internal/version/` | 版本与能力常量 |
+| `internal/llmsgen/` | `llms/` 下的文档合集与 `llms*.txt` 里的合集清单 |
+| `cmd/brickkit/` | CLI 的 `main` |
+| `cmd/gen-msgid/` | 生成 `internal/msgid/messages_gen.go` |
+| `cmd/gen-schemas/` | 生成 `schemas/*.json` |
+| `cmd/gen-llms/` | 生成 `llms/` |
+
+其他地方：`market-server/`（可选的组件市场，独立的 Go 模块）、`tools/i18n/`（多语言迁移时的一次性脚本）、`scripts/`（lint 检查、安装检查、发布）、`install.sh`。
+
+### 功能 → 代码
+
+| 功能 | 从这里开始 | 接着看 |
+| --- | --- | --- |
+| `up` | `internal/cli/up.go`（`up_local.go`、`up_k8s.go`、`up_upgrade.go`） | `cascade`、`inject`、`compose`、`k8s`、`engine`、`procsup` |
+| `down`、`status` | `internal/cli/down.go`、`internal/cli/status.go`、`internal/cli/lifecycle.go` | `engine`、`sessionlock` |
+| `add`、`remove`、`upgrade` | `internal/cli/add.go`、`internal/cli/remove.go`、`internal/cli/upgrade.go`、`internal/cli/install_apply.go` | `install`、`configdir`、`source` |
+| `fetch` | `internal/cli/fetch.go`、`internal/cli/artifacts.go` | `source` |
+| `build` | `internal/cli/build.go` | `source`、`engine`、`gitrepo` |
+| `lint` | `internal/cli/lint.go`、`internal/cli/lint_config.go` | `project`、`yamlcheck` |
+| `graph`、`deps` | `internal/cli/graph.go`、`internal/cli/deps.go`、`internal/cli/topology.go` | `resolver`、`cascade` |
+| `sync`、`restore` | `internal/cli/sync.go`、`internal/cli/restore.go`、`internal/cli/restore_check.go` | `workspace` |
+| `local` | `internal/cli/local.go` | `deployfile` |
+| `init`、`new` | `internal/cli/init.go`、`internal/cli/new.go`、`internal/cli/hooks.go` | `project`、`manifest`、`skills` |
+| `release`、`publish`、`login`、`logout` | `internal/cli/release.go`、`internal/cli/publish*.go`、`internal/cli/login.go`、`internal/cli/logout.go` | `release`、`market`、`security` |
+| `skills`、`lang`、`version` | `internal/cli/skills.go`、`internal/cli/lang.go`、`internal/cli/version.go` | `skills`、`i18n`、`userconfig` |
+| 往上找项目根 | `internal/project/findroot.go`、`internal/cli/root.go` | |
+| 焦点运行 | `internal/cli/focus.go` | `internal/cascade/cascade.go`、`internal/deployfile/focus.go` |
+| 只有一个 `components/`（嵌套副本） | `internal/cli/nested.go` | `internal/project/nested.go` |
+| TAB 补全 | `internal/cli/complete.go` | `internal/source/cached.go`、`install.sh` |
+| "你是不是想写" | `internal/cli/didyoumean.go` | `suggest` |
+| 报错长什么样 | `internal/clierr/clierr.go`、`internal/cli/shown.go` | |
+| 加一条消息 | `internal/i18n/locales/en.yaml`、`internal/i18n/locales/zh.yaml`，再跑 `make generate-msgid` | `msgid` |
+| 文档合集 | `cmd/gen-llms/`、`internal/llmsgen/` | `make generate-llms` |
+
+### 测试与检查
+
+- 单元测试就在代码旁边（`*_test.go`）；CLI 的测试在进程内运行命令，夹具在 `internal/cli/testdata/`。
+- `tests/components/`：真实的组件（Go、Python、nginx），当作夹具用；`tests/checklist/`：`make test-all` 跑的回归清单；`tests/docfields/`：保证文档与代码一致的守卫。
+- `make lint`（全部静态检查，`scripts/check-*.py`）和 `make test-all`；每个克隆运行一次 `make hooks`。
 
 ---
 

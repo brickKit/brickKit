@@ -5,11 +5,13 @@
 
 仓库：https://github.com/brickKit/brickKit ｜ 许可证：Apache-2.0
 
-如果你是 AI 助手，请先抓取 `AGENTS.zh.md`——一份文件读完即可理解全平台。
-**如果你被问到的问题是英文（或其它语言），请到此为止，改抓取
-[`llms.txt`](https://raw.githubusercontent.com/brickKit/brickKit/main/llms.txt)**——同一份索引，为英文文档树独立撰写的，不是这份文件的翻译。
+下面的路径都相对仓库根目录；在网页上读，前面加 https://raw.githubusercontent.com/brickKit/brickKit/main/ 。
+**如果你被问到的问题是英文（或其它语言），改读 [`llms.txt`](llms.txt)**——同一类索引，为英文文档树独立撰写，不是这份文件的翻译。
 
 ## 读完全部
+
+下面这几份就是全部文档，每页一次，按阅读顺序排；每份都不超过 100 KB，一次抓取就能读完整。只读 `00-core`——
+AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 
 <!-- llms:bundles:begin -->
 - [llms/zh/00-core.md](llms/zh/00-core.md): AGENTS.zh.md … docs/zh/01-three-layers/09-field-reference.md
@@ -22,129 +24,133 @@
 - [llms/zh/07.md](llms/zh/07.md): docs/zh/10-troubleshooting/05-build-issues.md … docs/zh/11-reference/06-market-api.md
 <!-- llms:bundles:end -->
 
+## 回答一个问题
+
+在下面按说明找到对得上问题的那一页，只抓那一页。要找某个功能的代码在哪，读 [AGENTS.zh.md](AGENTS.zh.md) 里的代码地图（§10）。
+
 ## 顶层文件
 
-- [AGENTS.zh.md](https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.zh.md): AI 总路由——三层检索路径、分形架构、十条原则、命令集、不做清单
-- [README.zh.md](https://raw.githubusercontent.com/brickKit/brickKit/main/README.zh.md): 项目门面——是什么、怎么装、一分钟示例
-- [docs/zh/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/README.md): 中文文档总目录与阅读顺序
+- [AGENTS.zh.md](AGENTS.zh.md): AI 总路由——三层检索路径、分形架构、十条原则、命令集、不做清单
+- [README.zh.md](README.zh.md): 项目门面——是什么、怎么装、一分钟示例
+- [docs/zh/README.md](docs/zh/README.md): 中文文档总目录与阅读顺序
 
 ## 文档（docs/zh/）
 
 ### 00-intro/
-- [docs/zh/00-intro/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/README.md): 模块索引与阅读顺序
-- [docs/zh/00-intro/01-what-is-brickkit.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/01-what-is-brickkit.md): BrickKit 是什么——定位、核心理念、分形架构引出
-- [docs/zh/00-intro/02-quick-start.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/02-quick-start.md): 快速开始——5 分钟从空目录到 curl 通容器
-- [docs/zh/00-intro/03-shell-completion.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/03-shell-completion.md): 命令补全——install.sh 设置了什么、怎么确认、bash / zsh / fish / PowerShell 手动设置
-- [docs/zh/00-intro/04-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/04-core-concepts.md): 核心概念术语表——组件、三层文件、外壳、分形、契约
-- [docs/zh/00-intro/05-comparison.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/05-comparison.md): 与 Compose/Helm/Kustomize/Tilt/Backstage 的对比
-- [docs/zh/00-intro/06-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/00-intro/06-fractal-architecture.md): 分形架构——开发态与消费态、物理不套娃规范套娃
+- [docs/zh/00-intro/README.md](docs/zh/00-intro/README.md): 模块索引与阅读顺序
+- [docs/zh/00-intro/01-what-is-brickkit.md](docs/zh/00-intro/01-what-is-brickkit.md): BrickKit 是什么——定位、核心理念、分形架构引出
+- [docs/zh/00-intro/02-quick-start.md](docs/zh/00-intro/02-quick-start.md): 快速开始——5 分钟从空目录到 curl 通容器
+- [docs/zh/00-intro/03-shell-completion.md](docs/zh/00-intro/03-shell-completion.md): 命令补全——install.sh 设置了什么、怎么确认、bash / zsh / fish / PowerShell 手动设置
+- [docs/zh/00-intro/04-core-concepts.md](docs/zh/00-intro/04-core-concepts.md): 核心概念术语表——组件、三层文件、外壳、分形、契约
+- [docs/zh/00-intro/05-comparison.md](docs/zh/00-intro/05-comparison.md): 与 Compose/Helm/Kustomize/Tilt/Backstage 的对比
+- [docs/zh/00-intro/06-fractal-architecture.md](docs/zh/00-intro/06-fractal-architecture.md): 分形架构——开发态与消费态、物理不套娃规范套娃
 
 ### 01-three-layers/
-- [docs/zh/01-three-layers/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/README.md): 模块索引
-- [docs/zh/01-three-layers/01-overview.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/01-overview.md): 三层架构总览——目录结构、职责表、检索路径
-- [docs/zh/01-three-layers/02-brickkit-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/02-brickkit-yaml.md): brickkit.yaml 详解——字段、精确版本、Lock File 角色
-- [docs/zh/01-three-layers/03-deploy-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/03-deploy-yaml.md): deploy.yaml 详解——target、mode、members、vars
-- [docs/zh/01-three-layers/04-deploy-local-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/04-deploy-local-yaml.md): deploy.local.yaml 详解——完整替换、严格校验、refresh、个人的 focus 字段
-- [docs/zh/01-three-layers/05-config-directory.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/05-config-directory.md): config/ 目录详解——命名、版本感知、归档
-- [docs/zh/01-three-layers/06-vars-and-var-ref.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/06-vars-and-var-ref.md): 公共变量与 $var: 显式引用——语法、规则、为什么不用隐式
-- [docs/zh/01-three-layers/07-sensitive-values.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/07-sensitive-values.md): 敏感值处理——${}、file://、不做隐式覆盖
-- [docs/zh/01-three-layers/08-resolution-priority.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/08-resolution-priority.md): 配置解析优先级——四级、冲突行为
-- [docs/zh/01-three-layers/09-field-reference.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/01-three-layers/09-field-reference.md): 字段完整参考——三个文件的字段速查表
+- [docs/zh/01-three-layers/README.md](docs/zh/01-three-layers/README.md): 模块索引
+- [docs/zh/01-three-layers/01-overview.md](docs/zh/01-three-layers/01-overview.md): 三层架构总览——目录结构、职责表、检索路径
+- [docs/zh/01-three-layers/02-brickkit-yaml.md](docs/zh/01-three-layers/02-brickkit-yaml.md): brickkit.yaml 详解——字段、精确版本、Lock File 角色
+- [docs/zh/01-three-layers/03-deploy-yaml.md](docs/zh/01-three-layers/03-deploy-yaml.md): deploy.yaml 详解——target、mode、members、vars
+- [docs/zh/01-three-layers/04-deploy-local-yaml.md](docs/zh/01-three-layers/04-deploy-local-yaml.md): deploy.local.yaml 详解——完整替换、严格校验、refresh、个人的 focus 字段
+- [docs/zh/01-three-layers/05-config-directory.md](docs/zh/01-three-layers/05-config-directory.md): config/ 目录详解——命名、版本感知、归档
+- [docs/zh/01-three-layers/06-vars-and-var-ref.md](docs/zh/01-three-layers/06-vars-and-var-ref.md): 公共变量与 $var: 显式引用——语法、规则、为什么不用隐式
+- [docs/zh/01-three-layers/07-sensitive-values.md](docs/zh/01-three-layers/07-sensitive-values.md): 敏感值处理——${}、file://、不做隐式覆盖
+- [docs/zh/01-three-layers/08-resolution-priority.md](docs/zh/01-three-layers/08-resolution-priority.md): 配置解析优先级——四级、冲突行为
+- [docs/zh/01-three-layers/09-field-reference.md](docs/zh/01-three-layers/09-field-reference.md): 字段完整参考——三个文件的字段速查表
 
 ### 02-project-guide/
-- [docs/zh/02-project-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/README.md): 模块索引——面向项目管理者
-- [docs/zh/02-project-guide/01-init-and-project-creation.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/01-init-and-project-creation.md): 创建项目——三层骨架、补全式初始化（已有目录）、克隆不需要 init
-- [docs/zh/02-project-guide/02-add-and-component-install.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/02-add-and-component-install.md): 添加组件——副作用、--local、--init
-- [docs/zh/02-project-guide/03-local-debug-workflow.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/03-local-debug-workflow.md): 本地调试工作流——local on、debug、refresh
-- [docs/zh/02-project-guide/04-focus-run.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/04-focus-run.md): 在项目里就地开发——在组件目录里 up、--focus / --all、只有一个 components/
-- [docs/zh/02-project-guide/05-multi-env-switch.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/05-multi-env-switch.md): 多环境切换——--file、vars 覆盖
-- [docs/zh/02-project-guide/06-up-and-down.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/06-up-and-down.md): 启动与停止——六步流程、镜像检查、绝不自动 build
-- [docs/zh/02-project-guide/07-upgrade-and-migration.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/07-upgrade-and-migration.md): 升级与配置迁移——算法、冲突、重复 key
-- [docs/zh/02-project-guide/08-remove-and-archive.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/08-remove-and-archive.md): 移除与归档——.archive/、恢复走迁移算法
-- [docs/zh/02-project-guide/09-status-and-graph.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/09-status-and-graph.md): 状态与拓扑——status 表格、graph Mermaid、deps
-- [docs/zh/02-project-guide/10-lint-and-checks.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/10-lint-and-checks.md): 离线检查——八项检查、--strict、与 up --dry-run 的边界
-- [docs/zh/02-project-guide/11-sync-and-restore.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/11-sync-and-restore.md): 源码管理——sync 归档/激活（不看焦点）、restore 还原
-- [docs/zh/02-project-guide/12-build-and-images.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/02-project-guide/12-build-and-images.md): 构建与镜像——--force、缓存、Tag 对齐、空的 submodule
+- [docs/zh/02-project-guide/README.md](docs/zh/02-project-guide/README.md): 模块索引——面向项目管理者
+- [docs/zh/02-project-guide/01-init-and-project-creation.md](docs/zh/02-project-guide/01-init-and-project-creation.md): 创建项目——三层骨架、补全式初始化（已有目录）、克隆不需要 init
+- [docs/zh/02-project-guide/02-add-and-component-install.md](docs/zh/02-project-guide/02-add-and-component-install.md): 添加组件——副作用、--local、--init
+- [docs/zh/02-project-guide/03-local-debug-workflow.md](docs/zh/02-project-guide/03-local-debug-workflow.md): 本地调试工作流——local on、debug、refresh
+- [docs/zh/02-project-guide/04-focus-run.md](docs/zh/02-project-guide/04-focus-run.md): 在项目里就地开发——在组件目录里 up、--focus / --all、只有一个 components/
+- [docs/zh/02-project-guide/05-multi-env-switch.md](docs/zh/02-project-guide/05-multi-env-switch.md): 多环境切换——--file、vars 覆盖
+- [docs/zh/02-project-guide/06-up-and-down.md](docs/zh/02-project-guide/06-up-and-down.md): 启动与停止——六步流程、镜像检查、绝不自动 build
+- [docs/zh/02-project-guide/07-upgrade-and-migration.md](docs/zh/02-project-guide/07-upgrade-and-migration.md): 升级与配置迁移——算法、冲突、重复 key
+- [docs/zh/02-project-guide/08-remove-and-archive.md](docs/zh/02-project-guide/08-remove-and-archive.md): 移除与归档——.archive/、恢复走迁移算法
+- [docs/zh/02-project-guide/09-status-and-graph.md](docs/zh/02-project-guide/09-status-and-graph.md): 状态与拓扑——status 表格、graph Mermaid、deps
+- [docs/zh/02-project-guide/10-lint-and-checks.md](docs/zh/02-project-guide/10-lint-and-checks.md): 离线检查——八项检查、--strict、与 up --dry-run 的边界
+- [docs/zh/02-project-guide/11-sync-and-restore.md](docs/zh/02-project-guide/11-sync-and-restore.md): 源码管理——sync 归档/激活（不看焦点）、restore 还原
+- [docs/zh/02-project-guide/12-build-and-images.md](docs/zh/02-project-guide/12-build-and-images.md): 构建与镜像——--force、缓存、Tag 对齐、空的 submodule
 
 ### 03-component-guide/
-- [docs/zh/03-component-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/README.md): 模块索引——面向组件开发者
-- [docs/zh/03-component-guide/01-component-anatomy.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/01-component-anatomy.md): 组件仓库结构——标准目录、一组件一仓库
-- [docs/zh/03-component-guide/02-component-yaml-reference.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/02-component-yaml-reference.md): component.yaml 字段参考
-- [docs/zh/03-component-guide/03-config-schema-design.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/03-config-schema-design.md): configSchema 设计准则——组件自治、读写分离
-- [docs/zh/03-component-guide/04-new-and-skeleton.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/04-new-and-skeleton.md): 创建组件骨架——--path、--contract、--shell
-- [docs/zh/03-component-guide/05-local-dev-fractal.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/05-local-dev-fractal.md): 分形开发模式——组件内 init、联调、release 行为
-- [docs/zh/03-component-guide/06-artifacts-and-contracts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/06-artifacts-and-contracts.md): 契约与产物——artifacts、fetch、契约先行
-- [docs/zh/03-component-guide/07-release-workflow.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/07-release-workflow.md): 发布流程——六步、原子性、--local 批量
-- [docs/zh/03-component-guide/08-component-doc-spec.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/08-component-doc-spec.md): 组件文档规范——BRICKKIT.md 五个区块
-- [docs/zh/03-component-guide/09-multi-version-coexistence.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/09-multi-version-coexistence.md): 多版本共存——精确版本化服务名
-- [docs/zh/03-component-guide/10-git-distribution.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/03-component-guide/10-git-distribution.md): Git 分发机制——Bare Repo、四级优先级、鉴权
+- [docs/zh/03-component-guide/README.md](docs/zh/03-component-guide/README.md): 模块索引——面向组件开发者
+- [docs/zh/03-component-guide/01-component-anatomy.md](docs/zh/03-component-guide/01-component-anatomy.md): 组件仓库结构——标准目录、一组件一仓库
+- [docs/zh/03-component-guide/02-component-yaml-reference.md](docs/zh/03-component-guide/02-component-yaml-reference.md): component.yaml 字段参考
+- [docs/zh/03-component-guide/03-config-schema-design.md](docs/zh/03-component-guide/03-config-schema-design.md): configSchema 设计准则——组件自治、读写分离
+- [docs/zh/03-component-guide/04-new-and-skeleton.md](docs/zh/03-component-guide/04-new-and-skeleton.md): 创建组件骨架——--path、--contract、--shell
+- [docs/zh/03-component-guide/05-local-dev-fractal.md](docs/zh/03-component-guide/05-local-dev-fractal.md): 分形开发模式——组件内 init、联调、release 行为
+- [docs/zh/03-component-guide/06-artifacts-and-contracts.md](docs/zh/03-component-guide/06-artifacts-and-contracts.md): 契约与产物——artifacts、fetch、契约先行
+- [docs/zh/03-component-guide/07-release-workflow.md](docs/zh/03-component-guide/07-release-workflow.md): 发布流程——六步、原子性、--local 批量
+- [docs/zh/03-component-guide/08-component-doc-spec.md](docs/zh/03-component-guide/08-component-doc-spec.md): 组件文档规范——BRICKKIT.md 五个区块
+- [docs/zh/03-component-guide/09-multi-version-coexistence.md](docs/zh/03-component-guide/09-multi-version-coexistence.md): 多版本共存——精确版本化服务名
+- [docs/zh/03-component-guide/10-git-distribution.md](docs/zh/03-component-guide/10-git-distribution.md): Git 分发机制——Bare Repo、四级优先级、鉴权
 
 ### 04-shell/
-- [docs/zh/04-shell/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/04-shell/README.md): 模块索引——外壳是什么、什么时候用
-- [docs/zh/04-shell/01-shell-concept.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/04-shell/01-shell-concept.md): 外壳概念——单体进程、1:N、适用与不适用场景
-- [docs/zh/04-shell/02-json-injection.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/04-shell/02-json-injection.md): JSON 配置注入——环境变量名、结构、外壳职责
-- [docs/zh/04-shell/03-shell-declaration.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/04-shell/03-shell-declaration.md): 外壳声明——能力声明与实际关系
-- [docs/zh/04-shell/04-members-management.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/04-shell/04-members-management.md): 成员管理——加入/移出/删除外壳
-- [docs/zh/04-shell/05-shell-development.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/04-shell/05-shell-development.md): 开发一个外壳——启动代码、配置分发、_ENDPOINT
-- [docs/zh/04-shell/06-special-characters.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/04-shell/06-special-characters.md): 特殊字符处理——PEM、JSON 编码、大声失败
-- [docs/zh/04-shell/07-shell-upgrade.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/04-shell/07-shell-upgrade.md): 外壳升级——成员版本随外壳切换、单版本约束
-- [docs/zh/04-shell/08-shell-config.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/04-shell/08-shell-config.md): 外壳自身配置——普通环境变量 + JSON 并存
+- [docs/zh/04-shell/README.md](docs/zh/04-shell/README.md): 模块索引——外壳是什么、什么时候用
+- [docs/zh/04-shell/01-shell-concept.md](docs/zh/04-shell/01-shell-concept.md): 外壳概念——单体进程、1:N、适用与不适用场景
+- [docs/zh/04-shell/02-json-injection.md](docs/zh/04-shell/02-json-injection.md): JSON 配置注入——环境变量名、结构、外壳职责
+- [docs/zh/04-shell/03-shell-declaration.md](docs/zh/04-shell/03-shell-declaration.md): 外壳声明——能力声明与实际关系
+- [docs/zh/04-shell/04-members-management.md](docs/zh/04-shell/04-members-management.md): 成员管理——加入/移出/删除外壳
+- [docs/zh/04-shell/05-shell-development.md](docs/zh/04-shell/05-shell-development.md): 开发一个外壳——启动代码、配置分发、_ENDPOINT
+- [docs/zh/04-shell/06-special-characters.md](docs/zh/04-shell/06-special-characters.md): 特殊字符处理——PEM、JSON 编码、大声失败
+- [docs/zh/04-shell/07-shell-upgrade.md](docs/zh/04-shell/07-shell-upgrade.md): 外壳升级——成员版本随外壳切换、单版本约束
+- [docs/zh/04-shell/08-shell-config.md](docs/zh/04-shell/08-shell-config.md): 外壳自身配置——普通环境变量 + JSON 并存
 
 ### 05-migration/
-- [docs/zh/05-migration/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/05-migration/README.md): 模块索引
-- [docs/zh/05-migration/01-migration-service.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/05-migration/01-migration-service.md): Migration Service——一次性容器、depends_on
-- [docs/zh/05-migration/02-env-passthrough.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/05-migration/02-env-passthrough.md): 环境变量透传——平台不拼连接串、组件自行处理
-- [docs/zh/05-migration/03-multi-version-chain.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/05-migration/03-multi-version-chain.md): 多版本迁移顺序——Migration Chain、compose 示例
-- [docs/zh/05-migration/04-shell-interaction.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/05-migration/04-shell-interaction.md): 与外壳的交互——迁移容器独立生成
+- [docs/zh/05-migration/README.md](docs/zh/05-migration/README.md): 模块索引
+- [docs/zh/05-migration/01-migration-service.md](docs/zh/05-migration/01-migration-service.md): Migration Service——一次性容器、depends_on
+- [docs/zh/05-migration/02-env-passthrough.md](docs/zh/05-migration/02-env-passthrough.md): 环境变量透传——平台不拼连接串、组件自行处理
+- [docs/zh/05-migration/03-multi-version-chain.md](docs/zh/05-migration/03-multi-version-chain.md): 多版本迁移顺序——Migration Chain、compose 示例
+- [docs/zh/05-migration/04-shell-interaction.md](docs/zh/05-migration/04-shell-interaction.md): 与外壳的交互——迁移容器独立生成
 
 ### 06-architecture/
-- [docs/zh/06-architecture/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/README.md): 模块索引——面向想深入理解原理的人
-- [docs/zh/06-architecture/01-pipeline-overview.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/01-pipeline-overview.md): 架构总览——声明到运行容器的完整流水线
-- [docs/zh/06-architecture/02-dependency-resolution.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/02-dependency-resolution.md): 依赖解析——拓扑排序、菱形、循环、多版本
-- [docs/zh/06-architecture/03-env-injection-contract.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/03-env-injection-contract.md): 环境变量注入契约——所有变量字典
-- [docs/zh/06-architecture/04-deploy-file-generation.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/04-deploy-file-generation.md): 部署文件生成——Compose 与 K8s 对照
-- [docs/zh/06-architecture/05-design-principles.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/05-design-principles.md): 设计原则与取舍——十条原则逐条论证
-- [docs/zh/06-architecture/06-bare-repo-mechanism.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/06-bare-repo-mechanism.md): Bare Repo 增量机制——四级优先级、从不拉取 submodule
-- [docs/zh/06-architecture/07-cache-design.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/07-cache-design.md): 缓存设计——永久缓存、首次克隆再生
-- [docs/zh/06-architecture/08-security-and-signing.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/08-security-and-signing.md): 安全与签名——cosign、标准库验签
-- [docs/zh/06-architecture/09-error-codes.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/06-architecture/09-error-codes.md): 错误码字典——所有错误码、退出码
+- [docs/zh/06-architecture/README.md](docs/zh/06-architecture/README.md): 模块索引——面向想深入理解原理的人
+- [docs/zh/06-architecture/01-pipeline-overview.md](docs/zh/06-architecture/01-pipeline-overview.md): 架构总览——声明到运行容器的完整流水线
+- [docs/zh/06-architecture/02-dependency-resolution.md](docs/zh/06-architecture/02-dependency-resolution.md): 依赖解析——拓扑排序、菱形、循环、多版本
+- [docs/zh/06-architecture/03-env-injection-contract.md](docs/zh/06-architecture/03-env-injection-contract.md): 环境变量注入契约——所有变量字典
+- [docs/zh/06-architecture/04-deploy-file-generation.md](docs/zh/06-architecture/04-deploy-file-generation.md): 部署文件生成——Compose 与 K8s 对照
+- [docs/zh/06-architecture/05-design-principles.md](docs/zh/06-architecture/05-design-principles.md): 设计原则与取舍——十条原则逐条论证
+- [docs/zh/06-architecture/06-bare-repo-mechanism.md](docs/zh/06-architecture/06-bare-repo-mechanism.md): Bare Repo 增量机制——四级优先级、从不拉取 submodule
+- [docs/zh/06-architecture/07-cache-design.md](docs/zh/06-architecture/07-cache-design.md): 缓存设计——永久缓存、首次克隆再生
+- [docs/zh/06-architecture/08-security-and-signing.md](docs/zh/06-architecture/08-security-and-signing.md): 安全与签名——cosign、标准库验签
+- [docs/zh/06-architecture/09-error-codes.md](docs/zh/06-architecture/09-error-codes.md): 错误码字典——所有错误码、退出码
 
 ### 07-cli-reference/
-- [docs/zh/07-cli-reference/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/07-cli-reference/README.md): CLI 命令完整参考——21 个命令与每条命令的全部参数、在子目录里运行、命令补全
+- [docs/zh/07-cli-reference/README.md](docs/zh/07-cli-reference/README.md): CLI 命令完整参考——21 个命令与每条命令的全部参数、在子目录里运行、命令补全
 
 ### 08-ai-guide/
-- [docs/zh/08-ai-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/08-ai-guide/README.md): 模块索引——面向 AI 助手
-- [docs/zh/08-ai-guide/01-ai-routing-table.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/08-ai-guide/01-ai-routing-table.md): AI 文件路由表——按需读取、绝不全量
-- [docs/zh/08-ai-guide/02-ai-dev-workflow.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/08-ai-guide/02-ai-dev-workflow.md): AI 辅助开发工作流——从读文档到写代码到发布
-- [docs/zh/08-ai-guide/03-component-doc-spec.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/08-ai-guide/03-component-doc-spec.md): 组件文档规范（AI 视角）——如何消费和生成
-- [docs/zh/08-ai-guide/04-fractal-reading.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/08-ai-guide/04-fractal-reading.md): 分形架构下的读取策略——三层路由、上下文管理
+- [docs/zh/08-ai-guide/README.md](docs/zh/08-ai-guide/README.md): 模块索引——面向 AI 助手
+- [docs/zh/08-ai-guide/01-ai-routing-table.md](docs/zh/08-ai-guide/01-ai-routing-table.md): AI 文件路由表——按需读取、绝不全量
+- [docs/zh/08-ai-guide/02-ai-dev-workflow.md](docs/zh/08-ai-guide/02-ai-dev-workflow.md): AI 辅助开发工作流——从读文档到写代码到发布
+- [docs/zh/08-ai-guide/03-component-doc-spec.md](docs/zh/08-ai-guide/03-component-doc-spec.md): 组件文档规范（AI 视角）——如何消费和生成
+- [docs/zh/08-ai-guide/04-fractal-reading.md](docs/zh/08-ai-guide/04-fractal-reading.md): 分形架构下的读取策略——三层路由、上下文管理
 
 ### 09-patterns/
-- [docs/zh/09-patterns/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/09-patterns/README.md): 模块索引——不是"怎么用"，是"怎么用好"
-- [docs/zh/09-patterns/01-component-design.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/09-patterns/01-component-design.md): 组件设计准则——粒度、DDD 对照、失败模式
-- [docs/zh/09-patterns/02-testing-strategy.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/09-patterns/02-testing-strategy.md): 测试策略——四层分工
-- [docs/zh/09-patterns/03-seed-data.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/09-patterns/03-seed-data.md): 种子数据设计——两条路径物理隔离
-- [docs/zh/09-patterns/04-service-calling.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/09-patterns/04-service-calling.md): 可靠调用依赖——DNS 缓存、超时、各语言行为
-- [docs/zh/09-patterns/05-deployment-selection.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/09-patterns/05-deployment-selection.md): 部署形态选择——拓扑 × 部署目标 × 本地模式
+- [docs/zh/09-patterns/README.md](docs/zh/09-patterns/README.md): 模块索引——不是"怎么用"，是"怎么用好"
+- [docs/zh/09-patterns/01-component-design.md](docs/zh/09-patterns/01-component-design.md): 组件设计准则——粒度、DDD 对照、失败模式
+- [docs/zh/09-patterns/02-testing-strategy.md](docs/zh/09-patterns/02-testing-strategy.md): 测试策略——四层分工
+- [docs/zh/09-patterns/03-seed-data.md](docs/zh/09-patterns/03-seed-data.md): 种子数据设计——两条路径物理隔离
+- [docs/zh/09-patterns/04-service-calling.md](docs/zh/09-patterns/04-service-calling.md): 可靠调用依赖——DNS 缓存、超时、各语言行为
+- [docs/zh/09-patterns/05-deployment-selection.md](docs/zh/09-patterns/05-deployment-selection.md): 部署形态选择——拓扑 × 部署目标 × 本地模式
 
 ### 10-troubleshooting/
-- [docs/zh/10-troubleshooting/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/10-troubleshooting/README.md): 模块索引——格式：症状 → 原因 → 解决
-- [docs/zh/10-troubleshooting/01-up-down-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/10-troubleshooting/01-up-down-issues.md): up/down 常见问题
-- [docs/zh/10-troubleshooting/02-local-debug-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/10-troubleshooting/02-local-debug-issues.md): 本地调试问题——过期、校验报错
-- [docs/zh/10-troubleshooting/03-config-conflict-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/10-troubleshooting/03-config-conflict-issues.md): 配置冲突——重复 key、$var: 缺失
-- [docs/zh/10-troubleshooting/04-git-auth-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/10-troubleshooting/04-git-auth-issues.md): Git 鉴权问题——SSH/HTTPS/CI
-- [docs/zh/10-troubleshooting/05-build-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/10-troubleshooting/05-build-issues.md): 构建问题——--force、Dockerfile 错误
-- [docs/zh/10-troubleshooting/06-shell-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/10-troubleshooting/06-shell-issues.md): 外壳问题——JSON 解析、特殊字符
-- [docs/zh/10-troubleshooting/07-migration-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/10-troubleshooting/07-migration-issues.md): 迁移问题——超时、顺序、连接串
-- [docs/zh/10-troubleshooting/08-lint-and-schema-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/10-troubleshooting/08-lint-and-schema-issues.md): lint 与 Schema 问题
+- [docs/zh/10-troubleshooting/README.md](docs/zh/10-troubleshooting/README.md): 模块索引——格式：症状 → 原因 → 解决
+- [docs/zh/10-troubleshooting/01-up-down-issues.md](docs/zh/10-troubleshooting/01-up-down-issues.md): up/down 常见问题
+- [docs/zh/10-troubleshooting/02-local-debug-issues.md](docs/zh/10-troubleshooting/02-local-debug-issues.md): 本地调试问题——过期、校验报错
+- [docs/zh/10-troubleshooting/03-config-conflict-issues.md](docs/zh/10-troubleshooting/03-config-conflict-issues.md): 配置冲突——重复 key、$var: 缺失
+- [docs/zh/10-troubleshooting/04-git-auth-issues.md](docs/zh/10-troubleshooting/04-git-auth-issues.md): Git 鉴权问题——SSH/HTTPS/CI
+- [docs/zh/10-troubleshooting/05-build-issues.md](docs/zh/10-troubleshooting/05-build-issues.md): 构建问题——--force、Dockerfile 错误
+- [docs/zh/10-troubleshooting/06-shell-issues.md](docs/zh/10-troubleshooting/06-shell-issues.md): 外壳问题——JSON 解析、特殊字符
+- [docs/zh/10-troubleshooting/07-migration-issues.md](docs/zh/10-troubleshooting/07-migration-issues.md): 迁移问题——超时、顺序、连接串
+- [docs/zh/10-troubleshooting/08-lint-and-schema-issues.md](docs/zh/10-troubleshooting/08-lint-and-schema-issues.md): lint 与 Schema 问题
 
 ### 11-reference/
-- [docs/zh/11-reference/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/11-reference/README.md): 模块索引——机器可读的精确规格
-- [docs/zh/11-reference/01-component-yaml-schema.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/11-reference/01-component-yaml-schema.md): component.yaml 完整字段参考
-- [docs/zh/11-reference/02-brickkit-yaml-schema.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/11-reference/02-brickkit-yaml-schema.md): brickkit.yaml 完整字段参考
-- [docs/zh/11-reference/03-deploy-yaml-schema.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/11-reference/03-deploy-yaml-schema.md): deploy.yaml 完整字段参考
-- [docs/zh/11-reference/04-config-schema-spec.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/11-reference/04-config-schema-spec.md): configSchema 规格——字段、类型、只检查键名不检查值
-- [docs/zh/11-reference/05-json-schemas.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/11-reference/05-json-schemas.md): JSON Schema 文件——编辑器集成
-- [docs/zh/11-reference/06-market-api.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/zh/11-reference/06-market-api.md): 组件市场 API（可选的基础设施）
+- [docs/zh/11-reference/README.md](docs/zh/11-reference/README.md): 模块索引——机器可读的精确规格
+- [docs/zh/11-reference/01-component-yaml-schema.md](docs/zh/11-reference/01-component-yaml-schema.md): component.yaml 完整字段参考
+- [docs/zh/11-reference/02-brickkit-yaml-schema.md](docs/zh/11-reference/02-brickkit-yaml-schema.md): brickkit.yaml 完整字段参考
+- [docs/zh/11-reference/03-deploy-yaml-schema.md](docs/zh/11-reference/03-deploy-yaml-schema.md): deploy.yaml 完整字段参考
+- [docs/zh/11-reference/04-config-schema-spec.md](docs/zh/11-reference/04-config-schema-spec.md): configSchema 规格——字段、类型、只检查键名不检查值
+- [docs/zh/11-reference/05-json-schemas.md](docs/zh/11-reference/05-json-schemas.md): JSON Schema 文件——编辑器集成
+- [docs/zh/11-reference/06-market-api.md](docs/zh/11-reference/06-market-api.md): 组件市场 API（可选的基础设施）
 
 教程（`tutorials/zh/`）尚未编写，写好后会列在这里。历史归档（`archive/`）不在索引之内。

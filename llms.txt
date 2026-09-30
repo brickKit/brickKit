@@ -6,12 +6,15 @@
 
 Repository: https://github.com/brickKit/brickKit | License: Apache-2.0
 
-If you are an AI assistant, fetch `AGENTS.md` first — one file that is enough to understand the whole platform.
-**If the question you were asked is in Chinese, stop here and fetch
-[`llms.zh.txt`](https://raw.githubusercontent.com/brickKit/brickKit/main/llms.zh.txt)** instead — the same kind of index,
-written independently for the Chinese documentation tree, not a translation of this file.
+Paths below are relative to the repository root. On the web, prefix them with
+https://raw.githubusercontent.com/brickKit/brickKit/main/ . **If the question you were asked is in Chinese, read
+[`llms.zh.txt`](llms.zh.txt) instead** — the same kind of index, written independently for the Chinese documentation
+tree, not a translation of this file.
 
 ## Read everything
+
+These files are the whole documentation, every page once, in reading order; each stays under 100 KB, so one fetch
+reads it whole. `00-core` alone — AGENTS.md plus the core pages — is enough to understand and discuss BrickKit.
 
 <!-- llms:bundles:begin -->
 - [llms/en/00-core.md](llms/en/00-core.md): AGENTS.md … docs/en/01-three-layers/09-field-reference.md
@@ -25,130 +28,135 @@ written independently for the Chinese documentation tree, not a translation of t
 - [llms/en/08.md](llms/en/08.md): docs/en/10-troubleshooting/03-config-conflict-issues.md … docs/en/11-reference/06-market-api.md
 <!-- llms:bundles:end -->
 
+## Answer a question
+
+Find the page whose description below fits the question and fetch just that page. For where a feature lives in the
+code, read the code map in [AGENTS.md](AGENTS.md) (§10).
+
 ## Top-level files
 
-- [AGENTS.md](https://raw.githubusercontent.com/brickKit/brickKit/main/AGENTS.md): the AI entry point — where each answer lives, the fractal structure, the ten principles, the command set, what the platform won't do
-- [README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/README.md): the front page — what it is, how to install it, a one-minute example
-- [docs/en/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/README.md): the English docs index and reading order
+- [AGENTS.md](AGENTS.md): the AI entry point — where each answer lives, the fractal structure, the ten principles, the command set, what the platform won't do
+- [README.md](README.md): the front page — what it is, how to install it, a one-minute example
+- [docs/en/README.md](docs/en/README.md): the English docs index and reading order
 
 ## Documentation (docs/en/)
 
 ### 00-intro/
-- [docs/en/00-intro/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/README.md): module index and reading order
-- [docs/en/00-intro/01-what-is-brickkit.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/01-what-is-brickkit.md): what BrickKit is — its place, its core ideas, why it is fractal
-- [docs/en/00-intro/02-quick-start.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/02-quick-start.md): quick start — from an empty directory to curling a container in five minutes
-- [docs/en/00-intro/03-shell-completion.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/03-shell-completion.md): shell completion — what install.sh set up, checking it, bash / zsh / fish / PowerShell by hand
-- [docs/en/00-intro/04-core-concepts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/04-core-concepts.md): glossary — component, the three layers, shell, fractal, contract
-- [docs/en/00-intro/05-comparison.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/05-comparison.md): how it compares with Compose, Helm, Kustomize, Tilt and Backstage
-- [docs/en/00-intro/06-fractal-architecture.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/00-intro/06-fractal-architecture.md): the fractal structure — developing a component vs. using one
+- [docs/en/00-intro/README.md](docs/en/00-intro/README.md): module index and reading order
+- [docs/en/00-intro/01-what-is-brickkit.md](docs/en/00-intro/01-what-is-brickkit.md): what BrickKit is — its place, its core ideas, why it is fractal
+- [docs/en/00-intro/02-quick-start.md](docs/en/00-intro/02-quick-start.md): quick start — from an empty directory to curling a container in five minutes
+- [docs/en/00-intro/03-shell-completion.md](docs/en/00-intro/03-shell-completion.md): shell completion — what install.sh set up, checking it, bash / zsh / fish / PowerShell by hand
+- [docs/en/00-intro/04-core-concepts.md](docs/en/00-intro/04-core-concepts.md): glossary — component, the three layers, shell, fractal, contract
+- [docs/en/00-intro/05-comparison.md](docs/en/00-intro/05-comparison.md): how it compares with Compose, Helm, Kustomize, Tilt and Backstage
+- [docs/en/00-intro/06-fractal-architecture.md](docs/en/00-intro/06-fractal-architecture.md): the fractal structure — developing a component vs. using one
 
 ### 01-three-layers/
-- [docs/en/01-three-layers/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/README.md): module index
-- [docs/en/01-three-layers/01-overview.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/01-overview.md): overview — directory layout, who owns what, where to look
-- [docs/en/01-three-layers/02-brickkit-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/02-brickkit-yaml.md): brickkit.yaml — fields, exact versions, its role as the lock file
-- [docs/en/01-three-layers/03-deploy-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/03-deploy-yaml.md): deploy.yaml — target, mode, members, vars
-- [docs/en/01-three-layers/04-deploy-local-yaml.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/04-deploy-local-yaml.md): deploy.local.yaml — whole-file replacement, strict checks, refresh, the personal focus field
-- [docs/en/01-three-layers/05-config-directory.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/05-config-directory.md): the config/ directory — file names, per-version files, the archive
-- [docs/en/01-three-layers/06-vars-and-var-ref.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/06-vars-and-var-ref.md): shared variables and explicit $var: references — syntax, rules, why nothing is implicit
-- [docs/en/01-three-layers/07-sensitive-values.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/07-sensitive-values.md): secrets — ${}, file://, and why the environment never overrides silently
-- [docs/en/01-three-layers/08-resolution-priority.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/08-resolution-priority.md): where a config value comes from — the four levels, what happens on conflict
-- [docs/en/01-three-layers/09-field-reference.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/01-three-layers/09-field-reference.md): quick field reference for the three files
+- [docs/en/01-three-layers/README.md](docs/en/01-three-layers/README.md): module index
+- [docs/en/01-three-layers/01-overview.md](docs/en/01-three-layers/01-overview.md): overview — directory layout, who owns what, where to look
+- [docs/en/01-three-layers/02-brickkit-yaml.md](docs/en/01-three-layers/02-brickkit-yaml.md): brickkit.yaml — fields, exact versions, its role as the lock file
+- [docs/en/01-three-layers/03-deploy-yaml.md](docs/en/01-three-layers/03-deploy-yaml.md): deploy.yaml — target, mode, members, vars
+- [docs/en/01-three-layers/04-deploy-local-yaml.md](docs/en/01-three-layers/04-deploy-local-yaml.md): deploy.local.yaml — whole-file replacement, strict checks, refresh, the personal focus field
+- [docs/en/01-three-layers/05-config-directory.md](docs/en/01-three-layers/05-config-directory.md): the config/ directory — file names, per-version files, the archive
+- [docs/en/01-three-layers/06-vars-and-var-ref.md](docs/en/01-three-layers/06-vars-and-var-ref.md): shared variables and explicit $var: references — syntax, rules, why nothing is implicit
+- [docs/en/01-three-layers/07-sensitive-values.md](docs/en/01-three-layers/07-sensitive-values.md): secrets — ${}, file://, and why the environment never overrides silently
+- [docs/en/01-three-layers/08-resolution-priority.md](docs/en/01-three-layers/08-resolution-priority.md): where a config value comes from — the four levels, what happens on conflict
+- [docs/en/01-three-layers/09-field-reference.md](docs/en/01-three-layers/09-field-reference.md): quick field reference for the three files
 
 ### 02-project-guide/
-- [docs/en/02-project-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/README.md): module index — for people running a project
-- [docs/en/02-project-guide/01-init-and-project-creation.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/01-init-and-project-creation.md): creating a project — the skeleton, completing an existing directory, why a clone needs no init
-- [docs/en/02-project-guide/02-add-and-component-install.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/02-add-and-component-install.md): adding components — what add writes, --local, --init
-- [docs/en/02-project-guide/03-local-debug-workflow.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/03-local-debug-workflow.md): local debugging — local on, mode: debug, refresh
-- [docs/en/02-project-guide/04-focus-run.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/04-focus-run.md): developing inside the project — up from a component's directory, --focus / --all, one components/
-- [docs/en/02-project-guide/05-multi-env-switch.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/05-multi-env-switch.md): several environments — --file, per-environment vars
-- [docs/en/02-project-guide/06-up-and-down.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/06-up-and-down.md): starting and stopping — what up does, the image check, never building
-- [docs/en/02-project-guide/07-upgrade-and-migration.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/07-upgrade-and-migration.md): upgrading and config migration — the rules, conflicts, duplicate keys
-- [docs/en/02-project-guide/08-remove-and-archive.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/08-remove-and-archive.md): removing and archiving — .archive/, restoring through migration
-- [docs/en/02-project-guide/09-status-and-graph.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/09-status-and-graph.md): status and topology — the status table, graph as Mermaid, deps
-- [docs/en/02-project-guide/10-lint-and-checks.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/10-lint-and-checks.md): offline checks — what lint checks, --strict, where up --dry-run takes over
-- [docs/en/02-project-guide/11-sync-and-restore.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/11-sync-and-restore.md): component source — sync archives and restores (ignoring the focus), restore goes back to the last commit
-- [docs/en/02-project-guide/12-build-and-images.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/02-project-guide/12-build-and-images.md): building and images — --force, skipping existing images, tags that follow versions, empty submodules
+- [docs/en/02-project-guide/README.md](docs/en/02-project-guide/README.md): module index — for people running a project
+- [docs/en/02-project-guide/01-init-and-project-creation.md](docs/en/02-project-guide/01-init-and-project-creation.md): creating a project — the skeleton, completing an existing directory, why a clone needs no init
+- [docs/en/02-project-guide/02-add-and-component-install.md](docs/en/02-project-guide/02-add-and-component-install.md): adding components — what add writes, --local, --init
+- [docs/en/02-project-guide/03-local-debug-workflow.md](docs/en/02-project-guide/03-local-debug-workflow.md): local debugging — local on, mode: debug, refresh
+- [docs/en/02-project-guide/04-focus-run.md](docs/en/02-project-guide/04-focus-run.md): developing inside the project — up from a component's directory, --focus / --all, one components/
+- [docs/en/02-project-guide/05-multi-env-switch.md](docs/en/02-project-guide/05-multi-env-switch.md): several environments — --file, per-environment vars
+- [docs/en/02-project-guide/06-up-and-down.md](docs/en/02-project-guide/06-up-and-down.md): starting and stopping — what up does, the image check, never building
+- [docs/en/02-project-guide/07-upgrade-and-migration.md](docs/en/02-project-guide/07-upgrade-and-migration.md): upgrading and config migration — the rules, conflicts, duplicate keys
+- [docs/en/02-project-guide/08-remove-and-archive.md](docs/en/02-project-guide/08-remove-and-archive.md): removing and archiving — .archive/, restoring through migration
+- [docs/en/02-project-guide/09-status-and-graph.md](docs/en/02-project-guide/09-status-and-graph.md): status and topology — the status table, graph as Mermaid, deps
+- [docs/en/02-project-guide/10-lint-and-checks.md](docs/en/02-project-guide/10-lint-and-checks.md): offline checks — what lint checks, --strict, where up --dry-run takes over
+- [docs/en/02-project-guide/11-sync-and-restore.md](docs/en/02-project-guide/11-sync-and-restore.md): component source — sync archives and restores (ignoring the focus), restore goes back to the last commit
+- [docs/en/02-project-guide/12-build-and-images.md](docs/en/02-project-guide/12-build-and-images.md): building and images — --force, skipping existing images, tags that follow versions, empty submodules
 
 ### 03-component-guide/
-- [docs/en/03-component-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/README.md): module index — for component authors
-- [docs/en/03-component-guide/01-component-anatomy.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/01-component-anatomy.md): a component repository — the standard layout, one component per repository
-- [docs/en/03-component-guide/02-component-yaml-reference.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/02-component-yaml-reference.md): component.yaml field guide
-- [docs/en/03-component-guide/03-config-schema-design.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/03-config-schema-design.md): designing a configSchema — autonomy, sensible granularity, read/write splits
-- [docs/en/03-component-guide/04-new-and-skeleton.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/04-new-and-skeleton.md): generating a skeleton — --path, --contract, --shell
-- [docs/en/03-component-guide/05-local-dev-fractal.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/05-local-dev-fractal.md): developing inside a component — its own workbench, integration, release
-- [docs/en/03-component-guide/06-artifacts-and-contracts.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/06-artifacts-and-contracts.md): contracts and artifacts — artifacts, fetch, contract first
-- [docs/en/03-component-guide/07-release-workflow.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/07-release-workflow.md): releasing — the steps, atomicity, --local for many at once
-- [docs/en/03-component-guide/08-component-doc-spec.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/08-component-doc-spec.md): the component's BRICKKIT.md — its five sections
-- [docs/en/03-component-guide/09-multi-version-coexistence.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/09-multi-version-coexistence.md): several versions side by side — exact versioned service names
-- [docs/en/03-component-guide/10-git-distribution.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/03-component-guide/10-git-distribution.md): distributing through Git — the bare-repository cache, the read order, authentication
+- [docs/en/03-component-guide/README.md](docs/en/03-component-guide/README.md): module index — for component authors
+- [docs/en/03-component-guide/01-component-anatomy.md](docs/en/03-component-guide/01-component-anatomy.md): a component repository — the standard layout, one component per repository
+- [docs/en/03-component-guide/02-component-yaml-reference.md](docs/en/03-component-guide/02-component-yaml-reference.md): component.yaml field guide
+- [docs/en/03-component-guide/03-config-schema-design.md](docs/en/03-component-guide/03-config-schema-design.md): designing a configSchema — autonomy, sensible granularity, read/write splits
+- [docs/en/03-component-guide/04-new-and-skeleton.md](docs/en/03-component-guide/04-new-and-skeleton.md): generating a skeleton — --path, --contract, --shell
+- [docs/en/03-component-guide/05-local-dev-fractal.md](docs/en/03-component-guide/05-local-dev-fractal.md): developing inside a component — its own workbench, integration, release
+- [docs/en/03-component-guide/06-artifacts-and-contracts.md](docs/en/03-component-guide/06-artifacts-and-contracts.md): contracts and artifacts — artifacts, fetch, contract first
+- [docs/en/03-component-guide/07-release-workflow.md](docs/en/03-component-guide/07-release-workflow.md): releasing — the steps, atomicity, --local for many at once
+- [docs/en/03-component-guide/08-component-doc-spec.md](docs/en/03-component-guide/08-component-doc-spec.md): the component's BRICKKIT.md — its five sections
+- [docs/en/03-component-guide/09-multi-version-coexistence.md](docs/en/03-component-guide/09-multi-version-coexistence.md): several versions side by side — exact versioned service names
+- [docs/en/03-component-guide/10-git-distribution.md](docs/en/03-component-guide/10-git-distribution.md): distributing through Git — the bare-repository cache, the read order, authentication
 
 ### 04-shell/
-- [docs/en/04-shell/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/04-shell/README.md): module index — what a shell is and when to use one
-- [docs/en/04-shell/01-shell-concept.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/04-shell/01-shell-concept.md): the idea — one process, 1:N, when it fits and when it doesn't
-- [docs/en/04-shell/02-json-injection.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/04-shell/02-json-injection.md): JSON config injection — the variables, their shape, the shell's job
-- [docs/en/04-shell/03-shell-declaration.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/04-shell/03-shell-declaration.md): declaring a shell — what it compiles in vs. what it hosts this run
-- [docs/en/04-shell/04-members-management.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/04-shell/04-members-management.md): members — moving them in and out, removing a shell, merge-created start cycles
-- [docs/en/04-shell/05-shell-development.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/04-shell/05-shell-development.md): writing a shell — start-up code, handing out config, addresses
-- [docs/en/04-shell/06-special-characters.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/04-shell/06-special-characters.md): special characters — PEM, JSON encoding, failing loudly
-- [docs/en/04-shell/07-shell-upgrade.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/04-shell/07-shell-upgrade.md): upgrading a shell — member versions follow the shell, one version per shell
-- [docs/en/04-shell/08-shell-config.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/04-shell/08-shell-config.md): a shell's own config — ordinary variables next to the JSON
+- [docs/en/04-shell/README.md](docs/en/04-shell/README.md): module index — what a shell is and when to use one
+- [docs/en/04-shell/01-shell-concept.md](docs/en/04-shell/01-shell-concept.md): the idea — one process, 1:N, when it fits and when it doesn't
+- [docs/en/04-shell/02-json-injection.md](docs/en/04-shell/02-json-injection.md): JSON config injection — the variables, their shape, the shell's job
+- [docs/en/04-shell/03-shell-declaration.md](docs/en/04-shell/03-shell-declaration.md): declaring a shell — what it compiles in vs. what it hosts this run
+- [docs/en/04-shell/04-members-management.md](docs/en/04-shell/04-members-management.md): members — moving them in and out, removing a shell, merge-created start cycles
+- [docs/en/04-shell/05-shell-development.md](docs/en/04-shell/05-shell-development.md): writing a shell — start-up code, handing out config, addresses
+- [docs/en/04-shell/06-special-characters.md](docs/en/04-shell/06-special-characters.md): special characters — PEM, JSON encoding, failing loudly
+- [docs/en/04-shell/07-shell-upgrade.md](docs/en/04-shell/07-shell-upgrade.md): upgrading a shell — member versions follow the shell, one version per shell
+- [docs/en/04-shell/08-shell-config.md](docs/en/04-shell/08-shell-config.md): a shell's own config — ordinary variables next to the JSON
 
 ### 05-migration/
-- [docs/en/05-migration/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/05-migration/README.md): module index
-- [docs/en/05-migration/01-migration-service.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/05-migration/01-migration-service.md): the migration container — one-shot, what the main service waits for
-- [docs/en/05-migration/02-env-passthrough.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/05-migration/02-env-passthrough.md): environment passthrough — the platform doesn't build connection strings
-- [docs/en/05-migration/03-multi-version-chain.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/05-migration/03-multi-version-chain.md): migration order across versions — the chain, a compose example
-- [docs/en/05-migration/04-shell-interaction.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/05-migration/04-shell-interaction.md): migrations and shells — members' migrations run on their own
+- [docs/en/05-migration/README.md](docs/en/05-migration/README.md): module index
+- [docs/en/05-migration/01-migration-service.md](docs/en/05-migration/01-migration-service.md): the migration container — one-shot, what the main service waits for
+- [docs/en/05-migration/02-env-passthrough.md](docs/en/05-migration/02-env-passthrough.md): environment passthrough — the platform doesn't build connection strings
+- [docs/en/05-migration/03-multi-version-chain.md](docs/en/05-migration/03-multi-version-chain.md): migration order across versions — the chain, a compose example
+- [docs/en/05-migration/04-shell-interaction.md](docs/en/05-migration/04-shell-interaction.md): migrations and shells — members' migrations run on their own
 
 ### 06-architecture/
-- [docs/en/06-architecture/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/README.md): module index — for people who want the mechanisms underneath
-- [docs/en/06-architecture/01-pipeline-overview.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/01-pipeline-overview.md): the pipeline — from declaration to running containers
-- [docs/en/06-architecture/02-dependency-resolution.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/02-dependency-resolution.md): dependency resolution — topological order, diamonds, cycles, versions
-- [docs/en/06-architecture/03-env-injection-contract.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/03-env-injection-contract.md): the environment-variable contract — every variable
-- [docs/en/06-architecture/04-deploy-file-generation.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/04-deploy-file-generation.md): generating deployment files — Compose and Kubernetes side by side
-- [docs/en/06-architecture/05-design-principles.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/05-design-principles.md): design principles and trade-offs — the ten principles argued one by one
-- [docs/en/06-architecture/06-bare-repo-mechanism.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/06-bare-repo-mechanism.md): the bare-repository cache — the four-step read order, submodules never fetched
-- [docs/en/06-architecture/07-cache-design.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/07-cache-design.md): caches — permanent manifests, what a first clone rebuilds
-- [docs/en/06-architecture/08-security-and-signing.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/08-security-and-signing.md): security and signing — cosign, verification with the Go standard library
-- [docs/en/06-architecture/09-error-codes.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/06-architecture/09-error-codes.md): error codes — every code, exit statuses, what to retry
+- [docs/en/06-architecture/README.md](docs/en/06-architecture/README.md): module index — for people who want the mechanisms underneath
+- [docs/en/06-architecture/01-pipeline-overview.md](docs/en/06-architecture/01-pipeline-overview.md): the pipeline — from declaration to running containers
+- [docs/en/06-architecture/02-dependency-resolution.md](docs/en/06-architecture/02-dependency-resolution.md): dependency resolution — topological order, diamonds, cycles, versions
+- [docs/en/06-architecture/03-env-injection-contract.md](docs/en/06-architecture/03-env-injection-contract.md): the environment-variable contract — every variable
+- [docs/en/06-architecture/04-deploy-file-generation.md](docs/en/06-architecture/04-deploy-file-generation.md): generating deployment files — Compose and Kubernetes side by side
+- [docs/en/06-architecture/05-design-principles.md](docs/en/06-architecture/05-design-principles.md): design principles and trade-offs — the ten principles argued one by one
+- [docs/en/06-architecture/06-bare-repo-mechanism.md](docs/en/06-architecture/06-bare-repo-mechanism.md): the bare-repository cache — the four-step read order, submodules never fetched
+- [docs/en/06-architecture/07-cache-design.md](docs/en/06-architecture/07-cache-design.md): caches — permanent manifests, what a first clone rebuilds
+- [docs/en/06-architecture/08-security-and-signing.md](docs/en/06-architecture/08-security-and-signing.md): security and signing — cosign, verification with the Go standard library
+- [docs/en/06-architecture/09-error-codes.md](docs/en/06-architecture/09-error-codes.md): error codes — every code, exit statuses, what to retry
 
 ### 07-cli-reference/
-- [docs/en/07-cli-reference/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/07-cli-reference/README.md): the complete CLI reference — 21 commands and every flag of each, running from a subdirectory, completion
+- [docs/en/07-cli-reference/README.md](docs/en/07-cli-reference/README.md): the complete CLI reference — 21 commands and every flag of each, running from a subdirectory, completion
 
 ### 08-ai-guide/
-- [docs/en/08-ai-guide/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/08-ai-guide/README.md): module index — for AI assistants
-- [docs/en/08-ai-guide/01-ai-routing-table.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/08-ai-guide/01-ai-routing-table.md): file routing table — read on demand, never everything
-- [docs/en/08-ai-guide/02-ai-dev-workflow.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/08-ai-guide/02-ai-dev-workflow.md): AI-assisted development — from reading docs to writing code to releasing
-- [docs/en/08-ai-guide/03-component-doc-spec.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/08-ai-guide/03-component-doc-spec.md): component docs from an AI's point of view — reading and writing them
-- [docs/en/08-ai-guide/04-fractal-reading.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/08-ai-guide/04-fractal-reading.md): reading a fractal project — three entry points, keeping context small
+- [docs/en/08-ai-guide/README.md](docs/en/08-ai-guide/README.md): module index — for AI assistants
+- [docs/en/08-ai-guide/01-ai-routing-table.md](docs/en/08-ai-guide/01-ai-routing-table.md): file routing table — read on demand, never everything
+- [docs/en/08-ai-guide/02-ai-dev-workflow.md](docs/en/08-ai-guide/02-ai-dev-workflow.md): AI-assisted development — from reading docs to writing code to releasing
+- [docs/en/08-ai-guide/03-component-doc-spec.md](docs/en/08-ai-guide/03-component-doc-spec.md): component docs from an AI's point of view — reading and writing them
+- [docs/en/08-ai-guide/04-fractal-reading.md](docs/en/08-ai-guide/04-fractal-reading.md): reading a fractal project — three entry points, keeping context small
 
 ### 09-patterns/
-- [docs/en/09-patterns/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/09-patterns/README.md): module index — not "how to use it" but "how to use it well"
-- [docs/en/09-patterns/01-component-design.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/09-patterns/01-component-design.md): designing components — size, component or switch, DDD mapping, failure modes
-- [docs/en/09-patterns/02-testing-strategy.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/09-patterns/02-testing-strategy.md): testing strategy — four backend layers, four frontend layers, spec first
-- [docs/en/09-patterns/03-seed-data.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/09-patterns/03-seed-data.md): seed data — two paths kept physically apart
-- [docs/en/09-patterns/04-service-calling.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/09-patterns/04-service-calling.md): calling a dependency reliably — DNS, connection reuse, timeouts by language
-- [docs/en/09-patterns/05-deployment-selection.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/09-patterns/05-deployment-selection.md): choosing a deployment shape — topology × target × local modes
+- [docs/en/09-patterns/README.md](docs/en/09-patterns/README.md): module index — not "how to use it" but "how to use it well"
+- [docs/en/09-patterns/01-component-design.md](docs/en/09-patterns/01-component-design.md): designing components — size, component or switch, DDD mapping, failure modes
+- [docs/en/09-patterns/02-testing-strategy.md](docs/en/09-patterns/02-testing-strategy.md): testing strategy — four backend layers, four frontend layers, spec first
+- [docs/en/09-patterns/03-seed-data.md](docs/en/09-patterns/03-seed-data.md): seed data — two paths kept physically apart
+- [docs/en/09-patterns/04-service-calling.md](docs/en/09-patterns/04-service-calling.md): calling a dependency reliably — DNS, connection reuse, timeouts by language
+- [docs/en/09-patterns/05-deployment-selection.md](docs/en/09-patterns/05-deployment-selection.md): choosing a deployment shape — topology × target × local modes
 
 ### 10-troubleshooting/
-- [docs/en/10-troubleshooting/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/10-troubleshooting/README.md): module index — symptom → cause → fix
-- [docs/en/10-troubleshooting/01-up-down-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/10-troubleshooting/01-up-down-issues.md): up/down problems — images, ports, health checks, Podman teardown
-- [docs/en/10-troubleshooting/02-local-debug-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/10-troubleshooting/02-local-debug-issues.md): local debugging problems — a stale personal file, containers not reaching your process
-- [docs/en/10-troubleshooting/03-config-conflict-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/10-troubleshooting/03-config-conflict-issues.md): config conflicts — duplicate keys, missing $var:, config that doesn't take effect
-- [docs/en/10-troubleshooting/04-git-auth-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/10-troubleshooting/04-git-auth-issues.md): Git authentication — SSH, HTTPS, CI, offline
-- [docs/en/10-troubleshooting/05-build-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/10-troubleshooting/05-build-issues.md): build problems — --force, Dockerfile errors, image size
-- [docs/en/10-troubleshooting/06-shell-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/10-troubleshooting/06-shell-issues.md): shell problems — JSON, member config, routing
-- [docs/en/10-troubleshooting/07-migration-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/10-troubleshooting/07-migration-issues.md): migration problems — hangs, order, connection strings
-- [docs/en/10-troubleshooting/08-lint-and-schema-issues.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/10-troubleshooting/08-lint-and-schema-issues.md): lint and schema problems
+- [docs/en/10-troubleshooting/README.md](docs/en/10-troubleshooting/README.md): module index — symptom → cause → fix
+- [docs/en/10-troubleshooting/01-up-down-issues.md](docs/en/10-troubleshooting/01-up-down-issues.md): up/down problems — images, ports, health checks, Podman teardown
+- [docs/en/10-troubleshooting/02-local-debug-issues.md](docs/en/10-troubleshooting/02-local-debug-issues.md): local debugging problems — a stale personal file, containers not reaching your process
+- [docs/en/10-troubleshooting/03-config-conflict-issues.md](docs/en/10-troubleshooting/03-config-conflict-issues.md): config conflicts — duplicate keys, missing $var:, config that doesn't take effect
+- [docs/en/10-troubleshooting/04-git-auth-issues.md](docs/en/10-troubleshooting/04-git-auth-issues.md): Git authentication — SSH, HTTPS, CI, offline
+- [docs/en/10-troubleshooting/05-build-issues.md](docs/en/10-troubleshooting/05-build-issues.md): build problems — --force, Dockerfile errors, image size
+- [docs/en/10-troubleshooting/06-shell-issues.md](docs/en/10-troubleshooting/06-shell-issues.md): shell problems — JSON, member config, routing
+- [docs/en/10-troubleshooting/07-migration-issues.md](docs/en/10-troubleshooting/07-migration-issues.md): migration problems — hangs, order, connection strings
+- [docs/en/10-troubleshooting/08-lint-and-schema-issues.md](docs/en/10-troubleshooting/08-lint-and-schema-issues.md): lint and schema problems
 
 ### 11-reference/
-- [docs/en/11-reference/README.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/11-reference/README.md): module index — the exact, machine-checkable specification
-- [docs/en/11-reference/01-component-yaml-schema.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/11-reference/01-component-yaml-schema.md): every component.yaml field
-- [docs/en/11-reference/02-brickkit-yaml-schema.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/11-reference/02-brickkit-yaml-schema.md): every brickkit.yaml field
-- [docs/en/11-reference/03-deploy-yaml-schema.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/11-reference/03-deploy-yaml-schema.md): every deploy.yaml field
-- [docs/en/11-reference/04-config-schema-spec.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/11-reference/04-config-schema-spec.md): the configSchema specification — fields, types, key names checked but not values
-- [docs/en/11-reference/05-json-schemas.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/11-reference/05-json-schemas.md): the JSON Schema files — editor integration
-- [docs/en/11-reference/06-market-api.md](https://raw.githubusercontent.com/brickKit/brickKit/main/docs/en/11-reference/06-market-api.md): the component market API (optional infrastructure)
+- [docs/en/11-reference/README.md](docs/en/11-reference/README.md): module index — the exact, machine-checkable specification
+- [docs/en/11-reference/01-component-yaml-schema.md](docs/en/11-reference/01-component-yaml-schema.md): every component.yaml field
+- [docs/en/11-reference/02-brickkit-yaml-schema.md](docs/en/11-reference/02-brickkit-yaml-schema.md): every brickkit.yaml field
+- [docs/en/11-reference/03-deploy-yaml-schema.md](docs/en/11-reference/03-deploy-yaml-schema.md): every deploy.yaml field
+- [docs/en/11-reference/04-config-schema-spec.md](docs/en/11-reference/04-config-schema-spec.md): the configSchema specification — fields, types, key names checked but not values
+- [docs/en/11-reference/05-json-schemas.md](docs/en/11-reference/05-json-schemas.md): the JSON Schema files — editor integration
+- [docs/en/11-reference/06-market-api.md](docs/en/11-reference/06-market-api.md): the component market API (optional infrastructure)
 
 Tutorials (`tutorials/en/`) are not written yet and will be listed here once they are. The historical archive
 (`archive/`) is not part of this index.
