@@ -45,6 +45,7 @@ boundary.27	焦点下与它无关的弱依赖环不启动	.	./internal/cascade	T
 boundary.28	组件目录里有自己的工作台时，up 跑工作台，不动外面的项目	.	./internal/cli	TestUpInsideAWorkbenchRunsTheWorkbench
 boundary.29	补全在项目外、项目文件写坏时都不输出任何东西	.	./internal/cli	TestCompletionOutsideAProjectIsSilent
 boundary.30	补全从不联网	.	./internal/cli	TestCompletionNeverUsesTheNetwork
+boundary.31	文档合集每份不超过预算、每页只出现一次	.	./internal/llmsgen	TestGeneratePacksPagesInReadingOrderOnce
 error.1	强依赖缺失，信息含组件 ID 与缺失依赖	.	./internal/resolver	TestStrongDependencyMissingBlocks
 error.2	循环依赖，信息含循环路径	.	./internal/resolver	TestDependencyCycleIsReported
 error.3	必填配置项缺失，信息含组件 ID 与配置项	.	./internal/inject	TestRequiredConfigWithoutValueBlocks
@@ -69,6 +70,8 @@ error.20	Git 仓库不可达或地址写错时点名仓库地址	.	./internal/so
 error.21	焦点写在团队部署文件里被拒绝	.	./internal/deployfile	TestFocusValidation
 error.22	组件源码嵌在另一个组件目录里时报错，且一个目录都不挪	.	./internal/cli	TestCommandsRefuseANestedCopyAndMoveNothing
 error.23	组件 ID 写错时给出相近的候选	.	./internal/suggest	TestSimilar
+error.24	文档合集超预算时报错点名、不截断	.	./internal/llmsgen	TestGenerateFailsLoudlyOverBudget
+error.25	代码地图漏了包或写了不存在的路径	.	./tests/docfields	TestCodeMapCoversEveryPackage
 compat.1	brickkit up 正常启动	.	./internal/cli	TestUpStartsAllComponents
 compat.2	brickkit down 正常停止	.	./internal/engine	TestDownNeverRemovesVolumes
 compat.3	brickkit status 正常展示	.	./internal/cli	TestStatusShowsRunningComponents
