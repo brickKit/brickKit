@@ -94,15 +94,16 @@ func generateLang(root string, l Lang, opt Options) ([]Output, error) {
 		}
 	}
 
-	// 先按预算装箱（用两位数的占位页码与"下一份"一行算大小，真实的只会更短），再按真实份数渲染
+	// 先按预算装箱，再按真实份数渲染。试装时用"第 98 份，共 99 份"量：两位数页码加上"下一份"那一行，
+	// 是头部最长的形式，真实的只会更短（按"最后一份"量会漏掉"下一份"那一行，真实产出就可能超预算）。
 	var parts [][]page
 	var cur []page
 	for _, p := range rest {
-		if len(render(l, dir, 99, 99, []page{p}, false)) > opt.Budget {
+		if len(render(l, dir, 98, 99, []page{p}, false)) > opt.Budget {
 			return nil, fmt.Errorf("%s alone is %d bytes, over the %d-byte bundle budget: split the page",
-				p.path, len(render(l, dir, 99, 99, []page{p}, false)), opt.Budget)
+				p.path, len(render(l, dir, 98, 99, []page{p}, false)), opt.Budget)
 		}
-		if cur != nil && len(render(l, dir, 99, 99, append(append([]page{}, cur...), p), false)) > opt.Budget {
+		if cur != nil && len(render(l, dir, 98, 99, append(append([]page{}, cur...), p), false)) > opt.Budget {
 			parts, cur = append(parts, cur), nil
 		}
 		cur = append(cur, p)
@@ -119,6 +120,12 @@ func generateLang(root string, l Lang, opt Options) ([]Output, error) {
 	outs := []Output{{dir + "/00-core.md", []byte(coreOut)}}
 	for i, ps := range parts {
 		outs = append(outs, Output{fmt.Sprintf("%s/%02d.md", dir, i+1), []byte(render(l, dir, i+1, len(parts), ps, false))})
+	}
+	// 预算是对读者的承诺（一次抓取读完一份）：不靠前面的估算，对真实产出再核一遍
+	for _, o := range outs {
+		if len(o.Content) > opt.Budget {
+			return nil, fmt.Errorf("%s would be %d bytes, over the %d-byte bundle budget", o.Path, len(o.Content), opt.Budget)
+		}
 	}
 	return outs, nil
 }
@@ -162,9 +169,11 @@ func docPages(root, lang string) ([]page, error) {
 type texts struct{ lang, core, part, contains, paths, next, last, rest string }
 
 var textsByLang = map[string]texts{
-	"en": {"English", "core — read this first", "part %d of %d", "Contains", "Paths below are relative to the repository root",
+	"en": {"English", "core — read this first", "part %d of %d", "Contains",
+		"File paths below are relative to the repository root, %s ; links inside pages are relative to this file",
 		"Next", "This is the last part.", "The rest of the documentation, every page once, in reading order"},
-	"zh": {"中文", "核心合集——先读这一份", "第 %d 份，共 %d 份", "包含", "下面的路径都相对仓库根目录",
+	"zh": {"中文", "核心合集——先读这一份", "第 %d 份，共 %d 份", "包含",
+		"下面 File 与包含里的路径都相对仓库根目录 %s ；页内链接相对这份合集自己",
 		"下一份", "这是最后一份。", "其余全部文档，每页一次，按阅读顺序"},
 }
 
@@ -181,7 +190,7 @@ func render(l Lang, dir string, n, total int, pages []page, core bool) string {
 		names[i] = p.path
 	}
 	fmt.Fprintf(&b, "%s: %s\n\n", t.contains, strings.Join(names, ", "))
-	fmt.Fprintf(&b, "%s: %s\n\n", t.paths, RawBase)
+	fmt.Fprintf(&b, t.paths+"\n\n", RawBase)
 	switch {
 	case core && total > 0:
 		fmt.Fprintf(&b, "%s: %s: %s%s/01.md … %02d.md\n", t.next, t.rest, RawBase, dir, total)

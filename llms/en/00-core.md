@@ -2,7 +2,7 @@
 
 Contains: AGENTS.md, docs/en/00-intro/01-what-is-brickkit.md, docs/en/00-intro/02-quick-start.md, docs/en/00-intro/04-core-concepts.md, docs/en/00-intro/06-fractal-architecture.md, docs/en/01-three-layers/01-overview.md, docs/en/01-three-layers/08-resolution-priority.md, docs/en/01-three-layers/09-field-reference.md
 
-Paths below are relative to the repository root: https://raw.githubusercontent.com/brickKit/brickKit/main/
+File paths below are relative to the repository root, https://raw.githubusercontent.com/brickKit/brickKit/main/ ; links inside pages are relative to this file
 
 Next: The rest of the documentation, every page once, in reading order: https://raw.githubusercontent.com/brickKit/brickKit/main/llms/en/01.md … 09.md
 

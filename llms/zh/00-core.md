@@ -2,7 +2,7 @@
 
 包含: AGENTS.zh.md, docs/zh/00-intro/01-what-is-brickkit.md, docs/zh/00-intro/02-quick-start.md, docs/zh/00-intro/04-core-concepts.md, docs/zh/00-intro/06-fractal-architecture.md, docs/zh/01-three-layers/01-overview.md, docs/zh/01-three-layers/08-resolution-priority.md, docs/zh/01-three-layers/09-field-reference.md
 
-下面的路径都相对仓库根目录: https://raw.githubusercontent.com/brickKit/brickKit/main/
+下面 File 与包含里的路径都相对仓库根目录 https://raw.githubusercontent.com/brickKit/brickKit/main/ ；页内链接相对这份合集自己
 
 下一份: 其余全部文档，每页一次，按阅读顺序: https://raw.githubusercontent.com/brickKit/brickKit/main/llms/zh/01.md … 07.md
 

@@ -173,3 +173,30 @@ func TestRewriteLinksSkipsCode(t *testing.T) {
 	want := fence + "markdown\n[a](b.md)\n" + fence + "\nUse `[x](y.md)` here and [z](../../" + en("w.md") + ").\n"
 	assert.Equal(t, want, RewriteLinks(in, en("p.md"), "llms/en"))
 }
+
+// 预算是硬上限：试装时按"最后一份"量，会漏掉真实的"下一份"那一行（Final review I3）。
+// 在一段页面大小里逐字节扫，真实产出的每一份都不得超过预算。
+func TestEveryOutputStaysWithinTheBudget(t *testing.T) {
+	for size := 1200; size <= 1500; size++ {
+		root := fixture(t, merge(both("00-intro/01-a.md", 100), both("01-x/01-c.md", size),
+			both("01-x/02-d.md", size), both("01-x/03-e.md", size)))
+		outs, err := Generate(root, smallOpts())
+		require.NoError(t, err)
+		for _, o := range outs {
+			if strings.HasPrefix(o.Path, "llms/") {
+				require.LessOrEqual(t, len(o.Content), 3000, "%s with pages of %d bytes", o.Path, size)
+			}
+		}
+	}
+}
+
+// 合集开头要说清楚两种路径：File 与 Contains 里的是相对仓库根，页内链接是相对这份合集自己（Final review）。
+func TestBundleHeaderExplainsBothKindsOfPaths(t *testing.T) {
+	root := fixture(t, merge(both("00-intro/01-a.md", 100), both("01-x/01-c.md", 100)))
+	outs, err := Generate(root, smallOpts())
+	require.NoError(t, err)
+	en, _ := find(outs, "llms/en/01.md")
+	assert.Contains(t, string(en.Content), "links inside pages are relative to this file")
+	zh, _ := find(outs, "llms/zh/01.md")
+	assert.Contains(t, string(zh.Content), "页内链接相对这份合集自己")
+}
