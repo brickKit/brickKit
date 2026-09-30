@@ -357,13 +357,18 @@ func planClones(ctx context.Context, opts *Options, client *source.Client, proj 
 // filesWritten 为 true 表示三份文件这次已经改好：克隆失败时要说出来，免得使用者以为什么都没发生。
 func runClones(ctx context.Context, opts *Options, layout project.Layout, clones []clonePlan, filesWritten bool) error {
 	for _, c := range clones {
-		if _, err := workspace.CloneFrom(ctx, layout, c.ref.ID, c.ref.String(), c.from, c.url, c.tag); err != nil {
+		dir, err := workspace.CloneFrom(ctx, layout, c.ref.ID, c.ref.String(), c.from, c.url, c.tag)
+		if err != nil {
 			if filesWritten {
 				return clierr.As(err).WithHint(i18n.T(msgid.CliAddCloneAfterWrite, c.ref.String()))
 			}
 			return err
 		}
 		opts.Printf("%s\n", i18n.T(msgid.CliAddCloned, c.ref.String(), workspace.DisplayDir(c.ref.ID), c.tag))
+		// 克隆不带 --recurse-submodules（设计 §6）：它的 submodule 只是空目录，说一句
+		if empty := emptySubmodules(dir); len(empty) > 0 {
+			opts.Printf("   ℹ️  %s\n", i18n.T(msgid.CliAddSubmodulesNotFetched, c.ref.String(), strings.Join(empty, i18n.T(msgid.ListSeparator))))
+		}
 	}
 	return nil
 }

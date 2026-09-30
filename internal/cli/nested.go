@@ -5,10 +5,12 @@ package cli
 // 从不替使用者挪动或删除——那可能是有没推送改动的仓库，上层那份也可能不一样。
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/gitrepo"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
@@ -55,4 +57,17 @@ func refuseRepoInNestedWorkbench(opts *Options) error {
 	shown := opts.display(outer)
 	return clierr.New(clierr.CodeConfigConflict, i18n.T(msgid.CliAddRepoInNestedWorkbench, shown)).
 		WithHint(i18n.T(msgid.CliAddHintRepoFromOuter, shown))
+}
+
+// emptySubmodules 是 dir 的 .gitmodules 里登记了、而目录是空的（或不存在）的 submodule 路径。
+// 使用者自己拉过的 submodule 有内容，不算。
+func emptySubmodules(dir string) []string {
+	var out []string
+	for _, rel := range gitrepo.SubmodulePathsIn(dir) {
+		entries, err := os.ReadDir(filepath.Join(dir, filepath.FromSlash(rel)))
+		if err != nil || len(entries) == 0 {
+			out = append(out, rel)
+		}
+	}
+	return out
 }

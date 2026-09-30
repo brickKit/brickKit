@@ -126,7 +126,7 @@ func runBuild(ctx context.Context, opts *Options, arg string, force bool) error 
 			}
 		}
 		opts.Printf("%s\n", i18n.T(msgid.CliBuildBuilding, ref.String(), tag))
-		if err := buildOne(ctx, proj, client, images, node, tag); err != nil {
+		if err := buildOne(ctx, opts, proj, client, images, node, tag); err != nil {
 			return clierr.As(err).WithDetail(i18n.T(msgid.LabelComponent), ref.String())
 		}
 		opts.Printf("%s\n", i18n.T(msgid.CliBuildBuilt, ref.String(), tag))
@@ -173,12 +173,18 @@ func needsLocalBuild(ctx context.Context, client *source.Client, node *resolver.
 }
 
 // buildOne 找到源码、构建一个版本。
-func buildOne(ctx context.Context, proj *project.Project, client *source.Client, images engine.Images, node *resolver.Node, tag string) error {
+func buildOne(ctx context.Context, opts *Options, proj *project.Project, client *source.Client, images engine.Images, node *resolver.Node, tag string) error {
 	root, cleanup, err := sourceRoot(ctx, proj, client, node.Ref)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
+	// BrickKit 从不拉取 submodule（设计 §6）：从 tag 导出的源码里它们只剩空目录，构建要是用到就会莫名失败
+	if empty := emptySubmodules(root); len(empty) > 0 {
+		renderWarnings(opts, []*clierr.Error{clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliBuildSubmodulesEmpty, node.Ref.String())).
+			WithDetail(i18n.T(msgid.LabelDir), strings.Join(empty, i18n.T(msgid.ListSeparator))).
+			WithHint(i18n.T(msgid.CliBuildHintSubmodules))})
+	}
 	b := node.Manifest.Deployment.Build
 	contextDir, dockerfile := ".", "Dockerfile"
 	if b != nil {

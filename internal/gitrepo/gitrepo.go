@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/i18n"
@@ -195,11 +196,26 @@ type Submodule struct {
 // 没有 .gitmodules、或解析失败时返回空 map，不返回 error：查不清楚时一律当
 // "没登记"处理——不能让这条新增的判断反过来制造新的假阻断或假警告
 // （与 skipCheck 同一个"漏查代价小于堵死一次"的立场）。
-func (r *Repo) Submodules() map[string]Submodule {
-	if _, err := os.Stat(filepath.Join(r.root, ".gitmodules")); err != nil {
+func (r *Repo) Submodules() map[string]Submodule { return submodulesIn(r.root) }
+
+// SubmodulePathsIn 返回 dir/.gitmodules 登记的 submodule 路径（排好序）。dir 不必是 git 仓库——
+// git archive 导出的源码树里 .gitmodules 照样在，而 submodule 的内容只剩空目录（设计 §6）。
+// 没有该文件或读不了时返回 nil。
+func SubmodulePathsIn(dir string) []string {
+	var paths []string
+	for path := range submodulesIn(dir) {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+// submodulesIn 解析 dir 下的 .gitmodules，返回 path → 登记信息（Submodules 的规则见上）。
+func submodulesIn(dir string) map[string]Submodule {
+	if _, err := os.Stat(filepath.Join(dir, ".gitmodules")); err != nil {
 		return map[string]Submodule{}
 	}
-	out, err := query(r.root, "config", "-f", ".gitmodules", "--get-regexp", `^submodule\.`)
+	out, err := query(dir, "config", "-f", ".gitmodules", "--get-regexp", `^submodule\.`)
 	if err != nil {
 		return map[string]Submodule{}
 	}
