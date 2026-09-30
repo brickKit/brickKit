@@ -82,18 +82,10 @@ type applyOptions struct {
 }
 
 // fileBackup 记下一个文件改之前的样子：existed 为 false 表示原本没有，还原时删掉。
-type fileBackup struct {
-	path    string
-	data    []byte
-	mode    os.FileMode
-	existed bool
-}
-
 type applier struct {
-	proj    *project.Project
-	opts    *Options
-	backups map[string]*fileBackup
-	order   []string
+	proj *project.Project
+	opts *Options
+	snap fileSnapshot
 	// createdDirs 是这次新建的目录（按创建顺序）：还原时删掉，config/ 这种空目录不留下
 	createdDirs []string
 	result      *applied
@@ -109,7 +101,7 @@ func applyPlan(opts *Options, proj *project.Project, plan *install.Plan, varRefs
 
 // applyPlanWith 同 applyPlan，带上可选行为。
 func applyPlanWith(opts *Options, proj *project.Project, plan *install.Plan, ao applyOptions) (*applied, error) {
-	a := &applier{proj: proj, opts: opts, backups: map[string]*fileBackup{}, result: &applied{}, options: ao}
+	a := &applier{proj: proj, opts: opts, result: &applied{}, options: ao}
 	if err := a.apply(plan); err != nil {
 		a.rollback()
 		return nil, err
@@ -457,40 +449,12 @@ func (a *applier) mkdirAll(dir string) error {
 }
 
 // backup 在第一次碰一个文件之前记下它的原样。
-func (a *applier) backup(path string) error {
-	if _, ok := a.backups[path]; ok {
-		return nil
-	}
-	data, err := os.ReadFile(path)
-	switch {
-	case err == nil:
-		mode := os.FileMode(0o644)
-		if info, statErr := os.Stat(path); statErr == nil {
-			mode = info.Mode().Perm()
-		}
-		a.backups[path] = &fileBackup{path: path, data: data, mode: mode, existed: true}
-	case errors.Is(err, fs.ErrNotExist):
-		a.backups[path] = &fileBackup{path: path}
-	default:
-		return writeError(path, err)
-	}
-	a.order = append(a.order, path)
-	return nil
-}
+func (a *applier) backup(path string) error { return a.snap.take(path) }
 
 // rollback 把碰过的文件全部还原：原本有的写回原样（连同权限），原本没有的删掉，
 // 这次新建的目录也删掉（从最深的开始，只删空的）。
 func (a *applier) rollback() {
-	for i := len(a.order) - 1; i >= 0; i-- {
-		b := a.backups[a.order[i]]
-		if b.existed {
-			_ = os.MkdirAll(filepath.Dir(b.path), 0o755)
-			_ = os.WriteFile(b.path, b.data, b.mode)
-			_ = os.Chmod(b.path, b.mode)
-		} else {
-			_ = os.Remove(b.path)
-		}
-	}
+	a.snap.restore()
 	for i := len(a.createdDirs) - 1; i >= 0; i-- {
 		_ = os.Remove(a.createdDirs[i])
 	}

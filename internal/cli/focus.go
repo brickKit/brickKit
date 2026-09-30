@@ -8,8 +8,6 @@ package cli
 
 import (
 	"bytes"
-	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -114,56 +112,81 @@ func applyFocusIntent(opts *Options, flags upOptions) (written bool, err error) 
 
 // ensureFocus 把焦点设成 id：本地模式没开就先打开（与 local on 同样复制或沿用），
 // 文件里的焦点不同才改，改了就说一句。
+//
+// 要么全成，要么什么都没变：先记下个人文件、本地模式开关与复制基线的原样，改完按 up 读它的同一套
+// 规则装载项目、再看焦点有没有源码可跑；任何一步不成就全部放回，报那一步的错。焦点在 k8s 上、
+// 条目写着 mode: disable、没有源码——都不会留下一份之后每条命令都读不了的个人文件。
+// 要说的话等全成了才说：还原之后再说"本地模式已开启"就成了假话。
 func ensureFocus(opts *Options, l project.Layout, id string) (bool, error) {
-	// 先确认焦点放得进去，再动任何东西：设不上就不该留下一份刚复制的个人文件、一个打开了的本地模式
-	if err := checkFocusFits(l, id); err != nil {
-		return false, err
-	}
-	if !fileExists(l.DeployLocalPath()) {
-		if err := copyDeployToLocal(l); err != nil {
+	var snap fileSnapshot
+	for _, path := range []string{l.DeployLocalPath(), l.LocalModePath(), l.LocalBasePath()} {
+		if err := snap.take(path); err != nil {
 			return false, err
 		}
-		opts.Printf("%s\n", i18n.T(msgid.CliLocalOn, project.FileDeployLocal))
-		opts.Printf("   %s\n", i18n.T(msgid.CliLocalCopied, project.FileDeployLocal, project.FileDeploy))
-		if err := project.SetLocalMode(l, true); err != nil {
-			return false, localSwitchError(l, err)
-		}
-	} else if on, err := project.LocalModeOn(l); err != nil {
-		return false, err
-	} else if !on {
-		if err := project.SetLocalMode(l, true); err != nil {
-			return false, localSwitchError(l, err)
-		}
-		opts.Printf("%s\n", i18n.T(msgid.CliLocalOn, project.FileDeployLocal))
-		opts.Printf("   %s\n", i18n.T(msgid.CliLocalReused, project.FileDeployLocal))
 	}
-	return writeFocus(opts, l, id)
-}
-
-// checkFocusFits 按"写完之后"的个人文件校验一遍：个人文件还没有时，就是 local on 会复制出来的那一份。
-func checkFocusFits(l project.Layout, id string) error {
-	data, err := os.ReadFile(l.DeployLocalPath())
-	if errors.Is(err, fs.ErrNotExist) {
-		team, teamErr := os.ReadFile(l.DeployPath())
-		if teamErr != nil {
-			return localIOError(l.DeployPath(), teamErr)
-		}
-		data, err = project.LocalDeployContent(team), nil
+	notes, written, err := setFocus(l, id)
+	if err == nil {
+		err = verifyFocus(opts)
 	}
 	if err != nil {
-		return localIOError(l.DeployLocalPath(), err)
+		snap.restore()
+		return false, err
 	}
-	return validFocusFile(data, id, l.DeployLocalPath())
+	for _, n := range notes {
+		opts.Printf("%s\n", n)
+	}
+	if written {
+		opts.Printf("%s\n", i18n.T(msgid.CliFocusSet, id, project.FileDeployLocal))
+	}
+	return written, nil
 }
 
-// validFocusFile 把焦点设进 data，用读它时的同一套校验过一遍（k8s 上设焦点就通不过）。
-func validFocusFile(data []byte, id, path string) error {
-	out, err := deployfile.SetFocus(data, id)
+// setFocus 打开本地模式（需要时）并写上焦点；返回要说的话，不说。
+func setFocus(l project.Layout, id string) (notes []string, written bool, err error) {
+	if !fileExists(l.DeployLocalPath()) {
+		if err := copyDeployToLocal(l); err != nil {
+			return nil, false, err
+		}
+		if err := project.SetLocalMode(l, true); err != nil {
+			return nil, false, localSwitchError(l, err)
+		}
+		notes = append(notes, i18n.T(msgid.CliLocalOn, project.FileDeployLocal),
+			"   "+i18n.T(msgid.CliLocalCopied, project.FileDeployLocal, project.FileDeploy))
+	} else if on, err := project.LocalModeOn(l); err != nil {
+		return nil, false, err
+	} else if !on {
+		if err := project.SetLocalMode(l, true); err != nil {
+			return nil, false, localSwitchError(l, err)
+		}
+		notes = append(notes, i18n.T(msgid.CliLocalOn, project.FileDeployLocal),
+			"   "+i18n.T(msgid.CliLocalReused, project.FileDeployLocal))
+	}
+	written, err = writeFocusLine(l, id)
+	return notes, written, err
+}
+
+// verifyFocus 按 up 读个人文件的同一套规则装载项目（焦点不认识、条目写着 mode: disable、
+// 放在 k8s 上都在这里报），再看焦点有没有源码可跑。
+func verifyFocus(opts *Options) error {
+	proj, err := project.Load(opts.WorkDir, opts.loadOptions())
 	if err != nil {
 		return err
 	}
-	_, _, err = deployfile.Parse(out, path, deployfile.RoleLocal)
-	return err
+	return focusSourceError(opts, proj)
+}
+
+// focusSourceError：焦点要从源码跑，而本地安装源里找不到它的源码。lint 与 up 设焦点时都问它。
+func focusSourceError(opts *Options, proj *project.Project) error {
+	id, _, ok := proj.FocusRef()
+	if !ok {
+		return nil
+	}
+	if _, found := proj.LocalRepo(id); found {
+		return nil
+	}
+	return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliUpNoLocalSourceFor, id)).
+		WithDetail(i18n.T(msgid.LabelFile), opts.display(proj.DeployPath)).
+		WithHint(i18n.T(msgid.CliLintHintFocusSource, id))
 }
 
 // clearFocus 删掉个人文件里的焦点；没有个人文件或本来就没写焦点时什么都不做。
@@ -171,11 +194,15 @@ func clearFocus(opts *Options, l project.Layout) (bool, error) {
 	if !fileExists(l.DeployLocalPath()) {
 		return false, nil
 	}
-	return writeFocus(opts, l, "")
+	written, err := writeFocusLine(l, "")
+	if written {
+		opts.Printf("%s\n", i18n.T(msgid.CliFocusCleared))
+	}
+	return written, err
 }
 
-// writeFocus 只改 focus: 这一行（deployfile.SetFocus），内容不变就不写；写了返回 true。
-func writeFocus(opts *Options, l project.Layout, id string) (bool, error) {
+// writeFocusLine 只改 focus: 这一行（deployfile.SetFocus），内容不变就不写；写了返回 true。
+func writeFocusLine(l project.Layout, id string) (bool, error) {
 	path := l.DeployLocalPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -188,18 +215,8 @@ func writeFocus(opts *Options, l project.Layout, id string) (bool, error) {
 	if bytes.Equal(out, data) {
 		return false, nil
 	}
-	// 写之前用读它时的同一套校验过一遍：通不过就原样报错、一个字节都不写，
-	// 否则留下一份之后每条命令都读不了的个人文件
-	if _, _, err := deployfile.Parse(out, path, deployfile.RoleLocal); err != nil {
-		return false, err
-	}
 	if err := os.WriteFile(path, out, 0o644); err != nil {
 		return false, localIOError(path, err)
-	}
-	if id == "" {
-		opts.Printf("%s\n", i18n.T(msgid.CliFocusCleared))
-	} else {
-		opts.Printf("%s\n", i18n.T(msgid.CliFocusSet, id, project.FileDeployLocal))
 	}
 	return true, nil
 }

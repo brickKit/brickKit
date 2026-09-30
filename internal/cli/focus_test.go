@@ -237,3 +237,30 @@ func TestUpUnderAFocusDoesNotPromiseWhatSyncWontDo(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "brickkit sync")
 }
+
+// 焦点在跨文件的检查上通不过（条目写着 mode: disable、没有源码可跑）：报错，并且什么都没变——
+// 个人文件没写上焦点、本地模式没被打开，之后的命令照常能用（Final review #5）。
+func TestAFocusThatFailsTheProjectChecksChangesNothing(t *testing.T) {
+	cases := map[string]func(t *testing.T, dir string){
+		"mode: disable": func(t *testing.T, dir string) {
+			editFile(t, in(dir, "deploy.yaml"), "  - id: erp/portal\n", "  - id: erp/portal\n    mode: disable\n")
+		},
+		"no local source": func(t *testing.T, dir string) {
+			require.NoError(t, os.RemoveAll(in(dir, "components", "erp", "portal")))
+		},
+	}
+	for name, breakIt := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := focusFixture(t)
+			breakIt(t, dir)
+			r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/portal")
+			assert.NotEqual(t, clierr.ExitOK, r.code)
+			assert.NotContains(t, r.stdout, i18n.T(msgid.CliFocusSet, "erp/portal", "deploy.local.yaml"))
+			assert.NoFileExists(t, in(dir, "deploy.local.yaml"))
+			assert.NoFileExists(t, in(dir, ".brickkit", "local-mode"))
+
+			r = runWithEngine(t, newFakeEngine(), dir, "status")
+			assert.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+		})
+	}
+}
