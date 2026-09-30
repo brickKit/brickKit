@@ -64,12 +64,21 @@ func findsProjectAnnotation() map[string]string {
 	return map[string]string{annotFindsProject: "true"}
 }
 
+// annotStdoutIsData 标出 stdout 是数据、不是给人看的输出的命令（graph 的 Mermaid 要能直接
+// 重定向成 .mmd 文件）：这类命令的提示——包括"📁 项目"那一行——一律走 stderr。
+const annotStdoutIsData = "brickkit/stdout-is-data"
+
+// dataCommandAnnotation 是 stdout 是数据的项目命令的标注。
+func dataCommandAnnotation() map[string]string {
+	return map[string]string{annotFindsProject: "true", annotStdoutIsData: "true"}
+}
+
 // display 把路径显示成相对使用者所在目录的样子。
 func (o *Options) display(path string) string { return displayPath(o.CallDir, path) }
 
 // enterProject 在项目命令开始前定位项目根：当前目录没有 brickkit.yaml 就往上找；找到了就
 // 换过去并说一句用的是哪个项目。找不到时什么都不改，命令照旧报它自己的 PROJECT_MISSING。
-func (o *Options) enterProject() error {
+func (o *Options) enterProject(notes io.Writer) error {
 	root, found, err := project.FindRoot(o.WorkDir)
 	if err != nil || !found {
 		return err
@@ -82,7 +91,7 @@ func (o *Options) enterProject() error {
 	if decl, err := projfile.ParseFile(project.NewLayout(root).DeclPath()); err == nil && decl.Project != "" {
 		name = decl.Project
 	}
-	o.Printf("%s\n", i18n.T(msgid.CliProjectFoundAbove, o.display(root), name))
+	_, _ = fmt.Fprintf(notes, "%s\n", i18n.T(msgid.CliProjectFoundAbove, o.display(root), name))
 	return nil
 }
 
@@ -233,7 +242,11 @@ func NewRootCommand(opts *Options) *cobra.Command {
 			opts.WorkDir, opts.CallDir = abs, abs
 		}
 		if findsProject(cmd) {
-			if err := opts.enterProject(); err != nil {
+			notes := opts.Stdout
+			if cmd.Annotations[annotStdoutIsData] == "true" {
+				notes = opts.Stderr
+			}
+			if err := opts.enterProject(notes); err != nil {
 				return err
 			}
 		}

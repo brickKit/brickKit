@@ -36,7 +36,7 @@ func newGraphCommand(opts *Options) *cobra.Command {
 	var ignoreShells bool
 
 	cmd := &cobra.Command{
-		Annotations: findsProjectAnnotation(),
+		Annotations: dataCommandAnnotation(),
 		Use:         "graph",
 		Short:       i18n.T(msgid.CliGraphShort),
 		GroupID:     groupProject,

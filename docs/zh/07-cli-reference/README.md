@@ -51,7 +51,7 @@ BrickKit CLI 共 21 个业务命令，外加 `version`、`lang`、`completion` �
 ## 在子目录里运行
 
 作用于项目的命令，在项目里的任何位置都能运行。当前目录没有 `brickkit.yaml` 时，命令顺着上级目录往上找——像 `git` 找 `.git`
-那样——找到最近的一个有 `brickkit.yaml` 的目录，在那里运行。它会在第一行说出来，打印的路径都相对你所在的目录：
+那样——找到最近的一个有 `brickkit.yaml` 的目录，在那里运行。它会在第一行说出来（`graph` 的 stdout 只有 Mermaid，这一行走 stderr），打印的路径都相对你所在的目录：
 
 ```text
 📁 项目：../../..（my-shop）

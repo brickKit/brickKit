@@ -2,6 +2,7 @@ package cli
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,4 +52,13 @@ func TestPathsAreShownRelativeToWhereYouAre(t *testing.T) {
 	r := runWithEngine(t, newFakeEngine(), filepath.Join(dir, "config"), "up", "--dry-run")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, filepath.Join("..", ".brickkit", "generated"))
+}
+
+// graph 的 stdout 只有 Mermaid（brickkit graph > graph.mmd）：在子目录里运行时，项目那一行走 stderr（Final review #4）。
+func TestGraphFromASubdirectoryKeepsStdoutPureMermaid(t *testing.T) {
+	dir := copyFixture(t, "three-layer-shell")
+	r := runWithEngine(t, newFakeEngine(), filepath.Join(dir, "config"), "graph")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.True(t, strings.HasPrefix(r.stdout, "graph "), r.stdout)
+	assert.Contains(t, r.stderr, i18n.T(msgid.CliProjectFoundAbove, "..", "shop"))
 }

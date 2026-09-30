@@ -55,7 +55,8 @@ parses `error_code` (a pre-commit hook, say).
 
 A command that works on a project can be run anywhere inside it. When the current directory has no `brickkit.yaml`, the
 command walks up the parent directories — like `git` looking for `.git` — to the nearest one that has, and runs there.
-It says so on its first line, and the paths it prints are relative to where you are:
+It says so on its first line (on stderr for `graph`, whose stdout is only Mermaid), and the paths it prints are
+relative to where you are:
 
 ```text
 📁 Project: ../../.. (my-shop)
