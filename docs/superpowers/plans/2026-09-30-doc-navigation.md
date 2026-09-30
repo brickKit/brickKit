@@ -234,8 +234,9 @@ func TestRewriteLinks(t *testing.T) {
 
 // 代码块与行内代码里长得像链接的东西不动。
 func TestRewriteLinksSkipsCode(t *testing.T) {
-	in := "```markdown\n[a](b.md)\n```\nUse `[x](y.md)` here and [z](w.md).\n"
-	want := "```markdown\n[a](b.md)\n```\nUse `[x](y.md)` here and [z](../../docs/en/w.md).\n"
+	fence := strings.Repeat("`", 3)
+	in := fence + "markdown\n[a](b.md)\n" + fence + "\nUse `[x](y.md)` here and [z](w.md).\n"
+	want := fence + "markdown\n[a](b.md)\n" + fence + "\nUse `[x](y.md)` here and [z](../../docs/en/w.md).\n"
 	assert.Equal(t, want, RewriteLinks(in, "docs/en/p.md", "llms/en"))
 }
 ```
