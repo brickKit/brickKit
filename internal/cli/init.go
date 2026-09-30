@@ -190,7 +190,7 @@ func renderGitignoreWarning(opts *Options, file string, missing []string) {
 	for _, rule := range missing {
 		w = w.WithDetail(i18n.T(msgid.CliInitGitignoreMissingEntry), rule)
 	}
-	opts.Printf("%s", w.WithHint(i18n.T(msgid.CliInitHintAddGitignore)).Format())
+	opts.Printf("%s", opts.render(w.WithHint(i18n.T(msgid.CliInitHintAddGitignore))))
 }
 
 // renderCompletePlan 列出补全要创建、跳过的文件与 .gitignore 的缺项。
@@ -229,7 +229,7 @@ func finishInit(opts *Options, layout project.Layout, f initFlags, check bool) e
 			return err
 		}
 		// 问题本身原样打印（与 up / lint 报的是同一块），命令再以一句总结失败
-		opts.Printf("%s", clierr.As(err).Format())
+		opts.Printf("%s", opts.render(clierr.As(err)))
 		return clierr.New(clierr.CodeConfigInvalid, i18n.T(msgid.CliInitClosingCheckFailed)).
 			WithHint(i18n.T(msgid.CliInitHintRunLint)).
 			WithCause(err)

@@ -836,8 +836,8 @@ func checkShellImageLabels(ctx context.Context, opts *Options, local engine.Imag
 		recorded, labelled := labels[labelShellMembers]
 		switch {
 		case !labelled:
-			opts.Printf("%s", clierr.Warn(clierr.CodeImageUnverified, i18n.T(msgid.CliUpShellImageUnlabelled, info.component)).
-				WithDetail(i18n.T(msgid.LabelImage), info.image).Format())
+			opts.Printf("%s", opts.render(clierr.Warn(clierr.CodeImageUnverified, i18n.T(msgid.CliUpShellImageUnlabelled, info.component)).
+				WithDetail(i18n.T(msgid.LabelImage), info.image)))
 		case recorded != declared:
 			return clierr.New(clierr.CodeImageStale, i18n.T(msgid.CliUpShellImageStale, info.component)).
 				WithDetail(i18n.T(msgid.LabelImage), info.image).

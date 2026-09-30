@@ -7,7 +7,7 @@ import (
 // renderWarnings 逐条打印不阻断的问题。
 func renderWarnings(opts *Options, warnings []*clierr.Error) {
 	for _, w := range warnings {
-		opts.Printf("%s", w.Format())
+		opts.Printf("%s", opts.render(w))
 	}
 }
 

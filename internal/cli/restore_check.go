@@ -288,12 +288,12 @@ func warnGitlinks(opts *Options, paths []string, registered map[string]gitrepo.S
 		if _, ok := registered[p]; ok {
 			continue
 		}
-		opts.Printf("%s", clierr.Warn(clierr.CodeConfigInvalid,
+		opts.Printf("%s", opts.render(clierr.Warn(clierr.CodeConfigInvalid,
 			i18n.T(msgid.CliRestoreCheckIsANestedGitRepository, p)).
 			WithHint(
 				i18n.T(msgid.CliRestoreCheckTheRepositoryHasNoGitmodules),
 				i18n.T(msgid.CliRestoreCheckGitSubmoduleUpdateCanT),
-			).Format())
+			)))
 	}
 }
 

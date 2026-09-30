@@ -58,7 +58,7 @@ func runDeps(ctx context.Context, opts *Options, target string) error {
 		return err
 	}
 	for _, w := range proj.Warnings {
-		_, _ = fmt.Fprint(opts.Stderr, w.Format())
+		_, _ = fmt.Fprint(opts.Stderr, opts.render(w))
 	}
 
 	var id, version string
@@ -85,7 +85,7 @@ func runDeps(ctx context.Context, opts *Options, target string) error {
 		return err
 	}
 	for _, w := range graph.Warnings {
-		_, _ = fmt.Fprint(opts.Stderr, w.Format())
+		_, _ = fmt.Fprint(opts.Stderr, opts.render(w))
 	}
 
 	t := &depsTree{graph: graph, printed: map[resolver.Ref]bool{}}

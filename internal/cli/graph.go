@@ -70,7 +70,7 @@ func runGraph(ctx context.Context, opts *Options, ignoreShells bool) error {
 		return err
 	}
 	for _, w := range proj.Warnings {
-		_, _ = fmt.Fprint(opts.Stderr, w.Format())
+		_, _ = fmt.Fprint(opts.Stderr, opts.render(w))
 	}
 	if ignoreShells {
 		proj.IgnoreShells()
@@ -99,7 +99,7 @@ func runGraph(ctx context.Context, opts *Options, ignoreShells bool) error {
 
 	// stdout 只留给 Mermaid：解析警告（弱依赖取不到之类）走 stderr
 	for _, w := range graph.Warnings {
-		_, _ = fmt.Fprint(opts.Stderr, w.Format())
+		_, _ = fmt.Fprint(opts.Stderr, opts.render(w))
 	}
 	opts.Printf("%s", renderMermaid(proj, graph, states, ignoreShells))
 	return nil

@@ -154,7 +154,7 @@ func runLocalStatus(opts *Options) error {
 	}
 	// 与 up 同一处校验（提案 §6.3）：过期就把那一块原样打印出来，status 本身不算失败
 	if _, err := project.Load(l.Root, project.LoadOptions{}); err != nil {
-		opts.Printf("%s", clierr.As(err).Format())
+		opts.Printf("%s", opts.render(clierr.As(err)))
 		return nil
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliLocalStatusConsistent, project.FileDeployLocal, project.FileDecl))

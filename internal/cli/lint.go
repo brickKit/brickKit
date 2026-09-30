@@ -309,10 +309,10 @@ func reportLint(opts *Options, files []lintFile, notes []string, strict bool) er
 			continue
 		}
 		for _, e := range f.errors {
-			opts.Printf("%s", e.Format())
+			opts.Printf("%s", opts.render(e))
 		}
 		for _, w := range f.warnings {
-			opts.Printf("%s", w.Format())
+			opts.Printf("%s", opts.render(w))
 		}
 		if len(f.errors) > 0 {
 			failed++

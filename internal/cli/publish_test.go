@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // ============================================================
@@ -328,7 +330,8 @@ func TestPublishRejectsInvalidManifest(t *testing.T) {
 	r := runIn(t, f.Dir, "publish", "--path", root)
 
 	assert.Equal(t, clierr.ExitError, r.code)
-	assert.Contains(t, r.stderr, "Manifest")
+	// 从前这里断言 stderr 含 "Manifest"——只因为临时目录名里带着测试名才过；断言真正的标题
+	assert.Contains(t, r.stderr, i18n.T(msgid.ProblemValidationFailed, "component.yaml"))
 	assert.NotContains(t, strings.Join(m.requests(), " "), "POST /components")
 }
 

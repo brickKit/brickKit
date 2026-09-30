@@ -239,6 +239,31 @@ func (e *Error) ExitCode() int {
 	return ExitError
 }
 
+// MapText 返回一份副本，给人看的每段文字（标题、明细值、建议、提示）都经过 f。
+// 命令层用它把路径改成按使用者所在目录的写法；原错误不变，日志里记的仍是它。
+func (e *Error) MapText(f func(string) string) *Error {
+	c := *e
+	c.Message = f(e.Message)
+	c.Details = make([]Detail, len(e.Details))
+	for i, d := range e.Details {
+		c.Details[i] = Detail{Key: d.Key, Value: f(d.Value)}
+	}
+	c.Hints = mapAll(e.Hints, f)
+	c.Tips = mapAll(e.Tips, f)
+	return &c
+}
+
+func mapAll(in []string, f func(string) string) []string {
+	if in == nil {
+		return nil
+	}
+	out := make([]string, len(in))
+	for i, s := range in {
+		out[i] = f(s)
+	}
+	return out
+}
+
 // Format 把错误渲染成用户可读的多行文本（不含结尾换行之外的额外空行）。
 func (e *Error) Format() string {
 	symbol := "❌"

@@ -290,7 +290,7 @@ func renderVerifiedSignatures(opts *Options, statuses []source.SignatureStatus) 
 		for _, w := range st.Warnings {
 			if key := w.Message; !seen[key] {
 				seen[key] = true
-				opts.Printf("%s", w.Format())
+				opts.Printf("%s", opts.render(w))
 			}
 		}
 		if st.Verified {

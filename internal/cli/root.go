@@ -350,7 +350,7 @@ func Run(root *cobra.Command, opts *Options, args []string) int {
 	}
 
 	e := translate(err)
-	code := clierr.Render(opts.Stderr, e)
+	code := clierr.Render(opts.Stderr, opts.shown(e))
 	level := logging.Error
 	if e.Warning {
 		level = logging.Warn
