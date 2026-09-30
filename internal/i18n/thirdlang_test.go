@@ -14,8 +14,12 @@ import (
 func TestAThirdLanguageNeedsOnlyACatalogAndARegistryLine(t *testing.T) {
 	data, err := localeFS.ReadFile("locales/en.yaml")
 	require.NoError(t, err)
-	_, texts, err := parseCatalog(data, "locales/xx.yaml")
+	_, parsed, err := parseCatalog(data, "locales/xx.yaml")
 	require.NoError(t, err)
+	texts := map[msgid.ID]string{}
+	for k, v := range parsed {
+		texts[msgid.ID(k)] = v
+	}
 	texts[msgid.LabelReason] = "XX-Reason"
 
 	restore := registerForTest(Language{Code: "xx"}, texts)

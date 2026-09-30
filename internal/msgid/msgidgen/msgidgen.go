@@ -72,7 +72,7 @@ func Render(keys []string) ([]byte, error) {
 			return nil, fmt.Errorf("keys %q and %q both become the Go name %s", prev, key, name)
 		}
 		owner[name] = key
-		fmt.Fprintf(&b, "\t%s = %q\n", name, key)
+		fmt.Fprintf(&b, "\t%s ID = %q\n", name, key)
 	}
 	b.WriteString(")\n")
 	return format.Source(b.Bytes())

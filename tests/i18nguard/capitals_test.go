@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // 守卫 4：英文里，错误块的标题（clierr.New 等的第二个参数）、标签（WithDetail 的键）与建议（WithHint / WithTip）
@@ -98,7 +99,7 @@ func TestEnglishLabelsAndHintsStartWithACapital(t *testing.T) {
 	require.Greater(t, len(uses), 200, "只认出 %d 处标题/标签/建议——解析坏了，结论不可信", len(uses))
 
 	for name, where := range uses {
-		text, ok := en[values[name]]
+		text, ok := en[msgid.ID(values[name])]
 		if !ok || text == "" {
 			continue
 		}

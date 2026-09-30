@@ -330,7 +330,7 @@ func isGeneratedComment(line string) bool {
 	}
 	for _, lang := range i18n.SupportedLangs() {
 		catalog := i18n.CatalogFor(lang)
-		for _, id := range []string{msgid.ConfigdirSkeletonIntro, msgid.ConfigdirSkeletonRequired, msgid.ConfigdirSkeletonOptional} {
+		for _, id := range []msgid.ID{msgid.ConfigdirSkeletonIntro, msgid.ConfigdirSkeletonRequired, msgid.ConfigdirSkeletonOptional} {
 			for _, generated := range strings.Split(yamlcomment.Block("", catalog[id]), "\n") {
 				if generated != "" && strings.TrimSpace(generated) == line {
 					return true

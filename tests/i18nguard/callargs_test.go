@@ -33,7 +33,7 @@ func TestCallsPassTheArgumentsTheirMessageUses(t *testing.T) {
 				n = i
 			}
 		}
-		uses[msgidgen.GoName(key)] = n
+		uses[msgidgen.GoName(string(key))] = n
 	}
 
 	checked := 0

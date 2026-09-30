@@ -41,6 +41,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // outputLineAllow 是允许"带符号却不匹配目录"的行：key 是 "语言|相对路径|那一行里的一段文字"。
@@ -80,7 +81,7 @@ func literalWidth(s string) int {
 // 例外是固定文字不够、却带着自己的行首符号和标点骨架的文案（"⬆️  %s：%s → %s"）：它连同
 // 符号一起编译，只匹配以同一个符号开头、骨架一致的整行——符号加至少两个骨架字符足以认出它，
 // 而只有符号（"✅ %s"）或只有骨架（"%s（%s）"）的仍然进不来。
-func compileLineTemplates(catalog map[string]string) []*regexp.Regexp {
+func compileLineTemplates(catalog map[msgid.ID]string) []*regexp.Regexp {
 	var out []*regexp.Regexp
 	for _, message := range catalog {
 		for _, line := range strings.Split(message, "\n") {
@@ -134,7 +135,7 @@ func leadingMark(s string) string {
 }
 
 // outputMarks 收集这门语言目录里所有作为行首符号的符号，再加上错误块渲染器自己拼的三个。
-func outputMarks(catalog map[string]string) map[string]bool {
+func outputMarks(catalog map[msgid.ID]string) map[string]bool {
 	marks := map[string]bool{"❌": true, "⚠️": true, "💡": true}
 	for _, message := range catalog {
 		for _, line := range strings.Split(message, "\n") {
@@ -374,7 +375,7 @@ func TestDocOutputLinesConformToCatalog(t *testing.T) {
 
 // 匹配器自己要认得出对的、拦得住错的，不能是个永远放行的摆设。
 func TestOutputLineMatcher(t *testing.T) {
-	catalog := map[string]string{
+	catalog := map[msgid.ID]string{
 		"a": "✅ Removed %[1]s",
 		"b": "Suggestions:",
 		"c": "%[1]s（%[2]s）", // 几乎全是动词：不能进匹配池
@@ -398,10 +399,10 @@ func TestOutputLineMatcher(t *testing.T) {
 // 固定文字少、却带着自己的行首符号和标点骨架的文案（"⬆️  %s：%s → %s"）：只在符号相同时整行匹配。
 // 不这样做，这类真实输出永远核对不了；放得太宽（"✅ %s" 匹配一切），又等于没查。
 func TestOutputLineMatcherMarkedSkeletons(t *testing.T) {
-	catalog := map[string]string{
+	catalog := map[msgid.ID]string{
 		"move": "⬆️  %[1]s：%[2]s → %[3]s",
-		"bare": "✅ %[1]s",           // 只有符号、没有骨架：不能进
-		"par":  "%[1]s（%[2]s）",     // 有骨架、没有符号：不能进
+		"bare": "✅ %[1]s",         // 只有符号、没有骨架：不能进
+		"par":  "%[1]s（%[2]s）",    // 有骨架、没有符号：不能进
 		"one":  "📦 %[1]s → %[2]s", // 骨架只有一个字符：不能进
 	}
 	templates := compileLineTemplates(catalog)

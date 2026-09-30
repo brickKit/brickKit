@@ -26,7 +26,7 @@ func TestGoNamesAreUnique(t *testing.T) {
 func TestRenderSkipsPluralOneKeys(t *testing.T) {
 	out, err := Render([]string{"count.files", "count.files.one"})
 	require.NoError(t, err)
-	assert.Contains(t, string(out), `CountFiles = "count.files"`)
+	assert.Contains(t, string(out), `CountFiles ID = "count.files"`)
 	assert.NotContains(t, string(out), "count.files.one")
 }
 

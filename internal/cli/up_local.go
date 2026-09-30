@@ -195,7 +195,7 @@ func hintsFromManifest(l *manifest.Local) runcmd.Hints {
 
 // detectionReasonMessages 给 runcmd 的每个原因配一句话（%[1]s 是 Problem.Detail，%[2]s 是候选项）。
 // runcmd 只给结构化的原因，不碰语言；话由这里按当前语言说。漏配的原因由测试拦下。
-var detectionReasonMessages = map[runcmd.Reason]string{
+var detectionReasonMessages = map[runcmd.Reason]msgid.ID{
 	runcmd.ReasonMarkerMissing:              msgid.CliUpReasonMarkerMissing,
 	runcmd.ReasonUnreadableManifest:         msgid.CliUpReasonUnreadableManifest,
 	runcmd.ReasonNoEntryPoint:               msgid.CliUpReasonNoEntryPoint,

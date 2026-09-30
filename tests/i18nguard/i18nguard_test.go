@@ -396,10 +396,11 @@ func TestEnglishPluralFormsAreCompleteAndUsed(t *testing.T) {
 	}
 
 	for key, where := range needsOne {
-		_, ok := en[key+msgid.PluralOneSuffix]
+		_, ok := en[msgid.ID(key+msgid.PluralOneSuffix)]
 		assert.True(t, ok, "%s 需要英文单数形式：en 目录里缺 %s%s", where, key, msgid.PluralOneSuffix)
 	}
-	for key := range en {
+	for id := range en {
+		key := string(id)
 		if !strings.HasSuffix(key, msgid.PluralOneSuffix) {
 			continue
 		}

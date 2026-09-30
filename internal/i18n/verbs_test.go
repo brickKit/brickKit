@@ -19,8 +19,7 @@ func TestCatalogVerbsMatchSource(t *testing.T) {
 	source := catalogFor(SourceLang())
 	for _, l := range registry[1:] {
 		for key, text := range catalogFor(l.Code) {
-			base := strings.TrimSuffix(key, msgid.PluralOneSuffix)
-			want, ok := source[base]
+			want, ok := source[pluralBase(key)]
 			if !ok || want == "" {
 				continue // 缺的 key 由 parity 测试报
 			}
@@ -31,7 +30,7 @@ func TestCatalogVerbsMatchSource(t *testing.T) {
 
 // argsOfKeysWithoutSourceText 是源语言留空的 key（"保留 cobra 自带的英文"）实际收到的参数：
 // 没有源文案可比，就按代码传的参数比。键就是 root.go 的 localize 怎么调它们。
-var argsOfKeysWithoutSourceText = map[string][]string{
+var argsOfKeysWithoutSourceText = map[msgid.ID][]string{
 	msgid.CobraUsageTemplate:   nil,
 	msgid.CobraHelpShort:       nil,
 	msgid.CobraCompletionShort: nil,
@@ -100,7 +99,7 @@ func TestCatalogLineBreaksMatchSource(t *testing.T) {
 	source := catalogFor(SourceLang())
 	for _, l := range registry[1:] {
 		for key, text := range catalogFor(l.Code) {
-			want, ok := source[strings.TrimSuffix(key, msgid.PluralOneSuffix)]
+			want, ok := source[pluralBase(key)]
 			if !ok || want == "" {
 				continue
 			}

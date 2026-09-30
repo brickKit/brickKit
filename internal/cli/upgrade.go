@@ -355,7 +355,7 @@ func renderUpgradeLines(opts *Options, plan *install.Plan) {
 func renderMigrationReport(opts *Options, file string, r configdir.MigrateReport) {
 	opts.Printf("📝 %s\n", file)
 	rows := []struct {
-		label string
+		label msgid.ID
 		keys  []string
 	}{
 		{msgid.CliUpgradeKeysCopied, r.Copied},

@@ -44,6 +44,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/msgid/msgidgen"
 )
 
 // titlePlaceholder 是报错标题里"这里会填进一个变量"的占位符：
@@ -75,27 +76,16 @@ func clierrCodes(t *testing.T) []string {
 	return out
 }
 
-// msgidKeys 从 internal/msgid 源码里取出常量名 → key 字符串值的映射
-// （msgid.ProjectMissing -> "project.missing"），用来把 i18n.T(msgid.X)
-// 调用还原成它实际查到的文案。跟 clierrCodes() 是同一个手法：真相来自
-// 源码本身，不是又抄一份清单。
+// msgidKeys 是常量名 → key 字符串值的映射（msgid.ProjectMissing -> "project.missing"），
+// 用来把 i18n.T(msgid.X) 调用还原成它实际查到的文案。常量本来就是 make generate-msgid 从
+// 源语言目录按 msgidgen.GoName 生成的，这里用同一条规则推出来，不去解析生成的 Go 源码。
 func msgidKeys(t *testing.T) map[string]string {
 	t.Helper()
-	dir := filepath.Join(repoRoot, "internal", "msgid")
-	entries, err := os.ReadDir(dir)
+	keys, err := msgidgen.SourceKeys(filepath.Join(repoRoot, "internal", "i18n", "locales", string(i18n.SourceLang())+".yaml"))
 	require.NoError(t, err)
-
-	re := regexp.MustCompile(`(?m)^\s*(\w+)\s*=\s*"([^"]+)"`)
-	out := map[string]string{}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
-			continue
-		}
-		body, err := os.ReadFile(filepath.Join(dir, entry.Name()))
-		require.NoError(t, err)
-		for _, m := range re.FindAllStringSubmatch(string(body), -1) {
-			out[m[1]] = m[2]
-		}
+	out := make(map[string]string, len(keys))
+	for _, k := range keys {
+		out[msgidgen.GoName(k)] = k
 	}
 	return out
 }
@@ -103,7 +93,7 @@ func msgidKeys(t *testing.T) map[string]string {
 // i18nCallTitle 把 i18n.T(msgid.Name, ...) 形状的调用还原成它在给定语言目录里
 // 的实际文案。错误码文档两棵树各写各的语言（docs/en 引英文标题，docs/zh 引中文
 // 标题），所以调用方按文档所在的语言传对应的目录。
-func i18nCallTitle(call *ast.CallExpr, msgidToKey map[string]string, catalog map[string]string) (string, bool) {
+func i18nCallTitle(call *ast.CallExpr, msgidToKey map[string]string, catalog map[msgid.ID]string) (string, bool) {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return "", false
@@ -124,7 +114,7 @@ func i18nCallTitle(call *ast.CallExpr, msgidToKey map[string]string, catalog map
 	if !ok {
 		return "", false
 	}
-	text, ok := catalog[key]
+	text, ok := catalog[msgid.ID(key)]
 	return text, ok
 }
 

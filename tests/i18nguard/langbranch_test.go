@@ -129,7 +129,7 @@ func TestNoLanguageListWrittenOut(t *testing.T) {
 	}
 	for _, lang := range i18n.SupportedLangs() {
 		for key, text := range i18n.CatalogFor(lang) {
-			check(string(lang)+" "+key, text)
+			check(string(lang)+" "+string(key), text)
 		}
 	}
 	for _, rel := range goFiles(t, []string{"internal", "cmd"}, false) {
@@ -157,7 +157,7 @@ func TestNoLanguageNamedInExampleCommands(t *testing.T) {
 	}
 	for _, lang := range i18n.SupportedLangs() {
 		for key, text := range i18n.CatalogFor(lang) {
-			check(string(lang)+" "+key, text)
+			check(string(lang)+" "+string(key), text)
 		}
 	}
 	for _, rel := range goFiles(t, []string{"internal", "cmd"}, false) {

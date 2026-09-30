@@ -99,8 +99,13 @@ func TestCatalogKeyOrderFollowsSource(t *testing.T) {
 	}
 }
 
-func isPluralOne(key string) bool {
-	return strings.HasSuffix(key, msgid.PluralOneSuffix)
+func isPluralOne[K ~string](key K) bool {
+	return strings.HasSuffix(string(key), msgid.PluralOneSuffix)
+}
+
+// pluralBase 是单数形式那条 key 对应的"其他"形式的 key。
+func pluralBase(key msgid.ID) msgid.ID {
+	return msgid.ID(strings.TrimSuffix(string(key), msgid.PluralOneSuffix))
 }
 
 // verbs 取出模板里用到的位置 verb 编号（%[2]d → 2），去重排序——单数形式
@@ -129,7 +134,7 @@ func TestPluralOneKeysComplementTheirBase(t *testing.T) {
 			if !isPluralOne(key) {
 				continue
 			}
-			base := strings.TrimSuffix(key, msgid.PluralOneSuffix)
+			base := pluralBase(key)
 			other, ok := cat[base]
 			if !ok {
 				t.Errorf("%s 目录里 %s 有单数形式却没有\"其他\"形式", name, base)

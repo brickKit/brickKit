@@ -4,6 +4,9 @@
 // 什么时候用哪条 key，写在 en.yaml 里那条 key 上方的注释里。
 package msgid
 
+// ID 是一条消息的 key。i18n.T / TN / Count 只收这个类型：随手写的字符串编译就过不了。
+type ID string
+
 // PluralOneSuffix 拼在一个 key 后面，就是它的"单数形式"的 key。key 本身是
 // "其他"形式（英文里的复数，也是没有单复数之分的语言——中文——的唯一形式）；
 // 只有 i18n.TN / i18n.Count 会用到这个后缀，普通的 i18n.T 永远只查 key 本身。

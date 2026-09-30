@@ -30,23 +30,30 @@ func Current() Lang {
 var localeFS embed.FS
 
 // loadCatalog 读 locales/<l>.yaml。
-func loadCatalog(l Lang) (map[string]string, error) {
+func loadCatalog(l Lang) (map[msgid.ID]string, error) {
 	file := "locales/" + string(l) + ".yaml"
 	data, err := localeFS.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
 	_, texts, err := parseCatalog(data, file)
-	return texts, err
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[msgid.ID]string, len(texts))
+	for k, v := range texts {
+		out[msgid.ID(k)] = v
+	}
+	return out, nil
 }
 
 var (
 	loadMu sync.Mutex
-	loaded = map[Lang]map[string]string{}
+	loaded = map[Lang]map[msgid.ID]string{}
 )
 
 // catalogFor 返回 l 的目录，第一次用到时才读；没登记的语言用源语言的目录。
-func catalogFor(l Lang) map[string]string {
+func catalogFor(l Lang) map[msgid.ID]string {
 	if !registered(l) {
 		l = SourceLang()
 	}
@@ -71,7 +78,7 @@ func catalogFor(l Lang) map[string]string {
 // TestCatalogParity 在测试期拦住，正常运行不会走到"查不到"这条分支；
 // 万一真的走到了（比如新增 key 时漏了一份目录、测试又没跑），直接暴露
 // 问题而不是悄悄回落到另一种语言——这是这个项目一贯的态度：宁可大声失败，也不悄悄出错。
-func T(id string, args ...any) string {
+func T(id msgid.ID, args ...any) string {
 	text, ok := catalogFor(current)[id]
 	if !ok {
 		return fmt.Sprintf("!missing-i18n-key:%s!", id)
@@ -89,7 +96,7 @@ func T(id string, args ...any) string {
 // 目录里 id 本身是"其他"形式（英文的复数，也是没有单复数之分的语言的唯一形式）；
 // n == 1 且当前语言的目录里有 id+msgid.PluralOneSuffix 这一条，就用它，否则
 // 回落到 id 本身。中文不写单数条目，所以永远走 id——不用为中文再开一份重复文案。
-func TN(id string, n int, args ...any) string {
+func TN(id msgid.ID, n int, args ...any) string {
 	if n == 1 {
 		if _, ok := catalogFor(current)[id+msgid.PluralOneSuffix]; ok {
 			return T(id+msgid.PluralOneSuffix, args...)
@@ -101,16 +108,16 @@ func TN(id string, n int, args ...any) string {
 // Count 返回"数字 + 名词"的短语（"3 files" / "1 file"），id 是 msgid 里
 // Count* 那一族的 key，模板里 %[1]d 就是 n。要在句子里数一样东西时用它，
 // 句子本身只留一个 %s 接这个短语，这样单复数的事全在这一族 key 里解决。
-func Count(id string, n int) string {
+func Count(id msgid.ID, n int) string {
 	return TN(id, n, n)
 }
 
 // CatalogFor 返回给定语言目录的只读快照，供工具类代码使用
 // （tests/docfields 核对错误码文档标题要用到），不用于运行时查文案——
 // 运行时一律用 T()。返回值是拷贝，调用方改它不会影响真正的目录。
-func CatalogFor(l Lang) map[string]string {
+func CatalogFor(l Lang) map[msgid.ID]string {
 	src := catalogFor(l)
-	out := make(map[string]string, len(src))
+	out := make(map[msgid.ID]string, len(src))
 	for k, v := range src {
 		out[k] = v
 	}
