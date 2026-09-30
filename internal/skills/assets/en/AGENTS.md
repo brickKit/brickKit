@@ -22,7 +22,7 @@ A project splits its facts by **who changes them and why** — each question has
 | --- | --- | --- |
 | `brickkit.yaml` | **What** is in the project: name, install sources, one line per component version (exact). It is the lock file | yes |
 | `deploy.yaml` | **How** the team deploys: `target` (docker / podman / k8s), one entry per component version (mode, expose, replicas, labels, quotas…), the `k8s:` block, `vars:` overrides | yes |
-| `deploy.local.yaml` | Your **personal** full copy of `deploy.yaml`, used instead of it while local mode is on (`brickkit local on`) | **no** |
+| `deploy.local.yaml` | Your **personal** full copy of `deploy.yaml`: while local mode is on (`brickkit local on`), the commands that run or check the deployment read it instead | **no** |
 | `config/` | **Business values** per component: `config/<scope>-<name>.yaml` (keys are the env var names), `config/vars.yaml` for shared values | yes |
 
 Dependencies are **not** in any of these — they live in each component's `component.yaml`
@@ -72,6 +72,10 @@ stale one is what makes you confidently type an `unknown flag`.
 | `brickkit-component` | writing or editing a `component.yaml` and its `BRICKKIT.md`, shells, migrations, releasing a version |
 | `brickkit-deploy` | `deploy.yaml` / `deploy.local.yaml`, targets, local mode, `mode: debug` / `local`, environments, `config/` values and secrets, images |
 | `brickkit-troubleshoot` | an error from `brickkit`, a component that won't start or connect, looking up an `error_code` |
+
+**These files come with the CLI.** After the CLI is upgraded, `brickkit skills status` shows which of
+them are out of date and `brickkit skills update` refreshes them; files you edited by hand are left
+alone.
 
 **To have Claude Code read this page too** (it only reads `CLAUDE.md`), add one line to your own
 `CLAUDE.md`:

@@ -28,10 +28,11 @@ networkPolicy……只在 `target: k8s` 时生效，别的 target 下写了会�
 
 **2. 个人的事写进 `deploy.local.yaml`，不是改 `deploy.yaml`。**
 
-`brickkit local on` 第一次会把 `deploy.yaml` 复制成 `deploy.local.yaml`（内容一字不差，只有 `init`
-写的团队文件头换成个人文件的说明；已存在就沿用，
-从不覆盖），并打开本地模式。**开着时所有命令整份读 `deploy.local.yaml`，完全替代 `deploy.yaml`，
-不合并**——所以你看到的就是实际跑的，但你改 `deploy.yaml` 也不会生效。这份文件不进 Git。
+`brickkit local on` 第一次会把 `deploy.yaml` 复制成 `deploy.local.yaml`（内容一字不差，只有开头那几行
+注释——团队文件头——换成个人文件的说明，用 CLI 当前的语言；已存在就沿用，从不覆盖），并打开本地模式。
+**开着时，跑部署、查部署的命令（`up`、`down`、`status`、`sync`、`lint`、`build`）整份读
+`deploy.local.yaml`，完全替代 `deploy.yaml`，不合并**——所以你看到的就是实际跑的，但你改 `deploy.yaml`
+也不会生效。`graph` 和 `deps` 永远读 `deploy.yaml`，人人看到的都一样。这份文件不进 Git。
 `local off` 关开关、文件留着；`local status` 看开关和文件是否还跟 `brickkit.yaml` 一致；
 单次忽略用 `--no-local`。该写在这里的：`mode: debug`、本机空着的 `localPort`、指向你自己数据库
 的 `vars`、换一个 target。
@@ -64,7 +65,7 @@ docker / podman，`target: k8s` 下拒绝——集群里的 Pod 到不了你的�
 | --- | --- |
 | `DB_PORT: 5432` | 字面量 |
 | `DB_HOST: $var:DB_HOST` | 公共变量：取 `config/vars.yaml`，部署文件的 `vars:` 同名时优先。未定义就报错，没有隐式兜底 |
-| `DB_PASSWORD: ${DB_PASSWORD}` | 进程环境，其次项目根的 `.env`（不进 Git） |
+| `DB_PASSWORD: ${DB_PASSWORD}` | 进程环境，其次项目根的 `.env`（不进 Git）；`${DB_PASSWORD:-dev}` 带默认值，`${VAR:-}` 表示可以为空 |
 | `TLS_CERT: file://.secrets/cert.pem` | 文件内容，路径相对项目根（`.secrets/` 不进 Git） |
 | `DB_PASSWORD: { existingSecret: db, key: password }` | 集群里已有的 Secret，仅 K8s、仅 `secret: true` 的键 |
 
@@ -74,7 +75,8 @@ docker / podman，`target: k8s` 下拒绝——集群里的 Pod 到不了你的�
 
 **6. 密钥不落明文。**
 
-Docker 下 CLI 把 `${VAR}` 原样留在 `compose.yaml`，由 compose 启动时求值；K8s 下 CLI 求值，
+`${VAR}` 在生成部署文件时就必须有定义（进程环境或 `.env`），每种部署目标都查：没定义就停下，而不是
+让 compose 悄悄换成空字符串。之后 Docker 下 CLI 把它原样留在 `compose.yaml`，由 compose 启动时求值；K8s 下 CLI 求值，
 `secret: true` 的值进生成的 Secret（Deployment 里是 `secretKeyRef`）。已经由 Vault / ESO 放进集群的
 Secret 用 `existingSecret` 引用，平台不读不写它的值。**平台不会替你去 Vault 取值**——能把值放进进程
 环境的任何办法今天就能用。

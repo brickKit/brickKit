@@ -26,8 +26,9 @@ BrickKit 是**声明式的组件管理与拼装平台**：每块积木（组件�
 **依赖关系不在 `brickkit.yaml` 里**——它们写在各组件自己的 `component.yaml`，
 `brickkit deps` 把解析好的树打印出来。
 
-判断当前生效的是哪份部署文件：`brickkit local status`。本地模式开着时，所有命令读的是
-`deploy.local.yaml`，你改 `deploy.yaml` 不会有任何效果。
+判断当前生效的是哪份部署文件：`brickkit local status`。本地模式开着时，跑部署、查部署的命令
+（`up`、`down`、`status`、`sync`、`lint`、`build`）读的是 `deploy.local.yaml`，你改 `deploy.yaml`
+不会有任何效果；`graph` 和 `deps` 永远读 `deploy.yaml`。
 
 ## 先读文档，再读源码
 
@@ -68,6 +69,9 @@ BrickKit 是**声明式的组件管理与拼装平台**：每块积木（组件�
 | `brickkit-component` | 写或改 `component.yaml`：配置项、保留名、依赖、镜像与构建、外壳、`BRICKKIT.md`、迁移、健康检查、release |
 | `brickkit-deploy` | `deploy.yaml` / `deploy.local.yaml` 字段、本地模式、mode debug/local、多环境、`config/` 的值与密钥写法、镜像、外壳成员、K8s |
 | `brickkit-troubleshoot` | 报错与症状 → 原因 → 处理，按 `error_code` 定位 |
+
+**这些文件随 CLI 一起来。** 升级 CLI 之后，`brickkit skills status` 看哪些已经过时，
+`brickkit skills update` 刷新它们；你手改过的文件不会被覆盖。
 
 **想让 Claude Code 也读到这一页导读**（它只读 `CLAUDE.md`，不读本文件），
 在你自己的 `CLAUDE.md` 里加一行：

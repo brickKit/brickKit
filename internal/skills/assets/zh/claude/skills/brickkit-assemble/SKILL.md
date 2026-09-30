@@ -100,6 +100,7 @@ description: 在 BrickKit 项目里增删组件、升级组件版本、调整启
 
 **`up` 的顺序是拓扑排序**（依赖先起）。`brickkit up --dry-run` 只生成部署文件供审查，不真起。
 `brickkit status` 读引擎的真实状态，不启动的组件也列出来；`down` 不删 volume，数据保留。
+`graph` 和 `deps` 永远读 `deploy.yaml`、不看本地模式，所以人人看到的都一样。
 
 **多版本共存是项目级能力。** `brickkit.yaml` 里可以并列 `people/basic` 的 1.0.0 与 2.0.0，
 它们是两个互不冲突的服务名（`people-basic-1-0-0`、`people-basic-2-0-0`）。但**同一份

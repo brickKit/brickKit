@@ -117,7 +117,8 @@ deploy entry; **upgrading a shell** switches to the members the new shell compil
 **Environments**: one complete deploy file per environment, `brickkit up -f deploy.prod.yaml`.
 `brickkit.yaml` and `config/` are shared; no overlay, no merge. `-f` ignores local mode.
 
-`status` and `down` read the same deploy file as `up`. `down` never deletes volumes.
+`status` and `down` read the same deploy file as `up`. `graph` and `deps` always read `deploy.yaml`,
+never local mode, so their output is the same for everyone. `down` never deletes volumes.
 
 ## Where to dig deeper
 

@@ -1,6 +1,6 @@
 ---
 name: brickkit-troubleshoot
-description: Use when a BrickKit command reports an error, a component won't start, address injection isn't taking effect, dependency resolution fails, or you need to look up a problem by its error_code. Covers symptom → cause → fix for deploy files out of step with brickkit.yaml, a stale deploy.local.yaml, empty required config, upgrade config conflicts, undefined $var references, missing or stale images, local repo version mismatches, shell member mismatches, compose start cycles, release refusals, and which "bugs" are deliberate design. Applies when the user pastes what a BrickKit command printed, or asks "why won't it start / connect / release".
+description: Use when a BrickKit command reports an error, a component won't start, address injection isn't taking effect, dependency resolution fails, or you need to look up a problem by its error_code. Covers symptom → cause → fix for deploy files out of step with brickkit.yaml, a stale deploy.local.yaml, empty required config, upgrade config conflicts, undefined $var and ${VAR} references, a commit blocked by the pre-commit check, missing or stale images, local repo version mismatches, shell member mismatches, compose start cycles, release refusals, and which "bugs" are deliberate design. Applies when the user pastes what a BrickKit command printed, or asks "why won't it start / connect / release".
 ---
 
 # Troubleshooting
@@ -23,24 +23,32 @@ injected empty value.
 seconds by default. Raise `healthCheck.startPeriodSeconds` in `component.yaml` above the real cold
 start. And a health check that pings a database is itself the bug — `/healthz` checks only the process.
 
-**3. No registry, config center, gateway or long-running service** exists. Not finding one isn't a
+**3. The component says it's ready, the platform says unhealthy.** On Docker / Podman the health check
+runs `wget` or `curl` inside the container; an image with neither can never pass it. Add one to the
+image. (Kubernetes probes are `httpGet` and don't need either.)
+
+**4. A `mode: debug` component fails with `relation does not exist`.** It gets no migration container
+(`MIGRATION_SKIPPED`); run its migration once by hand.
+
+**5. No registry, config center, gateway or long-running service** exists. Not finding one isn't a
 missing install; don't suggest adding it.
 
-**4. A component "mysteriously" started.** Start/stop follows the layer above: it runs while anything
+**6. A component "mysteriously" started.** Start/stop follows the layer above: it runs while anything
 running needs it, required or optional. Each `up` line states the reason (`starting (X needs it)`).
 
-**5. `deploy.yaml` rejects `mode: debug`.** By design: it belongs in `deploy.local.yaml`
+**7. `deploy.yaml` rejects `mode: debug`.** By design: it belongs in `deploy.local.yaml`
 (`brickkit local on`, then edit that file).
 
-**6. You edited `deploy.yaml` and nothing changed.** Local mode is probably on — every command then
-reads `deploy.local.yaml` instead. `brickkit local status` shows it. `-f` ignores both the switch
-and the local file.
+**8. You edited `deploy.yaml` and nothing changed.** Local mode is probably on — the commands that run
+or check the deployment (`up`, `down`, `status`, `sync`, `lint`, `build`) then read `deploy.local.yaml`
+instead. `graph` and `deps` always read `deploy.yaml`. `brickkit local status` shows the switch; `-f`
+ignores both the switch and the local file.
 
-**7. `up` refuses because a config file has a duplicate key.** Intended after `upgrade --yes`: keep
+**9. `up` refuses because a config file has a duplicate key.** Intended after `upgrade --yes`: keep
 one line, delete the other and the comment. Don't run a YAML formatter over it — it silently drops
 one key and hides the conflict.
 
-**8. A `$var:` reference is "not a string" or is ignored.** It must be written without a space:
+**10. A `$var:` reference is "not a string" or is ignored.** It must be written without a space:
 `DB_HOST: $var:DB_HOST`. With a space (`$var: DB_HOST`) YAML reads it as a map. Values in
 `config/vars.yaml` can't themselves be `$var:` references.
 
@@ -53,7 +61,10 @@ one key and hides the conflict.
 | "a required component config item has no value" (`CONFIG_INVALID`) | `add` wrote `KEY: ""` for a required key without default | Fill it in `config/<scope>-<name>.yaml` — often as `${VAR}` or `$var:NAME` |
 | "unresolved configuration conflicts" (`CONFIG_CONFLICT`) | `upgrade` with `--yes` / no TTY met a key you changed whose default also changed | Keep one of the two lines in the config file, delete the other and the comment |
 | "references shared variables that are defined nowhere" (`CONFIG_INVALID`) | A `$var:NAME` has no value in `config/vars.yaml` nor in the deploy file's `vars:` | Define it; there is no implicit fallback |
+| "environment variables referenced in config/ or the deploy file are not defined" (`CONFIG_INVALID`) | A `${VAR}` is set neither in the process environment nor in `.env`. Checked when the files are generated, on every target — compose would otherwise put in an empty string without an error | Add it to `.env` or export it; or write a default, `${VAR:-dev}` (`${VAR:-}` for a value that may be empty) |
+| "… is not a valid ${} reference" (`CONFIG_INVALID`) | A malformed reference such as `${DB_HOST` or `${DB-HOST}`, caught when the files are loaded | Write `${NAME}` or `${NAME:-default}` |
 | A config key "won't take effect" warning | The key isn't in the component's `configSchema` (typo, or dropped by an upgrade) | Use the suggested key; keys are the exact env var names |
+| A value you wrote has no effect, and nothing warns | You edited another version's file: the default version reads `config/<scope>-<name>.yaml`, a `requiredBy` version reads `config/<scope>-<name>@<version>.yaml` | Edit the file of the version that runs |
 | `DEPENDENCY_MISSING` naming a version not declared | `brickkit.yaml` is a lock file; that version isn't in it | `brickkit add` the component at that version |
 | `add` refuses: the project already has this component | A direct `add` of another version | `brickkit upgrade <id>@<version>` |
 | `IMAGE_MISSING` | The image needs a local build; `up` never builds | `brickkit build <id>` |
@@ -70,13 +81,28 @@ one key and hides the conflict.
 | `RELEASE_PUSH_FAILED` | The push was rejected or unreachable; the local tag was removed | Fix access/network and rerun unchanged |
 | `MIGRATION_FAILED` | The migration command failed (or a typo'd argument the entrypoint didn't reject) | Read the migration container's log, fix, rerun |
 | `PORT_CONFLICT` | Duplicate `localPort` / `exposePort`, or the host port is taken | Change the port — in `deploy.local.yaml` if it's only your machine |
-| `ENGINE_MISSING` | docker / podman / kubectl not on `PATH` or not running | Install/start it |
-| `PROJECT_MISSING` | Not in a project, or `deploy.yaml` missing | `brickkit init` completes a project without touching existing files |
+| `ENGINE_MISSING` | docker / podman / kubectl not on `PATH` or not running — or only Podman is installed while the deploy file says `target: docker` | Install/start it, or set `target: podman` |
+| `PROJECT_MISSING` | Not in a project, or `deploy.yaml` missing — or local mode is on but `deploy.local.yaml` was deleted | `brickkit init` completes a project without touching existing files; `brickkit local on` writes the local file again |
 | `LINT_FAILED` | `brickkit lint` found problems, each printed with file and field | Fix and rerun; warnings fail only with `--strict` |
-| `AUTH_REQUIRED` / `TOKEN_EXPIRED` / `IMAGE_UNAUTHORIZED` | Market login / registry access | `brickkit login` / `docker login <registry>` |
+| `AUTH_REQUIRED` / `TOKEN_EXPIRED` | Market login needed or expired | `brickkit login` |
+| `IMAGE_UNAUTHORIZED` | The image registry refused the pull, or has no such image | `docker login <registry>`, check the image reference — or build it here with `brickkit build` |
+| `AUTH_FAILED` | The market refused the user name or password — or a Git remote was reached but refused the fetch: the credentials were refused, or the repository doesn't exist (hosts answer both the same way) | Check the credentials; for Git, read git's own words in the error. Retrying unchanged won't help |
+| "Commit blocked: component source is committed under the archive directory …" (`CONFIG_CONFLICT`) | The pre-commit check installed by `brickkit init --hooks`: a component that should start has its source under `components/.archived/` in the commit | `brickkit restore` (puts `mode` back), or commit the directory move together with the change; `brickkit restore --check` runs the same check by hand |
+| `COMPONENT_NOT_FOUND` | No install source has this id or version; a Git repository has no tag for the version | Check the id and `sources:`; ask the author to `brickkit release` that version |
+| `COMPONENT_BLOCKED` | The market took this component version down | Use another version |
+| `MANIFEST_INVALID` | A `component.yaml` is invalid; the error names the field | Its author fixes it (`brickkit lint` in the component's repository) |
+| `SIGNATURE_INVALID` | `requireSignature` is on and a market component isn't signed | Ask the publisher for a signed version |
+| `CLONE_FAILED` | `add --repo` couldn't clone: git failed, a directory of that name exists under `components/`, or the source is archived | Read git's words; move the directory away; `brickkit sync` brings archived source back |
+| `SUBMODULE_GUARD` | `sync` or `remove` would move or delete a directory registered as a git submodule of the project | Deregister the submodule first |
+| `ENGINE_FAILED` | `docker compose` / `podman compose` / `kubectl` failed, components came up unhealthy, or a `mode: local` process crashed | The engine's own output is in the error; then the component's logs |
+| `MIGRATION_SKIPPED` (warning) | A `mode: local` / `debug` component runs no migration container | Run its migration once by hand |
+| `PROJECT_EXISTS` | `brickkit init <name>` into a directory that exists and isn't empty (or is a file) | Another name — or go in and run `brickkit init` without a name, which only adds what's missing |
+| `INVALID_ARGUMENT` | The command line is wrong (exit code 2): unknown command or flag, a component id or version in the wrong form | `brickkit <command> --help` |
+| `INTERNAL` | Reading or writing a local file failed (disk full, no permission) — or, titled "Internal error", a CLI bug | Check disk space and permissions; report a bug with the whole output |
 
 Every command-ending error prints a JSON line on stderr with a stable `error_code` right after the
-`❌` block; only `NETWORK_UNREACHABLE` is worth retrying unchanged.
+`❌` block. Scripts decide on that code and the exit code, never on the human text. Only `NETWORK_UNREACHABLE` is worth retrying unchanged — the remote was never reached
+(offline, a host name that doesn't resolve). A Git remote that answered and refused is `AUTH_FAILED`.
 
 ## Where to check, and in what order
 

@@ -34,9 +34,10 @@ One entry per version in `brickkit.yaml`, members nested under their shell count
 
 **2. `deploy.local.yaml` replaces `deploy.yaml`; it is never merged.**
 
-`brickkit local on` copies `deploy.yaml` the first time — identical except that the "team file" header
-`init` wrote becomes a personal-file header (an existing file is reused)
-and from then on **every** command reads `deploy.local.yaml` instead. `local off` switches back and
+`brickkit local on` copies `deploy.yaml` the first time — identical except that the comment lines at the
+top (the "team file" header) become a personal-file header in the CLI's language; an existing file is
+reused. From then on the commands that run or check the deployment (`up`, `down`, `status`, `sync`,
+`lint`, `build`) read `deploy.local.yaml` instead; `graph` and `deps` always read `deploy.yaml`. `local off` switches back and
 keeps the file. When the team changes `deploy.yaml`, your copy doesn't follow: `up` refuses once the
 component set differs. Run `brickkit local refresh` — it saves the old file as
 `deploy.local.yaml.bak`, writes a fresh copy and **lists your old local changes** for you to re-apply
@@ -76,8 +77,11 @@ Optional keys are commented (`# LOG_LEVEL: info`): leave them commented to follo
 default, so new defaults arrive with upgrades. `$var:NAME` has **no space** after the colon — `$var: NAME` is a YAML map, not a reference. An
 undefined `$var:` is an error; there is no fallback, and values in `config/vars.yaml` can't chain
 another `$var:`.
-Plaintext in a `secret: true` key warns: config files are committed. On Docker, `${VAR}` is left for
-compose to resolve at start; on K8s the CLI resolves it and `secret: true` values go into a Secret.
+Plaintext in a `secret: true` key warns: config files are committed. A `${VAR}` must be defined
+(process environment, then `.env`) when the files are generated, on every target — an undefined one
+stops `up` rather than let compose put in an empty string. Give it a default with `${VAR:-dev}`, or
+`${VAR:-}` for a value that may be empty. On Docker the reference is then left for compose to expand
+at start; on K8s the CLI resolves it and `secret: true` values go into a Secret.
 
 **6. There are no resource bindings.** A database or cache is deployed by ops, and the component
 reads it through its own config keys (`DB_HOST`, `DB_PASSWORD`, …). The database itself is created
