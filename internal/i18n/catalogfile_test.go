@@ -94,3 +94,12 @@ func TestParseCatalogRejectsALiteralBlockIndentedDeeper(t *testing.T) {
 	assert.Equal(t, "   ✅ foo", texts["a.x"])
 	assert.Equal(t, "\nafter a blank line\n  kept indent\n", texts["b.y"])
 }
+
+// 文件里混进一行 ---：YAML 把后面当成第二份文档，只读第一份就等于悄悄截掉后半截。直接报出那一行。
+func TestParseCatalogRejectsASecondDocument(t *testing.T) {
+	_, _, err := parseCatalog([]byte("a.x: \"one\"\n---\nb.y: \"two\"\n"), "locales/xx.yaml")
+	var ce *CatalogError
+	require.True(t, errors.As(err, &ce))
+	assert.Equal(t, 3, ce.Line)
+	assert.Contains(t, ce.Reason, "---")
+}

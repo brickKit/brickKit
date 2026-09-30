@@ -1,7 +1,10 @@
 package i18n
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -28,9 +31,25 @@ func (e *CatalogError) Error() string {
 // （裸写的 yes、首尾空格、折行），译者看到的与程序拿到的就不是同一句话。
 // 同一个 key 出现两次是错误，不是"后写的赢"。
 func parseCatalog(data []byte, file string) ([]string, map[string]string, error) {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var doc yaml.Node
-	if err := yaml.Unmarshal(data, &doc); err != nil {
+	if err := dec.Decode(&doc); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil, map[string]string{}, nil
+		}
 		return nil, nil, &CatalogError{File: file, Line: 1, Reason: err.Error()}
+	}
+	// 只读第一份文档就等于悄悄截掉 --- 之后的所有条目
+	var extra yaml.Node
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err != nil {
+			return nil, nil, &CatalogError{File: file, Line: 1, Reason: err.Error()}
+		}
+		line := extra.Line
+		if len(extra.Content) > 0 {
+			line = extra.Content[0].Line
+		}
+		return nil, nil, &CatalogError{File: file, Line: line, Reason: "a second YAML document starts here: remove the stray --- line above it"}
 	}
 	if len(doc.Content) == 0 {
 		return nil, map[string]string{}, nil
