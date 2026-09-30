@@ -139,8 +139,8 @@ Next: https://raw.githubusercontent.com/brickKit/brickKit/main/llms/en/03.md    
 
 ## 8. Keeping bundles current: a versioned pre-commit hook
 
-- `.githooks/pre-commit` (POSIX sh, in the repository): when the staged files include `docs/`, `AGENTS.md`,
-  `AGENTS.zh.md`, `llms.txt` or `llms.zh.txt`, it runs the generator and `git add llms/ llms.txt llms.zh.txt`, so
+- `.githooks/pre-commit` (POSIX sh, in the repository): when the staged files include `docs/en/`, `docs/zh/`,
+  `AGENTS.md`, `AGENTS.zh.md`, `llms.txt`, `llms.zh.txt` or the generator's own code, it runs the generator and `git add llms/ llms.txt llms.zh.txt`, so
   every commit carries matching bundles.
 - It refuses (exit 1, says why) when one of those files has unstaged changes: the generator reads the working tree,
   and bundles built from half-staged files would not match the commit. Stage the whole file, or commit with

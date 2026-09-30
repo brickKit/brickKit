@@ -113,6 +113,37 @@ else
 fi
 rm "$repo/$NEW"
 
+echo "▶ git commit <路径>（只提交这几个文件）：拒绝"
+# 这种模式下 git 让钩子对着一个临时暂存区跑：钩子 git add 的合集进了这次提交，真正的暂存区却还是旧的，
+# 下一个毫不相干的提交会把旧合集悄悄写回去
+echo "only" >>"$repo/$A"
+if out=$(cd "$repo" && g commit -qm only -- "$A" 2>&1); then
+	bad "带路径的提交却成功了：真正的暂存区会留着旧合集"
+else
+	if echo "$out" | grep -q "不带路径"; then ok "拒绝了，并说明要不带路径地提交"; else bad "拒绝了，但没说怎么办：$out"; fi
+fi
+g add "$A"
+g commit -qm only-done --no-verify
+
+echo "▶ 规划文档（docs/superpowers/）不归钩子管"
+before=$(calls)
+mkdir -p "$repo/$top/superpowers/specs"
+echo "# draft" >"$repo/$top/superpowers/specs/draft.md"
+echo "# plan" >"$repo/$top/superpowers/plan.md"
+g add "$top/superpowers/plan.md"
+if (cd "$repo" && g commit -qm plan >/dev/null 2>&1) && [ "$(calls)" -eq "$before" ]; then
+	ok "只提交规划文档：没跑生成器，没被没跟踪的草稿拦下"
+else
+	bad "规划文档的提交被拦下，或者跑了生成器"
+fi
+echo "draft staged" >>"$repo/$A"
+g add "$A"
+if (cd "$repo" && g commit -qm with-draft >/dev/null 2>&1); then
+	ok "有没跟踪的规划草稿时，文档提交照常"
+else
+	bad "一份没跟踪的规划草稿拦下了文档提交"
+fi
+
 echo "▶ 没有 go：提醒一句，提交照常"
 # PATH 只放钩子与 git 用得到的几样（这台机器的 go 可能就在 /usr/bin 里，不能直接用系统 PATH）
 mkdir -p "$tmp/nogo"

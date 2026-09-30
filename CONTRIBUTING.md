@@ -22,10 +22,13 @@ make hooks            # once per clone: enable the repository's commit hook (.gi
 ```
 
 **Enable the commit hook once per clone** with `make hooks` (it sets `git config core.hooksPath .githooks`; git never
-enables a repository's hooks by itself). When a commit touches `docs/`, `AGENTS*.md` or `llms*.txt`, the hook runs
-`make generate-llms` — rebuilding the documentation bundles in `llms/` that web AIs read — and adds them to the same
-commit. It refuses when one of those files still has unstaged changes, or when `docs/` has an untracked new page:
-bundles built from the working tree would not match the commit. Stage the whole file (or stash it) and commit again;
+enables a repository's hooks by itself). When a commit touches `docs/en/`, `docs/zh/`, `AGENTS*.md`, `llms*.txt` or the
+generator itself, the hook runs `make generate-llms` — rebuilding the documentation bundles in `llms/` that web AIs
+read — and adds them to the same commit (planning documents under `docs/superpowers/` aren't bundled and don't trigger
+it). It refuses when one of those files still has unstaged changes, or when `docs/en/` or `docs/zh/` has an untracked
+new page: bundles built from the working tree would not match the commit. It also refuses `git commit <paths>`: that
+mode runs the hook against a temporary index, so the regenerated bundles couldn't stay staged — `git add` the files and
+commit without paths. Stage the whole file (or stash it) and commit again;
 without the hook, run `make generate-llms` yourself — `make check-llms` in `make lint` fails on stale bundles.
 
 **No CI runs on pull requests.** The repository's only GitHub Actions workflow (`.github/workflows/release.yml`)

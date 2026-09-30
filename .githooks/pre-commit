@@ -1,13 +1,24 @@
 #!/bin/sh
 # 提交前让 llms/ 下的文档合集跟上这次提交里的文档（make hooks 启用本钩子）。
+# 只管合集的来源：docs/en、docs/zh、AGENTS 两份、llms 两份，以及生成器自己的代码——
+# docs/superpowers/ 这类规划文档不进合集，不归它管。
 # 生成器读的是工作区：这些文件还有没暂存的改动、或有没跟踪的新文档时，拒绝提交——
 # 那样生成的合集与提交的内容对不上。没有 go 时只提醒，make lint 的 check-llms 兜底。
 set -e
-paths='docs AGENTS.md AGENTS.zh.md llms.txt llms.zh.txt'
+paths='docs/en docs/zh AGENTS.md AGENTS.zh.md llms.txt llms.zh.txt internal/llmsgen cmd/gen-llms'
 # shellcheck disable=SC2086
 [ -n "$(git diff --cached --name-only -- $paths)" ] || exit 0
+# git commit <路径>：git 让钩子对着一个临时暂存区跑，钩子 git add 的合集进了这次提交，
+# 真正的暂存区却还是旧的——下一个毫不相干的提交会把旧合集悄悄写回去
+case "${GIT_INDEX_FILE:-}" in
+*next-index*)
+	echo "❌ 带路径的 git commit（只提交这几个文件）没法把重新生成的合集留在暂存区里"
+	echo "   先 git add 要提交的文件，再不带路径地 git commit"
+	exit 1
+	;;
+esac
 # shellcheck disable=SC2086
-dirty=$(git diff --name-only -- $paths; git ls-files --others --exclude-standard -- docs)
+dirty=$(git diff --name-only -- $paths; git ls-files --others --exclude-standard -- docs/en docs/zh)
 if [ -n "$dirty" ]; then
 	echo "❌ 这些文档还有没暂存的改动或没跟踪的新文件，合集会与这次提交对不上："
 	echo "$dirty" | sed 's/^/   /'
