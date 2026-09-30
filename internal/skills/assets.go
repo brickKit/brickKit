@@ -13,6 +13,7 @@ import (
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
+	"io/fs"
 	"path"
 	"slices"
 	"strings"
@@ -44,10 +45,24 @@ func (a Asset) Content() ([]byte, error) {
 //
 // 清单从 embed.FS 遍历得来而不是写死名单：assets/<lang>/ 下加一个文件就自动纳入，
 // 免得「加了文件忘了登记」——那种漏法不报错，只是静默少装一份。
+//
+// 没有自己那棵资产树的语言取源语言的资产（见 AssetLang）。
 func Assets(lang i18n.Lang) []Asset {
+	lang = AssetLang(lang)
 	var list []Asset
 	walk(path.Join(assetRoot, string(lang)), lang, &list)
 	return list
+}
+
+// AssetLang 是给 lang 装资产时实际用的语言：assets/<lang>/ 存在就用它，否则用源语言——
+// 一种语言可以先有 CLI 目录、后有技能资产的译本。
+func AssetLang(lang i18n.Lang) i18n.Lang {
+	if lang != "" {
+		if _, err := fs.Stat(assetFS, path.Join(assetRoot, string(lang))); err == nil {
+			return lang
+		}
+	}
+	return i18n.SourceLang()
 }
 
 // Scope 决定一个 Installer 管理哪一部分资产。

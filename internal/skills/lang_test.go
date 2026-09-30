@@ -152,3 +152,34 @@ func TestResolveLangIgnoresUnrecognizedLockValue(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, list, "不认识的语言代码要回退，而不是让资产列表变空")
 }
+
+// 登记了、却还没有技能资产的语言：装源语言的资产，lock 里记下实际装的语言，而不是报错或什么都不装。
+// （没登记的代码 xx 代替"登记了但没资产"：AssetLang 只看内嵌的资产目录。）
+func TestAssetsFallBackToSourceLanguage(t *testing.T) {
+	assert.Equal(t, i18n.Lang("zh"), AssetLang("zh"))
+	assert.Equal(t, i18n.SourceLang(), AssetLang("xx"))
+	assert.NotEmpty(t, Assets("xx"))
+	assert.Equal(t, len(Assets(i18n.SourceLang())), len(Assets("xx")))
+}
+
+func TestInstallingALanguageWithoutAssetsInstallsAndRecordsTheSourceLanguage(t *testing.T) {
+	in := newInstallerWithLang(t, "xx")
+	res, err := in.Apply()
+	require.NoError(t, err)
+	assert.NotEmpty(t, res.Written)
+
+	l, err := LoadLock(in.LockPath)
+	require.NoError(t, err)
+	assert.Equal(t, string(i18n.SourceLang()), l.Lang, "lock 记实际装的语言")
+
+	for _, a := range AssetsFor(ScopeProject, i18n.SourceLang()) {
+		want, err := a.Content()
+		require.NoError(t, err)
+		got, err := os.ReadFile(filepath.Join(in.Root, a.Target))
+		require.NoError(t, err)
+		assert.Equal(t, string(want), string(got), a.Target)
+	}
+	lang, err := in.ResolvedLang()
+	require.NoError(t, err)
+	assert.Equal(t, i18n.SourceLang(), lang, "skills status 报的也是实际装的语言")
+}

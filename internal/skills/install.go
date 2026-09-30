@@ -79,10 +79,21 @@ type Installer struct {
 //  1. Installer.Lang——调用方显式指定（init 传当前 CLI 语言；update --lang 传参数值）
 //  2. lock.Lang——项目已经记录过的语言，稳定，不随运行 CLI 的语言变
 //  3. lock 里有旧条目、但没有 Lang 字段——早于这个字段存在的项目，
-//     那批资产历史上只有中文，回退到 zh 而不是当场改语言
+//     见 lockLangBeforeLangField，不当场改语言
 //  4. 全新项目（既没指定、lock 也是空的）——用当前 CLI 语言，等价于"就当
 //     现在装一份"
+//
+// 结果再经过 AssetLang：还没有技能资产译本的语言装源语言的资产，lock 与
+// skills status 记的、报的都是实际装的那种。
 func (in Installer) resolveLang(lock *Lock) i18n.Lang {
+	return AssetLang(in.requestedLang(lock))
+}
+
+// lockLangBeforeLangField 是没有 Lang 字段的旧 skills.lock 所装资产的语言：那个字段出现之前，
+// 技能资产只写过中文。这是关于旧 lock 文件的一个事实，不是按语言分支。
+const lockLangBeforeLangField = i18n.ZH
+
+func (in Installer) requestedLang(lock *Lock) i18n.Lang {
 	if in.Lang != "" {
 		return in.Lang
 	}
@@ -90,7 +101,7 @@ func (in Installer) resolveLang(lock *Lock) i18n.Lang {
 		return l
 	}
 	if len(lock.Entries) > 0 {
-		return i18n.ZH
+		return lockLangBeforeLangField
 	}
 	return i18n.Current()
 }
