@@ -13,7 +13,7 @@ import (
 )
 
 // withDidYouMean 在"找不到这个组件"的报错上加一句"你是不是想写 …"（有相近的候选时）。
-// 错误码与标题都不变；命令从不拿猜出来的名字去执行（设计 §7.2）。
+// 错误码与标题都不变；命令从不拿猜出来的名字去执行。
 func withDidYouMean(err error, typed string, candidates []string) error {
 	if err == nil {
 		return nil

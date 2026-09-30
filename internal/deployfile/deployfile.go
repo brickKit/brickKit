@@ -45,7 +45,7 @@ const (
 // File 是一份部署文件的完整结构。
 type File struct {
 	Target string `yaml:"target" jsonschema:"enum=docker|podman|k8s"`
-	// Focus 是焦点组件（裸 ID）：只有它和它需要的组件启动，它从源码跑（设计 §4）。
+	// Focus 是焦点组件（裸 ID）：只有它和它需要的组件启动，它从源码跑。
 	// 只允许写在个人文件 deploy.local.yaml 里，与 mode: debug 同一条规则。
 	Focus string `yaml:"focus,omitempty"`
 	// K8s 收拢所有只在 target: k8s 下有意义的项目级设置；其它 target 下写了会警告。

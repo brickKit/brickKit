@@ -19,7 +19,7 @@ func focusOnPortal(t *testing.T, dir string) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 }
 
-// sync 不看焦点：焦点之外、项目本来要跑的组件，源码照样留在活跃目录（设计 §4.6）。
+// sync 不看焦点：焦点之外、项目本来要跑的组件，源码照样留在活跃目录。
 func TestSyncIgnoresTheFocus(t *testing.T) {
 	dir := focusFixture(t)
 	focusOnPortal(t, dir)

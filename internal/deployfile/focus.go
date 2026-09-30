@@ -12,7 +12,7 @@ var (
 )
 
 // SetFocus 把个人部署文件的 focus: 设成 id（id 为空时删掉这一行），只动这一行：
-// 注释、对齐用的空格、其余字段一个字节都不变（设计 §4.3）。按行编辑而不是经过 YAML
+// 注释、对齐用的空格、其余字段一个字节都不变。按行编辑而不是经过 YAML
 // 重新编码——重新编码会改掉 `target: docker          # …` 这种对齐。
 // 写在 target: 下面；没有 target: 行时写在文件头注释之后。
 func SetFocus(data []byte, id string) ([]byte, error) {

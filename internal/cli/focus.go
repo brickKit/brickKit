@@ -1,6 +1,6 @@
 package cli
 
-// 本文件是焦点运行在命令层的部分（设计 §4）：从使用者所在的目录认出"我在哪个组件里"，
+// 本文件是焦点运行在命令层的部分：从使用者所在的目录认出"我在哪个组件里"，
 // 把焦点写进 deploy.local.yaml，并在每次读它的命令里说一句。
 //
 // 焦点只写在个人部署文件里，从不只活在命令参数里：早先删掉的 --only 就是"谁启动"
@@ -46,7 +46,7 @@ func componentAt(l project.Layout, decl *projfile.File, dir string) (string, boo
 }
 
 // componentHere 是使用者所在目录属于的本地组件（在项目根或非组件目录里时 ok 为 false）。
-// build、deps 不带参数时用它：在组件目录里说的"这个"，就是它（设计 §3）。
+// build、deps 不带参数时用它：在组件目录里说的"这个"，就是它。
 func componentHere(opts *Options) (string, bool) {
 	l := project.NewLayout(opts.WorkDir)
 	decl, err := projfile.ParseFile(l.DeclPath())
@@ -56,7 +56,7 @@ func componentHere(opts *Options) (string, bool) {
 	return componentAt(l, decl, opts.CallDir)
 }
 
-// applyFocusIntent 把这次 up 的焦点意图落进文件（设计 §4.3）：--all 清掉；--focus 设成它；
+// applyFocusIntent 把这次 up 的焦点意图落进文件：--all 清掉；--focus 设成它；
 // 在组件目录里、两个都没写就设成这个组件；否则不动。
 func applyFocusIntent(opts *Options, flags upOptions) error {
 	if flags.focus != "" && flags.all {

@@ -199,7 +199,7 @@ type Submodule struct {
 func (r *Repo) Submodules() map[string]Submodule { return submodulesIn(r.root) }
 
 // SubmodulePathsIn 返回 dir/.gitmodules 登记的 submodule 路径（排好序）。dir 不必是 git 仓库——
-// git archive 导出的源码树里 .gitmodules 照样在，而 submodule 的内容只剩空目录（设计 §6）。
+// git archive 导出的源码树里 .gitmodules 照样在，而 submodule 的内容只剩空目录。
 // 没有该文件或读不了时返回 nil。
 func SubmodulePathsIn(dir string) []string {
 	var paths []string

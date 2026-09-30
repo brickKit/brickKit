@@ -135,7 +135,7 @@ type upOptions struct {
 	// --crash-lines 20，跟不传时拿到的默认值撞在一起）。
 	crashLines    int
 	crashLinesSet bool
-	// focus 是 --focus 的值，all 是 --all：写进 deploy.local.yaml 的焦点意图（设计 §4.3）。
+	// focus 是 --focus 的值，all 是 --all：写进 deploy.local.yaml 的焦点意图。
 	focus string
 	all   bool
 }

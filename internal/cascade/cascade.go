@@ -208,7 +208,7 @@ func focusRef(p *project.Project) (resolver.Ref, bool) {
 	return resolver.Ref{ID: id, Version: version}, ok
 }
 
-// seedOutsideFocus 是焦点运行的起点规则（设计 §4.4）：起点只有焦点组件与显式钉住的组件；
+// seedOutsideFocus 是焦点运行的起点规则：起点只有焦点组件与显式钉住的组件；
 // 从起点沿依赖（强弱都算）走不到的一律不跑。按可达性算而不是"顶层才跑"——与焦点无关的
 // 弱依赖环上谁都不是顶层，那条规则停不下它们。走到被关掉的组件就不再往下走：它下面的只为它而跑。
 // 焦点组件本身经 DeployEntry 读成 mode: local，已是钉住的，后面的传播与冲突检查都不用改。

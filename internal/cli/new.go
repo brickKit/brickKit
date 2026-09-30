@@ -51,7 +51,7 @@ func runNew(opts *Options, id, path, contract string, shell bool) error {
 
 	// --path 相对使用者所在的目录（像 cp、mkdir 一样）；默认位置在项目里：
 	// 外壳是项目自己的代码，放 shell/（本地源 local-shells），普通组件放 components/。
-	// 在项目的子目录里运行时 WorkDir 已是项目根，默认位置就落在顶层（设计 §3、§5）。
+	// 在项目的子目录里运行时 WorkDir 已是项目根，默认位置就落在顶层。
 	// 绝对路径就是它自己：filepath.Join 会把它当成相对路径接在后面，写出去的位置和屏幕上打印的对不上。
 	dir, base := path, opts.CallDir
 	if dir == "" {

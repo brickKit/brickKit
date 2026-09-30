@@ -17,7 +17,7 @@ const personal = "# my notes about this file\n" +
 	"    localPort: 8081\n" +
 	"  - id: erp/db"
 
-// 写焦点只动 focus: 这一行：注释、对齐用的空格、没有结尾换行，一个字节都不变（设计 §4.3）。
+// 写焦点只动 focus: 这一行：注释、对齐用的空格、没有结尾换行，一个字节都不变。
 func TestSetFocusKeepsEveryOtherByte(t *testing.T) {
 	out, err := SetFocus([]byte(personal), "erp/api")
 	require.NoError(t, err)

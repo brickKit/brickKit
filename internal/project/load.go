@@ -225,7 +225,7 @@ func (p *Project) FocusRef() (id, version string, ok bool) {
 	return p.Deploy.Focus, version, ok
 }
 
-// IgnoreFocus 让这次运行不看焦点（sync 用：它保留的是不带焦点时项目要跑的全部源码，设计 §4.6）。
+// IgnoreFocus 让这次运行不看焦点（sync 用：它保留的是不带焦点时项目要跑的全部源码）。
 // 只改内存里的解析结果，文件不动。
 func (p *Project) IgnoreFocus() {
 	if p.Deploy != nil {

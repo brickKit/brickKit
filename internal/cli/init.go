@@ -162,7 +162,7 @@ func runInitComplete(opts *Options, f initFlags) error {
 	return finishInit(opts, layout, f, true)
 }
 
-// renderInsideProjectNote：刚补全的目录是外面某个项目的本地组件时说一句（设计 §3）——焦点运行不需要
+// renderInsideProjectNote：刚补全的目录是外面某个项目的本地组件时说一句——焦点运行不需要
 // 工作台；而这里有了 brickkit.yaml 之后，这个目录里的命令就用这个工作台，不再往上找。
 func renderInsideProjectNote(opts *Options, dir string) {
 	outer, found, err := project.FindRoot(filepath.Dir(dir))

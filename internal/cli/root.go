@@ -45,7 +45,7 @@ func (o *Options) loadOptions() project.LoadOptions {
 	return project.LoadOptions{DeployFile: o.DeployFile, NoLocal: o.NoLocal}
 }
 
-// annotFindsProject 标出"作用于项目"的命令：在项目的子目录里运行时向上找项目根（设计 §3）。
+// annotFindsProject 标出"作用于项目"的命令：在项目的子目录里运行时向上找项目根。
 // 只作用于当前目录的命令（init、release、publish、skills）不带它。
 const annotFindsProject = "brickkit/finds-project"
 

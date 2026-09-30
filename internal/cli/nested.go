@@ -1,6 +1,6 @@
 package cli
 
-// 本文件是"组件源码只放一处"在命令层的部分（设计 §5）：发现嵌套在别的组件目录里的
+// 本文件是"组件源码只放一处"在命令层的部分：发现嵌套在别的组件目录里的
 // 组件副本就报错，列出每一份在哪、上层有没有同一个 ID、这一份的字节在别处有没有副本。
 // 从不替使用者挪动或删除——那可能是有没推送改动的仓库，上层那份也可能不一样。
 
@@ -40,7 +40,7 @@ func checkNestedCopies(opts *Options, proj *project.Project) error {
 }
 
 // refuseRepoInNestedWorkbench：当前项目是嵌在另一个项目本地源里的工作台时，--repo 会在组件目录里
-// 再克隆出一份源码（设计 §5）。拒绝，并指向外面那个项目。
+// 再克隆出一份源码。拒绝，并指向外面那个项目。
 func refuseRepoInNestedWorkbench(opts *Options) error {
 	outer, found, err := project.FindRoot(filepath.Dir(opts.WorkDir))
 	if err != nil || !found {

@@ -10,7 +10,7 @@ import (
 	"github.com/brickkit/brickkit/internal/projfile"
 )
 
-// NestedCopy 是嵌在另一个组件目录里的一份组件源码（设计 §5）：组件源码只该放在一处——
+// NestedCopy 是嵌在另一个组件目录里的一份组件源码：组件源码只该放在一处——
 // 项目本地安装源（components/、shell/）的 <scope>/<name>/ 下。组件目录里再出现一份，
 // 改那一份的代码永远不会被运行，而本地源只扫两层，一个字的提示都没有。
 type NestedCopy struct {
@@ -25,7 +25,7 @@ type NestedCopy struct {
 }
 
 // NestedCopies 找出每个本地组件目录里的 components/<scope>/<name>/component.yaml。
-// 只认带 component.yaml 的目录：git submodule 留下的空目录不是副本（设计 §6）。
+// 只认带 component.yaml 的目录：git submodule 留下的空目录不是副本。
 // 按 Dir 排序，输出稳定。
 func (p *Project) NestedCopies() ([]NestedCopy, error) {
 	type local struct{ id, dir string }

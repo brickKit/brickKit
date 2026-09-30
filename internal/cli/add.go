@@ -91,7 +91,7 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) (err err
 		return err
 	}
 	defer func() { _ = client.Close() }()
-	// 安装源里找不到它：多半是名字打错了，从这台机器叫得出名字的组件里给几个相近的（设计 §7.2）
+	// 安装源里找不到它：多半是名字打错了，从这台机器叫得出名字的组件里给几个相近的
 	defer func() {
 		if e := clierr.As(err); e != nil && e.Code == clierr.CodeComponentNotFound {
 			err = withDidYouMean(err, id, knownComponentIDs(proj.Decl, proj.Layout, client))
@@ -372,7 +372,7 @@ func runClones(ctx context.Context, opts *Options, layout project.Layout, clones
 			return err
 		}
 		opts.Printf("%s\n", i18n.T(msgid.CliAddCloned, c.ref.String(), workspace.DisplayDir(c.ref.ID), c.tag))
-		// 克隆不带 --recurse-submodules（设计 §6）：它的 submodule 只是空目录，说一句
+		// 克隆不带 --recurse-submodules：它的 submodule 只是空目录，说一句
 		if empty := emptySubmodules(dir); len(empty) > 0 {
 			opts.Printf("   ℹ️  %s\n", i18n.T(msgid.CliAddSubmodulesNotFetched, c.ref.String(), strings.Join(empty, i18n.T(msgid.ListSeparator))))
 		}
