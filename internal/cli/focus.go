@@ -8,6 +8,8 @@ package cli
 
 import (
 	"bytes"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -82,7 +84,8 @@ func applyFocusIntent(opts *Options, flags upOptions) (written bool, err error) 
 		return false, err
 	}
 	id := flags.focus
-	if id == "" {
+	implicit := id == ""
+	if implicit {
 		var ok bool
 		if id, ok = componentAt(l, decl, opts.CallDir); !ok {
 			return false, nil
@@ -92,12 +95,23 @@ func applyFocusIntent(opts *Options, flags upOptions) (written bool, err error) 
 		return false, withDidYouMean(clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.ProjectFocusUnknown, id)).
 			WithHint(i18n.T(msgid.ProjectHintFocusClear)), id, decl.IDs())
 	}
-	return ensureFocus(opts, l, id)
+	written, err = ensureFocus(opts, l, id)
+	if err != nil && implicit {
+		// 焦点是目录给的，不是使用者要的：设不上时先告诉他怎么不带焦点跑整个项目
+		e := clierr.As(err)
+		e.Hints = append([]string{i18n.T(msgid.CliUpHintImplicitFocus, id)}, e.Hints...)
+		return false, e
+	}
+	return written, err
 }
 
 // ensureFocus 把焦点设成 id：本地模式没开就先打开（与 local on 同样复制或沿用），
 // 文件里的焦点不同才改，改了就说一句。
 func ensureFocus(opts *Options, l project.Layout, id string) (bool, error) {
+	// 先确认焦点放得进去，再动任何东西：设不上就不该留下一份刚复制的个人文件、一个打开了的本地模式
+	if err := checkFocusFits(l, id); err != nil {
+		return false, err
+	}
 	if !fileExists(l.DeployLocalPath()) {
 		if err := copyDeployToLocal(l); err != nil {
 			return false, err
@@ -117,6 +131,32 @@ func ensureFocus(opts *Options, l project.Layout, id string) (bool, error) {
 		opts.Printf("   %s\n", i18n.T(msgid.CliLocalReused, project.FileDeployLocal))
 	}
 	return writeFocus(opts, l, id)
+}
+
+// checkFocusFits 按"写完之后"的个人文件校验一遍：个人文件还没有时，就是 local on 会复制出来的那一份。
+func checkFocusFits(l project.Layout, id string) error {
+	data, err := os.ReadFile(l.DeployLocalPath())
+	if errors.Is(err, fs.ErrNotExist) {
+		team, teamErr := os.ReadFile(l.DeployPath())
+		if teamErr != nil {
+			return localIOError(l.DeployPath(), teamErr)
+		}
+		data, err = project.LocalDeployContent(team), nil
+	}
+	if err != nil {
+		return localIOError(l.DeployLocalPath(), err)
+	}
+	return validFocusFile(data, id, l.DeployLocalPath())
+}
+
+// validFocusFile 把焦点设进 data，用读它时的同一套校验过一遍（k8s 上设焦点就通不过）。
+func validFocusFile(data []byte, id, path string) error {
+	out, err := deployfile.SetFocus(data, id)
+	if err != nil {
+		return err
+	}
+	_, _, err = deployfile.Parse(out, path, deployfile.RoleLocal)
+	return err
 }
 
 // clearFocus 删掉个人文件里的焦点；没有个人文件或本来就没写焦点时什么都不做。
@@ -140,6 +180,11 @@ func writeFocus(opts *Options, l project.Layout, id string) (bool, error) {
 	}
 	if bytes.Equal(out, data) {
 		return false, nil
+	}
+	// 写之前用读它时的同一套校验过一遍：通不过就原样报错、一个字节都不写，
+	// 否则留下一份之后每条命令都读不了的个人文件
+	if _, _, err := deployfile.Parse(out, path, deployfile.RoleLocal); err != nil {
+		return false, err
 	}
 	if err := os.WriteFile(path, out, 0o644); err != nil {
 		return false, localIOError(path, err)

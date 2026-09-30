@@ -30,11 +30,11 @@ func checkNestedCopies(opts *Options, proj *project.Project) error {
 		if c.TopHasIt {
 			parts = append(parts, i18n.T(msgid.ProjectNestedTopHasIt, c.ID))
 		}
+		e = e.WithDetail(opts.display(c.Dir), strings.Join(parts, i18n.T(msgid.SemicolonSeparator)))
 		// 这一份的字节在别处有没有：没提交、没推送、不是仓库——挪走或删掉之前都得先知道
 		if risk := workspace.DeletionRisk(c.Dir); risk != "" {
-			parts = append(parts, risk)
+			e = e.WithDetail(i18n.T(msgid.ProjectNestedRiskLabel), risk)
 		}
-		e = e.WithDetail(opts.display(c.Dir), strings.Join(parts, i18n.T(msgid.SemicolonSeparator)))
 	}
 	return e.WithHint(i18n.T(msgid.ProjectNestedHintOnePlace))
 }

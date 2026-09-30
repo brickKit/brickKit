@@ -59,7 +59,9 @@ func TestCommandsRefuseANestedCopyAndMoveNothing(t *testing.T) {
 		assert.Equal(t, clierr.ExitError, r.code, "%v", args)
 		assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.ProjectNestedCopies), "%v", args)
 		// 这份副本不在 git 仓库里：挪走或删掉之前，使用者要知道它在别处没有副本
-		assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.WorkspaceRiskNotGitRepo), "%v", args)
+		// 风险单独一行、带自己的标签，不接在位置说明后面（那样英文里会出现 "; It is …"）
+		assert.Contains(t, r.stdout+r.stderr,
+			i18n.T(msgid.ProjectNestedRiskLabel)+": "+i18n.T(msgid.WorkspaceRiskNotGitRepo), "%v", args)
 		assert.FileExists(t, filepath.Join(nested, "component.yaml"), "%v", args)
 	}
 }

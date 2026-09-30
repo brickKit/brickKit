@@ -139,3 +139,44 @@ func TestUpSaysTheFocusOnce(t *testing.T) {
 	assert.NotContains(t, r.stdout, i18n.T(msgid.CliFocusSet, "erp/portal", "deploy.local.yaml"))
 	assert.Equal(t, 1, strings.Count(r.stdout, i18n.T(msgid.CliFocusLine, "erp/portal")+"\n"))
 }
+
+// 写进去会让个人文件通不过校验的焦点（k8s 上）：报错，文件一个字节都不动——
+// 不能留下一份之后每条命令都读不了的 deploy.local.yaml。清掉焦点永远可以。
+func TestUpFocusThatWouldBreakTheFileWritesNothing(t *testing.T) {
+	dir := focusFixture(t)
+	r := runWithEngine(t, newFakeEngine(), dir, "local", "on")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	editFile(t, in(dir, "deploy.local.yaml"), "target: docker", "target: k8s")
+	before := readFile(t, in(dir, "deploy.local.yaml"))
+
+	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/api")
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.ConfigFocusK8sUnsupported))
+	assert.NotContains(t, r.stdout, i18n.T(msgid.CliFocusSet, "erp/api", "deploy.local.yaml"))
+	assert.Equal(t, before, readFile(t, in(dir, "deploy.local.yaml")))
+}
+
+// 本地模式还没开、团队文件是 k8s：焦点设不上，那就什么都不做——不复制个人文件、不打开本地模式。
+func TestUpFocusRefusedBeforeAnySideEffect(t *testing.T) {
+	dir := focusFixture(t)
+	editFile(t, in(dir, "deploy.yaml"), "target: docker", "target: k8s")
+
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/api")
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.ConfigFocusK8sUnsupported))
+	assert.NoFileExists(t, in(dir, "deploy.local.yaml"))
+	assert.NoFileExists(t, in(dir, ".brickkit", "local-mode"))
+}
+
+// 在组件目录里 up、项目在 k8s 上：焦点是目录给的，不是使用者要的——提示先说怎么不带焦点跑整个项目。
+func TestImplicitFocusOnK8sPointsAtAll(t *testing.T) {
+	dir := focusFixture(t)
+	editFile(t, in(dir, "deploy.yaml"), "target: docker", "target: k8s")
+
+	r := runWithEngine(t, newFakeEngine(), in(dir, "components", "erp", "portal"), "up", "--dry-run")
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stdout+r.stderr, i18n.T(msgid.CliUpHintImplicitFocus, "erp/portal"))
+
+	r = runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "--focus", "erp/portal")
+	assert.NotContains(t, r.stdout+r.stderr, i18n.T(msgid.CliUpHintImplicitFocus, "erp/portal"), "--focus was asked for explicitly")
+}
