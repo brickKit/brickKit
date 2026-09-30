@@ -120,9 +120,9 @@ func resolveRemoveTarget(proj *project.Project, id, version string) (resolver.Re
 		if version != "" {
 			want = id + "@" + version
 		}
-		return resolver.Ref{}, clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.CliRemoveNotInProject, want)).
+		return resolver.Ref{}, withDidYouMean(clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.CliRemoveNotInProject, want)).
 			WithDetail(i18n.T(msgid.CliRemoveLabelDeclared), declaredVersions(proj, id)).
-			WithHint(i18n.T(msgid.CliRemoveHintCheckID))
+			WithHint(i18n.T(msgid.CliRemoveHintCheckID)), id, proj.Decl.IDs())
 	case version != "":
 		return resolver.Ref{ID: id, Version: version}, nil
 	case len(versions) > 1:

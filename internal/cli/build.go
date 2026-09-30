@@ -85,9 +85,9 @@ func runBuild(ctx context.Context, opts *Options, arg string, force bool) error 
 	}
 	renderFocus(opts, proj)
 	if id != "" && !declared(proj, id, version) {
-		return clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.CliRemoveNotInProject, strings.TrimSuffix(id+"@"+version, "@"))).
+		return withDidYouMean(clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.CliRemoveNotInProject, strings.TrimSuffix(id+"@"+version, "@"))).
 			WithDetail(i18n.T(msgid.CliRemoveLabelDeclared), declaredVersions(proj, id)).
-			WithHint(i18n.T(msgid.CliRemoveHintCheckID))
+			WithHint(i18n.T(msgid.CliRemoveHintCheckID)), id, proj.Decl.IDs())
 	}
 	client, err := newSourceClient(opts, proj.Layout, proj.Decl, source.Options{})
 	if err != nil {

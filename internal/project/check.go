@@ -8,6 +8,7 @@ import (
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/suggest"
 	"github.com/brickkit/brickkit/internal/yamlfile"
 )
 
@@ -187,9 +188,13 @@ func (p *Project) checkFocus() error {
 	}
 	version, ok := p.Decl.DefaultVersion(id)
 	if !ok {
-		return clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.ProjectFocusUnknown, id)).
+		e := clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.ProjectFocusUnknown, id)).
 			WithDetail(i18n.T(msgid.LabelFile), p.DeployPath).
 			WithHint(i18n.T(msgid.ProjectHintFocusClear))
+		if hint, ok := suggest.Hint(id, p.Decl.IDs()); ok {
+			e = e.WithHint(hint)
+		}
+		return e
 	}
 	// withFocus 把 disable 原样返回，这里才看得到它
 	if entry, found := p.Deploy.Entry(id, version, true); found && entry.Mode == deployfile.ModeDisable {

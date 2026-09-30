@@ -76,7 +76,7 @@ func newAddCommand(opts *Options) *cobra.Command {
 	return cmd
 }
 
-func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
+func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) (err error) {
 	id, version, err := parseComponentRef(arg)
 	if err != nil {
 		return err
@@ -90,6 +90,12 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) error {
 		return err
 	}
 	defer func() { _ = client.Close() }()
+	// 安装源里找不到它：多半是名字打错了，从这台机器叫得出名字的组件里给几个相近的（设计 §7.2）
+	defer func() {
+		if e := clierr.As(err); e != nil && e.Code == clierr.CodeComponentNotFound {
+			err = withDidYouMean(err, id, knownComponentIDs(proj, client))
+		}
+	}()
 
 	if version == "" {
 		latest, err := client.LatestVersion(ctx, id)

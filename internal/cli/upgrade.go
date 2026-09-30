@@ -142,8 +142,8 @@ func upgradeTargets(ctx context.Context, opts *Options, proj *project.Project, c
 	}
 	current, ok := proj.Decl.DefaultVersion(id)
 	if !ok {
-		return nil, clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.CliRemoveNotInProject, id)).
-			WithHint(i18n.T(msgid.CliUpgradeHintAddFirst, id))
+		return nil, withDidYouMean(clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.CliRemoveNotInProject, id)).
+			WithHint(i18n.T(msgid.CliUpgradeHintAddFirst, id)), id, proj.Decl.IDs())
 	}
 	var fromLocal []localLatest
 	if version == "" {

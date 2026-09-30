@@ -78,6 +78,7 @@ lang.set.success: "语言已设为 %[1]s"
 lang.set.write_failed: "写入语言偏好失败"
 lang.invalid_value: "不支持的语言：%[1]s（支持：%[2]s）"
 hint.for_example: "例如：%[1]s"
+hint.did_you_mean: "你是不是想写：%[1]s？"
 
 cascade.strong_dependency_disabled: "错误：强依赖 %[1]s 被禁用"
 cascade.pinned_component_detail: "%[1]s@%[2]s（mode: %[3]s，已钉住）"

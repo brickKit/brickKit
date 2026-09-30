@@ -70,6 +70,7 @@ lang.set.success: "Language set to %[1]s"
 lang.set.write_failed: "Failed to save language preference"
 lang.invalid_value: "Unsupported language: %[1]s (supported: %[2]s)"
 hint.for_example: "For example: %[1]s"
+hint.did_you_mean: "Did you mean: %[1]s?"
 
 cascade.strong_dependency_disabled: "Error: required dependency %[1]s is disabled"
 cascade.pinned_component_detail: "%[1]s@%[2]s (mode: %[3]s, pinned)"

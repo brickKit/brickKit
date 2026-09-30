@@ -88,8 +88,8 @@ func applyFocusIntent(opts *Options, flags upOptions) error {
 		}
 	}
 	if !slices.Contains(decl.IDs(), id) {
-		return clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.ProjectFocusUnknown, id)).
-			WithHint(i18n.T(msgid.ProjectHintFocusClear))
+		return withDidYouMean(clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.ProjectFocusUnknown, id)).
+			WithHint(i18n.T(msgid.ProjectHintFocusClear)), id, decl.IDs())
 	}
 	return ensureFocus(opts, l, id)
 }

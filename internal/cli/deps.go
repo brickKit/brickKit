@@ -68,7 +68,7 @@ func runDeps(ctx context.Context, opts *Options, target string) error {
 	}
 	if len(proj.Decl.Components) == 0 {
 		if id != "" {
-			return depsNotInProject(target, id)
+			return depsNotInProject(target, id, proj.Decl.IDs())
 		}
 		opts.Printf("%s\n", i18n.T(msgid.CliDepsNoComponents))
 		return nil
@@ -100,7 +100,7 @@ func runDeps(ctx context.Context, opts *Options, target string) error {
 		}
 	}
 	if len(refs) == 0 {
-		return depsNotInProject(target, id)
+		return depsNotInProject(target, id, proj.Decl.IDs())
 	}
 	var blocks []string
 	for _, ref := range refs {
@@ -111,9 +111,9 @@ func runDeps(ctx context.Context, opts *Options, target string) error {
 	return nil
 }
 
-func depsNotInProject(target, id string) error {
-	return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliDepsNotInProject, target)).
-		WithHint(i18n.T(msgid.CliDepsHintAdd, id), i18n.T(msgid.CliDepsHintList))
+func depsNotInProject(target, id string, known []string) error {
+	return withDidYouMean(clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliDepsNotInProject, target)).
+		WithHint(i18n.T(msgid.CliDepsHintAdd, id), i18n.T(msgid.CliDepsHintList)), id, known)
 }
 
 // requiredByLine 列出直接依赖这个组件版本的组件（强弱依赖都算）。

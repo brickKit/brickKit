@@ -46,6 +46,7 @@ const (
 	LangSetWriteFailed                                         ID = "lang.set.write_failed"
 	LangInvalidValue                                           ID = "lang.invalid_value"
 	HintForExample                                             ID = "hint.for_example"
+	HintDidYouMean                                             ID = "hint.did_you_mean"
 	CascadeStrongDependencyDisabled                            ID = "cascade.strong_dependency_disabled"
 	CascadePinnedComponentDetail                               ID = "cascade.pinned_component_detail"
 	CascadeLabelDependencyChain                                ID = "cascade.label.dependency_chain"

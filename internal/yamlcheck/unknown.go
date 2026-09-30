@@ -17,6 +17,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
+	"github.com/brickkit/brickkit/internal/suggest"
 )
 
 // Walk 沿着 YAML 文档与目标结构体同时下行，把不认识的键记进 p。
@@ -177,7 +178,7 @@ func Closest(input string, known []string) string {
 
 	best, bestDistance := "", 0
 	for _, name := range known {
-		distance := editDistance(lowered, strings.ToLower(name))
+		distance := suggest.EditDistance(lowered, strings.ToLower(name))
 		// 允许的差距随字段名长度放宽，但最多两处改动
 		limit := 2
 		if len(name) <= 4 {
@@ -195,41 +196,6 @@ func Closest(input string, known []string) string {
 
 // minPrefixLength 是做前缀猜测所需的最少字符数。
 const minPrefixLength = 3
-
-// editDistance 是标准的 Levenshtein 距离。
-func editDistance(a, b string) int {
-	if a == b {
-		return 0
-	}
-	prev := make([]int, len(b)+1)
-	curr := make([]int, len(b)+1)
-	for j := range prev {
-		prev[j] = j
-	}
-
-	for i := 1; i <= len(a); i++ {
-		curr[0] = i
-		for j := 1; j <= len(b); j++ {
-			cost := 1
-			if a[i-1] == b[j-1] {
-				cost = 0
-			}
-			curr[j] = min3(curr[j-1]+1, prev[j]+1, prev[j-1]+cost)
-		}
-		prev, curr = curr, prev
-	}
-	return prev[len(b)]
-}
-
-func min3(a, b, c int) int {
-	if b < a {
-		a = b
-	}
-	if c < a {
-		a = c
-	}
-	return a
-}
 
 // KnownFields 列出结构体在 YAML 里认识的键（键 → 字段）。
 //
