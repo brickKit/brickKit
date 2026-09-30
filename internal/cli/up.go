@@ -72,6 +72,7 @@ func newUpCommand(opts *Options) *cobra.Command {
 	cmd.Flags().IntVar(&crashLines, "crash-lines", procsup.DefaultTailLines,
 		i18n.T(msgid.CliUpCrashLinesHowManyLinesOfOutput))
 	cmd.Flags().StringVar(&focus, "focus", "", i18n.T(msgid.CliUpFlagFocus))
+	_ = cmd.RegisterFlagCompletionFunc("focus", completeProjectIDs(opts))
 	cmd.Flags().BoolVar(&all, "all", false, i18n.T(msgid.CliUpFlagAll))
 	return cmd
 }

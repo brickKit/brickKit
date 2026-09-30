@@ -34,13 +34,14 @@ type addFlags struct {
 func newAddCommand(opts *Options) *cobra.Command {
 	var f addFlags
 	cmd := &cobra.Command{
-		Annotations: findsProjectAnnotation(),
-		Use:         i18n.T(msgid.CliAddAddComponentIDExactVersion),
-		Short:       i18n.T(msgid.CliAddShort),
-		Long:        i18n.T(msgid.CliAddLong),
-		Example:     i18n.T(msgid.CliAddExample),
-		GroupID:     groupComponent,
-		Args:        cobra.MaximumNArgs(1),
+		Annotations:       findsProjectAnnotation(),
+		Use:               i18n.T(msgid.CliAddAddComponentIDExactVersion),
+		Short:             i18n.T(msgid.CliAddShort),
+		Long:              i18n.T(msgid.CliAddLong),
+		Example:           i18n.T(msgid.CliAddExample),
+		GroupID:           groupComponent,
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeAddCandidates(opts),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			if ctx == nil {
@@ -93,7 +94,7 @@ func runAdd(ctx context.Context, opts *Options, arg string, f addFlags) (err err
 	// 安装源里找不到它：多半是名字打错了，从这台机器叫得出名字的组件里给几个相近的（设计 §7.2）
 	defer func() {
 		if e := clierr.As(err); e != nil && e.Code == clierr.CodeComponentNotFound {
-			err = withDidYouMean(err, id, knownComponentIDs(proj, client))
+			err = withDidYouMean(err, id, knownComponentIDs(proj.Decl, proj.Layout, client))
 		}
 	}()
 

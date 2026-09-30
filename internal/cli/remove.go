@@ -32,13 +32,14 @@ import (
 func newRemoveCommand(opts *Options) *cobra.Command {
 	var force bool
 	cmd := &cobra.Command{
-		Annotations: findsProjectAnnotation(),
-		Use:         i18n.T(msgid.CliRemoveRemoveComponentIDVersion),
-		Short:       i18n.T(msgid.CliRemoveShort),
-		Long:        i18n.T(msgid.CliRemoveLong),
-		Example:     i18n.T(msgid.CliRemoveExample),
-		GroupID:     groupComponent,
-		Args:        cobra.ExactArgs(1),
+		Annotations:       findsProjectAnnotation(),
+		Use:               i18n.T(msgid.CliRemoveRemoveComponentIDVersion),
+		Short:             i18n.T(msgid.CliRemoveShort),
+		Long:              i18n.T(msgid.CliRemoveLong),
+		Example:           i18n.T(msgid.CliRemoveExample),
+		GroupID:           groupComponent,
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeProjectComponents(opts),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			if ctx == nil {

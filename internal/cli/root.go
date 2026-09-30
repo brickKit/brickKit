@@ -37,6 +37,7 @@ const DefaultConfigFile = project.FileDecl
 func addDeployFileFlags(cmd *cobra.Command, opts *Options) {
 	cmd.Flags().StringVarP(&opts.DeployFile, "file", "f", opts.DeployFile, i18n.T(msgid.CliRootFlagDeployFile))
 	cmd.Flags().BoolVar(&opts.NoLocal, "no-local", opts.NoLocal, i18n.T(msgid.CliRootFlagNoLocal))
+	_ = cmd.RegisterFlagCompletionFunc("file", completeDeployFiles(opts))
 }
 
 // loadOptions 把命令行选择翻译成装载选项。

@@ -46,6 +46,7 @@ func newSkillsCommand(opts *Options) *cobra.Command {
 		},
 	}
 	updateCmd.Flags().StringVar(&lang, "lang", "", i18n.T(msgid.CliSkillsLangFlag, strings.Join(i18n.LangNames(), "|")))
+	_ = updateCmd.RegisterFlagCompletionFunc("lang", completeLanguages)
 
 	cmd.AddCommand(
 		&cobra.Command{

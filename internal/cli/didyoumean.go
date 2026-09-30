@@ -7,6 +7,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/source"
 	"github.com/brickkit/brickkit/internal/suggest"
 )
@@ -25,9 +26,9 @@ func withDidYouMean(err error, typed string, candidates []string) error {
 }
 
 // knownComponentIDs 是 add 的候选：项目里已有的、本地安装源里的、本机清单缓存里的组件（都不联网）。
-func knownComponentIDs(proj *project.Project, client *source.Client) []string {
+func knownComponentIDs(decl *projfile.File, layout project.Layout, client *source.Client) []string {
 	seen := map[string]bool{}
-	for _, id := range proj.Decl.IDs() {
+	for _, id := range decl.IDs() {
 		seen[id] = true
 	}
 	if files, err := client.LocalManifestFiles(); err == nil {
@@ -35,7 +36,7 @@ func knownComponentIDs(proj *project.Project, client *source.Client) []string {
 			seen[f.ID] = true
 		}
 	}
-	for _, id := range cachedManifestIDs(proj.Layout) {
+	for _, id := range cachedManifestIDs(layout) {
 		seen[id] = true
 	}
 	out := make([]string, 0, len(seen))

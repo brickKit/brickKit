@@ -23,9 +23,10 @@ func newLangCommand(opts *Options) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(&cobra.Command{
-		Use:   "set <" + strings.Join(i18n.LangNames(), "|") + ">",
-		Short: i18n.T(msgid.LangSetCmdShort),
-		Args:  cobra.ExactArgs(1),
+		Use:               "set <" + strings.Join(i18n.LangNames(), "|") + ">",
+		Short:             i18n.T(msgid.LangSetCmdShort),
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeLanguages,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLangSet(opts, args[0])
 		},

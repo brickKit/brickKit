@@ -35,13 +35,14 @@ type upgradeFlags struct {
 func newUpgradeCommand(opts *Options) *cobra.Command {
 	var f upgradeFlags
 	cmd := &cobra.Command{
-		Annotations: findsProjectAnnotation(),
-		Use:         i18n.T(msgid.CliUpgradeUse),
-		Short:       i18n.T(msgid.CliUpgradeShort),
-		Long:        i18n.T(msgid.CliUpgradeLong),
-		Example:     i18n.T(msgid.CliUpgradeExample),
-		GroupID:     groupComponent,
-		Args:        cobra.MaximumNArgs(1),
+		Annotations:       findsProjectAnnotation(),
+		Use:               i18n.T(msgid.CliUpgradeUse),
+		Short:             i18n.T(msgid.CliUpgradeShort),
+		Long:              i18n.T(msgid.CliUpgradeLong),
+		Example:           i18n.T(msgid.CliUpgradeExample),
+		GroupID:           groupComponent,
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeUpgradeCandidates(opts),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			if ctx == nil {
