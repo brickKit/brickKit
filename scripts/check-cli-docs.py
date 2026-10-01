@@ -74,9 +74,7 @@ UNDOCUMENTED_OK_FLAGS = {"--help"}
 CLI_REFERENCES = ["docs/en/07-cli-reference/README.md", "docs/zh/07-cli-reference/README.md"]
 
 # 历史与规划目录不是"现行文档"。
-# CHANGELOG.md 是历史记录：它按版本写当时有过、后来删掉或改名的命令与参数（`brickkit override`），
-# 那些不是要照着敲的现状。check-docs.py 同样不查它。
-EXCLUDED_PREFIXES = ("archive/", "docs/superpowers/", ".superpowers/", "llms/", "CHANGELOG.md")
+EXCLUDED_PREFIXES = ("archive/", "docs/superpowers/", ".superpowers/", "llms/")
 
 # 自检基线：(命令, 参数, 是否应当存在)
 SELF_CHECK = [
