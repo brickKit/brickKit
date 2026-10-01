@@ -255,3 +255,27 @@ func TestProjectInWorkbenchLeavesDocsToComponent(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(root, "component.yaml"), []byte("x"), 0o644))
 	assert.Empty(t, Project(root), "a workbench's AGENTS.md is the component's: Component checks it")
 }
+
+// 维护区里的内容来自别的组件（它们的 metadata.description），项目改不了：占位词与链接不在维护区里查。
+func TestProjectChecksSkipTheManagedBlock(t *testing.T) {
+	root := t.TempDir()
+	agents := "# P\n\n## Overview\nx\n\n## Conventions\nx\n\n## Where to look\nx\n\n## Pitfalls\nx\n\n" +
+		"<!-- brickkit:managed:begin lang=en -->\n| a/b | 1.0.0 | A TODO list service, see [docs](docs/x.md) | BRICKKIT.md | — |\n<!-- brickkit:managed:end -->\n" +
+		"\nTODO after the block counts again\n"
+	require.NoError(t, os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(agents), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "CLAUDE.md"), []byte("@AGENTS.md\n"), 0o644))
+	ws := Project(root)
+	require.Equal(t, []clierr.Code{clierr.CodeDocPlaceholder}, codes(ws), messages(ws))
+	assert.Contains(t, ws[0].Format(), "19", "line numbers still count the block's lines")
+}
+
+// 认不出标题的语言（ja）的译本，只查它与原文对不对得上，不按英文/中文标题查六节。
+func TestTranslationInAnotherLanguageIsOnlyCheckedForStep(t *testing.T) {
+	ja := "# demo/quote\n\n## 用途\nx\n\n## デプロイ前\nx\n\n## 依存\ndemo/hello\n\n## 設定\nQUOTE_SECRET\n\n## 契約\n`api/openapi.yaml`\n\n## シェル\nなし\n"
+	dir, m := component(t, map[string]string{"BRICKKIT.ja.md": ja})
+	ws := Component(dir, m)
+	assert.Empty(t, ws, messages(ws))
+
+	dir, m = component(t, map[string]string{"BRICKKIT.ja.md": ja + "\n## 余分\n"})
+	assert.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift}, codes(Component(dir, m)))
+}

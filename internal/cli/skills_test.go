@@ -241,3 +241,25 @@ func TestSkillsFreshCloneWithoutBrickkitDir(t *testing.T) {
 	assert.NotContains(t, st.stdout, "need refreshing")
 	assert.Contains(t, st.stdout, "block maintained by brickkit present (lang=en)")
 }
+
+// 本次改动之前建的老项目，在一台没有旧 skills.lock 的机器上（同事的克隆）：旧版 CLI 装的 AGENTS.md 与技能
+// 照样认得出——AGENTS.md 整份换成新骨架，技能升到当前版本，而不是一直卡在"未托管"。
+func TestSkillsUpdateMigratesAnOldProjectWithoutTheLock(t *testing.T) {
+	dir := t.TempDir()
+	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes", "--no-skills").code)
+	oldAgents, err := os.ReadFile(filepath.Join("..", "skills", "testdata", "legacy", "AGENTS.md"))
+	require.NoError(t, err)
+	oldSkill, err := os.ReadFile(filepath.Join("..", "skills", "testdata", "legacy", "assemble-SKILL.md"))
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), oldAgents, 0o644))
+	writeTree(t, dir, map[string]string{".claude/skills/brickkit-assemble/SKILL.md": string(oldSkill)})
+
+	r := runIn(t, dir, "skills", "update")
+	require.Equal(t, 0, r.code, r.stdout+r.stderr)
+	agents := readFile(t, filepath.Join(dir, "AGENTS.md"))
+	assert.Contains(t, agents, "## Overview", "the old CLI-installed guide became the new skeleton")
+	assert.NotContains(t, r.stdout, "untracked")
+	st := runIn(t, dir, "skills", "status")
+	assert.NotContains(t, st.stdout, "untracked")
+	assert.NotContains(t, st.stdout, "need refreshing")
+}

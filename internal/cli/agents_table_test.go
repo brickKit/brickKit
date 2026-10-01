@@ -103,3 +103,19 @@ func TestAgentsTableListsDocTranslations(t *testing.T) {
 	assert.Regexp(t, `\| erp/api \| 1\.0\.0 \| [^|]+ \| BRICKKIT\.md \+zh \| — \|`, readFile(t, filepath.Join(dir, "AGENTS.md")))
 	assert.FileExists(t, filepath.Join(dir, ".brickkit", "manifests", "erp", "api", "1.0.0", "BRICKKIT.zh.md"))
 }
+
+// 老项目升级 CLI 之后：AGENTS.md 里还没有维护区（或者还留着旧的项目地图），add 要说一声组件表没人维护了、怎么接上。
+func TestAddSaysWhenNoTableIsMaintained(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0"})
+	dir := agentsProject(t, g, "# my own guide\n")
+	r := g.run(dir, "add", "erp/api@1.0.0")
+	require.Equal(t, 0, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout+r.stderr, "brickkit skills update")
+	assert.Equal(t, "# my own guide\n", readFile(t, filepath.Join(dir, "AGENTS.md")))
+
+	bare := g.project()
+	r = g.run(bare, "add", "erp/api@1.0.0")
+	require.Equal(t, 0, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout+r.stderr, "brickkit skills update", "no AGENTS.md at all: say how to get one")
+}

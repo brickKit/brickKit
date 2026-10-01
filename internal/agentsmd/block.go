@@ -9,10 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/docspec"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/mdtext"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 const (
@@ -22,11 +26,51 @@ const (
 
 var beginLine = regexp.MustCompile(`^<!-- brickkit:managed:begin lang=(\S+) -->\s*$`)
 
-// ErrNoBlock：文件里没有维护区。ErrMalformed：标记残缺、重复或没写语言，不敢改。
+// ErrNoBlock：文件里没有维护区。ErrMalformed：标记残缺、重复或没写语言，不敢改（具体是 *MalformedError）。
 var (
 	ErrNoBlock   = errors.New("no brickkit-maintained block")
 	ErrMalformed = errors.New("malformed brickkit-maintained block")
 )
+
+// MalformedError 说清维护区的标记哪里不对：各有几个、在哪几行（从 1 起）。给人看的说法见 Reason。
+type MalformedError struct {
+	Begins, Ends int
+	// EndFirst：结束标记在开始标记前面。BadLang：开始标记没写合法的 lang=。
+	EndFirst, BadLang bool
+	Lines             []int
+}
+
+func (e *MalformedError) Error() string {
+	return fmt.Sprintf("%v: %d begin and %d end markers at lines %v", ErrMalformed, e.Begins, e.Ends, e.Lines)
+}
+
+// Is 让 errors.Is(err, ErrMalformed) 认得它。
+func (e *MalformedError) Is(target error) bool { return target == ErrMalformed }
+
+// Reason 是 Find 的错误给人看的说法，跟着 CLI 当前的语言。
+func Reason(err error) string {
+	var m *MalformedError
+	switch {
+	case errors.As(err, &m):
+		lines := make([]string, len(m.Lines))
+		for i, n := range m.Lines {
+			lines[i] = strconv.Itoa(n)
+		}
+		at := strings.Join(lines, ", ")
+		switch {
+		case m.BadLang:
+			return i18n.T(msgid.AgentsmdReasonBadLang, at)
+		case m.EndFirst:
+			return i18n.T(msgid.AgentsmdReasonEndFirst, at)
+		default:
+			return i18n.T(msgid.AgentsmdReasonMarkerCount, m.Begins, m.Ends, at)
+		}
+	case errors.Is(err, ErrNoBlock):
+		return i18n.T(msgid.AgentsmdReasonNoBlock)
+	default:
+		return err.Error()
+	}
+}
 
 // Block 是维护区在文件里的位置（字节偏移，含两端标记与结束标记那一行的换行）与它记的语言。
 type Block struct {
@@ -37,39 +81,32 @@ type Block struct {
 // Find 找到维护区。代码块里的标记不算（作者可能在文档里举例）。
 func Find(doc string) (Block, error) {
 	lines := strings.SplitAfter(doc, "\n")
-	var begins, ends []int // 行号（从 0 起）
-	open := ""             // 正在其中的代码块的围栏
+	code := mdtext.CodeLines(doc) // 与 SplitAfter 行数相同：都按 "\n" 切
+	var begins, ends []int        // 行号（从 0 起）
 	for i, l := range lines {
-		if f := mdtext.FenceOf(l); f != "" && (open == "" || f == open) {
-			if open == "" {
-				open = f
-			} else {
-				open = ""
-			}
+		if code[i] {
 			continue
 		}
-		if open != "" {
-			continue
-		}
-		t := strings.TrimRight(l, "\r\n")
+		t := strings.TrimSpace(l)
 		switch {
 		case strings.HasPrefix(t, beginPrefix):
 			begins = append(begins, i)
-		case strings.TrimSpace(t) == endMarker:
+		case t == endMarker:
 			ends = append(ends, i)
 		}
 	}
+	at := markerLines(begins, ends)
 	switch {
 	case len(begins) == 0 && len(ends) == 0:
 		return Block{}, ErrNoBlock
 	case len(begins) != 1 || len(ends) != 1:
-		return Block{}, fmt.Errorf("%w: %d begin and %d end markers", ErrMalformed, len(begins), len(ends))
+		return Block{}, &MalformedError{Begins: len(begins), Ends: len(ends), Lines: at}
 	case ends[0] < begins[0]:
-		return Block{}, fmt.Errorf("%w: the end marker comes before the begin marker", ErrMalformed)
+		return Block{}, &MalformedError{Begins: 1, Ends: 1, EndFirst: true, Lines: at}
 	}
-	m := beginLine.FindStringSubmatch(strings.TrimRight(lines[begins[0]], "\r\n"))
+	m := beginLine.FindStringSubmatch(strings.TrimSpace(lines[begins[0]]))
 	if m == nil || !docspec.ValidLang(m[1]) {
-		return Block{}, fmt.Errorf("%w: the begin marker has no valid lang=", ErrMalformed)
+		return Block{}, &MalformedError{Begins: 1, Ends: 1, BadLang: true, Lines: at}
 	}
 	start := 0
 	for _, l := range lines[:begins[0]] {
@@ -116,4 +153,14 @@ func ParseRows(doc string, b Block) map[string]Row {
 		rows[c[0]+"@"+c[1]] = Row{ID: c[0], Version: c[1], Does: c[2], Docs: c[3], Home: c[4]}
 	}
 	return rows
+}
+
+// markerLines 是全部标记所在的行号（从 1 起，排好序）。
+func markerLines(begins, ends []int) []int {
+	var out []int
+	for _, i := range append(append([]int(nil), begins...), ends...) {
+		out = append(out, i+1)
+	}
+	sort.Ints(out)
+	return out
 }

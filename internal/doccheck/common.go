@@ -4,6 +4,7 @@
 package doccheck
 
 import (
+	"errors"
 	"os"
 	"path"
 	"path/filepath"
@@ -162,10 +163,26 @@ func claude(root string) []*clierr.Error {
 
 // block 查 AGENTS.md 末尾的维护区。
 func block(d doc) []*clierr.Error {
-	if _, err := agentsmd.Find(d.body); err != nil {
-		return []*clierr.Error{warn(clierr.CodeAgentsBlockMissing, i18n.T(msgid.DoccheckAgentsBlock, err.Error()), d.rel, 0)}
+	_, err := agentsmd.Find(d.body)
+	if err == nil {
+		return nil
 	}
-	return nil
+	hint := i18n.T(msgid.CliAgentsHintSkillsUpdate)
+	if errors.Is(err, agentsmd.ErrMalformed) {
+		hint = i18n.T(msgid.CliAgentsHintFixMarkers)
+	}
+	return []*clierr.Error{warn(clierr.CodeAgentsBlockMissing, i18n.T(msgid.DoccheckAgentsBlock, agentsmd.Reason(err)), d.rel, 0).WithHint(hint)}
+}
+
+// withoutBlock 是 d 去掉 brickkit 维护段之后、作者自己写的那部分：维护段的每一行换成空行（行号照旧）。
+// 维护段里的内容来自别的组件（它们的 metadata.description、平台的模板），项目改不了，占位词与链接不该在那里查。
+func withoutBlock(d doc) doc {
+	b, err := agentsmd.Find(d.body)
+	if err != nil {
+		return d
+	}
+	blank := strings.Repeat("\n", strings.Count(d.body[b.Start:b.End], "\n"))
+	return doc{rel: d.rel, body: d.body[:b.Start] + blank + d.body[b.End:]}
 }
 
 // docsTree 是 root/docs 下的全部 Markdown（斜杠分隔、排好序）。

@@ -20,33 +20,63 @@ var (
 	inlineCode = regexp.MustCompile("`[^`]*`")
 )
 
-// fences 是 Markdown 代码块的两种围栏（三个反引号、三个波浪号）。
-var fences = []string{"\x60\x60\x60", "~~~"}
+// fenceRun 是这一行开头的围栏：三个及以上的反引号或波浪号（前面最多三个空格）；不是围栏时为空。
+func fenceRun(line string) string {
+	t := strings.TrimRight(line, "\r")
+	trimmed := strings.TrimLeft(t, " ")
+	if len(t)-len(trimmed) > 3 || trimmed == "" {
+		return ""
+	}
+	c := trimmed[0]
+	if c != '`' && c != '~' {
+		return ""
+	}
+	n := 0
+	for n < len(trimmed) && trimmed[n] == c {
+		n++
+	}
+	if n < 3 {
+		return ""
+	}
+	return trimmed[:n]
+}
 
-// FenceOf 是这一行开头的围栏；不是围栏时为空。
-func FenceOf(line string) string {
-	t := strings.TrimSpace(line)
-	for _, f := range fences {
-		if strings.HasPrefix(t, f) {
-			return f
+// closes 判断 line 能不能关闭以 open 开头的代码块：同一种字符、不短于开头、后面除空白外什么都没有（CommonMark）。
+func closes(open, line string) bool {
+	run := fenceRun(line)
+	if run == "" || run[0] != open[0] || len(run) < len(open) {
+		return false
+	}
+	rest := strings.TrimLeft(strings.TrimRight(line, "\r"), " ")[len(run):]
+	return strings.TrimSpace(rest) == ""
+}
+
+// CodeLines 对 body 的每一行（按 "\n" 切）说它是不是代码：围栏行本身与代码块里的行都算。
+func CodeLines(body string) []bool {
+	lines := strings.Split(body, "\n")
+	out := make([]bool, len(lines))
+	open := "" // 正在其中的代码块的开头围栏
+	for i, line := range lines {
+		if open == "" {
+			if run := fenceRun(line); run != "" {
+				open = run
+				out[i] = true
+			}
+			continue
+		}
+		out[i] = true
+		if closes(open, line) {
+			open = ""
 		}
 	}
-	return ""
+	return out
 }
 
 // eachOutside 对代码块之外的每一行调用 fn（i 从 0 起）；围栏行本身与块内的行都不给。
 func eachOutside(body string, fn func(i int, line string)) {
-	open := "" // 正在其中的代码块的围栏：只有同一种围栏才能把它关上
+	code := CodeLines(body)
 	for i, line := range strings.Split(body, "\n") {
-		if f := FenceOf(line); f != "" && (open == "" || f == open) {
-			if open == "" {
-				open = f
-			} else {
-				open = ""
-			}
-			continue
-		}
-		if open == "" {
+		if !code[i] {
 			fn(i, line)
 		}
 	}

@@ -73,7 +73,7 @@ func orDash(s string) string {
 // 只要 brickkit.yaml：组件表里的事实都来自它和缓存，不必装载整个项目（装载会被配置冲突拦下）。
 // 没有文件、没有维护区都不建也不报：那是 init / skills update 的事。
 func WriteAgentsBlock(l Layout, decl *projfile.File) (agentsmd.Result, error) {
-	return agentsmd.Ensure(l.Root, AgentsContent(l, decl, ""), agentsmd.ModeRewrite, "")
+	return agentsmd.Ensure(l.Root, AgentsContent(l, decl, ""), agentsmd.ModeRewrite, nil)
 }
 
 // ObsoleteProjectMap 判断项目根有没有旧版的项目地图 BRICKKIT.md（带维护区标记）。

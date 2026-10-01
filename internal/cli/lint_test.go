@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 )
 
@@ -409,4 +410,17 @@ func TestLintLogsEachFindingWithItsCode(t *testing.T) {
 
 	quiet := runIn(t, dir, "lint")
 	assert.NotContains(t, quiet.stderr, "DOC_FILE_MISSING")
+}
+
+// 维护区标记坏了：原因跟着 CLI 语言说，建议是改标记（skills update 修不了坏掉的标记）。
+func TestLintMalformedBlockSpeaksTheLanguageAndSaysHowToFix(t *testing.T) {
+	f := newLintFixture(t, comp{ID: "demo/hello", Version: "1.0.0"})
+	appendTo(t, filepath.Join(f.Dir, "AGENTS.md"), "<!-- brickkit:managed:begin lang=en -->\n")
+	prev := i18n.Current()
+	t.Cleanup(func() { i18n.SetCurrent(prev) })
+	t.Setenv("BRICKKIT_LANG", "zh")
+	r := runIn(t, f.Dir, "lint")
+	assert.NotContains(t, r.stdout, "malformed")
+	assert.Contains(t, r.stdout, "开始标记 2 个")
+	assert.Contains(t, r.stdout, "改好或删掉")
 }

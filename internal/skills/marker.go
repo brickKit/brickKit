@@ -11,8 +11,11 @@ import (
 
 var markerLine = regexp.MustCompile(`(?m)^<!-- brickkit:skill version=(\S+) sum=(sha256:[0-9a-f]+) -->[ \t]*\r?$`)
 
-// normalize 去掉正文末尾的空行与换行：编辑器补上或去掉最后一个换行，不该让文件变成"已手改"。
-func normalize(body []byte) []byte { return bytes.TrimRight(body, "\r\n") }
+// normalize 把 CRLF 换成 LF、去掉末尾的空行与换行：Windows 上 Git 检出时把换行改成 CRLF（core.autocrlf），
+// 编辑器补上或去掉最后一个换行——这些都不该让文件变成"已手改"。
+func normalize(body []byte) []byte {
+	return bytes.TrimRight(bytes.ReplaceAll(body, []byte("\r\n"), []byte("\n")), "\r\n")
+}
 
 // Mark 返回带记录的内容：正文、一个空行、记录行。
 func Mark(body []byte, version string) []byte {

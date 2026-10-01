@@ -2,6 +2,7 @@ package doccheck
 
 import (
 	"os"
+	"slices"
 	"path"
 	"path/filepath"
 	"sort"
@@ -37,13 +38,17 @@ func Component(dir string, m *manifest.Manifest) []*clierr.Error {
 			out = append(out, warn(clierr.CodeDocTranslationDrift, i18n.T(msgid.DoccheckNotALanguage, path.Base(rel)), rel, 0))
 			continue
 		}
-		out = append(out, placeholders(d)...)
 		primaryRel := path.Join(path.Dir(rel), base)
+		mine := d
+		if primaryRel == docspec.FileAgents {
+			mine = withoutBlock(d) // 维护段是平台写的，不归作者查
+		}
+		out = append(out, placeholders(mine)...)
 		switch primaryRel {
 		case docspec.FileBrickkit:
 			out = append(out, brickkit(d, m, lang)...)
 		case docspec.FileAgents:
-			out = append(out, links(dir, d, true)...)
+			out = append(out, links(dir, mine, true)...)
 			if lang == "" {
 				out = append(out, sections(d, docspec.KindComponentAgents)...)
 				out = append(out, codeMap(dir, d)...)
@@ -121,7 +126,13 @@ func codeMap(dir string, d doc) []*clierr.Error {
 
 // brickkit 查 BRICKKIT.md（及译本）：小节、不许相对链接、component.yaml 的事实都提到了。
 func brickkit(d doc, m *manifest.Manifest, lang string) []*clierr.Error {
-	out := sections(d, docspec.KindBrickkit)
+	var out []*clierr.Error
+	// 认不出标题的语言（ja……）的译本只查与原文对不对得上（translation），六节与清单事实都查不了
+	if lang != "" && !slices.Contains(docspec.HeadingLangs(), lang) {
+		m = nil
+	} else {
+		out = sections(d, docspec.KindBrickkit)
+	}
 	for _, l := range mdtext.Links(d.body) {
 		if isRelative(l.Target) {
 			out = append(out, warn(clierr.CodeDocLinkNotPortable, i18n.T(msgid.DoccheckBrickkitRelativeLink, l.Target), d.rel, l.Line))

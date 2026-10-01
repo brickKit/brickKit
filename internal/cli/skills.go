@@ -182,12 +182,12 @@ func runSkillsUpdate(opts *Options, lang string) error {
 		return err
 	}
 	// 旧版 lock 里 AGENTS.md 的指纹要在 Apply 之前读：Apply 用完旧 lock 就把它删了
-	legacySum := in.LegacyAgentsSum()
+	isOldAgents := in.OldAgentsMatcher()
 	res, err := in.Apply()
 	if err != nil {
 		return wrapSkillsError(err)
 	}
-	ares, err := agentsmd.Ensure(in.Root, agentsContentFor(in.Root, string(res.Lang), lang != ""), agentsmd.ModeRepair, legacySum)
+	ares, err := agentsmd.Ensure(in.Root, agentsContentFor(in.Root, string(res.Lang), lang != ""), agentsmd.ModeRepair, isOldAgents)
 	if err != nil {
 		return wrapSkillsError(err)
 	}
@@ -200,7 +200,7 @@ func runSkillsUpdate(opts *Options, lang string) error {
 		renderSkillsLangFallback(opts, in.Lang, res.Lang)
 	}
 	agentsChanged := ares.AgentsCreated || ares.BlockAppended || ares.BlockRewritten || ares.LegacyReplaced || ares.ClaudeCreated || ares.ClaudeAppended
-	if len(res.Written) == 0 && len(res.Skipped) == 0 && !agentsChanged && ares.Problem == "" {
+	if len(res.Written) == 0 && len(res.Skipped) == 0 && !agentsChanged && ares.Problem == nil {
 		opts.Printf("%s\n", i18n.T(msgid.CliSkillsAiAssistantSkillsAreUp, version.Display()))
 		renderObsoleteMapIfAny(opts, in.Root)
 		return nil

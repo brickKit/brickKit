@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var fence = strings.Repeat("`", 3)
@@ -66,4 +67,18 @@ func TestTableCellsAndInlineCode(t *testing.T) {
 
 func TestTableCellsKeepEscapedPipes(t *testing.T) {
 	assert.Equal(t, []string{"a/b", `x \| y`, "z"}, TableCells(`| a/b | x \| y | z |`))
+}
+
+// CommonMark：关闭围栏要同一种字符、不短于开头、后面不跟别的；四个反引号的块里可以有三个反引号的例子。
+func TestNestedFencesCloseOnlyOnAMatchingFence(t *testing.T) {
+	four := strings.Repeat("`", 4)
+	body := four + "markdown\n" + fence + "\n[in](inner.md)\n" + fence + "\n[still](in.md)\n" + four + "\n[out](out.md)\n"
+	ls := Links(body)
+	require.Len(t, ls, 1)
+	assert.Equal(t, "out.md", ls[0].Target)
+	assert.Equal(t, []bool{true, true, true, true, true, true, false, false}, CodeLines(body))
+
+	// 带信息串的那一行不能关闭代码块
+	body = fence + "\n" + fence + "go\n[in](x.md)\n" + fence + "\n[out](y.md)\n"
+	assert.Equal(t, "y.md", Links(body)[len(Links(body))-1].Target)
 }

@@ -252,13 +252,14 @@ Docs: `<source>/BRICKKIT[.<lang>].md` for a local source at this version, otherw
 `.brickkit/manifests/<id>/<version>/BRICKKIT[.<lang>].md`. Contracts: `.brickkit/artifacts/<service-name>/`.
 | Component | Version | What it does | Docs | Home |
 |---|---|---|---|---|
-| erp/sales | 1.0.26 | Sales quotations and orders | primary, zh | https://git.example.com/erp-sales |
-| mdm/customer | 1.0.10 | Customer master data | primary | — |
+| erp/sales | 1.0.26 | Sales quotations and orders | BRICKKIT.md +zh | https://git.example.com/erp-sales |
+| mdm/customer | 1.0.10 | Customer master data | BRICKKIT.md | — |
 <!-- brickkit:managed:end -->
 ```
 
-- **What it does** is `metadata.description` from the manifest. **Docs** lists the versions present — `primary` for `BRICKKIT.md`,
-  then each translation's code (`primary, zh`) — or `—` when the component carries no doc. **Home** is the new optional manifest field
+- **What it does** is `metadata.description` from the manifest. **Docs** lists the files present — `BRICKKIT.md`, then each translation's
+  code (`BRICKKIT.md +zh`) — or `—` when the component carries no doc. File names and codes read the same in every
+  language the block is rendered in. **Home** is the new optional manifest field
   `metadata.repository` (the URL of the component's repository or page), so a web reader of the project repository,
   where `.brickkit/` does not exist, can still reach every component.
 - **Only facts fixed by `brickkit.yaml` and the component version go into the block.** The file is committed and

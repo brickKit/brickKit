@@ -127,7 +127,7 @@ func TestEnsureModes(t *testing.T) {
 	root := t.TempDir()
 	c := Content{Lang: "en", Project: true}
 
-	res, err := Ensure(root, c, ModeInit, "")
+	res, err := Ensure(root, c, ModeInit, nil)
 	require.NoError(t, err)
 	assert.True(t, res.AgentsCreated)
 	assert.True(t, res.ClaudeCreated)
@@ -138,18 +138,18 @@ func TestEnsureModes(t *testing.T) {
 	mine := "# Mine\n\nnotes\n"
 	require.NoError(t, os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(mine), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "CLAUDE.md"), []byte("own\n"), 0o644))
-	res, err = Ensure(root, c, ModeInit, "")
+	res, err = Ensure(root, c, ModeInit, nil)
 	require.NoError(t, err)
-	assert.NotEmpty(t, res.Problem)
+	assert.ErrorIs(t, res.Problem, ErrNoBlock)
 	assert.True(t, res.ClaudeMissingImport)
 	got, _ := os.ReadFile(filepath.Join(root, "AGENTS.md"))
 	assert.Equal(t, mine, string(got))
 
-	res, err = Ensure(root, c, ModeRewrite, "")
+	res, err = Ensure(root, c, ModeRewrite, nil)
 	require.NoError(t, err)
-	assert.Equal(t, Result{}, res, "rewrite neither creates, appends nor reports")
+	assert.Equal(t, Result{Problem: ErrNoBlock}, res, "rewrite neither creates nor appends; it says the block is missing")
 
-	res, err = Ensure(root, c, ModeRepair, "")
+	res, err = Ensure(root, c, ModeRepair, nil)
 	require.NoError(t, err)
 	assert.True(t, res.BlockAppended)
 	assert.True(t, res.ClaudeAppended)
@@ -160,14 +160,14 @@ func TestEnsureModes(t *testing.T) {
 
 	// rewrite：只改块里面
 	c.Rows = []Row{{ID: "a/b", Version: "1.0.0", Does: "d", Docs: "—", Home: "—"}}
-	res, err = Ensure(root, c, ModeRewrite, "")
+	res, err = Ensure(root, c, ModeRewrite, nil)
 	require.NoError(t, err)
 	assert.True(t, res.BlockRewritten)
 	got, _ = os.ReadFile(filepath.Join(root, "AGENTS.md"))
 	assert.True(t, strings.HasPrefix(string(got), mine))
 	assert.Contains(t, string(got), "| a/b | 1.0.0 |")
 
-	res, err = Ensure(root, c, ModeRewrite, "")
+	res, err = Ensure(root, c, ModeRewrite, nil)
 	require.NoError(t, err)
 	assert.False(t, res.BlockRewritten, "nothing changed, nothing written")
 }
@@ -176,24 +176,24 @@ func TestEnsureMalformedBlockIsNotTouched(t *testing.T) {
 	root := t.TempDir()
 	broken := "# P\n<!-- brickkit:managed:begin lang=en -->\nno end\n"
 	require.NoError(t, os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(broken), 0o644))
-	res, err := Ensure(root, Content{Lang: "en", Project: true}, ModeRepair, "")
+	res, err := Ensure(root, Content{Lang: "en", Project: true}, ModeRepair, nil)
 	require.NoError(t, err)
-	assert.Contains(t, res.Problem, "malformed")
+	assert.ErrorIs(t, res.Problem, ErrMalformed)
 	got, _ := os.ReadFile(filepath.Join(root, "AGENTS.md"))
 	assert.Equal(t, broken, string(got))
 }
 
 func TestEnsureKeepsRecordedLanguage(t *testing.T) {
 	root := t.TempDir()
-	_, err := Ensure(root, Content{Lang: "zh", Project: true}, ModeInit, "")
+	_, err := Ensure(root, Content{Lang: "zh", Project: true}, ModeInit, nil)
 	require.NoError(t, err)
-	_, err = Ensure(root, Content{Lang: "en", Project: true}, ModeRewrite, "")
+	_, err = Ensure(root, Content{Lang: "en", Project: true}, ModeRewrite, nil)
 	require.NoError(t, err)
 	lang, ok := BlockLang(root)
 	assert.True(t, ok)
 	assert.Equal(t, "zh", lang, "a teammate with another CLI language must not flip the committed file")
 
-	_, err = Ensure(root, Content{Lang: "en", ForceLang: true, Project: true}, ModeRepair, "")
+	_, err = Ensure(root, Content{Lang: "en", ForceLang: true, Project: true}, ModeRepair, nil)
 	require.NoError(t, err)
 	lang, _ = BlockLang(root)
 	assert.Equal(t, "en", lang, "skills update --lang switches it")
@@ -203,7 +203,7 @@ func TestEnsureReplacesLegacyAsset(t *testing.T) {
 	root := t.TempDir()
 	old := "# This project is assembled with BrickKit\n"
 	require.NoError(t, os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(old), 0o644))
-	res, err := Ensure(root, Content{Lang: "en", Project: true, Title: "shop"}, ModeInit, sum([]byte(old)))
+	res, err := Ensure(root, Content{Lang: "en", Project: true, Title: "shop"}, ModeInit, isExactly(old))
 	require.NoError(t, err)
 	assert.True(t, res.LegacyReplaced)
 	got, _ := os.ReadFile(filepath.Join(root, "AGENTS.md"))
@@ -213,7 +213,7 @@ func TestEnsureReplacesLegacyAsset(t *testing.T) {
 	edited := root + "/x"
 	require.NoError(t, os.MkdirAll(edited, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(edited, "AGENTS.md"), []byte(old+"my line\n"), 0o644))
-	res, err = Ensure(edited, Content{Lang: "en", Project: true}, ModeInit, sum([]byte(old)))
+	res, err = Ensure(edited, Content{Lang: "en", Project: true}, ModeInit, isExactly(old))
 	require.NoError(t, err)
 	assert.False(t, res.LegacyReplaced, "an edited copy of the old asset is the author's now")
 }
@@ -222,4 +222,44 @@ func TestDocsCell(t *testing.T) {
 	assert.Equal(t, "BRICKKIT.md +ja +zh", DocsCell(true, []string{"ja", "zh"}))
 	assert.Equal(t, "+zh", DocsCell(false, []string{"zh"}))
 	assert.Equal(t, "—", DocsCell(false, nil))
+}
+
+// 作者在四个反引号的代码块里举例（例子里又有三个反引号的块，和维护区的标记）：真正的维护区照样找得到。
+func TestFindIgnoresMarkersInNestedFences(t *testing.T) {
+	four := strings.Repeat("`", 4)
+	example := four + "markdown\n" + block("en", "example\n") + fence + "\n" + four + "\n"
+	doc := "# P\n\n" + example + "\n" + block("zh", "real\n")
+	b, err := Find(doc)
+	require.NoError(t, err)
+	assert.Equal(t, "zh", b.Lang)
+	assert.Contains(t, doc[b.Start:b.End], "real")
+}
+
+func TestFindAcceptsIndentedMarkers(t *testing.T) {
+	_, err := Find("# P\n  <!-- brickkit:managed:begin lang=en -->\n  <!-- brickkit:managed:end -->\n")
+	assert.NoError(t, err)
+}
+
+// 标记坏了的原因要跟着 CLI 语言说，并点出标记在哪几行：人照着就能去改。
+func TestMalformedReasonIsLocalisedAndNamesLines(t *testing.T) {
+	doc := "# P\n" + block("en", "x\n") + "<!-- brickkit:managed:begin lang=en -->\n"
+	_, err := Find(doc)
+	require.ErrorIs(t, err, ErrMalformed)
+
+	prev := i18n.Current()
+	defer i18n.SetCurrent(prev)
+	i18n.SetCurrent(i18n.ZH)
+	zh := Reason(err)
+	assert.NotContains(t, zh, "malformed")
+	assert.Contains(t, zh, "2")
+	assert.Contains(t, zh, "5", "the stray begin marker's line")
+
+	i18n.SetCurrent(i18n.EN)
+	assert.Contains(t, Reason(err), "lines 2, 4, 5")
+	assert.NotEmpty(t, Reason(ErrNoBlock))
+}
+
+// isExactly 是测试用的"旧版 CLI 装的那份"：内容一字不差才算。
+func isExactly(old string) func([]byte) bool {
+	return func(data []byte) bool { return string(data) == old }
 }

@@ -54,9 +54,9 @@ type CompletePlan struct {
 	AgentsNew, ClaudeNew bool
 	// ObsoleteMap：项目根还留着旧版的项目地图 BRICKKIT.md（组件表现在在 AGENTS.md 末尾）。
 	ObsoleteMap bool
-	// LegacyAgentsSum 是旧版 skills.lock 给 AGENTS.md 记的指纹（由命令层在 Apply 之前填）：
+	// IsLegacyAgents 判断已有的 AGENTS.md 是不是旧版 CLI 装的那份、没被改过（由命令层在 Apply 之前填，可为 nil）：
 	// 文件恰好是旧版 CLI 装的那份、没被改过时，整份换成新骨架。
-	LegacyAgentsSum string
+	IsLegacyAgents func([]byte) bool
 	// Agents 是 Apply 对 AGENTS.md 与 CLAUDE.md 做了什么（建了、换了、或因为是作者的文件而没动）。
 	Agents agentsmd.Result
 
@@ -177,7 +177,7 @@ func (p *CompletePlan) Apply(l Layout) error {
 	if parsed, err := projfile.ParseFile(l.DeclPath()); err == nil {
 		decl = parsed
 	}
-	res, err := agentsmd.Ensure(l.Root, AgentsContent(l, decl, string(i18n.Current())), agentsmd.ModeInit, p.LegacyAgentsSum)
+	res, err := agentsmd.Ensure(l.Root, AgentsContent(l, decl, string(i18n.Current())), agentsmd.ModeInit, p.IsLegacyAgents)
 	if err != nil {
 		return ioError(i18n.T(msgid.ActionWriteFile), l.AgentsPath(), err)
 	}

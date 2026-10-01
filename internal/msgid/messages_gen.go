@@ -1813,4 +1813,10 @@ const (
 	CliPublishDocsTotalTooLarge                                ID = "cli.publish.docs_total_too_large"
 	CliPublishDocTranslationsIncluded                          ID = "cli.publish.doc_translations_included"
 	LogLintFinding                                             ID = "log.lint_finding"
+	AgentsmdReasonNoBlock                                      ID = "agentsmd.reason_no_block"
+	AgentsmdReasonMarkerCount                                  ID = "agentsmd.reason_marker_count"
+	AgentsmdReasonEndFirst                                     ID = "agentsmd.reason_end_first"
+	AgentsmdReasonBadLang                                      ID = "agentsmd.reason_bad_lang"
+	CliAgentsHintFixMarkers                                    ID = "cli.agents.hint_fix_markers"
+	CliAgentsMissing                                           ID = "cli.agents.missing"
 )

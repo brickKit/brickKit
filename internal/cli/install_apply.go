@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/brickkit/brickkit/internal/agentsmd"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/configdir"
 	"github.com/brickkit/brickkit/internal/deployfile"
@@ -125,8 +126,16 @@ func applyPlanWith(opts *Options, proj *project.Project, plan *install.Plan, ao 
 // 三份文件此刻已经正确，表写不进去不值得让命令失败：说一声，下一次成功的改动会补齐。
 func refreshProjectDoc(opts *Options, layout project.Layout) {
 	decl, err := projfile.ParseFile(layout.DeclPath())
+	var res agentsmd.Result
 	if err == nil {
-		_, err = project.WriteAgentsBlock(layout, decl)
+		res, err = project.WriteAgentsBlock(layout, decl)
+	}
+	if err == nil {
+		// 没有维护段、没有 AGENTS.md、还留着旧地图：组件表没人维护了，说一声怎么接上（不替作者改文件）
+		renderAgentsResult(opts, res)
+		if project.ObsoleteProjectMap(layout) {
+			renderProjectMapObsolete(opts)
+		}
 	}
 	if err != nil {
 		renderWarnings(opts, []*clierr.Error{clierr.Warn(clierr.CodeInternal, i18n.T(msgid.CliInstallProjectDocFailed, docspec.FileAgents)).

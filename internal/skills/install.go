@@ -133,16 +133,38 @@ func (in Installer) ResolvedLang() (i18n.Lang, error) {
 	return in.resolveLang(legacy), nil
 }
 
-// LegacyAgentsSum 是旧版 lock 给 AGENTS.md 记的指纹（AGENTS.md 曾经是技能资产）；没有时为空。
-func (in Installer) LegacyAgentsSum() string {
-	legacy, err := in.loadLegacy()
-	if err != nil {
-		return ""
+// IsOldAgents 判断 data 是不是旧版 CLI 装的、没被改过的 AGENTS.md（那时它是技能资产）：旧版 lock 记的指纹对得上，
+// 或者就是某个已发布版本装的那一份（没有锁的机器、新克隆也认得出）。
+func (in Installer) IsOldAgents(data []byte) bool { return in.OldAgentsMatcher()(data) }
+
+// OldAgentsMatcher 是 IsOldAgents，但旧版 lock 此刻就读进来：Apply 用完会删掉它，判断往往发生在那之后。
+func (in Installer) OldAgentsMatcher() func([]byte) bool {
+	var lockSum string
+	if legacy, err := in.loadLegacy(); err == nil {
+		if e, ok := legacy.Get(docspec.FileAgents); ok {
+			lockSum = e.Sum
+		}
 	}
-	if e, ok := legacy.Get(docspec.FileAgents); ok {
-		return e.Sum
+	return func(data []byte) bool {
+		if lockSum != "" && (lockSum == Sum(data) || lockSum == Sum(lf(data))) {
+			return true
+		}
+		return shipped(docspec.FileAgents, data)
 	}
-	return ""
+}
+
+// lf 把 CRLF 换成 LF（Windows 检出的文件），别的不动。
+func lf(data []byte) []byte { return bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n")) }
+
+// shipped 判断 data 是不是带记录行之前某个已发布版本装进 target 的那一份（见 shipped_sums.go）。
+func shipped(target string, data []byte) bool {
+	s := Sum(lf(data))
+	for _, known := range shippedBeforeMarkers[target] {
+		if s == known {
+			return true
+		}
+	}
+	return false
 }
 
 // Status 计算全部资产的当前状态。只读，不写任何文件。
@@ -199,13 +221,13 @@ func (in Installer) stateOfWith(a Asset, legacy *Lock) (FileStatus, error) {
 		st.State, st.FromVersion = StateOutdated, version
 	default:
 		if e, found := legacy.Get(a.Target); found {
-			if e.Sum == Sum(disk) {
+			if e.Sum == Sum(disk) || e.Sum == Sum(lf(disk)) {
 				st.State, st.FromVersion = StateOutdated, e.Version
 			} else {
 				st.State = StateModified
 			}
-		} else if bytes.Equal(normalize(disk), normalize(want)) {
-			st.State = StateOutdated
+		} else if bytes.Equal(normalize(disk), normalize(want)) || shipped(a.Target, disk) {
+			st.State = StateOutdated // 当前那份、或旧版 CLI 装的某一版，只是没有记录：补上
 		} else {
 			st.State = StateUntracked
 		}

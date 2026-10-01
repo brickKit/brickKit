@@ -1,8 +1,6 @@
 package agentsmd
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"io/fs"
 	"os"
@@ -29,18 +27,15 @@ const (
 type Result struct {
 	AgentsCreated, BlockAppended, BlockRewritten, LegacyReplaced bool
 	ClaudeCreated, ClaudeAppended                                bool
-	// Problem 非空：AGENTS.md 没有维护区或标记坏了，这次没改它。
-	Problem string
+	// Problem 非空：AGENTS.md 没有维护区（ErrNoBlock）或标记坏了（ErrMalformed），这次没改它。给人看的说法见 Reason。
+	Problem error
+	// AgentsMissing：改写模式下 AGENTS.md 根本不在——组件表没人维护了（init / skills update 会建）。
+	AgentsMissing bool
 	// ClaudeMissingImport：CLAUDE.md 在，但不引 AGENTS.md，这次没改它。
 	ClaudeMissingImport bool
 }
 
 const filePerm = 0o644
-
-func sum(b []byte) string {
-	h := sha256.Sum256(b)
-	return "sha256:" + hex.EncodeToString(h[:])
-}
 
 // BlockLang 是 root/AGENTS.md 维护区记的语言；没有文件或没有可用的维护区时 ok 为 false。
 func BlockLang(root string) (string, bool) {
@@ -56,9 +51,9 @@ func BlockLang(root string) (string, bool) {
 }
 
 // Ensure 让 root 下的 AGENTS.md 与 CLAUDE.md 符合 mode 允许的样子。
-// legacyAgentsSum 是旧版 skills.lock 给 AGENTS.md 记的指纹：文件恰好是旧版 CLI 装的那份、没改过时，
-// 它本来就是 CLI 的文件，整份换成新骨架。
-func Ensure(root string, c Content, mode Mode, legacyAgentsSum string) (Result, error) {
+// isLegacy 判断已有的 AGENTS.md 是不是旧版 CLI 装的那份、没被改过（那时它是技能资产，见 skills.Installer.IsOldAgents）：
+// 是的话它本来就是 CLI 的文件，整份换成新骨架。为 nil 时不认旧文件。
+func Ensure(root string, c Content, mode Mode, isLegacy func([]byte) bool) (Result, error) {
 	var res Result
 	path := filepath.Join(root, docspec.FileAgents)
 	title := c.Title
@@ -69,6 +64,7 @@ func Ensure(root string, c Content, mode Mode, legacyAgentsSum string) (Result, 
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		if mode == ModeRewrite {
+			res.AgentsMissing = true
 			return res, nil
 		}
 		if err := os.WriteFile(path, []byte(Skeleton(title, c)), filePerm); err != nil {
@@ -92,8 +88,9 @@ func Ensure(root string, c Content, mode Mode, legacyAgentsSum string) (Result, 
 				res.BlockRewritten = true
 			}
 		case mode == ModeRewrite:
+			res.Problem = findErr // 不改，但要说出来：组件表从此没人维护
 			return res, nil
-		case errors.Is(findErr, ErrNoBlock) && legacyAgentsSum != "" && sum(data) == legacyAgentsSum:
+		case errors.Is(findErr, ErrNoBlock) && isLegacy != nil && isLegacy(data):
 			if err := os.WriteFile(path, []byte(Skeleton(title, c)), filePerm); err != nil {
 				return res, err
 			}
@@ -104,7 +101,7 @@ func Ensure(root string, c Content, mode Mode, legacyAgentsSum string) (Result, 
 			}
 			res.BlockAppended = true
 		default:
-			res.Problem = findErr.Error()
+			res.Problem = findErr
 		}
 	}
 	if mode == ModeRewrite {

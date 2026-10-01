@@ -83,14 +83,17 @@ func TestLegacyLockMigratesOnceThenGoesAway(t *testing.T) {
 	assert.Equal(t, string(edited), string(data))
 }
 
-func TestLegacyAgentsSum(t *testing.T) {
+func TestOldAgentsMatcherReadsTheLockUpFront(t *testing.T) {
 	root := t.TempDir()
 	in := Installer{Root: root, LegacyLockPath: filepath.Join(root, ".brickkit", "skills.lock")}
-	assert.Empty(t, in.LegacyAgentsSum())
+	mine := []byte("# whatever an old CLI wrote\n")
+	assert.False(t, in.IsOldAgents(mine))
 	l := &Lock{}
-	l.Set(LockEntry{Path: "AGENTS.md", Version: "0.1.0", Sum: "sha256:ab"})
+	l.Set(LockEntry{Path: "AGENTS.md", Version: "0.1.0", Sum: Sum(mine)})
 	require.NoError(t, l.Save(in.LegacyLockPath))
-	assert.Equal(t, "sha256:ab", in.LegacyAgentsSum())
+	match := in.OldAgentsMatcher()
+	require.NoError(t, os.Remove(in.LegacyLockPath)) // Apply 删掉了它
+	assert.True(t, match(mine))
 }
 
 func TestLangFromAgentsBlock(t *testing.T) {
@@ -109,4 +112,42 @@ func TestNoAgentsAsset(t *testing.T) {
 			assert.NotEqual(t, "AGENTS.md", a.Target)
 		}
 	}
+}
+
+// Windows 上 Git 默认 core.autocrlf=true：检出时每一行都成了 CRLF。这不算手改。
+func TestCRLFCheckoutIsNotAnEdit(t *testing.T) {
+	in := Installer{Root: t.TempDir(), Version: "1.0.0"}
+	_, err := in.Apply()
+	require.NoError(t, err)
+	for _, a := range AssetsFor(ScopeProject, i18n.EN) {
+		p := filepath.Join(in.Root, a.Target)
+		data, err := os.ReadFile(p)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(p, []byte(strings.ReplaceAll(string(data), "\n", "\r\n")), 0o644))
+		st, err := in.stateOf(a)
+		require.NoError(t, err)
+		assert.Equal(t, StateCurrent, st.State, a.Target)
+	}
+}
+
+// 老项目的同事新克隆（没有记录行，也没有旧版 skills.lock）：内容是某个旧版 CLI 装的、没被改过的，照样认得出、升得上去。
+func TestOldShippedFileWithoutLockIsOutdated(t *testing.T) {
+	old, err := os.ReadFile(filepath.Join("testdata", "legacy", "assemble-SKILL.md"))
+	require.NoError(t, err)
+	in := newInstaller(t)
+	writeAt(t, in, assemble, []byte(strings.ReplaceAll(string(old), "\n", "\r\n"))) // Windows 检出也认得
+	assert.Equal(t, StateOutdated, stateOf(t, in, assemble).State)
+	res, err := in.Apply()
+	require.NoError(t, err)
+	assert.Contains(t, res.Written, assemble)
+}
+
+// 旧版 CLI 装的 AGENTS.md（当年是技能资产）：没有锁也认得出，交给 agentsmd 整份换成新骨架。
+func TestOldShippedAgentsIsRecognisedWithoutLock(t *testing.T) {
+	old, err := os.ReadFile(filepath.Join("testdata", "legacy", "AGENTS.md"))
+	require.NoError(t, err)
+	in := newInstaller(t)
+	assert.True(t, in.IsOldAgents(old))
+	assert.True(t, in.IsOldAgents([]byte(strings.ReplaceAll(string(old), "\n", "\r\n"))))
+	assert.False(t, in.IsOldAgents(append(old, []byte("my line\n")...)), "an edited copy is the author's now")
 }

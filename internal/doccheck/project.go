@@ -25,8 +25,9 @@ func Project(root string) []*clierr.Error {
 	}
 	if d, ok := read(root, docspec.FileAgents); ok {
 		out = append(out, sections(d, docspec.KindProjectAgents)...)
-		out = append(out, links(root, d, false)...)
-		out = append(out, placeholders(d)...)
+		mine := withoutBlock(d)
+		out = append(out, links(root, mine, false)...)
+		out = append(out, placeholders(mine)...)
 		out = append(out, block(d)...)
 	}
 	out = append(out, claude(root)...)

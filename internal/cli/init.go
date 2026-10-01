@@ -93,7 +93,7 @@ func runInitCreate(opts *Options, name string, f initFlags) error {
 	if err != nil {
 		return err
 	}
-	plan.LegacyAgentsSum = legacyAgentsSum(layout)
+	plan.IsLegacyAgents = oldAgentsMatcher(layout)
 	if err := plan.Apply(layout); err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func runInitComplete(opts *Options, f initFlags) error {
 			return nil
 		}
 	}
-	plan.LegacyAgentsSum = legacyAgentsSum(layout)
+	plan.IsLegacyAgents = oldAgentsMatcher(layout)
 	if err := plan.Apply(layout); err != nil {
 		return err
 	}
@@ -251,10 +251,10 @@ func finishInit(opts *Options, layout project.Layout, f initFlags, check bool) e
 	return nil
 }
 
-// legacyAgentsSum 是旧版 skills.lock 给 AGENTS.md 记的指纹：那时 AGENTS.md 是 CLI 装的技能资产，
-// 没被改过的那份本来就是 CLI 的文件，补全时整份换成新骨架。必须在技能安装之前读——安装会删掉旧 lock。
-func legacyAgentsSum(layout project.Layout) string {
-	return skills.Installer{Root: layout.Root, LegacyLockPath: layout.LegacySkillsLockPath()}.LegacyAgentsSum()
+// oldAgentsMatcher 认出旧版 CLI 装的、没被改过的 AGENTS.md：那时它是技能资产，本来就是 CLI 的文件，补全时整份换成新骨架。
+// 必须在技能安装之前取——安装会删掉旧 lock。
+func oldAgentsMatcher(layout project.Layout) func([]byte) bool {
+	return skills.Installer{Root: layout.Root, LegacyLockPath: layout.LegacySkillsLockPath()}.OldAgentsMatcher()
 }
 
 // installSkills 装入 AI 助手技能，并把跳过的文件说清楚。
