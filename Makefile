@@ -415,7 +415,7 @@ test-components-py: ## Python 组件的测试（在容器里跑，需要 Docker�
 
 .PHONY: test-components-integration
 test-components-integration: ## 组件的迁移集成测试（需要本机 PostgreSQL，读 .env）
-	@# 组件的数据库按设计由人创建（CLI 不负责建库，见各组件 README）；
+	@# 组件的数据库按设计由人创建（CLI 不负责建库，见各组件 BRICKKIT.md 的「部署前准备」）；
 	@# 这里是测试夹具代劳，免得每次跑测试前手工建库
 	@set -a; . ./.env; set +a; \
 	for db in brickkit_department brickkit_people brickkit_auth brickkit_rbac; do \

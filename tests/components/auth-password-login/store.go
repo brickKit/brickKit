@@ -24,7 +24,7 @@ type Credential struct {
 	Username string
 	// PersonID 指向 people/basic 中的人员。
 	PersonID string
-	// PasswordHash 是 bcrypt 哈希。**明文口令在任何地方都不存在**——
+	// PasswordHash 是 PBKDF2-SHA256 哈希（格式见 password.go）。**明文口令在任何地方都不存在**——
 	// 请求处理完就随栈销毁，不进日志、不进库、不进令牌。
 	PasswordHash string
 }

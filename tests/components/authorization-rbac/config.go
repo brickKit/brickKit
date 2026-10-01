@@ -15,7 +15,7 @@ const (
 	listenAddr = ":8080"
 	// readHeaderTimeout 防住慢速请求头攻击。
 	readHeaderTimeout = 10 * time.Second
-	// defaultCacheTTL 是权限缓存的默认有效期，可由 configSchema 的 cacheTtlSeconds 覆盖。
+	// defaultCacheTTL 是权限缓存的默认有效期，可由配置项 CACHE_TTL_SECONDS 覆盖。
 	//
 	// 授权变更时我们会主动失效缓存，TTL 只是最后的兜底：万一漏了一条失效，
 	// 也不至于让一份错的权限永远留在缓存里。
@@ -74,7 +74,7 @@ func (c cacheConfig) Addr() string { return c.Host + ":" + strconv.Itoa(c.Port) 
 // Enabled 表示项目是否配了 Redis（REDIS_HOST）。
 func (c cacheConfig) Enabled() bool { return c.Host != "" }
 
-// String 返回可安全写进日志的摘要：有地址与库名，**没有口令、没有签名密钥**。
+// String 返回可安全写进日志的摘要：有地址与库名，**没有口令**。
 func (c config) String() string {
 	cache := "（未绑定）"
 	if c.Cache.Enabled() {
@@ -87,9 +87,8 @@ func (c config) String() string {
 
 // configFromEnv 从环境变量读配置。
 //
-// 缺失项一次全部报出，且**绝不退化到默认值**——尤其是 JWT_SECRET：
-// 一个内置默认密钥意味着所有装了这个组件的人共用同一把钥匙，
-// 任何人都能给任何部署签出管理员令牌，而且看起来一切正常。
+// 缺失项一次全部报出，且**绝不退化到默认地址**：悄悄连到 localhost
+// 会让人以为配好了，实际连的根本不是那个库。Redis 不在此列——它是可选的加速器。
 func configFromEnv(lookup func(string) string) (config, error) {
 	get := func(key string) string { return strings.TrimSpace(lookup(key)) }
 

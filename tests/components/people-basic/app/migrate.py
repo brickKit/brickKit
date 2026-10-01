@@ -97,7 +97,7 @@ def _warn_if_shared(conn: psycopg.Connection, component_id: str) -> None:
     if others:
         logger.warning(
             "该数据库里还有其他组件的表",
-            extra={"others": ", ".join(others), "advice": "数据自治：每个组件用自己的数据库，见 README"},
+            extra={"others": ", ".join(others), "advice": "数据自治：每个组件用自己的数据库，见组件 BRICKKIT.md 的「部署前准备」"},
         )
 
 

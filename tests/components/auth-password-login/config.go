@@ -15,7 +15,7 @@ const (
 	listenAddr = ":8080"
 	// readHeaderTimeout 防住慢速请求头攻击。
 	readHeaderTimeout = 10 * time.Second
-	// defaultTokenTTL 是令牌默认有效期，可由 configSchema 的 tokenTtlSeconds 覆盖。
+	// defaultTokenTTL 是令牌默认有效期，可由配置项 TOKEN_TTL_SECONDS 覆盖。
 	defaultTokenTTL = 30 * time.Minute
 )
 
@@ -52,7 +52,7 @@ type config struct {
 	PeopleEndpoint string
 	// JWTSecret 是令牌签名密钥，由使用者通过 .env / K8s Secret 提供。
 	JWTSecret string
-	// TokenTTL 来自 configSchema 的 tokenTtlSeconds。
+	// TokenTTL 来自配置项 TOKEN_TTL_SECONDS。
 	TokenTTL time.Duration
 }
 

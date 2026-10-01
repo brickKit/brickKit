@@ -1,93 +1,30 @@
 # infra/api-docs
 
-文档聚合组件：把各组件的 API 文档收拢到一个入口。BrickKit Phase 5 的第八个、
-也是最后一个测试组件。
+把每个组件的 API 文档收拢到一个入口；没装或没有文档的组件会被如实标出，页面照常打开。
 
-## 它在平台里的位置很特殊
-
-**全部依赖都是弱依赖** —— 这是唯一一个这样的组件。六个目标组件装了几个就展示几个，
-一个都没装也照样起得来。
-
-这不是"容错做得好"，而是这个组件的本来面目：**文档入口不该因为某个业务组件没装
-就打不开**，而且业务组件全挂的时候，正是最需要看文档的时候。
-
-## 两条发现路径
-
-| 路径 | 怎么拿 | 谁提供 |
-| --- | --- | --- |
-| OpenAPI | `GET {endpoint}/openapi.json` | FastAPI 之类的框架自带（people/basic） |
-| gRPC | **Reflection**，不需要 `.proto` 文件 | department/tree、authorization/rbac |
-
-Reflection 的价值在于**不必预先 vendored 一堆契约**：组件升级加了新方法，
-这里自动跟上。`grpcurl` 就是这么用的，这里是同一套机制的程序化调用。
-
-## 四种状态，各自对应不同的处置
-
-这是这个组件最要紧的设计。看到空页面时，使用者需要知道**接下来该做什么**：
-
-| 状态 | 含义 | 该做什么 |
-| --- | --- | --- |
-| `ok` | 拿到文档了 | — |
-| `absent` | 平台没注入地址 = 组件**没装** | 装上它 |
-| `unreachable` | 地址在，但连不上 | 去看那个组件 |
-| `no-docs` | 组件在线，两条路径都没有 | 让它提供 `/openapi.json` 或开 Reflection |
-
-混成一种的话，使用者只能对着空页面猜。`GET /api/v1/sources` 本身就是排障工具。
-
-## API
-
-| 端点 | 说明 |
-| --- | --- |
-| `GET /` | Swagger UI + 聚合状态表 |
-| `GET /api/v1/sources` | 谁有文档、谁没装、谁连不上 |
-| `GET /api/v1/openapi/{组件ID}` | 代理出去的 OpenAPI 原文 |
-| `GET /healthz` | 只检查本进程存活 |
-
-### 为什么要代理 OpenAPI 而不是让浏览器直连
-
-那些组件**默认不暴露端口**，浏览器根本连不上；就算连得上也会撞跨域。
-由本组件代理是唯一走得通的路。
-
-同理，`/api/v1/sources` 的响应里**不包含组件的内部地址** —— 那等于把内网结构
-告诉任何能打开这个页面的人。
-
-## Swagger UI 从镜像拷，不从 CDN 加载
-
-```dockerfile
-FROM swaggerapi/swagger-ui:v5.17.14 AS swagger
-...
-COPY --from=swagger /usr/share/nginx/html/swagger-ui.css ... /app/web/swagger-ui/
-```
-
-平台"默认不暴露端口"意味着这个页面很可能跑在内网甚至气隙环境里。
-指向公网 CDN 的 `<script>` 会让页面永远转圈 —— 而症状看起来像"文档组件坏了"。
-版本钉死才可复现。
-
-## 探测结果有 30 秒缓存
-
-每次刷新页面都去探六个组件的话，一个卡住的上游会让页面很慢；
-而组件的 API 文档几乎不会在几十秒内变。缓存会过期 —— 否则新上线的组件永远看不到。
-
-探测是**并发**的，且每个目标各自捕获错误：一个组件出问题最坏也只是它自己
-显示成"不可用"。
-
-## 配置
-
-| 环境变量 | 来源 | 必需 |
-| --- | --- | --- |
-| `DEPARTMENT_TREE_ENDPOINT` 等六个 | 平台按**弱依赖**注入 | ❌ 全都不是 |
-| `LOG_LEVEL` | 配置项，默认 info | ❌ |
-
-这个组件**没有任何必需配置**。把任何一个列成必需，就等于要求使用者必须把
-六个组件全装上才能看文档。
-
-`config.go` 里的 `aggregated` 清单必须与 `component.yaml` 的弱依赖声明一一对应 ——
-漏声明的表现是"那个组件在页面上永远显示未安装"，因为平台根本不会注入它的地址。
-
-
-## 本地运行
+## 在项目里使用
 
 ```bash
-go test ./...    # 不需要任何外部服务：目标组件都有 httptest 替身
+brickkit add infra/api-docs@1.0.0
+brickkit up
 ```
 
+上线前要准备什么，见 [BRICKKIT.md](BRICKKIT.md) 的"部署前准备"。
+
+## 文档
+
+| 想知道 | 读 |
+| --- | --- |
+| 负责什么、怎么配、要准备什么 | [BRICKKIT.md](BRICKKIT.md) |
+| 接口与事件（本组件不发布契约文件，接口列在"契约索引"里） | [BRICKKIT.md](BRICKKIT.md) |
+| 依赖什么（说明在 BRICKKIT.md） | [component.yaml](component.yaml) |
+| 怎么开发 | [AGENTS.md](AGENTS.md) |
+
+## 开发
+
+```bash
+go vet ./... && go test ./...   # 不需要任何外部服务
+docker build -t brickkit-demo/infra-api-docs:1.0.0 .
+```
+
+代码地图、设计取舍与易错点见 [AGENTS.md](AGENTS.md)。

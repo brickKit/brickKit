@@ -210,7 +210,7 @@ func warnIfDatabaseIsShared(ctx context.Context, db *sql.DB, componentID string)
 	if len(others) > 0 {
 		slog.Warn("该数据库里还有其他组件的表",
 			"others", strings.Join(others, ", "),
-			"建议", "数据自治：每个组件用自己的数据库，见组件 README")
+			"建议", "数据自治：每个组件用自己的数据库，见组件 BRICKKIT.md 的「部署前准备」")
 	}
 }
 

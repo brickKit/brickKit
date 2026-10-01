@@ -161,7 +161,7 @@ func TestMigrationIsIdempotent(t *testing.T) {
 		t.Errorf("样例账号应当指向 people/basic 的 p-001，实际 %q", cred.PersonID)
 	}
 	if !verifyPassword(cred.PasswordHash, "demo-password") {
-		t.Error("样例账号的口令应当是 demo-password（README 里写的就是它）")
+		t.Error("样例账号的口令应当是 demo-password（BRICKKIT.md 里写的就是它）")
 	}
 }
 
