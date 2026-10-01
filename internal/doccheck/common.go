@@ -142,16 +142,6 @@ func links(root string, d doc, portable bool) []*clierr.Error {
 	return out
 }
 
-func linksTo(d doc, name string) bool {
-	for _, l := range mdtext.Links(d.body) {
-		file, _, _ := strings.Cut(l.Target, "#")
-		if path.Base(file) == name {
-			return true
-		}
-	}
-	return false
-}
-
 // claude 查 CLAUDE.md 有没有 @AGENTS.md。
 func claude(root string) []*clierr.Error {
 	d, ok := read(root, docspec.FileClaude)

@@ -173,10 +173,10 @@ docker / podman 用就留着，否则删掉。
 | `LINT_FAILED` | `brickkit lint` 查出问题，每条带文件和字段 | 修好重跑；警告只在 `--strict` 下算失败 |
 | `DOC_FILE_MISSING` / `DOC_SECTION_MISSING`（lint 警告） | 缺了必需的文档（`BRICKKIT.md`、`AGENTS.md`、`CLAUDE.md`、`README.md`）或其中一个固定小节 | 补上；`brickkit new` 能看到全套样子，`brickkit skills update` 会建出缺的 `AGENTS.md` / `CLAUDE.md` |
 | `DOC_PATH_MISSING` / `DOC_LINK_BROKEN` | `AGENTS.md` 代码地图里的路径、或某条相对链接指向的东西不在——代码挪了、文档没跟上 | 改文档里的路径或链接 |
-| `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` 里有相对链接（在别的项目缓存里是死的），或组件文档链出了组件目录 | `BRICKKIT.md` 里用行内代码写文件名；组件文档自成一体 |
+| `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` 里有相对链接（在别的项目缓存里是死的），或组件的其他文档——`AGENTS.md`、`README.md`、`docs/`——链出了组件目录（`../…`） | `BRICKKIT.md` 里用行内代码写文件名；组件文档自成一体 |
 | `DOC_OUT_OF_STEP` | `component.yaml` 里的依赖、必填配置项、契约文件或外壳成员，文档该提的那一节没提 | 在那一节写上（依赖写 ID，不写版本） |
 | `DOC_PLACEHOLDER` | 文档正文里还留着 `TODO` 一类的占位 | 填完 |
-| `DOC_TRANSLATION_DRIFT` | 译本没有原文、二级小节数不同、某个语言版本没链接其余每一份，或后缀不是语言代码 | 把译本改回与原文一致 |
+| `DOC_TRANSLATION_DRIFT` | 译本没有原文、二级小节数不同（`AGENTS.md` 的维护段不算）、某一页在某棵 `docs/<语言>/` 树里缺了、某个语言版本没链接其余每一份，或后缀不是语言代码 | 把译本改回与原文一致 |
 | `AGENTS_BLOCK_MISSING` / `CLAUDE_IMPORT_MISSING` | `AGENTS.md` 里没有可用的 brickkit 维护段，或 `CLAUDE.md` 里没有 `@AGENTS.md` | `brickkit skills update` 会补上（别的命令不改这两个文件） |
 | `PROJECT_MAP_OBSOLETE` | 项目根还留着旧版的项目地图 `BRICKKIT.md` | 把自己写的内容挪进 `AGENTS.md`，再手动删掉它 |
 | `AGENTS.md` 组件表的某一行在提交之间来回变，`skills status` 说维护段过期 | 已经发布的版本在本地源里被原地改了（`BRICKKIT.md`、译本或 `metadata.description`），另一台机器从 tag 取它。升了版本还没发布的不会这样 | 改动放进下一个版本：升 `metadata.version`、`brickkit release`，再在项目里 `brickkit upgrade` |

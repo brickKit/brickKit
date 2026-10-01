@@ -96,7 +96,9 @@ SELF_SECTIONED_FILES = ("AGENTS.md", "AGENTS.zh.md", "README.md", "README.zh.md"
                        "llms.txt", "llms.zh.txt", "CONTRIBUTING.md", "CONTRIBUTING.zh.md")
 
 # 纯文本里的文档路径：docs/en/…、docs/zh/…、docs/{en,zh}/…、docs/{zh,en}/…，tutorials 同理。
-DOC_PATH = re.compile(r"\b((?:docs|tutorials)/(?:en|zh|\{en,zh\}|\{zh,en\})/[\w./-]+?\.md)\b")
+# 本仓库的文档页都在带编号的目录里（docs/en/03-component-guide/…），根上只有 README.md；
+# 别的形状（docs/en/guide/setup.md）是在讲使用者项目自己的 docs/<语言>/ 树，不是指本仓库的页。
+DOC_PATH = re.compile(r"\b((?:docs|tutorials)/(?:en|zh|\{en,zh\}|\{zh,en\})/(?:\d\d-[\w.-]+/[\w./-]+?|README)\.md)\b")
 
 def live_files():
     """现行内容：仓库里的文本文件（已跟踪的，加上还没 git add、但没被忽略的新文件），
@@ -196,12 +198,19 @@ def self_check():
     if got != want:
         problems.append(f"锚点算错了：多了 {sorted(got - want)}，少了 {sorted(want - got)}")
     # 文档路径：两种写法都要取到，{en,zh} 要展开成两份
-    got = doc_paths("见 docs/{en,zh}/11-reference/06-market-api.md 与 docs/zh/x/y.md（英文版把 zh 换成 en）")
-    if got != ["docs/en/11-reference/06-market-api.md", "docs/zh/11-reference/06-market-api.md", "docs/zh/x/y.md"]:
+    got = doc_paths("见 docs/{en,zh}/11-reference/06-market-api.md 与 docs/zh/01-x/y.md（英文版把 zh 换成 en）")
+    if got != ["docs/en/11-reference/06-market-api.md", "docs/zh/11-reference/06-market-api.md", "docs/zh/01-x/y.md"]:
         problems.append(f"文档路径解析错了：{got}")
     # 断链：已知存在的要找得到，编造的要找不到
     if not link_exists("README.md", "CONTRIBUTING.md") or link_exists("README.md", "no-such-file.md"):
         problems.append("链接解析坏了")
+
+    # 文档路径：本仓库的页（带编号的目录、根上的 README.md）要认出来，使用者项目的示例路径不算
+    for sample, want in [("见 docs/en/03-component-guide/08-x.md", ["docs/en/03-component-guide/08-x.md"]),
+                         ("docs/{en,zh}/README.md", ["docs/en/README.md", "docs/zh/README.md"]),
+                         ("`docs/en/guide/setup.md` 链到 `../../zh/guide/setup.md`", [])]:
+        if doc_paths(sample) != want:
+            problems.append(f"文档路径解析错了：{sample!r} → {doc_paths(sample)}")
 
     # 入口文件的网页前缀：真跑一遍检查——两处的要报，一处的不报
     import tempfile

@@ -426,8 +426,9 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 
 ### DOC_TRANSLATION_DRIFT
 
-译本（`README.zh.md`、`BRICKKIT.zh.md`、`docs/design.zh.md`）旁边没有原文，或者二级小节数与原文不同，或者某个语言版本没在开头链接其余每一份
-（`BRICKKIT*.md` 除外：它根本不放相对链接）；或者一个文件看着像译本，后缀却不是小写的语言代码（`README.zh-CN.md`）。
+译本（`README.zh.md`、`BRICKKIT.zh.md`、`docs/design.zh.md`，或 `docs/zh/` 下的一页）没有原文，或者二级小节数与原文不同
+（`AGENTS.md` 末尾 brickkit 维护的那一段不算），或者某个语言版本没在开头链接其余每一份（`BRICKKIT*.md` 除外：它根本不放相对链接）；
+用 `docs/<语言>/` 分树时，原文树里的某一页在另一棵树里缺了；或者一个文件看着像译本，后缀却不是小写的语言代码（`README.zh-CN.md`）。
 把译本改回与原文一致——以原文为准。
 
 ### AGENTS_BLOCK_MISSING

@@ -322,3 +322,93 @@ func TestCodeMapRoutesAreNotPaths(t *testing.T) {
 	dir, m := component(t, map[string]string{"AGENTS.md": agents})
 	assert.Empty(t, Component(dir, m))
 }
+
+// 维护段只在原文 AGENTS.md 里：数原文的小节时不算它的 "## BrickKit"，译本照作者自己写的那几节翻就对得上。
+func TestAgentsTranslationDoesNotCountTheManagedBlock(t *testing.T) {
+	header := "# demo/quote\n\n[English](AGENTS.md) · [中文](AGENTS.zh.md)\n"
+	withBlock := strings.Replace(strings.Replace(goodAgents, "# demo/quote\n", header, 1),
+		"<!-- brickkit:managed:begin lang=en -->\n", "<!-- brickkit:managed:begin lang=en -->\n## BrickKit\n\nRules.\n", 1)
+	zh := strings.NewReplacer("## Code map", "## 代码地图", "## Build and test", "## 构建与测试", "## Design decisions", "## 设计取舍",
+		"## Pitfalls", "## 易错点", "## Before changing code", "## 改代码前自查").Replace(header + goodAgents[len("# demo/quote\n"):])
+	zh = zh[:strings.Index(zh, "<!-- brickkit:managed:begin")]
+	dir, m := component(t, map[string]string{"AGENTS.md": withBlock, "AGENTS.zh.md": zh})
+	ws := Component(dir, m)
+	assert.Empty(t, ws, messages(ws))
+}
+
+// 项目根目录的译本与组件的一样查：链接、占位、小节数（不算维护段）、互链。
+func TestProjectTranslationsAreChecked(t *testing.T) {
+	root := t.TempDir()
+	header := "# P\n\n[English](AGENTS.md) · [中文](AGENTS.zh.md)\n\n"
+	agents := header + "## Overview\nx\n\n## Conventions\nx\n\n## Where to look\nx\n\n## Pitfalls\nx\n\n" +
+		"<!-- brickkit:managed:begin lang=en -->\n## BrickKit\n\n## Components\n<!-- brickkit:managed:end -->\n"
+	zh := header + "## 项目概述\nx\n\n## 项目约定\nx\n\n## 查找路由\nx\n\n## 易错点\nx\n"
+	write := func(rel, body string) {
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(body), 0o644))
+	}
+	write("AGENTS.md", agents)
+	write("CLAUDE.md", "@AGENTS.md\n")
+	write("AGENTS.zh.md", zh)
+	ws := Project(root)
+	assert.Empty(t, ws, messages(ws))
+
+	write("AGENTS.zh.md", zh+"\nTODO\n[gone](docs/gone.md)\n\n## 多出来的\n")
+	assert.ElementsMatch(t, []clierr.Code{clierr.CodeDocPlaceholder, clierr.CodeDocLinkBroken, clierr.CodeDocTranslationDrift}, codes(Project(root)))
+}
+
+// 项目的 docs/ 也查：坏链接、占位；链接可以指到项目里的任何地方（components/ 下的组件也是项目的一部分）。
+func TestProjectDocsAreChecked(t *testing.T) {
+	root := t.TempDir()
+	agents := "# P\n\n## Overview\nx\n\n## Conventions\nx\n\n## Where to look\nx\n\n## Pitfalls\nx\n\n<!-- brickkit:managed:begin lang=en -->\n<!-- brickkit:managed:end -->\n"
+	for rel, body := range map[string]string{
+		"AGENTS.md": agents, "CLAUDE.md": "@AGENTS.md\n", "components/erp/api/AGENTS.md": "# api\n",
+		"docs/conventions.md": "# C\n\n[api](../components/erp/api/AGENTS.md) [gone](decisions/x.md)\n\nTBD\n",
+	} {
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(body), 0o644))
+	}
+	assert.ElementsMatch(t, []clierr.Code{clierr.CodeDocLinkBroken, clierr.CodeDocPlaceholder}, codes(Project(root)))
+}
+
+// docs/<lang>/ 语言树：主语言（维护段的 lang=）那棵是原文，同一相对路径的文件互为语言版本——
+// 每一页在每棵树里都有、小节数一样、开头互相链到。
+func TestLanguageTrees(t *testing.T) {
+	en := "# A\n\n[English](a.md) · [中文](../../zh/guide/a.md)\n\n## One\nx\n"
+	zh := "# A\n\n[English](../../en/guide/a.md) · [中文](a.md)\n\n## 一\nx\n"
+	dir, m := component(t, map[string]string{"docs/en/guide/a.md": en, "docs/zh/guide/a.md": zh})
+	ws := Component(dir, m)
+	assert.Empty(t, ws, messages(ws))
+
+	dir, m = component(t, map[string]string{"docs/en/guide/a.md": en, "docs/zh/guide/a.md": zh + "\n## 二\n"})
+	ws = Component(dir, m)
+	require.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift}, codes(ws))
+	assert.Contains(t, ws[0].Format(), "docs/en/guide/a.md", "the section count names the primary")
+
+	dir, m = component(t, map[string]string{"docs/en/guide/a.md": en, "docs/zh/guide/a.md": zh, "docs/en/b.md": "# B\n", "docs/zh/c.md": "# C\n"})
+	ws = Component(dir, m)
+	assert.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift, clierr.CodeDocTranslationDrift}, codes(ws), messages(ws))
+	assert.Contains(t, messages(ws), "docs/zh/b.md", "a primary page missing from the zh tree")
+	assert.Contains(t, messages(ws), "docs/en/c.md", "a zh page with no primary")
+
+	dir, m = component(t, map[string]string{"docs/en/guide/a.md": "# A\n\n## One\nx\n", "docs/zh/guide/a.md": zh})
+	ws = Component(dir, m)
+	require.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift}, codes(ws))
+	assert.Contains(t, ws[0].Format(), "docs/zh/guide/a.md", "the primary does not link its zh version")
+}
+
+// 只有主语言那棵在时才是语言树：docs/api/、docs/faq/ 的名字也像语言代码，但不是。
+func TestLanguageTreesNeedThePrimaryLanguage(t *testing.T) {
+	dir, m := component(t, map[string]string{"docs/api/a.md": "# A\n", "docs/faq/b.md": "# B\n"})
+	ws := Component(dir, m)
+	assert.Empty(t, ws, messages(ws))
+
+	// 主语言是维护段记下的 lang=：zh 项目的 docs/zh/ 是原文树
+	zhBlock := strings.Replace(goodAgents, "lang=en", "lang=zh", 1)
+	dir, m = component(t, map[string]string{"AGENTS.md": zhBlock, "docs/zh/a.md": "# A\n", "docs/en/b.md": "# B\n"})
+	ws = Component(dir, m)
+	assert.Contains(t, messages(ws), "docs/en/a.md")
+	assert.Contains(t, messages(ws), "docs/zh/b.md")
+}

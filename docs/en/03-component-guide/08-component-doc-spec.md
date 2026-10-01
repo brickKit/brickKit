@@ -87,8 +87,10 @@ At the end is a block maintained by brickkit, between `<!-- brickkit:managed:beg
 markers is ever written by brickkit, and `brickkit skills status` says when that text is older than what this CLI
 writes; `brickkit skills update` refreshes it.
 
-`AGENTS.md` is written once, in the team's working language, and not translated: an AI reads either language, and a
-second copy is a second thing to keep in step. Two writing habits help an AI that may see only part of the file: no
+`AGENTS.md` is written once, in the team's working language, and usually not translated: an AI reads either language,
+and a second copy is a second thing to keep in step. A team that wants one for human reviewers can add
+`AGENTS.<lang>.md`; lint checks it like any other translation, and the brickkit-maintained block stays in the
+primary only. Two writing habits help an AI that may see only part of the file: no
 "as mentioned above", and every "never" carries its symptom and its reason.
 
 ## `README.md`
@@ -113,9 +115,22 @@ component repository, so it travels with the component's versions.
 
 ## More than one language
 
-- **The file without a suffix is the primary language**, which the author chooses. A translation sits next to it with
-  the language code before `.md`: `README.zh.md`, `BRICKKIT.zh.md`, `docs/design.zh.md`. A file and its translation are
-  in the same directory, so their relative links are identical.
+Every document has one primary language, which the author chooses; any other language is a translation. There are
+two ways to lay translations out, and lint checks both the same way:
+
+| Layout | What it looks like | Suits |
+| --- | --- | --- |
+| Next to the file | `README.zh.md` beside `README.md`, `docs/design.zh.md` beside `docs/design.md` | A few translated files: `README`, `BRICKKIT` |
+| A tree per language | `docs/en/…` and `docs/zh/…`, with the same relative paths in each | A whole `docs/` in two languages. With dozens of files, a translation beside every file doubles every directory; with a tree per language, each tree reads like a project written in one language |
+
+- **Next to the file**: the file without a suffix is the primary; a translation has the language code before `.md`.
+  A file and its translation are in the same directory, so their relative links are identical. The files at the
+  root — `README`, `BRICKKIT`, `AGENTS` — are always translated this way.
+- **A tree per language**: `docs/<primary language>/` is the primary tree, and each other `docs/<lang>/` is a
+  translation of it — the file at the same relative path is the same page. The primary language is the `lang=` recorded
+  in the block at the end of `AGENTS.md` (`en` when there is no block). lint reads `docs/` as trees only when that
+  tree exists and at least one more `docs/<lang>/` sits beside it, so a `docs/api/` is never taken for a language.
+  Choosing trees means the whole `docs/` is bilingual: **every page is in every tree.**
 - Language codes are lowercase: `zh`, `ja`, `pt-br`. lint reads the part after the last dot before `.md` as the
   language, so `README.zh-CN.md` gets a warning (it should be `README.zh-cn.md`). This covers `README.*`,
   `BRICKKIT.*` and `AGENTS.*` at the root, and a file under `docs/` in a directory that has translations; elsewhere
@@ -123,19 +138,34 @@ component repository, so it travels with the component's versions.
 - Translations are optional, per file. Typical: `README` and `BRICKKIT` translated (people and other teams read them),
   `AGENTS.md` and `docs/` not.
 - **The primary file is right** when the two disagree. A change updates its translations in the same commit.
+- **An AI reads one language — the primary.** Translations are for people; an AI that reads both versions of a page
+  spends its context on the same facts twice.
 - A file with translations starts with a line linking every language version, for example
   `[English](README.md) · [Chinese](README.zh.md)` — except `BRICKKIT*.md`, which has no relative links at all. Every
-  version carries the whole line: with three languages, each of the three links the other two.
-- Headings are recognised in English and Chinese.
+  version carries the whole line: with three languages, each of the three links the other two. In trees the links
+  cross over: `docs/en/guide/setup.md` links `../../zh/guide/setup.md`.
+- A translation has the same `##` sections as its primary, in its own language. The brickkit-maintained block at the end
+  of `AGENTS.md` is in the primary only and isn't counted.
+- The fixed sections are recognised by these headings, in English or Chinese — a Chinese translation uses the
+  Chinese name exactly as written here, not a translation of its own:
 
-`brickkit add` caches every `BRICKKIT.<lang>.md` along with `BRICKKIT.md`, and `brickkit publish` uploads them.
+| Document | English | Chinese |
+| --- | --- | --- |
+| `BRICKKIT.md` | `Purpose`, `Before you deploy`, `Dependencies`, `Configuration`, `Contracts`, `Shell declaration` | `组件定位`, `部署前准备`, `依赖说明`, `配置指南`, `契约索引`, `外壳声明` |
+| A component's `AGENTS.md` | `Code map`, `Build and test`, `Design decisions`, `Pitfalls`, `Before changing code` | `代码地图`, `构建与测试`, `设计取舍`, `易错点`, `改代码前自查` |
+| A project's `AGENTS.md` | `Overview`, `Conventions`, `Where to look`, `Pitfalls` | `项目概述`, `项目约定`, `查找路由`, `易错点` |
+| `README.md` | `Use it in a project`, `Documentation`, `Development` | `在项目里使用`, `文档`, `开发` |
+
+`brickkit add` caches every `BRICKKIT.<lang>.md` along with `BRICKKIT.md`, and `brickkit publish` uploads them. A
+project's own documents follow the same rules — see
+[The project's other documents](../02-project-guide/01-init-and-project-creation.md#the-projects-other-documents).
 
 ## What `brickkit lint` checks
 
 `lint` checks what a program can decide for certain; whether the writing is good is for review. Every finding is a
 warning — `up` and `release` never stop on documentation, and `lint --strict` turns warnings into a failure for a team
 that wants its CI to hold the line. It runs on a component repository, on a workbench, and in a project on every
-local-source component. An invalid `component.yaml` doesn't stop it: the documents are still checked, only the
+local-source component and on the project's own documents. An invalid `component.yaml` doesn't stop it: the documents are still checked, only the
 comparison with the manifest (`DOC_OUT_OF_STEP`) is skipped.
 
 | Code | Means |
@@ -147,7 +177,7 @@ comparison with the manifest (`DOC_OUT_OF_STEP`) is skipped.
 | `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` has a relative link, or a doc links out of the component |
 | `DOC_OUT_OF_STEP` | `component.yaml` has a dependency, required key, contract file or shell member the doc doesn't mention where it belongs |
 | `DOC_PLACEHOLDER` | `TODO`, `TBD`, `FIXME` (or their Chinese counterparts) is still in the text, outside code |
-| `DOC_TRANSLATION_DRIFT` | A translation has no primary or a different number of sections, a language version doesn't link every other one, or a file's language suffix isn't a lowercase language code (`README.zh-CN.md`) |
+| `DOC_TRANSLATION_DRIFT` | A translation has no primary or a different number of sections, a page is missing from one of the `docs/<lang>/` trees, a language version doesn't link every other one, or a file's language suffix isn't a lowercase language code (`README.zh-CN.md`) |
 | `AGENTS_BLOCK_MISSING` | `AGENTS.md` has no block maintained by brickkit |
 | `CLAUDE_IMPORT_MISSING` | `CLAUDE.md` doesn't import `AGENTS.md` |
 

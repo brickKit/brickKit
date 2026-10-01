@@ -1804,6 +1804,7 @@ const (
 	DoccheckPlaceholder                                        ID = "doccheck.placeholder"
 	DoccheckNotALanguage                                       ID = "doccheck.not_a_language"
 	DoccheckNoPrimary                                          ID = "doccheck.no_primary"
+	DoccheckNoCounterpart                                      ID = "doccheck.no_counterpart"
 	DoccheckSectionCount                                       ID = "doccheck.section_count"
 	DoccheckNotLinked                                          ID = "doccheck.not_linked"
 	DoccheckClaudeImport                                       ID = "doccheck.claude_import"

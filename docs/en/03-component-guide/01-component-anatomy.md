@@ -34,7 +34,8 @@ demo-quote/
 
 How to write each document, and how `brickkit lint` checks them: [A component's documentation](08-component-doc-spec.md).
 A translation sits next to its file with a language suffix (`BRICKKIT.zh.md`, `README.zh.md`); the file without a suffix
-is the primary one. `AGENTS.md` usually isn't translated (see
+is the primary one; a `docs/` written in two languages can instead keep a tree per language (`docs/en/`, `docs/zh/`).
+`AGENTS.md` usually isn't translated (see
 [More than one language](08-component-doc-spec.md#more-than-one-language)).
 
 The platform asks only three things of a component: a `component.yaml`, being a container (an image that can be built or

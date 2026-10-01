@@ -123,7 +123,8 @@ shell:
 
 - 一个事实只写一处：依赖和配置项在 `component.yaml`，接口在契约文件，历史在 Git。文档讲它们说不清的部分，不再抄一遍。
 - `BRICKKIT.md` **不放相对链接**：它在别的项目缓存里是单独读的。文件名用行内代码写。
-- 译本放在旁边：`BRICKKIT.zh.md`、`README.zh.md`、`docs/design.zh.md`。不带后缀的那份为准；每个语言版本在开头链接其余每一份（`BRICKKIT*.md` 除外）；`AGENTS.md` 不翻译。
+- 译本放在旁边——`BRICKKIT.zh.md`、`README.zh.md`、`docs/design.zh.md`——整个 `docs/` 双语时也可以每种语言一棵树：`docs/<主语言>/` 和 `docs/<语言>/` 相对路径一一对应，每一页在每棵树里都有（主语言是 `AGENTS.md` 维护段的 `lang=`）。原文为准；每个语言版本在开头链接其余每一份（`BRICKKIT*.md` 除外）；译本的 `##` 小节与原文一样多（维护段不算）。`AGENTS.md` 一般不翻译；给人工审查者的 `AGENTS.<语言>.md` 按普通译本查。读和写都只对着原文。
+- 固定小节按标题一字不差地认，中英文都行——英文原文的译本要用这些英文名：`BRICKKIT.md` Purpose / Before you deploy / Dependencies / Configuration / Contracts / Shell declaration；`AGENTS.md` Code map / Build and test / Design decisions / Pitfalls / Before changing code；`README.md` Use it in a project / Documentation / Development。
 - 外壳的 `外壳声明` 里的成员要与 `shell.members` 一致。
 - `brickkit lint` 都会查（警告；`--strict` 下算失败）：`DOC_FILE_MISSING`、`DOC_SECTION_MISSING`、`DOC_PATH_MISSING`（代码地图里的路径没了——第一张表第一列的每个行内代码都当路径查，`main.go`、`Dockerfile` 也算；别的格子里只有含 `/` 的才算；以 `/` 开头的是路由，比如 `/healthz`，从不当路径）、`DOC_LINK_BROKEN`、`DOC_LINK_NOT_PORTABLE`、`DOC_OUT_OF_STEP`（`component.yaml` 里有、文档没提的依赖、必填键、契约文件或外壳成员）、`DOC_PLACEHOLDER`、`DOC_TRANSLATION_DRIFT`、`AGENTS_BLOCK_MISSING`、`CLAUDE_IMPORT_MISSING`。文档和代码在同一个提交里改：下一个 AI 读的就是你留下的。
 - 文档和代码一样是版本的一部分。朝新版本改——先升 `metadata.version`、测、再发布——发布前随便改。已经发布的版本不许原地改：把它当本地源的机器和从 tag 取它的机器会往项目 `AGENTS.md` 的组件表写不同的行，来回改。

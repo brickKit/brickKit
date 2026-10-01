@@ -33,7 +33,8 @@ demo-quote/
 | 源码 | 视情况 | 平台从不读源码 |
 
 每份文档怎么写、`brickkit lint` 怎么检查它们，见 [组件的文档](08-component-doc-spec.md)。译本放在原文旁边、带语言后缀
-（`BRICKKIT.zh.md`、`README.zh.md`），不带后缀的那份是原文。`AGENTS.md` 通常不翻译（见
+（`BRICKKIT.zh.md`、`README.zh.md`），不带后缀的那份是原文；整个 `docs/` 双语时，也可以每种语言一棵树（`docs/en/`、`docs/zh/`）。
+`AGENTS.md` 通常不翻译（见
 [写多种语言](08-component-doc-spec.md#写多种语言)）。
 
 平台只要求组件满足三件事：有一份 `component.yaml`、是一个容器（能构建或拉取到镜像）、有一个健康检查。语言、框架、目录结构、日志格式都是组件自己的事。

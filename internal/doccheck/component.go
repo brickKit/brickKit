@@ -1,11 +1,9 @@
 package doccheck
 
 import (
-	"os"
 	"slices"
 	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
@@ -31,76 +29,38 @@ func Component(dir string, m *manifest.Manifest) []*clierr.Error {
 		}
 	}
 	out = append(out, claude(dir)...)
-	out = append(out, versionLinks(dir)...)
-	for _, rel := range docFiles(dir) {
-		d, _ := read(dir, rel)
-		base, lang, ok := docspec.SplitTranslation(path.Base(rel))
-		if !ok {
-			out = append(out, warn(clierr.CodeDocTranslationDrift, i18n.T(msgid.DoccheckNotALanguage, path.Base(rel)), rel, 0))
+	set := collect(dir, translatedKinds)
+	for _, f := range set.files {
+		d, _ := read(dir, f.rel)
+		if f.primary == "" {
+			out = append(out, warn(clierr.CodeDocTranslationDrift, i18n.T(msgid.DoccheckNotALanguage, path.Base(f.rel)), f.rel, 0))
 			continue
 		}
-		primaryRel := path.Join(path.Dir(rel), base)
 		mine := d
-		if primaryRel == docspec.FileAgents {
+		if f.primary == docspec.FileAgents {
 			mine = withoutBlock(d) // 维护段是平台写的，不归作者查
 		}
 		out = append(out, placeholders(mine)...)
-		switch primaryRel {
+		switch f.primary {
 		case docspec.FileBrickkit:
-			out = append(out, brickkit(d, m, lang)...)
+			out = append(out, brickkit(d, m, f.lang)...)
 		case docspec.FileAgents:
 			out = append(out, links(dir, mine, true)...)
-			if lang == "" {
+			if f.lang == "" {
 				out = append(out, sections(d, docspec.KindComponentAgents)...)
 				out = append(out, codeMap(dir, d)...)
 				out = append(out, block(d)...)
 			}
 		case docspec.FileReadme:
 			out = append(out, links(dir, d, true)...)
-			if lang == "" {
+			if f.lang == "" {
 				out = append(out, sections(d, docspec.KindReadme)...)
 			}
 		default:
 			out = append(out, links(dir, d, true)...)
 		}
-		if lang != "" {
-			out = append(out, translation(dir, d, primaryRel)...)
-		}
 	}
-	return out
-}
-
-// docFiles 是要查的 Markdown：根目录的 BRICKKIT / AGENTS / README 及其译本（含后缀写错了的），
-// 加上 docs/ 下的全部文件。docs/ 里名字带点、却不是合法译本的文件，只在同目录里有别的译本时才算写错了后缀
-// （v1.2-notes.md 这种名字本身就带点）。根目录其他 Markdown（CHANGELOG.md……）不归文档规范管。
-func docFiles(dir string) []string {
-	var out []string
-	entries, _ := os.ReadDir(dir)
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		for _, k := range translatedKinds {
-			if e.Name() == k || strings.HasPrefix(e.Name(), strings.TrimSuffix(k, ".md")+".") {
-				out = append(out, e.Name())
-				break
-			}
-		}
-	}
-	tree := docsTree(dir)
-	translatedDirs := map[string]bool{}
-	for _, rel := range tree {
-		if _, lang, ok := docspec.SplitTranslation(path.Base(rel)); ok && lang != "" {
-			translatedDirs[path.Dir(rel)] = true
-		}
-	}
-	for _, rel := range tree {
-		if _, _, ok := docspec.SplitTranslation(path.Base(rel)); ok || translatedDirs[path.Dir(rel)] {
-			out = append(out, rel)
-		}
-	}
-	sort.Strings(out)
-	return out
+	return append(out, set.translations(dir)...)
 }
 
 // codeMap 核对代码地图里每条路径都在：只看那一节表格里的行内代码，不含空白、* 与 ://。
@@ -184,59 +144,6 @@ func brickkit(d doc, m *manifest.Manifest, lang string) []*clierr.Error {
 		for _, ref := range m.Shell.Members {
 			id, _, _ := manifest.SplitRef(ref)
 			mention(docspec.ShellDecl, id, msgid.DoccheckMemberNotMentioned)
-		}
-	}
-	return out
-}
-
-// translation 查一份译本：有原文、二级小节数一样。语言版本之间的互链由 versionLinks 统一查。
-func translation(dir string, d doc, primaryRel string) []*clierr.Error {
-	p, ok := read(dir, primaryRel)
-	if !ok {
-		return []*clierr.Error{warn(clierr.CodeDocTranslationDrift, i18n.T(msgid.DoccheckNoPrimary, primaryRel), d.rel, 0)}
-	}
-	var out []*clierr.Error
-	if a, b := len(mdtext.Sections(p.body)), len(mdtext.Sections(d.body)); a != b {
-		out = append(out, warn(clierr.CodeDocTranslationDrift, i18n.T(msgid.DoccheckSectionCount, b, a, primaryRel), d.rel, 0))
-	}
-	return out
-}
-
-// versionLinks 查有译本的文件：原文与每份译本开头都要链到这组里的每个其他语言版本
-// （BRICKKIT*.md 除外：它根本不放相对链接）。
-func versionLinks(dir string) []*clierr.Error {
-	groups := map[string][]string{} // 原文路径 → 这组里实际存在的文件（原文在前）
-	var order []string
-	for _, rel := range docFiles(dir) {
-		base, _, ok := docspec.SplitTranslation(path.Base(rel))
-		if !ok {
-			continue
-		}
-		primary := path.Join(path.Dir(rel), base)
-		if primary == docspec.FileBrickkit {
-			continue
-		}
-		if _, seen := groups[primary]; !seen {
-			order = append(order, primary)
-		}
-		groups[primary] = append(groups[primary], rel)
-	}
-	var out []*clierr.Error
-	for _, primary := range order {
-		members := groups[primary]
-		if len(members) < 2 {
-			continue
-		}
-		for _, rel := range members {
-			d, ok := read(dir, rel)
-			if !ok {
-				continue
-			}
-			for _, other := range members {
-				if other != rel && !linksTo(d, path.Base(other)) {
-					out = append(out, warn(clierr.CodeDocTranslationDrift, i18n.T(msgid.DoccheckNotLinked, path.Base(rel), path.Base(other)), rel, 0))
-				}
-			}
 		}
 	}
 	return out

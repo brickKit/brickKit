@@ -32,7 +32,7 @@ brickkit lint
 | 配置与 `configSchema` | 必填项有值；写下的键在 schema 里（拼错的键不会生效）；外壳成员的值能编码进外壳。只查 `component.yaml` 已经在盘上的组件版本（在 `.brickkit/manifests/` 里，或本地源里正好是这个版本）；其余的在提示里列为未检查 |
 | 外壳声明 | `brickkit.yaml` 的 `kind: shell` 与组件的 `shell` 块一致；放在外壳下面的成员确实编进了这个外壳（同样只查 `component.yaml` 在盘上的） |
 | 本地源里的 `component.yaml` | 每一份都查，不管有没有 `add` 过（`.archived/` 不查） |
-| 文档 | 项目的 `AGENTS.md` 与 `CLAUDE.md`（`./（文档）`），以及本地源里每个组件的文档，见 [文档检查](#文档检查) |
+| 文档 | 项目自己的文档（`./（文档）`），以及本地源里每个组件的文档，见 [文档检查](#文档检查) |
 
 `deploy.local.yaml` 存在时也查——不管本地模式开没开，它都必须与 `brickkit.yaml` 一致。给了 `-f` 就只查那一份部署文件。
 `brickkit.yaml` 自己没通过时，后面的都不可信，跳过并说明原因。
@@ -71,7 +71,7 @@ brickkit lint
 | 在哪里 | 查哪些文档 |
 | --- | --- |
 | 组件仓库 | 组件的 `BRICKKIT.md`（连同译本）、`AGENTS.md`、`CLAUDE.md`、`README.md`，有 `docs/` 的话也查 |
-| 项目 | 项目的 `AGENTS.md` 与 `CLAUDE.md`、项目 `README.md` 里的链接、项目根残留的旧项目地图 `BRICKKIT.md`，以及本地源里每个组件的文档 |
+| 项目 | 项目的 `AGENTS.md`、`CLAUDE.md`、`README.md`、它们的译本和 `docs/` 下的每个文件；项目根残留的旧项目地图 `BRICKKIT.md`；以及本地源里每个组件的文档 |
 | 工作台 | 组件的文档，和组件仓库一样 |
 
 每一组文档在报告里占一行——项目是 `✅ ./（文档）`，组件是 `✅ components/demo/hello/（文档）`——有问题时那一行换成具体的警告：
@@ -94,13 +94,13 @@ brickkit lint
 | `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` 里有相对链接（它是单独被读的，链接在那里是死的），或者文档链到了组件目录外面 |
 | `DOC_OUT_OF_STEP` | `component.yaml` 里有的依赖、必填配置项、契约文件或外壳成员，文档里没提 |
 | `DOC_PLACEHOLDER` | 正文里还留着 `TODO`（或 `TBD`、`FIXME`）——骨架有意在每一节都留了一条 |
-| `DOC_TRANSLATION_DRIFT` | 译本（`BRICKKIT.zh.md`、`README.zh.md`）和它的原文对不上了 |
+| `DOC_TRANSLATION_DRIFT` | 译本（`BRICKKIT.zh.md`、`README.zh.md`、`docs/zh/` 下的一页）和它的原文对不上了，或者某一页在某棵 `docs/<语言>/` 树里缺了 |
 | `AGENTS_BLOCK_MISSING` | `AGENTS.md` 里没有可用的、由 CLI 维护的那一段，组件表不会自动更新 |
 | `CLAUDE_IMPORT_MISSING` | `CLAUDE.md` 里没有 `@AGENTS.md` |
 | `PROJECT_MAP_OBSOLETE` | 项目根还留着旧版的项目地图 `BRICKKIT.md` |
 
 每一条要你做什么，见 [错误码](../06-architecture/09-error-codes.md#文档检查)。文档本身怎么写，见
-[组件的文档](../03-component-guide/08-component-doc-spec.md) 与 [项目的 `AGENTS.md`](01-init-and-project-creation.md#项目的-agentsmd)。
+[组件的文档](../03-component-guide/08-component-doc-spec.md) 与 [项目的 `AGENTS.md`](01-init-and-project-creation.md#项目的-agentsmd)、[项目的其他文档](01-init-and-project-creation.md#项目的其他文档)。
 
 ## `--strict`
 

@@ -60,6 +60,14 @@ ENGLISH_DOCS_ALLOW = {
         "同上",
     ("docs/en/07-cli-reference/README.md", "不支持的语言：fr"):
         "同上",
+    ("docs/en/03-component-guide/08-component-doc-spec.md", "`组件定位`"):
+        "固定小节的中文标准标题：英文原文的作者写中文译本时要一字不差地照抄，lint 只认这些名字",
+    ("docs/en/03-component-guide/08-component-doc-spec.md", "`代码地图`"):
+        "同上",
+    ("docs/en/03-component-guide/08-component-doc-spec.md", "`项目概述`"):
+        "同上",
+    ("docs/en/03-component-guide/08-component-doc-spec.md", "`在项目里使用`"):
+        "同上",
 }
 
 

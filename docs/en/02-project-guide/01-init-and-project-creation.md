@@ -325,3 +325,46 @@ The suggestion under it says what to do: move any notes of your own into `AGENTS
 never deleted for you, because you may have written in it. An `AGENTS.md` that an earlier version installed as a
 skill file, and that nobody edited since (recognised from the old `.brickkit/skills.lock` on this machine), is replaced
 with the new skeleton by `init` and `brickkit skills update`.
+
+## The project's other documents
+
+`AGENTS.md` is loaded into every AI session, so it has to stay short: each convention in a line, the few pitfalls
+everyone hits, and where to look. What doesn't fit goes into the project's `docs/`. BrickKit doesn't fix a layout for
+it — a project of three components may need none — but most projects end up with the same three kinds of document,
+and these places work:
+
+| Kind | Where | Holds |
+| --- | --- | --- |
+| Conventions in detail | `docs/conventions/` | The full rule behind each line of `AGENTS.md`'s Conventions: the port registry, schema naming, the review checklist |
+| Decisions | `docs/decisions/NNNN-<title>.md` | One decision per file, numbered, never renumbered: the context, what was decided, why, and what was turned down |
+| Operations | `docs/operations/` | Going live, backups, rotating secrets, what to do when production fails |
+
+Whichever layout you choose, put it in the Where to look table of `AGENTS.md` — for example "a change that may go against
+an earlier decision → `docs/decisions/`". That table is how an AI finds them, the `brickkit-plan-change` skill included.
+
+### One fact, one home
+
+The way project documents go wrong is ordinary: one rule written in `AGENTS.md`'s Pitfalls, in a convention, in a
+decision and in a skill of the project's own, each worded a little differently, and an AI trusting whichever it read
+first. So, as for a component, every fact has one home and the other files link to it:
+
+| Fact | Its home |
+| --- | --- |
+| A rule every component follows, in full | `docs/conventions/`; a line in `AGENTS.md`'s Conventions names it and links there |
+| The few cross-component mistakes everyone makes | `AGENTS.md`'s Pitfalls, each linking the rule it breaks |
+| Why the project chose something, and what it turned down | One file in `docs/decisions/`: the conclusion and the reason, not the rule's full text again |
+| How to run it in production | `docs/operations/` |
+| What one component does, needs and owns | That component's `BRICKKIT.md`, never repeated in the project's documents |
+| Which components there are, at which versions | The component table at the end of `AGENTS.md`, maintained by brickkit |
+
+### More than one language, and what lint checks
+
+The language rules are a component's
+([More than one language](../03-component-guide/08-component-doc-spec.md#more-than-one-language)): a translation next to
+its file for a few files, a tree per language (`docs/en/`, `docs/zh/`) for a whole `docs/` in two languages. `AGENTS.md`
+is usually written once; an `AGENTS.<lang>.md` for human reviewers is allowed and checked like any translation.
+
+`brickkit lint` checks the project's documents as warnings, with a component's rules: the four sections and the block of
+`AGENTS.md`, `CLAUDE.md`, the links in `AGENTS.md`, `README.md` and every file under `docs/` (a link may point anywhere in
+the project, `components/` included — only its target must exist), placeholders, and translations. Whether a document
+says the right thing is for review.

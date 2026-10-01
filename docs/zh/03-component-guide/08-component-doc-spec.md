@@ -74,7 +74,8 @@
 末尾是由 brickkit 维护的一段，夹在 `<!-- brickkit:managed:begin lang=… -->` 与 `<!-- brickkit:managed:end -->` 之间：每个组件作者都要守的几条平台规则。
 brickkit 只写这对标记之间的内容；这段文字比当前 CLI 写的旧了，`brickkit skills status` 会说，`brickkit skills update` 会刷新。
 
-`AGENTS.md` 只写一份，用团队干活用的语言，不翻译：AI 读哪种语言都行，多一份就多一样要对齐的东西。AI 可能只读到其中一段，所以有两个习惯：
+`AGENTS.md` 只写一份，用团队干活用的语言，一般不翻译：AI 读哪种语言都行，多一份就多一样要对齐的东西。团队想给人工审查者留一份译本，
+可以加 `AGENTS.<语言>.md`：lint 把它当普通译本查，brickkit 维护的那一段只在原文里。AI 可能只读到其中一段，所以有两个习惯：
 不写"如上所述"，每条"不许"都写上症状和原因。
 
 ## `README.md`
@@ -96,22 +97,43 @@ brickkit 只写这对标记之间的内容；这段文字比当前 CLI 写的旧
 
 ## 写多种语言
 
-- **不带后缀的那份是主语言**，由作者定。译本就放在旁边，在 `.md` 前面加语言代码：`README.zh.md`、`BRICKKIT.zh.md`、`docs/design.zh.md`。
-  原文和译本在同一个目录里，相对链接就完全一样。
+每份文档有一种主语言，由作者定；别的语言都是译本。译本有两种放法，lint 用同一套规则查：
+
+| 放法 | 长什么样 | 适合 |
+| --- | --- | --- |
+| 放在原文旁边 | `README.md` 旁边放 `README.zh.md`，`docs/design.md` 旁边放 `docs/design.zh.md` | 只有少数几份有译本：`README`、`BRICKKIT` |
+| 每种语言一棵树 | `docs/en/…` 和 `docs/zh/…`，两棵树里的相对路径一一对应 | 整个 `docs/` 都是双语。文件一多，每份旁边放一份译本，每个目录的文件数就翻倍；分成两棵树，每棵读起来都像一个单语言项目 |
+
+- **放在原文旁边**：不带后缀的那份是原文；译本在 `.md` 前面加语言代码。原文和译本在同一个目录里，相对链接就完全一样。
+  根目录的 `README`、`BRICKKIT`、`AGENTS` 一律用这种放法。
+- **每种语言一棵树**：`docs/<主语言>/` 是原文树，其余每棵 `docs/<语言>/` 是它的译本，相对路径相同的文件就是同一页。主语言是
+  `AGENTS.md` 末尾维护段记下的 `lang=`（没有维护段就是 `en`）。只有原文树在、旁边至少还有一棵 `docs/<语言>/` 时，lint 才把
+  `docs/` 当成语言树，所以 `docs/api/` 这种目录不会被误认成一种语言。选了分树，就是整个 `docs/` 都双语：**每一页在每棵树里都有。**
 - 语言代码用小写：`zh`、`ja`、`pt-br`。lint 把 `.md` 前最后一个点后面那段当语言，所以 `README.zh-CN.md` 会挨警告（应写
   `README.zh-cn.md`）。管到的是根目录的 `README.*`、`BRICKKIT.*`、`AGENTS.*`，以及 `docs/` 里有译本的目录下的文件；
   `docs/` 别处的 `v1.2-notes.md` 这种名字就只是名字。
 - 译本按文件可选。常见的做法：`README` 和 `BRICKKIT` 有译本（人和别的团队会读），`AGENTS.md` 和 `docs/` 没有。
 - **两份对不上时以原文为准。** 改了原文，就在同一个提交里改译本。
-- 有译本的文件在开头放一行，链接所有语言版本，比如 `[English](README.md) · [中文](README.zh.md)`——`BRICKKIT*.md` 除外，它根本不放相对链接。每个语言版本都放完整的这一行：有三种语言，每份都链接另外两份。
-- 小节标题中英文都认。
+- **AI 只读一种语言：原文。** 译本是给人看的；AI 把同一页的两个语言版本都读一遍，等于把同样的事实往上下文里装两次。
+- 有译本的文件在开头放一行，链接所有语言版本，比如 `[English](README.md) · [中文](README.zh.md)`——`BRICKKIT*.md` 除外，它根本不放相对链接。
+  每个语言版本都放完整的这一行：有三种语言，每份都链接另外两份。分树时链接跨到另一棵树：`docs/zh/guide/setup.md` 链到 `../../en/guide/setup.md`。
+- 译本的 `##` 小节与原文一一对应，用自己的语言写。`AGENTS.md` 末尾 brickkit 维护的那一段只在原文里，不算在小节数里。
+- 固定小节按下面这些标题认，英文、中文都行——中文译本要一字不差地用这里的中文名，不能自己另译：
 
-`brickkit add` 会把每份 `BRICKKIT.<语言>.md` 连同 `BRICKKIT.md` 一起缓存，`brickkit publish` 会把它们一起上传。
+| 文档 | 英文 | 中文 |
+| --- | --- | --- |
+| `BRICKKIT.md` | `Purpose`、`Before you deploy`、`Dependencies`、`Configuration`、`Contracts`、`Shell declaration` | `组件定位`、`部署前准备`、`依赖说明`、`配置指南`、`契约索引`、`外壳声明` |
+| 组件的 `AGENTS.md` | `Code map`、`Build and test`、`Design decisions`、`Pitfalls`、`Before changing code` | `代码地图`、`构建与测试`、`设计取舍`、`易错点`、`改代码前自查` |
+| 项目的 `AGENTS.md` | `Overview`、`Conventions`、`Where to look`、`Pitfalls` | `项目概述`、`项目约定`、`查找路由`、`易错点` |
+| `README.md` | `Use it in a project`、`Documentation`、`Development` | `在项目里使用`、`文档`、`开发` |
+
+`brickkit add` 会把每份 `BRICKKIT.<语言>.md` 连同 `BRICKKIT.md` 一起缓存，`brickkit publish` 会把它们一起上传。项目自己的文档守同样的规则，见
+[项目的其他文档](../02-project-guide/01-init-and-project-creation.md#项目的其他文档)。
 
 ## `brickkit lint` 查什么
 
 `lint` 只查程序能确定的事；写得好不好是评审的事。查出的每一条都是警告——`up` 和 `release` 从不因为文档停下；想让 CI 守住的团队用
-`lint --strict`，把警告算成失败。它在组件仓库、工作台里查组件的文档，在项目里查每个本地源组件的文档。
+`lint --strict`，把警告算成失败。它在组件仓库、工作台里查组件的文档，在项目里查每个本地源组件的文档和项目自己的文档。
 `component.yaml` 写错了也照样查文档，只是跳过与清单的比对（`DOC_OUT_OF_STEP`）。
 
 | 错误码 | 意思 |
@@ -123,7 +145,7 @@ brickkit 只写这对标记之间的内容；这段文字比当前 CLI 写的旧
 | `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` 里有相对链接，或者文档链出了组件目录 |
 | `DOC_OUT_OF_STEP` | `component.yaml` 里的依赖、必填键、契约文件或外壳成员，文档该提的地方没提 |
 | `DOC_PLACEHOLDER` | 正文里（代码之外）还留着 `TODO`、`TBD`、`FIXME`、`待补`、`后补`、`待填` 这些占位词 |
-| `DOC_TRANSLATION_DRIFT` | 译本没有原文、小节数不同、某个语言版本没链接其余每一份，或者文件的语言后缀不是小写语言代码（`README.zh-CN.md`） |
+| `DOC_TRANSLATION_DRIFT` | 译本没有原文、小节数不同、某一页在某棵 `docs/<语言>/` 树里缺了、某个语言版本没链接其余每一份，或者文件的语言后缀不是小写语言代码（`README.zh-CN.md`） |
 | `AGENTS_BLOCK_MISSING` | `AGENTS.md` 里没有由 brickkit 维护的那一段 |
 | `CLAUDE_IMPORT_MISSING` | `CLAUDE.md` 没有引入 `AGENTS.md` |
 
