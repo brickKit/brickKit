@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/yamlcomment"
@@ -109,6 +110,7 @@ metadata:
   name: %s # %s
   version: 0.1.0
   description: %s
+  # repository: https://… # %s
 %s%s
 deployment:
   type: container
@@ -120,7 +122,8 @@ deployment:
 healthCheck:
   type: http
   path: /healthz
-%s`, id, name, i18n.T(msgid.ManifestScaffoldNameTodo), i18n.T(msgid.ManifestScaffoldDescriptionTodo), artifactsBlock, shellBlock,
+%s`, id, name, i18n.T(msgid.ManifestScaffoldNameTodo), i18n.T(msgid.ManifestScaffoldDescriptionTodo),
+		i18n.T(msgid.ManifestScaffoldRepositoryComment), artifactsBlock, shellBlock,
 		i18n.T(msgid.ManifestScaffoldBuildComment), i18n.T(msgid.ManifestScaffoldPortTodo),
 		yamlcomment.Block("  ", i18n.T(msgid.ManifestScaffoldStartPeriodComment)))
 
@@ -141,13 +144,13 @@ healthCheck:
 			Content: []byte(contractFile),
 		})
 	}
-	// BRICKKIT.md 紧跟 component.yaml：它是消费方（人和 AI）读这个组件的入口
-	files = append(files[:1], append([]ScaffoldFile{{Path: FileDoc, Content: []byte(componentDoc(id, contractPath, opts.Shell))}}, files[1:]...)...)
+	// 文档紧跟 component.yaml：BRICKKIT.md 是消费方读这个组件的入口，AGENTS.md 是开发它的 AI 的入口
+	files = append(files[:1], append(docFiles(id, contractPath, opts.Shell), files[1:]...)...)
 	return files, nil
 }
 
-// FileDoc 是组件仓库根目录的组件文档。
-const FileDoc = "BRICKKIT.md"
+// FileDoc 是组件仓库根目录的组件文档（随版本发布给使用方的那一份）。
+const FileDoc = docspec.FileBrickkit
 
 // MaxDocBytes 是发布到市场的 BRICKKIT.md 的上限：publish 发之前查，市场收的时候再查。
 // 文档是给人与 AI 读的说明，256 KiB 已经是几万字。
@@ -156,27 +159,3 @@ const MaxDocBytes = 256 << 10
 // scaffoldPlaceholderMember 是外壳骨架里的占位成员。
 const scaffoldPlaceholderMember = "example/member@0.1.0"
 
-// componentDoc 是组件级 BRICKKIT.md 的骨架：五节标准结构，要作者填的地方写成注释。
-func componentDoc(id, contractPath string, shell bool) string {
-	var b strings.Builder
-	b.WriteString("# " + id + "\n\n")
-	b.WriteString("## " + i18n.T(msgid.ManifestDocPurpose) + "\n\n<!-- " + i18n.T(msgid.ManifestDocPurposeTodo) + " -->\n\n")
-	b.WriteString("## " + i18n.T(msgid.ManifestDocDependencies) + "\n\n<!-- " + i18n.T(msgid.ManifestDocDependenciesTodo) + " -->\n\n")
-	b.WriteString("## " + i18n.T(msgid.ManifestDocConfiguration) + "\n\n")
-	b.WriteString("| " + i18n.T(msgid.ManifestDocColVariable) + " | " + i18n.T(msgid.ManifestDocColRequired) + " | " + i18n.T(msgid.ManifestDocColMeaning) + " |\n")
-	b.WriteString("|---|---|---|\n")
-	b.WriteString("| <!-- " + i18n.T(msgid.ManifestDocConfigKeyTodo) + " --> | | <!-- " + i18n.T(msgid.ManifestDocConfigMeaningTodo) + " --> |\n\n")
-	b.WriteString("## " + i18n.T(msgid.ManifestDocContracts) + "\n\n")
-	if contractPath != "" {
-		b.WriteString("- `" + contractPath + "`\n\n")
-	} else {
-		b.WriteString("<!-- " + i18n.T(msgid.ManifestDocContractsTodo) + " -->\n\n")
-	}
-	b.WriteString("## " + i18n.T(msgid.ManifestDocShell) + "\n\n")
-	if shell {
-		b.WriteString(i18n.T(msgid.ManifestDocShellMembers) + "\n\n- `" + scaffoldPlaceholderMember + "` <!-- " + i18n.T(msgid.ManifestDocShellMembersTodo) + " -->\n")
-	} else {
-		b.WriteString(i18n.T(msgid.ManifestDocNotShell) + "\n")
-	}
-	return b.String()
-}

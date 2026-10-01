@@ -29,9 +29,12 @@ brickkit new shop/orders --path orders
 ✅ 已生成组件骨架：shop/orders
    📄 orders/component.yaml
    📄 orders/BRICKKIT.md
+   📄 orders/AGENTS.md
+   📄 orders/CLAUDE.md
+   📄 orders/README.md
 
 下一步：
-  改完骨架里的 TODO
+  把 component.yaml 和文档里的 TODO 填完（brickkit lint 会列出剩下的每一处）
   cd orders && brickkit init    给它建本地联调工作台（补全式：已有的文件不动）
   brickkit lint                 检查 component.yaml 能不能通过
 ```
@@ -49,8 +52,6 @@ brickkit init --yes
    ✅ 创建  config/vars.yaml
    ✅ 创建  config/.gitkeep
    ✅ 创建  .gitignore
-   ✅ 创建  AGENTS.md
-   ✅ 创建  CLAUDE.md
 ✅ 项目已补全：orders
    📁 .claude/skills/      AI 助手技能（4 个）
    🪝 .git/hooks/pre-commit 提交前检查组件结构

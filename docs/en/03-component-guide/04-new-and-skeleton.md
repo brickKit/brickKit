@@ -10,10 +10,13 @@ brickkit new demo/quote --path demo-quote --contract openapi
 ✅ Component skeleton generated: demo/quote
    📄 demo-quote/component.yaml
    📄 demo-quote/BRICKKIT.md
+   📄 demo-quote/AGENTS.md
+   📄 demo-quote/CLAUDE.md
+   📄 demo-quote/README.md
    📄 demo-quote/api/openapi.yaml
 
 Next steps:
-  Finish the TODOs in the skeleton
+  Fill in the TODOs in component.yaml and the docs (brickkit lint lists every one left)
   cd demo-quote && brickkit init    give it a local workbench (completion mode: existing files are left alone)
   brickkit lint                     check that component.yaml passes validation
 ```

@@ -10,6 +10,9 @@ brickkit new shop/shell --shell
 ✅ Component skeleton generated: shop/shell
    📄 shell/shop/shell/component.yaml
    📄 shell/shop/shell/BRICKKIT.md
+   📄 shell/shop/shell/AGENTS.md
+   📄 shell/shop/shell/CLAUDE.md
+   📄 shell/shop/shell/README.md
 ```
 
 A shell is written under the project's `shell/` (the local install source `local-shells`): a shell is usually a project's

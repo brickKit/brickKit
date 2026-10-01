@@ -812,9 +812,12 @@ brickkit new shop/orders --path orders
 ✅ Component skeleton generated: shop/orders
    📄 orders/component.yaml
    📄 orders/BRICKKIT.md
+   📄 orders/AGENTS.md
+   📄 orders/CLAUDE.md
+   📄 orders/README.md
 
 Next steps:
-  Finish the TODOs in the skeleton
+  Fill in the TODOs in component.yaml and the docs (brickkit lint lists every one left)
   cd orders && brickkit init    give it a local workbench (completion mode: existing files are left alone)
   brickkit lint                 check that component.yaml passes validation
 ```
@@ -832,8 +835,6 @@ This directory already has files; brickkit init will:
    ✅ create  config/vars.yaml
    ✅ create  config/.gitkeep
    ✅ create  .gitignore
-   ✅ create  AGENTS.md
-   ✅ create  CLAUDE.md
 ✅ Project completed: orders
    📁 .claude/skills/      AI assistant skills (4)
    🪝 .git/hooks/pre-commit Check the component layout before committing

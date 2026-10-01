@@ -10,6 +10,9 @@ brickkit new shop/shell --shell
 ✅ 已生成组件骨架：shop/shell
    📄 shell/shop/shell/component.yaml
    📄 shell/shop/shell/BRICKKIT.md
+   📄 shell/shop/shell/AGENTS.md
+   📄 shell/shop/shell/CLAUDE.md
+   📄 shell/shop/shell/README.md
 ```
 
 外壳写到项目的 `shell/` 下（本地安装源 `local-shells`）：外壳通常是一个项目自己的代码，决定"这个项目把哪些组件合在一起"，随项目提交。

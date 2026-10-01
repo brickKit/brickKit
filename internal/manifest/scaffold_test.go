@@ -17,7 +17,7 @@ import (
 func TestScaffoldProducesValidManifest(t *testing.T) {
 	files, err := manifest.Scaffold("demo/widget", manifest.ScaffoldOptions{})
 	require.NoError(t, err)
-	require.Len(t, files, 2, "不带 --contract 时生成 component.yaml 与 BRICKKIT.md")
+	require.Len(t, files, 5, "不带 --contract 时生成 component.yaml 与四份文档")
 	assert.Equal(t, manifest.FileName, files[0].Path)
 	assert.Equal(t, "BRICKKIT.md", files[1].Path)
 
@@ -48,7 +48,7 @@ func TestScaffoldRejectsBadID(t *testing.T) {
 func TestScaffoldWithOpenAPIContract(t *testing.T) {
 	files, err := manifest.Scaffold("demo/widget", manifest.ScaffoldOptions{Contract: manifest.ContractOpenAPI})
 	require.NoError(t, err)
-	require.Len(t, files, 3, "带 --contract 时还要生成一份契约占位文件")
+	require.Len(t, files, 6, "带 --contract 时还要生成一份契约占位文件")
 
 	m, err := manifest.Parse(files[0].Content, "demo/widget/component.yaml")
 	require.NoError(t, err)
@@ -60,14 +60,14 @@ func TestScaffoldWithOpenAPIContract(t *testing.T) {
 	assert.Equal(t, "openapi", a.Format)
 	require.Equal(t, []string{"api/openapi.yaml"}, a.Files)
 
-	assert.Equal(t, "api/openapi.yaml", files[2].Path)
-	assert.Contains(t, string(files[2].Content), "openapi: 3.0.3")
+	assert.Equal(t, "api/openapi.yaml", files[5].Path)
+	assert.Contains(t, string(files[5].Content), "openapi: 3.0.3")
 }
 
 func TestScaffoldWithProtoContract(t *testing.T) {
 	files, err := manifest.Scaffold("demo/widget", manifest.ScaffoldOptions{Contract: manifest.ContractProto})
 	require.NoError(t, err)
-	require.Len(t, files, 3)
+	require.Len(t, files, 6)
 
 	m, err := manifest.Parse(files[0].Content, "demo/widget/component.yaml")
 	require.NoError(t, err)
@@ -77,8 +77,8 @@ func TestScaffoldWithProtoContract(t *testing.T) {
 	assert.Equal(t, "proto", m.Artifacts[0].Format)
 	require.Equal(t, []string{"api/service.proto"}, m.Artifacts[0].Files)
 
-	assert.Equal(t, "api/service.proto", files[2].Path)
-	assert.Contains(t, string(files[2].Content), `syntax = "proto3";`)
+	assert.Equal(t, "api/service.proto", files[5].Path)
+	assert.Contains(t, string(files[5].Content), `syntax = "proto3";`)
 }
 
 func TestScaffoldRejectsUnknownContract(t *testing.T) {
