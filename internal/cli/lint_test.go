@@ -152,7 +152,7 @@ func TestLintBrokenLocalSourceSaysTheOthersWereSkipped(t *testing.T) {
 			assert.Equal(t, clierr.ExitError, fixed.code)
 			assert.Contains(t, fixed.stdout, "dependancies")
 			assert.NotContains(t, fixed.stdout, "ℹ️")
-			assert.Contains(t, fixed.stdout, "Checked 5 files: 1 with errors, 0 warnings")
+			assert.Contains(t, fixed.stdout, "Checked 6 files: 1 with errors, 0 warnings")
 		})
 	}
 }
@@ -195,7 +195,7 @@ func TestLintReportsUnreadableManifestAndKeepsGoing(t *testing.T) {
 	assert.Contains(t, r.stdout, filepath.Join("shared", "demo", "hello", "component.yaml"))
 	assert.Contains(t, r.stdout, "✅ "+filepath.Join("shared", "demo", "caller", "component.yaml")+"\n",
 		"一份读不动，不该让别的组件也没被检查")
-	assert.Contains(t, r.stdout, "Checked 7 files: 1 with errors, 0 warnings")
+	assert.Contains(t, r.stdout, "Checked 8 files: 1 with errors, 0 warnings")
 }
 
 // 同一份文件里多处笔误：PropertyKeyWarnings 合成一条警告逐条列出，
@@ -264,7 +264,7 @@ func TestLintFileWithBothAnErrorAndAWarningReportsBoth(t *testing.T) {
 	assert.Less(t, errorBlock, warningBlock, "同一个文件里，错误在前、警告在后")
 	assert.Contains(t, r.stdout, "dependancies: unknown field")
 	assert.Contains(t, r.stdout, "defualt: unknown field")
-	assert.Contains(t, r.stdout, "Checked 5 files: 1 with errors, 1 warning")
+	assert.Contains(t, r.stdout, "Checked 6 files: 1 with errors, 1 warning")
 	assert.Contains(t, r.stderr, "LINT_FAILED")
 }
 
@@ -423,4 +423,15 @@ func TestLintMalformedBlockSpeaksTheLanguageAndSaysHowToFix(t *testing.T) {
 	assert.NotContains(t, r.stdout, "malformed")
 	assert.Contains(t, r.stdout, "开始标记 2 个")
 	assert.Contains(t, r.stdout, "改好或删掉")
+}
+
+// component.yaml 校验不过时，文档照样查（只是没法核对清单里的事实）：两类问题一次说全。
+func TestLintChecksDocsEvenWhenTheManifestIsInvalid(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, comp{ID: "demo/quote", Version: "0.1.0", NoDocs: true}.files())
+	appendTo(t, filepath.Join(dir, "component.yaml"), "dependancies: []\n")
+	r := runIn(t, dir, "lint")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stdout, "dependancies")
+	assert.Contains(t, r.stdout, "BRICKKIT.md is missing")
 }

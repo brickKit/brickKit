@@ -31,6 +31,7 @@ func Component(dir string, m *manifest.Manifest) []*clierr.Error {
 		}
 	}
 	out = append(out, claude(dir)...)
+	out = append(out, versionLinks(dir)...)
 	for _, rel := range docFiles(dir) {
 		d, _ := read(dir, rel)
 		base, lang, ok := docspec.SplitTranslation(path.Base(rel))
@@ -63,7 +64,7 @@ func Component(dir string, m *manifest.Manifest) []*clierr.Error {
 			out = append(out, links(dir, d, true)...)
 		}
 		if lang != "" {
-			out = append(out, translation(dir, d, primaryRel, primaryRel != docspec.FileBrickkit)...)
+			out = append(out, translation(dir, d, primaryRel)...)
 		}
 	}
 	return out
@@ -112,7 +113,8 @@ func codeMap(dir string, d doc) []*clierr.Error {
 	for i, line := range strings.Split(body, "\n") {
 		for _, c := range mdtext.TableCells(line) {
 			for _, p := range mdtext.InlineCode(c) {
-				if !strings.Contains(p, "/") || strings.ContainsAny(p, " \t*") || strings.Contains(p, "://") {
+				// 以 / 开头的是路由（`/healthz`），不是仓库里的路径
+				if !strings.Contains(p, "/") || strings.HasPrefix(p, "/") || strings.ContainsAny(p, " \t*") || strings.Contains(p, "://") {
 					continue
 				}
 				if !exists(filepath.Join(dir, filepath.FromSlash(strings.TrimSuffix(p, "/")))) {
@@ -147,7 +149,7 @@ func brickkit(d doc, m *manifest.Manifest, lang string) []*clierr.Error {
 	}
 	mention := func(s docspec.Section, fact string, msg msgid.ID) {
 		body, line := section(d, s)
-		if line == 0 || strings.Contains(body, fact) {
+		if line == 0 || mentions(body, fact) {
 			return // 缺整节已经报过了
 		}
 		out = append(out, warn(clierr.CodeDocOutOfStep, i18n.T(msg, fact, docspec.Heading(s, headingLang)), d.rel, line))
@@ -178,7 +180,7 @@ func brickkit(d doc, m *manifest.Manifest, lang string) []*clierr.Error {
 
 // translation 查一份译本：有原文、二级小节数一样、两边互相链接（checkLinks 为假时不查最后一条：
 // BRICKKIT.md 根本不放相对链接）。
-func translation(dir string, d doc, primaryRel string, checkLinks bool) []*clierr.Error {
+func translation(dir string, d doc, primaryRel string) []*clierr.Error {
 	p, ok := read(dir, primaryRel)
 	if !ok {
 		return []*clierr.Error{warn(clierr.CodeDocTranslationDrift, i18n.T(msgid.DoccheckNoPrimary, primaryRel), d.rel, 0)}
@@ -187,8 +189,67 @@ func translation(dir string, d doc, primaryRel string, checkLinks bool) []*clier
 	if a, b := len(mdtext.Sections(p.body)), len(mdtext.Sections(d.body)); a != b {
 		out = append(out, warn(clierr.CodeDocTranslationDrift, i18n.T(msgid.DoccheckSectionCount, b, a, primaryRel), d.rel, 0))
 	}
-	if checkLinks && (!linksTo(d, path.Base(primaryRel)) || !linksTo(p, path.Base(d.rel))) {
-		out = append(out, warn(clierr.CodeDocTranslationDrift, i18n.T(msgid.DoccheckNotLinked, path.Base(primaryRel), path.Base(d.rel)), d.rel, 0))
+	return out
+}
+
+// versionLinks 查有译本的文件：原文与每份译本开头都要链到这组里的每个其他语言版本
+// （BRICKKIT*.md 除外：它根本不放相对链接）。
+func versionLinks(dir string) []*clierr.Error {
+	groups := map[string][]string{} // 原文路径 → 这组里实际存在的文件（原文在前）
+	var order []string
+	for _, rel := range docFiles(dir) {
+		base, _, ok := docspec.SplitTranslation(path.Base(rel))
+		if !ok {
+			continue
+		}
+		primary := path.Join(path.Dir(rel), base)
+		if primary == docspec.FileBrickkit {
+			continue
+		}
+		if _, seen := groups[primary]; !seen {
+			order = append(order, primary)
+		}
+		groups[primary] = append(groups[primary], rel)
+	}
+	var out []*clierr.Error
+	for _, primary := range order {
+		members := groups[primary]
+		if len(members) < 2 {
+			continue
+		}
+		for _, rel := range members {
+			d, ok := read(dir, rel)
+			if !ok {
+				continue
+			}
+			for _, other := range members {
+				if other != rel && !linksTo(d, path.Base(other)) {
+					out = append(out, warn(clierr.CodeDocTranslationDrift, i18n.T(msgid.DoccheckNotLinked, path.Base(rel), path.Base(other)), rel, 0))
+				}
+			}
+		}
 	}
 	return out
+}
+
+// mentions 判断 body 里有没有把 fact 当作一个完整的名字提到：前后不能紧挨着名字里会出现的字符，
+// 所以 erp/xy 不算提到 erp/x、DB_HOST 不算提到 DB；erp/x@1.0.0、`erp/x`、"erp/x:" 都算。
+func mentions(body, fact string) bool {
+	for i := 0; ; {
+		j := strings.Index(body[i:], fact)
+		if j < 0 {
+			return false
+		}
+		at, end := i+j, i+j+len(fact)
+		before := at == 0 || !nameByte(body[at-1]) && body[at-1] != '/' && body[at-1] != '.'
+		after := end == len(body) || !nameByte(body[end])
+		if before && after {
+			return true
+		}
+		i = at + 1
+	}
+}
+
+func nameByte(b byte) bool {
+	return b == '_' || b == '-' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
 }

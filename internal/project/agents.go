@@ -86,5 +86,5 @@ func ObsoleteProjectMap(l Layout) bool {
 	if err != nil {
 		return false
 	}
-	return strings.Contains(string(data), "<!-- brickkit:managed:begin")
+	return agentsmd.IsOldProjectMap(data)
 }

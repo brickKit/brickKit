@@ -75,13 +75,14 @@ func Ensure(root string, c Content, mode Mode, isLegacy func([]byte) bool) (Resu
 		return res, err
 	default:
 		doc := string(data)
+		eol := lineEnding(doc)
 		b, findErr := Find(doc)
 		switch {
 		case findErr == nil:
 			if !c.ForceLang {
 				c.Lang = b.Lang
 			}
-			if updated := Replace(doc, b, Render(c)); updated != doc {
+			if updated := Replace(doc, b, withEOL(Render(c), eol)); updated != doc {
 				if err := os.WriteFile(path, []byte(updated), filePerm); err != nil {
 					return res, err
 				}
@@ -96,7 +97,7 @@ func Ensure(root string, c Content, mode Mode, isLegacy func([]byte) bool) (Resu
 			}
 			res.LegacyReplaced = true
 		case errors.Is(findErr, ErrNoBlock) && mode == ModeRepair:
-			if err := os.WriteFile(path, []byte(Append(doc, Render(c))), filePerm); err != nil {
+			if err := os.WriteFile(path, []byte(withEOL(Append(strings.ReplaceAll(doc, "\r\n", "\n"), Render(c)), eol)), filePerm); err != nil {
 				return res, err
 			}
 			res.BlockAppended = true
@@ -144,3 +145,23 @@ func HasClaudeImport(body string) bool {
 	}
 	return false
 }
+
+// lineEnding 是文件用的换行：有 CRLF 就当它是 CRLF 文件（Windows 上 Git 检出的），否则 LF。
+func lineEnding(doc string) string {
+	if strings.Contains(doc, "\r\n") {
+		return "\r\n"
+	}
+	return "\n"
+}
+
+// withEOL 把 s 的换行换成 eol：写进文件的维护区跟着文件本来的换行，不留下混用的两种。
+func withEOL(s, eol string) string {
+	if eol == "\n" {
+		return s
+	}
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\n", eol)
+}
+
+// IsOldProjectMap 判断 data 是不是旧版的项目地图 BRICKKIT.md：带着 brickkit 维护区的开始标记。
+// 组件自己的 BRICKKIT.md 从来不带这个标记。
+func IsOldProjectMap(data []byte) bool { return strings.Contains(string(data), beginPrefix) }

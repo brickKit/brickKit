@@ -9,7 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/mdtext"
 )
 
 func TestMain(m *testing.M) {
@@ -262,4 +264,58 @@ func TestMalformedReasonIsLocalisedAndNamesLines(t *testing.T) {
 // isExactly 是测试用的"旧版 CLI 装的那份"：内容一字不差才算。
 func isExactly(old string) func([]byte) bool {
 	return func(data []byte) bool { return string(data) == old }
+}
+
+// 骨架整份用维护段的语言写：CLI 说英文时为一个中文维护段生成的骨架，提示语也是中文。
+func TestSkeletonIsWhollyInTheBlockLanguage(t *testing.T) {
+	zh := Skeleton("shop", Content{Lang: "zh", Project: true})
+	assert.Contains(t, zh, "## 项目概述")
+	assert.Contains(t, zh, "这个项目的 AI 导读")
+	assert.NotContains(t, zh, "The AI guide")
+	en := Skeleton("demo/x", Content{Lang: "en", Component: true})
+	assert.Contains(t, en, "## Code map")
+	assert.Contains(t, en, "The AI guide to developing this component")
+}
+
+// 骨架模板里的小节就是 docspec 规定的那几节、按那个顺序、用那种语言的标题。
+func TestSkeletonTemplatesMatchDocspec(t *testing.T) {
+	for _, lang := range docspec.HeadingLangs() {
+		for name, kind := range map[string]docspec.Kind{"skeleton-project.md": docspec.KindProjectAgents, "skeleton-component.md": docspec.KindComponentAgents} {
+			body, err := templates.ReadFile("templates/" + lang + "/" + name)
+			require.NoError(t, err, lang+"/"+name)
+			var got, want []string
+			for _, s := range mdtext.Sections(string(body)) {
+				got = append(got, s.Heading)
+			}
+			for _, s := range docspec.Required(kind) {
+				want = append(want, docspec.Heading(s, lang))
+			}
+			assert.Equal(t, want, got, lang+"/"+name)
+		}
+	}
+}
+
+// CRLF 的 AGENTS.md：改写进去的维护段也用 CRLF，不留下混用的换行。
+func TestEnsureRewritesInTheFileLineEnding(t *testing.T) {
+	root := t.TempDir()
+	doc := "# P\r\n\r\nmine\r\n" + strings.ReplaceAll(block("en", "old\n"), "\n", "\r\n")
+	require.NoError(t, os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(doc), 0o644))
+	_, err := Ensure(root, Content{Lang: "en", Project: true, Rows: []Row{{ID: "a/b", Version: "1.0.0", Does: "d", Docs: "—", Home: "—"}}}, ModeRewrite, nil)
+	require.NoError(t, err)
+	got, _ := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	assert.Contains(t, string(got), "| a/b | 1.0.0 |")
+	assert.Equal(t, 0, strings.Count(strings.ReplaceAll(string(got), "\r\n", ""), "\n"), "every line ends in CRLF")
+
+	mine := "# Mine\r\nnotes\r\n"
+	require.NoError(t, os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(mine), 0o644))
+	_, err = Ensure(root, Content{Lang: "en", Project: true}, ModeRepair, nil)
+	require.NoError(t, err)
+	got, _ = os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	assert.Equal(t, 0, strings.Count(strings.ReplaceAll(string(got), "\r\n", ""), "\n"), "an appended block follows the file too")
+}
+
+// 旧版的项目地图：一份带 brickkit 维护区标记的 BRICKKIT.md。
+func TestIsOldProjectMap(t *testing.T) {
+	assert.True(t, IsOldProjectMap([]byte("# p\n<!-- brickkit:managed:begin -->\n<!-- brickkit:managed:end -->\n")))
+	assert.False(t, IsOldProjectMap([]byte("# demo/quote\n\n## Purpose\n")))
 }

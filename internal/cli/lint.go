@@ -368,11 +368,16 @@ func lintDocs(opts *Options, dir string, warnings []*clierr.Error) lintFile {
 	return lintFile{path: i18n.T(msgid.CliLintDocsEntry, opts.display(dir)+string(filepath.Separator)), warnings: warnings}
 }
 
-// componentDocs 查 dir 里那个组件的文档；component.yaml 读不了时跳过（它自己的错误已经报过）。
+// componentDocs 查 dir 里那个组件的文档。component.yaml 校验不过时照样查，只是不核对清单里的事实
+// （它自己的错误已经报过）：两类问题一次说全，作者不必修完一类再跑一遍才看到另一类。
 func componentDocs(opts *Options, dir string) (lintFile, bool) {
-	m, err := manifest.ParseFile(filepath.Join(dir, manifest.FileName))
-	if err != nil {
+	path := filepath.Join(dir, manifest.FileName)
+	if _, err := os.Stat(path); err != nil {
 		return lintFile{}, false
+	}
+	m, err := manifest.ParseFile(path)
+	if err != nil {
+		m = nil
 	}
 	return lintDocs(opts, dir, doccheck.Component(dir, m)), true
 }

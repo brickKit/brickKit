@@ -2,8 +2,8 @@ package doccheck
 
 import (
 	"path/filepath"
-	"strings"
 
+	"github.com/brickkit/brickkit/internal/agentsmd"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/i18n"
@@ -34,7 +34,7 @@ func Project(root string) []*clierr.Error {
 	if d, ok := read(root, docspec.FileReadme); ok {
 		out = append(out, links(root, d, false)...)
 	}
-	if d, ok := read(root, docspec.FileBrickkit); ok && strings.Contains(d.body, "<!-- brickkit:managed:begin") {
+	if d, ok := read(root, docspec.FileBrickkit); ok && agentsmd.IsOldProjectMap([]byte(d.body)) {
 		out = append(out, warn(clierr.CodeProjectMapObsolete, i18n.T(msgid.CliInitProjectMapObsolete, docspec.FileBrickkit, docspec.FileAgents), d.rel, 0).
 			WithHint(i18n.T(msgid.CliInitHintMoveProjectMap, docspec.FileAgents, docspec.FileBrickkit)))
 	}

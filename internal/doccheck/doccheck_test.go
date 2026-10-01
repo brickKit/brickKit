@@ -218,7 +218,8 @@ func TestTranslations(t *testing.T) {
 	assert.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift}, codes(Component(dir, m)))
 
 	dir, m = component(t, map[string]string{"README.zh.md": goodReadme})
-	assert.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift}, codes(Component(dir, m)), "the files don't link each other")
+	assert.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift, clierr.CodeDocTranslationDrift}, codes(Component(dir, m)),
+		"neither links the other: each file is told which version it lacks")
 
 	dir, m = component(t, map[string]string{"docs/design.zh.md": "# d\n"})
 	assert.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift}, codes(Component(dir, m)), "a translation without a primary")
@@ -278,4 +279,36 @@ func TestTranslationInAnotherLanguageIsOnlyCheckedForStep(t *testing.T) {
 
 	dir, m = component(t, map[string]string{"BRICKKIT.ja.md": ja + "\n## 余分\n"})
 	assert.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift}, codes(Component(dir, m)))
+}
+
+// "提到"要按整个词算：erp/xy 不算提到 erp/x，DB_HOST 不算提到 DB；erp/x@1.0.0、`erp/x` 算。
+func TestMentionIsAWholeName(t *testing.T) {
+	assert.True(t, mentions("- erp/x: orders", "erp/x"))
+	assert.True(t, mentions("`erp/x@1.0.0` for orders", "erp/x"))
+	assert.True(t, mentions("| DB | the database |", "DB"))
+	assert.False(t, mentions("- erp/xy: orders", "erp/x"))
+	assert.False(t, mentions("- myerp/x", "erp/x"))
+	assert.False(t, mentions("DB_HOST is the host", "DB"))
+	assert.True(t, mentions("see `api/openapi.yaml`.", "api/openapi.yaml"))
+}
+
+// 有译本的文件开头要链到它的每个语言版本，不只是原文与这一份译本。
+func TestEveryLanguageVersionIsLinked(t *testing.T) {
+	all := "# demo/quote\n\n[English](README.md) · [中文](README.zh.md) · [日本語](README.ja.md)\n"
+	two := "# demo/quote\n\n[English](README.md) · [中文](README.zh.md)\n"
+	body := func(head string) string { return strings.Replace(goodReadme, "# demo/quote\n", head, 1) }
+	dir, m := component(t, map[string]string{"README.md": body(all), "README.zh.md": body(all), "README.ja.md": body(all)})
+	assert.Empty(t, Component(dir, m))
+
+	dir, m = component(t, map[string]string{"README.md": body(all), "README.zh.md": body(two), "README.ja.md": body(all)})
+	ws := Component(dir, m)
+	require.Equal(t, []clierr.Code{clierr.CodeDocTranslationDrift}, codes(ws))
+	assert.Contains(t, ws[0].Format(), "README.ja.md")
+}
+
+// 代码地图里以 / 开头的是路由（`/healthz`、`/api/v1/quote`），不是仓库里的路径。
+func TestCodeMapRoutesAreNotPaths(t *testing.T) {
+	agents := strings.Replace(goodAgents, "| `api/` | contract |", "| `api/` | contract |\n| `main.go` | serves `/healthz` and `/api/v1/quote` |", 1)
+	dir, m := component(t, map[string]string{"AGENTS.md": agents})
+	assert.Empty(t, Component(dir, m))
 }
