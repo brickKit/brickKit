@@ -24,6 +24,13 @@ A script that needs to tell kinds of failure apart reads `error_code`; it doesn'
 follows the CLI's language (`brickkit lang`) and gets reworded as versions improve; the error code doesn't.
 `--log-level off` switches this line off too — use it only where no program needs to parse `error_code`.
 
+The JSON line is for programs, so a person typing at a terminal doesn't get it: when stderr is a terminal and no level
+was chosen — neither `--log-level` nor `BRICKKIT_LOG_LEVEL` — only the `❌` block is printed, which already says
+everything but the code. Wherever stderr is captured — a script, CI, `2> file`, an AI assistant's shell — it isn't a
+terminal, and the line is always there. A program that runs `brickkit` under a pseudo-terminal (`docker run -t`,
+`expect`, `script`) and reads `error_code` chooses a level explicitly: `BRICKKIT_LOG_LEVEL=warn`. To see the line at
+your own terminal, do the same.
+
 ## Exit codes
 
 | Exit code | Meaning |

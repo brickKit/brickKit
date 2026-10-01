@@ -22,6 +22,11 @@
 脚本要判断失败的种类，读 `error_code`，不要去匹配人读的文字：人读的文字跟着 CLI 的语言变（`brickkit lang`），也会随版本改进措辞；错误码不会。
 `--log-level off` 会连这一行也关掉——只在没有程序需要解析 `error_code` 的场合用。
 
+这行 JSON 是给程序读的，所以人在终端里直接敲命令时看不到它：stderr 是终端、又没有显式选过级别（既没写 `--log-level`，
+也没设 `BRICKKIT_LOG_LEVEL`）时，只打 `❌` 那一段——除了错误码，该说的它都说了。只要 stderr 被捕获——脚本、CI、`2> 文件`、
+AI 助手的 shell——它就不是终端，这一行一定在。在伪终端里跑 `brickkit`（`docker run -t`、`expect`、`script`）又要读
+`error_code` 的程序，显式选一个级别：`BRICKKIT_LOG_LEVEL=warn`。想在自己的终端里也看到这一行，同样这么设。
+
 ## 退出码
 
 | 退出码 | 含义 |

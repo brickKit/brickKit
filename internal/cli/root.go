@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/engine"
@@ -119,6 +120,11 @@ type Options struct {
 	NoLocal bool
 	// LogLevel 是 --log-level 指定的日志级别。
 	LogLevel string
+	// LogLevelFromEnv 是 BRICKKIT_LOG_LEVEL 设过没有：设过和写了 --log-level 一样，算显式选了级别。
+	LogLevelFromEnv bool
+	// StderrIsTerminal 是 stderr 是不是终端。是终端、又没人显式选过日志级别时，失败时不打那行
+	// 带 error_code 的 JSON（见 failureLogWanted）。为空值时当不是终端：测试照旧拿得到那一行。
+	StderrIsTerminal bool
 	// Stdin 承载交互式确认的输入（add 的"是否刷新缓存"等）。为空时不读输入，
 	// 等价于用户直接回车（即拒绝）。
 	Stdin io.Reader
@@ -158,13 +164,39 @@ func (o *Options) now() time.Time {
 // NewOptions 返回默认全局选项（输出到真实 stdout/stderr）。
 func NewOptions() *Options {
 	return &Options{
-		WorkDir:  ".",
-		LogLevel: envOr(logging.EnvLogLevel, logging.LevelWarn),
-		Stdin:    os.Stdin,
-		Stdout:   os.Stdout,
-		Stderr:   os.Stderr,
-		Now:      time.Now,
+		WorkDir:          ".",
+		LogLevel:         envOr(logging.EnvLogLevel, logging.LevelWarn),
+		LogLevelFromEnv:  strings.TrimSpace(os.Getenv(logging.EnvLogLevel)) != "",
+		StderrIsTerminal: term.IsTerminal(int(os.Stderr.Fd())),
+		Stdin:            os.Stdin,
+		Stdout:           os.Stdout,
+		Stderr:           os.Stderr,
+		Now:              time.Now,
 	}
+}
+
+// failureLogWanted 决定失败时要不要在 ❌ 那段后面打"命令执行失败"那行 JSON。
+//
+// 那一行是给脚本读 error_code 的，人在终端里看只是噪音：❌ 那段已经把事情说全了。所以 stderr 是终端、
+// 又没人显式选过级别（--log-level 或 BRICKKIT_LOG_LEVEL）时不打；脚本和 CI 捕获 stderr 时它不是终端，
+// 照常有。只省这一行、不把缺省级别整个调成 off：别的 warn 日志（kubectl prune 失败之类）没有对应的人读提示，
+// 省掉就没人看得到了。
+//
+// --log-level 写没写要看原始参数，不能看 cobra 的 Changed：未知命令、未知参数这类失败，cobra 在解析到
+// --log-level 之前就停了，Changed 永远是 false。
+func (o *Options) failureLogWanted(args []string) bool {
+	if !o.StderrIsTerminal || o.LogLevelFromEnv {
+		return true
+	}
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		if a == "--log-level" || strings.HasPrefix(a, "--log-level=") {
+			return true
+		}
+	}
+	return false
 }
 
 func envOr(key, fallback string) string {
@@ -395,6 +427,9 @@ func Run(root *cobra.Command, opts *Options, args []string) int {
 
 	e := translate(err)
 	code := clierr.Render(opts.Stderr, opts.shown(e))
+	if !opts.failureLogWanted(args) {
+		return code
+	}
 	level := logging.Error
 	if e.Warning {
 		level = logging.Warn

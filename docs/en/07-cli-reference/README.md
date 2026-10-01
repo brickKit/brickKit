@@ -46,7 +46,9 @@ There is only one, and every command accepts it:
 | `--log-level <level>` | Level of the JSON log lines on stderr: `debug` / `info` / `warn` / `error` / `off`, default `warn` |
 
 The default `warn` is quiet: only when something fails does a JSON log line carrying `error_code` follow the `❌` block,
-for scripts to act on (the codes are in the [error-code reference](../06-architecture/09-error-codes.md)). To see the
+for scripts to act on (the codes are in the [error-code reference](../06-architecture/09-error-codes.md)). At a terminal
+even that line is left out, unless you chose a level with `--log-level` or `BRICKKIT_LOG_LEVEL`; wherever stderr is
+captured (a script, CI, `2> file`) it is always there. To see the
 routine log lines around each command, use `--log-level info`; to get that for a whole shell session, set
 `BRICKKIT_LOG_LEVEL=info` once. `--log-level off` also drops the JSON line on failure — only for places where nothing
 parses `error_code` (a pre-commit hook, say).

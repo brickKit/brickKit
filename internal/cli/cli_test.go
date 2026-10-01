@@ -233,6 +233,50 @@ func TestLogsAreJSONOnStderr(t *testing.T) {
 	assert.NotContains(t, r.stderr, "BrickKit CLI v")
 }
 
+// 失败时那行带 error_code 的 JSON 是给脚本读的：stderr 是终端、又没人显式选过级别时不打，
+// ❌ 那段照旧；显式选了级别（--log-level 或 BRICKKIT_LOG_LEVEL）、或 stderr 不是终端时照常打。
+func TestFailureLogLineOnTerminal(t *testing.T) {
+	cases := []struct {
+		name     string
+		terminal bool
+		fromEnv  bool
+		args     []string
+		wantJSON bool
+	}{
+		{"终端、缺省级别", true, false, []string{"nosuchcommand"}, false},
+		{"终端、写了 --log-level", true, false, []string{"--log-level", "warn", "nosuchcommand"}, true},
+		{"终端、--log-level 写在子命令后面", true, false, []string{"version", "--nosuchflag", "--log-level", "warn"}, true},
+		{"终端、设了 BRICKKIT_LOG_LEVEL", true, true, []string{"nosuchcommand"}, true},
+		{"终端、--log-level=warn", true, false, []string{"--log-level=warn", "nosuchcommand"}, true},
+		{"终端、-- 后面的 --log-level 不算", true, false, []string{"version", "--nosuchflag", "--", "--log-level"}, false},
+		{"不是终端、缺省级别", false, false, []string{"nosuchcommand"}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := runWith(t, func(o *Options) {
+				o.LogLevel = logging.LevelWarn
+				o.StderrIsTerminal = c.terminal
+				o.LogLevelFromEnv = c.fromEnv
+			}, t.TempDir(), c.args...)
+			assert.Equal(t, clierr.ExitUsage, r.code)
+			assert.Contains(t, r.stderr, "❌", "人读的说明在哪种情况下都要有")
+			if c.wantJSON {
+				assert.Contains(t, r.stderr, `"error_code":"INVALID_ARGUMENT"`)
+			} else {
+				assert.NotContains(t, r.stderr, "{")
+			}
+		})
+	}
+}
+
+// 设了 BRICKKIT_LOG_LEVEL 就算显式选了级别；空白不算。
+func TestNewOptionsRecordsLogLevelFromEnv(t *testing.T) {
+	t.Setenv(logging.EnvLogLevel, "warn")
+	assert.True(t, NewOptions().LogLevelFromEnv)
+	t.Setenv(logging.EnvLogLevel, "  ")
+	assert.False(t, NewOptions().LogLevelFromEnv)
+}
+
 func TestLogRecordsExecutedSubcommand(t *testing.T) {
 	r := run(t, "version")
 	assert.Contains(t, r.stderr, "\"command\":\"brickkit version\"")

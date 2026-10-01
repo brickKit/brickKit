@@ -44,7 +44,8 @@ BrickKit CLI 共 21 个业务命令，外加 `version`、`lang`、`completion` �
 | `--log-level <级别>` | stderr 上 JSON 日志的级别：`debug` / `info` / `warn` / `error` / `off`，缺省 `warn` |
 
 缺省的 `warn` 很安静：只有出错时，`❌` 那段说明后面会跟一行带 `error_code` 的 JSON 日志，给脚本判断用
-（错误码见 [错误码参考](../06-architecture/09-error-codes.md)）。想看每条命令的起止等例行日志，用
+（错误码见 [错误码参考](../06-architecture/09-error-codes.md)）。在终端里连这一行也不打，除非用 `--log-level` 或
+`BRICKKIT_LOG_LEVEL` 选过级别；只要 stderr 被捕获（脚本、CI、`2> 文件`），它就一定在。想看每条命令的起止等例行日志，用
 `--log-level info`；想在整个 shell 里都这样，设一次环境变量 `BRICKKIT_LOG_LEVEL=info`。`--log-level off` 连出错时
 那行 JSON 也不打，只适合没有程序解析 `error_code` 的场合（比如 pre-commit 钩子）。
 
