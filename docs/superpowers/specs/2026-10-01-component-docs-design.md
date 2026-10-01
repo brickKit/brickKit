@@ -250,24 +250,29 @@ Then the managed block, at the end of the file:
 ## Components
 Docs: `<source>/BRICKKIT[.<lang>].md` for a local source at this version, otherwise
 `.brickkit/manifests/<id>/<version>/BRICKKIT[.<lang>].md`. Contracts: `.brickkit/artifacts/<service-name>/`.
-| Component | Version | What it does | Docs | Source |
+| Component | Version | What it does | Docs | Home |
 |---|---|---|---|---|
-| erp/sales | 1.0.26 | Sales quotations and orders | primary, zh | `components/erp/sales/` |
-| mdm/customer | 1.0.10 | Customer master data | primary | https://git.example.com/mdm-customer |
+| erp/sales | 1.0.26 | Sales quotations and orders | primary, zh | https://git.example.com/erp-sales |
+| mdm/customer | 1.0.10 | Customer master data | primary | — |
 <!-- brickkit:managed:end -->
 ```
 
 - **What it does** is `metadata.description` from the manifest. **Docs** lists the versions present — `primary` for `BRICKKIT.md`,
-  then each translation's code (`primary, zh`) — or `—` when the component carries no doc. **Source** is the local directory when a local source holds that version, otherwise the
-  repository URL (git) or `market:<name>` — so a web reader of the project repository, where `.brickkit/` does not
-  exist, can still reach every component.
+  then each translation's code (`primary, zh`) — or `—` when the component carries no doc. **Home** is the new optional manifest field
+  `metadata.repository` (the URL of the component's repository or page), so a web reader of the project repository,
+  where `.brickkit/` does not exist, can still reach every component.
+- **Only facts fixed by `brickkit.yaml` and the component version go into the block.** The file is committed and
+  shared; anything that differs between machines (whether a local source holds a component, which install source served
+  it) would make teammates rewrite it back and forth. So there is no local-sources table and no "where it was fetched
+  from" column; the docs rule above covers local sources. When the cache lacks a component's manifest (a fresh clone),
+  its row keeps the cells the existing block already has.
 - One row per version line in `brickkit.yaml`, as today. A row costs ~120 bytes: 60 components ≈ 7 KB, acceptable in a
   file loaded every session; that budget is why paths are a rule stated once rather than a column.
 - **The block records its language** (`lang=`), set by `init` from the CLI language and changed only by
   `brickkit skills update --lang`. Every rewrite uses the recorded language, never the language of whoever runs the
   command.
-- **Where the block is rewritten:** `add` / `remove` / `upgrade` (where the old map was rewritten), `sync` (it moves
-  local sources, which changes the Source column — the old map went stale here), `init`, `skills update`. Outside the markers the CLI never writes a byte.
+- **Where the block is rewritten:** `add` / `remove` / `upgrade` (where the old map was rewritten), `init`,
+  `skills update`. Outside the markers the CLI never writes a byte.
 
 ### 6.2 `CLAUDE.md`
 
@@ -367,10 +372,11 @@ text, rendered by the CLI.
 
 - `add` / `fetch` cache `BRICKKIT.md` and every `BRICKKIT.<lang>.md` at the component root of that version (local:
   directory; git: the tag's tree; market: the docs endpoint) next to `component.yaml` under `.brickkit/manifests/…`.
-- `publish` uploads each language version, each within `MaxDocBytes`, at most 16 versions; the market stores them keyed
-  by suffix (`""` for `BRICKKIT.md`), serves the primary at the existing docs endpoint and a translation with
-  `?lang=<code>`, and rejects an invalid code or an oversized one. Request-size limits grow accordingly. The market API
-  reference is updated.
+- `publish` uploads each language version, each within `MaxDocBytes`, all of them together within
+  `4 × MaxDocBytes` (so the market's request-size limit holds as it is); the market keeps `BRICKKIT.md` where it is and
+  the translations keyed by language code, serves a translation at the existing docs endpoint with `?lang=<code>`, and
+  rejects an invalid code or an oversized total. The market API reference is updated.
+- `component.yaml` gains the optional `metadata.repository` (§6.1); `brickkit new` writes it commented out.
 
 ### 8.5 `lint`: documentation checks (warnings)
 
@@ -439,3 +445,5 @@ Recorded so the maintainer can overrule any of them:
 6. `init` never modifies an existing file; `skills update` may append the managed block or the `@AGENTS.md` line,
    because the user asked for exactly that.
 7. Project `lint` checks local-source components' docs — those are the ones being developed here.
+8. The component table's Home column comes from a new optional `metadata.repository` rather than from where a
+   component was fetched, which differs between machines (§6.1).
