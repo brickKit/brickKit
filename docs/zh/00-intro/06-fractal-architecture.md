@@ -53,7 +53,7 @@ brickkit init --yes
    ✅ 创建  config/.gitkeep
    ✅ 创建  .gitignore
 ✅ 项目已补全：orders
-   📁 .claude/skills/      AI 助手技能（4 个）
+   📁 .claude/skills/      AI 助手技能（5 个）
    🪝 .git/hooks/pre-commit 提交前检查组件结构
    ✅ 收尾校验通过：项目可以装载
 ```

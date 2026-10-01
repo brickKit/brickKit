@@ -284,7 +284,7 @@ func installSkills(opts *Options, layout project.Layout) error {
 	}
 
 	if len(res.Written) > 0 {
-		opts.Printf("   📁 %-21s%s\n", ".claude/skills/", i18n.T(msgid.CliInitAiAssistantSkills))
+		opts.Printf("   📁 %-21s%s\n", ".claude/skills/", i18n.T(msgid.CliInitAiAssistantSkills, len(skills.AssetsFor(in.Scope, res.Lang))))
 	}
 	renderSkillsLangFallback(opts, in.Lang, res.Lang)
 	// 跳过的必须说出来。默默不装，用户会以为装了、然后奇怪它为什么没效果。

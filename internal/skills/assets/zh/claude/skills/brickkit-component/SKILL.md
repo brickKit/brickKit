@@ -1,6 +1,6 @@
 ---
 name: brickkit-component
-description: 新写一个 BrickKit 组件或外壳、修改 component.yaml、写组件的 BRICKKIT.md、加数据库迁移、声明依赖与配置项（configSchema）、配置镜像或 build、发布新版本（brickkit release）时使用。含任何组件都必须满足的硬性契约、平台保留名、健康检查禁令与启动宽限期、外壳 shell.members 的规则。当用户说「写一个组件」「写一个外壳」「发个新版本」或在编辑 component.yaml 时，这个技能适用。
+description: 新写一个 BrickKit 组件或外壳、修改 component.yaml、写组件的文档（BRICKKIT.md、AGENTS.md、README.md）、加数据库迁移、声明依赖与配置项（configSchema）、配置镜像或 build、发布新版本（brickkit release）时使用。含任何组件都必须满足的硬性契约、平台保留名、健康检查禁令与启动宽限期、外壳 shell.members 的规则。当用户说「写一个组件」「写一个外壳」「发个新版本」或在编辑 component.yaml 时，这个技能适用。
 ---
 
 # 写一个 BrickKit 组件
@@ -15,8 +15,8 @@ description: 新写一个 BrickKit 组件或外壳、修改 component.yaml、写
 
 ## 从零写：先跑 brickkit new
 
-`brickkit new <scope>/<name>` 生成一份能通过校验的 `component.yaml` 和一份带标准章节
-（组件定位、依赖说明、配置指南、契约索引、外壳声明）的 `BRICKKIT.md`，写到
+`brickkit new <scope>/<name>` 生成一份能通过校验的 `component.yaml` 和四份带 `<!-- TODO: … -->` 提示的文档
+（`BRICKKIT.md`、`AGENTS.md`、`CLAUDE.md`、`README.md`，见第 10 条），写到
 `components/<scope>/<name>/`（本地安装源本来就扫描这个布局）。`--shell` 生成外壳骨架，写到
 `shell/<scope>/<name>/`，里面有一个要换掉的占位成员。`--contract openapi|proto` 顺带生成契约
 占位并登记进 `artifacts`。不生成 Dockerfile、不生成源码——平台不替你选语言；也不会自动
@@ -104,11 +104,21 @@ shell:
 configEnvVars）找到每个成员的配置——成员的配置值在加了成员 ID 前缀的环境变量里，configEnvVars
 告诉你原键对应哪个变量名。每个成员仍然要有自己的镜像：它的迁移用成员自己的镜像跑。
 
-**10. `BRICKKIT.md` 是写给使用者和他们的 AI 的。**
+**10. 组件带五份文档，各写给一类读者——跟代码一起改。**
 
-它会随版本缓存进使用者项目的 `.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md`，是别人
-不读你源码就能用好你的唯一途径。配置指南里讲清每个必填键填什么、依赖说明里讲清为什么要它。
-外壳的 `BRICKKIT.md` 里的成员列表要与 `shell.members` 保持一致。
+| 文件 | 读者 | 写什么 |
+| --- | --- | --- |
+| `BRICKKIT.md` | 使用它的项目（它们的 AI 读缓存里的 `.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md`） | 六节：`组件定位`（负责什么、不负责什么、归谁）、`部署前准备`、`依赖说明`、`配置指南`、`契约索引`、`外壳声明` |
+| `AGENTS.md` | 开发它的 AI | 五节——`代码地图`（表格；路径用反引号，目录以 `/` 结尾）、`构建与测试`、`设计取舍`、`易错点`（不许 / 症状 / 原因）、`改代码前自查`——末尾是 brickkit 维护的一段 |
+| `CLAUDE.md` | Claude Code | 只有 `@AGENTS.md` 一行 |
+| `README.md` | GitHub 上的人 | `在项目里使用`、`文档`（一张表，每个问题指向能回答它的文件）、`开发` |
+| `component.yaml` | CLI | 依赖、配置项、端口、镜像；可选的 `metadata.repository` 是项目组件表里显示的链接 |
+
+- 一个事实只写一处：依赖和配置项在 `component.yaml`，接口在契约文件，历史在 Git。文档讲它们说不清的部分，不再抄一遍。
+- `BRICKKIT.md` **不放相对链接**：它在别的项目缓存里是单独读的。文件名用行内代码写。
+- 译本放在旁边：`BRICKKIT.zh.md`、`README.zh.md`、`docs/design.zh.md`。不带后缀的那份为准；一对文件在开头互相链接；`AGENTS.md` 不翻译。
+- 外壳的 `外壳声明` 里的成员要与 `shell.members` 一致。
+- `brickkit lint` 都会查（警告；`--strict` 下算失败）：`DOC_FILE_MISSING`、`DOC_SECTION_MISSING`、`DOC_PATH_MISSING`（代码地图里的路径没了）、`DOC_LINK_BROKEN`、`DOC_LINK_NOT_PORTABLE`、`DOC_OUT_OF_STEP`（`component.yaml` 里有、文档没提的依赖、必填键、契约文件或外壳成员）、`DOC_PLACEHOLDER`、`DOC_TRANSLATION_DRIFT`、`AGENTS_BLOCK_MISSING`、`CLAUDE_IMPORT_MISSING`。文档和代码在同一个提交里改：下一个 AI 读的就是你留下的。
 
 **11. 迁移容器和主容器是同一个镜像，入口必须对不认识的参数快速失败。**
 

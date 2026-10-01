@@ -36,7 +36,7 @@ func skillAssets(lang i18n.Lang) []Asset {
 
 func TestSkillCount(t *testing.T) {
 	forEachLang(t, func(t *testing.T, lang i18n.Lang) {
-		assert.Len(t, skillAssets(lang), 4, "四个技能，多一个少一个都要先改设计")
+		assert.Len(t, skillAssets(lang), 5, "五个技能，多一个少一个都要先改设计")
 	})
 }
 

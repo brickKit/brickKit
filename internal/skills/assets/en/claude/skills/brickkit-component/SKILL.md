@@ -1,6 +1,6 @@
 ---
 name: brickkit-component
-description: Use when writing a new BrickKit component from scratch, editing component.yaml or a component's BRICKKIT.md, declaring configuration (configSchema) or dependencies, choosing between deployment.image and deployment.build, writing a shell (shell.members), adding a database migration or health check, or releasing a component version with brickkit release. Covers the hard contract every component must satisfy, config keys as environment variable names, the reserved-variable no-go zone, the health-check prohibition, and the release rules. Applies when the user says "write a component", "release a new version", "make a shell", or is editing component.yaml.
+description: Use when writing a new BrickKit component from scratch, editing component.yaml or a component's documents (BRICKKIT.md, AGENTS.md, README.md), declaring configuration (configSchema) or dependencies, choosing between deployment.image and deployment.build, writing a shell (shell.members), adding a database migration or health check, or releasing a component version with brickkit release. Covers the hard contract every component must satisfy, config keys as environment variable names, the reserved-variable no-go zone, the health-check prohibition, and the release rules. Applies when the user says "write a component", "release a new version", "make a shell", or is editing component.yaml.
 ---
 
 # Writing a BrickKit component
@@ -15,9 +15,9 @@ description: Use when writing a new BrickKit component from scratch, editing com
 
 ## From scratch: `brickkit new`, then `brickkit lint`
 
-`brickkit new <scope>/<name>` writes a `component.yaml` skeleton that already validates, **and a
-`BRICKKIT.md`** with the standard sections, to `components/<scope>/<name>/` (the layout the local
-install source scans). `--shell` writes a shell skeleton to `shell/<scope>/<name>/` instead;
+`brickkit new <scope>/<name>` writes a `component.yaml` skeleton that already validates **and the
+four documents** (`BRICKKIT.md`, `AGENTS.md`, `CLAUDE.md`, `README.md`, see rule 12) with `<!-- TODO: … -->`
+hints, to `components/<scope>/<name>/` (the layout the local install source scans). `--shell` writes a shell skeleton to `shell/<scope>/<name>/` instead;
 `--contract openapi|proto` adds a placeholder contract under `artifacts`; `--path` writes a
 standalone repository. No Dockerfile or code is generated — the platform doesn't pick a language.
 
@@ -101,9 +101,20 @@ and `BRICKKIT_SERVED_MEMBERS_CONFIG` (JSON per member: `componentId`, `version`,
 `extraPorts`, `configEnvVars`) to find each member's config, which arrives prefixed with the member
 id (`ERP_API_DB_HOST`).
 
-**12. `BRICKKIT.md` is part of the component.** Keep its sections current (purpose, dependencies,
-configuration guide, contracts, shell declaration): consumers' AI assistants read the cached copy
-at `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md` before your source.
+**12. A component carries five documents, each for one reader — keep them in step with the code.**
+
+| File | Reader | Holds |
+| --- | --- | --- |
+| `BRICKKIT.md` | Projects using it (their AIs read the cached copy at `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md`) | Six sections: `Purpose` (what it owns, what it does not own and who does), `Before you deploy`, `Dependencies`, `Configuration`, `Contracts`, `Shell declaration` |
+| `AGENTS.md` | The AI developing it | Five sections — `Code map` (tables; paths in backticks, directories end in `/`), `Build and test`, `Design decisions`, `Pitfalls` (never / symptom / why), `Before changing code` — then the block maintained by brickkit |
+| `CLAUDE.md` | Claude Code | Exactly `@AGENTS.md` |
+| `README.md` | People on GitHub | `Use it in a project`, `Documentation` (a table pointing at the file that answers each question), `Development` |
+| `component.yaml` | The CLI | Dependencies, config keys, ports, image; optional `metadata.repository` is the link a project's component table shows |
+
+- One fact, one home: dependencies and config keys live in `component.yaml`, interfaces in the contract files, history in Git. The docs explain what those can't say — they don't restate it.
+- `BRICKKIT.md` has **no relative links**: it is read alone in other projects' caches. Name files as inline code.
+- Translations are siblings: `BRICKKIT.zh.md`, `README.zh.md`, `docs/design.zh.md`. The unsuffixed file is canonical; a pair links each other near the top; `AGENTS.md` is not translated.
+- `brickkit lint` checks all of this (warnings; `--strict` fails on them): `DOC_FILE_MISSING`, `DOC_SECTION_MISSING`, `DOC_PATH_MISSING` (a code-map path that's gone), `DOC_LINK_BROKEN`, `DOC_LINK_NOT_PORTABLE`, `DOC_OUT_OF_STEP` (a dependency, required key, contract file or shell member that `component.yaml` has and the doc doesn't mention), `DOC_PLACEHOLDER`, `DOC_TRANSLATION_DRIFT`, `AGENTS_BLOCK_MISSING`, `CLAUDE_IMPORT_MISSING`. Change the docs in the same commit as the code: the next AI reads what you left.
 
 ## Releasing a version
 

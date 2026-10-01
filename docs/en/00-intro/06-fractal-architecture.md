@@ -56,7 +56,7 @@ This directory already has files; brickkit init will:
    ✅ create  config/.gitkeep
    ✅ create  .gitignore
 ✅ Project completed: orders
-   📁 .claude/skills/      AI assistant skills (4)
+   📁 .claude/skills/      AI assistant skills (5)
    🪝 .git/hooks/pre-commit Check the component layout before committing
    ✅ closing check passed: the project loads
 ```

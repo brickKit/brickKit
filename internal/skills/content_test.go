@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/i18n"
 )
 
@@ -154,4 +155,35 @@ func TestExemptCodesAreReallyUnused(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+// 组件文档规范要讲进技能里：写组件的 AI 照着 brickkit-component 写文档，做需求的 AI 照着 brickkit-plan-change 走。
+func TestSkillsDescribeTheDocSpec(t *testing.T) {
+	forEachLang(t, func(t *testing.T, lang i18n.Lang) {
+		read := func(target string) string {
+			for _, a := range AssetsFor(ScopeProject, lang) {
+				if a.Target == target {
+					b, err := a.Content()
+					require.NoError(t, err)
+					return string(b)
+				}
+			}
+			t.Fatalf("%s: no asset %s", lang, target)
+			return ""
+		}
+		comp := read(".claude/skills/brickkit-component/SKILL.md")
+		for _, s := range []docspec.Section{docspec.BeforeDeploy, docspec.CodeMap, docspec.UseIt} {
+			assert.Contains(t, comp, docspec.Heading(s, string(lang)), "brickkit-component names the section")
+		}
+		for _, fact := range []string{"BRICKKIT.zh.md", "CLAUDE.md", "metadata.repository", "DOC_OUT_OF_STEP", "brickkit lint"} {
+			assert.Contains(t, comp, fact)
+		}
+		plan := read(".claude/skills/brickkit-plan-change/SKILL.md")
+		for _, fact := range []string{"brickkit deps", "brickkit lint", "AGENTS.md", "BRICKKIT.md", "brickkit upgrade"} {
+			assert.Contains(t, plan, fact)
+		}
+		assemble := read(".claude/skills/brickkit-assemble/SKILL.md")
+		assert.Contains(t, assemble, "AGENTS.md")
+		assert.NotContains(t, assemble, "`BRICKKIT.md` at the project root")
+	})
 }

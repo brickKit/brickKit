@@ -18,7 +18,7 @@ brickkit init my-shop
    📁 .brickkit/           CLI 工作目录
    📄 AGENTS.md            项目的 AI 导读；末尾的组件表由 brickkit 维护
    📄 CLAUDE.md            @AGENTS.md：Claude Code 通过它读 AGENTS.md
-   📁 .claude/skills/      AI 助手技能（4 个）
+   📁 .claude/skills/      AI 助手技能（5 个）
    💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查
 ```
 
@@ -147,7 +147,7 @@ brickkit init --yes
    缺少：config/.archive/
    缺少：components/
    建议：把缺的每一行手动加进 .gitignore（brickkit init 从不修改已有的 .gitignore）
-   📁 .claude/skills/      AI 助手技能（4 个）
+   📁 .claude/skills/      AI 助手技能（5 个）
    🪝 .git/hooks/pre-commit 提交前检查组件结构
    ✅ 收尾校验通过：项目可以装载
 ```

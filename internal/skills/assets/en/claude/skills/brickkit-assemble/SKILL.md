@@ -140,6 +140,8 @@ never local mode, so their output is the same for everyone. `down` never deletes
 
 - Flags and exact behavior: `brickkit <command> --help` (`add`, `remove`, `upgrade`, `deps`, `sync`,
   `up`, `local`). This skill deliberately doesn't duplicate the flag reference
-- A component's own guide: `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md`; the project
-  map: `BRICKKIT.md` at the project root
+- A component's own guide: `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md`; which
+  components the project has and what each does: the component table at the end of `AGENTS.md`
+  (maintained by `add` / `remove` / `upgrade`; write your own notes outside its markers)
+- A new requirement or a change across components: the `brickkit-plan-change` skill
 - The platform's full specification: <https://github.com/brickKit/brickKit> and its root `AGENTS.md`

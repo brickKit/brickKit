@@ -19,7 +19,7 @@ brickkit init my-shop
    📁 .brickkit/           CLI working directory
    📄 AGENTS.md            the project's AI guide; the component table at its end is maintained by brickkit
    📄 CLAUDE.md            @AGENTS.md: Claude Code reads AGENTS.md through it
-   📁 .claude/skills/      AI assistant skills (4)
+   📁 .claude/skills/      AI assistant skills (5)
    💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check
 ```
 
@@ -159,7 +159,7 @@ This directory already has files; brickkit init will:
    Missing: config/.archive/
    Missing: components/
    Suggestion: Add each missing line to .gitignore by hand (brickkit init never edits an existing .gitignore)
-   📁 .claude/skills/      AI assistant skills (4)
+   📁 .claude/skills/      AI assistant skills (5)
    🪝 .git/hooks/pre-commit Check the component layout before committing
    ✅ closing check passed: the project loads
 ```

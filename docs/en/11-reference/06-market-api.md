@@ -145,7 +145,7 @@ The body of `POST /api/v1/components/{scope}/{name}/versions`:
   "changelog": "Add a status field to people",
   "visibility": "public",
   "doc": "# people/basic\n\nHow to call it…\n",
-  "docTranslations": { "zh": "# people/basic\n\n怎么调用……\n" },
+  "docTranslations": { "de": "# people/basic\n\nSo wird es aufgerufen…\n" },
   "signature": {
     "algorithm": "cosign",
     "publicKeyRef": "keys/vendor.pub",
