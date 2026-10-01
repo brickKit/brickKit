@@ -252,6 +252,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `internal/userconfig/` | Machine-level preferences (the CLI's language) |
 | `internal/version/` | Version and capability constants |
 | `internal/llmsgen/` | The documentation bundles in `llms/` and the bundle list in `llms*.txt` |
+| `internal/mdtext/` | Markdown scanning shared by the doc bundles and lint's doc checks: fences, links, sections, table cells |
 | `cmd/brickkit/` | The CLI's `main` |
 | `cmd/gen-msgid/` | Generates `internal/msgid/messages_gen.go` |
 | `cmd/gen-schemas/` | Generates `schemas/*.json` |

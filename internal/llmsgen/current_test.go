@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/brickkit/brickkit/internal/mdtext"
 )
 
 // 签入的合集就是这份文档树生成的那一份：改了文档要跑 make generate-llms（或装好提交钩子）。
@@ -30,7 +32,7 @@ func TestBundleLinksResolve(t *testing.T) {
 			continue
 		}
 		dir := path.Dir(o.Path)
-		mapLinks(string(o.Content), func(target string) string {
+		mdtext.MapLinks(string(o.Content), func(target string) string {
 			file, _, _ := strings.Cut(target, "#")
 			if file == "" || strings.Contains(file, "://") || strings.HasPrefix(file, "mailto:") {
 				return target

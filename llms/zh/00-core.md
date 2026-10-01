@@ -259,6 +259,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `internal/userconfig/` | 机器级的偏好（CLI 的显示语言） |
 | `internal/version/` | 版本与能力常量 |
 | `internal/llmsgen/` | `llms/` 下的文档合集与 `llms*.txt` 里的合集清单 |
+| `internal/mdtext/` | 文档合集与 lint 文档检查共用的 Markdown 扫描：代码块围栏、链接、小节、表格单元格 |
 | `cmd/brickkit/` | CLI 的 `main` |
 | `cmd/gen-msgid/` | 生成 `internal/msgid/messages_gen.go` |
 | `cmd/gen-schemas/` | 生成 `schemas/*.json` |
