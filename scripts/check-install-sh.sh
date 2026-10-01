@@ -96,7 +96,7 @@ run_install() {
 	local dir="$1" shells="${2:-$tmp/no-shells}"
 	shift
 	[ $# -gt 0 ] && shift
-	env -u XDG_DATA_HOME -u XDG_CONFIG_HOME \
+	env -u XDG_DATA_HOME -u XDG_CONFIG_HOME -u ZDOTDIR \
 		PATH="$tools:$shells" HOME="${RUN_HOME:-$tmp/home}" \
 		BRICKKIT_VERSION="$FAKE_VERSION" \
 		BRICKKIT_BASE_URL="file://$tmp/release" \
@@ -220,6 +220,36 @@ else
 	bad "没放进 zsh 的 site-functions：$(echo "$out" | grep zsh | tr '\n' ' ')"
 fi
 if echo "$out" | grep -qF "fpath=("; then bad "已经在 fpath 上了，却还让使用者改 ~/.zshrc"; else ok "没多余地让人改 ~/.zshrc"; fi
+
+# 用 Oh My Zsh（或自己写了 compinit）时：compinit 只在执行那一刻读 $fpath，所以只要一行 fpath=，
+# 放在打开补全的那一行上面——提示要点名是第几行；再加一个 compinit 只会让启动初始化两遍。
+echo "▶ ~/.zshrc 里已经有 Oh My Zsh：只让人加一行，并点名加在第几行上面"
+home="$tmp/home-omz"
+mkdir -p "$home"
+# shellcheck disable=SC2016 # 写进去的就是字面上的 $HOME、$ZSH
+printf '# Path to your Oh My Zsh installation.\nexport ZSH="$HOME/.oh-my-zsh"\nplugins=(git)\nsource $ZSH/oh-my-zsh.sh\n' >"$home/.zshrc"
+cp "$home/.zshrc" "$tmp/zshrc-omz.orig"
+out="$(RUN_HOME="$home" run_install "$tmp/bin6b" "$tmp/shells-all")"
+# shellcheck disable=SC2016 # 要找的就是字面上的 $fpath、$ZSH
+if echo "$out" | grep -qF 'fpath=(~/.zsh/completions $fpath)' && echo "$out" | grep -qF 'above line 4 (source $ZSH/oh-my-zsh.sh)'; then
+	ok "只给了 fpath= 一行，并说明加在第 4 行上面"
+else
+	bad "没说清加在 source \$ZSH/oh-my-zsh.sh 上面：$(echo "$out" | grep -A2 zsh | tr '\n' ' ')"
+fi
+if echo "$out" | grep -qF 'autoload -Uz compinit'; then bad "Oh My Zsh 已经会跑 compinit，却还让人再加一遍"; else ok "没让人重复加 compinit"; fi
+if cmp -s "$home/.zshrc" "$tmp/zshrc-omz.orig"; then ok "使用者的 .zshrc 一个字节都没动"; else bad "动了使用者的 .zshrc"; fi
+
+echo "▶ ~/.zshrc 已经把 ~/.zsh/completions 加进 fpath：不用再改"
+home="$tmp/home-done"
+mkdir -p "$home"
+# shellcheck disable=SC2016
+printf 'fpath=(~/.zsh/completions $fpath)\nsource $ZSH/oh-my-zsh.sh\n' >"$home/.zshrc"
+out="$(RUN_HOME="$home" run_install "$tmp/bin6c" "$tmp/shells-all")"
+if echo "$out" | grep -q "nothing to change" && ! echo "$out" | grep -q "Add this"; then
+	ok "说了不用改"
+else
+	bad "已经配好了，却还让人改 ~/.zshrc：$(echo "$out" | grep -A2 zsh | tr '\n' ' ')"
+fi
 
 echo "▶ BRICKKIT_NO_COMPLETION 时一个补全文件都不装"
 home="$tmp/home-none"

@@ -28,20 +28,55 @@ this:
 ```text
 Shell completion:
    bash  /home/you/.local/share/bash-completion/completions/brickkit (loaded by the bash-completion package)
-   zsh   /home/you/.zsh/completions/_brickkit — add these two lines to ~/.zshrc:
+   zsh   /home/you/.zsh/completions/_brickkit
+   Add this one line to ~/.zshrc, above line 96 (source $ZSH/oh-my-zsh.sh) —
+   that line turns completion on, so the folder has to be on fpath before it:
            fpath=(~/.zsh/completions $fpath)
-           autoload -Uz compinit && compinit
    Open a new terminal (or run: exec $SHELL) for completion to take effect.
 ```
 
+That is the output on a machine with Oh My Zsh. What the zsh lines ask for depends on your `~/.zshrc` — see
+[zsh: telling it where the file is](#zsh-telling-it-where-the-file-is).
+
 - **bash**: one file; the `bash-completion` package loads it (see [bash](#bash) if you don't have that package).
 - **zsh**: when zsh has a writable `site-functions` directory on its search path (`$fpath`) — Homebrew's, for
-  instance — the file goes there and there is nothing more to do. Otherwise it goes to `~/.zsh/completions`, and you
-  add the two lines it prints to `~/.zshrc` yourself.
+  instance — the file goes there and there is nothing more to do. Otherwise it goes to `~/.zsh/completions`, and
+  `~/.zshrc` needs one or two lines, which `install.sh` reads your `~/.zshrc` to work out (next section).
 - **fish**: `~/.config/fish/completions/brickkit.fish`; fish loads it without any setup.
 - **PowerShell**: when `pwsh` is present, `install.sh` prints the one line to add to your profile.
 
 To skip all of this, install with `BRICKKIT_NO_COMPLETION=1` in the environment.
+
+### zsh: telling it where the file is
+
+Two things in `~/.zshrc` decide whether zsh can complete `brickkit`:
+
+- **`fpath`** is the list of folders zsh looks in for completion files. `~/.zsh/completions` isn't on it by default,
+  so a line adds it: `fpath=(~/.zsh/completions $fpath)`.
+- **`compinit`** turns completion on. It reads the folders on `fpath` **once, at the moment it runs** — a folder added
+  after that is never seen.
+
+So the `fpath` line has to come **before** whatever runs `compinit`. Which case you are in:
+
+| Your `~/.zshrc` | What to add | Where |
+| --- | --- | --- |
+| Uses Oh My Zsh (has `source $ZSH/oh-my-zsh.sh`) | Only `fpath=(~/.zsh/completions $fpath)` | **Above** the `source $ZSH/oh-my-zsh.sh` line — Oh My Zsh runs `compinit` itself |
+| Already runs `compinit` some other way | Only `fpath=(~/.zsh/completions $fpath)` | **Above** that `compinit` line |
+| Neither | `fpath=(~/.zsh/completions $fpath)` and `autoload -Uz compinit && compinit` | At the end |
+
+`install.sh` reads your `~/.zshrc` (without changing it) and prints the right one, naming the line number to put it
+above; if the `fpath` line is already there, it says there is nothing to change. With Oh My Zsh the result looks like
+this:
+
+```bash
+plugins=(git)
+
+fpath=(~/.zsh/completions $fpath)   # added — before the next line
+source $ZSH/oh-my-zsh.sh
+```
+
+Don't also add `autoload -Uz compinit && compinit` at the end in that case: completion still works, but zsh then sets
+it up twice every time a terminal opens, which makes start-up slower. Open a new terminal (or `exec zsh`) afterwards.
 
 ### Checking it
 
@@ -104,15 +139,8 @@ mkdir -p ~/.zsh/completions
 brickkit completion zsh > ~/.zsh/completions/_brickkit
 ```
 
-and in `~/.zshrc`:
-
-```bash
-fpath=(~/.zsh/completions $fpath)
-autoload -Uz compinit && compinit
-```
-
-With oh-my-zsh, which already runs `compinit`, add only the `fpath=` line, and put it **above** the line that loads
-`oh-my-zsh.sh`.
+then add the `fpath` line to `~/.zshrc` as [zsh: telling it where the file is](#zsh-telling-it-where-the-file-is)
+explains — with Oh My Zsh, only `fpath=(~/.zsh/completions $fpath)`, above the `source $ZSH/oh-my-zsh.sh` line.
 
 ### fish
 
@@ -158,8 +186,9 @@ it offers no components and prints nothing.
 
 - **The terminal was open before the install.** It loaded its scripts at start-up. Open a new one, or run
   `exec $SHELL`.
-- **zsh: the `~/.zshrc` lines are missing**, or `compinit` never runs. Check with `print -r -- $_comps[brickkit]`;
-  empty output means zsh never loaded the file. The `fpath=` line must come before `compinit`.
+- **zsh: the `fpath` line is missing, or it comes after `compinit`** — with Oh My Zsh, after the
+  `source $ZSH/oh-my-zsh.sh` line. Check with `print -r -- $_comps[brickkit]`; empty output means zsh never loaded the
+  file. Move the line up (see [zsh: telling it where the file is](#zsh-telling-it-where-the-file-is)).
 - **zsh: the file is somewhere not on `$fpath`.** `print -l $fpath` lists where zsh looks.
 - **bash: the `bash-completion` package isn't installed or isn't loaded.** `type _init_completion` should say it is a
   function; if it doesn't, install the package (see [bash](#bash)).

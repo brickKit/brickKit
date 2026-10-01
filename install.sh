@@ -189,6 +189,33 @@ put_completion() {
 	return 1
 }
 
+# zsh_fpath_hint: what ~/.zshrc needs so zsh finds ~/.zsh/completions — read, never edited.
+# compinit reads $fpath once, when it runs, so the fpath line must come before the line that
+# turns completion on. Oh My Zsh's `source $ZSH/oh-my-zsh.sh` runs compinit itself, and so does
+# a hand-written compinit: then the one fpath line goes above that line, named by number.
+zsh_fpath_hint() {
+	rc="${ZDOTDIR:-$HOME}/.zshrc"
+	if [ -f "$rc" ] && grep -v '^[[:space:]]*#' "$rc" | grep -q 'zsh/completions'; then
+		info "           ~/.zshrc already adds ~/.zsh/completions to fpath — nothing to change"
+		return
+	fi
+	at=""
+	if [ -f "$rc" ]; then
+		at="$(grep -nE 'oh-my-zsh\.sh|compinit' "$rc" | grep -vE '^[0-9]+:[[:space:]]*#' | head -1)"
+	fi
+	if [ -n "$at" ]; then
+		n="${at%%:*}"
+		line="$(printf '%s' "${at#*:}" | sed 's/^[[:space:]]*//')"
+		info "   Add this one line to ~/.zshrc, above line ${n} (${line}) —"
+		info "   that line turns completion on, so the folder has to be on fpath before it:"
+		info "           fpath=(~/.zsh/completions \$fpath)"
+	else
+		info "   Add these two lines to the end of ~/.zshrc:"
+		info "           fpath=(~/.zsh/completions \$fpath)"
+		info "           autoload -Uz compinit && compinit"
+	fi
+}
+
 # zsh_site_dir: the first writable site-functions directory on zsh's own
 # fpath (Homebrew's and /usr/local's are there). Asking zsh beats guessing
 # paths per distro, and a file there needs no ~/.zshrc change.
@@ -219,9 +246,8 @@ else
 		zdir="$(zsh_site_dir)"
 		if [ -n "$zdir" ]; then
 			put_completion zsh "${zdir}/_brickkit" || true
-		elif put_completion zsh "${HOME}/.zsh/completions/_brickkit" " — add these two lines to ~/.zshrc:"; then
-			info "           fpath=(~/.zsh/completions \$fpath)"
-			info "           autoload -Uz compinit && compinit"
+		elif put_completion zsh "${HOME}/.zsh/completions/_brickkit"; then
+			zsh_fpath_hint
 		fi
 	fi
 	if command -v fish >/dev/null 2>&1; then

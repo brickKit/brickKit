@@ -22,21 +22,53 @@
 ```text
 Shell completion:
    bash  /home/you/.local/share/bash-completion/completions/brickkit (loaded by the bash-completion package)
-   zsh   /home/you/.zsh/completions/_brickkit — add these two lines to ~/.zshrc:
+   zsh   /home/you/.zsh/completions/_brickkit
+   Add this one line to ~/.zshrc, above line 96 (source $ZSH/oh-my-zsh.sh) —
+   that line turns completion on, so the folder has to be on fpath before it:
            fpath=(~/.zsh/completions $fpath)
-           autoload -Uz compinit && compinit
    Open a new terminal (or run: exec $SHELL) for completion to take effect.
 ```
 
-（`install.sh` 在 CLI 装好之前运行，只说英文。）
+（`install.sh` 在 CLI 装好之前运行，只说英文。）上面是装了 Oh My Zsh 的机器上的输出：意思是"在 `~/.zshrc` 第 96 行
+（`source $ZSH/oh-my-zsh.sh`）**上面**加这一行"。zsh 那几行具体要你加什么，取决于你的 `~/.zshrc`——见
+[zsh：告诉它文件在哪](#zsh告诉它文件在哪)。
 
 - **bash**：一个文件，由 `bash-completion` 这个包加载（没有这个包的话见 [bash](#bash)）。
 - **zsh**：zsh 的搜索路径（`$fpath`）上有能写的 `site-functions` 目录时——比如 Homebrew 的那个——文件就放那里，别的什么都不用做。
-  没有的话放到 `~/.zsh/completions`，它打印的那两行要你自己加进 `~/.zshrc`。
+  没有的话放到 `~/.zsh/completions`，`~/.zshrc` 里要加一两行——加什么，`install.sh` 会读你的 `~/.zshrc` 判断（见下一节）。
 - **fish**：`~/.config/fish/completions/brickkit.fish`；fish 不用任何设置就会加载。
 - **PowerShell**：机器上有 `pwsh` 时，`install.sh` 会打印要加进配置文件的那一行。
 
 不想要这些，安装时在环境里设 `BRICKKIT_NO_COMPLETION=1`。
+
+### zsh：告诉它文件在哪
+
+`~/.zshrc` 里有两样东西决定 zsh 能不能补全 `brickkit`：
+
+- **`fpath`** 是 zsh 去找补全文件的文件夹列表。`~/.zsh/completions` 默认不在里面，所以要一行把它加进去：
+  `fpath=(~/.zsh/completions $fpath)`。
+- **`compinit`** 打开补全功能。它**只在执行的那一刻**把 `fpath` 里的文件夹读一遍——之后才加进去的文件夹，它永远看不到。
+
+所以 `fpath` 那一行必须放在执行 `compinit` 的地方**之前**。看你是哪种情况：
+
+| 你的 `~/.zshrc` | 加什么 | 加在哪 |
+| --- | --- | --- |
+| 用 Oh My Zsh（有 `source $ZSH/oh-my-zsh.sh` 这一行） | 只加 `fpath=(~/.zsh/completions $fpath)` | `source $ZSH/oh-my-zsh.sh` 那一行的**上面**——Oh My Zsh 自己会执行 `compinit` |
+| 已经用别的方式执行了 `compinit` | 只加 `fpath=(~/.zsh/completions $fpath)` | 那一行 `compinit` 的**上面** |
+| 都没有 | `fpath=(~/.zsh/completions $fpath)` 和 `autoload -Uz compinit && compinit` 两行 | 文件末尾 |
+
+`install.sh` 会读你的 `~/.zshrc`（不会改它），打印适合你的那一种，并点名加在第几行上面；`fpath` 那一行已经有了，它就说不用改。
+用 Oh My Zsh 的话，改完是这样：
+
+```bash
+plugins=(git)
+
+fpath=(~/.zsh/completions $fpath)   # 新加的——必须在下面这行之前
+source $ZSH/oh-my-zsh.sh
+```
+
+这种情况下别再在文件末尾加 `autoload -Uz compinit && compinit`：补全照样能用，但每开一个终端 zsh 都会初始化两遍，启动变慢。
+改完开一个新终端（或者 `exec zsh`）。
 
 ### 确认一下
 
@@ -98,14 +130,8 @@ mkdir -p ~/.zsh/completions
 brickkit completion zsh > ~/.zsh/completions/_brickkit
 ```
 
-再在 `~/.zshrc` 里加：
-
-```bash
-fpath=(~/.zsh/completions $fpath)
-autoload -Uz compinit && compinit
-```
-
-用 oh-my-zsh 的话，它已经会跑 `compinit`，只加 `fpath=` 那一行，并且放在加载 `oh-my-zsh.sh` 那一行的**上面**。
+再按 [zsh：告诉它文件在哪](#zsh告诉它文件在哪) 把 `fpath` 那一行加进 `~/.zshrc`——用 Oh My Zsh 的话，只加
+`fpath=(~/.zsh/completions $fpath)`，放在 `source $ZSH/oh-my-zsh.sh` 那一行上面。
 
 ### fish
 
@@ -148,8 +174,8 @@ source <(brickkit completion bash)    # 或者：source <(brickkit completion zs
 ## 补全不出来
 
 - **终端是在安装之前打开的。** 它在启动时就加载完了脚本。开一个新终端，或者运行 `exec $SHELL`。
-- **zsh：`~/.zshrc` 里少了那两行**，或者 `compinit` 根本没跑。用 `print -r -- $_comps[brickkit]` 看；什么都没打印就是 zsh 没加载这个文件。
-  `fpath=` 那一行要在 `compinit` 前面。
+- **zsh：少了 `fpath` 那一行，或者它放在了 `compinit` 后面**——用 Oh My Zsh 的话，就是放在了 `source $ZSH/oh-my-zsh.sh` 后面。
+  用 `print -r -- $_comps[brickkit]` 看；什么都没打印就是 zsh 没加载这个文件。把那一行挪上去（见 [zsh：告诉它文件在哪](#zsh告诉它文件在哪)）。
 - **zsh：文件放在了 `$fpath` 之外的地方。** `print -l $fpath` 列出 zsh 会去找的目录。
 - **bash：`bash-completion` 没装，或者没加载。** `type _init_completion` 应该说它是一个函数；不是的话，装上这个包（见 [bash](#bash)）。
 - **上一次安装留下的旧脚本。** 新版的 `brickkit` 能补全的东西，旧脚本可能不知道怎么去问。重新跑一遍 `install.sh`，或者用上面对应 shell 的命令重写这个文件。
