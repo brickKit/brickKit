@@ -26,6 +26,7 @@ flags, ask `brickkit <command> --help`.
 | --- | --- |
 | [01 The routing table](01-ai-routing-table.md) | What to read for each question; what not to read |
 | [02 The development workflow](02-ai-dev-workflow.md) | The steps for writing a new component and changing an existing one |
-| [03 Component docs, from an AI's side](03-component-doc-spec.md) | How to read someone else's `BRICKKIT.md`, and how to write one for a component |
-| [04 Reading fractally](04-fractal-reading.md) | The reading order from platform to project to component, and managing the context window |
-| [05 Reading BrickKit itself](05-reading-brickkit.md) | Three routes into this repository: the bundles, `llms.txt` routing, the `AGENTS.md` maps |
+| [03 Judging and planning a requirement](03-judging-a-requirement.md) | Which component owns a requirement, whether it is sound, and the order to change things in |
+| [04 Component docs, from an AI's side](04-component-doc-spec.md) | How to read someone else's `BRICKKIT.md`, and how to write one for a component |
+| [05 Reading fractally](05-fractal-reading.md) | The reading order from platform to project to component, and managing the context window |
+| [06 Reading BrickKit itself](06-reading-brickkit.md) | Three routes into this repository: the bundles, `llms.txt` routing, the `AGENTS.md` maps |

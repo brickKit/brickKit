@@ -18,7 +18,7 @@
    exits with an error at once on an argument it doesn't know.
 7. **Write the Dockerfile.** The image needs `wget` or `curl` (for the HTTP health check), and doesn't run as root.
 8. **Write `BRICKKIT.md`.** Five sections, holding what `component.yaml` can't say (see
-   [Component docs](03-component-doc-spec.md)).
+   [Component docs](04-component-doc-spec.md)).
 9. **Run it.** `brickkit add --local`, `brickkit build`, `brickkit up`; or build a workbench in the component repository for
    integration work (see [Developing inside a component](../03-component-guide/05-local-dev-fractal.md)).
 10. **Test.** Write the tests first and watch them go red, then make the implementation turn them green (see the

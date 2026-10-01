@@ -23,10 +23,10 @@ reads it whole. `00-core` alone — AGENTS.md plus the core pages — is enough 
 - [llms/en/03.md](llms/en/03.md): docs/en/03-component-guide/04-new-and-skeleton.md … docs/en/06-architecture/README.md
 - [llms/en/04.md](llms/en/04.md): docs/en/06-architecture/01-pipeline-overview.md … docs/en/06-architecture/04-deploy-file-generation.md
 - [llms/en/05.md](llms/en/05.md): docs/en/06-architecture/05-design-principles.md … docs/en/06-architecture/08-security-and-signing.md
-- [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/09-error-codes.md … docs/en/08-ai-guide/03-component-doc-spec.md
-- [llms/en/07.md](llms/en/07.md): docs/en/08-ai-guide/04-fractal-reading.md … docs/en/10-troubleshooting/01-up-down-issues.md
-- [llms/en/08.md](llms/en/08.md): docs/en/10-troubleshooting/02-local-debug-issues.md … docs/en/11-reference/05-json-schemas.md
-- [llms/en/09.md](llms/en/09.md): docs/en/11-reference/06-market-api.md
+- [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/09-error-codes.md … docs/en/08-ai-guide/02-ai-dev-workflow.md
+- [llms/en/07.md](llms/en/07.md): docs/en/08-ai-guide/03-judging-a-requirement.md … docs/en/10-troubleshooting/README.md
+- [llms/en/08.md](llms/en/08.md): docs/en/10-troubleshooting/01-up-down-issues.md … docs/en/11-reference/04-config-schema-spec.md
+- [llms/en/09.md](llms/en/09.md): docs/en/11-reference/05-json-schemas.md … docs/en/11-reference/06-market-api.md
 <!-- llms:bundles:end -->
 
 ## Answer a question
@@ -128,9 +128,10 @@ code, read the code map in [AGENTS.md](AGENTS.md) (§10).
 - [docs/en/08-ai-guide/README.md](docs/en/08-ai-guide/README.md): module index — for AI assistants
 - [docs/en/08-ai-guide/01-ai-routing-table.md](docs/en/08-ai-guide/01-ai-routing-table.md): file routing table — read on demand, never everything
 - [docs/en/08-ai-guide/02-ai-dev-workflow.md](docs/en/08-ai-guide/02-ai-dev-workflow.md): AI-assisted development — from reading docs to writing code to releasing
-- [docs/en/08-ai-guide/03-component-doc-spec.md](docs/en/08-ai-guide/03-component-doc-spec.md): component docs from an AI's point of view — reading and writing them
-- [docs/en/08-ai-guide/04-fractal-reading.md](docs/en/08-ai-guide/04-fractal-reading.md): reading a fractal project — three entry points, keeping context small
-- [docs/en/08-ai-guide/05-reading-brickkit.md](docs/en/08-ai-guide/05-reading-brickkit.md): reading BrickKit itself — the bundles, llms.txt routing, the AGENTS.md maps
+- [docs/en/08-ai-guide/03-judging-a-requirement.md](docs/en/08-ai-guide/03-judging-a-requirement.md): judging and planning a requirement — which component owns it, whether it is sound, the order of change
+- [docs/en/08-ai-guide/04-component-doc-spec.md](docs/en/08-ai-guide/04-component-doc-spec.md): component docs from an AI's point of view — reading and writing them
+- [docs/en/08-ai-guide/05-fractal-reading.md](docs/en/08-ai-guide/05-fractal-reading.md): reading a fractal project — three entry points, keeping context small
+- [docs/en/08-ai-guide/06-reading-brickkit.md](docs/en/08-ai-guide/06-reading-brickkit.md): reading BrickKit itself — the bundles, llms.txt routing, the AGENTS.md maps
 
 ### 09-patterns/
 - [docs/en/09-patterns/README.md](docs/en/09-patterns/README.md): module index — not "how to use it" but "how to use it well"

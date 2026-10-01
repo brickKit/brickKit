@@ -22,6 +22,7 @@ BrickKit 的设计处处考虑了 AI：组件小到一次读得完，边界写�
 | --- | --- |
 | [01 文件路由表](01-ai-routing-table.md) | 想知道什么，读哪个文件；什么不要读 |
 | [02 开发工作流](02-ai-dev-workflow.md) | 写一个新组件、改一个已有组件的步骤 |
-| [03 组件文档（AI 视角）](03-component-doc-spec.md) | 怎么读别人的 `BRICKKIT.md`，怎么为组件写一份 |
-| [04 分形读取](04-fractal-reading.md) | 从平台到项目到组件的读取顺序，与上下文窗口的管理 |
-| [05 读 BrickKit 本身](05-reading-brickkit.md) | 进这个仓库的三条路线：文档合集、`llms.zh.txt` 路由、`AGENTS.zh.md` 的两张地图 |
+| [03 判断需求、制定计划](03-judging-a-requirement.md) | 需求归哪个组件、合不合理、按什么顺序改 |
+| [04 组件文档（AI 视角）](04-component-doc-spec.md) | 怎么读别人的 `BRICKKIT.md`，怎么为组件写一份 |
+| [05 分形读取](05-fractal-reading.md) | 从平台到项目到组件的读取顺序，与上下文窗口的管理 |
+| [06 读 BrickKit 本身](06-reading-brickkit.md) | 进这个仓库的三条路线：文档合集、`llms.zh.txt` 路由、`AGENTS.zh.md` 的两张地图 |

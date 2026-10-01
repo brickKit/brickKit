@@ -155,4 +155,4 @@ graph TD
 
 An AI reads from the platform's routing to the project's map, then only the documentation of the component it needs:
 no digging through component source, no reading the three layers inside a component repository, only the context the
-current question calls for. See [Reading a fractal project](../08-ai-guide/04-fractal-reading.md).
+current question calls for. See [Reading a fractal project](../08-ai-guide/05-fractal-reading.md).

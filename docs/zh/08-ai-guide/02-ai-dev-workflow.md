@@ -10,7 +10,7 @@
 5. **写契约。** 先把接口写进契约文件——调用方可以同时开工，你也有了验收标准。
 6. **写代码。** 依赖地址从 `*_ENDPOINT` 读；弱依赖的变量可能不存在，用 `.get()` 读并写明降级；健康检查只查本进程；入口对不认识的参数立刻报错退出。
 7. **写 Dockerfile。** 镜像里要有 `wget` 或 `curl`（HTTP 健康检查用），不以 root 运行。
-8. **写 `BRICKKIT.md`。** 五个区块，写 `component.yaml` 说不出来的东西（见 [组件文档](03-component-doc-spec.md)）。
+8. **写 `BRICKKIT.md`。** 五个区块，写 `component.yaml` 说不出来的东西（见 [组件文档](04-component-doc-spec.md)）。
 9. **跑起来。** `brickkit add --local`、`brickkit build`、`brickkit up`；或者在组件仓库里建工作台联调（见 [分形的本地开发](../03-component-guide/05-local-dev-fractal.md)）。
 10. **测试。** 先写测试、看它变红，再让实现变绿（见 [测试策略](../09-patterns/02-testing-strategy.md)）。
 
