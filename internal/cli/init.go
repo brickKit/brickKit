@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/gitrepo"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
@@ -105,7 +106,8 @@ func runInitCreate(opts *Options, name string, f initFlags) error {
 	opts.Printf("   📁 %-21s%s\n", project.DirComponents+"/", i18n.T(msgid.CliInitComponentSourceConfiguredAsThe))
 	opts.Printf("   📁 %-21s%s\n", project.DirShell+"/", i18n.T(msgid.CliInitShellDir))
 	opts.Printf("   📁 %-21s%s\n", project.DirBrickkit+"/", i18n.T(msgid.CliInitCliWorkingDirectory))
-	opts.Printf("   📄 %-21s%s\n", project.FileProjectDoc, i18n.T(msgid.CliInitProjectDoc))
+	opts.Printf("   📄 %-21s%s\n", docspec.FileAgents, i18n.T(msgid.CliInitAgentsGuide))
+	opts.Printf("   📄 %-21s%s\n", docspec.FileClaude, i18n.T(msgid.CliInitClaudeImport))
 	if err := finishInit(opts, layout, f, false); err != nil {
 		return err
 	}
@@ -155,8 +157,9 @@ func runInitComplete(opts *Options, f initFlags) error {
 		renderCompletePlan(opts, plan)
 	}
 	renderGitignoreWarning(opts, project.FileGitignore, plan.GitignoreMissing)
-	if plan.ProjectDocUnmanaged {
-		opts.Printf("   ℹ️ %s\n", i18n.T(msgid.CliInitProjectDocUnmanaged, project.FileProjectDoc))
+	renderAgentsResult(opts, plan.Agents)
+	if plan.ObsoleteMap {
+		renderProjectMapObsolete(opts)
 	}
 	renderInsideProjectNote(opts, layout.Root)
 	return finishInit(opts, layout, f, true)
@@ -201,8 +204,11 @@ func renderCompletePlan(opts *Options, plan *project.CompletePlan) {
 	if plan.GitignoreCreate {
 		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitPlanCreate, project.FileGitignore))
 	}
-	if plan.ProjectDoc {
-		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitPlanCreate, project.FileProjectDoc))
+	if plan.AgentsNew {
+		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitPlanCreate, docspec.FileAgents))
+	}
+	if plan.ClaudeNew {
+		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitPlanCreate, docspec.FileClaude))
 	}
 	for _, rel := range plan.Skip {
 		opts.Printf("   ⏭️  %s\n", i18n.T(msgid.CliInitPlanSkip, rel))
@@ -234,7 +240,7 @@ func finishInit(opts *Options, layout project.Layout, f initFlags, check bool) e
 			WithHint(i18n.T(msgid.CliInitHintRunLint)).
 			WithCause(err)
 	}
-	if _, err := project.WriteProjectDoc(layout, proj); err != nil {
+	if _, err := project.WriteAgentsBlock(layout, proj.Decl); err != nil {
 		return err
 	}
 	if check {
@@ -271,7 +277,6 @@ func installSkills(opts *Options, layout project.Layout) error {
 
 	if len(res.Written) > 0 {
 		opts.Printf("   📁 %-21s%s\n", ".claude/skills/", i18n.T(msgid.CliInitAiAssistantSkills))
-		opts.Printf("   📄 %-21s%s\n", "AGENTS.md", i18n.T(msgid.CliInitAiAssistantProjectGuide))
 	}
 	renderSkillsLangFallback(opts, in.Lang, res.Lang)
 	// 跳过的必须说出来。默默不装，用户会以为装了、然后奇怪它为什么没效果。

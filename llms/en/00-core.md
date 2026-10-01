@@ -224,7 +224,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | Package | Owns |
 | --- | --- |
 | `internal/cli/` | The command tree: one file per command, flags, output; errors shown relative to where you stand (`shown.go`); TAB completion candidates (`complete.go`) |
-| `internal/project/` | Loading a project (brickkit.yaml + deploy file + config/) into one `Project`; finding the root upward (`findroot.go`); consistency checks; the project map `BRICKKIT.md` |
+| `internal/project/` | Loading a project (brickkit.yaml + deploy file + config/) into one `Project`; finding the root upward (`findroot.go`); consistency checks; the component table in the project's `AGENTS.md` (`agents.go`) |
 | `internal/project/projecttest/` | Test helper: a three-layer project built from a few lines of YAML, then loaded |
 | `internal/projfile/` | `brickkit.yaml`: sources, components, versions, `kind: shell` |
 | `internal/deployfile/` | Deploy files (`deploy.yaml`, `deploy.local.yaml`, `-f`): fields, validation, `focus`, the local-change diff |
@@ -455,9 +455,9 @@ brickkit init my-shop
    📁 components/          Component source (configured as the local install source local-dev)
    📁 shell/               Shells (kind: shell), project code (the local install source local-shells)
    📁 .brickkit/           CLI working directory
-   📄 BRICKKIT.md          Project map: components and where their docs are
+   📄 AGENTS.md            the project's AI guide; the component table at its end is maintained by brickkit
+   📄 CLAUDE.md            @AGENTS.md: Claude Code reads AGENTS.md through it
    📁 .claude/skills/      AI assistant skills (4)
-   📄 AGENTS.md            AI assistant project guide
    💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check
 
 Next steps:
@@ -832,9 +832,10 @@ This directory already has files; brickkit init will:
    ✅ create  config/vars.yaml
    ✅ create  config/.gitkeep
    ✅ create  .gitignore
+   ✅ create  AGENTS.md
+   ✅ create  CLAUDE.md
 ✅ Project completed: orders
    📁 .claude/skills/      AI assistant skills (4)
-   📄 AGENTS.md            AI assistant project guide
    🪝 .git/hooks/pre-commit Check the component layout before committing
    ✅ closing check passed: the project loads
 ```

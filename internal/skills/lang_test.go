@@ -100,8 +100,8 @@ func TestSwitchingLangUpdatesUnmodifiedFilesButSkipsHandEdits(t *testing.T) {
 	_, err := in.Apply()
 	require.NoError(t, err)
 
-	// [0] 是 AGENTS.md（排序后最先），这里特意挑一份 SKILL.md 来手改，
-	// 好让 AGENTS.md 本身留着验证"没手改的文件确实被换成了新语言"。
+	// [0] 是 brickkit-assemble（排序后最先），这里特意挑另一份来手改，
+	// 好让 brickkit-assemble 本身留着验证"没手改的文件确实被换成了新语言"。
 	handEditedTarget := AssetsFor(ScopeProject, i18n.ZH)[1].Target
 	mine := []byte("我改过这一份\n")
 	require.NoError(t, os.WriteFile(filepath.Join(in.Root, handEditedTarget), mine, filePerm))
@@ -112,11 +112,11 @@ func TestSwitchingLangUpdatesUnmodifiedFilesButSkipsHandEdits(t *testing.T) {
 	res, err := switched.Apply()
 	require.NoError(t, err)
 	assert.NotContains(t, res.Written, handEditedTarget, "手改过的文件不该被语言切换覆盖")
-	assert.Contains(t, res.Written, "AGENTS.md")
+	assert.Contains(t, res.Written, ".claude/skills/brickkit-assemble/SKILL.md")
 
-	after, err := os.ReadFile(filepath.Join(in.Root, "AGENTS.md"))
+	after, err := os.ReadFile(filepath.Join(in.Root, filepath.FromSlash(".claude/skills/brickkit-assemble/SKILL.md")))
 	require.NoError(t, err)
-	enAgents, err := assetByTarget(i18n.EN, "AGENTS.md").Content()
+	enAgents, err := assetByTarget(i18n.EN, ".claude/skills/brickkit-assemble/SKILL.md").Content()
 	require.NoError(t, err)
 	assert.Equal(t, string(enAgents), string(after))
 
@@ -145,7 +145,7 @@ func assetByTarget(lang i18n.Lang, target string) Asset {
 func TestResolveLangIgnoresUnrecognizedLockValue(t *testing.T) {
 	in := newInstaller(t)
 	l := &Lock{Lang: "not-a-language"}
-	l.Set(LockEntry{Path: "AGENTS.md", Version: "0.1.0", Sum: "sha256:whatever"})
+	l.Set(LockEntry{Path: ".claude/skills/brickkit-assemble/SKILL.md", Version: "0.1.0", Sum: "sha256:whatever"})
 	require.NoError(t, l.Save(in.LockPath))
 
 	list, err := in.Status()

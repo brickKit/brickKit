@@ -16,9 +16,9 @@ brickkit init my-shop
    📁 components/          组件源码（已配为本地安装源 local-dev）
    📁 shell/               外壳（kind: shell），项目自己的代码（本地安装源 local-shells）
    📁 .brickkit/           CLI 工作目录
-   📄 BRICKKIT.md          项目地图：有哪些组件、文档在哪
+   📄 AGENTS.md            项目的 AI 导读；末尾的组件表由 brickkit 维护
+   📄 CLAUDE.md            @AGENTS.md：Claude Code 通过它读 AGENTS.md
    📁 .claude/skills/      AI 助手技能（4 个）
-   📄 AGENTS.md            AI 助手项目导读
    💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查
 ```
 
@@ -107,7 +107,8 @@ brickkit init
    ✅ 创建  config/.gitkeep
    ✅ 创建  shell/.gitkeep
    ✅ 创建  components/
-   ✅ 创建  BRICKKIT.md
+   ✅ 创建  AGENTS.md
+   ✅ 创建  CLAUDE.md
    ⚠️  .gitignore 缺少：.brickkit/、deploy.local.yaml、deploy.local.yaml.bak、.secrets/、.env、config/.archive/、components/（不替你改——请自己补上）
 继续？[y/N] 
 ```
@@ -132,7 +133,8 @@ brickkit init --yes
    ✅ 创建  config/.gitkeep
    ✅ 创建  shell/.gitkeep
    ✅ 创建  components/
-   ✅ 创建  BRICKKIT.md
+   ✅ 创建  AGENTS.md
+   ✅ 创建  CLAUDE.md
    ⚠️  .gitignore 缺少：.brickkit/、deploy.local.yaml、deploy.local.yaml.bak、.secrets/、.env、config/.archive/、components/（不替你改——请自己补上）
 ✅ 项目已补全：legacy-shop
 ⚠️ 警告：.gitignore 缺少必需条目——个人部署文件和密钥可能被提交
@@ -146,7 +148,6 @@ brickkit init --yes
    缺少：components/
    建议：把缺的每一行手动加进 .gitignore（brickkit init 从不修改已有的 .gitignore）
    📁 .claude/skills/      AI 助手技能（4 个）
-   📄 AGENTS.md            AI 助手项目导读
    🪝 .git/hooks/pre-commit 提交前检查组件结构
    ✅ 收尾校验通过：项目可以装载
 ```

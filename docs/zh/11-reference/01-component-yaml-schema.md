@@ -23,6 +23,7 @@
 | `metadata.vendor` | 字符串 | | 发布者 |
 | `metadata.license` | 字符串 | | 许可证 |
 | `metadata.apiDocs` | 字符串 | | API 文档地址 |
+| `metadata.repository` | 字符串 | | 组件仓库或主页的地址；项目 `AGENTS.md` 的组件表链到这里 |
 
 ## artifacts
 

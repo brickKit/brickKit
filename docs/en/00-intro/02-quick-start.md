@@ -35,9 +35,9 @@ brickkit init my-shop
    📁 components/          Component source (configured as the local install source local-dev)
    📁 shell/               Shells (kind: shell), project code (the local install source local-shells)
    📁 .brickkit/           CLI working directory
-   📄 BRICKKIT.md          Project map: components and where their docs are
+   📄 AGENTS.md            the project's AI guide; the component table at its end is maintained by brickkit
+   📄 CLAUDE.md            @AGENTS.md: Claude Code reads AGENTS.md through it
    📁 .claude/skills/      AI assistant skills (4)
-   📄 AGENTS.md            AI assistant project guide
    💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check
 
 Next steps:

@@ -52,9 +52,10 @@ This directory already has files; brickkit init will:
    ✅ create  config/vars.yaml
    ✅ create  config/.gitkeep
    ✅ create  .gitignore
+   ✅ create  AGENTS.md
+   ✅ create  CLAUDE.md
 ✅ Project completed: orders
    📁 .claude/skills/      AI assistant skills (4)
-   📄 AGENTS.md            AI assistant project guide
    🪝 .git/hooks/pre-commit Check the component layout before committing
    ✅ closing check passed: the project loads
 ```

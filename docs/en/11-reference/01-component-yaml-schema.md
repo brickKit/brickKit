@@ -25,6 +25,7 @@ a misspelling of. There's no extension-field mechanism.
 | `metadata.vendor` | string | | The publisher |
 | `metadata.license` | string | | The licence |
 | `metadata.apiDocs` | string | | The API documentation's address |
+| `metadata.repository` | string | | The address of the component's repository or page; the component table in a project's `AGENTS.md` links to it |
 
 ## artifacts
 

@@ -14,7 +14,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/brickkit/brickkit/internal/agentsmd"
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
@@ -48,14 +50,19 @@ type CompletePlan struct {
 	GitignoreCreate bool
 	// GitignoreMissing：.gitignore 已存在但缺的必需条目——绝不替使用者改，只大声警告。
 	GitignoreMissing []string
-	// ProjectDoc：要生成项目 BRICKKIT.md（目录里是组件仓库时不生成）。
-	ProjectDoc bool
-	// ProjectDocUnmanaged：已有的 BRICKKIT.md 没有 CLI 维护区，组件表不会自动更新。
-	ProjectDocUnmanaged bool
+	// AgentsNew、ClaudeNew：AGENTS.md、CLAUDE.md 不在，会按骨架建出来（列进计划，确认前让人看到）。
+	AgentsNew, ClaudeNew bool
+	// ObsoleteMap：项目根还留着旧版的项目地图 BRICKKIT.md（组件表现在在 AGENTS.md 末尾）。
+	ObsoleteMap bool
+	// LegacyAgentsSum 是旧版 skills.lock 给 AGENTS.md 记的指纹（由命令层在 Apply 之前填）：
+	// 文件恰好是旧版 CLI 装的那份、没被改过时，整份换成新骨架。
+	LegacyAgentsSum string
+	// Agents 是 Apply 对 AGENTS.md 与 CLAUDE.md 做了什么（建了、换了、或因为是作者的文件而没动）。
+	Agents agentsmd.Result
 
 	// workbench：这里是组件仓库（根目录有 component.yaml），补全出来的是组件的本地联调工作台
 	// ：不建 components/ 与 shell/、不声明那两个本地源——那是项目的目录约定，
-	// 组件仓库里用不上；BRICKKIT.md 是组件自己的文档，不当项目文档。
+	// 组件仓库里用不上；BRICKKIT.md 是组件自己的文档，补全不替作者写它。
 	workbench bool
 	// sources 非 nil 时是 add --local --init 从顶层项目继承、改写好路径的安装源；
 	// nil 时（init 在组件仓库里）brickkit.yaml 只写注释示例，安装源由作者自己加。
@@ -127,15 +134,9 @@ func planComplete(l Layout, name string, sources []projfile.Source) (*CompletePl
 		plan.GitignoreMissing = missingGitignore(existing, plan.workbench)
 	}
 
-	switch {
-	case plan.workbench:
-	case exists(l.ProjectDocPath()):
-		if data, err := os.ReadFile(l.ProjectDocPath()); err == nil && !hasManagedBlock(string(data)) {
-			plan.ProjectDocUnmanaged = true
-		}
-	default:
-		plan.ProjectDoc = true
-	}
+	plan.AgentsNew = !exists(l.AgentsPath())
+	plan.ClaudeNew = !exists(l.path(docspec.FileClaude))
+	plan.ObsoleteMap = ObsoleteProjectMap(l)
 	return plan, nil
 }
 
@@ -171,11 +172,16 @@ func (p *CompletePlan) Apply(l Layout) error {
 			return err
 		}
 	}
-	if p.ProjectDoc {
-		if err := writeNewFile(l.ProjectDocPath(), projectDocHead(p.Name)+managedBlock("")); err != nil {
-			return err
-		}
+	// AGENTS.md 与 CLAUDE.md：没有就按骨架写；已有的一个字节都不动，只改写已有的维护区
+	decl := &projfile.File{Project: p.Name}
+	if parsed, err := projfile.ParseFile(l.DeclPath()); err == nil {
+		decl = parsed
 	}
+	res, err := agentsmd.Ensure(l.Root, AgentsContent(l, decl, string(i18n.Current())), agentsmd.ModeInit, p.LegacyAgentsSum)
+	if err != nil {
+		return ioError(i18n.T(msgid.ActionWriteFile), l.AgentsPath(), err)
+	}
+	p.Agents = res
 	return nil
 }
 

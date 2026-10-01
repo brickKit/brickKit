@@ -19,7 +19,7 @@ func TestSkillsStatusOnFreshProject(t *testing.T) {
 	r := runIn(t, dir, "skills", "status")
 	require.Equal(t, 0, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "missing")
-	assert.Contains(t, r.stdout, "AGENTS.md")
+	assert.Contains(t, r.stdout, "brickkit-assemble")
 }
 
 // 不带子命令时等于 status——只读是安全的默认。
@@ -31,7 +31,7 @@ func TestSkillsBareIsStatus(t *testing.T) {
 	require.Equal(t, 0, r.code, r.stderr)
 	assert.Contains(t, r.stdout, "missing")
 
-	_, err := os.Stat(filepath.Join(dir, "AGENTS.md"))
+	_, err := os.Stat(filepath.Join(dir, ".claude"))
 	assert.True(t, os.IsNotExist(err), "光看状态不该写文件")
 }
 
@@ -41,7 +41,7 @@ func TestSkillsUpdateInstallsThenIsIdempotent(t *testing.T) {
 
 	r := runIn(t, dir, "skills", "update")
 	require.Equal(t, 0, r.code, r.stderr)
-	_, err := os.Stat(filepath.Join(dir, "AGENTS.md"))
+	_, err := os.Stat(filepath.Join(dir, ".claude", "skills", "brickkit-assemble", "SKILL.md"))
 	require.NoError(t, err)
 
 	again := runIn(t, dir, "skills", "update")
@@ -53,7 +53,7 @@ func TestSkillsUpdateSkipsModifiedAndSaysHow(t *testing.T) {
 	dir := t.TempDir()
 	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes").code)
 
-	p := filepath.Join(dir, "AGENTS.md")
+	p := filepath.Join(dir, ".claude", "skills", "brickkit-assemble", "SKILL.md")
 	mine := []byte("我改过了\n")
 	require.NoError(t, os.WriteFile(p, mine, 0o644))
 
@@ -72,12 +72,12 @@ func TestSkillsStatusShowsOutdatedWithVersions(t *testing.T) {
 	dir := t.TempDir()
 	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes").code)
 
-	// 伪造一份「上个版本写的」AGENTS.md：内容与 lock 记录一致、与资产不同。
-	old := []byte("上个版本的导读\n")
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), old, 0o644))
+	// 伪造一份「上个版本写的」技能：内容与 lock 记录一致、与资产不同。
+	old := []byte("上个版本的技能\n")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".claude", "skills", "brickkit-assemble", "SKILL.md"), old, 0o644))
 	lockPath := filepath.Join(dir, ".brickkit", "skills.lock")
 	require.NoError(t, os.WriteFile(lockPath, []byte(
-		`{"entries":[{"path":"AGENTS.md","version":"0.0.1","sum":"`+
+		`{"entries":[{"path":".claude/skills/brickkit-assemble/SKILL.md","version":"0.0.1","sum":"`+
 			sumOf(old)+`"}]}`+"\n"), 0o644))
 
 	r := runIn(t, dir, "skills", "status")
@@ -149,7 +149,7 @@ func TestSkillsPrefersProjectWhenBothFilesPresent(t *testing.T) {
 
 	r := runIn(t, dir, "skills", "status")
 	require.Equal(t, 0, r.code, r.stderr)
-	assert.Contains(t, r.stdout, "AGENTS.md", "按项目处理：完整的一套")
+	assert.Contains(t, r.stdout, "brickkit-deploy", "按项目处理：完整的一套")
 	assert.NotContains(t, r.stdout, "Component repository")
 }
 

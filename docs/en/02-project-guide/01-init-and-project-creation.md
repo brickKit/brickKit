@@ -17,9 +17,9 @@ brickkit init my-shop
    📁 components/          Component source (configured as the local install source local-dev)
    📁 shell/               Shells (kind: shell), project code (the local install source local-shells)
    📁 .brickkit/           CLI working directory
-   📄 BRICKKIT.md          Project map: components and where their docs are
+   📄 AGENTS.md            the project's AI guide; the component table at its end is maintained by brickkit
+   📄 CLAUDE.md            @AGENTS.md: Claude Code reads AGENTS.md through it
    📁 .claude/skills/      AI assistant skills (4)
-   📄 AGENTS.md            AI assistant project guide
    💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check
 ```
 
@@ -117,7 +117,8 @@ This directory already has files; brickkit init will:
    ✅ create  config/.gitkeep
    ✅ create  shell/.gitkeep
    ✅ create  components/
-   ✅ create  BRICKKIT.md
+   ✅ create  AGENTS.md
+   ✅ create  CLAUDE.md
    ⚠️  .gitignore is missing: .brickkit/, deploy.local.yaml, deploy.local.yaml.bak, .secrets/, .env, config/.archive/, components/ (not edited — add them yourself)
 Continue? [y/N] 
 ```
@@ -144,7 +145,8 @@ This directory already has files; brickkit init will:
    ✅ create  config/.gitkeep
    ✅ create  shell/.gitkeep
    ✅ create  components/
-   ✅ create  BRICKKIT.md
+   ✅ create  AGENTS.md
+   ✅ create  CLAUDE.md
    ⚠️  .gitignore is missing: .brickkit/, deploy.local.yaml, deploy.local.yaml.bak, .secrets/, .env, config/.archive/, components/ (not edited — add them yourself)
 ✅ Project completed: legacy-shop
 ⚠️ Warning: .gitignore is missing required entries — personal deploy files and secrets can be committed
@@ -158,7 +160,6 @@ This directory already has files; brickkit init will:
    Missing: components/
    Suggestion: Add each missing line to .gitignore by hand (brickkit init never edits an existing .gitignore)
    📁 .claude/skills/      AI assistant skills (4)
-   📄 AGENTS.md            AI assistant project guide
    🪝 .git/hooks/pre-commit Check the component layout before committing
    ✅ closing check passed: the project loads
 ```

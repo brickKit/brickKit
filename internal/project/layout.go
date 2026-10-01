@@ -9,6 +9,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/configdir"
 	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/projfile"
 )
@@ -20,7 +21,6 @@ const (
 	FileDeployLocal       = deployfile.FileLocal
 	FileDeployLocalBackup = deployfile.FileLocal + ".bak"
 	FileGitignore         = ".gitignore"
-	FileProjectDoc        = "BRICKKIT.md"
 	DirConfig             = "config"
 	FileVars              = configdir.VarsFile
 	DirConfigArchive      = configdir.ArchiveDir
@@ -72,7 +72,6 @@ func (l Layout) DeployPath() string            { return l.path(FileDeploy) }
 func (l Layout) DeployLocalPath() string       { return l.path(FileDeployLocal) }
 func (l Layout) DeployLocalBackupPath() string { return l.path(FileDeployLocalBackup) }
 func (l Layout) GitignorePath() string         { return l.path(FileGitignore) }
-func (l Layout) ProjectDocPath() string        { return l.path(FileProjectDoc) }
 func (l Layout) ConfigDir() string             { return l.path(DirConfig) }
 func (l Layout) VarsPath() string              { return l.path(DirConfig, FileVars) }
 func (l Layout) ConfigArchiveDir() string      { return l.path(DirConfig, DirConfigArchive) }
@@ -115,6 +114,28 @@ func (l Layout) CachedSignaturePath(id, version string) string {
 // CachedDocPath 是缓存的组件文档 BRICKKIT.md（组件带着时才有）。
 func (l Layout) CachedDocPath(id, version string) string {
 	return filepath.Join(l.CachedManifestDir(id, version), FileCachedDoc)
+}
+
+// AgentsPath 是根目录的 AGENTS.md：项目（或组件）自己的 AI 导读，末尾一段由 CLI 维护。
+func (l Layout) AgentsPath() string { return l.path(docspec.FileAgents) }
+
+// CachedDocLangs 是缓存里这个组件版本带着的文档：有没有原文 BRICKKIT.md，以及各译本的语言（排好序）。
+// 名字不是合法译本的文件（BRICKKIT.zh-CN.md）不算。
+func (l Layout) CachedDocLangs(id, version string) (hasPrimary bool, langs []string) {
+	entries, _ := os.ReadDir(l.CachedManifestDir(id, version))
+	for _, e := range entries {
+		base, lang, ok := docspec.SplitTranslation(e.Name())
+		if !ok || base != docspec.FileBrickkit {
+			continue
+		}
+		if lang == "" {
+			hasPrimary = true
+		} else {
+			langs = append(langs, lang)
+		}
+	}
+	sort.Strings(langs)
+	return hasPrimary, langs
 }
 
 // CachedVersions 列出缓存里这个组件有 component.yaml 的精确版本，从低到高。

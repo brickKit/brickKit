@@ -405,6 +405,12 @@
         "name": {
           "type": "string"
         },
+        "repository": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "vendor": {
           "type": [
             "string",

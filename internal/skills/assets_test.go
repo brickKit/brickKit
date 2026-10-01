@@ -93,26 +93,6 @@ func TestAssetTargetsMatchAcrossLanguages(t *testing.T) {
 	}
 }
 
-// 我们刻意不写用户的 CLAUDE.md（那是他自己的流程文件），但 Claude Code 只读
-// CLAUDE.md 而不读 AGENTS.md。所以 AGENTS.md 里必须留着那行接线说明——
-// 少了它，想接上的人根本不知道有这个选项。
-func TestAgentsMdTellsHowToWireUpClaudeCode(t *testing.T) {
-	forEachLang(t, func(t *testing.T, lang i18n.Lang) {
-		for _, a := range Assets(lang) {
-			if a.Target != "AGENTS.md" {
-				continue
-			}
-			b, err := a.Content()
-			require.NoError(t, err)
-			assert.Contains(t, string(b), "@AGENTS.md",
-				"要写出那行让人照抄的导入语句")
-			assert.Contains(t, string(b), "CLAUDE.md",
-				"要说清这行加到哪个文件里")
-			return
-		}
-		t.Fatal("资产清单里没有 AGENTS.md")
-	})
-}
 
 // 反过来钉住：CLAUDE.md 绝不能出现在资产清单里。
 // 往使用者的流程文件里写东西是这套方案里唯一真正侵入的动作，已经明确拒绝。

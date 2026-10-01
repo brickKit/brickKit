@@ -49,9 +49,10 @@ brickkit init --yes
    ✅ 创建  config/vars.yaml
    ✅ 创建  config/.gitkeep
    ✅ 创建  .gitignore
+   ✅ 创建  AGENTS.md
+   ✅ 创建  CLAUDE.md
 ✅ 项目已补全：orders
    📁 .claude/skills/      AI 助手技能（4 个）
-   📄 AGENTS.md            AI 助手项目导读
    🪝 .git/hooks/pre-commit 提交前检查组件结构
    ✅ 收尾校验通过：项目可以装载
 ```

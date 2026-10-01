@@ -29,11 +29,21 @@ func TestPlanCompleteEmptyDirCreatesEverything(t *testing.T) {
 	plan := complete(t, root, "my-shop")
 	assert.Empty(t, plan.Skip)
 	assert.True(t, plan.GitignoreCreate)
-	assert.True(t, plan.ProjectDoc)
+	assert.True(t, plan.Agents.AgentsCreated)
+	assert.True(t, plan.Agents.ClaudeCreated)
 
-	for _, name := range []string{"brickkit.yaml", "deploy.yaml", "config/vars.yaml", "config/.gitkeep", "shell/.gitkeep", ".gitignore", "BRICKKIT.md"} {
+	for _, name := range []string{"brickkit.yaml", "deploy.yaml", "config/vars.yaml", "config/.gitkeep", "shell/.gitkeep", ".gitignore", "AGENTS.md", "CLAUDE.md"} {
 		assert.FileExists(t, filepath.Join(root, name))
 	}
+	assert.NoFileExists(t, filepath.Join(root, "BRICKKIT.md"), "项目不再有项目级的 BRICKKIT.md：组件表在 AGENTS.md 末尾")
+	agents, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(string(agents), "# my-shop\n"))
+	assert.Contains(t, string(agents), "## Overview")
+	assert.Contains(t, string(agents), "<!-- brickkit:managed:begin lang=")
+	claude, err := os.ReadFile(filepath.Join(root, "CLAUDE.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "@AGENTS.md\n", string(claude))
 	assert.NoFileExists(t, filepath.Join(root, "deploy.local.yaml"), "本地文件由 local on 按需生成")
 	for _, dir := range []string{".brickkit/manifests", ".brickkit/generated", "components", "shell"} {
 		assert.DirExists(t, filepath.Join(root, dir))
@@ -88,15 +98,20 @@ func TestPlanCompleteNeverEditsExistingGitignore(t *testing.T) {
 	assert.Equal(t, gitignore, string(got))
 }
 
-// 组件仓库兼作工作台：BRICKKIT.md 是组件自己的文档，不能生成项目文档盖掉它，
-// 也不能在它不在时替组件作者生成一份项目文档。
+// 组件仓库兼作工作台：BRICKKIT.md 是组件自己的文档，补全不替作者写它；AGENTS.md 是组件的那五节，
+// 标题是组件 ID，维护区放组件规则加工作台的组件表。
 func TestPlanCompleteInComponentRepoLeavesBrickkitMd(t *testing.T) {
 	root := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(root, "component.yaml"), []byte("apiVersion: brickkit/v1\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "component.yaml"), []byte("metadata:\n  id: erp/backend\n  version: 1.0.0\n"), 0o644))
 
-	plan := complete(t, root, "erp-backend")
-	assert.False(t, plan.ProjectDoc)
+	complete(t, root, "erp-backend")
 	assert.NoFileExists(t, filepath.Join(root, "BRICKKIT.md"))
+	agents, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(string(agents), "# erp/backend\n"))
+	assert.Contains(t, string(agents), "## Code map")
+	assert.Contains(t, string(agents), "reserved name")
+	assert.Contains(t, string(agents), "## Components")
 }
 
 func TestPlanCompleteRejectsBadName(t *testing.T) {
@@ -145,114 +160,6 @@ func TestDirIsEmptyIgnoresGit(t *testing.T) {
 	assert.False(t, empty)
 }
 
-// writeDocProject 写一个有两个组件的项目：erp/backend 的 BRICKKIT.md 与产物在缓存里，
-// people/basic 什么都没缓存、但它在本地源里有源码。
-func writeDocProject(t *testing.T) (string, *project.Project) {
-	t.Helper()
-	root := t.TempDir()
-	complete(t, root, "my-shop")
-	l := project.NewLayout(root)
-	require.NoError(t, os.WriteFile(l.DeclPath(), []byte(`project: my-shop
-sources:
-  - name: local-dev
-    type: local
-    path: ./components
-components:
-  - id: erp/backend
-    version: 2.0.0
-  - id: people/basic
-    version: 1.0.0
-`), 0o644))
-	require.NoError(t, os.WriteFile(l.DeployPath(), []byte(`target: docker
-components:
-  - id: erp/backend
-  - id: people/basic
-`), 0o644))
-	require.NoError(t, os.MkdirAll(l.CachedManifestDir("erp/backend", "2.0.0"), 0o755))
-	require.NoError(t, os.WriteFile(l.CachedDocPath("erp/backend", "2.0.0"), []byte("# erp/backend\n"), 0o644))
-	require.NoError(t, os.MkdirAll(filepath.Join(l.ArtifactsDir(), "erp-backend-2-0-0"), 0o755))
-	repo := filepath.Join(root, "components", "people", "basic")
-	require.NoError(t, os.MkdirAll(repo, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(repo, "component.yaml"), []byte("metadata:\n  id: people/basic\n  version: 1.0.0\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(repo, "BRICKKIT.md"), []byte("# people/basic\n"), 0o644))
-
-	p, err := project.Load(root, project.LoadOptions{NoLocal: true})
-	require.NoError(t, err)
-	return root, p
-}
-
-func TestRenderProjectDocTables(t *testing.T) {
-	_, p := writeDocProject(t)
-	doc := project.RenderProjectDoc(p)
-
-	assert.Contains(t, doc, "<!-- brickkit:managed:begin -->")
-	assert.Contains(t, doc, "<!-- brickkit:managed:end -->")
-	assert.Contains(t, doc, "| erp/backend | 2.0.0 | `.brickkit/manifests/erp/backend/2.0.0/BRICKKIT.md` | `.brickkit/artifacts/erp-backend-2-0-0/` |")
-	assert.Contains(t, doc, "| people/basic | 1.0.0 | `components/people/basic/BRICKKIT.md` | — |", "本地源组件指向正在改的那份；没下载的产物不写路径")
-	assert.Contains(t, doc, "| people/basic | `components/people/basic/` | `components/people/basic/BRICKKIT.md` |")
-}
-
-func TestWriteProjectDocReplacesOnlyTheManagedBlock(t *testing.T) {
-	root, p := writeDocProject(t)
-	path := filepath.Join(root, "BRICKKIT.md")
-	before, err := os.ReadFile(path)
-	require.NoError(t, err)
-	edited := strings.Replace(string(before), "# my-shop", "# my-shop\n\nNotes written by hand.", 1)
-	require.NoError(t, os.WriteFile(path, []byte(edited), 0o644))
-
-	written, err := project.WriteProjectDoc(p.Layout, p)
-	require.NoError(t, err)
-	assert.True(t, written)
-	got, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Contains(t, string(got), "Notes written by hand.")
-	assert.Contains(t, string(got), "| erp/backend | 2.0.0 |")
-}
-
-func TestWriteProjectDocLeavesFileWithoutMarkers(t *testing.T) {
-	root, p := writeDocProject(t)
-	path := filepath.Join(root, "BRICKKIT.md")
-	mine := "# my own notes\n"
-	require.NoError(t, os.WriteFile(path, []byte(mine), 0o644))
-
-	written, err := project.WriteProjectDoc(p.Layout, p)
-	require.NoError(t, err)
-	assert.False(t, written)
-	got, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Equal(t, mine, string(got))
-}
-
-// 只有开始标记、没有结束标记：不算维护区，不动；文件不存在：不凭空生成（那是 init 的事）。
-func TestWriteProjectDocNeedsBothMarkers(t *testing.T) {
-	root, p := writeDocProject(t)
-	path := filepath.Join(root, "BRICKKIT.md")
-	half := "# x\n<!-- brickkit:managed:begin -->\n"
-	require.NoError(t, os.WriteFile(path, []byte(half), 0o644))
-	written, err := project.WriteProjectDoc(p.Layout, p)
-	require.NoError(t, err)
-	assert.False(t, written)
-
-	require.NoError(t, os.Remove(path))
-	written, err = project.WriteProjectDoc(p.Layout, p)
-	require.NoError(t, err)
-	assert.False(t, written)
-	assert.NoFileExists(t, path)
-
-	plan, err := project.PlanComplete(p.Layout, "my-shop")
-	require.NoError(t, err)
-	assert.True(t, plan.ProjectDoc, "文件没了，补全式会重新生成")
-}
-
-func TestPlanCompleteReportsUnmanagedDoc(t *testing.T) {
-	root := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(root, "BRICKKIT.md"), []byte("# mine\n"), 0o644))
-	plan, err := project.PlanComplete(project.NewLayout(root), "my-shop")
-	require.NoError(t, err)
-	assert.False(t, plan.ProjectDoc)
-	assert.True(t, plan.ProjectDocUnmanaged)
-}
-
 // 组件目录的本地联调工作台：brickkit.yaml 继承给定的安装源，不建 components/、shell/
 // ——那是项目的目录约定，组件仓库里用不上。
 func TestPlanWorkbenchInheritsSources(t *testing.T) {
@@ -293,7 +200,7 @@ func TestPlanCompleteComponentRepoIsAWorkbench(t *testing.T) {
 
 	plan, err := project.PlanComplete(l, "erp-api")
 	require.NoError(t, err)
-	assert.False(t, plan.ProjectDocUnmanaged, "组件仓库里的 BRICKKIT.md 本来就是组件自己的文档")
+	assert.False(t, plan.ObsoleteMap, "组件仓库里的 BRICKKIT.md 本来就是组件自己的文档")
 	assert.NotContains(t, plan.GitignoreMissing, "components/", "组件仓库用不上 components/")
 	assert.Contains(t, plan.GitignoreMissing, ".brickkit/")
 	assert.NotContains(t, plan.Create, "shell/.gitkeep")

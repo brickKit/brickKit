@@ -219,7 +219,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | 包 | 管什么 |
 | --- | --- |
 | `internal/cli/` | 命令树：每条命令一个文件、参数、输出；报错里的路径按使用者所在的目录显示（`shown.go`）；TAB 补全的候选（`complete.go`） |
-| `internal/project/` | 把一个项目（brickkit.yaml + 部署文件 + config/）装载成一个 `Project`；往上找项目根（`findroot.go`）；一致性检查；项目地图 `BRICKKIT.md` |
+| `internal/project/` | 把一个项目（brickkit.yaml + 部署文件 + config/）装载成一个 `Project`；往上找项目根（`findroot.go`）；一致性检查；项目 `AGENTS.md` 末尾的组件表（`agents.go`） |
 | `internal/project/projecttest/` | 测试辅助：用几行 YAML 搭一个三层项目并装载它 |
 | `internal/projfile/` | `brickkit.yaml`：安装源、组件、版本、`kind: shell` |
 | `internal/deployfile/` | 部署文件（`deploy.yaml`、`deploy.local.yaml`、`-f`）：字段、校验、`focus`、本地修改的差异 |
@@ -435,9 +435,9 @@ brickkit init my-shop
    📁 components/          组件源码（已配为本地安装源 local-dev）
    📁 shell/               外壳（kind: shell），项目自己的代码（本地安装源 local-shells）
    📁 .brickkit/           CLI 工作目录
-   📄 BRICKKIT.md          项目地图：有哪些组件、文档在哪
+   📄 AGENTS.md            项目的 AI 导读；末尾的组件表由 brickkit 维护
+   📄 CLAUDE.md            @AGENTS.md：Claude Code 通过它读 AGENTS.md
    📁 .claude/skills/      AI 助手技能（4 个）
-   📄 AGENTS.md            AI 助手项目导读
    💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查
 
 下一步：
@@ -799,9 +799,10 @@ brickkit init --yes
    ✅ 创建  config/vars.yaml
    ✅ 创建  config/.gitkeep
    ✅ 创建  .gitignore
+   ✅ 创建  AGENTS.md
+   ✅ 创建  CLAUDE.md
 ✅ 项目已补全：orders
    📁 .claude/skills/      AI 助手技能（4 个）
-   📄 AGENTS.md            AI 助手项目导读
    🪝 .git/hooks/pre-commit 提交前检查组件结构
    ✅ 收尾校验通过：项目可以装载
 ```

@@ -212,7 +212,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | Package | Owns |
 | --- | --- |
 | `internal/cli/` | The command tree: one file per command, flags, output; errors shown relative to where you stand (`shown.go`); TAB completion candidates (`complete.go`) |
-| `internal/project/` | Loading a project (brickkit.yaml + deploy file + config/) into one `Project`; finding the root upward (`findroot.go`); consistency checks; the project map `BRICKKIT.md` |
+| `internal/project/` | Loading a project (brickkit.yaml + deploy file + config/) into one `Project`; finding the root upward (`findroot.go`); consistency checks; the component table in the project's `AGENTS.md` (`agents.go`) |
 | `internal/project/projecttest/` | Test helper: a three-layer project built from a few lines of YAML, then loaded |
 | `internal/projfile/` | `brickkit.yaml`: sources, components, versions, `kind: shell` |
 | `internal/deployfile/` | Deploy files (`deploy.yaml`, `deploy.local.yaml`, `-f`): fields, validation, `focus`, the local-change diff |

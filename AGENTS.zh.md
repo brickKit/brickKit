@@ -207,7 +207,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | 包 | 管什么 |
 | --- | --- |
 | `internal/cli/` | 命令树：每条命令一个文件、参数、输出；报错里的路径按使用者所在的目录显示（`shown.go`）；TAB 补全的候选（`complete.go`） |
-| `internal/project/` | 把一个项目（brickkit.yaml + 部署文件 + config/）装载成一个 `Project`；往上找项目根（`findroot.go`）；一致性检查；项目地图 `BRICKKIT.md` |
+| `internal/project/` | 把一个项目（brickkit.yaml + 部署文件 + config/）装载成一个 `Project`；往上找项目根（`findroot.go`）；一致性检查；项目 `AGENTS.md` 末尾的组件表（`agents.go`） |
 | `internal/project/projecttest/` | 测试辅助：用几行 YAML 搭一个三层项目并装载它 |
 | `internal/projfile/` | `brickkit.yaml`：安装源、组件、版本、`kind: shell` |
 | `internal/deployfile/` | 部署文件（`deploy.yaml`、`deploy.local.yaml`、`-f`）：字段、校验、`focus`、本地修改的差异 |

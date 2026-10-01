@@ -27,6 +27,7 @@ import (
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/configdir"
 	"github.com/brickkit/brickkit/internal/deployfile"
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/install"
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -119,23 +120,16 @@ func applyPlanWith(opts *Options, proj *project.Project, plan *install.Plan, ao 
 	return a.result, nil
 }
 
-// refreshProjectDoc 重写项目 BRICKKIT.md 的组件表。add / remove / upgrade 在命令的
-// 最后调用——产物下载、源码克隆之后：表里的文档与契约路径只写盘上真有的，写早了就是空的。
-// 三份文件此刻已经正确，文档写不进去不值得让命令失败：说一声，下一次成功的改动会补齐。
+// refreshProjectDoc 改写项目 AGENTS.md 末尾的组件表。add / remove / upgrade 在命令的
+// 最后调用——取完清单、下载完文档之后：表里的说明、文档语言都来自缓存，写早了就是空的。
+// 三份文件此刻已经正确，表写不进去不值得让命令失败：说一声，下一次成功的改动会补齐。
 func refreshProjectDoc(opts *Options, layout project.Layout) {
-	proj, err := project.Load(layout.Root, project.LoadOptions{NoLocal: true})
+	decl, err := projfile.ParseFile(layout.DeclPath())
 	if err == nil {
-		_, err = project.WriteProjectDoc(layout, proj)
-	}
-	var conflict *clierr.Error
-	if err != nil && errors.As(err, &conflict) && conflict.Code == clierr.CodeConfigConflict {
-		// upgrade 故意写下的冲突块让配置装载不了：拓扑照样能读，表照样能写
-		if proj, err = project.LoadTopology(layout.Root, project.LoadOptions{NoLocal: true}); err == nil {
-			_, err = project.WriteProjectDoc(layout, proj)
-		}
+		_, err = project.WriteAgentsBlock(layout, decl)
 	}
 	if err != nil {
-		renderWarnings(opts, []*clierr.Error{clierr.Warn(clierr.CodeInternal, i18n.T(msgid.CliInstallProjectDocFailed, project.FileProjectDoc)).
+		renderWarnings(opts, []*clierr.Error{clierr.Warn(clierr.CodeInternal, i18n.T(msgid.CliInstallProjectDocFailed, docspec.FileAgents)).
 			WithDetail(i18n.T(msgid.LabelReason), clierr.As(err).Message)})
 	}
 }

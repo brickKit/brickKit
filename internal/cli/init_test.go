@@ -74,15 +74,17 @@ func TestInitCreatesNamedDirectory(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, "stderr=%s", r.stderr)
 
 	dir := filepath.Join(parent, "my-project")
-	for _, file := range []string{"brickkit.yaml", "deploy.yaml", "config/vars.yaml", "config/.gitkeep", "shell/.gitkeep", ".gitignore", "BRICKKIT.md"} {
+	for _, file := range []string{"brickkit.yaml", "deploy.yaml", "config/vars.yaml", "config/.gitkeep", "shell/.gitkeep", ".gitignore", "AGENTS.md", "CLAUDE.md"} {
 		assert.FileExists(t, filepath.Join(dir, file))
 	}
+	assert.NoFileExists(t, filepath.Join(dir, "BRICKKIT.md"), "项目级的 BRICKKIT.md 没有了：组件表在 AGENTS.md 末尾")
 	assert.NoFileExists(t, filepath.Join(dir, "deploy.local.yaml"))
 	for _, sub := range []string{".brickkit", ".brickkit/manifests", ".brickkit/artifacts", ".brickkit/generated", "components", "shell"} {
 		requireDir(t, filepath.Join(dir, sub))
 	}
 	assert.NoFileExists(t, filepath.Join(parent, "brickkit.yaml"), "不往当前目录写")
-	assert.Contains(t, readFile(t, filepath.Join(dir, "BRICKKIT.md")), "<!-- brickkit:managed:begin -->")
+	assert.Contains(t, readFile(t, filepath.Join(dir, "AGENTS.md")), "<!-- brickkit:managed:begin lang=en -->")
+	assert.Equal(t, "@AGENTS.md\n", readFile(t, filepath.Join(dir, "CLAUDE.md")))
 
 	// 刚 init 完的项目就是一个合法、可 up 的项目
 	lint := runIn(t, dir, "lint")
@@ -212,7 +214,7 @@ func TestInitCompleteSkipsExistingAndKeepsProjectName(t *testing.T) {
 	assert.Equal(t, decl, readFile(t, filepath.Join(dir, "brickkit.yaml")))
 	assert.Contains(t, r.stdout, "skip    brickkit.yaml")
 	assert.Contains(t, r.stdout, "Project completed: old")
-	assert.Contains(t, readFile(t, filepath.Join(dir, "BRICKKIT.md")), "# old")
+	assert.True(t, strings.HasPrefix(readFile(t, filepath.Join(dir, "AGENTS.md")), "# old\n"))
 }
 
 // 收尾校验：补全了但装载不了（brickkit.yaml 有组件、部署文件没有它的条目），命令失败并说清为什么。
@@ -287,9 +289,9 @@ func TestInitOutputMatchesDesignDocs(t *testing.T) {
 		"   📁 components/          Component source (configured as the local install source local-dev)\n" +
 		"   📁 shell/               Shells (kind: shell), project code (the local install source local-shells)\n" +
 		"   📁 .brickkit/           CLI working directory\n" +
-		"   📄 BRICKKIT.md          Project map: components and where their docs are\n" +
+		"   📄 AGENTS.md            the project's AI guide; the component table at its end is maintained by brickkit\n" +
+		"   📄 CLAUDE.md            @AGENTS.md: Claude Code reads AGENTS.md through it\n" +
 		"   📁 .claude/skills/      AI assistant skills (4)\n" +
-		"   📄 AGENTS.md            AI assistant project guide\n" +
 		"   💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check\n" +
 		"\n" +
 		"Next steps:\n" +
@@ -332,11 +334,12 @@ func TestInitNoSkillsInstallsNothing(t *testing.T) {
 	r := runIn(t, dir, "init", "--name", "my-project", "--yes", "--no-skills")
 	require.Equal(t, 0, r.code, r.stderr)
 
-	for _, rel := range []string{"AGENTS.md", ".claude",
+	for _, rel := range []string{".claude",
 		filepath.Join(".brickkit", "skills.lock")} {
 		_, err := os.Stat(filepath.Join(dir, rel))
 		assert.True(t, os.IsNotExist(err), "--no-skills 却产生了 %s", rel)
 	}
+	assert.FileExists(t, filepath.Join(dir, "AGENTS.md"), "AGENTS.md 是项目自己的导读（组件表在它末尾），不是技能")
 	assert.NotContains(t, r.stdout, ".claude/skills/")
 }
 
@@ -354,22 +357,23 @@ func TestInitDoesNotIgnoreSkillFiles(t *testing.T) {
 	}
 }
 
-// CLAUDE.md 是使用者自己的流程文件：既不新建，也不往已有的里面加东西。
-func TestInitNeverTouchesClaudeMd(t *testing.T) {
+// CLAUDE.md 不在时建一份只有 @AGENTS.md 的；已有的是使用者自己的文件，一个字节都不动——
+// 没引 AGENTS.md 就说一声，怎么补交给 skills update（明确要求才改）。
+func TestInitCreatesClaudeMdButNeverEditsOne(t *testing.T) {
 	dir := t.TempDir()
 	r := runIn(t, dir, "init", "--name", "my-project", "--yes")
 	require.Equal(t, 0, r.code, r.stderr)
-	_, err := os.Stat(filepath.Join(dir, "CLAUDE.md"))
-	assert.True(t, os.IsNotExist(err), "不该建出 CLAUDE.md")
+	assert.Equal(t, "@AGENTS.md\n", readFile(t, filepath.Join(dir, "CLAUDE.md")))
 
 	dir2 := t.TempDir()
 	mine := "# 我自己的规则\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir2, "CLAUDE.md"), []byte(mine), 0o644))
-	require.Equal(t, 0, runIn(t, dir2, "init", "--name", "my-project", "--yes").code)
+	r2 := runIn(t, dir2, "init", "--name", "my-project", "--yes")
+	require.Equal(t, 0, r2.code, r2.stderr)
 
-	after, err := os.ReadFile(filepath.Join(dir2, "CLAUDE.md"))
-	require.NoError(t, err)
-	assert.Equal(t, mine, string(after), "已有的 CLAUDE.md 被改了")
+	assert.Equal(t, mine, readFile(t, filepath.Join(dir2, "CLAUDE.md")), "已有的 CLAUDE.md 被改了")
+	assert.Contains(t, r2.stdout, "does not contain @AGENTS.md", "没接上要说出来")
+	assert.Contains(t, r2.stdout, "brickkit skills update")
 }
 
 func TestInitInstallsHookWhenProjectIsRepoRoot(t *testing.T) {
@@ -490,15 +494,20 @@ func TestInitKeepsExistingAgentsMd(t *testing.T) {
 	assert.Contains(t, r.stdout, "AGENTS.md", "跳过了要说出来")
 }
 
-// 已有的 BRICKKIT.md 没有维护区：不动它，说一声组件表不会自动更新。
-func TestInitCompleteNotesUnmanagedProjectDoc(t *testing.T) {
+// 已有的 AGENTS.md 是作者的：没有维护区也不动它，说一声组件表不会自动更新；
+// 旧版的项目地图 BRICKKIT.md 不删，说清组件表搬去了哪。
+func TestInitCompleteNotesAuthorAgentsAndOldMap(t *testing.T) {
 	dir := t.TempDir()
 	mine := "# my notes\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "BRICKKIT.md"), []byte(mine), 0o644))
+	oldMap := "# shop\n<!-- brickkit:managed:begin -->\n<!-- brickkit:managed:end -->\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(mine), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "BRICKKIT.md"), []byte(oldMap), 0o644))
 	r := runIn(t, dir, "init", "--name", "shop", "--yes", "--no-skills")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
-	assert.Equal(t, mine, readFile(t, filepath.Join(dir, "BRICKKIT.md")))
-	assert.Contains(t, r.stdout, "without the brickkit-managed block")
+	assert.Equal(t, mine, readFile(t, filepath.Join(dir, "AGENTS.md")))
+	assert.Equal(t, oldMap, readFile(t, filepath.Join(dir, "BRICKKIT.md")), "brickkit 从不替人删旧地图")
+	assert.Contains(t, r.stdout, "no usable brickkit-maintained block")
+	assert.Contains(t, r.stdout, "the old project map")
 }
 
 func TestInitNamedPathIsAFile(t *testing.T) {
