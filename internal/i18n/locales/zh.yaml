@@ -1073,6 +1073,7 @@ cli.status.local_session_running: "💡 这个项目有一个本地会话在跑�
 cli.status.long: "查看当前项目所有组件的运行状态。\n\nCLI 本身不存储运行状态，查询时直接调用部署文件里 target 对应的引擎：\n  docker   docker compose ps -a --format json\n  podman   podman compose ps -a --format json\n  k8s      kubectl get deployments -o json（在项目的命名空间里）\n\n输出包含：运行中的组件、未启动的组件及原因（原因来自 deploy.local.yaml 时会标出来）、\n本地调试组件（mode: debug）。mode: local 的组件是另一个终端里 up 看护的进程，\n不在表里；有这样的会话在跑时，会提示是哪个进程。"
 cli.version.also_print_the_git_commit: "额外输出 Git commit 与构建时间"
 cli.version.short: "查看 CLI 版本、支持的 Manifest 版本与部署目标"
+cli.root.flag_version: "同 brickkit version：CLI 版本、支持的 Manifest 版本与部署目标"
 cli.status.reason_unknown: "原因未知（依赖图取不到）"
 cli.status.via_local_file: "（deploy.local.yaml）"
 cli.status.via_local_file_suffix: "，来自 deploy.local.yaml"

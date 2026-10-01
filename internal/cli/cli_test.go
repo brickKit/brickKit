@@ -66,6 +66,20 @@ func TestVersionCommand(t *testing.T) {
 	assert.Contains(t, r.stdout, "Supported deploy targets: docker, podman, k8s")
 }
 
+// brickkit --version / -v 是惯例写法，打印的必须和 brickkit version 一字不差；
+// 它只挂在根命令上，子命令后面写 --version 仍是未知参数。
+func TestRootVersionFlagMatchesVersionCommand(t *testing.T) {
+	want := run(t, "version")
+	for _, flag := range []string{"--version", "-v"} {
+		r := run(t, flag)
+		assert.Equal(t, clierr.ExitOK, r.code, flag)
+		assert.Equal(t, want.stdout, r.stdout, flag)
+	}
+	r := run(t, "up", "--version")
+	assert.Equal(t, clierr.ExitUsage, r.code)
+	assert.Contains(t, r.stderr, "unknown flag: --version")
+}
+
 func TestVersionVerboseAddsBuildInfo(t *testing.T) {
 	r := run(t, "version", "--verbose")
 	assert.Equal(t, clierr.ExitOK, r.code)

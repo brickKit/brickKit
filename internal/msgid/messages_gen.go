@@ -1015,6 +1015,7 @@ const (
 	CliStatusLong                                              ID = "cli.status.long"
 	CliVersionAlsoPrintTheGitCommit                            ID = "cli.version.also_print_the_git_commit"
 	CliVersionShort                                            ID = "cli.version.short"
+	CliRootFlagVersion                                         ID = "cli.root.flag_version"
 	CliStatusReasonUnknown                                     ID = "cli.status.reason_unknown"
 	CliStatusViaLocalFile                                      ID = "cli.status.via_local_file"
 	CliStatusViaLocalFileSuffix                                ID = "cli.status.via_local_file_suffix"

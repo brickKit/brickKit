@@ -926,6 +926,8 @@ brickkit logout --keep-remote
 ## `brickkit version`
 
 查看 CLI 版本、支持的 Manifest 版本（`brickkit/v1`）与部署目标（`docker`、`podman`、`k8s`）。
+`brickkit --version` 和 `brickkit -v` 打印的是同样三行。它们只能紧跟在 `brickkit` 后面——不能写在某条命令后面，也不是全局参数；
+在 `brickkit version` 里，`-v` 是 `--verbose`。
 
 ```text
 brickkit version [flags]

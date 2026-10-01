@@ -120,7 +120,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `login` | 登录组件市场 |
 | `logout` | 退出组件市场（吊销令牌、删本地凭据） |
 
-`version` 打印版本；`lang` 查看或设置 CLI 的界面语言（`lang set zh|en`）；`completion` 打印某种 shell 的 TAB 补全脚本（`install.sh` 会给 bash、zsh、fish 装好）。
+`version` 打印版本（`brickkit --version` / `-v` 打印的一样）；`lang` 查看或设置 CLI 的界面语言（`lang set zh|en`）；`completion` 打印某种 shell 的 TAB 补全脚本（`install.sh` 会给 bash、zsh、fish 装好）。
 
 ### 参数
 

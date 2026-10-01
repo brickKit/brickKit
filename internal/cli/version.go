@@ -27,17 +27,22 @@ func newVersionCommand(opts *Options) *cobra.Command {
 		Short: i18n.T(msgid.CliVersionShort),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts.Printf("BrickKit CLI %s\n", version.Display())
-			opts.Printf("%s\n", i18n.T(msgid.VersionManifestLine, version.ManifestAPIVersion))
-			opts.Printf("%s\n", i18n.T(msgid.VersionTargetsLine, version.SupportedTargets()))
-			if verbose {
-				opts.Printf("%s\n", i18n.T(msgid.VersionCommitLine, version.Commit))
-				opts.Printf("%s\n", i18n.T(msgid.VersionBuildDateLine, version.BuildDate))
-			}
+			printVersion(opts, verbose)
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, i18n.T(msgid.CliVersionAlsoPrintTheGitCommit))
 	return cmd
+}
+
+// printVersion 是 brickkit version 与 brickkit --version / -v 共用的输出：两个入口打印的必须一字不差。
+func printVersion(opts *Options, verbose bool) {
+	opts.Printf("BrickKit CLI %s\n", version.Display())
+	opts.Printf("%s\n", i18n.T(msgid.VersionManifestLine, version.ManifestAPIVersion))
+	opts.Printf("%s\n", i18n.T(msgid.VersionTargetsLine, version.SupportedTargets()))
+	if verbose {
+		opts.Printf("%s\n", i18n.T(msgid.VersionCommitLine, version.Commit))
+		opts.Printf("%s\n", i18n.T(msgid.VersionBuildDateLine, version.BuildDate))
+	}
 }

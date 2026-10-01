@@ -124,7 +124,7 @@ Don't load every component's documentation at once: read only the components the
 | `login` | Log in to a component market |
 | `logout` | Log out of a component market (revokes the token, deletes local credentials) |
 
-`version` prints the version; `lang` shows or sets the language the CLI speaks (`lang set en|zh`); `completion` prints the TAB-completion script for a shell (`install.sh` installs it for bash, zsh and fish).
+`version` prints the version (`brickkit --version` / `-v` print the same); `lang` shows or sets the language the CLI speaks (`lang set en|zh`); `completion` prints the TAB-completion script for a shell (`install.sh` installs it for bash, zsh and fish).
 
 ### Flags
 

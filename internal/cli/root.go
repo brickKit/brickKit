@@ -196,6 +196,7 @@ func NewRootCommand(opts *Options) *cobra.Command {
 	lang, _ := i18n.Resolve()
 	i18n.SetCurrent(lang)
 
+	var showVersion bool
 	root := &cobra.Command{
 		Use:                   "brickkit",
 		Short:                 i18n.T(msgid.CliRootShort),
@@ -204,8 +205,12 @@ func NewRootCommand(opts *Options) *cobra.Command {
 		SilenceUsage:          true, // 错误由 clierr 统一渲染，不打印 usage 噪音
 		SilenceErrors:         true,
 		DisableFlagsInUseLine: true,
-		// 未指定子命令时打印帮助，而不是报错。
+		// 未指定子命令时打印帮助，而不是报错；--version / -v 打印的和 brickkit version 一样。
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if showVersion {
+				printVersion(opts, false)
+				return nil
+			}
 			return cmd.Help()
 		},
 	}
@@ -215,6 +220,9 @@ func NewRootCommand(opts *Options) *cobra.Command {
 
 	root.PersistentFlags().StringVar(&opts.LogLevel, "log-level", opts.LogLevel,
 		i18n.T(msgid.CliRootLevelOfTheJSONLogs, strings.Join(logging.LevelNames(), " | ")))
+	// 只挂在根命令上、不往下继承：这是"brickkit --version"这个惯例写法，不是全局参数
+	// （brickkit version 自己的 -v 是 --verbose）。
+	root.Flags().BoolVarP(&showVersion, "version", "v", false, i18n.T(msgid.CliRootFlagVersion))
 
 	// flag 解析错误统一转成 CLI 错误格式。
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {

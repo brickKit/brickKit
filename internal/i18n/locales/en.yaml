@@ -1080,6 +1080,7 @@ cli.status.local_session_running: "💡 This project has a local session running
 cli.status.long: "Show the running state of every component in the current project.\n\nThe CLI stores no running state itself; it queries the engine the deploy file's target names:\n  docker   docker compose ps -a --format json\n  podman   podman compose ps -a --format json\n  k8s      kubectl get deployments -o json (in the project's namespace)\n\nThe output covers: running components, components that aren't started and why (marked when the reason comes from deploy.local.yaml),\nand locally debugged components (mode: debug). mode: local components are processes supervised by an up in another terminal\nand aren't in the table; when such a session is running, it names the process."
 cli.version.also_print_the_git_commit: "Also print the Git commit and build time"
 cli.version.short: "Show the CLI version, the supported Manifest version and the deploy targets"
+cli.root.flag_version: "Same as brickkit version: the CLI version, the supported Manifest version and the deploy targets"
 cli.status.reason_unknown: "reason unknown (the dependency graph could not be obtained)"
 cli.status.via_local_file: " (deploy.local.yaml)"
 cli.status.via_local_file_suffix: ", via deploy.local.yaml"
