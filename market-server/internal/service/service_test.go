@@ -950,7 +950,7 @@ func TestPublishStoresDoc(t *testing.T) {
 	_, err := f.svc.Publish(ctx, id, "people/basic", req)
 	require.NoError(t, err)
 
-	doc, err := f.svc.GetDoc(ctx, service.Anonymous(), "people/basic", "1.0.0")
+	doc, err := f.svc.GetDoc(ctx, service.Anonymous(), "people/basic", "1.0.0", "")
 	require.NoError(t, err)
 	assert.Equal(t, "# people/basic\n", doc)
 }
@@ -960,7 +960,7 @@ func TestGetDocWithoutDocIsNotFound(t *testing.T) {
 	id := f.registerUser(t, "zhangsan")
 	f.publish(t, id, "people/basic", "1.0.0")
 
-	_, err := f.svc.GetDoc(context.Background(), service.Anonymous(), "people/basic", "1.0.0")
+	_, err := f.svc.GetDoc(context.Background(), service.Anonymous(), "people/basic", "1.0.0", "")
 	assert.Equal(t, model.CodeNotFound, apiErrorOf(t, err).Code)
 }
 

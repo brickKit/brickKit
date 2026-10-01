@@ -23,11 +23,13 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
@@ -371,22 +373,48 @@ func (c *Client) Doc(id, version string) (path string, ok bool) {
 	return path, true
 }
 
-// docFetcher 是能提供组件文档 BRICKKIT.md 的安装源（本地源读目录，git 源读 tag，
-// 市场走文档端点）。没有文档返回 errNotFound，不算错。
+// docFetcher 是能提供组件文档的安装源（本地源读目录，git 源读 tag，市场走文档端点）：
+// BRICKKIT.md 与它的每个译本 BRICKKIT.<lang>.md，键是文件名。没有文档时是空的，不算错。
 type docFetcher interface {
-	docBytes(ctx context.Context, componentID, version string) ([]byte, error)
+	docFiles(ctx context.Context, componentID, version string) (map[string][]byte, error)
 }
 
-// cacheDoc 把安装源提供的 BRICKKIT.md 写进缓存。拿不到或写不进都不阻断：文档是给人与 AI
-// 读的辅助，没有它组件照样能装、能跑。
+// cacheDoc 把安装源提供的 BRICKKIT.md 及其译本写进缓存（component.yaml 旁边）。拿不到或写不进都不阻断：
+// 文档是给人与 AI 读的辅助，没有它组件照样能装、能跑。名字不是合法译本的不写；译本最多
+// docspec.MaxTranslations 份（按语言排序取前面的）——与市场收的上限一致。
 func (c *Client) cacheDoc(ctx context.Context, f fetcher, id, version string) {
 	df, ok := f.(docFetcher)
 	if !ok {
 		return
 	}
-	if data, err := df.docBytes(ctx, id, version); err == nil {
-		_ = writeFileAll(c.layout.CachedDocPath(id, version), data)
+	files, err := df.docFiles(ctx, id, version)
+	if err != nil {
+		return
 	}
+	dir := c.layout.CachedManifestDir(id, version)
+	for _, name := range docNames(files) {
+		_ = writeFileAll(filepath.Join(dir, name), files[name])
+	}
+}
+
+// docNames 是 files 里该缓存的文档名：原文与合法译本，译本至多 MaxTranslations 份，排好序。
+func docNames(files map[string][]byte) []string {
+	var primary, translations []string
+	for name := range files {
+		base, lang, ok := docspec.SplitTranslation(name)
+		switch {
+		case !ok || base != docspec.FileBrickkit:
+		case lang == "":
+			primary = append(primary, name)
+		default:
+			translations = append(translations, name)
+		}
+	}
+	sort.Strings(translations)
+	if len(translations) > docspec.MaxTranslations {
+		translations = translations[:docspec.MaxTranslations]
+	}
+	return append(primary, translations...)
 }
 
 // cachedSignature 是签名缓存文件的内容。

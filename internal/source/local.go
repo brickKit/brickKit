@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
@@ -45,17 +46,27 @@ func (s *localSource) manifestBytes(_ context.Context, componentID, _ string) ([
 	return s.readFile(filepath.Join(s.componentDir(componentID), manifest.FileName))
 }
 
-// docBytes 读组件目录里的 BRICKKIT.md；没有时返回 errNotFound。只在目录里正是这个版本时给。
-func (s *localSource) docBytes(ctx context.Context, componentID, version string) ([]byte, error) {
+// docFiles 读组件目录里的 BRICKKIT.md 与译本；只在目录里正是这个版本时给。
+func (s *localSource) docFiles(ctx context.Context, componentID, version string) (map[string][]byte, error) {
 	raw, err := s.manifestBytes(ctx, componentID, version)
 	if err != nil || !manifestMatches(raw, componentID, version) {
 		return nil, errNotFound
 	}
-	data, err := os.ReadFile(filepath.Join(s.componentDir(componentID), project.FileCachedDoc))
+	dir := s.componentDir(componentID)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, errNotFound
 	}
-	return data, nil
+	files := map[string][]byte{}
+	for _, e := range entries {
+		if base, _, ok := docspec.SplitTranslation(e.Name()); e.IsDir() || !ok || base != docspec.FileBrickkit {
+			continue
+		}
+		if data, err := os.ReadFile(filepath.Join(dir, e.Name())); err == nil {
+			files[e.Name()] = data
+		}
+	}
+	return files, nil
 }
 
 func (s *localSource) latestVersion(ctx context.Context, componentID string) (string, error) {

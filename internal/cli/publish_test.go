@@ -880,3 +880,56 @@ func TestPublishIsQuietWhenTheMarketKeepsTheDoc(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.NotContains(t, r.stdout, "did not keep")
 }
+
+func publishedTranslations(t *testing.T, m *fakeMarket) map[string]any {
+	t.Helper()
+	var req map[string]any
+	require.NoError(t, json.Unmarshal(m.find(t, "POST", "/versions").Body, &req))
+	tr, _ := req["docTranslations"].(map[string]any)
+	return tr
+}
+
+// BRICKKIT.md 的译本随版本一起发：键是语言代码；后缀不是语言代码的文件不发。
+func TestPublishSendsDocTranslations(t *testing.T) {
+	m := newFakeMarket(t)
+	f := newMarketProject(t, m, "")
+	loginTo(t, f, m)
+	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
+	writeTree(t, root, map[string]string{"BRICKKIT.zh.md": "# 中文\n", "BRICKKIT.zh-CN.md": "# 不发\n"})
+
+	r := runIn(t, f.Dir, "publish", "--path", root)
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, map[string]any{"zh": "# 中文\n"}, publishedTranslations(t, m))
+	assert.Contains(t, r.stdout, "zh")
+}
+
+// 译本也在建版本之前查：太多、合计太大、不是文本，都一个版本都不建。
+func TestPublishRefusesBadTranslations(t *testing.T) {
+	many := map[string]string{}
+	for _, l := range []string{"aa", "ab", "ae", "af", "ak", "am", "an", "ar", "as", "av", "ay", "az", "ba", "be", "bg", "bh", "bi"} {
+		many["BRICKKIT."+l+".md"] = "# " + l + "\n"
+	}
+	big := map[string]string{}
+	for _, l := range []string{"de", "fr", "it", "ja", "ko"} {
+		big["BRICKKIT."+l+".md"] = strings.Repeat("x", manifest.MaxDocBytes-10)
+	}
+	for name, files := range map[string]map[string]string{
+		"too many":  many,
+		"too large": big,
+		"not utf-8": {"BRICKKIT.zh.md": "# doc\xff\xfe"},
+		"oversized": {"BRICKKIT.zh.md": strings.Repeat("x", manifest.MaxDocBytes+1)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := newFakeMarket(t)
+			f := newMarketProject(t, m, "")
+			loginTo(t, f, m)
+			root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
+			writeTree(t, root, files)
+
+			r := runIn(t, f.Dir, "publish", "--path", root)
+			require.Equal(t, clierr.ExitError, r.code, r.stdout)
+			assert.Contains(t, r.stderr, "BRICKKIT")
+			assert.Equal(t, []string{"POST /auth/login"}, m.requests(), "一个版本都不建")
+		})
+	}
+}

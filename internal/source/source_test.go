@@ -887,3 +887,22 @@ func TestManifestCacheKeepsBrickkitDoc(t *testing.T) {
 	_, ok = c.Doc("people/nodoc", "1.0.0")
 	assert.False(t, ok)
 }
+
+// 文档的译本（BRICKKIT.<lang>.md）一起缓存；后缀不是语言代码的不算。
+func TestLocalCachesEveryDocLanguage(t *testing.T) {
+	layout := newProject(t)
+	dir := writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{ID: "people/basic", Version: "1.0.0"})
+	writeFile(t, filepath.Join(dir, "BRICKKIT.md"), "# en\n")
+	writeFile(t, filepath.Join(dir, "BRICKKIT.ja.md"), "# ja\n")
+	writeFile(t, filepath.Join(dir, "BRICKKIT.zh-CN.md"), "# not a code\n")
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
+	}), Options{})
+
+	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+	require.NoError(t, err)
+	primary, langs := layout.CachedDocLangs("people/basic", "1.0.0")
+	assert.True(t, primary)
+	assert.Equal(t, []string{"ja"}, langs)
+	assert.Equal(t, "# ja\n", readFile(t, filepath.Join(layout.CachedManifestDir("people/basic", "1.0.0"), "BRICKKIT.ja.md")))
+}

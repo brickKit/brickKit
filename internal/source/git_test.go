@@ -486,3 +486,18 @@ func TestGitAuthFailureKeepsAuthHints(t *testing.T) {
 	assert.Contains(t, e.Hints, i18n.T(msgid.SourceHintGitSSH))
 	assert.NotContains(t, e.Hints, i18n.T(msgid.SourceHintGitNetwork))
 }
+
+// git 源：tag 里组件目录下的每个 BRICKKIT*.md 都缓存。
+func TestGitCachesEveryDocLanguage(t *testing.T) {
+	org := newGitOrg(t)
+	org.release(componentSpec{ID: "erp/api", Version: "1.0.0",
+		Files: map[string]string{"BRICKKIT.md": "# en\n", "BRICKKIT.zh.md": "# zh\n", "BRICKKIT.draft.md": "# x\n"}})
+	c, layout := org.client()
+
+	_, err := c.Manifest(context.Background(), "erp/api", "1.0.0")
+	require.NoError(t, err)
+	primary, langs := layout.CachedDocLangs("erp/api", "1.0.0")
+	assert.True(t, primary)
+	assert.Equal(t, []string{"zh"}, langs)
+	assert.Equal(t, "# zh\n", readFile(t, filepath.Join(layout.CachedManifestDir("erp/api", "1.0.0"), "BRICKKIT.zh.md")))
+}

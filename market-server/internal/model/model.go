@@ -6,6 +6,7 @@ package model
 import (
 	"encoding/base64"
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 
@@ -172,10 +173,15 @@ type PublishRequest struct {
 	// Doc 是组件仓库根的 BRICKKIT.md 全文，可选，不超过 MaxDocBytes。
 	// 它不在签名范围内：是给人和 AI 读的说明，改了它改不了实际运行的任何东西。
 	Doc string `json:"doc,omitempty"`
+	// DocTranslations 是 BRICKKIT.md 的译本：语言代码 → 全文，可选。同样不在签名范围内。
+	DocTranslations map[string]string `json:"docTranslations,omitempty"`
 }
 
-// MaxDocBytes 是 BRICKKIT.md 的上限，与 CLI 发布前查的是同一个值。
+// MaxDocBytes 是 BRICKKIT.md（及每份译本）的上限，与 CLI 发布前查的是同一个值。
 const MaxDocBytes = manifest.MaxDocBytes
+
+// MaxDocsTotalBytes 是 BRICKKIT.md 连同全部译本的合计上限：照它限死合计，请求体上限就不用跟着译本份数涨。
+const MaxDocsTotalBytes = manifest.MaxDocsTotalBytes
 
 // Component 是组件记录。
 type Component struct {
@@ -207,6 +213,18 @@ type Version struct {
 	Signature *Signature `json:"signature,omitempty"`
 	// Doc 是这个版本的 BRICKKIT.md，没有时为空。它只经文档端点给出，不进版本的 JSON。
 	Doc string `json:"-"`
+	// DocTranslations 是 BRICKKIT.md 的译本（语言代码 → 全文）。同样只经文档端点（?lang=）给出。
+	DocTranslations map[string]string `json:"-"`
+}
+
+// DocLanguages 是这个版本带着译本的语言，排好序。
+func (v *Version) DocLanguages() []string {
+	langs := make([]string, 0, len(v.DocTranslations))
+	for l := range v.DocTranslations {
+		langs = append(langs, l)
+	}
+	sort.Strings(langs)
+	return langs
 }
 
 // Installable 判断该版本能否被安装（blocked 不能安装，deleted 视同不存在）。

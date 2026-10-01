@@ -85,3 +85,25 @@ func TestDocEndpointFollowsVersionStatus(t *testing.T) {
 	assert.Equal(t, http.StatusOK,
 		f.do(t, http.MethodGet, versionPath("people/basic", "1.0.0")+"/doc", owner, nil).status)
 }
+
+// 译本：?lang=<代码> 取，Manifest 端点的 docLanguages 列出有哪些；没有的语言 404。
+func TestDocEndpointServesTranslations(t *testing.T) {
+	f := newFixture(t)
+	token := f.login(t, "alice")
+	body := publishBody(t, "people/basic", "1.0.0", nil)
+	body["doc"] = sampleDoc
+	body["docTranslations"] = map[string]string{"zh": "# 中文\n"}
+	resp := f.do(t, http.MethodPost, "/api/v1/components/people/basic/versions", token, body)
+	require.Equal(t, http.StatusCreated, resp.status, "发布失败：%s", resp.body)
+
+	resp = f.do(t, http.MethodGet, versionPath("people/basic", "1.0.0")+"/doc?lang=zh", "", nil)
+	require.Equal(t, http.StatusOK, resp.status, "响应：%s", resp.body)
+	assert.Equal(t, "# 中文\n", string(resp.body))
+
+	resp = f.do(t, http.MethodGet, versionPath("people/basic", "1.0.0")+"/doc?lang=ja", "", nil)
+	assert.Equal(t, http.StatusNotFound, resp.status)
+
+	resp = f.do(t, http.MethodGet, versionPath("people/basic", "1.0.0")+"/manifest", "", nil)
+	require.Equal(t, http.StatusOK, resp.status)
+	assert.Contains(t, string(resp.body), `"docLanguages":["zh"]`)
+}

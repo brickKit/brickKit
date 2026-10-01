@@ -15,9 +15,11 @@ package validator
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/manifest"
 
 	"github.com/brickkit/brickkit/market-server/internal/model"
@@ -141,6 +143,35 @@ func validateRequest(req model.PublishRequest, m *manifest.Manifest) []model.Pro
 			Field:  "doc",
 			Reason: fmt.Sprintf("BRICKKIT.md is %d bytes; the limit is %d", len(req.Doc), manifest.MaxDocBytes),
 		})
+	}
+	return append(p, translationProblems(req)...)
+}
+
+// translationProblems 查 BRICKKIT.md 的译本：键是语言代码、份数、每份与合计的大小。
+func translationProblems(req model.PublishRequest) []model.Problem {
+	var p []model.Problem
+	add := func(reason string) { p = append(p, model.Problem{Field: "docTranslations", Reason: reason}) }
+	if len(req.DocTranslations) > docspec.MaxTranslations {
+		add(fmt.Sprintf("%d translations of BRICKKIT.md; at most %d are accepted", len(req.DocTranslations), docspec.MaxTranslations))
+	}
+	total := len(req.Doc)
+	langs := make([]string, 0, len(req.DocTranslations))
+	for l := range req.DocTranslations {
+		langs = append(langs, l)
+	}
+	sort.Strings(langs)
+	for _, l := range langs {
+		doc := req.DocTranslations[l]
+		total += len(doc)
+		if !docspec.ValidLang(l) {
+			add(fmt.Sprintf("%q is not a language code (lowercase, like zh or pt-br)", l))
+		}
+		if len(doc) > manifest.MaxDocBytes {
+			add(fmt.Sprintf("BRICKKIT.%s.md is %d bytes; the limit is %d", l, len(doc), manifest.MaxDocBytes))
+		}
+	}
+	if total > manifest.MaxDocsTotalBytes {
+		add(fmt.Sprintf("BRICKKIT.md and its translations total %d bytes; the limit is %d", total, manifest.MaxDocsTotalBytes))
 	}
 	return p
 }

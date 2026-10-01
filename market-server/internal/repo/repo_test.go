@@ -709,16 +709,19 @@ func testVersionDocRoundTrip(t *testing.T, r repo.Repository) {
 
 	withDoc := newVersion("people/basic", "1.0.0")
 	withDoc.Doc = "# people/basic\n\n多行文档，含中文。\n"
+	withDoc.DocTranslations = map[string]string{"en": "# people/basic\n\nIn English.\n"}
 	require.NoError(t, r.CreateVersion(ctx, withDoc))
 	require.NoError(t, r.CreateVersion(ctx, newVersion("people/basic", "2.0.0")))
 
 	got, err := r.GetVersion(ctx, "people/basic", "1.0.0")
 	require.NoError(t, err)
 	assert.Equal(t, withDoc.Doc, got.Doc)
+	assert.Equal(t, withDoc.DocTranslations, got.DocTranslations)
 
 	got, err = r.GetVersion(ctx, "people/basic", "2.0.0")
 	require.NoError(t, err)
 	assert.Empty(t, got.Doc)
+	assert.Empty(t, got.DocTranslations)
 }
 
 // 非管理员只看得到自己名下组件的条目、以及自己做过的操作；limit 在收窄之后才生效。

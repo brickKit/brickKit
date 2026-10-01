@@ -3,12 +3,11 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -16,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/market"
@@ -106,6 +106,9 @@ func runPublish(ctx context.Context, opts *Options, f publishFlags) error {
 	if pkg.doc != "" {
 		opts.Printf("%s\n", i18n.T(msgid.CliPublishDocIncluded, len(pkg.doc)))
 	}
+	if len(pkg.docTranslations) > 0 {
+		opts.Printf("%s\n", i18n.T(msgid.CliPublishDocTranslationsIncluded, strings.Join(pkg.translationLangs(), i18n.T(msgid.ListSeparator))))
+	}
 
 	// ⚠️ 钉 digest 必须在**签名之前**：反过来的话签的是旧 Manifest，
 	// 上传的却是钉过的——消费方一律验签失败，而发布者这边一切正常
@@ -149,6 +152,8 @@ type publishPackage struct {
 	document json.RawMessage
 	// doc 是组件仓库根的 BRICKKIT.md，没有时为空。
 	doc string
+	// docTranslations 是 BRICKKIT.md 的译本：语言 → 内容。
+	docTranslations map[string]string
 	// files 是 artifacts 声明的文件（相对路径 → 内容）。
 	files      map[string][]byte
 	fileOrder  []string
@@ -235,34 +240,77 @@ func (p *publishPackage) loadArtifactFiles() error {
 	return nil
 }
 
-// loadDoc 读组件仓库根的 BRICKKIT.md。没有不算错；太大或不是文本就在建版本之前拦下，
-// 与产物文件同一个理由：传到一半才被市场拒收，那个版本号就烧掉了。
+// loadDoc 读组件仓库根的 BRICKKIT.md 与它的译本（BRICKKIT.<lang>.md）。没有不算错；每份太大或不是文本、
+// 译本太多、合计太大，都在建版本之前拦下，与产物文件同一个理由：传到一半才被市场拒收，那个版本号就烧掉了。
+// 后缀不是语言代码的文件不发（lint 会点出它们）。
 func (p *publishPackage) loadDoc() error {
-	path := filepath.Join(p.root, manifest.FileDoc)
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
+	entries, err := os.ReadDir(p.root)
 	if err != nil {
 		return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishDocCannotBePublished)).
-			WithDetail(i18n.T(msgid.LabelPath), path).
+			WithDetail(i18n.T(msgid.LabelPath), p.root).
 			WithDetail(i18n.T(msgid.LabelReason), err.Error()).
 			WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
 	}
+	total := 0
+	for _, e := range entries {
+		base, lang, ok := docspec.SplitTranslation(e.Name())
+		if e.IsDir() || !ok || base != docspec.FileBrickkit {
+			continue
+		}
+		path := filepath.Join(p.root, e.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishDocCannotBePublished)).
+				WithDetail(i18n.T(msgid.LabelPath), path).
+				WithDetail(i18n.T(msgid.LabelReason), err.Error()).
+				WithCause(err).WithHint(i18n.T(msgid.HintCheckDiskAccess))
+		}
+		var reason string
+		switch {
+		case len(data) > manifest.MaxDocBytes:
+			reason = i18n.T(msgid.CliPublishDocTooLarge, len(data), manifest.MaxDocBytes)
+		case !utf8.Valid(data):
+			reason = i18n.T(msgid.CliPublishDocNotUTF8)
+		}
+		if reason != "" {
+			return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishDocCannotBePublished)).
+				WithDetail(i18n.T(msgid.LabelPath), path).
+				WithDetail(i18n.T(msgid.LabelReason), reason).
+				WithHint(i18n.T(msgid.CliPublishHintShortenDoc))
+		}
+		total += len(data)
+		if lang == "" {
+			p.doc = string(data)
+			continue
+		}
+		if p.docTranslations == nil {
+			p.docTranslations = map[string]string{}
+		}
+		p.docTranslations[lang] = string(data)
+	}
 	var reason string
 	switch {
-	case len(data) > manifest.MaxDocBytes:
-		reason = i18n.T(msgid.CliPublishDocTooLarge, len(data), manifest.MaxDocBytes)
-	case !utf8.Valid(data):
-		reason = i18n.T(msgid.CliPublishDocNotUTF8)
+	case len(p.docTranslations) > docspec.MaxTranslations:
+		reason = i18n.T(msgid.CliPublishTooManyTranslations, len(p.docTranslations), docspec.MaxTranslations)
+	case total > manifest.MaxDocsTotalBytes:
+		reason = i18n.T(msgid.CliPublishDocsTotalTooLarge, total, manifest.MaxDocsTotalBytes)
 	default:
-		p.doc = string(data)
 		return nil
 	}
 	return clierr.New(clierr.CodeManifestInvalid, i18n.T(msgid.CliPublishDocCannotBePublished)).
-		WithDetail(i18n.T(msgid.LabelPath), path).
+		WithDetail(i18n.T(msgid.LabelPath), filepath.Join(p.root, docspec.TranslationName(docspec.FileBrickkit, "*"))).
 		WithDetail(i18n.T(msgid.LabelReason), reason).
 		WithHint(i18n.T(msgid.CliPublishHintShortenDoc))
+}
+
+// translationLangs 是要发的译本语言，排好序。
+func (p *publishPackage) translationLangs() []string {
+	langs := make([]string, 0, len(p.docTranslations))
+	for l := range p.docTranslations {
+		langs = append(langs, l)
+	}
+	sort.Strings(langs)
+	return langs
 }
 
 // manifestDocument 把 component.yaml 原样转成 JSON。
@@ -303,6 +351,8 @@ func uploadRelease(
 		Changelog:  f.changelog,
 		Signature:  pkg.signature,
 		Doc:        pkg.doc,
+		// 译本不在签名范围内，与 Doc 一样：是给人读的说明，改不了实际运行的任何东西
+		DocTranslations: pkg.docTranslations,
 	})
 	switch {
 	case market.IsVersionExists(err):

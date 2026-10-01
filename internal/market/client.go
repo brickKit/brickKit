@@ -84,6 +84,8 @@ type PublishRequest struct {
 	// Doc 是组件仓库根的 BRICKKIT.md 全文，没有时不发。它不在签名范围内：
 	// 是给人与 AI 读的说明，改了它改不了实际运行的任何东西。
 	Doc string `json:"doc,omitempty"`
+	// DocTranslations 是 BRICKKIT.md 的译本：语言代码 → 内容。
+	DocTranslations map[string]string `json:"docTranslations,omitempty"`
 }
 
 // Artifact 是市场返回的产物条目。

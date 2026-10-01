@@ -175,6 +175,19 @@ func (r *gitRepo) file(ctx context.Context, tag, path string) (data []byte, ok b
 	return data, true, nil
 }
 
+// names 列出 tag 里某个目录下的条目名（不递归）；dir 为空串时是仓库根。
+func (r *gitRepo) names(ctx context.Context, tag, dir string) ([]string, error) {
+	spec := tag
+	if dir != "" {
+		spec = tag + ":" + dir
+	}
+	out, err := runGit(ctx, r.dir, "ls-tree", "--name-only", spec)
+	if err != nil {
+		return nil, err
+	}
+	return strings.Fields(string(out)), nil
+}
+
 // tags 列出仓库里的全部 tag。
 func (r *gitRepo) tags(ctx context.Context) ([]string, error) {
 	out, err := runGit(ctx, r.dir, "tag", "--list")

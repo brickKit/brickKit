@@ -156,6 +156,10 @@ const FileDoc = docspec.FileBrickkit
 // 文档是给人与 AI 读的说明，256 KiB 已经是几万字。
 const MaxDocBytes = 256 << 10
 
+// MaxDocsTotalBytes 是 BRICKKIT.md 连同全部译本加起来的上限：一次发布的请求体有上限，
+// 照它限死合计，市场那头的请求大小上限就不用跟着译本份数涨。
+const MaxDocsTotalBytes = 4 * MaxDocBytes
+
 // scaffoldPlaceholderMember 是外壳骨架里的占位成员。
 const scaffoldPlaceholderMember = "example/member@0.1.0"
 

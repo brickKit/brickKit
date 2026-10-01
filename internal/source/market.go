@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/market"
@@ -53,6 +54,8 @@ type marketSource struct {
 	// 签名在取 Manifest 时顺手拿到，不另发一次请求：CLI 只调用市场的
 	// manifest 端点，签名就在那个信封里。
 	signatures map[string]*security.Signature
+	// docLangs 是上一次取 Manifest 时信封里写着的译本语言（docLanguages），键是 id@version。
+	docLangs map[string][]string
 }
 
 // marketArtifact 是产物列表端点返回的一条记录。
@@ -73,6 +76,12 @@ func (s *marketSource) manifestBytes(ctx context.Context, componentID, version s
 		return nil, err
 	}
 	s.rememberSignature(componentID, version, signatureFromBody(body))
+	s.mu.Lock()
+	if s.docLangs == nil {
+		s.docLangs = map[string][]string{}
+	}
+	s.docLangs[componentID+"@"+version] = docLangsFromBody(body)
+	s.mu.Unlock()
 	return manifestFromBody(body, s.sourceID)
 }
 
@@ -131,10 +140,39 @@ func (s *marketSource) artifactFile(ctx context.Context, componentID, version st
 		url.Values{"file": []string{file}})
 }
 
-// docBytes 取这个版本的 BRICKKIT.md。版本没带文档（或市场还没有这个端点）时是 404，
-// 即 errNotFound，不算错。
-func (s *marketSource) docBytes(ctx context.Context, componentID, version string) ([]byte, error) {
-	return s.get(ctx, s.versionPath(componentID, version)+"/doc", nil)
+// docFiles 取这个版本的 BRICKKIT.md 与译本。原文走 /doc，译本走 /doc?lang=<语言>——有哪些语言，
+// 取 Manifest 时信封里的 docLanguages 已经说了（见 manifestBytes）。版本没带文档（或市场还没有这个端点）
+// 时是 404，即 errNotFound，不算错；某个译本取不到就少那一份。
+func (s *marketSource) docFiles(ctx context.Context, componentID, version string) (map[string][]byte, error) {
+	files := map[string][]byte{}
+	if data, err := s.get(ctx, s.versionPath(componentID, version)+"/doc", nil); err == nil {
+		files[docspec.FileBrickkit] = data
+	}
+	s.mu.Lock()
+	langs := s.docLangs[componentID+"@"+version]
+	s.mu.Unlock()
+	for _, lang := range langs {
+		if !docspec.ValidLang(lang) {
+			continue
+		}
+		if data, err := s.get(ctx, s.versionPath(componentID, version)+"/doc", url.Values{"lang": []string{lang}}); err == nil {
+			files[docspec.TranslationName(docspec.FileBrickkit, lang)] = data
+		}
+	}
+	return files, nil
+}
+
+// docLangsFromBody 从 Manifest 响应信封里取 docLanguages（这个版本带着哪些语言的译本）；没有就是没有。
+func docLangsFromBody(body []byte) []string {
+	var envelope struct {
+		Data struct {
+			DocLanguages []string `json:"docLanguages"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return nil
+	}
+	return envelope.Data.DocLanguages
 }
 
 // origin 读取该版本的来源信息（开源 git / 闭源 registry）。

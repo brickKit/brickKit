@@ -269,13 +269,17 @@ func (p *Postgres) CreateVersion(ctx context.Context, v *model.Version) error {
 		return err
 	}
 
+	translations, err := json.Marshal(nonNilStrings(v.DocTranslations))
+	if err != nil {
+		return err
+	}
 	_, err = p.db.ExecContext(ctx, `
 		INSERT INTO component_versions
 			(component_id, version, status, manifest_json, changelog, signature_json,
-			 published_at, published_by, doc)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''))`,
+			 published_at, published_by, doc, doc_translations)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10)`,
 		v.ComponentID, v.Version, v.Status, []byte(v.Manifest), v.Changelog, signature,
-		publishedAt, v.PublishedBy, v.Doc)
+		publishedAt, v.PublishedBy, v.Doc, translations)
 	if isUniqueViolation(err) {
 		return ErrConflict
 	}
@@ -285,7 +289,7 @@ func (p *Postgres) CreateVersion(ctx context.Context, v *model.Version) error {
 func (p *Postgres) GetVersion(ctx context.Context, componentID, version string) (*model.Version, error) {
 	row := p.db.QueryRowContext(ctx, `
 		SELECT component_id, version, status, manifest_json, COALESCE(changelog,''),
-		       signature_json, published_at, COALESCE(published_by,''), COALESCE(doc,'')
+		       signature_json, published_at, COALESCE(published_by,''), COALESCE(doc,''), doc_translations
 		FROM component_versions WHERE component_id = $1 AND version = $2`, componentID, version)
 	return scanVersion(row)
 }
@@ -294,7 +298,7 @@ func (p *Postgres) ListVersions(ctx context.Context, componentID string) ([]mode
 	rows, err := p.db.QueryContext(ctx, `
 		SELECT component_id, version, status, manifest_json, COALESCE(changelog,''),
 		       signature_json, published_at, COALESCE(published_by,''),
-		       '' -- 列表不带文档：用不上，而它可能是一行里最大的值
+		       '', '{}'::jsonb -- 列表不带文档与译本：用不上，而它们可能是一行里最大的值
 		FROM component_versions WHERE component_id = $1`, componentID)
 	if err != nil {
 		return nil, err
@@ -636,12 +640,13 @@ func scanComponent(s scanner) (*model.Component, error) {
 
 func scanVersion(s scanner) (*model.Version, error) {
 	var (
-		v         model.Version
-		manifest  []byte
-		signature []byte
+		v            model.Version
+		manifest     []byte
+		signature    []byte
+		translations []byte
 	)
 	err := s.Scan(&v.ComponentID, &v.Version, &v.Status, &manifest,
-		&v.Changelog, &signature, &v.PublishedAt, &v.PublishedBy, &v.Doc)
+		&v.Changelog, &signature, &v.PublishedAt, &v.PublishedBy, &v.Doc, &translations)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -650,6 +655,14 @@ func scanVersion(s scanner) (*model.Version, error) {
 	}
 	v.Manifest = json.RawMessage(manifest)
 	v.PublishedAt = v.PublishedAt.UTC()
+	if len(translations) > 0 {
+		if err := json.Unmarshal(translations, &v.DocTranslations); err != nil {
+			return nil, err
+		}
+		if len(v.DocTranslations) == 0 {
+			v.DocTranslations = nil
+		}
+	}
 	if v.Signature, err = unmarshalSignature(signature); err != nil {
 		return nil, err
 	}
@@ -824,4 +837,12 @@ func (p *Postgres) SetUserOrg(ctx context.Context, userID, orgID string) error {
 		value = nil
 	}
 	return p.exec1(ctx, `UPDATE users SET org_id = $2 WHERE user_id = $1`, userID, value)
+}
+
+// nonNilStrings：没有译本时存空对象 {}（列是 NOT NULL），读回来再还原成 nil。
+func nonNilStrings(m map[string]string) map[string]string {
+	if m == nil {
+		return map[string]string{}
+	}
+	return m
 }

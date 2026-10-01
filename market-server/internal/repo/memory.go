@@ -157,6 +157,7 @@ func (m *Memory) CreateVersion(_ context.Context, v *model.Version) error {
 
 	stored := *v
 	stored.Manifest = append(json.RawMessage(nil), v.Manifest...)
+	stored.DocTranslations = copyStrings(v.DocTranslations)
 	if stored.PublishedAt.IsZero() {
 		stored.PublishedAt = time.Now().UTC()
 	}
@@ -468,6 +469,7 @@ func copyComponent(c model.Component) *model.Component {
 
 func copyVersion(v model.Version) *model.Version {
 	v.Manifest = append(json.RawMessage(nil), v.Manifest...)
+	v.DocTranslations = copyStrings(v.DocTranslations)
 	return &v
 }
 
@@ -597,4 +599,16 @@ func (m *Memory) SetUserOrg(_ context.Context, userID, orgID string) error {
 	user.OrgID = orgID
 	m.users[userID] = user
 	return nil
+}
+
+// copyStrings 复制一份 map：存进去的与读出来的都不能和调用方共用同一份。
+func copyStrings(m map[string]string) map[string]string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }

@@ -92,3 +92,14 @@ func TestAgentsTableForLocalComponent(t *testing.T) {
 	assert.Regexp(t, `\| erp/api \| 1\.0\.0 \| [^|]+ \| BRICKKIT\.md \| — \|`, doc)
 	assert.NotContains(t, doc, "components/erp/api/")
 }
+
+// 组件带着 BRICKKIT.md 的译本：add 把每份都缓存下来，表的"文档"一列列出语言。
+func TestAgentsTableListsDocTranslations(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.release(comp{ID: "erp/api", Version: "1.0.0"}, map[string]string{"BRICKKIT.md": "# erp/api\n", "BRICKKIT.zh.md": "# erp/api\n"})
+	dir := agentsProject(t, g, managedAgents)
+
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+	assert.Regexp(t, `\| erp/api \| 1\.0\.0 \| [^|]+ \| BRICKKIT\.md \+zh \| — \|`, readFile(t, filepath.Join(dir, "AGENTS.md")))
+	assert.FileExists(t, filepath.Join(dir, ".brickkit", "manifests", "erp", "api", "1.0.0", "BRICKKIT.zh.md"))
+}

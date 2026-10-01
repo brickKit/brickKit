@@ -117,15 +117,15 @@ func (a *api) manifest(w http.ResponseWriter, r *http.Request, p params) {
 	writeJSON(w, http.StatusOK, view)
 }
 
-// doc 处理 GET /api/v1/components/{id}/versions/{ver}/doc：这个版本的 BRICKKIT.md，
-// 原样的 Markdown，不包信封（它就是一个文件）。错误照常是 JSON 信封。
+// doc 处理 GET /api/v1/components/{id}/versions/{ver}/doc：这个版本的 BRICKKIT.md（?lang=<代码> 时是那种
+// 语言的译本），原样的 Markdown，不包信封（它就是一个文件）。错误照常是 JSON 信封。
 func (a *api) doc(w http.ResponseWriter, r *http.Request, p params) {
 	id, ok := a.requireIdentity(w, r)
 	if !ok {
 		return
 	}
 
-	doc, err := a.svc.GetDoc(r.Context(), id, p.componentID(), p["version"])
+	doc, err := a.svc.GetDoc(r.Context(), id, p.componentID(), p["version"], r.URL.Query().Get("lang"))
 	if err != nil {
 		writeError(w, err)
 		return

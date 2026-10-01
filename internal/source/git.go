@@ -19,10 +19,10 @@ import (
 	"strings"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
-	"github.com/brickkit/brickkit/internal/project"
 )
 
 // gitSource 是一个 git 安装源：按 baseUrl 推导仓库（sources[] 里的一项），
@@ -153,8 +153,31 @@ func (s *gitSource) artifactFile(ctx context.Context, componentID, version strin
 	return s.fileAtVersion(ctx, componentID, version, file)
 }
 
-func (s *gitSource) docBytes(ctx context.Context, componentID, version string) ([]byte, error) {
-	return s.fileAtVersion(ctx, componentID, version, project.FileCachedDoc)
+// docFiles 读这个版本 tag 里组件目录下的 BRICKKIT.md 与译本。
+func (s *gitSource) docFiles(ctx context.Context, componentID, version string) (map[string][]byte, error) {
+	repoURL, subpath := s.locate(componentID)
+	tag := tagPrefix(componentID, subpath) + version
+	repo, found, err := s.repoWithTag(ctx, componentID, tag)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, errNotFound
+	}
+	names, err := repo.names(ctx, tag, subpath)
+	if err != nil {
+		return nil, s.failed(componentID, repoURL, err)
+	}
+	files := map[string][]byte{}
+	for _, n := range names {
+		if base, _, ok := docspec.SplitTranslation(n); !ok || base != docspec.FileBrickkit {
+			continue
+		}
+		if data, err := s.fileAtVersion(ctx, componentID, version, n); err == nil {
+			files[n] = data
+		}
+	}
+	return files, nil
 }
 
 // fileAtVersion 读组件某个版本里的文件（相对组件目录）；没有时返回 errNotFound。

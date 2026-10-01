@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -359,4 +360,27 @@ func TestMarketAddWithoutDoc(t *testing.T) {
 	require.NoError(t, err)
 	_, ok := c.Doc("people/basic", "1.0.0")
 	assert.False(t, ok)
+}
+
+// 市场：Manifest 信封里列出有哪些译本，每种语言从 /doc?lang= 取。
+func TestMarketCachesEveryDocLanguage(t *testing.T) {
+	mock := newMarketMock(t, componentSpec{ID: "people/basic", Version: "1.0.0"})
+	mock.docs = map[string]string{"people/basic@1.0.0": "# en\n"}
+	mock.docTranslations = map[string]map[string]string{"people/basic@1.0.0": {"zh": "# zh\n"}}
+	layout := newProject(t)
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL(),
+	}), Options{})
+
+	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+	require.NoError(t, err)
+	primary, langs := layout.CachedDocLangs("people/basic", "1.0.0")
+	assert.True(t, primary)
+	assert.Equal(t, []string{"zh"}, langs)
+	assert.Equal(t, "# zh\n", readFile(t, filepath.Join(layout.CachedManifestDir("people/basic", "1.0.0"), "BRICKKIT.zh.md")))
+	var asked []string
+	for _, r := range mock.recordedFor("/doc") {
+		asked = append(asked, r.Query)
+	}
+	assert.Equal(t, []string{"", "lang=zh"}, asked)
 }

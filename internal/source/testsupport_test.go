@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -218,6 +219,9 @@ type marketMock struct {
 	failVersionList bool
 	// docs 是各版本的 BRICKKIT.md，键是 "<id>@<version>"；没有的版本 /doc 回 404。
 	docs map[string]string
+	// docTranslations 是各版本 BRICKKIT.md 的译本（语言 → 内容），键是 "<id>@<version>"：
+	// /doc?lang=<code> 给出，Manifest 信封里的 docLanguages 列出有哪些。
+	docTranslations map[string]map[string]string
 
 	mu       sync.Mutex
 	requests []recordedRequest
@@ -304,6 +308,17 @@ func (m *marketMock) handle(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case action == "manifest":
 		m.writeManifest(w, spec)
+	case action == "doc" && r.URL.Query().Get("lang") != "":
+		doc, ok := m.docTranslations[idPart+"@"+version][r.URL.Query().Get("lang")]
+		if !ok {
+			writeJSON(w, http.StatusNotFound, map[string]any{
+				"success": false,
+				"error":   map[string]any{"code": "NOT_FOUND", "message": "no translation"},
+			})
+			return
+		}
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		_, _ = io.WriteString(w, doc)
 	case action == "doc":
 		doc, ok := m.docs[idPart+"@"+version]
 		if !ok {
@@ -386,6 +401,14 @@ func (m *marketMock) writeManifest(w http.ResponseWriter, spec componentSpec) {
 	}
 	if m.signature != nil {
 		data["signature"] = m.signature
+	}
+	if tr := m.docTranslations[spec.ID+"@"+spec.Version]; len(tr) > 0 {
+		var langs []string
+		for l := range tr {
+			langs = append(langs, l)
+		}
+		sort.Strings(langs)
+		data["docLanguages"] = langs
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": data})
 }

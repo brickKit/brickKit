@@ -1809,4 +1809,7 @@ const (
 	DoccheckClaudeImport                                       ID = "doccheck.claude_import"
 	DoccheckAgentsBlock                                        ID = "doccheck.agents_block"
 	CliLintDocsEntry                                           ID = "cli.lint.docs_entry"
+	CliPublishTooManyTranslations                              ID = "cli.publish.too_many_translations"
+	CliPublishDocsTotalTooLarge                                ID = "cli.publish.docs_total_too_large"
+	CliPublishDocTranslationsIncluded                          ID = "cli.publish.doc_translations_included"
 )

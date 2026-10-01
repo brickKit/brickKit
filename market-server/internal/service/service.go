@@ -137,15 +137,16 @@ func (s *Service) Publish(
 		status = model.VersionDraft
 	}
 	version := &model.Version{
-		ComponentID: componentID,
-		Version:     m.Metadata.Version,
-		Status:      status,
-		Manifest:    req.Manifest,
-		Changelog:   req.Changelog,
-		PublishedAt: s.now(),
-		PublishedBy: id.Username,
-		Signature:   req.Signature,
-		Doc:         req.Doc,
+		ComponentID:     componentID,
+		Version:         m.Metadata.Version,
+		Status:          status,
+		Manifest:        req.Manifest,
+		Changelog:       req.Changelog,
+		PublishedAt:     s.now(),
+		PublishedBy:     id.Username,
+		Signature:       req.Signature,
+		Doc:             req.Doc,
+		DocTranslations: req.DocTranslations,
 	}
 	if err := s.repo.CreateVersion(ctx, version); err != nil {
 		if errors.Is(err, repo.ErrConflict) {
@@ -329,6 +330,8 @@ type ManifestView struct {
 	// Signature 随 Manifest 一起返回：CLI 在 add 时只请求这一个端点，
 	// 签名不跟着回来，使用者就得再猜一次它在哪儿——或者干脆验不了。
 	Signature *model.Signature `json:"signature,omitempty"`
+	// DocLanguages 是 BRICKKIT.md 带着译本的语言：CLI 据此逐个到 /doc?lang= 去取，不必一个个猜。
+	DocLanguages []string `json:"docLanguages,omitempty"`
 }
 
 // GetManifest 获取某个版本的 Manifest。
@@ -345,19 +348,21 @@ func (s *Service) GetManifest(
 	}
 
 	return &ManifestView{
-		ComponentID: componentID,
-		Version:     v.Version,
-		Status:      v.Status,
-		Manifest:    v.Manifest,
-		SourceType:  component.SourceType,
-		GitURL:      component.GitURL,
-		Signature:   v.Signature,
+		ComponentID:  componentID,
+		Version:      v.Version,
+		Status:       v.Status,
+		Manifest:     v.Manifest,
+		SourceType:   component.SourceType,
+		GitURL:       component.GitURL,
+		Signature:    v.Signature,
+		DocLanguages: v.DocLanguages(),
 	}, nil
 }
 
 // GetDoc 取一个版本的 BRICKKIT.md。能不能看、看得到哪些版本，与 GetManifest 完全一样——
 // 新端点不能成为 private 组件或 draft 版本的旁路。没有文档时 NOT_FOUND。
-func (s *Service) GetDoc(ctx context.Context, id *Identity, componentID, version string) (string, error) {
+// lang 为空时是原文 BRICKKIT.md，否则是那种语言的译本（BRICKKIT.<lang>.md）。
+func (s *Service) GetDoc(ctx context.Context, id *Identity, componentID, version, lang string) (string, error) {
 	component, err := s.loadReadableComponent(ctx, id, componentID)
 	if err != nil {
 		return "", err
@@ -365,6 +370,13 @@ func (s *Service) GetDoc(ctx context.Context, id *Identity, componentID, version
 	v, err := s.installableVersion(ctx, id, component, version)
 	if err != nil {
 		return "", err
+	}
+	if lang != "" {
+		doc, ok := v.DocTranslations[lang]
+		if !ok {
+			return "", model.Errorf(model.CodeNotFound, "this version has no BRICKKIT."+lang+".md: "+componentID+"@"+version)
+		}
+		return doc, nil
 	}
 	if v.Doc == "" {
 		return "", model.Errorf(model.CodeNotFound, "this version has no BRICKKIT.md: "+componentID+"@"+version)

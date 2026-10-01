@@ -133,3 +133,6 @@ CREATE INDEX IF NOT EXISTS idx_audit_action          ON audit_logs(action);
 
 -- 组件文档（BRICKKIT.md）随版本存；这一列之前发布的版本没有文档。
 ALTER TABLE component_versions ADD COLUMN IF NOT EXISTS doc TEXT;
+
+-- BRICKKIT.md 的译本（语言代码 → 全文）随版本存；这一列之前发布的版本没有译本。
+ALTER TABLE component_versions ADD COLUMN IF NOT EXISTS doc_translations JSONB NOT NULL DEFAULT '{}'::jsonb;

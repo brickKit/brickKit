@@ -364,3 +364,33 @@ func conflictsOf(t *testing.T, e *model.APIError) []model.ReservedConflict {
 	require.True(t, ok, "conflicts 应为 []model.ReservedConflict，实际 %T", raw)
 	return conflicts
 }
+
+// 译本：键要是语言代码，份数、每份大小、合计大小都有上限——绕过 CLI 的请求同样拦下。
+func TestValidateDocTranslations(t *testing.T) {
+	requireValid(t, req(t, manifestJSON(t, nil), func(r *model.PublishRequest) {
+		r.Doc = "# en\n"
+		r.DocTranslations = map[string]string{"zh": "# zh\n", "pt-br": "# pt\n"}
+	}))
+
+	for name, tr := range map[string]map[string]string{
+		"not a code": {"zh-CN": "# x\n"},
+		"oversized":  {"zh": strings.Repeat("x", manifest.MaxDocBytes+1)},
+	} {
+		apiErr := requireInvalid(t, req(t, manifestJSON(t, nil), func(r *model.PublishRequest) { r.DocTranslations = tr }))
+		assert.Equal(t, []string{"docTranslations"}, fields(problemsOf(t, apiErr)), name)
+	}
+
+	many := map[string]string{}
+	for i := 0; i < 17; i++ {
+		many[string(rune('a'+i))+"a"] = "x"
+	}
+	apiErr := requireInvalid(t, req(t, manifestJSON(t, nil), func(r *model.PublishRequest) { r.DocTranslations = many }))
+	assert.Contains(t, fields(problemsOf(t, apiErr)), "docTranslations")
+
+	big := map[string]string{}
+	for _, l := range []string{"de", "fr", "it", "ja", "ko"} {
+		big[l] = strings.Repeat("x", manifest.MaxDocBytes-10)
+	}
+	apiErr = requireInvalid(t, req(t, manifestJSON(t, nil), func(r *model.PublishRequest) { r.DocTranslations = big }))
+	assert.Contains(t, fields(problemsOf(t, apiErr)), "docTranslations")
+}
