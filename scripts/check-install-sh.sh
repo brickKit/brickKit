@@ -32,7 +32,7 @@ bad() {
 # ---------- 1. shellcheck（有就跑，没有就响亮跳过）----------
 echo "▶ shellcheck"
 if command -v shellcheck >/dev/null 2>&1; then
-	if shellcheck --shell=sh install.sh && shellcheck scripts/release.sh scripts/check-install-sh.sh; then
+	if shellcheck --shell=sh install.sh && shellcheck scripts/release.sh scripts/check-install-sh.sh scripts/check-release-notes.sh .github/release-notes.sh; then
 		ok "shellcheck 通过"
 	else
 		bad "shellcheck 有问题（见上）"

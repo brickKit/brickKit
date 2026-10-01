@@ -84,6 +84,32 @@ func TestReleaseTagsAndPushes(t *testing.T) {
 	assert.Equal(t, git(t, r.work, "rev-parse", "HEAD"), git(t, r.origin, "rev-parse", "1.1.0^{commit}"))
 }
 
+// 带说明发版：说明原样写进带注释的 tag（# 开头的 Markdown 标题不被当成注释删掉），推上去的就是它。
+func TestReleaseWithNotesWritesThemIntoTheTag(t *testing.T) {
+	t.Setenv("GIT_COMMITTER_NAME", "t")
+	t.Setenv("GIT_COMMITTER_EMAIL", "t@example.com")
+	r := newRepo(t, map[string]string{"component.yaml": manifestYAML("erp/api", "1.1.0")})
+	target := prepare(t, r.work)
+	target.Notes = "## Added\n\n- an export endpoint\n\n# Breaking\n"
+	_, err := target.Check()
+	require.NoError(t, err)
+	require.NoError(t, target.Publish())
+
+	assert.Equal(t, "tag", git(t, r.origin, "cat-file", "-t", "1.1.0"))
+	assert.Equal(t, "## Added\n\n- an export endpoint\n\n# Breaking", git(t, r.origin, "for-each-ref", "refs/tags/1.1.0", "--format=%(contents)"))
+}
+
+// 不写说明照样发：和从前一样是轻量 tag。
+func TestReleaseWithoutNotesStaysALightweightTag(t *testing.T) {
+	r := newRepo(t, map[string]string{"component.yaml": manifestYAML("erp/api", "1.1.0")})
+	target := prepare(t, r.work)
+	target.Notes = "  \n"
+	_, err := target.Check()
+	require.NoError(t, err)
+	require.NoError(t, target.Publish())
+	assert.Equal(t, "commit", git(t, r.origin, "cat-file", "-t", "1.1.0"))
+}
+
 // 组件目录不是仓库根时，tag 带命名空间 <scope>-<name>/<版本>。
 func TestReleaseSubdirUsesNamespacedTag(t *testing.T) {
 	r := newRepo(t, map[string]string{"svc/api/component.yaml": manifestYAML("erp/api", "1.0.0"), "README.md": "x"})

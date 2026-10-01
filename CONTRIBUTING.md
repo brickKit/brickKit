@@ -138,6 +138,42 @@ it keeps the history easy to scan.
 Work on a feature branch and open a PR against `main`. There is no branch protection or required review yet (the
 project is young), so in practice a PR is where a change is discussed before it lands, not a technical gate.
 
+## Releasing BrickKit
+
+This is for maintainers releasing the BrickKit CLI itself (releasing a *component* is `brickkit release`; see
+[Releasing](docs/en/03-component-guide/07-release-workflow.md)). A release is a `v<X.Y.Z>` tag pushed to GitHub; the
+release workflow (`.github/workflows/release.yml`) then builds the five platform artifacts, smoke-tests each one, signs
+the checksums with cosign (keyless) and publishes a **public** GitHub release. From 1.0.0 on, BrickKit follows
+[semantic versioning](https://semver.org): a breaking change raises the major version, a new feature the minor, a fix
+the patch.
+
+```bash
+make release VERSION=1.0.0 NOTES=../brickkit-1.0.0.md
+CONFIRM=yes make release VERSION=1.0.0 NOTES=../brickkit-1.0.0.md   # no prompt (scripts, no terminal)
+```
+
+`NOTES` is required: a Markdown file with this version's release notes — what changed, and how to migrate across
+anything that breaks. Keep it **outside the repository**: the worktree has to be clean, and a new file in it isn't.
+The notes go, verbatim (`#` headings included: the tag is written with `--cleanup=verbatim`), into the annotated tag
+`v<X.Y.Z>`, and the release page starts with them, followed by Install, Verify the signature and Platforms, and ends
+with an automatic **Full changelog** link comparing against the previous `v*` tag. A tag without notes (a lightweight
+tag, or empty notes) makes the workflow fail before anything is published.
+
+Before it tags anything, `scripts/release.sh` stops — without tagging or pushing — when:
+
+1. `VERSION` isn't `X.Y.Z`;
+2. `NOTES` is missing, or the file doesn't exist, is empty or holds only whitespace;
+3. the current branch isn't `main`;
+4. the worktree isn't clean (the commit stamped into the binaries must be the source they were built from);
+5. local `main` and `origin/main` differ (after a fetch);
+6. the tag already exists, on the remote or locally;
+7. `make lint test-unit` fails.
+
+Then it shows what is about to happen and asks for confirmation; without a terminal it refuses unless `CONFIRM=yes`.
+Only then does it tag and push. `make check-release-notes` (part of `make lint`) tests the release-page body against
+real Git repositories: notes taken from the tag with their headings intact, the compare link, and the failure without
+notes.
+
 ## Reporting a bug or proposing a feature
 
 Open a GitHub issue. For a bug, the CLI's own output is usually most of what's needed — `brickkit` writes structured

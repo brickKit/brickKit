@@ -8,6 +8,7 @@ package cli
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -24,6 +25,7 @@ import (
 func newReleaseCommand(opts *Options) *cobra.Command {
 	var path string
 	var local bool
+	var notes notesFlags
 	cmd := &cobra.Command{
 		Use:     "release",
 		Short:   i18n.T(msgid.CliReleaseShort),
@@ -37,17 +39,27 @@ func newReleaseCommand(opts *Options) *cobra.Command {
 					return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliReleaseLocalWithPath)).
 						WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliReleaseHintLocalOrPath))
 				}
+				// 一份说明讲的是一个组件的一个版本；--local 一次发好几个
+				if notes.given(cmd) {
+					return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliReleaseNotesWithLocal)).
+						WithExit(clierr.ExitUsage).WithHint(i18n.T(msgid.CliReleaseHintNotesWithLocal))
+				}
 				return runReleaseLocal(opts)
 			}
-			return runRelease(opts, path)
+			text, err := notes.read(cmd, opts)
+			if err != nil {
+				return err
+			}
+			return runRelease(opts, path, text)
 		},
 	}
 	cmd.Flags().StringVar(&path, "path", ".", i18n.T(msgid.CliReleaseFlagPath))
 	cmd.Flags().BoolVar(&local, "local", false, i18n.T(msgid.CliReleaseFlagLocal))
+	notes.register(cmd)
 	return cmd
 }
 
-func runRelease(opts *Options, path string) error {
+func runRelease(opts *Options, path, notes string) error {
 	dir := path
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(opts.WorkDir, dir)
@@ -64,10 +76,14 @@ func runRelease(opts *Options, path string) error {
 		return clierr.New(clierr.CodeReleaseBlocked, i18n.T(msgid.ReleaseAlreadyReleased, target.Ref(), target.Tag)).
 			WithHint(i18n.T(msgid.ReleaseHintBumpVersion, manifest.FileName))
 	}
+	target.Notes = notes
 	if err := target.Publish(); err != nil {
 		return err
 	}
 	opts.Printf("%s\n", i18n.T(msgid.CliReleaseDone, target.Ref(), target.Tag))
+	if strings.TrimSpace(notes) != "" {
+		opts.Printf("   📝 %s\n", i18n.T(msgid.CliReleaseNotesWritten))
+	}
 	return nil
 }
 

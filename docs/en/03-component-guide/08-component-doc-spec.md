@@ -23,7 +23,7 @@ them in more than one language, and what `brickkit lint` checks. `brickkit new` 
 | `CLAUDE.md` | ✅ | Claude Code | Exactly one line, `@AGENTS.md` |
 | `README.md` | ✅ | People on GitHub | A short introduction and a map of the other files |
 | `docs/` | Optional | Whoever goes deep | Design, numbered decisions, a data model |
-| `CHANGELOG.md` | Optional, never checked | Anyone | Link it from the README if you keep one |
+| `CHANGELOG.md` | Optional, never checked | Anyone | Link it from the README if you keep one; projects see a version's [release notes](07-release-workflow.md#release-notes) on `upgrade`, not this file |
 
 `CLAUDE.md` exists because Claude Code reads `CLAUDE.md` and other AI tools read `AGENTS.md`: one line imports the
 other, and the content is written once.
@@ -40,11 +40,12 @@ next reader trusts the stale one. So every fact has exactly one home, and every 
 | What the component owns and doesn't; how to use, configure and prepare it | `BRICKKIT.md` |
 | Where the code is; how to build, test and change it | `AGENTS.md` |
 | Why it is designed this way, when that takes more than a few lines | `docs/` |
-| What changed when | Git — tags and commits |
+| What changed when | Git — commits, and each version's release notes in its tag (`release --notes`) |
 
 Explaining a fact is not restating it. `BRICKKIT.md`'s Configuration section explains how to choose a value for a key
 `component.yaml` declares; writing the key's type or default there again is restating it. And no document carries
-history ("v1.0.12: …", "added in phase 3"): documents say what is true now.
+history ("v1.0.12: …", "added in phase 3"): documents say what is true now, and what a version changed goes into its
+release notes.
 
 ## `BRICKKIT.md`
 

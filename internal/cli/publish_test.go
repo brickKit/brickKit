@@ -138,7 +138,7 @@ func TestPublishSendsManifestAndSourceType(t *testing.T) {
 	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
 
 	r := runIn(t, f.Dir, "publish", "--path", root,
-		"--changelog", "新增人员状态字段", "--git-url", "https://github.com/brickkit/people-basic.git")
+		"--notes", "新增人员状态字段", "--git-url", "https://github.com/brickkit/people-basic.git")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 
 	var req struct {

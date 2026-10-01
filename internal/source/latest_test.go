@@ -160,3 +160,25 @@ func TestLatestVersionWithoutSources(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, clierr.As(err).Format(), "install source")
 }
+
+// 市场来源的发版说明是版本的 changelog：只给 (from, to] 之间、能装、写了说明的版本，从低到高。
+func TestReleaseNotesFromMarket(t *testing.T) {
+	mock := newMarketMock(t,
+		componentSpec{ID: "people/basic", Version: "1.0.0"},
+		componentSpec{ID: "people/basic", Version: "1.1.0"},
+		componentSpec{ID: "people/basic", Version: "1.2.0"},
+		componentSpec{ID: "people/basic", Version: "1.3.0"},
+	)
+	mock.changelogs = map[string]string{
+		"people/basic@1.0.0": "old", "people/basic@1.1.0": "## Added\n- status",
+		"people/basic@1.2.0": "blocked one", "people/basic@1.3.0": "third",
+	}
+	mock.versionStatus = map[string]string{"people/basic@1.2.0": "blocked"}
+	c := newClient(t, newProject(t), cfgWithSources(
+		projfile.Source{Name: "brickkit-market", Type: projfile.SourceTypeMarket, URL: mock.URL()},
+	), Options{})
+
+	notes, err := c.ReleaseNotes(context.Background(), "people/basic", "1.0.0", "1.3.0")
+	require.NoError(t, err)
+	assert.Equal(t, []VersionNotes{{Version: "1.1.0", Notes: "## Added\n- status"}, {Version: "1.3.0", Notes: "third"}}, notes)
+}

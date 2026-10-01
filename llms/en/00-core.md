@@ -122,7 +122,7 @@ Don't load every component's documentation at once: read only the components the
 | `add` | Fetch a component and its dependencies, write the three layers |
 | `remove` | Remove a component; its config moves to `config/.archive/` |
 | `fetch` | Download only a component's artifacts (contracts), without adding it to the project |
-| `upgrade` | Move to another version and migrate config between the old and new `configSchema`; a conflict becomes a duplicate key that stops `up` |
+| `upgrade` | Move to another version and migrate config between the old and new `configSchema`; a conflict becomes a duplicate key that stops `up`. First prints the release notes of the versions it crosses |
 | `up` | Generate deployment files → run migrations → start containers (never builds); in a component's directory or with `--focus`, only that component and what it needs |
 | `down` | Stop containers (volumes are kept) |
 | `status` | Running-state table |
@@ -131,8 +131,8 @@ Don't load every component's documentation at once: read only the components the
 | `restore` | Put `mode` and the source layout back to the last commit |
 | `deps` | Dependency tree |
 | `build` | Build the images that are built locally, explicitly (`--force`) |
-| `release` | Check → Git tag → push; a failed push deletes the tag. `--local` releases every component in local sources |
-| `publish` | Publish to a component market (optional infrastructure) |
+| `release` | Check → Git tag → push; a failed push deletes the tag. `--notes` / `--notes-file`: optional release notes in an annotated tag. `--local` releases every component in local sources |
+| `publish` | Publish to a component market (optional infrastructure); `--notes` / `--notes-file` as for `release` |
 | `login` | Log in to a component market |
 | `logout` | Log out of a component market (revokes the token, deletes local credentials) |
 
@@ -157,6 +157,7 @@ Every command's full flag list is in [`docs/en/07-cli-reference/README.md`](../.
 | `resources`, `servedBy`, `deploy:` in `brickkit.yaml` | Connection details go into `config/`, shell members into the deploy file's `members`, deployment settings into `deploy.yaml` |
 | `--config` | One deploy file per environment, chosen with `-f` |
 | `up --context` | Write `k8s.context` in the deploy file; one deploy file per cluster |
+| `publish --changelog` | `publish --notes` / `--notes-file` (the same flags `release` takes) |
 
 ## §6 What the platform won't do
 
@@ -191,6 +192,7 @@ Every command's full flag list is in [`docs/en/07-cli-reference/README.md`](../.
 - A manifest is read from, in order: the project's permanent cache `.brickkit/manifests/` → the local bare repository → an incremental fetch → a first clone.
 - The CLI does no authentication of its own; `git`'s errors are passed through verbatim.
 - `brickkit release`: check → tag → push, deleting the tag if the push fails; `--local` releases the components in local sources, stopping at the first failure.
+- Release notes are optional Markdown, kept verbatim: `release --notes` / `--notes-file` writes them into an annotated tag (the market keeps `publish --notes` as the version's changelog), and `upgrade`, `--dry-run` too, prints those of every version it crosses before changing anything. A local source has none.
 - A component market (`publish` / `login` / `logout`, `sources[].type: market`) is optional infrastructure that works alongside Git sources.
 
 ## §9 Doc map
@@ -289,7 +291,7 @@ migration scripts), `scripts/` (lint checks, install checks, release), `install.
 | --- | --- | --- |
 | `up` | `internal/cli/up.go` (`up_local.go`, `up_k8s.go`, `up_upgrade.go`) | `cascade`, `inject`, `compose`, `k8s`, `engine`, `procsup` |
 | `down`, `status` | `internal/cli/down.go`, `internal/cli/status.go`, `internal/cli/lifecycle.go` | `engine`, `sessionlock` |
-| `add`, `remove`, `upgrade` | `internal/cli/add.go`, `internal/cli/remove.go`, `internal/cli/upgrade.go`, `internal/cli/install_apply.go` | `install`, `configdir`, `source` |
+| `add`, `remove`, `upgrade` | `internal/cli/add.go`, `internal/cli/remove.go`, `internal/cli/upgrade.go`, `internal/cli/install_apply.go` | `install`, `configdir`, `source` (release notes: `internal/source/notes.go`) |
 | `fetch` | `internal/cli/fetch.go`, `internal/cli/artifacts.go` | `source` |
 | `build` | `internal/cli/build.go` | `source`, `engine`, `gitrepo` |
 | `lint` | `internal/cli/lint.go`, `internal/cli/lint_config.go` | `project`, `yamlcheck`, `doccheck` |
@@ -298,7 +300,7 @@ migration scripts), `scripts/` (lint checks, install checks, release), `install.
 | `sync`, `restore` | `internal/cli/sync.go`, `internal/cli/restore.go`, `internal/cli/restore_check.go` | `workspace` |
 | `local` | `internal/cli/local.go` | `deployfile` |
 | `init`, `new` | `internal/cli/init.go`, `internal/cli/new.go`, `internal/cli/hooks.go` | `project`, `manifest`, `skills` |
-| `release`, `publish`, `login`, `logout` | `internal/cli/release.go`, `internal/cli/publish*.go`, `internal/cli/login.go`, `internal/cli/logout.go` | `release`, `market`, `security` |
+| `release`, `publish`, `login`, `logout` | `internal/cli/release.go`, `internal/cli/publish*.go`, `internal/cli/login.go`, `internal/cli/logout.go`, `internal/cli/notes.go` (the release-notes flags) | `release`, `market`, `security` |
 | `skills`, `lang`, `version` | `internal/cli/skills.go`, `internal/cli/lang.go`, `internal/cli/version.go` | `skills`, `i18n`, `userconfig` |
 | Finding the project upward | `internal/project/findroot.go`, `internal/cli/root.go` | |
 | Focus run | `internal/cli/focus.go` | `internal/cascade/cascade.go`, `internal/deployfile/focus.go` |

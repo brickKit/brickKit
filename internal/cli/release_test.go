@@ -194,3 +194,26 @@ func TestReleaseShowsTheDirectoryRelative(t *testing.T) {
 	assert.Contains(t, r.stderr, "svc/api")
 	assert.NotContains(t, r.stderr, project, "不打印绝对路径")
 }
+
+// --notes-file 的说明原样进 tag；--notes 与 --notes-file 只能用一个；--local 一次发好几个组件，一份说明对不上。
+func TestReleaseNotes(t *testing.T) {
+	t.Setenv("GIT_COMMITTER_NAME", "t")
+	t.Setenv("GIT_COMMITTER_EMAIL", "t@example.com")
+	repo := filepath.Join(t.TempDir(), "api")
+	origin := pushedRepo(t, repo, map[string]string{"component.yaml": compYAML("erp/api", "1.1.0")})
+	notes := filepath.Join(t.TempDir(), "notes.md")
+	require.NoError(t, os.WriteFile(notes, []byte("## Added\n\n- export\n"), 0o644))
+
+	r := runIn(t, repo, "release", "--notes", "x", "--notes-file", notes)
+	assert.Equal(t, clierr.ExitUsage, r.code, r.stdout+r.stderr)
+	r = runIn(t, repo, "release", "--local", "--notes", "x")
+	assert.Equal(t, clierr.ExitUsage, r.code, r.stdout+r.stderr)
+	r = runIn(t, repo, "release", "--notes-file", filepath.Join(t.TempDir(), "missing.md"))
+	assert.NotEqual(t, clierr.ExitOK, r.code)
+	assert.Contains(t, r.stderr, "missing.md")
+	assert.Empty(t, relGit(t, origin, "tag", "--list"), "参数错了就什么都不发")
+
+	r = runIn(t, repo, "release", "--notes-file", notes)
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, "## Added\n\n- export", relGit(t, origin, "for-each-ref", "refs/tags/1.1.0", "--format=%(contents)"))
+}

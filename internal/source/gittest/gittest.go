@@ -54,6 +54,18 @@ func (r *Remote) Tag(tag string, files map[string]string) { r.TagAt("", tag, fil
 // 提交并打 tag。子目录之外的文件保留——同一个仓库里还有别的组件。
 func (r *Remote) TagAt(subpath, tag string, files map[string]string) {
 	r.t.Helper()
+	r.TagAtWithNotes(subpath, tag, "", files)
+}
+
+// TagWithNotes 与 Tag 一样，但打的是带发版说明的 tag（brickkit release --notes 打的那种）。
+func (r *Remote) TagWithNotes(tag, notes string, files map[string]string) {
+	r.t.Helper()
+	r.TagAtWithNotes("", tag, notes, files)
+}
+
+// TagAtWithNotes 是 TagAt 加上发版说明：notes 不为空时打带注释的 tag，说明原样保留。
+func (r *Remote) TagAtWithNotes(subpath, tag, notes string, files map[string]string) {
+	r.t.Helper()
 	dir := filepath.Join(r.work, filepath.FromSlash(subpath))
 	if subpath == "" {
 		entries, err := os.ReadDir(r.work)
@@ -79,7 +91,11 @@ func (r *Remote) TagAt(subpath, tag string, files map[string]string) {
 	}
 	r.git(r.work, "add", "-A")
 	r.git(r.work, "commit", "--quiet", "--allow-empty", "-m", tag)
-	r.git(r.work, "tag", tag)
+	if notes == "" {
+		r.git(r.work, "tag", tag)
+	} else {
+		r.git(r.work, "tag", "-a", tag, "--cleanup=verbatim", "-m", notes)
+	}
 	r.git(r.work, "push", "--quiet", "origin", "HEAD:refs/heads/main", "refs/tags/"+tag)
 }
 

@@ -640,3 +640,36 @@ func TestAddNamesTheRequiredKeysToFill(t *testing.T) {
 	assert.Contains(t, r.stdout, "Fill in the required keys in config/erp-api.yaml: DB_HOST")
 	assert.NotContains(t, r.stdout, "config/erp-web.yaml: ")
 }
+
+// releaseWithNotes 发布一个带发版说明的版本（brickkit release --notes 打的那种 tag）。
+func (g *gitOrgProject) releaseWithNotes(c comp, notes string) {
+	g.t.Helper()
+	r, ok := g.remotes[c.ID]
+	if !ok {
+		r = gittest.NewRemoteIn(g.t, g.org, strings.ReplaceAll(c.ID, "/", "-"))
+		g.remotes[c.ID] = r
+	}
+	r.TagWithNotes(c.Version, notes, map[string]string{"component.yaml": c.yamlText()})
+}
+
+// upgrade 先列出从现在的版本（不含）到目标版本（含）之间每个写了说明的版本的说明——
+// --dry-run 也列，这样升级之前就看得到改了什么；没写说明的版本不出现。
+func TestUpgradeShowsReleaseNotesOfEveryVersionInBetween(t *testing.T) {
+	g := newGitOrgProject(t)
+	g.releaseWithNotes(comp{ID: "erp/api", Version: "1.0.0"}, "the first")
+	g.release(comp{ID: "erp/api", Version: "1.1.0"})
+	g.releaseWithNotes(comp{ID: "erp/api", Version: "1.2.0"}, "## Added\n\n- an export endpoint")
+	dir := g.project()
+	g.mustRun(dir, "add", "erp/api@1.0.0")
+
+	r := g.mustRun(dir, "upgrade", "erp/api", "--dry-run")
+	assert.Contains(t, r.stdout, "Release notes of erp/api, 1.0.0 → 1.2.0")
+	assert.Contains(t, r.stdout, "── 1.2.0 ──")
+	assert.Contains(t, r.stdout, "      ## Added")
+	assert.Contains(t, r.stdout, "      - an export endpoint")
+	assert.NotContains(t, r.stdout, "the first", "现在的版本自己的说明不列")
+	assert.NotContains(t, r.stdout, "── 1.1.0 ──", "没写说明的版本不出现")
+
+	r = g.mustRun(dir, "upgrade", "erp/api")
+	assert.Contains(t, r.stdout, "- an export endpoint")
+}

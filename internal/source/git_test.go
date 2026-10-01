@@ -501,3 +501,19 @@ func TestGitCachesEveryDocLanguage(t *testing.T) {
 	assert.Equal(t, []string{"zh"}, langs)
 	assert.Equal(t, "# zh\n", readFile(t, filepath.Join(layout.CachedManifestDir("erp/api", "1.0.0"), "BRICKKIT.zh.md")))
 }
+
+// 发版说明取自带注释的 tag：只给 (from, to] 之间、写了说明的版本，从低到高；说明原样（# 开头的行在）。
+func TestGitReleaseNotesBetweenVersions(t *testing.T) {
+	org := newGitOrg(t)
+	r := org.remote("erp/api")
+	r.TagWithNotes("1.0.0", "first", specFiles(componentSpec{ID: "erp/api", Version: "1.0.0"}))
+	r.Tag("1.1.0", specFiles(componentSpec{ID: "erp/api", Version: "1.1.0"}))
+	r.TagWithNotes("1.2.0", "## Added\n\n# Breaking", specFiles(componentSpec{ID: "erp/api", Version: "1.2.0"}))
+	r.TagWithNotes("1.10.0", "tenth", specFiles(componentSpec{ID: "erp/api", Version: "1.10.0"}))
+	r.TagWithNotes("2.0.0", "later", specFiles(componentSpec{ID: "erp/api", Version: "2.0.0"}))
+	c, _ := org.client()
+
+	notes, err := c.ReleaseNotes(context.Background(), "erp/api", "1.0.0", "1.10.0")
+	require.NoError(t, err)
+	assert.Equal(t, []VersionNotes{{Version: "1.2.0", Notes: "## Added\n\n# Breaking"}, {Version: "1.10.0", Notes: "tenth"}}, notes)
+}

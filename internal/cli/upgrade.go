@@ -93,6 +93,8 @@ func runUpgrade(ctx context.Context, opts *Options, arg string, f upgradeFlags) 
 		return err
 	}
 
+	// 先说每个版本改了什么，再动文件：--dry-run 也一样，冲突要选的话也是读过说明之后再选
+	renderReleaseNotes(ctx, opts, client, plan.Moves)
 	if f.dryRun {
 		return previewUpgrade(opts, proj, plan)
 	}
@@ -109,6 +111,39 @@ func runUpgrade(ctx context.Context, opts *Options, arg string, f upgradeFlags) 
 	renderWarnings(opts, warnings)
 	refreshProjectDoc(opts, proj.Layout)
 	return nil
+}
+
+// renderReleaseNotes 列出每个版本移动跨过的发版说明：从现在的版本（不含）到目标版本（含），
+// 写了说明的才列，原样缩进显示。读不到说明不挡升级——说一句为什么，接着升。
+func renderReleaseNotes(ctx context.Context, opts *Options, client *source.Client, moves []install.Move) {
+	for _, m := range moves {
+		notes, err := client.ReleaseNotes(ctx, m.ID, m.From, m.To)
+		if err != nil {
+			opts.Printf("⚠️  %s\n", i18n.T(msgid.CliUpgradeNotesUnreadable, m.ID, firstLine(err)))
+			continue
+		}
+		if len(notes) == 0 {
+			continue
+		}
+		opts.Printf("📋 %s\n", i18n.T(msgid.CliUpgradeNotesHeader, m.ID, m.From, m.To))
+		for _, n := range notes {
+			opts.Printf("\n   ── %s ──\n", n.Version)
+			for _, line := range strings.Split(n.Notes, "\n") {
+				opts.Printf("%s\n", strings.TrimRight("      "+line, " "))
+			}
+		}
+		opts.Printf("\n")
+	}
+}
+
+// firstLine 是错误渲染出来的第一行（标题）：说明读不到时只需要一句原因。
+func firstLine(err error) string {
+	text := strings.TrimSpace(clierr.As(err).Message)
+	if text == "" {
+		text = err.Error()
+	}
+	line, _, _ := strings.Cut(text, "\n")
+	return line
 }
 
 // upgradeTargets 定下这次移动哪些默认版本：点名的组件（写了版本就是那个版本，否则最新）；

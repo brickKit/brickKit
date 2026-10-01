@@ -48,6 +48,9 @@ default is `brickkit upgrade erp/backend@2.0.0`. `upgrade` with no argument move
 that has a newer version, never downward; the old version stays (with `requiredBy`) only if
 something still depends on it, otherwise it is removed and its config archived. Try it first with
 `brickkit upgrade --dry-run` — it runs on a temporary copy and writes nothing. It is all or nothing.
+Before changing anything (`--dry-run` too) it prints the release notes of every version it crosses,
+from the author's tags or the market; read them before the real upgrade — a key whose meaning or
+unit changed keeps its name, so the config migration can't notice it. A local source has no notes.
 
 **5. `upgrade` migrates config key by key — and can leave a deliberate duplicate key.**
 

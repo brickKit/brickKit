@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # 打 tag 并推送，触发 GitHub Actions 发布。
 #
-# 用法：make release VERSION=0.1.0
+# 用法：make release VERSION=1.0.0 NOTES=<发版说明文件>
+#
+# 发版说明（Markdown）原样写进带注释的 tag，CI 把它放在 release 页面最前面。
+# 没有说明不发：使用者升级前要知道改了什么。说明文件放在仓库外面——工作区必须干净。
 #
 # # 为什么检查这么多条
 #
@@ -24,6 +27,7 @@ die() {
 }
 
 raw_version="${1:-}"
+notes="${2:-}"
 version="${raw_version#v}"
 tag="v${version}"
 
@@ -34,8 +38,23 @@ tag="v${version}"
 # 一个形如 v0.1.0-dev 的 tag，而 CI 会当真去发布它。
 if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 	die "版本号 '${raw_version}' 不是 X.Y.Z" \
-		"用法：make release VERSION=0.1.0" \
+		"用法：make release VERSION=1.0.0 NOTES=<发版说明文件>" \
 		"（不传 VERSION 时 Makefile 会拿 git describe 的结果顶上，那个不能用来发布）"
+fi
+
+# ---- 1b. 发版说明 ----
+#
+# 写进 tag 时用 --cleanup=verbatim：git 默认把 # 开头的行当注释删掉，Markdown 的标题就全没了。
+if [ -z "$notes" ]; then
+	die "没有发版说明" \
+		"用法：make release VERSION=${version} NOTES=<说明文件>（Markdown，放在仓库外面）" \
+		"它会原样出现在 release 页面最前面：这个版本改了什么、不兼容的改动怎么迁移"
+fi
+if [ ! -s "$notes" ]; then
+	die "发版说明 ${notes} 不存在或是空的"
+fi
+if ! grep -q '[^[:space:]]' "$notes"; then
+	die "发版说明 ${notes} 只有空白"
 fi
 
 # ---- 2. 分支 ----
@@ -92,7 +111,7 @@ echo "▶ make lint test-unit"
 # ---- 确认 ----
 echo
 echo "即将发生的事："
-echo "  1. 打 tag ${tag}（指向 ${local_head:0:7}）"
+echo "  1. 打 tag ${tag}（指向 ${local_head:0:7}），发版说明取自 ${notes}（$(wc -l <"$notes" | tr -d ' ') 行）"
 echo "  2. git push origin ${tag}"
 echo "  3. GitHub Actions 随即构建五个平台的产物，并发布一个**公开** release"
 echo
@@ -109,11 +128,11 @@ elif [ -t 0 ]; then
 else
 	# 管道、CI、后台任务里没有终端可以问。这里默认放行的话，一个手滑的
 	# `echo | make release` 就会发出一个公开版本。
-	die "非交互环境不默认放行" "确实要发的话显式写：CONFIRM=yes make release VERSION=${version}"
+	die "非交互环境不默认放行" "确实要发的话显式写：CONFIRM=yes make release VERSION=${version} NOTES=${notes}"
 fi
 
 # ---- 打 tag 并推送 ----
-git tag -a "$tag" -m "BrickKit ${tag}"
+git tag -a "$tag" --cleanup=verbatim -F "$notes"
 git push origin "$tag"
 
 echo

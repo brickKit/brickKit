@@ -127,7 +127,7 @@ vet: ## go vet（两个 module）
 	cd market-server && $(GO) vet ./...
 
 .PHONY: lint
-lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-msgid check-llms check-githooks check-docs-bilingual check-market-api check-market-mod check-components check-guards check-install-sh check-smoke check-no-binaries check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + msgid 常量与英文目录一致 + 文档合集 + 提交钩子 + 双语镜像 + 市场 API 表 + 市场模块依赖清单 + 测试组件合规 + 架构与报错守卫 + 安装脚本 + 发布冒烟 + 仓库无二进制 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
+lint: check-docs check-cli-docs check-doc-tree check-doc-fields check-schemas check-msgid check-llms check-githooks check-docs-bilingual check-market-api check-market-mod check-components check-guards check-install-sh check-smoke check-release-notes check-no-binaries check-i18n check-cross-build cover-check ## 静态检查（文档引用 + 命令/参数防伪造 + .brickkit/ 目录树 + 字段骨架与字段参考 + JSON Schema 与结构体一致 + msgid 常量与英文目录一致 + 文档合集 + 提交钩子 + 双语镜像 + 市场 API 表 + 市场模块依赖清单 + 测试组件合规 + 架构与报错守卫 + 安装脚本 + 发布冒烟 + 发版说明 + 仓库无二进制 + 多语言守卫 + 三平台可编译 + 覆盖率门槛）
 # 教程的输出核对（check-guide-output、check-guides）随旧教程一起撤下：
 # tutorials/ 先只建目录，没有教程可核对。写教程的那一阶段要为 tutorials/
 # 重新建一个逐行核对真实输出的检查（旧脚本在 git 历史里，机制可以照搬）。
@@ -262,6 +262,10 @@ check-docs-bilingual: ## 检查 docs/en 与 docs/zh 镜像完整、llms.txt 链�
 # 发布前的冒烟（.github/smoke.sh）在发布流水线里对每个平台的产物跑；这里对本机
 # 构建的二进制跑同一份脚本——init / add --local / up --dry-run 的行为一变，
 # 在 lint 里就红，不必等到发版那天。它不需要 Docker。
+.PHONY: check-release-notes
+check-release-notes: ## 用真的 git 仓库核对 release 正文：说明取自带注释的 tag、# 标题保留、完整变动链接、没说明就失败
+	@bash scripts/check-release-notes.sh
+
 .PHONY: check-smoke
 check-smoke: build-cli ## 用本机构建的 brickkit 跑发布冒烟（.github/smoke.sh）
 	@bash .github/smoke.sh "$(BIN)/brickkit" >/dev/null && echo "✅ 发布冒烟通过"
@@ -697,5 +701,5 @@ release-artifacts: ## 交叉编译发布产物到 dist/（VERSION=0.1.0）
 	echo "✅ $$n 个产物 + checksums.txt 在 $(DIST)/"
 
 .PHONY: release
-release: ## 打 tag 并推送，触发 CI 发布（VERSION=0.1.0；CONFIRM=yes 免交互）
-	@bash scripts/release.sh "$(VERSION)"
+release: ## 打 tag 并推送，触发 CI 发布（VERSION=1.0.0 NOTES=<发版说明文件>；CONFIRM=yes 免交互）
+	@bash scripts/release.sh "$(VERSION)" "$(NOTES)"

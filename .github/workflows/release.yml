@@ -122,6 +122,11 @@ jobs:
       contents: write # 建 release 要写权限，整条流水线只有这个 job 有
     steps:
       - uses: actions/checkout@v7
+      # release 正文取自带注释的 tag 里的发版说明，"完整变动"链接要上一个版本的 tag：
+      # checkout 在 tag 触发时只拉这一个提交，而且可能把触发它的 tag 记成轻量 tag（说明就丢了）。
+      # 重新拉一遍全部 tag 的原样对象。
+      - name: 取回带说明的 tag
+        run: git fetch --force --no-recurse-submodules origin '+refs/tags/*:refs/tags/*'
       - uses: actions/download-artifact@v8
         with:
           name: dist

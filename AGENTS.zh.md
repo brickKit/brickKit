@@ -106,7 +106,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `add` | 拉取组件与依赖，写入三层文件 |
 | `remove` | 移除组件，配置移进 `config/.archive/` |
 | `fetch` | 只下载组件的产物（契约），不装进项目 |
-| `upgrade` | 升级版本，按新旧 `configSchema` 迁移配置，冲突处写重复 key 大声失败 |
+| `upgrade` | 升级版本，按新旧 `configSchema` 迁移配置，冲突处写重复 key 大声失败；动手前先列出跨过的各版本的发版说明 |
 | `up` | 生成部署文件 → 跑迁移 → 起容器（绝不自动构建）；在组件目录里或带 `--focus` 时，只起这个组件和它需要的 |
 | `down` | 停止容器（不删 volume） |
 | `status` | 运行状态表 |
@@ -115,8 +115,8 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `restore` | 把 `mode` 与源码结构还原到最后一次提交 |
 | `deps` | 依赖树 |
 | `build` | 显式构建需要在本机构建的镜像（`--force`） |
-| `release` | 校验 → 打 Git tag → 推送，推送失败就删掉 tag；`--local` 批量发布 |
-| `publish` | 发布到组件市场（可选的基础设施） |
+| `release` | 校验 → 打 Git tag → 推送，推送失败就删掉 tag；`--notes` / `--notes-file`：可选的发版说明，写进带注释的 tag；`--local` 批量发布 |
+| `publish` | 发布到组件市场（可选的基础设施）；`--notes` / `--notes-file` 同 `release` |
 | `login` | 登录组件市场 |
 | `logout` | 退出组件市场（吊销令牌、删本地凭据） |
 
@@ -141,6 +141,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `brickkit.yaml` 里的 `resources`、`servedBy`、`deploy:` | 连接信息进 `config/`，外壳成员进部署文件的 `members`，部署设置进 `deploy.yaml` |
 | `--config` | 每个环境一份部署文件，`-f` 指定 |
 | `up --context` | 在部署文件的 `k8s.context` 里写，不同集群用不同部署文件 |
+| `publish --changelog` | `publish --notes` / `--notes-file`（与 `release` 是同一对参数） |
 
 ## §6 "不做"清单
 
@@ -175,6 +176,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - 读 Manifest 的顺序：项目的永久缓存 `.brickkit/manifests/` → 本机 bare repo 里直接读 → 增量 fetch → 首次 clone。
 - CLI 不处理鉴权，`git` 的报错原样透传。
 - `brickkit release`：校验 → 打 tag → 推送，推送失败删掉 tag；`--local` 批量发布本地源里的组件，遇到第一个失败就停。
+- 发版说明可写可不写，是原样保留的 Markdown：`release --notes` / `--notes-file` 写进带注释的 tag（`publish --notes` 由市场存成版本的 changelog）；`upgrade`（`--dry-run` 也一样）动手之前先列出跨过的每个版本的说明。本地源没有说明。
 - 组件市场（`publish` / `login` / `logout`，`sources[].type: market`）是可选的基础设施，与 Git 源并存。
 
 ## §9 文档地图
@@ -269,7 +271,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | --- | --- | --- |
 | `up` | `internal/cli/up.go`（`up_local.go`、`up_k8s.go`、`up_upgrade.go`） | `cascade`、`inject`、`compose`、`k8s`、`engine`、`procsup` |
 | `down`、`status` | `internal/cli/down.go`、`internal/cli/status.go`、`internal/cli/lifecycle.go` | `engine`、`sessionlock` |
-| `add`、`remove`、`upgrade` | `internal/cli/add.go`、`internal/cli/remove.go`、`internal/cli/upgrade.go`、`internal/cli/install_apply.go` | `install`、`configdir`、`source` |
+| `add`、`remove`、`upgrade` | `internal/cli/add.go`、`internal/cli/remove.go`、`internal/cli/upgrade.go`、`internal/cli/install_apply.go` | `install`、`configdir`、`source`（发版说明：`internal/source/notes.go`） |
 | `fetch` | `internal/cli/fetch.go`、`internal/cli/artifacts.go` | `source` |
 | `build` | `internal/cli/build.go` | `source`、`engine`、`gitrepo` |
 | `lint` | `internal/cli/lint.go`、`internal/cli/lint_config.go` | `project`、`yamlcheck`、`doccheck` |
@@ -278,7 +280,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `sync`、`restore` | `internal/cli/sync.go`、`internal/cli/restore.go`、`internal/cli/restore_check.go` | `workspace` |
 | `local` | `internal/cli/local.go` | `deployfile` |
 | `init`、`new` | `internal/cli/init.go`、`internal/cli/new.go`、`internal/cli/hooks.go` | `project`、`manifest`、`skills` |
-| `release`、`publish`、`login`、`logout` | `internal/cli/release.go`、`internal/cli/publish*.go`、`internal/cli/login.go`、`internal/cli/logout.go` | `release`、`market`、`security` |
+| `release`、`publish`、`login`、`logout` | `internal/cli/release.go`、`internal/cli/publish*.go`、`internal/cli/login.go`、`internal/cli/logout.go`、`internal/cli/notes.go`（发版说明的两个参数） | `release`、`market`、`security` |
 | `skills`、`lang`、`version` | `internal/cli/skills.go`、`internal/cli/lang.go`、`internal/cli/version.go` | `skills`、`i18n`、`userconfig` |
 | 往上找项目根 | `internal/project/findroot.go`、`internal/cli/root.go` | |
 | 焦点运行 | `internal/cli/focus.go` | `internal/cascade/cascade.go`、`internal/deployfile/focus.go` |

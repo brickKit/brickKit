@@ -217,6 +217,8 @@ type marketMock struct {
 	versionStatus map[string]string
 	// failVersionList 为 true 时，版本列表端点返回 503。
 	failVersionList bool
+	// changelogs 是版本列表里各版本的 changelog（发版说明），键是 "<id>@<version>"。
+	changelogs map[string]string
 	// docs 是各版本的 BRICKKIT.md，键是 "<id>@<version>"；没有的版本 /doc 回 404。
 	docs map[string]string
 	// docTranslations 是各版本 BRICKKIT.md 的译本（语言 → 内容），键是 "<id>@<version>"：
@@ -360,6 +362,7 @@ func (m *marketMock) writeVersionList(w http.ResponseWriter, componentID string)
 			"componentId": spec.ID,
 			"version":     spec.Version,
 			"status":      status,
+			"changelog":   m.changelogs[spec.ID+"@"+spec.Version],
 		})
 	}
 	if list == nil {

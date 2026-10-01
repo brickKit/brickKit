@@ -144,6 +144,13 @@ files still count for "the component directory is clean": commit the workbench (
 `deploy.yaml`, `config/`, `.gitignore`) or `release` refuses. A tag that exists only locally (never
 pushed) is not a release: push it or delete it. `brickkit publish` to a market is separate.
 
+Release notes are optional but are what projects read before they upgrade: `brickkit release
+--notes-file <file>` (or `--notes "<text>"`) writes Markdown, verbatim, into an annotated tag, and
+`brickkit upgrade` prints the notes of every version it crosses before changing anything. Lead with
+what a project must do — a key whose meaning or unit changed, an endpoint removed — then what was
+added. Keep the file outside the component directory (an untracked file there fails the clean check).
+Not with `--local` (one note per component version); `publish` takes the same two flags.
+
 ## How the mechanism works
 
 **Addresses**: each dependency's main port is `{ID}_ENDPOINT` (`/` and `-` → `_`, uppercase), extra

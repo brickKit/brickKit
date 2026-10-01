@@ -341,6 +341,32 @@ brickkit remove erp/backend@1.0.0 --force   # 源码目录里有没推送的改�
 你改过、而组件作者也改了默认值的键是**冲突**：终端里逐条选择；`--yes` 或没有终端输入时，写成两行重复键，
 `up` 在你删掉其中一行之前拒绝启动（见 [解析优先级](../01-three-layers/08-resolution-priority.md#同一级里重复写了同一个键)）。
 
+动任何文件之前——`--dry-run` 也一样——它先列出这次跨过的每个版本的**发版说明**：从现在的版本（不含）到目标版本（含），
+写了说明的才列（作者用 `release --notes` 或 `publish --notes` 写的那段）。git 源的说明存在带注释的 tag 里，市场存成那个版本的
+changelog（只看能装的版本）；本地源没有版本历史，也就没有说明。说明读不到只多一行 ⚠️，升级照常进行。
+
+```text
+📋 demo/quote 的发版说明，0.1.0 → 0.3.0：
+
+   ── 0.2.0 ──
+      报价单多了 currency 字段。配置不用改。
+
+   ── 0.3.0 ──
+      ## 不兼容的改动
+
+      - `QUOTE_TTL` 的单位从分钟改成了秒：把原来的值乘以 60。
+
+      ## 新增
+
+      - `GET /quotes/{id}/history`
+
+📋 upgrade 会做这些：
+   ⬆️  demo/quote：0.1.0 → 0.3.0
+📝 会写：brickkit.yaml, deploy.yaml
+
+💡 --dry-run：一个文件都没有改
+```
+
 ```text
 brickkit upgrade [组件ID[@版本]] [flags]
 ```
@@ -780,6 +806,10 @@ brickkit restore --check   # 只检查这次提交自洽不自洽
 然后打 tag 并推送。推送失败时删掉本地 tag——发布要么完整做完，要么不留痕迹。组件目录是仓库根时 tag 是 `<版本>`，是子目录时是
 `<scope>-<name>/<版本>`——正是 git 安装源读取的名字。
 
+**发版说明**可写可不写。`--notes <文字>` 或 `--notes-file <文件>`（相对当前目录）把一段 Markdown 原样（`#` 开头的行也保留）
+写进带注释的 tag，使用它的项目 `upgrade` 时会看到。两个都不给，打的就是轻量 tag，跟从前一样。一份说明讲的是一个组件的
+一个版本，所以两个参数都不能和 `--local` 一起用；两个都给、或者文件读不了，都报错，什么都不发布。
+
 ```text
 brickkit release [flags]
 ```
@@ -788,13 +818,23 @@ brickkit release [flags]
 | --- | --- |
 | `--path <目录>` | 组件目录（`component.yaml` 所在处），缺省当前目录 |
 | `--local` | 发布项目本地安装源里的全部组件：先全部检查一遍，再逐个打 tag、推送；已经发布过的（tag 就在当前提交上）跳过；遇到第一个推送失败就停 |
+| `--notes <文字>` | 这个版本的发版说明（Markdown，原样保留），写进带注释的 tag；使用它的项目 `upgrade` 时看得到。可不写；不能与 `--local` 同用 |
+| `--notes-file <文件>` | 改从这个文件读发版说明（相对当前目录）；不能与 `--notes` 同用 |
 
 ```bash
 brickkit release                                  # 当前目录的组件
 brickkit release --path ./components/erp/backend
 brickkit release --path svc/api                   # monorepo 子目录里的组件（tag 为 erp-api/<版本>）
 brickkit release --local                          # 项目里的全部本地源组件
+brickkit release --notes-file ../notes-0.3.0.md   # 带发版说明，打带注释的 tag
 ```
+
+```text
+✅ 已发布 demo/quote@0.3.0：tag 0.3.0 已推送
+   📝 发版说明已写进 tag：使用它的项目 upgrade 时会看到
+```
+
+发版说明怎么写才有用，见 [发布](../03-component-guide/07-release-workflow.md#发版说明)。
 
 ## `brickkit publish`
 
@@ -823,7 +863,8 @@ brickkit publish [flags]
 | `--path <目录>` | 组件源码目录（含 `component.yaml`），缺省当前目录 |
 | `--market <地址>` | 市场地址，缺省取 `brickkit.yaml` 中的 market 安装源 |
 | `--visibility <public\|private>` | 可见性，缺省沿用市场侧设置 |
-| `--changelog <文字>` | 本次版本的更新说明 |
+| `--notes <文字>` | 这个版本的发版说明（Markdown，原样保留），存成市场里这个版本的 changelog；使用它的项目 `upgrade` 时看得到。可不写 |
+| `--notes-file <文件>` | 改从这个文件读发版说明（相对当前目录）；不能与 `--notes` 同用 |
 | `--source-type <git\|registry>` | 来源类型：`git`（开源）或 `registry`（闭源），缺省按组件目录的 git remote 推断 |
 | `--git-url <地址>` | 开源组件的 Git 仓库地址，缺省取组件目录的 origin |
 | `--sign` | 用 cosign 对组件签名后发布 |
@@ -835,7 +876,7 @@ brickkit publish [flags]
 ```bash
 brickkit publish --path ./components/people/basic
 brickkit publish --path ./components/people/basic --visibility private
-brickkit publish --path ./components/people/basic --changelog "新增人员状态字段"
+brickkit publish --path ./components/people/basic --notes "新增人员状态字段"
 brickkit publish --path ./components/people/basic --sign --key cosign.key --signed-by release-bot@example.com
 ```
 
@@ -1003,6 +1044,7 @@ brickkit fetch infra/notifier@1.0.0
 | 已删除 | `--config` | 已删除：多环境改成每个环境一份部署文件，用 `-f` 选；`brickkit.yaml` 只有一份 |
 | 已删除 | `up --context` / `down --context` | 已删除：要部到哪个集群写在部署文件的 `k8s.context` 里，换集群就换一份部署文件，所见即所得 |
 | 改名 | `--ignore-served-by` → `--ignore-shells` | 旧参数已删除：`servedBy` 换成了外壳（`kind: shell`）与部署文件里的 `members` |
+| 改名 | `publish --changelog` → `--notes` / `--notes-file` | 旧参数已删除：`release` 也接这两个参数（说明写进带注释的 tag），`upgrade` 动手之前先把说明列出来 |
 | 新增 | `local` | 子命令 `on` / `off` / `status` / `refresh` |
 | 新增 | `upgrade` | 移动默认版本，承载配置迁移与冲突处理 |
 | 新增 | `deps` | 依赖树 |

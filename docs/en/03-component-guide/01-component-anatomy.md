@@ -27,7 +27,7 @@ demo-quote/
 | `BRICKKIT.md` | It should be there | The people and AI assistants using the component; it is cached into their projects and read there without the repository |
 | `AGENTS.md`, `CLAUDE.md` | They should be there | The AI assistant (and person) developing the component; never leaves the repository |
 | `README.md` | It should be there | People browsing the repository on GitHub |
-| `docs/`, `CHANGELOG.md` | Optional | Whoever develops the component; history itself lives in Git |
+| `docs/`, `CHANGELOG.md` | Optional | Whoever develops the component; history itself lives in Git, and each version's release notes in its tag ([Releasing](07-release-workflow.md#release-notes)) |
 | Contract files | When it has an external interface, they should be there | Callers; see [Contracts and artifacts](06-artifacts-and-contracts.md) |
 | Database migration scripts | When the component has a database | The component's own migration command (`migration.command`) |
 | Source | Depends | The platform never reads source |

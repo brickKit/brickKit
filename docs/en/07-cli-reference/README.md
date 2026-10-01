@@ -376,6 +376,34 @@ A key you changed whose default the component's author also changed is a **confl
 key at a time; with `--yes` or no terminal input, both lines are written as duplicate keys, and `up` refuses to start
 until you delete one (see [Where a value comes from](../01-three-layers/08-resolution-priority.md#the-same-key-twice-at-one-level)).
 
+Before it changes anything — and with `--dry-run` too — it prints the **release notes** of every version it moves
+across: each version after the current one, up to and including the target, that has notes (what the author wrote with
+`release --notes` or `publish --notes`). A Git source keeps them in the annotated tag, a market as the version's
+changelog (installable versions only); a local source has no version history, so it has none. Notes that can't be read
+cost a ⚠️ line and the upgrade goes on.
+
+```text
+📋 Release notes of demo/quote, 0.1.0 → 0.3.0:
+
+   ── 0.2.0 ──
+      Quotes now carry a currency field. No config changes.
+
+   ── 0.3.0 ──
+      ## Breaking
+
+      - `QUOTE_TTL` is now in seconds (was minutes): multiply your value by 60.
+
+      ## Added
+
+      - `GET /quotes/{id}/history`
+
+📋 upgrade would do this:
+   ⬆️  demo/quote: 0.1.0 → 0.3.0
+📝 Would write: brickkit.yaml, deploy.yaml
+
+💡 --dry-run: no file was changed
+```
+
 ```text
 brickkit upgrade [component-ID[@version]] [flags]
 ```
@@ -861,6 +889,11 @@ Then the tag is created and pushed. If the push fails, the local tag is deleted 
 no trace. When the component directory is the repository root the tag is `<version>`; in a subdirectory it's
 `<scope>-<name>/<version>` — exactly the name a git install source reads.
 
+**Release notes** are optional. `--notes <text>` or `--notes-file <file>` (relative to the current directory) writes
+Markdown, kept exactly as written (lines starting with `#` included), into an annotated tag; projects see it when they
+`upgrade`. Without either, the tag is a lightweight one, as it always was. One set of notes describes one component's
+version, so neither goes with `--local`; giving both, or a file that can't be read, is an error and nothing is released.
+
 ```text
 brickkit release [flags]
 ```
@@ -869,13 +902,23 @@ brickkit release [flags]
 | --- | --- |
 | `--path <dir>` | The component directory (where `component.yaml` is), default the current directory |
 | `--local` | Release every component in the project's local install sources: check them all first, then tag and push one by one; already-released ones (the tag is on the current commit) are skipped; the first failed push stops it |
+| `--notes <text>` | Release notes for this version (Markdown, kept as written), written into an annotated tag; projects see them on `upgrade`. Optional; not with `--local` |
+| `--notes-file <file>` | Read the release notes from this file instead (relative to the current directory); not together with `--notes` |
 
 ```bash
 brickkit release                                  # the component in the current directory
 brickkit release --path ./components/erp/backend
 brickkit release --path svc/api                   # a component in a monorepo subdirectory (tag erp-api/<version>)
 brickkit release --local                          # every local-source component in the project
+brickkit release --notes-file ../notes-0.3.0.md   # with release notes, in an annotated tag
 ```
+
+```text
+✅ Released demo/quote@0.3.0: tag 0.3.0 pushed
+   📝 Release notes written into the tag: projects see them when they upgrade
+```
+
+Writing notes worth reading is in [Releasing](../03-component-guide/07-release-workflow.md#release-notes).
 
 ## `brickkit publish`
 
@@ -907,7 +950,8 @@ brickkit publish [flags]
 | `--path <dir>` | The component source directory (containing `component.yaml`), default the current directory |
 | `--market <address>` | The market address, default the market install source in `brickkit.yaml` |
 | `--visibility <public\|private>` | Visibility, default the market-side setting |
-| `--changelog <text>` | Release notes for this version |
+| `--notes <text>` | Release notes for this version (Markdown, kept as written), stored as the market version's changelog; projects see them on `upgrade`. Optional |
+| `--notes-file <file>` | Read the release notes from this file instead (relative to the current directory); not together with `--notes` |
 | `--source-type <git\|registry>` | Source type: `git` (open source) or `registry` (closed source), inferred from the component directory's git remote by default |
 | `--git-url <address>` | Git repository address of an open-source component, default the component directory's origin |
 | `--sign` | Sign the component with cosign before publishing |
@@ -919,7 +963,7 @@ brickkit publish [flags]
 ```bash
 brickkit publish --path ./components/people/basic
 brickkit publish --path ./components/people/basic --visibility private
-brickkit publish --path ./components/people/basic --changelog "added a status field for people"
+brickkit publish --path ./components/people/basic --notes "added a status field for people"
 brickkit publish --path ./components/people/basic --sign --key cosign.key --signed-by release-bot@example.com
 ```
 
@@ -1096,6 +1140,7 @@ commands changed with them:
 | Removed | `--config` | Deleted: several environments became one deploy file per environment, chosen with `-f`; there is only one `brickkit.yaml` |
 | Removed | `up --context` / `down --context` | Deleted: the cluster to deploy to is written in the deploy file's `k8s.context`; another cluster means another deploy file — what you see is what runs |
 | Renamed | `--ignore-served-by` → `--ignore-shells` | The old flag was deleted: `servedBy` was replaced by shells (`kind: shell`) and `members` in the deploy file |
+| Renamed | `publish --changelog` → `--notes` / `--notes-file` | The old flag was deleted: `release` takes the same two flags (the notes go into an annotated tag), and `upgrade` shows the notes before it changes anything |
 | New | `local` | Subcommands `on` / `off` / `status` / `refresh` |
 | New | `upgrade` | Moves the default version, carrying config migration and conflict handling |
 | New | `deps` | The dependency tree |

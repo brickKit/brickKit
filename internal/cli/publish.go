@@ -29,9 +29,10 @@ import (
 
 // publishFlags 是 brickkit publish 的参数。
 type publishFlags struct {
-	path         string
-	visibility   string
-	changelog    string
+	path       string
+	visibility string
+	// notes 是这个版本的发版说明（--notes / --notes-file 读出来的），作为市场里这个版本的 changelog
+	notes        string
 	market       string
 	sourceType   string
 	gitURL       string
@@ -46,6 +47,7 @@ type publishFlags struct {
 // newPublishCommand 实现 brickkit publish。
 func newPublishCommand(opts *Options) *cobra.Command {
 	var f publishFlags
+	var notes notesFlags
 
 	cmd := &cobra.Command{
 		Use:     "publish",
@@ -55,13 +57,18 @@ func newPublishCommand(opts *Options) *cobra.Command {
 		Example: i18n.T(msgid.CliPublishExample),
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			text, err := notes.read(cmd, opts)
+			if err != nil {
+				return err
+			}
+			f.notes = text
 			return runPublish(cmd.Context(), opts, f)
 		},
 	}
 
 	cmd.Flags().StringVar(&f.path, "path", ".", i18n.T(msgid.CliPublishComponentSourceDirectoryContainingComponent))
 	cmd.Flags().StringVar(&f.visibility, "visibility", "", i18n.T(msgid.CliPublishVisibilityPublicPrivateDefaultsTo))
-	cmd.Flags().StringVar(&f.changelog, "changelog", "", i18n.T(msgid.CliPublishReleaseNotesForThisVersion))
+	notes.register(cmd)
 	cmd.Flags().StringVar(&f.market, "market", "", i18n.T(msgid.CliLoginMarketAddressDefaultsToThe))
 	cmd.Flags().StringVar(&f.sourceType, "source-type", "",
 		i18n.T(msgid.CliPublishSourceTypeGitOpenSource))
@@ -349,7 +356,7 @@ func uploadRelease(
 		Manifest:   pkg.document,
 		SourceType: pkg.sourceType,
 		GitURL:     pkg.gitURL,
-		Changelog:  f.changelog,
+		Changelog:  f.notes,
 		Signature:  pkg.signature,
 		Doc:        pkg.doc,
 		// 译本不在签名范围内，与 Doc 一样：是给人读的说明，改不了实际运行的任何东西

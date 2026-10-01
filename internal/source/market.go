@@ -241,6 +241,8 @@ func (s *marketSource) artifacts(ctx context.Context, componentID, version strin
 type marketVersion struct {
 	Version string `json:"version"`
 	Status  string `json:"status"`
+	// Changelog 是这个版本的发版说明（publish --notes）
+	Changelog string `json:"changelog"`
 }
 
 // installable 判断该版本能否被安装。

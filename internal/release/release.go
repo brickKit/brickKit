@@ -41,6 +41,9 @@ type Target struct {
 	// Tag 是要打的 tag：<版本>，组件在子目录时是 <scope>-<name>/<版本>，
 	// 与 git 安装源读取的名字是同一个函数算出来的。
 	Tag string
+	// Notes 是这个版本的发版说明（Markdown）：不是空白时写进带注释的 tag，使用者 upgrade 时看得到；
+	// 空着就打轻量 tag，跟从前一样。
+	Notes string
 	// remote 是当前分支的上游所在的远端（Check 时确定）。
 	remote string
 }
@@ -208,7 +211,12 @@ func (t *Target) Publish() error {
 				WithHint(i18n.T(msgid.ReleaseHintBumpVersion, manifest.FileName))
 		}
 	}
-	if _, err := git(t.RepoRoot, "tag", t.Tag); err != nil {
+	tagArgs := []string{"tag", t.Tag}
+	if strings.TrimSpace(t.Notes) != "" {
+		// --cleanup=verbatim：默认会把 # 开头的行当注释删掉，Markdown 的标题就全没了
+		tagArgs = []string{"tag", "-a", t.Tag, "--cleanup=verbatim", "-m", strings.TrimRight(t.Notes, "\n")}
+	}
+	if _, err := git(t.RepoRoot, tagArgs...); err != nil {
 		return t.gitFailed(err)
 	}
 	if _, err := git(t.RepoRoot, "push", t.remote, "refs/tags/"+t.Tag); err != nil {

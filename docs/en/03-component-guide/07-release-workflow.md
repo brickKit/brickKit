@@ -26,7 +26,7 @@ What it did:
 4. **Check the branch.** The current branch must have an upstream and no unpushed commits: the commit the tag points at must
    already be in the remote's history.
 5. **Check the tag.** It must not exist yet, locally or on the remote.
-6. **Tag and push.**
+6. **Tag and push** — an annotated tag carrying the [release notes](#release-notes) when you give them.
 
 The first five steps are read-only checks; nothing is written until all of them pass.
 
@@ -73,13 +73,81 @@ the remote.
 # 2. commit and push
 git commit -am "demo/quote 0.2.0: …"
 git push
-# 3. release
-brickkit release
+# 3. release, with what changed (see "Release notes" below)
+brickkit release --notes-file ../notes-0.2.0.md
 ```
 
 Which number to raise: only the internals changed and the interface didn't — the patch (0.1.0 → 0.1.1); endpoints or
 config items were added and old callers still work — the minor; endpoints were removed or an existing field's meaning
 changed — the major, and users have to change their code when they upgrade.
+
+## Release notes
+
+A version number says *that* something changed; release notes say *what* — and above all what a project has to do when
+it upgrades: a config key whose meaning changed, an endpoint that went away. They are a few lines of Markdown you hand to
+`release`, and every project that later upgrades across this version reads them before anything is changed.
+
+They are optional. Without them the version is released exactly the same, with a lightweight tag (a bare name pointing
+at a commit). With them, `release` makes an annotated tag (a tag that carries a message of its own) and puts the notes
+in it, kept as you wrote them: lines starting with `#` stay — Git would normally drop them as comments, and a Markdown
+heading would go with them.
+
+Write them in a file **outside the component directory**: an uncommitted file in it, even a new one, is stopped by the
+working-tree check (step 3 above).
+
+```markdown
+## Breaking
+
+- `QUOTE_TTL` is now in seconds (was minutes): multiply your value by 60.
+
+## Added
+
+- `GET /quotes/{id}/history`
+```
+
+```bash
+brickkit release --notes-file ../notes-0.3.0.md     # a path relative to the current directory
+brickkit release --notes "Quotes now carry a currency field. No config changes."   # short ones inline
+```
+
+```text
+✅ Released demo/quote@0.3.0: tag 0.3.0 pushed
+   📝 Release notes written into the tag: projects see them when they upgrade
+```
+
+`--notes` and `--notes-file` together is an error, as is a file that can't be read — in both cases nothing is
+released. `--local` takes neither: one set of notes describes one component's version, so release each component with
+its own (`brickkit release --path <dir> --notes-file <file>`). Like the version they belong to, the notes are written
+once: to say more, release the next version.
+
+**What a project sees.** `brickkit upgrade` — and `upgrade --dry-run` — prints, before it changes anything, the notes of
+every version after the one the project has, up to and including the target; versions without notes are left out:
+
+```text
+📋 Release notes of demo/quote, 0.1.0 → 0.3.0:
+
+   ── 0.2.0 ──
+      Quotes now carry a currency field. No config changes.
+
+   ── 0.3.0 ──
+      ## Breaking
+
+      - `QUOTE_TTL` is now in seconds (was minutes): multiply your value by 60.
+
+      ## Added
+
+      - `GET /quotes/{id}/history`
+
+📋 upgrade would do this:
+   ⬆️  demo/quote: 0.1.0 → 0.3.0
+📝 Would write: brickkit.yaml, deploy.yaml
+
+💡 --dry-run: no file was changed
+```
+
+Publishing to a market takes the same two flags — `brickkit publish --notes-file <file>` — and the market keeps them as
+the version's changelog, which `upgrade` shows the same way. More on the project side is in
+[Upgrade and migration](../02-project-guide/07-upgrade-and-migration.md).
 
 ## Many at once: `--local`
 

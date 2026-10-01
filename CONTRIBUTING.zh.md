@@ -80,6 +80,30 @@ opts.Printf("%s\n", i18n.T(msgid.CliReleaseDone, target.Ref(), target.Tag))
 
 在一个功能分支上改，对着 `main` 开 PR。目前还没配分支保护或强制 review（项目还年轻），实际上 PR 更多是"改动落地前先讨论一下"的地方，不是一道硬性技术关卡。
 
+## 发布 BrickKit
+
+这一节是给发布 BrickKit CLI 本身的维护者看的（发布一个*组件*是 `brickkit release`，见
+[发布](docs/zh/03-component-guide/07-release-workflow.md)）。一次发布就是往 GitHub 推一个 `v<X.Y.Z>` tag；随后发布流水线（`.github/workflows/release.yml`）构建五个平台的产物、逐个冒烟测试、用 cosign（keyless）给校验和签名，再发布一个**公开**的 GitHub release。从 1.0.0 起，BrickKit 遵循[语义化版本](https://semver.org/lang/zh-CN/)：不兼容的改动提主版本号，新功能提次版本号，修 bug 提修订号。
+
+```bash
+make release VERSION=1.0.0 NOTES=../brickkit-1.0.0.md
+CONFIRM=yes make release VERSION=1.0.0 NOTES=../brickkit-1.0.0.md   # 不问确认（脚本里、没有终端时）
+```
+
+`NOTES` 必须给：一个写着这个版本发版说明的 Markdown 文件——改了什么、不兼容的改动怎么迁移。文件放在**仓库外面**：工作区必须干净，在里面新建一个文件就不干净了。说明原样（`#` 开头的标题也保留：tag 用 `--cleanup=verbatim` 写）写进带注释的 tag `v<X.Y.Z>`；release 页面以它开头，后面是安装、验证签名、平台说明，最后自动附一个与上一个 `v*` tag 对比的 **Full changelog** 链接。tag 没有说明（轻量 tag，或说明是空的）时，流水线在发布任何东西之前就失败。
+
+打 tag 之前，`scripts/release.sh` 遇到下面任何一条就停下——不打 tag，也不推送任何东西：
+
+1. `VERSION` 不是 `X.Y.Z`；
+2. 没给 `NOTES`，或者文件不存在、是空的、只有空白；
+3. 当前分支不是 `main`；
+4. 工作区不干净（刻进二进制的提交必须就是构建它的源码）；
+5. 本地 `main` 与 `origin/main`（fetch 之后）不一致；
+6. 这个 tag 已经存在，远端或本地；
+7. `make lint test-unit` 没过。
+
+然后列出即将发生的事并要你确认；没有终端时一律拒绝，除非写了 `CONFIRM=yes`。都过了才打 tag、推送。`make check-release-notes`（`make lint` 的一部分）用真的 Git 仓库核对 release 正文：说明取自 tag、标题一行不少、对比链接正确、没有说明就失败。
+
 ## 报 bug 或提功能请求
 
 开一个 GitHub issue。报 bug 的话，CLI 自己的输出通常就够用了大半——`brickkit` 把结构化 JSON 日志写到 stderr（`--log-level debug` 看更多细节），人类可读的输出写到 stdout；把这两部分连同你的 `brickkit.yaml`、部署文件和相关组件的 `component.yaml` 一起贴出来（`config/` 里的密钥记得先抹掉），能省一轮来回。提一个不在["不做"清单](AGENTS.zh.md#6-不做清单)上的功能请求时，讲清楚你要解决的问题，而不只是你想好的实现方式——新机制要过的门槛见["十条设计原则"](AGENTS.zh.md#2-核心设计原则十条)。
