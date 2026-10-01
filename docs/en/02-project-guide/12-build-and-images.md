@@ -22,7 +22,28 @@ The last row is worth noting: once `add --repo` has cloned a component's source 
 provided by the local source, and its image is built from your working copy rather than pulled from what the author
 published — because you cloned it to run the code in your hands.
 
+Naming a component whose image is normally pulled (`brickkit build demo/x`) builds a local image anyway — a way out when
+the registry can't be reached — and says so:
+
+```text
+ℹ️  demo/x@1.0.0 normally pulls its image (registry.example.com/demo/x:1.0.0); building a local one because it was named
+```
+
 ## `brickkit build`
+
+Name a component to build only that one:
+
+```bash
+brickkit build demo/bus
+```
+
+```text
+🔨 Building demo/bus@1.0.0 → demo-bus:1.0.0
+✅ Built demo/bus@1.0.0 → demo-bus:1.0.0
+```
+
+Without arguments, it builds every component in the project that's built locally, skipping images that already exist —
+here `demo/hello@1.1.0`, built earlier, and the `demo/bus` image just built:
 
 ```bash
 brickkit build
@@ -37,20 +58,12 @@ brickkit build
 ✅ Built demo/caller@1.0.0 → demo-caller:1.0.0
 ```
 
-Without arguments, it builds every component in the project that's built locally, skipping images that already exist.
-To build only one:
-
-```bash
-brickkit build demo/bus
-```
-
-```text
-🔨 Building demo/bus@1.0.0 → demo-bus:1.0.0
-✅ Built demo/bus@1.0.0 → demo-bus:1.0.0
-```
+Naming a component doesn't bypass the check: an image that already exists is skipped either way, and only `--force`
+rebuilds it (see below).
 
 `brickkit build demo/hello` builds every version of that component in the project; `brickkit build demo/hello@1.1.0`
-only that one. In a component's directory, `brickkit build` without an argument builds just that component:
+only that one. In a component's directory, `brickkit build` without an argument builds just that component — here
+`demo/lib`, an extra component of `my-shop` whose source has a git submodule:
 
 ```bash
 cd components/demo/lib
@@ -58,7 +71,7 @@ brickkit build
 ```
 
 ```text
-📁 Project: ../../.. (shop)
+📁 Project: ../../.. (my-shop)
 🔨 Building demo/lib@1.0.0 → demo-lib:1.0.0
 ⚠️ Warning: the source of demo/lib@1.0.0 has git submodules, and they are empty directories here
    Directory: third_party/sdk
@@ -79,8 +92,13 @@ yourself.
 ⏭️  demo/hello@1.0.0: image demo-hello:1.0.0 already exists, skipped (--force rebuilds)
 ```
 
-An image's tag is the component's version, and the tag doesn't change while the version doesn't. So **when you changed
-the code but not the version number, add `--force`**, or `build` considers the image up to date:
+For a component from a local source, "exists" means an image `brickkit build` built from local code; one with the same
+tag that came from anywhere else (pulled, or built by hand) is rebuilt. So is a shell's image whose recorded member
+versions differ from the members the shell declares.
+
+An image's tag follows the component's version (see the tag rules below), and the tag doesn't change while the version
+doesn't. So **when you changed the code but not the version number, add `--force`**, or `build` considers the image up
+to date:
 
 ```bash
 brickkit build demo/hello@1.1.0 --force
@@ -95,8 +113,10 @@ brickkit build demo/hello@1.1.0 --force
 clean export of this version's Git tag is built — so when a project has both 1.0.0 and 1.1.0, each image matches its own
 tag, and nothing gets mixed up.
 
-**Tag rules.** With an `image` named, its name is used; without one, the name is derived from the component ID
-(`demo/hello` → `demo-hello`); the tag always equals `metadata.version`. A shell's image also records the member versions
+**Tag rules.** Without an `image`, the image is `<scope>-<name>:<metadata.version>` (`demo/hello` →
+`demo-hello:1.0.0`). With an `image` that has no tag, `:<metadata.version>` is appended. An `image` that already has a
+tag or a digest is used exactly as written — nothing checks it against the version, so keep its tag equal to the
+version yourself. A shell's image also records the member versions
 compiled into it; when `up` finds they don't match the members the shell declares (a member version changed without a
 rebuild), it stops — see [Upgrading a shell](../04-shell/07-shell-upgrade.md).
 

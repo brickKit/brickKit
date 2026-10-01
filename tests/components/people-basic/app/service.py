@@ -57,7 +57,7 @@ class PeopleService:
 
         view = self._enrich(person)
         # 弱依赖：发不出去也不影响这次查询
-        self._publish_safely("people.person.viewed", {"personId": person.id})
+        self._publish_safely("people.person.viewed", person.id)
         return view
 
     # ------------------------------------------------------------
@@ -96,8 +96,8 @@ class PeopleService:
             title=person.title,
         )
 
-    def _publish_safely(self, topic: str, payload: dict) -> None:
+    def _publish_safely(self, event_type: str, subject: str) -> None:
         try:
-            self._events.publish(topic, payload)
+            self._events.publish(event_type, subject)
         except Exception as exc:  # noqa: BLE001 —— 弱依赖的任何异常都不该冒泡
-            logger.warning("事件发布失败，已跳过", extra={"topic": topic, "reason": str(exc)})
+            logger.warning("事件发布失败，已跳过", extra={"type": event_type, "reason": str(exc)})

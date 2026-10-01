@@ -27,8 +27,9 @@ func brickkitDoc(id, contractPath string, shell bool) string {
 	b.WriteString(docHeading(docspec.BeforeDeploy) + todo(msgid.ManifestDocHintBeforeDeploy) + "\n\n")
 	b.WriteString(docHeading(docspec.Dependencies) + todo(msgid.ManifestDocHintDependencies) + "\n\n")
 	b.WriteString(docHeading(docspec.Configuration))
-	b.WriteString("| " + i18n.T(msgid.ManifestDocColVariable) + " | " + i18n.T(msgid.ManifestDocColRequired) + " | " + i18n.T(msgid.ManifestDocColMeaning) + " |\n|---|---|---|\n")
-	b.WriteString("| " + todo(msgid.ManifestDocConfigKeyTodo) + " | | " + todo(msgid.ManifestDocConfigMeaningTodo) + " |\n\n")
+	// 两列：键与它的含义。类型、默认值、是否必填是 component.yaml 的事实，这里再写一遍就是两处要同步（lint 只查必填键被提到）
+	b.WriteString("| " + i18n.T(msgid.ManifestDocColVariable) + " | " + i18n.T(msgid.ManifestDocColMeaning) + " |\n|---|---|\n")
+	b.WriteString("| " + todo(msgid.ManifestDocConfigKeyTodo) + " | " + todo(msgid.ManifestDocConfigMeaningTodo) + " |\n\n")
 	b.WriteString(docHeading(docspec.Contracts))
 	if contractPath != "" {
 		b.WriteString("- `" + contractPath + "`: " + todo(msgid.ManifestDocHintContractFile) + "\n\n")

@@ -1,6 +1,6 @@
 # infra/redis-event-bus
 
-基于 Redis Streams 的事件总线：组件把事件发到这里，消费方按需读取。
+An event bus on Redis Streams; components publish events here and consumers read them as needed
 
 ## 在项目里使用
 

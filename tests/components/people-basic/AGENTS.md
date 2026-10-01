@@ -1,6 +1,6 @@
 # people/basic
 
-Python（FastAPI + grpcio）写的人员查询组件：HTTP 在 8080，gRPC 在 9090，强依赖 `department/tree` 补部门名，可选依赖 `infra/redis-event-bus` 发事件。它也是 BrickKit 仓库自带的平台验证夹具：`extraPorts` 双端口、跨语言调用（Python 客户端调 Go 服务端）、强弱依赖在故障时的不同表现都靠它验证。
+Python（FastAPI + grpcio）写的人员查询组件：HTTP 在 8080，gRPC 在 9090，强依赖 `department/tree` 补部门名，可选依赖 `infra/redis-event-bus` 发事件。它也是 BrickKit 仓库自带的平台验证夹具：`extraPorts` 双端口、跨语言调用（Python 客户端调 Go 服务端）、强弱依赖在故障时的不同表现都靠它验证。怎么用、边界和契约见 `BRICKKIT.md`；依赖、配置、部署见 `component.yaml`。
 
 ## 代码地图
 
@@ -23,14 +23,14 @@ Python（FastAPI + grpcio）写的人员查询组件：HTTP 在 8080，gRPC 在 
 | `Dockerfile` | 多阶段：codegen 生成 gRPC 代码 → base → test（跑 pytest）/ runtime（装 curl、UID 10001） |
 | `requirements.txt` | 运行期依赖，版本钉死 |
 | `requirements-dev.txt` | 测试与代码生成依赖，不进运行期镜像 |
-| `tests/` | pytest：`test_args.py`、`test_component.py`、`test_service.py`、`test_migrate.py` |
+| `tests/` | pytest：`test_args.py`、`test_component.py`、`test_service.py`、`test_events.py`、`test_migrate.py` |
 | `component.yaml` | 组件契约 |
 
 | 功能 | 从这里开始 | 然后 |
 | --- | --- | --- |
 | 加或改一个查询 | `app/service.py` | `app/http_api.py` 与 `app/grpc_api.py` 两个出口，`proto/people/v1/people.proto`，`make openapi-people` |
 | 改部门名的获取 | `app/department.py` | `proto/vendor/department/v1/department.proto`，`tests/test_service.py` 的强依赖用例 |
-| 改事件发布 | `app/events.py` | `app/service.py` 的 `_publish_safely`，`BRICKKIT.md` 的契约索引 |
+| 改事件发布 | `app/events.py` | `app/service.py` 的 `_publish_safely`，`tests/test_events.py`（线上的请求体），`BRICKKIT.md` 的契约索引 |
 | 改表结构或样例数据 | `migrations/` | 新增一对 `.up.sql` / `.down.sql`，`tests/test_migrate.py` |
 | 改配置项 | `app/config.py` | `component.yaml` 的 `configSchema`，`BRICKKIT.md` 的配置指南 |
 
@@ -96,13 +96,14 @@ docker run --rm --env-file .env brickkit-demo/people-basic:1.0.0 migrate reset  
 | 手改 `openapi.json` | 下次 `make openapi-people` 覆盖掉手改的内容，或文档与代码对不上 | 它是 FastAPI 导出的 |
 | 只改了 `department/tree` 的 proto 没同步 vendored 拷贝 | 本组件按旧契约调用 | `proto/vendor/department/v1/department.proto` 是拷贝，不会自动更新 |
 | 让入口把不认识的参数当成"启动服务" | 迁移容器永不退出，项目卡在 Created，日志却写着"组件已就绪" | 迁移容器与主容器是同一个镜像；`parse_args` 是纯函数，先校验参数再读环境变量、连库 |
+| 按自己的想法给事件总线拼请求体（比如 `{"topic": …, "payload": …}`） | 查询照常 200，日志里只有"事件发布失败，已跳过"，总线上一条 `people.person.viewed` 都没有 | 总线要求非空的 `type`，形状不对回 422；可选依赖的失败只记警告，没有别处会发现，`tests/test_events.py` 锁住了形状 |
 | 改已经执行过的迁移文件 | 改动在已有的库上永远不生效 | 版本已记进 `schema_migrations`，不会重跑；只能新增一对文件 |
 
 ## 改代码前自查
 
 - 动了查询：HTTP 与 gRPC 两个出口结果一致（`tests/test_component.py` 的 `test_grpc_and_http_agree`），改了 HTTP 接口就重新导出 `openapi.json`。
 - 动了部门名获取：强依赖不可用仍回 503、部门被删仍返回人员、仍然不跨请求缓存（`tests/test_service.py`）。
-- 动了事件：事件总线缺席或出错时请求仍是 200；事件名或载荷变了要同步 `BRICKKIT.md` 的契约索引。
+- 动了事件：事件总线缺席或出错时请求仍是 200；请求体仍是总线收的形状（非空的 `type`，`tests/test_events.py`）；事件名或字段变了要同步 `BRICKKIT.md` 的契约索引。
 - 动了 `Dockerfile`：运行期仍装 curl、仍以 UID 10001 运行、生成代码的导入改写仍在。
 - 动了表结构或样例数据：新增了一对迁移文件，没改旧的；样例人员的 `department_id` 要对得上 `department/tree` 的样例部门，`auth/password-login` 与 `authorization/rbac` 的样例数据也引用 `p-001`～`p-004`。
 - 动了配置项：`app/config.py`、`component.yaml` 的 `configSchema`、`BRICKKIT.md` 的配置指南三处一致。

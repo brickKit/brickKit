@@ -39,7 +39,7 @@
 | `k8s.serviceAccount.enabled` | | 每个组件一个不挂令牌的 ServiceAccount |
 | `components[].id` | ✅ | 裸 ID（默认版本）或 `id@版本` |
 | `components[].mode` | | `enabled` / `disable` / `local` / `debug`（`debug` 只能在 `deploy.local.yaml`） |
-| `components[].localPort` | | `local` / `debug` 时本机进程的端口 |
+| `components[].localPort` | | `local` / `debug` 时（或写在 `focus` 组件的条目上）本机进程的端口 |
 | `components[].expose` / `exposePort` | | 对外开放；Docker 下的宿主机端口 |
 | `components[].hostname` / `tlsSecret` | | K8s Ingress 的域名与证书 |
 | `components[].replicas` | | K8s 副本数 |
@@ -69,12 +69,13 @@
 | `deployment.type` | ✅ | 固定 `container` |
 | `deployment.image` / `deployment.build` | 二选一或都写 | 拉取的镜像，或本机构建的 `context` 与 `dockerfile` |
 | `deployment.port` | ✅ | 主端口 |
-| `deployment.extraPorts[]` | | 额外端口：`name`、`port` |
+| `deployment.extraPorts[]` | | 额外端口：`name`、`port`。每个额外端口给调用方一个 `<ID>_<端口名>_ENDPOINT`，端口名转大写、`-` 换成 `_`（`people/basic` 的端口 `admin-api` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT`） |
 | `deployment.resources` | | 建议的配额 |
 | `deployment.labels` | | 透传的标签 |
 | `migration.command` | | 数据库迁移命令（数组） |
 | `healthCheck.type` | ✅ | `http` / `tcp` / `none` |
-| `healthCheck.path` / `startPeriodSeconds` | | HTTP 路径、启动宽限秒数（缺省 60） |
+| `healthCheck.path` | `http` 时必填 | HTTP 路径，以 `/` 开头 |
+| `healthCheck.startPeriodSeconds` | | 启动宽限秒数（缺省 60） |
 | `shell.members` | | 外壳编进的成员，精确版本 `id@版本` |
 | `local.language` / `local.runCommand` | | `mode: local` 时指定语言或直接给出启动命令 |
 
@@ -88,9 +89,9 @@
 | `version: local` | 本地源也写真实版本，否则依赖的精确匹配会落空 | 写 `component.yaml` 里的版本号 |
 | `brickkit.yaml` 里写 `expose`、`mode` | 那是部署方式 | 写在部署文件这个组件的条目上 |
 | `deploy.yaml` 里写 `mode: debug` | 它是个人事实，不进 Git | 写在 `deploy.local.yaml` |
-| 只写 `localPort` 不写 `mode` | `localPort` 只对本机进程有意义 | 配 `mode: local` 或 `mode: debug` |
+| 只写 `localPort` 不写 `mode` | `localPort` 只对本机进程有意义 | 配 `mode: local` 或 `mode: debug`（`focus` 组件的条目不用写：它按 `local` 跑） |
 | 配置键写成 `dbHost` 而组件读 `DB_HOST` | 键就是环境变量名，原样注入 | 与 `configSchema` 里的键一字不差 |
-| `DATABASE_URL: $var:PG_HOST:5432` | `$var:` 必须是整个值 | `jdbc:…://${PG_HOST}:5432`，或单独引用 |
+| `DATABASE_URL: $var:PG_HOST:5432` | `$var:` 必须是整个值 | 把整串值作为一个公共变量写进 `config/vars.yaml`（`PG_URL: jdbc:postgresql://pg.internal:5432/people`），引用 `$var:PG_URL`；或者把各段分开引用。字符串里的 `${PG_HOST}` 读的是进程环境变量和 `.env`，不是 `config/vars.yaml` |
 | 密钥写成明文 | `config/` 进 Git | `${VAR}` 或 `file://` |
 | 同一个组件版本在部署文件里写了两个条目 | 每个版本恰好一个条目 | 删掉多余的那个 |
 | 外壳成员写在顶层、另外列一份成员 ID | 成员关系只有一个来源 | 成员条目嵌在外壳条目的 `members` 下 |

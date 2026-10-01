@@ -106,7 +106,12 @@ YAML 规范没有定义重复键该怎么处理。大多数第三方工具在读
 **不会。** 一个组件拿到的每个配置值，都能从文件里直接读出来：`config/<组件>.yaml` 写了什么就是什么；写的是 `$var:NAME`，就去当前部署文件的 `vars:`
 与 `config/vars.yaml` 找；写的是 `${VAR}`，就是进程环境或 `.env` 里的值。没有全局默认层、没有继承、没有别的文件会在背后替换它——所见即所得。
 
+你的终端也覆盖不了什么：容器从终端里什么都不拿；`mode: local` 的进程虽然从终端的环境出发，平台的名字和组件自己的配置键也会先从里面去掉
+（见 [`mode: local` 进程继承什么](../06-architecture/03-env-injection-contract.md#mode-local-进程继承什么)）。
+
 唯一的例外是配置项撞上了平台保留的名字（`COMPONENT_ID`、`PORT`、以 `_ENDPOINT` 结尾的名字等），这时平台的值优先，并且会警告，
 见 [环境变量注入契约](../06-architecture/03-env-injection-contract.md#保留的名字)。
 
-想确认组件最终拿到了什么：`brickkit up --dry-run`，再看 `.brickkit/generated/compose.yaml` 里那个服务的 `environment`（K8s 下是生成的 Deployment）。
+想确认组件最终拿到了什么：`brickkit up --dry-run`，再看两处——`.brickkit/generated/compose.yaml` 里那个服务的 `environment`，
+以及 `.brickkit/generated/env/<服务名>.env`：密钥项和 `file://` 的内容在这份文件里，从不进 `compose.yaml`。`${VAR}` 在两处都照原样写着 `${VAR}`，
+由 `docker compose` 启动时从进程环境与 `.env` 展开。K8s 下看生成的 Deployment 和 Secret。

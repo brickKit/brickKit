@@ -17,7 +17,7 @@ not just add a feature.
 make build            # bin/brickkit + bin/market-server
 make test             # unit tests
 make test-all         # every suite, including the checklist / regression gates
-make lint             # vet + every documentation-consistency check
+make lint             # golangci-lint (or vet), the documentation checks, generated-file freshness, cross-OS build, the coverage gate (runs the unit tests)
 make hooks            # once per clone: enable the repository's commit hook (.githooks/)
 ```
 
@@ -26,10 +26,11 @@ enables a repository's hooks by itself). When a commit touches `docs/en/`, `docs
 generator itself, the hook runs `make generate-llms` — rebuilding the documentation bundles in `llms/` that web AIs
 read — and adds them to the same commit (planning documents under `docs/superpowers/` aren't bundled and don't trigger
 it). It refuses when one of those files still has unstaged changes, or when `docs/en/` or `docs/zh/` has an untracked
-new page: bundles built from the working tree would not match the commit. It also refuses `git commit <paths>`: that
-mode runs the hook against a temporary index, so the regenerated bundles couldn't stay staged — `git add` the files and
-commit without paths. Stage the whole file (or stash it) and commit again;
-without the hook, run `make generate-llms` yourself — `make check-llms` in `make lint` fails on stale bundles.
+new page: bundles built from the working tree would not match the commit. Stage the whole file (or put the rest away
+with `git stash push --keep-index --include-untracked`) and commit again; to commit them separately on purpose, use
+`--no-verify` and run `make generate-llms` afterwards. It also refuses `git commit <paths>`: that mode runs the hook
+against a temporary index, so the regenerated bundles couldn't stay staged — `git add` the files and commit without
+paths. Without the hook, run `make generate-llms` yourself — `make check-llms` in `make lint` fails on stale bundles.
 
 **No CI runs on pull requests.** The repository's only GitHub Actions workflow (`.github/workflows/release.yml`)
 triggers on a `v*` tag push and builds, signs and publishes a release — never on a branch or a PR. So `make lint`
@@ -40,7 +41,7 @@ machine is red for every reviewer too.
 repo-specific `.golangci.yml`, so it runs golangci-lint v2's defaults) and falls back to `go vet` otherwise. Install it
 before opening a PR — `go vet` alone misses what golangci-lint catches.
 
-`make lint` also runs a set of documentation-consistency scripts (`scripts/check-*.py`): references into the archive,
+`make lint` also runs a set of documentation-consistency checks (`scripts/check-*`, `tests/docfields`, …): references into the archive,
 dangling or unnamed section references, broken links and anchors, commands and flags a doc mentions that don't
 exist, a command reference that misses something, YAML field names that don't match the real structs, the
 docs/en↔docs/zh mirror, and a few more (the full list, with what each guards, is in the README's
@@ -61,7 +62,8 @@ holds the schemas' required fields, closed values, patterns and ranges to what t
 Unit tests live **next to the code they test** (`internal/**/*_test.go`, `market-server/internal/**/*_test.go`);
 there is no parallel test tree to keep in sync. `tests/` holds only what genuinely can't sit next to the code:
 `tests/checklist/` and `tests/regression/` are acceptance checklists, each line paired with the test that proves it
-(both enforced by `make lint`, as the README's "Build and test" table describes), and `tests/components/` holds the
+(both enforced by `make test-all` — `make test-boundary` / `test-error` / `test-compat` / `test-security` and
+`make test-regression` — as the README's "Build and test" table describes), and `tests/components/` holds the
 real fixture components that several tests and documentation examples run.
 
 If you're adding behaviour worth a checklist line (a boundary condition, an error case, a compatibility or security

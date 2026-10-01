@@ -33,7 +33,7 @@ Kubernetes 下它进生成的 Secret。
 ```
 
 ```yaml
-# config/shop-stock@0.1.0.yaml
+# config/shop-stock.yaml
 STOCK_WAREHOUSE: file://.secrets/warehouse.txt
 ```
 

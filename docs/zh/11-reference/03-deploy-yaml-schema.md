@@ -18,7 +18,7 @@
 
 | 字段 | 类型 | 必填 | 规则 |
 | --- | --- | --- | --- |
-| `k8s.context` | 字符串 | | 部署到哪个 kubeconfig 上下文。写了之后，真正部署前 `up` 确认 `kubectl` 当前连着的就是它 |
+| `k8s.context` | 字符串 | | 部署到哪个 kubeconfig 上下文。写了之后，`up`（真正部署前）、`down`、`status` 先确认 `kubectl` 当前连着的就是它；读不到当前上下文时放行 |
 | `k8s.namespace` | 字符串 | | 缺省 `brickkit-<项目名>`；规则同项目名 |
 | `k8s.createNamespace` | 布尔 | | 缺省 `true`；只有命名空间级权限时写 `false` |
 | `k8s.podSecurity` | 字符串 | | 只能是 `restricted`：给每个容器生成 restricted 级别的 `securityContext` |
@@ -49,8 +49,8 @@
 | 字段 | 类型 | 必填 | 规则 |
 | --- | --- | --- | --- |
 | `components[].id` | 字符串 | ✅ | 裸 ID 指默认版本；`<组件ID>@<版本>` 指那个版本（兼容版本必须这样写） |
-| `components[].mode` | 字符串 | | `enabled` / `disable` / `local` / `debug`。不写就跟着上层走。`debug` 只能写在 `deploy.local.yaml`；`local`、`debug` 在 `target: k8s` 下不允许 |
-| `components[].localPort` | 整数 | | 本机进程监听的端口，1–65535；只在 `mode: local` / `mode: debug` 下能写；不能与别的条目冲突。`mode: local` 不写时自动选一个 |
+| `components[].mode` | 字符串 | | `enabled` / `disable` / `local` / `debug`。不写就跟着上层走：依赖它的组件里只要有一个在跑，它就跑（顶层组件缺省就跑）。`debug` 只能写在 `deploy.local.yaml`；`local`、`debug` 在 `target: k8s` 下不允许 |
+| `components[].localPort` | 整数 | | 本机进程监听的端口，1–65535；只在 `mode: local` / `mode: debug` 下，或在 `focus` 组件的条目上（它按 `mode: local` 跑）能写；不能与别的条目冲突。`mode: local` 不写时自动选一个 |
 | `components[].expose` | 布尔 | | 对外开放：Docker 映射宿主机端口，K8s 生成 Ingress |
 | `components[].exposePort` | 整数 | | Docker 下映射到的宿主机端口，缺省等于组件端口；只在 `expose: true` 时能写；不能冲突；K8s 下忽略 |
 | `components[].hostname` | 字符串 | 见规则 | Ingress 的域名；`target: k8s` 且 `expose: true` 时必填 |

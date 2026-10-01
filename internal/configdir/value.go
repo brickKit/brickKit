@@ -12,6 +12,7 @@ import (
 
 	"github.com/brickkit/brickkit/internal/envref"
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 )
 
@@ -131,6 +132,8 @@ func Literal(raw any) (Value, error) {
 		return literal(strconv.FormatUint(v, 10)), nil
 	case float64:
 		return literal(formatFloat(v)), nil
+	case manifest.Number:
+		return literal(string(v)), nil
 	default:
 		return jsonLiteral(v)
 	}

@@ -403,7 +403,27 @@ func newPlan(
 	}
 	p.warnings = append(p.warnings, p.privilegedPortWarnings()...)
 	p.warnings = append(p.warnings, p.fallbackStandaloneWarnings()...)
+	p.warnings = append(p.warnings, p.skipWaitForWarnings()...)
 	return p, nil
+}
+
+// skipWaitForWarnings 提醒"skipWaitFor 在 K8s 上不起作用"：Pod 之间没有启动顺序，没有等待可跳过。
+// 不拦——同一份清单换回 docker / podman 时它又会生效；但不能让人以为那条等待已经去掉了。
+func (p *plan) skipWaitForWarnings() []*clierr.Error {
+	var out []*clierr.Error
+	refs := make([]resolver.Ref, 0, len(p.components)+len(p.served))
+	for _, c := range p.components {
+		refs = append(refs, c.Ref)
+	}
+	for _, s := range p.served {
+		refs = append(refs, s.Ref)
+	}
+	for _, ref := range refs {
+		if len(p.proj.DeployEntry(ref.ID, ref.Version).SkipWaitFor) > 0 {
+			out = append(out, clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.K8sSkipWaitForNoEffect, ref.String())))
+		}
+	}
+	return out
 }
 
 // privilegedPortWarnings 提醒"restricted + 特权端口"这个必然起不来的组合。

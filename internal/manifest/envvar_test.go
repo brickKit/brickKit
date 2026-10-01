@@ -29,3 +29,9 @@ func TestEndpointEnvVar(t *testing.T) {
 	assert.Equal(t, "DEPARTMENT_TREE_ENDPOINT", EndpointEnvVar("department/tree"))
 	assert.Equal(t, "INFRA_REDIS_EVENT_BUS_ENDPOINT", EndpointEnvVar("infra/redis-event-bus"))
 }
+
+// 额外端口的变量名跟组件 ID 前缀同一条规则：- 变成 _，否则 ERP_API_ADMIN-API_ENDPOINT 不是合法的 shell 变量名。
+func TestExtraPortEndpointEnvVarIsAValidName(t *testing.T) {
+	assert.Equal(t, "ERP_API_ADMIN_API_ENDPOINT", ExtraPortEndpointEnvVar("erp/api", "admin-api"))
+	assert.Equal(t, "PEOPLE_BASIC_GRPC_ENDPOINT", ExtraPortEndpointEnvVar("people/basic", "grpc"))
+}

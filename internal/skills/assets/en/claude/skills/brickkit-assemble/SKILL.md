@@ -72,7 +72,8 @@ it means something else:
 | `mode: local` | Always runs as a bare process BrickKit starts from the local repo (docker / podman; default version only) |
 | `mode: debug` | Always runs as a process you start in your IDE (docker / podman) — **only allowed in `deploy.local.yaml`** |
 
-To narrow what runs, put `mode: disable` on the top-level thing. For personal changes (debugging one
+To narrow what runs, put `mode: disable` on the top-level thing — there is no `--only` flag; don't
+look for one. For personal changes (debugging one
 component, turning half the stack off on your laptop), use `brickkit local on` and edit
 `deploy.local.yaml`, not the team's `deploy.yaml` — see the `brickkit-deploy` skill.
 
@@ -85,8 +86,11 @@ injected while it isn't running. A component shared by several above it runs whi
 
 Its config file moves to `config/.archive/` (re-adding later migrates it back). Its deploy entries go,
 versions kept only for it go too, and a removed shell's members move back to the top level. If you
-remove the default and one version remains, that one becomes the default. The source directory is
-deleted only when the last version goes and nothing in it would be lost (`--force` overrides).
+remove the default and one version remains, that one becomes the default. With several versions in the
+project, name the one to remove: `brickkit remove erp/backend@1.0.0`. The source directory (and its
+copy archived by `sync`) is deleted only when the last version goes, and only if nothing in it would be
+lost — uncommitted or unpushed changes stop the whole `remove` before anything is written (`--force`
+deletes anyway).
 
 **9. `fetch` writes no config and deploys nothing.**
 
@@ -99,7 +103,10 @@ It moves the source of components that won't start this run into `components/.ar
 using exactly `up`'s decision. Containers aren't touched. `brickkit restore` puts `deploy.yaml`'s
 `mode` values back to the last commit, for projects that commit `components/`.
 
-**11. To work on one component, run a focus run — not the whole stack.**
+**11. `up` never builds images.** Local-source components need `brickkit build` first — see the
+`brickkit-deploy` skill.
+
+**12. To work on one component, run a focus run — not the whole stack.**
 
 `brickkit up` in the component's directory (or `brickkit up --focus <id>` anywhere in the project)
 writes `focus: <id>` into `deploy.local.yaml` and starts only that component — from its source — plus
@@ -108,10 +115,11 @@ what it needs; everything else prints `not starting (outside the focus)`. The fo
 `brickkit.yaml` upward); `build` and `deps` without an argument mean the component you are in.
 `sync` ignores the focus, so switching focus moves no directories.
 
-**12. There is one `components/`.**
+**13. There is one `components/`.**
 
-Component source lives only in the project's `components/` (`add --repo` always clones there, from
-wherever you run it). Never copy or clone a component into another component's directory: `up`,
+Component source lives only in the project's `components/` (`add --repo` always clones there, from any
+subdirectory of the project; in a workbench that is itself a component of an enclosing project it
+refuses — run it in the outer project). Never copy or clone a component into another component's directory: `up`,
 `lint` and `sync` refuse nested copies and BrickKit never moves them — ask before deleting one, it may
 hold the only copy of someone's changes. Git submodules are never fetched.
 
@@ -121,7 +129,8 @@ hold the only copy of someone's changes. Git submodules are never fetched.
 `mode: disable`, so weak-dependency cycles need no special case. **`up`'s order is a topological
 sort**. Every line of `up` output carries its reason (`starting (top-level)`,
 `starting (mode: enabled)`, `starting (X needs it)`); read it first when something is off.
-`brickkit up --dry-run` generates the files without starting anything; `brickkit graph` prints the
+`brickkit up --dry-run` generates the files without starting anything; `brickkit status` reads the
+engine's real state and lists the components that won't start too; `brickkit graph` prints the
 graph as Mermaid (greyed nodes won't start; shell members are drawn inside their shell).
 
 **Coexisting versions is a project-level capability**: `erp-backend-1-0-0` and `erp-backend-2-0-0`
@@ -131,7 +140,8 @@ are two different service names. Inside one `component.yaml`, a component id can
 deploy entry; **upgrading a shell** switches to the members the new shell compiles in.
 
 **Environments**: one complete deploy file per environment, `brickkit up -f deploy.prod.yaml`.
-`brickkit.yaml` and `config/` are shared; no overlay, no merge. `-f` ignores local mode.
+`brickkit.yaml` and `config/` are shared; values that differ per environment go through the deploy
+file's `vars:`. No overlay, no merge. `-f` ignores local mode.
 
 `status` and `down` read the same deploy file as `up`. `graph` and `deps` always read `deploy.yaml`,
 never local mode, so their output is the same for everyone. `down` never deletes volumes.

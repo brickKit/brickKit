@@ -19,12 +19,15 @@ description: 把 BrickKit 项目部署到 Docker、Podman 或 Kubernetes，编�
 **1. 部署怎么跑写在 `deploy.yaml`，不在 `brickkit.yaml`。**
 
 `brickkit.yaml` 只管有什么组件、什么版本。`deploy.yaml` 顶层是 `target`（`docker` / `podman` /
-`k8s`，必填）、`k8s:` 块（context、namespace、podSecurity、ingressClass、serviceAccount、
-networkPolicy……只在 `target: k8s` 时生效，别的 target 下写了会警告）、`vars:`，以及
+`k8s`，必填；Podman 用 `podman compose` 跑同一份生成的 compose 文件）、`k8s:` 块（`context`、`namespace`、
+`createNamespace`、`podSecurity`、`imagePullSecrets`、`ingressClass`、`ingressAnnotations`、`serviceAccount`、
+`networkPolicy`，只在 `target: k8s` 时生效，别的 target 下写了会警告）、`vars:`，以及
 `components:` 下每个组件版本一个条目：`mode`、`localPort`、`expose` / `exposePort` / `hostname` /
 `tlsSecret`、`replicas`、`serviceAccountName`、`resources`、`labels`、`skipWaitFor`、外壳的 `members`。
-不带版本的 `id` 指默认版本；每个兼容版本要有自己的 `id@版本` 条目。条目数对不上
-`brickkit.yaml` 是 `DEPLOY_INCONSISTENT`。
+其中 `hostname`、`tlsSecret`、`replicas`、`serviceAccountName` 只对 K8s 有意义，`exposePort`、`skipWaitFor`
+只对 docker / podman 有意义，写在别的 target 下会警告。
+不带版本的 `id` 指默认版本；每个兼容版本要有自己的 `id@版本` 条目（外壳下的成员也算）。条目数对不上
+`brickkit.yaml` 是 `DEPLOY_INCONSISTENT`。这些条目由 `add` / `remove` / `upgrade` 维护——别靠手写条目来加组件。
 
 **2. 个人的事写进 `deploy.local.yaml`，不是改 `deploy.yaml`。**
 
@@ -50,11 +53,14 @@ CLI 从不替你合并。团队加了组件后，你的本地文件就对不上�
 `localPort`，CLI 生成 `local-debug.<版本化服务名>.env` 给 IDE 加载，让进程监听那个端口。
 **迁移不会自动跑**，第一次要手动跑一遍。
 
-`mode: local` 是「不用容器，BrickKit 替我起」：从本地仓库探测启动命令、起裸进程、前台监管，
-`localPort` 可不写（自动挑空端口）。它不是个人的，可以写在 `deploy.yaml`。两者都只支持
+`mode: local` 是「不用容器，BrickKit 替我起」：从本地仓库探测启动命令、起裸进程、前台监管（`Ctrl+C`
+停掉），`localPort` 可不写（自动挑空端口）。它不是个人的，可以写在 `deploy.yaml`。进程继承你终端的环境变量，
+平台自己的名字除外（`COMPONENT_ID`、`COMPONENT_VERSION`、`PORT`、`BRICKKIT_SERVED_MEMBERS`、
+`BRICKKIT_SERVED_MEMBERS_CONFIG`、所有 `*_ENDPOINT`、组件自己 `configSchema` 里的键）——这些只取 BrickKit
+给的值，终端里残留的 `export` 冒充不了它们。两者都只支持
 docker / podman，`target: k8s` 下拒绝——集群里的 Pod 到不了你的机器。从本地仓库跑的组件，
 仓库里的 `metadata.version` 必须等于项目的默认版本，否则 `up` 拒绝（`brickkit upgrade <id>@<仓库版本>`
-或检出对应 tag）。
+或检出对应 tag）；所以只有默认版本能这样跑，兼容版本写 `mode: local` / `debug` 会被拒。
 
 **5. 值写在 `config/`，键就是环境变量名。**
 
@@ -69,6 +75,11 @@ docker / podman，`target: k8s` 下拒绝——集群里的 Pod 到不了你的�
 | `TLS_CERT: file://.secrets/cert.pem` | 文件内容，路径相对项目根（`.secrets/` 不进 Git） |
 | `DB_PASSWORD: { existingSecret: db, key: password }` | 集群里已有的 Secret，仅 K8s、仅 `secret: true` 的键 |
 
+`$var:NAME` 冒号后**没有空格**——写成 `$var: NAME` 是 YAML 映射，不是引用。
+
+`add` 把必填键写成 `KEY: ""`：没填 `up` 就拒绝并点名那个键。可选键写成注释行（`# LOG_LEVEL: info`）：
+保持注释就跟着组件的默认值走，升级带来的新默认值也会跟过来，别为了「显式」取消注释。
+
 **环境差异放 `vars:`，不是复制 `config/`**：`config/` 各环境共用，`deploy.prod.yaml` 的
 `vars: { DB_HOST: db.prod.internal }` 就把所有 `$var:DB_HOST` 换掉了。`config/vars.yaml` 里不能再
 `$var:` 引用别的公共变量。
@@ -77,15 +88,20 @@ docker / podman，`target: k8s` 下拒绝——集群里的 Pod 到不了你的�
 
 `${VAR}` 在生成部署文件时就必须有定义（进程环境或 `.env`），每种部署目标都查：没定义就停下，而不是
 让 compose 悄悄换成空字符串。之后 Docker 下 CLI 把它原样留在 `compose.yaml`，由 compose 启动时求值；K8s 下 CLI 求值，
-`secret: true` 的值进生成的 Secret（Deployment 里是 `secretKeyRef`）。已经由 Vault / ESO 放进集群的
+`secret: true` 的值进生成的 Secret（Deployment 里是 `secretKeyRef`）。`secret: true` 的键写了明文会警告：
+`config/` 是要提交进 Git 的。已经由 Vault / ESO 放进集群的
 Secret 用 `existingSecret` 引用，平台不读不写它的值。**平台不会替你去 Vault 取值**——能把值放进进程
 环境的任何办法今天就能用。
 
 **7. `up` 从不构建镜像。**
 
 本地源的组件（和只有 `deployment.build` 的组件）先 `brickkit build`；镜像不在时 `up` 报
-`IMAGE_MISSING`。镜像 tag 就是组件版本，所以改了代码没升版本要 `brickkit build <id> --force`。
-有 `image:` 的 git / 市场组件是拉取的。
+`IMAGE_MISSING`。镜像 tag 就是组件版本，同版本的镜像已存在时 `build` 跳过，所以改了代码没升版本要
+`brickkit build <id> --force`。本机构建的外壳镜像里编进的成员版本与它的 `component.yaml` 不一致时是
+`IMAGE_STALE`。有 `image:` 的 git / 市场组件是拉取的。
+
+**数据库、缓存没有「资源绑定」。** 它们由运维部署，组件通过自己的配置项（`DB_HOST`、`DB_PASSWORD`……）
+去连。数据库本身由你建一次；表由组件的迁移建。
 
 **8. 外壳成员写在部署文件里，嵌在外壳条目下面。**
 
@@ -121,13 +137,16 @@ K8s 和裸进程下它不起作用（会警告）。
 只有 `requests` 有默认（`100m` / `128Mi`）。建议 CPU 只设 requests、不设上限（CPU limit 会限流成
 p99 毛刺）；内存 requests = limits（拿 Guaranteed QoS）。写法：
 `resources: { requests: { cpu: 200m, memory: 256Mi }, limits: { memory: 256Mi } }`。
-部署条目上的配额逐字段覆盖组件的建议值。
+部署条目上的配额逐字段覆盖组件的建议值。节点上只要求所有 `requests` 之和放得下，`limits` 超卖是常态。
+真正吃内存的是空转的运行时（一个 JVM 的底线就是几百 MB）：用外壳把它们合进一个进程，或者少跑几个——
+别为了省内存把两个组件的代码合成一个。
 
 **12. 平台不做网关，`labels` 是给网关的透传口。**
 
 给部署条目写 `labels`，平台原样搬进 Docker service labels / K8s annotations，键值不解释，逐键覆盖
 组件的 `deployment.labels`。值必须加引号（`"true"`）；`app`、`brickkit.io/*`、`com.docker.compose.*`
-是平台自己的键，会被拒。别退回去手写满是版本化服务名的 file-provider 配置——每次升级它都静默过期。
+是平台自己的键，会被拒。Docker 下网关要接进项目网络 `brickkit-<项目名>-net` 才连得到组件。别退回去手写满是
+版本化服务名的 file-provider 配置——每次升级它都静默过期。
 
 **13. `publicKeys` 是唯一让验签生效的字段**（`brickkit.yaml` 的 `installer:`，市场组件用）。
 一个公钥都没配，`requireSignature: true` 也不起作用。
@@ -150,11 +169,15 @@ p99 毛刺）；内存 requests = limits（拿 Guaranteed QoS）。写法：
 **迁移**：K8s 下是一个独立的 Job（不是 InitContainer，避免多副本并发迁移），Docker 下是一次性容器；
 失败则主服务不启动。
 
+**`up` 做了什么**：装载三层文件 → 判定谁启动 → 检查镜像（缺了给出 build 提示，git 镜像去拉）→ 生成部署文件
+（`--dry-run` 停在这里）→ 跑迁移（失败则主服务不启动）→ 交给引擎启动 → 前台监管 `mode: local` 的进程。
+
 **`status` / `down` / `graph`**：`status`、`down` 跟 `up` 一样读当前生效的部署文件（也接受 `-f`）；
 `down` 不删 volume。`graph` 从不读本地模式，只写在 `deploy.local.yaml` 里的东西不会出现在图上。
 
 ## 去哪查更细的
 
-- 参数：`brickkit up --help`、`brickkit local --help`、`brickkit build --help`
+- 参数：`brickkit up --help`、`brickkit local --help`、`brickkit build --help`、`brickkit lint --help`
+  （`lint --strict` 还会查 `${VAR}` 和 `file://` 引用能否取到）
 - 某个组件要配哪些值：`.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md` 的配置指南
 - 完整规范：<https://github.com/brickKit/brickKit> 根目录 `AGENTS.zh.md`

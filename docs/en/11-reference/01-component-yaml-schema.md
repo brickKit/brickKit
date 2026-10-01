@@ -65,7 +65,7 @@ variable's name carries no version, so two versions would collide on the same va
 | `configSchema.type` | string | | If written, `object` |
 | `configSchema.required` | list of strings | | Each must be declared under `properties` |
 | `configSchema.properties.<key>.type` | string | ✅ | `string` / `integer` / `number` / `boolean` / `array` / `object` |
-| `configSchema.properties.<key>.default` | any | | The default; lists and maps are encoded as one line of JSON when injected |
+| `configSchema.properties.<key>.default` | any | | The default; a scalar is injected exactly as written (`1.10` stays `1.10`), lists and maps are encoded as one line of JSON |
 | `configSchema.properties.<key>.description` | string | | Appears at the end of the line in the project's config skeleton |
 | `configSchema.properties.<key>.secret` | boolean | | `true` treats the item as a secret (a 0600 env file on Docker, a Secret on K8s) |
 | `configSchema.properties.<key>.enum` | list | | Allowed values — **documentation only; the platform doesn't check values** |
@@ -89,13 +89,13 @@ platform checks key names only, not values; details in [The configSchema spec](0
 | `deployment.build.context` | string | One of the two | The build context, relative to the repository root, `.` by default |
 | `deployment.build.dockerfile` | string | | The Dockerfile path, relative to the repository root, `Dockerfile` by default |
 | `deployment.port` | integer | ✅ | The main port, 1–65535 |
-| `deployment.extraPorts[].name` | string | ✅ | Lowercase letters, digits and hyphens, at most 15 characters (the K8s Service port-name rule); no duplicates |
+| `deployment.extraPorts[].name` | string | ✅ | Lowercase letters, digits and hyphens, at most 15 characters (the K8s Service port-name rule); no duplicates. Callers get the port as `<ID>_<NAME>_ENDPOINT`, `-` becoming `_` (`admin-api` on `demo/hello` → `DEMO_HELLO_ADMIN_API_ENDPOINT`) |
 | `deployment.extraPorts[].port` | integer | ✅ | 1–65535, not the same as the main port |
 | `deployment.resources.requests.cpu` | string | | The suggested CPU request, like `"100m"` |
 | `deployment.resources.requests.memory` | string | | The suggested memory request, like `"128Mi"` |
 | `deployment.resources.limits.cpu` | string | | The suggested CPU limit (better left out) |
 | `deployment.resources.limits.memory` | string | | The suggested memory limit |
-| `deployment.labels` | map of strings | | Passed through verbatim: service labels on Docker, Pod annotations on K8s; values must be strings |
+| `deployment.labels` | map of strings | | Passed through verbatim: service labels on Docker, annotations on the Deployment and its Pods on K8s; values must be strings |
 
 At least one of `image` and `build`; the paths of `build` must be inside the repository. When `resources` is written,
 `requests` or `limits` must hold at least `cpu` or `memory`; these values are the author's suggestions, and the project
@@ -118,6 +118,13 @@ has none.
 
 The check interval of 10 seconds, a 3-second timeout and 3 failures in a row meaning unhealthy are fixed by the platform and
 can't be configured.
+
+What each type runs: on Docker the check runs inside the container through `/bin/sh` — `http` runs `wget`, falling back to
+`curl`, against `http://localhost:<port><path>`, and `tcp` runs `nc -z localhost <port>`, so the image needs a shell and those
+tools (an image without a shell, like `scratch` or distroless, passes neither). On Kubernetes they become `httpGet` /
+`tcpSocket` probes, sent from outside the container. `none` generates no check: dependents wait only for the container to
+start. See
+[up / down problems](../10-troubleshooting/01-up-down-issues.md#the-components-logs-look-fine-yet-the-platform-says-its-unhealthy).
 
 ## shell
 

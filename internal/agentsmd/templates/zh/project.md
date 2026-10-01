@@ -10,4 +10,4 @@
 
 ## 组件
 
-组件的文档是 `BRICKKIT.md`（译本 `BRICKKIT.<语言>.md`）：本地源里正好是这个版本时在源码目录里，否则在 `.brickkit/manifests/<id>/<version>/`；契约在 `.brickkit/artifacts/<服务名>/`（ID 里的 `/` 和 `.` 换成 `-`，再接上 `.` 换成 `-` 的版本）。要改某个组件，读它自己的 `AGENTS.md`。
+组件的文档是 `BRICKKIT.md`（译本 `BRICKKIT.<语言>.md`）：本地源里正好是这个版本时在源码目录里，否则在 `.brickkit/manifests/<id>/<version>/`；契约在 `.brickkit/artifacts/<服务名>/`（ID 和版本用 `-` 连起来，其中的 `/` 和 `.` 也都换成 `-`：`erp/backend` 1.0.0 → `erp-backend-1-0-0`）。要改某个组件，读它自己的 `AGENTS.md`。

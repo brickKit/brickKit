@@ -30,7 +30,7 @@ them is wrong.
 | --- | --- |
 | `deploy.local.yaml` — **whether local mode is on or not** | With local mode off, `up` doesn't read it; but you may `local on` at any moment, and then it must match `brickkit.yaml`. The team added a component and your personal file didn't keep up: it's reported here |
 | **Every** `component.yaml` in the local sources, whether `add`ed or not | `up` doesn't read components not yet added to the project; `lint` makes them right before they're used |
-| Under `--strict`: whether `${VAR}` has a value in the process environment or `.env`, whether the file `file://` points at exists | On Docker, `${VAR}` is expanded by `docker compose` only at start-up, and `up` itself doesn't check it |
+| Under `--strict`: whether `${VAR}` has a value in the process environment or `.env`, whether the file `file://` points at exists | `up` checks these too, on every run — but only for the components it starts this time, and on the machine it runs on (an undefined `${VAR}` stops it before anything starts). `lint` checks every component in the project, and only when asked, because these values often exist only on CI or the deploy machine |
 
 **Fix**
 

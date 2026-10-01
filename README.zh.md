@@ -137,7 +137,7 @@ less install.sh && sh install.sh
 go install github.com/brickkit/brickkit/cmd/brickkit@latest
 ```
 
-**从源码构建**——`make install` 则装到 GOBIN，版本号、commit、构建时间都注入进了二进制：
+**从源码构建**——`make build-cli` 产出 `bin/brickkit`，版本号、commit、构建时间都注入进了二进制（`make install` 则装到 GOBIN）：
 
 ```bash
 git clone https://github.com/brickKit/brickKit.git

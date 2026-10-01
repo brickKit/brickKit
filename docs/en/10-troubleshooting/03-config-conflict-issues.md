@@ -119,9 +119,16 @@ what it gets; when it says `$var:NAME`, look in the current deploy file's `vars:
 `${VAR}`, it's the value from the process environment or `.env`. There's no global default layer, no inheritance, no other
 file replacing it behind your back — what you see is what runs.
 
+Your terminal overrides nothing either: a container gets nothing from it, and a `mode: local` process, which does start
+from the terminal's environment, has the platform's names and the component's own config keys removed from it first (see
+[What a `mode: local` process inherits](../06-architecture/03-env-injection-contract.md#what-a-mode-local-process-inherits)).
+
 The one exception is a config item colliding with a name the platform reserves (`COMPONENT_ID`, `PORT`, names ending in
 `_ENDPOINT` and so on): then the platform's value wins, with a warning; see
 [The environment variable contract](../06-architecture/03-env-injection-contract.md#reserved-names).
 
-To confirm what a component finally gets: `brickkit up --dry-run`, then that service's `environment` in
-`.brickkit/generated/compose.yaml` (the generated Deployment on K8s).
+To confirm what a component finally gets: `brickkit up --dry-run`, then look in two places — that service's
+`environment` in `.brickkit/generated/compose.yaml`, and `.brickkit/generated/env/<service name>.env`, which holds the
+secret items and `file://` contents (they never go into `compose.yaml`). A `${VAR}` stays written as `${VAR}` in both:
+`docker compose` expands it at start-up, from the process environment and `.env`. On K8s, look at the generated
+Deployment and Secret.

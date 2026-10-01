@@ -41,7 +41,8 @@ reused. From then on the commands that run or check the deployment (`up`, `down`
 keeps the file. When the team changes `deploy.yaml`, your copy doesn't follow: `up` refuses once the
 component set differs. Run `brickkit local refresh` — it saves the old file as
 `deploy.local.yaml.bak`, writes a fresh copy and **lists your old local changes** for you to re-apply
-by hand. The CLI never merges. `--no-local` ignores the file for one run.
+by hand. The CLI never merges. `--no-local` ignores the file for one run; `brickkit local status` shows
+the switch and whether the file still matches `brickkit.yaml`. The file is never committed.
 
 **3. `mode: debug` is only accepted in `deploy.local.yaml`.**
 
@@ -50,10 +51,16 @@ gets no container; other containers reach your IDE process through `extra_hosts`
 `local-debug.<versioned-service-name>.env` is generated for the IDE to load (dependency addresses as
 `localhost` ports). Set `localPort` to what your process listens on. No migration is run for it.
 `mode: local` is different: BrickKit detects the start command from the local repo, launches and
-supervises the process in the foreground (`Ctrl+C` stops it), and it may go in `deploy.yaml`.
-Both work on docker / podman and are rejected on `target: k8s`. Both run code from the local repo,
-whose `metadata.version` must equal the default version in `brickkit.yaml` — so only the default
-version can run this way; a `requiredBy` version with `mode: local` / `debug` is refused.
+supervises the process in the foreground (`Ctrl+C` stops it), and it may go in `deploy.yaml`;
+`localPort` may be left out (a free port is picked). The process inherits your terminal's environment
+except the names the platform owns (`COMPONENT_ID`, `COMPONENT_VERSION`, `PORT`,
+`BRICKKIT_SERVED_MEMBERS`, `BRICKKIT_SERVED_MEMBERS_CONFIG`, every `*_ENDPOINT`, the component's own
+`configSchema` keys) — those come only from BrickKit, so a stale `export` can't stand in for them.
+Both work on docker / podman and are rejected on `target: k8s` (a Pod can't reach your machine). Both
+run code from the local repo, whose `metadata.version` must equal the default version in
+`brickkit.yaml` — so only the default version can run this way; a `requiredBy` version with
+`mode: local` / `debug` is refused. On a mismatch: `brickkit upgrade <id>@<repo version>`, or check
+out the tag of the default version.
 `brickkit graph` never reads local mode, so a `mode: debug` there never shows up in the graph.
 
 **4. Environments are whole files: `brickkit up -f deploy.prod.yaml`.**
@@ -72,6 +79,9 @@ TLS_CERT: file://.secrets/cert.pem     # file contents, path relative to the pro
 API_TOKEN: { existingSecret: api, key: token }   # K8s only, secret keys only
 ```
 
+The default version reads `config/<scope>-<name>.yaml`; a `requiredBy` version reads
+`config/<scope>-<name>@<version>.yaml`.
+
 A required key is written by `add` as `KEY: ""` — `up` refuses while it's empty and names it.
 Optional keys are commented (`# LOG_LEVEL: info`): leave them commented to follow the component's
 default, so new defaults arrive with upgrades. `$var:NAME` has **no space** after the colon — `$var: NAME` is a YAML map, not a reference. An
@@ -81,31 +91,57 @@ Plaintext in a `secret: true` key warns: config files are committed. A `${VAR}` 
 (process environment, then `.env`) when the files are generated, on every target — an undefined one
 stops `up` rather than let compose put in an empty string. Give it a default with `${VAR:-dev}`, or
 `${VAR:-}` for a value that may be empty. On Docker the reference is then left for compose to expand
-at start; on K8s the CLI resolves it and `secret: true` values go into a Secret.
+at start; on K8s the CLI resolves it and `secret: true` values go into a generated Secret (a
+`secretKeyRef` in the Deployment). A Secret already put into the cluster (by Vault, ESO, …) is
+referenced with `existingSecret`; the platform never reads or writes its value, and never fetches from
+Vault itself — any way of getting the value into the process environment works today.
 
 **6. There are no resource bindings.** A database or cache is deployed by ops, and the component
 reads it through its own config keys (`DB_HOST`, `DB_PASSWORD`, …). The database itself is created
 by you, once; tables come from the component's migration.
 
 **7. `up` never builds images.** Local-source components (and git ones with only
-`deployment.build`) need `brickkit build [<id>]` first. Tags equal `metadata.version`, and an
-existing image of that version is skipped — changed code without a version bump needs `--force`. A shell image built with stale member versions is `IMAGE_STALE`.
+`deployment.build`) need `brickkit build [<id>]` first; while the image is missing `up` stops with
+`IMAGE_MISSING`. Tags equal `metadata.version`, and an existing image of that version is skipped —
+changed code without a version bump needs `--force`. A shell image built with stale member versions is
+`IMAGE_STALE`. Git / market components with `image:` are pulled.
 
 **8. Shells are chosen in the deploy file.** Nest member entries under the shell entry and they run
 inside it (no own container; their `*_ENDPOINT` points at the shell; their own expose / labels /
 health check don't apply). The hosted version must be the one the shell's `component.yaml` compiles
-in. A member with `mode: debug` / `local` leaves the shell and runs as a bare process. Merging can
-create a Compose `depends_on` cycle; the error names the edges and offers `skipWaitFor: [<id>]` on an
-entry, which only drops the start wait — the component must retry until its dependency is up.
-`brickkit up --ignore-shells --dry-run` checks that everything can still stand alone.
+in; otherwise `up` stops with three ways out: upgrade the shell to one that compiles that version;
+move the member entry out of the shell to run on its own; or keep both — a `brickkit.yaml` line for the
+compiled version with `requiredBy: [<shell>]`, `id@that-version` nested under the shell, the other
+version left at the top level. `add` of a shell writes all of this for you. A member with
+`mode: debug` / `local` leaves the shell and runs as a bare process.
+
+```yaml
+components:
+  - id: erp/shell
+    members:
+      - id: erp/api          # the default version of erp/api runs inside the shell
+      - id: erp/auth@1.2.0   # a requiredBy version can be hosted too
+```
+
+Merging can create a Compose `depends_on` cycle (a member inside depends on X outside, X depends on
+another member inside); the error names the edges and offers three ways out — move X into the shell
+too, move a member out, or `skipWaitFor: [<id>]` on an entry, which only drops the start wait (the
+connection stays; the component must retry until its dependency is up). `skipWaitFor` has no effect on
+Kubernetes (Pods don't wait for each other) or for a bare process, and `up` warns when it is written
+there. `brickkit up --ignore-shells --dry-run` checks that everything can still stand alone.
 
 **9. `limits` has no default.** Only `requests` does (`100m` / `128Mi`). Recommended: CPU `requests`
-with no ceiling; memory requests = limits. Write it inline:
-`resources: { requests: { cpu: 200m, memory: 256Mi } }`. Don't merge components just to save memory.
+with no ceiling (a CPU limit throttles into p99 spikes); memory requests = limits (Guaranteed QoS).
+Write it inline: `resources: { requests: { cpu: 200m, memory: 256Mi }, limits: { memory: 256Mi } }`.
+The entry's quotas override the component's recommendation field by field. Only the sum of `requests`
+must fit a node; `limits` may overcommit. When idle runtimes eat the memory (a JVM's floor is hundreds
+of MB), host them in a shell or run fewer of them — don't merge two components' code into one.
 
-**10. A gateway hooks in through `labels`**, quoted string values, copied verbatim to Docker labels /
-K8s annotations. A gateway on Docker joins the `brickkit-<project>-net` network. Don't hand-write a
-file-provider config full of versioned service names — it goes stale on every version bump.
+**10. A gateway hooks in through `labels`**, quoted string values (`"true"`), copied verbatim to
+Docker service labels / K8s annotations and overriding the component's `deployment.labels` key by key.
+`app`, `brickkit.io/*` and `com.docker.compose.*` are the platform's own keys and are rejected. A
+gateway on Docker joins the `brickkit-<project>-net` network. Don't hand-write a file-provider config
+full of versioned service names — it goes stale on every version bump.
 
 **11. Signature verification needs `installer.publicKeys` in `brickkit.yaml`.** With none configured,
 nothing is verified, whatever `requireSignature` says.
@@ -129,7 +165,17 @@ compose file through `podman compose`. K8s settings live in the `k8s:` block (`c
 `replicas` (`> 1` adds a PDB) and `serviceAccountName` are K8s only; `exposePort` and `skipWaitFor`
 are docker / podman only.
 
-**Addresses** are `http://<versioned-service-name>:<port>` on every target, so code never changes.
+**Addresses** are `http://<versioned-service-name>:<port>` on every target, so code never changes and
+several versions coexist.
+
+**Exposing**: `expose: true`. On K8s it needs a `hostname` (an Ingress is generated; `tlsSecret`
+optional); on Docker the port is mapped to the host (`exposePort` changes the host port). Not written:
+not exposed. `replicas > 1` on K8s adds a PodDisruptionBudget.
+
+**Migrations**: on K8s a separate Job (not an init container, so several replicas never migrate at
+once); on Docker a one-shot container. A failure keeps the main service from starting.
+
+**`status` / `down`** read the same deploy file as `up` (and take `-f`); `down` never deletes volumes.
 
 **What `up` does**: load the three layers → decide who starts → check images (missing → build hint,
 git images pulled) → generate files (`--dry-run` stops here) → migrations (a failure blocks the main

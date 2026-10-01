@@ -95,8 +95,10 @@ Without `-f` (on the development machine, reading `deploy.yaml`), the generated 
 ```
 
 The production database password works the same way: write `PG_PASSWORD: ${PG_PASSWORD}` in `config/vars.yaml` and keep
-the real value in the deploy machine's environment; on Kubernetes the CLI evaluates it when generating the manifests and
-puts it into the generated Secret (see [Secrets](../01-three-layers/07-sensitive-values.md)).
+the real value in the deploy machine's environment; on Kubernetes the CLI evaluates it when generating the manifests.
+Where the value lands depends on the component, not on `${…}`: when its `configSchema` declares the key `secret: true`
+(as a password should be), the value goes into the generated Secret; otherwise it is written in plain text into the
+Deployment (see [Secrets](../01-three-layers/07-sensitive-values.md)).
 
 On Kubernetes, `--dry-run` only generates manifests and doesn't connect to the cluster. For a real deployment, `up` first
 confirms that `kubectl`'s current context is the deploy file's `k8s.context`, and only then acts — deploying to the wrong

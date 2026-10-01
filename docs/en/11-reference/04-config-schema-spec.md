@@ -36,7 +36,7 @@ configSchema:
 | --- | --- |
 | The keys of `properties` | Config item names, which are the environment variable names injected, as they are: they must be valid environment variable names (letters, digits and underscores, not starting with a digit) |
 | `type` | `string` / `integer` / `number` / `boolean` / `array` / `object` |
-| `default` | Used when no value is written; scalars are injected as strings, `array` / `object` as one line of JSON |
+| `default` | Used when no value is written; scalars are injected as strings, exactly as written (`default: 1.10` is injected as `1.10`, not `1.1`), `array` / `object` as one line of JSON |
 | `description` | Appears at the end of the line in the project's config skeleton |
 | `secret: true` | The item is a secret: at deployment it takes the secret channel, never written into deployment files in plain text |
 | `required` | The required items; each must be declared under `properties` |

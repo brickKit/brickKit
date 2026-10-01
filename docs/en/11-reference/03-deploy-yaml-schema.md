@@ -20,7 +20,7 @@ Project-level Kubernetes settings. Written when `target` isn't `k8s`, they're wa
 
 | Field | Type | Required | Rules |
 | --- | --- | --- | --- |
-| `k8s.context` | string | | Which kubeconfig context to deploy to. When written, `up` confirms before really deploying that `kubectl` is currently connected to it |
+| `k8s.context` | string | | Which kubeconfig context to deploy to. When written, `up` (before really deploying), `down` and `status` first confirm that `kubectl` is currently connected to it; a current context that can't be read lets the command through |
 | `k8s.namespace` | string | | `brickkit-<project name>` by default; the same rules as the project name |
 | `k8s.createNamespace` | boolean | | `true` by default; write `false` when you only have namespace-level permissions |
 | `k8s.podSecurity` | string | | Only `restricted`: generates a restricted-level `securityContext` for every container |
@@ -53,8 +53,8 @@ shell, count the same).
 | Field | Type | Required | Rules |
 | --- | --- | --- | --- |
 | `components[].id` | string | ✅ | A bare ID means the default version; `<component ID>@<version>` means that version (a compatibility version must be written this way) |
-| `components[].mode` | string | | `enabled` / `disable` / `local` / `debug`. Left out, it follows the top. `debug` can only be written in `deploy.local.yaml`; `local` and `debug` aren't allowed with `target: k8s` |
-| `components[].localPort` | integer | | The port the process on this machine listens on, 1–65535; only with `mode: local` / `mode: debug`; mustn't clash with another entry. Left out for `mode: local`, one is picked automatically |
+| `components[].mode` | string | | `enabled` / `disable` / `local` / `debug`. Left out, it follows the layer above: it runs when any component that depends on it runs (a top-level component runs by default). `debug` can only be written in `deploy.local.yaml`; `local` and `debug` aren't allowed with `target: k8s` |
+| `components[].localPort` | integer | | The port the process on this machine listens on, 1–65535; only with `mode: local` / `mode: debug`, or on the entry of the `focus` component (which runs as `mode: local`); mustn't clash with another entry. Left out for `mode: local`, one is picked automatically |
 | `components[].expose` | boolean | | Exposed to the outside: a host port mapped on Docker, an Ingress generated on K8s |
 | `components[].exposePort` | integer | | The host port mapped on Docker, the component's port by default; only with `expose: true`; mustn't clash; ignored on K8s |
 | `components[].hostname` | string | See the rules | The Ingress's domain name; required with `target: k8s` and `expose: true` |

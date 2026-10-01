@@ -10,8 +10,11 @@ package cli
 //     编辑之后引入的拼写错误，要到跑 up（或 up --dry-run）读到那份文件时才会暴露。
 // 跨文件的检查走 up 同一条装载路径（lintCrossFile）：up 会拦的，lint 一样拦。
 //
-// 不做的事：不解析依赖图、不核对外壳与成员跟它们的 component.yaml 是否一致（那要取
-// Manifest，可能联网，留给 up / graph）、不校验 configSchema 里 enum / minimum 对应的值
+// 文档检查（doccheck）在组件仓库、工作台与项目里都跑，只报警告。
+//
+// 不做的事：不解析依赖图、不核对外壳这次承载的成员版本与它编进的版本（那要解析出依赖图，
+// 可能联网，留给 up / graph；盘上有 Manifest 的组件，kind: shell 与 shell 块、成员确实编进外壳
+// 照样查，见 lint_config.go）、不校验 configSchema 里 enum / minimum 对应的值
 // （configSchema 是说明书，不是安全闸，见 docs/{en,zh}/11-reference/04-config-schema-spec.md）。
 
 import (

@@ -123,6 +123,7 @@ DATABASE_HOST: $var:PG_HOST:5432
 ❌ 错误：demo-caller.yaml 校验失败
    文件：config/demo-caller.yaml
    DATABASE_HOST："$var:PG_HOST:5432" 不是合法的 $var: 引用；写成 $var:NAME，NAME 由字母、数字、下划线组成
+   建议：config/ 文件的写法：docs/zh/01-three-layers/05-config-directory.md（英文版把 zh 换成 en）
 ```
 
 `$var:` 必须是整个值，不能嵌进字符串。
@@ -133,6 +134,10 @@ DATABASE_HOST: $var:PG_HOST:5432
 ```text
 ❌ 错误：config/ 或部署文件里引用的环境变量没有定义
    缺少的变量：PG_HOST
+   原因：docker compose 启动时会把它们换成空字符串，只在它自己的输出里警告一句：组件拿到的是残缺的值，却不会有任何报错
+   建议：
+   1. 在项目根目录的 .env 里补上这些变量，或在当前 shell 里 export
+   2. 也可以写默认值：${POSTGRES_PASSWORD:-dev}
 ```
 
 **最稳的做法：不让使用方拼连接串。** 组件在 `configSchema` 里把主机、端口、库名、用户、口令分成几项，自己在代码里组装：
@@ -149,5 +154,6 @@ DB_PASSWORD: ${PG_PASSWORD}
 这样每一项都能单独引用公共变量或环境变量，口令也能单独标成密钥。还有一个好处：口令里有 `@`、`:`、`/` 这类字符时，拼进 URL 会把 URL 拆坏，
 需要 URL 编码；分开传给数据库驱动则不需要。怎么设计配置项见 [configSchema 设计准则](../03-component-guide/03-config-schema-design.md)。
 
-**迁移与主服务拿到的是同一组环境变量。** 主服务连得上、迁移连不上，多半是迁移代码读的变量名与主服务不同，而不是平台给了不同的值——
-对照 `.brickkit/generated/compose.yaml` 里迁移服务的 `environment` 与主服务的，两者是一样的。
+**迁移与主服务拿到的是同一组环境变量。** 主服务连得上、迁移连不上，多半是迁移代码读的变量名与主服务不同，而不是平台给了不同的值。
+对照 `.brickkit/generated/compose.yaml` 里的两个服务：迁移服务（`<服务名>-migration`）的 `environment` 与主服务一样，加载的也是同一个 `env_file`——
+`.brickkit/generated/env/<服务名>.env`，标了 `secret: true` 的 `DB_PASSWORD` 这类密钥项和 `file://` 的内容就在那里（它们从不进 `compose.yaml`）。

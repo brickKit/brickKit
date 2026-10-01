@@ -307,6 +307,16 @@ func TestEveryLanguageVersionIsLinked(t *testing.T) {
 }
 
 // 代码地图里以 / 开头的是路由（`/healthz`、`/api/v1/quote`），不是仓库里的路径。
+// 路径表第一列本来就是路径：顶层文件（main.go、Dockerfile）不带 / 也要查；别的格子里不带 / 的照旧当成名字（函数、类型）。
+func TestCodeMapPathColumnChecksTopLevelFiles(t *testing.T) {
+	agents := strings.Replace(goodAgents, "| `api/` | contract |", "| `api/` | contract |\n| `Dockerfile` | the image, built from `runMode` |", 1)
+	dir, m := component(t, map[string]string{"AGENTS.md": agents})
+	got := Component(dir, m)
+	require.Len(t, got, 1, "Dockerfile is in the path column and doesn't exist; runMode is a name, not a path")
+	assert.Equal(t, clierr.CodeDocPathMissing, got[0].Code)
+	assert.Contains(t, got[0].Message, "Dockerfile")
+}
+
 func TestCodeMapRoutesAreNotPaths(t *testing.T) {
 	agents := strings.Replace(goodAgents, "| `api/` | contract |", "| `api/` | contract |\n| `main.go` | serves `/healthz` and `/api/v1/quote` |", 1)
 	dir, m := component(t, map[string]string{"AGENTS.md": agents})

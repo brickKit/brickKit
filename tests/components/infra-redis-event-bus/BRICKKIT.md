@@ -2,7 +2,7 @@
 
 ## 组件定位
 
-基于 Redis Streams 的事件总线：组件把事件发到这里，消费方按需读回最近的事件。它常被别的组件声明为弱依赖（例如 `erp/backend`），没装它时那些组件照常工作、只是不发事件。
+基于 Redis Streams 的事件总线：组件把事件发到这里，消费方按需读回最近的事件。它常被别的组件声明为弱依赖（例如 `erp/backend`、`people/basic`），没装它时那些组件照常工作、只是不发事件。
 
 **负责**
 
@@ -70,7 +70,7 @@ REDIS_PASSWORD: ${REDIS_PASSWORD}
   ```
 
 - 发布的事件：无（本组件只转存别人的事件）。
-- 消费的事件：任何类型都收；已知的发布方有 `erp/backend` 的 `erp.order.approved`。
+- 消费的事件：任何类型都收；已知的发布方有 `erp/backend` 的 `erp.order.approved`（`subject` 是订单 ID）和 `people/basic` 的 `people.person.viewed`（`subject` 是人员 ID）。
 
 ## 外壳声明
 

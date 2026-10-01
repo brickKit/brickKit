@@ -1,6 +1,6 @@
 # erp/backend
 
-ERP 订单查询与审批的连接组件（Go）：自己几乎没有数据，把 `auth/password-login`、`authorization/rbac`、`people/basic` 三个强依赖与弱依赖 `infra/redis-event-bus` 串起来。它也是 BrickKit 的平台自测组件，专门验证弱依赖降级、`extraPorts` 注入、"只依赖组件、不需要外部系统"这三条路径。
+ERP 订单查询与审批的连接组件（Go）：自己几乎没有数据，把 `auth/password-login`、`authorization/rbac`、`people/basic` 三个强依赖与弱依赖 `infra/redis-event-bus` 串起来。它也是 BrickKit 的平台自测组件，专门验证弱依赖降级、`extraPorts` 注入、"只依赖组件、不需要外部系统"这三条路径。怎么用、边界和契约见 `BRICKKIT.md`；依赖、配置、部署见 `component.yaml`。
 
 ## 代码地图
 

@@ -61,7 +61,7 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 ### 3.2 Rules that matter
 
 - `brickkit.yaml` is the lock file: every component version in use is written there. An undeclared required dependency is an error (the error shows the `add` to run); an undeclared optional dependency simply does not exist.
-- `deploy.local.yaml` **replaces** `deploy.yaml` as a whole; it does not override fields. With local mode on, the commands that run or check the deployment (`up`, `down`, `status`, `sync`, `lint`, `build`) read it and not `deploy.yaml`; `graph` and `deps` always read `deploy.yaml`, so their output is the same for everyone. It must match `brickkit.yaml` entry for entry, so after the team adds a component you run `brickkit local refresh`.
+- `deploy.local.yaml` **replaces** `deploy.yaml` as a whole; it does not override fields. With local mode on, the commands that run the deployment (`up`, `down`, `status`, `sync`, `build`) read it and not `deploy.yaml`; `lint` checks both whenever `deploy.local.yaml` exists, whatever the switch says; `graph` and `deps` never read `deploy.local.yaml`, so their output is the same for everyone (`graph -f` reads the file it names). It must match `brickkit.yaml` entry for entry, so after the team adds a component you run `brickkit local refresh`.
 - `mode: debug` is written only in `deploy.local.yaml`: "I'm debugging this on my machine right now" is a personal fact and never goes into Git.
 - `focus: <id>` is written only in `deploy.local.yaml` — `brickkit up` in a component's directory or `up --focus <id>` writes it, `up --all` removes it. While it is set, only that component (from its source) and what it needs start; `sync` ignores it, and it doesn't work with `target: k8s`.
 - Project commands work from any subdirectory: they walk up to the nearest `brickkit.yaml` (like `git`, not stopping at `.git`) and say `📁 Project: …` when they did; paths they print are relative to where you are. `release`, `publish`, `init` and `skills` act on the current directory.
@@ -130,7 +130,7 @@ Don't load every component's documentation at once: read only the components the
 
 - The only global flag is `--log-level` (level of the JSON log lines on stderr, default `warn`).
 - `-f, --file <path>`: the commands that read a deploy file (`up`, `down`, `status`, `sync`, `lint`, `graph`) use it to pick one deploy file, ignoring `deploy.local.yaml` and the local-mode switch entirely.
-- `--no-local`: `up`, `down`, `status`, `sync` and `lint` ignore `deploy.local.yaml` for this run, without changing the local-mode switch.
+- `--no-local`: `up`, `down`, `status` and `sync` ignore `deploy.local.yaml` for this run, without changing the local-mode switch; for `lint` it makes `deploy.yaml` the file the config checks run against (both files are still checked).
 - `--dry-run`: `up` generates the deployment files without running them; `upgrade` works everything out without writing.
 - `--focus <id>` / `--all`: `up` sets or removes the focus in `deploy.local.yaml`; neither goes with `-f` or `--no-local`.
 - No argument, in a component's directory: `build` and `deps` mean that component.
@@ -267,7 +267,9 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `cmd/gen-llms/` | Generates `llms/` |
 
 Elsewhere: `market-server/` (the optional component market, its own Go module), `tools/i18n/` (one-off i18n
-migration scripts), `scripts/` (lint checks, install checks, release), `install.sh`, `.githooks/` (the commit hook).
+migration scripts), `scripts/` (lint checks, install checks, release), `install.sh`, `.githooks/` (the commit hook),
+`.github/` (the tag-triggered release workflow and its smoke test), `deploy/` (the market's own deployment files),
+`proto/` (shared proto includes), `tutorials/` (empty for now), `archive/` (historical, not current).
 
 ### Features → code
 
@@ -298,6 +300,10 @@ migration scripts), `scripts/` (lint checks, install checks, release), `install.
 ### Tests and checks
 
 - Unit tests sit next to the code (`*_test.go`); CLI tests run commands in-process against `internal/cli/testdata/`.
-- `tests/components/`: real components (Go, Python, nginx) used as fixtures; `tests/checklist/`: the regression
-  list `make test-all` runs; `tests/docfields/`: guards that the docs match the code.
-- `make lint` (every static check, `scripts/check-*.py`) and `make test-all`; `make hooks` once per clone.
+- `tests/components/`: real components (Go, Python, nginx) used as fixtures; `tests/checklist/` (acceptance items:
+  boundary, error, compat, security) and `tests/regression/` (user-facing promises): each line points at the test that
+  proves it, run by `make test-all`; `tests/docfields/`: guards that the docs match the code; `tests/archguard/`,
+  `tests/errorhints/`, `tests/i18nguard/`: repository-wide guards (`make check-guards`, `make check-i18n`);
+  `tests/perf/`: benchmarks.
+- `make lint` (every static check, plus the coverage gate, which runs the unit tests) and `make test-all`; `make hooks`
+  once per clone.

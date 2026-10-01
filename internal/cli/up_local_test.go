@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/clierr"
 	"github.com/brickkit/brickkit/internal/compose"
 	"github.com/brickkit/brickkit/internal/envref"
@@ -422,4 +423,20 @@ func TestLocalMigrationNoteNamesTheRealMode(t *testing.T) {
 	out := r.stdout + r.stderr
 	assert.Contains(t, out, "a mode: local component's database migration won't run automatically")
 	assert.NotContains(t, out, "mode: debug component's database migration")
+}
+
+// mode: local 的进程继承终端环境，但平台管的名字只能来自平台：保留名、*_ENDPOINT、组件自己的配置项。
+// 否则终端里 export 过的 DEMO_BUS_ENDPOINT 会让"可选依赖缺席时变量不存在"失效，旧的 DB_HOST 会盖过 config/。
+func TestLocalProcessesDoNotInheritNamesThePlatformOwns(t *testing.T) {
+	m := &manifest.Manifest{ConfigSchema: &manifest.ConfigSchema{Properties: map[string]manifest.ConfigProperty{
+		"DB_HOST": {Type: "string"},
+	}}}
+	withhold := platformOwned(m)
+	for _, name := range []string{"DB_HOST", "DEMO_BUS_ENDPOINT", "PORT", "COMPONENT_ID", "COMPONENT_VERSION",
+		"BRICKKIT_SERVED_MEMBERS", "BRICKKIT_SERVED_MEMBERS_CONFIG"} {
+		assert.True(t, withhold(name), name)
+	}
+	for _, name := range []string{"PATH", "HOME", "GOPATH", "DB_HOST_EXTRA"} {
+		assert.False(t, withhold(name), name)
+	}
 }

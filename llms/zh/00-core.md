@@ -4,7 +4,7 @@
 
 下面 File 与包含里的路径都相对仓库根目录 https://raw.githubusercontent.com/brickKit/brickKit/main/ ；页内链接相对这份合集自己
 
-下一份: 其余全部文档，每页一次，按阅读顺序: https://raw.githubusercontent.com/brickKit/brickKit/main/llms/zh/01.md … 07.md
+下一份: 其余全部文档，每页一次，按阅读顺序: https://raw.githubusercontent.com/brickKit/brickKit/main/llms/zh/01.md … 08.md
 
 ---
 
@@ -69,7 +69,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 ### 3.2 关键规则
 
 - `brickkit.yaml` 是锁文件：用到的每个组件版本都写在这里。没声明的强依赖是错误（报错时给出 `add` 的写法），没声明的弱依赖就是不存在。
-- `deploy.local.yaml` 是**完整替换**，不是属性覆盖：本地模式开着时，运行或检查部署的命令（`up`、`down`、`status`、`sync`、`lint`、`build`）只读它、不读 `deploy.yaml`；`graph` 与 `deps` 始终读 `deploy.yaml`，输出对谁都一样。它必须与 `brickkit.yaml` 一一对应，团队加了组件就要 `brickkit local refresh`。
+- `deploy.local.yaml` 是**完整替换**，不是属性覆盖：本地模式开着时，运行部署的命令（`up`、`down`、`status`、`sync`、`build`）只读它、不读 `deploy.yaml`；`lint` 只要 `deploy.local.yaml` 存在就两份都查，不管开关；`graph` 与 `deps` 从不读 `deploy.local.yaml`，输出对谁都一样（`graph -f` 读它指定的那份）。它必须与 `brickkit.yaml` 一一对应，团队加了组件就要 `brickkit local refresh`。
 - `mode: debug` 只写在 `deploy.local.yaml`：那是"我正在自己机器上调它"这个个人事实，不进 Git。
 - `focus: <id>` 只写在 `deploy.local.yaml`——在组件目录里 `brickkit up` 或 `up --focus <id>` 会写上它，`up --all` 去掉它。写了它，就只启动这个组件（从源码跑）和它需要的组件；`sync` 不看它，`target: k8s` 下用不了。
 - 项目命令在任何子目录里都能用：往上找到最近的 `brickkit.yaml`（像 `git` 一样，不停在 `.git`），找到上面的就说一句 `📁 项目：…`；打印的路径都相对你所在的目录。`release`、`publish`、`init`、`skills` 作用于当前目录。
@@ -138,7 +138,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 
 - 唯一的全局参数是 `--log-level`（stderr 上 JSON 日志的级别，默认 `warn`）。
 - `-f, --file <路径>`：读部署文件的命令（`up`、`down`、`status`、`sync`、`lint`、`graph`）用它指定一份部署文件，同时完全忽略 `deploy.local.yaml` 与本地模式开关。
-- `--no-local`：`up`、`down`、`status`、`sync`、`lint` 本次忽略 `deploy.local.yaml`，不改变本地模式开关。
+- `--no-local`：`up`、`down`、`status`、`sync` 本次忽略 `deploy.local.yaml`，不改变本地模式开关；对 `lint` 来说，它让配置检查以 `deploy.yaml` 为准（两份照样都查）。
 - `--dry-run`：`up` 只生成部署文件不执行；`upgrade` 只演算不写盘。
 - `--focus <id>` / `--all`：`up` 在 `deploy.local.yaml` 里设上或去掉焦点；两者都不能和 `-f`、`--no-local` 一起用。
 - 在组件目录里不带参数：`build` 和 `deps` 指的就是这个组件。
@@ -273,7 +273,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `cmd/gen-schemas/` | 生成 `schemas/*.json` |
 | `cmd/gen-llms/` | 生成 `llms/` |
 
-其他地方：`market-server/`（可选的组件市场，独立的 Go 模块）、`tools/i18n/`（多语言迁移时的一次性脚本）、`scripts/`（lint 检查、安装检查、发布）、`install.sh`、`.githooks/`（提交钩子）。
+其他地方：`market-server/`（可选的组件市场，独立的 Go 模块）、`tools/i18n/`（多语言迁移时的一次性脚本）、`scripts/`（lint 检查、安装检查、发布）、`install.sh`、`.githooks/`（提交钩子）、`.github/`（打 tag 触发的发布流程及其冒烟测试）、`deploy/`（市场自己的部署文件）、`proto/`（共用的 proto 引用）、`tutorials/`（暂时是空的）、`archive/`（历史记录，不是现状）。
 
 ### 功能 → 代码
 
@@ -304,8 +304,8 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 ### 测试与检查
 
 - 单元测试就在代码旁边（`*_test.go`）；CLI 的测试在进程内运行命令，夹具在 `internal/cli/testdata/`。
-- `tests/components/`：真实的组件（Go、Python、nginx），当作夹具用；`tests/checklist/`：`make test-all` 跑的回归清单；`tests/docfields/`：保证文档与代码一致的守卫。
-- `make lint`（全部静态检查，`scripts/check-*.py`）和 `make test-all`；每个克隆运行一次 `make hooks`。
+- `tests/components/`：真实的组件（Go、Python、nginx），当作夹具用；`tests/checklist/`（验收项：边界、错误、兼容、安全）与 `tests/regression/`（对用户的承诺）：每一行指向证明它的测试，由 `make test-all` 跑；`tests/docfields/`：保证文档与代码一致的守卫；`tests/archguard/`、`tests/errorhints/`、`tests/i18nguard/`：全仓库的守卫（`make check-guards`、`make check-i18n`）；`tests/perf/`：基准测试。
+- `make lint`（全部静态检查，外加覆盖率门槛——它会跑一遍单元测试）和 `make test-all`；每个克隆运行一次 `make hooks`。
 
 ---
 
@@ -420,7 +420,7 @@ graph LR
 - 装好 `brickkit`（见 [README 的安装一节](../../README.zh.md#安装)），`brickkit version` 能打印版本
   （按 TAB 能补全命令和组件 ID——见[命令补全](../../docs/zh/00-intro/03-shell-completion.md)）；
 - Docker 20.10+（含 Compose V2）在跑；
-- 本机的 8080 端口空着（被占了的话，第五步里把 `expose` 换成别的端口，见那一步的说明）；
+- 本机的 8080 端口空着（被占了的话，第四步里加一行 `exposePort` 换个端口，见那一步的说明）；
 - 想看中文输出：`brickkit lang set zh`。
 
 另外把 BrickKit 仓库克隆下来——夹具组件在它的 `tests/components/` 里：
@@ -558,7 +558,8 @@ brickkit build
 ```
 
 什么时候需要 `build`：组件来自本地源，或者组件没有写 `deployment.image`（只写了怎么构建）。从 Git 仓库或
-市场添加、写了 `image` 的组件，镜像是拉取的，不用构建。镜像的 tag 永远和组件版本一致。
+市场添加、写了 `image` 的组件，镜像是拉取的，不用构建。没写 `image` 时，镜像名由组件 ID 推出、
+tag 就是组件版本（`demo-hello:1.0.0`）；`image` 没写 tag 时，也会接上组件版本。
 
 ## 第四步：启动
 
@@ -595,7 +596,7 @@ brickkit up
    查看日志：docker compose -p brickkit-my-shop logs -f
 ```
 
-`demo-hello-1-0-0` 是这个组件的**版本化服务名**：组件 ID 里的 `/` 和 `.` 换成 `-`，再接上精确版本号。
+`demo-hello-1-0-0` 是这个组件的**版本化服务名**：组件 ID 接上精确版本号，其中的 `/` 和 `.` 一律换成 `-`。
 别的组件要调用它，拿到的地址就是 `http://demo-hello-1-0-0:8080`——本地 Docker 和 Kubernetes 上一模一样。
 
 ## 第五步：验证
@@ -692,12 +693,12 @@ brickkit down
 
 | 术语 | 是什么 |
 | --- | --- |
-| **组件**（Component） | 最基本的安装和运行单元：一个能单独跑起来的程序，**一律是容器**，前端（nginx 托管静态文件）也不例外 |
+| **组件**（Component） | 最基本的安装和运行单元：一个能单独跑起来的程序，**以容器部署**，前端（nginx 托管静态文件）也不例外。例外有两种：外壳成员跑在外壳的进程里；开发时写了 `mode: local` / `debug` 的组件作为进程跑在你机器上 |
 | **Manifest**（`component.yaml`） | 组件的自我介绍：它依赖谁、监听哪个端口、需要哪些配置、怎么判断它活着、镜像从哪来 |
 | **项目**（Project） | 用三层文件描述的一组组件，就是你要装配出来的那个系统 |
 | **三层文件** | `brickkit.yaml`（有什么）、`deploy.yaml` / `deploy.local.yaml`（怎么跑）、`config/`（拿到什么配置），见 [三层架构总览](../../docs/zh/01-three-layers/01-overview.md) |
 | **锁文件** | `brickkit.yaml` 的角色：用到的每个组件都锁在一个精确版本上，没写进去的组件就不存在 |
-| **安装源**（Source） | 去哪里找组件：Git 仓库（默认，版本就是 Git tag）、本机目录（本地源）、组件市场（可选） |
+| **安装源**（Source） | 去哪里找组件：Git 仓库（不用市场时的常规分发方式，版本就是 Git tag）、本机目录（本地源）、组件市场（可选） |
 | **本地源**（Local Source） | 本机上的一个目录，里面按 `<scope>/<name>/component.yaml` 放着组件源码；它们的镜像由 `brickkit build` 构建 |
 | **强依赖 / 弱依赖** | 强依赖缺了就报错、不启动；弱依赖（`optional: true`）缺了只是**不注入**它的地址变量——不是注入空字符串 |
 | **契约**（Contract / Artifacts） | 组件对外公开的 API 描述（OpenAPI、Protobuf 等），在 `component.yaml` 的 `artifacts` 里声明，`add` / `fetch` 时下载 |
@@ -706,7 +707,7 @@ brickkit down
 | **分形架构** | 组件开发时本身是一个项目，被使用时是一个黑盒，见 [分形架构](../../docs/zh/00-intro/06-fractal-architecture.md) |
 | **`BRICKKIT.md`** | 组件写给使用者（人和 AI）的文档：它负责什么、部署前要准备什么、配置是什么意思、有哪些契约。它跟着每个版本走（译本叫 `BRICKKIT.<语言>.md`），会缓存进使用它的项目，见 [组件的文档](../../docs/zh/03-component-guide/08-component-doc-spec.md) |
 | **`AGENTS.md`** | AI 编程工具最先读的导读（`CLAUDE.md` 里写着 `@AGENTS.md`，Claude Code 也就读到它）。项目的 `AGENTS.md` 写团队约定，末尾是一张项目组件表，由 CLI 跟着更新；组件的 `AGENTS.md` 写给开发这个组件的人，见 [创建项目](../../docs/zh/02-project-guide/01-init-and-project-creation.md#项目的-agentsmd) |
-| **本地模式** | `brickkit local on` 之后，所有命令改读个人的 `deploy.local.yaml`，见 [本地调试工作流](../../docs/zh/02-project-guide/03-local-debug-workflow.md) |
+| **本地模式** | `brickkit local on` 之后，运行和检查部署的命令（`up`、`down`、`status`、`sync`、`lint`、`build`）改读个人的 `deploy.local.yaml`，不再读 `deploy.yaml`；`graph`、`deps` 始终读 `deploy.yaml`，见 [本地调试工作流](../../docs/zh/02-project-guide/03-local-debug-workflow.md) |
 
 ## 贯穿全局的命名规则
 
@@ -717,10 +718,10 @@ brickkit down
 | 组件 ID | `scope/name`，全小写 | `people/basic` |
 | 版本 | 精确的 `主.次.补丁`，不接受 `^1.0.0` 这类范围 | `1.0.0` |
 | 版本化服务名 | 组件 ID 与版本里的 `/`、`.` 换成 `-` | `people-basic-1-0-0` |
-| 依赖地址变量 | 组件 ID 转成大写，`/`、`-` 换成 `_`，加 `_ENDPOINT` | `PEOPLE_BASIC_ENDPOINT=http://people-basic-1-0-0:8080` |
+| 依赖地址变量 | 组件 ID 转成大写，`/`、`-` 换成 `_`，加 `_ENDPOINT`；额外端口按同样的规则把端口名夹在中间 | `PEOPLE_BASIC_ENDPOINT=http://people-basic-1-0-0:8080`、`PEOPLE_BASIC_ADMIN_API_ENDPOINT`（端口 `admin-api`） |
 | 配置文件名 | 组件 ID 的 `/` 换成 `-`；只给某个版本用的，加 `@版本` | `config/people-basic.yaml`、`config/people-basic@2.0.0.yaml` |
 | 配置项 | `configSchema` 里的键**就是**环境变量名，原样注入 | `DB_HOST` |
-| 镜像 tag | 与组件的 `metadata.version` 严格一致 | `registry.example.com/people/basic:1.0.0` |
+| 镜像 tag | `image` 自己没带 tag 时，接上组件的 `metadata.version`（`image` 已经带了 tag 或 digest 就原样使用） | `registry.example.com/people/basic:1.0.0` |
 | 发布 tag | 组件在仓库根目录时是版本号；在子目录时带上组件名 | `1.0.0`、`people-basic/1.0.0` |
 
 变量**名**只从组件 ID 推导、从不带版本；变量的**值**才指向具体版本。所以两个版本的同一个组件可以并排跑
@@ -736,7 +737,7 @@ brickkit down
 | --- | --- |
 | 不写 | 跟着上层走 |
 | `mode: enabled` | 一定跑，不管上层；它的强依赖被关掉时报错（两个意图冲突） |
-| `mode: disable` | 一定不跑；依赖它的组件跟着不跑 |
+| `mode: disable` | 一定不跑；**强**依赖它的组件跟着不跑，弱依赖它的组件照常跑，只是拿不到它的地址 |
 | `mode: local` | 一定跑，但不在容器里：BrickKit 自己探测启动命令、在你机器上拉起这个进程并盯着它 |
 | `mode: debug` | 一定跑，进程由你自己在 IDE 里启动；**只能写在个人的 `deploy.local.yaml` 里** |
 
@@ -890,9 +891,9 @@ brickkit init --yes
 
 ## 配置指南
 
-| 变量名 | 必填 | 说明 |
-|---|---|---|
-| <!-- TODO: configSchema 里的一个 key --> | | <!-- TODO: 它的业务含义，尤其是默认值说不清的部分 --> |
+| 变量名 | 说明 |
+|---|---|
+| <!-- TODO: configSchema 里的一个 key --> | <!-- TODO: 它的业务含义，尤其是默认值说不清的部分 --> |
 
 ## 契约索引
 
@@ -1045,7 +1046,8 @@ graph TD
 **② ③ 如果写的是 `$var:NAME`**，去找这个公共变量：先看**当前部署文件**的 `vars:`，再看 `config/vars.yaml`。
 都没有就报错。部署文件的 `vars:` **只影响 `$var:` 的查找**：它不会覆盖你在组件配置里直接写下的值。
 
-**④ 没写（或写了 `null` / `~`）**，用组件 `configSchema` 里声明的默认值。
+**④ 没写（或写了 `null` / `~`）**，用组件 `configSchema` 里声明的默认值，按作者写下的原文注入：`default: 1.10`
+拿到的是 `1.10`，不是 `1.1`。
 
 **都没有**：可选项就不注入——组件读到的是"没有这个环境变量"，而不是一个空字符串，走它自己的"未配置"分支；
 必填项则让 `up` 停下来，点名缺哪几项。
@@ -1097,6 +1099,9 @@ graph TD
 ## 不参与这条链的东西
 
 - **进程环境变量**：只在你显式写了 `${VAR}` 的地方参与，不会悄悄覆盖任何值（见 [敏感值](../../docs/zh/01-three-layers/07-sensitive-values.md)）。
+  `mode: local` 的进程确实从你终端的环境出发（它要用你的 `PATH` 和工具链），但平台负责的名字——`COMPONENT_ID`、
+  `PORT`、各个 `*_ENDPOINT` 地址、组件自己 `configSchema` 里的键等——会先从中去掉，所以它们只会来自平台，见
+  [`mode: local` 进程继承什么](../../docs/zh/06-architecture/03-env-injection-contract.md#mode-local-进程继承什么)。
 - **平台自己注入的变量**：`COMPONENT_ID`、`COMPONENT_VERSION`、依赖的 `*_ENDPOINT` 等由平台决定；配置项和它们重名时，
   平台的值胜出并给出警告。完整的变量字典见 [环境变量注入契约](../../docs/zh/06-architecture/03-env-injection-contract.md)。
 - **`configSchema` 里没有的键**：不注入，并警告"不会生效"。
@@ -1146,7 +1151,7 @@ graph TD
 | `k8s.serviceAccount.enabled` | | 每个组件一个不挂令牌的 ServiceAccount |
 | `components[].id` | ✅ | 裸 ID（默认版本）或 `id@版本` |
 | `components[].mode` | | `enabled` / `disable` / `local` / `debug`（`debug` 只能在 `deploy.local.yaml`） |
-| `components[].localPort` | | `local` / `debug` 时本机进程的端口 |
+| `components[].localPort` | | `local` / `debug` 时（或写在 `focus` 组件的条目上）本机进程的端口 |
 | `components[].expose` / `exposePort` | | 对外开放；Docker 下的宿主机端口 |
 | `components[].hostname` / `tlsSecret` | | K8s Ingress 的域名与证书 |
 | `components[].replicas` | | K8s 副本数 |
@@ -1176,12 +1181,13 @@ graph TD
 | `deployment.type` | ✅ | 固定 `container` |
 | `deployment.image` / `deployment.build` | 二选一或都写 | 拉取的镜像，或本机构建的 `context` 与 `dockerfile` |
 | `deployment.port` | ✅ | 主端口 |
-| `deployment.extraPorts[]` | | 额外端口：`name`、`port` |
+| `deployment.extraPorts[]` | | 额外端口：`name`、`port`。每个额外端口给调用方一个 `<ID>_<端口名>_ENDPOINT`，端口名转大写、`-` 换成 `_`（`people/basic` 的端口 `admin-api` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT`） |
 | `deployment.resources` | | 建议的配额 |
 | `deployment.labels` | | 透传的标签 |
 | `migration.command` | | 数据库迁移命令（数组） |
 | `healthCheck.type` | ✅ | `http` / `tcp` / `none` |
-| `healthCheck.path` / `startPeriodSeconds` | | HTTP 路径、启动宽限秒数（缺省 60） |
+| `healthCheck.path` | `http` 时必填 | HTTP 路径，以 `/` 开头 |
+| `healthCheck.startPeriodSeconds` | | 启动宽限秒数（缺省 60） |
 | `shell.members` | | 外壳编进的成员，精确版本 `id@版本` |
 | `local.language` / `local.runCommand` | | `mode: local` 时指定语言或直接给出启动命令 |
 
@@ -1195,9 +1201,9 @@ graph TD
 | `version: local` | 本地源也写真实版本，否则依赖的精确匹配会落空 | 写 `component.yaml` 里的版本号 |
 | `brickkit.yaml` 里写 `expose`、`mode` | 那是部署方式 | 写在部署文件这个组件的条目上 |
 | `deploy.yaml` 里写 `mode: debug` | 它是个人事实，不进 Git | 写在 `deploy.local.yaml` |
-| 只写 `localPort` 不写 `mode` | `localPort` 只对本机进程有意义 | 配 `mode: local` 或 `mode: debug` |
+| 只写 `localPort` 不写 `mode` | `localPort` 只对本机进程有意义 | 配 `mode: local` 或 `mode: debug`（`focus` 组件的条目不用写：它按 `local` 跑） |
 | 配置键写成 `dbHost` 而组件读 `DB_HOST` | 键就是环境变量名，原样注入 | 与 `configSchema` 里的键一字不差 |
-| `DATABASE_URL: $var:PG_HOST:5432` | `$var:` 必须是整个值 | `jdbc:…://${PG_HOST}:5432`，或单独引用 |
+| `DATABASE_URL: $var:PG_HOST:5432` | `$var:` 必须是整个值 | 把整串值作为一个公共变量写进 `config/vars.yaml`（`PG_URL: jdbc:postgresql://pg.internal:5432/people`），引用 `$var:PG_URL`；或者把各段分开引用。字符串里的 `${PG_HOST}` 读的是进程环境变量和 `.env`，不是 `config/vars.yaml` |
 | 密钥写成明文 | `config/` 进 Git | `${VAR}` 或 `file://` |
 | 同一个组件版本在部署文件里写了两个条目 | 每个版本恰好一个条目 | 删掉多余的那个 |
 | 外壳成员写在顶层、另外列一份成员 ID | 成员关系只有一个来源 | 成员条目嵌在外壳条目的 `members` 下 |

@@ -307,7 +307,12 @@ func buildUpPlan(ctx context.Context, opts *Options, flags upOptions) (*upPlan, 
 		}
 		workloads, hosted = order, nil
 	}
-	renderOrder(opts, workloads, order, plan.graph, hosted, skippedWaits(proj, plan.graph, plan.states))
+	// K8s 上没有启动等待，也就没有"不等谁"可说（skipWaitFor 在那里由 k8s 包警告不起作用）
+	var skipped map[resolver.Ref][]resolver.Ref
+	if proj.Deploy.Target != deployfile.TargetK8s {
+		skipped = skippedWaits(proj, plan.graph, plan.states)
+	}
+	renderOrder(opts, workloads, order, plan.graph, hosted, skipped)
 
 	if err := checkLocalRepos(proj, plan.states); err != nil {
 		return nil, err

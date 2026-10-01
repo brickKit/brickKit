@@ -15,13 +15,14 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 
 <!-- llms:bundles:begin -->
 - [llms/zh/00-core.md](llms/zh/00-core.md): AGENTS.zh.md … docs/zh/01-three-layers/09-field-reference.md
-- [llms/zh/01.md](llms/zh/01.md): docs/zh/README.md … docs/zh/02-project-guide/03-local-debug-workflow.md
-- [llms/zh/02.md](llms/zh/02.md): docs/zh/02-project-guide/04-focus-run.md … docs/zh/03-component-guide/05-local-dev-fractal.md
-- [llms/zh/03.md](llms/zh/03.md): docs/zh/03-component-guide/06-artifacts-and-contracts.md … docs/zh/06-architecture/02-dependency-resolution.md
-- [llms/zh/04.md](llms/zh/04.md): docs/zh/06-architecture/03-env-injection-contract.md … docs/zh/06-architecture/08-security-and-signing.md
-- [llms/zh/05.md](llms/zh/05.md): docs/zh/06-architecture/09-error-codes.md … docs/zh/08-ai-guide/03-judging-a-requirement.md
-- [llms/zh/06.md](llms/zh/06.md): docs/zh/08-ai-guide/04-component-doc-spec.md … docs/zh/10-troubleshooting/02-local-debug-issues.md
-- [llms/zh/07.md](llms/zh/07.md): docs/zh/10-troubleshooting/03-config-conflict-issues.md … docs/zh/11-reference/06-market-api.md
+- [llms/zh/01.md](llms/zh/01.md): docs/zh/README.md … docs/zh/02-project-guide/02-add-and-component-install.md
+- [llms/zh/02.md](llms/zh/02.md): docs/zh/02-project-guide/03-local-debug-workflow.md … docs/zh/03-component-guide/03-config-schema-design.md
+- [llms/zh/03.md](llms/zh/03.md): docs/zh/03-component-guide/04-new-and-skeleton.md … docs/zh/05-migration/03-multi-version-chain.md
+- [llms/zh/04.md](llms/zh/04.md): docs/zh/05-migration/04-shell-interaction.md … docs/zh/06-architecture/05-design-principles.md
+- [llms/zh/05.md](llms/zh/05.md): docs/zh/06-architecture/06-bare-repo-mechanism.md … docs/zh/07-cli-reference/README.md
+- [llms/zh/06.md](llms/zh/06.md): docs/zh/08-ai-guide/README.md … docs/zh/10-troubleshooting/README.md
+- [llms/zh/07.md](llms/zh/07.md): docs/zh/10-troubleshooting/01-up-down-issues.md … docs/zh/11-reference/05-json-schemas.md
+- [llms/zh/08.md](llms/zh/08.md): docs/zh/11-reference/06-market-api.md
 <!-- llms:bundles:end -->
 
 ## 回答一个问题
@@ -64,7 +65,7 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 - [docs/zh/02-project-guide/03-local-debug-workflow.md](docs/zh/02-project-guide/03-local-debug-workflow.md): 本地调试工作流——local on、debug、refresh
 - [docs/zh/02-project-guide/04-focus-run.md](docs/zh/02-project-guide/04-focus-run.md): 在项目里就地开发——在组件目录里 up、--focus / --all、只有一个 components/
 - [docs/zh/02-project-guide/05-multi-env-switch.md](docs/zh/02-project-guide/05-multi-env-switch.md): 多环境切换——--file、vars 覆盖
-- [docs/zh/02-project-guide/06-up-and-down.md](docs/zh/02-project-guide/06-up-and-down.md): 启动与停止——六步流程、镜像检查、绝不自动 build
+- [docs/zh/02-project-guide/06-up-and-down.md](docs/zh/02-project-guide/06-up-and-down.md): 启动与停止——up 做了什么、镜像检查、绝不自动 build
 - [docs/zh/02-project-guide/07-upgrade-and-migration.md](docs/zh/02-project-guide/07-upgrade-and-migration.md): 升级与配置迁移——算法、冲突、重复 key
 - [docs/zh/02-project-guide/08-remove-and-archive.md](docs/zh/02-project-guide/08-remove-and-archive.md): 移除与归档——.archive/、恢复走迁移算法
 - [docs/zh/02-project-guide/09-status-and-graph.md](docs/zh/02-project-guide/09-status-and-graph.md): 状态与拓扑——status 表格、graph Mermaid、deps
@@ -81,7 +82,7 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 - [docs/zh/03-component-guide/05-local-dev-fractal.md](docs/zh/03-component-guide/05-local-dev-fractal.md): 分形开发模式——组件内 init、联调、release 行为
 - [docs/zh/03-component-guide/06-artifacts-and-contracts.md](docs/zh/03-component-guide/06-artifacts-and-contracts.md): 契约与产物——artifacts、fetch、契约先行
 - [docs/zh/03-component-guide/07-release-workflow.md](docs/zh/03-component-guide/07-release-workflow.md): 发布流程——六步、原子性、--local 批量
-- [docs/zh/03-component-guide/08-component-doc-spec.md](docs/zh/03-component-guide/08-component-doc-spec.md): 组件文档规范——BRICKKIT.md 五个区块
+- [docs/zh/03-component-guide/08-component-doc-spec.md](docs/zh/03-component-guide/08-component-doc-spec.md): 组件的文档——BRICKKIT.md（六节）、AGENTS.md + CLAUDE.md、README.md、译本、lint 查什么
 - [docs/zh/03-component-guide/09-multi-version-coexistence.md](docs/zh/03-component-guide/09-multi-version-coexistence.md): 多版本共存——精确版本化服务名
 - [docs/zh/03-component-guide/10-git-distribution.md](docs/zh/03-component-guide/10-git-distribution.md): Git 分发机制——Bare Repo、四级优先级、鉴权
 

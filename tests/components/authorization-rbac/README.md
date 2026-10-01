@@ -1,6 +1,6 @@
 # authorization/rbac
 
-回答"这个人能不能做这件事"；权限合并"直接授予这个人"与"授予他所在部门"两条路径，结果可缓存在 Redis 里。
+Answers "may this person do this"; permissions merge a person path and a department path, and results are cached in Redis
 
 ## 在项目里使用
 

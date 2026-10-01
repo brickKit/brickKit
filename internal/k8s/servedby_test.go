@@ -135,6 +135,25 @@ func TestServedByFallbackWarnsInK8s(t *testing.T) {
 	assert.True(t, found, "外壳没跑、成员回落独立部署，该有一句警告点名是哪个组件、哪个外壳：%+v", result.Warnings)
 }
 
+// K8s 的 Pod 之间没有启动顺序，skipWaitFor 写了也什么都不做：要说出来，不能让人以为那条等待去掉了。
+func TestSkipWaitForWarnsInK8s(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("demo/hello", "1.0.0", 8080), projecttest.Entry{})
+	b.component(dependsOn(simple("demo/caller", "1.0.0", 8081), "demo/hello", "1.0.0"),
+		projecttest.Entry{SkipWaitFor: []string{"demo/hello"}})
+
+	result, err := b.build()
+	require.NoError(t, err)
+	var found []string
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Format(), "skipWaitFor") {
+			found = append(found, w.Format())
+		}
+	}
+	require.Len(t, found, 1, "%+v", result.Warnings)
+	assert.Contains(t, found[0], "demo/caller@1.0.0")
+}
+
 // ---- labels：成员自己的不参与合并，只有外壳自己的算数 ----
 
 // 两个成员各自声明了同名不同值的标签（典型例子：prometheus.io/port，

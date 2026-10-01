@@ -285,7 +285,10 @@ program keep pulling the real state towards the declaration — real state disag
     "what it's configured to". Which layer a change lands in is plain in the Git diff.
   - One complete deploy file per environment, chosen with `brickkit up -f deploy.prod.yaml`.
   - `brickkit up --dry-run` starts nothing and prints the plan first, so you (and the AI) look before acting.
-  - The only way to narrow what starts is changing `mode` in the deploy file; there's no `--only`-style flag.
+  - What starts is narrowed only through a file you can open: `mode` in the deploy file, or `focus:` in your own
+    `deploy.local.yaml` (a [focus run](../02-project-guide/04-focus-run.md): `brickkit up --focus <id>`, or `brickkit up`
+    in a component's directory, writes it, and `up --all` removes it). There's no `--only`-style flag that narrows one run
+    and leaves nothing in a file: the narrowing stays written down, and `status` and `down` name the focus in effect.
 - **What BrickKit doesn't do:**
   - **Pulling back continuously:** `brickkit up` applies once and the CLI exits; nothing keeps watching. If someone changes
     a running container by hand, no program changes it back; it's aligned at the next `up`. Pulling back continuously
@@ -340,7 +343,7 @@ to a `users` table in the database by default, and following that means not writ
   | Service name | Component ID + exact version, `/` and `.` become `-`, all lowercase | `people/basic` 1.0.0 → `people-basic-1-0-0` |
   | Service address | `http://<service name>:<port>`, the same on Docker and Kubernetes | `http://people-basic-1-0-0:8080` |
   | Dependency address variable | The component ID with `/` and `-` turned into `_`, all uppercase, plus `_ENDPOINT` | `PEOPLE_BASIC_ENDPOINT` |
-  | Extra port variable | Plus the port's name | `PEOPLE_BASIC_GRPC_ENDPOINT` |
+  | Extra port variable | Plus the port's name, by the same rule (`-` becomes `_`, all uppercase) | `PEOPLE_BASIC_GRPC_ENDPOINT`; port `admin-api` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT` |
   | The component's own config | The keys of `configSchema` are the environment variable names, injected as they are | `DEFAULT_PAGE_SIZE` |
   | Config file name | The component ID with `/` turned into `-` | `config/people-basic.yaml` |
 
@@ -1003,8 +1006,8 @@ to someone who just wants to run one component.
 **What it is:** building an image is your explicit step (`brickkit build`); `brickkit up` never builds automatically.
 
 **What it buys:** `up` is always predictable: it only runs images that already exist, and never bakes half-changed code
-into an image and runs it when you didn't mean to. An image's tag always equals the component's version, so what's running
-is plain to see.
+into an image and runs it when you didn't mean to. An image's tag follows the component's version
+(`<scope>-<name>:<version>`, or `:<version>` added to an untagged `image`), so what's running is plain to see.
 
 **What it costs:** one more command. Change the code, forget `build --force`, and the old image still runs — `up` can
 only point out a missing image, not tell that an image is "old" (shell images are the exception: the member versions

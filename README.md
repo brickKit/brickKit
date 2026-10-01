@@ -143,7 +143,8 @@ version is injected and `brickkit version` shows `v0.0.0-dev`:
 go install github.com/brickkit/brickkit/cmd/brickkit@latest
 ```
 
-**From source** — `make install` puts it in GOBIN instead, with the version, commit and build time injected:
+**From source** — `make build-cli` builds `bin/brickkit` with the version, commit and build time injected (`make install`
+puts it in GOBIN instead):
 
 ```bash
 git clone https://github.com/brickKit/brickKit.git
@@ -173,7 +174,9 @@ Supported deploy targets: docker, podman, k8s
 | [cosign](https://github.com/sigstore/cosign) | **Only for publishers** who sign; verification uses the Go standard library, so users of the CLI don't need it |
 
 **The CLI's language** is English by default; `brickkit lang set zh` switches it to Chinese on this machine, and
-`BRICKKIT_LANG=zh` does it for one command. Error codes, command names and flag names never change. See
+`BRICKKIT_LANG=zh` does it for one command, and `brickkit lang` says which language is in effect and why.
+`BRICKKIT_LANG` wins over the saved setting, which wins over the English default. Error codes, command names and flag
+names never change. See
 [`brickkit lang`](docs/en/07-cli-reference/README.md#brickkit-lang).
 
 **Windows:** there is a `windows/amd64` zip to download by hand from

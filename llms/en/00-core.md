@@ -73,7 +73,7 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 ### 3.2 Rules that matter
 
 - `brickkit.yaml` is the lock file: every component version in use is written there. An undeclared required dependency is an error (the error shows the `add` to run); an undeclared optional dependency simply does not exist.
-- `deploy.local.yaml` **replaces** `deploy.yaml` as a whole; it does not override fields. With local mode on, the commands that run or check the deployment (`up`, `down`, `status`, `sync`, `lint`, `build`) read it and not `deploy.yaml`; `graph` and `deps` always read `deploy.yaml`, so their output is the same for everyone. It must match `brickkit.yaml` entry for entry, so after the team adds a component you run `brickkit local refresh`.
+- `deploy.local.yaml` **replaces** `deploy.yaml` as a whole; it does not override fields. With local mode on, the commands that run the deployment (`up`, `down`, `status`, `sync`, `build`) read it and not `deploy.yaml`; `lint` checks both whenever `deploy.local.yaml` exists, whatever the switch says; `graph` and `deps` never read `deploy.local.yaml`, so their output is the same for everyone (`graph -f` reads the file it names). It must match `brickkit.yaml` entry for entry, so after the team adds a component you run `brickkit local refresh`.
 - `mode: debug` is written only in `deploy.local.yaml`: "I'm debugging this on my machine right now" is a personal fact and never goes into Git.
 - `focus: <id>` is written only in `deploy.local.yaml` — `brickkit up` in a component's directory or `up --focus <id>` writes it, `up --all` removes it. While it is set, only that component (from its source) and what it needs start; `sync` ignores it, and it doesn't work with `target: k8s`.
 - Project commands work from any subdirectory: they walk up to the nearest `brickkit.yaml` (like `git`, not stopping at `.git`) and say `📁 Project: …` when they did; paths they print are relative to where you are. `release`, `publish`, `init` and `skills` act on the current directory.
@@ -142,7 +142,7 @@ Don't load every component's documentation at once: read only the components the
 
 - The only global flag is `--log-level` (level of the JSON log lines on stderr, default `warn`).
 - `-f, --file <path>`: the commands that read a deploy file (`up`, `down`, `status`, `sync`, `lint`, `graph`) use it to pick one deploy file, ignoring `deploy.local.yaml` and the local-mode switch entirely.
-- `--no-local`: `up`, `down`, `status`, `sync` and `lint` ignore `deploy.local.yaml` for this run, without changing the local-mode switch.
+- `--no-local`: `up`, `down`, `status` and `sync` ignore `deploy.local.yaml` for this run, without changing the local-mode switch; for `lint` it makes `deploy.yaml` the file the config checks run against (both files are still checked).
 - `--dry-run`: `up` generates the deployment files without running them; `upgrade` works everything out without writing.
 - `--focus <id>` / `--all`: `up` sets or removes the focus in `deploy.local.yaml`; neither goes with `-f` or `--no-local`.
 - No argument, in a component's directory: `build` and `deps` mean that component.
@@ -279,7 +279,9 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `cmd/gen-llms/` | Generates `llms/` |
 
 Elsewhere: `market-server/` (the optional component market, its own Go module), `tools/i18n/` (one-off i18n
-migration scripts), `scripts/` (lint checks, install checks, release), `install.sh`, `.githooks/` (the commit hook).
+migration scripts), `scripts/` (lint checks, install checks, release), `install.sh`, `.githooks/` (the commit hook),
+`.github/` (the tag-triggered release workflow and its smoke test), `deploy/` (the market's own deployment files),
+`proto/` (shared proto includes), `tutorials/` (empty for now), `archive/` (historical, not current).
 
 ### Features → code
 
@@ -310,9 +312,13 @@ migration scripts), `scripts/` (lint checks, install checks, release), `install.
 ### Tests and checks
 
 - Unit tests sit next to the code (`*_test.go`); CLI tests run commands in-process against `internal/cli/testdata/`.
-- `tests/components/`: real components (Go, Python, nginx) used as fixtures; `tests/checklist/`: the regression
-  list `make test-all` runs; `tests/docfields/`: guards that the docs match the code.
-- `make lint` (every static check, `scripts/check-*.py`) and `make test-all`; `make hooks` once per clone.
+- `tests/components/`: real components (Go, Python, nginx) used as fixtures; `tests/checklist/` (acceptance items:
+  boundary, error, compat, security) and `tests/regression/` (user-facing promises): each line points at the test that
+  proves it, run by `make test-all`; `tests/docfields/`: guards that the docs match the code; `tests/archguard/`,
+  `tests/errorhints/`, `tests/i18nguard/`: repository-wide guards (`make check-guards`, `make check-i18n`);
+  `tests/perf/`: benchmarks.
+- `make lint` (every static check, plus the coverage gate, which runs the unit tests) and `make test-all`; `make hooks`
+  once per clone.
 
 ---
 
@@ -583,7 +589,8 @@ brickkit build
 
 When you need `build`: the component comes from a local source, or its `component.yaml` doesn't name a
 `deployment.image` (it only says how to build one). A component added from a Git repository or a market that does
-name an `image` is pulled, not built. An image's tag always equals the component's version.
+name an `image` is pulled, not built. Without an `image`, the image is named after the component ID and
+tagged with its version (`demo-hello:1.0.0`); an `image` written without a tag gets the version appended.
 
 ## Step 4: start it
 
@@ -621,9 +628,9 @@ Can start on their own: demo-hello-1-0-0 (no dependencies)
    View the logs: docker compose -p brickkit-my-shop logs -f
 ```
 
-`demo-hello-1-0-0` is the component's **versioned service name**: the component ID with `/` and `.` turned into `-`,
-followed by the exact version. Another component calling it gets the address `http://demo-hello-1-0-0:8080` — exactly
-the same on local Docker and on Kubernetes.
+`demo-hello-1-0-0` is the component's **versioned service name**: the component ID and the exact version joined by `-`,
+with every `/` and `.` turned into `-`. Another component calling it gets the address `http://demo-hello-1-0-0:8080` —
+exactly the same on local Docker and on Kubernetes.
 
 ## Step 5: check it
 
@@ -719,12 +726,12 @@ messages — this page is enough. Every term points to the page that explains it
 
 | Term | What it is |
 | --- | --- |
-| **Component** | The basic unit you install and run: a program that runs on its own, **always a container** — a frontend (nginx serving static files) included |
+| **Component** | The basic unit you install and run: a program that runs on its own, **deployed as a container** — a frontend (nginx serving static files) included. The exceptions: a shell member runs inside its shell's process, and a component in `mode: local` / `debug` runs as a process on your machine while you develop it |
 | **Manifest** (`component.yaml`) | A component describing itself: what it depends on, which port it listens on, what config it needs, how to tell it's alive, where its image comes from |
 | **Project** | A set of components described by the three layers — the system you're assembling |
 | **The three layers** | `brickkit.yaml` (what there is), `deploy.yaml` / `deploy.local.yaml` (how it runs), `config/` (what config each component gets); see [The three layers at a glance](../../docs/en/01-three-layers/01-overview.md) |
 | **Lock file** | The role of `brickkit.yaml`: every component in use is locked to an exact version, and a component not written there doesn't exist |
-| **Install source** | Where to look for components: a Git repository (the default; a version is a Git tag), a directory on your machine (a local source), a component market (optional) |
+| **Install source** | Where to look for components: a Git repository (the usual way to distribute without a market; a version is a Git tag), a directory on your machine (a local source), a component market (optional) |
 | **Local source** | A directory on your machine holding component source at `<scope>/<name>/component.yaml`; their images are built by `brickkit build` |
 | **Required / optional dependency** | A missing required dependency is an error and nothing starts; a missing optional one (`optional: true`) only means its address variable is **not injected** — not injected as an empty string |
 | **Contract** (artifacts) | The API description a component publishes (OpenAPI, Protobuf, …), declared under `artifacts` in `component.yaml` and downloaded by `add` / `fetch` |
@@ -733,7 +740,7 @@ messages — this page is enough. Every term points to the page that explains it
 | **Fractal structure** | A component is a project while you develop it and a black box when someone uses it; see [The fractal structure](../../docs/en/00-intro/06-fractal-architecture.md) |
 | **`BRICKKIT.md`** | A component's documentation for the people and AIs who use it: what it owns, what to prepare, what its config means, its contracts. It travels with every version (translations as `BRICKKIT.<lang>.md`) and is cached into the projects that use it; see [A component's documentation](../../docs/en/03-component-guide/08-component-doc-spec.md) |
 | **`AGENTS.md`** | The guide an AI coding tool reads first (`CLAUDE.md` holds `@AGENTS.md` so Claude Code reads it too). A project's `AGENTS.md` holds the team's conventions and ends with a table of the project's components, kept up to date by the CLI; a component's `AGENTS.md` is for whoever develops that component; see [Creating a project](../../docs/en/02-project-guide/01-init-and-project-creation.md#the-projects-agentsmd) |
-| **Local mode** | After `brickkit local on`, every command reads the personal `deploy.local.yaml` instead; see [Local debugging](../../docs/en/02-project-guide/03-local-debug-workflow.md) |
+| **Local mode** | After `brickkit local on`, the commands that run or check the deployment (`up`, `down`, `status`, `sync`, `lint`, `build`) read the personal `deploy.local.yaml` instead of `deploy.yaml`; `graph` and `deps` always read `deploy.yaml`; see [Local debugging](../../docs/en/02-project-guide/03-local-debug-workflow.md) |
 
 ## The naming rules everything builds on
 
@@ -744,10 +751,10 @@ Once you know these rules, you can work out every name you meet in the docs, in 
 | Component ID | `scope/name`, all lowercase | `people/basic` |
 | Version | An exact `major.minor.patch`; ranges like `^1.0.0` are not accepted | `1.0.0` |
 | Versioned service name | The component ID and version with `/` and `.` turned into `-` | `people-basic-1-0-0` |
-| Dependency address variable | The component ID uppercased, `/` and `-` turned into `_`, plus `_ENDPOINT` | `PEOPLE_BASIC_ENDPOINT=http://people-basic-1-0-0:8080` |
+| Dependency address variable | The component ID uppercased, `/` and `-` turned into `_`, plus `_ENDPOINT`; an extra port puts its name in between, by the same rule | `PEOPLE_BASIC_ENDPOINT=http://people-basic-1-0-0:8080`, `PEOPLE_BASIC_ADMIN_API_ENDPOINT` (port `admin-api`) |
 | Config file name | The component ID with `/` turned into `-`; one meant for a single version adds `@version` | `config/people-basic.yaml`, `config/people-basic@2.0.0.yaml` |
 | Config item | A key in `configSchema` **is** the environment variable name, injected as-is | `DB_HOST` |
-| Image tag | Always exactly the component's `metadata.version` | `registry.example.com/people/basic:1.0.0` |
+| Image tag | The component's `metadata.version`, appended when `image` carries no tag of its own (an `image` that already has a tag or digest is used as written) | `registry.example.com/people/basic:1.0.0` |
 | Release tag | The version when the component sits at the repository root; prefixed with the component when it sits in a subdirectory | `1.0.0`, `people-basic/1.0.0` |
 
 A variable's **name** is derived from the component ID alone and never carries a version; its **value** is what points
@@ -765,7 +772,7 @@ them does.
 | --- | --- |
 | nothing | Follow the ones above |
 | `mode: enabled` | Always runs, whatever is above it; an error if one of its required dependencies is turned off (two conflicting intents) |
-| `mode: disable` | Never runs; whatever depends on it stops too |
+| `mode: disable` | Never runs; components that **require** it stop too, while those that depend on it optionally keep running without its address |
 | `mode: local` | Always runs, but not in a container: BrickKit works out the start command, launches the process on your machine and watches it |
 | `mode: debug` | Always runs, as a process you start yourself in your IDE; **written only in the personal `deploy.local.yaml`** |
 
@@ -929,9 +936,9 @@ The `BRICKKIT.md` skeleton from `brickkit new` has six sections:
 
 ## Configuration
 
-| Variable | Required | Meaning |
-|---|---|---|
-| <!-- TODO: a key from configSchema --> | | <!-- TODO: what it means for the business, especially what the default cannot say --> |
+| Variable | Meaning |
+|---|---|
+| <!-- TODO: a key from configSchema --> | <!-- TODO: what it means for the business, especially what the default cannot say --> |
 
 ## Contracts
 
@@ -1090,7 +1097,8 @@ the value the component gets.
 `vars:`, then in `config/vars.yaml`. Neither has it — an error. A deploy file's `vars:` **only affects `$var:` lookups**:
 it never overrides a value you wrote directly in a component's config.
 
-**④ Not written (or written as `null` / `~`)**: the default declared in the component's `configSchema` is used.
+**④ Not written (or written as `null` / `~`)**: the default declared in the component's `configSchema` is used, as the
+text the author wrote: a `default: 1.10` arrives as `1.10`, not `1.1`.
 
 **Nothing at all**: an optional item isn't injected — the component sees "no such environment variable", not an empty
 string, and takes its own "not configured" path; a required item makes `up` stop and name what's missing.
@@ -1144,7 +1152,11 @@ it writes exactly two such lines on purpose, to make you decide; see
 ## What isn't part of this chain
 
 - **Process environment variables**: they take part only where you explicitly wrote `${VAR}`, and never quietly
-  override anything (see [Secrets](../../docs/en/01-three-layers/07-sensitive-values.md)).
+  override anything (see [Secrets](../../docs/en/01-three-layers/07-sensitive-values.md)). A `mode: local` process does start from your terminal's
+  environment (it needs your `PATH` and toolchain), but every name the platform owns — `COMPONENT_ID`, `PORT`, the
+  `*_ENDPOINT` addresses, the component's own `configSchema` keys and the rest — is removed from it first, so those
+  come only from the platform; see
+  [what a `mode: local` process inherits](../../docs/en/06-architecture/03-env-injection-contract.md#what-a-mode-local-process-inherits).
 - **Variables the platform injects itself**: `COMPONENT_ID`, `COMPONENT_VERSION`, dependencies' `*_ENDPOINT` and so on
   are the platform's call; when a config item has the same name, the platform's value wins and you get a warning. The
   full dictionary of variables is the [environment-variable contract](../../docs/en/06-architecture/03-env-injection-contract.md).
@@ -1195,7 +1207,7 @@ in `schemas/` — see [JSON Schemas](../../docs/en/11-reference/05-json-schemas.
 | `k8s.serviceAccount.enabled` | | One ServiceAccount per component, with no token mounted |
 | `components[].id` | ✅ | The bare ID (default version) or `id@version` |
 | `components[].mode` | | `enabled` / `disable` / `local` / `debug` (`debug` only in `deploy.local.yaml`) |
-| `components[].localPort` | | With `local` / `debug`, the port of the process on your machine |
+| `components[].localPort` | | With `local` / `debug` (or on the `focus` component's entry), the port of the process on your machine |
 | `components[].expose` / `exposePort` | | Open it to the outside; the host port on Docker |
 | `components[].hostname` / `tlsSecret` | | The Kubernetes Ingress host name and certificate |
 | `components[].replicas` | | Kubernetes replicas |
@@ -1226,12 +1238,13 @@ environment variable names in the container. A value can be a literal, `$var:NAM
 | `deployment.type` | ✅ | Always `container` |
 | `deployment.image` / `deployment.build` | one or both | The image to pull, or the `context` and `dockerfile` to build locally |
 | `deployment.port` | ✅ | The main port |
-| `deployment.extraPorts[]` | | Extra ports: `name`, `port` |
+| `deployment.extraPorts[]` | | Extra ports: `name`, `port`. Each gives callers `<ID>_<NAME>_ENDPOINT`, the name uppercased with `-` turned into `_` (port `admin-api` of `people/basic` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT`) |
 | `deployment.resources` | | Recommended resources |
 | `deployment.labels` | | Labels passed through |
 | `migration.command` | | The database migration command (an array) |
 | `healthCheck.type` | ✅ | `http` / `tcp` / `none` |
-| `healthCheck.path` / `startPeriodSeconds` | | The HTTP path, the startup grace period in seconds (default 60) |
+| `healthCheck.path` | for `http` | The HTTP path, starting with `/` |
+| `healthCheck.startPeriodSeconds` | | The startup grace period in seconds (default 60) |
 | `shell.members` | | The members a shell compiles in, as exact `id@version` |
 | `local.language` / `local.runCommand` | | For `mode: local`, the language, or the start command given outright |
 
@@ -1245,9 +1258,9 @@ How to write it and design choices: the [component.yaml field guide](../../docs/
 | `version: local` | A local source also states its real version, or exact dependency matching fails | The version from `component.yaml` |
 | `expose` or `mode` in `brickkit.yaml` | That's how things are deployed | On this component's entry in the deploy file |
 | `mode: debug` in `deploy.yaml` | It's a personal fact, not for Git | In `deploy.local.yaml` |
-| `localPort` without `mode` | `localPort` only means something for a process on your machine | With `mode: local` or `mode: debug` |
+| `localPort` without `mode` | `localPort` only means something for a process on your machine | With `mode: local` or `mode: debug` (the `focus` component's entry needs neither: it runs as `local`) |
 | A config key `dbHost` while the component reads `DB_HOST` | The key is the environment variable name, injected as-is | Exactly the key in `configSchema` |
-| `DATABASE_URL: $var:PG_HOST:5432` | `$var:` must be the whole value | `jdbc:…://${PG_HOST}:5432`, or reference the pieces separately |
+| `DATABASE_URL: $var:PG_HOST:5432` | `$var:` must be the whole value | Put the whole value into `config/vars.yaml` as a variable of its own (`PG_URL: jdbc:postgresql://pg.internal:5432/people`) and write `$var:PG_URL`, or reference the pieces separately. `${PG_HOST}` inside a string reads the process environment and `.env`, not `config/vars.yaml` |
 | A secret in plain text | `config/` goes into Git | `${VAR}` or `file://` |
 | Two entries for the same component version in a deploy file | Each version has exactly one entry | Delete the extra one |
 | Shell members at the top level plus a separate list of member IDs | Membership has one source | Member entries nested under the shell's entry, as `members` |

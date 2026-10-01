@@ -14,7 +14,6 @@ package inject
 import (
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/brickkit/brickkit/internal/cascade"
 	"github.com/brickkit/brickkit/internal/clierr"
@@ -260,7 +259,6 @@ func (b *envBuilder) addEndpoints(ref, host resolver.Ref, node *resolver.Node) {
 		return
 	}
 	service := manifest.ServiceName(host.ID, host.Version)
-	prefix := manifest.EnvPrefix(ref.ID)
 
 	b.set(Var{
 		Name:   manifest.EndpointEnvVar(ref.ID),
@@ -269,7 +267,7 @@ func (b *envBuilder) addEndpoints(ref, host resolver.Ref, node *resolver.Node) {
 	})
 	for _, extra := range node.Manifest.Deployment.ExtraPorts {
 		b.set(Var{
-			Name:   prefix + "_" + strings.ToUpper(extra.Name) + "_ENDPOINT",
+			Name:   manifest.ExtraPortEndpointEnvVar(ref.ID, extra.Name),
 			Value:  Literal(endpoint(service, extra.Port)),
 			Source: SourceEndpoint,
 		})

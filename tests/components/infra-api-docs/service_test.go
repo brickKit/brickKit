@@ -4,11 +4,17 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 )
 
 // 本文件覆盖 Swagger UI 展示、gRPC 文档，
@@ -372,6 +378,69 @@ func TestGRPCTargetStripsScheme(t *testing.T) {
 	for input, want := range cases {
 		if got := grpcTarget(input); got != want {
 			t.Errorf("grpcTarget(%q) = %q，期望 %q", input, got, want)
+		}
+	}
+}
+
+// ============================================================
+// gRPC 在额外端口上
+// ============================================================
+
+// grpcComponent 是一个开着 gRPC Reflection 的假组件，返回 http://host:port 形式的地址（平台注入的就是这个形式）。
+func grpcComponent(t *testing.T) string {
+	t.Helper()
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("监听失败：%v", err)
+	}
+	srv := grpc.NewServer()
+	healthpb.RegisterHealthServer(srv, health.NewServer())
+	reflection.Register(srv)
+	go func() { _ = srv.Serve(lis) }()
+	t.Cleanup(srv.Stop)
+	return "http://" + lis.Addr().String()
+}
+
+// TestGRPCOnExtraPortIsListed：gRPC 开在名为 grpc 的额外端口上的组件（people/basic 的 9090），
+// 要到那个端口上去列服务——主端口上只有 HTTP，在那里探永远是空的。
+func TestGRPCOnExtraPortIsListed(t *testing.T) {
+	backend := fakeComponent(t, `{"openapi":"3.0.0"}`)
+	svc := newTestService(t, []Target{{
+		ComponentID: "people/basic", Endpoint: backend.URL, GRPCEndpoint: grpcComponent(t),
+	}})
+
+	source := sourceOf(t, fetchSources(t, svc), "people/basic")
+	kinds, _ := source["kinds"].([]any)
+	if len(kinds) != 2 || kinds[0] != kindOpenAPI || kinds[1] != kindGRPC {
+		t.Fatalf("主端口的 OpenAPI 与额外端口的 gRPC 都该列出，实际 kinds=%v", source["kinds"])
+	}
+	services, _ := source["grpcServices"].([]any)
+	if len(services) != 1 || services[0].(map[string]any)["name"] != "grpc.health.v1.Health" {
+		t.Fatalf("应列出额外端口上的 gRPC 服务，实际 %v", source["grpcServices"])
+	}
+}
+
+// TestGRPCEndpointComesFromTheExtraPortVariable：额外端口的地址来自 <ID>_GRPC_ENDPOINT，
+// 没有这个变量的组件（gRPC 与 HTTP 共用主端口）在主端口上探。
+func TestGRPCEndpointComesFromTheExtraPortVariable(t *testing.T) {
+	env := map[string]string{
+		"PEOPLE_BASIC_ENDPOINT":      "http://people-basic-1-0-0:8080",
+		"PEOPLE_BASIC_GRPC_ENDPOINT": "http://people-basic-1-0-0:9090",
+		"DEPARTMENT_TREE_ENDPOINT":   "http://department-tree-1-0-0:8080",
+	}
+	cfg, err := configFromEnv(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("配置应当可用：%v", err)
+	}
+
+	want := map[string]string{
+		"people/basic":    "http://people-basic-1-0-0:9090",
+		"department/tree": "http://department-tree-1-0-0:8080",
+	}
+	for _, target := range cfg.Targets {
+		if addr, ok := want[target.ComponentID]; ok && target.grpcAddress() != addr {
+			t.Errorf("%s 的 gRPC 地址 = %q，期望 %q", target.ComponentID, target.grpcAddress(), addr)
 		}
 	}
 }

@@ -1,6 +1,6 @@
 # portal/user-frontend
 
-静态前端，通过 nginx 反向代理访问 `erp/backend`；后端地址由平台注入。
+A static frontend reaching erp/backend through an nginx reverse proxy; the backend address is injected by the platform
 
 ## 在项目里使用
 

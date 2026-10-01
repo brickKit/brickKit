@@ -155,7 +155,8 @@ brickkit build
 
 When you need `build`: the component comes from a local source, or its `component.yaml` doesn't name a
 `deployment.image` (it only says how to build one). A component added from a Git repository or a market that does
-name an `image` is pulled, not built. An image's tag always equals the component's version.
+name an `image` is pulled, not built. Without an `image`, the image is named after the component ID and
+tagged with its version (`demo-hello:1.0.0`); an `image` written without a tag gets the version appended.
 
 ## Step 4: start it
 
@@ -193,9 +194,9 @@ Can start on their own: demo-hello-1-0-0 (no dependencies)
    View the logs: docker compose -p brickkit-my-shop logs -f
 ```
 
-`demo-hello-1-0-0` is the component's **versioned service name**: the component ID with `/` and `.` turned into `-`,
-followed by the exact version. Another component calling it gets the address `http://demo-hello-1-0-0:8080` — exactly
-the same on local Docker and on Kubernetes.
+`demo-hello-1-0-0` is the component's **versioned service name**: the component ID and the exact version joined by `-`,
+with every `/` and `.` turned into `-`. Another component calling it gets the address `http://demo-hello-1-0-0:8080` —
+exactly the same on local Docker and on Kubernetes.
 
 ## Step 5: check it
 

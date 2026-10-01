@@ -21,10 +21,17 @@ brickkit init my-shop
    📄 CLAUDE.md            @AGENTS.md: Claude Code reads AGENTS.md through it
    📁 .claude/skills/      AI assistant skills (5)
    💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check
+
+Next steps:
+  cd my-shop
+  brickkit add --local                     add every component under components/
+  brickkit add <scope>/<name>@<version>    add a component from an install source (enable one under sources: in brickkit.yaml first)
+  brickkit up                              start everything in one go
 ```
 
-A project name may contain only lowercase letters, digits and hyphens, starting and ending with a letter or digit — it
-becomes the name of the Docker network (`brickkit-my-shop`) and of the Kubernetes namespace.
+A project name may contain only lowercase letters, digits and hyphens, starting and ending with a letter or digit, at
+most 54 characters — it names the Docker network (`brickkit-my-shop-net`) and the default Kubernetes namespace
+(`brickkit-my-shop`).
 
 The generated `brickkit.yaml` already declares two **local install sources**; the other two kinds are there as
 comments — uncomment one and fill in the address to use it:
@@ -120,7 +127,7 @@ This directory already has files; brickkit init will:
    ✅ create  components/
    ✅ create  AGENTS.md
    ✅ create  CLAUDE.md
-   ⚠️  .gitignore is missing: .brickkit/, deploy.local.yaml, deploy.local.yaml.bak, .secrets/, .env, config/.archive/, components/ (not edited — add them yourself)
+   ⚠️  .gitignore is missing: .brickkit/, deploy.local.yaml, deploy.local.yaml.bak, .secrets/, .env, config/.archive/ (not edited — add them yourself)
 Continue? [y/N] 
 ```
 
@@ -131,6 +138,9 @@ Worth noticing:
   rules it doesn't understand.
 - **`--yes` skips the question** (the plan is still printed), for CI.
 - **The project name** is `--name`, otherwise the existing `brickkit.yaml`'s `project`, otherwise the directory name.
+  A `--name` that contradicts an existing `brickkit.yaml` is refused (completion never changes an existing file); a
+  directory name that isn't a valid project name is turned into one when it can be (`My_Shop` → `my-shop`), and
+  otherwise `init` stops and asks for `--name`.
 - **At the end, the project is loaded the way `up` loads it**; if it can't be, the command fails — what completion
   produces has to be a usable project.
 
@@ -148,7 +158,7 @@ This directory already has files; brickkit init will:
    ✅ create  components/
    ✅ create  AGENTS.md
    ✅ create  CLAUDE.md
-   ⚠️  .gitignore is missing: .brickkit/, deploy.local.yaml, deploy.local.yaml.bak, .secrets/, .env, config/.archive/, components/ (not edited — add them yourself)
+   ⚠️  .gitignore is missing: .brickkit/, deploy.local.yaml, deploy.local.yaml.bak, .secrets/, .env, config/.archive/ (not edited — add them yourself)
 ✅ Project completed: legacy-shop
 ⚠️ Warning: .gitignore is missing required entries — personal deploy files and secrets can be committed
    File: .gitignore
@@ -180,7 +190,9 @@ brickkit up
 ```
 
 `.brickkit/` isn't in the repository, but it's only a cache: on the first run the CLI fetches each component's
-`component.yaml` and contract files from the install sources again, following `brickkit.yaml`. `components/` isn't in the
+`component.yaml` (and its `BRICKKIT.md`) from the install sources again, following `brickkit.yaml`. Contract files
+(OpenAPI and the like) aren't fetched by `up`; they're only needed when you write a caller, and
+`brickkit fetch <id>@<version>` downloads them into `.brickkit/artifacts/`. `components/` isn't in the
 repository either — `up` needs only the components' `component.yaml`, not their source; to change a component's code,
 clone it with `brickkit add <id>@<version> --repo` (see [Adding components](02-add-and-component-install.md#cloning-source---repo---repo-all)).
 The `build` step only has work to do when a component's image is built locally; see [Building and images](12-build-and-images.md).
@@ -204,7 +216,8 @@ my-shop/
 
 - **`components/`** holds component source. Each component is its own Git repository, laid out as `<scope>/<name>/` —
   the layout a local source scans. To commit component source with the project, take `components/` out of
-  `.gitignore` and install the pre-commit check with `brickkit init --hooks`.
+  `.gitignore` and install the pre-commit check with `brickkit init --hooks` (see
+  [The pre-commit check](11-sync-and-restore.md#the-pre-commit-check)).
 - **`shell/`** holds shells: components that compile several components into one process (see [Shells](../04-shell/README.md)).
   A shell is the project's own code and is committed with it.
 - **`config/`** holds each component's config, one file per component (see [The config/ directory](../01-three-layers/05-config-directory.md)).
@@ -213,8 +226,10 @@ my-shop/
 
 `AGENTS.md` is the file AI coding tools read first when they open a repository — a convention shared across tools, not
 something BrickKit invented. Claude Code reads `CLAUDE.md` instead, so `init` also writes a `CLAUDE.md` holding exactly
-one line, `@AGENTS.md`, which makes Claude Code read the same file. Both are created only when they are missing; a file
-that already exists is never rewritten by `init`.
+one line, `@AGENTS.md`, which makes Claude Code read the same file. Both are created only when they are missing; in a
+file that already exists `init` changes nothing outside the brickkit-maintained block at the end of `AGENTS.md` (see
+[Which commands touch it](#which-commands-touch-it); the one exception is an untouched `AGENTS.md` left by an earlier
+version, see [below](#a-project-from-an-earlier-version-the-old-brickkitmd)).
 
 What it buys: whichever AI tool a teammate uses, it starts from the same page, and that page is in Git with the project.
 What it costs: one more file the team has to keep true — an `AGENTS.md` that describes last year's project misleads
@@ -279,7 +294,7 @@ says what is missing:
 
 ```text
 ⚠️ AGENTS.md has no usable brickkit-maintained block, so its component table is not kept up to date
-   Reason: no brickkit-maintained block
+   Reason: there is no block maintained by brickkit
    Suggestion: Run brickkit skills update to add it (an explicit request: no other command changes your file)
 ⚠️ CLAUDE.md does not contain @AGENTS.md, so Claude Code does not read AGENTS.md
    Suggestion: Run brickkit skills update to add it (an explicit request: no other command changes your file)

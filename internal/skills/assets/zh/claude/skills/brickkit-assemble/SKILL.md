@@ -64,7 +64,7 @@ description: 在 BrickKit 项目里增删组件、升级组件版本、调整启
 | **不写** | 跟着上层走。顶层（项目里没有谁依赖它）默认跑；下层只要还有在跑的上层需要它就跑 |
 | `mode: enabled` | **一定跑**。它的强依赖被关掉时**报错**——两个意图冲突了 |
 | `mode: disable` | **一定不跑**。依赖它的跟着不跑；钉住的上层（enabled / local / debug）则报错 |
-| `mode: local` | 一定跑，BrickKit 从本地仓库起一个裸进程并监管（仅 Docker / Podman） |
+| `mode: local` | 一定跑，BrickKit 从本地仓库起一个裸进程并监管（仅 Docker / Podman；只有默认版本能这样跑） |
 | `mode: debug` | 一定跑，进程由你在 IDE 里自己起（仅 Docker / Podman）。**只能写在 `deploy.local.yaml`** |
 
 想收窄这次跑哪些，给顶层写 `mode: disable` 就够了。**没有 `--only` 这类参数，别去找。**
@@ -75,18 +75,20 @@ description: 在 BrickKit 项目里增删组件、升级组件版本、调整启
 上层只是弱依赖它，它照样跟着跑。`optional: true` 只管两件事：解析时取不到只警告、
 它没在跑时不注入那个 `*_ENDPOINT` 变量。被多个上层共用的组件，只要还有一个上层在跑它就跑。
 
-**9. `remove` 不删配置，但会删源码目录。**
+**9. `remove` 不删配置，但可能删源码目录。**
 
 配置移进 `config/.archive/`（再次 add 时自动迁回骨架）；部署条目一起删；删外壳时它的
 成员挪回顶层独立运行；只因它而保留的兼容版本一并移除；删的是默认版本且只剩一个版本时，
-剩下那个转正。组件的最后一个版本走了才删它的源码目录（包括归档的那一份）。多版本共存时要写
-`id@版本`。
+剩下那个转正。多版本共存时要写 `id@版本`。组件的最后一个版本走了才删它的源码目录（包括 `sync`
+归档的那一份），而且先确认删了还找得回来：里面有未提交、未推送的改动时整个 `remove` 在改任何文件
+之前就停下（`--force` 才照删）。
 
 **10. `fetch` 不装进项目。** 它只把产物下到 `.brickkit/artifacts/<版本化服务名>/`，给跨项目调用
 别人的服务生成客户端用，不改 `brickkit.yaml`、不部署。不是「add 的轻量版」。
 
 **11. `sync` 只动目录，不碰容器。** 它把这次不启动的组件源码挪进 `components/.archived/`，
-该启动的移回来，判据与 `up` 完全一致。
+该启动的移回来，判据与 `up` 完全一致。把 `components/` 提交进 Git 的项目，用 `brickkit restore`
+把 `deploy.yaml` 里的 `mode` 恢复到上次提交的样子，源码布局跟着回去。
 
 **12. `up` 从不构建镜像。** 本地源的组件要先 `brickkit build`，见 `brickkit-deploy` 技能。
 
@@ -99,7 +101,8 @@ description: 在 BrickKit 项目里增删组件、升级组件版本、调整启
 
 **14. 只有一个 `components/`。**
 
-组件源码只放在项目的 `components/` 里（`add --repo` 不管在哪运行都克隆到那里）。永远不要把组件复制或克隆进另一个
+组件源码只放在项目的 `components/` 里（在项目的任何子目录里 `add --repo` 都克隆到那里；所在的工作台本身是
+外层项目的一个组件时它会拒绝——到外层项目里去跑）。永远不要把组件复制或克隆进另一个
 组件的目录：`up`、`lint`、`sync` 会拒绝嵌套的副本，BrickKit 也从不替你挪——删之前先问人，那里可能是某人改动的
 唯一一份。git submodule 从不拉取。
 
@@ -112,6 +115,7 @@ description: 在 BrickKit 项目里增删组件、升级组件版本、调整启
 组件没起来、或莫名其妙起来了，先读这个理由。
 
 **`up` 的顺序是拓扑排序**（依赖先起）。`brickkit up --dry-run` 只生成部署文件供审查，不真起。
+`brickkit graph` 把依赖图打成 Mermaid（灰色的节点这次不启动，外壳的成员画在外壳里面）。
 `brickkit status` 读引擎的真实状态，不启动的组件也列出来；`down` 不删 volume，数据保留。
 `graph` 和 `deps` 永远读 `deploy.yaml`、不看本地模式，所以人人看到的都一样。
 
@@ -119,9 +123,11 @@ description: 在 BrickKit 项目里增删组件、升级组件版本、调整启
 它们是两个互不冲突的服务名（`people-basic-1-0-0`、`people-basic-2-0-0`）。但**同一份
 `component.yaml` 的 `dependencies` 里一个组件 ID 只能出现一次**（原因见 `brickkit-component` 技能）。
 
+**加一个外壳**会把它编进的成员版本一起加进来，并嵌到外壳的部署条目下面；**升级外壳**会换成新外壳编进的成员。
+
 **多环境**是每个环境一份完整的部署文件（`deploy.prod.yaml`），用 `brickkit up -f deploy.prod.yaml`
 指定；`brickkit.yaml` 与 `config/` 各环境共用，环境差异的值走部署文件的 `vars:`。没有 overlay、
-没有合并。
+没有合并。`-f` 不看本地模式。
 
 ## 去哪查更细的
 

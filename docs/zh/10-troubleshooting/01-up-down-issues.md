@@ -50,6 +50,7 @@
 ❌ 错误：deploy.yaml 校验失败
    文件：deploy.yaml
    components[1].exposePort：与 components[0].exposePort 冲突（宿主机端口 18080 已被占用）
+   建议：完整字段说明：docs/zh/11-reference/03-deploy-yaml-schema.md（英文版把 zh 换成 en）
 ```
 
 **解决**：给其中一个换 `exposePort`（或 `localPort`）。
@@ -58,7 +59,7 @@
 
 **解决**：找出占用它的程序（`ss -ltnp | grep <端口>`），停掉它，或者换一个 `exposePort`。
 
-**症状三：外壳上两个组件用了同一个端口**——见 [外壳问题](06-shell-issues.md)。
+**症状三：外壳上两个组件用了同一个端口**——见 [外壳问题](06-shell-issues.md#外壳上两个组件要同一个端口)。
 
 ## 迁移失败
 
@@ -82,19 +83,28 @@
 
 **原因**
 
-Docker 下，健康检查命令在容器**里面**执行：
+Docker 下，健康检查在容器**里面**执行，经由镜像里的 `/bin/sh`。`type: http` 执行的是：
 
 ```text
 wget -q --spider http://localhost:8080/healthz || curl -fsS http://localhost:8080/healthz || exit 1
 ```
 
-镜像里既没有 `wget` 也没有 `curl`（`scratch`、distroless 这类最小镜像），这条命令永远失败，容器永远被判为不健康——不管组件本身多正常。
-另一种常见的：健康检查路径写错了（`component.yaml` 的 `healthCheck.path` 与组件实际提供的不一致）。
+`type: tcp` 执行的是 `nc -z localhost 8080`。所以 `type: http` 要求镜像里有 `/bin/sh` 加 `wget` 或 `curl`，`type: tcp` 要求有
+`/bin/sh` 加 `nc`。缺了，这条命令就永远失败，容器永远被判为不健康——不管组件本身多正常。`scratch`、distroless 镜像根本没有 shell，
+**两种类型都过不了**；基于 `busybox` 或 `alpine` 的镜像这些都有。另一种常见的：健康检查路径写错了（`component.yaml` 的
+`healthCheck.path` 与组件实际提供的不一致）。
+
+K8s 下没有这个问题：探针（`httpGet`、`tcpSocket`）由 kubelet 从容器外面发起，不需要镜像里有任何工具。
 
 **解决**
 
-- 看容器的健康检查记录：`docker inspect --format '{{json .State.Health}}' <容器名>`，最后几条的输出会直接说 `wget: not found` 之类。
-- 镜像里保留一个 `wget`（基于 `alpine`、`busybox`），或者把 `healthCheck.type` 改成 `tcp`。
+- 看容器的健康检查记录：`docker inspect --format '{{json .State.Health}}' <容器名>`，最后几条的输出会直接说 `wget: not found`、
+  `nc: not found`，或者 `/bin/sh` 不存在。
+- 查镜像里有什么：`docker run --rm --entrypoint sh <镜像> -c 'command -v wget curl nc'`（连这条都跑不起来，就是镜像里没有 shell）。
+- 给镜像补上工具：最终阶段基于 `busybox` 或 `alpine`（几 MB，自带 `sh`、`wget`、`nc`）。从 `http` 改成 `tcp`，只在镜像里有 `nc`
+  却既没有 `wget` 也没有 `curl` 时才有用。
+- 镜像必须保持没有 shell 时，剩下的选择是 `healthCheck.type: none`：依赖它的组件只等它的容器启动、不等它就绪，K8s 下它也不再有探针——
+  所以依赖方要自己在它起来的过程中重试。
 - 路径对不上就改 `healthCheck.path`。
 
 ## 冷启动超过一分钟的组件被判失败

@@ -1,7 +1,9 @@
 # The config/ directory
 
 `config/` answers **which environment variables each component gets**. There is one flat YAML file per component, and
-every key becomes an environment variable in the container, as-is.
+every key **declared in the component's `configSchema`** becomes an environment variable of the same name, as-is. Keys
+it doesn't declare are warned about and have no effect; a component that declares no `configSchema` at all gets nothing
+from its file (see [How it relates to `configSchema`](#how-it-relates-to-configschema)).
 
 ## Layout
 
@@ -118,6 +120,9 @@ The platform checks **key names**, not **values**:
      Declared keys: GREETING
      Suggestion: Did you mean GREETING?
   ```
+
+- A component that declares no `configSchema` at all recognises no config items, so nothing in its config file is
+  injected; `up` and `lint` warn and list the keys that are ignored.
 
 - Types, enums and ranges of values aren't checked: what a component does with an invalid value (fail and exit, fall
   back to a default) is its own business. See the [configSchema specification](../11-reference/04-config-schema-spec.md).

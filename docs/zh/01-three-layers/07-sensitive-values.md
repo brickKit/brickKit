@@ -30,6 +30,10 @@ TLS_KEY: file://.secrets/tls.key
 ⚠️ config/ 下的文件可能写了明文密钥
    配置项：demo/hello@1.0.0 → API_TOKEN
    为什么要紧：config/*.yaml 与 config/vars.yaml 是要提交进 Git 的，写在里面的密钥会跟着进版本库，而且没法从历史里删掉
+   建议：
+   1. 改成引用，比如 ${MY_TOKEN}（真值放 .env）或 file://.secrets/token
+   2. .env 必须在 .gitignore 中
+   3. 声明了 secret: true 的项，是组件作者认定它是凭据；只是名字像的，判据只看名字、不看值，确实不是的话可以忽略
 ```
 
 它从不打印值本身。你本地的 `deploy.local.yaml` 不进 Git，在它的 `vars:` 里写本机口令不会被提醒；但它遮住的同名变量如果在
@@ -39,7 +43,8 @@ TLS_KEY: file://.secrets/tls.key
 
 `config/` 里写了 `DB_HOST: pg.internal`，即使你的环境里有 `DB_HOST=localhost`，组件拿到的也是 `pg.internal`。
 环境变量只在你**显式**写了 `${…}` 的地方参与。否则同一份配置在不同的人、不同的 CI 上会悄悄变成不同的值——
-所见即所得就不成立了。
+所见即所得就不成立了。`mode: local` 的进程也一样：它虽然从你终端的环境出发，但组件 `configSchema` 里的键会在它启动前
+先从那份环境里去掉（见 [`mode: local` 进程继承什么](../06-architecture/03-env-injection-contract.md#mode-local-进程继承什么)）。
 
 ## Docker / Podman：值落在哪
 
@@ -55,7 +60,7 @@ TLS_KEY: file://.secrets/tls.key
 
 ```text
 ❌ 错误：config/ 或部署文件里引用的环境变量没有定义
-   缺少的变量：PG_HOST
+   缺少的变量：API_TOKEN
    原因：docker compose 启动时会把它们换成空字符串，只在它自己的输出里警告一句：组件拿到的是残缺的值，却不会有任何报错
    建议：
    1. 在项目根目录的 .env 里补上这些变量，或在当前 shell 里 export

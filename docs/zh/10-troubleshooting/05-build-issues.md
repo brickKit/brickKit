@@ -101,7 +101,7 @@ brickkit build demo/hello@1.1.0 --force
 
 ## submodule 目录是空的
 
-**现象**
+**症状**
 
 `build` 在构建之前给出警告，接着构建因为缺文件失败——或者构建成功了，组件却行为异常：
 
@@ -136,6 +136,7 @@ BrickKit 从不拉取 git submodule——仓库缓存里不拉，从 tag 导出�
 - **选小的基础镜像**：`alpine`、`*-slim`。
 - **`.dockerignore`** 排除 `.git`、`node_modules`、测试数据。
 
-只有一条要留意：组件的健康检查是 `type: http` 时，健康检查命令在容器**里面**执行，镜像里要有 `wget` 或 `curl`。
-换成不带任何工具的基础镜像（`scratch`、distroless）之后，容器会一直被判为不健康，而组件自己的日志看起来一切正常。
-这种镜像要么保留一个 `wget`（比如基于 `busybox` 或 `alpine`），要么把健康检查改成 `type: tcp`。见 [up / down 常见问题](01-up-down-issues.md#组件日志正常平台却说它不健康)。
+只有一条要留意：Docker 下健康检查在容器**里面**经由 `/bin/sh` 执行——`type: http` 要镜像里有 `wget` 或 `curl`，`type: tcp` 要有 `nc`。
+换成根本没有 shell 的基础镜像（`scratch`、distroless）之后，**两种类型都过不了**：容器会一直被判为不健康，而组件自己的日志看起来一切正常。
+这时最终阶段改为基于 `busybox` 或 `alpine`（多几 MB，带着 `sh`、`wget`、`nc`）；镜像必须保持没有 shell 的话，就写 `healthCheck.type: none`，
+接受依赖方只等容器启动。K8s 下探针从容器外面发起，不需要这些工具。见 [up / down 常见问题](01-up-down-issues.md#组件日志正常平台却说它不健康)。

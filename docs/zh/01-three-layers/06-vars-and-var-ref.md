@@ -35,8 +35,10 @@ DATABASE_PASSWORD: $var:PG_PASSWORD
 DATABASE_NAME: people            # 只属于这个组件的值，直接写
 ```
 
-`$var:NAME` 必须是**整个值**：`$var:PG_HOST:5432` 不是合法写法。要把几个值拼起来，用 `${VAR}` 模板
-（`jdbc:postgresql://${PG_HOST}:5432/people`），它可以嵌在字符串里。
+`$var:NAME` 必须是**整个值**：`$var:PG_HOST:5432` 不是合法写法。整串值要共享时，把它单独写成一个公共变量
+（在 `config/vars.yaml` 里写 `PG_URL: jdbc:postgresql://pg.internal:5432/people`），再引用 `$var:PG_URL`。
+`${VAR}` 模板（`jdbc:postgresql://${PG_HOST}:5432/people`）可以嵌在字符串里，但注意 `${…}` 查的是进程环境变量和
+`.env`，不是公共变量，所以 `PG_HOST` 得定义在那里。
 
 ## 三种引用写法
 

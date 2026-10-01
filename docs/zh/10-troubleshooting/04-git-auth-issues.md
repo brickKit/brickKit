@@ -37,13 +37,14 @@
 **原因**
 
 托管平台不接受你的 SSH key：key 没有添加到平台上、用的不是那把 key、或者你对这个仓库没有权限。仓库地址拼错、仓库根本不存在时，
-很多平台为了不泄露"仓库存不存在"，也回答同一句话。
+很多平台为了不泄露"仓库存不存在"，也回答同一句话。（用的是平台接受的 key 时，仓库不存在会改为 `ERROR: Repository not found.`。）
 
 **解决**
 
 1. 脱离 BrickKit 单独试：`git ls-remote git@github.com:<组织>/<仓库>`。它也失败，问题就与 BrickKit 无关。
 2. `ssh -T git@github.com`（或你的托管平台）看平台认不认你的 key。
-3. 核对仓库地址：它由安装源的 `baseUrl` 加上组件 ID 推出来（`demo/hello` → `demo-hello`），报错里的"仓库"一行就是推出来的结果。
+3. 核对仓库地址：它由安装源的 `baseUrl` 加上组件 ID 推出来（`demo/hello` → `demo-hello`），除非 `brickkit.yaml` 里这个组件那一行自己写了
+   `source.repo`；报错里的"仓库"一行就是最终用的地址。
 
 ## 第一次连一台 SSH 主机
 

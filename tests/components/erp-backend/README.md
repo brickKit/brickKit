@@ -1,6 +1,6 @@
 # erp/backend
 
-订单查询与审批；认证、授权与人员数据来自三个上游组件，审批事件发往事件总线。
+Order queries and approvals; authentication, authorisation and people data come from three upstream components, and approval events go to the event bus
 
 ## 在项目里使用
 

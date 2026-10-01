@@ -52,7 +52,9 @@ or a recorded decision is a choice about the system, not a coding detail.
 
 ## Plan and change
 
-- **Order:** providers before consumers — the order `brickkit deps` prints.
+- **Order:** providers before consumers — in `brickkit deps <id>`'s tree, the leaves first, working up to the root; the
+  `📋 Start order (topological sort):` list `brickkit up --dry-run` prints is the same order, for the components this run
+  starts.
 - **Per component, one commit:** the contract, the code, and its `BRICKKIT.md` / `AGENTS.md` together. A doc that lags
   behind the code is how the next AI writes against a wrong description.
 - **The version:** raise `metadata.version` — the patch for an implementation-only change, the minor for an addition, the

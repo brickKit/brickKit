@@ -147,6 +147,7 @@ DATABASE_HOST: $var:PG_HOST:5432
 ❌ Error: demo-caller.yaml failed validation
    File: config/demo-caller.yaml
    DATABASE_HOST: "$var:PG_HOST:5432" is not a valid $var: reference; write $var:NAME, where NAME uses letters, digits and underscores
+   Suggestion: How config/ files are written: docs/en/01-three-layers/05-config-directory.md (swap en for zh for the Chinese version)
 ```
 
 `$var:` has to be the whole value; it can't be embedded in a string.
@@ -158,6 +159,10 @@ process environment and `.env`, doesn't find it, and generation stops:
 ```text
 ❌ Error: environment variables referenced in config/ or the deploy file are not defined
    Missing variables: PG_HOST
+   Reason: docker compose would replace them with an empty string at start, warning only in its own output: the component would get a broken value and no error at all
+   Suggestions:
+   1. Add these variables to .env in the project root, or export them in the current shell
+   2. You can also write a default: ${POSTGRES_PASSWORD:-dev}
 ```
 
 **The most robust way: don't make the project put together connection strings.** The component splits host, port,
@@ -179,5 +184,7 @@ into and needs URL-encoding; passed separately to the database driver, it doesn'
 
 **The migration and the main service get the same environment variables.** When the main service connects and the
 migration doesn't, it's most likely that the migration code reads a different variable name from the main service, not that
-the platform gave a different value — compare the migration service's `environment` with the main service's in
-`.brickkit/generated/compose.yaml`: they're the same.
+the platform gave a different value. Compare the two services in `.brickkit/generated/compose.yaml`: the migration
+service (`<service name>-migration`) has the same `environment` as the main service and loads the same `env_file`,
+`.brickkit/generated/env/<service name>.env`, which holds the secret items (a `DB_PASSWORD` marked `secret: true`) and
+`file://` contents (they never go into `compose.yaml`).

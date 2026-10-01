@@ -1,6 +1,6 @@
 # infra/redis-event-bus
 
-基于 Redis Streams 的事件总线（Python，FastAPI + uvicorn）。它是 BrickKit 平台自测组件之一，常被别的组件声明为弱依赖；与 `authorization/rbac` 形成刻意对照：那里 Redis 是可有可无的加速器，这里 Redis 是唯一的数据源。
+基于 Redis Streams 的事件总线（Python，FastAPI + uvicorn）。它是 BrickKit 平台自测组件之一，常被别的组件声明为弱依赖；与 `authorization/rbac` 形成刻意对照：那里 Redis 是可有可无的加速器，这里 Redis 是唯一的数据源。怎么用、边界和契约见 `BRICKKIT.md`；依赖、配置、部署见 `component.yaml`。
 
 ## 代码地图
 
@@ -87,7 +87,7 @@ curl -s localhost:8080/healthz   # → {"status":"ok"}
 1. Redis 不可用时，发布与读取是否仍然返回 503，且不带底层原因？
 2. `/healthz` 与启动流程是否仍然不碰 Redis？
 3. 改了 `app/store.py` 是否用真 Redis（`EVENT_BUS_TEST_REDIS_ADDR`）跑过契约测试？
-4. 改了接口是否同步了 `openapi.json`，且 `erp/backend` 现有的 `POST /api/v1/events` 调用方式仍然可用？
+4. 改了接口是否同步了 `openapi.json`，且 `erp/backend` 与 `people/basic` 现有的 `POST /api/v1/events` 调用方式（`type` 加 `subject`，`erp/backend` 还带 `actor` 与 `time`）仍然可用？
 5. 新的配置项是否同时写进了 `component.yaml` 的 `configSchema` 与 `app/config.py`？
 6. 运行期镜像是否仍然以 UID 10001 运行、仍然带 curl？
 7. 容器里的测试是否全部通过？

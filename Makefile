@@ -176,12 +176,12 @@ check-i18n: ## 检查 CLI 消息全部走目录（无写死的中文、无空转
 check-doc-fields: ## 检查文档里画的字段骨架、错误码标题、CLI 输出行与源码 / 消息目录一致（en、zh 各查各的）
 	@go test ./tests/docfields/
 
-# schemas/*.json 是从 manifest.Manifest / config.Config 反射生成的（internal/schemagen），
-# 给编辑器做字段补全与未知字段红线。改了这两个结构体的字段、omitempty 或 jsonschema tag 之后跑
+# schemas/*.json 是从 manifest.Manifest / projfile.File / deployfile.File 反射生成的（internal/schemagen），
+# 给编辑器做字段补全与未知字段红线。改了这几个结构体的字段、omitempty 或 jsonschema tag 之后跑
 # generate-schemas 并把结果一起提交；check-schemas 在 lint 里拦住"忘了跑"，并且拿真实的
-# manifest.Parse / config.ParseConfig 核对 tag 里的取值（schema 不能比校验器更严）。
+# 解析与校验器核对 tag 里的取值（schema 不能比校验器更严）。
 .PHONY: generate-schemas
-generate-schemas: ## 从 Go 结构体重新生成 schemas/*.json（改了 manifest / config 的字段或 jsonschema tag 之后跑）
+generate-schemas: ## 从 Go 结构体重新生成 schemas/*.json（改了 manifest / projfile / deployfile 的字段或 jsonschema tag 之后跑）
 	@$(GO) run ./cmd/gen-schemas
 
 .PHONY: check-schemas

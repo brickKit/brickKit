@@ -21,10 +21,11 @@ const (
 	cacheTTL = 30 * time.Second
 )
 
-// aggregated 列出本组件会去聚合哪些组件，以及各自的地址来自哪个环境变量。
+// aggregated 列出本组件会去聚合哪些组件，以及各自主端口的地址来自哪个环境变量。
 //
 // 这份清单必须与 component.yaml 里的**弱依赖声明**一一对应：
 // 声明了平台才会注入地址，这里才探得到。漏声明的表现是"那个组件永远显示未安装"。
+// gRPC 另开在额外端口上的组件（people/basic 的 9090）不必在这里多写一项，见 grpcEnvVar。
 var aggregated = []struct {
 	ComponentID string
 	EnvVar      string
@@ -76,8 +77,9 @@ func configFromEnv(lookup func(string) string) (config, error) {
 	targets := make([]Target, 0, len(aggregated))
 	for _, item := range aggregated {
 		targets = append(targets, Target{
-			ComponentID: item.ComponentID,
-			Endpoint:    get(item.EnvVar),
+			ComponentID:  item.ComponentID,
+			Endpoint:     get(item.EnvVar),
+			GRPCEndpoint: get(grpcEnvVar(item.EnvVar)),
 		})
 	}
 
@@ -87,6 +89,14 @@ func configFromEnv(lookup func(string) string) (config, error) {
 		LogLevel:    valueOr(get("LOG_LEVEL"), "info"),
 		Targets:     targets,
 	}, nil
+}
+
+// grpcEnvVar 是一个组件名为 grpc 的额外端口的地址变量：PEOPLE_BASIC_ENDPOINT → PEOPLE_BASIC_GRPC_ENDPOINT。
+//
+// 平台给额外端口注入 <ID>_<端口名>_ENDPOINT。gRPC 与 HTTP 共用主端口的组件（department/tree）没有这个变量，
+// 那时 gRPC Reflection 就在主端口上探；有这个变量时还只探主端口，就永远看不到它的 gRPC 服务。
+func grpcEnvVar(endpointVar string) string {
+	return strings.TrimSuffix(endpointVar, "_ENDPOINT") + "_GRPC_ENDPOINT"
 }
 
 func valueOr(value, fallback string) string {

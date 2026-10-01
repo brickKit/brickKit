@@ -73,7 +73,7 @@ demo/caller@1.0.0
 ```
 
 One tree per top-level component (nothing in the project depends on it). Within one output a component version is
-expanded only once; later appearances are marked "(see above)"; an optional dependency missing from the project is marked
+expanded only once; later appearances are marked "(shown above)"; an optional dependency missing from the project is marked
 "(optional, not installed)".
 
 For one component: a tree per version, plus who depends on it:

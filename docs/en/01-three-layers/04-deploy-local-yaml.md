@@ -53,7 +53,7 @@ components:
 | --- | --- |
 | `brickkit local on` | Turn local mode on; if there's no `deploy.local.yaml`, copy one from `deploy.yaml`, otherwise keep using the existing one |
 | `brickkit local off` | Turn local mode off; the file is **not** deleted, the next `on` picks it up again |
-| `brickkit local status` | The switch, whether the file exists, whether it matches `brickkit.yaml` |
+| `brickkit local status` | The switch, whether the file exists, and (while local mode is on) whether it matches `brickkit.yaml` |
 | `brickkit local refresh` | Regenerate it from the current `deploy.yaml`, keep the old one as `deploy.local.yaml.bak`, and list every local change in the old file |
 
 The switch is recorded in `.brickkit/` and belongs to this machine only.

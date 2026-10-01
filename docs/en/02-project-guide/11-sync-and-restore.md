@@ -89,7 +89,10 @@ personal file and isn't committed, so there's no baseline to go back to; it stay
 
 By default `components/` is in `.gitignore`: component source doesn't go into the project repository, because each
 component is its own repository. Some teams want the source committed with the project — just take `components/` out of
-`.gitignore`. Then `sync`'s directory moves show up in the project's diff, and sooner or later this happens:
+`.gitignore`. A new project's `.gitignore` lists it, but it isn't one of the entries `brickkit init` requires: those
+keep personal files and secrets out of Git, and must stay.
+
+Then `sync`'s directory moves show up in the project's diff, and sooner or later this happens:
 
 > Turn off a few top-level components → `sync` archives → forget to put things back → commit.
 

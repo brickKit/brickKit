@@ -501,3 +501,16 @@ func TestOrderLineNotesShareOneBracket(t *testing.T) {
 	assert.Contains(t, r.stdout, "; does not wait for erp/pay@1.0.0)")
 	assert.NotContains(t, r.stdout, ")  (")
 }
+
+// K8s 的 Pod 之间没有启动等待：启动顺序里不说"不等谁"，而是警告 skipWaitFor 在那里不起作用。
+func TestSkipWaitForOnK8sIsReportedAsNoEffect(t *testing.T) {
+	dir := mergeCycleFixture(t)
+	path := filepath.Join(dir, "deploy.k8s.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(readFile(t, path),
+		"      - id: erp/worker\n", "      - id: erp/worker\n        skipWaitFor: [erp/pay]\n", 1)), 0o644))
+
+	r := runWithEngine(t, newFakeEngine(), dir, "up", "--dry-run", "-f", "deploy.k8s.yaml")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.NotContains(t, r.stdout, "does not wait for")
+	assert.Contains(t, r.stdout+r.stderr, "erp/worker@1.0.0 has skipWaitFor, but Pods on Kubernetes don't wait for each other at start")
+}

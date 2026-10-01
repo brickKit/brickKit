@@ -109,7 +109,7 @@ Each config item is decided mechanically by the table below — no rename guessi
 | You wrote it, and the new version's default didn't change | Your text copied as is — `$var:`, `${VAR}`, `file://`, quotes, the comment above it, not a character touched |
 | You wrote it, and your value happens to equal the old default | Evidently you never changed it: it follows the new default |
 | You wrote a value other than the old default, and the new version changed the default | **A conflict**: you changed it, the author changed it, and only you know which is right |
-| The new version dropped the item | Not written into the new file; the value stays in the archive, and the report lists it |
+| The new version dropped the item | Not written into the new file; the value stays in the old version's file (archived under `config/.archive/`, or renamed to `config/<component>@<old version>.yaml` when the old version stays), and the report lists it |
 | An item the new version added | Written as a skeleton line; a required one without a default becomes `KEY: ""`, and `up` stops until you fill it in |
 
 Comments you wrote move along with what they're about: those at the top of the file stay at the top, those above an item

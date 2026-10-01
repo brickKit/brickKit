@@ -65,9 +65,9 @@ demo/hello 的 GREETING：你的值 你好（1.0.0），新默认值 Hi（1.1.0�
 components:
   - id: demo/hello
     version: 1.1.0
-  - id: demo/caller
-    version: 1.0.0
   - id: demo/bus
+    version: 1.0.0
+  - id: demo/caller
     version: 1.0.0
   - id: demo/hello
     version: 1.0.0
@@ -104,7 +104,7 @@ GREETING: 你好
 | 你写了，新版本的默认值没变 | 你的原文照抄——`$var:`、`${VAR}`、`file://`、引号、写在它上方的注释，一个字符都不动 |
 | 你写了，而你的值正好等于旧默认值 | 能确认你没改过它：跟随新默认值 |
 | 你写了、值不等于旧默认值，而新版本改了默认值 | **冲突**：你改过它，作者也改过它，谁对只有你知道 |
-| 新版本删掉了这一项 | 不写进新文件，值留在归档里，报告里列出来 |
+| 新版本删掉了这一项 | 不写进新文件，值留在旧版本的文件里（归档到 `config/.archive/`；旧版本留下时，就是改名后的 `config/<组件>@<旧版本>.yaml`），报告里列出来 |
 | 新版本新增的项 | 写成骨架行；必填又没有默认值的写成 `KEY: ""`，`up` 会拦住直到你填上 |
 
 你写的注释跟着它说的那一项走：文件开头的仍在开头，写在某一项上方的仍在那一项上方（不论那一项你写了值，还是仍是一条注释掉的骨架行），
@@ -150,8 +150,8 @@ GREETING: 你好
 ```text
 📋 组件状态计算：
    ✅ demo/hello@1.1.0   启动（顶层）
-   ✅ demo/hello@1.0.0   启动（demo/caller 需要）
    ✅ demo/bus@1.0.0     启动（demo/caller 需要）
+   ✅ demo/hello@1.0.0   启动（demo/caller 需要）
    ✅ demo/caller@1.0.0  启动（顶层）
 ```
 

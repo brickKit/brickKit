@@ -11,7 +11,7 @@
 - 装好 `brickkit`（见 [README 的安装一节](../../../README.zh.md#安装)），`brickkit version` 能打印版本
   （按 TAB 能补全命令和组件 ID——见[命令补全](03-shell-completion.md)）；
 - Docker 20.10+（含 Compose V2）在跑；
-- 本机的 8080 端口空着（被占了的话，第五步里把 `expose` 换成别的端口，见那一步的说明）；
+- 本机的 8080 端口空着（被占了的话，第四步里加一行 `exposePort` 换个端口，见那一步的说明）；
 - 想看中文输出：`brickkit lang set zh`。
 
 另外把 BrickKit 仓库克隆下来——夹具组件在它的 `tests/components/` 里：
@@ -149,7 +149,8 @@ brickkit build
 ```
 
 什么时候需要 `build`：组件来自本地源，或者组件没有写 `deployment.image`（只写了怎么构建）。从 Git 仓库或
-市场添加、写了 `image` 的组件，镜像是拉取的，不用构建。镜像的 tag 永远和组件版本一致。
+市场添加、写了 `image` 的组件，镜像是拉取的，不用构建。没写 `image` 时，镜像名由组件 ID 推出、
+tag 就是组件版本（`demo-hello:1.0.0`）；`image` 没写 tag 时，也会接上组件版本。
 
 ## 第四步：启动
 
@@ -186,7 +187,7 @@ brickkit up
    查看日志：docker compose -p brickkit-my-shop logs -f
 ```
 
-`demo-hello-1-0-0` 是这个组件的**版本化服务名**：组件 ID 里的 `/` 和 `.` 换成 `-`，再接上精确版本号。
+`demo-hello-1-0-0` 是这个组件的**版本化服务名**：组件 ID 接上精确版本号，其中的 `/` 和 `.` 一律换成 `-`。
 别的组件要调用它，拿到的地址就是 `http://demo-hello-1-0-0:8080`——本地 Docker 和 Kubernetes 上一模一样。
 
 ## 第五步：验证

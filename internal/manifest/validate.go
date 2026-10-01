@@ -455,7 +455,7 @@ func validateStartPeriod(p *clierr.ProblemSet, h HealthCheck) {
 
 	switch {
 	case h.Type == HealthCheckNone:
-		// 与 brickkit.yaml 侧 localPort / exposePort 同一条规矩：
+		// 与部署文件里 localPort / exposePort 同一条规矩：
 		// 写了不生效的字段必须出声，否则使用者以为自己调过了
 		p.Add("healthCheck.startPeriodSeconds", i18n.T(msgid.ManifestStartPeriodIgnoredForNone))
 	case h.StartPeriodSeconds < 0:

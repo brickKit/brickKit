@@ -21,8 +21,13 @@ There are three things written for AI, each covering one level:
 The one in the project is the one used every day: `brickkit init` installs `.claude/skills/` (`brickkit-assemble`,
 `brickkit-component`, `brickkit-deploy`, `brickkit-troubleshoot`, `brickkit-plan-change`) and writes `AGENTS.md` (the
 team's own guide, with a block at its end that the CLI keeps up to date) and `CLAUDE.md`; they're committed with the
-project, and `brickkit skills update` refreshes the skills after the CLI is upgraded. They deliberately don't copy
-command flags — for flags, ask `brickkit <command> --help`.
+project, and after the CLI is upgraded `brickkit skills update` refreshes the skills and the block at the end of
+`AGENTS.md` (creating `AGENTS.md` / `CLAUDE.md` if they're missing). They deliberately don't copy command flags — for
+flags, ask `brickkit <command> --help`.
+
+A component developed in its own repository (a `component.yaml` and no `brickkit.yaml`) gets the part that makes sense
+there: `brickkit skills update` run in that repository installs just the `brickkit-component` skill, plus the
+component's `AGENTS.md` (its block holds the component rules) and `CLAUDE.md`. `brickkit new` doesn't do this for you.
 
 | Page | Covers |
 | --- | --- |

@@ -7,12 +7,12 @@ messages — this page is enough. Every term points to the page that explains it
 
 | Term | What it is |
 | --- | --- |
-| **Component** | The basic unit you install and run: a program that runs on its own, **always a container** — a frontend (nginx serving static files) included |
+| **Component** | The basic unit you install and run: a program that runs on its own, **deployed as a container** — a frontend (nginx serving static files) included. The exceptions: a shell member runs inside its shell's process, and a component in `mode: local` / `debug` runs as a process on your machine while you develop it |
 | **Manifest** (`component.yaml`) | A component describing itself: what it depends on, which port it listens on, what config it needs, how to tell it's alive, where its image comes from |
 | **Project** | A set of components described by the three layers — the system you're assembling |
 | **The three layers** | `brickkit.yaml` (what there is), `deploy.yaml` / `deploy.local.yaml` (how it runs), `config/` (what config each component gets); see [The three layers at a glance](../01-three-layers/01-overview.md) |
 | **Lock file** | The role of `brickkit.yaml`: every component in use is locked to an exact version, and a component not written there doesn't exist |
-| **Install source** | Where to look for components: a Git repository (the default; a version is a Git tag), a directory on your machine (a local source), a component market (optional) |
+| **Install source** | Where to look for components: a Git repository (the usual way to distribute without a market; a version is a Git tag), a directory on your machine (a local source), a component market (optional) |
 | **Local source** | A directory on your machine holding component source at `<scope>/<name>/component.yaml`; their images are built by `brickkit build` |
 | **Required / optional dependency** | A missing required dependency is an error and nothing starts; a missing optional one (`optional: true`) only means its address variable is **not injected** — not injected as an empty string |
 | **Contract** (artifacts) | The API description a component publishes (OpenAPI, Protobuf, …), declared under `artifacts` in `component.yaml` and downloaded by `add` / `fetch` |
@@ -21,7 +21,7 @@ messages — this page is enough. Every term points to the page that explains it
 | **Fractal structure** | A component is a project while you develop it and a black box when someone uses it; see [The fractal structure](06-fractal-architecture.md) |
 | **`BRICKKIT.md`** | A component's documentation for the people and AIs who use it: what it owns, what to prepare, what its config means, its contracts. It travels with every version (translations as `BRICKKIT.<lang>.md`) and is cached into the projects that use it; see [A component's documentation](../03-component-guide/08-component-doc-spec.md) |
 | **`AGENTS.md`** | The guide an AI coding tool reads first (`CLAUDE.md` holds `@AGENTS.md` so Claude Code reads it too). A project's `AGENTS.md` holds the team's conventions and ends with a table of the project's components, kept up to date by the CLI; a component's `AGENTS.md` is for whoever develops that component; see [Creating a project](../02-project-guide/01-init-and-project-creation.md#the-projects-agentsmd) |
-| **Local mode** | After `brickkit local on`, every command reads the personal `deploy.local.yaml` instead; see [Local debugging](../02-project-guide/03-local-debug-workflow.md) |
+| **Local mode** | After `brickkit local on`, the commands that run or check the deployment (`up`, `down`, `status`, `sync`, `lint`, `build`) read the personal `deploy.local.yaml` instead of `deploy.yaml`; `graph` and `deps` always read `deploy.yaml`; see [Local debugging](../02-project-guide/03-local-debug-workflow.md) |
 
 ## The naming rules everything builds on
 
@@ -32,10 +32,10 @@ Once you know these rules, you can work out every name you meet in the docs, in 
 | Component ID | `scope/name`, all lowercase | `people/basic` |
 | Version | An exact `major.minor.patch`; ranges like `^1.0.0` are not accepted | `1.0.0` |
 | Versioned service name | The component ID and version with `/` and `.` turned into `-` | `people-basic-1-0-0` |
-| Dependency address variable | The component ID uppercased, `/` and `-` turned into `_`, plus `_ENDPOINT` | `PEOPLE_BASIC_ENDPOINT=http://people-basic-1-0-0:8080` |
+| Dependency address variable | The component ID uppercased, `/` and `-` turned into `_`, plus `_ENDPOINT`; an extra port puts its name in between, by the same rule | `PEOPLE_BASIC_ENDPOINT=http://people-basic-1-0-0:8080`, `PEOPLE_BASIC_ADMIN_API_ENDPOINT` (port `admin-api`) |
 | Config file name | The component ID with `/` turned into `-`; one meant for a single version adds `@version` | `config/people-basic.yaml`, `config/people-basic@2.0.0.yaml` |
 | Config item | A key in `configSchema` **is** the environment variable name, injected as-is | `DB_HOST` |
-| Image tag | Always exactly the component's `metadata.version` | `registry.example.com/people/basic:1.0.0` |
+| Image tag | The component's `metadata.version`, appended when `image` carries no tag of its own (an `image` that already has a tag or digest is used as written) | `registry.example.com/people/basic:1.0.0` |
 | Release tag | The version when the component sits at the repository root; prefixed with the component when it sits in a subdirectory | `1.0.0`, `people-basic/1.0.0` |
 
 A variable's **name** is derived from the component ID alone and never carries a version; its **value** is what points
@@ -53,7 +53,7 @@ them does.
 | --- | --- |
 | nothing | Follow the ones above |
 | `mode: enabled` | Always runs, whatever is above it; an error if one of its required dependencies is turned off (two conflicting intents) |
-| `mode: disable` | Never runs; whatever depends on it stops too |
+| `mode: disable` | Never runs; components that **require** it stop too, while those that depend on it optionally keep running without its address |
 | `mode: local` | Always runs, but not in a container: BrickKit works out the start command, launches the process on your machine and watches it |
 | `mode: debug` | Always runs, as a process you start yourself in your IDE; **written only in the personal `deploy.local.yaml`** |
 

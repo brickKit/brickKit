@@ -114,3 +114,28 @@ func TestResolveSecretRefOnNonSecret(t *testing.T) {
 	pwd, _ := res.Get("DB_PASSWORD")
 	assert.Equal(t, configdir.KindSecretRef, pwd.Value.Kind)
 }
+
+// 环境变量是文本：configSchema 里写 default: 1.10，注入的就是 "1.10"，跟写在 config/ 里一样——
+// 不能经过 float64 变成 "1.1"。配置文件骨架里给出的默认值也照原文写。
+func TestNumericDefaultKeepsItsText(t *testing.T) {
+	m, err := manifest.Parse([]byte(`apiVersion: brickkit/v1
+kind: Component
+metadata: {id: demo/num, name: Num, version: 1.0.0, description: numbers}
+deployment: {type: container, image: example.com/num:1.0.0, port: 8080}
+healthCheck: {type: tcp}
+configSchema:
+  type: object
+  properties:
+    API_VERSION: {type: number, default: 1.10}
+    RETRIES: {type: integer, default: 007}
+    RATIO: {type: number, default: 0.5}
+`), "")
+	require.NoError(t, err)
+	res, err := configdir.Resolve(configdir.Input{ComponentID: "demo/num", Version: "1.0.0", Schema: m.ConfigSchema, File: mustFile(t, "")})
+	require.NoError(t, err)
+	for key, want := range map[string]string{"API_VERSION": "1.10", "RETRIES": "007", "RATIO": "0.5"} {
+		got, _ := res.Get(key)
+		assert.Equal(t, want, got.Value.Text, key)
+	}
+	assert.Contains(t, string(configdir.Skeleton("demo/num", "1.0.0", m.ConfigSchema, nil)), "# API_VERSION: 1.10  #")
+}

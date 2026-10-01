@@ -163,7 +163,7 @@ curl http://localhost:8080/api/v1/quote
 
 ## 项目里有很多本地组件时：`add --local --init`
 
-一个项目的 `components/` 下有好几个你们自己写的组件时，不必一个个进去 `init`：
+一个项目的 `components/` 与 `shell/` 下有好几个你们自己写的组件时，不必一个个进去 `init`：
 
 ```bash
 brickkit add --local --init
@@ -173,6 +173,10 @@ brickkit add --local --init
    🧰 已在 components/demo/widget 建好工作台（加入 0 个依赖）
    🧰 已在 shell/erp/shell 建好工作台（加入 0 个依赖）
    💡 把每个组件仓库里新生成的工作台文件提交进去——组件目录里有未提交的文件时，brickkit release 会拒绝发布
+➕ 加入 demo/widget@0.1.0, erp/shell@0.1.0
+   ✅ demo/widget@0.1.0（在外壳 erp/shell 里）
+   ✅ erp/shell@0.1.0
+📝 已写：brickkit.yaml, deploy.yaml
 ```
 
 它扫描所有本地源，给每个还没有 `brickkit.yaml` 的组件建好工作台，把**各自** `component.yaml` 里的依赖加进各自的工作台，

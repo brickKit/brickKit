@@ -44,7 +44,7 @@ The project's `AGENTS.md` doesn't list a path per component: the block the CLI m
 once —
 
 ```text
-its contracts are in `.brickkit/artifacts/<service name>/` (the ID with `/` and `.` as `-`, then the version with `.` as `-`)
+its contracts are in `.brickkit/artifacts/<service name>/` (the ID and the version joined by `-`, with every `/` and `.` as `-`: `erp/backend` 1.0.0 → `erp-backend-1-0-0`)
 ```
 
 — so `demo/quote@0.1.0`'s contract is in `.brickkit/artifacts/demo-quote-0-1-0/api-contract/`. The directory name

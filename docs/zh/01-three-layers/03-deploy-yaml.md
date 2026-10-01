@@ -49,7 +49,7 @@ components:
 | 字段 | 含义 |
 | --- | --- |
 | `mode` | 跑不跑、怎么跑，见下表；不写就是"跟着上层走" |
-| `localPort` | `mode: local` / `mode: debug` 时，这个进程在你机器上的端口；只能和这两个 `mode` 一起写 |
+| `localPort` | `mode: local` / `mode: debug` 时，这个进程在你机器上的端口；只能和这两个 `mode` 一起写，或者写在 `deploy.local.yaml` 里 `focus` 组件的条目上（它按 `mode: local` 跑，见 [焦点运行](../02-project-guide/04-focus-run.md)） |
 | `expose` | 对外开放：Docker 下映射到宿主机端口，K8s 下生成 Ingress。不写就不可达 |
 | `exposePort` | Docker 下映射到宿主机的哪个端口（缺省与组件端口相同）；K8s 下不用 |
 | `hostname`、`tlsSecret` | K8s 下 Ingress 的域名与 TLS 证书 Secret |
@@ -57,11 +57,12 @@ components:
 | `resources` | 资源配额 `requests` / `limits`，覆盖组件建议的值 |
 | `serviceAccountName` | K8s 下用一个运维已经建好的 ServiceAccount |
 | `labels` | 原样透传：Docker 下是容器标签，K8s 下是 Pod 注解（给 Traefik、Prometheus 这类工具读） |
-| `skipWaitFor` | 启动时不等这几个强依赖就绪（只去掉等待，照样连得到它们），见 [外壳合并造成的启动环](../04-shell/04-members-management.md) |
+| `skipWaitFor` | 启动时不等这几个强依赖就绪（只去掉等待，照样连得到它们）。只对 Docker / Podman 有效：K8s 没有启动顺序。见 [外壳合并造成的启动环](../04-shell/04-members-management.md) |
 | `members` | 只有外壳条目有：它承载的成员，每个成员也是一个完整的条目 |
 
 只对 K8s 有意义的字段（`hostname`、`tlsSecret`、`replicas`、`serviceAccountName`）在别的 `target` 下写了只警告，
-命令照常执行——同一份条目可以在两种目标之间切换。
+命令照常执行——同一份条目可以在两种目标之间切换。反过来也一样：只对 Docker / Podman 有意义的 `exposePort`、
+`skipWaitFor` 在 `target: k8s` 下写了也只警告。
 
 ## `mode`：跑不跑、怎么跑
 
@@ -69,7 +70,7 @@ components:
 | --- | --- | --- |
 | 不写 | 跟着上层走：没人依赖的顶层组件默认跑，被依赖的组件只要还有一个上游在跑就跟着跑 | 哪都行 |
 | `enabled` | 一定跑；它的强依赖被关掉时报错 | 团队文件或个人文件 |
-| `disable` | 一定不跑；依赖它的组件跟着不跑（钉住要跑的依赖方会报错） | 团队文件或个人文件 |
+| `disable` | 一定不跑；**强**依赖它的组件跟着不跑（钉住要跑的依赖方会报错），弱依赖它的组件照常跑，只是拿不到它的地址 | 团队文件或个人文件 |
 | `local` | 一定跑，但作为你机器上的一个进程：BrickKit 探测启动命令、拉起它、盯着它 | 团队文件或个人文件 |
 | `debug` | 一定跑，进程由你自己在 IDE 里启动，平台负责让别的组件找到它 | **只能**写在个人的 `deploy.local.yaml` |
 
@@ -80,6 +81,7 @@ components:
 ❌ 错误：deploy.yaml 校验失败
    文件：deploy.yaml
    components[0].mode：mode: debug 只能写在 deploy.local.yaml 里：它记录的是"我此刻在本机调试这个组件"，不是团队决策。先 brickkit local on，再到那里设置
+   建议：完整字段说明：docs/zh/11-reference/03-deploy-yaml-schema.md（英文版把 zh 换成 en）
 ```
 
 `local` 和 `debug` 的进程跑在你的机器上，所以只在 `docker` / `podman` 目标下有意义；集群里的 Pod 连不到你的笔记本。

@@ -135,6 +135,11 @@ The rules:
   dependency (never waited for anyway), or a component it doesn't depend on at all is an error, so that you don't believe a
   wait was removed when it wasn't.
 - When the skipped dependency is in the same shell, the call never leaves the process and there's no wait to begin with;
-  writing it gets a warning.
-- On Kubernetes, Pods have no start order anyway, and a component running as a process on this machine has no
-  `depends_on`: in both cases it only warns and does nothing, and cycles caused by merging aren't stopped.
+  on Docker / Podman writing it gets a warning.
+- On Kubernetes, Pods don't wait for each other at start, so there is no wait to skip. `up` warns for each entry that
+  has it — `shop/cart@0.1.0 has skipWaitFor, but Pods on Kubernetes don't wait for each other at start: it has no
+  effect here` — and its start order has no "does not wait for" notes. The entry isn't refused: the same deploy file
+  pointed back at Docker / Podman makes it work again.
+- A component running as a process on this machine (or inside a shell that runs as one) has no `depends_on` either;
+  `up` warns that its `skipWaitFor` has no effect this time.
+- In both of those cases a cycle caused by merging isn't stopped: with no waits at start, nothing deadlocks.

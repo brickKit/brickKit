@@ -138,9 +138,9 @@ The `BRICKKIT.md` skeleton from `brickkit new` has six sections:
 
 ## Configuration
 
-| Variable | Required | Meaning |
-|---|---|---|
-| <!-- TODO: a key from configSchema --> | | <!-- TODO: what it means for the business, especially what the default cannot say --> |
+| Variable | Meaning |
+|---|---|
+| <!-- TODO: a key from configSchema --> | <!-- TODO: what it means for the business, especially what the default cannot say --> |
 
 ## Contracts
 

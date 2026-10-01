@@ -120,7 +120,7 @@ func (d *Discoverer) probe(ctx context.Context, target Target) Source {
 		reachable = true
 	}
 
-	if services, err := d.fetchGRPCServices(ctx, target.Endpoint); err == nil && len(services) > 0 {
+	if services, err := d.fetchGRPCServices(ctx, target.grpcAddress()); err == nil && len(services) > 0 {
 		source.GRPCServices = services
 		source.Kinds = append(source.Kinds, kindGRPC)
 		reachable = true
@@ -279,7 +279,18 @@ func listMethods(stream reflectStream, service string) ([]string, error) {
 // Target 是一个探测目标。
 type Target struct {
 	ComponentID string
-	Endpoint    string
+	// Endpoint 是主端口的地址：OpenAPI 在这里取。
+	Endpoint string
+	// GRPCEndpoint 是名为 grpc 的额外端口的地址；组件没声明这个端口时为空。
+	GRPCEndpoint string
+}
+
+// grpcAddress 是 gRPC Reflection 要探的地址：组件把 gRPC 开在额外端口上时是那个端口，否则是主端口。
+func (t Target) grpcAddress() string {
+	if t.GRPCEndpoint != "" {
+		return t.GRPCEndpoint
+	}
+	return t.Endpoint
 }
 
 // grpcTarget 把 http://host:port 转成 gRPC 要的 host:port。

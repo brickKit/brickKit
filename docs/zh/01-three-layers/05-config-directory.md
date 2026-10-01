@@ -1,6 +1,8 @@
 # config/ 目录详解
 
-`config/` 回答"**每个组件拿到哪些环境变量**"。每个组件一份扁平的 YAML 文件，每个键原样成为容器里的一个环境变量。
+`config/` 回答"**每个组件拿到哪些环境变量**"。每个组件一份扁平的 YAML 文件，**组件 `configSchema` 里声明了的**
+每个键，原样成为一个同名的环境变量。没声明的键会被警告、不会生效；组件根本没有 `configSchema` 时，它的文件里什么都
+不会注入（见 [与 `configSchema` 的关系](#与-configschema-的关系)）。
 
 ## 目录结构
 
@@ -110,6 +112,9 @@ DATABASE_HOST: $var:DATABASE_HOST  # string | PostgreSQL host name
      已声明的配置项：GREETING
      建议：是不是想写 GREETING？
   ```
+
+- 组件根本没有声明 `configSchema` 时，它不认任何配置项，配置文件里的内容一项都不注入；`up` 和 `lint` 会警告，
+  并列出被忽略的键。
 
 - 值的类型、枚举、范围不校验：组件拿到一个不合法的值时怎么处理（报错退出、回落默认值），是组件自己的事。
   详见 [configSchema 规格](../11-reference/04-config-schema-spec.md)。

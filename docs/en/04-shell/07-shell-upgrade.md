@@ -37,12 +37,16 @@ brickkit upgrade shop/shell
 📝 config/shop-stock.yaml
    Kept as written: STOCK_WAREHOUSE
 📝 config/shop-shell.yaml
+🗄️  Config archived: config/shop-shell.yaml → config/.archive/shop-shell@0.1.0.yaml
 📝 Written: brickkit.yaml, deploy.yaml
 ```
 
 Upgrading a shell is switching to the set of member versions the new shell compiles in. `shop/stock@0.1.0` is still
 depended on by other components (`shop/cart` and `shop/order` both declare `shop/stock@0.1.0`), so it stays, and runs on
-its own at the top level; an old version nobody needs any more would be removed. The deploy file changes with it:
+its own at the top level; an old version nobody needs any more would be removed. Each config file follows its version, as
+in any upgrade: `config/shop-stock.yaml` is migrated to `shop/stock@0.2.0` and the kept old version gets its own
+`config/shop-stock@0.1.0.yaml`; the shell's own config is migrated to 0.2.0, and the 0.1.0 file is archived into
+`config/.archive/`, because no `shop/shell@0.1.0` is left. The deploy file changes with it:
 
 ```yaml
 components:
@@ -126,8 +130,8 @@ builds a shell's image, and `up` checks it before using a shell image built on t
 ```text
 ❌ Error: the local image of shell shop/shell@0.2.0 contains other member versions than its component.yaml declares
    Image: shop-shell:0.2.0
-   Members in the image: shop/cart@0.1.0,shop/stock@0.2.0
-   Members declared in component.yaml: shop/cart@0.1.0,shop/stock@0.1.0
+   Members in the image: shop/cart@0.1.0,shop/stock@0.1.0
+   Members declared in component.yaml: shop/cart@0.1.0,shop/stock@0.2.0
    Suggestion: Rebuild the shell image: brickkit build shop/shell@0.2.0 --force
 ```
 

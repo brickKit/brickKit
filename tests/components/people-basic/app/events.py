@@ -5,6 +5,10 @@ INFRA_REDIS_EVENT_BUS_ENDPOINT，因此这里必须用"取不到就降级"的方
 而不是假设变量一定存在。
 
 弱依赖出错也绝不能影响主流程——这正是"弱"的含义。
+
+请求体照事件总线的契约写（它的 `POST /api/v1/events`）：`type` 是事件类型、必填且不能为空，
+`subject` 是事件说的是谁。写成别的形状，总线回 422，而这里只记一条警告——事件就这样
+悄悄丢了，所以 `tests/test_events.py` 锁住了这个形状。
 """
 
 from __future__ import annotations
@@ -22,7 +26,7 @@ PUBLISH_TIMEOUT_SECONDS = 1.0
 class NullEventBus:
     """事件总线没启动时用的空实现：什么都不做，也不报错。"""
 
-    def publish(self, topic: str, payload: dict) -> None:
+    def publish(self, event_type: str, subject: str) -> None:
         return None
 
 
@@ -32,8 +36,9 @@ class HTTPEventBus:
     def __init__(self, endpoint: str):
         self._endpoint = endpoint.rstrip("/")
 
-    def publish(self, topic: str, payload: dict) -> None:
-        body = json.dumps({"topic": topic, "payload": payload}).encode("utf-8")
+    def publish(self, event_type: str, subject: str) -> None:
+        # 时间不填：总线收下时补上收到的时间，与这里发出的时间只差一次本地调用
+        body = json.dumps({"type": event_type, "subject": subject}).encode("utf-8")
         request = urllib.request.Request(
             f"{self._endpoint}/api/v1/events",
             data=body,
@@ -44,7 +49,7 @@ class HTTPEventBus:
                 return None
         except (urllib.error.URLError, OSError) as exc:
             # 事件发不出去只记一条警告：调用方的查询本身没有任何问题
-            logger.warning("事件发布失败，已跳过", extra={"topic": topic, "reason": str(exc)})
+            logger.warning("事件发布失败，已跳过", extra={"type": event_type, "reason": str(exc)})
             return None
 
 

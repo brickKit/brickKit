@@ -78,11 +78,50 @@ func Parse(data []byte, source string) (*Manifest, error) {
 		return nil, decodeError(source, err)
 	}
 	m.Source = source
+	keepNumericDefaultText(doc, &m)
 
 	if err := m.Validate(); err != nil {
 		return nil, err
 	}
 	return &m, nil
+}
+
+// keepNumericDefaultText 把 configSchema 里写成数字的 default 换回原文（Number）。
+//
+// 环境变量是文本：`default: 1.10` 注入的应当是 "1.10"，跟同一个值写在 config/ 里一样；
+// 经过 yaml 的 float64 就成了 "1.1"（`007` 成了 "7"）。不在 ConfigProperty 上写 UnmarshalYAML：
+// 自己解析的类型 yamlcheck 不往里查，configSchema 里的拼写错误就再也报不出来了。
+func keepNumericDefaultText(doc *yaml.Node, m *Manifest) {
+	if m.ConfigSchema == nil {
+		return
+	}
+	props := mappingValue(mappingValue(doc, "configSchema"), "properties")
+	if props == nil {
+		return
+	}
+	for i := 0; i+1 < len(props.Content); i += 2 {
+		key := props.Content[i].Value
+		d := mappingValue(props.Content[i+1], "default")
+		prop, ok := m.ConfigSchema.Properties[key]
+		if !ok || d == nil || d.Kind != yaml.ScalarNode || (d.ShortTag() != "!!int" && d.ShortTag() != "!!float") {
+			continue
+		}
+		prop.Default = Number(d.Value)
+		m.ConfigSchema.Properties[key] = prop
+	}
+}
+
+// mappingValue 是映射节点里 key 对应的值节点；不是映射或没有这个键时为 nil。
+func mappingValue(n *yaml.Node, key string) *yaml.Node {
+	if n == nil || n.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		if n.Content[i].Value == key {
+			return n.Content[i+1]
+		}
+	}
+	return nil
 }
 
 // walkUnknownFields 做未知字段检查，并给"依赖项里另写 version:"补一句该怎么写。

@@ -47,12 +47,12 @@ class FakeEventBus:
 
     def __init__(self, enabled: bool = True):
         self.enabled = enabled
-        self.published: list[tuple[str, dict]] = []
+        self.published: list[tuple[str, str]] = []
 
-    def publish(self, topic: str, payload: dict) -> None:
+    def publish(self, event_type: str, subject: str) -> None:
         if not self.enabled:
             return
-        self.published.append((topic, payload))
+        self.published.append((event_type, subject))
 
 
 def build_service(
@@ -189,16 +189,16 @@ def test_weak_dependency_present_publishes_event() -> None:
     client.get("/api/v1/people/p-001")
 
     assert len(events.published) == 1
-    topic, payload = events.published[0]
-    assert topic == "people.person.viewed"
-    assert payload["personId"] == "p-001"
+    event_type, subject = events.published[0]
+    assert event_type == "people.person.viewed"
+    assert subject == "p-001"
 
 
 def test_event_bus_failure_does_not_break_the_request() -> None:
     """弱依赖出错也不能影响主流程——这正是"弱"的含义。"""
 
     class BrokenBus:
-        def publish(self, topic: str, payload: dict) -> None:
+        def publish(self, event_type: str, subject: str) -> None:
             raise RuntimeError("Redis 连接被拒绝")
 
     client = TestClient(create_app(build_service(events=BrokenBus())))

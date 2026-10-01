@@ -35,7 +35,9 @@ flowchart TD
 in local mode; or the one `-f` names) and `config/`. The three layers have to agree: every component version has exactly
 one entry in the deploy file, shell members are written under their shell, every `$var:` is defined, no config conflict is
 left unresolved. When they don't, it stops — every later station takes these three files as input, and with wrong input,
-everything computed afterwards is wrong.
+everything computed afterwards is wrong. With the `k8s` target (except under `--dry-run`), `up` then confirms that
+`kubectl` is connected to the cluster the deploy file names, before fetching or generating anything: deploying to the
+wrong cluster can't be undone.
 
 **② Fetch Manifests, resolve the dependency graph.** For the components and versions in `brickkit.yaml`, fetch each
 component's `component.yaml` from the cache or the install source, and connect them into a graph by their
@@ -65,8 +67,7 @@ Every missing one is listed at once.
 
 **⑨ Call the engine.** `docker compose up` (or `podman compose`, `kubectl apply`). Components that declare a migration run
 it first, and their main service starts only when it finished successfully; then it waits for every component's health
-check to pass. With the `k8s` target, before touching anything it confirms that `kubectl` is connected to the cluster the
-deploy file names.
+check to pass.
 
 **⑩ Supervise local processes.** With `mode: local` components, `up` stays in the foreground, starting and supervising
 those processes on this machine until `Ctrl+C`.

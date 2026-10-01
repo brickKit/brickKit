@@ -152,7 +152,7 @@ def check_llms_txt_links():
 
 def check_root_language_pair(en_name, zh_name):
     """根目录的一对多语言入口文件必须成对存在（README.md/README.zh.md、
-    AGENTS.md/AGENTS.zh.md、llms.txt/llms.zh.txt 都是这个形状）。
+    AGENTS.md/AGENTS.zh.md、llms.txt/llms.zh.txt、CONTRIBUTING.md/CONTRIBUTING.zh.md 都是这个形状）。
 
     这类文件不在 docs/en|zh 树下，是仓库根目录单独的一对，mirror_pairs() 那套
     按目录扫描的逻辑覆盖不到它们，所以单独查一次。将来新增第三种语言时，
@@ -178,13 +178,14 @@ def main():
         + check_root_language_pair("README.md", "README.zh.md")
         + check_root_language_pair("AGENTS.md", "AGENTS.zh.md")
         + check_root_language_pair("llms.txt", "llms.zh.txt")
+        + check_root_language_pair("CONTRIBUTING.md", "CONTRIBUTING.zh.md")
     )
     if bad:
         print("❌ 文档双语/链接完整性检查失败：")
         for line in bad:
             print(f"   - {line}")
         sys.exit(1)
-    print("✅ docs、tutorials 的 en ↔ zh 镜像完整，README/AGENTS/llms 双语齐全，llms 索引全部链接可解析，英文文档里没有中文")
+    print("✅ docs、tutorials 的 en ↔ zh 镜像完整，README/AGENTS/llms/CONTRIBUTING 双语齐全，llms 索引全部链接可解析，英文文档里没有中文")
 
 
 if __name__ == "__main__":

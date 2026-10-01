@@ -64,7 +64,8 @@ the container, with `port is already allocated` or `address already in use` in t
 
 **Fix**: find the program holding it (`ss -ltnp | grep <port>`) and stop it, or pick another `exposePort`.
 
-**Symptom three: two components on a shell use the same port** — see [Shell problems](06-shell-issues.md).
+**Symptom three: two components on a shell use the same port** — see
+[Shell problems](06-shell-issues.md#two-components-on-a-shell-want-the-same-port).
 
 ## A migration fails
 
@@ -90,21 +91,32 @@ start. Meanwhile the component's own logs say it's ready and listening on its po
 
 **Cause**
 
-On Docker, the health-check command runs **inside** the container:
+On Docker, the health check runs **inside** the container, through the image's `/bin/sh`. For `type: http` it's:
 
 ```text
 wget -q --spider http://localhost:8080/healthz || curl -fsS http://localhost:8080/healthz || exit 1
 ```
 
-With neither `wget` nor `curl` in the image (minimal images like `scratch` or distroless), this command always fails, and
-the container is always judged unhealthy — however healthy the component itself is. Another common cause: a wrong health
-check path (`healthCheck.path` in `component.yaml` differs from what the component actually serves).
+and for `type: tcp` it's `nc -z localhost 8080`. So `type: http` needs `/bin/sh` plus `wget` or `curl` in the image, and
+`type: tcp` needs `/bin/sh` plus `nc`. When they're missing, the command always fails and the container is always judged
+unhealthy — however healthy the component itself is. `scratch` and distroless images have no shell at all, so **neither
+type** can pass there; images based on `busybox` or `alpine` have all of it. Another common cause: a wrong health check
+path (`healthCheck.path` in `component.yaml` differs from what the component actually serves).
+
+On Kubernetes this problem doesn't exist: the probes (`httpGet`, `tcpSocket`) are sent by the kubelet from outside the
+container and need nothing in the image.
 
 **Fix**
 
 - Look at the container's health-check record: `docker inspect --format '{{json .State.Health}}' <container name>`; the
-  output of the last few entries says `wget: not found` or the like directly.
-- Keep a `wget` in the image (based on `alpine` or `busybox`), or change `healthCheck.type` to `tcp`.
+  output of the last few entries says `wget: not found`, `nc: not found` or that `/bin/sh` doesn't exist.
+- Check what the image has: `docker run --rm --entrypoint sh <image> -c 'command -v wget curl nc'` (when even this fails,
+  the image has no shell).
+- Give the image the tools: build the final stage on `busybox` or `alpine` (a few MB; they carry `sh`, `wget` and `nc`).
+  Switching from `http` to `tcp` only helps when the image has `nc` but neither `wget` nor `curl`.
+- If the image must stay without a shell, `healthCheck.type: none` is the remaining choice: components depending on it
+  then wait only for its container to start, not for it to be ready, and on Kubernetes it gets no probes either — so they
+  have to retry on their own while it comes up.
 - When the path doesn't match, change `healthCheck.path`.
 
 ## A component with a cold start over a minute is judged failed

@@ -11,8 +11,8 @@ The repository's `schemas/` holds three JSON Schemas (draft-07), describing the 
 | `schemas/deploy.schema.json` | Deploy files: `deploy.yaml`, `deploy.local.yaml`, `deploy.<environment>.yaml` |
 
 They're generated from the CLI's Go structs, not written by hand: when a struct changes, they're regenerated and committed
-together; a check in CI stops "the struct changed but nobody regenerated". So the fields in the schemas match the fields
-the CLI really accepts, one for one.
+together; `make lint` (its `check-schemas` step, which also runs before every release) stops "the struct changed but
+nobody regenerated". So the fields in the schemas match the fields the CLI really accepts, one for one.
 
 ## Wiring them into an editor
 

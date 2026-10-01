@@ -96,25 +96,40 @@ description: brickkit 命令报错、组件起不来、地址注入不生效、�
 
 组件之间没有互相依赖，但外壳容器作为整体启动，继承了每个成员的依赖，compose 下就成了 `depends_on`
 环。报错列出了边。出路：把环上外面的那个组件也挪进外壳；把一个成员挪出来；或在条目上写
-`skipWaitFor: [<ID>]`——只去掉启动等待，组件自己必须重试直到依赖起来。
+`skipWaitFor: [<ID>]`——只去掉启动等待，组件自己必须重试直到依赖起来。`target: k8s` 下（Pod 启动时
+本来就不互相等）或这次以裸进程跑的组件上（没有 `depends_on`），`skipWaitFor` 不起作用，`up` 会警告；这份文件也拿去
+docker / podman 用就留着，否则删掉。
+
+不涉及外壳的普通解析也报 `DEPENDENCY_CYCLE`：那是一个全由强依赖组成的环，谁都要等对方先起来。把环上至少一条
+依赖改成弱依赖（`optional: true`）——弱依赖不约束启动顺序。
 
 **13. `DEPENDENCY_MISSING`：强依赖的版本没在 `brickkit.yaml` 里声明。**
 
 `brickkit.yaml` 是锁文件，解析只用它声明过的版本。照提示 `brickkit add <id>@<版本>`（依赖需要另一个版本
 时 add 会自动写成 `requiredBy` 兼容版本）。
 
-**14. `RELEASE_BLOCKED` / `RELEASE_PUSH_FAILED`。**
+**14. `add` 拒绝：项目里已经有这个组件。**
+
+直接 `add` 一个已在项目里的组件的另一个版本。换默认版本用 `brickkit upgrade <id>@<版本>`；依赖链上需要另一个
+版本时 `add` 会自己写 `requiredBy` 行，不用你来。
+
+**15. `target: k8s` 下 `mode` 被拒（`CONFIG_INVALID`）。**
+
+`mode: local` / `mode: debug` 要在你的机器上起进程，集群里的 Pod 到不了那里。用 docker / podman，比如在
+`deploy.local.yaml` 里把 `target:` 换掉。
+
+**16. `RELEASE_BLOCKED` / `RELEASE_PUSH_FAILED`。**
 
 被拒是发布前检查没过，什么都没写：组件目录有未提交的改动、当前分支没有上游或有未推送的提交、tag 已存在
 （该升 `metadata.version` 了）。推送失败时本地 tag 已经删掉，解决远端原因后原样重试。
 
-**15. 提交被拦下：「组件源码提交在归档目录里，但 … 说它该启动」（`CONFIG_CONFLICT`）。**
+**17. 提交被拦下：「组件源码提交在归档目录里，但 … 说它该启动」（`CONFIG_CONFLICT`）。**
 
 这是 `brickkit init --hooks` 装的 pre-commit 检查：部署文件说某个组件要启动，可这次提交里它的源码在
 `components/.archived/` 下。处理：`brickkit restore` 把 `mode` 恢复到上次提交的样子；或者把目录的移动一起
 提交。想不提交先查一遍，跑 `brickkit restore --check`。
 
-**16. 焦点运行、嵌套副本、submodule。**
+**18. 焦点运行、嵌套副本、submodule。**
 
 - 「焦点 … 不是这个项目的组件」（`COMPONENT_NOT_FOUND`）：`deploy.local.yaml` 的 `focus:` 写的组件不在
   `brickkit.yaml` 里（拼错了，或被删了）。照「是不是想写」改；`brickkit up --focus <id>` 换一个，`brickkit up --all` 去掉焦点。

@@ -103,18 +103,29 @@ func docFiles(dir string) []string {
 	return out
 }
 
-// codeMap 核对代码地图里每条路径都在：只看那一节表格里的行内代码，含 /、不含空白、* 与 ://。
+// codeMap 核对代码地图里每条路径都在：只看那一节表格里的行内代码，不含空白、* 与 ://。
+//
+// 第一张表（路径 → 管什么）的第一列按规范就是路径，顶层文件（`main.go`、`Dockerfile`）也查；
+// 别的格子里只有含 / 的才算路径——不含的是函数、类型这类名字（`main.go` 的 `runMode`）。
 func codeMap(dir string, d doc) []*clierr.Error {
 	body, start := section(d, docspec.CodeMap)
 	if start == 0 {
 		return nil
 	}
 	var out []*clierr.Error
+	table, inTable := 0, false
 	for i, line := range strings.Split(body, "\n") {
-		for _, c := range mdtext.TableCells(line) {
+		switch row := strings.HasPrefix(strings.TrimSpace(line), "|"); {
+		case row:
+			inTable = true
+		case inTable:
+			table, inTable = table+1, false
+		}
+		for col, c := range mdtext.TableCells(line) {
+			pathColumn := table == 0 && col == 0
 			for _, p := range mdtext.InlineCode(c) {
 				// 以 / 开头的是路由（`/healthz`），不是仓库里的路径
-				if !strings.Contains(p, "/") || strings.HasPrefix(p, "/") || strings.ContainsAny(p, " \t*") || strings.Contains(p, "://") {
+				if (!pathColumn && !strings.Contains(p, "/")) || strings.HasPrefix(p, "/") || strings.ContainsAny(p, " \t*") || strings.Contains(p, "://") {
 					continue
 				}
 				if !exists(filepath.Join(dir, filepath.FromSlash(strings.TrimSuffix(p, "/")))) {

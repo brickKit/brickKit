@@ -86,7 +86,8 @@ components:
 ```
 
 It stays there until you change it: the next `up` runs the same focus, unless you run it in another component's
-directory — that moves the focus there. `deploy.yaml`, the team's file, is never touched. Every command that reads the deploy file reminds you:
+directory — that moves the focus there. `deploy.yaml`, the team's file, is never touched. `up`, `status`, `down`,
+`lint` and `build` remind you (`sync` ignores the focus, see [below](#what-the-other-commands-do-with-it)):
 
 ```text
 🎯 Focus: demo/caller

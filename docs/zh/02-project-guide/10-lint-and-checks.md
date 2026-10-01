@@ -29,8 +29,8 @@ brickkit lint
 | 部署文件的结构 | 未知字段（拼写笔误）、`mode: debug` 写进了 `deploy.yaml`、`localPort` 没配 `mode`、宿主机端口冲突 |
 | 三层对不对得上 | 每个组件版本在部署文件里恰好一个条目；外壳成员写在外壳下面；`config/` 的文件对得上组件 |
 | `config/` 的引用 | `$var:` 都有定义；没有升级遗留的冲突块（重复键） |
-| 配置与 `configSchema` | 必填项有值；写下的键在 schema 里（拼错的键不会生效）；外壳成员的值能编码进外壳 |
-| 外壳声明 | `brickkit.yaml` 的 `kind: shell` 与组件的 `shell` 块一致；放在外壳下面的成员确实编进了这个外壳 |
+| 配置与 `configSchema` | 必填项有值；写下的键在 schema 里（拼错的键不会生效）；外壳成员的值能编码进外壳。只查 `component.yaml` 已经在盘上的组件版本（在 `.brickkit/manifests/` 里，或本地源里正好是这个版本）；其余的在提示里列为未检查 |
+| 外壳声明 | `brickkit.yaml` 的 `kind: shell` 与组件的 `shell` 块一致；放在外壳下面的成员确实编进了这个外壳（同样只查 `component.yaml` 在盘上的） |
 | 本地源里的 `component.yaml` | 每一份都查，不管有没有 `add` 过（`.archived/` 不查） |
 | 文档 | 项目的 `AGENTS.md` 与 `CLAUDE.md`（`./（文档）`），以及本地源里每个组件的文档，见 [文档检查](#文档检查) |
 
@@ -71,7 +71,7 @@ brickkit lint
 | 在哪里 | 查哪些文档 |
 | --- | --- |
 | 组件仓库 | 组件的 `BRICKKIT.md`（连同译本）、`AGENTS.md`、`CLAUDE.md`、`README.md`，有 `docs/` 的话也查 |
-| 项目 | 项目的 `AGENTS.md` 与 `CLAUDE.md`、项目根残留的旧项目地图 `BRICKKIT.md`，以及本地源里每个组件的文档 |
+| 项目 | 项目的 `AGENTS.md` 与 `CLAUDE.md`、项目 `README.md` 里的链接、项目根残留的旧项目地图 `BRICKKIT.md`，以及本地源里每个组件的文档 |
 | 工作台 | 组件的文档，和组件仓库一样 |
 
 每一组文档在报告里占一行——项目是 `✅ ./（文档）`，组件是 `✅ components/demo/hello/（文档）`——有问题时那一行换成具体的警告：
@@ -156,5 +156,5 @@ brickkit up --dry-run -f deploy.prod.yaml
 ```
 
 - `lint --strict` 作为门禁：结构错误、未定义的引用和文档警告都挡在合并之前。CI 里要有这些 `${VAR}` 的值（或者这一步只查结构，去掉 `--strict`）。
-- 每个环境的部署文件用 `-f` 各查一遍：默认只查 `deploy.yaml`。
+- 每个环境的部署文件用 `-f` 各查一遍：默认只查 `deploy.yaml`（以及存在时的 `deploy.local.yaml`），不会去查 `deploy.prod.yaml`。
 - 再加一步 `up --dry-run`，把依赖解析也查了——它需要能访问安装源，但不需要能访问集群。

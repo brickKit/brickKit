@@ -1,19 +1,19 @@
 # infra/api-docs
 
-把各组件的 API 文档聚合到一个页面的展示组件（Go + 一个静态页面）：OpenAPI 走 `/openapi.json`，gRPC 走 Reflection。它是 BrickKit 平台自测组件里唯一一个**全部依赖都是弱依赖**的，验证的正是"文档入口不该因为某个业务组件没装就打不开"。
+把各组件的 API 文档聚合到一个页面的展示组件（Go + 一个静态页面）：OpenAPI 走 `/openapi.json`，gRPC 走 Reflection。它是 BrickKit 平台自测组件里唯一一个**全部依赖都是弱依赖**的，验证的正是"文档入口不该因为某个业务组件没装就打不开"。怎么用、边界和契约见 `BRICKKIT.md`；依赖、配置、部署见 `component.yaml`。
 
 ## 代码地图
 
 | 路径 | 管什么 |
 | --- | --- |
 | `main.go` | 入口：读配置、建 `Discoverer`、起 HTTP 服务；拒绝任何命令行参数；`WEB_ROOT` 可改静态页面目录 |
-| `config.go` | `aggregated` 聚合清单（组件 ID → 环境变量名）、`cacheTTL`、JSON 日志与敏感字段打码 |
-| `discovery.go` | 并发探测：OpenAPI 文档抓取、gRPC Reflection 列服务与方法、四种状态的判定、`grpcTarget()` |
+| `config.go` | `aggregated` 聚合清单（组件 ID → 主端口的环境变量名）、`grpcEnvVar()`（名为 grpc 的额外端口的变量名）、`cacheTTL`、JSON 日志与敏感字段打码 |
+| `discovery.go` | 并发探测：OpenAPI 文档抓取、gRPC Reflection 列服务与方法（`Target.grpcAddress()` 选端口）、四种状态的判定、`grpcTarget()` |
 | `descriptor.go` | 从 Reflection 返回的 FileDescriptorProto 里解析出某个服务的方法名 |
 | `service.go` | HTTP 路由：健康检查、聚合状态、OpenAPI 代理、静态页面；探测结果缓存 |
 | `web/index.html` | 首页：聚合状态表 + Swagger UI（只把有 OpenAPI 的组件喂给它） |
 | `web/` | 静态页面目录；镜像里额外多一个 swagger-ui 子目录，由 Dockerfile 从官方镜像拷入，仓库里没有 |
-| `service_test.go` | 全部测试：httptest 替身组件、四种状态、代理、地址不外泄、健康检查、缓存与过期、无必需配置 |
+| `service_test.go` | 全部测试：httptest 替身组件、四种状态、代理、地址不外泄、健康检查、缓存与过期、无必需配置、额外端口上的 gRPC |
 | `Dockerfile` | 三段：swagger-ui 镜像取静态资源 → golang 编译 → alpine 运行期，UID 10001 |
 | `component.yaml` | 组件契约：六个弱依赖、配置项、部署与健康检查 |
 
@@ -51,7 +51,7 @@ curl -s localhost:8080/api/v1/sources   # 六个组件全是 absent
 ## 设计取舍
 
 - **全部依赖都是弱依赖、没有任何必需配置**：文档入口不该因为某个业务组件没装就打不开，而且业务组件全挂的时候正是最需要看文档的时候。把任何一个列成必需，就等于要求使用者把六个组件全装上才能看文档。
-- **两条发现路径**：OpenAPI 取 `/openapi.json`（FastAPI 之类的框架自带，BrickKit 的 Go 自测组件也照这个路径提供）；gRPC 用 Reflection，不必预先存一堆 `.proto`，组件升级加了新方法这里自动跟上——`grpcurl` 用的是同一套机制。
+- **两条发现路径**：OpenAPI 取 `/openapi.json`（FastAPI 之类的框架自带，BrickKit 的 Go 自测组件也照这个路径提供）；gRPC 用 Reflection，不必预先存一堆 `.proto`，组件升级加了新方法这里自动跟上——`grpcurl` 用的是同一套机制。gRPC 的地址从平台的命名规则推出来（`<ID>_GRPC_ENDPOINT`，名为 `grpc` 的额外端口），不在 `aggregated` 里另写一列：新聚合一个把 gRPC 开在额外端口上的组件时不用多改一处。
 - **四种状态分开**：`ok`、`absent`、`unreachable`、`no-docs` 对应四种不同的处置；混成一种，使用者只能对着空页面猜。`/api/v1/sources` 本身就是排障工具。
 - **由本组件代理 OpenAPI，不让浏览器直连**：那些组件默认不暴露端口，浏览器连不上，连得上也会撞跨域。
 - **响应里不带组件的内部地址**：那等于把内网结构告诉任何能打开这个页面的人（`Source.Endpoint` 标了 `json:"-"`）。
@@ -70,6 +70,7 @@ curl -s localhost:8080/api/v1/sources   # 六个组件全是 absent
 | 让 `/healthz` 去探那六个组件 | 业务组件一抖，文档页面跟着被杀掉重启 | 它们全是弱依赖，全挂了这个页面也该打得开 |
 | 把"连不上"和"连上了但没有这份文档"合并 | `unreachable` 与 `no-docs` 分不清，使用者不知道该修组件还是该让它补文档 | 两种情况的处置完全不同，`errNoDocs` 就是为区分它们存在的 |
 | 在 `/api/v1/sources` 的响应里带上组件地址 | 内网拓扑暴露给能打开页面的任何人 | `TestEndpointsAreNotLeaked` 会挡住 |
+| 只在主端口上做 gRPC Reflection | `people/basic` 的 gRPC 服务永远不出现，它只显示 OpenAPI | 它的 gRPC 在额外端口 9090 上（`PEOPLE_BASIC_GRPC_ENDPOINT`），主端口只有 HTTP；`TestGRPCOnExtraPortIsListed` 会挡住 |
 | 把平台注入的 `*_ENDPOINT` 直接交给 gRPC | 报 `dns resolver: missing address`，所有 gRPC 文档都拿不到 | 注入的是带 scheme 的 URL，gRPC 要 `host:port`，必须经过 `grpcTarget()` |
 | 在 `web/index.html` 里引用 CDN 上的脚本或样式 | 内网或气隙环境里页面永远转圈 | 静态资源必须在镜像里，由 Dockerfile 从 swagger-ui 镜像拷入 |
 | 去掉缓存的过期判断 | 新装上的组件永远不出现在页面上 | 缓存一旦不过期，第一次探测的结果就永远是答案 |

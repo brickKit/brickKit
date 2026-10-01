@@ -52,6 +52,7 @@ adding them by hand (option B) is quicker.
 ❌ Error: deploy.yaml failed validation
    File: deploy.yaml
    components[0].mode: mode: debug can only be written in deploy.local.yaml: it records that you are debugging this component on your machine right now, which is not a team decision. Run brickkit local on and set it there
+   Suggestion: Full field reference: docs/en/11-reference/03-deploy-yaml-schema.md (swap en for zh for the Chinese version)
 ```
 
 **Cause**: `mode: debug` is your personal fact of the moment, and can only be written in the personal file. **Fix**:
@@ -73,8 +74,9 @@ Local mode: off
 deploy.local.yaml: present (not read while local mode is off)
 ```
 
-`brickkit local on` turns it on. With local mode on, every command's first line says `Local mode is on: using
-deploy.local.yaml`; no such line means it wasn't read.
+`brickkit local on` turns it on. With local mode on, the first line of `up`'s output says `Local mode is on: using
+deploy.local.yaml (brickkit local off switches back to deploy.yaml)`; no such line means `up` didn't read it. The other
+commands (`down`, `status`, `sync`, `lint`) print no such line — for them, `brickkit local status` says which file is read.
 
 **Symptom three: the deploy target is `k8s`, and it's refused.** A Pod in the cluster can't reach your laptop, so
 `mode: debug` and `mode: local` only work under `docker` / `podman`. In the personal file you can change `target` to
@@ -173,6 +175,7 @@ vars:
 
 ```text
 ❌ Error: the focus demo/lb is not a component of this project
+   File: deploy.local.yaml
    Suggestions:
    1. brickkit up --focus <id> sets another one; brickkit up --all runs every component
    2. Did you mean: demo/lib?

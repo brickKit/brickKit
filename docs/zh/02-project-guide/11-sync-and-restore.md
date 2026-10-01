@@ -79,7 +79,10 @@ brickkit restore
 ## 提交前检查
 
 默认情况下 `components/` 在 `.gitignore` 里：组件源码不进项目仓库，每个组件是它自己的仓库。有的团队想让源码跟项目一起提交——
-把 `components/` 从 `.gitignore` 去掉就行。那样一来，`sync` 的目录移动就会出现在项目的 diff 里，而下面这件事迟早会发生：
+把 `components/` 从 `.gitignore` 去掉就行。新项目的 `.gitignore` 里写着它，但它不在 `brickkit init` 要求必须有的条目里：
+那些条目挡着个人文件和密钥，必须留着。
+
+那样一来，`sync` 的目录移动就会出现在项目的 diff 里，而下面这件事迟早会发生：
 
 > 关掉几个顶层组件 → `sync` 归档 → 忘了还原 → 提交。
 

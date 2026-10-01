@@ -39,7 +39,7 @@ in `schemas/` — see [JSON Schemas](../11-reference/05-json-schemas.md).
 | `k8s.serviceAccount.enabled` | | One ServiceAccount per component, with no token mounted |
 | `components[].id` | ✅ | The bare ID (default version) or `id@version` |
 | `components[].mode` | | `enabled` / `disable` / `local` / `debug` (`debug` only in `deploy.local.yaml`) |
-| `components[].localPort` | | With `local` / `debug`, the port of the process on your machine |
+| `components[].localPort` | | With `local` / `debug` (or on the `focus` component's entry), the port of the process on your machine |
 | `components[].expose` / `exposePort` | | Open it to the outside; the host port on Docker |
 | `components[].hostname` / `tlsSecret` | | The Kubernetes Ingress host name and certificate |
 | `components[].replicas` | | Kubernetes replicas |
@@ -70,12 +70,13 @@ environment variable names in the container. A value can be a literal, `$var:NAM
 | `deployment.type` | ✅ | Always `container` |
 | `deployment.image` / `deployment.build` | one or both | The image to pull, or the `context` and `dockerfile` to build locally |
 | `deployment.port` | ✅ | The main port |
-| `deployment.extraPorts[]` | | Extra ports: `name`, `port` |
+| `deployment.extraPorts[]` | | Extra ports: `name`, `port`. Each gives callers `<ID>_<NAME>_ENDPOINT`, the name uppercased with `-` turned into `_` (port `admin-api` of `people/basic` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT`) |
 | `deployment.resources` | | Recommended resources |
 | `deployment.labels` | | Labels passed through |
 | `migration.command` | | The database migration command (an array) |
 | `healthCheck.type` | ✅ | `http` / `tcp` / `none` |
-| `healthCheck.path` / `startPeriodSeconds` | | The HTTP path, the startup grace period in seconds (default 60) |
+| `healthCheck.path` | for `http` | The HTTP path, starting with `/` |
+| `healthCheck.startPeriodSeconds` | | The startup grace period in seconds (default 60) |
 | `shell.members` | | The members a shell compiles in, as exact `id@version` |
 | `local.language` / `local.runCommand` | | For `mode: local`, the language, or the start command given outright |
 
@@ -89,9 +90,9 @@ How to write it and design choices: the [component.yaml field guide](../03-compo
 | `version: local` | A local source also states its real version, or exact dependency matching fails | The version from `component.yaml` |
 | `expose` or `mode` in `brickkit.yaml` | That's how things are deployed | On this component's entry in the deploy file |
 | `mode: debug` in `deploy.yaml` | It's a personal fact, not for Git | In `deploy.local.yaml` |
-| `localPort` without `mode` | `localPort` only means something for a process on your machine | With `mode: local` or `mode: debug` |
+| `localPort` without `mode` | `localPort` only means something for a process on your machine | With `mode: local` or `mode: debug` (the `focus` component's entry needs neither: it runs as `local`) |
 | A config key `dbHost` while the component reads `DB_HOST` | The key is the environment variable name, injected as-is | Exactly the key in `configSchema` |
-| `DATABASE_URL: $var:PG_HOST:5432` | `$var:` must be the whole value | `jdbc:…://${PG_HOST}:5432`, or reference the pieces separately |
+| `DATABASE_URL: $var:PG_HOST:5432` | `$var:` must be the whole value | Put the whole value into `config/vars.yaml` as a variable of its own (`PG_URL: jdbc:postgresql://pg.internal:5432/people`) and write `$var:PG_URL`, or reference the pieces separately. `${PG_HOST}` inside a string reads the process environment and `.env`, not `config/vars.yaml` |
 | A secret in plain text | `config/` goes into Git | `${VAR}` or `file://` |
 | Two entries for the same component version in a deploy file | Each version has exactly one entry | Delete the extra one |
 | Shell members at the top level plus a separate list of member IDs | Membership has one source | Member entries nested under the shell's entry, as `members` |

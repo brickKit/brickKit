@@ -17,9 +17,10 @@ description: Use when writing a new BrickKit component from scratch, editing com
 
 `brickkit new <scope>/<name>` writes a `component.yaml` skeleton that already validates **and the
 four documents** (`BRICKKIT.md`, `AGENTS.md`, `CLAUDE.md`, `README.md`, see rule 12) with `<!-- TODO: … -->`
-hints, to `components/<scope>/<name>/` (the layout the local install source scans). `--shell` writes a shell skeleton to `shell/<scope>/<name>/` instead;
-`--contract openapi|proto` adds a placeholder contract under `artifacts`; `--path` writes a
-standalone repository. No Dockerfile or code is generated — the platform doesn't pick a language.
+hints, to `components/<scope>/<name>/` (the layout the local install source scans). `--shell` writes a shell skeleton to `shell/<scope>/<name>/` instead,
+with one placeholder member to replace; `--contract openapi|proto` adds a placeholder contract under `artifacts`; `--path` writes a
+standalone repository. No Dockerfile or code is generated — the platform doesn't pick a language — and nothing is
+`add`ed to the project: that is a separate step you can review.
 
 After every edit run `brickkit lint`: offline, read-only, instant. It reports missing fields, wrong
 types, unknown keys, version format, port ranges, a misspelled key inside a `configSchema` property
@@ -35,15 +36,18 @@ downloads it to `.brickkit/artifacts/<versioned-service-name>/<type>/` and never
 
 **2. `configSchema` keys ARE the environment variable names.**
 
-Write `DB_HOST`, `LOG_LEVEL` — exactly what your code reads. There is no camelCase conversion. The
+Write `DB_HOST`, `LOG_LEVEL` — exactly what your code reads. There is no camelCase conversion, so a key
+must be a valid environment variable name (letters, digits, `_`, not starting with a digit). The
 project fills values in `config/<scope>-<name>.yaml` under the same keys. Put keys the project must
 supply (a database password, another project's address) in `required` **without** a `default`: `up`
 refuses until they're filled. Everything else gets a `default`. Mark credentials `secret: true` —
 on K8s they go through a generated Secret, never plaintext env. `type` / `enum` / `minimum` /
-`maximum` / `pattern` / `items` are documentation only; values are never validated.
+`maximum` / `pattern` / `items` are documentation only; values are never validated. A `default` is
+injected exactly as written: `default: 1.10` arrives as `1.10`, not `1.1`.
 
 There are no resource declarations: a database, cache or queue your component uses is simply a set
-of config keys you declare (`DB_HOST`, `DB_PORT`, `DB_PASSWORD` with `secret: true`, …).
+of config keys you declare (`DB_HOST`, `DB_PORT`, `DB_PASSWORD` with `secret: true`, …). Sharing one
+value between several components is the project's business (`config/vars.yaml`); declare only what you need.
 
 **3. Never use a reserved name as a config key.**
 
@@ -69,20 +73,24 @@ absence shows up at startup instead of as a request to an empty address. Degrada
 **6. `/healthz` only checks this process.** Never check a database or a dependency in it: one
 downstream hiccup would mark every upstream unhealthy at once. `interval`/`timeout`/`failureThreshold`
 are fixed (10s/3s/3), so the startup grace `startPeriodSeconds` defaults to 60. A cold start longer
-than that (heavy Spring Boot, Django preloading, .NET JIT) must raise it, or K8s CrashLoopBackOffs
-forever while the logs look fine. Setting it generously costs nothing.
+than that (heavy Spring Boot, Django preloading, .NET JIT) must raise it: on Docker the component turns
+`unhealthy` and `up` fails; on K8s it CrashLoopBackOffs forever while the logs look fine. The grace
+period only delays "declared dead", never "declared alive", so setting it generously costs nothing.
 
 **7. The migration runs from the same image — fail fast on unknown arguments.**
 
 `migration.command` (array form) runs before the main service, with every config env var. If your
 entrypoint falls through to "start the service" on an argument it doesn't recognize, a typo turns
 the migration into a second server that never exits, and the deployment hangs. Validate the argument
-before reading env vars or connecting to anything.
+before reading env vars or connecting to anything. Migration state is yours to keep; when two components
+share a database, the state table's key must include the component's identity.
 
 **8. `deployment.image` and `deployment.build`: at least one.**
 
 `build: { context: ., dockerfile: Dockerfile }` lets `brickkit build` build it; `image:` lets git or
-market consumers pull it. The image **tag is always `metadata.version`**. `up` never builds.
+market consumers pull it. The image **tag is always `metadata.version`**. `up` never builds, and
+`brickkit build` skips a version whose image already exists — so changed code without a version bump
+needs either a bump or `brickkit build <id> --force` on the user's side.
 
 **9. `deployment.resources`: write `requests`, leave `limits` to the deployer.** Quotas merge field by
 field (deploy entry > `component.yaml` > default), so a `limits.cpu` you write can never be removed.
@@ -95,11 +103,17 @@ field (deploy entry > `component.yaml` > default), so a `limits.cpu` you write c
 `shell: { members: [erp/api@1.2.0, erp/auth@1.2.0] }` makes the component a shell. Those versions
 are a promise about what's inside the image: a project may only host exactly those versions in it,
 and a locally built shell image records them in a label that `up` checks. Change a member version →
-bump and rebuild the shell. Each member still needs its own image (its migration runs with it). The
-shell reads `BRICKKIT_SERVED_MEMBERS` (hosted versioned service names) to skip modules not hosted,
-and `BRICKKIT_SERVED_MEMBERS_CONFIG` (JSON per member: `componentId`, `version`, `httpPort`,
-`extraPorts`, `configEnvVars`) to find each member's config, which arrives prefixed with the member
-id (`ERP_API_DB_HOST`).
+bump and rebuild the shell. Each member still needs its own image (its migration runs with it). At
+start the shell reads two variables:
+
+- `BRICKKIT_SERVED_MEMBERS`: the versioned service names hosted this run, comma-separated. Initialise
+  only those modules; an empty string means none is hosted — not "the variable is missing, start all".
+- `BRICKKIT_SERVED_MEMBERS_CONFIG`: a JSON array, one object per hosted member —
+  `{componentId, version, httpPort, extraPorts: [{name, port}], config}`. `config` is the member's whole
+  environment (its config keys and its dependencies' `*_ENDPOINT`) with every value already resolved
+  (`$var:`, `${VAR}`, `file://`). Nothing of a member's config is put into the shell's own environment:
+  read it from here, by the member's own key names. A member key written as `existingSecret` is refused,
+  because the CLI can't read a value that lives only in the cluster.
 
 **12. A component carries five documents, each for one reader — keep them in step with the code.**
 
@@ -113,15 +127,16 @@ id (`ERP_API_DB_HOST`).
 
 - One fact, one home: dependencies and config keys live in `component.yaml`, interfaces in the contract files, history in Git. The docs explain what those can't say — they don't restate it.
 - `BRICKKIT.md` has **no relative links**: it is read alone in other projects' caches. Name files as inline code.
+- A shell's `Shell declaration` section lists the same members as `shell.members`.
 - Translations are siblings: `BRICKKIT.zh.md`, `README.zh.md`, `docs/design.zh.md`. The unsuffixed file is canonical; each language version links every other near the top (not `BRICKKIT*.md`); `AGENTS.md` is not translated.
-- `brickkit lint` checks all of this (warnings; `--strict` fails on them): `DOC_FILE_MISSING`, `DOC_SECTION_MISSING`, `DOC_PATH_MISSING` (a code-map path that's gone), `DOC_LINK_BROKEN`, `DOC_LINK_NOT_PORTABLE`, `DOC_OUT_OF_STEP` (a dependency, required key, contract file or shell member that `component.yaml` has and the doc doesn't mention), `DOC_PLACEHOLDER`, `DOC_TRANSLATION_DRIFT`, `AGENTS_BLOCK_MISSING`, `CLAUDE_IMPORT_MISSING`. Change the docs in the same commit as the code: the next AI reads what you left.
+- `brickkit lint` checks all of this (warnings; `--strict` fails on them): `DOC_FILE_MISSING`, `DOC_SECTION_MISSING`, `DOC_PATH_MISSING` (a code-map path that's gone — every inline-code token in the first column of the first table is a path, `main.go` and `Dockerfile` included; elsewhere only tokens containing `/` count, and a token starting with `/` is a route such as `/healthz`, never a path), `DOC_LINK_BROKEN`, `DOC_LINK_NOT_PORTABLE`, `DOC_OUT_OF_STEP` (a dependency, required key, contract file or shell member that `component.yaml` has and the doc doesn't mention), `DOC_PLACEHOLDER`, `DOC_TRANSLATION_DRIFT`, `AGENTS_BLOCK_MISSING`, `CLAUDE_IMPORT_MISSING`. Change the docs in the same commit as the code: the next AI reads what you left.
 - The docs are part of the version, like the code. Work towards a new version — bump `metadata.version` first, test, then release — and edit it freely until it's released. Never change a released version in place: a machine where it is a local source and a machine that takes it from the tag then write different rows into the component table of the project's `AGENTS.md`, back and forth.
 
 ## Releasing a version
 
 A release is a Git tag. Bump `metadata.version`, commit, push, then `brickkit release` (or
 `--path <dir>`; `--local` releases every local-source component). It refuses (`RELEASE_BLOCKED`)
-unless the component directory is clean, the branch has an upstream with nothing unpushed, and the
+unless `component.yaml` validates, the component directory is clean, the branch has an upstream with nothing unpushed, and the
 tag doesn't exist. Tags are `1.2.0` (no `v`), or `<scope>-<name>/1.2.0` for a monorepo subdirectory.
 A failed push deletes the local tag again. A `brickkit.yaml` next to `component.yaml` (a local
 workbench) plays no part in what gets released — `release` reads only `component.yaml` — but its
@@ -132,14 +147,30 @@ pushed) is not a release: push it or delete it. `brickkit publish` to a market i
 ## How the mechanism works
 
 **Addresses**: each dependency's main port is `{ID}_ENDPOINT` (`/` and `-` → `_`, uppercase), extra
-ports `{ID}_{NAME}_ENDPOINT`; the value points at the versioned service name,
-`http://erp-api-1-0-0:8080` — identical on Docker and K8s, so code never changes. The service name is
-the id with `/` and `.` → `-`, plus the exact version. `deployment.port` (required) serves the health
-check and `_ENDPOINT`. `deployment.type` is always `container`, frontends included.
+ports `{ID}_{NAME}_ENDPOINT` (the port name the same way: `admin-api` → `ERP_API_ADMIN_API_ENDPOINT`);
+the value points at the versioned service name — identical on Docker and K8s, so code never changes:
+
+```
+PEOPLE_BASIC_ENDPOINT=http://people-basic-1-0-0:8080
+PEOPLE_BASIC_GRPC_ENDPOINT=http://people-basic-1-0-0:9090
+```
+
+The service name is the id and the exact version joined by `-`, with `/` and `.` → `-`. A dependency
+hosted in a shell is reached at the shell's address, on the port the dependency itself declares — the
+caller neither knows nor needs to. `COMPONENT_ID` and `COMPONENT_VERSION` are always injected.
+`deployment.port` (required) serves the health check and `_ENDPOINT`. `deployment.type` is always
+`container`, frontends included (an nginx container, `port: 80`).
 
 **Local runs**: in `mode: local` BrickKit detects how to start your code from its source; the optional
 `local: { language, runCommand }` block overrides detection. The repo's `metadata.version` must equal
-the project's default version of the component.
+the project's default version of the component. The process inherits the terminal's environment except
+the names the platform owns — `COMPONENT_ID`, `COMPONENT_VERSION`, `PORT`, `BRICKKIT_SERVED_MEMBERS`,
+`BRICKKIT_SERVED_MEMBERS_CONFIG`, every `*_ENDPOINT` and your own `configSchema` keys: those come only
+from BrickKit, so a value left exported in your shell can't stand in for one the project didn't give.
+
+**A workbench**: the component's repository can have its own `brickkit.yaml` for local integration work
+(`brickkit init` in the repository, or `brickkit add --local --init` in the project above). `up` and `add`
+treat it as a project; `release` reads only `component.yaml`.
 
 ## Where to dig deeper
 

@@ -120,7 +120,9 @@ type localComponentPlan struct {
 	Dir     string
 	Command runcmd.Command
 	Env     []string
-	Port    int
+	// Withhold 挡住继承来的、平台管的那些名字（platformOwned）
+	Withhold func(name string) bool
+	Port     int
 }
 
 // collectLocalComponents 按拓扑序收集全部 mode: local 组件，探测出各自的启动命令。
@@ -178,10 +180,27 @@ func collectLocalComponents(
 			return nil, err
 		}
 		out = append(out, localComponentPlan{
-			Ref: ref, Service: step.Service, Dir: dir, Command: cmd, Env: env, Port: port,
+			Ref: ref, Service: step.Service, Dir: dir, Command: cmd, Env: env, Withhold: platformOwned(node.Manifest), Port: port,
 		})
 	}
 	return out, nil
+}
+
+// platformOwned 判断一个名字是不是平台管的：保留名（COMPONENT_ID、PORT、*_ENDPOINT……）与组件自己的
+// 配置项。mode: local 的进程继承终端的环境，但这些名字只能来自平台——终端里 export 过的
+// DEMO_BUS_ENDPOINT 会让"可选依赖缺席时变量根本不存在"失效，旧的 DB_HOST 会悄悄盖过 config/
+// 里没写值的那一项（"环境从不隐式覆盖"）。
+func platformOwned(m *manifest.Manifest) func(name string) bool {
+	keys := map[string]bool{}
+	if m != nil && m.ConfigSchema != nil {
+		for k := range m.ConfigSchema.Properties {
+			keys[k] = true
+		}
+	}
+	return func(name string) bool {
+		_, reserved := manifest.ReservedHitFor(name)
+		return reserved || keys[name]
+	}
 }
 
 // hintsFromManifest 把 component.yaml 的 local: 块翻译成 runcmd.Hints；
@@ -276,7 +295,7 @@ func programMissingError(ref resolver.Ref, err error) error {
 // localDebugEnvVarsToStrip 是每种语言里，一旦从启动 brickkit up 的那个 shell
 // 继承到就会让进程在没人要求调试的情况下卡住等调试器连接的环境变量。
 //
-// procsup 启动子进程时是 append(os.Environ(), spec.Env...)（internal/procsup/
+// procsup 启动子进程时继承当前环境（去掉 platformOwned 挡住的名字），再叠上 spec.Env（internal/procsup/
 // supervisor.go）——mode: local 的子进程会带着这个终端会话的完整环境。如果这个
 // shell 里曾经为了别的原因全局设过 NODE_OPTIONS=--inspect-brk 之类的值（哪怕
 // 早忘了、这次运行根本没打算调试这个组件），子进程会原样继承、悄悄卡住。
@@ -386,7 +405,7 @@ func runLocalComponents(
 	sup.Printf("\n%s\n", i18n.T(msgid.CliUpStartingLocalComponents, len(plans)))
 
 	for _, p := range plans {
-		proc, err := sup.Start(procsup.Spec{Name: p.Service, Argv: p.Command.Argv, Dir: p.Dir, Env: p.Env})
+		proc, err := sup.Start(procsup.Spec{Name: p.Service, Argv: p.Command.Argv, Dir: p.Dir, Env: p.Env, Withhold: p.Withhold})
 		if errors.Is(err, procsup.ErrStopped) {
 			break // 已经有别的进程崩了，会话在收尾：别再启动新的
 		}

@@ -154,8 +154,10 @@ Nothing to do with BrickKit — it's how the Dockerfile is written. The usual me
 - **Pick a small base image**: `alpine`, `*-slim`.
 - **`.dockerignore`** to leave out `.git`, `node_modules`, test data.
 
-Only one thing to watch: with a `type: http` health check, the health-check command runs **inside** the container, so the
-image needs `wget` or `curl`. After switching to a base image with no tools at all (`scratch`, distroless), the container
-stays judged unhealthy forever, while the component's own logs look fine. Such an image either keeps a `wget` (based on
-`busybox` or `alpine`, say), or switches the health check to `type: tcp`. See
+Only one thing to watch: on Docker the health check runs **inside** the container, through `/bin/sh` — `type: http` needs
+`wget` or `curl` in the image, `type: tcp` needs `nc`. After switching to a base image with no shell at all (`scratch`,
+distroless), **neither type** can pass: the container stays judged unhealthy forever, while the component's own logs look
+fine. Build the final stage on `busybox` or `alpine` instead (a few MB more, with `sh`, `wget` and `nc`), or, if it must
+stay without a shell, set `healthCheck.type: none` and accept that dependents only wait for the container to start. On
+Kubernetes the probes run from outside the container and need none of these tools. See
 [up / down problems](01-up-down-issues.md#the-components-logs-look-fine-yet-the-platform-says-its-unhealthy).

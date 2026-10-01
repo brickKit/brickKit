@@ -119,7 +119,7 @@ func describe(prop manifest.ConfigProperty) string {
 // defaultText 把默认值写成一行：标量走 YAML，列表 / 映射写 JSON（取消注释后仍是合法 YAML）。
 func defaultText(v any) string {
 	switch v.(type) {
-	case string, bool, int, int64, uint64, float64:
+	case string, bool, int, int64, uint64, float64, manifest.Number:
 		return ScalarYAML(v)
 	default:
 		data, err := json.Marshal(v)

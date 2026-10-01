@@ -62,7 +62,7 @@ dependencies:
 | `configSchema.type` | 字符串 | | 写的话是 `object` |
 | `configSchema.required` | 字符串列表 | | 每一项必须在 `properties` 里声明过 |
 | `configSchema.properties.<key>.type` | 字符串 | ✅ | `string` / `integer` / `number` / `boolean` / `array` / `object` |
-| `configSchema.properties.<key>.default` | 任意 | | 缺省值；列表与映射注入时编码成一行 JSON |
+| `configSchema.properties.<key>.default` | 任意 | | 缺省值；标量按写的原样注入（`1.10` 还是 `1.10`），列表与映射注入时编码成一行 JSON |
 | `configSchema.properties.<key>.description` | 字符串 | | 出现在使用方配置骨架的行尾 |
 | `configSchema.properties.<key>.secret` | 布尔 | | `true` 时这一项按密钥处理（Docker 进 0600 的 env 文件，K8s 进 Secret） |
 | `configSchema.properties.<key>.enum` | 列表 | | 允许的取值——**只是说明，平台不检查值** |
@@ -84,13 +84,13 @@ dependencies:
 | `deployment.build.context` | 字符串 | 二选一 | 构建上下文，相对仓库根，缺省 `.` |
 | `deployment.build.dockerfile` | 字符串 | | Dockerfile 路径，相对仓库根，缺省 `Dockerfile` |
 | `deployment.port` | 整数 | ✅ | 主端口，1–65535 |
-| `deployment.extraPorts[].name` | 字符串 | ✅ | 小写字母、数字、中划线，最长 15 个字符（K8s Service 端口名规则）；不能重复 |
+| `deployment.extraPorts[].name` | 字符串 | ✅ | 小写字母、数字、中划线，最长 15 个字符（K8s Service 端口名规则）；不能重复。调用方拿到的地址变量是 `<ID>_<名字>_ENDPOINT`，`-` 换成 `_`（`demo/hello` 的 `admin-api` → `DEMO_HELLO_ADMIN_API_ENDPOINT`） |
 | `deployment.extraPorts[].port` | 整数 | ✅ | 1–65535，不能与主端口相同 |
 | `deployment.resources.requests.cpu` | 字符串 | | 建议的 CPU 请求，如 `"100m"` |
 | `deployment.resources.requests.memory` | 字符串 | | 建议的内存请求，如 `"128Mi"` |
 | `deployment.resources.limits.cpu` | 字符串 | | 建议的 CPU 上限（建议不写） |
 | `deployment.resources.limits.memory` | 字符串 | | 建议的内存上限 |
-| `deployment.labels` | 字符串映射 | | 原样透传：Docker 写成 service labels，K8s 写成 Pod annotations；值必须是字符串 |
+| `deployment.labels` | 字符串映射 | | 原样透传：Docker 写成 service labels，K8s 写成 Deployment 与其 Pod 的 annotations；值必须是字符串 |
 
 `image` 与 `build` 至少写一个；`build` 的路径必须在仓库里。`resources` 写了的话，`requests` 或 `limits` 里至少要有 `cpu` 或 `memory` 之一；
 这里的值是作者的建议，使用方在部署文件的条目上逐字段覆盖。只有 `requests` 有平台缺省值（`100m` / `128Mi`），`limits` 没有缺省值。
@@ -110,6 +110,11 @@ dependencies:
 | `healthCheck.startPeriodSeconds` | 整数 | | 启动宽限期，单位秒，缺省 60，最大 3600；`type: none` 时不能写 |
 
 检查间隔 10 秒、超时 3 秒、连续 3 次失败算不健康，由平台固定，不可配置。
+
+每种类型实际跑什么：Docker 下检查在容器里经由 `/bin/sh` 执行——`http` 先用 `wget`、不行再用 `curl` 访问 `http://localhost:<端口><路径>`，
+`tcp` 执行 `nc -z localhost <端口>`，所以镜像里要有 shell 和这些工具（`scratch`、distroless 这类没有 shell 的镜像两种都过不了）。
+K8s 下它们变成 `httpGet` / `tcpSocket` 探针，从容器外面发起。`none` 不生成检查：依赖方只等容器启动。
+见 [组件日志正常，平台却说它不健康](../10-troubleshooting/01-up-down-issues.md#组件日志正常平台却说它不健康)。
 
 ## shell
 

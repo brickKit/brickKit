@@ -12,8 +12,8 @@ the top.
 | Which components exist, what each does, where its docs and contracts are | The component table at the end of the project's `AGENTS.md` (the block the CLI maintains) |
 | Who depends on whom | `brickkit deps` (it's not in `brickkit.yaml`) |
 | Where it's deployed, which components run, how they run | The deploy file in effect: `brickkit local status` tells you whether it's `deploy.yaml` or `deploy.local.yaml` |
-| The config values a component gets | `config/<component>.yaml` (`config/<component>@<version>.yaml` for a compatibility version); for `$var:` references, `config/vars.yaml` and the deploy file's `vars:` |
-| What will start this time, and which environment variables each component gets | `brickkit up --dry-run`, then `.brickkit/generated/compose.yaml` |
+| The config values a component gets | `config/<scope>-<name>.yaml` — the component ID with `/` replaced by `-`, e.g. `config/demo-hello.yaml` (`config/<scope>-<name>@<version>.yaml` for a compatibility version); for `$var:` references, `config/vars.yaml` and the deploy file's `vars:` |
+| What will start this time, and which environment variables each component gets | `brickkit up --dry-run`, then `.brickkit/generated/compose.yaml`; secret items and `file://` contents are in `.brickkit/generated/env/<service name>.env` instead |
 | What's running now | `brickkit status` |
 | Which flags a command has | `brickkit <command> --help` |
 
@@ -38,7 +38,7 @@ map, how to build and test, the design decisions.
 | `components/.archived/` | Source of components not running this time; `sync` moved them there precisely so you needn't care |
 | The `brickkit.yaml`, `deploy.yaml` and `config/` in a component repository | That's the component author's local workbench, unrelated to the project using the component |
 | `~/.cache/brickkit/repos/` | The bare-repository cache, for the CLI |
-| `.brickkit/` state files outside `.brickkit/generated/` | `last-run`, `local-mode` and the like are the CLI's internal records |
+| `.brickkit/` outside `generated/`, `manifests/` and `artifacts/` | `last-run`, `local-mode`, `session.lock` and the like are the CLI's internal records |
 | `config/.archive/` | Old config of removed components |
 
 ## When to read

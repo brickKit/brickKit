@@ -35,7 +35,7 @@ configSchema:
 | --- | --- |
 | `properties` 的键 | 配置项名，也就是注入的环境变量名，原样注入：必须是合法的环境变量名（字母、数字、下划线，不以数字开头） |
 | `type` | `string` / `integer` / `number` / `boolean` / `array` / `object` |
-| `default` | 没写值时用它；标量注入成字符串，`array` / `object` 注入成一行 JSON |
+| `default` | 没写值时用它；标量按写的原样注入成字符串（`default: 1.10` 注入的是 `1.10`，不是 `1.1`），`array` / `object` 注入成一行 JSON |
 | `description` | 出现在使用方配置骨架的行尾 |
 | `secret: true` | 这一项是密钥：部署时走密钥通道，从不明文写进部署文件 |
 | `required` | 必填项；每一项必须在 `properties` 里声明过 |

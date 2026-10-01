@@ -21,7 +21,8 @@ graph TD
 **② ③ 如果写的是 `$var:NAME`**，去找这个公共变量：先看**当前部署文件**的 `vars:`，再看 `config/vars.yaml`。
 都没有就报错。部署文件的 `vars:` **只影响 `$var:` 的查找**：它不会覆盖你在组件配置里直接写下的值。
 
-**④ 没写（或写了 `null` / `~`）**，用组件 `configSchema` 里声明的默认值。
+**④ 没写（或写了 `null` / `~`）**，用组件 `configSchema` 里声明的默认值，按作者写下的原文注入：`default: 1.10`
+拿到的是 `1.10`，不是 `1.1`。
 
 **都没有**：可选项就不注入——组件读到的是"没有这个环境变量"，而不是一个空字符串，走它自己的"未配置"分支；
 必填项则让 `up` 停下来，点名缺哪几项。
@@ -73,6 +74,9 @@ graph TD
 ## 不参与这条链的东西
 
 - **进程环境变量**：只在你显式写了 `${VAR}` 的地方参与，不会悄悄覆盖任何值（见 [敏感值](07-sensitive-values.md)）。
+  `mode: local` 的进程确实从你终端的环境出发（它要用你的 `PATH` 和工具链），但平台负责的名字——`COMPONENT_ID`、
+  `PORT`、各个 `*_ENDPOINT` 地址、组件自己 `configSchema` 里的键等——会先从中去掉，所以它们只会来自平台，见
+  [`mode: local` 进程继承什么](../06-architecture/03-env-injection-contract.md#mode-local-进程继承什么)。
 - **平台自己注入的变量**：`COMPONENT_ID`、`COMPONENT_VERSION`、依赖的 `*_ENDPOINT` 等由平台决定；配置项和它们重名时，
   平台的值胜出并给出警告。完整的变量字典见 [环境变量注入契约](../06-architecture/03-env-injection-contract.md)。
 - **`configSchema` 里没有的键**：不注入，并警告"不会生效"。

@@ -49,7 +49,7 @@ func TestParseFileDepartmentTree(t *testing.T) {
 	assert.Equal(t, "object", m.ConfigSchema.Type)
 	require.Contains(t, m.ConfigSchema.Properties, "DEFAULT_PAGE_SIZE")
 	assert.Equal(t, "integer", m.ConfigSchema.Properties["DEFAULT_PAGE_SIZE"].Type)
-	assert.Equal(t, 20, m.ConfigSchema.Properties["DEFAULT_PAGE_SIZE"].Default)
+	assert.Equal(t, Number("20"), m.ConfigSchema.Properties["DEFAULT_PAGE_SIZE"].Default, "数字默认值按原文保留")
 	assert.Equal(t, "默认分页大小", m.ConfigSchema.Properties["DEFAULT_PAGE_SIZE"].Description)
 	assert.Contains(t, m.ConfigSchema.Properties, "MAX_TREE_DEPTH")
 

@@ -1,6 +1,6 @@
 # people/basic
 
-查询人员；部门名来自 department/tree，不在这里另存一份。
+Queries people; department names come from department/tree and are not stored again here
 
 ## 在项目里使用
 

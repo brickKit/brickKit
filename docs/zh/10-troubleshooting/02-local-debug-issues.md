@@ -49,6 +49,7 @@ brickkit local refresh
 ❌ 错误：deploy.yaml 校验失败
    文件：deploy.yaml
    components[0].mode：mode: debug 只能写在 deploy.local.yaml 里：它记录的是"我此刻在本机调试这个组件"，不是团队决策。先 brickkit local on，再到那里设置
+   建议：完整字段说明：docs/zh/11-reference/03-deploy-yaml-schema.md（英文版把 zh 换成 en）
 ```
 
 **原因**：`mode: debug` 是你个人此刻的事实，只能写在个人文件里。**解决**：`brickkit local on`，在 `deploy.local.yaml` 里写。
@@ -68,7 +69,8 @@ brickkit local status
 deploy.local.yaml：存在（本地模式关闭时不读取）
 ```
 
-`brickkit local on` 打开它。本地模式开着时，每条命令的第一行会写 `本地模式已开启：使用 deploy.local.yaml`，没有这一行就是没读它。
+`brickkit local on` 打开它。本地模式开着时，`up` 输出的第一行会写 `本地模式已开启：使用 deploy.local.yaml（brickkit local off 切回 deploy.yaml）`，
+没有这一行就是 `up` 没读它。别的命令（`down`、`status`、`sync`、`lint`）不打印这一行——它们读的是哪份，看 `brickkit local status`。
 
 **症状三：部署目标是 `k8s`，被拒绝。** 集群里的 Pod 连不到你的笔记本，`mode: debug` 与 `mode: local` 只在 `docker` / `podman` 下有效。
 个人文件里可以把 `target` 改成 `docker`，在本机调试。
@@ -148,12 +150,13 @@ vars:
 
 ## 焦点运行起不来
 
-**现象**
+**症状**
 
 在组件目录里 `up`，或者 `up --focus`，停在下面其中一种：
 
 ```text
 ❌ 错误：焦点 demo/lb 不是这个项目的组件
+   文件：deploy.local.yaml
    建议：
    1. brickkit up --focus <id> 换一个焦点；brickkit up --all 运行全部组件
    2. 你是不是想写：demo/lib？
@@ -177,7 +180,7 @@ vars:
 
 ## 有焦点时，某个组件没启动
 
-**现象**
+**症状**
 
 一个你以为会启动的组件，列成了 `不启动（焦点之外）`。
 

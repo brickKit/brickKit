@@ -173,7 +173,17 @@ brickkit init --hooks                 # only the pre-commit check
    📁 .brickkit/           CLI working directory
    📄 AGENTS.md            the project's AI guide; the component table at its end is maintained by brickkit
    📄 CLAUDE.md            @AGENTS.md: Claude Code reads AGENTS.md through it
+   📁 .claude/skills/      AI assistant skills (5)
+   💡 If component source goes into Git with the project: brickkit init --hooks installs the pre-commit check
+
+Next steps:
+  cd my-shop
+  brickkit add --local                     add every component under components/
+  brickkit add <scope>/<name>@<version>    add a component from an install source (enable one under sources: in brickkit.yaml first)
+  brickkit up                              start everything in one go
 ```
+
+The `💡` line appears because a new `my-shop/` isn't a Git repository yet, so no pre-commit hook was installed.
 
 ## `brickkit skills`
 
@@ -214,6 +224,7 @@ The first line of the output names the skills' language and says where it is rec
 and the language the block records (`lang=en`). Here a teammate edited one skill and `AGENTS.md` was deleted:
 
 ```text
+Skill language: en (recorded in AGENTS.md, in the block maintained by brickkit; brickkit skills update --lang to change it)
    ┌───────────────────────────────────────────────┬──────────────────────────────────┐
    │ File                                          │ Status                           │
    ├───────────────────────────────────────────────┼──────────────────────────────────┤
@@ -430,14 +441,19 @@ If `brickkit.yaml` itself fails, nothing after it can be trusted; the rest is sk
 translations), `AGENTS.md`, `CLAUDE.md`, `README.md` and `docs/`; in a project its `AGENTS.md` and `CLAUDE.md` (plus an
 old project map `BRICKKIT.md`) and the documents of every component in a local source; in a workbench the component's
 documents. A component whose `component.yaml` is invalid still has its documents checked, without the comparison
-against the manifest. Each set is one line of the report, such as `✅ components/demo/hello/ (docs)`. The codes are
+against the manifest. A set with nothing to report is one line, such as `✅ components/demo/hello/ (docs)` (the
+project's own `AGENTS.md` and `CLAUDE.md` are `✅ ./ (docs)`); otherwise each warning is listed instead. The codes are
 `DOC_FILE_MISSING`, `DOC_SECTION_MISSING`, `DOC_PATH_MISSING`, `DOC_LINK_BROKEN`, `DOC_LINK_NOT_PORTABLE`,
 `DOC_OUT_OF_STEP`, `DOC_PLACEHOLDER`, `DOC_TRANSLATION_DRIFT`, `AGENTS_BLOCK_MISSING`, `CLAUDE_IMPORT_MISSING` and
 `PROJECT_MAP_OBSOLETE`; see [Error codes](../06-architecture/09-error-codes.md#documentation-checks).
 
-It checks structure: required fields, types, unknown fields (typos), version format, port ranges. There are two kinds of
-warning: a mistyped key inside `configSchema` (like `defualt`) that has no effect, and a config item name that collides
-with a reserved platform variable. It **doesn't** check whether dependencies resolve, or whether the member versions a
+It checks structure: required fields, types, unknown fields (typos), version format, port ranges. What is written but has
+no effect is a warning: a mistyped key inside a `configSchema` item (like `defualt`); a config item name that collides
+with a reserved platform variable; a key in `config/` that the component's `configSchema` doesn't declare, or a config
+file for a component that declares no `configSchema` at all; a file in `config/` that belongs to no component in
+`brickkit.yaml`; `{ existingSecret, key }` on an item not declared `secret: true`; a deploy-file field that does nothing
+with this `target`. The documentation warnings above, and with `--strict` the reference warnings, come on top. It
+**doesn't** check whether dependencies resolve, or whether the member versions a
 shell hosts this run match the ones it compiles in (that needs the resolved dependency graph, which `lint` deliberately
 never builds — it might mean going to the network); those are left to `up --dry-run` and `graph`. Nor does it check
 config values against `enum` or `minimum` (the platform checks key names, not values).
@@ -452,7 +468,7 @@ brickkit lint [flags]
 | --- | --- |
 | `--strict` | Also check references: a `${VAR}` in neither the process environment nor `.env`, a `file://` whose file doesn't exist, as warnings; and warnings — documentation warnings included — count as failures (exit code 1), for a CI gate |
 | `-f, --file <file>` | Check only this deploy file; see [shared flags](#flags-shared-by-the-commands-that-read-a-deploy-file) |
-| `--no-local` | Ignore `deploy.local.yaml` this time |
+| `--no-local` | Run the config checks against `deploy.yaml` this time; `deploy.local.yaml` is still checked when it exists |
 
 ```bash
 brickkit lint
@@ -464,10 +480,13 @@ brickkit lint -f deploy.prod.yaml
 ✅ brickkit.yaml
 ✅ deploy.yaml
 ✅ cross-file: brickkit.yaml ↔ deploy.yaml ↔ config/
+✅ ./ (docs)
 ✅ components/demo/greeter/component.yaml
 ✅ components/demo/hello/component.yaml
+✅ components/demo/greeter/ (docs)
+✅ components/demo/hello/ (docs)
 
-📋 Checked 5 files: 0 with errors, 0 warnings
+📋 Checked 8 files: 0 with errors, 0 warnings
 ```
 
 ## `brickkit deps`
@@ -483,7 +502,7 @@ draws (manifests not yet cached are fetched from the install sources).
 | `brickkit deps <id>@<version>` | Only that version |
 | `brickkit deps` in a component's directory | That component's tree, as if its ID were given |
 
-Within one output, a component version is expanded only once; later appearances are marked "(see above)"; optional
+Within one output, a component version is expanded only once; later appearances are marked "(shown above)"; optional
 dependencies are marked "(optional)", and optional ones missing from the project "(optional, not installed)". No flags of
 its own.
 
@@ -592,7 +611,10 @@ Start the project in one go:
    be reachable;
 8. call the engine; database migrations run first (a one-shot container on Docker, a Job on Kubernetes), and a failure
    holds back the main service;
-9. for `mode: local` components, start and watch those processes in the foreground; `Ctrl+C` stops them.
+9. for `mode: local` components, start and watch those processes in the foreground; `Ctrl+C` stops them. Each process
+   inherits this terminal's environment except the names the platform owns (the reserved names, every `*_ENDPOINT`, the
+   component's own `configSchema` keys), which come only from the platform; see
+   [What a `mode: local` process inherits](../06-architecture/03-env-injection-contract.md#what-a-mode-local-process-inherits).
 
 When a component version differs from the last `up`, it says so, and `--dry-run` also prints a change summary; moving a
 version is `upgrade`'s job. On the `k8s` target, before a real deployment (without `--dry-run`), `up` first confirms the

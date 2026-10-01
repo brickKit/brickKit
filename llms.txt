@@ -18,15 +18,15 @@ reads it whole. `00-core` alone — AGENTS.md plus the core pages — is enough 
 
 <!-- llms:bundles:begin -->
 - [llms/en/00-core.md](llms/en/00-core.md): AGENTS.md … docs/en/01-three-layers/09-field-reference.md
-- [llms/en/01.md](llms/en/01.md): docs/en/README.md … docs/en/02-project-guide/02-add-and-component-install.md
-- [llms/en/02.md](llms/en/02.md): docs/en/02-project-guide/03-local-debug-workflow.md … docs/en/03-component-guide/02-component-yaml-reference.md
-- [llms/en/03.md](llms/en/03.md): docs/en/03-component-guide/03-config-schema-design.md … docs/en/04-shell/06-special-characters.md
-- [llms/en/04.md](llms/en/04.md): docs/en/04-shell/07-shell-upgrade.md … docs/en/06-architecture/04-deploy-file-generation.md
+- [llms/en/01.md](llms/en/01.md): docs/en/README.md … docs/en/02-project-guide/01-init-and-project-creation.md
+- [llms/en/02.md](llms/en/02.md): docs/en/02-project-guide/02-add-and-component-install.md … docs/en/03-component-guide/01-component-anatomy.md
+- [llms/en/03.md](llms/en/03.md): docs/en/03-component-guide/02-component-yaml-reference.md … docs/en/04-shell/04-members-management.md
+- [llms/en/04.md](llms/en/04.md): docs/en/04-shell/05-shell-development.md … docs/en/06-architecture/04-deploy-file-generation.md
 - [llms/en/05.md](llms/en/05.md): docs/en/06-architecture/05-design-principles.md … docs/en/06-architecture/08-security-and-signing.md
 - [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/09-error-codes.md … docs/en/08-ai-guide/01-ai-routing-table.md
 - [llms/en/07.md](llms/en/07.md): docs/en/08-ai-guide/02-ai-dev-workflow.md … docs/en/10-troubleshooting/README.md
-- [llms/en/08.md](llms/en/08.md): docs/en/10-troubleshooting/01-up-down-issues.md … docs/en/11-reference/04-config-schema-spec.md
-- [llms/en/09.md](llms/en/09.md): docs/en/11-reference/05-json-schemas.md … docs/en/11-reference/06-market-api.md
+- [llms/en/08.md](llms/en/08.md): docs/en/10-troubleshooting/01-up-down-issues.md … docs/en/11-reference/03-deploy-yaml-schema.md
+- [llms/en/09.md](llms/en/09.md): docs/en/11-reference/04-config-schema-spec.md … docs/en/11-reference/06-market-api.md
 <!-- llms:bundles:end -->
 
 ## Answer a question
@@ -87,7 +87,7 @@ code, read the code map in [AGENTS.md](AGENTS.md) (§10).
 - [docs/en/03-component-guide/05-local-dev-fractal.md](docs/en/03-component-guide/05-local-dev-fractal.md): developing inside a component — its own workbench, integration, release
 - [docs/en/03-component-guide/06-artifacts-and-contracts.md](docs/en/03-component-guide/06-artifacts-and-contracts.md): contracts and artifacts — artifacts, fetch, contract first
 - [docs/en/03-component-guide/07-release-workflow.md](docs/en/03-component-guide/07-release-workflow.md): releasing — the steps, atomicity, --local for many at once
-- [docs/en/03-component-guide/08-component-doc-spec.md](docs/en/03-component-guide/08-component-doc-spec.md): the component's BRICKKIT.md — its five sections
+- [docs/en/03-component-guide/08-component-doc-spec.md](docs/en/03-component-guide/08-component-doc-spec.md): a component's documents — BRICKKIT.md (six sections), AGENTS.md + CLAUDE.md, README.md, translations, what lint checks
 - [docs/en/03-component-guide/09-multi-version-coexistence.md](docs/en/03-component-guide/09-multi-version-coexistence.md): several versions side by side — exact versioned service names
 - [docs/en/03-component-guide/10-git-distribution.md](docs/en/03-component-guide/10-git-distribution.md): distributing through Git — the bare-repository cache, the read order, authentication
 

@@ -11,8 +11,8 @@ BrickKit 项目里每个问题都只有一个答案来源。先按问题找文�
 | 有哪些组件、各干什么、文档和契约在哪 | 项目 `AGENTS.md` 末尾的组件表（由 CLI 维护的那一段） |
 | 谁依赖谁 | `brickkit deps`（不在 `brickkit.yaml` 里） |
 | 部署到哪、哪些组件跑、怎么跑 | 当前生效的部署文件：`brickkit local status` 告诉你是 `deploy.yaml` 还是 `deploy.local.yaml` |
-| 某个组件拿到的配置值 | `config/<组件>.yaml`（兼容版本是 `config/<组件>@<版本>.yaml`），`$var:` 引用去 `config/vars.yaml` 与部署文件的 `vars:` |
-| 这次会起什么、每个组件拿到什么环境变量 | `brickkit up --dry-run`，再看 `.brickkit/generated/compose.yaml` |
+| 某个组件拿到的配置值 | `config/<scope>-<name>.yaml`——组件 ID 里的 `/` 换成 `-`，比如 `config/demo-hello.yaml`（兼容版本是 `config/<scope>-<name>@<版本>.yaml`），`$var:` 引用去 `config/vars.yaml` 与部署文件的 `vars:` |
+| 这次会起什么、每个组件拿到什么环境变量 | `brickkit up --dry-run`，再看 `.brickkit/generated/compose.yaml`；密钥项与 `file://` 的内容不在那里，在 `.brickkit/generated/env/<服务名>.env` |
 | 当前在跑的状态 | `brickkit status` |
 | 一条命令有哪些参数 | `brickkit <命令> --help` |
 
@@ -36,7 +36,7 @@ BrickKit 项目里每个问题都只有一个答案来源。先按问题找文�
 | `components/.archived/` | 这次不跑的组件的源码，`sync` 挪进去就是为了让你不用管它 |
 | 组件仓库里的 `brickkit.yaml`、`deploy.yaml`、`config/` | 那是组件作者的本地联调工作台，与使用这个组件的项目无关 |
 | `~/.cache/brickkit/repos/` | bare 仓库缓存，给 CLI 用的 |
-| `.brickkit/generated/` 之外的 `.brickkit/` 状态文件 | `last-run`、`local-mode` 这些是 CLI 的内部记录 |
+| `.brickkit/` 里 `generated/`、`manifests/`、`artifacts/` 之外的东西 | `last-run`、`local-mode`、`session.lock` 这些是 CLI 的内部记录 |
 | `config/.archive/` | 已移除组件的旧配置 |
 
 ## 什么时候读

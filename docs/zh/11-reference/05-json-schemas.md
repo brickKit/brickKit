@@ -10,7 +10,7 @@
 | `schemas/brickkit.schema.json` | 项目的 `brickkit.yaml` |
 | `schemas/deploy.schema.json` | 部署文件：`deploy.yaml`、`deploy.local.yaml`、`deploy.<环境>.yaml` |
 
-它们是从 CLI 的 Go 结构体生成的，不是手写的：结构体改了，重新生成、一起提交；CI 里有检查拦住"改了结构体却忘了重新生成"。
+它们是从 CLI 的 Go 结构体生成的，不是手写的：结构体改了，重新生成、一起提交；`make lint`（其中的 `check-schemas`，每次发布前也会跑）拦住"改了结构体却忘了重新生成"。
 所以 schema 里的字段与 CLI 真正接受的字段逐一对应。
 
 ## 接进编辑器

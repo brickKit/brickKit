@@ -193,7 +193,7 @@ BrickKit 用到的、以及刻意没用的，都是软件工程里早就有的�
   - 三层各管一件事：`brickkit.yaml` 管"用什么"，部署文件管"怎么跑"，`config/` 管"配成什么"。一次改动落在哪一层，Git diff 一眼看得出。
   - 每个环境一份完整的部署文件，用 `brickkit up -f deploy.prod.yaml` 选择。
   - `brickkit up --dry-run` 不启动任何东西，先把计划打印出来，让你（和 AI）先看再动手。
-  - 想缩小启动范围，唯一的办法是在部署文件里改 `mode`，没有 `--only` 这类参数。
+  - 想缩小启动范围，只能通过一份打得开的文件：在部署文件里改 `mode`，或者在你自己的 `deploy.local.yaml` 里写 `focus:`（即[焦点运行](../02-project-guide/04-focus-run.md)：`brickkit up --focus <ID>`、或在组件目录里执行 `brickkit up` 会替你写上，`up --all` 把它删掉）。没有 `--only` 这类"只缩小这一次、文件里什么都不留"的参数：缩小范围这件事一直写在文件里，`status`、`down` 也会说出当前的焦点。
 - **BrickKit 不做什么：**
   - **持续拉回：** `brickkit up` 是一次性下发，CLI 用完就退出，没有任何东西一直盯着。有人手动改了运行中的容器，不会有程序替你改回去，要等下一次 `up` 才对齐。持续拉回需要一个常驻、要有人运维的程序——那正是 BrickKit 刻意躲开的单点故障和攻击面（见原则「[平台极简](#2-平台极简)」）。
   - **多环境 overlay（基础层 + 覆盖层）：** overlay 要求你先在脑子里拼出"基础层、覆盖层、合并规则"才看得懂最终配置。BrickKit 选的是每个环境一份完整的部署文件：所见即所得，代价是文件之间会有重复。本地模式的 `deploy.local.yaml` 也一样是整份替换，不是合并。
@@ -235,7 +235,7 @@ BrickKit 用到的、以及刻意没用的，都是软件工程里早就有的�
   | 服务名 | 组件 ID + 精确版本，`/` 和 `.` 变成 `-`，全小写 | `people/basic` 1.0.0 → `people-basic-1-0-0` |
   | 服务地址 | `http://<服务名>:<端口>`，Docker 和 Kubernetes 上一样 | `http://people-basic-1-0-0:8080` |
   | 依赖地址变量 | 组件 ID 的 `/` 和 `-` 变成 `_`，全大写，加 `_ENDPOINT` | `PEOPLE_BASIC_ENDPOINT` |
-  | 额外端口的变量 | 再加上端口名 | `PEOPLE_BASIC_GRPC_ENDPOINT` |
+  | 额外端口的变量 | 再加上端口名，规则相同（`-` 变成 `_`，全大写） | `PEOPLE_BASIC_GRPC_ENDPOINT`；端口 `admin-api` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT` |
   | 组件自己的配置 | `configSchema` 的键就是环境变量名，原样注入 | `DEFAULT_PAGE_SIZE` |
   | 配置文件名 | 组件 ID 的 `/` 换成 `-` | `config/people-basic.yaml` |
 
@@ -699,7 +699,7 @@ charge(qty) // 编译不过：Quantity 不能当 Cents 用
 
 **是什么：** 构建镜像是你的显式动作（`brickkit build`），`brickkit up` 绝不自动构建。
 
-**换来了什么：** `up` 永远可预期：它只运行已经存在的镜像，不会在你没打算的时候把一份改到一半的代码打进镜像跑起来。镜像的 tag 永远等于组件版本，跑的是什么一目了然。
+**换来了什么：** `up` 永远可预期：它只运行已经存在的镜像，不会在你没打算的时候把一份改到一半的代码打进镜像跑起来。镜像的 tag 跟着组件版本走（`<scope>-<name>:<版本>`，或者给没带 tag 的 `image` 补上 `:<版本>`），跑的是什么一目了然。
 
 **付出了什么：** 多一步命令。改了代码忘了 `build --force`，跑的就还是旧镜像——`up` 只能提示镜像缺失，看不出镜像"旧了"（外壳镜像例外：编进的成员版本有标签可核对）。
 

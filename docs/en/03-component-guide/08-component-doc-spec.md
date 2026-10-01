@@ -75,7 +75,7 @@ dependencies and configuration). Then five sections:
 
 | Section | What goes in it |
 | --- | --- |
-| `Code map` | Tables only. One maps each path to what it owns; one maps each feature to the file to start in. Paths in backticks; a directory ends in `/`. A backticked token starting with `/` (an HTTP route such as `/api/v1/call`) is not a path and is not checked |
+| `Code map` | Tables only. The first maps each path to what it owns; the second maps each feature to the file to start in. Paths in backticks; a directory ends in `/`. lint checks that each path exists: every backticked token in the first column of the first table (top-level files such as `main.go` and `Dockerfile` too), and elsewhere only tokens containing a `/` — a bare name such as `runMode` in another cell is a function or type, not a path. A token starting with `/` (an HTTP route such as `/api/v1/call`) is never a path; tokens with spaces, `*` or `://` are skipped |
 | `Build and test` | The exact commands to build, test, run locally and check the contract, and what success looks like |
 | `Design decisions` | Why it doesn't depend on some component; alternatives rejected and why. Longer reasoning goes in `docs/`, linked from here |
 | `Pitfalls` | A table: never / symptom / why. Only what is specific to this component — rules for the whole project live in the project's `AGENTS.md` |
@@ -115,7 +115,10 @@ component repository, so it travels with the component's versions.
 - **The file without a suffix is the primary language**, which the author chooses. A translation sits next to it with
   the language code before `.md`: `README.zh.md`, `BRICKKIT.zh.md`, `docs/design.zh.md`. A file and its translation are
   in the same directory, so their relative links are identical.
-- Language codes are lowercase: `zh`, `ja`, `pt-br`.
+- Language codes are lowercase: `zh`, `ja`, `pt-br`. lint reads the part after the last dot before `.md` as the
+  language, so `README.zh-CN.md` gets a warning (it should be `README.zh-cn.md`). This covers `README.*`,
+  `BRICKKIT.*` and `AGENTS.*` at the root, and a file under `docs/` in a directory that has translations; elsewhere
+  in `docs/` a name such as `v1.2-notes.md` is just a name.
 - Translations are optional, per file. Typical: `README` and `BRICKKIT` translated (people and other teams read them),
   `AGENTS.md` and `docs/` not.
 - **The primary file is right** when the two disagree. A change updates its translations in the same commit.
@@ -138,12 +141,12 @@ comparison with the manifest (`DOC_OUT_OF_STEP`) is skipped.
 | --- | --- |
 | `DOC_FILE_MISSING` | A required document is absent |
 | `DOC_SECTION_MISSING` | A fixed section is absent |
-| `DOC_PATH_MISSING` | A Code map path no longer exists |
+| `DOC_PATH_MISSING` | A Code map path no longer exists (which tokens count as paths: the `Code map` row above) |
 | `DOC_LINK_BROKEN` | A relative link points at nothing |
 | `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` has a relative link, or a doc links out of the component |
 | `DOC_OUT_OF_STEP` | `component.yaml` has a dependency, required key, contract file or shell member the doc doesn't mention where it belongs |
-| `DOC_PLACEHOLDER` | `TODO`, `TBD` or `FIXME` is still in the text |
-| `DOC_TRANSLATION_DRIFT` | A translation has no primary or a different number of sections, or a language version doesn't link every other one |
+| `DOC_PLACEHOLDER` | `TODO`, `TBD`, `FIXME` (or their Chinese counterparts) is still in the text, outside code |
+| `DOC_TRANSLATION_DRIFT` | A translation has no primary or a different number of sections, a language version doesn't link every other one, or a file's language suffix isn't a lowercase language code (`README.zh-CN.md`) |
 | `AGENTS_BLOCK_MISSING` | `AGENTS.md` has no block maintained by brickkit |
 | `CLAUDE_IMPORT_MISSING` | `CLAUDE.md` doesn't import `AGENTS.md` |
 

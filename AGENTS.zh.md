@@ -57,7 +57,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 ### 3.2 关键规则
 
 - `brickkit.yaml` 是锁文件：用到的每个组件版本都写在这里。没声明的强依赖是错误（报错时给出 `add` 的写法），没声明的弱依赖就是不存在。
-- `deploy.local.yaml` 是**完整替换**，不是属性覆盖：本地模式开着时，运行或检查部署的命令（`up`、`down`、`status`、`sync`、`lint`、`build`）只读它、不读 `deploy.yaml`；`graph` 与 `deps` 始终读 `deploy.yaml`，输出对谁都一样。它必须与 `brickkit.yaml` 一一对应，团队加了组件就要 `brickkit local refresh`。
+- `deploy.local.yaml` 是**完整替换**，不是属性覆盖：本地模式开着时，运行部署的命令（`up`、`down`、`status`、`sync`、`build`）只读它、不读 `deploy.yaml`；`lint` 只要 `deploy.local.yaml` 存在就两份都查，不管开关；`graph` 与 `deps` 从不读 `deploy.local.yaml`，输出对谁都一样（`graph -f` 读它指定的那份）。它必须与 `brickkit.yaml` 一一对应，团队加了组件就要 `brickkit local refresh`。
 - `mode: debug` 只写在 `deploy.local.yaml`：那是"我正在自己机器上调它"这个个人事实，不进 Git。
 - `focus: <id>` 只写在 `deploy.local.yaml`——在组件目录里 `brickkit up` 或 `up --focus <id>` 会写上它，`up --all` 去掉它。写了它，就只启动这个组件（从源码跑）和它需要的组件；`sync` 不看它，`target: k8s` 下用不了。
 - 项目命令在任何子目录里都能用：往上找到最近的 `brickkit.yaml`（像 `git` 一样，不停在 `.git`），找到上面的就说一句 `📁 项目：…`；打印的路径都相对你所在的目录。`release`、`publish`、`init`、`skills` 作用于当前目录。
@@ -126,7 +126,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 
 - 唯一的全局参数是 `--log-level`（stderr 上 JSON 日志的级别，默认 `warn`）。
 - `-f, --file <路径>`：读部署文件的命令（`up`、`down`、`status`、`sync`、`lint`、`graph`）用它指定一份部署文件，同时完全忽略 `deploy.local.yaml` 与本地模式开关。
-- `--no-local`：`up`、`down`、`status`、`sync`、`lint` 本次忽略 `deploy.local.yaml`，不改变本地模式开关。
+- `--no-local`：`up`、`down`、`status`、`sync` 本次忽略 `deploy.local.yaml`，不改变本地模式开关；对 `lint` 来说，它让配置检查以 `deploy.yaml` 为准（两份照样都查）。
 - `--dry-run`：`up` 只生成部署文件不执行；`upgrade` 只演算不写盘。
 - `--focus <id>` / `--all`：`up` 在 `deploy.local.yaml` 里设上或去掉焦点；两者都不能和 `-f`、`--no-local` 一起用。
 - 在组件目录里不带参数：`build` 和 `deps` 指的就是这个组件。
@@ -261,7 +261,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `cmd/gen-schemas/` | 生成 `schemas/*.json` |
 | `cmd/gen-llms/` | 生成 `llms/` |
 
-其他地方：`market-server/`（可选的组件市场，独立的 Go 模块）、`tools/i18n/`（多语言迁移时的一次性脚本）、`scripts/`（lint 检查、安装检查、发布）、`install.sh`、`.githooks/`（提交钩子）。
+其他地方：`market-server/`（可选的组件市场，独立的 Go 模块）、`tools/i18n/`（多语言迁移时的一次性脚本）、`scripts/`（lint 检查、安装检查、发布）、`install.sh`、`.githooks/`（提交钩子）、`.github/`（打 tag 触发的发布流程及其冒烟测试）、`deploy/`（市场自己的部署文件）、`proto/`（共用的 proto 引用）、`tutorials/`（暂时是空的）、`archive/`（历史记录，不是现状）。
 
 ### 功能 → 代码
 
@@ -292,5 +292,5 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 ### 测试与检查
 
 - 单元测试就在代码旁边（`*_test.go`）；CLI 的测试在进程内运行命令，夹具在 `internal/cli/testdata/`。
-- `tests/components/`：真实的组件（Go、Python、nginx），当作夹具用；`tests/checklist/`：`make test-all` 跑的回归清单；`tests/docfields/`：保证文档与代码一致的守卫。
-- `make lint`（全部静态检查，`scripts/check-*.py`）和 `make test-all`；每个克隆运行一次 `make hooks`。
+- `tests/components/`：真实的组件（Go、Python、nginx），当作夹具用；`tests/checklist/`（验收项：边界、错误、兼容、安全）与 `tests/regression/`（对用户的承诺）：每一行指向证明它的测试，由 `make test-all` 跑；`tests/docfields/`：保证文档与代码一致的守卫；`tests/archguard/`、`tests/errorhints/`、`tests/i18nguard/`：全仓库的守卫（`make check-guards`、`make check-i18n`）；`tests/perf/`：基准测试。
+- `make lint`（全部静态检查，外加覆盖率门槛——它会跑一遍单元测试）和 `make test-all`；每个克隆运行一次 `make hooks`。

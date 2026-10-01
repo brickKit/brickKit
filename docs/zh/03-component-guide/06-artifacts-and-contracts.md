@@ -37,7 +37,7 @@ artifacts:
 不逐个列路径：末尾由 CLI 维护的那一段把规则写了一次——
 
 ```text
-契约在 `.brickkit/artifacts/<服务名>/`（ID 里的 `/` 和 `.` 换成 `-`，再接上 `.` 换成 `-` 的版本）
+契约在 `.brickkit/artifacts/<服务名>/`（ID 和版本用 `-` 连起来，其中的 `/` 和 `.` 也都换成 `-`：`erp/backend` 1.0.0 → `erp-backend-1-0-0`）
 ```
 
 ——所以 `demo/quote@0.1.0` 的契约在 `.brickkit/artifacts/demo-quote-0-1-0/api-contract/`。目录名带着版本：调用方的客户端是照哪个版本的契约写的，一眼可知。

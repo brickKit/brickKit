@@ -6,7 +6,7 @@ of components, and nothing else — how things are deployed is in the deploy fil
 ## A complete example
 
 ```yaml
-project: my-shop                  # project name: also the name of the Docker network and the Kubernetes namespace
+project: my-shop                  # project name: Docker network brickkit-my-shop-net, default K8s namespace brickkit-my-shop
 
 sources:                          # where to look for components, tried in order
   - name: org
@@ -39,8 +39,10 @@ installer:
 
 ## The project name, `project`
 
-Required. Lowercase letters, digits and hyphens only, starting and ending with a letter or digit — it becomes the name
-of the Docker network (`brickkit-<project>-net`) and of the Kubernetes namespace.
+Required. Lowercase letters, digits and hyphens only, starting and ending with a letter or digit, at most 54 characters
+— it names the Docker network (`brickkit-<project>-net`) and the default Kubernetes namespace (`brickkit-<project>`,
+which `k8s.namespace` in the deploy file can override). The 54 is a Kubernetes namespace's 63 characters minus the
+`brickkit-` prefix.
 
 ## Component entries, `components[]`
 
@@ -50,7 +52,7 @@ of the Docker network (`brickkit-<project>-net`) and of the Kubernetes namespace
 | `version` | ✅ | An exact version `major.minor.patch`; a local-source component also states the real version from its `component.yaml` |
 | `kind` | | Only one value, `shell`, marking a shell; written by `add` from the component's `component.yaml`, and `lint` checks it agrees with the manifest |
 | `requiredBy` | | This version is in the project only because these components depend on it (see "The default version" below) |
-| `source` | | A source for this one component instead of the install sources: `type` (`git` / `local`) plus `repo` (a Git address) or `path` (a local directory, relative to the project root) |
+| `source` | | A source for this one component instead of the install sources: `type` (`git` / `local`); for `git`, `repo` (the Git address) and optionally `path` (the component's subdirectory in that repository, for a monorepo; it can't leave the repository); for `local`, `path` (a directory relative to the project root) |
 
 ### Exact versions: it is the lock file
 

@@ -69,7 +69,7 @@ func AssetLang(lang i18n.Lang) i18n.Lang {
 type Scope int
 
 const (
-	// ScopeProject 是完整的一套：项目导读加四个技能，也就是 brickkit init 装进项目的那些。
+	// ScopeProject 是完整的一套：项目导读加五个技能，也就是 brickkit init 装进项目的那些。
 	// 它是零值，所以不指定范围时行为不变。
 	ScopeProject Scope = iota
 	// ScopeComponent 是独立组件仓库（有 component.yaml、没有 brickkit.yaml）里讲得通的那一份。

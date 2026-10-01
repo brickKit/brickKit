@@ -44,6 +44,7 @@ metadata:
   name: quote # TODO: change to a human-readable display name
   version: 0.1.0
   description: TODO — say in one sentence what this component does
+  # repository: https://… # the repository or page of this component: projects that use it link here from the component table in their AGENTS.md
 
 artifacts:
   - type: api-contract
@@ -65,8 +66,12 @@ healthCheck:
   # set startPeriodSeconds, or it will CrashLoopBackOff permanently under K8s
 ```
 
-**Four documents**, each section holding a `<!-- TODO: … -->` hint that says what goes there (`brickkit lint` lists every
-hint still left):
+Uncomment `repository` once the component has a home: it becomes the link in the component table of every project that
+uses it (see [`metadata`](02-component-yaml-reference.md#metadata-who-i-am)).
+
+**Four documents**, with `<!-- TODO: … -->` hints saying what goes where (`brickkit lint` lists every hint still left):
+in `BRICKKIT.md` every section but Shell declaration (already "Not a shell." for an ordinary component), in `AGENTS.md`
+every section, in `README.md` only the first line, since its three sections come pre-filled:
 
 | File | For | What the skeleton holds |
 | --- | --- | --- |

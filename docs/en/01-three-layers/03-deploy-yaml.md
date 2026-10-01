@@ -51,7 +51,7 @@ both `lint` and `up` check this.
 | Field | Meaning |
 | --- | --- |
 | `mode` | Whether it runs and how; see the table below. Without it, the component follows the ones above it |
-| `localPort` | With `mode: local` / `mode: debug`, the port of the process on your machine; only allowed together with those two modes |
+| `localPort` | With `mode: local` / `mode: debug`, the port of the process on your machine; only allowed together with those two modes, or on the entry of the `focus` component in `deploy.local.yaml`, which runs as `mode: local` (see [Focus run](../02-project-guide/04-focus-run.md)) |
 | `expose` | Open it to the outside: on Docker it maps a host port, on Kubernetes it generates an Ingress. Without it, the component isn't reachable from outside |
 | `exposePort` | On Docker, which host port to map (defaults to the component's port); not used on Kubernetes |
 | `hostname`, `tlsSecret` | On Kubernetes, the Ingress host name and the TLS certificate Secret |
@@ -59,11 +59,12 @@ both `lint` and `up` check this.
 | `resources` | Resource `requests` / `limits`, overriding the component's recommended values |
 | `serviceAccountName` | On Kubernetes, use a ServiceAccount your operators already created |
 | `labels` | Passed through as-is: container labels on Docker, Pod annotations on Kubernetes (for tools like Traefik or Prometheus to read) |
-| `skipWaitFor` | Don't wait for these required dependencies at start (only the wait goes; the connection stays); see [start cycles created by merging into a shell](../04-shell/04-members-management.md) |
+| `skipWaitFor` | Don't wait for these required dependencies at start (only the wait goes; the connection stays). Docker / Podman only: Kubernetes has no start order. See [start cycles created by merging into a shell](../04-shell/04-members-management.md) |
 | `members` | Only on a shell's entry: the members it hosts, each a full entry in its own right |
 
 Fields that only mean something on Kubernetes (`hostname`, `tlsSecret`, `replicas`, `serviceAccountName`) only warn
-under another `target` and the command goes ahead — the same entry can move between the two targets.
+under another `target` and the command goes ahead — the same entry can move between the two targets. The other way
+round, the Docker / Podman-only fields `exposePort` and `skipWaitFor` only warn under `target: k8s`.
 
 ## `mode`: whether it runs, and how
 
@@ -71,7 +72,7 @@ under another `target` and the command goes ahead — the same entry can move be
 | --- | --- | --- |
 | nothing | Follow the ones above: a top-level component (nothing depends on it) runs by default; a component others depend on runs as long as one of them does | anywhere |
 | `enabled` | Always runs; an error if one of its required dependencies is turned off | the team file or the personal file |
-| `disable` | Never runs; whatever depends on it stops too (an error if one of those is pinned to run) | the team file or the personal file |
+| `disable` | Never runs; components that **require** it stop too (an error if one of those is pinned to run), while components that depend on it optionally keep running without its address | the team file or the personal file |
 | `local` | Always runs, but as a process on your machine: BrickKit works out the start command, launches it and watches it | the team file or the personal file |
 | `debug` | Always runs, as a process you start yourself in your IDE; the platform makes sure other components find it | **only** the personal `deploy.local.yaml` |
 

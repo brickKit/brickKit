@@ -158,7 +158,17 @@ brickkit init --hooks                 # 只装提交前检查
    📁 .brickkit/           CLI 工作目录
    📄 AGENTS.md            项目的 AI 导读；末尾的组件表由 brickkit 维护
    📄 CLAUDE.md            @AGENTS.md：Claude Code 通过它读 AGENTS.md
+   📁 .claude/skills/      AI 助手技能（5 个）
+   💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查
+
+下一步：
+  cd my-shop
+  brickkit add --local                     把 components/ 下的组件全加进来
+  brickkit add <scope>/<name>@<version>    从安装源添加组件（先在 brickkit.yaml 的 sources: 里启用一个）
+  brickkit up                              一键启动
 ```
+
+`💡` 那一行之所以出现，是因为新建的 `my-shop/` 还不是 Git 仓库，所以没装 pre-commit 钩子。
 
 ## `brickkit skills`
 
@@ -385,12 +395,15 @@ brickkit fetch infra/notifier         # 取最新版本的产物
 
 **文档**，哪里都查，只报警告：组件仓库里查组件的 `BRICKKIT.md`（连同译本）、`AGENTS.md`、`CLAUDE.md`、`README.md` 与 `docs/`；
 项目里查它的 `AGENTS.md` 与 `CLAUDE.md`（以及残留的旧项目地图 `BRICKKIT.md`）和本地源里每个组件的文档；工作台里查组件的文档。
-`component.yaml` 写错了的组件照样查文档，只是不与清单比对。每一组在报告里占一行，比如 `✅ components/demo/hello/（文档）`。警告码有 `DOC_FILE_MISSING`、`DOC_SECTION_MISSING`、`DOC_PATH_MISSING`、
+`component.yaml` 写错了的组件照样查文档，只是不与清单比对。没有问题的一组在报告里占一行，比如 `✅ components/demo/hello/（文档）`
+（项目自己的 `AGENTS.md` 与 `CLAUDE.md` 是 `✅ ./（文档）`）；有问题就改为逐条列出警告。警告码有 `DOC_FILE_MISSING`、`DOC_SECTION_MISSING`、`DOC_PATH_MISSING`、
 `DOC_LINK_BROKEN`、`DOC_LINK_NOT_PORTABLE`、`DOC_OUT_OF_STEP`、`DOC_PLACEHOLDER`、`DOC_TRANSLATION_DRIFT`、`AGENTS_BLOCK_MISSING`、
 `CLAUDE_IMPORT_MISSING` 与 `PROJECT_MAP_OBSOLETE`，见 [错误码](../06-architecture/09-error-codes.md#文档检查)。
 
-查的是结构规则：必填字段、类型、未知字段（拼写笔误）、版本号格式、端口范围。警告有两类：`configSchema` 里拼错的键
-（比如 `defualt`）不会生效；配置项名字撞上平台保留变量。**不查**：依赖能不能解析、外壳这次承载的成员版本与它编进的版本对不对得上
+查的是结构规则：必填字段、类型、未知字段（拼写笔误）、版本号格式、端口范围。写了却不生效的，报警告：`configSchema` 配置项里拼错的键
+（比如 `defualt`）；配置项名字撞上平台保留变量；`config/` 里写了组件 `configSchema` 没声明的键，或者组件根本没声明 `configSchema` 却有配置文件；
+`config/` 里不属于 `brickkit.yaml` 中任何组件的文件；没声明 `secret: true` 的项用了 `{ existingSecret, key }`；部署文件里在当前 `target` 下不起作用的字段。
+再加上前面说的文档警告，以及 `--strict` 下的引用警告。**不查**：依赖能不能解析、外壳这次承载的成员版本与它编进的版本对不对得上
 （要解析出依赖图才知道，而 `lint` 故意不建这张图——那可能意味着联网），这些留给 `up --dry-run` 与 `graph`；
 也不查配置的值合不合 `enum`、`minimum`（平台只检查键名、不检查值）。
 
@@ -404,7 +417,7 @@ brickkit lint [flags]
 | --- | --- |
 | `--strict` | 还检查引用：进程环境与 `.env` 里都没有的 `${VAR}`、文件不存在的 `file://` 报成警告；并且警告——包括文档警告——也算失败（退出码 1），给 CI 门禁用 |
 | `-f, --file <文件>` | 只查这一份部署文件，见 [共用参数](#读部署文件的命令共用的参数) |
-| `--no-local` | 本次忽略 `deploy.local.yaml` |
+| `--no-local` | 本次配置检查以 `deploy.yaml` 为准；`deploy.local.yaml` 存在时照样查 |
 
 ```bash
 brickkit lint
@@ -416,10 +429,13 @@ brickkit lint -f deploy.prod.yaml
 ✅ brickkit.yaml
 ✅ deploy.yaml
 ✅ 跨文件：brickkit.yaml ↔ deploy.yaml ↔ config/
+✅ ./（文档）
 ✅ components/demo/greeter/component.yaml
 ✅ components/demo/hello/component.yaml
+✅ components/demo/greeter/（文档）
+✅ components/demo/hello/（文档）
 
-📋 检查了 5 个文件：0 个有错误，0 条警告
+📋 检查了 8 个文件：0 个有错误，0 条警告
 ```
 
 ## `brickkit deps`
@@ -533,7 +549,9 @@ brickkit build erp/backend --force  # 改了代码之后重新构建
 6. 有 `mode: debug` 组件时生成 `local-debug.<版本化服务名>.env`，给你在 IDE 里启动它用；
 7. 检查镜像：本机构建的镜像必须已经在（缺了就提示 `brickkit build`），拉取的镜像要取得到；
 8. 调用底层引擎启动；数据库迁移先跑（Docker 一次性容器、K8s Job），失败则阻断主服务；
-9. 有 `mode: local` 组件时，在前台启动并看护这些本机进程，`Ctrl+C` 停止。
+9. 有 `mode: local` 组件时，在前台启动并看护这些本机进程，`Ctrl+C` 停止。每个进程继承这个终端的环境，只有平台管的名字除外
+   （保留名、所有 `*_ENDPOINT`、组件自己 `configSchema` 里的键）——它们只来自平台，见
+   [`mode: local` 进程继承什么](../06-architecture/03-env-injection-contract.md#mode-local-进程继承什么)。
 
 组件版本与上一次 `up` 不同时会提示一句，`--dry-run` 还会输出变更摘要；移动版本本身是 `upgrade` 的事。
 部署目标是 `k8s` 时，真正部署（不带 `--dry-run`）之前，`up` 先确认要部署到的集群（部署文件的 `k8s.context`），再生成任何东西。

@@ -90,7 +90,9 @@ brickkit up -f deploy.prod.yaml --dry-run
 ```
 
 生产的数据库口令同理：`config/vars.yaml` 里写 `PG_PASSWORD: ${PG_PASSWORD}`，真值放在部署机器的环境变量里；
-K8s 下 CLI 生成清单时求值，并放进生成的 Secret（见 [敏感值](../01-three-layers/07-sensitive-values.md)）。
+K8s 下 CLI 生成清单时求值。值落在哪由组件决定，不由 `${…}` 决定：组件的 `configSchema` 把这个键声明为
+`secret: true`（口令就该这样声明）时，值放进生成的 Secret；否则它以明文写进 Deployment
+（见 [敏感值](../01-three-layers/07-sensitive-values.md)）。
 
 `--dry-run` 在 K8s 下只生成清单、不连集群。真正部署时，`up` 先确认 `kubectl` 当前的上下文就是部署文件写的 `k8s.context`，
 再动手——部错集群是没法撤回的。

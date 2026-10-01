@@ -235,6 +235,29 @@ func TestEnvAndDirReachTheChild(t *testing.T) {
 	assert.Contains(t, got, "overridden | PROCSUP_OVERRIDDEN=new", "同名以 Spec.Env 里的为准")
 }
 
+// Withhold 挡住的是继承来的变量：父进程里的同名值不传下去，Spec.Env 里写明的照样到。
+func TestWithheldInheritedVariablesDoNotReachTheProcess(t *testing.T) {
+	t.Setenv("PROCSUP_WITHHELD", "from-parent")
+	t.Setenv("PROCSUP_GIVEN", "from-parent")
+	sup, out := newSupervisor(t, Options{})
+	withhold := func(name string) bool { return strings.HasPrefix(name, "PROCSUP_WITHHELD") || name == "PROCSUP_GIVEN" }
+	held := helperSpec("held", "env", "PROCSUP_WITHHELD")
+	held.Withhold = withhold
+	_, err := sup.Start(held)
+	require.NoError(t, err)
+	given := helperSpec("given", "env", "PROCSUP_GIVEN")
+	given.Env = append(given.Env, "PROCSUP_GIVEN=from-spec")
+	given.Withhold = withhold
+	_, err = sup.Start(given)
+	require.NoError(t, err)
+
+	sup.Run(context.Background())
+
+	got := out.String()
+	assert.Contains(t, got, "held | PROCSUP_WITHHELD=\n", "继承来的值被挡住了")
+	assert.Contains(t, got, "given | PROCSUP_GIVEN=from-spec", "Spec.Env 里的照样传下去")
+}
+
 func TestOutputOfConcurrentProcessesStaysLineIntact(t *testing.T) {
 	sup, out := newSupervisor(t, Options{})
 	for _, tag := range []string{"p0", "p1", "p2"} {

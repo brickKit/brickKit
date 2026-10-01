@@ -92,7 +92,7 @@ grpcurl -plaintext -d '{"departmentId":"d-hr"}' localhost:9090 \
 
 样例人员（`0002_seed_people`，部门对应 `department/tree` 的样例组织架构）：`p-001` 张三、`p-002` 李四（`d-tech`），`p-003` 王五（`d-hr`），`p-004` 赵六（`d-backend`）。
 
-发布的事件：`people.person.viewed`，载荷 `{"personId": "<ID>"}`，在单个人员查询成功时发出（HTTP 与 gRPC 都发），经 `infra/redis-event-bus` 的 `POST /api/v1/events` 投递；尽力而为，发不出去不重试。
+发布的事件：`people.person.viewed`，在单个人员查询成功时发出（HTTP 与 gRPC 都发），经 `infra/redis-event-bus` 的 `POST /api/v1/events` 投递，请求体 `{"type": "people.person.viewed", "subject": "<人员 ID>"}`；不带 `time`，由总线补上收到的时间。尽力而为，发不出去不重试。
 
 不消费事件。
 

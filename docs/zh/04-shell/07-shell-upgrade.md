@@ -29,23 +29,29 @@ brickkit upgrade shop/shell
 
 ```text
    ⬆️  shop/shell：0.1.0 → 0.2.0
-   🔗 shop/stock@0.1.0 的 requiredBy 现在是：shop/cart, shop/order
-   🔓 shop/stock@0.1.0 不在新外壳里：挪到顶层、独立运行
-📝 已写：brickkit.yaml, deploy.yaml, deploy.local.yaml
+   ⬆️  shop/stock：0.1.0 → 0.2.0
+   ✅ shop/stock@0.1.0（requiredBy: shop/cart, shop/order）
+📝 config/shop-stock.yaml
+   原样保留：STOCK_WAREHOUSE
+📝 config/shop-shell.yaml
+🗄️  配置已归档：config/shop-shell.yaml → config/.archive/shop-shell@0.1.0.yaml
+📝 已写：brickkit.yaml, deploy.yaml
 ```
 
-升级外壳就是换成新外壳编进的那一套成员版本。`shop/stock@0.1.0` 还有别的组件依赖（`shop/cart`、`shop/order`），所以它留下来、挪到顶层独立运行；
-没人再要的旧版本则被移除。部署文件跟着改：
+升级外壳就是换成新外壳编进的那一套成员版本。`shop/stock@0.1.0` 还有别的组件依赖（`shop/cart` 和 `shop/order` 都声明了
+`shop/stock@0.1.0`），所以它留下来、在顶层独立运行；没人再要的旧版本则被移除。配置文件跟着各自的版本走，和任何一次升级一样：
+`config/shop-stock.yaml` 迁移到 `shop/stock@0.2.0`，留下来的旧版本换成自己的 `config/shop-stock@0.1.0.yaml`；外壳自己的配置迁移到
+0.2.0，0.1.0 那份归档进 `config/.archive/`，因为已经没有 `shop/shell@0.1.0` 了。部署文件跟着改：
 
 ```yaml
 components:
   - id: shop/shell
     members:
+      - id: shop/stock
       - id: shop/cart
         skipWaitFor: [shop/order]
-      - id: shop/stock
-  - id: shop/stock@0.1.0
   - id: shop/order
+  - id: shop/stock@0.1.0
 ```
 
 成员条目上你写过的字段（`mode`、`skipWaitFor`……）保留。构建新外壳的镜像、`up`：
@@ -75,6 +81,7 @@ components:
     members:
       - id: shop/stock@0.1.0
       - id: shop/cart
+        skipWaitFor: [shop/order]
   - id: shop/order
   - id: shop/stock
 ```

@@ -1,6 +1,6 @@
 # demo/caller
 
-BrickKit 自测用的调用方组件：验证依赖地址注入与可选依赖缺席时的降级。
+The caller component for BrickKit's own self-tests; verifies dependency address injection and optional-dependency degradation
 
 ## 在项目里使用
 

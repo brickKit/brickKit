@@ -1,6 +1,6 @@
 # department/tree
 
-查询组织架构（部门树）；HTTP 与 gRPC 共用一个端口。
+Queries the organisation structure (the department tree); HTTP and gRPC share one port
 
 ## 在项目里使用
 

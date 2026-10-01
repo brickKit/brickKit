@@ -49,7 +49,8 @@ accept, a repository that doesn't exist reads `ERROR: Repository not found.` ins
    nothing to do with BrickKit.
 2. `ssh -T git@github.com` (or your hosting platform) shows whether the platform recognises your key.
 3. Check the repository address: it's derived from the install source's `baseUrl` plus the component ID (`demo/hello` →
-   `demo-hello`), and the "Repository" line in the error is the derived result.
+   `demo-hello`), unless the component's line in `brickkit.yaml` gives its own `source.repo`; the "Repository" line in
+   the error is the address actually used.
 
 ## Connecting to an SSH host for the first time
 

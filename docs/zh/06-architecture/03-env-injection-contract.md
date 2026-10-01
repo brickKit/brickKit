@@ -16,11 +16,13 @@
 | `BRICKKIT_SERVED_MEMBERS_CONFIG` | 外壳 | 每个成员的配置与端口，JSON 数组（见 [JSON 配置注入](../04-shell/02-json-injection.md)） |
 | `PORT` | `mode: local` 的组件 | 平台为这个本机进程选定的端口 |
 
-除此之外，平台不注入任何东西。
+除此之外，平台不往容器里注入任何东西。`mode: local` 的进程拿到的是同样这些变量，只是垫在启动 `up` 的那个终端的环境之上——去掉平台管的每一个名字，再加几个语言辅助变量，
+见 [`mode: local` 进程继承什么](#mode-local-进程继承什么)。
 
 ## 依赖地址
 
 **名字**由组件 ID 推出：`/` 和 `-` 换成 `_`，全大写，末尾加 `_ENDPOINT`。名字**不带版本**。
+额外端口的变量在中间插进端口名，规则相同：`-` 换成 `_`，全大写（端口 `admin-api` → `PEOPLE_BASIC_ADMIN_API_ENDPOINT`），所以每个名字在 shell 里都能用 `$NAME` 读到。
 
 **值**带版本：`http://<版本化服务名>:<端口>`。服务名是组件 ID 的 `/` 和 `.` 换成 `-`，全小写，接上精确版本——版本里的点也换成 `-`（`demo/hello@1.0.0` → `demo-hello-1-0-0`）。
 这个字符串在 Docker 和 Kubernetes 上一模一样。
@@ -58,11 +60,12 @@ if bus is None:
 3. 没写，用 `configSchema` 的 `default`；
 4. 都没有：可选项不注入；必填项让 `up` 拒绝启动。
 
-值的类型：标量转成字符串（`1.10` 注入 `"1.10"`，不会变成 `1.1`）；列表和映射编码成一行 JSON。
+值的类型：标量按你写的原文注入（`1.10` 注入的就是 `1.10`，不会变成 `1.1`），不管它写在 `config/` 里还是 `configSchema` 的 `default` 里；列表和映射编码成一行 JSON。
 
 ### 不做隐式覆盖
 
-进程环境里恰好有一个同名变量，不会覆盖 `config/` 里写的值。环境变量只在你**显式**写了 `${VAR}` 的地方参与。
+进程环境里恰好有一个同名变量，不会覆盖 `config/` 里写的值，也不会替一个没有值的配置项补上值。环境变量只在你**显式**写了 `${VAR}` 的地方参与。
+`mode: local` 的进程也一样，尽管它别的方面继承终端的环境（见[下文](#mode-local-进程继承什么)）。
 
 ## 保留的名字
 
@@ -96,8 +99,11 @@ if bus is None:
 
 ## 值在什么时候求出来
 
-配置值里可能有三种引用：`$var:NAME`（公共变量）、`${VAR}`（进程环境或 `.env`）、`file://路径`（文件内容）。
-`$var:` 总是在 CLI 装载项目时就换成公共变量的值。另外两种，何时求值取决于值落到哪里：
+配置值里可能有四种引用：`$var:NAME`（公共变量）、`${VAR}`（进程环境或 `.env`）、`file://路径`（文件内容）、
+`{ existingSecret: 名字, key: 键 }`（集群里已有的 Kubernetes Secret）。
+`$var:` 总是在 CLI 装载项目时就换成公共变量的值。`existingSecret` 的值 CLI 从头到尾不读：Kubernetes 上由 Deployment 经 `secretKeyRef` 引用那个 Secret；
+其余地方这一项都不注入（Docker 上会警告；外壳的 JSON 需要真值，所以直接拒绝；见 [敏感值](../01-three-layers/07-sensitive-values.md)）。
+`${VAR}` 和 `file://` 何时求值，取决于值落到哪里：
 
 | 值落到哪里 | `${VAR}` | `file://` |
 | --- | --- | --- |
@@ -118,3 +124,26 @@ Deployment 用 `secretKeyRef` 引用（见 [敏感值](../01-three-layers/07-sen
 
 组件的迁移容器拿到的环境与主服务一模一样（同一份内联变量、同一个 env 文件）。`mode: debug` 的组件没有容器，
 平台把它本该拿到的变量写进 `.brickkit/generated/local-debug.<服务名>.env`，供你在 IDE 里加载；依赖地址在这份文件里是本机可达的 `http://localhost:<端口>`。
+
+## `mode: local` 进程继承什么
+
+容器拿到的是本页列出的这些变量，加上镜像自己设的，你终端里的一个都不带进去。`mode: local` 的进程——`brickkit up` 在本机用组件源码启动的那种——不一样：它从启动 `up` 的那个终端的环境出发，
+因为本机上的程序要有你的 `PATH`、`HOME`、工具链和代理设置才跑得起来。
+
+平台管的名字不继承。进程启动前，这些名字先从终端的环境里拿掉，能到达进程的只有平台自己给的值：
+
+| 从终端环境里拿掉 | 为的是 |
+| --- | --- |
+| `COMPONENT_ID`、`COMPONENT_VERSION`、`PORT`、`BRICKKIT_SERVED_MEMBERS`、`BRICKKIT_SERVED_MEMBERS_CONFIG`、所有以 `_ENDPOINT` 结尾的名字 | 平台这次不给某个变量时（弱依赖没在跑），进程里就真的没有这个变量，和容器里一模一样；shell 里遗留的 `export DEMO_BUS_ENDPOINT=…` 没法让一个停着的依赖看起来还在 |
+| 组件自己 `configSchema` 里的键 | 配置项的值只从[上面那条链](#组件自己的配置)来；shell 里一个过时的 `export DB_HOST=…` 永远顶替不了它 |
+
+在此之上，平台还按它在源码目录里认出的语言（或 `component.yaml` 的 `local:` 块里写的 `language`）补几个变量；手写了 `runCommand` 又没写 `language` 的，一个都没有：
+
+| 语言 | 设置 | 为什么 |
+| --- | --- | --- |
+| `java`（Spring Boot） | `SERVER_PORT=<PORT 的值>` | Spring Boot 从 `SERVER_PORT` 取监听端口 |
+| `java` | `JAVA_TOOL_OPTIONS=`、`JDK_JAVA_OPTIONS=`（清空） | shell 里遗留一个带 `suspend=y` 的调试代理，进程就会卡住，等一个没人会连的调试器 |
+| `node` | `NODE_OPTIONS=`（清空） | 同理，防 shell 里遗留的 `--inspect-brk` |
+| `python`（Django） | `PYTHONUNBUFFERED=1` | 进程的输出接的是管道不是终端，不加这个，Python 会把日志攒成大块才吐出来 |
+
+`mode: debug` 的组件由你自己在 IDE 里启动，它继承什么由 IDE 决定；平台负责的那部分，就是上面说的 `local-debug.<服务名>.env` 文件。

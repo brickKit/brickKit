@@ -16,7 +16,11 @@ BrickKit 的设计处处考虑了 AI：组件小到一次读得完，边界写�
 | 这一模块 | 文档 | 上面两份背后的"为什么"与完整做法 |
 
 项目里的那份是日常要用的：`brickkit init` 装进 `.claude/skills/`（`brickkit-assemble`、`brickkit-component`、`brickkit-deploy`、`brickkit-troubleshoot`、`brickkit-plan-change`），
-再写出 `AGENTS.md`（团队自己的导读，末尾那一段由 CLI 跟着更新）和 `CLAUDE.md`，都跟着项目提交，CLI 升级后 `brickkit skills update` 刷新技能。它们刻意不复刻命令参数——参数去问 `brickkit <命令> --help`。
+再写出 `AGENTS.md`（团队自己的导读，末尾那一段由 CLI 跟着更新）和 `CLAUDE.md`，都跟着项目提交；CLI 升级后 `brickkit skills update` 刷新技能和 `AGENTS.md` 末尾那一段（`AGENTS.md` / `CLAUDE.md` 不在时顺带生成）。
+它们刻意不复刻命令参数——参数去问 `brickkit <命令> --help`。
+
+在自己的仓库里开发的组件（有 `component.yaml`、没有 `brickkit.yaml`）拿到的是在那里讲得通的一份：在那个仓库里跑 `brickkit skills update`，
+只装 `brickkit-component` 这一个技能，外加组件自己的 `AGENTS.md`（末尾那一段是组件规则）和 `CLAUDE.md`。`brickkit new` 不会替你做这一步。
 
 | 篇目 | 讲什么 |
 | --- | --- |

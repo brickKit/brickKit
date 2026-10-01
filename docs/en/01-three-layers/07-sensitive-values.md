@@ -36,6 +36,8 @@ plain text in `config/` gets a warning:
    Why it matters: config/*.yaml and config/vars.yaml are meant to be committed to Git, so a secret written there goes into version control with it and can't be removed from the history
    Suggestions:
    1. Change it to a reference such as ${MY_TOKEN} (real value in .env) or file://.secrets/token
+   2. .env must be listed in .gitignore
+   3. Items that declare secret: true are ones the component author identified as credentials; the ones that merely have a suspicious name are judged by name only, not by value, so you can ignore them if they really aren't secrets
 ```
 
 It never prints the value itself. Your `deploy.local.yaml` isn't committed, so a password for your machine under its
@@ -47,7 +49,9 @@ warned — those are the files that leak.
 If `config/` says `DB_HOST: pg.internal`, the component gets `pg.internal` even when your environment has
 `DB_HOST=localhost`. The environment only takes part where you **explicitly** wrote `${…}`. Otherwise the same config
 would quietly turn into different values for different people and different CI runs — and what you see would no longer
-be what runs.
+be what runs. The same goes for a `mode: local` process, which otherwise starts from your terminal's environment: the
+component's `configSchema` keys are removed from that environment before it starts (see
+[what a `mode: local` process inherits](../06-architecture/03-env-injection-contract.md#what-a-mode-local-process-inherits)).
 
 ## Docker / Podman: where values end up
 

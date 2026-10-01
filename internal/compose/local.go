@@ -716,7 +716,6 @@ func (p *plan) pointDependenciesAtLocalhost(ref resolver.Ref, vars []inject.Var)
 		}
 
 		service := manifest.ServiceName(dep.ID, dep.Version)
-		prefix := manifest.EnvPrefix(dep.ID)
 		for _, extra := range node.Manifest.Deployment.ExtraPorts {
 			port, ok := p.debugExtraPort[service][extra.Port]
 			if !ok {
@@ -740,7 +739,7 @@ func (p *plan) pointDependenciesAtLocalhost(ref resolver.Ref, vars []inject.Var)
 				}
 				port = extra.Port
 			}
-			setVar(vars, prefix+"_"+strings.ToUpper(extra.Name)+"_ENDPOINT",
+			setVar(vars, manifest.ExtraPortEndpointEnvVar(dep.ID, extra.Name),
 				localhostEndpoint(port))
 		}
 	}

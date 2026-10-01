@@ -74,6 +74,35 @@ process environment when running on its own, and the item's `config` inside the 
 When a member's **required** config has no value, `up` stops it before generating anything (`Error: a required component
 config item has no value`), just as when it runs on its own — that case doesn't belong to this section.
 
+## Two components on a shell want the same port
+
+**Symptom**
+
+`up` (or `up --dry-run`) stops before generating anything:
+
+```text
+❌ Error: two components on shell shop/shell@0.1.0 both want port 8081
+   Held by: Component shop/cart@0.1.0
+   Held by: Component shop/stock@0.1.0
+   Suggestion: These components all end up running in the same shell container/Pod, so ports must not collide
+```
+
+One of the `Held by` lines can also read `the shell itself`.
+
+**Cause**
+
+The shell and every member it hosts this run listen in one container (one Pod on K8s), so their main ports
+(`deployment.port` in each `component.yaml`) must all differ. Two components that each ran fine on their own, both on
+`8080` say, collide the moment they go into one shell. `up` checks only the main ports; when two `extraPorts` collide,
+the shell process fails to bind one of them at start and exits, which you see in the shell's logs.
+
+**Fix**
+
+- Give one of them another port: change `deployment.port` in that component's `component.yaml`, as a new version of it
+  (raise `metadata.version`, then `brickkit upgrade`), since the port is part of its contract.
+- Or take one of them out of the shell, so it runs in its own container again: see
+  [Moving out of a shell](../04-shell/04-members-management.md#moving-out-of-a-shell).
+
 ## Calling a member in a shell: connection refused or 404
 
 **Symptom**

@@ -12,35 +12,36 @@
 make build            # bin/brickkit + bin/market-server
 make test             # 单元测试
 make test-all         # 全部测试套件，含 checklist / regression 门禁
-make lint             # vet + 全部文档一致性检查
+make lint             # golangci-lint（或 vet）、文档检查、生成文件是否过期、跨系统编译、覆盖率门槛（会跑单元测试）
 make hooks            # 每个克隆一次：启用仓库自带的提交钩子（.githooks/）
 ```
 
 **每个克隆运行一次 `make hooks`，启用提交钩子**（它会设置 `git config core.hooksPath .githooks`；git 从不自己启用仓库里的钩子）。
 提交里动了 `docs/en/`、`docs/zh/`、`AGENTS*.md`、`llms*.txt` 或生成器本身时，钩子会跑 `make generate-llms`——重新生成 `llms/` 下给网页端
 AI 读的文档合集——并把它们加进同一个提交（`docs/superpowers/` 下的规划文档不进合集，也不会触发它）。那些文件还有没暂存的改动、或者
-`docs/en/`、`docs/zh/` 里有没跟踪的新页面时，钩子拒绝提交：从工作区生成的合集会与这次提交对不上。它也拒绝 `git commit <路径>`：
-那种模式下钩子是对着一个临时暂存区跑的，重新生成的合集留不在暂存区里——先 `git add` 要提交的文件，再不带路径地提交。把整个文件暂存（或 stash 掉）再提交；没装钩子的话，自己跑 `make generate-llms`——`make lint` 里的 `make check-llms`
+`docs/en/`、`docs/zh/` 里有没跟踪的新页面时，钩子拒绝提交：从工作区生成的合集会与这次提交对不上。把整个文件暂存（或用 `git stash push --keep-index --include-untracked`
+收起其余部分）再提交；确实要分开提交就用 `--no-verify`，之后跑 `make generate-llms`。它也拒绝 `git commit <路径>`：
+那种模式下钩子是对着一个临时暂存区跑的，重新生成的合集留不在暂存区里——先 `git add` 要提交的文件，再不带路径地提交。没装钩子的话，自己跑 `make generate-llms`——`make lint` 里的 `make check-llms`
 会在合集过期时失败。
 
 **没有任何 CI 会在 PR 上自动跑。** 仓库里唯一的 GitHub Actions 工作流（`.github/workflows/release.yml`）只在推 `v*` tag 时触发，负责构建/签名/发布——分支或 PR 上不会跑。也就是说，开 PR 之前你自己在本机跑通 `make lint` 和 `make test-all`，是唯一的关卡。你机器上跑红的东西，到任何 reviewer 那里也一样是红的。
 
 `make lint` 如果检测到装了 `golangci-lint` 就会跑它（`make tools-lint` 会把它装到 `.tools/bin`；仓库没有自己的 `.golangci.yml`，用的就是 golangci-lint v2 的默认规则集），没装就退回 `go vet`。开 PR 之前建议装上——光靠 `go vet` 抓不到 golangci-lint 能抓到的那些问题。
 
-`make lint` 还会跑一组文档一致性脚本（`scripts/check-*.py`）——指向归档的引用、悬空或没写文档名的小节引用、断链与断掉的锚点、文档里写的命令/参数其实不存在、命令参考没写全、文档画的 YAML 字段名和真实结构体对不上、docs/zh↔docs/en 镜像，还有几个别的（完整列表和每一条守住什么，见 README 的["构建与测试"](README.zh.md#构建与测试)一节）。这些不是摆设——好几条的存在就是因为某次改动破坏了一些测试套件根本没法察觉的东西：改名的参数、过期的示例、曾经指向真实位置、后来指向空处的链接。
+`make lint` 还会跑一组文档一致性检查（`scripts/check-*`、`tests/docfields` 等）——指向归档的引用、悬空或没写文档名的小节引用、断链与断掉的锚点、文档里写的命令/参数其实不存在、命令参考没写全、文档画的 YAML 字段名和真实结构体对不上、docs/zh↔docs/en 镜像，还有几个别的（完整列表和每一条守住什么，见 README 的["构建与测试"](README.zh.md#构建与测试)一节）。这些不是摆设——好几条的存在就是因为某次改动破坏了一些测试套件根本没法察觉的东西：改名的参数、过期的示例、曾经指向真实位置、后来指向空处的链接。
 
 `make lint` 还守着 `schemas/` 里的 JSON Schema（`schemas/component.schema.json`、`schemas/brickkit.schema.json`、`schemas/deploy.schema.json`——编辑器用它们给 `component.yaml`、`brickkit.yaml` 和部署文件做补全与检查）。它们是从 `internal/manifest`、`internal/projfile` 与 `internal/deployfile` 的 Go 结构体生成出来的，从不手改。**只要你在那里新增、删除或改了某个字段的类型，或者动了它的 `omitempty`、某个 `jsonschema` tag，就要跑 `make generate-schemas`，把重新生成的文件和你的改动一起提交**——否则 `make check-schemas`（`make lint` 的一部分）会失败。这道检查还会拿真实的校验器去核对 schema 里的必填字段、封闭取值、正则和范围，所以 `jsonschema` tag 不会悄悄和 `Validate` 脱节。
 
 ## 测试放在哪
 
-单元测试**紧挨着被测代码**（`internal/**/*_test.go`、`market-server/internal/**/*_test.go`）——不用维护一套平行的测试目录。`tests/` 只放真的没法挨着代码放的东西：`tests/checklist/` 和 `tests/regression/` 是验收清单，每一行都配着证明它的测试（两者都由 `make lint` 守着，具体见 README 的"构建与测试"表格），`tests/components/` 放的是好几个测试和教程文章实际会跑起来的真实夹具组件。
+单元测试**紧挨着被测代码**（`internal/**/*_test.go`、`market-server/internal/**/*_test.go`）——不用维护一套平行的测试目录。`tests/` 只放真的没法挨着代码放的东西：`tests/checklist/` 和 `tests/regression/` 是验收清单，每一行都配着证明它的测试（两者都由 `make test-all` 守着——`make test-boundary` / `test-error` / `test-compat` / `test-security` 与 `make test-regression`，具体见 README 的"构建与测试"表格），`tests/components/` 放的是好几个测试和文档示例实际会跑起来的真实夹具组件。
 
 如果你要加一条值得进清单的行为（边界条件、错误场景、兼容性或安全保证），把这一行加进对应的 `tests/checklist/清单.tsv` 或 `tests/regression/清单.tsv`，再接一个真测试上去——清单里有一行没测试、或者测试已经不存在了，都会**故意**让构建失败（原因见 README"构建与测试"那张表）。
 
 ## 文档规范
 
 - **`docs/zh/` 和 `docs/en/` 是两棵独立撰写、彼此对称的目录树**——不是一份原文配翻译。你在其中一棵改了或加了文档，另一棵在相同相对路径下也要有对应文件（`make check-docs-bilingual` 会守这条），而且要用那门语言自然地写，不是机械翻译过去。
-- **教程或故障排除文档里展示的 CLI 输出必须是真实输出**，不是你以为 CLI 会打印的样子。真的跑一遍命令，把跑出来的东西贴进去。`make check-doc-fields` 会核对文档里的每一行输出都是 CLI 真能打印出来的那一行。
+- **文档里展示的 CLI 输出必须是真实输出**，不是你以为 CLI 会打印的样子。真的跑一遍命令，把跑出来的东西贴进去。`make check-doc-fields` 会核对文档里的每一行输出都是 CLI 真能打印出来的那一行。
 - **文档里画的 YAML 字段必须在真实结构体里存在**——`make check-doc-fields` 拿 `component.yaml`/`brickkit.yaml`/部署文件真实的 Go 类型去反查文档，而不是反过来；字段参考（`docs/*/11-reference/`）还必须把每个字段都写到。
 - 如果你改了 `AGENTS.md`/`AGENTS.zh.md`，保证两份内容真的对等——它们各自独立撰写，不是互译关系，但该覆盖的内容要覆盖到。
 

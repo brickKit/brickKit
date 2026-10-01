@@ -31,7 +31,7 @@ for it.
 | Purpose | Judging whether this is the component you're looking for. Its "Owns" and "Does not own" lists — each item saying who owns it instead — tell you where a requirement belongs |
 | Before you deploy | What has to exist before `brickkit up` (a database with its schema and role, an account, a certificate) and who prepares it; check these before telling the user it's ready |
 | Dependencies | What it uses each dependency for, and how it behaves when an optional one is missing |
-| Configuration | What to fill in for each item when writing `config/<component>.yaml` — especially what the default can't say |
+| Configuration | What to fill in for each item when writing `config/<scope>-<name>.yaml` — especially what the default can't say |
 | Contracts | The interface files to write calling code from, and the events it publishes and consumes |
 | Shell declaration | Whether it's a shell, and which members it compiles in |
 

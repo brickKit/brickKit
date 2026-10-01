@@ -44,6 +44,7 @@ metadata:
   name: quote # TODO：改成人看的展示名
   version: 0.1.0
   description: TODO：一句话说清楚这个组件做什么
+  # repository: https://… # 这个组件的仓库或主页：使用它的项目在 AGENTS.md 的组件表里链到这里
 
 artifacts:
   - type: api-contract
@@ -65,7 +66,11 @@ healthCheck:
   # 要写 startPeriodSeconds，否则 K8s 下会永久 CrashLoopBackOff
 ```
 
-**四份文档**，每一节都带一条 `<!-- TODO: … -->` 提示，说明这里该写什么（`brickkit lint` 会列出还剩下的每一条）：
+组件有了落脚的仓库或主页，就把 `repository` 那行的注释去掉填上：每个用它的项目，组件表里的链接就指向这里（见
+[metadata：我是谁](02-component-yaml-reference.md#metadata我是谁)）。
+
+**四份文档**，用 `<!-- TODO: … -->` 提示说明哪里该写什么（`brickkit lint` 会列出还剩下的每一条）：`BRICKKIT.md` 除外壳声明外每一节都有
+（普通组件的外壳声明已经写好"不是外壳。"），`AGENTS.md` 每一节都有，`README.md` 只有标题下第一行有（它的三节骨架里已经填好了）：
 
 | 文件 | 写给谁 | 骨架里有什么 |
 | --- | --- | --- |

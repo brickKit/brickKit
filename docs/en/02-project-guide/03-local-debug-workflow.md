@@ -24,7 +24,7 @@ brickkit local on
 ```
 
 From then on the commands that run or check the deployment (`up`, `down`, `status`, `sync`, `lint`, `build`) read
-`deploy.local.yaml`, and each run starts with a reminder (`graph` and `deps` keep reading `deploy.yaml`):
+`deploy.local.yaml` (`graph` and `deps` keep reading `deploy.yaml`), and `up` starts each run with a reminder:
 
 ```text
 Local mode is on: using deploy.local.yaml (brickkit local off switches back to deploy.yaml)

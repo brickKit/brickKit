@@ -39,7 +39,9 @@ description: Use when the user brings a new requirement, a feature or a change i
 
 ## 4. Plan and change
 
-- **Order:** providers before consumers — the order `brickkit deps` prints.
+- **Order:** providers before consumers — the `📋 Start order (topological sort)` list that `brickkit up --dry-run`
+  prints, dependencies first. (`brickkit deps` prints the other way round: each tree starts at a consumer, with
+  its providers nested under it, so there the deepest entries come first.)
 - **Per component, one commit:** the contract, the code, and its `BRICKKIT.md` / `AGENTS.md` together. Then raise
   `metadata.version` (patch for implementation only, minor for additions, major for breaking changes), release, and
   `brickkit upgrade <id>@<version>` in the project.

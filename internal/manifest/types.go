@@ -3,6 +3,13 @@
 // 字段的完整说明见 component.yaml 字段参考；这里的类型就是那份参考的来源。
 package manifest
 
+import (
+	"encoding/json"
+	"strconv"
+
+	"gopkg.in/yaml.v3"
+)
+
 // APIVersion 与 Kind 的固定值。
 const (
 	APIVersion = "brickkit/v1"
@@ -113,6 +120,27 @@ type ConfigSchema struct {
 	Required   []string                  `yaml:"required,omitempty"`
 }
 
+// Number 是 configSchema 里写成数字的 default，按作者写下的原文保留（parse.go 的
+// keepNumericDefaultText）：注入的是文本，`1.10` 就是 "1.10"。写回 YAML / JSON 时仍是数字。
+type Number string
+
+// MarshalYAML 写成不带引号的数字。
+func (n Number) MarshalYAML() (any, error) {
+	tag := "!!float"
+	if _, err := strconv.ParseInt(string(n), 0, 64); err == nil {
+		tag = "!!int"
+	}
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: string(n)}, nil
+}
+
+// MarshalJSON 写成 JSON 数字；JSON 写不了的原文（0x1F 之类）写成字符串。
+func (n Number) MarshalJSON() ([]byte, error) {
+	if json.Valid([]byte(n)) {
+		return []byte(n), nil
+	}
+	return json.Marshal(string(n))
+}
+
 // ConfigProperty 是单个配置项的声明。
 //
 // Type 的 jsonschema enum 就是 configSchemaTypes：改一处要改另一处，schemas_test.go 会核对（见 internal/schemagen）。
@@ -163,7 +191,7 @@ type Deployment struct {
 	//
 	// 平台**不解释键值，只透传**：Docker 写进 service 的 labels，
 	// K8s 写进 Deployment 与 Pod 的 annotations。与 Resources 一样，
-	// 这里是"作者的推荐值"，brickkit.yaml 的 labels 逐键覆盖它。
+	// 这里是"作者的推荐值"，部署文件里这个组件条目的 labels 逐键覆盖它。
 	Labels map[string]string `yaml:"labels,omitempty"`
 }
 

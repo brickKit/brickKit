@@ -19,6 +19,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -58,6 +59,9 @@ type Spec struct {
 	// Env 是 "KEY=VALUE" 列表，追加在当前进程的环境之后，同名以后者为准。
 	// 值只经由 exec.Cmd.Env 在内存里传给子进程，不会落盘。
 	Env []string
+	// Withhold 对继承来的变量名返回 true 时，那个变量不传给子进程（Env 里写明的不受影响）。
+	// nil 表示全部继承。
+	Withhold func(name string) bool
 }
 
 // Options 配置 Supervisor。
@@ -159,7 +163,7 @@ func (s *Supervisor) Start(spec Spec) (*Proc, error) {
 
 	cmd := exec.Command(spec.Argv[0], spec.Argv[1:]...)
 	cmd.Dir = spec.Dir
-	cmd.Env = append(os.Environ(), spec.Env...)
+	cmd.Env = append(inherited(spec.Withhold), spec.Env...)
 	cmd.WaitDelay = waitDelay
 	w := &prefixWriter{sink: s.sink, prefix: prefixFor(spec.Name, s.opts.NameWidth), tailCap: s.opts.TailLines}
 	cmd.Stdout, cmd.Stderr = w, w // 同一个 Writer：一根管道，stdout 与 stderr 的先后顺序不会被打乱
@@ -178,6 +182,22 @@ func (s *Supervisor) Start(spec Spec) (*Proc, error) {
 	s.procs = append(s.procs, p)
 	go s.watch(p, cmd, w)
 	return p, nil
+}
+
+// inherited 是当前进程的环境，去掉 withhold 挡住的那些。
+func inherited(withhold func(string) bool) []string {
+	env := os.Environ()
+	if withhold == nil {
+		return env
+	}
+	out := env[:0:0]
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		if !withhold(name) {
+			out = append(out, kv)
+		}
+	}
+	return out
 }
 
 func (s *Supervisor) watch(p *Proc, cmd *exec.Cmd, w *prefixWriter) {

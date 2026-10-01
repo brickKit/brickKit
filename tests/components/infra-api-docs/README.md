@@ -1,6 +1,6 @@
 # infra/api-docs
 
-把每个组件的 API 文档收拢到一个入口；没装或没有文档的组件会被如实标出，页面照常打开。
+Gathers every component's API docs behind one entry point; a component that isn't installed or has no docs is marked as such, and the page still opens
 
 ## 在项目里使用
 

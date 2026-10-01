@@ -98,6 +98,23 @@ func TestPlanCompleteNeverEditsExistingGitignore(t *testing.T) {
 	assert.Equal(t, gitignore, string(got))
 }
 
+// components/ 只是默认忽略：把组件源码随项目提交是团队可以选的做法，不是个人文件或密钥漏提交。
+// 新项目的 .gitignore 照样写上它；已有 .gitignore 没写它不算缺。
+func TestComponentsDirIsADefaultNotARequiredIgnore(t *testing.T) {
+	assert.NotContains(t, project.RequiredGitignore(false), "components/")
+
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, ".gitignore"), []byte("node_modules/\n"), 0o644))
+	plan := complete(t, root, "my-shop")
+	assert.NotContains(t, plan.GitignoreMissing, "components/")
+
+	fresh := t.TempDir()
+	complete(t, fresh, "my-shop")
+	data, err := os.ReadFile(filepath.Join(fresh, ".gitignore"))
+	require.NoError(t, err)
+	assert.Contains(t, strings.Split(string(data), "\n"), "components/")
+}
+
 // 组件仓库兼作工作台：BRICKKIT.md 是组件自己的文档，补全不替作者写它；AGENTS.md 是组件的那五节，
 // 标题是组件 ID，维护区放组件规则加工作台的组件表。
 func TestPlanCompleteInComponentRepoLeavesBrickkitMd(t *testing.T) {

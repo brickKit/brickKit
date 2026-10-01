@@ -10,4 +10,4 @@ This project is assembled with [BrickKit](https://github.com/brickKit/brickKit):
 
 ## Components
 
-A component's documentation is `BRICKKIT.md` (translations `BRICKKIT.<lang>.md`) in its source directory when a local source holds this version, otherwise in `.brickkit/manifests/<id>/<version>/`; its contracts are in `.brickkit/artifacts/<service name>/` (the ID with `/` and `.` as `-`, then the version with `.` as `-`). To change a component, read its own `AGENTS.md`.
+A component's documentation is `BRICKKIT.md` (translations `BRICKKIT.<lang>.md`) in its source directory when a local source holds this version, otherwise in `.brickkit/manifests/<id>/<version>/`; its contracts are in `.brickkit/artifacts/<service name>/` (the ID and the version joined by `-`, with every `/` and `.` as `-`: `erp/backend` 1.0.0 → `erp-backend-1-0-0`). To change a component, read its own `AGENTS.md`.

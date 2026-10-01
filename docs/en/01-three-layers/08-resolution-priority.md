@@ -24,7 +24,8 @@ the value the component gets.
 `vars:`, then in `config/vars.yaml`. Neither has it — an error. A deploy file's `vars:` **only affects `$var:` lookups**:
 it never overrides a value you wrote directly in a component's config.
 
-**④ Not written (or written as `null` / `~`)**: the default declared in the component's `configSchema` is used.
+**④ Not written (or written as `null` / `~`)**: the default declared in the component's `configSchema` is used, as the
+text the author wrote: a `default: 1.10` arrives as `1.10`, not `1.1`.
 
 **Nothing at all**: an optional item isn't injected — the component sees "no such environment variable", not an empty
 string, and takes its own "not configured" path; a required item makes `up` stop and name what's missing.
@@ -78,7 +79,11 @@ it writes exactly two such lines on purpose, to make you decide; see
 ## What isn't part of this chain
 
 - **Process environment variables**: they take part only where you explicitly wrote `${VAR}`, and never quietly
-  override anything (see [Secrets](07-sensitive-values.md)).
+  override anything (see [Secrets](07-sensitive-values.md)). A `mode: local` process does start from your terminal's
+  environment (it needs your `PATH` and toolchain), but every name the platform owns — `COMPONENT_ID`, `PORT`, the
+  `*_ENDPOINT` addresses, the component's own `configSchema` keys and the rest — is removed from it first, so those
+  come only from the platform; see
+  [what a `mode: local` process inherits](../06-architecture/03-env-injection-contract.md#what-a-mode-local-process-inherits).
 - **Variables the platform injects itself**: `COMPONENT_ID`, `COMPONENT_VERSION`, dependencies' `*_ENDPOINT` and so on
   are the platform's call; when a config item has the same name, the platform's value wins and you get a warning. The
   full dictionary of variables is the [environment-variable contract](../06-architecture/03-env-injection-contract.md).

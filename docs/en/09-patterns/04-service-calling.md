@@ -104,8 +104,11 @@ unchanged on K8s.
 
 ## Calling a member inside a shell
 
-When a component you depend on is compiled into a shell, its versioned service name is a network alias of the shell's
-container on Docker, and on K8s a Service selecting the shell's Pod — the calling code doesn't change at all, and the
+When a component you depend on is compiled into a shell, the `*_ENDPOINT` you receive names the shell's service with the
+member's own port: `http://<shell service name>:<the member's port>` (see
+[The environment variable contract](../06-architecture/03-env-injection-contract.md#dependency-addresses)). The member's
+own versioned service name resolves to the shell too: a network alias of the shell's container on Docker, and on K8s a
+Service selecting the shell's Pod. The calling code — which reads the variable — doesn't change at all, and the
 conclusions above apply in full. The only difference: when the shell restarts, every member it hosts is unavailable at
 once, and callers see one and the same hiccup. How a shell hands requests to its members inside is covered in
 [Writing a shell](../04-shell/05-shell-development.md).

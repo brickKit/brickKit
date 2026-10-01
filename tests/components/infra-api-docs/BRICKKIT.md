@@ -7,7 +7,7 @@
 **负责**
 
 - 探测已安装组件的 `GET {地址}/openapi.json`，并把抓到的 OpenAPI 原文代理给浏览器
-- 通过 gRPC Reflection 列出组件的 gRPC 服务与方法（不需要 `.proto` 文件）
+- 通过 gRPC Reflection 列出组件的 gRPC 服务与方法（不需要 `.proto` 文件），在主端口或名为 `grpc` 的额外端口上
 - 给出每个组件的文档状态：`ok`、`absent`、`unreachable`、`no-docs`
 - 页面所需的 Swagger UI 静态资源（打进镜像，不从公网 CDN 加载）
 
@@ -35,7 +35,7 @@
 - `erp/backend`
 - `infra/redis-event-bus`
 
-对每个已注入地址的依赖，本组件两条路都试：取它主端口上的 `/openapi.json`，再在同一地址上用 gRPC Reflection 列服务；哪条通了就展示哪条，两条都通就都展示。某个依赖缺席或出故障，最坏也只是它自己那一行显示成相应状态，不影响其余几个。
+对每个已注入地址的依赖，本组件两条路都试：取它主端口上的 `/openapi.json`，再用 gRPC Reflection 列服务——依赖声明了名为 `grpc` 的额外端口（平台另注入 `<ID>_GRPC_ENDPOINT`，例如 `people/basic` 的 9090）时在那个端口上列，否则在主端口上列（HTTP 与 gRPC 共用一个端口的 `department/tree`）；哪条通了就展示哪条，两条都通就都展示。gRPC 开在别的名字的额外端口上的组件只展示它的 OpenAPI。某个依赖缺席或出故障，最坏也只是它自己那一行显示成相应状态，不影响其余几个。
 
 ## 配置指南
 

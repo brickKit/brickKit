@@ -1,6 +1,6 @@
 # demo/hello
 
-BrickKit 自测用的最小 HTTP 组件：回一句问候语，并回显自己拿到的环境变量。
+The smallest HTTP component for BrickKit's own self-tests; serves a greeting and echoes its environment variables
 
 ## 在项目里使用
 

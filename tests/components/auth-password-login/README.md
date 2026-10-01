@@ -1,6 +1,6 @@
 # auth/password-login
 
-校验用户名与口令并签发 JWT；身份来自 people/basic，不在这里另存一份。
+Checks a user name and password and issues a JWT; identities come from people/basic and are not stored again here
 
 ## 在项目里使用
 

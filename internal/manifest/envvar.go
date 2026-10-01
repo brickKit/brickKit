@@ -21,3 +21,10 @@ func EnvPrefix(id string) string {
 //
 // 弱依赖缺失时，CLI **完全不注入**该变量（不注入空字符串）。
 func EndpointEnvVar(id string) string { return EnvPrefix(id) + "_ENDPOINT" }
+
+// ExtraPortEndpointEnvVar 返回依赖组件某个额外端口的地址变量名：端口名按组件 ID 前缀同样的规则转换。
+//
+//	erp/api + admin-api → ERP_API_ADMIN_API_ENDPOINT
+func ExtraPortEndpointEnvVar(id, portName string) string {
+	return EnvPrefix(id) + "_" + EnvPrefix(portName) + "_ENDPOINT"
+}

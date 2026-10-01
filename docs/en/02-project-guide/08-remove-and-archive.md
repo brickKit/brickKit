@@ -41,7 +41,9 @@ brickkit remove demo/bus
 - when it's a shell, the members it hosted move back to the top level of the deploy file and run on their own.
 
 **A version is promoted to default.** When the default version is removed and one version of the component is left,
-that one becomes the new default, and its config file goes back to the name without a version:
+that one becomes the new default, and its config file goes back to the name without a version. When several versions
+would be left, `remove` can't decide which one becomes the default: it stops and asks you to remove the others first,
+or to make one of them the default with `brickkit upgrade`. With exactly one left:
 
 ```bash
 brickkit remove demo/hello@1.1.0
@@ -97,7 +99,11 @@ But first it checks that what's deleted could be recovered:
    2. If you are sure you do not need it: brickkit remove demo/hello --force
 ```
 
-Uncommitted changes, or commits not pushed to a remote, stop it. If you're sure you don't need them, add `--force`:
+Uncommitted changes, commits not pushed to a remote, or a directory that isn't a Git repository at all (its files
+have no other copy) stop it. A directory registered as a git submodule is never deleted, not even with `--force`:
+deleting the directory would leave `.gitmodules` and the index out of step, so the error lists the git commands
+(`git submodule deinit`, `git rm`) to remove it properly yourself. Otherwise, if you're sure you don't need them, add
+`--force`:
 
 ```text
 ➖ Removed demo/hello@1.0.0

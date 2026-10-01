@@ -6,7 +6,7 @@
 ## 完整示例
 
 ```yaml
-project: my-shop                  # 项目名：也是 Docker 网络与 K8s namespace 的名字
+project: my-shop                  # 项目名：Docker 网络叫 brickkit-my-shop-net，K8s namespace 缺省叫 brickkit-my-shop
 
 sources:                          # 去哪里找组件，按顺序依次尝试
   - name: org
@@ -39,8 +39,9 @@ installer:
 
 ## 项目名 `project`
 
-必填。只能用小写字母、数字和中划线，以字母或数字开头结尾——它会成为 Docker 网络
-（`brickkit-<project>-net`）与 Kubernetes namespace 的名字。
+必填。只能用小写字母、数字和中划线，以字母或数字开头结尾，最长 54 个字符——Docker 网络
+（`brickkit-<project>-net`）和缺省的 Kubernetes namespace（`brickkit-<project>`，部署文件里的 `k8s.namespace`
+可以改掉它）都由它命名。54 就是 Kubernetes namespace 的 63 个字符减去 `brickkit-` 前缀。
 
 ## 组件条目 `components[]`
 
@@ -50,7 +51,7 @@ installer:
 | `version` | ✅ | 精确版本 `主.次.补丁`；本地源的组件也写它 `component.yaml` 里的真实版本 |
 | `kind` | | 只有一个值 `shell`，标记外壳；由 `add` 按组件的 `component.yaml` 写上，`lint` 核对它与 Manifest 一致 |
 | `requiredBy` | | 这个版本只因这些组件依赖它才在项目里（见下面的"默认版本"） |
-| `source` | | 为这一个组件指定来源，不按安装源推导：`type`（`git` / `local`）加 `repo`（Git 地址）或 `path`（本机目录，相对项目根） |
+| `source` | | 为这一个组件指定来源，不按安装源推导：`type`（`git` / `local`）；`git` 写 `repo`（Git 地址），可选再写 `path`（组件在这个仓库里的子目录，用于 monorepo，不能指到仓库外面）；`local` 写 `path`（本机目录，相对项目根） |
 
 ### 精确版本：它就是锁文件
 

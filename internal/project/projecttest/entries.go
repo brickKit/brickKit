@@ -28,6 +28,7 @@ type Entry struct {
 	ServiceAccountName string
 	Resources          *manifest.Resources
 	Labels             map[string]string
+	SkipWaitFor        []string
 	Config             map[string]any
 	ServedBy           string
 	// Shell 让这个组件即使一个成员都没有也标成 kind: shell。
@@ -88,7 +89,7 @@ func Render(t testing.TB, spec Spec) Files {
 			ID: e.ID + "@" + e.Version, Mode: e.Mode, LocalPort: e.LocalPort,
 			Expose: e.Expose, ExposePort: e.ExposePort, Hostname: e.Hostname, TLSSecret: e.TLSSecret,
 			Replicas: e.Replicas, ServiceAccountName: e.ServiceAccountName,
-			Resources: e.Resources, Labels: e.Labels,
+			Resources: e.Resources, Labels: e.Labels, SkipWaitFor: e.SkipWaitFor,
 		}
 		if e.ServedBy != "" {
 			shell, _, _ := manifest.SplitRef(e.ServedBy)
@@ -119,7 +120,7 @@ func Render(t testing.TB, spec Spec) Files {
 			ID: e.ID + "@" + e.Version, Mode: e.Mode, LocalPort: e.LocalPort,
 			Expose: e.Expose, ExposePort: e.ExposePort, Hostname: e.Hostname, TLSSecret: e.TLSSecret,
 			Replicas: e.Replicas, ServiceAccountName: e.ServiceAccountName,
-			Resources: e.Resources, Labels: e.Labels,
+			Resources: e.Resources, Labels: e.Labels, SkipWaitFor: e.SkipWaitFor,
 		}, Members: members[e.ID]})
 	}
 	deployDoc := mustYAML(t, deploy)

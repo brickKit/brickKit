@@ -29,8 +29,8 @@ In a project directory (with a `brickkit.yaml`), it checks in turn:
 | The structure of the deploy files | Unknown fields (typos), `mode: debug` in `deploy.yaml`, `localPort` without `mode`, host port conflicts |
 | Whether the three layers agree | Exactly one deploy entry per component version; shell members nested under their shell; `config/` files matching components |
 | References in `config/` | Every `$var:` defined; no conflict blocks (duplicate keys) left by an upgrade |
-| Config against `configSchema` | Required items have values; written keys are in the schema (a mistyped key has no effect); shell members' values can go into the shell |
-| Shell declarations | `kind: shell` in `brickkit.yaml` agrees with the component's `shell` block; members nested under a shell are really compiled into it |
+| Config against `configSchema` | Required items have values; written keys are in the schema (a mistyped key has no effect); shell members' values can go into the shell. For every component version whose `component.yaml` is on disk (in `.brickkit/manifests/` or a local source holding that version); the rest are listed in a note as not checked |
+| Shell declarations | `kind: shell` in `brickkit.yaml` agrees with the component's `shell` block; members nested under a shell are really compiled into it (likewise only where the `component.yaml` is on disk) |
 | `component.yaml` files in local sources | Every one, added or not (`.archived/` excluded) |
 | Documents | The project's `AGENTS.md` and `CLAUDE.md` (`./ (docs)`), and the docs of every component in a local source; see [Documentation checks](#documentation-checks) |
 
@@ -76,7 +76,7 @@ where you run it:
 | Where | Documents checked |
 | --- | --- |
 | A component repository | The component's `BRICKKIT.md` (and its translations), `AGENTS.md`, `CLAUDE.md`, `README.md`, and `docs/` when there is one |
-| A project | The project's `AGENTS.md` and `CLAUDE.md`, an old project map `BRICKKIT.md` left at the root, and the documents of every component in a local source |
+| A project | The project's `AGENTS.md` and `CLAUDE.md`, the links in its `README.md`, an old project map `BRICKKIT.md` left at the root, and the documents of every component in a local source |
 | A workbench | The component's documents, as in a component repository |
 
 Each set of documents is one line in the report — `✅ ./ (docs)` for the project, `✅ components/demo/hello/ (docs)` for
@@ -170,6 +170,7 @@ brickkit up --dry-run -f deploy.prod.yaml
 
 - `lint --strict` as a gate: structural errors, undefined references and documentation warnings are stopped before
   merging. CI needs the values of those `${VAR}` (or drop `--strict` for a structure-only step).
-- Check each environment's deploy file with `-f`: by default only `deploy.yaml` is checked.
+- Check each environment's deploy file with `-f`: by default only `deploy.yaml` (and `deploy.local.yaml`, if present)
+  is checked, never `deploy.prod.yaml`.
 - Add an `up --dry-run` step to check dependency resolution too — it needs access to the install sources, but not to the
   cluster.

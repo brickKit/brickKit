@@ -183,7 +183,9 @@ from your working copy — the code you change is what `brickkit build` puts int
 
 Wherever you run it inside the project — even in another component's directory — `add` works on the project, so the
 clone always lands in the project's own `components/`: component source lives in one place (see
-[Developing inside the project](04-focus-run.md#one-components)).
+[Developing inside the project](04-focus-run.md#one-components)). The exception is a component directory with a
+`brickkit.yaml` of its own (a [workbench](04-focus-run.md#focus-run-or-workbench)): there the nearest `brickkit.yaml`
+wins, so `add` works on the workbench, and `--repo` is refused because it would clone a second copy inside the project.
 
 **Git submodules are never fetched.** The clone leaves them as empty directories and says which:
 

@@ -37,9 +37,10 @@ DATABASE_PASSWORD: $var:PG_PASSWORD
 DATABASE_NAME: people            # a value only this component uses: write it directly
 ```
 
-`$var:NAME` must be the **whole value**: `$var:PG_HOST:5432` is not valid. To build a value out of several pieces, use a
-`${VAR}` template (`jdbc:postgresql://${PG_HOST}:5432/people`), which can sit inside a string — note that `${…}` looks
-up the process environment and `.env`, not shared variables.
+`$var:NAME` must be the **whole value**: `$var:PG_HOST:5432` is not valid. When the whole string is shared, make it a
+shared variable of its own (`PG_URL: jdbc:postgresql://pg.internal:5432/people` in `config/vars.yaml`) and write
+`$var:PG_URL`. A `${VAR}` template (`jdbc:postgresql://${PG_HOST}:5432/people`) can sit inside a string — but note that
+`${…}` looks up the process environment and `.env`, not shared variables, so `PG_HOST` has to be defined there.
 
 ## Three ways to reference a value
 

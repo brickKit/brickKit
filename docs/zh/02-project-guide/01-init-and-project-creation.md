@@ -20,10 +20,16 @@ brickkit init my-shop
    📄 CLAUDE.md            @AGENTS.md：Claude Code 通过它读 AGENTS.md
    📁 .claude/skills/      AI 助手技能（5 个）
    💡 组件源码要跟项目一起进 Git 的话：brickkit init --hooks 装上提交前检查
+
+下一步：
+  cd my-shop
+  brickkit add --local                     把 components/ 下的组件全加进来
+  brickkit add <scope>/<name>@<version>    从安装源添加组件（先在 brickkit.yaml 的 sources: 里启用一个）
+  brickkit up                              一键启动
 ```
 
-项目名只能用小写字母、数字和中划线，以字母或数字开头结尾——它会成为 Docker 网络（`brickkit-my-shop`）和 Kubernetes
-命名空间的名字。
+项目名只能用小写字母、数字和中划线，以字母或数字开头结尾，最长 54 个字符——Docker 网络（`brickkit-my-shop-net`）和缺省的
+Kubernetes 命名空间（`brickkit-my-shop`）都由它命名。
 
 生成的 `brickkit.yaml` 已经声明了两个**本地安装源**，另外两种安装源写成了注释，取消注释、填上地址就能用：
 
@@ -110,7 +116,7 @@ brickkit init
    ✅ 创建  components/
    ✅ 创建  AGENTS.md
    ✅ 创建  CLAUDE.md
-   ⚠️  .gitignore 缺少：.brickkit/、deploy.local.yaml、deploy.local.yaml.bak、.secrets/、.env、config/.archive/、components/（不替你改——请自己补上）
+   ⚠️  .gitignore 缺少：.brickkit/、deploy.local.yaml、deploy.local.yaml.bak、.secrets/、.env、config/.archive/（不替你改——请自己补上）
 继续？[y/N] 
 ```
 
@@ -119,7 +125,9 @@ brickkit init
 - **已有的 `.gitignore` 只校验、不修改。** 缺的每一条都大声警告：缺了它们，个人部署文件和密钥会被提交。它不替你改，是因为那份文件是你的，
   里面可能有它看不懂的规则。
 - **`--yes` 跳过确认**（计划照样打印出来），给 CI 用。
-- **项目名**取 `--name`，否则沿用已有 `brickkit.yaml` 的 `project`，否则取目录名。
+- **项目名**取 `--name`，否则沿用已有 `brickkit.yaml` 的 `project`，否则取目录名。`--name` 与已有 `brickkit.yaml`
+  的 `project` 矛盾时直接拒绝（补全从不改已有文件）；目录名不是合法项目名时，能规整就规整（`My_Shop` → `my-shop`），
+  规整不了就停下，让你用 `--name` 指定。
 - **最后按 `up` 的方式装载一遍项目**；装载不了，命令就失败——补全出来的必须是能用的项目。
 
 ```bash
@@ -136,7 +144,7 @@ brickkit init --yes
    ✅ 创建  components/
    ✅ 创建  AGENTS.md
    ✅ 创建  CLAUDE.md
-   ⚠️  .gitignore 缺少：.brickkit/、deploy.local.yaml、deploy.local.yaml.bak、.secrets/、.env、config/.archive/、components/（不替你改——请自己补上）
+   ⚠️  .gitignore 缺少：.brickkit/、deploy.local.yaml、deploy.local.yaml.bak、.secrets/、.env、config/.archive/（不替你改——请自己补上）
 ✅ 项目已补全：legacy-shop
 ⚠️ 警告：.gitignore 缺少必需条目——个人部署文件和密钥可能被提交
    文件：.gitignore
@@ -167,7 +175,8 @@ brickkit up
 ```
 
 `.brickkit/` 不在仓库里，但它只是缓存：第一次运行时，CLI 按 `brickkit.yaml` 从安装源重新取回每个组件的
-`component.yaml` 和契约文件。`components/` 同样不在仓库里——`up` 只需要组件的 `component.yaml`，不需要源码；
+`component.yaml`（连同它的 `BRICKKIT.md`）。契约文件（OpenAPI 之类）`up` 不会去取；只有写调用方代码时才用得到，
+用 `brickkit fetch <id>@<版本>` 把它们下载到 `.brickkit/artifacts/`。`components/` 同样不在仓库里——`up` 只需要组件的 `component.yaml`，不需要源码；
 要改哪个组件的代码，再用 `brickkit add <id>@<版本> --repo` 把它克隆下来（见 [添加组件](02-add-and-component-install.md#克隆源码--repo--repo-all)）。
 `build` 那一步只在组件需要本机构建镜像时才有事可做，见 [构建与镜像](12-build-and-images.md)。
 
@@ -189,7 +198,8 @@ my-shop/
 ```
 
 - **`components/`** 放组件源码。每个组件是一个独立的 Git 仓库，按 `<scope>/<name>/` 摆放——本地源就按这个布局扫描。
-  想让组件源码跟项目一起进版本库，把 `components/` 从 `.gitignore` 去掉，并用 `brickkit init --hooks` 装上提交前检查。
+  想让组件源码跟项目一起进版本库，把 `components/` 从 `.gitignore` 去掉，并用 `brickkit init --hooks` 装上提交前检查
+  （见 [提交前检查](11-sync-and-restore.md#提交前检查)）。
 - **`shell/`** 放外壳：把几个组件编进一个进程的组件（见 [外壳机制](../04-shell/README.md)）。外壳是这个项目自己的代码，随项目提交。
 - **`config/`** 放每个组件的配置，一个组件一个文件（见 [config/ 目录](../01-three-layers/05-config-directory.md)）。
 
@@ -197,7 +207,8 @@ my-shop/
 
 `AGENTS.md` 是 AI 编程工具打开一个仓库时最先读的文件——这是各家工具共用的约定，不是 BrickKit 发明的。Claude Code 读的是
 `CLAUDE.md`，所以 `init` 还会写一份只有一行 `@AGENTS.md` 的 `CLAUDE.md`，让 Claude Code 读到同一份文件。两份都是缺了才建；
-已经有的文件，`init` 不会改写。
+已经有的文件，`init` 只动 `AGENTS.md` 末尾由 brickkit 维护的那一段，别处一字不改（见 [哪些命令会动它](#哪些命令会动它)；
+唯一的例外是旧版本留下、没人改过的 `AGENTS.md`，见 [下文](#旧版本建的项目原来那份-brickkitmd)）。
 
 好处：团队里每个人不管用哪个 AI 工具，都从同一页开始读，而这一页跟着项目进 Git。代价：团队要多维护一份"得保持属实"的文件——
 一份还在描述去年那个项目的 `AGENTS.md`，会误导每一个读它的 AI。
@@ -255,7 +266,7 @@ my-shop/
 
 ```text
 ⚠️ AGENTS.md 里没有可用的、由 brickkit 维护的一段，组件表不会自动更新
-   原因：no brickkit-maintained block
+   原因：没有由 brickkit 维护的那一段
    建议：运行 brickkit skills update 把它加上（明确要求才加：别的命令不改你的文件）
 ⚠️ CLAUDE.md 里没有 @AGENTS.md，Claude Code 不会读 AGENTS.md
    建议：运行 brickkit skills update 把它加上（明确要求才加：别的命令不改你的文件）

@@ -88,7 +88,7 @@ affects no one. One thing the trick doesn't cover: addresses you wrote by hand i
 | **Mixed** | [9. Everyday development once shells are in use](#9-mixed--manual-processes) | [10. Where most real projects end up](#10-mixed--docker) | [11. The middle ground on resources](#11-mixed--k8s) | [12. The combination closest to real development](#12-mixed--docker--local-processes) |
 
 There's no 13th cell "K8s + local processes": `mode: debug` / `mode: local` meeting `target: k8s` in a deploy file is
-refused while loading, with the component named in the error.
+refused while loading, the error pointing at the offending entry (`components[N].mode`).
 
 ### 1. All standalone × manual processes
 
@@ -145,7 +145,8 @@ the least work.
 
 **What it is**: everything is a real container except the components you marked `mode: debug` or `mode: local`. The
 platform makes the other containers resolve that component's versioned service name to your machine (`extra_hosts` pointing
-at `host-gateway`); callers get exactly the same address string — only where the name resolves changes.
+at `host-gateway`). Callers keep the same service name — `extra_hosts` only changes where it resolves — and the port
+becomes your `localPort`, which by default is the component's declared port, so often nothing in the address changes.
 
 **When**: you want "the rest is real" and also "no image rebuild for changing this one component". It's only a
 development-time overlay; it doesn't decide the production topology.
@@ -183,8 +184,9 @@ fed in, worth practising on purpose in this cell.
 ### 6. All in shells × Docker
 
 **What it is**: as many components as possible compiled into a few shells; one Compose service per shell, and members
-generate no service container of their own. The member addresses callers get are still the members' own versioned service
-names — network aliases of the shell's container, with no caller code changing.
+generate no service container of their own. A caller's `*_ENDPOINT` for a member points at the shell:
+`http://<shell service name>:<the member's own port>`. The members' versioned service names are also kept as network
+aliases of the shell's container, so caller code — which reads the variable anyway — doesn't change.
 
 **When**: when the memory sum of cell 2 really doesn't work out — not before. Before doing it, try cheaper things first:
 give the expensive components a lighter runtime (compiling JVM components into GraalVM native images drops the memory floor
@@ -201,8 +203,11 @@ built very carefully) and a unit of scaling (one member can't get extra replicas
 - Members' migrations **are still run by the platform**: with the member's own image and config, and the shell starts only
   once they succeeded (see [Migrations and shells](../05-migration/04-shell-interaction.md)). So every member must have an
   image of its own.
-- Which members a shell image really compiles in is checked by `up` against the image's label, and a mismatch stops it
-  (`IMAGE_STALE`), rather than a shell missing a member quietly starting.
+- For a shell image built on this machine, `brickkit build` records in a label which member versions it compiled in, and
+  `up` compares that label with `shell.members` in the shell's `component.yaml`: a mismatch stops it (`IMAGE_STALE`),
+  rather than a shell missing a member quietly starting. An image without the label (built by hand) only gets a warning
+  (`IMAGE_UNVERIFIED`); pulled images aren't checked — a released version's image matches its `component.yaml` by
+  construction.
 - Fields on a member entry describing "how its own container is deployed" (`expose`, `replicas`, `resources` and so on) do
   nothing inside a shell; they're kept for when the member falls back to a standalone component.
 - Merging can create a start wait cycle; `up` stops it and gives three ways out (see

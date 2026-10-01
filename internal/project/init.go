@@ -339,28 +339,32 @@ func ioError(action, path string, cause error) error {
 type gitignoreSection struct {
 	comment string
 	rules   []string
+	// optional 的一组只是新项目的默认：已有 .gitignore 没写它不算缺
+	optional bool
 }
 
 // RequiredGitignore 是一个项目的 .gitignore 必须有的条目：
 // 漏了任何一条，个人文件或密钥就会被提交。补全式 init 拿它做校验。
-// 组件仓库里的工作台没有 components/，也就不要求忽略它。
+// components/ 不在其中：新项目默认忽略它，但把组件源码随项目提交是团队可以选的做法。
 func RequiredGitignore(workbench bool) []string {
 	var rules []string
 	for _, s := range gitignoreSections(workbench) {
-		rules = append(rules, s.rules...)
+		if !s.optional {
+			rules = append(rules, s.rules...)
+		}
 	}
 	return rules
 }
 
 func gitignoreSections(workbench bool) []gitignoreSection {
 	sections := []gitignoreSection{
-		{i18n.T(msgid.ProjectGitignoreBrickkit), []string{DirBrickkit + "/"}},
-		{i18n.T(msgid.ProjectGitignoreLocalDeploy), []string{FileDeployLocal, FileDeployLocalBackup}},
-		{i18n.T(msgid.ProjectGitignoreSecrets), []string{DirSecrets + "/", FileDotEnv}},
-		{i18n.T(msgid.ProjectGitignoreConfigArchive), []string{DirConfig + "/" + DirConfigArchive + "/"}},
+		{i18n.T(msgid.ProjectGitignoreBrickkit), []string{DirBrickkit + "/"}, false},
+		{i18n.T(msgid.ProjectGitignoreLocalDeploy), []string{FileDeployLocal, FileDeployLocalBackup}, false},
+		{i18n.T(msgid.ProjectGitignoreSecrets), []string{DirSecrets + "/", FileDotEnv}, false},
+		{i18n.T(msgid.ProjectGitignoreConfigArchive), []string{DirConfig + "/" + DirConfigArchive + "/"}, false},
 	}
 	if !workbench {
-		sections = append(sections, gitignoreSection{i18n.T(msgid.ProjectGitignoreComponents), []string{DirComponents + "/"}})
+		sections = append(sections, gitignoreSection{i18n.T(msgid.ProjectGitignoreComponents), []string{DirComponents + "/"}, true})
 	}
 	return sections
 }

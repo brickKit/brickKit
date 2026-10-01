@@ -1,6 +1,6 @@
 # department/tree
 
-Go 写的部门树查询组件，HTTP 与 gRPC 共用 8080 端口，只依赖一个 PostgreSQL。它也是 BrickKit 仓库自带的平台验证夹具：单端口双协议、gRPC 反射、迁移、契约产物都靠它验证。
+Go 写的部门树查询组件，HTTP 与 gRPC 共用 8080 端口，只依赖一个 PostgreSQL。它也是 BrickKit 仓库自带的平台验证夹具：单端口双协议、gRPC 反射、迁移、契约产物都靠它验证。怎么用、边界和契约见 `BRICKKIT.md`；依赖、配置、部署见 `component.yaml`。
 
 ## 代码地图
 

@@ -47,7 +47,7 @@ components:
 | --- | --- |
 | `brickkit local on` | 开启本地模式；没有 `deploy.local.yaml` 时从 `deploy.yaml` 复制一份，有就接着用 |
 | `brickkit local off` | 关闭本地模式；**不删**文件，下次 `on` 接着用 |
-| `brickkit local status` | 开关状态、文件在不在、与 `brickkit.yaml` 是否一致 |
+| `brickkit local status` | 开关状态、文件在不在，以及（本地模式开着时）与 `brickkit.yaml` 是否一致 |
 | `brickkit local refresh` | 按当前的 `deploy.yaml` 重新生成，旧文件备份为 `deploy.local.yaml.bak`，并列出旧文件里的每一处本地修改 |
 
 开关状态记在 `.brickkit/` 里，只属于这台机器。
