@@ -17,15 +17,16 @@ my-shop/
 │   └── .archive/          config archived by remove, restored by a later add (not in Git by default)
 ├── components/            a local install source: component source (each its own Git repository, not in the project's Git by default)
 ├── shell/                 a local install source: shell components
-├── BRICKKIT.md            the project map: which components, where each one's docs are
+├── AGENTS.md              the project's AI guide; the table of components at its end is maintained by the CLI (in Git)
+├── CLAUDE.md              one line, @AGENTS.md, so Claude Code reads AGENTS.md too (in Git)
+├── .claude/skills/        the AI assistant skills, brickkit-* (in Git)
 ├── .env                   this machine's environment values, where ${VAR} is looked up (not in Git)
 ├── .secrets/              secret files referenced with file:// (not in Git)
 └── .brickkit/             the CLI's caches and generated files (not in Git)
-    ├── manifests/         each component version's component.yaml and BRICKKIT.md (permanent cache)
+    ├── manifests/         each component version's component.yaml, BRICKKIT.md and its translations (permanent cache)
     ├── artifacts/         downloaded contract files
     ├── generated/         the generated compose.yaml / Kubernetes manifests / 0600 env files
-    ├── local-mode         the state of the local-mode switch
-    └── skills.lock        which versions of the AI assistant skills are installed in the project
+    └── local-mode         the state of the local-mode switch
 ```
 
 ## Which file each kind of information belongs in
@@ -61,7 +62,8 @@ one file and in the end everyone edits it and no one can read it — that's the 
 | How a component is deployed this time | `deploy.local.yaml` when local mode is on, otherwise `deploy.yaml`; if the command was given `-f`, that file |
 | Which environment variables a component gets | `config/<component>.yaml`; values its `$var:` references point to are in `config/vars.yaml` or the deploy file's `vars:` |
 | What config a component needs and what it depends on | Its `component.yaml`: under `.brickkit/manifests/<scope>/<name>/<version>/`, or in the source directory for a local-source component |
-| How to use a component | Its `BRICKKIT.md`, in the same place |
+| How to use a component | Its `BRICKKIT.md` (translations as `BRICKKIT.<lang>.md`), in the same place |
+| The team's conventions, and which components the project has with where their docs are | `AGENTS.md` at the project root: the author's sections, then the component table |
 
 **Why there is no "merged view" command** (one command folding the three layers into one for you to look at): it would
 be a fourth thing to understand and to trust, and one day it would disagree with the files that actually take effect.
@@ -78,7 +80,8 @@ don't merge everything". What really gets generated (`compose.yaml`, Kubernetes 
 | `config/` (including `vars.yaml`) | ✅ | Configuration is part of the project; don't write secrets into it directly — use `${VAR}` or `file://` |
 | `config/.archive/` | ❌ | Old config of removed components, kept only to restore on a later `add`; it belongs to this machine |
 | `components/` | ❌ (by default) | Each component in it is its own Git repository with its own history; to commit source with the project, `brickkit init --hooks` installs a pre-commit check |
-| `BRICKKIT.md` | ✅ | The project map, for people and AIs |
+| `AGENTS.md`, `CLAUDE.md` | ✅ | The project's AI guide, written by the team; the component table at the end holds only facts that are the same on every machine |
+| `.claude/skills/` | ✅ | The AI assistant skills; each file ends with a line recording which CLI version wrote it, so a teammate's fresh clone can tell whether it was edited |
 | `deploy.local.yaml` | ❌ | Your temporary personal way of deploying ("I'm debugging this component"), not a team decision |
 | `.env`, `.secrets/` | ❌ | This machine's secrets and environment values, and the secret files `file://` refers to |
 | `.brickkit/` | ❌ | Caches and generated files, which the CLI can fetch or regenerate at any time |

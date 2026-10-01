@@ -74,9 +74,14 @@ components:
 
 不填就 `up`，`up` 会拒绝启动并告诉你缺哪一项。
 
+**`.brickkit/manifests/<id>/<version>/`**：组件的 `component.yaml` 和它的文档——`BRICKKIT.md` 连同它带的每一份译本
+（`BRICKKIT.zh.md` 之类），永久缓存；本地源、Git 源、市场都一样。
+
 **`.brickkit/artifacts/`**：组件声明的契约文件（OpenAPI、proto 之类），写调用方时用得上。
 
-**`BRICKKIT.md`**：项目地图里的组件表跟着更新。
+**`AGENTS.md`**：末尾的组件表（由 CLI 维护的那一段）给每个加进来的组件添一行：版本、干什么、带了哪些文档、主页
+（见 [项目的 `AGENTS.md`](01-init-and-project-creation.md#项目的-agentsmd)）。那一段之外的内容不动；没有那一段的 `AGENTS.md`
+原样不动。
 
 改完之后项目装载不了（比如新组件与已有的冲突），`add` 把改过的文件全部还原——要么全做，要么一个都不改。
 

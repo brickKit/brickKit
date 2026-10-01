@@ -383,7 +383,8 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 
 `brickkit lint` 会机械地检查组件的文档和项目的 `AGENTS.md`（见[组件的文档](../03-component-guide/08-component-doc-spec.md)）。
 下面每一条都只是警告：从不拦下 `up` 和 `release`，只有 `lint --strict` 才把它算成失败（`LINT_FAILED`）——给想让 CI 守住的团队用。
-每条警告都点名文件，有行号的带上行号。
+每条警告都点名文件，有行号的带上行号。加上 `--log-level info` 时，每条查出的问题还会输出一行 JSON 日志，带着它的 `error_code` 与 `file`，
+给要区分它们的脚本用。
 
 ### DOC_FILE_MISSING
 

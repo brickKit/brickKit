@@ -19,7 +19,8 @@ messages — this page is enough. Every term points to the page that explains it
 | **Shell** | A component that compiles several components into **one process**, to save memory and CPU; see [Shells](../04-shell/README.md) |
 | **Member** | A component hosted by a shell; it has no container of its own but still has its own config and migrations |
 | **Fractal structure** | A component is a project while you develop it and a black box when someone uses it; see [The fractal structure](06-fractal-architecture.md) |
-| **`BRICKKIT.md`** | Documentation for people and AIs: the one in a component repository explains how to use that component; the one at the project root lists the project's components and where their docs are |
+| **`BRICKKIT.md`** | A component's documentation for the people and AIs who use it: what it owns, what to prepare, what its config means, its contracts. It travels with every version (translations as `BRICKKIT.<lang>.md`) and is cached into the projects that use it; see [A component's documentation](../03-component-guide/08-component-doc-spec.md) |
+| **`AGENTS.md`** | The guide an AI coding tool reads first (`CLAUDE.md` holds `@AGENTS.md` so Claude Code reads it too). A project's `AGENTS.md` holds the team's conventions and ends with a table of the project's components, kept up to date by the CLI; a component's `AGENTS.md` is for whoever develops that component; see [Creating a project](../02-project-guide/01-init-and-project-creation.md#the-projects-agentsmd) |
 | **Local mode** | After `brickkit local on`, every command reads the personal `deploy.local.yaml` instead; see [Local debugging](../02-project-guide/03-local-debug-workflow.md) |
 
 ## The naming rules everything builds on

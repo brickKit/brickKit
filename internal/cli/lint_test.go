@@ -395,5 +395,18 @@ func TestLintProjectChecksItsOwnAgentsMd(t *testing.T) {
 	r := runIn(t, f.Dir, "lint")
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "the \"Overview\" (项目概述) section is missing")
-	assert.Contains(t, r.stdout, "no usable brickkit block")
+	assert.Contains(t, r.stdout, "no usable block maintained by brickkit")
+}
+
+// 每条查出的问题都以一行 info 级的 JSON 日志带上 error_code 与文件：脚本据此区分各类问题；
+// 默认的 warn 级别下不出现，人看到的输出不多一行。
+func TestLintLogsEachFindingWithItsCode(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, comp{ID: "demo/quote", Version: "0.1.0", NoDocs: true}.files())
+	r := runWithLogs(t, dir, "lint")
+	assert.Contains(t, r.stderr, `"error_code":"DOC_FILE_MISSING"`)
+	assert.Contains(t, r.stderr, `"file":"BRICKKIT.md"`)
+
+	quiet := runIn(t, dir, "lint")
+	assert.NotContains(t, quiet.stderr, "DOC_FILE_MISSING")
 }

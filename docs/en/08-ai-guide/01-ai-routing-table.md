@@ -8,7 +8,8 @@ the top.
 | To find out | Read |
 | --- | --- |
 | Which components the project uses, each at which version, and where they come from | `brickkit.yaml` |
-| Where each component's docs and contracts are | `BRICKKIT.md` at the project root (the table the CLI maintains) |
+| What the project is, the conventions every component follows, where to look, the pitfalls | `AGENTS.md` at the project root: the sections the team writes |
+| Which components exist, what each does, where its docs and contracts are | The component table at the end of the project's `AGENTS.md` (the block the CLI maintains) |
 | Who depends on whom | `brickkit deps` (it's not in `brickkit.yaml`) |
 | Where it's deployed, which components run, how they run | The deploy file in effect: `brickkit local status` tells you whether it's `deploy.yaml` or `deploy.local.yaml` |
 | The config values a component gets | `config/<component>.yaml` (`config/<component>@<version>.yaml` for a compatibility version); for `$var:` references, `config/vars.yaml` and the deploy file's `vars:` |
@@ -20,13 +21,14 @@ the top.
 
 | To find out | Read |
 | --- | --- |
-| What it is, how to configure it, what it depends on | `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md` |
+| What it owns and doesn't, what to prepare, how to configure it, what it depends on | `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md` (a translation `BRICKKIT.<lang>.md` sits next to it when the component carries one) |
 | Its config items, defaults, which are required | `configSchema` in the `component.yaml` in the same directory |
 | Its interface | The contract files under `.brickkit/artifacts/<versioned service name>/` |
 | What its address variable is called | Derive it by the rule: `demo/hello` → `DEMO_HELLO_ENDPOINT` |
 
 When a component's source is cloned under `components/` (a local source), its `BRICKKIT.md` and `component.yaml` are in
-that directory, and they're the newest ones.
+that directory, and they're the newest ones. To **change** that component, its own `AGENTS.md` is there too: the code
+map, how to build and test, the design decisions.
 
 ## What not to read
 
@@ -36,14 +38,17 @@ that directory, and they're the newest ones.
 | `components/.archived/` | Source of components not running this time; `sync` moved them there precisely so you needn't care |
 | The `brickkit.yaml`, `deploy.yaml` and `config/` in a component repository | That's the component author's local workbench, unrelated to the project using the component |
 | `~/.cache/brickkit/repos/` | The bare-repository cache, for the CLI |
-| `.brickkit/` state files outside `.brickkit/generated/` | `last-run`, `skills.lock` and the like are the CLI's internal records |
+| `.brickkit/` state files outside `.brickkit/generated/` | `last-run`, `local-mode` and the like are the CLI's internal records |
 | `config/.archive/` | Old config of removed components |
 
 ## When to read
 
-- **Before starting a task**: the project root's `BRICKKIT.md` (one table tells you which components exist) and
-  `brickkit.yaml`.
-- **When using or changing a component**: its `BRICKKIT.md`, `component.yaml` and contracts.
+- **Before starting a task**: the project root's `AGENTS.md` (the team's conventions, and one table at its end tells you
+  which components exist) and `brickkit.yaml`.
+- **When using a component**: its `BRICKKIT.md`, `component.yaml` and contracts.
+- **When changing a component's code**: also its own `AGENTS.md`, in its source directory.
+- **When a new requirement arrives**: [Judging and planning a requirement](03-judging-a-requirement.md), before writing
+  anything.
 - **When changing how things are deployed**: `brickkit local status` first, to confirm which deploy file to change.
 - **After acting**: `brickkit lint` (structure) and `brickkit up --dry-run` (dependencies and generation) — let the CLI tell
   you whether it's right, instead of inferring it from reading code.

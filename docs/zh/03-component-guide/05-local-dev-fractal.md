@@ -6,7 +6,7 @@
 BrickKit 的做法是**分形**的：一个组件在开发时，它自己的仓库就是一个完整的 BrickKit 项目——有 `brickkit.yaml`、部署文件、`config/`，
 里面列着它的依赖。这份项目只属于作者，叫**本地联调工作台**。
 
-使用方完全看不到它：别人 `add demo/quote` 时，CLI 只读你发布的那个 tag 里的 `component.yaml` 和 `BRICKKIT.md`，
+使用方完全看不到它：别人 `add demo/quote` 时，CLI 只读你发布的那个 tag 里的 `component.yaml` 和 `BRICKKIT.md`（连同译本），
 按 `component.yaml` 的 `dependencies` 在**他自己的项目里**解析依赖树。
 
 ## 在组件仓库里建工作台
@@ -58,6 +58,15 @@ brickkit add demo/hello@1.1.0
 ```
 
 这时 `brickkit up` 就能在本地把依赖跑起来。
+
+## 工作台的 `AGENTS.md`
+
+工作台只有**一份** `AGENTS.md`：组件自己的那份。`init` 不动它的各节（代码地图、构建与测试、设计取舍、易错点、改代码前自查），
+只改写末尾由 CLI 维护的那一段。在工作台里，这一段装两样东西：原来就有的组件规则，加上工作台的组件表——`add` 依赖时跟着填，
+写明每个依赖的文档缓存在哪（`.brickkit/manifests/<id>/<version>/`）。
+
+这样在仓库里干活的 AI 在一份文件里就能读到：这个组件怎么构建、哪些东西不能弄坏，以及它连着哪些依赖跑、去哪读它们的文档。
+不会再有第二份带"项目概述""项目约定"的项目式 `AGENTS.md`：工作台不是给别人装配的项目。
 
 ## 把组件自己也加进来
 
@@ -148,7 +157,7 @@ curl http://localhost:8080/api/v1/quote
 | --- | --- | --- |
 | `up`、`add`、`down`、`status`…… | 项目（你的工作台） | `brickkit.yaml`、部署文件、`config/` |
 | `release` | 组件 | 只读 `component.yaml`，工作台里的一切都不参与 |
-| `lint` | 项目 | 工作台的三层文件，外加仓库根的 `component.yaml` |
+| `lint` | 项目 | 工作台的三层文件，外加仓库根的 `component.yaml` 和组件的文档 |
 
 这保证了发布的纯粹：你在工作台里临时加的组件、调的配置，不会混进发布出去的版本。
 

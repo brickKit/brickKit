@@ -34,14 +34,21 @@ artifacts:
 The platform doesn't understand `type` or `format`, nor does it parse the contract's content — it only delivers `files`
 to users as they are. So you can hand over a contract in any format.
 
-When a user `add`s your component, these files land in their project under `.brickkit/artifacts/<versioned-service-name>/<type>/`,
-and the project map `BRICKKIT.md` lists the path:
+A convention, not a rule: for the format of the events a component publishes or consumes, use `type: event-contract`
+(with a `format` such as `asyncapi` or `json-schema`), next to the `api-contract` for its calls. A reader then tells the
+two apart at a glance, and the Contracts section of `BRICKKIT.md` can say which events go out and which come in. The
+platform still treats `event-contract` as just another string.
+
+When a user `add`s your component, these files land in their project under `.brickkit/artifacts/<versioned-service-name>/<type>/`.
+The project's `AGENTS.md` doesn't list a path per component: the block the CLI maintains at its end states the rule
+once —
 
 ```text
-| demo/quote | 0.1.0 | `.brickkit/manifests/demo/quote/0.1.0/BRICKKIT.md` | `.brickkit/artifacts/demo-quote-0-1-0/` |
+its contracts are in `.brickkit/artifacts/<service name>/` (the ID with `/` and `.` as `-`, then the version with `.` as `-`)
 ```
 
-The directory name carries the version: which version of the contract a caller's client was written against is visible at
+— so `demo/quote@0.1.0`'s contract is in `.brickkit/artifacts/demo-quote-0-1-0/api-contract/`. The directory name
+carries the version: which version of the contract a caller's client was written against is visible at
 a glance.
 
 ## What goes into a contract

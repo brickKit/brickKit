@@ -353,8 +353,9 @@ What each idea is, what it costs, and how BrickKit treats it, in plain terms:
 BrickKit's component model suits AI-assisted development naturally.
 
 The repository's ten real components are each small enough for an AI to read in one go, and with the explicit
-`component.yaml` contract boundary an AI doesn't get lost in a sprawling monolith. The project's root `BRICKKIT.md`
-lists every component and its documentation, so an AI reads only the one it needs.
+`component.yaml` contract boundary an AI doesn't get lost in a sprawling monolith. A project's `AGENTS.md` — the file AI
+coding tools read first — ends with a table of every component, what it does and where its documentation is, so an AI
+reads only the one it needs.
 
 Environment-variable injection means an AI never deals with service discovery or a config server; exact versions
 plus side-by-side versions mean an AI-generated v2 can live safely next to v1 without breaking anything that depends
@@ -376,7 +377,7 @@ routes a question to one page, or lists the bundles that hold the whole document
 | 00 | [Overview and getting started](docs/en/00-intro/README.md) | The five-minute quick start, the glossary, the fractal structure |
 | 01 | [The three layers](docs/en/01-three-layers/README.md) | How to write `brickkit.yaml` / `deploy.yaml` / `config/`, and where a value comes from |
 | 02 | [Running a project](docs/en/02-project-guide/README.md) | `init`, `add`, local debugging (`local`), upgrades and config migration, several environments |
-| 03 | [Writing components](docs/en/03-component-guide/README.md) | `new`, `release`, the `BRICKKIT.md` format, developing inside a component |
+| 03 | [Writing components](docs/en/03-component-guide/README.md) | `new`, `release`, a component's documents (`BRICKKIT.md`, `AGENTS.md`, `README.md`), developing inside a component |
 | 04 | [Shells](docs/en/04-shell/README.md) | One process for many components, JSON injection, `members`, special characters |
 | 05 | [Database migrations](docs/en/05-migration/README.md) | The migration container, environment passthrough, the chain across versions |
 | 06 | [Architecture](docs/en/06-architecture/README.md) | Dependency resolution, the Git cache, design principles, error codes |

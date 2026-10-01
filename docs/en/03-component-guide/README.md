@@ -18,6 +18,6 @@ quotation, prefixed with the greeting of another component, `demo/hello`. Every 
 | [05 Developing inside a component](05-local-dev-fractal.md) | A local workbench in the component repository, running yourself against your dependencies |
 | [06 Contracts and artifacts](06-artifacts-and-contracts.md) | `artifacts`, contract first, `brickkit fetch` |
 | [07 Releasing](07-release-workflow.md) | `brickkit release`: checks, tag, push |
-| [08 The component's BRICKKIT.md](08-component-doc-spec.md) | How to write its five sections, and how the CLI carries it into the projects that use it |
+| [08 A component's documentation](08-component-doc-spec.md) | The documents a component repository carries, what goes in each, and how `BRICKKIT.md` travels into the projects that use it |
 | [09 Several versions side by side](09-multi-version-coexistence.md) | How two versions of one component run at once, and who talks to which |
 | [10 Distributing through Git](10-git-distribution.md) | How repository addresses are derived, how the cache works, authentication for private repositories |

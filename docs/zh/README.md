@@ -10,7 +10,7 @@
 | 00 | [概览与入门](00-intro/README.md) | BrickKit 是什么、5 分钟跑起第一个组件、术语速查、分形架构 |
 | 01 | [三层架构详解](01-three-layers/README.md) | `brickkit.yaml`、`deploy.yaml`、`deploy.local.yaml`、`config/` 各管什么、怎么写、按什么顺序取值 |
 | 02 | [项目管理者指南](02-project-guide/README.md) | 建项目、加组件、本地调试、多环境、启动停止、升级、移除、构建镜像 |
-| 03 | [组件开发者指南](03-component-guide/README.md) | 组件仓库长什么样、`component.yaml` 怎么写、怎么发布、怎么写 `BRICKKIT.md` |
+| 03 | [组件开发者指南](03-component-guide/README.md) | 组件仓库长什么样、`component.yaml` 怎么写、怎么发布、怎么写它的文档（`BRICKKIT.md`、`AGENTS.md`、`README.md`） |
 | 04 | [外壳机制](04-shell/README.md) | 把多个组件编进一个进程：成员管理、配置注入、升级 |
 | 05 | [数据库迁移](05-migration/README.md) | 迁移怎么跑、拿到哪些变量、多版本时的顺序 |
 | 06 | [架构与深度机制](06-architecture/README.md) | 从声明到运行容器的流水线、依赖解析、注入契约、设计原则、错误码 |

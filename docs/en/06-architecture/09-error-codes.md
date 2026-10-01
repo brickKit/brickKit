@@ -408,7 +408,8 @@ The checks `brickkit release` runs before tagging didn't pass. Nothing was writt
 `brickkit lint` checks a component's documents and a project's `AGENTS.md` mechanically (see
 [A component's documentation](../03-component-guide/08-component-doc-spec.md)). Every one of these is a warning: it
 never stops `up` or `release`, and only `lint --strict` turns it into a failure (`LINT_FAILED`) — for a team that wants
-its CI to hold the line. Each warning names the file, and the line where there is one.
+its CI to hold the line. Each warning names the file, and the line where there is one. With `--log-level info`, every
+finding also comes out as a JSON log line carrying its `error_code` and `file`, for scripts that tell them apart.
 
 ### DOC_FILE_MISSING
 

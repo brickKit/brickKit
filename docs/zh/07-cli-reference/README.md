@@ -110,12 +110,15 @@ brickkit up -f deploy.prod.yaml
 | `brickkit init <名字>` | 创建式 | 新建 `<名字>/` 目录，在里面生成整套骨架 |
 | `brickkit init` | 补全式 | 当前目录缺什么补什么：已有项目接入，或组件仓库给自己建一个本地联调工作台 |
 
-完整的项目有 `brickkit.yaml`、`deploy.yaml`、`config/vars.yaml`、`components/` 与 `shell/` 两个本地源、`BRICKKIT.md`
-（项目地图）和 `.gitignore`。`deploy.local.yaml` 从不在这里生成，要用时由 `brickkit local on` 生成。
+完整的项目有 `brickkit.yaml`、`deploy.yaml`、`config/vars.yaml`、`components/` 与 `shell/` 两个本地源、`AGENTS.md`
+（项目的 AI 导读，末尾是由 CLI 维护的组件表）、`CLAUDE.md`（只有 `@AGENTS.md`）和 `.gitignore`。`deploy.local.yaml`
+从不在这里生成，要用时由 `brickkit local on` 生成。
 
 补全式的规矩：
 
-- 已有的文件跳过，一个字节都不动。
+- 已有的文件跳过，一个字节都不动。唯一的例外是已有 `AGENTS.md` 末尾由 CLI 维护的那一段，会被改写；你自己的、不带这一段的
+  `AGENTS.md` 或不带 `@AGENTS.md` 的 `CLAUDE.md` 只会收到警告（`AGENTS_BLOCK_MISSING`、`CLAUDE_IMPORT_MISSING`）；项目根残留的旧项目地图
+  `BRICKKIT.md` 报 `PROJECT_MAP_OBSOLETE`，原地不动。
 - 已有的 `.gitignore` 只校验、不修改：缺的每一条必需条目都大声警告——缺了它们，个人部署文件和密钥会被提交。
 - 目录非空时先打印计划，确认后才执行（`--yes` 跳过确认）。
 - 项目名取 `--name`，否则沿用已有 `brickkit.yaml` 的 `project`，否则取目录名。
@@ -123,7 +126,7 @@ brickkit up -f deploy.prod.yaml
 
 项目名只能用小写字母、数字和中划线，以字母或数字开头结尾——它会成为 K8s namespace 与 Docker 网络的名字。
 
-`init` 同时装入 AI 助手技能（`.claude/skills/`、`AGENTS.md`），但不碰你的 `CLAUDE.md`。项目根就是 Git 仓库根时，
+`init` 同时装入五个 AI 助手技能（`.claude/skills/brickkit-*`）。项目根就是 Git 仓库根时，
 顺带装上提交前检查（pre-commit 钩子，调用 `brickkit restore --check`）；项目嵌在别人的仓库里时，用 `--hooks` 显式安装。
 
 ```text
@@ -134,7 +137,7 @@ brickkit init [<项目名>] [flags]
 | --- | --- |
 | `--name <名字>` | 补全式的项目名 |
 | `--yes` | 不询问、直接补全（CI 用） |
-| `--no-skills` | 不装 AI 助手技能 |
+| `--no-skills` | 不装 AI 助手技能（`AGENTS.md` 与 `CLAUDE.md` 照样写） |
 | `--hooks` | 只安装提交前检查用的 pre-commit 钩子（在已有项目里补装） |
 
 ```bash
@@ -159,14 +162,22 @@ brickkit init --hooks                 # 只装提交前检查
 
 ## `brickkit skills`
 
-管理装进本项目的 AI 助手技能（`.claude/skills/`、`AGENTS.md`）。这些文件由 `init` 装入、跟着项目提交、团队共享；
+管理装进本项目的 AI 助手技能（`.claude/skills/`）：`brickkit-assemble`、`brickkit-component`、`brickkit-deploy`、
+`brickkit-troubleshoot`，以及 `brickkit-plan-change`（判断一个新需求、规划跨组件的改动）。这些文件由 `init` 装入、跟着项目提交、团队共享；
 它们描述的是**当前这个 CLI 版本**的行为，所以 CLI 升级后要刷新一次。不带子命令等同 `brickkit skills status`。
+
+每份技能文件最后一行记着是哪个 CLI 版本写的、内容的指纹（`<!-- brickkit:skill version=<v> sum=sha256:<hex> -->`）：
+同事新克隆下来，靠它就知道哪些文件是 CLI 的、有没有被改过。技能的语言是 `AGENTS.md` 末尾那一段记的语言（`lang=`）。
 
 **手改过的文件绝不覆盖**：`update` 把它们列出来并跳过。想放弃本地修改，删掉那个文件再执行一次 `update`——
 刻意不提供 `--force`：删文件这个动作本身已经足够明确，多一个开关就多一条误伤路径。
 
-在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）也能用：这时只管理 `brickkit-component` 一个技能，
-组件仓库自己的 `AGENTS.md` 一个字都不碰。任何情况下都不碰你的 `CLAUDE.md`。
+`update` 也是唯一会修 `AGENTS.md` 与 `CLAUDE.md` 的命令，因为这是你明确要求的：缺哪份建哪份，给没有那一段的 `AGENTS.md`
+追加一段，给没有 `@AGENTS.md` 的 `CLAUDE.md` 追加这一行。你写的其它内容一概不动。项目根残留的旧项目地图 `BRICKKIT.md`
+只报出来（`PROJECT_MAP_OBSOLETE`），从不删。
+
+在独立的组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`）也能用：这时管理 `brickkit-component` 一个技能，外加组件自己的
+`AGENTS.md`（那一段写着组件规则）和 `CLAUDE.md`。
 
 ```text
 brickkit skills [flags]
@@ -177,14 +188,26 @@ brickkit skills <命令> [参数]
 
 查看每个技能文件的状态（只读）。没有自己的参数。
 
+输出第一行说技能用哪种语言、记在哪（`AGENTS.md` 末尾那一段）。然后每份技能文件一行，最后一行是 `AGENTS.md`——文件在不在、
+有没有那一段、那一段记的是哪种语言（`lang=zh`）。下面是一个同事改过一份技能、`AGENTS.md` 又被删掉了的项目：
+
 ```text
-技能语言：zh（记在 skills.lock 里；brickkit skills update --lang 可以改）
-   ┌───────────────────────────────────────────────┬──────┐
-   │ 文件                                          │ 状态 │
-   ├───────────────────────────────────────────────┼──────┤
-   │ AGENTS.md                                     │ 缺失 │
-   │ .claude/skills/brickkit-assemble/SKILL.md     │ 缺失 │
+技能语言：zh（记在 AGENTS.md 的 brickkit 维护区里；brickkit skills update --lang 可以改）
+   ┌───────────────────────────────────────────────┬───────────────────────┐
+   │ 文件                                          │ 状态                  │
+   ├───────────────────────────────────────────────┼───────────────────────┤
+   │ .claude/skills/brickkit-assemble/SKILL.md     │ 最新                  │
+   │ .claude/skills/brickkit-component/SKILL.md    │ 最新                  │
+   │ .claude/skills/brickkit-deploy/SKILL.md       │ 已手改，update 会跳过 │
+   │ .claude/skills/brickkit-plan-change/SKILL.md  │ 最新                  │
+   │ .claude/skills/brickkit-troubleshoot/SKILL.md │ 最新                  │
+   │ AGENTS.md                                     │ 缺失；update 会建出来 │
+   └───────────────────────────────────────────────┴───────────────────────┘
+
+有 1 个文件需要刷新：brickkit skills update
 ```
+
+技能文件的状态有 `最新`、`待更新`、`缺失`、`已手改`（`update` 跳过）、`未托管`（没有记录行）几种。
 
 ### `brickkit skills update`
 
@@ -192,7 +215,7 @@ brickkit skills <命令> [参数]
 
 | 参数 | 说明 |
 | --- | --- |
-| `--lang <en\|zh>` | 用这种语言重装，并从此记住这个项目该用哪种语言 |
+| `--lang <en\|zh>` | 用这种语言重装，并记进 `AGENTS.md` 的那一段，从此这个项目就用这种语言 |
 
 ```bash
 brickkit skills update
@@ -201,8 +224,10 @@ brickkit skills update --lang zh
 
 ## `brickkit new`
 
-生成一个组件的骨架：一份能通过 `brickkit up --dry-run` 校验的 `component.yaml`，和一份带标准章节（组件定位、依赖说明、
-配置指南、契约索引、外壳声明）的 `BRICKKIT.md`，写给将来使用这个组件的人和 AI 助手。
+生成一个组件的骨架：一份能通过 `brickkit up --dry-run` 校验的 `component.yaml`，和组件的四份文档，每一节都带一条
+`<!-- TODO: … -->` 提示——写给将来使用它的人和 AI 助手的 `BRICKKIT.md`（组件定位、部署前准备、依赖说明、配置指南、契约索引、外壳声明），
+写给开发它的人的 `AGENTS.md`（代码地图、构建与测试、设计取舍、易错点、改代码前自查，之后是写着组件规则的那一段）、
+`CLAUDE.md`（`@AGENTS.md`）和 `README.md`（在项目里使用、文档、开发）。见 [组件的文档](../03-component-guide/08-component-doc-spec.md)。
 
 默认写到 `components/<scope>/<name>/`——本地安装源本来就按这个布局扫描，写完就能 `brickkit add --local` 加进项目。
 生成之后**不会**自动 `add`：写进 `brickkit.yaml` 是一次单独、可审阅的动作。
@@ -355,7 +380,13 @@ brickkit fetch infra/notifier         # 取最新版本的产物
 
 `brickkit.yaml` 自己没通过时，后面的都不可信，跳过并说明。
 
-**组件仓库（有 `component.yaml`、没有 `brickkit.yaml`）：** 只查这一份 `component.yaml`。
+**组件仓库（有 `component.yaml`、没有 `brickkit.yaml`）：** 这一份 `component.yaml` 和组件的文档。
+
+**文档**，哪里都查，只报警告：组件仓库里查组件的 `BRICKKIT.md`（连同译本）、`AGENTS.md`、`CLAUDE.md`、`README.md` 与 `docs/`；
+项目里查它的 `AGENTS.md` 与 `CLAUDE.md`（以及残留的旧项目地图 `BRICKKIT.md`）和本地源里每个组件的文档；工作台里查组件的文档。
+每一组在报告里占一行，比如 `✅ components/demo/hello/（文档）`。警告码有 `DOC_FILE_MISSING`、`DOC_SECTION_MISSING`、`DOC_PATH_MISSING`、
+`DOC_LINK_BROKEN`、`DOC_LINK_NOT_PORTABLE`、`DOC_OUT_OF_STEP`、`DOC_PLACEHOLDER`、`DOC_TRANSLATION_DRIFT`、`AGENTS_BLOCK_MISSING`、
+`CLAUDE_IMPORT_MISSING` 与 `PROJECT_MAP_OBSOLETE`，见 [错误码](../06-architecture/09-error-codes.md#文档检查)。
 
 查的是结构规则：必填字段、类型、未知字段（拼写笔误）、版本号格式、端口范围。警告有两类：`configSchema` 里拼错的键
 （比如 `defualt`）不会生效；配置项名字撞上平台保留变量。**不查**：依赖能不能解析、外壳这次承载的成员版本与它编进的版本对不对得上
@@ -370,7 +401,7 @@ brickkit lint [flags]
 
 | 参数 | 说明 |
 | --- | --- |
-| `--strict` | 还检查引用：进程环境与 `.env` 里都没有的 `${VAR}`、文件不存在的 `file://` 报成警告；并且警告也算失败（退出码 1），给 CI 门禁用 |
+| `--strict` | 还检查引用：进程环境与 `.env` 里都没有的 `${VAR}`、文件不存在的 `file://` 报成警告；并且警告——包括文档警告——也算失败（退出码 1），给 CI 门禁用 |
 | `-f, --file <文件>` | 只查这一份部署文件，见 [共用参数](#读部署文件的命令共用的参数) |
 | `--no-local` | 本次忽略 `deploy.local.yaml` |
 

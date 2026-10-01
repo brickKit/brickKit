@@ -89,9 +89,10 @@ project's.
 
 ### Without the AI assistant skills: `--no-skills`
 
-By default `init` installs skill files for AI assistants to read (`.claude/skills/`, `AGENTS.md`); they're committed with
-the project so every teammate's AI assistant understands it. Don't want them? Add `--no-skills`; to get them later, run
-`brickkit skills update`. `init` never touches your own `CLAUDE.md`.
+By default `init` installs skill files for AI assistants to read (`.claude/skills/brickkit-*`, five of them); they're
+committed with the project so every teammate's AI assistant understands it. Don't want them? Add `--no-skills`; to get
+them later, run `brickkit skills update`. `AGENTS.md` and `CLAUDE.md` are written either way: they are the project's own
+guide, not skills (see [The project's `AGENTS.md`](#the-projects-agentsmd)).
 
 ## Completion: `brickkit init` in an existing directory
 
@@ -195,7 +196,9 @@ my-shop/
 │   └── .archive/         config of removed components (not committed)
 ├── components/           a local install source: component source you're developing, or cloned to change (not committed)
 ├── shell/                a local install source: shells, the project's own code (committed)
-├── BRICKKIT.md           the project map
+├── AGENTS.md             the project's AI guide, with the component table at its end (committed)
+├── CLAUDE.md             @AGENTS.md, so Claude Code reads AGENTS.md (committed)
+├── .claude/skills/       the AI assistant skills (committed)
 └── .brickkit/            the CLI's caches and generated files (not committed)
 ```
 
@@ -205,3 +208,105 @@ my-shop/
 - **`shell/`** holds shells: components that compile several components into one process (see [Shells](../04-shell/README.md)).
   A shell is the project's own code and is committed with it.
 - **`config/`** holds each component's config, one file per component (see [The config/ directory](../01-three-layers/05-config-directory.md)).
+
+## The project's `AGENTS.md`
+
+`AGENTS.md` is the file AI coding tools read first when they open a repository — a convention shared across tools, not
+something BrickKit invented. Claude Code reads `CLAUDE.md` instead, so `init` also writes a `CLAUDE.md` holding exactly
+one line, `@AGENTS.md`, which makes Claude Code read the same file. Both are created only when they are missing; a file
+that already exists is never rewritten by `init`.
+
+What it buys: whichever AI tool a teammate uses, it starts from the same page, and that page is in Git with the project.
+What it costs: one more file the team has to keep true — an `AGENTS.md` that describes last year's project misleads
+every AI that reads it.
+
+### The sections you write
+
+The file is yours. The skeleton has four sections, each with a `<!-- TODO: … -->` hint (`brickkit lint` lists every hint
+still there):
+
+| Section | What goes in it |
+| --- | --- |
+| Overview | What this project is, its domains, how its components group |
+| Conventions | The rules every component here follows — stack, port and schema registries, naming, review rules — so that no component has to repeat them |
+| Where to look | A table: what you are doing (the words you would search for) → the file to read first |
+| Pitfalls | A table: Never / Symptom / Why — mistakes that hold for every component in this project |
+
+### The block at the end
+
+At the end of the file is **one** block the CLI maintains, between `<!-- brickkit:managed:begin lang=<code> -->` and
+`<!-- brickkit:managed:end -->`. Whatever is written between the markers is overwritten the next time the block is
+rewritten; everything outside them is left alone. The block holds:
+
+- a short summary of the platform rules: what each of the three layers holds, that `add` / `remove` / `upgrade` keep them
+  in step, that config keys are the variable names from `configSchema`, where the skills are;
+- one line saying where each component's documentation is — `BRICKKIT.md` (translations `BRICKKIT.<lang>.md`) in its
+  source directory when a local source holds exactly this version, otherwise in `.brickkit/manifests/<id>/<version>/` —
+  and where its contracts are, `.brickkit/artifacts/<service name>/`;
+- the component table. After `brickkit add --local` with two components:
+
+```text
+| Component | Version | What it does | Docs | Home |
+|---|---|---|---|---|
+| demo/hello | 1.0.0 | The smallest HTTP component for BrickKit's own self-tests; serves a greeting and echoes its environment variables | BRICKKIT.md | — |
+| demo/caller | 1.0.0 | The caller component for BrickKit's own self-tests; verifies dependency address injection and optional-dependency degradation | BRICKKIT.md | — |
+```
+
+| Column | Comes from |
+| --- | --- |
+| What it does | The component's `metadata.description` |
+| Docs | `BRICKKIT.md`, plus each translation it carries (`BRICKKIT.md +zh`); `—` when it carries no docs |
+| Home | The component's optional `metadata.repository`; `—` when it has none |
+
+**Only facts that are the same on every machine go into the block.** The file is committed: a column such as "is the
+source local here" would change with whoever ran the command last, and every teammate's `add` would produce a diff.
+Whether a component's source is on this machine, an AI checks for itself under `components/`.
+
+**The block records its language** (`lang=`). It is set when the block is first written, and every later rewrite uses
+that language — never the language of whoever runs the command — so two teammates whose CLIs speak different languages
+don't rewrite each other's file. `brickkit skills update --lang zh` switches it, together with the skills.
+
+### Which commands touch it
+
+| Command | What it does to `AGENTS.md` and `CLAUDE.md` |
+| --- | --- |
+| `init` | Creates either file when it is missing. In an existing `AGENTS.md` it rewrites the block if there is one; if there isn't, it only warns |
+| `add`, `remove`, `upgrade` | Rewrite the existing block (the component table) and nothing else; they never create a block or append one to your file |
+| `brickkit skills update` | An explicit request, so it also repairs: creates a missing file, appends the block to an `AGENTS.md` that lacks it, and appends `@AGENTS.md` to a `CLAUDE.md` that lacks it |
+
+When `init` completes a directory that already has an `AGENTS.md` and a `CLAUDE.md` of its own, it changes neither and
+says what is missing:
+
+```text
+⚠️ AGENTS.md has no usable brickkit-maintained block, so its component table is not kept up to date
+   Reason: no brickkit-maintained block
+   Suggestion: Run brickkit skills update to add it (an explicit request: no other command changes your file)
+⚠️ CLAUDE.md does not contain @AGENTS.md, so Claude Code does not read AGENTS.md
+   Suggestion: Run brickkit skills update to add it (an explicit request: no other command changes your file)
+```
+
+```bash
+brickkit skills update
+```
+
+```text
+✅ AI assistant skills updated
+   ✅ AGENTS.md: appended the brickkit-maintained block at the end
+   ✅ appended @AGENTS.md to CLAUDE.md
+```
+
+### A project from an earlier version: the old `BRICKKIT.md`
+
+Earlier versions kept the component table in a `BRICKKIT.md` at the project root, the "project map". That file is gone:
+the table lives at the end of `AGENTS.md` now, and `BRICKKIT.md` means only a component's own documentation. When the
+old map (recognised by its markers) is still at the project root, `init`, `brickkit skills update` and `lint` report it
+with the warning code `PROJECT_MAP_OBSOLETE`:
+
+```text
+⚠️ BRICKKIT.md here is the old project map: the component table now lives at the end of AGENTS.md
+```
+
+The suggestion under it says what to do: move any notes of your own into `AGENTS.md`, then delete `BRICKKIT.md`. It is
+never deleted for you, because you may have written in it. An `AGENTS.md` that an earlier version installed as a
+skill file, and that nobody edited since (recognised from the old `.brickkit/skills.lock` on this machine), is replaced
+with the new skeleton by `init` and `brickkit skills update`.

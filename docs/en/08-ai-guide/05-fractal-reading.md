@@ -1,30 +1,32 @@
 # Reading fractally
 
-BrickKit is fractal: platform, project and component are three levels, each with an entry file written for its reader,
-and each covering only its own level. An AI reads from the top down, and each level, once read, says which file to read at
-the next — there's no need to load everything into context at once.
+BrickKit is fractal: a project is made of components, and a component under development is a small project of its own.
+Each level has an entry file written for its reader, and each covers only its own level. An AI reads from the top down,
+and each level, once read, says which file to read at the next — there's no need to load everything into context at
+once.
 
 ## Three entry points
 
 | Level | Entry point | What you know after reading it |
 | --- | --- | --- |
-| The rules | The project's `AGENTS.md` (and `.claude/skills/`) | What each of the three layers owns, the hard rules, which skill covers what |
-| The project | `BRICKKIT.md` at the project root | Which components exist, where each one's docs and contracts are |
-| A component | The component's `BRICKKIT.md` | What this component is, how to configure it, how to call it |
+| The project | The project's `AGENTS.md` (and `.claude/skills/`) | The team's conventions and pitfalls; at its end, the platform rules in brief and the component table — which components exist, what each does, where their docs and contracts are |
+| A component, to use it | The component's `BRICKKIT.md` | What it owns and doesn't, what to prepare, how to configure it, how to call it |
+| A component, to change it | The component's own `AGENTS.md`, in its source directory | Where its code is, how to build and test it, why it is designed the way it is |
 
-Each level points at the next: `AGENTS.md` tells you to read `BRICKKIT.md`, and the project's `BRICKKIT.md` lists the path
-to each component's docs.
+Each level points at the next: the project's `AGENTS.md` ends with the table and the rule for where each component's
+`BRICKKIT.md` is; a component's `BRICKKIT.md` is all a caller needs, and its `AGENTS.md` takes over only when the code
+itself is to change.
 
-A component under development is itself a project too (its own workbench), so the same three levels repeat inside the
-component repository — but **when using a component, read only its component level** (`BRICKKIT.md`, `component.yaml`,
+A component under development is itself a project too (its own workbench), so the same levels repeat inside the
+component repository — but **when using a component, read only what it publishes** (`BRICKKIT.md`, `component.yaml`,
 contracts), never the workbench files in its repository.
 
 ## The reading order
 
-1. `AGENTS.md`: once per session is enough.
-2. The project root's `BRICKKIT.md`: which components exist.
-3. The `BRICKKIT.md` of the components the current task involves: usually only one or two.
-4. When needed, that component's `component.yaml` and contracts.
+1. The project's `AGENTS.md`: once per session is enough.
+2. The `BRICKKIT.md` of the components the current task involves: usually only one or two.
+3. When needed, that component's `component.yaml` and contracts.
+4. When the task changes a component's code, that component's own `AGENTS.md`.
 5. When needed, the relevant one of the three layers (the deploy file or `config/`).
 
 **When to stop**: as soon as you can answer the current task's question. To fix a component's config, reading its

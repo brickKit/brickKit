@@ -16,6 +16,7 @@ bare 仓库见 [Git 仓库缓存](06-bare-repo-mechanism.md)。这一篇讲项�
 ├── manifests/<scope>/<name>/<版本>/
 │   ├── component.yaml     这个版本的 Manifest（永久缓存）
 │   ├── BRICKKIT.md        组件带着文档时才有
+│   ├── BRICKKIT.<语言>.md 它带的每一份译本（BRICKKIT.zh.md……）
 │   └── signature.json     来源与签名信息
 ├── artifacts/<版本化服务名>/<type>/…   组件声明的契约文件（add / fetch 下载）
 ├── generated/
@@ -27,7 +28,6 @@ bare 仓库见 [Git 仓库缓存](06-bare-repo-mechanism.md)。这一篇讲项�
 ├── local-mode             存在即本地模式开着
 ├── deploy.local.base.yaml deploy.local.yaml 上次复制自的那份 deploy.yaml；refresh 靠它分辨本地修改
 ├── session.lock           mode: local 会话正在运行
-├── skills.lock            装进项目的 AI 助手技能的版本与语言
 └── credentials            组件市场的登录令牌（0600）
 ```
 
@@ -41,12 +41,33 @@ bare 仓库见 [Git 仓库缓存](06-bare-repo-mechanism.md)。这一篇讲项�
 
 **生成物每次重写。** `generated/` 下的一切都是 `up` 的输出，每次重新生成；手改会被下一次 `up` 覆盖。
 
+**文档跟着 Manifest 一起缓存，哪种安装源都一样。** `add` 与 `fetch` 把 `BRICKKIT.md` 和每一份 `BRICKKIT.<语言>.md`
+写在 `component.yaml` 旁边——本地源、Git tag、市场都一样——别的都不取：组件的 `AGENTS.md` 和 `README.md` 是写给它自己仓库的。
+
 ## `.brickkit/` 不进 Git
 
 `init` 生成的 `.gitignore` 把它排除在外。它里面的东西要么能重新得到（Manifest、契约、生成物），要么是这台机器、这个人的状态（本地模式开关、会话锁、登录令牌）。
 
 第一次 `git clone` 一个项目之后，`.brickkit/` 不存在，没关系：第一次运行命令时，CLI 按 `brickkit.yaml` 从安装源重新取回需要的 Manifest 与契约。
 这与 `package.json` 进 Git、`node_modules` 不进 Git 是同一个道理：`brickkit.yaml` 是锁文件，`.brickkit/` 是按它装出来的东西。
+
+## AI 助手技能自己带着记录
+
+`.claude/skills/` 下的技能文件跟着项目提交，CLI 要知道每一份是不是它写的、之后有没有人改过——改过的文件从不覆盖。
+早先的版本把这份记录放在 `.brickkit/skills.lock` 里。可 `.brickkit/` 不进 Git：同事新克隆下来根本没有这份 lock，
+那里的技能从此再也刷新不了。
+
+现在每份技能文件在最后一行带着自己的记录：
+
+```text
+<!-- brickkit:skill version=<v> sum=sha256:<hex> -->
+```
+
+`version` 是写这份文件的 CLI 版本；`sum` 是这一行之上内容的指纹。`brickkit skills status` 或 `brickkit skills update`
+读到文件时，内容与指纹对得上，就是 CLI 自己的、可以刷新；对不上，就是有人改过，跳过。记录跟着文件走，每一份克隆都知道。
+
+技能的语言也不在技能文件里：它就是项目 `AGENTS.md` 末尾那一段记的 `lang=`。旧的 `.brickkit/skills.lock` 只读一次，
+用来认出旧版 CLI 写的文件，然后由 `brickkit skills update` 删掉。
 
 ## 什么可以删
 

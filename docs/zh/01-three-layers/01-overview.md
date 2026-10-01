@@ -17,15 +17,16 @@ my-shop/
 │   └── .archive/          remove 时归档的配置，重新 add 时恢复（默认不进 Git）
 ├── components/            本地安装源：组件源码（各自是独立的 Git 仓库，默认不进项目的 Git）
 ├── shell/                 本地安装源：外壳组件
-├── BRICKKIT.md            项目地图：有哪些组件、各自的文档在哪
+├── AGENTS.md              项目的 AI 导读；末尾的组件表由 CLI 维护（进 Git）
+├── CLAUDE.md              只有一行 @AGENTS.md，让 Claude Code 也读 AGENTS.md（进 Git）
+├── .claude/skills/        AI 助手技能 brickkit-*（进 Git）
 ├── .env                   本机的环境变量值，${VAR} 从这里取（不进 Git）
 ├── .secrets/              file:// 引用的密钥文件（不进 Git）
 └── .brickkit/             CLI 的缓存与生成物（不进 Git）
-    ├── manifests/         每个组件版本的 component.yaml 与 BRICKKIT.md（永久缓存）
+    ├── manifests/         每个组件版本的 component.yaml、BRICKKIT.md 及其译本（永久缓存）
     ├── artifacts/         下载的契约文件
     ├── generated/         生成的 compose.yaml / K8s 清单 / 0600 的 env 文件
-    ├── local-mode         本地模式开关的状态
-    └── skills.lock        装进项目的 AI 助手技能的版本记录
+    └── local-mode         本地模式开关的状态
 ```
 
 ## 每类信息归哪个文件
@@ -60,7 +61,8 @@ my-shop/
 | 某个组件这次怎么部署 | 本地模式开着时读 `deploy.local.yaml`，否则 `deploy.yaml`；命令用了 `-f` 就是那份 |
 | 某个组件拿到哪些环境变量 | `config/<组件>.yaml`，里面 `$var:` 引用的值在 `config/vars.yaml` 或部署文件的 `vars:` |
 | 某个组件需要哪些配置、有什么依赖 | 它的 `component.yaml`：`.brickkit/manifests/<scope>/<name>/<版本>/` 下，本地源组件在源码目录里 |
-| 某个组件怎么用 | 它的 `BRICKKIT.md`，位置同上 |
+| 某个组件怎么用 | 它的 `BRICKKIT.md`（译本叫 `BRICKKIT.<语言>.md`），位置同上 |
+| 团队约定，以及项目里有哪些组件、文档在哪 | 项目根的 `AGENTS.md`：前面是作者写的几节，末尾是组件表 |
 
 **为什么没有"合并视图"命令**（一条命令把三层合成一份给你看）：它会成为第四份需要理解、需要信任的东西，
 而且总有一天和真正生效的文件对不上。每个问题只有一个文件负责回答，按需去读那一个——这是"按需检索优于全量合并"。
@@ -76,7 +78,8 @@ my-shop/
 | `config/`（含 `vars.yaml`） | ✅ | 配置是项目的一部分；密钥不要直接写进去，用 `${VAR}` 或 `file://` |
 | `config/.archive/` | ❌ | 已移除组件的旧配置，只为以后重新 `add` 时恢复用，属于本机 |
 | `components/` | ❌（默认） | 里面每个组件是独立的 Git 仓库，有自己的历史；要让源码随项目一起提交，`brickkit init --hooks` 装上提交前检查 |
-| `BRICKKIT.md` | ✅ | 项目地图，给人和 AI 读 |
+| `AGENTS.md`、`CLAUDE.md` | ✅ | 团队写的项目 AI 导读；末尾的组件表只放每台机器上都一样的事实 |
+| `.claude/skills/` | ✅ | AI 助手技能；每份文件最后一行记着是哪个版本的 CLI 写的，同事新克隆下来也分得清有没有被改过 |
 | `deploy.local.yaml` | ❌ | 个人的临时部署方式（"我正在调这个组件"），不是团队决定 |
 | `.env`、`.secrets/` | ❌ | 本机的密钥与环境变量值、`file://` 引用的密钥文件 |
 | `.brickkit/` | ❌ | 缓存与生成物，随时可以由 CLI 重新取回、重新生成 |

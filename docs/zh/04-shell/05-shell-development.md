@@ -36,6 +36,20 @@ shell:
 
 外壳本身就是一个普通组件：它有自己的 `deployment`、`healthCheck`、镜像、配置。
 
+它的文档也和别的组件一样。`BRICKKIT.md` 是常规的六节；最后一节"外壳声明"列出编进来的成员，每个带精确版本，与 `shell.members`
+保持一致。骨架先放着那个占位成员：
+
+```markdown
+## 外壳声明
+
+这个组件是外壳。编进的成员（与 component.yaml 的 shell.members 保持一致）：
+
+- `example/member@0.1.0` <!-- TODO: 占位：每个成员做什么、需要外壳提供什么 -->
+```
+
+和 `shell.members` 一起换掉，每个成员写清它做什么、需要外壳提供什么。`shell.members` 里有、这一节没提的成员，
+`brickkit lint` 会报 `DOC_OUT_OF_STEP`。
+
 ## 启动代码
 
 外壳启动时做四件事：读 `BRICKKIT_SERVED_MEMBERS_CONFIG`，按每一项找到编进来的模块，用那一项的配置初始化它，在那一项的端口上替它监听。

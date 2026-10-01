@@ -341,8 +341,8 @@ BrickKit 不是一堆功能的堆砌。它是几个广为人知的工程想法�
 BrickKit 的组件模型天然适合 AI 辅助开发。
 
 项目自带的 10 个真实组件，每个都小到 AI 能一次读完；加上明确的 `component.yaml` 契约边界，
-AI 不需要在庞大的单体代码库中迷失。项目根目录的 `BRICKKIT.md` 列出每个组件和它的文档，
-AI 按需只读用得到的那一个。
+AI 不需要在庞大的单体代码库中迷失。项目的 `AGENTS.md`——AI 编程工具最先读的那份文件——末尾一张表列出每个组件、
+它干什么、文档在哪，AI 按需只读用得到的那一个。
 
 环境变量注入意味着 AI 永远不需要处理服务发现或配置中心的复杂性；精确版本 +
 多版本共存意味着 AI 生成的 v2 可以和 v1 安全并存，不会搞坏依赖 v1 的其他组件。
@@ -363,7 +363,7 @@ AI 按需只读用得到的那一个。
 | 00 | [概览与入门](docs/zh/00-intro/README.md) | 5 分钟 Quick Start、核心概念术语表、分形架构（套娃机制） |
 | 01 | [三层架构详解](docs/zh/01-three-layers/README.md) | `brickkit.yaml` / `deploy.yaml` / `config/` 的写法与解析优先级 |
 | 02 | [项目管理者指南](docs/zh/02-project-guide/README.md) | `init`、`add`、本地调试（`local`）、升级与配置迁移、多环境切换 |
-| 03 | [组件开发者指南](docs/zh/03-component-guide/README.md) | `new`、`release`、`BRICKKIT.md` 规范、分形开发模式 |
+| 03 | [组件开发者指南](docs/zh/03-component-guide/README.md) | `new`、`release`、组件的文档（`BRICKKIT.md`、`AGENTS.md`、`README.md`）、分形开发模式 |
 | 04 | [外壳机制](docs/zh/04-shell/README.md) | 单体进程模型、JSON 注入、`members` 管理、特殊字符处理 |
 | 05 | [数据库迁移](docs/zh/05-migration/README.md) | 迁移服务、环境变量透传、多版本迁移链 |
 | 06 | [架构与深度机制](docs/zh/06-architecture/README.md) | 依赖解析、Git 缓存、设计原则、错误码 |

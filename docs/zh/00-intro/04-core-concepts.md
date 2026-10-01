@@ -19,7 +19,8 @@
 | **外壳**（Shell） | 把多个组件编进**一个进程**里跑的组件，用来省内存和 CPU，见 [外壳机制](../04-shell/README.md) |
 | **成员**（Member） | 被外壳承载的组件；它没有自己的容器，但仍然有自己的配置和迁移 |
 | **分形架构** | 组件开发时本身是一个项目，被使用时是一个黑盒，见 [分形架构](06-fractal-architecture.md) |
-| **`BRICKKIT.md`** | 给人和 AI 读的文档：组件仓库里的那份讲这个组件怎么用，项目根目录的那份列出项目里有哪些组件、文档在哪 |
+| **`BRICKKIT.md`** | 组件写给使用者（人和 AI）的文档：它负责什么、部署前要准备什么、配置是什么意思、有哪些契约。它跟着每个版本走（译本叫 `BRICKKIT.<语言>.md`），会缓存进使用它的项目，见 [组件的文档](../03-component-guide/08-component-doc-spec.md) |
+| **`AGENTS.md`** | AI 编程工具最先读的导读（`CLAUDE.md` 里写着 `@AGENTS.md`，Claude Code 也就读到它）。项目的 `AGENTS.md` 写团队约定，末尾是一张项目组件表，由 CLI 跟着更新；组件的 `AGENTS.md` 写给开发这个组件的人，见 [创建项目](../02-project-guide/01-init-and-project-creation.md#项目的-agentsmd) |
 | **本地模式** | `brickkit local on` 之后，所有命令改读个人的 `deploy.local.yaml`，见 [本地调试工作流](../02-project-guide/03-local-debug-workflow.md) |
 
 ## 贯穿全局的命名规则

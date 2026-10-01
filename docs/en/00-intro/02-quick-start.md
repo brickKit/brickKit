@@ -57,7 +57,9 @@ my-shop/
 │   └── vars.yaml     shared variables (empty for now)
 ├── components/       a local install source: your own components' source goes here
 ├── shell/            a local install source: shell components
-├── BRICKKIT.md       the project map
+├── AGENTS.md         the project's AI guide; the component table at its end is kept up to date by the CLI
+├── CLAUDE.md         one line, @AGENTS.md, so Claude Code reads AGENTS.md too
+├── .claude/skills/   AI assistant skills, one directory per task
 ├── .brickkit/        the CLI's caches and generated files (not in Git)
 └── .gitignore
 ```

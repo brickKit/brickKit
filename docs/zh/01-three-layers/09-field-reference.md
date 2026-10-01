@@ -61,7 +61,7 @@
 | --- | --- | --- |
 | `apiVersion`、`kind` | ✅ | `brickkit/v1`、`Component` |
 | `metadata.id` / `name` / `version` / `description` | ✅ | 组件 ID、名字、精确版本、描述 |
-| `metadata.vendor` / `license` / `apiDocs` | | 发布者、许可证、API 文档地址 |
+| `metadata.vendor` / `license` / `apiDocs` / `repository` | | 发布者、许可证、API 文档地址、组件仓库或主页（项目组件表的"主页"一列） |
 | `tags` | | 检索用的标签 |
 | `artifacts[]` | | 契约：`type`、`format`、`description`、`files` |
 | `dependencies.components[]` | | 依赖：`id@版本`；弱依赖写 `optional: true` |

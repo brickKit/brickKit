@@ -17,6 +17,7 @@ Bare repositories are covered in [The Git repository cache](06-bare-repo-mechani
 ├── manifests/<scope>/<name>/<version>/
 │   ├── component.yaml     this version's Manifest (a permanent cache)
 │   ├── BRICKKIT.md        only when the component carries docs
+│   ├── BRICKKIT.<lang>.md each translation it carries (BRICKKIT.zh.md …)
 │   └── signature.json     where it came from, and signature information
 ├── artifacts/<versioned service name>/<type>/…   contract files the component declares (downloaded by add / fetch)
 ├── generated/
@@ -28,7 +29,6 @@ Bare repositories are covered in [The Git repository cache](06-bare-repo-mechani
 ├── local-mode             local mode is on while this exists
 ├── deploy.local.base.yaml the deploy.yaml that deploy.local.yaml was last copied from; refresh tells local changes by it
 ├── session.lock           a mode: local session is running
-├── skills.lock            version and language of the AI assistant skills installed in the project
 └── credentials            the component market login token (0600)
 ```
 
@@ -46,6 +46,10 @@ at the snapshot in the cache.
 **Generated files are rewritten every time.** Everything under `generated/` is output of `up`, regenerated every time;
 hand edits are overwritten by the next `up`.
 
+**Documentation is cached with the Manifest, from every kind of source.** `add` and `fetch` write `BRICKKIT.md` and
+every `BRICKKIT.<lang>.md` next to `component.yaml` — from a local source, a Git tag or the market alike — and nothing
+else: a component's `AGENTS.md` and `README.md` are for its own repository.
+
 ## `.brickkit/` stays out of Git
 
 The `.gitignore` `init` generates leaves it out. What's inside either can be obtained again (Manifests, contracts,
@@ -56,6 +60,27 @@ After a fresh `git clone` of a project, `.brickkit/` doesn't exist, and that's f
 the Manifests and contracts it needs from the install sources again, by `brickkit.yaml`. It's the same reasoning as
 `package.json` in Git and `node_modules` out of it: `brickkit.yaml` is the lock file, `.brickkit/` is what gets installed
 from it.
+
+## The AI assistant skills carry their own record
+
+The skill files under `.claude/skills/` are committed with the project, and the CLI has to know, for each one, whether it
+wrote it and whether someone has edited it since — an edited file is never overwritten. Earlier versions kept that record
+in `.brickkit/skills.lock`. But `.brickkit/` stays out of Git: a teammate's fresh clone had no lock, and from then on the
+skills there could never be refreshed.
+
+Now each skill file carries its record on its last line:
+
+```text
+<!-- brickkit:skill version=<v> sum=sha256:<hex> -->
+```
+
+`version` is the CLI that wrote the file; `sum` is the fingerprint of the content above the line. When
+`brickkit skills status` or `brickkit skills update` reads the file and the content still matches the fingerprint, it
+is the CLI's own and can be refreshed; when it doesn't, someone edited it, and it is skipped. The record travels with the file, so every clone knows.
+
+The skills' language isn't in the skill files either: it is the `lang=` recorded in the block at the end of the project's
+`AGENTS.md`. An old `.brickkit/skills.lock` is read once, to recognise the files an earlier CLI wrote, and then deleted by
+`brickkit skills update`.
 
 ## What can be deleted
 

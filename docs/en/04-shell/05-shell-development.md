@@ -37,6 +37,21 @@ shell:
 
 The shell itself is an ordinary component: it has its own `deployment`, `healthCheck`, image and config.
 
+It has the same documents as any component, too. Its `BRICKKIT.md` has the usual six sections; the last one, Shell
+declaration, lists the members compiled in, each at its exact version, kept in step with `shell.members`. The skeleton
+starts it with the placeholder member:
+
+```markdown
+## Shell declaration
+
+This component is a shell. Members compiled in (keep in step with shell.members in component.yaml):
+
+- `example/member@0.1.0` <!-- TODO: placeholder: what each member does and what it needs from the shell -->
+```
+
+Replace it along with `shell.members`, saying for each member what it does and what it needs from the shell. A member in
+`shell.members` that the section doesn't mention is reported by `brickkit lint` as `DOC_OUT_OF_STEP`.
+
 ## The start-up code
 
 When a shell starts it does four things: read `BRICKKIT_SERVED_MEMBERS_CONFIG`, find the module compiled in for each item,

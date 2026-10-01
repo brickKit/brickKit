@@ -121,7 +121,7 @@ service), with documentation and plugins, so developers find everything in one p
 | Dependencies | `dependsOn` can be declared for display; it doesn't drive deployment | Dependencies drive topological order, what runs, and address injection directly |
 | Deployment | Doesn't deploy; connects to ArgoCD, Helm and the like | Generates Compose / Kubernetes manifests and calls the engine |
 | Operating cost | An application to operate in its own right | One binary that runs and exits; no background service |
-| Documentation | A docs site inside the portal | Every component carries a `BRICKKIT.md`, cached into the project on `add`, matching exactly the version locked |
+| Documentation | A docs site inside the portal | Every component carries a `BRICKKIT.md` (and its translations), cached into the project on `add`, matching exactly the version locked; the project's `AGENTS.md` ends with a table of every component, what it does and where its docs are |
 
 - **Pick Backstage:** you need a team-wide service catalog and portal. The two don't conflict — a `catalog-info.yaml`
   can point at a BrickKit project.

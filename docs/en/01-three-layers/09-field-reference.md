@@ -62,7 +62,7 @@ environment variable names in the container. A value can be a literal, `$var:NAM
 | --- | --- | --- |
 | `apiVersion`, `kind` | ✅ | `brickkit/v1`, `Component` |
 | `metadata.id` / `name` / `version` / `description` | ✅ | Component ID, name, exact version, description |
-| `metadata.vendor` / `license` / `apiDocs` | | Publisher, licence, API docs address |
+| `metadata.vendor` / `license` / `apiDocs` / `repository` | | Publisher, licence, API docs address, the repository or home page (the "Home" column of a project's component table) |
 | `tags` | | Tags for search |
 | `artifacts[]` | | Contracts: `type`, `format`, `description`, `files` |
 | `dependencies.components[]` | | Dependencies: `id@version`; an optional one says `optional: true` |

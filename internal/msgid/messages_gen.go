@@ -1812,4 +1812,5 @@ const (
 	CliPublishTooManyTranslations                              ID = "cli.publish.too_many_translations"
 	CliPublishDocsTotalTooLarge                                ID = "cli.publish.docs_total_too_large"
 	CliPublishDocTranslationsIncluded                          ID = "cli.publish.doc_translations_included"
+	LogLintFinding                                             ID = "log.lint_finding"
 )

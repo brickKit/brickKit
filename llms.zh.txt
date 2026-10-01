@@ -16,12 +16,12 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 <!-- llms:bundles:begin -->
 - [llms/zh/00-core.md](llms/zh/00-core.md): AGENTS.zh.md … docs/zh/01-three-layers/09-field-reference.md
 - [llms/zh/01.md](llms/zh/01.md): docs/zh/README.md … docs/zh/02-project-guide/03-local-debug-workflow.md
-- [llms/zh/02.md](llms/zh/02.md): docs/zh/02-project-guide/04-focus-run.md … docs/zh/03-component-guide/06-artifacts-and-contracts.md
-- [llms/zh/03.md](llms/zh/03.md): docs/zh/03-component-guide/07-release-workflow.md … docs/zh/06-architecture/04-deploy-file-generation.md
-- [llms/zh/04.md](llms/zh/04.md): docs/zh/06-architecture/05-design-principles.md … docs/zh/06-architecture/08-security-and-signing.md
-- [llms/zh/05.md](llms/zh/05.md): docs/zh/06-architecture/09-error-codes.md … docs/zh/08-ai-guide/06-reading-brickkit.md
-- [llms/zh/06.md](llms/zh/06.md): docs/zh/09-patterns/README.md … docs/zh/10-troubleshooting/03-config-conflict-issues.md
-- [llms/zh/07.md](llms/zh/07.md): docs/zh/10-troubleshooting/04-git-auth-issues.md … docs/zh/11-reference/06-market-api.md
+- [llms/zh/02.md](llms/zh/02.md): docs/zh/02-project-guide/04-focus-run.md … docs/zh/03-component-guide/05-local-dev-fractal.md
+- [llms/zh/03.md](llms/zh/03.md): docs/zh/03-component-guide/06-artifacts-and-contracts.md … docs/zh/06-architecture/02-dependency-resolution.md
+- [llms/zh/04.md](llms/zh/04.md): docs/zh/06-architecture/03-env-injection-contract.md … docs/zh/06-architecture/08-security-and-signing.md
+- [llms/zh/05.md](llms/zh/05.md): docs/zh/06-architecture/09-error-codes.md … docs/zh/08-ai-guide/03-judging-a-requirement.md
+- [llms/zh/06.md](llms/zh/06.md): docs/zh/08-ai-guide/04-component-doc-spec.md … docs/zh/10-troubleshooting/02-local-debug-issues.md
+- [llms/zh/07.md](llms/zh/07.md): docs/zh/10-troubleshooting/03-config-conflict-issues.md … docs/zh/11-reference/06-market-api.md
 <!-- llms:bundles:end -->
 
 ## 回答一个问题

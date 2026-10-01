@@ -19,12 +19,12 @@ reads it whole. `00-core` alone — AGENTS.md plus the core pages — is enough 
 <!-- llms:bundles:begin -->
 - [llms/en/00-core.md](llms/en/00-core.md): AGENTS.md … docs/en/01-three-layers/09-field-reference.md
 - [llms/en/01.md](llms/en/01.md): docs/en/README.md … docs/en/02-project-guide/02-add-and-component-install.md
-- [llms/en/02.md](llms/en/02.md): docs/en/02-project-guide/03-local-debug-workflow.md … docs/en/03-component-guide/03-config-schema-design.md
-- [llms/en/03.md](llms/en/03.md): docs/en/03-component-guide/04-new-and-skeleton.md … docs/en/06-architecture/README.md
-- [llms/en/04.md](llms/en/04.md): docs/en/06-architecture/01-pipeline-overview.md … docs/en/06-architecture/04-deploy-file-generation.md
+- [llms/en/02.md](llms/en/02.md): docs/en/02-project-guide/03-local-debug-workflow.md … docs/en/03-component-guide/02-component-yaml-reference.md
+- [llms/en/03.md](llms/en/03.md): docs/en/03-component-guide/03-config-schema-design.md … docs/en/04-shell/07-shell-upgrade.md
+- [llms/en/04.md](llms/en/04.md): docs/en/04-shell/08-shell-config.md … docs/en/06-architecture/04-deploy-file-generation.md
 - [llms/en/05.md](llms/en/05.md): docs/en/06-architecture/05-design-principles.md … docs/en/06-architecture/08-security-and-signing.md
-- [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/09-error-codes.md … docs/en/08-ai-guide/02-ai-dev-workflow.md
-- [llms/en/07.md](llms/en/07.md): docs/en/08-ai-guide/03-judging-a-requirement.md … docs/en/10-troubleshooting/README.md
+- [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/09-error-codes.md … docs/en/08-ai-guide/01-ai-routing-table.md
+- [llms/en/07.md](llms/en/07.md): docs/en/08-ai-guide/02-ai-dev-workflow.md … docs/en/10-troubleshooting/README.md
 - [llms/en/08.md](llms/en/08.md): docs/en/10-troubleshooting/01-up-down-issues.md … docs/en/11-reference/04-config-schema-spec.md
 - [llms/en/09.md](llms/en/09.md): docs/en/11-reference/05-json-schemas.md … docs/en/11-reference/06-market-api.md
 <!-- llms:bundles:end -->

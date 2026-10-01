@@ -226,7 +226,7 @@ func TestSkillsUpdateLangSwitchesTheBlock(t *testing.T) {
 
 	st := runIn(t, dir, "skills", "status")
 	assert.Contains(t, st.stdout, "Skill language: zh")
-	assert.Contains(t, st.stdout, "brickkit block present (lang=zh)")
+	assert.Contains(t, st.stdout, "block maintained by brickkit present (lang=zh)")
 }
 
 // 同事新克隆：.brickkit/ 不进 Git，克隆里没有它——技能文件自己带着记录，照样认得出、升得上去。
@@ -239,5 +239,5 @@ func TestSkillsFreshCloneWithoutBrickkitDir(t *testing.T) {
 	require.Equal(t, 0, st.code, st.stderr)
 	assert.NotContains(t, st.stdout, "untracked")
 	assert.NotContains(t, st.stdout, "need refreshing")
-	assert.Contains(t, st.stdout, "brickkit block present (lang=en)")
+	assert.Contains(t, st.stdout, "block maintained by brickkit present (lang=en)")
 }

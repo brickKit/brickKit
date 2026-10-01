@@ -18,7 +18,7 @@ brickkit new demo/quote --path demo-quote --contract openapi
 下一步：
   把 component.yaml 和文档里的 TODO 填完（brickkit lint 会列出剩下的每一处）
   cd demo-quote && brickkit init    给它建本地联调工作台（补全式：已有的文件不动）
-  brickkit lint                     检查 component.yaml 能不能通过
+  brickkit lint                     检查 component.yaml 和文档
 ```
 
 | 写法 | 写到哪 | 什么时候用 |
@@ -65,7 +65,16 @@ healthCheck:
   # 要写 startPeriodSeconds，否则 K8s 下会永久 CrashLoopBackOff
 ```
 
-**`BRICKKIT.md`**：五个标准区块（组件定位、依赖说明、配置指南、契约索引、外壳声明），等你填，见 [组件文档](08-component-doc-spec.md)。
+**四份文档**，每一节都带一条 `<!-- TODO: … -->` 提示，说明这里该写什么（`brickkit lint` 会列出还剩下的每一条）：
+
+| 文件 | 写给谁 | 骨架里有什么 |
+| --- | --- | --- |
+| `BRICKKIT.md` | 使用这个组件的人和 AI | 六节：组件定位、部署前准备、依赖说明、配置指南、契约索引、外壳声明；契约文件已经列在契约索引里 |
+| `AGENTS.md` | 开发这个组件的 AI | 五节：代码地图、构建与测试、设计取舍、易错点、改代码前自查；之后是由 CLI 维护的一段，写着组件规则 |
+| `CLAUDE.md` | Claude Code | 一行：`@AGENTS.md` |
+| `README.md` | GitHub 上的人 | 在项目里使用（带这个版本的 `add` 命令）、文档（一张链到其它文件的表）、开发 |
+
+每份写什么，见 [组件的文档](08-component-doc-spec.md)。
 
 **契约占位**：`api/openapi.yaml`，一份空的 OpenAPI。
 
@@ -158,7 +167,8 @@ ENTRYPOINT ["/app/quote"]
 
 镜像里要有 `wget` 或 `curl`（Docker 的 HTTP 健康检查用它们；Alpine 自带 `wget`），并且不要以 root 运行。
 
-**4. 填 `BRICKKIT.md` 和契约**，见 [组件文档](08-component-doc-spec.md) 与 [契约与产物](06-artifacts-and-contracts.md)。
+**4. 填文档和契约**：给使用者的 `BRICKKIT.md`、给下一个开发者的 `AGENTS.md`、`README.md` 的第一行，见
+[组件的文档](08-component-doc-spec.md) 与 [契约与产物](06-artifacts-and-contracts.md)。
 
 **5. 检查。**
 

@@ -39,7 +39,7 @@ brickkit new shop/orders --path orders
 Next steps:
   Fill in the TODOs in component.yaml and the docs (brickkit lint lists every one left)
   cd orders && brickkit init    give it a local workbench (completion mode: existing files are left alone)
-  brickkit lint                 check that component.yaml passes validation
+  brickkit lint                 check component.yaml and the docs
 ```
 
 ```bash
@@ -65,7 +65,9 @@ A few things worth noticing:
 
 - `init` in a component repository creates neither `components/` nor `shell/`, and declares neither local source —
   that's the directory convention of an assembling project, which a component repository has no use for.
-- The component's own `BRICKKIT.md` is kept as is; `init` doesn't overwrite it with a project document.
+- The component's own documents (`BRICKKIT.md`, `AGENTS.md`, `CLAUDE.md`, `README.md`) are kept byte for byte; only the
+  block maintained by the CLI at the end of `AGENTS.md` is rewritten, and it now carries the workbench's component table
+  as well as the component rules. A workbench has one `AGENTS.md`, not two.
 - From here, `brickkit add` brings the component's dependencies into the workbench, and `brickkit up` brings the whole
   dependency tree up locally for integration. At this point `brickkit.yaml` is the author's **local workbench**;
   whether to commit it is the author's call.
@@ -76,14 +78,18 @@ them all to the project.
 
 ## When someone uses it: only the contract and the docs
 
-When a user `add`s the component, the CLI takes just two things from the component's Git tag and caches them
-permanently under the project's `.brickkit/manifests/`:
+When a user `add`s the component, the CLI takes just the contract and the docs from the component's Git tag and caches
+them permanently under the project's `.brickkit/manifests/`:
 
 ```text
 .brickkit/manifests/shop/orders/1.0.0/
 ├── component.yaml    the contract: dependencies, ports, config items, health check, image
-└── BRICKKIT.md       the docs: how to use this component
+├── BRICKKIT.md       the docs: how to use this component
+└── BRICKKIT.zh.md    a translation, when the component carries one (BRICKKIT.<lang>.md)
 ```
+
+The component's `AGENTS.md` and `README.md` stay in its repository: they are for whoever develops it and for people
+browsing it on GitHub, not for the projects that use it.
 
 The dependency tree is resolved only from the `dependencies` in `component.yaml`. The `brickkit.yaml`, `deploy.yaml`
 and `config/` in the component's repository are never read. `.brickkit/` itself isn't committed: after cloning a
@@ -103,56 +109,67 @@ That's exactly what a component repository with a workbench looks like. The CLI 
 `release` going by `component.yaml` alone keeps a release clean: components the author added to the workbench for
 integration never end up in the released version.
 
-## Component documentation: `BRICKKIT.md`
+## Component documentation: `BRICKKIT.md`, `AGENTS.md`, `README.md`
 
-Every component carries a `BRICKKIT.md` at its repository root, for the people and AIs who use it. The skeleton from
-`brickkit new` has five sections:
+A component repository carries three documents, each for a different reader, plus `CLAUDE.md` (one line, `@AGENTS.md`):
+
+| File | Read by | Travels to the projects that use it |
+| --- | --- | --- |
+| `BRICKKIT.md` | The people and AIs using the component | Yes: cached next to `component.yaml`, so it is read alone, without the repository |
+| `AGENTS.md` | The AI (and person) developing the component | No |
+| `README.md` | People browsing the repository on GitHub; mostly links to the other two | No |
+
+The `BRICKKIT.md` skeleton from `brickkit new` has six sections:
 
 ```markdown
 # shop/orders
 
 ## Purpose
 
-<!-- one sentence: the business problem this component solves -->
+<!-- TODO: one or two sentences on the problem it solves, then two short lists: Owns, and Does not own (each saying who owns it instead) -->
+
+## Before you deploy
+
+<!-- TODO: what must exist before brickkit up — a database with its schema and role, an account, a certificate — who prepares each and how to check it; or "Nothing beyond the configuration below." -->
 
 ## Dependencies
 
-<!-- the components it needs (required or optional) and what it uses each one for -->
+<!-- TODO: each dependency by ID (no version), what it is used for; for an optional one, what happens when it is absent -->
 
 ## Configuration
 
 | Variable | Required | Meaning |
 |---|---|---|
-| <!-- a key from configSchema --> | | <!-- what it means for the business, especially what the default cannot say --> |
+| <!-- TODO: a key from configSchema --> | | <!-- TODO: what it means for the business, especially what the default cannot say --> |
 
 ## Contracts
 
-<!-- the files listed under artifacts (OpenAPI, proto, …) -->
+<!-- TODO: every file under artifacts with the main interfaces it describes; events published; events consumed -->
 
 ## Shell declaration
 
 Not a shell.
 ```
 
-The documentation spec is fractal too, appearing at three levels:
+The documentation is fractal too, appearing at three levels:
 
 | Level | File | Job | Written by |
 | --- | --- | --- | --- |
-| Definition (the platform) | `AGENTS.md` / `AGENTS.zh.md` at the repository root | Sets the document structure and the AI's reading path | Maintained with the platform |
-| Instance (the project) | `BRICKKIT.md` at the project root | Lists the project's components and where their docs and contracts are | Generated by `init`, refreshed by `add` / `remove` / `upgrade` |
-| Content (the component) | `BRICKKIT.md` at the component repository root | The component's purpose, dependencies, what its config means, its contracts | Skeleton from `new`, filled in by the author |
+| Definition (the platform) | `AGENTS.md` / `AGENTS.zh.md` at the root of the BrickKit repository | Sets the document structure and the AI's reading path | Maintained with the platform |
+| Instance (the project) | `AGENTS.md` at the project root | The team's conventions, where to look and pitfalls; at its end, a summary of the platform rules and the table of the project's components, with where their docs and contracts are | The author writes the sections; the table is rewritten by `init`, `add`, `remove` and `upgrade` |
+| Content (the component) | `BRICKKIT.md` and `AGENTS.md` at the component repository root | `BRICKKIT.md`: purpose, preparation, dependencies, what its config means, contracts; `AGENTS.md`: code map, build and test, design decisions | Skeletons from `new`, filled in by the author |
 
-How to write one: [The component's BRICKKIT.md](../03-component-guide/08-component-doc-spec.md).
+How to write them: [A component's documentation](../03-component-guide/08-component-doc-spec.md).
 
 ## How an AI reads a nested project
 
 ```mermaid
 graph TD
-    A["AGENTS.md<br/>the platform: where things are, how to read them"] --> P["the project's BRICKKIT.md<br/>which components, where their docs are"]
-    P --> C1[".brickkit/manifests/shop/orders/1.0.0/BRICKKIT.md<br/>only the component in question"]
+    P["the project's AGENTS.md<br/>conventions, platform rules, the component table"] --> C1[".brickkit/manifests/shop/orders/1.0.0/BRICKKIT.md<br/>only the component in question"]
     P -.-> C2["other components' BRICKKIT.md<br/>not read unless needed"]
+    C1 -.-> D["the component's own AGENTS.md, in its source<br/>only to change its code"]
 ```
 
-An AI reads from the platform's routing to the project's map, then only the documentation of the component it needs:
-no digging through component source, no reading the three layers inside a component repository, only the context the
-current question calls for. See [Reading a fractal project](../08-ai-guide/05-fractal-reading.md).
+An AI reads the project's `AGENTS.md` first, then only the documentation of the component it needs, and opens a
+component's own `AGENTS.md` only when it is about to change that component's code: no digging through component
+source, no reading the three layers inside a component repository, only the context the current question calls for. See [Reading a fractal project](../08-ai-guide/05-fractal-reading.md).

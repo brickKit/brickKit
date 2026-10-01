@@ -78,10 +78,17 @@ When there are required items to fill in, `add` names the file and the keys:
 
 `up` without filling them in refuses to start and tells you which item is missing.
 
+**`.brickkit/manifests/<id>/<version>/`**: the component's `component.yaml` and its documentation, `BRICKKIT.md` plus
+every translation it carries (`BRICKKIT.zh.md` and the like), cached permanently — from a local, Git or market source
+alike.
+
 **`.brickkit/artifacts/`**: the contract files the component declares (OpenAPI, proto and the like), which you'll use when
 writing a caller.
 
-**`BRICKKIT.md`**: the component table in the project map is updated.
+**`AGENTS.md`**: the component table at its end — the block the CLI maintains — gets a row for each component added:
+version, what it does, which docs it carries, its home page (see
+[The project's `AGENTS.md`](01-init-and-project-creation.md#the-projects-agentsmd)). Nothing outside the block changes,
+and an `AGENTS.md` without the block is left as it is.
 
 If the project doesn't load after the changes (say, the new component conflicts with an existing one), `add` puts every
 changed file back — all of it, or nothing.

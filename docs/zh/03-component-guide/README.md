@@ -18,6 +18,6 @@
 | [05 分形的本地开发](05-local-dev-fractal.md) | 在组件仓库里建本地联调工作台，连着依赖跑自己 |
 | [06 契约与产物](06-artifacts-and-contracts.md) | `artifacts`、契约先行、`brickkit fetch` |
 | [07 发布](07-release-workflow.md) | `brickkit release`：检查、打 tag、推送 |
-| [08 组件文档 BRICKKIT.md](08-component-doc-spec.md) | 五个区块怎么写，CLI 怎么把它带进使用方的项目 |
+| [08 组件的文档](08-component-doc-spec.md) | 组件仓库带哪几份文档、每份写什么，`BRICKKIT.md` 怎么被带进使用方的项目 |
 | [09 多版本共存](09-multi-version-coexistence.md) | 同一个组件的两个版本怎么同时运行、各自连谁 |
 | [10 Git 分发](10-git-distribution.md) | 仓库地址怎么推导、缓存怎么工作、私有仓库的鉴权 |

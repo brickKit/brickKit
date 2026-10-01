@@ -36,7 +36,7 @@ brickkit new shop/orders --path orders
 下一步：
   把 component.yaml 和文档里的 TODO 填完（brickkit lint 会列出剩下的每一处）
   cd orders && brickkit init    给它建本地联调工作台（补全式：已有的文件不动）
-  brickkit lint                 检查 component.yaml 能不能通过
+  brickkit lint                 检查 component.yaml 和文档
 ```
 
 ```bash
@@ -62,7 +62,8 @@ brickkit init --yes
 
 - 组件仓库里的 `init` 不建 `components/` 与 `shell/`，也不声明那两个本地源——那是装配型项目的目录约定，
   组件仓库用不上。
-- 组件自己的 `BRICKKIT.md` 原样保留，`init` 不会拿项目文档盖掉它。
+- 组件自己的文档（`BRICKKIT.md`、`AGENTS.md`、`CLAUDE.md`、`README.md`）一个字节都不动；只改写 `AGENTS.md` 末尾那段由 CLI
+  维护的区块，这时它除了组件规则，还多了工作台的组件表。工作台只有一份 `AGENTS.md`，不是两份。
 - 之后用 `brickkit add` 把这个组件的依赖加进工作台，`brickkit up` 就能在本地拉起完整的依赖树联调。
   这时 `brickkit.yaml` 是作者的**本地工作台**，要不要提交由作者决定。
 
@@ -71,13 +72,17 @@ brickkit init --yes
 
 ## 消费态：只读契约和文档
 
-使用者 `add` 这个组件时，CLI 从组件的 Git tag 里只取两样东西，永久缓存到项目的 `.brickkit/manifests/` 下：
+使用者 `add` 这个组件时，CLI 从组件的 Git tag 里只取契约和文档，永久缓存到项目的 `.brickkit/manifests/` 下：
 
 ```text
 .brickkit/manifests/shop/orders/1.0.0/
 ├── component.yaml    契约：依赖、端口、配置项、健康检查、镜像
-└── BRICKKIT.md       文档：这个组件怎么用
+├── BRICKKIT.md       文档：这个组件怎么用
+└── BRICKKIT.zh.md    译本，组件带着才有（BRICKKIT.<语言>.md）
 ```
+
+组件的 `AGENTS.md` 和 `README.md` 留在它自己的仓库里：一份写给开发它的人，一份写给在 GitHub 上逛仓库的人，
+使用它的项目用不上。
 
 依赖树只从 `component.yaml` 的 `dependencies` 解析。组件仓库里的 `brickkit.yaml`、`deploy.yaml`、`config/`
 一概不看。`.brickkit/` 本身不进 Git：克隆项目之后第一次 `add` 或 `up` 时，CLI 会按需重新取回，就像
@@ -95,54 +100,66 @@ brickkit init --yes
 
 `release` 只认 `component.yaml` 保证了发布的纯粹：作者联调时临时加进工作台的组件，不会被带进发布的版本。
 
-## 组件文档：`BRICKKIT.md`
+## 组件的文档：`BRICKKIT.md`、`AGENTS.md`、`README.md`
 
-每个组件在仓库根目录带一份 `BRICKKIT.md`，给使用它的人和 AI 看。`brickkit new` 生成的骨架有五个区块：
+组件仓库带三份文档，各有各的读者，外加一份 `CLAUDE.md`（只有一行 `@AGENTS.md`）：
+
+| 文件 | 谁读 | 会不会带进使用它的项目 |
+| --- | --- | --- |
+| `BRICKKIT.md` | 使用这个组件的人和 AI | 会：缓存在 `component.yaml` 旁边，脱离仓库单独被读 |
+| `AGENTS.md` | 开发这个组件的 AI（和人） | 不会 |
+| `README.md` | 在 GitHub 上逛仓库的人；主要是指向另外两份的路标 | 不会 |
+
+`brickkit new` 生成的 `BRICKKIT.md` 骨架有六节：
 
 ```markdown
 # shop/orders
 
 ## 组件定位
 
-<!-- 一句话：这个组件解决什么业务问题 -->
+<!-- TODO: 一两句话说解决什么问题，再两张短表：负责、不负责（每条写明归谁） -->
+
+## 部署前准备
+
+<!-- TODO: brickkit up 之前要准备好的东西——数据库及其 schema 和角色、账号、证书——每样由谁准备、怎么确认好了；没有就写"除下面的配置外无需准备。" -->
 
 ## 依赖说明
 
-<!-- 它依赖哪些组件（强/弱），各拿来做什么 -->
+<!-- TODO: 每条依赖写 ID（不写版本）、拿来做什么；可选依赖写缺席时会怎样 -->
 
 ## 配置指南
 
 | 变量名 | 必填 | 说明 |
 |---|---|---|
-| <!-- configSchema 里的一个 key --> | | <!-- 它的业务含义，尤其是默认值说不清的部分 --> |
+| <!-- TODO: configSchema 里的一个 key --> | | <!-- TODO: 它的业务含义，尤其是默认值说不清的部分 --> |
 
 ## 契约索引
 
-<!-- artifacts 里声明的契约文件（OpenAPI、proto……） -->
+<!-- TODO: artifacts 下的每个文件与它描述的主要接口；发布的事件；消费的事件 -->
 
 ## 外壳声明
 
 不是外壳。
 ```
 
-文档规范本身也是分形的，出现在三个层级：
+文档本身也是分形的，出现在三个层级：
 
-| 层级 | 文件 | 职责 | 谁生成 |
+| 层级 | 文件 | 职责 | 谁写 |
 | --- | --- | --- | --- |
-| 定义层（平台） | 仓库根目录的 `AGENTS.md` / `AGENTS.zh.md` | 规定文档的结构和 AI 的读取路线 | 平台维护 |
-| 实例层（项目） | 项目根目录的 `BRICKKIT.md` | 列出项目里有哪些组件、各自的文档和契约在哪 | `init` 生成，`add` / `remove` / `upgrade` 自动刷新 |
-| 内容层（组件） | 组件仓库根目录的 `BRICKKIT.md` | 这个组件的定位、依赖、配置含义、契约 | `new` 生成骨架，作者填写 |
+| 定义层（平台） | BrickKit 仓库根目录的 `AGENTS.md` / `AGENTS.zh.md` | 规定文档的结构和 AI 的读取路线 | 平台维护 |
+| 实例层（项目） | 项目根目录的 `AGENTS.md` | 团队约定、查找路由、易错点；末尾是平台规则摘要和项目组件表，写明各自的文档和契约在哪 | 各节由作者写；组件表由 `init`、`add`、`remove`、`upgrade` 改写 |
+| 内容层（组件） | 组件仓库根目录的 `BRICKKIT.md` 与 `AGENTS.md` | `BRICKKIT.md`：定位、部署前准备、依赖、配置含义、契约；`AGENTS.md`：代码地图、构建与测试、设计取舍 | `new` 生成骨架，作者填写 |
 
-写法细则见 [组件文档规范](../03-component-guide/08-component-doc-spec.md)。
+写法细则见 [组件的文档](../03-component-guide/08-component-doc-spec.md)。
 
 ## AI 的套娃读取路径
 
 ```mermaid
 graph TD
-    A["AGENTS.zh.md<br/>平台：文件在哪、怎么读"] --> P["项目的 BRICKKIT.md<br/>有哪些组件、文档在哪"]
-    P --> C1[".brickkit/manifests/shop/orders/1.0.0/BRICKKIT.md<br/>只读用得到的那个组件"]
+    P["项目的 AGENTS.md<br/>团队约定、平台规则、组件表"] --> C1[".brickkit/manifests/shop/orders/1.0.0/BRICKKIT.md<br/>只读用得到的那个组件"]
     P -.-> C2["其它组件的 BRICKKIT.md<br/>用不到就不读"]
+    C1 -.-> D["组件源码里它自己的 AGENTS.md<br/>只在要改它的代码时读"]
 ```
 
-AI 从平台的路由读到项目的地图，再按需读某一个组件的文档：不翻组件源码，不读组件仓库里的三层文件，
-一次只装进当前问题需要的那一点上下文。详见 [分形架构下的读取策略](../08-ai-guide/05-fractal-reading.md)。
+AI 先读项目的 `AGENTS.md`，再按需读某一个组件的文档，要改某个组件的代码时才打开它自己的 `AGENTS.md`：
+不翻组件源码，不读组件仓库里的三层文件，一次只装进当前问题需要的那一点上下文。详见 [分形架构下的读取策略](../08-ai-guide/05-fractal-reading.md)。

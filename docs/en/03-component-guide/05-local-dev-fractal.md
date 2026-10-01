@@ -7,8 +7,8 @@ imagining one from the docs. BrickKit's way is **fractal**: while a component is
 complete BrickKit project — with a `brickkit.yaml`, a deploy file and `config/` listing its dependencies. That project
 belongs to the author alone and is called the **local workbench**.
 
-Users never see it: when someone runs `add demo/quote`, the CLI reads only the `component.yaml` and `BRICKKIT.md` in the tag
-you released, and resolves the dependency tree from `component.yaml`'s `dependencies` **in their own project**.
+Users never see it: when someone runs `add demo/quote`, the CLI reads only the `component.yaml` and `BRICKKIT.md` (with its
+translations) in the tag you released, and resolves the dependency tree from `component.yaml`'s `dependencies` **in their own project**.
 
 ## Creating the workbench in the component repository
 
@@ -61,6 +61,18 @@ brickkit add demo/hello@1.1.0
 ```
 
 Now `brickkit up` can bring the dependencies up locally.
+
+## The workbench's `AGENTS.md`
+
+A workbench has **one** `AGENTS.md`: the component's own. `init` leaves its sections (Code map, Build and test, Design
+decisions, Pitfalls, Before changing code) exactly as they are and rewrites only the block the CLI maintains at its end.
+In a workbench that block holds two things: the component rules it had before, and the workbench's component table —
+filled in by `add` as the dependencies come in, with where each one's documentation is cached
+(`.brickkit/manifests/<id>/<version>/`).
+
+So an AI working in the repository finds, in one file, how this component is built and what it must not break, and which
+dependencies it runs against and where to read about them. There is no second, project-style `AGENTS.md` with Overview
+and Conventions: the workbench isn't a project anyone else assembles.
 
 ## Adding the component itself
 
@@ -160,7 +172,7 @@ When a component repository has both `component.yaml` and `brickkit.yaml`, the C
 | --- | --- | --- |
 | `up`, `add`, `down`, `status`… | A project (your workbench) | `brickkit.yaml`, the deploy file, `config/` |
 | `release` | A component | Only `component.yaml`; nothing in the workbench takes part |
-| `lint` | A project | The workbench's three layers, plus the `component.yaml` at the repository root |
+| `lint` | A project | The workbench's three layers, plus the `component.yaml` and the component's documents at the repository root |
 
 That keeps releases clean: components you added to the workbench and settings you tuned there never end up in the version
 you release.

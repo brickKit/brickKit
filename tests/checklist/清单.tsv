@@ -112,3 +112,11 @@ security.15	blocked 组件不可安装	.	./internal/market	TestAsCLIErrorMapsCod
 security.16	容器使用非 root 用户	.	./internal/k8s	TestRestrictedPodSecurity
 security.17	config 字段不包含密钥	.	./internal/cli	TestConfigWithSecretWarns
 security.18	配置要求签名时强制生效	.	./internal/source	TestRequireSignatureBlocksUnsigned
+boundary.32	init 写出 AGENTS.md 与 CLAUDE.md，不再写项目级 BRICKKIT.md	.	./internal/cli	TestInitCreatesNamedDirectory
+boundary.33	AGENTS.md 维护区按它记下的语言重写，不随运行命令的人的 CLI 语言变	.	./internal/agentsmd	TestEnsureKeepsRecordedLanguage
+boundary.34	add / remove / upgrade 只改维护区，作者写的字节一个不动	.	./internal/cli	TestAddUpdatesAgentsTable
+boundary.35	BRICKKIT.md 的译本随 add 缓存，组件表列出语言	.	./internal/cli	TestAgentsTableListsDocTranslations
+compat.22	新克隆（没有 .brickkit/）照样认得出、升得上去技能文件	.	./internal/cli	TestSkillsFreshCloneWithoutBrickkitDir
+compat.23	旧版 skills.lock 只用来迁移一次，然后删掉	.	./internal/skills	TestLegacyLockMigratesOnceThenGoesAway
+error.26	文档问题是 lint 警告，--strict 下才算失败	.	./internal/cli	TestLintComponentRepositoryChecksDocs
+error.27	component.yaml 里的依赖、必填键、契约文件、外壳成员在文档里没提时报 DOC_OUT_OF_STEP	.	./internal/doccheck	TestOutOfStepWithManifest

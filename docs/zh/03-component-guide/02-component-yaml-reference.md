@@ -53,8 +53,9 @@ healthCheck:
 | --- | --- |
 | `id` | `<scope>/<name>`，全局唯一。它决定仓库名（`demo-quote`）、服务名（`demo-quote-0-1-0`）和别人拿到的地址变量名（`DEMO_QUOTE_ENDPOINT`） |
 | `version` | 精确版本 `主.次.修订`。**这是版本号唯一的事实来源**：`release` 打的 tag、`build` 的镜像 tag 都取它 |
-| `name`、`description` | 给人看的名字与一句话描述 |
+| `name`、`description` | 给人看的名字与一句话描述。`description` 也是使用方项目 `AGENTS.md` 末尾组件表里"干什么"那一列，所以写它做什么，别写它叫什么 |
 | `vendor`、`license`、`apiDocs` | 可选：发布者、许可证、API 文档地址 |
+| `repository` | 可选：组件仓库或主页的地址。它就是同一张表的"主页"一列，在网页上读项目仓库的人（那里没有 `.brickkit/`）也能点到每个组件 |
 
 `tags` 是可选的检索标签。
 

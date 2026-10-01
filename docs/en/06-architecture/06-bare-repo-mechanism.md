@@ -53,8 +53,8 @@ afresh every time and never cached — change it, and the next command follows t
 4. When the repository has the tag, read the files from the tag directly.
 5. When it doesn't, `git fetch --tags` once for the increment (a repository is fetched at most once per run), then read.
    When a tag was force-moved, the remote wins; branches deleted on the remote are deleted in the cache too.
-6. Write the `component.yaml` read (and the component's `BRICKKIT.md`, when it carries one) into the project's permanent
-   cache.
+6. Write the `component.yaml` read into the project's permanent cache, together with every `BRICKKIT*.md` in the
+   component's directory at that tag — `BRICKKIT.md` and each translation (`BRICKKIT.zh.md` …), when it carries them.
 
 "The latest version" (`add` without a version, `upgrade`) needs the list of tags, and that step always fetches first, so
 what it sees is the remote's tags as they are now.
@@ -72,7 +72,7 @@ A component repository may register git submodules. BrickKit fetches none of the
 | Path | What you get |
 | --- | --- |
 | The bare-repository cache | Tags and their commits; a submodule is only a pointer in its tree |
-| Reading `component.yaml`, `BRICKKIT.md`, artifacts | Files read straight from the tag — never inside a submodule |
+| Reading `component.yaml`, `BRICKKIT*.md`, artifacts | Files read straight from the tag — never inside a submodule |
 | `build` from a tag | An export of the tag: submodule directories are empty, and `build` warns about them |
 | `add --repo` | A clone without `--recurse-submodules`; it names the submodules it left empty |
 

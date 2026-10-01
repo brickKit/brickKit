@@ -54,8 +54,9 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 | The environment variables a component gets (connection details, secrets, switches) | `config/<component ID with / replaced by ->.yaml`; a versioned `config/<…>@<version>.yaml` wins for that version |
 | Shared variables | `config/vars.yaml` (a deploy file's `vars:` overrides entries of the same name) |
 | A component's dependencies, capabilities and `configSchema` | `.brickkit/manifests/<scope>/<name>/<version>/component.yaml`; for a component from a local source, the `component.yaml` in its source directory |
-| How to use a dependency and what its config items mean | `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md` |
-| Which components the project has and where their docs are | `BRICKKIT.md` at the project root |
+| How to use a dependency, what it owns and doesn't, what its config items mean | `.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md` (translations `BRICKKIT.<lang>.md`); for a local source at that version, the one in its source directory |
+| Which components the project has and what each does | The component table at the end of the project's `AGENTS.md` (maintained by `add` / `remove` / `upgrade`) |
+| How to change a component: its code map, build and test, pitfalls | The component's own `AGENTS.md` |
 
 ### 3.2 Rules that matter
 
@@ -66,22 +67,24 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 - Project commands work from any subdirectory: they walk up to the nearest `brickkit.yaml` (like `git`, not stopping at `.git`) and say `📁 Project: …` when they did; paths they print are relative to where you are. `release`, `publish`, `init` and `skills` act on the current directory.
 - `$var:NAME` takes its value from `config/vars.yaml` (or the deploy file's `vars:`); `${NAME}` from the process environment, then `.env`; `file://path` reads a file. The environment never overrides a value implicitly.
 - `brickkit up` never builds an image: when an image that has to be built locally is missing, it stops and tells you to run `brickkit build`.
-- `brickkit init <name>` creates a new directory; `brickkit init` without a name completes the current directory, adding only what is missing and never touching an existing byte, and warns loudly when `.gitignore` lacks a required entry.
+- `brickkit init <name>` creates a new directory; `brickkit init` without a name completes the current directory, adding only what is missing and never touching an existing byte, and warns loudly when `.gitignore` lacks a required entry. It writes the project's `AGENTS.md` (the author's AI guide, with a block at its end that brickkit maintains) and `CLAUDE.md` (`@AGENTS.md`) when they are missing; there is no project-level `BRICKKIT.md`.
 
 ### 3.3 Fractal structure
 
 - **While you develop it**, a component's repository can itself be a complete BrickKit project, with its own three layers for local integration work.
 - **When a project uses it**, the project reads only its `component.yaml` (the contract) and its `BRICKKIT.md` (the documentation).
 - **The spec nests, the files don't**: a component's own three layers never travel into the project that uses it; only the contract and the docs do.
-- `brickkit add` caches each component's `BRICKKIT.md` permanently under `.brickkit/manifests/`.
+- `brickkit add` caches each component's `BRICKKIT.md` and its translations permanently under `.brickkit/manifests/`.
+- **A component carries one document per reader**: `BRICKKIT.md` for projects using it (six sections, no relative links), `AGENTS.md` + `CLAUDE.md` for the AI developing it (a code map and four more sections), `README.md` for people on GitHub; history lives in Git. `brickkit lint` checks them, as warnings.
 - **Inside a project, a focus run; for a standalone component, a workbench.** A focus run needs no files of its own; a workbench is the component repository's own `brickkit.yaml`, and the nearest `brickkit.yaml` always wins.
 - **One `components/`**: component source lives only in the project's `components/`. A component nested inside another component's directory is refused by `up`, `lint` and `sync` and never moved for you; `add --repo` always clones into the project's `components/`. Git submodules are never fetched.
 
 ### 3.4 How an AI should read a project
 
 1. This file: the rules and where things live.
-2. The project's root `BRICKKIT.md`: which components exist and where each one's documentation is.
-3. On demand, one component's `BRICKKIT.md` (under `.brickkit/manifests/`) to understand that component.
+2. The project's `AGENTS.md`: its conventions, and at its end the component table — which components exist and what each does.
+3. On demand, one component's `BRICKKIT.md` (under `.brickkit/manifests/`) to understand that component; to change it, its own `AGENTS.md`.
+4. A new requirement: [`docs/en/08-ai-guide/03-judging-a-requirement.md`](docs/en/08-ai-guide/03-judging-a-requirement.md) — which component owns it, whether it is sound, the order to change things in.
 
 Don't load every component's documentation at once: read only the components the question is about.
 
@@ -100,9 +103,9 @@ Don't load every component's documentation at once: read only the components the
 | Command | What it does |
 | --- | --- |
 | `init` | With a name: create a directory with the three-layer skeleton. Without: complete the current directory |
-| `skills` | Show or refresh the AI assistant skills installed in the project (`status` / `update`) |
+| `skills` | Show or refresh the AI assistant skills installed in the project and the block at the end of `AGENTS.md` (`status` / `update`) |
 | `graph` | Dependency topology as Mermaid |
-| `lint` | Offline, read-only check of the three layers and `component.yaml` files |
+| `lint` | Offline, read-only check of the three layers, `component.yaml` files and the documents (warnings) |
 | `new` | Component skeleton (`--shell` for a shell) |
 | `add` | Fetch a component and its dependencies, write the three layers |
 | `remove` | Remove a component; its config moves to `config/.archive/` |
@@ -192,6 +195,8 @@ To find out → read. The page-by-page list, one line per page, is [`llms.txt`](
 | Running a project: init, add, local, up, upgrade … | [`docs/en/02-project-guide/README.md`](docs/en/02-project-guide/README.md) |
 | Working on one component inside a project | [`docs/en/02-project-guide/04-focus-run.md`](docs/en/02-project-guide/04-focus-run.md) |
 | Writing a component | [`docs/en/03-component-guide/README.md`](docs/en/03-component-guide/README.md) |
+| A component's documents: what goes in each, translations, what lint checks | [`docs/en/03-component-guide/08-component-doc-spec.md`](docs/en/03-component-guide/08-component-doc-spec.md) |
+| Judging a new requirement and planning the change | [`docs/en/08-ai-guide/03-judging-a-requirement.md`](docs/en/08-ai-guide/03-judging-a-requirement.md) |
 | Shells | [`docs/en/04-shell/README.md`](docs/en/04-shell/README.md) |
 | Database migrations | [`docs/en/05-migration/README.md`](docs/en/05-migration/README.md) |
 | Architecture, principles, the env contract, error codes | [`docs/en/06-architecture/README.md`](docs/en/06-architecture/README.md), [`docs/en/06-architecture/05-design-principles.md`](docs/en/06-architecture/05-design-principles.md), [`docs/en/06-architecture/03-env-injection-contract.md`](docs/en/06-architecture/03-env-injection-contract.md), [`docs/en/06-architecture/09-error-codes.md`](docs/en/06-architecture/09-error-codes.md) |
@@ -273,7 +278,8 @@ migration scripts), `scripts/` (lint checks, install checks, release), `install.
 | `add`, `remove`, `upgrade` | `internal/cli/add.go`, `internal/cli/remove.go`, `internal/cli/upgrade.go`, `internal/cli/install_apply.go` | `install`, `configdir`, `source` |
 | `fetch` | `internal/cli/fetch.go`, `internal/cli/artifacts.go` | `source` |
 | `build` | `internal/cli/build.go` | `source`, `engine`, `gitrepo` |
-| `lint` | `internal/cli/lint.go`, `internal/cli/lint_config.go` | `project`, `yamlcheck` |
+| `lint` | `internal/cli/lint.go`, `internal/cli/lint_config.go` | `project`, `yamlcheck`, `doccheck` |
+| Component and project documents | `internal/docspec/docspec.go` (the spec as data) | `agentsmd` (the `AGENTS.md` block), `doccheck` (lint), `manifest/docs_scaffold.go` (`new`) |
 | `graph`, `deps` | `internal/cli/graph.go`, `internal/cli/deps.go`, `internal/cli/topology.go` | `resolver`, `cascade` |
 | `sync`, `restore` | `internal/cli/sync.go`, `internal/cli/restore.go`, `internal/cli/restore_check.go` | `workspace` |
 | `local` | `internal/cli/local.go` | `deployfile` |

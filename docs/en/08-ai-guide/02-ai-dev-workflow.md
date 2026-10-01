@@ -1,9 +1,14 @@
 # The AI-assisted development workflow
 
+When the task starts as a requirement rather than a component — "users should be able to …" — work out first which
+component owns it, whether it is sound, and the order to change things in: see
+[Judging and planning a requirement](03-judging-a-requirement.md). The steps below begin once you know which component
+you are writing or changing.
+
 ## Writing a new component
 
-1. **Read the context.** The project root's `BRICKKIT.md` and `brickkit.yaml`: what the project already has, and where the
-   new component goes.
+1. **Read the context.** The project root's `AGENTS.md` — the team's conventions, and the component table at its end — and
+   `brickkit.yaml`: what the project already has, the rules a new component must follow, and where it goes.
 2. **Read the dependencies.** For every component the new one will call: its `BRICKKIT.md`, `configSchema` and contracts.
    Only direct dependencies.
 3. **Generate the skeleton.** `brickkit new <scope>/<name>` (`--path` for a repository of its own, `--contract
@@ -17,8 +22,11 @@
    read it with `.get()` and write down the degradation; the health check checks only this process; the entry program
    exits with an error at once on an argument it doesn't know.
 7. **Write the Dockerfile.** The image needs `wget` or `curl` (for the HTTP health check), and doesn't run as root.
-8. **Write `BRICKKIT.md`.** Five sections, holding what `component.yaml` can't say (see
-   [Component docs](04-component-doc-spec.md)).
+8. **Write the component's documents.** `BRICKKIT.md` for the people using it — six sections, holding what
+   `component.yaml` can't say; `AGENTS.md` for whoever develops it next — the code map, how to build and test, the
+   design decisions; and the first line of `README.md`. `brickkit lint` lists every placeholder left. See
+   [A component's documentation](../03-component-guide/08-component-doc-spec.md) and
+   [Component docs, from an AI's side](04-component-doc-spec.md).
 9. **Run it.** `brickkit add --local`, `brickkit build`, `brickkit up`; or build a workbench in the component repository for
    integration work (see [Developing inside a component](../03-component-guide/05-local-dev-fractal.md)).
 10. **Test.** Write the tests first and watch them go red, then make the implementation turn them green (see the
@@ -26,11 +34,14 @@
 
 ## Changing an existing component
 
-1. **Read its `BRICKKIT.md` and `component.yaml`.** Especially `configSchema` and `dependencies`.
+1. **Read its `BRICKKIT.md`, `AGENTS.md` and `component.yaml`.** Especially `configSchema` and `dependencies`, and the
+   code map and pitfalls in `AGENTS.md`.
 2. **Judge whether it's a breaking change.** Removing an endpoint, changing a field's meaning, changing a config item's name
    or meaning, changing a default — all affect the people using it.
-3. **Change the code, the contract and `BRICKKIT.md`.** All three together; don't let the docs fall behind the
-   implementation.
+3. **Change the code, the contract and the documents.** In the same commit: `BRICKKIT.md` when what users see changes,
+   `AGENTS.md` when the code map or a decision changes. Don't let the docs fall behind the implementation —
+   `brickkit lint` says when a document no longer matches `component.yaml` (`DOC_OUT_OF_STEP`) or points at code that
+   moved (`DOC_PATH_MISSING`).
 4. **Raise the version.** Change `metadata.version` (the version's only source): the patch for implementation-only
    changes, the minor for additions, the major for breaking changes.
 5. **Release.** Commit, push, `brickkit release`.

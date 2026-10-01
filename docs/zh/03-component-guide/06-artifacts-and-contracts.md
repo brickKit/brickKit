@@ -29,13 +29,18 @@ artifacts:
 
 平台不理解 `type` 与 `format`，也不解析契约的内容——它只负责把 `files` 原样送到使用方手里。所以你可以交出任何格式的契约。
 
-使用方 `add` 你的组件时，这些文件落到他项目的 `.brickkit/artifacts/<版本化服务名>/<type>/` 下，项目地图 `BRICKKIT.md` 里列着路径：
+一条约定，不是规则：组件发布或消费的事件格式，用 `type: event-contract`（`format` 写 `asyncapi`、`json-schema` 之类），
+和描述调用接口的 `api-contract` 放在一起。读的人一眼就分得清两类，`BRICKKIT.md` 的契约索引也好写明发出哪些事件、接收哪些事件。
+对平台来说，`event-contract` 照样只是一个字符串。
+
+使用方 `add` 你的组件时，这些文件落到他项目的 `.brickkit/artifacts/<版本化服务名>/<type>/` 下。项目的 `AGENTS.md`
+不逐个列路径：末尾由 CLI 维护的那一段把规则写了一次——
 
 ```text
-| demo/quote | 0.1.0 | `.brickkit/manifests/demo/quote/0.1.0/BRICKKIT.md` | `.brickkit/artifacts/demo-quote-0-1-0/` |
+契约在 `.brickkit/artifacts/<服务名>/`（ID 里的 `/` 和 `.` 换成 `-`，再接上 `.` 换成 `-` 的版本）
 ```
 
-目录名带着版本：调用方的客户端是照哪个版本的契约写的，一眼可知。
+——所以 `demo/quote@0.1.0` 的契约在 `.brickkit/artifacts/demo-quote-0-1-0/api-contract/`。目录名带着版本：调用方的客户端是照哪个版本的契约写的，一眼可知。
 
 ## 契约里写什么
 

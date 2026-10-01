@@ -1,8 +1,11 @@
 # AI 辅助开发工作流
 
+任务一开始是一个需求而不是一个组件时——"用户应该能……"——先弄清它归哪个组件、合不合理、按什么顺序改，见
+[判断需求、制定计划](03-judging-a-requirement.md)。下面的步骤从你已经知道要写或要改哪个组件开始。
+
 ## 写一个新组件
 
-1. **读上下文。** 项目根的 `BRICKKIT.md` 与 `brickkit.yaml`：项目里已经有什么，新组件放在哪。
+1. **读上下文。** 项目根的 `AGENTS.md`（团队约定，末尾是组件表）与 `brickkit.yaml`：项目里已经有什么、新组件要守哪些规矩、放在哪。
 2. **读依赖。** 新组件要调用的每个组件：它的 `BRICKKIT.md`、`configSchema`、契约。只读直接依赖。
 3. **生成骨架。** `brickkit new <scope>/<name>`（独立仓库用 `--path`，要契约占位用 `--contract openapi|proto`）。
 4. **先写 `component.yaml`。** `dependencies`（精确版本）、`configSchema`（键就是环境变量名，密钥标 `secret: true`，平台推导不出的写成必填）、
@@ -10,15 +13,18 @@
 5. **写契约。** 先把接口写进契约文件——调用方可以同时开工，你也有了验收标准。
 6. **写代码。** 依赖地址从 `*_ENDPOINT` 读；弱依赖的变量可能不存在，用 `.get()` 读并写明降级；健康检查只查本进程；入口对不认识的参数立刻报错退出。
 7. **写 Dockerfile。** 镜像里要有 `wget` 或 `curl`（HTTP 健康检查用），不以 root 运行。
-8. **写 `BRICKKIT.md`。** 五个区块，写 `component.yaml` 说不出来的东西（见 [组件文档](04-component-doc-spec.md)）。
+8. **写组件的文档。** 给使用者的 `BRICKKIT.md`——六节，写 `component.yaml` 说不出来的东西；给下一个开发者的 `AGENTS.md`——代码地图、
+   怎么构建和测试、设计取舍；再加上 `README.md` 的第一行。`brickkit lint` 会列出还剩的每一处占位。见
+   [组件的文档](../03-component-guide/08-component-doc-spec.md) 与 [组件文档（AI 视角）](04-component-doc-spec.md)。
 9. **跑起来。** `brickkit add --local`、`brickkit build`、`brickkit up`；或者在组件仓库里建工作台联调（见 [分形的本地开发](../03-component-guide/05-local-dev-fractal.md)）。
 10. **测试。** 先写测试、看它变红，再让实现变绿（见 [测试策略](../09-patterns/02-testing-strategy.md)）。
 
 ## 改一个已有组件
 
-1. **读它的 `BRICKKIT.md` 与 `component.yaml`。** 尤其 `configSchema` 与 `dependencies`。
+1. **读它的 `BRICKKIT.md`、`AGENTS.md` 与 `component.yaml`。** 尤其 `configSchema`、`dependencies`，以及 `AGENTS.md` 里的代码地图和易错点。
 2. **判断是不是破坏性改动。** 删接口、改字段含义、改配置项的名字或含义、改默认值——都会影响使用方。
-3. **改代码、改契约、改 `BRICKKIT.md`。** 三者一起改，别让文档落后于实现。
+3. **改代码、改契约、改文档。** 放在同一个提交里：使用方看得到的东西变了改 `BRICKKIT.md`，代码地图或某个取舍变了改 `AGENTS.md`。
+   别让文档落后于实现——文档和 `component.yaml` 对不上了（`DOC_OUT_OF_STEP`）、指向的代码挪走了（`DOC_PATH_MISSING`），`brickkit lint` 都会说。
 4. **提版本号。** 改 `metadata.version`（它是版本号唯一的来源）：只改实现提修订号，加东西提次版本号，破坏性改动提主版本号。
 5. **发布。** 提交、推送、`brickkit release`。
 6. **在项目里升级。** `brickkit upgrade <组件>`；有配置冲突时由人决定保留哪个值。

@@ -25,6 +25,7 @@ import (
 	"github.com/brickkit/brickkit/internal/doccheck"
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/inject"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
@@ -318,6 +319,7 @@ func lintManifest(opts *Options, path, dirID string) lintFile {
 func reportLint(opts *Options, files []lintFile, notes []string, strict bool) error {
 	failed, warned := 0, 0
 	for _, f := range files {
+		logFindings(opts, f)
 		if len(f.errors) == 0 && len(f.warnings) == 0 {
 			opts.Printf("✅ %s\n", f.path)
 			continue
@@ -373,4 +375,19 @@ func componentDocs(opts *Options, dir string) (lintFile, bool) {
 		return lintFile{}, false
 	}
 	return lintDocs(opts, dir, doccheck.Component(dir, m)), true
+}
+
+// logFindings 把每条查出的问题记一行 info 级的日志，带上 error_code 与文件：脚本据此区分各类问题
+// （人看的块里不带码）。默认的 warn 级别下不出现——一个项目里几十条文档警告，不该每条都多一行 JSON。
+func logFindings(opts *Options, f lintFile) {
+	label := i18n.T(msgid.LabelFile)
+	for _, e := range append(append([]*clierr.Error(nil), f.errors...), f.warnings...) {
+		file := f.path
+		for _, d := range e.Details {
+			if d.Key == label {
+				file = d.Value
+			}
+		}
+		logging.Info(i18n.T(msgid.LogLintFinding), "error_code", string(e.Code), "warning", e.Warning, "file", file)
+	}
 }

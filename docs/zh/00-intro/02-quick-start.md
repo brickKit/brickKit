@@ -56,7 +56,9 @@ my-shop/
 │   └── vars.yaml     公共变量（现在是空的）
 ├── components/       本地安装源：你自己的组件源码放这里
 ├── shell/            本地安装源：外壳组件
-├── BRICKKIT.md       项目地图
+├── AGENTS.md         项目的 AI 导读；末尾的组件表由 CLI 跟着更新
+├── CLAUDE.md         只有一行 @AGENTS.md，让 Claude Code 也读 AGENTS.md
+├── .claude/skills/   AI 助手技能，一个任务一个目录
 ├── .brickkit/        CLI 的缓存与生成物（不进 Git）
 └── .gitignore
 ```

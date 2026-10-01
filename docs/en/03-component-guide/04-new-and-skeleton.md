@@ -18,7 +18,7 @@ brickkit new demo/quote --path demo-quote --contract openapi
 Next steps:
   Fill in the TODOs in component.yaml and the docs (brickkit lint lists every one left)
   cd demo-quote && brickkit init    give it a local workbench (completion mode: existing files are left alone)
-  brickkit lint                     check that component.yaml passes validation
+  brickkit lint                     check component.yaml and the docs
 ```
 
 | Written | Goes to | When |
@@ -65,8 +65,17 @@ healthCheck:
   # set startPeriodSeconds, or it will CrashLoopBackOff permanently under K8s
 ```
 
-**`BRICKKIT.md`**: the five standard sections (purpose, dependencies, configuration, contracts, shell declaration), ready
-for you to fill in; see [The component's BRICKKIT.md](08-component-doc-spec.md).
+**Four documents**, each section holding a `<!-- TODO: … -->` hint that says what goes there (`brickkit lint` lists every
+hint still left):
+
+| File | For | What the skeleton holds |
+| --- | --- | --- |
+| `BRICKKIT.md` | The people and AIs using the component | Six sections: Purpose, Before you deploy, Dependencies, Configuration, Contracts, Shell declaration; the contract file is already listed under Contracts |
+| `AGENTS.md` | The AI developing the component | Five sections: Code map, Build and test, Design decisions, Pitfalls, Before changing code; then the block the CLI maintains, with the component rules |
+| `CLAUDE.md` | Claude Code | One line: `@AGENTS.md` |
+| `README.md` | People on GitHub | Use it in a project (the `add` command with this version), Documentation (a table linking the other files), Development |
+
+What goes in each one: [A component's documentation](08-component-doc-spec.md).
 
 **A contract placeholder**: `api/openapi.yaml`, an empty OpenAPI document.
 
@@ -162,7 +171,8 @@ ENTRYPOINT ["/app/quote"]
 
 The image needs `wget` or `curl` (Docker's HTTP health check uses them; Alpine ships `wget`), and shouldn't run as root.
 
-**4. Fill in `BRICKKIT.md` and the contract**; see [The component's BRICKKIT.md](08-component-doc-spec.md) and
+**4. Fill in the documents and the contract**: `BRICKKIT.md` for the users, `AGENTS.md` for whoever develops it next,
+the first line of `README.md`; see [A component's documentation](08-component-doc-spec.md) and
 [Contracts and artifacts](06-artifacts-and-contracts.md).
 
 **5. Check it.**

@@ -1,86 +1,270 @@
-# 组件文档：BRICKKIT.md
+# 组件的文档
 
-## 为什么每个组件都要有
+一个组件有三类读者，要的东西各不一样：
 
-`component.yaml` 说清了"是什么"：依赖谁、要哪些配置、默认值是多少。它说不清"为什么"和"怎么用"：弱依赖缺了会怎样？
-这个配置项该填什么、改了有什么后果？接口从哪里看？
+- **使用它的项目**，以及在那些项目里写代码的 AI。它们想知道这个组件干什么、要准备什么、怎么配、怎么调——而不必读它的源码。
+- **开发它的人**，很多时候是 AI。它想很快找到某个功能的代码、跑通测试，知道哪些东西不能弄坏。
+- **GitHub 上的人**，在决定用不用它。他们要一个简短的回答，和其余内容在哪的指引。
 
-使用你的组件的人——以及越来越多替他写代码的 AI 助手——要的恰恰是后者，而且要在不读源码的前提下拿到。
-`BRICKKIT.md` 就是这份东西：放在组件仓库根目录，跟着每个版本一起发布，CLI 把它带进使用方的项目。
+所以一个组件为每类读者各带一份文档，再加上清单文件。这一篇讲每份写什么、要写多种语言时怎么放、`brickkit lint` 查什么。
+`brickkit new` 会把每一份都生成成骨架（见[创建组件骨架](04-new-and-skeleton.md)）。
 
-## 五个区块
+## 谁读哪份
 
-`brickkit new` 生成的骨架已经把它们列好了：
+| 文件 | 必需 | 读者 | 写什么 |
+| --- | --- | --- | --- |
+| `component.yaml` | ✅ | CLI | 依赖、配置项、端口、镜像——见 [component.yaml 字段指南](02-component-yaml-reference.md) |
+| 契约文件 | 有对外接口时 | 调用方和它们的 AI | 接口与事件格式，登记在 `artifacts` 下——见[契约与产物](06-artifacts-and-contracts.md) |
+| `BRICKKIT.md` | ✅ | 使用它的项目；随每个版本发布 | 负责什么、要准备什么、怎么配置和调用 |
+| `AGENTS.md` | ✅ | 开发它的 AI | 代码在哪、怎么构建和测试、哪些不能弄坏 |
+| `CLAUDE.md` | ✅ | Claude Code | 只有一行 `@AGENTS.md` |
+| `README.md` | ✅ | GitHub 上的人 | 简短的介绍，和其余文件的指路表 |
+| `docs/` | 可选 | 要深入的人 | 设计、编号的决策记录、数据模型 |
+| `CHANGELOG.md` | 可选，从不检查 | 任何人 | 有就在 README 里链上 |
 
-| 区块 | 写什么 |
+之所以要有 `CLAUDE.md`：Claude Code 读 `CLAUDE.md`，其他 AI 工具读 `AGENTS.md`。用一行把后者引进前者，内容只写一份。
+
+## 一个事实只写一处
+
+同一件事写在两个文件里，文档就是这样变错的：一份改了，另一份没改，下一个读的人信了过时的那份。所以每个事实只有一个家，其余文件只点它的名、或者链过去。
+
+| 事实 | 它的家 |
 | --- | --- |
-| 组件定位 | 一两句话：它解决什么业务问题，给谁用 |
-| 依赖说明 | 它依赖哪些组件，各拿来做什么；弱依赖缺了时它怎么降级 |
-| 配置指南 | `configSchema` 里各项的业务含义——尤其是默认值说不清的：怎么选值、改了会怎样 |
-| 契约索引 | 契约文件在哪、各描述了什么接口 |
-| 外壳声明 | 它是不是外壳；是的话编进了哪些成员 |
+| 依赖、配置项、端口、镜像、外壳成员 | `component.yaml` |
+| 接口与事件格式 | 契约文件 |
+| 负责什么、不负责什么；怎么用、怎么配、要准备什么 | `BRICKKIT.md` |
+| 代码在哪；怎么构建、测试、修改 | `AGENTS.md` |
+| 为什么这样设计（几句话写不下时） | `docs/` |
+| 什么时候改了什么 | Git——tag 与提交 |
 
-写给一个第一次见到这个组件的人：不要重复 `component.yaml` 里已经写明的东西（类型、默认值本身），写它说不出来的。
+讲清一个事实不等于重抄它。`BRICKKIT.md` 的配置指南讲 `component.yaml` 声明的某个键怎么选值；在那里再写一遍它的类型或默认值，就是重抄。
+另外，任何文档都不写历史（"v1.0.12：……""第三阶段加的"）：文档只写现在是什么样。
+
+## `BRICKKIT.md`
+
+它是唯一离开仓库的文档。项目添加这个组件时，CLI 把它缓存到那个项目里、组件的 `component.yaml` 旁边——单独一份，周围没有仓库。共六节，按这个顺序：
+
+| 小节 | 写什么 |
+| --- | --- |
+| `组件定位` | 一两句话说它解决什么问题，再两张短表：它**负责**什么、**不负责**什么——每条"不负责"写明归谁（另一个组件、调用方、某个人） |
+| `部署前准备` | `brickkit up` 之前必须已经有的东西：带 schema 和角色的数据库、第三方账号、证书。每样写清由谁准备、怎么确认好了。什么都不用时写"除下面的配置外无需准备。" |
+| `依赖说明` | 每条依赖写 ID、拿来做什么；可选依赖写缺席时会怎样 |
+| `配置指南` | `configSchema` 说不清的：怎么选值、改了会怎样、哪些值要一起配。每个 `required` 键都要在这里出现 |
+| `契约索引` | `artifacts` 下的每个文件（照 `artifacts` 里的写法写），和它描述的主要接口；发布的事件；消费的事件 |
+| `外壳声明` | "不是外壳。"，或者编进了哪些成员 |
+
+它在哪里被读，决定了两条规则：
+
+- **不放相对链接。** 在别的项目的缓存里，`[设计](docs/design.md)` 什么都指不到。仓库里的文件用行内代码写名字（`api/openapi.yaml`）；绝对地址可以用。
+- **"不负责"那张表最要紧。** 一个项目手里往往只有这份缓存，新需求该归哪个组件就靠它判断（见[判断需求、制定计划](../08-ai-guide/03-judging-a-requirement.md)）。
+
+## `AGENTS.md`
+
+它是开发者的导读——在这个仓库里干活的 AI 每次会话最先读的就是它。开头是组件 ID，和一句指路：用法与边界看 `BRICKKIT.md`，
+依赖与配置看 `component.yaml`。然后是五节：
+
+| 小节 | 写什么 |
+| --- | --- |
+| `代码地图` | 只用表格。一张写每个路径管什么；一张写每个功能从哪个文件开始。路径用反引号包起来，目录以 `/` 结尾 |
+| `构建与测试` | 构建、测试、本地运行、契约检查的确切命令，以及成功时看到什么 |
+| `设计取舍` | 为什么不依赖某个组件；否决过哪些做法、为什么。写不下的放进 `docs/`，这里链过去 |
+| `易错点` | 一张表：不许 / 症状 / 原因。只写这个组件特有的——整个项目的规则写在项目的 `AGENTS.md` 里 |
+| `改代码前自查` | 三到八条只针对这个组件的检查 |
+
+末尾是由 brickkit 维护的一段，夹在 `<!-- brickkit:managed:begin lang=… -->` 与 `<!-- brickkit:managed:end -->` 之间：每个组件作者都要守的几条平台规则。
+brickkit 只写这对标记之间的内容。
+
+`AGENTS.md` 只写一份，用团队干活用的语言，不翻译：AI 读哪种语言都行，多一份就多一样要对齐的东西。AI 可能只读到其中一段，所以有两个习惯：
+不写"如上所述"，每条"不许"都写上症状和原因。
+
+## `README.md`
+
+一页短文，主要的活是把人送到对的文件。三节：
+
+| 小节 | 写什么 |
+| --- | --- |
+| `在项目里使用` | `brickkit add <id>@<version>` 和 `brickkit up`，再指向"部署前准备" |
+| `文档` | 一张表：想知道什么 → 能回答它的那份文件（`BRICKKIT.md`、契约、`component.yaml`、`AGENTS.md`） |
+| `开发` | 克隆下来怎么连同依赖一起跑起来，再指向 `AGENTS.md` |
+
+标题下的第一句与 `metadata.description` 是同一句话。项目会把这句话和可选的 `metadata.repository`（组件的仓库或主页）列进自己 `AGENTS.md` 末尾的组件表。
+
+## `docs/`
+
+可选。上面几份写不下时再建：`docs/design.md`（设计变了，先改它再改代码）、`docs/decisions/NNNN-<标题>.md`（一个决策一份，编号，永不重排）、
+`docs/data-model.md`。里面的每个文件都要能从 `AGENTS.md` 或 `README.md` 链过去。组件的设计放在组件仓库里，才会跟着组件的版本走。
+
+## 写多种语言
+
+- **不带后缀的那份是主语言**，由作者定。译本就放在旁边，在 `.md` 前面加语言代码：`README.zh.md`、`BRICKKIT.zh.md`、`docs/design.zh.md`。
+  原文和译本在同一个目录里，相对链接就完全一样。
+- 语言代码用小写：`zh`、`ja`、`pt-br`。
+- 译本按文件可选。常见的做法：`README` 和 `BRICKKIT` 有译本（人和别的团队会读），`AGENTS.md` 和 `docs/` 没有。
+- **两份对不上时以原文为准。** 改了原文，就在同一个提交里改译本。
+- 有译本的文件在开头放一行，链接所有语言版本，比如 `[English](README.md) · [中文](README.zh.md)`——`BRICKKIT*.md` 除外，它根本不放相对链接。
+- 小节标题中英文都认。
+
+`brickkit add` 会把每份 `BRICKKIT.<语言>.md` 连同 `BRICKKIT.md` 一起缓存，`brickkit publish` 会把它们一起上传。
+
+## `brickkit lint` 查什么
+
+`lint` 只查程序能确定的事；写得好不好是评审的事。查出的每一条都是警告——`up` 和 `release` 从不因为文档停下；想让 CI 守住的团队用
+`lint --strict`，把警告算成失败。它在组件仓库、工作台里查组件的文档，在项目里查每个本地源组件的文档。
+
+| 错误码 | 意思 |
+| --- | --- |
+| `DOC_FILE_MISSING` | 缺了一份必需的文档 |
+| `DOC_SECTION_MISSING` | 缺了一个固定小节 |
+| `DOC_PATH_MISSING` | 代码地图里的某条路径已经不存在 |
+| `DOC_LINK_BROKEN` | 某条相对链接指向的东西不存在 |
+| `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` 里有相对链接，或者文档链出了组件目录 |
+| `DOC_OUT_OF_STEP` | `component.yaml` 里的依赖、必填键、契约文件或外壳成员，文档该提的地方没提 |
+| `DOC_PLACEHOLDER` | 正文里还留着 `TODO`、`TBD`、`FIXME`、`待补` 之类的占位 |
+| `DOC_TRANSLATION_DRIFT` | 译本没有原文、小节数不同，或者两份没互相链接 |
+| `AGENTS_BLOCK_MISSING` | `AGENTS.md` 里没有由 brickkit 维护的那一段 |
+| `CLAUDE_IMPORT_MISSING` | `CLAUDE.md` 没有引入 `AGENTS.md` |
+
+每一条要你做什么，见[错误码](../06-architecture/09-error-codes.md#文档检查)。
 
 ## 一个完整的例子
+
+`demo/quote` 每次返回一句名言，前面加上 `demo/hello` 的问候语。它的仓库：
+
+```text
+demo-quote/
+├── component.yaml
+├── BRICKKIT.md
+├── AGENTS.md
+├── CLAUDE.md
+├── README.md
+├── api/openapi.yaml
+├── main.go
+└── Dockerfile
+```
+
+`BRICKKIT.md`：
 
 ```markdown
 # demo/quote
 
 ## 组件定位
 
-每次返回一句名言，前面带上 `demo/hello` 的问候语。给页面顶部的"今日一句"用。
+每次返回一句名言，前面加上 demo/hello 的问候语；用在页面顶部的"每日一句"。
+
+负责：
+- 挑选、拼装名言
+
+不负责：
+- 问候语本身：demo/hello
+- 在页面上怎么展示：调用方
+
+## 部署前准备
+
+除下面的配置外无需准备。
 
 ## 依赖说明
 
-- `demo/hello@1.1.0`（强依赖）：取问候语。它不可达时，接口照常返回名言，问候语换成"（demo/hello 不可达）"。
+- demo/hello（必需）：提供问候语。它连不上时接口照常返回，问候语换成"(demo/hello unreachable)"。
 
 ## 配置指南
 
-| 变量名 | 必填 | 说明 |
-|---|---|---|
-| `QUOTE_PREFIX` | 否 | 名言前面加的前缀，默认"今日名言："。想去掉前缀就写成空串 `""` |
+| 变量名 | 说明 |
+|---|---|
+| QUOTE_PREFIX | 名言前面的文字。不要前缀就设成空字符串 "" |
 
 ## 契约索引
 
-- `api/openapi.yaml`：`GET /api/v1/quote`，返回 `{"greeting": "...", "quote": "..."}`
+- `api/openapi.yaml`：`GET /api/v1/quote`，返回 `{"greeting": "...", "quote": "..."}`。不发也不收事件。
 
 ## 外壳声明
 
 不是外壳。
 ```
 
-注意"配置指南"那一行：写成空串就去掉前缀——这是 `default: "今日名言："` 这个声明本身表达不出来的，恰好是使用者最可能想知道的。
+`AGENTS.md`：
 
-## 它怎么到使用方手里
+```markdown
+# demo/quote
 
-使用方 `add` 或 `fetch` 你的组件时，CLI 从你的 tag 里取出 `BRICKKIT.md`（组件带着它时），缓存在
+返回一句名言，前面加上 demo/hello 的问候语。怎么用、边界：BRICKKIT.md。依赖与配置：component.yaml。
 
-```text
-.brickkit/manifests/<scope>/<name>/<版本>/BRICKKIT.md
+## 代码地图
+
+| 路径 | 管什么 |
+|---|---|
+| `main.go` | HTTP 服务、名言列表、对 demo/hello 的调用 |
+| `api/openapi.yaml` | 契约 |
+
+| 功能 | 从这里开始 | 然后 |
+|---|---|---|
+| 名言接口 | `main.go`（`/api/v1/quote`） | `api/openapi.yaml` |
+
+## 构建与测试
+
+`go build ./...`；`go test ./...` 打印 `ok`。连同 demo/hello 一起跑：在这个目录里 `brickkit up`（在项目里是焦点运行，单独的仓库里是工作台）。
+
+## 设计取舍
+
+demo/hello 挂了时降级而不是报错：名言是内容，问候语只是点缀。
+
+## 易错点
+
+| 不许 | 症状 | 原因 |
+|---|---|---|
+| 在 `/healthz` 里检查 demo/hello | demo/hello 一重启，demo/quote 就变成不健康 | 健康检查只查自己这个进程 |
+
+## 改代码前自查
+
+1. 改动会不会改变 `/api/v1/quote` 的响应？在同一个提交里改 `api/openapi.yaml` 和 BRICKKIT.md 的契约索引。
+2. 加了新配置项？在 `configSchema` 里声明，并在 BRICKKIT.md 的配置指南里讲清楚。
+
+<!-- brickkit:managed:begin lang=zh -->
+……由 brickkit 写……
+<!-- brickkit:managed:end -->
 ```
 
-并把路径写进使用方项目的地图 `BRICKKIT.md`：
+`README.md`：
 
-```text
-| 组件 ID | 版本 | 文档路径 | 契约路径 |
-|---|---|---|---|
-| demo/quote | 0.1.0 | `.brickkit/manifests/demo/quote/0.1.0/BRICKKIT.md` | `.brickkit/artifacts/demo-quote-0-1-0/` |
+```markdown
+# demo/quote
+
+每次返回一句名言，前面加上 demo/hello 的问候语。
+
+## 在项目里使用
+
+    brickkit add demo/quote@0.1.0
+    brickkit up
+
+先做准备：见 BRICKKIT.md 的"部署前准备"。
+
+## 文档
+
+| 想知道 | 读 |
+|---|---|
+| 负责什么、不负责什么，怎么配置，要准备什么 | BRICKKIT.md |
+| 接口 | api/openapi.yaml |
+| 依赖什么（BRICKKIT.md 里有说明） | component.yaml |
+| 怎么开发 | AGENTS.md |
+
+## 开发
+
+克隆下来，`brickkit init` 建工作台，`brickkit up` 连同 demo/hello 一起跑起来；然后读 AGENTS.md。
 ```
 
-使用方把组件的源码克隆进了 `components/`、而工作区正好是这个版本时，文档路径指向工作区里那一份——那是作者正在改的，缓存里的只是快照。
+真实的文件里，"文档"表里的每个文件名都是指向那个文件的相对链接。
 
-发布到组件市场时（`brickkit publish`），`BRICKKIT.md` 跟着版本一起上传。它应该只写调用方需要的东西：太大或不是文本的文件会在建版本之前被拦下。
+注意 `BRICKKIT.md` 配置指南那一行：设成空字符串就去掉前缀。`component.yaml` 写得出 `default: "Quote of the day: "`，写不出这一点——而这恰恰是使用者最想知道的。
 
-## 与项目的 BRICKKIT.md 的关系
+## 它怎么到使用者手里
 
-两份同名的文件，分工不同：
+项目 `add` 或 `fetch` 这个组件时，CLI 从那个版本（本地源的目录、git 的 tag、或者市场）取出 `BRICKKIT.md` 和每份 `BRICKKIT.<语言>.md`，缓存到
 
-| | 项目的 `BRICKKIT.md` | 组件的 `BRICKKIT.md` |
-| --- | --- | --- |
-| 在哪 | 项目根目录 | 组件仓库根目录 |
-| 写什么 | 这个项目用了哪些组件、每个组件的文档和契约在哪 | 这一个组件是什么、怎么配置、怎么调用 |
-| 谁写 | CLI 维护组件表（`add` / `remove` / `upgrade` 时重写标记之间的部分），其余是你的 | 组件作者 |
-| 相当于 | 路由表 | 内容 |
+```text
+.brickkit/manifests/<scope>/<name>/<version>/BRICKKIT.md
+```
 
-读一个陌生项目，从项目的 `BRICKKIT.md` 开始：它告诉你每个组件的文档在哪；要了解哪个组件，就去读它自己的那一份，而不是翻源码。
+项目的 `AGENTS.md` 末尾有一张由 brickkit 维护的组件表：每个组件、版本、它的 `metadata.description`、带着哪些文档（`BRICKKIT.md +zh`）、
+它的 `metadata.repository`。项目里的 AI 从这张表开始，然后只读任务碰到的那几个组件的 `BRICKKIT.md`。本地源里正好是这个版本时，
+源码目录里那份才是正在改的、该读的那份。
+
+`brickkit publish` 把 `BRICKKIT.md` 和译本随版本一起上传：译本最多 16 份，每份不超过 256 KiB，全部加起来不超过 1 MiB。

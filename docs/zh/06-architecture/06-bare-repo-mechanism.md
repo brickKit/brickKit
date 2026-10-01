@@ -43,7 +43,7 @@ BrickKit 的做法是：每个组件仓库在本机只克隆**一次**，存成�
 3. 确保 bare 仓库在缓存里：不在就克隆。克隆先落到缓存目录下的一个临时位置，完成后再改名——中途失败或被打断，不会留下半个仓库。
 4. 仓库里有这个 tag，直接读 tag 里的文件。
 5. 没有，就 `git fetch --tags` 取一次增量（一次运行里同一个仓库只取一次），再读。tag 被强制移动过时以远端为准；远端删掉的分支在缓存里也删掉。
-6. 把读到的 `component.yaml`（以及组件带着的 `BRICKKIT.md`）写进项目的永久缓存。
+6. 把读到的 `component.yaml` 写进项目的永久缓存，连同那个 tag 里组件目录下的每一份 `BRICKKIT*.md`——`BRICKKIT.md` 和每一份译本（`BRICKKIT.zh.md`……），组件带着才有。
 
 "最新版本"（`add` 不写版本、`upgrade`）要列出 tag，这一步总是先 fetch 一次，保证看到的是远端现在的 tag。
 
@@ -59,7 +59,7 @@ BrickKit 的做法是：每个组件仓库在本机只克隆**一次**，存成�
 | 路径 | 你得到的 |
 | --- | --- |
 | bare 仓库缓存 | tag 和它们的提交；submodule 在树里只是一个指针 |
-| 读 `component.yaml`、`BRICKKIT.md`、产物 | 直接从 tag 读文件——从不读 submodule 里面的 |
+| 读 `component.yaml`、`BRICKKIT*.md`、产物 | 直接从 tag 读文件——从不读 submodule 里面的 |
 | 从 tag `build` | tag 的导出：submodule 目录是空的，`build` 会为此警告 |
 | `add --repo` | 不带 `--recurse-submodules` 的克隆；它会点名留空了哪些 submodule |
 

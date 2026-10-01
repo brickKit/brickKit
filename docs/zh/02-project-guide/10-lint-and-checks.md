@@ -12,11 +12,13 @@ brickkit lint
 ✅ brickkit.yaml
 ✅ deploy.yaml
 ✅ deploy.local.yaml
-✅ 跨文件：brickkit.yaml ↔ deploy.yaml ↔ config/
 ✅ 跨文件：brickkit.yaml ↔ deploy.local.yaml ↔ config/
+✅ 跨文件：brickkit.yaml ↔ deploy.yaml ↔ config/
+✅ ./（文档）
 ✅ components/demo/hello/component.yaml
+✅ components/demo/hello/（文档）
 
-📋 检查了 6 个文件：0 个有错误，0 条警告
+📋 检查了 8 个文件：0 个有错误，0 条警告
 ```
 
 在项目目录里（有 `brickkit.yaml`），它依次查：
@@ -30,11 +32,14 @@ brickkit lint
 | 配置与 `configSchema` | 必填项有值；写下的键在 schema 里（拼错的键不会生效）；外壳成员的值能编码进外壳 |
 | 外壳声明 | `brickkit.yaml` 的 `kind: shell` 与组件的 `shell` 块一致；放在外壳下面的成员确实编进了这个外壳 |
 | 本地源里的 `component.yaml` | 每一份都查，不管有没有 `add` 过（`.archived/` 不查） |
+| 文档 | 项目的 `AGENTS.md` 与 `CLAUDE.md`（`./（文档）`），以及本地源里每个组件的文档，见 [文档检查](#文档检查) |
 
 `deploy.local.yaml` 存在时也查——不管本地模式开没开，它都必须与 `brickkit.yaml` 一致。给了 `-f` 就只查那一份部署文件。
 `brickkit.yaml` 自己没通过时，后面的都不可信，跳过并说明原因。
 
-在组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`），只查那一份 `component.yaml`。
+在组件仓库里（有 `component.yaml`、没有 `brickkit.yaml`），查那一份 `component.yaml` 和组件的文档。
+
+在工作台里（组件仓库里又有 `brickkit.yaml`），三层文件按项目查，组件的 `component.yaml` 和文档也一起查。
 
 一个典型的错误：
 
@@ -42,19 +47,60 @@ brickkit lint
 ✅ brickkit.yaml
 ❌ 错误：deploy.yaml 校验失败
    文件：deploy.yaml
-   components[1].exposed：未知字段（第 8 行），是不是想写 expose？
+   components[0].exposed：未知字段（第 7 行），是不是想写 expose？
    建议：完整字段说明：docs/zh/11-reference/03-deploy-yaml-schema.md（英文版把 zh 换成 en）
 ✅ deploy.local.yaml
+✅ ./（文档）
 ✅ components/demo/hello/component.yaml
+✅ components/demo/hello/（文档）
 
-📋 检查了 4 个文件：1 个有错误，0 条警告
+📋 检查了 6 个文件：1 个有错误，0 条警告
 ❌ 错误：结构检查未通过
-   已检查：4 个文件
+   已检查：6 个文件
    有错误：1 个文件
    建议：按上面逐条列出的位置修改，再执行 brickkit lint
 ```
 
 未知字段是错误而不是警告：`exposed: true` 写错了，组件就不会对外开放，而且不会有任何别的地方告诉你。
+
+## 文档检查
+
+`lint` 也读文档，读法是机械的：必需的文件在不在、固定的小节有没有、里面的路径和链接指不指得到地方、文档是不是还在说
+`component.yaml` 说的事。读哪些，看你在哪里跑：
+
+| 在哪里 | 查哪些文档 |
+| --- | --- |
+| 组件仓库 | 组件的 `BRICKKIT.md`（连同译本）、`AGENTS.md`、`CLAUDE.md`、`README.md`，有 `docs/` 的话也查 |
+| 项目 | 项目的 `AGENTS.md` 与 `CLAUDE.md`、项目根残留的旧项目地图 `BRICKKIT.md`，以及本地源里每个组件的文档 |
+| 工作台 | 组件的文档，和组件仓库一样 |
+
+每一组文档在报告里占一行——项目是 `✅ ./（文档）`，组件是 `✅ components/demo/hello/（文档）`——有问题时那一行换成具体的警告：
+
+```text
+⚠️ BRICKKIT.md 在别的项目缓存里是单独读的，相对链接 openapi.json 在那里是死的：用行内代码写文件名，或用绝对地址
+   文件：components/demo/hello/BRICKKIT.md
+   行：46
+```
+
+**文档方面的发现一律是警告。** 它从不挡住 `lint`、`up` 或 `release`：文档落后一点是要修的问题，不是停掉一次部署的理由。
+想让 CI 把住这道关的团队，用 `--strict` 把警告变成失败。
+
+| 代码 | 意思 |
+| --- | --- |
+| `DOC_FILE_MISSING` | 缺了必需的文档 |
+| `DOC_SECTION_MISSING` | 文档缺了一个固定小节（中英文标题都认） |
+| `DOC_PATH_MISSING` | 组件 `AGENTS.md` 代码地图里的路径不存在 |
+| `DOC_LINK_BROKEN` | 相对链接指向的文件不存在 |
+| `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` 里有相对链接（它是单独被读的，链接在那里是死的），或者文档链到了组件目录外面 |
+| `DOC_OUT_OF_STEP` | `component.yaml` 里有的依赖、必填配置项、契约文件或外壳成员，文档里没提 |
+| `DOC_PLACEHOLDER` | 正文里还留着 `TODO`（或 `TBD`、`FIXME`）——骨架有意在每一节都留了一条 |
+| `DOC_TRANSLATION_DRIFT` | 译本（`BRICKKIT.zh.md`、`README.zh.md`）和它的原文对不上了 |
+| `AGENTS_BLOCK_MISSING` | `AGENTS.md` 里没有可用的、由 CLI 维护的那一段，组件表不会自动更新 |
+| `CLAUDE_IMPORT_MISSING` | `CLAUDE.md` 里没有 `@AGENTS.md` |
+| `PROJECT_MAP_OBSOLETE` | 项目根还留着旧版的项目地图 `BRICKKIT.md` |
+
+每一条要你做什么，见 [错误码](../06-architecture/09-error-codes.md#文档检查)。文档本身怎么写，见
+[组件的文档](../03-component-guide/08-component-doc-spec.md) 与 [项目的 `AGENTS.md`](01-init-and-project-creation.md#项目的-agentsmd)。
 
 ## `--strict`
 
@@ -109,6 +155,6 @@ brickkit lint --strict -f deploy.prod.yaml
 brickkit up --dry-run -f deploy.prod.yaml
 ```
 
-- `lint --strict` 作为门禁：结构错误和未定义的引用都挡在合并之前。CI 里要有这些 `${VAR}` 的值（或者这一步只查结构，去掉 `--strict`）。
+- `lint --strict` 作为门禁：结构错误、未定义的引用和文档警告都挡在合并之前。CI 里要有这些 `${VAR}` 的值（或者这一步只查结构，去掉 `--strict`）。
 - 每个环境的部署文件用 `-f` 各查一遍：默认只查 `deploy.yaml`。
 - 再加一步 `up --dry-run`，把依赖解析也查了——它需要能访问安装源，但不需要能访问集群。

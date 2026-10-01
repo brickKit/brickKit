@@ -55,8 +55,9 @@ Only known fields may appear: a misspelled field name (`dependancies`) is reject
 | --- | --- |
 | `id` | `<scope>/<name>`, globally unique. It decides the repository name (`demo-quote`), the service name (`demo-quote-0-1-0`) and the address variable others get (`DEMO_QUOTE_ENDPOINT`) |
 | `version` | An exact `major.minor.patch`. **The single source of truth for the version**: the tag `release` creates and the image tag `build` uses both come from it |
-| `name`, `description` | A name for people, and a one-sentence description |
+| `name`, `description` | A name for people, and a one-sentence description. `description` is also the "What it does" column of the component table at the end of each user project's `AGENTS.md`, so say what the component does, not what it is called |
 | `vendor`, `license`, `apiDocs` | Optional: publisher, licence, API docs address |
+| `repository` | Optional: the address of the component's repository or page. It becomes the "Home" column of that same table, so someone reading the project on the web (where there is no `.brickkit/`) can still reach each component |
 
 `tags` are optional search tags.
 

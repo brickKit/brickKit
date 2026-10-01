@@ -120,12 +120,16 @@ the file list of a complete project, create what's missing, leave what exists:
 | `brickkit init` | Complete | Add whatever the current directory lacks: bring an existing project in, or give a component repository its own local workbench |
 
 A complete project has `brickkit.yaml`, `deploy.yaml`, `config/vars.yaml`, the two local sources `components/` and
-`shell/`, `BRICKKIT.md` (the project map) and `.gitignore`. `deploy.local.yaml` is never created here; `brickkit local on`
-creates it when you want it.
+`shell/`, `AGENTS.md` (the project's AI guide, ending with the component table the CLI maintains), `CLAUDE.md` (exactly
+`@AGENTS.md`) and `.gitignore`. `deploy.local.yaml` is never created here; `brickkit local on` creates it when you want
+it.
 
 The rules in completion mode:
 
-- Existing files are skipped; not a byte of them changes.
+- Existing files are skipped; not a byte of them changes. The one exception is the block the CLI maintains at the end of
+  an existing `AGENTS.md`, which is rewritten; an `AGENTS.md` or `CLAUDE.md` of your own without it only gets a warning
+  (`AGENTS_BLOCK_MISSING`, `CLAUDE_IMPORT_MISSING`), and an old project map `BRICKKIT.md` at the root is reported as
+  `PROJECT_MAP_OBSOLETE` and left where it is.
 - An existing `.gitignore` is checked, never modified: each missing required entry gets a loud warning — without them,
   personal deploy files and secrets get committed.
 - In a non-empty directory the plan is printed first and carried out after you confirm (`--yes` skips the question).
@@ -135,8 +139,8 @@ The rules in completion mode:
 A project name may contain only lowercase letters, digits and hyphens, starting and ending with a letter or digit — it
 becomes the name of the Kubernetes namespace and the Docker network.
 
-`init` also installs the AI assistant skills (`.claude/skills/`, `AGENTS.md`) without touching your `CLAUDE.md`. When
-the project root is the Git repository root, it also installs the pre-commit check (a pre-commit hook that calls
+`init` also installs the five AI assistant skills (`.claude/skills/brickkit-*`). When the project root is the Git
+repository root, it also installs the pre-commit check (a pre-commit hook that calls
 `brickkit restore --check`); when the project sits inside someone else's repository, install it explicitly with
 `--hooks`.
 
@@ -148,7 +152,7 @@ brickkit init [<project-name>] [flags]
 | --- | --- |
 | `--name <name>` | The project name in completion mode |
 | `--yes` | Complete without asking (for CI) |
-| `--no-skills` | Don't install the AI assistant skills |
+| `--no-skills` | Don't install the AI assistant skills (`AGENTS.md` and `CLAUDE.md` are still written) |
 | `--hooks` | Only install the pre-commit hook used for the pre-commit check (to add it to an existing project) |
 
 ```bash
@@ -173,17 +177,28 @@ brickkit init --hooks                 # only the pre-commit check
 
 ## `brickkit skills`
 
-Manage the AI assistant skills installed in this project (`.claude/skills/`, `AGENTS.md`). `init` installs these files;
-they're committed with the project and shared by the team. They describe the behaviour of **this CLI version**, so
-refresh them once after upgrading the CLI. Without a subcommand it's the same as `brickkit skills status`.
+Manage the AI assistant skills installed in this project (`.claude/skills/`): `brickkit-assemble`, `brickkit-component`,
+`brickkit-deploy`, `brickkit-troubleshoot` and `brickkit-plan-change` (judging a new requirement and planning a change
+across components). `init` installs these files; they're committed with the project and shared by the team. They
+describe the behaviour of **this CLI version**, so refresh them once after upgrading the CLI. Without a subcommand it's
+the same as `brickkit skills status`.
+
+Each skill file ends with a line recording which CLI version wrote it and a fingerprint of its content
+(`<!-- brickkit:skill version=<v> sum=sha256:<hex> -->`); that is how a teammate's fresh clone knows which files are
+the CLI's and whether they were edited. The skills' language is the one recorded in the block at the end of
+`AGENTS.md` (`lang=`).
 
 **A file you edited is never overwritten**: `update` lists it and skips it. To drop your local edits, delete the file and
 run `update` again — there's deliberately no `--force`: deleting the file is explicit enough, and one more switch would
 be one more way to lose work by accident.
 
-It also works in a standalone component repository (a `component.yaml` and no `brickkit.yaml`): there it manages only the
-`brickkit-component` skill and doesn't touch a character of the repository's own `AGENTS.md`. It never touches your
-`CLAUDE.md`.
+`update` is also the one command that repairs `AGENTS.md` and `CLAUDE.md`, because you asked for it: it creates either
+file when missing, appends the block to an `AGENTS.md` without one, and appends `@AGENTS.md` to a `CLAUDE.md` without
+it. Nothing else of yours changes. An old project map `BRICKKIT.md` at the project root is reported
+(`PROJECT_MAP_OBSOLETE`), never deleted.
+
+It also works in a standalone component repository (a `component.yaml` and no `brickkit.yaml`): there it manages the
+`brickkit-component` skill plus the component's own `AGENTS.md` (its block holds the component rules) and `CLAUDE.md`.
 
 ```text
 brickkit skills [flags]
@@ -194,14 +209,27 @@ brickkit skills <command> [arguments]
 
 The state of each skill file (read-only). No flags of its own.
 
+The first line of the output names the skills' language and says where it is recorded: the block at the end of
+`AGENTS.md`. Then one row per skill file, and a last row for `AGENTS.md` — whether the file is there and has its block,
+and the language the block records (`lang=en`). Here a teammate edited one skill and `AGENTS.md` was deleted:
+
 ```text
-Skill language: en (recorded in skills.lock; brickkit skills update --lang to change it)
-   ┌───────────────────────────────────────────────┬────────────┐
-   │ File                                          │ Status     │
-   ├───────────────────────────────────────────────┼────────────┤
-   │ AGENTS.md                                     │ up to date │
-   │ .claude/skills/brickkit-assemble/SKILL.md     │ up to date │
+   ┌───────────────────────────────────────────────┬──────────────────────────────────┐
+   │ File                                          │ Status                           │
+   ├───────────────────────────────────────────────┼──────────────────────────────────┤
+   │ .claude/skills/brickkit-assemble/SKILL.md     │ up to date                       │
+   │ .claude/skills/brickkit-component/SKILL.md    │ up to date                       │
+   │ .claude/skills/brickkit-deploy/SKILL.md       │ hand-edited; update will skip it │
+   │ .claude/skills/brickkit-plan-change/SKILL.md  │ up to date                       │
+   │ .claude/skills/brickkit-troubleshoot/SKILL.md │ up to date                       │
+   │ AGENTS.md                                     │ missing; update creates it       │
+   └───────────────────────────────────────────────┴──────────────────────────────────┘
+
+1 file needs refreshing: brickkit skills update
 ```
+
+A skill file's status is `up to date`, `outdated`, `missing`, `hand-edited` (skipped by `update`) or `untracked` (no
+record line).
 
 ### `brickkit skills update`
 
@@ -209,7 +237,7 @@ Install what's missing and refresh what's out of date; skip what you edited.
 
 | Flag | Meaning |
 | --- | --- |
-| `--lang <en\|zh>` | Reinstall in this language, and remember it as the project's language from now on |
+| `--lang <en\|zh>` | Reinstall in this language, and record it in the block of `AGENTS.md` as the project's language from now on |
 
 ```bash
 brickkit skills update
@@ -218,9 +246,12 @@ brickkit skills update --lang zh
 
 ## `brickkit new`
 
-Generate a component skeleton: a `component.yaml` that passes `brickkit up --dry-run` validation, and a `BRICKKIT.md`
-with the standard sections (purpose, dependencies, configuration, contracts, shell declaration) for the people and AI
-assistants who will use the component.
+Generate a component skeleton: a `component.yaml` that passes `brickkit up --dry-run` validation, and the four
+documents of a component, each section holding a `<!-- TODO: … -->` hint — `BRICKKIT.md` for the people and AI
+assistants who will use it (Purpose, Before you deploy, Dependencies, Configuration, Contracts, Shell declaration),
+`AGENTS.md` for whoever develops it (Code map, Build and test, Design decisions, Pitfalls, Before changing code, then
+the block with the component rules), `CLAUDE.md` (`@AGENTS.md`) and `README.md` (Use it in a project, Documentation,
+Development). See [A component's documentation](../03-component-guide/08-component-doc-spec.md).
 
 It writes to `components/<scope>/<name>/` by default — the layout a local install source scans, so afterwards
 `brickkit add --local` brings it into the project. It **doesn't** run `add` for you: writing into `brickkit.yaml` is a
@@ -392,7 +423,15 @@ situation from the current directory:
 
 If `brickkit.yaml` itself fails, nothing after it can be trusted; the rest is skipped, and it says so.
 
-**A component repository (a `component.yaml`, no `brickkit.yaml`):** only that `component.yaml`.
+**A component repository (a `component.yaml`, no `brickkit.yaml`):** that `component.yaml` and the component's documents.
+
+**Documents**, everywhere, as warnings only: in a component repository the component's `BRICKKIT.md` (and its
+translations), `AGENTS.md`, `CLAUDE.md`, `README.md` and `docs/`; in a project its `AGENTS.md` and `CLAUDE.md` (plus an
+old project map `BRICKKIT.md`) and the documents of every component in a local source; in a workbench the component's
+documents. Each set is one line of the report, such as `✅ components/demo/hello/ (docs)`. The codes are
+`DOC_FILE_MISSING`, `DOC_SECTION_MISSING`, `DOC_PATH_MISSING`, `DOC_LINK_BROKEN`, `DOC_LINK_NOT_PORTABLE`,
+`DOC_OUT_OF_STEP`, `DOC_PLACEHOLDER`, `DOC_TRANSLATION_DRIFT`, `AGENTS_BLOCK_MISSING`, `CLAUDE_IMPORT_MISSING` and
+`PROJECT_MAP_OBSOLETE`; see [Error codes](../06-architecture/09-error-codes.md#documentation-checks).
 
 It checks structure: required fields, types, unknown fields (typos), version format, port ranges. There are two kinds of
 warning: a mistyped key inside `configSchema` (like `defualt`) that has no effect, and a config item name that collides
@@ -409,7 +448,7 @@ brickkit lint [flags]
 
 | Flag | Meaning |
 | --- | --- |
-| `--strict` | Also check references: a `${VAR}` in neither the process environment nor `.env`, a `file://` whose file doesn't exist, as warnings; and warnings count as failures (exit code 1), for a CI gate |
+| `--strict` | Also check references: a `${VAR}` in neither the process environment nor `.env`, a `file://` whose file doesn't exist, as warnings; and warnings — documentation warnings included — count as failures (exit code 1), for a CI gate |
 | `-f, --file <file>` | Check only this deploy file; see [shared flags](#flags-shared-by-the-commands-that-read-a-deploy-file) |
 | `--no-local` | Ignore `deploy.local.yaml` this time |
 

@@ -11,7 +11,7 @@ and mirrors this tree page for page, but each side is written on its own — nei
 | 00 | [Overview and getting started](00-intro/README.md) | What BrickKit is, your first component running in five minutes, the glossary, the fractal structure |
 | 01 | [The three layers](01-three-layers/README.md) | What `brickkit.yaml`, `deploy.yaml`, `deploy.local.yaml` and `config/` each own, how to write them, where a value comes from |
 | 02 | [Running a project](02-project-guide/README.md) | Creating a project, adding components, local debugging, several environments, starting and stopping, upgrading, removing, building images |
-| 03 | [Writing components](03-component-guide/README.md) | What a component repository looks like, how to write `component.yaml`, how to release, how to write `BRICKKIT.md` |
+| 03 | [Writing components](03-component-guide/README.md) | What a component repository looks like, how to write `component.yaml`, how to release, how to write its documents (`BRICKKIT.md`, `AGENTS.md`, `README.md`) |
 | 04 | [Shells](04-shell/README.md) | Compiling several components into one process: members, config injection, upgrades |
 | 05 | [Database migrations](05-migration/README.md) | How migrations run, which variables they get, the order when versions coexist |
 | 06 | [Architecture](06-architecture/README.md) | The pipeline from declaration to running containers, dependency resolution, the injection contract, design principles, error codes |
