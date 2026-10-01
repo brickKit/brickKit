@@ -1,11 +1,15 @@
 package skills
 
 import (
+	"bytes"
 	"fmt"
-	"github.com/brickkit/brickkit/internal/i18n"
-	"github.com/brickkit/brickkit/internal/msgid"
 	"os"
 	"path/filepath"
+
+	"github.com/brickkit/brickkit/internal/agentsmd"
+	"github.com/brickkit/brickkit/internal/docspec"
+	"github.com/brickkit/brickkit/internal/i18n"
+	"github.com/brickkit/brickkit/internal/msgid"
 )
 
 // State 是一份托管文件的当前状态。
@@ -21,7 +25,7 @@ const (
 	StateOutdated State = "outdated"
 	// StateModified 内容与我们上次写的不一致——用户改过。
 	StateModified State = "modified"
-	// StateUntracked 文件存在但 lock 里没有记录。
+	// StateUntracked 文件存在但不带记录（也不是旧版 CLI 写的那份）。
 	StateUntracked State = "untracked"
 )
 
@@ -54,17 +58,18 @@ type FileStatus struct {
 	Target string
 	// State 是当前状态。
 	State State
-	// FromVersion 仅在 StateOutdated 时有值：lock 里记的旧版本。
+	// FromVersion 仅在 StateOutdated 时可能有值：文件记录（或旧版 lock）里写着的旧版本。
 	FromVersion string
 }
 
 // Installer 把内嵌资产装进一个项目。
+//
+// 每份装进去的文件自己带着记录（文件最后一行，见 marker.go）：哪个版本的 CLI 写的、写的时候正文的指纹。
+// 记录跟着文件进 Git，同事新克隆下来也分得清"我们写的、没改过"与"被手改过"。
 type Installer struct {
 	// Root 是项目根目录。
 	Root string
-	// LockPath 是 skills.lock 的路径。
-	LockPath string
-	// Version 是当前 CLI 版本，写进 lock。
+	// Version 是当前 CLI 版本，写进每份文件的记录。
 	Version string
 	// Scope 是管理哪一部分资产，零值是完整的项目那一套。
 	Scope Scope
@@ -72,62 +77,83 @@ type Installer struct {
 	// 优先级）。brickkit init 与 brickkit skills update --lang 会显式传它；
 	// 裸的 status / update 留空，沿用项目已经在用的语言。
 	Lang i18n.Lang
+	// LegacyLockPath 是旧版的 .brickkit/skills.lock：文件还没带记录的项目，靠它认出哪些是旧版 CLI
+	// 写的、没被改过；Apply 用过一次就删掉。
+	LegacyLockPath string
+}
+
+// loadLegacy 读旧版 lock；没有路径或没有文件时是空的。
+func (in Installer) loadLegacy() (*Lock, error) {
+	if in.LegacyLockPath == "" {
+		return &Lock{}, nil
+	}
+	return LoadLegacyLock(in.LegacyLockPath)
 }
 
 // resolveLang 决定这次实际使用的语言，按优先级：
 //
 //  1. Installer.Lang——调用方显式指定（init 传当前 CLI 语言；update --lang 传参数值）
-//  2. lock.Lang——项目已经记录过的语言，稳定，不随运行 CLI 的语言变
-//  3. lock 里有旧条目、但没有 Lang 字段——早于这个字段存在的项目，
-//     见 lockLangBeforeLangField，不当场改语言
-//  4. 全新项目（既没指定、lock 也是空的）——用当前 CLI 语言，等价于"就当
-//     现在装一份"
+//  2. AGENTS.md 维护区记的语言——项目已经选定的、提交进 Git 的，不随运行 CLI 的语言变
+//  3. 旧版 lock 记的语言（还没迁移的项目；没有 Lang 字段的更旧的 lock 是中文，见 lockLangBeforeLangField）
+//  4. 都没有——用当前 CLI 语言，等价于"就当现在装一份"
 //
-// 结果再经过 AssetLang：还没有技能资产译本的语言装源语言的资产，lock 与
-// skills status 记的、报的都是实际装的那种。
-func (in Installer) resolveLang(lock *Lock) i18n.Lang {
-	return AssetLang(in.requestedLang(lock))
+// 结果再经过 AssetLang：还没有技能资产译本的语言装源语言的资产。
+func (in Installer) resolveLang(legacy *Lock) i18n.Lang {
+	return AssetLang(in.requestedLang(legacy))
 }
 
 // lockLangBeforeLangField 是没有 Lang 字段的旧 skills.lock 所装资产的语言：那个字段出现之前，
 // 技能资产只写过中文。这是关于旧 lock 文件的一个事实，不是按语言分支。
 const lockLangBeforeLangField = i18n.ZH
 
-func (in Installer) requestedLang(lock *Lock) i18n.Lang {
+func (in Installer) requestedLang(legacy *Lock) i18n.Lang {
 	if in.Lang != "" {
 		return in.Lang
 	}
-	if l, ok := i18n.ParseLang(lock.Lang); ok {
+	if code, ok := agentsmd.BlockLang(in.Root); ok {
+		if l, ok := i18n.ParseLang(code); ok {
+			return l
+		}
+	}
+	if l, ok := i18n.ParseLang(legacy.Lang); ok {
 		return l
 	}
-	if len(lock.Entries) > 0 {
+	if len(legacy.Entries) > 0 {
 		return lockLangBeforeLangField
 	}
 	return i18n.Current()
 }
 
-// ResolvedLang 返回这次实际会用的语言（不落盘，只读），供 CLI 在 `skills status`
-// 里告诉用户"这个项目现在用的是哪种语言"——语言本身跟着 resolveLang 的优先级走，
-// 与 Status()/Apply() 用的是同一套判断。
+// ResolvedLang 返回这次实际会用的语言（只读），供 `skills status` 说"这个项目现在用的是哪种语言"。
 func (in Installer) ResolvedLang() (i18n.Lang, error) {
-	lock, err := LoadLock(in.LockPath)
+	legacy, err := in.loadLegacy()
 	if err != nil {
 		return "", err
 	}
-	return in.resolveLang(lock), nil
+	return in.resolveLang(legacy), nil
 }
 
-// Status 计算全部资产的当前状态。只读，不写任何文件——语言解析的结果不落盘，
-// 用什么语言只有 Apply 才会记进 lock。
+// LegacyAgentsSum 是旧版 lock 给 AGENTS.md 记的指纹（AGENTS.md 曾经是技能资产）；没有时为空。
+func (in Installer) LegacyAgentsSum() string {
+	legacy, err := in.loadLegacy()
+	if err != nil {
+		return ""
+	}
+	if e, ok := legacy.Get(docspec.FileAgents); ok {
+		return e.Sum
+	}
+	return ""
+}
+
+// Status 计算全部资产的当前状态。只读，不写任何文件。
 func (in Installer) Status() ([]FileStatus, error) {
-	lock, err := LoadLock(in.LockPath)
+	legacy, err := in.loadLegacy()
 	if err != nil {
 		return nil, err
 	}
-	lang := in.resolveLang(lock)
 	var out []FileStatus
-	for _, a := range AssetsFor(in.Scope, lang) {
-		st, err := in.stateOf(a, lock)
+	for _, a := range AssetsFor(in.Scope, in.resolveLang(legacy)) {
+		st, err := in.stateOfWith(a, legacy)
 		if err != nil {
 			return nil, err
 		}
@@ -136,21 +162,21 @@ func (in Installer) Status() ([]FileStatus, error) {
 	return out, nil
 }
 
-// stateOf 判定单个资产的状态。
-//
-// 判定顺序本身是规格：
-//
-//	文件不存在                → 缺失
-//	磁盘指纹 == 资产指纹       → 最新
-//	lock 里没有这条            → 未托管
-//	磁盘指纹 != lock 记录      → 已手改
-//	其余                      → 待更新
-//
-// 「最新」刻意排在 lock 查询之前：一个内容恰好与资产一致的文件，判成「最新」
-// 并补登记，比判成「未托管」永远跳过要好——否则它下个版本还是「未托管」。
-func (in Installer) stateOf(a Asset, lock *Lock) (FileStatus, error) {
-	st := FileStatus{Target: a.Target}
+// stateOf 判定单个资产的状态（没有旧版 lock 时）。
+func (in Installer) stateOf(a Asset) (FileStatus, error) { return in.stateOfWith(a, &Lock{}) }
 
+// stateOfWith 判定单个资产的状态。判定顺序本身是规格：
+//
+//	文件不存在                          → 缺失
+//	带记录，正文就是当前资产              → 最新
+//	带记录，正文指纹与记录不符            → 已手改
+//	带记录，其余                          → 待更新（旧版本写的、没改过）
+//	不带记录，旧版 lock 记的指纹与文件一致 → 待更新（迁移：旧版 CLI 写的）
+//	不带记录，旧版 lock 有记录但不一致     → 已手改
+//	不带记录，内容恰好就是当前资产         → 待更新（补上记录）
+//	其余                                  → 未托管（可能是使用者自己写的同名文件）
+func (in Installer) stateOfWith(a Asset, legacy *Lock) (FileStatus, error) {
+	st := FileStatus{Target: a.Target}
 	want, err := a.Content()
 	if err != nil {
 		return st, fmt.Errorf("%s%w", i18n.T(msgid.SkillsInstallFailedToReadTheEmbedded, a.Source), err)
@@ -163,22 +189,27 @@ func (in Installer) stateOf(a Asset, lock *Lock) (FileStatus, error) {
 	if err != nil {
 		return st, fmt.Errorf("%s%w", i18n.T(msgid.SkillsInstallFailedToRead, a.Target), err)
 	}
-
-	if Sum(disk) == Sum(want) {
+	body, version, recorded, marked := ReadMarker(disk)
+	switch {
+	case marked && bytes.Equal(body, normalize(want)):
 		st.State = StateCurrent
-		return st, nil
-	}
-	entry, ok := lock.Get(a.Target)
-	if !ok {
-		st.State = StateUntracked
-		return st, nil
-	}
-	if entry.Sum != Sum(disk) {
+	case marked && Sum(body) != recorded:
 		st.State = StateModified
-		return st, nil
+	case marked:
+		st.State, st.FromVersion = StateOutdated, version
+	default:
+		if e, found := legacy.Get(a.Target); found {
+			if e.Sum == Sum(disk) {
+				st.State, st.FromVersion = StateOutdated, e.Version
+			} else {
+				st.State = StateModified
+			}
+		} else if bytes.Equal(normalize(disk), normalize(want)) {
+			st.State = StateOutdated
+		} else {
+			st.State = StateUntracked
+		}
 	}
-	st.State = StateOutdated
-	st.FromVersion = entry.Version
 	return st, nil
 }
 
@@ -192,32 +223,28 @@ type ApplyResult struct {
 	Lang i18n.Lang
 }
 
-// Apply 按状态写入资产：缺失与待更新写入，已手改与未托管跳过，最新只补登记 lock。
+// Apply 按状态写入资产：缺失与待更新写入（带记录），已手改与未托管跳过，最新不动。全程不删任何技能文件。
+// 旧版 lock 用来认完旧文件之后删掉：从此每份文件自己带着记录。
 //
-// 全程不删任何文件，也不动跳过的那些在 lock 里的记录——抹掉的话，
-// 「已手改」下次就会退化成「未托管」，而两者给用户的提示是不一样的。
-//
-// # 语言切换是怎么"免费"生效的
-//
-// resolveLang 解出的语言一定会写回 lock.Lang，即便这次没有任何文件被判定为
-// 需要改动——项目从此记住了这个选择。切换语言（比如 skills update --lang zh）
-// 不需要任何特殊逻辑：lock.Lang 一变，AssetsFor 取的就是另一种语言的内容，
-// 而磁盘上的文件还是旧语言、指纹与旧 lock 记录一致——stateOf 天然把它判成
-// 「待更新」（内容变了、没被手改），可写；真被用户手改过的文件则天然判成
-// 「已手改」，照样跳过。状态机本身完全不用知道"语言"这回事。
+// 语言切换不需要特殊逻辑：要的语言一变，取的就是另一棵资产树，磁盘上没改过的旧语言文件
+// 天然判成「待更新」，被手改过的天然判成「已手改」照样跳过。语言本身记在 AGENTS.md 的维护区里，
+// 由调用方（skills update）写回。
 func (in Installer) Apply() (*ApplyResult, error) {
-	lock, err := LoadLock(in.LockPath)
+	legacy, err := in.loadLegacy()
 	if err != nil {
 		return nil, err
 	}
-	lang := in.resolveLang(lock)
+	lang := in.resolveLang(legacy)
 	res := &ApplyResult{Lang: lang}
 	for _, a := range AssetsFor(in.Scope, lang) {
-		st, err := in.stateOf(a, lock)
+		st, err := in.stateOfWith(a, legacy)
 		if err != nil {
 			return nil, err
 		}
-		if st.State != StateCurrent && !st.State.writable() {
+		if st.State == StateCurrent {
+			continue
+		}
+		if !st.State.writable() {
 			res.Skipped = append(res.Skipped, st)
 			continue
 		}
@@ -225,19 +252,15 @@ func (in Installer) Apply() (*ApplyResult, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s%w", i18n.T(msgid.SkillsInstallFailedToReadTheEmbedded, a.Source), err)
 		}
-		if st.State.writable() {
-			if err := in.write(a.Target, content); err != nil {
-				return nil, err
-			}
-			res.Written = append(res.Written, a.Target)
+		if err := in.write(a.Target, Mark(content, in.Version)); err != nil {
+			return nil, err
 		}
-		// 「最新」也要登记：内容一致但 lock 里没有记录时补上，
-		// 否则它下个版本会被判成「未托管」而永远升不上去。
-		lock.Set(LockEntry{Path: a.Target, Version: in.Version, Sum: Sum(content)})
+		res.Written = append(res.Written, a.Target)
 	}
-	lock.Lang = string(lang)
-	if err := lock.Save(in.LockPath); err != nil {
-		return nil, err
+	if in.LegacyLockPath != "" {
+		if err := os.Remove(in.LegacyLockPath); err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("%s%w", i18n.T(msgid.SkillsLockFailedToRemoveLegacy), err)
+		}
 	}
 	return res, nil
 }

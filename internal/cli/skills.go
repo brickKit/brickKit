@@ -12,12 +12,15 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/brickkit/brickkit/internal/agentsmd"
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/docspec"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/logging"
 	"github.com/brickkit/brickkit/internal/manifest"
 	"github.com/brickkit/brickkit/internal/msgid"
 	"github.com/brickkit/brickkit/internal/project"
+	"github.com/brickkit/brickkit/internal/projfile"
 	"github.com/brickkit/brickkit/internal/skills"
 	"github.com/brickkit/brickkit/internal/version"
 )
@@ -98,10 +101,10 @@ func skillsInstaller(opts *Options, langOverride string) (skills.Installer, erro
 		return skills.Installer{}, err
 	}
 	in := skills.Installer{
-		Root:     layout.Root,
-		LockPath: layout.SkillsLockPath(),
-		Version:  version.Version,
-		Scope:    scope,
+		Root:           layout.Root,
+		LegacyLockPath: layout.LegacySkillsLockPath(),
+		Version:        version.Version,
+		Scope:          scope,
 	}
 	if langOverride != "" {
 		lang, ok := i18n.ParseLang(langOverride)
@@ -161,6 +164,11 @@ func runSkillsStatus(opts *Options) error {
 		}
 		t.add(s.Target, state)
 	}
+	agentsState, agentsStale := agentsStatus(in.Root)
+	t.add(docspec.FileAgents, agentsState)
+	if agentsStale {
+		stale++
+	}
 	opts.Printf("%s", t.render("   "))
 	if stale > 0 {
 		opts.Printf("\n%s\n", i18n.TN(msgid.CliSkillsFilesNeedRefreshing, stale, stale))
@@ -173,7 +181,13 @@ func runSkillsUpdate(opts *Options, lang string) error {
 	if err != nil {
 		return err
 	}
+	// 旧版 lock 里 AGENTS.md 的指纹要在 Apply 之前读：Apply 用完旧 lock 就把它删了
+	legacySum := in.LegacyAgentsSum()
 	res, err := in.Apply()
+	if err != nil {
+		return wrapSkillsError(err)
+	}
+	ares, err := agentsmd.Ensure(in.Root, agentsContentFor(in.Root, string(res.Lang), lang != ""), agentsmd.ModeRepair, legacySum)
 	if err != nil {
 		return wrapSkillsError(err)
 	}
@@ -185,8 +199,10 @@ func runSkillsUpdate(opts *Options, lang string) error {
 		opts.Printf("%s\n", i18n.T(msgid.CliSkillsLanguageLine, string(res.Lang)))
 		renderSkillsLangFallback(opts, in.Lang, res.Lang)
 	}
-	if len(res.Written) == 0 && len(res.Skipped) == 0 {
+	agentsChanged := ares.AgentsCreated || ares.BlockAppended || ares.BlockRewritten || ares.LegacyReplaced || ares.ClaudeCreated || ares.ClaudeAppended
+	if len(res.Written) == 0 && len(res.Skipped) == 0 && !agentsChanged && ares.Problem == "" {
 		opts.Printf("%s\n", i18n.T(msgid.CliSkillsAiAssistantSkillsAreUp, version.Display()))
+		renderObsoleteMapIfAny(opts, in.Root)
 		return nil
 	}
 
@@ -204,6 +220,14 @@ func runSkillsUpdate(opts *Options, lang string) error {
 		}
 		opts.Printf("\n%s\n", i18n.T(msgid.CliSkillsNoteToDiscardLocalEdits))
 	}
+	if ares.AgentsCreated {
+		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitPlanCreate, docspec.FileAgents))
+	}
+	if ares.ClaudeCreated {
+		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliInitPlanCreate, docspec.FileClaude))
+	}
+	renderAgentsResult(opts, ares)
+	renderObsoleteMapIfAny(opts, in.Root)
 	logging.Info(i18n.T(msgid.LogSkillsRefreshed),
 		"written", len(res.Written), "skipped", len(res.Skipped))
 	return nil
@@ -214,4 +238,40 @@ func wrapSkillsError(cause error) error {
 		WithDetail(i18n.T(msgid.LabelReason), cause.Error()).
 		WithHint(i18n.T(msgid.HintCheckDiskAccess)).
 		WithCause(cause)
+}
+
+// agentsContentFor 是 skills update 要让 AGENTS.md 维护区变成的样子：有 brickkit.yaml 就带组件表
+// （工作台同时带组件规则），纯组件仓库只放组件规则。force 为真（--lang）时用 lang 换掉维护区记的语言。
+func agentsContentFor(root, lang string, force bool) agentsmd.Content {
+	layout := project.NewLayout(root)
+	var c agentsmd.Content
+	if decl, err := projfile.ParseFile(layout.DeclPath()); err == nil {
+		c = project.AgentsContent(layout, decl, lang)
+	} else {
+		c = agentsmd.Content{Lang: lang, Component: true}
+		if m, err := manifest.ParseFile(filepath.Join(root, manifest.FileName)); err == nil {
+			c.Title = m.Metadata.ID
+		}
+	}
+	c.ForceLang = force
+	return c
+}
+
+// agentsStatus 是 skills status 里 AGENTS.md 那一行：维护区在不在、记的什么语言。stale 为真时 update 会补。
+func agentsStatus(root string) (state string, stale bool) {
+	data, err := os.ReadFile(filepath.Join(root, docspec.FileAgents))
+	if err != nil {
+		return i18n.T(msgid.CliSkillsAgentsMissing), true
+	}
+	b, err := agentsmd.Find(string(data))
+	if err != nil {
+		return i18n.T(msgid.CliSkillsAgentsBlockNone), true
+	}
+	return i18n.T(msgid.CliSkillsAgentsBlockOk, b.Lang), false
+}
+
+func renderObsoleteMapIfAny(opts *Options, root string) {
+	if project.ObsoleteProjectMap(project.NewLayout(root)) {
+		renderProjectMapObsolete(opts)
+	}
 }

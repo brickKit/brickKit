@@ -321,12 +321,12 @@ func TestInitInstallsSkills(t *testing.T) {
 		filepath.Join(".claude", "skills", "brickkit-component", "SKILL.md"),
 		filepath.Join(".claude", "skills", "brickkit-deploy", "SKILL.md"),
 		filepath.Join(".claude", "skills", "brickkit-troubleshoot", "SKILL.md"),
-		filepath.Join(".brickkit", "skills.lock"),
 	} {
 		_, err := os.Stat(filepath.Join(dir, rel))
 		assert.NoError(t, err, "init 没装出 %s", rel)
 	}
 	assert.Contains(t, r.stdout, ".claude/skills/")
+	assert.NoFileExists(t, filepath.Join(dir, ".brickkit", "skills.lock"), "每份技能文件自己带着记录，不再有 lock")
 }
 
 func TestInitNoSkillsInstallsNothing(t *testing.T) {

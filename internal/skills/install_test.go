@@ -11,14 +11,11 @@ import (
 	"github.com/brickkit/brickkit/internal/i18n"
 )
 
+const assemble = ".claude/skills/brickkit-assemble/SKILL.md"
+
 func newInstaller(t *testing.T) Installer {
 	t.Helper()
-	root := t.TempDir()
-	return Installer{
-		Root:     root,
-		LockPath: filepath.Join(root, ".brickkit", "skills.lock"),
-		Version:  "0.1.0",
-	}
+	return Installer{Root: t.TempDir(), Version: "0.1.0"}
 }
 
 func mustStatus(t *testing.T, in Installer) []FileStatus {
@@ -51,6 +48,14 @@ func assetNamed(t *testing.T, target string) Asset {
 	return Asset{}
 }
 
+func writeAt(t *testing.T, in Installer, target string, content []byte) string {
+	t.Helper()
+	p := filepath.Join(in.Root, filepath.FromSlash(target))
+	require.NoError(t, os.MkdirAll(filepath.Dir(p), dirPerm))
+	require.NoError(t, os.WriteFile(p, content, filePerm))
+	return p
+}
+
 func TestFreshProjectIsAllMissingThenWritten(t *testing.T) {
 	in := newInstaller(t)
 	for _, s := range mustStatus(t, in) {
@@ -63,9 +68,13 @@ func TestFreshProjectIsAllMissingThenWritten(t *testing.T) {
 	assert.Empty(t, res.Skipped)
 
 	for _, a := range Assets(i18n.EN) {
-		_, err := os.Stat(filepath.Join(in.Root, a.Target))
-		assert.NoError(t, err, "没写出来：%s", a.Target)
+		data, err := os.ReadFile(filepath.Join(in.Root, a.Target))
+		require.NoError(t, err, "没写出来：%s", a.Target)
+		_, v, _, ok := ReadMarker(data)
+		assert.True(t, ok, "%s 没带记录", a.Target)
+		assert.Equal(t, "0.1.0", v)
 	}
+	assert.NoFileExists(t, filepath.Join(in.Root, ".brickkit", "skills.lock"), "不再写 lock")
 }
 
 func TestApplyIsIdempotent(t *testing.T) {
@@ -82,132 +91,78 @@ func TestApplyIsIdempotent(t *testing.T) {
 	}
 }
 
-// 用户手改过的文件绝不覆盖——这是整个设计里最要紧的一条。
+// 用户手改过的文件绝不覆盖——这是整个设计里最要紧的一条。改了正文、留着记录行：已手改。
 func TestModifiedFileIsNeverOverwritten(t *testing.T) {
 	in := newInstaller(t)
 	_, err := in.Apply()
 	require.NoError(t, err)
 
-	p := filepath.Join(in.Root, filepath.FromSlash(".claude/skills/brickkit-assemble/SKILL.md"))
-	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
-	mine := []byte("这是我自己写的，别动\n")
+	p := filepath.Join(in.Root, filepath.FromSlash(assemble))
+	data, err := os.ReadFile(p)
+	require.NoError(t, err)
+	mine := append([]byte("我加了一行\n"), data...)
 	require.NoError(t, os.WriteFile(p, mine, filePerm))
 
-	assert.Equal(t, StateModified, stateOf(t, in, ".claude/skills/brickkit-assemble/SKILL.md").State)
-
+	assert.Equal(t, StateModified, stateOf(t, in, assemble).State)
 	res, err := in.Apply()
 	require.NoError(t, err)
-	assert.NotContains(t, res.Written, ".claude/skills/brickkit-assemble/SKILL.md")
-
+	assert.NotContains(t, res.Written, assemble)
 	after, err := os.ReadFile(p)
 	require.NoError(t, err)
 	assert.Equal(t, string(mine), string(after), "手改的内容被覆盖了")
+	assert.Equal(t, StateModified, stateOf(t, in, assemble).State, "跳过之后它还是「已手改」，不是「未托管」")
 }
 
-// lock 里没有记录的既有文件也不碰：可能是用户自己写的同名文件。
+// 不带记录的既有文件也不碰：可能是用户自己写的同名文件。
 func TestUntrackedFileIsNeverOverwritten(t *testing.T) {
 	in := newInstaller(t)
-	p := filepath.Join(in.Root, filepath.FromSlash(".claude/skills/brickkit-assemble/SKILL.md"))
-	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
 	mine := []byte("# 我自己写的导读\n")
-	require.NoError(t, os.WriteFile(p, mine, filePerm))
+	p := writeAt(t, in, assemble, mine)
 
-	assert.Equal(t, StateUntracked, stateOf(t, in, ".claude/skills/brickkit-assemble/SKILL.md").State)
-
+	assert.Equal(t, StateUntracked, stateOf(t, in, assemble).State)
 	res, err := in.Apply()
 	require.NoError(t, err)
-	assert.NotContains(t, res.Written, ".claude/skills/brickkit-assemble/SKILL.md")
-
+	assert.NotContains(t, res.Written, assemble)
 	after, err := os.ReadFile(p)
 	require.NoError(t, err)
 	assert.Equal(t, string(mine), string(after))
 }
 
-// lock 记的指纹与磁盘一致、但与当前资产不一致 → 待更新，可以覆盖。
+// 旧版本写的、没改过 → 待更新，说得出是从哪个版本升上来的。
 func TestOutdatedFileIsUpdated(t *testing.T) {
 	in := newInstaller(t)
-	p := filepath.Join(in.Root, filepath.FromSlash(".claude/skills/brickkit-assemble/SKILL.md"))
-	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
-	old := []byte("旧版本的导读\n")
-	require.NoError(t, os.WriteFile(p, old, filePerm))
+	p := writeAt(t, in, assemble, Mark([]byte("旧版本的技能\n"), "0.0.1"))
 
-	l := &Lock{}
-	l.Set(LockEntry{Path: ".claude/skills/brickkit-assemble/SKILL.md", Version: "0.0.1", Sum: Sum(old)})
-	require.NoError(t, l.Save(in.LockPath))
-
-	st := stateOf(t, in, ".claude/skills/brickkit-assemble/SKILL.md")
+	st := stateOf(t, in, assemble)
 	assert.Equal(t, StateOutdated, st.State)
 	assert.Equal(t, "0.0.1", st.FromVersion, "要能说出是从哪个版本升上来的")
 
 	res, err := in.Apply()
 	require.NoError(t, err)
-	assert.Contains(t, res.Written, ".claude/skills/brickkit-assemble/SKILL.md")
-
+	assert.Contains(t, res.Written, assemble)
 	after, err := os.ReadFile(p)
 	require.NoError(t, err)
-	assert.NotEqual(t, string(old), string(after))
+	body, v, _, ok := ReadMarker(after)
+	require.True(t, ok)
+	assert.Equal(t, "0.1.0", v)
+	want, _ := assetNamed(t, assemble).Content()
+	assert.Equal(t, normalize(want), body)
 }
 
-// lock 丢了之后：没动过的文件判「最新」并补登记（内容本就逐字节相同，
-// 补登记不覆盖任何东西，却把升级通道修回来了）；改过的判「未托管」，一个字不动。
-//
-// 反过来做——一律判「未托管」——的后果是：用户误删一次 lock，这个项目的技能
-// 就永远升不上去，哪怕他一个字都没改过。那是坑，不是保守。
-func TestLostLockRecoversUnmodifiedAndSparesTheRest(t *testing.T) {
+// 内容恰好就是当前资产、只是没带记录（手工拷来的）→ 补上记录，否则它永远升不上去。
+func TestCurrentContentWithoutMarkerGetsMarked(t *testing.T) {
 	in := newInstaller(t)
-	_, err := in.Apply()
+	want, err := assetNamed(t, assemble).Content()
 	require.NoError(t, err)
+	p := writeAt(t, in, assemble, want)
 
-	mine := []byte("我改过这一份\n")
-	require.NoError(t, os.WriteFile(filepath.Join(in.Root, filepath.FromSlash(".claude/skills/brickkit-assemble/SKILL.md")), mine, filePerm))
-	require.NoError(t, os.Remove(in.LockPath))
-
-	for _, s := range mustStatus(t, in) {
-		if s.Target == ".claude/skills/brickkit-assemble/SKILL.md" {
-			assert.Equal(t, StateUntracked, s.State, "改过的：未托管")
-			continue
-		}
-		assert.Equal(t, StateCurrent, s.State, "没动过的：最新")
-	}
-
-	res, err := in.Apply()
-	require.NoError(t, err)
-	assert.Empty(t, res.Written, "没有任何文件需要重写")
-	require.Len(t, res.Skipped, 1)
-	assert.Equal(t, ".claude/skills/brickkit-assemble/SKILL.md", res.Skipped[0].Target)
-
-	after, err := os.ReadFile(filepath.Join(in.Root, filepath.FromSlash(".claude/skills/brickkit-assemble/SKILL.md")))
-	require.NoError(t, err)
-	assert.Equal(t, string(mine), string(after), "改过的那份被覆盖了")
-
-	// lock 已经重建，且不含那份未托管的。
-	l, err := LoadLock(in.LockPath)
-	require.NoError(t, err)
-	assert.NotEmpty(t, l.Entries)
-	_, ok := l.Get(".claude/skills/brickkit-assemble/SKILL.md")
-	assert.False(t, ok, "未托管的不该被登记进 lock")
-}
-
-// 内容恰好与资产一致、但 lock 里没记录 → 判「最新」并补登记，
-// 否则它下个版本还是「未托管」，永远升不上去。
-func TestCurrentWithoutLockEntryGetsRecorded(t *testing.T) {
-	in := newInstaller(t)
-	want, err := assetNamed(t, ".claude/skills/brickkit-assemble/SKILL.md").Content()
-	require.NoError(t, err)
-	target := filepath.Join(in.Root, filepath.FromSlash(".claude/skills/brickkit-assemble/SKILL.md"))
-	require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
-	require.NoError(t, os.WriteFile(target, want, filePerm))
-
-	assert.Equal(t, StateCurrent, stateOf(t, in, ".claude/skills/brickkit-assemble/SKILL.md").State)
-
+	assert.Equal(t, StateOutdated, stateOf(t, in, assemble).State)
 	_, err = in.Apply()
 	require.NoError(t, err)
-
-	l, err := LoadLock(in.LockPath)
-	require.NoError(t, err)
-	e, ok := l.Get(".claude/skills/brickkit-assemble/SKILL.md")
-	require.True(t, ok, "「最新」也要补登记进 lock")
-	assert.Equal(t, "0.1.0", e.Version)
+	after, _ := os.ReadFile(p)
+	_, _, _, ok := ReadMarker(after)
+	assert.True(t, ok)
+	assert.Equal(t, StateCurrent, stateOf(t, in, assemble).State)
 }
 
 // 缺失的文件被重新写出来（用户删了某个 skill 目录）。
@@ -215,42 +170,20 @@ func TestMissingFileIsRestored(t *testing.T) {
 	in := newInstaller(t)
 	_, err := in.Apply()
 	require.NoError(t, err)
-
-	p := filepath.Join(in.Root, filepath.FromSlash(".claude/skills/brickkit-assemble/SKILL.md"))
-	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
-	require.NoError(t, os.Remove(p))
-	assert.Equal(t, StateMissing, stateOf(t, in, ".claude/skills/brickkit-assemble/SKILL.md").State)
+	require.NoError(t, os.Remove(filepath.Join(in.Root, filepath.FromSlash(assemble))))
+	assert.Equal(t, StateMissing, stateOf(t, in, assemble).State)
 
 	res, err := in.Apply()
 	require.NoError(t, err)
-	assert.Contains(t, res.Written, ".claude/skills/brickkit-assemble/SKILL.md")
+	assert.Contains(t, res.Written, assemble)
 }
 
-// 跳过的文件不能被从 lock 里抹掉：抹了它下次就从「已手改」变成「未托管」，
-// 状态信息丢失，而两者对用户的提示是不一样的。
-func TestSkippedFileKeepsItsLockEntry(t *testing.T) {
+// 旧版 lock 坏了要响亮报错，不能当成"没有 lock"继续：那会把旧版 CLI 写的文件全判成「未托管」。
+func TestCorruptLegacyLockFailsLoudlyOnBothPaths(t *testing.T) {
 	in := newInstaller(t)
-	_, err := in.Apply()
-	require.NoError(t, err)
-
-	require.NoError(t, os.WriteFile(filepath.Join(in.Root, filepath.FromSlash(".claude/skills/brickkit-assemble/SKILL.md")),
-		[]byte("改过了\n"), filePerm))
-	_, err = in.Apply()
-	require.NoError(t, err)
-
-	l, err := LoadLock(in.LockPath)
-	require.NoError(t, err)
-	_, ok := l.Get(".claude/skills/brickkit-assemble/SKILL.md")
-	assert.True(t, ok, "跳过的文件仍应留在 lock 里")
-	assert.Equal(t, StateModified, stateOf(t, in, ".claude/skills/brickkit-assemble/SKILL.md").State)
-}
-
-// lock 坏了要响亮报错，不能当成「没有 lock」继续往下走：
-// 那会把一个可修的问题变成「所有文件突然都判未托管」的怪现象。
-func TestCorruptLockFailsLoudlyOnBothPaths(t *testing.T) {
-	in := newInstaller(t)
-	require.NoError(t, os.MkdirAll(filepath.Dir(in.LockPath), dirPerm))
-	require.NoError(t, os.WriteFile(in.LockPath, []byte("{ 坏了"), filePerm))
+	in.LegacyLockPath = filepath.Join(in.Root, ".brickkit", "skills.lock")
+	require.NoError(t, os.MkdirAll(filepath.Dir(in.LegacyLockPath), dirPerm))
+	require.NoError(t, os.WriteFile(in.LegacyLockPath, []byte("{ 坏了"), filePerm))
 
 	_, err := in.Status()
 	require.Error(t, err)
@@ -265,35 +198,21 @@ func TestCorruptLockFailsLoudlyOnBothPaths(t *testing.T) {
 // 这时必须报错，绝不能误判成「缺失」然后去写——那会失败得更难懂。
 func TestTargetOccupiedByDirectoryIsAnError(t *testing.T) {
 	in := newInstaller(t)
-	require.NoError(t, os.MkdirAll(filepath.Join(in.Root, filepath.FromSlash(".claude/skills/brickkit-assemble/SKILL.md")), dirPerm))
+	require.NoError(t, os.MkdirAll(filepath.Join(in.Root, filepath.FromSlash(assemble)), dirPerm))
 
 	_, err := in.Status()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), ".claude/skills/brickkit-assemble/SKILL.md")
+	assert.Contains(t, err.Error(), assemble)
 }
 
 // 要建的目录被一个普通文件占了，MkdirAll 会失败。
 func TestWriteFailsWhenParentPathIsAFile(t *testing.T) {
 	in := newInstaller(t)
-	require.NoError(t, os.WriteFile(filepath.Join(in.Root, ".claude"),
-		[]byte("我是个文件，不是目录\n"), filePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(in.Root, ".claude"), []byte("我是个文件，不是目录\n"), filePerm))
 
 	_, err := in.Apply()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), ".claude")
-}
-
-// lock 写不出去时要报错，而不是假装装好了——
-// 下次运行会因为没有记录而把一切判成「未托管」，用户完全看不懂。
-func TestApplyFailsWhenLockCannotBeSaved(t *testing.T) {
-	in := newInstaller(t)
-	// 用一个普通文件占住 .brickkit/，让 lock 的父目录建不出来。
-	require.NoError(t, os.WriteFile(filepath.Join(in.Root, ".brickkit"),
-		[]byte("占位\n"), filePerm))
-
-	_, err := in.Apply()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "skills.lock")
 }
 
 // 目录建得出来但文件写不进去（只读目录）——这是真实场景：
@@ -313,7 +232,7 @@ func TestWriteFailsOnReadOnlyDirectory(t *testing.T) {
 }
 
 // 组件仓库里只装 brickkit-component 这一份：没有 brickkit.yaml 的地方，
-// 项目导读（"这个项目用 BrickKit 拼装"）与拼装/部署/排障三个技能都讲不通。
+// 拼装/部署/排障三个技能都讲不通。
 func TestComponentScopeManagesOnlyTheComponentSkill(t *testing.T) {
 	in := newInstaller(t)
 	in.Scope = ScopeComponent
@@ -327,12 +246,7 @@ func TestComponentScopeManagesOnlyTheComponentSkill(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{".claude/skills/brickkit-component/SKILL.md"}, res.Written)
 
-	for _, absent := range []string{
-		".claude/skills/brickkit-assemble/SKILL.md",
-		".claude/skills/brickkit-assemble/SKILL.md",
-		".claude/skills/brickkit-deploy/SKILL.md",
-		".claude/skills/brickkit-troubleshoot/SKILL.md",
-	} {
+	for _, absent := range []string{assemble, ".claude/skills/brickkit-deploy/SKILL.md", ".claude/skills/brickkit-troubleshoot/SKILL.md"} {
 		_, err := os.Stat(filepath.Join(in.Root, filepath.FromSlash(absent)))
 		assert.True(t, os.IsNotExist(err), "组件仓库里不该出现 %s", absent)
 	}
@@ -358,7 +272,8 @@ func TestComponentScopeTargetsAllExistAmongAssets(t *testing.T) {
 	}
 }
 
-// 组件范围下同样不覆盖手改过的文件（复用同一套状态机）。
+// 组件范围下同样不覆盖手改过的文件（复用同一套状态机）。整份换掉、连记录行一起删了：
+// 与使用者自己写的同名文件分不开，判「未托管」，同样不碰。
 func TestComponentScopeNeverOverwritesHandEdits(t *testing.T) {
 	in := newInstaller(t)
 	in.Scope = ScopeComponent
@@ -373,7 +288,7 @@ func TestComponentScopeNeverOverwritesHandEdits(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, res.Written)
 	require.Len(t, res.Skipped, 1)
-	assert.Equal(t, StateModified, res.Skipped[0].State)
+	assert.Equal(t, StateUntracked, res.Skipped[0].State)
 
 	after, err := os.ReadFile(p)
 	require.NoError(t, err)

@@ -20,10 +20,11 @@ type LockEntry struct {
 	Sum string `json:"sum"`
 }
 
-// Lock 是 .brickkit/skills.lock 的内容。
+// Lock 是旧版 .brickkit/skills.lock 的内容。
 //
-// 它只回答一个问题：**这个文件上次是我们写的、内容是什么样**。
-// 有了它才能区分「用户手改过」和「CLI 升级导致过期」——前者绝不能覆盖。
+// 现在每份技能文件自己带着记录（marker.go），不再写 lock：.brickkit/ 不进 Git，同事新克隆下来
+// 根本没有它，技能从此升不上去。这里只为迁移还留着读它——认出旧版 CLI 写的、没被改过的文件，
+// 然后 Apply 把它删掉。Save 只给测试造旧项目用。
 type Lock struct {
 	Entries []LockEntry `json:"entries"`
 	// Lang 记录这个项目的技能资产上次是用哪种语言装的（"en" / "zh"）。
@@ -36,9 +37,9 @@ type Lock struct {
 	Lang string `json:"lang,omitempty"`
 }
 
-// LoadLock 读取 lock。文件不存在时返回空 Lock 且不报错：
+// LoadLegacyLock 读取旧版 lock。文件不存在时返回空 Lock 且不报错：
 // 没有 lock 是常态（老项目、刚 clone、用户删过），不是故障。
-func LoadLock(path string) (*Lock, error) {
+func LoadLegacyLock(path string) (*Lock, error) {
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return &Lock{}, nil

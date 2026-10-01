@@ -93,6 +93,7 @@ func runInitCreate(opts *Options, name string, f initFlags) error {
 	if err != nil {
 		return err
 	}
+	plan.LegacyAgentsSum = legacyAgentsSum(layout)
 	if err := plan.Apply(layout); err != nil {
 		return err
 	}
@@ -147,6 +148,7 @@ func runInitComplete(opts *Options, f initFlags) error {
 			return nil
 		}
 	}
+	plan.LegacyAgentsSum = legacyAgentsSum(layout)
 	if err := plan.Apply(layout); err != nil {
 		return err
 	}
@@ -249,15 +251,21 @@ func finishInit(opts *Options, layout project.Layout, f initFlags, check bool) e
 	return nil
 }
 
+// legacyAgentsSum 是旧版 skills.lock 给 AGENTS.md 记的指纹：那时 AGENTS.md 是 CLI 装的技能资产，
+// 没被改过的那份本来就是 CLI 的文件，补全时整份换成新骨架。必须在技能安装之前读——安装会删掉旧 lock。
+func legacyAgentsSum(layout project.Layout) string {
+	return skills.Installer{Root: layout.Root, LegacyLockPath: layout.LegacySkillsLockPath()}.LegacyAgentsSum()
+}
+
 // installSkills 装入 AI 助手技能，并把跳过的文件说清楚。
 //
 // 装不上是**错误**而不是静默跳过：init 说了它会装，那就得装上或者说明为什么没装。
 // 但错误里要讲明项目本身已经建好了——否则人会以为整个 init 都白跑了。
 func installSkills(opts *Options, layout project.Layout) error {
 	in := skills.Installer{
-		Root:     layout.Root,
-		LockPath: layout.SkillsLockPath(),
-		Version:  version.Version,
+		Root:           layout.Root,
+		LegacyLockPath: layout.LegacySkillsLockPath(),
+		Version:        version.Version,
 		// 显式钉住这次调用当下的 CLI 语言：init 是"就当现在装一份"，
 		// 不该被这个目录里可能残留的旧 skills.lock（比如清空 brickkit.yaml
 		// 后重新 init）悄悄带偏语言。

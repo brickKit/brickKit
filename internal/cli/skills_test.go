@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,7 +55,9 @@ func TestSkillsUpdateSkipsModifiedAndSaysHow(t *testing.T) {
 	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes").code)
 
 	p := filepath.Join(dir, ".claude", "skills", "brickkit-assemble", "SKILL.md")
-	mine := []byte("我改过了\n")
+	installed, err := os.ReadFile(p)
+	require.NoError(t, err)
+	mine := append([]byte("我改过了\n"), installed...) // 改了正文、记录行还在：已手改
 	require.NoError(t, os.WriteFile(p, mine, 0o644))
 
 	r := runIn(t, dir, "skills", "update")
@@ -99,9 +102,9 @@ func TestSkillsRefusesOutsideProject(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "不是项目就一个文件都别写")
 }
 
-// 独立组件仓库（一个组件一个仓库，通常没有 brickkit.yaml）：skills 只管
-// brickkit-component 这一份，不写项目导读，也不装拼装/部署/排障三个项目层面的技能。
-func TestSkillsInComponentRepoManagesOnlyTheComponentSkill(t *testing.T) {
+// 独立组件仓库（一个组件一个仓库，通常没有 brickkit.yaml）：只装 brickkit-component 这一份技能，
+// 不装拼装/部署/排障三个项目层面的技能；AGENTS.md 是组件自己的（代码地图那五节），不是项目导读。
+func TestSkillsInComponentRepoManagesTheComponentSkillAndItsOwnGuide(t *testing.T) {
 	dir := t.TempDir()
 	writeTree(t, dir, comp{ID: "people/basic", Version: "1.0.0"}.files())
 
@@ -109,16 +112,18 @@ func TestSkillsInComponentRepoManagesOnlyTheComponentSkill(t *testing.T) {
 	require.Equal(t, 0, st.code, st.stderr)
 	assert.Contains(t, st.stdout, ".claude/skills/brickkit-component/SKILL.md")
 	assert.Contains(t, st.stdout, "missing")
-	assert.Contains(t, st.stdout, "Component repository", "要说明这是组件仓库模式，不然人会奇怪怎么只有一个文件")
+	assert.Contains(t, st.stdout, "Component repository", "要说明这是组件仓库模式")
 	assert.NotContains(t, st.stdout, "brickkit-deploy")
-	assert.NotContains(t, st.stdout, "AGENTS.md")
 
 	up := runIn(t, dir, "skills", "update")
 	require.Equal(t, 0, up.code, up.stderr)
 	_, err := os.Stat(filepath.Join(dir, ".claude", "skills", "brickkit-component", "SKILL.md"))
 	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(dir, "AGENTS.md"))
-	assert.True(t, os.IsNotExist(err), "组件仓库里不该被写进项目导读")
+	agents := readFile(t, filepath.Join(dir, "AGENTS.md"))
+	assert.True(t, strings.HasPrefix(agents, "# people/basic\n"))
+	assert.Contains(t, agents, "## Code map", "组件自己的导读，不是项目那四节")
+	assert.NotContains(t, agents, "## Overview")
+	assert.Equal(t, "@AGENTS.md\n", readFile(t, filepath.Join(dir, "CLAUDE.md")))
 	_, err = os.Stat(filepath.Join(dir, ".claude", "skills", "brickkit-assemble"))
 	assert.True(t, os.IsNotExist(err))
 
@@ -127,18 +132,21 @@ func TestSkillsInComponentRepoManagesOnlyTheComponentSkill(t *testing.T) {
 	assert.Contains(t, again.stdout, "up to date")
 }
 
-// 组件仓库多半有自己的 AGENTS.md——一个字都不能碰。
-func TestSkillsInComponentRepoLeavesOwnAgentsMdAlone(t *testing.T) {
+// 组件仓库多半有自己的 AGENTS.md：作者写的一个字节都不动；skills update 是明确要求，
+// 只在末尾追加 brickkit 维护的那一段。
+func TestSkillsInComponentRepoKeepsOwnAgentsMdAndAppendsTheBlock(t *testing.T) {
 	dir := t.TempDir()
 	writeTree(t, dir, comp{ID: "people/basic", Version: "1.0.0"}.files())
-	mine := []byte("# 这个组件自己的说明\n")
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), mine, 0o644))
+	mine := "# 这个组件自己的说明\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte(mine), 0o644))
 
-	require.Equal(t, 0, runIn(t, dir, "skills", "update").code)
+	r := runIn(t, dir, "skills", "update")
+	require.Equal(t, 0, r.code, r.stdout+r.stderr)
 
-	after, err := os.ReadFile(filepath.Join(dir, "AGENTS.md"))
-	require.NoError(t, err)
-	assert.Equal(t, string(mine), string(after))
+	after := readFile(t, filepath.Join(dir, "AGENTS.md"))
+	assert.True(t, strings.HasPrefix(after, mine), "作者写的内容被改了")
+	assert.Contains(t, after, "<!-- brickkit:managed:begin lang=")
+	assert.Contains(t, r.stdout, "appended the brickkit-maintained block")
 }
 
 // 目录里既有 brickkit.yaml 又有 component.yaml 时按项目处理，和以前一样。
@@ -200,4 +208,36 @@ func TestDetectScope(t *testing.T) {
 		assert.Contains(t, e.Message, "neither a BrickKit project nor a component repository")
 		assert.Equal(t, dir, layout.Root, "出错时 Layout 仍然有效")
 	})
+}
+
+// skills update --lang 换的是项目选定的语言：技能换一套，AGENTS.md 维护区跟着换，作者写的部分一个字不动。
+func TestSkillsUpdateLangSwitchesTheBlock(t *testing.T) {
+	dir := t.TempDir()
+	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes").code)
+	before := readFile(t, filepath.Join(dir, "AGENTS.md"))
+	authored := before[:strings.Index(before, "<!-- brickkit:managed:begin")]
+
+	r := runIn(t, dir, "skills", "update", "--lang", "zh")
+	require.Equal(t, 0, r.code, r.stdout+r.stderr)
+	after := readFile(t, filepath.Join(dir, "AGENTS.md"))
+	assert.True(t, strings.HasPrefix(after, authored))
+	assert.Contains(t, after, "lang=zh")
+	assert.Contains(t, after, "## 组件")
+
+	st := runIn(t, dir, "skills", "status")
+	assert.Contains(t, st.stdout, "Skill language: zh")
+	assert.Contains(t, st.stdout, "brickkit block present (lang=zh)")
+}
+
+// 同事新克隆：.brickkit/ 不进 Git，克隆里没有它——技能文件自己带着记录，照样认得出、升得上去。
+func TestSkillsFreshCloneWithoutBrickkitDir(t *testing.T) {
+	dir := t.TempDir()
+	require.Equal(t, 0, runIn(t, dir, "init", "--name", "p", "--yes").code)
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, ".brickkit")))
+
+	st := runIn(t, dir, "skills", "status")
+	require.Equal(t, 0, st.code, st.stderr)
+	assert.NotContains(t, st.stdout, "untracked")
+	assert.NotContains(t, st.stdout, "need refreshing")
+	assert.Contains(t, st.stdout, "brickkit block present (lang=en)")
 }

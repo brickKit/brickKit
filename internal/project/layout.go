@@ -80,7 +80,9 @@ func (l Layout) ManifestsDir() string          { return l.path(DirBrickkit, DirM
 func (l Layout) ArtifactsDir() string          { return l.path(DirBrickkit, DirArtifacts) }
 func (l Layout) GeneratedDir() string          { return l.path(DirBrickkit, DirGenerated) }
 func (l Layout) CredentialsPath() string       { return l.path(DirBrickkit, FileCredentials) }
-func (l Layout) SkillsLockPath() string        { return l.path(DirBrickkit, FileSkillsLock) }
+// LegacySkillsLockPath 是旧版的 .brickkit/skills.lock：现在每份技能文件自己带着记录，
+// 只为迁移还没迁移的项目读它一次。
+func (l Layout) LegacySkillsLockPath() string { return l.path(DirBrickkit, FileSkillsLock) }
 func (l Layout) SessionLockPath() string       { return l.path(DirBrickkit, FileSessionLock) }
 func (l Layout) LocalModePath() string         { return l.path(DirBrickkit, FileLocalMode) }
 func (l Layout) LocalBasePath() string         { return l.path(DirBrickkit, FileLocalBase) }

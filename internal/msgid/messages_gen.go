@@ -1779,4 +1779,8 @@ const (
 	CliAgentsBlockMissing                                      ID = "cli.agents.block_missing"
 	CliAgentsClaudeMissingImport                               ID = "cli.agents.claude_missing_import"
 	CliAgentsHintSkillsUpdate                                  ID = "cli.agents.hint_skills_update"
+	SkillsLockFailedToRemoveLegacy                             ID = "skills.lock.failed_to_remove_legacy"
+	CliSkillsAgentsMissing                                     ID = "cli.skills.agents_missing"
+	CliSkillsAgentsBlockNone                                   ID = "cli.skills.agents_block_none"
+	CliSkillsAgentsBlockOk                                     ID = "cli.skills.agents_block_ok"
 )

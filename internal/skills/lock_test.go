@@ -12,7 +12,7 @@ import (
 
 func TestLoadLockMissingFileIsEmptyNotError(t *testing.T) {
 	// 没有 lock 是常态（老项目、刚 clone），不是错误。
-	l, err := LoadLock(filepath.Join(t.TempDir(), "skills.lock"))
+	l, err := LoadLegacyLock(filepath.Join(t.TempDir(), "skills.lock"))
 	require.NoError(t, err)
 	assert.Empty(t, l.Entries)
 }
@@ -23,7 +23,7 @@ func TestLockRoundTrip(t *testing.T) {
 	l.Set(LockEntry{Path: "AGENTS.md", Version: "0.1.0", Sum: Sum([]byte("a"))})
 	require.NoError(t, l.Save(p))
 
-	got, err := LoadLock(p)
+	got, err := LoadLegacyLock(p)
 	require.NoError(t, err)
 	e, ok := got.Get("AGENTS.md")
 	require.True(t, ok)
@@ -77,7 +77,7 @@ func TestLockSaveCreatesParentDir(t *testing.T) {
 func TestLoadLockCorruptFileReportsClearly(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "skills.lock")
 	require.NoError(t, os.WriteFile(p, []byte("{ 这不是 json"), 0o644))
-	_, err := LoadLock(p)
+	_, err := LoadLegacyLock(p)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "skills.lock")
 }
