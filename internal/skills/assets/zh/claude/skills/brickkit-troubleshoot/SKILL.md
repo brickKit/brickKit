@@ -162,7 +162,7 @@ description: brickkit 命令报错、组件起不来、地址注入不生效、�
 | `DOC_TRANSLATION_DRIFT` | 译本没有原文、二级小节数不同、某个语言版本没链接其余每一份，或后缀不是语言代码 | 把译本改回与原文一致 |
 | `AGENTS_BLOCK_MISSING` / `CLAUDE_IMPORT_MISSING` | `AGENTS.md` 里没有可用的 brickkit 维护段，或 `CLAUDE.md` 里没有 `@AGENTS.md` | `brickkit skills update` 会补上（别的命令不改这两个文件） |
 | `PROJECT_MAP_OBSOLETE` | 项目根还留着旧版的项目地图 `BRICKKIT.md` | 把自己写的内容挪进 `AGENTS.md`，再手动删掉它 |
-| `AGENTS.md` 组件表的某一行在提交之间来回变，`skills status` 说维护段过期 | 那个组件在一台机器上是本地源、另一台上取自 git tag，而它的 `BRICKKIT.md`、译本或 `metadata.description` 改了、版本没升 | 升 `metadata.version`、`brickkit release`，再在项目里 `brickkit upgrade` |
+| `AGENTS.md` 组件表的某一行在提交之间来回变，`skills status` 说维护段过期 | 已经发布的版本在本地源里被原地改了（`BRICKKIT.md`、译本或 `metadata.description`），另一台机器从 tag 取它。升了版本还没发布的不会这样 | 改动放进下一个版本：升 `metadata.version`、`brickkit release`，再在项目里 `brickkit upgrade` |
 | `INTERNAL` | 读写本地文件失败（磁盘满、没权限）；标题是「内部错误」的则是 CLI 的 bug | 查磁盘空间和权限；bug 请带完整输出报告 |
 
 ## 不变的老问题：它们是刻意设计

@@ -115,7 +115,7 @@ id (`ERP_API_DB_HOST`).
 - `BRICKKIT.md` has **no relative links**: it is read alone in other projects' caches. Name files as inline code.
 - Translations are siblings: `BRICKKIT.zh.md`, `README.zh.md`, `docs/design.zh.md`. The unsuffixed file is canonical; each language version links every other near the top (not `BRICKKIT*.md`); `AGENTS.md` is not translated.
 - `brickkit lint` checks all of this (warnings; `--strict` fails on them): `DOC_FILE_MISSING`, `DOC_SECTION_MISSING`, `DOC_PATH_MISSING` (a code-map path that's gone), `DOC_LINK_BROKEN`, `DOC_LINK_NOT_PORTABLE`, `DOC_OUT_OF_STEP` (a dependency, required key, contract file or shell member that `component.yaml` has and the doc doesn't mention), `DOC_PLACEHOLDER`, `DOC_TRANSLATION_DRIFT`, `AGENTS_BLOCK_MISSING`, `CLAUDE_IMPORT_MISSING`. Change the docs in the same commit as the code: the next AI reads what you left.
-- The docs are part of the version, like the code: a changed `BRICKKIT.md`, translation or `metadata.description` needs a new `metadata.version`. Without one, a machine where it is a local source and a machine that takes it from the tag write different rows into the component table of the project's `AGENTS.md`, back and forth.
+- The docs are part of the version, like the code. Work towards a new version — bump `metadata.version` first, test, then release — and edit it freely until it's released. Never change a released version in place: a machine where it is a local source and a machine that takes it from the tag then write different rows into the component table of the project's `AGENTS.md`, back and forth.
 
 ## Releasing a version
 

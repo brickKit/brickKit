@@ -102,10 +102,11 @@ JSON Schema 只描述**单个文件的结构**：字段名、类型、必填、�
 
 **原因**
 
-那个组件在一方机器上是本地源（`components/` 里有它的源码），在另一方机器上取自 git tag 或市场，而源码里改了 `BRICKKIT.md`、
-译本或 `metadata.description`，版本号却没变。同一个版本号有两份内容，两台机器各按自己读到的那份写表。
+那个版本已经发布过（打了 tag 或发到了市场），一方机器上它是本地源（`components/` 里有它的源码），源码里又原地改了 `BRICKKIT.md`、
+译本或 `metadata.description`，版本号没变；另一方机器从 tag 或市场取它。同一个版本号有两份内容，两台机器各按自己读到的那份写表。
+（升了版本、还没发布时不会这样：没有源码的机器取不到这个版本，表里那一行原样保留。）
 
 **解决**
 
-把改动当新版本发出去：在组件目录里改 `metadata.version`、提交、推送、`brickkit release`，再在项目里
-`brickkit upgrade <id>@<新版本>`。改动还没打算发版时，先别提交项目 `AGENTS.md` 里那一行的变化。
+把改动放进下一个版本：在组件目录里升 `metadata.version`，测完提交、推送、`brickkit release`，再在项目里
+`brickkit upgrade <id>@<新版本>`。
