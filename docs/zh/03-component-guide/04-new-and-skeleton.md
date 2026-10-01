@@ -168,10 +168,11 @@ brickkit lint
 ```
 
 ```text
-📦 组件仓库（有 component.yaml、没有 brickkit.yaml）：只检查 component.yaml
+📦 组件仓库（有 component.yaml、没有 brickkit.yaml）：检查 component.yaml 与组件的文档
 ✅ component.yaml
+✅ ./（文档）
 
-📋 检查了 1 个文件：0 个有错误，0 条警告
+📋 检查了 2 个文件：0 个有错误，0 条警告
 ```
 
 **6. 跑起来。** 在组件仓库里建一个本地联调工作台，连着它的依赖一起跑，见 [分形的本地开发](05-local-dev-fractal.md)。

@@ -1808,4 +1808,5 @@ const (
 	DoccheckNotLinked                                          ID = "doccheck.not_linked"
 	DoccheckClaudeImport                                       ID = "doccheck.claude_import"
 	DoccheckAgentsBlock                                        ID = "doccheck.agents_block"
+	CliLintDocsEntry                                           ID = "cli.lint.docs_entry"
 )

@@ -173,10 +173,11 @@ brickkit lint
 ```
 
 ```text
-📦 Component repository (has component.yaml, no brickkit.yaml): only component.yaml is checked
+📦 Component repository (has component.yaml, no brickkit.yaml): component.yaml and the component's docs are checked
 ✅ component.yaml
+✅ ./ (docs)
 
-📋 Checked 1 file: 0 with errors, 0 warnings
+📋 Checked 2 files: 0 with errors, 0 warnings
 ```
 
 **6. Run it.** Build a local workbench in the component repository and run it together with its dependencies; see

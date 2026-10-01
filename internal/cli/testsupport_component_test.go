@@ -53,6 +53,9 @@ type comp struct {
 	// Port 覆盖默认的 deployment.port（8080）——同一个外壳下的 servedBy
 	// 成员测试要用不同端口，否则端口冲突校验会先一步报错。
 	Port int
+	// NoDocs：不写文档（BRICKKIT.md、AGENTS.md、CLAUDE.md、README.md）。默认写一套能过 lint 文档检查的：
+	// 测试关心的是别的东西，不该被"缺 README"之类的警告搅乱"0 warnings"。
+	NoDocs bool
 }
 
 // imageRef 是该组件的 deployment.image。
@@ -149,7 +152,44 @@ func (c comp) files() map[string]string {
 		_, file, _ := strings.Cut(a, ":")
 		out[file] = "// " + file + " of " + c.ref() + "\n"
 	}
+	if !c.NoDocs {
+		for name, body := range c.docs() {
+			out[name] = body
+		}
+	}
 	return out
+}
+
+// docs 是一套能过文档检查的文档：component.yaml 里的依赖、契约文件、外壳成员都在该提的地方提到。
+func (c comp) docs() map[string]string {
+	var deps, contracts, members []string
+	for _, r := range append(append([]string(nil), c.Requires...), c.Optional...) {
+		id, _, _ := strings.Cut(r, "@")
+		deps = append(deps, "- "+id)
+	}
+	for _, a := range c.Artifacts {
+		_, file, _ := strings.Cut(a, ":")
+		contracts = append(contracts, "- `"+file+"`")
+	}
+	for _, m := range c.ShellMembers {
+		id, _, _ := strings.Cut(m, "@")
+		members = append(members, "- "+id)
+	}
+	orNone := func(lines []string) string {
+		if len(lines) == 0 {
+			return "None."
+		}
+		return strings.Join(lines, "\n")
+	}
+	return map[string]string{
+		"BRICKKIT.md": "# " + c.ID + "\n\n## Purpose\nA test component.\n\n## Before you deploy\nNothing beyond the configuration below.\n\n" +
+			"## Dependencies\n" + orNone(deps) + "\n\n## Configuration\nNothing to choose.\n\n## Contracts\n" + orNone(contracts) +
+			"\n\n## Shell declaration\n" + orNone(members) + "\n",
+		"AGENTS.md": "# " + c.ID + "\n\n## Code map\nOne file.\n\n## Build and test\nNothing to build.\n\n## Design decisions\nNone.\n\n" +
+			"## Pitfalls\nNone.\n\n## Before changing code\nNothing.\n\n<!-- brickkit:managed:begin lang=en -->\n<!-- brickkit:managed:end -->\n",
+		"CLAUDE.md": "@AGENTS.md\n",
+		"README.md": "# " + c.ID + "\n\nA test component.\n\n## Use it in a project\nAdd it.\n\n## Documentation\nBRICKKIT.md.\n\n## Development\nAGENTS.md.\n",
+	}
 }
 
 // writeTree 把一组文件写到 dir 下。
@@ -197,6 +237,7 @@ func newProjectFixtureAt(t *testing.T, dir string, sources ...string) *projectFi
 	t.Helper()
 	r := runIn(t, dir, "init", "--name", "my-erp", "--yes")
 	require.Equal(t, 0, r.code, "init 应成功：%s%s", r.stdout, r.stderr)
+	fillAgentsSkeleton(t, dir)
 
 	f := &projectFixture{Dir: dir, Layout: project.NewLayout(dir), Sources: sources}
 	f.writeConfig(t, "components: []\n")
@@ -496,4 +537,31 @@ func runStdin(t *testing.T, dir, input string, args ...string) result {
 func (f *projectFixture) config(t *testing.T) string {
 	t.Helper()
 	return readFile(t, f.Layout.DeclPath())
+}
+
+// fillAgentsSkeleton 把 init 写的 AGENTS.md 骨架里的 TODO 提示换成正文：测试项目是"写好了的项目"，
+// lint 不该为它报占位。维护区原样保留。
+func fillAgentsSkeleton(t *testing.T, dir string) {
+	t.Helper()
+	path := filepath.Join(dir, "AGENTS.md")
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var lines []string
+	for _, l := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(l, "<!-- TODO:") {
+			l = "None."
+		}
+		lines = append(lines, l)
+	}
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644))
+}
+
+// projectDocs 是手写的测试项目根目录要有的 AGENTS.md 与 CLAUDE.md（写好了的、带维护区）：
+// 不经过 init 的测试项目也不该被项目文档检查的警告搅乱。
+func projectDocs(name string) map[string]string {
+	return map[string]string{
+		"AGENTS.md": "# " + name + "\n\n## Overview\nA test project.\n\n## Conventions\nNone.\n\n## Where to look\nThe component table.\n\n" +
+			"## Pitfalls\nNone.\n\n<!-- brickkit:managed:begin lang=en -->\n<!-- brickkit:managed:end -->\n",
+		"CLAUDE.md": "@AGENTS.md\n",
+	}
 }

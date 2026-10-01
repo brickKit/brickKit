@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brickkit/brickkit/internal/clierr"
+	"github.com/brickkit/brickkit/internal/doccheck"
 	"github.com/brickkit/brickkit/internal/deployfile"
 	"github.com/brickkit/brickkit/internal/i18n"
 	"github.com/brickkit/brickkit/internal/inject"
@@ -74,6 +75,9 @@ func runLint(opts *Options, strict bool) error {
 	if scope == skills.ScopeComponent {
 		opts.Printf("%s\n", i18n.T(msgid.CliLintComponentRepositoryHasNoOnly, manifest.FileName, project.FileDecl, manifest.FileName))
 		files = append(files, lintManifest(opts, filepath.Join(layout.Root, manifest.FileName), ""))
+		if f, ok := componentDocs(opts, layout.Root); ok {
+			files = append(files, f)
+		}
 	} else {
 		files, notes = lintProject(opts, layout, strict)
 	}
@@ -123,6 +127,12 @@ func lintProject(opts *Options, layout project.Layout, strict bool) ([]lintFile,
 		notes = append(notes, crossNotes...)
 	}
 
+	// 项目自己的 AGENTS.md / CLAUDE.md：与本地源无关，枚举不了本地源也照样查。
+	// 工作台（根目录有 component.yaml）的这两份是组件的文档，在下面按组件查。
+	if _, err := os.Stat(filepath.Join(layout.Root, manifest.FileName)); err != nil {
+		files = append(files, lintDocs(opts, layout.Root, doccheck.Project(layout.Root)))
+	}
+
 	// 直接 source.New，不走 newSourceClient：后者会先去读 installer.publicKeys 指向的公钥文件，
 	// 而公钥缺失是 up / add 该报的事，不该让一条"离线校验 YAML"的命令因此失败。
 	// source.New 本身不联网——三种安装源都是惰性的，只有真去取 Manifest 才会碰网络，lint 从不取。
@@ -145,17 +155,25 @@ func lintProject(opts *Options, layout project.Layout, strict bool) ([]lintFile,
 	}
 	own := filepath.Join(layout.Root, manifest.FileName)
 	ownListed := false
+	var docs []lintFile
 	for _, f := range found {
 		files = append(files, lintManifest(opts, f.Path, f.ID))
 		if same, _ := sameFile(f.Path, own); same {
 			ownListed = true
 		}
+		// 本地源里的组件是这个项目里正在开发的：它们的文档也查
+		if d, ok := componentDocs(opts, filepath.Dir(f.Path)); ok {
+			docs = append(docs, d)
+		}
 	}
 	// 组件仓库兼作工作台：它要发布的那份 component.yaml 不在任何本地源里，照样要查
 	if _, err := os.Stat(own); err == nil && !ownListed {
 		files = append(files, lintManifest(opts, own, ""))
+		if d, ok := componentDocs(opts, layout.Root); ok {
+			docs = append(docs, d)
+		}
 	}
-	return files, notes
+	return append(files, docs...), notes
 }
 
 func sameFile(a, b string) (bool, error) {
@@ -333,4 +351,26 @@ func reportLint(opts *Options, files []lintFile, notes []string, strict bool) er
 		e = e.WithDetail(i18n.T(msgid.CliLintWarnings), i18n.T(msgid.CliLintStrictWarningsCountAsFailures, warned))
 	}
 	return e.WithHint(i18n.T(msgid.CliLintFixThemAtTheLocations))
+}
+
+// lintDocs 是一组文档的检查结果，在报告里占一行：dir 下的文档（路径按使用者所在的目录写）。
+func lintDocs(opts *Options, dir string, warnings []*clierr.Error) lintFile {
+	label := i18n.T(msgid.LabelFile)
+	for _, w := range warnings {
+		for i, d := range w.Details {
+			if d.Key == label {
+				w.Details[i].Value = opts.display(filepath.Join(dir, filepath.FromSlash(d.Value)))
+			}
+		}
+	}
+	return lintFile{path: i18n.T(msgid.CliLintDocsEntry, opts.display(dir)+string(filepath.Separator)), warnings: warnings}
+}
+
+// componentDocs 查 dir 里那个组件的文档；component.yaml 读不了时跳过（它自己的错误已经报过）。
+func componentDocs(opts *Options, dir string) (lintFile, bool) {
+	m, err := manifest.ParseFile(filepath.Join(dir, manifest.FileName))
+	if err != nil {
+		return lintFile{}, false
+	}
+	return lintDocs(opts, dir, doccheck.Component(dir, m)), true
 }

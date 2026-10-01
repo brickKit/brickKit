@@ -57,7 +57,7 @@ func TestLintCleanProject(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "✅ brickkit.yaml\n")
 	assert.Contains(t, r.stdout, "✅ "+filepath.Join("shared", "demo", "hello", "component.yaml")+"\n")
-	assert.Contains(t, r.stdout, "Checked 5 files: 0 with errors, 0 warnings")
+	assert.Contains(t, r.stdout, "Checked 8 files: 0 with errors, 0 warnings")
 }
 
 // 这条是 lint 存在的理由：已经 add 过的本地组件，编辑之后引入拼写错误，
@@ -143,7 +143,7 @@ func TestLintBrokenLocalSourceSaysTheOthersWereSkipped(t *testing.T) {
 			assert.Contains(t, r.stdout, "the local install source path does not exist")
 			assert.Contains(t, r.stdout, "ℹ️ The local install sources could not be enumerated; skipped the local components' component.yaml")
 			assert.NotContains(t, r.stdout, "dependancies", "好源里的组件没被检查")
-			assert.Contains(t, r.stdout, "Checked 3 files: 1 with errors, 0 warnings")
+			assert.Contains(t, r.stdout, "Checked 4 files: 1 with errors, 0 warnings", "the project's own docs are checked even then")
 
 			// 修好 path（这里是让那个目录存在）：好源里的组件被检查到了，那行说明也随之消失
 			require.NoError(t, os.MkdirAll(filepath.Join(dir, "nowhere"), 0o755))
@@ -151,7 +151,7 @@ func TestLintBrokenLocalSourceSaysTheOthersWereSkipped(t *testing.T) {
 			assert.Equal(t, clierr.ExitError, fixed.code)
 			assert.Contains(t, fixed.stdout, "dependancies")
 			assert.NotContains(t, fixed.stdout, "ℹ️")
-			assert.Contains(t, fixed.stdout, "Checked 4 files: 1 with errors, 0 warnings")
+			assert.Contains(t, fixed.stdout, "Checked 5 files: 1 with errors, 0 warnings")
 		})
 	}
 }
@@ -194,7 +194,7 @@ func TestLintReportsUnreadableManifestAndKeepsGoing(t *testing.T) {
 	assert.Contains(t, r.stdout, filepath.Join("shared", "demo", "hello", "component.yaml"))
 	assert.Contains(t, r.stdout, "✅ "+filepath.Join("shared", "demo", "caller", "component.yaml")+"\n",
 		"一份读不动，不该让别的组件也没被检查")
-	assert.Contains(t, r.stdout, "Checked 5 files: 1 with errors, 0 warnings")
+	assert.Contains(t, r.stdout, "Checked 7 files: 1 with errors, 0 warnings")
 }
 
 // 同一份文件里多处笔误：PropertyKeyWarnings 合成一条警告逐条列出，
@@ -263,7 +263,7 @@ func TestLintFileWithBothAnErrorAndAWarningReportsBoth(t *testing.T) {
 	assert.Less(t, errorBlock, warningBlock, "同一个文件里，错误在前、警告在后")
 	assert.Contains(t, r.stdout, "dependancies: unknown field")
 	assert.Contains(t, r.stdout, "defualt: unknown field")
-	assert.Contains(t, r.stdout, "Checked 4 files: 1 with errors, 1 warning")
+	assert.Contains(t, r.stdout, "Checked 5 files: 1 with errors, 1 warning")
 	assert.Contains(t, r.stderr, "LINT_FAILED")
 }
 
@@ -292,7 +292,7 @@ func TestLintStandaloneComponentRepository(t *testing.T) {
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
 	assert.Contains(t, r.stdout, "Component repository")
 	assert.Contains(t, r.stdout, "✅ component.yaml")
-	assert.Contains(t, r.stdout, "Checked 1 file")
+	assert.Contains(t, r.stdout, "Checked 2 files", "component.yaml and its docs")
 
 	appendTo(t, filepath.Join(dir, "component.yaml"), "dependancies: []\n")
 	bad := runIn(t, dir, "lint")
@@ -352,4 +352,48 @@ func TestLintIsReadOnlyAndOffline(t *testing.T) {
 func TestLintRejectsPositionalArguments(t *testing.T) {
 	f := newLintFixture(t, comp{ID: "demo/hello", Version: "1.0.0"})
 	assert.Equal(t, clierr.ExitUsage, runIn(t, f.Dir, "lint", "extra").code)
+}
+
+// 组件仓库：文档问题是警告，退出码照样 0；--strict 下才算失败。
+func TestLintComponentRepositoryChecksDocs(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, comp{ID: "demo/quote", Version: "0.1.0", NoDocs: true}.files())
+	r := runIn(t, dir, "lint")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "BRICKKIT.md is missing")
+	assert.Contains(t, r.stdout, "AGENTS.md is missing")
+
+	strict := runIn(t, dir, "lint", "--strict")
+	assert.Equal(t, clierr.ExitError, strict.code)
+}
+
+// 带全套文档的组件仓库：干干净净。
+func TestLintComponentRepositoryWithCompleteDocsIsClean(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, comp{ID: "demo/quote", Version: "0.1.0", Requires: []string{"demo/hello@1.0.0"}}.files())
+	r := runIn(t, dir, "lint")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "0 warnings", r.stdout)
+}
+
+// 项目：本地源里的组件是这里正在开发的，它们的文档也查；项目自己的 AGENTS.md 也查。
+func TestLintProjectChecksLocalComponentDocs(t *testing.T) {
+	f := newLintFixture(t, comp{ID: "demo/hello", Version: "1.0.0"})
+	r := runIn(t, f.Dir, "lint")
+	assert.Contains(t, r.stdout, "0 warnings", "fixtures carry complete docs: "+r.stdout)
+
+	require.NoError(t, os.Remove(filepath.Join(f.Dir, "shared", "demo", "hello", "README.md")))
+	r = runIn(t, f.Dir, "lint")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "README.md is missing")
+	assert.Contains(t, r.stdout, "File: "+filepath.Join("shared", "demo", "hello", "README.md"), "the warning names the file from where you stand")
+}
+
+func TestLintProjectChecksItsOwnAgentsMd(t *testing.T) {
+	f := newLintFixture(t, comp{ID: "demo/hello", Version: "1.0.0"})
+	require.NoError(t, os.WriteFile(filepath.Join(f.Dir, "AGENTS.md"), []byte("# p\n"), 0o644))
+	r := runIn(t, f.Dir, "lint")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "the \"Overview\" (项目概述) section is missing")
+	assert.Contains(t, r.stdout, "no usable brickkit block")
 }

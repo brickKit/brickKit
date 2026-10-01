@@ -60,7 +60,9 @@ func TestPublishFollowsDraftUploadStableOrder(t *testing.T) {
 	m.artifacts = []map[string]any{artifactEntry("art-0", "api-docs", "openapi", "openapi.json")}
 	f := newMarketProject(t, m, "")
 	loginTo(t, f, m)
-	root := writeComponentDir(t, f.Dir, publishable())
+	c := publishable()
+	c.NoDocs = true // 带 BRICKKIT.md 时还多一步核对文档（见 TestPublishSendsBrickkitMd 一类）：这里只看主流程的顺序
+	root := writeComponentDir(t, f.Dir, c)
 
 	r := runIn(t, f.Dir, "publish", "--path", root)
 
@@ -783,7 +785,7 @@ func TestPublishWithoutBrickkitMdSendsNoDoc(t *testing.T) {
 	m := newFakeMarket(t)
 	f := newMarketProject(t, m, "")
 	loginTo(t, f, m)
-	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
+	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0", NoDocs: true})
 
 	r := runIn(t, f.Dir, "publish", "--path", root)
 	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)

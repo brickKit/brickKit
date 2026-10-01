@@ -29,6 +29,16 @@ func lintConfigProject(t *testing.T, config string, extra map[string]string) str
 		"deploy.yaml":                       "target: docker\ncomponents:\n  - id: erp/api\n",
 		"components/erp/api/component.yaml": schemaComp("erp/api"),
 	}
+	// 文档写全：这里测的是配置检查，不该被"缺 README"之类的文档警告搅进 --strict
+	for name, body := range (comp{ID: "erp/api"}).docs() {
+		if name == "BRICKKIT.md" {
+			body = strings.Replace(body, "Nothing to choose.", "DB_HOST: where the database is.", 1)
+		}
+		files["components/erp/api/"+name] = body
+	}
+	for name, body := range projectDocs("shop") {
+		files[name] = body
+	}
 	if config != "" {
 		files["config/erp-api.yaml"] = config
 	}
