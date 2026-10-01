@@ -84,8 +84,10 @@ var hardcodedAllow = map[string]struct {
 // hardcodedSkipDirs 是整目录不检查的开发者工具：它们只在 make generate-schemas /
 // make generate-msgid / make generate-llms 时由维护者运行，报错读者不是使用者
 // （llmsgen 里的中文是中文文档合集自己的标题，跟着合集的语言走，本来就不随 CLI 的显示语言变）。
+// docspec 不是开发者工具，但同理：它写的是文档规范里各节在每种语言里的标题，是文档内容本身，
+// 跟着那份文档的语言走，与 CLI 显示什么语言无关。
 var hardcodedSkipDirs = []string{"internal/schemagen/", "cmd/gen-schemas/", "internal/msgid/msgidgen/", "cmd/gen-msgid/",
-	"internal/llmsgen/", "cmd/gen-llms/"}
+	"internal/llmsgen/", "cmd/gen-llms/", "internal/docspec/"}
 
 func TestNoHardcodedChineseInProductionCode(t *testing.T) {
 	var offenders []string

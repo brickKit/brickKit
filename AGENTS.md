@@ -225,6 +225,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `internal/compose/` | Rendering `compose.yaml` for docker / podman |
 | `internal/k8s/` | Rendering Kubernetes manifests |
 | `internal/deploy/` | Naming rules and file headers shared by both targets |
+| `internal/docspec/` | The component and project documentation spec as data: files, sections, heading names per language, translation names |
 | `internal/engine/` | Docker, Podman and kubectl: detection and invocation |
 | `internal/procsup/` | Supervising `mode: local` processes in the foreground |
 | `internal/runcmd/` | Working out how to start a component from its source |

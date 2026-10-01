@@ -232,6 +232,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `internal/compose/` | 给 docker / podman 渲染 `compose.yaml` |
 | `internal/k8s/` | 渲染 Kubernetes 清单 |
 | `internal/deploy/` | 两种部署目标共用的命名规则与文件头注释 |
+| `internal/docspec/` | 组件与项目文档规范本身（写成数据）：文件、小节、各语言的标题、译本的文件名 |
 | `internal/engine/` | Docker、Podman、kubectl：探测与调用 |
 | `internal/procsup/` | 在前台监管 `mode: local` 的本机进程 |
 | `internal/runcmd/` | 从组件源码推出在本机怎么启动它 |
