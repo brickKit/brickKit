@@ -15,7 +15,7 @@
 | `brickkit build`、镜像 | [构建问题](05-build-issues.md) |
 | 外壳与成员 | [外壳问题](06-shell-issues.md) |
 | 数据库迁移 | [迁移问题](07-migration-issues.md) |
-| `brickkit lint`、编辑器里的 JSON Schema | [lint 与 Schema 问题](08-lint-and-schema-issues.md) |
+| `brickkit lint`、编辑器里的 JSON Schema、`AGENTS.md` 的组件表 | [lint 与 Schema 问题](08-lint-and-schema-issues.md) |
 
 **报错里有错误码时**，先查 [错误码参考](../06-architecture/09-error-codes.md)：它按错误码列出了 CLI 会打出的每一个错误标题，
 直接拿标题在那一页里搜就能找到原因与解决办法。这个模块补的是错误码覆盖不到的那部分——没有报错、但结果不对的情况，以及报错背后更长的来龙去脉。

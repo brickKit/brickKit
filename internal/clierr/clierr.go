@@ -137,7 +137,7 @@ const (
 	CodeDocOutOfStep Code = "DOC_OUT_OF_STEP"
 	// CodeDocPlaceholder：正文里留着占位词（TODO、待补……）。
 	CodeDocPlaceholder Code = "DOC_PLACEHOLDER"
-	// CodeDocTranslationDrift：译本与原文对不上（没有原文、二级小节数不同、没互相链接、后缀不是语言代码）。
+	// CodeDocTranslationDrift：译本与原文对不上（没有原文、二级小节数不同、某个语言版本没链接其余每一份、后缀不是语言代码）。
 	CodeDocTranslationDrift Code = "DOC_TRANSLATION_DRIFT"
 	// CodeAgentsBlockMissing：AGENTS.md 里没有可用的、由 brickkit 维护的一段（没有，或标记坏了）。
 	CodeAgentsBlockMissing Code = "AGENTS_BLOCK_MISSING"

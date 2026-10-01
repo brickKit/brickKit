@@ -116,9 +116,10 @@ configEnvVars）找到每个成员的配置——成员的配置值在加了成�
 
 - 一个事实只写一处：依赖和配置项在 `component.yaml`，接口在契约文件，历史在 Git。文档讲它们说不清的部分，不再抄一遍。
 - `BRICKKIT.md` **不放相对链接**：它在别的项目缓存里是单独读的。文件名用行内代码写。
-- 译本放在旁边：`BRICKKIT.zh.md`、`README.zh.md`、`docs/design.zh.md`。不带后缀的那份为准；一对文件在开头互相链接；`AGENTS.md` 不翻译。
+- 译本放在旁边：`BRICKKIT.zh.md`、`README.zh.md`、`docs/design.zh.md`。不带后缀的那份为准；每个语言版本在开头链接其余每一份（`BRICKKIT*.md` 除外）；`AGENTS.md` 不翻译。
 - 外壳的 `外壳声明` 里的成员要与 `shell.members` 一致。
 - `brickkit lint` 都会查（警告；`--strict` 下算失败）：`DOC_FILE_MISSING`、`DOC_SECTION_MISSING`、`DOC_PATH_MISSING`（代码地图里的路径没了）、`DOC_LINK_BROKEN`、`DOC_LINK_NOT_PORTABLE`、`DOC_OUT_OF_STEP`（`component.yaml` 里有、文档没提的依赖、必填键、契约文件或外壳成员）、`DOC_PLACEHOLDER`、`DOC_TRANSLATION_DRIFT`、`AGENTS_BLOCK_MISSING`、`CLAUDE_IMPORT_MISSING`。文档和代码在同一个提交里改：下一个 AI 读的就是你留下的。
+- 文档和代码一样是版本的一部分：改了 `BRICKKIT.md`、译本或 `metadata.description`，就要升 `metadata.version`。不升的话，把它当本地源的机器和从 tag 取它的机器会往项目 `AGENTS.md` 的组件表写不同的行，来回改。
 
 **11. 迁移容器和主容器是同一个镜像，入口必须对不认识的参数快速失败。**
 

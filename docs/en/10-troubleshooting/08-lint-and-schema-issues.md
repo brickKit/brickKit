@@ -104,3 +104,26 @@ repository at the same version as the CLI. How to wire it up: [JSON Schemas](../
 
 Following method two in [JSON Schemas](../11-reference/05-json-schemas.md), map every deploy file with a glob like
 `["deploy.yaml", "deploy.*.yaml"]`.
+
+## The component table in `AGENTS.md` flips between two people
+
+**Symptom**
+
+A row of the component table at the end of the project's `AGENTS.md` (its description, or `+zh` in the Docs cell) is
+one thing in one person's commit and back to the other in the next; on one machine `brickkit skills status` says:
+
+```text
+   │ AGENTS.md │ block maintained by brickkit (lang=en) is outdated; update refreshes it │
+```
+
+**Cause**
+
+On one machine the component is a local source (its source is in `components/`), on the other it comes from a git tag or
+the market — and the source changed `BRICKKIT.md`, a translation or `metadata.description` without changing the version.
+One version number has two contents, and each machine writes the table from the one it reads.
+
+**Fix**
+
+Ship the change as a new version: in the component's directory bump `metadata.version`, commit, push, `brickkit
+release`; then `brickkit upgrade <id>@<new version>` in the project. Until you mean to release it, don't commit the
+change to that row of the project's `AGENTS.md`.

@@ -88,3 +88,24 @@ JSON Schema 只描述**单个文件的结构**：字段名、类型、必填、�
 **解决**
 
 按 [JSON Schema](../11-reference/05-json-schemas.md) 的方法二，用 `["deploy.yaml", "deploy.*.yaml"]` 这样的通配把所有部署文件都映射上。
+
+## `AGENTS.md` 的组件表在两人之间来回改
+
+**症状**
+
+项目 `AGENTS.md` 末尾组件表里的某一行（描述，或"文档"一栏的 `+zh`），这个人提交时是一样，那个人提交时又变回去；
+`brickkit skills status` 在一方机器上报：
+
+```text
+   │ AGENTS.md │ brickkit 维护段（lang=zh）已过期；update 会刷新 │
+```
+
+**原因**
+
+那个组件在一方机器上是本地源（`components/` 里有它的源码），在另一方机器上取自 git tag 或市场，而源码里改了 `BRICKKIT.md`、
+译本或 `metadata.description`，版本号却没变。同一个版本号有两份内容，两台机器各按自己读到的那份写表。
+
+**解决**
+
+把改动当新版本发出去：在组件目录里改 `metadata.version`、提交、推送、`brickkit release`，再在项目里
+`brickkit upgrade <id>@<新版本>`。改动还没打算发版时，先别提交项目 `AGENTS.md` 里那一行的变化。

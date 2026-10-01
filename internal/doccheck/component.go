@@ -178,8 +178,7 @@ func brickkit(d doc, m *manifest.Manifest, lang string) []*clierr.Error {
 	return out
 }
 
-// translation 查一份译本：有原文、二级小节数一样、两边互相链接（checkLinks 为假时不查最后一条：
-// BRICKKIT.md 根本不放相对链接）。
+// translation 查一份译本：有原文、二级小节数一样。语言版本之间的互链由 versionLinks 统一查。
 func translation(dir string, d doc, primaryRel string) []*clierr.Error {
 	p, ok := read(dir, primaryRel)
 	if !ok {

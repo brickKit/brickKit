@@ -97,9 +97,10 @@ one key and hides the conflict.
 | `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` has a relative link (dead in other projects' caches), or a component doc links out of the component | Name files as inline code in `BRICKKIT.md`; keep component docs self-contained |
 | `DOC_OUT_OF_STEP` | `component.yaml` has a dependency, required key, artifact file or shell member the doc doesn't mention where it belongs | Mention it in that section (a dependency by ID, no version) |
 | `DOC_PLACEHOLDER` | A `TODO`-style placeholder is still in a doc's text | Fill it in |
-| `DOC_TRANSLATION_DRIFT` | A translation lacks its primary, has a different number of `##` sections, the pair doesn't link each other, or the suffix isn't a language code | Bring the translation back in step with the primary |
+| `DOC_TRANSLATION_DRIFT` | A translation lacks its primary, has a different number of `##` sections, a language version doesn't link every other, or the suffix isn't a language code | Bring the translation back in step with the primary |
 | `AGENTS_BLOCK_MISSING` / `CLAUDE_IMPORT_MISSING` | `AGENTS.md` has no usable block maintained by brickkit, or `CLAUDE.md` lacks `@AGENTS.md` | `brickkit skills update` adds them (no other command edits these files) |
 | `PROJECT_MAP_OBSOLETE` | The old project map `BRICKKIT.md` is still at the project root | Move your own notes into `AGENTS.md`, then delete it by hand |
+| A row of the component table in `AGENTS.md` flips between commits; `skills status` calls the block outdated | The component is a local source on one machine and a git tag on another, and its `BRICKKIT.md`, a translation or `metadata.description` changed without a version bump | Bump `metadata.version`, `brickkit release`, `brickkit upgrade` in the project |
 | `AUTH_REQUIRED` / `TOKEN_EXPIRED` | Market login needed or expired | `brickkit login` |
 | `IMAGE_UNAUTHORIZED` | The image registry refused the pull, or has no such image | `docker login <registry>`, check the image reference — or build it here with `brickkit build` |
 | `AUTH_FAILED` | The market refused the user name or password — or a Git remote was reached but refused the fetch: the credentials were refused, or the repository doesn't exist (hosts answer both the same way) | Check the credentials; for Git, read git's own words in the error. Retrying unchanged won't help |

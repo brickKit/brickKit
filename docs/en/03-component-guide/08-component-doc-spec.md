@@ -297,6 +297,12 @@ The cache follows the version it came from: fetching the version again drops a c
 longer has, and `docs.list` next to the files records which ones the cache holds. When the cache holds no record for a
 component — it isn't cached on this machine, or an older CLI cached it — the table keeps the Docs cell it already had rather than guessing.
 
+So the documents are part of the version, like the code. Changing `BRICKKIT.md`, a translation or
+`metadata.description` means a new version: bump `metadata.version`, `brickkit release`, then `brickkit upgrade` in
+the project. Edited in a local source without a bump, one version number has two contents — the machine with the local
+source writes the new row into the project's `AGENTS.md`, a machine without it writes the old one back, and
+`brickkit skills status` on each calls the other's block outdated.
+
 `brickkit publish` uploads `BRICKKIT.md` and its translations with the version: at most 16 translations, each at most
 256 KiB, all of them together at most 1 MiB. Resuming an interrupted publish compares every one of them with what the
 draft registered and stops if any differs. A market too old to store translations publishes the version without them,
