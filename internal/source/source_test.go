@@ -906,3 +906,26 @@ func TestLocalCachesEveryDocLanguage(t *testing.T) {
 	assert.Equal(t, []string{"ja"}, langs)
 	assert.Equal(t, "# ja\n", readFile(t, filepath.Join(layout.CachedManifestDir("people/basic", "1.0.0"), "BRICKKIT.ja.md")))
 }
+
+// 本地源里删掉的译本，下次取的时候也从缓存里删掉；缓存记下这次带了哪些文档。
+func TestDocCacheFollowsTheSourceAndRecordsWhatItHas(t *testing.T) {
+	layout := newProject(t)
+	dir := writeComponent(t, filepath.Join(layout.Root, "components"), componentSpec{ID: "people/basic", Version: "1.0.0"})
+	writeFile(t, filepath.Join(dir, "BRICKKIT.md"), "# en\n")
+	writeFile(t, filepath.Join(dir, "BRICKKIT.zh.md"), "# zh\n")
+	c := newClient(t, layout, cfgWithSources(projfile.Source{
+		Name: "local-dev", Type: projfile.SourceTypeLocal, Path: "./components",
+	}), Options{})
+
+	_, err := c.Manifest(context.Background(), "people/basic", "1.0.0")
+	require.NoError(t, err)
+	assert.True(t, layout.CachedDocsKnown("people/basic", "1.0.0"))
+	_, langs := layout.CachedDocLangs("people/basic", "1.0.0")
+	assert.Equal(t, []string{"zh"}, langs)
+
+	require.NoError(t, os.Remove(filepath.Join(dir, "BRICKKIT.zh.md")))
+	_, err = c.Manifest(context.Background(), "people/basic", "1.0.0")
+	require.NoError(t, err)
+	_, langs = layout.CachedDocLangs("people/basic", "1.0.0")
+	assert.Empty(t, langs, "the translation deleted from the source is gone from the cache too")
+}

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -59,6 +60,10 @@ type fakeMarket struct {
 	storedDoc string
 	// dropsDoc 模拟还不支持组件文档的旧市场：请求里的 doc 被忽略，/doc 一律 404。
 	dropsDoc bool
+	// storedTranslations 是建版本时一起发来的译本（语言 → 内容）：/doc?lang= 给出，/manifest 里列出 docLanguages。
+	storedTranslations map[string]string
+	// dropsTranslations 模拟还不认识译本的市场：原文存下，docTranslations 被忽略。
+	dropsTranslations bool
 }
 
 // createVersion 模拟 POST /versions：第一次记下来，之后一律 409。
@@ -74,12 +79,16 @@ func (m *fakeMarket) createVersion(w http.ResponseWriter, body []byte) {
 	var req struct {
 		Version  string `json:"version"`
 		Manifest any    `json:"manifest"`
-		Doc      string `json:"doc"`
+		Doc      string            `json:"doc"`
+		Tr       map[string]string `json:"docTranslations"`
 	}
 	_ = json.Unmarshal(body, &req)
 	m.storedVersion, m.storedStatus, m.storedManifest = req.Version, "draft", req.Manifest
 	if !m.dropsDoc {
 		m.storedDoc = req.Doc
+	}
+	if !m.dropsDoc && !m.dropsTranslations {
+		m.storedTranslations = req.Tr
 	}
 	writeOK(w, http.StatusCreated,
 		map[string]any{"version": req.Version, "status": "draft"})
@@ -173,7 +182,26 @@ func (m *fakeMarket) handle(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/versions"):
 		writeOK(w, http.StatusOK, m.versionList())
 	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/manifest"):
-		writeOK(w, http.StatusOK, map[string]any{"manifest": m.storedManifest})
+		data := map[string]any{"manifest": m.storedManifest}
+		var langs []string
+		for l := range m.storedTranslations {
+			langs = append(langs, l)
+		}
+		if len(langs) > 0 {
+			sort.Strings(langs)
+			data["docLanguages"] = langs
+		}
+		writeOK(w, http.StatusOK, data)
+	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/doc") && r.URL.Query().Get("lang") != "":
+		doc, ok := m.storedTranslations[r.URL.Query().Get("lang")]
+		if !ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, `{"success":false,"error":{"code":"NOT_FOUND","message":"no translation"}}`)
+			return
+		}
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		_, _ = io.WriteString(w, doc)
 	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/doc") && m.storedDoc != "":
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 		_, _ = io.WriteString(w, m.storedDoc)

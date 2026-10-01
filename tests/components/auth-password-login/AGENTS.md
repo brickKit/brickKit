@@ -118,5 +118,5 @@ docker run --rm --env-file .env brickkit-demo/auth-password-login:1.0.0 migrate 
 - `/healthz` 只查本进程，不查依赖。迁移命令用同一个镜像跑，遇到不认识的参数必须直接失败。
 - `BRICKKIT.md` 会随版本进入每个使用它的项目，在那里是脱离仓库单独读的：跟代码一起改，不放相对链接。
 - 发版：改 `metadata.version`，提交、推送，`brickkit release`。`brickkit lint` 会检查清单和这些文档。
-- 完整规则：`.claude/skills/brickkit-component/SKILL.md`；参数问 `brickkit <命令> --help`。
+- 完整规则在 `brickkit-component` 技能里（装了技能的项目或仓库根目录下的 `.claude/skills/brickkit-component/SKILL.md`；`brickkit skills update` 会装上）；参数问 `brickkit <命令> --help`。
 <!-- brickkit:managed:end -->

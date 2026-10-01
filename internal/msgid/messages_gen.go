@@ -1808,4 +1808,6 @@ const (
 	AgentsmdReasonBadLang                                      ID = "agentsmd.reason_bad_lang"
 	CliAgentsHintFixMarkers                                    ID = "cli.agents.hint_fix_markers"
 	CliAgentsMissing                                           ID = "cli.agents.missing"
+	CliSkillsAgentsBlockOutdated                               ID = "cli.skills.agents_block_outdated"
+	CliPublishTranslationsNotKept                              ID = "cli.publish.translations_not_kept"
 )

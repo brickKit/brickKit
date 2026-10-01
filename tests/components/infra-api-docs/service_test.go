@@ -151,7 +151,7 @@ func TestEndpointsAreNotLeaked(t *testing.T) {
 // TestAbsentComponentIsNotAnError 是这个组件最核心的一条。
 //
 // 弱依赖缺席时平台**完全不注入**那个地址变量。
-// 这是**正常状态**，不是故障——把它当成错误，等于要求使用者必须把七个组件
+// 这是**正常状态**，不是故障——把它当成错误，等于要求使用者必须把所有目标组件
 // 全装上才能看文档。
 func TestAbsentComponentIsNotAnError(t *testing.T) {
 	svc := newTestService(t, []Target{
@@ -192,7 +192,7 @@ func TestNothingInstalledStillServes(t *testing.T) {
 
 // TestUnreachableComponentDoesNotAffectOthers 是 28.3 的实质。
 //
-// 一个组件挂了，其余的文档必须照常展示。做不到的话，七个组件里任意一个
+// 一个组件挂了，其余的文档必须照常展示。做不到的话，目标组件里任意一个
 // 抖动都会让整个文档中心变成白页——而它本身完全正常。
 func TestUnreachableComponentDoesNotAffectOthers(t *testing.T) {
 	good := fakeComponent(t, sampleSpec)
@@ -355,7 +355,7 @@ func TestConfigCoversEveryAggregatedComponent(t *testing.T) {
 // TestNoDependencyIsRequired：这个组件没有任何必需配置。
 //
 // 依赖全是弱依赖，缺席是常态。把任何一个列成必需，就等于要求使用者
-// 必须把七个组件全装上才能看文档。
+// 必须把所有目标组件全装上才能看文档。
 func TestNoDependencyIsRequired(t *testing.T) {
 	if _, err := configFromEnv(func(string) string { return "" }); err != nil {
 		t.Fatalf("一个环境变量都没有时也该能启动：%v", err)

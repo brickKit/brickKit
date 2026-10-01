@@ -669,10 +669,13 @@ func TestPublishAcceptsRegistryWithPortAndDigest(t *testing.T) {
 // 走的是**真实路径**：让 /upload 返回 500，publish 在第二步失败，而市场那边
 // 已经留下一个 draft 版本。手工编一份 Manifest 塞进去是构造不出来的——
 // publish 会先把 image tag 钉成 digest 再发，编的那份对不上。
-func interruptedPublish(t *testing.T, spec comp) (*projectFixture, *fakeMarket, string) {
+func interruptedPublish(t *testing.T, spec comp, extra ...map[string]string) (*projectFixture, *fakeMarket, string) {
 	t.Helper()
 	dir := t.TempDir()
 	writeTree(t, dir, spec.files())
+	for _, files := range extra {
+		writeTree(t, dir, files)
+	}
 
 	market := newFakeMarket(t)
 	market.artifacts = []map[string]any{
@@ -932,4 +935,42 @@ func TestPublishRefusesBadTranslations(t *testing.T) {
 			assert.Equal(t, []string{"POST /auth/login"}, m.requests(), "一个版本都不建")
 		})
 	}
+}
+
+// 续传时译本也要与 draft 里登记的一致：否则市场上留着上一次的译本，而没人知道。
+func TestPublishRefusesToResumeWhenTranslationChanged(t *testing.T) {
+	f, _, dir := interruptedPublish(t, comp{
+		ID: "people/basic", Version: "1.0.0", Artifacts: []string{"api-docs:openapi.json"},
+	}, map[string]string{"BRICKKIT.zh.md": "# 第一次\n"})
+	writeTree(t, dir, map[string]string{"BRICKKIT.zh.md": "# 改过了\n"})
+
+	r := runIn(t, f.Dir, "publish", "--path", dir)
+	require.NotEqual(t, clierr.ExitOK, r.code, r.stdout)
+	assert.Contains(t, r.stderr, "and BRICKKIT.zh.md differs", "the headline names the file that changed")
+	assert.Contains(t, r.stderr, "change BRICKKIT.zh.md back")
+}
+
+// 续传时译本没变：照常续传。
+func TestPublishResumesWithUnchangedTranslations(t *testing.T) {
+	f, m, dir := interruptedPublish(t, comp{
+		ID: "people/basic", Version: "1.0.0", Artifacts: []string{"api-docs:openapi.json"},
+	}, map[string]string{"BRICKKIT.zh.md": "# 中文\n"})
+	r := runIn(t, f.Dir, "publish", "--path", dir)
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Equal(t, "stable", m.storedStatus)
+}
+
+// 还不认识译本的市场把译本悄悄丢了：版本照常发布，但要说出来。
+func TestPublishWarnsWhenTheMarketDropsTranslations(t *testing.T) {
+	m := newFakeMarket(t)
+	m.dropsTranslations = true
+	f := newMarketProject(t, m, "")
+	loginTo(t, f, m)
+	root := writeComponentDir(t, f.Dir, comp{ID: "people/basic", Version: "1.2.0"})
+	writeTree(t, root, map[string]string{"BRICKKIT.zh.md": "# 中文\n"})
+
+	r := runIn(t, f.Dir, "publish", "--path", root)
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "zh")
+	assert.Contains(t, r.stdout, "translations")
 }

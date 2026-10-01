@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -446,25 +447,75 @@ func resumable(ctx context.Context, client *market.Client, pkg *publishPackage) 
 		return err
 	}
 	if remoteDoc != pkg.doc {
-		return clierr.New(clierr.CodeConfigConflict,
-			i18n.T(msgid.CliPublishErrorDocChangedSinceLastTime, id, version)).
-			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliPublishResumingCannotChangeDoc)).
-			WithHint(
-				i18n.T(msgid.CliPublishUseAnotherVersionNumberChange),
-				i18n.T(msgid.CliPublishChangeDocBack),
-			)
+		return docChangedError(id, version, docspec.FileBrickkit)
+	}
+	// 译本同理：draft 里登记的是上一次那几份
+	remoteLangs, err := client.FetchDocLanguages(ctx, id, version)
+	if err != nil {
+		return err
+	}
+	local := pkg.translationLangs()
+	for _, l := range unionLangs(remoteLangs, local) {
+		remote, _, err := client.FetchDocIn(ctx, id, version, l)
+		if err != nil {
+			return err
+		}
+		if remote != pkg.docTranslations[l] {
+			return docChangedError(id, version, docspec.TranslationName(docspec.FileBrickkit, l))
+		}
 	}
 	return nil
+}
+
+// docChangedError 是"续传时这份文档与 draft 里登记的不一样"：市场上留着上一次那份，续传就会把它们配错。
+func docChangedError(id, version, file string) error {
+	return clierr.New(clierr.CodeConfigConflict,
+		i18n.T(msgid.CliPublishErrorDocChangedSinceLastTime, id, version, file)).
+		WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.CliPublishResumingCannotChangeDoc)).
+		WithHint(
+			i18n.T(msgid.CliPublishUseAnotherVersionNumberChange),
+			i18n.T(msgid.CliPublishChangeDocBack, file),
+		)
+}
+
+// unionLangs 是两组语言合起来、去重、排好序。
+func unionLangs(a, b []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, l := range append(append([]string(nil), a...), b...) {
+		if !seen[l] {
+			seen[l] = true
+			out = append(out, l)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // warnIfDocDropped 核实市场真的存下了 BRICKKIT.md。早于组件文档功能的市场不认识 doc 字段，
 // 会悄悄丢掉它：版本照常发布，而作者以为调用方读得到。核实本身失败（网络抖动）不影响发布。
 func warnIfDocDropped(ctx context.Context, opts *Options, client *market.Client, pkg *publishPackage) {
-	if pkg.doc == "" {
+	if pkg.doc != "" {
+		if _, found, err := client.FetchDoc(ctx, pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version); err == nil && !found {
+			opts.Printf("⚠️ %s\n", i18n.T(msgid.CliPublishDocNotKept))
+			return
+		}
+	}
+	if len(pkg.docTranslations) == 0 {
 		return
 	}
-	if _, found, err := client.FetchDoc(ctx, pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version); err == nil && !found {
-		opts.Printf("⚠️ %s\n", i18n.T(msgid.CliPublishDocNotKept))
+	kept, err := client.FetchDocLanguages(ctx, pkg.manifest.Metadata.ID, pkg.manifest.Metadata.Version)
+	if err != nil {
+		return // 核实本身失败（网络抖动）不影响发布
+	}
+	var dropped []string
+	for _, l := range pkg.translationLangs() {
+		if !slices.Contains(kept, l) {
+			dropped = append(dropped, l)
+		}
+	}
+	if len(dropped) > 0 {
+		opts.Printf("⚠️ %s\n", i18n.T(msgid.CliPublishTranslationsNotKept, strings.Join(dropped, i18n.T(msgid.ListSeparator))))
 	}
 }
 

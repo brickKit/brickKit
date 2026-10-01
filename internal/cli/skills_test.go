@@ -263,3 +263,17 @@ func TestSkillsUpdateMigratesAnOldProjectWithoutTheLock(t *testing.T) {
 	assert.NotContains(t, st.stdout, "untracked")
 	assert.NotContains(t, st.stdout, "need refreshing")
 }
+
+// CLI 升级后维护段里的平台规则变了：status 说它过期了、update 会刷新，而不是一直说"在"。
+func TestSkillsStatusSaysWhenTheBlockIsOutdated(t *testing.T) {
+	dir := t.TempDir()
+	writeTree(t, dir, comp{ID: "people/basic", Version: "1.0.0"}.files()) // 它的维护段是空的：与当前 CLI 写的不一样
+	st := runIn(t, dir, "skills", "status")
+	require.Equal(t, 0, st.code, st.stderr)
+	assert.Contains(t, st.stdout, "outdated; update refreshes it")
+
+	require.Equal(t, 0, runIn(t, dir, "skills", "update").code)
+	st = runIn(t, dir, "skills", "status")
+	assert.Contains(t, st.stdout, "block maintained by brickkit present (lang=en)")
+	assert.NotContains(t, st.stdout, "need refreshing")
+}

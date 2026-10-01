@@ -207,7 +207,8 @@ brickkit skills <命令> [参数]
 有 1 个文件需要刷新：brickkit skills update
 ```
 
-技能文件的状态有 `最新`、`待更新`、`缺失`、`已手改`（`update` 跳过）、`未托管`（没有记录行）几种。
+技能文件的状态有 `最新`、`待更新`、`缺失`、`已手改`（`update` 跳过）、`未托管`（没有记录行）几种。`AGENTS.md` 那一行还会说维护段的文字是不是比当前 CLI 写的旧——平台规则变了，或者项目的组件表
+跟 `brickkit.yaml` 对不上了；`update` 会原地重写那一段。
 
 ### `brickkit skills update`
 
@@ -384,7 +385,7 @@ brickkit fetch infra/notifier         # 取最新版本的产物
 
 **文档**，哪里都查，只报警告：组件仓库里查组件的 `BRICKKIT.md`（连同译本）、`AGENTS.md`、`CLAUDE.md`、`README.md` 与 `docs/`；
 项目里查它的 `AGENTS.md` 与 `CLAUDE.md`（以及残留的旧项目地图 `BRICKKIT.md`）和本地源里每个组件的文档；工作台里查组件的文档。
-每一组在报告里占一行，比如 `✅ components/demo/hello/（文档）`。警告码有 `DOC_FILE_MISSING`、`DOC_SECTION_MISSING`、`DOC_PATH_MISSING`、
+`component.yaml` 写错了的组件照样查文档，只是不与清单比对。每一组在报告里占一行，比如 `✅ components/demo/hello/（文档）`。警告码有 `DOC_FILE_MISSING`、`DOC_SECTION_MISSING`、`DOC_PATH_MISSING`、
 `DOC_LINK_BROKEN`、`DOC_LINK_NOT_PORTABLE`、`DOC_OUT_OF_STEP`、`DOC_PLACEHOLDER`、`DOC_TRANSLATION_DRIFT`、`AGENTS_BLOCK_MISSING`、
 `CLAUDE_IMPORT_MISSING` 与 `PROJECT_MAP_OBSOLETE`，见 [错误码](../06-architecture/09-error-codes.md#文档检查)。
 
@@ -790,6 +791,10 @@ brickkit release --local                          # 项目里的全部本地源�
 
 分三步是有意的：版本转 stable 时市场会校验"文件与 `artifacts` 声明一致"，先建 draft 才能保证不会出现"已 stable 但文件没传齐"的半成品。
 `--path` 也可以指向归档目录，例如 `./components/.archived/erp/backend`。
+
+发布中断了（draft 建好了、某个上传失败）可以再跑一次：版本还是 draft，而且 `component.yaml`、`BRICKKIT.md` 和每份译本都与 draft
+登记的逐字节相同时，补传缺的产物、转 stable。有一份变了就停下并点名是哪个文件——一个版本号绝不配两份内容，改 `metadata.version`。
+市场早于 `BRICKKIT.md` 译本功能时，版本照样发布但不带译本，`publish` 会警告。
 
 ```text
 brickkit publish [flags]

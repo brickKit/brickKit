@@ -426,7 +426,8 @@ section under its heading.
 ### DOC_PATH_MISSING
 
 A path in the Code map of a component's `AGENTS.md` does not exist (the code moved, the map didn't). Correct the path in
-the map; a directory ends in `/`.
+the map; a directory ends in `/`. A backticked token starting with `/` is read as an HTTP route, not a path, and is
+never checked.
 
 ### DOC_LINK_BROKEN
 
@@ -453,8 +454,8 @@ The skeleton `brickkit new` writes leaves `<!-- TODO: … -->` comments exactly 
 ### DOC_TRANSLATION_DRIFT
 
 A translation (`README.zh.md`, `BRICKKIT.zh.md`, `docs/design.zh.md`) has no primary file next to it, a different
-number of `##` sections than its primary, or the two don't link each other near the top (except `BRICKKIT*.md`, which
-has no relative links at all); or a file looks like a translation but its suffix isn't a lowercase language code
+number of `##` sections than its primary, or one language version doesn't link every other version near the top
+(except `BRICKKIT*.md`, which has no relative links at all); or a file looks like a translation but its suffix isn't a lowercase language code
 (`README.zh-CN.md`). Bring the translation back in step with the primary — the primary is the one that is right.
 
 ### AGENTS_BLOCK_MISSING

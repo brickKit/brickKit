@@ -19,7 +19,7 @@ BrickKit 平台自测用的调用方组件，单个 Go 文件、只用标准库�
 | 强依赖调用 | `main.go` 的 `handleCall`、`fetchHello` | `TestCallUsesInjectedEndpoint`、`TestCallWithoutEndpointFails` |
 | 可选依赖降级 | `main.go` 的 `newServerFromEnv`（`busEndpoint`）与 `handleStatus` | `TestOptionalDependencyDegradesGracefully`、`TestOptionalDependencyReportedWhenPresent` |
 | 环境变量回显 | `main.go` 的 `platformEnvKeys` 与 `handleEnv` | `TestEnvEndpointEchoesInjectedVariables` |
-| 迁移 | `main.go` 的 `migrate` 与 `main` 里对 `migrate` 参数的分派 | `component.yaml` 的 `migration.command`，`TestMigrate*` 三条测试 |
+| 迁移 | `main.go` 的 `runMode`（参数分派）与 `migrate` | `component.yaml` 的 `migration.command`，`TestRunModeRejectsUnknownArguments`、`TestMigrate*` 三条测试 |
 | 健康检查 | `main.go` 的 `handleHealthz` | `TestHealthzDoesNotDependOnUpstream` |
 
 ## 构建与测试
@@ -53,6 +53,7 @@ brickkit lint --strict                  # 组件清单与这几份文档；成�
 | 让迁移失败时仍以 0 退出（比如只打日志不 `os.Exit(1)`） | 迁移失败了主服务照样启动，"失败能阻断"的验证永远通过 | 平台只看迁移命令的退出码 |
 | 没配 `DATABASE_HOST` 时让迁移失败 | 不用数据库的部署每次 `up` 都卡在迁移 | `TestMigrateSucceedsWithoutDatabase` 要求此时跳过 |
 | 去掉 `upstreamTimeout`，用不带超时的请求调上游 | `demo/hello` 卡住时 `/api/v1/call` 一直挂着不返回 | 调上游的超时固定 3 秒，失败要尽快变成 502 |
+| 让入口把不认识的参数当成"起服务" | `migration.command` 里 `migrate` 拼错一个字母，迁移容器就成了第二个永不退出的服务，部署一直卡着 | 迁移与主服务是同一个镜像；`runMode` 对不认识的参数以 2 退出，`TestRunModeRejectsUnknownArguments` 守着 |
 | 改端口只改 `main.go` 的 `addr` | 容器起来了但连不上，健康检查一直失败 | `component.yaml` 的 `deployment.port`、`Dockerfile` 的 `EXPOSE` 与 `addr` 必须是同一个 8080 |
 
 ## 改代码前自查
@@ -61,7 +62,7 @@ brickkit lint --strict                  # 组件清单与这几份文档；成�
 2. 新增的配置项是否写进了 `component.yaml` 的 `configSchema`，需要回显的是否加进了 `platformEnvKeys`？
 3. `/healthz` 是否仍然只返回常量，不碰 `demo/hello`、`demo/bus` 或数据库？
 4. 迁移的三种结果（没配数据库成功、开关为 `1` 失败、数据库不可达失败）是否仍都以正确的退出码结束？
-5. `component.yaml` 的 `migration.command` 是否仍与 `main` 里的参数分派（`migrate`）和镜像里的路径 `/app/caller` 对得上？
+5. `component.yaml` 的 `migration.command` 是否仍与 `runMode` 认的参数（`migrate`）和镜像里的路径 `/app/caller` 对得上？新增入口参数时，`runMode` 是否仍对其余参数直接失败？
 6. 是否仍然只用标准库？`Dockerfile` 只拷 `go.mod` 和 `*.go`，引入第三方依赖要同时补 `go.sum` 与拷贝步骤。
 7. `go vet ./... && go test ./...` 是否通过，`brickkit lint --strict` 是否 0 warnings？
 
@@ -77,5 +78,5 @@ brickkit lint --strict                  # 组件清单与这几份文档；成�
 - `/healthz` 只查本进程，不查依赖。迁移命令用同一个镜像跑，遇到不认识的参数必须直接失败。
 - `BRICKKIT.md` 会随版本进入每个使用它的项目，在那里是脱离仓库单独读的：跟代码一起改，不放相对链接。
 - 发版：改 `metadata.version`，提交、推送，`brickkit release`。`brickkit lint` 会检查清单和这些文档。
-- 完整规则：`.claude/skills/brickkit-component/SKILL.md`；参数问 `brickkit <命令> --help`。
+- 完整规则在 `brickkit-component` 技能里（装了技能的项目或仓库根目录下的 `.claude/skills/brickkit-component/SKILL.md`；`brickkit skills update` 会装上）；参数问 `brickkit <命令> --help`。
 <!-- brickkit:managed:end -->

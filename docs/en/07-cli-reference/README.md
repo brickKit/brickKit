@@ -229,7 +229,8 @@ and the language the block records (`lang=en`). Here a teammate edited one skill
 ```
 
 A skill file's status is `up to date`, `outdated`, `missing`, `hand-edited` (skipped by `update`) or `untracked` (no
-record line).
+record line). The `AGENTS.md` row also says when the block's text is older than what this CLI writes — the platform
+rules changed, or a project's component table no longer matches `brickkit.yaml`; `update` rewrites the block in place.
 
 ### `brickkit skills update`
 
@@ -428,7 +429,8 @@ If `brickkit.yaml` itself fails, nothing after it can be trusted; the rest is sk
 **Documents**, everywhere, as warnings only: in a component repository the component's `BRICKKIT.md` (and its
 translations), `AGENTS.md`, `CLAUDE.md`, `README.md` and `docs/`; in a project its `AGENTS.md` and `CLAUDE.md` (plus an
 old project map `BRICKKIT.md`) and the documents of every component in a local source; in a workbench the component's
-documents. Each set is one line of the report, such as `✅ components/demo/hello/ (docs)`. The codes are
+documents. A component whose `component.yaml` is invalid still has its documents checked, without the comparison
+against the manifest. Each set is one line of the report, such as `✅ components/demo/hello/ (docs)`. The codes are
 `DOC_FILE_MISSING`, `DOC_SECTION_MISSING`, `DOC_PATH_MISSING`, `DOC_LINK_BROKEN`, `DOC_LINK_NOT_PORTABLE`,
 `DOC_OUT_OF_STEP`, `DOC_PLACEHOLDER`, `DOC_TRANSLATION_DRIFT`, `AGENTS_BLOCK_MISSING`, `CLAUDE_IMPORT_MISSING` and
 `PROJECT_MAP_OBSOLETE`; see [Error codes](../06-architecture/09-error-codes.md#documentation-checks).
@@ -867,6 +869,12 @@ market operated by BrickKit today; the market address points at an instance you 
 The three steps are on purpose: when a version moves to stable, the market checks that "the files match what
 `artifacts` declares", and creating a draft first guarantees there's never a half-finished "stable but files missing"
 version. `--path` can also point at an archive directory, such as `./components/.archived/erp/backend`.
+
+An interrupted publish (the draft was created, an upload failed) can be run again: when the version is still a draft
+and the `component.yaml`, `BRICKKIT.md` and every translation are byte-for-byte the ones the draft registered, it
+uploads what is missing and moves the version to stable. If any of them changed, it stops and names the file — a
+version number is never reused for different content; change `metadata.version` instead. A market that predates
+`BRICKKIT.md` translations publishes the version without them, and `publish` warns.
 
 ```text
 brickkit publish [flags]

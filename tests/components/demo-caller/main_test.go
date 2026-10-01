@@ -157,3 +157,24 @@ func TestMigrateFailsWhenDatabaseUnreachable(t *testing.T) {
 		t.Fatal("数据库不可达时迁移应失败")
 	}
 }
+
+// 迁移容器与主容器是同一个镜像：入口遇到不认识的参数必须直接失败——否则 migrate 拼错一个字母，
+// "迁移"就成了第二个永不退出的服务，部署一直卡着。
+func TestRunModeRejectsUnknownArguments(t *testing.T) {
+	cases := map[string]struct {
+		args    []string
+		want    string
+		wantErr bool
+	}{
+		"no argument serves": {nil, "serve", false},
+		"migrate migrates":   {[]string{"migrate"}, "migrate", false},
+		"a typo fails":       {[]string{"migrat"}, "", true},
+		"extra arguments":    {[]string{"migrate", "now"}, "", true},
+	}
+	for name, c := range cases {
+		got, err := runMode(c.args)
+		if (err != nil) != c.wantErr || got != c.want {
+			t.Errorf("%s: runMode(%v) = %q, %v", name, c.args, got, err)
+		}
+	}
+}

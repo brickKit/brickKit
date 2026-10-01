@@ -191,10 +191,29 @@ func migrate() error {
 	return conn.Close()
 }
 
+// runMode 从命令行参数决定这次做什么：不带参数是起服务，只带一个 migrate 是跑迁移，别的一律报错。
+// 迁移容器与主容器是同一个镜像，入口要对不认识的参数直接失败——否则 migrate 拼错一个字母，
+// "迁移"就成了第二个永不退出的服务，部署一直卡着。
+func runMode(args []string) (string, error) {
+	switch {
+	case len(args) == 0:
+		return "serve", nil
+	case len(args) == 1 && args[0] == "migrate":
+		return "migrate", nil
+	default:
+		return "", fmt.Errorf("unknown arguments %q: run with no arguments to serve, or with \"migrate\" to migrate", args)
+	}
+}
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+	mode, err := runMode(os.Args[1:])
+	if err != nil {
+		logger.Error("invalid arguments", "error", err.Error())
+		os.Exit(2)
+	}
+	if mode == "migrate" {
 		if err := migrate(); err != nil {
 			logger.Error("migration failed", "error", err.Error())
 			os.Exit(1)

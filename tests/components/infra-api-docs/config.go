@@ -16,7 +16,7 @@ const (
 	readHeaderTimeout = 10 * time.Second
 	// cacheTTL 是探测结果的缓存时长。
 	//
-	// 每次刷新页面都去探七个组件的话，一个卡住的上游会让页面很慢，
+	// 每次刷新页面都去探所有目标组件的话，一个卡住的上游会让页面很慢，
 	// 而组件的 API 文档几乎不会在几十秒内变。
 	cacheTTL = 30 * time.Second
 )
@@ -69,7 +69,7 @@ func (c config) String() string {
 //
 // 与其他组件的一个根本差别：**这里没有"缺少必需配置"的校验**。
 // 本组件的依赖全是弱依赖，缺席是常态——把任何一个列成必需，
-// 就等于要求使用者必须把七个组件全装上才能看文档。
+// 就等于要求使用者必须把所有目标组件全装上才能看文档。
 func configFromEnv(lookup func(string) string) (config, error) {
 	get := func(key string) string { return strings.TrimSpace(lookup(key)) }
 

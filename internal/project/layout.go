@@ -118,6 +118,15 @@ func (l Layout) CachedDocPath(id, version string) string {
 	return filepath.Join(l.CachedManifestDir(id, version), FileCachedDoc)
 }
 
+// FileDocsList 是缓存里一个组件版本旁边的记录：取文档时这个版本带着哪些 BRICKKIT*.md（每行一个文件名）。
+// 旧版 CLI 写的缓存没有它——那时只取原文，看不出有没有译本。
+const FileDocsList = "docs.list"
+
+// CachedDocsKnown 判断缓存知不知道这个组件版本带着哪些文档（有没有 docs.list）。
+func (l Layout) CachedDocsKnown(id, version string) bool {
+	return exists(filepath.Join(l.CachedManifestDir(id, version), FileDocsList))
+}
+
 // AgentsPath 是根目录的 AGENTS.md：项目（或组件）自己的 AI 导读，末尾一段由 CLI 维护。
 func (l Layout) AgentsPath() string { return l.path(docspec.FileAgents) }
 

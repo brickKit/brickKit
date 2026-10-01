@@ -12,7 +12,7 @@ import (
 
 // service 聚合各组件的 API 文档，并用 Swagger UI 展示。
 //
-// 它是平台里唯一一个**全部依赖都是弱依赖**的组件：七个目标组件装了几个就
+// 它是平台里唯一一个**全部依赖都是弱依赖**的组件：目标组件装了几个就
 // 展示几个，一个都没装也照样起得来。这不是容错做得好，而是这个组件的
 // 本来面目——文档入口不该因为某个业务组件没装就打不开。
 type service struct {
@@ -33,7 +33,7 @@ func newService(d *Discoverer, cfg config, logger *slog.Logger, webRoot string) 
 
 // sources 返回探测结果，带一个短缓存。
 //
-// 每次刷新页面都去探七个组件的话，一个卡住的上游会让页面很慢；
+// 每次刷新页面都去探所有目标组件的话，一个卡住的上游会让页面很慢；
 // 而组件的 API 文档几乎不会在几十秒内变。
 func (s *service) sources(ctx context.Context) []Source {
 	s.mu.RLock()
@@ -55,7 +55,7 @@ func (s *service) routes() http.Handler {
 	mux := http.NewServeMux()
 
 	// 健康检查只回答"本进程还活着吗"。
-	// **绝不去探那七个组件**：它们全是弱依赖，全挂了这个页面也该打得开——
+	// **绝不去探那些目标组件**：它们全是弱依赖，全挂了这个页面也该打得开——
 	// 而且那时候正是最需要看文档的时候
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

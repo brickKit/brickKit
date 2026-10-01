@@ -267,6 +267,12 @@ func agentsStatus(root string) (state string, stale bool) {
 	if err != nil {
 		return i18n.T(msgid.CliSkillsAgentsBlockNone), true
 	}
+	// 与此刻的 CLI 会写出的那一段比：CLI 升级后平台规则或组件表变了，update 会刷新
+	want := agentsContentFor(root, b.Lang, false)
+	want.Lang = b.Lang
+	if strings.ReplaceAll(string(data[b.Start:b.End]), "\r\n", "\n") != agentsmd.Render(want) {
+		return i18n.T(msgid.CliSkillsAgentsBlockOutdated, b.Lang), true
+	}
 	return i18n.T(msgid.CliSkillsAgentsBlockOk, b.Lang), false
 }
 

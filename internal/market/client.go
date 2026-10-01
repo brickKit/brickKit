@@ -165,6 +165,37 @@ func (c *Client) FetchDoc(ctx context.Context, componentID, version string) (doc
 	return string(body), true, nil
 }
 
+// FetchDocLanguages 是市场上这个版本登记了哪些语言的 BRICKKIT.md 译本（Manifest 响应信封里的 docLanguages）。
+// 还不认识译本的市场不给这个字段：结果为空。
+func (c *Client) FetchDocLanguages(ctx context.Context, componentID, version string) ([]string, error) {
+	body, err := c.do(ctx, http.MethodGet,
+		versionPath(componentID, version)+"/manifest", nil, nil, i18n.T(msgid.MarketActionFetchManifest))
+	if err != nil {
+		return nil, err
+	}
+	var envelope struct {
+		DocLanguages []string `json:"docLanguages"`
+	}
+	if err := decodeData(body, &envelope); err != nil {
+		return nil, err
+	}
+	return envelope.DocLanguages, nil
+}
+
+// FetchDocIn 取市场上这个版本登记的某种语言的译本（BRICKKIT.<lang>.md）；没有时 found 为 false。
+func (c *Client) FetchDocIn(ctx context.Context, componentID, version, lang string) (doc string, found bool, err error) {
+	body, err := c.do(ctx, http.MethodGet,
+		versionPath(componentID, version)+"/doc", url.Values{"lang": []string{lang}}, nil, i18n.T(msgid.MarketActionFetchDoc))
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return string(body), true, nil
+}
+
 // ListArtifacts 取该版本已登记的产物，用来知道每个文件该往哪个 artifactId 上传。
 func (c *Client) ListArtifacts(ctx context.Context, componentID, version string) ([]Artifact, error) {
 	body, err := c.do(ctx, http.MethodGet,

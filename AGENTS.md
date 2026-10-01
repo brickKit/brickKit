@@ -67,7 +67,7 @@ Each principle's argument — what it is, what it buys, what it costs, what it t
 - Project commands work from any subdirectory: they walk up to the nearest `brickkit.yaml` (like `git`, not stopping at `.git`) and say `📁 Project: …` when they did; paths they print are relative to where you are. `release`, `publish`, `init` and `skills` act on the current directory.
 - `$var:NAME` takes its value from `config/vars.yaml` (or the deploy file's `vars:`); `${NAME}` from the process environment, then `.env`; `file://path` reads a file. The environment never overrides a value implicitly.
 - `brickkit up` never builds an image: when an image that has to be built locally is missing, it stops and tells you to run `brickkit build`.
-- `brickkit init <name>` creates a new directory; `brickkit init` without a name completes the current directory, adding only what is missing and never touching an existing byte, and warns loudly when `.gitignore` lacks a required entry. It writes the project's `AGENTS.md` (the author's AI guide, with a block at its end that brickkit maintains) and `CLAUDE.md` (`@AGENTS.md`) when they are missing; there is no project-level `BRICKKIT.md`.
+- `brickkit init <name>` creates a new directory; `brickkit init` without a name completes the current directory, adding only what is missing, and warns loudly when `.gitignore` lacks a required entry. It never touches a byte of an existing file — the one exception is the block maintained by brickkit at the end of `AGENTS.md`, which it rewrites in place. It writes the project's `AGENTS.md` (the author's AI guide, ending with that block) and `CLAUDE.md` (`@AGENTS.md`) when they are missing; there is no project-level `BRICKKIT.md`.
 
 ### 3.3 Fractal structure
 

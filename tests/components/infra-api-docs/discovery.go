@@ -145,8 +145,9 @@ var errNoDocs = errors.New("组件不提供该文档")
 
 // fetchOpenAPI 抓组件的 /openapi.json。
 //
-// FastAPI 之类的框架自带这个端点；Go 组件目前不提供，会走到 errNoDocs
-// 那条分支，页面上如实显示"没有 HTTP 文档"。
+// FastAPI 之类的框架自带这个端点，Go 组件按同一个惯例自己挂上；
+// 不提供的组件（比如只有 gRPC 的）会走到 errNoDocs 那条分支，
+// 页面上如实显示"没有 HTTP 文档"。
 func (d *Discoverer) fetchOpenAPI(ctx context.Context, endpoint string) (json.RawMessage, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		strings.TrimRight(endpoint, "/")+"/openapi.json", nil)

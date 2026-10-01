@@ -23,6 +23,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -392,9 +393,19 @@ func (c *Client) cacheDoc(ctx context.Context, f fetcher, id, version string) {
 		return
 	}
 	dir := c.layout.CachedManifestDir(id, version)
-	for _, name := range docNames(files) {
+	names := docNames(files)
+	// 源里已经没有的文档（本地源里删掉的译本）从缓存里也删掉：缓存说的就是这个版本此刻带着什么
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, e := range entries {
+			if base, _, ok := docspec.SplitTranslation(e.Name()); ok && base == docspec.FileBrickkit && !slices.Contains(names, e.Name()) {
+				_ = os.Remove(filepath.Join(dir, e.Name()))
+			}
+		}
+	}
+	for _, name := range names {
 		_ = writeFileAll(filepath.Join(dir, name), files[name])
 	}
+	_ = writeFileAll(filepath.Join(dir, project.FileDocsList), []byte(strings.Join(names, "\n")+"\n"))
 }
 
 // docNames 是 files 里该缓存的文档名：原文与合法译本，译本至多 MaxTranslations 份，排好序。

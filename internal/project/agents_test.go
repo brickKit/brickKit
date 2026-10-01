@@ -107,3 +107,17 @@ func readText(t *testing.T, path string) string {
 	require.NoError(t, err)
 	return string(data)
 }
+
+// 旧版 CLI 写的缓存（只缓存了 BRICKKIT.md，不知道还有没有译本）：文档一列沿用已有的单元格，不来回改写。
+func TestAgentsDocsCellKeptWhenTheCacheDoesNotKnow(t *testing.T) {
+	root := t.TempDir()
+	l := project.NewLayout(root)
+	cacheComponent(t, l, "a/b", "1.0.0", "metadata: {id: a/b, version: 1.0.0, description: d}\n", "BRICKKIT.md") // 没有记录：旧缓存
+	old := agentsmd.Render(agentsmd.Content{Lang: "en", Project: true, Rows: []agentsmd.Row{{ID: "a/b", Version: "1.0.0", Does: "d", Docs: "BRICKKIT.md +zh", Home: "—"}}})
+	require.NoError(t, os.WriteFile(l.AgentsPath(), []byte("# P\n\n"+old), 0o644))
+	decl := &projfile.File{Project: "p", Components: []projfile.Component{{ID: "a/b", Version: "1.0.0"}}}
+	assert.Equal(t, "BRICKKIT.md +zh", project.AgentsContent(l, decl, "en").Rows[0].Docs)
+
+	require.NoError(t, os.WriteFile(filepath.Join(l.CachedManifestDir("a/b", "1.0.0"), project.FileDocsList), []byte("BRICKKIT.md\n"), 0o644))
+	assert.Equal(t, "BRICKKIT.md", project.AgentsContent(l, decl, "en").Rows[0].Docs, "a cache that knows wins")
+}

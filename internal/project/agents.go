@@ -38,6 +38,9 @@ func AgentsContent(l Layout, decl *projfile.File, lang string) agentsmd.Content 
 			row.Does = orDash(md.Description)
 			row.Home = orDash(md.Repository)
 			row.Docs = agentsmd.DocsCell(l.CachedDocLangs(comp.ID, comp.Version))
+			if old, ok := previous[comp.Ref()]; ok && !l.CachedDocsKnown(comp.ID, comp.Version) {
+				row.Docs = old.Docs // 旧版 CLI 写的缓存说不清有没有译本：不拿它覆盖别人写好的那一格
+			}
 		} else if old, ok := previous[comp.Ref()]; ok {
 			row = old
 		}
