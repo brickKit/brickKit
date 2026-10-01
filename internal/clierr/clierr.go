@@ -119,6 +119,32 @@ const (
 	// 只有两种情形，都与文件内容无关：PROJECT_MISSING（无处可查）与 INVALID_ARGUMENT（命令行写错）。
 	// CI 脚本据此认：本码 = "lint 跑了，并且查出了问题"。
 	CodeLintFailed Code = "LINT_FAILED"
+
+	// 文档检查（brickkit lint，只作警告；lint --strict 下算失败）。规范见"组件的文档"那一页。
+	//
+	// CodeDocFileMissing：必需的文档文件不在（BRICKKIT.md、AGENTS.md、CLAUDE.md、README.md）。
+	CodeDocFileMissing Code = "DOC_FILE_MISSING"
+	// CodeDocSectionMissing：文档缺了一个固定小节。
+	CodeDocSectionMissing Code = "DOC_SECTION_MISSING"
+	// CodeDocPathMissing：AGENTS.md 代码地图里写的路径不存在。
+	CodeDocPathMissing Code = "DOC_PATH_MISSING"
+	// CodeDocLinkBroken：相对链接指向的文件不存在。
+	CodeDocLinkBroken Code = "DOC_LINK_BROKEN"
+	// CodeDocLinkNotPortable：BRICKKIT.md 里有相对链接（缓存里没有仓库，链接是死的），
+	// 或组件文档的相对链接跑出了组件目录（组件被别的项目用时那里什么都没有）。
+	CodeDocLinkNotPortable Code = "DOC_LINK_NOT_PORTABLE"
+	// CodeDocOutOfStep：component.yaml 里的事实在文档该提的地方没提（依赖、必填配置项、契约文件、外壳成员）。
+	CodeDocOutOfStep Code = "DOC_OUT_OF_STEP"
+	// CodeDocPlaceholder：正文里留着占位词（TODO、待补……）。
+	CodeDocPlaceholder Code = "DOC_PLACEHOLDER"
+	// CodeDocTranslationDrift：译本与原文对不上（没有原文、二级小节数不同、没互相链接、后缀不是语言代码）。
+	CodeDocTranslationDrift Code = "DOC_TRANSLATION_DRIFT"
+	// CodeAgentsBlockMissing：AGENTS.md 里没有可用的、由 brickkit 维护的一段（没有，或标记坏了）。
+	CodeAgentsBlockMissing Code = "AGENTS_BLOCK_MISSING"
+	// CodeClaudeImportMissing：CLAUDE.md 里没有 @AGENTS.md，Claude Code 不会读 AGENTS.md。
+	CodeClaudeImportMissing Code = "CLAUDE_IMPORT_MISSING"
+	// CodeProjectMapObsolete：项目根还留着旧版的项目地图 BRICKKIT.md（组件表现在在 AGENTS.md 末尾）。
+	CodeProjectMapObsolete Code = "PROJECT_MAP_OBSOLETE"
 )
 
 // 退出码约定：

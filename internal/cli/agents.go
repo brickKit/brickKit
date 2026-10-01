@@ -23,12 +23,12 @@ func renderAgentsResult(opts *Options, res agentsmd.Result) {
 		opts.Printf("   ✅ %s\n", i18n.T(msgid.CliAgentsClaudeAppended, docspec.ClaudeImport, docspec.FileClaude))
 	}
 	if res.Problem != "" {
-		opts.Printf("%s", opts.render(clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliAgentsBlockMissing, docspec.FileAgents)).
+		opts.Printf("%s", opts.render(clierr.Warn(clierr.CodeAgentsBlockMissing, i18n.T(msgid.CliAgentsBlockMissing, docspec.FileAgents)).
 			WithDetail(i18n.T(msgid.LabelReason), res.Problem).
 			WithHint(i18n.T(msgid.CliAgentsHintSkillsUpdate))))
 	}
 	if res.ClaudeMissingImport {
-		opts.Printf("%s", opts.render(clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliAgentsClaudeMissingImport, docspec.FileClaude, docspec.ClaudeImport)).
+		opts.Printf("%s", opts.render(clierr.Warn(clierr.CodeClaudeImportMissing, i18n.T(msgid.CliAgentsClaudeMissingImport, docspec.FileClaude, docspec.ClaudeImport)).
 			WithHint(i18n.T(msgid.CliAgentsHintSkillsUpdate))))
 	}
 }
@@ -36,6 +36,6 @@ func renderAgentsResult(opts *Options, res agentsmd.Result) {
 // renderProjectMapObsolete 说项目根还留着旧版的项目地图 BRICKKIT.md：组件表现在在 AGENTS.md 末尾。
 // 从不替人删——那份文件里可能有他自己写的内容。
 func renderProjectMapObsolete(opts *Options) {
-	opts.Printf("%s", opts.render(clierr.Warn(clierr.CodeConfigInvalid, i18n.T(msgid.CliInitProjectMapObsolete, docspec.FileBrickkit, docspec.FileAgents)).
+	opts.Printf("%s", opts.render(clierr.Warn(clierr.CodeProjectMapObsolete, i18n.T(msgid.CliInitProjectMapObsolete, docspec.FileBrickkit, docspec.FileAgents)).
 		WithHint(i18n.T(msgid.CliInitHintMoveProjectMap, docspec.FileAgents, docspec.FileBrickkit))))
 }

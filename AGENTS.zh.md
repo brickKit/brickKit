@@ -221,6 +221,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 | `internal/k8s/` | 渲染 Kubernetes 清单 |
 | `internal/deploy/` | 两种部署目标共用的命名规则与文件头注释 |
 | `internal/docspec/` | 组件与项目文档规范本身（写成数据）：文件、小节、各语言的标题、译本的文件名 |
+| `internal/doccheck/` | lint 的文档检查：文件、小节、代码地图路径、链接、清单里的事实、占位、译本 |
 | `internal/agentsmd/` | `AGENTS.md` 末尾由 CLI 维护的那一段（平台规则、组件表、记下的语言），以及 `AGENTS.md` / `CLAUDE.md` 的骨架 |
 | `internal/engine/` | Docker、Podman、kubectl：探测与调用 |
 | `internal/procsup/` | 在前台监管 `mode: local` 的本机进程 |

@@ -92,6 +92,14 @@ one key and hides the conflict.
 | `ENGINE_MISSING` | docker / podman / kubectl not on `PATH` or not running — or only Podman is installed while the deploy file says `target: docker` | Install/start it, or set `target: podman` |
 | `PROJECT_MISSING` | Not in a project, or `deploy.yaml` missing — or local mode is on but `deploy.local.yaml` was deleted | `brickkit init` completes a project without touching existing files; `brickkit local on` writes the local file again |
 | `LINT_FAILED` | `brickkit lint` found problems, each printed with file and field | Fix and rerun; warnings fail only with `--strict` |
+| `DOC_FILE_MISSING` / `DOC_SECTION_MISSING` (lint warnings) | A required doc (`BRICKKIT.md`, `AGENTS.md`, `CLAUDE.md`, `README.md`) or one of its fixed sections is missing | Add it; `brickkit new` shows the full set, `brickkit skills update` creates a missing `AGENTS.md` / `CLAUDE.md` |
+| `DOC_PATH_MISSING` / `DOC_LINK_BROKEN` | A Code map path in `AGENTS.md`, or a relative link, points at nothing — the code moved, the doc didn't | Fix the path or link in the doc |
+| `DOC_LINK_NOT_PORTABLE` | `BRICKKIT.md` has a relative link (dead in other projects' caches), or a component doc links out of the component | Name files as inline code in `BRICKKIT.md`; keep component docs self-contained |
+| `DOC_OUT_OF_STEP` | `component.yaml` has a dependency, required key, artifact file or shell member the doc doesn't mention where it belongs | Mention it in that section (a dependency by ID, no version) |
+| `DOC_PLACEHOLDER` | A `TODO`-style placeholder is still in a doc's text | Fill it in |
+| `DOC_TRANSLATION_DRIFT` | A translation lacks its primary, has a different number of `##` sections, the pair doesn't link each other, or the suffix isn't a language code | Bring the translation back in step with the primary |
+| `AGENTS_BLOCK_MISSING` / `CLAUDE_IMPORT_MISSING` | `AGENTS.md` has no usable block maintained by brickkit, or `CLAUDE.md` lacks `@AGENTS.md` | `brickkit skills update` adds them (no other command edits these files) |
+| `PROJECT_MAP_OBSOLETE` | The old project map `BRICKKIT.md` is still at the project root | Move your own notes into `AGENTS.md`, then delete it by hand |
 | `AUTH_REQUIRED` / `TOKEN_EXPIRED` | Market login needed or expired | `brickkit login` |
 | `IMAGE_UNAUTHORIZED` | The image registry refused the pull, or has no such image | `docker login <registry>`, check the image reference — or build it here with `brickkit build` |
 | `AUTH_FAILED` | The market refused the user name or password — or a Git remote was reached but refused the fetch: the credentials were refused, or the repository doesn't exist (hosts answer both the same way) | Check the credentials; for Git, read git's own words in the error. Retrying unchanged won't help |

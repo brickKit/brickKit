@@ -402,3 +402,73 @@ The checks `brickkit release` runs before tagging didn't pass. Nothing was writt
 | Title | Situation | What to do |
 | --- | --- | --- |
 | `Error: the structure check did not pass` | `lint` found errors (including warnings under `--strict`) | Fix them at the locations listed above |
+
+## Documentation checks
+
+`brickkit lint` checks a component's documents and a project's `AGENTS.md` mechanically (see
+[A component's documentation](../03-component-guide/08-component-doc-spec.md)). Every one of these is a warning: it
+never stops `up` or `release`, and only `lint --strict` turns it into a failure (`LINT_FAILED`) — for a team that wants
+its CI to hold the line. Each warning names the file, and the line where there is one.
+
+### DOC_FILE_MISSING
+
+A required document is absent: in a component, `BRICKKIT.md`, `AGENTS.md`, `CLAUDE.md` or `README.md`; in a project,
+`AGENTS.md` or `CLAUDE.md`. `brickkit new` writes all of them for a new component; for an existing one, write the
+missing file (`brickkit skills update` creates `AGENTS.md` and `CLAUDE.md` where they are missing).
+
+### DOC_SECTION_MISSING
+
+A document lacks one of its fixed sections — for example "Before you deploy" in `BRICKKIT.md`, or "Code map" in a
+component's `AGENTS.md`. Headings are recognised in English and Chinese, with or without a number in front. Add the
+section under its heading.
+
+### DOC_PATH_MISSING
+
+A path in the Code map of a component's `AGENTS.md` does not exist (the code moved, the map didn't). Correct the path in
+the map; a directory ends in `/`.
+
+### DOC_LINK_BROKEN
+
+A relative link in `README.md`, `AGENTS.md` or under `docs/` points at a file that does not exist. Fix the link or add the
+file.
+
+### DOC_LINK_NOT_PORTABLE
+
+Either `BRICKKIT.md` has a relative link — it is read alone in other projects' caches, where the link is dead: name the
+file as inline code, or use an absolute URL — or a component document links out of the component directory, to a file a
+project using the component doesn't have.
+
+### DOC_OUT_OF_STEP
+
+`component.yaml` says something the doc doesn't mention where it belongs: a dependency missing from "Dependencies", a
+required config key missing from "Configuration", an `artifacts` file missing from "Contracts", a shell member missing
+from "Shell declaration". Mention it (a dependency by ID; its version stays in `component.yaml`).
+
+### DOC_PLACEHOLDER
+
+`TODO`, `TBD`, `FIXME`, or one of their three Chinese counterparts, is still in a document's text (code blocks and inline code don't count).
+The skeleton `brickkit new` writes leaves `<!-- TODO: … -->` comments exactly so this lists what's left to fill in.
+
+### DOC_TRANSLATION_DRIFT
+
+A translation (`README.zh.md`, `BRICKKIT.zh.md`, `docs/design.zh.md`) has no primary file next to it, a different
+number of `##` sections than its primary, or the two don't link each other near the top (except `BRICKKIT*.md`, which
+has no relative links at all); or a file looks like a translation but its suffix isn't a lowercase language code
+(`README.zh-CN.md`). Bring the translation back in step with the primary — the primary is the one that is right.
+
+### AGENTS_BLOCK_MISSING
+
+`AGENTS.md` has no usable block maintained by brickkit (none, or its markers are broken), so its component table and
+platform rules are not kept up to date. `brickkit skills update` appends one; `init`, `add`, `remove` and `upgrade`
+never change your file.
+
+### CLAUDE_IMPORT_MISSING
+
+`CLAUDE.md` exists but has no `@AGENTS.md` line, so Claude Code doesn't read `AGENTS.md`. Add the line, or run
+`brickkit skills update`.
+
+### PROJECT_MAP_OBSOLETE
+
+The project root still has the old project map `BRICKKIT.md` (the one with brickkit's markers). The component table now
+lives at the end of `AGENTS.md`: move any notes of your own into `AGENTS.md`, then delete `BRICKKIT.md` — it is never
+deleted for you.

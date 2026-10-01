@@ -226,6 +226,7 @@ One Go module, `github.com/brickkit/brickkit`. The CLI starts in `cmd/brickkit/`
 | `internal/k8s/` | Rendering Kubernetes manifests |
 | `internal/deploy/` | Naming rules and file headers shared by both targets |
 | `internal/docspec/` | The component and project documentation spec as data: files, sections, heading names per language, translation names |
+| `internal/doccheck/` | lint's documentation checks: files, sections, code-map paths, links, manifest facts, placeholders, translations |
 | `internal/agentsmd/` | The CLI-maintained block at the end of `AGENTS.md` (platform rules, component table, recorded language), and the `AGENTS.md` / `CLAUDE.md` skeletons |
 | `internal/engine/` | Docker, Podman and kubectl: detection and invocation |
 | `internal/procsup/` | Supervising `mode: local` processes in the foreground |

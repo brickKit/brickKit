@@ -378,3 +378,62 @@ CLI 自己出了问题，或者读写本机文件失败（磁盘满、没有权�
 | 标题 | 什么情况 | 怎么办 |
 | --- | --- | --- |
 | `错误：结构检查未通过` | `lint` 发现了错误（`--strict` 下也包括警告） | 按上面逐条列出的位置修改 |
+
+## 文档检查
+
+`brickkit lint` 会机械地检查组件的文档和项目的 `AGENTS.md`（见[组件的文档](../03-component-guide/08-component-doc-spec.md)）。
+下面每一条都只是警告：从不拦下 `up` 和 `release`，只有 `lint --strict` 才把它算成失败（`LINT_FAILED`）——给想让 CI 守住的团队用。
+每条警告都点名文件，有行号的带上行号。
+
+### DOC_FILE_MISSING
+
+缺了必需的文档：组件里是 `BRICKKIT.md`、`AGENTS.md`、`CLAUDE.md` 或 `README.md`；项目里是 `AGENTS.md` 或 `CLAUDE.md`。
+新组件用 `brickkit new` 会全部写好；已有的组件把缺的那份补上（`brickkit skills update` 会建出缺的 `AGENTS.md` 和 `CLAUDE.md`）。
+
+### DOC_SECTION_MISSING
+
+文档缺了一个固定小节——比如 `BRICKKIT.md` 的"部署前准备"、组件 `AGENTS.md` 的"代码地图"。中英文标题都认，前面带不带编号都行。
+在对应标题下补上这一节。
+
+### DOC_PATH_MISSING
+
+组件 `AGENTS.md` 代码地图里的某条路径不存在（代码挪了，地图没跟上）。把地图里的路径改对；目录以 `/` 结尾。
+
+### DOC_LINK_BROKEN
+
+`README.md`、`AGENTS.md` 或 `docs/` 里的相对链接指向的文件不存在。改链接，或者补上文件。
+
+### DOC_LINK_NOT_PORTABLE
+
+两种情况：`BRICKKIT.md` 里有相对链接——它在别的项目缓存里是单独读的，链接在那里是死的：用行内代码写文件名，或者用绝对地址；
+或者组件文档的相对链接跑出了组件目录，指向使用这个组件的项目里根本没有的文件。
+
+### DOC_OUT_OF_STEP
+
+`component.yaml` 写着的事实，文档该提的地方没提："依赖说明"里少了一条依赖、"配置指南"里少了一个必填配置项、"契约索引"里少了
+`artifacts` 的一个文件、"外壳声明"里少了一个成员。把它写上（依赖写 ID；版本留在 `component.yaml`）。
+
+### DOC_PLACEHOLDER
+
+文档正文里还留着 `TODO`、`TBD`、`FIXME`、`待补`、`后补` 或 `待填`（代码块和行内代码里的不算）。`brickkit new` 生成的骨架故意留下
+`<!-- TODO: … -->` 注释，就是为了让这条列出还有哪些没填。
+
+### DOC_TRANSLATION_DRIFT
+
+译本（`README.zh.md`、`BRICKKIT.zh.md`、`docs/design.zh.md`）旁边没有原文，或者二级小节数与原文不同，或者两份没在开头互相链接
+（`BRICKKIT*.md` 除外：它根本不放相对链接）；或者一个文件看着像译本，后缀却不是小写的语言代码（`README.zh-CN.md`）。
+把译本改回与原文一致——以原文为准。
+
+### AGENTS_BLOCK_MISSING
+
+`AGENTS.md` 里没有可用的、由 brickkit 维护的一段（没有，或者标记坏了），组件表和平台规则因此不会自动更新。
+`brickkit skills update` 会追加一段；`init`、`add`、`remove`、`upgrade` 从不改你的文件。
+
+### CLAUDE_IMPORT_MISSING
+
+`CLAUDE.md` 在，但里面没有 `@AGENTS.md` 这一行，Claude Code 不会读 `AGENTS.md`。加上这一行，或者运行 `brickkit skills update`。
+
+### PROJECT_MAP_OBSOLETE
+
+项目根还留着旧版的项目地图 `BRICKKIT.md`（带 brickkit 标记的那一份）。组件表现在在 `AGENTS.md` 末尾：把你自己写的内容挪进
+`AGENTS.md`，再删掉 `BRICKKIT.md`——brickkit 不会替你删。

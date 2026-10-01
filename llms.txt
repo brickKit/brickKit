@@ -23,8 +23,8 @@ reads it whole. `00-core` alone — AGENTS.md plus the core pages — is enough 
 - [llms/en/03.md](llms/en/03.md): docs/en/03-component-guide/04-new-and-skeleton.md … docs/en/06-architecture/README.md
 - [llms/en/04.md](llms/en/04.md): docs/en/06-architecture/01-pipeline-overview.md … docs/en/06-architecture/04-deploy-file-generation.md
 - [llms/en/05.md](llms/en/05.md): docs/en/06-architecture/05-design-principles.md … docs/en/06-architecture/08-security-and-signing.md
-- [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/09-error-codes.md … docs/en/08-ai-guide/04-fractal-reading.md
-- [llms/en/07.md](llms/en/07.md): docs/en/08-ai-guide/05-reading-brickkit.md … docs/en/10-troubleshooting/01-up-down-issues.md
+- [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/09-error-codes.md … docs/en/08-ai-guide/03-component-doc-spec.md
+- [llms/en/07.md](llms/en/07.md): docs/en/08-ai-guide/04-fractal-reading.md … docs/en/10-troubleshooting/01-up-down-issues.md
 - [llms/en/08.md](llms/en/08.md): docs/en/10-troubleshooting/02-local-debug-issues.md … docs/en/11-reference/05-json-schemas.md
 - [llms/en/09.md](llms/en/09.md): docs/en/11-reference/06-market-api.md
 <!-- llms:bundles:end -->
