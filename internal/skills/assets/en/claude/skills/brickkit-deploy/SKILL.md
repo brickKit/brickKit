@@ -63,6 +63,17 @@ run code from the local repo, whose `metadata.version` must equal the default ve
 out the tag of the default version.
 `brickkit graph` never reads local mode, so a `mode: debug` there never shows up in the graph.
 
+Ports on your machine, for a process run this way (`mode: local` / `debug`, or the focus component):
+the process listens on its `localPort`; without one, on the component's own `deployment.port`, or the
+first free port from 8081 when that's taken — it gets the number as `PORT`. Its extra ports are taken
+on the host as declared. Each container it depends on is published on the host at 10000 + its
+container port (5432 → 15432, 8080 → 18080), or the first free port from 18080 when that's taken, and
+the env file / process gets `localhost:<that port>`; a dependency hosted in a shell is published on the
+shell's container. Containers that call the process keep its service name, resolved to the host by
+`extra_hosts: <service>:host-gateway`. These are the ports BrickKit assigns in one run; one already
+used by another program on your machine fails when the engine binds it — so keep 8081+ and
+10000 + your container ports out of the project's own port registry.
+
 **4. Environments are whole files: `brickkit up -f deploy.prod.yaml`.**
 
 No overlay, no inheritance. `brickkit.yaml` and `config/` are shared; per-environment differences in
@@ -113,7 +124,10 @@ in; otherwise `up` stops with three ways out: upgrade the shell to one that comp
 move the member entry out of the shell to run on its own; or keep both — a `brickkit.yaml` line for the
 compiled version with `requiredBy: [<shell>]`, `id@that-version` nested under the shell, the other
 version left at the top level. `add` of a shell writes all of this for you. A member with
-`mode: debug` / `local` leaves the shell and runs as a bare process.
+`mode: debug` / `local` leaves the shell and runs as a bare process. Callers keep using the member's
+own service name: on Docker / Podman the shell's container carries each hosted member's service name as
+a network alias, and on Kubernetes each member gets a Service that selects the shell's Pod — seed
+scripts and tests address members exactly as before.
 
 ```yaml
 components:

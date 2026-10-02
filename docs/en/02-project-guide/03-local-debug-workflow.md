@@ -138,6 +138,25 @@ A few limits to know:
   `config/` (such as `http://host.docker.internal:8000`), it reaches your process as is; on your machine, change it to
   `localhost` yourself. The platform only rewrites the dependency addresses it computes.
 
+## Ports on your machine
+
+A process on your machine (`mode: debug`, `mode: local`, or the focus component of a focus run) and the containers it
+talks to meet on host ports. `up` assigns them in one pass, the ones you wrote first:
+
+| What | Host port |
+| --- | --- |
+| A container with `expose: true` | Its `exposePort` |
+| The process itself | Its `localPort`. Without one: the component's own `deployment.port`, or the first free port from 8081 when that's taken. A `mode: local` process gets the number as `PORT` |
+| The process's extra ports | As declared in `deployment.extraPorts` |
+| A container the process depends on | 10000 + its container port (postgres's 5432 → 15432, a component's 8080 → 18080), or the first free port from 18080 when that's taken; for a dependency hosted in a shell, published on the shell's container. The env file holds `localhost:<that port>` |
+
+Containers that call the process don't use a host port: they keep its service name, which `extra_hosts` resolves to the
+host, at its `localPort`.
+
+`up` only knows the ports it assigns itself. A port another program on your machine already holds fails when the engine
+binds it, not before — so if the project keeps a port registry, leave 8081 upwards and 10000 + each container port out of
+it.
+
 ## After the team changes files: the strict consistency check
 
 You have local mode on, and a teammate adds a component and pushes. You pull:

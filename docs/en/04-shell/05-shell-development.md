@@ -35,6 +35,18 @@ shell:
     - shop/stock@0.1.0
 ```
 
+**What's compiled in is not what's hosted.** `shell.members` says what the shell's image contains, so it lists at least
+one member: `members: []` is `MANIFEST_INVALID` in `lint` and `add`, because a shell with nothing compiled in has no
+reason to exist. Which of those members run inside it this time is a different fact, chosen in the deploy file by
+nesting their entries under the shell's — and that may be none, in which case the shell starts with
+`BRICKKIT_SERVED_MEMBERS` empty and `BRICKKIT_SERVED_MEMBERS_CONFIG` as `[]` (see
+[Config as JSON](02-json-injection.md)).
+
+So a new shell joins the project together with its first member, not before it: make that member work and build its
+image, put it in `shell.members` in place of the placeholder, then `brickkit add` the shell (which writes the members in
+for you). Until then the shell's skeleton stays out of `brickkit.yaml` — and `brickkit build`, which builds only
+components the project has, doesn't know it yet.
+
 The shell itself is an ordinary component: it has its own `deployment`, `healthCheck`, image and config.
 
 It has the same documents as any component, too. Its `BRICKKIT.md` has the usual six sections; the last one, Shell
@@ -160,6 +172,10 @@ as a network alias:
           - shop-cart-0-1-0
           - shop-stock-0-1-0
 ```
+
+On Kubernetes each hosted member gets a Service of its own name that selects the shell's Pod. Either way, whatever
+addresses a member by its service name — another container, a seed script, a cross-component test — reaches the shell
+without a change.
 
 **How requests are routed inside the process is the shell's own business.** Which module a request gets once it reaches
 one of the shell's ports, whether to split further by path or host name — the platform stays out of it. The platform only

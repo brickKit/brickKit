@@ -107,7 +107,18 @@ shell:
   `{componentId, version, httpPort, extraPorts: [{name, port}], config}`。`config` 是这个成员的全部环境
   （它的配置项和它的依赖的 `*_ENDPOINT`），值都已经由 CLI 求好（`$var:`、`${VAR}`、`file://`）。成员的
   配置**不会**摊进外壳自己的环境变量里：从这里按成员自己的键名取。成员的某个键写成 `existingSecret`
-  会被拒绝——值只在集群里，CLI 读不到，JSON 却要值。
+  会被拒绝——值只在集群里，CLI 读不到，JSON 却要值。一个都不承载时它是 `[]`，不是不存在。一项长这样：
+
+  ```json
+  [{"componentId": "erp/api", "version": "1.2.0", "httpPort": 8080,
+    "extraPorts": [{"name": "grpc", "port": 9090}],
+    "config": {"DB_HOST": "db.internal", "ERP_AUTH_ENDPOINT": "http://erp-shell-1-0-0:8081"}}]
+  ```
+
+**编进去 ≠ 这次承载。** `shell.members` 说的是镜像里有什么，至少列一个成员——`members: []` 在 `lint` 和 `add` 时报
+`MANIFEST_INVALID`。这次哪些在它里面跑由部署文件决定（嵌在外壳条目下的成员），可以一个都没有。所以新外壳要和它的
+第一个成员一起进项目：先把那个成员做好、构建好，写进 `shell.members`，再 `brickkit add` 外壳。调用方照旧用被承载成员
+自己的服务名——它解析到外壳（docker / podman 上是网络别名，k8s 上是选中外壳 Pod 的 Service）。
 
 每个成员仍然要有自己的镜像：它的迁移用成员自己的镜像跑。
 
@@ -123,6 +134,7 @@ shell:
 
 - 一个事实只写一处：依赖和配置项在 `component.yaml`，接口在契约文件，历史在 Git。文档讲它们说不清的部分，不再抄一遍。
 - `BRICKKIT.md` **不放相对链接**：它在别的项目缓存里是单独读的。文件名用行内代码写。
+- 组件的任何文档都不链出组件目录（`../…`）——`AGENTS.md`、`README.md`、`docs/` 也一样：仓库是被单独克隆、单独读的（`DOC_LINK_NOT_PORTABLE`）。
 - 译本放在旁边——`BRICKKIT.zh.md`、`README.zh.md`、`docs/design.zh.md`——整个 `docs/` 双语时也可以每种语言一棵树：`docs/<主语言>/` 和 `docs/<语言>/` 相对路径一一对应，每一页在每棵树里都有（主语言是 `AGENTS.md` 维护段的 `lang=`）。原文为准；每个语言版本在开头链接其余每一份（`BRICKKIT*.md` 除外）；译本的 `##` 小节与原文一样多（维护段不算）。`AGENTS.md` 一般不翻译；给人工审查者的 `AGENTS.<语言>.md` 按普通译本查。读和写都只对着原文。
 - 固定小节按标题一字不差地认，中英文都行——英文原文的译本要用这些英文名：`BRICKKIT.md` Purpose / Before you deploy / Dependencies / Configuration / Contracts / Shell declaration；`AGENTS.md` Code map / Build and test / Design decisions / Pitfalls / Before changing code；`README.md` Use it in a project / Documentation / Development。
 - 外壳的 `外壳声明` 里的成员要与 `shell.members` 一致。

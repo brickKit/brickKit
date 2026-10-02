@@ -113,7 +113,21 @@ start the shell reads two variables:
   environment (its config keys and its dependencies' `*_ENDPOINT`) with every value already resolved
   (`$var:`, `${VAR}`, `file://`). Nothing of a member's config is put into the shell's own environment:
   read it from here, by the member's own key names. A member key written as `existingSecret` is refused,
-  because the CLI can't read a value that lives only in the cluster.
+  because the CLI can't read a value that lives only in the cluster. With no member hosted it is `[]`,
+  never absent. One entry:
+
+  ```json
+  [{"componentId": "erp/api", "version": "1.2.0", "httpPort": 8080,
+    "extraPorts": [{"name": "grpc", "port": 9090}],
+    "config": {"DB_HOST": "db.internal", "ERP_AUTH_ENDPOINT": "http://erp-shell-1-0-0:8081"}}]
+  ```
+
+**Compiled in ≠ hosted.** `shell.members` is what the image contains, and lists at least one member —
+`members: []` fails `lint` and `add` with `MANIFEST_INVALID`. Which of them run inside it this time is
+the deploy file's choice (members nested under the shell entry), and may be none. So a new shell
+enters the project together with its first member: build that member, list it in `shell.members`,
+then `brickkit add` the shell. Callers keep using a hosted member's own service name — it resolves to
+the shell (a network alias on Docker / Podman, a Service selecting the shell's Pod on Kubernetes).
 
 **12. A component carries five documents, each for one reader — keep them in step with the code.**
 
@@ -127,6 +141,7 @@ start the shell reads two variables:
 
 - One fact, one home: dependencies and config keys live in `component.yaml`, interfaces in the contract files, history in Git. The docs explain what those can't say — they don't restate it.
 - `BRICKKIT.md` has **no relative links**: it is read alone in other projects' caches. Name files as inline code.
+- No component doc links out of the component (`../…`) — not `AGENTS.md`, `README.md` or `docs/` either: the repository is cloned and read on its own (`DOC_LINK_NOT_PORTABLE`).
 - A shell's `Shell declaration` section lists the same members as `shell.members`.
 - Translations are siblings — `BRICKKIT.zh.md`, `README.zh.md`, `docs/design.zh.md` — or, for a whole bilingual `docs/`, a tree per language: `docs/<primary>/` and `docs/<lang>/` with the same relative paths, every page in every tree (the primary language is the `lang=` of the `AGENTS.md` block). The primary is canonical; each language version links every other near the top (not `BRICKKIT*.md`); a translation has the same `##` sections (the brickkit-maintained block isn't counted). `AGENTS.md` is usually not translated; an `AGENTS.<lang>.md` for human reviewers is checked like any translation. Read and write the primary only.
 - Fixed section headings are matched exactly, in English or Chinese — a Chinese translation uses these names, not its own: `BRICKKIT.md` 组件定位 / 部署前准备 / 依赖说明 / 配置指南 / 契约索引 / 外壳声明; `AGENTS.md` 代码地图 / 构建与测试 / 设计取舍 / 易错点 / 改代码前自查; `README.md` 在项目里使用 / 文档 / 开发.
