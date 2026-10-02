@@ -120,6 +120,10 @@ shell:
 `MANIFEST_INVALID`。这次哪些在它里面跑由部署文件决定（嵌在外壳条目下的成员），可以一个都没有。所以新外壳要和它的
 第一个成员一起进项目：先把那个成员做好、构建好，写进 `shell.members`，再 `brickkit add` 外壳。调用方照旧用被承载成员
 自己的服务名——它解析到外壳（docker / podman 上是网络别名，k8s 上是选中外壳 Pod 的 Service）。
+成员共用一个进程，进程级的东西不能在成员之间串：每个成员各一份——自己那一项 `config`（不读 `os.Getenv`）、
+`service.name` 等于组件 ID 的遥测 provider、指标注册表、数据库连接池、资源上限；会话级设置（`SET ROLE`、`search_path`）
+只能用 `SET LOCAL`；由外壳只做一次——信号处理、日志输出端、框架的全局开关
+（`brickkit docs 04-shell/05-shell-development`，"一个进程、几个成员"一节）。
 
 每个成员仍然要有自己的镜像：它的迁移用成员自己的镜像跑。
 

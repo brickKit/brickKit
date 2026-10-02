@@ -102,6 +102,25 @@ doesn't go stale — so **Go's one DNS failure doesn't happen on K8s**.
 stalls of Python and Node.js aren't unique to Docker, and the same advice (explicit timeouts, retryable failures) applies
 unchanged on K8s.
 
+## Calling over gRPC
+
+When the dependency declares a gRPC extra port (say `extraPorts: [{name: grpc, port: 9090}]`), you get
+`<DEPENDENCY>_GRPC_ENDPOINT`. Everything above still holds, and a few things are particular to gRPC:
+
+- **Drop the `http://` before dialling.** Address variables are uniformly written `http://<service>:<port>`; that's only
+  the format, not a claim that the port speaks HTTP/1. A gRPC client wants `<service>:<port>` (or
+  `dns:///<service>:<port>`).
+- **Use the right port name.** The main `*_ENDPOINT` points at the dependency's HTTP port; dial gRPC there and TCP
+  connects, and only the first call fails, with a protocol-level error (in Go, typically `error reading server preface:
+  http2: frame too large`). Seeing one, check you used `_GRPC_ENDPOINT`.
+- **One connection per dependency, reused for the life of the process.** Don't dial per request — it hides the next
+  problem, and pays for a handshake every time.
+- **With several replicas on K8s, a long-lived connection is pinned to one Pod.** A ClusterIP balances at layer 4: once an
+  HTTP/2 connection is up, every request on it goes to the same Pod, and Pods added later get no traffic. Set
+  `MaxConnectionAge` on the server (connections are rebuilt and rebalanced from time to time), or balance on the client.
+  On Docker / Podman each component is one container, and the problem doesn't arise.
+- **A deadline on every call, and keepalive**; retry automatically only idempotent methods.
+
 ## Calling a member inside a shell
 
 When a component you depend on is compiled into a shell, the `*_ENDPOINT` you receive names the shell's service with the

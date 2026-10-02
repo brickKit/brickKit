@@ -130,6 +130,11 @@ the deploy file's choice (members nested under the shell entry), and may be none
 enters the project together with its first member: build that member, list it in `shell.members`,
 then `brickkit add` the shell. Callers keep using a hosted member's own service name — it resolves to
 the shell (a network alias on Docker / Podman, a Service selecting the shell's Pod on Kubernetes).
+Members share one process, so process-wide things must not leak between them: per member — its own
+`config` item (never `os.Getenv`), telemetry provider with `service.name` = its component ID, metrics
+registry, database pool, resource limits; session settings (`SET ROLE`, `search_path`) only as
+`SET LOCAL`; once, by the shell — signal handling, the log sink, framework-wide switches
+(`brickkit docs 04-shell/05-shell-development`, "One process, several members").
 
 **12. A component carries five documents, each for one reader — keep them in step with the code.**
 

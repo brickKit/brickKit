@@ -79,6 +79,19 @@ Go 的 `net/http.Client`、Python 的 `requests.Session()`、Node.js 的 `http.A
 **没抹掉的是**：旧 Pod 的进程一退出，**那条 TCP 连接本身**照样死掉。Python 和 Node.js 那种连接池卡顿不是 Docker 独有的，
 同样的建议（显式超时、失败可重试）在 K8s 下原封不动适用。
 
+## 用 gRPC 调用
+
+依赖声明了一个 gRPC 额外端口（比如 `extraPorts: [{name: grpc, port: 9090}]`）时，你拿到的是 `<依赖>_GRPC_ENDPOINT`。上面的结论同样适用，另外几件事是 gRPC 特有的：
+
+- **去掉 `http://` 再拨号。** 地址变量统一写成 `http://<服务名>:<端口>`，那只是统一格式，不代表这个端口说 HTTP/1。gRPC 客户端要的是 `<服务名>:<端口>`
+  （或 `dns:///<服务名>:<端口>`）。
+- **用对端口名。** 主端口的 `*_ENDPOINT` 指向依赖的 HTTP 端口；拿它去拨 gRPC，TCP 连得上，第一次调用才失败，报的是协议层的错
+  （Go 里常见的是 `error reading server preface: http2: frame too large`）。看到这类错，先确认用的是 `_GRPC_ENDPOINT`。
+- **一个依赖一条连接，整个进程复用。** 不要每次请求都重新拨号——那会掩盖下面这个问题，也白白付出握手的开销。
+- **K8s 多副本时，长连接会被钉在一个 Pod 上。** ClusterIP 在第四层分流，一条 HTTP/2 连接建立之后，它上面的所有请求都去同一个 Pod，
+  后来扩出来的 Pod 收不到流量。服务端设 `MaxConnectionAge`（连接定期重建、重新分流），或者客户端自己做负载均衡。Docker / Podman 下每个组件只有一个容器，没有这个问题。
+- **每次调用设截止时间（deadline），配上 keepalive**；只对幂等的方法自动重试。
+
 ## 调用外壳里的成员
 
 依赖的组件被编进了一个外壳时，你拿到的 `*_ENDPOINT` 写的是外壳的服务名加成员自己的端口：`http://<外壳的服务名>:<成员的端口>`

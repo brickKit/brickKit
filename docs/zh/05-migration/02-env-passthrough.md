@@ -88,3 +88,21 @@ dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 - **库由使用方准备。** 平台不创建数据库：`DB_NAME` 指向的库要先存在（运维创建一次），表由迁移创建。
 
 依赖地址也一样透传：迁移需要调用别的组件时（比如迁移前先向某个服务注册），它同样拿到 `*_ENDPOINT`。
+
+## 迁移要走另一条连接时
+
+服务经过连接池（比如 transaction 模式的 PgBouncer），迁移却必须直连数据库（DDL、咨询锁、会话级设置）；或者迁移要用权限更高的角色。
+平台不给迁移单独改环境变量——迁移读到的每个值，都应该能在这个组件的 `config/` 文件里看到。这是组件自己的一个事实，就在 `configSchema` 里声明成它自己的键：
+
+```yaml
+configSchema:
+  properties:
+    DB_HOST:
+      type: string
+      description: 服务连的地址（可以是连接池）
+    DB_MIGRATION_HOST:
+      type: string
+      description: 迁移直连数据库的地址；不填时迁移也用 DB_HOST
+```
+
+迁移命令读 `DB_MIGRATION_HOST`，为空就退回 `DB_HOST`。这样它出现在说明书里，项目知道要填，`lint` 也核对键名。

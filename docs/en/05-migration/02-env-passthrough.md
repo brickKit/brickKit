@@ -95,3 +95,24 @@ dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 
 Dependency addresses are passed through the same way: when a migration needs to call another component (registering with
 some service before migrating, say), it gets the `*_ENDPOINT` variables too.
+
+## When the migration needs another connection
+
+The service goes through a connection pool (PgBouncer in transaction mode, say) while the migration has to reach the
+database directly (DDL, advisory locks, session settings); or the migration needs a more privileged role. The platform
+doesn't change environment variables for the migration alone — every value a migration reads should be visible in the
+component's `config/` file. It is a fact of the component, so declare it as the component's own key in `configSchema`:
+
+```yaml
+configSchema:
+  properties:
+    DB_HOST:
+      type: string
+      description: Where the service connects (may be a pool)
+    DB_MIGRATION_HOST:
+      type: string
+      description: Where the migration connects directly; when empty, the migration uses DB_HOST too
+```
+
+The migration command reads `DB_MIGRATION_HOST` and falls back to `DB_HOST` when it's empty. That way it appears in the
+spec sheet, the project knows to fill it in, and `lint` checks the key name.

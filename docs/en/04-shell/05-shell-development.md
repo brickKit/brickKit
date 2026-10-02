@@ -149,6 +149,38 @@ A few things to do exactly this way:
 - **The health check checks only the shell's process itself.** A module that fails to initialise should make the whole
   shell fail to start, rather than report healthy with a dead module inside.
 
+## One process, several members: what belongs to whom
+
+Running alone, a member owns its process, and process-wide things (globals, default registries, environment variables,
+session settings on a connection) are its to use as it likes. In a shell, several members share one process, these things
+become shared, and the commonest mistake is "the last one to initialise wins" — with no error, only quiet cross-talk. The
+rules:
+
+| Thing | Belongs to | What goes wrong otherwise |
+| --- | --- | --- |
+| Configuration | Each member: its own item's `config` | `os.Getenv` doesn't find a member's config; whoever writes config back into the process environment (`setenv`) makes members overwrite each other |
+| The tracing / metrics provider and `service.name` | One per member, `service.name` set to the member's component ID | Set as the global default, the last to initialise wins, and every member's traces land under one name |
+| The metrics registry | One per member (or one shared, with the member as a label on every metric) | All registering into the default registry, the second module to register a metric of the same name fails at once |
+| Database pool, database role | Each member's own pool | With one shared pool, one member's slow queries take every connection and the others time out with it |
+| Session-level database settings (`SET ROLE`, `search_path`) | Transaction-level only (`SET LOCAL`), or set again every time a connection is borrowed | A connection goes back to the pool still carrying the setting, and the next member to borrow it runs in someone else's schema. PostgreSQL's `ALTER ROLE … SET` applies to the login role only, not after `SET ROLE` |
+| Resource budgets (connections, concurrency, queue length) | A limit per member | One member eats the process's resources, and every other member in it slows down |
+| Signal handling, where logs go | The shell, initialised once: on `SIGTERM` it closes each member in turn; the shell decides the log format and destination, and every line carries the member's component ID | Each module installs its own signal handler and changes the global log setup; whoever goes last decides the behaviour |
+| Framework-wide switches (a web framework's run mode, say) | The shell, set once | Each module sets it again, and the last one counts |
+
+The rules hold for a member running alone too, so member code written to them needs no change to go into a shell or come
+out of one.
+
+### Metrics
+
+Inside a shell a member still serves on its own port, and its own service name still resolves: a network alias of the
+shell's container on Docker / Podman, a Service selecting the shell's Pod on K8s (see the next section). So each member
+keeps serving `/metrics` on its own port (from its own registry), and monitoring scrapes "member service name + member
+port": static targets once Prometheus joins the project network, or the member's Service on K8s.
+
+One approach doesn't work: discovery by container label (or a Pod's `prometheus.io/port` annotation). A shell has one
+container, one Pod, and so one port to declare; a member's `labels` don't apply inside a shell either. To scrape that way,
+have the shell gather its members' metrics on one endpoint of its own, each metric labelled with the member's component ID.
+
 ## How addresses are pointed at it
 
 Callers don't know the other end is a shell. The platform connects the addresses for it in two places:

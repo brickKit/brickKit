@@ -21,8 +21,8 @@ reads it whole. `00-core` alone — AGENTS.md plus the core pages — is enough 
 - [llms/en/01.md](llms/en/01.md): docs/en/README.md … docs/en/02-project-guide/README.md
 - [llms/en/02.md](llms/en/02.md): docs/en/02-project-guide/01-init-and-project-creation.md … docs/en/02-project-guide/09-status-and-graph.md
 - [llms/en/03.md](llms/en/03.md): docs/en/02-project-guide/10-lint-and-checks.md … docs/en/03-component-guide/07-release-workflow.md
-- [llms/en/04.md](llms/en/04.md): docs/en/03-component-guide/08-component-doc-spec.md … docs/en/06-architecture/01-pipeline-overview.md
-- [llms/en/05.md](llms/en/05.md): docs/en/06-architecture/02-dependency-resolution.md … docs/en/06-architecture/04-deploy-file-generation.md
+- [llms/en/04.md](llms/en/04.md): docs/en/03-component-guide/08-component-doc-spec.md … docs/en/06-architecture/README.md
+- [llms/en/05.md](llms/en/05.md): docs/en/06-architecture/01-pipeline-overview.md … docs/en/06-architecture/04-deploy-file-generation.md
 - [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/05-design-principles.md … docs/en/06-architecture/08-security-and-signing.md
 - [llms/en/07.md](llms/en/07.md): docs/en/06-architecture/09-error-codes.md … docs/en/07-cli-reference/README.md
 - [llms/en/08.md](llms/en/08.md): docs/en/08-ai-guide/README.md … docs/en/09-patterns/04-service-calling.md
