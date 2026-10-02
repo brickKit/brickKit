@@ -25,8 +25,8 @@ description: Use when the user brings a new requirement, a feature or a change i
 | Check | Where it's written | When it fails |
 | --- | --- | --- |
 | The owner's boundary | Its `BRICKKIT.md` Purpose | It needs the component to own something listed under "does not own": that's a boundary change — the person decides |
-| Project conventions | `Conventions` in the project's `AGENTS.md` | It breaks a convention: the person decides |
-| Recorded decisions | The project's `docs/decisions/`, the component's `Design decisions` and `docs/` | It reverses a decision: quote it, the person decides |
+| Project conventions | `Conventions` in the project's `AGENTS.md`, and the detailed rules it links | It breaks a convention: the person decides |
+| Recorded decisions | Where the project's `AGENTS.md` says decisions are kept (its `Where to look` table; `docs/decisions/` when it doesn't say), the component's `Design decisions` and `docs/` | It reverses a decision: quote it, the person decides |
 | Dependency direction | `brickkit deps <id>` / `brickkit graph` | A new dependency would make a cycle, or point against the direction the design allows |
 | Contract compatibility | The contract files under `artifacts` | Adding is a minor version; removing or changing meaning is a major version, and every consumer has to move |
 

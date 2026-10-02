@@ -6,11 +6,11 @@ The AI guide to this project: what it is, the rules every component here follows
 
 ## Conventions
 
-<!-- TODO: the rules every component in this project follows: stack, port and schema registries, naming, review rules — components never repeat them -->
+<!-- TODO: the rules every component in this project follows, one line each: stack, port and schema registries, naming, review rules — components never repeat them; a rule that needs more links its full text in docs/ -->
 
 ## Where to look
 
-<!-- TODO: a table: what you are doing (the words you would search for) → the file to read first; last line: not here? the component table below, then the component's AGENTS.md -->
+<!-- TODO: a table: what you are doing (the words you would search for) → the file to read first; include where the detailed conventions, the decisions (a change that may go against one) and the operations docs are; last line: not here? the component table below, then the component's AGENTS.md -->
 
 ## Pitfalls
 

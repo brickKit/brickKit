@@ -243,8 +243,8 @@ still there):
 | Section | What goes in it |
 | --- | --- |
 | Overview | What this project is, its domains, how its components group |
-| Conventions | The rules every component here follows — stack, port and schema registries, naming, review rules — so that no component has to repeat them |
-| Where to look | A table: what you are doing (the words you would search for) → the file to read first |
+| Conventions | The rules every component here follows — stack, port and schema registries, naming, review rules — so that no component has to repeat them. One line each; a rule that needs more links its full text in `docs/` |
+| Where to look | A table: what you are doing (the words you would search for) → the file to read first. Include where the detailed conventions, the decisions and the operations docs are (see [The project's other documents](#the-projects-other-documents)): skills look them up here |
 | Pitfalls | A table: Never / Symptom / Why — mistakes that hold for every component in this project |
 
 ### The block at the end
