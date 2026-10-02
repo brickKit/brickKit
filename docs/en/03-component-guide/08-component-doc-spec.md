@@ -109,7 +109,8 @@ optional `metadata.repository` (the component's repository or page) in the compo
 ## `docs/`
 
 Optional. Create it when the files above can't hold something: `docs/design.md` (revise it before the code when the
-design changes), `docs/decisions/NNNN-<title>.md` (one decision per file, numbered, never renumbered),
+design changes), `docs/decisions/NNNN-<title>.md` (one decision per file; the number is its name — see
+[Numbering decisions](../02-project-guide/01-init-and-project-creation.md#numbering-decisions)),
 `docs/data-model.md`. Link every file in it from `AGENTS.md` or `README.md`. A component's design lives in the
 component repository, so it travels with the component's versions.
 

@@ -15,10 +15,10 @@ AGENTS.zh.md 加上几篇核心页——就足以理解、讨论 BrickKit。
 
 <!-- llms:bundles:begin -->
 - [llms/zh/00-core.md](llms/zh/00-core.md): AGENTS.zh.md … docs/zh/01-three-layers/09-field-reference.md
-- [llms/zh/01.md](llms/zh/01.md): docs/zh/README.md … docs/zh/02-project-guide/02-add-and-component-install.md
-- [llms/zh/02.md](llms/zh/02.md): docs/zh/02-project-guide/03-local-debug-workflow.md … docs/zh/03-component-guide/02-component-yaml-reference.md
-- [llms/zh/03.md](llms/zh/03.md): docs/zh/03-component-guide/03-config-schema-design.md … docs/zh/04-shell/06-special-characters.md
-- [llms/zh/04.md](llms/zh/04.md): docs/zh/04-shell/07-shell-upgrade.md … docs/zh/06-architecture/04-deploy-file-generation.md
+- [llms/zh/01.md](llms/zh/01.md): docs/zh/README.md … docs/zh/02-project-guide/01-init-and-project-creation.md
+- [llms/zh/02.md](llms/zh/02.md): docs/zh/02-project-guide/02-add-and-component-install.md … docs/zh/03-component-guide/01-component-anatomy.md
+- [llms/zh/03.md](llms/zh/03.md): docs/zh/03-component-guide/02-component-yaml-reference.md … docs/zh/04-shell/04-members-management.md
+- [llms/zh/04.md](llms/zh/04.md): docs/zh/04-shell/05-shell-development.md … docs/zh/06-architecture/04-deploy-file-generation.md
 - [llms/zh/05.md](llms/zh/05.md): docs/zh/06-architecture/05-design-principles.md … docs/zh/06-architecture/08-security-and-signing.md
 - [llms/zh/06.md](llms/zh/06.md): docs/zh/06-architecture/09-error-codes.md … docs/zh/08-ai-guide/01-ai-routing-table.md
 - [llms/zh/07.md](llms/zh/07.md): docs/zh/08-ai-guide/02-ai-dev-workflow.md … docs/zh/10-troubleshooting/README.md

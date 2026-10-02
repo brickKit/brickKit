@@ -92,7 +92,7 @@ brickkit 只写这对标记之间的内容；这段文字比当前 CLI 写的旧
 
 ## `docs/`
 
-可选。上面几份写不下时再建：`docs/design.md`（设计变了，先改它再改代码）、`docs/decisions/NNNN-<标题>.md`（一个决策一份，编号，永不重排）、
+可选。上面几份写不下时再建：`docs/design.md`（设计变了，先改它再改代码）、`docs/decisions/NNNN-<标题>.md`（一个决策一份；编号就是它的名字，见[决策怎么编号](../02-project-guide/01-init-and-project-creation.md#决策怎么编号)）、
 `docs/data-model.md`。里面的每个文件都要能从 `AGENTS.md` 或 `README.md` 链过去。组件的设计放在组件仓库里，才会跟着组件的版本走。
 
 ## 写多种语言
