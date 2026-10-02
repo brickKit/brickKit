@@ -63,11 +63,21 @@ brickkit remove shop/shell
 ## 外壳里的成员哪些字段不生效
 
 成员条目是完整的部署条目，但外壳承载它时，描述"它自己的容器怎么部署"的字段**不生效，也不警告**：
-`expose`、`exposePort`、`hostname`、`tlsSecret`、`replicas`、`resources`、`serviceAccountName`、`labels`。它这次没有自己的容器，这些字段无处可用。
+`replicas`、`resources`、`serviceAccountName`、`labels`。它这次没有自己的容器，这些字段无处可用。
 它们留在条目上是有用的：外壳不跑、成员回落成独立组件时，它们就生效。
 
 同样，成员 `component.yaml` 里的 `healthCheck` 在外壳里不用——健康检查的是外壳这个进程，用外壳自己的 `healthCheck`。
-成员的端口要对外开放，在外壳里没有办法单独开；需要单独对外开放的成员，不要放进外壳。
+
+**对外开放是例外：外壳替成员开。** 外壳进程按每个成员声明的端口监听（生成期就核对过，成员的 `*_ENDPOINT` 也靠这一条），
+所以成员条目上的 `expose`、`exposePort`、`hostname`、`tlsSecret` 照常生效，落在外壳身上：
+
+| 目标 | 成员写了 `expose: true` 时 |
+| --- | --- |
+| Docker / Podman | 外壳的容器多一条端口映射：宿主机的 `exposePort`（没写就是成员的主端口）→ 容器里成员的主端口。和别的 `expose` 撞端口时在生成期报错 |
+| Kubernetes | 成员有一条自己的 Ingress（`hostname`、`tlsSecret` 照写），指向成员自己的 Service——那个 Service 选中的是外壳的 Pod。开了 `networkPolicy` 时，外壳的策略放 ingress controller 进成员的端口 |
+
+所以一个小的对外组件（BFF、接 webhook 的适配器）也可以进外壳省内存。外壳以裸进程跑（`mode: local` / `debug`）时，成员的端口本来就开在
+宿主机上，`expose` 只给一条警告，说清地址。
 
 ## 合并造成的启动环与 `skipWaitFor`
 

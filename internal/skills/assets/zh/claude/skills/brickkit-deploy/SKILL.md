@@ -124,7 +124,7 @@ components:
 ```
 
 成员条目是完整的部署条目，只是挪了位置。外壳在跑时，成员没有自己的容器，`*_ENDPOINT` 指向外壳；
-成员自己的 expose / labels / 健康检查不生效。成员写 `mode: debug` / `mode: local` 就离开外壳、
+成员自己的 labels / 健康检查不生效；成员的 `expose` 由外壳替它开（Docker 上映射在外壳容器上，K8s 上是指向成员 Service 的 Ingress）。成员写 `mode: debug` / `mode: local` 就离开外壳、
 单独以裸进程跑。调用方照旧用成员自己的服务名：docker / podman 上外壳的容器把每个被承载成员的服务名挂成网络别名，
 k8s 上每个成员有一个选中外壳 Pod 的 Service——种子数据脚本、跨组件测试的寻址都不用改。**承载的成员版本必须等于外壳 `component.yaml` 编进的版本**，否则报错并给三条出路：
 升级外壳；把成员条目挪出外壳独立跑；两个都要——给编进的版本加一行 `requiredBy: [<外壳>]`、把

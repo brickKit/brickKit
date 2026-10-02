@@ -203,12 +203,6 @@ func Generate(
 				return nil, err
 			}
 		}
-		if c.Entry.Expose {
-			if err := p.emit(result, proj, now,
-				dirIngress+"/"+c.Service+".yaml", p.ingressDoc(c)); err != nil {
-				return nil, err
-			}
-		}
 		if c.Manifest.Migration != nil {
 			job := MigrationJobName(c.Service)
 			if err := p.emit(result, proj, now,
@@ -220,6 +214,12 @@ func Generate(
 	for _, m := range p.served {
 		if err := p.emit(result, proj, now,
 			dirServices+"/"+m.Service+".yaml", p.servedServiceDoc(m)); err != nil {
+			return nil, err
+		}
+	}
+	for _, e := range p.exposed() {
+		if err := p.emit(result, proj, now,
+			dirIngress+"/"+e.Service+".yaml", p.ingressDoc(e)); err != nil {
 			return nil, err
 		}
 	}

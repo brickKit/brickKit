@@ -70,14 +70,25 @@ and their config is kept.
 ## Fields that do nothing for a member in a shell
 
 A member entry is a full deploy entry, but while a shell hosts it, the fields describing "how its own container is
-deployed" **do nothing, without a warning**: `expose`, `exposePort`, `hostname`, `tlsSecret`, `replicas`, `resources`,
-`serviceAccountName`, `labels`. It has no container of its own this time, so there's nowhere for them to apply. Keeping
-them on the entry is useful: when the shell doesn't run and the member falls back to a standalone component, they take
-effect.
+deployed" **do nothing, without a warning**: `replicas`, `resources`, `serviceAccountName`, `labels`. It has no container
+of its own this time, so there's nowhere for them to apply. Keeping them on the entry is useful: when the shell doesn't
+run and the member falls back to a standalone component, they take effect.
 
 Likewise, the `healthCheck` in a member's `component.yaml` isn't used inside a shell — what's health-checked is the shell's
-process, with the shell's own `healthCheck`. A member's port can't be opened to the outside on its own while it's inside a
-shell; a member that needs its own external exposure shouldn't go into a shell.
+process, with the shell's own `healthCheck`.
+
+**Exposure is the exception: the shell opens it for the member.** The shell's process listens on each member's declared
+port (checked when the files are generated; a member's `*_ENDPOINT` relies on it too), so `expose`, `exposePort`,
+`hostname` and `tlsSecret` on a member entry take effect as usual, on the shell:
+
+| Target | When a member says `expose: true` |
+| --- | --- |
+| Docker / Podman | The shell's container gets one more port mapping: the host's `exposePort` (the member's main port when there is none) → the member's main port inside the container. A clash with another `expose` is an error when the files are generated |
+| Kubernetes | The member gets its own Ingress (with its `hostname` and `tlsSecret`), pointing at the member's own Service — which selects the shell's Pod. With `networkPolicy` on, the shell's policy lets the ingress controller in on the member's port |
+
+So a small component facing the outside (a BFF, an adapter receiving webhooks) can go into a shell to save memory too.
+When the shell runs as a process (`mode: local` / `debug`), the member's port is already open on the host, and `expose`
+only gets a warning that says where.
 
 ## Start cycles caused by merging, and `skipWaitFor`
 

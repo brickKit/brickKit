@@ -4,6 +4,7 @@ package k8s_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -379,4 +380,58 @@ func TestK8sShellWithoutMembersStillGetsReservedVariables(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "", value)
 	assert.Contains(t, env, shell.EnvVarServedMembersConfig)
+}
+
+// ---- 外壳替成员对外开放 ----
+
+// 成员条目写了 expose：它没有自己的 Pod，可它有自己的 Service（指向外壳的 Pod、端口是它自己的），
+// 所以 Ingress 照常生成、指向成员的 Service——成员条目上的 expose / hostname / tlsSecret 不再静默不生效。
+func TestShellPublishesExposedMemberThroughMemberService(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
+	member := servedByEntry("infra/shell-go-core", "1.0.0")
+	member.Expose, member.Hostname, member.TLSSecret = true, "m.example.com", "m-tls"
+	b.component(simple("infra/bff-mobile", "1.0.0", 8085), member)
+
+	doc := b.doc("ingress/infra-bff-mobile-1-0-0.yaml")
+	rule := dig(t, doc, "spec", "rules").([]any)[0].(map[string]any)
+	assert.Equal(t, "m.example.com", rule["host"])
+	backend := dig(t, rule, "http", "paths").([]any)[0].(map[string]any)["backend"].(map[string]any)["service"].(map[string]any)
+	assert.Equal(t, "infra-bff-mobile-1-0-0", backend["name"], "指向成员自己的 Service，由它选中外壳的 Pod")
+	assert.Equal(t, map[string]any{"number": 8085}, backend["port"])
+	assert.Equal(t, "m-tls", dig(t, doc, "spec", "tls").([]any)[0].(map[string]any)["secretName"])
+	assert.False(t, hasFile(b.generate(), "ingress/infra-shell-go-core-1-0-0.yaml"), "外壳自己没写 expose")
+}
+
+// 开了 NetworkPolicy 时，外壳 Pod 的策略要放 ingress controller 进成员的主端口，否则域名能解析、请求进不来。
+func TestShellNetworkPolicyAdmitsIngressControllerToExposedMember(t *testing.T) {
+	b := withNetworkPolicy(newBuilder(t))
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
+	member := servedByEntry("infra/shell-go-core", "1.0.0")
+	member.Expose, member.Hostname = true, "m.example.com"
+	b.component(simple("infra/bff-mobile", "1.0.0", 8085), member)
+
+	var admitted bool
+	for _, r := range ingressRules(t, b.doc(npPath("infra-shell-go-core-1-0-0"))) {
+		rule := r.(map[string]any)
+		from := rule["from"].([]any)[0].(map[string]any)
+		if _, ok := from["namespaceSelector"]; ok && fmt.Sprint(rule["ports"]) == fmt.Sprint([]any{map[string]any{"protocol": "TCP", "port": 8085}}) {
+			admitted = true
+		}
+	}
+	assert.True(t, admitted, "外壳的策略里要有 ingress controller → 8085")
+}
+
+// 成员与别的组件抢同一个域名：和组件之间一样在生成期拦下（成员写了 expose 却没写 hostname，部署文件校验已经拦下）。
+func TestExposedMemberHostnameIsCheckedLikeAnyComponent(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("infra/shell-go-core", "1.0.0", 9000), projecttest.Entry{})
+	member := servedByEntry("infra/shell-go-core", "1.0.0")
+	member.Expose, member.Hostname = true, "shop.example.com"
+	b.component(simple("infra/bff-mobile", "1.0.0", 8085), member)
+	b.component(simple("portal/web", "1.0.0", 8080), projecttest.Entry{Expose: true, Hostname: "shop.example.com"})
+	_, err := b.build()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "shop.example.com")
+	assert.Contains(t, err.Error(), "infra/bff-mobile@1.0.0")
 }

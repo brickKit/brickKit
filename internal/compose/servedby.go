@@ -140,6 +140,46 @@ func (p *plan) bareShell(shellRef resolver.Ref) bool {
 	return p.proj.DeployEntry(shellRef.ID, shellRef.Version).IsBareProcess()
 }
 
+// exposedMembers 是被**容器**外壳承载、条目写了 expose 的成员：外壳的容器替它们把成员的主端口发布到宿主机。
+// 外壳进程按成员声明的端口监听（shell.checkPortConflicts 在生成期守着；成员的 *_ENDPOINT 地址靠的也是它），
+// 所以成员条目上的 expose / exposePort 有落脚处，不该静默不生效。外壳是裸进程时不在这里——那时成员的端口
+// 本来就开在宿主机上，见 bareShellExposeWarnings。
+func (p *plan) exposedMembers() []servedComponent {
+	var out []servedComponent
+	for _, s := range p.served {
+		if s.Entry.Expose && s.Manifest != nil && !p.bareShell(s.Shell) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// memberExposeHostPort 是外壳替成员发布的宿主机端口：exposePort 优先，否则用成员的主端口（与 exposeHostPort 同一条规则）。
+func memberExposeHostPort(s servedComponent) int {
+	if s.Entry.ExposePort > 0 {
+		return s.Entry.ExposePort
+	}
+	return s.Manifest.Deployment.Port
+}
+
+// bareShellExposeWarnings：裸进程外壳承载的成员写了 expose——外壳进程就在宿主机上，成员的端口本来就开在那里，
+// 没有容器端口可映射。与 localExposeWarnings 同一种处理：不报错，说清楚东西实际在哪。
+func (p *plan) bareShellExposeWarnings() []*clierr.Error {
+	var out []*clierr.Error
+	for _, s := range p.served {
+		if (!s.Entry.Expose && s.Entry.ExposePort == 0) || s.Manifest == nil || !p.bareShell(s.Shell) {
+			continue
+		}
+		mode := p.proj.DeployEntry(s.Shell.ID, s.Shell.Version).Mode
+		out = append(out, clierr.Warn(clierr.CodeConfigInvalid,
+			i18n.T(msgid.ComposeLocalFieldsIgnored, mode, "expose")).
+			WithDetail(i18n.T(msgid.LabelComponent), refText(s.Ref)).
+			WithDetail(i18n.T(msgid.LabelReason), i18n.T(msgid.ComposeLocalNoPortToMapDetail)).
+			WithDetail(i18n.T(msgid.ComposeLabelActualAddress), i18n.T(msgid.ComposeActualAddressDetail, s.Manifest.Deployment.Port)))
+	}
+	return out
+}
+
 // hostMember 报告 ref 是不是被一个裸进程外壳承载的成员（这次在宿主机上，由外壳进程替它监听端口）。
 func (p *plan) hostMember(ref resolver.Ref) (servedComponent, bool) {
 	for _, s := range p.served {

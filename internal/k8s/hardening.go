@@ -169,18 +169,21 @@ func (p *plan) servedMemberIngressRules(c componentPlan) []any {
 
 	var rules []any
 	for _, m := range members {
-		memberNode := p.graph.Node(m.Ref)
-		if memberNode == nil {
-			continue
+		if memberNode := p.graph.Node(m.Ref); memberNode != nil {
+			if from := p.dependentsOf(memberNode); len(from) > 0 {
+				rules = append(rules, map[string]any{
+					"from":  from,
+					"ports": policyPorts(allPortsOf(m.Manifest)),
+				})
+			}
 		}
-		from := p.dependentsOf(memberNode)
-		if len(from) == 0 {
-			continue
+		// 外壳替成员对外开放：ingress controller 要能打到外壳 Pod 上成员的主端口（见 exposedEntry）
+		if m.Entry.Expose && m.Manifest != nil {
+			rules = append(rules, map[string]any{
+				"from":  []any{p.ingressControllerSource()},
+				"ports": policyPorts([]int{m.Manifest.Deployment.Port}),
+			})
 		}
-		rules = append(rules, map[string]any{
-			"from":  from,
-			"ports": policyPorts(allPortsOf(m.Manifest)),
-		})
 	}
 	return rules
 }
@@ -304,10 +307,8 @@ func (p *plan) checkIngressController() error {
 	}
 
 	var exposed []resolver.Ref
-	for _, c := range p.components {
-		if c.Entry.Expose {
-			exposed = append(exposed, c.Ref)
-		}
+	for _, e := range p.exposed() {
+		exposed = append(exposed, e.Ref)
 	}
 	if len(exposed) == 0 {
 		return nil

@@ -52,28 +52,26 @@ func servicePorts(m *manifest.Manifest) []any {
 }
 
 // ingressDoc 渲染 Ingress。只有 expose: true 的组件才有。
-func (p *plan) ingressDoc(c componentPlan) map[string]any {
+func (p *plan) ingressDoc(e exposedEntry) map[string]any {
 	// 集群侧的注解（cert-manager 签证书、nginx 调参数……）原样透传：
 	// 平台不认识它们，也不该认识。平台自己的注解放在后面，不会被挤掉
 	annotations := map[string]any{}
 	for key, value := range p.proj.Deploy.Settings().IngressAnnotations {
 		annotations[key] = value
 	}
-	for key, value := range p.annotationsOf(c) {
-		annotations[key] = value
-	}
+	annotations[annotationComponentID] = e.Ref.ID
 
 	spec := map[string]any{
 		"rules": []any{map[string]any{
-			"host": c.Entry.Hostname,
+			"host": e.Entry.Hostname,
 			"http": map[string]any{
 				"paths": []any{map[string]any{
 					"path":     "/",
 					"pathType": "Prefix",
 					"backend": map[string]any{
 						"service": map[string]any{
-							"name": c.Service,
-							"port": map[string]any{"number": c.Manifest.Deployment.Port},
+							"name": e.Service,
+							"port": map[string]any{"number": e.Port},
 						},
 					},
 				}},
@@ -86,9 +84,9 @@ func (p *plan) ingressDoc(c componentPlan) map[string]any {
 	if class := p.proj.Deploy.Settings().IngressClass; class != "" {
 		spec["ingressClassName"] = class
 	}
-	if secret := c.Entry.TLSSecret; secret != "" {
+	if secret := e.Entry.TLSSecret; secret != "" {
 		spec["tls"] = []any{map[string]any{
-			"hosts":      []any{c.Entry.Hostname},
+			"hosts":      []any{e.Entry.Hostname},
 			"secretName": secret,
 		}}
 	}
@@ -97,9 +95,14 @@ func (p *plan) ingressDoc(c componentPlan) map[string]any {
 		"apiVersion": "networking.k8s.io/v1",
 		"kind":       "Ingress",
 		"metadata": map[string]any{
-			"name":        c.Service,
-			"namespace":   p.namespace,
-			"labels":      p.labelsOf(c),
+			"name":      e.Service,
+			"namespace": p.namespace,
+			"labels": map[string]any{
+				labelApp:              e.Service,
+				labelComponent:        containerName(e.Ref.ID),
+				labelComponentVersion: e.Ref.Version,
+				labelProject:          p.proj.Decl.Project,
+			},
 			"annotations": annotations,
 		},
 		"spec": spec,
@@ -125,9 +128,9 @@ func (p *plan) checkHostnames() error {
 // 顶掉了门户站点，而 kubectl apply 不会有任何抱怨。
 func (p *plan) checkHostnamePresent() error {
 	var missing []resolver.Ref
-	for _, c := range p.components {
-		if c.Entry.Expose && c.Entry.Hostname == "" {
-			missing = append(missing, c.Ref)
+	for _, e := range p.exposed() {
+		if e.Entry.Hostname == "" {
+			missing = append(missing, e.Ref)
 		}
 	}
 	if len(missing) == 0 {
@@ -176,15 +179,15 @@ func (p *plan) checkHostnameUnique() error {
 	// 按 hostname 归集，值是占用它的组件（按服务名排序，输出稳定）
 	claimed := map[string][]resolver.Ref{}
 	var hosts []string
-	for _, c := range p.components {
-		if !c.Entry.Expose || c.Entry.Hostname == "" {
+	for _, e := range p.exposed() {
+		if e.Entry.Hostname == "" {
 			continue
 		}
-		host := c.Entry.Hostname
+		host := e.Entry.Hostname
 		if _, seen := claimed[host]; !seen {
 			hosts = append(hosts, host)
 		}
-		claimed[host] = append(claimed[host], c.Ref)
+		claimed[host] = append(claimed[host], e.Ref)
 	}
 	sort.Strings(hosts)
 

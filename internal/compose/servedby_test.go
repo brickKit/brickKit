@@ -626,3 +626,49 @@ func TestBareShellHostedMigrationInVersionChain(t *testing.T) {
 	assert.Equal(t, []string{"erp-a-2-0-0-migration"}, build("2.0.0", "1.0.0").RunAfter,
 		"2.0.0 的迁移 up 带不到，up 之后单独跑")
 }
+
+// ---- 外壳替成员对外开放 ----
+
+// 成员条目写了 expose：外壳进程按成员声明的端口监听，所以宿主机端口映射开在外壳的容器上，
+// 容器端口是成员自己的主端口；写了 exposePort 就用它。成员的 expose 不再静默不生效。
+func TestShellPublishesExposedMemberPort(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})
+	bff := servedByEntry("erp/shell", "1.0.0")
+	bff.Expose = true
+	b.component(simple("erp/bff", "1.0.0", 8085), bff)
+	hook := servedByEntry("erp/shell", "1.0.0")
+	hook.Expose, hook.ExposePort = true, 9000
+	b.component(simple("erp/hook", "1.0.0", 8086), hook)
+	b.component(simple("erp/inner", "1.0.0", 8087), servedByEntry("erp/shell", "1.0.0"))
+
+	assert.Equal(t, []string{"8085:8085", "9000:8086"}, portsOf(t, serviceOf(t, b.parsed(), "erp-shell-1-0-0")))
+}
+
+// 成员发布的端口与别的组件的 expose 撞了：和两个组件互撞一样在生成期报出来，点名两边。
+func TestExposedMemberPortConflictIsCaught(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{})
+	bff := servedByEntry("erp/shell", "1.0.0")
+	bff.Expose = true
+	b.component(simple("erp/bff", "1.0.0", 8085), bff)
+	b.component(simple("portal/web", "1.0.0", 80), projecttest.Entry{Expose: true, ExposePort: 8085})
+
+	_, err := b.build(compose.Options{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "erp/bff@1.0.0")
+	assert.Contains(t, err.Error(), "portal/web@1.0.0")
+}
+
+// 外壳是裸进程：成员的端口本来就开在宿主机上，没有容器端口可映射——警告并说清地址，不报错。
+func TestBareShellExposedMemberWarns(t *testing.T) {
+	b := newBuilder(t)
+	b.component(simple("erp/shell", "1.0.0", 8080), projecttest.Entry{Mode: deployfile.ModeDebug, LocalPort: 18000})
+	bff := servedByEntry("erp/shell", "1.0.0")
+	bff.Expose = true
+	b.component(simple("erp/bff", "1.0.0", 8085), bff)
+
+	warnings := joinWarnings(b.generate().Warnings)
+	assert.Contains(t, warnings, "erp/bff@1.0.0")
+	assert.Contains(t, warnings, "8085")
+}

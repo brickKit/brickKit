@@ -321,6 +321,7 @@ func newPlan(
 
 	p.warnings = append(p.warnings, p.localMigrationWarnings()...)
 	p.warnings = append(p.warnings, p.localExposeWarnings()...)
+	p.warnings = append(p.warnings, p.bareShellExposeWarnings()...)
 	p.warnings = append(p.warnings, p.localLabelWarnings()...)
 	p.warnings = append(p.warnings, p.fallbackStandaloneWarnings()...)
 	p.warnings = append(p.warnings, p.bareSkipWaitForWarnings()...)
@@ -394,11 +395,21 @@ func (p *plan) checkExposePorts() error {
 	// exposePort 无所谓——两种情况的出路是同一条（给其中一个设 exposePort）
 	claimed := map[int]string{}
 
+	type claim struct {
+		Ref      resolver.Ref
+		hostPort int
+	}
+	var claims []claim
 	for _, c := range p.components {
-		if !c.Entry.Expose {
-			continue
+		if c.Entry.Expose {
+			claims = append(claims, claim{c.Ref, exposeHostPort(c)})
 		}
-		hostPort := exposeHostPort(c)
+	}
+	for _, s := range p.exposedMembers() {
+		claims = append(claims, claim{s.Ref, memberExposeHostPort(s)})
+	}
+	for _, c := range claims {
+		hostPort := c.hostPort
 		if previous, taken := claimed[hostPort]; taken {
 			return clierr.New(clierr.CodePortConflict,
 				i18n.T(msgid.ComposeHostPortConflict, hostPort)).

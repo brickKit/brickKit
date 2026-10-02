@@ -270,6 +270,14 @@ func (p *plan) assignHostPorts() error {
 		}
 		p.exposedPort[c.Service] = hostPort
 	}
+	// 1.5) 外壳替成员发布的 expose：映射开在外壳的容器上，容器端口是成员自己的主端口
+	for _, s := range p.exposedMembers() {
+		hostPort := memberExposeHostPort(s)
+		if err := ports.claim(hostPort, i18n.T(msgid.ComposeOwnerExpose, refText(s.Ref))); err != nil {
+			return err
+		}
+		p.addShellMemberHostPort(manifest.ServiceName(s.Shell.ID, s.Shell.Version), hostPort, s.Manifest.Deployment.Port)
+	}
 
 	// 2) 使用者钦定的 localPort
 	for _, l := range p.locals {
