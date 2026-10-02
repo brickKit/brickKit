@@ -456,6 +456,31 @@
         "null"
       ]
     },
+    "readinessCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "enum": [
+            "http",
+            "tcp"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
     "shell": {
       "additionalProperties": false,
       "properties": {

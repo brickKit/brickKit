@@ -151,6 +151,25 @@ healthCheck:
   不推迟"判活"，写大一点没有代价。
 - Docker 下 HTTP 检查在容器里执行 `wget` 或 `curl`：镜像里至少要有其中一个（Alpine 自带 `wget`；distroless 镜像两者都没有，改用 `type: tcp`）。
 
+## readinessCheck：我能接流量了吗
+
+```yaml
+readinessCheck:       # 可选
+  type: http          # http | tcp
+  path: /readyz
+```
+
+活着不等于能接流量：缓存还在预热、第一次同步还没完成、权限数据还没拉到时，进程好好的，请求却只能答 503。两件事的后果不同——
+存活检查失败，Kubernetes 杀掉重启；就绪检查失败，只是不把流量导给它。所以有这段时间的组件，单独声明一个就绪检查：
+
+| 目标 | 用在哪 |
+| --- | --- |
+| Kubernetes | readinessProbe 探它（滚动更新时，还没就绪的新 Pod 不收流量）；startupProbe、livenessProbe 仍探 `healthCheck` |
+| Docker / Podman | compose 的 healthcheck 探它：依赖方等它真的能接流量才启动，`up` 也等到那时才返回。compose 的 healthcheck 不会杀容器，所以这里问的本来就是"就绪了吗" |
+
+不写时，就绪就看 `healthCheck`，和以前一样。规则和健康检查一样：**只看本进程准备好没有，不查下游**——下游暂时挂了就让所有副本一起
+"没就绪"，等于把自己整个从服务里摘掉。启动宽限期、检查节奏与 `healthCheck` 共用。
+
 ## shell：我是外壳
 
 ```yaml

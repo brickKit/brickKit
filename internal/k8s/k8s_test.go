@@ -745,3 +745,16 @@ func TestStopGracePeriodBecomesTerminationGracePeriod(t *testing.T) {
 	podSpec := dig(t, b.doc("deployments/erp-api-1-0-0.yaml"), "spec", "template", "spec").(map[string]any)
 	assert.NotContains(t, podSpec, "terminationGracePeriodSeconds")
 }
+
+// 就绪探针探 readinessCheck，存活与启动探针仍探 healthCheck：还没就绪的 Pod 不收流量，但也不会因此被杀。
+func TestReadinessProbeUsesReadinessCheck(t *testing.T) {
+	b := newBuilder(t)
+	api := simple("erp/api", "1.0.0", 8080)
+	api.ReadinessCheck = &manifest.ReadinessCheck{Type: manifest.HealthCheckHTTP, Path: "/readyz"}
+	b.component(api, projecttest.Entry{})
+
+	container := dig(t, b.doc("deployments/erp-api-1-0-0.yaml"), "spec", "template", "spec", "containers").([]any)[0].(map[string]any)
+	assert.Equal(t, "/readyz", dig(t, container, "readinessProbe", "httpGet", "path"))
+	assert.Equal(t, "/healthz", dig(t, container, "livenessProbe", "httpGet", "path"))
+	assert.Equal(t, "/healthz", dig(t, container, "startupProbe", "httpGet", "path"))
+}

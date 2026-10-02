@@ -78,6 +78,10 @@ are fixed (10s/3s/3), so the startup grace `startPeriodSeconds` defaults to 60. 
 than that (heavy Spring Boot, Django preloading, .NET JIT) must raise it: on Docker the component turns
 `unhealthy` and `up` fails; on K8s it CrashLoopBackOffs forever while the logs look fine. The grace
 period only delays "declared dead", never "declared alive", so setting it generously costs nothing.
+Alive but not yet able to serve (a cache warming, a first sync, permission data not fetched yet)?
+Declare `readinessCheck: {type: http, path: /readyz}` too: K8s's readinessProbe and the Docker /
+Podman healthcheck (what dependents and `up` wait for) use it, liveness keeps using `healthCheck`.
+It, too, never fails because a downstream is down.
 
 **7. The migration runs from the same image — fail fast on unknown arguments.**
 

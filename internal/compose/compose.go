@@ -620,9 +620,12 @@ func healthcheckOf(m *manifest.Manifest) map[string]any {
 	// 而 `up -d --wait` 见到 unhealthy 直接失败。
 	startPeriod := fmt.Sprintf("%ds", m.HealthCheck.StartPeriod())
 
-	switch m.HealthCheck.Type {
+	// compose 的 healthcheck 不杀容器，它只决定依赖方什么时候启动、up --wait 什么时候返回——
+	// 问的正是"能接流量了吗"，所以声明了 readinessCheck 就探它（manifest.ReadyCheck）
+	checkType, path := m.ReadyCheck()
+	switch checkType {
 	case manifest.HealthCheckHTTP:
-		url := fmt.Sprintf("http://localhost:%d%s", m.Deployment.Port, m.HealthCheck.Path)
+		url := fmt.Sprintf("http://localhost:%d%s", m.Deployment.Port, path)
 		// wget 与 curl 都试一遍。
 		//
 		// compose 的健康检查跑在**容器内部**，用的必须是镜像里真有的命令。

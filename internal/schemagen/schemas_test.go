@@ -92,6 +92,9 @@ migration:
 healthCheck:
   type: http
   path: /healthz
+readinessCheck:
+  type: http
+  path: /readyz
 `
 
 const baselineProject = `project: demo
@@ -473,6 +476,7 @@ var requiredGolden = []requiredCase{
 	{"component", "deployment", []string{"port", "type"}, []any{"deployment"}},
 	{"component", "deployment/extraPorts[]", []string{"name", "port"}, []any{"deployment", "extraPorts", 0}},
 	{"component", "healthCheck", []string{"type"}, []any{"healthCheck"}},
+	{"component", "readinessCheck", []string{"type"}, []any{"readinessCheck"}},
 	{"component", "migration", []string{"command"}, []any{"migration"}},
 	{"component", "shell", []string{"members"}, []any{"shell"}},
 
@@ -774,6 +778,13 @@ func constraintCases() []constraintCase {
 			valid:         []any{1, 40, manifest.MaxStopGracePeriodSeconds},
 			validatorOnly: []any{0},
 			invalid:       []any{-1, manifest.MaxStopGracePeriodSeconds + 1},
+		},
+		{
+			// 没有 none：不需要就绪检查就整个不写 readinessCheck
+			name: "readinessCheck.type", doc: "component", schemaPath: "readinessCheck/type",
+			dataPath: []any{"readinessCheck", "type"}, errField: "readinessCheck.type",
+			valid:   []any{manifest.HealthCheckHTTP, manifest.HealthCheckTCP},
+			invalid: []any{manifest.HealthCheckNone, "ftp", "HTTP", ""},
 		},
 		{
 			name: "healthCheck.type", doc: "component", schemaPath: "healthCheck/type",
@@ -1197,6 +1208,7 @@ func optionalPropertyPaths(node map[string]any, data any, path []any, visit func
 // 校验器拒绝。这是"校验器比 schema 更严"，是允许的方向；登记在这里，并且要求它们真的被拒绝，名单才不会过期。
 var conditionallyRequired = map[string]string{
 	"component:healthCheck.path":        "healthCheck.type 是 http 时必填（validateHealthCheck）",
+	"component:readinessCheck.path":     "readinessCheck.type 是 http 时必填（validateReadinessCheck）",
 	"component:deployment.image":        "deployment.image 与 deployment.build 至少写一个，基准里只写了 image",
 	"project:sources[0].path":           "sources[].type 是 local 时必填",
 	"project:sources[1].baseUrl":        "sources[].type 是 git 时必填",

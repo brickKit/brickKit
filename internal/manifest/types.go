@@ -44,6 +44,8 @@ type Manifest struct {
 	Deployment   Deployment    `yaml:"deployment"`
 	Migration    *Migration    `yaml:"migration,omitempty"`
 	HealthCheck  HealthCheck   `yaml:"healthCheck"`
+	// ReadinessCheck 是"能接流量了吗"那道检查，可选；不写时就是 healthCheck（见 ReadyCheck）。
+	ReadinessCheck *ReadinessCheck `yaml:"readinessCheck,omitempty"`
 	Local        *Local        `yaml:"local,omitempty"`
 	// Shell 出现即表示这个组件是外壳，Members 是构建时编进外壳的成员及其
 	// 精确版本；这次实际收编了谁只看部署文件的 members，平台只核对版本一致。
@@ -297,6 +299,31 @@ type HealthCheck struct {
 	// failureThreshold 三个由平台固定：它们管的是"跑起来之后多久发现它死了"，
 	// 各个组件之间没有差别；而"我要多久才起得来"是每个组件自己的事实。
 	StartPeriodSeconds int `yaml:"startPeriodSeconds,omitempty"`
+}
+
+// ReadinessCheck 是就绪检查：进程活着（healthCheck），但还不能接流量的那段时间——缓存在预热、
+// 第一次同步还没完成、权限数据还没拉到——它答"没就绪"。
+//
+// 分开的理由在后果：存活检查失败，K8s 杀掉 Pod 重启；就绪检查失败，只是不把流量导给它。拿一个检查同时
+// 回答两件事，要么还没就绪的实例收到请求（滚动更新时的那几秒 503），要么正在预热的实例被杀掉重来。
+//
+// 和 healthCheck 一样不查下游：下游暂时挂了就让所有副本一起"没就绪"，等于平台替下游的故障把自己整个摘掉。
+//
+// Type 的 jsonschema enum 与 validateReadinessCheck 是同一份取值（没有 none：不需要就不写这一项），
+// schemas_test.go 会核对。
+type ReadinessCheck struct {
+	Type string `yaml:"type" jsonschema:"enum=http|tcp"`
+	Path string `yaml:"path,omitempty"`
+}
+
+// ReadyCheck 是"能不能接流量"要探的那道检查：声明了 readinessCheck 用它，否则就是 healthCheck。
+// K8s 的 readinessProbe 与 compose 的 healthcheck（它决定依赖方什么时候启动、up --wait 什么时候返回）都用它；
+// K8s 的存活与启动探针仍用 healthCheck。
+func (m *Manifest) ReadyCheck() (checkType, path string) {
+	if m.ReadinessCheck != nil {
+		return m.ReadinessCheck.Type, m.ReadinessCheck.Path
+	}
+	return m.HealthCheck.Type, m.HealthCheck.Path
 }
 
 // StartPeriod 返回生效的启动宽限期（秒），没写时取默认值。

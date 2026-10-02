@@ -81,6 +81,7 @@ func (m *Manifest) Validate() error {
 	m.validateDeployment(p)
 	m.validateMigration(p)
 	m.validateHealthCheck(p)
+	m.validateReadinessCheck(p)
 	m.validateLocal(p)
 	m.validateShell(p)
 
@@ -454,6 +455,28 @@ func (m *Manifest) validateHealthCheck(p *clierr.ProblemSet) {
 	}
 
 	validateStartPeriod(p, h)
+}
+
+// validateReadinessCheck：写了就要完整——http 要有以 / 开头的 path；没有 none（不需要就不写）。
+func (m *Manifest) validateReadinessCheck(p *clierr.ProblemSet) {
+	r := m.ReadinessCheck
+	if r == nil {
+		return
+	}
+	switch r.Type {
+	case "":
+		p.Missing("readinessCheck.type")
+	case HealthCheckHTTP:
+		switch {
+		case r.Path == "":
+			p.Missing("readinessCheck.path")
+		case !strings.HasPrefix(r.Path, "/"):
+			p.Add("readinessCheck.path", i18n.T(msgid.ManifestHealthPathMustStartWithSlash, r.Path))
+		}
+	case HealthCheckTCP:
+	default:
+		p.Add("readinessCheck.type", i18n.T(msgid.ManifestReadinessTypeInvalid, HealthCheckHTTP, HealthCheckTCP, r.Type))
+	}
 }
 
 // maxStartPeriodSeconds 是启动宽限期的上限（1 小时）。

@@ -169,6 +169,28 @@ healthCheck:
 - On Docker, the HTTP check runs `wget` or `curl` inside the container: the image needs at least one of them (Alpine ships
   `wget`; distroless images have neither — use `type: tcp` there).
 
+## readinessCheck: can I take traffic
+
+```yaml
+readinessCheck:       # optional
+  type: http          # http | tcp
+  path: /readyz
+```
+
+Alive isn't the same as ready for traffic: while a cache warms up, a first sync hasn't finished or permission data hasn't
+arrived, the process is fine but can only answer 503. The two have different consequences — a failed liveness check gets
+the container killed and restarted on Kubernetes; a failed readiness check only keeps traffic away. So a component with such
+a period declares a readiness check of its own:
+
+| Target | Where it is used |
+| --- | --- |
+| Kubernetes | The readinessProbe checks it (during a rolling update, a new Pod that isn't ready gets no traffic); the startupProbe and livenessProbe keep checking `healthCheck` |
+| Docker / Podman | The compose healthcheck checks it: dependents start only once it can really take traffic, and `up` waits until then. A compose healthcheck never kills the container, so the question it asks was "ready?" all along |
+
+Without it, readiness follows `healthCheck`, as before. The rule is the health check's: **only whether this process is
+ready, never the downstream** — failing readiness whenever a downstream is briefly down takes every replica out of
+service at once. The start-up grace period and the check rhythm are shared with `healthCheck`.
+
 ## shell: I'm a shell
 
 ```yaml

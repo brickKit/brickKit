@@ -375,6 +375,13 @@ dependencies:
 		{"startPeriodSeconds 为负",
 			mutate(t, "  path: /healthz", "  path: /healthz\n  startPeriodSeconds: -1"),
 			[]string{"healthCheck.startPeriodSeconds", "positive integer"}},
+		{"readinessCheck 是 http 却没写 path",
+			mutate(t, "  path: /healthz", "  path: /healthz\nreadinessCheck:\n  type: http"),
+			[]string{"readinessCheck.path"}},
+		// 不需要就不写：没有 none 这个取值，写了说明作者以为它是必填
+		{"readinessCheck 写成 none",
+			mutate(t, "  path: /healthz", "  path: /healthz\nreadinessCheck:\n  type: none"),
+			[]string{"readinessCheck.type", "leave readinessCheck out"}},
 		// 停机宽限期与启动宽限期同一个单位坑：25000 看着像 25 秒，实际是七个小时
 		{"stopGracePeriodSeconds 超上限",
 			mutate(t, "  port: 8080", "  port: 8080\n  stopGracePeriodSeconds: 25000"),

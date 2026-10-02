@@ -186,12 +186,15 @@ func (p *plan) containerDoc(c componentPlan) map[string]any {
 		container["env"] = env
 	}
 	if probe := livenessProbe(c.Manifest); probe != nil {
-		// 顺序无关（YAML 是映射），但三者必须一起出现：
+		// 顺序无关（YAML 是映射），但有 healthCheck 时三者必须一起出现（就绪探针在下面，此时一定有）：
 		// startupProbe 在通过之前会**同时**禁用 liveness 与 readiness，
 		// 只生成其中一部分会让慢启动的组件在两种目标下表现不一致
 		container["startupProbe"] = startupProbe(c.Manifest)
 		container["livenessProbe"] = probe
-		container["readinessProbe"] = readinessProbe(c.Manifest)
+	}
+	// healthCheck 是 none 时也可以单独声明 readinessCheck：那就只有就绪探针
+	if probe := readinessProbe(c.Manifest); probe != nil {
+		container["readinessProbe"] = probe
 	}
 	if resources := resourcesDoc(c.Env); len(resources) > 0 {
 		container["resources"] = resources
@@ -305,9 +308,9 @@ func startupFailureThreshold(seconds int) int {
 	return threshold
 }
 
-// readinessProbe 渲染就绪探针。
+// readinessProbe 渲染就绪探针：探的是 readinessCheck（声明了的话），否则与存活探针同一道检查。
 func readinessProbe(m *manifest.Manifest) map[string]any {
-	action := probeAction(m)
+	action := readinessAction(m)
 	if action == nil {
 		return nil
 	}
@@ -332,10 +335,24 @@ func probeAction(m *manifest.Manifest) map[string]any {
 	if m == nil {
 		return nil
 	}
-	switch m.HealthCheck.Type {
+	return checkAction(m, m.HealthCheck.Type, m.HealthCheck.Path)
+}
+
+// readinessAction 是就绪探针的动作：声明了 readinessCheck 探它，否则与存活探针相同（manifest.ReadyCheck）。
+func readinessAction(m *manifest.Manifest) map[string]any {
+	if m == nil {
+		return nil
+	}
+	checkType, path := m.ReadyCheck()
+	return checkAction(m, checkType, path)
+}
+
+// checkAction 把一道检查（类型 + 路径）转成探针动作，探的都是主端口。
+func checkAction(m *manifest.Manifest, checkType, path string) map[string]any {
+	switch checkType {
 	case manifest.HealthCheckHTTP:
 		return map[string]any{"httpGet": map[string]any{
-			"path": m.HealthCheck.Path,
+			"path": path,
 			"port": m.Deployment.Port,
 		}}
 	case manifest.HealthCheckTCP:

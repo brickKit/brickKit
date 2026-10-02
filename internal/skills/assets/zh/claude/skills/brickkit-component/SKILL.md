@@ -73,6 +73,9 @@ Secret；平台从不按名字猜哪个是密钥。`type` / `enum` / `minimum` /
 `interval` / `timeout` / `failureThreshold` 平台固定（10s / 3s / 3），默认宽限期 60 秒。超了：
 Docker 下 `unhealthy`、`up` 失败；K8s 下**永久 CrashLoopBackOff 而容器日志一路正常**。
 宽限期只推迟「判死」不推迟「判活」，写大一点没有代价。
+活着但还不能接流量（缓存预热、第一次同步、权限数据还没拉到）？再声明 `readinessCheck: {type: http, path: /readyz}`：
+K8s 的 readinessProbe 和 Docker / Podman 的 healthcheck（依赖方与 `up` 等的就是它）用它，存活检查仍用 `healthCheck`。
+它同样不因下游挂了而失败。
 
 **6. `dependencies.components` 里一个组件 ID 只能出现一次。**
 

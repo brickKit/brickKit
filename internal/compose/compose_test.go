@@ -8,6 +8,7 @@ package compose_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -1047,4 +1048,23 @@ func TestProjectProvidedNetworkIsExternal(t *testing.T) {
 	doc := b.parsed()
 	assert.Equal(t, map[string]any{"brickkit-net": map[string]any{"name": "shop-net", "external": true}}, doc["networks"])
 	assert.Equal(t, []any{"brickkit-net"}, serviceOf(t, doc, "erp-api-1-0-0")["networks"])
+}
+
+// 声明了 readinessCheck：compose 的 healthcheck 探它——依赖方等它真的能接流量才启动，up --wait 也等到那时。
+// healthCheck 是 none 时同样生成（只探就绪）。
+func TestHealthcheckProbesReadinessWhenDeclared(t *testing.T) {
+	b := newBuilder(t)
+	api := simple("erp/api", "1.0.0", 8080)
+	api.ReadinessCheck = &manifest.ReadinessCheck{Type: manifest.HealthCheckHTTP, Path: "/readyz"}
+	b.component(api, projecttest.Entry{})
+	quiet := simple("erp/quiet", "1.0.0", 8081)
+	quiet.HealthCheck = manifest.HealthCheck{Type: manifest.HealthCheckNone}
+	quiet.ReadinessCheck = &manifest.ReadinessCheck{Type: manifest.HealthCheckTCP}
+	b.component(quiet, projecttest.Entry{})
+
+	doc := b.parsed()
+	test := fmt.Sprint(serviceOf(t, doc, "erp-api-1-0-0")["healthcheck"].(map[string]any)["test"])
+	assert.Contains(t, test, "http://localhost:8080/readyz")
+	assert.NotContains(t, test, "/healthz")
+	assert.Contains(t, fmt.Sprint(serviceOf(t, doc, "erp-quiet-1-0-0")["healthcheck"]), "nc -z localhost 8081")
 }
