@@ -44,6 +44,30 @@ are checked.
 In a workbench (a component repository that also has a `brickkit.yaml`), the three layers are checked as a project, and
 the component's `component.yaml` and documents with them.
 
+### One component of a project
+
+In a component's directory inside a project, `brickkit lint` with no argument checks **only that component** — the same
+rule `build` and `deps` follow. `brickkit lint <id>` does the same from anywhere:
+
+```text
+📁 Project: ../../.. (shop)
+🔎 Only demo/hello is checked (brickkit lint --all checks the whole project)
+✅ component.yaml
+✅ ./ (docs)
+✅ demo/hello: configuration (config/ ↔ configSchema)
+
+📋 Checked 3 files: 0 with errors, 0 warnings
+```
+
+That is its `component.yaml` and documents when a local source holds it (added or not), and its configuration against
+its `configSchema` once it is in `brickkit.yaml`. Problems elsewhere in the project aren't reported: when you rebuild
+components one at a time, the one you just finished shouldn't be red because another isn't done yet. The project still
+has to load the way `up` loads it — if it doesn't, this component can't run either, so that error stays. For a component
+from git or a market, its `component.yaml` and documents are its author's to check; only its configuration is checked.
+
+`brickkit lint --all` checks the whole project, wherever you are. CI runs it at the project root, where there's no
+difference.
+
 A typical error:
 
 ```text

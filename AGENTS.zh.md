@@ -129,7 +129,7 @@ BrickKit 是一个声明式的组件组装平台：你声明要哪些组件、�
 - `--no-local`：`up`、`down`、`status`、`sync` 本次忽略 `deploy.local.yaml`，不改变本地模式开关；对 `lint` 来说，它让配置检查以 `deploy.yaml` 为准（两份照样都查）。
 - `--dry-run`：`up` 只生成部署文件不执行；`upgrade` 只演算不写盘。
 - `--focus <id>` / `--all`：`up` 在 `deploy.local.yaml` 里设上或去掉焦点；两者都不能和 `-f`、`--no-local` 一起用。
-- 在组件目录里不带参数：`build` 和 `deps` 指的就是这个组件。
+- 在组件目录里不带参数：`build`、`deps`、`lint` 指的就是这个组件（`lint --all` 查整个项目）。
 
 每条命令的全部参数见 [`docs/zh/07-cli-reference/README.md`](docs/zh/07-cli-reference/README.md)。
 

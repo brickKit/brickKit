@@ -144,7 +144,7 @@ refuses it without changing any file.
 | `local refresh` | Lists the focus as one of your local changes, so you can put it back in the new file |
 | `remove` | Removing the focused component removes the focus with it, and says so |
 | `graph`, `deps` | Unaffected — they read `deploy.yaml` |
-| `build`, `deps` without an argument | Use the component whose directory you are in |
+| `build`, `deps`, `lint` without an argument | Use the component whose directory you are in (`lint --all` checks the whole project) |
 
 `sync` with a focus on `demo/hello` still keeps all three:
 

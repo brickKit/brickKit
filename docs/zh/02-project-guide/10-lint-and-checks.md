@@ -41,6 +41,27 @@ brickkit lint
 
 在工作台里（组件仓库里又有 `brickkit.yaml`），三层文件按项目查，组件的 `component.yaml` 和文档也一起查。
 
+### 项目里的一个组件
+
+在项目里某个组件的目录下，`brickkit lint` 不带参数**只查这个组件**——和 `build`、`deps` 同一条规则。`brickkit lint <id>`
+在哪里都能这样查：
+
+```text
+📁 项目：../../..（shop）
+🔎 只查 demo/hello（brickkit lint --all 查整个项目）
+✅ component.yaml
+✅ ./（文档）
+✅ demo/hello：配置（config/ ↔ configSchema）
+
+📋 检查了 3 个文件：0 个有错误，0 条警告
+```
+
+查的是：本地源里有它时（不管 add 过没有），它的 `component.yaml` 和文档；它进了 `brickkit.yaml` 之后，按它的 `configSchema`
+查它的配置。项目里别处的问题不报：一个一个重建组件时，刚改好的这个不该因为另一个还没改完而变红。项目本身仍然得能按 `up` 的方式装载——
+装载不了，这个组件也跑不起来，所以这类错误照报。从 git 或市场来的组件，`component.yaml` 和文档归它的作者查，这里只查它的配置。
+
+`brickkit lint --all` 在哪里都查整个项目。CI 在项目根目录跑，两者没有区别。
+
 一个典型的错误：
 
 ```text

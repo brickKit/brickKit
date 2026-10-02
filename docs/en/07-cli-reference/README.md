@@ -465,14 +465,22 @@ situation from the current directory:
 
 If `brickkit.yaml` itself fails, nothing after it can be trusted; the rest is skipped, and it says so.
 
+**One component of a project (`brickkit lint <id>`, or no argument in a component's directory — like `build` and
+`deps`):** only that component — its `component.yaml` and documents when a local source holds it (added or not), and its
+configuration against its `configSchema` once it is in `brickkit.yaml`. Problems elsewhere in the project aren't
+reported, so one component half-way through a change doesn't turn every other component's check red. The one
+exception: the project still has to load as `up` loads it, because otherwise this component can't run either. `--all`
+checks the whole project from anywhere.
+
 **A component repository (a `component.yaml`, no `brickkit.yaml`):** that `component.yaml` and the component's documents.
 
 **Documents**, everywhere, as warnings only: in a component repository the component's `BRICKKIT.md` (and its
-translations), `AGENTS.md`, `CLAUDE.md`, `README.md` and `docs/`; in a project its `AGENTS.md` and `CLAUDE.md` (plus an
-old project map `BRICKKIT.md`) and the documents of every component in a local source; in a workbench the component's
+translations), `AGENTS.md`, `CLAUDE.md`, `README.md` and `docs/`; in a project its own documents — `AGENTS.md`, `CLAUDE.md`,
+`README.md`, their translations and `docs/` (plus an old project map `BRICKKIT.md`) — and the documents of every
+component in a local source; in a workbench the component's
 documents. A component whose `component.yaml` is invalid still has its documents checked, without the comparison
 against the manifest. A set with nothing to report is one line, such as `✅ components/demo/hello/ (docs)` (the
-project's own `AGENTS.md` and `CLAUDE.md` are `✅ ./ (docs)`); otherwise each warning is listed instead. The codes are
+project's own documents are `✅ ./ (docs)`); otherwise each warning is listed instead. The codes are
 `DOC_FILE_MISSING`, `DOC_SECTION_MISSING`, `DOC_PATH_MISSING`, `DOC_LINK_BROKEN`, `DOC_LINK_NOT_PORTABLE`,
 `DOC_OUT_OF_STEP`, `DOC_PLACEHOLDER`, `DOC_TRANSLATION_DRIFT`, `AGENTS_BLOCK_MISSING`, `CLAUDE_IMPORT_MISSING` and
 `PROJECT_MAP_OBSOLETE`; see [Error codes](../06-architecture/09-error-codes.md#documentation-checks).
@@ -491,7 +499,7 @@ config values against `enum` or `minimum` (the platform checks key names, not va
 The exit code is 1 with errors, 0 with only warnings.
 
 ```text
-brickkit lint [flags]
+brickkit lint [<id>] [flags]
 ```
 
 | Flag | Meaning |
@@ -499,11 +507,14 @@ brickkit lint [flags]
 | `--strict` | Also check references: a `${VAR}` in neither the process environment nor `.env`, a `file://` whose file doesn't exist, as warnings; and warnings — documentation warnings included — count as failures (exit code 1), for a CI gate |
 | `-f, --file <file>` | Check only this deploy file; see [shared flags](#flags-shared-by-the-commands-that-read-a-deploy-file) |
 | `--no-local` | Run the config checks against `deploy.yaml` this time; `deploy.local.yaml` is still checked when it exists |
+| `--all` | Check the whole project, even in a component's directory; doesn't go with `<id>` |
 
 ```bash
 brickkit lint
 brickkit lint --strict           # warnings fail too (CI gate)
 brickkit lint -f deploy.prod.yaml
+brickkit lint erp/api            # only erp/api (what lint does with no argument in its directory)
+brickkit lint --all              # the whole project, even from a component's directory
 ```
 
 ```text
@@ -517,6 +528,18 @@ brickkit lint -f deploy.prod.yaml
 ✅ components/demo/hello/ (docs)
 
 📋 Checked 8 files: 0 with errors, 0 warnings
+```
+
+In `components/demo/hello/`:
+
+```text
+📁 Project: ../../.. (shop)
+🔎 Only demo/hello is checked (brickkit lint --all checks the whole project)
+✅ component.yaml
+✅ ./ (docs)
+✅ demo/hello: configuration (config/ ↔ configSchema)
+
+📋 Checked 3 files: 0 with errors, 0 warnings
 ```
 
 ## `brickkit deps`

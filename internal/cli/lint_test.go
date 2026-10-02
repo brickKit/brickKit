@@ -94,6 +94,12 @@ func TestLintNotYetAddedComponentIsAlsoChecked(t *testing.T) {
 
 	r := runIn(t, f.Dir, "lint")
 	assert.Equal(t, clierr.ExitError, r.code, "没 add 过也照样检查：编辑这份文件的人就是使用者自己")
+
+	// 在它的目录里只查它，同样照查；还没有配置可查，说一声
+	r = runIn(t, filepath.Dir(manifestPath(f, "demo/hello")), "lint")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stdout, "dependancies")
+	assert.Contains(t, r.stdout, "demo/hello is not in brickkit.yaml yet")
 }
 
 func TestLintInvalidBrickkitYamlSkipsLocalSources(t *testing.T) {
@@ -350,9 +356,92 @@ func TestLintIsReadOnlyAndOffline(t *testing.T) {
 	assert.Zero(t, requests.Load(), "lint 联网了：有请求发给了 market / git 源")
 }
 
-func TestLintRejectsPositionalArguments(t *testing.T) {
+func TestLintTakesAtMostOneComponent(t *testing.T) {
 	f := newLintFixture(t, comp{ID: "demo/hello", Version: "1.0.0"})
-	assert.Equal(t, clierr.ExitUsage, runIn(t, f.Dir, "lint", "extra").code)
+	assert.Equal(t, clierr.ExitUsage, runIn(t, f.Dir, "lint", "demo/hello", "extra").code)
+}
+
+// 在组件目录里不带参数，与 build、deps 一样说的是这个组件：项目里另一个组件没改好，这里照样是绿的。
+func TestLintInAComponentDirectoryChecksOnlyThatComponent(t *testing.T) {
+	f := newLintFixture(t, comp{ID: "demo/hello", Version: "1.0.0"}, comp{ID: "demo/caller", Version: "1.0.0"})
+	appendTo(t, manifestPath(f, "demo/caller"), "dependancies: []\n")
+	here := filepath.Dir(manifestPath(f, "demo/hello"))
+
+	r := runIn(t, here, "lint")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "Only demo/hello is checked")
+	assert.Contains(t, r.stdout, "✅ component.yaml\n", "paths are shown from where you stand")
+	assert.NotContains(t, r.stdout, "dependancies")
+
+	r = runIn(t, here, "lint", "--all")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stdout, "dependancies")
+	assert.NotContains(t, r.stdout, "Only demo/hello")
+
+	// 从任何地方点名一个组件
+	r = runIn(t, f.Dir, "lint", "demo/caller")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stdout, "Only demo/caller is checked")
+	assert.Contains(t, r.stdout, "dependancies")
+}
+
+// 只查一个组件时，它的配置照查，别的组件的配置不查。
+func TestLintOneComponentChecksItsConfigOnly(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"brickkit.yaml": "project: shop\nsources:\n  - name: local-dev\n    type: local\n    path: ./components\n" +
+			"components:\n  - id: erp/api\n    version: 1.0.0\n  - id: erp/web\n    version: 1.0.0\n",
+		"deploy.yaml":                       "target: docker\ncomponents:\n  - id: erp/api\n  - id: erp/web\n",
+		"components/erp/api/component.yaml": schemaComp("erp/api"),
+		"components/erp/web/component.yaml": schemaComp("erp/web"),
+		"config/erp-api.yaml":               "DB_HOST: \"\"\n",
+		"config/erp-web.yaml":               "DB_HOST: db.local\n",
+	}
+	writeTree(t, dir, files)
+
+	r := runIn(t, filepath.Join(dir, "components", "erp", "web"), "lint")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "erp/web: configuration")
+	assert.NotContains(t, r.stdout, "erp/api")
+
+	r = runIn(t, filepath.Join(dir, "components", "erp", "api"), "lint")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stdout, "DB_HOST")
+}
+
+func TestLintOneComponentArgumentErrors(t *testing.T) {
+	f := newLintFixture(t, comp{ID: "demo/hello", Version: "1.0.0"})
+
+	r := runIn(t, f.Dir, "lint", "demo/helo")
+	assert.Equal(t, clierr.ExitError, r.code)
+	assert.Contains(t, r.stderr, "demo/helo is not in this project")
+	assert.Contains(t, r.stderr, "demo/hello", "did you mean")
+
+	r = runIn(t, f.Dir, "lint", "demo/hello", "--all")
+	assert.Equal(t, clierr.ExitUsage, r.code)
+	assert.Contains(t, r.stderr, "--all")
+
+	repo := t.TempDir()
+	writeTree(t, repo, map[string]string{"component.yaml": schemaComp("erp/api")})
+	r = runIn(t, repo, "lint", "erp/api")
+	assert.Equal(t, clierr.ExitUsage, r.code)
+	assert.Contains(t, r.stderr, "no brickkit.yaml here")
+}
+
+// 不在本地源里的组件（从 git、市场来的）：它的 component.yaml 与文档归作者查，这里只查它的配置，并说一声。
+func TestLintOneComponentWithoutLocalSourceSaysWhatIsChecked(t *testing.T) {
+	dir := lintConfigProject(t, "DB_HOST: db.local\n", nil)
+	require.NoError(t, os.RemoveAll(filepath.Join(dir, "components", "erp", "api")))
+	writeTree(t, dir, map[string]string{".brickkit/manifests/erp/api/1.0.0/component.yaml": schemaComp("erp/api")})
+
+	r := runIn(t, dir, "lint", "erp/api")
+	require.Equal(t, clierr.ExitOK, r.code, r.stdout+r.stderr)
+	assert.Contains(t, r.stdout, "erp/api is in no local source here")
+	assert.Contains(t, r.stdout, "✅ erp/api: configuration")
+
+	writeTree(t, dir, map[string]string{"config/erp-api.yaml": "DB_HOST: \"\"\n"})
+	r = runIn(t, dir, "lint", "erp/api")
+	assert.Equal(t, clierr.ExitError, r.code, "the cached manifest's configSchema is what the config is checked against")
 }
 
 // 组件仓库：文档问题是警告，退出码照样 0；--strict 下才算失败。

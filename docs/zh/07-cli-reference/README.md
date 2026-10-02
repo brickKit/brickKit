@@ -418,12 +418,18 @@ brickkit fetch infra/notifier         # 取最新版本的产物
 
 `brickkit.yaml` 自己没通过时，后面的都不可信，跳过并说明。
 
+**项目里的一个组件（`brickkit lint <id>`，或在组件目录里不带参数——和 `build`、`deps` 一样）：** 只查这个组件——本地源里有它时
+（不管 add 过没有）查它的 `component.yaml` 和文档，它进了 `brickkit.yaml` 之后再按它的 `configSchema` 查它的配置。项目里别处的问题不报，
+一个改到一半的组件不会让其他每个组件的检查都变红。唯一的例外：项目本身还得能按 `up` 的方式装载，不然这个组件也跑不起来。
+`--all` 在哪里都查整个项目。
+
 **组件仓库（有 `component.yaml`、没有 `brickkit.yaml`）：** 这一份 `component.yaml` 和组件的文档。
 
 **文档**，哪里都查，只报警告：组件仓库里查组件的 `BRICKKIT.md`（连同译本）、`AGENTS.md`、`CLAUDE.md`、`README.md` 与 `docs/`；
-项目里查它的 `AGENTS.md` 与 `CLAUDE.md`（以及残留的旧项目地图 `BRICKKIT.md`）和本地源里每个组件的文档；工作台里查组件的文档。
+项目里查它自己的文档——`AGENTS.md`、`CLAUDE.md`、`README.md`、它们的译本和 `docs/`（以及残留的旧项目地图 `BRICKKIT.md`）——
+和本地源里每个组件的文档；工作台里查组件的文档。
 `component.yaml` 写错了的组件照样查文档，只是不与清单比对。没有问题的一组在报告里占一行，比如 `✅ components/demo/hello/（文档）`
-（项目自己的 `AGENTS.md` 与 `CLAUDE.md` 是 `✅ ./（文档）`）；有问题就改为逐条列出警告。警告码有 `DOC_FILE_MISSING`、`DOC_SECTION_MISSING`、`DOC_PATH_MISSING`、
+（项目自己的文档是 `✅ ./（文档）`）；有问题就改为逐条列出警告。警告码有 `DOC_FILE_MISSING`、`DOC_SECTION_MISSING`、`DOC_PATH_MISSING`、
 `DOC_LINK_BROKEN`、`DOC_LINK_NOT_PORTABLE`、`DOC_OUT_OF_STEP`、`DOC_PLACEHOLDER`、`DOC_TRANSLATION_DRIFT`、`AGENTS_BLOCK_MISSING`、
 `CLAUDE_IMPORT_MISSING` 与 `PROJECT_MAP_OBSOLETE`，见 [错误码](../06-architecture/09-error-codes.md#文档检查)。
 
@@ -437,7 +443,7 @@ brickkit fetch infra/notifier         # 取最新版本的产物
 有错误时退出码为 1；只有警告时为 0。
 
 ```text
-brickkit lint [flags]
+brickkit lint [<id>] [flags]
 ```
 
 | 参数 | 说明 |
@@ -445,11 +451,14 @@ brickkit lint [flags]
 | `--strict` | 还检查引用：进程环境与 `.env` 里都没有的 `${VAR}`、文件不存在的 `file://` 报成警告；并且警告——包括文档警告——也算失败（退出码 1），给 CI 门禁用 |
 | `-f, --file <文件>` | 只查这一份部署文件，见 [共用参数](#读部署文件的命令共用的参数) |
 | `--no-local` | 本次配置检查以 `deploy.yaml` 为准；`deploy.local.yaml` 存在时照样查 |
+| `--all` | 查整个项目，在组件目录里也一样；不能和 `<id>` 一起用 |
 
 ```bash
 brickkit lint
 brickkit lint --strict           # 警告也算失败（CI 门禁）
 brickkit lint -f deploy.prod.yaml
+brickkit lint erp/api            # 只查 erp/api（在它的目录里不带参数也是这样）
+brickkit lint --all              # 整个项目，在组件目录里也一样
 ```
 
 ```text
@@ -463,6 +472,18 @@ brickkit lint -f deploy.prod.yaml
 ✅ components/demo/hello/（文档）
 
 📋 检查了 8 个文件：0 个有错误，0 条警告
+```
+
+在 `components/demo/hello/` 里：
+
+```text
+📁 项目：../../..（shop）
+🔎 只查 demo/hello（brickkit lint --all 查整个项目）
+✅ component.yaml
+✅ ./（文档）
+✅ demo/hello：配置（config/ ↔ configSchema）
+
+📋 检查了 3 个文件：0 个有错误，0 条警告
 ```
 
 ## `brickkit deps`

@@ -20,6 +20,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -40,23 +41,36 @@ import (
 
 // newLintCommand 实现 brickkit lint。
 func newLintCommand(opts *Options) *cobra.Command {
-	var strict bool
+	var strict, all bool
 
 	cmd := &cobra.Command{
-		Annotations: findsProjectAnnotation(),
-		Use:         "lint",
-		Short:       i18n.T(msgid.CliLintShort),
-		GroupID:     groupProject,
-		Long:        i18n.T(msgid.CliLintLong),
-		Example:     i18n.T(msgid.CliLintExample),
-		Args:        cobra.NoArgs,
+		Annotations:       findsProjectAnnotation(),
+		Use:               "lint [<id>]",
+		Short:             i18n.T(msgid.CliLintShort),
+		GroupID:           groupProject,
+		Long:              i18n.T(msgid.CliLintLong),
+		Example:           i18n.T(msgid.CliLintExample),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeProjectIDs(opts),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLint(opts, strict)
+			if all && len(args) == 1 {
+				return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLintIDAndAll)).
+					WithHint(i18n.T(msgid.CliLintHintIDOrAll)).WithExit(clierr.ExitUsage)
+			}
+			// 与 build、deps 一样：在组件目录里不带参数，说的就是这个组件；--all 才是整个项目
+			only := ""
+			if len(args) == 1 {
+				only = args[0]
+			} else if !all {
+				only, _ = componentHere(opts)
+			}
+			return runLint(opts, strict, only, len(args) == 1)
 		},
 	}
 	addDeployFileFlags(cmd, opts)
 
 	cmd.Flags().BoolVar(&strict, "strict", false, i18n.T(msgid.CliLintWarningsCountAsFailuresToo))
+	cmd.Flags().BoolVar(&all, "all", false, i18n.T(msgid.CliLintAllFlag))
 	return cmd
 }
 
@@ -68,14 +82,27 @@ type lintFile struct {
 	warnings []*clierr.Error
 }
 
-func runLint(opts *Options, strict bool) error {
+// runLint 检查一个项目、一个组件仓库，或项目里的一个组件（only 非空时）。named 说 only 是不是使用者写在命令行上的：
+// 写了的，在组件仓库里没有项目可言要报错；从所在目录推断的不会出现在组件仓库里。
+func runLint(opts *Options, strict bool, only string, named bool) error {
 	scope, layout, err := detectScope(opts)
 	if err != nil {
 		return err
 	}
+	if named && scope == skills.ScopeComponent {
+		return clierr.New(clierr.CodeInvalidArgument, i18n.T(msgid.CliLintIDNeedsProject, project.FileDecl)).
+			WithHint(i18n.T(msgid.CliLintHintIDNeedsProject)).WithExit(clierr.ExitUsage)
+	}
 
 	var files []lintFile
 	var notes []string
+	if only != "" && scope != skills.ScopeComponent {
+		files, notes, err = lintOneComponent(opts, layout, only, strict)
+		if err != nil {
+			return err
+		}
+		return reportLint(opts, files, notes, strict)
+	}
 	if scope == skills.ScopeComponent {
 		opts.Printf("%s\n", i18n.T(msgid.CliLintComponentRepositoryHasNoOnly, manifest.FileName, project.FileDecl, manifest.FileName))
 		files = append(files, lintManifest(opts, filepath.Join(layout.Root, manifest.FileName), ""))
@@ -180,6 +207,86 @@ func lintProject(opts *Options, layout project.Layout, strict bool) ([]lintFile,
 	return append(files, docs...), notes
 }
 
+// lintOneComponent 只查项目里的一个组件：它的 component.yaml 与文档（本地源里有它时），以及它在项目里的配置。
+//
+// 别的组件的问题不报：在一个组件目录里改到一半，项目里另一个组件没改好，不该让这里的检查也是红的。
+// 项目本身装载不了（三层对不上、升级留下的重复键）时照样报——那样 up 也起不来这个组件。
+func lintOneComponent(opts *Options, layout project.Layout, id string, strict bool) ([]lintFile, []string, error) {
+	head := lintFile{path: opts.display(layout.DeclPath())}
+	decl, err := projfile.ParseFile(layout.DeclPath())
+	if err != nil {
+		head.errors = append(head.errors, clierr.As(err))
+		return []lintFile{head}, []string{i18n.T(msgid.CliLintBrickkitYAMLDidNotPass, manifest.FileName)}, nil
+	}
+
+	var files []lintFile
+	var notes []string
+	// 与 lintProject 一样直接 source.New：只列本地源里的文件，从不取 Manifest（见那里的说明）
+	var local []string // 这个组件在本地源里的 component.yaml
+	client, err := source.New(layout, decl, source.Options{})
+	if err == nil {
+		defer func() { _ = client.Close() }()
+		found, ferr := client.LocalManifestFiles()
+		if ferr != nil {
+			err = ferr
+		}
+		for _, f := range found {
+			if f.ID == id {
+				local = append(local, f.Path)
+			}
+		}
+	}
+	if err != nil {
+		head.errors = append(head.errors, clierr.As(err))
+		files = append(files, head)
+	}
+	// 工作台：项目根自己就是这个组件
+	own := filepath.Join(layout.Root, manifest.FileName)
+	if m, perr := manifest.ParseFile(own); len(local) == 0 && perr == nil && m.Metadata.ID == id {
+		local = append(local, own)
+	}
+	added := slices.Contains(decl.IDs(), id)
+	if !added && len(local) == 0 {
+		return nil, nil, withDidYouMean(clierr.New(clierr.CodeComponentNotFound, i18n.T(msgid.CliLintNotInProject, id)).
+			WithHint(i18n.T(msgid.CliDepsHintAdd, id), i18n.T(msgid.CliLintHintAll)), id, decl.IDs())
+	}
+	opts.Printf("%s\n", i18n.T(msgid.CliLintOnlyComponent, id))
+	for _, path := range local {
+		dirID := id
+		if path == own {
+			dirID = "" // 工作台的目录名不是 <scope>/<name>
+		}
+		files = append(files, lintManifest(opts, path, dirID))
+		if d, ok := componentDocs(opts, filepath.Dir(path)); ok {
+			files = append(files, d)
+		}
+	}
+	if len(local) == 0 {
+		notes = append(notes, i18n.T(msgid.CliLintOnlyNotLocal, id, manifest.FileName))
+	}
+	// 本地源里有、还没 add 的组件：没有配置可查（整个项目的 lint 也是这样查它的）
+	if !added {
+		return files, append(notes, i18n.T(msgid.CliLintOnlyNotAdded, id)), nil
+	}
+
+	cf := lintFile{path: i18n.T(msgid.CliLintComponentConfig, id, project.DirConfig+"/")}
+	proj, err := project.Load(opts.WorkDir, opts.loadOptions())
+	if err != nil {
+		cf.errors = append(cf.errors, clierr.As(err))
+		return append(files, cf), notes, nil
+	}
+	cfg := lintConfig(proj, strict, id)
+	cf.errors = append(cf.errors, cfg.errors...)
+	cf.warnings = append(cf.warnings, cfg.warnings...)
+	if len(cfg.unchecked) > 0 {
+		notes = append(notes, i18n.T(msgid.CliLintConfigUnchecked, strings.Join(cfg.unchecked, i18n.T(msgid.ListSeparator))))
+	}
+	for _, u := range cfg.unreadable {
+		notes = append(notes, i18n.T(msgid.CliLintManifestUnreadable, u[0], strings.TrimPrefix(strings.TrimSpace(u[1]), "❌ ")))
+	}
+	return append(files, cf), notes, nil
+}
+
 func sameFile(a, b string) (bool, error) {
 	ia, err := os.Stat(a)
 	if err != nil {
@@ -234,7 +341,7 @@ func lintCrossFile(opts *Options, strict bool) ([]lintFile, []string) {
 		f.errors = append(f.errors, clierr.As(err))
 	}
 	f.warnings = append(f.warnings, proj.Warnings...)
-	cfg := lintConfig(proj, strict)
+	cfg := lintConfig(proj, strict, "")
 	f.errors = append(f.errors, cfg.errors...)
 	f.warnings = append(f.warnings, cfg.warnings...)
 	var notes []string

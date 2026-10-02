@@ -19,8 +19,8 @@ reads it whole. `00-core` alone — AGENTS.md plus the core pages — is enough 
 <!-- llms:bundles:begin -->
 - [llms/en/00-core.md](llms/en/00-core.md): AGENTS.md … docs/en/01-three-layers/09-field-reference.md
 - [llms/en/01.md](llms/en/01.md): docs/en/README.md … docs/en/02-project-guide/01-init-and-project-creation.md
-- [llms/en/02.md](llms/en/02.md): docs/en/02-project-guide/02-add-and-component-install.md … docs/en/03-component-guide/01-component-anatomy.md
-- [llms/en/03.md](llms/en/03.md): docs/en/03-component-guide/02-component-yaml-reference.md … docs/en/04-shell/03-shell-declaration.md
+- [llms/en/02.md](llms/en/02.md): docs/en/02-project-guide/02-add-and-component-install.md … docs/en/03-component-guide/README.md
+- [llms/en/03.md](llms/en/03.md): docs/en/03-component-guide/01-component-anatomy.md … docs/en/04-shell/03-shell-declaration.md
 - [llms/en/04.md](llms/en/04.md): docs/en/04-shell/04-members-management.md … docs/en/06-architecture/04-deploy-file-generation.md
 - [llms/en/05.md](llms/en/05.md): docs/en/06-architecture/05-design-principles.md … docs/en/06-architecture/08-security-and-signing.md
 - [llms/en/06.md](llms/en/06.md): docs/en/06-architecture/09-error-codes.md … docs/en/08-ai-guide/README.md

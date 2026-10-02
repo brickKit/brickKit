@@ -133,7 +133,7 @@ brickkit up --all
 | `local refresh` | 把焦点列为你的本地修改之一，方便你把它放回新文件 |
 | `remove` | 移除焦点组件时，焦点跟着一起去掉，并说一句 |
 | `graph`、`deps` | 不受影响——它们读 `deploy.yaml` |
-| 不带参数的 `build`、`deps` | 用你所在目录的那个组件 |
+| 不带参数的 `build`、`deps`、`lint` | 用你所在目录的那个组件（`lint --all` 查整个项目） |
 
 焦点设在 `demo/hello` 上时，`sync` 照样三个都留着：
 

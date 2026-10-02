@@ -38,14 +38,17 @@ type lintConfigResult struct {
 	unreadable [][2]string
 }
 
-// lintConfig 检查项目里每个组件版本的配置。strict 时才查 ${VAR} 与 file:// 取不取得到。
-func lintConfig(proj *project.Project, strict bool) lintConfigResult {
+// lintConfig 检查项目里每个组件版本的配置（only 非空时只查这个组件的各个版本）。strict 时才查 ${VAR} 与 file:// 取不取得到。
+func lintConfig(proj *project.Project, strict bool, only string) lintConfigResult {
 	var res lintConfigResult
 	members := memberEntries(proj)
 	lookup := envref.Lookup(proj.Layout.Root)
 	missing := map[resolver.Ref][]string{}
 
 	for _, c := range proj.Decl.Components {
+		if only != "" && c.ID != only {
+			continue
+		}
 		ref := resolver.Ref{ID: c.ID, Version: c.Version}
 		m, problem, found := diskManifest(proj, c.ID, c.Version)
 		switch {

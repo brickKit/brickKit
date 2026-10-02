@@ -145,7 +145,7 @@ Don't load every component's documentation at once: read only the components the
 - `--no-local`: `up`, `down`, `status` and `sync` ignore `deploy.local.yaml` for this run, without changing the local-mode switch; for `lint` it makes `deploy.yaml` the file the config checks run against (both files are still checked).
 - `--dry-run`: `up` generates the deployment files without running them; `upgrade` works everything out without writing.
 - `--focus <id>` / `--all`: `up` sets or removes the focus in `deploy.local.yaml`; neither goes with `-f` or `--no-local`.
-- No argument, in a component's directory: `build` and `deps` mean that component.
+- No argument, in a component's directory: `build`, `deps` and `lint` mean that component (`lint --all` checks the whole project).
 
 Every command's full flag list is in [`docs/en/07-cli-reference/README.md`](../../docs/en/07-cli-reference/README.md).
 
